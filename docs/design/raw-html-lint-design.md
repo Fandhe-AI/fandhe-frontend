@@ -82,11 +82,16 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `fandhe_fronte
 
 3. **多層防御として `default_escape_check`（テキスト走査）を廃止せず改修する**。
    - clippy が見ない領域（`cfg` で除外されたコード等）に対する保険として、
-     テキスト走査は残す。ただし受理条件を「コメントマーカー」から「同一行・
-     直前行の `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED:
-     ...")]` 属性」へ変更した（`crates/cli/src/gate.rs`
-     `line_has_reviewed_expect_attribute`）。単独のコメントはもはや受理しない
-     （回帰テスト: `scan_file_rejects_comment_only_marker_as_spoofable`・
+     テキスト走査は残す。受理条件を「コメントマーカー」から「呼び出し開始行
+     自体、または呼び出し直前に隙間なく連なる属性グループ列のいずれかに
+     `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED:
+     ...")]` 属性が含まれること」へ変更した（`crates/cli/src/gate.rs`
+     `line_has_reviewed_expect_attribute`・`reviewed_attribute_covers_call`）。
+     イシュー #1116 で「同一行・直前行」の 1 行限定判定から属性ブロック単位の
+     判定へ拡張し、rustfmt が `reason = "..."` を複数行へ折り返した属性・
+     `#[rustfmt::skip]` 等の重ね掛けも受理できるようにした
+     （`docs/policy/raw-html-review-gate.md` §1）。単独のコメントはもはや
+     受理しない（回帰テスト: `scan_file_rejects_comment_only_marker_as_spoofable`・
      `fw_gate_still_blocks_comment_only_spoofed_marker`）。
    - **走査の「コード文脈限定」への精密化（イシュー #372）**: 当初の走査は
      `raw_html` の全出現（コメント・文字列リテラル内を含む）を対象としていた

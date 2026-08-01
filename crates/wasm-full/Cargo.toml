@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-full"
-version = "0.3.8"
+version = "0.4.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -135,6 +135,12 @@ categories = ["wasm", "web-programming"]
 # `crates/headless-ui/src/signature_pad.rs` モジュール doc 参照）。新規外部
 # クレート追加ゼロ、既存 web-sys の feature 追加のみ。`cargo metadata` 実測
 # （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
+# イシュー #1120（wasm-full Runtime のフォーム中心マルチ画面 SPA 対応）:
+# `events::wiring` の input/change 配線一般化（`data-action-input`/
+# `data-action-change` 属性契約）が `<select>`/`<textarea>` のフォーム値を
+# 読み取るため `HtmlSelectElement`/`HtmlTextAreaElement` を追加する。新規
+# 外部クレート追加ゼロ、既存 web-sys の feature 追加のみ。`cargo metadata`
+# 実測（パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
 # イシュー #842（AngleSlider の座標 → 角度変換・DOM 配線、非採用の再導入）:
 # `angle_slider::wiring` がポインタ座標を `getBoundingClientRect`（既存の
 # `DomRect`/`Element` feature を流用）で計測し、`setPointerCapture`/
@@ -177,6 +183,8 @@ features = [
   "HtmlElement",
   "HtmlImageElement",
   "HtmlInputElement",
+  "HtmlSelectElement",
+  "HtmlTextAreaElement",
   "KeyboardEvent",
   "Location",
   "MouseEvent",
@@ -204,7 +212,20 @@ crate-type = ["cdylib", "rlib"]
 # しない方針を維持）、正式計測は統制されたローカル環境で
 # `--features perf-assert` を付けて実行する
 # （`docs/ci/perf-browser-harness.md` 第 5 節）。
+#
+# イシュー #1120: `wasm-bindgen-exports` feature を追加（既定 on）。`entry`
+# モジュール（アプリ側 `#[wasm_bindgen] mount`/`hydrate`/`start_router` の
+# デモ実装）を rlib 経由で依存に加えるだけで自アプリの `#[wasm_bindgen]`
+# エクスポートと名前衝突・バンドル肥大が起きる懸念（イシュー #1120
+# フィードバック 3）を解消するため、`wasm-client` の同名 feature
+# （`wasm-client/Cargo.toml` 参照）と同型の設計でエクスポート面を切り離せる
+# ようにする。既定 on のため既存利用者（`fw new --template app` の
+# `wasm/Cargo.toml` 等）の挙動は変わらない。rlib 専用利用者は
+# `default-features = false` で `entry` のエクスポートを除外できる
+# （`lib.rs` の `pub mod entry` ゲート参照）。
 [features]
+default = ["wasm-bindgen-exports"]
+wasm-bindgen-exports = []
 perf-assert = []
 
 # TASK-11.5a（#86）: 実ブラウザ性能計測ハーネス（wasm-full/tests/perf_browser.rs）の

@@ -11,9 +11,10 @@
 //! 検査・URL 属性検証（イシュー #401）・lint・テスト・依存ポリシー）を実行し、
 //! 集約結果を JSON で stdout へ出力する。
 //! AI 自己保守フック・CI からは本サブコマンドの終了コード（0 = PASS / 1 = BLOCKED /
-//! 2 = 使用法エラー）と JSON の `gate_result` を照合し、変更適用の可否を判断する
-//! 契約とする（`main.rs` 冒頭 doc コメントと同じ「黙示的成功を返さない」契約を
-//! 本モジュールでも維持する）。
+//! 2 = 使用法エラー / 3 = ERROR〔イシュー #1116 で追加。実行環境にツールが無いだけの
+//! 不合格〕）と JSON の `gate_result`（`"PASS"` / `"BLOCKED"` / `"ERROR"`）を照合し、
+//! 変更適用の可否を判断する契約とする（`main.rs` 冒頭 doc コメントと同じ
+//! 「黙示的成功を返さない」契約を本モジュールでも維持する）。
 //!
 //! セキュリティ不変条件:
 //! - 外部コマンドは [`std::process::Command`] に引数配列で渡し、シェル文字列連結を
@@ -69,11 +70,42 @@ const OUTPUT_TRUNCATE_CHARS: usize = 4000;
 /// の責務とする）。
 const ENVIRONMENT_ERROR_PREFIX: &str = "environment error: ";
 
-/// 1 チェックの結果。PoC-7 互換の JSON 形状（`name`/`passed`/`output`）を保つ。
+/// 1 チェックの結果。PoC-7 互換の JSON 形状（`name`/`passed`/`output`）に加え、
+/// イシュー #1116 で `environment_error`/`command` を追加した（既存キーの
+/// 形状・順序は不変の後方互換拡張、`docs/design/gate-design.md` §4）。
 pub(crate) struct GateCheck {
     pub(crate) name: &'static str,
     pub(crate) passed: bool,
     pub(crate) output: String,
+    /// `true` の場合、この不合格は「実行環境にツールが無いだけ」
+    /// （clippy component / cargo-deny 未導入等）であり、コード起因の違反
+    /// ではないことを表す（[`clippy_environment_preflight`] /
+    /// [`cargo_deny_environment_preflight`] のみが `true` をセットする）。
+    /// `aggregate` はこのフラグを見て `gate_result` を `ERROR`/`BLOCKED` に
+    /// 振り分ける（プレフィックス文字列判定ではなく構造化フィールドで判定
+    /// する。output 先頭の [`ENVIRONMENT_ERROR_PREFIX`] は後方互換のため
+    /// 残す）。
+    pub(crate) environment_error: bool,
+    /// 外部コマンド系チェックが実際に起動した完全なコマンドライン
+    /// （例: `cargo clippy --locked --all-targets -p app -- -D warnings`）。
+    /// プリフライト失敗・`deny.toml` 欠落等、本実行に到達しなかった場合は
+    /// `None`（実行していないコマンドを実行済みと誤認させないため）。
+    pub(crate) command: Option<String>,
+}
+
+impl GateCheck {
+    /// 通常系チェック用の構築ヘルパー。`environment_error: false` /
+    /// `command: None` を既定値とし、大多数の呼び出し元（環境エラーでも
+    /// コマンド可視化対象でもないチェック）の記述量を減らす。
+    fn new(name: &'static str, passed: bool, output: String) -> Self {
+        Self {
+            name,
+            passed,
+            output,
+            environment_error: false,
+            command: None,
+        }
+    }
 }
 
 /// ゲート全体の集約結果。
@@ -112,19 +144,25 @@ impl CommandRunner for RealCommandRunner {
 
 /// `fw gate` 本体。`main.rs` の `run()` からディスパッチされるエントリポイント。
 ///
-/// 1. `--project` 引数を解決（[`crate::parse_project_arg`] を再利用、`structure` と
-///    同一の使用法エラー規約）
+/// 1. `--verbose` フラグを除去し、`--project` 引数を解決（[`crate::parse_project_arg`]
+///    を再利用、`structure` と同一の使用法エラー規約）
 /// 2. `<project>/structure.toml` を [`structure::load`] + [`StructureManifest::validate`]
 ///    で読み込む。失敗時は即 BLOCKED（fail-closed。マニフェストが読めない時点で
-///    宣言クレート一覧が定まらず、以降のチェックが無意味になるため）
+///    宣言クレート一覧が定まらず、以降のチェックが無意味になるため。プロジェクト
+///    側の設定不備でありコード起因のため `ERROR` ではなく `BLOCKED` とする）
 /// 3. 6 チェックをすべて実行（早期打ち切りしない。AI エージェントが一括修正できる
 ///    よう全違反を報告する PoC-7 の方針を踏襲）
 /// 4. JSON レポートを stdout へ出力し、`gate_result` に応じた終了コードを返す
+///    （0 = PASS / 1 = BLOCKED / 2 = usage / 3 = ERROR。イシュー #1116 で
+///    環境エラー専用の終了コード 3 を追加した）
 pub(crate) fn run_gate(args: &[String]) -> i32 {
-    let project_dir = match crate::parse_project_arg(args) {
+    let verbose = args.iter().any(|a| a == "--verbose");
+    let remaining: Vec<String> = args.iter().filter(|a| *a != "--verbose").cloned().collect();
+
+    let project_dir = match crate::parse_project_arg(&remaining) {
         Ok(dir) => dir,
         Err(()) => {
-            eprintln!("fw gate: usage: fw gate [--project <dir>]");
+            eprintln!("fw gate: usage: fw gate [--project <dir>] [--verbose]");
             return 2;
         }
     };
@@ -134,11 +172,11 @@ pub(crate) fn run_gate(args: &[String]) -> i32 {
         Ok(m) => m,
         Err(e) => {
             let report = GateReport {
-                checks: vec![GateCheck {
-                    name: "structure_manifest",
-                    passed: false,
-                    output: format!("failed to load structure.toml: {e}"),
-                }],
+                checks: vec![GateCheck::new(
+                    "structure_manifest",
+                    false,
+                    format!("failed to load structure.toml: {e}"),
+                )],
                 gate_result: "BLOCKED",
                 action: "fix structure.toml and re-run `fw gate`".to_string(),
             };
@@ -155,11 +193,7 @@ pub(crate) fn run_gate(args: &[String]) -> i32 {
             .collect::<Vec<_>>()
             .join("\n");
         let report = GateReport {
-            checks: vec![GateCheck {
-                name: "structure_manifest",
-                passed: false,
-                output,
-            }],
+            checks: vec![GateCheck::new("structure_manifest", false, output)],
             gate_result: "BLOCKED",
             action: "fix structure.toml and re-run `fw gate`".to_string(),
         };
@@ -168,13 +202,44 @@ pub(crate) fn run_gate(args: &[String]) -> i32 {
         return 1;
     }
 
-    let report = run_all_checks(&manifest, &project_dir, &RealCommandRunner);
+    let mut report = run_all_checks(&manifest, &project_dir, &RealCommandRunner, verbose);
+    if !verbose {
+        // `run_cargo_test`（`run_all_checks` 経由）は `verbose` を受け取り、
+        // truncate 前の生出力に対して既に要約を適用済み（Bugbot 指摘
+        // 2026-08: 旧実装は本関数が `finish_command_check` による truncate
+        // 後の出力へ要約をかけていたため、大規模テスト実行で早期の
+        // `running`/`test result:` ヘッダーが truncate で失われ不完全な
+        // 要約になっていた）。ここでの再適用は [`summarize_test_output`] が
+        // 冪等（要約済み出力を渡しても同じ行集合を返す）であるための
+        // 二重の安全網であり、要約の主経路ではない。
+        summarize_passing_test_output(&mut report);
+    }
     println!("{}", render_report(&report));
-    if report.gate_result == "PASS" {
-        0
-    } else {
-        eprintln!("fw gate: BLOCKED (see JSON report above for failing checks)");
-        1
+    match report.gate_result {
+        "PASS" => 0,
+        "ERROR" => {
+            eprintln!("fw gate: ERROR (see JSON report above for environment-error checks)");
+            3
+        }
+        _ => {
+            eprintln!("fw gate: BLOCKED (see JSON report above for failing checks)");
+            1
+        }
+    }
+}
+
+/// `--verbose` 未指定時、`test` チェックが PASS の場合のみ output を要約する
+/// （項目 4: 成功時のレポート肥大防止、security.md A09）。失敗時は全文
+/// （丸めあり）を維持し、違反の詳細を削らない。要約不能な想定外の出力形式
+/// では全文へフォールバックする（情報を隠さない fail-safe、[`summarize_test_output`]
+/// 参照）。
+fn summarize_passing_test_output(report: &mut GateReport) {
+    for check in &mut report.checks {
+        if check.name == "test" && check.passed {
+            if let Some(summary) = summarize_test_output(&check.output) {
+                check.output = summary;
+            }
+        }
     }
 }
 
@@ -206,6 +271,7 @@ fn run_all_checks(
     manifest: &StructureManifest,
     project_dir: &Path,
     runner: &dyn CommandRunner,
+    verbose: bool,
 ) -> GateReport {
     let crates = declared_crate_names(manifest);
 
@@ -224,7 +290,7 @@ fn run_all_checks(
             default_escape_check(manifest, project_dir),
             url_validation_check(manifest, project_dir),
             run_cargo_clippy(runner, project_dir, &crates),
-            run_cargo_test(runner, project_dir, &crates),
+            run_cargo_test(runner, project_dir, &crates, verbose),
             policy_check(runner, project_dir),
         ]
     };
@@ -258,22 +324,31 @@ const STATIC_ONLY_NOT_APPLICABLE_MESSAGE: &str = "static-only project (all direc
 role = \"asset\" with no crate): cargo-based check not applicable";
 
 fn not_applicable_check(name: &'static str) -> GateCheck {
-    GateCheck {
-        name,
-        passed: true,
-        output: STATIC_ONLY_NOT_APPLICABLE_MESSAGE.to_string(),
-    }
+    GateCheck::new(name, true, STATIC_ONLY_NOT_APPLICABLE_MESSAGE.to_string())
 }
 
-/// 全チェック通過 → PASS、1 件でも不合格 → BLOCKED（起動失敗も不合格扱い、
-/// fail-closed）。
+/// 集約規則（イシュー #1116 で 3 値化、`docs/design/gate-design.md` §4）:
+/// - 全チェック通過 → `PASS`
+/// - 不合格が 1 件以上あり、**不合格の全件**が `environment_error: true`
+///   （ツール未導入等、実行環境起因）→ `ERROR`
+/// - 不合格にコード起因（`environment_error: false`）が 1 件でも含まれる
+///   → `BLOCKED`（環境エラーと混在してもコード起因を優先し、fail-closed を
+///   弱めない）
 fn aggregate(checks: Vec<GateCheck>) -> GateReport {
-    let all_passed = checks.iter().all(|c| c.passed);
-    if all_passed {
+    let failing: Vec<&GateCheck> = checks.iter().filter(|c| !c.passed).collect();
+    if failing.is_empty() {
         GateReport {
             checks,
             gate_result: "PASS",
             action: "all checks passed; changes may proceed".to_string(),
+        }
+    } else if failing.iter().all(|c| c.environment_error) {
+        GateReport {
+            checks,
+            gate_result: "ERROR",
+            action: "fix the runner environment (see environment-error checks) and re-run \
+`fw gate`"
+                .to_string(),
         }
     } else {
         GateReport {
@@ -311,6 +386,51 @@ refusing to fall back to whole-workspace verification, declare at least one crat
         .to_string()
 }
 
+/// `<project_dir>/tools/ci/ensure-gate-tools.sh` が実在するかを確認する
+/// （項目 1: 案内メッセージの実在導線化）。`fw new` 生成プロジェクト
+/// （`templates/default/`）にはこのスクリプトが同梱されないため、実在しない
+/// 案内を無条件に出すと DX を損なう。実在する場合のみ案内へ追記する
+/// （汎用コマンドは常に提示し、リポジトリ固有の同梱物は実在確認してから
+/// 追記する決定的な組み立て、`docs/design/gate-design.md` §2.3a）。
+fn gate_tools_script_exists(project_dir: &Path) -> bool {
+    project_dir
+        .join("tools")
+        .join("ci")
+        .join("ensure-gate-tools.sh")
+        .is_file()
+}
+
+/// 実行した完全なコマンドライン文字列を組み立てる（項目 3: 実行内容の可視化）。
+/// `args` はシェルメタ文字を含まない引数配列（[`CommandRunner::run`] へ渡す
+/// ものと同一）のため、空白結合で決定的に再構成できる（シェルへは渡さず表示
+/// 専用、security.md A03 の「引数配列で渡す」不変条件は無変更）。
+fn command_line(program: &str, args: &[&str]) -> String {
+    let mut parts = vec![program.to_string()];
+    parts.extend(args.iter().map(|a| a.to_string()));
+    parts.join(" ")
+}
+
+/// `runner.run` の結果を [`GateCheck`] へ変換する共通仕上げ処理。
+/// `command` フィールドと、可読性のための `$ <command>\n` 前置行を output へ
+/// 付与する（項目 3）。
+fn finish_command_check(
+    name: &'static str,
+    program: &str,
+    args: &[&str],
+    passed: bool,
+    output: String,
+) -> GateCheck {
+    let command = command_line(program, args);
+    let displayed = format!("$ {command}\n{}", truncate_output(&output));
+    GateCheck {
+        name,
+        passed,
+        output: displayed,
+        environment_error: false,
+        command: Some(command),
+    }
+}
+
 /// `crates` を対象に `-p <crate>` を連ねて外部コマンドを実行する共通ヘルパー。
 /// `--locked` はロックファイル逸脱（依存すり替え）検出のため常に付与する
 /// （security.md A06）。`crates` が空の場合はワークスペース全体へのフォール
@@ -323,11 +443,7 @@ fn run_locked_cargo_subcommand(
     crates: &[&str],
 ) -> GateCheck {
     if crates.is_empty() {
-        return GateCheck {
-            name,
-            passed: false,
-            output: no_declared_crates_message(),
-        };
+        return GateCheck::new(name, false, no_declared_crates_message());
     }
     let mut args: Vec<&str> = subcommand_args.to_vec();
     for c in crates {
@@ -335,11 +451,7 @@ fn run_locked_cargo_subcommand(
         args.push(c);
     }
     let (passed, output) = runner.run("cargo", &args, project_dir);
-    GateCheck {
-        name,
-        passed,
-        output: truncate_output(&output),
-    }
+    finish_command_check(name, "cargo", &args, passed, output)
 }
 
 fn run_cargo_check(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&str]) -> GateCheck {
@@ -397,15 +509,15 @@ fn clippy_policy_is_configured(clippy_toml_path: &Path) -> bool {
 fn clippy_policy_check(project_dir: &Path) -> Option<GateCheck> {
     let clippy_toml = project_dir.join("clippy.toml");
     if !clippy_policy_is_configured(&clippy_toml) {
-        return Some(GateCheck {
-            name: "lint",
-            passed: false,
-            output: format!(
+        return Some(GateCheck::new(
+            "lint",
+            false,
+            format!(
                 "{} is missing or lacks a `disallowed-methods` entry for `fandhe_frontend_core::raw_html`; \
 without it `cargo clippy` cannot detect unreviewed raw_html() calls (see templates/default/clippy.toml)",
                 clippy_toml.display()
             ),
-        });
+        ));
     }
     None
 }
@@ -416,8 +528,16 @@ without it `cargo clippy` cannot detect unreviewed raw_html() calls (see templat
 /// その失敗はコード内容とは無関係な環境要因であり、コード起因の lint 違反と
 /// 区別できないと「同じ BLOCKED」が原因不明のまま繰り返される。ここで軽量な
 /// `cargo clippy --version` を先に起動し、失敗時のみ [`ENVIRONMENT_ERROR_PREFIX`]
-/// 付きの決定的なメッセージ（是正コマンド付き）で `lint` を failed とする。
-/// 疎通確認自体が成功した場合は `None` を返し、呼び出し元が本実行へ進む。
+/// 付きの決定的なメッセージ（是正コマンド付き）で `lint` を `environment_error:
+/// true` の failed とする（イシュー #1116: `gate_result` の `ERROR` 種別分離の
+/// 発生源。同 fail が構造的な `BLOCKED` へ丸められないことを [`aggregate`] が
+/// 保証する）。疎通確認自体が成功した場合は `None` を返し、呼び出し元が本実行へ
+/// 進む。
+///
+/// 是正案内（項目 1）: 汎用コマンド（`rustup component add clippy`）は常に
+/// 提示し、`project_dir` 配下に `tools/ci/ensure-gate-tools.sh` が実在する
+/// 場合のみそれを追記する（実在しないスクリプトへの案内を出さない、
+/// [`gate_tools_script_exists`] 参照）。
 fn clippy_environment_preflight(
     runner: &dyn CommandRunner,
     project_dir: &Path,
@@ -426,15 +546,21 @@ fn clippy_environment_preflight(
     if available {
         return None;
     }
+    let script_hint = if gate_tools_script_exists(project_dir) {
+        " or run `tools/ci/ensure-gate-tools.sh`"
+    } else {
+        ""
+    };
     Some(GateCheck {
         name: "lint",
         passed: false,
         output: format!(
             "{ENVIRONMENT_ERROR_PREFIX}`cargo clippy` is not available on this runner \
-({}); run `rustup component add clippy` or `tools/ci/ensure-gate-tools.sh` to install it, \
-then re-run `fw gate`",
+({}); run `rustup component add clippy`{script_hint} to install it, then re-run `fw gate`",
             truncate_output(&output)
         ),
+        environment_error: true,
+        command: None,
     })
 }
 
@@ -445,7 +571,9 @@ then re-run `fw gate`",
 /// 失敗し、`deny.toml` の実際のポリシー違反と区別が付かない。`deny.toml`
 /// 存在確認の後・本実行の前に `cargo deny --version` で疎通確認し、失敗時のみ
 /// [`ENVIRONMENT_ERROR_PREFIX`] 付きの決定的なメッセージで `policy` を
-/// failed とする。
+/// `environment_error: true` の failed とする（イシュー #1116）。是正案内
+/// （項目 1）は [`clippy_environment_preflight`] と同型（汎用コマンド常時提示 +
+/// 同梱スクリプト実在時のみ追記）。
 fn cargo_deny_environment_preflight(
     runner: &dyn CommandRunner,
     project_dir: &Path,
@@ -454,14 +582,21 @@ fn cargo_deny_environment_preflight(
     if available {
         return None;
     }
+    let script_hint = if gate_tools_script_exists(project_dir) {
+        " (or run `tools/ci/ensure-gate-tools.sh`)"
+    } else {
+        ""
+    };
     Some(GateCheck {
         name: "policy",
         passed: false,
         output: format!(
             "{ENVIRONMENT_ERROR_PREFIX}`cargo deny` is not available on this runner ({}); \
-run `tools/ci/ensure-gate-tools.sh` to install it, then re-run `fw gate`",
+install cargo-deny (e.g. `cargo install cargo-deny --locked`){script_hint}, then re-run `fw gate`",
             truncate_output(&output)
         ),
+        environment_error: true,
+        command: None,
     })
 }
 
@@ -475,11 +610,7 @@ fn run_cargo_clippy(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&s
     // Bugbot 指摘: PR #261 #2 — `lint` は `run_locked_cargo_subcommand` を介さず
     // 独自に引数を組み立てるため、この分岐を個別に持つ必要がある）。
     if crates.is_empty() {
-        return GateCheck {
-            name: "lint",
-            passed: false,
-            output: no_declared_crates_message(),
-        };
+        return GateCheck::new("lint", false, no_declared_crates_message());
     }
     // イシュー #157: `clippy.toml` の `disallowed-methods` 設定が欠落したまま
     // `cargo clippy` を起動すると「検出項目が何もない」正常終了になり得るため
@@ -508,15 +639,74 @@ fn run_cargo_clippy(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&s
     args.push("-D");
     args.push("warnings");
     let (passed, output) = runner.run("cargo", &args, project_dir);
-    GateCheck {
-        name: "lint",
-        passed,
-        output: truncate_output(&output),
-    }
+    finish_command_check("lint", "cargo", &args, passed, output)
 }
 
-fn run_cargo_test(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&str]) -> GateCheck {
-    run_locked_cargo_subcommand(runner, project_dir, "test", &["test", "--locked"], crates)
+/// `test` チェック専用の実行経路。`run_locked_cargo_subcommand`（他の 2 チェック
+/// が使う共通ヘルパー）へ委譲せず個別実装とする理由: `--verbose` 未指定時の
+/// output 要約（[`summarize_test_output`]）は [`finish_command_check`] による
+/// `OUTPUT_TRUNCATE_CHARS` 丸めより**前**に適用しなければならない（丸め後だと
+/// 大規模テスト実行で早期の `running`/`test result:` ヘッダーが丸めで失われ、
+/// 不完全な要約になる。Bugbot 指摘、2026-08）。共通ヘルパーは丸めまで一体化した
+/// [`finish_command_check`] を直接呼ぶため、丸め前に割り込む余地がない。
+fn run_cargo_test(
+    runner: &dyn CommandRunner,
+    project_dir: &Path,
+    crates: &[&str],
+    verbose: bool,
+) -> GateCheck {
+    if crates.is_empty() {
+        return GateCheck::new("test", false, no_declared_crates_message());
+    }
+    let mut args: Vec<&str> = vec!["test", "--locked"];
+    for c in crates {
+        args.push("-p");
+        args.push(c);
+    }
+    let (passed, output) = runner.run("cargo", &args, project_dir);
+    // PASS かつ `--verbose` 未指定の場合のみ、丸め前の生出力へ要約を適用する
+    // （項目 4: 成功時のレポート肥大防止。失敗時・`--verbose` 指定時は全文を
+    // 維持し違反の詳細を削らない、[`summarize_passing_test_output`] と同じ方針）。
+    // 要約不能（`test result:` 行が 1 件も抽出できない想定外の出力形式）な
+    // 場合は全文へフォールバックする（情報を隠さない fail-safe）。
+    let output = if !verbose && passed {
+        summarize_test_output(&output).unwrap_or(output)
+    } else {
+        output
+    };
+    finish_command_check("test", "cargo", &args, passed, output)
+}
+
+/// `test` チェックが PASS した際の output 要約フィルタ（項目 4: 成功時の
+/// レポート肥大防止、`--verbose` 未指定時のみ [`run_gate`] から適用される）。
+///
+/// 行頭 trim 後の前方一致で「`running N tests`」「`test result:`」
+/// 「`Doc-tests`」ヘッダ行のみを残す決定的なフィルタ。`$ <command>` 前置行
+/// （[`finish_command_check`]）は常に残す。`test result:` 行が 1 件も抽出
+/// できない想定外の出力形式では `None` を返し、呼び出し元が全文（丸めあり）へ
+/// フォールバックする（情報を隠さない fail-safe、security.md A09 は「肥大化
+/// 防止」であって「失敗の隠蔽」ではないため、要約不能を PASS 相当の空 output
+/// にはしない）。
+fn summarize_test_output(output: &str) -> Option<String> {
+    let mut kept: Vec<&str> = Vec::new();
+    let mut has_test_result_line = false;
+    for line in output.lines() {
+        let trimmed = line.trim_start();
+        if line.starts_with("$ ")
+            || trimmed.starts_with("running ") && trimmed.contains(" test")
+            || trimmed.starts_with("test result:")
+            || trimmed.starts_with("Doc-tests")
+        {
+            if trimmed.starts_with("test result:") {
+                has_test_result_line = true;
+            }
+            kept.push(line);
+        }
+    }
+    if !has_test_result_line {
+        return None;
+    }
+    Some(kept.join("\n"))
 }
 
 /// `deny.toml` の存在確認（TASK-4.1 との接続点）→ `cargo deny check bans licenses
@@ -530,30 +720,23 @@ fn run_cargo_test(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&str
 fn policy_check(runner: &dyn CommandRunner, project_dir: &Path) -> GateCheck {
     let deny_toml = project_dir.join("deny.toml");
     if !deny_toml.is_file() {
-        return GateCheck {
-            name: "policy",
-            passed: false,
-            output: format!(
+        return GateCheck::new(
+            "policy",
+            false,
+            format!(
                 "deny.toml not found at {} (see templates/default/deny.toml)",
                 deny_toml.display()
             ),
-        };
+        );
     }
     // イシュー #292: `deny.toml` 存在確認の後・本実行の直前に、cargo-deny 本体が
     // 起動可能かを疎通確認する（runner 環境差の決定的な区別）。
     if let Some(check) = cargo_deny_environment_preflight(runner, project_dir) {
         return check;
     }
-    let (passed, output) = runner.run(
-        "cargo",
-        &["deny", "check", "bans", "licenses", "sources"],
-        project_dir,
-    );
-    GateCheck {
-        name: "policy",
-        passed,
-        output: truncate_output(&output),
-    }
+    let args = ["deny", "check", "bans", "licenses", "sources"];
+    let (passed, output) = runner.run("cargo", &args, project_dir);
+    finish_command_check("policy", "cargo", &args, passed, output)
 }
 
 /// ファイル内容全体（複数行にまたがってよい）から `raw_html` 呼び出しの開始
@@ -924,12 +1107,19 @@ fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 /// この文字列が含まれることを要求する（[`line_has_reviewed_expect_attribute`]）。
 const ESCAPE_REVIEWED_MARKER: &str = "ESCAPE-REVIEWED:";
 
-/// レビュー済みオプトインの属性が呼び出し文へ付与されていることを示す部分文字列。
-/// `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]` の
-/// 形を想定し、`clippy::disallowed_methods` 側の実体験証は
-/// `raw_html_lint_e2e.rs`（実 clippy 起動）が担う。ここでは「該当属性が
-/// ソース上に存在するか」という保険層のテキスト判定に留める。
-const EXPECT_DISALLOWED_METHODS_MARKER: &str = "expect(clippy::disallowed_methods";
+/// 空白・文字列リテラル片を除去した属性グループ（[`AttributeGroup::code_text`]）
+/// または行（[`line_has_reviewed_expect_attribute`]）の**先頭**がこの文字列で
+/// 始まることを要求する（`starts_with`、`contains` ではない）。属性グループは
+/// 常に `#[` から始まる（[`collect_attribute_groups`] の走査条件）ため、
+/// 先頭一致にすることで「グループ内のどこかに `expect(clippy::disallowed_methods`
+/// という文字列断片が現れるか」ではなく「このグループの属性パスそのものが
+/// `expect(clippy::disallowed_methods` であるか」を判定できる。`reason`/`doc`
+/// の文字列リテラル内に両マーカー文字列を埋め込んだだけの偽装（例:
+/// `#[expect(clippy::some_other_lint, reason = "...expect(clippy::disallowed_methods
+/// ...ESCAPE-REVIEWED:...")]`）は、文字列リテラル片除去後も属性パスの先頭が
+/// `clippy::some_other_lint` のままなのでこの先頭一致に落ちる
+/// （イシュー #1116 Bugbot 指摘 "Attribute markers match inside strings"）。
+const EXPECT_DISALLOWED_METHODS_ATTR_HEAD: &str = "#[expect(clippy::disallowed_methods";
 
 /// ブランケット抑止（ファイル・モジュール一括での `disallowed_methods` 無効化）を
 /// 検出するための内部属性プレフィックス。`#![allow(clippy::disallowed_methods)]`
@@ -998,8 +1188,188 @@ pub(crate) fn position_is_inside_string_literal(line: &str, pos: usize) -> bool 
 /// `ESCAPE-REVIEWED:` の両方が含まれることを要求し、旧方式（`ESCAPE-REVIEWED:`
 /// コメント単体）は受理しない（イシュー #157: コメントは clippy に検証されず
 /// 偽装可能なため、コンパイラが解釈する属性であることを必須化する）。
+///
+/// 空白・文字列リテラル片を除去した行の**先頭**が
+/// [`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`] と一致することを必須とする
+/// （`starts_with`。定数の doc コメント参照）。`#[doc = "...expect(clippy::
+/// disallowed_methods...ESCAPE-REVIEWED:..."]` のように両マーカーが
+/// `reason`/`doc` の文字列リテラル内へ埋め込まれただけの行を誤って
+/// 「レビュー済み属性」と受理しない（イシュー #1116 Bugbot 指摘
+/// "Attribute markers match inside strings"）。`ESCAPE_REVIEWED_MARKER` は
+/// `reason = "ESCAPE-REVIEWED: ..."` の文字列リテラル内に現れるのが正規形の
+/// ため、こちらは文字列リテラルの内外を問わず判定する。
 fn line_has_reviewed_expect_attribute(line: &str) -> bool {
-    line.contains(EXPECT_DISALLOWED_METHODS_MARKER) && line.contains(ESCAPE_REVIEWED_MARKER)
+    code_chars_outside_string_literal(line).starts_with(EXPECT_DISALLOWED_METHODS_ATTR_HEAD)
+        && line.contains(ESCAPE_REVIEWED_MARKER)
+}
+
+/// `line` から空白と文字列リテラル内の文字を除いた「コード部分のみ」の文字列を
+/// 返す（[`position_is_inside_string_literal`] が真と判定する区間および
+/// 空白を除去する）。マーカー文字列が空白・クォート `"` を含まないため、
+/// これらを取り除いても実際の属性構文（`expect(...)` 等）のトークン列は
+/// 分断されない。[`AttributeGroup::code_text`] と同じ組み立て規則
+/// （[`collect_attribute_groups`] 参照）を単一行版として提供する。
+fn code_chars_outside_string_literal(line: &str) -> String {
+    line.char_indices()
+        .filter(|(pos, c)| !c.is_whitespace() && !position_is_inside_string_literal(line, *pos))
+        .map(|(_, c)| c)
+        .collect()
+}
+
+/// `raw_html()` 呼び出し（開始行 `lines[line_idx]`）が「レビュー済み
+/// `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: ...\")]`」
+/// 属性で覆われているかを判定する（イシュー #1116 項目 5）。
+///
+/// 受理条件は 2 通り:
+/// 1. 呼び出し開始行自体が「先頭が `#[expect(clippy::disallowed_methods` で
+///    始まり、かつ `ESCAPE-REVIEWED:` を含む」（[`line_has_reviewed_expect_attribute`]、
+///    旧来からの同一行形。互換維持）
+/// 2. 呼び出し直前に**隙間なく**連なる属性グループ列（`#[` から対応する `]` まで
+///    を 1 グループとし、[`position_is_inside_string_literal`] で文字列リテラル
+///    内の `[`/`]` を除外した括弧バランスで判定）のうち、単一のグループの
+///    **先頭**が `#[expect(clippy::disallowed_methods` で始まり、かつ
+///    `ESCAPE-REVIEWED:` を含むものがあれば受理する。rustfmt が
+///    `reason = "..."` を複数行へ折り返した属性や、`#[rustfmt::skip]` 等の
+///    重ね掛けを想定する（`docs/policy/raw-html-review-gate.md` §1）。
+///
+/// いずれも「グループ内のどこかに両マーカーが**含まれる**か」ではなく
+/// 「グループの属性パス自体が `expect(clippy::disallowed_methods` である
+/// か」を先頭一致（`starts_with`）で判定する（[`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`]）。
+/// `#[expect(clippy::some_other_lint, reason = "...expect(clippy::
+/// disallowed_methods...ESCAPE-REVIEWED:...")]` のように、両マーカー文字列を
+/// `reason`/`doc` の文字列リテラル内へ埋め込んだだけで実際の属性対象が
+/// `disallowed_methods` ではない偽装を受理しない（イシュー #1116 Bugbot 指摘
+/// "Attribute markers match inside strings"）。
+///
+/// 上方向の走査は空行・コメント行（`//`/`///`/`//!`）で必ず打ち切る。属性と
+/// 呼び出しの間に無関係な行を挟んだ受理は認めない（保険層の偽陰性ゼロ方針を
+/// 維持、主防御である `lint` チェックは無変更）。
+fn reviewed_attribute_covers_call(lines: &[&str], line_idx: usize) -> bool {
+    if lines
+        .get(line_idx)
+        .is_some_and(|l| line_has_reviewed_expect_attribute(l))
+    {
+        return true;
+    }
+    if line_idx == 0 {
+        return false;
+    }
+
+    // ファイル全体を前方走査して属性グループ（`#[` から対応する `]` までの
+    // 行範囲）を列挙する（呼び出し行の位置に関わらず、常にファイル先頭から
+    // グループ境界を解決する。呼び出し直前から上方向へ 1 行ずつ「これは
+    // 属性か」を判定する素朴な逆走査は、複数行属性の継続行〔`reason = "..."`
+    // 単体の行等〕が `#[` で始まらないため誤って非属性ブロックと誤認し、
+    // さらに関数シグネチャ行等へ突き抜けてしまう不具合があった。前方走査で
+    // グループの開始・終了行を先に確定させることでこれを避ける）。
+    let groups = collect_attribute_groups(lines);
+
+    // 呼び出し直前の行で終わるグループから開始し、グループ同士が隙間なく
+    // 連なる限り上方向へ遡って確認する（`#[rustfmt::skip]` 等の重ね掛けを
+    // 想定。空行・コメント行は属性グループを構成しないため、連鎖はそこで
+    // 自然に途切れる）。
+    let mut want_end = line_idx - 1;
+    loop {
+        let Some(group) = groups.iter().find(|g| g.end == want_end) else {
+            return false;
+        };
+        if group
+            .code_text
+            .starts_with(EXPECT_DISALLOWED_METHODS_ATTR_HEAD)
+            && group.text.contains(ESCAPE_REVIEWED_MARKER)
+        {
+            return true;
+        }
+        if group.start == 0 {
+            return false;
+        }
+        want_end = group.start - 1;
+    }
+}
+
+/// [`reviewed_attribute_covers_call`] が使う属性グループの行範囲（両端含む）
+/// と全文。
+struct AttributeGroup {
+    start: usize,
+    end: usize,
+    /// 空白除去のみを行った全文（文字列リテラル片も含む）。
+    /// `ESCAPE_REVIEWED_MARKER`（`reason = "ESCAPE-REVIEWED: ..."` の文字列
+    /// リテラル内に現れるのが正規形）の判定に使う。
+    text: String,
+    /// `text` からさらに文字列リテラル内の文字を除去したコード部分のみ。
+    /// グループは常に `#[` から始まる（走査条件）ため、この文字列の**先頭**が
+    /// [`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`] と一致するかどうか
+    /// （`starts_with`）で「このグループの属性パスが実際に
+    /// `expect(clippy::disallowed_methods` か」を判定する。`#[doc = "...expect(
+    /// clippy::disallowed_methods..."]` のように文字列リテラル内にマーカー
+    /// 文字列が偶然埋め込まれただけの行は、文字列除去後も属性パスの先頭が
+    /// `doc=` のままなのでこの先頭一致に落ちる（イシュー #1116 Bugbot 指摘
+    /// "Attribute markers match inside strings"）。
+    code_text: String,
+}
+
+/// `lines` を先頭から走査し、`#[` で始まる行を起点とする属性グループを
+/// すべて列挙する。グループの終了は `[`/`]` の括弧バランス（文字列リテラル内は
+/// [`position_is_inside_string_literal`] で除外）が 0 以下に戻った行とする。
+/// rustfmt が `reason = "..."` を折り返した複数行属性もこれで 1 グループとして
+/// 扱える。
+fn collect_attribute_groups(lines: &[&str]) -> Vec<AttributeGroup> {
+    let mut groups = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        if !lines[i].trim_start().starts_with("#[") {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        let mut depth: i32 = 0;
+        let mut text = String::new();
+        let mut code_text = String::new();
+        loop {
+            let line = lines[i];
+            // 空白（半角スペース・タブ・改行）を除去してから蓄積する。rustfmt が
+            // `#[expect(\n    clippy::disallowed_methods,\n    ...\n)]` のように
+            // トークンの間に改行・インデントを挿入するため、生の行を単純連結
+            // すると [`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`] のような空白を含まない
+            // マーカー文字列が分断されて検出できなくなる。マーカー自体が空白を
+            // 含まないため、空白除去後の比較で偽陰性を生まない
+            // （ブラケット深度の判定は空白除去前の元行に対して行うため無影響）。
+            text.extend(line.chars().filter(|c| !c.is_whitespace()));
+            // `code_text` は文字列リテラル内の文字も併せて除去する。
+            // [`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`] は文字列リテラルの外側
+            // （実際の属性構文の先頭）に出現することを要求するための判定材料
+            // （[`reviewed_attribute_covers_call`] 参照）。
+            code_text.extend(
+                line.char_indices()
+                    .filter(|(pos, c)| {
+                        !c.is_whitespace() && !position_is_inside_string_literal(line, *pos)
+                    })
+                    .map(|(_, c)| c),
+            );
+            for (pos, ch) in line.char_indices() {
+                if position_is_inside_string_literal(line, pos) {
+                    continue;
+                }
+                match ch {
+                    '[' => depth += 1,
+                    ']' => depth -= 1,
+                    _ => {}
+                }
+            }
+            if depth <= 0 || i + 1 >= lines.len() {
+                break;
+            }
+            i += 1;
+        }
+        groups.push(AttributeGroup {
+            start,
+            end: i,
+            text,
+            code_text,
+        });
+        i += 1;
+    }
+    groups
 }
 
 /// `role = "core"` 以外の宣言ディレクトリの `src/` 配下 `*.rs`（`tests/` は
@@ -1034,11 +1404,7 @@ fn default_escape_check(manifest: &StructureManifest, project_dir: &Path) -> Gat
     } else {
         truncate_output(&violations.join("\n"))
     };
-    GateCheck {
-        name: "default_escape_check",
-        passed,
-        output,
-    }
+    GateCheck::new("default_escape_check", passed, output)
 }
 
 // --- `url_validation_check`（イシュー #401） ---
@@ -1157,11 +1523,7 @@ fn url_validation_check(manifest: &StructureManifest, project_dir: &Path) -> Gat
     } else {
         truncate_output(&violations.join("\n"))
     };
-    GateCheck {
-        name: "url_validation_check",
-        passed,
-        output,
-    }
+    GateCheck::new("url_validation_check", passed, output)
 }
 
 /// U1: `src_dir` 配下の各 `*.rs` ファイルについて、[`URL_SINK_NEEDLES`] の
@@ -1506,14 +1868,7 @@ fn scan_file_for_violations(path: &Path, violations: &mut Vec<String>) {
             Ok(i) => i,
             Err(i) => i.saturating_sub(1),
         };
-        let reviewed_here = lines
-            .get(line_idx)
-            .is_some_and(|l| line_has_reviewed_expect_attribute(l));
-        let reviewed_prev = line_idx > 0
-            && lines
-                .get(line_idx - 1)
-                .is_some_and(|l| line_has_reviewed_expect_attribute(l));
-        if reviewed_here || reviewed_prev {
+        if reviewed_attribute_covers_call(&lines, line_idx) {
             continue;
         }
         violations.push(format!(
@@ -1567,6 +1922,18 @@ fn render_report(report: &GateReport) -> String {
         buf.push_str(if check.passed { "true" } else { "false" });
         buf.push_str(",\"output\":");
         buf.push_str(&quoted(&check.output));
+        // イシュー #1116 で追加した後方互換拡張キー。既存 3 キー（name/passed/
+        // output）の形状・順序は不変で、末尾へ追記するのみ。
+        buf.push_str(",\"environment_error\":");
+        buf.push_str(if check.environment_error {
+            "true"
+        } else {
+            "false"
+        });
+        if let Some(command) = &check.command {
+            buf.push_str(",\"command\":");
+            buf.push_str(&quoted(command));
+        }
         buf.push('}');
     }
     buf.push(']');
@@ -1653,16 +2020,8 @@ mod tests {
     #[test]
     fn aggregate_all_passed_is_pass() {
         let checks = vec![
-            GateCheck {
-                name: "a",
-                passed: true,
-                output: String::new(),
-            },
-            GateCheck {
-                name: "b",
-                passed: true,
-                output: String::new(),
-            },
+            GateCheck::new("a", true, String::new()),
+            GateCheck::new("b", true, String::new()),
         ];
         let report = aggregate(checks);
         assert_eq!(report.gate_result, "PASS");
@@ -1671,17 +2030,33 @@ mod tests {
     #[test]
     fn aggregate_one_failure_is_blocked() {
         let checks = vec![
-            GateCheck {
-                name: "a",
-                passed: true,
-                output: String::new(),
-            },
-            GateCheck {
-                name: "b",
-                passed: false,
-                output: "boom".to_string(),
-            },
+            GateCheck::new("a", true, String::new()),
+            GateCheck::new("b", false, "boom".to_string()),
         ];
+        let report = aggregate(checks);
+        assert_eq!(report.gate_result, "BLOCKED");
+    }
+
+    #[test]
+    fn aggregate_all_failures_environment_error_is_error() {
+        // イシュー #1116: 不合格の全件が environment_error なら BLOCKED ではなく
+        // ERROR に分類される（コード起因の違反ではないことを機械的に区別する）。
+        let mut a = GateCheck::new("lint", false, "env".to_string());
+        a.environment_error = true;
+        let checks = vec![a];
+        let report = aggregate(checks);
+        assert_eq!(report.gate_result, "ERROR");
+        assert!(report.action.contains("runner environment"));
+    }
+
+    #[test]
+    fn aggregate_mixed_environment_error_and_code_failure_is_blocked() {
+        // 環境エラーとコード起因が混在する場合はコード起因を優先し BLOCKED を
+        // 維持する（fail-closed を弱めない）。
+        let mut env_err = GateCheck::new("lint", false, "env".to_string());
+        env_err.environment_error = true;
+        let code_fail = GateCheck::new("test", false, "boom".to_string());
+        let checks = vec![env_err, code_fail];
         let report = aggregate(checks);
         assert_eq!(report.gate_result, "BLOCKED");
     }
@@ -1701,7 +2076,7 @@ mod tests {
                 (false, "cargo: command not found".to_string()),
             ]),
         };
-        let report = run_all_checks(&manifest, &dir, &runner);
+        let report = run_all_checks(&manifest, &dir, &runner, false);
         assert_eq!(report.gate_result, "BLOCKED");
         let type_check = report
             .checks
@@ -1796,6 +2171,10 @@ mod tests {
 
     #[test]
     fn clippy_environment_preflight_fails_closed_with_environment_error_when_unavailable() {
+        // イシュー #1116 項目 1: `tools/ci/ensure-gate-tools.sh` はテンプレート
+        // 生成プロジェクトに同梱されないため、スクリプトが実在しない
+        // `scratch_root()`（このテンポラリディレクトリには実在しない）配下では
+        // 汎用コマンドのみが案内され、実在しないスクリプトへの案内は出さない。
         let dir = crate::test_scratch::scratch_root();
         let runner = FakeRunner {
             responses: Mutex::new(vec![(
@@ -1807,12 +2186,46 @@ mod tests {
         assert_eq!(check.name, "lint");
         assert!(!check.passed);
         assert!(
+            check.environment_error,
+            "tool-unavailable preflight must set environment_error: true \
+(gate_result must resolve to ERROR, not BLOCKED)"
+        );
+        assert!(
             check.output.starts_with(ENVIRONMENT_ERROR_PREFIX),
             "output={}",
             check.output
         );
         assert!(check.output.contains("rustup component add clippy"));
+        assert!(
+            !check.output.contains("tools/ci/ensure-gate-tools.sh"),
+            "must not advertise a script that does not exist in project_dir: {}",
+            check.output
+        );
+    }
+
+    #[test]
+    fn clippy_environment_preflight_mentions_ensure_gate_tools_script_when_present() {
+        // 同梱スクリプトが `project_dir` 配下に実在する場合のみ案内へ追記する
+        // （項目 1 の実在導線化）。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-clippy-preflight-script-present-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(dir.join("tools").join("ci")).unwrap();
+        std::fs::write(
+            dir.join("tools").join("ci").join("ensure-gate-tools.sh"),
+            "#!/usr/bin/env bash\n",
+        )
+        .unwrap();
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![(
+                false,
+                "error: no such subcommand: `clippy`".to_string(),
+            )]),
+        };
+        let check = clippy_environment_preflight(&runner, &dir).expect("must fail closed");
         assert!(check.output.contains("tools/ci/ensure-gate-tools.sh"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -1837,11 +2250,44 @@ mod tests {
         assert_eq!(check.name, "policy");
         assert!(!check.passed);
         assert!(
+            check.environment_error,
+            "tool-unavailable preflight must set environment_error: true \
+(gate_result must resolve to ERROR, not BLOCKED)"
+        );
+        assert!(
             check.output.starts_with(ENVIRONMENT_ERROR_PREFIX),
             "output={}",
             check.output
         );
+        assert!(check.output.contains("cargo install cargo-deny --locked"));
+        assert!(
+            !check.output.contains("tools/ci/ensure-gate-tools.sh"),
+            "must not advertise a script that does not exist in project_dir: {}",
+            check.output
+        );
+    }
+
+    #[test]
+    fn cargo_deny_environment_preflight_mentions_ensure_gate_tools_script_when_present() {
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-deny-preflight-script-present-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(dir.join("tools").join("ci")).unwrap();
+        std::fs::write(
+            dir.join("tools").join("ci").join("ensure-gate-tools.sh"),
+            "#!/usr/bin/env bash\n",
+        )
+        .unwrap();
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![(
+                false,
+                "failed to launch `cargo`: No such file or directory".to_string(),
+            )]),
+        };
+        let check = cargo_deny_environment_preflight(&runner, &dir).expect("must fail closed");
         assert!(check.output.contains("tools/ci/ensure-gate-tools.sh"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -2134,6 +2580,202 @@ mod tests {
         let mut violations = Vec::new();
         scan_file_for_violations(&file, &mut violations);
         assert!(violations.is_empty());
+    }
+
+    // ------------------------------------------------------------------
+    // イシュー #1116 項目 5: rustfmt が `#[expect(...)]` を複数行へ折り返した
+    // 場合の受理（属性ブロック単位の走査、`reviewed_attribute_covers_call`）。
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn scan_file_allows_rustfmt_wrapped_multiline_expect_attribute() {
+        // rustfmt が `reason = "..."` を 2 行目へ折り返した実際の出力形。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-rustfmt-wrapped-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() {\n    #[expect(\n        clippy::disallowed_methods,\n        reason = \"ESCAPE-REVIEWED: sanitized upstream\"\n    )]\n    raw_html(x);\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert!(
+            violations.is_empty(),
+            "rustfmt-wrapped multi-line #[expect(...)] must be accepted without \
+#[rustfmt::skip]: violations={violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_file_allows_stacked_attributes_with_reviewed_expect() {
+        // `#[rustfmt::skip]` 等が重ね掛けされていても、スタック中のいずれかの
+        // グループが両マーカーを含めば受理する。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-stacked-attrs-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() {\n    #[rustfmt::skip]\n    #[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: sanitized upstream\")]\n    raw_html(x);\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert!(violations.is_empty(), "violations: {violations:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_file_rejects_markers_split_across_separate_attribute_groups() {
+        // マーカーが単一の属性グループ内にまとまっておらず、無関係な属性群
+        // へ分散している場合は受理しない（保険層の偽陰性ゼロ方針）。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-split-markers-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() {\n    #[doc = \"ESCAPE-REVIEWED: sanitized upstream\"]\n    #[expect(clippy::disallowed_methods)]\n    raw_html(x);\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert_eq!(
+            violations.len(),
+            1,
+            "markers split across separate attribute groups must not be accepted: {violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_file_rejects_markers_embedded_only_inside_multiline_attribute_string() {
+        // イシュー #1116 Bugbot 指摘 "Attribute markers match inside strings"
+        // の回帰: 複数行 `#[expect(...)]` の `reason` 文字列リテラル内へ
+        // `expect(clippy::disallowed_methods` と `ESCAPE-REVIEWED:` の両文字列を
+        // 埋め込んだだけの偽装は受理してはならない（実際の属性対象は
+        // `clippy::some_other_lint` であり `disallowed_methods` ではない）。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-marker-inside-string-multiline-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() {\n    #[expect(\n        clippy::some_other_lint,\n        reason = \"see expect(clippy::disallowed_methods ESCAPE-REVIEWED: fake\"\n    )]\n    raw_html(x);\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert_eq!(
+            violations.len(),
+            1,
+            "markers embedded only inside a reason string literal must not be accepted \
+as a reviewed attribute: violations={violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_file_rejects_markers_embedded_only_inside_same_line_attribute_string() {
+        // 同一行版の回帰（[`line_has_reviewed_expect_attribute`]）。属性対象は
+        // `clippy::some_other_lint` であり、`disallowed_methods` はコメント文字列
+        // （`doc`）内にのみ現れる。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-marker-inside-string-same-line-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() {\n    #[doc = \"expect(clippy::disallowed_methods ESCAPE-REVIEWED: fake\"] raw_html(x);\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert_eq!(
+            violations.len(),
+            1,
+            "markers embedded only inside a doc string literal must not be accepted \
+as a reviewed attribute: violations={violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_file_rejects_markers_inside_string_spanning_multiple_lines() {
+        // 追加の縁: 属性の文字列リテラル自体が複数行にまたがる偽装
+        // （`position_is_inside_string_literal` は行単位のクォート偶奇判定の
+        // ため、文字列が前の行から継続している行では「文字列の内側」と
+        // 認識できない）。`#[doc = "..."]` の文字列を複数行へまたがせて両
+        // マーカーを埋め込んでも、属性パスの先頭一致（`starts_with`、
+        // [`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`]）により `#[doc` を
+        // `#[expect(clippy::disallowed_methods` と誤認しないため受理しない。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-marker-inside-multiline-string-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() {\n    #[doc = \"a\nexpect(clippy::disallowed_methods\nESCAPE-REVIEWED: fake\"]\n    raw_html(x);\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert_eq!(
+            violations.len(),
+            1,
+            "markers embedded inside a string literal that spans multiple lines must not be \
+accepted as a reviewed attribute: violations={violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_file_rejects_attribute_separated_by_blank_line() {
+        // 属性と呼び出しの間に空行を挟んだ場合は連鎖が途切れ、受理しない。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-blank-gap-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() {\n    #[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: sanitized upstream\")]\n\n    raw_html(x);\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert_eq!(violations.len(), 1, "violations: {violations:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -2916,11 +3558,11 @@ pub fn is_safe_srcset(value: &str) -> bool {
     #[test]
     fn render_report_escapes_command_output_with_quotes_and_control_chars() {
         let report = GateReport {
-            checks: vec![GateCheck {
-                name: "lint",
-                passed: false,
-                output: "warning: \"unused\"\ncontrol\x07char".to_string(),
-            }],
+            checks: vec![GateCheck::new(
+                "lint",
+                false,
+                "warning: \"unused\"\ncontrol\x07char".to_string(),
+            )],
             gate_result: "BLOCKED",
             action: "fix".to_string(),
         };
@@ -2933,6 +3575,38 @@ pub fn is_safe_srcset(value: &str) -> bool {
     }
 
     #[test]
+    fn render_report_emits_environment_error_and_command_keys() {
+        // イシュー #1116: 追加キーは後方互換拡張（既存 3 キーの形状・順序は
+        // 不変、末尾へ追記）。`environment_error` は全チェックで常時出力、
+        // `command` は `Some` の場合のみ出力する。
+        let mut env_check = GateCheck::new("policy", false, "env err".to_string());
+        env_check.environment_error = true;
+        let mut cmd_check = GateCheck::new("lint", true, "ok".to_string());
+        cmd_check.command = Some("cargo clippy --locked".to_string());
+        let report = GateReport {
+            checks: vec![env_check, cmd_check],
+            gate_result: "BLOCKED",
+            action: "fix".to_string(),
+        };
+        let json_text = render_report(&report);
+        let parsed = crate::json::parse(&json_text).expect("must be valid JSON");
+        let checks = parsed.get("checks").and_then(|v| v.as_array()).unwrap();
+        assert_eq!(
+            checks[0].get("environment_error"),
+            Some(&crate::json::Json::Bool(true))
+        );
+        assert!(checks[0].get("command").is_none());
+        assert_eq!(
+            checks[1].get("environment_error"),
+            Some(&crate::json::Json::Bool(false))
+        );
+        assert_eq!(
+            checks[1].get("command").and_then(|v| v.as_str()),
+            Some("cargo clippy --locked")
+        );
+    }
+
+    #[test]
     fn truncate_output_keeps_tail_within_limit() {
         let long = "a".repeat(OUTPUT_TRUNCATE_CHARS + 100);
         let truncated = truncate_output(&long);
@@ -2942,6 +3616,96 @@ pub fn is_safe_srcset(value: &str) -> bool {
     #[test]
     fn truncate_output_leaves_short_output_untouched() {
         assert_eq!(truncate_output("short"), "short");
+    }
+
+    // ------------------------------------------------------------------
+    // イシュー #1116 項目 4: `test` チェック PASS 時の output 要約
+    // （`summarize_test_output`）。
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn summarize_test_output_keeps_command_line_and_result_lines_only() {
+        let raw = "$ cargo test --locked -p fandhe-frontend-core\n\
+   Compiling fandhe-frontend-core v0.1.0\n\
+    Finished test [unoptimized + debuginfo] target(s) in 1.23s\n\
+     Running unittests src/lib.rs\n\
+\n\
+running 5 tests\n\
+test foo::bar ... ok\n\
+test foo::baz ... ok\n\
+\n\
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n\
+\n\
+   Doc-tests fandhe-frontend-core\n\
+\n\
+running 2 tests\n\
+test src/lib.rs - foo ... ok\n\
+\n\
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
+        let summary = summarize_test_output(raw).expect("must summarize");
+        assert!(summary.contains("$ cargo test --locked -p fandhe-frontend-core"));
+        assert!(summary.contains("running 5 tests"));
+        assert!(summary.contains("test result: ok. 5 passed"));
+        assert!(summary.contains("Doc-tests fandhe-frontend-core"));
+        assert!(summary.contains("running 2 tests"));
+        assert!(summary.contains("test result: ok. 2 passed"));
+        // 個別テスト名の詳細行は要約から除去される（レポート肥大防止）。
+        assert!(!summary.contains("test foo::bar"));
+        assert!(!summary.contains("Compiling fandhe-frontend-core"));
+    }
+
+    #[test]
+    fn summarize_test_output_falls_back_to_none_for_unrecognized_format() {
+        // `test result:` 行が 1 件も抽出できない想定外の出力形式では要約せず、
+        // 呼び出し元が全文へフォールバックできるよう `None` を返す
+        // （情報を隠さない fail-safe）。
+        assert!(summarize_test_output("some unexpected output with no test markers").is_none());
+    }
+
+    /// [`summarize_test_output`]（純粋関数）と [`run_gate`] の配線
+    /// （[`summarize_passing_test_output`]）を検証する。`--verbose` 相当の
+    /// 呼び出し元制御は `run_gate` 側にあるため、ここでは「関数自体が
+    /// passed=true のみ要約し passed=false は一切変更しない」契約を固定する
+    /// （security.md A09: 失敗の詳細を隠さない）。
+    #[test]
+    fn summarize_passing_test_output_summarizes_only_passing_test_check() {
+        let raw =
+            "$ cargo test --locked -p app\nrunning 1 test\ntest foo ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
+        let mut report = GateReport {
+            checks: vec![
+                GateCheck::new("test", true, raw.to_string()),
+                GateCheck::new("test", false, raw.to_string()),
+            ],
+            gate_result: "PASS",
+            action: String::new(),
+        };
+        summarize_passing_test_output(&mut report);
+
+        // passed=true: 要約される（個別テスト詳細行が削られる）。
+        assert!(!report.checks[0].output.contains("test foo ... ok"));
+        assert!(report.checks[0]
+            .output
+            .contains("test result: ok. 1 passed"));
+
+        // passed=false: 一切変更されない（バイト同一、失敗詳細を隠さない）。
+        assert_eq!(report.checks[1].output, raw);
+    }
+
+    #[test]
+    fn summarize_passing_test_output_leaves_not_applicable_output_untouched() {
+        // 静的専用モード（`not_applicable_check`）の `test` 出力は
+        // `summarize_test_output` が要約不能（`test result:` 行なし）と判定し
+        // `None` を返すため、フォールバックにより元のまま残る。
+        let mut report = GateReport {
+            checks: vec![not_applicable_check("test")],
+            gate_result: "PASS",
+            action: String::new(),
+        };
+        summarize_passing_test_output(&mut report);
+        assert_eq!(
+            report.checks[0].output,
+            STATIC_ONLY_NOT_APPLICABLE_MESSAGE.to_string()
+        );
     }
 
     // ------------------------------------------------------------------
@@ -3044,10 +3808,29 @@ pub fn is_safe_srcset(value: &str) -> bool {
         ]);
         let check = policy_check(&runner, &dir);
         assert!(!check.passed);
-        assert_eq!(check.output.chars().count(), OUTPUT_TRUNCATE_CHARS);
+        // イシュー #1116: output は `$ <command>\n` の前置行 + 丸め済み本体
+        // （項目 3: 実行コマンドの可視化）。丸め上限自体は本体側で維持される。
+        let expected_prefix = "$ cargo deny check bans licenses sources\n";
+        assert!(
+            check.output.starts_with(expected_prefix),
+            "output={}",
+            check.output
+        );
+        assert_eq!(
+            check.output[expected_prefix.len()..].chars().count(),
+            OUTPUT_TRUNCATE_CHARS
+        );
+        assert!(
+            !check.environment_error,
+            "code-caused cargo-deny failure must not be mislabeled as an environment error"
+        );
         assert!(
             !check.output.starts_with(ENVIRONMENT_ERROR_PREFIX),
             "code-caused cargo-deny failure must not be mislabeled as an environment error"
+        );
+        assert_eq!(
+            check.command.as_deref(),
+            Some("cargo deny check bans licenses sources")
         );
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -3089,12 +3872,46 @@ pub fn is_safe_srcset(value: &str) -> bool {
     fn run_cargo_test_invokes_cargo_with_locked_and_declared_crates() {
         let dir = crate::test_scratch::scratch_root();
         let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
-        let check = run_cargo_test(&runner, &dir, &["fandhe-frontend-core"]);
+        let check = run_cargo_test(&runner, &dir, &["fandhe-frontend-core"], false);
         assert!(check.passed);
 
         let (program, args) = runner.last_call();
         assert_eq!(program, "cargo");
         assert_eq!(args, vec!["test", "--locked", "-p", "fandhe-frontend-core"]);
+    }
+
+    /// PR #1126 レビュー指摘（2026-08）の回帰テスト: `test` PASS 時の要約
+    /// （[`summarize_test_output`]）は `OUTPUT_TRUNCATE_CHARS`（4000 文字）丸めの
+    /// **前**に生出力へ適用されなければならない。丸め後に要約すると、出力先頭の
+    /// `running N tests` 等の早期ヘッダーが丸めで失われた大規模実行では
+    /// 不完全な要約（`test result:` 行を 1 件も含まない = 要約不能）になる。
+    /// この回帰を検知するため、先頭ヘッダーと丸め上限を超える大量の個別
+    /// テスト詳細行の後ろに `test result:` を置いた出力を与え、`--verbose`
+    /// 未指定時に先頭ヘッダーが要約結果へ残ることを確認する。
+    #[test]
+    fn run_cargo_test_summarizes_before_truncation_when_not_verbose() {
+        let dir = crate::test_scratch::scratch_root();
+        let header = "running 1 test\n";
+        // 丸め上限（4000 文字）を優に超える個別テスト詳細行で本体を埋め、
+        // 丸め前に要約しなければ先頭の `header` が失われる状況を再現する。
+        let filler = "test some::very::long::module::path::case ... ok\n".repeat(200);
+        let raw = format!("{header}{filler}test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n");
+        assert!(
+            raw.len() > OUTPUT_TRUNCATE_CHARS,
+            "fixture must exceed the truncation threshold to exercise the regression"
+        );
+        let runner = ArgsRecordingRunner::new(vec![(true, raw)]);
+        let check = run_cargo_test(&runner, &dir, &["fandhe-frontend-core"], false);
+        assert!(check.passed);
+        assert!(
+            check.output.contains("running 1 test"),
+            "early header must survive: summarization must run before truncation, got: {}",
+            check.output
+        );
+        assert!(check.output.contains("test result: ok. 1 passed"));
+        assert!(!check
+            .output
+            .contains("test some::very::long::module::path::case"));
     }
 
     #[test]
@@ -3162,7 +3979,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
     #[test]
     fn run_cargo_test_fails_closed_when_no_crates_declared() {
         let dir = crate::test_scratch::scratch_root();
-        let check = run_cargo_test(&PanicIfCalledRunner, &dir, &[]);
+        let check = run_cargo_test(&PanicIfCalledRunner, &dir, &[], false);
         assert!(!check.passed);
         assert!(check.output.contains("no crate declared"));
     }
@@ -3175,22 +3992,14 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn aggregate_all_passed_action_text_is_fixed() {
-        let checks = vec![GateCheck {
-            name: "a",
-            passed: true,
-            output: String::new(),
-        }];
+        let checks = vec![GateCheck::new("a", true, String::new())];
         let report = aggregate(checks);
         assert_eq!(report.action, "all checks passed; changes may proceed");
     }
 
     #[test]
     fn aggregate_failure_action_text_is_fixed() {
-        let checks = vec![GateCheck {
-            name: "a",
-            passed: false,
-            output: String::new(),
-        }];
+        let checks = vec![GateCheck::new("a", false, String::new())];
         let report = aggregate(checks);
         assert_eq!(
             report.action,
@@ -3269,7 +4078,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
                 (true, String::new()),
             ]),
         };
-        let report = run_all_checks(&manifest, &dir, &runner);
+        let report = run_all_checks(&manifest, &dir, &runner, false);
         let names: Vec<&str> = report.checks.iter().map(|c| c.name).collect();
         assert_eq!(
             names,
@@ -3302,7 +4111,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
                 (true, String::new()),
             ]),
         };
-        let report = run_all_checks(&manifest, &dir, &runner);
+        let report = run_all_checks(&manifest, &dir, &runner, false);
         assert_eq!(report.gate_result, "PASS");
         assert!(report.checks.iter().all(|c| c.passed), "{:?}", {
             report
@@ -3380,7 +4189,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
         // 静的専用モードでは cargo 系チェックが cargo を一切起動してはならない
         // （`PanicIfCalledRunner` が起動されたら即座にテスト失敗として顕在化する）。
-        let report = run_all_checks(&manifest, &dir, &PanicIfCalledRunner);
+        let report = run_all_checks(&manifest, &dir, &PanicIfCalledRunner, false);
 
         assert_eq!(report.gate_result, "PASS");
         let names: Vec<&str> = report.checks.iter().map(|c| c.name).collect();
@@ -3434,7 +4243,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
         )
         .unwrap();
 
-        let report = run_all_checks(&manifest, &dir, &PanicIfCalledRunner);
+        let report = run_all_checks(&manifest, &dir, &PanicIfCalledRunner, false);
 
         assert_eq!(
             report.gate_result, "BLOCKED",
@@ -3464,16 +4273,12 @@ pub fn is_safe_srcset(value: &str) -> bool {
     fn render_report_output_round_trips_through_json_parser() {
         let report = GateReport {
             checks: vec![
-                GateCheck {
-                    name: "type_check",
-                    passed: true,
-                    output: "ok".to_string(),
-                },
-                GateCheck {
-                    name: "lint",
-                    passed: false,
-                    output: "warning: \"unused\"\ncontrol\x07char".to_string(),
-                },
+                GateCheck::new("type_check", true, "ok".to_string()),
+                GateCheck::new(
+                    "lint",
+                    false,
+                    "warning: \"unused\"\ncontrol\x07char".to_string(),
+                ),
             ],
             gate_result: "BLOCKED",
             action: "fix the reported failing checks and re-run `fw gate`".to_string(),

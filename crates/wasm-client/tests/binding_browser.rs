@@ -471,6 +471,34 @@ fn unbound_and_unknown_dirty_fields_are_noop_without_panic() {
     );
 }
 
+/// [`BindingTable::has_field`]（イシュー #1120）が、対応表に実在する field
+/// では `true`、対応表に存在しない field（未知の field 名・`fixture_tree`
+/// に束縛点を持たない field 名の双方）では `false` を返すこと。
+/// `fandhe-frontend-wasm-full` の `Runtime` 構造フォールバック（束縛点にも
+/// keyed list にも対応しない dirty field を検知するトリガー判定）が
+/// 前提とする契約の実ブラウザ証跡。
+#[wasm_bindgen_test]
+fn has_field_reports_presence_of_binding_table_entries() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    let root = create_container(&document, "binding-has-field-root");
+    root.set_inner_html(&render(&fixture_tree()));
+
+    let table = BindingTable::scan(&root).expect("scan must succeed for a well-formed fixture");
+
+    // `fixture_tree` は counter（テキスト束縛）/draft（テキスト束縛）/
+    // liked（属性 + class 束縛）の 3 field を持つ（本ファイル冒頭コメント
+    // 参照）。
+    assert!(table.has_field("counter"));
+    assert!(table.has_field("draft"));
+    assert!(table.has_field("liked"));
+    // 束縛点を持たない field（画面遷移相当の構造変化を表す dirty field を
+    // 想定）は false。
+    assert!(!table.has_field("route"));
+    assert!(!table.has_field("unknown-field"));
+}
+
 /// DOM 改ざん相当のマーカー（`data-bind-attr="onclick:draft"`）を含む DOM に
 /// 対して `scan`/`apply_update` を行っても、`onclick` 属性が生成されないこと
 /// （`parse_binding_tokens` の fail-closed 検証、設計書 §9 不変条件 2 の

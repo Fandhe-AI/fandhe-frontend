@@ -85,11 +85,20 @@ REQ-1 の唯一の許容迂回経路である `raw_html()` の呼び出しを検
    （リネームインポート・複数行呼び出しも検出、`raw_html_lint_e2e.rs` で
    実 clippy 起動による検証を持つ）。
 2. **保険層（`default_escape_check`）**: テキスト走査による独立検出。受理
-   条件は「同一行または直前行に `#[expect(clippy::disallowed_methods,
-   reason = "ESCAPE-REVIEWED: ...")]` 属性が存在すること」。旧方式
-   （`// ESCAPE-REVIEWED:` コメント単体での受理）はイシュー #157 の指摘を
-   受けて廃止済みで、コメントのみのマーカーは違反として検出される
-   （`scan_file_rejects_comment_only_marker_as_spoofable` が回帰を固定）。
+   条件は「呼び出し開始行自体、または呼び出し直前に隙間なく連なる属性
+   グループ列のいずれか 1 つが `#[expect(clippy::disallowed_methods,
+   reason = "ESCAPE-REVIEWED: ...")]` を含むこと」（[`reviewed_attribute_covers_call`]・
+   [`collect_attribute_groups`]、イシュー #1116）。属性グループは `#[` から
+   対応する `]` までの括弧バランス（文字列リテラル内は除外）で判定するため、
+   rustfmt が `reason = "..."` を複数行へ折り返した属性や `#[rustfmt::skip]`
+   等の重ね掛けも `#[rustfmt::skip]` を追加せず受理される（マーカー文字列の
+   比較は空白除去後に行うため、トークン間の改行・インデント挿入で分断され
+   ない）。属性と呼び出しの間に空行・コメント行・無関係なコード行を挟んだ
+   場合は連鎖が途切れ受理しない（保険層の偽陰性ゼロ方針、主防御である
+   `lint` チェックは無変更）。旧方式（`// ESCAPE-REVIEWED:` コメント単体での
+   受理）はイシュー #157 の指摘を受けて廃止済みで、コメントのみのマーカーは
+   違反として検出される（`scan_file_rejects_comment_only_marker_as_spoofable`
+   が回帰を固定）。詳細は `docs/policy/raw-html-review-gate.md` §1。
 3. **ブランケット抑止監査**: `#![allow(clippy::disallowed_methods)]` /
    `#![expect(clippy::disallowed_methods)]` によるファイル・モジュール
    一括無効化を、呼び出し個別のレビュー宣言とは独立に一律違反として検出する
@@ -185,15 +194,45 @@ failed になった場合、コード内容起因の FAIL（clippy 違反・deny
 
 いずれも疎通確認が失敗した場合のみ、`output` 先頭に固定プレフィックス
 `ENVIRONMENT_ERROR_PREFIX`（`"environment error: "`）を付与した決定的な
-メッセージ（是正コマンド `rustup component add clippy` /
-`tools/ci/ensure-gate-tools.sh` を含む）で該当チェックを failed とする。
-**SKIP や黙示的 PASS には倒さない**（fail-closed 維持、§3・security.md
-A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互換）は
-変えず、区別は `output` の先頭プレフィックスのみで表現する。
+メッセージで該当チェックを failed とする。**SKIP や黙示的 PASS には倒さない**
+（fail-closed 維持、§3・security.md A05）。
+
+- **是正案内の実在導線化（イシュー #1116）**: 是正コマンドは汎用コマンド
+  （`lint`: `rustup component add clippy` / `policy`: `cargo install
+  cargo-deny --locked`）を常に提示し、`<project_dir>/tools/ci/
+  ensure-gate-tools.sh` は [`gate_tools_script_exists`] で実在確認できた
+  場合のみ追記する。`templates/default/` 生成プロジェクトにはこのスクリプトが
+  同梱されないため、無条件案内は「存在しないファイルへの案内」という DX
+  阻害を招いていた（本イシューの動機の 1 つ）。
+- **`GateCheck.environment_error`（イシュー #1116）**: 従来は `output` の
+  先頭プレフィックス文字列でのみ区別していたが、[`clippy_environment_preflight`]・
+  [`cargo_deny_environment_preflight`] が構造化フィールド
+  `environment_error: bool` を `true` に設定するようになった。[`aggregate`]
+  はこのフィールドを見て `gate_result` を `ERROR`/`BLOCKED` に振り分ける
+  （§4）。`output` 先頭のプレフィックス文字列は後方互換のため引き続き残す。
 
 ツールの自動インストールはここでは行わない（検証ゲートは検証のみに専念し、
 ネットワーク非依存・サプライチェーン面の不拡大を維持する）。常設化・導入は
 `tools/ci/ensure-gate-tools.sh`（§6）の責務とする。
+
+### 2.3b 実行コマンドの可視化・`test` 要約・`--verbose`（イシュー #1116）
+
+- **`GateCheck.command`**: 外部コマンド系 4 チェック（`type_check`/`lint`/
+  `test`/`policy`）は、本実行に到達した場合のみ完全なコマンドライン文字列
+  （例: `cargo clippy --locked --all-targets -p app -- -D warnings`）を
+  `command` フィールドへ保持する（[`finish_command_check`]）。プリフライト
+  失敗・`deny.toml` 欠落等、本実行に到達しなかった場合は `command: None`
+  のまま（JSON では当該キーを省略）。可読性のため `output` 先頭にも
+  `$ <command>\n` を前置する。
+- **`test` チェック PASS 時の output 要約**: [`summarize_test_output`] が
+  `running N tests`／`test result:`／`Doc-tests` ヘッダ行のみを残す決定的な
+  フィルタを適用し、`--verbose` 未指定時のみ [`run_gate`] から呼ばれる
+  （[`summarize_passing_test_output`]）。`test result:` 行が 1 件も抽出でき
+  ない想定外の出力形式では要約せず全文（丸めあり）へフォールバックする
+  （情報を隠さない fail-safe）。**失敗時（`passed = false`）は要約しない**
+  （違反の詳細を削らない）。
+- **`fw gate [--project <dir>] [--verbose]`**: `--verbose` 指定時は上記要約を
+  無効化し、常に全文（`OUTPUT_TRUNCATE_CHARS` 丸めのみ）を出力する。
 
 ### 2.4 URL 属性検証の弱体化検出（`url_validation_check`、イシュー #401）
 
@@ -322,31 +361,38 @@ fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）�
 | 宣言クレートが 0 件（`structure.toml` にどのディレクトリも `crate = "..."` を持たない） | `type_check`/`lint`/`test` を `-p` なしのワークスペース全体検証へフォールバックせず、各チェックを個別に failed とする（[`no_declared_crates_message`]。「検証対象なし＝ PASS」でも「範囲不明な全体検証」でもなく、設定不備として明示する）。**例外**: 宣言ディレクトリ全件が `role = "asset"` である場合のみ静的専用プロジェクトの明示的オプトインとみなし、`type_check`/`lint`/`test`/`policy` を not-applicable PASS 化する（§2.5、イシュー #410） |
 | `deny.toml` が存在しない | `cargo deny` を起動せず `policy` チェックを failed とする（`<project>/deny.toml` を唯一の情報源とする。本リポジトリ自身への自己適用時もこの契約は変更せず、リポジトリ直下へ `templates/default/deny.toml` と同一強度のポリシーを配置することで解決する。イシュー #372、workspace 参照解決方式は gate の fail-closed 契約を複雑化させるため不採用） |
 | `clippy.toml` の欠落・`disallowed-methods` エントリ欠落 | `cargo clippy` を起動せず `lint` チェックを failed とする（§2.3） |
-| clippy component が runner に未導入（`cargo clippy --version` 疎通確認失敗） | `cargo clippy` 本実行を起動せず `lint` チェックを `environment error:` 付きで failed とする（§2.3a、イシュー #292） |
-| cargo-deny が runner に未導入（`cargo deny --version` 疎通確認失敗） | `cargo deny check ...` 本実行を起動せず `policy` チェックを `environment error:` 付きで failed とする（§2.3a、イシュー #292） |
+| clippy component が runner に未導入（`cargo clippy --version` 疎通確認失敗） | `cargo clippy` 本実行を起動せず `lint` チェックを `environment error:` 付き・`environment_error: true` で failed とする（§2.3a、イシュー #292/#1116） |
+| cargo-deny が runner に未導入（`cargo deny --version` 疎通確認失敗） | `cargo deny check ...` 本実行を起動せず `policy` チェックを `environment error:` 付き・`environment_error: true` で failed とする（§2.3a、イシュー #292/#1116） |
 | 外部コマンド（`cargo` 系）の起動自体に失敗（バイナリ不在等） | 該当チェックを failed とする（[`CommandRunner::run`] が起動失敗を `Ok((false, ...))` として返し、呼び出し元は `Err` 分岐を用意せず fail-closed 集約する） |
 
 ## 4. 集約規則と CLI 契約
 
 - **集約**: 6 チェックすべてを実行し、早期打ち切りはしない（AI エージェントが
   一括修正できるよう全違反を報告する PoC-7 の方針を踏襲、[`run_all_checks`]）。
-  全チェック `passed = true` であれば `gate_result = "PASS"`、1 件でも
-  `passed = false` であれば `gate_result = "BLOCKED"`（[`aggregate`]）。
-- **終了コード規約**（`main.rs` 冒頭 doc コメントと同一契約）:
+  集約規則は 3 値（イシュー #1116 で 2 値から拡張、[`aggregate`]）:
+  - 全チェック `passed = true` → `gate_result = "PASS"`
+  - 不合格が 1 件以上あり、**不合格の全件**が `environment_error: true`
+    （実行環境にツールが無いだけ、§2.3a） → `gate_result = "ERROR"`
+  - 不合格にコード起因（`environment_error: false`）が 1 件でも含まれる
+    → `gate_result = "BLOCKED"`（環境エラーと混在してもコード起因を優先し、
+    fail-closed を弱めない）
+- **終了コード規約**（`main.rs` 冒頭 doc コメントと同一契約。イシュー #1116 で
+  `3` を追加）:
   - `0`: `gate_result = "PASS"`
   - `1`: `gate_result = "BLOCKED"`（`structure.toml` 読み込み・検証失敗を含む）
   - `2`: 使用法エラー（`--project` 引数の解析失敗・未知フラグ）
-- **JSON 出力契約**（PoC-7 互換の形状、[`render_report`]）:
+  - `3`: `gate_result = "ERROR"`（実行環境にツールが無いだけの不合格。§2.3a）
+- **JSON 出力契約**（PoC-7 互換の形状 + 後方互換拡張キー、[`render_report`]）:
 
 ```json
 {
   "checks": [
-    { "name": "type_check", "passed": true, "output": "..." },
-    { "name": "default_escape_check", "passed": true, "output": "..." },
-    { "name": "url_validation_check", "passed": true, "output": "..." },
-    { "name": "lint", "passed": true, "output": "..." },
-    { "name": "test", "passed": true, "output": "..." },
-    { "name": "policy", "passed": true, "output": "..." }
+    { "name": "type_check", "passed": true, "output": "...", "environment_error": false },
+    { "name": "default_escape_check", "passed": true, "output": "...", "environment_error": false },
+    { "name": "url_validation_check", "passed": true, "output": "...", "environment_error": false },
+    { "name": "lint", "passed": true, "output": "...", "environment_error": false, "command": "cargo clippy --locked --all-targets -p app -- -D warnings" },
+    { "name": "test", "passed": true, "output": "...", "environment_error": false, "command": "cargo test --locked -p app" },
+    { "name": "policy", "passed": true, "output": "...", "environment_error": false, "command": "cargo deny check bans licenses sources" }
   ],
   "gate_result": "PASS",
   "action": "all checks passed; changes may proceed"
@@ -354,16 +400,30 @@ fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）�
 ```
 
   - `checks[].output` は末尾 `OUTPUT_TRUNCATE_CHARS = 4000` 文字に丸められる
-    （§5 参照）。
+    （§5 参照）。`test` チェック PASS 時（`--verbose` 未指定）は丸めの前に
+    [`summarize_test_output`] による要約が適用される（§2.3b）。外部コマンド系
+    チェック（[`finish_command_check`]、§2.3b）はこの 4000 文字丸めの**後**に
+    可読性のための `$ <command>\n` 前置行を追加するため、`output` 全体の
+    長さは `4000 + "$ ".len() + command.len() + "\n".len()` を上限とする
+    （丸め対象はコマンド出力本体のみで、前置行自体は丸めない。肥大化防止の
+    実務上の目的（A09）はコマンド出力本体の丸めで既に達成されており、コマンド
+    文字列自体は数十〜百数十文字程度で肥大化の主因にならないため許容する）。
+  - `checks[].environment_error`（イシュー #1116 で追加）: 全チェックで常時
+    出力する `bool`。`true` はツール未導入等の環境要因を表す。
+  - `checks[].command`（イシュー #1116 で追加）: 外部コマンド系チェックが
+    本実行に到達した場合のみ出力する（`Some` の場合のみキーを出力、`None`
+    はキー自体を省略）。
   - `action` は `gate_result` に応じた固定文言（`PASS`: `"all checks passed;
     changes may proceed"` / `BLOCKED`: `"fix the reported failing checks and
-    re-run \`fw gate\`"`。`structure.toml` 段階の即時 `BLOCKED` は専用の
-    `"fix structure.toml and re-run \`fw gate\`"`）。
+    re-run \`fw gate\`"` / `ERROR`: `"fix the runner environment (see
+    environment-error checks) and re-run \`fw gate\`"`。`structure.toml`
+    段階の即時 `BLOCKED` は専用の `"fix structure.toml and re-run \`fw
+    gate\`"`）。
 - **利用契約**: AI 自己保守フック・CI は本サブコマンドの終了コードと JSON の
-  `gate_result` を照合し、変更適用の可否を判断する。TASK-13.6（#151、
-  `docs/policy/ai-self-maintenance-policy.md`）が「ゲート未通過は無条件拒否」という
-  境界ルールを正式化する際、本書の終了コード規約・`gate_result` 値をそのまま
-  前提として参照する。
+  `gate_result` を照合し、変更適用の可否を判断する。`gate_result = "ERROR"`
+  も `"PASS"` 以外である以上、無条件で変更を適用してはならない（TASK-13.6
+  #151、`docs/policy/ai-self-maintenance-policy.md` を参照。ERROR は「是正
+  対象がランナー環境である」点のみ BLOCKED と異なる）。
 
 ## 5. セキュリティ不変条件
 
@@ -404,6 +464,9 @@ fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）�
 | §3（fail-closed） | `run_gate`（97-153 行目、structure.toml 段階）、`no_declared_crates_message`（219-231 行目）、`run_locked_cargo_subcommand`（237-262 行目）、`run_cargo_clippy`（331-369 行目）、`policy_check`（383-405 行目）、`clippy_environment_preflight`/`cargo_deny_environment_preflight`（イシュー #292）、`check_core_url_validation_module`（core role 宣言時の URL_ATTRS モジュール欠落 fail-closed、イシュー #401） |
 | §4（集約規則・CLI 契約） | `aggregate`（189-204 行目）、`render_report`（673-697 行目）、`main.rs` の終了コード規約（`main.rs` 33-35 行目） |
 | §5（セキュリティ不変条件） | `RealCommandRunner::run`（74-85 行目）、`truncate_output`（207-217 行目）、`OUTPUT_TRUNCATE_CHARS`（44 行目）、`scan_dir_for_violations`（579-597 行目）、`walk_rs_files`（symlink 非追従の共有実装、イシュー #401） |
+| §2.2（属性ブロック単位の受理、イシュー #1116） | `reviewed_attribute_covers_call`、`collect_attribute_groups`（行番号は割愛。上記行番号群は本イシュー実装時点で既に近似値であり、以後の変更で再度乖離する。本表の行番号は目安であり、単一の情報源は `crates/cli/src/gate.rs` 自体とする） |
+| §2.3a/§2.3b（環境エラー種別・案内実在化・コマンド可視化・test 要約、イシュー #1116） | `gate_tools_script_exists`（是正案内の実在導線化）、`finish_command_check`・`command_line`（`command`/`$ <command>` 前置行）、`summarize_test_output`・`summarize_passing_test_output`（`test` PASS 時の要約、`run_gate` から `--verbose` 未指定時のみ呼ばれる） |
+| §4（3 値集約・終了コード 3・`--verbose`、イシュー #1116） | `aggregate`（`GateCheck.environment_error` に基づく `PASS`/`ERROR`/`BLOCKED` 3 値化）、`run_gate`（`--verbose` 解析・終了コード `0/1/2/3`）、`render_report`（`environment_error`/`command` キー追加） |
 
 対応するテストは `crates/cli/tests/gate_integration.rs`（CLI 経由の統合テスト、
 6 ケース）・`crates/cli/tests/negative_cases.rs`（型エラー・未エスケープ・禁止依存・

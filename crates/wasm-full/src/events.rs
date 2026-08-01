@@ -10,11 +10,12 @@
 //!
 //! # 設計（PoC-5 `wasm-runtime-split/wasm-full/src/lib.rs` の一般化）
 //!
-//! - ルート要素へ `click` / `input` リスナーを **マウント時に 1 回だけ** 委譲登録
-//!   する（[`wire_events`]）。再描画で子要素が入れ替わってもルートの
+//! - ルート要素へ `click` / `input` / `change` リスナーを **マウント時に 1 回だけ**
+//!   委譲登録する（[`wire_events`]）。再描画で子要素が入れ替わってもルートの
 //!   リスナーは保持されるため、再描画のたびにリスナーを張り直す必要がない。
-//! - リスナー登録は [`wasm_bindgen::closure::Closure::forget`] を click / input の
-//!   2 回に限定する。`forget` は safe API であり `unsafe` ブロックを要しないが、
+//! - リスナー登録は [`wasm_bindgen::closure::Closure::forget`] を click / input /
+//!   change の 3 回に限定する（イシュー #1120 で change リスナーを追加、旧 2 回
+//!   から改訂）。`forget` は safe API であり `unsafe` ブロックを要しないが、
 //!   登録回数を定数個に抑えることで無制限リーク（メモリ枯渇 DoS）を構造的に
 //!   回避する（A04: 安全でない設計への対策）。
 //! - 属性からのアクション判定ロジック（[`action_from_click`] / [`action_from_input`]）
@@ -88,6 +89,18 @@ pub fn action_from_click<T: AttrSource>(target: &T) -> Option<ActionRef> {
 /// #345 実装確定節 §6.1）。キャレット位置の保持は `wasm-client::binding_dom`
 /// の value プロパティ等値ガード（現在値と等しければ `set_value` を呼ばない）
 /// が担う。
+///
+/// # レガシー経路（イシュー #1120）
+///
+/// `id` ハードコードは PoC-5 由来のデモ専用経路であり、`<select>`/`<textarea>`
+/// への一般化ができない・利用者アプリが `draft-input` という id を偶然
+/// 共有しない限り再利用できないという課題があった（イシュー #1120 の
+/// フィードバック 2）。新規アプリは [`ACTION_INPUT_ATTR`]（`data-action-input`
+/// 属性契約）を使う [`action_from_form_control`] を使用すべきであり、本関数は
+/// 既存の `interactive::AppState` デモ・ブラウザテスト・
+/// `docs/api/interactive-api.md` の id 契約との後方互換のためにのみ残す
+/// （[`wiring::wire_events`] が `data-action-input` 属性がない場合のみ本関数へ
+/// フォールバックする）。
 pub fn action_from_input(id: &str, value: &str) -> Option<ActionRef> {
     if id != "draft-input" {
         return None;
@@ -98,16 +111,59 @@ pub fn action_from_input(id: &str, value: &str) -> Option<ActionRef> {
     })
 }
 
+/// input イベント配線で `data-action-input` 属性値をアクション名として使う
+/// ことを示す属性契約（イシュー #1120）。
+///
+/// [`action_from_input`]（`id="draft-input"` ハードコード）の一般化。値
+/// フォーム要素（`<input>`/`<textarea>`/`<select>`）に `data-action-input`
+/// を付けるだけで input イベントを dispatch へ配線できる。
+pub const ACTION_INPUT_ATTR: &str = "data-action-input";
+
+/// change イベント配線で `data-action-change` 属性値をアクション名として
+/// 使うことを示す属性契約（イシュー #1120）。
+///
+/// `<select>`/`<input type="checkbox">`/`<input type="radio">`/`<input
+/// type="date">` 等、input イベントではなく change イベントで確定する
+/// フォーム要素を dispatch へ配線するための契約（イシュー #1120 の
+/// フィードバック 2「select / date / radio / checkbox の change を dispatch
+/// に載せる公式経路がない」の解消）。
+pub const ACTION_CHANGE_ATTR: &str = "data-action-change";
+
+/// フォーム要素（`input`/`change` の対象）から `attr` 属性値をアクション名、
+/// `value` を payload として [`ActionRef`] を組み立てる純粋関数
+/// （イシュー #1120）。
+///
+/// `attr` は [`ACTION_INPUT_ATTR`] または [`ACTION_CHANGE_ATTR`] を渡す想定。
+/// 属性が付いていない要素（フレームワーク管轄外の input/change）は `None`
+/// を返す（安全側 no-op、[`action_from_click`] と同じ方針）。`value` の
+/// 抽出（`checked`/`value` のどちらを使うか）は配線層
+/// （[`wiring::extract_form_value`]）の責務であり、本関数は文字列化済みの
+/// `value` を受け取るだけの薄いロジックに留める。
+pub fn action_from_form_control<T: AttrSource>(
+    target: &T,
+    attr: &str,
+    value: &str,
+) -> Option<ActionRef> {
+    let action = target.attr(attr)?;
+    Some(ActionRef {
+        action,
+        payload: value.to_string(),
+    })
+}
+
 // ---------------------------------------------------------------------
 // 配線層: web-sys 依存。wasm32 ターゲットでのみコンパイル対象とし、
 // native の `cargo test --workspace` に本層の DOM 依存コードを混入させない。
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::{action_from_click, action_from_input, ActionRef, AttrSource};
+    use super::{
+        action_from_click, action_from_form_control, action_from_input, ActionRef, AttrSource,
+        ACTION_CHANGE_ATTR, ACTION_INPUT_ATTR,
+    };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, HtmlInputElement};
+    use web_sys::{Element, Event, HtmlInputElement, HtmlSelectElement, HtmlTextAreaElement};
 
     /// `web_sys::Element` を [`AttrSource`] に橋渡しする薄いラッパー。
     ///
@@ -119,6 +175,56 @@ mod wiring {
         fn attr(&self, name: &str) -> Option<String> {
             self.0.get_attribute(name)
         }
+    }
+
+    /// input/change イベントターゲットからフォーム値を文字列として抽出する
+    /// （イシュー #1120）。
+    ///
+    /// `HtmlInputElement`（`type="checkbox"`/`type="radio"` は `checked` を
+    /// `"true"`/`"false"` に文字列化、それ以外は `value`）→
+    /// `HtmlSelectElement`（`value`）→ `HtmlTextAreaElement`（`value`）の順に
+    /// キャストを試み、いずれにも該当しない要素（フレームワークが関知しない
+    /// カスタム要素等）は `None` を返す（安全側 no-op）。
+    fn extract_form_value(target: &web_sys::EventTarget) -> Option<String> {
+        if let Some(input) = target.dyn_ref::<HtmlInputElement>() {
+            let input_type = input.type_();
+            return Some(if input_type == "checkbox" || input_type == "radio" {
+                input.checked().to_string()
+            } else {
+                input.value()
+            });
+        }
+        if let Some(select) = target.dyn_ref::<HtmlSelectElement>() {
+            return Some(select.value());
+        }
+        if let Some(textarea) = target.dyn_ref::<HtmlTextAreaElement>() {
+            return Some(textarea.value());
+        }
+        None
+    }
+
+    /// input イベントの `target` が属性契約 [`ACTION_INPUT_ATTR`] を持つ
+    /// 祖先要素に一致する場合のみ [`ActionRef`] を組み立てる（イシュー
+    /// #1120）。一致しない・`root` の子孫でない・フォーム値が抽出できない
+    /// ・属性値が付いていないのいずれかであれば `None`（呼び出し側は
+    /// レガシー経路へフォールバックする、`wire_events` doc 参照）。
+    ///
+    /// `selector`（`"[data-action-input]"`）は [`wire_events`] がマウント時に
+    /// 1 回だけ組み立てて渡す（毎イベントで `format!` を呼ぶアロケーションを
+    /// 避けるため）。
+    fn attribute_input_action(
+        root: &Element,
+        target: &web_sys::EventTarget,
+        selector: &str,
+    ) -> Option<ActionRef> {
+        let element = target.dyn_ref::<Element>()?;
+        let matched = element.closest(selector).ok().flatten()?;
+        if !root.contains(Some(&matched)) {
+            return None;
+        }
+        let value = extract_form_value(target)?;
+        let source = ElementAttrSource(&matched);
+        action_from_form_control(&source, ACTION_INPUT_ATTR, &value)
     }
 
     /// ルート要素へ `click` / `input` の委譲リスナーをマウント時に 1 回だけ登録する。
@@ -135,15 +241,26 @@ mod wiring {
     ///   祖先に `data-action` 要素があれば理論上そこまで一致し得るため、本関数は
     ///   `contains` で「ヒットした要素が root の子孫（root 自身を含む）であること」
     ///   を確認してから採用する。
-    /// - `input`: `event.target()` を `HtmlInputElement` へキャストできた場合のみ
-    ///   [`action_from_input`] へ渡す。
+    /// - `input`: `event.target()` から `closest("[data-action-input]")`（click と
+    ///   同型の祖先探索。値要素自身が属性を持つ通常のケースでは 1 ステップで
+    ///   一致する）で属性契約 [`ACTION_INPUT_ATTR`] 一致を試み、
+    ///   [`action_from_form_control`] へ渡す。一致しない場合は
+    ///   `event.target()` を `HtmlInputElement` へキャストできた場合のみ
+    ///   レガシー経路 [`action_from_input`]（`id="draft-input"` ハードコード）
+    ///   へフォールバックする（イシュー #1120。既存デモ・回帰テストの
+    ///   非退行）。
+    /// - `change`: `event.target()` から `closest("[data-action-change]")` で
+    ///   属性契約 [`ACTION_CHANGE_ATTR`] 一致を試みる（`<select>`/checkbox/
+    ///   radio/date 等、input イベントでは確定しないフォーム要素向け。
+    ///   イシュー #1120 で新規追加）。
     ///
     /// アクション判定に成功した場合のみ `on_action` を呼ぶ（状態更新・再描画は
     /// 呼び出し側の責務。本関数は関知しない）。
     ///
-    /// `Closure::forget` は click / input の 2 回のみに限定する。マウントは
-    /// アプリ生存期間に 1 度だけの前提であり、リーク数は定数個に収まる
-    /// （`forget` は safe API であり `unsafe` を要しない）。
+    /// `Closure::forget` は click / input / change の 3 回のみに限定する
+    /// （イシュー #1120 で change 分を追加）。マウントはアプリ生存期間に
+    /// 1 度だけの前提であり、リーク数は定数個に収まる（`forget` は safe API
+    /// であり `unsafe` を要しない）。
     pub fn wire_events(
         root: Element,
         on_action: impl FnMut(ActionRef) + 'static,
@@ -151,6 +268,14 @@ mod wiring {
         let click_root = root.clone();
         let on_action_click = std::rc::Rc::new(std::cell::RefCell::new(on_action));
         let on_action_input = on_action_click.clone();
+        let on_action_change = on_action_click.clone();
+        let input_root = root.clone();
+        let change_root = root.clone();
+        // `closest` へ渡すセレクタ文字列はマウント時に 1 回だけ組み立てる
+        // （毎イベントで `format!` を呼ぶアロケーションを避けるため、
+        // イシュー #1120）。
+        let input_selector = format!("[{ACTION_INPUT_ATTR}]");
+        let change_selector = format!("[{ACTION_CHANGE_ATTR}]");
 
         let click_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             let Some(target) = event.target() else {
@@ -201,6 +326,18 @@ mod wiring {
             let Some(target) = event.target() else {
                 return;
             };
+            // 属性契約 `data-action-input` を優先する（イシュー #1120）。値
+            // 要素自身（`event.target()`）が対象のため click と異なりテキスト
+            // ノード遡りは不要だが、`closest` は呼び出し要素自身も含めて
+            // 祖先方向へ辿るため、値要素自身に属性が付いている通常の構成では
+            // そのまま一致する。属性契約に一致しなかった場合のみレガシー
+            // 経路（`id="draft-input"` ハードコード）へフォールバックする
+            // （`action_from_input` doc 参照、既存アプリの非退行）。
+            if let Some(action_ref) = attribute_input_action(&input_root, &target, &input_selector)
+            {
+                (on_action_input.borrow_mut())(action_ref);
+                return;
+            }
             let Some(input) = target.dyn_ref::<HtmlInputElement>() else {
                 return;
             };
@@ -210,6 +347,31 @@ mod wiring {
         });
         root.add_event_listener_with_callback("input", input_closure.as_ref().unchecked_ref())?;
         input_closure.forget();
+
+        let change_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            let Some(target) = event.target() else {
+                return;
+            };
+            let Some(element) = target.dyn_ref::<Element>() else {
+                return;
+            };
+            let Ok(Some(matched)) = element.closest(&change_selector) else {
+                return;
+            };
+            if !change_root.contains(Some(&matched)) {
+                return;
+            }
+            let Some(value) = extract_form_value(&target) else {
+                return;
+            };
+            let source = ElementAttrSource(&matched);
+            if let Some(action_ref) = action_from_form_control(&source, ACTION_CHANGE_ATTR, &value)
+            {
+                (on_action_change.borrow_mut())(action_ref);
+            }
+        });
+        root.add_event_listener_with_callback("change", change_closure.as_ref().unchecked_ref())?;
+        change_closure.forget();
 
         Ok(())
     }
@@ -332,5 +494,63 @@ mod tests {
         let dispatched = dispatch(&mut state, &action_ref.action, &action_ref.payload);
         assert!(!dispatched);
         assert_eq!(state, before);
+    }
+
+    // -----------------------------------------------------------------
+    // イシュー #1120: `data-action-input`/`data-action-change` 属性契約
+    // （`action_from_form_control`）の native テスト。
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn form_control_with_matching_attr_dispatches() {
+        let target = element(&[(ACTION_INPUT_ATTR, "select_status")]);
+        let action_ref = action_from_form_control(&target, ACTION_INPUT_ATTR, "shipped")
+            .expect("data-action-input present");
+        assert_eq!(action_ref.action, "select_status");
+        assert_eq!(action_ref.payload, "shipped");
+    }
+
+    #[test]
+    fn form_control_without_matching_attr_is_ignored() {
+        let target = element(&[("data-testid", "some-select")]);
+        assert_eq!(
+            action_from_form_control(&target, ACTION_INPUT_ATTR, "shipped"),
+            None
+        );
+    }
+
+    #[test]
+    fn form_control_with_empty_value_uses_empty_payload() {
+        let target = element(&[(ACTION_CHANGE_ATTR, "select_status")]);
+        let action_ref = action_from_form_control(&target, ACTION_CHANGE_ATTR, "")
+            .expect("data-action-change present");
+        assert_eq!(action_ref.action, "select_status");
+        assert_eq!(action_ref.payload, "");
+    }
+
+    /// REQ-1（既定エスケープ）の経路一貫性回帰テスト（属性契約経路版）:
+    /// `data-action-input`/`data-action-change` 経由でも XSS ペイロードが
+    /// エスケープされること（`event_to_dispatch_to_render_roundtrip_escapes_script_payload`
+    /// と同型、イシュー #1120）。
+    #[test]
+    fn form_control_to_dispatch_to_render_roundtrip_escapes_script_payload() {
+        use fandhe_frontend_interactive::{dispatch, AppState, Component};
+
+        let target = element(&[(ACTION_INPUT_ATTR, "set_draft")]);
+        let action_ref =
+            action_from_form_control(&target, ACTION_INPUT_ATTR, "<script>alert(1)</script>")
+                .expect("data-action-input present");
+
+        let mut state = AppState::new();
+        assert!(dispatch(
+            &mut state,
+            &action_ref.action,
+            &action_ref.payload
+        ));
+        assert!(dispatch(&mut state, "add_item", ""));
+
+        let html = fandhe_frontend_core::render(&state.view());
+        assert!(!html.contains("<script>alert"));
+        assert!(html.contains("&lt;script&gt;alert"));
     }
 }

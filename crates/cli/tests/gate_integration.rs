@@ -65,6 +65,34 @@ fn fw_gate_rejects_unknown_flag_with_usage_error() {
     );
 }
 
+/// イシュー #1116: `--verbose` は `--project` と併用できる（フラグの単純除去
+/// による解析であり、位置は問わない）。
+#[test]
+fn fw_gate_accepts_verbose_flag_alongside_project() {
+    let tmp = tempdir_for_test("fw-gate-verbose-flag");
+    let (code, stdout, stderr) = run_fw_gate(&["--project", tmp.to_str().unwrap(), "--verbose"]);
+    assert_eq!(
+        code, 1,
+        "--verbose must not change the fail-closed BLOCKED result for a missing \
+structure.toml: stderr={stderr}"
+    );
+    assert!(stdout.contains("\"gate_result\":\"BLOCKED\""));
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// イシュー #1116: 全チェックの JSON に `environment_error` キーが常時出力される
+/// （後方互換拡張、`structure_manifest` 段階の即時 BLOCKED でも例外なし）。
+#[test]
+fn fw_gate_json_always_includes_environment_error_key() {
+    let tmp = tempdir_for_test("fw-gate-environment-error-key");
+    let (_code, stdout, _stderr) = run_fw_gate(&["--project", tmp.to_str().unwrap()]);
+    assert!(
+        stdout.contains("\"environment_error\":false"),
+        "stdout={stdout}"
+    );
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
 #[test]
 fn fw_gate_reports_blocked_for_missing_structure_manifest() {
     let tmp = tempdir_for_test("fw-gate-missing-manifest");
