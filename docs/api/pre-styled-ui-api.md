@@ -9,18 +9,41 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 トークン・variant API・静的 CSS 生成を重ね、styled 部品を実装する 2 層
 構造の上層を担う。
 
-## 2. モジュール一覧（v0.31.0 時点）
+## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 98 の公開モジュール + `charts` サブモジュール群を持つ
+本クレートは 106 の公開モジュール + `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
 `charts::scale`/`charts::svg` は既存の `pub mod charts;` 配下のサブ
 モジュールであり、`grep -E '^pub mod '` によるトップレベル公開モジュール
-集計には計上されない）。98 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+集計には計上されない）。106 は `grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
 の実測値である。モジュール一覧・本数の正は下表と上記実測値・各モジュール
 冒頭 rustdoc とする。部品ごとの詳細（anatomy・Demo・Examples・キーボード
-操作）は本表に複製せず、各部品ページ（`/components/<kebab>/`）へ委譲する。
+操作）は本表に複製せず、各部品ページ（`/themes/<kebab>/`）へ委譲する。
+
+### 2a. crates.io 公開状況とドキュメント対象バージョン（イシュー #1118）
+
+本ドキュメントは **repo main（開発中の最新コード）を対象**として記述して
+います。crates.io への公開はリリース運用（`.github/workflows/release.yml`
+の `workflow_dispatch` による手動実行、`mode: publish` の明示選択）を
+経るため、repo main の到達点から遅延することがあります。利用者が
+`Cargo.toml` に指定した実際のバージョンに何のモジュールが含まれるかは、
+本ドキュメントではなく `https://docs.rs/fandhe-frontend-pre-styled-ui/<version>`
+（例: `https://docs.rs/fandhe-frontend-pre-styled-ui/0.5.0`）で確認してくだ
+さい。
+
+本節は執筆時点（イシュー #1118 対応時）のスナップショットとして、乖離の
+実例を記録します。crates.io 最新公開バージョンは `fandhe-frontend-pre-styled-ui`
+0.5.0（依存する `fandhe-frontend-headless-ui` は 0.4.0）であり、本節冒頭の
+「106 モジュール」（repo main、v0.37.0 時点）に対し、0.5.0 時点では
+typography・navigation 系モジュール（`heading` / `text` / `link` /
+`breadcrumb` / `nav_list` / `separator` / `list` 等）を含む多くのモジュール
+が未収録です（約 15 モジュール、イシューフィードバックの実測）。この
+遅延を解消する crates.io への追加公開は、本イシューのコード変更とは別の
+運用アクションとして実施します（承認境界は `.claude/rules/ci.md` の
+release ワークフロー節を参照。本ドキュメントの自動更新は行わないため、
+公開が進み次第この節を追随更新してください）。
 
 | 分類 | モジュール | 部品ページ |
 |---|---|---|

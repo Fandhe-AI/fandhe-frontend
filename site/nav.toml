@@ -48,6 +48,11 @@ title = "NPM アセットビルド"
 source = "docs/guides/npm-asset-build.md"
 path = "/guides/npm-asset-build/"
 
+[[section.page]]
+title = "JS ゼロ SSG での利用ガイド"
+source = "docs/guides/no-js-ssg.md"
+path = "/guides/no-js-ssg/"
+
 [[section]]
 title = "Examples"
 index_path = "/examples/"

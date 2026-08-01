@@ -9,6 +9,13 @@
 Primitives は見た目のスタイルを持ちません。スタイル済みの表示例が必要な場合は
 `fandhe-frontend-pre-styled-ui` が提供する [Themes](./themes.md) セクションを
 参照してください（Themes は Primitives の上に見た目のスタイルを重ねた層です）。
+
+> [!NOTE]
+> 本ページは repo main（開発中の最新コード）を対象としています。crates.io
+> 公開版のモジュール収録状況が本ページと異なることがあります。実際に
+> インストールしたバージョンの収録内容は
+> `https://docs.rs/fandhe-frontend-headless-ui/<version>` で確認してくだ
+> さい（詳細は `docs/api/pre-styled-ui-api.md` §2a）。
 Primitives ページには CSS 変数表がありません（headless-ui に CSS の概念が
 無いため）。また Anatomy・`data-*` 属性表は Demo の実レンダリングから機械
 導出しているため、その部品のデモに現れないパーツ・属性は表に出ず、部品に
