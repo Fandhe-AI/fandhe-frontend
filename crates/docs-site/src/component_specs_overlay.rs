@@ -85,6 +85,7 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
         "開いている項目の item-trigger / item-indicator を data-state=\"open\" に連動してハイライトする。",
         "size variant（Sm/Md/Lg）を root へ付与し、item-trigger / item-content の padding を切り替える。",
         "item-trigger はキーボード操作時のみのフォーカスリング（:focus-visible）を持つ。",
+        "開閉状態（data-state）は呼び出し側が SSR/SSG のビルド時に渡した値がそのまま出力される。JS ゼロ SSG（クライアント側 JavaScript を読み込まない構成）での挙動・ネイティブ details/summary への代替パターンは「JS ゼロ SSG での利用ガイド」（/guides/no-js-ssg/）を参照。",
     ],
     arguments: &[ArgRow {
         name: "size",
