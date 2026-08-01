@@ -178,9 +178,10 @@ const DEFAULT_TEMPLATE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `templates/app/` の全ファイル（18 件）を埋め込んだ固定配列（イシュー #378、
+/// `templates/app/` の全ファイル（19 件）を埋め込んだ固定配列（イシュー #378、
 /// イシュー #411 で wasm ビルド込み CSR 完全実体を追加、イシュー #412 で
-/// vendor 同梱から crates.io バージョン依存へ切替）。
+/// vendor 同梱から crates.io バージョン依存へ切替、イシュー #1115 で
+/// `.gitignore` を追加）。
 ///
 /// fandhe-frontend-core / fandhe-frontend-app（crates.io バージョン依存）に
 /// 依存する拡張テンプレート。`Loader` trait 実装・束縛点 API
@@ -198,6 +199,12 @@ const DEFAULT_TEMPLATE_FILES: &[TemplateFile] = &[
 /// 対象は不変、実装計画 §2.2 参照）。イシュー #412（vendor 同梱 → バージョン
 /// 依存への切替）により、root・wasm/ いずれも自前のクレートソースを持たなく
 /// なった（`crates.io` から取得）。
+///
+/// イシュー #1115: `.gitignore` を同梱し、生成プロジェクトの `target/`・
+/// `wasm/target/`・`dist/`（`src/main.rs` の SSG 出力先）・`static/wasm/`
+/// （`tools/wasm/build.sh` の出力先）・`.env` の誤コミットを既定で防ぐ
+/// （利用者が同梱内容を読み違えて実開発中にビルド成果物を誤ってコミット
+/// していた報告への対応）。
 const APP_TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: ".github/workflows/deny.yml",
@@ -207,6 +214,11 @@ const APP_TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: ".github/workflows/npm-asset-gate.yml",
         contents: include_str!("../templates/app/.github/workflows/npm-asset-gate.yml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: ".gitignore",
+        contents: include_str!("../templates/app/.gitignore"),
         executable: false,
     },
     TemplateFile {

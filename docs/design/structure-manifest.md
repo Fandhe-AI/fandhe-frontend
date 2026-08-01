@@ -164,6 +164,27 @@ PASS 化され、テキスト走査ベースの保険層（`default_escape_check
 | `[routing] handler_pattern`（ユーザー定義正規表現）を廃止し、組み込み抽出器 ID の選択式（`extractor`）に変更 | `crates/server/src/router.rs` は正規表現・バックトラックを排した設計（DoS 耐性を狙う実装判断）。マニフェスト経由で任意正規表現をツール側に実行させる経路は、宣言ファイルがコード実行相当の振る舞い（ReDoS・意図しないパターンマッチによる誤爆）を注入できる面を増やすため、v1 スキーマから排除した。抽出器自体の実装は TASK-13.1c（#130）のスコープ |
 | `[routing] definition_file_pattern`（glob 文字列）を `definition_dir`（`directories` キー参照）に変更 | 「ルート定義を許すディレクトリ」を独自の glob 文字列ではなく既存の `directories` 宣言に統一し、二重管理・書式の不一致を避ける |
 
+#### 2.2.3 宣言単位は cargo パッケージであり、ターゲット（bin/lib）ではない（イシュー #1115）
+
+`[directories.<name>]` の宣言単位は **cargo パッケージ（クレート）** であり、
+そのパッケージが持つターゲット（`src/main.rs` の bin ターゲット・
+`src/lib.rs` の lib ターゲット等）ではない。`fw gate`
+（`crates/cli/src/gate.rs::run_gate`）は宣言済みディレクトリの `crate`
+（パッケージ名）へ `cargo check`/`cargo clippy`/`cargo test` を `-p <crate>`
+指定で実行する。cargo の `-p` はパッケージ単位の指定でありパッケージが持つ
+全ターゲット（bin/lib/tests 等）を包含するため、`fw new --template app` が
+生成する bin のみのプロジェクトへ利用者が `src/lib.rs` を追加して
+bin + lib 構成に拡張しても、`structure.toml`（本ファイルが定義するスキーマの
+実インスタンス）の更新は不要であり、`fw gate` は無編集のまま lib ターゲットも
+検証対象に含めて PASS する。
+
+この挙動は `fw gate` 側の実装最適化ではなく、本スキーマが「クレート単位の
+宣言」として設計されていること（§2.2 冒頭・`[directories.<name>].crate` が
+パッケージ名を表す）から構造的に導かれる。テンプレート同梱の
+`templates/app/structure.toml` にも同旨のコメントを明記している
+（`fw new --template app` 生成直後のプロジェクトで利用者が直接参照できる
+ようにするため）。
+
 ### 2.3 整合性検証ルール（`StructureManifest::validate()`）
 
 `crates/cli/src/structure.rs` の `validate()` が実装する、マニフェスト**内部**の
