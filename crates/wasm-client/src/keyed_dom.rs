@@ -9,9 +9,17 @@
 //! `insert_before` のみで行う（既存 DOM ノードを再生成しないことが
 //! フォーカス・入力途中の値の保持に直結する、設計書 §5.3）。
 //!
-//! `fandhe_frontend_core::Node::RawHtml` 子は fail-closed で skip し、
-//! `web_sys::console` へ英語固定文言の警告を出す（本経路にエスケープ迂回を
-//! 組み込まない、設計書 §9 不変条件 4）。
+//! `fandhe_frontend_core::Node::RawHtml` を含む部分木は `web_sys::console` へ
+//! 英語固定文言の警告を出したうえで、その `RawHtml` ノードを含む部分木
+//! **全体**を構築失敗（`None`）として呼び出し元へ伝播する（本経路に
+//! エスケープ迂回を組み込まない、設計書 §9 不変条件 4）。祖先ノードの
+//! `build_dom_node_with_namespace` は子 1 件の `None` を無言で読み飛ばして
+//! 残りだけを DOM へ反映することはせず、`?` で自身も `None` を返す
+//! （`crate::subtree::replace_subtree` が要求する「`RawHtml` が部分木の
+//! どこに現れても DOM を一切変更せず `Err` を返す」fail-closed 契約、
+//! `lib.rs` クレート冒頭不変条件 7）。`apply_keyed_list` から見ると、この
+//! 伝播の結果 `KeyedOp::Insert` の対象アイテムが丸ごと未適用のまま残る
+//! （個別ノード単位ではなくアイテム単位の skip、イシュー #1121）。
 
 use crate::keyed_diff::{diff_keys, KeyedOp};
 use fandhe_frontend_core::keyed::KEY_ATTR;
@@ -130,8 +138,9 @@ fn nth_element_child(list_element: &Element, index: usize) -> Option<Element> {
 /// （`create_element`/`set_text_content`/`append_child` の再帰、
 /// `innerHTML`/`insert_adjacent_html` 不使用）。
 ///
-/// `Node::RawHtml` 子は fail-closed で skip し `console` へ警告する
-/// （不変条件 4）。属性名・タグ名は `fandhe_frontend_interactive::AppState::view()` 等
+/// `Node::RawHtml` を含む部分木は `console` へ警告したうえで部分木全体を
+/// 構築失敗として呼び出し元へ伝播する fail-closed（不変条件 4）。属性名・
+/// タグ名は `fandhe_frontend_interactive::AppState::view()` 等
 /// 呼び出し側の `&'static str`/コンパイル時に固定された文字列であることを
 /// 前提とするが、`set_attribute` 自体は DOM 標準 API であり `on*` 属性名を
 /// 渡した場合でも `setAttribute` はイベントハンドラを実行コード化しない
@@ -227,12 +236,22 @@ fn build_dom_node_with_namespace(
                 }
                 let _ = element.set_attribute(name, value);
             }
+            // 子孫のいずれかが `RawHtml`（あるいは要素生成失敗）で `None` を
+            // 返した場合、その子だけを無言で読み飛ばさず部分木全体を
+            // 構築失敗として呼び出し元へ伝播する（fail-closed）。
+            // `crate::subtree::replace_subtree` はこの関数を「`RawHtml` が
+            // 部分木のどこに現れても DOM を一切変更せず `Err` を返す」契約
+            // （不変条件 7）で呼ぶため、ここで子 1 件だけをスキップして
+            // `Some` を返すと、`div` の子が `raw_html()` のケースのように
+            // 危険なノードだけを除いた「一部だけ反映された」DOM が挿入され
+            // てしまい契約違反になる。
+            let mut built_children = Vec::with_capacity(children.len());
             for child in children {
-                if let Some(child_node) =
-                    build_dom_node_with_namespace(document, child, element_namespace)
-                {
-                    let _ = element.append_child(&child_node);
-                }
+                let child_node = build_dom_node_with_namespace(document, child, element_namespace)?;
+                built_children.push(child_node);
+            }
+            for child_node in &built_children {
+                let _ = element.append_child(child_node);
             }
             Some(element.into())
         }
