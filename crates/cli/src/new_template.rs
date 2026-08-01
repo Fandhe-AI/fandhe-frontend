@@ -97,7 +97,7 @@ pub(crate) struct Template {
 /// まま固定する。
 pub(crate) const DEFAULT_TEMPLATE_NAME: &str = "default";
 
-/// `templates/default/` の全ファイル（14 件）を git の相対パス順・実行ビット
+/// `templates/default/` の全ファイル（15 件）を git の相対パス順・実行ビット
 /// どおりに埋め込んだ固定配列。
 ///
 /// 展開順はこの配列順であり、`fw new` の出力 JSON の `files` 一覧も同じ順序で
@@ -105,6 +105,10 @@ pub(crate) const DEFAULT_TEMPLATE_NAME: &str = "default";
 /// で追加、`fw gate` が唯一の情報源として読む）は生成直後の `fw gate` PASS の
 /// 前提条件であり、`Cargo.toml` / `Cargo.lock` と同様プロジェクト名への置換
 /// 対象。
+///
+/// イシュー #1133: `templates/app`（イシュー #1115）と同じ動機で `.gitignore`
+/// を同梱し、生成プロジェクトの `target/`・`.env` の誤コミットを既定で防ぐ
+/// （`fw new` 既定テンプレートへの横展開）。
 const DEFAULT_TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: ".github/workflows/deny.yml",
@@ -114,6 +118,11 @@ const DEFAULT_TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: ".github/workflows/npm-asset-gate.yml",
         contents: include_str!("../templates/default/.github/workflows/npm-asset-gate.yml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: ".gitignore",
+        contents: include_str!("../templates/default/.gitignore"),
         executable: false,
     },
     TemplateFile {
@@ -371,14 +380,23 @@ pub(crate) fn find_template(name: &str) -> Option<&'static Template> {
     TEMPLATES.iter().find(|t| t.name == name)
 }
 
-/// `examples/ssr-routing/` の全ファイル（8 件）を git の相対パス順・実行ビット
+/// `examples/ssr-routing/` の全ファイル（9 件）を git の相対パス順・実行ビット
 /// どおりに埋め込んだ固定配列（イシュー #500）。
 ///
 /// `crates/cli/embedded-examples/ssr-routing/` は正本 `examples/ssr-routing/`
 /// のバイト単位同梱コピーであり、乖離は
 /// `cli/tests/example_publish_copy_drift.rs` が検知する。全ファイル
 /// `executable: false`（正本側に実行ビット付きファイルが存在しないため）。
+///
+/// イシュー #1133: `templates/app`（イシュー #1115）と同じ動機で `.gitignore`
+/// を同梱し、`fw new --example` 生成プロジェクトの `target/`・`.env` の
+/// 誤コミットを既定で防ぐ。
 const SSR_ROUTING_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: ".gitignore",
+        contents: include_str!("../embedded-examples/ssr-routing/.gitignore"),
+        executable: false,
+    },
     TemplateFile {
         rel_path: "Cargo.lock",
         contents: include_str!("../embedded-examples/ssr-routing/Cargo.lock"),
@@ -421,14 +439,24 @@ const SSR_ROUTING_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `examples/ssg-blog/` の全ファイル（9 件）を git の相対パス順・実行ビット
+/// `examples/ssg-blog/` の全ファイル（10 件）を git の相対パス順・実行ビット
 /// どおりに埋め込んだ固定配列（イシュー #501）。
 ///
 /// `crates/cli/embedded-examples/ssg-blog/` は正本 `examples/ssg-blog/` の
 /// バイト単位同梱コピーであり、乖離は
 /// `cli/tests/example_publish_copy_drift.rs` が検知する。全ファイル
 /// `executable: false`（正本側に実行ビット付きファイルが存在しないため）。
+///
+/// イシュー #1133: `templates/app`（イシュー #1115）と同じ動機で `.gitignore`
+/// を同梱し、`fw new --example` 生成プロジェクトの `target/`・`dist/`
+/// （`src/main.rs` の `generate_pages` 出力先）・`.env` の誤コミットを既定で
+/// 防ぐ。
 const SSG_BLOG_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: ".gitignore",
+        contents: include_str!("../embedded-examples/ssg-blog/.gitignore"),
+        executable: false,
+    },
     TemplateFile {
         rel_path: "Cargo.lock",
         contents: include_str!("../embedded-examples/ssg-blog/Cargo.lock"),
@@ -476,7 +504,7 @@ const SSG_BLOG_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `examples/dist-server-docker/` の全ファイル（11 件）を git の相対パス順・
+/// `examples/dist-server-docker/` の全ファイル（12 件）を git の相対パス順・
 /// 実行ビットどおりに埋め込んだ固定配列（イシュー #502）。
 ///
 /// `crates/cli/embedded-examples/dist-server-docker/` は正本
@@ -484,10 +512,20 @@ const SSG_BLOG_EXAMPLE_FILES: &[TemplateFile] = &[
 /// [`SSR_ROUTING_EXAMPLE_FILES`] と同じく
 /// `cli/tests/example_publish_copy_drift.rs` が検知する。全ファイル
 /// `executable: false`（正本側に実行ビット付きファイルが存在しないため）。
+///
+/// イシュー #1133: `templates/app`（イシュー #1115）と同じ動機で `.gitignore`
+/// を同梱し、`fw new --example` 生成プロジェクトの `target/`・`.env` の
+/// 誤コミットを既定で防ぐ（`.dockerignore` の `.env`/`.env.*` 除外とは
+/// 多重防御の関係で、両立不変）。
 const DIST_SERVER_DOCKER_EXAMPLE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: ".dockerignore",
         contents: include_str!("../embedded-examples/dist-server-docker/.dockerignore"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: ".gitignore",
+        contents: include_str!("../embedded-examples/dist-server-docker/.gitignore"),
         executable: false,
     },
     TemplateFile {
@@ -542,7 +580,7 @@ const DIST_SERVER_DOCKER_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `examples/interactive-view-transitions/` の全ファイル（13 件）を git の
+/// `examples/interactive-view-transitions/` の全ファイル（14 件）を git の
 /// 相対パス順・実行ビットどおりに埋め込んだ固定配列（イシュー #503）。
 ///
 /// `crates/cli/embedded-examples/interactive-view-transitions/` は正本
@@ -550,7 +588,17 @@ const DIST_SERVER_DOCKER_EXAMPLE_FILES: &[TemplateFile] = &[
 /// 乖離は `cli/tests/example_publish_copy_drift.rs` が検知する。
 /// `tools/wasm/build.sh` のみ実行ビット付き（`git ls-files -s` の mode
 /// 100755、正本側の実行ビットをそのまま反映）。
+///
+/// イシュー #1133: `templates/app`（イシュー #1115）と同じ動機で `.gitignore`
+/// を同梱し、`fw new --example` 生成プロジェクトの `target/`・
+/// `wasm/target/`・`dist/`（`src/main.rs` の出力先）・`static/wasm/`
+/// （`tools/wasm/build.sh` の出力先）・`.env` の誤コミットを既定で防ぐ。
 const INTERACTIVE_VIEW_TRANSITIONS_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: ".gitignore",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/.gitignore"),
+        executable: false,
+    },
     TemplateFile {
         rel_path: "Cargo.lock",
         contents: include_str!("../embedded-examples/interactive-view-transitions/Cargo.lock"),
@@ -628,7 +676,7 @@ const INTERACTIVE_VIEW_TRANSITIONS_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `examples/headless-pre-styled-ui/` の全ファイル（9 件）を git の相対パス
+/// `examples/headless-pre-styled-ui/` の全ファイル（10 件）を git の相対パス
 /// 順・実行ビットどおりに埋め込んだ固定配列（イシュー #609）。
 ///
 /// `crates/cli/embedded-examples/headless-pre-styled-ui/` は正本
@@ -640,7 +688,16 @@ const INTERACTIVE_VIEW_TRANSITIONS_EXAMPLE_FILES: &[TemplateFile] = &[
 /// 受けて crates.io バージョン依存へ切り替え、本配列を追加した（#609）。
 /// 全ファイル `executable: false`（正本側に実行ビット付きファイルが存在しない
 /// ため）。
+///
+/// イシュー #1133: `templates/app`（イシュー #1115）と同じ動機で `.gitignore`
+/// を同梱し、`fw new --example` 生成プロジェクトの `target/`・`dist/`
+/// （`src/main.rs` の出力先）・`.env` の誤コミットを既定で防ぐ。
 const HEADLESS_PRE_STYLED_UI_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: ".gitignore",
+        contents: include_str!("../embedded-examples/headless-pre-styled-ui/.gitignore"),
+        executable: false,
+    },
     TemplateFile {
         rel_path: "Cargo.lock",
         contents: include_str!("../embedded-examples/headless-pre-styled-ui/Cargo.lock"),
@@ -793,8 +850,8 @@ mod tests {
         assert_eq!(e.name, "ssr-routing");
         assert_eq!(
             e.files.len(),
-            8,
-            "ssr-routing example must contain exactly 8 files"
+            9,
+            "ssr-routing example must contain exactly 9 files"
         );
         assert!(
             e.substituted_files.is_empty(),
@@ -817,8 +874,8 @@ mod tests {
         assert_eq!(e.name, "ssg-blog");
         assert_eq!(
             e.files.len(),
-            9,
-            "ssg-blog example must contain exactly 9 files"
+            10,
+            "ssg-blog example must contain exactly 10 files"
         );
         assert!(
             e.substituted_files.is_empty(),
@@ -837,8 +894,8 @@ mod tests {
         assert_eq!(e.name, "dist-server-docker");
         assert_eq!(
             e.files.len(),
-            11,
-            "dist-server-docker example must contain exactly 11 files"
+            12,
+            "dist-server-docker example must contain exactly 12 files"
         );
         assert!(
             e.substituted_files.is_empty(),
@@ -857,8 +914,8 @@ mod tests {
         assert_eq!(e.name, "interactive-view-transitions");
         assert_eq!(
             e.files.len(),
-            13,
-            "interactive-view-transitions example must contain exactly 13 files"
+            14,
+            "interactive-view-transitions example must contain exactly 14 files"
         );
         assert!(
             e.substituted_files.is_empty(),

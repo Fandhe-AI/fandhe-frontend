@@ -1,0 +1,9 @@
+# cargo ビルド成果物（root クレート / wasm 独立ワークスペース）
+/target/
+/wasm/target/
+# src/main.rs の出力先
+/dist/
+# tools/wasm/build.sh（wasm-bindgen 後処理）の出力先
+/static/wasm/
+# 秘密情報を含むローカル env（コミット禁止。実値は各環境で管理する）
+/.env
