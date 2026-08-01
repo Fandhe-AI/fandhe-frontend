@@ -663,6 +663,16 @@ keyed list の構造変化が発生した呼び出しに限り**対応表を再�
 呼び出し側は当該束縛を no-op として扱う（本書第 9 節・不変条件、
 fail-closed）。したがって、
 
+> **追補（イシュー #1120）**: 本節が扱うのは「束縛点は存在するが
+> `bound_value` が値を解決できない」ケースの無音停止である。これとは別に、
+> `fandhe-frontend-wasm-full` の `Runtime::wire`（イベント後更新）は、dirty field に
+> 対応する束縛点・keyed list のいずれも存在しない場合（画面遷移のような
+> DOM 構造変化）も従来は黙って no-op になっていた。イシュー #1120 は
+> こちらを構造フォールバック（`root` サブツリーの全再描画）で解消した
+> （`docs/design/wasm-full-architecture.md` §21.1 参照）。本節の
+> `BindingSource` 側の無音停止問題自体は解消されておらず、引き続き
+> テスト時構造検証 API（本節 §12.3）で機械検知する。
+
 - view 側マーカーの typo・`BindingSource` 側 match 腕の削除追従漏れ
 - `AppState` フィールド削除後の view 追従漏れ
 
