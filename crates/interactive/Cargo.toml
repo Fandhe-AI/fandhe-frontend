@@ -12,6 +12,6 @@ categories = ["web-programming"]
 # docs/api/interactive-api.md 第 2 節: 外部依存は fandhe-frontend-core（path）のみを厳守する。
 # 新規クレートを追加する場合は事前にユーザー承認を得ること（.claude/rules/coding-rust.md）。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.1.1" }
+fandhe-frontend-core = { path = "../core", version = "0.1.2" }
 
 [dev-dependencies]

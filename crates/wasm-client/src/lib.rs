@@ -51,6 +51,14 @@
 //!    `unsafe` 追加はビルド時に検出される）。
 //! 6. `JsValue` エラー・`web_sys::console` ログは英語・固定文言とし、内部
 //!    パス・状態値・属性値の内容を含めない。
+//! 7. [`replace_subtree`]（イシュー #1121）は [`build_dom_node`] のみを
+//!    経由してサブツリーを構築する（`set_inner_html` は使わない。`RawHtml`
+//!    混入時は fail-closed で `Err` を返し DOM を変更しない、上記
+//!    不変条件 1 を継承）。
+//! 8. [`set_timeout_once`]/[`clear_timeout_once`]（イシュー #1121）の
+//!    `Closure` は `registry`（本ファイル `mod registry`）と同じく
+//!    `forget()` を使わず、`thread_local!` レジストリで key 単位に有界
+//!    保持する。
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
@@ -76,6 +84,20 @@ pub mod keyed_diff;
 mod keyed_dom;
 #[cfg(target_arch = "wasm32")]
 pub use keyed_dom::{apply_keyed_list, build_dom_node, find_keyed_list_node, find_list_element};
+
+/// view 外パラメータ付き部分描画（サブツリー再マウント）の safe ヘルパ
+/// （イシュー #1121、`docs/api/hydration-api.md` 第 12 節参照）。
+#[cfg(target_arch = "wasm32")]
+mod subtree;
+#[cfg(target_arch = "wasm32")]
+pub use subtree::replace_subtree;
+
+/// ワンショット副作用（一度きりのタイマー）向け Closure 寿命管理
+/// （イシュー #1121、`docs/api/hydration-api.md` 第 12 節参照）。
+#[cfg(target_arch = "wasm32")]
+mod timer;
+#[cfg(target_arch = "wasm32")]
+pub use timer::{clear_timeout_once, set_timeout_once};
 
 // イシュー #403: 配線本体（[`wire_hydrate_targets`]、下記 `hydrate_dom`
 // モジュール）を `wasm-bindgen-exports` feature 非依存の共有 Rust API へ

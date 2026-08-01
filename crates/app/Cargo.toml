@@ -12,6 +12,6 @@ categories = ["web-programming"]
 # REQ-3 / coding-rust.md: 依存クレート追加は事前承認が必要。
 # fandhe-frontend-app は fandhe-frontend-core（path 依存）のみを持ち、外部クレートは追加しない。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.1.1" }
+fandhe-frontend-core = { path = "../core", version = "0.1.2" }
 
 [dev-dependencies]

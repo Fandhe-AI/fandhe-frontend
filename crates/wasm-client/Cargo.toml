@@ -35,7 +35,7 @@ categories = ["wasm", "web-programming"]
 # 消費する前提 API のため 0.1.2 → 0.1.3 へバンプする（新規外部クレート追加
 # ゼロ、`.claude/rules/coding-rust.md` の semver バンプ必須条項）。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.1.1" }
+fandhe-frontend-core = { path = "../core", version = "0.1.2" }
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
 fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
 wasm-bindgen = "0.2"
@@ -89,6 +89,18 @@ wasm-bindgen-exports = []
 # 同一バージョンを指定する。
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+
+# `tests/timer_browser.rs`（イシュー #1121）の `sleep` ヘルパーが
+# `setTimeout` の解決を非同期に待つために使う。`wasm-full/Cargo.toml`
+# （headless_timer_browser.rs 系）と同一バージョンを指定する。`js-sys` は
+# 既に `wasm-bindgen`/`web-sys` の推移依存として `Cargo.lock` に解決済み
+# のため、本クレートの直接 dev-dependency 化で新規パッケージのダウンロード
+# は発生しない（`wasm-bindgen-futures` はワークスペース内で `wasm-full` が
+# 既に使用しているバージョンと同一を指定する）。dev-dependency のみの追加
+# であり、標準サーバー構成の依存グラフ上限（REQ-3・60 件/深さ 6）には
+# 算入されない。
+js-sys = "0.3"
+wasm-bindgen-futures = "0.4"
 
 # 三モード（SSR/SSG/CSR）整合テスト（wasm-client/tests/three_mode_integration.rs、
 # イシュー #375）専用の dev-dependency。ワークスペース内 path 依存かつ

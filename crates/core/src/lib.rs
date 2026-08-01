@@ -186,6 +186,99 @@ pub fn el(tag: &'static str, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> N
     }
 }
 
+/// [`el`] の所有属性値版（イシュー #1121）。
+///
+/// `el` の `attrs: Vec<(&str, &str)>` は呼び出し元のスタックフレームより
+/// 長生きする借用元（`String` の一時変数等）を要求するため、`format!` した
+/// 動的な属性値や、後述の [`attr_if`]/[`attr_if_value`] が返す
+/// `Option<(String, String)>` の `flatten()` 合成と相性が悪い（呼び出し元が
+/// 自前で `&str` の一時変数を束縛し続けなければならない）。本関数は同じ
+/// `Node::Element` を組み立てるが、属性を `Vec<(String, String)>` として
+/// 直接受け取ることでこの制約を外す。
+///
+/// エスケープ（`render()` 時）・属性名ホワイトリスト検証（不変条件 4）・
+/// タグ名 `&'static str` 固定（不変条件 5）は [`el`] と完全に共有する
+/// （`Node::Element` へ素通しするだけで新たな迂回経路を作らない）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{el_owned, attr_if_value, text, render};
+///
+/// let count = 3;
+/// let node = el_owned(
+///     "span",
+///     vec![("data-count".to_string(), count.to_string())]
+///         .into_iter()
+///         .chain(attr_if_value(count == 0, "hidden", ""))
+///         .collect(),
+///     vec![text("items")],
+/// );
+/// assert_eq!(render(&node), r#"<span data-count="3">items</span>"#);
+/// ```
+pub fn el_owned(tag: &'static str, attrs: Vec<(String, String)>, children: Vec<Node>) -> Node {
+    Node::Element {
+        tag,
+        attrs,
+        children,
+    }
+}
+
+/// 条件付きのブール属性（値なし相当・空文字列値）を組み立てる（イシュー #1121）。
+///
+/// `cond` が `true` のときのみ `Some((name, String::new()))` を返す。`false`
+/// のときは `None` を返すため、[`el_owned`] の `attrs` へ
+/// `.into_iter().flatten().collect()` で合成すると、条件不成立時は属性
+/// 自体が出力から欠落する（`hidden`/`disabled`/`checked` のような
+/// 真偽属性は HTML の慣例上、存在自体が真を表し値は無視されるため、
+/// 出力しない = 偽で足りる）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{el_owned, attr_if, text, render};
+///
+/// let disabled = true;
+/// let node = el_owned(
+///     "button",
+///     vec![attr_if(disabled, "disabled")].into_iter().flatten().collect(),
+///     vec![text("送信")],
+/// );
+/// assert_eq!(render(&node), r#"<button disabled="">送信</button>"#);
+/// ```
+pub fn attr_if(cond: bool, name: &str) -> Option<(String, String)> {
+    attr_if_value(cond, name, "")
+}
+
+/// 条件付き属性（任意の値）を組み立てる（イシュー #1121）。
+///
+/// `cond` が `true` のときのみ `Some((name, value))` を返す。[`attr_if`]
+/// はブール属性向けの本関数のショートカット（`value` を空文字列に固定）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{el_owned, attr_if_value, text, render};
+///
+/// let selected_id: Option<&str> = Some("3");
+/// let node = el_owned(
+///     "option",
+///     vec![attr_if_value(selected_id == Some("3"), "selected", "selected")]
+///         .into_iter()
+///         .flatten()
+///         .collect(),
+///     vec![text("item 3")],
+/// );
+/// assert_eq!(render(&node), r#"<option selected="selected">item 3</option>"#);
+/// ```
+pub fn attr_if_value(cond: bool, name: &str, value: impl Into<String>) -> Option<(String, String)> {
+    if cond {
+        Some((name.to_string(), value.into()))
+    } else {
+        None
+    }
+}
+
 /// テキストノードを組み立てる。レンダリング時に既定でエスケープされる
 /// （REQ-1 が要求する「テキスト補間は既定エスケープ」の入口 API）。
 ///
@@ -622,4 +715,111 @@ mod tests {
     // 移設した。本モジュールでは `Node`/`el`/`text`/`raw_html`/`render` と
     // ホワイトリスト検証（`is_valid_attr_name`/`is_valid_tag_name`）のみを
     // 対象とする。
+
+    // --- イシュー #1121: el_owned / attr_if / attr_if_value ---
+
+    /// `el_owned` の出力が同内容を渡した `el` と完全一致することを固定する
+    /// （所有版が既存の借用版と同じ `Node::Element` を組み立てるだけの
+    /// 薄いコンストラクタであるという契約の回帰テスト）。
+    #[test]
+    fn el_owned_output_matches_el_with_same_content() {
+        let borrowed = el(
+            "div",
+            vec![("class", "card"), ("data-id", "42")],
+            vec![text("hello")],
+        );
+        let owned = el_owned(
+            "div",
+            vec![
+                ("class".to_string(), "card".to_string()),
+                ("data-id".to_string(), "42".to_string()),
+            ],
+            vec![text("hello")],
+        );
+        assert_eq!(render(&borrowed), render(&owned));
+    }
+
+    /// `el_owned` に渡した属性値も `render()` 時に既定エスケープされる
+    /// （不変条件 1 が `el`/`el_owned` のどちらの経路でも成立することの
+    /// XSS 回帰テスト）。
+    #[test]
+    fn el_owned_attribute_values_are_escaped() {
+        let node = el_owned(
+            "div",
+            vec![(
+                "title".to_string(),
+                "\"><script>alert(1)</script>".to_string(),
+            )],
+            vec![],
+        );
+        let html = render(&node);
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&quot;&gt;&lt;script&gt;"));
+    }
+
+    /// `el_owned` へ渡した不正な属性名も `el` と同じホワイトリスト検証を
+    /// 経由し、panic せず出力からスキップされることを確認する
+    /// （`is_valid_attr_name` は `Node::Element` 共通のため `render_into` 側で
+    /// 経路を問わず適用される契約の回帰）。
+    #[test]
+    fn el_owned_invalid_attribute_name_is_skipped_without_panic() {
+        let node = el_owned(
+            "div",
+            vec![
+                ("onmouseover=alert(1) x".to_string(), "y".to_string()),
+                ("class".to_string(), "safe".to_string()),
+            ],
+            vec![],
+        );
+        let html = render(&node);
+        assert!(!html.contains("onmouseover"));
+        assert!(html.contains("class=\"safe\""));
+    }
+
+    #[test]
+    fn attr_if_true_branch_yields_bool_attribute() {
+        assert_eq!(
+            attr_if(true, "disabled"),
+            Some(("disabled".to_string(), String::new()))
+        );
+    }
+
+    #[test]
+    fn attr_if_false_branch_yields_none() {
+        assert_eq!(attr_if(false, "disabled"), None);
+    }
+
+    #[test]
+    fn attr_if_value_true_branch_yields_given_value() {
+        assert_eq!(
+            attr_if_value(true, "aria-selected", "true"),
+            Some(("aria-selected".to_string(), "true".to_string()))
+        );
+    }
+
+    #[test]
+    fn attr_if_value_false_branch_yields_none() {
+        assert_eq!(attr_if_value(false, "aria-selected", "true"), None);
+    }
+
+    /// `attr_if`/`attr_if_value` を `el_owned` の `attrs` へ
+    /// `.into_iter().flatten().collect()` で合成する実用パターンを固定する
+    /// （condition が false の属性は出力へ一切現れないことを確認）。
+    #[test]
+    fn attr_if_composes_into_el_owned_attrs_via_flatten() {
+        let hidden = false;
+        let node = el_owned(
+            "div",
+            vec![("class".to_string(), "card".to_string())]
+                .into_iter()
+                .chain(attr_if(hidden, "hidden"))
+                .chain(attr_if_value(true, "data-count", "3"))
+                .collect(),
+            vec![],
+        );
+        let html = render(&node);
+        assert!(!html.contains("hidden"));
+        assert!(html.contains("class=\"card\""));
+        assert!(html.contains("data-count=\"3\""));
+    }
 }
