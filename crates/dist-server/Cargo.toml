@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-dist-server"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "fandhe-frontend-dist-server: TASK-9.1b。fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-server を単一実行ファイルへ統合し、コンパイル時埋め込みの静的アセットと fandhe-frontend-app の SSR ページを配信する配布用サーバー。"
 license = "MIT OR Apache-2.0"
@@ -34,7 +34,7 @@ categories = ["web-programming"]
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.1.1" }
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
-fandhe-frontend-server = { path = "../server", version = "0.1.0" }
+fandhe-frontend-server = { path = "../server", version = "0.1.1" }
 hyper = { version = "1", default-features = false, features = ["http1", "server"] }
 hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
 http-body-util = { version = "0.1", default-features = false }
