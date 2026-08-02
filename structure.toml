@@ -16,6 +16,17 @@
 # `[routing] definition_dir` が参照する論理名（`<name>`）は本移設で変更しない
 # （`docs/design/structure-manifest.md` §2.2.0a 参照）。`static`（静的アセット、
 # 対応クレートなし）はクレートではないため移設対象外でフラット配置のまま。
+#
+# 本マニフェストの `[directories.<name>]` の宣言単位は cargo パッケージ
+# （クレート）であり、そのパッケージが持つターゲット（bin/lib）ではない
+# （イシュー #1115/#1134/#1162、詳細は docs/design/structure-manifest.md
+# §2.2.3）。したがって、既に宣言済みのクレート（例: `crates/cli`）へ
+# `src/lib.rs` を追加して bin + lib 構成へ拡張しても、本ファイルの更新は
+# 不要である。`fw gate`（`crates/cli/src/gate.rs::run_gate`）は宣言済み
+# ディレクトリの `crate`（パッケージ名）へ `-p <crate>` 指定で
+# cargo check/clippy/test を実行するため、lib ターゲットも自動的に検証
+# 対象へ含まれて PASS する。本ファイルの更新が必要になるのは、`crates/`
+# 配下へ新規**パッケージ**（新クレート）を追加する場合のみである。
 
 [manifest]
 version = 1

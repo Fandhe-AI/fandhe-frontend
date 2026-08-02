@@ -187,6 +187,17 @@ bin + lib 構成に拡張しても、`structure.toml`（本ファイルが定義
 追記し、`templates/default/structure.toml` は既定テンプレート側の案内格差を
 解消するため #1134 で追記した。
 
+さらに #1162 で、リポジトリ自身の `structure.toml`（複数クレートのワーク
+スペース構成へ文脈適応させた版。「新規パッケージ追加時のみ宣言追加が
+必要」の旨を明記）と、`examples/*` 5 件（ssr-routing / ssg-blog /
+dist-server-docker / interactive-view-transitions / headless-pre-styled-ui。
+`templates/default`/`templates/app` と同型のルート直下単一クレート構成の
+ため同旨コメントをほぼそのまま踏襲）およびその `fw new --example` 埋め込み
+用同梱コピー（`crates/cli/embedded-examples/`）へも同旨コメントを展開した。
+`templates/embed/structure.toml` は asset-only モード（`role = "asset"`
+のみ・`crate` キーなし）で「lib 追加」の前提自体が成り立たないため、
+#1134/#1142 と同じ判断で対象外のまま維持している。
+
 ### 2.3 整合性検証ルール（`StructureManifest::validate()`）
 
 `crates/cli/src/structure.rs` の `validate()` が実装する、マニフェスト**内部**の
