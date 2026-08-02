@@ -15,6 +15,9 @@ Rust 製フロントエンドフレームワーク。AI 時代のセキュリテ
 fandhe-frontend/
 ├── CLAUDE.md
 ├── README.md
+├── .editorconfig             # エディタ間のインデント・改行統一（Rust は rustfmt 既定 4 スペースと一致させる補助）
+├── Makefile                  # 開発タスク（setup / build / test / fmt / lint / gate / docs / docker-dev-build / docker-dev）の入口
+├── lefthook.yml              # pre-commit / commit-msg フック定義（npm 非依存）。lefthook 導入済み環境で `make setup` が有効化、ローカル検証用
 ├── skills-lock.json          # npx skills add の導入記録
 ├── docs/
 │   ├── design/               # 設計文書（gate-design / wasm-full-architecture / structure-manifest / docs-site-three-column-redesign / docs-site-component-pages〔部品ページ IA、#938〕 / docs-site-api-reference-split〔利用者向け API と内部設計記録の分離基準、#952〕 / docs-site-search-design〔全文検索、#956〕 / docs-site-primitives-themes-split〔Primitives / Themes 2 層分割、#1037〕 等）。component-coverage-map.md は ark-ui / chakra-ui に Radix UI を加えた 3 参照軸のコンポーネント対応表の正（イシュー #937。Radix 側の一次記録は radix-primitives-inventory.md / radix-themes-survey.md）
@@ -47,6 +50,14 @@ fandhe-frontend/
 │   ├── dist-server-docker/  # 単一バイナリ配布 + Docker 正本サンプル（crates.io バージョン依存、イシュー #502）
 │   ├── interactive-view-transitions/  # 状態管理（fandhe-frontend-interactive）+ View Transitions 正本サンプル（イシュー #503）
 │   └── headless-pre-styled-ui/  # headless-ui / pre-styled-ui コンポーネントショーケース（crates.io バージョン依存、`fw new --example` 対応、イシュー #609）
+├── docker/                     # コンテナ定義（製品配布用 `Dockerfile` とは別。開発ループ専用）
+│   └── dev/                    # 開発用 Docker イメージ・compose 定義
+│       ├── Dockerfile         # Rust toolchain + wasm32 + 開発ツール一式。`make docker-dev-build` で構築
+│       └── compose.yml        # `make docker-dev-build` / `make docker-dev` で利用
+├── tools/                      # CI・開発スクリプト
+│   ├── ci/                    # CI 用ブートストラップ（ensure-gate-tools.sh）
+│   └── hooks/                 # Git hooks スクリプト（lefthook 実行対象）
+│       └── commit-msg-check.sh # Conventional Commits 形式検証（npm 依存なし、REQ-12 整合）
 ├── templates/
 │   ├── default/
 │   │   ├── deny.toml         # 標準プロジェクトテンプレート同梱の cargo-deny 設定（TASK-4.1 / REQ-4）
@@ -174,7 +185,9 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 ## Conventions
 
 - **日本語**: やりとり・ドキュメント・コミット/PR 本文は日本語（`japanese-style.md`）
-- **Conventional Commits**: create-commit スキルを使用。`--no-verify` 禁止（`conventional-commits.md`）
+- **Conventional Commits**: create-commit スキルを使用。`--no-verify` 禁止（`conventional-commits.md`）。commit-msg フック（`tools/hooks/commit-msg-check.sh`）でローカル検証が自動実行される
+- **ローカル hooks**: lefthook による pre-commit / commit-msg フック（`make setup` で導入、`--no-verify` 禁止は従来どおり）
+- **開発タスク**: `make help` で全ターゲット一覧が見られる（setup / build / test / fmt / lint / gate / docs / docker-dev-build / docker-dev）
 - **セキュリティレビュー**: コミット・PR 前に security-auditor による OWASP チェック必須（`security.md`）
 - **ユーザー承認フロー**: 実装は計画承認後（implement-issue）。依存クレート追加・Issue 起票は事前承認必須
 - **`docs/spec/` は編集禁止**: サブモジュール。仕様変更は fandhe-frontend-spec リポジトリで行う

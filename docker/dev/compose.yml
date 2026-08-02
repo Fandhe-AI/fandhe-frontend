@@ -1,0 +1,32 @@
+# 開発用コンテナの compose 定義。`make docker-dev-build` / `make docker-dev`
+# から `docker compose -f docker/dev/compose.yml` として呼ばれる。
+#
+# 製品配布用（ルート `Dockerfile`、REQ-9・scratch ベース）とは別系統であり、
+# 本ファイルはローカル開発ループ（build/test/lint/gate）専用。
+services:
+  dev:
+    build:
+      # tools/ci/ensure-gate-tools.sh を COPY するため、ビルドコンテキストは
+      # リポジトリルートにする（docker/dev/Dockerfile 自体はサブディレクトリ）。
+      context: ../..
+      dockerfile: docker/dev/Dockerfile
+    working_dir: /work
+    volumes:
+      # リポジトリ本体は bind mount し、ホスト側の編集を即座にコンテナへ反映する。
+      # 注意（開発専用のトレードオフ、Dockerfile 側コメントも参照）: コンテナは
+      # root で動作するため、bind mount したこのディレクトリ配下にコンテナ内から
+      # 作成・変更されたファイルは root 所有になり得る。
+      - ../..:/work
+      # cargo レジストリキャッシュ・ビルド成果物はホストと分離した named
+      # volume に保持し、コンテナの起動・破棄をまたいで再ビルドを高速化する
+      # （bind mount せず named volume にする理由: ホスト側の cargo
+      # キャッシュ・target ディレクトリとの汚染を避けるため）。
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-target:/work/target
+    command: bash
+    tty: true
+    stdin_open: true
+
+volumes:
+  cargo-registry:
+  cargo-target:

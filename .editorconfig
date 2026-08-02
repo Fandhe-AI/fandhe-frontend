@@ -1,0 +1,35 @@
+# EditorConfig（https://editorconfig.org）。
+#
+# エディタ間でインデント・改行・文字コードを統一するための宣言。
+# Rust のインデントは rustfmt（`cargo fmt`、rustfmt 既定設定 = 4 スペース）が
+# 最終的な正であり、本ファイルはエディタ入力時の初期値を rustfmt と一致させて
+# 整形差分の発生を減らす補助に位置付ける（`.claude/rules/coding-rust.md` 参照）。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# 設定・データ・ワークフロー系は 2 スペース（既存ファイルの慣行に一致）
+[*.{yml,yaml,toml,json}]
+indent_size = 2
+
+# Web アセット（埋め込み HTML・グルー JS・CSS）は 2 スペース
+[*.{html,js,css}]
+indent_size = 2
+
+# Markdown は行末スペース 2 つが強制改行の意味を持つため除去しない
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefile はタブインデントが構文上必須
+[{Makefile,*.mk}]
+indent_style = tab
+
+# シェルスクリプト（tools/ 配下等）は 2 スペース
+[*.sh]
+indent_size = 2

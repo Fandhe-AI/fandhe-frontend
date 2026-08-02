@@ -41,7 +41,7 @@ ci(xtask): 依存グラフ上限 (60件/深さ6) の自動計測を追加
 
 ## 厳守事項
 
-- **`--no-verify` の使用禁止**（pre-commit フックを必ず通す）
+- **`--no-verify` の使用禁止**（pre-commit フックを必ず通す）。commit-msg 形式は lefthook（`tools/hooks/commit-msg-check.sh`）でローカル機械検証されます
 - 1 コミット 1 論理変更。無関係な変更を混ぜない
 - コミット前に staged 差分からシークレット混入（`.env`・トークン等）がないか確認する
 - create-commit スキルを使用してコミットする
