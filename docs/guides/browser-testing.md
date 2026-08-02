@@ -150,3 +150,46 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
   - **A01 アクセス制御の不備**: 配信サーバは `127.0.0.1` バインドのみ（外部公開しない）。
   - **A09 ログ・監視の不備**: `manifest.tsv` にはユーザー名を含む絶対パス（`$HOME` 等）を残さず、
     出力ディレクトリ相対パスのみを記録する。撮影物・ログは非コミットとし、リポジトリへ残置しない。
+
+## 10. examples のオーバーレイ実演の実測検証（イシュー #1203）
+
+- **位置づけ**: `examples/*/wasm`（例: `examples/interactive-view-transitions/wasm`）
+  が独自実装するアプリ側の配線コード（`Runtime<C>` に載らないコンポーネントの
+  ハイドレーション・オーバーレイ配線ラッパー等）は、`crates/wasm-full/tests/` の
+  browser テストがカバーする wasm-full 本体の論理とは別に、example 固有の統合
+  ギャップを持ちうる。`docs/reports/interactive-view-transitions-overlay-browser-report.md`
+  はこの種のギャップ（navigation-menu/menubar のオーバーレイ実演における
+  Escape/外側クリック閉鎖が click 経路では機能しない再入バグ）を実ブラウザ実測で
+  発見した記録である。
+- **採用した検証方式（使い捨てハーネス・非常設 CI）**: §3 の `wasm-pack test
+  --headless --chrome` の応用として、対象 example の `wasm/` ディレクトリを
+  `<repo>/target/tmp/<作業名>/wasm/` へコピーし（イシュー #637 の配置規約に
+  整合、example 正本は一切変更しない）、コピー側にのみ次の変更を加える:
+  1. `[lib] crate-type` へ `"rlib"` を追加（`tests/` からクレートの公開関数を
+     呼べるようにする）。
+  2. `[dev-dependencies] wasm-bindgen-test = "0.3"` を追加。
+  3. `tests/support.rs`（共通フィクスチャ・イベント合成ヘルパー、
+     `crates/wasm-full/tests/overlay_close_browser.rs`/`keynav_browser.rs`
+     と同型の `create_placeholder`/`keydown_event`/`pointerdown_event`/
+     `RemoveOnDrop` パターンを踏襲）と、シナリオごとの
+     `tests/<name>_NN_<scenario>.rs` を追加する。
+  4. アプリ側が `thread_local!` で状態を共有する設計（例: 複数コンポーネント間で
+     1 個の `OverlayCloseController` を共有する `SHARED_OVERLAY`）を持つ場合、
+     `wasm-pack test` は `tests/*.rs` の**ファイル単位**で別々の `.wasm`
+     バイナリを生成することを利用し、シナリオ 1 件につきテストファイル 1 個へ
+     分割する（同一 `.wasm` インスタンス内で複数テストを実行すると
+     `thread_local` の状態が前のテストから残留し、偽陰性/偽陽性の原因になる）。
+  5. 実測後、`target/tmp/<作業名>/` を削除する（撮影物・ハーネスはコミットしない）。
+  常設 CI 化を見送った理由・再評価トリガーは同レポート §6 を参照。
+  `crates/cli/embedded-examples/` のバイト一致同期・`fandhe-frontend-cli` の
+  semver バンプ連鎖を避けるため、example 正本へテストを同梱しない点が
+  `crates/wasm-full/` 本体の browser テスト運用との違いである。
+- **フィクスチャ構築の注意（同レポート §5.2 参照）**: `data-hydrate-*` を
+  持たない `id` のみの root 要素は復元失敗 → 既定状態へのフォールバック
+  描画という安全側経路を通るが、`wire_keynav` 等 DOM 上の `data-scope`/
+  `data-part` 属性を頼りに対象範囲を確定するロジック（例:
+  `[data-scope="navigation-menu"][data-part="root"]` を `closest()` で
+  探索する）は、実 SSR が root 要素自体に付与する anatomy 属性を
+  フィクスチャ側でも明示的に再現しないと無言で no-op になる。フィクスチャの
+  `create_placeholder` を素の `div` のまま使い回さず、対象コンポーネントの
+  `root()` 関数が出力する属性と揃えること。
