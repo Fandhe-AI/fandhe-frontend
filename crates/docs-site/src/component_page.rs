@@ -65,9 +65,11 @@
 //! イシュー #1022 により [`crate::primitive_showcase`] が Primitives 63 部品の
 //! Demo を供給するようになったため、`/primitives/<kebab>/` は Rust 生成
 //! コンテンツを持つ（Anatomy・`data-*` 属性表もこの Demo 木から機械導出
-//! される）。[`crate::primitive_specs::SPEC_TABLES`] は当面空のままであり、
-//! Features / API 引数表 / Examples / Accessibility の原稿充填は
-//! Phase 5（#1024〜#1029）が引き継ぐ。
+//! される）。[`crate::primitive_specs::SPEC_TABLES`] は Phase 5（#1024〜#1029）
+//! 完了により、6 カテゴリ別サブモジュールが 63 部品分の原稿（Features /
+//! API Reference 引数表 / Examples / Accessibility の 4 節）を充填済みで
+//! ある（カテゴリと担当 issue の対応は [`crate::primitive_specs`] の
+//! モジュール doc 参照）。
 
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
@@ -83,10 +85,11 @@ use crate::showcase;
 /// 実在することを `tests/site_css_contract.rs` が固定する。
 pub const THEMES_SHOWCASE_CLASS: &str = "pre-styled-showcase";
 
-/// Demo ラッパ class（Primitives 層）。本イシュー時点では Primitives が
-/// Demo を持たないため実 HTML には出現しないが、`tests/site_css_contract.rs`
-/// の契約リストへ先回りで登録し、#1022 が Demo を供給した瞬間に対応 CSS
-/// セレクタの欠落を fail-closed に検知できるようにする（設計 §5 / §9 A05）。
+/// Demo ラッパ class（Primitives 層）。イシュー #1022 で
+/// [`crate::primitive_showcase`] が Primitives 63 部品の Demo を供給して
+/// 以降、実 HTML に出現する。対応 CSS セレクタ（`assets/primitives-showcase.css`）
+/// の実在は `tests/site_css_contract.rs` の契約リストが fail-closed に
+/// 固定する（設計 §5 / §9 A05）。
 pub const PRIMITIVES_SHOWCASE_CLASS: &str = "primitives-showcase";
 
 /// 部品ページが属する層。`fandhe-frontend-pre-styled-ui`（スタイル済み・
