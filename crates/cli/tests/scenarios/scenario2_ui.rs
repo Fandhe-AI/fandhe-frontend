@@ -357,14 +357,30 @@ fn scenario2_gate_passes_after_ui_improvement() {
                 || stdout.contains("\"gate_result\":\"ERROR\""),
             "stdout={stdout}"
         );
-        if !cargo_deny_available() {
+        if cargo_deny_available() {
+            // cargo-deny のみ導入済みの mixed-env では、未導入側
+            // （wasm32 target 起因）の environment_error に policy 自体の
+            // 本物のバグが隠れないよう、導入済み側は明示的に通過を断定
+            // する（Bugbot 指摘、PR #1179 review comment 3697675547）。
+            assert_eq!(
+                check_passed(&stdout, "policy"),
+                Some(true),
+                "stdout={stdout}"
+            );
+        } else {
             assert_eq!(
                 check_passed(&stdout, "policy"),
                 Some(false),
                 "stdout={stdout}"
             );
         }
-        if !wasm32_target_available() {
+        if wasm32_target_available() {
+            assert_eq!(
+                check_passed(&stdout, "lint_wasm32"),
+                Some(true),
+                "stdout={stdout}"
+            );
+        } else {
             assert_eq!(
                 check_passed(&stdout, "lint_wasm32"),
                 Some(false),
