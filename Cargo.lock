@@ -68,7 +68,7 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-cli"
-version = "0.3.2"
+version = "0.3.3"
 
 [[package]]
 name = "fandhe-frontend-core"

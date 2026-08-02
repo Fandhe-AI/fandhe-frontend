@@ -12,10 +12,16 @@ publish = false
 # crates.io へ公開済み（#499 実装時に sparse index への再照会で非 yanked を
 # 確認済み。詳細はイシュー #503 実装計画参照）。イシュー #1159 で 0.2.0 系
 # （イシュー #1141 公開）へ追随。
+#
+# fandhe-frontend-headless-ui はイシュー #1199 で追加。navigation-menu /
+# menubar（headless-ui 0.28.0、イシュー #1161）の SSR マークアップ実演用。
+# wasm-full 0.7.0 が既に headless-ui 0.28.0 へ normal 依存しているため、
+# 本クレートの追加は推移依存の閉包を広げない（外部クレート増ゼロ）。
 [dependencies]
 fandhe-frontend-core = "0.2.0"
 fandhe-frontend-app = "0.2.0"
 fandhe-frontend-interactive = "0.2.0"
+fandhe-frontend-headless-ui = "0.28.0"
 
 [dev-dependencies]
 

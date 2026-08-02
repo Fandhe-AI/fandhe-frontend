@@ -25,8 +25,24 @@ members = ["."]
 
 # fandhe-frontend-wasm-full は独自の semver 系列（0.7.0、イシュー #1141 公開）を
 # 持つ。イシュー #1159 で 0.1.0 から追随、イシュー #1191 で 0.5.0 から追随。
+#
+# 以下 4 クレート（headless-ui/core/interactive/wasm-bindgen/web-sys）は
+# イシュー #1199 で追加。navigation-menu/menubar は `Runtime<C>`
+# （`DirtyTracked + BindingSource` を要求、`docs/design/wasm-full-architecture.md`
+# 参照）に載らないため、本クレートが `entry.rs` と同型のアプリ側ラッパー
+# （`hydrate_navigation_menu`/`hydrate_menubar`）を自前実装する。いずれも
+# `fandhe-frontend-wasm-full` 0.7.0 が既に normal 依存として同一バージョンを
+# 引き込み済みであり、推移依存の閉包は広げない（外部クレート増ゼロ）。
 [dependencies]
 fandhe-frontend-wasm-full = "0.7.0"
+fandhe-frontend-headless-ui = "0.28.0"
+fandhe-frontend-core = "0.2.0"
+fandhe-frontend-interactive = "0.2.0"
+wasm-bindgen = "0.2"
+
+[dependencies.web-sys]
+version = "0.3"
+features = ["Window", "Document", "Element"]
 
 [lib]
 crate-type = ["cdylib"]
