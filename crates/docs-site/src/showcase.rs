@@ -311,7 +311,9 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
 .pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
-.pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n";
+.pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n}\n";
 
 /// 部品ページ 1 件分のレジストリエントリ（イシュー #941）。
 ///
@@ -927,7 +929,22 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::navigation_menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tab_nav::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::link::stylesheet())?;
-    sheet.push_css(&fandhe_frontend_pre_styled_ui::link_overlay::stylesheet())?;
+    // Link Overlay（イシュー #1154）: `link_overlay::stylesheet()` を
+    // ここで無条件出荷しない（Bugbot 指摘、PR #1165 review comment
+    // 3697116537）。当該スタイルシートは
+    // `[data-scope="link-overlay"][data-part="overlay"]` に
+    // `position: absolute; inset: 0;` を無条件（`.pre-styled-showcase`
+    // スコープなし）に適用する。`crate::nav::prev_next_nav`（サイト共通
+    // クロームの前後ページナビゲーション）は同じ headless マーカー
+    // （overlay を唯一の子要素として使用するカード）を再利用しており、
+    // `crate::site_theme` はまさにこの理由で当該スタイルシートを意図的に
+    // 除外している（`site_theme` 冒頭コメント・
+    // `stylesheet_never_takes_up_link_overlay_stylesheet` 参照）。Themes
+    // 部品ページ共有 CSS（`assets/pre-styled-ui.css`）は `nav.prev-next`
+    // を含む全ページへ配信されるため、無条件出荷すると同じ回帰
+    // （prev/next ナビが高さ 0 に潰れる）が起きる。デモの見た目に必要な
+    // 等価ルールは [`SHOWCASE_LAYOUT_CSS`] 側で `.pre-styled-showcase`
+    // スコープ付きとして個別に持つ（下記）。
     sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
     // Clipboard（イシュー #1155）: showcase.rs の COMPONENT_PAGES には未登録
     // だが、`crate::component_specs::interactive_utilities::demo_clipboard`
@@ -6745,6 +6762,27 @@ mod tests {
         assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="backdrop"]"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="spotlight"]"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="positioner"]"#));
+        // Link Overlay（イシュー #1154、PR #1165 Bugbot 指摘「Link overlay
+        // CSS collapses prev-next」の回帰防止）: `link_overlay::stylesheet()`
+        // の無条件（`.pre-styled-showcase` スコープなし）出荷は
+        // `crate::nav::prev_next_nav` が再利用する同一 headless マーカーの
+        // 高さを 0 へ潰す。等価ルールは `.pre-styled-showcase` スコープ付き
+        // でのみ出荷されていることを固定する。
+        assert!(!css.contains(
+            "\n[data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;"
+        ));
+        assert!(css.contains(
+            r#".pre-styled-showcase [data-scope="link-overlay"][data-part="root"] {
+  position: relative;
+}"#
+        ));
+        assert!(css.contains(
+            r#".pre-styled-showcase [data-scope="link-overlay"][data-part="overlay"] {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}"#
+        ));
         // StyleSheet の不変条件（<style> 埋め込み・CSS ファイル双方で安全）。
         assert!(!css.contains('<'));
     }
