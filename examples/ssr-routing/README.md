@@ -6,7 +6,7 @@
 ルーティングの正本サンプルです（イシュー #499）。`templates/`（`fw new` が
 展開する「生成の雛形」）とは異なり、本サンプルは crates.io へ公開済みの
 `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server`
-（いずれも v0.1.0）をバージョン依存として実際に使う「正本」であり、
+（いずれも v0.2.0、イシュー #1159 で追随）をバージョン依存として実際に使う「正本」であり、
 `examples/` 配下に追加される以降の全サンプルが従う標準構成（examples 規約）
 の初例です。
 
