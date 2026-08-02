@@ -11,6 +11,26 @@ crates.io へ公開されたことを受け、イシュー #493 で本手順に�
 `crates/cli/tests/template_vendor_drift.rs` のテスト更新）。以下の手順は
 実施済みの記録として残す。
 
+### イシュー #412 受け入れ条件の消化状況
+
+イシュー #412 の受け入れ条件 3 点は以下のとおり消化済み:
+
+1. **crates.io 公開をトリガー条件とし、成立まで着手しない**: 充足済み
+   （全 9 クレートの公開は 2026-07-20、切替実施はイシュー #493 で公開後に
+   実施した。上記「実施記録」参照）。
+2. **切替後も `fw new` の決定性（バイト単位一致）と生成直後 `fw gate` PASS
+   を維持**: 充足済み・機械検証常設（`crates/cli/tests/new_e2e.rs::
+   same_args_produce_byte_identical_output_across_two_runs`、
+   `crates/cli/tests/new_gate_e2e.rs::fw_new_app_template_output_passes_fw_gate`）。
+3. **オフライン環境での `fw new` の挙動（依存取得不可時のエラー契約）を
+   明確化する**: 充足済み。`docs/design/fw-new-design.md` §6.2「オフライン
+   挙動とエラー契約（イシュー #412 受け入れ条件 (3)）」に文書化した
+   （`fw new` 自体はネットワーク非依存でコンパイル時埋め込みのみから
+   完結すること、依存取得は生成後の `cargo build` 時に発生すること、
+   到達不可時は cargo 標準エラーに委ねフォールバック経路を作らないこと）。
+
+3 条件すべての消化により、本イシューは追跡台帳としての役目を終える。
+
 ## 背景
 
 `templates/app`（`fw new --template app`、イシュー #378）は、fandhe-frontend-core /
