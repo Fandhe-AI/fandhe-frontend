@@ -27,7 +27,10 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_core::render;
+use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::dialog;
+use fandhe_frontend_headless_ui::menubar;
+use fandhe_frontend_headless_ui::navigation_menu;
 use fandhe_frontend_headless_ui::popover;
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_wasm_full::overlay::{OverlayCloseController, OverlayCloseRequest};
@@ -130,6 +133,112 @@ fn mount_dialog(document: &Document, container: &Element, id_prefix: &str) -> (E
     let content = document
         .get_element_by_id(&content_id)
         .expect("content element must exist");
+    (trigger, content)
+}
+
+/// 単一の NavigationMenu（trigger + content、`value` は trigger の
+/// `data-value`）を `container` 配下へ展開し、`(trigger, content)` を返す
+/// （イシュー #1173）。`value` を差し替え可能にして XSS ペイロード注入
+/// テストから再利用する。
+fn mount_navigation_menu(
+    document: &Document,
+    container: &Element,
+    id_prefix: &str,
+    value: &str,
+) -> (Element, Element) {
+    let trigger_id = format!("{id_prefix}-trigger");
+    let content_id = format!("{id_prefix}-content");
+    let html = render(&navigation_menu::root(
+        "test navigation",
+        vec![],
+        vec![navigation_menu::list(
+            vec![],
+            vec![navigation_menu::item(
+                OpenState::Open,
+                false,
+                vec![],
+                vec![
+                    navigation_menu::trigger(
+                        OpenState::Open,
+                        false,
+                        value,
+                        Some(&trigger_id),
+                        Some(&content_id),
+                        vec![],
+                        vec![],
+                    ),
+                    navigation_menu::content(
+                        OpenState::Open,
+                        Some(&content_id),
+                        None,
+                        vec![],
+                        vec![navigation_menu::link("/dest", false, vec![], vec![])],
+                    ),
+                ],
+            )],
+        )],
+    ));
+    container.set_inner_html(&html);
+    let trigger = document
+        .get_element_by_id(&trigger_id)
+        .expect("navigation-menu trigger element must exist");
+    let content = document
+        .get_element_by_id(&content_id)
+        .expect("navigation-menu content element must exist");
+    (trigger, content)
+}
+
+/// 単一の Menubar（trigger + positioner + content）を `container` 配下へ
+/// 展開し、`(trigger, content)` を返す（イシュー #1173）。`item_value` は
+/// content 内 item の `value` に使い、XSS ペイロード注入テストから再利用
+/// する。
+fn mount_menubar(
+    document: &Document,
+    container: &Element,
+    id_prefix: &str,
+    item_value: &str,
+) -> (Element, Element) {
+    let trigger_id = format!("{id_prefix}-trigger");
+    let content_id = format!("{id_prefix}-content");
+    let html = render(&menubar::root(
+        Orientation::Horizontal,
+        "test menubar",
+        vec![],
+        vec![menubar::menu(
+            OpenState::Open,
+            vec![],
+            vec![
+                menubar::trigger(
+                    true,
+                    OpenState::Open,
+                    false,
+                    false,
+                    0,
+                    Some(&content_id),
+                    vec![("id", &trigger_id)],
+                    vec![],
+                ),
+                menubar::positioner(
+                    OpenState::Open,
+                    vec![],
+                    vec![menubar::content(
+                        OpenState::Open,
+                        Some(&content_id),
+                        None,
+                        vec![],
+                        vec![menubar::item(item_value, false, false, vec![], vec![])],
+                    )],
+                ),
+            ],
+        )],
+    ));
+    container.set_inner_html(&html);
+    let trigger = document
+        .get_element_by_id(&trigger_id)
+        .expect("menubar trigger element must exist");
+    let content = document
+        .get_element_by_id(&content_id)
+        .expect("menubar content element must exist");
     (trigger, content)
 }
 
@@ -504,4 +613,310 @@ fn remove_overlay_with_out_of_range_index_does_not_panic() {
     controller.remove_overlay(0);
     controller.remove_overlay(999);
     assert_eq!(controller.stack_len(), 0);
+}
+
+// ---------------------------------------------------------------------
+// NavigationMenu / Menubar（イシュー #1173: OverlayKind へ追加された 2 種別の
+// 実ブラウザ回帰。native 単体テスト（overlay.rs）はスタック判定ロジックを
+// 検証済みであり、ここでは data-scope 認識・実 keydown/pointerdown 経路を
+// 検証する）。
+// ---------------------------------------------------------------------
+
+#[wasm_bindgen_test]
+fn navigation_menu_content_is_recognized_and_reports_escape_close() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-navmenu-escape-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (trigger, content) =
+        mount_navigation_menu(&document, &placeholder, "overlay-navmenu-esc", "item-1");
+    let (controller, requests) = recording_controller(&document);
+    let index = controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("navigation-menu scope must be recognized");
+
+    document
+        .dispatch_event(&keydown_event("Escape"))
+        .expect("dispatch_event must not fail");
+
+    let recorded = requests.borrow().clone();
+    assert_eq!(recorded.len(), 1);
+    assert_eq!(recorded[0].index, index);
+}
+
+#[wasm_bindgen_test]
+fn navigation_menu_pointerdown_outside_content_closes_it() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-navmenu-outside-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (trigger, content) =
+        mount_navigation_menu(&document, &placeholder, "overlay-navmenu-outside", "item-1");
+    let (controller, requests) = recording_controller(&document);
+    let index = controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("navigation-menu scope must be recognized");
+
+    placeholder
+        .dispatch_event(&pointerdown_event())
+        .expect("dispatch_event must not fail");
+
+    let recorded = requests.borrow().clone();
+    assert_eq!(recorded.len(), 1);
+    assert_eq!(recorded[0].index, index);
+}
+
+#[wasm_bindgen_test]
+fn navigation_menu_pointerdown_inside_content_or_trigger_does_not_close() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-navmenu-inside-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (trigger, content) =
+        mount_navigation_menu(&document, &placeholder, "overlay-navmenu-inside", "item-1");
+    let (controller, requests) = recording_controller(&document);
+    controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("navigation-menu scope must be recognized");
+
+    content
+        .dispatch_event(&pointerdown_event())
+        .expect("dispatch_event must not fail");
+    trigger
+        .dispatch_event(&pointerdown_event())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        requests.borrow().is_empty(),
+        "content 内・trigger 上の pointerdown では閉鎖しないこと"
+    );
+}
+
+#[wasm_bindgen_test]
+fn navigation_menu_close_on_escape_false_opts_out() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-navmenu-escape-optout-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let content_id = "overlay-navmenu-escape-optout-content";
+    let html = render(&navigation_menu::content(
+        OpenState::Open,
+        Some(content_id),
+        None,
+        vec![("data-close-on-escape", "false")],
+        vec![],
+    ));
+    placeholder.set_inner_html(&html);
+    let content = document
+        .get_element_by_id(content_id)
+        .expect("content element must exist");
+
+    let (controller, requests) = recording_controller(&document);
+    controller
+        .push_overlay(&content, None)
+        .expect("navigation-menu scope must be recognized");
+
+    document
+        .dispatch_event(&keydown_event("Escape"))
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        requests.borrow().is_empty(),
+        "data-close-on-escape=\"false\" の opt-out が navigation-menu にも効くこと"
+    );
+}
+
+#[wasm_bindgen_test]
+fn navigation_menu_trigger_data_value_xss_payload_does_not_produce_script_element_through_close_flow(
+) {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-navmenu-xss-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let payload = "\"><script>alert(1)</script>";
+    let (trigger, content) =
+        mount_navigation_menu(&document, &placeholder, "overlay-navmenu-xss", payload);
+
+    // data-value へ XSS ペイロードを含む展開時点で script 要素が生成されて
+    // いないこと（既定エスケープの回帰確認）。
+    assert!(
+        placeholder
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "data-value に XSS ペイロードを含む trigger の展開時点で script 要素が生成されてはならない"
+    );
+
+    let (controller, requests) = recording_controller(&document);
+    let index = controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("navigation-menu scope must be recognized");
+
+    document
+        .dispatch_event(&keydown_event("Escape"))
+        .expect("dispatch_event must not fail");
+
+    let recorded = requests.borrow().clone();
+    assert_eq!(
+        recorded.len(),
+        1,
+        "XSS ペイロードを含む data-value でも閉鎖制御自体は正しく動くこと"
+    );
+    assert_eq!(recorded[0].index, index);
+    assert!(
+        placeholder
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "閉鎖要求の発火後も script 要素が生成されてはならない"
+    );
+}
+
+#[wasm_bindgen_test]
+fn menubar_content_is_recognized_and_reports_escape_close() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-menubar-escape-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (trigger, content) = mount_menubar(&document, &placeholder, "overlay-menubar-esc", "a");
+    let (controller, requests) = recording_controller(&document);
+    let index = controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("menubar scope must be recognized");
+
+    document
+        .dispatch_event(&keydown_event("Escape"))
+        .expect("dispatch_event must not fail");
+
+    let recorded = requests.borrow().clone();
+    assert_eq!(recorded.len(), 1);
+    assert_eq!(recorded[0].index, index);
+}
+
+#[wasm_bindgen_test]
+fn menubar_pointerdown_outside_content_closes_it() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-menubar-outside-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (trigger, content) = mount_menubar(&document, &placeholder, "overlay-menubar-outside", "a");
+    let (controller, requests) = recording_controller(&document);
+    let index = controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("menubar scope must be recognized");
+
+    placeholder
+        .dispatch_event(&pointerdown_event())
+        .expect("dispatch_event must not fail");
+
+    let recorded = requests.borrow().clone();
+    assert_eq!(recorded.len(), 1);
+    assert_eq!(recorded[0].index, index);
+}
+
+#[wasm_bindgen_test]
+fn menubar_pointerdown_inside_content_or_trigger_does_not_close() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-menubar-inside-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (trigger, content) = mount_menubar(&document, &placeholder, "overlay-menubar-inside", "a");
+    let (controller, requests) = recording_controller(&document);
+    controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("menubar scope must be recognized");
+
+    content
+        .dispatch_event(&pointerdown_event())
+        .expect("dispatch_event must not fail");
+    trigger
+        .dispatch_event(&pointerdown_event())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        requests.borrow().is_empty(),
+        "content 内・trigger 上の pointerdown では閉鎖しないこと"
+    );
+}
+
+#[wasm_bindgen_test]
+fn menubar_close_on_interact_outside_false_opts_out() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-menubar-outside-optout-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let content_id = "overlay-menubar-outside-optout-content";
+    let html = render(&menubar::content(
+        OpenState::Open,
+        Some(content_id),
+        None,
+        vec![("data-close-on-interact-outside", "false")],
+        vec![],
+    ));
+    placeholder.set_inner_html(&html);
+    let content = document
+        .get_element_by_id(content_id)
+        .expect("content element must exist");
+
+    let (controller, requests) = recording_controller(&document);
+    controller
+        .push_overlay(&content, None)
+        .expect("menubar scope must be recognized");
+
+    placeholder
+        .dispatch_event(&pointerdown_event())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        requests.borrow().is_empty(),
+        "data-close-on-interact-outside=\"false\" の opt-out が menubar にも効くこと"
+    );
+}
+
+#[wasm_bindgen_test]
+fn menubar_item_value_xss_payload_does_not_produce_script_element_through_close_flow() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "overlay-menubar-xss-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let payload = "\"><script>alert(1)</script>";
+    let (trigger, content) = mount_menubar(&document, &placeholder, "overlay-menubar-xss", payload);
+
+    assert!(
+        placeholder
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "item value に XSS ペイロードを含む展開時点で script 要素が生成されてはならない"
+    );
+
+    let (controller, requests) = recording_controller(&document);
+    let index = controller
+        .push_overlay(&content, Some(&trigger))
+        .expect("menubar scope must be recognized");
+
+    document
+        .dispatch_event(&keydown_event("Escape"))
+        .expect("dispatch_event must not fail");
+
+    let recorded = requests.borrow().clone();
+    assert_eq!(recorded.len(), 1);
+    assert_eq!(recorded[0].index, index);
+    assert!(
+        placeholder
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "閉鎖要求の発火後も script 要素が生成されてはならない"
+    );
 }

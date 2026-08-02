@@ -353,7 +353,7 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 - `menubar::trigger` へ `index: usize` 引数を追加（破壊的変更）し、`data-value`（Menu の index を文字列化した値）を出力するようにした。`("menubar", "trigger") → "toggle"`（`requires_value: true`）行は `Menubar::decode_action` の `"toggle"` を用いる（payload は `str::parse::<usize>()` でパースし、パース不能は `None`。open-follows-focus・範囲外 index no-op は `Menubar::update` の既存契約のまま）。
 - `calendar::day_trigger` は `date: PlainDate` を既に受けていたためシグネチャ変更なしで `data-value`（`date.to_iso_string()`）を追加出力した。上記の `("calendar", "day-trigger") → "select"` 行と対応する。
 
-headless-ui は 0.27.0 → 0.28.0（0.x の破壊的変更、マイナーバンプ）、依存元の `fandhe-frontend-pre-styled-ui` は再エクスポート経由の破壊的変更として 0.39.0 → 0.40.0、`fandhe-frontend-wasm-full` は追加的変更として 0.5.0 → 0.5.1 をバンプした（`.claude/rules/coding-rust.md` 公開済みクレートの semver バンプ規約）。`crates/wasm-full/src/overlay.rs::OverlayKind` に `navigation-menu`/`menubar` を含めない（Escape/外側クリックによる content の実閉鎖の一元化を行わない）既知のギャップは本イシューのスコープ外として残置した（`crates/wasm-full/src/keynav.rs` モジュール doc §NavigationMenu/§Menubar 参照）。
+headless-ui は 0.27.0 → 0.28.0（0.x の破壊的変更、マイナーバンプ）、依存元の `fandhe-frontend-pre-styled-ui` は再エクスポート経由の破壊的変更として 0.39.0 → 0.40.0、`fandhe-frontend-wasm-full` は追加的変更として 0.5.0 → 0.5.1 をバンプした（`.claude/rules/coding-rust.md` 公開済みクレートの semver バンプ規約）。`crates/wasm-full/src/overlay.rs::OverlayKind` に `navigation-menu`/`menubar` を含めない（Escape/外側クリックによる content の実閉鎖の一元化を行わない）既知のギャップは本イシューのスコープ外として残置していたが、イシュー #1173 で解消済み（§22 参照）。
 
 ### 12.4 fail-closed 契約（受け入れ条件 3）
 
@@ -551,7 +551,7 @@ menu/select の `root` は 1 インスタンスの境界だが、menubar の `ro
 ### 18.4 既知のギャップ（本イシューでは対応しない、スコープ外）
 
 - **`headless.rs::MAPPING_TABLE` に menubar 行が無い**: イシュー #1161 で解消済み。`menubar::trigger` が headless-ui 0.28.0 以降 `data-value`（Menu の index）を出力するようになり、`("menubar", "trigger") → "toggle"`（`requires_value: true`）行を追加した（§12.3 参照）。
-- **`overlay.rs::OverlayKind` が `menubar` を含まない**: Escape/外側クリックによる menubar content の実閉鎖は行われない。keynav の Escape 処理は既存 Menu/Select と同じく highlight の後始末のみを担い、閉鎖自体は `overlay` の責務のまま変えていない（イシュー #1161 のスコープ外として残置）。
+- **`overlay.rs::OverlayKind` が `menubar` を含まない**: イシュー #1173 で解消済み（§22 参照）。`OverlayKind::Menubar` が追加され、Escape/外側クリックによる menubar content の実閉鎖は `overlay` が一元的に担う。keynav の Escape 処理は従来どおり highlight の後始末のみを担い、閉鎖の dispatch 自体は行わない（責務分離は不変）。
 
 いずれも `.claude/rules/out-of-scope-tracking.md` に従い Issue 化を提案する対象として PR 本文に記録する。
 
@@ -589,7 +589,7 @@ ToggleGroup の item 間移動は WAI-ARIA APG Toolbar/RadioGroup パターン�
 
 - **`MAPPING_TABLE` への `navigation-menu` 行未追加**（§12.3 参照）: イシュー #1161 で解消済み。`navigation_menu::trigger` が headless-ui 0.28.0 以降 `data-value` を出力するようになり、`("navigation-menu", "trigger") → "toggle"`（`requires_value: true`）行を追加した。
 - **ToggleGroup の SSR 側 roving tabindex 初期状態**: `toggle_group::item` は `tabindex` を出力しないため、最初の矢印キー押下までは全 item がタブ順に入る（押下後に単一タブストップへ収束する）。恒久解は `toggle_group::item` への `focused: bool` opt-in（`toolbar.rs` の `roving_tabindex`/`drop_tabindex_attr` が先例）だが、公開 API の破壊的変更のため本イシューでは扱わない。`wire_keynav` へマウント時の DOM 正規化パスを新設する案は不採用（`wire_keynav` はリスナー登録以外の DOM 変更を一切行わない契約であり、アプリ側が付けた `tabindex` と競合しうるため）。
-- **`overlay.rs::OverlayKind` に `navigation-menu` が無い**: Escape/外側クリックによる content の実閉鎖の一元化は行わない（Menubar と同じ既知ギャップ、イシュー #1161 のスコープ外として残置）。
+- **`overlay.rs::OverlayKind` に `navigation-menu` が無い**: イシュー #1173 で解消済み（§22 参照）。`OverlayKind::NavigationMenu` が追加され、Escape/外側クリックによる content の実閉鎖は `overlay` が一元的に担う（Menubar と同じ解消）。
 - **`list` 直下（content 外）のリンクは移動対象に含めない**: trigger 間移動のみを対象とする。対象外リンクもネイティブにタブ順へ残るためアクセシビリティ後退はない。
 - **docs-site `/primitives/navigation-menu/` `/primitives/toggle-group/` の keyboard 節（`KeyRow`）未追記**: `crates/docs-site/src/primitive_specs/navigation.rs` ほかは現状 `keyboard: &[]`。#1070 も同様に後続送りにしている。
 - **`crates/wasm-full/src/keynav.rs` の肥大化**（本イシュー後さらに増加）: サブモジュール分割（`keynav/menu.rs` 等）のリファクタ提案。
@@ -750,3 +750,41 @@ rlib として本クレートへ依存するだけで自アプリの `#[wasm_bin
 - **headless-ui 側の SSR roving tabindex 出力**: `branch`/`item` が状態駆動で `tabindex` を出力する代替案は、headless-ui のマイナーバンプ + `pre-styled-ui`/`wasm-full`/`xtask` の `version` 要求追随 + docs-site ドリフト検知テストへの波及を伴うため本イシューでは採らない。
 
 いずれも `.claude/rules/out-of-scope-tracking.md` に従い Issue 化を提案する対象として PR 本文に記録する。
+
+## 22. `OverlayKind` へ NavigationMenu / Menubar を追加し Escape・外側クリック閉鎖を一元化（イシュー #1173）
+
+イシュー #1161（§12.3）/ PR #1171 で navigation-menu / menubar のクリック開閉トリガーが `crates/wasm-full/src/headless.rs::MAPPING_TABLE` へ登録された一方、`crates/wasm-full/src/overlay.rs::OverlayKind` には両部品が未登録のまま残置され（§18.4/§19.5 の既知ギャップ）、Escape キー・外側クリックによる閉鎖制御（`OverlayCloseController` によるオーバーレイ横断の一元管理）の対象外だった。本イシューはこの欠落を解消する。
+
+### 22.1 headless-ui 側は変更不要
+
+- `navigation_menu.rs` は `data-scope="navigation-menu"`、`menubar.rs` は `data-scope="menubar"` を既に出力する。
+- 閉鎖アクションも既存: NavigationMenu は `SingleSelect::decode_action` の `"deselect"`（payload 不使用・冪等）、Menubar は `MenubarAction::Close`（`"close"`、payload 不使用・冪等）。呼び出し側（#580 統合層）が `OverlayCloseRequest` を受けて実際に dispatch すべきアクション名として `overlay.rs` モジュール doc に明記した。
+
+### 22.2 種別既定値
+
+| 判定 | NavigationMenu | Menubar | 根拠 |
+|------|----------------|---------|------|
+| `close_on_escape` | `true` | `true` | 全種別 `true` の既存規則を踏襲（WAI-ARIA APG Disclosure Navigation Menu / Menubar とも Escape 閉鎖） |
+| `close_on_interact_outside` | `true` | `true` | Menu と同じ扱い。Tooltip のような遅延タイマー競合（#587）の事情がなく、外側クリック即時閉鎖が参照軸（Radix/ark-ui）の標準挙動 |
+| `outside_dismiss_blocks_propagation_by_default` | `true` | `true` | Tooltip のみ `false` とする既存判断（スタック非参加）の対象外。明示 opt-out 時は意図的永続化として下層への伝播を遮断する Menu と同型 |
+
+`OverlayKind` は `#[non_exhaustive]` を持たない公開 enum のため、variant 追加は 0.x の破壊的変更であり `fandhe-frontend-wasm-full` を 0.5.1 → 0.6.0 へマイナーバンプした（`.claude/rules/coding-rust.md` イシュー #638 規約）。workspace 内に `wasm-full` への `path + version` 依存元は無く（`cargo run -p xtask -- check-dep-versions` で確認済み）、依存元の `version` 要求追随は発生しない。
+
+### 22.3 keynav.rs との二重処理の整合（挙動変更なし・doc 明記のみ）
+
+`keynav.rs` の NavigationMenu Escape は「open 中の trigger/content 上でのみ `trigger.click()` を合成して close を委譲」する既存挙動を持つ。`overlay` 側と両方配線された場合の keydown 実行順は document へのリスナー登録順依存だが、いずれの順序でも同一の closed 状態へ収束する:
+
+- keynav 先行: click 合成 → `toggle` dispatch で closed。続く `overlay` の `"deselect"` dispatch は既に未選択のため冪等 no-op。
+- `overlay` 先行: `"deselect"` dispatch → closed・再描画。続く keynav は DOM の `data-state` を再確認するため、closed になったトリガー上の Escape は claim せず no-op（`keynav.rs` の「closed の trigger 上の Escape は no-op」既定と同じ fail-closed 経路）。
+
+Menubar 側の keynav Escape は元々「highlight の後始末のみ、閉鎖は overlay の責務」と明記済みであり、`overlay` 側の閉鎖と競合しない。この収束分析は `crates/wasm-full/src/overlay.rs`（モジュール doc「keynav との二重処理の収束」節）・`crates/wasm-full/src/keynav.rs`（§NavigationMenu/§Menubar「既知のギャップ」の解消記載）の双方へ記録した。
+
+### 22.4 テスト
+
+- native 単体テスト（`crates/wasm-full/src/overlay.rs` `#[cfg(test)]`）: `from_scope` の認識、既定値（escape/interact-outside/propagation）、opt-out の fail-closed（`"false"` のみ無効化）、Dialog の上に NavigationMenu/Menubar が乗った入れ子スタックの Escape/外側クリック判定。
+- 実ブラウザ回帰テスト（`crates/wasm-full/tests/overlay_close_browser.rs`）: `OverlayCloseController` が navigation-menu/menubar の `data-scope` を認識し、合成 Escape・外側/内側 pointerdown・opt-out 属性・XSS ペイロード（`data-value`/item value 経由）で script 要素が生成されないことを検証。`wasm-pack test --headless --chrome crates/wasm-full --test overlay_close_browser` で全 22 件 PASS を確認済み（既存 12 件 + 追加 10 件）。
+
+### 22.5 スコープ外（out-of-scope-tracking）
+
+- `crates/wasm-full/src/position.rs` の scope enum（アンカー配置）への navigation-menu/menubar 追加: 本イシューは閉鎖一元化のみが対象。
+- keynav.rs の NavigationMenu Escape 挙動（`trigger.click()` 合成）の `overlay` 委譲への一本化: §22.3 の収束分析のとおり現状で安全に共存するため挙動変更は行わない。

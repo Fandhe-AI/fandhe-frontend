@@ -412,10 +412,12 @@
 //!   `("menubar", "trigger")` → `"toggle"`（`requires_value: true`）行を
 //!   `MAPPING_TABLE` へ追加した。
 //! - **`crates/wasm-full/src/overlay.rs::OverlayKind` が `menubar` を含まない**:
-//!   Escape/外側クリックによる menubar content の実閉鎖は行われない。本
-//!   モジュールの Escape 処理は既存 Menu/Select と同じく highlight の後
-//!   始末のみを担い、閉鎖自体は `overlay` の責務のまま変えていない
-//!   （イシュー #1161 のスコープ外として残置）。
+//!   イシュー #1173 で解消済み。`OverlayKind::Menubar` が追加され、
+//!   Escape/外側クリックによる menubar content の実閉鎖は `overlay` が
+//!   一元的に担う。本モジュールの Escape 処理は従来どおり highlight の
+//!   後始末のみを担い、閉鎖の dispatch 自体は行わない（`overlay` との
+//!   責務分離は変えていない。`crate::overlay` モジュール doc「keynav との
+//!   二重処理の収束」節参照）。
 //!
 //! # NavigationMenu のキーボード仕様（WAI-ARIA APG Disclosure Navigation Menu 準拠、イシュー #1075）
 //!
@@ -477,9 +479,13 @@
 //!   で解消済み。`navigation_menu::trigger` が headless-ui 0.28.0 以降
 //!   `data-value` を出力するようになり、`("navigation-menu", "trigger")`
 //!   → `"toggle"`（`requires_value: true`）行を `MAPPING_TABLE` へ追加した。
-//! - **`overlay.rs::OverlayKind` に `navigation-menu` が無い**: Escape/
-//!   外側クリックによる content の実閉鎖の一元化は行わない（Menubar と
-//!   同じ既知ギャップ、イシュー #1161 のスコープ外として残置）。
+//! - **`overlay.rs::OverlayKind` に `navigation-menu` が無い**: イシュー
+//!   #1173 で解消済み。`OverlayKind::NavigationMenu` が追加され、Escape/
+//!   外側クリックによる content の実閉鎖は `overlay` が一元的に担う
+//!   （Menubar と同じ解消、`crate::overlay` モジュール doc「keynav との
+//!   二重処理の収束」節に本モジュールの Escape 合成 click と `overlay` の
+//!   `"deselect"` dispatch がいずれの発火順でも同一の closed 状態へ収束する
+//!   ことを記録した）。
 //! - **`list` 直下（content 外）のリンクは移動対象に含めない**:
 //!   trigger 間移動のみを対象とする。対象外リンクもネイティブにタブ順へ
 //!   残るためアクセシビリティ後退はない。
