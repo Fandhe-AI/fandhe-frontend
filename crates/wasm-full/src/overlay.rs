@@ -18,10 +18,10 @@
 //!
 //! - [`OverlayKind::from_scope`] は `fandhe-frontend-headless-ui` の各 anatomy
 //!   （`crates/headless-ui/src/anatomy.rs` の `anatomy(scope)`）が出力する
-//!   `data-scope` 属性値（`"dialog"`/`"popover"`/`"menu"`/`"tooltip"`）と
-//!   一致させる。未知の scope 値（改ざん・将来追加の別コンポーネント）は
-//!   `None` とし、呼び出し側は当該要素を閉鎖制御の対象外として無視する
-//!   （fail-closed、panic しない）。
+//!   `data-scope` 属性値（`"dialog"`/`"popover"`/`"menu"`/`"tooltip"`/
+//!   `"navigation-menu"`/`"menubar"`）と一致させる。未知の scope 値（改ざん・
+//!   将来追加の別コンポーネント）は `None` とし、呼び出し側は当該要素を
+//!   閉鎖制御の対象外として無視する（fail-closed、panic しない）。
 //! - opt-out 属性（`data-close-on-escape`/`data-close-on-interact-outside`）は
 //!   `fandhe-frontend-headless-ui` 側に専用 API を追加せず、呼び出し側が各
 //!   anatomy パーツの `attrs` 引数（例: `dialog::content` の `attrs: Vec<(&str, &str)>`）
@@ -37,14 +37,48 @@
 //!   Tooltip の `openDelay`/`closeDelay`/interactive 継続はイシュー #587の
 //!   スコープであり、いずれも本モジュールでは扱わない
 //!   （`.claude/rules/out-of-scope-tracking.md` 対応済み、兄弟イシューで追跡中）。
+//!
+//! ## `NavigationMenu`/`Menubar` の閉鎖要求と呼び出し側の dispatch（イシュー #1173）
+//!
+//! `OverlayCloseRequest` を受け取った呼び出し側（#580 統合層）が実際に
+//! `dispatch` すべきアクション名は種別ごとに異なる（本モジュールは通知のみで
+//! 完結し、`dispatch` 自体は行わない前提を上記契約節のとおり維持する）:
+//!
+//! - [`OverlayKind::NavigationMenu`][]: `crates/headless-ui/src/navigation_menu.rs`
+//!   の `SingleSelect::decode_action` が受理する `"deselect"`（payload 不使用）。
+//!   既に開いている項目を未選択へ戻す冪等操作であり、二重 dispatch されても
+//!   no-op のまま安全に収束する。
+//! - [`OverlayKind::Menubar`][]: `crates/headless-ui/src/menubar.rs` の
+//!   `MenubarAction::Close`（`"close"`、payload 不使用）。全 Menu を閉じる
+//!   冪等操作。
+//!
+//! ## keynav との二重処理の収束（イシュー #1173）
+//!
+//! `crate::keynav` は NavigationMenu の Escape を「open 中の trigger/content
+//! 上でのみ `trigger.click()` を合成して close を委譲」する既存挙動を持つ
+//! （`crate::keynav` モジュール doc §NavigationMenu 参照）。本モジュールの
+//! Escape 処理と keynav の Escape 処理は document への keydown リスナー登録順
+//! に依存して両方発火しうるが、いずれの順序でも同一の closed 状態へ収束する:
+//!
+//! - keynav 先行: `trigger.click()` 合成 → `toggle` dispatch で closed に
+//!   なる。続く本モジュールの `"deselect"` dispatch は既に未選択のため
+//!   冪等 no-op。
+//! - 本モジュール先行: `"deselect"` dispatch → closed・再描画。続く keynav は
+//!   DOM の `data-state` を再確認するため、closed になったトリガー上の
+//!   Escape は claim せず no-op（`crate::keynav` の「closed の trigger 上の
+//!   Escape は no-op」既定と同じ fail-closed 経路）。
+//!
+//! Menubar 側の keynav Escape は元々「highlight の後始末のみ、閉鎖は overlay
+//! の責務」と明記済みであり（`crate::keynav` モジュール doc §Menubar「既知の
+//! ギャップ」節、本イシューで解消済みへ更新）、本モジュールの閉鎖と競合しない。
 
 use crate::events::AttrSource;
 
 /// 閉鎖制御の対象となるオーバーレイ種別。
 ///
 /// `fandhe-frontend-headless-ui` の `data-scope` 属性値と 1 対 1 対応する
-/// （`crates/headless-ui/src/{dialog,popover,menu,tooltip}.rs` の
-/// `const ANATOMY: Anatomy = anatomy("...")` 参照）。
+/// （`crates/headless-ui/src/{dialog,popover,menu,tooltip,navigation_menu,
+/// menubar}.rs` の `const ANATOMY: Anatomy = anatomy("...")` 参照）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OverlayKind {
     /// `data-scope="dialog"`。
@@ -55,6 +89,12 @@ pub enum OverlayKind {
     Menu,
     /// `data-scope="tooltip"`。
     Tooltip,
+    /// `data-scope="navigation-menu"`（イシュー #1173。
+    /// `crates/headless-ui/src/navigation_menu.rs`）。
+    NavigationMenu,
+    /// `data-scope="menubar"`（イシュー #1173。
+    /// `crates/headless-ui/src/menubar.rs`）。
+    Menubar,
 }
 
 impl OverlayKind {
@@ -68,6 +108,8 @@ impl OverlayKind {
             "popover" => Some(Self::Popover),
             "menu" => Some(Self::Menu),
             "tooltip" => Some(Self::Tooltip),
+            "navigation-menu" => Some(Self::NavigationMenu),
+            "menubar" => Some(Self::Menubar),
             _ => None,
         }
     }
@@ -83,12 +125,15 @@ impl OverlayKind {
     /// `role="alertdialog"` 等コンテンツ属性による上書きは含まない。実効値は
     /// [`close_on_interact_outside_for`] を使う）。
     ///
-    /// Dialog/Popover/Menu は `true`。Tooltip のみ `false` とする —
-    /// Tooltip の非表示はポインタ離脱・遅延タイマー（イシュー #587）が
-    /// 主経路であり、外側クリックによる即時閉鎖を既定にすると #587 の
-    /// `closeDelay`/interactive 継続の設計判断と競合し得るため、既定では
-    /// 外側インタラクション閉鎖の対象外とする（opt-in は将来 #587 側の
-    /// 設計次第。現時点で Tooltip 用の opt-in 属性は未定義）。
+    /// Dialog/Popover/Menu/NavigationMenu/Menubar は `true`。Tooltip のみ
+    /// `false` とする — Tooltip の非表示はポインタ離脱・遅延タイマー
+    /// （イシュー #587）が主経路であり、外側クリックによる即時閉鎖を既定に
+    /// すると #587 の `closeDelay`/interactive 継続の設計判断と競合し得る
+    /// ため、既定では外側インタラクション閉鎖の対象外とする（opt-in は将来
+    /// #587 側の設計次第。現時点で Tooltip 用の opt-in 属性は未定義）。
+    /// NavigationMenu/Menubar は Tooltip のような遅延タイマー競合の事情が
+    /// なく、外側クリック即時閉鎖が参照軸（Radix/ark-ui）の標準挙動である
+    /// ため Menu と同じ既定とする（イシュー #1173）。
     #[must_use]
     pub const fn close_on_interact_outside(self) -> bool {
         !matches!(self, Self::Tooltip)
@@ -104,11 +149,14 @@ impl OverlayKind {
     /// 開いている間も、その下にある Dialog/Popover/Menu は外側クリックで
     /// 閉じられるべきであり、Tooltip の存在で伝播を止めてはならない。
     ///
-    /// Dialog（`role="alertdialog"` を含む）/Popover/Menu は `true` —
-    /// これらが外側クリックで閉じない場合（`role="alertdialog"` の既定、
-    /// または `data-close-on-interact-outside="false"` の明示 opt-out）は
+    /// Dialog（`role="alertdialog"` を含む）/Popover/Menu/NavigationMenu/
+    /// Menubar は `true` — これらが外側クリックで閉じない場合
+    /// （`role="alertdialog"` の既定、または
+    /// `data-close-on-interact-outside="false"` の明示 opt-out）は
     /// 呼び出し側が意図的に永続化を選んだものであり、子を孤児化させてまで
-    /// 親オーバーレイを閉じない安全側の判断を維持する。
+    /// 親オーバーレイを閉じない安全側の判断を維持する。NavigationMenu/
+    /// Menubar の明示 opt-out も Menu と同型の意図的な永続化として扱う
+    /// （イシュー #1173）。
     #[must_use]
     pub const fn outside_dismiss_blocks_propagation_by_default(self) -> bool {
         !matches!(self, Self::Tooltip)
@@ -651,6 +699,14 @@ mod tests {
             OverlayKind::from_scope("tooltip"),
             Some(OverlayKind::Tooltip)
         );
+        assert_eq!(
+            OverlayKind::from_scope("navigation-menu"),
+            Some(OverlayKind::NavigationMenu)
+        );
+        assert_eq!(
+            OverlayKind::from_scope("menubar"),
+            Some(OverlayKind::Menubar)
+        );
     }
 
     #[test]
@@ -669,6 +725,8 @@ mod tests {
             OverlayKind::Popover,
             OverlayKind::Menu,
             OverlayKind::Tooltip,
+            OverlayKind::NavigationMenu,
+            OverlayKind::Menubar,
         ] {
             assert!(kind.close_on_escape());
         }
@@ -680,6 +738,20 @@ mod tests {
         assert!(OverlayKind::Popover.close_on_interact_outside());
         assert!(OverlayKind::Menu.close_on_interact_outside());
         assert!(!OverlayKind::Tooltip.close_on_interact_outside());
+        assert!(OverlayKind::NavigationMenu.close_on_interact_outside());
+        assert!(OverlayKind::Menubar.close_on_interact_outside());
+    }
+
+    #[test]
+    fn navigation_menu_and_menubar_default_outside_dismiss_blocks_propagation_true() {
+        // Menu と同じ既定（Tooltip のみ false）であることを直接固定する
+        // （イシュー #1173）。
+        for kind in [OverlayKind::NavigationMenu, OverlayKind::Menubar] {
+            assert!(
+                kind.outside_dismiss_blocks_propagation_by_default(),
+                "kind={kind:?}"
+            );
+        }
     }
 
     // --- opt-out 判定（fail-closed: "false" のみ無効化、他は既定値） ---
@@ -815,12 +887,86 @@ mod tests {
             OverlayKind::Popover,
             OverlayKind::Menu,
             OverlayKind::Tooltip,
+            OverlayKind::NavigationMenu,
+            OverlayKind::Menubar,
         ] {
             assert!(
                 outside_dismiss_blocks_propagation_for(kind, &content),
                 "kind={kind:?}: 明示 opt-out は kind を問わず遮断する"
             );
         }
+    }
+
+    // --- NavigationMenu/Menubar の opt-out fail-closed（イシュー #1173）---
+
+    #[test]
+    fn close_on_escape_for_navigation_menu_and_menubar_false_disables() {
+        let content = element(&[("data-close-on-escape", "false")]);
+        assert!(!close_on_escape_for(OverlayKind::NavigationMenu, &content));
+        assert!(!close_on_escape_for(OverlayKind::Menubar, &content));
+    }
+
+    #[test]
+    fn close_on_escape_for_navigation_menu_and_menubar_invalid_value_falls_back_to_default() {
+        for bogus in ["true", "0", "FALSE", ""] {
+            let content = element(&[("data-close-on-escape", bogus)]);
+            assert!(
+                close_on_escape_for(OverlayKind::NavigationMenu, &content),
+                "value={bogus:?}"
+            );
+            assert!(
+                close_on_escape_for(OverlayKind::Menubar, &content),
+                "value={bogus:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn close_on_interact_outside_for_navigation_menu_and_menubar_false_disables() {
+        let content = element(&[("data-close-on-interact-outside", "false")]);
+        assert!(!close_on_interact_outside_for(
+            OverlayKind::NavigationMenu,
+            &content
+        ));
+        assert!(!close_on_interact_outside_for(
+            OverlayKind::Menubar,
+            &content
+        ));
+    }
+
+    #[test]
+    fn close_on_interact_outside_for_navigation_menu_and_menubar_defaults_when_attr_absent() {
+        let content = element(&[]);
+        assert!(close_on_interact_outside_for(
+            OverlayKind::NavigationMenu,
+            &content
+        ));
+        assert!(close_on_interact_outside_for(
+            OverlayKind::Menubar,
+            &content
+        ));
+    }
+
+    // --- スタック判定への統合（Dialog の上に NavigationMenu/Menubar が
+    // 乗った入れ子、イシュー #1173）---
+
+    #[test]
+    fn escape_close_index_targets_topmost_navigation_menu_over_dialog() {
+        let stack = [
+            entry(OverlayKind::Dialog, true, true),
+            entry(OverlayKind::NavigationMenu, true, true),
+        ];
+        assert_eq!(escape_close_index(&stack), Some(1));
+    }
+
+    #[test]
+    fn outside_close_indices_dialog_and_menubar_both_close_when_outside() {
+        let stack = [
+            entry(OverlayKind::Dialog, true, true),
+            entry(OverlayKind::Menubar, true, true),
+        ];
+        let contains_target = [false, false];
+        assert_eq!(outside_close_indices(&stack, &contains_target), vec![1, 0]);
     }
 
     // --- escape_close_index ---
