@@ -169,9 +169,12 @@ vendor 同梱は「`publish = false`（crates.io 未公開）である間」の�
 v0.1.0 で crates.io へ公開されたことを受け、本手順に従い切替を実施した
 （`templates/app/vendor/` 削除、`templates/app/Cargo.toml` の crates.io
 バージョン依存化、`crates/cli/tests/template_vendor_drift.rs` の テスト
-更新）。`templates/app/Cargo.toml` は現在 `fandhe-frontend-core = "0.1.0"`・
-`fandhe-frontend-app = "0.1.0"` でバージョン依存を宣言し、生成プロジェクト
-のビルド時に crates.io から依存を取得する。
+更新）。`templates/app/Cargo.toml` は `fandhe-frontend-core` / `fandhe-frontend-app`
+でバージョン依存を宣言し、生成プロジェクトのビルド時に crates.io から
+依存を取得する（具体的な `version = "..."` 値は正本 `templates/app/Cargo.toml`
+を参照。ここに具体値を書くと正本更新のたびに陳腐化するため記載しない。
+正本 `crates/*/Cargo.toml` の `version` との整合は
+`crates/cli/tests/template_vendor_drift.rs` が機械検知する）。
 
 `structure.toml` は `vendor/fandhe-frontend-core`/`vendor/fandhe-frontend-app` を宣言しない
 （`[directories.*]` 宣言外）。`fw gate` の `default_escape_check`・
@@ -211,7 +214,8 @@ fail-closed）。クレートはプロジェクトルート直下（`src/`）に
 **構成（§3a 切替後）**:
 - `wasm/Cargo.toml`（glue クレート `app-csr-wasm`、cdylib）: `fandhe-frontend-wasm-client`
   の `hydrate`/`mount_csr`（`#[wasm_bindgen]` エクスポート）を crates.io バージョン
-  依存（`fandhe-frontend-wasm-client = "0.1.0"`）で再エクスポートするのみ。
+  依存（正本 `templates/app/wasm/Cargo.toml` の `version = "..."` 値を参照）で
+  再エクスポートするのみ。
   HTML 組み立て・DOM 直接操作・`raw_html()` を持たない。
 - `wasm/Cargo.lock`: wasm-bindgen / web-sys をリポジトリ本体 `Cargo.lock` と同一
   バージョンへピン。バージョン一致は `crates/cli/tests/template_vendor_drift.rs`
@@ -361,6 +365,51 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
   fail-closed 契約・`executable: true` ファイルの no-op 生成を検証する。
   runner 調達要件は `docs/ci/ci-runner-requirements.md` §5、検証結果は
   `docs/reports/fw-new-windows-verification-report.md` に記録する。
+
+### 6.2 オフライン挙動とエラー契約（イシュー #412 受け入れ条件 (3)）
+
+イシュー #412 の受け入れ条件 (3)「オフライン環境での `fw new` の挙動（依存
+取得不可時のエラー契約）を明確化する」を満たすための記述。
+
+- **`fw new` 自体はネットワークアクセスを一切行わない**: 全テンプレート
+  （`default` / `app` / `embed`）・全 examples はコンパイル時埋め込み
+  （`include_str!`、§3・`crates/cli/src/new_template.rs`）であり、`fw new`
+  の実行はファイルシステム上へのバイト列展開のみで完結する。オフライン
+  環境でも全テンプレートの生成は成功し、出力はバイト単位で決定的
+  （§6 の決定性契約はネットワーク到達性に依存しない）。実測（本イシュー
+  #412 の実装過程で確認）: `crates/cli/src/new_template.rs` の全 `include_str!`
+  呼び出しはリポジトリ同梱ファイルのみを参照し、`reqwest`/`ureq` 等の HTTP
+  クライアント依存・環境変数経由の URL 参照を一切持たない。
+- **依存取得の発生点はテンプレート生成後の `cargo build`**: イシュー #493 の
+  vendor 同梱 → crates.io バージョン依存切替（§3a・§3b）により、`templates/app`
+  （および crates.io バージョン依存の examples）が宣言する
+  fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-wasm-client 等
+  への依存取得は「`fw new` 実行時」ではなく「生成プロジェクトの
+  `cargo build` 実行時」（`fw gate` の cargo 系チェック実行時を含む）に
+  発生する。この時点で crates.io（`https://index.crates.io` /
+  `https://static.crates.io`）への到達性が前提となる（`.claude/rules/ci.md`
+  「`templates/app`（`fw new --template app`）の crates.io バージョン依存化
+  （イシュー #412/#493）」節と同一の前提）。`templates/default` /
+  `templates/embed` はいずれのクレートにも依存しないためこの前提の対象外
+  （§9 参照）。
+- **依存取得不可時のエラー契約**: crates.io へ到達できない環境で
+  `cargo build`（`fw new` が生成したプロジェクト内、または `fw gate` の
+  内部呼び出し）を実行すると、エラー報告は cargo 標準の挙動（例:
+  `error: failed to get 'fandhe-frontend-core' as a dependency of package
+  '<project>' ... unable to get packages from source` 系、終了コード 101）に
+  委ねる。この失敗は `fw new` 自体の CLI 契約（§2 の終了コード 0/1/2）の
+  対象外であり、`fw new` は依存取得の成否を検証・仲介しない（`fw new` は
+  生成のみを担い、その後の `cargo build` 呼び出し元＝利用者・CI が結果を
+  判定する責務分離）。この失敗は環境エラーとして扱う（`.claude/rules/ci.md`
+  の他の crates.io バージョン依存ワークフローと同じ方針）。
+- **フォールバック経路を作らない契約**: 依存取得不可時に `fw new` /
+  テンプレート側が git 依存・代替 registry・vendor への自動フォールバックを
+  行うことは意図的に実装しない。到達不可を隠蔽する経路はサプライチェーン
+  攻撃面を拡大する（`security.md` 本リポジトリ固有節「NPM 互換機能は
+  `--ignore-scripts` を既定とする」と同じ「暗黙のフォールバックを増やさない」
+  判断軸）。オフライン環境で `templates/app` 等の crates.io バージョン依存
+  テンプレートを完結させたい場合は、利用者が `cargo vendor` 等の cargo 標準
+  機構を使う（`fw` 側の機能としては提供しない）。
 
 ## 7. セキュリティ考慮（OWASP Top 10 観点）
 
