@@ -25,9 +25,15 @@
 //!   指摘を受けて削除済み、`forms.rs` モジュール doc 参照）
 //! - [`typography`]: Typography カテゴリ追補 2 件（イシュー #995、Quote /
 //!   Strong。既存 6 件は [`crate::component_page_specs_948`] が供給済み）
+//! - [`navigation`]: Link / Link Overlay / Nav List のスタブ一括充填 3 件
+//!   （イシュー #1154。台帳上のカテゴリは Typography/Utilities/Interactive
+//!   と分かれるが、Themes 107 部品中の最後のプレースホルダ 3 ページを消化
+//!   する単発作業のため 1 モジュールへ束ねる、`navigation.rs` モジュール
+//!   doc 参照）
 //!
 //! 後続 issue（#946〜#947）が `interactive` / `data_display` 等を追加する
 //! 想定。
 
 pub mod forms;
+pub mod navigation;
 pub mod typography;

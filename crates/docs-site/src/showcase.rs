@@ -128,12 +128,15 @@ use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProp
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::kbd;
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkVariant};
+use fandhe_frontend_pre_styled_ui::link_overlay;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::menubar::{self, Menubar};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
+use fandhe_frontend_pre_styled_ui::nav_list;
 use fandhe_frontend_pre_styled_ui::navigation_menu;
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
@@ -728,6 +731,18 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         path: "/themes/tab-nav/",
         render: tab_nav_section,
     },
+    ComponentPage {
+        path: "/themes/link/",
+        render: link_section,
+    },
+    ComponentPage {
+        path: "/themes/link-overlay/",
+        render: link_overlay_section,
+    },
+    ComponentPage {
+        path: "/themes/nav-list/",
+        render: nav_list_section,
+    },
 ];
 
 /// [`COMPONENT_PAGES`] に登録済みの部品ページパスを登録順に返す。
@@ -911,6 +926,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menubar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::navigation_menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tab_nav::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::link::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::link_overlay::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -4754,6 +4772,124 @@ fn tab_nav_section() -> Node {
     )
 }
 
+/// Link 節（イシュー #1154）: 唯一の anatomy パーツ `root` を 1 デモに
+/// 全網羅する（Anatomy 節はデモ HTML から機械導出されるため、`link.rs` が
+/// 持つ全パーツを描画する）。Plain/Underline の 2 variant・現在ページ
+/// （`aria-current="page"`）・外部リンク（`target="_blank"` +
+/// `rel="noopener noreferrer"`）の 4 例を並べる。`href` は 4 例すべて
+/// 空文字列固定とする（`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality`
+/// が `showcase_body()` 全体を横断走査して非空 `href` の不在を検証するため、
+/// 個別ページの linkcheck 対象外である外部 URL であっても本テストの対象
+/// からは逃れられない。`external=true` の効果（`target`/`rel` の付与）は
+/// `href` の値に依存しないため、空文字列のままでも掲示として成立する）。
+fn link_section() -> Node {
+    let node = row(vec![
+        link::root(
+            "",
+            false,
+            false,
+            LinkVariant::Plain,
+            vec![],
+            vec![text("Plain link")],
+        ),
+        link::root(
+            "",
+            false,
+            false,
+            LinkVariant::Underline,
+            vec![],
+            vec![text("Underline link")],
+        ),
+        link::root(
+            "",
+            false,
+            true,
+            LinkVariant::Plain,
+            vec![],
+            vec![text("Current page")],
+        ),
+        link::root(
+            "",
+            true,
+            false,
+            LinkVariant::Plain,
+            vec![],
+            vec![text("External link")],
+        ),
+    ]);
+    section(
+        "Link",
+        "pre-styled-ui 単独定義の anatomy（data-scope=\"link\"）による静的掲示です。Plain（既定・下線なし）/Underline（常時下線）の 2 variant、Current page（aria-current=\"page\"）、External link（target=\"_blank\" + rel=\"noopener noreferrer\" を不可分に付与）を並べています。",
+        vec![node],
+    )
+}
+
+/// Link Overlay 節（イシュー #1154）: root/overlay の 2 anatomy パーツを
+/// 1 デモに全網羅する（Anatomy 節はデモ HTML から機械導出されるため、
+/// `link_overlay.rs` が持つ全パーツを描画する）。`root` はカード状の見出し
+/// テキスト・説明文（`overlay` 以外の子ノード）で高さを確立し、`overlay`
+/// がカード全面へ展開されるリンクとして重なる構成です。`href` は
+/// linkcheck 中立性契約に従い空文字列固定とする。
+fn link_overlay_section() -> Node {
+    let node = link_overlay::root(
+        vec![("class", "showcase-stack")],
+        vec![
+            el("h3", vec![], vec![text("Getting started")]),
+            el(
+                "p",
+                vec![],
+                vec![text(
+                    "プロジェクトの作成から最初のページ公開までの手順です。",
+                )],
+            ),
+            link_overlay::overlay("", vec![("aria-label", "Getting started を開く")], vec![]),
+        ],
+    );
+    section(
+        "Link Overlay",
+        "pre-styled-ui 単独定義の anatomy（data-scope=\"link-overlay\"）による静的掲示です。root（位置決めコンテキスト）配下の見出し・説明文が高さを確立し、overlay（position: absolute; inset: 0 でカード全面へ展開されるリンク）が重なります。overlay には aria-label でアクセシブルネームを与えています。",
+        vec![node],
+    )
+}
+
+/// Nav List 節（イシュー #1154）: root/heading/list/item/link の
+/// 5 anatomy パーツを 1 デモに全網羅する（Anatomy 節はデモ HTML から
+/// 機械導出されるため、1 パーツでも欠けると節が不完全になる）。1 件目
+/// （Overview）を現在ページ（`aria-current="page"`）として掲示する。`href`
+/// は linkcheck 中立性契約に従い空文字列固定とする。
+fn nav_list_section() -> Node {
+    let node = nav_list::root(
+        "Documentation",
+        vec![],
+        vec![
+            nav_list::heading(vec![], vec![text("Guides")]),
+            nav_list::list(
+                vec![],
+                vec![
+                    nav_list::item(
+                        vec![],
+                        vec![nav_list::link("", true, vec![], vec![text("Overview")])],
+                    ),
+                    nav_list::item(
+                        vec![],
+                        vec![nav_list::link(
+                            "",
+                            false,
+                            vec![],
+                            vec![text("Installation")],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Nav List",
+        "pre-styled-ui 単独定義の anatomy（data-scope=\"nav-list\"）による静的掲示です。role を一切出力せず、素の nav/h2/ul/li/a の暗黙 ARIA ロールのみを使います。Overview を現在ページ（aria-current=\"page\"）として掲示しています。",
+        vec![node],
+    )
+}
+
 /// Navigation Menu 節（イシュー #993）: root/list/item/trigger/content/link
 /// の 6 anatomy パーツを 1 デモに全網羅する（Anatomy 節はデモ HTML から
 /// 機械導出されるため、1 パーツでも欠けると節が不完全になる、
@@ -6274,7 +6410,9 @@ mod tests {
         // イシュー #995 で Quote / Strong を追加し 94 → 96 件になった。
         // イシュー #996 で Tab Nav を追加し 96 → 97 件になった。
         // イシュー #997 で Checkbox Group を追加し 97 → 98 件になった。
-        assert_eq!(paths.len(), 98, "COMPONENT_PAGES should have 98 entries");
+        // イシュー #1154 で Link / Link Overlay / Nav List を追加し
+        // 98 → 101 件になった。
+        assert_eq!(paths.len(), 101, "COMPONENT_PAGES should have 101 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

@@ -164,8 +164,8 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | JSON Tree View | `json_tree_view` | Data Display | `/themes/json-tree-view/` | `site/themes/json-tree-view.md` | `json_tree_view_section()` |
 | Kbd | `kbd` | Typography | `/themes/kbd/` | `site/themes/kbd.md` | `kbd_section()` |
 | Line Chart | `line_chart` | Charts | `/themes/line-chart/` | `site/themes/line-chart.md` | `line_chart_section()` |
-| Link | `link` | Typography | `/themes/link/` | `site/themes/link.md` | （なし・Phase 4 で新規） |
-| Link Overlay | `link_overlay` | Utilities | `/themes/link-overlay/` | `site/themes/link-overlay.md` | （なし・Phase 4 で新規） |
+| Link | `link` | Typography | `/themes/link/` | `site/themes/link.md` | `link_section()`（イシュー #1154） |
+| Link Overlay | `link_overlay` | Utilities | `/themes/link-overlay/` | `site/themes/link-overlay.md` | `link_overlay_section()`（イシュー #1154） |
 | List | `list` | Typography | `/themes/list/` | `site/themes/list.md` | （typography_section 内包） |
 | Listbox | `listbox` | Forms | `/themes/listbox/` | `site/themes/listbox.md` | `listbox_section()` |
 | Mark | `mark` | Typography | `/themes/mark/` | `site/themes/mark.md` | （typography_section 内包） |
@@ -174,7 +174,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Marquee | `marquee` | Utilities | `/themes/marquee/` | `site/themes/marquee.md` | `marquee_section()` |
 | Menu | `menu` | Interactive | `/themes/menu/` | `site/themes/menu.md` | `menu_section()` |
 | Native Select | `native_select` | Forms | `/themes/native-select/` | `site/themes/native-select.md` | （form_controls_section 内包） |
-| Nav List | `nav_list` | Interactive | `/themes/nav-list/` | `site/themes/nav-list.md` | （なし・Phase 4 で新規） |
+| Nav List | `nav_list` | Interactive | `/themes/nav-list/` | `site/themes/nav-list.md` | `nav_list_section()`（イシュー #1154） |
 | Number Input | `number_input` | Forms | `/themes/number-input/` | `site/themes/number-input.md` | `number_input_section()` |
 | Pagination | `pagination` | Interactive | `/themes/pagination/` | `site/themes/pagination.md` | `pagination_section()` |
 | Password Input | `password_input` | Forms | `/themes/password-input/` | `site/themes/password-input.md` | `password_input_section()` |

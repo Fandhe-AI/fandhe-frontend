@@ -173,6 +173,9 @@ fn forms_demo_fallback_pages_ship_scoped_css() {
         ("themes/signature-pad", "signature-pad"),
         ("themes/toggle", "toggle"),
         ("themes/toggle-group", "toggle-group"),
+        ("themes/link", "link"),
+        ("themes/link-overlay", "link-overlay"),
+        ("themes/nav-list", "nav-list"),
     ] {
         let html = read_component_page(&out.0, page_rel);
         let marker = format!(r#"data-scope="{expected_scope}""#);
