@@ -178,6 +178,7 @@ fn free_functions_are_reachable_via_public_module_path() {
                 OpenState::Closed,
                 false,
                 false,
+                0,
                 None,
                 vec![],
                 vec![],
@@ -187,6 +188,7 @@ fn free_functions_are_reachable_via_public_module_path() {
     assert!(html.contains(r#"data-orientation="vertical""#));
     assert!(html.contains(r#"aria-orientation="vertical""#));
     assert!(html.contains(r#"tabindex="0""#));
+    assert!(html.contains(r#"data-value="0""#));
 }
 
 /// SSR 出力に `data-hydrate-` が現れないこと（状態なし初期描画）と、

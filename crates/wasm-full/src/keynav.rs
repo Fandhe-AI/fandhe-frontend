@@ -407,16 +407,15 @@
 //! ## 既知のギャップ（本イシューでは対応しない、スコープ外）
 //!
 //! - **`crates/wasm-full/src/headless.rs::MAPPING_TABLE` に menubar 行が
-//!   無い**: 単なる行の欠落ではなく payload のアリティ不一致
-//!   （`requires_value: false`/`true` のいずれも `menubar::trigger` の
-//!   `data-value` 非出力と噛み合わない）。headless-ui 側の出力追加か
-//!   `headless.rs` への新 payload source 導入が必要であり、本イシューの
-//!   粒度を超える。解決するまで、実アプリでの menubar 開閉は呼び出し側の
-//!   独自 click 配線に依存する。
+//!   無い**: イシュー #1161 で解消済み。`menubar::trigger` が headless-ui
+//!   0.28.0 以降 `data-value`（Menu の index）を出力するようになり、
+//!   `("menubar", "trigger")` → `"toggle"`（`requires_value: true`）行を
+//!   `MAPPING_TABLE` へ追加した。
 //! - **`crates/wasm-full/src/overlay.rs::OverlayKind` が `menubar` を含まない**:
 //!   Escape/外側クリックによる menubar content の実閉鎖は行われない。本
 //!   モジュールの Escape 処理は既存 Menu/Select と同じく highlight の後
-//!   始末のみを担い、閉鎖自体は `overlay` の責務のまま変えていない。
+//!   始末のみを担い、閉鎖自体は `overlay` の責務のまま変えていない
+//!   （イシュー #1161 のスコープ外として残置）。
 //!
 //! # NavigationMenu のキーボード仕様（WAI-ARIA APG Disclosure Navigation Menu 準拠、イシュー #1075）
 //!
@@ -474,14 +473,13 @@
 //!
 //! ## 既知のギャップ（本イシューでは対応しない、スコープ外）
 //!
-//! - **`MAPPING_TABLE` への `navigation-menu` 行未追加**:
-//!   `navigation_menu::trigger` が `data-value` を出力しないため、
-//!   `NavigationMenu::decode_action`（`SingleSelect` へ全委譲）が要求する
-//!   payload を満たせない。恒久解は headless-ui 側の SSR 出力追加（別
-//!   イシュー）。
+//! - **`MAPPING_TABLE` への `navigation-menu` 行未追加**: イシュー #1161
+//!   で解消済み。`navigation_menu::trigger` が headless-ui 0.28.0 以降
+//!   `data-value` を出力するようになり、`("navigation-menu", "trigger")`
+//!   → `"toggle"`（`requires_value: true`）行を `MAPPING_TABLE` へ追加した。
 //! - **`overlay.rs::OverlayKind` に `navigation-menu` が無い**: Escape/
 //!   外側クリックによる content の実閉鎖の一元化は行わない（Menubar と
-//!   同じ既知ギャップ）。
+//!   同じ既知ギャップ、イシュー #1161 のスコープ外として残置）。
 //! - **`list` 直下（content 外）のリンクは移動対象に含めない**:
 //!   trigger 間移動のみを対象とする。対象外リンクもネイティブにタブ順へ
 //!   残るためアクセシビリティ後退はない。
@@ -621,21 +619,21 @@
 //!   責務）。trigger が disabled（ネイティブ `disabled` または
 //!   `data-disabled`）の場合は click を合成せず `prevent_default` もしない
 //!   （fail-closed）。
-//! - Enter/Space による日付選択（`day-trigger` クリック）は本イシューの
-//!   対象外（`crate::headless::MAPPING_TABLE` に `day-trigger` の行を
-//!   追加していない。`day_trigger` が `data-value`〔ISO 日付〕を出力しない
-//!   ため追加しても fail-closed で常に不活性、`.claude/rules/out-of-scope-tracking.md`
-//!   対応の申し送り事項）。ネイティブ `<button>` の Enter/Space はブラウザ
-//!   既定の `click` イベントとして発火するため、日付選択自体は既存の
-//!   `events::wire_events`（`data-action` 経路）ではなく headless-ui 側の
-//!   `data-value` 追加を待って `headless.rs::MAPPING_TABLE` を拡張する
-//!   別イシューの対象。
+//! - Enter/Space による日付選択（`day-trigger` クリック）はイシュー #1161
+//!   で解消済み。`day_trigger` が headless-ui 0.28.0 以降 `data-value`
+//!   （ISO 日付）を出力するようになり、`("calendar", "day-trigger")` →
+//!   `"select"`（`requires_value: true`）行を `MAPPING_TABLE` へ追加した。
+//!   ネイティブ `<button>` の Enter/Space はブラウザ既定の `click` イベント
+//!   として発火するため、`crate::headless::wire_headless_events` の click
+//!   配線をそのまま経由する（keynav 自身の追加実装は不要）。
 //! - 月移動後のフォーカス復帰（`day-trigger` の DOM ノード差し替えに伴う
 //!   フォーカス喪失）は本イシューの対象外（申し送り事項）。
 //! - **`crate::headless::MAPPING_TABLE` への追加**: `("calendar",
 //!   "prev-trigger") → "prev-month"` / `("calendar", "next-trigger") →
 //!   "next-month"`（いずれも `requires_value: false`）。この 2 行が無いと
 //!   PageUp/PageDown が合成する click が dispatch へ到達せず不活性になる。
+//!   `("calendar", "day-trigger") → "select"`（`requires_value: true`）は
+//!   イシュー #1161 で追加済み（上記「Enter/Space による日付選択」参照）。
 //!
 //! # セキュリティ不変条件
 //!

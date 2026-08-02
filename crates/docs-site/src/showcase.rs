@@ -4794,6 +4794,7 @@ fn navigation_menu_section() -> Node {
                         navigation_menu::trigger(
                             OpenState::Open,
                             false,
+                            "products",
                             Some("nav-menu-products-trigger"),
                             Some("nav-menu-products-content"),
                             vec![],

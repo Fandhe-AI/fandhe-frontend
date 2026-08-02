@@ -202,24 +202,35 @@ pub fn menu<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: Vec<
 /// [`content`] の `id` と `aria-controls` で関連付ける。`disabled` は
 /// `aria-disabled="true"` + `data-disabled` で表現し、ネイティブ
 /// `disabled` 属性は付与しない（disabled 項目もフォーカス順序に残す設計、
-/// [`crate::toolbar::button`] と同判断）。
+/// [`crate::toolbar::button`] と同判断）。`index`（この Trigger が属する
+/// Menu の index）は `data-value` として出力し、`crates/wasm-full` の
+/// `MAPPING_TABLE`（`("menubar", "trigger")` → `"toggle"`）が payload と
+/// してクリック起点のディスパッチに用いる（[`crate::accordion::item_trigger`]
+/// の `data-value` と同型、イシュー #1161）。
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn trigger<'a>(
     focused: bool,
     state: OpenState,
     disabled: bool,
     highlighted: bool,
+    index: usize,
     controls: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![
+    // `index` の文字列化はローカル `String` のため、`el` へ渡す直前に
+    // 借用参照へ揃える（`crate::calendar::day_trigger` の `iso` と同じ
+    // パターン。動的値は依然として `render()` の既定エスケープを経由する）。
+    let index_str = index.to_string();
+    let mut merged: Vec<(&str, &str)> = vec![
         ("type", "button"),
         roving_tabindex(focused),
         role("menuitem"),
         aria_haspopup(AriaPopup::Menu),
         aria_expanded(state.is_open()),
         data_state(state.as_data_state()),
+        ("data-value", &index_str),
     ];
     if let Some(id) = controls {
         merged.push(aria_controls(id));
@@ -604,6 +615,7 @@ impl Menubar {
             self.menu_state(index),
             disabled,
             highlighted,
+            index,
             controls,
             attrs,
             children,
@@ -927,6 +939,7 @@ mod tests {
             OpenState::Open,
             false,
             false,
+            1,
             Some("menu-1"),
             vec![],
             vec![text("File")],
@@ -939,6 +952,7 @@ mod tests {
         assert!(html.contains(r#"data-state="open""#));
         assert!(html.contains(r#"tabindex="0""#));
         assert!(html.contains(r#"aria-controls="menu-1""#));
+        assert!(html.contains(r#"data-value="1""#));
         assert!(!html.contains("aria-disabled"));
         assert!(!html.contains("data-disabled"));
     }
@@ -950,6 +964,7 @@ mod tests {
             OpenState::Closed,
             false,
             false,
+            0,
             None,
             vec![],
             vec![],
@@ -967,6 +982,7 @@ mod tests {
             OpenState::Closed,
             true,
             true,
+            0,
             None,
             vec![],
             vec![],
@@ -984,6 +1000,7 @@ mod tests {
             OpenState::Closed,
             false,
             false,
+            0,
             None,
             vec![("tabindex", "5")],
             vec![],
@@ -1130,6 +1147,7 @@ mod tests {
                         OpenState::Open,
                         false,
                         false,
+                        0,
                         Some("m1"),
                         vec![],
                         vec![],
@@ -1589,6 +1607,7 @@ mod tests {
             OpenState::Closed,
             false,
             false,
+            0,
             Some(ATTR_BREAK_PAYLOAD),
             vec![],
             vec![],

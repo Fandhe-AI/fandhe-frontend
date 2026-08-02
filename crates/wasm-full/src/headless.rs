@@ -211,19 +211,23 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // 受理する。`toggle_group::item` は `data-value` を常時出力する）。
     // この行を欠くとマウス・キーボードいずれの押下も no-op のままになる
     // （#662 の `menu`/`trigger-item` 欠落是正と同型）。
-    //
-    // NavigationMenu の `trigger` 行は本イシューでは追加しない:
-    // `navigation_menu::trigger` は `data-value` を出力せず、
-    // `NavigationMenu::decode_action`（`SingleSelect` へ全委譲）は payload に
-    // 項目値を要求するため、`requires_value: true` 行は常に fail-closed
-    // （`None`）になり、`requires_value: false` 行は
-    // `SingleSelectAction::Toggle("")` という誤った値をトグルしてしまう
-    // （`crates/wasm-full/src/keynav.rs` モジュール doc §NavigationMenu
-    // 「既知のギャップ」参照。headless-ui 側の SSR 出力追加が前提となる別
-    // イシュー）。
     MappingRow {
         scope: "toggle-group",
         part: "item",
+        action: "toggle",
+        requires_value: true,
+    },
+    // NavigationMenu（イシュー #1161、`crates/headless-ui/src/navigation_menu.rs`）:
+    // クリック対象は `trigger`（`SingleSelect` へ全委譲する
+    // `NavigationMenu::decode_action`）で "toggle"（開いている項目の再クリック
+    // で閉じる disclosure nav の挙動を 1 行で表現できるため accordion と同じく
+    // "select" ではなく "toggle" を採用）。headless-ui 0.28.0
+    // （イシュー #1161）で `navigation_menu::trigger` が `data-value` を出力する
+    // ようになったため、この行が機能する（出力が無ければ `requires_value: true`
+    // により常に fail-closed（`None`）となる）。
+    MappingRow {
+        scope: "navigation-menu",
+        part: "trigger",
         action: "toggle",
         requires_value: true,
     },
@@ -256,11 +260,6 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // （`CalendarAction::PrevMonth`/`NextMonth`）。`crate::keynav` の
     // PageUp/PageDown が合成する `HtmlElement::click()`（モジュール doc
     // §Calendar 参照）はこの 2 行を経由して初めて dispatch へ到達する。
-    // `day-trigger`→`"select"` の行は意図的に追加しない: `day_trigger` は
-    // `data-value`（ISO 日付）を出力しないため、追加しても
-    // `requires_value: true` により常に fail-closed で `None` になる
-    // （`.claude/rules/out-of-scope-tracking.md` 対応の申し送り事項、
-    // `crates/wasm-full/src/keynav.rs` モジュール doc §Calendar 参照）。
     MappingRow {
         scope: "calendar",
         part: "prev-trigger",
@@ -273,6 +272,19 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "next-month",
         requires_value: false,
     },
+    // Calendar day-trigger（イシュー #1161）: `"select"`（`Calendar::decode_action`
+    // が payload を `PlainDate` としてパースし、パース不能は `None`。範囲外
+    // 日付は `Calendar::update` 側で無視、いずれも既存の fail-closed 契約）。
+    // headless-ui 0.28.0（イシュー #1161）で `calendar::day_trigger` が
+    // `data-value`（ISO 8601 表記）を出力するようになったため、この行が
+    // 機能する（出力が無ければ `requires_value: true` により常に
+    // fail-closed（`None`）となる）。
+    MappingRow {
+        scope: "calendar",
+        part: "day-trigger",
+        action: "select",
+        requires_value: true,
+    },
     // Accordion（イシュー #1127、`crates/headless-ui/src/accordion.rs`）:
     // クリック対象は `item-trigger`（ネイティブ `<button>`。`crate::keynav`
     // §Accordion が案内する Enter/Space はこのネイティブ click 発火経由で
@@ -283,14 +295,28 @@ const MAPPING_TABLE: &[MappingRow] = &[
     // （multiple、対象項目のみトグル）の双方で共通の 1 行で表現できるため
     // "select" ではなく "toggle" を採用する。
     //
-    // navigation-menu/trigger・calendar/day-trigger（本表中の既存コメント
-    // 参照）と異なりこの行が機能するのは、headless-ui 0.27.0
-    // （イシュー #1127）で `accordion::item_trigger` が `data-value` を
-    // 出力するようになったため。この出力が無ければ `requires_value: true`
-    // により常に fail-closed（`None`）となる。
+    // この行が機能するのは、headless-ui 0.27.0（イシュー #1127）で
+    // `accordion::item_trigger` が `data-value` を出力するようになったため。
+    // この出力が無ければ `requires_value: true` により常に fail-closed
+    // （`None`）となる（navigation-menu/trigger・calendar/day-trigger・
+    // menubar/trigger も同型、本表中の該当コメント参照）。
     MappingRow {
         scope: "accordion",
         part: "item-trigger",
+        action: "toggle",
+        requires_value: true,
+    },
+    // Menubar（イシュー #1161、`crates/headless-ui/src/menubar.rs`）:
+    // クリック対象は `trigger`（ネイティブ `<button>`）で "toggle"
+    // （`Menubar::decode_action` が payload を `str::parse::<usize>()` で
+    // パースし、パース不能は `None`。open-follows-focus・範囲外 index
+    // no-op は `Menubar::update` の既存契約）。headless-ui 0.28.0
+    // （イシュー #1161）で `menubar::trigger` が `data-value`（Menu の
+    // index）を出力するようになったため、この行が機能する（出力が無ければ
+    // `requires_value: true` により常に fail-closed（`None`）となる）。
+    MappingRow {
+        scope: "menubar",
+        part: "trigger",
         action: "toggle",
         requires_value: true,
     },
@@ -683,6 +709,86 @@ mod tests {
             part("accordion", "item", None, true),
         ];
         assert_eq!(action_from_parts(&parts), None);
+    }
+
+    // --- NavigationMenu（イシュー #1161）: trigger → "toggle"（value 必須） ---
+
+    #[test]
+    fn navigation_menu_trigger_with_value_maps_to_toggle_with_payload() {
+        let action_ref =
+            action_for_part(&part("navigation-menu", "trigger", Some("products"), false)).unwrap();
+        assert_eq!(action_ref.action, "toggle");
+        assert_eq!(action_ref.payload, "products");
+    }
+
+    #[test]
+    fn navigation_menu_trigger_without_value_is_none() {
+        // headless-ui 0.28.0 以降は `data-value` を常時出力するが、マッピング
+        // 表自体は `requires_value: true` の fail-closed 契約を独立して
+        // 保証する（accordion と同型）。
+        assert_eq!(
+            action_for_part(&part("navigation-menu", "trigger", None, false)),
+            None
+        );
+    }
+
+    #[test]
+    fn navigation_menu_trigger_disabled_is_none() {
+        assert_eq!(
+            action_for_part(&part("navigation-menu", "trigger", Some("products"), true)),
+            None
+        );
+    }
+
+    // --- Calendar day-trigger（イシュー #1161）: → "select"（ISO 日付 value 必須） ---
+
+    #[test]
+    fn calendar_day_trigger_with_iso_value_maps_to_select_with_payload() {
+        let action_ref =
+            action_for_part(&part("calendar", "day-trigger", Some("2026-07-15"), false)).unwrap();
+        assert_eq!(action_ref.action, "select");
+        assert_eq!(action_ref.payload, "2026-07-15");
+    }
+
+    #[test]
+    fn calendar_day_trigger_without_value_is_none() {
+        assert_eq!(
+            action_for_part(&part("calendar", "day-trigger", None, false)),
+            None
+        );
+    }
+
+    #[test]
+    fn calendar_day_trigger_disabled_is_none() {
+        assert_eq!(
+            action_for_part(&part("calendar", "day-trigger", Some("2026-07-15"), true)),
+            None
+        );
+    }
+
+    // --- Menubar（イシュー #1161）: trigger → "toggle"（index value 必須） ---
+
+    #[test]
+    fn menubar_trigger_with_value_maps_to_toggle_with_payload() {
+        let action_ref = action_for_part(&part("menubar", "trigger", Some("1"), false)).unwrap();
+        assert_eq!(action_ref.action, "toggle");
+        assert_eq!(action_ref.payload, "1");
+    }
+
+    #[test]
+    fn menubar_trigger_without_value_is_none() {
+        assert_eq!(
+            action_for_part(&part("menubar", "trigger", None, false)),
+            None
+        );
+    }
+
+    #[test]
+    fn menubar_trigger_disabled_is_none() {
+        assert_eq!(
+            action_for_part(&part("menubar", "trigger", Some("1"), true)),
+            None
+        );
     }
 
     // --- fail-closed: 表外・value 欠落・disabled は None ---
