@@ -61,6 +61,38 @@ jobs:
       - name: Show toolchain
         run: rustup show && cargo --version
 
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        # cdylib+rlib クレート（wasm-thin/wasm-full/wasm-client）の rlib は
+        # メタデータハッシュサフィックスなしの固定ファイル名で出力される
+        # （cdylib の動的ライブラリ名を安定させる cargo の仕様）。共有
+        # CARGO_TARGET_DIR（self-hosted runner 既定の /cargo-target）上では
+        # release.yml の `cargo publish --dry-run`/`cargo publish`（packaged
+        # コピーを registry 版依存でビルドする）がこの無ハッシュ rlib を
+        # registry 依存内容で上書きし得る。後続のワークスペースビルドが
+        # fingerprint fresh 判定で汚染済み rlib をそのままリンクすると
+        # 「multiple different versions of crate `fandhe_frontend_interactive`」
+        # （E0277/E0599）の flaky を引き起こす（PR #1164/#1180/#1186/#1187 で
+        # 観測、根本原因はイシュー #1192 コメント参照）。固定ファイル名のみを
+        # 削除すれば cargo が当該ユニットを再ビルドし常に正しい内容へ
+        # 自己修復する（glob・再帰削除は行わない、CARGO_TARGET_DIR 未設定の
+        # ローカル実行では no-op）。release.yml 側の専用 CARGO_TARGET_DIR
+        # 隔離（根本対策）を導入済みでも、導入前から runner ホストに残置
+        # している既存汚染を修復するための多層防御として残す。
+        run: |
+          set -euo pipefail
+          if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -d "${CARGO_TARGET_DIR}/debug/deps" ]; then
+            rm -f \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_full.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
+
       - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
         # 本ジョブ末尾の `cargo test --workspace` は negative_cases.rs（fw gate
         # の lint / policy チェック）を含むため、test ジョブと同様に clippy
@@ -117,6 +149,27 @@ jobs:
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
+
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        # forbid-unsafe ジョブの同名ステップと同一（cdylib+rlib クレートの
+        # 無ハッシュ rlib が release.yml の検証ビルドで汚染され得ることへの
+        # 多層防御。詳細は forbid-unsafe ジョブのステップコメント参照）。
+        # 本ジョブは wasm-thin flaky（PR #1164/#1180/#1186/#1187）の直接の
+        # 発生元であり、本ガードが最優先で保護すべきジョブである。
+        run: |
+          set -euo pipefail
+          if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -d "${CARGO_TARGET_DIR}/debug/deps" ]; then
+            rm -f \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_full.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
 
       - name: XSS regression tests (REQ-1)
         # REQ-1（既定エスケープ）の受け入れ基準を担保するゲート。
@@ -2154,6 +2207,26 @@ jobs:
         with:
           toolchain: stable
           components: clippy
+
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        # forbid-unsafe / test ジョブの同名ステップと同一（詳細は forbid-unsafe
+        # ジョブのステップコメント参照）。`fw gate --project .` は
+        # `-p fandhe-frontend-dist-server` を含む type_check/test を実行し
+        # cdylib+rlib クレートをビルドするため本ジョブにも前置する。
+        run: |
+          set -euo pipefail
+          if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -d "${CARGO_TARGET_DIR}/debug/deps" ]; then
+            rm -f \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_full.d" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "${CARGO_TARGET_DIR}/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
 
       - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
         # `fw gate` の policy チェック（cargo deny）・lint チェック（clippy
