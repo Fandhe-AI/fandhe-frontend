@@ -37,6 +37,7 @@ PR #291 で全 CI ジョブを `runs-on: self-hosted` へ移行した際、以�
 | `cargo` / `rustup`（`dtolnay/rust-toolchain`） | Rust ビルド・テスト全般 |
 | `cargo-deny`（バージョン固定 + SHA256 検証済みプリビルトバイナリ） | `fw gate` の `policy` チェック（TASK-13.3c） |
 | `wasm-bindgen-cli` / `wasm-pack`（同上） | WASM ビルド・ブラウザテスト |
+| `wasm32-unknown-unknown`（rustup target、stable toolchain へ `rustup target add` で導入） | `ci.yml` の `clippy-wasm32` ジョブ（イシュー #1160、計 9 ステップの「Add wasm32 target」）と、`fw gate` の `lint_wasm32` チェック（イシュー #1174）の前提（イシュー #1184。出典: PR #1168/#1179 の out-of-scope 節）。`ci.yml` 側は冪等な `rustup target add` を毎回実行し、`fw gate` 実行前は `tools/ci/ensure-gate-tools.sh` の `ensure_wasm32_target` が `rustup target list --installed` の行完全一致で判定してから導入する（`crates/cli/src/gate.rs` の `wasm32_target_environment_preflight` と同一判定条件）。導入は rustup 公式経路のみ（任意バイナリのダウンロードなし）。イメージ焼き込み時は runner の rustup 管理 toolchain（stable）に対して target を追加すること |
 | `curl` | `version-bump-guard` / `dep-version-check` の間接呼び出し・`release.yml` の既公開バージョン検証、および `template-app-wasm-smoke` の `xtask patch-template-smoke` ステップ（イシュー #885。crates.io sparse index 照会、`check_version_bump::query_index` 経由）。未検出時はすべて `environment error: ` プレフィックス付きで fail-closed に明示停止するため（`ci.md` 参照）、自動インストールは行わない安全網のみ |
 
 ## 2. プール前提
@@ -87,6 +88,14 @@ GitHub Actions には「self-hosted プール内の全インスタンスに対�
   安全網として機能する
 - 存在チェック付きのため、常設済み環境では実質的にスキップされ実行コストは
   小さい
+
+`ci.yml` 各ジョブの「Add wasm32 target」ステップ（冪等な `rustup target add`）
+および `tools/ci/ensure-gate-tools.sh` の `ensure_wasm32_target` も同方針の
+対象であり、イメージ側へ wasm32-unknown-unknown target が焼き込まれた後も
+**削除・弱体化しない**（イシュー #1184）。プール入れ替え・イメージ
+ロールバック・toolchain 更新で target が失われた場合の安全網であり、
+常設済み環境では `rustup target list --installed` 判定・冪等実行により
+実質スキップされコストは小さい。
 
 ## 6. Chrome for Testing の `/dev/shm` 制約対策（イシュー #404 実 CI 実行で判明）
 
