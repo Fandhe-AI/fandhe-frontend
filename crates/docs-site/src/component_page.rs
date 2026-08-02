@@ -342,6 +342,7 @@ const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[
     component_specs::forms::SPECS,
     component_specs::typography::SPECS,
     component_specs::navigation::SPECS,
+    component_specs::interactive_utilities::SPECS,
     NAV_DATA_SPECS,
     OVERLAY_SPECS,
     crate::component_page_specs_948::SPECS,

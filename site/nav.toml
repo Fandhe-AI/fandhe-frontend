@@ -1060,6 +1060,11 @@ source = "docs/api/router-path-matching.md"
 path = "/api/router-path-matching/"
 
 [[section.page]]
+title = "fandhe-frontend-server SSG API"
+source = "docs/api/server-api.md"
+path = "/api/server-api/"
+
+[[section.page]]
 title = "fandhe-frontend-headless-ui API"
 source = "docs/api/headless-ui-api.md"
 path = "/api/headless-ui-api/"

@@ -30,10 +30,14 @@
 //!   と分かれるが、Themes 107 部品中の最後のプレースホルダ 3 ページを消化
 //!   する単発作業のため 1 モジュールへ束ねる、`navigation.rs` モジュール
 //!   doc 参照）
+//! - [`interactive_utilities`]: Clipboard（Interactive）/ Skip Nav
+//!   （Utilities）2 件（イシュー #1155。Demo フォールバック機構
+//!   （#979）の最後の未適用 2 件を充填する）
 //!
 //! 後続 issue（#946〜#947）が `interactive` / `data_display` 等を追加する
 //! 想定。
 
 pub mod forms;
+pub mod interactive_utilities;
 pub mod navigation;
 pub mod typography;

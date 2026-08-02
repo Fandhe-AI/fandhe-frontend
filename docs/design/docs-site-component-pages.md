@@ -137,7 +137,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Charts（共通 API） | `charts` | Charts | `/themes/charts/` | `site/themes/charts.md` | `charts_section()` |
 | Checkbox | `checkbox` | Forms | `/themes/checkbox/` | `site/themes/checkbox.md` | `checkbox_section()` |
 | Checkbox Card | `checkbox_card` | Forms | `/themes/checkbox-card/` | `site/themes/checkbox-card.md` | `checkbox_card_section()` |
-| Clipboard | `clipboard` | Interactive | `/themes/clipboard/` | `site/themes/clipboard.md` | （なし・Phase 4 で新規） |
+| Clipboard | `clipboard` | Interactive | `/themes/clipboard/` | `site/themes/clipboard.md` | （なし・`component_specs::interactive_utilities` の Demo フォールバック、#1155） |
 | Code | `code` | Typography | `/themes/code/` | `site/themes/code.md` | `code_section()` |
 | Color Picker | `color_picker` | Forms | `/themes/color-picker/` | `site/themes/color-picker.md` | `color_picker_section()` |
 | Color Swatch | `color_swatch` | Data Display | `/themes/color-swatch/` | `site/themes/color-swatch.md` | `color_swatch_section()` |
@@ -194,7 +194,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Separator | `separator` | Utilities | `/themes/separator/` | `site/themes/separator.md` | `separator_section()` |
 | Signature Pad | `signature_pad` | Forms | `/themes/signature-pad/` | `site/themes/signature-pad.md` | （なし・Phase 4 で新規） |
 | Skeleton | `skeleton` | Data Display | `/themes/skeleton/` | `site/themes/skeleton.md` | `skeleton_section()` |
-| Skip Nav | `skip_nav` | Utilities | `/themes/skip-nav/` | `site/themes/skip-nav.md` | （なし・Phase 4 で新規） |
+| Skip Nav | `skip_nav` | Utilities | `/themes/skip-nav/` | `site/themes/skip-nav.md` | （なし・`component_specs::interactive_utilities` の Demo フォールバック、#1155） |
 | Slider | `slider` | Forms | `/themes/slider/` | `site/themes/slider.md` | `slider_section()` |
 | Sparkline | `sparkline` | Charts | `/themes/sparkline/` | `site/themes/sparkline.md` | `sparkline_section()` |
 | Spinner | `spinner` | Data Display | `/themes/spinner/` | `site/themes/spinner.md` | `spinner_section()` |
@@ -429,11 +429,14 @@ fail-closed 原則（未知キー・未知テーブルを黙って無視しな�
    `crate::component_specs` 配下の `&'static str` テーブル）から供給する。
    原稿 `.md` は H1 + 導入文（+ 必要な補足段落）のみに保ち、H2 を増やさない。
 2. **Demo フォールバック**: [`showcase::COMPONENT_PAGES`] に節を持たない
-   部品（Angle Slider / Image Cropper / Pin Input / Signature Pad の 4 件）
-   は、`showcase.rs` を編集する代わりに `ComponentPageSpec::demo:
-   Option<fn() -> Node>` が Demo 節を供給する（`crate::component_page::generated_content`
-   が `showcase` → `spec.demo` の順にフォールバックする）。「Demo 節は
-   Phase 4 で新規作成」という本節冒頭の記述は、この機構経由で実現する。
+   部品（Angle Slider / Image Cropper / Pin Input / Signature Pad の 4 件、
+   および Clipboard / Skip Nav の 2 件、計 6 件）は、`showcase.rs` を編集
+   する代わりに `ComponentPageSpec::demo: Option<fn() -> Node>` が Demo 節を
+   供給する（`crate::component_page::generated_content` が `showcase` →
+   `spec.demo` の順にフォールバックする）。「Demo 節は Phase 4 で新規作成」
+   という本節冒頭の記述は、この機構経由で実現する。前者 4 件は
+   `crate::component_specs::forms`（#945）、Clipboard / Skip Nav は
+   `crate::component_specs::interactive_utilities`（#1155）が供給する。
    Toggle / Toggle Group はイシュー #980 で `showcase.rs` の
    `COMPONENT_PAGES` 正経路（`toggle_section()`/`toggle_group_section()`）
    へ移設済みのため、本フォールバックの対象からは外れている
