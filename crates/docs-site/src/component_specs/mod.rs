@@ -25,9 +25,13 @@
 //!   指摘を受けて削除済み、`forms.rs` モジュール doc 参照）
 //! - [`typography`]: Typography カテゴリ追補 2 件（イシュー #995、Quote /
 //!   Strong。既存 6 件は [`crate::component_page_specs_948`] が供給済み）
+//! - [`interactive_utilities`]: Clipboard（Interactive）/ Skip Nav
+//!   （Utilities）2 件（イシュー #1155。Demo フォールバック機構
+//!   （#979）の最後の未適用 2 件を充填する）
 //!
 //! 後続 issue（#946〜#947）が `interactive` / `data_display` 等を追加する
 //! 想定。
 
 pub mod forms;
+pub mod interactive_utilities;
 pub mod typography;

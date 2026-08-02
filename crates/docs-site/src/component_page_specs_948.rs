@@ -20,9 +20,18 @@
 //! `angle-slider` / `clipboard` / `image-cropper` / `signature-pad` /
 //! `skip-nav` の 5 ページ（モード B）は
 //! [`crate::showcase::COMPONENT_PAGES`] に未登録で
-//! [`crate::showcase::generated_content`] が `None` を返すため、本モジュール
-//! へ spec を登録してはならない（登録してもデッドコードになる。原稿は
-//! `site/themes/*.md` へ Markdown 単独で執筆する）。
+//! [`crate::showcase::generated_content`] が `None` を返すため、**本モジュール
+//! へは** spec を登録してはならない（登録してもデッドコードになる）。ただし
+//! これは「原稿執筆を諦める」の意味ではない: #979 が導入した
+//! [`crate::component_page::ComponentPageSpec::demo`]（Demo フォールバック
+//! 供給口）経由であれば `ComponentPageSpec` を登録しても Demo 節を含め
+//! 到達可能である。実際に angle-slider / image-cropper / pin-input /
+//! signature-pad の 4 件は [`crate::component_specs::forms`] が、
+//! clipboard / skip-nav の 2 件は [`crate::component_specs::interactive_utilities`]
+//! （イシュー #1155）がこの機構でそれぞれ充填済みであり、この 6 ページ
+//! とも `site/themes/*.md` は H1 + 導入文のみを保つ現状のままである（本
+//! モジュールへの登録のみが禁止で、Demo フォールバック経由の登録は別
+//! モジュールで行われている）。
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!

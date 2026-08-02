@@ -911,6 +911,15 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menubar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::navigation_menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tab_nav::stylesheet())?;
+    // Clipboard（イシュー #1155）: showcase.rs の COMPONENT_PAGES には未登録
+    // だが、`crate::component_specs::interactive_utilities::demo_clipboard`
+    // が Demo フォールバック（`ComponentPageSpec::demo`、#979）経由で
+    // `data-scope="clipboard"` マークアップを `/themes/clipboard/` へ出荷
+    // するため、対応 CSS もここへ出荷する（#979 Bugbot 指摘の再発防止:
+    // Demo マークアップと出荷 CSS を必ず対で追加する）。SkipNav は
+    // `crate::skip_nav::stylesheet()` が `assets/skip-nav.css` として全ページ
+    // 無条件で既に出荷しているため、ここへは追加しない（二重出荷回避）。
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::clipboard::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -4887,6 +4896,13 @@ fn empty_state_section() -> Node {
 /// 追加すると `id="fandhe-skip-nav"` の重複や紛らわしさを招くため、
 /// SkipNav 自体のショーケースデモは設けない（実装計画 §3 が明示的に許容する
 /// 判断: 「デモ省略しレイアウト実適用を正とする」）。
+///
+/// 読み替え（イシュー #1155）: 上記は「本ファイル（`showcase.rs`）の節と
+/// してはデモを設けない」の意味であり、`/themes/skip-nav/` 部品ページ自体
+/// が Demo 節を持たないわけではない。同ページは
+/// `crate::component_specs::interactive_utilities::demo_skip_nav`（Demo
+/// フォールバック、#979）がカスタム id で別途 Demo を供給する（本関数が
+/// 追加する `id="fandhe-skip-nav"` の重複は起こさない）。
 fn visually_hidden_section() -> Node {
     // 「★」自体は装飾（アイコン）であり、ボタンのアクセシブルネームは
     // 後続の `visually_hidden::root` テキストのみに担わせる（`aria-label` を
