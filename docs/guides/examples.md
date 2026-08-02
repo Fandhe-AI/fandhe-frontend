@@ -49,7 +49,16 @@ cargo-deny（`tools/ci/ensure-gate-tools.sh` で導入）」の 3 点です。�
 
 `Loader` trait の自作実装・`respond_with` による SSR 応答組み立て・
 `Router` によるパスパラメータ処理・既定エスケープ（REQ-1）を学べます。
-関連: [API Reference](../api/component-api.md)。
+加えて `el_owned` / `attr_if` / `attr_if_value`（`fandhe-frontend-core`
+0.2.0 以降、イシュー #1121）による条件付き属性の組み立ても実演します。
+`el` の `Vec<(&str, &str)>` は `format!`/`to_string` した動的な属性値と
+相性が悪く（借用元が呼び出し元スタックフレームより長生きする必要がある）、
+`el_owned` は属性を `Vec<(String, String)>` として直接受け取ることで
+この制約を外します。`attr_if`/`attr_if_value` が返す
+`Option<(String, String)>` を `chain`/`flatten` で合成すると、条件不成立
+時は属性自体が出力から欠落します（`hidden`/`disabled` のような真偽属性の
+慣例に沿う設計）。実装例は `src/main.rs` の `hello_response` を参照して
+ください。関連: [API Reference](../api/component-api.md)。
 
 ### 3.2 ssg-blog
 
@@ -91,6 +100,16 @@ generate_assets(&assets, Path::new("dist"))?;
 実装例は [ssg-blog](../../examples/ssg-blog/README.md) の
 `src/main.rs`（`build_assets` / `main`）を参照してください。
 
+さらに `fandhe_frontend_core::json_ld`（`fandhe-frontend-core` 0.2.0 以降、
+イシュー #1117）による JSON-LD 構造化データの
+`<script type="application/ld+json">` 埋め込みも実演します（記事一覧
+ページ（`/`）のみ、`src/main.rs` の `website_json_ld` / `layout` の
+`head_extra` 引数参照）。`json_ld` は既定エスケープ（REQ-1）の経路では
+なく、シリアライズ済みの JSON 文字列を受け取って `<` `>` `&` 等の
+HTML 活性文字だけを `\uXXXX` 中立化する専用 API です。渡す文字列は
+既にシリアライズ済みの JSON である必要があり（`serde_json::to_string`
+の結果等）、HTML エスケープ済み文字列を渡すと JSON が壊れます。
+
 ### 3.3 dist-server-docker
 
 単一バイナリ配布・`FROM scratch` の Docker イメージ最小化・外部依存利用時の
@@ -107,8 +126,14 @@ generate_assets(&assets, Path::new("dist"))?;
 Primitives 層（`fandhe-frontend-headless-ui` 相当、anatomy・`data-*`・
 WAI-ARIA 属性）と Themes 層（`fandhe-frontend-pre-styled-ui`、スタイル済み
 部品）の 2 層 UI コンポーネント構成（Tabs/Accordion/Dialog/Switch/
-RadioGroup/Avatar 等）を学べます。関連:
-[Pre-styled UI API](../api/pre-styled-ui-api.md)。
+RadioGroup/Avatar 等）を学べます。加えて `Theme::upsert_color` /
+`Theme::upsert_space`（`fandhe-frontend-pre-styled-ui` 0.38.0 以降、
+イシュー #1138）によるテーマトークンの上書き・追加も実演します。
+`push_color` 等は同名トークンを `DuplicateTokenName` で fail-closed 拒否
+するため、`Theme::default()` の既定パレット（`accent`）を差し替える正規
+経路は `upsert_color` です（不在トークンに対しては `push_color` と同じ
+挿入動作になります）。実装例は `src/main.rs` の `build_stylesheet` を
+参照してください。関連: [Pre-styled UI API](../api/pre-styled-ui-api.md)。
 
 ## 4. `fw new --example` での取得
 

@@ -21,6 +21,13 @@
 - 既定エスケープ（REQ-1）: HTML はすべてノード木 API（`el` / `p` / `text` /
   `page_shell`）で組み立て、`format!` によるタグ文字列の直接組み立て・
   `raw_html()` は使いません
+- `fandhe_frontend_core::el_owned` / `attr_if` / `attr_if_value`（イシュー
+  #1121）による条件付き属性の組み立て。`el` の `Vec<(&str, &str)>` が
+  `format!`/`to_string` した動的な属性値と相性が悪い制約を `el_owned` の
+  `Vec<(String, String)>` で外し、`attr_if`/`attr_if_value` が返す
+  `Option<(String, String)>` を `chain`/`flatten` で合成して条件付き属性
+  （`/hello/:name` の名前が既定値かどうかで排他出力する
+  `data-default-greeting` / `data-greeting-for`）を実演します
 
 ## 前提
 

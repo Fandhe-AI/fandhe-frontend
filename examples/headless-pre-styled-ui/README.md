@@ -72,6 +72,12 @@ CSS・ページ骨格のみの手書き CSS（`static/ui.css`）を `StyleSheet`
   使いません
 - `@view-transition { navigation: auto; }` による Cross-Document View
   Transitions の有効化（`fandhe_frontend_app::page_shell` と同一の固定リテラル）
+- `Theme::upsert_color` / `Theme::upsert_space`（イシュー #1138）による
+  テーマトークンの上書き・追加。`push_color` 等は同名トークンを
+  `DuplicateTokenName` で拒否するため、既定パレット（`accent`）の差し替えは
+  `upsert_color` が正規経路であることと、`upsert_space` による新規トークン
+  追加（`showcase-gap`。`static/ui.css` の `.showcase-row` から
+  `var(--fandhe-space-showcase-gap)` として実際に参照）を実演します
 
 ## 前提
 

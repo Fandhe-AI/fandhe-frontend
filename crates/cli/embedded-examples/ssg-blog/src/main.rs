@@ -34,6 +34,10 @@
 //!   （`sitemap.xml` / `robots.txt`）の書き出し。`generate_pages` と同じ
 //!   fail-closed のパス検証を経由するが、コンテンツは無加工書き出しのため
 //!   既定エスケープは適用されない（[`build_assets`] 参照）
+//! - `fandhe_frontend_core::json_ld` による JSON-LD 構造化データの
+//!   `<script type="application/ld+json">` 埋め込み（イシュー #1117）。
+//!   記事一覧ページ（`/`）の `<head>` にのみ `WebSite` 構造化データを出力する
+//!   （[`layout`] の `head_extra` 引数、[`index_page`] 呼び出し箇所参照）
 //!
 //! # セキュリティ不変条件（REQ-1・OWASP A01）
 //!
@@ -57,7 +61,7 @@
 
 mod posts;
 
-use fandhe_frontend_core::{a, article, el, h1, header, main_tag, p, text, Node};
+use fandhe_frontend_core::{a, article, el, h1, header, json_ld, main_tag, p, text, Node};
 use fandhe_frontend_server::ssg::{generate_assets, generate_pages};
 use posts::{all_posts, Post};
 use std::path::Path;
@@ -75,28 +79,30 @@ const BASE_URL: &str = "https://example.com";
 /// （`crates/app/src/lib.rs::page_shell` のコメント参照）。`page_shell` は
 /// `String` を返すため `generate_pages`（`Node` 列を要求）には使えず、本関数
 /// は `Node` を返す自作版として存在する。
-fn layout(title: &str, main: Node) -> Node {
-    let head = el(
-        "head",
-        vec![],
-        vec![
-            el("meta", vec![("charset", "utf-8")], vec![]),
-            el(
-                "meta",
-                vec![
-                    ("name", "viewport"),
-                    ("content", "width=device-width, initial-scale=1"),
-                ],
-                vec![],
-            ),
-            el(
-                "style",
-                vec![],
-                vec![text("@view-transition { navigation: auto; }")],
-            ),
-            el("title", vec![], vec![text(title)]),
-        ],
-    );
+///
+/// `head_extra` はページ固有の追加 `<head>` 子ノード（JSON-LD 等）を差し込む
+/// ための明示引数。呼び出し元（[`build_pages_for`]）は記事一覧ページのみへ
+/// `json_ld` の出力を渡し、記事詳細ページへは空 `vec![]` を渡す。
+fn layout(title: &str, head_extra: Vec<Node>, main: Node) -> Node {
+    let mut head_children = vec![
+        el("meta", vec![("charset", "utf-8")], vec![]),
+        el(
+            "meta",
+            vec![
+                ("name", "viewport"),
+                ("content", "width=device-width, initial-scale=1"),
+            ],
+            vec![],
+        ),
+        el(
+            "style",
+            vec![],
+            vec![text("@view-transition { navigation: auto; }")],
+        ),
+        el("title", vec![], vec![text(title)]),
+    ];
+    head_children.extend(head_extra);
+    let head = el("head", vec![], head_children);
     let document_body = el(
         "body",
         vec![],
@@ -146,6 +152,26 @@ fn post_page(post: &Post) -> Node {
     main_tag(vec![], vec![article(vec![], children)])
 }
 
+/// 記事一覧ページ（`/`）専用の `WebSite` JSON-LD ノードを組み立てる
+/// （イシュー #1117、[`json_ld`] の実演）。
+///
+/// `json_ld` へ渡す引数は「シリアライズ済みの JSON 文字列」という契約
+/// （`crates/core/src/json_ld.rs` rustdoc）であり、エスケープ済み文字列を
+/// 渡すと JSON が壊れる。動的データ（記事タイトル等）から JSON を組み立てる
+/// 正規経路は `serde_json::to_string` の結果を渡すことだが、本サンプルは
+/// 外部依存ゼロ（`coding-rust.md`「`core` は外部依存ゼロ」と同じ判断軸を
+/// example 側でも踏襲）を保つため、`format!` へ差し込む値を JSON 特殊文字
+/// （`"` `\` 制御文字等）を含まない静的な定数（[`BASE_URL`]、RFC 2606
+/// 予約ドメイン）に意図的に限定する。記事タイトルには意図的な XSS
+/// ペイロード（[`example_items`] 相当、`src/posts.rs` 参照）が含まれるため、
+/// これを手書き `format!` で JSON へ差し込むことは**あえて実演しない**
+/// （動的データは `serde_json` 経由が正規経路であることの裏返しの実演）。
+fn website_json_ld() -> Node {
+    json_ld(format!(
+        r#"{{"@context":"https://schema.org","@type":"WebSite","name":"SSG Blog","url":"{BASE_URL}"}}"#
+    ))
+}
+
 /// `generate_pages` に渡す (リクエストパス, `Node`) 列を組み立てる。
 ///
 /// `/` は記事一覧、`/posts/<slug>/` は各記事詳細。パスの安全性検証・重複
@@ -153,12 +179,18 @@ fn post_page(post: &Post) -> Node {
 /// `all`（`all_posts()` の結果）は [`build_assets`] と共有する呼び出し元
 /// （`main()`）から受け取る（`sitemap.xml` の `<loc>` 列と記事一覧の `slug`
 /// を単一の情報源から揃えるため）。
+///
+/// JSON-LD（[`website_json_ld`]）は記事一覧ページのみへ差し込む（サイト
+/// 全体を表す `WebSite` 型のため、記事詳細ページには不要）。
 fn build_pages_for(all: &[Post]) -> Vec<(String, Node)> {
-    let mut pages = vec![("/".to_string(), layout("Posts", index_page(all)))];
+    let mut pages = vec![(
+        "/".to_string(),
+        layout("Posts", vec![website_json_ld()], index_page(all)),
+    )];
     for post in all {
         pages.push((
             format!("/posts/{}/", post.slug),
-            layout(post.title, post_page(post)),
+            layout(post.title, vec![], post_page(post)),
         ));
     }
     pages

@@ -22,6 +22,13 @@
 //!   `DemoItemDetailLoader` への決め打ちを避けた最小サンプル）
 //! - `fandhe_frontend_server::ssr::respond_with` による一覧・詳細画面の SSR 応答組み立て
 //! - `fandhe_frontend_app::router::Router` を独自ルート（`/hello/:name`）に直接使う実演
+//! - `fandhe_frontend_core::el_owned` / `attr_if` / `attr_if_value`
+//!   （イシュー #1121）による条件付き属性の組み立て（[`hello_response`] 参照）。
+//!   `el` の `attrs: Vec<(&str, &str)>` は借用元（`format!`/`to_string` した
+//!   一時変数）を呼び出し元スタックフレームより長生きさせる必要があり、
+//!   `attr_if`/`attr_if_value` が返す `Option<(String, String)>` との
+//!   合成（`chain`/`flatten`）と相性が悪い。`el_owned` は属性を
+//!   `Vec<(String, String)>` として直接受け取ることでこの制約を外す
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
@@ -36,7 +43,7 @@
 
 use fandhe_frontend_app::router::Router;
 use fandhe_frontend_app::{page_shell, Item, Loader};
-use fandhe_frontend_core::{el, p, text};
+use fandhe_frontend_core::{attr_if, attr_if_value, el, el_owned, p, text};
 use fandhe_frontend_server::ssr::respond_with;
 use std::convert::Infallible;
 
@@ -117,15 +124,29 @@ fn hello_router() -> Router<()> {
 /// `format!` はタグ文字列の組み立てには使わず、`text()` へ渡す前のプレーン
 /// テキスト整形にのみ使う（`coding-rust.md`「HTML 文字列の直接組み立て禁止」
 /// の対象外）。
+///
+/// `el_owned` / `attr_if` / `attr_if_value`（イシュー #1121）による条件付き
+/// 属性の実演（`data-name-length` は常に出力する動的属性、
+/// `data-default-greeting`/`data-greeting-for` は `name` が既定値
+/// （`"world"`）かどうかで排他的に出力する）。属性**名**は静的リテラルの
+/// `data-*` のみで属性名ホワイトリスト（不変条件 4）を迂回せず、属性**値**
+/// （`name` 由来の生文字列）は [`el_owned`] が [`el`] と共有する
+/// `render()` 時の既定エスケープ（REQ-1）を通る。
 fn hello_response(name: &str) -> (u16, &'static str, String) {
-    let body = page_shell(
-        "Hello",
-        el(
-            "main",
-            vec![],
-            vec![p(vec![], vec![text(format!("Hello, {name}!"))])],
-        ),
+    let is_default = name == "world";
+    let main_node = el_owned(
+        "main",
+        vec![(
+            "data-name-length".to_string(),
+            name.chars().count().to_string(),
+        )]
+        .into_iter()
+        .chain(attr_if(is_default, "data-default-greeting"))
+        .chain(attr_if_value(!is_default, "data-greeting-for", name))
+        .collect(),
+        vec![p(vec![], vec![text(format!("Hello, {name}!"))])],
     );
+    let body = page_shell("Hello", main_node);
     (200, "text/html; charset=utf-8", body)
 }
 
