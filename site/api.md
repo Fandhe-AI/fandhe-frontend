@@ -15,6 +15,7 @@ API Reference セクションは、公開 API の仕様をクレート別にま�
 
 - [fandhe-frontend-app API](../docs/api/app-api.md)
 - [ルーター パスマッチング](../docs/api/router-path-matching.md)
+- [fandhe-frontend-server SSG API](../docs/api/server-api.md)
 
 ## interactive（状態管理）
 

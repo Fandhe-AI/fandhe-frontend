@@ -34,7 +34,7 @@ fandhe-frontend/
 ├── site/                     # docs サイト原稿（crates/docs-site が SSG でビルド。site/assets/ は #905 で廃止済み、骨格 CSS はビルド生成）
 │   ├── index.md
 │   ├── guides.md               # Guides セクショントップページ原稿（配下 4 ガイドへの索引、イシュー #1009）
-│   ├── api.md                  # API Reference セクショントップページ原稿（クレート別 9 ページ索引、イシュー #1009）
+│   ├── api.md                  # API Reference セクショントップページ原稿（クレート別 10 ページ索引、イシュー #1009。イシュー #1156 で `docs/api/server-api.md`（`generate_assets` 等 SSG API）が加わり 9 → 10）
 │   ├── themes.md                # Themes（`fandhe-frontend-pre-styled-ui`）セクショントップページ原稿（凡例 + カテゴリ別リンク集、イシュー #943。旧 `site/components-pre-styled-ui.md` をイシュー #1018 で `/themes/` へ移設・改称。Primitives（`/primitives/`）へのリンクをイシュー #1021 で追加）
 │   ├── themes/                 # 部品ページ原稿（`/themes/<kebab>/` 1 ページ = 部品 1 件、イシュー #943。イシュー #1017 で `site/components/` から `site/themes/` へ移行、旧 URL は `site/redirects.toml` で互換維持。台帳は `docs/design/docs-site-component-pages.md` §3、登録の正は `site/nav.toml`、ページ数の期待値は `crates/docs-site/tests/site_nav.rs`）
 │   ├── primitives.md            # Primitives（`fandhe-frontend-headless-ui`）セクショントップページ原稿（凡例 + カテゴリ別リンク集、イシュー #1021）
