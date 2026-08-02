@@ -17,6 +17,28 @@
 - runner に常設が保証されないツール（wasm-bindgen-cli / wasm-pack / cargo-deny / clippy component / Chrome 等）に依存するステップは以下のいずれかを実行する
   - 存在チェック付きインストール（`command -v` / `where` 等で確認してから `cargo install` 等を実行）
   - ワークフロー YAML に明示的な前提コメント（例: `# 要: wasm-pack がインストール済み`）
+- **共有 `CARGO_TARGET_DIR` と `cargo package`/`cargo publish` 検証ビルドの分離（イシュー #1192）**:
+  `cargo package` / `cargo publish`（`--dry-run` 含む）の検証ビルドは packaged
+  コピー（path 依存が剥がされ crates.io registry 版の依存に解決される）を
+  ビルドするため、共有 `CARGO_TARGET_DIR`（self-hosted runner 既定の
+  `/cargo-target`）で実行すると cdylib+rlib クレート（wasm-thin/wasm-full/
+  wasm-client。`crate-type = ["cdylib", "rlib"]` の rlib はメタデータハッシュ
+  サフィックスなしの固定ファイル名で出力される cargo の仕様）の rlib を
+  registry 依存内容で上書きし、後続のワークスペースビルドが fingerprint
+  fresh 判定で汚染済み rlib をそのままリンクして
+  「multiple different versions of crate」（E0277/E0599）の flaky を
+  引き起こす（PR #1164/#1180/#1186/#1187 で実際に観測、再現手順はイシュー
+  #1192 コメント参照）。`cargo package`/`cargo publish` を実行するワーク
+  フロー（`release.yml` の `verify`/`publish` ジョブ）は必ず専用
+  `CARGO_TARGET_DIR`（`RUNNER_TEMP` 配下、イシュー #659 の配置原則）を
+  明示指定して共有 target dir から隔離する（根本対策）。加えて `ci.yml` の
+  `forbid-unsafe`/`test`/`gate-self-apply` ジョブは cargo 実行前に無ハッシュ
+  cdylib rlib（3 種）を削除する自己修復ガードステップを持ち、対策導入前の
+  既存汚染や他ワークフロー起因の汚染からも回復する（多層防御）。ガード
+  ステップの削除対象は固定ファイル名のみとし、glob・`rm -rf` は用いない
+  （A01 パストラバーサル・広域削除の防止、`security.md` 参照）。この 2 層の
+  対策宣言は `crates/xtask/tests/workflow_shared_target_contract.rs` が
+  fail-closed に固定しており、削除・弱体化しない。
 - **`docs-site.yml` の paths フィルタ契約（イシュー #899/#913）**: docs サイトの
   骨格 CSS（`assets/site.css`）は #905 以降ビルド生成物であり、生成元は
   `crates/docs-site/src/site_theme.rs` と `crates/pre-styled-ui`（`Theme::to_css`）。
