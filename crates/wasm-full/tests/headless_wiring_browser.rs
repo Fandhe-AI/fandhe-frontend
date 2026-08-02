@@ -967,3 +967,215 @@ fn submenu_trigger_item_click_toggles_child_menu_and_does_not_cross_dispatch_to_
          ディスパッチされてはならない"
     );
 }
+
+// --- イシュー #1161: NavigationMenu/Calendar/Menubar の trigger クリックが
+// 実ブラウザ上で `data-value` payload を伴って dispatch へ到達すること ---
+
+#[wasm_bindgen_test]
+fn navigation_menu_trigger_click_toggles_open_state_in_real_dom() {
+    use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu};
+    use fandhe_frontend_headless_ui::state::OpenState;
+
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-navigation-menu-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let html = fandhe_frontend_core::render(&navigation_menu::root(
+        "Main",
+        vec![],
+        vec![navigation_menu::list(
+            vec![],
+            vec![navigation_menu::item(
+                OpenState::Closed,
+                false,
+                vec![],
+                vec![navigation_menu::trigger(
+                    OpenState::Closed,
+                    false,
+                    "products",
+                    None,
+                    None,
+                    vec![],
+                    vec![fandhe_frontend_core::text("Products")],
+                )],
+            )],
+        )],
+    ));
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("navigation-menu root must exist");
+    let trigger = root
+        .query_selector(r#"[data-part="trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("trigger element must exist");
+
+    let component = Rc::new(RefCell::new(NavigationMenu::default()));
+    wire_headless_component(root.clone(), component.clone(), |_state, _root| {})
+        .expect("wire_headless_component must not fail");
+
+    dispatch_click(&trigger);
+    assert!(
+        component.borrow().is_open("products"),
+        "trigger クリック後は該当項目が開いていること"
+    );
+
+    dispatch_click(&trigger);
+    assert!(
+        !component.borrow().is_open("products"),
+        "trigger 再クリックで toggle により閉じること"
+    );
+}
+
+#[wasm_bindgen_test]
+fn navigation_menu_trigger_data_value_xss_payload_click_does_not_produce_script_element() {
+    use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu};
+    use fandhe_frontend_headless_ui::state::OpenState;
+
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-navigation-menu-xss-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let payload = "\"><script>alert(1)</script>";
+    let html = fandhe_frontend_core::render(&navigation_menu::trigger(
+        OpenState::Closed,
+        false,
+        payload,
+        None,
+        None,
+        vec![],
+        vec![],
+    ));
+    container.set_inner_html(&html);
+    assert!(
+        container
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "data-value に XSS ペイロードを含む trigger の展開時点で script 要素が生成されてはならない"
+    );
+
+    let trigger_el = container
+        .first_element_child()
+        .expect("navigation-menu trigger element must exist");
+
+    let component = Rc::new(RefCell::new(NavigationMenu::default()));
+    wire_headless_component(trigger_el.clone(), component.clone(), |_state, _root| {})
+        .expect("wire_headless_component must not fail");
+
+    dispatch_click(&trigger_el);
+    assert!(component.borrow().is_open(payload));
+
+    let rendered = fandhe_frontend_core::render(
+        &fandhe_frontend_interactive::render_for_hydration(&*component.borrow()),
+    );
+    assert!(!rendered.contains("<script>alert(1)</script>"));
+    assert!(rendered.contains("&lt;script&gt;"));
+}
+
+#[wasm_bindgen_test]
+fn calendar_day_trigger_click_selects_date_in_real_dom() {
+    use fandhe_frontend_headless_ui::calendar::{self, Calendar};
+    use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
+
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-calendar-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let today = PlainDate::new(2026, 7, 15).expect("valid date");
+    let day = PlainDate::new(2026, 7, 20).expect("valid date");
+    let html = fandhe_frontend_core::render(&calendar::day_trigger(
+        day,
+        false,
+        false,
+        false,
+        false,
+        None,
+        vec![],
+        vec![],
+    ));
+    container.set_inner_html(&html);
+    let trigger = container
+        .first_element_child()
+        .expect("day-trigger element must exist");
+
+    let cal = Calendar::new(2026, 7, today, None, None, None, Weekday::Monday)
+        .expect("valid calendar construction");
+    let component = Rc::new(RefCell::new(cal));
+    wire_headless_component(trigger.clone(), component.clone(), |_state, _root| {})
+        .expect("wire_headless_component must not fail");
+
+    dispatch_click(&trigger);
+    assert_eq!(
+        component.borrow().selected(),
+        Some(day),
+        "day-trigger クリック後は該当日付が選択されていること"
+    );
+}
+
+#[wasm_bindgen_test]
+fn menubar_trigger_click_toggles_open_menu_in_real_dom() {
+    use fandhe_frontend_headless_ui::menubar::{self, Menubar};
+    use fandhe_frontend_headless_ui::state::OpenState;
+    use fandhe_frontend_headless_ui::Orientation;
+
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-menubar-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let html = fandhe_frontend_core::render(&menubar::root(
+        Orientation::Horizontal,
+        "App menu",
+        vec![],
+        vec![menubar::menu(
+            OpenState::Closed,
+            vec![],
+            vec![menubar::trigger(
+                true,
+                OpenState::Closed,
+                false,
+                false,
+                0,
+                None,
+                vec![],
+                vec![fandhe_frontend_core::text("File")],
+            )],
+        )],
+    ));
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("menubar root must exist");
+    let trigger = root
+        .query_selector(r#"[data-part="trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("trigger element must exist");
+
+    let component = Rc::new(RefCell::new(Menubar::new(
+        0,
+        1,
+        None,
+        false,
+        Orientation::Horizontal,
+    )));
+    wire_headless_component(root.clone(), component.clone(), |_state, _root| {})
+        .expect("wire_headless_component must not fail");
+
+    dispatch_click(&trigger);
+    assert_eq!(
+        component.borrow().open(),
+        Some(0),
+        "trigger クリック後は該当 Menu が開いていること"
+    );
+
+    dispatch_click(&trigger);
+    assert_eq!(
+        component.borrow().open(),
+        None,
+        "trigger 再クリックで toggle により閉じること"
+    );
+}

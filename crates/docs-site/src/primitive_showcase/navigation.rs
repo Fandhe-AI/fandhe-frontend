@@ -156,6 +156,7 @@ pub(super) fn menubar_section() -> Node {
                     state,
                     false,
                     false,
+                    0,
                     Some("mb-content"),
                     vec![],
                     vec![text("File")],
@@ -238,6 +239,7 @@ pub(super) fn navigation_menu_section() -> Node {
                         navigation_menu::trigger(
                             open,
                             false,
+                            "products",
                             Some("nm-trigger-0"),
                             Some("nm-content-0"),
                             vec![],
@@ -264,6 +266,7 @@ pub(super) fn navigation_menu_section() -> Node {
                     vec![navigation_menu::trigger(
                         closed,
                         false,
+                        "docs",
                         None,
                         None,
                         vec![],

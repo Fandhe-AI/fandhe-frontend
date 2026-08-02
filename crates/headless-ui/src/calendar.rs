@@ -194,6 +194,11 @@ pub fn table_cell<'a>(selected: bool, attrs: Vec<(&'a str, &'a str)>, children: 
 /// `data-outside-month` を、min/max 範囲外には `data-disabled` +
 /// ネイティブ `disabled` + `aria-disabled` を付与する。フォーム内配置時の
 /// 意図しない submit を防ぐため `type="button"` を固定で付与する。
+/// `data-value` にも同じ ISO 8601 表記を出力し、`crates/wasm-full` の
+/// `MAPPING_TABLE`（`("calendar", "day-trigger")` → `"select"`）が
+/// クリック起点のディスパッチ payload として用いる
+/// （[`crate::accordion::item_trigger`] の `data-value` と同型、イシュー
+/// #1161）。
 #[must_use]
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 pub fn day_trigger<'a>(
@@ -210,7 +215,11 @@ pub fn day_trigger<'a>(
     // `el` へ渡す直前に借用参照へ揃えて 1 つの `&str` Vec として組み立てる
     // （動的値は依然として `render()` の既定エスケープを経由する）。
     let iso = date.to_iso_string();
-    let mut merged: Vec<(&str, &str)> = vec![("type", "button"), ("aria-label", &iso)];
+    let mut merged: Vec<(&str, &str)> = vec![
+        ("type", "button"),
+        ("aria-label", &iso),
+        ("data-value", &iso),
+    ];
     if selected {
         merged.push(("data-selected", ""));
     }
@@ -919,6 +928,7 @@ mod tests {
             vec![],
         ));
         assert!(html.contains(r#"aria-label="2026-07-15""#));
+        assert!(html.contains(r#"data-value="2026-07-15""#));
         assert!(html.contains(r#"data-selected="""#));
         assert!(html.contains(r#"data-today="""#));
         assert!(html.contains(r#"aria-current="date""#));

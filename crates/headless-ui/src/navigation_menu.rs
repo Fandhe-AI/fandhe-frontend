@@ -144,11 +144,16 @@ pub fn item<'a>(
 /// が `Some` のとき `aria-controls` で [`content`] と関連付ける。
 /// `disabled` はネイティブ `disabled` 存在属性と `data-disabled` の両方へ
 /// 反映する。`role` は付与しない（本モジュール冒頭の rustdoc「`role` を
-/// 明示付与しない」参照）。
+/// 明示付与しない」参照）。`value` は `data-value` として出力し、
+/// `crates/wasm-full` の `MAPPING_TABLE`（`("navigation-menu", "trigger")`
+/// → `"toggle"`）が payload としてクリック起点のディスパッチに用いる
+/// （[`crate::accordion::item_trigger`] の `data-value` と同型、イシュー
+/// #1161）。
 #[must_use]
 pub fn trigger<'a>(
     state: OpenState,
     disabled: bool,
+    value: &'a str,
     id: Option<&'a str>,
     controls: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
@@ -158,6 +163,7 @@ pub fn trigger<'a>(
         ("type", "button"),
         aria_expanded(state.is_open()),
         data_state(state.as_data_state()),
+        ("data-value", value),
     ];
     if let Some(id) = id {
         merged.push(("id", id));
@@ -285,6 +291,7 @@ impl NavigationMenu {
         trigger(
             self.item_state(value),
             disabled,
+            value,
             id,
             controls,
             attrs,
@@ -382,6 +389,7 @@ mod tests {
         let html = render(&trigger(
             OpenState::Closed,
             false,
+            "a",
             None,
             None,
             vec![],
@@ -391,12 +399,21 @@ mod tests {
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"aria-expanded="false""#));
         assert!(html.contains(r#"data-state="closed""#));
+        assert!(html.contains(r#"data-value="a""#));
         assert!(!html.contains("aria-controls"));
         assert!(!html.contains(" id="));
         assert!(!html.contains("disabled"));
         assert!(!html.contains("role="));
 
-        let open_html = render(&trigger(OpenState::Open, false, None, None, vec![], vec![]));
+        let open_html = render(&trigger(
+            OpenState::Open,
+            false,
+            "a",
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(open_html.contains(r#"aria-expanded="true""#));
         assert!(open_html.contains(r#"data-state="open""#));
     }
@@ -406,6 +423,7 @@ mod tests {
         let html = render(&trigger(
             OpenState::Closed,
             false,
+            "a",
             Some("t-trigger-a"),
             Some("t-content-a"),
             vec![],
@@ -420,6 +438,7 @@ mod tests {
         let disabled_html = render(&trigger(
             OpenState::Closed,
             true,
+            "a",
             None,
             None,
             vec![],
@@ -431,6 +450,7 @@ mod tests {
         let enabled_html = render(&trigger(
             OpenState::Closed,
             false,
+            "a",
             None,
             None,
             vec![],
@@ -499,7 +519,15 @@ mod tests {
     fn no_part_outputs_data_motion() {
         let root_html = render(&root("Main", vec![], vec![]));
         let item_html = render(&item(OpenState::Open, false, vec![], vec![]));
-        let trigger_html = render(&trigger(OpenState::Open, false, None, None, vec![], vec![]));
+        let trigger_html = render(&trigger(
+            OpenState::Open,
+            false,
+            "a",
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
         let content_html = render(&content(OpenState::Open, None, None, vec![], vec![]));
         let link_html = render(&link("/docs", true, vec![], vec![]));
         for html in [root_html, item_html, trigger_html, content_html, link_html] {
@@ -539,6 +567,7 @@ mod tests {
                         trigger(
                             OpenState::Open,
                             false,
+                            "products",
                             Some("t-trigger-a"),
                             Some("t-content-a"),
                             vec![],
@@ -561,7 +590,7 @@ mod tests {
                 r#"<nav data-scope="navigation-menu" data-part="root" aria-label="Main">"#,
                 r#"<ul data-scope="navigation-menu" data-part="list">"#,
                 r#"<li data-scope="navigation-menu" data-part="item" data-state="open">"#,
-                r#"<button data-scope="navigation-menu" data-part="trigger" type="button" aria-expanded="true" data-state="open" id="t-trigger-a" aria-controls="t-content-a">Products</button>"#,
+                r#"<button data-scope="navigation-menu" data-part="trigger" type="button" aria-expanded="true" data-state="open" data-value="products" id="t-trigger-a" aria-controls="t-content-a">Products</button>"#,
                 r#"<div data-scope="navigation-menu" data-part="content" data-state="open" id="t-content-a" aria-labelledby="t-trigger-a">"#,
                 r#"<a data-scope="navigation-menu" data-part="link" href="/products/a">A</a>"#,
                 r#"</div>"#,
@@ -713,8 +742,28 @@ mod tests {
         let html = render(&trigger(
             OpenState::Closed,
             false,
+            ATTR_BREAK_PAYLOAD,
             Some(ATTR_BREAK_PAYLOAD),
             Some(ATTR_BREAK_PAYLOAD),
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    /// `data-value`（MAPPING_TABLE payload 源）に渡した攻撃ペイロードが
+    /// `render()` の既定エスケープを経由してエスケープ済みで出力されること
+    /// を固定する（`crate::accordion::item_trigger` の同名テストと同型、
+    /// イシュー #1161）。
+    #[test]
+    fn trigger_data_value_payload_is_escaped_on_render() {
+        let html = render(&trigger(
+            OpenState::Closed,
+            false,
+            ATTR_BREAK_PAYLOAD,
+            None,
+            None,
             vec![],
             vec![],
         ));

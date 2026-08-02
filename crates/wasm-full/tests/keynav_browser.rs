@@ -3618,6 +3618,12 @@ fn build_menubar_dom(
         trigger
             .set_attribute("tabindex", if i == 0 { "0" } else { "-1" })
             .unwrap();
+        // headless-ui 0.28.0（イシュー #1161）以降の `menubar::trigger` SSR
+        // 出力契約（`data-value` = Menu の index）を手組み DOM でも再現する。
+        // `crate::headless::MAPPING_TABLE` の `("menubar", "trigger")` 行は
+        // `requires_value: true` のため、これが無いと click 駆動の dispatch
+        // へ到達しない。
+        trigger.set_attribute("data-value", &i.to_string()).unwrap();
         let trigger_id = format!("{root_id}-trigger-{value}");
         let content_id = format!("{root_id}-content-{value}");
         trigger.set_attribute("id", &trigger_id).unwrap();
@@ -5316,6 +5322,12 @@ fn build_navigation_menu_dom(
             .unwrap();
         trigger.set_attribute("data-part", "trigger").unwrap();
         trigger.set_attribute("type", "button").unwrap();
+        // headless-ui 0.28.0（イシュー #1161）以降の `navigation_menu::trigger`
+        // SSR 出力契約（`data-value`）を手組み DOM でも再現する。
+        // `crate::headless::MAPPING_TABLE` の `("navigation-menu", "trigger")`
+        // 行は `requires_value: true` のため、これが無いと click 駆動の
+        // dispatch へ到達しない。
+        trigger.set_attribute("data-value", value).unwrap();
         let trigger_id = format!("{root_id}-trigger-{value}");
         let content_id = format!("{root_id}-content-{value}");
         trigger.set_attribute("id", &trigger_id).unwrap();

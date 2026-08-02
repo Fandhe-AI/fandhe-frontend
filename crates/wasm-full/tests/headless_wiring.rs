@@ -671,16 +671,285 @@ fn calendar_prev_and_next_trigger_map_to_month_navigation() {
     assert!(body_html.contains(r#"data-part="day-trigger""#));
 }
 
+// --- イシュー #1161: Calendar day-trigger（select クリック）のドリフト
+// 検知 + dispatch 遷移検証 ---
+
 #[test]
-fn calendar_day_trigger_has_no_mapping_row_fail_closed() {
-    // `day_trigger` は `data-value`（ISO 日付）を出力しないため、
-    // `MAPPING_TABLE` に行を追加しても fail-closed で不活性になる
-    // （`crates/wasm-full/src/keynav.rs` モジュール doc §Calendar 参照）。
-    // 本テストは意図的にこの行を追加していないことを固定する。
+fn calendar_day_trigger_click_selects_date() {
+    use fandhe_frontend_headless_ui::calendar::{self, Calendar};
+    use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
+
+    let today = PlainDate::new(2026, 7, 15).unwrap();
+    let cal = Calendar::new(2026, 7, today, None, None, None, Weekday::Monday).unwrap();
+
+    let day = PlainDate::new(2026, 7, 20).unwrap();
+    let html = render(&calendar::day_trigger(
+        day,
+        false,
+        false,
+        false,
+        false,
+        None,
+        Vec::new(),
+        Vec::new(),
+    ));
+    assert_scope_part_present(&html, "calendar", "day-trigger");
+    assert!(html.contains(r#"data-value="2026-07-20""#));
+
+    let action_ref =
+        action_for_part(&part("calendar", "day-trigger", Some("2026-07-20"), false)).unwrap();
+    assert_eq!(action_ref.action, "select");
+    assert_eq!(action_ref.payload, "2026-07-20");
+
+    let mut c = cal;
+    assert!(dispatch(&mut c, &action_ref.action, &action_ref.payload));
+    assert_eq!(c.selected(), Some(day));
+}
+
+#[test]
+fn calendar_day_trigger_without_data_value_is_noop() {
+    // `calendar::day_trigger` は headless-ui 0.28.0（イシュー #1161）以降
+    // `data-value`（ISO 日付）を常時出力するが、`MAPPING_TABLE` の
+    // fail-closed 契約（`requires_value: true`）自体を独立して固定する。
     assert_eq!(
-        action_for_part(&part("calendar", "day-trigger", Some("2026-07-15"), false)),
+        action_for_part(&part("calendar", "day-trigger", None, false)),
         None
     );
+}
+
+#[test]
+fn calendar_day_trigger_disabled_is_noop() {
+    assert_eq!(
+        action_for_part(&part("calendar", "day-trigger", Some("2026-07-20"), true)),
+        None
+    );
+}
+
+#[test]
+fn calendar_day_trigger_non_iso_payload_fails_parse_and_is_noop() {
+    // `Calendar::decode_action` は payload を `PlainDate` としてパースし、
+    // パース不能は `None`（fail-closed）。改ざんされた `data-value` を
+    // 想定した回帰。
+    use fandhe_frontend_headless_ui::calendar::Calendar;
+    use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
+
+    let today = PlainDate::new(2026, 7, 15).unwrap();
+    let mut c = Calendar::new(2026, 7, today, None, None, None, Weekday::Monday).unwrap();
+    let action_ref =
+        action_for_part(&part("calendar", "day-trigger", Some("not-a-date"), false)).unwrap();
+    assert!(!dispatch(&mut c, &action_ref.action, &action_ref.payload));
+    assert_eq!(c.selected(), None);
+}
+
+#[test]
+fn calendar_day_trigger_data_value_xss_payload_is_escaped_on_render() {
+    // `data-value` は `date.to_iso_string()` 由来（呼び出し側が直接文字列を
+    // 注入できない）だが、`render()` 経由の既定エスケープを通ることを
+    // `aria-label` と同型に固定する（accordion `data-value` の同名テストと
+    // 対をなす回帰）。
+    use fandhe_frontend_headless_ui::calendar;
+    use fandhe_frontend_headless_ui::date::PlainDate;
+
+    let day = PlainDate::new(2026, 7, 20).unwrap();
+    let html = render(&calendar::day_trigger(
+        day,
+        false,
+        false,
+        false,
+        false,
+        None,
+        Vec::new(),
+        Vec::new(),
+    ));
+    assert!(html.contains(r#"data-value="2026-07-20""#));
+    assert!(html.contains(r#"aria-label="2026-07-20""#));
+}
+
+// --- イシュー #1161: NavigationMenu（trigger クリック開閉）のドリフト
+// 検知 + dispatch 遷移検証 ---
+
+#[test]
+fn navigation_menu_trigger_click_toggles_single_select() {
+    use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu};
+
+    let html = render(&navigation_menu::trigger(
+        OpenState::Closed,
+        false,
+        "products",
+        None,
+        None,
+        Vec::new(),
+        Vec::new(),
+    ));
+    assert_scope_part_present(&html, "navigation-menu", "trigger");
+    assert!(html.contains(r#"data-value="products""#));
+
+    let action_ref =
+        action_for_part(&part("navigation-menu", "trigger", Some("products"), false)).unwrap();
+    assert_eq!(action_ref.action, "toggle");
+    assert_eq!(action_ref.payload, "products");
+
+    let mut m = NavigationMenu::default();
+    assert!(dispatch(&mut m, &action_ref.action, &action_ref.payload));
+    assert!(m.is_open("products"));
+
+    // 高々 1 項目が開く（別項目の toggle で前項目が自動的に閉じる）。
+    let other = action_for_part(&part(
+        "navigation-menu",
+        "trigger",
+        Some("solutions"),
+        false,
+    ))
+    .unwrap();
+    assert!(dispatch(&mut m, &other.action, &other.payload));
+    assert!(m.is_open("solutions"));
+    assert!(!m.is_open("products"));
+
+    // 再クリック（disclosure 挙動）で閉じる。
+    assert!(dispatch(&mut m, &other.action, &other.payload));
+    assert!(!m.is_open("solutions"));
+}
+
+#[test]
+fn navigation_menu_trigger_without_data_value_is_noop() {
+    // `navigation_menu::trigger` は headless-ui 0.28.0（イシュー #1161）
+    // 以降 `data-value` を常時出力するが、`MAPPING_TABLE` の fail-closed
+    // 契約（`requires_value: true`）自体を独立して固定する。
+    assert_eq!(
+        action_for_part(&part("navigation-menu", "trigger", None, false)),
+        None
+    );
+}
+
+#[test]
+fn navigation_menu_trigger_disabled_is_noop() {
+    assert_eq!(
+        action_for_part(&part("navigation-menu", "trigger", Some("products"), true)),
+        None
+    );
+}
+
+#[test]
+fn navigation_menu_trigger_data_value_xss_payload_is_escaped_on_render() {
+    use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu};
+
+    let payload = "\"><script>alert(1)</script>";
+    let html = render(&navigation_menu::trigger(
+        OpenState::Closed,
+        false,
+        payload,
+        None,
+        None,
+        Vec::new(),
+        Vec::new(),
+    ));
+    assert!(!html.contains("<script>alert(1)</script>"));
+    assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+
+    let action_ref =
+        action_for_part(&part("navigation-menu", "trigger", Some(payload), false)).unwrap();
+    let mut m = NavigationMenu::default();
+    assert!(dispatch(&mut m, &action_ref.action, &action_ref.payload));
+
+    let rendered_html = render(&fandhe_frontend_interactive::render_for_hydration(&m));
+    assert!(!rendered_html.contains("<script>alert(1)</script>"));
+    assert!(rendered_html.contains("&lt;script&gt;"));
+}
+
+// --- イシュー #1161: Menubar（trigger クリック開閉）のドリフト検知
+// + dispatch 遷移検証 ---
+
+#[test]
+fn menubar_trigger_click_toggles_open_menu() {
+    use fandhe_frontend_headless_ui::menubar::{self, Menubar};
+
+    let html = render(&menubar::trigger(
+        true,
+        OpenState::Closed,
+        false,
+        false,
+        1,
+        None,
+        Vec::new(),
+        Vec::new(),
+    ));
+    assert_scope_part_present(&html, "menubar", "trigger");
+    assert!(html.contains(r#"data-value="1""#));
+
+    let action_ref = action_for_part(&part("menubar", "trigger", Some("1"), false)).unwrap();
+    assert_eq!(action_ref.action, "toggle");
+    assert_eq!(action_ref.payload, "1");
+
+    let mut mb = Menubar::new(
+        0,
+        2,
+        None,
+        false,
+        fandhe_frontend_headless_ui::Orientation::Horizontal,
+    );
+    assert!(dispatch(&mut mb, &action_ref.action, &action_ref.payload));
+    assert_eq!(mb.open(), Some(1));
+
+    // 開いている Menu を再クリックすると閉じる。
+    assert!(dispatch(&mut mb, &action_ref.action, &action_ref.payload));
+    assert_eq!(mb.open(), None);
+}
+
+#[test]
+fn menubar_trigger_without_data_value_is_noop() {
+    // `menubar::trigger` は headless-ui 0.28.0（イシュー #1161）以降
+    // `data-value`（index）を常時出力するが、`MAPPING_TABLE` の
+    // fail-closed 契約（`requires_value: true`）自体を独立して固定する。
+    assert_eq!(
+        action_for_part(&part("menubar", "trigger", None, false)),
+        None
+    );
+}
+
+#[test]
+fn menubar_trigger_disabled_is_noop() {
+    assert_eq!(
+        action_for_part(&part("menubar", "trigger", Some("1"), true)),
+        None
+    );
+}
+
+#[test]
+fn menubar_trigger_non_numeric_payload_fails_parse_and_is_noop() {
+    // `Menubar::decode_action` は payload を `str::parse::<usize>()` で
+    // パースし、パース不能は `None`（fail-closed）。改ざんされた
+    // `data-value` を想定した回帰。
+    use fandhe_frontend_headless_ui::menubar::Menubar;
+
+    let mut mb = Menubar::new(
+        0,
+        2,
+        None,
+        false,
+        fandhe_frontend_headless_ui::Orientation::Horizontal,
+    );
+    let action_ref =
+        action_for_part(&part("menubar", "trigger", Some("not-a-number"), false)).unwrap();
+    assert!(!dispatch(&mut mb, &action_ref.action, &action_ref.payload));
+    assert_eq!(mb.open(), None);
+}
+
+#[test]
+fn menubar_trigger_out_of_range_index_is_noop() {
+    // 範囲外 index no-op は `Menubar::update` の既存契約
+    // （`crates/headless-ui/src/menubar.rs` 参照）。
+    use fandhe_frontend_headless_ui::menubar::Menubar;
+
+    let mut mb = Menubar::new(
+        0,
+        2,
+        None,
+        false,
+        fandhe_frontend_headless_ui::Orientation::Horizontal,
+    );
+    let action_ref = action_for_part(&part("menubar", "trigger", Some("99"), false)).unwrap();
+    assert!(dispatch(&mut mb, &action_ref.action, &action_ref.payload));
+    assert_eq!(mb.open(), None);
 }
 
 // --- イシュー #1127: Accordion（item-trigger クリック開閉）のドリフト

@@ -329,10 +329,13 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 | `calendar` | `prev-trigger` | `"prev-month"` | `""` |
 | `calendar` | `next-trigger` | `"next-month"` | `""` |
 | `accordion` | `item-trigger` | `"toggle"` | `data-value` |
+| `navigation-menu` | `trigger` | `"toggle"` | `data-value` |
+| `calendar` | `day-trigger` | `"select"` | `data-value` |
+| `menubar` | `trigger` | `"toggle"` | `data-value` |
 
 マッピング表は `&'static str` リテラル固定の静的配列であり、動的登録経路は持たない。`crates/wasm-full/tests/headless_wiring.rs` が headless-ui 実出力（`data-scope`/`data-part` 文字列）とのドリフトを機械検知する。
 
-`calendar` の 2 行はイシュー #1074（keynav へ Splitter/Calendar のキーボード操作配線を追加する）で追加した。`crates/wasm-full/src/keynav.rs`（§後述、モジュール doc §Calendar）が PageUp/PageDown で合成する `prev-trigger`/`next-trigger` への `HtmlElement::click()` は、この 2 行を経由して初めて `CalendarAction::PrevMonth`/`NextMonth` の dispatch へ到達する。`("calendar", "day-trigger") → "select"` の行は意図的に追加していない: `day_trigger`（`crates/headless-ui/src/calendar.rs`）は `data-value`（ISO 日付）を出力しないため、行を追加しても `requires_value: true` により常に fail-closed で `None` になる（`.claude/rules/out-of-scope-tracking.md` 対応の申し送り事項。解消には headless-ui 側で `data-value` を追加する必要があり、headless-ui の semver バンプを伴うため別イシューの対象）。
+`calendar` の 2 行（`prev-trigger`/`next-trigger`）はイシュー #1074（keynav へ Splitter/Calendar のキーボード操作配線を追加する）で追加した。`crates/wasm-full/src/keynav.rs`（§後述、モジュール doc §Calendar）が PageUp/PageDown で合成する `prev-trigger`/`next-trigger` への `HtmlElement::click()` は、この 2 行を経由して初めて `CalendarAction::PrevMonth`/`NextMonth` の dispatch へ到達する。`("calendar", "day-trigger") → "select"` 行はイシュー #1161 で追加した: headless-ui 0.28.0 で `calendar::day_trigger`（`crates/headless-ui/src/calendar.rs`）が `data-value`（ISO 8601 表記の日付）を出力するようになったため、`Calendar::decode_action` が `PlainDate` としてパースする payload を満たせるようになった（パース不能・範囲外は既存の fail-closed 契約のまま）。
 
 `menu`/`trigger-item` 行は当初欠落しており、`keynav.rs` のサブメニュー ArrowRight/ArrowLeft 開閉（§後述、イシュー #662）が合成する `click()` およびマウスでの実クリックの双方が no-op になっていた（イシュー #662 PR #674 Bugbot 指摘）。サブメニューは「子 `Menu` インスタンス由来の `trigger-item`/`positioner`/`content` を親 `content` 内に入れ子配置する」契約（`crates/headless-ui/src/menu.rs`）であり、`trigger-item` も `data-scope="menu"` を持つため、`trigger` と同じ `"toggle"` を割り当てて解決する。
 
@@ -340,9 +343,17 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 
 `combobox` の 3 行はイシュー #1071（keynav へ Combobox のキーボード配線を追加する）で追加した。`crates/headless-ui/src/combobox.rs`（イシュー #749）は Combobox の SSR 出力と状態機械のみを提供し、実 DOM 上のクリック・キーボード配線を wasm 層へ申し送っていた。`menu`/`trigger-item` 欠落是正（#662）と同型の整備であり、`combobox`/`trigger` の欠落は `crates/wasm-full/src/keynav.rs` が合成する `HtmlElement::click()`（Arrow キーによる open/close・Escape によるクローズ）を no-op にし、`combobox`/`item` の欠落は Enter・highlight クリックによる確定を no-op にする。`combobox`/`clear-trigger` は `"clear"`（`ComboboxAction::Clear`）であり、`select`/`clear-trigger` の `"deselect"` とは意味が異なる。`combobox::clear_trigger` はテキスト入力欄を併せ持つ Combobox の「入力値と選択の両方をクリアする」ボタンであるため（`crates/headless-ui/src/combobox.rs::ComboboxAction::Clear` の実装参照）、`select` の「選択のみを解除する」`"deselect"` をそのまま流用しない。
 
-`toggle-group`/`item` 行はイシュー #1075（keynav へ NavigationMenu/ToggleGroup のキーボード配線を追加する）で追加した。`ToggleGroup`/`MultiToggleGroup` の `decode_action` はいずれも `"toggle"` のみを受理し `toggle_group::item` は `data-value` を常時出力するため、`menu`/`trigger-item`・`combobox` の欠落是正と同型の整備である。**`navigation-menu`/`trigger` 行は本イシューで追加していない**: `crates/headless-ui/src/navigation_menu.rs::trigger` は `data-value` を出力せず、`NavigationMenu::decode_action`（`SingleSelect` へ全委譲）は payload に項目値を要求するため、`requires_value: true` 行を足しても常に fail-closed（`None`）になり、`requires_value: false` 行を足すと `SingleSelectAction::Toggle("")` という誤った値をトグルしてしまう。恒久解は headless-ui 側の SSR 出力追加（別イシュー、§19.5 参照）。
+`toggle-group`/`item` 行はイシュー #1075（keynav へ NavigationMenu/ToggleGroup のキーボード配線を追加する）で追加した。`ToggleGroup`/`MultiToggleGroup` の `decode_action` はいずれも `"toggle"` のみを受理し `toggle_group::item` は `data-value` を常時出力するため、`menu`/`trigger-item`・`combobox` の欠落是正と同型の整備である。**`navigation-menu`/`trigger` 行はイシュー #1075 時点では追加していなかった**（後述のとおりイシュー #1161 で解消済み）: 当時の `crates/headless-ui/src/navigation_menu.rs::trigger` は `data-value` を出力せず、`NavigationMenu::decode_action`（`SingleSelect` へ全委譲）は payload に項目値を要求するため、`requires_value: true` 行を足しても常に fail-closed（`None`）になり、`requires_value: false` 行を足すと `SingleSelectAction::Toggle("")` という誤った値をトグルしてしまう構造的欠落だった。
 
-`accordion`/`item-trigger` 行はイシュー #1127 で追加した。`Accordion`（single、他項目は自動で閉じる）/`MultiAccordion`（multiple、対象項目のみトグル）はいずれも `decode_action` を `SingleSelect`/`MultiSelect` へ全委譲しており、`"toggle"` は項目値 payload 必須（`SingleSelectAction::Toggle`/`MultiSelectAction::Toggle`）。`navigation-menu`/`trigger`・`calendar`/`day-trigger` と同じ構造的欠落（クリック対象パーツが `data-value` を出力しない）だったが、本イシューでは恒久解（headless-ui 側の SSR 出力追加）を同時に実施した: headless-ui 0.27.0 で `accordion::item_trigger` が `data-value` を出力するよう破壊的変更（`value: &'a str` 引数の追加）を加えたうえで本行を追加した。`data-value` 追加前は `crates/wasm-full/src/keynav.rs` モジュール doc §Accordion が案内する「開閉（Enter/Space）はネイティブ `<button>` の click 挙動に委ねる」設計であっても、マウスクリック・キーボードのいずれも本表に行が無いため no-op のままだった（イシュー #1127 の背景）。
+`accordion`/`item-trigger` 行はイシュー #1127 で追加した。`Accordion`（single、他項目は自動で閉じる）/`MultiAccordion`（multiple、対象項目のみトグル）はいずれも `decode_action` を `SingleSelect`/`MultiSelect` へ全委譲しており、`"toggle"` は項目値 payload 必須（`SingleSelectAction::Toggle`/`MultiSelectAction::Toggle`）。当時の `navigation-menu`/`trigger`・`calendar`/`day-trigger` と同じ構造的欠落（クリック対象パーツが `data-value` を出力しない）だったが、本イシューでは恒久解（headless-ui 側の SSR 出力追加）を同時に実施した: headless-ui 0.27.0 で `accordion::item_trigger` が `data-value` を出力するよう破壊的変更（`value: &'a str` 引数の追加）を加えたうえで本行を追加した。`data-value` 追加前は `crates/wasm-full/src/keynav.rs` モジュール doc §Accordion が案内する「開閉（Enter/Space）はネイティブ `<button>` の click 挙動に委ねる」設計であっても、マウスクリック・キーボードのいずれも本表に行が無いため no-op のままだった（イシュー #1127 の背景）。
+
+`navigation-menu`/`trigger`・`calendar`/`day-trigger`・`menubar`/`trigger` の 3 行はイシュー #1161 で追加した。accordion（#1127）と同じパターン（クリック対象パーツが `data-value` を出力しないため MAPPING_TABLE に行を追加できない構造的欠落）を headless-ui 側の SSR 出力追加とセットで恒久解決した:
+
+- `navigation_menu::trigger` へ `value: &'a str` 引数を追加（破壊的変更、accordion `item_trigger` と同型）し `data-value` を出力するようにした。`("navigation-menu", "trigger") → "toggle"`（`requires_value: true`）行は `NavigationMenu::decode_action`（`SingleSelect` へ全委譲）の `"toggle"` を用いる。開いている項目の再クリックで閉じる disclosure nav の挙動を 1 行で表現できるため accordion と同じく `"select"` ではなく `"toggle"` を採用した。
+- `menubar::trigger` へ `index: usize` 引数を追加（破壊的変更）し、`data-value`（Menu の index を文字列化した値）を出力するようにした。`("menubar", "trigger") → "toggle"`（`requires_value: true`）行は `Menubar::decode_action` の `"toggle"` を用いる（payload は `str::parse::<usize>()` でパースし、パース不能は `None`。open-follows-focus・範囲外 index no-op は `Menubar::update` の既存契約のまま）。
+- `calendar::day_trigger` は `date: PlainDate` を既に受けていたためシグネチャ変更なしで `data-value`（`date.to_iso_string()`）を追加出力した。上記の `("calendar", "day-trigger") → "select"` 行と対応する。
+
+headless-ui は 0.27.0 → 0.28.0（0.x の破壊的変更、マイナーバンプ）、依存元の `fandhe-frontend-pre-styled-ui` は再エクスポート経由の破壊的変更として 0.39.0 → 0.40.0、`fandhe-frontend-wasm-full` は追加的変更として 0.5.0 → 0.5.1 をバンプした（`.claude/rules/coding-rust.md` 公開済みクレートの semver バンプ規約）。`crates/wasm-full/src/overlay.rs::OverlayKind` に `navigation-menu`/`menubar` を含めない（Escape/外側クリックによる content の実閉鎖の一元化を行わない）既知のギャップは本イシューのスコープ外として残置した（`crates/wasm-full/src/keynav.rs` モジュール doc §NavigationMenu/§Menubar 参照）。
 
 ### 12.4 fail-closed 契約（受け入れ条件 3）
 
@@ -539,8 +550,8 @@ menu/select の `root` は 1 インスタンスの境界だが、menubar の `ro
 
 ### 18.4 既知のギャップ（本イシューでは対応しない、スコープ外）
 
-- **`headless.rs::MAPPING_TABLE` に menubar 行が無い**: 単なる行の欠落ではなく payload のアリティ不一致（`requires_value: false`/`true` のいずれも `menubar::trigger` の `data-value` 非出力と噛み合わない）。headless-ui 側の出力追加か `headless.rs` への新 payload source 導入が必要であり、本イシューの粒度を超える。解決するまで、実アプリでの menubar 開閉は呼び出し側の独自 click 配線に依存する。
-- **`overlay.rs::OverlayKind` が `menubar` を含まない**: Escape/外側クリックによる menubar content の実閉鎖は行われない。keynav の Escape 処理は既存 Menu/Select と同じく highlight の後始末のみを担い、閉鎖自体は `overlay` の責務のまま変えていない。
+- **`headless.rs::MAPPING_TABLE` に menubar 行が無い**: イシュー #1161 で解消済み。`menubar::trigger` が headless-ui 0.28.0 以降 `data-value`（Menu の index）を出力するようになり、`("menubar", "trigger") → "toggle"`（`requires_value: true`）行を追加した（§12.3 参照）。
+- **`overlay.rs::OverlayKind` が `menubar` を含まない**: Escape/外側クリックによる menubar content の実閉鎖は行われない。keynav の Escape 処理は既存 Menu/Select と同じく highlight の後始末のみを担い、閉鎖自体は `overlay` の責務のまま変えていない（イシュー #1161 のスコープ外として残置）。
 
 いずれも `.claude/rules/out-of-scope-tracking.md` に従い Issue 化を提案する対象として PR 本文に記録する。
 
@@ -576,9 +587,9 @@ ToggleGroup の item 間移動は WAI-ARIA APG Toolbar/RadioGroup パターン�
 
 ### 19.5 既知のギャップ（本イシューでは対応しない、スコープ外）
 
-- **`MAPPING_TABLE` への `navigation-menu` 行未追加**（§12.3 参照）: `navigation_menu::trigger` が `data-value` を出力しないため、恒久解は headless-ui 側の SSR 出力追加（別イシュー）。
+- **`MAPPING_TABLE` への `navigation-menu` 行未追加**（§12.3 参照）: イシュー #1161 で解消済み。`navigation_menu::trigger` が headless-ui 0.28.0 以降 `data-value` を出力するようになり、`("navigation-menu", "trigger") → "toggle"`（`requires_value: true`）行を追加した。
 - **ToggleGroup の SSR 側 roving tabindex 初期状態**: `toggle_group::item` は `tabindex` を出力しないため、最初の矢印キー押下までは全 item がタブ順に入る（押下後に単一タブストップへ収束する）。恒久解は `toggle_group::item` への `focused: bool` opt-in（`toolbar.rs` の `roving_tabindex`/`drop_tabindex_attr` が先例）だが、公開 API の破壊的変更のため本イシューでは扱わない。`wire_keynav` へマウント時の DOM 正規化パスを新設する案は不採用（`wire_keynav` はリスナー登録以外の DOM 変更を一切行わない契約であり、アプリ側が付けた `tabindex` と競合しうるため）。
-- **`overlay.rs::OverlayKind` に `navigation-menu` が無い**: Escape/外側クリックによる content の実閉鎖の一元化は行わない（Menubar と同じ既知ギャップ）。
+- **`overlay.rs::OverlayKind` に `navigation-menu` が無い**: Escape/外側クリックによる content の実閉鎖の一元化は行わない（Menubar と同じ既知ギャップ、イシュー #1161 のスコープ外として残置）。
 - **`list` 直下（content 外）のリンクは移動対象に含めない**: trigger 間移動のみを対象とする。対象外リンクもネイティブにタブ順へ残るためアクセシビリティ後退はない。
 - **docs-site `/primitives/navigation-menu/` `/primitives/toggle-group/` の keyboard 節（`KeyRow`）未追記**: `crates/docs-site/src/primitive_specs/navigation.rs` ほかは現状 `keyboard: &[]`。#1070 も同様に後続送りにしている。
 - **`crates/wasm-full/src/keynav.rs` の肥大化**（本イシュー後さらに増加）: サブモジュール分割（`keynav/menu.rs` 等）のリファクタ提案。

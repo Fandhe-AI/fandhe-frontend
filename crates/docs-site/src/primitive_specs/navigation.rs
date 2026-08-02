@@ -529,6 +529,7 @@ fn ex_menubar() -> Node {
                     open,
                     false,
                     false,
+                    0,
                     None,
                     vec![],
                     vec![text("File")],
@@ -542,6 +543,7 @@ fn ex_menubar() -> Node {
                     closed,
                     false,
                     false,
+                    1,
                     None,
                     vec![],
                     vec![text("Edit")],
@@ -732,6 +734,7 @@ fn ex_navigation_menu() -> Node {
                 vec![navigation_menu::trigger(
                     closed,
                     false,
+                    "guides",
                     None,
                     None,
                     vec![],

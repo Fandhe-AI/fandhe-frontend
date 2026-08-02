@@ -181,6 +181,7 @@ fn sample_menubar_tree() -> Node {
         OpenState::Open,
         false,
         false,
+        0,
         Some("content-1"),
         vec![],
         vec![],
@@ -334,6 +335,7 @@ fn trigger_pair_shares_core_vocabulary_with_documented_deltas() {
                 state,
                 disabled,
                 false,
+                0,
                 Some("controls-1"),
                 vec![],
                 vec![],
@@ -363,8 +365,10 @@ fn trigger_pair_shares_core_vocabulary_with_documented_deltas() {
             }
 
             // (b) menubar 固有の属性名集合（tabindex は roving のため常時、
-            //     role/aria-disabled は disabled 時のみ・意図的な出力差分）。
-            let mut expected_menubar_only: Vec<&str> = vec!["role", "tabindex"];
+            //     role/aria-disabled は disabled 時のみ・意図的な出力差分。
+            //     data-value は index を MAPPING_TABLE payload として出力する
+            //     menubar 固有の追加、イシュー #1161）。
+            let mut expected_menubar_only: Vec<&str> = vec!["role", "tabindex", "data-value"];
             if disabled {
                 expected_menubar_only.push("aria-disabled");
             }
@@ -435,7 +439,7 @@ fn expanded_and_data_state_agree_in_both_scopes() {
             ),
             (
                 "menubar::trigger",
-                menubar::trigger(true, state, false, false, None, vec![], vec![]),
+                menubar::trigger(true, state, false, false, 0, None, vec![], vec![]),
             ),
             (
                 "menubar::sub_trigger",
@@ -506,7 +510,7 @@ fn haspopup_value_is_menu_in_both_scopes() {
         ),
         (
             "menubar::trigger",
-            menubar::trigger(true, OpenState::Open, false, false, None, vec![], vec![]),
+            menubar::trigger(true, OpenState::Open, false, false, 0, None, vec![], vec![]),
         ),
         (
             "menubar::sub_trigger",
@@ -651,7 +655,7 @@ fn open_close_parts_share_data_state_vocabulary() {
             ("menubar::menu", menubar::menu(state, vec![], vec![])),
             (
                 "menubar::trigger",
-                menubar::trigger(true, state, false, false, None, vec![], vec![]),
+                menubar::trigger(true, state, false, false, 0, None, vec![], vec![]),
             ),
             (
                 "menubar::positioner",
@@ -704,6 +708,7 @@ fn type_button_is_fixed_and_caller_tabindex_spoof_is_dropped() {
         OpenState::Closed,
         false,
         false,
+        0,
         None,
         vec![],
         vec![],
@@ -717,6 +722,7 @@ fn type_button_is_fixed_and_caller_tabindex_spoof_is_dropped() {
         OpenState::Closed,
         false,
         false,
+        0,
         None,
         vec![("tabindex", "99"), ("TABINDEX", "77")],
         vec![],
