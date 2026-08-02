@@ -105,7 +105,12 @@ dependencies = [
 name = "interactive-vt-wasm"
 version = "0.1.0"
 dependencies = [
+ "fandhe-frontend-core",
+ "fandhe-frontend-headless-ui",
+ "fandhe-frontend-interactive",
  "fandhe-frontend-wasm-full",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

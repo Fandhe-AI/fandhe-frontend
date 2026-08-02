@@ -39,6 +39,25 @@
     fandhe-frontend-wasm-full を wasm/（独立ワークスペースの glue クレート
     interactive-vt-wasm）経由でビルドし、この 2 ファイルを static/wasm/ へ
     生成する。
+
+    イシュー #1199 で navigation-menu / menubar デモを追加した:
+
+      3. `<nav id="nav-menu-root">` — `hydrate_navigation_menu("nav-menu-root")`
+         （wasm/src/lib.rs::nav_overlays）が headless-ui NavigationMenu を
+         配線する。`fandhe-frontend-wasm-full` の `headless::wire_headless_component`
+         （trigger クリック → "toggle" dispatch）・`keynav::wire_keynav`
+         （Arrow/Home/End/Escape）・`overlay::OverlayCloseController`
+         （Escape・外側クリックで "deselect" dispatch）を組み合わせる。
+      4. `<div id="menubar-root">` — `hydrate_menubar("menubar-root")` が
+         headless-ui Menubar を配線する。上記 3 つに加え
+         `position::PositionController`（scroll/resize 契機の座標再計算）を
+         使う（menubar の content は positioner パーツを持つ anatomy の
+         ため）。
+
+    2 と同じ理由（hydrate() の状態復元が data-hydrate-* 属性を要求する）
+    により、3・4 のマウント要素もあらかじめ SSR 済みマークアップ
+    （cargo run が書き出す dist/index.html の該当要素を転記したもの）を
+    保持する。
   -->
   <title>状態管理 + View Transitions サンプル（埋め込み）</title>
   <!--
@@ -89,7 +108,33 @@
     </main>
   </div>
 
-  <p>この段落も素の HTML です。フレームワークは上記 2 つの div の中身にしか関与しません。</p>
+  <h2>navigation-menu 系統（headless-ui NavigationMenu: trigger クリックで開閉するディスクロージャナビ）</h2>
+  <!--
+    hydrate_navigation_menu("nav-menu-root") が headless-ui NavigationMenu を
+    配線する。中身は cargo run が書き出す dist/index.html の
+    <nav id="nav-menu-root"> 要素と同一（NavigationMenu::default() へ
+    "select" "products" を適用した初期状態 + hydration_attrs が付与する
+    data-hydrate-selected 属性）。products トリガーを再クリックすると閉じ、
+    docs トリガーをクリックすると開閉が products から docs へ移る
+    （SingleSelect の disclosure nav 挙動）。Escape・パネル外クリックは
+    overlay::OverlayCloseController が "deselect" を dispatch して閉じる。
+  -->
+  <nav data-scope="navigation-menu" data-part="root" aria-label="製品・ドキュメントナビゲーション" id="nav-menu-root" data-testid="nav-menu-root" data-hydrate-selected="products"><ul data-scope="navigation-menu" data-part="list"><li data-scope="navigation-menu" data-part="item" data-state="open"><button data-scope="navigation-menu" data-part="trigger" type="button" aria-expanded="true" data-state="open" data-value="products" id="nav-menu-products-trigger" aria-controls="nav-menu-products-content">製品</button><div data-scope="navigation-menu" data-part="content" data-state="open" id="nav-menu-products-content" aria-labelledby="nav-menu-products-trigger"><a data-scope="navigation-menu" data-part="link" href="/nav-menu/products">製品を見る</a></div></li><li data-scope="navigation-menu" data-part="item" data-state="closed"><button data-scope="navigation-menu" data-part="trigger" type="button" aria-expanded="false" data-state="closed" data-value="docs" id="nav-menu-docs-trigger" aria-controls="nav-menu-docs-content">ドキュメント</button><div data-scope="navigation-menu" data-part="content" data-state="closed" id="nav-menu-docs-content" aria-labelledby="nav-menu-docs-trigger" hidden=""><a data-scope="navigation-menu" data-part="link" href="/nav-menu/docs">ドキュメントを見る</a></div></li></ul></nav>
+
+  <h2>menubar 系統（headless-ui Menubar: 複数 Menu の水平配置・roving tabindex）</h2>
+  <!--
+    hydrate_menubar("menubar-root") が headless-ui Menubar を配線する。
+    中身は cargo run が書き出す dist/index.html の <div id="menubar-root">
+    要素と同一（Menubar::new(0, 2, Some(0), false, Orientation::Horizontal)
+    の初期状態、ファイルメニューが開いた状態）。ファイル/編集トリガーの
+    クリック・左右矢印キーでの移動（開いている Menu を跨いだ移動も追随）を
+    実演する。Escape・外側クリックは overlay::OverlayCloseController が
+    "close" を dispatch して全 Menu を閉じ、position::PositionController が
+    開閉のたびに座標を再計算する。
+  -->
+  <div data-scope="menubar" data-part="root" role="menubar" aria-orientation="horizontal" data-orientation="horizontal" aria-label="アプリケーションメニュー" id="menubar-root" data-testid="menubar-root" data-hydrate-focused="0" data-hydrate-trigger-count="2" data-hydrate-open="0" data-hydrate-loop="false" data-hydrate-orientation="horizontal"><div data-scope="menubar" data-part="menu" role="none" data-state="open"><button data-scope="menubar" data-part="trigger" type="button" tabindex="0" role="menuitem" aria-haspopup="menu" aria-expanded="true" data-state="open" data-value="0" aria-controls="menubar-content-0" id="menubar-trigger-0">ファイル</button><div data-scope="menubar" data-part="positioner" data-state="open"><div data-scope="menubar" data-part="content" role="menu" data-state="open" id="menubar-content-0" aria-labelledby="menubar-trigger-0"><div data-scope="menubar" data-part="item" role="menuitem" data-value="新規">新規</div><div data-scope="menubar" data-part="item" role="menuitem" data-value="開く">開く</div></div></div></div><div data-scope="menubar" data-part="menu" role="none" data-state="closed"><button data-scope="menubar" data-part="trigger" type="button" tabindex="-1" role="menuitem" aria-haspopup="menu" aria-expanded="false" data-state="closed" data-value="1" aria-controls="menubar-content-1" id="menubar-trigger-1">編集</button><div data-scope="menubar" data-part="positioner" data-state="closed" hidden=""><div data-scope="menubar" data-part="content" role="menu" data-state="closed" id="menubar-content-1" aria-labelledby="menubar-trigger-1" hidden=""><div data-scope="menubar" data-part="item" role="menuitem" data-value="コピー">コピー</div><div data-scope="menubar" data-part="item" role="menuitem" data-value="貼り付け">貼り付け</div></div></div></div></div>
+
+  <p>この段落も素の HTML です。フレームワークは上記 4 つのマウント要素の中身にしか関与しません。</p>
 
   <script type="module">
     /**
@@ -102,7 +147,12 @@
      * サプライチェーン面のリスク拡大につながるため行わない、
      * .claude/rules/security.md）。
      */
-    import init, { hydrate, start_router } from "./wasm/fandhe_frontend_wasm_full.js";
+    import init, {
+      hydrate,
+      start_router,
+      hydrate_navigation_menu,
+      hydrate_menubar,
+    } from "./wasm/fandhe_frontend_wasm_full.js";
 
     async function main() {
       await init();
@@ -111,6 +161,11 @@
       // "app-root" は記事一覧・詳細（data-nav リンク）系統。hydrate とは
       // 別系統・別 DOM のため異なる root_id を渡す（entry.rs の doc 参照）。
       start_router("app-root");
+      // "nav-menu-root"/"menubar-root" は headless-ui NavigationMenu/Menubar
+      // 系統（イシュー #1199）。いずれも上記 2 系統とは別の状態機械・別
+      // DOM のため異なる root_id を渡す（wasm/src/lib.rs::nav_overlays 参照）。
+      hydrate_navigation_menu("nav-menu-root");
+      hydrate_menubar("menubar-root");
     }
 
     main();

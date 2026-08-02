@@ -7,6 +7,9 @@
 //! を直接使う（`examples/ssr-routing/tests/routing.rs` と同じ方針）。
 
 use fandhe_frontend_core::render;
+use fandhe_frontend_headless_ui::data_attrs::Orientation;
+use fandhe_frontend_headless_ui::menubar::{self, Menubar};
+use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu};
 use fandhe_frontend_interactive::{dispatch, render_for_hydration, AppState};
 use std::path::Path;
 
@@ -181,6 +184,212 @@ fn embed_html_interactive_root_hydrate_list_attrs_roundtrip_via_codec() {
         "data-hydrate-item-ids must decode to the matching id list. \
          raw value was: {item_ids_value:?}"
     );
+}
+
+// --- navigation-menu / menubar 実演（イシュー #1199）の dispatch 契約 ---
+
+/// `("navigation-menu", "trigger")` → `"toggle"`（`crates/wasm-full/src/headless.rs`
+/// の `MAPPING_TABLE`）が payload に項目値を渡す契約を固定する。開いている
+/// 項目の再クリックは disclosure nav として閉じる（`SingleSelect::update`
+/// の `Toggle` 挙動）。
+#[test]
+fn navigation_menu_toggle_opens_then_closes_same_item() {
+    let mut state = NavigationMenu::default();
+    assert_eq!(state.open_value(), None);
+
+    let applied = dispatch(&mut state, "toggle", "products");
+    assert!(applied);
+    assert_eq!(state.open_value(), Some("products"));
+
+    let applied = dispatch(&mut state, "toggle", "products");
+    assert!(applied);
+    assert_eq!(state.open_value(), None);
+}
+
+/// `overlay::OverlayCloseController` の閉鎖要求（Escape・外側クリック）を
+/// 受けた呼び出し側が dispatch すべき `"deselect"`（payload なし）は、
+/// 既に閉じている状態へ再度送っても冪等 no-op（`applied` は decode 成功
+/// なので `true` を保ちつつ状態は不変）であることを固定する（`overlay.rs`
+/// モジュール doc §イシュー #1173「二重 dispatch されても no-op のまま
+/// 安全に収束する」の回帰）。
+#[test]
+fn navigation_menu_deselect_is_idempotent_no_op_when_already_closed() {
+    let mut state = NavigationMenu::default();
+    let before = state.clone();
+
+    let applied = dispatch(&mut state, "deselect", "");
+
+    assert!(applied);
+    assert_eq!(state, before);
+}
+
+/// 未知アクション名は `decode_action`（`SingleSelect::decode_action` への
+/// 全委譲）の復号失敗として no-op になる不変条件 4 の回帰。
+#[test]
+fn navigation_menu_unknown_action_is_no_op() {
+    let mut state = NavigationMenu::default();
+    dispatch(&mut state, "toggle", "products");
+    let before = state.clone();
+
+    let applied = dispatch(&mut state, "no-such-action", "");
+
+    assert!(!applied);
+    assert_eq!(state, before);
+}
+
+/// `("menubar", "trigger")` → `"toggle"`（payload は Menu の index）が
+/// `MenubarAction::Toggle` へ復号され、対象 Menu を開くことを固定する。
+#[test]
+fn menubar_toggle_opens_target_menu() {
+    let mut state = Menubar::new(0, 2, None, false, Orientation::Horizontal);
+    assert_eq!(state.open(), None);
+
+    let applied = dispatch(&mut state, "toggle", "1");
+
+    assert!(applied);
+    assert_eq!(state.open(), Some(1));
+    assert_eq!(state.focused(), 1);
+}
+
+/// `overlay::OverlayCloseController` の閉鎖要求を受けた呼び出し側が
+/// dispatch すべき `"close"`（payload なし、`MenubarAction::Close`）は
+/// 全 Menu を閉じる冪等操作であることを固定する（`overlay.rs` モジュール
+/// doc §イシュー #1173 参照）。
+#[test]
+fn menubar_close_closes_open_menu_and_is_idempotent() {
+    let mut state = Menubar::new(0, 2, Some(0), false, Orientation::Horizontal);
+
+    let applied = dispatch(&mut state, "close", "");
+    assert!(applied);
+    assert_eq!(state.open(), None);
+
+    let before = state;
+    let applied = dispatch(&mut state, "close", "");
+    assert!(applied);
+    assert_eq!(state, before);
+}
+
+/// パース不能な payload（`trigger_count` を超える index・数値でない文字列）
+/// を伴う `"toggle"`/`"focus"`/`"open"` は no-op になる fail-closed 契約の
+/// 回帰（`Menubar::decode_action`/`normalize_focus`/`normalize_open`）。
+#[test]
+fn menubar_toggle_with_unparseable_payload_is_no_op() {
+    let mut state = Menubar::new(0, 2, None, false, Orientation::Horizontal);
+    let before = state;
+
+    let applied = dispatch(&mut state, "toggle", "not-a-number");
+
+    assert!(!applied);
+    assert_eq!(state, before);
+}
+
+/// 既定エスケープ回帰（REQ-1）: navigation-menu の trigger/link/content へ
+/// 攻撃者制御ラベル（`<script>` を含む）を渡した場合でも、`render()` の
+/// 出力に生の `<script>` タグとして現れないことを固定する。
+#[test]
+fn navigation_menu_escapes_script_payload_in_label_and_link() {
+    let payload = "<script>alert(1)</script>";
+    let state = NavigationMenu::default();
+
+    let node = state.trigger(
+        "products",
+        false,
+        None,
+        None,
+        vec![],
+        vec![fandhe_frontend_core::text(payload)],
+    );
+    let html = render(&node);
+
+    assert!(
+        !html.contains("<script>alert"),
+        "raw <script> tag leaked into navigation-menu trigger html: {html}"
+    );
+    assert!(html.contains("&lt;script&gt;"), "html was: {html}");
+
+    let link_node = navigation_menu::link(payload, false, vec![], vec![]);
+    let link_html = render(&link_node);
+    assert!(
+        !link_html.contains(r#"href="<script>"#),
+        "unescaped href payload leaked into navigation-menu link html: {link_html}"
+    );
+}
+
+/// 既定エスケープ回帰（REQ-1）: menubar の item value/label へ攻撃者制御
+/// ラベルを渡した場合でも、`render()` の出力に生の `<script>` タグとして
+/// 現れないことを固定する（`data-value` 属性・子テキストの双方）。
+#[test]
+fn menubar_escapes_script_payload_in_item_value_and_label() {
+    let payload = "<script>alert(1)</script>";
+
+    let node = menubar::item(
+        payload,
+        false,
+        false,
+        vec![],
+        vec![fandhe_frontend_core::text(payload)],
+    );
+    let html = render(&node);
+
+    assert!(
+        !html.contains("<script>alert"),
+        "raw <script> tag leaked into menubar item html: {html}"
+    );
+    assert!(html.contains("&lt;script&gt;"), "html was: {html}");
+}
+
+/// `static/embed.html` の回帰テスト（イシュー #1199）。navigation-menu /
+/// menubar のマウント要素があらかじめ `data-hydrate-*` 付き SSR 済み
+/// マークアップを保持すること（`embed_html_interactive_root_has_hydrate_attrs_to_avoid_csr_fallback_id_collision`
+/// と同型の理由: 空のまま `hydrate_navigation_menu`/`hydrate_menubar` を
+/// 呼ぶと `data-hydrate-*` 属性が存在せず状態復元が失敗し、CSR フォール
+/// バックによる二重差し込みが起きる）。
+#[test]
+fn embed_html_nav_menu_and_menubar_roots_have_hydrate_attrs() {
+    let embed_html_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/embed.html");
+    let html = std::fs::read_to_string(&embed_html_path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", embed_html_path.display()));
+
+    // `id="..."` 単独ではモジュール冒頭コメント（<title> 前・本文コメント）の
+    // 説明文にも同じ文字列が出現するため、実タグでのみ隣接する
+    // `data-testid="..."` まで含めて開始位置を一意に特定する
+    // （`embed_html_interactive_root_has_hydrate_attrs_to_avoid_csr_fallback_id_collision`
+    // と同じ手法）。
+    for (needle, attrs) in [
+        (
+            r#"id="nav-menu-root" data-testid="nav-menu-root""#,
+            vec!["data-hydrate-selected="],
+        ),
+        (
+            r#"id="menubar-root" data-testid="menubar-root""#,
+            vec![
+                "data-hydrate-focused=",
+                "data-hydrate-trigger-count=",
+                "data-hydrate-open=",
+                "data-hydrate-loop=",
+                "data-hydrate-orientation=",
+            ],
+        ),
+    ] {
+        let root_start = html
+            .find(needle)
+            .unwrap_or_else(|| panic!("static/embed.html must contain the {needle} mount tag"));
+        let tag_end = html[root_start..]
+            .find('>')
+            .map(|offset| root_start + offset)
+            .unwrap_or_else(|| panic!("{needle} start tag must be closed with '>'"));
+        let tag_slice = &html[root_start..tag_end];
+
+        for attr in attrs {
+            assert!(
+                tag_slice.contains(attr),
+                "static/embed.html の {needle} に {attr} がありません。\
+                 空のまま hydrate_navigation_menu()/hydrate_menubar() を呼ぶと \
+                 CSR フォールバックが二重に差し込まれ id 衝突が発生します。\
+                 tag_slice was: {tag_slice}"
+            );
+        }
+    }
 }
 
 /// `tag_slice`（開始タグ内部の文字列）から `attr="..."` 形式の属性値を

@@ -14,6 +14,12 @@ examples 規約の初例）と同じ構成規約に従い、crates.io へ公開�
 `@view-transition` at-rule + `fandhe-frontend-wasm-full` の `start_router`
 （SPA 内遷移の View Transitions が JS 0 行で自動有効）を実演します。
 
+イシュー #1199 で `fandhe-frontend-headless-ui`（v0.28.0）の
+navigation-menu / menubar を追加し、`fandhe-frontend-wasm-full`
+0.6.0/0.7.0 で追加されたオーバーレイ配線（`headless::MAPPING_TABLE`・
+`overlay::OverlayCloseController`・`keynav`・`position::PositionedKind`
+の scope enum 追加）を実演します。
+
 ## 学べること
 
 - `fandhe_frontend_interactive::Component` trait（`update` / `view` /
@@ -30,6 +36,21 @@ examples 規約の初例）と同じ構成規約に従い、crates.io へ公開�
 - `hydrate`（`AppState` 系、`id="interactive-root"`）と `start_router`
   （`layout()` が組む `<div id="app-root">` 系）は**別系統・別 DOM**である
   契約（`fandhe-frontend-wasm-full` entry.rs の doc 参照）
+- headless-ui `NavigationMenu`（`id="nav-menu-root"`）/ `Menubar`
+  （`id="menubar-root"`）の状態機械（`SingleSelect`/`MenubarAction`）と、
+  `wasm-full` のオーバーレイ配線 3 点セット:
+  - `headless::wire_headless_component`（`data-scope`/`data-part` →
+    文字列アクションの静的マッピング、trigger クリック → `"toggle"`）
+  - `keynav::wire_keynav`（Arrow/Home/End/Escape のキーボード操作）
+  - `overlay::OverlayCloseController`（Escape・外側クリックでの閉鎖要求。
+    呼び出し側が `"deselect"`（NavigationMenu）/`"close"`（Menubar）を
+    dispatch する契約）
+  - `position::PositionController`（menubar の `positioner` パーツ、
+    scroll/resize 契機の座標再計算。navigation-menu は `positioner` を
+    持たないため対象外）
+  `Runtime<C>`（`DirtyTracked + BindingSource` 要求）に載らない headless
+  コンポーネントに対し、アプリ側が `wasm-full::entry` と同型の薄い
+  ラッパー（`wasm/src/lib.rs::nav_overlays`）を自作する参照実装です
 
 ## 前提
 
@@ -68,15 +89,15 @@ python3 -m http.server --directory static 8000
 
 | ファイル | 説明 |
 |---------|------|
-| `Cargo.toml` | crates.io バージョン依存 3 件のみ（`fandhe-frontend-core` / `-app` / `-interactive`）。root workspace から独立した `[workspace] members = ["."]` |
+| `Cargo.toml` | crates.io バージョン依存 4 件（`fandhe-frontend-core` / `-app` / `-interactive` / `-headless-ui`、イシュー #1199 で `-headless-ui` を追加）。root workspace から独立した `[workspace] members = ["."]` |
 | `structure.toml` | `fw gate` が唯一の情報源として読む構造マニフェスト |
 | `clippy.toml` | `raw_html()` 迂回検出ポリシー（`templates/default/` と内容同一） |
 | `deny.toml` | 依存ポリシー（`templates/default/` と内容同一） |
-| `src/main.rs` | native デモ（`AppState` の `dispatch` 実演）+ `dist/index.html` への SSR HTML 書き出し |
-| `tests/state_machine.rs` | `dispatch` の状態遷移・未知アクション no-op・`render_for_hydration`・既定エスケープ回帰テスト |
-| `static/embed.html` | ブラウザマウント骨格。`tools/wasm/build.sh` 実行後に動作（`hydrate("interactive-root")` + `start_router("app-root")`）。`interactive-root` は `cargo run` が書き出す `dist/index.html` 同要素（`data-hydrate-*` 属性付き）を事前に埋め込み済みで、`hydrate()` の状態復元が成功する（空のまま呼ぶと CSR フォールバックが `AppState::view()` を二重に差し込み id 衝突するため） |
+| `src/main.rs` | native デモ（`AppState`/`NavigationMenu`/`Menubar` の `dispatch` 実演）+ `dist/index.html` への SSR HTML 書き出し |
+| `tests/state_machine.rs` | `dispatch` の状態遷移・未知アクション no-op・`render_for_hydration`・既定エスケープ回帰・`static/embed.html` のハイドレーション属性回帰テスト |
+| `static/embed.html` | ブラウザマウント骨格。`tools/wasm/build.sh` 実行後に動作（`hydrate("interactive-root")` / `start_router("app-root")` / `hydrate_navigation_menu("nav-menu-root")` / `hydrate_menubar("menubar-root")`）。4 つのマウント要素はいずれも `cargo run` が書き出す `dist/index.html` の同要素（`data-hydrate-*` 属性付き）を事前に埋め込み済みで、各 `hydrate*()` の状態復元が成功する（空のまま呼ぶと CSR フォールバックが二重に差し込まれ id 衝突するため） |
 | `tools/wasm/build.sh` | `wasm/`（独立ワークスペースの glue クレート）を wasm32 へビルドする手順 |
-| `wasm/` | `fandhe-frontend-wasm-full` の `hydrate` / `mount` / `start_router` を再エクスポートする薄い glue クレート（root の依存グラフから隔離） |
+| `wasm/` | `fandhe-frontend-wasm-full` の `hydrate` / `mount` / `start_router` を再エクスポートし、`nav_overlays` モジュール（イシュー #1199）で `hydrate_navigation_menu` / `hydrate_menubar` を自前実装する glue クレート（root の依存グラフから隔離） |
 
 ## 関連ガイド
 
