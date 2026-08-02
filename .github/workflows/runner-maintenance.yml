@@ -6,7 +6,8 @@ name: Runner maintenance
 # runner イメージ定義自体は本リポジトリの管理外（インフラ側）のため、本
 # ワークフローは「イメージへの焼き込み」は行わず、以下 2 点のみを行う
 # report-only な保守ワークフローとする。
-#   (1) プール内インスタンスの環境検査（root/apt-get 可否・libnss3/libnspr4 等の
+#   (1) プール内インスタンスの環境検査（root/apt-get 可否・libnss3/libnspr4 等・
+#       wasm32-unknown-unknown rustup target〔イシュー #1184/#1189〕の
 #       常設有無を可視化し、`docs/ci/ci-runner-requirements.md` の依頼内容が
 #       反映されたかどうかの確認に使う）
 #   (2) atomic install 化（PR #291）以前に $HOME/.local/bin へ直接導入された
@@ -119,6 +120,29 @@ jobs:
               echo "| apt-get | available |"
             else
               echo "| apt-get | not available |"
+            fi
+            # wasm32-unknown-unknown rustup target の常設有無（イシュー
+            # #1184/#1189）。ci.yml の clippy-wasm32 ジョブ・`fw gate` の
+            # lint_wasm32 チェック（gate.rs の
+            # wasm32_target_environment_preflight）が前提とするターゲット。
+            # 判定条件は tools/ci/ensure-gate-tools.sh の
+            # ensure_wasm32_target / gate.rs の
+            # wasm32_target_environment_preflight と同一（`rustup target
+            # list --installed` の出力に対する行完全一致）に揃え、判定条件の
+            # ドリフトを作らない。rustup は runner 常設が保証されないため
+            # 存在チェックを前置する（`.claude/rules/ci.md` の「ツール前提の
+            # 明示」。不在でも report-only 方針どおりジョブは落とさず表へ
+            # 記録するのみで、target のインストール操作は行わない）。
+            if command -v rustup >/dev/null 2>&1; then
+              echo "| rustup | available |"
+              if rustup target list --installed 2>/dev/null | grep -qx "wasm32-unknown-unknown"; then
+                echo "| wasm32-unknown-unknown (rustup target) | preinstalled |"
+              else
+                echo "| wasm32-unknown-unknown (rustup target) | missing (installed per-job by ci.yml / ensure-gate-tools.sh as fallback) |"
+              fi
+            else
+              echo "| rustup | not available |"
+              echo "| wasm32-unknown-unknown (rustup target) | unknown (rustup not available) |"
             fi
             # Chrome for Testing の実行に必要な共有ライブラリの常設有無
             # （ci.yml の browser-test/perf-harness/xss-wasm-test ジョブが
