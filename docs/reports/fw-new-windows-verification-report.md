@@ -81,16 +81,16 @@ queue 待ちとなるリスクがあるため、本イシューでは実機 disp
 
 - 検証ハーネス（`.github/workflows/fw-new-windows-verify.yml`）の実装完了
 - Windows self-hosted runner の常設要件の明文化
-  （`docs/ci/ci-runner-requirements.md` §6）
+  （`docs/ci/ci-runner-requirements.md` §5）
 - 手動検証手順（本レポート §3）の確立（runner 調達を待たず、Windows 機が
   用意でき次第ローカルでも再現検証が可能）
 
 Windows self-hosted runner の登録（インフラ側作業）が完了次第、
-`docs/ci/ci-runner-requirements.md` §6.4 の手順で `gh workflow run
+`docs/ci/ci-runner-requirements.md` §5.4 の手順で `gh workflow run
 fw-new-windows-verify.yml` を dispatch し、Step Summary の結果を本節へ追記する。
 
 ## 5. クローズ方針
 
-`docs/ci/ci-runner-requirements.md` §6.5 と同じく、Windows runner の登録が
+`docs/ci/ci-runner-requirements.md` §5.5 と同じく、Windows runner の登録が
 完了し実測結果が本レポートへ記録されるまでイシュー #413 はクローズしない
 （#295 と同型の運用）。

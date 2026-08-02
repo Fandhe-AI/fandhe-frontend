@@ -359,7 +359,7 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
   （`workflow_dispatch` 専用）を確立し、Windows self-hosted runner 上で
   ビルド・`new_template`/`new_e2e` テスト・`fw new` 生成物のバイト決定性・
   fail-closed 契約・`executable: true` ファイルの no-op 生成を検証する。
-  runner 調達要件は `docs/ci/ci-runner-requirements.md` §6、検証結果は
+  runner 調達要件は `docs/ci/ci-runner-requirements.md` §5、検証結果は
   `docs/reports/fw-new-windows-verification-report.md` に記録する。
 
 ## 7. セキュリティ考慮（OWASP Top 10 観点）
@@ -451,7 +451,7 @@ wasm-bindgen/web-sys バージョンとリポジトリ本体 `Cargo.lock` の一
   self-hosted Linux runner のみのため未実施だったが、イシュー #413 で
   `.github/workflows/fw-new-windows-verify.yml`（`workflow_dispatch` 専用）
   として実機検証ハーネスを確立した（§6.1・`docs/ci/ci-runner-requirements.md`
-  §6・`docs/reports/fw-new-windows-verification-report.md` 参照）。Windows
+  §5・`docs/reports/fw-new-windows-verification-report.md` 参照）。Windows
   self-hosted runner の調達（登録）完了までは実行待ちの状態。
 - 非 Unix でのパーミッション再現（ACL 相当の代替設定等）は行わない。
 - ルート直下クレートの `structure.toml` スキーマ上の正式化（`root` 慣習の
