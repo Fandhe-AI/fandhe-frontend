@@ -27,6 +27,10 @@
   `generate_pages` と同じ fail-closed のパス検証を経由しますが、コンテンツは
   無加工書き出しのため既定エスケープは適用されません（HTML ページの生成には
   使わず `generate_pages` を使うこと）
+- `fandhe_frontend_core::json_ld`（イシュー #1117）による JSON-LD 構造化
+  データ（`WebSite`）の `<script type="application/ld+json">` 埋め込み。
+  記事一覧ページ（`/`）のみへ実演します（`json_ld` は既定エスケープではなく
+  `<` `>` `&` を中立化する専用経路であることも合わせて確認できます）
 
 ## 前提
 
