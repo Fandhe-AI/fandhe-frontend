@@ -505,12 +505,12 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   | 明示性 | 宣言的構成（クレート一覧・ルート表の単一情報源化） | `structure.toml` を唯一の情報源とする `fw gate` 全体の設計（`docs/design/gate-design.md` §2）・宣言的 `Router` テーブル（`crates/server/src/router.rs`）とそのテスト | 不要（担保済み） |
   | 決定性 | 同一入力 → 同一出力（SSR/SSG バイト一致・再実行一致） | `crates/server/tests/ssr_ssg_parity.rs`（`generate_is_deterministic_across_runs` ほか）→ `fw gate` の `test` チェック（`cargo test --locked -p <crate>`）経由で gate に既に接続済み | 不要（担保済み） |
   | 決定性 | 検証入力（依存グラフ）の固定 | `type_check` / `lint` / `test` 共通の `--locked` 付与（`docs/design/gate-design.md` §2・§5 A06） | 不要（担保済み） |
-  | 機械検証可能性 | 契約違反の静的・機械的検出 | `fw gate` 6 チェックそのもの + `fw impact`（`docs/design/impact-analysis-design.md`）+ CI（`deny.yml`・XSS 回帰連携） | 不要（この軸は gate の存在意義そのものであり、専用チェックの追加は自己言及的な重複） |
+  | 機械検証可能性 | 契約違反の静的・機械的検出 | `fw gate` 7 チェックそのもの（イシュー #1174 で `lint_wasm32` を追加）+ `fw impact`（`docs/design/impact-analysis-design.md`）+ CI（`deny.yml`・XSS 回帰連携） | 不要（この軸は gate の存在意義そのものであり、専用チェックの追加は自己言及的な重複） |
   | コンテキスト消費 | 依存グラフ上限（60 件 / 深さ 6）という代理指標 | xtask の依存グラフ自動計測（`docs/policy/dependency-graph-policy.md`・CI） | 不要（担保済み） |
   | コンテキスト消費 | 「AI が読むべきファイル・概念の量」の直接計測 | なし | **追加不能**（決定的な PASS/FAIL 閾値を設計できず、ヒューリスティック判定は gate の決定性原則・環境エラー区別（`docs/design/gate-design.md` §2.3a）と両立しない） |
 
 - **判断（非採用）**: 上記洗い出しの結果、機械判定可能な下位項目は
-  すべて既存の機械的担保（`fw gate` の 6 チェック・既存回帰テスト・
+  すべて既存の機械的担保（`fw gate` の 7 チェック・既存回帰テスト・
   xtask 依存グラフ計測）で強制済みであり、新チェックの追加は既存
   チェックとの二重管理（単一情報源の崩壊）になる。残る「コンテキスト
   消費の直接計測」は決定的な PASS/FAIL 基準を設計できずヒューリスティック

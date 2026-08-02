@@ -23,7 +23,8 @@
 
 use crate::common::{
     cargo_deny_available, check_passed, replace_unique, run_fw, scenario1_core_lib_rs,
-    write_scenario1_project, SINGLE_QUOTE_ESCAPE_ARM, SINGLE_QUOTE_ESCAPE_ARM_REGRESSED,
+    wasm32_target_available, write_scenario1_project, SINGLE_QUOTE_ESCAPE_ARM,
+    SINGLE_QUOTE_ESCAPE_ARM_REGRESSED,
 };
 
 /// ケース 0（ベースライン対照）。
@@ -34,8 +35,11 @@ use crate::common::{
 /// 起因して BLOCKED になっていることを保証する基盤であり、このテストが
 /// 落ちる場合はシナリオ側の失敗を環境要因と区別できない。
 ///
-/// `policy` チェックのみ、cargo-deny の導入有無で環境ごとに挙動が変わる
-/// （`negative_cases.rs::baseline_fixture_passes_core_checks` と同じ吸収方針）。
+/// `policy`/`lint_wasm32` の 2 チェックのみ、cargo-deny・wasm32-unknown-unknown
+/// rustup target それぞれの導入有無で環境ごとに挙動が変わる
+/// （`negative_cases.rs::baseline_fixture_passes_core_checks` と同じ吸収方針。
+/// `lint_wasm32` はイシュー #1174 で追加、本フィクスチャは `wasm-client` に
+/// `role = "client-entrypoint"` を宣言するため実走する）。
 #[test]
 fn baseline_passes_gate() {
     let project = write_scenario1_project("baseline", scenario1_core_lib_rs());
@@ -62,10 +66,10 @@ fn baseline_passes_gate() {
         "ベースラインで test が失敗した（text_node_is_escaped_by_default 回帰）: stdout={stdout}"
     );
 
-    if cargo_deny_available() {
+    if cargo_deny_available() && wasm32_target_available() {
         assert_eq!(
             code, 0,
-            "cargo-deny 導入環境ではベースラインは PASS するはず: stdout={stdout}"
+            "cargo-deny・wasm32 target 導入環境ではベースラインは PASS するはず: stdout={stdout}"
         );
         assert!(
             stdout.contains("\"gate_result\":\"PASS\""),
@@ -76,23 +80,62 @@ fn baseline_passes_gate() {
             Some(true),
             "stdout={stdout}"
         );
-    } else {
-        // cargo-deny 未導入環境（本リポジトリ CI 相当）では policy のみ
-        // fail-closed で failed になり、他の 4 チェックは通過したまま全体
-        // として BLOCKED になる、という fail-closed 契約を確認する。
         assert_eq!(
-            code, 1,
-            "cargo-deny 未導入環境では policy の fail-closed により BLOCKED (終了コード 1) のはず: stdout={stdout}"
+            check_passed(&stdout, "lint_wasm32"),
+            Some(true),
+            "stdout={stdout}"
+        );
+    } else {
+        // cargo-deny・wasm32 target のいずれかが未導入の環境（本リポジトリ
+        // CI 相当）では、未導入側の policy/lint_wasm32 のみ fail-closed で
+        // failed になり、導入済み側は本来の合否（本フィクスチャは正常系の
+        // ため PASS）を保つ、という mixed-env 契約を確認する（両方とも
+        // environment_error のみの不合格であれば `gate_result` は `ERROR`、
+        // `aggregate` の 3 値集約規則どおり。片方のみ導入済みの mixed-env で
+        // 導入済み側の合否まで断定するのはイシュー #1174 PR #1179 review
+        // comment 3697675547 の指摘反映、環境エラーが本物のバグをマスクし
+        // ないようにするため）。他のチェックは通過したまま全体として非ゼロ
+        // 終了になる。
+        assert_ne!(
+            code, 0,
+            "cargo-deny・wasm32 target のいずれか未導入の環境ではベースラインも \
+             非ゼロ終了のはず: stdout={stdout}"
         );
         assert!(
-            stdout.contains("\"gate_result\":\"BLOCKED\""),
+            stdout.contains("\"gate_result\":\"BLOCKED\"")
+                || stdout.contains("\"gate_result\":\"ERROR\""),
             "stdout={stdout}"
         );
-        assert_eq!(
-            check_passed(&stdout, "policy"),
-            Some(false),
-            "stdout={stdout}"
-        );
+        if cargo_deny_available() {
+            // cargo-deny のみ導入済みの mixed-env では、未導入側
+            // （wasm32 target 起因）の environment_error に policy 自体の
+            // 本物のバグが隠れないよう、導入済み側は明示的に通過を断定
+            // する（Bugbot 指摘、PR #1179 review comment 3697675547）。
+            assert_eq!(
+                check_passed(&stdout, "policy"),
+                Some(true),
+                "stdout={stdout}"
+            );
+        } else {
+            assert_eq!(
+                check_passed(&stdout, "policy"),
+                Some(false),
+                "stdout={stdout}"
+            );
+        }
+        if wasm32_target_available() {
+            assert_eq!(
+                check_passed(&stdout, "lint_wasm32"),
+                Some(true),
+                "stdout={stdout}"
+            );
+        } else {
+            assert_eq!(
+                check_passed(&stdout, "lint_wasm32"),
+                Some(false),
+                "stdout={stdout}"
+            );
+        }
     }
 }
 
@@ -163,9 +206,10 @@ fn impact_reports_high_risk_for_render() {
 /// バグであってコンパイル失敗・lint 違反ではないこと）を保証する。
 ///
 /// (b) ベースライン内容へ書き戻し（修正適用に相当）、再度 `fw gate` を実行
-/// して PASS することを確認する（cargo-deny 未導入環境では `policy` のみ
-/// fail-closed で failed という契約は変わらない、`baseline_passes_gate` と
-/// 同じ環境適応方針）。
+/// して PASS することを確認する（cargo-deny・wasm32 target のいずれかが
+/// 未導入の環境では `policy`/`lint_wasm32` のみ fail-closed で failed という
+/// 契約は変わらない、`baseline_passes_gate` と同じ環境適応方針。イシュー
+/// #1174）。
 ///
 /// before/after を 1 テスト内で直列実行することで、同一フィクスチャ・同一
 /// `CARGO_TARGET_DIR` を再利用しつつ「修正前後の gate 結果の差分」そのものを
@@ -209,6 +253,16 @@ fn gate_blocks_escape_regression_and_passes_after_fix() {
         Some(true),
         "本フィクスチャは raw_html() を一切使用しないため default_escape_check は無関係に通過するはず: stdout={stdout}"
     );
+    if wasm32_target_available() {
+        // wasm32 target 未導入環境では lint_wasm32 自体が environment_error
+        // で failed になり得るため、導入済みの場合のみ「無関係に通過する」
+        // ことを断定する（イシュー #1174）。
+        assert_eq!(
+            check_passed(&stdout, "lint_wasm32"),
+            Some(true),
+            "エスケープロジックの意味的バグとは無関係な lint_wasm32 は通過するはず（ブロック理由の特定性）: stdout={stdout}"
+        );
+    }
 
     // --- (b) 修正適用後: PASS（policy を除く） ---
     std::fs::write(
@@ -235,10 +289,10 @@ fn gate_blocks_escape_regression_and_passes_after_fix() {
         "stdout={stdout}"
     );
 
-    if cargo_deny_available() {
+    if cargo_deny_available() && wasm32_target_available() {
         assert_eq!(
             code, 0,
-            "cargo-deny 導入環境では修正適用後は PASS するはず: stdout={stdout}"
+            "cargo-deny・wasm32 target 導入環境では修正適用後は PASS するはず: stdout={stdout}"
         );
         assert!(
             stdout.contains("\"gate_result\":\"PASS\""),
@@ -249,19 +303,51 @@ fn gate_blocks_escape_regression_and_passes_after_fix() {
             Some(true),
             "stdout={stdout}"
         );
-    } else {
         assert_eq!(
-            code, 1,
-            "cargo-deny 未導入環境では修正適用後も policy の fail-closed により BLOCKED (終了コード 1) のはず: stdout={stdout}"
+            check_passed(&stdout, "lint_wasm32"),
+            Some(true),
+            "stdout={stdout}"
+        );
+    } else {
+        assert_ne!(
+            code, 0,
+            "cargo-deny・wasm32 target のいずれか未導入の環境では修正適用後も \
+             非ゼロ終了のはず: stdout={stdout}"
         );
         assert!(
-            stdout.contains("\"gate_result\":\"BLOCKED\""),
+            stdout.contains("\"gate_result\":\"BLOCKED\"")
+                || stdout.contains("\"gate_result\":\"ERROR\""),
             "stdout={stdout}"
         );
-        assert_eq!(
-            check_passed(&stdout, "policy"),
-            Some(false),
-            "stdout={stdout}"
-        );
+        if wasm32_target_available() {
+            // wasm32 target のみ導入済みの mixed-env では、未導入側
+            // （cargo-deny 起因）の environment_error に lint_wasm32 自体の
+            // 本物のバグが隠れないよう、導入済み側は明示的に通過を断定
+            // する（Bugbot 指摘、PR #1179 review comment 3697675547）。
+            assert_eq!(
+                check_passed(&stdout, "lint_wasm32"),
+                Some(true),
+                "stdout={stdout}"
+            );
+        } else {
+            assert_eq!(
+                check_passed(&stdout, "lint_wasm32"),
+                Some(false),
+                "stdout={stdout}"
+            );
+        }
+        if cargo_deny_available() {
+            assert_eq!(
+                check_passed(&stdout, "policy"),
+                Some(true),
+                "stdout={stdout}"
+            );
+        } else {
+            assert_eq!(
+                check_passed(&stdout, "policy"),
+                Some(false),
+                "stdout={stdout}"
+            );
+        }
     }
 }

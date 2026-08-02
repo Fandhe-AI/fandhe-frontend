@@ -802,6 +802,25 @@ pub fn cargo_deny_available() -> bool {
         .unwrap_or(false)
 }
 
+/// 実行環境に `wasm32-unknown-unknown` rustup target が導入済みかを判定する
+/// （`cargo_deny_available` と同一方針の環境差吸収。イシュー #1174、
+/// `gate.rs::wasm32_target_environment_preflight` の判定条件（行完全一致）と
+/// 一致させる）。`role = "client-entrypoint"` を宣言するフィクスチャ
+/// （scenario1/scenario2）に対する `fw gate` は `lint_wasm32` を実走するため、
+/// `gate_result` の断定に本関数の分岐が必要になる。
+pub fn wasm32_target_available() -> bool {
+    Command::new("rustup")
+        .args(["target", "list", "--installed"])
+        .output()
+        .map(|o| {
+            o.status.success()
+                && String::from_utf8_lossy(&o.stdout)
+                    .lines()
+                    .any(|line| line.trim() == "wasm32-unknown-unknown")
+        })
+        .unwrap_or(false)
+}
+
 /// `fw impact` の JSON レポート中の文字列フィールド
 /// `"<field>":"<value>"` を抽出する。専用 JSON パーサ依存を持ち込まず、
 /// `check_passed` と同じ「文字列走査による軽量抽出」方針を踏襲する

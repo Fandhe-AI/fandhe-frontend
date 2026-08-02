@@ -43,7 +43,7 @@
 ## 2. 判定ルール本体
 
 `fw gate` は `structure.toml`（[`crate::structure`]、TASK-13.1）を唯一の
-情報源として宣言クレート一覧を求め、以下の 6 チェックを**すべて実行**する
+情報源として宣言クレート一覧を求め、以下の 7 チェックを**すべて実行**する
 （後述 §3 のとおり早期打ち切りはしない）。各チェックは `GateCheck { name,
 passed, output }` として結果を持つ。
 
@@ -53,24 +53,25 @@ passed, output }` として結果を持つ。
 | 2 | `default_escape_check` | 既定エスケープ検査（保険層） | `role = "core"` 以外の宣言ディレクトリの `src/**/*.rs` を走査し、未レビューの `raw_html()` 呼び出し・ブランケット抑止属性を検出する純粋関数（外部コマンド起動なし） | REQ-1 |
 | 3 | `url_validation_check` | URL 属性検証の弱体化検出（保険層、イシュー #401） | `set_attribute` 系呼び出しの未ガード経路（U1）・`core` 役割の `URL_ATTRS`/許可スキーム緩和（U2）・ガード関数呼び出しの削除（U3）をテキスト走査で検出する純粋関数（外部コマンド起動なし）。詳細は §2.4 | REQ-1 |
 | 4 | `lint` | lint（既定エスケープ検査の主防御を含む） | `cargo clippy --locked --all-targets -p <crate>... -- -D warnings`。`--all-targets` はテストターゲット内の未レビュー `raw_html()` 呼び出しも検出対象に含め、CI `clippy` ジョブ（イシュー #299）と検出範囲を一致させる（イシュー #315）。起動前に `clippy.toml` の `disallowed-methods` 設定健全性を検証する（§2.3） | REQ-1・REQ-13 |
-| 5 | `test` | テスト | `cargo test --locked -p <crate>...` | REQ-13 |
-| 6 | `policy` | 依存ポリシー | `deny.toml` の存在確認 → `cargo deny check bans licenses sources`（`advisories` はネットワーク前提のためオフラインゲート対象外、`docs/policy/cargo-deny-advisories.md` 参照） | REQ-4 |
+| 5 | `lint_wasm32` | wasm32 target 向け lint（イシュー #1174） | `role = "client-entrypoint"` を宣言するクレートのみを対象に `cargo clippy --locked --all-targets --target wasm32-unknown-unknown -p <crate>... -- -D warnings` を実行する。CI `clippy-wasm32` ジョブ（イシュー #1160）と同一の検出範囲で、host target のみの `lint` チェックでは検知できない `#[cfg(target_arch = "wasm32")]` ゲート配下の警告（イシュー #1140/PR #1147 のすり抜けが動機）をローカル・AI 自己保守フックでも検知する。対象クレートが 0 件の場合は not-applicable PASS（§2.6） | REQ-1・REQ-13 |
+| 6 | `test` | テスト | `cargo test --locked -p <crate>...` | REQ-13 |
+| 7 | `policy` | 依存ポリシー | `deny.toml` の存在確認 → `cargo deny check bans licenses sources`（`advisories` はネットワーク前提のためオフラインゲート対象外、`docs/policy/cargo-deny-advisories.md` 参照） | REQ-4 |
 
 実行時の作業ディレクトリ（cwd）はいずれも `--project` で指定したプロジェクト
-ルート（省略時はカレントディレクトリ）。`--locked` はチェック 1・3・4 に
+ルート（省略時はカレントディレクトリ）。`--locked` はチェック 1・3・4・5 に
 共通して付与し、ロックファイル逸脱（依存すり替え）を検出する
 （security.md A06）。
 
 ### 2.1 PASS/FAIL 判定条件
 
-- チェック 1・3・4（`cargo` サブコマンド）: プロセスの終了ステータスが成功
-  （exit code 0）であれば `passed = true`。起動失敗・非 0 終了はすべて
+- チェック 1・4・5・6（`cargo` サブコマンド）: プロセスの終了ステータスが
+  成功（exit code 0）であれば `passed = true`。起動失敗・非 0 終了はすべて
   `passed = false`。
 - チェック 2（`default_escape_check`）: `violations` リストが空であれば
   `passed = true`。1 件でも違反があれば `passed = false`。
 - チェック 3（`url_validation_check`）: `violations` リストが空であれば
   `passed = true`。1 件でも違反があれば `passed = false`（§2.4）。
-- チェック 6（`policy`）: `deny.toml` が存在し、かつ `cargo deny check bans
+- チェック 7（`policy`）: `deny.toml` が存在し、かつ `cargo deny check bans
   licenses sources` が成功終了であれば `passed = true`。
 
 ### 2.2 既定エスケープ検査の 3 層体制
@@ -312,10 +313,10 @@ failed になった場合、コード内容起因の FAIL（clippy 違反・deny
 ### 2.5 静的専用（asset-only）プロジェクトの判定（イシュー #410）
 
 `fw new --template embed` が生成する「静的単一ファイルの部分埋め込み構成」
-（REQ-7）は cargo パッケージを一切持たない。この構成では cargo 系 4 チェック
-（`type_check`/`lint`/`test`/`policy`）は検証対象クレートが存在せず、
-「検証不能」と「検証したが違反なし」を区別できないまま §3 の宣言クレート
-0 件 fail-closed（[`no_declared_crates_message`]）に落ちてしまう。
+（REQ-7）は cargo パッケージを一切持たない。この構成では cargo 系 5 チェック
+（`type_check`/`lint`/`lint_wasm32`/`test`/`policy`）は検証対象クレートが
+存在せず、「検証不能」と「検証したが違反なし」を区別できないまま §3 の
+宣言クレート 0 件 fail-closed（[`no_declared_crates_message`]）に落ちてしまう。
 
 `fw gate`（[`is_asset_only_project`]）は以下の条件を**すべて**満たす場合に
 限り、これを静的専用プロジェクトの明示的オプトインと認識する:
@@ -323,11 +324,16 @@ failed になった場合、コード内容起因の FAIL（clippy 違反・deny
 - 宣言クレートが 0 件（どの `[directories.*]` も `crate = "..."` を持たない）
 - 宣言ディレクトリが 1 件以上存在し、**全件**が `role = "asset"` である
 
-両方を満たす場合、`type_check`/`lint`/`test`/`policy` の 4 チェックは
-cargo を一切起動せず、`passed: true` と決定的な not-applicable 文言
-（`static-only project (all directories declare role = "asset" with no
+両方を満たす場合、`type_check`/`lint`/`lint_wasm32`/`test`/`policy` の
+5 チェックは cargo を一切起動せず、`passed: true` と決定的な not-applicable
+文言（`static-only project (all directories declare role = "asset" with no
 crate): cargo-based check not applicable`）で PASS 化する
-（[`not_applicable_check`]）。
+（[`not_applicable_check`]）。`lint_wasm32` は §2.6 の client-entrypoint
+クレート 0 件判定（同じく not-applicable PASS）と経路は異なるが、asset-only
+プロジェクトは `role = "client-entrypoint"` を宣言し得ないため
+（[`is_asset_only_project`] の「全件 `role = \"asset\"`」条件と両立しない）、
+`run_all_checks` は asset-only 分岐へ直接 `not_applicable_check("lint_wasm32")`
+を組み込む（§2.6 の判定関数を経由しない）。
 
 **明示宣言によるオプトインであり黙示的 PASS ではない**（security.md
 A05）。`crate` キーの削除し忘れ等の設定不備で非 asset ロールが 1 件でも
@@ -345,8 +351,35 @@ fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）�
 限定され、検証の全面停止ではない。
 
 **JSON 契約への影響なし**: `checks[].name`/`passed`/`output` の形状・
-6 チェックの名前と順序は不変。既存クライアント（AI 自己保守フック・CI）は
+7 チェックの名前と順序は不変。既存クライアント（AI 自己保守フック・CI）は
 `not_applicable_check` の `passed: true` を通常の PASS と同様に扱える。
+
+### 2.6 wasm32 target 向け lint の適用範囲（イシュー #1174）
+
+`lint_wasm32` チェックは `role = "client-entrypoint"` を宣言する
+クレートのみを対象とする（[`declared_client_entrypoint_crate_names`]）。
+CI `clippy-wasm32` ジョブ（イシュー #1160、`.github/workflows/ci.yml`）が
+wasm-full / wasm-client / wasm-thin の 3 クレートを固定列挙するのに対し、
+`fw gate` は §2 冒頭の原則（`structure.toml` を唯一の情報源とする）を
+踏襲し、`role` 宣言から動的に検出対象を求める。
+
+対象クレートが 0 件の場合（`fw new --template default`/`--template app`
+等、多くのユーザープロジェクトが該当）は「wasm クレートを持たないため
+対象外」を not-applicable PASS（`no client-entrypoint crate declared in
+structure.toml: wasm32 lint not applicable`）で明示する。`structure.toml`
+上の `role` 宣言に基づく明示的な条件であり黙示的 PASS ではない
+（security.md A05、§2.5 の asset-only 判定と同じ思想）。
+
+対象クレートが 1 件以上ある場合は、`lint` チェック（§2.3）と同じ
+`clippy_policy_check`（`clippy.toml` の `disallowed-methods` 健全性）・
+`clippy_environment_preflight`（`cargo clippy --version` 疎通）を前置した
+うえで、wasm32 target 自体の導入状態を確認する専用プリフライト
+（[`wasm32_target_environment_preflight`]、`rustup target list --installed`
+の出力に `wasm32-unknown-unknown` が行完全一致で含まれるかを判定。
+`wasm32-wasip1` 等の前方一致の他 target を誤って「導入済み」と判定しない）
+を実行し、いずれも通過した場合のみ `cargo clippy --locked --all-targets
+--target wasm32-unknown-unknown -p <crate>... -- -D warnings` を起動する
+（§3・§4 の fail-closed・環境エラー分類は §2.3a と同型）。
 
 ## 3. fail-closed 原則
 
@@ -358,16 +391,18 @@ fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）�
 |------|------|
 | `structure.toml` の読み込み・パース失敗 | ゲート全体を即座に `BLOCKED`（他チェックを実行しない。宣言クレート一覧が定まらず以降のチェックが無意味になるため） |
 | `structure.toml` のセマンティック検証（[`StructureManifest::validate`]）失敗 | ゲート全体を即座に `BLOCKED` |
-| 宣言クレートが 0 件（`structure.toml` にどのディレクトリも `crate = "..."` を持たない） | `type_check`/`lint`/`test` を `-p` なしのワークスペース全体検証へフォールバックせず、各チェックを個別に failed とする（[`no_declared_crates_message`]。「検証対象なし＝ PASS」でも「範囲不明な全体検証」でもなく、設定不備として明示する）。**例外**: 宣言ディレクトリ全件が `role = "asset"` である場合のみ静的専用プロジェクトの明示的オプトインとみなし、`type_check`/`lint`/`test`/`policy` を not-applicable PASS 化する（§2.5、イシュー #410） |
+| 宣言クレートが 0 件（`structure.toml` にどのディレクトリも `crate = "..."` を持たない） | `type_check`/`lint`/`test` を `-p` なしのワークスペース全体検証へフォールバックせず、各チェックを個別に failed とする（[`no_declared_crates_message`]。「検証対象なし＝ PASS」でも「範囲不明な全体検証」でもなく、設定不備として明示する）。**例外**: 宣言ディレクトリ全件が `role = "asset"` である場合のみ静的専用プロジェクトの明示的オプトインとみなし、`type_check`/`lint`/`lint_wasm32`/`test`/`policy` を not-applicable PASS 化する（§2.5、イシュー #410） |
+| `role = "client-entrypoint"` を宣言するクレートが 0 件（wasm クレートを持たないプロジェクト） | `type_check` 等とは異なり fail-closed ではなく not-applicable PASS とする（`lint_wasm32` のみの例外。§2.6、イシュー #1174） |
 | `deny.toml` が存在しない | `cargo deny` を起動せず `policy` チェックを failed とする（`<project>/deny.toml` を唯一の情報源とする。本リポジトリ自身への自己適用時もこの契約は変更せず、リポジトリ直下へ `templates/default/deny.toml` と同一強度のポリシーを配置することで解決する。イシュー #372、workspace 参照解決方式は gate の fail-closed 契約を複雑化させるため不採用） |
-| `clippy.toml` の欠落・`disallowed-methods` エントリ欠落 | `cargo clippy` を起動せず `lint` チェックを failed とする（§2.3） |
-| clippy component が runner に未導入（`cargo clippy --version` 疎通確認失敗） | `cargo clippy` 本実行を起動せず `lint` チェックを `environment error:` 付き・`environment_error: true` で failed とする（§2.3a、イシュー #292/#1116） |
+| `clippy.toml` の欠落・`disallowed-methods` エントリ欠落 | `cargo clippy` を起動せず `lint`/`lint_wasm32` チェックを failed とする（§2.3・§2.6） |
+| clippy component が runner に未導入（`cargo clippy --version` 疎通確認失敗） | `cargo clippy` 本実行を起動せず `lint`/`lint_wasm32` チェックを `environment error:` 付き・`environment_error: true` で failed とする（§2.3a・§2.6、イシュー #292/#1116/#1174） |
+| `wasm32-unknown-unknown` rustup target が runner に未導入（`rustup target list --installed` に不在） | `cargo clippy --target wasm32-unknown-unknown` 本実行を起動せず `lint_wasm32` チェックを `environment error:` 付き・`environment_error: true` で failed とする（§2.6、イシュー #1174） |
 | cargo-deny が runner に未導入（`cargo deny --version` 疎通確認失敗） | `cargo deny check ...` 本実行を起動せず `policy` チェックを `environment error:` 付き・`environment_error: true` で failed とする（§2.3a、イシュー #292/#1116） |
 | 外部コマンド（`cargo` 系）の起動自体に失敗（バイナリ不在等） | 該当チェックを failed とする（[`CommandRunner::run`] が起動失敗を `Ok((false, ...))` として返し、呼び出し元は `Err` 分岐を用意せず fail-closed 集約する） |
 
 ## 4. 集約規則と CLI 契約
 
-- **集約**: 6 チェックすべてを実行し、早期打ち切りはしない（AI エージェントが
+- **集約**: 7 チェックすべてを実行し、早期打ち切りはしない（AI エージェントが
   一括修正できるよう全違反を報告する PoC-7 の方針を踏襲、[`run_all_checks`]）。
   集約規則は 3 値（イシュー #1116 で 2 値から拡張、[`aggregate`]）:
   - 全チェック `passed = true` → `gate_result = "PASS"`
@@ -391,6 +426,7 @@ fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）�
     { "name": "default_escape_check", "passed": true, "output": "...", "environment_error": false },
     { "name": "url_validation_check", "passed": true, "output": "...", "environment_error": false },
     { "name": "lint", "passed": true, "output": "...", "environment_error": false, "command": "cargo clippy --locked --all-targets -p app -- -D warnings" },
+    { "name": "lint_wasm32", "passed": true, "output": "...", "environment_error": false, "command": "cargo clippy --locked --all-targets --target wasm32-unknown-unknown -p wasm-full -- -D warnings" },
     { "name": "test", "passed": true, "output": "...", "environment_error": false, "command": "cargo test --locked -p app" },
     { "name": "policy", "passed": true, "output": "...", "environment_error": false, "command": "cargo deny check bans licenses sources" }
   ],
@@ -454,7 +490,7 @@ fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）�
 
 | 本書の章 | `crates/cli/src/gate.rs` の対応箇所 |
 |---------|------------------------------|
-| §2 表（6 チェック定義） | `run_all_checks`、`run_cargo_check`/`run_cargo_clippy`/`run_cargo_test`/`policy_check`/`default_escape_check`/`url_validation_check` |
+| §2 表（7 チェック定義） | `run_all_checks`、`run_cargo_check`/`run_cargo_clippy`/`run_cargo_clippy_wasm32`/`run_cargo_test`/`policy_check`/`default_escape_check`/`url_validation_check` |
 | §2.2（3 層体制） | モジュール doc コメント（1-35 行目）、`find_raw_html_call_positions`（420-440 行目）、`line_has_reviewed_expect_attribute`（521-528 行目）、`line_has_real_blanket_attribute`（487-497 行目）、`scan_file_for_violations`（607-667 行目） |
 | §2.2a（コード文脈限定の走査、イシュー #372） | `find_raw_html_call_positions`（530 行目〜）、`code_context_mask`（578 行目〜）、`raw_string_hash_count`（742 行目〜）、`char_literal_end`（759 行目〜）、`utf8_char_len`（805 行目〜） |
 | §2.3（clippy ポリシー健全性） | `clippy_policy_is_configured`（292-302 行目）、`clippy_policy_check`（315-329 行目） |
@@ -467,6 +503,7 @@ fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）�
 | §2.2（属性ブロック単位の受理、イシュー #1116） | `reviewed_attribute_covers_call`、`collect_attribute_groups`（行番号は割愛。上記行番号群は本イシュー実装時点で既に近似値であり、以後の変更で再度乖離する。本表の行番号は目安であり、単一の情報源は `crates/cli/src/gate.rs` 自体とする） |
 | §2.3a/§2.3b（環境エラー種別・案内実在化・コマンド可視化・test 要約、イシュー #1116） | `gate_tools_script_exists`（是正案内の実在導線化）、`finish_command_check`・`command_line`（`command`/`$ <command>` 前置行）、`summarize_test_output`・`summarize_passing_test_output`（`test` PASS 時の要約、`run_gate` から `--verbose` 未指定時のみ呼ばれる） |
 | §4（3 値集約・終了コード 3・`--verbose`、イシュー #1116） | `aggregate`（`GateCheck.environment_error` に基づく `PASS`/`ERROR`/`BLOCKED` 3 値化）、`run_gate`（`--verbose` 解析・終了コード `0/1/2/3`）、`render_report`（`environment_error`/`command` キー追加） |
+| §2.6（`lint_wasm32` チェック、イシュー #1174） | `run_cargo_clippy_wasm32`・`declared_client_entrypoint_crate_names`・`wasm32_target_environment_preflight`（`clippy_policy_check`/`clippy_environment_preflight` は `check_name` パラメータ化して `lint`/`lint_wasm32` 双方から再利用） |
 
 対応するテストは `crates/cli/tests/gate_integration.rs`（CLI 経由の統合テスト、
 6 ケース）・`crates/cli/tests/negative_cases.rs`（型エラー・未エスケープ・禁止依存・

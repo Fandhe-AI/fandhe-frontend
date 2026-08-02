@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # `fw gate`（cli/src/gate.rs, TASK-13.3・#138）が前提とする外部ツール
-# （clippy component / cargo-deny）を常設化するブートストラップスクリプト。
+# （clippy component / cargo-deny / wasm32-unknown-unknown rustup target
+# 〔イシュー #1174、`lint_wasm32` チェック向け〕）を常設化するブートストラップ
+# スクリプト。
 #
 # イシュー #292: self-hosted runner プールはインスタンスごとに clippy
 # component / cargo-deny の導入状態に差があり、`fw gate` の `lint` /
@@ -127,5 +129,35 @@ ensure_cargo_deny() {
   fi
 }
 
+# イシュー #1174: `lint_wasm32` チェック（`fw gate` が wasm クレート
+# 〔role = "client-entrypoint"〕を宣言するプロジェクトで実行する wasm32
+# target 向け clippy）が前提とする rustup target。`fw gate` 側の
+# `wasm32_target_environment_preflight`（gate.rs）は `rustup target list
+# --installed` の出力に `wasm32-unknown-unknown` が行完全一致で含まれるかで
+# 判定するため、ここでの導入判定も同一条件に揃える（本スクリプト実行後に
+# gate 側の environment error が再発しない契約、`ensure_clippy` と同型）。
+ensure_wasm32_target() {
+  local target="wasm32-unknown-unknown"
+
+  if rustup target list --installed 2>/dev/null | grep -qx "${target}"; then
+    echo "ensure-gate-tools: rustup target ${target} already installed"
+    return 0
+  fi
+
+  if ! command -v rustup >/dev/null 2>&1; then
+    echo "::error::rustup target ${target} is missing and rustup is not available to install it; install rustup or the target manually (see .claude/rules/ci.md)" >&2
+    exit 1
+  fi
+
+  echo "ensure-gate-tools: installing rustup target ${target}"
+  rustup target add "${target}"
+
+  if ! rustup target list --installed 2>/dev/null | grep -qx "${target}"; then
+    echo "::error::failed to make rustup target ${target} available even after \`rustup target add ${target}\`" >&2
+    exit 1
+  fi
+}
+
 ensure_clippy
 ensure_cargo_deny
+ensure_wasm32_target

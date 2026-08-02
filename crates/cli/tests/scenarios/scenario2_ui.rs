@@ -22,7 +22,7 @@
 
 use crate::common::{
     self, cargo_deny_available, check_passed, json_bool_field, json_string_field, replace_unique,
-    run_fw, write_workspace_project, MemberFixture,
+    run_fw, wasm32_target_available, write_workspace_project, MemberFixture,
 };
 
 /// `structure.toml`（`fw gate` が唯一の情報源とする宣言ファイル、
@@ -270,10 +270,12 @@ fn scenario2_impact_reports_high_risk_for_list_page() {
 }
 
 /// 改修（件数サマリー追加）+ 新規アサーションの両方を適用したフィクスチャで
-/// `fw gate` のコア 5 チェックがすべて通過することを検証する。`policy` は
-/// `cargo_deny_available()` で環境分岐する（`main.rs` の
-/// `baseline_fixture_passes_gate_core_checks` と同一方針。環境ごとに
-/// 弱体化なしで取れる最強のアサーションを常時実行する、`coding-rust.md`）。
+/// `fw gate` のコア 5 チェックがすべて通過することを検証する。`policy`/
+/// `lint_wasm32` は `cargo_deny_available()`/`wasm32_target_available()` で
+/// 環境分岐する（`main.rs` の `baseline_fixture_passes_gate_core_checks` と
+/// 同一方針。環境ごとに弱体化なしで取れる最強のアサーションを常時実行する、
+/// `coding-rust.md`。`lint_wasm32` はイシュー #1174 で追加、本フィクスチャは
+/// `wasm-client` に `role = "client-entrypoint"` を宣言するため実走する）。
 #[test]
 fn scenario2_gate_passes_after_ui_improvement() {
     let improved_lib_rs = replace_unique(
@@ -325,10 +327,10 @@ fn scenario2_gate_passes_after_ui_improvement() {
         );
     }
 
-    if cargo_deny_available() {
+    if cargo_deny_available() && wasm32_target_available() {
         assert_eq!(
             code, 0,
-            "cargo-deny 導入環境では改修適用後は PASS するはず: stdout={stdout}"
+            "cargo-deny・wasm32 target 導入環境では改修適用後は PASS するはず: stdout={stdout}"
         );
         assert!(
             stdout.contains("\"gate_result\":\"PASS\""),
@@ -339,20 +341,52 @@ fn scenario2_gate_passes_after_ui_improvement() {
             Some(true),
             "stdout={stdout}"
         );
-    } else {
         assert_eq!(
-            code, 1,
-            "cargo-deny 未導入環境では policy の fail-closed により BLOCKED (終了コード 1) のはず: stdout={stdout}"
+            check_passed(&stdout, "lint_wasm32"),
+            Some(true),
+            "stdout={stdout}"
+        );
+    } else {
+        assert_ne!(
+            code, 0,
+            "cargo-deny・wasm32 target のいずれか未導入の環境では改修適用後も \
+             非ゼロ終了のはず: stdout={stdout}"
         );
         assert!(
-            stdout.contains("\"gate_result\":\"BLOCKED\""),
+            stdout.contains("\"gate_result\":\"BLOCKED\"")
+                || stdout.contains("\"gate_result\":\"ERROR\""),
             "stdout={stdout}"
         );
-        assert_eq!(
-            check_passed(&stdout, "policy"),
-            Some(false),
-            "stdout={stdout}"
-        );
+        if cargo_deny_available() {
+            // cargo-deny のみ導入済みの mixed-env では、未導入側
+            // （wasm32 target 起因）の environment_error に policy 自体の
+            // 本物のバグが隠れないよう、導入済み側は明示的に通過を断定
+            // する（Bugbot 指摘、PR #1179 review comment 3697675547）。
+            assert_eq!(
+                check_passed(&stdout, "policy"),
+                Some(true),
+                "stdout={stdout}"
+            );
+        } else {
+            assert_eq!(
+                check_passed(&stdout, "policy"),
+                Some(false),
+                "stdout={stdout}"
+            );
+        }
+        if wasm32_target_available() {
+            assert_eq!(
+                check_passed(&stdout, "lint_wasm32"),
+                Some(true),
+                "stdout={stdout}"
+            );
+        } else {
+            assert_eq!(
+                check_passed(&stdout, "lint_wasm32"),
+                Some(false),
+                "stdout={stdout}"
+            );
+        }
     }
 }
 
@@ -409,6 +443,16 @@ fn scenario2_new_assertion_is_load_bearing() {
         "stdout={stdout}"
     );
     assert_eq!(check_passed(&stdout, "lint"), Some(true), "stdout={stdout}");
+    if wasm32_target_available() {
+        // wasm32 target 未導入環境では lint_wasm32 自体が environment_error
+        // で failed になり得るため、導入済みの場合のみ断定する（イシュー
+        // #1174）。
+        assert_eq!(
+            check_passed(&stdout, "lint_wasm32"),
+            Some(true),
+            "stdout={stdout}"
+        );
+    }
     assert_eq!(
         check_passed(&stdout, "test"),
         Some(false),
