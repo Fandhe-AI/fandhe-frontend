@@ -173,8 +173,10 @@ anchor positioning の CSS 変数は、既存の `positioner`/`arrow`/`arrow_tip
   `css_vars_style(position, reference_width, same_width)` は `same_width` を追加引数
   として受け取り、`false` の場合は変数自体を出力しない。本書 §4.4 の表・§4.3 の
   「sameWidth: 採用」自体は変わらないが、`PositioningConfig::same_width`
-  （`PositionedKind::same_width_default`: Menu/Select は `true`、Popover/Tooltip は
-  `false`）が実際に出力へ反映されることを明記する。
+  （`PositionedKind::same_width_default`: Menu/Select/Menubar は `true`、
+  Popover/Tooltip/NavigationMenu は `false`。Menubar/NavigationMenu はイシュー
+  #1182 で追加、判断根拠は `docs/design/wasm-full-architecture.md` §23.1）が
+  実際に出力へ反映されることを明記する。
 - **`data-side`/`data-align` は「確定」side/align の出力専用であり、「希望
   placement」の入力としては使わない**: §4.2 が定める `data-side`/`data-align` の
   役割（flip 適用後の確定値を分解して反映する）自体は変わらないが、`wasm-full` の

@@ -786,5 +786,107 @@ Menubar 側の keynav Escape は元々「highlight の後始末のみ、閉鎖�
 
 ### 22.5 スコープ外（out-of-scope-tracking）
 
-- `crates/wasm-full/src/position.rs` の scope enum（アンカー配置）への navigation-menu/menubar 追加: 本イシューは閉鎖一元化のみが対象。
+- `crates/wasm-full/src/position.rs` の scope enum（アンカー配置）への navigation-menu/menubar 追加: 本イシューは閉鎖一元化のみが対象。イシュー #1182 で解消済み（§23 参照）。
 - keynav.rs の NavigationMenu Escape 挙動（`trigger.click()` 合成）の `overlay` 委譲への一本化: §22.3 の収束分析のとおり現状で安全に共存するため挙動変更は行わない。
+
+## 23. `position.rs` scope enum への navigation-menu/menubar 追加（イシュー #1182）
+
+PR #1177（§22）の out-of-scope 節が残した「`position.rs`（アンカー配置）
+scope enum への navigation-menu/menubar 追加」を解消する。`overlay.rs`
+（Escape・外側クリック閉鎖）はイシュー #1173 で `OverlayKind::NavigationMenu`/
+`OverlayKind::Menubar` を追加済みだったが、`position.rs::PositionedKind`
+（アンカー配置）は 4 種（popover/tooltip/menu/select）のまま据え置かれて
+いた。
+
+### 23.1 種別既定値
+
+`OverlayKind`（PR #1177）が Menu と同型の既定値を与えた判断を踏襲しつつ、
+`fandhe-frontend-headless-ui` 側の anatomy の実態に合わせて確定した。
+
+| kind | `has_arrow()` | `same_width_default()` | 根拠 |
+|---|---|---|---|
+| `Menubar` | `false` | `true` | arrow: `headless-ui::menubar` の anatomy に Arrow/ArrowTip は意図的スコープ外（モジュール doc 明記）のため Select と同じ非対象。same_width: menubar は menu の水平連装であり、`menubar` モジュールが随所で「`crate::menu` と同じ判断」を踏襲する設計方針に一致（`--fandhe-reference-width` は出力のみで消費は pre-styled-ui/利用者 CSS のオプトインのため外観への強制はない） |
+| `NavigationMenu` | `false` | `false` | arrow: anatomy 6 パーツ（Root/List/Item/Trigger/Content/Link）に arrow なし。same_width: content は任意サイズのパネルを想定（Popover と同型の判断） |
+
+`has_arrow()` は `!matches!(self, Self::Select)` の否定リスト形式から
+`matches!(self, Self::Popover | Self::Tooltip | Self::Menu)` の許可リスト
+形式へ書き換えた。variant 追加時に自動的に fail-closed 側（arrow 非対象）
+へ倒れる設計にするためである。
+
+### 23.2 menubar の anchor 解決（`find_menubar_anchor`）
+
+menubar は単一の scope root（`data-part="root"`）配下に複数の
+`[data-part="menu"]`（トップレベルメニュー単位のラッパー、trigger +
+positioner の組）が並ぶ anatomy であり、既存の `find_anchor(scope_root)`
+（root 配下の最初の trigger/anchor を返す）をそのまま適用すると、2 個目
+以降の menu を開いたときに常に先頭 trigger の座標へ誤って位置決めされて
+しまう（イシュー #622 の context-trigger/trigger-item 誤 anchor 指摘と同型
+の問題）。
+
+`position.rs::wiring::find_scope_match_within(container, scope_root,
+selector)` を新設し（既存 `find_direct_scope_match(scope_root, selector)`
+は `container == scope_root` の特殊形として委譲する一般化）、
+`find_menubar_anchor(scope_root, positioner)` が
+「`positioner` の最近傍 `[data-part="menu"]` ラッパー内で、`scope_root`
+自身に属する trigger」を解決する。ラッパーが見つからない・ネストした
+別スコープに属する場合は既存 `find_anchor` へフォールバックする
+（fail-closed。マークアップ不整合時でも panic せず、従来どおりの縮退
+動作に留める）。`reposition_one` は `kind == PositionedKind::Menubar` の
+ときのみこの専用解決を使い、他の kind は従来どおり `find_anchor` を使う
+（1 scope root = 1 trigger の anatomy のため十分）。
+
+### 23.3 navigation-menu の非発火（前方互換の登録）
+
+`headless-ui::navigation_menu` は Root/List/Item/Trigger/Content/Link の
+6 パーツのみで `positioner` パーツを持たない（イシュー #993、
+`docs/policy/intentional-non-adoption.md` §3.25 規則 2 のユーザー判断:
+Radix NavigationMenu が primitives 層へ持ち込む viewport 測定・
+`data-motion` を headless-ui へ持ち込まない）。このため
+`PositionedKind::from_scope("navigation-menu")` の scope 登録・純粋
+ロジック（`has_arrow`/`same_width_default`/`resolve_position`）は成立し
+native `cargo test` で検証可能だが、配線層（`wiring::reposition_one` の
+発火契機である `[data-part="positioner"][data-state="open"]`）は現状の
+headless-ui マークアップには存在しないため実 DOM 上では発火しない。
+実ブラウザ回帰テスト
+（`position_browser.rs::reposition_now_is_noop_for_navigation_menu_markup_without_positioner_part`）
+がこの現状挙動（panic しない・いかなる要素にも副作用を与えない）を
+固定する。将来 headless-ui 側へ positioner パーツが追加されれば、
+`reposition_one` の変更なしに同じ配線がそのまま有効化される前方互換の
+設計である。
+
+### 23.4 semver 判断
+
+公開 enum `PositionedKind` への variant 追加は 0.x の破壊的変更（下流の
+網羅 `match` が壊れうる）のため `fandhe-frontend-wasm-full` を 0.6.0 →
+0.7.0 へマイナーバンプした（`.claude/rules/coding-rust.md` イシュー
+#638 規約）。`cargo run -p xtask -- check-dep-versions` で確認したとおり
+`wasm-full` を path+version 依存する workspace メンバーは存在せず、追随
+バンプは不要だった。
+
+### 23.5 テスト
+
+- native 単体テスト（`crates/wasm-full/src/position.rs` `#[cfg(test)]`）:
+  `from_scope`/`has_arrow`/`same_width_default`/`resolve_position` の全種
+  列挙（Menubar/NavigationMenu 追加後）、XSS 回帰（`"`/`<`/`>` 非含有）の
+  Menubar/NavigationMenu 拡張。
+- 実ブラウザ回帰テスト（`crates/wasm-full/tests/position_browser.rs`、
+  検証観点 (l)〜(o)）: Menubar の `--fandhe-reference-width`・arrow デコイ
+  fail-closed、複数 menu の anchor 誤検出回帰（(m)、§23.2 の本命）、
+  navigation-menu の no-op 安全性（(n)、§23.3 の固定）、Menubar 経路の
+  XSS 回帰（(o)）。`wasm-pack test --headless --chrome crates/wasm-full
+  --test position_browser` で全 16 件 PASS を確認済み（既存 12 件 + 追加
+  4 件）。
+
+### 23.6 スコープ外（out-of-scope-tracking）
+
+- `crates/pre-styled-ui/src/menubar.rs` の `data-positioned`/
+  `--fandhe-x`・`--fandhe-y` 消費 CSS: 現状は `position: relative` ベース
+  の静的配置のみで、wasm 確定座標（`data-positioned` マーカー切替、
+  PR #673 が menu/select へ実装したもの）を消費しない。wasm 層が書き込む
+  属性は無害（未消費）だが、menubar の外観へアンカー座標を反映するには
+  pre-styled-ui 側の追随が別途必要。
+- `headless-ui::navigation_menu` への positioner パーツ追加: イシュー
+  #993 のユーザー判断（§3.25 規則 2）に関わるため本イシューでは行わない。
+  追加されるまで navigation-menu の配線は発火しない（§23.3 参照）。
+  再導入提案時は `docs/policy/intentional-non-adoption.md` の評価軸充足
+  確認が必須。
