@@ -979,7 +979,8 @@ fn build_page() -> Node {
 /// 取り込み順（前段のトークン定義を後段の recipe が `var(--fandhe-...)` で
 /// 参照する）:
 ///
-/// 1. テーマトークン（[`Theme::default`]。ライト/ダーク両対応の
+/// 1. テーマトークン（[`Theme::default`] を [`Theme::upsert_color`] /
+///    [`Theme::upsert_space`] で上書き・拡張したもの。ライト/ダーク両対応の
 ///    `--fandhe-color-*` 等）
 /// 2. ページ骨格のみの手書き CSS（`static/ui.css`、`include_str!` で
 ///    バイナリへ埋め込み。コンポーネント CSS は v0.4.0 で全部品 recipe
@@ -993,8 +994,25 @@ fn build_page() -> Node {
 /// `crates/pre-styled-ui/src/stylesheet.rs` の
 /// `push_recipe_is_infallible_for_all_styled_components` 参照）。
 fn build_stylesheet() -> Result<StyleSheet, fandhe_frontend_pre_styled_ui::StylesheetError> {
+    let mut theme = Theme::default();
+    // `Theme::push_color` は同名トークンを `ThemeError::DuplicateTokenName`
+    // で fail-closed 拒否するため、既定パレット（`accent`）の上書きには
+    // `upsert_color`（イシュー #1118/#1138）が正規経路（イシュー #1175 実演）。
+    // 挿入順＝出力順は upsert でも保たれる（`Theme::to_css` rustdoc 参照）。
+    // 値は静的リテラルのみを渡す（呼び出し元入力を経由しない）。
+    theme
+        .upsert_color("accent", "#0f766e", "#2dd4bf")
+        .expect("\"accent\"/\"#0f766e\"/\"#2dd4bf\" are statically valid theme tokens");
+    // `upsert_space` は不在トークンに対しては `push_space` と同じ挿入動作
+    // （末尾追加）になる。本サンプルの手書き CSS（`static/ui.css`）が
+    // `var(--fandhe-space-showcase-gap)` を参照し、追加トークンが実際に
+    // 使われることを示す（死にトークン化を防ぐ）。
+    theme
+        .upsert_space("showcase-gap", "1.25rem")
+        .expect("\"showcase-gap\"/\"1.25rem\" are statically valid theme tokens");
+
     let mut sheet = StyleSheet::new();
-    sheet.push_theme(&Theme::default());
+    sheet.push_theme(&theme);
     sheet.push_css(include_str!("../static/ui.css"))?;
     for css in [
         fandhe_frontend_pre_styled_ui::tabs::stylesheet(),
@@ -1240,6 +1258,46 @@ mod tests {
         assert!(css.contains(r#"[data-scope="avatar"][data-part="root"]"#));
         assert!(css.contains(".fd-button--variant-solid"));
         assert!(!css.contains('<'));
+    }
+
+    /// `Theme::upsert_color`（イシュー #1138/#1175）の実演回帰: 既定パレット
+    /// の `accent`（`#3182ce`/`#4299e1`、`crates/pre-styled-ui/src/theme.rs`
+    /// `DEFAULT_COLORS`）が [`build_stylesheet`] の上書き後の値
+    /// （`#0f766e`/`#2dd4bf`）へ置き換わり、既定値は出力に残らないことを
+    /// 固定する。
+    #[test]
+    fn build_stylesheet_overrides_default_accent_color_via_upsert() {
+        let sheet = build_stylesheet().expect("all CSS sources should pass validation");
+        let css = sheet.as_css();
+        assert!(css.contains("--fandhe-color-accent: #0f766e;"));
+        assert!(css.contains("#2dd4bf"));
+        // `#3182ce` は既定 `accent` のライト値だが、`info` トークン
+        // （`DEFAULT_COLORS`）も同じライト値 `#3182ce` を持つため、CSS 全体
+        // からの単純な文字列不在ではなく `--fandhe-color-accent:` 宣言行
+        // そのものが上書き後の値を指すことのみを断定する（`info` 側は
+        // upsert 対象外のため変更されないのが正しい挙動）。`#4299e1`
+        // （既定 `accent` のダーク値）は `DEFAULT_COLORS` 中で他トークンと
+        // 衝突しない一意な値のため、単純な文字列不在で断定できる。
+        assert!(
+            !css.contains("--fandhe-color-accent: #3182ce;"),
+            "default accent light value should be overridden"
+        );
+        assert!(
+            !css.contains("#4299e1"),
+            "default accent dark value should be overridden"
+        );
+    }
+
+    /// `Theme::upsert_space`（イシュー #1138/#1175）の実演回帰: 既定テーマに
+    /// 存在しない `showcase-gap` トークンが末尾追加され、`static/ui.css` の
+    /// `.showcase-row` から `var(--fandhe-space-showcase-gap)` として実際に
+    /// 参照されている（死にトークンでない）ことを固定する。
+    #[test]
+    fn build_stylesheet_adds_showcase_gap_space_token_via_upsert() {
+        let sheet = build_stylesheet().expect("all CSS sources should pass validation");
+        let css = sheet.as_css();
+        assert!(css.contains("--fandhe-space-showcase-gap: 1.25rem;"));
+        assert!(css.contains("gap: var(--fandhe-space-showcase-gap);"));
     }
 
     /// 既定エスケープ回帰（REQ-1、受け入れ条件(b)）: `<script>` を含む

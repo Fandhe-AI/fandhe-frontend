@@ -259,6 +259,40 @@ fn cli_output_includes_view_transition_style() {
     }
 }
 
+/// `json_ld` 実演の回帰（イシュー #1117/#1175）: 記事一覧ページ（`/`）の
+/// `<head>` に `<script type="application/ld+json">` が出力され、内容の
+/// `"` が既定エスケープ（`&quot;` 化）されずそのまま残ることを固定する
+/// （`json_ld` が既定エスケープではなく中立化経路であることの実演）。
+#[test]
+fn cli_index_page_includes_json_ld_website_script() {
+    let scratch = run_cli_in_scratch_dir("json-ld");
+    let body = std::fs::read_to_string(scratch.0.join("dist/index.html"))
+        .expect("index.html should be readable");
+
+    assert!(body.contains(r#"<script type="application/ld+json">"#));
+    assert!(body.contains(r#""@context":"https://schema.org""#));
+    assert!(body.contains(r#""@type":"WebSite""#));
+    assert!(body.contains(r#""url":"https://example.com""#));
+}
+
+/// `json_ld` は記事一覧ページのみへ差し込む契約（[`layout`] の
+/// `head_extra` 引数、`src/main.rs::build_pages_for` 参照）を CLI 経由で
+/// 固定する。記事詳細ページには `application/ld+json` を出力しない。
+#[test]
+fn cli_post_pages_do_not_include_json_ld() {
+    let scratch = run_cli_in_scratch_dir("json-ld-absent");
+
+    for slug in ["hello-ssg", "default-escaping", "view-transitions"] {
+        let body =
+            std::fs::read_to_string(scratch.0.join("dist/posts").join(slug).join("index.html"))
+                .unwrap_or_else(|e| panic!("posts/{slug}/index.html should be readable: {e}"));
+        assert!(
+            !body.contains("application/ld+json"),
+            "posts/{slug}/index.html should not include JSON-LD"
+        );
+    }
+}
+
 /// 既定エスケープ回帰（REQ-1）: XSS ペイロードタイトルを持つ記事の出力に
 /// `&lt;script&gt;` が含まれ、生の `<script>` は含まれないことを CLI 経由で
 /// 固定する。`layout()` は `<script>` タグを一切出力しないため、後者の断定は

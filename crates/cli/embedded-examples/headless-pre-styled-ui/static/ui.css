@@ -32,10 +32,12 @@ section {
 }
 
 /* styled 部品を variant 別に横へ並べるショーケース行（src/main.rs の
- * showcase_row() が出力する）。 */
+ * showcase_row() が出力する）。gap は Theme::upsert_space が追加する
+ * showcase-gap トークン（build_stylesheet() 参照、イシュー #1175）を参照し、
+ * 追加トークンが実際に使われる形にする。 */
 .showcase-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--fandhe-space-showcase-gap);
 }

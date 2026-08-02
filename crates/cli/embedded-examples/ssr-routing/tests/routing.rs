@@ -161,6 +161,67 @@ fn hello_route_escapes_name() {
     assert!(stdout.contains("Hello, &lt;script&gt;!"));
 }
 
+/// `el_owned`/`attr_if`（イシュー #1121/#1175）の実演回帰: `name` が既定値
+/// （`"world"`）の場合、`data-default-greeting` 属性（値なし相当の空文字列）
+/// が出力され、`data-greeting-for` 属性は出力されない（`attr_if_value` の
+/// `cond=false` は属性自体を欠落させる契約）。
+#[test]
+fn hello_route_world_has_default_greeting_attribute_only() {
+    let stdout = run_cli("/hello/world");
+
+    assert!(
+        stdout.contains(r#"data-default-greeting="""#),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        stdout.contains(r#"data-name-length="5""#),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        !stdout.contains("data-greeting-for"),
+        "stdout was: {stdout}"
+    );
+}
+
+/// `el_owned`/`attr_if_value`（イシュー #1121/#1175）の実演回帰: `name` が
+/// 既定値以外の場合、`data-greeting-for` 属性（値は `name`）が出力され、
+/// `data-default-greeting` 属性は出力されない。
+#[test]
+fn hello_route_non_default_name_has_greeting_for_attribute_only() {
+    let stdout = run_cli("/hello/rust");
+
+    assert!(
+        stdout.contains(r#"data-greeting-for="rust""#),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        stdout.contains(r#"data-name-length="4""#),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        !stdout.contains("data-default-greeting"),
+        "stdout was: {stdout}"
+    );
+}
+
+/// 既定エスケープ回帰（REQ-1）: `attr_if_value` へ渡す属性**値**
+/// （`data-greeting-for` の `name`）も [`el_owned`] が [`el`] と共有する
+/// `render()` 時の既定エスケープを通り、XSS ペイロードが実体参照化されて
+/// 出力されることを固定する。
+#[test]
+fn hello_route_escapes_data_greeting_for_attribute_value() {
+    let stdout = run_cli("/hello/\"><script>");
+
+    assert!(
+        !stdout.contains("data-greeting-for=\"\"><script>"),
+        "stdout was: {stdout}"
+    );
+    assert!(
+        stdout.contains("data-greeting-for=\"&quot;&gt;&lt;script&gt;\""),
+        "stdout was: {stdout}"
+    );
+}
+
 /// `resolve_response` の判定順序 (2)（`respond_with` 経由の一覧画面）を
 /// CLI 経由で固定する。引数省略時は `"/"` が既定パスになる（`main` の契約）。
 #[test]
