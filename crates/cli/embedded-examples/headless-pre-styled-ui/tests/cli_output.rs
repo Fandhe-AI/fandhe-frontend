@@ -98,6 +98,8 @@ fn cli_output_includes_all_component_scopes() {
         "data-scope=\"select\"",
         "data-scope=\"popover\"",
         "data-scope=\"tooltip\"",
+        "data-scope=\"navigation-menu\"",
+        "data-scope=\"menubar\"",
         // pre-styled-ui の単純 styled 部品
         "data-scope=\"button\"",
         "data-scope=\"badge\"",
@@ -171,6 +173,8 @@ fn cli_output_css_aggregates_theme_recipes_and_manual_css() {
     assert!(css.contains(r#"[data-scope="menu"][data-part="item"]"#));
     assert!(css.contains(r#"[data-scope="popover"][data-part="content"]"#));
     assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"]"#));
+    assert!(css.contains(r#"[data-scope="navigation-menu"][data-part="trigger"]"#));
+    assert!(css.contains(r#"[data-scope="menubar"][data-part="trigger"]"#));
     assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
     assert!(css.contains(r#"[data-scope="radio-group"][data-part="item-control"]"#));
     assert!(css.contains(r#"[data-scope="avatar"][data-part="root"]"#));

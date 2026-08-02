@@ -29,9 +29,11 @@ variant 引数を取る styled root 形へ変更されたため追随しまし�
 `root` 系関数へ増えた `Size`（Tabs は `Size` + `ColorPalette`）引数の呼び出し
 追随を行いました。イシュー #1183 で `fandhe-frontend-pre-styled-ui` を
 v0.40.0（`fandhe-frontend-headless-ui` v0.28.0、イシュー #1171 公開・#1173）
-へ追随しました。0.40.0 の破壊的変更（`navigation_menu::trigger` の value
-引数追加・`menubar::trigger` の index 引数追加）は本サンプルが未使用のため
-呼び出し追随は不要でした。
+へ追随しました。0.40.0 で追加された Navigation Menu / Menubar は当初未使用
+だったため `navigation_menu::trigger` の value 引数・`menubar::trigger` の
+index 引数への呼び出し追随は不要でしたが、イシュー #1204（他 examples への
+UI 部品実演追加の要否精査）で本サンプルへ Navigation Menu / Menubar 節を
+追加し、両引数を使用する呼び出しへ更新しました。
 
 ## pre-styled-ui 統合について
 
@@ -48,15 +50,21 @@ v0.5.0（PR #719）で Switch / RadioGroup の `root` も Avatar と同じ
 | コンポーネント | 使用する層 | 備考 |
 |---------------|-----------|------|
 | Tabs / Accordion / Dialog / Menu / Select / Popover / Tooltip | pre-styled-ui（headless ラッパー） | マークアップは headless 層の再エクスポート、既定 CSS は各モジュールの `stylesheet()`。Menu / Select はラッパー第 1 弾（#551）、Popover / Tooltip は第 2 弾（#664、PR #672） |
+| Navigation Menu / Menubar | pre-styled-ui（headless ラッパー） | マークアップは headless 層の再エクスポート、既定 CSS は各モジュールの `stylesheet()`。イシュー #1204 で追加 |
 | Avatar / Switch / RadioGroup | pre-styled-ui（styled root、size/palette variant） | `root` のみ styled（`fd-<scope>--size-*`/`fd-<scope>--color-palette-*` 等）、子パーツは headless 層の再エクスポート。Avatar は #684（size/shape variant）、Switch / RadioGroup は第 3 弾（#682/#683）→ PR #719 で `root` が size/palette variant 付与化 |
 | Button / Badge / Card / Alert / Spinner | pre-styled-ui（単純 styled 部品） | variant / size / colorPalette を Rust enum で型安全に指定 |
 
-Menu / Select / Popover / Tooltip はいずれも `positioner` が `position:
-absolute` のオーバーレイ型のため、Dialog 節と同じ「SSR 初期状態は closed、
-全 anatomy を DOM に掲載（`hidden` 付き）」方針で掲示します。Select のみ、
-listbox を closed のまま「選択済み値」（`value_text`/`aria-selected`/
-`hidden_select` の `selected` option）を実演し、Menu は virtual focus による
-`data-highlighted` 項目の実演を含みます。
+Menu / Select / Popover / Tooltip / Navigation Menu / Menubar はいずれも
+`positioner`（Navigation Menu は `content`）が `position: absolute` の
+オーバーレイ型、またはトリガー起点で開閉するディスクロージャのため、
+Dialog 節と同じ「SSR 初期状態は closed、全 anatomy を DOM に掲載（`hidden`
+付き）」方針で掲示します。Select のみ、listbox を closed のまま「選択済み
+値」（`value_text`/`aria-selected`/`hidden_select` の `selected` option）を
+実演し、Menu は virtual focus による `data-highlighted` 項目の実演を含み
+ます。Navigation Menu は `role="menu"`/`role="menuitem"` を一切付与しない
+（文書ナビを操作メニューと誤伝達しないための判断、`crates/headless-ui/src/navigation_menu.rs`
+参照）ことを、Menubar は `role="menubar"`/`role="menuitem"` と roving
+tabindex（1 件目のトリガーのみ `tabindex="0"`）を実演します。
 
 CSS はテーマトークン（`Theme::default()`）・使用コンポーネントの recipe
 CSS・ページ骨格のみの手書き CSS（`static/ui.css`）を `StyleSheet` へ集約し、
@@ -67,7 +75,8 @@ CSS・ページ骨格のみの手書き CSS（`static/ui.css`）を `StyleSheet`
 
 - `fandhe-frontend-headless-ui` の anatomy（`data-scope`/`data-part`）・
   `data-*` 状態属性・WAI-ARIA 属性付与（Tabs / Accordion / Dialog / Menu /
-  Select / Popover / Tooltip / Switch / RadioGroup / Avatar）
+  Select / Popover / Tooltip / Navigation Menu / Menubar / Switch /
+  RadioGroup / Avatar）
 - `fandhe-frontend-pre-styled-ui` の variant API（`ButtonVariant`/`Size`/
   `ColorPalette` 等の Rust enum によるクラス切り替え）・headless ラッパー・
   `StyleSheet`/`Theme` による静的 CSS 集約
