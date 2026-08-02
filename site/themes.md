@@ -169,6 +169,6 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 
 ## 関連 API
 
-- [fandhe-frontend-pre-styled-ui API](../docs/api/pre-styled-ui-api.md): スタイル済み部品の公開 API と不変条件
+- [fandhe-frontend-pre-styled-ui API](../docs/api/pre-styled-ui-api.md): スタイル済み部品の公開 API と不変条件。テーマトークンのカスタマイズ（`upsert_*` による既定値の上書き）を含む
 - [pre-styled-ui slot recipe API](../docs/api/pre-styled-recipe-api.md): スタイル生成に使う slot recipe の API
 - [fandhe-frontend-headless-ui API](../docs/api/headless-ui-api.md): 下層 headless API（anatomy・data-*・WAI-ARIA 契約）

@@ -180,7 +180,9 @@ colorPalette 軸実配線時、`palette_declarations` は `crate::theme` が生�
 `var(--fandhe-palette)` 等を参照するだけで、`palette` variant の選択に応じて
 色が切り替わる。名前空間を分離しているため、ユーザーがカスタムテーマへ
 `Theme::push_color("palette", ...)` のような独自トークンを追加しても
-`--fandhe-palette-*` の生成とは衝突しない。
+`--fandhe-palette-*` の生成とは衝突しない。既定トークンの上書きは
+`push_*` ではなく `upsert_*` を使う（詳細は
+[`pre-styled-ui-api.md`](./pre-styled-ui-api.md) §4l）。
 
 `crate::theme` は加えて radii（`--fandhe-radius-<name>`）・shadow
 （`--fandhe-shadow-<name>`、light/dark 2 値）トークングループを持つ。
