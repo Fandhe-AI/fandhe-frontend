@@ -100,8 +100,9 @@ git submodule update --init
 
 ### 最短セットアップ
 
-ローカル開発環境の構築は `make setup` で完了します。
-clippy / cargo-deny / wasm32 target の導入と lefthook の設定を一度に行います。
+ローカル開発環境の構築は `make setup` で行います。
+clippy / cargo-deny / wasm32 target の導入と lefthook の有効化を一度に行います
+（lefthook 本体が未導入の場合は導入手順を案内します）。
 
 ```bash
 make setup
@@ -120,8 +121,9 @@ make lint
 
 ### lefthook によるローカル検証
 
-`make setup` は lefthook をインストールして有効化します。
-以降、commit 時に以下が自動実行されます。
+`make setup` は lefthook が導入済みの環境で hooks を有効化します
+（lefthook 本体は別途導入が必要で、未導入の場合は `make setup` が
+導入手順を案内します）。有効化後、commit 時に以下が自動実行されます。
 
 - cargo fmt チェック（staged ファイルのみ）
 - 簡易シークレット検知（`.env` ファイルの追加、API キーらしき値の検出。

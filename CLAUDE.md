@@ -15,8 +15,9 @@ Rust 製フロントエンドフレームワーク。AI 時代のセキュリテ
 fandhe-frontend/
 ├── CLAUDE.md
 ├── README.md
+├── .editorconfig             # エディタ間のインデント・改行統一（Rust は rustfmt 既定 4 スペースと一致させる補助）
 ├── Makefile                  # 開発タスク（setup / build / test / fmt / lint / gate / docs / docker-dev-build / docker-dev）の入口
-├── lefthook.yml              # pre-commit / commit-msg フック定義（npm 非依存）。`make setup` で導入、ローカル検証用
+├── lefthook.yml              # pre-commit / commit-msg フック定義（npm 非依存）。lefthook 導入済み環境で `make setup` が有効化、ローカル検証用
 ├── skills-lock.json          # npx skills add の導入記録
 ├── docs/
 │   ├── design/               # 設計文書（gate-design / wasm-full-architecture / structure-manifest / docs-site-three-column-redesign / docs-site-component-pages〔部品ページ IA、#938〕 / docs-site-api-reference-split〔利用者向け API と内部設計記録の分離基準、#952〕 / docs-site-search-design〔全文検索、#956〕 / docs-site-primitives-themes-split〔Primitives / Themes 2 層分割、#1037〕 等）。component-coverage-map.md は ark-ui / chakra-ui に Radix UI を加えた 3 参照軸のコンポーネント対応表の正（イシュー #937。Radix 側の一次記録は radix-primitives-inventory.md / radix-themes-survey.md）

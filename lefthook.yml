@@ -31,7 +31,10 @@ pre-commit:
     - name: "security: staged diff secret scan"
       run: |
         set -euo pipefail
-        added_env_files="$(git diff --cached --name-only --diff-filter=A | grep -E '(^|/)\.env(\..+)?$' || true)"
+        # `.env.example` / `.env.sample` / `.env.template` はダミー値を示す
+        # テンプレートとして慣用されるため検知から除外する（実値を持つ
+        # `.env` / `.env.local` 等のみブロックする）。
+        added_env_files="$(git diff --cached --name-only --diff-filter=A | grep -E '(^|/)\.env(\..+)?$' | grep -vE '\.(example|sample|template)$' || true)"
         if [ -n "${added_env_files}" ]; then
           echo "commit blocked: .env-like file(s) staged for commit:" >&2
           echo "${added_env_files}" >&2

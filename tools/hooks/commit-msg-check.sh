@@ -9,12 +9,15 @@
 # メッセージファイルのパスが渡る lefthook の仕様に合わせる）。
 #
 # 許容形式:
-#   <type>(<scope>)[!]: <要約>
+#   <type>[(<scope>)][!]: <要約>
 #   例: feat(core): テキスト補間の既定エスケープを製品仕様として固定
 #       feat(core)!: render() の戻り値型を変更
+#       feat!: render() の戻り値型を変更
 # type は .claude/rules/conventional-commits.md の一覧
 # （feat/fix/docs/style/refactor/perf/test/build/ci/chore）に限定する。
-# scope は英小文字・数字・ハイフンのみ許容する。
+# scope は英小文字・数字・ハイフンのみ許容する。scope は省略可
+# （create-commit スキルは変更が複数領域にまたがる場合等の scopeless
+# 件名を許容するため、ここで必須化すると正当なコミットを弾いてしまう）。
 #
 # Merge commit・Revert commit・fixup!/squash! commit は Conventional
 # Commits 形式を要求せず素通りさせる（git 標準操作・作業中コミットを
@@ -48,7 +51,7 @@ case "${subject}" in
     ;;
 esac
 
-pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)\(([a-z0-9-]+)\)!?: .+'
+pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\([a-z0-9-]+\))?!?: .+'
 if [[ "${subject}" =~ ${pattern} ]]; then
   exit 0
 fi
@@ -58,9 +61,9 @@ commit-msg-check: commit message does not follow Conventional Commits format.
 
   subject: ${subject}
 
-expected: <type>(<scope>)[!]: <summary>
+expected: <type>[(<scope>)][!]: <summary>
   type  = feat|fix|docs|style|refactor|perf|test|build|ci|chore
-  scope = lowercase letters, digits, hyphens (e.g. core, cli, docs-site)
+  scope = lowercase letters, digits, hyphens (e.g. core, cli, docs-site); optional
 
 example: feat(core): テキスト補間の既定エスケープを製品仕様として固定
 
