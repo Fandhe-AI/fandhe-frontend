@@ -18,12 +18,12 @@
 
 ## 2. 判定ステータス: 検証済み（PASS）
 
-`docs/design/docker-wasm-build-stage.md` §6 の検証観点 1〜5 をワークツリー環境で
-実測し、いずれも Pass を確認した。観点 6（aarch64 実ビルド）は本イシュー
-実装時点で利用可能な CI ランナー・ローカル環境がいずれも x86_64 のため実測
-不能であり、archive 実在・公式チェックサム照合済みである事実（TASK-10.3a
-設計時点の確認）と、aarch64 実ホストでの手動確認手順（第 6 節）の記載を
-もって代替する。
+`docs/design/docker-wasm-build-stage.md` §6 の検証観点 1〜6 をいずれも実測し
+Pass を確認した。観点 6（x86_64・aarch64 両ビルドホストでのアーキ分岐確認）は
+当初（TASK-10.3c 時点）利用可能な環境が x86_64 のみだったため未実測（手動
+確認手順の記載で代替）としていたが、イシュー #450 で aarch64 実機
+（Apple Silicon macOS ホスト上の Docker Engine、`linux/arm64` ネイティブ）が
+利用可能になったことを受けて実測を実施し、Pass を確認した（第 5a 節）。
 
 ## 3. 検証結果一覧
 
@@ -34,7 +34,7 @@
 | 3 | 最終イメージに `wasm32-unknown-unknown` ターゲット・`wasm-bindgen-cli` バイナリが含まれないこと | `docker export \| tar -t` によるファイル一覧の全数確認 | Pass（第 4.3 節） |
 | 4 | `xtask check-image-size`（50MB 上限）が WASM 成果物込みでも PASS すること | `cargo run -p xtask -- check-image-size` | Pass（第 4.4 節） |
 | 5 | `image-size.yml` の `paths` 追加後、`wasm-full/`・`wasm-thin/`・`interactive/` の変更が正しくワークフローをトリガーすること | `.github/workflows/image-size.yml` の `paths` 実測確認 | Pass（第 4.5 節、追加は TASK-9.3b 以降の先行変更で既に存在） |
-| 6 | `docker build` を x86_64・aarch64 の両ビルドホストで実行し、アーキ分岐が両方で成功すること | x86_64: 実機確認。aarch64: 実測不能、手動確認手順を記載 | x86_64 Pass / aarch64 未実測（第 6 節に手順記載） |
+| 6 | `docker build` を x86_64・aarch64 の両ビルドホストで実行し、アーキ分岐が両方で成功すること | x86_64: 実機確認（第 4.1 節）。aarch64: 実機確認（イシュー #450、第 5a 節） | x86_64 Pass / aarch64 Pass（第 5a 節） |
 
 ## 4. 実測詳細
 
@@ -179,15 +179,22 @@ not leak the build toolchain」を含む）であることを確認した。
   `docker build` が成功し、`wasm-bindgen-0.2.126-x86_64-unknown-linux-musl.tar.gz`
   （チェックサム `064948d5...869d`）の分岐が正しく選択されることを確認した
   （§4.1 参照）。
-- **aarch64**: 本イシュー実装時点で利用可能な CI ランナー・ローカル環境が
-  いずれも x86_64 のため実機ビルドは実測不能。TASK-10.3a（#115）設計時点で
-  `wasm-bindgen-0.2.126-aarch64-unknown-linux-musl.tar.gz` の実在と
+- **aarch64**: TASK-10.3c 完了時点では利用可能な CI ランナー・ローカル環境が
+  いずれも x86_64 のため実機ビルドは実測不能だった。TASK-10.3a（#115）設計
+  時点で `wasm-bindgen-0.2.126-aarch64-unknown-linux-musl.tar.gz` の実在と
   チェックサム（`22451202...440a`）を GitHub Releases の公式
-  `.sha256sum` と照合済みであることを踏まえ、以下を Apple Silicon 等の
-  aarch64 実ホストでの手動確認手順として記載する（誇張しない: 本レポートは
-  archive 実在の事実確認に留まり、aarch64 実ビルドの成功を主張しない）。
+  `.sha256sum` と照合済みであることを踏まえ、当時は第 5 節に Apple Silicon
+  等の aarch64 実ホストでの手動確認手順を記載するに留めていた。
+  **イシュー #450 で aarch64 実機環境（Apple Silicon macOS ホスト上の
+  Docker Engine、`linux/arm64` ネイティブ）が利用可能になったため、第 5 節の
+  手順に沿って実機ビルドを実測し、Pass を確認した（第 5a 節）**。
 
-## 5. aarch64 実ホストでの手動確認手順（未実測・参考）
+## 5. aarch64 実ホストでの手動確認手順（イシュー #450 で実測済み・第 5a 節参照）
+
+> 本節はイシュー #450 実測（第 5a 節）を経て実測済みとなったが、以下の
+> コマンド・パス例は TASK-10.3c 執筆当時（旧クレート名 `rws-*`）のまま残す
+> （冒頭注記〔#433 改名〕の方針に合わせる。第 5a 節が現行クレート名・現行
+> リポジトリ名での実測記録）。
 
 Apple Silicon の Docker Desktop（既定で `linux/arm64` イメージを使用）等の
 aarch64 実ホストで、以下を実行して確認する:
@@ -206,6 +213,97 @@ docker rm -f rws-aarch64-check
 `docker build` のログで `RUN set -eux; WASM_BINDGEN_VERSION=...` ステップの
 `uname -m` 判定が `aarch64` 分岐（`wasm-bindgen-0.2.126-aarch64-unknown-linux-musl.tar.gz`）
 を選択していることも合わせて確認する。
+
+## 5a. aarch64 実機実測結果（イシュー #450 追記）
+
+第 5 節の手動確認手順を、現行の `Fandhe-AI/fandhe-frontend` リポジトリ・
+現行クレート名（`fandhe-frontend-*`）に沿って aarch64 実機で実行し、
+以下のとおり Pass を確認した。
+
+**環境**:
+
+- ホスト: macOS 26.6（Apple Silicon、`uname -m` = `arm64`）
+- Docker: Docker Engine 29.6.1、`docker version --format
+  '{{.Server.Os}}/{{.Server.Arch}}'` = `linux/arm64`、`docker info` の
+  `Architecture: aarch64`（QEMU エミュレーションではなく aarch64 ネイティブの
+  Linux VM 上での実行）
+- リソース: NCPU=16、Mem 約 15.6 GiB（`docker info` 実測）
+
+**対象コミット**: `763fc153eb23750230cbdea923cb0e0e1be24b66`
+（`Fandhe-AI/fandhe-frontend` main、TASK-10.3c 実測当時の旧名称
+`Fandhe-AI/frontend-framework`・`rws-*` とは異なる現行名称・現行クレート構成
+での実測である点に注意）
+
+**所要時間**: `docker build --no-cache -t fandhe-frontend-dist-server:aarch64-450 .`
+の実行開始から完了まで実測約 22 秒（apt パッケージ導入・wasm-bindgen-cli
+導入・`cargo build --release --locked --target aarch64-unknown-linux-musl
+-p fandhe-frontend-dist-server` を含む全ステージ）。うち
+`cargo build`（builder ステージ 10/10 ステップ）単体は
+`Finished \`release\` profile [optimized] target(s) in 12.23s`（ビルドログ実測）。
+
+**アーキ分岐の証跡**（ビルドログより抜粋）:
+
+```
++ WASM_BINDGEN_ARCHIVE=wasm-bindgen-0.2.126-aarch64-unknown-linux-musl.tar.gz
++ WASM_BINDGEN_SHA256=2245120254a9f6c9a9adf3601f3d52bb31309219e9ceab7696e74e24885c440a
++ curl -sSfL -o /tmp/wasm-bindgen-0.2.126-aarch64-unknown-linux-musl.tar.gz ...
++ sha256sum -c -
+/tmp/wasm-bindgen-0.2.126-aarch64-unknown-linux-musl.tar.gz: OK
+```
+
+`RUN case "$(uname -m)" in aarch64) echo aarch64-unknown-linux-musl > /musl_target ;;`
+の musl ターゲット判定ステップも `aarch64-unknown-linux-musl` 分岐を選択し、
+`cargo build --release --locked --target aarch64-unknown-linux-musl -p
+fandhe-frontend-dist-server` が成功した。
+
+**イメージサイズ**:
+
+```
+$ docker image inspect --format '{{.Size}}' fandhe-frontend-dist-server:aarch64-450
+691605
+$ cargo run --locked -p xtask -- check-image-size --image fandhe-frontend-dist-server:aarch64-450
+image-size: image=fandhe-frontend-dist-server:aarch64-450 size_bytes=691605/50000000 size_mb=0.69 result=PASS
+```
+
+50MB 上限に対し十分なマージン（約 0.69MB）で PASS（x86_64 実測 0.57MB
+〔TASK-10.3c 当時〕・第 4.4 節と同水準）。
+
+**配信確認**（`docker run -d -p 127.0.0.1:<ephemeral>:3100` で起動し、現行の
+WASM 資産名 `fandhe_frontend_wasm_full.js` / `fandhe_frontend_wasm_full_bg.wasm`
+で確認、`rws_wasm_full.js` 等の旧名称〔#441 改名前〕ではない）:
+
+```
+$ curl -fsS -o /dev/null -w '%{http_code} %{content_type}\n' \
+    http://127.0.0.1:<host-port>/static/wasm/fandhe_frontend_wasm_full.js
+200 text/javascript; charset=utf-8
+
+$ curl -fsS http://127.0.0.1:<host-port>/static/wasm/fandhe_frontend_wasm_full_bg.wasm | head -c 4 | od -c
+0000000  \0   a   s   m
+
+$ curl -s -o /dev/null -w '%{http_code}\n' \
+    http://127.0.0.1:<host-port>/static/wasm/does-not-exist.wasm
+404
+
+$ docker logs ffds-450
+fandhe-frontend-dist-server: listening on 0.0.0.0:3100
+fandhe-frontend-dist-server: assets=embedded
+```
+
+**バイナリのアーキ確認**（アーキ分岐成功の直接証跡）:
+
+```
+$ cid=$(docker create fandhe-frontend-dist-server:aarch64-450)
+$ docker cp "$cid":/dist-server ./dist-server-450 && docker rm "$cid"
+$ file ./dist-server-450
+./dist-server-450: ELF 64-bit LSB executable, ARM aarch64, version 1 (SYSV),
+statically linked, BuildID[sha1]=1a50ee692b850764c88be698b3dd61f04defa976, stripped
+```
+
+**判定**: 上記いずれの実測値も期待どおりであり、観点 6「x86_64・aarch64 の
+両ビルドホストで `docker build` が成功しアーキ分岐が両方で成功すること」は
+aarch64 側も Pass と判定する。検証後、コンテナ（`ffds-450`）・イメージ
+（`fandhe-frontend-dist-server:aarch64-450`）・抽出バイナリはいずれも削除し、
+scratchpad 外への残置はない。
 
 ## 6. セキュリティ考慮事項（OWASP Top 10 観点）
 
@@ -237,9 +335,10 @@ docker rm -f rws-aarch64-check
 
 ## 7. スコープ外事項（out-of-scope-tracking.md 準拠）
 
-- **aarch64 実ホストでの `docker build` 実機ビルド**: 本レポート第 5 節に
-  手動確認手順を記載。CI ランナーが x86_64 のみのため自動化は本タスクの
-  スコープ外（新規 Issue 起票はユーザー承認事項のため提案に留める）。
+- **aarch64 実ホストでの `docker build` 実機ビルド**: イシュー #450 で実測
+  済み（第 5a 節）。単発実測に留まり、CI ランナーが x86_64 のみのため
+  aarch64 実機ビルドの CI 常設化は本イシューのスコープ外（新規 Issue 起票は
+  ユーザー承認事項のため提案に留める）。
 - **`build.rs` のキャッシュ・再ビルド制御の精緻化**: TASK-10.2c（#111、
   クローズ済み）のスコープ。
 - **`wasm-bindgen --target web / nodejs` 出力使い分け DX**: 別イシュー
@@ -258,4 +357,5 @@ docker rm -f rws-aarch64-check
 - `xtask/tests/wasm_bindgen_version_sync.rs`（TASK-10.3c 追加、固定
   バージョン・SHA256 同期ドリフトの回帰テスト）
 - Issue #114（親・TASK-10.3）・#115（TASK-10.3a・設計）・#116
-  （TASK-10.3b・実装）・#117（本レポート・TASK-10.3c）
+  （TASK-10.3b・実装）・#117（本レポート・TASK-10.3c）・#450（観点 6 の
+  aarch64 実機実測、第 5a 節）
