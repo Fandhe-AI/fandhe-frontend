@@ -293,6 +293,24 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   変更せず、showcase 領域内に限定した `data-scope`/`data-part` 属性
 ///   セレクタで打ち消す）で、`.pre-styled-showcase` + 属性 2 個 = (0,3,0) が
 ///   `.docs-content blockquote` = (0,1,1) より優先されるようにリセットする。
+/// - Link Overlay デモの素の `h3`（イシュー #1154、Bugbot 指摘）:
+///   `link_overlay::root` は `overlay` 以外の子ノードを anatomy 化せず
+///   デモ側が素の `<h3>` を直接渡す構成であり、data-scope/data-part を
+///   持たないため Accordion `h3` と同じ経路で `.docs-content h3`
+///   （詳細度 (0,1,1)）が漏れ込む。recipe 側にこの `h3` を中和する宣言は
+///   存在しないため、Accordion `h3` と同じフルリセット（margin/font-size/
+///   font-weight/line-height/letter-spacing）を
+///   `.pre-styled-showcase [data-scope="link-overlay"][data-part="root"] h3`
+///   （詳細度 (0,3,1)）で適用する。
+/// - Nav List の `heading`（`h2`）見出しリセット（イシュー #1154、Bugbot
+///   指摘）: `heading` パーツ自体が `data-scope="nav-list"
+///   data-part="heading"` を持つため、dialog/drawer/popover の `h2` と同じ
+///   理由・同じ最小リセット（`border-top`/`padding-top`/`letter-spacing`
+///   のみ。margin/font-size/font-weight は recipe（`nav_list::recipe`）の
+///   `heading` base 宣言が既に持ち自然に勝つため宣言しない）を、子孫
+///   セレクタではなく要素自身への属性セレクタ
+///   `.pre-styled-showcase [data-scope="nav-list"][data-part="heading"]`
+///   （詳細度 (0,3,0)）で適用する。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
@@ -313,7 +331,9 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
-.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n}\n";
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
 
 /// 部品ページ 1 件分のレジストリエントリ（イシュー #941）。
 ///
