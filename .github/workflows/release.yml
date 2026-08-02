@@ -106,6 +106,23 @@ jobs:
       RELEASE_CRATE: ${{ inputs.crate }}
       RELEASE_VERSION: ${{ inputs.version }}
       RELEASE_MODE: ${{ inputs.mode }}
+      # イシュー #1192: `cargo publish --dry-run` はパッケージ検証ビルドを
+      # packaged コピー（path 依存が剥がされ crates.io registry 版の依存に
+      # 解決される）で実行する。cdylib+rlib クレート（wasm-thin/wasm-full/
+      # wasm-client）の rlib はメタデータハッシュサフィックスなしの固定ファイル名
+      # （libfandhe_frontend_wasm_thin.rlib 等、cdylib の動的ライブラリ名を
+      # 安定させる cargo の仕様）で出力されるため、共有 CARGO_TARGET_DIR
+      # （self-hosted runner 既定の /cargo-target）上で本検証ビルドを実行すると、
+      # 通常のワークスペースビルド（path 依存で解決）が生成した無ハッシュ rlib を
+      # registry 依存の内容で上書きしてしまう。後続の `cargo test --workspace`
+      # 等が fingerprint fresh 判定でこの汚染済み rlib を再ビルドせずリンクすると、
+      # 「there are multiple different versions of crate `fandhe_frontend_interactive`
+      # in the dependency graph」（E0277/E0599）の flaky を引き起こす
+      # （実際に PR #1164/#1180/#1186/#1187 で観測、根本原因はイシュー #1192
+      # コメントで再現手順とともに記録）。専用 CARGO_TARGET_DIR を
+      # RUNNER_TEMP 配下（イシュー #659 の配置原則）に隔離することで
+      # 汚染源を断つ（ジョブ終了時に runner が自動清掃するため残置しない）。
+      CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-release-target
     steps:
       - name: Checkout
         # actions/checkout（deps-check.yml / update-external.yml と同一コミットに固定）。
@@ -242,6 +259,10 @@ jobs:
       RELEASE_CRATE: ${{ inputs.crate }}
       RELEASE_VERSION: ${{ inputs.version }}
       RELEASE_MODE: ${{ inputs.mode }}
+      # イシュー #1192: verify ジョブと同じ理由で `cargo publish`（実公開時も
+      # ローカルの検証ビルドを実行する）を専用 CARGO_TARGET_DIR で隔離する。
+      # 詳細は verify ジョブの env コメント参照。
+      CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-release-target
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
