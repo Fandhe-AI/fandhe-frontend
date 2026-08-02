@@ -293,13 +293,24 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   変更せず、showcase 領域内に限定した `data-scope`/`data-part` 属性
 ///   セレクタで打ち消す）で、`.pre-styled-showcase` + 属性 2 個 = (0,3,0) が
 ///   `.docs-content blockquote` = (0,1,1) より優先されるようにリセットする。
-/// - Link Overlay デモの素の `h3`（イシュー #1154、Bugbot 指摘）:
+/// - Link Overlay デモの素の `h3`（イシュー #1154、Bugbot 指摘 1 回目 + 2 回目）:
 ///   `link_overlay::root` は `overlay` 以外の子ノードを anatomy 化せず
 ///   デモ側が素の `<h3>` を直接渡す構成であり、data-scope/data-part を
 ///   持たないため Accordion `h3` と同じ経路で `.docs-content h3`
-///   （詳細度 (0,1,1)）が漏れ込む。recipe 側にこの `h3` を中和する宣言は
-///   存在しないため、Accordion `h3` と同じフルリセット（margin/font-size/
-///   font-weight/line-height/letter-spacing）を
+///   （詳細度 (0,1,1)、`margin: 1.6rem 0 0.5rem` を含む）が漏れ込む。
+///   Accordion の `h3` はスタイル済みトリガーのラッパに過ぎず見出しとして
+///   視認されないため font-size/font-weight ごとフルリセットしてよいが、
+///   Link Overlay の `h3` はカードの可視見出しそのものであり、同じフル
+///   リセットを適用すると隣接する `p`（説明文）と区別が付かない見た目に
+///   なってしまう（2 回目の Bugbot 指摘）。したがってカード上端の余分な
+///   `margin-top`（`root` はカード状の位置決めコンテキストであり見出し前に
+///   1.6rem の空白は不要）のみを打ち消す（ショートハンド `margin: 0` は
+///   `.docs-content h3` の `margin-bottom: 0.5rem` まで潰してしまい、
+///   直後の `p`〔説明文〕と見出しが密着する新たな欠陥を生むため longhand
+///   の `margin-top` のみを宣言する。dialog/popover の `h2` リセットが
+///   `border-top`/`padding-top` のみを longhand で打ち消すのと同型）。
+///   見出しらしさを与える font-size/font-weight/line-height/letter-spacing
+///   は `.docs-content h3` のまま活かす最小リセットを
 ///   `.pre-styled-showcase [data-scope="link-overlay"][data-part="root"] h3`
 ///   （詳細度 (0,3,1)）で適用する。
 /// - Nav List の `heading`（`h2`）見出しリセット（イシュー #1154、Bugbot
@@ -332,7 +343,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n}\n\
-.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin-top: 0;\n}\n\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
 
 /// 部品ページ 1 件分のレジストリエントリ（イシュー #941）。
@@ -6803,6 +6814,30 @@ mod tests {
   z-index: 0;
 }"#
         ));
+        // Link Overlay の素の h3（イシュー #1154、PR #1165 Bugbot 指摘 2 回目
+        // 「Link Overlay heading over-reset」の回帰防止）: カード見出し h3 が
+        // Accordion トリガー用のフルリセット（font-size/font-weight/
+        // line-height/letter-spacing 込み）を誤って継承し、隣接する p（説明
+        // 文）と見た目が同化してしまう欠陥の再発を防ぐ。margin-top のみを
+        // longhand で打ち消し、見出しらしさ（font-size/font-weight）は
+        // `.docs-content h3` のまま活かす契約を固定する。
+        assert!(css.contains(
+            r#".pre-styled-showcase [data-scope="link-overlay"][data-part="root"] h3 {
+  margin-top: 0;
+}"#
+        ));
+        let link_overlay_h3_rule_start = css
+            .find(r#".pre-styled-showcase [data-scope="link-overlay"][data-part="root"] h3 {"#)
+            .expect("link-overlay root h3 rule must exist");
+        let link_overlay_h3_rule_end = css[link_overlay_h3_rule_start..]
+            .find('}')
+            .map(|offset| link_overlay_h3_rule_start + offset)
+            .expect("link-overlay root h3 rule must be closed");
+        let link_overlay_h3_rule = &css[link_overlay_h3_rule_start..=link_overlay_h3_rule_end];
+        assert!(!link_overlay_h3_rule.contains("font-size"));
+        assert!(!link_overlay_h3_rule.contains("font-weight"));
+        assert!(!link_overlay_h3_rule.contains("line-height"));
+        assert!(!link_overlay_h3_rule.contains("letter-spacing"));
         // StyleSheet の不変条件（<style> 埋め込み・CSS ファイル双方で安全）。
         assert!(!css.contains('<'));
     }
