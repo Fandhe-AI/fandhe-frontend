@@ -322,6 +322,22 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   セレクタではなく要素自身への属性セレクタ
 ///   `.pre-styled-showcase [data-scope="nav-list"][data-part="heading"]`
 ///   （詳細度 (0,3,0)）で適用する。
+/// - Link / Nav List デモの hover 下線漏れ（イシュー #1154、Bugbot 指摘）:
+///   `site.css` の `.docs-content a:hover`（詳細度 (0,2,1)、`text-decoration:
+///   underline` を宣言）が、Link recipe の `root`（`crates/pre-styled-ui/src/link.rs`
+///   の `text-decoration: var(--fandhe-link-text-decoration, none)`、詳細度
+///   (0,2,0)）・Nav List recipe の `link`（`crates/pre-styled-ui/src/nav_list.rs`
+///   の `text-decoration: none`、詳細度 (0,2,0)）のいずれよりも詳細度が
+///   高く hover 時に勝ってしまい、Plain Link（下線なし）・Nav List の
+///   リンクがホバー時に一律下線付きになる（Underline Link との視覚的な
+///   区別が失われる）。recipe CSS 自体は変更せず、showcase 領域内に限定
+///   した `data-scope`/`data-part` 属性セレクタ + `:hover` で明示的に
+///   recipe が意図する下線状態へ引き戻す（`.pre-styled-showcase` + 属性
+///   2 個 + `:hover` = (0,4,0) が `.docs-content a:hover` = (0,2,1) より
+///   優先される）。Link 側は variant による切り替え（Underline は
+///   ホバー時も下線のまま）を保つため `var(--fandhe-link-text-decoration,
+///   none)` をそのまま再適用し、Nav List 側は recipe と同じ固定値
+///   `none` を再適用する。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
@@ -344,7 +360,9 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin-top: 0;\n}\n\
-.pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
+.pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"link\"][data-part=\"root\"]:hover {\n  text-decoration: var(--fandhe-link-text-decoration, none);\n}\n\
+.pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"link\"]:hover {\n  text-decoration: none;\n}\n";
 
 /// 部品ページ 1 件分のレジストリエントリ（イシュー #941）。
 ///

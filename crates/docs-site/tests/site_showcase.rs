@@ -268,3 +268,28 @@ fn toggle_pages_toc_has_no_duplicate_headings() {
         }
     }
 }
+
+/// イシュー #1154 の回帰テスト（Bugbot 指摘 "Demo link hover underlines
+/// Plain"）: `site.css` の `.docs-content a:hover`（詳細度 (0,2,1)）が
+/// Link recipe の `root`／Nav List recipe の `link`（いずれも詳細度
+/// (0,2,0)）より優先されてしまい、Plain Link・Nav List のデモがホバー時に
+/// 一律下線付きになっていた。`showcase::SHOWCASE_LAYOUT_CSS` に追加した
+/// 中和ルール（詳細度 (0,4,0)、`showcase.rs` rustdoc「Link / Nav List
+/// デモの hover 下線漏れ」節参照）がビルド後の CSS に実在することを固定
+/// する。
+#[test]
+fn link_and_nav_list_hover_rules_neutralize_docs_content_a_hover() {
+    let css = showcase::stylesheet()
+        .expect("showcase stylesheet should assemble")
+        .as_css()
+        .to_string();
+
+    assert!(
+        css.contains(r#".pre-styled-showcase [data-scope="link"][data-part="root"]:hover"#),
+        "showcase CSS should neutralize .docs-content a:hover on Link recipe root: {css}"
+    );
+    assert!(
+        css.contains(r#".pre-styled-showcase [data-scope="nav-list"][data-part="link"]:hover"#),
+        "showcase CSS should neutralize .docs-content a:hover on Nav List recipe link: {css}"
+    );
+}
