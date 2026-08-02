@@ -183,7 +183,9 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
   常設 CI 化を見送った理由・再評価トリガーは同レポート §6 を参照。
   `crates/cli/embedded-examples/` のバイト一致同期・`fandhe-frontend-cli` の
   semver バンプ連鎖を避けるため、example 正本へテストを同梱しない点が
-  `crates/wasm-full/` 本体の browser テスト運用との違いである。
+  `crates/wasm-full/` 本体の browser テスト運用との違いである。採否確定の
+  評価記録は `docs/ci/example-overlay-browser-interaction-testing-evaluation.md`
+  （イシュー #1210）を参照。
 - **フィクスチャ構築の注意（同レポート §5.2 参照）**: `data-hydrate-*` を
   持たない `id` のみの root 要素は復元失敗 → 既定状態へのフォールバック
   描画という安全側経路を通るが、`wire_keynav` 等 DOM 上の `data-scope`/
