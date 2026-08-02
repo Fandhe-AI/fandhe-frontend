@@ -391,7 +391,8 @@ tests/overlay_close_browser.rs` は `OverlayCloseController` を都度
   `sync_shared_overlays()` 内で `NAV_MENU_STATE`/`MENUBAR_STATE` の
   `try_borrow()` 失敗時に渡された `state: &C` 引数（既に借用済みの参照）を
   再利用する形へ設計変更する、等が考えられる（いずれも詳細検討は別イシュー
-  側で行う）。
+  側で行う）。**イシュー #1209 で修正済み**（後者の方針を採用。再実測結果は
+  §10 参照）。
 - **wasm-full 本体・キー配線ロジックの修正**: §5.3 のとおり原因は example
   側にあり、`crates/wasm-full/` の変更は不要と判断した。
 - **常設 CI 化**: §6 のとおり現時点では見送り。
@@ -429,3 +430,56 @@ tests/overlay_close_browser.rs` は `OverlayCloseController` を都度
 含む公開済みクレートの semver バンプは不要（`.claude/rules/coding-rust.md`
 「公開済みクレートの実体変更時は semver バンプ必須」の対象外。実体変更
 なし）。
+
+## 10. 修正後の再実測結果（イシュー #1209）
+
+§7 で対象外としていた §5.2 の再入バグ自体を、イシュー #1209
+（`examples/interactive-view-transitions/wasm/src/lib.rs` の
+`sync_shared_overlays()` を `sync_shared_overlays_with(nav_menu_snapshot,
+menubar_snapshot)` へ拡張し、`wire_headless_component` の `on_update`
+経路〔`render_and_sync_nav_menu`/`render_and_sync_menubar`〕からは呼び出し元が
+既に保持している `&NavigationMenu`/`&Menubar` をスナップショットとして渡す
+ことで、同一 `RefCell` への再入 `try_borrow()` を回避する設計）で修正した。
+本節は §4 と同一のハーネス構成・同一の 9 シナリオを、修正後コミットに対して
+再実測した結果を記録する。
+
+### 10.1 実測環境
+
+| 項目 | 値 |
+|------|-----|
+| 対象コミット | イシュー #1209 修正コミット（本 PR、base: main） |
+| OS | Linux 7.0.0-28-generic |
+| rustc | 1.96.0 相当（§3 と同一環境） |
+| Chromium | 150.0.7871.128（snap） |
+| chromedriver | 150.0.7871.128（システム導入済み `/usr/bin/chromedriver`） |
+| wasm-pack | 0.15.0 |
+| ハーネス構成 | §4 と同一（`target/tmp/ivt-overlay-browser-1209/wasm/` へ example 正本を丸ごとコピーし、§4.1/§4.2 と同一の `Cargo.toml` 差分・`tests/support.rs`・9 シナリオファイルを配置。実測後に削除済み、リポジトリへは含まれない） |
+
+### 10.2 結果表
+
+| # | ファイル | テスト名 | 修正前（§5.1） | 修正後 |
+|---|---------|---------|---------------|--------|
+| 1 | `nav_overlay_browser_01_click_toggle.rs` | `nav_menu_trigger_click_opens_and_second_click_closes` | PASS | **PASS** |
+| 2 | `nav_overlay_browser_02_escape.rs` | `nav_menu_escape_closes_open_item` | FAIL | **PASS** |
+| 3 | `nav_overlay_browser_03_outside_pointerdown.rs` | `nav_menu_outside_pointerdown_closes_open_item` | FAIL | **PASS** |
+| 4 | `nav_overlay_browser_04_inside_pointerdown.rs` | `nav_menu_inside_content_pointerdown_does_not_close` | PASS | **PASS** |
+| 5 | `nav_overlay_browser_05_keynav.rs` | `nav_menu_arrow_right_moves_focus_between_triggers` | PASS | **PASS** |
+| 6 | `nav_overlay_browser_06_menubar_click.rs` | `menubar_trigger_click_opens_and_second_click_closes` | PASS | **PASS** |
+| 7 | `nav_overlay_browser_07_menubar_escape_outside.rs` | `menubar_escape_and_outside_pointerdown_close` | FAIL | **PASS** |
+| 8 | `nav_overlay_browser_08_menubar_keynav.rs` | `menubar_arrow_right_moves_trigger_focus` | PASS | **PASS** |
+| 9 | `nav_overlay_browser_09_shared_overlay.rs` | `shared_overlay_escape_closes_only_topmost` | FAIL | **PASS** |
+
+**9 件中 9 件 PASS**（従来 5 PASS / 4 FAIL から全 FAIL 解消）。§5.2 で
+FAIL していた 4 件（#2/#3/#7/#9）はいずれも click 由来で開いた項目が
+Escape・外側 pointerdown で正しく閉じるようになったことを確認した。
+
+### 10.3 補足
+
+- ハーネス差分（`Cargo.toml`・`tests/support.rs`・9 シナリオファイルの内容）は
+  §4 からの変更なし。差分は「テスト対象のコミット（修正後）」のみである。
+- §5.2 で発見した「フィクスチャ属性の要否」（`data-scope`/`data-part` を
+  root 要素へ付与する必要）も同じ制約のまま再現しており、テスト #5/#8 は
+  §4.2 の `create_navigation_menu_root`/`create_menubar_root` を経由して
+  PASS した。
+- §6 の「常設 CI 化を見送る判断」は本修正後も変更しない（判断根拠・
+  再評価トリガーは §6 のまま）。

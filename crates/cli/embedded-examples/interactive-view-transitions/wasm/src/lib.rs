@@ -377,7 +377,14 @@ mod nav_overlays {
     fn render_and_sync_nav_menu(root: &Element, state: &NavigationMenu) {
         apply_root_hydrate_attrs(root, &state.hydration_attrs());
         root.set_inner_html(&render_nodes(&nav_menu_content(state)));
-        sync_shared_overlays();
+        // `wire_headless_component` の `on_update`（この関数の呼び出し元の一つ）
+        // は `state`（`NAV_MENU_STATE` の中身）へのミュータブル借用を保持した
+        // まま呼ばれる契約（`headless.rs` rustdoc）。`sync_shared_overlays()` は
+        // 内部で同じ `Rc<RefCell<NavigationMenu>>` へ `try_borrow()` するため、
+        // on_update 経路では常に再入 Err となりオーバーレイスタックへの push が
+        // 無条件でスキップされていた（イシュー #1209）。ここでは既に手元にある
+        // `state` 参照をスナップショットとして渡し、再入を回避する。
+        sync_shared_overlays_with(Some(state), None);
     }
 
     /// navigation-menu のハイドレーション・オーバーレイ配線エントリポイント
@@ -507,7 +514,37 @@ mod nav_overlays {
     /// 現在開いている項目だけを push し直すことで、index の追跡・同期を
     /// 一切不要にする（本デモの規模〈高々 2 エントリ〉では毎回の作り直しは
     /// 無視できるコスト）。
+    ///
+    /// `NAV_MENU_STATE`/`MENUBAR_STATE`（`hydrate_navigation_menu`/
+    /// `hydrate_menubar` 末尾の初期同期、`close_nav_menu_overlay`/
+    /// `close_menubar_overlay` の借用 drop 後）から両状態を読む既定経路。
+    /// `wire_headless_component` の `on_update` 経路（対象状態への
+    /// ミュータブル借用が生存したまま呼ばれる）からは呼ばない
+    /// （[`sync_shared_overlays_with`] を使う。イシュー #1209）。
     fn sync_shared_overlays() {
+        sync_shared_overlays_with(None, None);
+    }
+
+    /// [`sync_shared_overlays`] の本体。navigation-menu/menubar それぞれの
+    /// 開閉状態を、呼び出し元から渡されたスナップショット（`Some`）が
+    /// あればそれを使い、なければ `NAV_MENU_STATE`/`MENUBAR_STATE` から
+    /// `try_borrow()` で読む（`None`）。
+    ///
+    /// `wire_headless_component`（`crates/wasm-full/src/headless.rs`）の
+    /// `on_update` コールバックは対象コンポーネントの `Rc<RefCell<C>>` を
+    /// `try_borrow_mut()` で借用したまま呼ばれる仕様（wasm-full 側の明示
+    /// 契約であり本 example 側では変更しない）。[`render_and_sync_nav_menu`]/
+    /// [`render_and_sync_menubar`] はこの `on_update` からも呼ばれるため、
+    /// 内部で同じ `RefCell` へ再度 `try_borrow()` すると必ず `Err` になり、
+    /// [`clear_shared_overlay_stack`] でスタックを空にした後の push だけが
+    /// 無条件でスキップされていた（click で開いた項目が `SHARED_OVERLAY` へ
+    /// 登録されず、Escape・外側クリックで閉じられない不具合、イシュー
+    /// #1209）。呼び出し元が既に保持している `&C` をスナップショットとして
+    /// 渡すことで、この再入を構造的に回避する。
+    fn sync_shared_overlays_with(
+        nav_menu_snapshot: Option<&NavigationMenu>,
+        menubar_snapshot: Option<&Menubar>,
+    ) {
         SHARED_OVERLAY.with(|controller_cell| {
             let controller_ref = controller_cell.borrow();
             let Some(controller) = controller_ref.as_ref() else {
@@ -516,27 +553,41 @@ mod nav_overlays {
             clear_shared_overlay_stack(controller);
 
             if let Some(root) = NAV_MENU_ROOT.with(|cell| cell.borrow().clone()) {
-                if let Some(state) = NAV_MENU_STATE.with(|cell| cell.borrow().clone()) {
-                    if let Ok(current) = state.try_borrow() {
-                        if let Some(value) = current.open_value() {
-                            if let Some(content) = nav_menu_content_element(&root, value) {
-                                let trigger = nav_menu_trigger_element(&root, value);
-                                let _ = controller.push_overlay(&content, trigger.as_ref());
-                            }
-                        }
+                // スナップショット優先。渡されなかった場合は既定経路
+                // （借用外からの呼び出し）として `try_borrow()` を試みる
+                // （防御的 fail-closed。再入時は元のまま no-op）。
+                let open_value: Option<String> = match nav_menu_snapshot {
+                    Some(state) => state.open_value().map(str::to_string),
+                    None => NAV_MENU_STATE.with(|cell| {
+                        cell.borrow().as_ref().and_then(|state| {
+                            state
+                                .try_borrow()
+                                .ok()
+                                .and_then(|current| current.open_value().map(str::to_string))
+                        })
+                    }),
+                };
+                if let Some(value) = open_value {
+                    if let Some(content) = nav_menu_content_element(&root, &value) {
+                        let trigger = nav_menu_trigger_element(&root, &value);
+                        let _ = controller.push_overlay(&content, trigger.as_ref());
                     }
                 }
             }
 
             if let Some(root) = MENUBAR_ROOT.with(|cell| cell.borrow().clone()) {
-                if let Some(state) = MENUBAR_STATE.with(|cell| cell.borrow().clone()) {
-                    if let Ok(current) = state.try_borrow() {
-                        if let Some(open_index) = current.open() {
-                            if let Some(content) = menubar_content_element(&root, open_index) {
-                                let trigger = menubar_trigger_element(&root, open_index);
-                                let _ = controller.push_overlay(&content, trigger.as_ref());
-                            }
-                        }
+                let open_index: Option<usize> = match menubar_snapshot {
+                    Some(state) => state.open(),
+                    None => MENUBAR_STATE.with(|cell| {
+                        cell.borrow().as_ref().and_then(|state| {
+                            state.try_borrow().ok().and_then(|current| current.open())
+                        })
+                    }),
+                };
+                if let Some(open_index) = open_index {
+                    if let Some(content) = menubar_content_element(&root, open_index) {
+                        let trigger = menubar_trigger_element(&root, open_index);
+                        let _ = controller.push_overlay(&content, trigger.as_ref());
                     }
                 }
             }
@@ -556,7 +607,11 @@ mod nav_overlays {
     fn render_and_sync_menubar(root: &Element, state: &Menubar) {
         apply_root_hydrate_attrs(root, &state.hydration_attrs());
         root.set_inner_html(&render_nodes(&menubar_content(state)));
-        sync_shared_overlays();
+        // [`render_and_sync_nav_menu`] と同じ理由（イシュー #1209）で、
+        // `wire_headless_component` の `on_update` 経路では `state`
+        // （`MENUBAR_STATE` の中身）への再入借用を避けるためスナップショットを
+        // 直接渡す。
+        sync_shared_overlays_with(None, Some(state));
     }
 
     /// menubar のハイドレーション・オーバーレイ配線エントリポイント
