@@ -13,6 +13,19 @@
 //! 外部 TOML/YAML/Dockerfile パーサは追加しない（REQ-3・xtask 外部依存ゼロ方針。
 //! 依存追加のユーザー承認を得られない自動運転では「追加しない」側に倒す）。
 //! そのため抽出は行ベースの文字列一致に留める。
+//!
+//! 3 テストの役割分担（イシュー #1218 で 3 本目を追加）:
+//! 1. `dockerfile_and_ci_pin_wasm_bindgen_version_in_sync_with_cargo_lock`:
+//!    `WASM_BINDGEN_VERSION` の全出現（Dockerfile の x86_64/aarch64 両分岐 +
+//!    ci.yml）と Cargo.lock 解決バージョンの突合。
+//! 2. `dockerfile_and_ci_pin_matching_wasm_bindgen_sha256_for_x86_64_archive`:
+//!    Dockerfile の x86_64 分岐 SHA256 と ci.yml（GitHub-hosted runner は
+//!    x86_64 のみ）の SHA256 の突合。
+//! 3. `dockerfile_pins_known_wasm_bindgen_sha256_for_aarch64_archive`:
+//!    Dockerfile の aarch64 分岐 SHA256 は ci.yml に対応値が存在せず
+//!    他ファイルとの突合ができないため、既知の正値（PR #1214 の aarch64
+//!    実機 `sha256sum -c` 通過実績）とのハードコード突合で検知する
+//!    （イシュー #1216 評価 §5 の解消方式、イシュー #1218 で解消）。
 
 use std::path::PathBuf;
 
@@ -210,4 +223,80 @@ fn dockerfile_and_ci_pin_matching_wasm_bindgen_sha256_for_x86_64_archive() {
              （同一 archive を指しているはずのジョブ間で不一致）"
         );
     }
+}
+
+/// Dockerfile の aarch64 分岐 `WASM_BINDGEN_SHA256` が既知の正値と一致する
+/// ことを保証する。
+///
+/// aarch64 archive の SHA256 は ci.yml（GitHub-hosted runner は x86_64 のみ）
+/// に対応する値が存在しないため、`dockerfile_and_ci_pin_matching_wasm_bindgen_sha256_for_x86_64_archive`
+/// のような他ファイルとの突合ができない（イシュー #1216 評価
+/// `docs/ci/aarch64-docker-wasm-rebuild-ci-evaluation.md` §1.1・§3 論点 3 で
+/// 特定した既知ギャップ）。本テストは既知値のハードコード突合でこの
+/// ギャップを埋める（同文書 §5 の解消方式）。
+///
+/// # `WASM_BINDGEN_VERSION` バンプ時の期待値更新手順
+///
+/// 1. `https://github.com/rustwasm/wasm-bindgen/releases/download/<新バージョン>/wasm-bindgen-<新バージョン>-aarch64-unknown-linux-musl.tar.gz`
+///    を取得し `sha256sum`（macOS は `shasum -a 256`）で算出する。取得元は
+///    GitHub Releases に限定し、x86_64 側と著しく異なるファイルサイズ等の
+///    改変兆候がないか確認する（A08 サプライチェーン対策、
+///    `docs/ci/aarch64-docker-wasm-rebuild-ci-evaluation.md` §6 と同じ制約）。
+/// 2. 算出値で Dockerfile の aarch64 分岐と本テストの
+///    `KNOWN_AARCH64_SHA256`・`KNOWN_VERSION` を同時に更新する。
+///
+/// `KNOWN_VERSION` と `cargo_lock_wasm_bindgen_version()` の一致を assert
+/// することで、`WASM_BINDGEN_VERSION` バンプ時（Cargo.lock 更新時）は
+/// 本テストが必ず fail し、古い aarch64 SHA256 の残置がすり抜けない
+/// （既知ペアの更新を強制する fail-closed 設計）。
+///
+/// 現行既知値の出所: PR #1214（イシュー #450）の aarch64 実機 Docker
+/// ビルドで `sha256sum -c` が実際に通過した実績
+/// （`docs/reports/docker-wasm-rebuild-acceptance-report.md` §5a）。
+#[test]
+fn dockerfile_pins_known_wasm_bindgen_sha256_for_aarch64_archive() {
+    const KNOWN_VERSION: &str = "0.2.126";
+    const KNOWN_AARCH64_SHA256: &str =
+        "2245120254a9f6c9a9adf3601f3d52bb31309219e9ceab7696e74e24885c440a";
+
+    let cargo_lock_version = cargo_lock_wasm_bindgen_version();
+    assert_eq!(
+        cargo_lock_version, KNOWN_VERSION,
+        "Cargo.lock の wasm-bindgen 解決バージョン（{cargo_lock_version}）が \
+         本テストの既知値 KNOWN_VERSION（{KNOWN_VERSION}）とずれている。 \
+         WASM_BINDGEN_VERSION がバンプされた可能性がある。上記 rustdoc の \
+         手順に従い、Dockerfile の aarch64 分岐 WASM_BINDGEN_SHA256 と \
+         本テストの KNOWN_VERSION・KNOWN_AARCH64_SHA256 を新バージョンの \
+         正値へ同時に更新すること（更新を怠ると古い SHA256 の残置が \
+         検知されずに残ってしまう）"
+    );
+
+    let dockerfile_contents = read_workspace_file("Dockerfile");
+
+    let dockerfile_aarch64_sha256 = dockerfile_contents
+        .lines()
+        .zip(dockerfile_contents.lines().skip(1))
+        .find_map(|(archive_line, sha_line)| {
+            if archive_line.contains("aarch64-unknown-linux-musl.tar.gz") {
+                extract_quoted_assignment(sha_line, "WASM_BINDGEN_SHA256=")
+            } else {
+                None
+            }
+        })
+        .expect(
+            "Dockerfile 内で aarch64-unknown-linux-musl archive 行の直後に \
+             WASM_BINDGEN_SHA256 が見つからない（チェックサム検証ステップが \
+             削除された、または Dockerfile の記述順序が変わった可能性。 \
+             A08 サプライチェーン対策の弱体化、またはテストの抽出ロジックの \
+             追随が必要）",
+        );
+
+    assert_eq!(
+        dockerfile_aarch64_sha256, KNOWN_AARCH64_SHA256,
+        "Dockerfile の aarch64-unknown-linux-musl archive に対する \
+         WASM_BINDGEN_SHA256（{dockerfile_aarch64_sha256}）が既知の正値 \
+         （{KNOWN_AARCH64_SHA256}）と一致しない。改変・改ざんの兆候として \
+         扱い、取得元 https://github.com/rustwasm/wasm-bindgen/releases から \
+         正しい値を再確認すること"
+    );
 }
