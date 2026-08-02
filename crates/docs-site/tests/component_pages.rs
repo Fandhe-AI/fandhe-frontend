@@ -515,8 +515,10 @@ fn scope_resolution_buckets_match_expected_counts() {
     // data-scope とそのまま一致する）90 -> 92、イシュー #996 で Tab Nav が
     // 加わり 92 -> 93、イシュー #997 で Checkbox Group（path 由来の kebab
     // checkbox-group が data-scope="checkbox-group" と一致）が加わり
-    // 93 -> 94 へ増える。
-    assert_eq!(bucket1_path_match, 94);
+    // 93 -> 94、イシュー #1154 で Link / Link Overlay / Nav List の 3 部品
+    // （いずれも path 由来の kebab link/link-overlay/nav-list が
+    // data-scope とそのまま一致する）が加わり 94 -> 97 へ増える。
+    assert_eq!(bucket1_path_match, 97);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }

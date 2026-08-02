@@ -128,12 +128,15 @@ use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProp
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::kbd;
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkVariant};
+use fandhe_frontend_pre_styled_ui::link_overlay;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::menubar::{self, Menubar};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
+use fandhe_frontend_pre_styled_ui::nav_list;
 use fandhe_frontend_pre_styled_ui::navigation_menu;
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
@@ -290,6 +293,51 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   変更せず、showcase 領域内に限定した `data-scope`/`data-part` 属性
 ///   セレクタで打ち消す）で、`.pre-styled-showcase` + 属性 2 個 = (0,3,0) が
 ///   `.docs-content blockquote` = (0,1,1) より優先されるようにリセットする。
+/// - Link Overlay デモの素の `h3`（イシュー #1154、Bugbot 指摘 1 回目 + 2 回目）:
+///   `link_overlay::root` は `overlay` 以外の子ノードを anatomy 化せず
+///   デモ側が素の `<h3>` を直接渡す構成であり、data-scope/data-part を
+///   持たないため Accordion `h3` と同じ経路で `.docs-content h3`
+///   （詳細度 (0,1,1)、`margin: 1.6rem 0 0.5rem` を含む）が漏れ込む。
+///   Accordion の `h3` はスタイル済みトリガーのラッパに過ぎず見出しとして
+///   視認されないため font-size/font-weight ごとフルリセットしてよいが、
+///   Link Overlay の `h3` はカードの可視見出しそのものであり、同じフル
+///   リセットを適用すると隣接する `p`（説明文）と区別が付かない見た目に
+///   なってしまう（2 回目の Bugbot 指摘）。したがってカード上端の余分な
+///   `margin-top`（`root` はカード状の位置決めコンテキストであり見出し前に
+///   1.6rem の空白は不要）のみを打ち消す（ショートハンド `margin: 0` は
+///   `.docs-content h3` の `margin-bottom: 0.5rem` まで潰してしまい、
+///   直後の `p`〔説明文〕と見出しが密着する新たな欠陥を生むため longhand
+///   の `margin-top` のみを宣言する。dialog/popover の `h2` リセットが
+///   `border-top`/`padding-top` のみを longhand で打ち消すのと同型）。
+///   見出しらしさを与える font-size/font-weight/line-height/letter-spacing
+///   は `.docs-content h3` のまま活かす最小リセットを
+///   `.pre-styled-showcase [data-scope="link-overlay"][data-part="root"] h3`
+///   （詳細度 (0,3,1)）で適用する。
+/// - Nav List の `heading`（`h2`）見出しリセット（イシュー #1154、Bugbot
+///   指摘）: `heading` パーツ自体が `data-scope="nav-list"
+///   data-part="heading"` を持つため、dialog/drawer/popover の `h2` と同じ
+///   理由・同じ最小リセット（`border-top`/`padding-top`/`letter-spacing`
+///   のみ。margin/font-size/font-weight は recipe（`nav_list::recipe`）の
+///   `heading` base 宣言が既に持ち自然に勝つため宣言しない）を、子孫
+///   セレクタではなく要素自身への属性セレクタ
+///   `.pre-styled-showcase [data-scope="nav-list"][data-part="heading"]`
+///   （詳細度 (0,3,0)）で適用する。
+/// - Link / Nav List デモの hover 下線漏れ（イシュー #1154、Bugbot 指摘）:
+///   `site.css` の `.docs-content a:hover`（詳細度 (0,2,1)、`text-decoration:
+///   underline` を宣言）が、Link recipe の `root`（`crates/pre-styled-ui/src/link.rs`
+///   の `text-decoration: var(--fandhe-link-text-decoration, none)`、詳細度
+///   (0,2,0)）・Nav List recipe の `link`（`crates/pre-styled-ui/src/nav_list.rs`
+///   の `text-decoration: none`、詳細度 (0,2,0)）のいずれよりも詳細度が
+///   高く hover 時に勝ってしまい、Plain Link（下線なし）・Nav List の
+///   リンクがホバー時に一律下線付きになる（Underline Link との視覚的な
+///   区別が失われる）。recipe CSS 自体は変更せず、showcase 領域内に限定
+///   した `data-scope`/`data-part` 属性セレクタ + `:hover` で明示的に
+///   recipe が意図する下線状態へ引き戻す（`.pre-styled-showcase` + 属性
+///   2 個 + `:hover` = (0,4,0) が `.docs-content a:hover` = (0,2,1) より
+///   優先される）。Link 側は variant による切り替え（Underline は
+///   ホバー時も下線のまま）を保つため `var(--fandhe-link-text-decoration,
+///   none)` をそのまま再適用し、Nav List 側は recipe と同じ固定値
+///   `none` を再適用する。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
@@ -308,7 +356,13 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
 .pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
-.pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n";
+.pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin-top: 0;\n}\n\
+.pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"link\"][data-part=\"root\"]:hover {\n  text-decoration: var(--fandhe-link-text-decoration, none);\n}\n\
+.pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"link\"]:hover {\n  text-decoration: none;\n}\n";
 
 /// 部品ページ 1 件分のレジストリエントリ（イシュー #941）。
 ///
@@ -728,6 +782,18 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         path: "/themes/tab-nav/",
         render: tab_nav_section,
     },
+    ComponentPage {
+        path: "/themes/link/",
+        render: link_section,
+    },
+    ComponentPage {
+        path: "/themes/link-overlay/",
+        render: link_overlay_section,
+    },
+    ComponentPage {
+        path: "/themes/nav-list/",
+        render: nav_list_section,
+    },
 ];
 
 /// [`COMPONENT_PAGES`] に登録済みの部品ページパスを登録順に返す。
@@ -911,6 +977,24 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menubar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::navigation_menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tab_nav::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::link::stylesheet())?;
+    // Link Overlay（イシュー #1154）: `link_overlay::stylesheet()` を
+    // ここで無条件出荷しない（Bugbot 指摘、PR #1165 review comment
+    // 3697116537）。当該スタイルシートは
+    // `[data-scope="link-overlay"][data-part="overlay"]` に
+    // `position: absolute; inset: 0;` を無条件（`.pre-styled-showcase`
+    // スコープなし）に適用する。`crate::nav::prev_next_nav`（サイト共通
+    // クロームの前後ページナビゲーション）は同じ headless マーカー
+    // （overlay を唯一の子要素として使用するカード）を再利用しており、
+    // `crate::site_theme` はまさにこの理由で当該スタイルシートを意図的に
+    // 除外している（`site_theme` 冒頭コメント・
+    // `stylesheet_never_takes_up_link_overlay_stylesheet` 参照）。Themes
+    // 部品ページ共有 CSS（`assets/pre-styled-ui.css`）は `nav.prev-next`
+    // を含む全ページへ配信されるため、無条件出荷すると同じ回帰
+    // （prev/next ナビが高さ 0 に潰れる）が起きる。デモの見た目に必要な
+    // 等価ルールは [`SHOWCASE_LAYOUT_CSS`] 側で `.pre-styled-showcase`
+    // スコープ付きとして個別に持つ（下記）。
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
     // Clipboard（イシュー #1155）: showcase.rs の COMPONENT_PAGES には未登録
     // だが、`crate::component_specs::interactive_utilities::demo_clipboard`
     // が Demo フォールバック（`ComponentPageSpec::demo`、#979）経由で
@@ -4763,6 +4847,129 @@ fn tab_nav_section() -> Node {
     )
 }
 
+/// Link 節（イシュー #1154）: 唯一の anatomy パーツ `root` を 1 デモに
+/// 全網羅する（Anatomy 節はデモ HTML から機械導出されるため、`link.rs` が
+/// 持つ全パーツを描画する）。Plain/Underline の 2 variant・現在ページ
+/// （`aria-current="page"`）・外部リンク（`target="_blank"` +
+/// `rel="noopener noreferrer"`）の 4 例を並べる。`href` は 4 例すべて
+/// 空文字列固定とする（`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality`
+/// が `showcase_body()` 全体を横断走査して非空 `href` の不在を検証するため、
+/// 個別ページの linkcheck 対象外である外部 URL であっても本テストの対象
+/// からは逃れられない。`external=true` の効果（`target`/`rel` の付与）は
+/// `href` の値に依存しないため、空文字列のままでも掲示として成立する）。
+fn link_section() -> Node {
+    let node = row(vec![
+        link::root(
+            "",
+            false,
+            false,
+            LinkVariant::Plain,
+            vec![],
+            vec![text("Plain link")],
+        ),
+        link::root(
+            "",
+            false,
+            false,
+            LinkVariant::Underline,
+            vec![],
+            vec![text("Underline link")],
+        ),
+        link::root(
+            "",
+            false,
+            true,
+            LinkVariant::Plain,
+            vec![],
+            vec![text("Current page")],
+        ),
+        link::root(
+            "",
+            true,
+            false,
+            LinkVariant::Plain,
+            vec![],
+            vec![text("External link")],
+        ),
+    ]);
+    section(
+        "Link",
+        "pre-styled-ui 単独定義の anatomy（data-scope=\"link\"）による静的掲示です。Plain（既定・下線なし）/Underline（常時下線）の 2 variant、Current page（aria-current=\"page\"）、External link（target=\"_blank\" + rel=\"noopener noreferrer\" を不可分に付与）を並べています。",
+        vec![node],
+    )
+}
+
+/// Link Overlay 節（イシュー #1154）: root/overlay の 2 anatomy パーツを
+/// 1 デモに全網羅する（Anatomy 節はデモ HTML から機械導出されるため、
+/// `link_overlay.rs` が持つ全パーツを描画する）。`root` はカード状の見出し
+/// テキスト・説明文（`overlay` 以外の子ノード）で高さを確立し、`overlay`
+/// がカード全面へ展開されるリンクとして重なる構成です。`href` は
+/// linkcheck 中立性契約に従い空文字列固定とする。
+fn link_overlay_section() -> Node {
+    // `link_overlay::root` は呼び出し側 `class` を `drop_class_attr` で除去
+    // する（pre-styled-ui の class 制御方針、recipe CSS の外部上書き防止）。
+    // そのため stack レイアウト（max-width・gap・margin）は `class` を
+    // `root` へ直接渡すのではなく `stack()` ヘルパで別要素として外側から
+    // ラップして与える（Bugbot 指摘の再発防止）。
+    let node = link_overlay::root(
+        vec![],
+        vec![
+            el("h3", vec![], vec![text("Getting started")]),
+            el(
+                "p",
+                vec![],
+                vec![text(
+                    "プロジェクトの作成から最初のページ公開までの手順です。",
+                )],
+            ),
+            link_overlay::overlay("", vec![("aria-label", "Getting started を開く")], vec![]),
+        ],
+    );
+    section(
+        "Link Overlay",
+        "pre-styled-ui 単独定義の anatomy（data-scope=\"link-overlay\"）による静的掲示です。root（位置決めコンテキスト）配下の見出し・説明文が高さを確立し、overlay（position: absolute; inset: 0 でカード全面へ展開されるリンク）が重なります。overlay には aria-label でアクセシブルネームを与えています。",
+        vec![stack(vec![node])],
+    )
+}
+
+/// Nav List 節（イシュー #1154）: root/heading/list/item/link の
+/// 5 anatomy パーツを 1 デモに全網羅する（Anatomy 節はデモ HTML から
+/// 機械導出されるため、1 パーツでも欠けると節が不完全になる）。1 件目
+/// （Overview）を現在ページ（`aria-current="page"`）として掲示する。`href`
+/// は linkcheck 中立性契約に従い空文字列固定とする。
+fn nav_list_section() -> Node {
+    let node = nav_list::root(
+        "Documentation",
+        vec![],
+        vec![
+            nav_list::heading(vec![], vec![text("Guides")]),
+            nav_list::list(
+                vec![],
+                vec![
+                    nav_list::item(
+                        vec![],
+                        vec![nav_list::link("", true, vec![], vec![text("Overview")])],
+                    ),
+                    nav_list::item(
+                        vec![],
+                        vec![nav_list::link(
+                            "",
+                            false,
+                            vec![],
+                            vec![text("Installation")],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Nav List",
+        "pre-styled-ui 単独定義の anatomy（data-scope=\"nav-list\"）による静的掲示です。role を一切出力せず、素の nav/h2/ul/li/a の暗黙 ARIA ロールのみを使います。Overview を現在ページ（aria-current=\"page\"）として掲示しています。",
+        vec![node],
+    )
+}
+
 /// Navigation Menu 節（イシュー #993）: root/list/item/trigger/content/link
 /// の 6 anatomy パーツを 1 デモに全網羅する（Anatomy 節はデモ HTML から
 /// 機械導出されるため、1 パーツでも欠けると節が不完全になる、
@@ -6291,7 +6498,9 @@ mod tests {
         // イシュー #995 で Quote / Strong を追加し 94 → 96 件になった。
         // イシュー #996 で Tab Nav を追加し 96 → 97 件になった。
         // イシュー #997 で Checkbox Group を追加し 97 → 98 件になった。
-        assert_eq!(paths.len(), 98, "COMPONENT_PAGES should have 98 entries");
+        // イシュー #1154 で Link / Link Overlay / Nav List を追加し
+        // 98 → 101 件になった。
+        assert_eq!(paths.len(), 101, "COMPONENT_PAGES should have 101 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
@@ -6603,6 +6812,51 @@ mod tests {
         assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="backdrop"]"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="spotlight"]"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="positioner"]"#));
+        // Link Overlay（イシュー #1154、PR #1165 Bugbot 指摘「Link overlay
+        // CSS collapses prev-next」の回帰防止）: `link_overlay::stylesheet()`
+        // の無条件（`.pre-styled-showcase` スコープなし）出荷は
+        // `crate::nav::prev_next_nav` が再利用する同一 headless マーカーの
+        // 高さを 0 へ潰す。等価ルールは `.pre-styled-showcase` スコープ付き
+        // でのみ出荷されていることを固定する。
+        assert!(!css.contains(
+            "\n[data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;"
+        ));
+        assert!(css.contains(
+            r#".pre-styled-showcase [data-scope="link-overlay"][data-part="root"] {
+  position: relative;
+}"#
+        ));
+        assert!(css.contains(
+            r#".pre-styled-showcase [data-scope="link-overlay"][data-part="overlay"] {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}"#
+        ));
+        // Link Overlay の素の h3（イシュー #1154、PR #1165 Bugbot 指摘 2 回目
+        // 「Link Overlay heading over-reset」の回帰防止）: カード見出し h3 が
+        // Accordion トリガー用のフルリセット（font-size/font-weight/
+        // line-height/letter-spacing 込み）を誤って継承し、隣接する p（説明
+        // 文）と見た目が同化してしまう欠陥の再発を防ぐ。margin-top のみを
+        // longhand で打ち消し、見出しらしさ（font-size/font-weight）は
+        // `.docs-content h3` のまま活かす契約を固定する。
+        assert!(css.contains(
+            r#".pre-styled-showcase [data-scope="link-overlay"][data-part="root"] h3 {
+  margin-top: 0;
+}"#
+        ));
+        let link_overlay_h3_rule_start = css
+            .find(r#".pre-styled-showcase [data-scope="link-overlay"][data-part="root"] h3 {"#)
+            .expect("link-overlay root h3 rule must exist");
+        let link_overlay_h3_rule_end = css[link_overlay_h3_rule_start..]
+            .find('}')
+            .map(|offset| link_overlay_h3_rule_start + offset)
+            .expect("link-overlay root h3 rule must be closed");
+        let link_overlay_h3_rule = &css[link_overlay_h3_rule_start..=link_overlay_h3_rule_end];
+        assert!(!link_overlay_h3_rule.contains("font-size"));
+        assert!(!link_overlay_h3_rule.contains("font-weight"));
+        assert!(!link_overlay_h3_rule.contains("line-height"));
+        assert!(!link_overlay_h3_rule.contains("letter-spacing"));
         // StyleSheet の不変条件（<style> 埋め込み・CSS ファイル双方で安全）。
         assert!(!css.contains('<'));
     }
