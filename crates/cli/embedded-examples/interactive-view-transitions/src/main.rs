@@ -59,12 +59,16 @@ use std::fs;
 
 /// navigation-menu デモの項目定義（`value`, 表示ラベル）。
 ///
-/// `wasm/src/lib.rs::nav_menu_view`（glue 側）と**同一のマークアップ**を
+/// `wasm/src/lib.rs::nav_menu_content`（glue 側）と**同一のマークアップ**を
 /// 出力する対の実装であり、両者は独立クレート（別ワークスペース）のため
 /// コード共有できない。片方だけ変更するとブラウザ実演（glue 側）と
-/// `dist/index.html` の検分結果（本関数側）がドリフトする点に注意
-/// （ドリフト検知の機械テストはスコープ外、README.md の対象外事項参照）。
+/// `dist/index.html` の検分結果（本関数側）がドリフトする点に注意（この
+/// 定数を含む `// fw-drift-guard:begin`/`:end` 区間は
+/// `crates/cli/tests/example_view_drift.rs` がインデント正規化後の完全一致を
+/// 機械検証する。イシュー #1202、PR #1200 out-of-scope の解消）。
+// fw-drift-guard:begin nav-menu-items
 const NAV_MENU_ITEMS: [(&str, &str); 2] = [("products", "製品"), ("docs", "ドキュメント")];
+// fw-drift-guard:end nav-menu-items
 
 /// [`NavigationMenu`] 状態から navigation-menu デモの完全なマークアップ
 /// （root/list/item/trigger/content/link）を組み立てる。
@@ -85,6 +89,7 @@ fn nav_menu_view(state: &NavigationMenu) -> Node {
         vec![("id", "nav-menu-root"), ("data-testid", "nav-menu-root")];
     root_attrs.extend(hydrate_attrs_ref);
 
+    // fw-drift-guard:begin nav-menu-item-nodes
     let items: Vec<Node> = NAV_MENU_ITEMS
         .iter()
         .map(|(value, label)| {
@@ -121,6 +126,7 @@ fn nav_menu_view(state: &NavigationMenu) -> Node {
             )
         })
         .collect();
+    // fw-drift-guard:end nav-menu-item-nodes
 
     navigation_menu::root(
         "製品・ドキュメントナビゲーション",
@@ -132,11 +138,13 @@ fn nav_menu_view(state: &NavigationMenu) -> Node {
 /// menubar デモの項目定義（表示ラベル, 配下メニュー項目ラベル一覧）。
 ///
 /// [`NAV_MENU_ITEMS`] と同じ「glue 側との対の実装・ドリフト禁止」注記が
-/// 適用される（`wasm/src/lib.rs::menubar_view` 参照）。
+/// 適用される（`wasm/src/lib.rs::menubar_content` 参照）。
+// fw-drift-guard:begin menubar-menus
 const MENUBAR_MENUS: [(&str, [&str; 2]); 2] = [
     ("ファイル", ["新規", "開く"]),
     ("編集", ["コピー", "貼り付け"]),
 ];
+// fw-drift-guard:end menubar-menus
 
 /// [`Menubar`] 状態から menubar デモの完全なマークアップ
 /// （root/menu/trigger/positioner/content/item）を組み立てる。
@@ -156,6 +164,7 @@ fn menubar_view(state: &Menubar) -> Node {
     let menus: Vec<Node> = MENUBAR_MENUS
         .iter()
         .enumerate()
+        // fw-drift-guard:begin menubar-menu-map
         .map(|(index, (label, items))| {
             let trigger_id = format!("menubar-trigger-{index}");
             let content_id = format!("menubar-content-{index}");
@@ -196,6 +205,7 @@ fn menubar_view(state: &Menubar) -> Node {
                 ],
             )
         })
+        // fw-drift-guard:end menubar-menu-map
         .collect();
 
     state.root("アプリケーションメニュー", root_attrs, menus)

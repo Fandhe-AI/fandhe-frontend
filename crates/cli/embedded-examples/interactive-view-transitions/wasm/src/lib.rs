@@ -123,9 +123,13 @@ mod nav_overlays {
     /// （SSR 側、`dist/index.html` 検分用）と**同一のマークアップ**を出力
     /// する対の実装であり、両者は独立クレート（別ワークスペース）のため
     /// コード共有できない。片方だけ変更するとブラウザ実演（本クレート）と
-    /// SSR 検分結果がドリフトする点に注意（ドリフト検知の機械テストは
-    /// スコープ外、README.md の対象外事項参照）。
+    /// SSR 検分結果がドリフトする点に注意（この定数を含む
+    /// `// fw-drift-guard:begin`/`:end` 区間は
+    /// `crates/cli/tests/example_view_drift.rs` がインデント正規化後の完全
+    /// 一致を機械検証する。イシュー #1202、PR #1200 out-of-scope の解消）。
+    // fw-drift-guard:begin nav-menu-items
     const NAV_MENU_ITEMS: [(&str, &str); 2] = [("products", "製品"), ("docs", "ドキュメント")];
+    // fw-drift-guard:end nav-menu-items
 
     /// 複数の兄弟 [`Node`] を連結してレンダリングする（[`fandhe_frontend_core::render`]
     /// は単一 `Node` しか受け取らないため）。既定エスケープは各 `Node` ごとの
@@ -157,6 +161,7 @@ mod nav_overlays {
     /// 内側にもう一つ `id="nav-menu-root"` の要素がネストされ、再描画のたびに
     /// ID が重複する無効なマークアップになっていた）。
     fn nav_menu_content(state: &NavigationMenu) -> Vec<Node> {
+        // fw-drift-guard:begin nav-menu-item-nodes
         let items: Vec<Node> = NAV_MENU_ITEMS
             .iter()
             .map(|(value, label)| {
@@ -193,6 +198,7 @@ mod nav_overlays {
                 )
             })
             .collect();
+        // fw-drift-guard:end nav-menu-item-nodes
 
         vec![navigation_menu::list(vec![], items)]
     }
@@ -200,10 +206,12 @@ mod nav_overlays {
     /// menubar デモの項目定義（表示ラベル, 配下メニュー項目ラベル一覧）。
     /// [`NAV_MENU_ITEMS`] と同じ「SSR 側との対の実装・ドリフト禁止」注記が
     /// 適用される（`src/main.rs::MENUBAR_MENUS` 参照）。
+    // fw-drift-guard:begin menubar-menus
     const MENUBAR_MENUS: [(&str, [&str; 2]); 2] = [
         ("ファイル", ["新規", "開く"]),
         ("編集", ["コピー", "貼り付け"]),
     ];
+    // fw-drift-guard:end menubar-menus
 
     /// [`Menubar`] 状態から menubar デモの**内容**（root 要素の子ノード列）
     /// を組み立てる（`src/main.rs::menubar_view` の `menus` 部分と同一の構造）。
@@ -214,6 +222,7 @@ mod nav_overlays {
         MENUBAR_MENUS
             .iter()
             .enumerate()
+            // fw-drift-guard:begin menubar-menu-map
             .map(|(index, (label, items))| {
                 let trigger_id = format!("menubar-trigger-{index}");
                 let content_id = format!("menubar-content-{index}");
@@ -254,6 +263,7 @@ mod nav_overlays {
                     ],
                 )
             })
+            // fw-drift-guard:end menubar-menu-map
             .collect()
     }
 
