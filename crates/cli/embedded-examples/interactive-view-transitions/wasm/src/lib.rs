@@ -67,6 +67,7 @@ pub use nav_overlays::{hydrate_menubar, hydrate_navigation_menu};
 #[cfg(target_arch = "wasm32")]
 mod nav_overlays {
     use fandhe_frontend_core::{render, text, Node};
+    use fandhe_frontend_headless_ui::data_attrs::Orientation;
     use fandhe_frontend_headless_ui::menubar::{self, Menubar};
     use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenu};
     use fandhe_frontend_interactive::{dispatch, Hydrate};
@@ -85,27 +86,34 @@ mod nav_overlays {
 
     // `Runtime<C>`（`entry.rs`）と同じ「マウント後も状態・配線の生存期間を
     // 維持する保持先が必要」という事情（同 doc 「`Runtime` の生存期間」節
-    // 参照）から `thread_local!` へ保持する。`*_OVERLAY`/`*_POSITION` も
-    // 同じ理由（`OverlayCloseController`/`PositionController` の `Drop` が
+    // 参照）から `thread_local!` へ保持する。`SHARED_OVERLAY`/`MENUBAR_POSITION`
+    // も同じ理由（`OverlayCloseController`/`PositionController` の `Drop` が
     // document/window のリスナーを解除するため、ローカル変数のまま関数を
-    // 抜けると即座に解除されてしまう）。`*_PUSHED` はオーバーレイスタック
-    // 上の現在の push index（[`sync_nav_menu_overlay`]/[`sync_menubar_overlay`]
-    // 参照。本デモは各コンポーネントにつき「高々 1 項目が開く」制約
-    // （`NavigationMenu`/`Menubar` いずれも single-open）のため、push index の
-    // シフト（`overlay::OverlayCloseRequest::index` doc の不変条件）を気にせず
-    // `Option<usize>` 1 個で足りる）。
+    // 抜けると即座に解除されてしまう）。
+    //
+    // `SHARED_OVERLAY` は navigation-menu・menubar の**両方**が 1 個の
+    // `OverlayCloseController`（1 つの document keydown/pointerdown リスナー・
+    // 1 本のスタック）を共有する（イシュー #1200 Bugbot 指摘の修正）。
+    // 当初は各コンポーネントが独立した `OverlayCloseController` を持って
+    // いたが、本デモは SSR 時点で両オーバーレイを同時に開いた状態にするため、
+    // 独立スタックだとそれぞれが「自分のスタックの最上位＝自分」と誤判定し、
+    // Escape 1 回で両方が閉じてしまっていた（`overlay::escape_close_index` は
+    // 渡されたスタックの最上位のみを対象とする設計であり、スタックを分けると
+    // 「アプリ全体での最上位」を判定できない）。`NAV_MENU_ROOT`/`MENUBAR_ROOT`
+    // は共有コントローラのコールバック（[`close_nav_menu_overlay`]/
+    // [`close_menubar_overlay`]、クロージャ生成時点では対象の `root` 要素が
+    // まだ確定していないため）が事後に参照する保持先。
     thread_local! {
         static NAV_MENU_STATE: RefCell<Option<Rc<RefCell<NavigationMenu>>>> =
             const { RefCell::new(None) };
-        static NAV_MENU_OVERLAY: RefCell<Option<OverlayCloseController>> =
-            const { RefCell::new(None) };
-        static NAV_MENU_PUSHED: RefCell<Option<usize>> = const { RefCell::new(None) };
+        static NAV_MENU_ROOT: RefCell<Option<Element>> = const { RefCell::new(None) };
 
         static MENUBAR_STATE: RefCell<Option<Rc<RefCell<Menubar>>>> = const { RefCell::new(None) };
-        static MENUBAR_OVERLAY: RefCell<Option<OverlayCloseController>> =
-            const { RefCell::new(None) };
-        static MENUBAR_PUSHED: RefCell<Option<usize>> = const { RefCell::new(None) };
+        static MENUBAR_ROOT: RefCell<Option<Element>> = const { RefCell::new(None) };
         static MENUBAR_POSITION: RefCell<Option<PositionController>> =
+            const { RefCell::new(None) };
+
+        static SHARED_OVERLAY: RefCell<Option<OverlayCloseController>> =
             const { RefCell::new(None) };
     }
 
@@ -119,18 +127,36 @@ mod nav_overlays {
     /// スコープ外、README.md の対象外事項参照）。
     const NAV_MENU_ITEMS: [(&str, &str); 2] = [("products", "製品"), ("docs", "ドキュメント")];
 
-    /// [`NavigationMenu`] 状態から navigation-menu デモの完全なマークアップ
-    /// を組み立てる（`src/main.rs::nav_menu_view` と同一の構造）。
-    fn nav_menu_view(state: &NavigationMenu) -> Node {
-        let hydrate_attrs = state.hydration_attrs();
-        let hydrate_attrs_ref: Vec<(&str, &str)> = hydrate_attrs
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
-        let mut root_attrs: Vec<(&str, &str)> =
-            vec![("id", "nav-menu-root"), ("data-testid", "nav-menu-root")];
-        root_attrs.extend(hydrate_attrs_ref);
+    /// 複数の兄弟 [`Node`] を連結してレンダリングする（[`fandhe_frontend_core::render`]
+    /// は単一 `Node` しか受け取らないため）。既定エスケープは各 `Node` ごとの
+    /// `render` 呼び出しに閉じているため、連結しても不変条件は保たれる。
+    fn render_nodes(nodes: &[Node]) -> String {
+        nodes.iter().map(render).collect()
+    }
 
+    /// `attrs`（[`Hydrate::hydration_attrs`] の戻り値等）を `root` へ
+    /// `set_attribute` で反映する（`wasm-full::focus_visible`/`position` 等の
+    /// 「薄いガード付きラッパー」と同じ best-effort 方針。属性名は
+    /// フレームワーク側が生成する `data-hydrate-*` の固定語彙のみであり、
+    /// 失敗（不正属性名）は実運用上発生しない想定のため戻り値は無視する）。
+    fn apply_root_hydrate_attrs(root: &Element, attrs: &[(String, String)]) {
+        for (name, value) in attrs {
+            let _ = root.set_attribute(name, value);
+        }
+    }
+
+    /// [`NavigationMenu`] 状態から navigation-menu デモの**内容**（root 要素
+    /// の子ノード列）を組み立てる（`src/main.rs::nav_menu_view` の
+    /// `navigation_menu::list` 部分と同一の構造）。
+    ///
+    /// root 要素自体（`id="nav-menu-root"` 等）は含めない。root は
+    /// [`hydrate_navigation_menu`] が DOM 上に既に確保している要素であり、
+    /// [`render_and_sync_nav_menu`] がこの戻り値を `root.set_inner_html` へ
+    /// 渡す（イシュー #1200 Bugbot 指摘の修正: 従来はここで root 要素込みの
+    /// `Node` を組み立てて `set_inner_html` していたため、既存の root 要素の
+    /// 内側にもう一つ `id="nav-menu-root"` の要素がネストされ、再描画のたびに
+    /// ID が重複する無効なマークアップになっていた）。
+    fn nav_menu_content(state: &NavigationMenu) -> Vec<Node> {
         let items: Vec<Node> = NAV_MENU_ITEMS
             .iter()
             .map(|(value, label)| {
@@ -168,11 +194,7 @@ mod nav_overlays {
             })
             .collect();
 
-        navigation_menu::root(
-            "製品・ドキュメントナビゲーション",
-            root_attrs,
-            vec![navigation_menu::list(vec![], items)],
-        )
+        vec![navigation_menu::list(vec![], items)]
     }
 
     /// menubar デモの項目定義（表示ラベル, 配下メニュー項目ラベル一覧）。
@@ -183,19 +205,13 @@ mod nav_overlays {
         ("編集", ["コピー", "貼り付け"]),
     ];
 
-    /// [`Menubar`] 状態から menubar デモの完全なマークアップを組み立てる
-    /// （`src/main.rs::menubar_view` と同一の構造）。
-    fn menubar_view(state: &Menubar) -> Node {
-        let hydrate_attrs = state.hydration_attrs();
-        let hydrate_attrs_ref: Vec<(&str, &str)> = hydrate_attrs
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
-        let mut root_attrs: Vec<(&str, &str)> =
-            vec![("id", "menubar-root"), ("data-testid", "menubar-root")];
-        root_attrs.extend(hydrate_attrs_ref);
-
-        let menus: Vec<Node> = MENUBAR_MENUS
+    /// [`Menubar`] 状態から menubar デモの**内容**（root 要素の子ノード列）
+    /// を組み立てる（`src/main.rs::menubar_view` の `menus` 部分と同一の構造）。
+    ///
+    /// [`nav_menu_content`] と同じ理由（イシュー #1200 Bugbot 指摘）で root
+    /// 要素自体は含めない。
+    fn menubar_content(state: &Menubar) -> Vec<Node> {
+        MENUBAR_MENUS
             .iter()
             .enumerate()
             .map(|(index, (label, items))| {
@@ -238,9 +254,7 @@ mod nav_overlays {
                     ],
                 )
             })
-            .collect();
-
-        state.root("アプリケーションメニュー", root_attrs, menus)
+            .collect()
     }
 
     /// `window`/`document` を取得する（`wasm-full::Runtime::get_root`/
@@ -288,43 +302,72 @@ mod nav_overlays {
             .flatten()
     }
 
-    /// オーバーレイスタックを現在の `state.open_value()` へ同期する。
-    ///
-    /// 毎回いったん push 済みエントリを `remove_overlay` してから、開いて
-    /// いる項目があれば `root` から**再描画後の**要素を検索し直して
-    /// `push_overlay` する（remove→push の順を常に踏む設計）。`root` は
-    /// 再描画のたびに [`render_and_sync_nav_menu`] が `set_inner_html` で
-    /// DOM を丸ごと差し替えるため、以前 push した `Element` 参照は
-    /// デタッチ済みで無効になりうる。毎回 remove してから最新の DOM を
-    /// 検索し直すことで、常に有効な `Element` のみをコントローラへ渡す。
-    fn sync_nav_menu_overlay(root: &Element, state: &NavigationMenu) {
-        NAV_MENU_OVERLAY.with(|controller_cell| {
-            let controller_ref = controller_cell.borrow();
-            let Some(controller) = controller_ref.as_ref() else {
-                return;
-            };
-            NAV_MENU_PUSHED.with(|pushed_cell| {
-                let mut pushed = pushed_cell.borrow_mut();
-                if let Some(index) = pushed.take() {
-                    controller.remove_overlay(index);
-                }
-                if let Some(value) = state.open_value() {
-                    if let Some(content) = nav_menu_content_element(root, value) {
-                        let trigger = nav_menu_trigger_element(root, value);
-                        *pushed = controller.push_overlay(&content, trigger.as_ref());
-                    }
-                }
-            });
-        });
+    /// [`SHARED_OVERLAY`] が未初期化なら 1 度だけ構築する
+    /// （navigation-menu/menubar のどちらの `hydrate_*` が先に呼ばれても、
+    /// 2 個目の呼び出しでは既存のコントローラを再利用する）。callback は
+    /// 種別（`request.kind`）で分岐し、対応する [`close_nav_menu_overlay`]/
+    /// [`close_menubar_overlay`] を呼ぶ（イシュー #1200 Bugbot 指摘の修正、
+    /// `SHARED_OVERLAY` の thread_local doc 参照）。
+    fn ensure_shared_overlay(document: &Document) -> Result<(), JsValue> {
+        let already_initialized = SHARED_OVERLAY.with(|cell| cell.borrow().is_some());
+        if already_initialized {
+            return Ok(());
+        }
+        let controller = OverlayCloseController::new(
+            document,
+            move |request: OverlayCloseRequest| match request.kind {
+                OverlayKind::NavigationMenu => close_nav_menu_overlay(),
+                OverlayKind::Menubar => close_menubar_overlay(),
+                _ => {}
+            },
+        )?;
+        SHARED_OVERLAY.with(|cell| *cell.borrow_mut() = Some(controller));
+        Ok(())
     }
 
-    /// [`nav_menu_view`] で再描画し、[`sync_nav_menu_overlay`] でオーバー
+    /// `SHARED_OVERLAY` からの Escape/外側クリック閉鎖要求
+    /// （`OverlayKind::NavigationMenu`）を処理する。`NAV_MENU_ROOT`/
+    /// `NAV_MENU_STATE` から対象を復元し、`"deselect"` dispatch → 再描画する
+    /// （[`hydrate_navigation_menu`] が従来クロージャ内で直接行っていた処理を、
+    /// コントローラ共有化〔[`ensure_shared_overlay`]〕に伴い独立関数へ
+    /// 切り出したもの）。
+    fn close_nav_menu_overlay() {
+        let Some(root) = NAV_MENU_ROOT.with(|cell| cell.borrow().clone()) else {
+            return;
+        };
+        let Some(state) = NAV_MENU_STATE.with(|cell| cell.borrow().clone()) else {
+            return;
+        };
+        let Ok(mut current) = state.try_borrow_mut() else {
+            return;
+        };
+        // "deselect"（payload なし）は既に閉じている状態へ送っても
+        // 冪等 no-op のまま安全に収束する（`overlay.rs` モジュール doc
+        // §keynav との二重処理の収束 参照）。
+        if !dispatch(&mut *current, "deselect", "") {
+            return;
+        }
+        let snapshot = current.clone();
+        drop(current);
+        render_and_sync_nav_menu(&root, &snapshot);
+    }
+
+    /// [`nav_menu_content`] で再描画し、[`sync_shared_overlays`] でオーバー
     /// レイスタックを同期する。`headless::wire_headless_component` の
-    /// `on_update`・`OverlayCloseController` の閉鎖コールバックの双方から
-    /// 呼ばれる共通経路。
+    /// `on_update`・`SHARED_OVERLAY` の閉鎖コールバック
+    /// （[`close_nav_menu_overlay`]）の双方から呼ばれる共通経路。
+    ///
+    /// `root` は既に DOM 上に存在する要素（[`hydrate_navigation_menu`] が
+    /// `get_element_by_id` で解決済み）であり、[`nav_menu_content`] の
+    /// 戻り値（root 要素**を含まない**子ノード列）のみを `set_inner_html` へ
+    /// 渡す（イシュー #1200 Bugbot 指摘の修正: root 要素込みの `Node` を渡す
+    /// と、既存の root 要素の内側にもう一つ同じ `id` の要素がネストされて
+    /// いた）。`data-hydrate-*` 属性は [`apply_root_hydrate_attrs`] で
+    /// `root` 自身に直接反映する。
     fn render_and_sync_nav_menu(root: &Element, state: &NavigationMenu) {
-        root.set_inner_html(&render(&nav_menu_view(state)));
-        sync_nav_menu_overlay(root, state);
+        apply_root_hydrate_attrs(root, &state.hydration_attrs());
+        root.set_inner_html(&render_nodes(&nav_menu_content(state)));
+        sync_shared_overlays();
     }
 
     /// navigation-menu のハイドレーション・オーバーレイ配線エントリポイント
@@ -338,11 +381,11 @@ mod nav_overlays {
     /// クリック配線（`headless::wire_headless_component`、`"toggle"`
     /// dispatch → 再描画）・キーボード配線（`keynav::wire_keynav`、
     /// Arrow/Home/End/Escape）・Escape/外側クリックでの閉鎖
-    /// （`overlay::OverlayCloseController`、閉鎖要求を受けて `"deselect"`
-    /// dispatch → 再描画）を行う。navigation-menu の `content` は
-    /// `positioner` を持たない anatomy（`headless-ui::navigation_menu` に
-    /// `positioner` パーツが存在しない）ため `position::PositionController`
-    /// は使わない。
+    /// （[`ensure_shared_overlay`] が構築する `SHARED_OVERLAY`、閉鎖要求を
+    /// 受けて `"deselect"` dispatch → 再描画）を行う。navigation-menu の
+    /// `content` は `positioner` を持たない anatomy
+    /// （`headless-ui::navigation_menu` に `positioner` パーツが存在しない）
+    /// ため `position::PositionController` は使わない。
     ///
     /// # Errors
     ///
@@ -360,13 +403,15 @@ mod nav_overlays {
             Ok(restored) => restored,
             Err(_) => {
                 let fallback = NavigationMenu::default();
-                root.set_inner_html(&render(&nav_menu_view(&fallback)));
+                apply_root_hydrate_attrs(&root, &fallback.hydration_attrs());
+                root.set_inner_html(&render_nodes(&nav_menu_content(&fallback)));
                 fallback
             }
         };
 
         let state = Rc::new(RefCell::new(state));
         NAV_MENU_STATE.with(|cell| *cell.borrow_mut() = Some(state.clone()));
+        NAV_MENU_ROOT.with(|cell| *cell.borrow_mut() = Some(root.clone()));
 
         wire_headless_component(root.clone(), state.clone(), |state, root| {
             render_and_sync_nav_menu(root, state);
@@ -374,33 +419,12 @@ mod nav_overlays {
 
         wire_keynav(root.clone())?;
 
-        let overlay_state = state.clone();
-        let overlay_root = root.clone();
-        let controller =
-            OverlayCloseController::new(&document, move |request: OverlayCloseRequest| {
-                if request.kind != OverlayKind::NavigationMenu {
-                    return;
-                }
-                let Ok(mut current) = overlay_state.try_borrow_mut() else {
-                    return;
-                };
-                // "deselect"（payload なし）は既に閉じている状態へ送っても
-                // 冪等 no-op のまま安全に収束する（`overlay.rs` モジュール doc
-                // §keynav との二重処理の収束 参照）。
-                if !dispatch(&mut *current, "deselect", "") {
-                    return;
-                }
-                let snapshot = current.clone();
-                drop(current);
-                render_and_sync_nav_menu(&overlay_root, &snapshot);
-            })?;
-        NAV_MENU_OVERLAY.with(|cell| *cell.borrow_mut() = Some(controller));
+        ensure_shared_overlay(&document)?;
 
         // 初回マウント時点で既に開いている項目（SSR 初期状態）があれば
         // オーバーレイスタックへ登録する（以後の Escape/外側クリックで
         // 正しく閉鎖できるようにする）。
-        let current = state.borrow();
-        sync_nav_menu_overlay(&root, &current);
+        sync_shared_overlays();
 
         Ok(())
     }
@@ -425,29 +449,89 @@ mod nav_overlays {
             .flatten()
     }
 
-    /// [`sync_nav_menu_overlay`] と同じ remove→push 方針で menubar の
-    /// オーバーレイスタックを同期し、続けて `PositionController::reposition_now`
-    /// で開いている positioner の座標を即座に反映する（scroll/resize 契機の
-    /// 再計算とは別に、開閉直後の初期配置を確定させるため）。
-    fn sync_menubar_overlay(root: &Element, state: &Menubar) {
-        MENUBAR_OVERLAY.with(|controller_cell| {
+    /// `SHARED_OVERLAY` からの Escape/外側クリック閉鎖要求
+    /// （`OverlayKind::Menubar`）を処理する。[`close_nav_menu_overlay`] と
+    /// 対になる関数。
+    fn close_menubar_overlay() {
+        let Some(root) = MENUBAR_ROOT.with(|cell| cell.borrow().clone()) else {
+            return;
+        };
+        let Some(state) = MENUBAR_STATE.with(|cell| cell.borrow().clone()) else {
+            return;
+        };
+        let Ok(mut current) = state.try_borrow_mut() else {
+            return;
+        };
+        // "close"（payload なし、MenubarAction::Close）は全 Menu を
+        // 閉じる冪等操作（`overlay.rs` モジュール doc §イシュー #1173
+        // 参照）。
+        if !dispatch(&mut *current, "close", "") {
+            return;
+        }
+        let snapshot = *current;
+        drop(current);
+        render_and_sync_menubar(&root, &snapshot);
+    }
+
+    /// `controller` のスタックを空にする。常に**末尾（最上位）**から
+    /// `remove_overlay` するため、`overlay::OverlayCloseRequest::index` doc が
+    /// 警告する「非最上位 remove による上位 index のシフト」は発生しない
+    /// （[`sync_shared_overlays`] が毎回スタック全体を作り直す設計の要）。
+    fn clear_shared_overlay_stack(controller: &OverlayCloseController) {
+        while controller.stack_len() > 0 {
+            controller.remove_overlay(controller.stack_len() - 1);
+        }
+    }
+
+    /// navigation-menu・menubar 双方の現在の開閉状態から `SHARED_OVERLAY` の
+    /// スタックを作り直す（イシュー #1200 Bugbot 指摘の修正）。
+    ///
+    /// 当初はコンポーネントごとに「自分の push index 1 個」を
+    /// `Option<usize>` で追跡していたが、これは各コンポーネントが**独立した**
+    /// `OverlayCloseController`（独立したスタック）を持つ設計を前提にした
+    /// ものだった。両オーバーレイが 1 個の `SHARED_OVERLAY` を共有する
+    /// ようになった結果、片方の `remove_overlay` がもう片方の push index を
+    /// シフトさせうる問題（`overlay::OverlayCloseRequest::index` doc の
+    /// 不変条件）が生じる。個別の index を追跡する代わりに、状態変化の
+    /// たびに [`clear_shared_overlay_stack`] でスタック全体を空にしてから
+    /// 現在開いている項目だけを push し直すことで、index の追跡・同期を
+    /// 一切不要にする（本デモの規模〈高々 2 エントリ〉では毎回の作り直しは
+    /// 無視できるコスト）。
+    fn sync_shared_overlays() {
+        SHARED_OVERLAY.with(|controller_cell| {
             let controller_ref = controller_cell.borrow();
             let Some(controller) = controller_ref.as_ref() else {
                 return;
             };
-            MENUBAR_PUSHED.with(|pushed_cell| {
-                let mut pushed = pushed_cell.borrow_mut();
-                if let Some(index) = pushed.take() {
-                    controller.remove_overlay(index);
-                }
-                if let Some(open_index) = state.open() {
-                    if let Some(content) = menubar_content_element(root, open_index) {
-                        let trigger = menubar_trigger_element(root, open_index);
-                        *pushed = controller.push_overlay(&content, trigger.as_ref());
+            clear_shared_overlay_stack(controller);
+
+            if let Some(root) = NAV_MENU_ROOT.with(|cell| cell.borrow().clone()) {
+                if let Some(state) = NAV_MENU_STATE.with(|cell| cell.borrow().clone()) {
+                    if let Ok(current) = state.try_borrow() {
+                        if let Some(value) = current.open_value() {
+                            if let Some(content) = nav_menu_content_element(&root, value) {
+                                let trigger = nav_menu_trigger_element(&root, value);
+                                let _ = controller.push_overlay(&content, trigger.as_ref());
+                            }
+                        }
                     }
                 }
-            });
+            }
+
+            if let Some(root) = MENUBAR_ROOT.with(|cell| cell.borrow().clone()) {
+                if let Some(state) = MENUBAR_STATE.with(|cell| cell.borrow().clone()) {
+                    if let Ok(current) = state.try_borrow() {
+                        if let Some(open_index) = current.open() {
+                            if let Some(content) = menubar_content_element(&root, open_index) {
+                                let trigger = menubar_trigger_element(&root, open_index);
+                                let _ = controller.push_overlay(&content, trigger.as_ref());
+                            }
+                        }
+                    }
+                }
+            }
         });
+
         MENUBAR_POSITION.with(|position_cell| {
             if let Some(position) = position_cell.borrow().as_ref() {
                 position.reposition_now();
@@ -455,19 +539,27 @@ mod nav_overlays {
         });
     }
 
-    /// [`menubar_view`] で再描画し、[`sync_menubar_overlay`] でオーバーレイ
-    /// スタック・座標を同期する共通経路。
+    /// [`menubar_content`] で再描画し、[`sync_shared_overlays`] でオーバーレイ
+    /// スタック・座標を同期する共通経路（[`render_and_sync_nav_menu`] と
+    /// 同じ「root 要素自体は書き換えず子ノードのみ差し替える」契約、イシュー
+    /// #1200 Bugbot 指摘の修正）。
     fn render_and_sync_menubar(root: &Element, state: &Menubar) {
-        root.set_inner_html(&render(&menubar_view(state)));
-        sync_menubar_overlay(root, state);
+        apply_root_hydrate_attrs(root, &state.hydration_attrs());
+        root.set_inner_html(&render_nodes(&menubar_content(state)));
+        sync_shared_overlays();
     }
 
     /// menubar のハイドレーション・オーバーレイ配線エントリポイント
     /// （イシュー #1199）。
     ///
     /// `root_id` 要素の `data-hydrate-*` 属性から [`Menubar`] を復元する。
-    /// 復元失敗は「トリガー・フォーカス 0・閉状態」（[`Menubar::default`]）
-    /// での CSR 再描画へ安全側フォールバックする。
+    /// 復元失敗は「[`MENUBAR_MENUS`] と同じ 2 トリガー・フォーカス 0・
+    /// 閉状態」での CSR 再描画へ安全側フォールバックする。`Menubar::default()`
+    /// （`trigger_count = 0`）は使わない —— [`menubar_content`] は常に
+    /// `MENUBAR_MENUS` の 2 トリガーを描画するため、`trigger_count = 0` の
+    /// ままだと `Menubar::normalize_open`/`decode_action` が全 index を
+    /// 範囲外として no-op 扱いし、フォールバック後の menubar がクリック
+    /// しても一切開閉しなくなる（イシュー #1200 Bugbot 指摘の修正）。
     ///
     /// [`hydrate_navigation_menu`] と同じ 3 配線（クリック・キーボード・
     /// Escape/外側クリック）に加え、`position::PositionController`
@@ -490,14 +582,17 @@ mod nav_overlays {
         let state = match restore_state::<Menubar>(&attrs) {
             Ok(restored) => restored,
             Err(_) => {
-                let fallback = Menubar::default();
-                root.set_inner_html(&render(&menubar_view(&fallback)));
+                let fallback =
+                    Menubar::new(0, MENUBAR_MENUS.len(), None, false, Orientation::Horizontal);
+                apply_root_hydrate_attrs(&root, &fallback.hydration_attrs());
+                root.set_inner_html(&render_nodes(&menubar_content(&fallback)));
                 fallback
             }
         };
 
         let state = Rc::new(RefCell::new(state));
         MENUBAR_STATE.with(|cell| *cell.borrow_mut() = Some(state.clone()));
+        MENUBAR_ROOT.with(|cell| *cell.borrow_mut() = Some(root.clone()));
 
         wire_headless_component(root.clone(), state.clone(), |state, root| {
             render_and_sync_menubar(root, state);
@@ -510,32 +605,11 @@ mod nav_overlays {
             Ok(())
         })?;
 
-        let overlay_state = state.clone();
-        let overlay_root = root.clone();
-        let controller =
-            OverlayCloseController::new(&document, move |request: OverlayCloseRequest| {
-                if request.kind != OverlayKind::Menubar {
-                    return;
-                }
-                let Ok(mut current) = overlay_state.try_borrow_mut() else {
-                    return;
-                };
-                // "close"（payload なし、MenubarAction::Close）は全 Menu を
-                // 閉じる冪等操作（`overlay.rs` モジュール doc §イシュー #1173
-                // 参照）。
-                if !dispatch(&mut *current, "close", "") {
-                    return;
-                }
-                let snapshot = *current;
-                drop(current);
-                render_and_sync_menubar(&overlay_root, &snapshot);
-            })?;
-        MENUBAR_OVERLAY.with(|cell| *cell.borrow_mut() = Some(controller));
+        ensure_shared_overlay(&document)?;
 
         // 初回マウント時点で既に開いている Menu（SSR 初期状態）があれば
         // オーバーレイスタック・座標を初期同期する。
-        let current = *state.borrow();
-        sync_menubar_overlay(&root, &current);
+        sync_shared_overlays();
 
         Ok(())
     }
