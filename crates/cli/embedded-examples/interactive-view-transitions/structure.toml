@@ -7,6 +7,14 @@
 # 直下（`src/`）に置かれる。`root` はスキーマ v1 の正式な予約名
 # （`cli/src/structure.rs::ROOT_DIR_KEY`）であり、`templates/default` /
 # `templates/app` / `examples/ssr-routing` と同じ配置規約に従う。
+#
+# 本マニフェストの宣言単位は cargo パッケージ（クレート）であり、ターゲット
+# （bin/lib）ではない（イシュー #1115/#1134/#1162、詳細は
+# docs/design/structure-manifest.md §2.2.3）。したがって `src/lib.rs` を
+# 追加して bin + lib 構成へ拡張しても、本ファイルの更新は不要である。
+# `fw gate` は宣言クレートへ `-p <crate>` 指定で cargo check/clippy/test を
+# 実行するため（`crates/cli/src/gate.rs`）、lib ターゲットも自動的に検証
+# 対象へ含まれて PASS する。
 
 [manifest]
 version = 1
