@@ -8,13 +8,14 @@ publish = false
 
 # examples/ は「crates.io 公開済みクレートを実際に使う正本サンプル」であり、
 # templates/（`fw new` が展開する雛形）とは異なりバージョン依存で完結する
-# （examples 規約、イシュー #499）。依存クレートはいずれも v0.1.0 で
+# （examples 規約、イシュー #499）。依存クレートは v0.1.0 で
 # crates.io へ公開済み（#499 実装時に sparse index への再照会で非 yanked を
-# 確認済み。詳細はイシュー #503 実装計画参照）。
+# 確認済み。詳細はイシュー #503 実装計画参照）。イシュー #1159 で 0.2.0 系
+# （イシュー #1141 公開）へ追随。
 [dependencies]
-fandhe-frontend-core = "0.1.0"
-fandhe-frontend-app = "0.1.0"
-fandhe-frontend-interactive = "0.1.0"
+fandhe-frontend-core = "0.2.0"
+fandhe-frontend-app = "0.2.0"
+fandhe-frontend-interactive = "0.2.0"
 
 [dev-dependencies]
 

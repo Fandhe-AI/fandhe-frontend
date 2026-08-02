@@ -8,12 +8,14 @@ publish = false
 
 # examples/ は「crates.io 公開済みクレートを実際に使う正本サンプル」であり、
 # templates/（`fw new` が展開する雛形）とは異なりバージョン依存で完結する。
-# 依存クレートはいずれも v0.1.0 で crates.io へ公開済み（イシュー #499 実装時に
+# 依存クレートは v0.1.0 で crates.io へ公開済み（イシュー #499 実装時に
 # sparse index への再照会で非 yanked を確認済み。詳細は PR 本文参照）。
+# イシュー #1159 で 0.2.0 系（イシュー #1141 公開、破壊的変更の起点は
+# コミット b09e9ec「feat(core)!: void 要素を自己終端出力へ変更する」）へ追随。
 [dependencies]
-fandhe-frontend-core = "0.1.0"
-fandhe-frontend-app = "0.1.0"
-fandhe-frontend-server = "0.1.0"
+fandhe-frontend-core = "0.2.0"
+fandhe-frontend-app = "0.2.0"
+fandhe-frontend-server = "0.2.0"
 
 [dev-dependencies]
 
