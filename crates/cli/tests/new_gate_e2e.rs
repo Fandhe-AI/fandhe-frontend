@@ -9,10 +9,12 @@
 //! gate の実装）がドリフトすると、生成直後のプロジェクトが無編集で
 //! BLOCKED になりかねない。本ファイルは
 //! `fw new <name> --dir <scratch>` → `fw gate --project <scratch>/<name>`
-//! を実バイナリとして直列実行し、5 チェック（type_check /
-//! default_escape_check / lint / test / policy）が出揃うこと、および
-//! type_check / default_escape_check / lint / test が常に PASS することを
-//! 断定する回帰テストである。
+//! を実バイナリとして直列実行し、7 チェック（type_check /
+//! default_escape_check / url_validation_check / lint / lint_wasm32 / test /
+//! policy）が出揃うこと、および policy を除く 6 チェックが常に PASS する
+//! ことを断定する回帰テストである（イシュー #1174 で `lint_wasm32` を追加。
+//! `templates/default/` は `role = "client-entrypoint"` を宣言しないため
+//! not-applicable PASS で常に環境非依存に通過する）。
 //!
 //! `policy`（cargo-deny 依存）のみ実行環境（cargo-deny の導入有無）で結果が
 //! 変わるため、`cli/tests/scenarios/bugfix_escape.rs::baseline_passes_gate`
@@ -423,9 +425,10 @@ fn apply_patch_template_smoke(project_dir: &Path) {
 }
 
 /// `fw new` で生成した直後のプロジェクトに対し `fw gate` を実行し、
-/// チェックセット（5 件）が JSON にすべて現れること・環境に依存しない
-/// 4 チェック（type_check / default_escape_check / lint / test）が常に
-/// PASS することを断定する。
+/// チェックセット（7 件）が JSON にすべて現れること・環境に依存しない
+/// 6 チェック（type_check / default_escape_check / url_validation_check /
+/// lint / lint_wasm32 / test）が常に PASS することを断定する（イシュー
+/// #1174）。
 ///
 /// `policy` は cargo-deny の導入有無で分岐し、両分岐とも「コード起因ではなく
 /// 環境要因でのみ BLOCKED になり得る」ことまで確認する
@@ -446,12 +449,13 @@ fn fw_new_output_passes_fw_gate() {
     let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
 
     // チェックセット自体のドリフト検知（gate.rs 側でチェックが増減しても
-    // ここで検出できるよう、6 件すべてが JSON に現れることを断定する）。
+    // ここで検出できるよう、7 件すべてが JSON に現れることを断定する）。
     for name in [
         "type_check",
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
         "policy",
     ] {
@@ -461,15 +465,18 @@ fn fw_new_output_passes_fw_gate() {
         );
     }
 
-    // 環境（cargo-deny 導入有無）に依存しない 4 チェックは常に PASS する
-    // はず。ここが failed の場合はテンプレートと gate 前提のドリフト
-    // （clippy.toml の disallowed-methods 欠落・structure.toml の宣言
-    // クレート不一致・型不正コードの混入等）を意味する。
+    // 環境（cargo-deny 導入有無）に依存しない 6 チェックは常に PASS する
+    // はず（`lint_wasm32` は `templates/default/` が `role =
+    // "client-entrypoint"` を宣言しないため not-applicable PASS で環境
+    // 非依存、イシュー #1174）。ここが failed の場合はテンプレートと gate
+    // 前提のドリフト（clippy.toml の disallowed-methods 欠落・
+    // structure.toml の宣言クレート不一致・型不正コードの混入等）を意味する。
     for name in [
         "type_check",
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
     ] {
         assert_eq!(
@@ -651,7 +658,7 @@ fn fw_new_output_fw_structure_succeeds_and_fw_impact_does_not_hit_root_scan_erro
 /// イシュー #378 受け入れ条件 2: `fw new --template app`（fandhe-frontend-core/fandhe-frontend-app
 /// 依存の拡充テンプレート、vendor 同梱）が生成直後に `fw gate` PASS する
 /// ことを固定する。`fw_new_output_passes_fw_gate`（`default` テンプレート）
-/// と同一の断定方針（環境依存の `policy` のみ両分岐を確認、他 4 チェックは
+/// と同一の断定方針（環境依存の `policy` のみ両分岐を確認、他 6 チェックは
 /// 常に PASS）を踏襲する。vendored crate 群のコンパイルを伴うため
 /// `default` より実行時間が長い（PR 本文に記載する既知事項）。
 #[test]
@@ -686,6 +693,7 @@ fn fw_new_app_template_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
         "policy",
     ] {
@@ -700,6 +708,7 @@ fn fw_new_app_template_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
     ] {
         assert_eq!(
@@ -798,7 +807,7 @@ fn fw_new_app_template_default_escape_check_detects_injected_violation() {
 /// `default`/`app` の e2e（`fw_new_output_passes_fw_gate` /
 /// `fw_new_app_template_output_passes_fw_gate`）は `policy`（cargo-deny 依存）
 /// のみ実行環境（cargo-deny の導入有無）で結果が分岐するが、静的専用モードは
-/// cargo を一切起動しないため cargo-deny の導入有無に依存せず、6 チェック
+/// cargo を一切起動しないため cargo-deny の導入有無に依存せず、7 チェック
 /// すべてが常に PASS・`gate_result: "PASS"`・終了コード 0 になることを
 /// 無条件に断定する（計画 §4 ステップ 5 の断定方針差）。
 #[test]
@@ -826,6 +835,7 @@ fn fw_new_embed_template_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
         "policy",
     ] {
@@ -852,8 +862,9 @@ fn fw_new_embed_template_output_passes_fw_gate() {
     );
 }
 
-/// イシュー #410: 静的専用（asset-only）モードは cargo 系 4 チェックを
-/// not-applicable PASS 化するが、`default_escape_check`（保険層）は
+/// イシュー #410: 静的専用（asset-only）モードは cargo 系 5 チェック
+/// （イシュー #1174 で `lint_wasm32` を追加）を not-applicable PASS
+/// 化するが、`default_escape_check`（保険層）は
 /// バイパスしない。`embed` テンプレートは `src/` を生成しないため、
 /// `[directories.root]` 予約名規約に従いプロジェクトルート直下へ
 /// `src/injected.rs`（未レビュー `raw_html()` 呼び出し）を手動注入し、
@@ -902,11 +913,11 @@ fn fw_new_embed_template_gate_detects_injected_rust_violation() {
         "default_escape_check の failed 出力は違反ファイルを file:line で \
          列挙するはず: stdout={gate_stdout}"
     );
-    for name in ["type_check", "lint", "test", "policy"] {
+    for name in ["type_check", "lint", "lint_wasm32", "test", "policy"] {
         assert_eq!(
             check_passed(&gate_stdout, name),
             Some(true),
-            "静的専用モードの not-applicable 4 チェックは Rust コード混入時も \
+            "静的専用モードの not-applicable 5 チェックは Rust コード混入時も \
              PASS のままのはず（cargo が起動されないため）: stdout={gate_stdout}"
         );
     }
@@ -922,8 +933,8 @@ fn fw_new_embed_template_gate_detects_injected_rust_violation() {
 }
 
 /// イシュー #500: `fw new --example ssr-routing` 生成直後のプロジェクトに対し
-/// `fw gate` を実行し、`app`/`default` テンプレートと同じ 6 チェック断定方針
-/// （`policy` のみ cargo-deny 導入有無で分岐、他 5 チェックは常に PASS）を
+/// `fw gate` を実行し、`app`/`default` テンプレートと同じ 7 チェック断定方針
+/// （`policy` のみ cargo-deny 導入有無で分岐、他 6 チェックは常に PASS）を
 /// 適用する。さらに受け入れ条件 1（`fw new demo --example ssr-routing && cd
 /// demo && cargo run -- /items/1` が動作する）を `cargo run` 実行で直接固定
 /// する。
@@ -967,6 +978,7 @@ fn fw_new_example_ssr_routing_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
         "policy",
     ] {
@@ -981,6 +993,7 @@ fn fw_new_example_ssr_routing_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
     ] {
         assert_eq!(
@@ -1046,7 +1059,7 @@ fn fw_new_example_ssr_routing_output_passes_fw_gate() {
 
 /// イシュー #501: `fw new --example ssg-blog` 生成直後のプロジェクトに対し
 /// `fw gate` を実行し、`ssr-routing` 分（`fw_new_example_ssr_routing_output_passes_fw_gate`）
-/// と同じ 6 チェック断定方針（`policy` のみ cargo-deny 導入有無で分岐、他 5
+/// と同じ 7 チェック断定方針（`policy` のみ cargo-deny 導入有無で分岐、他 6
 /// チェックは常に PASS）を適用する。さらに受け入れ条件 1（`cargo run` で
 /// `dist/` に静的サイトが生成される）を `cargo run` 実行で直接固定する。
 ///
@@ -1089,6 +1102,7 @@ fn fw_new_example_ssg_blog_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
         "policy",
     ] {
@@ -1103,6 +1117,7 @@ fn fw_new_example_ssg_blog_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
     ] {
         assert_eq!(
@@ -1217,6 +1232,7 @@ fn fw_new_example_dist_server_docker_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
         "policy",
     ] {
@@ -1231,6 +1247,7 @@ fn fw_new_example_dist_server_docker_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
     ] {
         assert_eq!(
@@ -1319,6 +1336,7 @@ fn fw_new_example_interactive_view_transitions_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
         "policy",
     ] {
@@ -1333,6 +1351,7 @@ fn fw_new_example_interactive_view_transitions_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
     ] {
         assert_eq!(
@@ -1454,6 +1473,7 @@ fn fw_new_example_headless_pre_styled_ui_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
         "policy",
     ] {
@@ -1468,6 +1488,7 @@ fn fw_new_example_headless_pre_styled_ui_output_passes_fw_gate() {
         "default_escape_check",
         "url_validation_check",
         "lint",
+        "lint_wasm32",
         "test",
     ] {
         assert_eq!(

@@ -7,9 +7,9 @@
 //! 実装詳細の説明に留め、判定ルールの単一の情報源は同文書とする。
 //!
 //! [`crate::structure`]（TASK-13.1）が定義する `structure.toml` を唯一の情報源
-//! として宣言クレート・ディレクトリを求め、6 チェック（型チェック・既定エスケープ
-//! 検査・URL 属性検証（イシュー #401）・lint・テスト・依存ポリシー）を実行し、
-//! 集約結果を JSON で stdout へ出力する。
+//! として宣言クレート・ディレクトリを求め、7 チェック（型チェック・既定エスケープ
+//! 検査・URL 属性検証（イシュー #401）・lint・wasm32 target 向け lint（イシュー
+//! #1174）・テスト・依存ポリシー）を実行し、集約結果を JSON で stdout へ出力する。
 //! AI 自己保守フック・CI からは本サブコマンドの終了コード（0 = PASS / 1 = BLOCKED /
 //! 2 = 使用法エラー / 3 = ERROR〔イシュー #1116 で追加。実行環境にツールが無いだけの
 //! 不合格〕）と JSON の `gate_result`（`"PASS"` / `"BLOCKED"` / `"ERROR"`）を照合し、
@@ -150,7 +150,7 @@ impl CommandRunner for RealCommandRunner {
 ///    で読み込む。失敗時は即 BLOCKED（fail-closed。マニフェストが読めない時点で
 ///    宣言クレート一覧が定まらず、以降のチェックが無意味になるため。プロジェクト
 ///    側の設定不備でありコード起因のため `ERROR` ではなく `BLOCKED` とする）
-/// 3. 6 チェックをすべて実行（早期打ち切りしない。AI エージェントが一括修正できる
+/// 3. 7 チェックをすべて実行（早期打ち切りしない。AI エージェントが一括修正できる
 ///    よう全違反を報告する PoC-7 の方針を踏襲）
 /// 4. JSON レポートを stdout へ出力し、`gate_result` に応じた終了コードを返す
 ///    （0 = PASS / 1 = BLOCKED / 2 = usage / 3 = ERROR。イシュー #1116 で
@@ -253,7 +253,25 @@ fn declared_crate_names(manifest: &StructureManifest) -> Vec<&str> {
         .collect()
 }
 
-/// 6 チェックを実行して [`GateReport`] を組み立てる（実プロセス起動を伴う本番経路）。
+/// `role = "client-entrypoint"` を宣言するクレート名一覧（`lint_wasm32` チェック
+/// の `-p` 引数に使う、イシュー #1174）。
+///
+/// CI `clippy-wasm32` ジョブ（イシュー #1160、`.github/workflows/ci.yml`）が
+/// wasm-full / wasm-client / wasm-thin の 3 クレートを固定列挙するのに対し、
+/// `fw gate` は `structure.toml` を唯一の情報源とする既存原則（本モジュール
+/// doc コメント参照）を踏襲し、`role` 宣言から動的に検出対象を求める。これに
+/// より CI の `-p` 列挙と `structure.toml` の宣言がドリフトしても gate 側は
+/// 常に宣言済みクレートのみを検証する（過剰検証・過小検証のいずれも避ける）。
+fn declared_client_entrypoint_crate_names(manifest: &StructureManifest) -> Vec<&str> {
+    manifest
+        .directories
+        .iter()
+        .filter(|d| d.role == Role::ClientEntrypoint)
+        .filter_map(|d| d.crate_name.as_deref())
+        .collect()
+}
+
+/// 7 チェックを実行して [`GateReport`] を組み立てる（実プロセス起動を伴う本番経路）。
 ///
 /// テストからは `runner` に実行を伴わないフェイクを注入して集約ロジックのみを
 /// 検証する（実プロセス起動なしのテスト容易性、計画 §3.3）。
@@ -274,6 +292,7 @@ fn run_all_checks(
     verbose: bool,
 ) -> GateReport {
     let crates = declared_crate_names(manifest);
+    let client_entrypoint_crates = declared_client_entrypoint_crate_names(manifest);
 
     let checks = if is_asset_only_project(manifest) {
         vec![
@@ -281,6 +300,7 @@ fn run_all_checks(
             default_escape_check(manifest, project_dir),
             url_validation_check(manifest, project_dir),
             not_applicable_check("lint"),
+            not_applicable_check("lint_wasm32"),
             not_applicable_check("test"),
             not_applicable_check("policy"),
         ]
@@ -290,6 +310,7 @@ fn run_all_checks(
             default_escape_check(manifest, project_dir),
             url_validation_check(manifest, project_dir),
             run_cargo_clippy(runner, project_dir, &crates),
+            run_cargo_clippy_wasm32(runner, project_dir, &client_entrypoint_crates),
             run_cargo_test(runner, project_dir, &crates, verbose),
             policy_check(runner, project_dir),
         ]
@@ -506,11 +527,16 @@ fn clippy_policy_is_configured(clippy_toml_path: &Path) -> bool {
 /// （検出ポリシーの黙示的無効化という fail-open の穴、security.md A05）。
 /// `default_escape_check`（テキスト走査の保険層）とは独立に、主防御である
 /// clippy 側の設定自体の健全性をここで担保する。
-fn clippy_policy_check(project_dir: &Path) -> Option<GateCheck> {
+///
+/// `check_name` はどのチェック名で failed を返すかを呼び出し元が決める
+/// パラメータ（イシュー #1174 で `lint_wasm32` からも再利用するために追加。
+/// wasm32 target 向け clippy も cwd の `clippy.toml` を読むため同じ健全性
+/// 前提を持つ）。
+fn clippy_policy_check(project_dir: &Path, check_name: &'static str) -> Option<GateCheck> {
     let clippy_toml = project_dir.join("clippy.toml");
     if !clippy_policy_is_configured(&clippy_toml) {
         return Some(GateCheck::new(
-            "lint",
+            check_name,
             false,
             format!(
                 "{} is missing or lacks a `disallowed-methods` entry for `fandhe_frontend_core::raw_html`; \
@@ -538,9 +564,13 @@ without it `cargo clippy` cannot detect unreviewed raw_html() calls (see templat
 /// 提示し、`project_dir` 配下に `tools/ci/ensure-gate-tools.sh` が実在する
 /// 場合のみそれを追記する（実在しないスクリプトへの案内を出さない、
 /// [`gate_tools_script_exists`] 参照）。
+///
+/// `check_name` はどのチェック名で failed を返すかを呼び出し元が決める
+/// パラメータ（イシュー #1174 で `lint_wasm32` からも再利用するために追加）。
 fn clippy_environment_preflight(
     runner: &dyn CommandRunner,
     project_dir: &Path,
+    check_name: &'static str,
 ) -> Option<GateCheck> {
     let (available, output) = runner.run("cargo", &["clippy", "--version"], project_dir);
     if available {
@@ -552,7 +582,7 @@ fn clippy_environment_preflight(
         ""
     };
     Some(GateCheck {
-        name: "lint",
+        name: check_name,
         passed: false,
         output: format!(
             "{ENVIRONMENT_ERROR_PREFIX}`cargo clippy` is not available on this runner \
@@ -615,12 +645,12 @@ fn run_cargo_clippy(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&s
     // イシュー #157: `clippy.toml` の `disallowed-methods` 設定が欠落したまま
     // `cargo clippy` を起動すると「検出項目が何もない」正常終了になり得るため
     // （黙示的 PASS）、起動前にポリシー設定自体の存在を検証する。
-    if let Some(check) = clippy_policy_check(project_dir) {
+    if let Some(check) = clippy_policy_check(project_dir, "lint") {
         return check;
     }
     // イシュー #292: ポリシー設定の健全性確認の後・本実行の直前に、clippy
     // component 自体が起動可能かを疎通確認する（runner 環境差の決定的な区別）。
-    if let Some(check) = clippy_environment_preflight(runner, project_dir) {
+    if let Some(check) = clippy_environment_preflight(runner, project_dir, "lint") {
         return check;
     }
     // `-- -D warnings` は cargo 引数の後段（サブコマンド固有引数)として渡す
@@ -640,6 +670,109 @@ fn run_cargo_clippy(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&s
     args.push("warnings");
     let (passed, output) = runner.run("cargo", &args, project_dir);
     finish_command_check("lint", "cargo", &args, passed, output)
+}
+
+/// `lint_wasm32` チェックが `cargo clippy --target wasm32-unknown-unknown` を
+/// 起動する前に検証する fail-closed ガード（イシュー #1174）。
+///
+/// CI `clippy-wasm32` ジョブ（イシュー #1160）は host target のみの `clippy`
+/// ジョブでは検知できない `#[cfg(target_arch = "wasm32")]` ゲート配下の警告
+/// （イシュー #1140/PR #1147 のすり抜けが動機）を検出するが、`fw gate` は
+/// これまで host target しか検証していなかった。本関数は `rustup target list
+/// --installed` を実行し、`wasm32-unknown-unknown` が導入済みかを確認する。
+/// rustup 起動自体の失敗・target 未導入のいずれも「実行環境にツールが無い
+/// だけ」であり、コード起因の lint 違反と区別する必要があるため
+/// [`clippy_environment_preflight`] と同型に `environment_error: true` の
+/// failed を返す（[`aggregate`] が `ERROR` へ振り分ける）。
+///
+/// 行完全一致で判定する（`wasm32-wasip1` 等、`wasm32-` 前方一致の他 target
+/// を誤って「導入済み」と判定しないため）。
+fn wasm32_target_environment_preflight(
+    runner: &dyn CommandRunner,
+    project_dir: &Path,
+) -> Option<GateCheck> {
+    const TARGET: &str = "wasm32-unknown-unknown";
+    let (launched, output) = runner.run("rustup", &["target", "list", "--installed"], project_dir);
+    let installed = launched && output.lines().any(|line| line.trim() == TARGET);
+    if installed {
+        return None;
+    }
+    let script_hint = if gate_tools_script_exists(project_dir) {
+        " or run `tools/ci/ensure-gate-tools.sh`"
+    } else {
+        ""
+    };
+    Some(GateCheck {
+        name: "lint_wasm32",
+        passed: false,
+        output: format!(
+            "{ENVIRONMENT_ERROR_PREFIX}`{TARGET}` rustup target is not installed on this \
+runner ({}); run `rustup target add {TARGET}`{script_hint} to install it, then re-run \
+`fw gate`",
+            truncate_output(&output)
+        ),
+        environment_error: true,
+        command: None,
+    })
+}
+
+/// `lint_wasm32` チェック本体（イシュー #1174）。`role = "client-entrypoint"`
+/// を宣言するクレートのみを対象に、CI `clippy-wasm32` ジョブ（イシュー #1160）
+/// と同一の検出範囲で `cargo clippy --target wasm32-unknown-unknown` を実行
+/// し、host target 向け `run_cargo_clippy` では検知できない
+/// `#[cfg(target_arch = "wasm32")]` ゲート配下の警告をローカル・AI 自己保守
+/// フックでも検知できるようにする。
+///
+/// `client_entrypoint_crates` が空の場合（本リポジトリ以外の多くのユーザー
+/// プロジェクトが該当）は「wasm クレートを持たないため対象外」を
+/// not-applicable PASS で明示する。`structure.toml` 上の `role` 宣言に基づく
+/// 明示的な条件であり黙示的 PASS ではない（security.md A05。
+/// [`is_asset_only_project`] の asset-only 判定と同じ思想）。
+fn run_cargo_clippy_wasm32(
+    runner: &dyn CommandRunner,
+    project_dir: &Path,
+    client_entrypoint_crates: &[&str],
+) -> GateCheck {
+    if client_entrypoint_crates.is_empty() {
+        return GateCheck::new(
+            "lint_wasm32",
+            true,
+            "no client-entrypoint crate declared in structure.toml: wasm32 lint not applicable"
+                .to_string(),
+        );
+    }
+    // host lint と同じくポリシー設定・clippy component の疎通を先に確認する
+    // （wasm32 target 向け clippy も cwd の `clippy.toml` を読むため同じ
+    // 健全性前提を持つ）。
+    if let Some(check) = clippy_policy_check(project_dir, "lint_wasm32") {
+        return check;
+    }
+    if let Some(check) = clippy_environment_preflight(runner, project_dir, "lint_wasm32") {
+        return check;
+    }
+    // wasm32 target 自体の導入は clippy component と独立に管理されるため、
+    // host 側の疎通確認とは別に専用プリフライトで確認する。
+    if let Some(check) = wasm32_target_environment_preflight(runner, project_dir) {
+        return check;
+    }
+    // CI `clippy-wasm32` ジョブ（イシュー #1160）と同一コマンド形状
+    // （`--locked --all-targets --target wasm32-unknown-unknown -D warnings`）。
+    let mut args: Vec<&str> = vec![
+        "clippy",
+        "--locked",
+        "--all-targets",
+        "--target",
+        "wasm32-unknown-unknown",
+    ];
+    for c in client_entrypoint_crates {
+        args.push("-p");
+        args.push(c);
+    }
+    args.push("--");
+    args.push("-D");
+    args.push("warnings");
+    let (passed, output) = runner.run("cargo", &args, project_dir);
+    finish_command_check("lint_wasm32", "cargo", &args, passed, output)
 }
 
 /// `test` チェック専用の実行経路。`run_locked_cargo_subcommand`（他の 2 チェック
@@ -2166,7 +2299,7 @@ mod tests {
         let runner = FakeRunner {
             responses: Mutex::new(vec![(true, "clippy 0.1.0".to_string())]),
         };
-        assert!(clippy_environment_preflight(&runner, &dir).is_none());
+        assert!(clippy_environment_preflight(&runner, &dir, "lint").is_none());
     }
 
     #[test]
@@ -2182,7 +2315,7 @@ mod tests {
                 "error: no such subcommand: `clippy`".to_string(),
             )]),
         };
-        let check = clippy_environment_preflight(&runner, &dir).expect("must fail closed");
+        let check = clippy_environment_preflight(&runner, &dir, "lint").expect("must fail closed");
         assert_eq!(check.name, "lint");
         assert!(!check.passed);
         assert!(
@@ -2223,7 +2356,7 @@ mod tests {
                 "error: no such subcommand: `clippy`".to_string(),
             )]),
         };
-        let check = clippy_environment_preflight(&runner, &dir).expect("must fail closed");
+        let check = clippy_environment_preflight(&runner, &dir, "lint").expect("must fail closed");
         assert!(check.output.contains("tools/ci/ensure-gate-tools.sh"));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -2926,7 +3059,7 @@ accepted as a reviewed attribute: violations={violations:?}"
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
-        let check = clippy_policy_check(&dir);
+        let check = clippy_policy_check(&dir, "lint");
         assert!(
             check.is_some(),
             "missing clippy.toml must fail the lint check closed"
@@ -2946,7 +3079,7 @@ accepted as a reviewed attribute: violations={violations:?}"
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("clippy.toml"), "# no disallowed-methods entry\n").unwrap();
 
-        let check = clippy_policy_check(&dir);
+        let check = clippy_policy_check(&dir, "lint");
         assert!(check.is_some());
         assert!(!check.unwrap().passed);
 
@@ -2967,7 +3100,7 @@ accepted as a reviewed attribute: violations={violations:?}"
         )
         .unwrap();
 
-        assert!(clippy_policy_check(&dir).is_none());
+        assert!(clippy_policy_check(&dir, "lint").is_none());
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -2990,7 +3123,7 @@ accepted as a reviewed attribute: violations={violations:?}"
         )
         .unwrap();
 
-        let check = clippy_policy_check(&dir);
+        let check = clippy_policy_check(&dir, "lint");
         assert!(
             check.is_some(),
             "a commented-out entry must not be treated as configured"
@@ -3961,6 +4094,182 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
     }
 
     // ------------------------------------------------------------------
+    // イシュー #1174: `lint_wasm32` チェック（`fw gate` の lint へ wasm32
+    // target の clippy を追加）。
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn declared_client_entrypoint_crate_names_collects_only_client_entrypoint_role() {
+        let manifest = StructureManifest {
+            version: 1,
+            directories: vec![
+                structure::DirectoryEntry {
+                    name: "core".to_string(),
+                    role: Role::Core,
+                    crate_name: Some("fandhe-frontend-core".to_string()),
+                    description: "test".to_string(),
+                    depends_on: Vec::new(),
+                    allowed_dependents: Vec::new(),
+                    path: None,
+                },
+                structure::DirectoryEntry {
+                    name: "wasm-full".to_string(),
+                    role: Role::ClientEntrypoint,
+                    crate_name: Some("fandhe-frontend-wasm-full".to_string()),
+                    description: "test".to_string(),
+                    depends_on: Vec::new(),
+                    allowed_dependents: Vec::new(),
+                    path: None,
+                },
+            ],
+            routing: None,
+        };
+        assert_eq!(
+            declared_client_entrypoint_crate_names(&manifest),
+            vec!["fandhe-frontend-wasm-full"]
+        );
+    }
+
+    #[test]
+    fn run_cargo_clippy_wasm32_is_not_applicable_when_no_client_entrypoint_crate_declared() {
+        let check = run_cargo_clippy_wasm32(&PanicIfCalledRunner, Path::new("."), &[]);
+        assert!(
+            check.passed,
+            "absence of a declared client-entrypoint crate must not block the gate"
+        );
+        assert_eq!(check.name, "lint_wasm32");
+        assert!(check.output.contains("no client-entrypoint crate declared"));
+    }
+
+    #[test]
+    fn run_cargo_clippy_wasm32_fails_closed_when_wasm32_target_not_installed() {
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-wasm32-target-missing-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("clippy.toml"),
+            "disallowed-methods = [{ path = \"fandhe_frontend_core::raw_html\", reason = \"x\" }]\n",
+        )
+        .unwrap();
+
+        // clippy_environment_preflight（`cargo clippy --version`）→
+        // wasm32_target_environment_preflight（`rustup target list --installed`、
+        // wasm32-unknown-unknown を含まない出力）の順で 2 回 `runner.run` が
+        // 呼ばれる。
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![
+                (true, "clippy 0.1.0".to_string()),
+                (true, "x86_64-unknown-linux-gnu\n".to_string()),
+            ]),
+        };
+        let check = run_cargo_clippy_wasm32(&runner, &dir, &["fandhe-frontend-wasm-full"]);
+        assert_eq!(check.name, "lint_wasm32");
+        assert!(!check.passed);
+        assert!(
+            check.environment_error,
+            "missing wasm32 target must set environment_error: true \
+(gate_result must resolve to ERROR, not BLOCKED)"
+        );
+        assert!(
+            check.output.starts_with(ENVIRONMENT_ERROR_PREFIX),
+            "output={}",
+            check.output
+        );
+        assert!(check
+            .output
+            .contains("rustup target add wasm32-unknown-unknown"));
+        assert!(
+            check.command.is_none(),
+            "must not claim to have run a command"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn run_cargo_clippy_wasm32_ignores_target_with_shared_prefix() {
+        // 行完全一致で判定する: `wasm32-wasip1` のような `wasm32-` 前方一致の
+        // 他 target を「wasm32-unknown-unknown 導入済み」と誤判定してはならない。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-wasm32-target-prefix-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("clippy.toml"),
+            "disallowed-methods = [{ path = \"fandhe_frontend_core::raw_html\", reason = \"x\" }]\n",
+        )
+        .unwrap();
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![
+                (true, "clippy 0.1.0".to_string()),
+                (true, "wasm32-wasip1\n".to_string()),
+            ]),
+        };
+        let check = run_cargo_clippy_wasm32(&runner, &dir, &["fandhe-frontend-wasm-full"]);
+        assert!(!check.passed);
+        assert!(check.environment_error);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn run_cargo_clippy_wasm32_invokes_cargo_with_wasm32_target_locked_deny_warnings_and_declared_crates(
+    ) {
+        let dir = crate::test_scratch::scratch_root()
+            .join(format!("fw-gate-test-wasm32-args-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("clippy.toml"),
+            "disallowed-methods = [{ path = \"fandhe_frontend_core::raw_html\", reason = \"x\" }]\n",
+        )
+        .unwrap();
+
+        // clippy_environment_preflight → wasm32_target_environment_preflight
+        // （wasm32-unknown-unknown を含む） → 本実行の順で 3 回 `runner.run` が
+        // 呼ばれる。
+        let runner = ArgsRecordingRunner::new(vec![
+            (true, "clippy 0.1.0".to_string()),
+            (true, "wasm32-unknown-unknown\n".to_string()),
+            (true, "ok".to_string()),
+        ]);
+        let check = run_cargo_clippy_wasm32(
+            &runner,
+            &dir,
+            &["fandhe-frontend-wasm-full", "fandhe-frontend-wasm-client"],
+        );
+        assert!(check.passed);
+        assert_eq!(check.name, "lint_wasm32");
+
+        let (program, args) = runner.last_call();
+        assert_eq!(program, "cargo");
+        assert_eq!(
+            args,
+            vec![
+                "clippy",
+                "--locked",
+                "--all-targets",
+                "--target",
+                "wasm32-unknown-unknown",
+                "-p",
+                "fandhe-frontend-wasm-full",
+                "-p",
+                "fandhe-frontend-wasm-client",
+                "--",
+                "-D",
+                "warnings",
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ------------------------------------------------------------------
     // G3 (TASK-13.3d #142): 宣言クレート 0 件時、`run_cargo_check` /
     // `run_cargo_test` それぞれが共通ヘルパー経由の fail-closed を維持する
     // ことを個別に固定する（既存は clippy のみテスト済み。この 2 つも
@@ -4068,6 +4377,10 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
         let (manifest, dir) = all_checks_pass_fixture();
         // type_check(1) + lint のプリフライト(1)+本実行(1) + test(1)
         // + policy のプリフライト(1)+本実行(1)（イシュー #292 で各 2 応答に増加）。
+        // `all_checks_pass_fixture` は role = "component" のみを宣言し
+        // client-entrypoint クレートを持たないため、`lint_wasm32` は
+        // not-applicable PASS となり runner を起動しない
+        // （イシュー #1174、応答数は据え置き）。
         let runner = FakeRunner {
             responses: Mutex::new(vec![
                 (true, String::new()),
@@ -4087,6 +4400,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
                 "default_escape_check",
                 "url_validation_check",
                 "lint",
+                "lint_wasm32",
                 "test",
                 "policy"
             ],
@@ -4100,7 +4414,9 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
     fn run_all_checks_all_success_yields_pass() {
         let (manifest, dir) = all_checks_pass_fixture();
         // イシュー #292: lint / policy それぞれプリフライト分の応答が追加で必要
-        // （run_all_checks_returns_expected_check_names_in_order と同数）。
+        // （run_all_checks_returns_expected_check_names_in_order と同数。
+        // lint_wasm32 は client-entrypoint クレート非宣言のため runner を
+        // 起動しない、イシュー #1174）。
         let runner = FakeRunner {
             responses: Mutex::new(vec![
                 (true, String::new()),
@@ -4200,10 +4516,11 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
                 "default_escape_check",
                 "url_validation_check",
                 "lint",
+                "lint_wasm32",
                 "test",
                 "policy"
             ],
-            "asset-only mode must keep the same 6-check JSON contract (name/order)"
+            "asset-only mode must keep the same 7-check JSON contract (name/order, イシュー #1174)"
         );
         assert!(report.checks.iter().all(|c| c.passed), "{:?}", {
             report
@@ -4212,7 +4529,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
                 .map(|c| (c.name, c.passed))
                 .collect::<Vec<_>>()
         });
-        for name in ["type_check", "lint", "test", "policy"] {
+        for name in ["type_check", "lint", "lint_wasm32", "test", "policy"] {
             let check = report.checks.iter().find(|c| c.name == name).unwrap();
             assert!(
                 check.output.contains("static-only project"),

@@ -181,7 +181,9 @@ jobs:
       # クレート・`clippy.toml` の disallowed-methods・`deny.toml`）が
       # ドリフトすると生成直後のプロジェクトが無編集で BLOCKED になり得る
       # ため、上記ステップで導入済みの cargo-deny を用いて strict 分岐
-      # （6 チェック全 PASS）を本ジョブで常時実証する
+      # （7 チェック全 PASS。イシュー #1174 で `lint_wasm32` が追加されたが
+      # `templates/default/` は role = "client-entrypoint" を宣言しないため
+      # not-applicable PASS で通過する）を本ジョブで常時実証する
       # （`crates/cli/tests/new_gate_e2e.rs` 冒頭コメント参照）。
       #
       # イシュー #895 により本ステップは 3 分割になった（`--skip example_
@@ -2117,14 +2119,18 @@ jobs:
   # の自己適用（#372 で PASS 化、PR #382）を CI で常時実行し、自己適用 PASS の
   # リグレッション（自己参照誤検知の再発・deny.toml 弱体化・structure.toml と
   # 実構成のドリフト等）を検出する。`fw gate` 本体（crates/cli/src/gate.rs）は
-  # type_check/lint/test/policy/default_escape_check の 5 チェックを直列実行し
-  # リポジトリ直下 structure.toml の宣言クレートを対象とする。
+  # type_check/lint/lint_wasm32/test/policy/default_escape_check/
+  # url_validation_check の 7 チェックを直列実行しリポジトリ直下
+  # structure.toml の宣言クレートを対象とする（イシュー #1174 で
+  # `lint_wasm32` を追加。本リポジトリは role = "client-entrypoint" を
+  # 宣言する wasm-full/wasm-client/wasm-thin を持つため実走する）。
   gate-self-apply:
     name: "fw gate --project . self-apply (issue #400)"
     runs-on: self-hosted
-    # gate は check + clippy + test + deny を直列実行するため test ジョブより
-    # 長めに確保する。
-    timeout-minutes: 40
+    # gate は check + clippy + clippy(wasm32) + test + deny を直列実行する
+    # ため test ジョブより長めに確保する（イシュー #1174 で `lint_wasm32` を
+    # 追加、wasm32 target 向け再コンパイルの分だけ余裕を拡大）。
+    timeout-minutes: 50
     # forbid-unsafe / clippy ジョブと同じ理由: gate の type_check / test は
     # -p fandhe-frontend-dist-server を含み、crates/dist-server/build.rs の WASM ネストビルド
     # （wasm32 target・wasm-bindgen-cli 起動）は本ジョブの runner に常設保証が
