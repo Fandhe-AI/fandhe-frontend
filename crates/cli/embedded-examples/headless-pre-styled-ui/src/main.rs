@@ -93,6 +93,8 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::menu;
+use fandhe_frontend_pre_styled_ui::menubar;
+use fandhe_frontend_pre_styled_ui::navigation_menu;
 use fandhe_frontend_pre_styled_ui::popover;
 use fandhe_frontend_pre_styled_ui::radio_group;
 use fandhe_frontend_pre_styled_ui::select;
@@ -583,6 +585,161 @@ fn tooltip_section() -> Node {
     )
 }
 
+/// Navigation Menu コンポーネント節（`data-scope="navigation-menu"`）。SSR
+/// 初期状態は常に closed（`OpenState::Closed`）。トリガー起点で開閉する
+/// ディスクロージャの実挙動は wasm 層の責務。
+///
+/// pre-styled-ui の headless ラッパー（`fandhe_frontend_pre_styled_ui::navigation_menu`）
+/// を使う。`root` の暗黙 ARIA role（`navigation`）に依拠し
+/// `role="navigation"` を明示付与しない点、`role="menu"`/`role="menuitem"`
+/// を一切付与しない点（文書ナビを操作メニューと誤伝達しないための判断）は
+/// `crates/headless-ui/src/navigation_menu.rs` の rustdoc 参照。[`menu_section`]
+/// と同じ「closed のまま全 anatomy を DOM に掲載」方針で、トリガー付き項目
+/// 1 件と現在ページを示すリンク単独項目 1 件を実演する。
+fn navigation_menu_section() -> Node {
+    let state = OpenState::Closed;
+    let node = navigation_menu::root(
+        "Product navigation",
+        vec![],
+        vec![navigation_menu::list(
+            vec![],
+            vec![
+                navigation_menu::item(
+                    state,
+                    false,
+                    vec![],
+                    vec![
+                        navigation_menu::trigger(
+                            state,
+                            false,
+                            "docs",
+                            Some("showcase-nav-menu-docs-trigger"),
+                            Some("showcase-nav-menu-docs-content"),
+                            vec![],
+                            vec![text("Docs")],
+                        ),
+                        navigation_menu::content(
+                            state,
+                            Some("showcase-nav-menu-docs-content"),
+                            Some("showcase-nav-menu-docs-trigger"),
+                            vec![],
+                            vec![navigation_menu::link(
+                                "/docs/getting-started",
+                                false,
+                                vec![],
+                                vec![text("Getting Started")],
+                            )],
+                        ),
+                    ],
+                ),
+                navigation_menu::item(
+                    state,
+                    false,
+                    vec![],
+                    vec![navigation_menu::link(
+                        "/pricing",
+                        true,
+                        vec![],
+                        vec![text("Pricing")],
+                    )],
+                ),
+            ],
+        )],
+    );
+    section(
+        "Navigation Menu",
+        "トリガー起点で開閉するナビゲーションパネル。SSR 初期状態は closed。既定 CSS は fandhe_frontend_pre_styled_ui::navigation_menu::stylesheet() が提供します。",
+        vec![node],
+    )
+}
+
+/// Menubar コンポーネント節（`data-scope="menubar"`）。SSR 初期状態は常に
+/// closed。roving tabindex（1 件目のトリガーのみ `tabindex="0"`）・複数
+/// Menu の水平配置の実演。実際のフォーカス移動・開閉は wasm 層の責務
+/// （`crates/headless-ui/src/menubar.rs` rustdoc 参照）。
+///
+/// pre-styled-ui の headless ラッパー（`fandhe_frontend_pre_styled_ui::menubar`）
+/// を使う。[`menu_section`] と異なり `menu` パーツ自身は `role="none"` を
+/// 固定付与し、実際の `role="menubar"`/`role="menuitem"` は `root`/`trigger`
+/// が担う（同モジュール rustdoc「`role="none"` の根拠と制約」参照）。
+fn menubar_section() -> Node {
+    let closed = OpenState::Closed;
+    let node = menubar::root(
+        Orientation::Horizontal,
+        "Application menu",
+        vec![],
+        vec![
+            menubar::menu(
+                closed,
+                vec![],
+                vec![
+                    menubar::trigger(
+                        true,
+                        closed,
+                        false,
+                        false,
+                        0,
+                        Some("showcase-menubar-file-content"),
+                        vec![("id", "showcase-menubar-file-trigger")],
+                        vec![text("File")],
+                    ),
+                    menubar::positioner(
+                        closed,
+                        vec![],
+                        vec![menubar::content(
+                            closed,
+                            Some("showcase-menubar-file-content"),
+                            Some("showcase-menubar-file-trigger"),
+                            vec![],
+                            vec![
+                                menubar::item("new", false, true, vec![], vec![text("New")]),
+                                menubar::item("open", false, false, vec![], vec![text("Open")]),
+                                menubar::separator(vec![], vec![]),
+                                menubar::item("exit", false, false, vec![], vec![text("Exit")]),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+            menubar::menu(
+                closed,
+                vec![],
+                vec![
+                    menubar::trigger(
+                        false,
+                        closed,
+                        false,
+                        false,
+                        1,
+                        Some("showcase-menubar-edit-content"),
+                        vec![("id", "showcase-menubar-edit-trigger")],
+                        vec![text("Edit")],
+                    ),
+                    menubar::positioner(
+                        closed,
+                        vec![],
+                        vec![menubar::content(
+                            closed,
+                            Some("showcase-menubar-edit-content"),
+                            Some("showcase-menubar-edit-trigger"),
+                            vec![],
+                            vec![
+                                menubar::item("undo", false, false, vec![], vec![text("Undo")]),
+                                menubar::item("redo", true, false, vec![], vec![text("Redo")]),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Menubar",
+        "複数 Menu の水平配置と roving tabindex。SSR 初期状態は closed。既定 CSS は fandhe_frontend_pre_styled_ui::menubar::stylesheet() が提供します。",
+        vec![node],
+    )
+}
+
 /// Button コンポーネント節（`data-scope="button"`、pre-styled-ui の単純
 /// styled 部品）。variant / colorPalette / disabled / loading の代表的な
 /// 組み合わせを実演する。
@@ -960,6 +1117,8 @@ fn build_page() -> Node {
             select_section(),
             popover_section(),
             tooltip_section(),
+            navigation_menu_section(),
+            menubar_section(),
             button_section(),
             badge_section(),
             card_section(),
@@ -1022,6 +1181,8 @@ fn build_stylesheet() -> Result<StyleSheet, fandhe_frontend_pre_styled_ui::Style
         fandhe_frontend_pre_styled_ui::select::stylesheet(),
         fandhe_frontend_pre_styled_ui::popover::stylesheet(),
         fandhe_frontend_pre_styled_ui::tooltip::stylesheet(),
+        fandhe_frontend_pre_styled_ui::navigation_menu::stylesheet(),
+        fandhe_frontend_pre_styled_ui::menubar::stylesheet(),
         fandhe_frontend_pre_styled_ui::switch::stylesheet(),
         fandhe_frontend_pre_styled_ui::radio_group::stylesheet(),
         fandhe_frontend_pre_styled_ui::avatar::stylesheet(),
@@ -1092,6 +1253,8 @@ mod tests {
             "data-scope=\"select\"",
             "data-scope=\"popover\"",
             "data-scope=\"tooltip\"",
+            "data-scope=\"navigation-menu\"",
+            "data-scope=\"menubar\"",
             // pre-styled-ui の単純 styled 部品
             "data-scope=\"button\"",
             "data-scope=\"badge\"",
@@ -1168,6 +1331,41 @@ mod tests {
         let html = render(&tooltip_section());
         assert!(html.contains(r#"role="tooltip""#));
         assert!(html.contains(r#"aria-describedby="showcase-tooltip-content""#));
+        assert!(html.contains("hidden"));
+    }
+
+    /// anatomy・ARIA の検証（`role="menu"`/`role="menuitem"` を一切付与
+    /// しないこと・`nav` の暗黙 role に依拠して `role="navigation"` を
+    /// 明示付与しないことを固定する。`aria-current="page"` は現在ページを
+    /// 示す 2 件目のリンクのみに付与される）。
+    #[test]
+    fn navigation_menu_section_renders_closed_state_without_menu_roles() {
+        let html = render(&navigation_menu_section());
+        assert!(html.contains("<nav"));
+        assert!(html.contains(r#"aria-label="Product navigation""#));
+        assert!(html.contains(r#"data-state="closed""#));
+        assert!(html.contains(r#"aria-expanded="false""#));
+        assert!(html.contains(r#"aria-current="page""#));
+        assert!(html.contains("hidden"));
+        assert!(!html.contains(r#"role="menu""#));
+        assert!(!html.contains(r#"role="menuitem""#));
+        assert!(!html.contains(r#"role="navigation""#));
+    }
+
+    /// anatomy・ARIA の検証（`role="menubar"`/`role="menuitem"`・roving
+    /// tabindex（1 件目のみ `tabindex="0"`、2 件目は `tabindex="-1"`）・
+    /// `menu` パーツの `role="none"` を固定する）。
+    #[test]
+    fn menubar_section_renders_closed_state_with_menubar_roles() {
+        let html = render(&menubar_section());
+        assert!(html.contains(r#"role="menubar""#));
+        assert!(html.contains(r#"role="menuitem""#));
+        assert!(html.contains(r#"role="none""#));
+        assert!(html.contains(r#"aria-haspopup="menu""#));
+        assert!(html.contains(r#"tabindex="0""#));
+        assert!(html.contains(r#"tabindex="-1""#));
+        assert!(html.contains(r#"data-state="closed""#));
+        assert!(html.contains(r#"role="separator""#));
         assert!(html.contains("hidden"));
     }
 
@@ -1253,6 +1451,8 @@ mod tests {
         assert!(css.contains(r#"[data-scope="select"][data-part="trigger"]"#));
         assert!(css.contains(r#"[data-scope="popover"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="navigation-menu"][data-part="trigger"]"#));
+        assert!(css.contains(r#"[data-scope="menubar"][data-part="trigger"]"#));
         assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="radio-group"][data-part="item-control"]"#));
         assert!(css.contains(r#"[data-scope="avatar"][data-part="root"]"#));
