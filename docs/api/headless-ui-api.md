@@ -265,8 +265,9 @@ fail-closed: `panic!`/`unwrap()` を使わず、`config.placement` のまま座�
   出力する契約とする（§6 不変条件 7 と同一）。
 
 コンポーネント別の sameWidth 既定（`fandhe-frontend-wasm-full` の
-`PositionedKind::same_width_default`）: Menu/Select は `true`、
-Popover/Tooltip は `false`。
+`PositionedKind::same_width_default`）: Menu/Select/Menubar は `true`、
+Popover/Tooltip/NavigationMenu は `false`（Menubar/NavigationMenu はイシュー
+#1182 で追加、判断根拠は `docs/design/wasm-full-architecture.md` §23.1）。
 
 ### 4a.5 計測注入・再計算（`fandhe-frontend-wasm-full` の `position` モジュール）
 
@@ -278,7 +279,8 @@ Popover/Tooltip は `false`。
 
 - 純粋ロジック層（native `cargo test` 可）: `PositionedKind`
   （`from_scope`: 未知の `data-scope` 値は `None` の fail-closed /
-  `has_arrow`: Select のみ `false` / `same_width_default`: 上記表）・
+  `has_arrow`: Popover/Tooltip/Menu のみ `true`（許可リスト形式。Select/
+  Menubar/NavigationMenu は `false`） / `same_width_default`: 上記表）・
   `parse_side_attr`/`parse_align_attr`（属性欠落・未知値は
   `bottom`/`center` へ fail-closed）・`resolve_requested_placement`・
   `Measurement`・`resolve_position(kind, measurement, requested) -> RepositionResult`

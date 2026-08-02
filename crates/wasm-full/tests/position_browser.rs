@@ -70,12 +70,35 @@
 //!     （`crates/pre-styled-ui/src/menu.rs`・`select.rs` の CSS 切り替え
 //!     契約の前提となる、`docs/design/anchor-positioning-design.md` §4.4b
 //!     参照）
+//!
+//! 以下 (l)〜(o) はイシュー #1182（`PositionedKind` scope enum への
+//! navigation-menu / menubar 追加、出典 PR #1177 の out-of-scope 節）で
+//! 追加した検証観点。
+//!
+//! (l) Menubar は `same_width_default() == true`（`--fandhe-reference-width`
+//!     を含む）かつ `has_arrow() == false`（arrow 要素へ `style` を複製
+//!     しない。headless-ui `menubar` モジュールの anatomy が Arrow/
+//!     ArrowTip を意図的スコープ外とする契約の実 DOM 確認）
+//! (m) menubar の trigger 2 個のうち 2 個目のメニューのみを開いた状態で
+//!     `reposition_now()` を呼ぶと、`--fandhe-x` が 2 個目の trigger の
+//!     実測位置に対応し、1 個目（先頭）の trigger へ誤ってアンカーされ
+//!     ない（`find_menubar_anchor` の回帰、イシュー #622 の誤 anchor
+//!     指摘と同型の問題への対処）
+//! (n) navigation-menu のマークアップ（headless-ui が `positioner` パーツ
+//!     を出力しない、open な content を含む）に対し `reposition_now()` が
+//!     panic せず、いかなる要素にも `style`/`data-positioned` を付与しない
+//!     （headless 層が positioner を出力しない現状では配線が発火しない
+//!     前方互換の挙動を固定する）
+//! (o) menubar の item 値・trigger ラベルへ XSS ペイロードを既定エスケープ
+//!     経由で渡しても、位置決め配線が既定エスケープ保証を弱めないこと
+//!     （REQ-1 拡張回帰、検証観点 (j) の menubar 版）
 
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_core::{el, render, text};
 use fandhe_frontend_headless_ui::state::OpenState;
-use fandhe_frontend_headless_ui::{menu, popover, select, tooltip};
+use fandhe_frontend_headless_ui::Orientation;
+use fandhe_frontend_headless_ui::{menu, menubar, navigation_menu, popover, select, tooltip};
 use fandhe_frontend_wasm_full::position::PositionController;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element};
@@ -1244,6 +1267,490 @@ fn reposition_now_does_not_weaken_default_escaping_for_menu_select_and_tooltip_c
         Some(attr_payload)
     );
     assert!(menu_trigger.get_attribute("onmouseover").is_none());
+
+    drop(controller);
+}
+
+// ---------------------------------------------------------------------
+// イシュー #1182: `PositionedKind` scope enum への navigation-menu /
+// menubar 追加（出典 PR #1177 の out-of-scope 節）。冒頭 doc の検証観点
+// (l)〜(o) 参照。
+// ---------------------------------------------------------------------
+
+/// 単一の menubar menu（trigger + positioner + content + item、open 状態）を
+/// `container` 配下へ展開し、`(trigger, positioner, decoy_arrow)` を返す。
+/// menubar の headless-ui anatomy は Arrow/ArrowTip を意図的スコープ外と
+/// するため（モジュール doc 参照）、`[data-part="arrow"]` のデコイ要素を
+/// positioner 配下へ追加し `PositionedKind::Menubar::has_arrow() == false`
+/// の fail-closed 契約（`style` が付与されないこと）をブラウザ経路で確認
+/// できるようにする（[`mount_open_select_with_decoy_arrow`] と同型）。
+fn mount_open_menubar_with_decoy_arrow(
+    document: &Document,
+    container: &Element,
+    id_prefix: &str,
+    trigger_style: &str,
+) -> (Element, Element, Element) {
+    ensure_fixed_floating_size_stylesheet(document);
+    let trigger_id = format!("{id_prefix}-trigger");
+    let positioner_id = format!("{id_prefix}-positioner");
+    let decoy_arrow_id = format!("{id_prefix}-decoy-arrow");
+    let html = render(&menubar::root(
+        Orientation::Horizontal,
+        "",
+        vec![],
+        vec![menubar::menu(
+            OpenState::Open,
+            vec![],
+            vec![
+                menubar::trigger(
+                    false,
+                    OpenState::Open,
+                    false,
+                    false,
+                    0,
+                    None,
+                    vec![("id", trigger_id.as_str()), ("style", trigger_style)],
+                    vec![],
+                ),
+                menubar::positioner(
+                    OpenState::Open,
+                    // floating 要素に固定サイズを与える理由は
+                    // [`FIXED_FLOATING_SIZE_CLASS`] のドキュメントを参照。
+                    vec![
+                        ("id", positioner_id.as_str()),
+                        ("class", FIXED_FLOATING_SIZE_CLASS),
+                    ],
+                    vec![
+                        menubar::content(
+                            OpenState::Open,
+                            None,
+                            None,
+                            vec![],
+                            vec![menubar::item(
+                                "item-1",
+                                false,
+                                false,
+                                vec![],
+                                vec![text("Item 1")],
+                            )],
+                        ),
+                        // headless-ui の menubar モジュールは arrow パーツを
+                        // 提供しない（`has_arrow() == false`）。誤って
+                        // マークアップに混入した `data-part="arrow"` 要素が
+                        // repositioning から除外されることを確認するための
+                        // デコイ。
+                        el(
+                            "div",
+                            vec![("data-part", "arrow"), ("id", decoy_arrow_id.as_str())],
+                            vec![],
+                        ),
+                    ],
+                ),
+            ],
+        )],
+    ));
+    container.set_inner_html(&html);
+    let trigger = document
+        .get_element_by_id(&trigger_id)
+        .expect("trigger element must exist");
+    let positioner = document
+        .get_element_by_id(&positioner_id)
+        .expect("positioner element must exist");
+    let decoy_arrow = document
+        .get_element_by_id(&decoy_arrow_id)
+        .expect("decoy arrow element must exist");
+    (trigger, positioner, decoy_arrow)
+}
+
+#[wasm_bindgen_test]
+fn reposition_now_sets_reference_width_matching_anchor_width_for_menubar_and_skips_decoy_arrow() {
+    // Menubar は `PositionedKind::same_width_default() == true` かつ
+    // `has_arrow() == false`（native 側の
+    // `same_width_default_true_for_menu_select_and_menubar_only`/
+    // `arrow_target_kinds_are_popover_tooltip_menu_only` と同じ契約を
+    // ブラウザ経路でも確認する。検証観点 (l)）。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-menubar-width");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let (_trigger, positioner, decoy_arrow) = mount_open_menubar_with_decoy_arrow(
+        &document,
+        &container,
+        "position-browser-menubar-width",
+        "position: fixed; left: 30px; top: 30px; width: 120px; height: 24px;",
+    );
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    let style = positioner
+        .get_attribute("style")
+        .expect("Menubar positioner must receive a style attribute after reposition_now");
+    assert!(style.contains("--fandhe-x:"));
+    assert!(style.contains("--fandhe-y:"));
+    assert!(
+        style.contains("--fandhe-reference-width:"),
+        "Menubar (same_width_default() == true) must output --fandhe-reference-width: {style}"
+    );
+
+    let reference_width = extract_css_var_px(&style, "--fandhe-reference-width");
+    assert!(
+        (reference_width - 120.0).abs() < 1.0,
+        "--fandhe-reference-width must match the anchor (trigger) measured width (120px); \
+         got {reference_width}"
+    );
+
+    assert!(
+        decoy_arrow.get_attribute("style").is_none(),
+        "Menubar (has_arrow() == false) must not receive a style attribute on a decoy \
+         [data-part=\"arrow\"] element"
+    );
+
+    drop(controller);
+}
+
+/// 2 個の menu を持つ menubar を `container` 配下へ展開する。`index=0` の
+/// menu は closed のまま、`index=1` の menu のみ open にする
+/// （`find_menubar_anchor` の回帰、検証観点 (m)。イシュー #622 の
+/// context-trigger/trigger-item 誤 anchor 指摘と同型の問題）。
+/// `trigger0_style`/`trigger1_style` はそれぞれの anchor 矩形を決定的に
+/// するための inline style（`position: fixed`）。返り値は
+/// `(trigger0, trigger1, positioner0, positioner1)`。
+fn mount_open_menubar_with_two_menus(
+    document: &Document,
+    container: &Element,
+    id_prefix: &str,
+    trigger0_style: &str,
+    trigger1_style: &str,
+) -> (Element, Element, Element, Element) {
+    ensure_fixed_floating_size_stylesheet(document);
+    let trigger0_id = format!("{id_prefix}-trigger-0");
+    let trigger1_id = format!("{id_prefix}-trigger-1");
+    let positioner0_id = format!("{id_prefix}-positioner-0");
+    let positioner1_id = format!("{id_prefix}-positioner-1");
+    let html = render(&menubar::root(
+        Orientation::Horizontal,
+        "",
+        vec![],
+        vec![
+            menubar::menu(
+                OpenState::Closed,
+                vec![],
+                vec![
+                    menubar::trigger(
+                        false,
+                        OpenState::Closed,
+                        false,
+                        false,
+                        0,
+                        None,
+                        vec![("id", trigger0_id.as_str()), ("style", trigger0_style)],
+                        vec![],
+                    ),
+                    menubar::positioner(
+                        OpenState::Closed,
+                        vec![("id", positioner0_id.as_str())],
+                        vec![menubar::content(
+                            OpenState::Closed,
+                            None,
+                            None,
+                            vec![],
+                            vec![menubar::item(
+                                "item-0",
+                                false,
+                                false,
+                                vec![],
+                                vec![text("Item 0")],
+                            )],
+                        )],
+                    ),
+                ],
+            ),
+            menubar::menu(
+                OpenState::Open,
+                vec![],
+                vec![
+                    menubar::trigger(
+                        false,
+                        OpenState::Open,
+                        false,
+                        false,
+                        1,
+                        None,
+                        vec![("id", trigger1_id.as_str()), ("style", trigger1_style)],
+                        vec![],
+                    ),
+                    menubar::positioner(
+                        OpenState::Open,
+                        // floating 要素に固定サイズを与える理由は
+                        // [`FIXED_FLOATING_SIZE_CLASS`] のドキュメントを参照。
+                        vec![
+                            ("id", positioner1_id.as_str()),
+                            ("class", FIXED_FLOATING_SIZE_CLASS),
+                        ],
+                        vec![menubar::content(
+                            OpenState::Open,
+                            None,
+                            None,
+                            vec![],
+                            vec![menubar::item(
+                                "item-1",
+                                false,
+                                false,
+                                vec![],
+                                vec![text("Item 1")],
+                            )],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    let trigger0 = document
+        .get_element_by_id(&trigger0_id)
+        .expect("trigger0 element must exist");
+    let trigger1 = document
+        .get_element_by_id(&trigger1_id)
+        .expect("trigger1 element must exist");
+    let positioner0 = document
+        .get_element_by_id(&positioner0_id)
+        .expect("positioner0 element must exist");
+    let positioner1 = document
+        .get_element_by_id(&positioner1_id)
+        .expect("positioner1 element must exist");
+    (trigger0, trigger1, positioner0, positioner1)
+}
+
+#[wasm_bindgen_test]
+fn reposition_now_anchors_menubar_to_its_own_menu_trigger_not_sibling_menu_trigger() {
+    // イシュー #1182 検証観点 (m): menubar は単一 scope root 配下に複数の
+    // menu ラッパー（trigger + positioner の組）が並ぶため、
+    // `find_menubar_anchor` が「開いている positioner と同じ menu ラッパー
+    // 内の trigger」を anchor として解決することを固定する（素朴な
+    // `find_anchor` を適用すると root 内の先頭 trigger へ誤ってアンカー
+    // される回帰、イシュー #622 と同型の問題）。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-menubar-multi");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let (_trigger0, _trigger1, positioner0, positioner1) = mount_open_menubar_with_two_menus(
+        &document,
+        &container,
+        "position-browser-menubar-multi",
+        "position: fixed; left: 5px; top: 5px; width: 10px; height: 10px;",
+        "position: fixed; left: 500px; top: 5px; width: 10px; height: 10px;",
+    );
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    assert!(
+        positioner0.get_attribute("style").is_none(),
+        "the closed (1st) menu's positioner must not be repositioned"
+    );
+
+    let style = positioner1.get_attribute("style").expect(
+        "the open (2nd) menu's positioner must receive a style attribute after reposition_now \
+         (find_menubar_anchor must resolve the trigger within its own [data-part=\"menu\"] \
+         wrapper, not the 1st menu's trigger)",
+    );
+    let x = extract_fandhe_x(&style);
+    assert!(
+        x > 400.0,
+        "positioner for the 2nd menu must anchor to its own trigger (left: 500px), not the \
+         1st menu's trigger (left: 5px); got --fandhe-x: {x}"
+    );
+
+    drop(controller);
+}
+
+#[wasm_bindgen_test]
+fn reposition_now_is_noop_for_navigation_menu_markup_without_positioner_part() {
+    // イシュー #1182 検証観点 (n): headless-ui の navigation-menu モジュール
+    // は `positioner` パーツを一切出力しない（イシュー #993、
+    // `docs/policy/intentional-non-adoption.md` §3.25 規則 2）ため、
+    // `PositionedKind::NavigationMenu` の scope 登録自体は成立するものの、
+    // 現状のマークアップでは `reposition_now()` の発火契機
+    // （`[data-part="positioner"][data-state="open"]`）が存在しない。
+    // panic せず、いかなる要素にも `style`/`data-positioned` を付与しない
+    // 前方互換の挙動を固定する。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-navigation-menu");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let trigger_id = "position-browser-navigation-menu-trigger";
+    let content_id = "position-browser-navigation-menu-content";
+    let html = render(&navigation_menu::root(
+        "Main",
+        vec![],
+        vec![navigation_menu::list(
+            vec![],
+            vec![navigation_menu::item(
+                OpenState::Open,
+                false,
+                vec![],
+                vec![
+                    navigation_menu::trigger(
+                        OpenState::Open,
+                        false,
+                        "products",
+                        Some(trigger_id),
+                        Some(content_id),
+                        vec![],
+                        vec![text("Products")],
+                    ),
+                    navigation_menu::content(
+                        OpenState::Open,
+                        Some(content_id),
+                        Some(trigger_id),
+                        vec![],
+                        vec![navigation_menu::link(
+                            "/products",
+                            false,
+                            vec![],
+                            vec![text("All products")],
+                        )],
+                    ),
+                ],
+            )],
+        )],
+    ));
+    container.set_inner_html(&html);
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    assert!(
+        container
+            .query_selector("[data-positioned]")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "navigation-menu markup has no positioner part, so reposition_now() must not mark any \
+         element with data-positioned"
+    );
+    assert!(
+        container
+            .query_selector("[style]")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "navigation-menu markup has no positioner part, so reposition_now() must not write a \
+         style attribute to any element"
+    );
+
+    drop(controller);
+}
+
+#[wasm_bindgen_test]
+fn reposition_now_does_not_weaken_default_escaping_for_menubar_content() {
+    // REQ-1（既定エスケープ）の位置決め経路への拡張回帰（イシュー #1182
+    // 検証観点 (o)、既存の menu/select/tooltip 版と同型）。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-xss-menubar");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let script_payload = "<script>alert('fandhe-xss-menubar')</script>";
+    let attr_payload = "\" onmouseover=\"alert(1)";
+
+    let trigger_id = "position-browser-xss-menubar-trigger";
+    let positioner_id = "position-browser-xss-menubar-positioner";
+
+    let html = render(&menubar::root(
+        Orientation::Horizontal,
+        "",
+        vec![],
+        vec![menubar::menu(
+            OpenState::Open,
+            vec![],
+            vec![
+                menubar::trigger(
+                    false,
+                    OpenState::Open,
+                    false,
+                    false,
+                    0,
+                    None,
+                    vec![("id", trigger_id), ("data-testid", attr_payload)],
+                    vec![text(script_payload)],
+                ),
+                menubar::positioner(
+                    OpenState::Open,
+                    vec![("id", positioner_id)],
+                    vec![menubar::content(
+                        OpenState::Open,
+                        None,
+                        None,
+                        vec![],
+                        vec![menubar::item(
+                            script_payload,
+                            false,
+                            false,
+                            vec![],
+                            vec![text(script_payload)],
+                        )],
+                    )],
+                ),
+            ],
+        )],
+    ));
+    container.set_inner_html(&html);
+
+    assert!(
+        container
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "no real <script> element must be created from the escaped payload"
+    );
+
+    let text_content = container.text_content().unwrap_or_default();
+    assert!(
+        text_content.contains(script_payload),
+        "the script payload must survive as literal text content (escaped, not executed): {text_content}"
+    );
+
+    let trigger = document
+        .get_element_by_id(trigger_id)
+        .expect("trigger element must exist");
+    assert_eq!(
+        trigger.get_attribute("data-testid").as_deref(),
+        Some(attr_payload),
+        "the attribute-injection payload must be preserved literally as the data-testid value"
+    );
+    assert!(
+        trigger.get_attribute("onmouseover").is_none(),
+        "the attribute-injection payload must not break out into a real onmouseover attribute"
+    );
+
+    let positioner = document
+        .get_element_by_id(positioner_id)
+        .expect("positioner element must exist");
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    assert!(
+        positioner.get_attribute("style").is_some(),
+        "position wiring must complete for the menubar positioner despite XSS-payload content"
+    );
+
+    assert!(container
+        .query_selector("script")
+        .expect("query_selector must not fail")
+        .is_none());
+    assert_eq!(
+        trigger.get_attribute("data-testid").as_deref(),
+        Some(attr_payload)
+    );
+    assert!(trigger.get_attribute("onmouseover").is_none());
 
     drop(controller);
 }

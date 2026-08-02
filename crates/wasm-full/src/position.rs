@@ -15,10 +15,18 @@
 //! # 他モジュール・他クレートとの契約
 //!
 //! - [`PositionedKind::from_scope`] は `data-scope` 属性値
-//!   （`"popover"`/`"tooltip"`/`"menu"`/`"select"`）と 1 対 1 対応する
-//!   （[`crate::overlay::OverlayKind::from_scope`] と同型の fail-closed
-//!   パターン。未知の scope 値は `None` とし、呼び出し側は対象外として
-//!   無視する）。
+//!   （`"popover"`/`"tooltip"`/`"menu"`/`"select"`/`"navigation-menu"`/
+//!   `"menubar"`。後 2 者はイシュー #1182、出典は PR #1177 の out-of-scope
+//!   節）と 1 対 1 対応する（[`crate::overlay::OverlayKind::from_scope`] と
+//!   同型の fail-closed パターン。未知の scope 値は `None` とし、呼び出し側
+//!   は対象外として無視する）。`navigation-menu` は
+//!   `fandhe-frontend-headless-ui` 側が `positioner` パーツを一切出力しない
+//!   （イシュー #993、`docs/policy/intentional-non-adoption.md` §3.25
+//!   規則 2 のユーザー判断）ため、scope 登録自体は成立するものの、現状の
+//!   headless-ui マークアップでは [`wiring::reposition_one`] が発火する
+//!   契機（`[data-part="positioner"][data-state="open"]`）が存在せず前方
+//!   互換の受け入れに留まる。将来 headless-ui 側へ positioner パーツが
+//!   追加されれば同じ配線がそのまま有効化される。
 //! - `positioner` 要素の `data-side`/`data-align` 属性は
 //!   [`fandhe_frontend_headless_ui::Placement`] の語彙で読み書きする。
 //!   DOM 上の値は改ざんされうるクライアント入力として扱い、未知値は既定
@@ -83,6 +91,14 @@ pub enum PositionedKind {
     Menu,
     /// `data-scope="select"`。
     Select,
+    /// `data-scope="navigation-menu"`（イシュー #1182）。
+    /// [`crate::overlay::OverlayKind::NavigationMenu`] と対応するが、
+    /// headless-ui 側が `positioner` パーツを出力しないため（モジュール
+    /// doc 参照）配線層は現状発火しない前方互換の登録。
+    NavigationMenu,
+    /// `data-scope="menubar"`（イシュー #1182）。
+    /// [`crate::overlay::OverlayKind::Menubar`] と対応する。
+    Menubar,
 }
 
 impl PositionedKind {
@@ -96,25 +112,40 @@ impl PositionedKind {
             "tooltip" => Some(Self::Tooltip),
             "menu" => Some(Self::Menu),
             "select" => Some(Self::Select),
+            "navigation-menu" => Some(Self::NavigationMenu),
+            "menubar" => Some(Self::Menubar),
             _ => None,
         }
     }
 
-    /// arrow 座標計算の対象か（ADR §4.2: Select のみ arrow を持たない）。
+    /// arrow 座標計算の対象か。許可リスト形式（Popover/Tooltip/Menu の
+    /// みが対象、それ以外は既定で非対象）とすることで、variant 追加時に
+    /// fail-closed 側（arrow 非対象）へ自動的に倒れる（イシュー #1182で
+    /// `!matches!(self, Self::Select)` の否定リストから書き換え）。
+    /// Menubar は headless-ui `menubar` モジュールの anatomy が Arrow/
+    /// ArrowTip を意図的スコープ外とするため非対象。NavigationMenu も
+    /// anatomy（Root/List/Item/Trigger/Content/Link の 6 パーツ）に arrow
+    /// を持たないため非対象（ADR §4.2 の Select 非対象と同型の判断）。
     #[must_use]
     pub const fn has_arrow(self) -> bool {
-        !matches!(self, Self::Select)
+        matches!(self, Self::Popover | Self::Tooltip | Self::Menu)
     }
 
     /// sameWidth（`--fandhe-reference-width` を anchor 幅に固定する）の
     /// kind 別既定。Select はドロップダウン幅をトリガー幅に一致させる
     /// 用途が主目的のため既定 `true`。Menu もトリガー幅への追随が自然な
-    /// ユースケースが多いため `true` とする。Popover/Tooltip は任意サイズの
-    /// コンテンツを想定するため既定 `false`（呼び出し側が
-    /// [`PositioningRequest::same_width`] で上書き可能）。
+    /// ユースケースが多いため `true` とする。Menubar は menu の水平連装
+    /// であり `crate::menu` と同型の判断を踏襲する headless-ui
+    /// `menubar` モジュールの設計方針に合わせ `true` とする（イシュー
+    /// #1182。`--fandhe-reference-width` は出力のみで消費は pre-styled-ui/
+    /// 利用者 CSS のオプトインのため外観への強制はない）。Popover/Tooltip
+    /// は任意サイズのコンテンツを想定するため既定 `false`（呼び出し側が
+    /// [`PositioningRequest::same_width`] で上書き可能）。NavigationMenu
+    /// も content が任意サイズのパネルを想定するため `false`（Popover と
+    /// 同型の判断）。
     #[must_use]
     pub const fn same_width_default(self) -> bool {
-        matches!(self, Self::Menu | Self::Select)
+        matches!(self, Self::Menu | Self::Select | Self::Menubar)
     }
 }
 
@@ -270,20 +301,26 @@ mod wiring {
         element.closest("[data-part=\"root\"]").ok().flatten()
     }
 
-    /// `selector` に一致する `scope_root` 配下の要素のうち、**`scope_root`
+    /// `selector` に一致する `container` 配下の要素のうち、**`scope_root`
     /// 自身に属する**（ネストした子スコープの子孫ではない）最初の 1 件を
-    /// 返す。
+    /// 返す（イシュー #1182 で [`find_direct_scope_match`] から探索起点
+    /// `container` を分離・一般化。`container == scope_root` の特殊形が
+    /// [`find_direct_scope_match`]）。
     ///
     /// `Element::query_selector` は子孫全体を対象にした単純な CSS セレクタ
     /// マッチのため、Menu のサブメニュー（親 scope root の `content` 配下に
     /// 子 `Menu` インスタンスの scope root がネストする構造）のように
-    /// scope root が入れ子になる場合、親 scope root からの検索で子スコープ
+    /// scope root が入れ子になる場合、`container` からの検索で子スコープ
     /// 内の同名パーツ（例: 子の `trigger-item`）まで拾ってしまう。各候補
     /// 要素について `closest("[data-part=\"root\"]")`（[`find_scope_root`]
     /// と同じ「最近傍の scope root」解決）が `scope_root` 自身と一致するかを
     /// 確認し、一致するものだけを採用することでこの誤検出を防ぐ。
-    fn find_direct_scope_match(scope_root: &Element, selector: &str) -> Option<Element> {
-        let list = scope_root.query_selector_all(selector).ok()?;
+    fn find_scope_match_within(
+        container: &Element,
+        scope_root: &Element,
+        selector: &str,
+    ) -> Option<Element> {
+        let list = container.query_selector_all(selector).ok()?;
         for i in 0..list.length() {
             // `reposition_all`（`document.query_selector_all` を走査する
             // 呼び出し元）と同じ「取得できなかった要素はスキップして続行」
@@ -306,6 +343,14 @@ mod wiring {
             }
         }
         None
+    }
+
+    /// `selector` に一致する `scope_root` 配下の要素のうち、**`scope_root`
+    /// 自身に属する**（ネストした子スコープの子孫ではない）最初の 1 件を
+    /// 返す（[`find_scope_match_within`] の `container == scope_root` 特殊
+    /// 形。既存呼び出し元との後方互換のため関数として残す）。
+    fn find_direct_scope_match(scope_root: &Element, selector: &str) -> Option<Element> {
+        find_scope_match_within(scope_root, scope_root, selector)
     }
 
     /// scope root 配下の anchor 要素を解決する。`[data-part="anchor"]` が
@@ -332,6 +377,51 @@ mod wiring {
             .or_else(|| find_direct_scope_match(scope_root, "[data-part=\"trigger\"]"))
             .or_else(|| find_direct_scope_match(scope_root, "[data-part=\"context-trigger\"]"))
             .or_else(|| find_direct_scope_match(scope_root, "[data-part=\"trigger-item\"]"))
+    }
+
+    /// [`PositionedKind::Menubar`] 専用の anchor 解決（イシュー #1182）。
+    ///
+    /// menubar は単一の scope root（`data-part="root"`）配下に複数の
+    /// `[data-part="menu"]`（トップレベルメニュー単位のラッパー、
+    /// `headless-ui::menubar::menu` が出力する trigger + positioner の
+    /// 組）が並ぶ anatomy であり、[`find_anchor`] を素直に適用すると
+    /// root 配下の**最初の** trigger を常に anchor として拾ってしまい、
+    /// 2 個目以降の menu を開いたときに誤った trigger の座標へ位置決め
+    /// されてしまう（イシュー #622 の context-trigger/trigger-item 誤
+    /// anchor 指摘と同型の問題）。`positioner` の最近傍 `[data-part="menu"]`
+    /// ラッパーを起点に、その内側で [`find_scope_match_within`] により
+    /// 「`scope_root` 自身に属する trigger」を解決することで、常に「この
+    /// positioner と同じ menu ラッパー内の trigger」が anchor として選ばれる
+    /// ようにする。
+    ///
+    /// `positioner` の祖先に `[data-part="menu"]` ラッパーが見つからない
+    /// （マークアップが不完全）場合や、見つかったラッパーの最近傍 root が
+    /// `scope_root` と一致しない（ネストした別スコープに属する）場合は
+    /// [`find_anchor`] へフォールバックする（fail-closed。マークアップ
+    /// 不整合時でも panic せず、従来どおり root 内の先頭 trigger を拾う
+    /// 縮退動作に留める）。
+    fn find_menubar_anchor(scope_root: &Element, positioner: &Element) -> Option<Element> {
+        let menu_wrapper = positioner
+            .closest("[data-part=\"menu\"]")
+            .ok()
+            .flatten()
+            .filter(|wrapper| {
+                wrapper
+                    .closest("[data-part=\"root\"]")
+                    .ok()
+                    .flatten()
+                    .is_some_and(|nearest_root| {
+                        nearest_root.is_same_node(Some(scope_root.as_ref()))
+                    })
+            });
+        if let Some(menu_wrapper) = menu_wrapper {
+            if let Some(trigger) =
+                find_scope_match_within(&menu_wrapper, scope_root, "[data-part=\"trigger\"]")
+            {
+                return Some(trigger);
+            }
+        }
+        find_anchor(scope_root)
     }
 
     /// scope root 配下の arrow 要素（存在しないコンポーネント・マークアップ
@@ -411,7 +501,16 @@ mod wiring {
         let Some(kind) = PositionedKind::from_scope(&scope) else {
             return;
         };
-        let Some(anchor_element) = find_anchor(&scope_root) else {
+        // Menubar は複数 menu ラッパーが並ぶため専用の anchor 解決
+        // （[`find_menubar_anchor`] 参照、イシュー #1182）を使う。他の
+        // kind は従来どおり単一 scope root 内の先頭 trigger/anchor で
+        // 十分（1 scope root = 1 trigger の anatomy のため）。
+        let anchor_element = if kind == PositionedKind::Menubar {
+            find_menubar_anchor(&scope_root, positioner)
+        } else {
+            find_anchor(&scope_root)
+        };
+        let Some(anchor_element) = anchor_element else {
             return;
         };
 
@@ -648,6 +747,14 @@ mod tests {
             PositionedKind::from_scope("select"),
             Some(PositionedKind::Select)
         );
+        assert_eq!(
+            PositionedKind::from_scope("navigation-menu"),
+            Some(PositionedKind::NavigationMenu)
+        );
+        assert_eq!(
+            PositionedKind::from_scope("menubar"),
+            Some(PositionedKind::Menubar)
+        );
     }
 
     #[test]
@@ -658,19 +765,29 @@ mod tests {
     }
 
     #[test]
-    fn only_select_lacks_arrow() {
+    fn arrow_target_kinds_are_popover_tooltip_menu_only() {
+        // イシュー #1182: has_arrow() を許可リスト形式へ書き換えたことに
+        // 伴い、Select に加え Menubar/NavigationMenu も arrow 非対象で
+        // あることを固定する（テスト名も実態〔Select 以外に非対象が
+        // 増えた〕に合わせ `only_select_lacks_arrow` から改名）。
         assert!(PositionedKind::Popover.has_arrow());
         assert!(PositionedKind::Tooltip.has_arrow());
         assert!(PositionedKind::Menu.has_arrow());
         assert!(!PositionedKind::Select.has_arrow());
+        assert!(!PositionedKind::Menubar.has_arrow());
+        assert!(!PositionedKind::NavigationMenu.has_arrow());
     }
 
     #[test]
-    fn same_width_default_true_for_menu_and_select_only() {
+    fn same_width_default_true_for_menu_select_and_menubar_only() {
+        // イシュー #1182: Menubar は menu の水平連装として same_width の
+        // 既定を true に追加する。NavigationMenu は Popover と同型に false。
         assert!(!PositionedKind::Popover.same_width_default());
         assert!(!PositionedKind::Tooltip.same_width_default());
         assert!(PositionedKind::Menu.same_width_default());
         assert!(PositionedKind::Select.same_width_default());
+        assert!(PositionedKind::Menubar.same_width_default());
+        assert!(!PositionedKind::NavigationMenu.same_width_default());
     }
 
     // --- data-side/data-align の fail-closed パース ---
@@ -709,13 +826,18 @@ mod tests {
     }
 
     #[test]
-    fn resolve_position_includes_reference_width_for_menu_and_select_only() {
-        // same_width_default() が true の Menu/Select のみ
-        // --fandhe-reference-width を出力し、false の Popover/Tooltip では
-        // 出力しないことを resolve_position 経由（wasm-full 側）で固定する
-        // （イシュー #622 レビュー指摘: same_width が実行時挙動に影響しない
-        // 不具合の回帰。headless-ui 側の同種テストと二重化する）。
-        for kind in [PositionedKind::Menu, PositionedKind::Select] {
+    fn resolve_position_includes_reference_width_for_menu_select_and_menubar_only() {
+        // same_width_default() が true の Menu/Select/Menubar のみ
+        // --fandhe-reference-width を出力し、false の Popover/Tooltip/
+        // NavigationMenu では出力しないことを resolve_position 経由
+        // （wasm-full 側）で固定する（イシュー #622 レビュー指摘の回帰を
+        // イシュー #1182 で Menubar/NavigationMenu 追加後の全種列挙へ
+        // 更新。headless-ui 側の同種テストと二重化する）。
+        for kind in [
+            PositionedKind::Menu,
+            PositionedKind::Select,
+            PositionedKind::Menubar,
+        ] {
             let result = resolve_position(
                 kind,
                 measurement(),
@@ -726,7 +848,11 @@ mod tests {
                 "kind={kind:?}"
             );
         }
-        for kind in [PositionedKind::Popover, PositionedKind::Tooltip] {
+        for kind in [
+            PositionedKind::Popover,
+            PositionedKind::Tooltip,
+            PositionedKind::NavigationMenu,
+        ] {
             let result = resolve_position(
                 kind,
                 measurement(),
@@ -740,14 +866,22 @@ mod tests {
     }
 
     #[test]
-    fn resolve_position_omits_arrow_vars_for_select() {
-        let result = resolve_position(
+    fn resolve_position_omits_arrow_vars_for_select_menubar_and_navigation_menu() {
+        // イシュー #1182: has_arrow() == false の 3 種すべてで
+        // --fandhe-arrow-* が出力されないことを固定する。
+        for kind in [
             PositionedKind::Select,
-            measurement(),
-            Placement::new(Side::Bottom, Align::Center),
-        );
-        assert!(!result.style.contains("--fandhe-arrow-x:"));
-        assert!(!result.style.contains("--fandhe-arrow-y:"));
+            PositionedKind::Menubar,
+            PositionedKind::NavigationMenu,
+        ] {
+            let result = resolve_position(
+                kind,
+                measurement(),
+                Placement::new(Side::Bottom, Align::Center),
+            );
+            assert!(!result.style.contains("--fandhe-arrow-x:"), "kind={kind:?}");
+            assert!(!result.style.contains("--fandhe-arrow-y:"), "kind={kind:?}");
+        }
     }
 
     #[test]
@@ -773,15 +907,22 @@ mod tests {
     fn resolve_position_style_never_contains_quote_or_angle_bracket() {
         // XSS 回帰: 数値書式以外の文字（属性値エスケープの breakout に
         // 使われうる `"`/`<`/`>`）が混入しないことを wasm-full 側でも確認する
-        // （headless-ui 側の同種テストと二重化して境界越えの回帰を防ぐ）。
-        let result = resolve_position(
+        // （headless-ui 側の同種テストと二重化して境界越えの回帰を防ぐ。
+        // イシュー #1182 で Menubar/NavigationMenu も対象へ追加）。
+        for kind in [
             PositionedKind::Menu,
-            measurement(),
-            Placement::new(Side::Right, Align::Start),
-        );
-        assert!(!result.style.contains('"'));
-        assert!(!result.style.contains('<'));
-        assert!(!result.style.contains('>'));
+            PositionedKind::Menubar,
+            PositionedKind::NavigationMenu,
+        ] {
+            let result = resolve_position(
+                kind,
+                measurement(),
+                Placement::new(Side::Right, Align::Start),
+            );
+            assert!(!result.style.contains('"'), "kind={kind:?}");
+            assert!(!result.style.contains('<'), "kind={kind:?}");
+            assert!(!result.style.contains('>'), "kind={kind:?}");
+        }
     }
 
     // --- resolve_requested_placement（イシュー #622 レビュー指摘: flip が
