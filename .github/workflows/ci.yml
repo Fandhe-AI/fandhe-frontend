@@ -2065,6 +2065,54 @@ jobs:
         # もコンパイル・lint 対象に含む（イシュー #299）。
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+  # イシュー #1160（出典: PR #1147 out-of-scope）: 上記 clippy ジョブは host
+  # target のみを対象とするため、`#[cfg(target_arch = "wasm32")]` ゲート配下
+  # （crates/wasm-client・crates/wasm-full・crates/wasm-thin の配線層、browser
+  # テスト等）は本体がコンパイルされず clippy 警告が構造的にすり抜ける
+  # （イシュー #1140 で crates/wasm-full/tests/keynav_browser.rs の警告 11 件が
+  # すり抜けた実例）。本ジョブは wasm32-unknown-unknown target で当該 3 クレート
+  # のみを clippy し、host target のジョブでは検知できないギャップを
+  # fail-closed（-D warnings）に閉じる。workspace ルート clippy.toml の
+  # disallowed-methods（REQ-1 raw_html() 検出、issue #157）もこの wasm32 ゲート
+  # 配下へ適用されるようになる副次効果がある。clippy は check のみで
+  # wasm-bindgen 後処理を起動しないため wasm-bindgen-cli は不要。対象 3 クレート
+  # の依存閉包に crates/dist-server（build.rs のネスト WASM ビルド）は含まれない
+  # ため、上記 clippy / gate-self-apply ジョブが行う
+  # FANDHE_FRONTEND_WASM_BUILD="0" のオプトアウトも不要（実測で確認済み）。
+  clippy-wasm32:
+    name: "wasm32 target clippy (-D warnings, issue #1160)"
+    runs-on: self-hosted
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（clippy ジョブと同一 SHA に固定）。
+        # docs/spec サブモジュールは本ジョブの検証に不要なため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # clippy ジョブと同一 SHA 固定。components: clippy を明示する。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Add wasm32 target
+        # test ジョブ等と同一パターン（rustup 経由・冪等）。
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Show toolchain
+        run: rustup show && cargo --version
+
+      - name: cargo clippy (wasm32-unknown-unknown) -- -D warnings
+        # --all-targets によりテストターゲット（browser テスト含む）も
+        # コンパイル・lint 対象に含む。3 クレートを明示するのは、host target の
+        # ワークスペース全体 clippy と異なり `-p` を絞らないと
+        # wasm-client/wasm-thin の tests/ がコンパイルされずギャップが残るため。
+        run: cargo clippy -p fandhe-frontend-wasm-full -p fandhe-frontend-wasm-client -p fandhe-frontend-wasm-thin --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
+
   # イシュー #400（親 #394、出典: PR #382 out-of-scope）: `fw gate --project .`
   # の自己適用（#372 で PASS 化、PR #382）を CI で常時実行し、自己適用 PASS の
   # リグレッション（自己参照誤検知の再発・deny.toml 弱体化・structure.toml と
