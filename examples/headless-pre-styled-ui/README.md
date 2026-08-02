@@ -27,7 +27,11 @@ variant 引数を取る styled root 形へ変更されたため追随しまし�
 を v0.39.0（0.6.0 相当の #782「size variant を tabs/accordion/dialog/menu/select
 へ展開」を含む）へ追随し、Tabs / Accordion / Dialog / Menu / Select の
 `root` 系関数へ増えた `Size`（Tabs は `Size` + `ColorPalette`）引数の呼び出し
-追随を行いました。
+追随を行いました。イシュー #1183 で `fandhe-frontend-pre-styled-ui` を
+v0.40.0（`fandhe-frontend-headless-ui` v0.28.0、イシュー #1171 公開・#1173）
+へ追随しました。0.40.0 の破壊的変更（`navigation_menu::trigger` の value
+引数追加・`menubar::trigger` の index 引数追加）は本サンプルが未使用のため
+呼び出し追随は不要でした。
 
 ## pre-styled-ui 統合について
 

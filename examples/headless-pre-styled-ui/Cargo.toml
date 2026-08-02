@@ -27,9 +27,13 @@ publish = false
 # 追随。0.6.0 相当の #782「size variant を tabs/accordion/dialog/menu/select へ
 # 展開」により root 系関数へ Size（tabs は Size + ColorPalette）引数が増えて
 # いるため、`src/main.rs` の該当呼び出しを追随させた。
+# イシュー #1183 で pre-styled-ui 0.40.0 / headless-ui 0.28.0（イシュー #1171
+# 公開、#1173）へ追随。0.40.0 の破壊的変更（navigation_menu::trigger の value
+# 引数追加・menubar::trigger の index 引数追加）は本サンプル未使用のため
+# `src/main.rs` の変更は不要。
 [dependencies]
 fandhe-frontend-core = "0.2.0"
-fandhe-frontend-pre-styled-ui = "0.39.0"
+fandhe-frontend-pre-styled-ui = "0.40.0"
 
 [dev-dependencies]
 

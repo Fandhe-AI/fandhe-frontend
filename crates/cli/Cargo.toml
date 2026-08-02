@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-cli"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "fandhe-frontend-cli: AI 自己保守フック向け `fw` コマンド（TASK-13.1、structure.toml のスキーマ・パース・生成）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"
