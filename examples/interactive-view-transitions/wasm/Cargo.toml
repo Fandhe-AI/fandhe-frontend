@@ -23,10 +23,10 @@ publish = false
 [workspace]
 members = ["."]
 
-# fandhe-frontend-wasm-full は独自の semver 系列（0.5.0、イシュー #1141 公開）を
-# 持つ。イシュー #1159 で 0.1.0 から追随。
+# fandhe-frontend-wasm-full は独自の semver 系列（0.7.0、イシュー #1141 公開）を
+# 持つ。イシュー #1159 で 0.1.0 から追随、イシュー #1191 で 0.5.0 から追随。
 [dependencies]
-fandhe-frontend-wasm-full = "0.5.0"
+fandhe-frontend-wasm-full = "0.7.0"
 
 [lib]
 crate-type = ["cdylib"]

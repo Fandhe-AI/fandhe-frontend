@@ -7,7 +7,7 @@
 examples 規約の初例）と同じ構成規約に従い、crates.io へ公開済みの
 `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-interactive`
 （いずれも v0.2.0、イシュー #1159 で追随）をバージョン依存として実際に使う「正本」です
-（`wasm/` の `fandhe-frontend-wasm-full` は独自系列の v0.5.0）。
+（`wasm/` の `fandhe-frontend-wasm-full` は独自系列の v0.7.0）。
 
 `fandhe-frontend-interactive` の状態機械 API（`Component` / `dispatch` /
 `decode_action` / `render_for_hydration`）と、`page_shell` 同梱の

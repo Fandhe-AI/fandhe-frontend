@@ -31,9 +31,9 @@ checksum = "b59c572fd734c7f4dba115ccd979ae295b9dc96b3d49a710847d6b874979d580"
 
 [[package]]
 name = "fandhe-frontend-headless-ui"
-version = "0.27.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a5999fd8ba24173ec80f30e2570d46f366e1d971643151db75b2e1b0ae50715"
+checksum = "0350c14432678d331bc47477d10a79efff59674673ab74205f75f57d32ab977f"
 dependencies = [
  "fandhe-frontend-core",
  "fandhe-frontend-interactive",
@@ -63,9 +63,9 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-wasm-full"
-version = "0.5.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fae1876445f385a1e9f7d08f868a4e198291731da56a37e3321bbe4bb5f68a94"
+checksum = "d5ab4ff757a612c0df37e62fa808439aa3fa3613a1f308a3d62ec6831576cc77"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
