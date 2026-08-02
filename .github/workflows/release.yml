@@ -106,10 +106,18 @@ jobs:
       RELEASE_CRATE: ${{ inputs.crate }}
       RELEASE_VERSION: ${{ inputs.version }}
       RELEASE_MODE: ${{ inputs.mode }}
-      # イシュー #1192: `cargo publish --dry-run` はパッケージ検証ビルドを
-      # packaged コピー（path 依存が剥がされ crates.io registry 版の依存に
-      # 解決される）で実行する。cdylib+rlib クレート（wasm-thin/wasm-full/
-      # wasm-client）の rlib はメタデータハッシュサフィックスなしの固定ファイル名
+      # イシュー #1192 の CARGO_TARGET_DIR 隔離は cargo を実行する各ステップの
+      # env（ステップレベル）で個別指定する。理由（イシュー #1192 復旧、PR
+      # 参照）: `runner` コンテキストはジョブレベル env の式評価では未対応
+      # （`Unrecognized named-value: 'runner'` で workflow_dispatch 自体が
+      # HTTP 422 でパース不能になる）。ステップレベル env でのみ `runner.temp`
+      # を参照できるため、cargo 実行ステップ側へ移動している。
+      #
+      # 以下、隔離理由の詳細（各ステップの env コメントと共通）:
+      # `cargo publish --dry-run` はパッケージ検証ビルドを packaged コピー
+      # （path 依存が剥がされ crates.io registry 版の依存に解決される）で
+      # 実行する。cdylib+rlib クレート（wasm-thin/wasm-full/wasm-client）の
+      # rlib はメタデータハッシュサフィックスなしの固定ファイル名
       # （libfandhe_frontend_wasm_thin.rlib 等、cdylib の動的ライブラリ名を
       # 安定させる cargo の仕様）で出力されるため、共有 CARGO_TARGET_DIR
       # （self-hosted runner 既定の /cargo-target）上で本検証ビルドを実行すると、
@@ -122,7 +130,6 @@ jobs:
       # コメントで再現手順とともに記録）。専用 CARGO_TARGET_DIR を
       # RUNNER_TEMP 配下（イシュー #659 の配置原則）に隔離することで
       # 汚染源を断つ（ジョブ終了時に runner が自動清掃するため残置しない）。
-      CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-release-target
     steps:
       - name: Checkout
         # actions/checkout（deps-check.yml / update-external.yml と同一コミットに固定）。
@@ -154,6 +161,11 @@ jobs:
         # cargo pkgid の出力（例: path+file:///.../fandhe-frontend-cli#0.1.1）から
         # バージョンを抽出し、入力 version と完全一致しなければ公開を止める。
         # Cargo.toml のバージョンと乖離した状態での公開誤操作を防ぐ fail-closed ガード。
+        env:
+          # イシュー #1192: 共有 CARGO_TARGET_DIR 汚染対策（詳細はジョブ env の
+          # コメント参照）。`runner` コンテキストはステップレベル env でのみ
+          # 参照可能なため、cargo を呼ぶ本ステップで個別指定する。
+          CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-release-target
         run: |
           set -euo pipefail
           PKGID="$(cargo pkgid -p "${RELEASE_CRATE}" --locked)"
@@ -227,6 +239,10 @@ jobs:
       - name: "verify: cargo package --list"
         # 公開に含まれるファイル一覧を Step Summary に記録し、監査ログとして残す
         # （#513 の embedded-examples/ 同梱ファイル確認に相当する可視化）。
+        env:
+          # イシュー #1192: 共有 CARGO_TARGET_DIR 汚染対策（詳細はジョブ env の
+          # コメント参照）。ステップレベル env でのみ `runner.temp` を参照できる。
+          CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-release-target
         run: |
           set -euo pipefail
           {
@@ -239,6 +255,10 @@ jobs:
       - name: "verify: cargo publish --dry-run"
         # トークン不要。パッケージ検証ビルドまでを実施し、実公開前に
         # ビルド可能性・パッケージング可能性を確認する。
+        env:
+          # イシュー #1192: 共有 CARGO_TARGET_DIR 汚染対策（詳細はジョブ env の
+          # コメント参照）。ステップレベル env でのみ `runner.temp` を参照できる。
+          CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-release-target
         run: |
           set -euo pipefail
           cargo publish --dry-run -p "${RELEASE_CRATE}" --locked
@@ -261,8 +281,10 @@ jobs:
       RELEASE_MODE: ${{ inputs.mode }}
       # イシュー #1192: verify ジョブと同じ理由で `cargo publish`（実公開時も
       # ローカルの検証ビルドを実行する）を専用 CARGO_TARGET_DIR で隔離する。
-      # 詳細は verify ジョブの env コメント参照。
-      CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-release-target
+      # 詳細は verify ジョブの env コメント参照。`runner` コンテキストは
+      # ジョブレベル env では未対応のため、cargo を実行する
+      # 「publish: cargo publish」ステップ側の env（ステップレベル）で
+      # 個別指定する。
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
@@ -295,6 +317,9 @@ jobs:
         # ジョブ全体（他ステップ）へは広げない。
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          # イシュー #1192: 共有 CARGO_TARGET_DIR 汚染対策（詳細はジョブ env の
+          # コメント参照）。ステップレベル env でのみ `runner.temp` を参照できる。
+          CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-release-target
         run: |
           set -euo pipefail
           cargo publish -p "${RELEASE_CRATE}" --locked
