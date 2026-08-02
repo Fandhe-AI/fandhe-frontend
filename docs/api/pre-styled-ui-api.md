@@ -312,7 +312,8 @@ styled パーツ関数を再定義しないモジュール 13 件は glob 再エ
 - **テーマトークン**: 色・スペーシング等のデザイントークンとダークモード
   切り替えの基盤。chakra-ui の `system`/`recipe` 相当の設計を参考にしつつ、
   静的 SSR 出力（ビルド時に確定する CSS）を前提とする。詳細は `theme`
-  モジュール rustdoc を参照。
+  モジュール rustdoc を参照。トークン API・既定値上書き（`upsert_*`）の
+  詳細は §4l 参照。
 - **variant API・静的 CSS 生成**: chakra-ui の slot recipe 相当。
   コンポーネントの見た目バリエーション（size/variant/colorPalette 等）を
   型安全に選択し、対応する静的 CSS を生成する。詳細は
@@ -777,6 +778,96 @@ CSS のみの視覚強調と組み合わせて「ホバーで詳細が分かる�
 - 負値・フラットデータ: `charts` 基盤の `domain()`/`fmt_coord` の契約に従い
   決定的に描画する（golden テスト `crates/pre-styled-ui/tests/charts_line_area_sparkline.rs`
   参照）。
+
+## 4l. `theme` モジュール: Theme トークン API と `upsert_*`（イシュー #547/#606/#1138）
+
+### API 一覧
+
+```rust
+impl Theme {
+    pub fn empty() -> Self;
+    pub fn default() -> Self; // 標準トレイト実装
+
+    // 追加専用（既存名は ThemeError::DuplicateTokenName で拒否）
+    pub fn push_color(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
+    pub fn push_space(&mut self, name: &str, value: &str) -> Result<(), ThemeError>;
+    pub fn push_typography(&mut self, name: &str, value: &str) -> Result<(), ThemeError>;
+    pub fn push_radius(&mut self, name: &str, value: &str) -> Result<(), ThemeError>;
+    pub fn push_shadow(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
+
+    // 追加または上書き（イシュー #1138。DuplicateTokenName を返さない）
+    pub fn upsert_color(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
+    pub fn upsert_space(&mut self, name: &str, value: &str) -> Result<(), ThemeError>;
+    pub fn upsert_typography(&mut self, name: &str, value: &str) -> Result<(), ThemeError>;
+    pub fn upsert_radius(&mut self, name: &str, value: &str) -> Result<(), ThemeError>;
+    pub fn upsert_shadow(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
+
+    pub fn to_css(&self) -> String;
+}
+```
+
+色（colors）・影（shadows）はライト/ダーク 2 値、余白（spaces）・
+タイポグラフィ（typography）・角丸（radii）はモード非依存の 1 値を取る。
+
+### `push_*` と `upsert_*` の意味論対比
+
+| API | 同名トークンが既存の場合 | 用途 |
+|-----|--------------------------|------|
+| `push_color` / `push_space` / `push_typography` / `push_radius` / `push_shadow` | `ThemeError::DuplicateTokenName` を返して拒否（fail-closed） | 新規トークンの追加。意図しない上書きを防ぐ既定挙動 |
+| `upsert_color` / `upsert_space` / `upsert_typography` / `upsert_radius` / `upsert_shadow` | 挿入順（＝ `Theme::to_css` の出力順）を保ったまま値を in-place 置換。存在しなければ末尾追加 | 既存トークン（既定パレット含む）の明示的な上書き。`DuplicateTokenName` を返すことはない |
+
+### `Theme::default()` の既定値を差し替える正規経路
+
+`push_*` は同名トークンを常に `DuplicateTokenName` で拒否するため、
+`Theme::default()` が持つ既定パレット（`bg`/`fg`/`accent`/`font-body` 等）
+を差し替える正規経路が存在しなかった（イシュー #1118 で判明した欠落）。
+`upsert_*`（イシュー #1138）がこの欠落を解消する正規経路であり、
+`push_*` では代替できない。
+
+### `Theme::to_css` 出力への反映
+
+`upsert_*` で置換・追加した値は、`Theme::to_css` の既存の出力構造
+（`:root` の light 値ブロック・`@media (prefers-color-scheme: dark)` の
+dark 値ブロック・`:root[data-theme="..."]` による明示上書きブロック）へ
+そのまま反映される。内部表現は `Vec` による挿入順保持のため、出力は
+呼び出し順序にのみ依存する決定的な文字列になる。
+
+### 使用例（イシュー #1118 の実シナリオ）
+
+```rust
+use fandhe_frontend_pre_styled_ui::theme::Theme;
+
+let mut theme = Theme::default();
+// 既定の font-body を日本語フォントスタックへ差し替える（正規経路）
+theme.upsert_typography("font-body", "Noto Sans JP, system-ui, sans-serif")?;
+// アクセント色の上書き（light / dark 2 値）
+theme.upsert_color("accent", "#0f766e", "#2dd4bf")?;
+let css = theme.to_css();
+```
+
+値はいずれも [`CssValue::new`] の allowlist（ASCII 英数字・空白・
+`#` `%` `.` `,` `(` `)` `-` `_` のみ許可）を通過する文字列に限る。
+引用符（`"` `'`）は allowlist で拒否されるため、フォント名は引用符なしで
+書く。
+
+### セキュリティ上の不変条件（REQ-1 相当、CSS 文脈）
+
+`upsert_*` も `push_*` と同一の allowlist 検証（`TokenName::new` /
+`CssValue::new`）を唯一の入口とし、迂回経路を持たない。`:` `;` `{` `}`
+を拒否するため宣言追加・セレクタ脱出・`url(javascript:...)` は構成不可能
+であり、`<` `>` `/` `"` `'` を拒否するため `</style>` 脱出も構成不可能で
+ある。検証は全引数に対して完了してから書き込むため、検証失敗時は
+`Theme` を一切変更しない（部分書き込みなし）。固定テストは
+`crates/pre-styled-ui/src/theme.rs` 内ユニットテスト・
+`crates/pre-styled-ui/tests/theme_css.rs`・
+`crates/pre-styled-ui/tests/theme_injection.rs`。
+
+`upsert_*` は「重複拒否の無効化」ではなく、既存トークンを明示的に
+上書きするための独立したオプトイン API である（`push_*` の fail-closed
+挙動自体は変更しない）。
+
+upsert API は `fandhe-frontend-pre-styled-ui` v0.38.0 以降に収録される
+（§2a の crates.io 公開状況・バージョン確認方針を参照）。
 
 ## 5. 関連ドキュメント
 
