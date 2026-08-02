@@ -170,6 +170,8 @@ fn showcase_row(children: Vec<Node>) -> Node {
 /// `stylesheet()` で追加提供する）を使う。
 fn tabs_section() -> Node {
     let node = tabs::tabs(
+        Size::Md,
+        ColorPalette::Accent,
         &TabsProps {
             id: "showcase-tabs",
             selected: "profile",
@@ -240,6 +242,7 @@ fn accordion_section() -> Node {
                     vec![accordion::item_trigger(
                         state,
                         false,
+                        value,
                         Some(trigger_id.as_str()),
                         Some(content_id.as_str()),
                         vec![],
@@ -260,7 +263,7 @@ fn accordion_section() -> Node {
     section(
         "Accordion",
         "高々 1 項目が開く single モードの Accordion。既定 CSS は fandhe_frontend_pre_styled_ui::accordion::stylesheet() が提供します。",
-        vec![accordion::root(vec![], root_children)],
+        vec![accordion::root(Size::Md, vec![], root_children)],
     )
 }
 
@@ -284,6 +287,7 @@ fn dialog_section() -> Node {
                 vec![text("Open dialog")],
             ),
             dialog::root(
+                Size::Md,
                 state,
                 vec![],
                 vec![
@@ -356,6 +360,7 @@ fn menu_section() -> Node {
         menu::item("delete", true, false, vec![], vec![text("Delete")]),
     ];
     let node = menu::root(
+        Size::Md,
         state,
         vec![],
         vec![
@@ -423,6 +428,7 @@ fn select_section() -> Node {
         ));
     }
     let node = select::root(
+        Size::Md,
         state,
         vec![],
         vec![
@@ -902,6 +908,7 @@ fn xss_probe() -> &'static str {
 fn xss_probe_section() -> Node {
     let state = OpenState::Closed;
     let node = accordion::root(
+        Size::Md,
         vec![],
         vec![accordion::item(
             state,
@@ -914,6 +921,7 @@ fn xss_probe_section() -> Node {
                     vec![accordion::item_trigger(
                         state,
                         false,
+                        "xss-probe",
                         None,
                         None,
                         vec![],

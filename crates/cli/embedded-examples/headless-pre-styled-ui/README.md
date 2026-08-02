@@ -22,7 +22,12 @@
 提供となったため、`fandhe-frontend-headless-ui` への直接依存は撤去しました
 （イシュー #689）。さらに `fandhe-frontend-pre-styled-ui` v0.5.0（PR #719、
 公開・追随はイシュー #728）で Switch / RadioGroup の `root` が size/palette
-variant 引数を取る styled root 形へ変更されたため追随しました。
+variant 引数を取る styled root 形へ変更されたため追随しました。イシュー
+#1159 で `fandhe-frontend-core` を v0.2.0、`fandhe-frontend-pre-styled-ui`
+を v0.39.0（0.6.0 相当の #782「size variant を tabs/accordion/dialog/menu/select
+へ展開」を含む）へ追随し、Tabs / Accordion / Dialog / Menu / Select の
+`root` 系関数へ増えた `Size`（Tabs は `Size` + `ColorPalette`）引数の呼び出し
+追随を行いました。
 
 ## pre-styled-ui 統合について
 

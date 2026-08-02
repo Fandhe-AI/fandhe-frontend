@@ -16,33 +16,43 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "fandhe-frontend-app"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26370aaf609e7d4ca9685bdd834dac934cb4292e5731ad0603ac1ffa5590cf7d"
+checksum = "31eb06f8a8365b205904153e883210af60c51e52cf30a433f6a9c5c6c637e1eb"
 dependencies = [
  "fandhe-frontend-core",
 ]
 
 [[package]]
 name = "fandhe-frontend-core"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85f638536b70d59dabcd12e0e3261ed5de4244849c9c8502de48c166bd507984"
+checksum = "b59c572fd734c7f4dba115ccd979ae295b9dc96b3d49a710847d6b874979d580"
+
+[[package]]
+name = "fandhe-frontend-headless-ui"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a5999fd8ba24173ec80f30e2570d46f366e1d971643151db75b2e1b0ae50715"
+dependencies = [
+ "fandhe-frontend-core",
+ "fandhe-frontend-interactive",
+]
 
 [[package]]
 name = "fandhe-frontend-interactive"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1af0463bdfcc8909580272a64518440fc2eeecb1a837f1931fd5aee65dcc93c4"
+checksum = "60f11b5702a943165834f6ad8a2e9df4cb7ce6c5ab6c172921d3bb577feac1ec"
 dependencies = [
  "fandhe-frontend-core",
 ]
 
 [[package]]
 name = "fandhe-frontend-wasm-client"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c6f6a10041962a928680cf1ecd581a4cb3542d9b3f6e0a93698427720acd0f8"
+checksum = "c98d802e1d208181c8a0805407efbb1fed4fb37f74b43b03f5307f16bc4010a2"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
@@ -53,14 +63,16 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-wasm-full"
-version = "0.1.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4126132b89374528704cd4f0ccba4ea0eef28e47d4ba667243b6e25b397303a"
+checksum = "fae1876445f385a1e9f7d08f868a4e198291731da56a37e3321bbe4bb5f68a94"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
+ "fandhe-frontend-headless-ui",
  "fandhe-frontend-interactive",
  "fandhe-frontend-wasm-client",
+ "js-sys",
  "wasm-bindgen",
  "web-sys",
 ]

@@ -5,7 +5,7 @@
 `fandhe-frontend` フレームワークの単一バイナリ配布 + Docker（`FROM scratch`）
 正本サンプルです（イシュー #502）。`examples/ssr-routing`（イシュー #499）に
 続く examples 規約の 2 例目で、crates.io へ公開済みの
-`fandhe-frontend-dist-server`（v0.1.0）を通常の外部依存として使います。
+`fandhe-frontend-dist-server`（v0.2.0、イシュー #1159 で v0.1.0 から追随）を通常の外部依存として使います。
 
 ## 学べること
 
