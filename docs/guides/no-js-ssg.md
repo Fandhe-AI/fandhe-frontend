@@ -91,7 +91,39 @@ fn disclosure_panel(summary_text: &str, body_text: &str) -> Node {
 致命的な破綻ではありませんが、確定的な排他制御が要件に含まれる場合は
 利用者側のブラウザ対応状況を事前に確認してください。
 
-## 4. まとめ
+## 4. sitemap.xml / robots.txt の出力（generate_assets）
+
+JS ゼロ SSG 構成であっても、`sitemap.xml` / `robots.txt` のような非 HTML
+アセットの配信は SEO・クローラ制御の観点で有用です。`fandhe-frontend-server`
+0.2.0 以降の `generate_assets`（`fandhe_frontend_server::ssg::generate_assets`）
+を使うと、`generate_pages` と同じ fail-closed のパス検証を経由しつつ、
+任意のファイル名を持つ非 HTML 生成物を書き出せます。
+
+```rust
+use fandhe_frontend_server::ssg::generate_assets;
+use std::path::Path;
+
+// (リクエストパス, コンテンツ文字列) の列を組み立てる。
+let assets = vec![
+    ("/sitemap.xml".to_string(), sitemap_xml),
+    ("/robots.txt".to_string(), robots_txt),
+];
+
+// generate_pages と同じ fail-closed のパス検証を経由して dist/ へ書き出す。
+generate_assets(&assets, Path::new("dist"))?;
+```
+
+`generate_assets` は `Node` 木・`fandhe_frontend_core::render` を経由せず
+コンテンツを無加工で書き出すため、既定エスケープ（REQ-1）は適用されま
+せん。**HTML ページの生成には使わず `generate_pages` を使ってください**。
+`sitemap.xml` 内の URL 等、コンテンツ内部のエスケープ（XML エスケープ等）
+は呼び出し側の責務です。
+
+仕様の詳細は [fandhe-frontend-server SSG API](../api/server-api.md) を、
+実装例は [ssg-blog サンプル](../../examples/ssg-blog/README.md) の
+`src/main.rs`（`build_assets` / `main`）を参照してください。
+
+## 5. まとめ
 
 | 観点 | JS ハイドレーションあり | JS ゼロ SSG |
 |---|---|---|
@@ -106,3 +138,7 @@ fn disclosure_panel(summary_text: &str, body_text: &str) -> Node {
   一覧と crates.io 公開状況
 - `docs/api/hydration-api.md` — `fandhe-frontend-wasm-full` のハイドレーション
   契約
+- [fandhe-frontend-server SSG API](../api/server-api.md) — `generate_pages` /
+  `generate_assets` のパス検証・fail-closed 契約
+- [ssg-blog サンプル](../../examples/ssg-blog/README.md) — `generate_assets`
+  による `sitemap.xml` / `robots.txt` 書き出しの実装例

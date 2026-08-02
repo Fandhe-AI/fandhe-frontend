@@ -168,8 +168,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 129 → 131 になった。イシュー #1021 で Primitives セクション（索引 1 +
     // 部品 63 = 64 ページ）が新設され、131 → 195 になった。イシュー #1118 で
     // Guides セクションへ「JS ゼロ SSG での利用ガイド」が加わり 195 → 196 に
-    // なった。
-    assert_eq!(pages.len(), 196, "expected 196 pages, got {pages:?}");
+    // なった。イシュー #1156 で API Reference セクションへ
+    // `docs/api/server-api.md`（`generate_assets` 等 SSG API リファレンス）
+    // が加わり 196 → 197 になった。
+    assert_eq!(pages.len(), 197, "expected 197 pages, got {pages:?}");
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ
     // （`/primitives/` 自身）1 件の 64 件。
@@ -298,6 +300,7 @@ fn site_nav_registers_all_pages_with_expected_paths() {
             "docs/api/router-path-matching.md",
             "/api/router-path-matching/",
         ),
+        ("docs/api/server-api.md", "/api/server-api/"),
         ("docs/api/headless-ui-api.md", "/api/headless-ui-api/"),
         ("docs/api/pre-styled-ui-api.md", "/api/pre-styled-ui-api/"),
         (
