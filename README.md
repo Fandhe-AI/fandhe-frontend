@@ -80,6 +80,72 @@ fw new my-app --example ssr-routing
 一覧・選び方の詳細は [`examples/README.md`](./examples/README.md)、docs サイト版は
 https://fandhe-ai.github.io/fandhe-frontend/examples/ を参照してください。
 
+## 開発環境セットアップ
+
+### クローンと初期化
+
+仕様書が `docs/spec/` にサブモジュールとして取り込まれているため、
+クローン時に `--recurse-submodules` を指定してください。
+
+```bash
+git clone --recurse-submodules git@github.com:Fandhe-AI/fandhe-frontend.git
+cd fandhe-frontend
+```
+
+既存クローンがある場合は以下で初期化してください。
+
+```bash
+git submodule update --init
+```
+
+### 最短セットアップ
+
+ローカル開発環境の構築は `make setup` で完了します。
+clippy / cargo-deny / wasm32 target の導入と lefthook の設定を一度に行います。
+
+```bash
+make setup
+```
+
+その後、以下で基本的なチェック（ビルド・テスト・整形・lint）を実行できます。
+
+```bash
+make build
+make test
+make fmt
+make lint
+```
+
+全ターゲット一覧は `make help` で確認してください。
+
+### lefthook によるローカル検証
+
+`make setup` は lefthook をインストールして有効化します。
+以降、commit 時に以下が自動実行されます。
+
+- cargo fmt チェック（staged ファイルのみ）
+- 簡易シークレット検知（`.env` ファイルの追加、API キーらしき値の検出。
+  保守的なヒューリスティックであり実トークン形式の一部は検出できないため、
+  網羅的なスキャナの代替にはなりません）
+- Conventional Commits 形式の検証（commit-msg）
+
+lefthook 未導入環境でも commit は可能ですが、
+同じ検証が CI で実行されるため、早期検知のため導入を推奨します。
+`--no-verify` による bypass は `.claude/rules/conventional-commits.md` で禁止されています。
+
+### Docker による開発
+
+ホスト環境に Rust toolchain やツールを導入したくない場合は、
+開発用 Docker コンテナが利用できます。
+（製品配布用イメージとは別物です。製品配布用は `Dockerfile` を参照）
+
+```bash
+make docker-dev-build    # イメージをビルド
+make docker-dev          # コンテナに入る
+```
+
+コンテナ内は `make help` で同じターゲットが利用できます。
+
 ## 仕様
 
 仕様書（ブレスト〜PoC〜要件定義〜タスク分解〜ロードマップ）は [Fandhe-AI/fandhe-frontend-spec](https://github.com/Fandhe-AI/fandhe-frontend-spec) で管理し、`docs/spec/` にサブモジュールとして取り込んでいます。

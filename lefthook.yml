@@ -1,0 +1,57 @@
+# lefthook（https://lefthook.dev）の Git hooks 定義。
+#
+# 導入は任意（`make setup` または `lefthook install` を実行したローカル
+# 環境でのみ発火する）。lefthook 未導入・`lefthook install` 未実行の環境では
+# `.git/hooks/` が素のままのため `git commit` は本ファイルの影響を一切
+# 受けない（lefthook 自体の性質であり、本リポジトリ側での分岐は不要）。
+#
+# CI 側の一次防御（version-bump-guard・cargo fmt/clippy ジョブ等、
+# `.claude/rules/ci.md`）を代替するものではなく、ローカルでの早期検知が目的。
+# `--no-verify` の使用は `.claude/rules/conventional-commits.md` で禁止。
+
+pre-commit:
+  parallel: true
+  jobs:
+    # staged の *.rs のみを対象に `cargo fmt --check` を実行する。
+    # `--check` のみで自動修正（stage_fixed）はしない（速度重視。
+    # 未整形を検知したら開発者が `make fmt` 等で明示的に直す運用）。
+    - name: "rust: cargo fmt --check (staged files)"
+      glob: "*.rs"
+      run: cargo fmt --check -- {staged_files}
+
+    # staged 差分に対する簡易シークレット検知。
+    # `.env` 系ファイルの追加と、API キー/シークレット/トークン/パスワード
+    # らしき代入パターン（16 文字以上の英数字値）を保守的に検出する。
+    # 検出条件を満たさない限りブロックしないヒューリスティックであり、
+    # 網羅的なスキャナの代替ではない（`security.md` の一次防御は別途必須）。
+    #
+    # 誤検知時の回避方法: ダミー値・変数参照へ書き換える、または対象行を
+    # コミットから外す（`--no-verify` でのバイパスは案内しない、
+    # `.claude/rules/conventional-commits.md` 参照）。
+    - name: "security: staged diff secret scan"
+      run: |
+        set -euo pipefail
+        added_env_files="$(git diff --cached --name-only --diff-filter=A | grep -E '(^|/)\.env(\..+)?$' || true)"
+        if [ -n "${added_env_files}" ]; then
+          echo "commit blocked: .env-like file(s) staged for commit:" >&2
+          echo "${added_env_files}" >&2
+          echo "remove it from staging (e.g. \`git restore --staged <file>\`) if this was unintentional." >&2
+          exit 1
+        fi
+
+        secret_pattern='(api[_-]?key|secret|token|password)[[:space:]]*[:=][[:space:]]*['"'"'"][A-Za-z0-9]{16,}'
+        if git diff --cached -U0 -- . ':(exclude)*.lock' | grep -iE "^\+" | grep -ivE '^\+\+\+' | grep -iE "${secret_pattern}" >/dev/null; then
+          echo "commit blocked: staged diff looks like it contains a hardcoded secret." >&2
+          echo "replace it with a placeholder/env var reference, or move it out of the diff." >&2
+          exit 1
+        fi
+        exit 0
+
+commit-msg:
+  jobs:
+    # Conventional Commits 形式（`.claude/rules/conventional-commits.md`）の
+    # 検証。npm 依存の commitlint は使わず、シェル正規表現の
+    # tools/hooks/commit-msg-check.sh へ委譲する（REQ-12 方針・npm 経路を
+    # 増やさない判断）。
+    - name: "commit-msg: conventional commits format"
+      run: bash tools/hooks/commit-msg-check.sh {1}
