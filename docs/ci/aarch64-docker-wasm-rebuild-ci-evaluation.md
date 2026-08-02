@@ -64,6 +64,14 @@
     SHA256 破損・古い値の残置はこの回帰テストでは捕捉できない**」。
     この非対称性は §3 の結論・§4 の再評価トリガーへ反映する。
 
+> **追記（イシュー #1218 で解消済み）**: 本節が特定した非対称性
+> （aarch64 側 `WASM_BINDGEN_SHA256` が機械検知対象外）は、
+> `wasm_bindgen_version_sync.rs` へ第 3 のテスト
+> `dockerfile_pins_known_wasm_bindgen_sha256_for_aarch64_archive` を
+> 追加したことで解消済み。§5「SHA256 検知ギャップの解消」項に記載した
+> 方式（既知 SHA256 値のハードコード突合）をそのまま採用した。評価
+> 時点（本節）の記録はギャップの発見経緯として残す。
+
 ## 2. 候補比較
 
 | 案 | 内容 | 評価 |
@@ -102,7 +110,10 @@
    （`wasm_bindgen_version_sync.rs` へ aarch64 archive の既知 SHA256 値を
    ハードコードして突合する第 3 のテストを追加すれば、x86_64 と同じく
    `cargo test` だけで検知できる。§5 参照）。これは C1/C2 ではなく C3
-   （現状維持 + 機械検知強化）を後押しする材料である。
+   （現状維持 + 機械検知強化）を後押しする材料である。**イシュー #1218
+   でこの第 3 のテスト（`dockerfile_pins_known_wasm_bindgen_sha256_for_aarch64_archive`）
+   を実装済み。SHA256 ドリフトも `cargo test` 時点で fail-closed に検知
+   できるようになった。**
 4. **実行系の変化頻度が低い**: aarch64 実行系（musl リンク・イメージ
    サイズ・配信）が変化するのは `WASM_BINDGEN_VERSION` バンプ時・
    `Dockerfile` のアーキ分岐ロジック変更時に限られ、これらはいずれも
@@ -130,10 +141,12 @@
   `WASM_BINDGEN_SHA256`・アーキ分岐ロジック（`uname -m` の case 文）が
   変更された場合**: この場合は常設化を検討する前に、まずレポート §5/§5a
   の手順で aarch64 実機（または同等の arm64 環境）における手動再実測を
-  実施する運用ルールとする。特に `WASM_BINDGEN_VERSION` バンプ時は
-  §1.1 で確認したとおり aarch64 側 SHA256 が機械検知対象外であるため、
+  実施する運用ルールとする。`WASM_BINDGEN_VERSION` バンプ時は、
   `wasm-bindgen` の GitHub Releases から aarch64 archive の SHA256 を
-  取得し直して Dockerfile を更新したことを PR で明示的に確認する。
+  取得し直して Dockerfile を更新する必要がある（イシュー #1218 で
+  `wasm_bindgen_version_sync.rs` に追加した第 3 のテストが、この更新を
+  怠った場合に `cargo test` 時点で fail-closed に検知するため、PR での
+  目視確認に加えて機械検知でも担保される）。
 - **aarch64 実行環境（Apple Silicon Docker / arm64 サーバー）での実障害
   （ビルド失敗・配信不具合・イメージサイズ超過等）が報告された場合**。
 - **multi-arch イメージ配布（`docker buildx` によるマルチアーキマニフェ
@@ -165,6 +178,12 @@
   aarch64 runner 上での `sha256sum -c` 実行結果の CI アノテーション化）
   を合わせて追加し、§1.1 で確認した非対称性（バージョンは両分岐検知
   済み・SHA256 は x86_64 のみ）を解消することを実装スコープに含める。
+  **イシュー #1218 で「既知値との突合」方式（前者）を実装済み**
+  （`dockerfile_pins_known_wasm_bindgen_sha256_for_aarch64_archive`）。
+  この項が記録していた実装スコープのうち、C1/C2 を待たずに aarch64
+  runner 不要で先行実装できる部分は完了した。C1/C2 採用時に残るのは
+  「実行系（musl リンク・イメージビルド成否）の継続的な健全性確認」
+  のみである。
 
 ## 6. セキュリティ考慮事項（OWASP Top 10 観点）
 
