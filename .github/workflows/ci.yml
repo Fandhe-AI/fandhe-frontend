@@ -464,7 +464,7 @@ jobs:
   # 異なる）はそのまま独立ジョブとして維持し、変更しない。
   browser-test:
     name: Browser tests (wasm-pack --headless --chrome)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -476,166 +476,59 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
-        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        # deps-check.yml と同一の理由・同一 SHA 固定。ubuntu-latest（ホステッド
+        # ランナー）は stable toolchain を同梱するが、他ジョブとの一貫性・
+        # バージョン明示のため引き続き明示セットアップする。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
 
-      # 前提（self-hosted 移行、ユーザー指示 2026-07-18。PR #291 実 CI 実行で
-      # self-hosted runner（コンテナ型、root 実行）には Chrome も
-      # chromedriver も存在せず fail-closed で失敗することを確認）: GitHub-hosted
-      # ubuntu-latest は Chrome/chromedriver をプリインストール済みだが、
-      # self-hosted にはその保証がないため、Chrome for Testing（Google 公式の
-      # テスト専用ビルド）と対応バージョンの chromedriver をこのジョブ内で
-      # バージョン固定 + SHA256 チェックサム検証付きで導入する（他ジョブの
-      # cargo-deny/wasm-bindgen-cli/wasm-pack と同一のサプライチェーン対策
-      # パターン）。ダウンロード元は Chrome for Testing の公式配布元
-      # （storage.googleapis.com/chrome-for-testing-public）。
-      - name: Ensure unzip is available (self-hosted minimal image)
-        # Chrome for Testing は .zip 配布のため unzip が必要。他の pinned
-        # ツール（wasm-pack 等）は .tar.gz のため今まで unzip 不要だった。
-        # 存在チェック付きインストール（root 実行のため sudo 不要）。
+      # 前提（ホステッドランナー移行、ユーザー指示 2026-08-07。歴史的経緯:
+      # PR #291 以前は本ジョブも ubuntu-latest + ランナー内蔵 chromedriver
+      # 明示指定で稼働しており、self-hosted 移行時（PR #291/#305）に
+      # Chrome for Testing の個別導入・共有ライブラリの apt-get 自動導入が
+      # 追加された。ubuntu-latest は Google Chrome（Stable）と対応バージョン
+      # の chromedriver をプリインストール済みで、chromedriver の格納先
+      # ディレクトリは `CHROMEWEBDRIVER` 環境変数で公開される
+      # （https://github.com/actions/runner-images のツールセット仕様）。
+      # ランナーイメージは GitHub が管理する既知のサプライチェーンのため、
+      # 未検証バイナリの追加取得は不要になる。バージョン整合だけは
+      # イメージ更新の過渡期に崩れ得るため、以下のステップで fail-closed に
+      # 検証する（wasm-pack/wasm-bindgen-cli のバージョン固定 + SHA256
+      # 検証済みプリビルト導入パターンは本ジョブでも維持する）。
+      - name: Verify preinstalled Chrome / chromedriver (version alignment, fail-closed)
         run: |
           set -euo pipefail
-          if ! command -v unzip >/dev/null 2>&1; then
-            if command -v apt-get >/dev/null 2>&1; then
-              apt-get update -qq
-              apt-get install -y --no-install-recommends unzip
-            else
-              echo "::error::unzip not found and apt-get unavailable. self-hosted runner image requires unzip pre-installed." >&2
-              exit 1
-            fi
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            echo "::error::google-chrome not found on runner image. ubuntu-latest is expected to preinstall Google Chrome (Stable)." >&2
+            exit 1
+          fi
+          if [ -z "${CHROMEWEBDRIVER:-}" ] || [ ! -x "${CHROMEWEBDRIVER}/chromedriver" ]; then
+            echo "::error::chromedriver not found at \${CHROMEWEBDRIVER}/chromedriver. ubuntu-latest is expected to preinstall chromedriver and expose CHROMEWEBDRIVER." >&2
+            exit 1
           fi
 
-      - name: Install Chrome for Testing + chromedriver (Stable channel, pinned + checksum-verified)
-        id: install_chrome
-        # バージョン・SHA256 は https://googlechromelabs.github.io/chrome-for-testing/ の
-        # last-known-good-versions-with-downloads.json（Stable チャンネル）から取得し、
-        # ダウンロード物を実際に sha256sum で検証した値を固定する。chrome と
-        # chromedriver は必ず同一バージョンを使う（プロトコル不一致による
-        # セッション確立失敗を避けるため）。
-        # chromedriver は Linux 上で Chrome バイナリを PATH から名前 "chrome"
-        # （chromium/chromium の chrome_finder.cc GetChromeProgramNames 参照）で
-        # 探索するため、Chrome の実行ファイルは同梱リソース（*.pak/icudtl.dat/
-        # 共有ライブラリ）と同一ディレクトリに置いたまま、そのディレクトリ自体を
-        # PATH に追加する（バイナリ単体だけを移動すると壊れる）。
-        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
-        # "Shared HOME Chrome install races"）: 複数ジョブが並列実行される
-        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
-        # download/unzip/install すると互いのツリーやバイナリを破損し得る。
-        # 対策として CFT_VERSION をパスに含めた不変パス
-        # （$HOME/.local/share/chrome-for-testing/<version>/）へインストールし、
-        # $HOME と同一ファイルシステム上の一時ディレクトリでダウンロード・
-        # チェックサム検証・展開を完了させたうえで、chrome-linux64 /
-        # chromedriver-linux64 の各ディレクトリ丸ごとを `mv -T`（atomic
-        # rename）で最終配置する。最終パスが既に存在すれば（＝バージョン
-        # 一致で完全にインストール済み）ダウンロードをスキップする。
-        # chrome/chromedriver 2 本の mv は互いに独立させ、かつ mv の終了
-        # コードには依存しない（coreutils 9.2 以降は `mv -n` が宛先既存時に
-        # 非ゼロ終了するため `-n` は使わず、失敗時は宛先の実体で成否を判定
-        # する）。並列実行時に後勝ちの mv は宛先の実体確認により成功扱いと
-        # なる（同一バージョンの内容は決定的に同一であるため安全。Cursor
-        # Bugbot 指摘 High: 「chrome の mv 失敗で chromedriver が永久に
-        # 未導入」/ Medium: 「並列後勝ちで mv 失敗しジョブが落ちる」、
-        # コミット 64ecb28 対応）。
-        run: |
-          set -euo pipefail
-          CFT_VERSION="151.0.7922.34"
-          CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
-          CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
-          SHARE_DIR="${HOME}/.local/share/chrome-for-testing"
-          INSTALL_ROOT="${SHARE_DIR}/${CFT_VERSION}"
-          CHROME_DIR="${INSTALL_ROOT}/chrome-linux64"
-          CHROMEDRIVER_DIR="${INSTALL_ROOT}/chromedriver-linux64"
-          mkdir -p "${SHARE_DIR}" "${INSTALL_ROOT}"
-          if [ ! -x "${CHROME_DIR}/chrome" ] || [ ! -x "${CHROMEDRIVER_DIR}/chromedriver" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
+          chrome_version="$(google-chrome --version)"
+          chromedriver_version="$("${CHROMEWEBDRIVER}/chromedriver" --version)"
+          {
+            echo '## browser-test: preinstalled Chrome / chromedriver'
+            echo "- google-chrome --version: ${chrome_version}"
+            echo "- chromedriver --version: ${chromedriver_version}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-            curl -sSfL -o "${tmp_root}/chrome-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
-            echo "${CHROME_SHA256}  ${tmp_root}/chrome-linux64.zip" | sha256sum -c -
-            unzip -q -o "${tmp_root}/chrome-linux64.zip" -d "${tmp_root}"
-
-            curl -sSfL -o "${tmp_root}/chromedriver-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
-            echo "${CHROMEDRIVER_SHA256}  ${tmp_root}/chromedriver-linux64.zip" | sha256sum -c -
-            unzip -q -o "${tmp_root}/chromedriver-linux64.zip" -d "${tmp_root}"
-
-            # chrome ツリー・chromedriver ツリーの配置は互いに独立させる
-            # （どちらかが「宛先既存」で失敗しても、もう片方のインストールは
-            # 必ず進む）。また mv の終了コードには依存しない（coreutils 9.2
-            # 以降は `mv -n` が宛先既存時に非ゼロ終了するため、`-n` は使わず
-            # 失敗時に宛先の実体で成否を判定する。Cursor Bugbot 指摘
-            # High: 「chrome の mv 失敗で chromedriver が永久に未導入のまま
-            # 壊れる」/ Medium: 「並列ジョブの後勝ち mv が宛先既存で失敗し
-            # ジョブが落ちる」、コミット 64ecb28 対応）。
-            if ! mv -T "${tmp_root}/chrome-linux64" "${CHROME_DIR}" 2>/dev/null; then
-              [ -x "${CHROME_DIR}/chrome" ] || { echo "::error::failed to install Chrome for Testing to ${CHROME_DIR}" >&2; exit 1; }
-            fi
-            if ! mv -T "${tmp_root}/chromedriver-linux64" "${CHROMEDRIVER_DIR}" 2>/dev/null; then
-              [ -x "${CHROMEDRIVER_DIR}/chromedriver" ] || { echo "::error::failed to install chromedriver to ${CHROMEDRIVER_DIR}" >&2; exit 1; }
-            fi
+          # メジャーバージョンの数字のみ抽出して突合する（プロトコル不一致に
+          # よるセッション確立失敗の予防）。
+          chrome_major="$(echo "${chrome_version}" | grep -oE '[0-9]+' | head -1)"
+          chromedriver_major="$(echo "${chromedriver_version}" | grep -oE '[0-9]+' | head -1)"
+          if [ -z "${chrome_major}" ] || [ -z "${chromedriver_major}" ] || [ "${chrome_major}" != "${chromedriver_major}" ]; then
+            echo "::error::Chrome/chromedriver major version mismatch (chrome=${chrome_major:-unknown}, chromedriver=${chromedriver_major:-unknown})." >&2
+            exit 1
           fi
 
-          echo "${CHROME_DIR}" >> "$GITHUB_PATH"
-          echo "chromedriver_path=${CHROMEDRIVER_DIR}/chromedriver" >> "$GITHUB_OUTPUT"
-
-      - name: Verify headless Chrome launches (self-hosted shared-library check)
-        # Chrome for Testing の実行に必要な共有ライブラリ（libnss3 / libgbm1 /
-        # libasound2 等）が self-hosted のコンテナイメージに無い場合、バイナリは
-        # 存在してもここで失敗する。fail-closed のまま、不足ライブラリを ldd で
-        # 特定してエラーに含める（runner イメージ側の常設要件を明示するため）。
-        run: |
-          set -euo pipefail
-          check_chrome() {
-            chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1
-          }
-          if ! check_chrome; then
-            # PR #291 実 CI 実行で判明: 本 self-hosted runner イメージには
-            # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
-            # Chrome が起動できない（`chrome: error while loading shared
-            # libraries: libnspr4.so: cannot open shared object file`）。
-            # PR #305 実 CI 実行（イシュー #292）で追加判明: libnss3/libnspr4
-            # のみの自動導入では不足で、libatk-1.0.so.0 等 Chromium 実行に
-            # 必要な共有ライブラリ群（ATK / D-Bus / X11 / Cairo・Pango /
-            # ALSA / GBM / AT-SPI 系）が広く不足していた。runner イメージの
-            # ベースにはデスクトップ GUI 系パッケージが入っていない前提のため、
-            # Chrome for Testing（Chromium 系）が要求する共有ライブラリを
-            # 提供する Debian/Ubuntu パッケージ一式をまとめて自動導入する。
-            # root 実行のため sudo なしで apt-get install できることを利用し、
-            # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
-            echo "::notice::Chrome headless launch failed; attempting to install Chromium shared-library dependencies and retry once." >&2
-            if command -v apt-get >/dev/null 2>&1; then
-              apt-get update -qq
-              # libasound2 は新しめの Ubuntu（本 runner 含む）では実体を持たない
-              # 仮想パッケージ（提供元は libasound2t64）になっており、
-              # そのまま指定すると `has no installation candidate` で
-              # apt-get install が失敗する（イシュー #292 実 CI 実行で判明）。
-              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
-              asound_pkg=libasound2t64
-              apt-cache show "${asound_pkg}" >/dev/null 2>&1 || asound_pkg=libasound2
-              # libcups2 も libasound2 と同様、Noble 系 Ubuntu では実体を持たない
-              # 仮想パッケージ（提供元は libcups2t64）に置き換わっており、
-              # そのまま指定すると `has no installation candidate` で
-              # apt-get install が失敗しうる（Bugbot 指摘 #305 review 4728367863）。
-              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
-              cups_pkg=libcups2t64
-              apt-cache show "${cups_pkg}" >/dev/null 2>&1 || cups_pkg=libcups2
-              apt-get install -y --no-install-recommends \
-                libnss3 libnspr4 \
-                libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
-                "${cups_pkg}" libdbus-1-3 \
-                libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
-                libcairo2 libpango-1.0-0 \
-                libgbm1 "${asound_pkg}"
-            fi
-            if ! check_chrome; then
-              echo "::error::Chrome for Testing failed to launch in headless mode even after installing the known Chromium shared-library dependencies. self-hosted runner image may be missing other shared libraries." >&2
-              cat /tmp/chrome-smoke.log >&2
-              echo "::error::ldd missing libraries (if any):" >&2
-              ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
-              exit 1
-            fi
+          if ! google-chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1; then
+            echo "::error::google-chrome failed to launch in headless mode." >&2
+            cat /tmp/chrome-smoke.log >&2
+            exit 1
           fi
 
       # crates/wasm-client/ ディレクトリ存在ガード（TASK-6.2b #48 完了までの直列化措置）。
@@ -767,13 +660,14 @@ jobs:
           fi
           echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
-      # chromedriver のパスは上記 "Install Chrome for Testing + chromedriver" の
-      # 出力を使う。wasm-bindgen-test-runner（wasm-pack test の実体）は
-      # CHROMEDRIVER 環境変数を読み、指定されたバイナリを直接起動する
-      # （crates/cli/src/wasm_bindgen_test_runner/headless.rs の Driver::find）。
+      # chromedriver のパスはランナー内蔵品（`CHROMEWEBDRIVER` 環境変数、
+      # ubuntu-latest がプリインストール）を使う。wasm-bindgen-test-runner
+      # （wasm-pack test の実体）は CHROMEDRIVER 環境変数を読み、指定された
+      # バイナリを直接起動する（crates/cli/src/wasm_bindgen_test_runner/
+      # headless.rs の Driver::find）。
       - name: Run browser tests (headless Chrome)
         if: steps.check.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-client
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-client
 
       # `Runtime::mount`/`Runtime::hydrate` の実ブラウザ統合テスト（TASK-11.2d・
       # #77）。xss-wasm-test/perf-harness ジョブ（同じ wasm-full クレート）とは
@@ -783,7 +677,7 @@ jobs:
       # perf-harness ジョブ自体は変更しない）。
       - name: Run wasm-full Runtime browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test runtime_browser
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test runtime_browser
 
       # TASK-11.4c（#84、親 #81）: read_hydration_attrs（実 DOM からの
       # data-hydrate-* 属性列挙）の実ブラウザ統合テスト（crates/wasm-full/tests/
@@ -792,7 +686,7 @@ jobs:
       # （`docs/api/hydration-state-format.md` 第 6 節が引き継ぐ実ブラウザ検証）。
       - name: Run wasm-full hydration browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test hydration_browser
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test hydration_browser
 
       # TASK-CSR-loader（#349、親 #337）: CSR 経路の loader 解決
       # （crates/wasm-full/src/csr.rs）の三モード（SSR/SSG/CSR）表示整合・
@@ -801,7 +695,7 @@ jobs:
       # 同じ check-wasm-full 存在ガードを再利用し、新規ガードは追加しない。
       - name: Run wasm-full three-mode browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test three_mode_browser
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test three_mode_browser
 
       # イシュー #374: クライアント側ルーティング（history API 連携・
       # URL 同期・遷移時 loader 配線）の実ブラウザ統合テスト（crates/wasm-full/tests/
@@ -810,7 +704,7 @@ jobs:
       # 追加しない。
       - name: Run wasm-full nav browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test nav_browser
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test nav_browser
 
       # イシュー #580: headless-ui（fandhe-frontend-headless-ui）dispatch の
       # DOM イベント配線基盤（crates/wasm-full/src/headless.rs）の実ブラウザ
@@ -820,7 +714,7 @@ jobs:
       # 追加しない。
       - name: Run wasm-full headless-ui wiring browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test headless_wiring_browser
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test headless_wiring_browser
 
       # イシュー #582（Tabs/Accordion のキーボード操作、親 #581）: `keynav`
       # モジュール（crates/wasm-full/src/keynav.rs）配線層の実ブラウザ統合
@@ -829,7 +723,7 @@ jobs:
       # check-wasm-full 存在ガードを再利用し、新規ガードは追加しない。
       - name: Run wasm-full keynav browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test keynav_browser
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test keynav_browser
 
       # イシュー #585（親 #584）: オーバーレイ共通の閉鎖制御（Escape キー・
       # 外側インタラクション、crates/wasm-full/src/overlay.rs）の実ブラウザ
@@ -839,7 +733,7 @@ jobs:
       # 追加しない。
       - name: Run wasm-full overlay close browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test overlay_close_browser
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test overlay_close_browser
 
       # イシュー #587（親 #584）: Tooltip の openDelay/closeDelay/interactive
       # （crates/wasm-full/src/tooltip.rs）の実ブラウザ統合テスト
@@ -849,7 +743,7 @@ jobs:
       # 存在ガードを再利用し、新規ガードは追加しない。
       - name: Run wasm-full tooltip delay browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test tooltip_delay_browser
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test tooltip_delay_browser
 
       # イシュー #591（親 #520/#542/#543）: Avatar（`fandhe-frontend-headless-ui`
       # `avatar` モジュール）の `load`/`error` イベント検知グルー
@@ -860,7 +754,7 @@ jobs:
       # 再利用し、新規ガードは追加しない。
       - name: Run wasm-full headless avatar browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test headless_avatar_browser
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test headless_avatar_browser
 
       # イシュー #586（親 #584）: Dialog のフォーカストラップ・トリガー復帰
       # （crates/wasm-full/src/focus_trap.rs）の実ブラウザ統合テスト
@@ -870,7 +764,7 @@ jobs:
       # 再利用し、新規ガードは追加しない。
       - name: Run wasm-full focus trap browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test focus_trap_browser
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test focus_trap_browser
 
       # イシュー #645（親 #588 残課題）: anchor positioning 配線
       # （crates/wasm-full/src/position.rs）の実ブラウザ統合テスト
@@ -885,7 +779,7 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: |
           start_epoch="$(date +%s)"
-          CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test position_browser
+          CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test position_browser
           end_epoch="$(date +%s)"
           echo "::notice::position_browser (Popover + Menu/Select/Tooltip, issue #645) took $((end_epoch - start_epoch))s"
 
@@ -929,7 +823,7 @@ jobs:
   # 実態変更はステップ名・コメント・Step Summary 見出しで表す）。
   perf-harness:
     name: Perf browser harness smoke (wasm-pack --headless --chrome)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -941,147 +835,52 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
-        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        # deps-check.yml と同一の理由・同一 SHA 固定。ubuntu-latest（ホステッド
+        # ランナー）は stable toolchain を同梱するが、他ジョブとの一貫性・
+        # バージョン明示のため引き続き明示セットアップする。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
 
-      # 前提（self-hosted 移行、ユーザー指示 2026-07-18。PR #291 実 CI 実行で
-      # Chrome/chromedriver 不在の fail-closed を確認）: browser-test ジョブと
-      # 同一の理由・同一パターンで Chrome for Testing + chromedriver を
-      # バージョン固定 + SHA256 チェックサム検証付きで導入する。
-      - name: Ensure unzip is available (self-hosted minimal image)
+      # 前提（ホステッドランナー移行、ユーザー指示 2026-08-07。browser-test
+      # ジョブと同一の理由・同一パターン。歴史的経緯・判断根拠は browser-test
+      # ジョブの同名ステップのコメント参照）。ubuntu-latest はプリインストール
+      # 済みの Chrome（Stable）・chromedriver をそのまま使い、バージョン
+      # 整合のみを fail-closed に検証する。本ジョブが実行するしきい値
+      # アサーション（perf-assert、300ms/16ms）は実測約 1000 倍の余裕が
+      # あり、ホステッドランナー（2 vCPU 標準スペック）へ移行してもフレーク
+      # リスクは低い（`.claude/rules/ci.md` 参照）。
+      - name: Verify preinstalled Chrome / chromedriver (version alignment, fail-closed)
         run: |
           set -euo pipefail
-          if ! command -v unzip >/dev/null 2>&1; then
-            if command -v apt-get >/dev/null 2>&1; then
-              apt-get update -qq
-              apt-get install -y --no-install-recommends unzip
-            else
-              echo "::error::unzip not found and apt-get unavailable. self-hosted runner image requires unzip pre-installed." >&2
-              exit 1
-            fi
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            echo "::error::google-chrome not found on runner image. ubuntu-latest is expected to preinstall Google Chrome (Stable)." >&2
+            exit 1
+          fi
+          if [ -z "${CHROMEWEBDRIVER:-}" ] || [ ! -x "${CHROMEWEBDRIVER}/chromedriver" ]; then
+            echo "::error::chromedriver not found at \${CHROMEWEBDRIVER}/chromedriver. ubuntu-latest is expected to preinstall chromedriver and expose CHROMEWEBDRIVER." >&2
+            exit 1
           fi
 
-      - name: Install Chrome for Testing + chromedriver (Stable channel, pinned + checksum-verified)
-        id: install_chrome
-        # browser-test ジョブと同一バージョン・同一チェックサム（chrome/
-        # chromedriver は同一バージョンで揃える必要がある）。
-        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
-        # "Shared HOME Chrome install races"）: 複数ジョブが並列実行される
-        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
-        # download/unzip/install すると互いのツリーやバイナリを破損し得る。
-        # 対策として CFT_VERSION をパスに含めた不変パス
-        # （$HOME/.local/share/chrome-for-testing/<version>/）へインストールし、
-        # $HOME と同一ファイルシステム上の一時ディレクトリでダウンロード・
-        # チェックサム検証・展開を完了させたうえで、chrome-linux64 /
-        # chromedriver-linux64 の各ディレクトリ丸ごとを `mv -T`（atomic
-        # rename）で最終配置する。最終パスが既に存在すれば（＝バージョン
-        # 一致で完全にインストール済み）ダウンロードをスキップする。
-        # chrome/chromedriver 2 本の mv は互いに独立させ、かつ mv の終了
-        # コードには依存しない（coreutils 9.2 以降は `mv -n` が宛先既存時に
-        # 非ゼロ終了するため `-n` は使わず、失敗時は宛先の実体で成否を判定
-        # する）。並列実行時に後勝ちの mv は宛先の実体確認により成功扱いと
-        # なる（同一バージョンの内容は決定的に同一であるため安全。Cursor
-        # Bugbot 指摘 High: 「chrome の mv 失敗で chromedriver が永久に
-        # 未導入」/ Medium: 「並列後勝ちで mv 失敗しジョブが落ちる」、
-        # コミット 64ecb28 対応）。
-        run: |
-          set -euo pipefail
-          CFT_VERSION="151.0.7922.34"
-          CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
-          CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
-          SHARE_DIR="${HOME}/.local/share/chrome-for-testing"
-          INSTALL_ROOT="${SHARE_DIR}/${CFT_VERSION}"
-          CHROME_DIR="${INSTALL_ROOT}/chrome-linux64"
-          CHROMEDRIVER_DIR="${INSTALL_ROOT}/chromedriver-linux64"
-          mkdir -p "${SHARE_DIR}" "${INSTALL_ROOT}"
-          if [ ! -x "${CHROME_DIR}/chrome" ] || [ ! -x "${CHROMEDRIVER_DIR}/chromedriver" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
+          chrome_version="$(google-chrome --version)"
+          chromedriver_version="$("${CHROMEWEBDRIVER}/chromedriver" --version)"
+          {
+            echo '## perf-harness: preinstalled Chrome / chromedriver'
+            echo "- google-chrome --version: ${chrome_version}"
+            echo "- chromedriver --version: ${chromedriver_version}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-            curl -sSfL -o "${tmp_root}/chrome-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
-            echo "${CHROME_SHA256}  ${tmp_root}/chrome-linux64.zip" | sha256sum -c -
-            unzip -q -o "${tmp_root}/chrome-linux64.zip" -d "${tmp_root}"
-
-            curl -sSfL -o "${tmp_root}/chromedriver-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
-            echo "${CHROMEDRIVER_SHA256}  ${tmp_root}/chromedriver-linux64.zip" | sha256sum -c -
-            unzip -q -o "${tmp_root}/chromedriver-linux64.zip" -d "${tmp_root}"
-
-            # chrome ツリー・chromedriver ツリーの配置は互いに独立させる
-            # （どちらかが「宛先既存」で失敗しても、もう片方のインストールは
-            # 必ず進む）。また mv の終了コードには依存しない（coreutils 9.2
-            # 以降は `mv -n` が宛先既存時に非ゼロ終了するため、`-n` は使わず
-            # 失敗時に宛先の実体で成否を判定する。Cursor Bugbot 指摘
-            # High: 「chrome の mv 失敗で chromedriver が永久に未導入のまま
-            # 壊れる」/ Medium: 「並列ジョブの後勝ち mv が宛先既存で失敗し
-            # ジョブが落ちる」、コミット 64ecb28 対応）。
-            if ! mv -T "${tmp_root}/chrome-linux64" "${CHROME_DIR}" 2>/dev/null; then
-              [ -x "${CHROME_DIR}/chrome" ] || { echo "::error::failed to install Chrome for Testing to ${CHROME_DIR}" >&2; exit 1; }
-            fi
-            if ! mv -T "${tmp_root}/chromedriver-linux64" "${CHROMEDRIVER_DIR}" 2>/dev/null; then
-              [ -x "${CHROMEDRIVER_DIR}/chromedriver" ] || { echo "::error::failed to install chromedriver to ${CHROMEDRIVER_DIR}" >&2; exit 1; }
-            fi
+          chrome_major="$(echo "${chrome_version}" | grep -oE '[0-9]+' | head -1)"
+          chromedriver_major="$(echo "${chromedriver_version}" | grep -oE '[0-9]+' | head -1)"
+          if [ -z "${chrome_major}" ] || [ -z "${chromedriver_major}" ] || [ "${chrome_major}" != "${chromedriver_major}" ]; then
+            echo "::error::Chrome/chromedriver major version mismatch (chrome=${chrome_major:-unknown}, chromedriver=${chromedriver_major:-unknown})." >&2
+            exit 1
           fi
 
-          echo "${CHROME_DIR}" >> "$GITHUB_PATH"
-          echo "chromedriver_path=${CHROMEDRIVER_DIR}/chromedriver" >> "$GITHUB_OUTPUT"
-
-      - name: Verify headless Chrome launches (self-hosted shared-library check)
-        # browser-test ジョブと同一ロジック（ldd で不足共有ライブラリを特定して
-        # fail-closed で報告する）。
-        run: |
-          set -euo pipefail
-          check_chrome() {
-            chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1
-          }
-          if ! check_chrome; then
-            # PR #291 実 CI 実行で判明: 本 self-hosted runner イメージには
-            # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
-            # Chrome が起動できない（`chrome: error while loading shared
-            # libraries: libnspr4.so: cannot open shared object file`）。
-            # PR #305 実 CI 実行（イシュー #292）で追加判明: libnss3/libnspr4
-            # のみの自動導入では不足で、libatk-1.0.so.0 等 Chromium 実行に
-            # 必要な共有ライブラリ群（ATK / D-Bus / X11 / Cairo・Pango /
-            # ALSA / GBM / AT-SPI 系）が広く不足していた。runner イメージの
-            # ベースにはデスクトップ GUI 系パッケージが入っていない前提のため、
-            # Chrome for Testing（Chromium 系）が要求する共有ライブラリを
-            # 提供する Debian/Ubuntu パッケージ一式をまとめて自動導入する。
-            # root 実行のため sudo なしで apt-get install できることを利用し、
-            # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
-            echo "::notice::Chrome headless launch failed; attempting to install Chromium shared-library dependencies and retry once." >&2
-            if command -v apt-get >/dev/null 2>&1; then
-              apt-get update -qq
-              # libasound2 は新しめの Ubuntu（本 runner 含む）では実体を持たない
-              # 仮想パッケージ（提供元は libasound2t64）になっており、
-              # そのまま指定すると `has no installation candidate` で
-              # apt-get install が失敗する（イシュー #292 実 CI 実行で判明）。
-              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
-              asound_pkg=libasound2t64
-              apt-cache show "${asound_pkg}" >/dev/null 2>&1 || asound_pkg=libasound2
-              # libcups2 も libasound2 と同様、Noble 系 Ubuntu では実体を持たない
-              # 仮想パッケージ（提供元は libcups2t64）に置き換わっており、
-              # そのまま指定すると `has no installation candidate` で
-              # apt-get install が失敗しうる（Bugbot 指摘 #305 review 4728367863）。
-              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
-              cups_pkg=libcups2t64
-              apt-cache show "${cups_pkg}" >/dev/null 2>&1 || cups_pkg=libcups2
-              apt-get install -y --no-install-recommends \
-                libnss3 libnspr4 \
-                libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
-                "${cups_pkg}" libdbus-1-3 \
-                libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
-                libcairo2 libpango-1.0-0 \
-                libgbm1 "${asound_pkg}"
-            fi
-            if ! check_chrome; then
-              echo "::error::Chrome for Testing failed to launch in headless mode even after installing the known Chromium shared-library dependencies. self-hosted runner image may be missing other shared libraries." >&2
-              cat /tmp/chrome-smoke.log >&2
-              echo "::error::ldd missing libraries (if any):" >&2
-              ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
-              exit 1
-            fi
+          if ! google-chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1; then
+            echo "::error::google-chrome failed to launch in headless mode." >&2
+            cat /tmp/chrome-smoke.log >&2
+            exit 1
           fi
 
       # crates/wasm-full/tests/perf_browser.rs 存在ガード（TASK-6.3a #65 のガード
@@ -1181,8 +980,8 @@ jobs:
           fi
           echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
-      # chromedriver のパスは上記 "Resolve chromedriver path" ステップの出力を使う
-      # （browser-test ジョブと同一の理由）。
+      # chromedriver のパスはランナー内蔵品（`CHROMEWEBDRIVER` 環境変数）を
+      # 使う（browser-test ジョブと同一の理由）。
       # `-- --nocapture` を付与しないと、テストが成功した場合に libtest が
       # console 出力（`perf-browser:` サマリ行）を握りつぶすため、次ステップの
       # 転記が常に「no summary line found」になる（出力契約が成立しない）。
@@ -1190,7 +989,7 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         run: |
           set -o pipefail
-          CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test perf_browser --features perf-assert -- --nocapture 2>&1 | tee perf-harness.log
+          CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test perf_browser --features perf-assert -- --nocapture 2>&1 | tee perf-harness.log
 
       - name: Publish perf-harness summary
         if: always() && steps.check.outputs.exists == 'true'
@@ -1224,7 +1023,7 @@ jobs:
   # 設けない（追加と同一コミットで即時有効化される）。
   xss-wasm-test:
     name: WASM XSS escape regression (wasm-pack --headless --chrome)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -1236,8 +1035,9 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
-        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        # deps-check.yml と同一の理由・同一 SHA 固定。ubuntu-latest（ホステッド
+        # ランナー）は stable toolchain を同梱するが、他ジョブとの一貫性・
+        # バージョン明示のため引き続き明示セットアップする。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -1248,9 +1048,8 @@ jobs:
       # wasm-pack はバージョン固定 + SHA256 チェックサム検証付きで導入する
       # （browser-test/perf-harness ジョブと同一バージョン・同一チェックサム。
       # 実行時の chromedriver 自動ダウンロードと同様、未検証バイナリ取得を
-      # 避けるサプライチェーン対策）。self-hosted 移行に伴い、インストール先を
-      # /usr/local/bin から $HOME/.local/share/wasm-pack/<version>/ へ変更する
-      # （他ジョブと同一の理由）。
+      # 避けるサプライチェーン対策）。インストール先は $HOME/.local/share/
+      # wasm-pack/<version>/（他ジョブと同一の理由）。
       - name: Install wasm-pack (pinned + checksum-verified)
         # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
         # "Shared HOME Chrome install races" の一般形）: バージョン付き不変
@@ -1323,142 +1122,47 @@ jobs:
           fi
           echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
-      # 前提（self-hosted 移行、ユーザー指示 2026-07-18。PR #291 実 CI 実行で
-      # Chrome/chromedriver 不在の fail-closed を確認）: browser-test/
-      # perf-harness ジョブと同一パターンで Chrome for Testing + chromedriver を
-      # バージョン固定 + SHA256 チェックサム検証付きで導入する。
-      - name: Ensure unzip is available (self-hosted minimal image)
+      # 前提（ホステッドランナー移行、ユーザー指示 2026-08-07。browser-test/
+      # perf-harness ジョブと同一パターン。歴史的経緯・判断根拠は browser-test
+      # ジョブの同名ステップのコメント参照）。ubuntu-latest はプリインストール
+      # 済みの Chrome（Stable）・chromedriver をそのまま使い、バージョン
+      # 整合のみを fail-closed に検証する。REQ-1 の XSS 回帰テスト実行内容は
+      # 環境変更の影響を受けない。
+      - name: Verify preinstalled Chrome / chromedriver (version alignment, fail-closed)
         run: |
           set -euo pipefail
-          if ! command -v unzip >/dev/null 2>&1; then
-            if command -v apt-get >/dev/null 2>&1; then
-              apt-get update -qq
-              apt-get install -y --no-install-recommends unzip
-            else
-              echo "::error::unzip not found and apt-get unavailable. self-hosted runner image requires unzip pre-installed." >&2
-              exit 1
-            fi
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            echo "::error::google-chrome not found on runner image. ubuntu-latest is expected to preinstall Google Chrome (Stable)." >&2
+            exit 1
+          fi
+          if [ -z "${CHROMEWEBDRIVER:-}" ] || [ ! -x "${CHROMEWEBDRIVER}/chromedriver" ]; then
+            echo "::error::chromedriver not found at \${CHROMEWEBDRIVER}/chromedriver. ubuntu-latest is expected to preinstall chromedriver and expose CHROMEWEBDRIVER." >&2
+            exit 1
           fi
 
-      - name: Install Chrome for Testing + chromedriver (Stable channel, pinned + checksum-verified)
-        id: install_chrome
-        # browser-test/perf-harness ジョブと同一バージョン・同一チェックサム。
-        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
-        # "Shared HOME Chrome install races"）: 複数ジョブが並列実行される
-        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
-        # download/unzip/install すると互いのツリーやバイナリを破損し得る。
-        # 対策として CFT_VERSION をパスに含めた不変パス
-        # （$HOME/.local/share/chrome-for-testing/<version>/）へインストールし、
-        # $HOME と同一ファイルシステム上の一時ディレクトリでダウンロード・
-        # チェックサム検証・展開を完了させたうえで、chrome-linux64 /
-        # chromedriver-linux64 の各ディレクトリ丸ごとを `mv -T`（atomic
-        # rename）で最終配置する。最終パスが既に存在すれば（＝バージョン
-        # 一致で完全にインストール済み）ダウンロードをスキップする。
-        # chrome/chromedriver 2 本の mv は互いに独立させ、かつ mv の終了
-        # コードには依存しない（coreutils 9.2 以降は `mv -n` が宛先既存時に
-        # 非ゼロ終了するため `-n` は使わず、失敗時は宛先の実体で成否を判定
-        # する）。並列実行時に後勝ちの mv は宛先の実体確認により成功扱いと
-        # なる（同一バージョンの内容は決定的に同一であるため安全。Cursor
-        # Bugbot 指摘 High: 「chrome の mv 失敗で chromedriver が永久に
-        # 未導入」/ Medium: 「並列後勝ちで mv 失敗しジョブが落ちる」、
-        # コミット 64ecb28 対応）。
-        run: |
-          set -euo pipefail
-          CFT_VERSION="151.0.7922.34"
-          CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
-          CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
-          SHARE_DIR="${HOME}/.local/share/chrome-for-testing"
-          INSTALL_ROOT="${SHARE_DIR}/${CFT_VERSION}"
-          CHROME_DIR="${INSTALL_ROOT}/chrome-linux64"
-          CHROMEDRIVER_DIR="${INSTALL_ROOT}/chromedriver-linux64"
-          mkdir -p "${SHARE_DIR}" "${INSTALL_ROOT}"
-          if [ ! -x "${CHROME_DIR}/chrome" ] || [ ! -x "${CHROMEDRIVER_DIR}/chromedriver" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
+          chrome_version="$(google-chrome --version)"
+          chromedriver_version="$("${CHROMEWEBDRIVER}/chromedriver" --version)"
+          {
+            echo '## xss-wasm-test: preinstalled Chrome / chromedriver'
+            echo "- google-chrome --version: ${chrome_version}"
+            echo "- chromedriver --version: ${chromedriver_version}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-            curl -sSfL -o "${tmp_root}/chrome-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
-            echo "${CHROME_SHA256}  ${tmp_root}/chrome-linux64.zip" | sha256sum -c -
-            unzip -q -o "${tmp_root}/chrome-linux64.zip" -d "${tmp_root}"
-
-            curl -sSfL -o "${tmp_root}/chromedriver-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
-            echo "${CHROMEDRIVER_SHA256}  ${tmp_root}/chromedriver-linux64.zip" | sha256sum -c -
-            unzip -q -o "${tmp_root}/chromedriver-linux64.zip" -d "${tmp_root}"
-
-            # chrome ツリー・chromedriver ツリーの配置は互いに独立させる
-            # （どちらかが「宛先既存」で失敗しても、もう片方のインストールは
-            # 必ず進む）。また mv の終了コードには依存しない（coreutils 9.2
-            # 以降は `mv -n` が宛先既存時に非ゼロ終了するため、`-n` は使わず
-            # 失敗時に宛先の実体で成否を判定する。Cursor Bugbot 指摘
-            # High: 「chrome の mv 失敗で chromedriver が永久に未導入のまま
-            # 壊れる」/ Medium: 「並列ジョブの後勝ち mv が宛先既存で失敗し
-            # ジョブが落ちる」、コミット 64ecb28 対応）。
-            if ! mv -T "${tmp_root}/chrome-linux64" "${CHROME_DIR}" 2>/dev/null; then
-              [ -x "${CHROME_DIR}/chrome" ] || { echo "::error::failed to install Chrome for Testing to ${CHROME_DIR}" >&2; exit 1; }
-            fi
-            if ! mv -T "${tmp_root}/chromedriver-linux64" "${CHROMEDRIVER_DIR}" 2>/dev/null; then
-              [ -x "${CHROMEDRIVER_DIR}/chromedriver" ] || { echo "::error::failed to install chromedriver to ${CHROMEDRIVER_DIR}" >&2; exit 1; }
-            fi
+          chrome_major="$(echo "${chrome_version}" | grep -oE '[0-9]+' | head -1)"
+          chromedriver_major="$(echo "${chromedriver_version}" | grep -oE '[0-9]+' | head -1)"
+          if [ -z "${chrome_major}" ] || [ -z "${chromedriver_major}" ] || [ "${chrome_major}" != "${chromedriver_major}" ]; then
+            echo "::error::Chrome/chromedriver major version mismatch (chrome=${chrome_major:-unknown}, chromedriver=${chromedriver_major:-unknown})." >&2
+            exit 1
           fi
 
-          echo "${CHROME_DIR}" >> "$GITHUB_PATH"
-          echo "chromedriver_path=${CHROMEDRIVER_DIR}/chromedriver" >> "$GITHUB_OUTPUT"
-
-      - name: Verify headless Chrome launches (self-hosted shared-library check)
-        run: |
-          set -euo pipefail
-          check_chrome() {
-            chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1
-          }
-          if ! check_chrome; then
-            # PR #291 実 CI 実行で判明: 本 self-hosted runner イメージには
-            # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
-            # Chrome が起動できない（`chrome: error while loading shared
-            # libraries: libnspr4.so: cannot open shared object file`）。
-            # PR #305 実 CI 実行（イシュー #292）で追加判明: libnss3/libnspr4
-            # のみの自動導入では不足で、libatk-1.0.so.0 等 Chromium 実行に
-            # 必要な共有ライブラリ群（ATK / D-Bus / X11 / Cairo・Pango /
-            # ALSA / GBM / AT-SPI 系）が広く不足していた。runner イメージの
-            # ベースにはデスクトップ GUI 系パッケージが入っていない前提のため、
-            # Chrome for Testing（Chromium 系）が要求する共有ライブラリを
-            # 提供する Debian/Ubuntu パッケージ一式をまとめて自動導入する。
-            # root 実行のため sudo なしで apt-get install できることを利用し、
-            # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
-            echo "::notice::Chrome headless launch failed; attempting to install Chromium shared-library dependencies and retry once." >&2
-            if command -v apt-get >/dev/null 2>&1; then
-              apt-get update -qq
-              # libasound2 は新しめの Ubuntu（本 runner 含む）では実体を持たない
-              # 仮想パッケージ（提供元は libasound2t64）になっており、
-              # そのまま指定すると `has no installation candidate` で
-              # apt-get install が失敗する（イシュー #292 実 CI 実行で判明）。
-              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
-              asound_pkg=libasound2t64
-              apt-cache show "${asound_pkg}" >/dev/null 2>&1 || asound_pkg=libasound2
-              # libcups2 も libasound2 と同様、Noble 系 Ubuntu では実体を持たない
-              # 仮想パッケージ（提供元は libcups2t64）に置き換わっており、
-              # そのまま指定すると `has no installation candidate` で
-              # apt-get install が失敗しうる（Bugbot 指摘 #305 review 4728367863）。
-              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
-              cups_pkg=libcups2t64
-              apt-cache show "${cups_pkg}" >/dev/null 2>&1 || cups_pkg=libcups2
-              apt-get install -y --no-install-recommends \
-                libnss3 libnspr4 \
-                libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
-                "${cups_pkg}" libdbus-1-3 \
-                libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
-                libcairo2 libpango-1.0-0 \
-                libgbm1 "${asound_pkg}"
-            fi
-            if ! check_chrome; then
-              echo "::error::Chrome for Testing failed to launch in headless mode even after installing the known Chromium shared-library dependencies. self-hosted runner image may be missing other shared libraries." >&2
-              cat /tmp/chrome-smoke.log >&2
-              echo "::error::ldd missing libraries (if any):" >&2
-              ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
-              exit 1
-            fi
+          if ! google-chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1; then
+            echo "::error::google-chrome failed to launch in headless mode." >&2
+            cat /tmp/chrome-smoke.log >&2
+            exit 1
           fi
 
       - name: Run WASM XSS escape regression (headless Chrome)
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test xss_escape_wasm
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome crates/wasm-full --test xss_escape_wasm
 
   # イシュー #297（TASK-10.2 残課題、出典 PR #220 §10 スコープ外節）:
   # docs/design/wasm-build-integration.md §6.4 が文書化していた nodejs ターゲット
@@ -1473,7 +1177,7 @@ jobs:
   # 緩和用 input・continue-on-error は設けない（既存ジョブの迂回経路禁止原則）。
   wasm-node-smoke:
     name: "nodejs target smoke test (fandhe-frontend-wasm-thin, issue #297)"
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -1523,8 +1227,9 @@ jobs:
           echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       - name: Setup Node.js
-        # npm-asset-build ジョブと同一 SHA 固定。self-hosted runner に node の
-        # 常設は保証されないため明示セットアップする（.claude/rules/ci.md
+        # npm-asset-build ジョブと同一 SHA 固定。ubuntu-latest（ホステッド
+        # ランナー、ジョブごとにクリーンな使い捨て VM）にも node の常設は
+        # 保証されないため明示セットアップする（.claude/rules/ci.md
         # 「ツール前提の明示」）。
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
