@@ -48,32 +48,69 @@ concurrency:
   # （他ワークフローの cancel-in-progress: true とは意図的に異なる設定）
 
 jobs:
+  # イシュー #1232（トラッキング #1220）で ubuntu-latest へ移行（in-place。
+  # self-hosted との並走期間は残さない）。設計判断・キャッシュキー方針の正は
+  # docs/ci/hosted-runner-migration.md（§3 キャッシュ戦略・§4 ツール導入方針）
+  # であり、ci.yml clippy ジョブ（イシュー #1227）の先例パターンを踏襲する。
   build:
     name: "build: docs site (SSG + linkcheck)"
-    runs-on: self-hosted
-    timeout-minutes: 30 # 共有 CARGO_TARGET_DIR キャッシュ未命中時のコールドビルドを考慮
+    runs-on: ubuntu-latest
+    # クリーンな使い捨て VM でのフルコールドビルド（cache miss 時）を考慮。
+    # docs-site の依存閉包は内部クレートのみ・外部依存ゼロで ci.yml test
+    # ジョブより軽量なため、値 30 は self-hosted 時代から据え置く
+    # （docs/ci/hosted-runner-migration.md §5）。
+    timeout-minutes: 30
     steps:
       - name: Checkout
         # actions/checkout v6.0.3（ci.yml / deps-check.yml と同一 SHA 固定）。
         # site/nav.toml が参照するのは docs/guides・docs/api・examples/*/README.md
         # のみのため docs/spec サブモジュールは不要（submodules 既定 false）。
+        # persist-credentials: false は他ジョブ（ci.yml 各所、イシュー #1229）と
+        # 同一の認証情報残置面縮小パターン（A05/A06 整合）。
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
 
       - name: Setup Rust toolchain
+        id: toolchain
         # dtolnay/rust-toolchain（deps-check.yml と同一 SHA 固定）。
-        # cargo 未導入の self-hosted インスタンス（PR #196 で判明）への安全網。
+        # クリーンな使い捨て VM では毎ジョブ導入が主経路（.claude/rules/ci.md・
+        # docs/ci/hosted-runner-migration.md §4.2）。バージョン決定性のため
+        # 明示 pin を維持する。id: toolchain は下記キャッシュキーが参照する
+        # steps.toolchain.outputs.cachekey の取得元。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
+
+      - name: "cache: cargo registry + target（イシュー #1232、docs/ci/hosted-runner-migration.md §3.3/§3.4）"
+        # actions/cache v6.1.0（GitHub 公式・フル SHA ピン、ci.yml clippy
+        # ジョブと同一 SHA・同一パターン）。job family prefix `docs-site-`
+        # で release.yml の検証ビルド（専用 CARGO_TARGET_DIR 隔離・cache
+        # 不使用）や他ジョブ系統のキャッシュと分離し、イシュー #1192 型の
+        # rlib 汚染がキャッシュ経由で流入する経路を作らない。miss 時は
+        # フルビルドへ自然にフォールバックする fail-open 設計であり、
+        # 正当性の前提にしない（restore/save いずれの失敗もジョブを
+        # 失敗させない）。
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: docs-site-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            docs-site-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
       - name: "build: generate site into dist"
         # linkcheck は build_site() 内蔵（crates/docs-site/src/linkcheck.rs）。
         # リンク切れ検出時は書き出しを一切行わず非 0 終了する（fail-closed）。
         run: cargo run --locked -p fandhe-frontend-docs-site -- --out "${RUNNER_TEMP}/docs-site-dist"
 
-      # 出力先を RUNNER_TEMP 配下にする理由: self-hosted の作業ディレクトリは
-      # ジョブ間で永続するため、リポジトリ直下への出力による stale 生成物の
-      # 混入を避ける。
+      # 出力先を RUNNER_TEMP 配下にする理由: ホステッドランナーでも
+      # RUNNER_TEMP 配置原則（イシュー #659）は不変であり、ジョブ終了時に
+      # runner が自動清掃するためリポジトリ直下への出力による stale 生成物の
+      # 混入を避けられる（docs/ci/hosted-runner-migration.md §2.1 (c)）。
       - name: "verify: dist sanity check"
         # 空サイト・アセット欠落を黙って公開しないための決定的チェック（fail-closed）。
         # assets/site.css は #905 以降 site/assets/ からの静的コピーではなく
@@ -146,7 +183,8 @@ jobs:
 
       - name: Upload Pages artifact
         # 要: runner に tar がインストール済み（upload-pages-artifact が内部で使用。
-        #     Linux self-hosted プールでは通常常設だが、ci.md 規約に従い前提を明示）
+        #     ubuntu-latest はプリインストール済み、
+        #     docs/ci/hosted-runner-migration.md §4.1）
         # actions/upload-pages-artifact v5.0.0（commit SHA 固定）
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
         with:
@@ -155,7 +193,7 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     needs: build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       pages: write # Pages デプロイ作成に必要（デプロイジョブのみに限定、A01/A05 対策）
