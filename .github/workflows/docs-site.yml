@@ -72,15 +72,30 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        id: toolchain
-        # dtolnay/rust-toolchain（deps-check.yml と同一 SHA 固定）。
+        # Fandhe-AI/actions/rust-toolchain-setup（deps-check.yml と同一 SHA
+        # 固定。イシュー #1273 で dtolnay/rust-toolchain から置換）。
         # クリーンな使い捨て VM では毎ジョブ導入が主経路（.claude/rules/ci.md・
-        # docs/ci/hosted-runner-migration.md §4.2）。バージョン決定性のため
-        # 明示 pin を維持する。id: toolchain は下記キャッシュキーが参照する
-        # steps.toolchain.outputs.cachekey の取得元。
-        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
-        with:
-          toolchain: stable
+        # docs/ci/hosted-runner-migration.md §4.2）。ツールチェーンはリポジトリ
+        # 直下の rust-toolchain.toml（channel = "stable"）を単一真実源として
+        # rustup show で同期する。
+        uses: Fandhe-AI/actions/rust-toolchain-setup@5982e2f502a19effc36a7b161660b5a4ea17b886
+
+      - name: Compute toolchain cache key
+        # dtolnay/rust-toolchain の outputs.cachekey の代替（イシュー #1273。
+        # 置換先の action は cachekey 相当の output を持たないため、rustc の
+        # コミットハッシュ先頭 12 桁を toolchain 世代キーとして自前算出する。
+        # 空値はキャッシュキーの世代分離を失わせるため fail-closed で停止する）。
+        # 下記 actions/cache のキャッシュキー（steps.toolchain.outputs.cachekey）
+        # が参照する。
+        id: toolchain
+        run: |
+          set -euo pipefail
+          cachekey="$(rustc -vV | sed -n 's/^commit-hash: \(.\{12\}\).*/\1/p')"
+          if [ -z "${cachekey}" ]; then
+            echo "::error::rustc commit-hash を取得できませんでした"
+            exit 1
+          fi
+          echo "cachekey=${cachekey}" >> "${GITHUB_OUTPUT}"
 
       - name: "cache: cargo registry + target（イシュー #1232、docs/ci/hosted-runner-migration.md §3.3/§3.4）"
         # actions/cache v6.1.0（GitHub 公式・フル SHA ピン、ci.yml clippy

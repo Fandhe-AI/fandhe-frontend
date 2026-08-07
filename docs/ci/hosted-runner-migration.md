@@ -33,7 +33,7 @@
 
 | ワークフロー | ジョブ | 主な依存 |
 |-------------|--------|---------|
-| `ci.yml` | forbid-unsafe / test / dist-server-embedded-mode / browser-test / perf-harness / xss-wasm-test / wasm-node-smoke / template-app-wasm-smoke / npm-asset-build / rebuild-latency / bundle-size / loc-check / template-negative-type-error / clippy / clippy-wasm32 / gate-self-apply / version-bump-guard / dep-version-check（18 ジョブ） | Rust toolchain（`dtolnay/rust-toolchain`）・cargo-deny/clippy component（`tools/ci/ensure-gate-tools.sh`）・wasm-bindgen-cli（pinned+SHA256、`build.rs` ネスト WASM ビルド用）・wasm-pack + Chrome for Testing/chromedriver（pinned+SHA256）・node/npm（`actions/setup-node`）・crates.io 到達性（`template-app-wasm-smoke`/`version-bump-guard`/`dep-version-check`） |
+| `ci.yml` | forbid-unsafe / test / dist-server-embedded-mode / browser-test / perf-harness / xss-wasm-test / wasm-node-smoke / template-app-wasm-smoke / npm-asset-build / rebuild-latency / bundle-size / loc-check / template-negative-type-error / clippy / clippy-wasm32 / gate-self-apply / version-bump-guard / dep-version-check（18 ジョブ） | Rust toolchain（`dtolnay/rust-toolchain`。イシュー #1273 で `Fandhe-AI/actions/rust-toolchain-setup` へ置換済み）・cargo-deny/clippy component（`tools/ci/ensure-gate-tools.sh`）・wasm-bindgen-cli（pinned+SHA256、`build.rs` ネスト WASM ビルド用）・wasm-pack + Chrome for Testing/chromedriver（pinned+SHA256）・node/npm（`actions/setup-node`）・crates.io 到達性（`template-app-wasm-smoke`/`version-bump-guard`/`dep-version-check`） |
 | `release.yml` | verify / publish | crates.io 到達性必須（`cargo package`/`cargo publish --dry-run`）、専用 `CARGO_TARGET_DIR` 隔離済み（イシュー #1192） |
 | `docs-site.yml` | build / deploy | Rust toolchain のみ（外部ネットワーク依存なし） |
 | `runner-maintenance.yml` | plan / inspect-and-cleanup | self-hosted プール自体の保守が目的（後述 §6 で移行完了後に廃止対象） |
@@ -161,7 +161,7 @@ jq・node・Chrome（+ chromedriver）が標準搭載されている。本リポ
 
 | ツール | 現行パターン | 移行後の扱い |
 |--------|-------------|-------------|
-| Rust toolchain | `dtolnay/rust-toolchain`（SHA ピン） | 不変。ubuntu-latest にも Rust は入っているが、バージョン決定性のため明示 pin を維持する |
+| Rust toolchain | `dtolnay/rust-toolchain`（SHA ピン） → イシュー #1273 で `Fandhe-AI/actions/rust-toolchain-setup`（フルコミット SHA ピン）へ置換済み | 不変。ubuntu-latest にも Rust は入っているが、バージョン決定性のため明示セットアップを維持する。置換先はリポジトリ直下の `rust-toolchain.toml`（`channel = "stable"`）を単一真実源として `rustup show` で同期する設計であり、`toolchain` input は持たない |
 | wasm-bindgen-cli | pinned + SHA256 検証 + `$HOME/.local/share` atomic install | **イシュー #1274 で `Fandhe-AI/actions/wasm-tool-install`（full commit SHA ピン）へ置換済み**。バージョン固定 + SHA256 検証 + atomic install の実装は同 action へ共通化し、pin の正は `ci.yml` 冒頭のワークフローレベル `env` ブロックへ単一宣言点化した。`crates/dist-server/build.rs` のネスト WASM ビルドが要求するバージョンと一致させる契約（`crates/xtask/tests/wasm_bindgen_version_sync.rs`）は不変（同テストは ci.yml の YAML mapping 形式・Dockerfile の shell 代入形式の両方を抽出し、`with:` へのリテラル直書きも fail-closed に検知する） |
 | wasm-pack | pinned + SHA256 検証 + atomic install | イシュー #1274 で wasm-bindgen-cli と同様に `Fandhe-AI/actions/wasm-tool-install` へ置換済み。`Dockerfile` 側は本置換の対象外（Docker ビルド内では composite action を使えないため）で不変 |
 | Chrome for Testing + chromedriver | pinned + SHA256 検証（`browser-test`/`perf-harness`/`xss-wasm-test`） | **判断: pinned install を維持する**（プリインストール版へ切替えない）。バージョン決定性（chromedriver とのプロトコル一致）を優先し、ubuntu-latest の週次更新される Chrome に依存すると再現性が失われるため |

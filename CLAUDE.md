@@ -16,6 +16,7 @@ fandhe-frontend/
 ├── CLAUDE.md
 ├── README.md
 ├── .editorconfig             # エディタ間のインデント・改行統一（Rust は rustfmt 既定 4 スペースと一致させる補助）
+├── rust-toolchain.toml       # channel = "stable" を単一真実源とする toolchain 宣言（イシュー #1273。CI 各ワークフローの Fandhe-AI/actions/rust-toolchain-setup が rustup show で同期）
 ├── Makefile                  # 開発タスク（setup / build / test / fmt / lint / gate / docs / docker-dev-build / docker-dev）の入口
 ├── lefthook.yml              # pre-commit / commit-msg フック定義（npm 非依存）。lefthook 導入済み環境で `make setup` が有効化、ローカル検証用
 ├── skills-lock.json          # npx skills add の導入記録
