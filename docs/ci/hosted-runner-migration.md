@@ -283,7 +283,7 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
 - 許容基準（§5.3）との照合・キー設計の見直し要否も、CI 実行結果を得てから
   本節へ追記する。
 
-### 5.5 Docker 系ワークフロー実測（#1234、musl-smoke.yml / image-size.yml）— 未実測（PR 初回 CI 実行後に追記）
+### 5.5 Docker 系ワークフロー実測（#1234、musl-smoke.yml / image-size.yml）— 実測済み（2026-08-07、イシュー #1258）
 
 - 移行対象: `musl-smoke.yml`（REQ-9 起動スモーク）・`image-size.yml`（REQ-9
   50MB サイズ判定）。両ワークフローとも Docker ビルド（musl target +
@@ -295,22 +295,45 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
 - self-hosted 直近実績（本文書 §5.2 の対象外・別実測。ジョブ本体のコメント
   記載値）: musl-smoke 約 40 秒〜5 分、image-size 約 20 秒〜15 分
   （20 台プールでのキュー待ち時間を含む）。
-- 実装コミット時点ではローカル worktree での作業に留まり GitHub Actions は
-  未実行のため、本節の実測値は **PR 作成後の CI 初回実行結果を待って
-  追記する**。
-- 追記予定の実測表（列のみ確定、値は CI 実行後に埋める）:
+- 実測対象 run（PR #1248、`ci/1234-docker-workflows-hosted-runner` ブランチ、
+  いずれも `conclusion: success`・`ubuntu-latest`・Docker レイヤーキャッシュ
+  なしのコールドビルド）:
+  - `musl-smoke.yml` PR 初回実行:
+    [run 31143183532](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31143183532)
+  - `image-size.yml` PR 初回実行:
+    [run 31143183485](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31143183485)
+  - 参考値（マージコミット `135f9cf` の main push 再実行、コールド再現の
+    確認用）: `musl-smoke.yml`
+    [run 31143632838](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31143632838) /
+    `image-size.yml`
+    [run 31143632819](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31143632819)
+- 実測表:
 
   | ワークフロー | job 所要時間（コールド） | `docker build` ステップ単体 | self-hosted 実績比 | §5.3 許容基準判定 |
   |-------------|-------------------------|----------------------------|--------------------|--------------------|
-  | `musl-smoke.yml` | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載) |
-  | `image-size.yml` | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載) |
+  | `musl-smoke.yml` | 約 1 分 11 秒（03:04:13→03:05:24、参考値: main push 再実行で約 1 分 10 秒） | 約 57 秒（03:04:15→03:05:12、参考値: 約 56 秒） | self-hosted 実績帯（約 40 秒〜5 分）の範囲内。上限（5 分）比で大幅短縮 | PASS（`timeout-minutes: 40` 内・許容基準 2 も満たす） |
+  | `image-size.yml` | 約 1 分 10 秒（03:04:06→03:05:16、参考値: main push 再実行で約 1 分 13 秒） | 約 55 秒（03:04:13→03:05:08、参考値: 約 56 秒） | self-hosted 実績帯（約 20 秒〜15 分）の範囲内。上限（15 分）比で大幅短縮 | PASS（`timeout-minutes: 45` 内・許容基準 2 も満たす） |
 
 - 取得手順: `gh run view <run-id> --json jobs` で `startedAt`〜`completedAt`
   を取得し、`docker build` ステップのログタイムスタンプから単体所要時間を
   算出する。
-- 許容基準（§5.3）との照合結果、buildx レイヤーキャッシュ導入要否の判断
-  （§3.2 の条件: 実測が `timeout-minutes`・許容基準を恒常的に超える場合の
-  み検討）も、CI 実行結果を得てから本節へ追記する。
+- **コールドビルドの真正性検証**: main push run 31143632838（`musl-smoke.yml`）
+  のジョブログで BuildKit の `CACHED` 出力が 0 件であること、
+  `Compiling fandhe-frontend-dist-server v0.2.0` → `Finished release profile
+  in 36.44s` を確認済み。レイヤーキャッシュなしのコールドビルドでも
+  job 所要時間は 1 分強に収まった。
+- **許容基準（§5.3）との照合結果**:
+  1. `timeout-minutes` 内（基準 1）: musl-smoke 40 分・image-size 45 分の
+     上限に対し実測は両者とも約 1 分強であり **PASS**。
+  2. self-hosted 実績比 +50% 以内（基準 2）: self-hosted 実績が幅を持つ
+     レンジ値（20 台プールのキュー待ち込みで musl-smoke 約 40 秒〜5 分、
+     image-size 約 20 秒〜15 分）であるため単純な倍率比較はできないが、
+     実測（約 1 分 10〜11 秒）は両者とも実績帯の範囲内かつ上限比では
+     大幅な短縮であり **PASS**。
+  3. **buildx レイヤーキャッシュ導入要否の判断**: 基準 1・2 とも余裕を
+     もって PASS しており、§3.2 の導入条件（`timeout-minutes`・許容基準を
+     恒常的に超える場合のみ検討）に該当しないため、**導入不要**と結論する。
+     別 issue の起票も不要。
 
 ### 5.6 Windows 移行実測（#1236、windows-latest）— 未実測（dispatch 実行後に追記）
 
