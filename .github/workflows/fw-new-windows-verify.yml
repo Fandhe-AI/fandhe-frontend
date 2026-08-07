@@ -228,6 +228,13 @@ jobs:
           }
           Write-Host "OK: executable-flagged template files generated without error on Windows (no-op permission skip confirmed harmless)"
 
+          # GitHub Actions の pwsh シェルはスクリプト末尾に `exit $LASTEXITCODE` 相当を自動付加する。
+          # 本スクリプト最後の native 実行は「未知テンプレート → 意図的な exit 2」のネガティブテストで、
+          # 以降は純 PowerShell 検査のみのため、全検証 OK でも $LASTEXITCODE=2 が残り step が
+          # 失敗扱いになる（run 31160896292 の失敗原因）。失敗経路はすべて明示的な exit 1 を
+          # 持つため、末尾到達＝全検証成功として明示的に exit 0 で確定する。
+          exit 0
+
       - name: Write Step Summary
         if: always()
         run: |
