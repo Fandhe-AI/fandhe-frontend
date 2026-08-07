@@ -246,11 +246,48 @@ fn step_is_guard_step(step: &str) -> bool {
     rest.trim().trim_matches('"') == GUARD_STEP_MARKER
 }
 
-/// ci.yml の `job_name` ジョブが、無ハッシュ cdylib rlib 3 種（wasm-thin/
-/// wasm-full/wasm-client）すべてを削除するガードステップを持つことを検証する
-/// 純粋関数（ファイル I/O なし）。1 種類でも欠けると当該クレートの flaky を
+/// ガードステップ本文が、無ハッシュ cdylib rlib 3 種（wasm-thin/wasm-full/
+/// wasm-client）すべてを削除し、かつ広域削除（`rm -rf`）を持ち込んでいない
+/// ことを検証する共通ロジック。`check_job_has_guard_step`（既知 3 ジョブ）と
+/// `check_ci_jobs_caching_target_have_guard`（`actions/cache` を横断検査する
+/// 汎用契約）の双方から呼ぶ。1 種類でも欠けると当該クレートの flaky を
 /// 見逃すため、3 種すべてを個別に確認する（部分的な対策で「対策済み」と
 /// 誤認しないため）。
+///
+/// イシュー #1226 レビュー追補: 完全性チェックを `forbid-unsafe`/`test`/
+/// `gate-self-apply` の 3 ジョブ専用にしていると、Phase 2 で新設される
+/// キャッシュ利用ジョブが「ステップ名はガードマーカーと一致するが 1 種類
+/// しか削除しない」ガードでも `check_ci_jobs_caching_target_have_guard` を
+/// すり抜けてしまう（同種の vacuous PASS の再発）。両契約が同じ完全性を
+/// 要求するよう共通化した。
+fn check_guard_step_completeness(step: &str, context_label: &str) -> Result<(), String> {
+    for crate_name in [
+        "libfandhe_frontend_wasm_thin.rlib",
+        "libfandhe_frontend_wasm_full.rlib",
+        "libfandhe_frontend_wasm_client.rlib",
+    ] {
+        if !step.contains(crate_name) {
+            return Err(format!(
+                "{context_label} のガードステップが `{crate_name}` \
+                 の削除を含んでいない（3 種すべてを削除しないと当該クレートの \
+                 flaky を見逃す）"
+            ));
+        }
+    }
+    // 広域削除（glob・rm -rf）を持ち込んでいないことも合わせて確認する
+    // （A01 パストラバーサル・意図しない広域削除の防止、security.md 参照）。
+    if step.contains("rm -rf") {
+        return Err(format!(
+            "{context_label} のガードステップに `rm -rf` が含まれて \
+             いる（固定ファイル名のみの `rm -f` に限定する設計から逸脱している）"
+        ));
+    }
+    Ok(())
+}
+
+/// ci.yml の `job_name` ジョブが、無ハッシュ cdylib rlib 3 種（wasm-thin/
+/// wasm-full/wasm-client）すべてを削除するガードステップを持つことを検証する
+/// 純粋関数（ファイル I/O なし）。
 fn check_job_has_guard_step(contents: &str, job_name: &str) -> Result<(), String> {
     let job = job_block(contents, job_name);
     let step = split_steps(job)
@@ -265,28 +302,7 @@ fn check_job_has_guard_step(contents: &str, job_name: &str) -> Result<(), String
             )
         })?;
 
-    for crate_name in [
-        "libfandhe_frontend_wasm_thin.rlib",
-        "libfandhe_frontend_wasm_full.rlib",
-        "libfandhe_frontend_wasm_client.rlib",
-    ] {
-        if !step.contains(crate_name) {
-            return Err(format!(
-                "ci.yml の `{job_name}` ジョブのガードステップが `{crate_name}` \
-                 の削除を含んでいない（3 種すべてを削除しないと当該クレートの \
-                 flaky を見逃す）"
-            ));
-        }
-    }
-    // 広域削除（glob・rm -rf）を持ち込んでいないことも合わせて確認する
-    // （A01 パストラバーサル・意図しない広域削除の防止、security.md 参照）。
-    if step.contains("rm -rf") {
-        return Err(format!(
-            "ci.yml の `{job_name}` ジョブのガードステップに `rm -rf` が含まれて \
-             いる（固定ファイル名のみの `rm -f` に限定する設計から逸脱している）"
-        ));
-    }
-    Ok(())
+    check_guard_step_completeness(step, &format!("ci.yml の `{job_name}` ジョブ"))
 }
 
 fn assert_job_has_guard_step(job_name: &str) {
@@ -431,28 +447,38 @@ fn cache_step_path_contains_target(step: &str) -> bool {
     cache_step_target_reference(step).is_some()
 }
 
-/// ガードステップ（`run:` ブロック中の `rm -f` 対象行）が削除しているファイル
+/// ガードステップ（`run:` ブロック中の `rm -f` 対象）が削除しているファイル
 /// パスの「ルートディレクトリ部分」（`/debug/deps/` より前の部分）を抽出する。
 ///
 /// 例: `"${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.rlib" \`
 /// → `"${CARGO_TARGET_DIR}"`。この抽出結果を `CacheTargetRef` と突き合わせる
 /// ことで、「ガードは存在するが実際には別ディレクトリを掃除している」
 /// （イシュー #1226 finding 1）を検知する。
+///
+/// 各行中の**クォート囲みトークンをすべて**走査する（行頭がクォートである
+/// ことは要求しない）。既存 ci.yml のガードは 1 行 1 パスの継続行形式
+/// （`"…" \`）だが、`rm -f "a" "b" "c"` のように複数パスを 1 行へまとめる
+/// 書き方でも見逃さないようにするため（行頭限定の実装だと、そのような
+/// 単一行ガードは「削除対象なし」と誤判定され、実際には正しいガードが
+/// 本契約を FAIL してしまう vacuous-FAIL の温床になる）。
 fn guard_deleted_path_prefixes(guard_step: &str) -> Vec<String> {
-    guard_step
-        .lines()
-        .filter_map(|line| {
-            let t = line.trim();
-            let t = t.strip_suffix('\\').map(str::trim_end).unwrap_or(t);
-            let t = t.strip_prefix('"')?;
-            let t = t.strip_suffix('"')?;
-            if t.ends_with(".rlib") || t.ends_with(".so") || t.ends_with(".d") {
-                t.split("/debug/deps/").next().map(|s| s.to_string())
-            } else {
-                None
+    let mut prefixes = Vec::new();
+    for line in guard_step.lines() {
+        // `line.split('"')` は「クォート外, クォート内, クォート外, クォート内, ...」
+        // の順で交互にフィールドを返す。先頭（クォート外）を読み捨てたのち、
+        // 交互に「クォート内トークン・クォート外テキスト」を消費する。
+        let mut fields = line.split('"');
+        let _ = fields.next();
+        while let Some(quoted) = fields.next() {
+            if quoted.ends_with(".rlib") || quoted.ends_with(".so") || quoted.ends_with(".d") {
+                if let Some(prefix) = quoted.split("/debug/deps/").next() {
+                    prefixes.push(prefix.to_string());
+                }
             }
-        })
-        .collect()
+            let _ = fields.next();
+        }
+    }
+    prefixes
 }
 
 /// ガードステップが `target_ref` と同じディレクトリを削除対象としているかを
@@ -485,6 +511,13 @@ fn guard_step_covers_target_ref(guard_step: &str, target_ref: &CacheTargetRef) -
 /// 環境変数未設定時の既定 `target/`）を掃除しているだけでは無意味な
 /// no-op になり得る。`docs/ci/hosted-runner-migration.md` §3.3 の
 /// ジョブ系統分離を補完する。
+///
+/// 一致したガードステップには `check_guard_step_completeness`（3 クレート
+/// 網羅・`rm -rf` 不使用）も適用する。完全性チェックを既知 3 ジョブ
+/// （`check_job_has_guard_step`）専用のままにしておくと、Phase 2 で新設
+/// されるキャッシュ利用ジョブが「ステップ名はガードマーカーと一致するが
+/// 1 種類しか削除しない」不完全なガードでも本契約をすり抜けてしまう
+/// （同種の vacuous PASS の再発、イシュー #1226 レビュー追補）。
 fn check_ci_jobs_caching_target_have_guard(contents: &str) -> Result<(), String> {
     let jobs = split_top_level_jobs(jobs_section(contents));
     for (name, block) in &jobs {
@@ -496,14 +529,15 @@ fn check_ci_jobs_caching_target_have_guard(contents: &str) -> Result<(), String>
             .filter_map(|(idx, step)| cache_step_target_reference(step).map(|r| (idx, r)))
             .collect();
         for (cache_idx, target_ref) in &cache_targets {
-            let covered = steps
+            let matched_guard = steps
                 .iter()
                 .enumerate()
                 .skip(cache_idx + 1)
-                .any(|(_, step)| {
+                .find(|(_, step)| {
                     step_is_guard_step(step) && guard_step_covers_target_ref(step, target_ref)
-                });
-            if !covered {
+                })
+                .map(|(_, step)| *step);
+            let Some(guard_step) = matched_guard else {
                 return Err(format!(
                     "ci.yml の `{name}` ジョブが target を含む actions/cache ステップを持つが、\
                      それより後段に、同じ参照先（環境変数名またはパス）を削除するイシュー #1192 \
@@ -512,7 +546,8 @@ fn check_ci_jobs_caching_target_have_guard(contents: &str) -> Result<(), String>
                      ディレクトリと同じ参照を削除対象にすること（イシュー #1226、\
                      docs/ci/hosted-runner-migration.md §3.3 参照）"
                 ));
-            }
+            };
+            check_guard_step_completeness(guard_step, &format!("ci.yml の `{name}` ジョブ"))?;
         }
     }
     Ok(())
@@ -596,6 +631,19 @@ mod fixture_tests {
 
     const TARGET_CACHE_WITHOUT_GUARD: &str = "\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Cache cargo target\n        uses: actions/cache@v4\n        with:\n          path: |\n            ~/.cargo/registry\n            target/\n          key: cargo-${{ hashFiles('**/Cargo.lock') }}\n";
 
+    /// `GUARD_STEP_YAML` と等価な削除内容を、継続行ではなく単一行の
+    /// `rm -f "a" "b" "c"` 形式で書いたガードステップ。`guard_deleted_path_prefixes`
+    /// が行頭クォート限定だと「削除対象なし」と誤判定し、正しいガードを
+    /// 本契約が FAIL させてしまう vacuous-FAIL を防止できているかを確認する
+    /// （advisor 指摘: 1 行 `rm -f` 形式のフォーマット依存を潰す）。
+    const GUARD_STEP_SINGLE_LINE_YAML: &str = "      - name: \"guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）\"\n        run: rm -f \"${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.rlib\" \"${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_full.rlib\" \"${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_client.rlib\"\n";
+
+    /// 3 クレートのうち 1 種類（wasm_thin）しか削除しない不完全なガード。
+    /// ステップ名・順序・参照先はすべて正しいため、完全性チェック
+    /// （`check_guard_step_completeness`）が本契約側にも適用されていないと
+    /// すり抜けてしまう（イシュー #1226 レビュー追補）。
+    const GUARD_STEP_PARTIAL_YAML: &str = "      - name: \"guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）\"\n        run: rm -f \"${CARGO_TARGET_DIR}/debug/deps/libfandhe_frontend_wasm_thin.rlib\"\n";
+
     const REGISTRY_ONLY_CACHE: &str = "\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Cache cargo registry\n        uses: actions/cache@v4\n        with:\n          path: ~/.cargo/registry\n          key: cargo-registry-${{ hashFiles('**/Cargo.lock') }}\n";
 
     // (a) キャッシュなし → ci/release ともに PASS
@@ -629,6 +677,31 @@ mod fixture_tests {
         let result = check_ci_jobs_caching_target_have_guard(&yaml);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("後段"));
+    }
+
+    // (c''') ガード本体が「1 行 rm -f "a" "b" "c"」形式でも、継続行形式と
+    //        同様に PASS する（advisor 指摘: 行頭クォート限定の抽出だと
+    //        正しいガードを誤って FAIL させる vacuous-FAIL の防止）。
+    #[test]
+    fn fixture_single_line_guard_form_passes_ci_contract() {
+        let yaml = format!(
+            "\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n{CACHE_STEP_ENV_VAR_FORM}{GUARD_STEP_SINGLE_LINE_YAML}"
+        );
+        assert!(check_ci_jobs_caching_target_have_guard(&yaml).is_ok());
+    }
+
+    // (c'''') ステップ名・順序・参照先はすべて正しいが 1 種類のクレートしか
+    //         削除しない不完全なガード → ci contract は FAIL する（完全性
+    //         チェックを本契約にも適用したことの確認、イシュー #1226
+    //         レビュー追補）。
+    #[test]
+    fn fixture_partial_guard_fails_ci_contract() {
+        let yaml = format!(
+            "\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n{CACHE_STEP_ENV_VAR_FORM}{GUARD_STEP_PARTIAL_YAML}"
+        );
+        let result = check_ci_jobs_caching_target_have_guard(&yaml);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("含んでいない"));
     }
 
     // (c'') target をリテラルパス（`target/`）でキャッシュしているのに
