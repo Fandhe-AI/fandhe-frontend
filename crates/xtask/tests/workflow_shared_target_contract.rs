@@ -46,10 +46,41 @@
 //! | release.yml での target キャッシュ禁止契約（新設） | **追加** | release.yml の検証ビルドは `RUNNER_TEMP` 配下の隔離 target を使うため、ワークスペース `target` のキャッシュ復元は無意味かつ汚染 rlib の供給源になり得る。§3.3 のジョブ系統分離を「release.yml では target 系パスをキャッシュしない」という最も単純で決定的な形で機械強制する（`~/.cargo/registry` 等の非 target キャッシュは許容） |
 //!
 //! この判断は既存契約の弱体化にあたらない（5 テストとも assert 意味論を
-//! 変えず維持し、新契約 2 件を追加・強化した）。`actions/cache` を用いる
-//! ステップは現時点（イシュー #1226 実装時点）でワークフロー中に 1 件も
-//! 存在しないため、上記強化はいずれも Phase 2 以降のキャッシュ導入 PR を
-//! 待って初めて実効判定に入る（導入前は vacuous に PASS する）。
+//! 変えず維持し、新契約 2 件を追加・強化した）。`ci.yml` の `clippy` ジョブ
+//! （イシュー #1227）が `actions/cache` を実導入済みであり、新契約 2 件は
+//! 実ワークフローに対して実効判定している（vacuous PASS ではない）。
+//!
+//! ## PR #1244 レビュー（Bugbot）指摘対応（イシュー #1226 追補）
+//!
+//! さらなるレビューで 3 件の検出漏れ・誤検知が指摘され、いずれも修正した:
+//!
+//! 1. **nameless `actions/cache` ステップの検知漏れ（High）**:
+//!    `step_uses_actions_cache` が `uses:` 行の判定で行頭の `- ` プレフィックス
+//!    を考慮しておらず、`name:` を持たず `- uses: actions/cache@...` から
+//!    始まる GitHub 公式スタイルのステップを見逃していた。
+//! 2. **`actions/cache/save` の誤マッチによる偽陽性（Medium）**:
+//!    「キャッシュ復元ステップより後段にガードを置く」順序契約が、復元を
+//!    行わない `actions/cache/save` ステップにもガード必須を課してしまい、
+//!    「restore → guard → build → save」という正しい構成を FAIL させて
+//!    いた。`step_is_cache_save_only` で save 専用ステップを判別し、
+//!    ci.yml 側の順序契約からのみ除外した（release.yml の禁止契約は
+//!    save 専用ステップも引き続き検出対象とし、弱体化しない）。
+//! 3. **クォート付き `path:` リテラルの完全一致比較失敗（Medium）**:
+//!    `target_ref_in_line` がクォートを剥がさないまま `Literal` トークン化
+//!    しており、`path: "target/"` のようなクォート付き記法だと
+//!    `guard_step_covers_target_ref` の完全一致比較が常に不一致になり、
+//!    正しくカバーしているガードでも「カバーしていない」と誤判定して
+//!    いた。
+//!
+//! ## 本契約の対象範囲（スコープ外の明示）
+//!
+//! `check_ci_jobs_caching_target_have_guard` は `.github/workflows/ci.yml`
+//! のみを読む（`ci_workflow_path()`）。`.github/workflows/docs-site.yml`
+//! の `docs-site` ジョブ（イシュー #1232）も `path: target` を
+//! `actions/cache` で復元しているが、本契約はこのファイルを検証しない
+//! （スコープ外）。docs-site.yml へガード必須契約を拡張するかどうかは
+//! 本 3 findings の修正とは別の判断であり、本ファイルの変更範囲には
+//! 含めない。
 //!
 //! 外部 YAML パーサは追加しない（REQ-3・xtask 外部依存ゼロ方針。
 //! `template_deny_workflow.rs` と同じく行ベースの文字列一致に留める）。
@@ -335,10 +366,50 @@ fn ci_workflow_gate_self_apply_job_has_shared_target_guard() {
 // 付与・順序・対象パスの一致を怠ると即座に FAIL する。
 // ---------------------------------------------------------------------
 
-/// ステップ本文が `actions/cache` を使用する `uses:` 行を持つかを判定する。
+/// ステップ本文が `actions/cache` 系アクション（`actions/cache` 本体・
+/// `actions/cache/restore`・`actions/cache/save` のいずれか）を使用する
+/// `uses:` 行を持つかを判定する。
+///
+/// `uses:` 行の直前に `- `（ステップ境界マーカー）が付く nameless 形式
+/// （`name:` を持たず `- uses: actions/cache@...` から始まるステップ定義。
+/// GitHub 公式の cache 利用例が用いる書き方）にも対応するため、行頭の
+/// `- ` プレフィックスを剥がしてから `uses:` を判定する（イシュー #1226
+/// Bugbot 指摘 High: 旧実装は `l.trim_start().starts_with("uses:")` のみで、
+/// nameless 形式の 1 行目 `- uses: ...` は `-` が残るため一致せず、
+/// target キャッシュ導入が本契約を素通りする vacuous PASS を招いていた）。
 fn step_uses_actions_cache(step: &str) -> bool {
-    step.lines()
-        .any(|l| l.trim_start().starts_with("uses:") && l.contains("actions/cache"))
+    step.lines().any(|l| {
+        let trimmed = l.trim_start();
+        let trimmed = trimmed.strip_prefix("- ").unwrap_or(trimmed).trim_start();
+        let Some(rest) = trimmed.strip_prefix("uses:") else {
+            return false;
+        };
+        rest.trim().contains("actions/cache")
+    })
+}
+
+/// `actions/cache/save`（復元を一切行わない書き込み専用アクション）を
+/// 使用する `uses:` 行を持つかを判定する。`step_uses_actions_cache` と同じ
+/// nameless 形式対応の抽出ロジックを共有する。
+///
+/// `check_ci_jobs_caching_target_have_guard` の「キャッシュ復元ステップより
+/// 後段にガードを置く」順序契約は、復元を伴うステップ（`actions/cache` 本体・
+/// `actions/cache/restore`）にのみ適用すべきである。save 専用ステップは
+/// 復元を行わないため、その直後にもガードを要求すると「restore → guard →
+/// build → save」という正しく汚染除去済みの構成まで偽陽性で FAIL させて
+/// しまう（イシュー #1226 Bugbot 指摘 Medium）。`check_release_jobs_must_not_cache_target`
+/// 側は `step_uses_actions_cache`（save 含む）をそのまま使い続ける（save
+/// 専用ステップで target をキャッシュする行為自体は release.yml の隔離設計と
+/// 矛盾するため、検出対象から除外しない）。
+fn step_is_cache_save_only(step: &str) -> bool {
+    step.lines().any(|l| {
+        let trimmed = l.trim_start();
+        let trimmed = trimmed.strip_prefix("- ").unwrap_or(trimmed).trim_start();
+        let Some(rest) = trimmed.strip_prefix("uses:") else {
+            return false;
+        };
+        rest.trim().contains("actions/cache/save")
+    })
 }
 
 /// `actions/cache` ステップが復元する「target 系ディレクトリ」の参照形を
@@ -398,8 +469,18 @@ fn target_ref_in_line(line: &str) -> Option<CacheTargetRef> {
     if let Some(name) = extract_env_var_name(trimmed) {
         return Some(CacheTargetRef::EnvVar(name));
     }
+    // YAML の `path: "target/"` のようなクォート付きリテラルにも対応する
+    // （イシュー #1226 Bugbot 指摘 Medium）: クォートを剥がさずに
+    // `trim_end_matches('/')` すると、末尾がクォート文字（`"target/"` の
+    // 最終文字は `/` ではなく `"`）のため何も除去されず `"target/"` の
+    // ままトークン化されてしまう。一方 `guard_deleted_path_prefixes` が
+    // 抽出するパスプレフィックスはクォートで囲まれた**内側**の文字列
+    // （クォート自体を含まない）であるため、クォート付きリテラルは
+    // `guard_step_covers_target_ref` の完全一致比較で常に不一致となり、
+    // 正しくカバーしているガードでも「カバーしていない」と誤判定していた。
+    let unquoted = trimmed.trim_matches(|c| c == '"' || c == '\'');
     Some(CacheTargetRef::Literal(
-        trimmed.trim_end_matches('/').to_string(),
+        unquoted.trim_end_matches('/').to_string(),
     ))
 }
 
@@ -525,7 +606,13 @@ fn check_ci_jobs_caching_target_have_guard(contents: &str) -> Result<(), String>
         let cache_targets: Vec<(usize, CacheTargetRef)> = steps
             .iter()
             .enumerate()
-            .filter(|(_, step)| step_uses_actions_cache(step))
+            // `actions/cache/save`（復元を行わない書き込み専用アクション）は
+            // 除外する。本契約の「ガードはキャッシュ復元ステップより後段に
+            // 置く」順序要求は復元を伴うステップにのみ意味があり、save 専用
+            // ステップの後段にまでガードを要求すると「restore → guard →
+            // build → save」という正しい構成を偽陽性で FAIL させてしまう
+            // （イシュー #1226 Bugbot 指摘 Medium）。
+            .filter(|(_, step)| step_uses_actions_cache(step) && !step_is_cache_save_only(step))
             .filter_map(|(idx, step)| cache_step_target_reference(step).map(|r| (idx, r)))
             .collect();
         for (cache_idx, target_ref) in &cache_targets {
@@ -767,6 +854,128 @@ mod fixture_tests {
         let result = check_ci_jobs_caching_target_have_guard(multi);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("`cached`"));
+    }
+
+    /// `CACHE_STEP_ENV_VAR_FORM` と同一パスを復元する nameless 形式
+    /// （`name:` を持たず `- uses: actions/cache@...` から始まる）の
+    /// cache ステップ。GitHub 公式の cache 利用例が用いる書き方
+    /// （イシュー #1226 Bugbot 指摘 High）。
+    const CACHE_STEP_NAMELESS: &str = "      - uses: actions/cache@v4\n        with:\n          path: |\n            ~/.cargo/registry\n            ${{ env.CARGO_TARGET_DIR }}\n          key: cargo-${{ hashFiles('**/Cargo.lock') }}\n";
+
+    // (g) nameless 形式の cache ステップも検出され、ガードなしなら ci
+    //     contract が FAIL する（イシュー #1226 Bugbot 指摘 High: 旧実装は
+    //     `- uses:` の `-` を剥がさず判定していたため検知漏れだった）。
+    #[test]
+    fn fixture_nameless_cache_step_is_detected() {
+        assert!(step_uses_actions_cache(CACHE_STEP_NAMELESS));
+        let yaml = format!(
+            "\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n{CACHE_STEP_NAMELESS}"
+        );
+        let result = check_ci_jobs_caching_target_have_guard(&yaml);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("ガードステップ"));
+    }
+
+    // (g') nameless 形式の cache ステップの後段にガードがあれば PASS する
+    //      （検知漏れの修正が過検知（誤って FAIL させる）側へ倒れていない
+    //      ことも合わせて確認する）。
+    #[test]
+    fn fixture_nameless_cache_step_with_guard_after_passes_ci_contract() {
+        let yaml =
+            format!("\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n{CACHE_STEP_NAMELESS}{GUARD_STEP_YAML}");
+        assert!(check_ci_jobs_caching_target_have_guard(&yaml).is_ok());
+    }
+
+    /// `CACHE_STEP_ENV_VAR_FORM` と同一パスを対象にした `actions/cache/restore`
+    /// （save を伴わない復元専用アクション）ステップ。
+    const CACHE_STEP_RESTORE_ENV_VAR_FORM: &str = "      - name: Restore cargo target\n        uses: actions/cache/restore@v4\n        with:\n          path: |\n            ~/.cargo/registry\n            ${{ env.CARGO_TARGET_DIR }}\n          key: cargo-${{ hashFiles('**/Cargo.lock') }}\n";
+
+    /// `CACHE_STEP_ENV_VAR_FORM` と同一パスを対象にした `actions/cache/save`
+    /// （復元を伴わない書き込み専用アクション）ステップ。
+    const CACHE_STEP_SAVE_ENV_VAR_FORM: &str = "      - name: Save cargo target\n        uses: actions/cache/save@v4\n        with:\n          path: |\n            ~/.cargo/registry\n            ${{ env.CARGO_TARGET_DIR }}\n          key: cargo-${{ hashFiles('**/Cargo.lock') }}\n";
+
+    // (h) 「restore → guard → build → save」の正しい構成は ci contract を
+    //     PASS する（イシュー #1226 Bugbot 指摘 Medium: save ステップが
+    //     誤って「後段にガード必須」の対象に含まれ、正しい構成まで FAIL
+    //     させていた）。restore と save を同じ env var 参照形で揃え、
+    //     GUARD_STEP_YAML（`${CARGO_TARGET_DIR}/...` を削除）と参照が一致する
+    //     ようにする（advisor 指摘: path を `target/` にすると参照不一致の
+    //     別理由で FAIL し、誤って別のバグを追いかけることになる）。
+    #[test]
+    fn fixture_restore_guard_build_save_sequence_passes_ci_contract() {
+        let yaml = format!(
+            "\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n{CACHE_STEP_RESTORE_ENV_VAR_FORM}{GUARD_STEP_YAML}      - name: Build\n        run: cargo build\n{CACHE_STEP_SAVE_ENV_VAR_FORM}"
+        );
+        assert!(check_ci_jobs_caching_target_have_guard(&yaml).is_ok());
+    }
+
+    // (h') save 専用ステップ単体（復元ステップなし）は「後段にガード必須」
+    //      の対象外なので、ガードを伴わなくても ci contract は PASS する
+    //      （save は復元を行わないため汚染除去の意味を持たない）。
+    #[test]
+    fn fixture_save_only_step_without_following_guard_passes_ci_contract() {
+        let yaml = format!(
+            "\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n{CACHE_STEP_SAVE_ENV_VAR_FORM}"
+        );
+        assert!(check_ci_jobs_caching_target_have_guard(&yaml).is_ok());
+    }
+
+    // (h'') release.yml 側の禁止契約は save 専用ステップも引き続き検出する
+    //       （ci.yml の順序契約からの除外が release.yml の検出範囲まで
+    //       弱めていないことの確認）。
+    #[test]
+    fn fixture_release_contract_still_flags_save_only_target_cache() {
+        let yaml = format!(
+            "\njobs:\n  publish:\n    runs-on: ubuntu-latest\n    steps:\n{CACHE_STEP_SAVE_ENV_VAR_FORM}"
+        );
+        assert!(check_release_jobs_must_not_cache_target(&yaml).is_err());
+    }
+
+    // (h''') release.yml 側の禁止契約は nameless 形式の cache ステップも
+    //        引き続き検出する（finding 1 の修正（`- ` プレフィックスを
+    //        剥がす）は release.yml 側の検出経路にもそのまま流れ込むため、
+    //        widen 方向であることを確認する）。
+    #[test]
+    fn fixture_release_contract_flags_nameless_target_cache() {
+        let yaml = format!(
+            "\njobs:\n  publish:\n    runs-on: ubuntu-latest\n    steps:\n{CACHE_STEP_NAMELESS}"
+        );
+        assert!(check_release_jobs_must_not_cache_target(&yaml).is_err());
+    }
+
+    /// `target/` をクォート付きリテラル（`path: "target/"`）でキャッシュする
+    /// ステップ（イシュー #1226 Bugbot 指摘 Medium）。
+    const CACHE_STEP_QUOTED_LITERAL_TARGET: &str = "      - name: Cache cargo target\n        uses: actions/cache@v4\n        with:\n          path: |\n            ~/.cargo/registry\n            \"target/\"\n          key: cargo-${{ hashFiles('**/Cargo.lock') }}\n";
+
+    /// `GUARD_STEP_YAML` と同じ 3 クレート分の rm -f を、`${CARGO_TARGET_DIR}`
+    /// ではなくクォート無しリテラル `target/...` 参照で行うガードステップ
+    /// （実 ci.yml の `clippy` ジョブと同じ参照形）。
+    const GUARD_STEP_LITERAL_TARGET_YAML: &str = "      - name: \"guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）\"\n        run: |\n          set -euo pipefail\n          if [ -d \"target/debug/deps\" ]; then\n            rm -f \\\n              \"target/debug/deps/libfandhe_frontend_wasm_thin.rlib\" \\\n              \"target/debug/deps/libfandhe_frontend_wasm_thin.so\" \\\n              \"target/debug/deps/fandhe_frontend_wasm_thin.d\" \\\n              \"target/debug/deps/libfandhe_frontend_wasm_full.rlib\" \\\n              \"target/debug/deps/libfandhe_frontend_wasm_full.so\" \\\n              \"target/debug/deps/fandhe_frontend_wasm_full.d\" \\\n              \"target/debug/deps/libfandhe_frontend_wasm_client.rlib\" \\\n              \"target/debug/deps/libfandhe_frontend_wasm_client.so\" \\\n              \"target/debug/deps/fandhe_frontend_wasm_client.d\"\n          fi\n";
+
+    // (i) クォート付きリテラル `path: "target/"` でキャッシュしていても、
+    //     クォート無しリテラル `target/...` を削除するガードが後段にあれば
+    //     ci contract は PASS する（イシュー #1226 Bugbot 指摘 Medium:
+    //     旧実装はクォートを剥がさず `Literal("\"target/\"".to_string())`
+    //     のようなトークン化をしていたため、クォート無しの `guard_deleted_path_prefixes`
+    //     との完全一致比較が常に失敗し、正しくカバーしているガードを
+    //     誤って FAIL させていた）。
+    #[test]
+    fn fixture_quoted_literal_target_cache_with_guard_after_passes_ci_contract() {
+        let yaml = format!(
+            "\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n{CACHE_STEP_QUOTED_LITERAL_TARGET}{GUARD_STEP_LITERAL_TARGET_YAML}"
+        );
+        assert!(check_ci_jobs_caching_target_have_guard(&yaml).is_ok());
+    }
+
+    // (i') 同じクォート付きリテラルのキャッシュにガードが伴わなければ、
+    //      引き続き ci contract は FAIL する（クォート対応が検知そのものを
+    //      無効化していないことの終端確認）。
+    #[test]
+    fn fixture_quoted_literal_target_cache_without_guard_fails_ci_contract() {
+        let yaml = format!(
+            "\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n{CACHE_STEP_QUOTED_LITERAL_TARGET}"
+        );
+        assert!(check_ci_jobs_caching_target_have_guard(&yaml).is_err());
     }
 
     // step_is_guard_step: ステップ名の完全一致のみを「ガードあり」と
