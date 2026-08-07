@@ -60,7 +60,12 @@
   `path: ${{ env.CARGO_TARGET_DIR }}` のような env 参照形（`target` の語が
   変数名の一部として大文字でのみ現れる）の見逃しを防ぐ。ステップ検出も
   ステップ名の完全一致に限定し、無関係なステップ内のコメント引用による
-  誤判定を防ぐ。
+  誤判定を防ぐ。**自己レビュー追補**: 新設契約は、一致したガードステップに
+  対して既知 3 ジョブ（`forbid-unsafe`/`test`/`gate-self-apply`）と同じ完全性
+  チェック（無ハッシュ cdylib rlib 3 種すべてを削除・`rm -rf` 不使用）も適用
+  する（1 種類しか削除しない不完全なガードがすり抜けるのを防ぐ）。ガード
+  本体の抽出は 1 パス 1 行の継続行形式・単一行 `rm -f "a" "b" "c"` 形式の
+  いずれにも対応する。
 - **`docs-site.yml` の paths フィルタ契約（イシュー #899/#913）**: docs サイトの
   骨格 CSS（`assets/site.css`）は #905 以降ビルド生成物であり、生成元は
   `crates/docs-site/src/site_theme.rs` と `crates/pre-styled-ui`（`Theme::to_css`）。
