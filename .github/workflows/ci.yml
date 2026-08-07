@@ -33,11 +33,17 @@ jobs:
   # ジョブを追加していく前提の拡張可能な構成とする。
   forbid-unsafe:
     name: Forbid unsafe in core crates (+ wasm-full deny boundary)
-    runs-on: self-hosted
+    # ホステッドランナー移行（トラッキング #1220、実装 #1228）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    runs-on: ubuntu-latest
+    # ジョブごとに使い捨てのクリーン VM となり共有 CARGO_TARGET_DIR のキャッシュが
+    # 消失するため、フルクリーンビルド（`cargo check --workspace` + cli e2e を含む
+    # `cargo test --workspace`）の余裕を見込む（test ジョブと同値、実測後に調整）。
+    timeout-minutes: 60
     # TASK-10.2b（#110）: crates/dist-server/build.rs は既定で WASM ビルドステージ
     # （ネスト cargo build + wasm-bindgen）を実行するが、本ジョブは
-    # (a) self-hosted のためツールチェーン（wasm32 target・wasm-bindgen-cli）が
-    #     常設されている保証がなく、(b) 下記 `RUSTFLAGS='-F unsafe_code'` を
+    # (a) ホステッドランナーのクリーン VM には wasm32 target・wasm-bindgen-cli を
+    #     導入していないため、(b) 下記 `RUSTFLAGS='-F unsafe_code'` を
     #     ネストビルドへ伝播させたくない（wasm-bindgen/web-sys の FFI 境界が
     #     正当に使う unsafe と衝突する）ため、本ジョブに限り明示オプトアウトする。
     # 統合ビルドの実証は `test` ジョブが担う。
@@ -50,10 +56,9 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
 
       - name: Setup Rust toolchain
-        # deps-check.yml と同一の理由・同一 SHA 固定: self-hosted runner プールには
-        # cargo が PATH 上に存在しないインスタンスが混在し得るため、Checkout 直後に
-        # 導入する（既に導入済みなら何もしない）。PR #291 で他の cargo 系ジョブへ
-        # 適用済みの保険を本ジョブにも揃える（イシュー #313）。
+        # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
+        # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する
+        # （test ジョブと同型、イシュー #1228）。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -65,7 +70,7 @@ jobs:
         # cdylib+rlib クレート（wasm-thin/wasm-full/wasm-client）の rlib は
         # メタデータハッシュサフィックスなしの固定ファイル名で出力される
         # （cdylib の動的ライブラリ名を安定させる cargo の仕様）。共有
-        # CARGO_TARGET_DIR（self-hosted runner 既定の /cargo-target）上では
+        # CARGO_TARGET_DIR（旧 self-hosted runner 既定の /cargo-target）上では
         # release.yml の `cargo publish --dry-run`/`cargo publish`（packaged
         # コピーを registry 版依存でビルドする）がこの無ハッシュ rlib を
         # registry 依存内容で上書きし得る。後続のワークスペースビルドが
@@ -74,10 +79,12 @@ jobs:
         # （E0277/E0599）の flaky を引き起こす（PR #1164/#1180/#1186/#1187 で
         # 観測、根本原因はイシュー #1192 コメント参照）。固定ファイル名のみを
         # 削除すれば cargo が当該ユニットを再ビルドし常に正しい内容へ
-        # 自己修復する（glob・再帰削除は行わない、CARGO_TARGET_DIR 未設定の
-        # ローカル実行では no-op）。release.yml 側の専用 CARGO_TARGET_DIR
-        # 隔離（根本対策）を導入済みでも、導入前から runner ホストに残置
-        # している既存汚染を修復するための多層防御として残す。
+        # 自己修復する（glob・再帰削除は行わない）。ホステッドランナーでは
+        # CARGO_TARGET_DIR が未設定のため下記条件分岐により no-op となるが、
+        # ローカル開発・将来の actions/cache 等によるキャッシュ再利用時の
+        # 多層防御として残置する（#1192 契約テスト
+        # workflow_shared_target_contract.rs が本ステップの存在を fail-closed
+        # に要求する。test ジョブの同名ステップと同型、イシュー #1228）。
         run: |
           set -euo pipefail
           if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -d "${CARGO_TARGET_DIR}/debug/deps" ]; then
@@ -1975,8 +1982,14 @@ jobs:
   # FANDHE_FRONTEND_WASM_BUILD="0" のオプトアウトも不要（実測で確認済み）。
   clippy-wasm32:
     name: "wasm32 target clippy (-D warnings, issue #1160)"
-    runs-on: self-hosted
-    timeout-minutes: 20
+    # ホステッドランナー移行（トラッキング #1220、実装 #1228）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    runs-on: ubuntu-latest
+    # クリーンな使い捨て VM でのフルコールドビルド（3 wasm クレートの
+    # wasm32-unknown-unknown ターゲット clippy --all-targets）の上振れ余地を
+    # 見込み、self-hosted 時代の 20 分から引き上げる（clippy ジョブと同値、
+    # 実測は docs/ci/hosted-runner-migration.md §5.7 参照）。
+    timeout-minutes: 40
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（clippy ジョブと同一 SHA に固定）。
@@ -1987,7 +2000,10 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
+        id: toolchain
         # clippy ジョブと同一 SHA 固定。components: clippy を明示する。
+        # id: toolchain は下記 actions/cache のキャッシュキー
+        # （steps.toolchain.outputs.cachekey）が参照する（clippy ジョブと同型）。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -1997,8 +2013,62 @@ jobs:
         # test ジョブ等と同一パターン（rustup 経由・冪等）。
         run: rustup target add wasm32-unknown-unknown
 
+      - name: "cache: cargo registry + target（イシュー #1228、docs/ci/hosted-runner-migration.md §3.3/§3.4）"
+        # actions/cache v6.1.0（clippy ジョブと同一・GitHub 公式のフル SHA ピン）。
+        # job family prefix `clippy-wasm32-` で `clippy-`（host target clippy）・
+        # release.yml の検証ビルド（専用 CARGO_TARGET_DIR 隔離・cache 不使用）と
+        # 分離し、イシュー #1192 型の rlib 汚染がキャッシュ経由で流入する経路を
+        # 作らない（`clippy-` の restore-keys は `clippy-${os}-...` 形のため
+        # `clippy-wasm32-` キーとプレフィックス衝突しない）。miss 時はフル
+        # ビルドへ自然にフォールバックする fail-open 設計であり、正当性の前提に
+        # しない（restore/save いずれの失敗もジョブを失敗させない）。ツール
+        # バイナリ（clippy component 等）はキャッシュ対象に含めず、SHA256
+        # 検証付き導入の経路を維持する（§3.4）。
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: clippy-wasm32-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            clippy-wasm32-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
+
       - name: Show toolchain
         run: rustup show && cargo --version
+
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        # 本ジョブは上記 actions/cache ステップで workspace `target` を復元する
+        # （イシュー #1228、clippy ジョブと同型）。cdylib+rlib クレート
+        # （wasm-thin/wasm-full/wasm-client）の rlib はメタデータハッシュ
+        # サフィックスなしの固定ファイル名で出力される cargo の仕様上、
+        # release.yml の検証ビルドが汚染した無ハッシュ rlib がキャッシュへ
+        # 保存され、本ジョブの復元時に同型の flaky（「multiple different
+        # versions of crate」E0277/E0599）を再発させ得る（詳細は clippy /
+        # forbid-unsafe / test / gate-self-apply ジョブの同名ステップコメント、
+        # docs/ci/hosted-runner-migration.md §3.3 参照）。本ジョブは
+        # CARGO_TARGET_DIR を明示設定せず actions/cache の `path: target`
+        # （リポジトリルートからの相対、既定の cargo target dir）をそのまま
+        # 復元するため、他ジョブと異なり環境変数を経由せずリテラルパス
+        # `target/` を直接削除対象にする（キャッシュされているディレクトリと
+        # 同一の参照を削除する契約、イシュー #1226 finding 1）。固定ファイル名
+        # のみを `rm -f` で個別削除し、glob や再帰削除は用いない（A01
+        # パストラバーサル・広域削除の防止、security.md 参照）。
+        run: |
+          set -euo pipefail
+          if [ -d "target/debug/deps" ]; then
+            rm -f \
+              "target/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "target/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "target/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "target/debug/deps/fandhe_frontend_wasm_full.d" \
+              "target/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "target/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
 
       - name: cargo clippy (wasm32-unknown-unknown) -- -D warnings
         # --all-targets によりテストターゲット（browser テスト含む）も
