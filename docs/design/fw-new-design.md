@@ -360,9 +360,11 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
 - **実機検証ハーネス（イシュー #413）**: 上記は設計上の主張であり、
   self-hosted Linux runner のみでの CI 実行では Windows 上での実挙動は
   未検証だった。イシュー #413 で `.github/workflows/fw-new-windows-verify.yml`
-  （`workflow_dispatch` 専用）を確立し、Windows self-hosted runner 上で
+  （`workflow_dispatch` 専用）を確立し、Windows runner 上で
   ビルド・`new_template`/`new_e2e` テスト・`fw new` 生成物のバイト決定性・
-  fail-closed 契約・`executable: true` ファイルの no-op 生成を検証する。
+  fail-closed 契約・`executable: true` ファイルの no-op 生成を検証する
+  （当初は self-hosted Windows runner 上での実行を想定していたが、後に
+  `windows-latest` へ直接移行した。詳細は本節末尾・イシュー #1236 参照）。
   runner 調達要件は `docs/ci/ci-runner-requirements.md` §5、検証結果は
   `docs/reports/fw-new-windows-verification-report.md` に記録する。
 
@@ -500,8 +502,12 @@ wasm-bindgen/web-sys バージョンとリポジトリ本体 `Cargo.lock` の一
   self-hosted Linux runner のみのため未実施だったが、イシュー #413 で
   `.github/workflows/fw-new-windows-verify.yml`（`workflow_dispatch` 専用）
   として実機検証ハーネスを確立した（§6.1・`docs/ci/ci-runner-requirements.md`
-  §5・`docs/reports/fw-new-windows-verification-report.md` 参照）。Windows
-  self-hosted runner の調達（登録）完了までは実行待ちの状態。
+  §5・`docs/reports/fw-new-windows-verification-report.md` 参照）。当初は
+  Windows self-hosted runner の調達（登録）完了を待つ想定だったが、CI
+  runner 方針のホステッドランナー既定への反転（トラッキング #1220）を受けて
+  self-hosted runner の調達自体を経ずに `windows-latest` へ直接移行し
+  （イシュー #1236）、実測を完了した（`docs/reports/fw-new-windows-verification-report.md`
+  §4.3）。
 - 非 Unix でのパーミッション再現（ACL 相当の代替設定等）は行わない。
 - ルート直下クレートの `structure.toml` スキーマ上の正式化（`root` 慣習の
   一般化）と `fw structure`/`fw impact`/`default_escape_check` の当該盲点の

@@ -87,7 +87,13 @@ gh search prs --repo Fandhe-AI/fandhe-frontend "version-bump-exempt" \
   wasm-client / wasm-full / wasm-thin / dist-server / headless-ui / pre-styled-ui / cli。
   `publish = false` の xtask・docs-site を除く）。baseline（crates.io 公開版）取得と
   現在の HEAD の双方で rustdoc JSON を生成する必要があり、11 クレート分のビルドが
-  self-hosted runner を追加で占有する。既存 `version-bump-guard` ジョブの軽量さ
+  runner を追加で占有する（注記、イシュー #1238: 本評価時点は self-hosted runner
+  の占有コストとして記載していたが、CI runner 方針のホステッドランナー既定への
+  反転〔#1220〕により前提が変化した。public リポジトリでは標準ホステッド
+  ランナーは無料・使い捨て VM のため「専有される runner 資源」という文脈の
+  コスト論拠は薄れるが、同時実行数上限〔`docs/ci/hosted-runner-migration.md`
+  §5.1〕やジョブ実行時間の増加という形でコストは残る。次回再評価時はホステッド
+  前提でコストを再計算すること。結論への影響は限定的）。既存 `version-bump-guard` ジョブの軽量さ
   （`cargo metadata`・`git diff`・crates.io sparse index 照会のみ、`timeout-minutes: 10`）
   とは性質が異なり、独立ジョブとして分離するか `timeout-minutes` を再設計する必要がある。
 - **保守結合**: rustdoc JSON のフォーマットはツールチェーンバージョンと結合しており、

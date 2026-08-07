@@ -333,8 +333,12 @@ GitHub Action・追加のプリビルトバイナリ）の追加を伴う場合�
   ないため、この軸で最も安全である
 - **A05（セキュリティ設定ミス）**: 将来 a11y 検証ジョブを追加する場合は、
   `permissions:` の最小権限維持・シークレット参照なし・`run:` への
-  `${{ }}` 直接展開の禁止（script injection 対策）・`runs-on: self-hosted`
-  既定・一時領域は `RUNNER_TEMP` 配下（`.claude/rules/ci.md`）を要件とする
+  `${{ }}` 直接展開の禁止（script injection 対策）・runner 方針（本評価時点は
+  `runs-on: self-hosted` 既定だったが、2026-08-07 の反転〔#1220〕以降は
+  GitHub ホステッドランナー既定、`.claude/rules/ci.md`「Runner 方針」節参照、
+  イシュー #1238 注記）・一時領域は `RUNNER_TEMP` 配下（`.claude/rules/ci.md`）
+  を要件とする。見送りの主根拠（npm 経路の REQ-12 allowlist 非適合）は
+  runner 方針と独立のため §4 の結論は不変
 - **A06（脆弱で古くなったコンポーネント）**: vendored `axe.min.js`（変種
   A-3）は cargo-deny / `cargo audit` の監査対象外となり、CVE 追随が人手依存
   になる

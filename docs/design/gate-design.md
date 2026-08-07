@@ -180,8 +180,9 @@ clippy` を起動せず即座に `lint` チェックを failed とする（§3 �
 
 ### 2.3a 環境エラーのプリフライト検出（clippy component / cargo-deny の有無、イシュー #292）
 
-self-hosted runner プールはインスタンスごとに clippy component / cargo-deny
-の導入状態が異なり得る。`lint`／`policy` チェックがこれらツールの不在で
+CI runner（旧 self-hosted プール・現 GitHub ホステッドランナーのいずれも、
+`.claude/rules/ci.md`「Runner 方針」節）はインスタンス（ジョブ）ごとに
+clippy component / cargo-deny の導入状態が異なり得る。`lint`／`policy` チェックがこれらツールの不在で
 failed になった場合、コード内容起因の FAIL（clippy 違反・deny.toml ポリシー
 違反）と区別が付かず、「当たった runner 次第で BLOCKED になる」間欠failure
 として現れる（イシュー #292）。

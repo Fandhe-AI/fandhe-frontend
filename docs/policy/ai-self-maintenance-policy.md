@@ -114,8 +114,10 @@ AI エージェントがプロダクトへの変更を提案したとき、`fw g
   （fail-closed、`crates/cli/src/gate.rs` `policy_check`）。
 
 **実行前提（ツールブートストラップ、イシュー #292）**: `lint` / `policy`
-チェックは clippy component / cargo-deny の導入を前提とする。self-hosted
-runner インスタンスによってはこれらが未導入で、ツール不在に起因する
+チェックは clippy component / cargo-deny の導入を前提とする。CI runner
+（旧 self-hosted インスタンス・現 GitHub ホステッドランナーのいずれも、
+`.claude/rules/ci.md`「Runner 方針」節）によってはこれらが未導入で、
+ツール不在に起因する
 `BLOCKED` を「コードの問題」と誤認しかねない。AI エージェントが `fw gate`
 を自己保守フックから直接呼ぶ場合は、実行前に `tools/ci/ensure-gate-tools.sh`
 を一度実行してツールの常設を確認・補完すること（冪等、導入済みなら

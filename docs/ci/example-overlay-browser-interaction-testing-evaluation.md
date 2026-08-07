@@ -130,7 +130,12 @@
 
 - **self-hosted runner 前提**（`.claude/rules/ci.md`「Runner 方針」）:
   新規ジョブも `runs-on: self-hosted` を既定とし、GitHub ホステッド
-  ランナーを使わない。
+  ランナーを使わない。**（注記、イシュー #1238）**: これは本評価時点
+  （#1210）の規約であり、CI runner 方針は 2026-08-07 に GitHub ホステッド
+  ランナー既定へ反転済み（トラッキング #1220）。見送りの主根拠（中核ロジック
+  は既に CI 常設済み・`embedded-examples` バイト一致同期と cli semver
+  バンプ連鎖の誘発・再現手順の文書化済み）は runner 方針に依存しないため、
+  §3 の結論自体は不変。
 - **ツール前提の明示**（同「ツール前提の明示」節）: `browser-test` ジョブ
   が確立済みの「バージョン固定 + SHA256 チェックサム検証済み Chrome for
   Testing / chromedriver」パターンを踏襲し、`cargo install` や実行時の

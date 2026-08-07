@@ -112,8 +112,11 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
 
 - **位置づけ**: 本ガイド §3 の `wasm-pack test --headless`（ハイドレーション実証）とは別系統で、
   docs サイト（`crates/docs-site`）の見た目を実ブラウザで撮影する手動スクリプト（イシュー #960）。
-  chromium の常設が self-hosted runner に保証されないため（`docs/ci/ci-runner-requirements.md`
-  の未解決要件に依存する）、CI ジョブ化はしていない。ローカル開発者・test-runner が手動実行する。
+  chromium の常設が保証されないため（当初は self-hosted runner の未解決要件、
+  `docs/ci/ci-runner-requirements.md` に依存していたが、CI runner 方針の
+  ホステッドランナー既定への反転〔#1220〕以降は `docs/ci/docs-site-interaction-testing-evaluation.md`
+  §6 の再評価トリガーに実質該当する可能性がある注記あり）、CI ジョブ化は
+  していない。ローカル開発者・test-runner が手動実行する。
 - **前提ツール**: chromium（または chromium-browser）/ python3 / cargo / ss。いずれか不在の場合は
   `environment error:` を出して fail-closed に停止する（自動インストールは行わない）。
 - **実行例**:

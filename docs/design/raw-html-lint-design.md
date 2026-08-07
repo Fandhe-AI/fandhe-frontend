@@ -132,7 +132,9 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `fandhe_fronte
   構造的な限界であり、監査層（ブランケット抑止検出・レビュー地点の
   `file:line` 列挙）による可視性確保で緩和する。ラッパ関数の新設自体は
   コードレビューで検知されることを前提とする。
-- **self-hosted CI runner の clippy コンポーネント不在**: `crates/cli/tests/raw_html_lint_e2e.rs`
+- **CI runner の clippy コンポーネント不在**（旧 self-hosted 環境・現 GitHub
+  ホステッドランナーいずれも、`tools/ci/ensure-gate-tools.sh` による毎回導入が
+  前提）: `crates/cli/tests/raw_html_lint_e2e.rs`
   は clippy 起動失敗時に明示メッセージ付きで `panic!` する（沈黙スキップ
   しない）ため、不在は CI 失敗として顕在化する。
 

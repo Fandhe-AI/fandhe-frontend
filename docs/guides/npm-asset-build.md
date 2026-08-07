@@ -198,8 +198,9 @@ apply_exempt.py --suggestions <reviewed.toml> --allowlist <allowlist.toml> [--dr
 `templates/default/.github/workflows/npm-asset-gate.yml` が
 `package.json` / `package-lock.json` / `allowlist.toml` /
 `tools/npm-asset-build/**` の変更時に `install.sh --dir .` を実行します
-（`deny.yml` と同様 `ubuntu-latest` を使用。本リポジトリ CI の
-self-hosted 既定は適用外）。
+（`deny.yml` と同様 `ubuntu-latest` を使用。本リポジトリ CI も
+2026-08-07 以降は GitHub ホステッドランナー既定〔`.claude/rules/ci.md`〕
+のため、テンプレート同梱ワークフローと同一の runner 種別である）。
 
 正本とコピーのドリフトは `tools/npm-asset-build/tests/test_template_sync.sh`
 が CI（`.github/workflows/ci.yml` の `npm-asset-build` ジョブ）で機械検証
@@ -262,7 +263,7 @@ CI（`.github/workflows/ci.yml` の `npm-asset-build` ジョブ）は上記 5 �
 テストをすべて fail-closed（緩和用 input・`continue-on-error` なし）で
 実行します。`test_pipeline_e2e.sh` はローカルで `npm`/`node`/`python3` が
 見つからない場合のみ notice を出して skip しますが、CI 環境
-（self-hosted runner、`.claude/rules/ci.md` 準拠）には Node.js セットアップ
+（`ubuntu-latest`、`.claude/rules/ci.md` 準拠）には Node.js セットアップ
 ステップがあるため、CI 上では実質的に必ず実行されます。
 
 ## 6. スコープ外事項
