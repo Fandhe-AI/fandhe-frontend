@@ -24,7 +24,7 @@ fandhe-frontend/
 │   ├── api/                  # API 仕様（component-api / hydration-api / hydration-state-format 等）
 │   ├── guides/               # 利用者向けガイド（embedding-guide / npm-asset-build / browser-testing 等）
 │   ├── policy/               # 規約・セキュリティポリシー（unsafe-boundary / dependency-graph-policy / cargo-deny-advisories / intentional-non-adoption 等）
-│   ├── ci/                   # CI・runner 運用（ci-runner-requirements / perf-browser-harness / cargo-semver-checks-evaluation / version-bump-publish-order-gap / a11y-automation-evaluation / docs-site-interaction-testing-evaluation〔docs サイト対話操作検証手段の導入評価、#1084〕 / example-overlay-browser-interaction-testing-evaluation〔example オーバーレイのブラウザ実インタラクションテスト常設 CI 化評価、#1210〕 / aarch64-docker-wasm-rebuild-ci-evaluation〔aarch64 self-hosted runner による Docker WASM 再ビルド検証の CI 常設化評価、#1216〕）
+│   ├── ci/                   # CI・runner 運用（ci-runner-requirements / perf-browser-harness / cargo-semver-checks-evaluation / version-bump-publish-order-gap / a11y-automation-evaluation / docs-site-interaction-testing-evaluation〔docs サイト対話操作検証手段の導入評価、#1084〕 / example-overlay-browser-interaction-testing-evaluation〔example オーバーレイのブラウザ実インタラクションテスト常設 CI 化評価、#1210〕 / aarch64-docker-wasm-rebuild-ci-evaluation〔aarch64 self-hosted runner による Docker WASM 再ビルド検証の CI 常設化評価、#1216〕 / hosted-runner-migration〔ホステッドランナー移行設計、#1225〕）
 │   ├── reports/              # 実測・受け入れレポート（perf-browser-report / *-acceptance-report / docs-site-redesign-regression-report 等）
 │   ├── internal/             # docs サイト（site/nav.toml）非掲載の内部設計記録（*-implementation-notes.md。docs/api/ から実装経緯・進行管理記述を分離、イシュー #953/#954。分離基準の正は docs/design/docs-site-api-reference-split.md。本リポジトリは public であり「サイト非掲載」は「非公開」を意味しない）
 │   └── spec/                 # 仕様サブモジュール (fandhe-frontend-spec)
