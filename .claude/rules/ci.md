@@ -2,12 +2,13 @@
 
 ## Runner 方針
 
-- GitHub Actions の CI ジョブは `runs-on: ubuntu-latest` 等の GitHub ホステッドランナー（標準スペック）を既定とする（ユーザー指示 2026-08-07。public リポジトリのため標準ホステッドランナーは無料・分数消費なし）
+- GitHub Actions の CI ジョブは `runs-on: ubuntu-latest` 等の GitHub ホステッドランナー（標準スペック）を既定とする（ユーザー指示 2026-08-07。public リポジトリのため標準ホステッドランナーは無料・分数消費なし）。本方針は組織 runner 方針（[Fandhe-AI/actions `docs/runner-policy.md`](https://github.com/Fandhe-AI/actions/blob/main/docs/runner-policy.md)、ユーザー決定 2026-08-07: public リポジトリは GitHub ホステッド〔ubuntu〕・private は self-hosted）の本リポジトリ（public）への適用である。組織方針の詳細は同文書を正とし、本節では書き写さず参照する（ドリフト防止）
 - 新規ジョブ追加時もホステッドランナーを使用し、`runs-on: self-hosted` を使わない。larger runner（有料の大型ホステッドランナー）も使わない
+- **唯一の例外（codex-review の codex 実行ジョブ、ユーザー承認済み 2026-08-07）**: `codex-review`（`.github/workflows/codex-review.yml`、イシュー #1275/PR #1278 で導入済み）が呼び出す reusable workflow の codex 実行ジョブのみ、self-hosted な codex 専用 runner（`runner-label` 既定値 `codex`）の使用を認める。適用条件（fork PR での実行拒否・sudo 不在の fail-closed 検証等）・wrapper の書き方・例外が及ばない範囲は [Fandhe-AI/actions `docs/codex-review-runner-exception.md`](https://github.com/Fandhe-AI/actions/blob/main/docs/codex-review-runner-exception.md) に従い、本節では詳細を書き写さない。例外は codex 実行ジョブに閉じる: `post_feedback` ジョブ（`post-feedback-runner-label`）は資格情報に触れないため wrapper で `ubuntu-latest` を明示済みであり、この例外を根拠に他ジョブ・他ワークフローを self-hosted 化しない。上記以外で self-hosted が必要になった場合は `docs/runner-policy.md` の更新から始める
 - 旧方針（`runs-on: self-hosted` 既定、ユーザー指示 2026-07-18）は本指示で廃止。既存ワークフロー YAML の `runs-on: self-hosted` はホステッドランナーへ順次移行済み（`ci.yml` の `forbid-unsafe`/`clippy-wasm32`〔イシュー #1228〕・`release.yml` の `verify`/`publish`〔イシュー #1233〕は移行完了、`runner-maintenance.yml` はプール保守自体が不要になったため廃止〔イシュー #1237〕。全ワークフロー移行完了済み、詳細は `docs/ci/hosted-runner-migration.md` §6）
 - self-hosted 前提だった箇所（ツールの事前導入・共有 `CARGO_TARGET_DIR`・runner イメージ常設要件）は移行時に「クリーンな使い捨て VM（ジョブごとに初期化、共有キャッシュなし）」前提へ読み替える。ホステッドランナーではツールは毎ジョブ導入が必要になるため、各ワークフローの存在チェック付きインストール（安全網）は移行後むしろ主経路となる。削除・弱体化しない
 - キャッシュ戦略（`actions/cache` 採否・キャッシュキー設計）・ツール導入方針・移行順序の正は `docs/ci/hosted-runner-migration.md`（イシュー #1225）とし、詳細は同文書へ譲り本節では二重管理しない
-- 本方針（`runs-on: self-hosted` の禁止）は `crates/xtask/tests/workflow_runner_policy.rs` が `.github/workflows/*.yml` のコメント除去後全文に対して fail-closed に機械強制する（イシュー #1239）。歴史記録としての言及はコメントでのみ許容される
+- 本方針（`runs-on: self-hosted` の禁止）は `crates/xtask/tests/workflow_runner_policy.rs` が `.github/workflows/*.yml` のコメント除去後全文に対して fail-closed に機械強制する（イシュー #1239）。歴史記録としての言及はコメントでのみ許容される。codex-review 例外と本テストは両立する: wrapper（`.github/workflows/codex-review.yml`）は `runner-label` を reusable workflow 側の既定値経由で参照するのみで、YAML の非コメント行に `self-hosted` の文字列が現れないため、除外リスト追加・テスト弱体化なしに例外が成立している。将来 wrapper へ `self-hosted` リテラルを書く変更（例: `post-feedback-runner-label: self-hosted`）はこのテストが FAIL させるが、それは方針違反の検知として正しい挙動であり、テスト側へ除外を追加して回避しない
 
 ## Runner 環境と一時領域の前提
 
