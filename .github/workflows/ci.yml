@@ -131,8 +131,13 @@ jobs:
   # 同じく、workspace テストを実行してクロスプラットフォームの回帰を検知する。
   test:
     name: Rust workspace tests
-    runs-on: self-hosted
-    timeout-minutes: 30
+    # ホステッドランナー移行（トラッキング #1220、実装 #1229）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    runs-on: ubuntu-latest
+    # ジョブごとに使い捨てのクリーン VM となり共有 CARGO_TARGET_DIR のキャッシュが
+    # 消失するため、フルクリーンビルド + cli e2e（生成プロジェクトの cargo ビルド込み）+
+    # dist-server ネスト WASM ビルド分の余裕を見込む（実測後に調整）。
+    timeout-minutes: 60
     steps:
       - name: Checkout
         # actions/checkout v4.2.2。docs/spec/ サブモジュールはテストに不要なため
@@ -143,9 +148,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        # deps-check.yml と同一の理由・同一 SHA 固定: self-hosted runner プールには
-        # cargo が PATH 上に存在しないインスタンスが混在し得るため、Checkout 直後に
-        # 導入する（既に導入済みなら何もしない）。
+        # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
+        # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -154,6 +158,10 @@ jobs:
         # forbid-unsafe ジョブの同名ステップと同一（cdylib+rlib クレートの
         # 無ハッシュ rlib が release.yml の検証ビルドで汚染され得ることへの
         # 多層防御。詳細は forbid-unsafe ジョブのステップコメント参照）。
+        # ホステッドランナーでは CARGO_TARGET_DIR が未設定のため下記条件分岐により
+        # no-op となるが、ローカル開発・将来の actions/cache 等によるキャッシュ再利用
+        # 時の多層防御として残置する（#1192 契約テスト workflow_shared_target_contract.rs
+        # が本ステップの存在を fail-closed に要求する）。
         # 本ジョブは wasm-thin flaky（PR #1164/#1180/#1186/#1187）の直接の
         # 発生元であり、本ガードが最優先で保護すべきジョブである。
         run: |
@@ -295,7 +303,7 @@ jobs:
       # `new_gate_e2e.rs` 全件を実行する（3 フィルタが相補的で重複・漏れが
       # ないことは確認済み）。
       #
-      # 前提: self-hosted runner が crates.io（https://index.crates.io・
+      # 前提: runner が crates.io（https://index.crates.io・
       # https://static.crates.io）へ到達可能であること（`.claude/rules/ci.md`
       # #412/#493 と同一前提。到達不可は環境エラーとして扱い、テストの
       # 弱体化で対処しない）。
@@ -307,7 +315,7 @@ jobs:
       # 所要時間が恒常的に 10 分超となった場合、`test` ジョブ側は
       # `--skip example_ --skip fw_new_app_template` のみ残し、本ステップの
       # 内容を専用の `examples-gate-e2e` ジョブ（同構成の checkout /
-      # rust-toolchain / ensure-gate-tools.sh を前置、runs-on: self-hosted）
+      # rust-toolchain / ensure-gate-tools.sh を前置、runs-on: ubuntu-latest）
       # へ分離することを再検討する。
       - name: "examples gate e2e 5 件の実行と時間計測 (issue #505/#609)"
         run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked -- example_
@@ -332,7 +340,9 @@ jobs:
       - name: Install wasm-bindgen-cli (pinned + checksum-verified, atomic install)
         # self-hosted 移行に伴い、インストール先を /usr/local/bin から
         # $HOME/.local/share/wasm-bindgen/<version>/ へ変更する（cargo-deny と
-        # 同じ理由）。
+        # 同じ理由）。ホステッドランナー移行（イシュー #1229）後はジョブごとに
+        # $HOME が独立するため下記の並列衝突は原理的に起きないが、atomic
+        # install ロジック自体は無害であり削除する理由がないため残置する。
         #
         # Cursor Bugbot 指摘（BUGBOT_BUG_ID: 1c88c06e、PR #291、"Shared HOME
         # Chrome install races" の一般形）: 複数ジョブが並列実行される
@@ -2179,11 +2189,15 @@ jobs:
   # 宣言する wasm-full/wasm-client/wasm-thin を持つため実走する）。
   gate-self-apply:
     name: "fw gate --project . self-apply (issue #400)"
-    runs-on: self-hosted
+    # ホステッドランナー移行（トラッキング #1220、実装 #1229）。test ジョブと同じ
+    # 理由でクリーン VM 前提へ移行する。
+    runs-on: ubuntu-latest
     # gate は check + clippy + clippy(wasm32) + test + deny を直列実行する
     # ため test ジョブより長めに確保する（イシュー #1174 で `lint_wasm32` を
-    # 追加、wasm32 target 向け再コンパイルの分だけ余裕を拡大）。
-    timeout-minutes: 50
+    # 追加、wasm32 target 向け再コンパイルの分だけ余裕を拡大）。ホステッド
+    # ランナー移行によるクリーンビルド化（キャッシュ消失）を見込み延長する
+    # （イシュー #1229。実測後に調整）。
+    timeout-minutes: 60
     # forbid-unsafe / clippy ジョブと同じ理由: gate の type_check / test は
     # -p fandhe-frontend-dist-server を含み、crates/dist-server/build.rs の WASM ネストビルド
     # （wasm32 target・wasm-bindgen-cli 起動）は本ジョブの runner に常設保証が
@@ -2275,13 +2289,16 @@ jobs:
   version-bump-guard:
     name: "check-version-bump: published crate source changes require a version bump (issue #638)"
     if: ${{ github.event_name == 'pull_request' }}
-    runs-on: self-hosted
+    # ホステッドランナー移行（トラッキング #1220、実装 #1229）。
+    runs-on: ubuntu-latest
     # cargo metadata・git diff・crates.io sparse index 照会のみの軽量ジョブ
     # だが、curl 呼び出しに `--connect-timeout`/`--max-time` を付けていても
-    # ジョブ全体（チェックアウト・ビルド込み）が無期限に self-hosted runner を
+    # ジョブ全体（チェックアウト・ビルド込み）が無期限に runner を
     # 占有しないよう保険として timeout-minutes を明示する
     # （イシュー #638 PR #647 レビュー指摘、他ジョブと同様の安全網）。
-    timeout-minutes: 10
+    # ホステッドランナーではジョブごとに xtask を毎回コールドビルドする分の
+    # 余裕を見込み延長する（イシュー #1229）。
+    timeout-minutes: 15
     steps:
       - name: Checkout
         # actions/checkout（他ジョブと同一 SHA 固定）。docs/spec サブモジュールは
@@ -2374,8 +2391,11 @@ jobs:
   # 異なり push・PR 双方（ワークフロー全体のトリガーに従う）で常時実行する。
   dep-version-check:
     name: "check-dep-versions: workspace 内 path+version 併記依存の version 追随検知（issue #657）"
-    runs-on: self-hosted
-    timeout-minutes: 10
+    # ホステッドランナー移行（トラッキング #1220、実装 #1229）。
+    runs-on: ubuntu-latest
+    # ホステッドランナーではジョブごとに xtask を毎回コールドビルドする分の
+    # 余裕を見込み延長する（イシュー #1229。ネットワーク照会なしの設計は不変）。
+    timeout-minutes: 15
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。docs/spec サブ
