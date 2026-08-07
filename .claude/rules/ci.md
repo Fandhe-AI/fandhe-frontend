@@ -7,6 +7,7 @@
 - 旧方針（`runs-on: self-hosted` 既定、ユーザー指示 2026-07-18）は本指示で廃止。既存ワークフロー YAML の `runs-on: self-hosted` はホステッドランナーへ順次移行する（2026-08-07 時点の残置: `ci.yml` の `forbid-unsafe`/`clippy-wasm32`〔イシュー #1228〕・`release.yml` の `verify`/`publish`〔イシュー #1233〕・`runner-maintenance.yml`〔自体の廃止、イシュー #1237〕。他は移行完了済み、詳細は `docs/ci/hosted-runner-migration.md` §6）
 - self-hosted 前提だった箇所（ツールの事前導入・共有 `CARGO_TARGET_DIR`・runner イメージ常設要件）は移行時に「クリーンな使い捨て VM（ジョブごとに初期化、共有キャッシュなし）」前提へ読み替える
 - キャッシュ戦略（`actions/cache` 採否・キャッシュキー設計）・ツール導入方針・移行順序の正は `docs/ci/hosted-runner-migration.md`（イシュー #1225）とし、詳細は同文書へ譲り本節では二重管理しない
+- 本方針（`runs-on: self-hosted` の禁止）は `crates/xtask/tests/workflow_runner_policy.rs` が `.github/workflows/*.yml` のコメント除去後全文に対して fail-closed に機械強制する（イシュー #1239）。歴史記録としての言及はコメントでのみ許容される
 
 ## Runner 環境と一時領域の前提
 
