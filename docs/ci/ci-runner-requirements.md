@@ -1,19 +1,44 @@
-# self-hosted runner イメージの常設要件（イシュー #295）
+# self-hosted runner イメージの常設要件（イシュー #295、旧 self-hosted 方針時代の記録）
 
 ## 位置づけ
 
-本ドキュメントは、CI が使う self-hosted runner プールの「イメージ側に常設してほしい
-項目」をインフラ管理者へ依頼するための仕様書であり、イシュー #295
-（ci: self-hosted runner イメージの常設整備（libnss3/libnspr4 等）と残骸クリーンアップ）
-のトラッキング対象である。runner イメージの定義自体は本リポジトリの管理外
-（インフラ側）のため、リポジトリ側では以下を実施する。
+本ドキュメントは、旧 CI 方針（`runs-on: self-hosted` 既定、2026-07-18〜
+2026-08-07）の時代に、CI が使う self-hosted runner プールの「イメージ側に
+常設してほしい項目」をインフラ管理者へ依頼するための仕様書として書かれた
+（イシュー #295: ci: self-hosted runner イメージの常設整備（libnss3/libnspr4 等）
+と残骸クリーンアップ）。
 
-- 本ドキュメントによる常設要件の明文化（インフラ依頼仕様）
+CI runner 方針は 2026-08-07 に GitHub ホステッドランナー（`ubuntu-latest` 等）
+既定へ反転した（トラッキング #1220、`.claude/rules/ci.md`「Runner 方針」節、
+コミット 9a3ce65 / PR #1240）。移行の設計判断・ホステッド前提のツール導入方針の
+正は `docs/ci/hosted-runner-migration.md`（イシュー #1225）であり、本ドキュメントの
+役割はイシュー #1238 以降「旧 self-hosted 方針時代の要件・実測の記録」へ変わった。
+ファイル名・見出し番号（他ファイルから `§5`/`§6`/`§8` 等で参照されている）は
+リンク切れを避けるため変更しない。
+
+移行は 2026-08-07 時点で全ワークフロー完了していない。以下は本ドキュメント各節の
+現況（有効 = 現在も self-hosted 前提でそのまま有効／歴史的記録 = 過去の実測・
+経緯として保持／廃止予定 = 移行完了後に削除予定）。
+
+| 節 | 内容 | 現況 |
+|----|------|------|
+| §1（常設を依頼する項目） | libnss3/libnspr4 等・`curl`・`wasm32-unknown-unknown` 等の依頼仕様 | 歴史的記録＋一部有効。`forbid-unsafe`/`clippy-wasm32`（ci.yml）・`release.yml` の `verify`/`publish` は 2026-08-07 時点でも `runs-on: self-hosted` のまま（イシュー #1228・#1233 が対応中）であり、これらのジョブに限り本節は現在も有効。ホステッド移行後の毎ジョブ導入方針（pin 元は不変）は `docs/ci/hosted-runner-migration.md` §4 を参照（二重管理回避のためツール一覧の再掲はしない） |
+| §2（プール前提） | root 実行・apt-get 前提 | §1 と同様、残る self-hosted ジョブに限り有効 |
+| §3（確認手順） | `runner-maintenance.yml` dispatch 手順 | 有効（`runner-maintenance.yml` は 2026-08-07 時点で未廃止。全ワークフロー移行完了後にイシュー #1237 で廃止予定） |
+| §4（安全網の維持方針） | 存在チェック付きインストールを削除しない | 不変。ホステッドでは「毎ジョブ導入が主経路」になる形でむしろ重要度が上がる（`docs/ci/hosted-runner-migration.md` §4.2） |
+| §5（Windows self-hosted runner の常設要件） | Windows runner 調達依頼・`windows-latest` 非採用判断 | **歴史的記録（判断は覆った）**。§5.3 の「`windows-latest` は ci.md 規約に反するため非採用」は runner 方針反転により根拠が失効し、実際に `fw-new-windows-verify.yml` は `windows-latest` へ移行済み（イシュー #1236、実績は `docs/ci/hosted-runner-migration.md` §4.3・`docs/reports/fw-new-windows-verification-report.md` §4.3 参照）。以下の §5.1〜§5.4 は self-hosted Windows runner を実際に一度も調達できなかった時代の記録として残す |
+| §6（Chrome `/dev/shm` 制約対策） | `--disable-dev-shm-usage` の実測記録 | 歴史的記録として保持。対策自体（`webdriver.json`）はホステッドでも維持する |
+| §7（スコープ外・フォローアップ） | #295 の焼き込み完了待ち運用 | 歴史的記録。移行完了により #295 の「焼き込み完了までクローズしない」方針自体の意義が薄れているが、クローズ判断はユーザー承認事項のため本ドキュメントでは判断しない |
+| §8（`template-app-wasm-smoke` の `/tmp` 固定 target の扱い） | `RUNNER_TEMP` 配置原則・旧パス回収運用 | 有効（`RUNNER_TEMP` 配置原則はホステッドでも不変、`.claude/rules/ci.md` 準拠）。§8.3 の runner-maintenance.yml dispatch 手順は §3 と同じく `runner-maintenance.yml` 廃止（イシュー #1237）まで有効 |
+
+- 本ドキュメントによる常設要件の明文化（インフラ依頼仕様、旧方針時代のもの）
 - `.github/workflows/runner-maintenance.yml`（`workflow_dispatch` 起点）による
-  プール状態の検査・残骸クリーンアップ
+  プール状態の検査・残骸クリーンアップ（イシュー #1237 で廃止予定）
 
 イメージへのライブラリ焼き込み自体はインフラ側作業であり、本リポジトリの
-コミットでは完了しない。#295 は焼き込み完了までクローズしない。
+コミットでは完了しない。#295 のクローズ判断（焼き込み完了を待つか、runner
+方針反転を理由にクローズするか）はユーザー承認事項のため、本ドキュメントの
+更新では判断しない。
 
 ## 1. 常設を依頼する項目
 
@@ -128,15 +153,22 @@ self-hosted **Linux** runner でしか検証されておらず、「設計上の
 （`.claude/rules/ci.md` の「ツール前提の明示」運用、`docs/design/gate-design.md`
 §2.3a のプリフライト検出方針と同型）。
 
-### 5.3 調達方針の選択肢と判断
+### 5.3 調達方針の選択肢と判断（歴史的記録。判断は覆った）
 
-- **採用**: self-hosted Windows runner を新設し `Windows` ラベルを付与して
+- **当時の採用**: self-hosted Windows runner を新設し `Windows` ラベルを付与して
   プールへ登録する。
-- **非採用**: GitHub ホステッドの `windows-latest` は `.claude/rules/ci.md` の
+- **当時の非採用**: GitHub ホステッドの `windows-latest` は `.claude/rules/ci.md` の
   「self-hosted を既定とする」規約に反するため使わない
   （自社 runner 管理下での安全性・コスト最適化方針、ci.md 冒頭参照）。
-  規約自体の変更が必要と判断される場合は、インフラ側・リポジトリ管理者間で
-  別途 ci.md の改定を検討する。
+
+**その後の経緯（2026-08-07 以降）**: CI runner 方針がホステッドランナー既定へ
+反転した（トラッキング #1220）ことで上記の非採用根拠は失効し、self-hosted
+Windows runner は本節に記録した経緯上、一度も実際に調達されないまま
+`fw-new-windows-verify.yml` は `windows-latest` へ直接移行した（イシュー #1236）。
+差分検証・実測は `docs/ci/hosted-runner-migration.md` §4.3・
+`docs/reports/fw-new-windows-verification-report.md` §4.3 を参照。上記
+5.1〜5.4 は「self-hosted Windows runner 調達を試みていた時代の要件記録」として
+保持する。
 
 ### 5.4 確認手順
 
@@ -158,13 +190,16 @@ gh run watch
 実行結果（Step Summary）は `docs/reports/fw-new-windows-verification-report.md`
 へ転記する。
 
-### 5.5 クローズ方針
+### 5.5 クローズ方針（歴史的記録。#413 は §5.3 の経緯変化を経て別経路で解決済み）
 
 runner イメージ・インスタンスの調達自体はインフラ側作業であり、本リポジトリの
-コミットでは完了しない。#295 と同じ運用として、Windows runner の調達（登録）が
-完了し `fw-new-windows-verify.yml` の実行結果が
+コミットでは完了しない。#295 と同じ運用として、当時は Windows runner の調達
+（登録）が完了し `fw-new-windows-verify.yml` の実行結果が
 `docs/reports/fw-new-windows-verification-report.md` に実測値として記録される
-までイシュー #413 はクローズしない。
+までイシュー #413 をクローズしない方針としていた。実際には self-hosted Windows
+runner の調達自体を経ずに `windows-latest`（イシュー #1236）へ移行し、
+実測値は `docs/reports/fw-new-windows-verification-report.md` §4.3 へ記録済みで
+ある。#413 のクローズ判断はユーザー承認事項のため、本ドキュメントでは判断しない。
 
 ## 6. Chrome for Testing の `/dev/shm` 制約対策（イシュー #404 実 CI 実行で判明）
 

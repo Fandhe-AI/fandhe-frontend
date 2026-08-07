@@ -231,6 +231,13 @@ chromedriver の self-hosted runner への常設を保証しておらず、
 - self-hosted runner イメージへ chromium/chromedriver が常設され、かつ
   `goog:chromeOptions.binary` 経由のセッション確立が安定動作することが
   別途確認された場合（`docs/ci/ci-runner-requirements.md` §1 の更新）
+- **前提変更の注記（イシュー #1238）**: CI runner 方針がホステッドランナー
+  既定へ反転した（トラッキング #1220）ことで、上記トリガーの前提自体が
+  変化している。`ubuntu-latest` は Chrome/chromedriver をプリインストール
+  済みであり、`browser-test` 等の既存ジョブは既にこの構成へ移行済みである
+  （`docs/guides/browser-testing.md` §4）。本評価が対象とする docs サイト
+  対話操作検証（C1〜C4）は上記トリガーに実質該当する可能性がある。再評価の
+  実施は本イシューのスコープ外であり、別イシューでの再評価を提案する
 - 本 PoC のセッション確立失敗（§2.3）の原因が特定され、再現性のある回避策
   （snap 版でない Chrome for Testing の導入等）が判明した場合
 - docs サイトの JS 配線が拡張され、機械テストで担保できない対話状態が新たに

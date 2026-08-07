@@ -110,9 +110,11 @@ TASK-10.3a の設計は「ゼロから WASM ビルドを Docker に組み込む�
 
 この `wasm-bindgen-cli` 導入手順は既に CI で実績があるため、TASK-10.3b は
 新規に手順を設計するのではなく、この既存パターンを Dockerfile の `RUN`
-命令へ移植する形を取ります。ただし `ci.yml` は self-hosted x86_64 ランナー
-専用のため `x86_64-unknown-linux-musl` archive のみを固定しており、
-アーキテクチャ分岐を持ちません。一方 Dockerfile の builder ステージは
+命令へ移植する形を取ります。ただし `ci.yml` は x86_64 ランナー専用（本記述
+当時は self-hosted、2026-08-07 以降は `ubuntu-latest` へ順次移行済み。
+`.claude/rules/ci.md`「Runner 方針」節参照）のため `x86_64-unknown-linux-musl`
+archive のみを固定しており、アーキテクチャ分岐を持ちません。一方
+Dockerfile の builder ステージは
 既に §3.1 で示す `uname -m` 判定（`/musl_target` 選定）で
 aarch64/x86_64 を分岐させています（Apple Silicon の Docker Desktop が
 既定で `linux/arm64` イメージを使うための対応、`Dockerfile` 41〜46
