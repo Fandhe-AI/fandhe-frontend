@@ -334,6 +334,30 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   基準とする。実測値・検証項目 7 件の PASS 結果は
   `docs/reports/fw-new-windows-verification-report.md` §4.3 へ記録する。
 
+### 5.7 lint 系ジョブ実測（#1228、forbid-unsafe / clippy-wasm32、ubuntu-latest）— 未実測（PR 初回 CI 実行後に追記）
+
+- 移行対象: `ci.yml` の `forbid-unsafe`（キャッシュなし・`test` ジョブと同型）
+  と `clippy-wasm32`（job family prefix `clippy-wasm32-` の `actions/cache`
+  付き・`clippy` ジョブと同型）。本イシューの完了で `ci.yml` から
+  `runs-on: self-hosted` が全廃される。
+- self-hosted 直近実績（§5.2 の表より引用）: `forbid-unsafe` 約 9 分 42 秒、
+  `clippy-wasm32` は「その他」欄に含まれ 1 分未満〜数十秒。
+- 実装コミット時点ではローカル worktree での作業に留まり GitHub Actions は
+  未実行のため、本節の実測値は **PR 作成後の CI 初回実行結果（コールド）・
+  2 回目実行（`clippy-wasm32` のウォーム）を待って追記する**。
+- 追記予定の実測表（列のみ確定、値は CI 実行後に埋める）:
+
+  | ジョブ | 所要時間（コールド） | 所要時間（ウォーム） | cache restore | cache save | self-hosted 実績比 | §5.3 許容基準判定 |
+  |--------|---------------------|---------------------|---------------|-----------|---------------------|--------------------|
+  | `forbid-unsafe` | (CI 実行後に記載) | — （キャッシュ非対象） | — | — | (CI 実行後に記載) | (CI 実行後に記載) |
+  | `clippy-wasm32` | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載、`actions/cache` ステップログの hit/miss) | (CI 実行後に記載、Post ステップの save サイズ) | (CI 実行後に記載) | (CI 実行後に記載) |
+
+- 取得手順: `gh run view <run-id> --json jobs` で `startedAt`〜`completedAt`
+  を取得し、`clippy-wasm32` は `actions/cache` ステップのログでコールド時は
+  miss（Post ステップで save）、ウォーム時（2 回目実行）は exact key hit を
+  確認する（`clippy` ジョブ §5.4 と同一手順）。
+- 許容基準（§5.3）との照合も、CI 実行結果を得てから本節へ追記する。
+
 ## 6. 移行順序と検証手順
 
 - **Phase 1（#1221〜#1226）**: 基盤整備。本イシュー #1225 が設計を確定し、
@@ -353,7 +377,14 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   18 ジョブ・`release.yml`・`runner-maintenance.yml` 廃止・`deps-check.yml`・
   `musl-smoke.yml`・`image-size.yml`・`update-external.yml`）の順次移行。
   `fw-new-windows-verify.yml`（Windows）は §4.3 の差分検証を伴うため
-  最後に着手する。**実績（#1234）**: `musl-smoke.yml` / `image-size.yml`
+  最後に着手する。**実績（#1228）**: `ci.yml` に最後まで残っていた
+  lint 系ジョブ 2 件（`forbid-unsafe`・`clippy-wasm32`）を `ubuntu-latest`
+  へ移行し、`ci.yml` から `runs-on: self-hosted` が全廃された。
+  `forbid-unsafe` はキャッシュなし（`test` ジョブと同型）、
+  `clippy-wasm32` は job family prefix `clippy-wasm32-` の
+  `actions/cache` 付き（`clippy` ジョブと同型、§3.3 のガードステップ
+  必須契約を新設 2 例目として実効化）で移行した。実測は §5.7 に記録する。
+  **実績（#1234）**: `musl-smoke.yml` / `image-size.yml`
   を `ubuntu-latest` へ移行し、self-hosted 固有の DooD（Docker-outside-of-
   Docker）対応（"Resolve own container ID" による CID 解決 +
   `--network container:<runner CID>` 分岐）をホストポート公開の単一経路へ
