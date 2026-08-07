@@ -2,15 +2,16 @@
 
 ## Runner 方針
 
-- GitHub Actions の CI ジョブは `runs-on: self-hosted` を既定とする（ユーザー指示 2026-07-18）
-- 新規ジョブ追加時も self-hosted を使用し、`ubuntu-latest` 等の GitHub ホステッドランナーを使わない
-- 理由: 自社 runner 管理下での安全性・コスト最適化・大規模テストへの対応
+- GitHub Actions の CI ジョブは `runs-on: ubuntu-latest` 等の GitHub ホステッドランナー（標準スペック）を既定とする（ユーザー指示 2026-08-07。public リポジトリのため標準ホステッドランナーは無料・分数消費なし）
+- 新規ジョブ追加時もホステッドランナーを使用し、`runs-on: self-hosted` を使わない。larger runner（有料の大型ホステッドランナー）も使わない
+- 旧方針（`runs-on: self-hosted` 既定、ユーザー指示 2026-07-18）は本指示で廃止。既存ワークフロー YAML の `runs-on: self-hosted` はホステッドランナーへ順次移行する
+- self-hosted 前提だった箇所（ツールの事前導入・共有 `CARGO_TARGET_DIR`・runner イメージ常設要件）は移行時に「クリーンな使い捨て VM（ジョブごとに初期化、共有キャッシュなし）」前提へ読み替える
 
-## Self-hosted 環境の前提
+## Runner 環境と一時領域の前提
 
-- 共有 `CARGO_TARGET_DIR=/cargo-target` が使われるため、テストフィクスチャはクレート名衝突・キャッシュ誤命中を避ける必要がある
-- 対策: フィクスチャ専用 `CARGO_TARGET_DIR` を明示指定する（例: `crates/cli/tests/negative_cases.rs` / `crates/cli/tests/raw_html_lint_e2e.rs`、PR #264）
-- **ワークフロー YAML 側で明示指定するフィクスチャ専用 `CARGO_TARGET_DIR`・生成物パスは `/tmp` 固定パスではなく `RUNNER_TEMP`（`${{ runner.temp }}`）配下に置く**（イシュー #659）。`RUNNER_TEMP` はジョブ開始・終了時に runner が自動清掃するため、`/tmp` 固定パスのようにジョブ間残置が恒久蓄積しない（`template-app-wasm-smoke` ジョブの是正が先例、`docs/ci/ci-runner-requirements.md` §8 参照）。テストコード側の `env!("CARGO_TARGET_TMPDIR")` 固定方針（イシュー #637）と対をなす
+- 旧 self-hosted 環境では共有 `CARGO_TARGET_DIR=/cargo-target` が使われ、テストフィクスチャのクレート名衝突・キャッシュ誤命中への対策が必要だった。ホステッドランナーはジョブごとにクリーンな VM だが、ローカル開発・`actions/cache` 等でのキャッシュ再利用でも同種の問題は起こり得るため、以下の防御策は削除・弱体化しない
+- フィクスチャ専用 `CARGO_TARGET_DIR` を明示指定する（例: `crates/cli/tests/negative_cases.rs` / `crates/cli/tests/raw_html_lint_e2e.rs`、PR #264）
+- **ワークフロー YAML 側で明示指定するフィクスチャ専用 `CARGO_TARGET_DIR`・生成物パスは `/tmp` 固定パスではなく `RUNNER_TEMP`（`${{ runner.temp }}`）配下に置く**（イシュー #659）。`RUNNER_TEMP` はジョブ開始・終了時に runner が自動清掃するため、`/tmp` 固定パスのようにジョブ間残置が恒久蓄積しない（`template-app-wasm-smoke` ジョブの是正が先例、`docs/ci/ci-runner-requirements.md` §8 参照）。テストコード側の `env!("CARGO_TARGET_TMPDIR")` 固定方針（イシュー #637）と対をなす。ホステッドランナーでも `RUNNER_TEMP` は提供されるため本原則は不変
 
 ## ツール前提の明示
 
@@ -109,8 +110,9 @@
 - 理由: 過去に構文エラーで CI 全滅の実績（PR #264 で修正）
 - YAML の仕様上、構造化された値（コロン含む）はクォート必須
 
-## runner イメージの常設要件・保守ワークフロー（イシュー #295）
+## runner イメージの常設要件・保守ワークフロー（イシュー #295、旧 self-hosted 方針時代の記録）
 
+- 本節は旧 self-hosted 方針時代の運用であり、ホステッドランナー移行（2026-08-07 方針転換）完了後は保守ワークフローともに廃止対象。移行完了までは既存の self-hosted ジョブ向けに有効
 - self-hosted runner イメージへ常設を依頼したい項目（libnss3/libnspr4 等）は `docs/ci/ci-runner-requirements.md` に一覧化する
 - プール状態の検査・旧バイナリ／stale tmp のクリーンアップは `.github/workflows/runner-maintenance.yml`（`workflow_dispatch` 起点、report-only）で行う
-- イメージ側の常設が進んでも、各ワークフローの存在チェック付きインストール（安全網）は削除・弱体化しない
+- ホステッドランナーではツールは毎ジョブ導入が必要になるため、各ワークフローの存在チェック付きインストール（安全網）は移行後むしろ主経路となる。削除・弱体化しない
