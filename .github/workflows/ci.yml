@@ -1921,6 +1921,37 @@ jobs:
       - name: Show toolchain
         run: rustup show && cargo --version
 
+      - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
+        # 本ジョブは上記 actions/cache ステップで workspace `target` を復元する
+        # （イシュー #1227）。cdylib+rlib クレート（wasm-thin/wasm-full/
+        # wasm-client）の rlib はメタデータハッシュサフィックスなしの固定
+        # ファイル名で出力される cargo の仕様上、release.yml の検証ビルドが
+        # 汚染した無ハッシュ rlib がキャッシュへ保存され、本ジョブの復元時に
+        # 同型の flaky（「multiple different versions of crate」E0277/E0599）を
+        # 再発させ得る（詳細は forbid-unsafe/test/gate-self-apply ジョブの
+        # 同名ステップコメント、docs/ci/hosted-runner-migration.md §3.3 参照）。
+        # 本ジョブは CARGO_TARGET_DIR を明示設定せず actions/cache の
+        # `path: target`（リポジトリルートからの相対、既定の cargo target dir）
+        # をそのまま復元するため、他ジョブと異なり環境変数を経由せず
+        # リテラルパス `target/` を直接削除対象にする（キャッシュされている
+        # ディレクトリと同一の参照を削除する契約、イシュー #1226 finding 1）。
+        # 固定ファイル名のみを `rm -f` で個別削除し、glob や再帰削除は
+        # 用いない（A01 パストラバーサル・広域削除の防止、security.md 参照）。
+        run: |
+          set -euo pipefail
+          if [ -d "target/debug/deps" ]; then
+            rm -f \
+              "target/debug/deps/libfandhe_frontend_wasm_thin.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_thin.so" \
+              "target/debug/deps/fandhe_frontend_wasm_thin.d" \
+              "target/debug/deps/libfandhe_frontend_wasm_full.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_full.so" \
+              "target/debug/deps/fandhe_frontend_wasm_full.d" \
+              "target/debug/deps/libfandhe_frontend_wasm_client.rlib" \
+              "target/debug/deps/libfandhe_frontend_wasm_client.so" \
+              "target/debug/deps/fandhe_frontend_wasm_client.d"
+          fi
+
       - name: cargo clippy --workspace --all-targets -- -D warnings
         # workspace ルートの clippy.toml（disallowed-methods）が効き、
         # 未レビュー raw_html() 呼び出しがあれば本ステップが失敗する。
