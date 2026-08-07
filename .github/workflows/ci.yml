@@ -404,12 +404,16 @@ jobs:
   # `force-embed` フィーチャーコメント参照）。
   dist-server-embedded-mode:
     name: fandhe-frontend-dist-server embedded mode (force-embed)
-    runs-on: self-hosted
-    timeout-minutes: 15
+    # ホステッドランナー移行（トラッキング #1220、実装 #1231）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    runs-on: ubuntu-latest
+    # クリーン VM でのフルコールドビルド（force-embed フィーチャー込み）を織り込み拡大
+    # （実測後に調整、旧 15 分）。
+    timeout-minutes: 30
     # TASK-10.2b（#110）: 本ジョブの目的は force-embed フィーチャーによる
     # AssetMode 切り替え検証（static/ 埋め込みテーブル経路）であり、WASM
-    # ビルドステージの統合検証は `test` ジョブが専任する。責務を分離し
-    # 本ジョブの実行時間・依存ツールチェーンを増やさないためオプトアウトする。
+    # ビルドステージの統合検証は `test` ジョブが専任する。本ジョブは wasm32
+    # target・wasm-bindgen-cli を導入しないため、責務分離のためオプトアウトする。
     env:
       FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
@@ -422,8 +426,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
-        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
+        # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -1265,8 +1269,12 @@ jobs:
   # バージョン一致を機械的に検証する（`test` ジョブの `cargo test` で実行済み）。
   template-app-wasm-smoke:
     name: "fw new --template app: wasm ビルド込み CSR 完全実体の e2e 検証（issue #411）"
-    runs-on: self-hosted
-    timeout-minutes: 15
+    # ホステッドランナー移行（トラッキング #1220、実装 #1231）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    runs-on: ubuntu-latest
+    # クリーン VM での fw cli + xtask ビルド + 生成プロジェクトの wasm ビルド
+    # （crates.io フェッチ込み）を織り込み拡大（実測後に調整、旧 15 分）。
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -1275,6 +1283,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
+        # ホステッドランナーはジョブごとに初期化されたクリーン VM のため、
+        # Checkout 直後に毎回 toolchain を導入する。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -1311,13 +1321,14 @@ jobs:
           echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       - name: fw new --template app（フィクスチャ専用 CARGO_TARGET_DIR）
-        # 共有 CARGO_TARGET_DIR との衝突回避は `.claude/rules/ci.md`
-        # 「Self-hosted 環境の前提」に従う。フィクスチャ専用パスは `/tmp` 固定では
-        # なく `RUNNER_TEMP`（`${{ runner.temp }}`）配下に置く。runner がジョブ
-        # 前後で自動清掃するため、`/tmp` 固定パスのようにジョブ間で残置が
-        # 恒久蓄積しない（イシュー #659。PR #648／イシュー #637 で是正した
-        # テストコード側 `env!("CARGO_TARGET_TMPDIR")` 方針と対をなす。
-        # `docs-site.yml` の RUNNER_TEMP 運用と同一パターン）。
+        # フィクスチャ専用パスは `/tmp` 固定ではなく `RUNNER_TEMP`
+        # （`${{ runner.temp }}`）配下に置く。build.sh が期待するパス
+        # （`wasm/target/...`）との整合を保つためであり、runner がジョブ
+        # 前後で自動清掃するため `/tmp` 固定パスのようにジョブ間で残置が
+        # 恒久蓄積しない点は不変（イシュー #659。PR #648／イシュー #637 で
+        # 是正したテストコード側 `env!("CARGO_TARGET_TMPDIR")` 方針と対をなす。
+        # `docs-site.yml` の RUNNER_TEMP 運用と同一パターン。ホステッド
+        # ランナーでもこの配置原則は不変、`.claude/rules/ci.md` 参照）。
         env:
           CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-template-app-wasm-smoke-target
         run: |
@@ -1375,11 +1386,12 @@ jobs:
 
       - name: tools/wasm/build.sh の実行
         # 直前ステップと同じくフィクスチャ専用 CARGO_TARGET_DIR を明示指定する
-        # （`.claude/rules/ci.md` 「Self-hosted 環境の前提」）。未指定だと
-        # self-hosted runner の共有 CARGO_TARGET_DIR=/cargo-target が使われ、
+        # （`.claude/rules/ci.md` 「Runner 環境と一時領域の前提」）。未指定だと
         # build.sh が期待する `wasm/target/...` とパスが一致しなくなる
-        # （イシュー #411 CI 失敗の原因）。配置先を `RUNNER_TEMP` 配下にする
-        # 理由は直前ステップのコメント（イシュー #659）を参照。
+        # （イシュー #411 CI 失敗の原因。ホステッドランナーはジョブごとに
+        # クリーンな VM だが、この整合要件自体は runner 種別に依存しない）。
+        # 配置先を `RUNNER_TEMP` 配下にする理由は直前ステップのコメント
+        # （イシュー #659）を参照。
         env:
           CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-template-app-wasm-smoke-target/wasm-build
         run: |
@@ -1424,7 +1436,11 @@ jobs:
   # 即 CI 失敗として扱う。
   npm-asset-build:
     name: NPM static asset gate (REQ-12)
-    runs-on: self-hosted
+    # ホステッドランナー移行（トラッキング #1220、実装 #1231）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    runs-on: ubuntu-latest
+    # cargo を使わず node/npm/python3 のみのジョブのため timeout 拡大は不要
+    # （旧 15 分のまま）。
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -1437,24 +1453,22 @@ jobs:
 
       - name: Setup Node.js
         # update-external.yml と同一 SHA 固定。ubuntu-latest には node/npm が
-        # プリインストールされているが、self-hosted runner には保証がないため
-        # 明示的にセットアップする（下段の test_pipeline_e2e.sh は node/npm 不在
-        # 時に自己スキップする作りだが、self-hosted 移行後も実 npm でのパイプライン
-        # 検証を維持するために導入する）。
+        # プリインストールされているが、決定性のため明示セットアップを維持する
+        # （下段の test_pipeline_e2e.sh は node/npm 不在時に自己スキップする
+        # 作りだが、実 npm でのパイプライン検証を常に行うために導入する）。
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '20'
 
-      # 前提（self-hosted 移行、ユーザー指示 2026-07-18）: 本ジョブは python3 の
-      # 常設を前提とする。ubuntu-latest にはプリインストールされているが、
-      # self-hosted runner には保証がないため、未検出時は fail-closed で
-      # 明示エラーとする（他ジョブと異なりインストールは行わない。python3 は
-      # OS 標準構成の一部として runner 側で常設されることを期待するため）。
+      # ubuntu-latest には python3 がプリインストール済みだが、決定性のため
+      # fail-closed 検出を維持する（他ジョブと異なりインストールは行わない。
+      # python3 は OS 標準構成の一部として runner 側で常設されることを
+      # 期待するため）。
       - name: Check python3 availability
         run: |
           set -euo pipefail
           if ! command -v python3 >/dev/null 2>&1; then
-            echo "::error::python3 not found. self-hosted runner requires python3 pre-installed." >&2
+            echo "::error::python3 not found. This job requires python3 pre-installed." >&2
             exit 1
           fi
 
@@ -1507,17 +1521,22 @@ jobs:
   # 緩和用の input・環境変数・continue-on-error は設けない。
   #
   # イシュー #294: 共有 self-hosted runner（6 並列）上の CPU 競合による
-  # 間欠フレーク対策として、判定は N=3 サンプルの中央値（median-of-N）で
-  # 行う（`bench_support::judge`）。少数派（N=3 なら 1 サンプル）のみの
-  # ノイズは吸収しつつ、過半数のサンプルが超過する恒常的なリグレッションは
-  # 引き続き検出する。min-of-N（1 サンプルでも以内なら PASS）は間欠的な
-  # 多数決リグレッションを見逃すため不採用（詳細は `bench_support`
-  # モジュールドキュメント参照）。サマリには全サンプル値・min_s・max_s も
-  # 出力し、分布を目視追跡できるようにする。
+  # 間欠フレーク対策として導入した判定（N=3 サンプルの中央値、median-of-N、
+  # `bench_support::judge`）は、ホステッド 4 vCPU 専有 VM（トラッキング #1220、
+  # 実装 #1231）へ移行後も仮想化ノイズ吸収の安全網として維持する。少数派
+  # （N=3 なら 1 サンプル）のみのノイズは吸収しつつ、過半数のサンプルが
+  # 超過する恒常的なリグレッションは引き続き検出する。min-of-N（1 サンプル
+  # でも以内なら PASS）は間欠的な多数決リグレッションを見逃すため不採用
+  # （詳細は `bench_support` モジュールドキュメント参照）。サマリには
+  # 全サンプル値・min_s・max_s も出力し、分布を目視追跡できるようにする。
   rebuild-latency:
     name: REQ-10 rebuild latency (5s limit)
-    runs-on: self-hosted
-    timeout-minutes: 20
+    # ホステッドランナー移行（トラッキング #1220、実装 #1231）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    runs-on: ubuntu-latest
+    # クリーン VM でのネスト WASM ビルド込み初回フルビルド + bench × N=3
+    # サンプルを織り込み拡大（実測後に調整、旧 20 分）。
+    timeout-minutes: 45
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（test ジョブと同一 SHA 固定）。
@@ -1528,8 +1547,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
-        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
+        # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -1541,9 +1560,9 @@ jobs:
       # 導入する（`test` ジョブと同一バージョン・同一チェックサム。
       # `crates/dist-server/build.rs` の expected_wasm_bindgen_version が Cargo.lock
       # 解決済みバージョンとの完全一致を要求するため、更新時は両方を
-      # 合わせて更新すること）。self-hosted 移行に伴い、インストール先を
-      # /usr/local/bin から $HOME/.local/share/wasm-bindgen/<version>/ へ
-      # 変更する（test ジョブと同一の理由）。
+      # 合わせて更新すること）。インストール先を $HOME/.local/share/wasm-bindgen/<version>/
+      # とする（test ジョブと同一の理由。ホステッドランナーはジョブごとに
+      # クリーンな VM のため毎回導入する）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified)
         # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
         # 詳細は test ジョブの同名ステップのコメント参照。
@@ -1619,8 +1638,12 @@ jobs:
   # 兼ねる（二重防御）。
   bundle-size:
     name: REQ-11 fandhe-frontend-wasm-full bundle gzip size (200KB limit)
-    runs-on: self-hosted
-    timeout-minutes: 20
+    # ホステッドランナー移行（トラッキング #1220、実装 #1231）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    runs-on: ubuntu-latest
+    # クリーン VM での wasm32 release ビルド + wasm-bindgen 後処理を織り込み拡大
+    # （実測後に調整、旧 20 分）。
+    timeout-minutes: 30
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA 固定）。
@@ -1631,8 +1654,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
-        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
+        # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -1643,9 +1666,9 @@ jobs:
       # wasm-bindgen-cli はバージョン固定 + SHA256 チェックサム検証付きで
       # 導入する（`test`/`rebuild-latency` ジョブと同一バージョン・同一
       # チェックサム。バージョンアップ時は Cargo.lock 解決済み wasm-bindgen
-      # と合わせて更新すること）。self-hosted 移行に伴い、インストール先を
-      # /usr/local/bin から $HOME/.local/share/wasm-bindgen/<version>/ へ
-      # 変更する（他ジョブと同一の理由）。
+      # と合わせて更新すること）。インストール先は $HOME/.local/share/wasm-bindgen/<version>/
+      # とする（他ジョブと同一の理由。ホステッドランナーはジョブごとに
+      # クリーンな VM のため毎回導入する）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified)
         # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
         # 詳細は test ジョブの同名ステップのコメント参照。
@@ -1700,8 +1723,11 @@ jobs:
 
   loc-check:
     name: REQ-8/REQ-11 glue JS effective LOC limit (10 lines, issues #62/#156)
-    runs-on: self-hosted
-    timeout-minutes: 10
+    # ホステッドランナー移行（トラッキング #1220、実装 #1231）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    runs-on: ubuntu-latest
+    # クリーン VM での xtask debug ビルドを織り込み拡大（実測後に調整、旧 10 分）。
+    timeout-minutes: 15
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（同一ファイル内の test ジョブと同一 SHA に固定）。
@@ -1712,8 +1738,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
-        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
+        # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -1748,8 +1774,11 @@ jobs:
   # cargo プロジェクトのため、manifest-path を明示して単独実行する。
   template-negative-type-error:
     name: TASK-4.4 templates/default 型不正コード機械的検出の受け入れ基準検証
-    runs-on: self-hosted
-    timeout-minutes: 15
+    # ホステッドランナー移行（トラッキング #1220、実装 #1231）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    runs-on: ubuntu-latest
+    # クリーン VM でのフルコールドビルドを織り込み拡大（実測後に調整、旧 15 分）。
+    timeout-minutes: 20
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA に固定）。
@@ -1760,8 +1789,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
-        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
+        # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
