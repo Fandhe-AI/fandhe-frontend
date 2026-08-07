@@ -133,7 +133,9 @@ jobs:
 
             $outA = & $fw new demo-app --template $template --dir $dirA 2>&1
             if ($LASTEXITCODE -ne 0) {
-              Write-Host "::error::fw new (template=$template, run A) failed with exit $LASTEXITCODE: $outA"
+              # `$LASTEXITCODE:` は pwsh がスコープ付き変数参照と解釈し ParserError で
+              # スクリプト全体が実行前に落ちるため `${LASTEXITCODE}` で区切る（run 31160062084 の失敗原因）
+              Write-Host "::error::fw new (template=$template, run A) failed with exit ${LASTEXITCODE}: $outA"
               exit 1
             }
             if (-not ($outA -match '"template":"' + $template + '"')) {
@@ -143,7 +145,7 @@ jobs:
 
             $outB = & $fw new demo-app --template $template --dir $dirB 2>&1
             if ($LASTEXITCODE -ne 0) {
-              Write-Host "::error::fw new (template=$template, run B) failed with exit $LASTEXITCODE: $outB"
+              Write-Host "::error::fw new (template=$template, run B) failed with exit ${LASTEXITCODE}: $outB"
               exit 1
             }
 
