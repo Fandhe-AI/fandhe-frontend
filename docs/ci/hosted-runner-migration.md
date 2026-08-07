@@ -249,30 +249,43 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
      を検討する。
 - 実測値は #1227（パイロット移行）が本文書 §5.2/§5.3 へ追記する。
 
-### 5.4 パイロット実測（#1227、ubuntu-latest）— 未実測（PR 初回 CI 実行後に追記）
+### 5.4 パイロット実測（#1227、ubuntu-latest、2026-08-07 実測）
 
 - パイロット対象: `ci.yml` の `fmt`（新設・キャッシュなし）と `clippy`
-  （in-place 移行・`actions/cache` 初適用）の 2 ジョブ。実装コミット時点
-  ではローカル worktree での作業に留まり GitHub Actions は未実行のため、
-  本節の実測値は **push・PR 作成後の CI 実行結果を待って追記する**
-  （コールド 1 回目・ウォーム 2 回目の 2 段階）。ローカルの
+  （in-place 移行・`actions/cache` 初適用）の 2 ジョブ。PR #1245（マージ
+  commit `d15ff70`、2026-08-07T02:38:32Z マージ）の初回 CI 実行、および
+  マージ後の main push 6 回分の CI 実行結果を採取して本節を実測値で埋めた
+  （出典・run 一覧は本節末尾参照）。すべて `startedAt`〜`completedAt`
+  （キュー待ち込み、§5.2 と同条件）の実測であり、ローカルの
   `cargo clippy`/`cargo fmt --all --check` 実行時間は vCPU 数・キャッシュ
-  状態が ubuntu-latest と異なり比較対象にならないため、ここへ転記しない。
+  状態が ubuntu-latest と異なり比較対象にならないため転記しない。
 - **キャッシュ path の事前確認（該当なし）**: `clippy`/`fmt` ジョブは他の
   一部ジョブ（`template-app-wasm-smoke` 等）と異なり `CARGO_TARGET_DIR` を
   明示指定していないため、`actions/cache` の `path: target` はワークスペース
   既定の cargo target dir と一致する（`grep -n CARGO_TARGET_DIR ci.yml` で
   `clippy`/`fmt` ジョブ内に該当行がないことを確認済み）。
-- 追記予定の実測表（列のみ確定、値は CI 実行後に埋める）:
+- **実測表**（コールドは PR #1245 初回実行と、マージ直後の main push 初回
+  実行〔`actions/cache` の scope が PR ブランチと main ブランチで分かれる
+  ため双方とも miss になる。後者は同時刻に走った後続 push により run 全体
+  は cancelled 扱いだが、対象ジョブ自体は cancel 前に完了・成功している〕
+  の 2 点を併記する。ウォームは後続 main push 6 回分の平均・範囲）:
 
-  | ジョブ | 所要時間（コールド） | 所要時間（ウォーム） | cache restore | cache save | `cargo clippy`/`cargo fmt` ステップ単体 |
+  | ジョブ | 所要時間（コールド） | 所要時間（ウォーム、main push 6 回） | cache restore | cache save | `cargo clippy`/`cargo fmt` ステップ単体 |
   |--------|---------------------|---------------------|---------------|-----------|----------------------------------------|
-  | `fmt` | (CI 実行後に記載) | — （キャッシュ非対象。§3.1 案 C の位置づけどおり、コンパイル不要ジョブでのキャッシュなし実測サンプルとする） | — | — | (CI 実行後に記載) |
-  | `clippy` | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載、`actions/cache` ステップログの hit/miss) | (CI 実行後に記載、Post ステップの save サイズ) | (CI 実行後に記載) |
+  | `fmt` | 約 7 秒（PR run）／約 14 秒（main 初回 push） | 約 10〜19 秒 | — （キャッシュ非対象。§3.1 案 C の位置づけどおり、コンパイル不要ジョブでのキャッシュなし実測サンプルとする） | — | 約 2〜12 秒 |
+  | `clippy` | 約 45 秒（PR run）／約 46 秒（main 初回 push） | 約 29〜47 秒（平均約 40 秒） | 全 6 回とも exact key hit、1〜3 秒 | コールド時のみ発生（3〜5 秒、約 55 MB）。ウォーム時は `not saving cache`（既に primary key で hit 済みのため save スキップ） | コールド約 33〜37 秒／ウォーム約 20〜31 秒 |
 
-- 取得手順: `gh run view <run-id> --json jobs` で `startedAt`〜`completedAt`
-  を取得し、`actions/cache` ステップのログでコールド時は miss（Post ステップ
-  で save）、ウォーム時（2 回目実行）は exact key hit を確認する。
+- **cache のヒット率・サイズ**: マージ後の main push 6 回（PR #1245 内の
+  save でシードされた main 初回コールド実行を除く）はすべて
+  `Cache hit for: clippy-Linux-202607148bab-...`
+  （`Cache restored from key: ...` も同一 primary key）の **exact key hit**
+  であり、restore-keys prefix hit・miss は 1 件も観測されなかった（6/6 =
+  100%、母数 6 件）。`Cargo.lock`・toolchain バージョンが期間中変化しな
+  かったため単一キーへ収束した結果であり、母数の小ささ（6 件）は前提として
+  明記する。キャッシュサイズは GitHub Actions cache API
+  （`GET /repos/Fandhe-AI/fandhe-frontend/actions/caches?key=clippy-`）実測で
+  `clippy-Linux-202607148bab-3dbde755e809bcc2198aa0703c06255ad1010f09933c054ae66f3ef9c86b1928`
+  （main ref）が `size_in_bytes: 57634410`（約 55.0 MiB、約 54 MB）。
 - **単一 `actions/cache` ステップ（PR 実行でも save を許可）の判断根拠**:
   §3.4 は「main push で温める」を基本方針とするが、本パイロットでは同一 PR
   内でコールド → ウォームの両方を実測できるよう、PR 実行でも save させる
@@ -280,8 +293,26 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   の単一ステップ構成で、PR 専用の save 抑制は行わない）。これは §3.4 の
   「main push で温める」を将来的に妨げるものではなく、パイロット期間中の
   実測可視化を優先した一時的な判断である。
-- 許容基準（§5.3）との照合・キー設計の見直し要否も、CI 実行結果を得てから
-  本節へ追記する。
+- **許容基準（§5.3）との照合**: (1) `timeout-minutes` 内収束 — `fmt`/`clippy`
+  とも実測は数十秒台であり、いずれのジョブの `timeout-minutes` に対しても
+  大幅な余裕がある。(2) self-hosted 実績比 — §5.2 は `clippy` に相当する
+  ジョブを「その他（`clippy-wasm32`/`npm-asset-build`/`loc-check` 等）」の
+  「いずれも 1 分未満〜数十秒」区分に含めており、正確な秒数の記録がないため
+  厳密な比率計算はできないが、ホステッド実測（コールド約 45〜46 秒・ウォーム
+  約 29〜47 秒）は同区分の範囲内に収まっており、+50% 許容枠を超過している
+  兆候はない。(3) キー設計の見直し要否 — ヒット率 100%（母数 6 件）のため、
+  現行のキー設計（`clippy-Linux-<toolchain>-<Cargo.lock hash>`）の見直しは
+  不要と判断する。
+- **出典（採取日: 2026-08-07、すべて `ci.yml` の run）**:
+  - コールド（PR #1245）: https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31141415464 （2026-08-07T02:30:10Z 開始、`pull_request` イベント）
+  - コールド（main 初回、cache シード）: https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31141851831 （2026-08-07T02:38:35Z 開始、`push` イベント。run 全体は後続 push により cancelled だが `clippy` ジョブ本体〔job id 92753238561〕は cancel 前に完了・成功）
+  - ウォーム 1: https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31142405124 （2026-08-07T02:49:10Z）
+  - ウォーム 2: https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31143632820 （2026-08-07T03:12:25Z）
+  - ウォーム 3: https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31144894142 （2026-08-07T03:37:08Z）
+  - ウォーム 4: https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31146058471 （2026-08-07T04:00:20Z）
+  - ウォーム 5: https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31147083182 （2026-08-07T04:20:00Z）
+  - ウォーム 6: https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31147549596 （2026-08-07T04:29:00Z）
+  - キャッシュサイズ: GitHub Actions cache API（`GET /repos/Fandhe-AI/fandhe-frontend/actions/caches?key=clippy-`、2026-08-07 実測）
 
 ### 5.5 Docker 系ワークフロー実測（#1234、musl-smoke.yml / image-size.yml）— 未実測（PR 初回 CI 実行後に追記）
 
