@@ -66,24 +66,30 @@ concurrency:
 jobs:
   deps-check:
     name: REQ-3 dependency graph limits (60 packages / depth 6, core zero-dep)
-    runs-on: self-hosted
+    # イシュー #1235（トラッキング #1220）で ubuntu-latest へ移行（in-place、
+    # 並走期間なし）。設計判断の正は docs/ci/hosted-runner-migration.md。
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         # actions/checkout v6.0.3（.github/workflows/update-external.yml と同一コミットに固定）。
         # docs/spec submodule は本ジョブの計測に不要なため取得しない（submodules 既定 false）。
+        # persist-credentials: false（イシュー #1229 以降の踏襲パターン）: 本ジョブは
+        # 読み取り専用の計測ジョブで push・PR 作成を一切行わないため、checkout が
+        # 構成する認証情報をジョブ実行中に残置させる必要がない（認証情報残置面の縮小）。
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
 
       - name: Setup Rust toolchain
-        # self-hosted runner プールには cargo が PATH 上に存在しないインスタンスが
-        # 混在し得る（例: PR #196 CI 監視で判明した runner
-        # 'macbook-pro-runner-1-runner-6'。同一 workflow 内の他ジョブが割り当たる
-        # 'fandhe-server-*' 系インスタンスとは異なり cargo 未導入で
-        # `cargo: command not found`（exit 127）により本ジョブが決定論的に失敗した）。
+        # ホステッドランナー（ubuntu-latest）はジョブごとにクリーンな使い捨て VM
+        # であり、self-hosted プール時代のようなインスタンス間の cargo 導入有無の
+        # 差異（PR #196 で判明した cargo 未導入インスタンス問題）は発生しない。
+        # ホステッド環境では毎ジョブでのツール導入が主経路であり
+        # （`.claude/rules/ci.md`・`docs/ci/hosted-runner-migration.md` §4.2）、
         # dtolnay/rust-toolchain（4cda84d5c5c54efe2404f9d843567869ab1699d4 に固定。
-        # actions/checkout と同様 SHA 固定でサプライチェーンリスクを抑える）は
-        # 既に rustup/cargo が導入済みなら何もせず、未導入の場合のみ
-        # rustup 経由でインストールする。これにより runner インスタンスの違いに
-        # 依存せず、以降のステップで cargo が確実に PATH 上に存在する状態にする。
+        # actions/checkout と同様 SHA 固定でサプライチェーンリスクを抑える）で
+        # バージョン決定性のため明示 pin を維持する。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
