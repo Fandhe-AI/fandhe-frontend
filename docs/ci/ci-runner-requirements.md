@@ -16,24 +16,25 @@ CI runner 方針は 2026-08-07 に GitHub ホステッドランナー（`ubuntu-
 ファイル名・見出し番号（他ファイルから `§5`/`§6`/`§8` 等で参照されている）は
 リンク切れを避けるため変更しない。
 
-移行は 2026-08-07 時点で全ワークフロー完了していない。以下は本ドキュメント各節の
-現況（有効 = 現在も self-hosted 前提でそのまま有効／歴史的記録 = 過去の実測・
-経緯として保持／廃止予定 = 移行完了後に削除予定）。
+移行は全ワークフロー完了済み（`ci.yml` の `forbid-unsafe`/`clippy-wasm32`〔イシュー #1228〕・
+`release.yml` の `verify`/`publish`〔イシュー #1233〕を含む）。`runner-maintenance.yml` も
+プール保守自体が不要になったためイシュー #1237 で廃止済み。以下は本ドキュメント各節の
+現況（歴史的記録 = 過去の実測・経緯として保持／不変 = ホステッド移行後も引き続き有効）。
 
 | 節 | 内容 | 現況 |
 |----|------|------|
-| §1（常設を依頼する項目） | libnss3/libnspr4 等・`curl`・`wasm32-unknown-unknown` 等の依頼仕様 | 歴史的記録＋一部有効。`forbid-unsafe`/`clippy-wasm32`（ci.yml）・`release.yml` の `verify`/`publish` は 2026-08-07 時点でも `runs-on: self-hosted` のまま（イシュー #1228・#1233 が対応中）であり、これらのジョブに限り本節は現在も有効。ホステッド移行後の毎ジョブ導入方針（pin 元は不変）は `docs/ci/hosted-runner-migration.md` §4 を参照（二重管理回避のためツール一覧の再掲はしない） |
-| §2（プール前提） | root 実行・apt-get 前提 | §1 と同様、残る self-hosted ジョブに限り有効 |
-| §3（確認手順） | `runner-maintenance.yml` dispatch 手順 | 有効（`runner-maintenance.yml` は 2026-08-07 時点で未廃止。全ワークフロー移行完了後にイシュー #1237 で廃止予定） |
+| §1（常設を依頼する項目） | libnss3/libnspr4 等・`curl`・`wasm32-unknown-unknown` 等の依頼仕様 | 歴史的記録。`forbid-unsafe`/`clippy-wasm32`（ci.yml）・`release.yml` の `verify`/`publish` は移行完了済み（イシュー #1228・#1233）であり、self-hosted プール前提の本節はどのジョブについても現在は有効ではない。ホステッド移行後の毎ジョブ導入方針（pin 元は不変）は `docs/ci/hosted-runner-migration.md` §4 を参照（二重管理回避のためツール一覧の再掲はしない） |
+| §2（プール前提） | root 実行・apt-get 前提 | 歴史的記録（§1 と同様、残る self-hosted ジョブが存在しないため） |
+| §3（確認手順） | `runner-maintenance.yml` dispatch 手順 | 歴史的記録（`runner-maintenance.yml` はイシュー #1237 で廃止済み） |
 | §4（安全網の維持方針） | 存在チェック付きインストールを削除しない | 不変。ホステッドでは「毎ジョブ導入が主経路」になる形でむしろ重要度が上がる（`docs/ci/hosted-runner-migration.md` §4.2） |
 | §5（Windows self-hosted runner の常設要件） | Windows runner 調達依頼・`windows-latest` 非採用判断 | **歴史的記録（判断は覆った）**。§5.3 の「`windows-latest` は ci.md 規約に反するため非採用」は runner 方針反転により根拠が失効し、実際に `fw-new-windows-verify.yml` は `windows-latest` へ移行済み（イシュー #1236、実績は `docs/ci/hosted-runner-migration.md` §4.3・`docs/reports/fw-new-windows-verification-report.md` §4.3 参照）。以下の §5.1〜§5.4 は self-hosted Windows runner を実際に一度も調達できなかった時代の記録として残す |
 | §6（Chrome `/dev/shm` 制約対策） | `--disable-dev-shm-usage` の実測記録 | 歴史的記録として保持。対策自体（`webdriver.json`）はホステッドでも維持する |
 | §7（スコープ外・フォローアップ） | #295 の焼き込み完了待ち運用 | 歴史的記録。移行完了により #295 の「焼き込み完了までクローズしない」方針自体の意義が薄れているが、クローズ判断はユーザー承認事項のため本ドキュメントでは判断しない |
-| §8（`template-app-wasm-smoke` の `/tmp` 固定 target の扱い） | `RUNNER_TEMP` 配置原則・旧パス回収運用 | 有効（`RUNNER_TEMP` 配置原則はホステッドでも不変、`.claude/rules/ci.md` 準拠）。§8.3 の runner-maintenance.yml dispatch 手順は §3 と同じく `runner-maintenance.yml` 廃止（イシュー #1237）まで有効 |
+| §8（`template-app-wasm-smoke` の `/tmp` 固定 target の扱い） | `RUNNER_TEMP` 配置原則・旧パス回収運用 | §8.1/§8.2 の `RUNNER_TEMP` 配置原則は不変（ホステッドでも `.claude/rules/ci.md` 準拠）。§8.3 の runner-maintenance.yml dispatch 手順は歴史的記録（`runner-maintenance.yml` 廃止済み、イシュー #1237） |
 
 - 本ドキュメントによる常設要件の明文化（インフラ依頼仕様、旧方針時代のもの）
 - `.github/workflows/runner-maintenance.yml`（`workflow_dispatch` 起点）による
-  プール状態の検査・残骸クリーンアップ（イシュー #1237 で廃止予定）
+  プール状態の検査・残骸クリーンアップは廃止済み（イシュー #1237）
 
 イメージへのライブラリ焼き込み自体はインフラ側作業であり、本リポジトリの
 コミットでは完了しない。#295 のクローズ判断（焼き込み完了を待つか、runner

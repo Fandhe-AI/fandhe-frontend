@@ -285,9 +285,11 @@ fn scratch_dir_pid_is_stale(path: &std::path::Path, pid: u32) -> bool {
 /// 1. **配置是正**: `support::scratch_root()` はコンパイル時に確定する
 ///    `env!("CARGO_TARGET_TMPDIR")`（CI では `/cargo-target/tmp`、ローカルでは
 ///    `target/tmp`）を既定とする（かつての実行時 `CARGO_TARGET_TMPDIR` 参照は
-///    cargo の仕様上常に失敗し `/tmp` へ落ちていた）。これにより `cargo clean`・
-///    `.github/workflows/runner-maintenance.yml`（stale tmp 検査）の既存管理
-///    範囲に収まる
+///    cargo の仕様上常に失敗し `/tmp` へ落ちていた）。これにより `cargo clean`
+///    の既存管理範囲に収まる（旧 self-hosted 時代は
+///    `.github/workflows/runner-maintenance.yml` の stale tmp 検査も併用
+///    していたが、CI runner 方針のホステッドランナー既定への反転〔#1220〕に
+///    伴い同ワークフローは廃止済み、イシュー #1237）
 /// 2. **世代管理**: [`cleanup_stale_scratch`] が本関数呼び出し時に起動し、
 ///    PID サフィックスが非生存（dead）の旧世代ディレクトリを回収する。
 ///    「同一テストバイナリ内の 5 テスト間でのみ共有・並行 CI ジョブ／別回とは
