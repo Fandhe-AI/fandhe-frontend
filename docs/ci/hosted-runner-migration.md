@@ -366,27 +366,62 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
      恒常的に超える場合のみ検討）に該当しないため、**導入不要**と結論する。
      別 issue の起票も不要。
 
-### 5.6 Windows 移行実測（#1236、windows-latest）— 未実測（dispatch 実行後に追記）
+### 5.6 Windows 移行実測（#1236、windows-latest）— 初回 dispatch 実測（2026-08-07、イシュー #1259）
 
 - 移行対象: `fw-new-windows-verify.yml`（`workflow_dispatch` 専用、イシュー #413
   の `fw new` 非 Unix パーミッション挙動の実機検証ハーネス）。旧 self-hosted
   時代は Windows ラベルの runner が一度も調達されておらず本ワークフローは
   一度も実行されていなかった（`docs/reports/fw-new-windows-verification-report.md`
-  §4.2）。§4.3 が概要を確定した `windows-latest` 移行後、初めて実機で PASS を
-  成立させる。
-- 追記予定の実測表（列のみ確定、値は dispatch 実行後に埋める）:
+  §4.2）。§4.3 が概要を確定した `windows-latest` 移行後、初めて実機で実行した。
+- 実測対象 run:
+  [run 31149384411](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31149384411)
+  （main、commit `5f6cfeb`、2026-08-07T05:04:09Z 起動、`conclusion: failure`）。
+  runner はホステッド `windows-latest`（イメージ `windows-2025-vs2026`
+  20260803.193.1、Microsoft Windows Server 2025 10.0.26100、runner 2.336.0、
+  Azure eastus）、toolchain は `stable-x86_64-pc-windows-msvc`（rustc 1.97.1、
+  8bab26f4f 2026-07-14）。
+- 実測表（初回 dispatch。`cargo test --bin fw` ステップが FAIL したため
+  `new_e2e`・smoke ステップは未到達＝`skipped`）:
 
   | job 所要時間 | `cargo build` ステップ単体 | `cargo test --bin fw` ステップ単体 | `cargo test --test new_e2e` ステップ単体 | smoke ステップ単体 |
   |-------------|----------------------------|--------------------------------------|--------------------------------------------|---------------------|
-  | (dispatch 実行後に記載) | (dispatch 実行後に記載) | (dispatch 実行後に記載) | (dispatch 実行後に記載) | (dispatch 実行後に記載) |
+  | 約 1 分 22 秒（05:04:12Z→05:05:34Z） | 約 48 秒（05:04:27Z→05:05:15Z、"Build fw" ステップ） | 約 16 秒（05:05:15Z→05:05:31Z、**FAIL**、281 passed / 1 failed） | ―（前段 FAIL により skipped。是正 issue #1266 解決後の再 dispatch で追記） | ―（同上、skipped） |
 
 - 取得手順: `gh workflow run fw-new-windows-verify.yml --ref <branch>` で
   dispatch し、`gh run view <run-id> --json jobs` で `startedAt`〜
   `completedAt` を取得する。
+- **FAIL の原因切り分け（コード起因、環境エラーではないと確認済み）**:
+  失敗テストは `gate::tests::default_escape_check_passes_on_this_repository_itself`
+  （`crates/cli/src/gate.rs:2590`）で、報告違反は
+  `crates\pre-styled-ui\src\stylesheet.rs:202: unreviewed raw_html() call`。
+  しかし実ファイルの `raw_html()` 呼び出しは 192 行目であり、直前 191 行目に
+  `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: 検証済み(doc)")]`
+  が正しく付与されている（202 行目は `#[cfg(test)] mod tests` 内の無関係な
+  行）。すなわち **+10 行ずれた偽陽性**である。
+  機序: `crates/cli/src/gate.rs` の `scan_file_for_violations`・
+  `line_start_offsets` は行開始オフセットを `offset += line.len() + 1`
+  （改行 = LF 1 バイト前提）で前計算するが、windows-latest は Git for
+  Windows の既定 `core.autocrlf=true` により CRLF で checkout されるため、
+  実バイト位置（`\r` 込み）と行頭オフセット表（`\r` 抜き）が 1 行につき
+  1 バイトずつ乖離し、違反検出行が後方へ誤マッピングされる。同一の前計算を
+  共有する `url_validation_check` 系にも同じ潜在欠陥がある。リポジトリの
+  `*.rs` に `.gitattributes` 指定はない（`git check-attr text` = unspecified）
+  ため、LF checkout の Linux CI では顕在化しない。
+  リポジトリ全体（`.git`・`target`・`docs/spec` 除く）を一時コピーし
+  `*.rs` を CRLF 化してローカルで同テストを実行したところ、Linux 上でも
+  同一メッセージ（`stylesheet.rs:202: unreviewed raw_html() call`）で
+  FAIL することを確認し、windows-latest 固有の環境エラーではなく
+  `fw gate` 自体のマルチプラットフォーム欠陥であると確定した。
+  是正 issue: [#1266](https://github.com/Fandhe-AI/fandhe-frontend/issues/1266)
+  （`fw gate` の行オフセット計算を CRLF 改行へ対応させる）。
 - 許容基準（§5.3）は self-hosted 実績（一度も実行されていないため比較対象
   なし）を持たないため、`timeout-minutes: 45` 以内に収まることのみを判定
-  基準とする。実測値・検証項目 7 件の PASS 結果は
-  `docs/reports/fw-new-windows-verification-report.md` §4.3 へ記録する。
+  基準とする。初回 dispatch の job 所要時間（約 1 分 22 秒）は上限に対し
+  大幅な余裕があるが、FAIL により `new_e2e`・smoke の両ステップが未到達の
+  ため、**総所要（PASS 時）の確定は #1266 是正後の再 dispatch まで判定保留**
+  とする。検証項目 7 件の内訳（PASS 1 / FAIL 1 / 未到達 5）・PASS 実測は
+  `docs/reports/fw-new-windows-verification-report.md` §4.3 へ記録する
+  （#413 のクローズ条件である PASS 記録は本 dispatch 時点では未充足）。
 
 ### 5.7 lint 系ジョブ実測（#1228、forbid-unsafe / clippy-wasm32、ubuntu-latest）— 未実測（PR 初回 CI 実行後に追記）
 

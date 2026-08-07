@@ -101,22 +101,37 @@ Windows ランナー上で `gh workflow run fw-new-windows-verify.yml --ref
 
 | 項目 | 値 |
 |------|----|
-| run URL | (dispatch 実行後に記載) |
-| RUNNER_NAME | (dispatch 実行後に記載) |
-| OS | (dispatch 実行後に記載) |
-| rustc | (dispatch 実行後に記載) |
-| 所要時間 | (dispatch 実行後に記載) |
+| run URL | [run 31149384411](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31149384411)（main、commit `5f6cfeb`、2026-08-07T05:04:09Z 起動、`conclusion: failure`） |
+| RUNNER_NAME | ホステッド `windows-latest`（イメージ `windows-2025-vs2026` 20260803.193.1。動的割当のジョブ固有名はログの Step Summary 生成コマンド自体は成功したが、`cargo test` FAIL によりログへの実値出力までは追跡できていない） |
+| OS | Microsoft Windows Server 2025 10.0.26100（Datacenter、Azure eastus） |
+| rustc | 1.97.1（8bab26f4f 2026-07-14、`stable-x86_64-pc-windows-msvc`） |
+| 所要時間 | job 全体 約 1 分 22 秒（05:04:12Z→05:05:34Z）。`cargo build` 約 48 秒 / `cargo test --bin fw` 約 16 秒（**FAIL**） |
 
 検証項目 7 件（ビルド / `cargo test -p fandhe-frontend-cli --bin fw` /
 `new_e2e` 決定性 / default・app・embed のバイト決定性 / fail-closed・
 `--force` 契約 / 未知テンプレート exit 2 / executable フラグ no-op 生成）:
-(dispatch 実行後に PASS/FAIL を記載)
+
+| 検証項目 | 結果 |
+|---------|------|
+| ビルド（`cargo build`） | PASS |
+| `cargo test -p fandhe-frontend-cli --bin fw` | **FAIL**（281 passed / 1 failed。`gate::tests::default_escape_check_passes_on_this_repository_itself` が CRLF checkout に起因する `fw gate` 側の行オフセット計算の偽陽性で失敗。ワークフロー・windows-latest 環境自体の欠陥ではなくコード起因と切り分け済み。詳細は `docs/ci/hosted-runner-migration.md` §5.6） |
+| `new_e2e` 決定性 | 未到達（前段 FAIL により `skipped`） |
+| default・app・embed のバイト決定性 | 未到達（同上） |
+| fail-closed・`--force` 契約 | 未到達（同上） |
+| 未知テンプレート exit 2 | 未到達（同上） |
+| executable フラグ no-op 生成 | 未到達（同上） |
+
+是正 issue: [#1266](https://github.com/Fandhe-AI/fandhe-frontend/issues/1266)
+（`fw gate` の行オフセット計算を CRLF 改行へ対応させる。完了条件に
+「修正マージ後の再 dispatch で PASS を取得し本節へ追記する」を含む）。
 
 実測の取得手順は `docs/ci/hosted-runner-migration.md` §5.6 を参照。
 
 ## 5. クローズ方針
 
-Windows 実機での初回実測結果（§4.3）が本レポートへ記録されるまで
+Windows 実機での **PASS** 実測結果が本レポートへ記録されるまで
 イシュー #413 はクローズしない（#295 と同型の運用）。ホステッド移行
-（#1236）により runner 調達待ちの状態は解消したが、実測記録自体は
-本節の充足条件として引き続き必須とする。
+（#1236）により runner 調達待ちの状態は解消し、初回 dispatch も実行
+できたが（§4.3）、`cargo test --bin fw` ステップが #1266 の欠陥で
+FAIL したため、PASS 記録という充足条件は本 dispatch 時点では未充足の
+まま維持する。
