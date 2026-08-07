@@ -388,29 +388,52 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   基準とする。実測値・検証項目 7 件の PASS 結果は
   `docs/reports/fw-new-windows-verification-report.md` §4.3 へ記録する。
 
-### 5.7 lint 系ジョブ実測（#1228、forbid-unsafe / clippy-wasm32、ubuntu-latest）— 未実測（PR 初回 CI 実行後に追記）
+### 5.7 lint 系ジョブ実測（#1228、forbid-unsafe / clippy-wasm32、ubuntu-latest）— 実測済み（2026-08-07、イシュー #1260）
 
 - 移行対象: `ci.yml` の `forbid-unsafe`（キャッシュなし・`test` ジョブと同型）
   と `clippy-wasm32`（job family prefix `clippy-wasm32-` の `actions/cache`
   付き・`clippy` ジョブと同型）。本イシューの完了で `ci.yml` から
-  `runs-on: self-hosted` が全廃される。
+  `runs-on: self-hosted` が全廃された（PR #1253、merge commit `b20cb89`）。
 - self-hosted 直近実績（§5.2 の表より引用）: `forbid-unsafe` 約 9 分 42 秒、
   `clippy-wasm32` は「その他」欄に含まれ 1 分未満〜数十秒。
-- 実装コミット時点ではローカル worktree での作業に留まり GitHub Actions は
-  未実行のため、本節の実測値は **PR 作成後の CI 初回実行結果（コールド）・
-  2 回目実行（`clippy-wasm32` のウォーム）を待って追記する**。
-- 追記予定の実測表（列のみ確定、値は CI 実行後に埋める）:
+- **出典**: 以下 3 run（すべて `ci.yml`、`gh run view <run-id> --json jobs`
+  で `startedAt`〜`completedAt`・ステップ単位タイムスタンプを取得。
+  `actions/cache` の hit/miss は `gh run view <run-id> --log` のログで
+  `Cache restored from key:` / `Cache not found for input keys:` /
+  `Cache saved with key:` を確認、採取日 2026-08-07）。
+
+  | run | 位置づけ |
+  |-----|---------|
+  | [31145664422](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31145664422)（2026-08-07 03:52 UTC） | PR #1253 の初回 pull_request run。`clippy-wasm32-` prefix の cache キーが新設のためコールド |
+  | [31146058471](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31146058471)（2026-08-07 04:00 UTC） | merge commit `b20cb89` の main push run（1 回目） |
+  | [31147549596](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31147549596)（2026-08-07 04:29 UTC） | main push run（2 回目）。1 回目 main push が保存した cache を復元するウォーム実測 |
+
+- **cache スコープの注記**: `actions/cache` はブランチスコープで保存され、
+  PR ブランチ（`docs/ci-...`）で保存された cache は main から参照できない
+  （GitHub Actions の cache スコープ仕様）。そのため 04:00 run（main 初回
+  push）も miss（コールド）となり、ウォーム実測は 04:29 run（main 2 回目
+  push、exact key hit）で確認した。`clippy` ジョブ §5.4 の想定と同型の
+  挙動である。
 
   | ジョブ | 所要時間（コールド） | 所要時間（ウォーム） | cache restore | cache save | self-hosted 実績比 | §5.3 許容基準判定 |
   |--------|---------------------|---------------------|---------------|-----------|---------------------|--------------------|
-  | `forbid-unsafe` | (CI 実行後に記載) | — （キャッシュ非対象） | — | — | (CI 実行後に記載) | (CI 実行後に記載) |
-  | `clippy-wasm32` | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載、`actions/cache` ステップログの hit/miss) | (CI 実行後に記載、Post ステップの save サイズ) | (CI 実行後に記載) | (CI 実行後に記載) |
+  | `forbid-unsafe` | PR run: 約 5 分 27 秒（03:52:36→03:58:03）／main 初回 push: 約 6 分 01 秒（04:00:40→04:06:41） | — （キャッシュ非対象） | — | — | 約 -38%〜-44%（self-hosted 実績 9 分 42 秒比で改善） | PASS（timeout 60 分以内・クリティカルパス +50% 以内） |
+  | `clippy-wasm32` | PR run: 約 51 秒（03:52:36→03:53:27、clippy ステップ単体 約 38 秒）／main 初回 push: 約 35 秒（04:00:39→04:01:14） | main 2 回目 push: 約 23 秒（04:29:02→04:29:25、clippy ステップ単体 約 10 秒） | PR run・main 初回 push とも `Cache not found for input keys: clippy-wasm32-Linux-...`（miss）／main 2 回目 push は `Cache restored from key: clippy-wasm32-Linux-...`（exact key hit、Cache Size: ~61 MB） | PR run・main 初回 push とも `Cache saved with key: clippy-wasm32-Linux-...` | self-hosted 実績（1 分未満〜数十秒）と同水準 | PASS（timeout 40 分以内） |
 
+- **ガードステップ（無ハッシュ cdylib rlib 削除、#1192/#1226 契約）の実行
+  時間への影響**: 全 3 run・両ジョブとも「guard: 共有 CARGO_TARGET_DIR の
+  無ハッシュ cdylib rlib を除去（イシュー #1192）」ステップの開始・完了
+  タイムスタンプが同一秒（実測 0〜1 秒）であり、実行時間への影響は無視
+  できる水準であることを確認した（#1192/#1226 契約の維持コストがほぼ
+  ゼロであることの実証）。
 - 取得手順: `gh run view <run-id> --json jobs` で `startedAt`〜`completedAt`
   を取得し、`clippy-wasm32` は `actions/cache` ステップのログでコールド時は
   miss（Post ステップで save）、ウォーム時（2 回目実行）は exact key hit を
   確認する（`clippy` ジョブ §5.4 と同一手順）。
-- 許容基準（§5.3）との照合も、CI 実行結果を得てから本節へ追記する。
+- **許容基準（§5.3）との照合結果**: `forbid-unsafe` は self-hosted 実績
+  （約 9 分 42 秒）比で約 -38%〜-44%（改善）であり基準 2（+50% 以内）を
+  大幅に満たす。`clippy-wasm32` も self-hosted 実績（1 分未満〜数十秒）と
+  同水準。両ジョブとも `timeout-minutes`（基準 1）以内に収まっている。
 
 ## 6. 移行順序と検証手順
 
