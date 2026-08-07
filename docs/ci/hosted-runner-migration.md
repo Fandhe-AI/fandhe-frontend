@@ -420,10 +420,43 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   なし）を持たないため、`timeout-minutes: 45` 以内に収まることのみを判定
   基準とする。初回 dispatch の job 所要時間（約 1 分 22 秒）は上限に対し
   大幅な余裕があるが、FAIL により `new_e2e`・smoke の両ステップが未到達の
-  ため、**総所要（PASS 時）の確定は #1266 是正後の再 dispatch まで判定保留**
-  とする。検証項目 7 件の内訳（PASS 1 / FAIL 1 / 未到達 5）・PASS 実測は
-  `docs/reports/fw-new-windows-verification-report.md` §4.3 へ記録する
-  （#413 のクローズ条件である PASS 記録は本 dispatch 時点では未充足）。
+  ため、総所要（PASS 時）の確定は #1266 是正後の再 dispatch まで判定保留と
+  していた（下記 PASS 実測で確定済み）。検証項目 7 件の内訳・PASS 実測は
+  `docs/reports/fw-new-windows-verification-report.md` §4.3 へ記録する。
+
+#### 5.6a #1266 是正後の再 dispatch — PASS 実測（2026-08-07）
+
+- #1266 是正（PR #1268、`fw gate` の行オフセット計算の CRLF 対応 +
+  `crates/cli` semver バンプ）マージ後の再 dispatch は、ハーネス側の潜在
+  バグ 2 件を段階的に顕在化させた（いずれも製品コードではなくワークフロー
+  YAML の pwsh スクリプト起因。初回 dispatch では前段の `cargo test` FAIL
+  により smoke ステップまで到達せず潜在していた）:
+  - [run 31160062084](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31160062084)
+    （failure）: `cargo test --bin fw` は CRLF 修正により **PASS へ転じた**
+    が、smoke ステップのエラーメッセージ文字列中の `$LASTEXITCODE:` を
+    pwsh がスコープ付き変数参照と解釈して ParserError となり、スクリプトが
+    実行前に失敗。`${LASTEXITCODE}` への区切りで是正（PR #1269）。
+  - [run 31160896292](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31160896292)
+    （failure）: smoke の全検証が OK 出力へ到達したが、GitHub Actions の
+    pwsh シェルが末尾に付加する `exit $LASTEXITCODE` 相当の挙動により、
+    最後の native 実行（未知テンプレート → 意図的 exit 2 のネガティブ
+    テスト）の残留 `$LASTEXITCODE=2` で step が偽陽性失敗。末尾への明示的
+    `exit 0` で是正（PR #1270）。
+- **PASS 実測**:
+  [run 31161619000](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31161619000)
+  （main、2026-08-07T08:25:18Z dispatch、`conclusion: success`、全 12
+  ステップ success）。runner・toolchain は初回 dispatch と同一系
+  （ホステッド `windows-latest`、Microsoft Windows Server 2025、
+  rustc 1.97.1 `stable-x86_64-pc-windows-msvc`）。
+
+  | job 所要時間 | `cargo build` | `cargo test --bin fw` | `cargo test --test new_e2e` | smoke |
+  |-------------|---------------|------------------------|------------------------------|-------|
+  | 約 49 秒（08:25:25Z→08:26:14Z） | 約 15 秒（08:25:39Z→08:25:54Z） | 約 16 秒（08:25:54Z→08:26:10Z、**PASS**） | 約 1 秒（19 passed） | 約 1 秒（全検証 OK） |
+
+  `cargo build` が初回 dispatch（約 48 秒）より大幅に短いのは VM ごとの
+  性能ばらつきの範囲と判断する（いずれも `timeout-minutes: 45` に対し
+  2 分未満で、許容基準の判定に影響しない）。総所要（PASS 時）は約 49 秒で
+  確定し、§5.3 の判定基準（timeout 以内）を充足する。
 
 ### 5.7 lint 系ジョブ実測（#1228、forbid-unsafe / clippy-wasm32、ubuntu-latest）— 実測済み（2026-08-07、イシュー #1260）
 
