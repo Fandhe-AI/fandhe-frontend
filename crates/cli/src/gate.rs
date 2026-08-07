@@ -1893,14 +1893,30 @@ fn extract_eq_ignore_ascii_case_literals(content: &str, mask: &[bool]) -> Vec<St
     result
 }
 
-/// `content` の各行の開始バイトオフセットを返す（[`scan_file_for_violations`]
-/// と同一方針の前計算。マッチ位置 → 行番号変換を線形走査 1 回で済ませる）。
+/// `content` の各行（`str::lines()` と同一の `\n` 区切り）の開始バイト
+/// オフセットを、`content` の実バイト走査で正確に求める（[`scan_file_for_violations`]
+/// と共有する唯一の前計算。マッチ位置 → 行番号変換を線形走査 1 回で済ませる）。
+///
+/// 旧実装は `content.lines()` が返す行文字列の `len()` を積算して
+/// `offset += line.len() + 1`（改行 = LF 1 バイト固定）としていたが、
+/// `str::lines()` は行末の `\r` を落とすため、CRLF（`\r\n`）ファイルでは
+/// 積算オフセットが実バイト位置より 1 行につき 1 バイトずつ後方へ乖離する。
+/// [`find_raw_html_call_positions`] 等が返すマッチ位置は `content` 上の
+/// 実バイト位置であるため、この乖離が [`offset_to_line_idx`] の二分探索を
+/// 誤った行へマッピングし、未レビュー `raw_html()` 呼び出しをレビュー済みと
+/// 誤判定（偽陰性）または逆に誤検出（偽陽性）させる（イシュー #1266、
+/// windows-latest CRLF checkout での `default_escape_check` 誤爆で発覚）。
+/// 本実装は `\n` バイトの実位置のみを見て行頭を積み上げるため、CRLF・LF
+/// いずれの改行でも `str::lines()` と同一の行境界に対して正確な位置を返す。
 fn line_start_offsets(content: &str) -> Vec<usize> {
-    let mut line_starts = Vec::new();
-    let mut offset = 0usize;
-    for line in content.lines() {
-        line_starts.push(offset);
-        offset += line.len() + 1;
+    if content.is_empty() {
+        return Vec::new();
+    }
+    let mut line_starts = vec![0usize];
+    for (i, b) in content.bytes().enumerate() {
+        if b == b'\n' && i + 1 < content.len() {
+            line_starts.push(i + 1);
+        }
     }
     line_starts
 }
@@ -1985,22 +2001,17 @@ fn scan_file_for_violations(path: &Path, violations: &mut Vec<String>) {
     let Ok(content) = std::fs::read_to_string(path) else {
         return;
     };
+    // `lines` は `str::lines()` 由来で行末の `\r` を含まないが、
+    // `reviewed_attribute_covers_call` の判定は trim ベースのため影響しない
+    // （CRLF 対応で `\r` 込みの実バイト位置が必要なのは `line_starts` 側のみ）。
     let lines: Vec<&str> = content.lines().collect();
-    // 各行の開始バイトオフセットを前計算し、マッチ位置 → 行番号の変換を
-    // 線形走査 1 回で済ませる（ファイルサイズに対して O(n) を維持し、
-    // マッチのたびに先頭から数え直す O(n^2) 化を避ける）。
-    let mut line_starts: Vec<usize> = Vec::with_capacity(lines.len());
-    let mut offset = 0usize;
-    for line in &lines {
-        line_starts.push(offset);
-        offset += line.len() + 1; // `\n` の 1 バイト分（末尾に改行がなくてもズレは許容範囲）。
-    }
+    // 唯一の情報源 [`line_start_offsets`] を再利用する（イシュー #1266で
+    // CRLF 対応済み。かつてここに存在した LF 1 バイト前提の重複実装は
+    // 同一欠陥を二重管理していたため排除した）。
+    let line_starts = line_start_offsets(&content);
 
     for match_start in find_raw_html_call_positions(&content) {
-        let line_idx = match line_starts.binary_search(&match_start) {
-            Ok(i) => i,
-            Err(i) => i.saturating_sub(1),
-        };
+        let line_idx = offset_to_line_idx(&line_starts, match_start);
         if reviewed_attribute_covers_call(&lines, line_idx) {
             continue;
         }
@@ -2592,6 +2603,88 @@ mod tests {
             "default_escape_check must pass when self-applied to this repository: {}",
             check.output
         );
+    }
+
+    /// イシュー #1266: [`line_start_offsets`] が CRLF（`\r\n`）でも実バイト
+    /// 位置を返すことを直接検証する。LF・末尾改行なし・空文字列も併記し、
+    /// 旧実装（`str::lines()` の `len()` 積算、`\r` を落として 1 行 1 バイト
+    /// ずつ乖離）との差分を機械固定する。
+    #[test]
+    fn line_start_offsets_matches_byte_positions_for_crlf_content() {
+        // "a\r\nbb\r\nccc" の実バイト位置: 行0開始=0, 行1開始=3（"a\r\n" の後）,
+        // 行2開始=7（"bb\r\n" の後）。
+        assert_eq!(line_start_offsets("a\r\nbb\r\nccc"), vec![0, 3, 7]);
+
+        // LF のみの場合は従来どおり。
+        assert_eq!(line_start_offsets("a\nbb\nccc"), vec![0, 2, 5]);
+
+        // 末尾に改行がない場合も最終行の開始位置を含む。
+        assert_eq!(line_start_offsets("abc"), vec![0]);
+
+        // 空文字列は行を持たない。
+        assert_eq!(line_start_offsets(""), Vec::<usize>::new());
+
+        // 末尾が改行で終わる場合、末尾直後には新しい行を作らない
+        // （`str::lines()` が末尾の空行を生成しないことと整合）。
+        assert_eq!(line_start_offsets("a\r\n"), vec![0]);
+    }
+
+    /// イシュー #1266: CRLF ファイルでも未レビュー `raw_html()` 呼び出しの
+    /// 報告行番号が正しいこと（検出自体が偽陰性化していないことも兼ねる）。
+    #[test]
+    fn scan_file_reports_correct_line_for_crlf_file() {
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-crlf-unreviewed-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(&file, "fn f() {\r\n    raw_html(x);\r\n}\r\n").unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert_eq!(violations.len(), 1, "violations: {violations:?}");
+        assert!(
+            violations[0].contains("lib.rs:2"),
+            "violations: {violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// イシュー #1266 の直接再現: 前置行を 10 行以上置いた CRLF ファイルで
+    /// レビュー済み `#[expect(...)]` 直下の `raw_html()` 呼び出しが誤検出
+    /// されないこと。旧実装（LF 1 バイト前提の累積オフセット計算）では
+    /// 前置行数に比例して乖離が蓄積し、`reviewed_attribute_covers_call` が
+    /// 誤った行を参照して偽陽性 FAIL していた（windows-latest CRLF checkout
+    /// での `crates/pre-styled-ui/src/stylesheet.rs:202` 誤爆と同型）。
+    #[test]
+    fn scan_file_accepts_reviewed_call_in_crlf_file() {
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-crlf-reviewed-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+
+        let mut src = String::new();
+        for i in 0..15 {
+            src.push_str(&format!("// filler line {i}\r\n"));
+        }
+        src.push_str(
+            "#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: sanitized upstream\")]\r\n",
+        );
+        src.push_str("raw_html(x);\r\n");
+        std::fs::write(&file, &src).unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert!(
+            violations.is_empty(),
+            "reviewed raw_html() call in CRLF file must not be flagged: {violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -3426,6 +3519,36 @@ pub fn is_safe_srcset(value: &str) -> bool {
             "unguarded set_attribute call must be flagged"
         );
         assert!(check.output.contains("lib.rs:2"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// イシュー #1266: U1（`check_url_sink_guard_cooccurrence`）も
+    /// [`line_start_offsets`] を共有するため、CRLF ファイルでも未ガード
+    /// `set_attribute` 呼び出しの報告行番号が正しいことを固定する。
+    #[test]
+    fn url_validation_check_reports_correct_line_for_crlf_file() {
+        let dir = crate::test_scratch::scratch_root()
+            .join(format!("fw-gate-test-url-u1-crlf-{}", std::process::id()));
+        let app_src = dir.join("app").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&app_src).unwrap();
+        std::fs::write(
+            app_src.join("lib.rs"),
+            "fn f(el: &Element, name: &str, v: &str) {\r\n    let _ = el.set_attribute(name, v);\r\n}\r\n",
+        )
+        .unwrap();
+
+        let check = url_validation_check(&component_manifest("app"), &dir);
+        assert!(
+            !check.passed,
+            "unguarded set_attribute call in CRLF file must be flagged"
+        );
+        assert!(
+            check.output.contains("lib.rs:2"),
+            "output: {}",
+            check.output
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
