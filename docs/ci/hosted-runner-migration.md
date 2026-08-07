@@ -205,8 +205,10 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   Enterprise で 500（出典: https://docs.github.com/en/actions/reference/limits ,
   2026-08-07 時点確認）。public リポジトリの標準ランナーは利用自体が無料
   だが、同時実行数の上限はプラン依存の値がそのまま適用される。本リポジトリ
-  の Organization プランが未確認のため、実装時点の Free 相当想定（20）を
-  下限の目安とし、self-hosted プール（20 台）と同水準かそれ以上と見込む。
+  （`Fandhe-AI` Organization）のプランは `gh api /orgs/Fandhe-AI --jq .plan.name`
+  （2026-08-07 実行）により **`team`** と確定した。Team プランの合計同時実行
+  ジョブ数上限は **60** であり、self-hosted プール（20 台）を上回る。
+  実測に基づく検証は §5.8 を参照。
 - **スペック差**: 標準ホステッドランナー（`ubuntu-latest`）は 4 vCPU / 16GB
   RAM が公称スペックであり、self-hosted のスペックは runner ラベル
   （`rust`/`fandhe-server`/`postgres` 等）から専用チューニングされた
@@ -435,6 +437,40 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   大幅に満たす。`clippy-wasm32` も self-hosted 実績（1 分未満〜数十秒）と
   同水準。両ジョブとも `timeout-minutes`（基準 1）以内に収まっている。
 
+### 5.8 Organization プラン・同時実行上限の確定と main push 全ジョブ並列実測（#1261）
+
+- **Organization プランの確定**: `gh api /orgs/Fandhe-AI --jq .plan.name`
+  （2026-08-07 実行）の応答は `team`。GitHub 公式ドキュメント（Actions
+  limits、§5.1 に既出の
+  https://docs.github.com/en/actions/reference/limits ）が示す Team プランの
+  合計同時実行ジョブ数上限 **60** が本リポジトリに適用される確定値であり、
+  self-hosted プール（20 台、全台 `X64`）を上回る。取得コマンドの応答に含まれる
+  seats・filled_seats・private_repos 等の契約詳細（public 未公開の内部情報）は
+  本文書に転記しない（`.claude/rules/security.md` の機微情報露出防止に準拠）。
+- **main push 1 回分の実測対象**: `ci.yml` の run
+  [31147549596](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31147549596)
+  （2026-08-07 04:29 UTC 開始、head SHA `5f6cfeb`、conclusion: success）。
+  `gh api /repos/Fandhe-AI/fandhe-frontend/actions/runs/31147549596/jobs --paginate --jq '.jobs[] | [.name, .status, .conclusion, .created_at, .started_at] | @tsv'`
+  で全ジョブの `created_at`/`started_at` を取得した。
+- **実測結果**: `ci.yml` の全 19 ジョブ（実行 18 件、`check-version-bump`
+  〔`version-bump-guard`〕は main push のため 1 件が `skipped`）は、いずれも
+  `created_at` が同一時刻（04:29:00Z）で一斉にキューへ投入され、`started_at`
+  は 04:29:02Z〜04:29:08Z の範囲に収まった（ギャップは最大 8 秒、大半は
+  2 秒）。このギャップは runner プロビジョニング（VM 起動）に要する時間で
+  あり、**同時実行数の上限超過によるキュー待ちは発生していない**（上限
+  超過時は `created_at` から数分〜数十分単位の `started_at` 遅延が生じる）。
+- **同一 head SHA の他ワークフローを含めた瞬間最大同時実行数**:
+  `gh run list --commit 5f6cfebb158991e26e2e4d6cf99f6a9c0cef5558 --json databaseId,workflowName,status,conclusion,createdAt`
+  で同一コミットに対して同時にトリガーされた他ワークフロー（`deps-check`
+  1 ジョブ・`Docker image size (REQ-9)` 1 ジョブ・`x86_64 musl startup smoke
+  (REQ-9)` 1 ジョブ、いずれも `created_at` 04:29:00Z）を確認した。`ci.yml`
+  の 18 実行ジョブと合わせても瞬間最大同時実行数は **21** であり、上限
+  60 を大きく下回る。
+- **判定**: 実プラン確定値（Team・60）と実測（main push 1 回で最大 21 ジョブ、
+  キュー待ちなし）の両面から、ホステッドランナー移行後の同時実行数はボトル
+  ネックにならないと判断する。§5.1 の「下限の目安」という見積り表記は本節
+  の確定値・実測により裏付けられたため置き換えた。
+
 ## 6. 移行順序と検証手順
 
 - **Phase 1（#1221〜#1226）**: 基盤整備。本イシュー #1225 が設計を確定し、
@@ -537,8 +573,8 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   compilation 専用の高度な sccache 連携等）が判明した場合、専用ツール
   導入を再評価する。
 - GitHub のプラン変更・Actions limits の仕様変更により、同時実行上限
-  （§5.1）が self-hosted プール（20 台）を恒常的に下回る場合、Phase 3
-  以降のジョブ並列度を見直す。
+  （§5.1・§5.8 で確定した Team プラン 60）が self-hosted プール（20 台）を
+  恒常的に下回る場合、Phase 3 以降のジョブ並列度を見直す。
 - ツールバイナリのキャッシュ非対象方針（§3.4）について、SHA256 検証込みの
   導入時間が許容基準を恒常的に超過することが実測（#1227 以降）で判明した
   場合、検証済みバイナリ自体のキャッシュ化を再評価する。
