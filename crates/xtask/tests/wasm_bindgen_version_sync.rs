@@ -14,10 +14,16 @@
 //! 依存追加のユーザー承認を得られない自動運転では「追加しない」側に倒す）。
 //! そのため抽出は行ベースの文字列一致に留める。
 //!
-//! 3 テストの役割分担（イシュー #1218 で 3 本目を追加）:
+//! イシュー #1274（`Fandhe-AI/actions/wasm-tool-install` composite action への
+//! 置換）以降、pin の宣言形式は Dockerfile（shell 代入 `KEY="value"`）と
+//! ci.yml（ワークフローレベル `env:` ブロックの YAML mapping `KEY: "value"`）
+//! で異なる。`extract_quoted_assignment` は両形式を受理する（`: "` / `="` の
+//! いずれかを鍵の直後の区切りとして許容）。
+//!
+//! 4 テストの役割分担（イシュー #1218 で 3 本目、イシュー #1274 で 4 本目を追加）:
 //! 1. `dockerfile_and_ci_pin_wasm_bindgen_version_in_sync_with_cargo_lock`:
 //!    `WASM_BINDGEN_VERSION` の全出現（Dockerfile の x86_64/aarch64 両分岐 +
-//!    ci.yml）と Cargo.lock 解決バージョンの突合。
+//!    ci.yml の env ブロック）と Cargo.lock 解決バージョンの突合。
 //! 2. `dockerfile_and_ci_pin_matching_wasm_bindgen_sha256_for_x86_64_archive`:
 //!    Dockerfile の x86_64 分岐 SHA256 と ci.yml（GitHub-hosted runner は
 //!    x86_64 のみ）の SHA256 の突合。
@@ -26,6 +32,17 @@
 //!    他ファイルとの突合ができないため、既知の正値（PR #1214 の aarch64
 //!    実機 `sha256sum -c` 通過実績）とのハードコード突合で検知する
 //!    （イシュー #1216 評価 §5 の解消方式、イシュー #1218 で解消）。
+//! 4. `ci_yml_wasm_tool_install_steps_reference_env_pins_only`（イシュー #1274）:
+//!    ci.yml の pin は env ブロックへ単一宣言点化されたため、
+//!    `Fandhe-AI/actions/wasm-tool-install` 呼び出しステップが `with:` へ
+//!    リテラル版数/SHA256 を直書きしていないこと（= env コンテキスト参照の
+//!    みであること）を検証し、pin の二重管理の再発を防ぐ。加えて `tool:`
+//!    の値（wasm-bindgen / wasm-pack）と `version:`/`sha256:` が参照する env
+//!    ファミリー（WASM_BINDGEN_* / WASM_PACK_*）の対応も検証し、
+//!    `tool: wasm-pack` に `WASM_BINDGEN_VERSION` を参照させるような
+//!    取り違え（両方とも「env 参照である」ことだけを見る判定では検知でき
+//!    ない）も検知する。呼び出し自体が 1 件も存在しない場合（全ステップの
+//!    誤削除）も fail-closed に検知する。
 
 use std::path::PathBuf;
 
@@ -76,8 +93,8 @@ fn cargo_lock_wasm_bindgen_version() -> String {
         .to_owned()
 }
 
-/// `key="value"` 形式の代入から、キーの直後の `"..."` で囲まれた値のみを
-/// 取り出す。
+/// `key="value"`（shell 代入形式）の代入から、キーの直後の `"..."` で
+/// 囲まれた値のみを取り出す。
 ///
 /// `Dockerfile` の宣言は行末に `; \`（シェル継続）が付くため、閉じ引用符の
 /// 後ろに余分な文字が残る。`strip_suffix` で末尾一致を狙うと `Dockerfile`
@@ -90,23 +107,44 @@ fn extract_quoted_assignment<'a>(line: &'a str, key: &str) -> Option<&'a str> {
     Some(&after_open_quote[..end])
 }
 
-/// 指定した内容から `WASM_BINDGEN_VERSION="..."` の全出現を抽出する。
+/// `key: "value"`（YAML mapping 形式）の代入から値を取り出す。
 ///
-/// `Dockerfile`（x86_64/aarch64 の 2 分岐）・`ci.yml`（複数ジョブ）のいずれも
-/// この形式で固定値を宣言している前提（両ファイルの現行実装を参照）。
+/// イシュー #1274 で ci.yml の pin 宣言をワークフローレベル `env:` ブロック
+/// （YAML mapping）へ集約したため、Dockerfile の shell 代入形式
+/// （`extract_quoted_assignment`）とは区切り文字（`=` vs `: `）が異なる。
+/// 外部 YAML パーサは追加しない方針（REQ-3）のため、行頭一致 + 引用符内
+/// 走査という同型の行ベース抽出に留める。
+fn extract_yaml_quoted_assignment<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+    let after_key = line.trim_start().strip_prefix(key)?.strip_prefix(": ")?;
+    let after_open_quote = after_key.strip_prefix('"')?;
+    let end = after_open_quote.find('"')?;
+    Some(&after_open_quote[..end])
+}
+
+/// 指定した内容から `WASM_BINDGEN_VERSION` 宣言の全出現を抽出する。
+///
+/// `Dockerfile`（x86_64/aarch64 の 2 分岐、shell 代入形式 `KEY="value"`）と
+/// `ci.yml`（ワークフローレベル env ブロック、YAML mapping 形式
+/// `KEY: "value"`）の両形式を受理する（イシュー #1274）。
 fn extract_wasm_bindgen_versions(contents: &str) -> Vec<String> {
     contents
         .lines()
-        .filter_map(|line| extract_quoted_assignment(line, "WASM_BINDGEN_VERSION="))
+        .filter_map(|line| {
+            extract_quoted_assignment(line, "WASM_BINDGEN_VERSION=")
+                .or_else(|| extract_yaml_quoted_assignment(line, "WASM_BINDGEN_VERSION"))
+        })
         .map(str::to_owned)
         .collect()
 }
 
-/// `WASM_BINDGEN_SHA256="..."` の全出現を抽出する。
+/// `WASM_BINDGEN_SHA256` 宣言の全出現を抽出する（両形式対応、イシュー #1274）。
 fn extract_wasm_bindgen_sha256s(contents: &str) -> Vec<String> {
     contents
         .lines()
-        .filter_map(|line| extract_quoted_assignment(line, "WASM_BINDGEN_SHA256="))
+        .filter_map(|line| {
+            extract_quoted_assignment(line, "WASM_BINDGEN_SHA256=")
+                .or_else(|| extract_yaml_quoted_assignment(line, "WASM_BINDGEN_SHA256"))
+        })
         .map(str::to_owned)
         .collect()
 }
@@ -299,4 +337,118 @@ fn dockerfile_pins_known_wasm_bindgen_sha256_for_aarch64_archive() {
          扱い、取得元 https://github.com/rustwasm/wasm-bindgen/releases から \
          正しい値を再確認すること"
     );
+}
+
+/// ci.yml の `Fandhe-AI/actions/wasm-tool-install` 呼び出しステップが、
+/// pin 値を `with:` へリテラル直書きせず、ワークフロー冒頭の env ブロック
+/// （`${{ env.WASM_BINDGEN_VERSION }}` 等）への参照のみで注入していることを
+/// 検証する（イシュー #1274）。
+///
+/// 背景: pin の正を env ブロックへ単一宣言点化した設計は、新規ステップが
+/// リテラル版数/SHA256 を直書きすると同期検知（本ファイル冒頭 2 テスト）の
+/// 対象から漏れてしまう構造的リスクを持つ（env ブロックの値だけを追随
+/// 更新しても、直書きされた古い値が気づかれずに残り得るため）。本テストは
+/// この「二重管理の再発」を fail-closed に検知する。
+///
+/// 呼び出し自体が 1 件も見つからない場合（置換の全体的な巻き戻し・誤削除）
+/// も fail-closed に検知する（`wasm-tool-install` 導入そのものの消失防止）。
+#[test]
+fn ci_yml_wasm_tool_install_steps_reference_env_pins_only() {
+    let ci_contents = read_workspace_file(".github/workflows/ci.yml");
+    let lines: Vec<&str> = ci_contents.lines().collect();
+
+    let uses_indices: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| {
+            line.trim_start()
+                .starts_with("uses: Fandhe-AI/actions/wasm-tool-install")
+        })
+        .map(|(idx, _)| idx)
+        .collect();
+
+    assert!(
+        !uses_indices.is_empty(),
+        "ci.yml に Fandhe-AI/actions/wasm-tool-install の呼び出しが \
+         1 件も見つからない（イシュー #1274 の置換が巻き戻された、または \
+         誤って全削除された可能性）"
+    );
+
+    for &idx in &uses_indices {
+        // `uses:` の直後は `with:` → `tool:` → `version:` → `sha256:` の
+        // 固定順で並ぶ（本ファイル冒頭のリファレンス実装を参照）。範囲を
+        // 直後 6 行に限定し、無関係な後続ステップのコメント等を誤って
+        // 拾わないようにする。
+        let block: Vec<&str> = lines.iter().skip(idx + 1).take(6).copied().collect();
+
+        let tool_line = block
+            .iter()
+            .find(|line| line.trim_start().starts_with("tool:"))
+            .unwrap_or_else(|| {
+                panic!(
+                    "ci.yml の {} 行目付近の wasm-tool-install 呼び出しに \
+                     tool: フィールドが見つからない",
+                    idx + 1
+                )
+            });
+        let version_line = block
+            .iter()
+            .find(|line| line.trim_start().starts_with("version:"))
+            .unwrap_or_else(|| {
+                panic!(
+                    "ci.yml の {} 行目付近の wasm-tool-install 呼び出しに \
+                     version: フィールドが見つからない",
+                    idx + 1
+                )
+            });
+        let sha256_line = block
+            .iter()
+            .find(|line| line.trim_start().starts_with("sha256:"))
+            .unwrap_or_else(|| {
+                panic!(
+                    "ci.yml の {} 行目付近の wasm-tool-install 呼び出しに \
+                     sha256: フィールドが見つからない",
+                    idx + 1
+                )
+            });
+
+        // `tool:` の値ごとに正しい env ファミリー（WASM_BINDGEN_* /
+        // WASM_PACK_*）へのみ参照が許される。`tool: wasm-pack` に対して
+        // `version: ${{ env.WASM_BINDGEN_VERSION }}` を書くような取り違えは、
+        // 単純な「env 参照であるか」だけの判定では見逃す（両方とも env
+        // 参照ではあるため）。これを防ぐため、tool の値で許容する env 名を
+        // 決定してから照合する。
+        let (expected_version_env, expected_sha256_env) = if tool_line.contains("wasm-bindgen") {
+            ("WASM_BINDGEN_VERSION", "WASM_BINDGEN_SHA256")
+        } else if tool_line.contains("wasm-pack") {
+            ("WASM_PACK_VERSION", "WASM_PACK_SHA256")
+        } else {
+            panic!(
+                "ci.yml の {} 行目付近の wasm-tool-install 呼び出しの tool: \
+                 が wasm-bindgen / wasm-pack のいずれでもない（{tool_line}）",
+                idx + 1
+            );
+        };
+
+        let expected_version_ref = format!("${{{{ env.{expected_version_env} }}}}");
+        let expected_sha256_ref = format!("${{{{ env.{expected_sha256_env} }}}}");
+
+        assert!(
+            version_line.contains(&expected_version_ref),
+            "ci.yml の {} 行目付近の wasm-tool-install 呼び出しの version: \
+             が期待される env 参照（{expected_version_ref}）になっていない \
+             （{version_line}）。tool: と version: の env ファミリーの \
+             取り違え（例: wasm-pack に WASM_BINDGEN_VERSION）、またはpin \
+             値のリテラル直書きの可能性がある",
+            idx + 1
+        );
+        assert!(
+            sha256_line.contains(&expected_sha256_ref),
+            "ci.yml の {} 行目付近の wasm-tool-install 呼び出しの sha256: \
+             が期待される env 参照（{expected_sha256_ref}）になっていない \
+             （{sha256_line}）。tool: と sha256: の env ファミリーの \
+             取り違え、またはpin 値のリテラル直書きの可能性がある",
+            idx + 1
+        );
+    }
 }
