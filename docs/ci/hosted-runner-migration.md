@@ -53,7 +53,7 @@ self-hosted 前提で書かれている既存の防御機構を、ホステッ�
 | (a) 共有 `CARGO_TARGET_DIR=/cargo-target` キャッシュ | 複数ジョブ・複数リポが同一 self-hosted ホスト上のディスクを共有し、フィクスチャ名衝突・rlib 汚染（イシュー #1192）が生じる | **不要になる**（ホステッドはジョブごとにクリーンな使い捨て VM）。ただし後述のとおり `actions/cache` 復元時に同型の汚染が再発し得るため、キャッシュキー設計（§3.3）で引き続き回避する |
 | (b) `$HOME/.local/share` へのツール atomic install（`mv -T`） | 複数ジョブが同一 self-hosted ホストを並列に使うため、ダウンロード先の競合（"Shared HOME install races"）を避ける必要があった | ホステッドではジョブごとに VM が独立するため**実害はなくなる**が、pinned + SHA256 検証 + atomic install というパターン自体はサプライチェーン対策（#314 整合）として引き続き有用であり**削除しない**（後述 §4） |
 | (c) `RUNNER_TEMP` 配置原則（イシュー #659） | フィクスチャ専用 `CARGO_TARGET_DIR`・生成物パスを `/tmp` 固定パスでなく `RUNNER_TEMP` 配下に置く | ホステッドでも `RUNNER_TEMP` は提供されるため**不変**。むしろジョブ終了時の自動清掃が徹底されるため相性が良い |
-| (d) `workflow_shared_target_contract.rs` の 2 層防御（イシュー #1192） | (1) `release.yml` の専用 `CARGO_TARGET_DIR` 隔離、(2) `ci.yml` の無ハッシュ cdylib rlib 削除ガード | ホステッドの使い捨て VM では (1) の隔離動機（共有ディスク汚染）は原理的に消えるが、`actions/cache` 導入後は復元されたキャッシュが同型の汚染源になり得るため、**契約テストの再設計（#1226 のスコープ）まで両方とも維持**する。本文書はその要否判断の入力（§3.3 のキー分離方針）のみを確定する |
+| (d) `workflow_shared_target_contract.rs` の 2 層防御（イシュー #1192） | (1) `release.yml` の専用 `CARGO_TARGET_DIR` 隔離、(2) `ci.yml` の無ハッシュ cdylib rlib 削除ガード | ホステッドの使い捨て VM では (1) の隔離動機（共有ディスク汚染）は原理的に消えるが、`actions/cache` 導入後は復元されたキャッシュが同型の汚染源になり得るため、**イシュー #1226 で再設計を完了し、既存 5 テストを全件維持したうえで契約を強化**した。追加した 2 契約は「`target` をキャッシュするジョブへのガードステップ必須化（ci.yml）」「release.yml での `target` キャッシュ禁止」であり、`actions/cache` 未導入の現時点では対象ジョブ 0 件で vacuous に PASS するが、Phase 2 以降のキャッシュ導入 PR がガード付与・target 回避を怠ると即座に FAIL する fail-closed 設計になっている（詳細は `crates/xtask/tests/workflow_shared_target_contract.rs` のモジュール rustdoc §「設計判断」参照） |
 
 ## 3. キャッシュ戦略
 
@@ -105,6 +105,26 @@ fail-open 前提（§3.4）の裏付けとして常に成立していなけれ�
   存続・緩和を判断する際の入力とする。
 - restore-keys は完全一致キーの次に `os + toolchain` までのプレフィックスへ
   フォールバックし、`Cargo.lock` 差分時もある程度のキャッシュヒットを得る。
+- **Phase 2 実装者向けの契約制約（PR #1244 レビュー指摘、イシュー #1226）**:
+  `crates/xtask/tests/workflow_shared_target_contract.rs` の
+  `ci_workflow_jobs_caching_target_must_have_guard_step` は、単にガード
+  ステップが存在するだけでは PASS しない。`target` を含む `actions/cache`
+  ステップを追加するジョブは、(1) `#1192` ガードステップをその **後段**
+  （`actions/cache` の復元はステップ実行時に起きるため、先行するガードは
+  復元後の汚染を除去できない）に置き、(2) ガードが削除するディレクトリ
+  参照（`${{ env.CARGO_TARGET_DIR }}` 等の環境変数名、またはリテラル
+  パス）を、キャッシュしているディレクトリ参照と**完全に一致**させる
+  必要がある（環境変数名が異なる・リテラルパスと環境変数参照が食い違う
+  場合は、ガードが実際には無関係なディレクトリを掃除するだけの no-op に
+  なるため FAIL する）。既存ガードステップ（`${CARGO_TARGET_DIR}/debug/deps/...`
+  を削除）をそのまま後段へ移すだけで、キャッシュ `path:` が
+  `${{ env.CARGO_TARGET_DIR }}` を指す限り本契約は満たされる。加えて
+  (3) ガードは無ハッシュ cdylib rlib **3 種**（wasm-thin/wasm-full/
+  wasm-client）すべてを削除し `rm -rf` を使わないこと（既知 3 ジョブ
+  向けの完全性チェックと同一基準を、target キャッシュを新設する任意の
+  ジョブへも適用する）。ガード本体は 1 パス 1 行の継続行形式
+  （`"…/…rlib" \`）・単一行の `rm -f "a" "b" "c"` 形式のいずれでも
+  検出できる。
 
 ### 3.4 restore 失敗時の挙動と非対象
 
