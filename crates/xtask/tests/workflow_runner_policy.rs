@@ -40,6 +40,19 @@
 //! プロジェクトの runner 方針は本リポジトリ自身の CI 運用（本契約の
 //! 対象）とは別論点であり、拡張するかは別途判断する
 //! （`.claude/rules/out-of-scope-tracking.md` 参照）。
+//!
+//! `.github/workflows/runner-maintenance.yml` も本契約の走査対象から
+//! 一時的に除外する。同ワークフローは旧 self-hosted 方針時代の runner
+//! プール保守専用（`workflow_dispatch` 起点、report-only）であり、方針
+//! 転換後もプールの棚卸し・撤去作業のあいだは稼働自体が self-hosted
+//! runner を対象にせざるを得ない。ワークフロー自体の廃止はイシュー
+//! #1237 で追跡中であり、`.claude/rules/ci.md` の Runner 方針節も同一の
+//! 残置として明記済み（歴史的経緯ではなく現在進行中の既知の未解消
+//! ギャップであり、コメント化で誤魔化さず本契約の対象からファイル単位
+//! で明示除外する）。#1237 完了（ワークフロー廃止 or ホステッド化）後は
+//! この除外を必ず解除すること（除外を残したままにしないよう、解除漏れ
+//! 検知は目視レビューに委ねる：本契約は対象ファイル集合を縮小した時点で
+//! 検知力が下がるため、除外は最小限＝このファイル 1 件に留める）。
 
 use std::path::PathBuf;
 
@@ -123,12 +136,20 @@ fn find_self_hosted_violations(content: &str) -> Vec<(usize, String)> {
         .collect()
 }
 
+/// 本契約の走査から明示除外するファイル名（ベースネーム）の一覧。
+///
+/// `runner-maintenance.yml` はイシュー #1237（ワークフロー自体の廃止）
+/// 完了までの既知の暫定除外（rustdoc「スコープ外」節参照）。除外は
+/// 最小限に留め、新規ワークフローの検知漏れを防ぐ。
+const SCOPE_EXCLUDED_FILE_NAMES: &[&str] = &["runner-maintenance.yml"];
+
 /// `.github/workflows/*.yml` を列挙する。
 ///
 /// `.yaml` 拡張子は本リポジトリでは使われていないが、将来の追加を
 /// 見逃さないよう `.yml` / `.yaml` の双方を対象にする。IO エラーは
 /// fail-closed に即 panic する（環境エラーとテストのすり抜けを区別
-/// しない設計は他契約テストと同型）。
+/// しない設計は他契約テストと同型）。`SCOPE_EXCLUDED_FILE_NAMES` に
+/// 掲載されたファイルは除外する。
 fn workflow_files() -> Vec<PathBuf> {
     let dir = workflows_dir();
     let entries = std::fs::read_dir(&dir)
@@ -143,6 +164,10 @@ fn workflow_files() -> Vec<PathBuf> {
                     path.extension().and_then(|ext| ext.to_str()),
                     Some("yml") | Some("yaml")
                 )
+        })
+        .filter(|path| {
+            let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            !SCOPE_EXCLUDED_FILE_NAMES.contains(&file_name)
         })
         .collect();
     files.sort();
