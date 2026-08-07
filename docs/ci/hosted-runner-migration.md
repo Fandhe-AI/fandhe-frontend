@@ -361,6 +361,20 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   参照）。実測は §5.5 に記録する。**実績（#1236）**: 最後に残った
   `fw-new-windows-verify.yml` を `windows-latest` へ移行し、Phase 3 対象
   ワークフローが完了した。差分検証・実測は §4.3・§5.6 に記録する。
+  **実績（#1233）**: `release.yml`（crates.io 公開）の `verify`/`publish`
+  2 ジョブを `ubuntu-latest` へ移行した。イシュー #1192 由来の専用
+  `CARGO_TARGET_DIR` 隔離（`${{ runner.temp }}/fandhe-frontend-release-target`）
+  は #1226 の設計判断（本文書 §3.3）どおり維持し、`actions/cache` は導入
+  していない（`release_workflow_must_not_cache_target_dir` 契約との整合）。
+  ローカル検証は `cargo test -p xtask --test workflow_shared_target_contract`
+  （28 件全 PASS、release.yml 向け 3 契約 `release_workflow_verify_job_
+  isolates_cargo_target_dir` / `release_workflow_publish_job_isolates_
+  cargo_target_dir` / `release_workflow_must_not_cache_target_dir` を含む）
+  と `cargo test -p xtask`（全件 PASS）で行った。`workflow_dispatch` に
+  よる `mode: dry-run-only` の実 runner 実行検証（受け入れ条件 1）は
+  ブランチを origin へ push した後にのみ実行可能なため、本コミット時点
+  では未実施（push・PR 作成は後続フェーズが担当）。実測 run URL・所要
+  時間は PR 作成後に本節を追記する。
 - **Phase 4**: 全ワークフロー移行完了後、`runner-maintenance.yml`
   （self-hosted プール保守専用）を廃止し、`.claude/rules/ci.md` の
   「runner イメージの常設要件・保守ワークフロー（旧 self-hosted 方針時代の
