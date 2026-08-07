@@ -216,17 +216,55 @@ PowerShell ステップの差分検証が必要になるが、詳細設計は #1
      を検討する。
 - 実測値は #1227（パイロット移行）が本文書 §5.2/§5.3 へ追記する。
 
+### 5.4 パイロット実測（#1227、ubuntu-latest）— 未実測（PR 初回 CI 実行後に追記）
+
+- パイロット対象: `ci.yml` の `fmt`（新設・キャッシュなし）と `clippy`
+  （in-place 移行・`actions/cache` 初適用）の 2 ジョブ。実装コミット時点
+  ではローカル worktree での作業に留まり GitHub Actions は未実行のため、
+  本節の実測値は **push・PR 作成後の CI 実行結果を待って追記する**
+  （コールド 1 回目・ウォーム 2 回目の 2 段階）。ローカルの
+  `cargo clippy`/`cargo fmt --all --check` 実行時間は vCPU 数・キャッシュ
+  状態が ubuntu-latest と異なり比較対象にならないため、ここへ転記しない。
+- **キャッシュ path の事前確認（該当なし）**: `clippy`/`fmt` ジョブは他の
+  一部ジョブ（`template-app-wasm-smoke` 等）と異なり `CARGO_TARGET_DIR` を
+  明示指定していないため、`actions/cache` の `path: target` はワークスペース
+  既定の cargo target dir と一致する（`grep -n CARGO_TARGET_DIR ci.yml` で
+  `clippy`/`fmt` ジョブ内に該当行がないことを確認済み）。
+- 追記予定の実測表（列のみ確定、値は CI 実行後に埋める）:
+
+  | ジョブ | 所要時間（コールド） | 所要時間（ウォーム） | cache restore | cache save | `cargo clippy`/`cargo fmt` ステップ単体 |
+  |--------|---------------------|---------------------|---------------|-----------|----------------------------------------|
+  | `fmt` | (CI 実行後に記載) | — （キャッシュ非対象。§3.1 案 C の位置づけどおり、コンパイル不要ジョブでのキャッシュなし実測サンプルとする） | — | — | (CI 実行後に記載) |
+  | `clippy` | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載、`actions/cache` ステップログの hit/miss) | (CI 実行後に記載、Post ステップの save サイズ) | (CI 実行後に記載) |
+
+- 取得手順: `gh run view <run-id> --json jobs` で `startedAt`〜`completedAt`
+  を取得し、`actions/cache` ステップのログでコールド時は miss（Post ステップ
+  で save）、ウォーム時（2 回目実行）は exact key hit を確認する。
+- **単一 `actions/cache` ステップ（PR 実行でも save を許可）の判断根拠**:
+  §3.4 は「main push で温める」を基本方針とするが、本パイロットでは同一 PR
+  内でコールド → ウォームの両方を実測できるよう、PR 実行でも save させる
+  （通常の `actions/cache` の既定動作をそのまま使う。restore + 成功時 save
+  の単一ステップ構成で、PR 専用の save 抑制は行わない）。これは §3.4 の
+  「main push で温める」を将来的に妨げるものではなく、パイロット期間中の
+  実測可視化を優先した一時的な判断である。
+- 許容基準（§5.3）との照合・キー設計の見直し要否も、CI 実行結果を得てから
+  本節へ追記する。
+
 ## 6. 移行順序と検証手順
 
 - **Phase 1（#1221〜#1226）**: 基盤整備。本イシュー #1225 が設計を確定し、
   #1226 が契約テスト（`workflow_shared_target_contract.rs` 等）を
   キャッシュ戦略（§3.3）に合わせて再設計する。
 - **Phase 2（#1227〜）**: パイロット移行。最小リスクの 1〜2 ワークフロー
-  （例: `docs-site.yml`。外部ネットワーク依存が Pages デプロイのみで
-  crates.io 到達性前提を持たない）を先行してホステッドへ切り替え、実測値を
-  本文書 §5.2/§5.3 へ追記する。**self-hosted と並走期間を残さない**
-  （#1227 受け入れ条件）: パイロット対象ワークフローは切替え完了後に
-  self-hosted 経路を削除し、二重運用を維持しない。
+  を先行してホステッドへ切り替え、実測値を本文書 §5.2/§5.3 へ追記する。
+  **self-hosted と並走期間を残さない**（#1227 受け入れ条件）: パイロット
+  対象ワークフローは切替え完了後に self-hosted 経路を削除し、二重運用を
+  維持しない。**実績（#1227）**: 当初例示していた `docs-site.yml`（外部
+  ネットワーク依存が Pages デプロイのみで crates.io 到達性前提を持たない
+  候補）ではなく、イシューツリーの指定どおり `ci.yml` のツール依存が
+  最小の軽量ジョブ（`fmt` 新設・`clippy` in-place 移行）をパイロット
+  対象として実施した。`actions/cache` の初適用（§3.3/§3.4）はこの
+  `clippy` ジョブで行い、実測は §5.4 に記録する。
 - **Phase 3（#1228〜#1236）**: 残る Linux ワークフロー（`ci.yml`
   18 ジョブ・`release.yml`・`runner-maintenance.yml` 廃止・`deps-check.yml`・
   `musl-smoke.yml`・`image-size.yml`・`update-external.yml`）の順次移行。
