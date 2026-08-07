@@ -12,6 +12,21 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# wasm ツール（wasm-bindgen-cli / wasm-pack）の pin の正（単一宣言点、イシュー #1274）。
+# 各ジョブの導入ステップは Fandhe-AI/actions/wasm-tool-install（full commit SHA 固定）を
+# 呼び出し、ここで宣言した値を with: 経由でのみ注入する（with: へのリテラル直書きは
+# pin の二重管理を再発させるため禁止。crates/xtask/tests/wasm_bindgen_version_sync.rs が
+# env コンテキスト参照のみであることを fail-closed に検証する）。
+# wasm-bindgen-cli は crates/dist-server/build.rs の expected_wasm_bindgen_version が
+# Cargo.lock 解決済み wasm-bindgen クレートとの完全一致を要求するため、バンプ時は
+# Cargo.lock と本ブロック（VERSION / SHA256 の両方）を合わせて更新すること。
+# ドリフトは同テストが fail-closed に検知する。
+env:
+  WASM_BINDGEN_VERSION: "0.2.126"
+  WASM_BINDGEN_SHA256: "064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
+  WASM_PACK_VERSION: "0.13.1"
+  WASM_PACK_SHA256: "c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
+
 jobs:
   # TASK-2.1 (REQ-2): コアクレートの unsafe 不使用を機械的に強制するジョブ。
   # 一次防御 = #![forbid(unsafe_code)] 属性（ビルド時 lint、削除は下記テストが検知）
@@ -340,58 +355,19 @@ jobs:
       # バージョン固定 + SHA256 チェックサム検証付きプリビルトバイナリの導入
       # （browser-test/perf-harness ジョブの wasm-pack 導入と同一パターン、
       # サプライチェーン対策）。
+      # バージョン固定 + SHA256 検証 + atomic install の実装は
+      # Fandhe-AI/actions/wasm-tool-install へ共通化した（イシュー #1274。
+      # 旧実装の atomic install 経緯: 複数ジョブが共有 $HOME の同一固定パスへ
+      # 並列 install すると部分 install が生じ得る問題への対策、Cursor Bugbot
+      # 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291 / コミット 64ecb28）。pin の正は
+      # ワークフロー冒頭の env ブロック。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified, atomic install)
-        # self-hosted 移行に伴い、インストール先を /usr/local/bin から
-        # $HOME/.local/share/wasm-bindgen/<version>/ へ変更する（cargo-deny と
-        # 同じ理由）。ホステッドランナー移行（イシュー #1229）後はジョブごとに
-        # $HOME が独立するため下記の並列衝突は原理的に起きないが、atomic
-        # install ロジック自体は無害であり削除する理由がないため残置する。
-        #
-        # Cursor Bugbot 指摘（BUGBOT_BUG_ID: 1c88c06e、PR #291、"Shared HOME
-        # Chrome install races" の一般形）: 複数ジョブが並列実行される
-        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
-        # download/展開/install すると互いのツリーやバイナリを破損し得る
-        # （実際に「wasm-bindgen 本体のみ存在し wasm-bindgen-test-runner が
-        # 無い不完全な組」が観測された、PR #291 実 CI 実行）。対策として
-        # バージョン文字列をパスに含めた不変パスへインストールし、一時
-        # ディレクトリ（$HOME と同一ファイルシステム上）でダウンロード・
-        # チェックサム検証・展開を完了させたうえで `mv -T`（同一ファイル
-        # システム内なら atomic rename）で最終配置する。mv の終了コードには
-        # 依存せず、失敗時は宛先に完全な成果物が既にあるかで成否を判定する
-        # （coreutils 9.2 以降は `mv -n` が宛先既存時に非ゼロ終了するように
-        # なったため `-n` は使わない。Cursor Bugbot 指摘 High/Medium、
-        # コミット 64ecb28 対応）。`wasm-bindgen` と
-        # `wasm-bindgen-test-runner` は同一の展開ディレクトリを丸ごと
-        # 配置することで常に組として揃う（個別コピーによる部分installを
-        # 排除）。並列実行時に後勝ちの mv はサイレントに no-op となる
-        # （同一バージョンの内容は決定的に同一であるため安全）。
-        run: |
-          set -euo pipefail
-          WASM_BINDGEN_VERSION="0.2.126"
-          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
-          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
-            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
-            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
-            # コメント参照）。
-            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
-                exit 1
-              fi
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        # Fandhe-AI/actions はタグ未作成のため最新コミット SHA に固定する。
+        uses: Fandhe-AI/actions/wasm-tool-install@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+        with:
+          tool: wasm-bindgen
+          version: ${{ env.WASM_BINDGEN_VERSION }}
+          sha256: ${{ env.WASM_BINDGEN_SHA256 }}
 
       - name: Workspace tests
         run: cargo test --workspace --locked
@@ -570,44 +546,15 @@ jobs:
 
       # wasm-pack はバージョン固定 + SHA256 チェックサム検証付きで導入する
       # （実行時の chromedriver 自動ダウンロードと同様、未検証バイナリ取得を避けるサプライ
-      # チェーン対策）。バージョンアップ時はチェックサムも合わせて更新すること。
+      # チェーン対策）。実装は Fandhe-AI/actions/wasm-tool-install へ
+      # 共通化した（イシュー #1274）。pin の正はワークフロー冒頭の env ブロック。
       - name: Install wasm-pack (pinned + checksum-verified)
         if: steps.check.outputs.exists == 'true' || steps.check-wasm-full.outputs.exists == 'true'
-        # self-hosted 移行に伴い、インストール先を /usr/local/bin から
-        # $HOME/.local/share/wasm-pack/<version>/ へ変更する（sudo 不要、かつ
-        # atomic install によるレース対策。詳細は次のコメント）。
-        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
-        # "Shared HOME Chrome install races" の一般形）: バージョン付き不変
-        # パスへ、$HOME と同一ファイルシステム上の一時ディレクトリで検証・
-        # 展開してから `mv -T`（atomic rename）で配置する。mv の終了コードには
-        # 依存せず、失敗時は宛先の実体で成否を判定する（coreutils 9.2 以降の
-        # `mv -n` 非ゼロ終了対策、Cursor Bugbot 指摘 High/Medium、コミット
-        # 64ecb28 対応）。並列実行時の破損・後勝ちレースを避ける（詳細は
-        # wasm-bindgen-cli インストールステップのコメント参照）。
-        run: |
-          set -euo pipefail
-          WASM_PACK_VERSION="0.13.1"
-          WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
-          SHARE_DIR="${HOME}/.local/share/wasm-pack"
-          INSTALL_DIR="${SHARE_DIR}/${WASM_PACK_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/wasm-pack" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${WASM_PACK_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
-            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
-            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
-            # コメント参照）。
-            if ! mv -T "${tmp_root}/wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              [ -x "${INSTALL_DIR}/wasm-pack" ] || { echo "::error::failed to install wasm-pack to ${INSTALL_DIR}" >&2; exit 1; }
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        uses: Fandhe-AI/actions/wasm-tool-install@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+        with:
+          tool: wasm-pack
+          version: ${{ env.WASM_PACK_VERSION }}
+          sha256: ${{ env.WASM_PACK_SHA256 }}
 
       # PR #291 実 CI 実行で判明: `wasm-pack test` は内部で
       # `install::download_prebuilt_or_cargo_install(Tool::WasmBindgen, ...)`
@@ -634,34 +581,13 @@ jobs:
         # ディレクトリで検証・展開してから `mv -T`（mv の終了コードには
         # 依存しない。coreutils 9.2 以降の `mv -n` 非ゼロ終了対策、Cursor
         # Bugbot 指摘 High/Medium、コミット 64ecb28 対応）で配置する。詳細は
-        # test ジョブの同名ステップのコメント参照。
-        run: |
-          set -euo pipefail
-          WASM_BINDGEN_VERSION="0.2.126"
-          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
-          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
-            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
-            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
-            # コメント参照）。
-            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
-                exit 1
-              fi
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        # test ジョブの同名ステップのコメント参照。導入実装は
+        # Fandhe-AI/actions/wasm-tool-install へ共通化した（イシュー #1274）。
+        uses: Fandhe-AI/actions/wasm-tool-install@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+        with:
+          tool: wasm-bindgen
+          version: ${{ env.WASM_BINDGEN_VERSION }}
+          sha256: ${{ env.WASM_BINDGEN_SHA256 }}
 
       # chromedriver のパスはランナー内蔵品（`CHROMEWEBDRIVER` 環境変数、
       # ubuntu-latest がプリインストール）を使う。wasm-bindgen-test-runner
@@ -904,82 +830,27 @@ jobs:
       # wasm-pack はバージョン固定 + SHA256 チェックサム検証付きで導入する
       # （browser-test ジョブと同一バージョン・同一チェックサム。実行時の
       # chromedriver 自動ダウンロードと同様、未検証バイナリ取得を避ける
-      # サプライチェーン対策）。
+      # サプライチェーン対策）。実装は Fandhe-AI/actions/wasm-tool-install へ
+      # 共通化した（イシュー #1274）。pin の正はワークフロー冒頭の env ブロック。
       - name: Install wasm-pack (pinned + checksum-verified)
         if: steps.check.outputs.exists == 'true'
-        # self-hosted 移行に伴い、インストール先を browser-test ジョブと同様に
-        # $HOME/.local/share/wasm-pack/<version>/ へ変更する。
-        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
-        # "Shared HOME Chrome install races" の一般形）: バージョン付き不変
-        # パスへ、$HOME と同一ファイルシステム上の一時ディレクトリで検証・
-        # 展開してから `mv -T`（atomic rename）で配置する。mv の終了コードには
-        # 依存せず、失敗時は宛先の実体で成否を判定する（coreutils 9.2 以降の
-        # `mv -n` 非ゼロ終了対策、Cursor Bugbot 指摘 High/Medium、コミット
-        # 64ecb28 対応）。並列実行時の破損・後勝ちレースを避ける（詳細は
-        # wasm-bindgen-cli インストールステップのコメント参照）。
-        run: |
-          set -euo pipefail
-          WASM_PACK_VERSION="0.13.1"
-          WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
-          SHARE_DIR="${HOME}/.local/share/wasm-pack"
-          INSTALL_DIR="${SHARE_DIR}/${WASM_PACK_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/wasm-pack" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${WASM_PACK_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
-            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
-            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
-            # コメント参照）。
-            if ! mv -T "${tmp_root}/wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              [ -x "${INSTALL_DIR}/wasm-pack" ] || { echo "::error::failed to install wasm-pack to ${INSTALL_DIR}" >&2; exit 1; }
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        uses: Fandhe-AI/actions/wasm-tool-install@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+        with:
+          tool: wasm-pack
+          version: ${{ env.WASM_PACK_VERSION }}
+          sha256: ${{ env.WASM_PACK_SHA256 }}
 
       # browser-test ジョブと同一の理由（PR #291 実 CI 実行で判明: self-hosted の
       # 永続 $HOME に他ジョブが残した不完全な wasm-bindgen 導入を誤検出する
       # 問題への対策。詳細は browser-test ジョブの同名ステップのコメント参照）。
+      # 導入実装は Fandhe-AI/actions/wasm-tool-install へ共通化した（イシュー #1274）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified, provides wasm-bindgen-test-runner)
         if: steps.check.outputs.exists == 'true'
-        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
-        # バージョン付き不変パスへ、$HOME と同一ファイルシステム上の一時
-        # ディレクトリで検証・展開してから `mv -T`（mv の終了コードには
-        # 依存しない。coreutils 9.2 以降の `mv -n` 非ゼロ終了対策、Cursor
-        # Bugbot 指摘 High/Medium、コミット 64ecb28 対応）で配置する。詳細は
-        # test ジョブの同名ステップのコメント参照。
-        run: |
-          set -euo pipefail
-          WASM_BINDGEN_VERSION="0.2.126"
-          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
-          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
-            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
-            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
-            # コメント参照）。
-            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
-                exit 1
-              fi
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        uses: Fandhe-AI/actions/wasm-tool-install@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+        with:
+          tool: wasm-bindgen
+          version: ${{ env.WASM_BINDGEN_VERSION }}
+          sha256: ${{ env.WASM_BINDGEN_SHA256 }}
 
       # chromedriver のパスはランナー内蔵品（`CHROMEWEBDRIVER` 環境変数）を
       # 使う（browser-test ジョブと同一の理由）。
@@ -1047,79 +918,25 @@ jobs:
       # wasm-pack はバージョン固定 + SHA256 チェックサム検証付きで導入する
       # （browser-test/perf-harness ジョブと同一バージョン・同一チェックサム。
       # 実行時の chromedriver 自動ダウンロードと同様、未検証バイナリ取得を
-      # 避けるサプライチェーン対策）。インストール先は $HOME/.local/share/
-      # wasm-pack/<version>/（他ジョブと同一の理由）。
+      # 避けるサプライチェーン対策）。実装は Fandhe-AI/actions/wasm-tool-install
+      # へ共通化した（イシュー #1274）。pin の正はワークフロー冒頭の env ブロック。
       - name: Install wasm-pack (pinned + checksum-verified)
-        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
-        # "Shared HOME Chrome install races" の一般形）: バージョン付き不変
-        # パスへ、$HOME と同一ファイルシステム上の一時ディレクトリで検証・
-        # 展開してから `mv -T`（atomic rename）で配置する。mv の終了コードには
-        # 依存せず、失敗時は宛先の実体で成否を判定する（coreutils 9.2 以降の
-        # `mv -n` 非ゼロ終了対策、Cursor Bugbot 指摘 High/Medium、コミット
-        # 64ecb28 対応）。並列実行時の破損・後勝ちレースを避ける（詳細は
-        # wasm-bindgen-cli インストールステップのコメント参照）。
-        run: |
-          set -euo pipefail
-          WASM_PACK_VERSION="0.13.1"
-          WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
-          SHARE_DIR="${HOME}/.local/share/wasm-pack"
-          INSTALL_DIR="${SHARE_DIR}/${WASM_PACK_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/wasm-pack" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${WASM_PACK_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
-            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
-            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
-            # コメント参照）。
-            if ! mv -T "${tmp_root}/wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              [ -x "${INSTALL_DIR}/wasm-pack" ] || { echo "::error::failed to install wasm-pack to ${INSTALL_DIR}" >&2; exit 1; }
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        uses: Fandhe-AI/actions/wasm-tool-install@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+        with:
+          tool: wasm-pack
+          version: ${{ env.WASM_PACK_VERSION }}
+          sha256: ${{ env.WASM_PACK_SHA256 }}
 
       # browser-test ジョブと同一の理由（PR #291 実 CI 実行で判明: self-hosted の
       # 永続 $HOME に他ジョブが残した不完全な wasm-bindgen 導入を誤検出する
       # 問題への対策。詳細は browser-test ジョブの同名ステップのコメント参照）。
+      # 導入実装は Fandhe-AI/actions/wasm-tool-install へ共通化した（イシュー #1274）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified, provides wasm-bindgen-test-runner)
-        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
-        # バージョン付き不変パスへ、$HOME と同一ファイルシステム上の一時
-        # ディレクトリで検証・展開してから `mv -T`（mv の終了コードには
-        # 依存しない。coreutils 9.2 以降の `mv -n` 非ゼロ終了対策、Cursor
-        # Bugbot 指摘 High/Medium、コミット 64ecb28 対応）で配置する。詳細は
-        # test ジョブの同名ステップのコメント参照。
-        run: |
-          set -euo pipefail
-          WASM_BINDGEN_VERSION="0.2.126"
-          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
-          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
-            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
-            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
-            # コメント参照）。
-            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
-                exit 1
-              fi
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        uses: Fandhe-AI/actions/wasm-tool-install@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+        with:
+          tool: wasm-bindgen
+          version: ${{ env.WASM_BINDGEN_VERSION }}
+          sha256: ${{ env.WASM_BINDGEN_SHA256 }}
 
       # 前提（ホステッドランナー移行、ユーザー指示 2026-08-07。browser-test/
       # perf-harness ジョブと同一パターン。歴史的経緯・判断根拠は browser-test
@@ -1194,34 +1011,17 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       # wasm-bindgen-cli の導入パターンは `test` ジョブと同一（バージョン固定 +
-      # SHA256 チェックサム検証 + atomic install）。`xtask wasm-node-smoke` 自身が
-      # 実行時に Cargo.lock 解決済みバージョンとの完全一致を再検証するため
-      # （`wasm_node_smoke::verify_wasm_bindgen_version`）、二重の fail-closed
-      # ゲートになる。
+      # SHA256 チェックサム検証 + atomic install。実装は
+      # Fandhe-AI/actions/wasm-tool-install へ共通化した、イシュー #1274）。
+      # `xtask wasm-node-smoke` 自身が実行時に Cargo.lock 解決済みバージョンとの
+      # 完全一致を再検証するため（`wasm_node_smoke::verify_wasm_bindgen_version`）、
+      # 二重の fail-closed ゲートになる。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified, atomic install)
-        run: |
-          set -euo pipefail
-          WASM_BINDGEN_VERSION="0.2.126"
-          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
-          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
-                exit 1
-              fi
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        uses: Fandhe-AI/actions/wasm-tool-install@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+        with:
+          tool: wasm-bindgen
+          version: ${{ env.WASM_BINDGEN_VERSION }}
+          sha256: ${{ env.WASM_BINDGEN_SHA256 }}
 
       - name: Setup Node.js
         # npm-asset-build ジョブと同一 SHA 固定。ubuntu-latest（ホステッド
@@ -1284,32 +1084,15 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       # `wasm-node-smoke` ジョブと同一パターン（バージョン固定 + SHA256
-      # チェックサム検証 + atomic install）。バージョン・SHA256 の pin 値は
+      # チェックサム検証 + atomic install。実装は Fandhe-AI/actions/wasm-tool-install
+      # へ共通化した、イシュー #1274）。バージョン・SHA256 の pin 値は
       # 同ジョブと同一（リポジトリ本体 Cargo.lock 解決値、wasm-bindgen 0.2.126）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified, atomic install)
-        run: |
-          set -euo pipefail
-          WASM_BINDGEN_VERSION="0.2.126"
-          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
-          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ]; then
-                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
-                exit 1
-              fi
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        uses: Fandhe-AI/actions/wasm-tool-install@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+        with:
+          tool: wasm-bindgen
+          version: ${{ env.WASM_BINDGEN_VERSION }}
+          sha256: ${{ env.WASM_BINDGEN_SHA256 }}
 
       - name: fw new --template app（フィクスチャ専用 CARGO_TARGET_DIR）
         # フィクスチャ専用パスは `/tmp` 固定ではなく `RUNNER_TEMP`
@@ -1549,39 +1332,16 @@ jobs:
       # 導入する（`test` ジョブと同一バージョン・同一チェックサム。
       # `crates/dist-server/build.rs` の expected_wasm_bindgen_version が Cargo.lock
       # 解決済みバージョンとの完全一致を要求するため、更新時は両方を
-      # 合わせて更新すること）。インストール先を $HOME/.local/share/wasm-bindgen/<version>/
-      # とする（test ジョブと同一の理由。ホステッドランナーはジョブごとに
-      # クリーンな VM のため毎回導入する）。
+      # 合わせて更新すること）。実装は Fandhe-AI/actions/wasm-tool-install へ
+      # 共通化した（イシュー #1274。atomic install の経緯は Cursor Bugbot 指摘
+      # BUGBOT_BUG_ID: 1c88c06e、PR #291）。ホステッドランナーはジョブごとに
+      # クリーンな VM のため毎回導入する。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified)
-        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
-        # 詳細は test ジョブの同名ステップのコメント参照。
-        run: |
-          set -euo pipefail
-          WASM_BINDGEN_VERSION="0.2.126"
-          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
-          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
-            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
-            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
-            # コメント参照）。
-            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
-                exit 1
-              fi
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        uses: Fandhe-AI/actions/wasm-tool-install@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+        with:
+          tool: wasm-bindgen
+          version: ${{ env.WASM_BINDGEN_VERSION }}
+          sha256: ${{ env.WASM_BINDGEN_SHA256 }}
 
       - name: Run rebuild_latency bench
         # xtask 系ジョブと同一の理由（子プロセス終了コード伝播・Cargo.lock
@@ -1653,39 +1413,16 @@ jobs:
       # wasm-bindgen-cli はバージョン固定 + SHA256 チェックサム検証付きで
       # 導入する（`test`/`rebuild-latency` ジョブと同一バージョン・同一
       # チェックサム。バージョンアップ時は Cargo.lock 解決済み wasm-bindgen
-      # と合わせて更新すること）。インストール先は $HOME/.local/share/wasm-bindgen/<version>/
-      # とする（他ジョブと同一の理由。ホステッドランナーはジョブごとに
-      # クリーンな VM のため毎回導入する）。
+      # と合わせて更新すること）。実装は Fandhe-AI/actions/wasm-tool-install へ
+      # 共通化した（イシュー #1274。atomic install の経緯は Cursor Bugbot 指摘
+      # BUGBOT_BUG_ID: 1c88c06e、PR #291）。ホステッドランナーはジョブごとに
+      # クリーンな VM のため毎回導入する。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified)
-        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
-        # 詳細は test ジョブの同名ステップのコメント参照。
-        run: |
-          set -euo pipefail
-          WASM_BINDGEN_VERSION="0.2.126"
-          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
-          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
-            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
-            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
-            # コメント参照）。
-            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
-                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
-                exit 1
-              fi
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        uses: Fandhe-AI/actions/wasm-tool-install@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+        with:
+          tool: wasm-bindgen
+          version: ${{ env.WASM_BINDGEN_VERSION }}
+          sha256: ${{ env.WASM_BINDGEN_SHA256 }}
 
       - name: Run bundle_size test
         # xtask 系ジョブと同一の理由（子プロセス終了コード伝播・Cargo.lock
