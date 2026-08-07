@@ -105,6 +105,20 @@ fail-open 前提（§3.4）の裏付けとして常に成立していなけれ�
   存続・緩和を判断する際の入力とする。
 - restore-keys は完全一致キーの次に `os + toolchain` までのプレフィックスへ
   フォールバックし、`Cargo.lock` 差分時もある程度のキャッシュヒットを得る。
+- **Phase 2 実装者向けの契約制約（PR #1244 レビュー指摘、イシュー #1226）**:
+  `crates/xtask/tests/workflow_shared_target_contract.rs` の
+  `ci_workflow_jobs_caching_target_must_have_guard_step` は、単にガード
+  ステップが存在するだけでは PASS しない。`target` を含む `actions/cache`
+  ステップを追加するジョブは、(1) `#1192` ガードステップをその **後段**
+  （`actions/cache` の復元はステップ実行時に起きるため、先行するガードは
+  復元後の汚染を除去できない）に置き、(2) ガードが削除するディレクトリ
+  参照（`${{ env.CARGO_TARGET_DIR }}` 等の環境変数名、またはリテラル
+  パス）を、キャッシュしているディレクトリ参照と**完全に一致**させる
+  必要がある（環境変数名が異なる・リテラルパスと環境変数参照が食い違う
+  場合は、ガードが実際には無関係なディレクトリを掃除するだけの no-op に
+  なるため FAIL する）。既存ガードステップ（`${CARGO_TARGET_DIR}/debug/deps/...`
+  を削除）をそのまま後段へ移すだけで、キャッシュ `path:` が
+  `${{ env.CARGO_TARGET_DIR }}` を指す限り本契約は満たされる。
 
 ### 3.4 restore 失敗時の挙動と非対象
 

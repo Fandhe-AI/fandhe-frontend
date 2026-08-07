@@ -48,7 +48,19 @@
   「release.yml での `target` キャッシュ禁止」の 2 契約を新設した
   （`actions/cache` 未導入の現時点では vacuous に PASS するが、Phase 2
   以降のキャッシュ導入時にガード欠落・target キャッシュを即座に検知する）。
-  詳細は `docs/ci/hosted-runner-migration.md` §2.1(d) 参照。
+  詳細は `docs/ci/hosted-runner-migration.md` §2.1(d) 参照。**PR #1244 レビュー
+  指摘（イシュー #1226）を受けた追加強化**: 新設 2 契約は「ガードステップの
+  マーカー文字列がジョブ本文のどこかに存在するか」の vacuous な判定では
+  なく、(1) ガードステップが `actions/cache` 復元ステップより**後段**に
+  あること（復元はそのステップ実行時に起きるため、先行するガードは復元後の
+  汚染を除去できない）、(2) ガードが削除するディレクトリ参照（環境変数名/
+  リテラルパス）がキャッシュされているディレクトリ参照と**完全一致**する
+  こと（別ディレクトリを掃除するだけの no-op ガードを弾く）を検証する。
+  target 検出ヒューリスティックも大小文字を区別しない形へ強化し、
+  `path: ${{ env.CARGO_TARGET_DIR }}` のような env 参照形（`target` の語が
+  変数名の一部として大文字でのみ現れる）の見逃しを防ぐ。ステップ検出も
+  ステップ名の完全一致に限定し、無関係なステップ内のコメント引用による
+  誤判定を防ぐ。
 - **`docs-site.yml` の paths フィルタ契約（イシュー #899/#913）**: docs サイトの
   骨格 CSS（`assets/site.css`）は #905 以降ビルド生成物であり、生成元は
   `crates/docs-site/src/site_theme.rs` と `crates/pre-styled-ui`（`Theme::to_css`）。
