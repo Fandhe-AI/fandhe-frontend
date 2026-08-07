@@ -1779,6 +1779,37 @@ jobs:
         # （TASK-4.1 の template_deny_config.rs と同一パターン）。
         run: cargo test -p xtask --test template_negative_type_error --locked
 
+  # イシュー #1227（トラッキング #1220）: rustfmt チェックの CI 強制。従来は
+  # `Makefile` の `lint` ターゲット（`cargo fmt --all --check`）とローカル
+  # lefthook のみが担い、ci.yml 側の強制がなかった（fmt 用ジョブは新設で
+  # あり、self-hosted 側に削除対象の同名ジョブは存在しない）。ホステッド
+  # ランナー移行（#1225）のパイロットとして、コンパイル不要・キャッシュ
+  # 不要の最軽量ジョブを ubuntu-latest 上に新設する
+  # （docs/ci/hosted-runner-migration.md 参照）。
+  fmt:
+    name: "rustfmt check (cargo fmt --check, issue #1227)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        # 既存ジョブ（clippy 等）と同一 SHA ピン。docs/spec サブモジュールは
+        # 本ジョブの検証に不要なため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # 既存ジョブと同一 SHA ピン。フォーマットチェックのみのため
+        # components に rustfmt を追加する（clippy component は不要）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+          components: rustfmt
+
+      - name: cargo fmt --all --check
+        run: cargo fmt --all --check
+
   # イシュー #157（#158/#159、REQ-1）: `raw_html()` 検出の主防御である
   # `clippy::disallowed_methods`（workspace ルート `clippy.toml` が宣言）を
   # CI でも強制するジョブ。イシュー #299 で `--all-targets` へ拡張し、
@@ -1793,15 +1824,25 @@ jobs:
   # 呼び出しが本体コード・テストコードいずれへ入っても本ジョブが
   # `-D warnings` により失敗し、マージをブロックする
   # （方式選定・脅威モデルは docs/design/raw-html-lint-design.md 参照）。
+  #
+  # イシュー #1227（トラッキング #1220）で ubuntu-latest へ移行（in-place。
+  # self-hosted との並走期間は残さない）。`actions/cache` によるキャッシュは
+  # 本ジョブが初適用（docs/ci/hosted-runner-migration.md §3 の確定方針）。
+  # job family prefix `clippy-` で `release.yml` の検証ビルド（専用
+  # CARGO_TARGET_DIR で隔離済み・actions/cache 不使用）とキャッシュを分離し、
+  # イシュー #1192 型の rlib 汚染がキャッシュ経由で流入する経路を作らない。
   clippy:
     name: REQ-1 raw_html() 検出（clippy disallowed_methods, issue #157）
-    runs-on: self-hosted
-    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    # クリーンな使い捨て VM でのフルコールドビルド（cargo clippy --workspace
+    # --all-targets）の上振れ余地を見込み、self-hosted 時代の 20 分から
+    # 引き上げる（実測は docs/ci/hosted-runner-migration.md §5.4 参照）。
+    timeout-minutes: 40
     # forbid-unsafe ジョブと同じ理由で dist-server の WASM ネストビルドを
     # オプトアウトする: `cargo clippy --workspace` は crates/dist-server/build.rs 経由で
-    # ネストした cargo build + wasm-bindgen 起動を伴うが、本ジョブの runner には
-    # wasm32 ターゲット・wasm-bindgen-cli の常設保証がなく、build.rs 側の
-    # panic（wasm-bindgen-cli 不在）で本ジョブ本来の目的（raw_html() 検出）と
+    # ネストした cargo build + wasm-bindgen 起動を伴うが、本ジョブでは wasm32
+    # ターゲット・wasm-bindgen-cli を導入しておらず、build.rs 側の panic
+    # （wasm-bindgen-cli 不在）で本ジョブ本来の目的（raw_html() 検出）と
     # 無関係に失敗する。統合ビルドの実証は別ジョブ（test 等）が担う。
     env:
       FANDHE_FRONTEND_WASM_BUILD: "0"
@@ -1815,8 +1856,10 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
-        # cargo 未導入インスタンスが混在し得るための保険）。加えて本ジョブは
+        id: toolchain
+        # 既存ジョブと同一 SHA 固定。ubuntu-latest にも Rust は入っているが
+        # バージョン決定性のため明示 pin を維持する（他ジョブと同一方針、
+        # docs/ci/hosted-runner-migration.md §4.2）。加えて本ジョブは
         # clippy component を必須とするため components: clippy を明示する
         # （既に導入済みのツールチェーンでは何もしない。未導入時の新規セット
         # アップでも clippy が確実に含まれるようにする安全策）。
@@ -1824,6 +1867,27 @@ jobs:
         with:
           toolchain: stable
           components: clippy
+
+      - name: "cache: cargo registry + target（イシュー #1227、docs/ci/hosted-runner-migration.md §3.3/§3.4）"
+        # actions/cache v6.1.0（GitHub 公式・フル SHA ピン、他ジョブと同一の
+        # 外部 action 採否パターン）。job family prefix `clippy-` で
+        # release.yml の検証ビルド（専用 CARGO_TARGET_DIR 隔離・cache 不使用）
+        # と分離し、イシュー #1192 型の rlib 汚染がキャッシュ経由で流入する
+        # 経路を作らない。miss 時はフルビルドへ自然にフォールバックする
+        # fail-open 設計であり、正当性の前提にしない（restore/save いずれの
+        # 失敗もジョブを失敗させない）。ツールバイナリ（clippy component 等）
+        # はキャッシュ対象に含めず、SHA256 検証付き導入の経路を維持する
+        # （§3.4）。
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: clippy-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            clippy-${{ runner.os }}-${{ steps.toolchain.outputs.cachekey }}-
 
       - name: Show toolchain
         run: rustup show && cargo --version
