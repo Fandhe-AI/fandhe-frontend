@@ -20,9 +20,9 @@ name: release
 #
 # crates.io 到達性の前提: 本ワークフローの各ステップ（既公開バージョン検証・
 # cargo package/publish 系コマンド）は crates.io（https://index.crates.io ・
-# https://static.crates.io）への到達性を前提とする。self-hosted runner が
-# 到達不可の場合はステップが失敗するが、これは環境エラーであり本ワークフロー
-# の設計不備ではない（.claude/rules/ci.md「ツール前提の明示」参照）。
+# https://static.crates.io）への到達性を前提とする。runner が到達不可の場合は
+# ステップが失敗するが、これは環境エラーであり本ワークフローの設計不備では
+# ない（.claude/rules/ci.md「ツール前提の明示」参照）。
 #
 # fandhe-frontend-dist-server を公開する場合の注意: 同クレートの build.rs は
 # WASM ビルドステージ（wasm32 target・wasm-bindgen-cli）を要求する。現時点の
@@ -97,7 +97,9 @@ concurrency:
 jobs:
   verify:
     name: "verify: guards + cargo publish --dry-run (${{ inputs.crate }})"
-    runs-on: self-hosted
+    # イシュー #1233（トラッキング #1220）で ubuntu-latest へ移行（in-place、
+    # 並走期間なし）。設計判断の正は docs/ci/hosted-runner-migration.md。
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       # workflow_dispatch 入力を ${{ }} で run 本文へ直接展開しない
@@ -119,17 +121,25 @@ jobs:
       # 実行する。cdylib+rlib クレート（wasm-thin/wasm-full/wasm-client）の
       # rlib はメタデータハッシュサフィックスなしの固定ファイル名
       # （libfandhe_frontend_wasm_thin.rlib 等、cdylib の動的ライブラリ名を
-      # 安定させる cargo の仕様）で出力されるため、共有 CARGO_TARGET_DIR
-      # （self-hosted runner 既定の /cargo-target）上で本検証ビルドを実行すると、
-      # 通常のワークスペースビルド（path 依存で解決）が生成した無ハッシュ rlib を
+      # 安定させる cargo の仕様）で出力されるため、この隔離を怠ると通常の
+      # ワークスペースビルド（path 依存で解決）が生成した無ハッシュ rlib を
       # registry 依存の内容で上書きしてしまう。後続の `cargo test --workspace`
       # 等が fingerprint fresh 判定でこの汚染済み rlib を再ビルドせずリンクすると、
       # 「there are multiple different versions of crate `fandhe_frontend_interactive`
       # in the dependency graph」（E0277/E0599）の flaky を引き起こす
       # （実際に PR #1164/#1180/#1186/#1187 で観測、根本原因はイシュー #1192
-      # コメントで再現手順とともに記録）。専用 CARGO_TARGET_DIR を
-      # RUNNER_TEMP 配下（イシュー #659 の配置原則）に隔離することで
-      # 汚染源を断つ（ジョブ終了時に runner が自動清掃するため残置しない）。
+      # コメントで再現手順とともに記録）。ubuntu-latest（イシュー #1233）は
+      # ジョブごとのクリーンな使い捨て VM のため「共有ディスク汚染」という
+      # 当初動機は消えるが、packaged コピー検証ビルドとワークスペースビルドの
+      # 分離自体は runner 種別非依存で正しく、将来 `actions/cache` を導入した
+      # 際に汚染済み rlib をキャッシュへ保存しない保証としても機能するため、
+      # イシュー #1226 の再設計で「維持」と確定済み（この判断は
+      # `crates/xtask/tests/workflow_shared_target_contract.rs` の
+      # `release_workflow_must_not_cache_target_dir` が target 系パスの
+      # `actions/cache` 導入を禁止する契約として固定している）。専用
+      # CARGO_TARGET_DIR を RUNNER_TEMP 配下（イシュー #659 の配置原則）に
+      # 隔離することで汚染源を断つ（ジョブ終了時に runner が自動清掃するため
+      # 残置しない）。
     steps:
       - name: Checkout
         # actions/checkout（deps-check.yml / update-external.yml と同一コミットに固定）。
@@ -140,9 +150,10 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
-        # self-hosted runner プールには cargo が PATH 上に存在しないインスタンスが
-        # 混在し得るため、deps-check.yml と同様に dtolnay/rust-toolchain（同一
-        # コミットに SHA 固定）で cargo の存在を保証する。
+        # ubuntu-latest はジョブごとに初期化される使い捨て VM のため cargo の
+        # 毎ジョブ導入が主経路になる（イシュー #1233、deps-check.yml と同様の
+        # 読み替え）。dtolnay/rust-toolchain（同一コミットに SHA 固定）で
+        # バージョン決定性とサプライチェーンリスク抑制を維持する。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -201,12 +212,13 @@ jobs:
             INDEX_PATH="${CRATE:0:2}/${CRATE:2:2}/${CRATE}"
           fi
           URL="https://index.crates.io/${INDEX_PATH}"
-          # 固定パスの一時ファイルは、別クレートの release 実行が同一
-          # self-hosted runner 上で並行に走った際（concurrency group は
+          # 固定パスの一時ファイルは、ubuntu-latest のジョブごとに独立した
+          # 使い捨て VM では別クレートの release 実行と衝突する経路は消えるが
+          # （イシュー #1233）、mktemp + trap による都度生成・清掃は無害かつ
+          # 多層防御として維持する（concurrency group は
           # 'release-${{ inputs.crate }}' でクレート単位のみ直列化するため、
-          # 異クレート間の並行実行はあり得る）に競合・上書きされ、後続の
-          # grep が別クレートのインデックス内容を読んで既公開バージョンの
-          # 誤判定を招く。ジョブ・実行ごとに一意な一時ファイルを都度生成する
+          # 異クレート間の並行実行時に将来 runner 構成が変わっても安全側に働く）。
+          # ジョブ・実行ごとに一意な一時ファイルを都度生成する
           # （ci.yml の共有 CARGO_TARGET_DIR 対策と同様の考え方、mktemp 採用）。
           INDEX_BODY_FILE="$(mktemp "${RUNNER_TEMP:-/tmp}/release-index-body.XXXXXX.json")"
           trap 'rm -f "${INDEX_BODY_FILE}"' EXIT
@@ -269,7 +281,9 @@ jobs:
     # publish モードのみ実行。dry-run-only（既定・安全側）では本ジョブ自体が
     # スキップされ、environment の保護ルールにも到達しない。
     if: ${{ inputs.mode == 'publish' }}
-    runs-on: self-hosted
+    # イシュー #1233（トラッキング #1220）で ubuntu-latest へ移行（in-place、
+    # 並走期間なし）。設計判断の正は docs/ci/hosted-runner-migration.md。
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     # GitHub Environments による承認ゲート（fandhe-backend release.yml と同型の
     # job レベル name 指定）。environment の保護ルールが通るまで publish は
@@ -297,6 +311,8 @@ jobs:
           persist-credentials: false
 
       - name: Setup Rust toolchain
+        # verify ジョブと同じ理由（イシュー #1233、使い捨て VM での毎ジョブ
+        # 導入）で dtolnay/rust-toolchain（同一コミットに SHA 固定）を使う。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
