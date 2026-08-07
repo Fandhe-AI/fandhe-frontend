@@ -127,11 +127,33 @@ Windows ランナー上で `gh workflow run fw-new-windows-verify.yml --ref
 
 実測の取得手順は `docs/ci/hosted-runner-migration.md` §5.6 を参照。
 
+### 4.4 #1266 是正後の PASS 実測（2026-08-07）
+
+#1266 是正（PR #1268）に加え、再 dispatch で顕在化したハーネス側の pwsh
+スクリプトバグ 2 件（ParserError → PR #1269、残留 `$LASTEXITCODE` の偽陽性
+失敗 → PR #1270。経緯は `docs/ci/hosted-runner-migration.md` §5.6a）を是正
+した後の dispatch で、**全検証項目 PASS** を取得した。
+
+| 項目 | 値 |
+|------|----|
+| run URL | [run 31161619000](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/31161619000)（main、2026-08-07T08:25:18Z 起動、`conclusion: success`） |
+| OS | Microsoft Windows Server 2025（ホステッド `windows-latest`） |
+| rustc | 1.97.1（8bab26f4f 2026-07-14、`stable-x86_64-pc-windows-msvc`） |
+| 所要時間 | job 全体 約 49 秒（08:25:25Z→08:26:14Z）。`cargo build` 約 15 秒 / `cargo test --bin fw` 約 16 秒 / `new_e2e` 約 1 秒 / smoke 約 1 秒 |
+
+| 検証項目 | 結果 |
+|---------|------|
+| ビルド（`cargo build`） | PASS |
+| `cargo test -p fandhe-frontend-cli --bin fw` | PASS（#1266 の CRLF 修正により §4.3 の FAIL から転化） |
+| `new_e2e` 決定性 | PASS（19 passed） |
+| default・app・embed のバイト決定性 | PASS（default 15 / app 19 / embed 2 ファイル、2 回実行でバイト一致） |
+| fail-closed・`--force` 契約 | PASS（3 テンプレートとも） |
+| 未知テンプレート exit 2 | PASS |
+| executable フラグ no-op 生成 | PASS（`tools/npm-asset-build/*` 3 ファイル生成確認） |
+
 ## 5. クローズ方針
 
 Windows 実機での **PASS** 実測結果が本レポートへ記録されるまで
-イシュー #413 はクローズしない（#295 と同型の運用）。ホステッド移行
-（#1236）により runner 調達待ちの状態は解消し、初回 dispatch も実行
-できたが（§4.3）、`cargo test --bin fw` ステップが #1266 の欠陥で
-FAIL したため、PASS 記録という充足条件は本 dispatch 時点では未充足の
-まま維持する。
+イシュー #413 はクローズしない（#295 と同型の運用）としてきたが、
+§4.4 の PASS 記録によりこの充足条件は**満たされた**。#413 はクローズ
+可能である（クローズ操作自体は本レポートの記録範囲外）。
