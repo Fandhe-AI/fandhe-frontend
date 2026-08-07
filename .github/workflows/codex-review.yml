@@ -1,0 +1,43 @@
+# Fandhe-AI/actions の codex-review reusable workflow を呼び出す薄い wrapper。
+# 導入経緯: イシュー #1275（親トラッキング #1272）。Fandhe-AI/actions#31（README 整備）・
+# #32（ホステッドランナー既定リポジトリへの適用方針整理）は完了済みであり、同リポジトリの
+# 公開 public テンプレート（codex-review/templates/codex-review.public.yml）をそのまま導入する。
+# 導入手順・runner 要件は Fandhe-AI/actions の codex-review/README.md「セットアップ」を参照。
+name: Codex PR review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+# reusable workflow のトップレベル concurrency は機能しないため呼び出し側で設定する
+concurrency:
+  group: codex-review-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  codex-review:
+    # SHA はコミットハッシュで固定する（@main 不可、サプライチェーン対策）。
+    # 固定 SHA 時点の reusable workflow 本体は導入時にレビュー済み（fork PR 拒否・
+    # sudo 不在の fail-closed 検証・base コミット参照・資格情報スキャン・2 ジョブ分離）
+    uses: Fandhe-AI/actions/.github/workflows/codex-review.yml@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+    permissions:
+      contents: read
+      pull-requests: write
+    # codex ジョブは runner-label（既定値 codex）のまま、self-hosted な codex 専用 runner を
+    # 使う。本リポジトリの CI 方針（.claude/rules/ci.md、GitHub ホステッドランナー既定）に
+    # おいて認められた唯一の例外である（ユーザー承認済み 2026-08-07）。fork PR では
+    # reusable workflow 側の if 条件が fail-closed で実行を拒否するため、untrusted コードが
+    # self-hosted runner 上で実行されることはない。本ファイルの非コメント行に
+    # `self-hosted` の文字列は現れない（runner-label は既定値経由で参照するのみ）ため、
+    # `crates/xtask/tests/workflow_runner_policy.rs` の機械強制と両立する。この例外の
+    # 規約側への反映（.claude/rules/ci.md への追記）はイシュー #1276 で行う。ここでは指定しない。
+    with:
+      # post-feedback-runner-label の既定値は self-hosted であり、public リポジトリの
+      # ホステッドランナー既定方針に反する。コメント投稿ジョブは資格情報に触れないため
+      # 必ず ubuntu-latest（GitHub ホステッド）を明示する。
+      # 詳細は Fandhe-AI/actions の docs/runner-policy.md「3. 例外: codex-review」を参照。
+      post-feedback-runner-label: ubuntu-latest
