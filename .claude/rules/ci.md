@@ -40,7 +40,15 @@
   ステップの削除対象は固定ファイル名のみとし、glob・`rm -rf` は用いない
   （A01 パストラバーサル・広域削除の防止、`security.md` 参照）。この 2 層の
   対策宣言は `crates/xtask/tests/workflow_shared_target_contract.rs` が
-  fail-closed に固定しており、削除・弱体化しない。
+  fail-closed に固定しており、削除・弱体化しない。**イシュー #1226 で
+  ホステッドランナー前提へ契約を再設計済み**: 既存 5 テストは全件維持し
+  （ホステッドの使い捨て VM では共有ディスク汚染の動機は消えるが
+  `actions/cache` 復元時に同型汚染が再発し得るため）、加えて
+  「`target` をキャッシュするジョブへのガードステップ必須化（ci.yml）」
+  「release.yml での `target` キャッシュ禁止」の 2 契約を新設した
+  （`actions/cache` 未導入の現時点では vacuous に PASS するが、Phase 2
+  以降のキャッシュ導入時にガード欠落・target キャッシュを即座に検知する）。
+  詳細は `docs/ci/hosted-runner-migration.md` §2.1(d) 参照。
 - **`docs-site.yml` の paths フィルタ契約（イシュー #899/#913）**: docs サイトの
   骨格 CSS（`assets/site.css`）は #905 以降ビルド生成物であり、生成元は
   `crates/docs-site/src/site_theme.rs` と `crates/pre-styled-ui`（`Theme::to_css`）。
