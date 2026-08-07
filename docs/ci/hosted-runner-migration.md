@@ -162,8 +162,8 @@ jq・node・Chrome（+ chromedriver）が標準搭載されている。本リポ
 | ツール | 現行パターン | 移行後の扱い |
 |--------|-------------|-------------|
 | Rust toolchain | `dtolnay/rust-toolchain`（SHA ピン） | 不変。ubuntu-latest にも Rust は入っているが、バージョン決定性のため明示 pin を維持する |
-| wasm-bindgen-cli | pinned + SHA256 検証 + `$HOME/.local/share` atomic install | 不変。`crates/dist-server/build.rs` のネスト WASM ビルドが要求するバージョンと一致させる契約（`crates/xtask/tests/wasm_bindgen_version_sync.rs`）も不変 |
-| wasm-pack | pinned + SHA256 検証 + atomic install | 不変 |
+| wasm-bindgen-cli | pinned + SHA256 検証 + `$HOME/.local/share` atomic install | **イシュー #1274 で `Fandhe-AI/actions/wasm-tool-install`（full commit SHA ピン）へ置換済み**。バージョン固定 + SHA256 検証 + atomic install の実装は同 action へ共通化し、pin の正は `ci.yml` 冒頭のワークフローレベル `env` ブロックへ単一宣言点化した。`crates/dist-server/build.rs` のネスト WASM ビルドが要求するバージョンと一致させる契約（`crates/xtask/tests/wasm_bindgen_version_sync.rs`）は不変（同テストは ci.yml の YAML mapping 形式・Dockerfile の shell 代入形式の両方を抽出し、`with:` へのリテラル直書きも fail-closed に検知する） |
+| wasm-pack | pinned + SHA256 検証 + atomic install | イシュー #1274 で wasm-bindgen-cli と同様に `Fandhe-AI/actions/wasm-tool-install` へ置換済み。`Dockerfile` 側は本置換の対象外（Docker ビルド内では composite action を使えないため）で不変 |
 | Chrome for Testing + chromedriver | pinned + SHA256 検証（`browser-test`/`perf-harness`/`xss-wasm-test`） | **判断: pinned install を維持する**（プリインストール版へ切替えない）。バージョン決定性（chromedriver とのプロトコル一致）を優先し、ubuntu-latest の週次更新される Chrome に依存すると再現性が失われるため |
 | cargo-deny / clippy component / wasm32 target | `tools/ci/ensure-gate-tools.sh`（バージョン固定 + SHA256 検証の正はこのスクリプト） | 不変。self-hosted の「常設が保証されない」前提で書かれていたが、ホステッドでは**毎ジョブ導入が主経路になる**（`.claude/rules/ci.md` に明記済みの方針を踏襲） |
 | node/npm | `actions/setup-node`（SHA ピン） | 不変。ubuntu-latest にも node は入っているが、バージョン固定のため明示セットアップを維持する |
