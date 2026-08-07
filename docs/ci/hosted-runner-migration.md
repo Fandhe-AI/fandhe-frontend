@@ -162,6 +162,19 @@ PowerShell ステップの差分検証が必要になるが、詳細設計は #1
 し、本文書では概要のみ記載する。ツール導入パターン（pinned + SHA256
 検証）自体は Windows でも同一方針を維持する想定。
 
+**実績（#1236）**: `runs-on: windows-latest` へ切替え、パス区切り・改行コード・
+PowerShell ステップの差分検証を実施した結果、既存の pwsh スクリプトは
+`Join-Path`/`\` ベースで記述済みであり、`RUNNER_TEMP`・`Get-CimInstance`・
+`RUNNER_NAME` もホステッド Windows で同様に提供されるため無修正で動作した
+（差分ゼロ）。旧 self-hosted 前提（Windows runner への rustup/MSVC Build
+Tools/git 常設）は `windows-latest`（actions/runner-images）のプリインストール
+内容で満たされるため、ツール導入ステップの追加は不要だった。preflight の
+fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時の検知網として
+削除せず維持した。`actions/cache` は本ワークフローが `workflow_dispatch`
+専用の低頻度実行でウォームキャッシュが期待できないため導入していない
+（§3.1 案 C の位置づけ）。`timeout-minutes` はホステッド Windows のコールド
+ビルド分を見込み 30 → 45 分へ拡大した。実測は §5.6 参照。
+
 ## 5. 並列度・所要時間見積りと許容基準
 
 ### 5.1 並列度の比較
@@ -279,6 +292,28 @@ PowerShell ステップの差分検証が必要になるが、詳細設計は #1
   （§3.2 の条件: 実測が `timeout-minutes`・許容基準を恒常的に超える場合の
   み検討）も、CI 実行結果を得てから本節へ追記する。
 
+### 5.6 Windows 移行実測（#1236、windows-latest）— 未実測（dispatch 実行後に追記）
+
+- 移行対象: `fw-new-windows-verify.yml`（`workflow_dispatch` 専用、イシュー #413
+  の `fw new` 非 Unix パーミッション挙動の実機検証ハーネス）。旧 self-hosted
+  時代は Windows ラベルの runner が一度も調達されておらず本ワークフローは
+  一度も実行されていなかった（`docs/reports/fw-new-windows-verification-report.md`
+  §4.2）。§4.3 が概要を確定した `windows-latest` 移行後、初めて実機で PASS を
+  成立させる。
+- 追記予定の実測表（列のみ確定、値は dispatch 実行後に埋める）:
+
+  | job 所要時間 | `cargo build` ステップ単体 | `cargo test --bin fw` ステップ単体 | `cargo test --test new_e2e` ステップ単体 | smoke ステップ単体 |
+  |-------------|----------------------------|--------------------------------------|--------------------------------------------|---------------------|
+  | (dispatch 実行後に記載) | (dispatch 実行後に記載) | (dispatch 実行後に記載) | (dispatch 実行後に記載) | (dispatch 実行後に記載) |
+
+- 取得手順: `gh workflow run fw-new-windows-verify.yml --ref <branch>` で
+  dispatch し、`gh run view <run-id> --json jobs` で `startedAt`〜
+  `completedAt` を取得する。
+- 許容基準（§5.3）は self-hosted 実績（一度も実行されていないため比較対象
+  なし）を持たないため、`timeout-minutes: 45` 以内に収まることのみを判定
+  基準とする。実測値・検証項目 7 件の PASS 結果は
+  `docs/reports/fw-new-windows-verification-report.md` §4.3 へ記録する。
+
 ## 6. 移行順序と検証手順
 
 - **Phase 1（#1221〜#1226）**: 基盤整備。本イシュー #1225 が設計を確定し、
@@ -303,7 +338,9 @@ PowerShell ステップの差分検証が必要になるが、詳細設計は #1
   Docker）対応（"Resolve own container ID" による CID 解決 +
   `--network container:<runner CID>` 分岐）をホストポート公開の単一経路へ
   簡素化した（撤去理由・詳細は両ワークフロー YAML のジョブ冒頭コメント
-  参照）。実測は §5.5 に記録する。
+  参照）。実測は §5.5 に記録する。**実績（#1236）**: 最後に残った
+  `fw-new-windows-verify.yml` を `windows-latest` へ移行し、Phase 3 対象
+  ワークフローが完了した。差分検証・実測は §4.3・§5.6 に記録する。
 - **Phase 4**: 全ワークフロー移行完了後、`runner-maintenance.yml`
   （self-hosted プール保守専用）を廃止し、`.claude/rules/ci.md` の
   「runner イメージの常設要件・保守ワークフロー（旧 self-hosted 方針時代の

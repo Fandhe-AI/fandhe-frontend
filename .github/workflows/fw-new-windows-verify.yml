@@ -7,14 +7,23 @@ name: fw new Windows verification
 # ハーネスであり、以下の理由から CI（pull_request/push）には組み込まず workflow_dispatch
 # 専用とする。
 #
-#   - Windows ラベルの self-hosted runner がプールに存在するかどうかは本リポジトリの
-#     管理外（インフラ側作業、docs/ci/ci-runner-requirements.md 同様の運用）。
-#   - runner 不在のまま PR トリガーに組み込むと、ジョブが永久 queue 待ちになり CI 全体を
-#     ブロックする（runner-maintenance.yml と同じ fail-safe 方針）。
+#   - 検証対象（Windows 固有の non-Unix 分岐）自体は Linux CI の `cargo test`
+#     （`crates/cli/tests/new_e2e.rs` の `#[cfg(not(unix))]` 分岐）で論理検証済みであり、
+#     毎 PR での Windows 実機実行を常設する必要はない（PR トリガー化の要否は
+#     ホステッド移行スコープ外として据え置く）。
+#   - フィクスチャ生成・`cargo build`/`cargo test` を含み実行時間が長いため、PR の
+#     クリティカルパスへ組み込むと必須チェック合計時間を押し上げる。
 #
-# `runs-on: self-hosted` 既定（.claude/rules/ci.md）に従い、GitHub ホステッドの
-# `windows-latest` は使わない（採用しない理由は docs/ci/ci-runner-requirements.md
-# 「Windows self-hosted runner の常設要件」節に判断根拠ごと記録する）。
+# ホステッドランナー移行（トラッキング #1220、実装 #1236）: 旧方針
+# （`runs-on: [self-hosted, Windows]`。Windows ラベルの self-hosted runner が
+# 一度も調達されておらず本ワークフローは一度も実行されていなかった、
+# docs/reports/fw-new-windows-verification-report.md §4.2）を廃止し、GitHub
+# ホステッドの `windows-latest` へ移行した。public リポジトリのため標準ホステッド
+# ランナーは無料・分数消費なし（`.claude/rules/ci.md` Runner 方針）。旧
+# self-hosted 前提（Windows runner への rustup/MSVC Build Tools/git 常設、
+# docs/ci/ci-runner-requirements.md 「Windows self-hosted runner の常設要件」節）は
+# `windows-latest`（actions/runner-images）のプリインストール内容へ読み替える
+# （詳細・実測は docs/ci/hosted-runner-migration.md §4.3・§5.6 参照）。
 on:
   workflow_dispatch:
 
@@ -24,24 +33,26 @@ permissions:
 jobs:
   verify:
     name: Verify fw new on Windows (generation / determinism / non-Unix permission no-op)
-    runs-on: [self-hosted, Windows]
+    runs-on: windows-latest
     defaults:
       run:
         shell: pwsh
-    # フィクスチャ生成・cargo test を含むため長時間化を見込んでも 30 分で打ち切る
-    # （runner 詰まり時に他ジョブを塞がないための保険、ci.md 方針に準拠）
-    timeout-minutes: 30
+    # フィクスチャ生成・cargo test を含むため長時間化を見込んでも打ち切る
+    # （他ジョブを塞がないための保険、ci.md 方針に準拠）。ホステッド Windows は
+    # self-hosted 実績比でキャッシュなしコールドビルドとなり遅くなるため
+    # 30 分 → 45 分へ拡大した（#1236。実測後に §5.6 の値を見て再調整する）。
+    timeout-minutes: 45
     steps:
       - name: Checkout
         # ci.yml と同一 SHA 固定（docs/spec サブモジュールは本検証に不要のため取得しない）
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: "preflight: verify cargo/git are present (fail-closed)"
-        # 要: Windows runner に rustup（stable toolchain）+ MSVC Build Tools（link.exe）+ git
-        # が常設済みであること（docs/ci/ci-runner-requirements.md 「Windows self-hosted
-        # runner の常設要件」節参照）。存在チェックなしに進めると失敗の原因が
-        # 「runner 環境未整備」か「fw new のコード起因」か区別できなくなるため、
-        # ここで明示的にガードする（ci.md「ツール前提の明示」運用）。
+        # windows-latest（actions/runner-images）は rustup（stable toolchain）+
+        # MSVC Build Tools（VS2022、link.exe）+ git + pwsh をプリインストール済み。
+        # 存在チェックなしに進めると失敗の原因が「イメージ仕様変更でツールが欠落した
+        # 環境エラー」か「fw new のコード起因」か区別できなくなるため、プリインストール
+        # 前提であっても fail-closed ガードとして維持する（ci.md「ツール前提の明示」運用）。
         run: |
           $ErrorActionPreference = "Stop"
           $missing = @()
@@ -69,8 +80,10 @@ jobs:
           cargo --version
 
       - name: Build fw (fandhe-frontend-cli)
-        # 共有 CARGO_TARGET_DIR との衝突を避けるため workspace ローカルの専用ディレクトリを
-        # 明示指定する（ci.md の共有 target dir 対策の Windows 版）
+        # ホステッド Windows はジョブごとにクリーン VM のため共有 CARGO_TARGET_DIR 汚染
+        # （self-hosted 時代の懸念）自体はないが、後段の smoke ステップが
+        # `$fw = "${env:CARGO_TARGET_DIR}\debug\fw.exe"` で固定パス参照する決定性のため
+        # workspace ローカルの専用ディレクトリ指定を維持する（#1236）
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}\target-win-verify
         run: cargo build -p fandhe-frontend-cli --locked

@@ -89,8 +89,34 @@ Windows self-hosted runner の登録（インフラ側作業）が完了次第�
 `docs/ci/ci-runner-requirements.md` §5.4 の手順で `gh workflow run
 fw-new-windows-verify.yml` を dispatch し、Step Summary の結果を本節へ追記する。
 
+### 4.3 windows-latest での初回実測（イシュー #1236）
+
+ホステッドランナー移行（トラッキング #1220）により、4.2 が待っていた
+「Windows self-hosted runner の調達」は不要となった。`.github/workflows/
+fw-new-windows-verify.yml` を `runs-on: windows-latest` へ切替え（詳細は
+`docs/ci/hosted-runner-migration.md` §4.3）、GitHub ホステッドの標準
+Windows ランナー上で `gh workflow run fw-new-windows-verify.yml --ref
+<branch>` を dispatch した初回実測を以下に記録する（4.2 が予約していた
+「runner 調達後に本節へ追記する」の充足）。
+
+| 項目 | 値 |
+|------|----|
+| run URL | (dispatch 実行後に記載) |
+| RUNNER_NAME | (dispatch 実行後に記載) |
+| OS | (dispatch 実行後に記載) |
+| rustc | (dispatch 実行後に記載) |
+| 所要時間 | (dispatch 実行後に記載) |
+
+検証項目 7 件（ビルド / `cargo test -p fandhe-frontend-cli --bin fw` /
+`new_e2e` 決定性 / default・app・embed のバイト決定性 / fail-closed・
+`--force` 契約 / 未知テンプレート exit 2 / executable フラグ no-op 生成）:
+(dispatch 実行後に PASS/FAIL を記載)
+
+実測の取得手順は `docs/ci/hosted-runner-migration.md` §5.6 を参照。
+
 ## 5. クローズ方針
 
-`docs/ci/ci-runner-requirements.md` §5.5 と同じく、Windows runner の登録が
-完了し実測結果が本レポートへ記録されるまでイシュー #413 はクローズしない
-（#295 と同型の運用）。
+Windows 実機での初回実測結果（§4.3）が本レポートへ記録されるまで
+イシュー #413 はクローズしない（#295 と同型の運用）。ホステッド移行
+（#1236）により runner 調達待ちの状態は解消したが、実測記録自体は
+本節の充足条件として引き続き必須とする。
