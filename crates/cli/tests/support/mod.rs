@@ -174,9 +174,11 @@ impl Drop for ScratchProject {
 /// この事実誤認により実行時フォールバック（`std::env::temp_dir()` = `/tmp`）
 /// が常用され、self-hosted runner の tmpfs を恒常的に消費していた
 /// （イシュー #637）。既定はコンパイル時に確定する `env!("CARGO_TARGET_TMPDIR")`
-/// （`<target>/tmp` 配下）を使い、`cargo clean` /
-/// `.github/workflows/runner-maintenance.yml`（stale tmp 検査）の既存管理
-/// 範囲に閉じる。実行時 env による明示上書き（特殊なテスト実行環境向け）は
+/// （`<target>/tmp` 配下）を使い、`cargo clean` の既存管理範囲に閉じる
+/// （旧 self-hosted 時代は `.github/workflows/runner-maintenance.yml` の
+/// stale tmp 検査も併用していたが、CI runner 方針のホステッドランナー
+/// 既定への反転〔#1220〕に伴い同ワークフローは廃止済み、イシュー #1237）。
+/// 実行時 env による明示上書き（特殊なテスト実行環境向け）は
 /// 引き続き許容するが、既定経路としては期待しない。
 /// `<target>/tmp` は cargo が実在を保証しないため `create_dir_all` で
 /// 作成する（`negative_type_error.rs` と同一パターン、パストラバーサル

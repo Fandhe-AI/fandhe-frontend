@@ -53,9 +53,11 @@ impl Drop for ScenarioProject {
 /// cargo が `CARGO_TARGET_TMPDIR` を設定するのはテストバイナリの
 /// **コンパイル時のみ**であり、実行時の `std::env::var` 参照は常に失敗
 /// する。既定はコンパイル時に確定する `env!("CARGO_TARGET_TMPDIR")`
-/// （`<target>/tmp` 配下）を使い、`cargo clean` /
-/// `.github/workflows/runner-maintenance.yml` の既存管理範囲に閉じ、
-/// `/tmp` への恒常的な一時領域リークを避ける（イシュー #637。
+/// （`<target>/tmp` 配下）を使い、`cargo clean` の既存管理範囲に閉じ、
+/// `/tmp` への恒常的な一時領域リークを避ける（イシュー #637。旧
+/// self-hosted 時代は `.github/workflows/runner-maintenance.yml` の stale
+/// tmp 検査も併用していたが、CI runner 方針のホステッドランナー既定への
+/// 反転〔#1220〕に伴い同ワークフローは廃止済み、イシュー #1237。
 /// `cli/tests/support/mod.rs::scratch_root` と同一方針、テストターゲット
 /// 独立の制約による意図的な複製）。実行時 env による明示上書きは引き続き
 /// 許容する。`<target>/tmp` は cargo が実在を保証しないため

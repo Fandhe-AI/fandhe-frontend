@@ -4,8 +4,8 @@
 
 - GitHub Actions の CI ジョブは `runs-on: ubuntu-latest` 等の GitHub ホステッドランナー（標準スペック）を既定とする（ユーザー指示 2026-08-07。public リポジトリのため標準ホステッドランナーは無料・分数消費なし）
 - 新規ジョブ追加時もホステッドランナーを使用し、`runs-on: self-hosted` を使わない。larger runner（有料の大型ホステッドランナー）も使わない
-- 旧方針（`runs-on: self-hosted` 既定、ユーザー指示 2026-07-18）は本指示で廃止。既存ワークフロー YAML の `runs-on: self-hosted` はホステッドランナーへ順次移行する（2026-08-07 時点の残置: `ci.yml` の `forbid-unsafe`/`clippy-wasm32`〔イシュー #1228〕・`release.yml` の `verify`/`publish`〔イシュー #1233〕・`runner-maintenance.yml`〔自体の廃止、イシュー #1237〕。他は移行完了済み、詳細は `docs/ci/hosted-runner-migration.md` §6）
-- self-hosted 前提だった箇所（ツールの事前導入・共有 `CARGO_TARGET_DIR`・runner イメージ常設要件）は移行時に「クリーンな使い捨て VM（ジョブごとに初期化、共有キャッシュなし）」前提へ読み替える
+- 旧方針（`runs-on: self-hosted` 既定、ユーザー指示 2026-07-18）は本指示で廃止。既存ワークフロー YAML の `runs-on: self-hosted` はホステッドランナーへ順次移行済み（`ci.yml` の `forbid-unsafe`/`clippy-wasm32`〔イシュー #1228〕・`release.yml` の `verify`/`publish`〔イシュー #1233〕は移行完了、`runner-maintenance.yml` はプール保守自体が不要になったため廃止〔イシュー #1237〕。全ワークフロー移行完了済み、詳細は `docs/ci/hosted-runner-migration.md` §6）
+- self-hosted 前提だった箇所（ツールの事前導入・共有 `CARGO_TARGET_DIR`・runner イメージ常設要件）は移行時に「クリーンな使い捨て VM（ジョブごとに初期化、共有キャッシュなし）」前提へ読み替える。ホステッドランナーではツールは毎ジョブ導入が必要になるため、各ワークフローの存在チェック付きインストール（安全網）は移行後むしろ主経路となる。削除・弱体化しない
 - キャッシュ戦略（`actions/cache` 採否・キャッシュキー設計）・ツール導入方針・移行順序の正は `docs/ci/hosted-runner-migration.md`（イシュー #1225）とし、詳細は同文書へ譲り本節では二重管理しない
 
 ## Runner 環境と一時領域の前提
@@ -152,9 +152,3 @@
 - 理由: 過去に構文エラーで CI 全滅の実績（PR #264 で修正）
 - YAML の仕様上、構造化された値（コロン含む）はクォート必須
 
-## runner イメージの常設要件・保守ワークフロー（イシュー #295、旧 self-hosted 方針時代の記録）
-
-- 本節は旧 self-hosted 方針時代の運用であり、ホステッドランナー移行（2026-08-07 方針転換）完了後は保守ワークフローともに廃止対象。移行完了までは既存の self-hosted ジョブ向けに有効
-- self-hosted runner イメージへ常設を依頼したい項目（libnss3/libnspr4 等）は `docs/ci/ci-runner-requirements.md` に一覧化する
-- プール状態の検査・旧バイナリ／stale tmp のクリーンアップは `.github/workflows/runner-maintenance.yml`（`workflow_dispatch` 起点、report-only）で行う
-- ホステッドランナーではツールは毎ジョブ導入が必要になるため、各ワークフローの存在チェック付きインストール（安全網）は移行後むしろ主経路となる。削除・弱体化しない

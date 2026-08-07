@@ -409,7 +409,16 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
 - **Phase 4**: 全ワークフロー移行完了後、`runner-maintenance.yml`
   （self-hosted プール保守専用）を廃止し、`.claude/rules/ci.md` の
   「runner イメージの常設要件・保守ワークフロー（旧 self-hosted 方針時代の
-  記録）」節を実際に削除する。
+  記録）」節を実際に削除する。**実績（#1237）**: Phase 2（#1227〜）・
+  Phase 3（#1228〜#1236）の全 sub-issue が完了済みであることを確認した
+  うえで `.github/workflows/runner-maintenance.yml` を削除した。削除後、
+  `grep -rn "runs-on:" .github/workflows/ | grep -i self-hosted` は 0 件
+  （`fw-new-windows-verify.yml` に残るのは移行経緯を記す**コメント**のみで
+  実使用ではない）。`.claude/rules/ci.md` の「runner イメージの常設要件・
+  保守ワークフロー」節は削除し、同節が持っていた安全網文言（存在チェック
+  付きインストールは移行後むしろ主経路であり削除・弱体化しない旨）は
+  「Runner 方針」節へ移設して保持した。`docs/ci/ci-runner-requirements.md`
+  の §1〜§3・§8 の現況表・箇条書きも「移行完了済み」「廃止済み」へ更新した。
 - 各 Phase の完了条件: 対象ワークフローの `runs-on: self-hosted` が
   0 件になり、CI が連続 green であること。移行直後 1〜2 回の実行結果は
   キャッシュコールド状態のため、ウォーム時の実測を待ってから §5.3 の
