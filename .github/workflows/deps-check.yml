@@ -87,12 +87,13 @@ jobs:
         # 差異（PR #196 で判明した cargo 未導入インスタンス問題）は発生しない。
         # ホステッド環境では毎ジョブでのツール導入が主経路であり
         # （`.claude/rules/ci.md`・`docs/ci/hosted-runner-migration.md` §4.2）、
-        # dtolnay/rust-toolchain（4cda84d5c5c54efe2404f9d843567869ab1699d4 に固定。
-        # actions/checkout と同様 SHA 固定でサプライチェーンリスクを抑える）で
-        # バージョン決定性のため明示 pin を維持する。
-        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
-        with:
-          toolchain: stable
+        # Fandhe-AI/actions/rust-toolchain-setup
+        # （5982e2f502a19effc36a7b161660b5a4ea17b886 に固定。actions/checkout と
+        # 同様フルコミット SHA 固定でサプライチェーンリスクを抑える。イシュー
+        # #1273 で dtolnay/rust-toolchain から置換）を使う。ツールチェーンは
+        # リポジトリ直下の rust-toolchain.toml（channel = "stable"）を単一
+        # 真実源として rustup show で同期するため、toolchain input は持たない。
+        uses: Fandhe-AI/actions/rust-toolchain-setup@5982e2f502a19effc36a7b161660b5a4ea17b886
 
       - name: Run xtask check-deps
         # xtask check-deps の終了コードをそのまま CI の成否に伝播させる（fail-closed）。

@@ -69,10 +69,15 @@ jobs:
           git --version
 
       - name: Setup Rust toolchain
-        # ci.yml と同一 SHA 固定
-        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
-        with:
-          toolchain: stable
+        # ci.yml と同一 SHA 固定。Fandhe-AI/actions/rust-toolchain-setup
+        # （イシュー #1273 で dtolnay/rust-toolchain から置換）は composite
+        # action の全ステップが shell: bash のため windows-latest では
+        # プリインストール済みの Git Bash 上で動作する。rustup も
+        # windows-latest に常設済みのため、action 内の自己修復インストール
+        # パス（`curl | sh`）は本ジョブでは実行されず（`rustup --version` が
+        # 成功する）、`rustup show` によるリポジトリ直下 rust-toolchain.toml
+        # （channel = "stable"）への同期のみが働く。
+        uses: Fandhe-AI/actions/rust-toolchain-setup@5982e2f502a19effc36a7b161660b5a4ea17b886
 
       - name: Show toolchain
         run: |

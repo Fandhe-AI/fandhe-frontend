@@ -85,9 +85,9 @@ jobs:
         # deps-check.yml と同一の理由・同一 SHA 固定（本ジョブ末尾の
         # `cargo run -p xtask -- check-image-size` に必要）。ホステッドランナーは
         # ジョブごとに初期化されたクリーン VM のため、毎回導入する。
-        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
-        with:
-          toolchain: stable
+        # Fandhe-AI/actions/rust-toolchain-setup（イシュー #1273 で
+        # dtolnay/rust-toolchain から置換）。
+        uses: Fandhe-AI/actions/rust-toolchain-setup@5982e2f502a19effc36a7b161660b5a4ea17b886
 
       - name: Build docker image
         # push・レジストリログインは行わない。ジョブローカルのタグのみを使い、
