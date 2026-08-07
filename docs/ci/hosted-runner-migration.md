@@ -270,6 +270,35 @@ PowerShell ステップの差分検証が必要になるが、詳細設計は #1
 - 許容基準（§5.3）との照合・キー設計の見直し要否も、CI 実行結果を得てから
   本節へ追記する。
 
+### 5.5 Docker 系ワークフロー実測（#1234、musl-smoke.yml / image-size.yml）— 未実測（PR 初回 CI 実行後に追記）
+
+- 移行対象: `musl-smoke.yml`（REQ-9 起動スモーク）・`image-size.yml`（REQ-9
+  50MB サイズ判定）。両ワークフローとも Docker ビルド（musl target +
+  wasm32 再ビルド込みのフルリリースビルド）が主要コストであり、self-hosted
+  時代はホスト常駐の Docker デーモンでレイヤーキャッシュが温まっていたが、
+  ubuntu-latest はジョブごとにクリーン VM のため**毎回コールドビルド**に
+  なる（§3.2 の方針どおり、初回移行では buildx レイヤーキャッシュを
+  導入せず実測してから要否を判断する）。
+- self-hosted 直近実績（本文書 §5.2 の対象外・別実測。ジョブ本体のコメント
+  記載値）: musl-smoke 約 40 秒〜5 分、image-size 約 20 秒〜15 分
+  （20 台プールでのキュー待ち時間を含む）。
+- 実装コミット時点ではローカル worktree での作業に留まり GitHub Actions は
+  未実行のため、本節の実測値は **PR 作成後の CI 初回実行結果を待って
+  追記する**。
+- 追記予定の実測表（列のみ確定、値は CI 実行後に埋める）:
+
+  | ワークフロー | job 所要時間（コールド） | `docker build` ステップ単体 | self-hosted 実績比 | §5.3 許容基準判定 |
+  |-------------|-------------------------|----------------------------|--------------------|--------------------|
+  | `musl-smoke.yml` | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載) |
+  | `image-size.yml` | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載) | (CI 実行後に記載) |
+
+- 取得手順: `gh run view <run-id> --json jobs` で `startedAt`〜`completedAt`
+  を取得し、`docker build` ステップのログタイムスタンプから単体所要時間を
+  算出する。
+- 許容基準（§5.3）との照合結果、buildx レイヤーキャッシュ導入要否の判断
+  （§3.2 の条件: 実測が `timeout-minutes`・許容基準を恒常的に超える場合の
+  み検討）も、CI 実行結果を得てから本節へ追記する。
+
 ## 6. 移行順序と検証手順
 
 - **Phase 1（#1221〜#1226）**: 基盤整備。本イシュー #1225 が設計を確定し、
@@ -289,7 +318,12 @@ PowerShell ステップの差分検証が必要になるが、詳細設計は #1
   18 ジョブ・`release.yml`・`runner-maintenance.yml` 廃止・`deps-check.yml`・
   `musl-smoke.yml`・`image-size.yml`・`update-external.yml`）の順次移行。
   `fw-new-windows-verify.yml`（Windows）は §4.3 の差分検証を伴うため
-  最後に着手する。
+  最後に着手する。**実績（#1234）**: `musl-smoke.yml` / `image-size.yml`
+  を `ubuntu-latest` へ移行し、self-hosted 固有の DooD（Docker-outside-of-
+  Docker）対応（"Resolve own container ID" による CID 解決 +
+  `--network container:<runner CID>` 分岐）をホストポート公開の単一経路へ
+  簡素化した（撤去理由・詳細は両ワークフロー YAML のジョブ冒頭コメント
+  参照）。実測は §5.5 に記録する。
 - **Phase 4**: 全ワークフロー移行完了後、`runner-maintenance.yml`
   （self-hosted プール保守専用）を廃止し、`.claude/rules/ci.md` の
   「runner イメージの常設要件・保守ワークフロー（旧 self-hosted 方針時代の

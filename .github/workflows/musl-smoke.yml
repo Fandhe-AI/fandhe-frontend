@@ -52,38 +52,28 @@ concurrency:
 jobs:
   musl-smoke:
     name: x86_64 musl startup smoke (REQ-9)
-    # ユーザー指示（2026-07-18）により self-hosted へ移行。
-    # 前提: self-hosted runner に Docker デーモンが導入済みで、runner 実行
-    # ユーザーがログイン権限を持つこと。本ジョブは冒頭の "Assert runner
-    # architecture is x86_64" で x86_64 であることを機械的に確認するが（元々
-    # GitHub-hosted ubuntu-latest 前提だった検証を維持）、self-hosted プールが
-    # 非 x86_64（例: Apple Silicon macOS）インスタンスを含む場合、そのインス
-    # タンスに割り当たると本ステップが fail-closed で明示的に失敗する
-    # （「たまたま動く」ことを防ぐ既存の安全策がそのまま自己保守として働く）。
-    # なお当初はホストポート 3100 を image-size.yml と共有しており、両
-    # ワークフローが同一の物理 runner マシンへ同時にスケジュールされた場合の
-    # ポート競合を懸念していたが、下記 DooD 対応でホストポート公開自体を
-    # 撤去したため、この懸念は解消済み。
+    # ホステッドランナー移行（トラッキング #1220、実装 #1234）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    # 旧 self-hosted 方針（ユーザー指示 2026-07-18）は 2026-08-07 の方針転換で廃止済み。
+    # 本ジョブは冒頭の "Assert runner architecture is x86_64" で x86_64 であることを
+    # 機械的に確認する（ubuntu-latest は x86_64 のため通常は自明だが、fail-closed の
+    # 既存安全策として維持する）。
     #
-    # PR #291 実 CI 実行（2 回）で判明した DooD（Docker-outside-of-Docker）対応:
-    # 1 回目は `-p 127.0.0.1:3100:3100` によるホストループバック公開が
-    # runner コンテナの 127.0.0.1 から到達できず即時失敗（curl: (7)）。
-    # 2 回目はその場しのぎの「fandhe-frontend-musl-smoke コンテナの bridge IP へ直接
-    # curl する」方式へ変更したが、bridge ネットワーク構成（Mac mini 上の
-    # docker compose 構成では runner コンテナと新規コンテナが同一 bridge に
-    # いるとは限らない）次第では到達不能のまま curl がハングし、
-    # timeout-minutes いっぱいまで無応答になった（20m27s）。3 回目の本対応
-    # では "Container startup smoke" ステップを runner 自身とのネットワーク
-    # 名前空間共有（`--network container:<runner のコンテナ ID>`）方式へ
-    # 変更し、bridge ネットワーク構成に依存せず 127.0.0.1 で確実に到達させる
-    # （詳細は当該ステップのコメント参照）。「Host direct startup smoke」は
-    # バイナリを runner コンテナ自身のプロセスとして直接起動するため
-    # DooD の境界を越えず、127.0.0.1 のままで問題ない。
-    runs-on: self-hosted
-    timeout-minutes: 20
+    # DooD（Docker-outside-of-Docker）対応の撤去: PR #291 実 CI 実行で判明した
+    # self-hosted（コンテナ型 runner、Mac mini docker compose 構成）固有の DooD 対応
+    # （runner 自身とのネットワーク名前空間共有 `--network container:<runner CID>`）は、
+    # ubuntu-latest（コンテナではない使い捨て VM）では CID 解決が常に失敗するだけの
+    # デッドコードになるため撤去し、元々 GitHub-hosted 前提で動作実績のあった
+    # ホストポート公開（`-p 127.0.0.1:PORT:PORT`）の単一経路にした（経緯の詳細は
+    # git 履歴・イシュー #1234 参照）。
+    runs-on: ubuntu-latest
+    # クリーン VM でのコールド docker build（musl target + wasm32 ビルド込み）を
+    # 織り込み拡大（実測後に調整、旧 20 分）。
+    timeout-minutes: 40
     env:
-      # team-hub ci.yml と同一の前提（self-hosted runner の HTTP プロキシ env が
-      # localhost 宛通信までプロキシへ飛ばす事例）に備えた防御的設定。
+      # self-hosted 時代の経緯: HTTP プロキシ env が localhost 宛通信までプロキシへ
+      # 飛ばす事例への防御的設定だったが、ホステッドランナー（プロキシ env 通常なし）
+      # でも無害な防御としてそのまま維持する。
       NO_PROXY: "localhost,127.0.0.1,::1"
     steps:
       - name: Checkout
@@ -114,13 +104,14 @@ jobs:
         # （image-size.yml と同一の運用、security.md）。
         run: docker build -t fandhe-frontend-dist-server:musl-smoke .
 
-      - name: Ensure file/binutils utilities are available (self-hosted minimal image)
-        # PR #291 実 CI 実行で判明: self-hosted runner（コンテナ型、root 実行）の
-        # イメージには `file` コマンドが存在しない（`line 12: file: command not
-        # found`, exit 127）。ubuntu-latest には標準搭載されていたため今まで
-        # 顕在化しなかった。root 実行のため sudo なしで apt-get install できる
-        # ことを利用し、存在チェック付きで導入する（apt-get 自体が無い場合は
-        # fail-closed で runner イメージ側の前提整備を要求する）。
+      - name: Ensure file/binutils utilities are available
+        # ubuntu-latest には `file`/`readelf`（binutils）が標準搭載済みのため、
+        # 通常はこのステップで何もしない。存在チェック付きインストールは
+        # ホステッドランナーのイメージ内容が将来変わっても壊れないための
+        # fail-closed 安全網として維持する（`.claude/rules/ci.md` のツール前提
+        # 明示原則）。ubuntu-latest の実行ユーザーは非 root のため、self-hosted
+        # 時代の素の `apt-get install`（root 実行前提）から `sudo apt-get` へ
+        # 変更した（passwordless sudo が既定で有効）。
         run: |
           set -euo pipefail
           missing=""
@@ -128,11 +119,11 @@ jobs:
           command -v readelf >/dev/null 2>&1 || missing="${missing} binutils"
           if [ -n "$missing" ]; then
             if command -v apt-get >/dev/null 2>&1; then
-              apt-get update -qq
+              sudo apt-get update -qq
               # shellcheck disable=SC2086
-              apt-get install -y --no-install-recommends $missing
+              sudo apt-get install -y --no-install-recommends $missing
             else
-              echo "::error::missing tools (${missing}) and apt-get unavailable. self-hosted runner image requires these pre-installed." >&2
+              echo "::error::missing tools (${missing}) and apt-get unavailable. hosted runner image requires these pre-installed." >&2
               exit 1
             fi
           fi
@@ -180,50 +171,22 @@ jobs:
             --retry 30 --retry-delay 1 --retry-connrefused \
             http://127.0.0.1:3101/ > /dev/null
 
-      - name: "Resolve own container ID (DooD: --network container: attachment)"
-        id: runner_cid
-        # image-size.yml と同一ロジック（詳細は同ファイルの同名ステップの
-        # コメント参照）。PR #291 の 2 回目の実 CI 実行で、bridge IP への直接
-        # curl 方式が到達不能なままハングし、ジョブが timeout-minutes いっぱい
-        # まで無応答になったため、runner 自身とのネットワーク名前空間共有
-        # （`--network container:<runner のコンテナ ID>`）へ変更した。
-        run: |
-          set -euo pipefail
-          candidate="$(hostname)"
-          if ! docker inspect "$candidate" >/dev/null 2>&1; then
-            candidate="$(grep -oE '/docker/containers/[0-9a-f]{64}' /proc/self/mountinfo 2>/dev/null | head -1 | sed 's#.*/##')"
-          fi
-          if [ -n "$candidate" ] && docker inspect "$candidate" >/dev/null 2>&1; then
-            echo "id=${candidate}" >> "$GITHUB_OUTPUT"
-            echo "::notice::runner container ID resolved (${candidate}); using --network container: attachment"
-          else
-            echo "id=" >> "$GITHUB_OUTPUT"
-            echo "::notice::could not resolve own container ID; falling back to host port publish (runner may not be containerized)"
-          fi
-
       - name: Container startup smoke
         # Dockerfile が生成する scratch ベースの実コンテナとして起動し、
         # ルーティング（routes.rs）の主要契約 — ページ応答・埋め込みアセット
         # 配信・パストラバーサル拒否 — が配布バイナリ経路でも成立することを
         # 確認する。
         #
-        # 上記 "Resolve own container ID" の出力に応じて起動方式を切り替える
-        # （image-size.yml と同一パターン）。コンテナ内部の待受ポートは
-        # `FANDHE_FRONTEND_BIND_ADDR` で 3103 に固定する（`--network container:` 方式では
-        # runner のネットワーク名前空間を image-size.yml の fandhe-frontend-ci コンテナ
-        # （3100）・本ジョブの「Host direct startup smoke」（3101）と共有する
-        # ため、既定の 3100 のままだと bind 競合し得るため明示的に分離する）。
-        env:
-          RUNNER_CID: ${{ steps.runner_cid.outputs.id }}
+        # ホストポート公開（`-p 127.0.0.1:PORT:PORT`）の単一経路。ubuntu-latest
+        # は runner 自身がコンテナ化されていない使い捨て VM のため、DooD
+        # （Docker-outside-of-Docker）対応は不要（撤去経緯はジョブ冒頭コメント
+        # 参照）。コンテナ内部の待受ポートは `FANDHE_FRONTEND_BIND_ADDR` で 3103 に
+        # 固定する（本ジョブの「Host direct startup smoke」（3101）とのポート
+        # 衝突回避のため既定の 3100 から分離した経緯を維持）。
         run: |
           set -euo pipefail
-          if [ -n "${RUNNER_CID}" ]; then
-            docker run -d --rm --name fandhe-frontend-musl-smoke --network "container:${RUNNER_CID}" \
-              -e FANDHE_FRONTEND_BIND_ADDR=0.0.0.0:3103 fandhe-frontend-dist-server:musl-smoke
-          else
-            docker run -d --rm --name fandhe-frontend-musl-smoke -p 127.0.0.1:3103:3103 \
-              -e FANDHE_FRONTEND_BIND_ADDR=0.0.0.0:3103 fandhe-frontend-dist-server:musl-smoke
-          fi
+          docker run -d --rm --name fandhe-frontend-musl-smoke -p 127.0.0.1:3103:3103 \
+            -e FANDHE_FRONTEND_BIND_ADDR=0.0.0.0:3103 fandhe-frontend-dist-server:musl-smoke
           base_url="http://127.0.0.1:3103"
 
           # readiness ポーリング: listening ログが出るまで待つ（起動直後の
