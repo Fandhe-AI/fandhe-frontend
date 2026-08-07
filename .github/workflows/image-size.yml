@@ -43,31 +43,34 @@ concurrency:
 jobs:
   image-size:
     name: Docker image size (REQ-9)
-    # ユーザー指示（2026-07-18）により self-hosted へ移行。
-    # 前提: self-hosted runner に Docker デーモンが導入済みで、runner 実行
-    # ユーザーがログイン権限（docker グループ所属等）を持つこと。加えて
-    # 本ジョブは x86_64-unknown-linux-musl の Dockerfile 分岐（`docker build`
-    # のホストアーキテクチャに追従）を計測対象とするため、self-hosted プールが
-    # macOS 等の非 Linux/非 x86_64 インスタンスを含む場合、割り当て先次第で
-    # 計測結果・失敗モードが変わり得る（runner ラベルの細分化は本変更の
-    # スコープ外。ユーザー指示に従い `self-hosted` のまま据え置く）。
-    runs-on: self-hosted
-    timeout-minutes: 30
+    # ホステッドランナー移行（トラッキング #1220、実装 #1234）: public リポジトリの
+    # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
+    # 旧 self-hosted 方針（ユーザー指示 2026-07-18）は 2026-08-07 の方針転換で廃止済み。
+    # ubuntu-latest は x86_64 Linux で確定のため、x86_64-unknown-linux-musl の
+    # Dockerfile 分岐の計測結果が runner 割り当て次第で揺れる懸念（旧 self-hosted
+    # プールの macOS 等混在リスク）は解消済み。
+    #
+    # DooD（Docker-outside-of-Docker）対応の撤去: PR #291 実 CI 実行で判明した
+    # self-hosted（コンテナ型 runner）固有の DooD 対応（"Resolve own container ID"
+    # の CID 解決による `--network container:<runner CID>` 分岐）は、ubuntu-latest
+    # （コンテナではない使い捨て VM）では CID 解決が常に失敗するだけのデッドコードに
+    # なるため撤去し、ホストポート公開（`-p 127.0.0.1:PORT:PORT`）の単一経路にした
+    # （経緯の詳細は git 履歴・イシュー #1234 参照）。動的ポート算出（run_id/run_attempt
+    # 由来、イシュー #294）はジョブ独立の VM でも rerun 等に対する安価な防御のため
+    # 「Allocate app port」ステップとして存置する。
+    runs-on: ubuntu-latest
+    # クリーン VM でのコールド docker build（wasm32 再ビルド込み）+ xtask コールド
+    # ビルドを織り込み拡大（実測後に調整、旧 30 分）。
+    timeout-minutes: 45
     env:
-      # self-hosted runner には HTTP プロキシ env が設定されており、localhost 宛
-      # 通信までプロキシへ飛ばしてしまう事例が確認されている（team-hub
-      # ci.yml の test/full-cycle-e2e ジョブと同一の前提）。本ジョブは後段で
-      # コンテナの内部 IP へ直接 curl するため通常は該当しないはずだが、
-      # 念のため localhost 系をプロキシ除外しておく。
+      # self-hosted 時代の経緯: HTTP プロキシ env が localhost 宛通信までプロキシへ
+      # 飛ばす事例への防御的設定だったが、ホステッドランナー（プロキシ env 通常なし）
+      # でも無害な防御としてそのまま維持する。
       NO_PROXY: "localhost,127.0.0.1,::1"
-      # イシュー #294（PR #306 CI 失敗）対応: 固定コンテナ名 "fandhe-frontend-ci" だと、
-      # 同一 self-hosted runner 上での並行実行（別 PR / 別 run の同時実行、
-      # または同一 run の rerun）でコンテナ名が衝突し、
-      # `docker run --name fandhe-frontend-ci` が
-      # `Conflict. The container name "/fandhe-frontend-ci" is already in use` で失敗する
-      # （run 29641153252 の初回実行・rerun の双方で再現）。
-      # run_id + run_attempt を組み込んで run 単位・rerun 単位に一意化し、
-      # 衝突そのものを避ける（rerun でも run_attempt が変わるため別名になる）。
+      # イシュー #294（PR #306 CI 失敗）対応: 固定コンテナ名 "fandhe-frontend-ci" だと
+      # 同一 runner 上での並行実行（rerun 等）でコンテナ名が衝突し得る。ホステッド
+      # ランナー（ジョブごとにクリーン VM）では並行実行時の物理衝突は起きないが、
+      # run_id/run_attempt による一意化は無害な防御として維持する。
       CONTAINER_NAME: "fandhe-frontend-ci-${{ github.run_id }}-${{ github.run_attempt }}"
     steps:
       - name: Checkout
@@ -80,9 +83,8 @@ jobs:
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定（本ジョブ末尾の
-        # `cargo run -p xtask -- check-image-size` に必要。self-hosted runner
-        # プールに cargo 未導入インスタンスが混在し得るための保険。導入済み
-        # なら何もしない）。
+        # `cargo run -p xtask -- check-image-size` に必要）。ホステッドランナーは
+        # ジョブごとに初期化されたクリーン VM のため、毎回導入する。
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
@@ -92,59 +94,29 @@ jobs:
         # 計測後は ubuntu-latest ランナーの破棄とともに揮発する。
         run: docker build -t fandhe-frontend-dist-server:ci .
 
-      - name: "Resolve own container ID (DooD: --network container: attachment)"
-        id: runner_cid
-        # PR #291 の 2 回目の実 CI 実行で判明: 前回の「fandhe-frontend-ci コンテナの bridge IP
-        # へ直接 curl する」方式は、runner コンテナと fandhe-frontend-ci コンテナが同一
-        # bridge ネットワーク上にいない構成（Mac mini 上の docker compose 構成
-        # 等）では到達不能のまま curl がハングし、ジョブが timeout-minutes
-        # いっぱいまで無応答になる形で失敗した（image-size: 30m19s）。
-        #
-        # ここでは bridge ネットワーク構成に依存しない標準的な DooD 対策として、
-        # fandhe-frontend-ci コンテナを `--network container:<この runner 自身のコンテナ ID>`
-        # で起動し、runner コンテナと同一のネットワーク名前空間を共有させる。
-        # これにより runner から見た 127.0.0.1 がそのまま fandhe-frontend-ci コンテナの
-        # リスニングポートに到達する（bridge 越しの IP 到達性を一切仮定しない）。
-        #
-        # HOSTNAME は Docker が既定でコンテナ ID（先頭 12 文字）に設定するが、
-        # compose 側で `hostname:` が明示されている場合は上書きされ得るため、
-        # `docker inspect` で実在確認し、ダメなら /proc/self/mountinfo から
-        # コンテナ ID を抽出するフォールバックを試みる。runner がそもそも
-        # コンテナではない（bare metal / VM）場合はどちらも失敗するため、
-        # その場合は空文字を出力し、後続ステップでは従来のホストポート公開
-        # （`-p 127.0.0.1:PORT:PORT`）方式にフォールバックする（bare metal
-        # runner では DooD の問題自体が発生しないため、ホストポート公開で
-        # 直接動作する）。
+      - name: Allocate app port
+        id: app_port
+        # 旧 DooD（Docker-outside-of-Docker）対応（self-hosted 固有の CID 解決 +
+        # `--network container:<runner CID>` 分岐）はホステッドランナー移行
+        # （イシュー #1234）で撤去済み（ジョブ冒頭コメント参照）。本ステップは
+        # 動的ポート算出のみを担う。
         #
         # イシュー #294 Bugbot 指摘1（Shared port allows false CI passes）対応:
-        # コンテナ名は run_id/run_attempt で一意化済みだが、リスニングポートは
-        # 固定 3100 のままだったため、`--network container:` 経由・ホスト公開
-        # 経由のいずれでも、同一 self-hosted runner 上で並行実行される別
-        # ジョブ（または cancel-in-progress 等でクリーンアップされずに残った
-        # 過去試行のコンテナ）が同じ 127.0.0.1:3100 を握っていると、curl が
-        # その「別コンテナ」に誤ってヒットして false pass を返しうる。
-        # GitHub Actions の式構文には算術演算子（+, %, *）が無いため、ここで
-        # run_id/run_attempt から bash の算術評価でポートを決定的に算出し
-        # （20000-31999 のレンジ、fandhe-frontend-dist-server の `FANDHE_FRONTEND_BIND_ADDR` 環境変数
-        # で切り替え）、CONTAINER_NAME と同様に run 単位・rerun 単位でポート
-        # も分離する。Linux の一時ポート（エフェメラルポート）範囲は既定で
-        # 32768-60999 であり、そこと重なる値を割り当てると OS が偶然その番号を
-        # 送信元ポートとして使用中で bind に失敗する（EADDRINUSE）新たな flake
-        # 要因になり得るため、上限を 31999 に抑えてエフェメラル範囲を避ける。
+        # コンテナ名は run_id/run_attempt で一意化済みだが、リスニングポートが
+        # 固定だと、cancel-in-progress 等でクリーンアップされずに残った過去試行
+        # のコンテナが同じポートを握っていた場合、curl がその「別コンテナ」に
+        # 誤ってヒットして false pass を返しうる（ホステッドランナーはジョブごと
+        # クリーン VM のため実際の衝突リスクは低いが、rerun・将来の構成変更に
+        # 対する安価な防御として維持する）。GitHub Actions の式構文には算術演算子
+        # （+, %, *）が無いため、ここで run_id/run_attempt から bash の算術評価で
+        # ポートを決定的に算出する（20000-31999 のレンジ、fandhe-frontend-dist-server の
+        # `FANDHE_FRONTEND_BIND_ADDR` 環境変数で切り替え）。Linux の一時ポート
+        # （エフェメラルポート）範囲は既定で 32768-60999 であり、そこと重なる値を
+        # 割り当てると OS が偶然その番号を送信元ポートとして使用中で bind に失敗
+        # する（EADDRINUSE）新たな flake 要因になり得るため、上限を 31999 に
+        # 抑えてエフェメラル範囲を避ける。
         run: |
           set -euo pipefail
-          candidate="$(hostname)"
-          if ! docker inspect "$candidate" >/dev/null 2>&1; then
-            candidate="$(grep -oE '/docker/containers/[0-9a-f]{64}' /proc/self/mountinfo 2>/dev/null | head -1 | sed 's#.*/##')"
-          fi
-          if [ -n "$candidate" ] && docker inspect "$candidate" >/dev/null 2>&1; then
-            echo "id=${candidate}" >> "$GITHUB_OUTPUT"
-            echo "::notice::runner container ID resolved (${candidate}); using --network container: attachment"
-          else
-            echo "id=" >> "$GITHUB_OUTPUT"
-            echo "::notice::could not resolve own container ID; falling back to host port publish (runner may not be containerized)"
-          fi
-
           app_port=$(( 20000 + ( (GITHUB_RUN_ID + GITHUB_RUN_ATTEMPT * 104729) % 12000 ) ))
           echo "port=${app_port}" >> "$GITHUB_OUTPUT"
           echo "::notice::allocated dynamic app port ${app_port} (derived from run_id=${GITHUB_RUN_ID}, run_attempt=${GITHUB_RUN_ATTEMPT})"
@@ -162,37 +134,27 @@ jobs:
         # そのまま失敗させる（`docker logs` を出力してから終了コード非 0 で
         # 終わる）。
         #
-        # 上記 "Resolve own container ID" の出力に応じて起動方式を切り替える
-        # （DooD 対応、詳細は同ステップのコメント参照）。いずれの経路でも
-        # base_url は 127.0.0.1 に固定できるため、以降のロジックは単純化される。
+        # ホストポート公開（`-p 127.0.0.1:PORT:PORT`）の単一経路。ubuntu-latest は
+        # runner 自身がコンテナ化されていない使い捨て VM のため、DooD
+        # （Docker-outside-of-Docker）対応は不要（撤去経緯はジョブ冒頭コメント参照）。
         #
         # APP_PORT（イシュー #294 Bugbot 指摘1対応）: fandhe-frontend-dist-server の
         # `FANDHE_FRONTEND_BIND_ADDR` 環境変数でリスニングポートを run 単位・rerun 単位の
-        # 動的ポートに切り替える。固定 3100 のままだと、`--network container:`
-        # 経由（runner 自身とネットワーク名前空間を共有）でもホスト公開経由でも、
-        # 同一 self-hosted runner 上の別ジョブ・別試行のコンテナが同じ
-        # 127.0.0.1:3100 を握っていた場合に curl がそちらへ誤ってヒットし、
-        # false pass を返しうる。
+        # 動的ポートに切り替える。固定ポートのままだと、cancel-in-progress 等で
+        # 残置された過去試行のコンテナが同じ 127.0.0.1:PORT を握っていた場合に
+        # curl がそちらへ誤ってヒットし、false pass を返しうる。
         env:
-          RUNNER_CID: ${{ steps.runner_cid.outputs.id }}
-          APP_PORT: ${{ steps.runner_cid.outputs.port }}
+          APP_PORT: ${{ steps.app_port.outputs.port }}
         run: |
           set -euo pipefail
           # 念のための防御的 cleanup。CONTAINER_NAME は run_id/run_attempt で
           # 一意化済みのため通常は既存コンテナが残っていないはずだが、
           # 同名コンテナが万一残存していても衝突させず fail-closed に進める。
           docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
-          if [ -n "${RUNNER_CID}" ]; then
-            docker run -d --name "${CONTAINER_NAME}" \
-              --network "container:${RUNNER_CID}" \
-              -e "FANDHE_FRONTEND_BIND_ADDR=127.0.0.1:${APP_PORT}" \
-              fandhe-frontend-dist-server:ci
-          else
-            docker run -d --name "${CONTAINER_NAME}" \
-              -p "127.0.0.1:${APP_PORT}:${APP_PORT}" \
-              -e "FANDHE_FRONTEND_BIND_ADDR=0.0.0.0:${APP_PORT}" \
-              fandhe-frontend-dist-server:ci
-          fi
+          docker run -d --name "${CONTAINER_NAME}" \
+            -p "127.0.0.1:${APP_PORT}:${APP_PORT}" \
+            -e "FANDHE_FRONTEND_BIND_ADDR=0.0.0.0:${APP_PORT}" \
+            fandhe-frontend-dist-server:ci
           base_url="http://127.0.0.1:${APP_PORT}"
 
           # curl の body 破棄先には `/dev/null` を使わない。GitHub Actions の
