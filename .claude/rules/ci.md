@@ -149,6 +149,12 @@
 - **Fandhe-AI/actions 新規 15 コミット分の機能の採用可否評価（イシュー #1288）**: `docs-site.yml` の deploy ジョブは `Fandhe-AI/actions/.github/workflows/pages-deploy.yml`（reusable workflow）呼び出しへ置換済み。`rust-base-ci.yml`（本リポジトリの `ci.yml` カスタム構成・cargo-deny 導入パターン非整合）・`lint-docs.yml`（npm 経路、REQ-12 非整合）・`cargo-tool-install`（適用先なし）・`idempotent-issue`（自動起票ジョブ現存せず）の 4 件は見送り。判断根拠・比較評価・再評価トリガーの詳細は `docs/ci/actions-new-feature-adoption-evaluation.md` 参照
 - **version バンプ PR と crates.io 公開の順序ギャップ（イシュー #884・実装 #885）**: `templates/app` が crates.io バージョン依存する公開済みクレート（core / app / interactive / wasm-client）の `src/` を変更する PR では、version-bump-guard・`template_vendor_drift` テスト・`template-app-wasm-smoke` ジョブの三すくみにより、バンプ先バージョンが crates.io へ未公開の間は smoke が必ず fail する構造的デッドロックが生じる（PR #872 で release.yml のマージ前ブランチ公開が 2 回発生した実例あり）。採用案（smoke ジョブへの `[patch.crates-io]` 依存解決フォールバック追加）は `xtask patch-template-smoke`（`crates/xtask/src/patch_template_smoke.rs`）として実装済み（イシュー #885）: `.github/workflows/ci.yml` の `template-app-wasm-smoke` ジョブが「fw new」直後に実行し、生成プロジェクトの直接依存バージョンを crates.io sparse index へ照会（`check_version_bump::query_index` を再利用）して、未公開バージョンのみ `[patch.crates-io]`（checkout 済みリポジトリの `crates/<dir>` への path 参照）へ切り替える。1 行サマリ契約 `template-app-wasm-smoke: dep=<crate> version=<v> resolution=<crates-io|path-override>` により発動有無を可視化し、`resolution=path-override` 発生時は `::warning::` アノテーション + Step Summary 転記でサイレントな弱体化にしない。index 到達不可・異常応答は `environment error: ` プレフィックス付きで fail-closed（version-bump-guard と同型の判定パイプライン）。緩和用の workflow_dispatch input・環境変数は設けていない。crates.io 公開の承認境界（`release.yml` の `mode: publish` 明示選択）は不変。CLI 契約の回帰テストは `crates/xtask/tests/cli_patch_template_smoke.rs`。3 案比較・設計判断の詳細は `docs/ci/version-bump-publish-order-gap.md` を参照。**案 3（マージ後 crates.io 公開の自動化）再評価（イシュー #896）**: 案 2 運用実績（観察期間実質ゼロ、マージ後 release.yml 実行 0 件）を踏まえて再評価し、承認境界・トークン供給経路の論点に状況変化がないため現時点では見送りを継続すると結論した（再評価トリガー・詳細は同文書 §9 参照）
 
+## `ci-complete` 集約ジョブと ruleset 必須チェック
+
+- `.github/workflows/ci.yml` の `ci-complete` ジョブは ci.yml の全ジョブを `needs:` に列挙し、`if: always()` で全結果を検証する集約ジョブである（`success` / `skipped` 以外が 1 件でもあれば FAIL。`skipped` を許容するのは `version-bump-guard`〔PR のみ実行〕等の条件付きジョブのため）
+- ruleset `main-protection` の必須チェックはこの集約により `ci-complete` + `deps-check`（別 workflow のため `needs` にできず単独維持）+ `codex-review / codex` の 3 件へ集約されている。ci.yml のジョブ追加・改名時に ruleset の required_status_checks を追随更新する必要はない
+- **ci.yml へジョブを追加するときは必ず `ci-complete` の `needs:` へ追加する**（忘れると当該ジョブの失敗が必須チェックに反映されない。レビューで確認する）
+
 ## ワークフロー YAML の規約
 
 - ステップ名（`name:` フィールド）に「: 」を含める場合はクォートで囲む（例: `name: "test: verify escaping"` ）

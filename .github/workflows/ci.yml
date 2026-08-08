@@ -1446,7 +1446,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   loc-check:
-    name: REQ-8/REQ-11 glue JS effective LOC limit (10 lines, issues #62/#156)
+    # name はクォート必須: 未クォートだと ` #62` 以降が YAML コメント扱いに
+    # なり、API へ報告されるチェック名が途中で切れる（.claude/rules/ci.md）。
+    name: "REQ-8/REQ-11 glue JS effective LOC limit (10 lines, issues #62/#156)"
     # ホステッドランナー移行（トラッキング #1220、実装 #1231）: public リポジトリの
     # 標準ホステッドランナーは無料・分数消費なしのため既定とする（.claude/rules/ci.md）。
     runs-on: ubuntu-latest
@@ -1580,7 +1582,9 @@ jobs:
   # CARGO_TARGET_DIR で隔離済み・actions/cache 不使用）とキャッシュを分離し、
   # イシュー #1192 型の rlib 汚染がキャッシュ経由で流入する経路を作らない。
   clippy:
-    name: REQ-1 raw_html() 検出（clippy disallowed_methods, issue #157）
+    # name はクォート必須: 未クォートだと ` #157` 以降が YAML コメント扱いに
+    # なり、API へ報告されるチェック名が途中で切れる（.claude/rules/ci.md）。
+    name: "REQ-1 raw_html() 検出（clippy disallowed_methods, issue #157）"
     runs-on: ubuntu-latest
     # クリーンな使い捨て VM でのフルコールドビルド（cargo clippy --workspace
     # --all-targets）の上振れ余地を見込み、self-hosted 時代の 20 分から
@@ -2068,3 +2072,43 @@ jobs:
             grep '^dep-version-check:' dep-version-check.log || echo 'dep-version-check: no summary line found'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ruleset `main-protection` の必須チェック集約先（イシューなし・運用変更）。
+  # 本ワークフローの全ジョブを needs に列挙し、ruleset 側は本ジョブ
+  # （ci-complete）のみを必須チェックとして参照する。これによりジョブの
+  # 追加・改名時に ruleset の required_status_checks を追随更新する必要が
+  # なくなる。**ジョブ追加時は needs への追加が必要**（追加を忘れると当該
+  # ジョブの失敗が必須チェックに反映されないため、レビューで必ず確認する）。
+  # `skipped` を成功扱いで許容するのは version-bump-guard（PR のみ実行）等の
+  # 条件付きジョブのため。deps-check.yml（別 workflow のため needs にできない）
+  # と codex-review は従来どおり単独の必須チェックとして ruleset に残す。
+  ci-complete:
+    name: ci-complete
+    if: always()
+    runs-on: ubuntu-latest
+    needs:
+      - forbid-unsafe
+      - test
+      - dist-server-embedded-mode
+      - browser-test
+      - perf-harness
+      - xss-wasm-test
+      - wasm-node-smoke
+      - template-app-wasm-smoke
+      - npm-asset-build
+      - rebuild-latency
+      - bundle-size
+      - loc-check
+      - template-negative-type-error
+      - fmt
+      - clippy
+      - clippy-wasm32
+      - gate-self-apply
+      - version-bump-guard
+      - dep-version-check
+    steps:
+      - name: 全ジョブ結果の検証
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "${RESULTS}" | jq -e 'to_entries | map(select(.value.result != "success" and .value.result != "skipped")) | length == 0' > /dev/null
