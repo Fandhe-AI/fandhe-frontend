@@ -144,7 +144,7 @@ jobs:
       - name: Checkout
         # actions/checkout（deps-check.yml / update-external.yml と同一コミットに固定）。
         # docs/spec submodule は公開処理に不要なため取得しない。
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -302,7 +302,7 @@ jobs:
       # 個別指定する。
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # verify ジョブが検証したのと同一コミットへピン留めする（TOCTOU 防止）。
           # environment 承認待ちの間に対象ブランチが進んでも、verify が確認した

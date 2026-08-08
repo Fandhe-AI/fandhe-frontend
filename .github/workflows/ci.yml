@@ -66,9 +66,9 @@ jobs:
       FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
-        # actions/checkout v6.0.3（update-external.yml と同一 SHA に固定）
+        # actions/checkout v7.0.1（update-external.yml と同一 SHA に固定）
         # docs/spec サブモジュールはテストに不要のため取得しない（既定で submodules: false）
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
@@ -160,9 +160,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2。docs/spec/ サブモジュールはテストに不要なため
+        # actions/checkout v7.0.1。docs/spec/ サブモジュールはテストに不要なため
         # submodules: false でチェックアウト面を最小化する（サプライチェーン対策）。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -397,9 +397,9 @@ jobs:
       FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールはテストに不要のため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -449,9 +449,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（test ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールはテストに不要のため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -756,9 +756,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールはテストに不要のため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -899,9 +899,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールはテストに不要のため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -998,7 +998,7 @@ jobs:
     steps:
       - name: Checkout
         # 他ジョブと同一 SHA 固定。docs/spec サブモジュールは本ジョブに不要。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -1028,7 +1028,7 @@ jobs:
         # ランナー、ジョブごとにクリーンな使い捨て VM）にも node の常設は
         # 保証されないため明示セットアップする（.claude/rules/ci.md
         # 「ツール前提の明示」）。
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '20'
 
@@ -1070,7 +1070,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -1218,9 +1218,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールは本ジョブに不要のため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -1230,7 +1230,7 @@ jobs:
         # プリインストールされているが、決定性のため明示セットアップを維持する
         # （下段の test_pipeline_e2e.sh は node/npm 不在時に自己スキップする
         # 作りだが、実 npm でのパイプライン検証を常に行うために導入する）。
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '20'
 
@@ -1313,9 +1313,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（test ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールは本ジョブの計測に不要のため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -1395,9 +1395,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（test/loc-check ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールは本ジョブの計測に不要のため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -1454,9 +1454,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（同一ファイル内の test ジョブと同一 SHA に固定）。
+        # actions/checkout v7.0.1（同一ファイル内の test ジョブと同一 SHA に固定）。
         # docs/spec submodule は本ジョブの計測に不要なため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -1503,9 +1503,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA に固定）。
+        # actions/checkout v7.0.1（test/loc-check ジョブと同一 SHA に固定）。
         # docs/spec サブモジュールは本ジョブの検証に不要なため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -1543,7 +1543,7 @@ jobs:
       - name: Checkout
         # 既存ジョブ（clippy 等）と同一 SHA ピン。docs/spec サブモジュールは
         # 本ジョブの検証に不要なため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -1596,9 +1596,9 @@ jobs:
       FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA に固定）。
+        # actions/checkout v7.0.1（test/loc-check ジョブと同一 SHA に固定）。
         # docs/spec サブモジュールは本ジョブの検証に不要なため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -1719,9 +1719,9 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（clippy ジョブと同一 SHA に固定）。
+        # actions/checkout v7.0.1（clippy ジョブと同一 SHA に固定）。
         # docs/spec サブモジュールは本ジョブの検証に不要なため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -1843,9 +1843,9 @@ jobs:
       FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test/clippy ジョブと同一 SHA に固定）。
+        # actions/checkout v7.0.1（test/clippy ジョブと同一 SHA に固定）。
         # docs/spec サブモジュールは gate の検証対象外のため取得しない。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -1944,7 +1944,7 @@ jobs:
         # はこの時点で既に存在する（別途 `git fetch origin <base>` は不要。
         # 過去に別ステップで実行し `persist-credentials: false` により認証情報が
         # 残らず失敗した実績があるため追加しないこと、イシュー #638 PR #647）。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -2031,10 +2031,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。docs/spec サブ
+        # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。docs/spec サブ
         # モジュール・全ブランチ履歴は本チェックに不要なため取得しない
         # （cargo metadata --no-deps のみで完結し git diff は使わない）。
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
