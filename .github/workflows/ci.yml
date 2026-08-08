@@ -66,7 +66,7 @@ jobs:
       FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
-        # actions/checkout v6.0.3（update-external.yml と同一 SHA に固定）
+        # actions/checkout v7.0.1（update-external.yml と同一 SHA に固定）
         # docs/spec サブモジュールはテストに不要のため取得しない（既定で submodules: false）
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -160,7 +160,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2。docs/spec/ サブモジュールはテストに不要なため
+        # actions/checkout v7.0.1。docs/spec/ サブモジュールはテストに不要なため
         # submodules: false でチェックアウト面を最小化する（サプライチェーン対策）。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -397,7 +397,7 @@ jobs:
       FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールはテストに不要のため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -449,7 +449,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（test ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールはテストに不要のため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -756,7 +756,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールはテストに不要のため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -899,7 +899,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールはテストに不要のため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1218,7 +1218,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールは本ジョブに不要のため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1313,7 +1313,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（test ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールは本ジョブの計測に不要のため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1395,7 +1395,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA 固定）。
+        # actions/checkout v7.0.1（test/loc-check ジョブと同一 SHA 固定）。
         # docs/spec サブモジュールは本ジョブの計測に不要のため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1454,7 +1454,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（同一ファイル内の test ジョブと同一 SHA に固定）。
+        # actions/checkout v7.0.1（同一ファイル内の test ジョブと同一 SHA に固定）。
         # docs/spec submodule は本ジョブの計測に不要なため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1503,7 +1503,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA に固定）。
+        # actions/checkout v7.0.1（test/loc-check ジョブと同一 SHA に固定）。
         # docs/spec サブモジュールは本ジョブの検証に不要なため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1596,7 +1596,7 @@ jobs:
       FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA に固定）。
+        # actions/checkout v7.0.1（test/loc-check ジョブと同一 SHA に固定）。
         # docs/spec サブモジュールは本ジョブの検証に不要なため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1719,7 +1719,7 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（clippy ジョブと同一 SHA に固定）。
+        # actions/checkout v7.0.1（clippy ジョブと同一 SHA に固定）。
         # docs/spec サブモジュールは本ジョブの検証に不要なため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1843,7 +1843,7 @@ jobs:
       FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（test/clippy ジョブと同一 SHA に固定）。
+        # actions/checkout v7.0.1（test/clippy ジョブと同一 SHA に固定）。
         # docs/spec サブモジュールは gate の検証対象外のため取得しない。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2031,7 +2031,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。docs/spec サブ
+        # actions/checkout v7.0.1（他ジョブと同一 SHA 固定）。docs/spec サブ
         # モジュール・全ブランチ履歴は本チェックに不要なため取得しない
         # （cargo metadata --no-deps のみで完結し git diff は使わない）。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

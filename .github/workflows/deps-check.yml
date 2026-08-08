@@ -72,7 +72,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        # actions/checkout v6.0.3（.github/workflows/update-external.yml と同一コミットに固定）。
+        # actions/checkout v7.0.1（.github/workflows/update-external.yml と同一コミットに固定）。
         # docs/spec submodule は本ジョブの計測に不要なため取得しない（submodules 既定 false）。
         # persist-credentials: false（イシュー #1229 以降の踏襲パターン）: 本ジョブは
         # 読み取り専用の計測ジョブで push・PR 作成を一切行わないため、checkout が
