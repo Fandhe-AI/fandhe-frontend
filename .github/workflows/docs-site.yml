@@ -67,7 +67,7 @@ jobs:
         # のみのため docs/spec サブモジュールは不要（submodules 既定 false）。
         # persist-credentials: false は他ジョブ（ci.yml 各所、イシュー #1229）と
         # 同一の認証情報残置面縮小パターン（A05/A06 整合）。
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
