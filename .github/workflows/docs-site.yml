@@ -196,28 +196,39 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/primitives/accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/primitives-showcase.css"
 
-      - name: Upload Pages artifact
-        # 要: runner に tar がインストール済み（upload-pages-artifact が内部で使用。
-        #     ubuntu-latest はプリインストール済み、
-        #     docs/ci/hosted-runner-migration.md §4.1）
-        # actions/upload-pages-artifact v5.0.0（commit SHA 固定）
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+      - name: Upload dist artifact
+        # 汎用 artifact として dist を渡し、Pages 専用形式への変換以降は
+        # Fandhe-AI/actions/pages-deploy（reusable workflow）が担う（イシュー #1288）。
+        # rust-toolchain-setup（#1273）・wasm-tool-install（#1274）・codex-review
+        # （#1275）と同じ方向の org 共通化であり、Pages 固有 action の SHA
+        # 追随義務を呼び出し側から共通側へ集約する。
+        # actions/upload-artifact v7.0.1（commit SHA 固定。
+        # Fandhe-AI/actions/pages-deploy/README.md セットアップ例と同一 SHA）
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
+          name: pages-dist
           path: ${{ runner.temp }}/docs-site-dist
+          if-no-files-found: error # 空 dist を黙って渡さない（fail-closed）
+          # .nojekyll 等の dotfile を配信する場合に必須（既定 false では
+          # upload 段階で脱落する。Pages 専用形式への変換は共通側が担う）
+          include-hidden-files: true
 
   deploy:
     name: Deploy to GitHub Pages
     needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Pages デプロイに必要な最小権限のみ（reusable 側ジョブも同一の最小定義。
+    # reusable workflow は呼び出し側が付与した以上の権限を持てないため、
+    # 呼び出し側 wrapper のこのジョブにも同じ 2 権限が必要）
     permissions:
-      pages: write # Pages デプロイ作成に必要（デプロイジョブのみに限定、A01/A05 対策）
-      id-token: write # OIDC によるデプロイ元検証に必要（同上）
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy
-        id: deployment
-        # actions/deploy-pages v5.0.0（commit SHA 固定）
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
+      pages: write
+      id-token: write
+    # Fandhe-AI/actions はタグ未作成のため最新コミット SHA に固定する
+    # （rust-toolchain-setup・wasm-tool-install・codex-review と同一 SHA）。
+    uses: Fandhe-AI/actions/.github/workflows/pages-deploy.yml@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
+    with:
+      dist-dir: "."
+      # reusable 側の既定値は self-hosted（fandhe 系リポジトリの旧前提）。
+      # 本リポジトリは public のためホステッドランナー既定方針
+      # （.claude/rules/ci.md）に従い明示上書きする。省略すると
+      # self-hosted runner 非登録により deploy が永久 pending になる。
+      runner-label: ubuntu-latest
