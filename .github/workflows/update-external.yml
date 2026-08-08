@@ -55,7 +55,7 @@ jobs:
 
       - name: Update submodules and open PR
         # Fandhe-AI/actions はタグ未作成のため最新コミット SHA に固定する。
-        uses: Fandhe-AI/actions/submodule-update@c80ff94f229f86ba9e08723948c4dee0e1fb66bf
+        uses: Fandhe-AI/actions/submodule-update@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
         with:
           token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
           base-branch: main
@@ -108,7 +108,7 @@ jobs:
 
       - name: Update skills and open PR
         # Fandhe-AI/actions はタグ未作成のため最新コミット SHA に固定する。
-        uses: Fandhe-AI/actions/skills-update@c80ff94f229f86ba9e08723948c4dee0e1fb66bf
+        uses: Fandhe-AI/actions/skills-update@5982e2f502a19effc36a7b161660b5a4ea17b886 # main
         with:
           token: ${{ secrets.SUBMODULE_PAT || secrets.GITHUB_TOKEN }}
           base-branch: main
