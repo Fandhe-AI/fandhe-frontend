@@ -15,14 +15,22 @@ model: sonnet
 
 # tools: 最小権限の原則に従い、必要なツールのみ列挙する。
 #
-# 【読み取り専用 Agent の例】（research/ または quality/ カテゴリ）
-# → Edit / Write / Bash を含めない
+# 【調査 Agent の例】（research/ カテゴリ）
+# → Edit / Write / Bash を含めない。
+#   WebFetch / WebSearch は Web 調査を責務とする research/ Agent のみ許可
+#   （quality/ には含めない。quality/ は Glob / Grep / Read のみ）
 tools:
   - Glob
   - Grep
   - Read
   - WebFetch
   - WebSearch
+
+# 【検証 Agent の例】（quality/ カテゴリ）
+# tools:
+#   - Glob
+#   - Grep
+#   - Read
 
 # 【作成・編集 Agent の例】（author/ カテゴリ）
 # tools:

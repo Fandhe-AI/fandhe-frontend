@@ -156,6 +156,10 @@ if [[ -d "skills/${SKILL_NAME}" ]]; then
   UPSTREAM_SKILL_PATH="skills/${SKILL_NAME}"
 elif [[ -d ".agents/skills/${SKILL_NAME}" ]]; then
   UPSTREAM_SKILL_PATH=".agents/skills/${SKILL_NAME}"
+elif [[ -d ".claude/skills/${SKILL_NAME}" && ! -L ".claude/skills/${SKILL_NAME}" ]]; then
+  # upstream が .claude/skills/ 配下に実ディレクトリで公開している慣習
+  # （agent-cli-skills の create-skill / create-agent 等。symlink は skills/ 実体側で扱うため除外）
+  UPSTREAM_SKILL_PATH=".claude/skills/${SKILL_NAME}"
 elif [[ -d "skills" ]]; then
   # upstream が skills/ 配下で公開している慣習
   UPSTREAM_SKILL_PATH="skills/${SKILL_NAME}"
@@ -171,9 +175,9 @@ echo "==> upstream パス: ${UPSTREAM_SKILL_PATH}"
 
 # 削除伝搬のための同期: cp -R は追加・上書きのみで削除を反映しないため、
 # ローカルで削除したファイルが upstream 側に残存してしまう。宛先を消してから作り直す（delete-then-copy）。
-# 安全弁: 削除対象が clone 内の想定スキルパス（2 形態のみ）であることを検証してから rm する
+# 安全弁: 削除対象が clone 内の想定スキルパス（3 形態のみ）であることを検証してから rm する
 case "${UPSTREAM_SKILL_PATH}" in
-  "skills/${SKILL_NAME}"|".agents/skills/${SKILL_NAME}") ;;
+  "skills/${SKILL_NAME}"|".agents/skills/${SKILL_NAME}"|".claude/skills/${SKILL_NAME}") ;;
   *)
     echo "エラー: 想定外の UPSTREAM_SKILL_PATH です: ${UPSTREAM_SKILL_PATH}"
     exit 1
