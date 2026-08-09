@@ -2079,9 +2079,12 @@ jobs:
   # 追加・改名時に ruleset の required_status_checks を追随更新する必要が
   # なくなる。**ジョブ追加時は needs への追加が必要**（追加を忘れると当該
   # ジョブの失敗が必須チェックに反映されないため、レビューで必ず確認する）。
-  # `skipped` を成功扱いで許容するのは version-bump-guard（PR のみ実行）等の
-  # 条件付きジョブのため。deps-check.yml（別 workflow のため needs にできない）
-  # と codex-review は従来どおり単独の必須チェックとして ruleset に残す。
+  # `skipped` の許容は version-bump-guard（`if: pull_request` の条件付き
+  # ジョブ）のみに限定し、他ジョブは success のみ受理する（skipped を全
+  # ジョブで無条件許容すると、将来 `if:` が誤って追加されたジョブの skip を
+  # 検知できず fail-open になるため。team-hub #1733 の codex 指摘と同型の
+  # 是正）。deps-check.yml（別 workflow のため needs にできない）と
+  # codex-review は従来どおり単独の必須チェックとして ruleset に残す。
   ci-complete:
     name: ci-complete
     if: always()
@@ -2111,4 +2114,4 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs) }}
         run: |
-          echo "${RESULTS}" | jq -e 'to_entries | map(select(.value.result != "success" and .value.result != "skipped")) | length == 0' > /dev/null
+          echo "${RESULTS}" | jq -e 'to_entries | map(select((.value.result == "success" or (.key == "version-bump-guard" and .value.result == "skipped")) | not)) | length == 0' > /dev/null

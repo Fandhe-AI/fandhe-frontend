@@ -151,7 +151,7 @@
 
 ## `ci-complete` 集約ジョブと ruleset 必須チェック
 
-- `.github/workflows/ci.yml` の `ci-complete` ジョブは ci.yml の全ジョブを `needs:` に列挙し、`if: always()` で全結果を検証する集約ジョブである（`success` / `skipped` 以外が 1 件でもあれば FAIL。`skipped` を許容するのは `version-bump-guard`〔PR のみ実行〕等の条件付きジョブのため）
+- `.github/workflows/ci.yml` の `ci-complete` ジョブは ci.yml の全ジョブを `needs:` に列挙し、`if: always()` で全結果を検証する集約ジョブである（`success` 以外は FAIL。`skipped` の許容は `version-bump-guard`〔`if: pull_request` の条件付きジョブ〕のみに限定し、他ジョブの skip は検知して FAIL する fail-closed 設計。条件付きジョブを増やす場合は許容リストへの明示追加が必要）
 - ruleset `main-protection` の必須チェックはこの集約により `ci-complete` + `deps-check`（別 workflow のため `needs` にできず単独維持）+ `codex-review / codex` の 3 件へ集約されている。ci.yml のジョブ追加・改名時に ruleset の required_status_checks を追随更新する必要はない
 - **ci.yml へジョブを追加するときは必ず `ci-complete` の `needs:` へ追加する**（忘れると当該ジョブの失敗が必須チェックに反映されない。レビューで確認する）
 
