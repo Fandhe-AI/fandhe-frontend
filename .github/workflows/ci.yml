@@ -2088,6 +2088,7 @@ jobs:
   ci-complete:
     name: ci-complete
     if: always()
+    permissions: {}
     runs-on: ubuntu-latest
     needs:
       - forbid-unsafe
