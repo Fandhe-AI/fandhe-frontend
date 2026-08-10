@@ -323,7 +323,37 @@ void 要素（終了タグを持たない）であり、`render()` は start tag
 
 **意図的に提供しないヘルパー**: `script`/`style`/`iframe` は攻撃面が大きい
 タグであり、標準ヘルパーとして書きやすくすることを避けるため提供しません。
-必要な場合は `el("script", ...)` のように明示的に書いてください。
+`el("script", ...)` のように書けば要素タグ自体は出力できますが、**子ノードに
+`text()` を渡してもインラインの中身をそのまま書くことはできません**。
+`Node::Text` は `render()` 時に必ず既定エスケープ（REQ-1、第 5 節）を通るため、
+`<`・`&` などを含む JS/CSS はエスケープ後の断片になり、動作するコードとして
+出力されません。
+
+```rust
+use fandhe_frontend_core::{el, text, render};
+
+let node = el("script", vec![], vec![text("if (a < b) { f(); }")]);
+assert_eq!(
+    render(&node),
+    "<script>if (a &lt; b) { f(); }</script>"
+);
+// エスケープ後の断片であり、ブラウザ上で意図どおりの JS としては動作しません。
+```
+
+インラインスクリプト・インラインスタイルが必要な場合は、次のいずれかを
+使ってください。
+
+- **推奨: 外部ファイル参照**。スクリプトは
+  `el("script", vec![("src", "/app.js")], vec![])`、スタイルは
+  `<link rel="stylesheet">`（`el("link", vec![("rel", "stylesheet"), ("href", "/app.css")], vec![])`）
+  のように `src`/`href` 属性で外部ファイルを参照します。
+- **インラインがどうしても不可避な場合**: `raw_html()`（第 5 節「`raw_html()`
+  を使ってよい条件」）が唯一の許容迂回経路です。ただし `clippy.toml` の
+  `disallowed-methods` によって呼び出しがゲートされており、
+  `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]`
+  によるレビュー済みオプトインが必須です。手順は `docs/policy/raw-html-review-gate.md`
+  を参照してください。
+
 `select`/`option` は Rust の `Option` 型との混同を避けるため、属性なし版
 ヘルパー（`div_()` 等）・attrs ビルダ API は API 表面の肥大化を避けるため、
 それぞれ不採用としています。
