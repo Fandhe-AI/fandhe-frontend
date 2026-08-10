@@ -221,20 +221,132 @@ fn is_allowed_runs_on_line(line: &str) -> bool {
 /// 書いた行も違反になるが、方針上そのような記述は不要であり、歴史的経緯の
 /// 言及はコメントへ書けば足りるため、この厳格性は意図的である。
 ///
+/// ## 検知プローブ（エスケープ・行継続の正規化）
+///
+/// 生の行に対する部分文字列一致だけでは、YAML の double-quoted scalar が
+/// 持つ表現力で `runs-on` を綴り替えて素通りできる（PR #1301 の codex
+/// レビュー 3 件目の P0 指摘）。
+///
+/// - エスケープ: `"runs-on": windows-latest` は YAML パーサには
+///   `runs-on` キーとして解釈される
+/// - 行継続: double-quoted scalar 内の行末 `\` は改行を打ち消すため、
+///   `"runs-\` + 次行 `on": windows-latest` も同じキーになる
+///
+/// そこで検知側は各行について「行継続を連結し、エスケープをデコードした
+/// プローブ文字列」を作り、そこに `runs-on` が現れるかで判定する
+/// （`detection_probe`）。デコードは一致を増やす方向にしか働かない
+/// ため、この正規化で見逃しが増えることはない。
+///
+/// 一方、**許容判定（`is_allowed_runs_on_line`）は生の行に対して行う**。
+/// つまりエスケープや行継続で綴られたキーは、たとえ値が `ubuntu-latest`
+/// でも許容形と一致せず違反になる。runner 指定は素直な平文で書けば足りる
+/// ため、この非対称性は意図的な fail-closed 設計である。
+///
 /// 外部 YAML パーサの採用は見送る（xtask 外部依存ゼロ方針・REQ-3）。
-/// 本判定はパーサ同等の網羅性を「許容形の限定 + 反転判定」で代替する。
+/// 本判定はパーサ同等の網羅性を「許容形の限定 + 反転判定 + 正規化済み
+/// プローブ」で代替する。
 fn find_non_ubuntu_runs_on(content: &str) -> Vec<(usize, String)> {
+    let stripped: Vec<String> = content.lines().map(strip_comment).collect();
+
     content
         .lines()
         .enumerate()
         .filter_map(|(idx, line)| {
-            let stripped = strip_comment(line);
-            if !stripped.contains("runs-on") || is_allowed_runs_on_line(&stripped) {
+            if !detection_probe(&stripped, idx).contains("runs-on")
+                || is_allowed_runs_on_line(&stripped[idx])
+            {
                 return None;
             }
             Some((idx + 1, line.to_string()))
         })
         .collect()
+}
+
+/// 行継続の連結上限。異常な YAML で連結が暴走しないための保険であり、
+/// 正当なワークフローがこの深さの継続を必要とすることはない。
+const MAX_CONTINUATION_JOINS: usize = 8;
+
+/// `idx` 行目の検知用プローブ文字列を作る。
+///
+/// 行末の `\`（double-quoted scalar の行継続）が続く限り後続行を連結し、
+/// 最後に YAML のエスケープをデコードする。連結・デコードはいずれも
+/// 「`runs-on` に一致し得る綴り」を増やす方向にのみ働く。
+fn detection_probe(stripped: &[String], idx: usize) -> String {
+    let mut probe = stripped[idx].clone();
+    let mut cursor = idx;
+    let mut joins = 0;
+
+    while joins < MAX_CONTINUATION_JOINS && cursor + 1 < stripped.len() {
+        let trimmed = probe.trim_end();
+        match trimmed.strip_suffix('\\') {
+            Some(head) => {
+                probe = head.to_string();
+                probe.push_str(stripped[cursor + 1].trim_start());
+                cursor += 1;
+                joins += 1;
+            }
+            None => break,
+        }
+    }
+
+    decode_yaml_escapes(&probe)
+}
+
+/// YAML double-quoted scalar のエスケープを剥がす。
+///
+/// `\uXXXX` / `\UXXXXXXXX` / `\xXX` は対応するコードポイントへ、その他の
+/// `\<char>` は `<char>` そのものへ落とす（検知目的では実文字への厳密な
+/// 変換より「エスケープによる綴り替えを無効化する」ことが本質のため）。
+fn decode_yaml_escapes(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            None => out.push('\\'),
+            Some('x') => push_hex_escape(&mut chars, 'x', 2, &mut out),
+            Some('u') => push_hex_escape(&mut chars, 'u', 4, &mut out),
+            Some('U') => push_hex_escape(&mut chars, 'U', 8, &mut out),
+            Some(other) => out.push(other),
+        }
+    }
+
+    out
+}
+
+/// 16 進エスケープの桁を読み取り、対応する文字を `out` へ push する。
+///
+/// 桁が足りない・コードポイントとして不正な場合はエスケープ種別文字と
+/// 読み取った桁をそのまま残す（デコード失敗で文字が消え、結果として
+/// 一致が減ることのないようにするため）。
+fn push_hex_escape(
+    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
+    kind: char,
+    digits: usize,
+    out: &mut String,
+) {
+    let mut buf = String::with_capacity(digits);
+    for _ in 0..digits {
+        match chars.peek() {
+            Some(c) if c.is_ascii_hexdigit() => {
+                buf.push(*c);
+                chars.next();
+            }
+            _ => break,
+        }
+    }
+
+    match u32::from_str_radix(&buf, 16).ok().and_then(char::from_u32) {
+        Some(c) => out.push(c),
+        None => {
+            out.push(kind);
+            out.push_str(&buf);
+        }
+    }
 }
 
 /// `.github/workflows/*.yml` を列挙する。
@@ -477,6 +589,50 @@ fn accepts_quoted_runs_on_key_with_allowed_runner() {
     let content =
         "jobs:\n  a:\n    \"runs-on\": ubuntu-latest\n  b:\n    'runs-on' : \"ubuntu-latest\"\n";
     assert!(find_non_ubuntu_runs_on(content).is_empty());
+}
+
+#[test]
+fn detects_unicode_escaped_runs_on_key() {
+    // `"runs\u002don"` は YAML パーサに `runs-on` として解釈される。
+    // 生文字列への一致だけでは素通りするため、デコード後に判定する
+    // （PR #1301 の codex レビュー P0 指摘 3 件目の回帰テスト）。
+    let content = "jobs:\n  a:\n    \"runs\\u002don\": windows-latest\n";
+    let violations = find_non_ubuntu_runs_on(content);
+    assert_eq!(violations.len(), 1);
+    assert_eq!(violations[0].0, 3);
+}
+
+#[test]
+fn detects_hex_and_uppercase_escaped_runs_on_key() {
+    // `\xXX` 形・大文字 hex・`\UXXXXXXXX` 形も同様にデコードして検知する。
+    // 値が許容 runner でも、エスケープされたキーは許容形に一致しないため
+    // 違反になる（意図的な非対称性）。
+    let content = "jobs:\n  a:\n    \"runs\\x2Don\": ubuntu-latest\n  b:\n    \"runs\\U0000002don\": ubuntu-latest\n";
+    let violations = find_non_ubuntu_runs_on(content);
+    assert_eq!(violations.len(), 2);
+}
+
+#[test]
+fn detects_line_continuation_split_runs_on_key() {
+    // double-quoted scalar 内の行末 `\` は改行を打ち消すため、次行と合わせて
+    // `runs-on` キーになる。連結後のプローブで検知する。
+    let content = "jobs:\n  a:\n    \"runs-\\\n      on\": windows-latest\n";
+    let violations = find_non_ubuntu_runs_on(content);
+    assert_eq!(violations.len(), 1);
+    assert_eq!(violations[0].0, 3);
+}
+
+#[test]
+fn decode_yaml_escapes_is_match_monotonic() {
+    // デコードは一致を増やす方向にのみ働く（平文はそのまま残る）。
+    assert_eq!(
+        decode_yaml_escapes("runs-on: ubuntu-latest"),
+        "runs-on: ubuntu-latest"
+    );
+    assert_eq!(decode_yaml_escapes("runs\\u002don"), "runs-on");
+    assert_eq!(decode_yaml_escapes("runs\\x2don"), "runs-on");
+    // 桁不足・不正コードポイントは読み取った桁を残す（一致を減らさない）。
+    assert_eq!(decode_yaml_escapes("a\\uZZ"), "auZZ");
 }
 
 #[test]
