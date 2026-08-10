@@ -1,4 +1,4 @@
-# fandhe-frontend-interactive 状態管理 API 設計確定（TASK-11.1a）
+# fandhe-frontend-interactive 状態管理 API リファレンス
 
 ## 1. 目的とトレーサビリティ
 
@@ -22,19 +22,34 @@
   （`forbid(unsafe_code)`・外部依存ゼロ）
 - **TASK-11.1c（#72）**: 関連テスト（ラウンドトリップ・XSS 回帰・forbid 検証）の整備
 
-**本文書のステータス**: TASK-11.1a 確定版。TASK-11.1b/c は本書の設計に従って実装し、
-実装と本書の記述に乖離が生じた場合は本書を正として PR レビューで指摘する。
+**本文書のステータス**: 本書は当初 TASK-11.1a（#70）の設計確定書として作成されました。
+その後 TASK-11.1b（#71）でクレート本体を実装し、TASK-11.1c（#72）でテストスイート
+（`crates/interactive/tests/` の `hydration_codec.rs` / `state_management.rs` /
+`xss_escape.rs`）を整備した結果、**第 3 節・第 9〜11 節に記載する全 API は実装完了
+済み**です。`fandhe-frontend-interactive` は crates.io へ公開済みです（現行バージョンは
+`crates/interactive/Cargo.toml` の `version` を参照）。実装と本書の記述に乖離が生じた
+場合は、一次情報源である `crates/interactive/src/lib.rs` の rustdoc
+（`cargo doc -p fandhe-frontend-interactive --open` で参照可能）を正とします。
+
+**利用前提**: 本書が定める API はサーバー側（SSR/SSG）の状態保持・ハイドレーション
+属性出力を担いますが、クライアント側で実際に `dispatch` を動かしイベントへ配線する
+には `fandhe-frontend-wasm-full` と wasm ビルド（`wasm32-unknown-unknown` target +
+`wasm/Cargo.lock` の解決版に一致する wasm-bindgen-cli）が別途必要です。SSR/SSG のみの
+構成にはこれらが含まれないため、追加のビルド手順が要ります。動作する参照実装は
+[interactive-view-transitions](../../examples/interactive-view-transitions/README.md)
+を、状態管理をコンポーネントへ組み込む手順は `docs/guides/examples.md` §3.4 を参照
+してください。
 
 本書は `docs/api/component-api.md`（TASK-5.1a）・`docs/api/app-api.md`（TASK-6.1a）・
 `docs/api/hydration-api.md`（TASK-6.2a）と同じ書式（ステータス・トレーサビリティ・
 凍結表・設計判断表・スコープ外表・セキュリティ不変条件・受け入れ基準対応表）に
 揃え、`docs/` 直下のフラット配置とする。
 
-**本タスクのスコープ**: 設計確定書の作成と、コンパイル可能な範囲のクレート骨格
-（トレイト・型・定数・エラー型の定義のみ、関数本体は含まない）の作成。
+**TASK-11.1a 時点のスコープ（履歴）**: 設計確定書の作成と、コンパイル可能な範囲の
+クレート骨格（トレイト・型・定数・エラー型の定義のみ、関数本体は含まない）の作成。
 関数本体の実装（codec・dispatch・render ヘルパの本体）は TASK-11.1b（#71）、
-テストスイートは TASK-11.1c（#72）のスコープであり、本タスクでは行わない。
-`docs/spec/` はサブモジュールのため編集禁止（変更が必要な場合は
+テストスイートは TASK-11.1c（#72）のスコープとして引き継がれ、**いずれも実装完了
+済み**です。`docs/spec/` はサブモジュールのため編集禁止（変更が必要な場合は
 fandhe-frontend-spec リポジトリで行う）。
 
 **先行依存関係**: 本書の設計は `fandhe-frontend-core`（マージ済み、`docs/api/component-api.md`
@@ -70,12 +85,12 @@ fandhe-frontend-spec リポジトリで行う）。
 | API | シグネチャ | 役割 |
 |-----|-----------|------|
 | `Component` | `pub trait Component { type Action; fn update(&mut self, action: Self::Action); fn view(&self) -> fandhe_frontend_core::Node; fn decode_action(name: &str, payload: &str) -> Option<Self::Action>; }` | 状態とその描画・遷移を結ぶ中核トレイト。PoC-5 の `AppState`/`dispatch`/`render` を汎用化する |
-| `dispatch` | `pub fn dispatch<C: Component>(component: &mut C, name: &str, payload: &str) -> bool`（本体は TASK-11.1b） | WASM 境界の `(name, payload)` 文字列 dispatch ヘルパ。復号失敗時は状態を変更せず `false` を返す |
+| `dispatch` | `pub fn dispatch<C: Component>(component: &mut C, name: &str, payload: &str) -> bool` | WASM 境界の `(name, payload)` 文字列 dispatch ヘルパ。復号失敗時は状態を変更せず `false` を返す |
 | `Hydrate` | `pub trait Hydrate: Sized { fn hydration_attrs(&self) -> Vec<(String, String)>; fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError>; }` | SSR ↔ WASM のハイドレーション契約。属性値は信頼できない入力として扱う |
 | `HYDRATE_ATTR_PREFIX` | `pub const HYDRATE_ATTR_PREFIX: &str = "data-hydrate-";` | ハイドレーション属性名のプレフィックス規約（PoC-5 の `data-hydrate-*` 実績を標準化） |
 | `HydrateError` | `pub enum HydrateError { MissingAttr(String), InvalidValue { attr: String, reason: String } }`（`Display`/`std::error::Error` 実装を持つ） | 属性復元失敗の種別。`from_hydration_attrs` の戻り値型 |
-| `codec` モジュール | `pub mod codec { pub fn encode_list(items: &[String]) -> String; pub fn decode_list(joined: &str) -> Vec<String>; }`（本体は TASK-11.1b） | Unit Separator（`\u{1f}`）区切り＋バックスラッシュエスケープのリスト値エンコード（PoC-5 実証方式、外部依存ゼロで JSON 等を使わない） |
-| `render_for_hydration` | `pub fn render_for_hydration<C: Component + Hydrate>(component: &C) -> fandhe_frontend_core::Node`（本体は TASK-11.1b） | `view()` のルート要素へ `hydration_attrs()` を付与した `Node` を返す SSR 用ヘルパ |
+| `codec` モジュール | `pub mod codec { pub fn encode_list(items: &[String]) -> String; pub fn decode_list(joined: &str) -> Vec<String>; }` | Unit Separator（`\u{1f}`）区切り＋バックスラッシュエスケープのリスト値エンコード（PoC-5 実証方式、外部依存ゼロで JSON 等を使わない） |
+| `render_for_hydration` | `pub fn render_for_hydration<C: Component + Hydrate>(component: &C) -> fandhe_frontend_core::Node` | `view()` のルート要素へ `hydration_attrs()` を付与した `Node` を返す SSR 用ヘルパ |
 
 ### 3.1 設計方針の要点
 
@@ -103,19 +118,22 @@ fandhe-frontend-spec リポジトリで行う）。
 | 4 | `from_hydration_attrs` は改ざんされうるクライアント入力を前提に `Result<Self, HydrateError>` を返し、`unwrap()`/`panic!` を使わない | `.claude/rules/coding-rust.md` のエラーハンドリング規約。PoC-5 の `state_from_hydration_attrs` は数値パース失敗時に `unwrap_or(0)` でフォールバックしていたが、製品版では失敗を型として表現し、フォールバック戦略（既定値に倒すか呼び出し元へエラーを伝播するか）を呼び出し側（`fandhe-frontend-wasm-full`）の選択に委ねる |
 | 5 | codec（`encode_list`/`decode_list`）は Unit Separator（`\u{1f}`）区切り＋バックスラッシュエスケープ方式を標準として採用する | PoC-5 実証済み（`escape_item`/`unescape_item`、区切り文字・エスケープ文字混入時のラウンドトリップ整合性をテスト済み）。JSON 等の追加クレートなしで複数値を 1 属性値へエンコードでき、REQ-11 受け入れ基準「追加の JSON 等の依存なしに成立すること」を満たす |
 | 6 | 未知のアクション名（`decode_action` が `None` を返す場合）の `dispatch` は状態を変更せず `false` を返す no-op とする | 安全側フォールバック。改ざんされた・古いバージョンの `data-action` 値を受け取っても状態機械が予期しない遷移をしないことを保証する |
-| 7 | `render_for_hydration` はルート要素（`Component::view()` の戻り値）へ属性を追加する薄いヘルパとし、ルートが `Node::Element` でない場合（`Text`/`RawHtml` 直接返却）は属性を付与できないため `view()` の戻り値をそのまま返す（属性欠落を panic で扱わない） | `.claude/rules/coding-rust.md` の panic 回避規約。多くのコンポーネントはルートが `div` 等の `Element` になる想定だが、型システム上は保証されないため安全側に倒す。この挙動は TASK-11.1b の実装レビューで再確認する |
+| 7 | `render_for_hydration` はルート要素（`Component::view()` の戻り値）へ属性を追加する薄いヘルパとし、ルートが `Node::Element` でない場合（`Text`/`RawHtml` 直接返却）は属性を付与できないため `view()` の戻り値をそのまま返す（属性欠落を panic で扱わない） | `.claude/rules/coding-rust.md` の panic 回避規約。多くのコンポーネントはルートが `div` 等の `Element` になる想定だが、型システム上は保証されないため安全側に倒す。この挙動は TASK-11.1b の実装レビューで確認済み |
 
 ## 5. スコープ外の明記
 
+本表は TASK-11.1a（設計確定）時点の引き継ぎ記録です。完了済みの項目には
+「実装完了済み」を付記します。
+
 | 項目 | 引き継ぎ先 |
 |------|-----------|
-| `Component`/`Hydrate`/`dispatch`/`codec`/`render_for_hydration` の関数本体実装 | TASK-11.1b（#71） |
-| ラウンドトリップ・XSS 回帰・`forbid(unsafe_code)` 検証テスト | TASK-11.1c（#72） |
-| `fandhe-frontend-wasm-full`（TASK-11.2 #未定）でのイベント配線・`Closure` 配線との統合 | TASK-11.2 |
-| ハイドレーション状態注入の実配線（サーバー Rust ↔ クライアント WASM の end-to-end 結合） | TASK-11.4（#81） |
+| `Component`/`Hydrate`/`dispatch`/`codec`/`render_for_hydration` の関数本体実装 | TASK-11.1b（#71）— 実装完了済み |
+| ラウンドトリップ・XSS 回帰・`forbid(unsafe_code)` 検証テスト | TASK-11.1c（#72）— 実装完了済み（`crates/interactive/tests/`） |
+| `fandhe-frontend-wasm-full`（TASK-11.2 #未定）でのイベント配線・`Closure` 配線との統合 | TASK-11.2 — 実装完了済み |
+| ハイドレーション状態注入の実配線（サーバー Rust ↔ クライアント WASM の end-to-end 結合） | TASK-11.4（#81）— 実装完了済み |
 | `find_attr_values`/`find_nav_targets`（`fandhe-frontend-core` 側のハイドレーション対象特定 API） | TASK-6.2 系（`docs/api/hydration-api.md` 第 2〜3 節、マージ済み設計） |
-| 巨大な属性値・リスト長に対する上限（DoS 耐性） | TASK-11.1b の実装検討事項として記録（未起票。第 6 節参照） |
-| `.github/workflows/ci.yml` への `interactive` 固有ステップ追加 | 不要（`interactive` は `forbid(unsafe_code)` 域のため既存 `cargo test --workspace`・`RUSTFLAGS='-F unsafe_code' cargo check --workspace` に自動的に含まれる。TASK-11.1c で追加テストが workspace に加わった際に再確認する） |
+| 巨大な属性値・ネスト深さの上限（DoS 耐性） | `codec::MAX_VALUE_DEPTH` として実装完了済み（第 9 節）。リスト長そのものの上限は TASK-11.4b（#83）へ引き継ぎ中（`docs/api/hydration-state-format.md` 判断 7 参照） |
+| `.github/workflows/ci.yml` への `interactive` 固有ステップ追加 | 不要（`interactive` は `forbid(unsafe_code)` 域のため既存 `cargo test --workspace`・`RUSTFLAGS='-F unsafe_code' cargo check --workspace` に自動的に含まれる） |
 
 ## 6. セキュリティ不変条件の引き継ぎ
 
@@ -135,21 +153,22 @@ fandhe-frontend-spec リポジトリで行う）。
    判断 6、安全側フォールバック）。
 5. codec のラウンドトリップは区切り文字（`\u{1f}`）・エスケープ文字
    （`\`）を含む入力でも成立する（PoC-5 実績・TASK-11.1c でプロパティ的
-   テストを追加予定）。
+   テストを追加済み、`crates/interactive/tests/hydration_codec.rs`）。
 6. `#![forbid(unsafe_code)]` によりクレート全体で `unsafe` を機械的に禁止する
-   （REQ-2）。`docs/policy/unsafe-boundary.md` 第 2 節の `interactive` 行を「未作成」
-   から「作成済み・forbid 設定済み」へ本タスクで更新する。
+   （REQ-2）。`docs/policy/unsafe-boundary.md` 第 2 節の `interactive` 行は
+   「作成済み・forbid 設定済み」に更新済み。
 7. `crates/interactive/Cargo.toml` の `[dependencies]` は `fandhe-frontend-core`（path）のみを
    維持する（外部依存ゼロ、REQ-3）。
-8. 巨大な属性値・リスト長に対する上限（DoS 耐性）は TASK-11.1b の実装検討
-   事項として明記し、放置しない（第 5 節）。
+8. 巨大な属性値のネスト深さ上限（DoS 耐性）は `codec::MAX_VALUE_DEPTH`
+   として実装済み（第 9 節）。リスト長そのものの上限は TASK-11.4b（#83）へ
+   引き継ぎ中であり、放置していない（第 5 節）。
 
-これらは「設計制約」であり、TASK-11.1b の実装レビューではこの一覧との整合を
-確認する。
+これらは「設計制約」であり、TASK-11.1b の実装レビューでこの一覧との整合を
+確認済み。
 
 ## 7. REQ-11 受け入れ基準との対応表
 
-| REQ-11 受け入れ基準 | 満たす API・設計要素 | 担当タスク |
+| REQ-11 受け入れ基準 | 満たす API・設計要素 | 担当タスク（完了済み） |
 |--------------------|----------------------|-----------|
 | WASM 完全方式でのイベント処理・DOM 操作が `unsafe` を使用せず safe Rust の範囲に収まること | `fandhe-frontend-interactive` は `#![forbid(unsafe_code)]`（第 2 節・第 6 節・不変条件 6） | TASK-11.1b（#71） |
 | サーバー Rust（状態保持・ハイドレーション属性出力）とクライアント WASM（属性からの状態復元・イベント配線のみ）の責務分界に基づく状態注入が、追加の JSON 等の依存なしに成立すること | `Hydrate` トレイト（`hydration_attrs`/`from_hydration_attrs`）＋ `codec::encode_list`/`decode_list`（Unit Separator 方式、外部依存ゼロ、第 3〜4 節） | TASK-11.1b（#71）・TASK-11.4（#81） |

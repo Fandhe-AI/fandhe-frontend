@@ -471,8 +471,8 @@ fn list_page_after(items: &[Item]) -> Node {
 `el("ul", ..., vec![el("li", ..., ...)])` は素直に `<ul><li>...</li></ul>` に
 なり、ブラウザの開発者ツールで見た構造とコンポーネントの構造が一致します。
 
-この性質はハイドレーション（TASK-6.x / `fandhe-frontend-interactive` 予定）の回帰テスト
-対象でもあり、コンポーネント記述側で意図的にマーカーを増やす変更をする際は
+この性質はハイドレーション（TASK-6.x / `fandhe-frontend-interactive`、実装済み）の
+回帰テスト対象でもあり、コンポーネント記述側で意図的にマーカーを増やす変更をする際は
 `TASK-5.2` 系の回帰テストへの影響を確認してください。
 
 ## 8. コンパイルエラー体験
@@ -486,9 +486,12 @@ fn list_page_after(items: &[Item]) -> Node {
 
 ## 9. スコープと今後
 
-- **ハイドレーション・状態管理**（`fandhe-frontend-interactive`、TASK-6.x）は本ドキュメント
-  の範囲外です。既存 DOM へのイベント配線・状態復元の記述方式は別ドキュメント
-  で扱います。
+- **ハイドレーション・状態管理**（`fandhe-frontend-interactive`、TASK-6.x、実装済み）は
+  本ドキュメントの範囲外です。既存 DOM へのイベント配線・状態復元の記述方式は
+  [状態管理 API リファレンス](../api/interactive-api.md) と
+  [interactive-view-transitions](../../examples/interactive-view-transitions/README.md)
+  で扱います。クライアント側で実際に動かすには `fandhe-frontend-wasm-full` と
+  wasm ビルドが別途必要です。
 - **タグショートカット**（`div()`/`p()` 等のヘルパー関数）・
   **ハイドレーション支援関数**（`find_attr_values`/`find_nav_targets`）は
   実装済みです（第 4 節参照）。タグショートカットは TASK-5.1b の最小セットに
