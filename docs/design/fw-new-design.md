@@ -367,6 +367,19 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
   `windows-latest` へ直接移行した。詳細は本節末尾・イシュー #1236 参照）。
   runner 調達要件は `docs/ci/ci-runner-requirements.md` §5、検証結果は
   `docs/reports/fw-new-windows-verification-report.md` に記録する。
+  **その後（2026-08-10、ユーザー指示）**: CI の `runs-on` は `ubuntu-latest`
+  単一へ限定され（`.claude/rules/ci.md` Runner 方針）、本ハーネスは削除
+  された。実機検証は 2026-08-07 に全項目 PASS を取得済み（同レポート §4.4）
+  であり、その記録は保持するが、**現時点で Windows 実機検証を再実行する
+  手段は存在しない**。以降 §6.1 の主張を担保するのは、(1) `ci.yml` の
+  `windows-target-check` ジョブ（`ubuntu-latest` 上で
+  `cargo check --target x86_64-pc-windows-msvc`）による**コンパイルレベル**の
+  検証と、(2) 上記のプラットフォーム非依存テストの 2 つであり、Windows
+  実機での実行時挙動は未担保である（既知のトレードオフ、同レポート §6）。
+  なお Linux ホストの `cargo test` は `cfg(unix)` が有効なため
+  `#[cfg(not(unix))]` 分岐をコンパイルすらしない（当初この節に記していた
+  「Linux CI の `cargo test` が担保する」は誤りであり、PR #1301 の codex
+  レビュー P1 指摘で是正した）。
 
 ### 6.2 オフライン挙動とエラー契約（イシュー #412 受け入れ条件 (3)）
 
@@ -507,7 +520,9 @@ wasm-bindgen/web-sys バージョンとリポジトリ本体 `Cargo.lock` の一
   runner 方針のホステッドランナー既定への反転（トラッキング #1220）を受けて
   self-hosted runner の調達自体を経ずに `windows-latest` へ直接移行し
   （イシュー #1236）、実測を完了した（`docs/reports/fw-new-windows-verification-report.md`
-  §4.3）。
+  §4.3、PASS 実測は §4.4）。なお 2026-08-10 のユーザー指示（`runs-on` は
+  `ubuntu-latest` 単一）により当該ハーネスは削除済みであり、以後の実機
+  再検証手段は持たない（§6.1 の追記・同レポート §6 参照）。
 - 非 Unix でのパーミッション再現（ACL 相当の代替設定等）は行わない。
 - ルート直下クレートの `structure.toml` スキーマ上の正式化（`root` 慣習の
   一般化）と `fw structure`/`fw impact`/`default_escape_check` の当該盲点の

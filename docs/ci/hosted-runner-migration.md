@@ -195,6 +195,16 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
 （§3.1 案 C の位置づけ）。`timeout-minutes` はホステッド Windows のコールド
 ビルド分を見込み 30 → 45 分へ拡大した。実測は §5.6 参照。
 
+**その後（2026-08-10、ユーザー指示）**: CI の `runs-on` は `ubuntu-latest`
+単一へ限定され（`.claude/rules/ci.md` Runner 方針）、`fw-new-windows-verify.yml`
+は削除された。本節（§4.3）と §5.6・§5.6a の実測は 2026-08-07 時点の
+歴史的記録として保持する。以降 `windows-latest` 向けの差分設計は本文書の
+対象外であり、`fw new` の非 Unix 分岐は `ci.yml` の `windows-target-check`
+ジョブ（`ubuntu-latest` 上で `cargo check --target x86_64-pc-windows-msvc`）が
+コンパイルレベルで担保する（Linux ホストの `cargo test` では `cfg(unix)` が
+有効なため当該分岐はコンパイルされない。実機での実行時挙動は未担保。詳細は
+`docs/reports/fw-new-windows-verification-report.md` §6）。
+
 ## 5. 並列度・所要時間見積りと許容基準
 
 ### 5.1 並列度の比較
@@ -600,6 +610,14 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
   付きインストールは移行後むしろ主経路であり削除・弱体化しない旨）は
   「Runner 方針」節へ移設して保持した。`docs/ci/ci-runner-requirements.md`
   の §1〜§3・§8 の現況表・箇条書きも「移行完了済み」「廃止済み」へ更新した。
+- **Phase 3 の後日談（2026-08-10、ユーザー指示）**: CI の `runs-on` は
+  `ubuntu-latest` 単一へ限定され、Phase 3 で `windows-latest` へ移行した
+  `fw-new-windows-verify.yml` は削除された。したがって現在の
+  `.github/workflows/` は全ジョブが `ubuntu-latest`（reusable workflow
+  呼び出しの codex-review を除く）であり、この単一化は
+  `crates/xtask/tests/workflow_runner_policy.rs` の
+  `workflows_run_only_on_ubuntu_latest` が機械強制する。上記 #1236 の実績
+  記述は当時の移行記録として保持する。
 - 各 Phase の完了条件: 対象ワークフローの `runs-on: self-hosted` が
   0 件になり、CI が連続 green であること。移行直後 1〜2 回の実行結果は
   キャッシュコールド状態のため、ウォーム時の実測を待ってから §5.3 の
