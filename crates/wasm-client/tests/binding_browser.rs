@@ -186,6 +186,18 @@ fn fixture_tree() -> fandhe_frontend_core::Node {
                 ],
                 vec![text("link")],
             ),
+            // class 名 "on" は attr 名としては拒否される `on` 接頭辞と同形だが、
+            // class 束縛は setAttribute を経由せず classList.toggle_with_force
+            // にしか到達しないため受理されるべきという回帰用フィクスチャ
+            // （イシュー #1300）。
+            el(
+                "span",
+                vec![
+                    ("id", "on-class-node"),
+                    ("data-bind-class", &bind_class_token("on", "liked")),
+                ],
+                vec![],
+            ),
             // `srcset` は本来 `img`/`source` 等が持つ属性だが、既存の
             // `text_update_does_not_parse_payload_as_html`（受け入れ条件 2）
             // が「root 配下に img 要素が生成されないこと」を独立に検証して
@@ -367,6 +379,52 @@ fn attr_and_class_bindings_reflect_state_and_are_idempotent() {
     assert!(
         !button.class_list().contains("liked"),
         "liked=false のとき liked class が解除されること"
+    );
+}
+
+/// `data-bind-class="on:<field>"`（`on` 接頭辞の class 名）が実ブラウザで
+/// 無言 skip されず、他の class 束縛と同様に toggle されること（イシュー
+/// #1300 の中核受け入れ条件）。
+///
+/// `on`/`once`/`online` 等の class 名は attr 用の `on` 接頭辞拒否の対象では
+/// ないことをネイティブ側で `binding.rs` の単体テストとして固定済みだが、
+/// 本テストは `BindingTable::scan` → `apply_update` の実 DOM 経路まで通した
+/// 証跡を担う（`element_binding_specs` の分岐が透過的に波及していることの
+/// 確認）。
+#[wasm_bindgen_test]
+fn on_prefixed_class_binding_toggles_like_any_other_class() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    let root = create_container(&document, "binding-on-prefixed-class-root");
+    root.set_inner_html(&render(&fixture_tree()));
+
+    let table = BindingTable::scan(&root).expect("scan must succeed for a well-formed fixture");
+
+    let node = root
+        .query_selector("#on-class-node")
+        .expect("query_selector must not fail")
+        .expect("fixture must contain #on-class-node");
+    assert!(
+        !node.class_list().contains("on"),
+        "初期状態では on class が付与されていないこと"
+    );
+
+    let mut state = TestState::new();
+    dispatch(&mut state, "toggle_liked", "");
+    table.apply_update(&state);
+
+    assert!(
+        node.class_list().contains("on"),
+        "liked=true のとき data-bind-class=\"on:liked\" の on class が付与されること（イシュー #1300: on 接頭辞の class 名が無言 skip されないこと）"
+    );
+
+    dispatch(&mut state, "toggle_liked", "");
+    table.apply_update(&state);
+
+    assert!(
+        !node.class_list().contains("on"),
+        "liked=false のとき on class が解除されること"
     );
 }
 

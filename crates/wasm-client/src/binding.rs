@@ -75,8 +75,7 @@ pub trait BindingSource {
     fn bound_value(&self, field: &str) -> Option<BoundValue>;
 }
 
-/// `data-bind-attr` / `data-bind-class` 属性値の属性・class 名として妥当かを
-/// 判定する。
+/// `data-bind-attr` 属性値の属性名として妥当かを判定する。
 ///
 /// 英数字・`-`・`_` のみを許可し、空文字列を拒否する。加えて、
 /// `setAttribute("onclick", value)` のような呼び出しは状態値を実行可能な
@@ -88,16 +87,45 @@ pub trait BindingSource {
 ///
 /// URL スキーム等「値の内容」の検証は設計書 §9 の確定通り本関数の責務では
 /// ない（既存 SSR 経路と同等の残存リスク）。
-fn is_valid_binding_name(name: &str) -> bool {
+///
+/// # `data-bind-class` に適用しない理由（イシュー #1300）
+///
+/// この `on` 接頭辞拒否は `setAttribute` へ到達しうる属性名にのみ意味がある
+/// 防御である。class 名は [`crate::binding_dom`] の `BindingKind::Class`
+/// アームで `Element.class_list().toggle_with_force` にしか渡らず、
+/// `setAttribute` を含むいかなるハンドラ昇格経路にも到達しない。そのため
+/// class 名検証には本関数ではなく [`is_valid_class_binding_name`] を使う
+/// （`on` / `once` / `online` 等の正当な class 名が誤って無言 skip される
+/// のを防ぐ）。
+fn is_valid_attr_binding_name(name: &str) -> bool {
     !name.is_empty()
         && !name.to_ascii_lowercase().starts_with("on")
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        && is_valid_binding_name_charset(name)
 }
 
-/// `"<name>:<field>"` 空白区切りトークン列をパースする（`data-bind-attr` /
-/// `data-bind-class` 属性値の共通形式、設計書 §3.1）。
+/// `data-bind-class` 属性値の class 名として妥当かを判定する。
+///
+/// 英数字・`-`・`_` のみを許可し、空文字列を拒否する（文字種制限は
+/// [`is_valid_attr_binding_name`] と同一）。`on` 接頭辞拒否は課さない
+/// （[`is_valid_attr_binding_name`] の rustdoc「`data-bind-class` に
+/// 適用しない理由」参照 — class 名は `classList.toggle_with_force` にしか
+/// 到達せずハンドラ昇格経路が存在しないため）。
+fn is_valid_class_binding_name(name: &str) -> bool {
+    !name.is_empty() && is_valid_binding_name_charset(name)
+}
+
+/// 属性名・class 名の両方に共通する文字種検証（英数字・`-`・`_` のみ）。
+///
+/// 空白・記号混入による属性値汚染やトークン分割の余地を残さないための
+/// 共通ヘルパ（[`is_valid_attr_binding_name`] / [`is_valid_class_binding_name`]
+/// 双方から呼ばれる）。
+fn is_valid_binding_name_charset(name: &str) -> bool {
+    name.chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// `"<name>:<field>"` 空白区切りトークン列をパースする共通実装
+/// （`data-bind-attr` / `data-bind-class` 属性値の共通形式、設計書 §3.1）。
 ///
 /// 不正トークンは黙って skip する（fail-closed。DOM 改ざん・部分的破損を
 /// 前提とした安全側フォールバック、`DirtyTracked` ドキュメントの不変条件 4
@@ -105,10 +133,14 @@ fn is_valid_binding_name(name: &str) -> bool {
 ///
 /// - コロンが 0 個・2 個以上のトークン
 /// - `name` または `field` が空文字列
-/// - `name` が [`is_valid_binding_name`] を満たさない（記号混入・`on*` 接頭辞）
+/// - `name` が `is_valid_name`（呼び出し元が渡す検証関数）を満たさない
 ///
 /// 戻り値は `(name, field)` の組の列。順序はトークン出現順（決定的）。
-pub fn parse_binding_tokens(raw: &str) -> Vec<(String, String)> {
+/// `is_valid_name` の差し替えにより attr 用（`on*` 拒否あり）と class 用
+/// （`on*` 拒否なし）の 2 変種（[`parse_binding_tokens`] /
+/// [`parse_class_binding_tokens`]）を二重実装なしに提供する（イシュー
+/// #1300）。
+fn parse_tokens_with(raw: &str, is_valid_name: impl Fn(&str) -> bool) -> Vec<(String, String)> {
     raw.split_whitespace()
         .filter_map(|token| {
             let (name, field) = token.split_once(':')?;
@@ -123,7 +155,7 @@ pub fn parse_binding_tokens(raw: &str) -> Vec<(String, String)> {
             if name.is_empty() || field.is_empty() {
                 return None;
             }
-            if !is_valid_binding_name(name) {
+            if !is_valid_name(name) {
                 return None;
             }
             Some((name.to_string(), field.to_string()))
@@ -131,13 +163,35 @@ pub fn parse_binding_tokens(raw: &str) -> Vec<(String, String)> {
         .collect()
 }
 
+/// `"<name>:<field>"` 空白区切りトークン列をパースする（`data-bind-attr`
+/// 属性値専用、設計書 §3.1）。
+///
+/// name（属性名）は [`is_valid_attr_binding_name`] で検証する（`on*`
+/// 接頭辞拒否あり）。`data-bind-class` の解析には
+/// [`parse_class_binding_tokens`] を使う（イシュー #1300 で検証を分離）。
+pub fn parse_binding_tokens(raw: &str) -> Vec<(String, String)> {
+    parse_tokens_with(raw, is_valid_attr_binding_name)
+}
+
+/// `"<name>:<field>"` 空白区切りトークン列をパースする（`data-bind-class`
+/// 属性値専用、設計書 §3.1）。
+///
+/// name（class 名）は [`is_valid_class_binding_name`] で検証する（`on*`
+/// 接頭辞拒否なし — class 名は `setAttribute` を経由せず
+/// `classList.toggle_with_force` にしか到達しないため、イシュー #1300）。
+/// `data-bind-attr` の解析には [`parse_binding_tokens`] を使う。
+pub fn parse_class_binding_tokens(raw: &str) -> Vec<(String, String)> {
+    parse_tokens_with(raw, is_valid_class_binding_name)
+}
+
 /// 1 要素分のマーカー属性値 3 種（`data-bind-text` / `data-bind-attr` /
 /// `data-bind-class` の生の属性値、それぞれ未設定なら `None`）から
 /// [`BindingSpec`] 列を構築する（走査ロジックの DOM 非依存部分）。
 ///
 /// 決定的な順序（text → attr（トークン出現順） → class（トークン出現順））
-/// で返す。不正な attr/class トークンは [`parse_binding_tokens`] の
-/// fail-closed 方針により黙って skip される。
+/// で返す。不正な attr トークンは [`parse_binding_tokens`]、不正な class
+/// トークンは [`parse_class_binding_tokens`] の fail-closed 方針により
+/// 黙って skip される（両者の検証差分はイシュー #1300 参照）。
 pub fn element_binding_specs(
     bind_text: Option<&str>,
     bind_attr: Option<&str>,
@@ -164,7 +218,7 @@ pub fn element_binding_specs(
     }
 
     if let Some(raw) = bind_class {
-        for (class, field) in parse_binding_tokens(raw) {
+        for (class, field) in parse_class_binding_tokens(raw) {
             specs.push(BindingSpec {
                 field,
                 kind: BindingKind::Class(class),
@@ -345,6 +399,50 @@ mod tests {
         );
     }
 
+    // --- parse_class_binding_tokens（イシュー #1300: `on` 接頭辞拒否の分離） ---
+
+    #[test]
+    fn parse_class_binding_tokens_allows_on_prefixed_class_names() {
+        // class 名は setAttribute を経由せず classList.toggle_with_force に
+        // しか到達しないため、`on`/`once`/`online` 等の正当な class 名が
+        // 誤って skip されてはならない（イシュー #1300 の中核回帰）。
+        assert_eq!(
+            parse_class_binding_tokens("on:is-active"),
+            vec![("on".to_string(), "is-active".to_string())]
+        );
+        assert_eq!(
+            parse_class_binding_tokens("once:x"),
+            vec![("once".to_string(), "x".to_string())]
+        );
+        assert_eq!(
+            parse_class_binding_tokens("online:y"),
+            vec![("online".to_string(), "y".to_string())]
+        );
+        assert_eq!(
+            parse_class_binding_tokens("ON:x"),
+            vec![("ON".to_string(), "x".to_string())]
+        );
+    }
+
+    #[test]
+    fn parse_class_binding_tokens_skips_symbol_polluted_and_empty_names() {
+        // 文字種制限（英数字・`-`・`_` のみ）は attr 用と同様に維持する
+        // （`on` 接頭辞拒否のみを外し、それ以外は緩めない）。
+        assert_eq!(parse_class_binding_tokens("a<script>:draft"), Vec::new());
+        assert_eq!(parse_class_binding_tokens("a b=c:draft"), Vec::new());
+        assert_eq!(parse_class_binding_tokens(":field"), Vec::new());
+        assert_eq!(parse_class_binding_tokens("name:"), Vec::new());
+        assert_eq!(parse_class_binding_tokens("name:a:b"), Vec::new());
+    }
+
+    #[test]
+    fn parse_binding_tokens_still_rejects_on_prefixed_attribute_names() {
+        // attr 側の防御は不変であることの固定回帰（既存テスト
+        // `parse_binding_tokens_skips_on_prefixed_attribute_names_case_insensitively`
+        // と重複するが、class 側の緩和と対で確認する意図の追加）。
+        assert_eq!(parse_binding_tokens("onclick:draft"), Vec::new());
+    }
+
     #[test]
     fn element_binding_specs_returns_all_specs_for_co_located_markers() {
         let specs = element_binding_specs(
@@ -378,6 +476,20 @@ mod tests {
     #[test]
     fn element_binding_specs_returns_empty_for_no_markers() {
         assert_eq!(element_binding_specs(None, None, None), Vec::new());
+    }
+
+    #[test]
+    fn element_binding_specs_class_accepts_on_prefix_while_attr_still_rejects_it() {
+        // イシュー #1300 の中核回帰: 同一要素上で attr 側の `onclick` は
+        // 引き続き skip されつつ、class 側の `on` は BindingSpec を生成する。
+        let specs = element_binding_specs(None, Some("onclick:draft"), Some("on:lit"));
+        assert_eq!(
+            specs,
+            vec![BindingSpec {
+                field: "lit".to_string(),
+                kind: BindingKind::Class("on".to_string()),
+            }]
+        );
     }
 
     #[test]
