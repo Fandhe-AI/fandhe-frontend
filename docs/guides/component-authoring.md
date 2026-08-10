@@ -323,7 +323,37 @@ void 要素（終了タグを持たない）であり、`render()` は start tag
 
 **意図的に提供しないヘルパー**: `script`/`style`/`iframe` は攻撃面が大きい
 タグであり、標準ヘルパーとして書きやすくすることを避けるため提供しません。
-必要な場合は `el("script", ...)` のように明示的に書いてください。
+`el("script", ...)` のように書けば要素タグ自体は出力できますが、**子ノードに
+`text()` を渡してもインラインの中身をそのまま書くことはできません**。
+`Node::Text` は `render()` 時に必ず既定エスケープ（REQ-1、第 5 節）を通るため、
+`<`・`&` などを含む JS/CSS はエスケープ後の断片になり、動作するコードとして
+出力されません。
+
+```rust
+use fandhe_frontend_core::{el, text, render};
+
+let node = el("script", vec![], vec![text("if (a < b) { f(); }")]);
+assert_eq!(
+    render(&node),
+    "<script>if (a &lt; b) { f(); }</script>"
+);
+// エスケープ後の断片であり、ブラウザ上で意図どおりの JS としては動作しません。
+```
+
+インラインスクリプト・インラインスタイルが必要な場合は、次のいずれかを
+使ってください。
+
+- **推奨: 外部ファイル参照**。スクリプトは
+  `el("script", vec![("src", "/app.js")], vec![])`、スタイルは
+  `<link rel="stylesheet">`（`el("link", vec![("rel", "stylesheet"), ("href", "/app.css")], vec![])`）
+  のように `src`/`href` 属性で外部ファイルを参照します。
+- **インラインがどうしても不可避な場合**: `raw_html()`（第 5 節「`raw_html()`
+  を使ってよい条件」）が唯一の許容迂回経路です。ただし `clippy.toml` の
+  `disallowed-methods` によって呼び出しがゲートされており、
+  `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]`
+  によるレビュー済みオプトインが必須です。手順は `docs/policy/raw-html-review-gate.md`
+  を参照してください。
+
 `select`/`option` は Rust の `Option` 型との混同を避けるため、属性なし版
 ヘルパー（`div_()` 等）・attrs ビルダ API は API 表面の肥大化を避けるため、
 それぞれ不採用としています。
@@ -471,8 +501,8 @@ fn list_page_after(items: &[Item]) -> Node {
 `el("ul", ..., vec![el("li", ..., ...)])` は素直に `<ul><li>...</li></ul>` に
 なり、ブラウザの開発者ツールで見た構造とコンポーネントの構造が一致します。
 
-この性質はハイドレーション（TASK-6.x / `fandhe-frontend-interactive` 予定）の回帰テスト
-対象でもあり、コンポーネント記述側で意図的にマーカーを増やす変更をする際は
+この性質はハイドレーション（TASK-6.x / `fandhe-frontend-interactive`、実装済み）の
+回帰テスト対象でもあり、コンポーネント記述側で意図的にマーカーを増やす変更をする際は
 `TASK-5.2` 系の回帰テストへの影響を確認してください。
 
 ## 8. コンパイルエラー体験
@@ -486,9 +516,12 @@ fn list_page_after(items: &[Item]) -> Node {
 
 ## 9. スコープと今後
 
-- **ハイドレーション・状態管理**（`fandhe-frontend-interactive`、TASK-6.x）は本ドキュメント
-  の範囲外です。既存 DOM へのイベント配線・状態復元の記述方式は別ドキュメント
-  で扱います。
+- **ハイドレーション・状態管理**（`fandhe-frontend-interactive`、TASK-6.x、実装済み）は
+  本ドキュメントの範囲外です。既存 DOM へのイベント配線・状態復元の記述方式は
+  [状態管理 API リファレンス](../api/interactive-api.md) と
+  [interactive-view-transitions](../../examples/interactive-view-transitions/README.md)
+  で扱います。クライアント側で実際に動かすには `fandhe-frontend-wasm-full` と
+  wasm ビルドが別途必要です。
 - **タグショートカット**（`div()`/`p()` 等のヘルパー関数）・
   **ハイドレーション支援関数**（`find_attr_values`/`find_nav_targets`）は
   実装済みです（第 4 節参照）。タグショートカットは TASK-5.1b の最小セットに

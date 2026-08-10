@@ -71,15 +71,15 @@ RUN rustup target add wasm32-unknown-unknown
 # 上段と同じ uname -m 判定軸でアーキ分岐させる。対応外アーキはフェイル
 # クローズ（署名未検証バイナリを黙って使わない）。
 RUN set -eux; \
-    WASM_BINDGEN_VERSION="0.2.126"; \
+    WASM_BINDGEN_VERSION="0.2.127"; \
     case "$(uname -m)" in \
         x86_64) \
             WASM_BINDGEN_ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"; \
-            WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"; \
+            WASM_BINDGEN_SHA256="61d4a7dc85acfa0d2354ccc0b8361928c7e52a746d17f28ebaa795ed3dc1614a"; \
             ;; \
         aarch64) \
             WASM_BINDGEN_ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-aarch64-unknown-linux-musl.tar.gz"; \
-            WASM_BINDGEN_SHA256="2245120254a9f6c9a9adf3601f3d52bb31309219e9ceab7696e74e24885c440a"; \
+            WASM_BINDGEN_SHA256="699ddbb724ece16f912b73a98b5341a75f4b8c7886ce152d40dbe09f694e46c7"; \
             ;; \
         *) \
             echo "unsupported arch for wasm-bindgen-cli: $(uname -m)" && exit 1 ;; \
