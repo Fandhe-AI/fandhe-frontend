@@ -6,8 +6,11 @@
 //!
 //! ## 契約の意味論（その 2: `runs-on` は `ubuntu-latest` のみ）
 //!
-//! 非コメント行の `runs-on:` キーの値が、リテラル `ubuntu-latest`
-//! （クォート有無は不問）と完全一致することを契約とする。
+//! 非コメント行の `runs-on` キーの値が、リテラル `ubuntu-latest`
+//! （クォート有無は不問）と完全一致することを契約とする。キーと `:` の
+//! 間の空白（`runs-on : windows-latest`。YAML では合法）も正規化して
+//! 検査する（正規化を怠ると空白 1 つで検知を回避できる fail-open に
+//! なる。PR #1301 の codex レビュー P0 指摘）。
 //! `windows-latest` / `macos-latest` / `ubuntu-24.04-arm` 等の他 OS・他
 //! イメージはもちろん、`${{ matrix.os }}` のような非リテラル指定、
 //! block sequence / `labels:` mapping 形もすべて不一致＝ FAIL とする
@@ -146,7 +149,22 @@ fn find_self_hosted_violations(content: &str) -> Vec<(usize, String)> {
 /// ユーザー指示 2026-08-10）。
 const ALLOWED_RUNNER: &str = "ubuntu-latest";
 
-/// ファイル内容から `runs-on:` の値が `ubuntu-latest` 以外である箇所を
+/// 1 行が `runs-on` キーであればその値（コロン以降のトリム済み文字列）を
+/// 返す。
+///
+/// YAML はキーと `:` の間の空白を許すため（`runs-on : windows-latest` も
+/// 合法）、`strip_prefix("runs-on:")` だけで判定すると空白を 1 つ入れる
+/// だけで検知を回避できる fail-open になる（codex レビュー P0 指摘、
+/// PR #1301）。キー名一致のあと空白を読み飛ばしてから `:` を要求する形で
+/// 正規化し、この抜け道を塞ぐ。`runs-on-foo:` のような別キーは `:` 以外の
+/// 文字に当たるため `None` を返す。
+fn runs_on_value(line: &str) -> Option<&str> {
+    let rest = line.trim_start().strip_prefix("runs-on")?;
+    let rest = rest.trim_start();
+    Some(rest.strip_prefix(':')?.trim())
+}
+
+/// ファイル内容から `runs-on` の値が `ubuntu-latest` 以外である箇所を
 /// 検出する。
 ///
 /// 戻り値は (1-indexed 行番号, 元の行内容) のリスト。値が空（block
@@ -159,8 +177,7 @@ fn find_non_ubuntu_runs_on(content: &str) -> Vec<(usize, String)> {
         .enumerate()
         .filter_map(|(idx, line)| {
             let stripped = strip_comment(line);
-            let trimmed = stripped.trim_start();
-            let value = trimmed.strip_prefix("runs-on:")?.trim();
+            let value = runs_on_value(&stripped)?;
             // クォート表記（`"ubuntu-latest"` / `'ubuntu-latest'`）を正規化する。
             let value = value
                 .strip_prefix('"')
@@ -276,7 +293,7 @@ fn workflow_scan_is_not_vacuous() {
             .unwrap_or_else(|e| panic!("{path:?} の読み込みに失敗した: {e}"));
         for line in content.lines() {
             let stripped = strip_comment(line);
-            if stripped.trim_start().starts_with("runs-on:") {
+            if runs_on_value(&stripped).is_some() {
                 runs_on_count += 1;
             }
         }
@@ -377,6 +394,32 @@ fn detects_block_sequence_runner() {
     // 値が次行以降へ続く書き方は 1 行から runner を確定できないため違反扱い。
     let content = "jobs:\n  test:\n    runs-on:\n      - ubuntu-latest\n";
     assert_eq!(find_non_ubuntu_runs_on(content).len(), 1);
+}
+
+#[test]
+fn detects_runner_with_whitespace_before_colon() {
+    // YAML はキーと `:` の間の空白を許す。空白 1 つで検知を回避できると
+    // fail-open になるため、この表記でも違反として検出する
+    // （PR #1301 の codex レビュー P0 指摘の回帰テスト）。
+    let content = "jobs:\n  a:\n    runs-on : windows-latest\n  b:\n    runs-on\t: macos-latest\n";
+    let violations = find_non_ubuntu_runs_on(content);
+    assert_eq!(violations.len(), 2);
+    assert_eq!(violations[0].0, 3);
+    assert_eq!(violations[1].0, 5);
+}
+
+#[test]
+fn accepts_ubuntu_latest_with_whitespace_before_colon() {
+    let content = "jobs:\n  test:\n    runs-on : ubuntu-latest\n";
+    assert!(find_non_ubuntu_runs_on(content).is_empty());
+}
+
+#[test]
+fn does_not_treat_other_keys_as_runs_on() {
+    // `runs-on` を接頭辞に持つ別キー・別値を誤検知しない
+    // （キー名一致の後に空白を読み飛ばしても `:` 以外なら非対象）。
+    let content = "jobs:\n  test:\n    runs-on-note: windows-latest\n    steps:\n      - run: echo runs-on windows-latest\n";
+    assert!(find_non_ubuntu_runs_on(content).is_empty());
 }
 
 #[test]
