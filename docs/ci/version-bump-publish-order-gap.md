@@ -276,7 +276,10 @@ templates/app が依存する crates.io バージョン依存クレートのバ�
 本フォールバックにより smoke ジョブが green のまま進行できる。以下は
 案 2 実装前に運用していた緊急手順の記録であり、正式運用として推奨するもの
 ではない（フォールバックが何らかの理由で機能しない場合の最終手段としてのみ
-参照する）。
+参照する）。**codex-review 導入後（イシュー #1306）は §10「同時公開フロー」が
+正式な選択肢であり、下記手順 2 の「公開後は当該 PR へ一切 push しない」は
+§10.2 項目 3・4 の「lock 再生成コミットは許容し、それ以外の追加変更・
+force-push を禁止する」条件付き許容へ読み替える。**
 
 1. PR を最終形まで完成させ、レビュー完了後に release.yml を PR ブランチ ref
    から `mode: publish` で実行する。
@@ -470,3 +473,97 @@ gh run view <run-id> --json jobs \
 - 二重公開防止: `check_version_bump::query_index` による既公開チェックを
   公開直前にも再照会し、トリガーから公開実行までの間に他経路（手動
   `workflow_dispatch` 等）で先に公開済みになっていた場合はスキップする。
+
+## 10. 同時公開フロー（ユーザー決定 2026-08-10、イシュー #1306）
+
+### 10.1 背景（codex-review 導入後の新たなデッドロック）
+
+案 2（`patch-template-smoke`）は `template-app-wasm-smoke` ジョブ・app テンプレート
+gate e2e の三すくみ（§1・§5）を解消したが、`templates/app/wasm/Cargo.lock`
+自体の再生成は依然として crates.io 側にバンプ先バージョンが公開されるまで
+不能である（`Cargo.lock` はチェックサム込みでロックするため、未公開バージョン
+に対しては生成できない）。従来はこの lock 再生成を公開後の後続 PR へ先送りする
+運用だった（PR #1148 → #1150 が先例）。
+
+しかし codex-review（イシュー #1275/PR #1278 で導入、P0/P1 指摘は必須マージ
+条件）は stale な `Cargo.lock`（依存先バージョンと不整合な lock）を P1 として
+検知するため、「バンプ PR 内では lock を更新できない」「lock を更新しない
+PR は codex-review が P1 でブロックする」という新たな構造的デッドロックが
+PR #1304 で顕在化した。後続 PR への先送りは codex-review 導入前提では
+機能しない。
+
+### 10.2 許容するフロー
+
+上記デッドロックの解消として、ユーザーは「バンプ PR が open のまま、当該 PR
+ブランチを ref として release.yml（`mode: publish`）で先行公開し、同一 PR 内で
+`templates/app/wasm/Cargo.lock`（および `crates/cli/templates/` の同梱コピー）
+を公開済みバージョンで再生成してから merge する」フロー（**同時公開フロー**）
+を許容する 2026-08-10 に決定した。適用条件は以下のすべてを満たすこととする。
+
+1. **verify（dry-run）を先行実行して green を確認してから `mode: publish` を
+   実行する**: release.yml の `mode: dry-run-only`（既定・安全側、§2）で
+   `cargo package`/`cargo publish --dry-run` が通ることを確認してから、
+   改めて `mode: publish` を明示選択する。dry-run を経ずに直接 publish しない。
+2. **公開順序は依存グラフに従う**: workspace 内 `path + version` 併記依存
+   （`xtask check-dep-versions`〔イシュー #657〕が構築するグラフと同じ）の
+   トポロジカル順で公開する（例: `fandhe-frontend-wasm-client` を公開してから
+   これに依存する `fandhe-frontend-wasm-full` を公開する）。依存先が sparse
+   index へ反映される前に依存元を公開すると `cargo publish` 自体が失敗する
+   ため、この順序は正しさの前提でもある。
+3. **公開後は同一 PR 内で template lock を速やかに再生成する**:
+   公開完了（sparse index への反映確認、`check_version_bump::query_index` 相当の
+   照会で確認できる）後、`templates/app/wasm/Cargo.lock` と
+   `crates/cli/templates/`（`fw new --template app` 埋め込み用の同梱コピー、
+   `template_publish_copy_drift.rs` がバイト一致を検証）を公開済みバージョンで
+   再生成し、`template_vendor_drift`・`template-app-wasm-smoke` を green 化する。
+4. **`version-bump-guard` は `version-bump-exempt` 宣言で免除する**:
+   本 PR から当該クレートを実際に公開した後は、`version-bump-guard`
+   （`.github/workflows/ci.yml`・`crates/xtask/src/check_version_bump.rs`）
+   の判定条件（「公開済みクレートの `src/`・`Cargo.toml`・`build.rs` に base
+   比の差分がある」かつ「`version` が crates.io 既公開バージョン」）を PR
+   ブランチ自身が満たしてしまい、再実行のたびに FAIL する（§1 の PR #872
+   「再バンプループ」と同型の検知。項目 6 の force-push 禁止だけでは防げない、
+   push なしの再実行でも同じ判定になるため）。この経路は
+   `.claude/rules/coding-rust.md`・`.claude/rules/ci.md` が定める既存の免除
+   手段（PR 本文へ `version-bump-exempt: <crate-name>`（クレート名の完全一致・
+   理由を同一行に記載）を宣言する）を使う。「公開は本 PR から実施済み
+   （イシュー #1306 の同時公開フロー）」等、公開済みである旨を理由として明記
+   する。包括免除（クレート名を伴わないマーカーのみ）は認めない
+   （security.md A05）。
+5. **merge 前に green 化を確認する**: `template_vendor_drift`・
+   `template-app-wasm-smoke`・`version-bump-guard`（免除適用込み）・
+   codex-review のいずれも green であることを確認してから merge する。
+6. **公開実行後の当該ブランチへの force-push・公開済みバージョンに影響する
+   追加変更は禁止する**: crates.io は yank 以外で取り消せないため、`mode:
+   publish` 実行時点のコード内容が当該バージョンとして確定する。公開後に
+   同一バージョンのソース内容を変える追加コミット（force-push によるものを
+   含む）は、公開物と PR 上のコードが乖離する事態を招くため行わない
+   （lock 再生成・ドキュメント調整等、公開済みバージョンの実体に影響しない
+   変更は対象外）。この制約は §1 の PR #872「再バンプループ」が示した問題
+   （公開後の追加 push が version-bump-guard を再度発火させ再公開を招く）
+   を回避する目的も兼ねる。
+7. **`mode: publish` の明示選択という承認境界は不変とする**: 自動化しない。
+   トークン供給経路（`CARGO_REGISTRY_TOKEN` の `mode: publish` ステップ限定
+   注入、§2・`.claude/rules/ci.md`）もそのまま維持する。
+
+### 10.3 残存リスク
+
+マージされずに reject された PR であっても、`mode: publish` を実行済みで
+あれば当該バージョンは crates.io 上に残る（crates.io の設計上、公開の取消は
+yank のみで実体の削除ではない）。同時公開フローを適用する場合は、実行前に
+「このバージョンは merge されなくても crates.io に残り続ける」ことを承知の
+うえで判断する。この残存リスクは案 1（§3「マージ前ブランチ公開の正式化」）が
+「(b) 最悪」と評価された理由と同根であり、同時公開フローはこのリスクを
+解消するものではなく、codex-review 導入後のデッドロック回避のために限定的に
+許容するものである。§6 の暫定運用（緊急手順）とは異なり、本フローは
+codex-review 前提下での正式な選択肢の一つとして位置づける（§5 の
+`patch-template-smoke` フォールバックで解消できない「lock 自体の再生成」
+という残課題に対する対処であり、両者は排他ではなく併用され得る）。
+
+### 10.4 従来フロー（後続 PR での lock 再生成）との関係
+
+codex-review 導入前は「バンプ PR 内では lock を更新せず、公開後の後続 PR で
+まとめて再生成する」運用（PR #1148 → #1150）が既定だった。codex-review が
+stale lock を P1 として検知するようになったため、**同時公開フローを既定の
+選択肢とする**。後続 PR への先送りは、codex-review の P1 判定が何らかの理由で
+効かない場合（例: 一時的な codex-review 停止時）に限る例外的経路として残す。
