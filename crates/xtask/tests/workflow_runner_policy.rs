@@ -264,26 +264,24 @@ fn find_non_ubuntu_runs_on(content: &str) -> Vec<(usize, String)> {
 
 /// 行継続の連結上限。異常な YAML で連結が暴走しないための保険であり、
 /// 正当なワークフローがこの深さの継続を必要とすることはない。
-const MAX_CONTINUATION_JOINS: usize = 8;
-
 /// `idx` 行目の検知用プローブ文字列を作る。
 ///
 /// 行末の `\`（double-quoted scalar の行継続）が続く限り後続行を連結し、
 /// 最後に YAML のエスケープをデコードする。連結・デコードはいずれも
-/// 「`runs-on` に一致し得る綴り」を増やす方向にのみ働く。
+/// 「`runs-on` に一致し得る綴り」を増やす方向にのみ働く。連結回数に固定
+/// 上限は設けない（途中打ち切りは、上限超の行継続でキーを分割する迂回に
+/// 対して fail-open になる。走査はファイル末尾で必ず停止するため有界）。
 fn detection_probe(stripped: &[String], idx: usize) -> String {
     let mut probe = stripped[idx].clone();
     let mut cursor = idx;
-    let mut joins = 0;
 
-    while joins < MAX_CONTINUATION_JOINS && cursor + 1 < stripped.len() {
+    while cursor + 1 < stripped.len() {
         let trimmed = probe.trim_end();
         match trimmed.strip_suffix('\\') {
             Some(head) => {
                 probe = head.to_string();
                 probe.push_str(stripped[cursor + 1].trim_start());
                 cursor += 1;
-                joins += 1;
             }
             None => break,
         }
@@ -618,6 +616,23 @@ fn detects_line_continuation_split_runs_on_key() {
     // `runs-on` キーになる。連結後のプローブで検知する。
     let content = "jobs:\n  a:\n    \"runs-\\\n      on\": windows-latest\n";
     let violations = find_non_ubuntu_runs_on(content);
+    assert_eq!(violations.len(), 1);
+    assert_eq!(violations[0].0, 3);
+}
+
+#[test]
+fn detects_runs_on_key_split_across_many_line_continuations() {
+    // 行継続を 1 文字ごとに挟んで `runs-on` を十数行へ分割しても、連結に
+    // 固定上限を設けないため完全なキーがプローブへ組み上がり検知される
+    // （旧実装は 8 回で打ち切っており、9 回超の分割が fail-open だった。
+    // codex-review / Bugbot 指摘の回帰ケース）。
+    // 1 文字ごとに「行継続 + 空の継続行」を挟む（7 文字 × 2 = 14 連結）。
+    let split_key: String = "runs-on"
+        .chars()
+        .map(|c| format!("{c}\\\n      \\\n      "))
+        .collect();
+    let content = format!("jobs:\n  a:\n    \"{split_key}\": windows-latest\n");
+    let violations = find_non_ubuntu_runs_on(&content);
     assert_eq!(violations.len(), 1);
     assert_eq!(violations[0].0, 3);
 }
