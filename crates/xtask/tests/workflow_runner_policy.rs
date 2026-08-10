@@ -1,9 +1,29 @@
 //! `.claude/rules/ci.md` の Runner 方針（ホステッドランナー既定・
-//! `runs-on: self-hosted` 禁止。トラッキング #1220、2026-08-07 方針転換）を
+//! `runs-on: self-hosted` 禁止。トラッキング #1220、2026-08-07 方針転換／
+//! さらに `runs-on` は `ubuntu-latest` 単一に限定。ユーザー指示 2026-08-10）を
 //! `.github/workflows/*.yml` に対して fail-closed に機械強制する契約テスト
 //! （イシュー #1239）。
 //!
-//! ## 契約の意味論
+//! ## 契約の意味論（その 2: `runs-on` は `ubuntu-latest` のみ）
+//!
+//! 非コメント行の `runs-on:` キーの値が、リテラル `ubuntu-latest`
+//! （クォート有無は不問）と完全一致することを契約とする。
+//! `windows-latest` / `macos-latest` / `ubuntu-24.04-arm` 等の他 OS・他
+//! イメージはもちろん、`${{ matrix.os }}` のような非リテラル指定、
+//! block sequence / `labels:` mapping 形もすべて不一致＝ FAIL とする
+//! （実 runner を YAML の 1 行から決定的に読み取れない書き方を許すと、
+//! 間接指定経由で他 OS が入り込む経路がサイレントに開くため）。
+//!
+//! ### 本テストの射程外（codex-review 例外との両立）
+//!
+//! reusable workflow の呼び出しジョブ（job-level `uses:`）は `runs-on` を
+//! 持たないため、本テストの走査対象に現れない。`.claude/rules/ci.md` が
+//! 唯一の例外として承認している `codex-review.yml` の codex 実行ジョブ
+//! （runner は呼び出し先の `runner-label` 入力既定値で決まる）は、この
+//! 射程外で成立している。今回の `ubuntu-latest` 単一化は OS・イメージ
+//! 選択に関する規則であり、既承認の codex 例外を撤回するものではない。
+//!
+//! ## 契約の意味論（その 1: `self-hosted` 禁止）
 //!
 //! 「`.github/workflows/` 配下の全ワークフロー YAML について、コメントを
 //! 除去した後の内容に `self-hosted` トークンが一切現れない」ことを契約と
@@ -20,9 +40,8 @@
 //!
 //! ## コメントとして誤検知しない対象
 //!
-//! `.github/workflows/` には旧 self-hosted 方針時代の経緯コメント（例:
-//! `fw-new-windows-verify.yml` の `# runs-on: [self-hosted, Windows]` 引用、
-//! `ci.yml` / `image-size.yml` / `musl-smoke.yml` 等の移行経緯コメント）が
+//! `.github/workflows/` には旧 self-hosted 方針時代の経緯コメント
+//! （`ci.yml` / `image-size.yml` / `musl-smoke.yml` 等の移行経緯コメント）が
 //! 多数残っており、これらは正当な歴史記録として維持される
 //! （`.claude/rules/ci.md` 参照）。本契約はコメントを除去したうえで走査
 //! するため、これらの行を誤検知しない。
@@ -123,6 +142,40 @@ fn find_self_hosted_violations(content: &str) -> Vec<(usize, String)> {
         .collect()
 }
 
+/// 方針上唯一許容される runner ラベル（`.claude/rules/ci.md` Runner 方針、
+/// ユーザー指示 2026-08-10）。
+const ALLOWED_RUNNER: &str = "ubuntu-latest";
+
+/// ファイル内容から `runs-on:` の値が `ubuntu-latest` 以外である箇所を
+/// 検出する。
+///
+/// 戻り値は (1-indexed 行番号, 元の行内容) のリスト。値が空（block
+/// sequence 形・`labels:` mapping 形のように次行以降へ続く書き方）の場合も
+/// 「1 行から runner を決定的に読み取れない」ため違反として扱う
+/// （fail-closed）。
+fn find_non_ubuntu_runs_on(content: &str) -> Vec<(usize, String)> {
+    content
+        .lines()
+        .enumerate()
+        .filter_map(|(idx, line)| {
+            let stripped = strip_comment(line);
+            let trimmed = stripped.trim_start();
+            let value = trimmed.strip_prefix("runs-on:")?.trim();
+            // クォート表記（`"ubuntu-latest"` / `'ubuntu-latest'`）を正規化する。
+            let value = value
+                .strip_prefix('"')
+                .and_then(|v| v.strip_suffix('"'))
+                .or_else(|| value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')))
+                .unwrap_or(value);
+            if value == ALLOWED_RUNNER {
+                None
+            } else {
+                Some((idx + 1, line.to_string()))
+            }
+        })
+        .collect()
+}
+
 /// `.github/workflows/*.yml` を列挙する。
 ///
 /// `.yaml` 拡張子は本リポジトリでは使われていないが、将来の追加を
@@ -171,6 +224,32 @@ fn workflows_have_no_self_hosted_outside_comments() {
         "runs-on の self-hosted 残置を検知した（`.claude/rules/ci.md` \
          Runner 方針違反）。ホステッドランナーへ移行するか、歴史的経緯の \
          記述はコメントへ移すこと:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
+fn workflows_run_only_on_ubuntu_latest() {
+    let mut violations: Vec<String> = Vec::new();
+
+    for path in workflow_files() {
+        let content = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{path:?} の読み込みに失敗した: {e}"));
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("<unknown>");
+
+        for (line_no, line) in find_non_ubuntu_runs_on(&content) {
+            violations.push(format!("{file_name}:{line_no}: {}", line.trim()));
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "runs-on に `{ALLOWED_RUNNER}` 以外の指定を検知した（`.claude/rules/ci.md` \
+         Runner 方針違反）。windows-latest / macos-latest 等の他 OS・他イメージ、\
+         および `${{{{ matrix.os }}}}` 等の非リテラル指定は使用しない:\n{}",
         violations.join("\n")
     );
 }
@@ -255,10 +334,55 @@ fn detects_quoted_self_hosted() {
 
 #[test]
 fn does_not_flag_full_line_comment() {
-    // fw-new-windows-verify.yml 18 行目の実在パターン（引用コメント）。
+    // 旧 fw-new-windows-verify.yml（イシュー #413、2026-08-10 に削除）が持って
+    // いた引用コメントと同型のパターン。歴史的経緯の記述は引き続き許容される。
     let content = "# （`runs-on: [self-hosted, Windows]`。Windows ラベルの self-hosted runner が\n";
     let violations = find_self_hosted_violations(content);
     assert!(violations.is_empty());
+    assert!(find_non_ubuntu_runs_on(content).is_empty());
+}
+
+#[test]
+fn detects_windows_runner() {
+    let content = "jobs:\n  verify:\n    runs-on: windows-latest\n";
+    let violations = find_non_ubuntu_runs_on(content);
+    assert_eq!(violations.len(), 1);
+    assert_eq!(violations[0].0, 3);
+}
+
+#[test]
+fn detects_macos_runner() {
+    let content = "jobs:\n  verify:\n    runs-on: macos-latest\n";
+    assert_eq!(find_non_ubuntu_runs_on(content).len(), 1);
+}
+
+#[test]
+fn detects_non_latest_ubuntu_image() {
+    // `ubuntu-24.04` / `ubuntu-24.04-arm` のようなイメージ固定・arm 変種も、
+    // 「ubuntu-latest だけ」の規則に反するため検知する。
+    let content = "jobs:\n  a:\n    runs-on: ubuntu-24.04\n  b:\n    runs-on: ubuntu-24.04-arm\n";
+    assert_eq!(find_non_ubuntu_runs_on(content).len(), 2);
+}
+
+#[test]
+fn detects_matrix_indirect_runner() {
+    let content = "jobs:\n  test:\n    strategy:\n      matrix:\n        os: [ubuntu-latest, windows-latest]\n    runs-on: ${{ matrix.os }}\n";
+    let violations = find_non_ubuntu_runs_on(content);
+    assert_eq!(violations.len(), 1);
+    assert_eq!(violations[0].0, 6);
+}
+
+#[test]
+fn detects_block_sequence_runner() {
+    // 値が次行以降へ続く書き方は 1 行から runner を確定できないため違反扱い。
+    let content = "jobs:\n  test:\n    runs-on:\n      - ubuntu-latest\n";
+    assert_eq!(find_non_ubuntu_runs_on(content).len(), 1);
+}
+
+#[test]
+fn accepts_quoted_ubuntu_latest() {
+    let content = "jobs:\n  a:\n    runs-on: \"ubuntu-latest\"\n  b:\n    runs-on: 'ubuntu-latest'\n  c:\n    runs-on: ubuntu-latest # 旧: windows-latest\n";
+    assert!(find_non_ubuntu_runs_on(content).is_empty());
 }
 
 #[test]

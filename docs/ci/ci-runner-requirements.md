@@ -27,7 +27,7 @@ CI runner 方針は 2026-08-07 に GitHub ホステッドランナー（`ubuntu-
 | §2（プール前提） | root 実行・apt-get 前提 | 歴史的記録（§1 と同様、残る self-hosted ジョブが存在しないため） |
 | §3（確認手順） | `runner-maintenance.yml` dispatch 手順 | 歴史的記録（`runner-maintenance.yml` はイシュー #1237 で廃止済み） |
 | §4（安全網の維持方針） | 存在チェック付きインストールを削除しない | 不変。ホステッドでは「毎ジョブ導入が主経路」になる形でむしろ重要度が上がる（`docs/ci/hosted-runner-migration.md` §4.2） |
-| §5（Windows self-hosted runner の常設要件） | Windows runner 調達依頼・`windows-latest` 非採用判断 | **歴史的記録（判断は覆った）**。§5.3 の「`windows-latest` は ci.md 規約に反するため非採用」は runner 方針反転により根拠が失効し、実際に `fw-new-windows-verify.yml` は `windows-latest` へ移行済み（イシュー #1236、実績は `docs/ci/hosted-runner-migration.md` §4.3・`docs/reports/fw-new-windows-verification-report.md` §4.3 参照）。以下の §5.1〜§5.4 は self-hosted Windows runner を実際に一度も調達できなかった時代の記録として残す |
+| §5（Windows self-hosted runner の常設要件） | Windows runner 調達依頼・`windows-latest` 非採用判断 | **歴史的記録（判断は覆った）**。§5.3 の「`windows-latest` は ci.md 規約に反するため非採用」は runner 方針反転により根拠が失効し、実際に `fw-new-windows-verify.yml` は `windows-latest` へ移行済み（イシュー #1236、実績は `docs/ci/hosted-runner-migration.md` §4.3・`docs/reports/fw-new-windows-verification-report.md` §4.3 参照）。以下の §5.1〜§5.4 は self-hosted Windows runner を実際に一度も調達できなかった時代の記録として残す。**さらに 2026-08-10 のユーザー指示（`runs-on` は `ubuntu-latest` 単一）により `fw-new-windows-verify.yml` 自体が削除された**ため、本節の §5.1〜§5.4 に加え §5 全体（Windows runner 前提の要件・dispatch 手順）が歴史的記録となった |
 | §6（Chrome `/dev/shm` 制約対策） | `--disable-dev-shm-usage` の実測記録 | 歴史的記録として保持。対策自体（`webdriver.json`）はホステッドでも維持する |
 | §7（スコープ外・フォローアップ） | #295 の焼き込み完了待ち運用 | 歴史的記録。移行完了により #295 の「焼き込み完了までクローズしない」方針自体の意義が薄れているが、クローズ判断はユーザー承認事項のため本ドキュメントでは判断しない |
 | §8（`template-app-wasm-smoke` の `/tmp` 固定 target の扱い） | `RUNNER_TEMP` 配置原則・旧パス回収運用 | §8.1/§8.2 の `RUNNER_TEMP` 配置原則は不変（ホステッドでも `.claude/rules/ci.md` 準拠）。§8.3 の runner-maintenance.yml dispatch 手順は歴史的記録（`runner-maintenance.yml` 廃止済み、イシュー #1237） |
@@ -132,6 +132,16 @@ self-hosted **Linux** runner でしか検証されておらず、「設計上の
 いた（PR #389 out-of-scope 節・fw-new-design.md §9 旧 non-goal）。イシュー #413
 はこれを実機検証するハーネス（`.github/workflows/fw-new-windows-verify.yml`）を
 確立する。本節はその runner 調達要件を記録する。
+
+> **本節全体の位置づけ（2026-08-10 追記）**: ユーザー指示により CI の
+> `runs-on` は `ubuntu-latest` 単一へ限定され（`.claude/rules/ci.md`
+> Runner 方針）、`.github/workflows/fw-new-windows-verify.yml` は削除された。
+> したがって本節 §5.1〜§5.5 は runner 種別（self-hosted / ホステッド）を
+> 問わず Windows 実機検証を行っていた時代の**歴史的記録**であり、現行の
+> 要件ではない。`fw new` の非 Unix 分岐は Linux CI の `cargo test`
+> （`crates/cli/tests/new_e2e.rs` の `#[cfg(not(unix))]` 分岐）による論理
+> 検証が引き続き担う。過去の実測値は
+> `docs/reports/fw-new-windows-verification-report.md` を参照。
 
 ### 5.1 ラベル規約
 
@@ -318,7 +328,8 @@ element` であったことが、症状の局在と整合する。
    開始・終了時に自動清掃する領域のため、掃除コードなしで残置ゼロを構造的に
    保証できる。「掃除を足す」より「残らない場所に置く」方が決定的であり、
    本リポジトリの fail-closed 方針と整合する。リポジトリ内に既に先例がある
-   （`docs-site.yml`・`fw-new-windows-verify.yml`・`release.yml`）
+   （`docs-site.yml`・`fw-new-windows-verify.yml`〔2026-08-10 に削除済み。
+   当時の先例としてのみ記録〕・`release.yml`）
 
 3 を主対策として採用し、補助対策として runner-maintenance.yml に旧 `/tmp`
 固定パス（`fandhe-frontend-template-app-wasm-smoke-target` /

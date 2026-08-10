@@ -157,3 +157,23 @@ Windows 実機での **PASS** 実測結果が本レポートへ記録される�
 イシュー #413 はクローズしない（#295 と同型の運用）としてきたが、
 §4.4 の PASS 記録によりこの充足条件は**満たされた**。#413 はクローズ
 可能である（クローズ操作自体は本レポートの記録範囲外）。
+
+## 6. 検証ハーネスの廃止（2026-08-10）
+
+ユーザー指示により CI の `runs-on` は `ubuntu-latest` 単一へ限定された
+（`.claude/rules/ci.md` Runner 方針）。これに伴い、本レポートの検証ハーネス
+`.github/workflows/fw-new-windows-verify.yml`（`workflow_dispatch` 専用、
+`runs-on: windows-latest`）は削除した。
+
+- **本レポートの位置づけ**: §4.4 で取得した全項目 PASS の実測は
+  2026-08-07 時点の記録として引き続き有効であり、削除しない。
+- **今後の担保**: `fw new` の非 Unix（`#[cfg(not(unix))]`）分岐は、Linux CI の
+  `cargo test`（`crates/cli/tests/new_e2e.rs` の `#[cfg(not(unix))]` 分岐・
+  `crates/cli/src/new_template.rs` の
+  `executable_file_sets_match_expected_fixed_lists`）による論理検証が担う。
+  Windows 実機での再検証手段は失われるため、非 Unix 分岐に実体変更を加える
+  場合はこのトレードオフを PR で明示する。
+- **削除の影響範囲**: 同ワークフローは `workflow_dispatch` 専用であり、
+  ruleset `main-protection` の必須チェック（`ci-complete` / `deps-check` /
+  `codex-review / codex`）にも `ci-complete` の `needs:` にも含まれていな
+  かったため、CI の必須チェック構成に変更はない。
