@@ -510,11 +510,21 @@ PR #1304 で顕在化した。後続 PR への先送りは codex-review 導入�
    根拠に実行しない。実行前に次の両方を満たすことを確認する。
    - **CI**: 当該 PR の CI チェックのうち、「未公開バージョン起因で構造的に
      fail するもの」（`template_vendor_drift`・`template-app-wasm-smoke`・
-     `version-bump-guard`・codex-review の stale lock 指摘。項目 4・5 で
-     個別に扱う）を除く全チェックが green であること。これらを除いた時点で
-     red のチェックが 1 件でもあれば、その原因を解消してから公開する
-     （未公開バージョン起因以外の red を「公開すれば直る」と誤認して素通り
-     させない）。
+     codex-review の stale lock 指摘。項目 4 で個別に扱う）を除く全チェックが
+     green であること。**`version-bump-guard` はこの除外対象に含めない**:
+     `version-bump-guard` は「対象クレートの `version` が crates.io の既公開
+     バージョンと同じ」場合にのみ FAIL する設計であり、バンプ先バージョンが
+     単に未公開であること自体では構造的に fail しない（`check_version_bump`
+     の判定条件参照）。したがって公開前（`mode: publish` 実行前）の
+     `version-bump-guard` は green であることを必須とする。公開前に fail
+     している場合はバンプ漏れ・`version` 誤記・免除設定の不備を示す
+     コード起因のシグナルであり、公開前の red を「公開すれば直る」と扱って
+     素通りさせない（fail-closed の弱体化を避ける）。公開により当該
+     バージョンが crates.io の既公開バージョンへ転じた**後**にのみ、
+     `version-bump-guard` は再判定で FAIL へ転じ得る。この公開後の FAIL は
+     項目 5 の免除手順で扱う。これらを除いた時点で red のチェックが 1 件でも
+     あれば、その原因を解消してから公開する（未公開バージョン起因以外の
+     red を「公開すれば直る」と誤認して素通りさせない）。
    - **codex-review**: 直近の codex-review 実行結果を確認し、findings が
      「template lock の未公開バージョン起因の stale 指摘」（§10.1 で説明した
      既知パターン。lock のチェックサムが未公開バージョンと整合しないことを
@@ -534,20 +544,25 @@ PR #1304 で顕在化した。後続 PR への先送りは codex-review 導入�
    `crates/cli/templates/`（`fw new --template app` 埋め込み用の同梱コピー、
    `template_publish_copy_drift.rs` がバイト一致を検証）を公開済みバージョンで
    再生成し、`template_vendor_drift`・`template-app-wasm-smoke` を green 化する。
-5. **`version-bump-guard` は `version-bump-exempt` 宣言で免除する**:
-   本 PR から当該クレートを実際に公開した後は、`version-bump-guard`
+5. **`version-bump-guard` は、実際の公開完了を確認した後にのみ
+   `version-bump-exempt` 宣言で免除する**:
+   項目 1〜2 の確認を経て `mode: publish` を実行し、sparse index への反映
+   （`check_version_bump::query_index` 相当の照会）で公開完了を確認した
+   **後**に限り、本項目の免除を適用する。公開完了により `version-bump-guard`
    （`.github/workflows/ci.yml`・`crates/xtask/src/check_version_bump.rs`）
    の判定条件（「公開済みクレートの `src/`・`Cargo.toml`・`build.rs` に base
    比の差分がある」かつ「`version` が crates.io 既公開バージョン」）を PR
-   ブランチ自身が満たしてしまい、再実行のたびに FAIL する（§1 の PR #872
-   「再バンプループ」と同型の検知。項目 7 の force-push 禁止だけでは防げない、
-   push なしの再実行でも同じ判定になるため）。この経路は
+   ブランチ自身が満たすようになり、再実行のたびに FAIL へ転じる（§1 の
+   PR #872「再バンプループ」と同型の検知。項目 7 の force-push 禁止だけでは
+   防げない、push なしの再実行でも同じ判定になるため）。この経路は
    `.claude/rules/coding-rust.md`・`.claude/rules/ci.md` が定める既存の免除
    手段（PR 本文へ `version-bump-exempt: <crate-name>`（クレート名の完全一致・
    理由を同一行に記載）を宣言する）を使う。「公開は本 PR から実施済み
    （イシュー #1306 の同時公開フロー）」等、公開済みである旨を理由として明記
    する。包括免除（クレート名を伴わないマーカーのみ）は認めない
-   （security.md A05）。
+   （security.md A05）。公開完了前（項目 1〜2 の段階）はこの免除を適用せず、
+   `version-bump-guard` の red はコード起因の問題として解消する（項目 2 の
+   除外対象に含めない方針と整合させる）。
 6. **merge 前に green 化を確認する**: `template_vendor_drift`・
    `template-app-wasm-smoke`・`version-bump-guard`（免除適用込み）・
    codex-review のいずれも green であることを確認してから merge する
