@@ -109,12 +109,37 @@
 - `data-bind-attr` トークンの属性名（`<attr>` 部分）は消費側（#343）の
   fail-closed 検証を経由する: 英数字・`-`・`_` のみを許可し、大小文字を
   無視して `on` で始まる名前を拒否する
-  （`crates/wasm-client/src/binding.rs::is_valid_binding_name`）。これは
+  （`crates/wasm-client/src/binding.rs::is_valid_attr_binding_name`。
+  #1300 で `is_valid_binding_name` から改称・分離、下記追補節参照）。これは
   `setAttribute("onclick", value)` のような呼び出しが状態値を実行可能な
   イベントハンドラへ昇格させる経路を遮断するための、`crates/core/src/bind.rs` の
   モジュール docs が明記する「消費側の契約」の履行である。URL スキーム等
   「値の内容」の検証は本節・第 9 節の確定通り導入しない（既存 SSR 経路と
   同等の残存リスク）。
+
+#### 3.2b 属性名検証と class 名検証の分離（イシュー #1300）
+
+- 上記の `on` 接頭辞拒否は、当初 `is_valid_binding_name` として
+  `data-bind-attr`（属性名）・`data-bind-class`（class 名）の**両方**の
+  トークン検証に共用されていたが、`data-bind-class` の適用先
+  （`crates/wasm-client/src/binding_dom.rs` の `BindingKind::Class` アーム）
+  は `Element.class_list().toggle_with_force` のみを呼び、`setAttribute`
+  を含むいかなるハンドラ昇格経路にも到達しない。このため class 名への
+  `on` 接頭辞拒否は防いでいるリスクが存在しない過剰制限であり、
+  `on` / `once` / `online` 等の正当な class 名を束縛しようとすると
+  fail-closed 契約（不正トークンは黙って skip）により**無言で skip**
+  される実害があった（`BindingTable` にエントリが作られず `has_field` が
+  `false` になるため、`fandhe-frontend-wasm-full` の
+  `Runtime::apply_update_for_dirty` が構造フォールバックへ倒れ、
+  アプリ登録のリスナーが失われる副作用も伴う）。
+- #1300 で検証関数を `is_valid_attr_binding_name`（`on` 接頭辞拒否あり、
+  属性名専用）と `is_valid_class_binding_name`（`on` 接頭辞拒否なし、
+  class 名専用。文字種制限は不変）へ分離した。トークンパーサも
+  `parse_binding_tokens`（`data-bind-attr` 専用）と
+  `parse_class_binding_tokens`（`data-bind-class` 専用、新設）へ分離し、
+  `element_binding_specs` の `bind_class` 分岐を後者へ切り替えた。属性側の
+  検証・適用層（`binding_dom.rs::apply_one` の `is_event_handler_attr`
+  二重チェック）・URL スキーム検証はいずれも変更していない。
 
 ### 3.3 core API 形状（#342 実装確定）
 

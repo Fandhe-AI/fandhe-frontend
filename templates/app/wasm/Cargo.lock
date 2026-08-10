@@ -47,9 +47,9 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-wasm-client"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c98d802e1d208181c8a0805407efbb1fed4fb37f74b43b03f5307f16bc4010a2"
+checksum = "2f493e45483f10fece8fcffc59e4a8de4995a884b08e38595060c7d2562f4c67"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",

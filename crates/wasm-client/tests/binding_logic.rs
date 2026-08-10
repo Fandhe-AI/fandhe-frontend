@@ -54,8 +54,8 @@ fn binding_dom_uses_set_text_content_for_text_updates() {
 }
 
 use fandhe_frontend_wasm_client::{
-    collect_binding_specs, element_binding_specs, parse_binding_tokens, unresolved_binding_specs,
-    BindingKind, BindingSpec,
+    collect_binding_specs, element_binding_specs, parse_binding_tokens, parse_class_binding_tokens,
+    unresolved_binding_specs, BindingKind, BindingSpec,
 };
 
 #[test]
@@ -68,6 +68,24 @@ fn parse_binding_tokens_is_reexported_and_behaves_as_documented() {
         ]
     );
     assert_eq!(parse_binding_tokens("onclick:draft"), Vec::new());
+}
+
+/// `parse_class_binding_tokens` の re-export 契約（イシュー #1300）。
+///
+/// `data-bind-attr` 用の [`parse_binding_tokens`] が拒否する `on` 接頭辞を、
+/// `data-bind-class` 用の本関数は受理することを固定する（class 名は
+/// `classList.toggle_with_force` にしか到達せずハンドラ昇格経路がないため）。
+#[test]
+fn parse_class_binding_tokens_is_reexported_and_allows_on_prefix() {
+    assert_eq!(
+        parse_class_binding_tokens("on:is-active once:x"),
+        vec![
+            ("on".to_string(), "is-active".to_string()),
+            ("once".to_string(), "x".to_string()),
+        ]
+    );
+    // 文字種制限（記号混入拒否）は attr 用と同様に維持される。
+    assert_eq!(parse_class_binding_tokens("a<script>:draft"), Vec::new());
 }
 
 #[test]
