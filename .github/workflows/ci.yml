@@ -1818,6 +1818,52 @@ jobs:
         # wasm-client/wasm-thin の tests/ がコンパイルされずギャップが残るため。
         run: cargo clippy -p fandhe-frontend-wasm-full -p fandhe-frontend-wasm-client -p fandhe-frontend-wasm-thin --target wasm32-unknown-unknown --all-targets --locked -- -D warnings
 
+  # PR #1301（`runs-on` の ubuntu-latest 単一化）: `fw new` の非 Unix
+  # （`#[cfg(not(unix))]`）分岐を実機検証していた Windows ワークフロー
+  # （fw-new-windows-verify.yml）の削除に伴う代替検証。Linux ホストでは
+  # `cfg(unix)` が有効なため当該分岐はコンパイルすらされず、host target の
+  # `cargo test`/`clippy` では型エラー・API 誤用を一切検知できない
+  # （PR #1301 の codex レビュー P1 指摘。実測でも host check は素通りし
+  # 本ジョブ相当の検査のみが検出した）。x86_64-pc-windows-msvc を
+  # `cargo check` の --target に指定すると、リンクを伴わないため MSVC
+  # Build Tools なしの ubuntu-latest 上でも非 Unix 分岐をコンパイルできる。
+  #
+  # 本ジョブが担保するのは**コンパイル可能性まで**であり、Windows 実機での
+  # 実行時挙動（生成物のバイト決定性・パーミッション no-op の無害性等）は
+  # 担保しない。その差は既知のトレードオフとして
+  # docs/reports/fw-new-windows-verification-report.md §6 に記載する。
+  windows-target-check:
+    name: "windows target compile check (cfg(not(unix)) branches, PR #1301)"
+    runs-on: ubuntu-latest
+    # cargo check のみ（リンクなし）でありワークスペース全体ビルドより軽い。
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        # clippy-wasm32 ジョブと同一 SHA 固定。docs/spec サブモジュールは不要。
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # 他ジョブと同一 SHA 固定（イシュー #1273）。
+        uses: Fandhe-AI/actions/rust-toolchain-setup@5982e2f502a19effc36a7b161660b5a4ea17b886
+
+      - name: Add x86_64-pc-windows-msvc target
+        # rustup 経由・冪等（他ジョブの target 追加と同一パターン）。
+        # rust-std のみを取得し、リンカ（MSVC Build Tools）は導入しない。
+        run: rustup target add x86_64-pc-windows-msvc
+
+      - name: Show toolchain
+        run: rustup show && cargo --version
+
+      - name: "check: fandhe-frontend-cli for windows target (--all-targets)"
+        # --all-targets で tests/ も対象に含め、crates/cli/tests/new_e2e.rs の
+        # `#[cfg(not(unix))]` 分岐（collect_tree の executable = false 返却）まで
+        # コンパイル対象へ入れる。cargo check はリンクしないため MSVC リンカ
+        # 不在でも成立する。
+        run: cargo check -p fandhe-frontend-cli --all-targets --locked --target x86_64-pc-windows-msvc
+
   # イシュー #400（親 #394、出典: PR #382 out-of-scope）: `fw gate --project .`
   # の自己適用（#372 で PASS 化、PR #382）を CI で常時実行し、自己適用 PASS の
   # リグレッション（自己参照誤検知の再発・deny.toml 弱体化・structure.toml と
@@ -2107,6 +2153,7 @@ jobs:
       - fmt
       - clippy
       - clippy-wasm32
+      - windows-target-check
       - gate-self-apply
       - version-bump-guard
       - dep-version-check

@@ -167,11 +167,24 @@ Windows 実機での **PASS** 実測結果が本レポートへ記録される�
 
 - **本レポートの位置づけ**: §4.4 で取得した全項目 PASS の実測は
   2026-08-07 時点の記録として引き続き有効であり、削除しない。
-- **今後の担保**: `fw new` の非 Unix（`#[cfg(not(unix))]`）分岐は、Linux CI の
-  `cargo test`（`crates/cli/tests/new_e2e.rs` の `#[cfg(not(unix))]` 分岐・
-  `crates/cli/src/new_template.rs` の
-  `executable_file_sets_match_expected_fixed_lists`）による論理検証が担う。
-  Windows 実機での再検証手段は失われるため、非 Unix 分岐に実体変更を加える
+- **今後の担保（3 層に分かれる）**:
+  1. **コンパイル可能性**: `ci.yml` の `windows-target-check` ジョブが
+     `ubuntu-latest` 上で
+     `cargo check -p fandhe-frontend-cli --all-targets --target x86_64-pc-windows-msvc`
+     を実行し、`crates/cli/src/new.rs` の `set_permissions`（`#[cfg(not(unix))]`
+     版）と `crates/cli/tests/new_e2e.rs` の `collect_tree` 非 Unix 分岐を
+     コンパイル対象に含める。`cargo check` はリンクしないため MSVC Build
+     Tools 不在でも成立する。
+  2. **プラットフォーム非依存の論理検証**: `crates/cli/src/new_template.rs` の
+     `executable_file_sets_match_expected_fixed_lists`（メタデータ記述のみを
+     比較するためどの OS でも実行できる）。
+  3. **Windows 実機での実行時挙動**: 担保手段は**存在しない**。
+- **重要な訂正**: 当初この節には「Linux CI の `cargo test` が
+  `#[cfg(not(unix))]` 分岐を検証する」と記していたが、これは誤りである。
+  Linux では `cfg(unix)` が有効なため当該分岐はコンパイルも実行もされない
+  （PR #1301 の codex レビュー P1 指摘）。上記 1 はコンパイルまでを担保し、
+  実行時挙動（生成物のバイト決定性・`--force` 契約・パーミッション no-op の
+  無害性）は上記 3 のとおり未担保である。非 Unix 分岐に実体変更を加える
   場合はこのトレードオフを PR で明示する。
 - **削除の影響範囲**: 同ワークフローは `workflow_dispatch` 専用であり、
   ruleset `main-protection` の必須チェック（`ci-complete` / `deps-check` /

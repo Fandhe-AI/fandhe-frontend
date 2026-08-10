@@ -199,8 +199,11 @@ fail-closed 存在チェック（`cargo`/`git`）はイメージ仕様変更時�
 単一へ限定され（`.claude/rules/ci.md` Runner 方針）、`fw-new-windows-verify.yml`
 は削除された。本節（§4.3）と §5.6・§5.6a の実測は 2026-08-07 時点の
 歴史的記録として保持する。以降 `windows-latest` 向けの差分設計は本文書の
-対象外であり、`fw new` の非 Unix 分岐は Linux CI の `cargo test` による論理
-検証が担う（詳細は `docs/reports/fw-new-windows-verification-report.md` §6）。
+対象外であり、`fw new` の非 Unix 分岐は `ci.yml` の `windows-target-check`
+ジョブ（`ubuntu-latest` 上で `cargo check --target x86_64-pc-windows-msvc`）が
+コンパイルレベルで担保する（Linux ホストの `cargo test` では `cfg(unix)` が
+有効なため当該分岐はコンパイルされない。実機での実行時挙動は未担保。詳細は
+`docs/reports/fw-new-windows-verification-report.md` §6）。
 
 ## 5. 並列度・所要時間見積りと許容基準
 

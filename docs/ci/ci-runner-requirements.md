@@ -138,9 +138,13 @@ self-hosted **Linux** runner でしか検証されておらず、「設計上の
 > Runner 方針）、`.github/workflows/fw-new-windows-verify.yml` は削除された。
 > したがって本節 §5.1〜§5.5 は runner 種別（self-hosted / ホステッド）を
 > 問わず Windows 実機検証を行っていた時代の**歴史的記録**であり、現行の
-> 要件ではない。`fw new` の非 Unix 分岐は Linux CI の `cargo test`
-> （`crates/cli/tests/new_e2e.rs` の `#[cfg(not(unix))]` 分岐）による論理
-> 検証が引き続き担う。過去の実測値は
+> 要件ではない。`fw new` の非 Unix 分岐は、`ci.yml` の
+> `windows-target-check` ジョブ（`ubuntu-latest` 上で
+> `cargo check --target x86_64-pc-windows-msvc`）が**コンパイルレベルで**
+> 担保する。Linux ホストの `cargo test` は `cfg(unix)` が有効なため当該
+> 分岐をコンパイルすらしない（この点を誤って記していたのを PR #1301 の
+> codex レビュー P1 指摘で是正した）。Windows 実機での実行時挙動は未担保
+> である。過去の実測値は
 > `docs/reports/fw-new-windows-verification-report.md` を参照。
 
 ### 5.1 ラベル規約
