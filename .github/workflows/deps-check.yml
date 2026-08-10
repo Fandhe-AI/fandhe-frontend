@@ -88,12 +88,12 @@ jobs:
         # ホステッド環境では毎ジョブでのツール導入が主経路であり
         # （`.claude/rules/ci.md`・`docs/ci/hosted-runner-migration.md` §4.2）、
         # Fandhe-AI/actions/rust-toolchain-setup
-        # （5982e2f502a19effc36a7b161660b5a4ea17b886 に固定。actions/checkout と
+        # （fed9c07d98367f77e5e2b63bca38843f46feee96 に固定。actions/checkout と
         # 同様フルコミット SHA 固定でサプライチェーンリスクを抑える。イシュー
         # #1273 で dtolnay/rust-toolchain から置換）を使う。ツールチェーンは
         # リポジトリ直下の rust-toolchain.toml（channel = "stable"）を単一
         # 真実源として rustup show で同期するため、toolchain input は持たない。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@5982e2f502a19effc36a7b161660b5a4ea17b886
+        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
 
       - name: Run xtask check-deps
         # xtask check-deps の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
