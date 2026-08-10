@@ -288,14 +288,18 @@ fn dockerfile_and_ci_pin_matching_wasm_bindgen_sha256_for_x86_64_archive() {
 /// 本テストが必ず fail し、古い aarch64 SHA256 の残置がすり抜けない
 /// （既知ペアの更新を強制する fail-closed 設計）。
 ///
-/// 現行既知値の出所: PR #1214（イシュー #450）の aarch64 実機 Docker
-/// ビルドで `sha256sum -c` が実際に通過した実績
+/// 現行既知値（0.2.127）の出所: イシュー #1305（web-sys 0.3.104 が
+/// wasm-bindgen =0.2.127 を厳密要求するようになったための追随バンプ）で
+/// GitHub Releases から aarch64 archive を取得し `sha256sum` で算出した値
+/// （aarch64 実機での `sha256sum -c` 通過検証は本バンプでは実施していない）。
+/// これ以前の値（0.2.126）の出所は PR #1214（イシュー #450）の aarch64
+/// 実機 Docker ビルドで `sha256sum -c` が実際に通過した実績
 /// （`docs/reports/docker-wasm-rebuild-acceptance-report.md` §5a）。
 #[test]
 fn dockerfile_pins_known_wasm_bindgen_sha256_for_aarch64_archive() {
-    const KNOWN_VERSION: &str = "0.2.126";
+    const KNOWN_VERSION: &str = "0.2.127";
     const KNOWN_AARCH64_SHA256: &str =
-        "2245120254a9f6c9a9adf3601f3d52bb31309219e9ceab7696e74e24885c440a";
+        "699ddbb724ece16f912b73a98b5341a75f4b8c7886ce152d40dbe09f694e46c7";
 
     let cargo_lock_version = cargo_lock_wasm_bindgen_version();
     assert_eq!(
