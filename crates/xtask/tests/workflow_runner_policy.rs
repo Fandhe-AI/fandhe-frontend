@@ -149,46 +149,90 @@ fn find_self_hosted_violations(content: &str) -> Vec<(usize, String)> {
 /// ユーザー指示 2026-08-10）。
 const ALLOWED_RUNNER: &str = "ubuntu-latest";
 
-/// 1 行が `runs-on` キーであればその値（コロン以降のトリム済み文字列）を
-/// 返す。
-///
-/// YAML はキーと `:` の間の空白を許すため（`runs-on : windows-latest` も
-/// 合法）、`strip_prefix("runs-on:")` だけで判定すると空白を 1 つ入れる
-/// だけで検知を回避できる fail-open になる（codex レビュー P0 指摘、
-/// PR #1301）。キー名一致のあと空白を読み飛ばしてから `:` を要求する形で
-/// 正規化し、この抜け道を塞ぐ。`runs-on-foo:` のような別キーは `:` 以外の
-/// 文字に当たるため `None` を返す。
-fn runs_on_value(line: &str) -> Option<&str> {
-    let rest = line.trim_start().strip_prefix("runs-on")?;
-    let rest = rest.trim_start();
-    Some(rest.strip_prefix(':')?.trim())
+/// 先頭のクォート（`"` / `'`）で囲まれたトークンを剥がし、(中身, 残り) を
+/// 返す。クォートで始まらない場合は `None`。
+fn split_quoted(s: &str, quote: char) -> Option<(&str, &str)> {
+    let inner = s.strip_prefix(quote)?;
+    let end = inner.find(quote)?;
+    Some((&inner[..end], &inner[end + quote.len_utf8()..]))
 }
 
-/// ファイル内容から `runs-on` の値が `ubuntu-latest` 以外である箇所を
-/// 検出する。
+/// 両端のクォートを剥がした文字列を返す（クォートされていなければそのまま）。
+fn unquote(s: &str) -> &str {
+    split_quoted(s, '"')
+        .or_else(|| split_quoted(s, '\''))
+        .filter(|(_, rest)| rest.trim().is_empty())
+        .map(|(inner, _)| inner)
+        .unwrap_or(s)
+}
+
+/// 1 行が「唯一許容される runner 指定」`runs-on: ubuntu-latest` の正規形と
+/// 一致するかを判定する。
 ///
-/// 戻り値は (1-indexed 行番号, 元の行内容) のリスト。値が空（block
-/// sequence 形・`labels:` mapping 形のように次行以降へ続く書き方）の場合も
-/// 「1 行から runner を決定的に読み取れない」ため違反として扱う
-/// （fail-closed）。
+/// 許容する表記揺れは以下に限定する（いずれも GitHub Actions が同一の
+/// `runs-on` キーとして解釈するもの）。
+///
+/// - キーのクォート: `"runs-on"` / `'runs-on'`
+/// - キーと `:` の間の空白: `runs-on : ubuntu-latest`
+/// - 値のクォート: `"ubuntu-latest"` / `'ubuntu-latest'`
+///
+/// これ以外はすべて非許容とする（下記 `find_non_ubuntu_runs_on` の
+/// 反転判定と組み合わせて fail-closed になる）。
+fn is_allowed_runs_on_line(line: &str) -> bool {
+    let rest = line.trim_start();
+    // キー部（クォート有無の両方）を剥がす。
+    let rest = match split_quoted(rest, '"').or_else(|| split_quoted(rest, '\'')) {
+        Some(("runs-on", rest)) => rest,
+        Some(_) => return false,
+        None => match rest.strip_prefix("runs-on") {
+            Some(rest) => rest,
+            None => return false,
+        },
+    };
+    let rest = rest.trim_start();
+    match rest.strip_prefix(':') {
+        Some(value) => unquote(value.trim()) == ALLOWED_RUNNER,
+        None => false,
+    }
+}
+
+/// ファイル内容から、非コメント部分に `runs-on` を含みながら唯一の許容形
+/// （`runs-on: ubuntu-latest`）に一致しない行を検出する。
+///
+/// 戻り値は (1-indexed 行番号, 元の行内容) のリスト。
+///
+/// ## 判定を反転させている理由（fail-closed）
+///
+/// 当初は「`runs-on:` 行を認識して値を検査する」形（許容形の列挙）だった
+/// が、YAML には同じキーを表す表記が多数あり（キーと `:` の間の空白、
+/// キーのクォート、flow mapping `{runs-on: windows-latest}`、アンカー・
+/// エイリアス、tag 指定等）、認識器が知らない表記はすべて「`runs-on` 行
+/// ではない」として素通りする fail-open になっていた（PR #1301 の codex
+/// レビューで空白形・クォート形の 2 通りが実際に指摘された）。
+///
+/// そこで判定を反転し、「非コメント内容に `runs-on` の文字列が現れる行は、
+/// 上記 `is_allowed_runs_on_line` の正規形に一致しない限りすべて違反」と
+/// する。未知の表記は自動的に違反側へ倒れるため、表記揺れごとに検知器を
+/// 追随させる保守（追随漏れ＝サイレント PASS）が不要になる。これは同
+/// ファイルの `self-hosted` 禁止契約が「コメント除去後の全文走査」という
+/// 広い範囲を意図的に取っているのと同じ設計方針である。
+///
+/// 副作用として、`run:` スクリプト内の文字列リテラル等で `runs-on` と
+/// 書いた行も違反になるが、方針上そのような記述は不要であり、歴史的経緯の
+/// 言及はコメントへ書けば足りるため、この厳格性は意図的である。
+///
+/// 外部 YAML パーサの採用は見送る（xtask 外部依存ゼロ方針・REQ-3）。
+/// 本判定はパーサ同等の網羅性を「許容形の限定 + 反転判定」で代替する。
 fn find_non_ubuntu_runs_on(content: &str) -> Vec<(usize, String)> {
     content
         .lines()
         .enumerate()
         .filter_map(|(idx, line)| {
             let stripped = strip_comment(line);
-            let value = runs_on_value(&stripped)?;
-            // クォート表記（`"ubuntu-latest"` / `'ubuntu-latest'`）を正規化する。
-            let value = value
-                .strip_prefix('"')
-                .and_then(|v| v.strip_suffix('"'))
-                .or_else(|| value.strip_prefix('\'').and_then(|v| v.strip_suffix('\'')))
-                .unwrap_or(value);
-            if value == ALLOWED_RUNNER {
-                None
-            } else {
-                Some((idx + 1, line.to_string()))
+            if !stripped.contains("runs-on") || is_allowed_runs_on_line(&stripped) {
+                return None;
             }
+            Some((idx + 1, line.to_string()))
         })
         .collect()
 }
@@ -293,15 +337,16 @@ fn workflow_scan_is_not_vacuous() {
             .unwrap_or_else(|e| panic!("{path:?} の読み込みに失敗した: {e}"));
         for line in content.lines() {
             let stripped = strip_comment(line);
-            if runs_on_value(&stripped).is_some() {
+            if is_allowed_runs_on_line(&stripped) {
                 runs_on_count += 1;
             }
         }
     }
     assert!(
         runs_on_count > 0,
-        "走査対象の非コメント行に runs-on: キーが 1 件も見つからなかった \
-         （strip_comment がコメント除去を暴走させ正当な行まで消していないか確認する）"
+        "走査対象の非コメント行に許容形の runs-on キーが 1 件も見つからなかった \
+         （strip_comment がコメント除去を暴走させ正当な行まで消していないか、\
+         is_allowed_runs_on_line が過剰に厳しくなっていないか確認する）"
     );
 }
 
@@ -415,11 +460,41 @@ fn accepts_ubuntu_latest_with_whitespace_before_colon() {
 }
 
 #[test]
-fn does_not_treat_other_keys_as_runs_on() {
-    // `runs-on` を接頭辞に持つ別キー・別値を誤検知しない
-    // （キー名一致の後に空白を読み飛ばしても `:` 以外なら非対象）。
-    let content = "jobs:\n  test:\n    runs-on-note: windows-latest\n    steps:\n      - run: echo runs-on windows-latest\n";
+fn detects_quoted_runs_on_key() {
+    // `"runs-on": windows-latest` / `'runs-on': macos-latest` は GitHub Actions
+    // が同一キーとして解釈する有効な YAML であり、検知を回避できてはならない
+    // （PR #1301 の codex レビュー P0 指摘 2 件目の回帰テスト）。
+    let content =
+        "jobs:\n  a:\n    \"runs-on\": windows-latest\n  b:\n    'runs-on': macos-latest\n";
+    let violations = find_non_ubuntu_runs_on(content);
+    assert_eq!(violations.len(), 2);
+    assert_eq!(violations[0].0, 3);
+    assert_eq!(violations[1].0, 5);
+}
+
+#[test]
+fn accepts_quoted_runs_on_key_with_allowed_runner() {
+    let content =
+        "jobs:\n  a:\n    \"runs-on\": ubuntu-latest\n  b:\n    'runs-on' : \"ubuntu-latest\"\n";
     assert!(find_non_ubuntu_runs_on(content).is_empty());
+}
+
+#[test]
+fn detects_flow_mapping_and_anchor_forms() {
+    // 認識器が知らない表記（flow mapping・エイリアス・tag 指定）は、判定の
+    // 反転により自動的に違反側へ倒れる（fail-closed）。
+    let content = "jobs:\n  a: {runs-on: windows-latest}\n  b:\n    runs-on: *runner\n  c:\n    runs-on: !!str macos-latest\n";
+    assert_eq!(find_non_ubuntu_runs_on(content).len(), 3);
+}
+
+#[test]
+fn flags_runs_on_mentioned_outside_key_position() {
+    // 意図的な厳格性: 非コメント行に `runs-on` の文字列が現れれば、キー位置
+    // でなくても違反として報告する（未知表記の素通りを許さないため）。
+    // 歴史的経緯の言及はコメントへ書けば足りる（self-hosted 契約と同方針）。
+    let content =
+        "jobs:\n  test:\n    runs-on-note: ubuntu-latest\n    steps:\n      - run: echo runs-on\n";
+    assert_eq!(find_non_ubuntu_runs_on(content).len(), 2);
 }
 
 #[test]
