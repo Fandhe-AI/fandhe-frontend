@@ -9,13 +9,23 @@
 # `import ... from "./wasm/fandhe_frontend_wasm_full.js"`（無改変）と整合
 # させるため `--out-name fandhe_frontend_wasm_full` を固定する。
 #
-# 前提（fail-closed。黙示的にスキップしない、`.claude/rules/ci.md`）:
+# 前提（正しさに関わる前提は fail-closed。黙示的にスキップしない、
+# `.claude/rules/ci.md`）:
 #   - rustup ターゲット wasm32-unknown-unknown が追加済みであること
 #   - wasm-bindgen-cli が PATH 上にあり、`wasm/Cargo.lock` が解決した
 #     wasm-bindgen クレートのバージョンと完全一致すること
 #     （`dist-server/build.rs::expected_wasm_bindgen_version` と同一の
 #     契約。バージョン不一致は wasm-bindgen 自体の既知の制約により実行時に
 #     壊れるため、ここで停止する）。
+#
+# 上記 2 点は成果物の正しさに関わるため欠落時は明示エラーで停止する
+# （fail-closed）。一方、後段の wasm-opt（size optimization、イシュー
+# #1327）は成果物の**正しさに影響しない**サイズ最適化のみを担うため、
+# 未導入環境では停止せず `warning:` を出して素通りする（**soft-skip**。
+# 「正しいが大きい出力のまま」で continue する）。CI（`ci.yml` の
+# `template-app-wasm-smoke` ジョブ）はバージョン固定 + SHA256 検証済み
+# wasm-opt を常設導入するため、この経路のドリフトはそちらで検知する
+# （詳細は `docs/ci/wasm-opt-adoption-evaluation.md`）。
 #
 # サンプルルート（この build.sh の 2 階層上）から実行する固定コマンド列。
 # ユーザー入力を受け取らず、シェル変数はすべてクォートする
@@ -99,5 +109,32 @@ fi
 # --- (d) wasm-bindgen 後処理 ---
 mkdir -p "${out_dir}"
 wasm-bindgen --target web --out-dir "${out_dir}" --out-name fandhe_frontend_wasm_full "${wasm_artifact}"
+
+# --- (e) wasm-opt によるサイズ最適化（イシュー #1327、soft-skip） ---
+# `wasm-bindgen` が出力した `_bg.wasm` に binaryen の `wasm-opt -Os` を
+# 適用し、意味論を変えずにサイズのみを削減する（採否判断・実測は
+# `docs/ci/wasm-opt-adoption-evaluation.md` 参照）。上記 (a)/(b) の前提と
+# 異なり、wasm-opt は成果物の**正しさに影響しない**ため未導入環境でも
+# ビルドを止めない（soft-skip、`.claude/rules/ci.md` のツール前提明示に
+# 従い理由を明示コメント化）。
+bg_wasm="${out_dir}/fandhe_frontend_wasm_full_bg.wasm"
+if command -v wasm-opt >/dev/null 2>&1; then
+  # 出力先へ直接上書きせず一時ファイル経由で `mv` する。wasm-opt が
+  # 失敗・中断した場合に `_bg.wasm` を壊れた/空の状態で残さないため
+  # （`mv` はファイルシステム内であれば atomic に置換される）。
+  opt_tmp="$(mktemp "${out_dir}/.fandhe_frontend_wasm_full_bg.wasm-opt.XXXXXX")"
+  if wasm-opt -Os "${bg_wasm}" -o "${opt_tmp}"; then
+    # `mktemp` は既定で 0600 を作るため、他の wasm-bindgen 出力
+    # （0644）とパーミッションを揃える。
+    chmod 644 "${opt_tmp}"
+    mv "${opt_tmp}" "${bg_wasm}"
+  else
+    rm -f "${opt_tmp}"
+    echo "error: wasm-opt failed while optimizing ${bg_wasm}" >&2
+    exit 1
+  fi
+else
+  echo "warning: wasm-opt not found on PATH; skipping size optimization (output correctness unaffected, but bundle size will be larger than optimized builds). See docs/ci/wasm-opt-adoption-evaluation.md for optional local installation." >&2
+fi
 
 echo "wasm build complete: ${out_dir}/fandhe_frontend_wasm_full.js, ${out_dir}/fandhe_frontend_wasm_full_bg.wasm"

@@ -46,3 +46,13 @@ features = ["Window", "Document", "Element"]
 
 [lib]
 crate-type = ["cdylib"]
+
+# CSR payload 削減のためのビルドプロファイル調整（イシュー #1327）。
+# `templates/app/wasm/Cargo.toml` と同一方針・同一値（判断根拠・実測は
+# `docs/ci/wasm-opt-adoption-evaluation.md` を参照、二重管理しない）。
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"

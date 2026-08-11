@@ -34,3 +34,24 @@ fandhe-frontend-wasm-client = "0.3.0"
 
 [lib]
 crate-type = ["cdylib"]
+
+# CSR payload 削減のためのビルドプロファイル調整（イシュー #1327）:
+#
+# rustc 既定（opt-level=3 / lto=off / codegen-units=16）は wasm32-unknown-unknown
+# 出力の実行速度を優先しサイズを最適化しない。本クレートは glue（実処理は
+# fandhe-frontend-wasm-client）で実行時性能要求が薄いため、サイズ優先へ振る。
+# `docs/ci/wasm-opt-adoption-evaluation.md` の実測（本テンプレート crate 自体
+# を用いた比較）で `opt-level = "s"` が `"z"`/`3` のいずれよりも小さい gzip
+# サイズを示したため `"s"` を採用する（`"z"` の方が小さくなる想定に反する
+# 逆転が実測で確認されており、憶測でなく実測に従う）。
+# lto = true（fat LTO）・codegen-units = 1 はクレート境界を越えたインライン化・
+# デッドコード除去を最大化するため、サイズ削減効果が大きい方を採用（thin LTO
+# との比較も同文書に記載）。panic = "abort" は unwind テーブル分の出力を削減
+# する（本クレートは catch_unwind を使わない）。strip = "debuginfo" は wasm32
+# ターゲットでは release ビルドでも残り得るデバッグ情報を明示的に落とす。
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"

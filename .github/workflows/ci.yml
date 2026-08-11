@@ -26,6 +26,16 @@ env:
   WASM_BINDGEN_SHA256: "61d4a7dc85acfa0d2354ccc0b8361928c7e52a746d17f28ebaa795ed3dc1614a"
   WASM_PACK_VERSION: "0.13.1"
   WASM_PACK_SHA256: "c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
+  # binaryen（wasm-opt）の pin（単一宣言点、イシュー #1327・docs/ci/
+  # wasm-opt-adoption-evaluation.md）。`Fandhe-AI/actions/wasm-tool-install`
+  # は wasm-bindgen / wasm-pack のみ対応のため対象外であり、
+  # `template-app-wasm-smoke` ジョブが cargo-deny（tools/ci/ensure-gate-tools.sh）
+  # と同型の「バージョン固定 + SHA256 検証済みプリビルトバイナリ」パターンで
+  # 自前導入する。SHA256 は GitHub リリースの
+  # `binaryen-${WASM_OPT_VERSION}-x86_64-linux.tar.gz` を実際にダウンロードし
+  # 実測した値。
+  WASM_OPT_VERSION: "version_123"
+  WASM_OPT_SHA256: "e959f2170af4c20c552e9de3a0253704d6a9d2766e8fdb88e4d6ac4bae9388fe"
 
 jobs:
   # TASK-2.1 (REQ-2): コアクレートの unsafe 不使用を機械的に強制するジョブ。
@@ -1157,6 +1167,38 @@ jobs:
             echo "::error::patch-template-smoke failed for a reason other than reaching the crates.io sparse index (e.g. an unsupported dependency form, a pre-existing [patch.crates-io] section, or a repo-root crate mismatch). See the log above for details."
           fi
           exit 1
+
+      - name: Install wasm-opt (pinned + checksum-verified, binaryen release tarball)
+        # `Fandhe-AI/actions/wasm-tool-install` は wasm-bindgen / wasm-pack のみ
+        # 対応のため対象外（`.claude/rules/ci.md` ツール前提の明示）。
+        # cargo-deny（`tools/ci/ensure-gate-tools.sh`）と同型のバージョン固定 +
+        # SHA256 チェックサム検証パターンを自前実装する。同スクリプトと同じく
+        # `/usr/local/bin`・sudo は要求せず `$HOME/.local/share/` 配下へ展開し
+        # `$GITHUB_PATH` で解決させる。`build.sh` 側は wasm-opt 未検出時
+        # soft-skip（`docs/ci/wasm-opt-adoption-evaluation.md` 参照）だが、
+        # CI では常設導入してこの経路のドリフト（劣化）を検知する。
+        env:
+          WASM_OPT_VERSION: ${{ env.WASM_OPT_VERSION }}
+          WASM_OPT_SHA256: ${{ env.WASM_OPT_SHA256 }}
+        run: |
+          set -euo pipefail
+          share_dir="${HOME}/.local/share/wasm-opt"
+          install_dir="${share_dir}/${WASM_OPT_VERSION}"
+          mkdir -p "${share_dir}"
+          if [ ! -x "${install_dir}/bin/wasm-opt" ]; then
+            archive="binaryen-${WASM_OPT_VERSION}-x86_64-linux.tar.gz"
+            url="https://github.com/WebAssembly/binaryen/releases/download/${WASM_OPT_VERSION}/${archive}"
+            tmp_root="$(mktemp -d "${share_dir}/.tmp-XXXXXX")"
+            curl --fail --location --silent --show-error \
+              --output "${tmp_root}/${archive}" \
+              "${url}"
+            echo "${WASM_OPT_SHA256}  ${tmp_root}/${archive}" | sha256sum -c -
+            tar -xzf "${tmp_root}/${archive}" -C "${tmp_root}"
+            mv -T "${tmp_root}/binaryen-${WASM_OPT_VERSION}" "${install_dir}"
+            rm -rf "${tmp_root}"
+          fi
+          echo "${install_dir}/bin" >> "${GITHUB_PATH}"
+          "${install_dir}/bin/wasm-opt" --version
 
       - name: tools/wasm/build.sh の実行
         # 直前ステップと同じくフィクスチャ専用 CARGO_TARGET_DIR を明示指定する
