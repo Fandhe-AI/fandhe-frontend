@@ -298,11 +298,25 @@ fn measure_rows(rows: usize, warmup: usize, iters: usize) -> (Stats, String) {
 
 /// 検証結果 `(escape_ok, row_count_ok)` を返す。
 ///
-/// - `escape_ok`: 生の `<script>alert(1)</script>` が出力に含まれないこと
-///   （既定エスケープ回帰の検知、REQ-1）
+/// - `escape_ok`: 各行のラベル（[`row`] が組み立てる
+///   `"Row {i} & \"quoted\" <script>alert(1)</script>"`）が
+///   [`fandhe_frontend_core::escape_html`] 済みの形で完全一致するかを
+///   `0..expected_rows` の全行について検証する（既定エスケープ回帰の検知、
+///   REQ-1）。生の `XSS_MARKER` 不在のみを見る素朴な部分一致では、`&`/`"`
+///   だけが未エスケープになる・開始タグと終了タグの一方だけが未エスケープ
+///   になるといった**部分的な**回帰が `escape_ok=true` へすり抜けてしまう
+///   （codex-review 指摘）。エスケープ済みラベル文字列全体の完全一致に
+///   することで、5 対象文字（`&` `<` `>` `"` `'`）のどれか 1 つでも
+///   エスケープが崩れれば必ず不一致になり検知できる。`verify` は計測
+///   ループの外（`run`）から 1 回だけ呼ばれるため、行数分のループ・
+///   文字列確保のコストは許容できる
 /// - `row_count_ok`: `<tr` の出現回数が `expected_rows` と一致すること
 fn verify(html: &str, expected_rows: usize) -> (bool, bool) {
-    let escape_ok = !html.contains(XSS_MARKER);
+    let escape_ok = (0..expected_rows).all(|i| {
+        let raw_label = format!("Row {i} & \"quoted\" {XSS_MARKER}");
+        let expected_label = fandhe_frontend_core::escape_html(&raw_label);
+        html.contains(&expected_label)
+    });
     let row_count_ok = html.matches("<tr").count() == expected_rows;
     (escape_ok, row_count_ok)
 }
@@ -466,6 +480,33 @@ mod tests {
         assert!(
             !escape_ok,
             "生の <script>alert(1)</script> 混入は escape_ok=false のはず"
+        );
+    }
+
+    #[test]
+    fn verify_detects_partial_ampersand_and_quote_escape_regression_as_not_ok() {
+        // `<` `>` は正しくエスケープされているが `&`/`"` のみ未エスケープに
+        // 壊れたケース（codex-review 指摘: 生の XSS_MARKER 不在のみを見る
+        // 実装だとこの部分回帰を escape_ok=true と誤判定していた）。
+        let html =
+            "<tr><td>0</td><td>Row 0 & \"quoted\" &lt;script&gt;alert(1)&lt;/script&gt;</td></tr>";
+        let (escape_ok, _row_count_ok) = verify(html, 1);
+        assert!(
+            !escape_ok,
+            "& / \" のみ未エスケープの部分回帰は escape_ok=false のはず"
+        );
+    }
+
+    #[test]
+    fn verify_detects_one_sided_tag_escape_regression_as_not_ok() {
+        // 開始タグ `<script>` のみ未エスケープで終了タグ `</script>` は
+        // エスケープ済みという非対称な部分回帰（codex-review 指摘のもう
+        // 一方のシナリオ）。
+        let html = "<tr><td>0</td><td>Row 0 &amp; &quot;quoted&quot; <script>alert(1)&lt;/script&gt;</td></tr>";
+        let (escape_ok, _row_count_ok) = verify(html, 1);
+        assert!(
+            !escape_ok,
+            "開始タグのみ未エスケープの部分回帰は escape_ok=false のはず"
         );
     }
 
