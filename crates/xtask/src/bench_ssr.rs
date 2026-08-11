@@ -59,7 +59,13 @@
 //! `bench-ssr-compare: metric=<name> baseline=<b> current=<c> delta_pct=<±x.xx>`
 //! の行群として追加出力する。**report-only**（数値比較を根拠に判定・終了
 //! コードを変えない）とし、CI 閾値ゲート化は本イシューの明示スコープ外
-//! （実装計画 §8）のため行わない。
+//! （実装計画 §8）のため行わない。数値比較の前に「同一ワークロード」で
+//! あることをスキーマ検証する（[`compare`] が呼ぶ
+//! [`validate_baseline_workload`]。`framework`/`mode`/`notes`〔ビルド
+//! プロファイル〕/ 各 `iters` の完全一致を要求し、`version` のみバージョン
+//! 間比較を意図的に許容する例外とする。不一致は
+//! [`BenchSsrError::InvalidBaseline`] として拒否し、異なるビルドプロファイル
+//! 間の比較誤用を機械検知可能にする）。
 //!
 //! # CI ゲート化しない設計判断
 //!
@@ -391,10 +397,19 @@ pub fn run(version: String) -> Report {
 ///
 /// パース失敗・必須キー欠落は [`BenchSsrError::InvalidBaseline`]
 /// として fail-closed に扱う（非信頼入力、security.md A08）。
+///
+/// 数値比較の**前**に [`validate_baseline_workload`] で識別・構成フィールド
+/// （`framework`/`mode`/`notes`〔ビルドプロファイル〕/ 各 `iters`）が
+/// `current` と一致することを検証する（codex-review P1 指摘: 異なる
+/// ワークロード・異なるビルドプロファイル間の意味のない比較を「同一
+/// ワークロードの回帰比較」として report-only 出力してしまうのを防ぐ。
+/// `version` のみバージョン差分比較を意図的に許容する例外として除外する）。
 pub fn compare(current: &Report, baseline_json: &str) -> Result<Vec<String>, BenchSsrError> {
     let root = parse(baseline_json).map_err(|e: JsonError| {
         BenchSsrError::InvalidBaseline(format!("failed to parse baseline JSON: {e}"))
     })?;
+
+    validate_baseline_workload(current, &root)?;
 
     let mut lines = Vec::new();
     for (metric, current_value) in [
@@ -425,10 +440,70 @@ pub fn compare(current: &Report, baseline_json: &str) -> Result<Vec<String>, Ben
     Ok(lines)
 }
 
-/// `root`（baseline JSON のトップレベルオブジェクト）から `"rows1k.mean_ms"`
-/// のようなドット区切りパスで数値を引く。キー欠落・型不一致は
-/// [`BenchSsrError::InvalidBaseline`] とする。
-fn lookup_metric(root: &Json, dotted_path: &str) -> Result<f64, BenchSsrError> {
+/// baseline JSON が `current` と「同一ワークロード」であることを検証する
+/// （[`compare`] が数値比較を行う前の必須スキーマ検証）。
+///
+/// `to_json_line`（[`Report::to_json_line`]）が出力する `framework`（常に
+/// `"fandhe-frontend"`）・`mode`（常に `"ssr"`）に加え、[`Report`] が保持する
+/// `notes`（ビルドプロファイル `profile=debug`/`profile=release`）・
+/// `rows1k.iters`/`rows10k.iters`（本モジュール内で固定される計測回数）の
+/// 完全一致を要求する。**`version` のみ例外**とし検証対象に含めない
+/// （`fandhe-frontend-core` のバージョン間比較を意図的に許容するため、
+/// モジュール冒頭の設計判断どおり）。1 つでも不一致・欠落・型不一致があれば
+/// [`BenchSsrError::InvalidBaseline`] として fail-closed に拒否する
+/// （codex-review P1 指摘: debug baseline と release current のような
+/// 異なるビルドプロファイル間の比較を「正当な回帰比較」として通してしまう
+/// 契約違反の是正）。
+fn validate_baseline_workload(current: &Report, root: &Json) -> Result<(), BenchSsrError> {
+    lookup_str_exact(root, "framework", "fandhe-frontend")?;
+    lookup_str_exact(root, "mode", "ssr")?;
+    lookup_str_exact(root, "notes", &current.notes)?;
+    lookup_usize_exact(root, "rows1k.iters", current.rows1k.iters)?;
+    lookup_usize_exact(root, "rows10k.iters", current.rows10k.iters)?;
+    Ok(())
+}
+
+/// `root` から `dotted_path` の文字列値を引き、`expected` と完全一致するか
+/// 検証する。欠落・型不一致・不一致はすべて
+/// [`BenchSsrError::InvalidBaseline`] とする（[`validate_baseline_workload`]
+/// 専用のヘルパ）。
+fn lookup_str_exact(root: &Json, dotted_path: &str, expected: &str) -> Result<(), BenchSsrError> {
+    let value = lookup_json(root, dotted_path)?;
+    match value.as_str() {
+        Some(s) if s == expected => Ok(()),
+        Some(s) => Err(BenchSsrError::InvalidBaseline(format!(
+            "baseline JSON value at `{dotted_path}` (`{s}`) does not match current (`{expected}`); refusing to compare incompatible workloads"
+        ))),
+        None => Err(BenchSsrError::InvalidBaseline(format!(
+            "baseline JSON value at `{dotted_path}` is not a string"
+        ))),
+    }
+}
+
+/// `root` から `dotted_path` の数値値を引き、`expected`（`usize`）と
+/// 完全一致するか検証する（[`validate_baseline_workload`] 専用のヘルパ）。
+fn lookup_usize_exact(
+    root: &Json,
+    dotted_path: &str,
+    expected: usize,
+) -> Result<(), BenchSsrError> {
+    let value = lookup_json(root, dotted_path)?;
+    match value {
+        Json::Number(n) if *n == expected as f64 => Ok(()),
+        Json::Number(n) => Err(BenchSsrError::InvalidBaseline(format!(
+            "baseline JSON value at `{dotted_path}` (`{n}`) does not match current (`{expected}`); refusing to compare incompatible workloads"
+        ))),
+        _ => Err(BenchSsrError::InvalidBaseline(format!(
+            "baseline JSON value at `{dotted_path}` is not a number"
+        ))),
+    }
+}
+
+/// `root`（baseline JSON のトップレベルオブジェクト）から `"rows1k.iters"`
+/// のようなドット区切りパスで値を引く。キー欠落は
+/// [`BenchSsrError::InvalidBaseline`] とする（[`lookup_metric`] とパス解決
+/// ロジックを共有するが、戻り値が数値以外もありうるため型を分けている）。
+fn lookup_json<'a>(root: &'a Json, dotted_path: &str) -> Result<&'a Json, BenchSsrError> {
     let mut current = root;
     for key in dotted_path.split('.') {
         current = current.get(key).ok_or_else(|| {
@@ -437,7 +512,14 @@ fn lookup_metric(root: &Json, dotted_path: &str) -> Result<f64, BenchSsrError> {
             ))
         })?;
     }
-    match current {
+    Ok(current)
+}
+
+/// `root`（baseline JSON のトップレベルオブジェクト）から `"rows1k.mean_ms"`
+/// のようなドット区切りパスで数値を引く。キー欠落・型不一致は
+/// [`BenchSsrError::InvalidBaseline`] とする。
+fn lookup_metric(root: &Json, dotted_path: &str) -> Result<f64, BenchSsrError> {
+    match lookup_json(root, dotted_path)? {
         Json::Number(n) => Ok(*n),
         _ => Err(BenchSsrError::InvalidBaseline(format!(
             "baseline JSON value at `{dotted_path}` is not a number"
@@ -665,6 +747,68 @@ mod tests {
     fn compare_rejects_baseline_missing_required_key() {
         let current = sample_report();
         let err = compare(&current, "{}").expect_err("必須キー欠落は失敗するはず");
+        assert!(matches!(err, BenchSsrError::InvalidBaseline(_)));
+    }
+
+    #[test]
+    fn compare_allows_version_mismatch() {
+        // `version` はバージョン間比較を意図的に許容する唯一の例外
+        // （モジュール冒頭の設計判断・`validate_baseline_workload` 参照）。
+        let current = sample_report();
+        let mut baseline_report = sample_report();
+        baseline_report.version = "0.1.0".to_string();
+        let baseline = baseline_report.to_json_line();
+        let lines =
+            compare(&current, &baseline).expect("version のみの不一致は許容され成功するはず");
+        assert_eq!(lines.len(), 9);
+    }
+
+    #[test]
+    fn compare_rejects_mismatched_build_profile() {
+        // codex-review P1 指摘: debug baseline と release current のような
+        // 異なるビルドプロファイル間比較を拒否する（`notes` フィールド）。
+        let current = sample_report(); // notes = "profile=release"
+        let mut baseline_report = sample_report();
+        baseline_report.notes = "profile=debug".to_string();
+        let baseline = baseline_report.to_json_line();
+        let err = compare(&current, &baseline)
+            .expect_err("異なるビルドプロファイルの baseline は拒否されるはず");
+        assert!(matches!(err, BenchSsrError::InvalidBaseline(_)));
+    }
+
+    #[test]
+    fn compare_rejects_mismatched_framework() {
+        let current = sample_report();
+        let baseline = current.to_json_line().replace(
+            "\"framework\":\"fandhe-frontend\"",
+            "\"framework\":\"other\"",
+        );
+        let err =
+            compare(&current, &baseline).expect_err("framework 不一致の baseline は拒否されるはず");
+        assert!(matches!(err, BenchSsrError::InvalidBaseline(_)));
+    }
+
+    #[test]
+    fn compare_rejects_mismatched_mode() {
+        let current = sample_report();
+        let baseline = current
+            .to_json_line()
+            .replace("\"mode\":\"ssr\"", "\"mode\":\"csr\"");
+        let err =
+            compare(&current, &baseline).expect_err("mode 不一致の baseline は拒否されるはず");
+        assert!(matches!(err, BenchSsrError::InvalidBaseline(_)));
+    }
+
+    #[test]
+    fn compare_rejects_mismatched_iters() {
+        // 同一ワークロード保証の一部（計測回数が異なれば統計的性質が
+        // 異なり、単純な数値比較は意味を持たない）。
+        let current = sample_report(); // rows1k.iters = 100
+        let mut baseline_report = sample_report();
+        baseline_report.rows1k.iters = 50;
+        let baseline = baseline_report.to_json_line();
+        let err = compare(&current, &baseline)
+            .expect_err("rows1k.iters 不一致の baseline は拒否されるはず");
         assert!(matches!(err, BenchSsrError::InvalidBaseline(_)));
     }
 
