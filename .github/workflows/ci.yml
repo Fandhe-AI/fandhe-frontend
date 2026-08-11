@@ -1208,12 +1208,27 @@ jobs:
         # クリーンな VM だが、この整合要件自体は runner 種別に依存しない）。
         # 配置先を `RUNNER_TEMP` 配下にする理由は直前ステップのコメント
         # （イシュー #659）を参照。
+        #
+        # build.sh は wasm-opt 未検出時に stderr へ
+        # "warning: wasm-opt not found on PATH; skipping ..." を出すだけで
+        # exit 0 のまま継続する soft-skip 設計（`.claude/rules/ci.md` 参照）。
+        # 本ジョブは直前ステップで wasm-opt を常設導入しているため、この
+        # 警告が出力されたら「導入したはずの wasm-opt が実際には呼ばれて
+        # いない」ドリフト（`GITHUB_PATH` 反映漏れ・ステップ順序の入れ替わり等）
+        # を意味する。出力をログへ tee し、この文字列が現れないことを
+        # assert して fail-closed に検知する（イシュー #1327 レビュー指摘。
+        # `patch-template-smoke` の `resolution=path-override` grep と同型の
+        # 「サイレントな弱体化を防ぐ」パターン）。
         env:
           CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-template-app-wasm-smoke-target/wasm-build
         run: |
           set -euo pipefail
           cd "${RUNNER_TEMP}/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke"
-          ./tools/wasm/build.sh
+          ./tools/wasm/build.sh 2>&1 | tee build.sh.log
+          if grep -q 'wasm-opt not found' build.sh.log; then
+            echo "::error::template-app-wasm-smoke: build.sh reported 'wasm-opt not found' even though the 'Install wasm-opt' step ran earlier in this job. wasm-opt was not actually invoked, so the size-optimization path is silently unverified. Check PATH/GITHUB_PATH propagation and step ordering."
+            exit 1
+          fi
 
       - name: 生成物の存在・mount_csr/hydrate エクスポートの検証
         run: |

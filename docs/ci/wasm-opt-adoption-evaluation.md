@@ -42,9 +42,23 @@ true baseline（raw 93,737B / gzip 34,239B、下記 §計測 参照）はオー�
   perf_browser.rs` 相当）は本評価では再計測していない（`_/bench/` 不在のため）。
   wasm-opt はバイナリの意味論を変えない設計のツールであり、上記のエクスポート
   完全一致・`WebAssembly.compile()` 成功をもって機能的な破壊がないことの
-  代替エビデンスとする。実行時性能の正式な非劣化確認は、CI 常設化
-  （§適用 参照）後に `crates/wasm-full/tests/perf_browser.rs` の継続 PASS で
-  担保される。
+  代替エビデンスとする。**訂正（イシュー #1327 レビュー指摘）**: 当初本節は
+  「実行時性能の正式な非劣化確認は CI 常設化後の `crates/wasm-full/tests/
+  perf_browser.rs` の継続 PASS で担保される」と記載していたが、これは誤り
+  だった。`perf_browser.rs` は `.github/workflows/ci.yml` の `perf-harness`
+  ジョブでワークスペースルートの（本イシューで無変更の）プロファイルで
+  `crates/wasm-full` を直接ビルドして実行するテストであり、本イシューの
+  プロファイル変更（`opt-level="s"` / `lto=true` / `codegen-units=1` /
+  `panic="abort"`）は `templates/app/wasm/Cargo.toml` と `examples/
+  interactive-view-transitions/wasm/Cargo.toml`（いずれも root ワークスペース
+  から隔離された独立ワークスペース）にのみ適用されており、`perf_browser.rs`
+  はこれらのパスを一切経由しない。すなわち `panic = "abort"` を含む実行時
+  挙動に影響し得る変更に対して、現時点でこれを継続検証する CI テストは
+  存在しない。緩和材料としては、`catch_unwind`/panic フックの使用箇所が
+  `crates/wasm-client`・`crates/wasm-full` のいずれにも存在しない（grep 0 件）
+  ことを確認済みであり、`panic = "abort"` が実際の挙動を変える経路は現状
+  ない。ただしこれは静的な確認であり、CI による継続的な非劣化保証ではない
+  （実行時性能の CI 常設検証は本イシューの対象外・別途検討）。
 
 ### ビルドプロファイル比較
 
