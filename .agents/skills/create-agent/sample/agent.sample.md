@@ -15,22 +15,22 @@ model: sonnet
 
 # tools: 最小権限の原則に従い、必要なツールのみ列挙する。
 #
-# 【調査 Agent の例】（research/ カテゴリ）
-# → Edit / Write / Bash を含めない。
-#   WebFetch / WebSearch は Web 調査を責務とする research/ Agent のみ許可
-#   （quality/ には含めない。quality/ は Glob / Grep / Read のみ）
+# 【読み取り専用 Agent の既定】（research/ または quality/ カテゴリ）
+# → Edit / Write / Bash を含めない。ネットワーク系（WebFetch / WebSearch）も既定では含めない
 tools:
   - Glob
   - Grep
   - Read
-  - WebFetch
-  - WebSearch
 
-# 【検証 Agent の例】（quality/ カテゴリ）
+# 【外部ドキュメント調査を担う Agent の追加例】（research/ カテゴリ限定）
+# 公式ドキュメント・外部仕様の取得が責務に含まれる場合のみ、以下を追加する。
+# quality/（レビュー・監査）には付与しない。
 # tools:
 #   - Glob
 #   - Grep
 #   - Read
+#   - WebFetch
+#   - WebSearch
 
 # 【作成・編集 Agent の例】（author/ カテゴリ）
 # tools:

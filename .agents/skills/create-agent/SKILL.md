@@ -41,12 +41,10 @@ argument-hint: "<category>/<agent-name> (例: create-agent quality/lint-runner)"
 
 | Agent カテゴリ | 許可ツール |
 |-------------|-----------|
-| 調査（research/） | `Read`・`Glob`・`Grep` + 必要に応じて `WebFetch`・`WebSearch`（Web 調査を責務とする場合のみ） |
-| 検証（quality/） | `Read`・`Glob`・`Grep` のみ |
-| 作成・編集（author/） | `Read`・`Glob`・`Grep` + `Edit`・`Write`・`Bash` |
+| 読み取り専用（research/・quality/） | `Read`・`Glob`・`Grep` のみ |
+| 作成・編集（author/） | 上記 + `Edit`・`Write`・`Bash` |
 
-読み取り専用 Agent（research/・quality/）には `Edit`・`Write`・`Bash` を **含めない**。
-`WebFetch`・`WebSearch` は research/ のうち Web 調査を責務に持つ Agent に限り許可する（quality/ には含めない）。
+読み取り専用 Agent には `Edit`・`Write`・`Bash` を **含めない**。
 
 ## subagent フォールバック（skills add 導入先向け）
 
@@ -97,9 +95,8 @@ prompt: |
 `agent-author` の作成結果を確認し、以下を検証する。
 
 - `model` がカテゴリ・用途に合った選定になっているか
-- `tools` が「tools 最小権限原則」のカテゴリ別許可表を守っているか
-- `research/`・`quality/` カテゴリに `Edit`・`Write`・`Bash` が含まれていないか
-- `WebFetch`・`WebSearch` が含まれる場合、research/ カテゴリかつ Web 調査を責務とする Agent か
+- `tools` が最小権限原則を守っているか
+- `quality/` カテゴリなのに `Edit`・`Write`・`Bash` が含まれていないか
 
 ### Step 4: frontmatter-linter で検証する
 
@@ -108,7 +105,7 @@ prompt: |
 検証観点:
 - `name` が kebab-case で正しく設定されているか
 - `model` が規定値（haiku/sonnet/opus）のいずれかか
-- `tools` が「tools 最小権限原則」のカテゴリ別許可表を超えていないか（`WebFetch`・`WebSearch` は Web 調査を責務とする research/ のみ許可）
+- `tools` に最小権限を超えるものが含まれていないか
 - `description` が委譲される場面を具体的に説明しているか
 - `.claude/agents/<category>/` に正しく配置されているか
 
@@ -145,6 +142,6 @@ CLAUDE.md の Sub-agents 表・構造ツリーを更新するには:
 
 - **dotclaude-via-temp 必須**: `agent-author` は `.claude/agents/` に直接書き込まず、`_/dotclaude/agents/` への一時作成から `.claude/agents/` への `mv` まで一貫して実行する。`create-agent` 側で `mv` を別途実行する必要はない（詳細: `.claude/rules/dotclaude-via-temp.md`）
 - **`rm -rf _/dotclaude` は禁止**: `rmdir` で空ディレクトリのみ削除する（他の並行作業との共有ディレクトリ）
-- **読み取り専用 Agent の tools**: `research/` と `quality/` カテゴリには `Edit`・`Write`・`Bash` を含めない。`WebFetch`・`WebSearch` は Web 調査を責務とする `research/` Agent のみ許可し、`quality/` には含めない
+- **読み取り専用 Agent の tools**: `research/` と `quality/` カテゴリには `Edit`・`Write`・`Bash` を含めない
 - **name の解決**: `subagent_type:` による呼び出しは frontmatter の `name:` フィールドで解決される。カテゴリを移動しても呼び出しコードの変更が不要
 - **update-docs の実行**: Agent 追加後は必ず `/update-docs` で `CLAUDE.md` を最新化する
