@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-client"
-version = "0.3.1"
+version = "0.3.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"
@@ -38,9 +38,14 @@ categories = ["wasm", "web-programming"]
 # イシュー #1318（keyed 適用の DOM 操作コストを固定する決定的テスト）:
 # `keyed_dom.rs` の `apply_keyed_list` を非公開の `KeyedListDom` トレイト
 # （`keyed_apply.rs` 新設、非公開モジュール）越しの構成へ等価リファクタし、
-# native `cargo test` から到達可能な決定的コストテストを追加した。公開 API
-# の型・シグネチャは変更していないが `src/` 実体変更のため 0.3.0 → 0.3.1 へ
-# バンプする（`.claude/rules/coding-rust.md` の semver バンプ必須条項）。
+# native `cargo test` から到達可能な決定的コストテストを追加した。
+# `keyed_apply` モジュールは非公開（`mod keyed_apply;`）、`KeyedListDom`
+# トレイトも `pub(crate)` であり、`keyed_dom::apply_keyed_list`（唯一の
+# 公開エントリポイント）のシグネチャ・`keyed_diff` の公開型もいずれも
+# 変更していない（外部から観測可能な公開 API に影響しない内部実装のみの
+# 変更）ため、`.claude/rules/coding-rust.md` の semver バンプ必須条項の
+# 例外（PR 本文 `version-bump-exempt: fandhe-frontend-wasm-client` 宣言）を
+# 適用し、0.3.0 を維持する。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.2.0" }
 fandhe-frontend-app = { path = "../app", version = "0.2.0" }
