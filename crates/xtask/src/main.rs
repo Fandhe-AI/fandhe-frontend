@@ -63,6 +63,16 @@
 //!   `wasm-node-smoke` ジョブ。1 行サマリは `wasm_node_smoke::format_report`
 //!   参照。CLI 契約の回帰テストは `xtask/tests/cli_wasm_node_smoke.rs`。
 //!
+//! - `bench-ssr [--baseline <FILE>]`: イシュー #1317。非追跡領域（`_/bench/fandhe/ssr`）
+//!   で行っていた SSR 性能計測（rows=1,000/10,000 テーブルの `render()` 時間）を
+//!   常設化する（`bench_ssr` モジュール）。JSON 1 行を stdout へ出力し、既定エスケープ
+//!   （REQ-1）回帰検知（`escape_ok`）・行数一致検知（`row_count_ok`）が `false` の
+//!   場合は終了コード 1（fail-closed）。`--baseline <FILE>` に過去の本コマンド出力
+//!   （JSON 1 行）を渡すと `bench-ssr-compare:` 行群で回帰比較を追加出力する
+//!   （report-only、終了コードへは影響しない）。計測回数・行数の CLI 差し替え口は
+//!   意図的に設けない。1 行サマリ・JSON スキーマは `bench_ssr` モジュール doc 参照。
+//!   CLI 契約の回帰テストは `xtask/tests/cli_bench_ssr.rs`。
+//!
 //! - `check-version-bump --base-ref <REF> [--pr-body-file <PATH>] [--index-base-url <URL>]`:
 //!   イシュー #638。公開済みクレート（crates.io）の実体（`src/` / `Cargo.toml` /
 //!   `build.rs`）が変更されているのに `Cargo.toml` の version が既公開バージョンの
@@ -116,6 +126,7 @@
 #![forbid(unsafe_code)]
 
 mod bench_binding_update;
+mod bench_ssr;
 mod check_dep_versions;
 mod check_deps;
 mod check_image_size;
@@ -138,6 +149,7 @@ fn main() -> ExitCode {
         Some("check-image-size") => run_check_image_size(&args[2..]),
         Some("wasm-node-smoke") => run_wasm_node_smoke(&args[2..]),
         Some("bench-binding-update") => run_bench_binding_update(&args[2..]),
+        Some("bench-ssr") => run_bench_ssr(&args[2..]),
         Some("check-version-bump") => run_check_version_bump(&args[2..]),
         Some("check-dep-versions") => run_check_dep_versions(&args[2..]),
         Some("patch-template-smoke") => run_patch_template_smoke(&args[2..]),
@@ -192,6 +204,11 @@ fn print_usage() {
     eprintln!("      Measure full re-render vs dirty-tracked update cost (native, report-only,");
     eprintln!("      no threshold judgement) for AppState/Disclosure/SingleSelect dispatch");
     eprintln!("      (issue #592). Takes no arguments by design.");
+    eprintln!("  bench-ssr [--baseline <FILE>]");
+    eprintln!("      Measure SSR render() throughput (native, rows=1,000/10,000 tables) and");
+    eprintln!("      emit a single JSON line (issue #1317). Exits non-zero if the default-");
+    eprintln!("      escape (REQ-1) or row-count self-checks fail. `--baseline <FILE>` adds");
+    eprintln!("      report-only `bench-ssr-compare:` lines against a prior JSON output.");
     eprintln!(
         "  check-version-bump --base-ref <REF> [--pr-body-file <PATH>] [--index-base-url <URL>]"
     );
@@ -566,6 +583,79 @@ fn run_bench_binding_update(args: &[String]) -> ExitCode {
 
     for report in bench_binding_update::run_all_scenarios() {
         println!("{report}");
+    }
+
+    ExitCode::SUCCESS
+}
+
+/// `bench-ssr` サブコマンド（イシュー #1317）: 任意の `--baseline <FILE>` のみを
+/// 受け取る。計測 → `fandhe-frontend-core` の実バージョン解決（`cargo metadata`）
+/// → JSON 1 行の出力 → 既定エスケープ（REQ-1）/行数一致の検証（fail-closed）→
+/// （`--baseline` 指定時のみ）report-only な回帰比較出力、の順に実行する。
+///
+/// 終了コード: 0=検証 PASS（`--baseline` 比較の有無に関わらず）/
+/// 1=検証 FAIL・環境エラー（`cargo metadata` 失敗）・baseline 不正
+/// （ファイル読み取り失敗・JSON パース失敗・必須キー欠落）/
+/// 2=引数不備。計測回数・行数を差し替える CLI 引数は意図的に設けない
+/// （`bench_ssr` モジュール doc 参照）。
+fn run_bench_ssr(args: &[String]) -> ExitCode {
+    let mut baseline_path: Option<String> = None;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--baseline" => {
+                let Some(path) = args.get(i + 1) else {
+                    eprintln!("xtask bench-ssr: `--baseline` requires a value");
+                    return ExitCode::from(2);
+                };
+                baseline_path = Some(path.clone());
+                i += 2;
+            }
+            other => {
+                eprintln!("xtask bench-ssr: unknown argument `{other}`");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    let version = match bench_ssr::resolve_core_version() {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("xtask bench-ssr: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let report = bench_ssr::run(version);
+    println!("{}", report.to_json_line());
+
+    if let Some(path) = baseline_path {
+        let baseline_json = match std::fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("xtask bench-ssr: failed to read baseline file `{path}`: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+        match bench_ssr::compare(&report, &baseline_json) {
+            Ok(lines) => {
+                for line in lines {
+                    println!("{line}");
+                }
+            }
+            Err(e) => {
+                eprintln!("xtask bench-ssr: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    if !report.self_check_ok() {
+        eprintln!(
+            "xtask bench-ssr: self-check failed (escape_ok={}, row_count_ok={})",
+            report.escape_ok, report.row_count_ok
+        );
+        return ExitCode::FAILURE;
     }
 
     ExitCode::SUCCESS
