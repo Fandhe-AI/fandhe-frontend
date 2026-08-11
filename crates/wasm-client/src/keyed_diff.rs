@@ -255,4 +255,140 @@ mod tests {
         // panic しないことのみを確認する（重複時の正確な操作列は未規定）。
         let _ = diff_keys(&old, &new);
     }
+
+    // --- イシュー #1318: O(n²) 再発検知の一環として、大規模ケースの op 数
+    // 自体を契約化する（ルート issue #1313 が特定した CSR create の
+    // O(n²) コストは `nth_element_child`/`next_element_sibling` の sibling
+    // 走査回数に起因し `diff_keys` 自体は O(n) だが、`diff_keys` が発行する
+    // op 数が想定外に膨らむと `keyed_dom::apply_keyed_list` 側の DOM 操作
+    // コストも連動して膨らむため、まず purely な diff 層で op 数の上限を
+    // 固定しておく）。
+
+    /// 空 → N 行（N=1,000）: Insert がちょうど N 件、index は 0..N の昇順で
+    /// 1 つも欠けない（余分な Remove/Move が発生しないこと）。
+    #[test]
+    fn diff_keys_from_empty_to_n_rows_emits_exactly_n_inserts_in_order() {
+        const N: usize = 1_000;
+        let old: Vec<String> = Vec::new();
+        let new: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+
+        let ops = diff_keys(&old, &new);
+
+        assert_eq!(ops.len(), N, "空 → N 行は Insert ちょうど N 件のみのはず");
+        for (i, op) in ops.iter().enumerate() {
+            assert_eq!(
+                op,
+                &KeyedOp::Insert {
+                    index: i,
+                    key: format!("k{i}"),
+                },
+                "Insert の index は 0..N の昇順で欠けないはず"
+            );
+        }
+    }
+
+    /// 既存 N 行の先頭へ 1 件挿入: op はちょうど 1 件（Insert index=0）の
+    /// みで、既存 N 件への無関係な Remove/Move は発生しない。
+    #[test]
+    fn diff_keys_prepend_one_to_n_rows_emits_exactly_one_insert() {
+        const N: usize = 1_000;
+        let old: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+        let mut new: Vec<String> = vec!["new".to_string()];
+        new.extend(old.iter().cloned());
+
+        let ops = diff_keys(&old, &new);
+
+        assert_eq!(
+            ops,
+            vec![KeyedOp::Insert {
+                index: 0,
+                key: "new".to_string(),
+            }]
+        );
+    }
+
+    /// 既存 N 行の末尾へ 1 件挿入: op はちょうど 1 件（Insert index=N）の
+    /// みで、既存 N 件への無関係な Remove/Move は発生しない。
+    #[test]
+    fn diff_keys_append_one_to_n_rows_emits_exactly_one_insert() {
+        const N: usize = 1_000;
+        let old: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+        let mut new: Vec<String> = old.clone();
+        new.push("new".to_string());
+
+        let ops = diff_keys(&old, &new);
+
+        assert_eq!(
+            ops,
+            vec![KeyedOp::Insert {
+                index: N,
+                key: "new".to_string(),
+            }]
+        );
+    }
+
+    /// 完全逆順（reverse）: 全件が同じ集合のまま並びだけが反転するケース。
+    /// Remove/Insert は 1 件も発生せず、Move が高々 N-1 件で収まる
+    /// （全 N 件が Move になるとは限らない実装だが、上限として N-1 を
+    /// 固定し「N 件超の異常な op 数」の再発を検知する）。
+    #[test]
+    fn diff_keys_full_reverse_emits_only_moves_within_n_minus_one() {
+        const N: usize = 1_000;
+        let old: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+        let new: Vec<String> = old.iter().rev().cloned().collect();
+
+        let ops = diff_keys(&old, &new);
+
+        assert!(
+            ops.iter().all(|op| matches!(op, KeyedOp::Move { .. })),
+            "完全逆順は Remove/Insert を発生させず Move のみのはず"
+        );
+        assert!(
+            ops.len() < N,
+            "Move の件数は N-1 件以内のはず（実測: {}）",
+            ops.len()
+        );
+    }
+
+    /// 固定シード LCG（線形合同法）による決定的シャッフル
+    /// （Fisher–Yates）。乱数・時刻・環境に依存する `rand` クレート等は
+    /// 使わず標準ライブラリのみで完結させる（REQ-3: 外部依存追加ゼロ）。
+    fn lcg_shuffle(items: &mut [String], seed: u64) {
+        let mut state = seed;
+        let mut next = move || {
+            // Numerical Recipes の定数（決定的であれば具体的な定数の由来は
+            // 問わない用途。テストの再現性のみが目的）。
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            state
+        };
+        for i in (1..items.len()).rev() {
+            let j = (next() % (i as u64 + 1)) as usize;
+            items.swap(i, j);
+        }
+    }
+
+    /// 固定シード LCG によるシャッフル（N=1,000）: 集合は変化しないため
+    /// Remove/Insert は発生せず、Move の件数は N-1 件を超えない
+    /// （O(n²) 再発検知: op 数自体が線形の上限に収まることを固定する）。
+    #[test]
+    fn diff_keys_deterministic_shuffle_emits_only_moves_within_n_minus_one() {
+        const N: usize = 1_000;
+        let old: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+        let mut new = old.clone();
+        lcg_shuffle(&mut new, 0x1318_1318_1318_1318);
+
+        let ops = diff_keys(&old, &new);
+
+        assert!(
+            ops.iter().all(|op| matches!(op, KeyedOp::Move { .. })),
+            "同一集合のシャッフルは Remove/Insert を発生させず Move のみのはず"
+        );
+        assert!(
+            ops.len() < N,
+            "Move の件数は N-1 件以内のはず（実測: {}）",
+            ops.len()
+        );
+    }
 }

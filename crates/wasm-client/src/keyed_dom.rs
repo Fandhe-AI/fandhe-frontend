@@ -21,7 +21,6 @@
 //! 伝播の結果 `KeyedOp::Insert` の対象アイテムが丸ごと未適用のまま残る
 //! （個別ノード単位ではなくアイテム単位の skip、イシュー #1121）。
 
-use crate::keyed_diff::{diff_keys, KeyedOp};
 use fandhe_frontend_core::keyed::KEY_ATTR;
 use fandhe_frontend_core::Node;
 use wasm_bindgen::JsCast;
@@ -92,46 +91,6 @@ fn list_item_nodes(list_node: &Node) -> Vec<(String, &Node)> {
                 .map(|(_, key)| (key.clone(), child))
         })
         .collect()
-}
-
-/// 実 DOM 上の keyed list 親要素直下の子から、現在の `data-key` 列を読み出す。
-fn dom_item_keys(list_element: &Element) -> Vec<String> {
-    let mut keys = Vec::new();
-    let mut maybe_child = list_element.first_element_child();
-    while let Some(child) = maybe_child {
-        if let Some(key) = child.get_attribute(KEY_ATTR) {
-            keys.push(key);
-        }
-        maybe_child = child.next_element_sibling();
-    }
-    keys
-}
-
-/// `key` に対応する既存の子要素を探す（`data-key` 属性の完全一致）。
-fn find_child_by_key(list_element: &Element, key: &str) -> Option<Element> {
-    let mut maybe_child = list_element.first_element_child();
-    while let Some(child) = maybe_child {
-        if child.get_attribute(KEY_ATTR).as_deref() == Some(key) {
-            return Some(child);
-        }
-        maybe_child = child.next_element_sibling();
-    }
-    None
-}
-
-/// `index` 番目（0-origin）の子要素を返す（`insert_before` の参照ノード
-/// 決定に使う。`index` が子要素数以上なら `None` = 末尾追加）。
-fn nth_element_child(list_element: &Element, index: usize) -> Option<Element> {
-    let mut maybe_child = list_element.first_element_child();
-    let mut i = 0;
-    while let Some(child) = maybe_child {
-        if i == index {
-            return Some(child);
-        }
-        i += 1;
-        maybe_child = child.next_element_sibling();
-    }
-    None
 }
 
 /// `fandhe_frontend_core::Node` から実 DOM 要素をプログラム的に構築する
@@ -267,6 +226,72 @@ fn build_dom_node_with_namespace(
     }
 }
 
+/// [`crate::keyed_apply::KeyedListDom`] の `web-sys` 実装アダプタ
+/// （イシュー #1318）。
+///
+/// 走査アルゴリズム自体（旧 `dom_item_keys`/`find_child_by_key`/
+/// `nth_element_child`/op 適用ループ）は [`crate::keyed_apply::apply_ops`]
+/// へ等価移植済みであり、本 struct は「`web-sys` の実 DOM 呼び出し」を
+/// トレイトメソッドへ 1:1 で委譲するだけの薄いアダプタに徹する
+/// （本モジュール冒頭 doc の 2 層構成、`keyed_apply` モジュール doc 参照）。
+struct WebSysKeyedDom<'a> {
+    document: &'a Document,
+    list_element: &'a Element,
+    /// `new_list_node`（`component.view()` 側の `Node` 木）から抽出した
+    /// `(key, &Node)` 列。`create_item` がキー引きでノードを探す。
+    new_items: &'a [(String, &'a Node)],
+    /// 挿入先 `list_element` の実際の名前空間（[`build_dom_node_with_namespace`]
+    /// rustdoc 参照。SVG keyed list への挿入で HTML 名前空間の要素が生成
+    /// されてしまう不具合の是正を維持する）。
+    namespace: Option<&'a str>,
+}
+
+impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
+    type Handle = Element;
+    type NewNode = web_sys::Node;
+
+    fn first_element_child(&mut self) -> Option<Element> {
+        self.list_element.first_element_child()
+    }
+
+    fn next_element_sibling(&mut self, child: &Element) -> Option<Element> {
+        child.next_element_sibling()
+    }
+
+    fn item_key(&mut self, child: &Element) -> Option<String> {
+        child.get_attribute(KEY_ATTR)
+    }
+
+    fn create_item(&mut self, key: &str) -> Option<web_sys::Node> {
+        let (_, node) = self.new_items.iter().find(|(k, _)| k == key)?;
+        build_dom_node_with_namespace(self.document, node, self.namespace)
+    }
+
+    fn insert_before(&mut self, node: web_sys::Node, reference: Option<&Element>) {
+        let reference_web_node: Option<web_sys::Node> =
+            reference.cloned().map(|el| el.unchecked_into());
+        let _ = self
+            .list_element
+            .insert_before(&node, reference_web_node.as_ref());
+    }
+
+    fn move_before(&mut self, child: &Element, reference: Option<&Element>) {
+        // 移動元と移動先参照が同一要素の場合、`insert_before` は no-op
+        // （DOM 標準仕様: 挿入前に自身を除去してから挿入するため同一ノード
+        // 指定は何も動かさない）。
+        let reference_web_node: Option<web_sys::Node> =
+            reference.cloned().map(|el| el.unchecked_into());
+        let existing_web_node: web_sys::Node = child.clone().unchecked_into();
+        let _ = self
+            .list_element
+            .insert_before(&existing_web_node, reference_web_node.as_ref());
+    }
+
+    fn remove_child(&mut self, child: &Element) {
+        let _ = self.list_element.remove_child(child);
+    }
+}
+
 /// [`crate::keyed_diff::diff_keys`] が計画した操作列を `list_element` へ
 /// 適用する（本モジュールの公開エントリポイント）。
 ///
@@ -279,54 +304,22 @@ fn build_dom_node_with_namespace(
 ///
 /// キー照合に失敗する要素（`Insert` で `build_dom_node` が `None` を返す
 /// ケース = `RawHtml` 子や不正タグ名）は skip し、当該 1 件のみ未適用のまま
-/// 残す（fail-closed。他の正当な操作の適用を妨げない）。
+/// 残す（fail-closed。他の正当な操作の適用を妨げない）。走査アルゴリズム
+/// 本体は [`crate::keyed_apply::apply_ops`]（イシュー #1318 で DOM 非依存へ
+/// 切り出し済み、native `cargo test` で DOM 操作コストを決定的に検証する
+/// 土台）。
 pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_node: &Node) {
     let new_items = list_item_nodes(new_list_node);
     let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
-    let old_keys = dom_item_keys(list_element);
+    let namespace = list_element.namespace_uri();
 
-    let ops = diff_keys(&old_keys, &new_keys);
-    for op in ops {
-        match op {
-            KeyedOp::Remove { key } => {
-                if let Some(child) = find_child_by_key(list_element, &key) {
-                    let _ = list_element.remove_child(&child);
-                }
-            }
-            KeyedOp::Insert { index, key } => {
-                let Some((_, node)) = new_items.iter().find(|(k, _)| k == &key) else {
-                    continue;
-                };
-                // 挿入先 `list_element` の実際の名前空間を引き継ぐ
-                // （SVG keyed list への挿入で HTML 名前空間の要素が生成
-                // されてしまう不具合の是正、[`build_dom_node_with_namespace`]
-                // rustdoc 参照）。
-                let namespace = list_element.namespace_uri();
-                let Some(new_child) =
-                    build_dom_node_with_namespace(document, node, namespace.as_deref())
-                else {
-                    continue;
-                };
-                let reference = nth_element_child(list_element, index);
-                let reference_web_node: Option<web_sys::Node> =
-                    reference.map(|el| el.unchecked_into());
-                let _ = list_element.insert_before(&new_child, reference_web_node.as_ref());
-            }
-            KeyedOp::Move { index, key } => {
-                let Some(existing) = find_child_by_key(list_element, &key) else {
-                    continue;
-                };
-                let reference = nth_element_child(list_element, index);
-                // 移動元と移動先参照が同一要素の場合、`insert_before` は
-                // no-op（DOM 標準仕様: 挿入前に自身を除去してから挿入する
-                // ため同一ノード指定は何も動かさない）。
-                let reference_web_node: Option<web_sys::Node> =
-                    reference.map(|el| el.unchecked_into());
-                let existing_web_node: web_sys::Node = existing.unchecked_into();
-                let _ = list_element.insert_before(&existing_web_node, reference_web_node.as_ref());
-            }
-        }
-    }
+    let mut dom = WebSysKeyedDom {
+        document,
+        list_element,
+        new_items: &new_items,
+        namespace: namespace.as_deref(),
+    };
+    crate::keyed_apply::apply_ops(&mut dom, &new_keys);
 }
 
 #[cfg(test)]
