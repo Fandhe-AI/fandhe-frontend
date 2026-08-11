@@ -29,7 +29,7 @@
       "source": "Fandhe-AI/agent-cli-skills",
       "sourceType": "github",
       "skillPath": "skills/contribute-skill/SKILL.md",
-      "computedHash": "1a535d29d1eb237e84fd86a3bfbb1688fc923ea4dde0f0ed5cb39871c114d9bf"
+      "computedHash": "c9050b76d9ba3cafbe98bd357efdafbde4d3be824f60eab43df662a7045214f6"
     },
     "create-agent": {
       "source": "Fandhe-AI/agent-cli-skills",
