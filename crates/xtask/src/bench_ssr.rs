@@ -11,7 +11,8 @@
 //! `html > body > (header > h1 "Benchmark") + (table#bench-table > tbody >
 //! tr×N) + (footer > p "generated N rows")`。各行 `tr` は
 //! `td(連番) + td(XSS ペイロード混入ラベル)`。ラベルは
-//! `Row <i> & "quoted" <script>alert(1)</script>` で、既定エスケープ（REQ-1）
+//! `Row <i> & "quoted" 'single' <script>alert(1)</script>`（既定エスケープ
+//! 対象 5 文字 `&` `<` `>` `"` `'` を全て含む）で、既定エスケープ（REQ-1）
 //! を経由する [`fandhe_frontend_core::text`] のみで出力する（`format!` に
 //! よる HTML 文字列の直接組み立ては行わない、`coding-rust.md` 厳守）。
 //! 乱数は使わず、`rows` のみに依存する決定的な構造にする。
@@ -204,11 +205,14 @@ fn json_escape(s: &str) -> String {
     out
 }
 
-/// 1 行分（`tr`）のノードを組み立てる。ラベルは意図的な XSS ペイロード混入
-/// 文字列だが、必ず [`text`]（既定エスケープ経由）で出力する
-/// （`coding-rust.md`: HTML 文字列の直接組み立て禁止の厳守）。
+/// 1 行分（`tr`）のノードを組み立てる。ラベルは既定エスケープ対象 5 文字
+/// （`&` `<` `>` `"` `'`）すべてを含む意図的な XSS ペイロード混入文字列
+/// （`'single'` はシングルクォートの回帰検知用、codex-review P0 指摘:
+/// シングルクォートのみが未エスケープになる回帰を [`verify`] が見逃して
+/// いた）。必ず [`text`]（既定エスケープ経由）で出力する（`coding-rust.md`:
+/// HTML 文字列の直接組み立て禁止の厳守）。
 fn row(i: usize) -> fandhe_frontend_core::Node {
-    let label = format!("Row {i} & \"quoted\" {XSS_MARKER}");
+    let label = format!("Row {i} & \"quoted\" 'single' {XSS_MARKER}");
     tr(
         vec![],
         vec![
@@ -305,10 +309,10 @@ fn measure_rows(rows: usize, warmup: usize, iters: usize) -> (Stats, String) {
 /// 検証結果 `(escape_ok, row_count_ok)` を返す。
 ///
 /// - `escape_ok`: 各行のラベル（[`row`] が組み立てる
-///   `"Row {i} & \"quoted\" <script>alert(1)</script>"`）が、独立に組み立てた
-///   エスケープ済みリテラル `"Row {i} &amp; &quot;quoted&quot;
-///   &lt;script&gt;alert(1)&lt;/script&gt;"` と完全一致するかを
-///   `0..expected_rows` の全行について検証し、かつ未エスケープの生ラベルが
+///   `"Row {i} & \"quoted\" 'single' <script>alert(1)</script>"`）が、独立に
+///   組み立てたエスケープ済みリテラル `"Row {i} &amp; &quot;quoted&quot;
+///   &#x27;single&#x27; &lt;script&gt;alert(1)&lt;/script&gt;"` と完全一致
+///   するかを `0..expected_rows` の全行について検証し、かつ未エスケープの生ラベルが
 ///   出力中に存在しないことも併せて検証する（既定エスケープ回帰の検知、
 ///   REQ-1）。**期待値はレンダリング経路が使う
 ///   [`fandhe_frontend_core::escape_html`] を呼ばずに固定リテラルとして
@@ -329,11 +333,12 @@ fn verify(html: &str, expected_rows: usize) -> (bool, bool) {
     let escape_ok = (0..expected_rows).all(|i| {
         // 検証対象（`row`/`render`）が経由する `escape_html` を呼ばず、
         // 期待するエスケープ済み文字列を独立したリテラルとして組み立てる。
-        let expected_label =
-            format!("Row {i} &amp; &quot;quoted&quot; &lt;script&gt;alert(1)&lt;/script&gt;");
+        let expected_label = format!(
+            "Row {i} &amp; &quot;quoted&quot; &#x27;single&#x27; &lt;script&gt;alert(1)&lt;/script&gt;"
+        );
         // 未エスケープの生ラベルが紛れ込んでいないことも併せて検証する
         // （部分的な回帰の見逃し防止）。
-        let raw_label = format!("Row {i} & \"quoted\" {XSS_MARKER}");
+        let raw_label = format!("Row {i} & \"quoted\" 'single' {XSS_MARKER}");
         html.contains(&expected_label) && !html.contains(&raw_label)
     });
     let row_count_ok = html.matches("<tr").count() == expected_rows;
@@ -562,7 +567,7 @@ mod tests {
     #[test]
     fn verify_detects_escaped_payload_as_ok() {
         // text() 経由でエスケープ済みの HTML（実際の render() 出力を模す）。
-        let html = "<tr><td>0</td><td>Row 0 &amp; &quot;quoted&quot; &lt;script&gt;alert(1)&lt;/script&gt;</td></tr>";
+        let html = "<tr><td>0</td><td>Row 0 &amp; &quot;quoted&quot; &#x27;single&#x27; &lt;script&gt;alert(1)&lt;/script&gt;</td></tr>";
         let (escape_ok, row_count_ok) = verify(html, 1);
         assert!(escape_ok, "エスケープ済み出力は escape_ok=true のはず");
         assert!(row_count_ok, "<tr 1 件と rows=1 が一致するはず");
@@ -570,7 +575,8 @@ mod tests {
 
     #[test]
     fn verify_detects_unescaped_payload_as_not_ok() {
-        let html = "<tr><td>0</td><td>Row 0 & \"quoted\" <script>alert(1)</script></td></tr>";
+        let html =
+            "<tr><td>0</td><td>Row 0 & \"quoted\" 'single' <script>alert(1)</script></td></tr>";
         let (escape_ok, _row_count_ok) = verify(html, 1);
         assert!(
             !escape_ok,
@@ -583,8 +589,7 @@ mod tests {
         // `<` `>` は正しくエスケープされているが `&`/`"` のみ未エスケープに
         // 壊れたケース（codex-review 指摘: 生の XSS_MARKER 不在のみを見る
         // 実装だとこの部分回帰を escape_ok=true と誤判定していた）。
-        let html =
-            "<tr><td>0</td><td>Row 0 & \"quoted\" &lt;script&gt;alert(1)&lt;/script&gt;</td></tr>";
+        let html = "<tr><td>0</td><td>Row 0 & \"quoted\" &#x27;single&#x27; &lt;script&gt;alert(1)&lt;/script&gt;</td></tr>";
         let (escape_ok, _row_count_ok) = verify(html, 1);
         assert!(
             !escape_ok,
@@ -597,11 +602,26 @@ mod tests {
         // 開始タグ `<script>` のみ未エスケープで終了タグ `</script>` は
         // エスケープ済みという非対称な部分回帰（codex-review 指摘のもう
         // 一方のシナリオ）。
-        let html = "<tr><td>0</td><td>Row 0 &amp; &quot;quoted&quot; <script>alert(1)&lt;/script&gt;</td></tr>";
+        let html = "<tr><td>0</td><td>Row 0 &amp; &quot;quoted&quot; &#x27;single&#x27; <script>alert(1)&lt;/script&gt;</td></tr>";
         let (escape_ok, _row_count_ok) = verify(html, 1);
         assert!(
             !escape_ok,
             "開始タグのみ未エスケープの部分回帰は escape_ok=false のはず"
+        );
+    }
+
+    #[test]
+    fn verify_detects_single_quote_only_escape_regression_as_not_ok() {
+        // `&`/`<`/`>`/`"` は正しくエスケープされているが `'` のみ
+        // `&#x27;` へ変換されず未エスケープのまま残るケース（codex-review
+        // P0 指摘: 生ラベルにも期待値にも `'` を含まない旧実装では、
+        // シングルクォートのみが未エスケープになる回帰を escape_ok=true の
+        // まま見逃していた）。
+        let html = "<tr><td>0</td><td>Row 0 &amp; &quot;quoted&quot; 'single' &lt;script&gt;alert(1)&lt;/script&gt;</td></tr>";
+        let (escape_ok, _row_count_ok) = verify(html, 1);
+        assert!(
+            !escape_ok,
+            "' のみ未エスケープの部分回帰は escape_ok=false のはず"
         );
     }
 
