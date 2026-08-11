@@ -449,24 +449,32 @@ pub fn find_nav_targets(node: &Node) -> Vec<String> {
 /// assert_eq!(render(&Node::Text("<b>".to_string())), "&lt;b&gt;");
 /// ```
 pub fn render(node: &Node) -> String {
-    // 出力サイズの下限見積もりで初期容量を事前確保し、大きな木ほど顕著に
+    // 出力サイズの近似見積もりで初期容量を事前確保し、大きな木ほど顕著に
     // なる再確保 + memcpy の連鎖を避ける（イシュー #1326）。見積もりは
-    // 実出力サイズの**下限**（エスケープ膨張分・属性の追加区切り文字等を
-    // 含まない）に過ぎず、不足時は `String` が通常どおり成長するため
+    // 実出力サイズと厳密には一致しない（`estimated_html_len` のヒント条件を
+    // 参照）。見積もりが不足すれば `String` が通常どおり成長し、過大でも
     // `render()` の出力バイトは本変更の前後で不変（回帰テストで固定）。
     let mut out = String::with_capacity(estimated_html_len(node));
     render_into(node, &mut out);
     out
 }
 
-/// [`render`] が使う出力サイズの下限見積もり。
+/// [`render`] が使う出力サイズの近似見積もり（容量事前確保のヒント）。
 ///
 /// タグ名を開始・終了タグ分の 2 回、山括弧・スラッシュに 5 文字
 /// （`<`/`>`/`</`/`>`相当）、属性ごとに `名前+値+区切り文字 4 個
 /// （半角スペース・`=`・`"` 2 個）分を加算する。テキスト系ノードは
-/// 素の文字列長をそのまま加算する（エスケープ後は伸びる方向にしか変化
-/// しないため下限として妥当）。整数オーバーフローは `saturating_add` で
-/// 防御し、巨大な木でも panic しない（OWASP A04 DoS 対策の一環）。
+/// 素の文字列長をそのまま加算する。
+///
+/// **厳密な下限ではない**: テキストのエスケープ膨張分（`<`/`&`等）は
+/// 下回る一方、void 要素（`render_into` が children を出力しない、
+/// イシュー #1139）・出力からスキップされる不正属性/危険 URL 属性
+/// （不変条件 4・8）・不正タグ名の要素（要素全体が出力から脱落）では
+/// 実出力サイズを上回ることがある。いずれの方向へ外れても
+/// `String::with_capacity` は単なる初期容量のヒントであり、不足時は
+/// 通常どおり成長し、過大でも `render()` の出力バイトには一切影響しない
+/// （回帰テストで固定）。整数オーバーフローは `saturating_add` で防御し、
+/// 巨大な木でも panic しない（OWASP A04 DoS 対策の一環）。
 fn estimated_html_len(node: &Node) -> usize {
     match node {
         Node::Text(s) | Node::RawHtml(s) => s.len(),
@@ -967,7 +975,7 @@ mod tests {
     /// テスト）。
     #[test]
     fn render_output_is_correct_even_when_escaping_exceeds_capacity_estimate() {
-        let payload: String = std::iter::repeat_n("<&>", 500).collect();
+        let payload = "<&>".repeat(500);
         let node = el("p", vec![], vec![text(payload.clone())]);
         let html = render(&node);
 
