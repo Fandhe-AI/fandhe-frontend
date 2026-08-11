@@ -41,7 +41,9 @@
 //!
 //! `framework` / `version`（`fandhe-frontend-core` の実バージョン。
 //! [`resolve_core_version`] が `cargo metadata --no-deps` のみで解決し
-//! ネットワークアクセスは行わない）/ `mode`（常に `"ssr"`）/ `rows1k` ・
+//! ネットワークアクセスは行わない）/ `mode`（常に `"ssr"`）/
+//! `workload_schema_version`（[`WORKLOAD_SCHEMA_VERSION`]。ワークロード
+//! 定義・出力スキーマの fingerprint）/ `rows1k` ・
 //! `rows10k`（各 `iters`/`mean_ms`/`p50_ms`/`p95_ms`/`min_ms`）/
 //! `html_bytes_1k`（rows=1,000 出力の UTF-8 バイト数） / `escape_ok` /
 //! `row_count_ok` / `notes`（`profile=debug` または `profile=release`。
@@ -63,7 +65,9 @@
 //! （実装計画 §8）のため行わない。数値比較の前に「同一ワークロード」で
 //! あることをスキーマ検証する（[`compare`] が呼ぶ
 //! [`validate_baseline_workload`]。`framework`/`mode`/`notes`〔ビルド
-//! プロファイル〕/ 各 `iters` の完全一致を要求し、`version` のみバージョン
+//! プロファイル〕/`workload_schema_version`〔ワークロード定義・出力
+//! スキーマの fingerprint、[`WORKLOAD_SCHEMA_VERSION`]〕/ 各 `iters` の
+//! 完全一致を要求し、`version` のみバージョン
 //! 間比較を意図的に許容する例外とする。不一致は
 //! [`BenchSsrError::InvalidBaseline`] として拒否し、異なるビルドプロファイル
 //! 間の比較誤用を機械検知可能にする）。
@@ -98,6 +102,26 @@ const ROWS_10K_ITERS: usize = 10;
 /// （既定エスケープ経由）でのみ出力する。生の `<script>` タグとして
 /// レンダリング結果に出現したら [`verify`] が `escape_ok=false` を返す。
 const XSS_MARKER: &str = "<script>alert(1)</script>";
+
+/// ワークロード定義（[`page`]/[`row`] の DOM 構造・ラベル内容・エスケープ
+/// 対象文字・行数定数 [`ROWS_1K`]/[`ROWS_10K`]）と出力スキーマ
+/// （[`Report::to_json_line`] のキー集合）を束ねた fingerprint。
+///
+/// `validate_baseline_workload` が `framework`/`mode`/`notes`/各 `iters` の
+/// 個別フィールド一致に加えてこの値の完全一致を要求することで、将来
+/// 行数・DOM 構造・ラベル内容・エスケープ対象文字集合・出力スキーマの
+/// いずれかを変更した際に、個別フィールドの一致検証だけでは検知できない
+/// 「異なるワークロードなのに `version` 以外の既存フィールドが偶然
+/// 一致する」ケース（codex-review P1 指摘）を機械的に遮断する。
+///
+/// **本モジュールのワークロード定義・出力スキーマを変更する PR は、
+/// 変更内容が計測値の意味に影響しうる限り必ずこの値をインクリメントする**
+/// （行数定数・[`page`]/[`row`] の DOM 構造・ラベルのフォーマット文字列・
+/// [`verify`] が検証するエスケープ対象文字集合・[`Report`] のフィールド
+/// 追加/削除/意味変更のいずれか）。インクリメントし忘れると、異なる
+/// ワークロード間の比較が `InvalidBaseline` で拒否されず「同一ワーク
+/// ロードの回帰比較」として誤って report-only 出力されてしまう。
+const WORKLOAD_SCHEMA_VERSION: u32 = 1;
 
 /// 本モジュール専用のエラー型。`cargo metadata` の失敗・baseline JSON の
 /// 不正入力を fail-closed に扱う（security.md A08: 非信頼入力の防御的処理）。
@@ -159,9 +183,11 @@ impl Report {
     pub fn to_json_line(&self) -> String {
         format!(
             "{{\"framework\":\"fandhe-frontend\",\"version\":\"{version}\",\"mode\":\"ssr\",\
+             \"workload_schema_version\":{workload_schema_version},\
              \"rows1k\":{rows1k},\"rows10k\":{rows10k},\"html_bytes_1k\":{html_bytes_1k},\
              \"escape_ok\":{escape_ok},\"row_count_ok\":{row_count_ok},\"notes\":\"{notes}\"}}",
             version = json_escape(&self.version),
+            workload_schema_version = WORKLOAD_SCHEMA_VERSION,
             rows1k = stats_to_json(&self.rows1k),
             rows10k = stats_to_json(&self.rows10k),
             html_bytes_1k = self.html_bytes_1k,
@@ -404,7 +430,9 @@ pub fn run(version: String) -> Report {
 /// として fail-closed に扱う（非信頼入力、security.md A08）。
 ///
 /// 数値比較の**前**に [`validate_baseline_workload`] で識別・構成フィールド
-/// （`framework`/`mode`/`notes`〔ビルドプロファイル〕/ 各 `iters`）が
+/// （`framework`/`mode`/`notes`〔ビルドプロファイル〕/
+/// `workload_schema_version`〔ワークロード定義・出力スキーマの
+/// fingerprint〕/ 各 `iters`）が
 /// `current` と一致することを検証する（codex-review P1 指摘: 異なる
 /// ワークロード・異なるビルドプロファイル間の意味のない比較を「同一
 /// ワークロードの回帰比較」として report-only 出力してしまうのを防ぐ。
@@ -451,8 +479,13 @@ pub fn compare(current: &Report, baseline_json: &str) -> Result<Vec<String>, Ben
 /// `to_json_line`（[`Report::to_json_line`]）が出力する `framework`（常に
 /// `"fandhe-frontend"`）・`mode`（常に `"ssr"`）に加え、[`Report`] が保持する
 /// `notes`（ビルドプロファイル `profile=debug`/`profile=release`）・
-/// `rows1k.iters`/`rows10k.iters`（本モジュール内で固定される計測回数）の
-/// 完全一致を要求する。**`version` のみ例外**とし検証対象に含めない
+/// `rows1k.iters`/`rows10k.iters`（本モジュール内で固定される計測回数）・
+/// `workload_schema_version`（[`WORKLOAD_SCHEMA_VERSION`]。行数・DOM 構造・
+/// ラベル内容・エスケープ対象文字集合・出力スキーマの fingerprint。
+/// 上記の個別フィールド一致検証だけではカバーしきれない将来のワーク
+/// ロード変更〔codex-review P1 指摘: 行数・DOM 構造・ラベル内容・
+/// エスケープ対象などが変わっても既存フィールドは一致し得る〕を遮断する）
+/// の完全一致を要求する。**`version` のみ例外**とし検証対象に含めない
 /// （`fandhe-frontend-core` のバージョン間比較を意図的に許容するため、
 /// モジュール冒頭の設計判断どおり）。1 つでも不一致・欠落・型不一致があれば
 /// [`BenchSsrError::InvalidBaseline`] として fail-closed に拒否する
@@ -463,6 +496,16 @@ fn validate_baseline_workload(current: &Report, root: &Json) -> Result<(), Bench
     lookup_str_exact(root, "framework", "fandhe-frontend")?;
     lookup_str_exact(root, "mode", "ssr")?;
     lookup_str_exact(root, "notes", &current.notes)?;
+    // ワークロード定義（DOM 構造・ラベル内容・エスケープ対象文字集合・
+    // 出力スキーマ）の fingerprint。個別フィールドの一致検証だけでは
+    // 検知できない「異なるワークロードなのに他フィールドが偶然一致する」
+    // ケースを遮断する（codex-review P1 指摘、[`WORKLOAD_SCHEMA_VERSION`]
+    // rustdoc 参照）。
+    lookup_usize_exact(
+        root,
+        "workload_schema_version",
+        WORKLOAD_SCHEMA_VERSION as usize,
+    )?;
     lookup_usize_exact(root, "rows1k.iters", current.rows1k.iters)?;
     lookup_usize_exact(root, "rows10k.iters", current.rows10k.iters)?;
     Ok(())
@@ -676,6 +719,10 @@ mod tests {
         assert_eq!(parsed.get("version").and_then(Json::as_str), Some("0.2.0"));
         assert_eq!(parsed.get("mode").and_then(Json::as_str), Some("ssr"));
         assert!(matches!(
+            parsed.get("workload_schema_version"),
+            Some(Json::Number(n)) if *n == WORKLOAD_SCHEMA_VERSION as f64
+        ));
+        assert!(matches!(
             parsed.get("rows1k").and_then(|v| v.get("iters")),
             Some(Json::Number(n)) if *n == 100.0
         ));
@@ -816,6 +863,37 @@ mod tests {
             .replace("\"mode\":\"ssr\"", "\"mode\":\"csr\"");
         let err =
             compare(&current, &baseline).expect_err("mode 不一致の baseline は拒否されるはず");
+        assert!(matches!(err, BenchSsrError::InvalidBaseline(_)));
+    }
+
+    #[test]
+    fn compare_rejects_mismatched_workload_schema_version() {
+        // codex-review P1 指摘: 行数・DOM 構造・ラベル内容・エスケープ
+        // 対象などのワークロード変更は `framework`/`mode`/`notes`/`iters`
+        // だけでは検知できないため、独立した fingerprint フィールドで
+        // 不一致を検知できることを確認する。
+        let current = sample_report();
+        let baseline = current.to_json_line().replace(
+            &format!("\"workload_schema_version\":{WORKLOAD_SCHEMA_VERSION}"),
+            "\"workload_schema_version\":999999",
+        );
+        let err = compare(&current, &baseline)
+            .expect_err("workload_schema_version 不一致の baseline は拒否されるはず");
+        assert!(matches!(err, BenchSsrError::InvalidBaseline(_)));
+    }
+
+    #[test]
+    fn compare_rejects_baseline_missing_workload_schema_version() {
+        // 旧バージョン（本フィールド導入前）の baseline JSON はキー欠落と
+        // なり、`{}` 同様に fail-closed で拒否されるはず（古い baseline との
+        // 意図しない比較を防ぐ）。
+        let current = sample_report();
+        let baseline = current.to_json_line().replace(
+            &format!(",\"workload_schema_version\":{WORKLOAD_SCHEMA_VERSION}"),
+            "",
+        );
+        let err = compare(&current, &baseline)
+            .expect_err("workload_schema_version 欠落の baseline は拒否されるはず");
         assert!(matches!(err, BenchSsrError::InvalidBaseline(_)));
     }
 
