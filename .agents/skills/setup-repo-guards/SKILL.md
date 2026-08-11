@@ -48,24 +48,24 @@ setup-repo-guards Fandhe-AI/repo-a public Fandhe-AI/repo-b private
 `.github/workflows/codex-review.yml` を wrapper として追加し、Fandhe-AI/actions の reusable workflow
 `codex-review.yml` を **commit SHA 固定**（`@main` 禁止）で参照する。
 
-**SHA 解決手順（レビュー済み固定 SHA を使用する）:** 生成のたびに最新 SHA を動的取得して埋め込む方式は、
-取得時点で上流が侵害・意図せず改変されていた場合にそのコードをそのまま導入先へ伝播させてしまうため
-**行わない**（project-sync-issues スキルの SHA 固定方針と同一）。以下のレビュー済み固定 SHA を定数として使用する:
-
-| reusable workflow | 固定 SHA | 対応バージョン |
-|-------------------|---------|--------------|
-| `Fandhe-AI/actions/.github/workflows/codex-review.yml` | `a9da308407866a42ade5be047c63e80b65c64fca` | main |
-
-上記 SHA は導入時点で reusable workflow 本文を実際に取得・精査したうえで固定した値である。
-SHA を更新する必要がある場合のみ（生成のたびには実行しない）、差分パッチを実際に読んで精査してから
-本ファイルの固定 SHA 表を更新する:
+参照する SHA は**下記のレビュー済み SHA 定数**を使う。最新 main からの動的取得
+（`gh api repos/Fandhe-AI/actions/commits/main`）は禁止する — 文字列上は commit SHA 固定でも、
+導入のたびに未レビューの最新コードを取り込む「可動 ref の自動追従」と同じであり、
+サプライチェーン対策（レビュー済み SHA 固定）を弱体化する（fandhe-frontend PR #1311 codex P1）。
 
 ```bash
-# 更新候補の最新 SHA を取得（更新作業時のみ実行）
-gh api repos/Fandhe-AI/actions/commits/main --jq '.sha'
-# 旧 SHA との差分パッチ（変更内容そのもの）を取得して精査する。ファイル名一覧だけでは不十分
-gh api "repos/Fandhe-AI/actions/compare/<旧SHA>...<新SHA>" --jq '.files[] | {filename, patch}'
+# レビュー済み SHA 定数（内容精査済み。既存導入リポジトリ fandhe-frontend の
+# .github/workflows/codex-review.yml が参照している SHA と同一）
+sha="fed9c07d98367f77e5e2b63bca38843f46feee96"
 ```
+
+定数の更新手順（新しい SHA を採用したくなった場合）:
+
+1. 旧 SHA → 新 SHA の差分を精査する:
+   `gh api "repos/Fandhe-AI/actions/compare/<旧SHA>...<新SHA>"` または Web UI の compare で、
+   reusable workflow 本体（fork PR 拒否・fail-closed 検証・資格情報スキャン等）の変更内容を確認する
+2. 問題がないと判断してから、本 SKILL.md のこの定数（full SHA）を書き換えるコミットを作成する
+3. 以後の導入は更新後の定数を使う（導入時に動的取得へ戻さない）
 
 - 書き方・fork PR 拒否等の適用条件は Fandhe-AI/actions の `docs/codex-review-runner-exception.md` と、
   既存導入リポジトリ（fandhe-frontend 等）の wrapper を参照して揃える
