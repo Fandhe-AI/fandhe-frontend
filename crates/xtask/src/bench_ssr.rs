@@ -299,23 +299,36 @@ fn measure_rows(rows: usize, warmup: usize, iters: usize) -> (Stats, String) {
 /// 検証結果 `(escape_ok, row_count_ok)` を返す。
 ///
 /// - `escape_ok`: 各行のラベル（[`row`] が組み立てる
-///   `"Row {i} & \"quoted\" <script>alert(1)</script>"`）が
-///   [`fandhe_frontend_core::escape_html`] 済みの形で完全一致するかを
-///   `0..expected_rows` の全行について検証する（既定エスケープ回帰の検知、
-///   REQ-1）。生の `XSS_MARKER` 不在のみを見る素朴な部分一致では、`&`/`"`
-///   だけが未エスケープになる・開始タグと終了タグの一方だけが未エスケープ
-///   になるといった**部分的な**回帰が `escape_ok=true` へすり抜けてしまう
-///   （codex-review 指摘）。エスケープ済みラベル文字列全体の完全一致に
-///   することで、5 対象文字（`&` `<` `>` `"` `'`）のどれか 1 つでも
+///   `"Row {i} & \"quoted\" <script>alert(1)</script>"`）が、独立に組み立てた
+///   エスケープ済みリテラル `"Row {i} &amp; &quot;quoted&quot;
+///   &lt;script&gt;alert(1)&lt;/script&gt;"` と完全一致するかを
+///   `0..expected_rows` の全行について検証し、かつ未エスケープの生ラベルが
+///   出力中に存在しないことも併せて検証する（既定エスケープ回帰の検知、
+///   REQ-1）。**期待値はレンダリング経路が使う
+///   [`fandhe_frontend_core::escape_html`] を呼ばずに固定リテラルとして
+///   組み立てる**（codex-review P0 指摘: 検証対象と同じ関数で期待値を
+///   生成すると、例えば `escape_html` が `<` をエスケープしなくなった場合に
+///   実際の HTML と期待値が同じ未エスケープ文字列に揃ってしまい、
+///   `escape_ok=true` のまま生の `<script>` 混入を見逃す）。生の
+///   `XSS_MARKER` 不在のみを見る素朴な部分一致では、`&`/`"` だけが
+///   未エスケープになる・開始タグと終了タグの一方だけが未エスケープになる
+///   といった**部分的な**回帰が `escape_ok=true` へすり抜けてしまう
+///   （直前の codex-review 指摘）。エスケープ済みラベル文字列全体の完全
+///   一致にすることで、5 対象文字（`&` `<` `>` `"` `'`）のどれか 1 つでも
 ///   エスケープが崩れれば必ず不一致になり検知できる。`verify` は計測
 ///   ループの外（`run`）から 1 回だけ呼ばれるため、行数分のループ・
 ///   文字列確保のコストは許容できる
 /// - `row_count_ok`: `<tr` の出現回数が `expected_rows` と一致すること
 fn verify(html: &str, expected_rows: usize) -> (bool, bool) {
     let escape_ok = (0..expected_rows).all(|i| {
+        // 検証対象（`row`/`render`）が経由する `escape_html` を呼ばず、
+        // 期待するエスケープ済み文字列を独立したリテラルとして組み立てる。
+        let expected_label =
+            format!("Row {i} &amp; &quot;quoted&quot; &lt;script&gt;alert(1)&lt;/script&gt;");
+        // 未エスケープの生ラベルが紛れ込んでいないことも併せて検証する
+        // （部分的な回帰の見逃し防止）。
         let raw_label = format!("Row {i} & \"quoted\" {XSS_MARKER}");
-        let expected_label = fandhe_frontend_core::escape_html(&raw_label);
-        html.contains(&expected_label)
+        html.contains(&expected_label) && !html.contains(&raw_label)
     });
     let row_count_ok = html.matches("<tr").count() == expected_rows;
     (escape_ok, row_count_ok)
