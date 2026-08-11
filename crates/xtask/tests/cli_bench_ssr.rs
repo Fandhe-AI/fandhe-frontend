@@ -33,9 +33,13 @@ fn run_bench_ssr(extra_args: &[&str]) -> Output {
 }
 
 fn scratch_root() -> PathBuf {
-    std::env::var("CARGO_TARGET_TMPDIR")
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")))
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    // cargo は `CARGO_TARGET_TMPDIR` の実在を保証しない（イシュー #637）ため、
+    // 呼び出し側で作成する（`cli_check_version_bump.rs::scratch_root` と同一方針）。
+    let _ = std::fs::create_dir_all(&root);
+    root
 }
 
 static FIXTURE_COUNTER: AtomicU64 = AtomicU64::new(0);
