@@ -127,8 +127,6 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use std::fmt::Write as _;
-
 mod bind;
 mod escape;
 mod json_ld;
@@ -451,16 +449,55 @@ pub fn find_nav_targets(node: &Node) -> Vec<String> {
 /// assert_eq!(render(&Node::Text("<b>".to_string())), "&lt;b&gt;");
 /// ```
 pub fn render(node: &Node) -> String {
-    let mut out = String::new();
+    // 出力サイズの下限見積もりで初期容量を事前確保し、大きな木ほど顕著に
+    // なる再確保 + memcpy の連鎖を避ける（イシュー #1326）。見積もりは
+    // 実出力サイズの**下限**（エスケープ膨張分・属性の追加区切り文字等を
+    // 含まない）に過ぎず、不足時は `String` が通常どおり成長するため
+    // `render()` の出力バイトは本変更の前後で不変（回帰テストで固定）。
+    let mut out = String::with_capacity(estimated_html_len(node));
     render_into(node, &mut out);
     out
+}
+
+/// [`render`] が使う出力サイズの下限見積もり。
+///
+/// タグ名を開始・終了タグ分の 2 回、山括弧・スラッシュに 5 文字
+/// （`<`/`>`/`</`/`>`相当）、属性ごとに `名前+値+区切り文字 4 個
+/// （半角スペース・`=`・`"` 2 個）分を加算する。テキスト系ノードは
+/// 素の文字列長をそのまま加算する（エスケープ後は伸びる方向にしか変化
+/// しないため下限として妥当）。整数オーバーフローは `saturating_add` で
+/// 防御し、巨大な木でも panic しない（OWASP A04 DoS 対策の一環）。
+fn estimated_html_len(node: &Node) -> usize {
+    match node {
+        Node::Text(s) | Node::RawHtml(s) => s.len(),
+        Node::Element {
+            tag,
+            attrs,
+            children,
+        } => {
+            let mut len = tag.len().saturating_mul(2).saturating_add(5);
+            for (k, v) in attrs {
+                len = len
+                    .saturating_add(k.len())
+                    .saturating_add(v.len())
+                    .saturating_add(4);
+            }
+            for child in children {
+                len = len.saturating_add(estimated_html_len(child));
+            }
+            len
+        }
+    }
 }
 
 /// [`render`] の内部実装。エスケープを経由しない `push_str` は
 /// `Node::RawHtml` の腕（唯一の非エスケープ出力点）と、フレームワーク制御下
 /// のタグ名・山括弧・属性名（ホワイトリスト検証済み）に限定する。
 /// `format!` によるトップレベル HTML 文字列組み立ては行わない
-/// （不変条件 3）。
+/// （不変条件 3）。タグ・属性名の書き出しは `write!`（`fmt` 機構）ではなく
+/// `push_str`/`push` の直接呼び出しで行う（イシュー #1326、fmt 機構の
+/// オーバーヘッド回避）。エスケープ経由の出力（`escape_html_into`）・
+/// 検証順序・適用対象はこの置換の前後で一切変えない。
 fn render_into(node: &Node, out: &mut String) {
     match node {
         Node::Text(s) => escape_html_into(s, out),
@@ -478,7 +515,8 @@ fn render_into(node: &Node, out: &mut String) {
                 // 「不正なら出力しない」で安全側に倒す）。
                 return;
             }
-            let _ = write!(out, "<{}", tag);
+            out.push('<');
+            out.push_str(tag);
             for (k, v) in attrs {
                 if !is_valid_attr_name(k) {
                     // 不正な属性名は panic させず出力からスキップする（不変条件 4）。
@@ -506,7 +544,9 @@ fn render_into(node: &Node, out: &mut String) {
                         continue;
                     }
                 }
-                let _ = write!(out, " {}=\"", k);
+                out.push(' ');
+                out.push_str(k);
+                out.push_str("=\"");
                 escape_html_into(v, out);
                 out.push('"');
             }
@@ -527,7 +567,9 @@ fn render_into(node: &Node, out: &mut String) {
             for child in children {
                 render_into(child, out);
             }
-            let _ = write!(out, "</{}>", tag);
+            out.push_str("</");
+            out.push_str(tag);
+            out.push('>');
         }
     }
 }
@@ -915,5 +957,61 @@ mod tests {
             render(&el("span", vec![], vec![text("x")])),
             "<span>x</span>"
         );
+    }
+
+    /// `render()` の容量事前確保（`estimated_html_len`）はエスケープ膨張分
+    /// を含まない**下限**見積もりに過ぎない。`<`/`&` を大量に含むテキスト
+    /// は見積もりを実出力サイズが上回るため、`String` の通常の成長経路
+    /// （再確保）を経由することになる。この経路でも出力バイトが従来と
+    /// 一致することを固定する（イシュー #1326、容量事前確保導入の回帰
+    /// テスト）。
+    #[test]
+    fn render_output_is_correct_even_when_escaping_exceeds_capacity_estimate() {
+        let payload: String = std::iter::repeat_n("<&>", 500).collect();
+        let node = el("p", vec![], vec![text(payload.clone())]);
+        let html = render(&node);
+
+        let mut expected = String::from("<p>");
+        for _ in 0..500 {
+            expected.push_str("&lt;&amp;&gt;");
+        }
+        expected.push_str("</p>");
+        assert_eq!(html, expected);
+    }
+
+    /// 大きめの `keyed_list`（1000 項目）+ `render()` が決定的な出力を
+    /// 返すスモークテスト。パス分離（検証 → ムーブ構築、イシュー #1326）
+    /// を経ても、同一入力から同一出力（バイト一致）が得られることを
+    /// 固定する。
+    #[test]
+    fn large_keyed_list_render_is_deterministic() {
+        let build_items = || -> Vec<(String, Node)> {
+            (0..1000)
+                .map(|i| {
+                    let key = i.to_string();
+                    (
+                        key.clone(),
+                        el(
+                            "li",
+                            vec![("data-idx", &key)],
+                            vec![text(format!("item-{i}"))],
+                        ),
+                    )
+                })
+                .collect()
+        };
+
+        let list_a = crate::keyed::keyed_list("ul", vec![], "items", build_items())
+            .expect("valid keyed list");
+        let list_b = crate::keyed::keyed_list("ul", vec![], "items", build_items())
+            .expect("valid keyed list");
+
+        let html_a = render(&list_a);
+        let html_b = render(&list_b);
+        assert_eq!(html_a, html_b);
+        assert!(html_a.starts_with(r#"<ul data-bind-list="items">"#));
+        assert!(html_a.contains(r#"<li data-idx="0" data-key="0">item-0</li>"#));
+        assert!(html_a.contains(r#"<li data-idx="999" data-key="999">item-999</li>"#));
+        assert!(html_a.ends_with("</ul>"));
     }
 }
