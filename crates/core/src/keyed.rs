@@ -369,8 +369,8 @@ pub enum KeyedOp {
 /// あり、それまでの一時的な実装重複は意図的。
 pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Vec<KeyedOp> {
     let mut ops = Vec::new();
-    let mut working = remove_pass(old_keys, new_keys, &mut ops);
-    insert_or_move_pass(&mut working, new_keys, &mut ops);
+    let working = remove_pass(old_keys, new_keys, &mut ops);
+    insert_or_move_pass(working, new_keys, &mut ops);
     ops
 }
 
@@ -392,25 +392,100 @@ fn remove_pass(old_keys: &[String], new_keys: &[String], ops: &mut Vec<KeyedOp>)
     working
 }
 
-/// [`diff_keys`] 第 2 パス: `working`（保持キーのみ）を `new_keys` の並びへ
-/// 揃えながら [`KeyedOp::Move`] / [`KeyedOp::Insert`] を記録する。`working`
-/// は呼び出し後、`new_keys` と同じ並びに更新される（[`diff_keyed_items`]
-/// の第 3 パスが「保持キー」を特定する際に再利用する）。
-fn insert_or_move_pass(working: &mut Vec<String>, new_keys: &[String], ops: &mut Vec<KeyedOp>) {
-    for (index, key) in new_keys.iter().enumerate() {
-        if working.get(index).map(String::as_str) == Some(key.as_str()) {
-            continue;
+/// [`diff_keys`] 第 2 パス: `working`（保持キーのみ、旧順序）を `new_keys`
+/// の並びへ揃えながら [`KeyedOp::Move`] / [`KeyedOp::Insert`] を記録する。
+///
+/// # 計算量（O(n)、イシュー #1335 codex レビュー P1 是正）
+///
+/// 旧実装は `working[index..].iter().position(...)` による線形探索と
+/// `Vec::remove` + `Vec::insert` による O(n) シフトを `new_keys` の要素数
+/// ぶん繰り返すため最悪 O(n²) だった（完全逆順・大規模シャッフルでほぼ
+/// n 回発生し、設計書 §3.5・本モジュール doc 冒頭が定める O(n) 契約に
+/// 違反していた）。本実装は `working` を配列添字ベースの双方向連結リスト
+/// （`next`/`prev`）として表現し、各キーの「未消費ノード」を出現順に保持
+/// する `queue`（`HashMap<&str, VecDeque<usize>>`）を併用することで、
+/// 「現在の探索位置以降で最初に見つかる一致」という旧実装と同一の探索
+/// 意味論を次の 2 操作のみで実現する:
+///
+/// - 連結リストからのノード取り外し（`splice`）: 前後ノードの `next`/`prev`
+///   参照を張り替えるだけの O(1) 操作（`Vec::remove` の O(n) シフトが
+///   不要）。
+/// - 該当キーの「最も早い未消費ノード」の特定: `queue` の `pop_front` で
+///   O(1) 償却（`working` の元の並び順で `queue` を構築しており、消費順に
+///   `pop_front` することで `position()` の「探索位置以降で最初に見つかる
+///   一致」と同じノードを常に返す。証明: 未消費ノードの相対順序は
+///   `working` の元の並びから一切変化しない ── `Insert` 分岐は新規キーを
+///   追加するのみで既存ノードの相対順序に影響せず、`Move` 分岐で取り外す
+///   ノードは以後二度と参照されないため、残る未消費ノード同士の順序は
+///   常に元の並びのまま保たれる）。
+///
+/// この結果、全体で O(旧キー数 + 新キー数) の時間・空間で完結し、`Move`/
+/// `Insert` の発行順序・`index` 値・`key` 値は旧実装と完全に同一（回帰
+/// テストで固定）。取り外したノードを旧実装のように `index` 位置へ
+/// 再挿入しない点が実装上の差分だが、再挿入された要素は以後の反復で
+/// 二度と参照されない（`new_keys` の走査は単調増加のインデックスのみを
+/// 見る）ため、単純に連結リストから完全に取り除いても出力に影響しない。
+fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<KeyedOp>) {
+    let n = working.len();
+    if n == 0 {
+        for (index, key) in new_keys.iter().enumerate() {
+            ops.push(KeyedOp::Insert {
+                index,
+                key: key.clone(),
+            });
         }
-        if let Some(offset) = working[index..].iter().position(|k| k == key) {
-            let actual = index + offset;
-            let moved = working.remove(actual);
-            working.insert(index, moved);
+        return;
+    }
+
+    // working を双方向連結リストとして表現する（ノード index = working
+    // 内の添字）。`next[i]`/`prev[i]` はそれぞれ次・前ノードの添字。
+    let mut next: Vec<Option<usize>> = (0..n)
+        .map(|i| if i + 1 < n { Some(i + 1) } else { None })
+        .collect();
+    let mut prev: Vec<Option<usize>> = (0..n)
+        .map(|i| if i == 0 { None } else { Some(i - 1) })
+        .collect();
+    let mut head: Option<usize> = Some(0);
+
+    // キーごとに未消費ノードの添字を出現順（昇順）で保持するキュー。
+    let mut queue: std::collections::HashMap<&str, std::collections::VecDeque<usize>> =
+        std::collections::HashMap::with_capacity(n);
+    for (i, key) in working.iter().enumerate() {
+        queue.entry(key.as_str()).or_default().push_back(i);
+    }
+
+    for (index, key) in new_keys.iter().enumerate() {
+        if let Some(h) = head {
+            if working[h] == *key {
+                // 先頭ノードが期待キーと一致: 操作を発行せず消費するのみ。
+                if let Some(q) = queue.get_mut(key.as_str()) {
+                    q.pop_front();
+                }
+                head = next[h];
+                continue;
+            }
+        }
+
+        let found = queue.get_mut(key.as_str()).and_then(|q| q.pop_front());
+        if let Some(node) = found {
+            // 連結リストから O(1) で取り外す（旧実装の Vec::remove +
+            // Vec::insert による O(n) シフトを回避）。
+            let node_prev = prev[node];
+            let node_next = next[node];
+            if let Some(p) = node_prev {
+                next[p] = node_next;
+            }
+            if let Some(nx) = node_next {
+                prev[nx] = node_prev;
+            }
+            if head == Some(node) {
+                head = node_next;
+            }
             ops.push(KeyedOp::Move {
                 index,
                 key: key.clone(),
             });
         } else {
-            working.insert(index, key.clone());
             ops.push(KeyedOp::Insert {
                 index,
                 key: key.clone(),
@@ -468,8 +543,8 @@ pub fn diff_keyed_items(
     let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
 
     let mut ops = Vec::new();
-    let mut working = remove_pass(&old_keys, &new_keys, &mut ops);
-    insert_or_move_pass(&mut working, &new_keys, &mut ops);
+    let working = remove_pass(&old_keys, &new_keys, &mut ops);
+    insert_or_move_pass(working, &new_keys, &mut ops);
 
     // 第 3 パス: 保持キー（重複混入時も old_items 側の最初の 1 件のみを
     // 対象とする fail-closed、diff_keys と同じ防御）を new_items 順に
