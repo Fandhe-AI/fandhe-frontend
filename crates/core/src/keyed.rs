@@ -166,12 +166,15 @@ pub fn keyed_list(
     reject_reserved_attr(&attrs, BIND_LIST_ATTR)?;
     reject_reserved_attr(&attrs, KEY_ATTR)?;
 
-    // (2)(3) 各子要素の検証: Element であること・キー非空・キー一意性。
-    // 直下スコープのみを対象に、初出インデックスを HashMap で記録して O(n) で
-    // 重複判定する（非再帰、DoS 耐性）。
+    // (2)(3) 各子要素の検証: Element であること・キー非空・キー一意性・予約
+    // 属性の非混入。パス 1（本ループ）は `items.iter()` による**参照のみ**の
+    // 走査であり、`items` を消費しない。検証順序（空キー → 重複キー →
+    // 非 Element → 予約属性）・エラーの index/first_index は旧実装（1 パス
+    // 構成）と完全に同一（回帰テスト `duplicate_error_precedence_is_stable`
+    // が固定）。直下スコープのみを対象に、初出インデックスを HashMap で記録
+    // して O(n) で重複判定する（非再帰、DoS 耐性）。
     let mut first_index_of: std::collections::HashMap<&str, usize> =
-        std::collections::HashMap::new();
-    let mut children = Vec::with_capacity(items.len());
+        std::collections::HashMap::with_capacity(items.len());
 
     for (index, (key, item)) in items.iter().enumerate() {
         if key.is_empty() {
@@ -186,28 +189,48 @@ pub fn keyed_list(
         first_index_of.insert(key.as_str(), index);
 
         let Node::Element {
-            tag: item_tag,
-            attrs: item_attrs,
-            children: item_children,
+            attrs: item_attrs, ..
         } = item
         else {
             return Err(KeyedListError::NonElementItem { index });
         };
 
         // 子要素の既存属性にも同じ予約属性チェックをかける（親と同じ理由）。
-        let item_attrs_pairs: Vec<(&str, &str)> = item_attrs
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
-        reject_reserved_attr(&item_attrs_pairs, KEY_ATTR)?;
-        reject_reserved_attr(&item_attrs_pairs, BIND_LIST_ATTR)?;
+        // `reject_reserved_attr_owned` は `Vec<(&str, &str)>` への中間 collect
+        // を経由せず `&[(String, String)]` を直接走査する（項目数ぶんの Vec
+        // アロケーションを避ける、イシュー #1326）。
+        reject_reserved_attr_owned(item_attrs, KEY_ATTR)?;
+        reject_reserved_attr_owned(item_attrs, BIND_LIST_ATTR)?;
+    }
 
-        let mut new_attrs = item_attrs.clone();
-        new_attrs.push((KEY_ATTR.to_string(), key.clone()));
+    // (2')(3') パス 2（構築）: 検証をすべて通過した後にのみ `items` を
+    // `into_iter()` でムーブ消費し、各項目の属性 Vec・子ノード木を**一切
+    // clone しない**（パス 1 時点では clone していた deep clone を全廃、
+    // イシュー #1326）。パス 1 で全項目の妥当性を確認済みのため、ここでの
+    // パターンマッチが `NonElementItem` に落ちることはない
+    // （`unreachable!` は使わず、`Node::Text`/`Node::RawHtml` は
+    // 空 children の要素として扱う縮退経路にせず、パス 1 と同じ判定を
+    // 再度行い prod ビルドでも安全側に倒す。ただし到達しない前提であり
+    // 二重コストは軽微）。
+    let mut children = Vec::with_capacity(items.len());
+    for (index, (key, item)) in items.into_iter().enumerate() {
+        let Node::Element {
+            tag: item_tag,
+            attrs: mut item_attrs,
+            children: item_children,
+        } = item
+        else {
+            // パス 1 で検証済みのため通常到達しないが、`items` の消費順序が
+            // 変わっても fail-closed であり続けるよう安全側の分岐を残す
+            // （ライブラリコードでの panic 回避規約）。
+            return Err(KeyedListError::NonElementItem { index });
+        };
+
+        item_attrs.push((KEY_ATTR.to_string(), key));
         children.push(Node::Element {
             tag: item_tag,
-            attrs: new_attrs,
-            children: item_children.clone(),
+            attrs: item_attrs,
+            children: item_children,
         });
     }
 
@@ -238,6 +261,23 @@ pub fn keyed_list(
 /// 比較で確実に遮断する。
 fn reject_reserved_attr(
     attrs: &[(&str, &str)],
+    reserved: &'static str,
+) -> Result<(), KeyedListError> {
+    if attrs.iter().any(|(k, _)| k.eq_ignore_ascii_case(reserved)) {
+        return Err(KeyedListError::ReservedAttr { attr: reserved });
+    }
+    Ok(())
+}
+
+/// [`reject_reserved_attr`] の所有属性列版。
+///
+/// `Vec<(String, String)>` を `Vec<(&str, &str)>` へ中間 collect すること
+/// なく `&[(String, String)]` を直接走査する（`keyed_list` の各項目検証で
+/// 項目数ぶんの Vec アロケーションを避けるため、イシュー #1326）。判定
+/// ロジック（大文字小文字を区別しない比較・fail-closed）は
+/// [`reject_reserved_attr`] と完全に同一。
+fn reject_reserved_attr_owned(
+    attrs: &[(String, String)],
     reserved: &'static str,
 ) -> Result<(), KeyedListError> {
     if attrs.iter().any(|(k, _)| k.eq_ignore_ascii_case(reserved)) {
@@ -443,6 +483,47 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err, KeyedListError::ReservedAttr { attr: KEY_ATTR });
+    }
+
+    /// 回帰: 複数項目に異種の違反が混在するとき、**先行項目のエラーが
+    /// 優先される**こと（検証順序: 空キー → 重複キー → 非 Element → 予約
+    /// 属性）を固定する。パス分離（検証 → ムーブ構築、イシュー #1326）を
+    /// 経ても、1 パス構成だった旧実装と同一のエラー優先順位・index が
+    /// 得られることの回帰確認。
+    #[test]
+    fn duplicate_error_precedence_is_stable_across_mixed_violations() {
+        // index 0: 正常項目。index 1: 予約属性混入。index 2: 非 Element。
+        // 予約属性チェックは非 Element 判定より後（Element マッチ後）に
+        // 行われるため、非 Element 項目自体は NonElementItem を先に返す。
+        // ここでは「先に出現した違反が優先される」ことを、同種違反が複数
+        // 混在するケースで固定する（先行 = index 1 の予約属性違反が、
+        // 後続 index 2 の非 Element 違反より先に検出される）。
+        let err = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![
+                ("a".to_string(), el("li", vec![], vec![])),
+                ("b".to_string(), el("li", vec![(KEY_ATTR, "fake")], vec![])),
+                ("c".to_string(), text("bare")),
+            ],
+        )
+        .unwrap_err();
+        assert_eq!(err, KeyedListError::ReservedAttr { attr: KEY_ATTR });
+
+        // 空キー・重複キーが予約属性違反・非 Element より先に来る場合も
+        // 検証順序どおり空キーが優先される。
+        let err = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![
+                (String::new(), el("li", vec![(KEY_ATTR, "fake")], vec![])),
+                ("dup".to_string(), text("bare")),
+            ],
+        )
+        .unwrap_err();
+        assert_eq!(err, KeyedListError::EmptyKey { index: 0 });
     }
 
     /// PoC-5 相当デモ: `interactive` クレートの list_section（項目 + 削除

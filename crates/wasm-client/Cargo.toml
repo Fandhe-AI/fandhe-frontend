@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-client"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"
@@ -47,9 +47,9 @@ categories = ["wasm", "web-programming"]
 # 例外（PR 本文 `version-bump-exempt: fandhe-frontend-wasm-client` 宣言）を
 # 適用し、0.3.0 を維持する。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.2.0" }
-fandhe-frontend-app = { path = "../app", version = "0.2.0" }
-fandhe-frontend-interactive = { path = "../interactive", version = "0.2.0" }
+fandhe-frontend-core = { path = "../core", version = "0.2.1" }
+fandhe-frontend-app = { path = "../app", version = "0.2.1" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.2.1" }
 wasm-bindgen = "0.2"
 
 # イシュー #345（束縛点更新 + keyed list への置換）で以下 3 feature を追加。

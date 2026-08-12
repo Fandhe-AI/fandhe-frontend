@@ -72,11 +72,13 @@ pub fn bind_attr_token(attr: &'static str, field: &'static str) -> String {
 /// );
 /// ```
 pub fn bind_attr_tokens(bindings: &[(&'static str, &'static str)]) -> String {
-    bindings
-        .iter()
-        .map(|(attr, field)| bind_attr_token(attr, field))
-        .collect::<Vec<_>>()
-        .join(" ")
+    // 中間 `Vec<String>` + `join` を経由せず、容量見積もり付きの単一
+    // `String` へ直接書き込む（束縛数 N に対する中間 String N 個 + Vec 1 個
+    // のアロケーションを回避、イシュー #1326）。出力トークン形式・区切り
+    // 文字（半角スペース）は不変。
+    let mut out = String::with_capacity(estimated_tokens_len(bindings));
+    push_tokens(&mut out, bindings, ':');
+    out
 }
 
 /// `"<class>:<field>"` トークンを合成する（`data-bind-class` 属性値用）。
@@ -109,11 +111,40 @@ pub fn bind_class_token(class: &'static str, field: &'static str) -> String {
 /// );
 /// ```
 pub fn bind_class_tokens(bindings: &[(&'static str, &'static str)]) -> String {
-    bindings
+    // bind_attr_tokens と同じ容量見積もり付き直接書き込みで中間アロケー
+    // ションを避ける（イシュー #1326）。
+    let mut out = String::with_capacity(estimated_tokens_len(bindings));
+    push_tokens(&mut out, bindings, ':');
+    out
+}
+
+/// `"<左辺><sep><右辺>"` トークンを空白区切りで `out` へ直接書き込む
+/// ([`bind_attr_tokens`]/[`bind_class_tokens`] の共通実装)。
+///
+/// [`bind_attr_token`]/[`bind_class_token`] が使う `format!` と同じ
+/// `"{left}{sep}{right}"` 形式・空白区切りを維持し、出力トークン列は
+/// これらの単体呼び出しを `join(" ")` した場合と完全に同一になる。
+fn push_tokens(out: &mut String, bindings: &[(&'static str, &'static str)], sep: char) {
+    for (index, (left, right)) in bindings.iter().enumerate() {
+        if index > 0 {
+            out.push(' ');
+        }
+        out.push_str(left);
+        out.push(sep);
+        out.push_str(right);
+    }
+}
+
+/// [`bind_attr_tokens`]/[`bind_class_tokens`] の出力サイズ見積もり
+/// （容量事前確保用）。各トークンは `左辺 + 1（区切り文字）+ 右辺`、
+/// トークン間は半角スペース 1 個。
+fn estimated_tokens_len(bindings: &[(&'static str, &'static str)]) -> usize {
+    let token_len: usize = bindings
         .iter()
-        .map(|(class, field)| bind_class_token(class, field))
-        .collect::<Vec<_>>()
-        .join(" ")
+        .map(|(left, right)| left.len().saturating_add(1).saturating_add(right.len()))
+        .sum();
+    let separators = bindings.len().saturating_sub(1);
+    token_len.saturating_add(separators)
 }
 
 /// テキスト束縛付き要素を構築する。
