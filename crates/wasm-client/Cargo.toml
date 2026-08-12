@@ -47,15 +47,22 @@ categories = ["wasm", "web-programming"]
 # 例外（PR 本文 `version-bump-exempt: fandhe-frontend-wasm-client` 宣言）を
 # 適用し、0.3.0 を維持する。
 #
-# イシュー #1319（keyed 挿入位置解決の O(1) 化）: `KeyedListDom` へ
-# `child_at`（`Element::children().item(index)`）を追加し、`apply_ops` の
-# `Insert`/`Move` 参照ノード決定を旧 `nth_element_child`（sibling 走査
-# O(index)）から置換した。`pub(crate)` トレイトへのメソッド追加・
-# `apply_keyed_list` の公開シグネチャ不変という点で #1318 と同種の
-# 内部実装のみの変更のため、in-repo version 0.3.1（本 PR 作成時点で
-# crates.io 未公開）へこの変更を吸収させ、追加のバンプは行わない
-# （`docs/ci/version-bump-publish-order-gap.md` の「未公開ウィンドウ中の
-# 変更相乗り」に相当。0.3.0 → 0.3.1 の変更内容として非破壊）。
+# イシュー #1319（keyed 挿入位置解決の O(1) 化）: `KeyedListDom::child_at`
+# を追加し、`apply_ops` の `Insert`/`Move` 参照ノード決定を旧
+# `nth_element_child`（sibling 走査 O(index)）から置換した。当初
+# `Element::children()`（`HtmlCollection`）+ `HtmlCollection::item(index)`
+# で実装したが、codex-review 指摘（`HTMLCollection` は live collection で
+# あり `item(index)` の計算量は WHATWG 仕様上保証されないため、ブラウザ側
+# 実装次第で二乗コストへ退行しうる）を受け、`WebSysKeyedDom` 自身が
+# 保持・追随更新する `(key, Element)` の `Vec` キャッシュへの添字アクセス
+# へ設計変更した（`keyed_dom.rs` の `WebSysKeyedDom` doc 参照。この経緯
+# により製品面では最終的に `Element::children()`/`HtmlCollection` を呼ば
+# ない）。`pub(crate)` トレイトへのメソッド追加・`apply_keyed_list` の公開
+# シグネチャ不変という点で #1318 と同種の内部実装のみの変更のため、
+# in-repo version 0.3.1（本 PR 作成時点で crates.io 未公開）へこの変更を
+# 吸収させ、追加のバンプは行わない（`docs/ci/version-bump-publish-order-gap.md`
+# の「未公開ウィンドウ中の変更相乗り」に相当。0.3.0 → 0.3.1 の変更内容と
+# して非破壊）。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.2.1" }
 fandhe-frontend-app = { path = "../app", version = "0.2.1" }
@@ -71,11 +78,14 @@ wasm-bindgen = "0.2"
 # - "HtmlInputElement": `data-bind-attr="value:..."` の value プロパティ同期
 #   （`apply_one`、`binding_dom.rs`）。`wasm-full` と同一 feature。
 #
-# イシュー #1319: `WebSysKeyedDom::child_at`（`keyed_dom.rs`）が
-# `Element::children()`（戻り値型 `HtmlCollection`）+ `HtmlCollection::item`
-# を呼ぶため、製品面の feature へ "HtmlCollection" を追加した（従来は
-# dev-dependencies.web-sys 側のみで足りていたが本イシューで製品面へ昇格）。
-# 新規外部クレート追加ではなく既存 web-sys の feature 追加のみ。
+# イシュー #1319: `WebSysKeyedDom::child_at`（`keyed_dom.rs`）は
+# `first_element_child`/`next_element_sibling`（いずれも下記既存 feature の
+# 範囲内）のみで独自の `(key, Element)` `Vec` キャッシュを構築・維持する
+# 設計（codex-review 指摘対応、`keyed_dom.rs` の `WebSysKeyedDom` doc
+# 参照）であり、`Element::children()`/`HtmlCollection` を製品面では
+# 呼ばない。このため `HtmlCollection` feature を製品面へ追加する必要は
+# なく（dev-dependencies.web-sys 側は既存のブラウザテスト用途のまま）、
+# 新規外部クレート追加・feature 追加のいずれも発生していない。
 [dependencies.web-sys]
 version = "0.3"
 features = [
@@ -83,7 +93,6 @@ features = [
   "Element",
   "Event",
   "EventTarget",
-  "HtmlCollection",
   "HtmlInputElement",
   "Node",
   "NodeList",

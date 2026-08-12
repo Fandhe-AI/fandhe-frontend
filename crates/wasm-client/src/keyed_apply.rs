@@ -22,8 +22,18 @@
 //!   （1,000 行）で挿入位置解決の sibling 走査が累積 O(n²) になる」問題を、
 //!   実ブラウザ計測（不安定・低速）ではなく `cargo test` レベルで決定的に
 //!   再発検知する（本イシュー #1318 の目的そのもの）。イシュー #1319 で
-//!   挿入位置解決を [`KeyedListDom::child_at`]（`Element::children().item()`
-//!   相当の O(1) 参照）へ置換し、この O(n²) を O(n) 相当へ是正した。
+//!   挿入位置解決を [`KeyedListDom::child_at`]（ブラウザの
+//!   `HTMLCollection::item(index)` の計算量保証に依存しない実装が必須、
+//!   [`KeyedListDom::child_at`] doc 参照。`web-sys` 実装
+//!   [`crate::keyed_dom::WebSysKeyedDom`] は独自のハンドル `Vec` キャッシュ
+//!   への添字アクセスで解決する）へ置換し、この O(n²) を O(n) 相当へ
+//!   是正した。ただし `CountingDom` は `Vec::get` で `child_at` を実装して
+//!   おり素朴にも O(1) であるため、本モジュールのコスト固定テストは「呼び
+//!   出し回数」の退行（sibling 走査の再混入等）は検知するが、`web-sys`
+//!   実装側の `HTMLCollection::item()` 依存の再混入（イシュー #1319
+//!   codex-review 指摘）自体は検知しない。この観点は `web-sys` 実装が
+//!   実 DOM を問い合わせない `Vec` キャッシュのみで完結する設計であること
+//!   （[`crate::keyed_dom::WebSysKeyedDom`] doc 参照）そのものが担保する。
 //!
 //! # セキュリティ不変条件の引き継ぎ
 //!
@@ -62,10 +72,21 @@ pub(crate) trait KeyedListDom {
 
     /// `index` 番目（0-origin）の子要素を返す（`insert_before`/`move_before`
     /// の参照ノード決定に使う。`index` が子要素数以上なら `None` = 末尾。
-    /// `web-sys` 実装は `Element::children()`（`HtmlCollection`）+
-    /// `HtmlCollection::item(index)` の単一呼び出しで O(1) に解決する
-    /// （イシュー #1319。旧 `nth_element_child` の `first_element_child` +
-    /// `next_element_sibling` を `index` 回たどる O(index) 実装からの置換）。
+    ///
+    /// **実装は「ブラウザの `HTMLCollection::item(index)` の計算量に依存
+    /// しない」真の O(1)（あるいは全呼び出し合計で O(n)）を満たさなければ
+    /// ならない**（イシュー #1319 codex-review 指摘。`HTMLCollection` は
+    /// live collection であり、`item(index)` が O(1) であることは WHATWG
+    /// 仕様上保証されない。実装ごとに index アクセスのたびインデックスを
+    /// 再構築するキャッシュ無効化戦略を取る可能性があり、単に「本トレイト
+    /// メソッドの呼び出し回数が O(n)」であることは、その内部で実 DOM 側が
+    /// 二乗コストになることを排除しない）。`web-sys` 実装
+    /// （[`crate::keyed_dom::WebSysKeyedDom`]）は `first_element_child`/
+    /// `next_element_sibling`（ブラウザが隣接ポインタで実装する、真に
+    /// O(1) が保証された操作）による 1 度きりの sibling 走査で構築した
+    /// `Vec` インデックスへの添字アクセスに解決することでこの契約を満たす
+    /// （旧 `nth_element_child` の `index` 回 sibling 走査、および
+    /// `HtmlCollection::item(index)` 単体呼び出しのいずれとも異なる）。
     fn child_at(&mut self, index: usize) -> Option<Self::Handle>;
 
     /// `key` に対応する新規ノードを構築する。構築失敗（`RawHtml` 混入等）
@@ -73,15 +94,32 @@ pub(crate) trait KeyedListDom {
     /// 本モジュール doc「セキュリティ不変条件の引き継ぎ」参照）。
     fn create_item(&mut self, key: &str) -> Option<Self::NewNode>;
 
-    /// `node` を `reference`（`None` なら末尾）の直前へ挿入する
-    /// （`Element::insert_before` の Insert 用途）。
-    fn insert_before(&mut self, node: Self::NewNode, reference: Option<&Self::Handle>);
+    /// `node`（挿入対象キー `key`）を `reference`（`None` なら末尾）の直前
+    /// の「新しい並びでの位置」`index` へ挿入する（`Element::insert_before`
+    /// の Insert 用途）。`index`/`key` は [`KeyedListDom::child_at`] の
+    /// O(1) 契約を実装が独自の索引（`web-sys` 実装ではハンドル `Vec`）で
+    /// 満たすための追随更新に使う（イシュー #1319 codex-review 指摘対応、
+    /// [`Self::child_at`] doc 参照）。
+    fn insert_before(
+        &mut self,
+        index: usize,
+        key: &str,
+        node: Self::NewNode,
+        reference: Option<&Self::Handle>,
+    );
 
-    /// 既存の `child` を `reference`（`None` なら末尾）の直前へ移動する
-    /// （`Element::insert_before` の Move 用途。既存ノード参照を保持した
-    /// まま移動することがフォーカス・入力途中の値の保持に直結する、
-    /// `keyed_diff` モジュール doc §5.3 参照）。
-    fn move_before(&mut self, child: &Self::Handle, reference: Option<&Self::Handle>);
+    /// 既存の `child`（キー `key`）を `reference`（`None` なら末尾）の直前
+    /// の「新しい並びでの位置」`index` へ移動する（`Element::insert_before`
+    /// の Move 用途。既存ノード参照を保持したまま移動することがフォーカス・
+    /// 入力途中の値の保持に直結する、`keyed_diff` モジュール doc §5.3
+    /// 参照）。`index`/`key` の用途は [`Self::insert_before`] と同じ。
+    fn move_before(
+        &mut self,
+        index: usize,
+        key: &str,
+        child: &Self::Handle,
+        reference: Option<&Self::Handle>,
+    );
 
     /// `child` をコンテナから取り除く（`Element::remove_child`）。
     fn remove_child(&mut self, child: &Self::Handle);
@@ -145,14 +183,14 @@ pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
                     continue;
                 };
                 let reference = dom.child_at(index);
-                dom.insert_before(new_node, reference.as_ref());
+                dom.insert_before(index, &key, new_node, reference.as_ref());
             }
             KeyedOp::Move { index, key } => {
                 let Some(existing) = find_child_by_key(dom, &key) else {
                     continue;
                 };
                 let reference = dom.child_at(index);
-                dom.move_before(&existing, reference.as_ref());
+                dom.move_before(index, &key, &existing, reference.as_ref());
             }
         }
     }
@@ -233,7 +271,13 @@ mod tests {
             Some(key.to_string())
         }
 
-        fn insert_before(&mut self, node: Self::NewNode, reference: Option<&Self::Handle>) {
+        fn insert_before(
+            &mut self,
+            _index: usize,
+            _key: &str,
+            node: Self::NewNode,
+            reference: Option<&Self::Handle>,
+        ) {
             self.calls.insert_before += 1;
             let pos = match reference {
                 Some(r) => self
@@ -246,7 +290,13 @@ mod tests {
             self.items.insert(pos, node);
         }
 
-        fn move_before(&mut self, child: &Self::Handle, reference: Option<&Self::Handle>) {
+        fn move_before(
+            &mut self,
+            _index: usize,
+            _key: &str,
+            child: &Self::Handle,
+            reference: Option<&Self::Handle>,
+        ) {
             self.calls.move_before += 1;
             let from = self
                 .items
@@ -280,10 +330,12 @@ mod tests {
     // --- コスト固定テスト（イシュー #1318 本体、#1319 で上限を O(n) 相当へ
     // 絞り直し済み） ---
     //
-    // イシュー #1319（`child_at` = `children().item()` 相当の O(1) 参照）で
-    // 挿入位置解決が O(index) の sibling 走査から解放されたため、上限値は
-    // 「実測値 + 小さな余裕」で O(n) 相当へ絞った。この上限を上回る場合は
-    // O(1) 化の退行（sibling 走査の再混入・定数倍の悪化）を意味する。
+    // イシュー #1319（`child_at` をブラウザの `HTMLCollection::item()` の
+    // 計算量保証に依存しない O(1) 参照へ置換、`KeyedListDom::child_at` doc
+    // 参照）で挿入位置解決が O(index) の sibling 走査から解放されたため、
+    // 上限値は「実測値 + 小さな余裕」で O(n) 相当へ絞った。この上限を
+    // 上回る場合は O(1) 化の退行（sibling 走査の再混入・定数倍の悪化）を
+    // 意味する。
 
     /// 空 → 1,000 行の create: DOM 操作の総呼び出し回数が実測 3,001 回
     /// （内訳: `first_element_child` 1 回（初期の `dom_item_keys` 読み。

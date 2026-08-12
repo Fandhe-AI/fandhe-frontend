@@ -234,10 +234,20 @@ fn build_dom_node_with_namespace(
 /// へ等価移植済みであり、本 struct は「`web-sys` の実 DOM 呼び出し」を
 /// トレイトメソッドへ 1:1 で委譲するだけの薄いアダプタに徹する
 /// （本モジュール冒頭 doc の 2 層構成、`keyed_apply` モジュール doc 参照）。
-/// [`crate::keyed_apply::KeyedListDom::child_at`] のみ 1:1 委譲ではなく
-/// `Element::children()` + `HtmlCollection::item(index)` へ変換する
-/// （イシュー #1319、`first_element_child`/`next_element_sibling` の
-/// sibling 走査 O(index) を O(1) 参照へ置換）。
+///
+/// [`crate::keyed_apply::KeyedListDom::child_at`] のみ 1:1 委譲ではなく、
+/// `children` フィールド（本 struct 内で保持する `(key, Element)` の
+/// `Vec` キャッシュ）への添字アクセスで解決する（イシュー #1319。
+/// codex-review 指摘: `Element::children()` + `HtmlCollection::item(index)`
+/// を都度呼ぶ実装は、`HTMLCollection` が live collection であり
+/// `item(index)` の計算量が WHATWG 仕様上保証されないため、ブラウザ側の
+/// 実装次第で二乗コストへ退行しうる。`children` キャッシュは
+/// `first_element_child`/`next_element_sibling`（ブラウザが隣接ポインタで
+/// 実装する真の O(1) 操作）による 1 度きりの sibling 走査で構築し、以降は
+/// 実 DOM を一切問い合わせない純粋な `Vec` 操作のみで
+/// `insert_before`/`move_before` の追随更新を行う。これによりブラウザの
+/// `item()` 実装がどのような計算量であっても本アダプタの `child_at` は
+/// ブラウザ API のその計算量に依存しない）。
 struct WebSysKeyedDom<'a> {
     document: &'a Document,
     list_element: &'a Element,
@@ -248,6 +258,23 @@ struct WebSysKeyedDom<'a> {
     /// rustdoc 参照。SVG keyed list への挿入で HTML 名前空間の要素が生成
     /// されてしまう不具合の是正を維持する）。
     namespace: Option<&'a str>,
+    /// `child_at` が返す「現在の子要素列」のキャッシュ（`(data-key, Element)`
+    /// 順序付き `Vec`）。`None` は未構築（初回 `child_at` 呼び出しで
+    /// 実 DOM を 1 度だけ sibling 走査して埋める）を表す。
+    ///
+    /// [`crate::keyed_apply::apply_ops`] は [`crate::keyed_diff::diff_keys`]
+    /// が生成した操作列（`Remove` が必ず先頭にまとまり、続く `Move`/
+    /// `Insert` は昇順 `index` で並ぶ、`keyed_diff` モジュール doc・
+    /// `diff_keys` 実装参照）を順に適用するため、最初の `child_at` 呼び出し
+    /// （最初の `Move`/`Insert` の直前）時点で全 `Remove` は実 DOM へ適用
+    /// 済みであり、ここで sibling 走査して得る並びは「削除後・挿入/移動
+    /// 適用前」の基準状態と一致する。以降 `insert_before`/`move_before` が
+    /// 実 DOM への適用と同時にこの `Vec` へも追随更新するため、キャッシュは
+    /// 常に実 DOM の並びと同期したまま保たれる。`remove_child` は
+    /// キャッシュ構築前にのみ呼ばれる契約だが、将来の呼び出し順変更に
+    /// 備えてキャッシュ構築後に呼ばれた場合は無効化（`None` へリセット、
+    /// 次回 `child_at` で再構築）する fail-safe を持つ。
+    children: Option<Vec<(String, Element)>>,
 }
 
 impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
@@ -266,16 +293,27 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         child.get_attribute(KEY_ATTR)
     }
 
-    /// `Element::children()`（`HtmlCollection`）+ `HtmlCollection::item(index)`
-    /// の単一呼び出しで `index` 番目の子要素を O(1) に返す（イシュー
-    /// #1319）。`children()` は `first_element_child`/`next_element_sibling`
-    /// と同じく要素子のみを数える（テキストノードを含まない）ため、旧
-    /// sibling 走査実装と意味論上等価。`index` が `u32` へ収まらない
-    /// （事実上到達しない）場合・子要素数以上の場合はいずれも `None`
-    /// （末尾挿入への縮退、旧実装の「範囲外は末尾」と同じ fail-safe）。
+    /// `children` キャッシュへの添字アクセスで `index` 番目の子要素を返す
+    /// （イシュー #1319 codex-review 指摘対応、本 struct doc・
+    /// [`crate::keyed_apply::KeyedListDom::child_at`] doc 参照）。未構築なら
+    /// ここで 1 度だけ実 DOM を sibling 走査してキャッシュを埋める（この
+    /// 走査自体は `first_element_child`/`next_element_sibling` の O(1) 操作
+    /// を子要素数分だけ行う真の O(n) であり、以降の `child_at` 呼び出しは
+    /// 実 DOM に触れない）。
     fn child_at(&mut self, index: usize) -> Option<Element> {
-        let index = u32::try_from(index).ok()?;
-        self.list_element.children().item(index)
+        let children = self.children.get_or_insert_with(|| {
+            let list_element = self.list_element;
+            let mut items = Vec::new();
+            let mut maybe_child = list_element.first_element_child();
+            while let Some(child) = maybe_child {
+                maybe_child = child.next_element_sibling();
+                if let Some(key) = child.get_attribute(KEY_ATTR) {
+                    items.push((key, child));
+                }
+            }
+            items
+        });
+        children.get(index).map(|(_, el)| el.clone())
     }
 
     fn create_item(&mut self, key: &str) -> Option<web_sys::Node> {
@@ -283,15 +321,37 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         build_dom_node_with_namespace(self.document, node, self.namespace)
     }
 
-    fn insert_before(&mut self, node: web_sys::Node, reference: Option<&Element>) {
+    fn insert_before(
+        &mut self,
+        index: usize,
+        key: &str,
+        node: web_sys::Node,
+        reference: Option<&Element>,
+    ) {
         let reference_web_node: Option<web_sys::Node> =
             reference.cloned().map(|el| el.unchecked_into());
         let _ = self
             .list_element
             .insert_before(&node, reference_web_node.as_ref());
+        if let Some(children) = self.children.as_mut() {
+            // `node` は `build_dom_node_with_namespace` が `Node::Element`
+            // から構築した要素ノード（`create_item` の契約、`keyed_dom`
+            // モジュール doc 不変条件 4 参照）であり `Element` へのダウン
+            // キャストは安全。以降は実 DOM を問い合わせない純粋な `Vec`
+            // 操作のみでキャッシュを追随させる。
+            let element: Element = node.unchecked_into();
+            let pos = index.min(children.len());
+            children.insert(pos, (key.to_string(), element));
+        }
     }
 
-    fn move_before(&mut self, child: &Element, reference: Option<&Element>) {
+    fn move_before(
+        &mut self,
+        index: usize,
+        key: &str,
+        child: &Element,
+        reference: Option<&Element>,
+    ) {
         // 移動元と移動先参照が同一要素の場合、`insert_before` は no-op
         // （DOM 標準仕様: 挿入前に自身を除去してから挿入するため同一ノード
         // 指定は何も動かさない）。
@@ -301,10 +361,29 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         let _ = self
             .list_element
             .insert_before(&existing_web_node, reference_web_node.as_ref());
+        if let Some(children) = self.children.as_mut() {
+            // キャッシュ内の旧位置を `key` の文字列比較で特定する（実 DOM
+            // 呼び出しを一切伴わない純粋な `Vec` 走査。ブラウザ API の
+            // 計算量に依存しないという `child_at` の契約を、この追随更新
+            // 側でも維持するための設計）。
+            if let Some(pos) = children.iter().position(|(k, _)| k == key) {
+                children.remove(pos);
+            }
+            let pos = index.min(children.len());
+            children.insert(pos, (key.to_string(), child.clone()));
+        }
     }
 
     fn remove_child(&mut self, child: &Element) {
         let _ = self.list_element.remove_child(child);
+        // `diff_keys` は Remove を Move/Insert より必ず先に列挙するため
+        // （`keyed_diff` doc 参照）、通常は `children` キャッシュが構築
+        // される（最初の `child_at` 呼び出しが起きる）前にここへ到達する。
+        // 仮に将来アルゴリズムが変わりキャッシュ構築後に Remove が来ても、
+        // キャッシュを丸ごと無効化して次回 `child_at` で再構築させることで
+        // （コストは O(n) の再走査 1 回に留まる）誤ったキャッシュを使い
+        // 続けて誤挿入位置を返す不整合を防ぐ（fail-safe）。
+        self.children = None;
     }
 }
 
@@ -334,6 +413,7 @@ pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_no
         list_element,
         new_items: &new_items,
         namespace: namespace.as_deref(),
+        children: None,
     };
     crate::keyed_apply::apply_ops(&mut dom, &new_keys);
 }
