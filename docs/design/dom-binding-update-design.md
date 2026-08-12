@@ -367,6 +367,33 @@ pub fn keyed_list(
   `docs/design/keyed-update-op-design.md`（イシュー #1322）に引き継ぐ
   （後続実装はイシュー #1323／#1324）。本節の Insert / Remove / Move の
   意味論・キー照合方式は同文書でも不変のまま継承される。
+- **連続 Insert 区間の `DocumentFragment` 集約（イシュー #1320）**: 上記
+  「新規挿入ノードの構築」自体（`create_element`/`set_text_content`/
+  `append_child` のプログラム的構築、HTML パーサ不使用）は不変のまま、
+  実 DOM への**適用**方式を性能改善した。diff が計画した Insert 列のうち、
+  新しい並びで index が 1 ずつ増加する極大の連続区間（Remove/Move を
+  挟まない区間）は、各ノードを構築したあと `Document.createDocumentFragment()`
+  で作った `DocumentFragment` へ `appendChild` でまとめ、区間全体を
+  `insertBefore` 1 回（`web_sys::Node::insert_before` 相当）で実 DOM へ
+  適用する（区間内で 1,000 件の連続挿入があっても JS 境界呼び出しは
+  挿入系 1 回で済む。`crates/wasm-client/src/keyed_apply.rs::apply_ops` の
+  区間検出・`crates/wasm-client/src/keyed_dom.rs::WebSysKeyedDom::insert_before_batch`
+  の実装参照）。Remove/Move（および将来の Update op）が区間中に現れると
+  そこで区間が打ち切られ、通常どおり 1 件ずつ適用される。
+  - **既存 DOM ノードは fragment を経由しない不変条件**: `DocumentFragment`
+    へ `appendChild` した時点でその子は元のドキュメントツリーから
+    切り離される（DOM 標準仕様）。この特性は新規構築ノードには無害だが、
+    既存ノードに適用すると現在の親から一旦除去されフォーカス・入力
+    途中の値が失われる。そのため fragment 集約は**新規構築ノード
+    （`create_item` が返したノード）にのみ**適用し、既存ノードの移動は
+    従来どおり `move_before`（個別の `insertBefore`、fragment を経由
+    しない）が担う設計を維持する。これにより本節冒頭のフォーカス・
+    入力状態保持の不変条件はイシュー #1320 適用後も変わらない。
+  - 区間中の一部項目でノード構築が失敗（`RawHtml` 混入等、第 5.2 節の
+    fail-closed）した場合、失敗した項目のみを除いた残りを 1 回の
+    fragment 挿入へ集約する（逐次実装で生じ得た「失敗後続項目の参照
+    ノードずれ」が構造的に起こらなくなる安全側の挙動変化であり、
+    `keyed_apply.rs::apply_ops` の doc コメントに明記済み）。
 
 ## 6. `set_inner_html` 全置換の移行方針（#345 の入力）
 
