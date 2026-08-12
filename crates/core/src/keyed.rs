@@ -358,16 +358,22 @@ pub enum KeyedOp {
 ///    いずれの場合も `working` を新しい並びに合わせて更新してから次へ進む。
 ///
 /// キー重複がある場合（本来は [`keyed_list`] が構築時点で拒否するため到達
-/// しない想定だが、DOM 改ざん等で `old_keys` 側に重複が混入した場合の防御）
-/// は、[`remove_pass`] が `old_keys` 側の同一キーを最初の 1 件のみ
-/// `working` へ残し、2 件目以降は（`new_keys` に存在するか否かに関わらず）
-/// 無条件に [`KeyedOp::Remove`] として発行することで「最初の 1 件のみを
-/// 対象とし、無限ループ・panic を起こさない」を保証する（fail-closed。
-/// イシュー #1336 codex レビュー P1 是正: 旧実装は `new_keys` の集合会員性
-/// のみで `working` へ残す判定をしており、`old_keys` 側の重複を除去しない
-/// ままだったため、`new_keys` の要素数ぶんしか回さない後続パスが余剰の
-/// 重複ノードを消費し切れず、生成した操作列を適用しても旧 DOM に重複
-/// ノードが残る不具合があった）。
+/// しない想定だが、DOM 改ざん等で `old_keys`/`new_keys` 側に重複が混入した
+/// 場合の防御）は、新旧両側とも「最初の 1 件のみを対象とし、無限ループ・
+/// panic を起こさない」fail-closed を保証する。[`remove_pass`] が
+/// `old_keys` 側の同一キーを最初の 1 件のみ `working` へ残し、2 件目以降は
+/// （`new_keys` に存在するか否かに関わらず）無条件に [`KeyedOp::Remove`]
+/// として発行する（イシュー #1336 codex レビュー P1 是正: 旧実装は
+/// `new_keys` の集合会員性のみで `working` へ残す判定をしており、
+/// `old_keys` 側の重複を除去しないままだったため、`new_keys` の要素数ぶん
+/// しか回さない後続パスが余剰の重複ノードを消費し切れず、生成した操作列を
+/// 適用しても旧 DOM に重複ノードが残る不具合があった）。[`insert_or_move_pass`]
+/// は `new_keys` 側の同一キーの 2 件目以降を無条件にスキップし（op を一切
+/// 発行しない）、これにより重複分に対して Insert/Move が二重発行され
+/// 適用後の DOM に同一キーのノードが 2 つ生成される不具合を防ぐ
+/// （イシュー #1336 codex レビュー P1 是正: 旧実装は `new_keys` の重複を
+/// 検出せず全要素を走査していたため、保持キューが枯渇した 2 件目以降が
+/// 誤って [`KeyedOp::Insert`] として発行されていた）。
 ///
 /// `fandhe-frontend-wasm-client`（イシュー #345）が導入した実装をそのまま
 /// 移管したもの（イシュー #1323、`docs/design/keyed-update-op-design.md`
@@ -445,8 +451,24 @@ fn remove_pass(old_keys: &[String], new_keys: &[String], ops: &mut Vec<KeyedOp>)
 /// 見る）ため、単純に連結リストから完全に取り除いても出力に影響しない。
 fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<KeyedOp>) {
     let n = working.len();
+
+    // `new_keys` 側にキー重複が混入している場合（[`keyed_list`] が構築時点
+    // で拒否するため通常到達しないが、`remove_pass` と対称の防御として
+    // 想定）は、`seen_new` で最初の出現のみを処理対象とし、2 件目以降は
+    // 無条件にスキップする（op を一切発行しない）。重複分にも Insert/Move
+    // を発行すると、DOM 上に同一キーのノードが 2 つ生成されてしまい
+    // 「最初の 1 件のみを対象とする」fail-closed 契約に反するため
+    // （イシュー #1336 codex レビュー P1 是正。旧実装は `new_keys` の重複を
+    // 検出せず全要素を走査していたため、2 件目以降が保持キューの枯渇後に
+    // 誤って Insert として発行されていた）。
+    let mut seen_new: std::collections::HashSet<&str> =
+        std::collections::HashSet::with_capacity(new_keys.len());
+
     if n == 0 {
         for (index, key) in new_keys.iter().enumerate() {
+            if !seen_new.insert(key.as_str()) {
+                continue;
+            }
             ops.push(KeyedOp::Insert {
                 index,
                 key: key.clone(),
@@ -473,6 +495,12 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
     }
 
     for (index, key) in new_keys.iter().enumerate() {
+        if !seen_new.insert(key.as_str()) {
+            // 2 件目以降の重複キーは無条件にスキップする（op を発行しない。
+            // 上記コメント参照）。
+            continue;
+        }
+
         if let Some(h) = head {
             if working[h] == *key {
                 // 先頭ノードが期待キーと一致: 操作を発行せず消費するのみ。
@@ -1107,6 +1135,71 @@ mod tests {
         let applied = apply_ops(&old, &ops);
 
         assert_eq!(applied, new);
+    }
+
+    /// 回帰（PR #1336 codex レビュー P1 是正）: `new_keys` 側に重複キーが
+    /// 混入していても、2 件目以降に対して [`KeyedOp::Insert`] を発行しない
+    /// （最初の 1 件のみを対象とする fail-closed 契約）。
+    /// 旧実装は `new_keys` の重複を検出せず全要素を走査していたため、
+    /// `old_keys = ["a"]` → `new_keys = ["a", "a"]` で保持キューが枯渇した
+    /// 2 個目の `"a"` が誤って `Insert { index: 1, key: "a" }` として発行
+    /// され、操作列適用後の DOM に重複キーのノードが残っていた。
+    #[test]
+    fn diff_keys_duplicate_new_key_does_not_emit_insert_for_second_occurrence() {
+        let old = keys(&["a"]);
+        let new = keys(&["a", "a"]);
+
+        let ops = diff_keys(&old, &new);
+
+        assert!(
+            !ops.iter()
+                .any(|op| matches!(op, KeyedOp::Insert { key, .. } if key == "a")),
+            "new_keys 側の重複キーに対して Insert を発行してはならない: {ops:?}"
+        );
+        let applied = apply_ops(&old, &ops);
+        assert_eq!(
+            applied,
+            vec!["a".to_string()],
+            "重複キー混入時は最初の 1 件のみを対象とするため、適用後の結果は重複を含まない"
+        );
+    }
+
+    /// 回帰: `working` が空（`old_keys` が空）の状態でも `new_keys` 側の
+    /// 重複キーは最初の 1 件のみ [`KeyedOp::Insert`] される
+    /// （`insert_or_move_pass` の `n == 0` 分岐も同一防御を共有する）。
+    #[test]
+    fn diff_keys_duplicate_new_key_from_empty_old_inserts_only_once() {
+        let old: Vec<String> = vec![];
+        let new = keys(&["a", "a", "b"]);
+
+        let ops = diff_keys(&old, &new);
+
+        let insert_count_for_a = ops
+            .iter()
+            .filter(|op| matches!(op, KeyedOp::Insert { key, .. } if key == "a"))
+            .count();
+        assert_eq!(
+            insert_count_for_a, 1,
+            "重複キー \"a\" に対する Insert は 1 件のみのはず: {ops:?}"
+        );
+    }
+
+    /// 回帰: `new_keys` 側に重複キーが 3 件以上混入していても panic せず、
+    /// 最初の 1 件のみが処理対象となる。
+    #[test]
+    fn diff_keys_does_not_panic_on_duplicate_keys_in_new() {
+        let old = keys(&["a", "b"]);
+        let new = keys(&["a", "a", "a", "b"]);
+        // panic しないことに加え、重複分に Insert が発行されないことも確認する。
+        let ops = diff_keys(&old, &new);
+        let insert_count_for_a = ops
+            .iter()
+            .filter(|op| matches!(op, KeyedOp::Insert { key, .. } if key == "a"))
+            .count();
+        assert_eq!(
+            insert_count_for_a, 0,
+            "\"a\" は old にも存在するため Insert 自体が不要: {ops:?}"
+        );
     }
 
     // --- イシュー #1318: O(n²) 再発検知の一環として、大規模ケースの op 数
