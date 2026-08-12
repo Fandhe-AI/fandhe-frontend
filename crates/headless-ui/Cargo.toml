@@ -17,4 +17,4 @@ categories = ["web-programming", "gui"]
 # depends_on = ["core", "interactive"] と完全一致させること、fw gate が検証する）。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.3.0" }
-fandhe-frontend-interactive = { path = "../interactive", version = "0.2.2" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.2.3" }

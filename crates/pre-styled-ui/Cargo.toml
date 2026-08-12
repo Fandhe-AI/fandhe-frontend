@@ -24,4 +24,4 @@ fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.28.2" }
 # 現れない（docs/design/structure-manifest.md §3）。
 [dev-dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.3.0" }
-fandhe-frontend-interactive = { path = "../interactive", version = "0.2.2" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.2.3" }

@@ -11,6 +11,7 @@
 //! 依存クレートは追加しない（REQ-3・`interactive/Cargo.toml` は
 //! `fandhe-frontend-core`（path 依存）のみを維持する）。
 
+use fandhe_frontend_core::render;
 use fandhe_frontend_interactive::{dispatch, Action, AppState, Component, DirtyTracked, Hydrate};
 
 /// `items`/`item_ids` を一貫した状態（id は `0..items.len()`）へ直接差し替える
@@ -405,4 +406,77 @@ fn dispatch_unknown_action_does_not_call_update_and_leaves_dirty_unchanged() {
     let dispatched = dispatch(&mut s, "no_such_action", "payload");
     assert!(!dispatched);
     assert_eq!(s.dirty_fields(), before.as_slice());
+}
+
+// --- 変更なし値の dispatch は dirty を汚さず render() 出力も不変（イシュー
+// #1328） ---------------------------------------------------------------
+//
+// `wasm-full`/`wasm-client` の `BindingTable::apply_dirty` は
+// `dirty_fields()` が返す集合を入力に DOM 更新対象を絞り込む dirty 駆動
+// 実装であるため、dirty が空であれば DOM 適用は構造的に 0 件になる
+// （`docs/design/dom-binding-update-design.md` #345 参照）。以下は
+// 「dirty が空」に加えて `render(view())` の出力が変更前後でバイト一致する
+// ことも確認し、変更なし値の dispatch が観測可能な副作用を一切持たない
+// ことを固定する。
+
+#[test]
+fn noop_set_draft_leaves_dirty_empty_and_render_output_unchanged() {
+    let mut s = AppState::new();
+    let before_html = render(&s.view());
+    // 現在の draft と同じ値を設定する（実質的な変更なし）。
+    let same_draft = s.draft.clone();
+    dispatch(&mut s, "set_draft", &same_draft);
+    assert!(s.dirty_fields().is_empty());
+    assert_eq!(render(&s.view()), before_html);
+}
+
+#[test]
+fn noop_reset_at_zero_leaves_dirty_empty_and_render_output_unchanged() {
+    let mut s = AppState::new();
+    assert_eq!(s.counter, 0);
+    let before_html = render(&s.view());
+    dispatch(&mut s, "reset", "");
+    assert!(s.dirty_fields().is_empty());
+    assert_eq!(render(&s.view()), before_html);
+}
+
+#[test]
+fn noop_remove_item_with_unknown_id_leaves_dirty_empty_and_render_output_unchanged() {
+    let mut s = AppState::new();
+    set_items(&mut s, &["a", "b"]);
+    let before_html = render(&s.view());
+    // 割り当て済み id (0, 1) に存在しない id への remove_item。
+    dispatch(&mut s, "remove_item", "999");
+    assert!(s.dirty_fields().is_empty());
+    assert_eq!(render(&s.view()), before_html);
+}
+
+// --- keyed_list フォールバック回帰（イシュー #1328） -----------------------
+//
+// `render_with_root_attrs`（lib.rs、非公開）は `AppState::item_ids` の重複
+// 混入時、`keyed_list` が `Err(DuplicateKey)` を返し束縛なしのプレーン `ul`
+// フォールバックへ切り替わる（`item_ids` は本来アプリ内部で一意性が保たれる
+// が、フォールバック分岐自体は防御的に存在する）。イシュー #1328 で
+// フォールバック経路を「`items` 構築直後の全項目 clone」から「`Err` 時のみ
+// `state` から再構築」へ遅延化したため、フォールバック描画そのものが従来
+// どおり機能する（全項目が欠落・破損しない）ことを固定する。`AppState` は
+// `pub` フィールドのため、テストから `item_ids` を直接重複させて `Err`
+// 分岐を誘発できる。
+#[test]
+fn view_falls_back_to_plain_list_when_item_ids_are_duplicated() {
+    let mut s = AppState::new();
+    set_items(&mut s, &["a", "b", "c"]);
+    // 意図的に重複 id を注入し、keyed_list を Err(DuplicateKey) にする。
+    s.item_ids = vec![0, 0, 0];
+
+    let html = render(&s.view());
+    // フォールバック経路でも全項目のテキストが欠落せず描画されること。
+    assert!(html.contains("a"));
+    assert!(html.contains("b"));
+    assert!(html.contains("c"));
+    // keyed_list 成功時のみ付与される data-bind-list 属性は付かない
+    // （フォールバックはプレーン ul のため束縛なし）。
+    assert!(!html.contains("data-bind-list"));
+    // data-key もフォールバック経路では付与されない。
+    assert!(!html.contains("data-key"));
 }

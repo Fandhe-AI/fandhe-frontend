@@ -1316,44 +1316,66 @@ fn render_with_root_attrs(state: &AppState) -> Node {
     // index ではなく `AppState::item_ids` の安定 id（上記型ドキュメント参照）。
     // `data-payload` も同じ id を使う（`remove_item` の payload 契約を id 化。
     // `data-idx` は撤去 — index は keyed 更新後にずれるため公開しない）。
+    // 1 項目分の `li` ノードを組み立てる。`keyed_list` への通常入力
+    // （`items`）とフォールバック経路（`Err` 時のプレーン `ul`）の双方で
+    // 同一の構造を使うため関数として切り出す（イシュー #1328: 従来は
+    // フォールバック用に `items` 構築直後の全項目 `Node` を無条件で
+    // deep clone していたが、`keyed_list` が `Err` を返すのは
+    // `item_ids` 設計上到達しない異常系のみであり、1,000 項目規模では
+    // `view()` 1 回ごとに無駄な clone が発生していた。`Err` 時のみ
+    // `state` から文字列ベースで再構築する遅延化に切り替え、通常経路の
+    // アロケーションを 1 回分に削減する）。
+    let build_item_node = |item: &str, id: u64| -> Node {
+        let key = id.to_string();
+        li(
+            vec![],
+            vec![
+                text(item.to_string()),
+                el(
+                    "button",
+                    vec![
+                        ("data-action", "remove_item"),
+                        ("data-payload", &key),
+                        ("data-testid", "remove-btn"),
+                    ],
+                    vec![text("削除")],
+                ),
+            ],
+        )
+    };
+
     let items: Vec<(String, Node)> = state
         .items
         .iter()
         .zip(state.item_ids.iter())
-        .map(|(item, id)| {
-            let key = id.to_string();
-            let node = li(
-                vec![],
-                vec![
-                    text(item.clone()),
-                    el(
-                        "button",
-                        vec![
-                            ("data-action", "remove_item"),
-                            ("data-payload", &key),
-                            ("data-testid", "remove-btn"),
-                        ],
-                        vec![text("削除")],
-                    ),
-                ],
-            );
-            (key, node)
-        })
+        .map(|(item, id)| (id.to_string(), build_item_node(item, *id)))
         .collect();
 
     // `keyed_list` は id 設計上（`item_ids` は常に非空キー・一意）失敗し
     // 得ないが、ライブラリコードで panic/unwrap しない規約（`coding-rust.md`）
     // に従い、万一 `Err` を返した場合は束縛なしのプレーン `ul` へ
     // フォールバックする（keyed 更新は行われず全置換に戻るだけで、描画自体は
-    // 壊れない）。
-    let plain_items: Vec<Node> = items.iter().map(|(_, node)| node.clone()).collect();
-    let list_section = keyed_list(
+    // 壊れない）。`items` は `keyed_list` の検証パス（1 パス目、`iter()` の
+    // みで消費しない）で `Err` になった時点で関数にムーブ済みのため、
+    // フォールバック側は `state.items`/`item_ids` から `build_item_node` で
+    // 再構築する（`Err` 到達時のみのコストであり、通常経路には影響しない）。
+    let list_section = match keyed_list(
         "ul",
         vec![("data-testid", "item-list")],
         AppState::FIELD_ITEMS,
         items,
-    )
-    .unwrap_or_else(|_| ul(vec![("data-testid", "item-list")], plain_items));
+    ) {
+        Ok(node) => node,
+        Err(_) => {
+            let plain_items: Vec<Node> = state
+                .items
+                .iter()
+                .zip(state.item_ids.iter())
+                .map(|(item, id)| build_item_node(item, *id))
+                .collect();
+            ul(vec![("data-testid", "item-list")], plain_items)
+        }
+    };
 
     let root_attrs = vec![
         ("id", "interactive-root"),
