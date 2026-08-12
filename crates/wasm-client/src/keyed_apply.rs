@@ -153,28 +153,60 @@ pub(crate) trait KeyedListDom {
     ///   実装が独自の索引（`web-sys` 実装ではハンドル `Vec`）で満たすための
     ///   追随更新に使う（イシュー #1319 codex-review 指摘対応の踏襲、
     ///   [`Self::child_at`] doc 参照）。
+    ///
+    /// # 戻り値（イシュー #1340 codex-review P1〔3 巡目〕全走査対応）
+    ///
+    /// 実 DOM への `insert_before`（`web-sys` 実装では
+    /// `Element::insert_before` 相当）が失敗した場合は `false` を返し、
+    /// 呼び出し元（[`apply_ops`]/[`apply_ops_with_items`]）は当該区間を
+    /// 未達成スロットとして扱う（`create_item` 失敗や `Move` 対象キー未検出
+    /// と同じ「未達成 op」の枠組み、[`apply_ops`] doc「未達成スロットの
+    /// index 補正」参照）。実装は失敗時に**内部の索引キャッシュを更新して
+    /// はならない**（実 DOM へ反映されていないノードをキャッシュ上だけ
+    /// 「挿入済み」として扱うと、以後の差分基準が実 DOM と恒久的に乖離
+    /// する。`replace_root`/`replace_item_children` と同じ「キャッシュ更新は
+    /// 完全成功時のみ」契約）。
     fn insert_before_batch(
         &mut self,
         start_index: usize,
         items: Vec<(String, Self::NewNode)>,
         reference: Option<&Self::Handle>,
-    );
+    ) -> bool;
 
     /// 既存の `child`（キー `key`）を `reference`（`None` なら末尾）の直前
     /// の「新しい並びでの位置」`index` へ移動する（`Element::insert_before`
     /// の Move 用途。既存ノード参照を保持したまま移動することがフォーカス・
     /// 入力途中の値の保持に直結する、`keyed_diff` モジュール doc §5.3
     /// 参照）。`index`/`key` の用途は [`Self::insert_before`] と同じ。
+    ///
+    /// # 戻り値（イシュー #1340 codex-review P1〔3 巡目〕全走査対応）
+    ///
+    /// 実 DOM への `insert_before` が失敗した場合は `false` を返す。
+    /// `move_before` は単一の `insert_before` 呼び出しのみで構成され、
+    /// 失敗時は仕様上 DOM を一切変更しない（既存ノードの親子関係・兄弟順は
+    /// 呼び出し前のまま）ため [`Self::insert_before_batch`]/
+    /// [`crate::keyed_apply::RootReplaceDom`] のような多段ロールバックは
+    /// 不要。実装は失敗時に内部の索引キャッシュ（並び順）を更新しては
+    /// ならない（[`Self::insert_before_batch`] doc と同じ理由）。
     fn move_before(
         &mut self,
         index: usize,
         key: &str,
         child: &Self::Handle,
         reference: Option<&Self::Handle>,
-    );
+    ) -> bool;
 
     /// `child` をコンテナから取り除く（`Element::remove_child`）。
-    fn remove_child(&mut self, child: &Self::Handle);
+    ///
+    /// # 戻り値（イシュー #1340 codex-review P1〔3 巡目〕全走査対応）
+    ///
+    /// 実 DOM への `remove_child` が失敗した場合は `false` を返す（`child`
+    /// は実 DOM 上に残ったまま）。`remove_child` は単一 DOM 呼び出しのみで
+    /// 構成され、失敗時は仕様上 DOM を一切変更しないためロールバックは
+    /// 不要。実装は失敗時に内部の索引キャッシュから `child` を除去しては
+    /// ならない（キャッシュ上だけ「削除済み」として扱うと、以後の差分基準
+    /// が実 DOM と恒久的に乖離する）。
+    fn remove_child(&mut self, child: &Self::Handle) -> bool;
 
     /// `child` の属性を `new_attrs`（予約属性 `data-key` を除く新しい
     /// 属性集合）へ同期する（[`KeyedOp::Update`] 適用の一部、イシュー
@@ -224,11 +256,34 @@ pub(crate) trait KeyedListDom {
     /// 同様に新規ノードを構築してから `old` の位置へ差し替える（`old` を
     /// 直前の参照点として使うため index 解決は不要）。
     ///
+    /// # 戻り値と部分失敗時の契約（イシュー #1340 codex-review P1
+    /// 〔3 巡目〕対応）
+    ///
     /// 実装は `new` を `old` の直前へ挿入したうえで `old` を取り除くこと
-    /// （順序を保ったまま置き換える）。既存の `Handle` 索引（`web-sys`
-    /// 実装ではキー付き `Vec` キャッシュ）を持つ実装は、`old` のエントリを
-    /// `new` へ差し替えて追随更新すること。
-    fn replace_root(&mut self, old: &Self::Handle, key: &str, new: Self::NewNode);
+    /// （順序を保ったまま置き換える、2 回の web-sys 呼び出し）。いずれも
+    /// 失敗しうる呼び出しであり、`Result` を検査せず盲目的に進めると
+    /// 「挿入失敗後も旧要素だけ削除してしまい当該キーが消滅する」「挿入
+    /// 成功後の削除失敗で同一キー要素が重複する」といった部分適用が
+    /// 起こりうる（`docs/design/keyed-update-op-design.md` §6 不変条件 6
+    /// と同じ構造的原子性の要求、[`crate::keyed_dom::exchange_children`]
+    /// と同じ流儀）:
+    ///
+    /// - `new` の挿入自体が失敗した場合: ライブ DOM には何も変更されて
+    ///   いない（DOM 標準上 `insertBefore` 失敗時は no-op）ため、`old` に
+    ///   一切触れず `false` を返す。
+    /// - `new` の挿入は成功したが `old` の除去が失敗した場合: 挿入した
+    ///   `new` を取り除いて挿入前の状態へロールバックしてから `false` を
+    ///   返す。ロールバック自体（`new` の除去）が失敗する残余リスクは
+    ///   固定英語文言の警告ログで示し（設計書 §6 不変条件 6「残る有限の
+    ///   リスク」）、`unwrap()`/`panic!` は使わずベストエフォートで処理を
+    ///   継続する。
+    /// - 完全に成功した場合のみ `true` を返す。
+    ///
+    /// `children` キャッシュ等の索引更新は完全成功時（`true` を返す場合）
+    /// のみ行うこと。呼び出し元（[`apply_ops_with_items`]）は `false` の
+    /// 場合 `resync_required` を立て、次回はライブ DOM を直接読み出す
+    /// 構造フォールバックへ委ねる。
+    fn replace_root(&mut self, old: &Self::Handle, key: &str, new: Self::NewNode) -> bool;
 }
 
 /// [`KeyedListDom::replace_item_children`]（子ノード列交換）のコミット
@@ -327,6 +382,64 @@ pub(crate) fn exchange_children<D: ChildExchangeDom>(dom: &mut D, built: &[D::No
             }
             return false;
         }
+    }
+    true
+}
+
+/// [`KeyedListDom::replace_root`] のコミット手順を DOM 非依存に表現する
+/// トレイト（[`ChildExchangeDom`] と同じ理由・同じ「純粋層 + wasm32 配線
+/// 層」方針、イシュー #1340 codex-review P1〔3 巡目〕対応）。
+///
+/// `replace_root` の実 DOM 実装（`crate::keyed_dom::WebSysKeyedDom`）は
+/// `insert_before`/`remove_child` という 2 つの独立した失敗しうる web-sys
+/// 呼び出しから成るため、native テストから「挿入だけ失敗」「削除だけ
+/// 失敗」をそれぞれ決定的に注入できるよう本トレイトへ抽象化する。
+pub(crate) trait RootReplaceDom {
+    /// 交換対象のノード（`web-sys` 実装では `web_sys::Node`）。
+    type Node: Clone;
+
+    /// `new` を `old` の直前へ挿入する。失敗した場合 `false`
+    /// （`Node::insertBefore` 相当）。
+    fn insert_before(&mut self, new: &Self::Node, old: &Self::Node) -> bool;
+
+    /// `node` を親から取り除く。失敗した場合 `false`
+    /// （`Node::removeChild` 相当）。
+    fn remove(&mut self, node: &Self::Node) -> bool;
+
+    /// ロールバック手順自体（挿入済み `new` の除去）が失敗した場合に
+    /// 呼ばれる（設計書 §6 不変条件 6「残る有限のリスク」と同種）。既定は
+    /// no-op（native モックはログ出力不要）。`web-sys` 実装は固定英語
+    /// 文言の警告ログ（不変条件 7）を出す。
+    fn on_rollback_failed(&mut self) {}
+}
+
+/// [`RootReplaceDom`] を介して `old` を `new` へ置き換える
+/// （[`KeyedListDom::replace_root`] doc「戻り値と部分失敗時の契約」の
+/// 実装本体、イシュー #1340 codex-review P1〔3 巡目〕対応）。
+///
+/// 1. `new` を `old` の直前へ挿入する。失敗した場合、ライブ DOM には
+///    何も変更が加わっていない（DOM 標準上 `insertBefore` 失敗時は
+///    no-op）ため `old` には一切触れず `false` を返す（`old` を誤って
+///    削除してしまうと当該キーが DOM 上から消滅する codex-review 指摘の
+///    再現を防ぐ）。
+/// 2. `old` を取り除く。失敗した場合（挿入は成功済みのため同一キー要素の
+///    重複を防ぐ必要がある）、挿入した `new` を取り除いて挿入前の状態へ
+///    ロールバックしてから `false` を返す。ロールバック自体が失敗する
+///    残余リスクは [`RootReplaceDom::on_rollback_failed`] 経由で警告する。
+/// 3. 両方成功した場合のみ `true` を返す。
+pub(crate) fn replace_root_node<D: RootReplaceDom>(
+    dom: &mut D,
+    old: &D::Node,
+    new: &D::Node,
+) -> bool {
+    if !dom.insert_before(new, old) {
+        return false;
+    }
+    if !dom.remove(old) {
+        if !dom.remove(new) {
+            dom.on_rollback_failed();
+        }
+        return false;
     }
     true
 }
@@ -451,7 +564,13 @@ fn apply_ops_list<D: KeyedListDom>(dom: &mut D, ops: Vec<KeyedOp>) -> bool {
         match &ops[i] {
             KeyedOp::Remove { key } => {
                 if let Some(child) = find_child_by_key(dom, key) {
-                    dom.remove_child(&child);
+                    if !dom.remove_child(&child) {
+                        // 実 DOM への `remove_child` 自体が失敗（`child` は
+                        // 実 DOM 上に残存）。当該キーは目標状態（削除済み）
+                        // に到達していないため未達成として扱う（イシュー
+                        // #1340 codex-review P1〔3 巡目〕全走査対応）。
+                        fully_achieved = false;
+                    }
                 }
                 i += 1;
             }
@@ -490,7 +609,15 @@ fn apply_ops_list<D: KeyedListDom>(dom: &mut D, ops: Vec<KeyedOp>) -> bool {
                 if !items.is_empty() {
                     let adjusted_start = start_index.saturating_sub(index_offset);
                     let reference = dom.child_at(adjusted_start);
-                    dom.insert_before_batch(adjusted_start, items, reference.as_ref());
+                    let batch_len = items.len();
+                    if !dom.insert_before_batch(adjusted_start, items, reference.as_ref()) {
+                        // 実 DOM への挿入自体が失敗（`insert_before_batch`
+                        // 契約により DOM・内部キャッシュとも無変更のまま）。
+                        // 区間内の全アイテムが未達成スロットになるため
+                        // `failed_in_run` へ合算する（イシュー #1340
+                        // codex-review P1〔3 巡目〕全走査対応）。
+                        failed_in_run += batch_len;
+                    }
                 }
                 if failed_in_run > 0 {
                     fully_achieved = false;
@@ -502,7 +629,14 @@ fn apply_ops_list<D: KeyedListDom>(dom: &mut D, ops: Vec<KeyedOp>) -> bool {
                 if let Some(existing) = find_child_by_key(dom, key) {
                     let adjusted = index.saturating_sub(index_offset);
                     let reference = dom.child_at(adjusted);
-                    dom.move_before(adjusted, key, &existing, reference.as_ref());
+                    if !dom.move_before(adjusted, key, &existing, reference.as_ref()) {
+                        // 実 DOM への移動自体が失敗（`move_before` 契約により
+                        // DOM・内部キャッシュとも無変更のまま、`existing` は
+                        // 移動前の位置に残る）。目標スロットは埋まらないため
+                        // `Move` 対象キー未検出時と同じ扱いにする（イシュー
+                        // #1340 codex-review P1〔3 巡目〕全走査対応）。
+                        fully_achieved = false;
+                    }
                 } else {
                     // 移動対象キーがライブ DOM 上に見つからない（改ざん等の
                     // 異常系）。この場合も対象キーの目標スロットは
@@ -601,7 +735,15 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
         match op {
             KeyedOp::Remove { key } => {
                 if let Some(child) = find_child_by_key(dom, &key) {
-                    dom.remove_child(&child);
+                    if !dom.remove_child(&child) {
+                        // 実 DOM への `remove_child` 自体が失敗（`child` は
+                        // 実 DOM 上に残存）。`Remove` は位置を持たない op の
+                        // ため `index_offset` は変えないが、対象キーが最終的
+                        // に存在しないことを前提とする `final_keys` と実 DOM
+                        // が乖離するため `resync_required` を立てる（イシュー
+                        // #1340 codex-review P1〔3 巡目〕全走査対応）。
+                        resync_required = true;
+                    }
                 }
             }
             KeyedOp::Insert { index, key } => {
@@ -619,11 +761,19 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                 // 適用する構成のため、要素数 1 の `items` で呼び出す
                 // （契約上「新しい並びで `start_index` から連続する新規
                 // ノード列」を満たせば良く、単一要素はこれを自明に満たす）。
-                dom.insert_before_batch(
+                if !dom.insert_before_batch(
                     adjusted,
                     vec![(key.clone(), new_node)],
                     reference.as_ref(),
-                );
+                ) {
+                    // 実 DOM への挿入自体が失敗（`insert_before_batch` 契約
+                    // により DOM・内部キャッシュとも無変更のまま）。
+                    // `create_item` 失敗と同様に未達成スロットとして扱う
+                    // （イシュー #1340 codex-review P1〔3 巡目〕全走査対応）。
+                    failed_inserts.insert(key);
+                    index_offset += 1;
+                    resync_required = true;
+                }
             }
             KeyedOp::Move { index, key } => {
                 let Some(existing) = find_child_by_key(dom, &key) else {
@@ -638,7 +788,15 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                 };
                 let adjusted = index.saturating_sub(index_offset);
                 let reference = dom.child_at(adjusted);
-                dom.move_before(adjusted, &key, &existing, reference.as_ref());
+                if !dom.move_before(adjusted, &key, &existing, reference.as_ref()) {
+                    // 実 DOM への移動自体が失敗（`move_before` 契約により
+                    // DOM・内部キャッシュとも無変更のまま、`existing` は
+                    // 移動前の位置に残る）。アイテム数自体は変わらないため
+                    // `index_offset` は増やさないが、並び順が計画と乖離する
+                    // ため `resync_required` を立てる（イシュー #1340
+                    // codex-review P1〔3 巡目〕全走査対応）。
+                    resync_required = true;
+                }
             }
             KeyedOp::Update { key } => {
                 // `find_child_by_key`（sibling 走査、Remove/Move 用）ではなく
@@ -704,7 +862,16 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                         resync_required = true;
                         continue;
                     };
-                    dom.replace_root(&existing, &key, new_dom_node);
+                    if !dom.replace_root(&existing, &key, new_dom_node) {
+                        // 挿入・除去いずれかが失敗し完全な置換ができな
+                        // かった（`replace_root` doc「戻り値と部分失敗時の
+                        // 契約」参照）。ライブ DOM は旧要素・新要素いずれか
+                        // 一方（実装がベストエフォートでロールバックした
+                        // 結果）または稀に両方が残る不定状態になりうるため
+                        // `final_keys` だけからは判別できず、次回はライブ
+                        // DOM から再構築する構造フォールバックへ委ねる。
+                        resync_required = true;
+                    }
                     continue;
                 }
 
@@ -792,6 +959,23 @@ mod tests {
         /// `replace_item_children` に構築失敗（`RawHtml` 混入相当）を
         /// 注入するキー集合。ロールバック契約テスト用のフック。
         fail_replace_children_for: std::collections::HashSet<String>,
+        /// `replace_root` に DOM 操作失敗（`insert_before`/`remove_child`
+        /// いずれかの失敗相当）を注入するキー集合。イシュー #1340
+        /// codex-review P1〔3 巡目〕の呼び出し元（`apply_ops_with_items`）
+        /// 側の `resync_required` 反映テスト用のフック（`RootReplaceDom`
+        /// レベルの挙動細分は `replace_root_node` 専用の
+        /// `VecRootReplace` モックが担う）。
+        fail_replace_root_for: std::collections::HashSet<String>,
+        /// `insert_before_batch` に実 DOM 挿入失敗を注入するキー集合（バッチ
+        /// 中のいずれかのキーが含まれていれば区間全体を失敗させる）。
+        /// イシュー #1340 codex-review P1〔3 巡目〕全走査対応の呼び出し元
+        /// （`apply_ops`/`apply_ops_with_items`）側の未達成反映テスト用の
+        /// フック。
+        fail_insert_before_batch_for: std::collections::HashSet<String>,
+        /// `move_before` に実 DOM 移動失敗を注入するキー集合（同上）。
+        fail_move_before_for: std::collections::HashSet<String>,
+        /// `remove_child` に実 DOM 削除失敗を注入するキー集合（同上）。
+        fail_remove_child_for: std::collections::HashSet<String>,
     }
 
     #[derive(Default, Debug, Clone, Copy)]
@@ -873,8 +1057,18 @@ mod tests {
             _start_index: usize,
             items: Vec<(String, Self::NewNode)>,
             reference: Option<&Self::Handle>,
-        ) {
+        ) -> bool {
             self.calls.insert_before_batch += 1;
+            if items
+                .iter()
+                .any(|(key, _)| self.fail_insert_before_batch_for.contains(key))
+            {
+                // 実 DOM 挿入失敗を模擬: `items`/`self.items` のいずれも
+                // 変更せず `false` を返す（トレイト契約「失敗時は DOM・
+                // 内部キャッシュとも無変更」、イシュー #1340 codex-review
+                // P1〔3 巡目〕全走査対応）。
+                return false;
+            }
             let start = match reference {
                 Some(r) => self
                     .items
@@ -886,16 +1080,23 @@ mod tests {
             for (pos, (_key, node)) in (start..).zip(items) {
                 self.items.insert(pos, node);
             }
+            true
         }
 
         fn move_before(
             &mut self,
             _index: usize,
-            _key: &str,
+            key: &str,
             child: &Self::Handle,
             reference: Option<&Self::Handle>,
-        ) {
+        ) -> bool {
             self.calls.move_before += 1;
+            if self.fail_move_before_for.contains(key) {
+                // 実 DOM 移動失敗を模擬: `self.items` を一切変更せず `false`
+                // を返す（イシュー #1340 codex-review P1〔3 巡目〕全走査
+                // 対応）。
+                return false;
+            }
             let from = self
                 .items
                 .iter()
@@ -911,13 +1112,21 @@ mod tests {
                 None => self.items.len(),
             };
             self.items.insert(pos, removed);
+            true
         }
 
-        fn remove_child(&mut self, child: &Self::Handle) {
+        fn remove_child(&mut self, child: &Self::Handle) -> bool {
             self.calls.remove_child += 1;
+            if self.fail_remove_child_for.contains(child) {
+                // 実 DOM 削除失敗を模擬: `self.items` を一切変更せず `false`
+                // を返す（イシュー #1340 codex-review P1〔3 巡目〕全走査
+                // 対応）。
+                return false;
+            }
             if let Some(pos) = self.items.iter().position(|k| k == child) {
                 self.items.remove(pos);
             }
+            true
         }
 
         fn sync_attrs(&mut self, child: &Self::Handle, new_attrs: &[(String, String)]) {
@@ -941,11 +1150,19 @@ mod tests {
         /// `old` を `new` へ置き換えるのは `items` 内の該当位置の値を
         /// 差し替えるだけで表現できる（`old` の位置を保ったまま `new` へ
         /// 差し替える契約、`replace_root` トレイト doc 参照）。
-        fn replace_root(&mut self, old: &Self::Handle, _key: &str, new: Self::NewNode) {
+        /// `fail_replace_root_for` に含まれるキーは DOM 操作失敗を模擬し、
+        /// `items` を一切変更せず `false` を返す（呼び出し元
+        /// `apply_ops_with_items` が `resync_required` を正しく立てる
+        /// ことを確認するためのフック）。
+        fn replace_root(&mut self, old: &Self::Handle, key: &str, new: Self::NewNode) -> bool {
             self.calls.replace_root += 1;
+            if self.fail_replace_root_for.contains(key) {
+                return false;
+            }
             if let Some(pos) = self.items.iter().position(|k| k == old) {
                 self.items[pos] = new;
             }
+            true
         }
 
         /// `items` への直接の線形走査（実 DOM 呼び出しに相当するものは
@@ -1176,9 +1393,9 @@ mod tests {
             start_index: usize,
             items: Vec<(String, Self::NewNode)>,
             reference: Option<&Self::Handle>,
-        ) {
+        ) -> bool {
             self.inner
-                .insert_before_batch(start_index, items, reference);
+                .insert_before_batch(start_index, items, reference)
         }
         fn move_before(
             &mut self,
@@ -1186,11 +1403,11 @@ mod tests {
             key: &str,
             child: &Self::Handle,
             reference: Option<&Self::Handle>,
-        ) {
-            self.inner.move_before(index, key, child, reference);
+        ) -> bool {
+            self.inner.move_before(index, key, child, reference)
         }
-        fn remove_child(&mut self, child: &Self::Handle) {
-            self.inner.remove_child(child);
+        fn remove_child(&mut self, child: &Self::Handle) -> bool {
+            self.inner.remove_child(child)
         }
         fn sync_attrs(&mut self, child: &Self::Handle, new_attrs: &[(String, String)]) {
             self.inner.sync_attrs(child, new_attrs);
@@ -1201,8 +1418,8 @@ mod tests {
         fn find_by_key(&mut self, key: &str) -> Option<Self::Handle> {
             self.inner.find_by_key(key)
         }
-        fn replace_root(&mut self, old: &Self::Handle, key: &str, new: Self::NewNode) {
-            self.inner.replace_root(old, key, new);
+        fn replace_root(&mut self, old: &Self::Handle, key: &str, new: Self::NewNode) -> bool {
+            self.inner.replace_root(old, key, new)
         }
     }
 
@@ -1336,6 +1553,79 @@ mod tests {
         apply_ops(&mut dom, &new_keys);
 
         assert_eq!(dom.items, new_keys);
+    }
+
+    // --- 実 DOM 操作失敗の未達成反映（イシュー #1340 codex-review P1
+    // 〔3 巡目〕全走査対応。`insert_before_batch`/`move_before`/
+    // `remove_child` の Result 破棄を是正した契約の回帰テスト） ---
+
+    /// `insert_before_batch` が実 DOM 挿入失敗を返した場合、`apply_ops` は
+    /// `false`（未達成）を返し、`items` キャッシュは無変更のまま
+    /// （挿入されていないノードをキャッシュ上だけ「挿入済み」にしない）。
+    #[test]
+    fn apply_ops_returns_false_and_leaves_items_untouched_when_insert_before_batch_fails() {
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            fail_insert_before_batch_for: std::collections::HashSet::from(["b".to_string()]),
+            ..Default::default()
+        };
+        let new_keys = vec!["a".to_string(), "b".to_string()];
+
+        let fully_achieved = apply_ops(&mut dom, &new_keys);
+
+        assert!(
+            !fully_achieved,
+            "挿入失敗があったので全体としては未達成のはず"
+        );
+        assert_eq!(
+            dom.items,
+            vec!["a".to_string()],
+            "挿入失敗時は items キャッシュを一切変更してはならない"
+        );
+    }
+
+    /// `move_before` が実 DOM 移動失敗を返した場合、`apply_ops` は
+    /// `false`（未達成）を返し、対象キーは移動前の位置に残ったまま
+    /// （移動していないのに移動済みとしてキャッシュを更新しない）。
+    #[test]
+    fn apply_ops_returns_false_and_leaves_order_untouched_when_move_before_fails() {
+        let mut dom = CountingDom {
+            items: keys_n(3),
+            fail_move_before_for: std::collections::HashSet::from(["k2".to_string()]),
+            ..Default::default()
+        };
+        let new_keys = vec!["k2".to_string(), "k0".to_string(), "k1".to_string()];
+
+        let fully_achieved = apply_ops(&mut dom, &new_keys);
+
+        assert!(!fully_achieved, "移動失敗があったので未達成のはず");
+        assert_eq!(
+            dom.items,
+            keys_n(3),
+            "移動失敗時は items キャッシュ（並び順）を一切変更してはならない"
+        );
+    }
+
+    /// `remove_child` が実 DOM 削除失敗を返した場合、`apply_ops` は
+    /// `false`（未達成）を返し、対象キーは items キャッシュに残ったまま
+    /// （削除していないのに削除済みとしてキャッシュを更新しない）。
+    #[test]
+    fn apply_ops_returns_false_and_leaves_items_untouched_when_remove_child_fails() {
+        let mut dom = CountingDom {
+            items: keys_n(3),
+            fail_remove_child_for: std::collections::HashSet::from(["k1".to_string()]),
+            ..Default::default()
+        };
+        let new_keys = vec!["k0".to_string(), "k2".to_string()];
+
+        let fully_achieved = apply_ops(&mut dom, &new_keys);
+
+        assert!(!fully_achieved, "削除失敗があったので未達成のはず");
+        assert_eq!(
+            dom.items,
+            keys_n(3),
+            "削除失敗時は items キャッシュから対象キーを取り除いてはならない"
+        );
     }
 
     // --- apply_ops_with_items（イシュー #1324、Update op の DOM 適用） ---
@@ -1828,6 +2118,265 @@ mod tests {
             "ロールバック自体が失敗したため完全復元はできないが（残余 \
              リスクとして許容）、それ以上の破壊（例: built の混入）は \
              起きないはず"
+        );
+    }
+
+    // --- replace_root_node（イシュー #1340 codex-review P1〔3 巡目〕、
+    // ルート要素置換のコミットフェーズ部分失敗ロールバック）---
+
+    /// `RootReplaceDom` の native モック（`char` をノード識別子として使う）。
+    /// `fail_insert`/`fail_remove_old`/`fail_remove_new` で
+    /// `insert_before`/`remove`（`old` 対象）/`remove`（ロールバックの
+    /// `new` 対象）をそれぞれ独立に決定的に失敗させられる（codex-review
+    /// 指摘「insert_before / remove_child それぞれの失敗を注入する
+    /// テストダブル」に対応）。
+    #[derive(Default)]
+    struct VecRootReplace {
+        fail_insert: bool,
+        fail_remove_old: bool,
+        fail_remove_new: bool,
+        inserted: Vec<char>,
+        removed: Vec<char>,
+        rollback_failed_calls: usize,
+    }
+
+    impl RootReplaceDom for VecRootReplace {
+        type Node = char;
+
+        fn insert_before(&mut self, new: &char, _old: &char) -> bool {
+            if self.fail_insert {
+                return false;
+            }
+            self.inserted.push(*new);
+            true
+        }
+
+        fn remove(&mut self, node: &char) -> bool {
+            if *node == 'o' && self.fail_remove_old {
+                return false;
+            }
+            if *node == 'n' && self.fail_remove_new {
+                return false;
+            }
+            self.removed.push(*node);
+            true
+        }
+
+        fn on_rollback_failed(&mut self) {
+            self.rollback_failed_calls += 1;
+        }
+    }
+
+    /// 挿入・除去のいずれも成功した場合、`true` を返し `new` の挿入・
+    /// `old` の除去がちょうど 1 回ずつ行われること（正常系の裏付け）。
+    #[test]
+    fn replace_root_node_succeeds_when_both_operations_succeed() {
+        let mut dom = VecRootReplace::default();
+
+        let achieved = replace_root_node(&mut dom, &'o', &'n');
+
+        assert!(achieved);
+        assert_eq!(dom.inserted, vec!['n']);
+        assert_eq!(dom.removed, vec!['o']);
+        assert_eq!(dom.rollback_failed_calls, 0);
+    }
+
+    /// 新要素の挿入自体が失敗した場合、`old` には一切触れず（`remove` が
+    /// 呼ばれない）`false` を返すこと（codex-review 指摘の再現手順その
+    /// もの: 挿入失敗後に旧要素だけ削除してキーが消滅する不具合の防止）。
+    #[test]
+    fn replace_root_node_leaves_old_untouched_when_insert_fails() {
+        let mut dom = VecRootReplace {
+            fail_insert: true,
+            ..Default::default()
+        };
+
+        let achieved = replace_root_node(&mut dom, &'o', &'n');
+
+        assert!(!achieved);
+        assert!(
+            dom.removed.is_empty(),
+            "挿入が失敗した場合、old の除去を試みてはならない（キー消滅の \
+             防止）"
+        );
+        assert_eq!(dom.rollback_failed_calls, 0);
+    }
+
+    /// 新要素の挿入は成功したが旧要素の除去が失敗した場合、挿入済みの
+    /// `new` を取り除いて挿入前の状態へロールバックし `false` を返すこと
+    /// （codex-review 指摘の再現手順: 挿入成功後の削除失敗による同一キー
+    /// 要素の重複を防ぐ）。
+    #[test]
+    fn replace_root_node_rolls_back_inserted_new_when_remove_old_fails() {
+        let mut dom = VecRootReplace {
+            fail_remove_old: true,
+            ..Default::default()
+        };
+
+        let achieved = replace_root_node(&mut dom, &'o', &'n');
+
+        assert!(!achieved);
+        assert_eq!(dom.inserted, vec!['n'], "new の挿入自体は成功しているはず");
+        assert_eq!(
+            dom.removed,
+            vec!['n'],
+            "old の除去は失敗するため、代わりに挿入済みの new がロール \
+             バックで取り除かれ、old のみが残る状態へ復元されるはず \
+             （old 自体は一度も除去されていないため removed には含まれ \
+             ない）"
+        );
+        assert_eq!(dom.rollback_failed_calls, 0);
+    }
+
+    /// ロールバック手順自体（挿入済み `new` の除去）も失敗した場合、
+    /// `on_rollback_failed` が呼ばれ、`unwrap()`/`panic!` を使わず処理を
+    /// 継続すること（設計書 §6 不変条件 6「残る有限のリスク」と同種の
+    /// 許容）。
+    #[test]
+    fn replace_root_node_reports_rollback_failure_without_panicking() {
+        let mut dom = VecRootReplace {
+            fail_remove_old: true,
+            fail_remove_new: true,
+            ..Default::default()
+        };
+
+        let achieved = replace_root_node(&mut dom, &'o', &'n');
+
+        assert!(!achieved);
+        assert_eq!(
+            dom.rollback_failed_calls, 1,
+            "ロールバック失敗が検知され on_rollback_failed が呼ばれるはず"
+        );
+        assert!(
+            dom.removed.is_empty(),
+            "old も new もいずれも除去できておらず、new が挿入されたまま \
+             old と共存する不定状態が残りうる（残余リスクとして許容）"
+        );
+    }
+
+    /// `apply_ops_with_items` の呼び出し元側（イシュー #1340 codex-review
+    /// P1〔3 巡目〕）: `KeyedListDom::replace_root` が `false`（DOM 操作
+    /// 失敗、`CountingDom::fail_replace_root_for` で模擬）を返した場合、
+    /// `resync_required` が立ち、`items`（ライブ側）が一切変更されない
+    /// こと（`replace_root` が返す `false` を無視して無条件に「達成」と
+    /// キャッシュしてしまう codex-review 指摘の再発防止）。
+    #[test]
+    fn apply_ops_with_items_signals_resync_required_when_replace_root_fails() {
+        let old_items = vec![(
+            "a".to_string(),
+            el("li", vec![("data-key", "a")], vec![text("old")]),
+        )];
+        let new_items = vec![(
+            "a".to_string(),
+            el("div", vec![("data-key", "a")], vec![text("new")]),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            fail_replace_root_for: std::collections::HashSet::from(["a".to_string()]),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "replace_root が false を返した場合、キャッシュを確定させず \
+             再同期を要求するはず"
+        );
+        assert_eq!(
+            dom.items,
+            vec!["a".to_string()],
+            "replace_root 失敗時はライブ側（items）が一切変更されない \
+             はず（CountingDom::replace_root の fail-closed 契約）"
+        );
+        assert_eq!(dom.calls.replace_root, 1);
+    }
+
+    /// `apply_ops_with_items` の `Insert` op で `insert_before_batch` が実
+    /// DOM 挿入失敗を返した場合、`resync_required` が立ち `final_keys` から
+    /// 対象キーが除外され、`items`（ライブ側）が一切変更されないこと
+    /// （イシュー #1340 codex-review P1〔3 巡目〕全走査対応）。
+    #[test]
+    fn apply_ops_with_items_signals_resync_required_when_insert_before_batch_fails() {
+        let old_items: Vec<(String, Node)> = vec![];
+        let new_items = vec![item("a", "new")];
+        let mut dom = CountingDom {
+            items: vec![],
+            fail_insert_before_batch_for: std::collections::HashSet::from(["a".to_string()]),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "insert_before_batch が false を返した場合、キャッシュを確定 \
+             させず再同期を要求するはず"
+        );
+        assert!(
+            outcome.final_keys.is_empty(),
+            "未達成の Insert 対象キーは final_keys から除外されるはず"
+        );
+        assert!(
+            dom.items.is_empty(),
+            "insert_before_batch 失敗時はライブ側（items）が一切変更 \
+             されないはず"
+        );
+    }
+
+    /// `apply_ops_with_items` の `Move` op で `move_before` が実 DOM 移動
+    /// 失敗を返した場合、`resync_required` が立ち `items`（ライブ側の並び）
+    /// が一切変更されないこと（イシュー #1340 codex-review P1〔3 巡目〕
+    /// 全走査対応）。
+    #[test]
+    fn apply_ops_with_items_signals_resync_required_when_move_before_fails() {
+        let old_items = vec![item("a", "a-text"), item("b", "b-text")];
+        let new_items = vec![item("b", "b-text"), item("a", "a-text")];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string(), "b".to_string()],
+            fail_move_before_for: std::collections::HashSet::from(["b".to_string()]),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "move_before が false を返した場合、再同期を要求するはず"
+        );
+        assert_eq!(
+            dom.items,
+            vec!["a".to_string(), "b".to_string()],
+            "move_before 失敗時はライブ側（並び順）が一切変更されない \
+             はず"
+        );
+    }
+
+    /// `apply_ops_with_items` の `Remove` op で `remove_child` が実 DOM
+    /// 削除失敗を返した場合、`resync_required` が立ち `items`（ライブ側）
+    /// から対象キーが取り除かれないこと（イシュー #1340 codex-review P1
+    /// 〔3 巡目〕全走査対応）。
+    #[test]
+    fn apply_ops_with_items_signals_resync_required_when_remove_child_fails() {
+        let old_items = vec![item("a", "a-text")];
+        let new_items: Vec<(String, Node)> = vec![];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            fail_remove_child_for: std::collections::HashSet::from(["a".to_string()]),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "remove_child が false を返した場合、再同期を要求するはず"
+        );
+        assert_eq!(
+            dom.items,
+            vec!["a".to_string()],
+            "remove_child 失敗時はライブ側（items）から対象キーを取り除いて \
+             はならない"
         );
     }
 

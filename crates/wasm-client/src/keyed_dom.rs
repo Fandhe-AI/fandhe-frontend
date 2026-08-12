@@ -151,6 +151,21 @@ fn warn_replace_item_children_rollback_failed() {
     );
 }
 
+/// [`WebSysKeyedDom::replace_root`] のロールバック手順自体（挿入済みの
+/// 新要素を取り除く `remove_child`）が失敗した場合に出す固定英語文言の
+/// 警告（設計書 §6 不変条件 6「残る有限のリスク」と同種、不変条件 7
+/// 〔キー値・アイテム内容を含めない〕、イシュー #1340 codex-review P1
+/// 〔3 巡目〕対応）。`unwrap()`/`panic!` は使わず、当該アイテム 1 件が
+/// 不定状態（旧要素・新要素が同時に存在しうる）になりうることを警告ログ
+/// のみで示し処理を継続する。
+fn warn_replace_root_rollback_failed() {
+    web_sys::console::warn_1(
+        &"fandhe-frontend-wasm-client: keyed_dom failed to roll back a partially applied \
+          root element replacement (structural restoration incomplete for this item)"
+            .into(),
+    );
+}
+
 fn owned_list_item_nodes(list_node: &Node) -> Vec<(String, Node)> {
     let Node::Element { children, .. } = list_node else {
         return Vec::new();
@@ -245,6 +260,11 @@ fn build_dom_node_with_namespace(
             } else {
                 namespace
             };
+            // `.ok()?`（イシュー #1340 codex-review P1〔3 巡目〕全走査で
+            // 正当性を再確認）: `create_element`/`create_element_ns` の
+            // 失敗（不正なタグ名等）は関数冒頭であり、まだ何も構築して
+            // いないためロールバック対象は存在しない。失敗を `?` で即座に
+            // 呼び出し元へ伝播する（本関数「fail-closed」契約と同型）。
             let element = match element_namespace {
                 Some(ns) => document.create_element_ns(Some(ns), tag).ok()?,
                 None => document.create_element(tag).ok()?,
@@ -269,7 +289,17 @@ fn build_dom_node_with_namespace(
                 {
                     continue;
                 }
-                let _ = element.set_attribute(name, value);
+                // 属性書き込み失敗（不正な属性名等の `InvalidCharacterError`
+                // 相当）を無視すると、当該属性が欠落した不完全な要素が
+                // あたかも完全に構築できたかのように呼び出し元へ返り、
+                // `insert_before_batch`/`replace_root`/`replace_item_children`
+                // 等の後続コミット処理がそれを「達成」として確定してしまう
+                // （イシュー #1340 codex-review P1〔3 巡目〕全走査対応）。
+                // `element` は本関数外にまだ一切共有されていない detached
+                // ノードのため、ここで `None` を返すだけで実 DOM への
+                // 副作用は残らない（fail-closed、本関数の「部分木全体を
+                // 構築失敗として伝播する」契約と同型）。
+                element.set_attribute(name, value).ok()?;
             }
             // 子孫のいずれかが `RawHtml`（あるいは要素生成失敗）で `None` を
             // 返した場合、その子だけを無言で読み飛ばさず部分木全体を
@@ -286,7 +316,11 @@ fn build_dom_node_with_namespace(
                 built_children.push(child_node);
             }
             for child_node in &built_children {
-                let _ = element.append_child(child_node);
+                // `element`（親）はここでもまだ detached のため、
+                // `append_child` 失敗時も `None` を返すだけで実 DOM への
+                // 副作用は残らない（上記 `set_attribute` と同じ理由、
+                // イシュー #1340 codex-review P1〔3 巡目〕全走査対応）。
+                element.append_child(child_node).ok()?;
             }
             Some(element.into())
         }
@@ -453,17 +487,27 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         start_index: usize,
         items: Vec<(String, web_sys::Node)>,
         reference: Option<&Element>,
-    ) {
+    ) -> bool {
         let reference_web_node: Option<web_sys::Node> =
             reference.cloned().map(|el| el.unchecked_into());
 
         if items.len() == 1 {
             let (key, node) = items.into_iter().next().expect("len == 1 で確認済み");
-            let _ = self
+            if self
                 .list_element
-                .insert_before(&node, reference_web_node.as_ref());
+                .insert_before(&node, reference_web_node.as_ref())
+                .is_err()
+            {
+                // 実 DOM への挿入自体が失敗（参照要素が既に親から外れて
+                // いた等）。`node` は未挿入のまま破棄されるだけなので DOM
+                // 側の後始末は不要だが、`children` キャッシュは一切更新
+                // しない（トレイト契約「失敗時は DOM・内部キャッシュとも
+                // 無変更」、イシュー #1340 codex-review P1〔3 巡目〕全走査
+                // 対応）。
+                return false;
+            }
             self.cache_inserted_nodes(start_index, vec![(key, node)]);
-            return;
+            return true;
         }
 
         // `document.create_document_fragment()` は `set_inner_html` を
@@ -472,12 +516,28 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         // `create_element`/`create_text_node` で構築済みのノード）。
         let fragment = self.document.create_document_fragment();
         for (_, node) in &items {
-            let _ = fragment.append_child(node);
+            if fragment.append_child(node).is_err() {
+                // fragment はまだ `list_element` に未接続（デタッチ状態）
+                // のため、ここで失敗しても実 DOM（list_element 配下）は
+                // 一切変更されていない。fragment ごと破棄して安全に
+                // fail-closed できる（`children` キャッシュも更新しない）。
+                return false;
+            }
         }
-        let _ = self
+        if self
             .list_element
-            .insert_before(&fragment, reference_web_node.as_ref());
+            .insert_before(&fragment, reference_web_node.as_ref())
+            .is_err()
+        {
+            // fragment の子ノードは仕様上まとめて `list_element` へ移動
+            // する（`insert_before` は成功時に fragment を空にする）ため、
+            // 失敗時は fragment・実 DOM のいずれにもノードが残らず消失
+            // する（未挿入のまま破棄される点は単一要素パスと同じ）。
+            // `children` キャッシュは一切更新しない。
+            return false;
+        }
         self.cache_inserted_nodes(start_index, items);
+        true
     }
 
     fn move_before(
@@ -486,16 +546,25 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         key: &str,
         child: &Element,
         reference: Option<&Element>,
-    ) {
+    ) -> bool {
         // 移動元と移動先参照が同一要素の場合、`insert_before` は no-op
         // （DOM 標準仕様: 挿入前に自身を除去してから挿入するため同一ノード
         // 指定は何も動かさない）。
         let reference_web_node: Option<web_sys::Node> =
             reference.cloned().map(|el| el.unchecked_into());
         let existing_web_node: web_sys::Node = child.clone().unchecked_into();
-        let _ = self
+        if self
             .list_element
-            .insert_before(&existing_web_node, reference_web_node.as_ref());
+            .insert_before(&existing_web_node, reference_web_node.as_ref())
+            .is_err()
+        {
+            // 実 DOM への移動自体が失敗。`insert_before` は単一の DOM
+            // 境界操作であり、失敗時は呼び出し前の状態（`child` は移動前の
+            // 位置のまま）から一切変わらない（DOM 標準仕様）ためロール
+            // バックは不要。`children` キャッシュも一切更新しない（イシュー
+            // #1340 codex-review P1〔3 巡目〕全走査対応）。
+            return false;
+        }
         if let Some(children) = self.children.as_mut() {
             // キャッシュ内の旧位置を `key` の文字列比較で特定する（実 DOM
             // 呼び出しを一切伴わない純粋な `Vec` 走査。ブラウザ API の
@@ -507,10 +576,20 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
             let pos = index.min(children.len());
             children.insert(pos, (key.to_string(), child.clone()));
         }
+        true
     }
 
-    fn remove_child(&mut self, child: &Element) {
-        let _ = self.list_element.remove_child(child);
+    fn remove_child(&mut self, child: &Element) -> bool {
+        if self.list_element.remove_child(child).is_err() {
+            // 実 DOM への削除自体が失敗（`child` が既に `list_element` の
+            // 子でない等）。`child` は実 DOM 上に残ったままのため、
+            // `children` キャッシュを無効化して「削除済み」と誤って扱わ
+            // ないようにする（次回 `child_at` で実 DOM から再構築させる
+            // fail-safe。イシュー #1340 codex-review P1〔3 巡目〕全走査
+            // 対応）。
+            self.children = None;
+            return false;
+        }
         // `diff_keys` は Remove を Move/Insert より必ず先に列挙するため
         // （`keyed_diff` doc 参照）、通常は `children` キャッシュが構築
         // される（最初の `child_at` 呼び出しが起きる）前にここへ到達する。
@@ -519,6 +598,7 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         // （コストは O(n) の再走査 1 回に留まる）誤ったキャッシュを使い
         // 続けて誤挿入位置を返す不整合を防ぐ（fail-safe）。
         self.children = None;
+        true
     }
 
     /// `child` の属性を `new_attrs`（呼び出し元 `keyed_apply::apply_ops_with_items`
@@ -533,6 +613,25 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     /// 多層防御）。属性の追加・更新は [`build_dom_node_with_namespace`] と
     /// 同一の URL スキーム・イベントハンドラ・`srcset` 検証を経由する
     /// （不変条件 1〜4 の Update 経路への継承）。
+    ///
+    /// # Result 破棄の正当化（イシュー #1340 codex-review P1〔3 巡目〕全走査対応）
+    ///
+    /// 内部の `remove_attribute`/`set_attribute` 呼び出しは戻り値
+    /// （`Result`）を破棄する。これは [`crate::keyed_apply::KeyedListDom::sync_attrs`]
+    /// のトレイト doc・本クレート `keyed_apply` モジュール doc「Update op
+    /// の DOM 適用」に明記された設計判断の実装側の反映であり見落としでは
+    /// ない: 本メソッドは既に URL スキーム・イベントハンドラ・`srcset`
+    /// 検証を通過済みの値のみを渡す構成であり、`setAttribute`/
+    /// `removeAttribute` は不正な引数に対して通常 `Err`/例外を投げない
+    /// DOM 標準 API であるため、属性 1 件ごとの失敗検出・逆順ロールバック
+    /// 機構は実装・検証コストに見合わないと判断した（設計書 §6 不変条件 6
+    /// が要求する完全なロールバックの対象外として明示的に許容された残余
+    /// リスク）。`replace_root`/`insert_before_batch`/`move_before`/
+    /// `remove_child` 等、構造（ノードの存在・親子関係）を変える操作の
+    /// 失敗が「達成状態」の恒久的な乖離を招くのとは異なり、属性の
+    /// 部分失敗は次回の `Update` diff で自然に再試行され得る（対象ノード
+    /// 自体は変わらず存在し続けるため、次回 view 適用時に同じ
+    /// `sync_attrs` 呼び出しが再度差分を検出して収束を試みる）。
     fn sync_attrs(&mut self, child: &Element, new_attrs: &[(String, String)]) {
         let attributes = child.attributes();
         let mut current_names: Vec<String> = Vec::new();
@@ -658,23 +757,42 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     /// `remove_child` 呼び出し 2 回、`set_inner_html`/`insert_adjacent_html`
     /// は使わない、モジュール冒頭 doc 不変条件 1・2）。
     ///
-    /// `children` キャッシュ（構築済みの場合）は `old` のエントリを `key`
-    /// で特定し `new` へ差し替える（[`Self::move_before`] と同様、実 DOM を
-    /// 再度問い合わせない純粋な `Vec` 走査で追随更新する）。`new` は
-    /// [`crate::keyed_apply::KeyedListDom::create_item`] が
+    /// `children` キャッシュ（構築済みの場合）は完全成功時のみ `old` の
+    /// エントリを `key` で特定し `new` へ差し替える（[`Self::move_before`]
+    /// と同様、実 DOM を再度問い合わせない純粋な `Vec` 走査で追随更新
+    /// する）。`new` は [`crate::keyed_apply::KeyedListDom::create_item`] が
     /// `build_dom_node_with_namespace` で `Node::Element` から構築した要素
     /// ノードである契約（`create_item` doc 参照）のため `Element` への
     /// ダウンキャストは安全。
-    fn replace_root(&mut self, old: &Element, key: &str, new: web_sys::Node) {
+    ///
+    /// `insert_before`/`remove_child` の `Result` を検査し、部分適用時は
+    /// [`crate::keyed_apply::KeyedListDom::replace_root`] doc「戻り値と
+    /// 部分失敗時の契約」（イシュー #1340 codex-review P1〔3 巡目〕対応）
+    /// が規定する手順でロールバックする（codex-review 指摘: 旧実装は
+    /// 両呼び出しの `Result` を `let _ =` で握りつぶし、挿入失敗後も
+    /// `old` を削除してキーが消滅する・挿入成功後の削除失敗で同一キー
+    /// 要素が重複する、のいずれの部分適用でも無条件に「達成」として
+    /// `children` キャッシュを更新してしまっていた）。
+    fn replace_root(&mut self, old: &Element, key: &str, new: web_sys::Node) -> bool {
         let old_as_node: web_sys::Node = old.clone().unchecked_into();
-        let _ = self.list_element.insert_before(&new, Some(&old_as_node));
-        let _ = self.list_element.remove_child(&old_as_node);
+        // コミット手順の走査本体（部分失敗時のロールバック含む）は
+        // `crate::keyed_apply::replace_root_node` へ切り出し済み
+        // （`RootReplaceDom` trait doc・native テスト
+        // `crate::keyed_apply::tests` 参照）。本メソッドはそれを
+        // `list_element` へ適用する薄いアダプタに徹する。
+        let mut adapter = ListElementRootReplace {
+            list_element: self.list_element,
+        };
+        if !crate::keyed_apply::replace_root_node(&mut adapter, &old_as_node, &new) {
+            return false;
+        }
         if let Some(children) = self.children.as_mut() {
             if let Some(pos) = children.iter().position(|(k, _)| k == key) {
                 let new_element: Element = new.unchecked_into();
                 children[pos] = (key.to_string(), new_element);
             }
         }
+        true
     }
 }
 
@@ -733,6 +851,32 @@ impl crate::keyed_apply::ChildExchangeDom for ElementChildExchange<'_> {
 
     fn on_rollback_failed(&mut self) {
         warn_replace_item_children_rollback_failed();
+    }
+}
+
+/// [`crate::keyed_apply::RootReplaceDom`] の `web-sys` 実装アダプタ
+/// （イシュー #1340 codex-review P1〔3 巡目〕対応）。`list_element`
+/// （keyed list の親要素）に対する `insert_before`/`remove_child` を、
+/// 走査本体（[`crate::keyed_apply::replace_root_node`]）から呼べる薄い形へ
+/// 委譲するだけの構造体（`ElementChildExchange`/`WebSysKeyedDom` と同じ
+/// 「実 DOM 呼び出しをトレイトメソッドへ 1:1 で委譲するだけ」の方針）。
+struct ListElementRootReplace<'a> {
+    list_element: &'a Element,
+}
+
+impl crate::keyed_apply::RootReplaceDom for ListElementRootReplace<'_> {
+    type Node = web_sys::Node;
+
+    fn insert_before(&mut self, new: &web_sys::Node, old: &web_sys::Node) -> bool {
+        self.list_element.insert_before(new, Some(old)).is_ok()
+    }
+
+    fn remove(&mut self, node: &web_sys::Node) -> bool {
+        self.list_element.remove_child(node).is_ok()
+    }
+
+    fn on_rollback_failed(&mut self) {
+        warn_replace_root_rollback_failed();
     }
 }
 
@@ -830,12 +974,33 @@ pub enum KeyedListApplyResult {
 ///
 /// 戻り値は [`KeyedListApplyResult`]（達成 Node の合成規則は同 enum doc
 /// 参照）。
+///
+/// # 契約検証（イシュー #1340 codex-review P1〔3 巡目〕対応）
+///
+/// `previous_list_node`/`new_list_node` はいずれも `keyed_list()` が生成
+/// する `Node::Element`（親要素）である契約（`fandhe_frontend_core::keyed::keyed_list`
+/// 参照）。この契約は DOM 操作を一切開始する**前**に検証し、契約外の形状
+/// （呼び出し元の実装誤りで独自に組み立てた非 `Element` ノード等）が
+/// 渡された場合は DOM に一切触れず [`KeyedListApplyResult::ResyncRequired`]
+/// を返す（fail-closed）。旧実装は検証を「達成 Node」合成時（DOM 操作が
+/// 完了した後）まで遅延させていたため、`new_list_node` が非 `Element` の
+/// 場合に `owned_list_item_nodes` が空列を返し、旧アイテムの `Remove` を
+/// 実際にライブ DOM へ適用したうえで、実 DOM の親要素と一致しない
+/// `new_list_node` をそのまま `Achieved` として返してしまっていた
+/// （codex-review 指摘: 呼び出し元がこれをそのままキャッシュするため
+/// 実 DOM とキャッシュが恒久的に乖離する）。
 pub fn apply_keyed_list_with_previous(
     document: &Document,
     list_element: &Element,
     previous_list_node: &Node,
     new_list_node: &Node,
 ) -> KeyedListApplyResult {
+    if !matches!(previous_list_node, Node::Element { .. })
+        || !matches!(new_list_node, Node::Element { .. })
+    {
+        return KeyedListApplyResult::ResyncRequired;
+    }
+
     let old_items = owned_list_item_nodes(previous_list_node);
     let new_items = owned_list_item_nodes(new_list_node);
     let namespace = list_element.namespace_uri();
@@ -862,19 +1027,20 @@ pub fn apply_keyed_list_with_previous(
 
     // 「達成 Node」を合成する: final_keys の順序で、stale（子ノード構築
     // 失敗で据え置かれた）キーは旧内容、それ以外は新内容を使う。
-    // `new_list_node`/`previous_list_node` はいずれも keyed_list() が
-    // 生成する Node::Element（親要素）である契約
-    // （`fandhe_frontend_core::keyed::keyed_list` 参照）。契約外の形状
-    // （呼び出し元が独自に組み立てた非 Element ノード等）が渡された場合は
-    // 安全側として `new_list_node` をそのまま複製して返す（達成
-    // 判定を諦め、次回呼び出しで再同期させる）。
+    // `new_list_node` が `Node::Element` であることは関数冒頭の契約検証で
+    // 既に保証済みのため、この `else` 分岐は到達しない想定だが
+    // `unwrap()`/`panic!` は使わず（`.claude/rules/coding-rust.md`）、
+    // 冒頭と同じ fail-closed（`ResyncRequired`）で安全側に倒す
+    // （codex-review 指摘: DOM 操作後に契約外ノードをそのまま `Achieved`
+    // として返すと、実 DOM と一致しないノードがキャッシュへ確定して
+    // しまう）。
     let Node::Element {
         tag: parent_tag,
         attrs: parent_attrs,
         ..
     } = new_list_node
     else {
-        return KeyedListApplyResult::Achieved(new_list_node.clone());
+        return KeyedListApplyResult::ResyncRequired;
     };
 
     let old_by_key: std::collections::HashMap<&str, &Node> =
@@ -1201,6 +1367,11 @@ mod tests {
             document.active_element().as_ref() == Some(&input.clone().unchecked_into::<Element>());
 
         // 他テストへの影響を残さないよう後片付けしてから assert する。
+        // テスト専用の best-effort クリーンアップであり
+        // `WebSysKeyedDom::remove_child`（達成状態契約の対象）とは無関係
+        // （イシュー #1340 codex-review P1〔3 巡目〕全走査で確認）。失敗
+        // してもテスト結果の正しさには影響しない（次テストの `document`
+        // 生成・要素配置は独立している前提）。
         let _ = body.remove_child(&list_element);
 
         assert!(
@@ -1447,6 +1618,65 @@ mod tests {
         assert_eq!(
             first_after_reapply.text_content().as_deref(),
             Some("a-as-div")
+        );
+    }
+
+    /// codex-review P1 回帰固定（PR #1340 push 後の再レビュー、イシュー
+    /// #1340）: `new_list_node` が契約外の形状（`Node::Element` でない）の
+    /// 場合、DOM に一切触れず（旧アイテムの `Remove` も実行しない）
+    /// `KeyedListApplyResult::ResyncRequired` を返すこと。修正前は
+    /// `owned_list_item_nodes` が空列を生成し旧アイテムの `Remove` を実際
+    /// に適用したうえで、実 DOM の親要素と一致しない `new_list_node` を
+    /// そのまま `Achieved` として返してしまっていた。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_returns_resync_required_for_non_element_new_list_node() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+
+        let previous = keyed_items(&["a", "b"]);
+        // 契約外の形状（`keyed_list()` を経由しない、Text ノードを
+        // トップレベルとして渡す誤用を模す）。
+        let malformed_new = text("not-a-keyed-list-element");
+
+        let result =
+            apply_keyed_list_with_previous(&document, &list_element, &previous, &malformed_new);
+
+        assert!(
+            matches!(result, KeyedListApplyResult::ResyncRequired),
+            "契約外の new_list_node は ResyncRequired を返すはず（Achieved \
+             として誤ってキャッシュされないようにする）"
+        );
+        assert_eq!(
+            list_element.children().length(),
+            2,
+            "DOM には一切触れておらず、旧アイテムがそのまま残っているはず \
+             （fail-closed。Remove を実行してから ResyncRequired を返す \
+             のではなく、DOM 操作の前に検証する）"
+        );
+    }
+
+    /// 上記と対称のケース: `previous_list_node` 側が契約外の形状の場合も
+    /// 同様に DOM に一切触れず `ResyncRequired` を返すこと。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_returns_resync_required_for_non_element_previous_list_node() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+
+        let malformed_previous = text("not-a-keyed-list-element");
+        let updated_items: Vec<(String, Node)> = vec![
+            ("a".to_string(), li(vec![], vec![text("a")])),
+            ("b".to_string(), li(vec![], vec![text("b")])),
+        ];
+        let updated = keyed_list("ul", vec![], "items", updated_items).unwrap();
+
+        let result =
+            apply_keyed_list_with_previous(&document, &list_element, &malformed_previous, &updated);
+
+        assert!(matches!(result, KeyedListApplyResult::ResyncRequired));
+        assert_eq!(
+            list_element.children().length(),
+            2,
+            "DOM には一切触れておらず、旧アイテムがそのまま残っているはず"
         );
     }
 }

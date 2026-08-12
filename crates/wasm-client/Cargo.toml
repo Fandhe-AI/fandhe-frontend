@@ -141,6 +141,37 @@ categories = ["wasm", "web-programming"]
 # いずれも `pub(crate)` 内部変更のみで公開型・公開シグネチャに変更はない
 # ため、引き続き同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0 へ
 # 吸収させ、追加のバンプは行わない。
+#
+# 同 PR #1340、codex 再レビュー（P1 x2、イシュー #1340・3 巡目）の追加
+# 是正: (1) `WebSysKeyedDom::replace_root`（`keyed_dom.rs`）が
+# `insert_before`/`remove_child` の `Result` を検査せず部分適用を「達成」
+# として返していた不具合を修正した。走査本体を DOM 非依存の
+# [`crate::keyed_apply::RootReplaceDom`] トレイト + `replace_root_node`
+# （いずれも `pub(crate)`）へ切り出し、`replace_item_children`/
+# `exchange_children` と同じ「挿入成功後の削除失敗はロールバック、完全
+# 成功時のみキャッシュ更新」契約を実装した。(2)
+# `apply_keyed_list_with_previous`（`keyed_dom.rs`）が `new_list_node`/
+# `previous_list_node` の形状検証より先に旧アイテムの Remove を実 DOM へ
+# 適用してしまい、非 `Node::Element` を渡すと契約外のノードを
+# `Achieved` として返していた不具合を修正した。DOM 操作前に両ノードの
+# 形状を検証し、`Node::Element` でなければ DOM に一切触れず
+# `KeyedListApplyResult::ResyncRequired` を返す fail-closed 化を追加した。
+# あわせて全走査（`let _ =`/`.ok()` による Result 破棄の総点検）により
+# 同型の見落としだった `KeyedListDom::insert_before_batch`/`move_before`/
+# `remove_child`（`keyed_apply.rs`/`keyed_dom.rs`、いずれも `pub(crate)`）
+# の戻り値を `()` から `bool` へ変更し、実 DOM 操作失敗時は
+# `apply_ops`/`apply_ops_with_items` 側の `fully_achieved`/
+# `resync_required` へ伝播し内部キャッシュ（`children`）を更新しないよう
+# 是正した。`build_dom_node_with_namespace`（`keyed_dom.rs`、detached
+# ノード構築フェーズ）の `set_attribute`/`append_child` 失敗も同様に
+# `None`（構築失敗）として呼び出し元へ伝播するよう是正した（`element` が
+# まだ本関数外へ共有されていない detached ノードのため実 DOM への副作用は
+# 残らない）。`sync_attrs` の属性単位の Result 破棄は本モジュール doc
+# 「Update op の DOM 適用」既定の設計判断（ロールバック省略）の踏襲である
+# ことを `keyed_dom.rs` 側にも明記し、正当化を強化した。いずれも
+# `pub(crate)` 内部変更のみで公開型・公開シグネチャに変更はないため、
+# 引き続き同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0 へ吸収させ、
+# 追加のバンプは行わない。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.3.0" }
 fandhe-frontend-app = { path = "../app", version = "0.2.2" }
