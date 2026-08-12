@@ -227,6 +227,25 @@ pub struct Runtime<C: Component> {
     /// 参照してしまう）。
     binding_table:
         std::rc::Rc<std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>>,
+    /// keyed list field ごとの「直前に DOM へ反映した内容」のキャッシュ
+    /// （イシュー #1324、`KeyedOp::Update` の DOM 適用）。
+    ///
+    /// [`fandhe_frontend_wasm_client::apply_keyed_list_with_previous`] は
+    /// 内容比較付き diff（`Update` を含む）のために直前の
+    /// `fandhe_frontend_core::Node` を要求する。`binding_table` と同じ理由
+    /// （[`Self::wire`]/[`Self::wire_signature_pad`] のクロージャと
+    /// `Runtime` 自身が同じキャッシュを共有する必要がある）で
+    /// `Rc<RefCell<_>>` として保持する。
+    ///
+    /// エントリが無い field（初回・[`Self::rerender_subtree`] による構造
+    /// フォールバック後）は
+    /// [`fandhe_frontend_wasm_client::apply_keyed_list`]（DOM 読み出し
+    /// ベースの構造変化のみの適用、`Update` は発行されない）へフォール
+    /// バックし、適用後にキャッシュへ新規登録する
+    /// （[`Self::apply_update_for_dirty`] 参照）。
+    keyed_list_cache: std::rc::Rc<
+        std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+    >,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -312,6 +331,9 @@ where
         binding_table: std::rc::Rc<
             std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
         >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
     ) -> impl FnMut(events::ActionRef) + 'static {
         move |action_ref: events::ActionRef| {
             let Ok(mut state) = component.try_borrow_mut() else {
@@ -335,7 +357,7 @@ where
                 return;
             }
 
-            Self::apply_update_for_dirty(&state, &root, &binding_table, &dirty);
+            Self::apply_update_for_dirty(&state, &root, &binding_table, &keyed_list_cache, &dirty);
         }
     }
 
@@ -367,11 +389,81 @@ where
     /// `build_dom_node` が `None`（`RawHtml` 混入等、fail-closed）を返す
     /// 場合は既存 DOM を維持したまま固定英語文言で `console::warn` する
     /// （内部状態を含めない、`lib.rs` クレート doc 不変条件 6 と同方針）。
+    /// [`fandhe_frontend_wasm_client::KeyedListApplyResult`] を
+    /// `keyed_list_cache` へ反映する共通処理（`apply_update_for_dirty` の
+    /// with-previous 経路・cache-miss フォールバック経路の双方が使う）。
+    ///
+    /// # ネストした keyed list の field 間キャッシュ無効化（イシュー
+    /// #1340 独立敵対レビュー指摘 A 対応）
+    ///
+    /// `field` は field ごとに独立してキャッシュされるが、`Achieved` が
+    /// 丸ごと新規構築した部分木（`Insert`・タグ変更を伴う `Update`・
+    /// 内容変更の `Update`・親タグ変更）の子孫に**別の** keyed list
+    /// field のマーカーが含まれる場合（ネストした keyed list）、その
+    /// ライブ DOM も同時に新しい状態へ更新されている。しかし
+    /// `keyed_list_cache` はこの副作用を知らないため、当該ネスト field
+    /// のキャッシュが古い内容のまま取り残され、次回その field を dirty
+    /// 処理する際に誤った diff 基準（存在しないキーへの `Update`・重複
+    /// `Insert` 等）を生む（同一 dispatch 内で当該 field が
+    /// `dirty` に含まれない限り顕在化しないが、含まれる場合は処理順序に
+    /// 関わらず必ずここで検知・除去する: ある field を処理した直後に
+    /// その field がネストして含む別 field のキャッシュを毎回無条件で
+    /// 破棄するため、`dirty` 内の処理順序（例: 親 field → 子 field、
+    /// 子 field → 親 field のいずれの順でも）に依存しない）。
+    ///
+    /// `invalidated_nested_fields` に含まれる field は
+    /// `keyed_list_cache` から remove する（fail-closed、`achieved`
+    /// 側と同じ「未達成状態をキャッシュしない」設計、
+    /// `KeyedListApplyResult::Achieved` doc 参照）。次回その field が
+    /// dirty になった際は cache-miss フォールバック（ライブ DOM 読み
+    /// 出し基準、常に正しい）で自己修復する。
+    fn commit_keyed_list_result(
+        field: &'static str,
+        result: fandhe_frontend_wasm_client::KeyedListApplyResult,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) {
+        match result {
+            fandhe_frontend_wasm_client::KeyedListApplyResult::Achieved {
+                node,
+                invalidated_nested_fields,
+            } => {
+                keyed_list_cache
+                    .borrow_mut()
+                    .insert(field.to_string(), node);
+                for nested_field in invalidated_nested_fields {
+                    keyed_list_cache.borrow_mut().remove(&nested_field);
+                }
+            }
+            fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired {
+                invalidated_nested_fields,
+            } => {
+                // 次回は DOM 読み出しベースのフォールバックへ委ねる
+                // （`KeyedListApplyResult` doc 参照）。
+                //
+                // 最終確認レビュー指摘 1（イシュー #1340）対応:
+                // `resync_required` が立つ前に成功していた op で既に
+                // ライブ DOM が変化した部分木に含まれるネスト field も
+                // 同様に無効化する（`Achieved` アームと同じ扱い。
+                // `KeyedListApplyResult::ResyncRequired::
+                // invalidated_nested_fields` doc 参照）。
+                keyed_list_cache.borrow_mut().remove(field);
+                for nested_field in invalidated_nested_fields {
+                    keyed_list_cache.borrow_mut().remove(&nested_field);
+                }
+            }
+        }
+    }
+
     fn apply_update_for_dirty(
         state: &C,
         root: &web_sys::Element,
         binding_table: &std::rc::Rc<
             std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
         >,
         dirty: &[&'static str],
     ) {
@@ -398,11 +490,91 @@ where
                             if let Some(list_node) =
                                 fandhe_frontend_wasm_client::find_keyed_list_node(&view, field)
                             {
-                                fandhe_frontend_wasm_client::apply_keyed_list(
-                                    &document,
-                                    &list_element,
-                                    list_node,
-                                );
+                                // 保持キャッシュが有る field は内容比較付き
+                                // Update 経路（イシュー #1324）、無い field
+                                // （初回・構造フォールバック後）は従来どおり
+                                // DOM 読み出しベースの構造変化のみの適用
+                                // （`Update` は発行されない）へフォールバック
+                                // する（`Runtime::keyed_list_cache` doc 参照）。
+                                let previous = keyed_list_cache.borrow().get(*field).cloned();
+                                match previous {
+                                    Some(previous_node) => {
+                                        let result =
+                                            fandhe_frontend_wasm_client::apply_keyed_list_with_previous(
+                                                &document,
+                                                &list_element,
+                                                &previous_node,
+                                                list_node,
+                                            );
+                                        Self::commit_keyed_list_result(
+                                            field,
+                                            result,
+                                            keyed_list_cache,
+                                        );
+                                    }
+                                    None => {
+                                        // Bugbot 指摘（PR #1340、イシュー
+                                        // #1340）: `apply_keyed_list` の
+                                        // 戻り値（完全達成したか）を見ずに
+                                        // 常時 `list_node`（望ましい view
+                                        // であって実 DOM の達成状態では
+                                        // ない）をキャッシュへ確定させると、
+                                        // `Insert` の構築失敗等で挿入
+                                        // スキップが起きた直後にこの
+                                        // フォールバック経路が誤ったキャッシュ
+                                        // を再シードしてしまい、
+                                        // `apply_keyed_list_with_previous`
+                                        // 側で #1340 P1 対応として導入した
+                                        // 「未達成状態をキャッシュしない」
+                                        // ガード（`ApplyOutcome::
+                                        // resync_required`・
+                                        // `KeyedListApplyResult::
+                                        // ResyncRequired`）が 1 tick 後に
+                                        // 無効化される。完全達成した場合の
+                                        // みキャッシュへ登録し、未達成
+                                        // だった場合はエントリを持たせない
+                                        // （次回もこの `None` 分岐へ入り、
+                                        // 実 DOM の現在状態から再度
+                                        // `apply_keyed_list` で構造フォール
+                                        // バックする自己修復ループになる）。
+                                        //
+                                        // codex-review P1/Bugbot 指摘
+                                        // （イシュー #1340〔10 巡目〕）:
+                                        // `apply_keyed_list` は cache-miss
+                                        // フォールバックでも `Update`
+                                        // （内容比較付き同期）を強制発行する
+                                        // よう是正され、戻り値も `bool` から
+                                        // `Some` 分岐と同じ
+                                        // `KeyedListApplyResult` へ統一
+                                        // された（`fandhe_frontend_wasm_client`
+                                        // 側の設計、`apply_keyed_list` doc
+                                        // 「cache-miss フォールバックの達成
+                                        // 契約」参照）。旧実装は「構造変化が
+                                        // 計画どおり適用できたか」の `bool`
+                                        // のみを見て望ましい view
+                                        // （`list_node.clone()`）をそのまま
+                                        // キャッシュへ確定させていたため、
+                                        // 既存アイテムの内容・親要素の
+                                        // タグ/属性が実際には一切同期されて
+                                        // いないにもかかわらず「達成済み」
+                                        // としてキャッシュされてしまい、
+                                        // 以後差分が出ず未反映のまま恒久的に
+                                        // 収束しなかった。`Some` 分岐と同じ
+                                        // 「実際に DOM へ反映できた内容
+                                        // （`achieved`）のみをキャッシュへ
+                                        // 確定させる」契約へ統一する。
+                                        let result = fandhe_frontend_wasm_client::apply_keyed_list(
+                                            &document,
+                                            &list_element,
+                                            list_node,
+                                        );
+                                        Self::commit_keyed_list_result(
+                                            field,
+                                            result,
+                                            keyed_list_cache,
+                                        );
+                                    }
+                                }
                                 structural_change = true;
                             } else if !has_binding(field) {
                                 unresolved_field = true;
@@ -438,7 +610,7 @@ where
         // 1 件でもあれば、`root` サブツリーを丸ごと差し替える全再描画へ
         // フォールバックする（従来の黙った no-op を解消）。
         if unresolved_field {
-            Self::rerender_subtree(state, root, binding_table);
+            Self::rerender_subtree(state, root, binding_table, keyed_list_cache);
         }
     }
 
@@ -466,6 +638,9 @@ where
         root: &web_sys::Element,
         binding_table: &std::rc::Rc<
             std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
         >,
     ) {
         let Ok(document) = Self::document() else {
@@ -495,6 +670,16 @@ where
         // `apply_dirty`/`has_field` が次回以降の更新で新しい束縛点を参照
         // できるよう対応表を再スキャンする。
         *binding_table.borrow_mut() = fandhe_frontend_wasm_client::BindingTable::scan(root).ok();
+
+        // イシュー #1324: サブツリー差し替え後の keyed list 親要素は新規
+        // DOM ノードであり、直前にキャッシュしていた「達成 Node」との
+        // 対応関係は保証されない（本メソッドは `Self::rerender` からも
+        // 能動的に呼ばれうるため、直近の `apply_update_for_dirty` 呼び出し
+        // との時系列関係を前提にできない）。丸ごとクリアし、次回以降は
+        // `apply_keyed_list`（DOM 読み出しベースのフォールバック）から
+        // 再開させることで実際の DOM 内容との不整合を防ぐ
+        // （`Runtime::keyed_list_cache` doc 参照）。
+        keyed_list_cache.borrow_mut().clear();
     }
 
     /// CSR 経路（`docs/design/wasm-full-architecture.md` 第 3.2 節）。
@@ -524,11 +709,49 @@ where
         let root = Self::get_root(root_id)?;
         dom::mount_initial(&root, &component);
 
+        // イシュー #1324: マウント直後の内容を `keyed_list_cache` の初期
+        // baseline として種付けする。マウント時点では `dirty_fields()` が
+        // 空（`update()` を 1 度も呼んでいない）であり、`Update` 経路の
+        // 内容比較には「直前に DOM へ反映した内容」が必須のため、これを
+        // 怠ると最初の 1 回目の内容変更が Insert/Remove/Move のみを見る
+        // フォールバック（`apply_keyed_list`）へ落ち、キー不変の内容変更が
+        // 反映されない（PR #1324 実装時に実ブラウザテストで検出した回帰。
+        // `Runtime::keyed_list_cache` doc 参照）。
+        //
+        // イシュー #1340 codex-review 全面棚卸し対応: 種付けする Node は
+        // `component.view()` の生出力ではなく
+        // `fandhe_frontend_wasm_client::sanitize_keyed_list_node_for_achieved`
+        // を通した値にする。`dom::mount_initial` が使う
+        // `fandhe_frontend_core::render` は危険 URL スキーム・イベント
+        // ハンドラ属性・不正 `srcset` を実 DOM へ一切書き込まない
+        // （`render` doc 参照）ため、`view()` の生出力をそのまま種付けする
+        // と「実際には書き込まれなかった属性」がキャッシュ上は存在する
+        // 扱いになり、マウント時点から既にキャッシュが実 DOM と乖離した
+        // 状態で始まってしまう（`keyed_list_cache` doc・
+        // `sanitize_keyed_list_node_for_achieved` doc 参照）。
+        let initial_view = component.view();
+        let keyed_list_cache = std::rc::Rc::new(std::cell::RefCell::new(
+            fandhe_frontend_wasm_client::collect_keyed_list_nodes(&initial_view)
+                .into_iter()
+                .map(|(field, node)| {
+                    (
+                        field,
+                        fandhe_frontend_wasm_client::sanitize_keyed_list_node_for_achieved(&node),
+                    )
+                })
+                .collect::<std::collections::HashMap<_, _>>(),
+        ));
+
         let component = std::rc::Rc::new(std::cell::RefCell::new(component));
         let binding_table = std::rc::Rc::new(std::cell::RefCell::new(
             fandhe_frontend_wasm_client::BindingTable::scan(&root).ok(),
         ));
-        let on_action = Self::wire(component.clone(), root.clone(), binding_table.clone());
+        let on_action = Self::wire(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        );
         events::wire_events(root.clone(), on_action)?;
         keynav::wire_keynav(root.clone())?;
         focus_visible::wire_focus_visible(root.clone())?;
@@ -537,12 +760,18 @@ where
         Self::wire_timer(component.clone(), root.clone())?;
         Self::wire_angle_slider(component.clone(), root.clone())?;
         Self::wire_splitter(component.clone(), root.clone())?;
-        Self::wire_signature_pad(component.clone(), root.clone(), binding_table.clone())?;
+        Self::wire_signature_pad(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
 
         Ok(Self {
             component,
             root,
             binding_table,
+            keyed_list_cache,
         })
     }
 
@@ -580,11 +809,43 @@ where
             }
         };
 
+        // イシュー #1324: `Self::mount` と同じ理由で `keyed_list_cache` を
+        // 種付けする。復元成功時（SSR 出力を維持）・CSR フォールバック時
+        // （`dom::mount_initial` 済み）のいずれでも、この時点の
+        // `component.view()` が実際に DOM へ反映されている内容と一致する
+        // （復元成功時は SSR 出力と `view()` が一致する前提が
+        // `Hydrate` 契約そのもの）。
+        //
+        // イシュー #1340 codex-review 全面棚卸し対応: `Self::mount` と同じ
+        // 理由（`sanitize_keyed_list_node_for_achieved` doc 参照）で
+        // `view()` の生出力ではなく正規化済みの値を種付けする。SSR 出力
+        // 維持経路も CSR フォールバック経路（`dom::mount_initial`）も
+        // いずれも `fandhe_frontend_core::render` を経由するため、
+        // 検証拒否対象の属性は実 DOM に一切書き込まれていない
+        // （`render` doc 参照）。
+        let initial_view = component.view();
+        let keyed_list_cache = std::rc::Rc::new(std::cell::RefCell::new(
+            fandhe_frontend_wasm_client::collect_keyed_list_nodes(&initial_view)
+                .into_iter()
+                .map(|(field, node)| {
+                    (
+                        field,
+                        fandhe_frontend_wasm_client::sanitize_keyed_list_node_for_achieved(&node),
+                    )
+                })
+                .collect::<std::collections::HashMap<_, _>>(),
+        ));
+
         let component = std::rc::Rc::new(std::cell::RefCell::new(component));
         let binding_table = std::rc::Rc::new(std::cell::RefCell::new(
             fandhe_frontend_wasm_client::BindingTable::scan(&root).ok(),
         ));
-        let on_action = Self::wire(component.clone(), root.clone(), binding_table.clone());
+        let on_action = Self::wire(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        );
         events::wire_events(root.clone(), on_action)?;
         keynav::wire_keynav(root.clone())?;
         focus_visible::wire_focus_visible(root.clone())?;
@@ -593,12 +854,18 @@ where
         Self::wire_timer(component.clone(), root.clone())?;
         Self::wire_angle_slider(component.clone(), root.clone())?;
         Self::wire_splitter(component.clone(), root.clone())?;
-        Self::wire_signature_pad(component.clone(), root.clone(), binding_table.clone())?;
+        Self::wire_signature_pad(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
 
         Ok(Self {
             component,
             root,
             binding_table,
+            keyed_list_cache,
         })
     }
 
@@ -859,6 +1126,9 @@ where
         binding_table: std::rc::Rc<
             std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
         >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
     ) -> Result<(), wasm_bindgen::JsValue> {
         headless_signature_pad::wire_signature_pad_component(
             root,
@@ -868,13 +1138,20 @@ where
                 // 二重実装を避けるため `Self::apply_update_for_dirty` へ
                 // 委譲する。両者は同じ `dirty_fields()` →
                 // `BindingTable::apply_dirty`/keyed list 差し替え/構造
-                // フォールバックの手順を踏み、対応表キャッシュも共有する。
-                // イシュー #1120 で共通化）。
+                // フォールバックの手順を踏み、対応表キャッシュ・keyed list
+                // キャッシュ（イシュー #1324）も共有する。イシュー #1120
+                // で共通化）。
                 let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
                 if dirty.is_empty() {
                     return;
                 }
-                Self::apply_update_for_dirty(state, updated_root, &binding_table, &dirty);
+                Self::apply_update_for_dirty(
+                    state,
+                    updated_root,
+                    &binding_table,
+                    &keyed_list_cache,
+                    &dirty,
+                );
             },
         )
     }
@@ -919,6 +1196,11 @@ where
         let Ok(state) = self.component.try_borrow() else {
             return;
         };
-        Self::rerender_subtree(&state, &self.root, &self.binding_table);
+        Self::rerender_subtree(
+            &state,
+            &self.root,
+            &self.binding_table,
+            &self.keyed_list_cache,
+        );
     }
 }

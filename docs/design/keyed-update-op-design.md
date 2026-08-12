@@ -544,6 +544,93 @@ Update 適用経路も更新設計書 §9 の既存不変条件をすべて継�
    規則・再同期契約（要再同期信号時は保持を破棄し、対象アイテムの DOM
    ノードを削除してから次回 `apply_keyed_list` の Insert 経路で作り直す）
    をこの不変条件の具体化として維持する。
+9. **ネストした keyed list の field 間キャッシュ無効化（イシュー #1340
+   独立敵対レビュー指摘 A を受けて新設）**: keyed list アイテムの子孫に
+   別の keyed list（`data-bind-list` マーカー）がネストする構成
+   （例: `groups` の各アイテム内に `children`）では、ある field の
+   `Update` 適用（内容変更の子ノード再構築・タグ変更を伴う全置換・親
+   タグ変更のいずれも、アイテムの部分木をまるごと新規構築する）が、
+   ネストした別 field のライブ DOM も同時に新しい状態へ書き換える
+   副作用を持つ。`Runtime::keyed_list_cache` は field ごとに独立した
+   エントリのため、この副作用を知らないまま放置すると、ネストした
+   field の次回 diff 基準（保持 `Node`）が実際のライブ DOM と乖離し、
+   同一 `dispatch` 内で両 field が同時に dirty になった場合に
+   `data-key` の重複挿入等（不変条件 8 の「保持 `Node` は実 DOM と乖離
+   しない」の局所的な違反）を引き起こす。
+   `crate::keyed_apply::ApplyOutcome::invalidated_nested_fields`
+   （部分木をまるごと新規構築した場合にその子孫へ現れた別 field 名を
+   記録）→ `KeyedListApplyResult::Achieved::invalidated_nested_fields`
+   → `Runtime::commit_keyed_list_result`（記録された field を
+   `keyed_list_cache` から即座に remove）の経路でこの副作用を伝播し、
+   ネスト field は次回 dirty 処理時に cache-miss フォールバック
+   （ライブ DOM 読み出し基準、常に正しい）で自己修復する。dirty
+   field の処理順序（親→子・子→親のいずれでも）に関わらず、ある
+   field を処理した直後にその field が丸ごと構築した部分木からネスト
+   field を検出し無条件で無効化するため、順序非依存に成立する。
+10. **`RawHtml` を含むアイテムの keyed list への混入（イシュー #1340
+    security-auditor P1〔可用性〕指摘を受けた既知の挙動明記）**:
+    `keyed_list()`（core）はアイテムルートが `Node::Element` であること
+    のみを検証し、アイテム子孫への `Node::RawHtml` 混入自体は拒否しない
+    （SSR/SSG 専用で keyed list 内に事前サニタイズ済み HTML を
+    `raw_html()` で埋め込み、CSR/`Runtime` を一切マウントしない正当な
+    利用がありうるため。`raw_html()` は core の意図的なエスケープ迂回
+    オプトインであり、CSR 経路の都合で core の受理集合を狭める破壊的
+    変更は行わない）。
+    このため、`Runtime` が実際にマウントされた構成でアイテム子孫に
+    `RawHtml` を含む keyed list を扱うと、当該アイテムの子ノード構築
+    （[`crate::keyed_dom::WebSysKeyedDom::replace_item_children`] が
+    内部で呼ぶ `build_dom_node_with_namespace`）が fail-closed に
+    `false` を返し続け、`ApplyOutcome::stale_update_keys` 経由で
+    `Update` は「達成」（`KeyedListApplyResult::Achieved`、
+    不変条件 6 の子ノード構築失敗時の据え置き契約）として扱われる一方、
+    `previous`（保持 `Node`）を持たない cache-miss フォールバック
+    （`apply_keyed_list`、`old_items` にプレースホルダを使う設計、
+    `crate::keyed_apply` モジュール冒頭 doc「cache-miss フォールバックの
+    達成契約」参照）では、`stale_update_keys` が非空の場合に達成 Node
+    合成自体を行わず `ResyncRequired` を返すガード
+    （`apply_keyed_list_core` の `old_items_are_placeholders` 分岐）が
+    働く。`Runtime` は `ResyncRequired` を受けてキャッシュを remove する
+    ため、当該 field が dirty になるたびに（他アイテムが壊れていなくても
+    プレースホルダ設計により保持キー全件へ `Update` が強制発行される
+    ため）**全アイテムを毎回再構築するコスト（O(n)）が発生し続ける**。
+    このコストは無限ループではなく `dispatch` 頻度に比例して発生する
+    （dirty にならない限り再試行されない）が、フォーカス・IME・スクロール
+    位置の保持（不変条件 3.3）は毎回失われる。恒久的に構築不能な
+    `RawHtml` 混入アイテムを CSR 対象の keyed list へ含めないことを
+    利用者向けガイダンスとして明記する（`raw_html()` を keyed list
+    アイテムの子孫で使う構成は SSR 専用に限定すること）。
+11. **cache-miss フォールバック（one-shot）はフォーカス・入力途中の値の
+    保持（不変条件 3.3）を保証しない（イシュー #1340 最終確認レビュー指摘
+    を受けて新設）**: 不変条件 10 が扱う「`RawHtml` 混入による繰り返し」
+    は cache-miss フォールバック（[`crate::keyed_dom::apply_keyed_list`]、
+    `previous` を持たない one-shot 経路）の一側面に過ぎない。本経路は
+    プレースホルダ `old_items`（[`crate::keyed_apply::
+    synthesize_live_placeholder_items`]）により**保持キー全件へ
+    `Update`（`replace_item_children` による子ノード丸ごと再構築）を
+    強制発行する**設計（イシュー #1340 codex-review P1/Bugbot〔10 巡目〕
+    対応、`apply_keyed_list` doc「cache-miss フォールバックの達成契約」
+    参照）であるため、**恒久的な構築失敗（不変条件 10）が一切無くても**、
+    `new_list_node`（望ましい view）が明示的に持たない子孫（動的に追加
+    された入力欄でフォーカス中の `<input>` 等）は 1 回の呼び出しで消える。
+    これはルート要素自身のノード同一性（アイテム要素そのものは再生成
+    されない、Move-only の典型ケースで成立）とは別の話であり、「内容が
+    変化していない保持アイテムには一切触れない」ことを前提にした
+    フォーカス保持は [`crate::keyed_dom::apply_keyed_list_with_previous`]
+    （通常運用の主経路）でのみ成立する。
+
+    `Runtime::mount`/`Runtime::hydrate` は初回マウント時点で
+    `keyed_list_cache` を（ネストした keyed list を含め）常に種付けする
+    （`Runtime::mount`/`hydrate` の keyed_list_cache 種付けコード・
+    `fandhe_frontend_wasm_client::collect_keyed_list_nodes`〔子孫への
+    再帰を打ち切らない〕参照）ため、cache-miss（one-shot）フォールバック
+    は通常運用（定常状態の dispatch）では発生せず、`ResyncRequired`
+    受領後のキャッシュ破棄・ネストした keyed list の field 間キャッシュ
+    無効化（不変条件 9）・`rerender_subtree` の構造フォールバック
+    （field 非依存の一律クリア）のいずれかを経た**次回の dirty 処理**に
+    限って到達するリカバリ経路である。この整理により、one-shot 経路が
+    保持アイテムの一時状態を破棄することは「収束保証を最優先するリカバリ
+    のコスト」として意図的に許容し、通常運用でのフォーカス喪失の常態化
+    は起こらない。
 
 ## 7. テスト計画（#1323／#1324 受入基準へのマッピング）
 

@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-client"
-version = "0.3.2"
+version = "0.4.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"
@@ -73,6 +73,105 @@ categories = ["wasm", "web-programming"]
 # 0.3.2 が既に未公開ウィンドウ中だった事実を確認したうえで、#1318/#1319 と
 # 同じ「未公開ウィンドウ中の変更相乗り」（`docs/ci/version-bump-publish-order-gap.md`）
 # として 0.3.2 へ本変更を吸収させ、追加のバンプは行わない。
+#
+# イシュー #1324（`KeyedOp::Update` の DOM 適用、`docs/design/keyed-update-op-design.md`
+# 確定設計の実装）: `keyed_diff` を `fandhe_frontend_core::keyed`（`KeyedOp`/
+# `diff_keys`/`diff_keyed_items`、イシュー #1323）の re-export へ置換し、
+# `KeyedListDom` トレイトへ `sync_attrs`/`replace_item_children` を追加、
+# 新規公開 API `apply_keyed_list_with_previous`・公開型
+# `KeyedListApplyResult`・`collect_keyed_list_nodes` を追加した。`KeyedOp`
+# は `fandhe_frontend_core::keyed::KeyedOp` の re-export へ切り替わり
+# variant（`Update`）が増える破壊的変更（設計書 §4.4 の明記どおり）のため
+# マイナーバンプ（0.3.2 → 0.4.0）とする。
+#
+# PR #1340 codex-review P1 対応（イシュー #1324 のフォローアップ、上記
+# 0.4.0 バンプがまだ crates.io へ未公開のウィンドウ中）: `apply_ops`/
+# `apply_ops_with_items`（`keyed_apply.rs`、いずれも非公開）へ「未達成
+# スロットの index 補正」（`index_offset`）と `ApplyOutcome::resync_required`
+# を追加し、`Insert` の構築失敗（`RawHtml` 混入等）後に後続 `Move`/`Insert`
+# が誤った位置へ適用される不具合と、その誤った適用結果を「達成 Node」として
+# キャッシュへ確定させてしまう不具合を修正した。`pub(crate)` 内部変更のみ、
+# および `KeyedListApplyResult::ResyncRequired`（既存 public variant）の
+# doc 更新のみで公開シグネチャ・公開型に変更はないため、#1318/#1319/#1320 と
+# 同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0 へ本変更を吸収させ、
+# 追加のバンプは行わない。
+#
+# 同 PR #1340 への push 後再レビュー（codex P1 + Bugbot Medium x2、イシュー
+# #1340）の追加是正: (1) `apply_ops_with_items`（`keyed_apply.rs`）の
+# `KeyedOp::Update` 処理順序を `sync_attrs` → `replace_item_children` から
+# `replace_item_children` → `sync_attrs`（成功時のみ）へ入れ替え、子ノード
+# 構築失敗時に属性だけ新しい値へ変更済みという不整合状態が実 DOM に残る
+# 不具合を修正した。(2) `apply_ops`（`diff_keys` 経由、実際には `Update` を
+# 発行し得ない）の `KeyedOp::Update` no-op 分岐が `i` を進めておらず、型
+# レベルで構築可能な `Update` 混入 ops を直接注入すると無限ループする
+# 欠陥を修正した。(3) 公開 API `apply_keyed_list`（`keyed_dom.rs`）の戻り値を
+# `()` から `bool`（目標状態への完全到達可否）へ変更し、`apply_ops` にも
+# 同じ戻り値を追加した。`fandhe-frontend-wasm-full` の
+# `Runtime::apply_update_for_dirty` が「保持キャッシュが無い field」経路
+# （`None` 分岐）でこの戻り値を見ずに常時キャッシュへ確定させていたことで、
+# 挿入スキップが発生した回の未達成状態が誤ってキャッシュへ再シードされ、
+# 上記 (1) 系の「未達成状態をキャッシュしない」ガードが 1 tick 後に無効化
+# される不具合（Bugbot 指摘）の是正に必要な変更。戻り値の追加は既存呼び
+# 出し元（本クレート内テスト含む）の互換性を壊さない（非 `#[must_use]` の
+# ため戻り値を無視しても警告にならない）。以上 3 件は `pub(crate)` 内部
+# 変更 + 公開関数 1 件の戻り値追加のみで公開型・既存公開シグネチャの引数は
+# 不変のため、引き続き同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0
+# へ吸収させ、追加のバンプは行わない。
+#
+# 同 PR #1340 push 後の再レビュー（codex P1 x2、イシュー #1340）の追加
+# 是正: (1) `WebSysKeyedDom::replace_item_children`（`keyed_dom.rs`）が
+# `remove_child`/`append_child` の `Result` を検査せず、部分適用（子ノード
+# の一部だけ削除・追加された DOM）を `true`（達成）として返していた不具合
+# を修正した。走査本体を DOM 非依存の [`crate::keyed_apply::ChildExchangeDom`]
+# トレイト + `exchange_children`（いずれも `pub(crate)`）へ切り出し、
+# `docs/design/keyed-update-op-design.md` §6 不変条件 6「子ノード交換」が
+# 規定する構造的原子性（取り外し/取り付けフェーズの部分失敗時、元の構造へ
+# ロールバックしてから未達成として `false` を返す）を実装し、native
+# テストで n 回目の呼び出し失敗を決定的に注入できるようにした。
+# (2) `apply_ops_with_items`（`keyed_apply.rs`）の `KeyedOp::Update` が
+# ルート要素のタグ変更を無視し、既存要素の属性・子ノードのみを書き換えて
+# いたため、同一キーでタグが変わる更新（例: `li` → `div`）が実 DOM に一切
+# 反映されないまま新しい view が Achieved としてキャッシュされ、以後同じ
+# view を再適用しても収束しない不具合を修正した。`diff_keyed_items`
+# （core、§3.1）は新旧 `Node` の `PartialEq` 不一致（タグ差分を含む）のみで
+# `Update` を発行する仕様のまま変更していない（§3.2 c 案の適用側がタグ
+# 変更ケースを扱っていなかった実装ギャップと判断したため）。タグ不一致を
+# 検出した場合は新規 `KeyedListDom::replace_root`（`pub(crate)`）で
+# `Insert` 相当の構築 + 旧ルート要素の差し替え（アイテム全置換）を行う。
+# いずれも `pub(crate)` 内部変更のみで公開型・公開シグネチャに変更はない
+# ため、引き続き同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0 へ
+# 吸収させ、追加のバンプは行わない。
+#
+# 同 PR #1340、codex 再レビュー（P1 x2、イシュー #1340・3 巡目）の追加
+# 是正: (1) `WebSysKeyedDom::replace_root`（`keyed_dom.rs`）が
+# `insert_before`/`remove_child` の `Result` を検査せず部分適用を「達成」
+# として返していた不具合を修正した。走査本体を DOM 非依存の
+# [`crate::keyed_apply::RootReplaceDom`] トレイト + `replace_root_node`
+# （いずれも `pub(crate)`）へ切り出し、`replace_item_children`/
+# `exchange_children` と同じ「挿入成功後の削除失敗はロールバック、完全
+# 成功時のみキャッシュ更新」契約を実装した。(2)
+# `apply_keyed_list_with_previous`（`keyed_dom.rs`）が `new_list_node`/
+# `previous_list_node` の形状検証より先に旧アイテムの Remove を実 DOM へ
+# 適用してしまい、非 `Node::Element` を渡すと契約外のノードを
+# `Achieved` として返していた不具合を修正した。DOM 操作前に両ノードの
+# 形状を検証し、`Node::Element` でなければ DOM に一切触れず
+# `KeyedListApplyResult::ResyncRequired` を返す fail-closed 化を追加した。
+# あわせて全走査（`let _ =`/`.ok()` による Result 破棄の総点検）により
+# 同型の見落としだった `KeyedListDom::insert_before_batch`/`move_before`/
+# `remove_child`（`keyed_apply.rs`/`keyed_dom.rs`、いずれも `pub(crate)`）
+# の戻り値を `()` から `bool` へ変更し、実 DOM 操作失敗時は
+# `apply_ops`/`apply_ops_with_items` 側の `fully_achieved`/
+# `resync_required` へ伝播し内部キャッシュ（`children`）を更新しないよう
+# 是正した。`build_dom_node_with_namespace`（`keyed_dom.rs`、detached
+# ノード構築フェーズ）の `set_attribute`/`append_child` 失敗も同様に
+# `None`（構築失敗）として呼び出し元へ伝播するよう是正した（`element` が
+# まだ本関数外へ共有されていない detached ノードのため実 DOM への副作用は
+# 残らない）。`sync_attrs` の属性単位の Result 破棄は本モジュール doc
+# 「Update op の DOM 適用」既定の設計判断（ロールバック省略）の踏襲である
+# ことを `keyed_dom.rs` 側にも明記し、正当化を強化した。いずれも
+# `pub(crate)` 内部変更のみで公開型・公開シグネチャに変更はないため、
+# 引き続き同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0 へ吸収させ、
+# 追加のバンプは行わない。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.3.0" }
 fandhe-frontend-app = { path = "../app", version = "0.2.2" }
@@ -104,6 +203,13 @@ wasm-bindgen = "0.2"
 # 参照）。既存 web-sys への feature 追加のみであり新規外部クレート追加
 # ではない。`cargo metadata` 実測: パッケージ総数・依存グラフ深さとも
 # feature 追加前後で不変（PR 本文に記録）。
+#
+# イシュー #1324: `KeyedOp::Update`（内容だけが変わった保持アイテム）の
+# 属性同期（`WebSysKeyedDom::sync_attrs`、`keyed_dom.rs`）が、新しい属性
+# 集合に無くなった既存属性を検出するために `Element::attributes()`
+# （`NamedNodeMap`・各エントリ `Attr`）を読む。新規外部クレート追加では
+# なく既存 web-sys の feature 追加のみ（`cargo metadata` の総パッケージ数・
+# 依存グラフ深さに変化がないことを実測確認、PR 本文に記録）。
 [dependencies.web-sys]
 version = "0.3"
 features = [
@@ -119,6 +225,8 @@ features = [
   "Window",
   "DomTokenList",
   "console",
+  "NamedNodeMap",
+  "Attr",
 ]
 
 [lib]

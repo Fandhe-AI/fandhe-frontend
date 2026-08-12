@@ -59,6 +59,13 @@
 //!    `Closure` は `registry`（本ファイル `mod registry`）と同じく
 //!    `forget()` を使わず、`thread_local!` レジストリで key 単位に有界
 //!    保持する。
+//! 9. [`apply_keyed_list_with_previous`]（イシュー #1324、`KeyedOp::Update`
+//!    の DOM 適用）も `set_inner_html`/`insert_adjacent_html` を一切呼ばず、
+//!    `create_element`/`set_text_content`/`setAttribute`/`removeAttribute`
+//!    のみで完結する。`Node::RawHtml` を含む部分木は detached（ライブ DOM
+//!    未挿入）の構築段階で検出し、当該アイテムのみ丸ごと skip する
+//!    （ライブ DOM は一切変更しない、`keyed_apply` モジュール doc
+//!    「Update op の DOM 適用」参照）。
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
@@ -98,7 +105,11 @@ mod keyed_apply;
 #[cfg(target_arch = "wasm32")]
 mod keyed_dom;
 #[cfg(target_arch = "wasm32")]
-pub use keyed_dom::{apply_keyed_list, build_dom_node, find_keyed_list_node, find_list_element};
+pub use keyed_dom::{
+    apply_keyed_list, apply_keyed_list_with_previous, build_dom_node, collect_keyed_list_nodes,
+    find_keyed_list_node, find_list_element, sanitize_keyed_list_node_for_achieved,
+    KeyedListApplyResult,
+};
 
 /// view 外パラメータ付き部分描画（サブツリー再マウント）の safe ヘルパ
 /// （イシュー #1121、`docs/api/hydration-api.md` 第 12 節参照）。
