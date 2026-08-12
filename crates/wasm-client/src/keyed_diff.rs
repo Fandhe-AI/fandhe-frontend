@@ -257,12 +257,13 @@ mod tests {
     }
 
     // --- イシュー #1318: O(n²) 再発検知の一環として、大規模ケースの op 数
-    // 自体を契約化する（ルート issue #1313 が特定した CSR create の
-    // O(n²) コストは `nth_element_child`/`next_element_sibling` の sibling
-    // 走査回数に起因し `diff_keys` 自体は O(n) だが、`diff_keys` が発行する
-    // op 数が想定外に膨らむと `keyed_dom::apply_keyed_list` 側の DOM 操作
-    // コストも連動して膨らむため、まず purely な diff 層で op 数の上限を
-    // 固定しておく）。
+    // 自体を契約化する（ルート issue #1313 が特定した CSR create の旧
+    // O(n²) コストは挿入位置解決（旧 `nth_element_child`、イシュー #1319 で
+    // `KeyedListDom::child_at` の O(1) 参照へ置換済み）の sibling 走査回数に
+    // 起因し `diff_keys` 自体は元々 O(n) だが、`diff_keys` が発行する op 数
+    // が想定外に膨らむと `keyed_apply::apply_ops` 側の DOM 操作コストも
+    // 連動して膨らむため、まず purely な diff 層で op 数の上限を固定して
+    // おく）。
 
     /// 空 → N 行（N=1,000）: Insert がちょうど N 件、index は 0..N の昇順で
     /// 1 つも欠けない（余分な Remove/Move が発生しないこと）。
