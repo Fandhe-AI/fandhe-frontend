@@ -360,20 +360,22 @@ pub enum KeyedOp {
 /// キー重複がある場合（本来は [`keyed_list`] が構築時点で拒否するため到達
 /// しない想定だが、DOM 改ざん等で `old_keys`/`new_keys` 側に重複が混入した
 /// 場合の防御）は、新旧両側とも「最初の 1 件のみを対象とし、無限ループ・
-/// panic を起こさない」fail-closed を保証する。[`remove_pass`] が
-/// `old_keys` 側の同一キーを最初の 1 件のみ `working` へ残し、2 件目以降は
-/// （`new_keys` に存在するか否かに関わらず）無条件に [`KeyedOp::Remove`]
-/// として発行する（イシュー #1336 codex レビュー P1 是正: 旧実装は
-/// `new_keys` の集合会員性のみで `working` へ残す判定をしており、
-/// `old_keys` 側の重複を除去しないままだったため、`new_keys` の要素数ぶん
-/// しか回さない後続パスが余剰の重複ノードを消費し切れず、生成した操作列を
-/// 適用しても旧 DOM に重複ノードが残る不具合があった）。[`insert_or_move_pass`]
-/// は `new_keys` 側の同一キーの 2 件目以降を無条件にスキップし（op を一切
-/// 発行しない）、これにより重複分に対して Insert/Move が二重発行され
-/// 適用後の DOM に同一キーのノードが 2 つ生成される不具合を防ぐ
-/// （イシュー #1336 codex レビュー P1 是正: 旧実装は `new_keys` の重複を
-/// 検出せず全要素を走査していたため、保持キューが枯渇した 2 件目以降が
-/// 誤って [`KeyedOp::Insert`] として発行されていた）。
+/// panic を起こさない」fail-closed を保証する。ただし新旧で「最初の 1 件」
+/// が指す実体は非対称である（イシュー #1336 codex レビュー P1 是正、
+/// 詳細は [`remove_pass`] 参照）: **旧側は最後の出現を保持し、それより前の
+/// 出現をすべて [`KeyedOp::Remove`] として発行する**。[`KeyedOp::Remove`]
+/// は `key` のみを運び、DOM 適用側は `querySelector` 相当の「現時点で最初
+/// に一致するノード」を除去する契約であるため、除去対象を古い出現順に
+/// 発行することで、除去が進むたびに「まだ残っている中の最初の一致」が
+/// 順に消え、最終的に最後の出現だけが残る（先に最初の出現を残す設計だと、
+/// 位置ベースの除去が常に「残っている最初の一致」＝保持すべきノードその
+/// ものを削除してしまい、保持したかった方が消え重複が残ってしまう）。
+/// 一方 **新側は最初の出現を保持し、2 件目以降を無条件にスキップ**する
+/// （op を一切発行しない）。新側の重複は挿入によって新規ノードを作る
+/// だけで既存ノードの物理的な同一性が問題にならないため、位置（`index`）
+/// さえ正規化されていれば最初の出現のみを処理すれば十分である。
+/// [`insert_or_move_pass`] はこの正規化（重複でスキップした要素だけ
+/// `index` のカウントアップをスキップする）も担う。
 ///
 /// `fandhe-frontend-wasm-client`（イシュー #345）が導入した実装をそのまま
 /// 移管したもの（イシュー #1323、`docs/design/keyed-update-op-design.md`
@@ -394,20 +396,48 @@ pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Vec<KeyedOp> {
 ///
 /// `old_keys` 側にキー重複が混入している場合（[`keyed_list`] が構築時点で
 /// 拒否するため通常到達しないが、DOM 改ざん等の防御として想定）は、
-/// `seen_old` で最初の出現のみを `working` へ残し、2 件目以降は
-/// `new_keys` に存在するかに関わらず無条件に [`KeyedOp::Remove`] として
-/// 発行する。これにより `working` は常に「重複を含まない」列になり、
-/// 後続の [`insert_or_move_pass`]（`new_keys` の要素数ぶんしか走査しない）
-/// が余剰ノードを取りこぼさず、適用後の DOM に旧キーの重複ノードが残る
-/// ことを防ぐ（イシュー #1336 codex レビュー P1 是正）。
+/// **最後の出現のみ**を `working` へ残し、それより前の出現はすべて
+/// （`new_keys` に存在するかに関わらず）無条件に [`KeyedOp::Remove`] として
+/// 発行する（イシュー #1336 codex レビュー P1 是正）。
+///
+/// 「最初の 1 件を残す」ではなく「最後の 1 件を残す」を選ぶ理由:
+/// [`KeyedOp::Remove`] は `key` のみを運び、DOM 適用側（テスト用シミュレー
+/// タは [`tests::apply_ops`]）は「現時点で `key` に最初に一致するノード」
+/// を除去する契約になっている（実 DOM の `querySelector` 相当）。重複が
+/// ある間はどの物理ノードも同じキーで一致してしまうため、除去対象を
+/// **古い出現順**（先頭寄り）に発行すれば、1 件除去するたびに「残っている
+/// 中で最初の一致」が入れ替わりながら順に消えていき、最終的に最後の出現
+/// だけが手つかずのまま残る。逆に「最初の出現を残す」設計を採ると、
+/// 最初に発行される Remove が常に「残っている中の最初の一致」＝保持
+/// したかったノードそのものを削除してしまい、削除したかった重複の方が
+/// 残ってしまう（`old=["a","b","a"], new=["a","b"]` で実際に発生し、
+/// 回帰テスト `diff_keys_keeps_last_old_occurrence_of_duplicate_key` が
+/// この事例を固定する）。
+///
+/// これにより `working` は常に「重複を含まない」列になり、後続の
+/// [`insert_or_move_pass`]（`new_keys` の要素数ぶんしか走査しない）が
+/// 余剰ノードを取りこぼさず、適用後の DOM に旧キーの重複ノードが残る
+/// ことを防ぐ。[`diff_keyed_items`] の Update 判定（`old_by_key`）も、
+/// ここで保持されるのが最後の出現であることに合わせて上書き挿入で
+/// 構築する（最初の出現の内容と比較すると、保持されないノードの内容と
+/// 誤って比較してしまう）。
 fn remove_pass(old_keys: &[String], new_keys: &[String], ops: &mut Vec<KeyedOp>) -> Vec<String> {
     let new_set: std::collections::HashSet<&str> = new_keys.iter().map(String::as_str).collect();
-    let mut seen_old: std::collections::HashSet<&str> =
-        std::collections::HashSet::with_capacity(old_keys.len());
+
+    // 各キーの「最後の出現インデックス」を先に求める。ループ中に
+    // 「これ以降その key は二度と現れない」かを判定する必要があるため、
+    // 逆順走査ではなく前方 1 パスで `key -> 最後に出現した index` を
+    // 構築してから本走査に使う。
+    let mut last_index_of: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::with_capacity(old_keys.len());
+    for (index, key) in old_keys.iter().enumerate() {
+        last_index_of.insert(key.as_str(), index);
+    }
 
     let mut working: Vec<String> = Vec::with_capacity(old_keys.len());
-    for key in old_keys {
-        if new_set.contains(key.as_str()) && seen_old.insert(key.as_str()) {
+    for (index, key) in old_keys.iter().enumerate() {
+        let is_last_occurrence = last_index_of.get(key.as_str()) == Some(&index);
+        if new_set.contains(key.as_str()) && is_last_occurrence {
             working.push(key.clone());
         } else {
             ops.push(KeyedOp::Remove { key: key.clone() });
@@ -464,15 +494,30 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
     let mut seen_new: std::collections::HashSet<&str> =
         std::collections::HashSet::with_capacity(new_keys.len());
 
+    // `index`（`new_keys.iter().enumerate()` の生インデックス）ではなく、
+    // 重複でスキップした要素を除いた「出力後の並びでの位置」を
+    // Insert/Move の `index` に使う（イシュー #1336 codex レビュー P1
+    // 是正）。`new_keys` に重複が混入していると、2 件目以降は上の
+    // `seen_new` チェックで op を発行せずスキップするが、生インデックスを
+    // そのまま使うと以降の Insert/Move の `index` に重複分の「隙間」が
+    // 残ってしまい、適用結果が `new_keys` の重複除去後の並び（保持契約
+    // 上の正しい結果）からずれる（例: `old=["b"], new=["a","a","c","b"]`
+    // で生インデックスを使うと `c` が `index: 2` として発行され、適用結果
+    // が `["a","b","c"]` になってしまうが、正しくは `["a","c","b"]`）。
+    // `out_index` は「新側で実際に処理対象となった要素」（マッチ消費・
+    // Move・Insert のいずれか、重複スキップを除く）ごとに 1 ずつ進める。
+    let mut out_index: usize = 0;
+
     if n == 0 {
-        for (index, key) in new_keys.iter().enumerate() {
+        for key in new_keys.iter() {
             if !seen_new.insert(key.as_str()) {
                 continue;
             }
             ops.push(KeyedOp::Insert {
-                index,
+                index: out_index,
                 key: key.clone(),
             });
+            out_index += 1;
         }
         return;
     }
@@ -494,10 +539,10 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
         queue.entry(key.as_str()).or_default().push_back(i);
     }
 
-    for (index, key) in new_keys.iter().enumerate() {
+    for key in new_keys.iter() {
         if !seen_new.insert(key.as_str()) {
-            // 2 件目以降の重複キーは無条件にスキップする（op を発行しない。
-            // 上記コメント参照）。
+            // 2 件目以降の重複キーは無条件にスキップする（op を発行せず、
+            // `out_index` も進めない。上記コメント参照）。
             continue;
         }
 
@@ -508,6 +553,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
                     q.pop_front();
                 }
                 head = next[h];
+                out_index += 1;
                 continue;
             }
         }
@@ -528,15 +574,16 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
                 head = node_next;
             }
             ops.push(KeyedOp::Move {
-                index,
+                index: out_index,
                 key: key.clone(),
             });
         } else {
             ops.push(KeyedOp::Insert {
-                index,
+                index: out_index,
                 key: key.clone(),
             });
         }
+        out_index += 1;
     }
 }
 
@@ -592,15 +639,21 @@ pub fn diff_keyed_items(
     let working = remove_pass(&old_keys, &new_keys, &mut ops);
     insert_or_move_pass(working, &new_keys, &mut ops);
 
-    // 第 3 パス: 保持キー（重複混入時も old_items 側の最初の 1 件のみを
-    // 対象とする fail-closed、diff_keys と同じ防御）を new_items 順に
-    // 走査し、新旧 Node が不一致のときのみ Update を発行する。
-    // `old_by_key` は最初に出現したキーのみを記録する（重複混入時に後続の
-    // 同名キーで上書きしないことで「最初の 1 件のみを対象」を維持する）。
+    // 第 3 パス: 保持キー（重複混入時も `remove_pass` と同じ fail-closed
+    // 防御を適用）を new_items 順に走査し、新旧 Node が不一致のときのみ
+    // Update を発行する。
+    // `old_by_key` は**最後に出現したキー**で上書きしながら記録する
+    // （`entry().or_insert()` ではなく `insert()`）。`remove_pass` が
+    // `old_items` 側の重複キーのうち保持する（`working` に残す）のは
+    // 最後の出現であるため（イシュー #1336 codex レビュー P1 是正、理由は
+    // `remove_pass` rustdoc 参照）、Update 判定の比較対象も同じ「最後の
+    // 出現」の内容でなければならない。最初の出現の内容と比較すると、
+    // 実際には保持されない（Remove される）ノードの内容と誤って比較して
+    // しまい、Update の要否判定を誤る。
     let mut old_by_key: std::collections::HashMap<&str, &Node> =
         std::collections::HashMap::with_capacity(old_items.len());
     for (key, node) in old_items {
-        old_by_key.entry(key.as_str()).or_insert(node);
+        old_by_key.insert(key.as_str(), node);
     }
 
     let mut seen_new_keys: std::collections::HashSet<&str> =
@@ -1064,8 +1117,9 @@ mod tests {
             .any(|op| matches!(op, KeyedOp::Move { key, .. } if key == "d")));
     }
 
-    /// 重複キーが混入していても panic せず、先頭の 1 件のみを対象に処理する
-    /// （DOM 改ざん等の異常系に対する fail-closed 防御、本モジュール doc 参照）。
+    /// 重複キーが混入していても panic しない（DOM 改ざん等の異常系に対する
+    /// fail-closed 防御、本モジュール doc 参照。旧側は最後の出現のみを
+    /// 対象とする非対称な扱いになる理由は [`remove_pass`] の doc 参照）。
     #[test]
     fn diff_keys_does_not_panic_on_duplicate_keys_in_old() {
         let old = keys(&["a", "a", "b"]);
@@ -1076,14 +1130,17 @@ mod tests {
 
     /// `old_keys` に発行された [`KeyedOp`] 列を素朴に適用し、結果のキー列
     /// を返す（実 DOM 適用の代わりに `Vec<String>` 上でシミュレートする
-    /// テスト専用ヘルパー）。
+    /// テスト専用ヘルパー）。`Remove`/`Move` の `key` ベースの検索は
+    /// 「現時点で最初に一致する要素」を対象とする（実 DOM の
+    /// `querySelector` 相当の位置ベース照合を模す。`key` だけでは重複時に
+    /// 物理ノードを一意に特定できないため、`remove_pass` は除去対象を
+    /// 古い出現順に発行し最後の出現だけが残るよう op 列側で辻褄を合わせて
+    /// いる。詳細は [`remove_pass`] の doc 参照）。
     fn apply_ops(old_keys: &[String], ops: &[KeyedOp]) -> Vec<String> {
         let mut result: Vec<String> = old_keys.to_vec();
         for op in ops {
             match op {
                 KeyedOp::Remove { key } => {
-                    // 重複キー混入時も「最初の 1 件のみ」を除去する
-                    // （remove_pass と同じ意味論をシミュレートする）。
                     if let Some(pos) = result.iter().position(|k| k == key) {
                         result.remove(pos);
                     }
@@ -1137,6 +1194,32 @@ mod tests {
         assert_eq!(applied, new);
     }
 
+    /// 回帰（PR #1336 codex レビュー P1 是正）: 重複キーが `working` の
+    /// 途中・末尾に挟まる（先頭以外の位置に最後の出現がある）場合でも、
+    /// 「最初の出現を残す」設計だと Remove が `position()` で常に「残って
+    /// いる中の最初の一致」＝保持したかったノードそのものを削除してしまい、
+    /// 適用結果が `new_keys` と一致しなくなる（`key` のみが `apply_ops` の
+    /// 入力である `Vec<String>` 上でも観測できる、実 DOM の node identity
+    /// 問題を必要としない再現）。`old=["a","b","a"], new=["a","b"]` は
+    /// 「最初の出現を残す」旧設計だと `ops=[Remove{a}]` を適用して
+    /// `["a","b","a"]` → `["b","a"]` となり `new` と一致しない。最後の
+    /// 出現を残す現設計では `ops=[Remove{a}, Move{index:0,key:"a"}]` を
+    /// 適用して `["a","b","a"]` → (Remove) `["b","a"]` → (Move) `["a","b"]`
+    /// となり一致する。
+    #[test]
+    fn diff_keys_keeps_last_old_occurrence_of_duplicate_key() {
+        let old = keys(&["a", "b", "a"]);
+        let new = keys(&["a", "b"]);
+
+        let ops = diff_keys(&old, &new);
+        let applied = apply_ops(&old, &ops);
+
+        assert_eq!(
+            applied, new,
+            "重複キーの保持対象は最後の出現でなければならない: ops={ops:?}"
+        );
+    }
+
     /// 回帰（PR #1336 codex レビュー P1 是正）: `new_keys` 側に重複キーが
     /// 混入していても、2 件目以降に対して [`KeyedOp::Insert`] を発行しない
     /// （最初の 1 件のみを対象とする fail-closed 契約）。
@@ -1181,6 +1264,68 @@ mod tests {
         assert_eq!(
             insert_count_for_a, 1,
             "重複キー \"a\" に対する Insert は 1 件のみのはず: {ops:?}"
+        );
+    }
+
+    /// 回帰（PR #1336 codex レビュー P1 是正、`n == 0` 分岐の index 補正
+    /// 漏れ）: `old_keys` が空のまま `new_keys` 側に重複キーが挟まると、
+    /// スキップした重複分だけ後続 Insert の `index` に「隙間」が残って
+    /// はならない。`insert_or_move_pass_from_empty_old_normalizes_index`
+    /// と同じ契約を `n == 0` 分岐（`old_keys` が空）側で固定する。
+    /// `apply_ops` は `index` を `result.len()` へ `.min()` でクランプする
+    /// ため、この index ずれは `Insert` の個数・キーだけを見るテストでは
+    /// 検知できず op の `index` フィールドを直接検証する必要がある。
+    #[test]
+    fn diff_keys_duplicate_new_key_from_empty_old_normalizes_index() {
+        let old: Vec<String> = vec![];
+        let new = keys(&["a", "a", "c", "b"]);
+
+        let ops = diff_keys(&old, &new);
+
+        assert_eq!(
+            ops,
+            vec![
+                KeyedOp::Insert {
+                    index: 0,
+                    key: "a".to_string(),
+                },
+                KeyedOp::Insert {
+                    index: 1,
+                    key: "c".to_string(),
+                },
+                KeyedOp::Insert {
+                    index: 2,
+                    key: "b".to_string(),
+                },
+            ],
+            "重複でスキップした要素の分だけ後続 Insert の index を詰めるはず: {ops:?}"
+        );
+
+        let applied = apply_ops(&old, &ops);
+        assert_eq!(applied, keys(&["a", "c", "b"]));
+    }
+
+    /// 回帰（PR #1336 codex レビュー P1 是正）: `new_keys` 側の重複キーを
+    /// スキップした際に後続 Insert/Move の `index` がずれない（重複でない
+    /// 通常経路、`n > 0` 側）ことを固定する。`old=["b"], new=["a","a","c",
+    /// "b"]` は、`index` を生の走査位置のまま使う旧実装だと `c` が
+    /// `index: 2` として発行され、適用結果が `["a","b","c"]` になって
+    /// しまう（正しくは `["a","c","b"]`）。
+    #[test]
+    fn diff_keys_duplicate_new_key_normalizes_index_of_later_inserts() {
+        let old = keys(&["b"]);
+        let new = keys(&["a", "a", "c", "b"]);
+
+        let ops = diff_keys(&old, &new);
+        let applied = apply_ops(&old, &ops);
+
+        // new_keys 側の重複は最初の 1 件のみを対象とする fail-closed
+        // 契約のため、適用結果は new から 2 個目の "a" を除いた重複除去後
+        // の並びと一致する（"a" の 2 個目は Insert 自体が発行されない）。
+        assert_eq!(
+            applied,
+            keys(&["a", "c", "b"]),
+            "重複でスキップした要素の分だけ後続 Insert/Move の index を詰めるはず: ops={ops:?}"
         );
     }
 
@@ -1479,6 +1624,38 @@ mod tests {
 
         // panic しないことのみを確認する（重複時の正確な操作列は未規定）。
         let _ = diff_keyed_items(&old, &new);
+    }
+
+    /// 回帰（PR #1336 codex レビュー P1 是正）: `old_items` 側にキーが
+    /// 重複していても、保持される（`working` に残る）のは最後の出現
+    /// であるため、Update 判定の比較対象（`old_by_key`）も同じ「最後の
+    /// 出現」の内容でなければならない。`old=[("a",v1),("a",v2)],
+    /// new=[("a",v1)]` は、最初の出現（v1）と比較する旧設計だと新旧が
+    /// 一致していると誤判定して `Update` を発行せず、`Remove` で v1 が
+    /// 消えて実際には残る v2 が古い内容のまま放置される。最後の出現
+    /// （v2）と正しく比較する現設計では、`Remove` で v1 が消えたあと
+    /// 残る v2 の内容が `new` の要求する v1 と食い違うため `Update` が
+    /// 発行される。
+    #[test]
+    fn diff_keyed_items_compares_last_old_occurrence_for_update_detection() {
+        let old = vec![item("a", "v1"), item("a", "v2")];
+        let new = vec![item("a", "v1")];
+
+        let ops = diff_keyed_items(&old, &new);
+
+        assert_eq!(
+            ops,
+            vec![
+                KeyedOp::Remove {
+                    key: "a".to_string()
+                },
+                KeyedOp::Update {
+                    key: "a".to_string()
+                },
+            ],
+            "保持される最後の出現（v2）が new の要求する内容（v1）と \
+             食い違うため Update が必要: {ops:?}"
+        );
     }
 
     /// 重複キー混入（new 側）でも panic しない（対称的な fail-closed 防御）。
