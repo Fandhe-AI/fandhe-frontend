@@ -63,6 +63,16 @@ categories = ["wasm", "web-programming"]
 # 吸収させ、追加のバンプは行わない（`docs/ci/version-bump-publish-order-gap.md`
 # の「未公開ウィンドウ中の変更相乗り」に相当。0.3.0 → 0.3.1 の変更内容と
 # して非破壊）。
+#
+# イシュー #1320（連続 Insert の DocumentFragment 集約）: `keyed_apply.rs`
+# の `KeyedListDom::insert_before` を `insert_before_batch` へ置換し、
+# `keyed_dom.rs` の `WebSysKeyedDom` に `DocumentFragment` 経由の一括挿入を
+# 実装した。`pub(crate)` トレイトの内部変更のみで `apply_keyed_list` の
+# 公開シグネチャ・`keyed_diff` の公開型は不変のため、実装時点
+# （2026-08-12 時点、crates.io 公開済み最新は 0.3.0）で in-repo version
+# 0.3.2 が既に未公開ウィンドウ中だった事実を確認したうえで、#1318/#1319 と
+# 同じ「未公開ウィンドウ中の変更相乗り」（`docs/ci/version-bump-publish-order-gap.md`）
+# として 0.3.2 へ本変更を吸収させ、追加のバンプは行わない。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.3.0" }
 fandhe-frontend-app = { path = "../app", version = "0.2.2" }
@@ -86,10 +96,19 @@ wasm-bindgen = "0.2"
 # 呼ばない。このため `HtmlCollection` feature を製品面へ追加する必要は
 # なく（dev-dependencies.web-sys 側は既存のブラウザテスト用途のまま）、
 # 新規外部クレート追加・feature 追加のいずれも発生していない。
+#
+# イシュー #1320（連続 Insert 区間の DocumentFragment 集約）: 新規構築
+# ノードが 2 件以上連続する `Insert` 区間を `Document::create_document_fragment()`
+# で構築した `DocumentFragment` へまとめてから 1 回の `insert_before` で
+# 実 DOM へ適用する（`keyed_dom.rs` の `WebSysKeyedDom::insert_before_batch`
+# 参照）。既存 web-sys への feature 追加のみであり新規外部クレート追加
+# ではない。`cargo metadata` 実測: パッケージ総数・依存グラフ深さとも
+# feature 追加前後で不変（PR 本文に記録）。
 [dependencies.web-sys]
 version = "0.3"
 features = [
   "Document",
+  "DocumentFragment",
   "Element",
   "Event",
   "EventTarget",

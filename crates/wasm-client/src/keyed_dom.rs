@@ -9,6 +9,17 @@
 //! `insert_before` のみで行う（既存 DOM ノードを再生成しないことが
 //! フォーカス・入力途中の値の保持に直結する、設計書 §5.3）。
 //!
+//! 連続する `Insert`（新規構築ノード）は `DocumentFragment` へ集約して
+//! 1 回の `insert_before` で挿入する（イシュー #1320。`WebSysKeyedDom::insert_before_batch`
+//! 参照）。fragment は**新規構築ノード専用**であり、既存 DOM ノードは
+//! 決して fragment を経由しない: `DocumentFragment` へ `append_child` した
+//! 時点でその子は元のドキュメントツリーから切り離される（DOM 標準仕様）
+//! ため、既存ノードを fragment 経由で移動すると現在の親から一旦除去され
+//! フォーカス・入力途中の値が失われる。既存ノードの移動は
+//! `WebSysKeyedDom::move_before` が個別に `insert_before` するのみで
+//! fragment を一切使わない設計を維持する（フォーカス保持の不変条件、
+//! 設計書 §5.3）。
+//!
 //! `fandhe_frontend_core::Node::RawHtml` を含む部分木は `web_sys::console` へ
 //! 英語固定文言の警告を出したうえで、その `RawHtml` ノードを含む部分木
 //! **全体**を構築失敗（`None`）として呼び出し元へ伝播する（本経路に
@@ -321,28 +332,60 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         build_dom_node_with_namespace(self.document, node, self.namespace)
     }
 
-    fn insert_before(
+    /// 連続 Insert 区間（[`crate::keyed_apply::apply_ops`] が検出した
+    /// `start_index` から連続する新規ノード列）を実 DOM へ適用する
+    /// （イシュー #1320）。
+    ///
+    /// `items.len() == 1` の場合は従来どおり `list_element.insert_before`
+    /// を直接 1 回呼ぶ（`DocumentFragment` 生成の分だけオーバーヘッドが
+    /// 増える単発挿入・keyed list 更新シナリオでの退行を避けるための分岐、
+    /// `KeyedListDom::insert_before_batch` doc の旧 `insert_before` と
+    /// 同一挙動）。`items.len() >= 2` の場合は `Document::create_document_fragment`
+    /// で構築した `DocumentFragment` へ各ノードを `append_child` し、
+    /// `list_element.insert_before(&fragment, reference)` を 1 回だけ呼ぶ
+    /// ことで、連続 Insert 区間 1 件あたりの JS 境界呼び出しを件数分から
+    /// 1 回へ集約する（性能改善の本体、`_/bench` 変種実測で fragment 方式が
+    /// 有意に高速だったことが動機、イシュー #1313 ベンチ起点）。
+    /// `DocumentFragment` へ `append_child` した時点でその子はドキュメント
+    /// ツリーから切り離される（DOM 標準仕様）ため、`items` に**新規構築
+    /// ノードのみ**を渡す契約（[`crate::keyed_apply::KeyedListDom::insert_before_batch`]
+    /// doc 参照）が破られると既存ノードのフォーカス・入力途中の値が失われる。
+    /// 本メソッドは `create_item` が返した新規ノードのみを受け取る
+    /// `apply_ops` からしか呼ばれないためこの契約は構造的に保たれる
+    /// （既存ノードの移動は [`Self::move_before`] が個別に `list_element`
+    /// 上で直接 `insert_before` するのみで、fragment を一切経由しない）。
+    /// `set_inner_html`/`insert_adjacent_html` はここでも一切使わない
+    /// （モジュール冒頭 doc 不変条件 1・2）。
+    fn insert_before_batch(
         &mut self,
-        index: usize,
-        key: &str,
-        node: web_sys::Node,
+        start_index: usize,
+        items: Vec<(String, web_sys::Node)>,
         reference: Option<&Element>,
     ) {
         let reference_web_node: Option<web_sys::Node> =
             reference.cloned().map(|el| el.unchecked_into());
+
+        if items.len() == 1 {
+            let (key, node) = items.into_iter().next().expect("len == 1 で確認済み");
+            let _ = self
+                .list_element
+                .insert_before(&node, reference_web_node.as_ref());
+            self.cache_inserted_nodes(start_index, vec![(key, node)]);
+            return;
+        }
+
+        // `document.create_document_fragment()` は `set_inner_html` を
+        // 経由しない構造的な DOM ノード集約手段であり、既定エスケープ
+        // 迂回経路にはならない（挿入内容はいずれも `create_item` が
+        // `create_element`/`create_text_node` で構築済みのノード）。
+        let fragment = self.document.create_document_fragment();
+        for (_, node) in &items {
+            let _ = fragment.append_child(node);
+        }
         let _ = self
             .list_element
-            .insert_before(&node, reference_web_node.as_ref());
-        if let Some(children) = self.children.as_mut() {
-            // `node` は `build_dom_node_with_namespace` が `Node::Element`
-            // から構築した要素ノード（`create_item` の契約、`keyed_dom`
-            // モジュール doc 不変条件 4 参照）であり `Element` へのダウン
-            // キャストは安全。以降は実 DOM を問い合わせない純粋な `Vec`
-            // 操作のみでキャッシュを追随させる。
-            let element: Element = node.unchecked_into();
-            let pos = index.min(children.len());
-            children.insert(pos, (key.to_string(), element));
-        }
+            .insert_before(&fragment, reference_web_node.as_ref());
+        self.cache_inserted_nodes(start_index, items);
     }
 
     fn move_before(
@@ -384,6 +427,28 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         // （コストは O(n) の再走査 1 回に留まる）誤ったキャッシュを使い
         // 続けて誤挿入位置を返す不整合を防ぐ（fail-safe）。
         self.children = None;
+    }
+}
+
+impl WebSysKeyedDom<'_> {
+    /// [`crate::keyed_apply::KeyedListDom::insert_before_batch`] 実装が
+    /// 実 DOM へ適用した挿入結果を `children` キャッシュへ追随させる
+    /// （キャッシュ未構築なら no-op、[`Self::child_at`] doc 参照。トレイト
+    /// 非公開のヘルパーのため本 struct の inherent メソッドとして持つ）。
+    fn cache_inserted_nodes(&mut self, start_index: usize, items: Vec<(String, web_sys::Node)>) {
+        let Some(children) = self.children.as_mut() else {
+            return;
+        };
+        let start = start_index.min(children.len());
+        for (pos, (key, node)) in (start..).zip(items) {
+            // `node` は `build_dom_node_with_namespace` が `Node::Element`
+            // から構築した要素ノード（`create_item` の契約、`keyed_dom`
+            // モジュール doc 不変条件 4 参照）であり `Element` へのダウン
+            // キャストは安全。以降は実 DOM を問い合わせない純粋な `Vec`
+            // 操作のみでキャッシュを追随させる。
+            let element: Element = node.unchecked_into();
+            children.insert(pos, (key, element));
+        }
     }
 }
 
@@ -632,5 +697,137 @@ mod tests {
 
         let path = svg_element.query_selector("path").unwrap().unwrap();
         assert_eq!(path.namespace_uri().as_deref(), Some(SVG_NAMESPACE));
+    }
+
+    // --- 連続 Insert の DocumentFragment 集約（イシュー #1320） ---
+
+    /// 既存 `[a,b]` の中間へ連続 3 件を挿入すると、`DocumentFragment` 経由
+    /// でも並びが正当であり、既存ノードは同一参照のまま保たれること
+    /// （fragment 集約が既存ノードへ触れないことの実ブラウザ回帰固定）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_inserts_multiple_consecutive_items_via_fragment() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+        let existing_a = list_element.first_element_child().unwrap();
+        let existing_b = list_element.children().item(1).unwrap();
+
+        let new_tree = keyed_items(&["a", "x", "y", "z", "b"]);
+        apply_keyed_list(&document, &list_element, &new_tree);
+
+        assert_eq!(list_element.children().length(), 5);
+        let keys: Vec<Option<String>> = (0..5)
+            .map(|i| {
+                list_element
+                    .children()
+                    .item(i)
+                    .unwrap()
+                    .get_attribute(KEY_ATTR)
+            })
+            .collect();
+        assert_eq!(
+            keys,
+            vec![
+                Some("a".to_string()),
+                Some("x".to_string()),
+                Some("y".to_string()),
+                Some("z".to_string()),
+                Some("b".to_string()),
+            ],
+            "fragment 集約後も新旧ノードの並びは逐次挿入と同じであるはず"
+        );
+        assert!(
+            existing_a.is_same_node(Some(&list_element.first_element_child().unwrap())),
+            "既存ノード a は fragment 経由の挿入で再生成されず同一参照のまま \
+             のはず"
+        );
+        assert!(
+            existing_b.is_same_node(Some(&list_element.children().item(4).unwrap())),
+            "既存ノード b も同一参照のまま保たれるはず"
+        );
+    }
+
+    /// フォーカス保持の直接証跡: 既存アイテム内の `input` へフォーカスした
+    /// 状態で連続 Insert（`DocumentFragment` 集約経路）を適用しても、
+    /// フォーカスは同一要素に残ったままであること（既存ノードは fragment
+    /// を経由しないという設計上の不変条件、`keyed_dom` モジュール doc
+    /// 参照、の実ブラウザ回帰固定）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_preserves_focus_across_fragment_batched_insert() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+        // `Element::focus()` は要素がドキュメントツリーに接続されていない
+        // と効かない（ブラウザ仕様）ため、テスト対象の `list_element` を
+        // 一時的に `document.body` へ接続する。
+        let body = document.body().unwrap();
+        body.append_child(&list_element).unwrap();
+
+        // "a" 項目内に input を追加してフォーカス対象にする。
+        let existing_a = list_element.first_element_child().unwrap();
+        let input = document.create_element("input").unwrap();
+        existing_a.append_child(&input).unwrap();
+        let input_element: web_sys::HtmlElement = input.clone().unchecked_into();
+        input_element.focus().unwrap();
+        assert_eq!(
+            document.active_element().as_ref(),
+            Some(&input.clone().unchecked_into::<Element>()),
+            "テスト前提: input へフォーカスできていること"
+        );
+
+        // "a" の直後（中間）へ連続 2 件挿入する: フォーカス中の要素は
+        // 移動対象ではなく再構築対象でもないため、fragment 集約経路に
+        // 一切関与しないはず。
+        let new_tree = keyed_items(&["a", "x", "y", "b"]);
+        apply_keyed_list(&document, &list_element, &new_tree);
+
+        let focus_preserved =
+            document.active_element().as_ref() == Some(&input.clone().unchecked_into::<Element>());
+
+        // 他テストへの影響を残さないよう後片付けしてから assert する。
+        let _ = body.remove_child(&list_element);
+
+        assert!(
+            focus_preserved,
+            "連続 Insert 適用後もフォーカスは同一要素に残ったままのはず \
+             （fragment 集約は既存ノードへ触れない不変条件の回帰固定）"
+        );
+    }
+
+    /// SVG keyed list への連続複数件挿入でも、fragment 経由の挿入で
+    /// 各要素が SVG 名前空間のまま生成されること（`build_dom_node_with_namespace`
+    /// の名前空間引き継ぎが fragment 経路でも壊れていないことの回帰固定）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_inserts_multiple_svg_children_via_fragment_in_svg_namespace() {
+        let document = doc();
+        let list_element = document
+            .create_element_ns(Some(SVG_NAMESPACE), "svg")
+            .unwrap();
+        list_element
+            .set_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "strokes")
+            .unwrap();
+
+        let items: Vec<(String, Node)> = vec![
+            (
+                "0".to_string(),
+                el("path", vec![("d", "M0.00,0.00 L1.00,1.00")], vec![]),
+            ),
+            (
+                "1".to_string(),
+                el("path", vec![("d", "M1.00,1.00 L2.00,2.00")], vec![]),
+            ),
+        ];
+        let new_tree = keyed_list("svg", vec![], "strokes", items).unwrap();
+        apply_keyed_list(&document, &list_element, &new_tree);
+
+        let paths = list_element.query_selector_all("path").unwrap();
+        assert_eq!(paths.length(), 2, "2 件の <path> がいずれも挿入されるはず");
+        for i in 0..paths.length() {
+            let path: Element = paths.get(i).unwrap().unchecked_into();
+            assert_eq!(
+                path.namespace_uri().as_deref(),
+                Some(SVG_NAMESPACE),
+                "fragment 経由で挿入された <path> も SVG 名前空間のままの \
+                 はず"
+            );
+        }
     }
 }
