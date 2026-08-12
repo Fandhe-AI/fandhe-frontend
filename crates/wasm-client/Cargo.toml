@@ -117,6 +117,30 @@ categories = ["wasm", "web-programming"]
 # 変更 + 公開関数 1 件の戻り値追加のみで公開型・既存公開シグネチャの引数は
 # 不変のため、引き続き同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0
 # へ吸収させ、追加のバンプは行わない。
+#
+# 同 PR #1340 push 後の再レビュー（codex P1 x2、イシュー #1340）の追加
+# 是正: (1) `WebSysKeyedDom::replace_item_children`（`keyed_dom.rs`）が
+# `remove_child`/`append_child` の `Result` を検査せず、部分適用（子ノード
+# の一部だけ削除・追加された DOM）を `true`（達成）として返していた不具合
+# を修正した。走査本体を DOM 非依存の [`crate::keyed_apply::ChildExchangeDom`]
+# トレイト + `exchange_children`（いずれも `pub(crate)`）へ切り出し、
+# `docs/design/keyed-update-op-design.md` §6 不変条件 6「子ノード交換」が
+# 規定する構造的原子性（取り外し/取り付けフェーズの部分失敗時、元の構造へ
+# ロールバックしてから未達成として `false` を返す）を実装し、native
+# テストで n 回目の呼び出し失敗を決定的に注入できるようにした。
+# (2) `apply_ops_with_items`（`keyed_apply.rs`）の `KeyedOp::Update` が
+# ルート要素のタグ変更を無視し、既存要素の属性・子ノードのみを書き換えて
+# いたため、同一キーでタグが変わる更新（例: `li` → `div`）が実 DOM に一切
+# 反映されないまま新しい view が Achieved としてキャッシュされ、以後同じ
+# view を再適用しても収束しない不具合を修正した。`diff_keyed_items`
+# （core、§3.1）は新旧 `Node` の `PartialEq` 不一致（タグ差分を含む）のみで
+# `Update` を発行する仕様のまま変更していない（§3.2 c 案の適用側がタグ
+# 変更ケースを扱っていなかった実装ギャップと判断したため）。タグ不一致を
+# 検出した場合は新規 `KeyedListDom::replace_root`（`pub(crate)`）で
+# `Insert` 相当の構築 + 旧ルート要素の差し替え（アイテム全置換）を行う。
+# いずれも `pub(crate)` 内部変更のみで公開型・公開シグネチャに変更はない
+# ため、引き続き同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0 へ
+# 吸収させ、追加のバンプは行わない。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.3.0" }
 fandhe-frontend-app = { path = "../app", version = "0.2.2" }

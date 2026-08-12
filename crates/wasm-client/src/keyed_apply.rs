@@ -210,6 +210,125 @@ pub(crate) trait KeyedListDom {
     /// [`crate::keyed_dom::WebSysKeyedDom`] は `child_at` と同じ `children`
     /// キャッシュを共有する）。
     fn find_by_key(&mut self, key: &str) -> Option<Self::Handle>;
+
+    /// `old`（キー `key` の既存要素）を `new`（[`Self::create_item`] が
+    /// 構築済みの新規ノード）へ置き換える（[`KeyedOp::Update`] のうち
+    /// **ルート要素のタグ自体が変わる**ケース専用、イシュー #1340
+    /// codex-review P1〔2 巡目〕対応）。
+    ///
+    /// [`Self::sync_attrs`]/[`Self::replace_item_children`]（「浅い
+    /// in-place 更新」）はルート要素自体の DOM ノード同一性維持を前提と
+    /// するが、タグ自体が変わる場合は `Element.tagName` が不変（DOM 標準
+    /// 仕様）のためノード同一性を維持したままの更新が原理的に不可能
+    /// （`setAttribute` でタグ名は変更できない）。この場合は `Insert` と
+    /// 同様に新規ノードを構築してから `old` の位置へ差し替える（`old` を
+    /// 直前の参照点として使うため index 解決は不要）。
+    ///
+    /// 実装は `new` を `old` の直前へ挿入したうえで `old` を取り除くこと
+    /// （順序を保ったまま置き換える）。既存の `Handle` 索引（`web-sys`
+    /// 実装ではキー付き `Vec` キャッシュ）を持つ実装は、`old` のエントリを
+    /// `new` へ差し替えて追随更新すること。
+    fn replace_root(&mut self, old: &Self::Handle, key: &str, new: Self::NewNode);
+}
+
+/// [`KeyedListDom::replace_item_children`]（子ノード列交換）のコミット
+/// フェーズの下位 DOM 操作を抽象化するトレイト（イシュー #1340
+/// codex-review P1〔2 巡目〕対応）。
+///
+/// [`KeyedListDom`] と同じ「純粋層 + wasm32 配線層」の 2 層構成方針
+/// （本モジュール doc 参照）をもう一段適用したもの: `replace_item_children`
+/// の部分失敗時ロールバック（`docs/design/keyed-update-op-design.md` §6
+/// 不変条件 6「子ノード交換」）は個々の `remove_child`/`insert_before`
+/// 呼び出しの成否を判定しながら分岐する非自明なアルゴリズムであり、
+/// native `cargo test` から到達できない `web-sys` 実装（`crate::keyed_dom::WebSysKeyedDom`）
+/// 内に直接書くと「n 回目の呼び出しだけ失敗する」ケースを決定的に注入
+/// できない。本トレイトへ抽象化し、走査本体を [`exchange_children`] へ
+/// 切り出すことで、`#[cfg(test)]` のモック実装から任意の呼び出し回数目を
+/// 失敗させて復元手順の回帰を固定できる。
+pub(crate) trait ChildExchangeDom {
+    /// 交換対象のノード（`web-sys` 実装では `web_sys::Node`）。
+    type Node: Clone + PartialEq;
+
+    /// 現在のライブ子ノード列を、一切変更せず出現順のまま読み出す
+    /// （ロールバックの復元先として保持するための事前読み取り。副作用を
+    /// 持たない）。
+    fn current_children(&mut self) -> Vec<Self::Node>;
+
+    /// `node` を親から取り除く。失敗した場合 `false`
+    /// （`Node::removeChild`相当、失敗しうる `web_sys` 呼び出し）。
+    fn remove_child(&mut self, node: &Self::Node) -> bool;
+
+    /// `node` を `reference`（`None` なら末尾）の直前へ挿入する。失敗した
+    /// 場合 `false`（`Node::insertBefore` 相当。`reference` が `None` の
+    /// 呼び出しは `appendChild` と等価、DOM 標準仕様）。
+    fn insert_before(&mut self, node: &Self::Node, reference: Option<&Self::Node>) -> bool;
+
+    /// ロールバック手順自体（`remove_child`/`insert_before` の逆操作）が
+    /// 失敗した場合に呼ばれる（設計書 §6 不変条件 6「残る有限のリスク」）。
+    /// 既定は no-op（native モックはログ出力不要）。`web-sys` 実装は固定
+    /// 英語文言の警告ログ（不変条件 7）を出す。
+    fn on_rollback_failed(&mut self) {}
+}
+
+/// [`ChildExchangeDom`] を介して `dom` の現在の子ノード列を `built`
+/// （構築済みの新しい子ノード列）へ交換する（`docs/design/keyed-update-op-design.md`
+/// §6 不変条件 6「子ノード交換」の構造的原子性の実装本体、イシュー #1340
+/// codex-review P1〔2 巡目〕対応）。
+///
+/// 呼び出し元（[`KeyedListDom::replace_item_children`]）は「新しい子ノード
+/// 列を detached な状態で先に構築し、構築が全件成功した場合にのみ本関数を
+/// 呼ぶ」契約を満たすこと（構築フェーズの失敗は本関数の対象外、旧稿から
+/// 不変）。本関数はコミットフェーズ（ライブ DOM への `remove_child`/
+/// `insert_before` の実適用）のみを担う:
+///
+/// 1. 旧子ノード列を（一切変更せず）読み出す。
+/// 2. 旧子ノードを先頭から順に取り外す。`i` 件目で失敗した場合、既に
+///    取り外し済みの `0..i` 件を、まだ付いたままの `i` 件目（取り外しに
+///    失敗したノード自身、ルート要素に残っている未取り外し suffix の
+///    先頭）の直前へ元の順序で再度取り付け、`false` を返す
+///    （`append_child`〔末尾追加〕では suffix の後ろへ回り込み元の順序が
+///    壊れるため使わない）。
+/// 3. 旧子ノードの取り外しをすべて終えた後、新子ノード（`built`）を先頭
+///    から順に取り付ける。`j` 件目で失敗した場合、既に取り付け済みの
+///    `0..j` 件を取り除き、保持しておいた旧子ノード列を元の順序で再度
+///    取り付け、`false` を返す。
+/// 4. 全件成功した場合のみ `true` を返す。
+///
+/// ロールバック自体（`insert_before`/`remove_child` の逆操作）が失敗する
+/// 残余リスクは [`ChildExchangeDom::on_rollback_failed`] を経由して
+/// `web-sys` 実装が警告ログを出す（設計書 §6 不変条件 6「残る有限の
+/// リスク」、本関数自体は `unwrap()`/`panic!` を使わずベストエフォートで
+/// 処理を継続する）。
+pub(crate) fn exchange_children<D: ChildExchangeDom>(dom: &mut D, built: &[D::Node]) -> bool {
+    let old_children = dom.current_children();
+
+    for (i, old_child) in old_children.iter().enumerate() {
+        if !dom.remove_child(old_child) {
+            for removed in &old_children[..i] {
+                if !dom.insert_before(removed, Some(old_child)) {
+                    dom.on_rollback_failed();
+                }
+            }
+            return false;
+        }
+    }
+
+    for (j, node) in built.iter().enumerate() {
+        if !dom.insert_before(node, None) {
+            for appended in &built[..j] {
+                if !dom.remove_child(appended) {
+                    dom.on_rollback_failed();
+                }
+            }
+            for old in &old_children {
+                if !dom.insert_before(old, None) {
+                    dom.on_rollback_failed();
+                }
+            }
+            return false;
+        }
+    }
+    true
 }
 
 /// コンテナ直下の子から現在の `data-key` 列を読み出す
@@ -541,9 +660,9 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     continue;
                 };
                 let Node::Element {
+                    tag: new_tag,
                     attrs: new_attrs,
                     children: new_children,
-                    ..
                 } = new_node
                 else {
                     // keyed list アイテムは keyed_list() 構築時点で
@@ -553,6 +672,42 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     resync_required = true;
                     continue;
                 };
+
+                // codex-review P1 対応（PR #1340 push 後の再レビュー、
+                // イシュー #1340）: ルート要素のタグ一致を検証する。
+                // `diff_keyed_items`（core、`docs/design/keyed-update-op-design.md`
+                // §3.1）は新旧 `Node` の `PartialEq` 不一致（タグ差分を含む
+                // 部分木全体の構造比較）のみで `Update` を発行し、タグの
+                // 一致は前提としない。一方 §3.2 c 案「浅い in-place 更新」は
+                // ルート要素自体の DOM ノード同一性維持（`sync_attrs`/
+                // `replace_item_children` はいずれもタグを一切書き換え
+                // ない）を前提とした適用方式であり、`Element.tagName` は
+                // DOM 標準仕様上不変のためタグ変更を伴う更新はこの前提が
+                // 構造的に成り立たない。タグが不一致の場合は「浅い
+                // in-place 更新」を諦め、`Insert` と同じ構築手順（[`KeyedListDom::create_item`]）
+                // で新規ルート要素を構築してから [`KeyedListDom::replace_root`]
+                // で旧ルート要素と差し替える（アイテム全置換、§3.2 却下案 a
+                // と同じ手段だが対象はタグ変更が実際に起きたこの 1 アイテム
+                // のみに限定される）。この経路により、旧タグのまま Achieved
+                // として確定されてしまい以後の同一 view 再適用で差分が出ず
+                // 収束しない不具合（codex-review 指摘）を解消する。
+                let old_tag_matches = old_items.iter().find(|(k, _)| k == &key).is_some_and(
+                    |(_, old_node)| matches!(old_node, Node::Element { tag, .. } if tag == new_tag),
+                );
+                if !old_tag_matches {
+                    let Some(new_dom_node) = dom.create_item(&key) else {
+                        // 構築失敗（`RawHtml` 混入等）。旧ルート要素には
+                        // 一切触れない fail-closed（`create_item` の既存
+                        // 契約と同じ）。旧タグのまま残る事実の検出は次回
+                        // 診断（`resync_required` による構造フォール
+                        // バック）へ委ねる。
+                        resync_required = true;
+                        continue;
+                    };
+                    dom.replace_root(&existing, &key, new_dom_node);
+                    continue;
+                }
+
                 // codex-review P1 対応（PR #1340、イシュー #1340）: 子ノード
                 // 構築（`replace_item_children`）を**先に**試み、成功した
                 // 場合にのみ `sync_attrs` を呼ぶ。旧実装は `sync_attrs` を
@@ -652,6 +807,7 @@ mod tests {
         sync_attrs: usize,
         replace_item_children: usize,
         find_by_key: usize,
+        replace_root: usize,
     }
 
     impl CallCounts {
@@ -678,6 +834,7 @@ mod tests {
                 + self.sync_attrs
                 + self.replace_item_children
                 + self.find_by_key
+                + self.replace_root
         }
     }
 
@@ -778,6 +935,17 @@ mod tests {
             }
             self.children.insert(child.clone(), new_children.to_vec());
             true
+        }
+
+        /// `Handle`/`NewNode` がともに `String`（key そのもの）であるため、
+        /// `old` を `new` へ置き換えるのは `items` 内の該当位置の値を
+        /// 差し替えるだけで表現できる（`old` の位置を保ったまま `new` へ
+        /// 差し替える契約、`replace_root` トレイト doc 参照）。
+        fn replace_root(&mut self, old: &Self::Handle, _key: &str, new: Self::NewNode) {
+            self.calls.replace_root += 1;
+            if let Some(pos) = self.items.iter().position(|k| k == old) {
+                self.items[pos] = new;
+            }
         }
 
         /// `items` への直接の線形走査（実 DOM 呼び出しに相当するものは
@@ -1032,6 +1200,9 @@ mod tests {
         }
         fn find_by_key(&mut self, key: &str) -> Option<Self::Handle> {
             self.inner.find_by_key(key)
+        }
+        fn replace_root(&mut self, old: &Self::Handle, key: &str, new: Self::NewNode) {
+            self.inner.replace_root(old, key, new);
         }
     }
 
@@ -1414,6 +1585,249 @@ mod tests {
             vec!["b".to_string(), "a".to_string()],
             "index_offset 補正により、x を除いた正しい並び [b, a] へ \
              収束するはず（apply_ops と同じ補正規則）"
+        );
+    }
+
+    /// codex-review P1 回帰固定（PR #1340 push 後の再レビュー、イシュー
+    /// #1340）: 同一キーでルート要素のタグが変わる `KeyedOp::Update`
+    /// （`li` → `div`）は「浅い in-place 更新」（`sync_attrs`/
+    /// `replace_item_children`）を経由せず、`create_item` + `replace_root`
+    /// （アイテム全置換）で処理されること。`sync_attrs`/
+    /// `replace_item_children` が一切呼ばれないこと（タグを書き換えられない
+    /// 経路が誤って使われていないことの直接確認）・`replace_root` がちょうど
+    /// 1 回呼ばれること・`stale_update_keys`/`resync_required` のいずれも
+    /// 立たない（新規構築のためこの回で完全達成している）ことを確認する。
+    #[test]
+    fn apply_ops_with_items_replaces_root_when_update_changes_tag() {
+        let old_items = vec![(
+            "a".to_string(),
+            el("li", vec![("data-key", "a")], vec![text("old")]),
+        )];
+        let new_items = vec![(
+            "a".to_string(),
+            el("div", vec![("data-key", "a")], vec![text("new")]),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert_eq!(
+            dom.calls.replace_root, 1,
+            "タグ変更は replace_root（アイテム全置換）でちょうど 1 回 \
+             処理されるはず（内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.calls.sync_attrs, 0,
+            "タグ変更を伴う Update は「浅い in-place 更新」経路 \
+             （sync_attrs）を経由してはならない（内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.calls.replace_item_children, 0,
+            "タグ変更を伴う Update は replace_item_children も経由しては \
+             ならない（内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(dom.calls.create_item, 1);
+        assert!(
+            outcome.stale_update_keys.is_empty(),
+            "新規構築による全置換のため stale 扱いにはならないはず"
+        );
+        assert!(
+            !outcome.resync_required,
+            "構築が成功した場合は完全達成のため再同期は不要のはず"
+        );
+        assert_eq!(outcome.final_keys, vec!["a".to_string()]);
+    }
+
+    /// 上記のタグ変更ケースで、新しい要素の構築自体が失敗（`RawHtml`
+    /// 混入相当）した場合は、旧ルート要素に一切触れず（fail-closed）
+    /// `resync_required` を立てること。
+    #[test]
+    fn apply_ops_with_items_signals_resync_required_when_tag_change_construction_fails() {
+        let old_items = vec![(
+            "a".to_string(),
+            el("li", vec![("data-key", "a")], vec![text("old")]),
+        )];
+        let new_items = vec![(
+            "a".to_string(),
+            el("div", vec![("data-key", "a")], vec![text("new")]),
+        )];
+        let mut dom = PoisonedCreateDom {
+            inner: CountingDom {
+                items: vec!["a".to_string()],
+                ..Default::default()
+            },
+            poisoned_key: "a".to_string(),
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "構築失敗時は再同期を要求するはず（旧タグのまま残る事実を \
+             final_keys だけからは判別できないため）"
+        );
+        assert_eq!(
+            dom.inner.items,
+            vec!["a".to_string()],
+            "構築失敗時はライブ側に一切変更が起きないはず（fail-closed）"
+        );
+        assert_eq!(dom.inner.calls.replace_root, 0);
+    }
+
+    // --- exchange_children（イシュー #1340 codex-review P1〔2 巡目〕、
+    // 子ノード交換のコミットフェーズ部分失敗ロールバック）---
+
+    /// `ChildExchangeDom` の native モック（`char` を子ノード識別子として
+    /// 使う `Vec` ベースの実装）。`fail_remove_at`/`fail_insert_at`
+    /// （0-origin の呼び出し回数目）で任意の `remove_child`/`insert_before`
+    /// 呼び出しを決定的に失敗させられる（codex-review 指摘「n 回目の
+    /// append_child を失敗させるテストダブル」に対応。`insert_before` は
+    /// `reference: None` の呼び出しが `append_child` 相当、トレイト doc
+    /// 参照）。
+    #[derive(Default)]
+    struct VecChildExchange {
+        children: Vec<char>,
+        fail_remove_at: Option<usize>,
+        fail_insert_at: Option<usize>,
+        remove_calls: usize,
+        insert_calls: usize,
+        rollback_failed_calls: usize,
+    }
+
+    impl ChildExchangeDom for VecChildExchange {
+        type Node = char;
+
+        fn current_children(&mut self) -> Vec<char> {
+            self.children.clone()
+        }
+
+        fn remove_child(&mut self, node: &char) -> bool {
+            let call_index = self.remove_calls;
+            self.remove_calls += 1;
+            if self.fail_remove_at == Some(call_index) {
+                return false;
+            }
+            if let Some(pos) = self.children.iter().position(|c| c == node) {
+                self.children.remove(pos);
+            }
+            true
+        }
+
+        fn insert_before(&mut self, node: &char, reference: Option<&char>) -> bool {
+            let call_index = self.insert_calls;
+            self.insert_calls += 1;
+            if self.fail_insert_at == Some(call_index) {
+                return false;
+            }
+            let pos = match reference {
+                Some(r) => self
+                    .children
+                    .iter()
+                    .position(|c| c == r)
+                    .unwrap_or(self.children.len()),
+                None => self.children.len(),
+            };
+            self.children.insert(pos, *node);
+            true
+        }
+
+        fn on_rollback_failed(&mut self) {
+            self.rollback_failed_calls += 1;
+        }
+    }
+
+    /// 旧子ノード取り外しフェーズの `i` 件目（0-origin）で `remove_child`
+    /// が失敗した場合、既に取り外し済みの `0..i` 件が、まだ付いたままの
+    /// `i` 件目の直前へ元の順序で再度取り付けられ、構造が Update 適用開始
+    /// 前の状態へ完全に復元されること（`docs/design/keyed-update-op-design.md`
+    /// §6 不変条件 6「取り外しフェーズでの失敗」の回帰固定）。
+    #[test]
+    fn exchange_children_restores_old_structure_when_nth_remove_fails() {
+        let mut dom = VecChildExchange {
+            children: vec!['a', 'b', 'c'],
+            fail_remove_at: Some(1), // 2 件目（'b'）の remove_child が失敗
+            ..Default::default()
+        };
+        let built = vec!['x', 'y'];
+
+        let achieved = exchange_children(&mut dom, &built);
+
+        assert!(!achieved, "部分失敗時は false（未達成）を返すはず");
+        assert_eq!(
+            dom.children,
+            vec!['a', 'b', 'c'],
+            "取り外し済み分がロールバックにより元の順序で復元され、\
+             構造は Update 適用開始前と一致するはず"
+        );
+        assert_eq!(
+            dom.rollback_failed_calls, 0,
+            "ロールバック自体は成功しているはず"
+        );
+    }
+
+    /// 旧子ノードの取り外しをすべて終えた後、新子ノード `j` 件目
+    /// （0-origin）の `insert_before`（`append_child` 相当）が失敗した
+    /// 場合、追加済み `0..j` 件を取り除き、保持しておいた旧子ノード列が
+    /// 元の順序で再度取り付けられること（設計書 §6 不変条件 6「取り付け
+    /// フェーズでの失敗」の回帰固定）。
+    #[test]
+    fn exchange_children_restores_old_structure_when_nth_append_fails() {
+        let mut dom = VecChildExchange {
+            children: vec!['a', 'b'],
+            fail_insert_at: Some(1), // 2 件目（'y'）の insert_before が失敗
+            ..Default::default()
+        };
+        let built = vec!['x', 'y', 'z'];
+
+        let achieved = exchange_children(&mut dom, &built);
+
+        assert!(!achieved, "部分失敗時は false（未達成）を返すはず");
+        assert_eq!(
+            dom.children,
+            vec!['a', 'b'],
+            "追加済み新子ノードが取り除かれ、旧子ノード列が元の順序で \
+             再度取り付けられ、構造は Update 適用開始前と一致するはず"
+        );
+        assert_eq!(
+            dom.rollback_failed_calls, 0,
+            "ロールバック自体は成功しているはず"
+        );
+    }
+
+    /// ロールバック手順自体（取り外し済みノードの再取り付け）が失敗する
+    /// 残余リスク（設計書 §6 不変条件 6「残る有限のリスク」）が発生した
+    /// 場合、`on_rollback_failed` が呼ばれ、当該アイテムの構造が不定状態
+    /// （部分的にしか復元されない）になりうることを許容すること。
+    #[test]
+    fn exchange_children_reports_rollback_failure_without_panicking() {
+        let mut dom = VecChildExchange {
+            children: vec!['a', 'b', 'c'],
+            fail_remove_at: Some(1), // 'b' の remove_child が失敗
+            fail_insert_at: Some(0), // ロールバックの再取り付けも失敗
+            ..Default::default()
+        };
+        let built = vec!['x'];
+
+        let achieved = exchange_children(&mut dom, &built);
+
+        assert!(!achieved);
+        assert_eq!(
+            dom.rollback_failed_calls, 1,
+            "ロールバック失敗が検知され on_rollback_failed が呼ばれるはず \
+             （`unwrap()`/`panic!` を使わず処理を継続する）"
+        );
+        assert_eq!(
+            dom.children,
+            vec!['b', 'c'],
+            "ロールバック自体が失敗したため完全復元はできないが（残余 \
+             リスクとして許容）、それ以上の破壊（例: built の混入）は \
+             起きないはず"
         );
     }
 
