@@ -359,8 +359,15 @@ pub enum KeyedOp {
 ///
 /// キー重複がある場合（本来は [`keyed_list`] が構築時点で拒否するため到達
 /// しない想定だが、DOM 改ざん等で `old_keys` 側に重複が混入した場合の防御）
-/// は、`working` 側の探索を「未処理の先頭要素」に限定することで最初の 1 件
-/// のみを対象とし、無限ループ・panic を起こさない（fail-closed）。
+/// は、[`remove_pass`] が `old_keys` 側の同一キーを最初の 1 件のみ
+/// `working` へ残し、2 件目以降は（`new_keys` に存在するか否かに関わらず）
+/// 無条件に [`KeyedOp::Remove`] として発行することで「最初の 1 件のみを
+/// 対象とし、無限ループ・panic を起こさない」を保証する（fail-closed。
+/// イシュー #1336 codex レビュー P1 是正: 旧実装は `new_keys` の集合会員性
+/// のみで `working` へ残す判定をしており、`old_keys` 側の重複を除去しない
+/// ままだったため、`new_keys` の要素数ぶんしか回さない後続パスが余剰の
+/// 重複ノードを消費し切れず、生成した操作列を適用しても旧 DOM に重複
+/// ノードが残る不具合があった）。
 ///
 /// `fandhe-frontend-wasm-client`（イシュー #345）が導入した実装をそのまま
 /// 移管したもの（イシュー #1323、`docs/design/keyed-update-op-design.md`
@@ -378,12 +385,23 @@ pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Vec<KeyedOp> {
 /// として記録し、除外した残り（保持キーのみ）を `working` として返す。
 /// [`diff_keyed_items`] も同一のパスを共有する（挙動不変の内部ヘルパー化、
 /// 設計書 §4.2 の実装確定事項）。
+///
+/// `old_keys` 側にキー重複が混入している場合（[`keyed_list`] が構築時点で
+/// 拒否するため通常到達しないが、DOM 改ざん等の防御として想定）は、
+/// `seen_old` で最初の出現のみを `working` へ残し、2 件目以降は
+/// `new_keys` に存在するかに関わらず無条件に [`KeyedOp::Remove`] として
+/// 発行する。これにより `working` は常に「重複を含まない」列になり、
+/// 後続の [`insert_or_move_pass`]（`new_keys` の要素数ぶんしか走査しない）
+/// が余剰ノードを取りこぼさず、適用後の DOM に旧キーの重複ノードが残る
+/// ことを防ぐ（イシュー #1336 codex レビュー P1 是正）。
 fn remove_pass(old_keys: &[String], new_keys: &[String], ops: &mut Vec<KeyedOp>) -> Vec<String> {
     let new_set: std::collections::HashSet<&str> = new_keys.iter().map(String::as_str).collect();
+    let mut seen_old: std::collections::HashSet<&str> =
+        std::collections::HashSet::with_capacity(old_keys.len());
 
     let mut working: Vec<String> = Vec::with_capacity(old_keys.len());
     for key in old_keys {
-        if new_set.contains(key.as_str()) {
+        if new_set.contains(key.as_str()) && seen_old.insert(key.as_str()) {
             working.push(key.clone());
         } else {
             ops.push(KeyedOp::Remove { key: key.clone() });
@@ -1024,8 +1042,71 @@ mod tests {
     fn diff_keys_does_not_panic_on_duplicate_keys_in_old() {
         let old = keys(&["a", "a", "b"]);
         let new = keys(&["a", "b"]);
-        // panic しないことのみを確認する（重複時の正確な操作列は未規定）。
+        // panic しないことのみを確認する。
         let _ = diff_keys(&old, &new);
+    }
+
+    /// `old_keys` に発行された [`KeyedOp`] 列を素朴に適用し、結果のキー列
+    /// を返す（実 DOM 適用の代わりに `Vec<String>` 上でシミュレートする
+    /// テスト専用ヘルパー）。
+    fn apply_ops(old_keys: &[String], ops: &[KeyedOp]) -> Vec<String> {
+        let mut result: Vec<String> = old_keys.to_vec();
+        for op in ops {
+            match op {
+                KeyedOp::Remove { key } => {
+                    // 重複キー混入時も「最初の 1 件のみ」を除去する
+                    // （remove_pass と同じ意味論をシミュレートする）。
+                    if let Some(pos) = result.iter().position(|k| k == key) {
+                        result.remove(pos);
+                    }
+                }
+                KeyedOp::Insert { index, key } => {
+                    result.insert((*index).min(result.len()), key.clone());
+                }
+                KeyedOp::Move { index, key } => {
+                    if let Some(pos) = result.iter().position(|k| k == key) {
+                        result.remove(pos);
+                    }
+                    result.insert((*index).min(result.len()), key.clone());
+                }
+                KeyedOp::Update { .. } => {}
+            }
+        }
+        result
+    }
+
+    /// 回帰（イシュー #1336 codex レビュー P1 是正）: `old_keys` 側に重複
+    /// キーが混入していても、発行された操作列を適用した結果が
+    /// `new_keys` と厳密に一致する（旧側の重複ノードが残らない）ことを
+    /// 固定する。旧実装は `remove_pass` が `new_keys` の集合会員性のみで
+    /// 判定していたため、`old_keys = ["a", "a", "b"]` → `new_keys =
+    /// ["a", "b"]` で 2 個目の `"a"` に対する Remove が発行されず、適用後
+    /// も重複ノードが残っていた。
+    #[test]
+    fn diff_keys_duplicate_old_key_is_fully_removed_after_applying_ops() {
+        let old = keys(&["a", "a", "b"]);
+        let new = keys(&["a", "b"]);
+
+        let ops = diff_keys(&old, &new);
+        let applied = apply_ops(&old, &ops);
+
+        assert_eq!(
+            applied, new,
+            "重複キー混入時も操作列適用後は new_keys と厳密に一致するはず（余剰ノードが残ってはならない）"
+        );
+    }
+
+    /// 回帰: 重複キーが 3 件以上・複数キーにまたがって混入していても、
+    /// 操作列適用後は `new_keys` と一致する。
+    #[test]
+    fn diff_keys_multiple_duplicate_old_keys_are_fully_removed_after_applying_ops() {
+        let old = keys(&["a", "a", "a", "b", "b", "c"]);
+        let new = keys(&["c", "a", "b"]);
+
+        let ops = diff_keys(&old, &new);
+        let applied = apply_ops(&old, &ops);
+
+        assert_eq!(applied, new);
     }
 
     // --- イシュー #1318: O(n²) 再発検知の一環として、大規模ケースの op 数
