@@ -10,8 +10,13 @@
 //! `wasm-full` の CSR 側（イシュー #343/#345）はこの 2 属性を走査してキー
 //! 照合を行い、`set_inner_html` による全置換ではなく最小の DOM 操作
 //! （insert/remove/move）を適用する契約になっている。**本モジュールが
-//! 生成するのはこの属性形式の `Node` 木のみ**であり、キー照合・DOM 適用
-//! そのものは #343/#345 のスコープ（本モジュールの責務外）。
+//! 生成するのはこの属性形式の `Node` 木のみ**であり、DOM 適用そのものは
+//! #343/#345 のスコープ（本モジュールの責務外）。一方、**op 生成（diff・
+//! 内容比較）は本モジュールの責務**である（イシュー #1323、
+//! `docs/design/keyed-update-op-design.md` §4.1 が確定）: [`KeyedOp`] /
+//! [`diff_keys`] / [`diff_keyed_items`] がその実体であり、
+//! `fandhe-frontend-wasm-client` の `keyed_diff` モジュールはこれらを
+//! 消費する側（#1324 で re-export へ置換予定）に位置づけが変わる。
 //!
 //! # 不変条件（本クレート冒頭 doc の不変条件 1・2 の継承）
 //!
@@ -20,6 +25,9 @@
 //! しない。出力される `data-key`/`data-bind-list` の属性値は
 //! [`crate::render`] の既定エスケープを常に経由する（不変条件 1）。エスケープ
 //! を迂回する経路は本モジュールには存在しない（不変条件 2 を弱めない）。
+//! [`diff_keys`] / [`diff_keyed_items`] は純粋なキー列・`Node` 木の比較のみを
+//! 行い、HTML 文字列の組み立て・レンダリングを一切行わないため、この不変
+//! 条件に影響しない。
 
 use crate::Node;
 
@@ -284,6 +292,212 @@ fn reject_reserved_attr_owned(
         return Err(KeyedListError::ReservedAttr { attr: reserved });
     }
     Ok(())
+}
+
+/// keyed list へ適用する 1 操作（設計書 §3.4）。
+///
+/// [`fandhe_frontend_wasm_client`](https://docs.rs/fandhe-frontend-wasm-client)
+/// の `keyed_diff::KeyedOp`（イシュー #345 が導入した旧実装）と同型の
+/// `Remove`/`Insert`/`Move` に加え、本イシュー（#1323）で `Update` を
+/// 追加した 4 variant 構成。`index` は操作適用後の「新しい並び」における
+/// 位置を指す（挿入・移動先の決定的な位置決め、DOM 適用層が
+/// `insert_before` の参照ノードを求める際の入力）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeyedOp {
+    /// 当該キーの既存ノードを削除する。
+    Remove {
+        /// 削除対象のキー。
+        key: String,
+    },
+    /// 当該キーに対応する新規ノードを `index` の位置へ挿入する
+    /// （旧キー列に存在しなかったキー）。
+    Insert {
+        /// 挿入先の位置（新しい並びでのインデックス）。
+        index: usize,
+        /// 挿入するキー。
+        key: String,
+    },
+    /// 当該キーに対応する既存ノードを `index` の位置へ移動する（旧キー列に
+    /// 存在したが位置が変わったキー）。既存 DOM ノードを再生成せず参照を
+    /// 保持したまま移動することがフォーカス・入力途中の値の保持に直結する
+    /// ため、`Remove` + `Insert` へ分解しない専用の操作として区別する。
+    Move {
+        /// 移動先の位置（新しい並びでのインデックス）。
+        index: usize,
+        /// 移動するキー。
+        key: String,
+    },
+    /// 当該キーの既存ノードの内容（属性・子要素）だけが変わったことを表す
+    /// （設計書 §3.1・§4.2、イシュー #1323 で新設）。
+    ///
+    /// フィールドは `key` のみで、変更後の `Node` そのものは運ばない。
+    /// [`diff_keyed_items`] の呼び出し側（DOM 適用側、#1324 の
+    /// `apply_keyed_list_with_previous` が想定消費者）は自身の入力である
+    /// 新旧 `(String, Node)` 列を必ず保持しているため、`key` から新旧
+    /// `Node` を O(n) の一括 map 構築で解決できる契約とする（`Node` 複製の
+    /// 埋め込みは冗長データであり避ける）。`Update` は「保持キー
+    /// （新旧両方に存在するキー）のうち `Node` の内容が
+    /// `PartialEq` で不一致だったもの」にのみ発行され、[`diff_keyed_items`]
+    /// の `new_items` 順で並ぶ（設計書 §3.4）。
+    Update {
+        /// 内容が変化したキー。
+        key: String,
+    },
+}
+
+/// 「現在のキー列」から「新しいキー列」へ変換する最小の操作列を計画する。
+///
+/// アルゴリズム（O(n)、汎用 diff・仮想 DOM ではなく keyed list 専用の単純な
+/// 2 パス方式、設計書 §5・§7 が確定する「唯一の経路」の実装）:
+///
+/// 1. `old_keys` を先頭から走査し、`new_keys` に存在しないキーは
+///    [`KeyedOp::Remove`] として記録し、作業列（`working`）から除外する。
+/// 2. `new_keys` を先頭から走査し、`working[i]` が期待するキーと一致しなけ
+///    れば、`working` の残り（`i` 以降）から探して見つかれば
+///    [`KeyedOp::Move`]、見つからなければ [`KeyedOp::Insert`] とする。
+///    いずれの場合も `working` を新しい並びに合わせて更新してから次へ進む。
+///
+/// キー重複がある場合（本来は [`keyed_list`] が構築時点で拒否するため到達
+/// しない想定だが、DOM 改ざん等で `old_keys` 側に重複が混入した場合の防御）
+/// は、`working` 側の探索を「未処理の先頭要素」に限定することで最初の 1 件
+/// のみを対象とし、無限ループ・panic を起こさない（fail-closed）。
+///
+/// `fandhe-frontend-wasm-client`（イシュー #345）が導入した実装をそのまま
+/// 移管したもの（イシュー #1323、`docs/design/keyed-update-op-design.md`
+/// §4.1）。挙動・op 発行順は移管元と完全に同一（回帰テストで固定）。
+/// wasm-client 側の同名関数は #1324 で本関数への re-export へ置換予定で
+/// あり、それまでの一時的な実装重複は意図的。
+pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Vec<KeyedOp> {
+    let mut ops = Vec::new();
+    let mut working = remove_pass(old_keys, new_keys, &mut ops);
+    insert_or_move_pass(&mut working, new_keys, &mut ops);
+    ops
+}
+
+/// [`diff_keys`] 第 1 パス: `new_keys` に存在しないキーを [`KeyedOp::Remove`]
+/// として記録し、除外した残り（保持キーのみ）を `working` として返す。
+/// [`diff_keyed_items`] も同一のパスを共有する（挙動不変の内部ヘルパー化、
+/// 設計書 §4.2 の実装確定事項）。
+fn remove_pass(old_keys: &[String], new_keys: &[String], ops: &mut Vec<KeyedOp>) -> Vec<String> {
+    let new_set: std::collections::HashSet<&str> = new_keys.iter().map(String::as_str).collect();
+
+    let mut working: Vec<String> = Vec::with_capacity(old_keys.len());
+    for key in old_keys {
+        if new_set.contains(key.as_str()) {
+            working.push(key.clone());
+        } else {
+            ops.push(KeyedOp::Remove { key: key.clone() });
+        }
+    }
+    working
+}
+
+/// [`diff_keys`] 第 2 パス: `working`（保持キーのみ）を `new_keys` の並びへ
+/// 揃えながら [`KeyedOp::Move`] / [`KeyedOp::Insert`] を記録する。`working`
+/// は呼び出し後、`new_keys` と同じ並びに更新される（[`diff_keyed_items`]
+/// の第 3 パスが「保持キー」を特定する際に再利用する）。
+fn insert_or_move_pass(working: &mut Vec<String>, new_keys: &[String], ops: &mut Vec<KeyedOp>) {
+    for (index, key) in new_keys.iter().enumerate() {
+        if working.get(index).map(String::as_str) == Some(key.as_str()) {
+            continue;
+        }
+        if let Some(offset) = working[index..].iter().position(|k| k == key) {
+            let actual = index + offset;
+            let moved = working.remove(actual);
+            working.insert(index, moved);
+            ops.push(KeyedOp::Move {
+                index,
+                key: key.clone(),
+            });
+        } else {
+            working.insert(index, key.clone());
+            ops.push(KeyedOp::Insert {
+                index,
+                key: key.clone(),
+            });
+        }
+    }
+}
+
+/// 内容比較付き keyed list diff（イシュー #1323、設計書 §3.1・§3.4・§4.2）。
+///
+/// `old_items`/`new_items` は `(キー, Node)` のペア列（[`keyed_list`] が
+/// 消費する形と同じ）。動作は次の 3 パス:
+///
+/// 1. [`diff_keys`] と完全同一の Remove 発行（[`remove_pass`] を共有）。
+/// 2. [`diff_keys`] と完全同一の Insert/Move 発行（[`insert_or_move_pass`]
+///    を共有）。
+/// 3. 新旧両方に存在する保持キー**すべて**（Move の有無に関わらず）につい
+///    て、新旧 `Node` を [`PartialEq`] で比較し、不一致のときのみ
+///    [`KeyedOp::Update`] を `new_items` の順序で発行する。一致するキーは
+///    op を一切発行しない。
+///
+/// 重複キー混入時は [`diff_keys`] と同じ fail-closed（最初の 1 件のみ対象、
+/// panic しない）。計算量は O(キー数) + O(Σ 保持キーの部分木サイズ)
+/// （設計書 §3.5。仮想 DOM 型の再帰 diff ではなく、保持キー 1 件あたり
+/// `Node::eq` 1 回のみ）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{el, text, keyed::{diff_keyed_items, KeyedOp}};
+///
+/// let old_items = vec![
+///     ("a".to_string(), el("li", vec![], vec![text("a")])),
+///     ("b".to_string(), el("li", vec![], vec![text("b-old")])),
+/// ];
+/// let new_items = vec![
+///     ("b".to_string(), el("li", vec![], vec![text("b-new")])),
+///     ("a".to_string(), el("li", vec![], vec![text("a")])),
+/// ];
+///
+/// let ops = diff_keyed_items(&old_items, &new_items);
+/// assert_eq!(
+///     ops,
+///     vec![
+///         KeyedOp::Move { index: 0, key: "b".to_string() },
+///         KeyedOp::Update { key: "b".to_string() },
+///     ],
+/// );
+/// ```
+pub fn diff_keyed_items(
+    old_items: &[(String, Node)],
+    new_items: &[(String, Node)],
+) -> Vec<KeyedOp> {
+    let old_keys: Vec<String> = old_items.iter().map(|(k, _)| k.clone()).collect();
+    let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
+
+    let mut ops = Vec::new();
+    let mut working = remove_pass(&old_keys, &new_keys, &mut ops);
+    insert_or_move_pass(&mut working, &new_keys, &mut ops);
+
+    // 第 3 パス: 保持キー（重複混入時も old_items 側の最初の 1 件のみを
+    // 対象とする fail-closed、diff_keys と同じ防御）を new_items 順に
+    // 走査し、新旧 Node が不一致のときのみ Update を発行する。
+    // `old_by_key` は最初に出現したキーのみを記録する（重複混入時に後続の
+    // 同名キーで上書きしないことで「最初の 1 件のみを対象」を維持する）。
+    let mut old_by_key: std::collections::HashMap<&str, &Node> =
+        std::collections::HashMap::with_capacity(old_items.len());
+    for (key, node) in old_items {
+        old_by_key.entry(key.as_str()).or_insert(node);
+    }
+
+    let mut seen_new_keys: std::collections::HashSet<&str> =
+        std::collections::HashSet::with_capacity(new_items.len());
+    for (key, new_node) in new_items {
+        // new_items 側の重複キーも最初の 1 件のみを対象とする（同一防御を
+        // 対称に適用する）。
+        if !seen_new_keys.insert(key.as_str()) {
+            continue;
+        }
+        if let Some(old_node) = old_by_key.get(key.as_str()) {
+            if *old_node != new_node {
+                ops.push(KeyedOp::Update { key: key.clone() });
+            }
+        }
+    }
+
+    ops
 }
 
 #[cfg(test)]
@@ -580,5 +794,467 @@ mod tests {
             ],
         );
         assert_eq!(render(&tree), "<ul><li>item1</li><li>item2</li></ul>");
+    }
+
+    // --- diff_keys（イシュー #1323 で fandhe-frontend-wasm-client から移管。
+    // テスト内容は移管元 `crates/wasm-client/src/keyed_diff.rs` と完全同一。
+    // 挙動不変・op 発行順不変であることの回帰確認、受け入れ条件 2）。
+
+    fn keys(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// 変化なし: 操作列は空。
+    #[test]
+    fn diff_keys_returns_empty_ops_when_unchanged() {
+        let old = keys(&["a", "b", "c"]);
+        let new = keys(&["a", "b", "c"]);
+        assert_eq!(diff_keys(&old, &new), Vec::new());
+    }
+
+    /// 末尾への追加は Insert 1 件のみ。
+    #[test]
+    fn diff_keys_detects_append_at_tail() {
+        let old = keys(&["a", "b"]);
+        let new = keys(&["a", "b", "c"]);
+        assert_eq!(
+            diff_keys(&old, &new),
+            vec![KeyedOp::Insert {
+                index: 2,
+                key: "c".to_string()
+            }]
+        );
+    }
+
+    /// 先頭への追加は Insert 1 件のみ。
+    #[test]
+    fn diff_keys_detects_prepend_at_head() {
+        let old = keys(&["b", "c"]);
+        let new = keys(&["a", "b", "c"]);
+        assert_eq!(
+            diff_keys(&old, &new),
+            vec![KeyedOp::Insert {
+                index: 0,
+                key: "a".to_string()
+            }]
+        );
+    }
+
+    /// 中間削除は Remove 1 件のみ（受け入れ条件: 無関係ノードへの操作なし）。
+    #[test]
+    fn diff_keys_detects_middle_removal() {
+        let old = keys(&["a", "b", "c"]);
+        let new = keys(&["a", "c"]);
+        assert_eq!(
+            diff_keys(&old, &new),
+            vec![KeyedOp::Remove {
+                key: "b".to_string()
+            }]
+        );
+    }
+
+    /// 全削除は各キーの Remove のみ。
+    #[test]
+    fn diff_keys_detects_removal_to_empty() {
+        let old = keys(&["a", "b"]);
+        let new: Vec<String> = Vec::new();
+        assert_eq!(
+            diff_keys(&old, &new),
+            vec![
+                KeyedOp::Remove {
+                    key: "a".to_string()
+                },
+                KeyedOp::Remove {
+                    key: "b".to_string()
+                },
+            ]
+        );
+    }
+
+    /// 空から全追加は各キーの Insert のみ。
+    #[test]
+    fn diff_keys_detects_insertion_from_empty() {
+        let old: Vec<String> = Vec::new();
+        let new = keys(&["a", "b"]);
+        assert_eq!(
+            diff_keys(&old, &new),
+            vec![
+                KeyedOp::Insert {
+                    index: 0,
+                    key: "a".to_string()
+                },
+                KeyedOp::Insert {
+                    index: 1,
+                    key: "b".to_string()
+                },
+            ]
+        );
+    }
+
+    /// 隣接 2 件の入れ替えは Move 1 件で表現される（既存ノード参照を保持し
+    /// 再生成しないことがフォーカス保持の土台、設計書 §5.3）。
+    #[test]
+    fn diff_keys_detects_adjacent_swap_as_single_move() {
+        let old = keys(&["a", "b"]);
+        let new = keys(&["b", "a"]);
+        let ops = diff_keys(&old, &new);
+        assert_eq!(
+            ops,
+            vec![KeyedOp::Move {
+                index: 0,
+                key: "b".to_string()
+            }]
+        );
+    }
+
+    /// 末尾要素を先頭へ移動。
+    #[test]
+    fn diff_keys_detects_move_from_tail_to_head() {
+        let old = keys(&["a", "b", "c"]);
+        let new = keys(&["c", "a", "b"]);
+        let ops = diff_keys(&old, &new);
+        assert_eq!(
+            ops,
+            vec![KeyedOp::Move {
+                index: 0,
+                key: "c".to_string()
+            }]
+        );
+    }
+
+    /// 削除・挿入・移動が同時に起きる複合ケースでも、無関係キーの操作は
+    /// 生成されない。
+    #[test]
+    fn diff_keys_handles_mixed_remove_insert_move() {
+        let old = keys(&["a", "b", "c", "d"]);
+        let new = keys(&["d", "a", "e", "c"]);
+        let ops = diff_keys(&old, &new);
+        // "b" は new に存在しないため削除される。
+        assert!(ops.contains(&KeyedOp::Remove {
+            key: "b".to_string()
+        }));
+        // "e" は old に存在しない新規キーのため挿入される。
+        assert!(ops
+            .iter()
+            .any(|op| matches!(op, KeyedOp::Insert { key, .. } if key == "e")));
+        // "d" は末尾から先頭へ移動する。
+        assert!(ops
+            .iter()
+            .any(|op| matches!(op, KeyedOp::Move { key, .. } if key == "d")));
+    }
+
+    /// 重複キーが混入していても panic せず、先頭の 1 件のみを対象に処理する
+    /// （DOM 改ざん等の異常系に対する fail-closed 防御、本モジュール doc 参照）。
+    #[test]
+    fn diff_keys_does_not_panic_on_duplicate_keys_in_old() {
+        let old = keys(&["a", "a", "b"]);
+        let new = keys(&["a", "b"]);
+        // panic しないことのみを確認する（重複時の正確な操作列は未規定）。
+        let _ = diff_keys(&old, &new);
+    }
+
+    // --- イシュー #1318: O(n²) 再発検知の一環として、大規模ケースの op 数
+    // 自体を契約化する（ルート issue #1313 が特定した CSR create の
+    // O(n²) コストは `nth_element_child`/`next_element_sibling` の sibling
+    // 走査回数に起因し `diff_keys` 自体は O(n) だが、`diff_keys` が発行する
+    // op 数が想定外に膨らむと DOM 適用側の DOM 操作コストも連動して膨らむ
+    // ため、まず purely な diff 層で op 数の上限を固定しておく）。
+
+    /// 空 → N 行（N=1,000）: Insert がちょうど N 件、index は 0..N の昇順で
+    /// 1 つも欠けない（余分な Remove/Move が発生しないこと）。
+    #[test]
+    fn diff_keys_from_empty_to_n_rows_emits_exactly_n_inserts_in_order() {
+        const N: usize = 1_000;
+        let old: Vec<String> = Vec::new();
+        let new: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+
+        let ops = diff_keys(&old, &new);
+
+        assert_eq!(ops.len(), N, "空 → N 行は Insert ちょうど N 件のみのはず");
+        for (i, op) in ops.iter().enumerate() {
+            assert_eq!(
+                op,
+                &KeyedOp::Insert {
+                    index: i,
+                    key: format!("k{i}"),
+                },
+                "Insert の index は 0..N の昇順で欠けないはず"
+            );
+        }
+    }
+
+    /// 既存 N 行の先頭へ 1 件挿入: op はちょうど 1 件（Insert index=0）の
+    /// みで、既存 N 件への無関係な Remove/Move は発生しない。
+    #[test]
+    fn diff_keys_prepend_one_to_n_rows_emits_exactly_one_insert() {
+        const N: usize = 1_000;
+        let old: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+        let mut new: Vec<String> = vec!["new".to_string()];
+        new.extend(old.iter().cloned());
+
+        let ops = diff_keys(&old, &new);
+
+        assert_eq!(
+            ops,
+            vec![KeyedOp::Insert {
+                index: 0,
+                key: "new".to_string(),
+            }]
+        );
+    }
+
+    /// 既存 N 行の末尾へ 1 件挿入: op はちょうど 1 件（Insert index=N）の
+    /// みで、既存 N 件への無関係な Remove/Move は発生しない。
+    #[test]
+    fn diff_keys_append_one_to_n_rows_emits_exactly_one_insert() {
+        const N: usize = 1_000;
+        let old: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+        let mut new: Vec<String> = old.clone();
+        new.push("new".to_string());
+
+        let ops = diff_keys(&old, &new);
+
+        assert_eq!(
+            ops,
+            vec![KeyedOp::Insert {
+                index: N,
+                key: "new".to_string(),
+            }]
+        );
+    }
+
+    /// 完全逆順（reverse）: 全件が同じ集合のまま並びだけが反転するケース。
+    /// Remove/Insert は 1 件も発生せず、Move が高々 N-1 件で収まる
+    /// （全 N 件が Move になるとは限らない実装だが、上限として N-1 を
+    /// 固定し「N 件超の異常な op 数」の再発を検知する）。
+    #[test]
+    fn diff_keys_full_reverse_emits_only_moves_within_n_minus_one() {
+        const N: usize = 1_000;
+        let old: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+        let new: Vec<String> = old.iter().rev().cloned().collect();
+
+        let ops = diff_keys(&old, &new);
+
+        assert!(
+            ops.iter().all(|op| matches!(op, KeyedOp::Move { .. })),
+            "完全逆順は Remove/Insert を発生させず Move のみのはず"
+        );
+        assert!(
+            ops.len() < N,
+            "Move の件数は N-1 件以内のはず（実測: {}）",
+            ops.len()
+        );
+    }
+
+    /// 固定シード LCG（線形合同法）による決定的シャッフル
+    /// （Fisher–Yates）。乱数・時刻・環境に依存する `rand` クレート等は
+    /// 使わず標準ライブラリのみで完結させる（REQ-3: 外部依存追加ゼロ）。
+    fn lcg_shuffle(items: &mut [String], seed: u64) {
+        let mut state = seed;
+        let mut next = move || {
+            // Numerical Recipes の定数（決定的であれば具体的な定数の由来は
+            // 問わない用途。テストの再現性のみが目的）。
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            state
+        };
+        for i in (1..items.len()).rev() {
+            let j = (next() % (i as u64 + 1)) as usize;
+            items.swap(i, j);
+        }
+    }
+
+    /// 固定シード LCG によるシャッフル（N=1,000）: 集合は変化しないため
+    /// Remove/Insert は発生せず、Move の件数は N-1 件を超えない
+    /// （O(n²) 再発検知: op 数自体が線形の上限に収まることを固定する）。
+    #[test]
+    fn diff_keys_deterministic_shuffle_emits_only_moves_within_n_minus_one() {
+        const N: usize = 1_000;
+        let old: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+        let mut new = old.clone();
+        lcg_shuffle(&mut new, 0x1318_1318_1318_1318);
+
+        let ops = diff_keys(&old, &new);
+
+        assert!(
+            ops.iter().all(|op| matches!(op, KeyedOp::Move { .. })),
+            "同一集合のシャッフルは Remove/Insert を発生させず Move のみのはず"
+        );
+        assert!(
+            ops.len() < N,
+            "Move の件数は N-1 件以内のはず（実測: {}）",
+            ops.len()
+        );
+    }
+
+    // --- diff_keyed_items（イシュー #1323 新設: 内容比較付き diff）。
+
+    fn item(key: &str, text_content: &str) -> (String, Node) {
+        (key.to_string(), el("li", vec![], vec![text(text_content)]))
+    }
+
+    /// 同一キー内容変更のみ: Update がちょうど 1 件発行される。
+    #[test]
+    fn diff_keyed_items_detects_content_only_change_as_single_update() {
+        let old = vec![item("a", "old")];
+        let new = vec![item("a", "new")];
+
+        assert_eq!(
+            diff_keyed_items(&old, &new),
+            vec![KeyedOp::Update {
+                key: "a".to_string()
+            }]
+        );
+    }
+
+    /// 新旧完全一致: op ゼロ件（大規模 N=1,000 でも成立）。
+    #[test]
+    fn diff_keyed_items_emits_no_ops_when_fully_unchanged() {
+        let old: Vec<(String, Node)> = (0..1_000).map(|i| item(&format!("k{i}"), "v")).collect();
+        let new = old.clone();
+
+        assert_eq!(diff_keyed_items(&old, &new), Vec::new());
+    }
+
+    /// 混在ケース: 削除 + 新規挿入 + 移動かつ内容変更。無関係キーへの余分な
+    /// op が発生せず、パス順（Remove 群 → Insert/Move 群 → Update 群）が
+    /// 固定される。
+    #[test]
+    fn diff_keyed_items_handles_mixed_remove_insert_move_and_update() {
+        let old = vec![item("a", "a-v"), item("b", "b-v"), item("c", "c-v")];
+        // b は削除される。c は先頭へ移動しつつ内容変更。d は新規挿入。
+        let new = vec![item("c", "c-v2"), item("a", "a-v"), item("d", "d-v")];
+
+        let ops = diff_keyed_items(&old, &new);
+        assert_eq!(
+            ops,
+            vec![
+                KeyedOp::Remove {
+                    key: "b".to_string()
+                },
+                KeyedOp::Move {
+                    index: 0,
+                    key: "c".to_string()
+                },
+                KeyedOp::Insert {
+                    index: 2,
+                    key: "d".to_string()
+                },
+                KeyedOp::Update {
+                    key: "c".to_string()
+                },
+            ]
+        );
+    }
+
+    /// 設計書 §3.4 正準例: a は位置のみ変更・b は位置と内容変更。
+    #[test]
+    fn diff_keyed_items_canonical_example_from_design_doc() {
+        let old = vec![item("a", "a-v"), item("b", "b-old")];
+        let new = vec![item("b", "b-new"), item("a", "a-v")];
+
+        let ops = diff_keyed_items(&old, &new);
+        assert_eq!(
+            ops,
+            vec![
+                KeyedOp::Move {
+                    index: 0,
+                    key: "b".to_string()
+                },
+                KeyedOp::Update {
+                    key: "b".to_string()
+                },
+            ]
+        );
+    }
+
+    /// Move 対象なしで両キーとも内容変更: Update が new_items 順で 2 件。
+    #[test]
+    fn diff_keyed_items_emits_updates_in_new_items_order_without_move() {
+        let old = vec![item("a", "a-old"), item("b", "b-old")];
+        let new = vec![item("a", "a-new"), item("b", "b-new")];
+
+        let ops = diff_keyed_items(&old, &new);
+        assert_eq!(
+            ops,
+            vec![
+                KeyedOp::Update {
+                    key: "a".to_string()
+                },
+                KeyedOp::Update {
+                    key: "b".to_string()
+                },
+            ]
+        );
+    }
+
+    /// 保持キーが Move のみ（内容一致）: Update は発行されない。
+    #[test]
+    fn diff_keyed_items_does_not_emit_update_for_move_only_change() {
+        let old = vec![item("a", "v"), item("b", "v")];
+        let new = vec![item("b", "v"), item("a", "v")];
+
+        let ops = diff_keyed_items(&old, &new);
+        assert_eq!(
+            ops,
+            vec![KeyedOp::Move {
+                index: 0,
+                key: "b".to_string()
+            }]
+        );
+    }
+
+    /// Insert された新規キーには Update が発行されない（old 側に存在しない
+    /// ため比較対象そのものがない）。
+    #[test]
+    fn diff_keyed_items_does_not_emit_update_for_newly_inserted_key() {
+        let old = vec![item("a", "v")];
+        let new = vec![item("a", "v"), item("b", "v")];
+
+        let ops = diff_keyed_items(&old, &new);
+        assert_eq!(
+            ops,
+            vec![KeyedOp::Insert {
+                index: 1,
+                key: "b".to_string()
+            }]
+        );
+    }
+
+    /// 重複キー混入（old 側）でも panic しない（fail-closed 防御の継承）。
+    #[test]
+    fn diff_keyed_items_does_not_panic_on_duplicate_keys_in_old() {
+        let old = vec![item("a", "v1"), item("a", "v2"), item("b", "v")];
+        let new = vec![item("a", "v3"), item("b", "v")];
+
+        // panic しないことのみを確認する（重複時の正確な操作列は未規定）。
+        let _ = diff_keyed_items(&old, &new);
+    }
+
+    /// 重複キー混入（new 側）でも panic しない（対称的な fail-closed 防御）。
+    #[test]
+    fn diff_keyed_items_does_not_panic_on_duplicate_keys_in_new() {
+        let old = vec![item("a", "v")];
+        let new = vec![item("a", "v1"), item("a", "v2")];
+
+        let _ = diff_keyed_items(&old, &new);
+    }
+
+    /// 構造的固定: 内容全一致時、`diff_keys`（キー列のみ）と
+    /// `diff_keyed_items`（内容比較つき）の op 列は一致する（第 1・2 パス
+    /// 共有の回帰確認）。
+    #[test]
+    fn diff_keys_and_diff_keyed_items_agree_when_content_is_unchanged() {
+        let old_items = vec![item("a", "v"), item("b", "v"), item("c", "v")];
+        let new_items = vec![item("c", "v"), item("a", "v"), item("d", "v")];
+
+        let old_keys: Vec<String> = old_items.iter().map(|(k, _)| k.clone()).collect();
+        let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
+
+        assert_eq!(
+            diff_keys(&old_keys, &new_keys),
+            diff_keyed_items(&old_items, &new_items),
+        );
     }
 }
