@@ -1043,22 +1043,17 @@ pub fn apply_keyed_list_with_previous(
         return KeyedListApplyResult::ResyncRequired;
     };
 
-    let old_by_key: std::collections::HashMap<&str, &Node> =
-        old_items.iter().map(|(k, n)| (k.as_str(), n)).collect();
-    let new_by_key: std::collections::HashMap<&str, &Node> =
-        new_items.iter().map(|(k, n)| (k.as_str(), n)).collect();
-
-    let achieved_children: Vec<Node> = outcome
-        .final_keys
-        .iter()
-        .filter_map(|key| {
-            if outcome.stale_update_keys.contains(key) {
-                old_by_key.get(key.as_str()).map(|n| (*n).clone())
-            } else {
-                new_by_key.get(key.as_str()).map(|n| (*n).clone())
-            }
-        })
-        .collect();
+    // 「達成 Node」の合成本体は `crate::keyed_apply::compose_achieved_children`
+    // へ切り出し済み（DOM 非依存の純粋関数、native `cargo test` から到達
+    // 可能。イシュー #1340 codex-review P1〔4 巡目〕対応、
+    // `keyed_apply` モジュール冒頭 doc「属性検証拒否と「達成 Node」の
+    // 整合」参照）。検証を拒否された属性（危険 URL スキーム・イベント
+    // ハンドラ・不正 `srcset`）は実際に DOM へ書き込まれた値（in-place
+    // 更新なら旧値、新規構築なら不在）へ正規化されるため、`new_list_node`
+    // をそのまま使う旧実装のように拒否済みの危険値がキャッシュへ紛れ込む
+    // ことはない。
+    let achieved_children =
+        crate::keyed_apply::compose_achieved_children(&old_items, &new_items, &outcome);
 
     KeyedListApplyResult::Achieved(Node::Element {
         tag: parent_tag,

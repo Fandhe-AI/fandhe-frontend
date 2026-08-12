@@ -78,6 +78,34 @@
 //! 「達成 Node」の合成時に旧内容のまま据え置くことで表現し、次回の
 //! diff 基準を実際の DOM 内容と一致させ続ける（再同期の収束、設計書
 //! §4.2a）。
+//!
+//! # 属性検証拒否と「達成 Node」の整合（イシュー #1340 codex-review P1
+//! 〔4 巡目〕対応）
+//!
+//! `sync_attrs`（in-place 更新）・`build_dom_node_with_namespace`（新規
+//! 構築、`create_item`/`replace_item_children`/`replace_root` が経由）は
+//! いずれも URL スキーム・イベントハンドラ・`srcset` の検証を通過しない
+//! 属性の書き込みを skip する（不変条件 1〜4 の維持）。この skip は
+//! `new_attrs`/`new_children` の一部だけを反映しない「部分達成」であり、
+//! 旧実装は「達成 Node」の合成時にこれを無視して `new_by_key`（検証前の
+//! 望ましい view）をそのまま使っていたため、拒否された属性値が実際には
+//! DOM に書き込まれていないにもかかわらず「達成 Node」（＝次回 diff 基準
+//! としてキャッシュされる内容）へ紛れ込み、実 DOM とキャッシュが恒久的に
+//! 乖離していた（危険 URL 属性を拒否した回のキャッシュに危険値が残り、
+//! 以降同じ view を再適用しても差分なしと判定されて DOM の旧値のまま
+//! 固定される、PR #1340 codex-review 指摘）。
+//!
+//! [`compose_achieved_children`]/[`sanitize_node_for_achieved`] は、この
+//! 検証拒否を「達成 Node」の合成へも一貫して反映する。検証述語
+//! （`is_event_handler_attr`/`is_url_attr`+`is_safe_url`/`srcset`）は
+//! `(属性名, 属性値)` のみから決定的に判定できる純粋関数であり、実際の
+//! `web-sys` 呼び込みを介さず同じ判定を再現できるため、`sync_attrs`/
+//! `build_dom_node_with_namespace` のトレイト・関数シグネチャ自体は変更
+//! しない（呼び出し元が「達成 Node」合成時に同一ロジックを再計算するだけ
+//! で十分）。決定的な拒否のため [`KeyedListApplyResult::ResyncRequired`]
+//! （`crate::keyed_dom` 参照）は使わない: 同じ危険値を持つ view が再適用
+//! されても毎回同じ属性が同じ理由で拒否されるだけで、無限再同期には
+//! ならない。
 
 use crate::keyed_diff::{diff_keyed_items, diff_keys, KeyedOp};
 use fandhe_frontend_core::Node;
@@ -936,6 +964,122 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
     }
 }
 
+/// [`crate::keyed_dom::apply_keyed_list_with_previous`] が「達成 Node」
+/// （実 DOM が実際に表す内容、設計書 §4.2）の子ノード列を合成するために
+/// 呼ぶ純粋関数（DOM 非依存、native `cargo test` から到達可能。イシュー
+/// #1340 codex-review P1〔4 巡目〕対応、モジュール冒頭 doc「属性検証拒否と
+/// 「達成 Node」の整合」参照）。
+///
+/// [`ApplyOutcome::stale_update_keys`] のキーは旧内容をまるごと使う（子
+/// ノード構築失敗〔`RawHtml` 混入等〕で据え置かれたため、属性同期
+/// `sync_attrs` 自体も呼ばれておらずライブ DOM は完全に旧内容のまま）。
+/// それ以外のキーは新内容を使うが、[`sanitize_node_for_achieved`] を経由
+/// して「実際に DOM へ書き込まれた属性値」へ正規化する。
+pub(crate) fn compose_achieved_children(
+    old_items: &[(String, Node)],
+    new_items: &[(String, Node)],
+    outcome: &ApplyOutcome,
+) -> Vec<Node> {
+    let old_by_key: std::collections::HashMap<&str, &Node> =
+        old_items.iter().map(|(k, n)| (k.as_str(), n)).collect();
+    let new_by_key: std::collections::HashMap<&str, &Node> =
+        new_items.iter().map(|(k, n)| (k.as_str(), n)).collect();
+
+    outcome
+        .final_keys
+        .iter()
+        .filter_map(|key| {
+            if outcome.stale_update_keys.contains(key) {
+                old_by_key.get(key.as_str()).map(|n| (*n).clone())
+            } else {
+                new_by_key.get(key.as_str()).map(|new_node| {
+                    // in-place 更新（root タグが旧アイテムと一致、
+                    // `sync_attrs` 経由）の場合のみ旧属性へのフォールバック
+                    // を許す。タグが変わった場合（`replace_root` が新規
+                    // 要素を構築、`apply_ops_with_items` の `KeyedOp::Update`
+                    // 腕「ルート要素のタグ一致を検証する」参照）や新規
+                    // 挿入（`old_by_key` に該当なし）は fresh 扱い
+                    // （`old_attrs: None`）にする。
+                    let old_attrs = old_by_key.get(key.as_str()).and_then(|old_node| {
+                        match (old_node, new_node) {
+                            (
+                                Node::Element {
+                                    tag: old_tag,
+                                    attrs: old_attrs,
+                                    ..
+                                },
+                                Node::Element { tag: new_tag, .. },
+                            ) if old_tag == new_tag => Some(old_attrs.as_slice()),
+                            _ => None,
+                        }
+                    });
+                    sanitize_node_for_achieved(new_node, old_attrs)
+                })
+            }
+        })
+        .collect()
+}
+
+/// 検証を通過しない属性（危険 URL スキーム・イベントハンドラ・不正
+/// `srcset`）を、実際の DOM 書き込みが行う結果へ正規化した [`Node`] を
+/// 合成する（[`compose_achieved_children`] 専用ヘルパー、モジュール冒頭
+/// doc「属性検証拒否と「達成 Node」の整合」参照）。
+///
+/// - `old_attrs`（`Some`）: in-place 更新（`sync_attrs`）経路。拒否属性は
+///   `old_attrs` に同名エントリがあればその値へ、無ければ丸ごと除外する
+///   （`sync_attrs` の実装「`new_attrs` に存在しない現在の属性のみ削除・
+///   書き込みは検証通過分のみ」と等価: 検証拒否時は現在値〔＝旧値、
+///   または未追加なら不在〕がそのまま残る）。
+/// - `old_attrs`（`None`）: 新規構築（`create_item`/タグ変更を伴う
+///   `replace_root`・子孫ノード全て）経路。拒否属性は丸ごと除外する
+///   （新規要素はそもそも拒否属性が書き込まれないため、
+///   `build_dom_node_with_namespace` の `set_attribute` skip と等価）。
+///
+/// 子ノードは常に `old_attrs: None` で再帰する（子孫は
+/// `replace_item_children`/`build_dom_node_with_namespace` が常に新規
+/// 構築するため、属性ごとの旧値履歴を持たない）。
+fn sanitize_node_for_achieved(node: &Node, old_attrs: Option<&[(String, String)]>) -> Node {
+    match node {
+        Node::Element {
+            tag,
+            attrs,
+            children,
+        } => {
+            let sanitized_attrs = attrs
+                .iter()
+                .filter_map(|(name, value)| {
+                    if is_attr_write_rejected(name, value) {
+                        return old_attrs
+                            .and_then(|old| old.iter().find(|(n, _)| n == name))
+                            .cloned();
+                    }
+                    Some((name.clone(), value.clone()))
+                })
+                .collect();
+            let sanitized_children = children
+                .iter()
+                .map(|child| sanitize_node_for_achieved(child, None))
+                .collect();
+            Node::Element {
+                tag,
+                attrs: sanitized_attrs,
+                children: sanitized_children,
+            }
+        }
+        other => other.clone(),
+    }
+}
+
+/// `sync_attrs`（`crate::keyed_dom::WebSysKeyedDom`）/
+/// `build_dom_node_with_namespace` の書き込み拒否判定と同一の述語
+/// （イベントハンドラ属性・危険 URL スキーム・不正 `srcset`）。3 箇所が
+/// ドリフトしないよう、この述語自体はテストでも直接参照する。
+fn is_attr_write_rejected(name: &str, value: &str) -> bool {
+    fandhe_frontend_core::is_event_handler_attr(name)
+        || (fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value))
+        || (name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1710,6 +1854,151 @@ mod tests {
         assert!(
             !synced.iter().any(|(k, _)| k == "data-removed"),
             "new_attrs に無い旧属性は同期対象に含まれないはず: {synced:?}"
+        );
+    }
+
+    // --- 属性検証拒否と「達成 Node」の整合（イシュー #1340 codex-review
+    // P1〔4 巡目〕対応） ---
+
+    /// 既存属性（`href="/safe"`）を危険値（`javascript:` スキーム）へ
+    /// 更新しようとした場合、`sync_attrs`（`web-sys` 実装）は書き込みを
+    /// skip して実 DOM は旧値のまま据え置かれる契約
+    /// （`crate::keyed_dom::WebSysKeyedDom::sync_attrs` doc 参照）。
+    /// `compose_achieved_children` が合成する「達成 Node」もこの実 DOM の
+    /// 実際の状態（旧値）と一致しなければならない: 修正前は `new_by_key`
+    /// （検証前の望ましい view）をそのまま使っていたため、危険値が
+    /// 「達成 Node」へ紛れ込み、次回 `previous_list_node` としてキャッシュ
+    /// された結果、以降同じ危険な view を再適用しても差分なしと判定され
+    /// 実 DOM の乖離が解消されなくなっていた（PR #1340 codex-review 指摘）。
+    #[test]
+    fn compose_achieved_children_keeps_old_value_when_attr_update_is_rejected() {
+        let old_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("href", "/safe")],
+                vec![text("x")],
+            ),
+        )];
+        let new_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("href", "javascript:alert(1)")],
+                vec![text("x")],
+            ),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+        assert!(
+            outcome.stale_update_keys.is_empty(),
+            "属性検証拒否は子ノード構築失敗ではないため stale_update_keys \
+             の対象にはならないはず"
+        );
+        assert!(
+            !outcome.resync_required,
+            "属性検証拒否は決定的な skip であり op 自体は計画どおり適用\
+             できているため resync_required の対象にはならないはず"
+        );
+
+        let achieved = compose_achieved_children(&old_items, &new_items, &outcome);
+        assert_eq!(achieved.len(), 1);
+        let Node::Element { attrs, .. } = &achieved[0] else {
+            panic!("要素ノードのはず");
+        };
+        assert!(
+            attrs.contains(&("href".to_string(), "/safe".to_string())),
+            "実 DOM が書き込みを skip して旧値のまま据え置く契約と一致する \
+             よう、達成 Node も旧値を保持するはず: {attrs:?}"
+        );
+        assert!(
+            !attrs.iter().any(|(_, v)| v.contains("javascript:")),
+            "拒否された危険値が達成 Node へ紛れ込んではならない: {attrs:?}"
+        );
+    }
+
+    /// 既存アイテムに新規属性として危険値（`src="javascript:..."`）を
+    /// 追加しようとした場合、`sync_attrs` は書き込みを skip し実 DOM には
+    /// 当該属性が一切追加されない（旧値も存在しない、新規追加拒否のケース）。
+    /// `compose_achieved_children` の達成 Node もこの「属性が存在しない」
+    /// 状態と一致しなければならない。
+    #[test]
+    fn compose_achieved_children_omits_attr_when_new_attr_addition_is_rejected() {
+        let old_items = vec![(
+            "a".to_string(),
+            el("li", vec![("data-key", "a")], vec![text("x")]),
+        )];
+        let new_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("src", "javascript:alert(1)")],
+                vec![text("x")],
+            ),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+        assert!(outcome.stale_update_keys.is_empty());
+        assert!(!outcome.resync_required);
+
+        let achieved = compose_achieved_children(&old_items, &new_items, &outcome);
+        assert_eq!(achieved.len(), 1);
+        let Node::Element { attrs, .. } = &achieved[0] else {
+            panic!("要素ノードのはず");
+        };
+        assert!(
+            !attrs.iter().any(|(k, _)| k == "src"),
+            "旧値を持たない新規属性の書き込みが拒否された場合、達成 Node \
+             にも当該属性を含めてはならない（実 DOM に一切追加されない \
+             契約と一致させる）: {attrs:?}"
+        );
+    }
+
+    /// 新規構築経路（`Insert`）でも同じ検証拒否が反映されることを確認する
+    /// （`build_dom_node_with_namespace` の `set_attribute` skip と
+    /// `compose_achieved_children` の整合、モジュール冒頭 doc「属性検証
+    /// 拒否と「達成 Node」の整合」参照）。新規要素はそもそも旧値を持た
+    /// ないため、拒否属性は無条件で除外される。
+    #[test]
+    fn compose_achieved_children_omits_attr_on_fresh_insert_when_validation_rejects() {
+        let old_items: Vec<(String, Node)> = vec![];
+        let new_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("href", "javascript:alert(1)")],
+                vec![text("x")],
+            ),
+        )];
+        // `compose_achieved_children` は `ApplyOutcome` のみを入力とする
+        // 純粋関数のため、実際の DOM 適用（`apply_ops_with_items`）を経由
+        // せず「Insert が計画どおり完全に適用できた」場合の `ApplyOutcome`
+        // を直接構築する（`final_keys` に対象キーを含み、`stale_update_keys`
+        // は空・`resync_required` は `false` が「完全に適用できた」ことを
+        // 表す契約、[`ApplyOutcome`] doc 参照）。
+        let outcome = ApplyOutcome {
+            final_keys: vec!["a".to_string()],
+            stale_update_keys: std::collections::HashSet::new(),
+            resync_required: false,
+        };
+
+        let achieved = compose_achieved_children(&old_items, &new_items, &outcome);
+        assert_eq!(achieved.len(), 1);
+        let Node::Element { attrs, .. } = &achieved[0] else {
+            panic!("要素ノードのはず");
+        };
+        assert!(
+            !attrs.iter().any(|(k, _)| k == "href"),
+            "新規構築（Insert）で検証拒否された属性は達成 Node にも含めて \
+             はならない: {attrs:?}"
         );
     }
 
