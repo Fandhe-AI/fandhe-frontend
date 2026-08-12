@@ -281,10 +281,32 @@ fn find_child_by_key<D: KeyedListDom>(dom: &mut D, key: &str) -> Option<D::Handl
 /// 参照ノードを 1 回だけ・区間確定後に解決するため、この「失敗後続項目の
 /// 参照ずれ」自体が構造的に起こらない（劣化ではなく安全側・より正しい側
 /// への挙動変化であり、暗黙の仕様変更にしないためここに明記する）。
+///
+/// # 未達成スロットの index 補正（イシュー #1340 codex-review P1 対応）
+///
+/// `diff_keys` が返す `index` は「全 op が成功した前提の最終並び」上の
+/// 位置であり、`Insert`/`Move` のいずれかが未達成（`create_item` が
+/// `None`、または移動対象キーがライブ DOM 上に見つからない）に終わると、
+/// それ以降の op が参照する `index` は実際のライブ DOM 上の位置より
+/// `index_offset`（それまでに未達成となったスロット数の累計）だけ大きい
+/// ズレを持つ。本関数は `index_offset` を走査中に維持し、`child_at` へ
+/// 渡す直前に `index.saturating_sub(index_offset)` へ補正することで、
+/// 後続 op が実際のライブ DOM 上の正しい参照ノードへ解決されるようにする
+/// （例: 実 DOM `[a,b]` → 新規列 `[x,b,a]` で `x` の構築が失敗する場合、
+/// 補正が無いと `Move{index:1,key:b}` は `child_at(1)` = `b` 自身を参照し
+/// 自己参照の no-op になり `a`/`b` の並びが永続的に収束しない。補正後は
+/// `child_at(1 - 1) = child_at(0)` = `a` を正しく参照し、`b` を `a` の前へ
+/// 移動して `[b,a]` へ収束する）。`Insert` 区間の `start_index`／その
+/// `insert_before_batch` 呼び出しへ渡す `start_index` 引数自体も同じ補正を
+/// 適用する（渡す `start_index` はトレイト実装の内部インデックスキャッシュ
+/// 追随更新にも使われるため、実際のライブ DOM 上の位置と一致させる必要が
+/// ある）。区間内で発生した未達成は区間確定後にまとめて `index_offset` へ
+/// 加算する（区間内の他アイテムの挿入順序自体には影響しないため）。
 pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
     let old_keys = dom_item_keys(dom);
     let ops = diff_keys(&old_keys, new_keys);
     let mut i = 0;
+    let mut index_offset: usize = 0;
     while i < ops.len() {
         match &ops[i] {
             KeyedOp::Remove { key } => {
@@ -297,6 +319,7 @@ pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
                 let start_index = *index;
                 let mut expected_index = start_index;
                 let mut items = Vec::new();
+                let mut failed_in_run: usize = 0;
                 let mut j = i;
                 while let Some(KeyedOp::Insert { index, key }) = ops.get(j) {
                     if *index != expected_index {
@@ -308,25 +331,42 @@ pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
                     }
                     if let Some(new_node) = dom.create_item(key) {
                         items.push((key.clone(), new_node));
+                    } else {
+                        // RawHtml 混入等の構築失敗（`None`）は当該アイテム
+                        // のみ `items` から除外する fail-closed skip（本
+                        // 関数 doc「セキュリティ不変条件の引き継ぎ」参照）。
+                        // 未達成スロットとして `index_offset` 補正の対象に
+                        // 数える（本関数 doc「未達成スロットの index 補正」
+                        // 参照）。
+                        failed_in_run += 1;
                     }
-                    // RawHtml 混入等の構築失敗（`None`）は当該アイテムのみ
-                    // `items` から除外する fail-closed skip（本関数 doc
-                    // 参照）。`expected_index` は診断済みの `diff_keys`
-                    // 計画どおり進める（失敗の有無に関わらず区間検出の
-                    // 基準は変えない）。
+                    // `expected_index` は診断済みの `diff_keys` 計画どおり
+                    // 進める（失敗の有無に関わらず区間検出の基準は変えな
+                    // い。区間検出自体は「計画上の」index で行い、実際の
+                    // ライブ DOM 参照だけを補正する）。
                     expected_index += 1;
                     j += 1;
                 }
                 if !items.is_empty() {
-                    let reference = dom.child_at(start_index);
-                    dom.insert_before_batch(start_index, items, reference.as_ref());
+                    let adjusted_start = start_index.saturating_sub(index_offset);
+                    let reference = dom.child_at(adjusted_start);
+                    dom.insert_before_batch(adjusted_start, items, reference.as_ref());
                 }
+                index_offset += failed_in_run;
                 i = j;
             }
             KeyedOp::Move { index, key } => {
                 if let Some(existing) = find_child_by_key(dom, key) {
-                    let reference = dom.child_at(*index);
-                    dom.move_before(*index, key, &existing, reference.as_ref());
+                    let adjusted = index.saturating_sub(index_offset);
+                    let reference = dom.child_at(adjusted);
+                    dom.move_before(adjusted, key, &existing, reference.as_ref());
+                } else {
+                    // 移動対象キーがライブ DOM 上に見つからない（改ざん等の
+                    // 異常系）。この場合も対象キーの目標スロットは
+                    // 埋まらないため、`Insert` の構築失敗と同様に未達成
+                    // スロットとして `index_offset` へ数える（本関数 doc
+                    // 参照）。
+                    index_offset += 1;
                 }
                 i += 1;
             }
@@ -335,7 +375,7 @@ pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
                 // 行わないため `KeyedOp::Update` を発行し得ない
                 // （`fandhe_frontend_core::keyed::diff_keys` の実装参照）。
                 // `KeyedOp` は `diff_keyed_items` とも型を共有するため
-                // 網羅性のためのみに存在する到達しない分岐（no-op）。
+                // 網羅性のためのみに存在する到達しない分岐(no-op)。
                 // Update を実際に処理する経路は [`apply_ops_with_items`]。
             }
         }
@@ -352,11 +392,35 @@ pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
 pub(crate) struct ApplyOutcome {
     /// 適用後にライブ DOM 上へ実際に存在するキー列（新しい並び順）。
     /// `Insert` の構築に失敗して未反映のまま skip されたキーは含まない。
+    ///
+    /// [`Self::resync_required`] が `true` の場合、この列は「未達成 op が
+    /// 無かった前提で index 補正した上での最良推定」に過ぎず、呼び出し元
+    /// （[`crate::keyed_dom::apply_keyed_list_with_previous`]）はこの列を
+    /// 「達成 Node」としてキャッシュへ確定させてはならない
+    /// （[`Self::resync_required`] doc 参照）。
     pub(crate) final_keys: Vec<String>,
     /// `Update` の子ノード構築に失敗し、旧内容のまま据え置かれたキーの
     /// 集合（「達成 Node」合成時にこの集合のキーは新内容ではなく旧内容を
-    /// 使う）。
+    /// 使う）。ノード参照・位置は保たれたまま内容だけが据え置かれるため
+    /// [`Self::final_keys`]/「達成 Node」で正しく表現でき、
+    /// [`Self::resync_required`] の対象にはしない。
     pub(crate) stale_update_keys: std::collections::HashSet<String>,
+    /// op 列中に 1 件でも「計画どおりに適用できなかった」もの（`Insert` の
+    /// `create_item` 失敗、`Move`/`Update` の対象キーがライブ DOM 上に
+    /// 見つからない、`Update` の新ノードが `Node::Element` でない）が
+    /// あった場合に `true`（イシュー #1340 codex-review P1 対応）。
+    ///
+    /// これらは「op が実行されなかった」ケースであり、その対象キーが
+    /// 最終的にライブ DOM 上のどの位置・状態にあるかを [`Self::final_keys`]
+    /// だけから正確に再構成できる保証がない（`apply_ops` 側の
+    /// `index_offset` 補正は「以降の op の参照ノード解決」を実際のライブ
+    /// DOM に一致させる目的の補正であり、未達成キー自身の最終位置の
+    /// 網羅的な追跡までは行わない）。呼び出し元はこのフラグが立った回の
+    /// 適用結果を「達成 Node」としてキャッシュへ確定させず、次回は
+    /// ライブ DOM を直接読み出す構造フォールバック
+    /// （[`crate::keyed_dom::apply_keyed_list`]）へ委ねること
+    /// （`KeyedListApplyResult::ResyncRequired` doc 参照）。
+    pub(crate) resync_required: bool,
 }
 
 /// `old_items`/`new_items`（`(キー, Node)` 列）から
@@ -376,6 +440,13 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
     let ops = diff_keyed_items(old_items, new_items);
     let mut failed_inserts: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut stale_update_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // ライブ DOM 上の実際の位置と `diff_keyed_items` が計画した `index` との
+    // 累計ズレ（[`apply_ops`] doc「未達成スロットの index 補正」と同じ目的・
+    // 同じ補正規則。イシュー #1340 codex-review P1 対応）。
+    let mut index_offset: usize = 0;
+    // 1 件でも op が計画どおりに適用できなかった場合に `true`
+    // （[`ApplyOutcome::resync_required`] doc 参照）。
+    let mut resync_required = false;
 
     for op in ops {
         match op {
@@ -387,23 +458,38 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
             KeyedOp::Insert { index, key } => {
                 let Some(new_node) = dom.create_item(&key) else {
                     failed_inserts.insert(key);
+                    index_offset += 1;
+                    resync_required = true;
                     continue;
                 };
-                let reference = dom.child_at(index);
+                let adjusted = index.saturating_sub(index_offset);
+                let reference = dom.child_at(adjusted);
                 // トレイトが提供する挿入 API は #1320 で `insert_before_batch`
                 // へ一本化された（連続 Insert 区間の DocumentFragment
                 // 集約）。本関数は `diff_keyed_items` の op 列を 1 件ずつ
                 // 適用する構成のため、要素数 1 の `items` で呼び出す
                 // （契約上「新しい並びで `start_index` から連続する新規
                 // ノード列」を満たせば良く、単一要素はこれを自明に満たす）。
-                dom.insert_before_batch(index, vec![(key.clone(), new_node)], reference.as_ref());
+                dom.insert_before_batch(
+                    adjusted,
+                    vec![(key.clone(), new_node)],
+                    reference.as_ref(),
+                );
             }
             KeyedOp::Move { index, key } => {
                 let Some(existing) = find_child_by_key(dom, &key) else {
+                    // 移動対象キーがライブ DOM 上に見つからない（改ざん等の
+                    // 異常系）。目標スロットが埋まらないため `Insert` の
+                    // 構築失敗と同様に未達成スロットとして扱う
+                    // （`apply_ops` doc・[`ApplyOutcome::resync_required`]
+                    // doc 参照）。
+                    index_offset += 1;
+                    resync_required = true;
                     continue;
                 };
-                let reference = dom.child_at(index);
-                dom.move_before(index, &key, &existing, reference.as_ref());
+                let adjusted = index.saturating_sub(index_offset);
+                let reference = dom.child_at(adjusted);
+                dom.move_before(adjusted, &key, &existing, reference.as_ref());
             }
             KeyedOp::Update { key } => {
                 // `find_child_by_key`（sibling 走査、Remove/Move 用）ではなく
@@ -412,14 +498,16 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                 // 適用」参照）。
                 let Some(existing) = dom.find_by_key(&key) else {
                     // 保持キーのはずが実 DOM 上に見つからない（改ざん等の
-                    // 異常系）。当該キーは skip し、次回 diff で不整合が
-                    // 解消されるまで stale 扱いにはしない（呼び出し元は
-                    // 「達成 Node」合成時に new_items 側の内容を使うことに
-                    // なるが、これは Insert と同様に見つからない対象への
-                    // 操作を諦める既存の fail-closed 方針と整合する）。
+                    // 異常系）。`Update` は構造（位置）を変えない op のため
+                    // `index_offset` は増やさないが、対象キーの内容が
+                    // 未反映のままである事実は `final_keys` だけからは
+                    // 判別できないため `resync_required` を立てる
+                    // （[`ApplyOutcome::resync_required`] doc 参照）。
+                    resync_required = true;
                     continue;
                 };
                 let Some((_, new_node)) = new_items.iter().find(|(k, _)| k == &key) else {
+                    resync_required = true;
                     continue;
                 };
                 let Node::Element {
@@ -432,6 +520,7 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     // Node::Element であることが保証される
                     // （KeyedListError::NonElementItem で fail-closed に
                     // 拒否済み）。到達しない想定だが安全側に skip する。
+                    resync_required = true;
                     continue;
                 };
                 let filtered_attrs: Vec<(String, String)> = new_attrs
@@ -441,6 +530,11 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     .collect();
                 dom.sync_attrs(&existing, &filtered_attrs);
                 if !dom.replace_item_children(&existing, new_children) {
+                    // 子ノード構築失敗はノード参照・位置を保ったまま内容が
+                    // 旧値のまま据え置かれるだけなので `final_keys`/
+                    // `stale_update_keys` で正しく表現できる
+                    // （`resync_required` の対象にしない、
+                    // [`ApplyOutcome::stale_update_keys`] doc 参照）。
                     stale_update_keys.insert(key);
                 }
             }
@@ -456,6 +550,7 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
     ApplyOutcome {
         final_keys,
         stale_update_keys,
+        resync_required,
     }
 }
 
@@ -907,6 +1002,47 @@ mod tests {
         );
     }
 
+    /// codex-review P1 回帰固定（PR #1340、イシュー #1340）: 実 DOM
+    /// `[a,b]` → 新規列 `[x,b,a]` で `x` の構築が失敗するケースで、
+    /// 後続の `Move{index:1,key:b}` が実 DOM 上の正しい参照ノードへ
+    /// 解決され（`index_offset` 補正、[`apply_ops`] doc「未達成スロットの
+    /// index 補正」参照）、1 回の適用で `[b,a]`（`x` を除いた正しい並び）へ
+    /// 収束すること。さらに同じ view を再適用しても順序が変わらない
+    /// （収束後は安定、繰り返し適用しても崩れない）ことも確認する。
+    ///
+    /// 修正前は `index_offset` 補正が無く、`Move{index:1,key:b}` が
+    /// `child_at(1)` = `b` 自身を参照する自己参照の no-op になり、実 DOM は
+    /// `[a,b]` のまま変化しなかった（codex 指摘の再現手順）。
+    #[test]
+    fn apply_ops_converges_dom_order_when_leading_insert_construction_fails() {
+        let mut dom = PoisonedCreateDom {
+            inner: CountingDom {
+                items: vec!["a".to_string(), "b".to_string()],
+                ..Default::default()
+            },
+            poisoned_key: "x".to_string(),
+        };
+        let new_keys: Vec<String> = ["x", "b", "a"].into_iter().map(String::from).collect();
+
+        apply_ops(&mut dom, &new_keys);
+
+        assert_eq!(
+            dom.inner.items,
+            vec!["b".to_string(), "a".to_string()],
+            "x の構築失敗を除いた正しい並び [b, a] へ 1 回の適用で収束するはず"
+        );
+
+        // 同じ view（x は引き続き構築失敗する）を再適用しても、既に正しい
+        // 並びのため崩れない（収束後の安定性・冪等性の確認）。
+        apply_ops(&mut dom, &new_keys);
+
+        assert_eq!(
+            dom.inner.items,
+            vec!["b".to_string(), "a".to_string()],
+            "収束後に同じ view を再適用しても並びが崩れないはず（冪等性）"
+        );
+    }
+
     // --- 意味的一致の確認（モックとアルゴリズムが噛み合っていることの
     // 担保、上記コスト値の信頼性の裏付け） ---
 
@@ -966,6 +1102,10 @@ mod tests {
 
         assert_eq!(outcome.final_keys, vec!["a".to_string()]);
         assert!(outcome.stale_update_keys.is_empty());
+        assert!(
+            !outcome.resync_required,
+            "全 op が計画どおり適用できたはずなので再同期は不要のはず"
+        );
         assert_eq!(dom.calls.sync_attrs, 1);
         assert_eq!(dom.calls.replace_item_children, 1);
         assert_eq!(dom.calls.create_item, 0);
@@ -1045,6 +1185,11 @@ mod tests {
             std::collections::HashSet::from(["a".to_string()]),
             "構築失敗したキーのみが stale として記録されるはず"
         );
+        assert!(
+            !outcome.resync_required,
+            "子ノード構築失敗はノード参照・位置を保ったまま stale_update_keys \
+             で正しく表現できるため、resync_required の対象にはならないはず"
+        );
         assert_eq!(
             dom.children.get("a"),
             None,
@@ -1077,12 +1222,48 @@ mod tests {
             vec!["c".to_string(), "d".to_string(), "a".to_string()]
         );
         assert!(outcome.stale_update_keys.is_empty());
+        assert!(!outcome.resync_required);
         assert_eq!(
             dom.children.get("c"),
             Some(&vec![text("c-new")]),
             "c の内容変更が反映されているはず"
         );
         assert_eq!(dom.items, outcome.final_keys);
+    }
+
+    /// codex-review P1 回帰固定（PR #1340、イシュー #1340）、`Update` を
+    /// 発行し得る [`apply_ops_with_items`] 側: `Insert` の構築失敗が起きた
+    /// 場合、[`ApplyOutcome::resync_required`] が `true` になり、呼び出し元
+    /// （`apply_keyed_list_with_previous`）が「達成 Node」をキャッシュへ
+    /// 確定させないこと（`KeyedListApplyResult::ResyncRequired` doc 参照）を
+    /// `ApplyOutcome` レベルで保証する。DOM 自体も `index_offset` 補正
+    /// （[`apply_ops`] doc 参照）により、`x` を除いた正しい並び `[b, a]` へ
+    /// 収束することもあわせて確認する。
+    #[test]
+    fn apply_ops_with_items_signals_resync_required_when_insert_construction_fails() {
+        let old_items = vec![item("a", "a"), item("b", "b")];
+        let new_items = vec![item("x", "x"), item("b", "b"), item("a", "a")];
+        let mut dom = PoisonedCreateDom {
+            inner: CountingDom {
+                items: vec!["a".to_string(), "b".to_string()],
+                ..Default::default()
+            },
+            poisoned_key: "x".to_string(),
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "x の構築失敗を含む適用は再同期を要求するはず（未達成 op が \
+             final_keys からは判別できないため）"
+        );
+        assert_eq!(
+            dom.inner.items,
+            vec!["b".to_string(), "a".to_string()],
+            "index_offset 補正により、x を除いた正しい並び [b, a] へ \
+             収束するはず（apply_ops と同じ補正規則）"
+        );
     }
 
     // --- コスト固定テスト（イシュー #1324、Update op 版）---

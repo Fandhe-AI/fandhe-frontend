@@ -83,6 +83,18 @@ categories = ["wasm", "web-programming"]
 # は `fandhe_frontend_core::keyed::KeyedOp` の re-export へ切り替わり
 # variant（`Update`）が増える破壊的変更（設計書 §4.4 の明記どおり）のため
 # マイナーバンプ（0.3.2 → 0.4.0）とする。
+#
+# PR #1340 codex-review P1 対応（イシュー #1324 のフォローアップ、上記
+# 0.4.0 バンプがまだ crates.io へ未公開のウィンドウ中）: `apply_ops`/
+# `apply_ops_with_items`（`keyed_apply.rs`、いずれも非公開）へ「未達成
+# スロットの index 補正」（`index_offset`）と `ApplyOutcome::resync_required`
+# を追加し、`Insert` の構築失敗（`RawHtml` 混入等）後に後続 `Move`/`Insert`
+# が誤った位置へ適用される不具合と、その誤った適用結果を「達成 Node」として
+# キャッシュへ確定させてしまう不具合を修正した。`pub(crate)` 内部変更のみ、
+# および `KeyedListApplyResult::ResyncRequired`（既存 public variant）の
+# doc 更新のみで公開シグネチャ・公開型に変更はないため、#1318/#1319/#1320 と
+# 同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0 へ本変更を吸収させ、
+# 追加のバンプは行わない。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.3.0" }
 fandhe-frontend-app = { path = "../app", version = "0.2.2" }

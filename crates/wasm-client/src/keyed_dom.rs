@@ -665,16 +665,24 @@ pub enum KeyedListApplyResult {
     /// `previous_list_node` として保持し続けることで、以降の diff 基準を
     /// 実際の DOM 内容と一致させ続ける（キャッシュの再同期）。
     Achieved(Node),
-    /// 「要再同期」（設計書 §4.2a）。本実装では
-    /// [`crate::keyed_apply::apply_ops_with_items`] の `Update` 適用が
-    /// 子ノード構築失敗（`Node::RawHtml` 混入等）を検出した場合でも当該
-    /// アイテムは旧内容のまま DOM 上に残り続けるため（fail-closed）、
-    /// 本 variant は現在の実装では発生しない（`Achieved` が常に返る）。
-    /// 将来ロールバック自体の失敗（設計書 §6 不変条件が想定する二重失敗）
-    /// を検出する実装を追加する場合に備え、呼び出し元の分岐を型で用意
-    /// しておく（呼び出し元は本 variant を「当該 field の保持 Node を破棄
-    /// し、次回は [`apply_keyed_list`] のフォールバック経路へ委ねる」ものと
-    /// して扱うこと）。
+    /// 「要再同期」（設計書 §4.2a）。
+    ///
+    /// `Update` の子ノード構築失敗（`Node::RawHtml` 混入等）は当該アイテムが
+    /// 旧内容のまま DOM 上に残り続けるだけなので `stale_update_keys` 経由で
+    /// 「達成 Node」へ正しく表現でき、本 variant の対象にはならない
+    /// （`Achieved` が返る）。一方、`Insert` の構築失敗・`Move`/`Update` の
+    /// 対象キーがライブ DOM 上に見つからない等「op が計画どおりに適用され
+    /// なかった」ケース（[`crate::keyed_apply::ApplyOutcome::resync_required`]
+    /// doc 参照、イシュー #1340 codex-review P1 対応）では本 variant が返る:
+    /// `diff_keyed_items` が計画した `index` は「全 op が成功した前提の
+    /// 最終並び」上の位置であり、一部が未達成のまま「達成 Node」を確定させ
+    /// キャッシュしてしまうと、次回呼び出しの diff 基準がライブ DOM の実際
+    /// の内容と乖離したまま固定され、以降いくら同じ view を再適用しても
+    /// 乖離が解消されない（本 variant 導入前の実際の不具合、PR #1340
+    /// codex-review 指摘）。呼び出し元はこの `field` の保持 Node を破棄し、
+    /// 次回は [`apply_keyed_list`] のフォールバック経路（ライブ DOM を直接
+    /// 読み出す構造変化のみの適用、`Update` を発行しないため diff 基準が
+    /// 常に実際の DOM と一致する）へ委ねること。
     ResyncRequired,
 }
 
@@ -710,6 +718,17 @@ pub fn apply_keyed_list_with_previous(
         children: None,
     };
     let outcome = crate::keyed_apply::apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+    if outcome.resync_required {
+        // 1 件でも op が計画どおりに適用できなかった（`ApplyOutcome::
+        // resync_required` doc 参照）。`final_keys`/`stale_update_keys` から
+        // 「達成 Node」を合成してキャッシュへ確定させると、ライブ DOM の
+        // 実際の内容と乖離した diff 基準が固定されてしまう
+        // （`KeyedListApplyResult::ResyncRequired` doc・イシュー #1340
+        // codex-review P1 対応）ため、達成 Node の合成自体を行わず
+        // 呼び出し元へ再同期を要求する。
+        return KeyedListApplyResult::ResyncRequired;
+    }
 
     // 「達成 Node」を合成する: final_keys の順序で、stale（子ノード構築
     // 失敗で据え置かれた）キーは旧内容、それ以外は新内容を使う。
