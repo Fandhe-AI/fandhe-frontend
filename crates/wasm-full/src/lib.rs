@@ -436,10 +436,22 @@ where
                     keyed_list_cache.borrow_mut().remove(&nested_field);
                 }
             }
-            fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired => {
+            fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired {
+                invalidated_nested_fields,
+            } => {
                 // 次回は DOM 読み出しベースのフォールバックへ委ねる
                 // （`KeyedListApplyResult` doc 参照）。
+                //
+                // 最終確認レビュー指摘 1（イシュー #1340）対応:
+                // `resync_required` が立つ前に成功していた op で既に
+                // ライブ DOM が変化した部分木に含まれるネスト field も
+                // 同様に無効化する（`Achieved` アームと同じ扱い。
+                // `KeyedListApplyResult::ResyncRequired::
+                // invalidated_nested_fields` doc 参照）。
                 keyed_list_cache.borrow_mut().remove(field);
+                for nested_field in invalidated_nested_fields {
+                    keyed_list_cache.borrow_mut().remove(&nested_field);
+                }
             }
         }
     }

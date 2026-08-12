@@ -2577,6 +2577,62 @@ mod tests {
         );
     }
 
+    /// 最終確認レビュー指摘 1（イシュー #1340）回帰固定: `resync_required`
+    /// が立つ**前**に成功していた op（`g1` の内容変更 Update、ネストした
+    /// `children` field のマーカーを含む）で記録された
+    /// `invalidated_nested_fields` は、後続の op（`g2` の Update 対象が
+    /// ライブ DOM 上に見つからず `resync_required` を立てる）によって
+    /// 破棄されず `ApplyOutcome` へそのまま残ることを確認する
+    /// （`crate::keyed_dom::apply_keyed_list_core` はこの `ApplyOutcome`
+    /// をそのまま `KeyedListApplyResult::ResyncRequired::
+    /// invalidated_nested_fields` へ伝播する契約、同 doc 参照）。
+    #[test]
+    fn apply_ops_with_items_keeps_invalidated_nested_fields_when_later_op_triggers_resync() {
+        let nested = fandhe_frontend_core::keyed::keyed_list(
+            "ul",
+            vec![],
+            "children",
+            vec![("c1".to_string(), el("li", vec![], vec![text("c1")]))],
+        )
+        .expect("valid nested keyed list");
+        let old_items = vec![item("g1", "old"), item("g2", "old")];
+        let new_items = vec![
+            (
+                "g1".to_string(),
+                el("li", vec![("data-key", "g1")], vec![nested]),
+            ),
+            item("g2", "new"),
+        ];
+        // ライブ DOM には g1 のみ存在し、g2 は既に失われている（改ざん・
+        // 取りこぼし等の異常系を模す）。
+        let mut dom = CountingDom {
+            items: vec!["g1".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "g2 の Update 対象がライブ DOM 上に見つからないため \
+             resync_required が立つはず"
+        );
+        assert_eq!(
+            outcome.invalidated_nested_fields,
+            std::collections::HashSet::from(["children".to_string()]),
+            "g1 の Update は g2 より先に成功しており、その時点でライブ \
+             DOM は既に変化している。後続の g2 の未達成によって \
+             resync_required が立っても、g1 が記録した \
+             invalidated_nested_fields は破棄されてはならない"
+        );
+        assert_eq!(
+            dom.children.get("g1").map(|c| c.len()),
+            Some(1),
+            "g1 の子ノード再構築（ネスト field を含む）は実際にライブ \
+             DOM 上で完了しているはず"
+        );
+    }
+
     /// `replace_item_children` が失敗（子ノード構築失敗）した場合、対象
     /// アイテムの子孫はライブ DOM 上で一切変更されないため
     /// `invalidated_nested_fields` へ記録してはならない（未達成の部分木を
@@ -4322,12 +4378,13 @@ mod tests {
     }
 
     /// 既存 1,000 行中 1 件のみ内容が変わるケース（実運用で最も典型的な
-    /// 単一項目更新）: 実測 2,001 回程度（`first_element_child` 1 回 +
-    /// `find_by_key`/`sync_attrs`/`replace_item_children` 各 1 回、
-    /// キャッシュ構築の sibling 走査 999 回分は `next_element_sibling` に
-    /// 計上）に対してタイトな上限（1,500 回、末尾要素想定で
-    /// `next_element_sibling` 999 回 + 前述 4 回 = 1,003 回に余裕を持たせた
-    /// 値）で固定する。
+    /// 単一項目更新）: 実測 2,002 回程度（`first_element_child` 1 回 +
+    /// `find_by_key`/`sync_attrs`/`replace_item_children`/`tag_name`
+    /// （イシュー #1340 codex-review P1/Bugbot〔10 巡目〕対応で追加、
+    /// `Update` 1 件につき 1 回）各 1 回、キャッシュ構築の sibling 走査
+    /// 999 回分は `next_element_sibling` に計上）に対してタイトな上限
+    /// （1,500 回、末尾要素想定で `next_element_sibling` 999 回 + 前述
+    /// 5 回 = 1,004 回に余裕を持たせた値）で固定する。
     #[test]
     fn apply_ops_with_items_update_one_of_1000_rows_stays_linear() {
         const N: usize = 1_000;

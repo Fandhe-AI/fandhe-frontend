@@ -1058,20 +1058,26 @@ fn replace_list_element_for_tag_change(
     new_list_node: &Node,
 ) -> KeyedListApplyResult {
     let Some(parent) = list_element.parent_node() else {
-        return KeyedListApplyResult::ResyncRequired;
+        return KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields: std::collections::HashSet::new(),
+        };
     };
 
     let namespace = list_element.namespace_uri();
     let Some(new_container) =
         build_dom_node_with_namespace(document, new_list_node, namespace.as_deref())
     else {
-        return KeyedListApplyResult::ResyncRequired;
+        return KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields: std::collections::HashSet::new(),
+        };
     };
 
     let old_as_node: web_sys::Node = list_element.clone().unchecked_into();
     let mut adapter = ParentNodeRootReplace { parent: &parent };
     if !crate::keyed_apply::replace_root_node(&mut adapter, &old_as_node, &new_container) {
-        return KeyedListApplyResult::ResyncRequired;
+        return KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields: std::collections::HashSet::new(),
+        };
     }
 
     // 独立敵対レビュー指摘 A（イシュー #1340）対応: `new_list_node` の
@@ -1132,7 +1138,9 @@ fn apply_keyed_list_core(
         ..
     } = new_list_node
     else {
-        return KeyedListApplyResult::ResyncRequired;
+        return KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields: std::collections::HashSet::new(),
+        };
     };
 
     let live_tag = list_element.tag_name().to_ascii_lowercase();
@@ -1160,7 +1168,18 @@ fn apply_keyed_list_core(
         // （`KeyedListApplyResult::ResyncRequired` doc・イシュー #1340
         // codex-review P1 対応）ため、達成 Node の合成自体を行わず
         // 呼び出し元へ再同期を要求する。
-        return KeyedListApplyResult::ResyncRequired;
+        //
+        // 最終確認レビュー指摘 1（イシュー #1340）対応: `resync_required`
+        // が立つより**前**に成功していた op（例: 保持キー a の Update が
+        // 丸ごと新規構築で成功した直後、別の保持キー b の Update 対象が
+        // ライブ DOM 上に見つからず本分岐に到達するケース）は、既に
+        // ライブ DOM を変更済みであり、その部分木に含まれるネストした
+        // 別 field のキャッシュも同様に無効化する必要がある
+        // （`ApplyOutcome::invalidated_nested_fields` は成功 op のみを
+        // 収集済みのためここでそのまま伝播しても偽陽性は生じない）。
+        return KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields: outcome.invalidated_nested_fields,
+        };
     }
 
     if old_items_are_placeholders && !outcome.stale_update_keys.is_empty() {
@@ -1190,7 +1209,14 @@ fn apply_keyed_list_core(
         // が確定しないままになるが、これは既存の `Runtime` 側
         // 自己修復ループ（`None` 分岐の `ResyncRequired` 処理）と同じ
         // 「収束しないが誤ったキャッシュも作らない」設計であり安全側。
-        return KeyedListApplyResult::ResyncRequired;
+        //
+        // 最終確認レビュー指摘 1（イシュー #1340）対応: この分岐も
+        // `resync_required` 分岐と同じ理由でネスト field 無効化を伝播する
+        // （プレースホルダ経路であっても、stale でない他の保持キーは
+        // 実際に丸ごと新規構築されライブ DOM が変化している）。
+        return KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields: outcome.invalidated_nested_fields,
+        };
     }
 
     // 「達成 Node」の子ノード列合成本体は
@@ -1285,7 +1311,9 @@ pub fn apply_keyed_list(
     new_list_node: &Node,
 ) -> KeyedListApplyResult {
     if !matches!(new_list_node, Node::Element { .. }) {
-        return KeyedListApplyResult::ResyncRequired;
+        return KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields: std::collections::HashSet::new(),
+        };
     }
     let namespace = list_element.namespace_uri();
     let mut probe = WebSysKeyedDom {
@@ -1349,7 +1377,23 @@ pub enum KeyedListApplyResult {
     /// 次回は [`apply_keyed_list`] のフォールバック経路（ライブ DOM を直接
     /// 読み出す構造変化のみの適用、`Update` を発行しないため diff 基準が
     /// 常に実際の DOM と一致する）へ委ねること。
-    ResyncRequired,
+    ResyncRequired {
+        /// 独立敵対レビュー指摘（イシュー #1340、最終確認レビュー指摘 1）
+        /// 対応: `resync_required` が立つ**前**に成功した op（例:
+        /// 保持キーの一部が丸ごと新規構築された `Update` 直後に、別の
+        /// `Update` の対象キーがライブ DOM 上に見つからず本 variant が
+        /// 返る場合）は、既にライブ DOM を変更済みであり、その部分木に
+        /// 含まれるネストした別 field のキャッシュも同様に無効化する
+        /// 必要がある（`Achieved::invalidated_nested_fields` doc・
+        /// `crate::keyed_apply::ApplyOutcome::invalidated_nested_fields`
+        /// doc 参照）。呼び出し元（`Runtime::commit_keyed_list_result`）は
+        /// 自 field のキャッシュ remove に加えてこの集合も remove する
+        /// こと。DOM に一切触れていない・ロールバックで DOM 未変更相当に
+        /// 戻した早期 `ResyncRequired`（契約検証失敗・ detached 親タグ
+        /// 変更・`replace_root_node`/`insert_before_batch`/`move_before`/
+        /// `remove_child` の実 DOM 操作失敗）は空集合を返す。
+        invalidated_nested_fields: std::collections::HashSet<String>,
+    },
 }
 
 /// [`fandhe_frontend_core::keyed::diff_keyed_items`] が計画した操作列
@@ -1427,10 +1471,14 @@ pub fn apply_keyed_list_with_previous(
         ..
     } = previous_list_node
     else {
-        return KeyedListApplyResult::ResyncRequired;
+        return KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields: std::collections::HashSet::new(),
+        };
     };
     if !matches!(new_list_node, Node::Element { .. }) {
-        return KeyedListApplyResult::ResyncRequired;
+        return KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields: std::collections::HashSet::new(),
+        };
     }
 
     let old_items = owned_list_item_nodes(previous_list_node);
@@ -1738,7 +1786,7 @@ mod tests {
         let result = apply_keyed_list(&document, &list_element, &new_tree);
 
         assert!(
-            matches!(result, KeyedListApplyResult::ResyncRequired),
+            matches!(result, KeyedListApplyResult::ResyncRequired { .. }),
             "RawHtml 混入アイテムの構築は恒久的に失敗するため \
              ResyncRequired を返すはず: {result:?}"
         );
@@ -2078,7 +2126,7 @@ mod tests {
         );
         let achieved = match result {
             KeyedListApplyResult::Achieved { node, .. } => node,
-            KeyedListApplyResult::ResyncRequired => {
+            KeyedListApplyResult::ResyncRequired { .. } => {
                 panic!("構築成功時は Achieved が返るはず")
             }
         };
@@ -2118,7 +2166,7 @@ mod tests {
             apply_keyed_list_with_previous(&document, &list_element, &previous, &malformed_new);
 
         assert!(
-            matches!(result, KeyedListApplyResult::ResyncRequired),
+            matches!(result, KeyedListApplyResult::ResyncRequired { .. }),
             "契約外の new_list_node は ResyncRequired を返すはず（Achieved \
              として誤ってキャッシュされないようにする）"
         );
@@ -2148,7 +2196,10 @@ mod tests {
         let result =
             apply_keyed_list_with_previous(&document, &list_element, &malformed_previous, &updated);
 
-        assert!(matches!(result, KeyedListApplyResult::ResyncRequired));
+        assert!(matches!(
+            result,
+            KeyedListApplyResult::ResyncRequired { .. }
+        ));
         assert_eq!(
             list_element.children().length(),
             2,
@@ -2271,7 +2322,7 @@ mod tests {
         );
 
         assert!(
-            matches!(result, KeyedListApplyResult::ResyncRequired),
+            matches!(result, KeyedListApplyResult::ResyncRequired { .. }),
             "detached な list_element は置換できないため ResyncRequired を \
              返すはず"
         );
@@ -2327,7 +2378,7 @@ mod tests {
         let result1 =
             apply_keyed_list_with_previous(&document, &list_element, &previous, &stale_update_view);
         assert!(
-            matches!(result1, KeyedListApplyResult::ResyncRequired),
+            matches!(result1, KeyedListApplyResult::ResyncRequired { .. }),
             "ライブ DOM に存在しない \"b\" への Update は解決できないため \
              ResyncRequired を返すはず: {result1:?}"
         );
@@ -2389,7 +2440,7 @@ mod tests {
         let result1 =
             apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tag_view);
         assert!(
-            matches!(result1, KeyedListApplyResult::ResyncRequired),
+            matches!(result1, KeyedListApplyResult::ResyncRequired { .. }),
             "detached な親タグ変更は置換できないため ResyncRequired のはず: \
              {result1:?}"
         );

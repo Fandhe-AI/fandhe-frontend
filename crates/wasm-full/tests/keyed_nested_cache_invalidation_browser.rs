@@ -116,7 +116,15 @@ impl Component for NestedListState {
     fn update(&mut self, _action: Self::Action) {
         self.dirty.clear();
         self.label = "g1-renamed".to_string();
-        self.children.push((3, "c3".to_string()));
+        // 最終確認レビュー指摘 2（イシュー #1340）対応: 固定値 `(3, "c3")`
+        // のハードコード push は 2 回目以降の `dispatch_grow` で同じキー
+        // "3" を再度 push してしまい、`keyed_list()` の `DuplicateKey`
+        // 検証に構築時点で拒否され `view()` の `expect` がパニックする
+        // （本ファイルが検証したい「Runtime 経由のキャッシュ無効化」とは
+        // 無関係な自己矛盾バグだった）。既存要素数から一意なキーを採番
+        // する。
+        let next_id = self.children.len() as u64 + 1;
+        self.children.push((next_id, format!("c{next_id}")));
         if self.children_first {
             self.dirty.push(Self::FIELD_CHILDREN);
             self.dirty.push(Self::FIELD_GROUPS);
@@ -291,9 +299,9 @@ fn nested_field_cache_invalidated_regardless_of_order_children_then_groups() {
 
     assert_children_converged(root);
 
-    // 収束確認: 直後にもう 1 tick（内容変化なしの再送）を送っても、
-    // ネスト field 無効化により毎回 cache-miss フォールバックを経由する
-    // 設計であっても収束状態が崩れない（無効化が「壊す」方向へ働かない
+    // 収束確認: 直後にもう 1 tick（c4 をさらに追加する 2 回目の grow）を
+    // 送っても、ネスト field 無効化により毎回 cache-miss フォールバックを
+    // 経由する設計であっても正しく収束する（無効化が「壊す」方向へ働かない
     // ことの追加確認）。
     dispatch_grow(&document, root);
     let child_nodes = root
