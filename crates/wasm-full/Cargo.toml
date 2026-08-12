@@ -167,6 +167,15 @@ fandhe-frontend-interactive = { path = "../interactive", version = "0.2.3" }
 # 実装のみ、`Runtime` の公開シグネチャは不変）が消費するため dep req を
 # 追随する（`cargo run -p xtask -- check-dep-versions --fix`）。本クレート
 # 自身は公開 API を追加していないため 0.7.3 → 0.7.4（内部変更のみ）。
+#
+# push 後の再レビュー（Bugbot Medium、イシュー #1340）の追加是正:
+# `Runtime::apply_update_for_dirty` の「保持キャッシュが無い field」経路
+# （`keyed_list_cache` の `None` 分岐）が `apply_keyed_list`（wasm-client
+# 0.4.0 で戻り値を `bool` へ変更）の戻り値を見ずに常時キャッシュへ確定
+# させていたため、挿入スキップが発生した回の未達成状態が誤ってキャッシュ
+# へ再シードされる不具合を修正した。`Runtime` の公開シグネチャは不変・
+# 内部実装のみの変更のため、引き続き 0.7.4（本 PR で未公開のまま）へ
+# 吸収させ、追加のバンプは行わない。
 fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.4.0", default-features = false }
 wasm-bindgen = "0.2"
 js-sys = "0.3"

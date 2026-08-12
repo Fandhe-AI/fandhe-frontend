@@ -455,14 +455,43 @@ where
                                         }
                                     }
                                     None => {
-                                        fandhe_frontend_wasm_client::apply_keyed_list(
-                                            &document,
-                                            &list_element,
-                                            list_node,
-                                        );
-                                        keyed_list_cache
-                                            .borrow_mut()
-                                            .insert((*field).to_string(), list_node.clone());
+                                        // Bugbot 指摘（PR #1340、イシュー
+                                        // #1340）: `apply_keyed_list` の
+                                        // 戻り値（完全達成したか）を見ずに
+                                        // 常時 `list_node`（望ましい view
+                                        // であって実 DOM の達成状態では
+                                        // ない）をキャッシュへ確定させると、
+                                        // `Insert` の構築失敗等で挿入
+                                        // スキップが起きた直後にこの
+                                        // フォールバック経路が誤ったキャッシュ
+                                        // を再シードしてしまい、
+                                        // `apply_keyed_list_with_previous`
+                                        // 側で #1340 P1 対応として導入した
+                                        // 「未達成状態をキャッシュしない」
+                                        // ガード（`ApplyOutcome::
+                                        // resync_required`・
+                                        // `KeyedListApplyResult::
+                                        // ResyncRequired`）が 1 tick 後に
+                                        // 無効化される。完全達成した場合の
+                                        // みキャッシュへ登録し、未達成
+                                        // だった場合はエントリを持たせない
+                                        // （次回もこの `None` 分岐へ入り、
+                                        // 実 DOM の現在状態から再度
+                                        // `apply_keyed_list` で構造フォール
+                                        // バックする自己修復ループになる）。
+                                        let achieved =
+                                            fandhe_frontend_wasm_client::apply_keyed_list(
+                                                &document,
+                                                &list_element,
+                                                list_node,
+                                            );
+                                        if achieved {
+                                            keyed_list_cache
+                                                .borrow_mut()
+                                                .insert((*field).to_string(), list_node.clone());
+                                        } else {
+                                            keyed_list_cache.borrow_mut().remove(*field);
+                                        }
                                     }
                                 }
                                 structural_change = true;
