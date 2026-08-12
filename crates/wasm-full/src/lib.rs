@@ -389,6 +389,61 @@ where
     /// `build_dom_node` が `None`（`RawHtml` 混入等、fail-closed）を返す
     /// 場合は既存 DOM を維持したまま固定英語文言で `console::warn` する
     /// （内部状態を含めない、`lib.rs` クレート doc 不変条件 6 と同方針）。
+    /// [`fandhe_frontend_wasm_client::KeyedListApplyResult`] を
+    /// `keyed_list_cache` へ反映する共通処理（`apply_update_for_dirty` の
+    /// with-previous 経路・cache-miss フォールバック経路の双方が使う）。
+    ///
+    /// # ネストした keyed list の field 間キャッシュ無効化（イシュー
+    /// #1340 独立敵対レビュー指摘 A 対応）
+    ///
+    /// `field` は field ごとに独立してキャッシュされるが、`Achieved` が
+    /// 丸ごと新規構築した部分木（`Insert`・タグ変更を伴う `Update`・
+    /// 内容変更の `Update`・親タグ変更）の子孫に**別の** keyed list
+    /// field のマーカーが含まれる場合（ネストした keyed list）、その
+    /// ライブ DOM も同時に新しい状態へ更新されている。しかし
+    /// `keyed_list_cache` はこの副作用を知らないため、当該ネスト field
+    /// のキャッシュが古い内容のまま取り残され、次回その field を dirty
+    /// 処理する際に誤った diff 基準（存在しないキーへの `Update`・重複
+    /// `Insert` 等）を生む（同一 dispatch 内で当該 field が
+    /// `dirty` に含まれない限り顕在化しないが、含まれる場合は処理順序に
+    /// 関わらず必ずここで検知・除去する: ある field を処理した直後に
+    /// その field がネストして含む別 field のキャッシュを毎回無条件で
+    /// 破棄するため、`dirty` 内の処理順序（例: 親 field → 子 field、
+    /// 子 field → 親 field のいずれの順でも）に依存しない）。
+    ///
+    /// `invalidated_nested_fields` に含まれる field は
+    /// `keyed_list_cache` から remove する（fail-closed、`achieved`
+    /// 側と同じ「未達成状態をキャッシュしない」設計、
+    /// `KeyedListApplyResult::Achieved` doc 参照）。次回その field が
+    /// dirty になった際は cache-miss フォールバック（ライブ DOM 読み
+    /// 出し基準、常に正しい）で自己修復する。
+    fn commit_keyed_list_result(
+        field: &'static str,
+        result: fandhe_frontend_wasm_client::KeyedListApplyResult,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) {
+        match result {
+            fandhe_frontend_wasm_client::KeyedListApplyResult::Achieved {
+                node,
+                invalidated_nested_fields,
+            } => {
+                keyed_list_cache
+                    .borrow_mut()
+                    .insert(field.to_string(), node);
+                for nested_field in invalidated_nested_fields {
+                    keyed_list_cache.borrow_mut().remove(&nested_field);
+                }
+            }
+            fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired => {
+                // 次回は DOM 読み出しベースのフォールバックへ委ねる
+                // （`KeyedListApplyResult` doc 参照）。
+                keyed_list_cache.borrow_mut().remove(field);
+            }
+        }
+    }
+
     fn apply_update_for_dirty(
         state: &C,
         root: &web_sys::Element,
@@ -439,20 +494,11 @@ where
                                                 &previous_node,
                                                 list_node,
                                             );
-                                        match result {
-                                            fandhe_frontend_wasm_client::KeyedListApplyResult::Achieved(achieved) => {
-                                                keyed_list_cache
-                                                    .borrow_mut()
-                                                    .insert((*field).to_string(), achieved);
-                                            }
-                                            fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired => {
-                                                // 次回は DOM 読み出しベースの
-                                                // フォールバックへ委ねる
-                                                // （`KeyedListApplyResult` doc
-                                                // 参照）。
-                                                keyed_list_cache.borrow_mut().remove(*field);
-                                            }
-                                        }
+                                        Self::commit_keyed_list_result(
+                                            field,
+                                            result,
+                                            keyed_list_cache,
+                                        );
                                     }
                                     None => {
                                         // Bugbot 指摘（PR #1340、イシュー
@@ -510,16 +556,11 @@ where
                                             &list_element,
                                             list_node,
                                         );
-                                        match result {
-                                            fandhe_frontend_wasm_client::KeyedListApplyResult::Achieved(achieved) => {
-                                                keyed_list_cache
-                                                    .borrow_mut()
-                                                    .insert((*field).to_string(), achieved);
-                                            }
-                                            fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired => {
-                                                keyed_list_cache.borrow_mut().remove(*field);
-                                            }
-                                        }
+                                        Self::commit_keyed_list_result(
+                                            field,
+                                            result,
+                                            keyed_list_cache,
+                                        );
                                     }
                                 }
                                 structural_change = true;

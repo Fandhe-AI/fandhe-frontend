@@ -1074,9 +1074,26 @@ fn replace_list_element_for_tag_change(
         return KeyedListApplyResult::ResyncRequired;
     }
 
-    KeyedListApplyResult::Achieved(crate::keyed_apply::sanitize_node_for_achieved(
-        new_list_node,
-    ))
+    // 独立敵対レビュー指摘 A（イシュー #1340）対応: `new_list_node` の
+    // アイテム（子）の子孫に別 field の keyed list マーカーがあれば、その
+    // ライブ DOM もこの丸ごと構築で新しい状態になっている
+    // （`KeyedListApplyResult::Achieved::invalidated_nested_fields` doc
+    // 参照）。`new_list_node` 自身（現在処理中の field 自身のマーカーを
+    // 持つ）は対象に含めない（現在処理中の field は呼び出し元がこの
+    // 戻り値の `node` で直接キャッシュ更新するため自己無効化は不要かつ
+    // 有害）ため、子要素（アイテム）から走査する。
+    let mut invalidated_nested_fields = std::collections::HashSet::new();
+    if let Node::Element { children, .. } = new_list_node {
+        for child in children {
+            invalidated_nested_fields
+                .extend(crate::keyed_apply::collect_nested_bind_list_fields(child));
+        }
+    }
+
+    KeyedListApplyResult::Achieved {
+        node: crate::keyed_apply::sanitize_node_for_achieved(new_list_node),
+        invalidated_nested_fields,
+    }
 }
 
 /// [`apply_keyed_list`]/[`apply_keyed_list_with_previous`] の共通実装本体
@@ -1208,11 +1225,19 @@ fn apply_keyed_list_core(
         new_parent_attrs,
     );
 
-    KeyedListApplyResult::Achieved(Node::Element {
-        tag: new_tag,
-        attrs: achieved_parent_attrs,
-        children: achieved_children,
-    })
+    KeyedListApplyResult::Achieved {
+        node: Node::Element {
+            tag: new_tag,
+            attrs: achieved_parent_attrs,
+            children: achieved_children,
+        },
+        // 独立敵対レビュー指摘 A（イシュー #1340）対応:
+        // `apply_ops_with_items` が丸ごと新規構築した部分木（`Insert`・
+        // タグ変更を伴う `Update`・内容変更の `Update`）の子孫に現れた
+        // 別 field の keyed list マーカーをそのまま伝播する
+        // （`ApplyOutcome::invalidated_nested_fields` doc 参照）。
+        invalidated_nested_fields: outcome.invalidated_nested_fields,
+    }
 }
 
 /// [`crate::keyed_diff::diff_keys`] が計画した操作列を `list_element` へ
@@ -1282,12 +1307,30 @@ pub fn apply_keyed_list(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyedListApplyResult {
     /// ライブ DOM が実際に表している「達成 Node」（設計書 §4.2）。
-    /// `Update` が全件成功していれば `new_list_node` そのものと等価だが、
-    /// 子ノード構築に失敗して据え置かれたアイテムがあれば当該アイテムのみ
-    /// 旧内容のまま含む。呼び出し元はこの `Node` を次回呼び出しの
-    /// `previous_list_node` として保持し続けることで、以降の diff 基準を
-    /// 実際の DOM 内容と一致させ続ける（キャッシュの再同期）。
-    Achieved(Node),
+    Achieved {
+        /// `Update` が全件成功していれば `new_list_node` そのものと等価
+        /// だが、子ノード構築に失敗して据え置かれたアイテムがあれば当該
+        /// アイテムのみ旧内容のまま含む。呼び出し元はこの `Node` を次回
+        /// 呼び出しの `previous_list_node` として保持し続けることで、
+        /// 以降の diff 基準を実際の DOM 内容と一致させ続ける（キャッシュ
+        /// の再同期）。
+        node: Node,
+        /// 独立敵対レビュー指摘 A（イシュー #1340）対応: 本 field を丸ごと
+        /// 新規構築した部分木（`Insert`・タグ変更を伴う `Update`・親タグ
+        /// 変更・内容変更の `Update`）の子孫に現れた**別の** keyed list
+        /// field 名の集合（`crate::keyed_apply::ApplyOutcome::
+        /// invalidated_nested_fields` doc 参照）。
+        ///
+        /// これらの field はライブ DOM 上では既に新しい状態になっている
+        /// が、`fandhe-frontend-wasm-full` の `Runtime::keyed_list_cache`
+        /// は field ごとに独立したエントリのため、この副作用を知らない
+        /// まま古い内容を指し続ける（ネストした keyed list の field 間
+        /// キャッシュ無効化欠落）。呼び出し元はこの集合に含まれる field
+        /// を `keyed_list_cache` から remove し、次回はライブ DOM 読み
+        /// 出し基準の cache-miss フォールバックへ委ねて自己修復させる
+        /// こと。
+        invalidated_nested_fields: std::collections::HashSet<String>,
+    },
     /// 「要再同期」（設計書 §4.2a）。
     ///
     /// `Update` の子ノード構築失敗（`Node::RawHtml` 混入等）は当該アイテムが
@@ -1660,6 +1703,62 @@ mod tests {
         );
     }
 
+    /// security-auditor P1〔可用性〕指摘対応（イシュー #1340、
+    /// `docs/design/keyed-update-op-design.md` §6 不変条件 10 参照）:
+    /// アイテム子孫に `Node::RawHtml` が混入した keyed list を cache-miss
+    /// フォールバック（`apply_keyed_list`）へ適用すると、当該アイテムの
+    /// 子ノード構築（`build_dom_node_with_namespace` 経由）が fail-closed
+    /// に失敗し続けるため `ResyncRequired` が返ること、かつ壊れていない
+    /// 他アイテムはライブ DOM 上で実際に新しい内容へ書き込まれる
+    /// （「他アイテムの更新までブロックする」わけではないこと）ことを
+    /// 実 DOM で確認する。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_resync_required_on_raw_html_item_still_updates_healthy_sibling() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+
+        let new_tree = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![
+                (
+                    "a".to_string(),
+                    el(
+                        "li",
+                        vec![],
+                        vec![Node::RawHtml("<b>injected</b>".to_string())],
+                    ),
+                ),
+                ("b".to_string(), li(vec![], vec![text("new-b")])),
+            ],
+        )
+        .expect("valid keyed list");
+
+        let result = apply_keyed_list(&document, &list_element, &new_tree);
+
+        assert!(
+            matches!(result, KeyedListApplyResult::ResyncRequired),
+            "RawHtml 混入アイテムの構築は恒久的に失敗するため \
+             ResyncRequired を返すはず: {result:?}"
+        );
+
+        let children = list_element.children();
+        assert_eq!(children.length(), 2, "アイテム数自体は変化しないはず");
+        assert_eq!(
+            children.item(0).unwrap().text_content().as_deref(),
+            Some("a"),
+            "構築失敗したアイテムは旧内容のまま据え置かれるはず \
+             （fail-closed、ライブ DOM に一切書き込まれない）"
+        );
+        assert_eq!(
+            children.item(1).unwrap().text_content().as_deref(),
+            Some("new-b"),
+            "壊れていない他アイテムは実際に新しい内容へ書き込まれて \
+             いるはず（resync_required は他アイテムの更新をブロックしない）"
+        );
+    }
+
     // --- 連続 Insert の DocumentFragment 集約（イシュー #1320） ---
 
     /// 既存 `[a,b]` の中間へ連続 3 件を挿入すると、`DocumentFragment` 経由
@@ -1816,7 +1915,7 @@ mod tests {
 
         let li_el = list_element.first_element_child().unwrap();
         assert_eq!(li_el.text_content().as_deref(), Some("new-label"));
-        assert!(matches!(result, KeyedListApplyResult::Achieved(_)));
+        assert!(matches!(result, KeyedListApplyResult::Achieved { .. }));
     }
 
     /// 受け入れ条件: Update 対象アイテムのルート要素は同一 DOM ノードの
@@ -1978,7 +2077,7 @@ mod tests {
             "タグ変更の影響を受けない他アイテムの位置は保たれるはず"
         );
         let achieved = match result {
-            KeyedListApplyResult::Achieved(node) => node,
+            KeyedListApplyResult::Achieved { node, .. } => node,
             KeyedListApplyResult::ResyncRequired => {
                 panic!("構築成功時は Achieved が返るはず")
             }
@@ -1988,7 +2087,7 @@ mod tests {
         // 安定している（冪等性、以後の再適用で差分が出ず収束しないという
         // codex-review 指摘の再発がないことの確認）。
         let result2 = apply_keyed_list_with_previous(&document, &list_element, &achieved, &updated);
-        assert!(matches!(result2, KeyedListApplyResult::Achieved(_)));
+        assert!(matches!(result2, KeyedListApplyResult::Achieved { .. }));
         assert_eq!(list_element.children().length(), 2);
         let first_after_reapply = list_element.first_element_child().unwrap();
         assert_eq!(first_after_reapply.tag_name().to_lowercase(), "div");
@@ -2126,7 +2225,7 @@ mod tests {
             "旧 list_element（\"ul\"）は wrapper から取り除かれているはず"
         );
 
-        let KeyedListApplyResult::Achieved(achieved) = result else {
+        let KeyedListApplyResult::Achieved { node: achieved, .. } = result else {
             panic!("完全成功時は Achieved が返るはず: {result:?}");
         };
         assert_eq!(
@@ -2143,7 +2242,7 @@ mod tests {
             &achieved,
             &updated_with_new_parent_tag,
         );
-        assert!(matches!(result2, KeyedListApplyResult::Achieved(_)));
+        assert!(matches!(result2, KeyedListApplyResult::Achieved { .. }));
     }
 
     /// codex-review P1〔9 巡目〕回帰固定（イシュー #1340）: `list_element`
@@ -2241,7 +2340,7 @@ mod tests {
         let converged_view = keyed_items(&["a"]);
         let result2 = apply_keyed_list(&document, &list_element, &converged_view);
 
-        let KeyedListApplyResult::Achieved(achieved) = result2 else {
+        let KeyedListApplyResult::Achieved { node: achieved, .. } = result2 else {
             panic!("フォールバック経路は完全達成するはず: {result2:?}");
         };
         assert_eq!(
@@ -2319,7 +2418,7 @@ mod tests {
             "再接続後の再試行で、ライブ実タグ（\"ul\"）と new view のタグ \
              （\"ol\"）の不一致が正しく再検出され、置換が実行されるはず"
         );
-        let KeyedListApplyResult::Achieved(achieved) = result2 else {
+        let KeyedListApplyResult::Achieved { node: achieved, .. } = result2 else {
             panic!("再接続後は置換に成功し Achieved が返るはず: {result2:?}");
         };
         assert_eq!(achieved, new_tag_view);
@@ -2381,10 +2480,14 @@ mod tests {
              はず"
         );
 
-        let KeyedListApplyResult::Achieved(Node::Element {
-            attrs: achieved_parent_attrs,
+        let KeyedListApplyResult::Achieved {
+            node:
+                Node::Element {
+                    attrs: achieved_parent_attrs,
+                    ..
+                },
             ..
-        }) = result
+        } = result
         else {
             panic!("全操作成功時は Achieved が返るはず");
         };

@@ -967,6 +967,55 @@ fn apply_ops_list<D: KeyedListDom>(dom: &mut D, ops: Vec<KeyedOp>) -> bool {
     fully_achieved
 }
 
+/// `node`（1 アイテムの新規構築先または丸ごと差し替え先の部分木）の
+/// 子孫に別の keyed list マーカー（`data-bind-list`）が現れる field 名を
+/// すべて集める（イシュー #1340 独立敵対レビュー指摘 A・ネストした keyed
+/// list の field 間キャッシュ無効化対応）。
+///
+/// # 用途
+///
+/// `apply_ops_with_items`/`replace_list_element_for_tag_change` は
+/// アイテム・親要素の部分木を**丸ごと新規構築**する経路（`Insert`・
+/// タグ変更を伴う `Update`〔`replace_root`〕・内容変更の `Update`
+/// 〔`replace_item_children`〕・親タグ変更）を持つ。これらはいずれも
+/// 対象 field（例: `groups`）の view を丸ごと DOM 反映するため、その
+/// 部分木の子孫に別の field（例: `groups` の各アイテム内にネストした
+/// `children`）の keyed list マーカーが含まれていれば、そのライブ DOM も
+/// 同時に新しい状態へ更新される。しかし `Runtime::keyed_list_cache` は
+/// field ごとに独立したエントリのため、ネストした field 側のキャッシュは
+/// この副作用を知らないまま古い内容を指し続ける（独立敵対レビュー指摘 A
+/// の根本原因）。呼び出し元（`Runtime::apply_update_for_dirty`）はこの
+/// 集合に含まれる field を `keyed_list_cache` から remove し、次回は
+/// cache-miss フォールバック（ライブ DOM 読み出し基準、常に正しい）で
+/// 自己修復させる。
+///
+/// [`collect_keyed_list_nodes`]（`crate::keyed_dom`、wasm32 専用）と同種の
+/// 走査だが、本関数は field 名の集合のみを返す DOM 非依存の純粋関数
+/// （native `cargo test` から到達可能）である。
+pub(crate) fn collect_nested_bind_list_fields(node: &Node) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    collect_nested_bind_list_fields_into(node, &mut out);
+    out
+}
+
+fn collect_nested_bind_list_fields_into(node: &Node, out: &mut std::collections::HashSet<String>) {
+    let Node::Element {
+        attrs, children, ..
+    } = node
+    else {
+        return;
+    };
+    if let Some((_, field)) = attrs
+        .iter()
+        .find(|(k, _)| k == fandhe_frontend_core::keyed::BIND_LIST_ATTR)
+    {
+        out.insert(field.clone());
+    }
+    for child in children {
+        collect_nested_bind_list_fields_into(child, out);
+    }
+}
+
 /// [`apply_ops`] の適用結果（イシュー #1324、`KeyedOp::Update` を含む
 /// op 列を処理した [`apply_ops_with_items`] のみが返す）。
 ///
@@ -1015,6 +1064,14 @@ pub(crate) struct ApplyOutcome {
     /// このキーの有無で「in-place 更新の実測値を使う」か「新規構築の
     /// ポリシー再計算〔[`sanitize_node_for_achieved`]〕を使う」かを分岐する。
     pub(crate) achieved_attrs: std::collections::HashMap<String, Vec<(String, String)>>,
+    /// [`collect_nested_bind_list_fields`] doc 参照（独立敵対レビュー指摘
+    /// A 対応）: 本関数が丸ごと新規構築した部分木（`Insert`・タグ変更を
+    /// 伴う `Update`〔`replace_root`〕・内容変更の `Update`
+    /// 〔`replace_item_children`〕のうち実際に成功したもの）の子孫に現れた
+    /// 別 field の keyed list マーカー名の集合。構築が失敗した op（対象
+    /// 部分木は旧内容のまま据え置かれ、ネストした field のライブ DOM も
+    /// 変化していない）は含めない。
+    pub(crate) invalidated_nested_fields: std::collections::HashSet<String>,
 }
 
 /// `old_items`/`new_items`（`(キー, Node)` 列）から
@@ -1046,6 +1103,10 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
     // 1 件でも op が計画どおりに適用できなかった場合に `true`
     // （[`ApplyOutcome::resync_required`] doc 参照）。
     let mut resync_required = false;
+    // [`ApplyOutcome::invalidated_nested_fields`] doc 参照（独立敵対
+    // レビュー指摘 A 対応）。
+    let mut invalidated_nested_fields: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
 
     for op in ops {
         match op {
@@ -1089,6 +1150,13 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     failed_inserts.insert(key);
                     index_offset += 1;
                     resync_required = true;
+                } else if let Some((_, source_node)) = new_items.iter().find(|(k, _)| k == &key) {
+                    // 新規挿入成功。この部分木の子孫に別 field の keyed
+                    // list マーカーが含まれていれば、そのライブ DOM も
+                    // 新規構築時点で新しい状態になっている（独立敵対
+                    // レビュー指摘 A、`ApplyOutcome::invalidated_nested_fields`
+                    // doc 参照）。
+                    invalidated_nested_fields.extend(collect_nested_bind_list_fields(source_node));
                 }
             }
             KeyedOp::Move { index, key } => {
@@ -1198,6 +1266,12 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                         // `final_keys` だけからは判別できず、次回はライブ
                         // DOM から再構築する構造フォールバックへ委ねる。
                         resync_required = true;
+                    } else {
+                        // アイテム全置換成功。ルートを含む部分木全体が新規
+                        // 構築されたため、子孫の別 field も新しい状態に
+                        // なっている（独立敵対レビュー指摘 A、
+                        // `ApplyOutcome::invalidated_nested_fields` doc 参照）。
+                        invalidated_nested_fields.extend(collect_nested_bind_list_fields(new_node));
                     }
                     continue;
                 }
@@ -1274,6 +1348,11 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                         &filtered_attrs,
                     );
                     achieved_attrs.insert(key, synced);
+                    // 子ノード構築成功。子孫がまるごと新規構築されたため、
+                    // ネストした別 field も新しい状態になっている
+                    // （独立敵対レビュー指摘 A、
+                    // `ApplyOutcome::invalidated_nested_fields` doc 参照）。
+                    invalidated_nested_fields.extend(collect_nested_bind_list_fields(new_node));
                 }
             }
         }
@@ -1290,6 +1369,7 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
         stale_update_keys,
         resync_required,
         achieved_attrs,
+        invalidated_nested_fields,
     }
 }
 
@@ -2374,6 +2454,163 @@ mod tests {
             dom.children.get("a"),
             Some(&vec![text("new")]),
             "新しい子ノード内容が反映されているはず"
+        );
+    }
+
+    // --- ネストした keyed list の field 間キャッシュ無効化（イシュー
+    // #1340 独立敵対レビュー指摘 A 対応） ---
+
+    /// `collect_nested_bind_list_fields` の直接単体テスト: 子孫に現れる
+    /// keyed list マーカーの field 名を検出し、ルート自身のマーカーは
+    /// 対象に含めない（ルートは呼び出し元が `new_list_node` の子要素から
+    /// のみ走査する契約、`replace_list_element_for_tag_change` doc 参照）。
+    #[test]
+    fn collect_nested_bind_list_fields_finds_descendant_marker_only() {
+        let nested = fandhe_frontend_core::keyed::keyed_list(
+            "ul",
+            vec![],
+            "children",
+            vec![("c1".to_string(), el("li", vec![], vec![text("c1")]))],
+        )
+        .expect("valid nested keyed list");
+        let item_with_nested = el("li", vec![], vec![nested]);
+
+        let found = collect_nested_bind_list_fields(&item_with_nested);
+        assert_eq!(
+            found,
+            std::collections::HashSet::from(["children".to_string()]),
+            "アイテムの子孫に現れた別 field のマーカーを検出するはず"
+        );
+
+        // ルート自身が keyed list マーカーを持つ場合（呼び出し元が
+        // `new_list_node` 自身を渡してしまう誤用を想定した確認）は、
+        // ルート自身のマーカーも子孫と同様に検出される（除外は本関数の
+        // 責務ではなく呼び出し元が「子要素から走査する」ことで担保する
+        // 契約であることの明示）。
+        let root_itself = fandhe_frontend_core::keyed::keyed_list(
+            "ul",
+            vec![],
+            "groups",
+            vec![("g1".to_string(), item_with_nested)],
+        )
+        .expect("valid keyed list");
+        let found_from_root = collect_nested_bind_list_fields(&root_itself);
+        assert_eq!(
+            found_from_root,
+            std::collections::HashSet::from(["groups".to_string(), "children".to_string()]),
+            "本関数自体はルート自身のマーカーも含めて検出する（除外は \
+             呼び出し元の責務）"
+        );
+    }
+
+    /// Insert（新規挿入）が成功すると、挿入されたアイテムの子孫に含まれる
+    /// 別 field のマーカーが `invalidated_nested_fields` へ記録される
+    /// （`ApplyOutcome::invalidated_nested_fields` doc 参照）。
+    #[test]
+    fn apply_ops_with_items_records_invalidated_nested_field_on_insert() {
+        let nested = fandhe_frontend_core::keyed::keyed_list(
+            "ul",
+            vec![],
+            "children",
+            vec![("c1".to_string(), el("li", vec![], vec![text("c1")]))],
+        )
+        .expect("valid nested keyed list");
+        let old_items: Vec<(String, Node)> = vec![];
+        let new_items = vec![(
+            "g1".to_string(),
+            el("li", vec![("data-key", "g1")], vec![nested]),
+        )];
+        let mut dom = CountingDom::default();
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        assert_eq!(
+            outcome.invalidated_nested_fields,
+            std::collections::HashSet::from(["children".to_string()]),
+            "新規挿入されたアイテムの子孫に含まれる別 field のマーカーが \
+             記録されるはず"
+        );
+    }
+
+    /// 内容変更のみの Update（`replace_item_children` 経由、タグ変更なし）
+    /// が成功すると、アイテムの新しい子ノード列に含まれる別 field の
+    /// マーカーが `invalidated_nested_fields` へ記録される。
+    #[test]
+    fn apply_ops_with_items_records_invalidated_nested_field_on_content_update() {
+        let nested_old = fandhe_frontend_core::keyed::keyed_list(
+            "ul",
+            vec![],
+            "children",
+            vec![("c1".to_string(), el("li", vec![], vec![text("old")]))],
+        )
+        .expect("valid nested keyed list");
+        let nested_new = fandhe_frontend_core::keyed::keyed_list(
+            "ul",
+            vec![],
+            "children",
+            vec![("c1".to_string(), el("li", vec![], vec![text("new")]))],
+        )
+        .expect("valid nested keyed list");
+        let old_items = vec![(
+            "g1".to_string(),
+            el("li", vec![("data-key", "g1")], vec![nested_old]),
+        )];
+        let new_items = vec![(
+            "g1".to_string(),
+            el("li", vec![("data-key", "g1")], vec![nested_new]),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["g1".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        assert_eq!(dom.calls.replace_item_children, 1);
+        assert_eq!(
+            outcome.invalidated_nested_fields,
+            std::collections::HashSet::from(["children".to_string()]),
+            "内容変更の Update で再構築されたアイテムの子孫に含まれる別 \
+             field のマーカーが記録されるはず"
+        );
+    }
+
+    /// `replace_item_children` が失敗（子ノード構築失敗）した場合、対象
+    /// アイテムの子孫はライブ DOM 上で一切変更されないため
+    /// `invalidated_nested_fields` へ記録してはならない（未達成の部分木を
+    /// 「新しい状態になった」と偽って伝播しないこと、`ApplyOutcome::
+    /// invalidated_nested_fields` doc「構築が失敗した op は含めない」参照）。
+    #[test]
+    fn apply_ops_with_items_does_not_record_invalidated_nested_field_when_content_update_fails() {
+        let nested = fandhe_frontend_core::keyed::keyed_list(
+            "ul",
+            vec![],
+            "children",
+            vec![("c1".to_string(), el("li", vec![], vec![text("c1")]))],
+        )
+        .expect("valid nested keyed list");
+        let old_items = vec![item("g1", "old")];
+        let new_items = vec![(
+            "g1".to_string(),
+            el("li", vec![("data-key", "g1")], vec![nested]),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["g1".to_string()],
+            fail_replace_children_for: std::collections::HashSet::from(["g1".to_string()]),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        assert!(outcome.stale_update_keys.contains("g1"));
+        assert!(
+            outcome.invalidated_nested_fields.is_empty(),
+            "子ノード構築失敗時はライブ DOM が変化していないため記録して \
+             はならない: {:?}",
+            outcome.invalidated_nested_fields
         );
     }
 
@@ -3567,6 +3804,54 @@ mod tests {
             dom.items,
             vec!["b".to_string(), "a".to_string()],
             "move_before により並びが新しい view と一致するはず"
+        );
+    }
+
+    /// security-auditor P1〔可用性〕指摘対応（イシュー #1340）:
+    /// `Node::RawHtml` 混入等で恒久的に子ノード構築が失敗するアイテムが
+    /// 1 件でも含まれる場合、cache-miss フォールバック（プレースホルダ
+    /// `old_items`）は `ResyncRequired` を返し続けキャッシュを確定させ
+    /// ない（`docs/design/keyed-update-op-design.md` §6 不変条件 10 参照）。
+    /// この挙動は「壊れているアイテムのせいで他アイテムの更新まで
+    /// ブロックされる」ことは意味しない: 本テストは壊れていない他アイテム
+    /// （`b`）がライブ DOM 上では実際に新しい内容へ書き込まれていること
+    /// （op ループ自体はキーごとに逐次実行され、`resync_required` は
+    /// 「達成 Node としてキャッシュへ確定させない」ためのフラグに過ぎない
+    /// こと）を確認し、「無限にハングする」のではなく「毎 dirty tick
+    /// ごとに境界のあるコストで再試行される」設計であることを裏付ける。
+    #[test]
+    fn apply_ops_with_items_with_placeholder_old_items_still_writes_healthy_items_when_one_permanently_fails(
+    ) {
+        let mut dom = CountingDom {
+            items: vec!["a".to_string(), "b".to_string()],
+            fail_replace_children_for: std::collections::HashSet::from(["a".to_string()]),
+            ..Default::default()
+        };
+        let old_items = synthesize_live_placeholder_items(&mut dom);
+        let new_items = vec![
+            // `a` は実運用では `RawHtml` 混入等で構築が恒久的に失敗する
+            // アイテムを表す（`fail_replace_children_for` で模擬）。
+            item("a", "new-a"),
+            item("b", "new-b"),
+        ];
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.stale_update_keys.contains("a"),
+            "壊れているアイテムは stale として記録されるはず"
+        );
+        assert!(
+            outcome.invalidated_nested_fields.is_empty(),
+            "壊れているアイテムはライブ DOM が変化していないため \
+             invalidated_nested_fields には影響しないはず"
+        );
+        assert_eq!(
+            dom.children.get("b"),
+            Some(&vec![text("new-b")]),
+            "壊れていない他アイテム（b）は実際に新しい内容へ書き込まれて \
+             いるはず（`resync_required` は境界のあるコストでの再試行を \
+             示すフラグであり、他アイテムの更新までブロックしない）"
         );
     }
 
