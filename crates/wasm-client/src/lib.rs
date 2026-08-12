@@ -80,6 +80,21 @@ pub use binding_dom::BindingTable;
 /// #345）。`binding`/`binding_dom` と同じ 2 層構成方針を踏襲する。
 pub mod keyed_diff;
 
+/// keyed list の DOM 適用: op 適用アルゴリズム本体（イシュー #1318）。
+/// `keyed_diff`/`keyed_dom` の 2 層構成をもう一段拡張し、走査アルゴリズム
+/// を `KeyedListDom` トレイト越しに DOM 非依存へ切り出すことで、
+/// wasm32 ゲート配下だった DOM 操作コストを native から決定的に検証可能
+/// にする。非公開（`keyed_dom` の内部実装詳細）。
+///
+/// 本番経路では wasm32 配線層 [`keyed_dom`] のみが本モジュールを消費する
+/// ため、`target_arch = "wasm32"` でコンパイルする。加えて host（native）
+/// の `cargo test` から DOM 操作コストの決定的テスト（本モジュール内
+/// `#[cfg(test)]`）を実行できるよう `test` cfg でも有効化する（host の
+/// 通常ビルドでは未使用になり `-D warnings` の dead_code に抵触するため
+/// 常時有効化はしない）。
+#[cfg(any(test, target_arch = "wasm32"))]
+mod keyed_apply;
+
 #[cfg(target_arch = "wasm32")]
 mod keyed_dom;
 #[cfg(target_arch = "wasm32")]
