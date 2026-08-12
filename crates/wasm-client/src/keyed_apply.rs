@@ -139,9 +139,9 @@
 //! 版、codex-review 指摘）。
 //!
 //! [`crate::keyed_dom::WebSysKeyedDom::sync_attrs`] はこれを避けるため、
-//! `NamedNodeMap` の全列挙に一切依存せず、`new_attrs`/`old_attrs`
-//! （呼び出し元 [`apply_ops_with_items`] が渡す、vdom 側の表記）にある
-//! 属性名だけを `child.get_attribute(name)` で個別照会して戻り値を合成する
+//! 戻り値の**合成**は `new_attrs`/`old_attrs`（呼び出し元
+//! [`apply_ops_with_items`]/`sync_parent_attrs` が渡す、vdom 側の表記）に
+//! ある属性名だけを `child.get_attribute(name)` で個別照会して行う
 //! （[`KeyedListDom::sync_attrs`] doc「決定的な正規化契約」参照）。
 //! 全操作成功時は戻り値が `new_attrs` とバイト等価になり、失敗時のみ実際の
 //! DOM 状態が反映される。[`ApplyOutcome::achieved_attrs`] がこの戻り値を
@@ -149,6 +149,24 @@
 //! （`sync_attrs` 経由）のキーについてこの実測値をそのまま使う（もはや
 //! `sanitize_node_for_achieved` によるポリシー再計算は不要 —— 読み戻し値が
 //! ポリシー拒否も実行時失敗も両方織り込み済みのため）。
+//!
+//! # 削除判定とライブ属性ドリフト（イシュー #1340 codex-review Bugbot
+//! 〔8 巡目〕対応）
+//!
+//! 戻り値の**合成**は上記のとおり `new_attrs`/`old_attrs` 基準の個別照会
+//! を維持するが、**削除**（`remove_attribute` を呼ぶかどうかの判定）は
+//! `old_attrs`（キャッシュされた直前の内容）だけを基準にしてはならない。
+//! SSR hydrate 直後はサーバー側 HTML に含まれる属性がライブ DOM 上に存在
+//! する一方、クライアント側の `old_attrs` キャッシュにその属性が含まれ
+//! ない構成があり得る（hydrate 由来のライブ属性ドリフト）。`old_attrs`
+//! のみを削除判定に使うと、`new_attrs` にも存在しないその属性が Update を
+//! 何度適用しても永遠に除去されない不具合があった（codex-review 指摘）。
+//! [`crate::keyed_dom::WebSysKeyedDom::sync_attrs`] は削除**判定**にのみ
+//! `child.attributes()`（`NamedNodeMap` 全列挙）を使う（`reserved_attr`・
+//! `new_attrs` 側の名前を除いた実属性すべてを削除候補とする）。列挙は
+//! 削除対象の名前集合を決めるためだけに使い、値の取得・戻り値への格納は
+//! 引き続き `get_attribute` の個別照会を経由するため、上記「決定的な正規化
+//! 契約」（正常系のバイト等価性）と両立する。
 //!
 //! 新規構築経路（`build_dom_node_with_namespace` が経由する `create_item`/
 //! `replace_item_children` の新規子孫・タグ変更を伴う `replace_root`）は
@@ -289,64 +307,86 @@ pub(crate) trait KeyedListDom {
     /// が実 DOM と恒久的に乖離する）。
     fn remove_child(&mut self, child: &Self::Handle) -> bool;
 
-    /// `child` の属性を `old_attrs`（直前に反映済みの、予約属性 `data-key`
-    /// を除く属性集合）から `new_attrs`（同じく `data-key` を除く新しい
+    /// `child` の属性を `old_attrs`（直前に反映済みの、`reserved_attr` を
+    /// 除く属性集合）から `new_attrs`（同じく `reserved_attr` を除く新しい
     /// 属性集合）へ同期する（[`KeyedOp::Update`] 適用の一部、イシュー
-    /// #1324）。アダプタは `old_attrs` に存在し `new_attrs` に存在しない
-    /// 属性のみ `remove_attribute` し、`new_attrs` の各エントリを
-    /// `setAttribute` する（値が同一でも呼び出しは安全な no-op）。URL
-    /// スキーム・イベントハンドラ属性の検証は
+    /// #1324）。`reserved_attr` は呼び出し元の文脈で改変させない予約属性名
+    /// （子アイテムなら `data-key`、`crate::keyed_apply::sync_parent_attrs`
+    /// 経由の親要素なら `data-bind-list`）で、`old_attrs`/`new_attrs` には
+    /// 呼び出し元が既に含めない契約（多層防御として実装側でも明示的に
+    /// 除外する）。URL スキーム・イベントハンドラ属性の検証は
     /// [`crate::keyed_dom::build_dom_node`] と同一の述語を `web-sys`
     /// アダプタが共有して行う（本トレイトのモジュール doc 参照）。
     ///
-    /// `old_attrs` を呼び出し元（[`apply_ops_with_items`]）が渡す設計
-    /// （実装がライブ DOM の `NamedNodeMap` 全列挙で「現在の属性名」を
-    /// 収集する旧設計からの変更、イシュー #1340 codex-review Bugbot 指摘
-    /// 対応）である理由は戻り値の決定的正規化と表裏一体: 詳細は戻り値の
-    /// 節参照。
+    /// # 削除判定の基準（イシュー #1340 codex-review Bugbot〔8 巡目〕対応）
     ///
-    /// # 戻り値（イシュー #1340 codex-review P1〔5 巡目〕・Bugbot〔6 巡目〕対応）
+    /// 削除対象は `old_attrs`（キャッシュされた直前の内容）だけを基準に
+    /// してはならない。SSR hydrate 直後はサーバー側 HTML に含まれる属性が
+    /// ライブ DOM 上に存在する一方、クライアント側の `old_attrs`
+    /// キャッシュ（`keyed_list_cache` の初期シード）にはその属性が
+    /// 含まれない構成があり得る（hydrate 由来のライブ属性ドリフト）。
+    /// `old_attrs` のみを削除判定に使うと、`new_attrs` にも存在しないその
+    /// 属性が Update を何度適用しても永遠に除去されない。実装は
+    /// **ライブ要素の実属性列挙**（`Element::attributes()`/`NamedNodeMap`）
+    /// を削除候補の決定に使い、`reserved_attr` と `new_attrs` に存在する
+    /// 名前を除いた全ての実属性を削除対象とすること（`old_attrs` は削除
+    /// 判定には使わない。以下「決定的な正規化契約」の順序決定にのみ使う）。
     ///
-    /// 呼び出し後にライブ DOM が実際に持つ、予約属性 `data-key` を除く
-    /// 属性集合を返す。ポリシー拒否（検証不通過で書き込みを skip）・
-    /// 実行時失敗（`setAttribute`/`removeAttribute` の `Err`、不正な
-    /// 属性名等）のいずれによる未達成も、この戻り値には「実際に DOM に
-    /// 残っている状態」として正確に反映されていること（本トレイトの
-    /// モジュール doc「`sync_attrs` の実行時失敗と「達成 Node」の整合」
-    /// 参照）。
+    /// 属性名の一致判定は ASCII 大文字小文字を区別しない
+    /// （`str::eq_ignore_ascii_case`）で行う: HTML 文書の属性名はライブ DOM
+    /// 上で小文字化されて列挙されるため、`new_attrs` が大文字を含む表記
+    /// （例: `"Class"`）だと単純な `==` 比較では常に不一致となり、既存
+    /// 属性が誤って削除候補になってしまう（destructive: 削除後の再設定が
+    /// ポリシー拒否で skip されると属性が消失したままになる）。
+    ///
+    /// # 戻り値（イシュー #1340 codex-review P1〔5 巡目〕・Bugbot〔6・8 巡目〕対応）
+    ///
+    /// 呼び出し後にライブ DOM が実際に持つ、`reserved_attr` を除く属性
+    /// 集合を返す。ポリシー拒否（検証不通過で書き込みを skip）・実行時
+    /// 失敗（`setAttribute`/`removeAttribute` の `Err`、不正な属性名等）の
+    /// いずれによる未達成も、この戻り値には「実際に DOM に残っている
+    /// 状態」として正確に反映されていること（本トレイトのモジュール doc
+    /// 「`sync_attrs` の実行時失敗と「達成 Node」の整合」参照）。
     ///
     /// **決定的な正規化契約（イシュー #1340 codex-review Bugbot〔6 巡目〕
-    /// 対応）**: 戻り値は `child.attributes()`（`NamedNodeMap`）の生の
-    /// 列挙順・大小文字表記をそのまま使ってはならない。ライブ DOM の
-    /// `NamedNodeMap` は (a) 新規追加した属性を末尾へ追加する順序で
-    /// `new_attrs` の順序と一致する保証がなく、(b) HTML 文書の属性名は
-    /// 内部的に小文字化されるため `new_attrs` が大文字を含む表記だと
-    /// 一致しない。これらのアーティファクトをそのまま返すと、次回
-    /// `diff_keyed_items`（`(属性名, 属性値)` の `Vec` に対する順序・
-    /// 大小文字に敏感な `PartialEq` で比較）が「全書き込み成功の正常系」
-    /// ですら新しい view と不一致と判定し、`Update`（`replace_item_children`
-    /// を含む）が毎 tick 再発火して子ノードが再マウントされ続ける
-    /// （codex-review 指摘の実害）。実装は次の手順で決定的に合成すること:
+    /// 対応、削除判定基準の変更〔8 巡目〕後も維持）**: 戻り値の**合成**自体
+    /// は `child.attributes()`（`NamedNodeMap`）の生の列挙順・大小文字表記
+    /// を使わず、個別照会（`get_attribute`）のみに基づく（削除**判定**に
+    /// ライブ列挙を使うことと矛盾しない: 列挙は「削除すべき名前の集合」を
+    /// 決めるためだけに使い、値の取得・戻り値への格納は必ず
+    /// `get_attribute` の個別照会を経由する）。ライブ DOM の `NamedNodeMap`
+    /// は (a) 新規追加した属性を末尾へ追加する順序で `new_attrs` の順序と
+    /// 一致する保証がなく、(b) HTML 文書の属性名は内部的に小文字化される
+    /// ため `new_attrs` が大文字を含む表記だと一致しない。これらの
+    /// アーティファクトをそのまま返すと、次回 `diff_keyed_items`
+    /// （`(属性名, 属性値)` の `Vec` に対する順序・大小文字に敏感な
+    /// `PartialEq` で比較）が「全書き込み成功の正常系」ですら新しい view
+    /// と不一致と判定し、`Update`（`replace_item_children` を含む）が毎
+    /// tick 再発火して子ノードが再マウントされ続ける（codex-review 指摘の
+    /// 実害）。実装は次の手順で決定的に合成すること:
     ///
     /// 1. `new_attrs` の順序で各エントリ `(name, value)` について
-    ///    `child.get_attribute(name)`（個別照会、`NamedNodeMap` 全列挙は
-    ///    使わない）を呼ぶ。実値が `value` と一致すれば `(name, value)`
-    ///    （`new_attrs` 側の表記のまま）を採用し、異なれば
-    ///    `(name, 実値)` を採用する。実値が存在しない（未追加・削除済み）
-    ///    場合はこのエントリを戻り値から除外する。
-    /// 2. `old_attrs` のうち `new_attrs` に同名エントリが無いもの（＝
-    ///    削除対象だったもの）について、`child.get_attribute(name)` が
-    ///    値を返す場合（削除が実行時に失敗し DOM に残存している場合）は
-    ///    `old_attrs` 側の表記・順序のまま末尾へ追加する。
+    ///    `child.get_attribute(name)`（個別照会）を呼ぶ。実値が `value` と
+    ///    一致すれば `(name, value)`（`new_attrs` 側の表記のまま）を採用
+    ///    し、異なれば `(name, 実値)` を採用する。実値が存在しない
+    ///    （未追加・削除済み）場合はこのエントリを戻り値から除外する。
+    /// 2. 削除候補（ライブ列挙から `reserved_attr`・`new_attrs` 側の名前を
+    ///    除いたもの）のうち、`child.get_attribute(name)` が値を返す場合
+    ///    （削除が実行時に失敗し DOM に残存している場合）は実値を末尾へ
+    ///    追加する。順序は `old_attrs` に同名エントリがあるものを
+    ///    `old_attrs` の順序で先に並べ（全操作成功時は削除候補が空になり
+    ///    この節は素通りするため、正常系の順序・バイト等価性は変わらない）、
+    ///    `old_attrs` に無いもの（hydrate 由来のライブ専用属性）は残りを
+    ///    ライブ列挙順で末尾に追加する。
     ///
     /// この手順により、全操作が成功した正常系では戻り値が `new_attrs` と
     /// 完全にバイト等価（順序・大小文字とも）になり、失敗系（ポリシー
-    /// 拒否・実行時失敗）でのみ実際の DOM 状態が反映される。個別照会
-    /// （`get_attribute`）のみに依存する設計のため、`NamedNodeMap` の
-    /// 全列挙起因の順序・大小文字化アーティファクトを構造的に回避できる。
+    /// 拒否・実行時失敗）・hydrate ドリフト系（削除成功時は単に戻り値に
+    /// 現れない）でのみ実際の DOM 状態が反映される。
     fn sync_attrs(
         &mut self,
         child: &Self::Handle,
+        reserved_attr: &str,
         old_attrs: &[(String, String)],
         new_attrs: &[(String, String)],
     ) -> Vec<(String, String)>;
@@ -1087,7 +1127,12 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     // 参照）。子ノード構築の成功を確認した後でのみ呼ぶため、
                     // 呼び出し自体は常に行われるが、「達成」の中身（新値か
                     // 旧値かの取捨）はこの戻り値が正確に表す。
-                    let synced = dom.sync_attrs(&existing, &filtered_old_attrs, &filtered_attrs);
+                    let synced = dom.sync_attrs(
+                        &existing,
+                        fandhe_frontend_core::keyed::KEY_ATTR,
+                        &filtered_old_attrs,
+                        &filtered_attrs,
+                    );
                     achieved_attrs.insert(key, synced);
                 }
             }
@@ -1196,7 +1241,12 @@ pub(crate) fn sync_parent_attrs<D: KeyedListDom>(
         .filter(|(name, _)| name != fandhe_frontend_core::keyed::BIND_LIST_ATTR)
         .cloned()
         .collect();
-    let achieved = dom.sync_attrs(list_handle, &filtered_old, &filtered_new);
+    let achieved = dom.sync_attrs(
+        list_handle,
+        fandhe_frontend_core::keyed::BIND_LIST_ATTR,
+        &filtered_old,
+        &filtered_new,
+    );
 
     let bind_list_attr_entry = new_parent_attrs
         .iter()
@@ -1248,7 +1298,12 @@ fn compose_in_place_updated_node(new_node: &Node, achieved_attrs: &[(String, Str
 /// `replace_root`・`replace_item_children` の新規子孫）はいずれも旧値を
 /// 持たないため、拒否属性は無条件で除外する（`build_dom_node_with_namespace`
 /// の `set_attribute` skip と等価）。
-fn sanitize_node_for_achieved(node: &Node) -> Node {
+///
+/// `crate::keyed_dom::apply_keyed_list_with_previous`（親要素自身のタグが
+/// 変わる更新、イシュー #1340 codex-review P1〔9 巡目〕対応）も、
+/// `list_element` 自身を含む部分木全体を新規構築するため本関数を再利用
+/// する（`pub(crate)` として公開）。
+pub(crate) fn sanitize_node_for_achieved(node: &Node) -> Node {
     match node {
         Node::Element {
             tag,
@@ -1487,28 +1542,45 @@ mod tests {
         }
 
         /// 実 DOM の `sync_attrs`（`crate::keyed_dom::WebSysKeyedDom`）を
-        /// 模擬する: ポリシー拒否（`is_attr_write_rejected`、`web-sys`
-        /// 実装と同一の述語）・実行時失敗注入（`fail_set_attribute_for`/
-        /// `fail_remove_attribute_for`）のいずれでも書き込みが skip され、
-        /// `self.attrs` は「実際に達成できた状態」のみを反映するよう更新
-        /// する。戻り値は `KeyedListDom::sync_attrs` doc「決定的な正規化
-        /// 契約」と同じ手順（`new_attrs`/`old_attrs` にある名前だけを個別
-        /// 照会して合成、`NamedNodeMap` 全列挙相当の生の順序・表記は
-        /// 使わない）で合成する（イシュー #1340 codex-review P1〔5 巡目〕・
-        /// Bugbot〔6 巡目〕対応）。
+        /// 模擬する: `self.attrs` を「ライブ DOM の実属性列挙」の代理と
+        /// して扱う。削除判定は `self.attrs`（`old_attrs` キャッシュでは
+        /// なく）から `reserved_attr`・`new_attrs` 側の名前を除いた全件を
+        /// 候補とする（Bugbot〔8 巡目〕対応: hydrate 由来のライブ属性
+        /// ドリフト、`old_attrs` に無いが `self.attrs` にはある属性も削除
+        /// 対象になることを検証できる）。ポリシー拒否（`is_attr_write_rejected`、
+        /// `web-sys` 実装と同一の述語）・実行時失敗注入
+        /// （`fail_set_attribute_for`/`fail_remove_attribute_for`）の
+        /// いずれでも書き込みが skip され、`self.attrs` は「実際に達成
+        /// できた状態」のみを反映するよう更新する。戻り値は
+        /// `KeyedListDom::sync_attrs` doc「決定的な正規化契約」と同じ手順
+        /// （合成は `new_attrs`/`old_attrs` の表記基準の個別照会、削除
+        /// 判定のみライブ列挙基準）で合成する（イシュー #1340 codex-review
+        /// P1〔5 巡目〕・Bugbot〔6・8 巡目〕対応）。
         fn sync_attrs(
             &mut self,
             child: &Self::Handle,
+            reserved_attr: &str,
             old_attrs: &[(String, String)],
             new_attrs: &[(String, String)],
         ) -> Vec<(String, String)> {
             self.calls.sync_attrs += 1;
             let mut current = self.attrs.remove(child).unwrap_or_default();
 
-            for (name, _) in old_attrs {
-                if new_attrs.iter().any(|(k, _)| k == name) {
-                    continue;
-                }
+            // 削除判定: ライブ状態の代理である `current` の列挙から
+            // `reserved_attr`・`new_attrs` 側の名前を除いたものを削除候補
+            // とする（`old_attrs` は削除判定に使わない、Bugbot〔8 巡目〕
+            // 対応）。属性名の比較は大小文字を区別しない
+            // （`eq_ignore_ascii_case`、`KeyedListDom::sync_attrs` doc
+            // 「削除判定の基準」参照）。
+            let removal_candidates: Vec<String> = current
+                .iter()
+                .map(|(name, _)| name.clone())
+                .filter(|name| {
+                    !name.eq_ignore_ascii_case(reserved_attr)
+                        && !new_attrs.iter().any(|(k, _)| k.eq_ignore_ascii_case(name))
+                })
+                .collect();
+            for name in &removal_candidates {
                 if self
                     .fail_remove_attribute_for
                     .contains(&(child.clone(), name.clone()))
@@ -1520,6 +1592,11 @@ mod tests {
             }
 
             for (name, value) in new_attrs {
+                if name.eq_ignore_ascii_case(reserved_attr) {
+                    // 多層防御: 呼び出し元が既に除外済みの前提だが、万一
+                    // 予約属性が紛れ込んでも書き込まない。
+                    continue;
+                }
                 if is_attr_write_rejected(name, value) {
                     // ポリシー拒否を模擬: 現在値（旧値、または未追加なら
                     // 不在）をそのまま保持する。
@@ -1544,7 +1621,9 @@ mod tests {
 
             // `get_attribute` 相当の個別照会（`current` への線形探索）で
             // 決定的に合成する（`KeyedListDom::sync_attrs` doc「決定的な
-            // 正規化契約」の手順 1・2 と同一のロジック）。
+            // 正規化契約」の手順 1・2 と同一のロジック。手順 2 は削除判定
+            // 基準の変更〔8 巡目〕に合わせ `removal_candidates` を走査
+            // する）。
             let get = |name: &str| {
                 current
                     .iter()
@@ -1553,6 +1632,9 @@ mod tests {
             };
             let mut achieved: Vec<(String, String)> = Vec::with_capacity(new_attrs.len());
             for (name, value) in new_attrs {
+                if name.eq_ignore_ascii_case(reserved_attr) {
+                    continue;
+                }
                 if let Some(actual) = get(name) {
                     achieved.push((
                         name.clone(),
@@ -1564,19 +1646,23 @@ mod tests {
                     ));
                 }
             }
-            for (name, old_value) in old_attrs {
-                if new_attrs.iter().any(|(k, _)| k == name) {
-                    continue;
+            // 残存（削除失敗）属性: `old_attrs` に同名エントリがあるものを
+            // `old_attrs` の順序で先に並べ、それ以外（hydrate 由来のライブ
+            // 専用属性）は `removal_candidates` の列挙順で末尾に追加する。
+            let mut residual_order: Vec<String> = Vec::new();
+            for (name, _) in old_attrs {
+                if removal_candidates.contains(name) && !residual_order.contains(name) {
+                    residual_order.push(name.clone());
                 }
+            }
+            for name in &removal_candidates {
+                if !residual_order.contains(name) {
+                    residual_order.push(name.clone());
+                }
+            }
+            for name in &residual_order {
                 if let Some(actual) = get(name) {
-                    achieved.push((
-                        name.clone(),
-                        if &actual == old_value {
-                            old_value.clone()
-                        } else {
-                            actual
-                        },
-                    ));
+                    achieved.push((name.clone(), actual));
                 }
             }
             achieved
@@ -1860,10 +1946,12 @@ mod tests {
         fn sync_attrs(
             &mut self,
             child: &Self::Handle,
+            reserved_attr: &str,
             old_attrs: &[(String, String)],
             new_attrs: &[(String, String)],
         ) -> Vec<(String, String)> {
-            self.inner.sync_attrs(child, old_attrs, new_attrs)
+            self.inner
+                .sync_attrs(child, reserved_attr, old_attrs, new_attrs)
         }
         fn replace_item_children(&mut self, child: &Self::Handle, new_children: &[Node]) -> bool {
             self.inner.replace_item_children(child, new_children)
@@ -2382,6 +2470,105 @@ mod tests {
         );
     }
 
+    // --- 親タグ変更時の丸ごと置換（イシュー #1340 codex-review P1
+    // 〔9 巡目〕対応）: `crate::keyed_dom::replace_list_element_for_tag_change`
+    // が「達成 Node」合成に使う `sanitize_node_for_achieved` の native
+    // 検証。実 DOM 操作（`build_dom_node_with_namespace`/`replace_root_node`
+    // の wasm-only 配線）自体は `crate::keyed_dom` の wasm_bindgen_test
+    // （browser、成功系・detached fail-closed 系）が担う。ロールバック
+    // 契約自体は `replace_root_node_*`（本ファイル、`VecRootReplace` 汎用
+    // モック）が既に native 検証済みで、`ParentNodeRootReplace` は
+    // `ListElementRootReplace` と同型のコンテナ差し替えのみの薄い
+    // アダプタのため、この既存 native カバレッジをそのまま継承する。 ---
+
+    /// 新 baseline 確定の回帰固定: 全属性が検証を通過する場合、
+    /// `sanitize_node_for_achieved` は親要素・子アイテムを含む部分木全体を
+    /// `new_list_node` とバイト等価のまま返す（`data-bind-list` 予約属性も
+    /// 含めて引き継がれる。`build_dom_node_with_namespace` は予約属性を
+    /// 特別扱いせず無条件で書き込むため、実 DOM 構築結果と一致する）。
+    #[test]
+    fn sanitize_node_for_achieved_preserves_full_tree_including_bind_list_attr_when_nothing_rejected(
+    ) {
+        let items: Vec<(String, Node)> = vec![
+            ("a".to_string(), el("li", vec![], vec![text("a")])),
+            ("b".to_string(), el("li", vec![], vec![text("b")])),
+        ];
+        let new_list_node =
+            fandhe_frontend_core::keyed::keyed_list("ol", vec![("class", "list")], "items", items)
+                .expect("valid keyed list");
+
+        let achieved = sanitize_node_for_achieved(&new_list_node);
+
+        assert_eq!(
+            achieved, new_list_node,
+            "検証拒否属性が無い場合、達成 Node（新 baseline）は \
+             new_list_node（data-bind-list・子アイテムの data-key を含む）と \
+             バイト等価であるはず: {achieved:?}"
+        );
+        let Node::Element { attrs, .. } = &achieved else {
+            panic!("要素ノードのはず");
+        };
+        assert!(
+            attrs
+                .iter()
+                .any(|(k, v)| k == fandhe_frontend_core::keyed::BIND_LIST_ATTR && v == "items"),
+            "予約属性 data-bind-list が新コンテナへ引き継がれているはず: \
+             {attrs:?}"
+        );
+    }
+
+    /// 親タグ変更に伴う丸ごと再構築でも、検証を拒否された属性（危険 URL
+    /// スキーム等）は親要素・子アイテムのいずれでも達成 Node から除外
+    /// されること（新規構築経路のセキュリティ不変条件が置換パスにも
+    /// 及ぶことの確認）。
+    #[test]
+    fn sanitize_node_for_achieved_strips_rejected_attrs_from_parent_and_children_on_replace() {
+        let items: Vec<(String, Node)> = vec![(
+            "a".to_string(),
+            el("a", vec![("href", "javascript:alert(1)")], vec![text("a")]),
+        )];
+        let new_list_node = fandhe_frontend_core::keyed::keyed_list(
+            "ol",
+            vec![("onclick", "alert(1)"), ("class", "list")],
+            "items",
+            items,
+        )
+        .expect("valid keyed list");
+
+        let achieved = sanitize_node_for_achieved(&new_list_node);
+
+        let Node::Element {
+            attrs: parent_attrs,
+            children,
+            ..
+        } = &achieved
+        else {
+            panic!("要素ノードのはず");
+        };
+        assert!(
+            !parent_attrs.iter().any(|(k, _)| k == "onclick"),
+            "親要素のイベントハンドラ属性は除外されるはず: {parent_attrs:?}"
+        );
+        assert!(
+            parent_attrs.contains(&(
+                fandhe_frontend_core::keyed::BIND_LIST_ATTR.to_string(),
+                "items".to_string()
+            )),
+            "拒否属性のフィルタ後も予約属性 data-bind-list は残るはず: \
+             {parent_attrs:?}"
+        );
+        let Node::Element {
+            attrs: child_attrs, ..
+        } = &children[0]
+        else {
+            panic!("要素ノードのはず");
+        };
+        assert!(
+            !child_attrs.iter().any(|(k, _)| k == "href"),
+            "子アイテムの危険 URL 属性も除外されるはず: {child_attrs:?}"
+        );
+    }
+
     /// keyed list の親要素（`list_element` 自身）の属性同期
     /// （`crate::keyed_apply::sync_parent_attrs`、イシュー #1340
     /// codex-review P1〔7 巡目〕対応）の正常系: 全操作成功時、戻り値は
@@ -2467,6 +2654,126 @@ mod tests {
             vec![("class".to_string(), "old".to_string())],
             "setAttribute 失敗時、達成属性列は実 DOM の実際の状態（旧値）を \
              反映するはず: {achieved:?}"
+        );
+    }
+
+    // --- 削除判定のライブ属性ドリフト対応（イシュー #1340 codex-review
+    // Bugbot〔8 巡目〕対応） ---
+
+    /// SSR hydrate 直後の想定回帰固定: ライブ DOM 上にはあるが
+    /// `old_attrs`（クライアント側キャッシュ）には無い属性（hydrate 由来の
+    /// ライブ属性ドリフト）が、`new_attrs` にも存在しなければ削除される
+    /// こと。旧実装は `old_attrs` のみを削除判定に使っていたため、この
+    /// ケースの属性が Update を何度適用しても永遠に除去されなかった。
+    #[test]
+    fn apply_ops_with_items_removes_live_only_attr_absent_from_old_attrs_cache() {
+        // `old_attrs`（キャッシュ）は "class" のみを知っているが、
+        // モックの「ライブ DOM」（`dom.attrs`）には hydrate 由来の
+        // "data-ssr-only" も実際に存在する状況を再現する。
+        let old_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("class", "old")],
+                vec![text("x")],
+            ),
+        )];
+        let new_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("class", "new")],
+                vec![text("x")],
+            ),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            attrs: std::collections::HashMap::from([(
+                "a".to_string(),
+                vec![
+                    ("class".to_string(), "old".to_string()),
+                    ("data-ssr-only".to_string(), "server-value".to_string()),
+                ],
+            )]),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+        assert!(outcome.stale_update_keys.is_empty());
+        assert!(!outcome.resync_required);
+
+        assert_eq!(
+            dom.attrs.get("a"),
+            Some(&vec![("class".to_string(), "new".to_string())]),
+            "old_attrs キャッシュに存在しない hydrate 由来のライブ属性も、\
+             new_attrs に無ければ削除されるはず（ライブ列挙基準の削除判定）: \
+             {:?}",
+            dom.attrs.get("a")
+        );
+
+        let achieved = compose_achieved_children(&old_items, &new_items, &outcome);
+        let Node::Element { attrs, .. } = &achieved[0] else {
+            panic!("要素ノードのはず");
+        };
+        assert!(
+            !attrs.iter().any(|(k, _)| k == "data-ssr-only"),
+            "削除に成功した hydrate 由来の属性は達成 Node に含まれないはず: \
+             {attrs:?}"
+        );
+    }
+
+    /// 予約属性（`data-key`）はライブ属性列挙による削除判定からも除外
+    /// されること（`reserved_attr` ガードが `old_attrs`/`new_attrs` の
+    /// 事前フィルタだけに依存しない多層防御であることの確認）。ライブ DOM
+    /// 上に `data-key` が存在する状態を明示的にモックへ種付けし、
+    /// `sync_attrs` 呼び出し後も残存すること・達成 Node に重複して含まれ
+    /// ないこと（`compose_in_place_updated_node` が別途 1 回だけ追加する
+    /// 契約）を確認する。
+    #[test]
+    fn apply_ops_with_items_never_removes_reserved_attr_via_live_enumeration() {
+        let old_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("class", "old")],
+                vec![text("x")],
+            ),
+        )];
+        let new_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("class", "new")],
+                vec![text("x")],
+            ),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            // ライブ DOM（モック）上に予約属性 `data-key` が実在する状態を
+            // 明示的に種付けする（実 DOM では `data-key` は常に存在するが、
+            // `sync_attrs`/`CountingDom.attrs` は他テストでは通常
+            // `data-key` を含めずに管理しているため、ここで明示する）。
+            attrs: std::collections::HashMap::from([(
+                "a".to_string(),
+                vec![
+                    ("data-key".to_string(), "a".to_string()),
+                    ("class".to_string(), "old".to_string()),
+                ],
+            )]),
+            ..Default::default()
+        };
+
+        apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            dom.attrs
+                .get("a")
+                .expect("sync_attrs が呼ばれているはず")
+                .iter()
+                .any(|(k, _)| k == "data-key"),
+            "予約属性 data-key はライブ属性列挙による削除判定の対象から \
+             除外され、実 DOM（モック）に残り続けるはず: {:?}",
+            dom.attrs.get("a")
         );
     }
 
