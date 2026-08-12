@@ -1298,13 +1298,32 @@ fn apply_keyed_list_core(
 /// プレースホルダを使い、保持キー全件に `Update` を強制発行させる。
 /// タグ一致判定〔in-place 更新か `replace_root` か〕はプレースホルダに
 /// 依存せずライブ問い合わせで行われるため、`Move` のみで内容が変わらない
-/// 典型ケースでもノード同一性（フォーカス・入力途中の値の保持）は保た
-/// れる）。親要素自身の属性同期に使う `old_parent_attrs` は空スライスを
-/// 渡す（`sync_attrs`/`sync_parent_attrs` の削除判定はライブ属性列挙が
-/// 基準〔`KeyedListDom::sync_attrs` doc「削除判定の基準」参照〕のため、
-/// `old_attrs` が空でも安全に完全な同期ができる。`old_attrs` は達成
-/// attrs 合成時の残存〔削除失敗〕エントリの順序決定にのみ使われる
+/// 典型ケースでもルート要素自身のノード同一性は保たれる（要素そのものは
+/// 再生成されない）。親要素自身の属性同期に使う `old_parent_attrs` は
+/// 空スライスを渡す（`sync_attrs`/`sync_parent_attrs` の削除判定はライブ
+/// 属性列挙が基準〔`KeyedListDom::sync_attrs` doc「削除判定の基準」参照〕
+/// のため、`old_attrs` が空でも安全に完全な同期ができる。`old_attrs` は
+/// 達成 attrs 合成時の残存〔削除失敗〕エントリの順序決定にのみ使われる
 /// 補助情報であり、空でも正しさには影響しない）。
+///
+/// # フォーカス・入力途中の値の保持は保証しない（イシュー #1340 最終確認
+/// レビュー対応）
+///
+/// プレースホルダは `Node::Text` と `Node::Element` の enum variant の
+/// 違いにより内容比較を必ず不一致にするため、保持キー全件へ `Update` が
+/// 強制発行される（上記「達成契約」参照）。内容差分がなくても
+/// `replace_item_children` によりアイテムの**子ノード列**が丸ごと
+/// 再構築されるため、`new_list_node`（望ましい view）が明示的に持たない
+/// 子孫（例: 動的に追加された入力欄でフォーカス中の `<input>`）は消える。
+/// これはルート要素自身のノード同一性（上記段落）とは別の話であり、
+/// 「保持アイテムに触れない」ことを前提にしたフォーカス保持は
+/// [`apply_keyed_list_with_previous`]（通常運用の主経路、内容が変化して
+/// いない保持アイテムには `Update` を一切発行しない）でのみ成立する。
+/// 本関数（cache-miss フォールバック）は `Runtime::mount`/`Runtime::hydrate`
+/// が常にキャッシュを種付けする実運用では `ResyncRequired`・ネスト
+/// field 無効化（`docs/design/keyed-update-op-design.md` §6 不変条件 9・10
+/// 参照）の後にのみ到達するリカバリ経路であり、収束保証を最優先する
+/// トレードオフとしてこの一時状態の喪失を許容する。
 pub fn apply_keyed_list(
     document: &Document,
     list_element: &Element,
@@ -1859,8 +1878,36 @@ mod tests {
     /// フォーカスは同一要素に残ったままであること（既存ノードは fragment
     /// を経由しないという設計上の不変条件、`keyed_dom` モジュール doc
     /// 参照、の実ブラウザ回帰固定）。
+    ///
+    /// # #1339 由来の回帰固定の帰属先は with-previous 経路（イシュー #1340
+    /// 最終確認レビュー対応）
+    ///
+    /// 本テストは元々 [`apply_keyed_list`]（cache-miss フォールバック、
+    /// one-shot）を使っていたが、イシュー #1340 codex-review P1/Bugbot
+    /// 〔10 巡目〕対応で cache-miss フォールバックはプレースホルダ
+    /// `old_items` により保持キー全件へ `Update`（`replace_item_children`
+    /// による子ノード丸ごと再構築）を強制発行する契約へ変更された
+    /// （`apply_keyed_list` doc「cache-miss フォールバックの達成契約」
+    /// 参照）。この新契約下では "a" 項目内の `input`（`new_tree` の一部
+    /// ではない、テストが動的に追加した子孫）は "a" 自身が Update
+    /// 対象になった時点で子ノード列ごと破棄されてしまい、フォーカスが
+    /// 失われる（fragment 集約〔#1320〕自体は既存ノードに一切触れない
+    /// という不変条件は変わらず健在だが、それとは別の経路〔one-shot の
+    /// 強制 Update〕でフォーカスが失われるため、one-shot 経路でこの
+    /// テストの意図〔フォーカス保持〕を検証すること自体が契約上不可能に
+    /// なった）。
+    ///
+    /// #1339 が固定したかった不変条件（fragment 集約は既存ノードへ触れ
+    /// ない）の本来の観測対象は、内容が変化していない保持アイテムには
+    /// 一切触れない [`apply_keyed_list_with_previous`]（通常運用の主経路、
+    /// `Runtime::mount`/`Runtime::hydrate` が常にキャッシュを種付けする
+    /// ため定常状態はこちらを通る）であるため、本テストをこちらへ
+    /// 書き換える。`one_shot_rebuilds_item_children_and_can_lose_child_focus_as_cache_miss_recovery_cost`
+    /// （本テストの直後）が one-shot 側の新契約（保持アイテムの内容再
+    /// 構築によりフォーカス等の一時状態が失われうる、cache-miss リカバリ
+    /// のコストとして許容）を別途固定する。
     #[wasm_bindgen_test]
-    fn apply_keyed_list_preserves_focus_across_fragment_batched_insert() {
+    fn apply_keyed_list_with_previous_preserves_focus_across_fragment_batched_insert() {
         let document = doc();
         let list_element = make_list_element(&document, &["a", "b"]);
         // `Element::focus()` は要素がドキュメントツリーに接続されていない
@@ -1881,11 +1928,17 @@ mod tests {
             "テスト前提: input へフォーカスできていること"
         );
 
-        // "a" の直後（中間）へ連続 2 件挿入する: フォーカス中の要素は
-        // 移動対象ではなく再構築対象でもないため、fragment 集約経路に
-        // 一切関与しないはず。
+        // "a"/"b" とも `previous`（直前に反映済みだった内容）と
+        // `new_tree` とで内容が完全に同一のため、`diff_keyed_items` は
+        // いずれにも `Update` を発行しない（"a"/"b" とも一切触れられない、
+        // "x"/"y" の Insert のみが起きる）。
+        let previous = keyed_items(&["a", "b"]);
         let new_tree = keyed_items(&["a", "x", "y", "b"]);
-        apply_keyed_list(&document, &list_element, &new_tree);
+        let result = apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tree);
+        assert!(
+            matches!(result, KeyedListApplyResult::Achieved { .. }),
+            "全 op が計画どおり適用できたはず: {result:?}"
+        );
 
         let focus_preserved =
             document.active_element().as_ref() == Some(&input.clone().unchecked_into::<Element>());
@@ -1901,7 +1954,63 @@ mod tests {
         assert!(
             focus_preserved,
             "連続 Insert 適用後もフォーカスは同一要素に残ったままのはず \
-             （fragment 集約は既存ノードへ触れない不変条件の回帰固定）"
+             （fragment 集約は既存ノードへ触れない不変条件の回帰固定。\
+             with-previous 経路では内容が変化していない保持アイテムに \
+             Update が発行されないため、フォーカス保持のため 2 重の保証が \
+             成立する）"
+        );
+    }
+
+    /// イシュー #1340 最終確認レビュー対応: cache-miss フォールバック
+    /// （one-shot、[`apply_keyed_list`]）の新契約（保持キー全件へ
+    /// `Update` を強制発行し、内容を実際にライブ DOM から読み出せる状態
+    /// へ完全収束させる、`apply_keyed_list` doc「cache-miss フォール
+    /// バックの達成契約」参照）を明示的に固定する: `new_tree` の一部で
+    /// ない子孫（この場合 "a" 項目内へ動的に追加した `input`、フォーカス
+    /// 中の要素で表す一時状態の代表例）は "a" 自身の内容再構築によって
+    /// 失われる。これは cache-miss フォールバックが「収束保証優先」の
+    /// リカバリ経路（`Runtime::mount`/`Runtime::hydrate` が常時キャッシュ
+    /// を種付けするため、通常運用では `ResyncRequired`・ネスト field
+    /// 無効化の後にのみ到達する、`docs/design/keyed-update-op-design.md`
+    /// §6 不変条件 10 参照）である以上の意図的なトレードオフであり、
+    /// バグではない。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_one_shot_rebuilds_item_children_and_can_lose_child_focus_as_cache_miss_recovery_cost(
+    ) {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+        let body = document.body().unwrap();
+        body.append_child(&list_element).unwrap();
+
+        let existing_a = list_element.first_element_child().unwrap();
+        let input = document.create_element("input").unwrap();
+        existing_a.append_child(&input).unwrap();
+        let input_element: web_sys::HtmlElement = input.clone().unchecked_into();
+        input_element.focus().unwrap();
+        assert_eq!(
+            document.active_element().as_ref(),
+            Some(&input.clone().unchecked_into::<Element>()),
+            "テスト前提: input へフォーカスできていること"
+        );
+
+        let new_tree = keyed_items(&["a", "x", "y", "b"]);
+        let result = apply_keyed_list(&document, &list_element, &new_tree);
+        assert!(
+            matches!(result, KeyedListApplyResult::Achieved { .. }),
+            "全 op が計画どおり適用できたはず（内容再構築自体は成功する、\
+             フォーカスのみ失われる）: {result:?}"
+        );
+
+        let focus_lost =
+            document.active_element().as_ref() != Some(&input.clone().unchecked_into::<Element>());
+        let _ = body.remove_child(&list_element);
+
+        assert!(
+            focus_lost,
+            "one-shot（cache-miss フォールバック）は保持キー全件へ \
+             Update を強制発行するため、new_tree に含まれない子孫 \
+             （動的に追加した input）は消え、フォーカスは失われるはず \
+             （収束保証優先のリカバリ経路の意図的なコスト）"
         );
     }
 

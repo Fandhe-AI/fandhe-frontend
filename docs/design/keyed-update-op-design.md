@@ -599,6 +599,38 @@ Update 適用経路も更新設計書 §9 の既存不変条件をすべて継�
     `RawHtml` 混入アイテムを CSR 対象の keyed list へ含めないことを
     利用者向けガイダンスとして明記する（`raw_html()` を keyed list
     アイテムの子孫で使う構成は SSR 専用に限定すること）。
+11. **cache-miss フォールバック（one-shot）はフォーカス・入力途中の値の
+    保持（不変条件 3.3）を保証しない（イシュー #1340 最終確認レビュー指摘
+    を受けて新設）**: 不変条件 10 が扱う「`RawHtml` 混入による繰り返し」
+    は cache-miss フォールバック（[`crate::keyed_dom::apply_keyed_list`]、
+    `previous` を持たない one-shot 経路）の一側面に過ぎない。本経路は
+    プレースホルダ `old_items`（[`crate::keyed_apply::
+    synthesize_live_placeholder_items`]）により**保持キー全件へ
+    `Update`（`replace_item_children` による子ノード丸ごと再構築）を
+    強制発行する**設計（イシュー #1340 codex-review P1/Bugbot〔10 巡目〕
+    対応、`apply_keyed_list` doc「cache-miss フォールバックの達成契約」
+    参照）であるため、**恒久的な構築失敗（不変条件 10）が一切無くても**、
+    `new_list_node`（望ましい view）が明示的に持たない子孫（動的に追加
+    された入力欄でフォーカス中の `<input>` 等）は 1 回の呼び出しで消える。
+    これはルート要素自身のノード同一性（アイテム要素そのものは再生成
+    されない、Move-only の典型ケースで成立）とは別の話であり、「内容が
+    変化していない保持アイテムには一切触れない」ことを前提にした
+    フォーカス保持は [`crate::keyed_dom::apply_keyed_list_with_previous`]
+    （通常運用の主経路）でのみ成立する。
+
+    `Runtime::mount`/`Runtime::hydrate` は初回マウント時点で
+    `keyed_list_cache` を（ネストした keyed list を含め）常に種付けする
+    （`Runtime::mount`/`hydrate` の keyed_list_cache 種付けコード・
+    `fandhe_frontend_wasm_client::collect_keyed_list_nodes`〔子孫への
+    再帰を打ち切らない〕参照）ため、cache-miss（one-shot）フォールバック
+    は通常運用（定常状態の dispatch）では発生せず、`ResyncRequired`
+    受領後のキャッシュ破棄・ネストした keyed list の field 間キャッシュ
+    無効化（不変条件 9）・`rerender_subtree` の構造フォールバック
+    （field 非依存の一律クリア）のいずれかを経た**次回の dirty 処理**に
+    限って到達するリカバリ経路である。この整理により、one-shot 経路が
+    保持アイテムの一時状態を破棄することは「収束保証を最優先するリカバリ
+    のコスト」として意図的に許容し、通常運用でのフォーカス喪失の常態化
+    は起こらない。
 
 ## 7. テスト計画（#1323／#1324 受入基準へのマッピング）
 
