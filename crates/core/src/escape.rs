@@ -104,24 +104,45 @@ pub fn escape_html(input: &str) -> String {
 /// ```
 pub fn escape_html_into(input: &str, out: &mut String) {
     // エスケープ不要文字が続く区間はまとめて push_str し、置換が必要な
-    // 1 文字ごとに都度 push_str するオーバーヘッドを避ける。
+    // 1 文字ごとに都度 push_str するオーバーヘッドを避ける（区間一括コピー方式）。
+    //
+    // 走査自体は `char_indices` による UTF-8 デコードを伴う文字単位ではなく、
+    // バイト列に対する対象 5 バイトの位置検索（`iter().position`）で行う
+    // （イシュー #1325）。対象 5 文字（`&` `<` `>` `"` `'`）はすべて ASCII で
+    // あり、UTF-8 の構造上マルチバイト文字を構成するバイトは先頭・継続バイト
+    // ともに必ず 0x80 以上になる（ASCII バイトは常に 0x00〜0x7F）。したがって
+    // 対象バイトへの一致はマルチバイト文字の内部バイトと偽陽性を起こさず、
+    // 一致した位置 `idx` は常に char boundary（ASCII 1 文字の先頭かつ終端）
+    // であるため `&input[last_end..idx]` のスライスは panic しない
+    // （`unsafe` 不使用・`forbid(unsafe_code)` 維持）。
+    //
+    // `&` を最初に判定することが仕様上重要: 他の分岐が生成するエンティティ
+    // （例: `&lt;`）自体を後から再エスケープしてしまう（二重エスケープ）
+    // 事態を避けるため、判定順序ではなく元入力の走査順で `&` を検出した
+    // 時点でそのまま `&amp;` に置換する（走査は 1 パスなので二重エスケープは
+    // 発生しない）。この性質はバイト走査に置換しても不変（走査順序自体は
+    // 変えていないため）。
+    let bytes = input.as_bytes();
     let mut last_end = 0;
-    for (idx, ch) in input.char_indices() {
-        // `&` を最初に判定することが仕様上重要: 他の分岐が生成するエンティティ
-        // （例: `&lt;`）自体を後から再エスケープしてしまう（二重エスケープ）
-        // 事態を避けるため、判定順序ではなく元入力の走査順で `&` を検出した
-        // 時点でそのまま `&amp;` に置換する（走査は 1 パスなので二重エスケープは発生しない）。
-        let entity = match ch {
-            '&' => "&amp;",
-            '<' => "&lt;",
-            '>' => "&gt;",
-            '"' => "&quot;",
-            '\'' => "&#x27;",
-            _ => continue,
+    while let Some(offset) = bytes[last_end..]
+        .iter()
+        .position(|&b| matches!(b, b'&' | b'<' | b'>' | b'"' | b'\''))
+    {
+        let idx = last_end + offset;
+        let entity = match bytes[idx] {
+            b'&' => "&amp;",
+            b'<' => "&lt;",
+            b'>' => "&gt;",
+            b'"' => "&quot;",
+            // `position` の述語が対象 5 バイトに限定済みのため、上記 4 分岐に
+            // 一致しなければ残るのは `'` のみ。
+            _ => "&#x27;",
         };
         out.push_str(&input[last_end..idx]);
         out.push_str(entity);
-        last_end = idx + ch.len_utf8();
+        // 対象 5 文字はいずれも ASCII（1 バイト）であるため `idx + 1` で
+        // 次の走査開始位置へ進める（`ch.len_utf8()` 相当の可変長考慮は不要）。
+        last_end = idx + 1;
     }
     out.push_str(&input[last_end..]);
 }
@@ -249,5 +270,67 @@ mod tests {
             "line1\nline2\ttab\rcr"
         );
         assert_eq!(escape_html("<a\n&b>"), "&lt;a\n&amp;b&gt;");
+    }
+
+    /// `char_indices` を使う素朴な参照実装（本テスト内に閉じたプライベート
+    /// 関数）。バイト位置検索方式（`escape_html_into` 本体、イシュー #1325）
+    /// への置換前後で出力が変わっていないことを突合するための基準実装。
+    fn reference_escape_html(input: &str) -> String {
+        let mut out = String::with_capacity(input.len());
+        let mut last_end = 0;
+        for (idx, ch) in input.char_indices() {
+            let entity = match ch {
+                '&' => "&amp;",
+                '<' => "&lt;",
+                '>' => "&gt;",
+                '"' => "&quot;",
+                '\'' => "&#x27;",
+                _ => continue,
+            };
+            out.push_str(&input[last_end..idx]);
+            out.push_str(entity);
+            last_end = idx + ch.len_utf8();
+        }
+        out.push_str(&input[last_end..]);
+        out
+    }
+
+    /// バイト位置検索方式の新実装が、`char_indices` ベースの参照実装と
+    /// 境界クラスを網羅した決定的入力集合で完全に同一の出力を返すことを
+    /// 固定する（イシュー #1325: 走査方式変更が既定エスケープの意味論
+    /// （対象 5 文字・エンティティ・処理順序）を一切変えないことの保証）。
+    #[test]
+    fn matches_reference_char_indices_implementation() {
+        let cases = [
+            "",
+            "&",
+            "<",
+            ">",
+            "\"",
+            "'",
+            "&<>\"'",
+            "'\"><&",
+            "日本語テキスト",
+            "絵文字🎉です",
+            "<日本語>",
+            "日<本>語",
+            "🎉&🎉",
+            "plain text without special chars",
+            "line1\nline2\ttab\rcr",
+            "<a\n&b>",
+            "\"'<script>&</script>'\"",
+            "<<>>&&\"\"''",
+            "<start",
+            "end>",
+            &"safe text ".repeat(50),
+            &format!("{}&{}", "x".repeat(200), "y".repeat(200)),
+        ];
+        for case in cases {
+            assert_eq!(
+                escape_html(case),
+                reference_escape_html(case),
+                "mismatch for input: {case:?}"
+            );
+        }
     }
 }
