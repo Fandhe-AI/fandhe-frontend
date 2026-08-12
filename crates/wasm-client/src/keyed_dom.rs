@@ -636,7 +636,21 @@ impl WebSysKeyedDom<'_> {
 /// 本体は [`crate::keyed_apply::apply_ops`]（イシュー #1318 で DOM 非依存へ
 /// 切り出し済み、native `cargo test` で DOM 操作コストを決定的に検証する
 /// 土台）。
-pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_node: &Node) {
+///
+/// 戻り値は `new_list_node` が指す目標状態へ**完全に**到達できたか
+/// （`true` = ライブ DOM は `new_list_node` と一致する。`false` = 上記の
+/// skip が 1 件でも発生し未達成のまま終わった）を表す（イシュー #1340
+/// Bugbot 指摘対応）。呼び出し元（`fandhe-frontend-wasm-full` の
+/// `Runtime::apply_update_for_dirty`）は、この戻り値が `false` の回に
+/// `new_list_node` を「直前に DOM へ反映した内容」のキャッシュ
+/// （`keyed_list_cache`）へ確定させてはならない。未達成のまま
+/// `new_list_node`（望ましい view であって実 DOM の達成状態ではない）を
+/// キャッシュしてしまうと、[`KeyedListApplyResult::ResyncRequired`] が
+/// `apply_keyed_list_with_previous` 経路で防いでいるのと同種の「実 DOM と
+/// キャッシュの乖離が 1 tick 後に再シードされ、以降解消されない」不具合が
+/// 本関数の呼び出し元（`previous` キャッシュが無い field の経路）でも
+/// 再現する（`KeyedListApplyResult::ResyncRequired` doc 参照）。
+pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_node: &Node) -> bool {
     let new_items = owned_list_item_nodes(new_list_node);
     let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
     let namespace = list_element.namespace_uri();
@@ -648,7 +662,7 @@ pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_no
         namespace: namespace.as_deref(),
         children: None,
     };
-    crate::keyed_apply::apply_ops(&mut dom, &new_keys);
+    crate::keyed_apply::apply_ops(&mut dom, &new_keys)
 }
 
 /// [`apply_keyed_list_with_previous`] の適用結果（イシュー #1324）。

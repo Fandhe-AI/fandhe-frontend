@@ -95,6 +95,28 @@ categories = ["wasm", "web-programming"]
 # doc 更新のみで公開シグネチャ・公開型に変更はないため、#1318/#1319/#1320 と
 # 同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0 へ本変更を吸収させ、
 # 追加のバンプは行わない。
+#
+# 同 PR #1340 への push 後再レビュー（codex P1 + Bugbot Medium x2、イシュー
+# #1340）の追加是正: (1) `apply_ops_with_items`（`keyed_apply.rs`）の
+# `KeyedOp::Update` 処理順序を `sync_attrs` → `replace_item_children` から
+# `replace_item_children` → `sync_attrs`（成功時のみ）へ入れ替え、子ノード
+# 構築失敗時に属性だけ新しい値へ変更済みという不整合状態が実 DOM に残る
+# 不具合を修正した。(2) `apply_ops`（`diff_keys` 経由、実際には `Update` を
+# 発行し得ない）の `KeyedOp::Update` no-op 分岐が `i` を進めておらず、型
+# レベルで構築可能な `Update` 混入 ops を直接注入すると無限ループする
+# 欠陥を修正した。(3) 公開 API `apply_keyed_list`（`keyed_dom.rs`）の戻り値を
+# `()` から `bool`（目標状態への完全到達可否）へ変更し、`apply_ops` にも
+# 同じ戻り値を追加した。`fandhe-frontend-wasm-full` の
+# `Runtime::apply_update_for_dirty` が「保持キャッシュが無い field」経路
+# （`None` 分岐）でこの戻り値を見ずに常時キャッシュへ確定させていたことで、
+# 挿入スキップが発生した回の未達成状態が誤ってキャッシュへ再シードされ、
+# 上記 (1) 系の「未達成状態をキャッシュしない」ガードが 1 tick 後に無効化
+# される不具合（Bugbot 指摘）の是正に必要な変更。戻り値の追加は既存呼び
+# 出し元（本クレート内テスト含む）の互換性を壊さない（非 `#[must_use]` の
+# ため戻り値を無視しても警告にならない）。以上 3 件は `pub(crate)` 内部
+# 変更 + 公開関数 1 件の戻り値追加のみで公開型・既存公開シグネチャの引数は
+# 不変のため、引き続き同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0
+# へ吸収させ、追加のバンプは行わない。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.3.0" }
 fandhe-frontend-app = { path = "../app", version = "0.2.2" }

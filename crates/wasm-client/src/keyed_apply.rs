@@ -302,11 +302,32 @@ fn find_child_by_key<D: KeyedListDom>(dom: &mut D, key: &str) -> Option<D::Handl
 /// 追随更新にも使われるため、実際のライブ DOM 上の位置と一致させる必要が
 /// ある）。区間内で発生した未達成は区間確定後にまとめて `index_offset` へ
 /// 加算する（区間内の他アイテムの挿入順序自体には影響しないため）。
-pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
+/// 戻り値は `new_keys` が指す目標状態へ**完全に**到達できたか
+/// （`true` = 全 op が計画どおり適用され、ライブ DOM は `new_keys` と
+/// 一致する。`false` = `Insert` の構築失敗・`Move` 対象キー未検出等で
+/// 一部が未達成のまま終わった）を表す（イシュー #1340 Bugbot 指摘対応）。
+/// 呼び出し元（[`crate::keyed_dom::apply_keyed_list`]）はこの戻り値を、
+/// 未達成状態を「達成」としてキャッシュへ再シードしないためのガードに
+/// 使う（同関数 doc 参照）。
+pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) -> bool {
     let old_keys = dom_item_keys(dom);
     let ops = diff_keys(&old_keys, new_keys);
+    apply_ops_list(dom, ops)
+}
+
+/// [`apply_ops`] の走査本体（イシュー #1340 Bugbot 指摘対応でテスト容易性の
+/// ため分離）。`ops` を直接受け取ることで、`diff_keys` が実際には発行し
+/// 得ない `KeyedOp::Update` を含む列（`KeyedOp` は `diff_keyed_items` とも
+/// 型を共有するため型としては構築可能）を native テストから直接注入し、
+/// 網羅性のみの目的で置かれた no-op 分岐が `i` を進め忘れて無限ループしない
+/// ことを検証できるようにする（`#[cfg(test)]` の
+/// `apply_ops_does_not_hang_when_ops_contain_an_update` 参照）。
+///
+/// 戻り値の意味は [`apply_ops`] と同じ（全 op が計画どおり適用できたか）。
+fn apply_ops_list<D: KeyedListDom>(dom: &mut D, ops: Vec<KeyedOp>) -> bool {
     let mut i = 0;
     let mut index_offset: usize = 0;
+    let mut fully_achieved = true;
     while i < ops.len() {
         match &ops[i] {
             KeyedOp::Remove { key } => {
@@ -352,6 +373,9 @@ pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
                     let reference = dom.child_at(adjusted_start);
                     dom.insert_before_batch(adjusted_start, items, reference.as_ref());
                 }
+                if failed_in_run > 0 {
+                    fully_achieved = false;
+                }
                 index_offset += failed_in_run;
                 i = j;
             }
@@ -367,6 +391,7 @@ pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
                     // スロットとして `index_offset` へ数える（本関数 doc
                     // 参照）。
                     index_offset += 1;
+                    fully_achieved = false;
                 }
                 i += 1;
             }
@@ -377,9 +402,14 @@ pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
                 // `KeyedOp` は `diff_keyed_items` とも型を共有するため
                 // 網羅性のためのみに存在する到達しない分岐(no-op)。
                 // Update を実際に処理する経路は [`apply_ops_with_items`]。
+                // `i` は他の arm と同様に必ず進める（Bugbot 指摘、イシュー
+                // #1340: 進めないと `ops` に `Update` が混入した場合に
+                // `while i < ops.len()` が無限ループする）。
+                i += 1;
             }
         }
     }
+    fully_achieved
 }
 
 /// [`apply_ops`] の適用結果（イシュー #1324、`KeyedOp::Update` を含む
@@ -523,19 +553,49 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     resync_required = true;
                     continue;
                 };
+                // codex-review P1 対応（PR #1340、イシュー #1340）: 子ノード
+                // 構築（`replace_item_children`）を**先に**試み、成功した
+                // 場合にのみ `sync_attrs` を呼ぶ。旧実装は `sync_attrs` を
+                // 先に呼んでいたため、`replace_item_children` が `RawHtml`
+                // 混入等で `false` を返して子ノードは旧内容のまま据え置か
+                // れても、属性だけは新しい値へ変更済みという「属性は新・
+                // 子ノードは旧」の不整合な状態が実 DOM 上に残った。
+                // `stale_update_keys` 経由で「達成 Node」を合成する際は
+                // `old_by_key`（属性・子ノードとも旧内容）をまるごと使う
+                // （`crate::keyed_dom::apply_keyed_list_with_previous`
+                // 参照）ため、属性削除を伴う更新でこの不整合が起きると
+                // 実 DOM（新属性・旧子ノード）とキャッシュ（旧属性・旧子
+                // ノード）が具体的に乖離する。子ノード構築を先に完了させて
+                // からのみ属性を同期する順序にすることで、`replace_item_
+                // children` が `false` を返した場合は本 arm がライブ DOM
+                // へ一切書き込みを行わない（`sync_attrs` も呼ばない）状態を
+                // 保証し、「構築失敗時はライブ DOM を一切変更しない」契約と
+                // 「旧内容のまま据え置く」`stale_update_keys` の意味を一致
+                // させる。
                 let filtered_attrs: Vec<(String, String)> = new_attrs
                     .iter()
                     .filter(|(name, _)| name != fandhe_frontend_core::keyed::KEY_ATTR)
                     .cloned()
                     .collect();
-                dom.sync_attrs(&existing, &filtered_attrs);
                 if !dom.replace_item_children(&existing, new_children) {
                     // 子ノード構築失敗はノード参照・位置を保ったまま内容が
                     // 旧値のまま据え置かれるだけなので `final_keys`/
                     // `stale_update_keys` で正しく表現できる
                     // （`resync_required` の対象にしない、
                     // [`ApplyOutcome::stale_update_keys`] doc 参照）。
+                    // 属性同期は行わない（上記コメント参照、ライブ DOM
+                    // 全体を旧内容のまま保つ）。
                     stale_update_keys.insert(key);
+                } else {
+                    // `sync_attrs` は `setAttribute`/`removeAttribute`
+                    // 相当のみで構成され、本トレイトの契約上失敗を報告
+                    // する手段を持たない（`KeyedListDom::sync_attrs` doc・
+                    // 本モジュール doc「Update op の DOM 適用」の
+                    // ロールバック省略の根拠と同じ理由: 不正な引数に対して
+                    // 通常 `Err`/例外を投げない DOM 標準 API であるため）。
+                    // 子ノード構築の成功を確認した後でのみ呼ぶため、
+                    // 呼び出し自体が「達成」を意味する。
+                    dom.sync_attrs(&existing, &filtered_attrs);
                 }
             }
         }
@@ -1043,6 +1103,39 @@ mod tests {
         );
     }
 
+    /// Bugbot Medium 回帰固定（PR #1340、イシュー #1340）: `apply_ops`
+    /// （`diff_keys` のみを経由し実際には `Update` を発行し得ない経路）へ
+    /// `KeyedOp::Update` を含む `ops` 列を直接注入しても `apply_ops_list`
+    /// の走査がハングせず完走すること。修正前は `Update` arm が `i` を
+    /// 進めなかったため `while i < ops.len()` が無限ループしていた。
+    #[test]
+    fn apply_ops_does_not_hang_when_ops_contain_an_update() {
+        let mut dom = CountingDom {
+            items: vec!["a".to_string(), "b".to_string()],
+            ..Default::default()
+        };
+        let ops = vec![
+            KeyedOp::Update {
+                key: "a".to_string(),
+            },
+            KeyedOp::Move {
+                index: 0,
+                key: "b".to_string(),
+            },
+        ];
+
+        // 修正前はここで無限ループしテストがハングした。完走すれば修正の
+        // 証跡になる（`KeyedListDom` に `Update` 用メソッドが無いため
+        // 実際の内容反映は起きず、並び替えのみが反映される）。
+        apply_ops_list(&mut dom, ops);
+
+        assert_eq!(
+            dom.items,
+            vec!["b".to_string(), "a".to_string()],
+            "Update op は no-op のまま skip され、後続の Move のみ適用されるはず"
+        );
+    }
+
     // --- 意味的一致の確認（モックとアルゴリズムが噛み合っていることの
     // 担保、上記コスト値の信頼性の裏付け） ---
 
@@ -1199,6 +1292,64 @@ mod tests {
             dom.children.get("b"),
             Some(&vec![text("new-b")]),
             "他アイテム（b）の Update 適用は妨げられないはず"
+        );
+    }
+
+    /// codex-review P1 回帰固定（PR #1340、イシュー #1340）: 属性削除を
+    /// 伴う Update で子ノード構築（`replace_item_children`）が失敗した
+    /// 場合、属性も一切変更されないこと（`sync_attrs` が呼ばれないこと）を
+    /// 直接確認する。旧実装は `sync_attrs` を先に呼んでいたため、この
+    /// ケースで実 DOM は「属性は新、子ノードは旧」という不整合な状態になり
+    /// `stale_update_keys` 経由でキャッシュへ確定させる「達成 Node」
+    /// （旧属性・旧子ノード）と食い違っていた。
+    #[test]
+    fn apply_ops_with_items_leaves_attrs_untouched_when_child_build_fails_on_update() {
+        let old_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("class", "old"), ("data-removed", "x")],
+                vec![text("old-a")],
+            ),
+        )];
+        // 属性削除（data-removed）・属性変更（class）を伴う更新だが、
+        // 子ノード構築は失敗する想定（RawHtml 混入相当を fail_replace_
+        // children_for で模す）。
+        let new_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("class", "new")],
+                vec![text("new-a")],
+            ),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            fail_replace_children_for: std::collections::HashSet::from(["a".to_string()]),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert_eq!(
+            outcome.stale_update_keys,
+            std::collections::HashSet::from(["a".to_string()])
+        );
+        assert_eq!(
+            dom.calls.sync_attrs, 0,
+            "子ノード構築が失敗した場合、sync_attrs は一切呼ばれないはず \
+             （属性だけ新しい値へ変更済みという不整合状態を防ぐ）"
+        );
+        assert_eq!(
+            dom.attrs.get("a"),
+            None,
+            "属性はライブ DOM 上でも一切変更されていないはず（class の \
+             'old' → 'new' も data-removed の削除も反映されない）"
+        );
+        assert_eq!(
+            dom.children.get("a"),
+            None,
+            "子ノードも変更されないはず（fail-closed）"
         );
     }
 
