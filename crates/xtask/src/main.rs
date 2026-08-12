@@ -127,6 +127,7 @@
 
 mod bench_binding_update;
 mod bench_ssr;
+mod bench_state_update;
 mod check_dep_versions;
 mod check_deps;
 mod check_image_size;
@@ -150,6 +151,7 @@ fn main() -> ExitCode {
         Some("wasm-node-smoke") => run_wasm_node_smoke(&args[2..]),
         Some("bench-binding-update") => run_bench_binding_update(&args[2..]),
         Some("bench-ssr") => run_bench_ssr(&args[2..]),
+        Some("bench-state-update") => run_bench_state_update(&args[2..]),
         Some("check-version-bump") => run_check_version_bump(&args[2..]),
         Some("check-dep-versions") => run_check_dep_versions(&args[2..]),
         Some("patch-template-smoke") => run_patch_template_smoke(&args[2..]),
@@ -209,6 +211,12 @@ fn print_usage() {
     eprintln!("      emit a single JSON line (issue #1317). Exits non-zero if the default-");
     eprintln!("      escape (REQ-1) or row-count self-checks fail. `--baseline <FILE>` adds");
     eprintln!("      report-only `bench-ssr-compare:` lines against a prior JSON output.");
+    eprintln!("  bench-state-update [--baseline <FILE>]");
+    eprintln!("      Measure state-update cost breakdown (update/binding_apply/render/");
+    eprintln!("      noop_update) for two 1,000-binding scenarios (grid-1k, appstate-1k) and");
+    eprintln!("      emit a single JSON line (issue #1328). Exits non-zero if the default-");
+    eprintln!("      escape (REQ-1) or no-op self-checks fail. `--baseline <FILE>` adds");
+    eprintln!("      report-only `bench-state-update-compare:` lines against a prior JSON output.");
     eprintln!(
         "  check-version-bump --base-ref <REF> [--pr-body-file <PATH>] [--index-base-url <URL>]"
     );
@@ -654,6 +662,80 @@ fn run_bench_ssr(args: &[String]) -> ExitCode {
         eprintln!(
             "xtask bench-ssr: self-check failed (escape_ok={}, row_count_ok={})",
             report.escape_ok, report.row_count_ok
+        );
+        return ExitCode::FAILURE;
+    }
+
+    ExitCode::SUCCESS
+}
+
+/// `bench-state-update` サブコマンド（イシュー #1328）: 任意の `--baseline <FILE>`
+/// のみを受け取る。計測 → `fandhe-frontend-interactive` の実バージョン解決
+/// （`cargo metadata`）→ JSON 1 行の出力 → 既定エスケープ（REQ-1）/no-op
+/// 契約の検証（fail-closed）→（`--baseline` 指定時のみ）report-only な
+/// 回帰比較出力、の順に実行する（`run_bench_ssr` と同型の構成）。
+///
+/// 終了コード: 0=検証 PASS（`--baseline` 比較の有無に関わらず）/
+/// 1=検証 FAIL・環境エラー（`cargo metadata` 失敗）・baseline 不正
+/// （ファイル読み取り失敗・JSON パース失敗・必須キー欠落）/
+/// 2=引数不備。計測回数・束縛点数を差し替える CLI 引数は意図的に設けない
+/// （`bench_state_update` モジュール doc 参照）。
+fn run_bench_state_update(args: &[String]) -> ExitCode {
+    let mut baseline_path: Option<String> = None;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--baseline" => {
+                let Some(path) = args.get(i + 1) else {
+                    eprintln!("xtask bench-state-update: `--baseline` requires a value");
+                    return ExitCode::from(2);
+                };
+                baseline_path = Some(path.clone());
+                i += 2;
+            }
+            other => {
+                eprintln!("xtask bench-state-update: unknown argument `{other}`");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    let version = match bench_state_update::resolve_interactive_version() {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("xtask bench-state-update: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let report = bench_state_update::run(version);
+    println!("{}", report.to_json_line());
+
+    if let Some(path) = baseline_path {
+        let baseline_json = match std::fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("xtask bench-state-update: failed to read baseline file `{path}`: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+        match bench_state_update::compare(&report, &baseline_json) {
+            Ok(lines) => {
+                for line in lines {
+                    println!("{line}");
+                }
+            }
+            Err(e) => {
+                eprintln!("xtask bench-state-update: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    if !report.self_check_ok() {
+        eprintln!(
+            "xtask bench-state-update: self-check failed (escape_ok={}, noop_ok={})",
+            report.escape_ok, report.noop_ok
         );
         return ExitCode::FAILURE;
     }
