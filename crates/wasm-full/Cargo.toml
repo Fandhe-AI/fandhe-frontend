@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-full"
-version = "0.7.3"
+version = "0.7.4"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -161,7 +161,13 @@ fandhe-frontend-interactive = { path = "../interactive", version = "0.2.3" }
 # "describe" シンボルはクレート非依存の関数名ベース）を避けるため、
 # `wasm-client` 側の `wasm-bindgen-exports` feature を無効化する
 # （`wasm-client/Cargo.toml`・`wasm-client/src/lib.rs` の `wiring` doc 参照）。
-fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.3.2", default-features = false }
+# イシュー #1324（`KeyedOp::Update` の DOM 適用）: wasm-client 0.4.0 が
+# 追加した `apply_keyed_list_with_previous`/`KeyedListApplyResult`/
+# `collect_keyed_list_nodes` を `Runtime::apply_update_for_dirty`（内部
+# 実装のみ、`Runtime` の公開シグネチャは不変）が消費するため dep req を
+# 追随する（`cargo run -p xtask -- check-dep-versions --fix`）。本クレート
+# 自身は公開 API を追加していないため 0.7.3 → 0.7.4（内部変更のみ）。
+fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.4.0", default-features = false }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 

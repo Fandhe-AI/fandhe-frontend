@@ -62,6 +62,47 @@ pub fn find_keyed_list_node<'a>(node: &'a Node, list_field: &str) -> Option<&'a 
     None
 }
 
+/// `node` 配下を走査し、`data-bind-list` を持つ**全ての** keyed list 親
+/// ノードを `(field, Node)` 列として収集する（イシュー #1324）。
+///
+/// [`find_keyed_list_node`] が単一 field の引き当てなのに対し、本関数は
+/// `fandhe-frontend-wasm-full` の `Runtime::mount`/`Runtime::hydrate` が
+/// マウント直後の `component.view()` から `keyed_list_cache`（`Update` op
+/// 適用の内容比較基準、`Runtime::keyed_list_cache` doc 参照）を一括で
+/// 種付けするために使う。マウント直後は `dirty_fields()` が空
+/// （まだ 1 度も `update()` を呼んでいない）であり、`&'static str` の
+/// field 名集合を dirty 経由で知る手段がないため、戻り値のキーは属性値
+/// から復元した所有 `String` とする（`fandhe_frontend_core::keyed::keyed_list`
+/// が `field: &'static str` を `to_string()` して `data-bind-list` へ書き込む
+/// ため、ここでの復元はラウンドトリップになる）。
+///
+/// ネストした keyed list（親アイテムの子孫として別の keyed list が現れる
+/// 構成）も想定し、マッチした要素の子孫へも再帰を続ける（マッチで打ち
+/// 切らない）。
+pub fn collect_keyed_list_nodes(node: &Node) -> Vec<(String, Node)> {
+    let mut out = Vec::new();
+    collect_keyed_list_nodes_into(node, &mut out);
+    out
+}
+
+fn collect_keyed_list_nodes_into(node: &Node, out: &mut Vec<(String, Node)>) {
+    let Node::Element {
+        attrs, children, ..
+    } = node
+    else {
+        return;
+    };
+    if let Some((_, field)) = attrs
+        .iter()
+        .find(|(k, _)| k == fandhe_frontend_core::keyed::BIND_LIST_ATTR)
+    {
+        out.push((field.clone(), node.clone()));
+    }
+    for child in children {
+        collect_keyed_list_nodes_into(child, out);
+    }
+}
+
 /// 実 DOM 上で `field` に対応する keyed list 親要素
 /// （`[data-bind-list="<field>"]`）を探す。`root` 配下を 1 度だけ
 /// `query_selector` で探索する（`crate::binding_dom::BindingTable::scan` と
@@ -83,10 +124,20 @@ pub fn find_list_element(
         .map_err(|_| wasm_bindgen::JsValue::from_str("query_selector failed for keyed list"))
 }
 
-/// keyed list 親要素（`Node::Element`）の直下の子から `(key, &Node)` 列を
-/// 取り出す（`data-key` 属性を持たない子・非 Element 子は fail-closed で
-/// skip する）。
-fn list_item_nodes(list_node: &Node) -> Vec<(String, &Node)> {
+/// keyed list 親要素（`Node::Element`）の直下の子から `(key, Node)` の
+/// **所有**列を取り出す（`data-key` 属性を持たない子・非 Element 子は
+/// fail-closed で skip する）。
+///
+/// `fandhe_frontend_core::Node` は `Clone` を実装するため、ここでクローン
+/// する（当初の借用版 `list_item_nodes` から、イシュー #1324 で
+/// [`apply_keyed_list_with_previous`] が要求する所有権へ拡張した）。
+/// [`fandhe_frontend_core::keyed::diff_keyed_items`] の呼び出しには所有
+/// `Node` の `&[(String, Node)]` が必要（内容比較付き diff・「達成 Node」
+/// 合成の双方が要求する）。構造変化のみを扱う [`apply_keyed_list`]（本関数
+/// を使う既存経路）にとってもコストは無視できる程度（リスト 1 件あたりの
+/// アイテム部分木クローン、O(n) の追加作業でありアルゴリズムの計算量
+/// クラスは変わらない）。
+fn owned_list_item_nodes(list_node: &Node) -> Vec<(String, Node)> {
     let Node::Element { children, .. } = list_node else {
         return Vec::new();
     };
@@ -99,7 +150,7 @@ fn list_item_nodes(list_node: &Node) -> Vec<(String, &Node)> {
             attrs
                 .iter()
                 .find(|(k, _)| k == KEY_ATTR)
-                .map(|(_, key)| (key.clone(), child))
+                .map(|(_, key)| (key.clone(), child.clone()))
         })
         .collect()
 }
@@ -263,8 +314,10 @@ struct WebSysKeyedDom<'a> {
     document: &'a Document,
     list_element: &'a Element,
     /// `new_list_node`（`component.view()` 側の `Node` 木）から抽出した
-    /// `(key, &Node)` 列。`create_item` がキー引きでノードを探す。
-    new_items: &'a [(String, &'a Node)],
+    /// `(key, Node)` 列。`create_item`/`KeyedOp::Update` 適用の双方が
+    /// キー引きでノードを探す（イシュー #1324 で所有版
+    /// [`owned_list_item_nodes`] へ切り替え、`&Node` 借用ではなくなった）。
+    new_items: &'a [(String, Node)],
     /// 挿入先 `list_element` の実際の名前空間（[`build_dom_node_with_namespace`]
     /// rustdoc 参照。SVG keyed list への挿入で HTML 名前空間の要素が生成
     /// されてしまう不具合の是正を維持する）。
@@ -286,6 +339,39 @@ struct WebSysKeyedDom<'a> {
     /// 備えてキャッシュ構築後に呼ばれた場合は無効化（`None` へリセット、
     /// 次回 `child_at` で再構築）する fail-safe を持つ。
     children: Option<Vec<(String, Element)>>,
+}
+
+impl WebSysKeyedDom<'_> {
+    /// `children` キャッシュが未構築なら、実 DOM を 1 度だけ sibling 走査
+    /// して埋める（[`crate::keyed_apply::KeyedListDom::child_at`] doc 参照）。
+    /// 構築済みなら no-op（実 DOM に一切触れない）。
+    ///
+    /// [`Self::child_at`]（`Insert`/`Move` の参照ノード決定）に加え、
+    /// [`crate::keyed_apply::KeyedListDom::find_by_key`]（`Update` 対象の
+    /// 既存要素解決、イシュー #1324）からも呼ばれる共有経路。後者を独自に
+    /// `first_element_child`/`next_element_sibling` の sibling 走査で実装
+    /// すると、`Update` 件数 × リスト長 に比例する実 DOM 呼び出し
+    /// （O(n²) 相当）へ退行し、#1318/#1319 が固定した O(n) 相当の契約を
+    /// `Update` 経路だけ破ってしまう（レビュー指摘で判明）。本メソッドを
+    /// 経由することで、`Update` のみが発生する構成（構造変化なしの純粋な
+    /// 内容変更、実運用上最も典型的な keyed list 更新パターン）でも実 DOM
+    /// 走査は初回 1 回に抑えられ、以降は `children` への添字/線形走査
+    /// （実 DOM 呼び出しを伴わない `Vec` 操作）のみで完結する。
+    fn ensure_children_cache(&mut self) {
+        if self.children.is_some() {
+            return;
+        }
+        let list_element = self.list_element;
+        let mut items = Vec::new();
+        let mut maybe_child = list_element.first_element_child();
+        while let Some(child) = maybe_child {
+            maybe_child = child.next_element_sibling();
+            if let Some(key) = child.get_attribute(KEY_ATTR) {
+                items.push((key, child));
+            }
+        }
+        self.children = Some(items);
+    }
 }
 
 impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
@@ -312,19 +398,11 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     /// を子要素数分だけ行う真の O(n) であり、以降の `child_at` 呼び出しは
     /// 実 DOM に触れない）。
     fn child_at(&mut self, index: usize) -> Option<Element> {
-        let children = self.children.get_or_insert_with(|| {
-            let list_element = self.list_element;
-            let mut items = Vec::new();
-            let mut maybe_child = list_element.first_element_child();
-            while let Some(child) = maybe_child {
-                maybe_child = child.next_element_sibling();
-                if let Some(key) = child.get_attribute(KEY_ATTR) {
-                    items.push((key, child));
-                }
-            }
-            items
-        });
-        children.get(index).map(|(_, el)| el.clone())
+        self.ensure_children_cache();
+        self.children
+            .as_ref()
+            .and_then(|children| children.get(index))
+            .map(|(_, el)| el.clone())
     }
 
     fn create_item(&mut self, key: &str) -> Option<web_sys::Node> {
@@ -428,6 +506,96 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         // 続けて誤挿入位置を返す不整合を防ぐ（fail-safe）。
         self.children = None;
     }
+
+    /// `child` の属性を `new_attrs`（呼び出し元 `keyed_apply::apply_ops_with_items`
+    /// が既に `data-key` を除外済みの集合）へ同期する（イシュー #1324）。
+    ///
+    /// `Element::attributes()`（`NamedNodeMap`）で現在の属性を列挙し、
+    /// `new_attrs` に存在しない属性のみ `remove_attribute` する（`data-key`
+    /// は呼び出し元が渡す集合から既に除外されているため、たとえ現在の属性
+    /// 列挙にヒットしても `new_attrs` 側チェックだけでは保護されない点に
+    /// 注意し、ここでも明示的に除外する: 予約属性を Update 経路から改変
+    /// できないようにする不変条件を、呼び出し元の 1 箇所だけに依存させない
+    /// 多層防御）。属性の追加・更新は [`build_dom_node_with_namespace`] と
+    /// 同一の URL スキーム・イベントハンドラ・`srcset` 検証を経由する
+    /// （不変条件 1〜4 の Update 経路への継承）。
+    fn sync_attrs(&mut self, child: &Element, new_attrs: &[(String, String)]) {
+        let attributes = child.attributes();
+        let mut current_names: Vec<String> = Vec::new();
+        let len = attributes.length();
+        for i in 0..len {
+            if let Some(attr) = attributes.item(i) {
+                current_names.push(attr.name());
+            }
+        }
+        for name in current_names {
+            if name == KEY_ATTR {
+                continue;
+            }
+            if !new_attrs.iter().any(|(k, _)| k == &name) {
+                let _ = child.remove_attribute(&name);
+            }
+        }
+        for (name, value) in new_attrs {
+            if name == KEY_ATTR {
+                continue;
+            }
+            if fandhe_frontend_core::is_event_handler_attr(name) {
+                continue;
+            }
+            if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value)
+            {
+                continue;
+            }
+            if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
+                continue;
+            }
+            let _ = child.set_attribute(name, value);
+        }
+    }
+
+    /// `child` の子ノード列を `new_children`（`fandhe_frontend_core::Node`
+    /// 列）へ差し替える（イシュー #1324、設計書 §3.2 c 案の簡略実装）。
+    ///
+    /// 新しい子ノードを**先に構築**（`document.create*` のみで detached、
+    /// まだ `child` へ append しない）し、全件成功した場合にのみ既存の子を
+    /// 取り除いて新しい子を追加する。1 件でも構築に失敗（`RawHtml` 混入等、
+    /// [`build_dom_node_with_namespace`] が `None` を返すケース）した場合は
+    /// 構築済みの detached ノードを（DOM へ一切未挿入のまま）破棄し、
+    /// ライブ DOM を変更せず `false` を返す（fail-closed。`keyed_apply`
+    /// モジュール doc「Update op の DOM 適用」参照）。
+    fn replace_item_children(&mut self, child: &Element, new_children: &[Node]) -> bool {
+        let mut built: Vec<web_sys::Node> = Vec::with_capacity(new_children.len());
+        for new_child in new_children {
+            match build_dom_node_with_namespace(self.document, new_child, self.namespace) {
+                Some(node) => built.push(node),
+                None => return false,
+            }
+        }
+
+        while let Some(existing_child) = child.first_child() {
+            let _ = child.remove_child(&existing_child);
+        }
+        for node in &built {
+            let _ = child.append_child(node);
+        }
+        true
+    }
+
+    /// `children` キャッシュ（[`Self::ensure_children_cache`]、`child_at`
+    /// と共有）への線形走査で `key` の既存要素を解決する（イシュー #1324、
+    /// [`crate::keyed_apply::KeyedListDom::find_by_key`] doc 参照）。
+    /// キャッシュ未構築時はここで初めて実 DOM を 1 度だけ sibling 走査する
+    /// （`Update` のみが発生する構成、すなわち `Insert`/`Move` が 1 件も
+    /// 無く `child_at` が未呼び出しのケースでも、実 DOM 走査は高々 1 回に
+    /// 抑えられる契約をここで担保する）。
+    fn find_by_key(&mut self, key: &str) -> Option<Element> {
+        self.ensure_children_cache();
+        self.children
+            .as_ref()
+            .and_then(|children| children.iter().find(|(k, _)| k == key))
+            .map(|(_, el)| el.clone())
+    }
 }
 
 impl WebSysKeyedDom<'_> {
@@ -469,7 +637,7 @@ impl WebSysKeyedDom<'_> {
 /// 切り出し済み、native `cargo test` で DOM 操作コストを決定的に検証する
 /// 土台）。
 pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_node: &Node) {
-    let new_items = list_item_nodes(new_list_node);
+    let new_items = owned_list_item_nodes(new_list_node);
     let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
     let namespace = list_element.namespace_uri();
 
@@ -481,6 +649,107 @@ pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_no
         children: None,
     };
     crate::keyed_apply::apply_ops(&mut dom, &new_keys);
+}
+
+/// [`apply_keyed_list_with_previous`] の適用結果（イシュー #1324）。
+///
+/// 呼び出し元（`fandhe-frontend-wasm-full` の `Runtime`）が「直前に DOM へ
+/// 反映した内容」のキャッシュを次回呼び出しの `previous_list_node` として
+/// 使い続けるための状態遷移を表す（設計書 §4.2/§4.2a）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeyedListApplyResult {
+    /// ライブ DOM が実際に表している「達成 Node」（設計書 §4.2）。
+    /// `Update` が全件成功していれば `new_list_node` そのものと等価だが、
+    /// 子ノード構築に失敗して据え置かれたアイテムがあれば当該アイテムのみ
+    /// 旧内容のまま含む。呼び出し元はこの `Node` を次回呼び出しの
+    /// `previous_list_node` として保持し続けることで、以降の diff 基準を
+    /// 実際の DOM 内容と一致させ続ける（キャッシュの再同期）。
+    Achieved(Node),
+    /// 「要再同期」（設計書 §4.2a）。本実装では
+    /// [`crate::keyed_apply::apply_ops_with_items`] の `Update` 適用が
+    /// 子ノード構築失敗（`Node::RawHtml` 混入等）を検出した場合でも当該
+    /// アイテムは旧内容のまま DOM 上に残り続けるため（fail-closed）、
+    /// 本 variant は現在の実装では発生しない（`Achieved` が常に返る）。
+    /// 将来ロールバック自体の失敗（設計書 §6 不変条件が想定する二重失敗）
+    /// を検出する実装を追加する場合に備え、呼び出し元の分岐を型で用意
+    /// しておく（呼び出し元は本 variant を「当該 field の保持 Node を破棄
+    /// し、次回は [`apply_keyed_list`] のフォールバック経路へ委ねる」ものと
+    /// して扱うこと）。
+    ResyncRequired,
+}
+
+/// [`fandhe_frontend_core::keyed::diff_keyed_items`] が計画した操作列
+/// （`Remove`/`Insert`/`Move`/`Update`）を `list_element` へ適用する
+/// （イシュー #1324、`Update` 対応の新規公開エントリポイント）。
+///
+/// [`apply_keyed_list`] と異なり、呼び出し元は直前に DOM へ反映した内容
+/// （`previous_list_node`）を保持して渡す必要がある
+/// （`fandhe-frontend-wasm-full` の `Runtime` が field ごとにキャッシュする
+/// 想定、設計書 §4.1）。初回呼び出し（保持 Node がまだ無い）の場合は
+/// 呼び出し元は本関数ではなく [`apply_keyed_list`]（DOM 読み出しベースの
+/// 構造変化のみの適用）を使うこと（`Update` は内容比較を要するため、比較
+/// 対象となる直前の `Node` が無い初回には原理的に適用できない）。
+///
+/// 戻り値は [`KeyedListApplyResult`]（達成 Node の合成規則は同 enum doc
+/// 参照）。
+pub fn apply_keyed_list_with_previous(
+    document: &Document,
+    list_element: &Element,
+    previous_list_node: &Node,
+    new_list_node: &Node,
+) -> KeyedListApplyResult {
+    let old_items = owned_list_item_nodes(previous_list_node);
+    let new_items = owned_list_item_nodes(new_list_node);
+    let namespace = list_element.namespace_uri();
+
+    let mut dom = WebSysKeyedDom {
+        document,
+        list_element,
+        new_items: &new_items,
+        namespace: namespace.as_deref(),
+        children: None,
+    };
+    let outcome = crate::keyed_apply::apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+    // 「達成 Node」を合成する: final_keys の順序で、stale（子ノード構築
+    // 失敗で据え置かれた）キーは旧内容、それ以外は新内容を使う。
+    // `new_list_node`/`previous_list_node` はいずれも keyed_list() が
+    // 生成する Node::Element（親要素）である契約
+    // （`fandhe_frontend_core::keyed::keyed_list` 参照）。契約外の形状
+    // （呼び出し元が独自に組み立てた非 Element ノード等）が渡された場合は
+    // 安全側として `new_list_node` をそのまま複製して返す（達成
+    // 判定を諦め、次回呼び出しで再同期させる）。
+    let Node::Element {
+        tag: parent_tag,
+        attrs: parent_attrs,
+        ..
+    } = new_list_node
+    else {
+        return KeyedListApplyResult::Achieved(new_list_node.clone());
+    };
+
+    let old_by_key: std::collections::HashMap<&str, &Node> =
+        old_items.iter().map(|(k, n)| (k.as_str(), n)).collect();
+    let new_by_key: std::collections::HashMap<&str, &Node> =
+        new_items.iter().map(|(k, n)| (k.as_str(), n)).collect();
+
+    let achieved_children: Vec<Node> = outcome
+        .final_keys
+        .iter()
+        .filter_map(|key| {
+            if outcome.stale_update_keys.contains(key) {
+                old_by_key.get(key.as_str()).map(|n| (*n).clone())
+            } else {
+                new_by_key.get(key.as_str()).map(|n| (*n).clone())
+            }
+        })
+        .collect();
+
+    KeyedListApplyResult::Achieved(Node::Element {
+        tag: parent_tag,
+        attrs: parent_attrs.clone(),
+        children: achieved_children,
+    })
 }
 
 #[cfg(test)]
@@ -829,5 +1098,136 @@ mod tests {
                  はず"
             );
         }
+    }
+
+    // --- apply_keyed_list_with_previous（イシュー #1324、KeyedOp::Update の
+    // DOM 適用・受け入れ条件 1・2） ---
+
+    /// 受け入れ条件 1: 同一キー・新ラベルの再適用で DOM テキストが更新
+    /// される。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_updates_text_for_same_key() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a"]);
+
+        let previous = keyed_items(&["a"]);
+        let updated_items: Vec<(String, Node)> =
+            vec![("a".to_string(), li(vec![], vec![text("new-label")]))];
+        let updated = keyed_list("ul", vec![], "items", updated_items).unwrap();
+
+        let result = apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        let li_el = list_element.first_element_child().unwrap();
+        assert_eq!(li_el.text_content().as_deref(), Some("new-label"));
+        assert!(matches!(result, KeyedListApplyResult::Achieved(_)));
+    }
+
+    /// 受け入れ条件: Update 対象アイテムのルート要素は同一 DOM ノードの
+    /// まま保たれる（`is_same_node`、既存ノード参照保持＝フォーカス保持の
+    /// 土台）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_preserves_node_identity_on_update() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+        let node_a = list_element.first_element_child().unwrap();
+
+        let previous = keyed_items(&["a", "b"]);
+        let updated_items: Vec<(String, Node)> = vec![
+            ("a".to_string(), li(vec![], vec![text("a-new")])),
+            ("b".to_string(), li(vec![], vec![text("b")])),
+        ];
+        let updated = keyed_list("ul", vec![], "items", updated_items).unwrap();
+
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        let current_first = list_element.first_element_child().unwrap();
+        assert!(
+            current_first.is_same_node(Some(&node_a)),
+            "Update 対象のルート要素は再生成されず同一ノードのままのはず"
+        );
+        assert_eq!(current_first.text_content().as_deref(), Some("a-new"));
+    }
+
+    /// 受け入れ条件 2（XSS 回帰）: 更新値に script 相当のペイロードを含めて
+    /// も script 要素が生成されず、テキストとして安全に格納される。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_keeps_updated_script_like_text_as_plain_text() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a"]);
+
+        let previous = keyed_items(&["a"]);
+        let malicious = "<script>alert(1)</script>";
+        let updated_items: Vec<(String, Node)> =
+            vec![("a".to_string(), li(vec![], vec![text(malicious)]))];
+        let updated = keyed_list("ul", vec![], "items", updated_items).unwrap();
+
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        assert_eq!(list_element.query_selector("script").unwrap(), None);
+        let li_el = list_element.first_element_child().unwrap();
+        assert_eq!(li_el.text_content().as_deref(), Some(malicious));
+    }
+
+    /// 属性更新経路の XSS 回帰: Update で `href="javascript:..."` のような
+    /// 危険スキームへ変える試みが書き込まれない（fail-closed）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_drops_dangerous_href_on_update() {
+        let document = doc();
+        let list_element = make_list_element(&document, &[]);
+
+        let previous_items: Vec<(String, Node)> = vec![(
+            "a".to_string(),
+            el("a", vec![("href", "/safe")], vec![text("link")]),
+        )];
+        let previous = keyed_list("ul", vec![], "items", previous_items).unwrap();
+        // 初回反映（apply_keyed_list、Insert のみ）でライブ DOM を previous
+        // 内容へ揃えてから Update を試みる。
+        apply_keyed_list(&document, &list_element, &previous);
+
+        let updated_items: Vec<(String, Node)> = vec![(
+            "a".to_string(),
+            el(
+                "a",
+                vec![("href", "javascript:alert(1)")],
+                vec![text("link")],
+            ),
+        )];
+        let updated = keyed_list("ul", vec![], "items", updated_items).unwrap();
+
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        let a_el = list_element.query_selector("a").unwrap().unwrap();
+        assert_eq!(
+            a_el.get_attribute("href").as_deref(),
+            Some("/safe"),
+            "危険スキームへの href 変更は書き込まれず、旧値のまま残るはず \
+             （sync_attrs は new_attrs に無い属性のみ削除し、危険な新値は \
+             そもそも new_attrs へ書き込まれない）"
+        );
+    }
+
+    /// Move と Update の併発（`[Move{b}, Update{b}]` 相当）が DOM で正しく
+    /// 適用される: 並び順・内容の双方が新しい状態に一致する。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_handles_move_and_update_together() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+
+        let previous = keyed_items(&["a", "b"]);
+        let updated_items: Vec<(String, Node)> = vec![
+            ("b".to_string(), li(vec![], vec![text("b-new")])),
+            ("a".to_string(), li(vec![], vec![text("a")])),
+        ];
+        let updated = keyed_list("ul", vec![], "items", updated_items).unwrap();
+
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        assert_eq!(list_element.children().length(), 2);
+        let first = list_element.first_element_child().unwrap();
+        assert_eq!(first.get_attribute(KEY_ATTR).as_deref(), Some("b"));
+        assert_eq!(first.text_content().as_deref(), Some("b-new"));
+        let second = list_element.children().item(1).unwrap();
+        assert_eq!(second.get_attribute(KEY_ATTR).as_deref(), Some("a"));
+        assert_eq!(second.text_content().as_deref(), Some("a"));
     }
 }

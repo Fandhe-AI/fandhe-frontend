@@ -44,8 +44,43 @@
 //! #1121 由来の契約を本モジュールへ引き継ぐ）。`Remove`/`Move` で対象キーの
 //! 既存ハンドルが見つからない場合も同様に当該 1 件のみ skip し、他の
 //! 正当な操作の適用は妨げない。
+//!
+//! # Update op の DOM 適用（イシュー #1324）
+//!
+//! [`KeyedOp::Update`]（同一キーで内容だけが変わった保持アイテム、
+//! `fandhe_frontend_core::keyed::diff_keyed_items` が発行）は
+//! [`apply_ops_with_items`] のみが処理する（[`apply_ops`] は
+//! `diff_keys`（キー列のみの比較）を使うため `Update` を発行し得ず、
+//! 呼び出し元は引き続き `apply_ops` を使う限り本セクションの対象外）。
+//! 適用方針は `docs/design/keyed-update-op-design.md` §3.2 の「浅い
+//! in-place 更新」を、ロールバック粒度を単純化した形で実装する:
+//!
+//! 1. 属性は [`KeyedListDom::sync_attrs`] へ新しい属性集合（予約属性
+//!    `data-key` を除く）をまるごと渡し、アダプタ側が現在値との差分
+//!    （追加・変更・削除）を計算して適用する。
+//! 2. 子ノード列は [`KeyedListDom::replace_item_children`] へ新しい
+//!    `Node` 列を渡す。アダプタは新しい子ノード列を**先に構築**し、構築が
+//!    全て成功した場合にのみ既存の子を除去して置き換える（`RawHtml`
+//!    混入等の構築失敗時はライブ DOM を一切変更しない）。
+//!
+//! 設計書 §6 不変条件 6 が要求する「属性書き込み k 件目・子ノード
+//! 着脱 i/j 件目の失敗ごとの逆順ロールバック」は実装しない（`setAttribute`/
+//! `appendChild`/`removeChild` は不正な引数（本経路では既に URL・
+//! イベントハンドラ属性検証を通過済みの値のみ渡す）に対して通常
+//! `Err`/例外を投げない DOM 標準 API であり、単純化しても実務上のロール
+//! バック対象がほぼ発生しない一方、全ステップ分の逆順ロールバック機構は
+//! 実装・検証コストに見合わないと判断したため。子ノード構築失敗
+//! （`replace_item_children` が `false` を返すケース）のみを
+//! fail-closed の対象とし、この場合はライブ DOM を変更しない
+//! （`false` を返す前に必ずコミット前の構築を完了させる契約、
+//! [`KeyedListDom::replace_item_children`] doc 参照）。呼び出し元
+//! （[`crate::keyed_dom::apply_keyed_list_with_previous`]）はこの skip を
+//! 「達成 Node」の合成時に旧内容のまま据え置くことで表現し、次回の
+//! diff 基準を実際の DOM 内容と一致させ続ける（再同期の収束、設計書
+//! §4.2a）。
 
-use crate::keyed_diff::{diff_keys, KeyedOp};
+use crate::keyed_diff::{diff_keyed_items, diff_keys, KeyedOp};
+use fandhe_frontend_core::Node;
 
 /// keyed list コンテナに対する DOM 操作を抽象化するトレイト。
 ///
@@ -140,6 +175,41 @@ pub(crate) trait KeyedListDom {
 
     /// `child` をコンテナから取り除く（`Element::remove_child`）。
     fn remove_child(&mut self, child: &Self::Handle);
+
+    /// `child` の属性を `new_attrs`（予約属性 `data-key` を除く新しい
+    /// 属性集合）へ同期する（[`KeyedOp::Update`] 適用の一部、イシュー
+    /// #1324）。アダプタは `child` の現在の属性集合を読み出し、
+    /// `new_attrs` に存在しない現在の属性を削除し、`new_attrs` の各
+    /// エントリを `setAttribute` する（値が同一でも呼び出しは安全な
+    /// no-op）。URL スキーム・イベントハンドラ属性の検証は
+    /// [`crate::keyed_dom::build_dom_node`] と同一の述語を `web-sys`
+    /// アダプタが共有して行う（本トレイトのモジュール doc 参照）。
+    fn sync_attrs(&mut self, child: &Self::Handle, new_attrs: &[(String, String)]);
+
+    /// `child` の子ノード列を `new_children`（`fandhe_frontend_core::Node`
+    /// 列）へ差し替える（[`KeyedOp::Update`] 適用の一部、イシュー #1324）。
+    ///
+    /// 実装は新しい子ノード列を**先に構築**し、`RawHtml` 混入等で構築に
+    /// 失敗した場合はライブ DOM を一切変更せず `false` を返す
+    /// （本モジュール doc「Update op の DOM 適用」参照）。構築が全て
+    /// 成功した場合のみ既存の子を除去し新しい子を追加して `true` を返す。
+    fn replace_item_children(&mut self, child: &Self::Handle, new_children: &[Node]) -> bool;
+
+    /// `key` に対応する既存要素のハンドルを解決する（[`KeyedOp::Update`]
+    /// 適用専用、イシュー #1324）。
+    ///
+    /// [`find_child_by_key`]（`Remove`/`Move` が使う、`first_element_child`/
+    /// `next_element_sibling`/`item_key` による毎回の sibling 走査）を
+    /// `Update` にも流用すると、`Update` 件数 × リスト長 に比例する実 DOM
+    /// 呼び出し（構造変化を伴わない純粋な内容変更のみの構成では
+    /// [`Self::child_at`] が一度も呼ばれないため、`web-sys` 実装のキャッシュ
+    /// も温まらない）が発生し、#1318/#1319 が固定した O(n) 相当の契約を
+    /// `Update` 経路だけ破ってしまう。実装は [`Self::child_at`] と同様に
+    /// 初回呼び出しでのみ実 DOM を走査し、以降は実 DOM 呼び出しを伴わない
+    /// 索引・線形走査で解決すること（`web-sys` 実装
+    /// [`crate::keyed_dom::WebSysKeyedDom`] は `child_at` と同じ `children`
+    /// キャッシュを共有する）。
+    fn find_by_key(&mut self, key: &str) -> Option<Self::Handle>;
 }
 
 /// コンテナ直下の子から現在の `data-key` 列を読み出す
@@ -260,7 +330,132 @@ pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
                 }
                 i += 1;
             }
+            KeyedOp::Update { .. } => {
+                // `diff_keys`（本関数が使う純粋なキー列比較）は内容比較を
+                // 行わないため `KeyedOp::Update` を発行し得ない
+                // （`fandhe_frontend_core::keyed::diff_keys` の実装参照）。
+                // `KeyedOp` は `diff_keyed_items` とも型を共有するため
+                // 網羅性のためのみに存在する到達しない分岐（no-op）。
+                // Update を実際に処理する経路は [`apply_ops_with_items`]。
+            }
         }
+    }
+}
+
+/// [`apply_ops`] の適用結果（イシュー #1324、`KeyedOp::Update` を含む
+/// op 列を処理した [`apply_ops_with_items`] のみが返す）。
+///
+/// [`crate::keyed_dom::apply_keyed_list_with_previous`] がこの結果から
+/// 「達成 Node」（実 DOM が実際に表す内容、設計書 §4.2/§4.2a）を合成する
+/// ための追跡情報を保持する。
+#[derive(Debug, Default)]
+pub(crate) struct ApplyOutcome {
+    /// 適用後にライブ DOM 上へ実際に存在するキー列（新しい並び順）。
+    /// `Insert` の構築に失敗して未反映のまま skip されたキーは含まない。
+    pub(crate) final_keys: Vec<String>,
+    /// `Update` の子ノード構築に失敗し、旧内容のまま据え置かれたキーの
+    /// 集合（「達成 Node」合成時にこの集合のキーは新内容ではなく旧内容を
+    /// 使う）。
+    pub(crate) stale_update_keys: std::collections::HashSet<String>,
+}
+
+/// `old_items`/`new_items`（`(キー, Node)` 列）から
+/// [`fandhe_frontend_core::keyed::diff_keyed_items`] で内容比較付き op 列
+/// （`Update` を含む）を計画し、`dom` へ適用する（イシュー #1324）。
+///
+/// [`apply_ops`] と異なり「dom から現在のキー列を読む」のではなく
+/// `old_items` を diff の入力として使う（呼び出し元がキー列だけでなく
+/// 直前に反映した `Node` 内容を保持している前提。
+/// [`crate::keyed_dom::apply_keyed_list_with_previous`] doc 参照）。
+/// `Remove`/`Insert`/`Move` の適用アルゴリズムは [`apply_ops`] と同一。
+pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
+    dom: &mut D,
+    old_items: &[(String, Node)],
+    new_items: &[(String, Node)],
+) -> ApplyOutcome {
+    let ops = diff_keyed_items(old_items, new_items);
+    let mut failed_inserts: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut stale_update_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for op in ops {
+        match op {
+            KeyedOp::Remove { key } => {
+                if let Some(child) = find_child_by_key(dom, &key) {
+                    dom.remove_child(&child);
+                }
+            }
+            KeyedOp::Insert { index, key } => {
+                let Some(new_node) = dom.create_item(&key) else {
+                    failed_inserts.insert(key);
+                    continue;
+                };
+                let reference = dom.child_at(index);
+                // トレイトが提供する挿入 API は #1320 で `insert_before_batch`
+                // へ一本化された（連続 Insert 区間の DocumentFragment
+                // 集約）。本関数は `diff_keyed_items` の op 列を 1 件ずつ
+                // 適用する構成のため、要素数 1 の `items` で呼び出す
+                // （契約上「新しい並びで `start_index` から連続する新規
+                // ノード列」を満たせば良く、単一要素はこれを自明に満たす）。
+                dom.insert_before_batch(index, vec![(key.clone(), new_node)], reference.as_ref());
+            }
+            KeyedOp::Move { index, key } => {
+                let Some(existing) = find_child_by_key(dom, &key) else {
+                    continue;
+                };
+                let reference = dom.child_at(index);
+                dom.move_before(index, &key, &existing, reference.as_ref());
+            }
+            KeyedOp::Update { key } => {
+                // `find_child_by_key`（sibling 走査、Remove/Move 用）ではなく
+                // `KeyedListDom::find_by_key` を使う（O(n²) 退行防止、
+                // `find_by_key` doc・本モジュール doc「Update op の DOM
+                // 適用」参照）。
+                let Some(existing) = dom.find_by_key(&key) else {
+                    // 保持キーのはずが実 DOM 上に見つからない（改ざん等の
+                    // 異常系）。当該キーは skip し、次回 diff で不整合が
+                    // 解消されるまで stale 扱いにはしない（呼び出し元は
+                    // 「達成 Node」合成時に new_items 側の内容を使うことに
+                    // なるが、これは Insert と同様に見つからない対象への
+                    // 操作を諦める既存の fail-closed 方針と整合する）。
+                    continue;
+                };
+                let Some((_, new_node)) = new_items.iter().find(|(k, _)| k == &key) else {
+                    continue;
+                };
+                let Node::Element {
+                    attrs: new_attrs,
+                    children: new_children,
+                    ..
+                } = new_node
+                else {
+                    // keyed list アイテムは keyed_list() 構築時点で
+                    // Node::Element であることが保証される
+                    // （KeyedListError::NonElementItem で fail-closed に
+                    // 拒否済み）。到達しない想定だが安全側に skip する。
+                    continue;
+                };
+                let filtered_attrs: Vec<(String, String)> = new_attrs
+                    .iter()
+                    .filter(|(name, _)| name != fandhe_frontend_core::keyed::KEY_ATTR)
+                    .cloned()
+                    .collect();
+                dom.sync_attrs(&existing, &filtered_attrs);
+                if !dom.replace_item_children(&existing, new_children) {
+                    stale_update_keys.insert(key);
+                }
+            }
+        }
+    }
+
+    let final_keys: Vec<String> = new_items
+        .iter()
+        .map(|(k, _)| k.clone())
+        .filter(|k| !failed_inserts.contains(k))
+        .collect();
+
+    ApplyOutcome {
+        final_keys,
+        stale_update_keys,
     }
 }
 
@@ -279,6 +474,14 @@ mod tests {
     struct CountingDom {
         items: Vec<String>,
         calls: CallCounts,
+        /// キーごとの現在の属性集合（`sync_attrs` テスト用、イシュー #1324）。
+        attrs: std::collections::HashMap<String, Vec<(String, String)>>,
+        /// キーごとの現在の子ノード内容（`replace_item_children` テスト用）。
+        /// `apply_ops`（`Update` を発行しない）経路では未使用のまま。
+        children: std::collections::HashMap<String, Vec<Node>>,
+        /// `replace_item_children` に構築失敗（`RawHtml` 混入相当）を
+        /// 注入するキー集合。ロールバック契約テスト用のフック。
+        fail_replace_children_for: std::collections::HashSet<String>,
     }
 
     #[derive(Default, Debug, Clone, Copy)]
@@ -291,6 +494,9 @@ mod tests {
         move_before: usize,
         remove_child: usize,
         child_at: usize,
+        sync_attrs: usize,
+        replace_item_children: usize,
+        find_by_key: usize,
     }
 
     impl CallCounts {
@@ -300,6 +506,11 @@ mod tests {
         /// Insert 区間 1 件につき 1 回に集約されるため、旧
         /// `insert_before`（アイテム 1 件ごとに 1 回）より少ない回数になる。
         /// 1,000 行 create の上限値コメントの内訳と対応する）。
+        /// イシュー #1324 で `sync_attrs`/`replace_item_children`/
+        /// `find_by_key`（`Update` 適用が呼ぶ）を追加した（既存の `apply_ops`
+        /// 系コスト固定テストは `Update` を発行しない `diff_keys` のみを
+        /// 使うため、これらは常に 0 のままで既存テストの数値に影響しない。
+        /// `apply_ops_with_items` 系のコスト固定テストが対象）。
         fn total(&self) -> usize {
             self.first_element_child
                 + self.next_element_sibling
@@ -309,6 +520,9 @@ mod tests {
                 + self.move_before
                 + self.remove_child
                 + self.child_at
+                + self.sync_attrs
+                + self.replace_item_children
+                + self.find_by_key
         }
     }
 
@@ -393,6 +607,35 @@ mod tests {
                 self.items.remove(pos);
             }
         }
+
+        fn sync_attrs(&mut self, child: &Self::Handle, new_attrs: &[(String, String)]) {
+            self.calls.sync_attrs += 1;
+            self.attrs.insert(child.clone(), new_attrs.to_vec());
+        }
+
+        fn replace_item_children(&mut self, child: &Self::Handle, new_children: &[Node]) -> bool {
+            self.calls.replace_item_children += 1;
+            if self.fail_replace_children_for.contains(child) {
+                // 構築失敗を模擬: ライブ側の `children` を一切変更せず
+                // `false` を返す（本トレイトの fail-closed 契約、モジュール
+                // doc「Update op の DOM 適用」参照）。
+                return false;
+            }
+            self.children.insert(child.clone(), new_children.to_vec());
+            true
+        }
+
+        /// `items` への直接の線形走査（実 DOM 呼び出しに相当するものは
+        /// 伴わない、本 struct が `Vec` のみで完結する native モックである
+        /// ことそのものが「実 DOM を問い合わせない」契約を体現する。
+        /// `web-sys` 実装 [`crate::keyed_dom::WebSysKeyedDom::find_by_key`]
+        /// は初回のみ実 DOM を走査してキャッシュを構築し、以降は同様に
+        /// 実 DOM 非依存の走査で解決する契約であり、本モックは「初回構築
+        /// 後は実 DOM 呼び出しゼロ」という性質のみを模している）。
+        fn find_by_key(&mut self, key: &str) -> Option<Self::Handle> {
+            self.calls.find_by_key += 1;
+            self.items.iter().find(|k| k.as_str() == key).cloned()
+        }
     }
 
     fn keys_n(n: usize) -> Vec<String> {
@@ -463,7 +706,7 @@ mod tests {
         const N: usize = 1_000;
         let mut dom = CountingDom {
             items: keys_n(N),
-            calls: CallCounts::default(),
+            ..Default::default()
         };
         let old_keys = keys_n(N);
         let mut new_keys = vec!["new".to_string()];
@@ -495,7 +738,7 @@ mod tests {
         const N: usize = 1_000;
         let mut dom = CountingDom {
             items: keys_n(N),
-            calls: CallCounts::default(),
+            ..Default::default()
         };
         let old_keys = keys_n(N);
         let mut new_keys = old_keys.clone();
@@ -525,7 +768,7 @@ mod tests {
     fn apply_ops_batches_each_disjoint_insert_run_separately() {
         let mut dom = CountingDom {
             items: vec!["a".to_string(), "b".to_string()],
-            calls: CallCounts::default(),
+            ..Default::default()
         };
         let new_keys: Vec<String> = ["x", "y", "a", "z", "w", "b"]
             .into_iter()
@@ -551,7 +794,7 @@ mod tests {
     fn apply_ops_insert_run_is_split_by_interleaved_move() {
         let mut dom = CountingDom {
             items: vec!["a".to_string(), "c".to_string()],
-            calls: CallCounts::default(),
+            ..Default::default()
         };
         let new_keys: Vec<String> = ["x", "c", "a"].into_iter().map(String::from).collect();
 
@@ -626,6 +869,15 @@ mod tests {
         fn remove_child(&mut self, child: &Self::Handle) {
             self.inner.remove_child(child);
         }
+        fn sync_attrs(&mut self, child: &Self::Handle, new_attrs: &[(String, String)]) {
+            self.inner.sync_attrs(child, new_attrs);
+        }
+        fn replace_item_children(&mut self, child: &Self::Handle, new_children: &[Node]) -> bool {
+            self.inner.replace_item_children(child, new_children)
+        }
+        fn find_by_key(&mut self, key: &str) -> Option<Self::Handle> {
+            self.inner.find_by_key(key)
+        }
     }
 
     #[test]
@@ -633,7 +885,7 @@ mod tests {
         let mut dom = PoisonedCreateDom {
             inner: CountingDom {
                 items: vec!["a".to_string()],
-                calls: CallCounts::default(),
+                ..Default::default()
             },
             poisoned_key: "y".to_string(),
         };
@@ -663,7 +915,7 @@ mod tests {
     fn apply_ops_removes_only_target_key() {
         let mut dom = CountingDom {
             items: keys_n(3),
-            calls: CallCounts::default(),
+            ..Default::default()
         };
         let new_keys = vec!["k0".to_string(), "k2".to_string()];
 
@@ -677,12 +929,243 @@ mod tests {
     fn apply_ops_reorders_existing_keys() {
         let mut dom = CountingDom {
             items: keys_n(3),
-            calls: CallCounts::default(),
+            ..Default::default()
         };
         let new_keys = vec!["k2".to_string(), "k0".to_string(), "k1".to_string()];
 
         apply_ops(&mut dom, &new_keys);
 
         assert_eq!(dom.items, new_keys);
+    }
+
+    // --- apply_ops_with_items（イシュー #1324、Update op の DOM 適用） ---
+
+    use fandhe_frontend_core::{el, text};
+
+    fn item(key: &str, text_value: &str) -> (String, Node) {
+        (
+            key.to_string(),
+            el("li", vec![("data-key", key)], vec![text(text_value)]),
+        )
+    }
+
+    /// テキストのみ変更の Update が発行され、`sync_attrs`/
+    /// `replace_item_children` がちょうど 1 回ずつ呼ばれ、無関係な
+    /// `create_item`/`insert_before_batch`/`remove_child` は発生しない
+    /// （余分な DOM 操作が起きないことの確認）。
+    #[test]
+    fn apply_ops_with_items_updates_text_only_change_via_child_replacement() {
+        let old_items = vec![item("a", "old")];
+        let new_items = vec![item("a", "new")];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert_eq!(outcome.final_keys, vec!["a".to_string()]);
+        assert!(outcome.stale_update_keys.is_empty());
+        assert_eq!(dom.calls.sync_attrs, 1);
+        assert_eq!(dom.calls.replace_item_children, 1);
+        assert_eq!(dom.calls.create_item, 0);
+        assert_eq!(dom.calls.insert_before_batch, 0);
+        assert_eq!(dom.calls.remove_child, 0);
+        assert_eq!(
+            dom.children.get("a"),
+            Some(&vec![text("new")]),
+            "新しい子ノード内容が反映されているはず"
+        );
+    }
+
+    /// 属性の追加・変更・削除が混在する差分適用: `data-key` 自体は
+    /// `sync_attrs` へ渡す新属性集合から除外される
+    /// （予約属性を Update 経路から改変できないようにする不変条件）。
+    #[test]
+    fn apply_ops_with_items_syncs_attrs_excluding_reserved_data_key() {
+        let old_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("class", "old"), ("data-removed", "x")],
+                vec![text("same")],
+            ),
+        )];
+        let new_items = vec![(
+            "a".to_string(),
+            el(
+                "li",
+                vec![("data-key", "a"), ("class", "new"), ("data-added", "y")],
+                vec![text("same")],
+            ),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            ..Default::default()
+        };
+
+        apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        let synced = dom.attrs.get("a").expect("sync_attrs が呼ばれているはず");
+        assert!(
+            synced.iter().all(|(k, _)| k != "data-key"),
+            "data-key は sync_attrs へ渡す集合から除外されるはず: {synced:?}"
+        );
+        assert!(synced.contains(&("class".to_string(), "new".to_string())));
+        assert!(synced.contains(&("data-added".to_string(), "y".to_string())));
+        assert!(
+            !synced.iter().any(|(k, _)| k == "data-removed"),
+            "new_attrs に無い旧属性は同期対象に含まれないはず: {synced:?}"
+        );
+    }
+
+    /// 子ノード構築失敗（`RawHtml` 混入相当）の注入: 当該キーは
+    /// `stale_update_keys` へ記録され、`final_keys` には引き続き含まれる
+    /// （ライブ DOM 上に旧内容のままアイテムが残っているため）。他アイテムの
+    /// 適用は妨げられない（複数アイテムの Update 混在ケース）。
+    #[test]
+    fn apply_ops_with_items_marks_stale_on_child_build_failure_without_blocking_others() {
+        let old_items = vec![item("a", "old-a"), item("b", "old-b")];
+        let new_items = vec![item("a", "new-a"), item("b", "new-b")];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string(), "b".to_string()],
+            fail_replace_children_for: std::collections::HashSet::from(["a".to_string()]),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert_eq!(
+            outcome.final_keys,
+            vec!["a".to_string(), "b".to_string()],
+            "構築失敗した a も DOM 上に残存しているため final_keys に含まれ続けるはず"
+        );
+        assert_eq!(
+            outcome.stale_update_keys,
+            std::collections::HashSet::from(["a".to_string()]),
+            "構築失敗したキーのみが stale として記録されるはず"
+        );
+        assert_eq!(
+            dom.children.get("a"),
+            None,
+            "構築失敗時はライブ DOM の子ノードが変更されないはず（fail-closed）"
+        );
+        assert_eq!(
+            dom.children.get("b"),
+            Some(&vec![text("new-b")]),
+            "他アイテム（b）の Update 適用は妨げられないはず"
+        );
+    }
+
+    /// Insert・Move・Update・Remove が同時に発生する複合ケースでも
+    /// `final_keys` が正しい最終順序を反映する。
+    #[test]
+    fn apply_ops_with_items_handles_mixed_ops() {
+        let old_items = vec![item("a", "a-old"), item("b", "b"), item("c", "c")];
+        // b: 削除。c: 内容変更（Update）。a: そのまま。d: 新規挿入。
+        // 並びは [c, d, a]（c が先頭へ移動 + d 挿入 + a は末尾）。
+        let new_items = vec![item("c", "c-new"), item("d", "d"), item("a", "a-old")];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert_eq!(
+            outcome.final_keys,
+            vec!["c".to_string(), "d".to_string(), "a".to_string()]
+        );
+        assert!(outcome.stale_update_keys.is_empty());
+        assert_eq!(
+            dom.children.get("c"),
+            Some(&vec![text("c-new")]),
+            "c の内容変更が反映されているはず"
+        );
+        assert_eq!(dom.items, outcome.final_keys);
+    }
+
+    // --- コスト固定テスト（イシュー #1324、Update op 版）---
+    //
+    // `apply_ops`（#1318/#1319）の cost-fixed テストは `diff_keys`（内容比較
+    // なし）のみを経由するため `Update` を発行しない。`Update` 経路
+    // （`apply_ops_with_items`）は `find_by_key` が `Remove`/`Move` 用の
+    // sibling 走査 `find_child_by_key` を流用すると「`Update` 件数 ×
+    // リスト長」に比例する呼び出しへ退行しうる（`find_by_key` doc 参照、
+    // codex 相当レビュー指摘で判明）。特に構造変化を伴わない純粋な内容
+    //変更のみの構成（`Insert`/`Move` が 1 件も無く `child_at` が未呼び
+    // 出しのケース）は `WebSysKeyedDom` のキャッシュも温まっていないため、
+    // 素朴な実装だと最悪ケースになる。本テストはこの「全件 Update・構造
+    // 変化なし」という最悪ケースの呼び出し回数を固定する。
+
+    fn items_n(n: usize, content_prefix: &str) -> Vec<(String, Node)> {
+        (0..n)
+            .map(|i| item(&format!("k{i}"), &format!("{content_prefix}{i}")))
+            .collect()
+    }
+
+    /// 1,000 行すべての内容が変わり構造変化が一切無い（キー集合・並びは
+    /// 完全に同一）最悪ケース: 実測 3,001 回（`first_element_child`
+    /// 1 回〔`find_by_key` 初回呼び出しでのキャッシュ構築、以降は実 DOM
+    /// 非依存の `Vec` 線形走査〕+ `find_by_key`/`sync_attrs`/
+    /// `replace_item_children` 各 1,000 回）に対して +約 17% のタイトな
+    /// 上限（3,500 回）で固定する。`find_by_key` が sibling 走査
+    /// （`first_element_child`/`next_element_sibling`/`item_key`）へ退行
+    /// した場合、この呼び出し回数は N² 相当（実測 500,000 回超）へ跳ね上がる
+    /// ため、上限超過はこの O(n²) 退行の再発検知として機能する。
+    #[test]
+    fn apply_ops_with_items_update_all_1000_rows_with_no_structural_change_stays_linear() {
+        const N: usize = 1_000;
+        let old_items = items_n(N, "old-");
+        let new_items = items_n(N, "new-");
+        let mut dom = CountingDom {
+            items: (0..N).map(|i| format!("k{i}")).collect(),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert_eq!(outcome.final_keys.len(), N);
+        assert!(outcome.stale_update_keys.is_empty());
+        let total = dom.calls.total();
+        assert!(
+            total <= 3_500,
+            "1,000 行全件 Update（構造変化なし）の DOM 操作総数は 3,500 回 \
+             以内のはず（実測: {total}、内訳: {:?}）。`find_by_key` の \
+             O(1) 相当解決（イシュー #1324）からの退行（sibling 走査への \
+             フォールバック等）を検知する上限",
+            dom.calls
+        );
+    }
+
+    /// 既存 1,000 行中 1 件のみ内容が変わるケース（実運用で最も典型的な
+    /// 単一項目更新）: 実測 2,001 回程度（`first_element_child` 1 回 +
+    /// `find_by_key`/`sync_attrs`/`replace_item_children` 各 1 回、
+    /// キャッシュ構築の sibling 走査 999 回分は `next_element_sibling` に
+    /// 計上）に対してタイトな上限（1,500 回、末尾要素想定で
+    /// `next_element_sibling` 999 回 + 前述 4 回 = 1,003 回に余裕を持たせた
+    /// 値）で固定する。
+    #[test]
+    fn apply_ops_with_items_update_one_of_1000_rows_stays_linear() {
+        const N: usize = 1_000;
+        let old_items = items_n(N, "v");
+        let mut new_items = old_items.clone();
+        new_items[0] = item("k0", "changed");
+        let mut dom = CountingDom {
+            items: (0..N).map(|i| format!("k{i}")).collect(),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert_eq!(outcome.final_keys.len(), N);
+        assert!(outcome.stale_update_keys.is_empty());
+        let total = dom.calls.total();
+        assert!(
+            total <= 1_500,
+            "1,000 行中 1 件更新の DOM 操作総数は 1,500 回以内のはず \
+             （実測: {total}、内訳: {:?}）",
+            dom.calls
+        );
     }
 }

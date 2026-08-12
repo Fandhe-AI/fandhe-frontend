@@ -227,6 +227,25 @@ pub struct Runtime<C: Component> {
     /// 参照してしまう）。
     binding_table:
         std::rc::Rc<std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>>,
+    /// keyed list field ごとの「直前に DOM へ反映した内容」のキャッシュ
+    /// （イシュー #1324、`KeyedOp::Update` の DOM 適用）。
+    ///
+    /// [`fandhe_frontend_wasm_client::apply_keyed_list_with_previous`] は
+    /// 内容比較付き diff（`Update` を含む）のために直前の
+    /// `fandhe_frontend_core::Node` を要求する。`binding_table` と同じ理由
+    /// （[`Self::wire`]/[`Self::wire_signature_pad`] のクロージャと
+    /// `Runtime` 自身が同じキャッシュを共有する必要がある）で
+    /// `Rc<RefCell<_>>` として保持する。
+    ///
+    /// エントリが無い field（初回・[`Self::rerender_subtree`] による構造
+    /// フォールバック後）は
+    /// [`fandhe_frontend_wasm_client::apply_keyed_list`]（DOM 読み出し
+    /// ベースの構造変化のみの適用、`Update` は発行されない）へフォール
+    /// バックし、適用後にキャッシュへ新規登録する
+    /// （[`Self::apply_update_for_dirty`] 参照）。
+    keyed_list_cache: std::rc::Rc<
+        std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+    >,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -312,6 +331,9 @@ where
         binding_table: std::rc::Rc<
             std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
         >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
     ) -> impl FnMut(events::ActionRef) + 'static {
         move |action_ref: events::ActionRef| {
             let Ok(mut state) = component.try_borrow_mut() else {
@@ -335,7 +357,7 @@ where
                 return;
             }
 
-            Self::apply_update_for_dirty(&state, &root, &binding_table, &dirty);
+            Self::apply_update_for_dirty(&state, &root, &binding_table, &keyed_list_cache, &dirty);
         }
     }
 
@@ -373,6 +395,9 @@ where
         binding_table: &std::rc::Rc<
             std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
         >,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
         dirty: &[&'static str],
     ) {
         if let Some(table) = binding_table.borrow().as_ref() {
@@ -398,11 +423,48 @@ where
                             if let Some(list_node) =
                                 fandhe_frontend_wasm_client::find_keyed_list_node(&view, field)
                             {
-                                fandhe_frontend_wasm_client::apply_keyed_list(
-                                    &document,
-                                    &list_element,
-                                    list_node,
-                                );
+                                // 保持キャッシュが有る field は内容比較付き
+                                // Update 経路（イシュー #1324）、無い field
+                                // （初回・構造フォールバック後）は従来どおり
+                                // DOM 読み出しベースの構造変化のみの適用
+                                // （`Update` は発行されない）へフォールバック
+                                // する（`Runtime::keyed_list_cache` doc 参照）。
+                                let previous = keyed_list_cache.borrow().get(*field).cloned();
+                                match previous {
+                                    Some(previous_node) => {
+                                        let result =
+                                            fandhe_frontend_wasm_client::apply_keyed_list_with_previous(
+                                                &document,
+                                                &list_element,
+                                                &previous_node,
+                                                list_node,
+                                            );
+                                        match result {
+                                            fandhe_frontend_wasm_client::KeyedListApplyResult::Achieved(achieved) => {
+                                                keyed_list_cache
+                                                    .borrow_mut()
+                                                    .insert((*field).to_string(), achieved);
+                                            }
+                                            fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired => {
+                                                // 次回は DOM 読み出しベースの
+                                                // フォールバックへ委ねる
+                                                // （`KeyedListApplyResult` doc
+                                                // 参照）。
+                                                keyed_list_cache.borrow_mut().remove(*field);
+                                            }
+                                        }
+                                    }
+                                    None => {
+                                        fandhe_frontend_wasm_client::apply_keyed_list(
+                                            &document,
+                                            &list_element,
+                                            list_node,
+                                        );
+                                        keyed_list_cache
+                                            .borrow_mut()
+                                            .insert((*field).to_string(), list_node.clone());
+                                    }
+                                }
                                 structural_change = true;
                             } else if !has_binding(field) {
                                 unresolved_field = true;
@@ -438,7 +500,7 @@ where
         // 1 件でもあれば、`root` サブツリーを丸ごと差し替える全再描画へ
         // フォールバックする（従来の黙った no-op を解消）。
         if unresolved_field {
-            Self::rerender_subtree(state, root, binding_table);
+            Self::rerender_subtree(state, root, binding_table, keyed_list_cache);
         }
     }
 
@@ -466,6 +528,9 @@ where
         root: &web_sys::Element,
         binding_table: &std::rc::Rc<
             std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
         >,
     ) {
         let Ok(document) = Self::document() else {
@@ -495,6 +560,16 @@ where
         // `apply_dirty`/`has_field` が次回以降の更新で新しい束縛点を参照
         // できるよう対応表を再スキャンする。
         *binding_table.borrow_mut() = fandhe_frontend_wasm_client::BindingTable::scan(root).ok();
+
+        // イシュー #1324: サブツリー差し替え後の keyed list 親要素は新規
+        // DOM ノードであり、直前にキャッシュしていた「達成 Node」との
+        // 対応関係は保証されない（本メソッドは `Self::rerender` からも
+        // 能動的に呼ばれうるため、直近の `apply_update_for_dirty` 呼び出し
+        // との時系列関係を前提にできない）。丸ごとクリアし、次回以降は
+        // `apply_keyed_list`（DOM 読み出しベースのフォールバック）から
+        // 再開させることで実際の DOM 内容との不整合を防ぐ
+        // （`Runtime::keyed_list_cache` doc 参照）。
+        keyed_list_cache.borrow_mut().clear();
     }
 
     /// CSR 経路（`docs/design/wasm-full-architecture.md` 第 3.2 節）。
@@ -524,11 +599,31 @@ where
         let root = Self::get_root(root_id)?;
         dom::mount_initial(&root, &component);
 
+        // イシュー #1324: マウント直後の内容を `keyed_list_cache` の初期
+        // baseline として種付けする。マウント時点では `dirty_fields()` が
+        // 空（`update()` を 1 度も呼んでいない）であり、`Update` 経路の
+        // 内容比較には「直前に DOM へ反映した内容」が必須のため、これを
+        // 怠ると最初の 1 回目の内容変更が Insert/Remove/Move のみを見る
+        // フォールバック（`apply_keyed_list`）へ落ち、キー不変の内容変更が
+        // 反映されない（PR #1324 実装時に実ブラウザテストで検出した回帰。
+        // `Runtime::keyed_list_cache` doc 参照）。
+        let initial_view = component.view();
+        let keyed_list_cache = std::rc::Rc::new(std::cell::RefCell::new(
+            fandhe_frontend_wasm_client::collect_keyed_list_nodes(&initial_view)
+                .into_iter()
+                .collect::<std::collections::HashMap<_, _>>(),
+        ));
+
         let component = std::rc::Rc::new(std::cell::RefCell::new(component));
         let binding_table = std::rc::Rc::new(std::cell::RefCell::new(
             fandhe_frontend_wasm_client::BindingTable::scan(&root).ok(),
         ));
-        let on_action = Self::wire(component.clone(), root.clone(), binding_table.clone());
+        let on_action = Self::wire(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        );
         events::wire_events(root.clone(), on_action)?;
         keynav::wire_keynav(root.clone())?;
         focus_visible::wire_focus_visible(root.clone())?;
@@ -537,12 +632,18 @@ where
         Self::wire_timer(component.clone(), root.clone())?;
         Self::wire_angle_slider(component.clone(), root.clone())?;
         Self::wire_splitter(component.clone(), root.clone())?;
-        Self::wire_signature_pad(component.clone(), root.clone(), binding_table.clone())?;
+        Self::wire_signature_pad(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
 
         Ok(Self {
             component,
             root,
             binding_table,
+            keyed_list_cache,
         })
     }
 
@@ -580,11 +681,29 @@ where
             }
         };
 
+        // イシュー #1324: `Self::mount` と同じ理由で `keyed_list_cache` を
+        // 種付けする。復元成功時（SSR 出力を維持）・CSR フォールバック時
+        // （`dom::mount_initial` 済み）のいずれでも、この時点の
+        // `component.view()` が実際に DOM へ反映されている内容と一致する
+        // （復元成功時は SSR 出力と `view()` が一致する前提が
+        // `Hydrate` 契約そのもの）。
+        let initial_view = component.view();
+        let keyed_list_cache = std::rc::Rc::new(std::cell::RefCell::new(
+            fandhe_frontend_wasm_client::collect_keyed_list_nodes(&initial_view)
+                .into_iter()
+                .collect::<std::collections::HashMap<_, _>>(),
+        ));
+
         let component = std::rc::Rc::new(std::cell::RefCell::new(component));
         let binding_table = std::rc::Rc::new(std::cell::RefCell::new(
             fandhe_frontend_wasm_client::BindingTable::scan(&root).ok(),
         ));
-        let on_action = Self::wire(component.clone(), root.clone(), binding_table.clone());
+        let on_action = Self::wire(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        );
         events::wire_events(root.clone(), on_action)?;
         keynav::wire_keynav(root.clone())?;
         focus_visible::wire_focus_visible(root.clone())?;
@@ -593,12 +712,18 @@ where
         Self::wire_timer(component.clone(), root.clone())?;
         Self::wire_angle_slider(component.clone(), root.clone())?;
         Self::wire_splitter(component.clone(), root.clone())?;
-        Self::wire_signature_pad(component.clone(), root.clone(), binding_table.clone())?;
+        Self::wire_signature_pad(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
 
         Ok(Self {
             component,
             root,
             binding_table,
+            keyed_list_cache,
         })
     }
 
@@ -859,6 +984,9 @@ where
         binding_table: std::rc::Rc<
             std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
         >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
     ) -> Result<(), wasm_bindgen::JsValue> {
         headless_signature_pad::wire_signature_pad_component(
             root,
@@ -868,13 +996,20 @@ where
                 // 二重実装を避けるため `Self::apply_update_for_dirty` へ
                 // 委譲する。両者は同じ `dirty_fields()` →
                 // `BindingTable::apply_dirty`/keyed list 差し替え/構造
-                // フォールバックの手順を踏み、対応表キャッシュも共有する。
-                // イシュー #1120 で共通化）。
+                // フォールバックの手順を踏み、対応表キャッシュ・keyed list
+                // キャッシュ（イシュー #1324）も共有する。イシュー #1120
+                // で共通化）。
                 let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
                 if dirty.is_empty() {
                     return;
                 }
-                Self::apply_update_for_dirty(state, updated_root, &binding_table, &dirty);
+                Self::apply_update_for_dirty(
+                    state,
+                    updated_root,
+                    &binding_table,
+                    &keyed_list_cache,
+                    &dirty,
+                );
             },
         )
     }
@@ -919,6 +1054,11 @@ where
         let Ok(state) = self.component.try_borrow() else {
             return;
         };
-        Self::rerender_subtree(&state, &self.root, &self.binding_table);
+        Self::rerender_subtree(
+            &state,
+            &self.root,
+            &self.binding_table,
+            &self.keyed_list_cache,
+        );
     }
 }
