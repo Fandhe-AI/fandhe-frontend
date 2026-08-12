@@ -99,13 +99,53 @@
 //! 検証拒否を「達成 Node」の合成へも一貫して反映する。検証述語
 //! （`is_event_handler_attr`/`is_url_attr`+`is_safe_url`/`srcset`）は
 //! `(属性名, 属性値)` のみから決定的に判定できる純粋関数であり、実際の
-//! `web-sys` 呼び込みを介さず同じ判定を再現できるため、`sync_attrs`/
-//! `build_dom_node_with_namespace` のトレイト・関数シグネチャ自体は変更
+//! `web-sys` 呼び込みを介さず同じ判定を再現できるため、
+//! `build_dom_node_with_namespace`（新規構築経路）のシグネチャ自体は変更
 //! しない（呼び出し元が「達成 Node」合成時に同一ロジックを再計算するだけ
 //! で十分）。決定的な拒否のため [`KeyedListApplyResult::ResyncRequired`]
 //! （`crate::keyed_dom` 参照）は使わない: 同じ危険値を持つ view が再適用
 //! されても毎回同じ属性が同じ理由で拒否されるだけで、無限再同期には
 //! ならない。
+//!
+//! # `sync_attrs` の実行時失敗と「達成 Node」の整合（イシュー #1340
+//! codex-review P1〔5 巡目〕対応）
+//!
+//! 上記の検証拒否（`is_event_handler_attr` 等、値のみから決定できる
+//! ポリシー判断）とは別に、`setAttribute`/`removeAttribute` 自体が実行時に
+//! 失敗しうる（`Node::Element` はタグ名と異なり属性名を構築時に検証
+//! しないため、空白等を含む不正な属性名では `InvalidCharacterError` 相当の
+//! `Err` を返しうる）。旧実装は `sync_attrs` 内でこの `Result` を
+//! `let _ =` で破棄し無条件に「新属性へ更新済み」として扱っていたため、
+//! `replace_item_children`（子ノード）は新内容へ更新できても属性だけが
+//! 旧値のまま実 DOM に残る場合に、`compose_achieved_children` が新属性を
+//! 達成済みとしてキャッシュしてしまい、以降差分が出ず DOM が目標状態へ
+//! 収束しなくなっていた（PR #1340 codex-review 指摘）。
+//!
+//! この失敗は `(属性名, 属性値)` だけからは決定できず（ブラウザの属性名
+//! 検証規則に依存する実行時の事実）、上記のポリシー判断のように呼び出し元
+//! で再計算することができない。そのため [`KeyedListDom::sync_attrs`] の
+//! 契約を「実際に達成できた属性の状態（呼び出し後にライブ DOM が実際に
+//! 持つ、予約属性 `data-key` を除く属性集合）を返す」へ変更した
+//! （`web-sys` 実装 [`crate::keyed_dom::WebSysKeyedDom::sync_attrs`] は
+//! `set_attribute`/`remove_attribute` 実行後に `child.attributes()` を
+//! 読み戻すことでこれを満たす。個々の `Result` を精緻に追跡する代わりに
+//! 「操作後の実 DOM を直接読み取る」ため、ポリシー拒否・実行時失敗の
+//! いずれのケースでも取りこぼしなく正確な ground truth が得られる）。
+//! [`ApplyOutcome::achieved_attrs`] がこの戻り値をキーごとに保持し、
+//! [`compose_achieved_children`] は in-place 更新（`sync_attrs` 経由）の
+//! キーについてこの実測値をそのまま使う（もはや `sanitize_node_for_achieved`
+//! によるポリシー再計算は不要 —— 読み戻し値がポリシー拒否も実行時失敗も
+//! 両方織り込み済みのため）。
+//!
+//! 新規構築経路（`build_dom_node_with_namespace` が経由する `create_item`/
+//! `replace_item_children` の新規子孫・タグ変更を伴う `replace_root`）は
+//! 対象外: `set_attribute` の実行時失敗は `.ok()?` で要素構築全体を
+//! `None` にする既存の fail-closed 契約（本モジュール doc「セキュリティ
+//! 不変条件の引き継ぎ」参照）にそのまま含まれ、当該 op 自体が丸ごと
+//! 未達成（`Insert` の `failed_inserts`・`replace_root` の失敗による
+//! `resync_required`・`replace_item_children` 失敗による
+//! `stale_update_keys`）として扱われるため、達成 Node が「構築されなかった
+//! 要素の属性」を含んでしまう余地が構造的に存在しない。
 
 use crate::keyed_diff::{diff_keyed_items, diff_keys, KeyedOp};
 use fandhe_frontend_core::Node;
@@ -244,7 +284,23 @@ pub(crate) trait KeyedListDom {
     /// no-op）。URL スキーム・イベントハンドラ属性の検証は
     /// [`crate::keyed_dom::build_dom_node`] と同一の述語を `web-sys`
     /// アダプタが共有して行う（本トレイトのモジュール doc 参照）。
-    fn sync_attrs(&mut self, child: &Self::Handle, new_attrs: &[(String, String)]);
+    ///
+    /// # 戻り値（イシュー #1340 codex-review P1〔5 巡目〕対応）
+    ///
+    /// 呼び出し後にライブ DOM が実際に持つ、予約属性 `data-key` を除く
+    /// 属性集合（`(属性名, 属性値)` 順不同）を返す。ポリシー拒否
+    /// （検証不通過で書き込みを skip）・実行時失敗（`setAttribute`/
+    /// `removeAttribute` の `Err`、不正な属性名等）のいずれによる
+    /// 未達成も、この戻り値には「実際に DOM に残っている状態」として
+    /// 正確に反映されていること（本トレイトのモジュール doc「`sync_attrs`
+    /// の実行時失敗と「達成 Node」の整合」参照）。呼び出し元
+    /// （[`apply_ops_with_items`]）はこの戻り値を [`ApplyOutcome::achieved_attrs`]
+    /// へそのまま格納し、「達成 Node」合成の ground truth として使う。
+    fn sync_attrs(
+        &mut self,
+        child: &Self::Handle,
+        new_attrs: &[(String, String)],
+    ) -> Vec<(String, String)>;
 
     /// `child` の子ノード列を `new_children`（`fandhe_frontend_core::Node`
     /// 列）へ差し替える（[`KeyedOp::Update`] 適用の一部、イシュー #1324）。
@@ -732,6 +788,15 @@ pub(crate) struct ApplyOutcome {
     /// （[`crate::keyed_dom::apply_keyed_list`]）へ委ねること
     /// （`KeyedListApplyResult::ResyncRequired` doc 参照）。
     pub(crate) resync_required: bool,
+    /// in-place 更新（`sync_attrs` 経由）が成功したキーについて、
+    /// [`KeyedListDom::sync_attrs`] が返した「実際に達成できた属性状態」
+    /// （予約属性 `data-key` を除く、イシュー #1340 codex-review P1
+    /// 〔5 巡目〕対応）。`sync_attrs` を呼ばなかったキー（`stale_update_keys`
+    /// に記録された子ノード構築失敗・タグ変更を伴う `replace_root`・
+    /// `Insert` 等）はここに含まれない。[`compose_achieved_children`] は
+    /// このキーの有無で「in-place 更新の実測値を使う」か「新規構築の
+    /// ポリシー再計算〔[`sanitize_node_for_achieved`]〕を使う」かを分岐する。
+    pub(crate) achieved_attrs: std::collections::HashMap<String, Vec<(String, String)>>,
 }
 
 /// `old_items`/`new_items`（`(キー, Node)` 列）から
@@ -751,6 +816,11 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
     let ops = diff_keyed_items(old_items, new_items);
     let mut failed_inserts: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut stale_update_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // `sync_attrs`（in-place 更新）が返した「実際に達成できた属性状態」の
+    // キーごとの記録（[`ApplyOutcome::achieved_attrs`] doc・モジュール冒頭
+    // doc「`sync_attrs` の実行時失敗と「達成 Node」の整合」参照）。
+    let mut achieved_attrs: std::collections::HashMap<String, Vec<(String, String)>> =
+        std::collections::HashMap::new();
     // ライブ DOM 上の実際の位置と `diff_keyed_items` が計画した `index` との
     // 累計ズレ（[`apply_ops`] doc「未達成スロットの index 補正」と同じ目的・
     // 同じ補正規則。イシュー #1340 codex-review P1 対応）。
@@ -937,15 +1007,19 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     // 全体を旧内容のまま保つ）。
                     stale_update_keys.insert(key);
                 } else {
-                    // `sync_attrs` は `setAttribute`/`removeAttribute`
-                    // 相当のみで構成され、本トレイトの契約上失敗を報告
-                    // する手段を持たない（`KeyedListDom::sync_attrs` doc・
-                    // 本モジュール doc「Update op の DOM 適用」の
-                    // ロールバック省略の根拠と同じ理由: 不正な引数に対して
-                    // 通常 `Err`/例外を投げない DOM 標準 API であるため）。
-                    // 子ノード構築の成功を確認した後でのみ呼ぶため、
-                    // 呼び出し自体が「達成」を意味する。
-                    dom.sync_attrs(&existing, &filtered_attrs);
+                    // `sync_attrs` は `setAttribute`/`removeAttribute` 個々の
+                    // 実行時失敗（不正な属性名等）をロールバック対象とは
+                    // しない（本モジュール doc「Update op の DOM 適用」の
+                    // 単純化根拠と同じ）が、呼び出し後にライブ DOM が実際に
+                    // 持つ属性状態を戻り値として返す契約へ変更した
+                    // （イシュー #1340 codex-review P1〔5 巡目〕対応、
+                    // `KeyedListDom::sync_attrs` doc・モジュール冒頭 doc
+                    // 「`sync_attrs` の実行時失敗と「達成 Node」の整合」
+                    // 参照）。子ノード構築の成功を確認した後でのみ呼ぶため、
+                    // 呼び出し自体は常に行われるが、「達成」の中身（新値か
+                    // 旧値かの取捨）はこの戻り値が正確に表す。
+                    let synced = dom.sync_attrs(&existing, &filtered_attrs);
+                    achieved_attrs.insert(key, synced);
                 }
             }
         }
@@ -961,6 +1035,7 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
         final_keys,
         stale_update_keys,
         resync_required,
+        achieved_attrs,
     }
 }
 
@@ -990,55 +1065,72 @@ pub(crate) fn compose_achieved_children(
         .iter()
         .filter_map(|key| {
             if outcome.stale_update_keys.contains(key) {
-                old_by_key.get(key.as_str()).map(|n| (*n).clone())
+                return old_by_key.get(key.as_str()).map(|n| (*n).clone());
+            }
+            let new_node = new_by_key.get(key.as_str())?;
+            if let Some(achieved) = outcome.achieved_attrs.get(key) {
+                // in-place 更新（`sync_attrs` 経由）: `sync_attrs` が実 DOM を
+                // 読み戻して返した「実際に達成できた属性状態」をそのまま
+                // 使う（ポリシー拒否・実行時失敗のいずれも織り込み済み、
+                // モジュール冒頭 doc「`sync_attrs` の実行時失敗と「達成
+                // Node」の整合」参照）。子ノードは `replace_item_children`
+                // が新規構築するため、その内部の検証拒否だけは
+                // `sanitize_node_for_achieved` で反映する。
+                Some(compose_in_place_updated_node(new_node, achieved))
             } else {
-                new_by_key.get(key.as_str()).map(|new_node| {
-                    // in-place 更新（root タグが旧アイテムと一致、
-                    // `sync_attrs` 経由）の場合のみ旧属性へのフォールバック
-                    // を許す。タグが変わった場合（`replace_root` が新規
-                    // 要素を構築、`apply_ops_with_items` の `KeyedOp::Update`
-                    // 腕「ルート要素のタグ一致を検証する」参照）や新規
-                    // 挿入（`old_by_key` に該当なし）は fresh 扱い
-                    // （`old_attrs: None`）にする。
-                    let old_attrs = old_by_key.get(key.as_str()).and_then(|old_node| {
-                        match (old_node, new_node) {
-                            (
-                                Node::Element {
-                                    tag: old_tag,
-                                    attrs: old_attrs,
-                                    ..
-                                },
-                                Node::Element { tag: new_tag, .. },
-                            ) if old_tag == new_tag => Some(old_attrs.as_slice()),
-                            _ => None,
-                        }
-                    });
-                    sanitize_node_for_achieved(new_node, old_attrs)
-                })
+                // 新規構築経路（`Insert`・タグ変更を伴う `replace_root`）:
+                // `sync_attrs` を経由しないため実測値がなく、ポリシー
+                // 拒否のみを再計算する fresh 扱い（実行時失敗は
+                // `build_dom_node_with_namespace` の `.ok()?` が要素構築
+                // 全体を失敗させるため、ここへは到達しない）。
+                Some(sanitize_node_for_achieved(new_node))
             }
         })
         .collect()
 }
 
+/// in-place 更新（`sync_attrs` 経由）が成功したキーの「達成 Node」を、
+/// `sync_attrs` の実測 `achieved_attrs`（ground truth）と `new_node` の
+/// 子ノードから合成する（[`compose_achieved_children`] 専用ヘルパー）。
+///
+/// 予約属性 `data-key` は `sync_attrs` の管理対象外（呼び出し元
+/// `apply_ops_with_items` が `filtered_attrs` から除外して渡す契約、
+/// [`KeyedListDom::sync_attrs`] doc 参照）のため `achieved_attrs` には
+/// 含まれない。Update 経路から改変されない不変条件により `new_node` 側の
+/// 値をそのまま保持する。
+fn compose_in_place_updated_node(new_node: &Node, achieved_attrs: &[(String, String)]) -> Node {
+    match new_node {
+        Node::Element {
+            tag,
+            attrs,
+            children,
+        } => {
+            let key_attr = attrs
+                .iter()
+                .find(|(name, _)| name == fandhe_frontend_core::keyed::KEY_ATTR)
+                .cloned();
+            let mut result_attrs = achieved_attrs.to_vec();
+            result_attrs.extend(key_attr);
+            let sanitized_children = children.iter().map(sanitize_node_for_achieved).collect();
+            Node::Element {
+                tag,
+                attrs: result_attrs,
+                children: sanitized_children,
+            }
+        }
+        other => other.clone(),
+    }
+}
+
 /// 検証を通過しない属性（危険 URL スキーム・イベントハンドラ・不正
-/// `srcset`）を、実際の DOM 書き込みが行う結果へ正規化した [`Node`] を
-/// 合成する（[`compose_achieved_children`] 専用ヘルパー、モジュール冒頭
-/// doc「属性検証拒否と「達成 Node」の整合」参照）。
-///
-/// - `old_attrs`（`Some`）: in-place 更新（`sync_attrs`）経路。拒否属性は
-///   `old_attrs` に同名エントリがあればその値へ、無ければ丸ごと除外する
-///   （`sync_attrs` の実装「`new_attrs` に存在しない現在の属性のみ削除・
-///   書き込みは検証通過分のみ」と等価: 検証拒否時は現在値〔＝旧値、
-///   または未追加なら不在〕がそのまま残る）。
-/// - `old_attrs`（`None`）: 新規構築（`create_item`/タグ変更を伴う
-///   `replace_root`・子孫ノード全て）経路。拒否属性は丸ごと除外する
-///   （新規要素はそもそも拒否属性が書き込まれないため、
-///   `build_dom_node_with_namespace` の `set_attribute` skip と等価）。
-///
-/// 子ノードは常に `old_attrs: None` で再帰する（子孫は
-/// `replace_item_children`/`build_dom_node_with_namespace` が常に新規
-/// 構築するため、属性ごとの旧値履歴を持たない）。
-fn sanitize_node_for_achieved(node: &Node, old_attrs: Option<&[(String, String)]>) -> Node {
+/// `srcset`）を丸ごと除外した [`Node`] を合成する（新規構築経路専用、
+/// [`compose_achieved_children`]/[`compose_in_place_updated_node`] の子孫
+/// ノード再帰から呼ばれる。モジュール冒頭 doc「属性検証拒否と「達成
+/// Node」の整合」参照）。新規構築（`create_item`/タグ変更を伴う
+/// `replace_root`・`replace_item_children` の新規子孫）はいずれも旧値を
+/// 持たないため、拒否属性は無条件で除外する（`build_dom_node_with_namespace`
+/// の `set_attribute` skip と等価）。
+fn sanitize_node_for_achieved(node: &Node) -> Node {
     match node {
         Node::Element {
             tag,
@@ -1047,19 +1139,10 @@ fn sanitize_node_for_achieved(node: &Node, old_attrs: Option<&[(String, String)]
         } => {
             let sanitized_attrs = attrs
                 .iter()
-                .filter_map(|(name, value)| {
-                    if is_attr_write_rejected(name, value) {
-                        return old_attrs
-                            .and_then(|old| old.iter().find(|(n, _)| n == name))
-                            .cloned();
-                    }
-                    Some((name.clone(), value.clone()))
-                })
+                .filter(|(name, value)| !is_attr_write_rejected(name, value))
+                .cloned()
                 .collect();
-            let sanitized_children = children
-                .iter()
-                .map(|child| sanitize_node_for_achieved(child, None))
-                .collect();
+            let sanitized_children = children.iter().map(sanitize_node_for_achieved).collect();
             Node::Element {
                 tag,
                 attrs: sanitized_attrs,
@@ -1070,10 +1153,12 @@ fn sanitize_node_for_achieved(node: &Node, old_attrs: Option<&[(String, String)]
     }
 }
 
-/// `sync_attrs`（`crate::keyed_dom::WebSysKeyedDom`）/
 /// `build_dom_node_with_namespace` の書き込み拒否判定と同一の述語
-/// （イベントハンドラ属性・危険 URL スキーム・不正 `srcset`）。3 箇所が
-/// ドリフトしないよう、この述語自体はテストでも直接参照する。
+/// （イベントハンドラ属性・危険 URL スキーム・不正 `srcset`）。
+/// `crate::keyed_dom::WebSysKeyedDom::sync_attrs` も同一の述語を使うが、
+/// そちらは実 DOM 読み戻しにより ground truth を直接返すため、この述語を
+/// 呼ばずに済む（新規構築経路専用の再計算、`is_attr_write_rejected` の
+/// 呼び出し元コメント参照）。
 fn is_attr_write_rejected(name: &str, value: &str) -> bool {
     fandhe_frontend_core::is_event_handler_attr(name)
         || (fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value))
@@ -1120,6 +1205,16 @@ mod tests {
         fail_move_before_for: std::collections::HashSet<String>,
         /// `remove_child` に実 DOM 削除失敗を注入するキー集合（同上）。
         fail_remove_child_for: std::collections::HashSet<String>,
+        /// `sync_attrs` 内の `setAttribute` 相当に実行時失敗（不正な属性名
+        /// 等の `InvalidCharacterError` 相当）を注入する `(キー, 属性名)`
+        /// 集合。イシュー #1340 codex-review P1〔5 巡目〕対応: 該当エントリ
+        /// では属性値の書き込みが失敗した扱いにする（現在値があればそれを
+        /// 保持、無ければ追加されない）。
+        fail_set_attribute_for: std::collections::HashSet<(String, String)>,
+        /// `sync_attrs` 内の `removeAttribute` 相当に実行時失敗を注入する
+        /// `(キー, 属性名)` 集合（同上）。該当エントリは `new_attrs` に
+        /// 含まれなくなっても実 DOM 上に残存する扱いにする。
+        fail_remove_attribute_for: std::collections::HashSet<(String, String)>,
     }
 
     #[derive(Default, Debug, Clone, Copy)]
@@ -1273,9 +1368,60 @@ mod tests {
             true
         }
 
-        fn sync_attrs(&mut self, child: &Self::Handle, new_attrs: &[(String, String)]) {
+        /// 実 DOM の `sync_attrs`（`crate::keyed_dom::WebSysKeyedDom`）を
+        /// 模擬する: ポリシー拒否（`is_attr_write_rejected`、`web-sys`
+        /// 実装と同一の述語）・実行時失敗注入（`fail_set_attribute_for`/
+        /// `fail_remove_attribute_for`）のいずれでも書き込みが skip され、
+        /// `self.attrs` は「実際に達成できた状態」のみを反映するよう更新
+        /// する。戻り値はこの更新後の状態（イシュー #1340 codex-review P1
+        /// 〔5 巡目〕対応、`KeyedListDom::sync_attrs` doc 参照）。
+        fn sync_attrs(
+            &mut self,
+            child: &Self::Handle,
+            new_attrs: &[(String, String)],
+        ) -> Vec<(String, String)> {
             self.calls.sync_attrs += 1;
-            self.attrs.insert(child.clone(), new_attrs.to_vec());
+            let mut current = self.attrs.remove(child).unwrap_or_default();
+
+            let removed_names: Vec<String> = current
+                .iter()
+                .map(|(name, _)| name.clone())
+                .filter(|name| !new_attrs.iter().any(|(k, _)| k == name))
+                .collect();
+            for name in removed_names {
+                if self
+                    .fail_remove_attribute_for
+                    .contains(&(child.clone(), name.clone()))
+                {
+                    // 実行時失敗を模擬: 現在値を残したまま skip する。
+                    continue;
+                }
+                current.retain(|(k, _)| k != &name);
+            }
+
+            for (name, value) in new_attrs {
+                if is_attr_write_rejected(name, value) {
+                    // ポリシー拒否を模擬: 現在値（旧値、または未追加なら
+                    // 不在）をそのまま保持する。
+                    continue;
+                }
+                if self
+                    .fail_set_attribute_for
+                    .contains(&(child.clone(), name.clone()))
+                {
+                    // 実行時失敗を模擬: 現在値（旧値、または未追加なら
+                    // 不在）をそのまま保持する。
+                    continue;
+                }
+                if let Some(entry) = current.iter_mut().find(|(k, _)| k == name) {
+                    entry.1 = value.clone();
+                } else {
+                    current.push((name.clone(), value.clone()));
+                }
+            }
+
+            self.attrs.insert(child.clone(), current.clone());
+            current
         }
 
         fn replace_item_children(&mut self, child: &Self::Handle, new_children: &[Node]) -> bool {
@@ -1553,8 +1699,12 @@ mod tests {
         fn remove_child(&mut self, child: &Self::Handle) -> bool {
             self.inner.remove_child(child)
         }
-        fn sync_attrs(&mut self, child: &Self::Handle, new_attrs: &[(String, String)]) {
-            self.inner.sync_attrs(child, new_attrs);
+        fn sync_attrs(
+            &mut self,
+            child: &Self::Handle,
+            new_attrs: &[(String, String)],
+        ) -> Vec<(String, String)> {
+            self.inner.sync_attrs(child, new_attrs)
         }
         fn replace_item_children(&mut self, child: &Self::Handle, new_children: &[Node]) -> bool {
             self.inner.replace_item_children(child, new_children)
@@ -1890,6 +2040,15 @@ mod tests {
         )];
         let mut dom = CountingDom {
             items: vec!["a".to_string()],
+            // `sync_attrs` は呼び出し後にライブ DOM を読み戻して「達成
+            // 属性状態」を返す契約（イシュー #1340 codex-review P1〔5 巡目〕
+            // 対応）のため、モックにも `old_items` と同じ「更新前のライブ
+            // DOM 状態」を種付けしておく必要がある（実 DOM なら
+            // `href="/safe"` が既に書き込まれている状態に相当）。
+            attrs: std::collections::HashMap::from([(
+                "a".to_string(),
+                vec![("href".to_string(), "/safe".to_string())],
+            )]),
             ..Default::default()
         };
 
@@ -1984,10 +2143,12 @@ mod tests {
         // を直接構築する（`final_keys` に対象キーを含み、`stale_update_keys`
         // は空・`resync_required` は `false` が「完全に適用できた」ことを
         // 表す契約、[`ApplyOutcome`] doc 参照）。
+        // `achieved_attrs` を空（`Default`）のまま残すことで、`sync_attrs`
+        // を経由しない新規構築経路（`compose_achieved_children` の else 腕）
+        // をこのテストが正しく踏むことを示す。
         let outcome = ApplyOutcome {
             final_keys: vec!["a".to_string()],
-            stale_update_keys: std::collections::HashSet::new(),
-            resync_required: false,
+            ..Default::default()
         };
 
         let achieved = compose_achieved_children(&old_items, &new_items, &outcome);
@@ -2000,6 +2161,131 @@ mod tests {
             "新規構築（Insert）で検証拒否された属性は達成 Node にも含めて \
              はならない: {attrs:?}"
         );
+    }
+
+    /// `setAttribute` の実行時失敗（不正な属性名等の `InvalidCharacterError`
+    /// 相当、`fail_set_attribute_for` で注入）を模した回帰固定（イシュー
+    /// #1340 codex-review P1〔5 巡目〕対応）。ポリシー拒否（危険 URL 等）とは
+    /// 異なり `(属性名, 属性値)` だけからは判定できない失敗のため、
+    /// `sync_attrs` の戻り値（実 DOM 読み戻し）を経由しないと「達成 Node」
+    /// へ正しく反映できないことを確認する。旧実装は `sync_attrs` の
+    /// `Result` を無条件に破棄し新値を達成済み扱いにしていたため、この
+    /// ケースで実 DOM（旧値のまま）とキャッシュ（新値）が乖離していた。
+    #[test]
+    fn compose_achieved_children_keeps_old_value_when_set_attribute_fails_at_runtime() {
+        let old_items = vec![item_with_attr("a", "class", "old")];
+        let new_items = vec![item_with_attr("a", "class", "new")];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            attrs: std::collections::HashMap::from([(
+                "a".to_string(),
+                vec![("class".to_string(), "old".to_string())],
+            )]),
+            fail_set_attribute_for: std::collections::HashSet::from([(
+                "a".to_string(),
+                "class".to_string(),
+            )]),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+        assert!(
+            outcome.stale_update_keys.is_empty(),
+            "属性の実行時失敗は子ノード構築失敗ではないため stale_update_keys \
+             の対象にはならないはず"
+        );
+        assert!(
+            !outcome.resync_required,
+            "op 自体（Update）は計画どおり実行された（属性 1 件の書き込みが \
+             実 DOM 側で失敗しただけ）ため resync_required の対象にはならない \
+             はず（本モジュール doc 「Update op の DOM 適用」参照）"
+        );
+        assert_eq!(
+            dom.attrs.get("a"),
+            Some(&vec![("class".to_string(), "old".to_string())]),
+            "実 DOM（モック）は setAttribute 失敗により旧値のまま据え置かれる \
+             はず"
+        );
+
+        let achieved = compose_achieved_children(&old_items, &new_items, &outcome);
+        assert_eq!(achieved.len(), 1);
+        let Node::Element { attrs, .. } = &achieved[0] else {
+            panic!("要素ノードのはず");
+        };
+        assert!(
+            attrs.contains(&("class".to_string(), "old".to_string())),
+            "達成 Node も実 DOM の実際の状態（旧値のまま）と一致するはず: \
+             {attrs:?}"
+        );
+        assert!(
+            !attrs.iter().any(|(_, v)| v == "new"),
+            "setAttribute 失敗で書き込まれなかった新値が達成 Node へ紛れ込ん \
+             ではならない: {attrs:?}"
+        );
+    }
+
+    /// `removeAttribute` の実行時失敗（`fail_remove_attribute_for` で注入）を
+    /// 模した回帰固定（イシュー #1340 codex-review P1〔5 巡目〕対応）。
+    /// 新しい view が当該属性を持たなくなった（`new_attrs` から消えた）にも
+    /// かかわらず削除が実 DOM 側で失敗した場合、「達成 Node」は旧属性が
+    /// 残存している実 DOM の実際の状態と一致しなければならない。
+    #[test]
+    fn compose_achieved_children_keeps_stale_attr_when_remove_attribute_fails_at_runtime() {
+        let old_items = vec![item_with_attr("a", "class", "old")];
+        let new_items = vec![(
+            "a".to_string(),
+            el("li", vec![("data-key", "a")], vec![text("x")]),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            attrs: std::collections::HashMap::from([(
+                "a".to_string(),
+                vec![("class".to_string(), "old".to_string())],
+            )]),
+            fail_remove_attribute_for: std::collections::HashSet::from([(
+                "a".to_string(),
+                "class".to_string(),
+            )]),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+        assert!(outcome.stale_update_keys.is_empty());
+        assert!(
+            !outcome.resync_required,
+            "removeAttribute の単発失敗は Update op 自体の未達成ではないため \
+             resync_required の対象にはならないはず"
+        );
+        assert_eq!(
+            dom.attrs.get("a"),
+            Some(&vec![("class".to_string(), "old".to_string())]),
+            "実 DOM（モック）は removeAttribute 失敗により旧属性が残存する \
+             はず"
+        );
+
+        let achieved = compose_achieved_children(&old_items, &new_items, &outcome);
+        assert_eq!(achieved.len(), 1);
+        let Node::Element { attrs, .. } = &achieved[0] else {
+            panic!("要素ノードのはず");
+        };
+        assert!(
+            attrs.contains(&("class".to_string(), "old".to_string())),
+            "実 DOM に残存したままの旧属性は達成 Node にも反映されなければ \
+             ならない（削除できたと誤ってキャッシュしてはならない）: {attrs:?}"
+        );
+    }
+
+    /// `item`（`(key, text_value)`）と同型の、単一属性付き要素を組み立てる
+    /// テスト用ヘルパー（属性検証拒否・実行時失敗系のテストで使う）。
+    fn item_with_attr(key: &str, attr_name: &'static str, attr_value: &str) -> (String, Node) {
+        (
+            key.to_string(),
+            el(
+                "li",
+                vec![("data-key", key), (attr_name, attr_value)],
+                vec![text("x")],
+            ),
+        )
     }
 
     /// 子ノード構築失敗（`RawHtml` 混入相当）の注入: 当該キーは

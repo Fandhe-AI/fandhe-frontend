@@ -614,25 +614,39 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     /// 同一の URL スキーム・イベントハンドラ・`srcset` 検証を経由する
     /// （不変条件 1〜4 の Update 経路への継承）。
     ///
-    /// # Result 破棄の正当化（イシュー #1340 codex-review P1〔3 巡目〕全走査対応）
+    /// # Result 破棄の正当化と読み戻しによる ground truth 取得
+    /// （イシュー #1340 codex-review P1〔3 巡目〕・〔5 巡目〕対応）
     ///
-    /// 内部の `remove_attribute`/`set_attribute` 呼び出しは戻り値
-    /// （`Result`）を破棄する。これは [`crate::keyed_apply::KeyedListDom::sync_attrs`]
-    /// のトレイト doc・本クレート `keyed_apply` モジュール doc「Update op
-    /// の DOM 適用」に明記された設計判断の実装側の反映であり見落としでは
-    /// ない: 本メソッドは既に URL スキーム・イベントハンドラ・`srcset`
-    /// 検証を通過済みの値のみを渡す構成であり、`setAttribute`/
-    /// `removeAttribute` は不正な引数に対して通常 `Err`/例外を投げない
-    /// DOM 標準 API であるため、属性 1 件ごとの失敗検出・逆順ロールバック
-    /// 機構は実装・検証コストに見合わないと判断した（設計書 §6 不変条件 6
-    /// が要求する完全なロールバックの対象外として明示的に許容された残余
-    /// リスク）。`replace_root`/`insert_before_batch`/`move_before`/
-    /// `remove_child` 等、構造（ノードの存在・親子関係）を変える操作の
-    /// 失敗が「達成状態」の恒久的な乖離を招くのとは異なり、属性の
-    /// 部分失敗は次回の `Update` diff で自然に再試行され得る（対象ノード
-    /// 自体は変わらず存在し続けるため、次回 view 適用時に同じ
-    /// `sync_attrs` 呼び出しが再度差分を検出して収束を試みる）。
-    fn sync_attrs(&mut self, child: &Element, new_attrs: &[(String, String)]) {
+    /// 内部の `remove_attribute`/`set_attribute` 呼び出しは個々の戻り値
+    /// （`Result`）に基づく分岐（逐次ロールバック）を行わない。これは
+    /// [`crate::keyed_apply::KeyedListDom::sync_attrs`] のトレイト doc・
+    /// 本クレート `keyed_apply` モジュール doc「Update op の DOM 適用」に
+    /// 明記された設計判断の実装側の反映であり見落としではない:
+    /// `setAttribute`/`removeAttribute` は不正な引数に対して通常
+    /// `Err`/例外を投げない DOM 標準 API であるため、属性 1 件ごとの
+    /// 逆順ロールバック機構は実装・検証コストに見合わないと判断した
+    /// （設計書 §6 不変条件 6 が要求する完全なロールバックの対象外として
+    /// 明示的に許容された残余リスク）。
+    ///
+    /// ただし `Node::Element` はタグ名と異なり属性名を構築時に検証しない
+    /// ため、`setAttribute` が実行時に `InvalidCharacterError` 相当の
+    /// `Err` を返す余地は残る。この失敗（および `removeAttribute` の
+    /// 失敗）を無視して「新属性へ更新済み」と扱うと、`sync_attrs` の
+    /// 呼び出し元（`crate::keyed_apply::apply_ops_with_items` 経由で
+    /// `crate::keyed_apply::compose_achieved_children` が合成する「達成
+    /// Node」）が実 DOM の実際の状態と乖離したままキャッシュされてしまう
+    /// （イシュー #1340 codex-review P1〔5 巡目〕指摘）。この失敗は
+    /// `(属性名, 属性値)` のみからは決定できない実行時の事実であり、
+    /// 呼び出し元でポリシー判断のように再計算することができない。その
+    /// ため個々の `Result` を精緻に追跡する代わりに、全操作完了後の
+    /// `child.attributes()` を再列挙して返す（実 DOM を直接読み戻すことで
+    /// 「実際に達成できた属性状態」を過不足なく取得する。ポリシー拒否・
+    /// 実行時失敗のいずれのケースも取りこぼさない）。
+    fn sync_attrs(
+        &mut self,
+        child: &Element,
+        new_attrs: &[(String, String)],
+    ) -> Vec<(String, String)> {
         let attributes = child.attributes();
         let mut current_names: Vec<String> = Vec::new();
         let len = attributes.length();
@@ -665,6 +679,21 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
             }
             let _ = child.set_attribute(name, value);
         }
+
+        // 操作完了後のライブ DOM を読み戻す（ground truth、上記 doc 参照）。
+        let final_attributes = child.attributes();
+        let final_len = final_attributes.length();
+        let mut achieved = Vec::with_capacity(final_len as usize);
+        for i in 0..final_len {
+            if let Some(attr) = final_attributes.item(i) {
+                let name = attr.name();
+                if name == KEY_ATTR {
+                    continue;
+                }
+                achieved.push((name, attr.value()));
+            }
+        }
+        achieved
     }
 
     /// `child` の子ノード列を `new_children`（`fandhe_frontend_core::Node`
