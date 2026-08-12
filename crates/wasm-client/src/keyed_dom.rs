@@ -601,18 +601,19 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         true
     }
 
-    /// `child` の属性を `new_attrs`（呼び出し元 `keyed_apply::apply_ops_with_items`
-    /// が既に `data-key` を除外済みの集合）へ同期する（イシュー #1324）。
+    /// `child` の属性を `old_attrs`（呼び出し元 `keyed_apply::apply_ops_with_items`
+    /// が渡す、直前に反映済みの `data-key` 除外済み属性集合）から
+    /// `new_attrs`（同じく `data-key` 除外済みの新しい属性集合）へ同期する
+    /// （イシュー #1324）。
     ///
-    /// `Element::attributes()`（`NamedNodeMap`）で現在の属性を列挙し、
-    /// `new_attrs` に存在しない属性のみ `remove_attribute` する（`data-key`
-    /// は呼び出し元が渡す集合から既に除外されているため、たとえ現在の属性
-    /// 列挙にヒットしても `new_attrs` 側チェックだけでは保護されない点に
-    /// 注意し、ここでも明示的に除外する: 予約属性を Update 経路から改変
-    /// できないようにする不変条件を、呼び出し元の 1 箇所だけに依存させない
-    /// 多層防御）。属性の追加・更新は [`build_dom_node_with_namespace`] と
-    /// 同一の URL スキーム・イベントハンドラ・`srcset` 検証を経由する
-    /// （不変条件 1〜4 の Update 経路への継承）。
+    /// `old_attrs` に存在し `new_attrs` に存在しない属性のみ
+    /// `remove_attribute` する（`data-key` は呼び出し元が渡す集合から
+    /// 既に除外されているが、ここでも明示的に除外する: 予約属性を Update
+    /// 経路から改変できないようにする不変条件を、呼び出し元の 1 箇所だけに
+    /// 依存させない多層防御）。属性の追加・更新は
+    /// [`build_dom_node_with_namespace`] と同一の URL スキーム・
+    /// イベントハンドラ・`srcset` 検証を経由する（不変条件 1〜4 の Update
+    /// 経路への継承）。
     ///
     /// # Result 破棄の正当化と読み戻しによる ground truth 取得
     /// （イシュー #1340 codex-review P1〔3 巡目〕・〔5 巡目〕対応）
@@ -637,30 +638,35 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     /// Node」）が実 DOM の実際の状態と乖離したままキャッシュされてしまう
     /// （イシュー #1340 codex-review P1〔5 巡目〕指摘）。この失敗は
     /// `(属性名, 属性値)` のみからは決定できない実行時の事実であり、
-    /// 呼び出し元でポリシー判断のように再計算することができない。その
-    /// ため個々の `Result` を精緻に追跡する代わりに、全操作完了後の
-    /// `child.attributes()` を再列挙して返す（実 DOM を直接読み戻すことで
-    /// 「実際に達成できた属性状態」を過不足なく取得する。ポリシー拒否・
-    /// 実行時失敗のいずれのケースも取りこぼさない）。
+    /// 呼び出し元でポリシー判断のように再計算することができない。
+    ///
+    /// # 読み戻しの決定的正規化（イシュー #1340 codex-review Bugbot〔6 巡目〕対応）
+    ///
+    /// 全操作完了後の `child.attributes()`（`NamedNodeMap`）を全列挙して
+    /// 読み戻す旧実装は、生の列挙順（新規属性は末尾追加で `new_attrs` の
+    /// 順序と一致する保証がない）・HTML の属性名小文字化をそのまま返して
+    /// しまい、後段の `diff_keyed_items`（順序・大小文字に敏感な
+    /// `Vec<(String, String)>` の `PartialEq`）が全操作成功の正常系
+    /// ですら不一致と判定し、`Update`（`replace_item_children` を含む）が
+    /// 毎 tick 再発火して子ノードが再マウントされ続ける不具合があった
+    /// （codex-review 指摘）。本実装は `NamedNodeMap` の全列挙に一切依存
+    /// せず、[`crate::keyed_apply::KeyedListDom::sync_attrs`] doc「決定的な
+    /// 正規化契約」の手順どおり `new_attrs`/`old_attrs` にある属性名だけを
+    /// `get_attribute` で個別照会して合成する（全操作成功時は戻り値が
+    /// `new_attrs` とバイト等価になり、失敗時のみ実際の DOM 状態が反映
+    /// される）。
     fn sync_attrs(
         &mut self,
         child: &Element,
+        old_attrs: &[(String, String)],
         new_attrs: &[(String, String)],
     ) -> Vec<(String, String)> {
-        let attributes = child.attributes();
-        let mut current_names: Vec<String> = Vec::new();
-        let len = attributes.length();
-        for i in 0..len {
-            if let Some(attr) = attributes.item(i) {
-                current_names.push(attr.name());
-            }
-        }
-        for name in current_names {
+        for (name, _) in old_attrs {
             if name == KEY_ATTR {
                 continue;
             }
-            if !new_attrs.iter().any(|(k, _)| k == &name) {
-                let _ = child.remove_attribute(&name);
+            if !new_attrs.iter().any(|(k, _)| k == name) {
+                let _ = child.remove_attribute(name);
             }
         }
         for (name, value) in new_attrs {
@@ -680,17 +686,41 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
             let _ = child.set_attribute(name, value);
         }
 
-        // 操作完了後のライブ DOM を読み戻す（ground truth、上記 doc 参照）。
-        let final_attributes = child.attributes();
-        let final_len = final_attributes.length();
-        let mut achieved = Vec::with_capacity(final_len as usize);
-        for i in 0..final_len {
-            if let Some(attr) = final_attributes.item(i) {
-                let name = attr.name();
-                if name == KEY_ATTR {
-                    continue;
-                }
-                achieved.push((name, attr.value()));
+        // 決定的な正規化契約（上記 doc 参照）: `new_attrs`/`old_attrs` に
+        // ある属性名だけを個別照会して合成する（`NamedNodeMap` の全列挙は
+        // 使わない）。
+        let mut achieved: Vec<(String, String)> = Vec::with_capacity(new_attrs.len());
+        for (name, value) in new_attrs {
+            if name == KEY_ATTR {
+                continue;
+            }
+            if let Some(actual) = child.get_attribute(name) {
+                achieved.push((
+                    name.clone(),
+                    if &actual == value {
+                        value.clone()
+                    } else {
+                        actual
+                    },
+                ));
+            }
+        }
+        for (name, old_value) in old_attrs {
+            if name == KEY_ATTR {
+                continue;
+            }
+            if new_attrs.iter().any(|(k, _)| k == name) {
+                continue;
+            }
+            if let Some(actual) = child.get_attribute(name) {
+                achieved.push((
+                    name.clone(),
+                    if &actual == old_value {
+                        old_value.clone()
+                    } else {
+                        actual
+                    },
+                ));
             }
         }
         achieved
@@ -1024,9 +1054,43 @@ pub fn apply_keyed_list_with_previous(
     previous_list_node: &Node,
     new_list_node: &Node,
 ) -> KeyedListApplyResult {
-    if !matches!(previous_list_node, Node::Element { .. })
-        || !matches!(new_list_node, Node::Element { .. })
-    {
+    // 親（`list_element` 自身）のタグ・属性を早期に取り出す。子アイテムの
+    // 検証（`owned_list_item_nodes` 等）を開始する前に、まず親自身のタグ
+    // 一致を判定する（下記コメント参照、イシュー #1340 codex-review P1
+    // 〔7 巡目〕対応）。
+    let (
+        Node::Element {
+            tag: old_tag,
+            attrs: old_parent_attrs,
+            ..
+        },
+        Node::Element {
+            tag: new_tag,
+            attrs: new_parent_attrs,
+            ..
+        },
+    ) = (previous_list_node, new_list_node)
+    else {
+        return KeyedListApplyResult::ResyncRequired;
+    };
+
+    // 親要素自身のタグ変更検出（イシュー #1340 codex-review P1〔7 巡目〕
+    // 対応）。`list_element` は呼び出し元（`fandhe-frontend-wasm-full` の
+    // `Runtime`）が `data-bind-list` 属性値で解決した既存ライブ要素そのもの
+    // であり、`Element.tagName` は DOM 標準仕様上不変のため、タグ変更を
+    // 伴う更新を「浅い in-place 更新」（`sync_attrs`/`apply_ops_with_items`
+    // の `Update` 適用と同様の属性・子ノード同期のみ）で表現することは
+    // 原理的に不可能（子アイテムの `KeyedOp::Update` がタグ不一致時に
+    // `replace_root` へ切り替える判断と同型）。親要素自身の丸ごと置換は
+    // 呼び出し元による `list_element` の再解決を要し本関数の責務外である
+    // ため、子アイテムの適用を一切開始せず（DOM 無変更のまま）
+    // `ResyncRequired` を返して構造フォールバック（`apply_keyed_list`、
+    // ライブ DOM を直接読み出す経路）へ委ねる。旧実装はこの判定が無く、
+    // 親タグが変わる更新でも子アイテムのみ適用したうえで `new_list_node`
+    // の `parent_tag`/`parent_attrs` をそのまま「達成 Node」へ格納して
+    // いたため、実 DOM（旧タグ・旧属性のまま）とキャッシュ（新タグ・
+    // 新属性）が恒久的に乖離していた（codex-review 指摘）。
+    if old_tag != new_tag {
         return KeyedListApplyResult::ResyncRequired;
     }
 
@@ -1054,39 +1118,41 @@ pub fn apply_keyed_list_with_previous(
         return KeyedListApplyResult::ResyncRequired;
     }
 
-    // 「達成 Node」を合成する: final_keys の順序で、stale（子ノード構築
-    // 失敗で据え置かれた）キーは旧内容、それ以外は新内容を使う。
-    // `new_list_node` が `Node::Element` であることは関数冒頭の契約検証で
-    // 既に保証済みのため、この `else` 分岐は到達しない想定だが
-    // `unwrap()`/`panic!` は使わず（`.claude/rules/coding-rust.md`）、
-    // 冒頭と同じ fail-closed（`ResyncRequired`）で安全側に倒す
-    // （codex-review 指摘: DOM 操作後に契約外ノードをそのまま `Achieved`
-    // として返すと、実 DOM と一致しないノードがキャッシュへ確定して
-    // しまう）。
-    let Node::Element {
-        tag: parent_tag,
-        attrs: parent_attrs,
-        ..
-    } = new_list_node
-    else {
-        return KeyedListApplyResult::ResyncRequired;
-    };
-
-    // 「達成 Node」の合成本体は `crate::keyed_apply::compose_achieved_children`
-    // へ切り出し済み（DOM 非依存の純粋関数、native `cargo test` から到達
-    // 可能。イシュー #1340 codex-review P1〔4 巡目〕対応、
-    // `keyed_apply` モジュール冒頭 doc「属性検証拒否と「達成 Node」の
-    // 整合」参照）。検証を拒否された属性（危険 URL スキーム・イベント
-    // ハンドラ・不正 `srcset`）は実際に DOM へ書き込まれた値（in-place
-    // 更新なら旧値、新規構築なら不在）へ正規化されるため、`new_list_node`
-    // をそのまま使う旧実装のように拒否済みの危険値がキャッシュへ紛れ込む
-    // ことはない。
+    // 「達成 Node」の子ノード列合成本体は
+    // `crate::keyed_apply::compose_achieved_children` へ切り出し済み
+    // （DOM 非依存の純粋関数、native `cargo test` から到達可能。イシュー
+    // #1340 codex-review P1〔4 巡目〕対応、`keyed_apply` モジュール冒頭
+    // doc「属性検証拒否と「達成 Node」の整合」参照）。検証を拒否された
+    // 属性（危険 URL スキーム・イベントハンドラ・不正 `srcset`）は実際に
+    // DOM へ書き込まれた値（in-place 更新なら旧値、新規構築なら不在）へ
+    // 正規化されるため、`new_list_node` をそのまま使う旧実装のように
+    // 拒否済みの危険値がキャッシュへ紛れ込むことはない。
     let achieved_children =
         crate::keyed_apply::compose_achieved_children(&old_items, &new_items, &outcome);
 
+    // 親要素自身（`list_element`）の属性同期（イシュー #1340 codex-review
+    // P1〔7 巡目〕対応）: 子アイテムの `KeyedOp::Update` と同じ `sync_attrs`
+    // （実 DOM 読み戻し + 決定的正規化契約、`KeyedListDom::sync_attrs` doc
+    // 参照）を `list_element` 自身へも適用する
+    // `crate::keyed_apply::sync_parent_attrs` へ委譲する（DOM 非依存・
+    // native `cargo test` から到達可能な合成本体、`Vec<(String, String)>`
+    // で表す `list_element` のハンドルを渡すため `Element::clone`
+    // （`web-sys` のハンドルは参照カウント方式であり安価）で `dom`
+    // フィールド由来の借用と分離する）。予約属性 `data-bind-list`
+    // （`fandhe_frontend_core::keyed::BIND_LIST_ATTR`）は子アイテムの
+    // `data-key` と同じ理由で同期対象から除外され、`new_parent_attrs`
+    // 側の表記のまま末尾に保持される（`sync_parent_attrs` doc 参照）。
+    let list_element_handle = list_element.clone();
+    let achieved_parent_attrs = crate::keyed_apply::sync_parent_attrs(
+        &mut dom,
+        &list_element_handle,
+        old_parent_attrs,
+        new_parent_attrs,
+    );
+
     KeyedListApplyResult::Achieved(Node::Element {
-        tag: parent_tag,
-        attrs: parent_attrs.clone(),
+        tag: new_tag,
+        attrs: achieved_parent_attrs,
         children: achieved_children,
     })
 }
@@ -1701,6 +1767,118 @@ mod tests {
             list_element.children().length(),
             2,
             "DOM には一切触れておらず、旧アイテムがそのまま残っているはず"
+        );
+    }
+
+    /// codex-review P1〔7 巡目〕回帰固定（イシュー #1340）: 親要素
+    /// （`list_element` 自身）のタグが変わる更新は、子アイテムの適用を
+    /// 一切開始せず DOM 無変更のまま `ResyncRequired` を返すこと。修正前は
+    /// この判定が無く、子アイテムのみ適用したうえで `new_list_node` の
+    /// タグ・属性をそのまま `Achieved` へ格納していたため、実 DOM（旧タグ
+    /// のまま）とキャッシュ（新タグ）が恒久的に乖離していた。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_returns_resync_required_when_parent_tag_changes() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+
+        let previous = keyed_items(&["a", "b"]);
+        let updated_items: Vec<(String, Node)> = vec![
+            ("a".to_string(), li(vec![], vec![text("a")])),
+            ("b".to_string(), li(vec![], vec![text("b")])),
+        ];
+        // 親タグを "ul" から "ol" へ変える契約外の更新（子アイテムの
+        // キー・内容は前回と同一）。
+        let updated_with_new_parent_tag = keyed_list("ol", vec![], "items", updated_items).unwrap();
+
+        let result = apply_keyed_list_with_previous(
+            &document,
+            &list_element,
+            &previous,
+            &updated_with_new_parent_tag,
+        );
+
+        assert!(
+            matches!(result, KeyedListApplyResult::ResyncRequired),
+            "親タグの変更は「浅い in-place 更新」で表現できないため \
+             ResyncRequired を返すはず"
+        );
+        assert_eq!(
+            list_element.tag_name().to_lowercase(),
+            "ul",
+            "子アイテムの適用を一切開始しないため、list_element 自身の \
+             タグは旧のまま（\"ul\"）残っているはず"
+        );
+        assert_eq!(
+            list_element.children().length(),
+            2,
+            "DOM には一切触れておらず、旧アイテムがそのまま残っているはず"
+        );
+    }
+
+    /// codex-review P1〔7 巡目〕回帰固定（イシュー #1340）: 親要素自身の
+    /// 属性更新が実際にライブ DOM（`list_element`）へ適用され、「達成
+    /// Node」の親属性が `new_list_node` の親属性とバイト等価になること。
+    /// 修正前は `list_element` 自身の属性を一切同期せず
+    /// `new_list_node.attrs` をそのまま `Achieved` へ格納していたため、
+    /// 親属性が変わる更新では実 DOM が旧状態のままキャッシュだけ新値へ
+    /// 進み、以後差分を検出できなくなっていた。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_syncs_parent_attrs() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a"]);
+        list_element.set_attribute("class", "old").unwrap();
+
+        let previous_items: Vec<(String, Node)> =
+            vec![("a".to_string(), li(vec![], vec![text("a")]))];
+        let previous = keyed_list("ul", vec![("class", "old")], "items", previous_items).unwrap();
+
+        let updated_items: Vec<(String, Node)> =
+            vec![("a".to_string(), li(vec![], vec![text("a")]))];
+        let updated = keyed_list(
+            "ul",
+            vec![("class", "new"), ("id", "list")],
+            "items",
+            updated_items,
+        )
+        .unwrap();
+
+        let result = apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        assert_eq!(
+            list_element.get_attribute("class").as_deref(),
+            Some("new"),
+            "list_element 自身の class 属性が実際に新値へ更新されるはず"
+        );
+        assert_eq!(
+            list_element.get_attribute("id").as_deref(),
+            Some("list"),
+            "list_element 自身に新規属性 id が実際に追加されるはず"
+        );
+        assert_eq!(
+            list_element.get_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR),
+            Some("items".to_string()),
+            "予約属性 data-bind-list は Update 経路から改変されず維持される \
+             はず"
+        );
+
+        let KeyedListApplyResult::Achieved(Node::Element {
+            attrs: achieved_parent_attrs,
+            ..
+        }) = result
+        else {
+            panic!("全操作成功時は Achieved が返るはず");
+        };
+        let Node::Element {
+            attrs: expected_parent_attrs,
+            ..
+        } = &updated
+        else {
+            panic!("updated は Node::Element のはず");
+        };
+        assert_eq!(
+            &achieved_parent_attrs, expected_parent_attrs,
+            "達成 Node の親属性は new_list_node の親属性とバイト等価\
+             （順序・大小文字とも一致）であるはず"
         );
     }
 }
