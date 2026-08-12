@@ -19,10 +19,11 @@
 //! - 検証経路（本モジュール `#[cfg(test)]`）: `Vec` ベースのモック
 //!   `CountingDom` を注入し、走査アルゴリズムが呼ぶ DOM 操作の回数を
 //!   native で数える。ルート issue #1313 が特定した「CSR create
-//!   （1,000 行）で `nth_element_child`/`next_element_sibling` の sibling
-//!   走査が累積 O(n²) になる」問題を、実ブラウザ計測（不安定・低速）では
-//!   なく `cargo test` レベルで決定的に再発検知する（本イシュー #1318 の
-//!   目的そのもの）。
+//!   （1,000 行）で挿入位置解決の sibling 走査が累積 O(n²) になる」問題を、
+//!   実ブラウザ計測（不安定・低速）ではなく `cargo test` レベルで決定的に
+//!   再発検知する（本イシュー #1318 の目的そのもの）。イシュー #1319 で
+//!   挿入位置解決を [`KeyedListDom::child_at`]（`Element::children().item()`
+//!   相当の O(1) 参照）へ置換し、この O(n²) を O(n) 相当へ是正した。
 //!
 //! # セキュリティ不変条件の引き継ぎ
 //!
@@ -58,6 +59,14 @@ pub(crate) trait KeyedListDom {
 
     /// `child` の `data-key` 属性値を返す（`Element::get_attribute`）。
     fn item_key(&mut self, child: &Self::Handle) -> Option<String>;
+
+    /// `index` 番目（0-origin）の子要素を返す（`insert_before`/`move_before`
+    /// の参照ノード決定に使う。`index` が子要素数以上なら `None` = 末尾。
+    /// `web-sys` 実装は `Element::children()`（`HtmlCollection`）+
+    /// `HtmlCollection::item(index)` の単一呼び出しで O(1) に解決する
+    /// （イシュー #1319。旧 `nth_element_child` の `first_element_child` +
+    /// `next_element_sibling` を `index` 回たどる O(index) 実装からの置換）。
+    fn child_at(&mut self, index: usize) -> Option<Self::Handle>;
 
     /// `key` に対応する新規ノードを構築する。構築失敗（`RawHtml` 混入等）
     /// は `None`（呼び出し元は当該 `Insert` 1 件を丸ごと skip する、
@@ -105,27 +114,6 @@ fn find_child_by_key<D: KeyedListDom>(dom: &mut D, key: &str) -> Option<D::Handl
     None
 }
 
-/// `index` 番目（0-origin）の子要素を返す（`insert_before`/`move_before` の
-/// 参照ノード決定に使う。`index` が子要素数以上なら `None` = 末尾、
-/// [`crate::keyed_dom::nth_element_child`] の等価移植）。
-///
-/// この関数の 1 呼び出しが `first_element_child` 1 回 + `index` 回の
-/// `next_element_sibling` を要する（= O(index)）ことが、`apply_ops` を
-/// `Insert`/`Move` の度に呼ぶ現行実装が累積 O(n²) になる直接の原因
-/// （ルート issue #1313・本イシュー #1318 が固定するコストの本体）。
-fn nth_element_child<D: KeyedListDom>(dom: &mut D, index: usize) -> Option<D::Handle> {
-    let mut maybe_child = dom.first_element_child();
-    let mut i = 0;
-    while let Some(child) = maybe_child {
-        if i == index {
-            return Some(child);
-        }
-        i += 1;
-        maybe_child = dom.next_element_sibling(&child);
-    }
-    None
-}
-
 /// `dom` の現在のキー列を読み出したうえで [`crate::keyed_diff::diff_keys`]
 /// が計画した操作列を適用する（[`crate::keyed_dom::apply_keyed_list`] の
 /// 走査アルゴリズム本体、等価移植）。
@@ -156,14 +144,14 @@ pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) {
                     // する fail-closed（本モジュール doc 参照）。
                     continue;
                 };
-                let reference = nth_element_child(dom, index);
+                let reference = dom.child_at(index);
                 dom.insert_before(new_node, reference.as_ref());
             }
             KeyedOp::Move { index, key } => {
                 let Some(existing) = find_child_by_key(dom, &key) else {
                     continue;
                 };
-                let reference = nth_element_child(dom, index);
+                let reference = dom.child_at(index);
                 dom.move_before(&existing, reference.as_ref());
             }
         }
@@ -196,6 +184,7 @@ mod tests {
         insert_before: usize,
         move_before: usize,
         remove_child: usize,
+        child_at: usize,
     }
 
     impl CallCounts {
@@ -210,6 +199,7 @@ mod tests {
                 + self.insert_before
                 + self.move_before
                 + self.remove_child
+                + self.child_at
         }
     }
 
@@ -231,6 +221,11 @@ mod tests {
         fn item_key(&mut self, child: &Self::Handle) -> Option<String> {
             self.calls.item_key += 1;
             Some(child.clone())
+        }
+
+        fn child_at(&mut self, index: usize) -> Option<Self::Handle> {
+            self.calls.child_at += 1;
+            self.items.get(index).cloned()
         }
 
         fn create_item(&mut self, key: &str) -> Option<Self::NewNode> {
@@ -282,29 +277,24 @@ mod tests {
         (0..n).map(|i| format!("k{i}")).collect()
     }
 
-    // --- コスト固定テスト（イシュー #1318 本体） ---
+    // --- コスト固定テスト（イシュー #1318 本体、#1319 で上限を O(n) 相当へ
+    // 絞り直し済み） ---
     //
-    // 上限値は「現状実測値（O(n²) 相当）+ 小さな余裕」で固定し、O(n²) →
-    // O(n³) や定数倍の悪化（sibling 走査の重複化等）が起きた場合にのみ
-    // FAIL するようにする。Phase 2-1（#1319、`children().item()` による
-    // O(1) 化）が実装された時点で、この上限は O(n) 相当（例: 数千回）へ
-    // 絞り直す（`#[ignore]` は使わず、常に green を維持したまま複雑度
-    // クラスの回帰を検知し続けることが本イシューの目的）。
+    // イシュー #1319（`child_at` = `children().item()` 相当の O(1) 参照）で
+    // 挿入位置解決が O(index) の sibling 走査から解放されたため、上限値は
+    // 「実測値 + 小さな余裕」で O(n) 相当へ絞った。この上限を上回る場合は
+    // O(1) 化の退行（sibling 走査の再混入・定数倍の悪化）を意味する。
 
-    /// 空 → 1,000 行の create: DOM 操作の総呼び出し回数が現状値
-    /// （実測 502,501 回。内訳: `first_element_child` 1,001 回（初期の
-    /// `dom_item_keys` 読み 1 回 + `Insert` 1,000 件それぞれの
-    /// `nth_element_child` 内 1 回）+ `next_element_sibling`
-    /// Σ(i=0..999) i = 499,500 回 + `item_key` 0 回（旧キー列が空のため
-    /// `dom_item_keys` のループ本体が 1 度も回らない）+
-    /// `create_item`/`insert_before` 各 1,000 回）を大きく超えないこと。
-    /// `next_element_sibling` が支配項であり、これが
-    /// `nth_element_child`（O(index) の sibling 走査）を `Insert` の度に
-    /// 呼ぶことに起因する O(n²) の本体（[`nth_element_child`] rustdoc
-    /// 参照）。上限 600,000 は現状値の約 1.19 倍で、O(n²) → O(n³) や
-    /// 定数倍の悪化を検知できる余裕として設定した。
+    /// 空 → 1,000 行の create: DOM 操作の総呼び出し回数が実測 3,001 回
+    /// （内訳: `first_element_child` 1 回（初期の `dom_item_keys` 読み。
+    /// 旧キー列が空のため 1 回で `None` が返りループ本体は回らない）+
+    /// `child_at` 1,000 回（`Insert` 1,000 件それぞれの参照ノード決定）+
+    /// `create_item`/`insert_before` 各 1,000 回）に対して +約 17% の
+    /// タイトな上限（3,500 回）で固定する。旧実装（`nth_element_child` の
+    /// sibling 走査）では同条件で実測 502,501 回だった（イシュー #1318 の
+    /// 元コメント参照）。
     #[test]
-    fn apply_ops_create_1000_rows_from_empty_stays_within_current_o_n_squared_cost() {
+    fn apply_ops_create_1000_rows_from_empty_stays_linear() {
         const N: usize = 1_000;
         let mut dom = CountingDom::default();
         let new_keys = keys_n(N);
@@ -317,20 +307,18 @@ mod tests {
         );
         let total = dom.calls.total();
         assert!(
-            total <= 600_000,
-            "1,000 行 create の DOM 操作総数は 600,000 回以内のはず \
-             （実測: {total}、内訳: {:?}）。O(n²) の悪化さらなる複雑度クラス \
-             悪化（O(n³) 等）の再発を検知する上限であり、Phase 2-1（#1319）\
-             完了後は 20,000 以下へ絞る計画",
+            total <= 3_500,
+            "1,000 行 create の DOM 操作総数は 3,500 回以内のはず \
+             （実測: {total}、内訳: {:?}）。O(1) 挿入位置解決（イシュー \
+             #1319）からの退行（sibling 走査の再混入等）を検知する上限",
             dom.calls
         );
     }
 
-    /// 既存 1,000 行の先頭へ 1 件挿入: 単発挿入は O(n) （`nth_element_child`
-    /// が高々 1 回、`dom_item_keys` の初期走査が 1,000 行分）であり、
-    /// 実測 ≈ 2,004 回（`first_element_child` 2 回 + `next_element_sibling`
-    /// 1,000 回 + `item_key` 1,000 回 + `create_item`/`insert_before` 各 1
-    /// 回）に対して +2 割弱のタイトな上限（2,500 回）で固定する
+    /// 既存 1,000 行の先頭へ 1 件挿入: 実測 2,004 回（`first_element_child`
+    /// 1 回、`next_element_sibling` 1,000 回（`dom_item_keys` の初期走査）、
+    /// `item_key` 1,000 回、`child_at`/`create_item`/`insert_before` 各 1
+    /// 回）に対して 2 割強のタイトな上限（2,500 回）で固定する
     /// （create 1,000 行のようなグローバル余裕は与えない: 単発挿入で
     /// O(n²) 的な重複走査が紛れ込んだ場合に即座に検知するため）。
     #[test]
@@ -356,13 +344,14 @@ mod tests {
         );
     }
 
-    /// 既存 1,000 行の末尾へ 1 件挿入: `nth_element_child(index=1000)` が
-    /// 子要素数を超えるため全 sibling を走査する分だけ先頭挿入より重いが、
-    /// それでも O(n) の範囲（実測 3,004 回: `first_element_child` 2 回 +
-    /// `next_element_sibling` 2,000 回（`dom_item_keys` の初期走査 1,000 回 +
-    /// `nth_element_child` の走査 1,000 回）+ `item_key` 1,000 回 +
-    /// `create_item`/`insert_before` 各 1 回）。+2 割弱のタイトな上限
-    /// （3,500 回）で固定する。
+    /// 既存 1,000 行の末尾へ 1 件挿入: `child_at(index=1000)` は
+    /// `Vec::get` の単一呼び出しで完結するため、`nth_element_child` の
+    /// 全 sibling 走査（旧実装で末尾挿入が先頭挿入より重かった原因）が
+    /// 消え、実測 2,004 回（先頭挿入と同一内訳: `first_element_child`
+    /// 1 回 + `next_element_sibling` 1,000 回 + `item_key` 1,000 回 +
+    /// `child_at`/`create_item`/`insert_before` 各 1 回）に縮む。+2 割強の
+    /// タイトな上限（2,500 回）で固定する。旧実装では実測 3,004 回
+    /// （`nth_element_child` の走査 1,000 回が追加分）だった。
     #[test]
     fn apply_ops_append_one_to_1000_rows_stays_linear() {
         const N: usize = 1_000;
@@ -379,8 +368,8 @@ mod tests {
         assert_eq!(dom.items, new_keys);
         let total = dom.calls.total();
         assert!(
-            total <= 3_500,
-            "末尾 1 件挿入の DOM 操作総数は 3,500 回以内のはず（実測: {total}、\
+            total <= 2_500,
+            "末尾 1 件挿入の DOM 操作総数は 2,500 回以内のはず（実測: {total}、\
              内訳: {:?}）",
             dom.calls
         );

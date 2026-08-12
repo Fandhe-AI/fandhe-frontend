@@ -234,6 +234,10 @@ fn build_dom_node_with_namespace(
 /// へ等価移植済みであり、本 struct は「`web-sys` の実 DOM 呼び出し」を
 /// トレイトメソッドへ 1:1 で委譲するだけの薄いアダプタに徹する
 /// （本モジュール冒頭 doc の 2 層構成、`keyed_apply` モジュール doc 参照）。
+/// [`crate::keyed_apply::KeyedListDom::child_at`] のみ 1:1 委譲ではなく
+/// `Element::children()` + `HtmlCollection::item(index)` へ変換する
+/// （イシュー #1319、`first_element_child`/`next_element_sibling` の
+/// sibling 走査 O(index) を O(1) 参照へ置換）。
 struct WebSysKeyedDom<'a> {
     document: &'a Document,
     list_element: &'a Element,
@@ -260,6 +264,18 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
 
     fn item_key(&mut self, child: &Element) -> Option<String> {
         child.get_attribute(KEY_ATTR)
+    }
+
+    /// `Element::children()`（`HtmlCollection`）+ `HtmlCollection::item(index)`
+    /// の単一呼び出しで `index` 番目の子要素を O(1) に返す（イシュー
+    /// #1319）。`children()` は `first_element_child`/`next_element_sibling`
+    /// と同じく要素子のみを数える（テキストノードを含まない）ため、旧
+    /// sibling 走査実装と意味論上等価。`index` が `u32` へ収まらない
+    /// （事実上到達しない）場合・子要素数以上の場合はいずれも `None`
+    /// （末尾挿入への縮退、旧実装の「範囲外は末尾」と同じ fail-safe）。
+    fn child_at(&mut self, index: usize) -> Option<Element> {
+        let index = u32::try_from(index).ok()?;
+        self.list_element.children().item(index)
     }
 
     fn create_item(&mut self, key: &str) -> Option<web_sys::Node> {

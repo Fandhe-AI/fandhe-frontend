@@ -46,6 +46,16 @@ categories = ["wasm", "web-programming"]
 # 変更）ため、`.claude/rules/coding-rust.md` の semver バンプ必須条項の
 # 例外（PR 本文 `version-bump-exempt: fandhe-frontend-wasm-client` 宣言）を
 # 適用し、0.3.0 を維持する。
+#
+# イシュー #1319（keyed 挿入位置解決の O(1) 化）: `KeyedListDom` へ
+# `child_at`（`Element::children().item(index)`）を追加し、`apply_ops` の
+# `Insert`/`Move` 参照ノード決定を旧 `nth_element_child`（sibling 走査
+# O(index)）から置換した。`pub(crate)` トレイトへのメソッド追加・
+# `apply_keyed_list` の公開シグネチャ不変という点で #1318 と同種の
+# 内部実装のみの変更のため、in-repo version 0.3.1（本 PR 作成時点で
+# crates.io 未公開）へこの変更を吸収させ、追加のバンプは行わない
+# （`docs/ci/version-bump-publish-order-gap.md` の「未公開ウィンドウ中の
+# 変更相乗り」に相当。0.3.0 → 0.3.1 の変更内容として非破壊）。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.2.1" }
 fandhe-frontend-app = { path = "../app", version = "0.2.1" }
@@ -60,10 +70,12 @@ wasm-bindgen = "0.2"
 #   （`build_element`、`keyed_dom.rs`）。
 # - "HtmlInputElement": `data-bind-attr="value:..."` の value プロパティ同期
 #   （`apply_one`、`binding_dom.rs`）。`wasm-full` と同一 feature。
-# - "HtmlCollection": `apply_keyed_list`（`keyed_dom.rs`）が
-#   `Element::children()` を使わないため実際には不要 — dev のみで足りるため
-#   ここには追加しない（既存 dev-dependencies.web-sys の HtmlCollection を
-#   引き続き使う）。
+#
+# イシュー #1319: `WebSysKeyedDom::child_at`（`keyed_dom.rs`）が
+# `Element::children()`（戻り値型 `HtmlCollection`）+ `HtmlCollection::item`
+# を呼ぶため、製品面の feature へ "HtmlCollection" を追加した（従来は
+# dev-dependencies.web-sys 側のみで足りていたが本イシューで製品面へ昇格）。
+# 新規外部クレート追加ではなく既存 web-sys の feature 追加のみ。
 [dependencies.web-sys]
 version = "0.3"
 features = [
@@ -71,6 +83,7 @@ features = [
   "Element",
   "Event",
   "EventTarget",
+  "HtmlCollection",
   "HtmlInputElement",
   "Node",
   "NodeList",
