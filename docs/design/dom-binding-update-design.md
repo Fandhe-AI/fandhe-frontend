@@ -360,6 +360,13 @@ pub fn keyed_list(
   関数（`fandhe_frontend_core::render`）を経由し続ける。決定性は他の `Node` 種別と
   同じ既存保証（`docs/design/wasm-full-architecture.md` 等の凍結表）を
   継承する。
+- **同一キー内容差分（テキスト等）の Update op 化**: 本節が定める
+  Insert / Remove / Move の 3 種別は「構造変化」のみを扱い、同一キーで
+  内容だけが変わった更新は本節の設計上は no-op のままである。この
+  API ギャップを解消する diff 意味論・API 形の設計は
+  `docs/design/keyed-update-op-design.md`（イシュー #1322）に引き継ぐ
+  （後続実装はイシュー #1323／#1324）。本節の Insert / Remove / Move の
+  意味論・キー照合方式は同文書でも不変のまま継承される。
 
 ## 6. `set_inner_html` 全置換の移行方針（#345 の入力）
 
