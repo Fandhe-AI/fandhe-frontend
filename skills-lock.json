@@ -43,6 +43,12 @@
       "skillPath": "skills/create-commit/SKILL.md",
       "computedHash": "f4e01f312504b127114dc1370f7e7fcb6e6330e83a154330f8a821806863da1f"
     },
+    "create-html-report": {
+      "source": "Fandhe-AI/agent-cli-skills",
+      "sourceType": "github",
+      "skillPath": "skills/create-html-report/SKILL.md",
+      "computedHash": "6e07dcaecaa108d875c125ccd0918d88ea4ece81af692d970b3cc5a6980ae066"
+    },
     "create-issue": {
       "source": "Fandhe-AI/agent-cli-skills",
       "sourceType": "github",
