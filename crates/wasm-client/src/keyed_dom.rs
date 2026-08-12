@@ -85,6 +85,34 @@ pub fn collect_keyed_list_nodes(node: &Node) -> Vec<(String, Node)> {
     out
 }
 
+/// [`collect_keyed_list_nodes`] が返す各 keyed list ノードを
+/// [`crate::keyed_apply::sanitize_node_for_achieved`] へ通し、「実際に
+/// マウント時 DOM へ書き込まれた内容」へ正規化する（イシュー #1340
+/// codex-review 全面棚卸し対応、`Runtime::mount`/`Runtime::hydrate` の
+/// `keyed_list_cache` 初期 baseline 種付け専用）。
+///
+/// # マウント時のキャッシュ種付けにも同じ不変条件が必要な理由
+///
+/// `Runtime::mount`/`Runtime::hydrate` は `dom::mount_initial`
+/// （`root.set_inner_html(render_component_html(component))`）で
+/// [`fandhe_frontend_core::render`] の出力から実 DOM を構築する。`render`
+/// は本モジュールの `sync_attrs`/`build_dom_node_with_namespace` と同じ
+/// 述語（危険 URL スキーム・イベントハンドラ属性・不正 `srcset` の書き込み
+/// skip、`fandhe_frontend_core::lib.rs` の `render` 実装参照）を適用する
+/// ため、`component.view()` に検証拒否対象の属性が含まれていれば実 DOM
+/// には最初から書き込まれない。`keyed_list_cache` を素の `view()` 出力で
+/// 種付けすると、この「実際には書き込まれなかった属性」がキャッシュ上は
+/// 存在する扱いになり、以後の `apply_keyed_list_with_previous` の diff
+/// 基準がマウント時点から既に実 DOM と乖離した状態で始まってしまう
+/// （本モジュール冒頭・`keyed_apply` モジュール冒頭 doc「cache-miss
+/// フォールバックの達成契約」と同根の不変条件）。`sanitize_node_for_achieved`
+/// は新規構築経路（`Insert`・タグ変更を伴う `replace_root`）の「達成
+/// Node」合成が使う述語と同一のものを使うため、`render` の skip 判定と
+/// 一致する。
+pub fn sanitize_keyed_list_node_for_achieved(node: &Node) -> Node {
+    crate::keyed_apply::sanitize_node_for_achieved(node)
+}
+
 fn collect_keyed_list_nodes_into(node: &Node, out: &mut Vec<(String, Node)>) {
     let Node::Element {
         attrs, children, ..
@@ -601,6 +629,13 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         true
     }
 
+    /// `Element::tag_name()`（DOM 標準 API、常に大文字化された値を返す
+    /// 仕様）を ASCII 小文字化して返す（イシュー #1340 codex-review
+    /// P1/Bugbot〔10 巡目〕対応、`KeyedListDom::tag_name` doc 参照）。
+    fn tag_name(&mut self, child: &Element) -> String {
+        child.tag_name().to_ascii_lowercase()
+    }
+
     /// `child` の属性を `old_attrs`（呼び出し元 `keyed_apply::apply_ops_with_items`
     /// が渡す、直前に反映済みの `reserved_attr` 除外済み属性集合）から
     /// `new_attrs`（同じく `reserved_attr` 除外済みの新しい属性集合）へ
@@ -1044,39 +1079,51 @@ fn replace_list_element_for_tag_change(
     ))
 }
 
-/// [`crate::keyed_diff::diff_keys`] が計画した操作列を `list_element` へ
-/// 適用する（本モジュールの公開エントリポイント）。
+/// [`apply_keyed_list`]/[`apply_keyed_list_with_previous`] の共通実装本体
+/// （イシュー #1340 codex-review P1/Bugbot〔10 巡目〕対応）。
 ///
-/// `new_list_node` は `component.view()` が返す木のうち、
-/// [`find_keyed_list_node`] で特定した `field` の keyed list 親ノード
-/// （呼び出し側で特定済みのものを渡す設計。`wasm-full::Runtime` が
-/// `dirty_fields()` に含まれる keyed list 対象 field ごとに本関数を呼ぶ
-/// 想定）。`list_element` は実 DOM 上の対応する親要素（`data-bind-list`
-/// で走査済み）。
+/// 親タグ判定を**ライブ実タグ**（`list_element.tag_name()`）基準で行う
+/// （`old_parent_attrs`/`old_items` の由来がキャッシュ〔with-previous〕か
+/// ライブ由来のプレースホルダ〔cache-miss フォールバック〕かに関わらず
+/// 常に同じ判定基準になる）。これにより:
 ///
-/// キー照合に失敗する要素（`Insert` で `build_dom_node` が `None` を返す
-/// ケース = `RawHtml` 子や不正タグ名）は skip し、当該 1 件のみ未適用のまま
-/// 残す（fail-closed。他の正当な操作の適用を妨げない）。走査アルゴリズム
-/// 本体は [`crate::keyed_apply::apply_ops`]（イシュー #1318 で DOM 非依存へ
-/// 切り出し済み、native `cargo test` で DOM 操作コストを決定的に検証する
-/// 土台）。
+/// - with-previous 経路: 直前のキャッシュに古いタグが残っていても
+///   （例えば cache-miss フォールバックが親タグの置換を試みずに
+///   キャッシュだけ新タグへ進めてしまった場合でも）、ライブ実タグが
+///   実際に不一致である限り置換が必ず再試行される（codex-review 指摘の
+///   「一度きりしか再試行されない」問題の解消）。
+/// - cache-miss フォールバック経路: `previous_list_node` が存在しない
+///   ため以前はタグ判定自体を行っていなかったが、ライブ実タグを直接
+///   問い合わせられるため同じ判定を適用できる。
 ///
-/// 戻り値は `new_list_node` が指す目標状態へ**完全に**到達できたか
-/// （`true` = ライブ DOM は `new_list_node` と一致する。`false` = 上記の
-/// skip が 1 件でも発生し未達成のまま終わった）を表す（イシュー #1340
-/// Bugbot 指摘対応）。呼び出し元（`fandhe-frontend-wasm-full` の
-/// `Runtime::apply_update_for_dirty`）は、この戻り値が `false` の回に
-/// `new_list_node` を「直前に DOM へ反映した内容」のキャッシュ
-/// （`keyed_list_cache`）へ確定させてはならない。未達成のまま
-/// `new_list_node`（望ましい view であって実 DOM の達成状態ではない）を
-/// キャッシュしてしまうと、[`KeyedListApplyResult::ResyncRequired`] が
-/// `apply_keyed_list_with_previous` 経路で防いでいるのと同種の「実 DOM と
-/// キャッシュの乖離が 1 tick 後に再シードされ、以降解消されない」不具合が
-/// 本関数の呼び出し元（`previous` キャッシュが無い field の経路）でも
-/// 再現する（`KeyedListApplyResult::ResyncRequired` doc 参照）。
-pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_node: &Node) -> bool {
+/// タグが一致する場合は [`crate::keyed_apply::apply_ops_with_items`]
+/// （子アイテムの Insert/Remove/Move/Update）→
+/// [`crate::keyed_apply::compose_achieved_children`]（達成 Node の子ノード
+/// 合成）→ [`crate::keyed_apply::sync_parent_attrs`]（親要素自身の属性
+/// 同期）という with-previous 経路と共通の処理を行う。
+fn apply_keyed_list_core(
+    document: &Document,
+    list_element: &Element,
+    old_parent_attrs: &[(String, String)],
+    old_items: &[(String, Node)],
+    old_items_are_placeholders: bool,
+    new_list_node: &Node,
+) -> KeyedListApplyResult {
+    let Node::Element {
+        tag: new_tag,
+        attrs: new_parent_attrs,
+        ..
+    } = new_list_node
+    else {
+        return KeyedListApplyResult::ResyncRequired;
+    };
+
+    let live_tag = list_element.tag_name().to_ascii_lowercase();
+    if !live_tag.eq_ignore_ascii_case(new_tag) {
+        return replace_list_element_for_tag_change(document, list_element, new_list_node);
+    }
+
     let new_items = owned_list_item_nodes(new_list_node);
-    let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
     let namespace = list_element.namespace_uri();
 
     let mut dom = WebSysKeyedDom {
@@ -1086,7 +1133,145 @@ pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_no
         namespace: namespace.as_deref(),
         children: None,
     };
-    crate::keyed_apply::apply_ops(&mut dom, &new_keys)
+    let outcome = crate::keyed_apply::apply_ops_with_items(&mut dom, old_items, &new_items);
+
+    if outcome.resync_required {
+        // 1 件でも op が計画どおりに適用できなかった（`ApplyOutcome::
+        // resync_required` doc 参照）。`final_keys`/`stale_update_keys` から
+        // 「達成 Node」を合成してキャッシュへ確定させると、ライブ DOM の
+        // 実際の内容と乖離した diff 基準が固定されてしまう
+        // （`KeyedListApplyResult::ResyncRequired` doc・イシュー #1340
+        // codex-review P1 対応）ため、達成 Node の合成自体を行わず
+        // 呼び出し元へ再同期を要求する。
+        return KeyedListApplyResult::ResyncRequired;
+    }
+
+    if old_items_are_placeholders && !outcome.stale_update_keys.is_empty() {
+        // cache-miss フォールバック専用のブロッキング検証（イシュー #1340
+        // codex-review P1/Bugbot〔10 巡目〕対応の追加是正）。
+        //
+        // `compose_achieved_children` は `stale_update_keys` に含まれる
+        // キーについて「子ノード構築に失敗し旧内容のまま据え置かれた」
+        // ことを表すため `old_by_key.get(key)`（＝ `old_items` の該当
+        // エントリ）をそのまま「達成 Node」へ採用する（with-previous
+        // 経路ではこれが正しい: `old_items` はライブ DOM へ実際に反映
+        // 済みだった直前の内容そのものであり、旧内容のまま据え置かれた
+        // 実態と一致する）。
+        //
+        // しかし cache-miss フォールバック（`old_items_are_placeholders
+        // == true`）では `old_items` の各エントリは
+        // `synthesize_live_placeholder_items` が割り当てた
+        // `Node::Text(String::new())` プレースホルダであり、実際の直前
+        // 内容を表していない。`stale_update_keys` が空でなければこの
+        // プレースホルダがそのまま「達成 Node」へ紛れ込み、実際には旧
+        // 要素（例: `Node::Element`）のまま残っているライブ DOM を空の
+        // テキストノードとしてキャッシュしてしまう（この PR が解消しよう
+        // としている「キャッシュが達成状態と乖離する」不具合を一段深い
+        // 場所で再導入することになる）。したがって、この場合は達成 Node
+        // の合成を行わず再同期を要求する。1 件でも子ノード構築が恒久的に
+        // 失敗し続ける場合はフォールバックが毎 tick 再試行されキャッシュ
+        // が確定しないままになるが、これは既存の `Runtime` 側
+        // 自己修復ループ（`None` 分岐の `ResyncRequired` 処理）と同じ
+        // 「収束しないが誤ったキャッシュも作らない」設計であり安全側。
+        return KeyedListApplyResult::ResyncRequired;
+    }
+
+    // 「達成 Node」の子ノード列合成本体は
+    // `crate::keyed_apply::compose_achieved_children` へ切り出し済み
+    // （DOM 非依存の純粋関数、native `cargo test` から到達可能。イシュー
+    // #1340 codex-review P1〔4 巡目〕対応、`keyed_apply` モジュール冒頭
+    // doc「属性検証拒否と「達成 Node」の整合」参照）。検証を拒否された
+    // 属性（危険 URL スキーム・イベントハンドラ・不正 `srcset`）は実際に
+    // DOM へ書き込まれた値（in-place 更新なら旧値、新規構築なら不在）へ
+    // 正規化されるため、`new_list_node` をそのまま使う旧実装のように
+    // 拒否済みの危険値がキャッシュへ紛れ込むことはない。
+    let achieved_children =
+        crate::keyed_apply::compose_achieved_children(old_items, &new_items, &outcome);
+
+    // 親要素自身（`list_element`）の属性同期（イシュー #1340 codex-review
+    // P1〔7 巡目〕対応）: 子アイテムの `KeyedOp::Update` と同じ `sync_attrs`
+    // （実 DOM 読み戻し + 決定的正規化契約、`KeyedListDom::sync_attrs` doc
+    // 参照）を `list_element` 自身へも適用する
+    // `crate::keyed_apply::sync_parent_attrs` へ委譲する（DOM 非依存・
+    // native `cargo test` から到達可能な合成本体、`Vec<(String, String)>`
+    // で表す `list_element` のハンドルを渡すため `Element::clone`
+    // （`web-sys` のハンドルは参照カウント方式であり安価）で `dom`
+    // フィールド由来の借用と分離する）。予約属性 `data-bind-list`
+    // （`fandhe_frontend_core::keyed::BIND_LIST_ATTR`）は子アイテムの
+    // `data-key` と同じ理由で同期対象から除外され、`new_parent_attrs`
+    // 側の表記のまま末尾に保持される（`sync_parent_attrs` doc 参照）。
+    let list_element_handle = list_element.clone();
+    let achieved_parent_attrs = crate::keyed_apply::sync_parent_attrs(
+        &mut dom,
+        &list_element_handle,
+        old_parent_attrs,
+        new_parent_attrs,
+    );
+
+    KeyedListApplyResult::Achieved(Node::Element {
+        tag: new_tag,
+        attrs: achieved_parent_attrs,
+        children: achieved_children,
+    })
+}
+
+/// [`crate::keyed_diff::diff_keys`] が計画した操作列を `list_element` へ
+/// 適用する（本モジュールの公開エントリポイント、cache-miss フォール
+/// バック専用。`fandhe-frontend-wasm-full` の `Runtime` が「直前に反映
+/// 済みの `Node`」キャッシュをまだ持たない field へ使う）。
+///
+/// `new_list_node` は `component.view()` が返す木のうち、
+/// [`find_keyed_list_node`] で特定した `field` の keyed list 親ノード
+/// （呼び出し側で特定済みのものを渡す設計。`wasm-full::Runtime` が
+/// `dirty_fields()` に含まれる keyed list 対象 field ごとに本関数を呼ぶ
+/// 想定）。`list_element` は実 DOM 上の対応する親要素（`data-bind-list`
+/// で走査済み）。
+///
+/// # cache-miss フォールバックの達成契約（イシュー #1340 codex-review
+/// P1/Bugbot〔10 巡目〕対応）
+///
+/// 旧実装はキー列のみの [`crate::keyed_apply::apply_ops`]（内容比較を
+/// 一切行わない）を実行し、その `bool`（構造変化が計画どおり適用できた
+/// か）を戻り値としていた。呼び出し元はこの `bool` が `true` の回に
+/// **望ましい view 全体**をそのままキャッシュへ確定させていたため、
+/// 既存アイテムの内容・親要素のタグ/属性が実際には一切同期されていない
+/// にもかかわらず「達成済み」としてキャッシュされてしまい、以後差分が
+/// 出ず未反映のまま恒久的に収束しなかった（codex-review P1 指摘）。
+///
+/// 本関数は [`apply_keyed_list_with_previous`] と共通の
+/// [`apply_keyed_list_core`] へ処理を委譲し、戻り値も `bool` から
+/// [`KeyedListApplyResult`] へ変更した。`old_items` にはライブ DOM から
+/// 読み出した現在のキー列（[`crate::keyed_apply::synthesize_live_placeholder_items`]）
+/// を渡す（`keyed_apply` モジュール冒頭 doc「cache-miss フォールバックの
+/// 達成契約」参照。本物の直前内容が無いため、内容比較を必ず不一致にする
+/// プレースホルダを使い、保持キー全件に `Update` を強制発行させる。
+/// タグ一致判定〔in-place 更新か `replace_root` か〕はプレースホルダに
+/// 依存せずライブ問い合わせで行われるため、`Move` のみで内容が変わらない
+/// 典型ケースでもノード同一性（フォーカス・入力途中の値の保持）は保た
+/// れる）。親要素自身の属性同期に使う `old_parent_attrs` は空スライスを
+/// 渡す（`sync_attrs`/`sync_parent_attrs` の削除判定はライブ属性列挙が
+/// 基準〔`KeyedListDom::sync_attrs` doc「削除判定の基準」参照〕のため、
+/// `old_attrs` が空でも安全に完全な同期ができる。`old_attrs` は達成
+/// attrs 合成時の残存〔削除失敗〕エントリの順序決定にのみ使われる
+/// 補助情報であり、空でも正しさには影響しない）。
+pub fn apply_keyed_list(
+    document: &Document,
+    list_element: &Element,
+    new_list_node: &Node,
+) -> KeyedListApplyResult {
+    if !matches!(new_list_node, Node::Element { .. }) {
+        return KeyedListApplyResult::ResyncRequired;
+    }
+    let namespace = list_element.namespace_uri();
+    let mut probe = WebSysKeyedDom {
+        document,
+        list_element,
+        new_items: &[],
+        namespace: namespace.as_deref(),
+        children: None,
+    };
+    let old_items = crate::keyed_apply::synthesize_live_placeholder_items(&mut probe);
+    apply_keyed_list_core(document, list_element, &[], &old_items, true, new_list_node)
 }
 
 /// [`apply_keyed_list_with_previous`] の適用結果（イシュー #1324）。
@@ -1153,131 +1338,67 @@ pub enum KeyedListApplyResult {
 /// `new_list_node` をそのまま `Achieved` として返してしまっていた
 /// （codex-review 指摘: 呼び出し元がこれをそのままキャッシュするため
 /// 実 DOM とキャッシュが恒久的に乖離する）。
+/// # 親タグ判定はライブ実タグ基準（イシュー #1340 codex-review P1/Bugbot
+/// 〔10 巡目〕対応）
+///
+/// 親（`list_element` 自身）のタグ変更検出は `previous_list_node` に
+/// キャッシュされた `tag` フィールドではなく、[`apply_keyed_list_core`]
+/// が問い合わせる**ライブ実タグ**（`list_element.tag_name()`）を基準に
+/// 行う。`list_element` は呼び出し元（`fandhe-frontend-wasm-full` の
+/// `Runtime`）が `data-bind-list` 属性値で解決した既存ライブ要素そのもの
+/// であり、`Element.tagName` は DOM 標準仕様上不変のため、タグ変更を
+/// 伴う更新を「浅い in-place 更新」で表現することは原理的に不可能（子
+/// アイテムの `KeyedOp::Update` がタグ不一致時に `replace_root` へ切り
+/// 替える判断と同型）。
+///
+/// 旧実装（イシュー #1340 codex-review P1〔7 巡目〕時点）は `previous_list_node`
+/// にキャッシュされた `tag` を基準に判定していたため、`fandhe-frontend-wasm-full`
+/// の `Runtime::apply_update_for_dirty` の cache-miss フォールバック経路
+/// （[`apply_keyed_list`]）が親タグの置換を試みずキャッシュだけ新タグへ
+/// 進めてしまうと、以後この関数がキャッシュ上は「タグ一致」と誤判定し
+/// 置換が二度と再試行されなかった（codex-review P1〔9 巡目〕指摘）。ライブ
+/// 実タグを基準にすることで、キャッシュの精度に関わらず実 DOM が実際に
+/// 不一致である限り置換が必ず再試行される（自己修復）。
+///
+/// タグが不一致の場合は [`replace_list_element_for_tag_change`] が
+/// `list_element` 自身を丸ごと安全に置換する（子アイテムの
+/// `KeyedOp::Update` タグ変更時の `replace_root`/[`RootReplaceDom`] と
+/// 同じ「新要素を detached で構築 → insert → 旧削除、部分失敗は
+/// ロールバック」流儀）。置換後の新コンテナは `new_list_node` から丸ごと
+/// 構築されるため `data-bind-list` 予約属性も新しい子アイテムもすべて
+/// 引き継がれる（[`build_dom_node_with_namespace`] はイベントハンドラ・
+/// 危険 URL・不正 `srcset` 以外の属性を無条件で書き込む、予約属性のみを
+/// 狙って除外する処理はしていない）。`fandhe-frontend-wasm-full` の
+/// `Runtime` は `list_element` のハンドルをキャッシュせず
+/// `find_list_element`（`data-bind-list` 属性値によるライブ DOM 再
+/// クエリ）で毎 tick 再解決するため、置換後の新コンテナは次回呼び出しで
+/// 自然に見つかる（wasm-full 側の変更は不要）。
 pub fn apply_keyed_list_with_previous(
     document: &Document,
     list_element: &Element,
     previous_list_node: &Node,
     new_list_node: &Node,
 ) -> KeyedListApplyResult {
-    // 親（`list_element` 自身）のタグ・属性を早期に取り出す。子アイテムの
-    // 検証（`owned_list_item_nodes` 等）を開始する前に、まず親自身のタグ
-    // 一致を判定する（下記コメント参照、イシュー #1340 codex-review P1
-    // 〔7 巡目〕対応）。
-    let (
-        Node::Element {
-            tag: old_tag,
-            attrs: old_parent_attrs,
-            ..
-        },
-        Node::Element {
-            tag: new_tag,
-            attrs: new_parent_attrs,
-            ..
-        },
-    ) = (previous_list_node, new_list_node)
+    let Node::Element {
+        attrs: old_parent_attrs,
+        ..
+    } = previous_list_node
     else {
         return KeyedListApplyResult::ResyncRequired;
     };
-
-    // 親要素自身のタグ変更検出（イシュー #1340 codex-review P1〔7 巡目〕
-    // 対応）。`list_element` は呼び出し元（`fandhe-frontend-wasm-full` の
-    // `Runtime`）が `data-bind-list` 属性値で解決した既存ライブ要素そのもの
-    // であり、`Element.tagName` は DOM 標準仕様上不変のため、タグ変更を
-    // 伴う更新を「浅い in-place 更新」（`sync_attrs`/`apply_ops_with_items`
-    // の `Update` 適用と同様の属性・子ノード同期のみ）で表現することは
-    // 原理的に不可能（子アイテムの `KeyedOp::Update` がタグ不一致時に
-    // `replace_root` へ切り替える判断と同型）。
-    //
-    // 旧実装（イシュー #1340 codex-review P1〔7 巡目〕時点）は「子アイテム
-    // の適用を一切開始せず `ResyncRequired` を返す」設計だったが、
-    // `fandhe-frontend-wasm-full` の `Runtime::apply_update_for_dirty` の
-    // cache-miss フォールバック経路（`keyed_list_cache` から該当 field を
-    // 削除した直後に呼ばれる [`apply_keyed_list`]）は子アイテムの構造
-    // 変化のみを適用し `list_element` 自身のタグは一切検証・置換しない
-    // ため、次回以降もこの分岐へ来るたびに ResyncRequired を返し続ける
-    // だけで、実 DOM の親タグは恒久的に旧タグのまま収束しない（codex-review
-    // P1〔9 巡目〕指摘: 「親タグ不一致 → resync_required」だけでは
-    // cache-miss 経路に同じ穴が空いたまま残るため、収束しない）。
-    //
-    // 是正: `ResyncRequired` に頼らず、親タグ不一致時は
-    // [`replace_list_element_for_tag_change`] が `list_element` 自身を
-    // 丸ごと安全に置換する（子アイテムの `KeyedOp::Update` タグ変更時の
-    // `replace_root`/[`RootReplaceDom`] と同じ「新要素を detached で構築
-    // → insert → 旧削除、部分失敗はロールバック」流儀）。置換後の新
-    // コンテナは `new_list_node` から丸ごと構築されるため `data-bind-list`
-    // 予約属性も新しい子アイテムもすべて引き継がれる
-    // （[`build_dom_node_with_namespace`] はイベントハンドラ・危険 URL・
-    // 不正 `srcset` 以外の属性を無条件で書き込む、予約属性のみを狙って
-    // 除外する処理はしていない）。`fandhe-frontend-wasm-full` の
-    // `Runtime` は `list_element` のハンドルをキャッシュせず
-    // `find_list_element`（`data-bind-list` 属性値によるライブ DOM 再
-    // クエリ）で毎 tick 再解決するため、置換後の新コンテナは次回呼び出しで
-    // 自然に見つかる（wasm-full 側の変更は不要）。
-    if old_tag != new_tag {
-        return replace_list_element_for_tag_change(document, list_element, new_list_node);
-    }
-
-    let old_items = owned_list_item_nodes(previous_list_node);
-    let new_items = owned_list_item_nodes(new_list_node);
-    let namespace = list_element.namespace_uri();
-
-    let mut dom = WebSysKeyedDom {
-        document,
-        list_element,
-        new_items: &new_items,
-        namespace: namespace.as_deref(),
-        children: None,
-    };
-    let outcome = crate::keyed_apply::apply_ops_with_items(&mut dom, &old_items, &new_items);
-
-    if outcome.resync_required {
-        // 1 件でも op が計画どおりに適用できなかった（`ApplyOutcome::
-        // resync_required` doc 参照）。`final_keys`/`stale_update_keys` から
-        // 「達成 Node」を合成してキャッシュへ確定させると、ライブ DOM の
-        // 実際の内容と乖離した diff 基準が固定されてしまう
-        // （`KeyedListApplyResult::ResyncRequired` doc・イシュー #1340
-        // codex-review P1 対応）ため、達成 Node の合成自体を行わず
-        // 呼び出し元へ再同期を要求する。
+    if !matches!(new_list_node, Node::Element { .. }) {
         return KeyedListApplyResult::ResyncRequired;
     }
 
-    // 「達成 Node」の子ノード列合成本体は
-    // `crate::keyed_apply::compose_achieved_children` へ切り出し済み
-    // （DOM 非依存の純粋関数、native `cargo test` から到達可能。イシュー
-    // #1340 codex-review P1〔4 巡目〕対応、`keyed_apply` モジュール冒頭
-    // doc「属性検証拒否と「達成 Node」の整合」参照）。検証を拒否された
-    // 属性（危険 URL スキーム・イベントハンドラ・不正 `srcset`）は実際に
-    // DOM へ書き込まれた値（in-place 更新なら旧値、新規構築なら不在）へ
-    // 正規化されるため、`new_list_node` をそのまま使う旧実装のように
-    // 拒否済みの危険値がキャッシュへ紛れ込むことはない。
-    let achieved_children =
-        crate::keyed_apply::compose_achieved_children(&old_items, &new_items, &outcome);
-
-    // 親要素自身（`list_element`）の属性同期（イシュー #1340 codex-review
-    // P1〔7 巡目〕対応）: 子アイテムの `KeyedOp::Update` と同じ `sync_attrs`
-    // （実 DOM 読み戻し + 決定的正規化契約、`KeyedListDom::sync_attrs` doc
-    // 参照）を `list_element` 自身へも適用する
-    // `crate::keyed_apply::sync_parent_attrs` へ委譲する（DOM 非依存・
-    // native `cargo test` から到達可能な合成本体、`Vec<(String, String)>`
-    // で表す `list_element` のハンドルを渡すため `Element::clone`
-    // （`web-sys` のハンドルは参照カウント方式であり安価）で `dom`
-    // フィールド由来の借用と分離する）。予約属性 `data-bind-list`
-    // （`fandhe_frontend_core::keyed::BIND_LIST_ATTR`）は子アイテムの
-    // `data-key` と同じ理由で同期対象から除外され、`new_parent_attrs`
-    // 側の表記のまま末尾に保持される（`sync_parent_attrs` doc 参照）。
-    let list_element_handle = list_element.clone();
-    let achieved_parent_attrs = crate::keyed_apply::sync_parent_attrs(
-        &mut dom,
-        &list_element_handle,
+    let old_items = owned_list_item_nodes(previous_list_node);
+    apply_keyed_list_core(
+        document,
+        list_element,
         old_parent_attrs,
-        new_parent_attrs,
-    );
-
-    KeyedListApplyResult::Achieved(Node::Element {
-        tag: new_tag,
-        attrs: achieved_parent_attrs,
-        children: achieved_children,
-    })
+        &old_items,
+        false,
+        new_list_node,
+    )
 }
 
 #[cfg(test)]
@@ -1494,6 +1615,49 @@ mod tests {
 
         let path = svg_element.query_selector("path").unwrap().unwrap();
         assert_eq!(path.namespace_uri().as_deref(), Some(SVG_NAMESPACE));
+    }
+
+    /// イシュー #1340 codex-review 全面棚卸し対応（`Runtime::mount`/
+    /// `Runtime::hydrate` の `keyed_list_cache` 種付け専用ヘルパー）:
+    /// `sanitize_keyed_list_node_for_achieved` が危険 URL スキームの属性を
+    /// 除外することの直接確認（`fandhe_frontend_core::render` の書き込み
+    /// skip 判定と同一述語であることのポリシーレベルでの回帰固定。DOM
+    /// 非依存の純粋関数だが、公開 API 契約として wasm32 ターゲットの
+    /// モジュール内に置く）。
+    #[wasm_bindgen_test]
+    fn sanitize_keyed_list_node_for_achieved_strips_rejected_url_attr() {
+        let raw = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![(
+                "a".to_string(),
+                el(
+                    "li",
+                    vec![("href", "javascript:alert(1)"), ("class", "safe")],
+                    vec![text("a")],
+                ),
+            )],
+        )
+        .expect("valid keyed list");
+
+        let sanitized = sanitize_keyed_list_node_for_achieved(&raw);
+
+        let Node::Element { children, .. } = &sanitized else {
+            panic!("親はタグを保つはず");
+        };
+        let Node::Element { attrs, .. } = &children[0] else {
+            panic!("子アイテムはタグを保つはず");
+        };
+        assert!(
+            !attrs.iter().any(|(k, _)| k == "href"),
+            "javascript: スキームの href は render() が書き込みを skip する \
+             ため達成 Node からも除外されるはず: {attrs:?}"
+        );
+        assert!(
+            attrs.contains(&("class".to_string(), "safe".to_string())),
+            "安全な属性はそのまま保たれるはず: {attrs:?}"
+        );
     }
 
     // --- 連続 Insert の DocumentFragment 集約（イシュー #1320） ---
@@ -2023,6 +2187,142 @@ mod tests {
             2,
             "DOM には一切触れておらず、旧アイテムがそのまま残っているはず"
         );
+    }
+
+    // --- cache-miss フォールバックの収束（イシュー #1340 codex-review
+    // P1/Bugbot〔10 巡目〕対応） ---
+
+    /// codex P1〔10 巡目〕回帰固定: `apply_keyed_list_with_previous` が
+    /// `ResyncRequired` を返した（＝ `previous` キャッシュがライブ DOM と
+    /// 乖離していた）次の適用は、`Runtime` が同フィールドのキャッシュを
+    /// 破棄して呼ぶ [`apply_keyed_list`]（cache-miss フォールバック）へ
+    /// 委ねられる。本テストはこの「with-previous が ResyncRequired →
+    /// フォールバックへ切替 → 実 DOM が新しい view へ完全収束する」一連の
+    /// 流れを直接検証する。
+    ///
+    /// 乖離の作り方: `previous` はキー `["a", "b"]` を主張するが、ライブ
+    /// DOM（`list_element`）は実際には `"a"` しか持たない（`hydrate`
+    /// 失敗・以前の未達成適用の取りこぼし等で cache と実 DOM が乖離した
+    /// 状態を模した最小の再現）。この状態で `"b"` を含む `Update` 済み
+    /// view を適用すると、`"b"` に対する [`KeyedListDom::find_by_key`] が
+    /// `None` を返し（`apply_ops_with_items` の `KeyedOp::Update` 分岐）
+    /// `resync_required` が立つ。
+    #[wasm_bindgen_test]
+    fn with_previous_resync_required_then_fallback_converges_to_new_view() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a"]);
+
+        // ライブ DOM には無い "b" を含む、乖離した previous キャッシュ。
+        let previous = keyed_items(&["a", "b"]);
+        let stale_update_view = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![
+                ("a".to_string(), li(vec![], vec![text("a-updated")])),
+                ("b".to_string(), li(vec![], vec![text("b-updated")])),
+            ],
+        )
+        .expect("valid keyed list");
+
+        let result1 =
+            apply_keyed_list_with_previous(&document, &list_element, &previous, &stale_update_view);
+        assert!(
+            matches!(result1, KeyedListApplyResult::ResyncRequired),
+            "ライブ DOM に存在しない \"b\" への Update は解決できないため \
+             ResyncRequired を返すはず: {result1:?}"
+        );
+
+        // `Runtime` はここで当該フィールドのキャッシュ（`previous`）を
+        // 破棄する（`crates/wasm-full` の `Runtime::apply_update_for_dirty`
+        // `ResyncRequired` 分岐）。次回の再描画で実際に生成された新しい
+        // view（"b" を含まない、乖離が解消された状態）をフォールバック
+        // 経由で適用する。
+        let converged_view = keyed_items(&["a"]);
+        let result2 = apply_keyed_list(&document, &list_element, &converged_view);
+
+        let KeyedListApplyResult::Achieved(achieved) = result2 else {
+            panic!("フォールバック経路は完全達成するはず: {result2:?}");
+        };
+        assert_eq!(
+            achieved, converged_view,
+            "フォールバック適用後の「達成 Node」は新しい view とバイト \
+             等価になるはず（with-previous の失敗を引きずらない）"
+        );
+        assert_eq!(
+            list_element.children().length(),
+            1,
+            "ライブ DOM も新しい view と一致し 1 件のみになるはず"
+        );
+        let only_child = list_element.first_element_child().unwrap();
+        assert_eq!(only_child.get_attribute(KEY_ATTR).as_deref(), Some("a"));
+        assert_eq!(only_child.text_content().as_deref(), Some("a"));
+    }
+
+    /// Bugbot Medium〔10 巡目〕回帰固定: 親要素のタグ置換が「detached で
+    /// 置換できず `ResyncRequired`」→「キャッシュ破棄」→「実際に接続され
+    /// 直した後の再試行」で、キャッシュではなくライブ DOM の実タグを基準に
+    /// 再判定され、置換が正しく再試行されること。旧実装（キャッシュされた
+    /// `previous` の `tag` を基準に判定）だと、フォールバック
+    /// （[`apply_keyed_list`]）はそもそも `previous` を持たないため
+    /// 常にプレースホルダ発行だが、仮に何らかの理由で「タグ一致」という
+    /// 誤った判定が固定化されると、以後 `list_element` が実際には旧タグの
+    /// ままでも `replace_list_element_for_tag_change` が二度と呼ばれなく
+    /// なる（Bugbot 指摘のシナリオ）。本実装はライブ問い合わせ基準
+    /// （`list_element.tag_name()`）のため、この固定化が起こり得ないこと
+    /// を直接確認する。
+    #[wasm_bindgen_test]
+    fn tag_replace_retries_via_live_tag_after_resync_required_then_reattach() {
+        let document = doc();
+        // `list_element` をどの親にも接続しない（`replace_list_element_for_tag_change`
+        // が `parent_node()` 不在で失敗する状況を作る）。
+        let list_element = make_list_element(&document, &["a"]);
+
+        let previous = keyed_items(&["a"]);
+        let new_tag_view = keyed_list(
+            "ol",
+            vec![],
+            "items",
+            vec![("a".to_string(), li(vec![], vec![text("a")]))],
+        )
+        .expect("valid keyed list");
+
+        let result1 =
+            apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tag_view);
+        assert!(
+            matches!(result1, KeyedListApplyResult::ResyncRequired),
+            "detached な親タグ変更は置換できないため ResyncRequired のはず: \
+             {result1:?}"
+        );
+        assert_eq!(
+            list_element.tag_name().to_lowercase(),
+            "ul",
+            "置換を試みていないため list_element 自身のタグは旧のまま \
+             （\"ul\"）残っているはず"
+        );
+
+        // `Runtime` がキャッシュを破棄した後の「再試行」を模す:
+        // `list_element` を wrapper へ接続してから同じフォールバック経路
+        // （`apply_keyed_list`、`previous` を持たない cache-miss 想定）を
+        // 再度呼ぶ。キャッシュされた旧タグ判定に依存していれば
+        // （Bugbot 指摘のシナリオ）この再試行でも置換が起きないはずだが、
+        // ライブ問い合わせ基準のため正しく置換が再実行される。
+        let wrapper = document.create_element("div").unwrap();
+        wrapper.append_child(&list_element).unwrap();
+
+        let result2 = apply_keyed_list(&document, &list_element, &new_tag_view);
+
+        let new_container = wrapper.first_element_child().expect("新コンテナがあるはず");
+        assert_eq!(
+            new_container.tag_name().to_lowercase(),
+            "ol",
+            "再接続後の再試行で、ライブ実タグ（\"ul\"）と new view のタグ \
+             （\"ol\"）の不一致が正しく再検出され、置換が実行されるはず"
+        );
+        let KeyedListApplyResult::Achieved(achieved) = result2 else {
+            panic!("再接続後は置換に成功し Achieved が返るはず: {result2:?}");
+        };
+        assert_eq!(achieved, new_tag_view);
     }
 
     /// codex-review P1〔7 巡目〕回帰固定（イシュー #1340）: 親要素自身の

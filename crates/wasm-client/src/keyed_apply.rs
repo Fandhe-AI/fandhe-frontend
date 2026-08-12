@@ -177,8 +177,60 @@
 //! `resync_required`・`replace_item_children` 失敗による
 //! `stale_update_keys`）として扱われるため、達成 Node が「構築されなかった
 //! 要素の属性」を含んでしまう余地が構造的に存在しない。
+//!
+//! # cache-miss フォールバックの達成契約（イシュー #1340 codex-review
+//! P1・Bugbot〔10 巡目〕対応）
+//!
+//! [`crate::keyed_dom::apply_keyed_list`]（`fandhe-frontend-wasm-full` の
+//! `Runtime` が「直前に反映済みの `Node`」キャッシュを持たない field へ
+//! 使う cache-miss フォールバック経路）は、旧実装ではキー列のみの
+//! [`apply_ops`]（[`crate::keyed_diff::diff_keys`] ベース、内容比較を一切
+//! 行わない）を実行し、その「構造変化が計画どおり適用できたか」の `bool`
+//! を戻り値としていた。呼び出し元はこの `bool` が `true` の回に**望ましい
+//! view全体**（`new_list_node`）をそのままキャッシュへ確定させていたため、
+//! 既存アイテムの内容・親要素のタグ/属性が実際には一切同期されていない
+//! （`apply_ops` は構造 op のみ実行し `Update`/属性同期を発行しない）にも
+//! かかわらず「達成済み」としてキャッシュされてしまい、以後の
+//! `apply_keyed_list_with_previous` 呼び出しでキャッシュと new view が
+//! 一致し続けて差分が出ず、未反映のまま恒久的に収束しなかった
+//! （codex-review P1 指摘）。
+//!
+//! 是正: [`crate::keyed_dom::apply_keyed_list`] は本モジュールの
+//! [`apply_ops_with_items`]/[`compose_achieved_children`]/[`sync_parent_attrs`]
+//! （with-previous 経路と共通の実装）へ処理を委譲し、戻り値も `bool` から
+//! [`crate::keyed_dom::KeyedListApplyResult`] へ変更した。ただし
+//! cache-miss 経路には本物の「直前に反映済みの `Node`」が無いため、
+//! `old_items` として **ライブ DOM から読み出した現在のキー列**に
+//! `Node::Text(String::new())` プレースホルダを割り当てたものを渡す
+//! （`crate::keyed_dom::apply_keyed_list` 実装コメント参照）。
+//! `new_items` はいずれも `keyed_list()` 契約により `Node::Element`
+//! （`KeyedListError::NonElementItem` で保証済み）であり、`Node::Text` と
+//! `Node::Element` は異なる enum variant のため `#[derive(PartialEq)]` の
+//! 比較は常に不一致になる（enum variant が異なれば内容に関わらず必ず
+//! `false`）。したがって [`diff_keyed_items`] の第 3 パス（内容比較付き
+//! `Update` 発行）は保持キー（新旧両方に存在するキー）すべてに対して
+//! **必ず** `Update` を発行する（プレースホルダの中身に依存しない構造的な
+//! 保証、コイン投げ的な「たまたま一致してしまう」余地がない）。
+//!
+//! この強制 `Update` が [`apply_ops_with_items`] の既存ロジックへそのまま
+//! 流れることで、cache-miss 経路でも with-previous 経路と同じ「実際に
+//! DOM へ反映できた内容だけを達成 Node として確定する」保証が成立する。
+//! ただし `old_tag_matches`（in-place 同期 vs `replace_root` の分岐）は
+//! プレースホルダの `tag` に依存できない（プレースホルダ自身のタグは
+//! 無意味な値のため、これを使うと保持キーが常に `replace_root`
+//! （ノード同一性を破壊する全置換）へ落ちてしまい、`Move` のみで内容が
+//! 変わらない典型ケースでもフォーカス・入力途中の値の保持という既存の
+//! 設計不変条件を壊す）。この分岐は [`KeyedListDom::tag_name`]
+//! （ライブ問い合わせ）を基準にすることでプレースホルダの精度に依存せず
+//! 正しく判定できる（同メソッド doc 参照）。
 
-use crate::keyed_diff::{diff_keyed_items, diff_keys, KeyedOp};
+use crate::keyed_diff::{diff_keyed_items, KeyedOp};
+// `diff_keys`（キー列のみの構造 diff）は `apply_ops`（`#[cfg(test)]`、
+// 「本番非到達」doc 参照）専用の依存であるため import 自体も
+// `#[cfg(test)]` にする（本番ビルドでの未使用 import 警告を避ける、
+// イシュー #1340 codex-review P1/Bugbot〔10 巡目〕対応）。
+#[cfg(test)]
+use crate::keyed_diff::diff_keys;
 use fandhe_frontend_core::Node;
 
 /// keyed list コンテナに対する DOM 操作を抽象化するトレイト。
@@ -306,6 +358,28 @@ pub(crate) trait KeyedListDom {
     /// ならない（キャッシュ上だけ「削除済み」として扱うと、以後の差分基準
     /// が実 DOM と恒久的に乖離する）。
     fn remove_child(&mut self, child: &Self::Handle) -> bool;
+
+    /// `child` の現在のタグ名を ASCII 小文字化して返す（`Element::tagName`
+    /// 相当、イシュー #1340 codex-review P1/Bugbot〔10 巡目〕対応）。
+    ///
+    /// [`KeyedOp::Update`] のタグ一致判定（[`apply_ops_with_items`] 内
+    /// `old_tag_matches`）はこのライブ問い合わせを基準とする（キャッシュ
+    /// された旧 `Node` の `tag` フィールドを信用しない）。理由は本モジュール
+    /// 冒頭 doc「cache-miss フォールバックの達成契約」参照: cache-miss
+    /// フォールバック（[`crate::keyed_dom::apply_keyed_list`]）は本物の
+    /// 直前内容を持たないため、`old_items` に「内容比較を強制的に不一致に
+    /// する」プレースホルダを渡す（`Update` を必ず発行させるため）。この
+    /// プレースホルダの `tag` フィールドはタグ一致判定の根拠として使えない
+    /// （プレースホルダ自身のタグは無意味な値のため）。ライブタグへ問い
+    /// 合わせることで、フォールバック経路でも「実際にタグが一致する
+    /// 保持キーは in-place 更新（`sync_attrs`/`replace_item_children`、
+    /// ノード同一性を維持）、タグが実際に異なる保持キーのみ `replace_root`
+    /// （新規構築して差し替え）」という正しい枝分かれを、`old_items` の
+    /// 精度に依存せず実現できる。with-previous 経路（`old_items` が本物の
+    /// 直前内容を持つ）でも、キャッシュのドリフト（何らかの理由で
+    /// キャッシュされた `tag` が実 DOM と食い違う場合）に対する自己修復
+    /// として機能する。
+    fn tag_name(&mut self, child: &Self::Handle) -> String;
 
     /// `child` の属性を `old_attrs`（直前に反映済みの、`reserved_attr` を
     /// 除く属性集合）から `new_attrs`（同じく `reserved_attr` を除く新しい
@@ -631,6 +705,39 @@ fn dom_item_keys<D: KeyedListDom>(dom: &mut D) -> Vec<String> {
     keys
 }
 
+/// [`crate::keyed_dom::apply_keyed_list`]（cache-miss フォールバック）
+/// 専用: ライブ DOM の現在のキー列（[`dom_item_keys`]）を読み出し、各
+/// キーへ「内容比較を必ず不一致にするプレースホルダ」（`Node::Text(String::new())`）
+/// を割り当てた `old_items` を合成する（イシュー #1340 codex-review
+/// P1/Bugbot〔10 巡目〕対応、本モジュール冒頭 doc「cache-miss フォール
+/// バックの達成契約」参照）。
+///
+/// `new_items`（呼び出し元 [`apply_ops_with_items`] へ渡す方）は
+/// `keyed_list()` 契約により必ず `Node::Element` であるため、
+/// `Node::Text` プレースホルダとの [`fandhe_frontend_core::Node`] の
+/// `PartialEq` 比較は enum variant が異なり常に不一致になる（構造的な
+/// 保証。プレースホルダの中身に依存しない）。これにより
+/// [`diff_keyed_items`] の第 3 パスは保持キー（新旧両方に存在するキー）
+/// すべてに対して必ず [`KeyedOp::Update`] を発行する。
+///
+/// 唯一の呼び出し元は [`crate::keyed_dom::apply_keyed_list`]
+/// （`#[cfg(target_arch = "wasm32")]` 配下）のため、host（非 wasm32）
+/// ビルドでは未使用となる。他の wasm32 専用ヘルパーと同じ
+/// `#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]` パターン
+/// （`fandhe-frontend-wasm-full` の `headless_timer.rs` 等に前例あり）で
+/// host 側の dead-code 警告のみを抑止する（wasm32 ビルドではこの属性は
+/// 無効になるため、本当に本番非到達（`apply_ops`/`apply_ops_list`）と
+/// 混同しない）。
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub(crate) fn synthesize_live_placeholder_items<D: KeyedListDom>(
+    dom: &mut D,
+) -> Vec<(String, Node)> {
+    dom_item_keys(dom)
+        .into_iter()
+        .map(|key| (key, Node::Text(String::new())))
+        .collect()
+}
+
 /// `key` に対応する既存の子要素を探す（`data-key` 属性の完全一致、
 /// [`crate::keyed_dom::find_child_by_key`] の等価移植）。
 fn find_child_by_key<D: KeyedListDom>(dom: &mut D, key: &str) -> Option<D::Handle> {
@@ -714,6 +821,24 @@ fn find_child_by_key<D: KeyedListDom>(dom: &mut D, key: &str) -> Option<D::Handl
 /// 呼び出し元（[`crate::keyed_dom::apply_keyed_list`]）はこの戻り値を、
 /// 未達成状態を「達成」としてキャッシュへ再シードしないためのガードに
 /// 使う（同関数 doc 参照）。
+///
+/// # 本番非到達（イシュー #1340 codex-review P1/Bugbot〔10 巡目〕対応）
+///
+/// [`crate::keyed_dom::apply_keyed_list`]（cache-miss フォールバック、本関数
+/// の唯一の本番呼び出し元だった）は本モジュール冒頭 doc「cache-miss
+/// フォールバックの達成契約」の是正により [`apply_ops_with_items`]
+/// （内容比較付き）へ処理を委譲するよう変更され、本関数（キー列のみの
+/// 構造比較、内容比較を一切行わない）は本番コードから呼ばれなくなった。
+/// 本関数・[`apply_ops_list`] が検証する「`diff_keys`（キー列のみの構造
+/// diff）を素朴に逐次適用したときの参照ノード解決・連続 Insert 区間の
+/// バッチ集約・部分失敗時のロールバック挙動」という純粋アルゴリズムの
+/// 性質自体は [`apply_ops_with_items`]（`diff_keyed_items` ベース）とは
+/// 別経路であり非自明に保守する価値があるため関数・テストとも削除せず、
+/// `#[cfg(test)]` を付けて「テスト専用に保持されたアルゴリズム」である
+/// ことを明示する（`allow(dead_code)` ではなく `#[cfg(test)]` を選ぶ理由:
+/// 本番コードパスが存在しないという事実をコンパイル条件として正直に
+/// 表現するため）。
+#[cfg(test)]
 pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) -> bool {
     let old_keys = dom_item_keys(dom);
     let ops = diff_keys(&old_keys, new_keys);
@@ -729,6 +854,10 @@ pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) -> bo
 /// `apply_ops_does_not_hang_when_ops_contain_an_update` 参照）。
 ///
 /// 戻り値の意味は [`apply_ops`] と同じ（全 op が計画どおり適用できたか）。
+///
+/// [`apply_ops`] と同じ理由（本モジュール冒頭 doc・`apply_ops` doc「本番
+/// 非到達」参照）で `#[cfg(test)]` を付ける。
+#[cfg(test)]
 fn apply_ops_list<D: KeyedListDom>(dom: &mut D, ops: Vec<KeyedOp>) -> bool {
     let mut i = 0;
     let mut index_offset: usize = 0;
@@ -1036,9 +1165,20 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                 // のみに限定される）。この経路により、旧タグのまま Achieved
                 // として確定されてしまい以後の同一 view 再適用で差分が出ず
                 // 収束しない不具合（codex-review 指摘）を解消する。
-                let old_tag_matches = old_items.iter().find(|(k, _)| k == &key).is_some_and(
-                    |(_, old_node)| matches!(old_node, Node::Element { tag, .. } if tag == new_tag),
-                );
+                //
+                // 判定基準はライブ DOM への問い合わせ（[`KeyedListDom::tag_name`]）
+                // とする（`old_items` にキャッシュされた `tag` フィールドは
+                // 使わない、イシュー #1340 codex-review P1/Bugbot〔10 巡目〕
+                // 対応）。理由は [`KeyedListDom::tag_name`] doc・本モジュール
+                // 冒頭 doc「cache-miss フォールバックの達成契約」参照:
+                // cache-miss フォールバックは `old_items` に本物の直前内容を
+                // 持たず、内容比較を強制的に不一致にするプレースホルダを
+                // 渡すため、そのプレースホルダの `tag` はタグ一致判定の
+                // 根拠として使えない。ライブ問い合わせであれば
+                // with-previous・cache-miss いずれの経路でも「実際に一致する
+                // 保持キーは in-place 更新（ノード同一性を維持）」という
+                // 正しい枝分かれを実現できる。
+                let old_tag_matches = dom.tag_name(&existing).eq_ignore_ascii_case(new_tag);
                 if !old_tag_matches {
                     let Some(new_dom_node) = dom.create_item(&key) else {
                         // 構築失敗（`RawHtml` 混入等）。旧ルート要素には
@@ -1388,6 +1528,13 @@ mod tests {
         /// `(キー, 属性名)` 集合（同上）。該当エントリは `new_attrs` に
         /// 含まれなくなっても実 DOM 上に残存する扱いにする。
         fail_remove_attribute_for: std::collections::HashSet<(String, String)>,
+        /// `tag_name`（イシュー #1340 codex-review P1/Bugbot〔10 巡目〕
+        /// 対応）が返すキーごとのライブタグ名。未セットのキーは `"li"`
+        /// を返す既定値とする（本ファイルのテストヘルパー `item`/`items_n`
+        /// が構築するアイテムのタグと一致させ、タグ一致判定を変更した
+        /// 既存テスト群を無改修のまま通す狙い。タグ不一致を検証する
+        /// テストは新しいタグ、または本フィールドを明示的に上書きする）。
+        tags: std::collections::HashMap<String, String>,
     }
 
     #[derive(Default, Debug, Clone, Copy)]
@@ -1404,6 +1551,7 @@ mod tests {
         replace_item_children: usize,
         find_by_key: usize,
         replace_root: usize,
+        tag_name: usize,
     }
 
     impl CallCounts {
@@ -1417,7 +1565,9 @@ mod tests {
         /// `find_by_key`（`Update` 適用が呼ぶ）を追加した（既存の `apply_ops`
         /// 系コスト固定テストは `Update` を発行しない `diff_keys` のみを
         /// 使うため、これらは常に 0 のままで既存テストの数値に影響しない。
-        /// `apply_ops_with_items` 系のコスト固定テストが対象）。
+        /// `apply_ops_with_items` 系のコスト固定テストが対象）。イシュー
+        /// #1340 codex-review P1/Bugbot〔10 巡目〕で `tag_name`（`Update`
+        /// 適用が 1 件につき 1 回呼ぶ）を追加した。
         fn total(&self) -> usize {
             self.first_element_child
                 + self.next_element_sibling
@@ -1431,6 +1581,7 @@ mod tests {
                 + self.replace_item_children
                 + self.find_by_key
                 + self.replace_root
+                + self.tag_name
         }
     }
 
@@ -1539,6 +1690,16 @@ mod tests {
                 self.items.remove(pos);
             }
             true
+        }
+
+        /// `self.tags`（未セットなら既定値 `"li"`）を返す（`struct CountingDom`
+        /// doc・`KeyedListDom::tag_name` doc 参照）。
+        fn tag_name(&mut self, child: &Self::Handle) -> String {
+            self.calls.tag_name += 1;
+            self.tags
+                .get(child)
+                .cloned()
+                .unwrap_or_else(|| "li".to_string())
         }
 
         /// 実 DOM の `sync_attrs`（`crate::keyed_dom::WebSysKeyedDom`）を
@@ -1942,6 +2103,9 @@ mod tests {
         }
         fn remove_child(&mut self, child: &Self::Handle) -> bool {
             self.inner.remove_child(child)
+        }
+        fn tag_name(&mut self, child: &Self::Handle) -> String {
+            self.inner.tag_name(child)
         }
         fn sync_attrs(
             &mut self,
@@ -3159,6 +3323,253 @@ mod tests {
         assert_eq!(dom.inner.calls.replace_root, 0);
     }
 
+    // --- cache-miss フォールバックの達成契約（イシュー #1340
+    // codex-review P1/Bugbot〔10 巡目〕対応）: `synthesize_live_placeholder_items`
+    // が合成するプレースホルダ `old_items` を `apply_ops_with_items` へ渡す
+    // 経路（`crate::keyed_dom::apply_keyed_list` の等価再現、
+    // `apply_keyed_list_core` 自体は `web-sys` 依存のため native からは
+    // 直接到達できない。本モジュール冒頭 doc「cache-miss フォールバックの
+    // 達成契約」参照）---
+
+    /// `synthesize_live_placeholder_items` がライブ DOM のキー列（順序含む）
+    /// をそのまま反映し、各エントリの Node が `Node::Text(String::new())`
+    /// プレースホルダになっていること（`Node::Element` である `new_items`
+    /// との `PartialEq` が enum variant の違いにより常に不一致になる、
+    /// 本関数の設計上の前提）を確認する。
+    #[test]
+    fn synthesize_live_placeholder_items_reads_live_keys_with_text_placeholder() {
+        let mut dom = CountingDom {
+            items: vec!["b".to_string(), "a".to_string()],
+            ..Default::default()
+        };
+
+        let placeholders = synthesize_live_placeholder_items(&mut dom);
+
+        assert_eq!(
+            placeholders,
+            vec![
+                ("b".to_string(), Node::Text(String::new())),
+                ("a".to_string(), Node::Text(String::new())),
+            ],
+            "ライブ DOM の並び順そのまま、各キーへ Text プレースホルダを \
+             割り当てるはず"
+        );
+    }
+
+    /// cache-miss フォールバックの中核契約: プレースホルダ `old_items` を
+    /// `apply_ops_with_items` へ渡すと、内容比較なしでも保持キー全件に
+    /// `Update` が強制発行され、実際に DOM 上の属性・子ノード内容が
+    /// `new_items`（望ましい view）へ完全同期される（with-previous 経路と
+    /// 同じ達成契約を cache-miss 経路でも満たすことの直接確認、codex-review
+    /// P1 是正の本体）。ライブタグ（`CountingDom::tags` 未設定 = 既定値
+    /// `"li"`）が `new_items` のタグと一致するため in-place 更新
+    /// （`sync_attrs`/`replace_item_children`）経由になり、`replace_root`
+    /// は 1 度も呼ばれない（ノード同一性を破壊しない）ことも確認する。
+    #[test]
+    fn apply_ops_with_items_with_placeholder_old_items_fully_syncs_to_new_view() {
+        let mut dom = CountingDom {
+            items: vec!["a".to_string(), "b".to_string()],
+            attrs: std::collections::HashMap::from([
+                (
+                    "a".to_string(),
+                    vec![("class".to_string(), "old-a".to_string())],
+                ),
+                (
+                    "b".to_string(),
+                    vec![("class".to_string(), "old-b".to_string())],
+                ),
+            ]),
+            children: std::collections::HashMap::from([
+                ("a".to_string(), vec![text("old-a-text")]),
+                ("b".to_string(), vec![text("old-b-text")]),
+            ]),
+            ..Default::default()
+        };
+        let old_items = synthesize_live_placeholder_items(&mut dom);
+        let new_items = vec![
+            (
+                "a".to_string(),
+                el(
+                    "li",
+                    vec![("data-key", "a"), ("class", "new-a")],
+                    vec![text("new-a-text")],
+                ),
+            ),
+            (
+                "b".to_string(),
+                el(
+                    "li",
+                    vec![("data-key", "b"), ("class", "new-b")],
+                    vec![text("new-b-text")],
+                ),
+            ),
+        ];
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            !outcome.resync_required,
+            "全 op が計画どおり適用できたはずなので再同期は不要のはず"
+        );
+        assert!(
+            outcome.stale_update_keys.is_empty(),
+            "子ノード構築失敗を注入していないため stale キーは無いはず"
+        );
+        assert_eq!(
+            dom.calls.replace_root, 0,
+            "ライブタグが一致するため replace_root は呼ばれないはず（内訳: \
+             {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.calls.sync_attrs, 2,
+            "プレースホルダにより保持キー全件（2 件）へ Update が強制発行 \
+             され、いずれも in-place 更新経路（sync_attrs）を通るはず"
+        );
+        assert_eq!(dom.calls.replace_item_children, 2);
+        assert_eq!(
+            dom.attrs.get("a"),
+            Some(&vec![("class".to_string(), "new-a".to_string())]),
+            "属性がライブ DOM 上で望ましい view の値へ実際に同期されるはず"
+        );
+        assert_eq!(
+            dom.children.get("a"),
+            Some(&vec![text("new-a-text")]),
+            "子ノード内容がライブ DOM 上で望ましい view の値へ実際に同期 \
+             されるはず"
+        );
+        assert_eq!(
+            dom.attrs.get("b"),
+            Some(&vec![("class".to_string(), "new-b".to_string())])
+        );
+        assert_eq!(dom.children.get("b"), Some(&vec![text("new-b-text")]));
+
+        // 「達成 Node」の属性は `sync_attrs` の実測値（読み戻し・正規化済み、
+        // モジュール冒頭 doc「`sync_attrs` の実行時失敗と「達成 Node」の
+        // 整合」参照）を基準とするため、`new_items` へ書いた属性の記述順
+        // （data-key 先頭）とは並びが異なり得る（`sync_attrs` は非予約属性
+        // を new_attrs 順、予約属性 `data-key` を末尾に正規化する）。この
+        // ため厳密な構造体一致ではなくタグ・子ノード内容・属性の集合一致を
+        // 検証する（合成にプレースホルダが紛れ込んでいないことの確認）。
+        let achieved = compose_achieved_children(&old_items, &new_items, &outcome);
+        assert_eq!(achieved.len(), 2);
+        for (achieved_node, (key, new_node)) in achieved.iter().zip(new_items.iter()) {
+            let Node::Element {
+                tag: new_tag,
+                attrs: new_attrs,
+                children: new_children,
+            } = new_node
+            else {
+                panic!("要素ノードのはず");
+            };
+            let Node::Element {
+                tag: achieved_tag,
+                attrs: achieved_attrs,
+                children: achieved_children,
+            } = achieved_node
+            else {
+                panic!("要素ノードのはず（key={key}）");
+            };
+            assert_eq!(achieved_tag, new_tag, "key={key}");
+            assert_eq!(achieved_children, new_children, "key={key}");
+            assert_eq!(
+                achieved_attrs.len(),
+                new_attrs.len(),
+                "属性の個数は一致するはず（key={key}）: {achieved_attrs:?}"
+            );
+            for pair in new_attrs {
+                assert!(
+                    achieved_attrs.contains(pair),
+                    "望ましい view の属性 {pair:?} が達成 Node に \
+                     含まれているはず（key={key}）: {achieved_attrs:?}"
+                );
+            }
+        }
+    }
+
+    /// Bugbot Medium 是正（イシュー #1340〔10 巡目〕）: 親要素自身の
+    /// タグ置換判定と同じ理屈が子アイテムの `Update` にも適用される
+    /// ことの直接確認。`CountingDom::tags` でライブタグを `new_items` の
+    /// タグと異なる値へ明示的に上書きすると、プレースホルダ経由でも
+    /// （プレースホルダ自体は `Node::Text` でタグを持たないにもかかわらず）
+    /// `replace_root`（アイテム全置換）が選ばれ、`sync_attrs`/
+    /// `replace_item_children`（タグを書き換えられない in-place 経路）は
+    /// 一切呼ばれない。
+    #[test]
+    fn apply_ops_with_items_with_placeholder_old_items_uses_live_tag_for_replace_decision() {
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            tags: std::collections::HashMap::from([("a".to_string(), "span".to_string())]),
+            ..Default::default()
+        };
+        let old_items = synthesize_live_placeholder_items(&mut dom);
+        let new_items = vec![item("a", "new")];
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        assert_eq!(
+            dom.calls.replace_root, 1,
+            "ライブタグ（span）が new_items のタグ（li）と異なるため \
+             replace_root（アイテム全置換）が選ばれるはず（内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.calls.sync_attrs, 0,
+            "タグ不一致時は in-place 更新経路を通らないはず（内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(dom.calls.replace_item_children, 0);
+        assert_eq!(dom.calls.create_item, 1);
+    }
+
+    /// ノード同一性の回帰ガード（イシュー #1340〔10 巡目〕）: 純粋な並び替え
+    /// （内容・タグとも変化なし）でも、プレースホルダ設計により `Update`
+    /// は強制発行されるが、ライブタグが一致する限り `replace_root` は
+    /// 一度も呼ばれない（＝要素ノード自体は破棄・再生成されず、`move_before`
+    /// のみで並びが変わる）ことを確認する。フォーカス・入力途中の値の保持
+    /// という既存の設計不変条件が cache-miss フォールバックでも壊れて
+    /// いないことの直接確認。
+    #[test]
+    fn apply_ops_with_items_with_placeholder_old_items_preserves_identity_on_pure_reorder() {
+        let mut dom = CountingDom {
+            items: vec!["a".to_string(), "b".to_string()],
+            attrs: std::collections::HashMap::from([
+                (
+                    "a".to_string(),
+                    vec![("data-key".to_string(), "a".to_string())],
+                ),
+                (
+                    "b".to_string(),
+                    vec![("data-key".to_string(), "b".to_string())],
+                ),
+            ]),
+            children: std::collections::HashMap::from([
+                ("a".to_string(), vec![text("same")]),
+                ("b".to_string(), vec![text("same")]),
+            ]),
+            ..Default::default()
+        };
+        let old_items = synthesize_live_placeholder_items(&mut dom);
+        // 内容は現状のライブ DOM と同一のまま、並び順だけ入れ替える。
+        let new_items = vec![item("b", "same"), item("a", "same")];
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        assert_eq!(
+            dom.calls.replace_root, 0,
+            "純粋な並び替えではライブタグが一致し続けるため replace_root \
+             （ノード破棄・再生成）は一度も呼ばれないはず（内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.items,
+            vec!["b".to_string(), "a".to_string()],
+            "move_before により並びが新しい view と一致するはず"
+        );
+    }
+
     // --- exchange_children（イシュー #1340 codex-review P1〔2 巡目〕、
     // 子ノード交換のコミットフェーズ部分失敗ロールバック）---
 
@@ -3589,14 +4000,17 @@ mod tests {
     }
 
     /// 1,000 行すべての内容が変わり構造変化が一切無い（キー集合・並びは
-    /// 完全に同一）最悪ケース: 実測 3,001 回（`first_element_child`
-    /// 1 回〔`find_by_key` 初回呼び出しでのキャッシュ構築、以降は実 DOM
-    /// 非依存の `Vec` 線形走査〕+ `find_by_key`/`sync_attrs`/
-    /// `replace_item_children` 各 1,000 回）に対して +約 17% のタイトな
-    /// 上限（3,500 回）で固定する。`find_by_key` が sibling 走査
-    /// （`first_element_child`/`next_element_sibling`/`item_key`）へ退行
-    /// した場合、この呼び出し回数は N² 相当（実測 500,000 回超）へ跳ね上がる
-    /// ため、上限超過はこの O(n²) 退行の再発検知として機能する。
+    /// 完全に同一）最悪ケース: 実測 4,000 回（`find_by_key`/`sync_attrs`/
+    /// `replace_item_children`/`tag_name` 各 1,000 回。`tag_name` はイシュー
+    /// #1340 codex-review P1/Bugbot〔10 巡目〕対応で `Update` 1 件につき
+    /// 1 回、親タグ置換要否のライブ判定用に追加した呼び出し。`find_by_key`
+    /// 初回呼び出しの `first_element_child` によるキャッシュ構築コストは
+    /// 本ケースでは計上されない〔以降は実 DOM 非依存の `Vec` 線形走査〕）に
+    /// 対して +約 12.5% のタイトな上限（4,500 回）で固定する。`find_by_key`
+    /// が sibling 走査（`first_element_child`/`next_element_sibling`/
+    /// `item_key`）へ退行した場合、この呼び出し回数は N² 相当（実測
+    /// 500,000 回超）へ跳ね上がるため、上限超過はこの O(n²) 退行の再発検知
+    /// として機能する。
     #[test]
     fn apply_ops_with_items_update_all_1000_rows_with_no_structural_change_stays_linear() {
         const N: usize = 1_000;
@@ -3613,8 +4027,8 @@ mod tests {
         assert!(outcome.stale_update_keys.is_empty());
         let total = dom.calls.total();
         assert!(
-            total <= 3_500,
-            "1,000 行全件 Update（構造変化なし）の DOM 操作総数は 3,500 回 \
+            total <= 4_500,
+            "1,000 行全件 Update（構造変化なし）の DOM 操作総数は 4,500 回 \
              以内のはず（実測: {total}、内訳: {:?}）。`find_by_key` の \
              O(1) 相当解決（イシュー #1324）からの退行（sibling 走査への \
              フォールバック等）を検知する上限",

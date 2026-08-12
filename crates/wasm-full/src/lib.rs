@@ -479,18 +479,46 @@ where
                                         // 実 DOM の現在状態から再度
                                         // `apply_keyed_list` で構造フォール
                                         // バックする自己修復ループになる）。
-                                        let achieved =
-                                            fandhe_frontend_wasm_client::apply_keyed_list(
-                                                &document,
-                                                &list_element,
-                                                list_node,
-                                            );
-                                        if achieved {
-                                            keyed_list_cache
-                                                .borrow_mut()
-                                                .insert((*field).to_string(), list_node.clone());
-                                        } else {
-                                            keyed_list_cache.borrow_mut().remove(*field);
+                                        //
+                                        // codex-review P1/Bugbot 指摘
+                                        // （イシュー #1340〔10 巡目〕）:
+                                        // `apply_keyed_list` は cache-miss
+                                        // フォールバックでも `Update`
+                                        // （内容比較付き同期）を強制発行する
+                                        // よう是正され、戻り値も `bool` から
+                                        // `Some` 分岐と同じ
+                                        // `KeyedListApplyResult` へ統一
+                                        // された（`fandhe_frontend_wasm_client`
+                                        // 側の設計、`apply_keyed_list` doc
+                                        // 「cache-miss フォールバックの達成
+                                        // 契約」参照）。旧実装は「構造変化が
+                                        // 計画どおり適用できたか」の `bool`
+                                        // のみを見て望ましい view
+                                        // （`list_node.clone()`）をそのまま
+                                        // キャッシュへ確定させていたため、
+                                        // 既存アイテムの内容・親要素の
+                                        // タグ/属性が実際には一切同期されて
+                                        // いないにもかかわらず「達成済み」
+                                        // としてキャッシュされてしまい、
+                                        // 以後差分が出ず未反映のまま恒久的に
+                                        // 収束しなかった。`Some` 分岐と同じ
+                                        // 「実際に DOM へ反映できた内容
+                                        // （`achieved`）のみをキャッシュへ
+                                        // 確定させる」契約へ統一する。
+                                        let result = fandhe_frontend_wasm_client::apply_keyed_list(
+                                            &document,
+                                            &list_element,
+                                            list_node,
+                                        );
+                                        match result {
+                                            fandhe_frontend_wasm_client::KeyedListApplyResult::Achieved(achieved) => {
+                                                keyed_list_cache
+                                                    .borrow_mut()
+                                                    .insert((*field).to_string(), achieved);
+                                            }
+                                            fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired => {
+                                                keyed_list_cache.borrow_mut().remove(*field);
+                                            }
                                         }
                                     }
                                 }
@@ -636,10 +664,28 @@ where
         // フォールバック（`apply_keyed_list`）へ落ち、キー不変の内容変更が
         // 反映されない（PR #1324 実装時に実ブラウザテストで検出した回帰。
         // `Runtime::keyed_list_cache` doc 参照）。
+        //
+        // イシュー #1340 codex-review 全面棚卸し対応: 種付けする Node は
+        // `component.view()` の生出力ではなく
+        // `fandhe_frontend_wasm_client::sanitize_keyed_list_node_for_achieved`
+        // を通した値にする。`dom::mount_initial` が使う
+        // `fandhe_frontend_core::render` は危険 URL スキーム・イベント
+        // ハンドラ属性・不正 `srcset` を実 DOM へ一切書き込まない
+        // （`render` doc 参照）ため、`view()` の生出力をそのまま種付けする
+        // と「実際には書き込まれなかった属性」がキャッシュ上は存在する
+        // 扱いになり、マウント時点から既にキャッシュが実 DOM と乖離した
+        // 状態で始まってしまう（`keyed_list_cache` doc・
+        // `sanitize_keyed_list_node_for_achieved` doc 参照）。
         let initial_view = component.view();
         let keyed_list_cache = std::rc::Rc::new(std::cell::RefCell::new(
             fandhe_frontend_wasm_client::collect_keyed_list_nodes(&initial_view)
                 .into_iter()
+                .map(|(field, node)| {
+                    (
+                        field,
+                        fandhe_frontend_wasm_client::sanitize_keyed_list_node_for_achieved(&node),
+                    )
+                })
                 .collect::<std::collections::HashMap<_, _>>(),
         ));
 
@@ -716,10 +762,24 @@ where
         // `component.view()` が実際に DOM へ反映されている内容と一致する
         // （復元成功時は SSR 出力と `view()` が一致する前提が
         // `Hydrate` 契約そのもの）。
+        //
+        // イシュー #1340 codex-review 全面棚卸し対応: `Self::mount` と同じ
+        // 理由（`sanitize_keyed_list_node_for_achieved` doc 参照）で
+        // `view()` の生出力ではなく正規化済みの値を種付けする。SSR 出力
+        // 維持経路も CSR フォールバック経路（`dom::mount_initial`）も
+        // いずれも `fandhe_frontend_core::render` を経由するため、
+        // 検証拒否対象の属性は実 DOM に一切書き込まれていない
+        // （`render` doc 参照）。
         let initial_view = component.view();
         let keyed_list_cache = std::rc::Rc::new(std::cell::RefCell::new(
             fandhe_frontend_wasm_client::collect_keyed_list_nodes(&initial_view)
                 .into_iter()
+                .map(|(field, node)| {
+                    (
+                        field,
+                        fandhe_frontend_wasm_client::sanitize_keyed_list_node_for_achieved(&node),
+                    )
+                })
                 .collect::<std::collections::HashMap<_, _>>(),
         ));
 
