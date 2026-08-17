@@ -43,6 +43,12 @@
 | `update-external.yml` | 2 ジョブ | node/npm（`actions/setup-node`）・submodule 更新 |
 | `fw-new-windows-verify.yml` | 1 ジョブ（`[self-hosted, Windows]`） | Windows 固有。本文書の Phase 3（`windows-latest`）は概要のみ扱う（§4.3） |
 
+**その後（2026-08-17、`update-external.yml` の wrapper 化）**: `update-external.yml` は
+上流 `Fandhe-AI/actions` の reusable workflow を SHA 固定で呼ぶ wrapper へ
+移行し、ローカルのジョブ構成は `update-external` の 1 ジョブになった。上表の
+該当行（`update-external.yml` | 2 ジョブ）は 2026-08-07 時点の歴史的記録として
+保持する。
+
 ### 2.1 self-hosted 固有前提の分類
 
 self-hosted 前提で書かれている既存の防御機構を、ホステッド移行時に
