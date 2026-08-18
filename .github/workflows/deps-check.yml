@@ -93,7 +93,7 @@ jobs:
         # #1273 で dtolnay/rust-toolchain から置換）を使う。ツールチェーンは
         # リポジトリ直下の rust-toolchain.toml（channel = "stable"）を単一
         # 真実源として rustup show で同期するため、toolchain input は持たない。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Run xtask check-deps
         # xtask check-deps の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
