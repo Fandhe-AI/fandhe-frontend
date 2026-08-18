@@ -141,3 +141,10 @@ Codex code review は既定で P0/P1 のみを表示・報告対象とするた�
   不要とする
 - 本書のレビュー基準を弱める変更（P0/P1 項目の削除・降格）は、それ自体を P1 として
   指摘し、一次情報源（`.claude/rules/` 等）側の変更と整合しているかを確認する
+
+## Fandhe-AI/actions の参照方式（@latest）
+
+2026-08-18・オーナー判断。`Fandhe-AI/actions`（組織内の上流リポジトリ）への `uses:` 参照は
+可変タグ `@latest` を使う。本書の「SHA 固定」に関する観点は**第三者 action にのみ**適用し、
+`Fandhe-AI/actions` への `@latest` 参照・SHA pin の除去を指摘しない。`latest` は上流の
+`.github/workflows/move-latest-tag.yml` が main への push ごとに付け替える。

@@ -23,7 +23,7 @@ jobs:
     # SHA はコミットハッシュで固定する（@main 不可、サプライチェーン対策）。
     # 固定 SHA 時点の reusable workflow 本体は導入時にレビュー済み（fork PR 拒否・
     # sudo 不在の fail-closed 検証・base コミット参照・資格情報スキャン・2 ジョブ分離）
-    uses: Fandhe-AI/actions/.github/workflows/codex-review.yml@7cb2c6029ef9b00faab9718738a763f48cd66289 # main
+    uses: Fandhe-AI/actions/.github/workflows/codex-review.yml@latest
     permissions:
       contents: read
       pull-requests: write
