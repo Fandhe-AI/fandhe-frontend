@@ -157,7 +157,7 @@ jobs:
         # バージョン決定性とサプライチェーンリスク抑制を維持する。ツール
         # チェーンはリポジトリ直下の rust-toolchain.toml（channel = "stable"）
         # を単一真実源として rustup show で同期する。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
 
       - name: "guard: 入力バージョン形式の検証"
         # semver（プレリリース・ビルドメタデータ許容）に一致しない入力は
@@ -315,7 +315,7 @@ jobs:
         # verify ジョブと同じ理由（イシュー #1233、使い捨て VM での毎ジョブ
         # 導入）で Fandhe-AI/actions/rust-toolchain-setup（同一フルコミット
         # SHA 固定。イシュー #1273 で dtolnay/rust-toolchain から置換）を使う。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
 
       - name: "guard: CARGO_REGISTRY_TOKEN の存在確認"
         # トークン値は一切出力しない（存在有無のみ判定）。

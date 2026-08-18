@@ -87,7 +87,7 @@ jobs:
         # ジョブごとに初期化されたクリーン VM のため、毎回導入する。
         # Fandhe-AI/actions/rust-toolchain-setup（イシュー #1273 で
         # dtolnay/rust-toolchain から置換）。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
+        uses: Fandhe-AI/actions/rust-toolchain-setup@latest
 
       - name: Build docker image
         # push・レジストリログインは行わない。ジョブローカルのタグのみを使い、
