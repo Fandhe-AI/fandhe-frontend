@@ -78,7 +78,7 @@ jobs:
         # docs/ci/hosted-runner-migration.md §4.2）。ツールチェーンはリポジトリ
         # 直下の rust-toolchain.toml（channel = "stable"）を単一真実源として
         # rustup show で同期する。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Compute toolchain cache key
         # dtolnay/rust-toolchain の outputs.cachekey の代替（イシュー #1273。
@@ -222,8 +222,9 @@ jobs:
     permissions:
       pages: write
       id-token: write
-    # Fandhe-AI/actions はタグ未作成のため最新コミット SHA に固定する
-    # （rust-toolchain-setup・wasm-tool-install・codex-review と同一 SHA）。
+    # Fandhe-AI/actions のコミット SHA に固定する（wasm-tool-install と同一 SHA）。
+    # rust-toolchain-setup は v1.1.0（749afc9）へ、codex-review は 4c93891 へ
+    # 個別に追随済みのため、action ごとに SHA が異なる点に注意。
     uses: Fandhe-AI/actions/.github/workflows/pages-deploy.yml@fed9c07d98367f77e5e2b63bca38843f46feee96 # main
     with:
       dist-dir: "."

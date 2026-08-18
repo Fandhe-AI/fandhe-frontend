@@ -84,7 +84,7 @@ jobs:
         # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
         # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する
         # （test ジョブと同型、イシュー #1228）。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Show toolchain
         run: rustup show && cargo --version
@@ -180,7 +180,7 @@ jobs:
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
         # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: "guard: 共有 CARGO_TARGET_DIR の無ハッシュ cdylib rlib を除去（イシュー #1192）"
         # forbid-unsafe ジョブの同名ステップと同一（cdylib+rlib クレートの
@@ -417,7 +417,7 @@ jobs:
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
         # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Isolated run acceptance test (REQ-9)
         # TASK-9.2（#98/#99）: REQ-9（単一バイナリ配布）の受け入れ基準
@@ -470,7 +470,7 @@ jobs:
         # deps-check.yml と同一の理由・同一 SHA 固定。ubuntu-latest（ホステッド
         # ランナー）は stable toolchain を同梱するが、他ジョブとの一貫性・
         # バージョン明示のため引き続き明示セットアップする。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       # 前提（ホステッドランナー移行、ユーザー指示 2026-08-07。歴史的経緯:
       # PR #291 以前は本ジョブも ubuntu-latest + ランナー内蔵 chromedriver
@@ -777,7 +777,7 @@ jobs:
         # deps-check.yml と同一の理由・同一 SHA 固定。ubuntu-latest（ホステッド
         # ランナー）は stable toolchain を同梱するが、他ジョブとの一貫性・
         # バージョン明示のため引き続き明示セットアップする。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       # 前提（ホステッドランナー移行、ユーザー指示 2026-08-07。browser-test
       # ジョブと同一の理由・同一パターン。歴史的経緯・判断根拠は browser-test
@@ -920,7 +920,7 @@ jobs:
         # deps-check.yml と同一の理由・同一 SHA 固定。ubuntu-latest（ホステッド
         # ランナー）は stable toolchain を同梱するが、他ジョブとの一貫性・
         # バージョン明示のため引き続き明示セットアップする。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
@@ -1015,7 +1015,7 @@ jobs:
 
       - name: Setup Rust toolchain
         # deps-check.yml / test ジョブと同一の理由・同一 SHA 固定。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
@@ -1088,7 +1088,7 @@ jobs:
       - name: Setup Rust toolchain
         # ホステッドランナーはジョブごとに初期化されたクリーン VM のため、
         # Checkout 直後に毎回 toolchain を導入する。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
@@ -1380,7 +1380,7 @@ jobs:
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
         # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
@@ -1462,7 +1462,7 @@ jobs:
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
         # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
@@ -1523,7 +1523,7 @@ jobs:
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
         # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Run xtask check-loc
         # xtask check-loc の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
@@ -1572,7 +1572,7 @@ jobs:
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定: ホステッドランナーはジョブごとに
         # 初期化されたクリーン VM のため、Checkout 直後に毎回 toolchain を導入する。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: templates/default 単体テスト（正例 + 負例 E0277/E0308）
         # --offline で子プロセス cargo check を実行するテスト（依存ゼロの
@@ -1610,7 +1610,7 @@ jobs:
       - name: Setup Rust toolchain
         # 既存ジョブと同一 SHA ピン。フォーマットチェックのみのため
         # components に rustfmt を追加する（clippy component は不要）。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
         with:
           components: rustfmt
 
@@ -1671,7 +1671,7 @@ jobs:
         # clippy component を必須とするため components: clippy を明示する
         # （既に導入済みのツールチェーンでは何もしない。未導入時の新規セット
         # アップでも clippy が確実に含まれるようにする安全策）。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
         with:
           components: clippy
 
@@ -1789,7 +1789,7 @@ jobs:
 
       - name: Setup Rust toolchain
         # clippy ジョブと同一 SHA 固定。components: clippy を明示する。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
         with:
           components: clippy
 
@@ -1904,7 +1904,7 @@ jobs:
 
       - name: Setup Rust toolchain
         # 他ジョブと同一 SHA 固定（イシュー #1273）。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Add x86_64-pc-windows-msvc target
         # rustup 経由・冪等（他ジョブの target 追加と同一パターン）。
@@ -1960,7 +1960,7 @@ jobs:
       - name: Setup Rust toolchain
         # 他ジョブと同一 SHA 固定。gate の lint チェックが clippy を要求する
         # ため components: clippy を明示する。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
         with:
           components: clippy
 
@@ -2059,7 +2059,7 @@ jobs:
 
       - name: Setup Rust toolchain
         # 他ジョブと同一 SHA 固定。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: "prepare: write PR body to file"
         # PR 本文はユーザー制御の信頼しない入力であり、シェルへ直接展開せず
@@ -2148,7 +2148,7 @@ jobs:
 
       - name: Setup Rust toolchain
         # 他ジョブと同一 SHA 固定。
-        uses: Fandhe-AI/actions/rust-toolchain-setup@fed9c07d98367f77e5e2b63bca38843f46feee96
+        uses: Fandhe-AI/actions/rust-toolchain-setup@749afc98a179a545bc1bdaab68cd07b6f6659970 # v1.1.0
 
       - name: Run xtask check-dep-versions
         # xtask check-dep-versions の終了コードをそのまま CI の成否に伝播
