@@ -23,7 +23,7 @@ jobs:
     # SHA はコミットハッシュで固定する（@main 不可、サプライチェーン対策）。
     # 固定 SHA 時点の reusable workflow 本体は導入時にレビュー済み（fork PR 拒否・
     # sudo 不在の fail-closed 検証・base コミット参照・資格情報スキャン・2 ジョブ分離）
-    uses: Fandhe-AI/actions/.github/workflows/codex-review.yml@4c93891e1a6d7f86dee8fd4336b2fb9446fdab57 # main
+    uses: Fandhe-AI/actions/.github/workflows/codex-review.yml@7cb2c6029ef9b00faab9718738a763f48cd66289 # main
     permissions:
       contents: read
       pull-requests: write
@@ -36,6 +36,10 @@ jobs:
     # `crates/xtask/tests/workflow_runner_policy.rs` の機械強制と両立する。この例外の
     # 規約側への反映（.claude/rules/ci.md への追記）はイシュー #1276 で行う。ここでは指定しない。
     with:
+      # update-external.yml が生成する日次同期 PR は上流の取り込みそのもので、
+      # codex の指摘があってもこの PR では直せない（修正先は取り込み元の上流リポジトリ）。
+      # 判定は上流の sync-gate ジョブが変更ファイル集合を実測して行う。
+      skip-sync-pr-review: true
       # post-feedback-runner-label の既定値は self-hosted であり、public リポジトリの
       # ホステッドランナー既定方針に反する。コメント投稿ジョブは資格情報に触れないため
       # 必ず ubuntu-latest（GitHub ホステッド）を明示する。
