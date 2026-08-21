@@ -298,7 +298,7 @@ PR #1337 本文に具体的な数値記載がなく（「実装内容の要約�
 ## 11. 追補: 2026-08-21 再計測
 
 本レポート初版（§1〜§10、2026-08-12 計測）の作成後に、常設 xtask ベンチ
-3 種を §2.2 と同一手順で再実行した記録である。区分ラベルは本文と同じ
+3 種を §2.2 記載の常設コマンドにより再実行した記録である。区分ラベルは本文と同じ
 [再計測]（実行して得た 1 行サマリ／JSON を本文へ転記）を用いる。既存
 セクションの数値・記述は変更しない。
 
@@ -310,73 +310,101 @@ PR #1337 本文に具体的な数値記載がなく（「実装内容の要約�
 | CPU | 12 vCPU（仮想化 CPU） |
 | rustc | 1.96.0 |
 | 実行コマンド | `cargo run -p xtask --release -- bench-ssr` / `bench-state-update` / `bench-binding-update` |
-| 実行方式 | `--release` プロファイルでの単発実行（1 コマンド = 1 JSON/サマリ行） |
+| 実行方式 | `--release` プロファイルで各コマンドを 5 回反復実行し、代表 1 回分の出力とラン間範囲（min〜max）を転記 |
 | 計測日 | 2026-08-21 |
 
-§2.1（初版計測時）との差はカーネル（7.0.0-28 → 7.0.0-29）のみで、
-rustc・CPU 数・実行方式は同一。対象クレートのバージョン（core 0.3.0 /
+§2.1（初版計測時）との環境差はカーネル（7.0.0-28 → 7.0.0-29）のみで、
+rustc・CPU 数は同一。対象クレートのバージョン（core 0.3.0 /
 interactive 0.2.3 / wasm-client 0.4.0）も初版時点から変化していない。
 
-### 11.2 [再計測] `xtask bench-ssr`（fandhe-frontend-core 0.3.0）
+実行方式は初版（§2.1）の単発実行と異なり 5 回反復とした。単発 2 時点の
+代表値比較ではラン間分散を推定できず性能回帰の有無を判定できないため、
+本追補では 5 回反復のラン間範囲（min〜max）を分散の目安として併記し、
+結論は「今回の計測範囲で顕著な悪化を観測したか」に限定する（初版・
+本追補とも事前定義した回帰閾値を持たない探索的計測であり、回帰不在の
+証明にはならない。閾値ベースの回帰検知は `bench-ssr --baseline` /
+`bench-state-update --baseline` の常設機構が別途担う）。
+
+### 11.2 [再計測] `xtask bench-ssr`（fandhe-frontend-core 0.3.0、5 回反復）
+
+代表 1 回分（5 回中 1 回目）の JSON:
 
 ```
 {"framework":"fandhe-frontend","version":"0.3.0","mode":"ssr","workload_schema_version":1,
- "rows1k":{"iters":100,"mean_ms":0.1067,"p50_ms":0.1022,"p95_ms":0.1326,"min_ms":0.0968},
- "rows10k":{"iters":10,"mean_ms":1.2488,"p50_ms":1.3340,"p95_ms":1.4153,"min_ms":1.0240},
+ "rows1k":{"iters":100,"mean_ms":0.1083,"p50_ms":0.1040,"p95_ms":0.1339,"min_ms":0.0973},
+ "rows10k":{"iters":10,"mean_ms":1.2456,"p50_ms":1.3595,"p95_ms":1.3862,"min_ms":1.0032},
  "html_bytes_1k":118931,"escape_ok":true,"row_count_ok":true,"notes":"profile=release"}
 ```
 
-| 指標 | 2026-08-12（§3.1） | 2026-08-21（本追補） |
-|------|---------------------|----------------------|
-| rows1k mean | 0.1102 ms | 0.1067 ms |
-| rows1k p95 | 0.1406 ms | 0.1326 ms |
-| rows10k mean | 1.2323 ms | 1.2488 ms |
-| rows10k p95 | 1.4365 ms | 1.4153 ms |
-| escape_ok / row_count_ok | true / true（PASS） | true / true（PASS） |
+| 指標 | 2026-08-12（§3.1、単発） | 2026-08-21（5 回、min〜max） |
+|------|---------------------------|------------------------------|
+| rows1k mean | 0.1102 ms | 0.1065〜0.1085 ms |
+| rows1k p95 | 0.1406 ms | 0.1299〜0.1352 ms |
+| rows10k mean | 1.2323 ms | 1.2377〜1.2734 ms |
+| rows10k p95 | 1.4365 ms | 1.3862〜1.4688 ms |
+| escape_ok / row_count_ok | true / true（PASS） | 5 回すべて true / true（PASS） |
 
-初版値との差はいずれも数 % 以内で、同一バージョン・同一ハーネスの
-ラン間ノイズの範囲内である（性能回帰なし）。
+rows1k は 5 回とも初版値を下回った。rows10k は初版値（1.2323 ms）が
+今回のラン間範囲の下端（1.2377 ms）をわずかに下回る（差 -0.4%）が、
+ラン間幅（範囲幅約 2.9%）より小さい変動である。以上より、**今回の
+5 回計測の範囲では SSR 性能の顕著な悪化は観測されなかった**（§11.1 の
+限定のとおり、これは回帰不在の証明ではない）。
 
-### 11.3 [再計測] `xtask bench-state-update`（fandhe-frontend-interactive 0.2.3）
+### 11.3 [再計測] `xtask bench-state-update`（fandhe-frontend-interactive 0.2.3、5 回反復）
+
+代表 1 回分（5 回中 1 回目）の JSON（転記は mean のみに簡約。p50/p95/min
+は実行時 JSON に含まれる）:
 
 ```
 {"framework":"fandhe-frontend","version":"0.2.3","mode":"state-update","workload_schema_version":1,"bindings":1000,
- "grid1k":{"update":{"iters":200,"mean_us":0.0262},"binding_apply":{"iters":200,"mean_us":0.0461},
-  "render":{"iters":200,"mean_us":96.6936},"noop_update":{"iters":200,"mean_us":0.0198}},
- "appstate1k":{"update":{"iters":200,"mean_us":0.0445},"binding_apply":{"iters":200,"mean_us":0.0428},
-  "render":{"iters":200,"mean_us":333.9123},"noop_update":{"iters":200,"mean_us":0.0324}},
+ "grid1k":{"update":{"iters":200,"mean_us":0.0260},"binding_apply":{"iters":200,"mean_us":0.0471},
+  "render":{"iters":200,"mean_us":93.7602},"noop_update":{"iters":200,"mean_us":0.0198}},
+ "appstate1k":{"update":{"iters":200,"mean_us":0.0369},"binding_apply":{"iters":200,"mean_us":0.0436},
+  "render":{"iters":200,"mean_us":333.7365},"noop_update":{"iters":200,"mean_us":0.0305}},
  "escape_ok":true,"noop_ok":true,"notes":"profile=release"}
 ```
 
-（転記は mean のみに簡約。p50/p95/min は実行時 JSON に含まれる）
+| シナリオ・指標（mean） | 2026-08-12（§6.1、単発） | 2026-08-21（5 回、min〜max） |
+|------------------------|---------------------------|------------------------------|
+| grid1k update | 0.0261 µs | 0.0260〜0.0261 µs |
+| grid1k binding_apply | 0.0476 µs | 0.0461〜0.0474 µs |
+| grid1k render | 94.3742 µs | 93.1265〜94.7754 µs |
+| grid1k noop_update | 0.0198 µs | 0.0197〜0.0199 µs |
+| appstate1k update | 0.0377 µs | 0.0339〜0.0369 µs |
+| appstate1k binding_apply | 0.0395 µs | 0.0388〜0.0436 µs |
+| appstate1k noop_update | 0.0315 µs | 0.0267〜0.0322 µs |
+| appstate1k render | 335.7259 µs | 325.8694〜336.2030 µs |
 
-| シナリオ | update mean | binding_apply mean | render mean | noop_update mean |
-|----------|-------------|---------------------|-------------|-------------------|
-| grid1k（1,000 bindings） | 0.0262 µs | 0.0461 µs | 96.6936 µs | 0.0198 µs |
-| appstate1k（1,000 bindings） | 0.0445 µs | 0.0428 µs | 333.9123 µs | 0.0324 µs |
+escape_ok / noop_ok は 5 回すべて true（PASS）。初版値は render 系
+（grid1k・appstate1k とも）で今回のラン間範囲内にあり、update /
+binding_apply / noop_update はサブマイクロ秒域でラン間範囲内または
+範囲幅と同程度の差にとどまる。以上より、**今回の 5 回計測の範囲では
+状態変更負荷の顕著な悪化は観測されなかった**（§11.1 の限定のとおり）。
 
-escape_ok / noop_ok は共に true（PASS）。§6.1（2026-08-12）との差は
-render で ±2.5% 以内、update/binding_apply/noop はサブマイクロ秒域の
-ノイズ範囲内であり、性能回帰は観測されない。
+### 11.4 [再計測] `xtask bench-binding-update`（2026-08-21、5 回反復）
 
-### 11.4 [再計測] `xtask bench-binding-update`（2026-08-21）
+代表 1 回分（5 回中 1 回目）の出力:
 
 ```
-bench-binding-update: scenario=appstate-increment full_ns=2114.96 dirty_ns=29.10 ratio=72.67
-bench-binding-update: scenario=disclosure-toggle full_ns=66.11 dirty_ns=0.64 ratio=103.92
-bench-binding-update: scenario=single-select-select full_ns=77.64 dirty_ns=11.35 ratio=6.84
+bench-binding-update: scenario=appstate-increment full_ns=2078.13 dirty_ns=29.08 ratio=71.47
+bench-binding-update: scenario=disclosure-toggle full_ns=65.70 dirty_ns=0.64 ratio=103.18
+bench-binding-update: scenario=single-select-select full_ns=75.54 dirty_ns=10.59 ratio=7.13
 ```
 
-| シナリオ | ratio（2026-08-12、§6.2） | ratio（2026-08-21） |
-|----------|---------------------------|----------------------|
-| appstate-increment | 71.96 | 72.67 |
-| disclosure-toggle | 58.89 | 103.92 |
-| single-select-select | 6.67 | 6.84 |
+| シナリオ | ratio（2026-08-12、§6.2、単発） | ratio（5 回、min〜max） | full_ns（5 回、min〜max） |
+|----------|----------------------------------|--------------------------|----------------------------|
+| appstate-increment | 71.96 | 71.47〜73.66 | 2078.13〜2124.61 |
+| disclosure-toggle | 58.89 | 101.51〜104.60 | 65.70〜67.86 |
+| single-select-select | 6.67 | 6.75〜7.67 | 75.38〜80.00 |
 
-disclosure-toggle の ratio 変動（58.89 → 103.92）は分母 dirty_ns が
-1 ns 未満（1.14 ns → 0.64 ns）の極小値であることによる比の増幅であり、
-full_ns 自体は 67.02 ns → 66.11 ns とほぼ安定している（実性能の変化では
-ない）。
+appstate-increment・single-select-select の ratio は初版値がラン間範囲内
+または範囲近傍にあり、full_ns にも顕著な悪化は見られない。
+disclosure-toggle の ratio の見かけの変動（58.89 → 101.51〜104.60）は、
+分母 dirty_ns が 1 ns 未満（初版 1.14 ns → 今回 0.64〜0.67 ns）の極小値
+であることによる比の増幅であり、full_ns 自体は初版 67.02 ns に対し今回
+65.70〜67.86 ns と同水準にある。dirty_ns のこの水準差が計測分解能・環境
+要因のいずれによるものかは本計測では判別できない（対象実装は初版から
+変更されていない）。
 
 ### 11.5 本追補でも解消していない制約
 
