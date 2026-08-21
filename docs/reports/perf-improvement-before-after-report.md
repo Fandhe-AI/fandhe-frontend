@@ -418,3 +418,93 @@ disclosure-toggle の ratio の見かけの変動（58.89 → 101.51〜104.60）
   リポジトリ内に記録がなく、issue #1313 本文の記録値（§3.2・§4.1）から
   逆引きできる範囲にとどまる。横断再計測を行う場合はハーネスの再構築
   （比較対象リストの復元・記録を含む）から必要となる。
+
+## 12. 追補 2: 2026-08-21 macOS（Apple Silicon）環境での参考再計測
+
+§11 と同日（2026-08-21）に、初版・§11 とは異なるハードウェア（macOS / Apple Silicon 実機）で常設 xtask ベンチ 3 種を単発実行した参考記録である。初版（§2.1）・§11.1 とは OS・CPU が異なるため、§3.1・§6.1・§6.2・§11 の値との差は環境差を含み、経時比較・回帰判定には使えない（参考値）。区分ラベルは [再計測・参考] を用いるが、上記の限定を付す。
+
+### 12.1 計測環境（本追補分）
+
+| 項目 | 値 |
+|------|-----|
+| OS | macOS 26.6.2（Darwin 25.6.0） |
+| CPU | Apple M4 Max（16 コア） |
+| rustc | 1.96.0 (ac68faa20 2026-05-25) |
+| 実行コマンド | `cargo run -p xtask --release -- bench-ssr` / `bench-state-update` / `bench-binding-update` |
+| 実行方式 | `--release` プロファイルでの単発実行（§11.1 の 5 回反復とは異なる） |
+| 計測日 | 2026-08-21 |
+
+ホスト名・ユーザー名・絶対パスは記録しない（§2.1 と同方針）。対象クレートバージョンは §11 と同一（core 0.3.0 / interactive 0.2.3）。
+
+### 12.2 [再計測・参考] `xtask bench-ssr`（fandhe-frontend-core 0.3.0）
+
+実測 JSON（1 行サマリ原文。§11.2 と同様に整形転記してよい）:
+
+```
+{"framework":"fandhe-frontend","version":"0.3.0","mode":"ssr","workload_schema_version":1,
+ "rows1k":{"iters":100,"mean_ms":0.1314,"p50_ms":0.1320,"p95_ms":0.1455,"min_ms":0.1167},
+ "rows10k":{"iters":10,"mean_ms":1.0098,"p50_ms":0.9834,"p95_ms":1.0610,"min_ms":0.9665},
+ "html_bytes_1k":118931,"escape_ok":true,"row_count_ok":true,"notes":"profile=release"}
+```
+
+| 指標 | 値（[再計測・参考]） |
+|------|------|
+| rows1k mean | 0.1314 ms |
+| rows1k p95 | 0.1455 ms |
+| rows10k mean | 1.0098 ms |
+| rows10k p95 | 1.0610 ms |
+| escape_ok / row_count_ok | true / true（PASS） |
+
+html_bytes_1k は 118931 で §11.2 と一致し、ワークロード同一性の傍証となる。
+
+### 12.3 [再計測・参考] `xtask bench-state-update`（fandhe-frontend-interactive 0.2.3）
+
+実測 JSON:
+
+```
+{"framework":"fandhe-frontend","version":"0.2.3","mode":"state-update","workload_schema_version":1,"bindings":1000,
+ "grid1k":{"update":{"iters":200,"mean_us":0.0413,"p50_us":0.0420,"p95_us":0.0420,"min_us":0.0000},
+  "binding_apply":{"iters":200,"mean_us":0.0685,"p50_us":0.0830,"p95_us":0.0840,"min_us":0.0000},
+  "render":{"iters":200,"mean_us":109.2279,"p50_us":106.0420,"p95_us":127.2090,"min_us":96.4160},
+  "noop_update":{"iters":200,"mean_us":0.0049,"p50_us":0.0000,"p95_us":0.0410,"min_us":0.0000}},
+ "appstate1k":{"update":{"iters":200,"mean_us":0.0287,"p50_us":0.0410,"p95_us":0.0420,"min_us":0.0000},
+  "binding_apply":{"iters":200,"mean_us":0.0418,"p50_us":0.0420,"p95_us":0.0420,"min_us":0.0000},
+  "render":{"iters":200,"mean_us":277.8786,"p50_us":276.5420,"p95_us":296.5000,"min_us":247.8330},
+  "noop_update":{"iters":200,"mean_us":0.0123,"p50_us":0.0000,"p95_us":0.0410,"min_us":0.0000}},
+ "escape_ok":true,"noop_ok":true,"notes":"profile=release"}
+```
+
+| シナリオ・指標（mean） | 値（[再計測・参考]） |
+|------------------------|------|
+| grid1k update | 0.0413 µs |
+| grid1k binding_apply | 0.0685 µs |
+| grid1k render | 109.2279 µs |
+| grid1k noop_update | 0.0049 µs |
+| appstate1k update | 0.0287 µs |
+| appstate1k binding_apply | 0.0418 µs |
+| appstate1k render | 277.8786 µs |
+| appstate1k noop_update | 0.0123 µs |
+
+escape_ok / noop_ok とも true（PASS）。サブマイクロ秒域（update / binding_apply / noop_update）の p50・min に 0.0000 µs が現れるのは本環境のタイマー分解能に起因する量子化であり、値の精度限界として注記する。
+
+### 12.4 [再計測・参考] `xtask bench-binding-update`
+
+実測出力原文:
+
+```
+bench-binding-update: scenario=appstate-increment full_ns=3930.51 dirty_ns=65.58 ratio=59.93
+bench-binding-update: scenario=disclosure-toggle full_ns=135.06 dirty_ns=0.73 ratio=184.18
+bench-binding-update: scenario=single-select-select full_ns=140.65 dirty_ns=21.28 ratio=6.61
+```
+
+| シナリオ | full_ns | dirty_ns | ratio |
+|----------|---------|----------|-------|
+| appstate-increment | 3930.51 | 65.58 | 59.93 |
+| disclosure-toggle | 135.06 | 0.73 | 184.18 |
+| single-select-select | 140.65 | 21.28 | 6.61 |
+
+dirty 差分適用は full 再適用比 6.61〜184.18 倍高速であり、環境が変わっても dirty 追跡の優位という定性的傾向は §6.2・§11.4 と一致する。
+
+### 12.5 制約の継続
+
+本追補環境（macOS 実機）での制約は §11.5 と同一である。フレームワーク横断ベンチハーネス `_/bench/` の非存在により、他フレームワークとの同日相対位置の再計測および CSR create/update/clear のブラウザ実測は本追補でも未実施である（詳細は §11.5 参照）。
