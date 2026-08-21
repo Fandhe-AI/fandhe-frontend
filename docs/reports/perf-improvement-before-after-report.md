@@ -294,3 +294,99 @@ PR #1337 本文に具体的な数値記載がなく（「実装内容の要約�
   常設・再現可能）
 - `docs/reports/perf-browser-report.md`（別系統、TASK-11.5 実ブラウザ計測・
   Conditional Go 判定。本レポートとは対象・目的が異なる）
+
+## 11. 追補: 2026-08-21 再計測
+
+本レポート初版（§1〜§10、2026-08-12 計測）の作成後に、常設 xtask ベンチ
+3 種を §2.2 と同一手順で再実行した記録である。区分ラベルは本文と同じ
+[再計測]（実行して得た 1 行サマリ／JSON を本文へ転記）を用いる。既存
+セクションの数値・記述は変更しない。
+
+### 11.1 計測環境（本追補分）
+
+| 項目 | 値 |
+|------|-----|
+| OS | Ubuntu 26.04 LTS（Linux 7.0.0-29-generic） |
+| CPU | 12 vCPU（仮想化 CPU） |
+| rustc | 1.96.0 |
+| 実行コマンド | `cargo run -p xtask --release -- bench-ssr` / `bench-state-update` / `bench-binding-update` |
+| 実行方式 | `--release` プロファイルでの単発実行（1 コマンド = 1 JSON/サマリ行） |
+| 計測日 | 2026-08-21 |
+
+§2.1（初版計測時）との差はカーネル（7.0.0-28 → 7.0.0-29）のみで、
+rustc・CPU 数・実行方式は同一。対象クレートのバージョン（core 0.3.0 /
+interactive 0.2.3 / wasm-client 0.4.0）も初版時点から変化していない。
+
+### 11.2 [再計測] `xtask bench-ssr`（fandhe-frontend-core 0.3.0）
+
+```
+{"framework":"fandhe-frontend","version":"0.3.0","mode":"ssr","workload_schema_version":1,
+ "rows1k":{"iters":100,"mean_ms":0.1067,"p50_ms":0.1022,"p95_ms":0.1326,"min_ms":0.0968},
+ "rows10k":{"iters":10,"mean_ms":1.2488,"p50_ms":1.3340,"p95_ms":1.4153,"min_ms":1.0240},
+ "html_bytes_1k":118931,"escape_ok":true,"row_count_ok":true,"notes":"profile=release"}
+```
+
+| 指標 | 2026-08-12（§3.1） | 2026-08-21（本追補） |
+|------|---------------------|----------------------|
+| rows1k mean | 0.1102 ms | 0.1067 ms |
+| rows1k p95 | 0.1406 ms | 0.1326 ms |
+| rows10k mean | 1.2323 ms | 1.2488 ms |
+| rows10k p95 | 1.4365 ms | 1.4153 ms |
+| escape_ok / row_count_ok | true / true（PASS） | true / true（PASS） |
+
+初版値との差はいずれも数 % 以内で、同一バージョン・同一ハーネスの
+ラン間ノイズの範囲内である（性能回帰なし）。
+
+### 11.3 [再計測] `xtask bench-state-update`（fandhe-frontend-interactive 0.2.3）
+
+```
+{"framework":"fandhe-frontend","version":"0.2.3","mode":"state-update","workload_schema_version":1,"bindings":1000,
+ "grid1k":{"update":{"iters":200,"mean_us":0.0262},"binding_apply":{"iters":200,"mean_us":0.0461},
+  "render":{"iters":200,"mean_us":96.6936},"noop_update":{"iters":200,"mean_us":0.0198}},
+ "appstate1k":{"update":{"iters":200,"mean_us":0.0445},"binding_apply":{"iters":200,"mean_us":0.0428},
+  "render":{"iters":200,"mean_us":333.9123},"noop_update":{"iters":200,"mean_us":0.0324}},
+ "escape_ok":true,"noop_ok":true,"notes":"profile=release"}
+```
+
+（転記は mean のみに簡約。p50/p95/min は実行時 JSON に含まれる）
+
+| シナリオ | update mean | binding_apply mean | render mean | noop_update mean |
+|----------|-------------|---------------------|-------------|-------------------|
+| grid1k（1,000 bindings） | 0.0262 µs | 0.0461 µs | 96.6936 µs | 0.0198 µs |
+| appstate1k（1,000 bindings） | 0.0445 µs | 0.0428 µs | 333.9123 µs | 0.0324 µs |
+
+escape_ok / noop_ok は共に true（PASS）。§6.1（2026-08-12）との差は
+render で ±2.5% 以内、update/binding_apply/noop はサブマイクロ秒域の
+ノイズ範囲内であり、性能回帰は観測されない。
+
+### 11.4 [再計測] `xtask bench-binding-update`（2026-08-21）
+
+```
+bench-binding-update: scenario=appstate-increment full_ns=2114.96 dirty_ns=29.10 ratio=72.67
+bench-binding-update: scenario=disclosure-toggle full_ns=66.11 dirty_ns=0.64 ratio=103.92
+bench-binding-update: scenario=single-select-select full_ns=77.64 dirty_ns=11.35 ratio=6.84
+```
+
+| シナリオ | ratio（2026-08-12、§6.2） | ratio（2026-08-21） |
+|----------|---------------------------|----------------------|
+| appstate-increment | 71.96 | 72.67 |
+| disclosure-toggle | 58.89 | 103.92 |
+| single-select-select | 6.67 | 6.84 |
+
+disclosure-toggle の ratio 変動（58.89 → 103.92）は分母 dirty_ns が
+1 ns 未満（1.14 ns → 0.64 ns）の極小値であることによる比の増幅であり、
+full_ns 自体は 67.02 ns → 66.11 ns とほぼ安定している（実性能の変化では
+ない）。
+
+### 11.5 本追補でも解消していない制約
+
+- フレームワーク横断ベンチハーネス `_/bench/`（`run_ssr.py` /
+  `run_csr.mjs` / payload gzip 計測、`_/bench/PROTOCOL.md`）は
+  `.gitignore` の `/_/` により git 管理外であり、本追補の計測環境にも
+  存在しない。このため他フレームワークとの同日相対位置
+  （SSR 11 系・CSR 7 系比較表）の再計測、および CSR create/update/clear
+  のブラウザ実測は本追補でも未実施である（§2.2・§4.5・§9 と同じ制約）。
+- 「SSR 11 種・CSR 7 種」の比較対象フレームワークのリスト自体も公開
+  リポジトリ内に記録がなく、issue #1313 本文の記録値（§3.2・§4.1）から
+  逆引きできる範囲にとどまる。横断再計測を行う場合はハーネスの再構築
+  （比較対象リストの復元・記録を含む）から必要となる。
