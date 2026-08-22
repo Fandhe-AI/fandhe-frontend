@@ -46,6 +46,48 @@ pub const BIND_LIST_ATTR: &str = "data-bind-list";
 /// 並べ替えを最小の DOM 操作へ変換する契約値（設計書 §3.1 で凍結）。
 pub const KEY_ATTR: &str = "data-key";
 
+/// keyed list 1 件あたりに許容する最大項目数（HashDoS 対策の追加防御、
+/// イシュー #1375 codex-review P1 是正）。
+///
+/// `crate::fx_hash` モジュール doc「ターゲット別ハッシャ選択」節が確定する
+/// 設計（ネイティブ: 本物の SipHash 耐性を持つ `RandomState`、
+/// wasm32-unknown-unknown: 固定初期状態の軽量 `FxHasher`）に対し、
+/// codex-review は「ブラウザ側でも衝突耐性のあるハッシャを維持するか、
+/// キー件数・総バイト数の厳格な上限など攻撃可能な計算量を拘束する追加
+/// 防御を導入すること」を求めた（PR #1390 レビュー）。本モジュールは
+/// 後者（上限による計算量拘束）を [`keyed_list`] 構築時点の fail-closed
+/// 拒否として採用する。
+///
+/// # 全ターゲット一律で強制する理由
+///
+/// wasm32-unknown-unknown 限定のガードは採らない。理由は 2 点:
+/// (1) `cargo test` を wasm32 target 上で実行する CI ジョブが現状存在
+/// せず（`fx_hash` モジュール doc 参照）、`cfg` 分岐を持つガードは CI で
+/// 実質未検証のまま出荷することになる。(2) ネイティブ（SSR/SSG）側だけ
+/// 上限がない非対称構成は「サーバー側では通る同じ `items` が CSR 側での
+/// み拒否される」ハイドレーション不一致を生み、`fx_hash` モジュール doc
+/// が固定する「ハッシャ選択が SSR/SSG 出力バイトへ影響しない」不変条件
+/// と設計思想が矛盾する。このためガードは全ターゲット共通のコード
+/// パスに置き、`cfg` 分岐を持たない。
+///
+/// # 値の根拠（`N^2` 見積もり）
+///
+/// [`crate::fx_hash`] の軽量ハッシャ（wasm32-unknown-unknown で使われる
+/// 実体）は固定初期状態のため、攻撃者は全項目が同一バケットへ収まる
+/// キー列を事前計算できる（最悪計算量が `O(n^2)` へ劣化する HashDoS の
+/// 前提）。`N = 4_096` のとき最悪計算量は `N^2 = 16_777_216` 回程度の
+/// バイト単位比較に収まり、1 ブラウザタブ内の単発処理として許容できる
+/// 規模に留める。
+pub const MAX_KEYED_LIST_ITEMS: usize = 4_096;
+
+/// keyed list 1 件あたりに許容するキー文字列の合計バイト数
+/// （[`MAX_KEYED_LIST_ITEMS`] と対の追加防御）。
+///
+/// ハッシュ計算コストは走査したバイト数に比例するため、項目数の上限
+/// だけでは「少数の巨大なキー文字列」による計算量膨張を防げない。総
+/// バイト数を独立に拘束することで、この経路も塞ぐ。
+pub const MAX_KEYED_LIST_KEY_BYTES: usize = 262_144;
+
 /// [`keyed_list`] 構築時の fail-closed エラー。
 ///
 /// いずれの異常系も `panic!`/`unwrap()` ではなく `Err` として安全側に倒す
@@ -56,6 +98,18 @@ pub const KEY_ATTR: &str = "data-key";
 /// §5.2 改訂内容を参照）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyedListError {
+    /// 項目数が [`MAX_KEYED_LIST_ITEMS`] を超えている（HashDoS 対策の追加
+    /// 防御、イシュー #1375 codex-review P1 是正）。
+    TooManyItems {
+        /// 実際の項目数。
+        count: usize,
+    },
+    /// 全項目のキー文字列の合計バイト数が [`MAX_KEYED_LIST_KEY_BYTES`]
+    /// を超えている（同上）。
+    KeyBytesExceeded {
+        /// 実際の合計バイト数。
+        total_bytes: usize,
+    },
     /// キーが空文字列（キー欠落）。`index` は `items` 内の位置。
     EmptyKey {
         /// `items` 内のインデックス。
@@ -87,6 +141,15 @@ impl std::fmt::Display for KeyedListError {
     /// 情報非露出、OWASP A09 対策。設計書 §9 不変条件 7 を継承）。
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            KeyedListError::TooManyItems { count } => write!(
+                f,
+                "keyed_list: item count {count} exceeds the maximum of {MAX_KEYED_LIST_ITEMS}"
+            ),
+            KeyedListError::KeyBytesExceeded { total_bytes } => write!(
+                f,
+                "keyed_list: total key bytes {total_bytes} exceeds the maximum of \
+                 {MAX_KEYED_LIST_KEY_BYTES}"
+            ),
             KeyedListError::EmptyKey { index } => {
                 write!(f, "keyed_list: empty key at item index {index}")
             }
@@ -128,6 +191,10 @@ impl std::error::Error for KeyedListError {}
 ///
 /// # Errors
 ///
+/// - [`KeyedListError::TooManyItems`][]: 項目数が
+///   [`MAX_KEYED_LIST_ITEMS`] を超えている（HashDoS 対策の追加防御）。
+/// - [`KeyedListError::KeyBytesExceeded`][]: キー文字列の合計バイト数が
+///   [`MAX_KEYED_LIST_KEY_BYTES`] を超えている（同上）。
 /// - [`KeyedListError::EmptyKey`][]: いずれかのキーが空文字列。
 /// - [`KeyedListError::DuplicateKey`][]: 同一リスト内でキーが重複。
 /// - [`KeyedListError::NonElementItem`]: 子ノードが `Node::Element` でない
@@ -173,6 +240,24 @@ pub fn keyed_list(
     // 契約を偽装できてしまうため fail-closed で遮断する。
     reject_reserved_attr(&attrs, BIND_LIST_ATTR)?;
     reject_reserved_attr(&attrs, KEY_ATTR)?;
+
+    // (1.5) 項目数・キー総バイト数の上限チェック（HashDoS 対策の追加防御、
+    // イシュー #1375 codex-review P1 是正。cfg 分岐を持たず全ターゲット
+    // 共通で適用する理由は [`MAX_KEYED_LIST_ITEMS`] doc 参照）。以降の
+    // HashMap 構築・走査（(2)(3)）が攻撃者の事前に選んだキー列に対しても
+    // 最悪 `O(n^2)` に収まる規模であることを、この時点の fail-closed
+    // 拒否で保証する。項目数チェックを先に行うことで、項目数自体が
+    // 過大な場合は `first_index_of` の `with_capacity` 割り当てより前に
+    // 拒否できる。
+    if items.len() > MAX_KEYED_LIST_ITEMS {
+        return Err(KeyedListError::TooManyItems { count: items.len() });
+    }
+    let total_key_bytes: usize = items.iter().map(|(key, _)| key.len()).sum();
+    if total_key_bytes > MAX_KEYED_LIST_KEY_BYTES {
+        return Err(KeyedListError::KeyBytesExceeded {
+            total_bytes: total_key_bytes,
+        });
+    }
 
     // (2)(3) 各子要素の検証: Element であること・キー非空・キー一意性・予約
     // 属性の非混入。パス 1（本ループ）は `items.iter()` による**参照のみ**の
@@ -768,6 +853,83 @@ mod tests {
         assert!(html.contains(r#"data-bind-list="children""#));
         assert!(html.contains(r#"data-key="g1""#));
         assert!(html.contains(r#"data-key="c1""#));
+    }
+
+    /// 異常系（HashDoS 追加防御、イシュー #1375）: 項目数が
+    /// [`MAX_KEYED_LIST_ITEMS`] を超えると TooManyItems で拒否される。
+    /// 全ターゲット共通のガード（`cfg` 分岐なし）であるため、ネイティブの
+    /// `cargo test`（本テスト）でも実際に検証できる。
+    #[test]
+    fn too_many_items_is_rejected() {
+        let items: Vec<(String, Node)> = (0..=MAX_KEYED_LIST_ITEMS)
+            .map(|i| (format!("k{i}"), el("li", vec![], vec![])))
+            .collect();
+        let count = items.len();
+        let err = keyed_list("ul", vec![], "items", items).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 正常系（境界値）: 項目数がちょうど [`MAX_KEYED_LIST_ITEMS`] 件なら
+    /// 拒否されない。
+    #[test]
+    fn item_count_at_the_limit_is_accepted() {
+        let items: Vec<(String, Node)> = (0..MAX_KEYED_LIST_ITEMS)
+            .map(|i| (format!("k{i}"), el("li", vec![], vec![])))
+            .collect();
+        assert!(keyed_list("ul", vec![], "items", items).is_ok());
+    }
+
+    /// 異常系（HashDoS 追加防御、イシュー #1375）: 項目数は少なくても
+    /// キー文字列の合計バイト数が [`MAX_KEYED_LIST_KEY_BYTES`] を超えると
+    /// KeyBytesExceeded で拒否される（項目数の上限だけでは「少数の巨大な
+    /// キー」による計算量膨張を防げないことの回帰確認）。
+    #[test]
+    fn key_bytes_exceeded_is_rejected() {
+        let huge_key = "k".repeat(MAX_KEYED_LIST_KEY_BYTES + 1);
+        let total_bytes = huge_key.len();
+        let err = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![(huge_key, el("li", vec![], vec![]))],
+        )
+        .unwrap_err();
+        assert_eq!(err, KeyedListError::KeyBytesExceeded { total_bytes });
+    }
+
+    /// 回帰: サイズ上限（項目数・キー総バイト数）は per-item 検証
+    /// （空キー・重複キー・非 Element・予約属性）より先に評価される。
+    /// 項目数超過かつ先頭項目が空キーというケースで TooManyItems が
+    /// 優先されることを固定する（`duplicate_error_precedence_is_stable_
+    /// across_mixed_violations` と対をなす追加の優先順位固定）。
+    #[test]
+    fn too_many_items_takes_precedence_over_empty_key() {
+        let mut items: Vec<(String, Node)> = vec![(String::new(), el("li", vec![], vec![]))];
+        items
+            .extend((0..MAX_KEYED_LIST_ITEMS).map(|i| (format!("k{i}"), el("li", vec![], vec![]))));
+        let count = items.len();
+        let err = keyed_list("ul", vec![], "items", items).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 回帰: キー総バイト数超過も per-item 検証より先に評価される
+    /// （項目数自体は上限以内でも、先頭項目が空キーであるより先に
+    /// KeyBytesExceeded が返ることを固定する）。
+    #[test]
+    fn key_bytes_exceeded_takes_precedence_over_empty_key() {
+        let huge_key = "k".repeat(MAX_KEYED_LIST_KEY_BYTES + 1);
+        let total_bytes = huge_key.len();
+        let err = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![
+                (huge_key, el("li", vec![], vec![])),
+                (String::new(), el("li", vec![], vec![])),
+            ],
+        )
+        .unwrap_err();
+        assert_eq!(err, KeyedListError::KeyBytesExceeded { total_bytes });
     }
 
     /// 異常系: 空文字列キーは EmptyKey で拒否される。
