@@ -102,6 +102,14 @@ pub mod keyed_diff;
 #[cfg(any(test, target_arch = "wasm32"))]
 mod keyed_apply;
 
+/// keyed list ハンドルキャッシュ（[`crate::keyed_dom::WebSysKeyedDom`] の
+/// `children` フィールド本体）の汎用データ構造（イシュー #1374、PR #1392
+/// codex-review P1 是正）。`keyed_apply` と同じ理由（wasm32 ゲート配下の
+/// `keyed_dom` からは native `cargo test` で計算量保証を検証できない）で
+/// `target_arch = "wasm32"` に加え `test` cfg でも有効化する。
+#[cfg(any(test, target_arch = "wasm32"))]
+mod keyed_children_cache;
+
 #[cfg(target_arch = "wasm32")]
 mod keyed_dom;
 #[cfg(target_arch = "wasm32")]

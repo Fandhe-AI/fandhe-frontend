@@ -4924,23 +4924,47 @@ mod tests {
     // 呼ばれないことを固定する（受け入れ基準 1 の機械固定、退行時は
     // これらのカウンタが 0 でなくなり即座に検知する）。
 
-    /// 1,000 行全削除: `apply_ops_with_items` は `old_items`（引数）を
-    /// diff 入力に使い、DOM から現在のキー列を読まない（[`apply_ops`] の
-    /// `dom_item_keys` 呼び出しはここには無い）ため、sibling 走査は
-    /// 構造的にゼロになる。`diff_keyed_items` は `Remove` を `old_items` の
-    /// 出現順（`k0, k1, ...`）で発行し、各 `Remove` の対象キーは直前の
-    /// `Remove` で先頭要素が取り除かれた結果、常に `CountingDom.items` の
-    /// 先頭（index 0）に位置する。`find_by_key` の実装（`Vec::position`）は
-    /// 一致した時点で走査を打ち切るため、この「常に先頭」という性質により
-    /// 1,000 件の全削除でも `find_by_key` の総走査コストは O(n) に収まる
-    /// （最悪ケースなら O(n²) になり得る一般的な Vec 線形走査とは異なる、
-    /// 本テスト固有の理由）。実測 2,000 回（`find_by_key`/`remove_child`
-    /// 各 1,000 回）に余裕を持った上限（2,500 回）で固定する。
+    /// 1,000 行中 999 行削除・1 行保持（全削除ではなく、`Remove` op 適用
+    /// ループを実際に通す構成、PR #1392 Bugbot Medium 指摘の是正）:
+    /// `new_items` を空にする従来の書き方では、`apply_ops_with_items` 冒頭の
+    /// 一括 clear 高速経路（イシュー #1373、`new_items.is_empty()` かつ
+    /// `old_items` 非空で `diff_keyed_items`/`find_by_key`/`remove_child` を
+    /// 一切呼ばず `clear_children` 1 回に集約する分岐、本関数冒頭のコメント
+    /// 参照）へ迂回してしまい、本テストが検証したいはずの `Remove` op
+    /// 適用ループ（`find_by_key`/`remove_child`）を一度も通らないまま
+    /// `dom.calls.clear_children == 1` だけで PASS していた（本コメント修正
+    /// 前の実測は `clear_children` 1 回のみ、`find_by_key`/`remove_child`
+    /// は 0 回）。一括 clear 経路自体の検証は専用テスト
+    /// [`apply_ops_with_items_clears_all_keys_via_single_clear_children_call`]・
+    /// [`apply_ops_with_items_does_not_use_clear_path_when_some_keys_are_kept`]・
+    /// [`apply_ops_with_items_signals_resync_required_when_clear_children_fails`]
+    /// が別途担うため、本テストは `new_items` を非空（末尾 1 件を保持）に
+    /// して確実に通常の diff 適用ループへ入るようにする。
+    ///
+    /// `apply_ops_with_items` は `old_items`（引数）を diff 入力に使い、DOM
+    /// から現在のキー列を読まない（[`apply_ops`] の `dom_item_keys` 呼び出し
+    /// はここには無い）ため、sibling 走査は構造的にゼロになる。
+    /// `diff_keyed_items` は `Remove` を `old_items` の出現順（`k0, k1, ...`）
+    /// で発行し、各 `Remove` の対象キーは直前の `Remove` で先頭要素が取り
+    /// 除かれた結果、常に `CountingDom.items` の先頭（index 0）に位置する。
+    /// `find_by_key` の実装（`Vec::position`）は一致した時点で走査を打ち
+    /// 切るため、この「常に先頭」という性質により 999 件の削除でも
+    /// `find_by_key` の総走査コストは O(n) に収まる（最悪ケースなら O(n²)
+    /// になり得る一般的な `Vec` 線形走査とは異なる、本テスト固有の理由。
+    /// なお `CountingDom` は呼び出し回数のみを数えるモックであり、実際の
+    /// 要素移動量〔`Vec::remove` によるシフトコスト〕は計測しない —
+    /// その計算量保証は実装本体
+    /// [`crate::keyed_children_cache::KeyedChildrenCache`] を直接駆動する
+    /// native テスト
+    /// `crate::keyed_children_cache::tests::remove_all_but_last_never_shifts_elements`
+    /// が固定する）。末尾 1 件（保持対象）は内容も位置も変わらないため
+    /// `Move`/`Update` は発生しない。実測 1,998 回（`find_by_key`/
+    /// `remove_child` 各 999 回）に余裕を持った上限（2,500 回）で固定する。
     #[test]
-    fn apply_ops_with_items_remove_all_1000_rows_stays_linear() {
+    fn apply_ops_with_items_remove_all_but_last_of_1000_rows_stays_linear() {
         const N: usize = 1_000;
         let old_items = items_n(N, "v");
-        let new_items: Vec<(String, Node)> = vec![];
+        let new_items: Vec<(String, Node)> = vec![old_items[N - 1].clone()];
         let mut dom = CountingDom {
             items: (0..N).map(|i| format!("k{i}")).collect(),
             ..Default::default()
@@ -4948,14 +4972,24 @@ mod tests {
 
         let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
 
-        assert!(
-            outcome.final_keys.is_empty(),
-            "全削除後の final_keys は空のはず"
+        assert_eq!(
+            outcome.final_keys,
+            vec![format!("k{}", N - 1)],
+            "末尾 1 件のみ保持されるはず"
         );
         assert!(!outcome.resync_required);
-        assert!(
-            dom.items.is_empty(),
-            "全削除後はライブ側（items）も空になるはず"
+        assert_eq!(
+            dom.items,
+            vec![format!("k{}", N - 1)],
+            "全削除後はライブ側（items）も保持した 1 件のみになるはず"
+        );
+        assert_eq!(
+            dom.calls.clear_children, 0,
+            "本テストは一括 clear 高速経路（イシュー #1373）を通らない \
+             構成のはず（`new_items` が非空）。0 でなければ意図せず \
+             clear 経路へ迂回しており、Remove op 適用ループの \
+             find_by_key/remove_child が未検証のまま PASS してしまう \
+             （PR #1392 Bugbot Medium 指摘の再発検知）"
         );
         assert_eq!(
             dom.calls.first_element_child + dom.calls.next_element_sibling + dom.calls.item_key,
@@ -4965,10 +4999,24 @@ mod tests {
              （旧 find_child_by_key の再混入を検知、内訳: {:?}）",
             dom.calls
         );
+        assert_eq!(
+            dom.calls.find_by_key,
+            N - 1,
+            "Remove 999 件それぞれが find_by_key を 1 回ずつ呼ぶはず \
+             （内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.calls.remove_child,
+            N - 1,
+            "Remove 999 件それぞれが remove_child を 1 回ずつ呼ぶはず \
+             （内訳: {:?}）",
+            dom.calls
+        );
         let total = dom.calls.total();
         assert!(
             total <= 2_500,
-            "1,000 行全削除の DOM 操作総数は 2,500 回以内のはず \
+            "1,000 行中 999 行削除の DOM 操作総数は 2,500 回以内のはず \
              （実測: {total}、内訳: {:?}）。ハンドルキャッシュ統合 \
              （イシュー #1374）からの退行を検知する上限",
             dom.calls
