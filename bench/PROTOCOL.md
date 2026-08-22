@@ -91,6 +91,23 @@ SSR 8 種・CSR 7 種・payload 7 種。リストの増減は本表の更新 + �
   画面書き換え）は計測に含まない既知の限界**であり、rAF 待ちを
   廃したことで「体感相当の描画完了時間」の近似はできなくなった代わりに、
   vsync 量子化のない高分解能な JS 実行 + layout コストの計測になっている
+- **分離計測（イシュー #1377）**: 上記の一体計測はさらに
+  `performance.now()` 3 点（op 開始前 / `__bench[op]()` 完了直後 /
+  `offsetHeight` 読み出し後）で取り、`op_ms`（DOM 反映まで）・
+  `layout_ms`（強制 layout flush）・`total_ms`（従来境界と同一定義）へ
+  分離して結果 JSON へ記録する。**フレームワーク間比較の KPI は
+  `total_ms`**（既存 `create_ms`/`update_ms`/`clear_ms` キーと同一定義で
+  系列連続、意味不変）とし、**fandhe 改善イシュー群（#1371 配下）の改善
+  追跡 KPI は `op_ms`** とする（layout flush は全フレームワーク共通の床
+  であり、ハーネス側の改善では縮まらないため）。この計測点はハーネス
+  共通ヘルパー（`__benchMeasure`）にのみ存在し、fandhe 専用の計測点・
+  分岐は作らない（公平性注記 §4 と整合）。結果 JSON のキー追加は後方
+  互換（既存キー不変・`<op>_op_ms`/`<op>_layout_ms` の 6 キー追加、
+  `workload_schema_version` は 1 のまま据え置き）。1 反復内では
+  `op_ms + layout_ms === total_ms` が成り立つが、統計値（mean/p50/p95/
+  min）は系列ごとに独立集計するため percentile の加法性はない。
+  `performance.now()` の分解能（chromium 既定で約 100µs）に対し、clear の
+  `layout_ms`（数十 µs 台）は分解能限界に近くノイズが大きい点に留意する
 - 反復: ウォームアップとして計測前に create→clear を 5 往復（未計測）
   行った後、create / update / clear 各 25 回反復する。create・update・
   clear のいずれも**毎回、未計測の create（layout flush 付きの
