@@ -507,8 +507,10 @@ pub(crate) trait KeyedListDom {
     /// （`web-sys` 実装 [`crate::keyed_dom::WebSysKeyedDom`] は `child_at` と
     /// 同じ `children` キャッシュを共有する）。戻り値の位置は呼び出し元
     /// （[`apply_ops_with_items`]）が [`Self::move_before`] の「既に正位置」
-    /// 判定（`pos == adjusted || pos + 1 == adjusted` なら `insert_before` が
-    /// no-op になるため呼び出し自体を省略する preact 型最適化）に使う。
+    /// 判定（`pos == adjusted` のときのみ `move_before` 呼び出し自体を省略
+    /// する。`pos < adjusted` は目標順への不到達を示す不変条件違反として
+    /// `resync_required` を立てる、PR #1392 codex-review 第 3 巡 P1 是正）
+    /// に使う。
     fn find_by_key(&mut self, key: &str) -> Option<(usize, Self::Handle)>;
 
     /// `old`（キー `key` の既存要素）を `new`（[`Self::create_item`] が
@@ -1286,16 +1288,44 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     continue;
                 };
                 let adjusted = index.saturating_sub(index_offset);
-                // preact 型の「既に正位置」判定（イシュー #1374）:
-                // `pos == adjusted` は参照ノードが自分自身、`pos + 1 ==
-                // adjusted` は参照ノードが直後の兄弟であり、いずれも DOM
-                // 標準上 `insertBefore` が no-op になるケース（`existing` を
-                // 自分自身の直前・直後の兄弟の前へ挿入し直しても並びは
-                // 変わらない）。`move_before`（`child_at` による参照ノード
-                // 解決を含む）自体を丸ごと省略してもライブ DOM・キャッシュ
-                // とも結果は同一のため、この skip は最適化であり意味論の
-                // 変更ではない。
-                if pos != adjusted && pos + 1 != adjusted {
+                // 「既に正位置」判定は `pos == adjusted`（参照ノードが自分
+                // 自身であり `insertBefore` が no-op になるケース）のみに
+                // 限定する（PR #1392 codex-review 第 3 巡 P1 是正、イシュー
+                // #1374）。
+                //
+                // 旧実装は `pos + 1 == adjusted`（参照ノードが直後の兄弟）も
+                // 同じ skip 対象にしていたが、この条件は「ローカルな
+                // `insertBefore` 呼び出し 1 回が no-op になる」ことしか
+                // 保証せず、「目標順（`adjusted`）へ到達している」ことを
+                // 保証しない。`diff_keyed_items`（`insert_or_move_pass`、
+                // core `keyed.rs`）が発行する `Move { index, .. }` は「位置
+                // 0..adjusted は既に目標順で確定済み」という不変条件の下で
+                // 計算されており、この不変条件が保たれている限り移動対象
+                // アイテムの生存順位置 `pos` は常に `adjusted` 以上になる
+                // （`pos` が `adjusted` 未満の位置は、既に確定済みの別
+                // アイテムで占有されているはずのため）。したがって
+                // `pos + 1 == adjusted`（`pos == adjusted - 1`）は、この
+                // 不変条件が保たれている限り理論上到達しない分岐であり、
+                // 実際に到達した場合はライブ DOM とキャッシュ・計画上の
+                // 位置が乖離している（改ざん・cache-miss フォールバック
+                // 由来の desync 等）ことを意味する。この乖離を「参照ノードが
+                // 直後の兄弟だから no-op で正しい」と誤認して黙って
+                // skip すると、`ApplyOutcome::final_keys` が示す目標キー列と
+                // 実 DOM の並びが恒久的に乖離したまま `resync_required` が
+                // 立たない（PR #1392 codex-review 第 3 巡 P1 指摘、実例は
+                // `apply_ops_with_items_move_before_desync_below_adjusted_sets_resync_required`
+                // 参照）。
+                //
+                // このため `pos < adjusted` を検知した時点で不変条件違反
+                // として `resync_required` を立てたうえで、`pos == adjusted`
+                // 以外は必ず実際に `move_before` を呼ぶ（`pos + 1 ==
+                // adjusted` の局所的な no-op 最適化は撤回する。正しさを
+                // 優先し、`child_at`/`move_before` 呼び出し 1 回分のコスト
+                // よりも「未達成 Move を成功扱いしない」ことを優先する）。
+                if pos < adjusted {
+                    resync_required = true;
+                }
+                if pos != adjusted {
                     let reference = dom.child_at(adjusted);
                     if !dom.move_before(adjusted, &key, &existing, reference.as_ref()) {
                         // 実 DOM への移動自体が失敗（`move_before` 契約により
@@ -5058,28 +5088,28 @@ mod tests {
         );
     }
 
-    /// `Move` op の対象が既にライブ DOM 上で正しい位置（参照ノードの直前）
-    /// にある場合、`move_before`（参照ノード解決の `child_at` を含む）自体
-    /// を丸ごと省略する preact 型最適化（イシュー #1374、`apply_ops_with_items`
-    /// 内 `KeyedOp::Move` arm 参照）。
+    /// `Move` op の対象が既にライブ DOM 上で目標位置（`pos == adjusted`）に
+    /// ある場合、`move_before`（参照ノード解決の `child_at` を含む）自体を
+    /// 丸ごと省略する最適化（イシュー #1374。PR #1392 codex-review 第 3 巡
+    /// P1 是正により、対象は `pos == adjusted` の厳密一致のみへ縮小した。
+    /// 縮小の経緯は `apply_ops_with_items` 内 `KeyedOp::Move` arm の doc
+    /// コメント参照）。
     ///
     /// `old_items`/`new_items` は `diff_keyed_items` が
     /// `Move { index: 1, key: "c" }` 1 件のみを発行する構成
-    /// （`old=[a,b,c]` → `new=[a,c,b]`）を使うが、`dom`（ライブ側）は
-    /// あえて `old_items` の並びとは異なる `[c, a, b]` で初期化する
-    /// （`apply_ops_with_items` は `dom` と `old_items` の同期を前提とせず、
-    /// 独立した引数として扱うため、単体テストとしてこの不一致は妥当。
-    /// `c` の現在位置 `pos=0` と `Move` の目標位置 `adjusted=1` は
-    /// `pos + 1 == adjusted`（参照ノードが `c` 自身の直後の兄弟 `a`）を
-    /// 満たし、`insertBefore(c, a)` は DOM 標準上 no-op になるため、
-    /// `move_before`/`child_at` を呼ばずに skip してもライブ DOM・
-    /// キャッシュとも結果は変わらない）。
+    /// （`old=[a,b,c]` → `new=[a,c,b]`）を使う。`dom`（ライブ側）は
+    /// `old_items` とは独立した引数（`apply_ops_with_items` は両者の同期を
+    /// 前提としない）だが、本テストでは意図的に**目標順を既に達成した**
+    /// `[a, c, b]` で初期化する。`c` の現在位置 `pos=1` は `Move` の目標
+    /// 位置 `adjusted=1` と厳密一致するため、`move_before`/`child_at` を
+    /// 呼ばずに skip してもライブ DOM は目標順のまま変化しない（真に
+    /// 「既に正位置」であるケースのみを skip 対象にする本来の意図を表す）。
     #[test]
     fn apply_ops_with_items_skips_move_before_when_already_in_position() {
         let old_items = vec![item("a", "v"), item("b", "v"), item("c", "v")];
         let new_items = vec![item("a", "v"), item("c", "v"), item("b", "v")];
         let mut dom = CountingDom {
-            items: vec!["c".to_string(), "a".to_string(), "b".to_string()],
+            items: vec!["a".to_string(), "c".to_string(), "b".to_string()],
             ..Default::default()
         };
 
@@ -5088,8 +5118,8 @@ mod tests {
         assert!(!outcome.resync_required);
         assert_eq!(
             dom.calls.move_before, 0,
-            "既に正位置の Move は move_before を呼ばずに skip されるはず \
-             （内訳: {:?}）",
+            "既に正位置（pos == adjusted）の Move は move_before を呼ばずに \
+             skip されるはず（内訳: {:?}）",
             dom.calls
         );
         assert_eq!(
@@ -5100,9 +5130,70 @@ mod tests {
         );
         assert_eq!(
             dom.items,
-            vec!["c".to_string(), "a".to_string(), "b".to_string()],
-            "skip 後もライブ DOM の並びは変化しないはず（insertBefore が \
-             no-op になるケースのため）"
+            vec!["a".to_string(), "c".to_string(), "b".to_string()],
+            "skip 後もライブ DOM の並びは目標順のまま変化しないはず"
+        );
+    }
+
+    /// PR #1392 codex-review 第 3 巡 P1 回帰固定: `pos + 1 == adjusted`
+    /// （参照ノードが移動対象の直後の兄弟）というローカルな `insertBefore`
+    /// no-op 条件だけで「既に正位置」とみなし `move_before` を skip する旧
+    /// 実装は、ライブ DOM が `old_items` の想定並びから乖離している場合に
+    /// **目標順へ到達していない Move を成功扱いしてしまう**バグを持って
+    /// いた（`apply_ops_with_items` 内 `KeyedOp::Move` arm の doc コメント
+    /// 「既に正位置」判定の縮小理由も参照）。
+    ///
+    /// `old_items`/`new_items` は `diff_keyed_items` が
+    /// `Move { index: 1, key: "c" }` 1 件のみを発行する構成
+    /// （`old=[a,b,c]` → `new=[a,c,b]`）を使う。`dom`（ライブ側）は
+    /// `old_items` の想定並びとは異なる `[c, a, b]` で初期化し、
+    /// 「ライブ DOM が計画とずれている」不変条件違反を模擬する
+    /// （`c` の現在位置 `pos=0` は目標位置 `adjusted=1` を 1 下回る
+    /// `pos + 1 == adjusted` のケース）。
+    ///
+    /// 是正後の実装は `pos < adjusted` を検知した時点で不変条件違反として
+    /// `resync_required` を立て、かつ `pos == adjusted` の厳密一致でない
+    /// 限り必ず `move_before` を実際に呼ぶ（本ケースは `insertBefore` 自体は
+    /// ローカルには no-op になるため実 DOM の並びは `[c, a, b]` のまま
+    /// 目標順 `[a, c, b]` には到達しないが、その未達成を
+    /// `resync_required = true` で正しく可視化する。これは弱体化ではなく
+    /// 「未達成 Move を黙って成功扱いしていた」旧テストの期待を是正した
+    /// ものである）。
+    #[test]
+    fn apply_ops_with_items_move_before_desync_below_adjusted_sets_resync_required() {
+        let old_items = vec![item("a", "v"), item("b", "v"), item("c", "v")];
+        let new_items = vec![item("a", "v"), item("c", "v"), item("b", "v")];
+        let mut dom = CountingDom {
+            items: vec!["c".to_string(), "a".to_string(), "b".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "ライブ DOM が計画上の並びから乖離している（pos < adjusted）\
+             場合は resync_required が立つはず（内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.calls.move_before, 1,
+            "pos == adjusted の厳密一致ではないため move_before は \
+             skip されず実際に呼ばれるはず（内訳: {:?}）",
+            dom.calls
+        );
+        // 実 DOM が目標順（[a, c, b]）へ到達するか、到達しない場合は
+        // resync_required が立っていることのいずれかが成り立てばよい
+        // （タスク指示の受け入れ基準）。本ケースは `insertBefore` 自体が
+        // ローカルには no-op のため実 DOM は乖離したまま残るが、上記の
+        // `resync_required` アサーションにより「未達成」であることは
+        // 正しく可視化されている。
+        assert!(
+            outcome.resync_required || dom.items == vec!["a", "c", "b"],
+            "目標順へ到達するか resync_required が立つはずだが、いずれも \
+             満たさない（items={:?}, resync_required={}）",
+            dom.items,
+            outcome.resync_required
         );
     }
 }
