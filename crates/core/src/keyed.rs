@@ -181,9 +181,10 @@ pub fn keyed_list(
     // 構成）と完全に同一（回帰テスト `duplicate_error_precedence_is_stable`
     // が固定）。直下スコープのみを対象に、初出インデックスを HashMap で記録
     // して O(n) で重複判定する（非再帰、DoS 耐性）。
-    // ハッシャは軽量ハッシャ（`crate::fx_hash`）を使う。選定根拠・脅威
-    // モデルは `fx_hash` モジュール doc 参照（イシュー #1375: keyed diff
-    // 専用の内部照合であり HashDoS の脅威モデル外）。
+    // ハッシャは `crate::fx_hash`（ネイティブ: `RandomState`/SipHash、
+    // wasm32: 軽量 FxHasher とターゲット別に切り替え）を使う。選定根拠・
+    // 脅威モデルは `fx_hash` モジュール doc「ターゲット別ハッシャ選択」節
+    // 参照（イシュー #1375）。
     let mut first_index_of: crate::fx_hash::FxHashMap<&str, usize> =
         crate::fx_hash::map_with_capacity(items.len());
 
