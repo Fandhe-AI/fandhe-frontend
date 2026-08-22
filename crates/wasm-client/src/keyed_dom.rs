@@ -629,6 +629,37 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         true
     }
 
+    /// `Node::set_text_content(None)` 1 回で `list_element` の全子ノードを
+    /// 取り除く（イシュー #1373。keyed list 全キー削除の一括 clear 経路、
+    /// [`crate::keyed_apply::KeyedListDom::clear_children`] doc 参照）。
+    ///
+    /// `textContent` への `None`（DOM 標準では空文字列と等価、
+    /// [MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
+    /// 参照）代入は、要素・テキストを問わず全子ノードを除去し新規テキスト
+    /// ノードも追加しない仕様であるため、`list_element.first_element_child()`
+    /// を回しながら `remove_child` を N 回呼ぶ per-item フォールバック
+    /// （`crate::keyed_apply::keyed_apply_tests::DefaultClearDom` 参照。
+    /// このフォールバックは要素のみを走査するため、`KeyedListDom::clear_children`
+    /// は既定実装を持たず全実装に完全な全ノード除去を要求する契約へ
+    /// 変更済み〔イシュー #1373 codex-review P2〕）と等価な結果を、
+    /// N 回の JS 境界呼び出しではなく 1 回で
+    /// 達成できる（lit / vue / js-framework-benchmark 上位実装と同型の
+    /// 定石、`textContent = ""`）。`Element::insert_before`/`remove_child`
+    /// を個々に組み合わせる `replace_children`（可変長引数の分割メソッド
+    /// になり煩雑）よりも意味が明確で `web-sys` の型付けとも相性が良い
+    /// ため採用した。
+    ///
+    /// `set_text_content` は `web-sys` 上 infallible（`Result` を返さない）
+    /// のため常に成功として `true` を返し、内部索引キャッシュ（`children`）
+    /// を空 `Vec` へ確定する。他メソッド（`remove_child`/`insert_before_batch`
+    /// 等）が守る「キャッシュ更新は完全成功時のみ」契約と矛盾しない
+    /// （本メソッドに失敗しうる分岐が存在しないため）。
+    fn clear_children(&mut self) -> bool {
+        self.list_element.set_text_content(None);
+        self.children = Some(Vec::new());
+        true
+    }
+
     /// `Element::tag_name()`（DOM 標準 API、常に大文字化された値を返す
     /// 仕様）を ASCII 小文字化して返す（イシュー #1340 codex-review
     /// P1/Bugbot〔10 巡目〕対応、`KeyedListDom::tag_name` doc 参照）。
@@ -2072,6 +2103,121 @@ mod tests {
 
         let li_el = list_element.first_element_child().unwrap();
         assert_eq!(li_el.text_content().as_deref(), Some("new-label"));
+        assert!(matches!(result, KeyedListApplyResult::Achieved { .. }));
+    }
+
+    // --- 全キー削除の一括 clear 経路（イシュー #1373） ---
+
+    /// 全キー削除は `list_element` の子ノードをすべて除去し、
+    /// `KeyedListApplyResult::Achieved`（`final_keys` 空）を返す
+    /// （`clear_children` の `web-sys` 実装 = `set_text_content(None)` が
+    /// 呼ばれたことを間接的に検証する: `child_element_count`/`text_content`
+    /// がともに空になる）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_clears_all_items_via_text_content_reset() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b", "c"]);
+
+        let previous = keyed_items(&["a", "b", "c"]);
+        let updated = keyed_list("ul", vec![], "items", vec![]).unwrap();
+
+        let result = apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        assert_eq!(
+            list_element.child_element_count(),
+            0,
+            "全キー削除後、コンテナ配下の子要素は 0 件のはず"
+        );
+        assert_eq!(
+            list_element.text_content().as_deref(),
+            Some(""),
+            "textContent クリアにより残留テキストも無いはず"
+        );
+        match result {
+            KeyedListApplyResult::Achieved { node, .. } => {
+                let Node::Element { children, .. } = node else {
+                    panic!("keyed list ノードは Element のはず");
+                };
+                assert!(children.is_empty(), "達成後のキー列は空のはず");
+            }
+            other => panic!("Achieved を期待したが {other:?} だった"),
+        }
+    }
+
+    /// 全キー削除と同時に発生する親要素（`list_element` 自身）の属性変更が
+    /// 正しく同期される（`apply_ops_with_items` の一括 clear 経路は早期
+    /// `return` を持つが、それを呼ぶ `apply_keyed_list_core`（`keyed_dom.rs`）
+    /// 側の `compose_achieved_children`/`sync_parent_attrs` 呼び出しは
+    /// clear 経路の有無に関わらず通常どおり実行されることの確認、イシュー
+    /// #1373）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_clears_all_items_and_syncs_parent_attrs_together() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+        list_element.set_attribute("class", "old").unwrap();
+        // `apply_keyed_list_with_previous_syncs_parent_attrs` と同じ理由
+        // （SSR/マウント直後の予約属性込み状態を模す）で明示的に種付ける。
+        list_element
+            .set_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "items")
+            .unwrap();
+
+        let previous = keyed_list(
+            "ul",
+            vec![("class", "old")],
+            "items",
+            vec![
+                ("a".to_string(), li(vec![], vec![text("a")])),
+                ("b".to_string(), li(vec![], vec![text("b")])),
+            ],
+        )
+        .unwrap();
+        let updated = keyed_list("ul", vec![("class", "new")], "items", vec![]).unwrap();
+
+        let result = apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        assert_eq!(
+            list_element.child_element_count(),
+            0,
+            "全キー削除は親属性変更と同時でも正しく反映されるはず"
+        );
+        assert_eq!(
+            list_element.get_attribute("class").as_deref(),
+            Some("new"),
+            "全キー削除と同時の親属性変更（class）も反映されるはず"
+        );
+        assert!(matches!(result, KeyedListApplyResult::Achieved { .. }));
+    }
+
+    /// 全キー削除の直後に別アイテムを再挿入する連続適用でもキャッシュ
+    /// （`WebSysKeyedDom::children`）が実 DOM と整合したまま正しい並びへ
+    /// 収束する（`clear_children` 後の `children = Some(Vec::new())` 確定が
+    /// 次回適用の `child_at`/`insert_before_batch` 追随更新と矛盾しないこと
+    /// の確認）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_reinserts_correctly_after_clear() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+
+        let previous = keyed_items(&["a", "b"]);
+        let cleared = keyed_list("ul", vec![], "items", vec![]).unwrap();
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &cleared);
+        assert_eq!(list_element.child_element_count(), 0);
+
+        let reinserted = keyed_items(&["x", "y"]);
+        let result =
+            apply_keyed_list_with_previous(&document, &list_element, &cleared, &reinserted);
+
+        assert_eq!(list_element.child_element_count(), 2);
+        let keys: Vec<Option<String>> = (0..2)
+            .map(|i| {
+                list_element
+                    .children()
+                    .item(i)
+                    .unwrap()
+                    .get_attribute(KEY_ATTR)
+            })
+            .collect();
+        assert_eq!(keys, vec![Some("x".to_string()), Some("y".to_string())]);
         assert!(matches!(result, KeyedListApplyResult::Achieved { .. }));
     }
 
