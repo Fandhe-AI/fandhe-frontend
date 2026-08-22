@@ -71,6 +71,33 @@ const CASES = [
     expectEscapeOk: false,
   },
   {
+    // HTML5 の abrupt close（`<!-->` は即座に閉じる）: ブラウザでは直後の
+    // <img> が生きるのに、一律の `-->` 読み飛ばしはコメント内として無視
+    // してしまう（PR #1370 Bugbot 指摘の実例）
+    name: "comment early close: <!--> abrupt close hides injection",
+    html: GOOD.replace(
+      "<tbody>",
+      "<!--><img src=x onerror=alert(1)>--><tbody>",
+    ),
+    expectEscapeOk: false,
+  },
+  {
+    // HTML5 の `--!>` 早期終了でも同様にコメントが先に閉じる
+    name: "comment early close: --!> hides injection",
+    html: GOOD.replace(
+      "<tbody>",
+      "<!-- x --!><img src=x onerror=alert(1)>--><tbody>",
+    ),
+    expectEscapeOk: false,
+  },
+  {
+    // 既知ハイドレーション形式以外のコメント本文は注入がなくても不正
+    // （完全一致許可の fail-closed 契約）
+    name: "unknown comment body rejected",
+    html: GOOD.replace("<tbody>", "<!--evil--><tbody>"),
+    expectEscapeOk: false,
+  },
+  {
     // 正常出力（vanilla renderer 相当）
     name: "well-escaped output passes (vanilla style)",
     html: GOOD,

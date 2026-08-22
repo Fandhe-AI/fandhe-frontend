@@ -84,6 +84,16 @@ const ALLOWED_TAG_RE = new RegExp(
   "iy",
 );
 
+// 許可コメントの完全一致形: svelte（`<!--[-->` / `<!--]-->`）と
+// lit（`<!--lit-part ...-->` / `<!--lit-part-->` / `<!--/lit-part-->`。
+// digest は base64 系文字のみ）。本文に `-` `!` `>` `<` を含む形を受理
+// しないため、HTML5 の早期終了（`<!-->` / `<!--->` の abrupt close や
+// `--!>`）が受理スパン内に存在し得ず、「スキャナはコメント扱いだが
+// ブラウザではコメントが先に閉じて後続マークアップが生きる」乖離が
+// 構造的に起こらない（PR #1370 Bugbot 指摘対応。一律の `-->` 読み
+// 飛ばしはこの乖離を許すため廃止した）。
+const ALLOWED_COMMENT_RE = /<!--(?:\[|\]|\/lit-part|lit-part(?: [^<>!-]*)?)-->/y;
+
 /**
  * 第 1 層: 出力中のすべての `<` が許可タグまたはコメントの開始であることを
  * 走査で検証する。1 件でも許可リスト外なら false（fail-closed）。
@@ -92,12 +102,14 @@ function rawStructureOk(html) {
   let pos = html.indexOf("<");
   while (pos !== -1) {
     if (html.startsWith("<!--", pos)) {
-      // コメント: 対応する `-->` まで読み飛ばす（未終端は不正）。
-      const end = html.indexOf("-->", pos + 4);
-      if (end === -1) {
+      // コメント: 既知のハイドレーションコメント形式（ALLOWED_COMMENT_RE）
+      // との完全一致のみ受理する。未知の本文・未終端・早期終了を誘発する
+      // 形はすべて不正（fail-closed）。
+      ALLOWED_COMMENT_RE.lastIndex = pos;
+      if (!ALLOWED_COMMENT_RE.test(html)) {
         return false;
       }
-      pos = html.indexOf("<", end + 3);
+      pos = html.indexOf("<", ALLOWED_COMMENT_RE.lastIndex);
       continue;
     }
     ALLOWED_TAG_RE.lastIndex = pos;
