@@ -531,6 +531,46 @@ pub(crate) trait KeyedListDom {
     /// 場合 `resync_required` を立て、次回はライブ DOM を直接読み出す
     /// 構造フォールバックへ委ねる。
     fn replace_root(&mut self, old: &Self::Handle, key: &str, new: Self::NewNode) -> bool;
+
+    /// コンテナの全子ノードを 1 回の DOM 境界操作相当で取り除く（イシュー
+    /// #1373）。
+    ///
+    /// # 用途
+    ///
+    /// [`apply_ops_with_items`] は「全キー削除（保持キー 0 件）」を検出した
+    /// 場合、[`diff_keyed_items`] が発行する `Remove` op を 1 件ずつ
+    /// [`Self::remove_child`] で処理する代わりに本メソッドを 1 回だけ呼ぶ
+    /// （親トラッキング #1371 が特定した、1,000 行全削除で web-sys/JS
+    /// 境界呼び出しが O(N) になる問題を O(1) 相当へ是正する）。`web-sys`
+    /// 実装（[`crate::keyed_dom::WebSysKeyedDom`]）は `Node::textContent`
+    /// への `None` 代入 1 回で実装する（lit / vue / js-framework-benchmark
+    /// 上位実装と同型の定石）。
+    ///
+    /// # 契約
+    ///
+    /// - コンテナ直下の**全子ノード**（`data-key` を持たない迷子ノード・
+    ///   テキストノードを含む）を除去する。コンテナ直下は keyed アイテムの
+    ///   みという既存契約下では、目標状態（空リスト）への安全側の収束で
+    ///   ある（`Remove` を 1 件ずつ適用した場合と異なり keyed アイテム以外
+    ///   も一掃するが、これは意図的な単純化であり劣化ではない）。
+    /// - 戻り値 `false` は削除が完全には終わらなかったことを示す（部分
+    ///   削除で中断した可能性がある）。この場合呼び出し元は
+    ///   `resync_required` を立てて構造フォールバックへ委ね、内部索引
+    ///   キャッシュ（`web-sys` 実装の `children`）を「空」として確定しては
+    ///   ならない（[`Self::remove_child`]・[`Self::insert_before_batch`]
+    ///   と同じ「キャッシュ更新は完全成功時のみ」契約）。
+    /// - 既定実装は [`Self::first_element_child`]/[`Self::remove_child`]
+    ///   による per-item フォールバック（本メソッドをオーバーライドしない
+    ///   実装でも安全に動作する。native テストのモック
+    ///   `CountingDom`（オーバーライドなし版）はこの既定実装を検証する）。
+    fn clear_children(&mut self) -> bool {
+        while let Some(child) = self.first_element_child() {
+            if !self.remove_child(&child) {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 /// [`KeyedListDom::replace_item_children`]（子ノード列交換）のコミット
@@ -1088,6 +1128,27 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
     old_items: &[(String, Node)],
     new_items: &[(String, Node)],
 ) -> ApplyOutcome {
+    // 全キー削除の一括 clear 経路（イシュー #1373）: `new_items` が空かつ
+    // `old_items` が非空のとき、[`diff_keyed_items`] の remove_pass 仕様
+    // （`new_items` が空なら全 old キーの `Remove` のみを発行し、
+    // Insert/Move/Update は一切発行しない、
+    // `fandhe_frontend_core::keyed::diff_keyed_items` 参照）により
+    // 「ops が全件 `Remove`・保持キー 0 件」と等価である。この場合
+    // `diff_keyed_items` の計算自体をスキップし、[`KeyedListDom::clear_children`]
+    // （`web-sys` 実装では `textContent` クリア 1 回）で N 回の
+    // `remove_child` 呼び出しを 1 回の DOM 境界操作相当へ集約する。
+    // `old_items` も空（ops も空）の場合はここへ入らず、以降の通常経路が
+    // 何もせず `ApplyOutcome::default()` 相当を返す（境界呼び出しゼロを
+    // 維持）。
+    if !old_items.is_empty() && new_items.is_empty() {
+        let ok = dom.clear_children();
+        return ApplyOutcome {
+            final_keys: Vec::new(),
+            resync_required: !ok,
+            ..Default::default()
+        };
+    }
+
     let ops = diff_keyed_items(old_items, new_items);
     let mut failed_inserts: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut stale_update_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -1615,6 +1676,9 @@ mod tests {
         /// 既存テスト群を無改修のまま通す狙い。タグ不一致を検証する
         /// テストは新しいタグ、または本フィールドを明示的に上書きする）。
         tags: std::collections::HashMap<String, String>,
+        /// `clear_children` に実 DOM クリア失敗を注入するフラグ（イシュー
+        /// #1373。`false` を返すオーバーライドの回帰テスト用）。
+        fail_clear_children: bool,
     }
 
     #[derive(Default, Debug, Clone, Copy)]
@@ -1632,6 +1696,7 @@ mod tests {
         find_by_key: usize,
         replace_root: usize,
         tag_name: usize,
+        clear_children: usize,
     }
 
     impl CallCounts {
@@ -1662,6 +1727,7 @@ mod tests {
                 + self.find_by_key
                 + self.replace_root
                 + self.tag_name
+                + self.clear_children
         }
     }
 
@@ -1951,6 +2017,119 @@ mod tests {
             self.calls.find_by_key += 1;
             self.items.iter().find(|k| k.as_str() == key).cloned()
         }
+
+        /// `web-sys` 実装（`textContent` クリア 1 回）を模擬する
+        /// オーバーライド（イシュー #1373）: `first_element_child`/
+        /// `remove_child` を経由せず `self.items`/`attrs`/`children` を
+        /// 直接空にする（呼び出し回数を 1 回に固定するのが目的で、既定実装
+        /// の per-item フォールバックとは意図的に異なる実装にする）。
+        /// `fail_clear_children` セット時は何も変更せず `false` を返す
+        /// （トレイト契約「失敗時は内部キャッシュを更新してはならない」の
+        /// 回帰テスト用）。
+        fn clear_children(&mut self) -> bool {
+            self.calls.clear_children += 1;
+            if self.fail_clear_children {
+                return false;
+            }
+            self.items.clear();
+            self.attrs.clear();
+            self.children.clear();
+            true
+        }
+    }
+
+    /// [`KeyedListDom::clear_children`] の既定実装（`first_element_child`/
+    /// `remove_child` による per-item フォールバック）を検証する専用モック
+    /// （イシュー #1373）。[`CountingDom`] はオーバーライドを持つため、
+    /// 「オーバーライドしない実装でも安全に動作する」既定実装自体の契約は
+    /// 本モックでのみ検証できる。
+    #[derive(Default)]
+    struct DefaultClearDom {
+        items: Vec<String>,
+        first_element_child_calls: usize,
+        remove_child_calls: usize,
+    }
+
+    impl KeyedListDom for DefaultClearDom {
+        type Handle = String;
+        type NewNode = String;
+
+        fn first_element_child(&mut self) -> Option<Self::Handle> {
+            self.first_element_child_calls += 1;
+            self.items.first().cloned()
+        }
+
+        fn next_element_sibling(&mut self, child: &Self::Handle) -> Option<Self::Handle> {
+            let pos = self.items.iter().position(|k| k == child)?;
+            self.items.get(pos + 1).cloned()
+        }
+
+        fn item_key(&mut self, child: &Self::Handle) -> Option<String> {
+            Some(child.clone())
+        }
+
+        fn child_at(&mut self, index: usize) -> Option<Self::Handle> {
+            self.items.get(index).cloned()
+        }
+
+        fn create_item(&mut self, key: &str) -> Option<Self::NewNode> {
+            Some(key.to_string())
+        }
+
+        fn insert_before_batch(
+            &mut self,
+            _start_index: usize,
+            _items: Vec<(String, Self::NewNode)>,
+            _reference: Option<&Self::Handle>,
+        ) -> bool {
+            unreachable!("本テストは全キー削除のみを exercise するため Insert 系は呼ばれない")
+        }
+
+        fn move_before(
+            &mut self,
+            _index: usize,
+            _key: &str,
+            _child: &Self::Handle,
+            _reference: Option<&Self::Handle>,
+        ) -> bool {
+            unreachable!("本テストは全キー削除のみを exercise するため Move は呼ばれない")
+        }
+
+        fn remove_child(&mut self, child: &Self::Handle) -> bool {
+            self.remove_child_calls += 1;
+            if let Some(pos) = self.items.iter().position(|k| k == child) {
+                self.items.remove(pos);
+            }
+            true
+        }
+
+        fn tag_name(&mut self, _child: &Self::Handle) -> String {
+            "li".to_string()
+        }
+
+        fn sync_attrs(
+            &mut self,
+            _child: &Self::Handle,
+            _reserved_attr: &str,
+            _old_attrs: &[(String, String)],
+            new_attrs: &[(String, String)],
+        ) -> Vec<(String, String)> {
+            new_attrs.to_vec()
+        }
+
+        fn replace_item_children(&mut self, _child: &Self::Handle, _new_children: &[Node]) -> bool {
+            true
+        }
+
+        fn find_by_key(&mut self, key: &str) -> Option<Self::Handle> {
+            self.items.iter().find(|k| k.as_str() == key).cloned()
+        }
+
+        fn replace_root(&mut self, _old: &Self::Handle, _key: &str, _new: Self::NewNode) -> bool {
+            true
+        }
+
+        // `clear_children` はオーバーライドしない（既定実装の検証が目的）。
     }
 
     fn keys_n(n: usize) -> Vec<String> {
@@ -4296,13 +4475,17 @@ mod tests {
     /// `apply_ops_with_items` の `Remove` op で `remove_child` が実 DOM
     /// 削除失敗を返した場合、`resync_required` が立ち `items`（ライブ側）
     /// から対象キーが取り除かれないこと（イシュー #1340 codex-review P1
-    /// 〔3 巡目〕全走査対応）。
+    /// 〔3 巡目〕全走査対応）。保持キー（`b`）を残す構成にしてあるのは、
+    /// 全キー削除（保持キー 0 件）だと一括 clear 経路（イシュー #1373、
+    /// `apply_ops_with_items_signals_resync_required_when_clear_children_fails`
+    /// 参照）へ入り本来検証したい `remove_child` 個別失敗パスを通らなく
+    /// なるため。
     #[test]
     fn apply_ops_with_items_signals_resync_required_when_remove_child_fails() {
-        let old_items = vec![item("a", "a-text")];
-        let new_items: Vec<(String, Node)> = vec![];
+        let old_items = vec![item("a", "a-text"), item("b", "b-text")];
+        let new_items = vec![item("b", "b-text")];
         let mut dom = CountingDom {
-            items: vec!["a".to_string()],
+            items: vec!["a".to_string(), "b".to_string()],
             fail_remove_child_for: std::collections::HashSet::from(["a".to_string()]),
             ..Default::default()
         };
@@ -4315,9 +4498,136 @@ mod tests {
         );
         assert_eq!(
             dom.items,
-            vec!["a".to_string()],
+            vec!["a".to_string(), "b".to_string()],
             "remove_child 失敗時はライブ側（items）から対象キーを取り除いて \
              はならない"
+        );
+    }
+
+    // --- 全キー削除の一括 clear 経路（イシュー #1373） ---
+
+    /// 全キー削除（1,000 件 → 0 件）は `clear_children` を 1 回だけ呼び、
+    /// `remove_child`/`diff_keyed_items` 経由の per-item 走査を一切
+    /// 発生させない（本イシューの目的そのもの、O(N) → O(1) の機械固定）。
+    #[test]
+    fn apply_ops_with_items_clears_all_keys_via_single_clear_children_call() {
+        const N: usize = 1_000;
+        let old_items = items_n(N, "v");
+        let new_items: Vec<(String, Node)> = vec![];
+        let mut dom = CountingDom {
+            items: keys_n(N),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.final_keys.is_empty(),
+            "全キー削除後の final_keys は空のはず"
+        );
+        assert!(
+            !outcome.resync_required,
+            "clear_children が成功したので再同期は不要のはず"
+        );
+        assert_eq!(
+            dom.calls.clear_children, 1,
+            "一括 clear 経路は clear_children をちょうど 1 回だけ呼ぶはず"
+        );
+        assert_eq!(
+            dom.calls.remove_child, 0,
+            "一括 clear 経路は remove_child を 1 件も呼ばないはず（O(1) 化\
+             の目的そのもの）"
+        );
+        assert!(
+            dom.items.is_empty(),
+            "clear_children 適用後、ライブ側（items）は空のはず"
+        );
+    }
+
+    /// 保持キーが 1 件でもあれば一括 clear 経路には入らない（部分 Remove は
+    /// 従来どおり per-item 経路を通る）。
+    #[test]
+    fn apply_ops_with_items_does_not_use_clear_path_when_some_keys_are_kept() {
+        let old_items = vec![item("a", "a-text"), item("b", "b-text")];
+        let new_items = vec![item("b", "b-text")];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string(), "b".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert_eq!(outcome.final_keys, vec!["b".to_string()]);
+        assert_eq!(
+            dom.calls.clear_children, 0,
+            "保持キーがある部分 Remove では一括 clear 経路に入らないはず"
+        );
+        assert_eq!(
+            dom.calls.remove_child, 1,
+            "部分 Remove は従来どおり per-item の remove_child を呼ぶはず"
+        );
+    }
+
+    /// `old_items`/`new_items` がともに空（保持アイテムなし）の場合は
+    /// `clear_children` も呼ばない（境界呼び出しゼロを維持する既存契約）。
+    #[test]
+    fn apply_ops_with_items_calls_nothing_when_both_empty() {
+        let old_items: Vec<(String, Node)> = vec![];
+        let new_items: Vec<(String, Node)> = vec![];
+        let mut dom = CountingDom::default();
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(outcome.final_keys.is_empty());
+        assert!(!outcome.resync_required);
+        assert_eq!(dom.calls.total(), 0, "境界呼び出しは 1 回も発生しないはず");
+    }
+
+    /// `clear_children` が失敗（`false`）を返した場合、`resync_required` が
+    /// 立ち、内部キャッシュ（`items`）は「達成」として確定されない
+    /// （`KeyedListDom::clear_children` doc「キャッシュ更新は完全成功時
+    /// のみ」契約の回帰テスト）。
+    #[test]
+    fn apply_ops_with_items_signals_resync_required_when_clear_children_fails() {
+        let old_items = vec![item("a", "a-text")];
+        let new_items: Vec<(String, Node)> = vec![];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            fail_clear_children: true,
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "clear_children が false を返した場合、再同期を要求するはず"
+        );
+        assert_eq!(dom.calls.clear_children, 1);
+    }
+
+    /// [`KeyedListDom::clear_children`] の既定実装（オーバーライドなし）は
+    /// `first_element_child`/`remove_child` による per-item フォールバック
+    /// へ収束し、最終的に全キーを取り除く（[`DefaultClearDom`] 参照）。
+    #[test]
+    fn clear_children_default_impl_falls_back_to_per_item_remove() {
+        let mut dom = DefaultClearDom {
+            items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            ..Default::default()
+        };
+
+        let ok = dom.clear_children();
+
+        assert!(ok, "全件削除に成功すれば true を返すはず");
+        assert!(dom.items.is_empty());
+        assert_eq!(
+            dom.remove_child_calls, 3,
+            "既定実装は remove_child を要素数分だけ呼ぶはず"
+        );
+        assert_eq!(
+            dom.first_element_child_calls, 4,
+            "先頭要素を都度読み直す per-item 走査のはず（3 回の削除 + \
+             最終確認で None を返す 1 回）"
         );
     }
 

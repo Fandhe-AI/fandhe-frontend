@@ -172,6 +172,20 @@ categories = ["wasm", "web-programming"]
 # `pub(crate)` 内部変更のみで公開型・公開シグネチャに変更はないため、
 # 引き続き同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0 へ吸収させ、
 # 追加のバンプは行わない。
+#
+# イシュー #1373（keyed list 全キー削除の一括 clear 経路化）: 全キー削除
+# （保持キー 0 件）の検出時、`diff_keyed_items`（core）を経由した
+# `Remove` N 件の逐次適用の代わりに `KeyedListDom::clear_children`（新設、
+# 既定実装付きで既存実装者への必須波及なし。`keyed_apply.rs`）を 1 回だけ
+# 呼ぶ経路を `apply_ops_with_items` へ追加した。`web-sys` 実装
+# （`keyed_dom.rs::WebSysKeyedDom::clear_children`）は
+# `Node::set_text_content(None)` 1 回で実装し、N 回の `remove_child` 境界
+# 呼び出しを 1 回へ集約する（親トラッキング #1371 が実測した O(N) の是正）。
+# `pub(crate)` トレイトへのメソッド追加・内部適用アルゴリズムの変更のみで
+# 公開型・公開シグネチャに変更はないため、引き続き同じ「未公開ウィンドウ
+# 中の変更相乗り」として 0.4.0 へ吸収させ、追加のバンプは行わない
+# （実装時点で sparse index を再確認し 0.4.0 が未公開のままであることを
+# 確認済み）。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.3.0" }
 fandhe-frontend-app = { path = "../app", version = "0.2.2" }
