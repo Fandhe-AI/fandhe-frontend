@@ -1,0 +1,48 @@
+[package]
+name = "fandhe-bench-csr-wasm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "フレームワーク横断 CSR ベンチマーク（bench/PROTOCOL.md §2.2）向けの fandhe-frontend wasm アプリ。playwright ハーネス（bench/csr/run_csr.mjs）から window.__bench 経由で呼び出される。"
+
+# 独立ワークスペース（templates/app/wasm/Cargo.toml と同型の構成方針）:
+#
+# root workspace（members = ["crates/*"]）の外に置くことで、ベンチ専用の
+# wasm ビルド設定（release プロファイル調整・cdylib crate-type）を
+# root の依存グラフ・`fw gate` の計測対象（REQ-3・標準サーバー構成）へ
+# 一切波及させない。`[workspace] members = ["."]` を明示しないと cargo が
+# 親ディレクトリを遡って探索してしまうため、独立ルートであることを
+# 明示的に確定させる。
+[workspace]
+members = ["."]
+
+# `bench/` 配下は path 依存で workspace の現行コードを直接計測する
+# （`bench/PROTOCOL.md` §1「fandhe-frontend はローカル workspace の path 依存で
+# 現行コードを計測する」）。crates.io 公開版は使わない。
+[dependencies]
+fandhe-frontend-core = { path = "../../../crates/core" }
+# `apply_keyed_list` / `apply_keyed_list_with_previous`（DOM 適用経路の選定
+# 理由は src/lib.rs 冒頭 doc コメント参照）の再エクスポート元。
+fandhe-frontend-wasm-client = { path = "../../../crates/wasm-client", default-features = false }
+wasm-bindgen = "0.2"
+
+[dependencies.web-sys]
+version = "0.3"
+features = ["Document", "Element", "Window"]
+
+[lib]
+crate-type = ["cdylib"]
+
+# 採用済みの配布プロファイル（docs/ci/wasm-opt-adoption-evaluation.md の
+# 「opt-level="s" + lto + codegen-units=1 + panic=abort + strip=debuginfo」
+# 採用構成）に揃える。JS フレームワーク側は minify 済み production ビルド
+# （実際に配布される形態）で計測するため、fandhe も配布形態のビルドで
+# CSR 実行時間・payload の双方を測るのが公平、という判断
+# （bench/PROTOCOL.md §4）。wasm-opt は build.sh 側で存在すれば適用
+# （なければ soft-skip、その場合 payload は wasm-opt なしの上限値になる）。
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"

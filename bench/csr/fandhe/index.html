@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<!--
+  フレームワーク横断 CSR ベンチマーク（bench/PROTOCOL.md §2.2）向けの
+  fandhe-frontend ページ骨格。build.sh が本ファイルを bench/csr/dist/fandhe/
+  へコピーし、wasm-bindgen（--target web）生成物への script src を
+  差し込む（プレースホルダ __WASM_GLUE__ を実ファイル名へ置換）。
+
+  playwright ハーネス（bench/csr/run_csr.mjs）は wasm 初期化完了を
+  window.__benchReady === true で待ち受け、以後 window.__bench.create() /
+  update() / clear() を呼んで performance.now() 境界を計測する。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>fandhe-frontend CSR bench</title>
+  </head>
+  <body>
+    <button id="create" type="button">Create 1,000 rows</button>
+    <button id="update" type="button">Update every 10th row</button>
+    <button id="clear" type="button">Clear</button>
+    <table id="bench-table">
+      <tbody id="bench-body"></tbody>
+    </table>
+    <script type="module">
+      import init, { bench_create, bench_update, bench_clear } from "./__WASM_GLUE__";
+
+      await init();
+
+      // window.__bench: playwright ハーネスが直接呼ぶ計測対象 API
+      // （bench/PROTOCOL.md §2.2）。ボタンクリックは手動動作確認用の
+      // 配線であり、計測経路とは独立（同じ Rust 関数を呼ぶのみ）。
+      window.__bench = {
+        create: () => bench_create(),
+        update: () => bench_update(),
+        clear: () => bench_clear(),
+      };
+
+      document.getElementById("create").addEventListener("click", () => window.__bench.create());
+      document.getElementById("update").addEventListener("click", () => window.__bench.update());
+      document.getElementById("clear").addEventListener("click", () => window.__bench.clear());
+
+      window.__benchReady = true;
+    </script>
+  </body>
+</html>

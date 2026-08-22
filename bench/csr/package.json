@@ -1,0 +1,23 @@
+{
+  "name": "csr",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "esbuild": "0.28.2",
+    "lit": "3.3.3",
+    "playwright-core": "1.62.1",
+    "preact": "10.29.8",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "svelte": "5.56.10",
+    "vue": "3.5.41"
+  }
+}

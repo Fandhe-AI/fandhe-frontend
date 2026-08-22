@@ -6,7 +6,7 @@
 #
 # 使い方: `make help`（既定ターゲット）でターゲット一覧を表示する。
 .DEFAULT_GOAL := help
-.PHONY: help setup build test fmt lint gate bench docs docker-dev-build docker-dev
+.PHONY: help setup build test fmt lint gate bench bench-cross docs docker-dev-build docker-dev
 
 help: ## このヘルプを表示する
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -51,6 +51,19 @@ bench: ## 常設ベンチマーク 3 種（bench-ssr / bench-state-update / benc
 	cargo run -p xtask --release --locked -- bench-ssr
 	cargo run -p xtask --release --locked -- bench-state-update
 	cargo run -p xtask --release --locked -- bench-binding-update
+
+# フレームワーク横断比較（SSR / CSR / payload）。手順・対象リストの正は
+# bench/PROTOCOL.md。npm 依存導入（npm ci --ignore-scripts）・システム
+# chromium・wasm-bindgen-cli を前提とするローカル専用ターゲット（CI 非常設、
+# 理由は bench/PROTOCOL.md §5）。結果（stdout の JSON 行）は docs/reports/
+# へ手動転記する。
+bench-cross: ## フレームワーク横断ベンチ（bench/PROTOCOL.md 参照。要 npm ci / chromium）
+	cargo run -p xtask --release --locked -- bench-ssr
+	node bench/ssr/run_ssr.mjs
+	bash bench/csr/fandhe/build.sh
+	node bench/csr/build.mjs
+	node bench/csr/run_csr.mjs
+	node bench/payload/measure.mjs
 
 docs: ## docs サイトを dist/ へビルドする
 	cargo run -p fandhe-frontend-docs-site --locked -- --out dist/
