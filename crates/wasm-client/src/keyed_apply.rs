@@ -883,7 +883,12 @@ fn find_child_by_key<D: KeyedListDom>(dom: &mut D, key: &str) -> Option<D::Handl
 #[cfg(test)]
 pub(crate) fn apply_ops<D: KeyedListDom>(dom: &mut D, new_keys: &[String]) -> bool {
     let old_keys = dom_item_keys(dom);
-    let ops = diff_keys(&old_keys, new_keys);
+    // `#[cfg(test)]` 専用のテストハーネスであり、キー列はテストフィクス
+    // チャが与える小規模な既知データのみ（イシュー #1375 codex-review P1
+    // 是正で `diff_keys` が `Result` を返すようになったため `unwrap()`。
+    // 本番到達しない関数のためテストコードでの `unwrap()` は許容される、
+    // `.claude/rules/coding-rust.md` 参照）。
+    let ops = diff_keys(&old_keys, new_keys).expect("test fixture keys stay within limits");
     apply_ops_list(dom, ops)
 }
 
@@ -1151,7 +1156,20 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
         };
     }
 
-    let ops = diff_keyed_items(old_items, new_items);
+    // `diff_keyed_items` は項目数・キー総バイト数の上限（HashDoS 対策の
+    // 追加防御、イシュー #1375 codex-review P1 是正、`fandhe_frontend_core::
+    // keyed` モジュール doc 参照）を超えると `Err` を返す。上限超過時は
+    // `HashMap`/`HashSet` を構築する diff 計算自体を一切行わず（`dom` にも
+    // 一切触れず）、既存の `resync_required` フォールバック（`Self` doc・
+    // 呼び出し元 [`crate::keyed_dom::apply_keyed_list_with_previous`]
+    // 参照）へ委ねる。DOM に触れていないため
+    // `invalidated_nested_fields` も空のままでよい。
+    let Ok(ops) = diff_keyed_items(old_items, new_items) else {
+        return ApplyOutcome {
+            resync_required: true,
+            ..ApplyOutcome::default()
+        };
+    };
     let mut failed_inserts: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut stale_update_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
     // `sync_attrs`（in-place 更新）が返した「実際に達成できた属性状態」の
@@ -4697,6 +4715,33 @@ mod tests {
              除去されるはず（要素ゼロで per-item 走査が早期終了しても \
              テキスト除去を省略してはならない）"
         );
+    }
+
+    /// 異常系（PR #1390 レビュー是正、イシュー #1375）: `diff_keyed_items`
+    /// が上限超過（HashDoS 対策の追加防御）で `Err` を返す場合、
+    /// `apply_ops_with_items` は `HashMap`/`HashSet` を構築する diff 計算・
+    /// DOM 操作を一切行わず、既存の `resync_required` フォールバックへ
+    /// 委ねる（ライブ DOM が一切変更されないことも固定する）。
+    #[test]
+    fn apply_ops_with_items_signals_resync_required_when_item_count_exceeds_limit() {
+        let old_items: Vec<(String, Node)> = vec![];
+        let new_items: Vec<(String, Node)> = (0
+            ..=fandhe_frontend_core::keyed::MAX_KEYED_LIST_ITEMS)
+            .map(|i| item(&format!("k{i}"), "v"))
+            .collect();
+        let mut dom = CountingDom::default();
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "項目数上限超過時は再同期を要求するはず"
+        );
+        assert!(
+            dom.items.is_empty(),
+            "上限超過時は diff 計算・DOM 操作を一切行わないはず"
+        );
+        assert!(outcome.invalidated_nested_fields.is_empty());
     }
 
     // --- コスト固定テスト（イシュー #1324、Update op 版）---

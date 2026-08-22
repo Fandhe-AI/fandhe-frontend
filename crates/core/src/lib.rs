@@ -129,6 +129,7 @@
 
 mod bind;
 mod escape;
+mod fx_hash;
 mod json_ld;
 pub mod keyed;
 mod tags;

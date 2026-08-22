@@ -46,7 +46,90 @@ pub const BIND_LIST_ATTR: &str = "data-bind-list";
 /// 並べ替えを最小の DOM 操作へ変換する契約値（設計書 §3.1 で凍結）。
 pub const KEY_ATTR: &str = "data-key";
 
-/// [`keyed_list`] 構築時の fail-closed エラー。
+/// keyed list 1 件あたりに許容する最大項目数（HashDoS 対策の追加防御、
+/// イシュー #1375 codex-review P1 是正）。
+///
+/// `crate::fx_hash` モジュール doc「ターゲット別ハッシャ選択」節が確定する
+/// 設計（ネイティブ: 本物の SipHash 耐性を持つ `RandomState`、
+/// wasm32-unknown-unknown: 固定初期状態の軽量 `FxHasher`）に対し、
+/// codex-review は「ブラウザ側でも衝突耐性のあるハッシャを維持するか、
+/// キー件数・総バイト数の厳格な上限など攻撃可能な計算量を拘束する追加
+/// 防御を導入すること」を求めた（PR #1390 レビュー）。本モジュールは
+/// 後者（上限による計算量拘束）を [`keyed_list`] 構築時点の fail-closed
+/// 拒否として採用する。
+///
+/// # 全ターゲット一律で強制する理由
+///
+/// wasm32-unknown-unknown 限定のガードは採らない。理由は 2 点:
+/// (1) `cargo test` を wasm32 target 上で実行する CI ジョブが現状存在
+/// せず（`fx_hash` モジュール doc 参照）、`cfg` 分岐を持つガードは CI で
+/// 実質未検証のまま出荷することになる。(2) ネイティブ（SSR/SSG）側だけ
+/// 上限がない非対称構成は「サーバー側では通る同じ `items` が CSR 側での
+/// み拒否される」ハイドレーション不一致を生み、`fx_hash` モジュール doc
+/// が固定する「ハッシャ選択が SSR/SSG 出力バイトへ影響しない」不変条件
+/// と設計思想が矛盾する。このためガードは全ターゲット共通のコード
+/// パスに置き、`cfg` 分岐を持たない。
+///
+/// # 値の根拠（項目数の上限としての役割。旧 `N^2` バイト比較見積もりは
+/// 破棄済み、PR #1390 codex-review 第 2 巡 P1 是正）
+///
+/// 当初この定数は「`N^2` 回程度のバイト単位比較に収まる」という見積もり
+/// で正当化されていたが、codex-review から「比較回数は拘束できていても
+/// 個々の比較の重さ（同一バケット内候補どうしの共通接頭辞長）を拘束して
+/// いない」との指摘を受けた。長い共通接頭辞を持つ衝突キー列を用意すれば、
+/// 同じ `N = 4_096` でも比較バイト総量は `N^2` バイト比較の見積もりを
+/// はるかに超えて劣化し得る（概算 10 億 byte 相当）。
+///
+/// この指摘を受け、`keyed.rs` の文字列キー `HashMap`/`HashSet` はすべて
+/// [`crate::fx_hash::FxStrMap`]/[`crate::fx_hash::FxStrSet`]
+/// （64bit 一次ハッシュ経由の間接テーブル、衝突時は
+/// [`KeyedListError::KeyHashCollision`] で fail-closed 拒否）へ置き換えた。
+/// これにより **比較バイト総量は `O(総キーバイト数)` の線形**で拘束され、
+/// 「件数の 2 乗 × 共通接頭辞長」という項は構造的に消滅する（詳細・
+/// 内側マップの衝突が安全な理由・意図的な衝突キーに対する挙動は
+/// [`crate::fx_hash::FxStrMap`] の型 doc 参照）。
+///
+/// 本定数（[`MAX_KEYED_LIST_ITEMS`]）は、この線形拘束のもとでも残る
+/// **操作回数**（`HashMap`/`HashSet` への `get`/`insert` 呼び出し回数、
+/// `Vec` 走査・アロケーション回数）を有界にする役割へ性質が変わった。
+/// バイト単位比較コストの拘束はもはや本定数ではなく `FxStrMap`/`FxStrSet`
+/// の一次ハッシュ間接化が担う。
+pub const MAX_KEYED_LIST_ITEMS: usize = 4_096;
+
+/// keyed list 1 件あたりに許容するキー文字列の合計バイト数
+/// （[`MAX_KEYED_LIST_ITEMS`] と対の追加防御）。
+///
+/// ハッシュ計算コストは走査したバイト数に比例するため、項目数の上限
+/// だけでは「少数の巨大なキー文字列」による計算量膨張を防げない。総
+/// バイト数を独立に拘束することで、この経路も塞ぐ。
+pub const MAX_KEYED_LIST_KEY_BYTES: usize = 262_144;
+
+/// [`MAX_KEYED_LIST_ITEMS`]/[`MAX_KEYED_LIST_KEY_BYTES`] を強制する共通
+/// ゲート（PR #1390 codex-review P1 是正、イシュー #1375）。
+///
+/// 当初 [`keyed_list`] のみが適用していたが、[`diff_keys`]/
+/// [`diff_keyed_items`] は `keyed_list` を経由しない生の `&[String]`/
+/// `&[(String, Node)]` を直接受け取れる公開 API であり、`keyed_list` の
+/// 上限を経由せずに攻撃者が選んだキー列を直接投入できてしまう（wasm32-
+/// unknown-unknown 上の軽量 `FxHasher` は固定初期状態であるため、この経路
+/// をすり抜けると `keyed_list` 側の追加防御が無意味化する。`fx_hash`
+/// モジュール doc「ターゲット別ハッシャ選択」節参照）。このため両関数も
+/// 呼び出し直後にこのゲートを通す（内部で `HashMap`/`HashSet` を構築する
+/// 前に必ず適用する）。
+fn enforce_key_limits(count: usize, total_key_bytes: usize) -> Result<(), KeyedListError> {
+    if count > MAX_KEYED_LIST_ITEMS {
+        return Err(KeyedListError::TooManyItems { count });
+    }
+    if total_key_bytes > MAX_KEYED_LIST_KEY_BYTES {
+        return Err(KeyedListError::KeyBytesExceeded {
+            total_bytes: total_key_bytes,
+        });
+    }
+    Ok(())
+}
+
+/// [`keyed_list`] 構築時、および [`diff_keys`]/[`diff_keyed_items`] 実行時の
+/// fail-closed エラー。
 ///
 /// いずれの異常系も `panic!`/`unwrap()` ではなく `Err` として安全側に倒す
 /// （ライブラリコードでの panic 回避規約、OWASP A05 安全でない設計への対抗）。
@@ -54,14 +137,33 @@ pub const KEY_ATTR: &str = "data-key";
 /// 目的を、`render()` 呼び出し時点ではなく**構築時点**で満たす（不正な状態を
 /// そもそも表現不能にする設計。`docs/design/dom-binding-update-design.md`
 /// §5.2 改訂内容を参照）。
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyedListError {
+    /// 項目数が [`MAX_KEYED_LIST_ITEMS`] を超えている（HashDoS 対策の追加
+    /// 防御、イシュー #1375 codex-review P1 是正）。[`keyed_list`]・
+    /// [`diff_keys`]・[`diff_keyed_items`] のいずれからも返り得る
+    /// （PR #1390 レビュー是正で `diff_keys`/`diff_keyed_items` にも同じ
+    /// ゲート [`enforce_key_limits`] を適用したため）。
+    TooManyItems {
+        /// 実際の項目数。
+        count: usize,
+    },
+    /// 全項目のキー文字列の合計バイト数が [`MAX_KEYED_LIST_KEY_BYTES`]
+    /// を超えている（同上。同じく 3 関数いずれからも返り得る）。
+    KeyBytesExceeded {
+        /// 実際の合計バイト数。
+        total_bytes: usize,
+    },
     /// キーが空文字列（キー欠落）。`index` は `items` 内の位置。
+    /// [`keyed_list`] 専用（[`diff_keys`]/[`diff_keyed_items`] は生の
+    /// キー列を比較するのみで空キーを拒否しない）。
     EmptyKey {
         /// `items` 内のインデックス。
         index: usize,
     },
     /// 同一リスト内でキーが重複している（直下の子スコープのみが対象）。
+    /// [`keyed_list`] 専用。
     DuplicateKey {
         /// 最初に当該キーが出現したインデックス。
         first_index: usize,
@@ -69,16 +171,37 @@ pub enum KeyedListError {
         duplicate_index: usize,
     },
     /// 子ノードが `Node::Element` でなく、`data-key` 属性を付与できない。
+    /// [`keyed_list`] 専用。
     NonElementItem {
         /// `items` 内のインデックス。
         index: usize,
     },
     /// 呼び出し側が渡した属性列に予約マーカー属性
     /// （[`BIND_LIST_ATTR`] / [`KEY_ATTR`]）が既に含まれている。
+    /// [`keyed_list`] 専用。
     ReservedAttr {
         /// 衝突した予約属性名。
         attr: &'static str,
     },
+    /// 内部で使うキー用ハッシュテーブル（[`crate::fx_hash::FxStrMap`]/
+    /// [`crate::fx_hash::FxStrSet`]）が、64bit 一次ハッシュ値の衝突する
+    /// 異なる文字列キーを検出した（HashDoS 対策の追加防御その 2、PR #1390
+    /// codex-review 第 2 巡 P1 是正、イシュー #1375）。[`keyed_list`]・
+    /// [`diff_keys`]・[`diff_keyed_items`] のいずれからも返り得る。
+    ///
+    /// 偶発的な衝突確率の見積もり（`n = 4096` で約 `4.5 * 10^-13`）・
+    /// fail-closed で拒否する設計根拠は [`crate::fx_hash::FxStrMap`] の型
+    /// doc を参照。**wasm32-unknown-unknown 上では、攻撃者が意図的に同一
+    /// 一次ハッシュ値を持つ 2 文字列を構成することは依然として可能**
+    /// （固定初期状態・非暗号学的ハッシャのため）であり、本 variant は
+    /// それを「起こさない」保証ではなく「起きたときに CPU を無期限に
+    /// 消費させず、その場で決定的に拒否する」保証を表す
+    /// （`crate::fx_hash` モジュール doc「wasm32-unknown-unknown における
+    /// 『意図的な』一次ハッシュ衝突」節参照）。ネイティブ/wasm32-wasi 等
+    /// （`RandomState`/SipHash、秘匿シード）では、攻撃者はシードを知り得
+    /// ないため意図的な衝突ペアの事前計算はできず、本 variant は実質的に
+    /// 偶発確率のみに支配される。
+    KeyHashCollision,
 }
 
 impl std::fmt::Display for KeyedListError {
@@ -87,6 +210,15 @@ impl std::fmt::Display for KeyedListError {
     /// 情報非露出、OWASP A09 対策。設計書 §9 不変条件 7 を継承）。
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            KeyedListError::TooManyItems { count } => write!(
+                f,
+                "keyed_list: item count {count} exceeds the maximum of {MAX_KEYED_LIST_ITEMS}"
+            ),
+            KeyedListError::KeyBytesExceeded { total_bytes } => write!(
+                f,
+                "keyed_list: total key bytes {total_bytes} exceeds the maximum of \
+                 {MAX_KEYED_LIST_KEY_BYTES}"
+            ),
             KeyedListError::EmptyKey { index } => {
                 write!(f, "keyed_list: empty key at item index {index}")
             }
@@ -107,11 +239,28 @@ impl std::fmt::Display for KeyedListError {
             KeyedListError::ReservedAttr { attr } => {
                 write!(f, "keyed_list: attribute \"{attr}\" is reserved")
             }
+            KeyedListError::KeyHashCollision => {
+                write!(
+                    f,
+                    "keyed_list: two distinct keys collided on their primary hash value"
+                )
+            }
         }
     }
 }
 
 impl std::error::Error for KeyedListError {}
+
+/// [`crate::fx_hash::FxStrMap`]/[`crate::fx_hash::FxStrSet`] が返す
+/// 一次ハッシュ衝突エラーを [`KeyedListError::KeyHashCollision`] へ変換する。
+/// キー文字列そのものは運ばない（`KeyedListError::Display` と同じ
+/// 機微情報非露出方針、OWASP A09 対策）ため、変換は情報を持たない単純な
+/// マッピングで済む。
+impl From<crate::fx_hash::KeyHashCollisionError> for KeyedListError {
+    fn from(_: crate::fx_hash::KeyHashCollisionError) -> Self {
+        KeyedListError::KeyHashCollision
+    }
+}
 
 /// keyed list を構築する。構造変化（挿入・削除・並べ替え）を表現できる
 /// **唯一の経路**（設計書第 5 節）。
@@ -128,6 +277,10 @@ impl std::error::Error for KeyedListError {}
 ///
 /// # Errors
 ///
+/// - [`KeyedListError::TooManyItems`][]: 項目数が
+///   [`MAX_KEYED_LIST_ITEMS`] を超えている（HashDoS 対策の追加防御）。
+/// - [`KeyedListError::KeyBytesExceeded`][]: キー文字列の合計バイト数が
+///   [`MAX_KEYED_LIST_KEY_BYTES`] を超えている（同上）。
 /// - [`KeyedListError::EmptyKey`][]: いずれかのキーが空文字列。
 /// - [`KeyedListError::DuplicateKey`][]: 同一リスト内でキーが重複。
 /// - [`KeyedListError::NonElementItem`]: 子ノードが `Node::Element` でない
@@ -174,6 +327,21 @@ pub fn keyed_list(
     reject_reserved_attr(&attrs, BIND_LIST_ATTR)?;
     reject_reserved_attr(&attrs, KEY_ATTR)?;
 
+    // (1.5) 項目数・キー総バイト数の上限チェック（HashDoS 対策の追加防御、
+    // イシュー #1375 codex-review P1 是正。cfg 分岐を持たず全ターゲット
+    // 共通で適用する理由は [`MAX_KEYED_LIST_ITEMS`] doc 参照）。以降の
+    // `FxStrMap`/`FxStrSet` 構築・走査（(2)(3)）が攻撃者の事前に選んだ
+    // キー列に対しても操作回数が有界であることを、この時点の fail-closed
+    // 拒否で保証する（バイト単位比較コストの拘束は本チェックではなく
+    // `FxStrMap`/`FxStrSet` の 64bit 一次ハッシュ間接化が担う。詳細は
+    // [`MAX_KEYED_LIST_ITEMS`] doc・`crate::fx_hash::FxStrMap` 型 doc
+    // 参照）。項目数チェックを先に行うことで、項目数自体が過大な場合は
+    // `first_index_of` の `with_capacity` 割り当てより前に拒否できる。
+    // [`enforce_key_limits`] は [`diff_keys`]/[`diff_keyed_items`] とも
+    // 共有する（PR #1390 レビュー是正、下記 doc 参照）。
+    let total_key_bytes: usize = items.iter().map(|(key, _)| key.len()).sum();
+    enforce_key_limits(items.len(), total_key_bytes)?;
+
     // (2)(3) 各子要素の検証: Element であること・キー非空・キー一意性・予約
     // 属性の非混入。パス 1（本ループ）は `items.iter()` による**参照のみ**の
     // 走査であり、`items` を消費しない。検証順序（空キー → 重複キー →
@@ -181,20 +349,27 @@ pub fn keyed_list(
     // 構成）と完全に同一（回帰テスト `duplicate_error_precedence_is_stable`
     // が固定）。直下スコープのみを対象に、初出インデックスを HashMap で記録
     // して O(n) で重複判定する（非再帰、DoS 耐性）。
-    let mut first_index_of: std::collections::HashMap<&str, usize> =
-        std::collections::HashMap::with_capacity(items.len());
+    // ハッシャは `crate::fx_hash`（ネイティブ: `RandomState`/SipHash、
+    // wasm32: 軽量 FxHasher とターゲット別に切り替え）を使う。選定根拠・
+    // 脅威モデルは `fx_hash` モジュール doc「ターゲット別ハッシャ選択」節
+    // 参照（イシュー #1375）。文字列を直接ハッシュテーブルへ渡さず
+    // 64bit 一次ハッシュ経由で衝突を fail-closed 検出する
+    // [`crate::fx_hash::FxStrMap`] を使う理由は同モジュール doc「追加防御
+    // その 2」節参照（PR #1390 codex-review 第 2 巡 P1 是正）。
+    let mut first_index_of: crate::fx_hash::FxStrMap<'_, usize> =
+        crate::fx_hash::FxStrMap::with_capacity(items.len());
 
     for (index, (key, item)) in items.iter().enumerate() {
         if key.is_empty() {
             return Err(KeyedListError::EmptyKey { index });
         }
-        if let Some(&first_index) = first_index_of.get(key.as_str()) {
+        if let Some(&first_index) = first_index_of.get(key.as_str())? {
             return Err(KeyedListError::DuplicateKey {
                 first_index,
                 duplicate_index: index,
             });
         }
-        first_index_of.insert(key.as_str(), index);
+        first_index_of.insert(key.as_str(), index)?;
 
         let Node::Element {
             attrs: item_attrs, ..
@@ -382,11 +557,32 @@ pub enum KeyedOp {
 /// §4.1）。挙動・op 発行順は移管元と完全に同一（回帰テストで固定）。
 /// wasm-client 側の同名関数は #1324 で本関数への re-export へ置換予定で
 /// あり、それまでの一時的な実装重複は意図的。
-pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Vec<KeyedOp> {
+///
+/// # HashDoS 対策の追加防御（PR #1390 レビュー是正、イシュー #1375）
+///
+/// 本関数は [`keyed_list`] を経由しない生の `&[String]` を直接受け取れる
+/// 公開 API のため、`keyed_list` 側の項目数・キー総バイト数の上限
+/// （[`MAX_KEYED_LIST_ITEMS`]/[`MAX_KEYED_LIST_KEY_BYTES`]）を経由せずに
+/// 攻撃者が選んだキー列を直接投入できてしまう。内部で `HashMap`/
+/// `HashSet` を構築する [`remove_pass`]/[`insert_or_move_pass`] を呼ぶ前に、
+/// `old_keys`/`new_keys` それぞれへ同じ上限ゲート（[`enforce_key_limits`]）
+/// を適用し、超過時は `HashMap`/`HashSet` を一切構築せずに `Err` を返す。
+///
+/// # Errors
+///
+/// - [`KeyedListError::TooManyItems`][]: `old_keys`/`new_keys` のいずれかの
+///   要素数が [`MAX_KEYED_LIST_ITEMS`] を超えている。
+/// - [`KeyedListError::KeyBytesExceeded`][]: `old_keys`/`new_keys`
+///   いずれかのキー文字列の合計バイト数が [`MAX_KEYED_LIST_KEY_BYTES`]
+///   を超えている。
+pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Result<Vec<KeyedOp>, KeyedListError> {
+    enforce_key_limits(old_keys.len(), old_keys.iter().map(String::len).sum())?;
+    enforce_key_limits(new_keys.len(), new_keys.iter().map(String::len).sum())?;
+
     let mut ops = Vec::new();
-    let working = remove_pass(old_keys, new_keys, &mut ops);
-    insert_or_move_pass(working, new_keys, &mut ops);
-    ops
+    let working = remove_pass(old_keys, new_keys, &mut ops)?;
+    insert_or_move_pass(working, new_keys, &mut ops)?;
+    Ok(ops)
 }
 
 /// [`diff_keys`] 第 1 パス: `new_keys` に存在しないキーを [`KeyedOp::Remove`]
@@ -421,29 +617,42 @@ pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Vec<KeyedOp> {
 /// ここで保持されるのが最後の出現であることに合わせて上書き挿入で
 /// 構築する（最初の出現の内容と比較すると、保持されないノードの内容と
 /// 誤って比較してしまう）。
-fn remove_pass(old_keys: &[String], new_keys: &[String], ops: &mut Vec<KeyedOp>) -> Vec<String> {
-    let new_set: std::collections::HashSet<&str> = new_keys.iter().map(String::as_str).collect();
+fn remove_pass(
+    old_keys: &[String],
+    new_keys: &[String],
+    ops: &mut Vec<KeyedOp>,
+) -> Result<Vec<String>, KeyedListError> {
+    // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。64bit 一次ハッシュ
+    // 経由で衝突を fail-closed 検出する [`crate::fx_hash::FxStrMap`]/
+    // [`crate::fx_hash::FxStrSet`] を使う理由は同モジュール doc「追加防御
+    // その 2」節参照（PR #1390 codex-review 第 2 巡 P1 是正）。
+    let mut new_set: crate::fx_hash::FxStrSet<'_> =
+        crate::fx_hash::FxStrSet::with_capacity(new_keys.len());
+    for key in new_keys.iter() {
+        new_set.insert(key.as_str())?;
+    }
 
     // 各キーの「最後の出現インデックス」を先に求める。ループ中に
     // 「これ以降その key は二度と現れない」かを判定する必要があるため、
     // 逆順走査ではなく前方 1 パスで `key -> 最後に出現した index` を
     // 構築してから本走査に使う。
-    let mut last_index_of: std::collections::HashMap<&str, usize> =
-        std::collections::HashMap::with_capacity(old_keys.len());
+    let mut last_index_of: crate::fx_hash::FxStrMap<'_, usize> =
+        crate::fx_hash::FxStrMap::with_capacity(old_keys.len());
     for (index, key) in old_keys.iter().enumerate() {
-        last_index_of.insert(key.as_str(), index);
+        last_index_of.insert(key.as_str(), index)?;
     }
 
     let mut working: Vec<String> = Vec::with_capacity(old_keys.len());
     for (index, key) in old_keys.iter().enumerate() {
-        let is_last_occurrence = last_index_of.get(key.as_str()) == Some(&index);
-        if new_set.contains(key.as_str()) && is_last_occurrence {
+        let is_last_occurrence = last_index_of.get(key.as_str())? == Some(&index);
+        if new_set.contains(key.as_str())? && is_last_occurrence {
             working.push(key.clone());
         } else {
             ops.push(KeyedOp::Remove { key: key.clone() });
         }
     }
-    working
+    Ok(working)
 }
 
 /// [`diff_keys`] 第 2 パス: `working`（保持キーのみ、旧順序）を `new_keys`
@@ -479,7 +688,11 @@ fn remove_pass(old_keys: &[String], new_keys: &[String], ops: &mut Vec<KeyedOp>)
 /// 再挿入しない点が実装上の差分だが、再挿入された要素は以後の反復で
 /// 二度と参照されない（`new_keys` の走査は単調増加のインデックスのみを
 /// 見る）ため、単純に連結リストから完全に取り除いても出力に影響しない。
-fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<KeyedOp>) {
+fn insert_or_move_pass(
+    working: Vec<String>,
+    new_keys: &[String],
+    ops: &mut Vec<KeyedOp>,
+) -> Result<(), KeyedListError> {
     let n = working.len();
 
     // `new_keys` 側にキー重複が混入している場合（[`keyed_list`] が構築時点
@@ -491,8 +704,13 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
     // （イシュー #1336 codex レビュー P1 是正。旧実装は `new_keys` の重複を
     // 検出せず全要素を走査していたため、2 件目以降が保持キューの枯渇後に
     // 誤って Insert として発行されていた）。
-    let mut seen_new: std::collections::HashSet<&str> =
-        std::collections::HashSet::with_capacity(new_keys.len());
+    // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。64bit 一次ハッシュ
+    // 経由で衝突を fail-closed 検出する [`crate::fx_hash::FxStrSet`] を
+    // 使う理由は同モジュール doc「追加防御その 2」節参照（PR #1390
+    // codex-review 第 2 巡 P1 是正）。
+    let mut seen_new: crate::fx_hash::FxStrSet<'_> =
+        crate::fx_hash::FxStrSet::with_capacity(new_keys.len());
 
     // `index`（`new_keys.iter().enumerate()` の生インデックス）ではなく、
     // 重複でスキップした要素を除いた「出力後の並びでの位置」を
@@ -510,7 +728,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
 
     if n == 0 {
         for key in new_keys.iter() {
-            if !seen_new.insert(key.as_str()) {
+            if !seen_new.insert(key.as_str())? {
                 continue;
             }
             ops.push(KeyedOp::Insert {
@@ -519,7 +737,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
             });
             out_index += 1;
         }
-        return;
+        return Ok(());
     }
 
     // working を双方向連結リストとして表現する（ノード index = working
@@ -533,14 +751,21 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
     let mut head: Option<usize> = Some(0);
 
     // キーごとに未消費ノードの添字を出現順（昇順）で保持するキュー。
-    let mut queue: std::collections::HashMap<&str, std::collections::VecDeque<usize>> =
-        std::collections::HashMap::with_capacity(n);
+    // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。64bit 一次ハッシュ
+    // 経由で衝突を fail-closed 検出する [`crate::fx_hash::FxStrMap`] を
+    // 使う理由は同モジュール doc「追加防御その 2」節参照（PR #1390
+    // codex-review 第 2 巡 P1 是正）。
+    let mut queue: crate::fx_hash::FxStrMap<'_, std::collections::VecDeque<usize>> =
+        crate::fx_hash::FxStrMap::with_capacity(n);
     for (i, key) in working.iter().enumerate() {
-        queue.entry(key.as_str()).or_default().push_back(i);
+        queue
+            .get_or_insert_with(key.as_str(), std::collections::VecDeque::new)?
+            .push_back(i);
     }
 
     for key in new_keys.iter() {
-        if !seen_new.insert(key.as_str()) {
+        if !seen_new.insert(key.as_str())? {
             // 2 件目以降の重複キーは無条件にスキップする（op を発行せず、
             // `out_index` も進めない。上記コメント参照）。
             continue;
@@ -549,7 +774,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
         if let Some(h) = head {
             if working[h] == *key {
                 // 先頭ノードが期待キーと一致: 操作を発行せず消費するのみ。
-                if let Some(q) = queue.get_mut(key.as_str()) {
+                if let Some(q) = queue.get_mut(key.as_str())? {
                     q.pop_front();
                 }
                 head = next[h];
@@ -558,7 +783,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
             }
         }
 
-        let found = queue.get_mut(key.as_str()).and_then(|q| q.pop_front());
+        let found = queue.get_mut(key.as_str())?.and_then(|q| q.pop_front());
         if let Some(node) = found {
             // 連結リストから O(1) で取り外す（旧実装の Vec::remove +
             // Vec::insert による O(n) シフトを回避）。
@@ -585,6 +810,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
         }
         out_index += 1;
     }
+    Ok(())
 }
 
 /// 内容比較付き keyed list diff（イシュー #1323、設計書 §3.1・§3.4・§4.2）。
@@ -619,7 +845,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
 ///     ("a".to_string(), el("li", vec![], vec![text("a")])),
 /// ];
 ///
-/// let ops = diff_keyed_items(&old_items, &new_items);
+/// let ops = diff_keyed_items(&old_items, &new_items).expect("within limits");
 /// assert_eq!(
 ///     ops,
 ///     vec![
@@ -628,16 +854,38 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
 ///     ],
 /// );
 /// ```
+///
+/// # HashDoS 対策の追加防御（PR #1390 レビュー是正、イシュー #1375）
+///
+/// [`diff_keys`] と同じ理由（doc 参照）で、`old_items`/`new_items` それぞれ
+/// へ [`enforce_key_limits`] を適用してから `HashMap`/`HashSet` を構築する。
+///
+/// # Errors
+///
+/// - [`KeyedListError::TooManyItems`][]: `old_items`/`new_items` のいずれか
+///   の要素数が [`MAX_KEYED_LIST_ITEMS`] を超えている。
+/// - [`KeyedListError::KeyBytesExceeded`][]: `old_items`/`new_items`
+///   いずれかのキー文字列の合計バイト数が [`MAX_KEYED_LIST_KEY_BYTES`]
+///   を超えている。
 pub fn diff_keyed_items(
     old_items: &[(String, Node)],
     new_items: &[(String, Node)],
-) -> Vec<KeyedOp> {
+) -> Result<Vec<KeyedOp>, KeyedListError> {
+    enforce_key_limits(
+        old_items.len(),
+        old_items.iter().map(|(k, _)| k.len()).sum(),
+    )?;
+    enforce_key_limits(
+        new_items.len(),
+        new_items.iter().map(|(k, _)| k.len()).sum(),
+    )?;
+
     let old_keys: Vec<String> = old_items.iter().map(|(k, _)| k.clone()).collect();
     let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
 
     let mut ops = Vec::new();
-    let working = remove_pass(&old_keys, &new_keys, &mut ops);
-    insert_or_move_pass(working, &new_keys, &mut ops);
+    let working = remove_pass(&old_keys, &new_keys, &mut ops)?;
+    insert_or_move_pass(working, &new_keys, &mut ops)?;
 
     // 第 3 パス: 保持キー（重複混入時も `remove_pass` と同じ fail-closed
     // 防御を適用）を new_items 順に走査し、新旧 Node が不一致のときのみ
@@ -650,28 +898,33 @@ pub fn diff_keyed_items(
     // 出現」の内容でなければならない。最初の出現の内容と比較すると、
     // 実際には保持されない（Remove される）ノードの内容と誤って比較して
     // しまい、Update の要否判定を誤る。
-    let mut old_by_key: std::collections::HashMap<&str, &Node> =
-        std::collections::HashMap::with_capacity(old_items.len());
+    // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。64bit 一次ハッシュ
+    // 経由で衝突を fail-closed 検出する [`crate::fx_hash::FxStrMap`]/
+    // [`crate::fx_hash::FxStrSet`] を使う理由は同モジュール doc「追加防御
+    // その 2」節参照（PR #1390 codex-review 第 2 巡 P1 是正）。
+    let mut old_by_key: crate::fx_hash::FxStrMap<'_, &Node> =
+        crate::fx_hash::FxStrMap::with_capacity(old_items.len());
     for (key, node) in old_items {
-        old_by_key.insert(key.as_str(), node);
+        old_by_key.insert(key.as_str(), node)?;
     }
 
-    let mut seen_new_keys: std::collections::HashSet<&str> =
-        std::collections::HashSet::with_capacity(new_items.len());
+    let mut seen_new_keys: crate::fx_hash::FxStrSet<'_> =
+        crate::fx_hash::FxStrSet::with_capacity(new_items.len());
     for (key, new_node) in new_items {
         // new_items 側の重複キーも最初の 1 件のみを対象とする（同一防御を
         // 対称に適用する）。
-        if !seen_new_keys.insert(key.as_str()) {
+        if !seen_new_keys.insert(key.as_str())? {
             continue;
         }
-        if let Some(old_node) = old_by_key.get(key.as_str()) {
+        if let Some(old_node) = old_by_key.get(key.as_str())? {
             if *old_node != new_node {
                 ops.push(KeyedOp::Update { key: key.clone() });
             }
         }
     }
 
-    ops
+    Ok(ops)
 }
 
 #[cfg(test)]
@@ -756,6 +1009,83 @@ mod tests {
         assert!(html.contains(r#"data-bind-list="children""#));
         assert!(html.contains(r#"data-key="g1""#));
         assert!(html.contains(r#"data-key="c1""#));
+    }
+
+    /// 異常系（HashDoS 追加防御、イシュー #1375）: 項目数が
+    /// [`MAX_KEYED_LIST_ITEMS`] を超えると TooManyItems で拒否される。
+    /// 全ターゲット共通のガード（`cfg` 分岐なし）であるため、ネイティブの
+    /// `cargo test`（本テスト）でも実際に検証できる。
+    #[test]
+    fn too_many_items_is_rejected() {
+        let items: Vec<(String, Node)> = (0..=MAX_KEYED_LIST_ITEMS)
+            .map(|i| (format!("k{i}"), el("li", vec![], vec![])))
+            .collect();
+        let count = items.len();
+        let err = keyed_list("ul", vec![], "items", items).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 正常系（境界値）: 項目数がちょうど [`MAX_KEYED_LIST_ITEMS`] 件なら
+    /// 拒否されない。
+    #[test]
+    fn item_count_at_the_limit_is_accepted() {
+        let items: Vec<(String, Node)> = (0..MAX_KEYED_LIST_ITEMS)
+            .map(|i| (format!("k{i}"), el("li", vec![], vec![])))
+            .collect();
+        assert!(keyed_list("ul", vec![], "items", items).is_ok());
+    }
+
+    /// 異常系（HashDoS 追加防御、イシュー #1375）: 項目数は少なくても
+    /// キー文字列の合計バイト数が [`MAX_KEYED_LIST_KEY_BYTES`] を超えると
+    /// KeyBytesExceeded で拒否される（項目数の上限だけでは「少数の巨大な
+    /// キー」による計算量膨張を防げないことの回帰確認）。
+    #[test]
+    fn key_bytes_exceeded_is_rejected() {
+        let huge_key = "k".repeat(MAX_KEYED_LIST_KEY_BYTES + 1);
+        let total_bytes = huge_key.len();
+        let err = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![(huge_key, el("li", vec![], vec![]))],
+        )
+        .unwrap_err();
+        assert_eq!(err, KeyedListError::KeyBytesExceeded { total_bytes });
+    }
+
+    /// 回帰: サイズ上限（項目数・キー総バイト数）は per-item 検証
+    /// （空キー・重複キー・非 Element・予約属性）より先に評価される。
+    /// 項目数超過かつ先頭項目が空キーというケースで TooManyItems が
+    /// 優先されることを固定する（`duplicate_error_precedence_is_stable_
+    /// across_mixed_violations` と対をなす追加の優先順位固定）。
+    #[test]
+    fn too_many_items_takes_precedence_over_empty_key() {
+        let mut items: Vec<(String, Node)> = vec![(String::new(), el("li", vec![], vec![]))];
+        items
+            .extend((0..MAX_KEYED_LIST_ITEMS).map(|i| (format!("k{i}"), el("li", vec![], vec![]))));
+        let count = items.len();
+        let err = keyed_list("ul", vec![], "items", items).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 回帰: キー総バイト数超過も per-item 検証より先に評価される
+    /// （項目数自体は上限以内でも、先頭項目が空キーであるより先に
+    /// KeyBytesExceeded が返ることを固定する）。
+    #[test]
+    fn key_bytes_exceeded_takes_precedence_over_empty_key() {
+        let huge_key = "k".repeat(MAX_KEYED_LIST_KEY_BYTES + 1);
+        let total_bytes = huge_key.len();
+        let err = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![
+                (huge_key, el("li", vec![], vec![])),
+                (String::new(), el("li", vec![], vec![])),
+            ],
+        )
+        .unwrap_err();
+        assert_eq!(err, KeyedListError::KeyBytesExceeded { total_bytes });
     }
 
     /// 異常系: 空文字列キーは EmptyKey で拒否される。
@@ -983,7 +1313,7 @@ mod tests {
     fn diff_keys_returns_empty_ops_when_unchanged() {
         let old = keys(&["a", "b", "c"]);
         let new = keys(&["a", "b", "c"]);
-        assert_eq!(diff_keys(&old, &new), Vec::new());
+        assert_eq!(diff_keys(&old, &new).unwrap(), Vec::new());
     }
 
     /// 末尾への追加は Insert 1 件のみ。
@@ -992,7 +1322,7 @@ mod tests {
         let old = keys(&["a", "b"]);
         let new = keys(&["a", "b", "c"]);
         assert_eq!(
-            diff_keys(&old, &new),
+            diff_keys(&old, &new).unwrap(),
             vec![KeyedOp::Insert {
                 index: 2,
                 key: "c".to_string()
@@ -1006,7 +1336,7 @@ mod tests {
         let old = keys(&["b", "c"]);
         let new = keys(&["a", "b", "c"]);
         assert_eq!(
-            diff_keys(&old, &new),
+            diff_keys(&old, &new).unwrap(),
             vec![KeyedOp::Insert {
                 index: 0,
                 key: "a".to_string()
@@ -1020,7 +1350,7 @@ mod tests {
         let old = keys(&["a", "b", "c"]);
         let new = keys(&["a", "c"]);
         assert_eq!(
-            diff_keys(&old, &new),
+            diff_keys(&old, &new).unwrap(),
             vec![KeyedOp::Remove {
                 key: "b".to_string()
             }]
@@ -1033,7 +1363,7 @@ mod tests {
         let old = keys(&["a", "b"]);
         let new: Vec<String> = Vec::new();
         assert_eq!(
-            diff_keys(&old, &new),
+            diff_keys(&old, &new).unwrap(),
             vec![
                 KeyedOp::Remove {
                     key: "a".to_string()
@@ -1051,7 +1381,7 @@ mod tests {
         let old: Vec<String> = Vec::new();
         let new = keys(&["a", "b"]);
         assert_eq!(
-            diff_keys(&old, &new),
+            diff_keys(&old, &new).unwrap(),
             vec![
                 KeyedOp::Insert {
                     index: 0,
@@ -1071,7 +1401,7 @@ mod tests {
     fn diff_keys_detects_adjacent_swap_as_single_move() {
         let old = keys(&["a", "b"]);
         let new = keys(&["b", "a"]);
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![KeyedOp::Move {
@@ -1086,7 +1416,7 @@ mod tests {
     fn diff_keys_detects_move_from_tail_to_head() {
         let old = keys(&["a", "b", "c"]);
         let new = keys(&["c", "a", "b"]);
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![KeyedOp::Move {
@@ -1102,7 +1432,7 @@ mod tests {
     fn diff_keys_handles_mixed_remove_insert_move() {
         let old = keys(&["a", "b", "c", "d"]);
         let new = keys(&["d", "a", "e", "c"]);
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         // "b" は new に存在しないため削除される。
         assert!(ops.contains(&KeyedOp::Remove {
             key: "b".to_string()
@@ -1125,7 +1455,7 @@ mod tests {
         let old = keys(&["a", "a", "b"]);
         let new = keys(&["a", "b"]);
         // panic しないことのみを確認する。
-        let _ = diff_keys(&old, &new);
+        let _ = diff_keys(&old, &new).unwrap();
     }
 
     /// `old_keys` に発行された [`KeyedOp`] 列を素朴に適用し、結果のキー列
@@ -1172,7 +1502,7 @@ mod tests {
         let old = keys(&["a", "a", "b"]);
         let new = keys(&["a", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         let applied = apply_ops(&old, &ops);
 
         assert_eq!(
@@ -1188,7 +1518,7 @@ mod tests {
         let old = keys(&["a", "a", "a", "b", "b", "c"]);
         let new = keys(&["c", "a", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         let applied = apply_ops(&old, &ops);
 
         assert_eq!(applied, new);
@@ -1211,7 +1541,7 @@ mod tests {
         let old = keys(&["a", "b", "a"]);
         let new = keys(&["a", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         let applied = apply_ops(&old, &ops);
 
         assert_eq!(
@@ -1232,7 +1562,7 @@ mod tests {
         let old = keys(&["a"]);
         let new = keys(&["a", "a"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert!(
             !ops.iter()
@@ -1255,7 +1585,7 @@ mod tests {
         let old: Vec<String> = vec![];
         let new = keys(&["a", "a", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         let insert_count_for_a = ops
             .iter()
@@ -1280,7 +1610,7 @@ mod tests {
         let old: Vec<String> = vec![];
         let new = keys(&["a", "a", "c", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert_eq!(
             ops,
@@ -1316,7 +1646,7 @@ mod tests {
         let old = keys(&["b"]);
         let new = keys(&["a", "a", "c", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         let applied = apply_ops(&old, &ops);
 
         // new_keys 側の重複は最初の 1 件のみを対象とする fail-closed
@@ -1336,7 +1666,7 @@ mod tests {
         let old = keys(&["a", "b"]);
         let new = keys(&["a", "a", "a", "b"]);
         // panic しないことに加え、重複分に Insert が発行されないことも確認する。
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         let insert_count_for_a = ops
             .iter()
             .filter(|op| matches!(op, KeyedOp::Insert { key, .. } if key == "a"))
@@ -1362,7 +1692,7 @@ mod tests {
         let old: Vec<String> = Vec::new();
         let new: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert_eq!(ops.len(), N, "空 → N 行は Insert ちょうど N 件のみのはず");
         for (i, op) in ops.iter().enumerate() {
@@ -1386,7 +1716,7 @@ mod tests {
         let mut new: Vec<String> = vec!["new".to_string()];
         new.extend(old.iter().cloned());
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert_eq!(
             ops,
@@ -1406,7 +1736,7 @@ mod tests {
         let mut new: Vec<String> = old.clone();
         new.push("new".to_string());
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert_eq!(
             ops,
@@ -1427,7 +1757,7 @@ mod tests {
         let old: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
         let new: Vec<String> = old.iter().rev().cloned().collect();
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert!(
             ops.iter().all(|op| matches!(op, KeyedOp::Move { .. })),
@@ -1469,7 +1799,7 @@ mod tests {
         let mut new = old.clone();
         lcg_shuffle(&mut new, 0x1318_1318_1318_1318);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert!(
             ops.iter().all(|op| matches!(op, KeyedOp::Move { .. })),
@@ -1495,7 +1825,7 @@ mod tests {
         let new = vec![item("a", "new")];
 
         assert_eq!(
-            diff_keyed_items(&old, &new),
+            diff_keyed_items(&old, &new).unwrap(),
             vec![KeyedOp::Update {
                 key: "a".to_string()
             }]
@@ -1508,7 +1838,7 @@ mod tests {
         let old: Vec<(String, Node)> = (0..1_000).map(|i| item(&format!("k{i}"), "v")).collect();
         let new = old.clone();
 
-        assert_eq!(diff_keyed_items(&old, &new), Vec::new());
+        assert_eq!(diff_keyed_items(&old, &new).unwrap(), Vec::new());
     }
 
     /// 混在ケース: 削除 + 新規挿入 + 移動かつ内容変更。無関係キーへの余分な
@@ -1520,7 +1850,7 @@ mod tests {
         // b は削除される。c は先頭へ移動しつつ内容変更。d は新規挿入。
         let new = vec![item("c", "c-v2"), item("a", "a-v"), item("d", "d-v")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![
@@ -1548,7 +1878,7 @@ mod tests {
         let old = vec![item("a", "a-v"), item("b", "b-old")];
         let new = vec![item("b", "b-new"), item("a", "a-v")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![
@@ -1569,7 +1899,7 @@ mod tests {
         let old = vec![item("a", "a-old"), item("b", "b-old")];
         let new = vec![item("a", "a-new"), item("b", "b-new")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![
@@ -1589,7 +1919,7 @@ mod tests {
         let old = vec![item("a", "v"), item("b", "v")];
         let new = vec![item("b", "v"), item("a", "v")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![KeyedOp::Move {
@@ -1606,7 +1936,7 @@ mod tests {
         let old = vec![item("a", "v")];
         let new = vec![item("a", "v"), item("b", "v")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![KeyedOp::Insert {
@@ -1623,7 +1953,7 @@ mod tests {
         let new = vec![item("a", "v3"), item("b", "v")];
 
         // panic しないことのみを確認する（重複時の正確な操作列は未規定）。
-        let _ = diff_keyed_items(&old, &new);
+        let _ = diff_keyed_items(&old, &new).unwrap();
     }
 
     /// 回帰（PR #1336 codex レビュー P1 是正）: `old_items` 側にキーが
@@ -1641,7 +1971,7 @@ mod tests {
         let old = vec![item("a", "v1"), item("a", "v2")];
         let new = vec![item("a", "v1")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
 
         assert_eq!(
             ops,
@@ -1664,7 +1994,7 @@ mod tests {
         let old = vec![item("a", "v")];
         let new = vec![item("a", "v1"), item("a", "v2")];
 
-        let _ = diff_keyed_items(&old, &new);
+        let _ = diff_keyed_items(&old, &new).unwrap();
     }
 
     /// 構造的固定: 内容全一致時、`diff_keys`（キー列のみ）と
@@ -1679,8 +2009,86 @@ mod tests {
         let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
 
         assert_eq!(
-            diff_keys(&old_keys, &new_keys),
-            diff_keyed_items(&old_items, &new_items),
+            diff_keys(&old_keys, &new_keys).unwrap(),
+            diff_keyed_items(&old_items, &new_items).unwrap(),
         );
+    }
+
+    /// 異常系（PR #1390 レビュー是正、イシュー #1375）: `diff_keys` は
+    /// `keyed_list` を経由しない生のキー列を直接受け取れる公開 API のため、
+    /// `old_keys`/`new_keys` いずれかの要素数が [`MAX_KEYED_LIST_ITEMS`] を
+    /// 超えると `HashMap`/`HashSet` を構築せず TooManyItems で拒否される
+    /// （`keyed_list` 側の上限を経由しない直接投入をここで塞ぐ）。
+    #[test]
+    fn diff_keys_rejects_too_many_new_keys() {
+        let old: Vec<String> = Vec::new();
+        let new: Vec<String> = (0..=MAX_KEYED_LIST_ITEMS)
+            .map(|i| format!("k{i}"))
+            .collect();
+        let count = new.len();
+        let err = diff_keys(&old, &new).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 異常系（同上）: `old_keys` 側の要素数超過も同じ上限で拒否される
+    /// （`new_keys` 側のみを検査する非対称な実装になっていないことの固定）。
+    #[test]
+    fn diff_keys_rejects_too_many_old_keys() {
+        let old: Vec<String> = (0..=MAX_KEYED_LIST_ITEMS)
+            .map(|i| format!("k{i}"))
+            .collect();
+        let new: Vec<String> = Vec::new();
+        let count = old.len();
+        let err = diff_keys(&old, &new).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 異常系（同上）: 項目数は少なくてもキー文字列の合計バイト数が
+    /// [`MAX_KEYED_LIST_KEY_BYTES`] を超えると KeyBytesExceeded で拒否
+    /// される（`keyed_list` の `key_bytes_exceeded_is_rejected` と対称）。
+    #[test]
+    fn diff_keys_rejects_key_bytes_exceeded() {
+        let huge_key = "k".repeat(MAX_KEYED_LIST_KEY_BYTES + 1);
+        let total_bytes = huge_key.len();
+        let old: Vec<String> = Vec::new();
+        let new: Vec<String> = vec![huge_key];
+        let err = diff_keys(&old, &new).unwrap_err();
+        assert_eq!(err, KeyedListError::KeyBytesExceeded { total_bytes });
+    }
+
+    /// 異常系（PR #1390 レビュー是正、イシュー #1375）: `diff_keyed_items`
+    /// も同じ上限ゲートを `old_items`/`new_items` それぞれへ適用する
+    /// （`diff_keys` と対称の回帰確認）。
+    #[test]
+    fn diff_keyed_items_rejects_too_many_new_items() {
+        let old: Vec<(String, Node)> = Vec::new();
+        let new: Vec<(String, Node)> = (0..=MAX_KEYED_LIST_ITEMS)
+            .map(|i| (format!("k{i}"), el("li", vec![], vec![])))
+            .collect();
+        let count = new.len();
+        let err = diff_keyed_items(&old, &new).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 異常系（同上）: `old_items` 側の要素数超過も同じ上限で拒否される。
+    #[test]
+    fn diff_keyed_items_rejects_too_many_old_items() {
+        let old: Vec<(String, Node)> = (0..=MAX_KEYED_LIST_ITEMS)
+            .map(|i| (format!("k{i}"), el("li", vec![], vec![])))
+            .collect();
+        let new: Vec<(String, Node)> = Vec::new();
+        let count = old.len();
+        let err = diff_keyed_items(&old, &new).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 正常系（境界値）: `old_keys`/`new_keys` ともちょうど
+    /// [`MAX_KEYED_LIST_ITEMS`] 件なら拒否されない（`diff_keys` 版の
+    /// `item_count_at_the_limit_is_accepted` 相当）。
+    #[test]
+    fn diff_keys_item_count_at_the_limit_is_accepted() {
+        let old: Vec<String> = (0..MAX_KEYED_LIST_ITEMS).map(|i| format!("k{i}")).collect();
+        let new: Vec<String> = old.clone();
+        assert!(diff_keys(&old, &new).is_ok());
     }
 }
