@@ -102,11 +102,20 @@ SSR 8 種・CSR 7 種・payload 7 種。リストの増減は本表の更新 + �
   保持（テキスト挿入＝エスケープ経路の証明）・update 後 ` !!!` 付き 100 行・
   clear 後 0 行。検証専用の `callBench`（ダブル rAF 待ち）は計測経路とは
   独立に残置している
+- **既定実行（フレームワーク未指定）の fail-closed 契約**: `run_csr.mjs` /
+  `payload/measure.mjs` はいずれも比較対象一覧の正本
+  `csr/frameworks.mjs`（`ALL_FRAMEWORKS`、§1 の CSR 7 種と同一）を共有し、
+  既定実行では 7 種すべての dist（+ payload 側は各 1 件以上の計測対象
+  ファイル）が揃うことを必須とする。1 件でも欠落すれば欠けている名前を
+  stderr へ列挙して終了コード 1 にする。`--framework <name>` を明示した
+  ときだけ、その 1 件のみの部分実行・成功を許可する（PR #1370 codex
+  再レビュー指摘 P1 x2 の是正）
 
 ### 2.3 payload（`payload/measure.mjs`）
 
 `csr/dist/<framework>/` の JS（fandhe は .wasm 含む）の raw / gzip
 （zlib level 9）バイト数。index.html は全フレームワーク共通骨格のため対象外。
+既定実行の fail-closed 契約は §2.2 末尾を参照。
 
 ## 3. 実行手順
 

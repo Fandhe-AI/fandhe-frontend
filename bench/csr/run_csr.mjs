@@ -27,11 +27,10 @@ import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ALL_FRAMEWORKS } from "./frameworks.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST = join(ROOT, "dist");
-
-const ALL_FRAMEWORKS = ["vanilla", "react", "preact", "vue", "svelte", "lit", "fandhe"];
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -348,7 +347,8 @@ async function main() {
   });
 
   let anyFailed = false;
-  let measuredCount = 0;
+  const measuredNames = [];
+  const skippedNames = [];
   try {
     for (const name of targets) {
       let result;
@@ -362,8 +362,11 @@ async function main() {
         anyFailed = true;
         continue;
       }
-      if (result === null) continue;
-      measuredCount += 1;
+      if (result === null) {
+        skippedNames.push(name);
+        continue;
+      }
+      measuredNames.push(name);
       console.log(JSON.stringify(result));
       if (!result.rows_ok || !result.escape_ok) anyFailed = true;
     }
@@ -371,12 +374,27 @@ async function main() {
     await browser.close();
   }
 
-  // 全対象が「skip (not built)」だった場合、anyFailed は立たず JSON 0 行の
-  // まま終了コード 0 になってしまう（dist を全部欠いた状態が誤って
-  // 「成功」に見える、PR #1370 Bugbot 指摘）。payload/measure.mjs の
-  // fail-closed 方針（対象 0 件はエラー）と揃える。
-  if (measuredCount === 0) {
-    console.error(`[run] no framework was measured (0/${targets.length} built under ${DIST})`);
+  // 既定実行（--framework 未指定）では ALL_FRAMEWORKS 全 7 種の dist が
+  // 揃い測定完了することを必須とする。runFramework() は未ビルド対象を
+  // null で返すだけであり、これをループ側が黙って除外すると 7 種中
+  // 1 件でも測定できれば終了コード 0 になってしまう（fail-open、
+  // PR #1370 codex 再レビュー指摘 P1）。--framework <name> による
+  // 明示的な部分実行のときだけ、その 1 件のみの成功を許可する
+  // （payload/measure.mjs と同じ「既定は全種必須・--framework は例外」
+  // という契約、bench/PROTOCOL.md §2.2 参照）。
+  if (!only && skippedNames.length > 0) {
+    console.error(
+      `[run] missing framework(s) under default full run (${measuredNames.length}/${ALL_FRAMEWORKS.length} built): ` +
+        `${skippedNames.join(", ")} — build them first (bench/csr/build.mjs, ` +
+        `bench/csr/fandhe/build.sh), or pass --framework <name> for an explicit partial run`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+  // --framework <name> 指定時に対象自体が未ビルドの場合（skippedNames に
+  // 1 件のみ入り measuredNames が空になる）も、同様に fail-closed とする。
+  if (measuredNames.length === 0) {
+    console.error(`[run] no framework was measured (target: ${targets.join(", ")})`);
     process.exitCode = 1;
     return;
   }
