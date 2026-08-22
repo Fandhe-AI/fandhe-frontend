@@ -172,6 +172,14 @@ node bench/csr/run_csr.mjs                            # 7 種の JSON
 node bench/payload/measure.mjs
 ```
 
+各スクリプトの CLI 引数契約（`bench/csr/frameworks.mjs` の
+`parseFrameworkCliArgs` が一元検証）: `--framework` は直後の値が必須で、
+値は各スクリプトの許可リストとの完全一致のみ受理し、パス構築・計測開始より
+前に不一致を拒否する（値欠落時に既定の全件実行へ倒れる fail-open や、
+パス様の値による dist 外アクセスを遮断する）。`--framework` の重複指定・
+許可リスト外の未知引数（`--rows-10k-skip` 等の各スクリプトが明示宣言した
+フラグを除く）もエラー終了する（fail-closed）。
+
 結果（stdout の JSON 行）は `docs/reports/` の該当レポートへ手動転記する
 （計測日・環境・本プロトコルのコミットハッシュを添える）。中間生成物を
 残す場合は `bench/results/`（git 管理外）に置く。

@@ -9,16 +9,30 @@
 // 置かれる（bench/PROTOCOL.md §2.3）。
 import { gzipSync } from "node:zlib";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, extname, join, relative } from "node:path";
+import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 // 比較対象一覧は run_csr.mjs と共有する正本（bench/csr/frameworks.mjs）を
 // import して使う。dist に現存するディレクトリを動的列挙する方式は、
 // 7 種中 1 件でもビルド済みなら成功扱いになる fail-open だった
 // （PR #1370 codex 再レビュー指摘 P1）。
-import { ALL_FRAMEWORKS } from "../csr/frameworks.mjs";
+import { ALL_FRAMEWORKS, parseFrameworkCliArgs } from "../csr/frameworks.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST = join(ROOT, "..", "csr", "dist");
+
+// join(DIST, name) の第 2 層防御（許可リスト照合が主、これは多層防御）:
+// resolve 結果が DIST 配下でなければ即エラーにする。name は
+// parseFrameworkCliArgs で ALL_FRAMEWORKS と完全一致済みのため通常は
+// 到達しないが、将来の呼び出し経路追加でパストラバーサルが再発しない
+// よう構築点でも遮断する（.claude/rules/security.md A01）。
+function frameworkDistDir(name) {
+  const distRoot = resolve(DIST);
+  const dir = resolve(distRoot, name);
+  if (!dir.startsWith(distRoot + sep)) {
+    throw new Error(`refusing to access a directory outside dist root: ${dir}`);
+  }
+  return dir;
+}
 
 const TARGET_EXTENSIONS = new Set([".js", ".mjs", ".wasm"]);
 const EXCLUDE_BASENAMES = new Set(["index.html", "meta.json"]);
@@ -91,9 +105,16 @@ function measureFramework(name, dir) {
 }
 
 function main() {
-  const argv = process.argv.slice(2);
-  const frameworkFlagIdx = argv.indexOf("--framework");
-  const only = frameworkFlagIdx >= 0 ? argv[frameworkFlagIdx + 1] : null;
+  // 引数検証は共通パーサへ委譲する（値必須・ALL_FRAMEWORKS との完全一致・
+  // 重複/未知引数の拒否、bench/PROTOCOL.md §3）。パス構築より前に不正値を
+  // 拒否することがパストラバーサル遮断の主防御になる。
+  const parsed = parseFrameworkCliArgs(process.argv.slice(2), ALL_FRAMEWORKS);
+  if (parsed.error) {
+    console.error(`[payload] ${parsed.error}`);
+    process.exitCode = 1;
+    return;
+  }
+  const only = parsed.only;
   const targets = only ? [only] : ALL_FRAMEWORKS;
 
   if (!existsSync(DIST)) {
@@ -116,7 +137,7 @@ function main() {
   const measured = [];
   const missing = [];
   for (const name of targets) {
-    const dir = join(DIST, name);
+    const dir = frameworkDistDir(name);
     if (!existsSync(dir) || !statSync(dir).isDirectory()) {
       missing.push(name);
       continue;
@@ -159,7 +180,7 @@ function main() {
   // ビルドとの直接比較には使えないため）。
   let fandheWasmOpt = null;
   if (measured.includes("fandhe")) {
-    const state = readFandheWasmOptState(join(DIST, "fandhe"));
+    const state = readFandheWasmOptState(frameworkDistDir("fandhe"));
     if (state.error) {
       console.error(`[payload] ${state.error}`);
       process.exitCode = 1;
@@ -175,7 +196,7 @@ function main() {
   }
 
   for (const name of measured.sort()) {
-    const dir = join(DIST, name);
+    const dir = frameworkDistDir(name);
     const result = measureFramework(name, dir);
     if (name === "fandhe" && fandheWasmOpt === "skipped") {
       result.wasm_opt = "skipped";

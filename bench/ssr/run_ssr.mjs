@@ -35,6 +35,10 @@
 process.env.NODE_ENV = "production";
 
 import { runFramework, reportToJsonLine } from "./lib/runner.mjs";
+// CLI 引数の検証（--framework の値必須・許可リスト照合・重複/未知引数の
+// 拒否）は CSR/payload 側と共通のパーサ（bench/csr/frameworks.mjs）を
+// 相対 import で共有し、重複実装しない（bench/PROTOCOL.md §3）。
+import { parseFrameworkCliArgs } from "../csr/frameworks.mjs";
 
 const RENDERER_MODULES = {
   vanilla: "./renderers/vanilla.mjs",
@@ -58,28 +62,26 @@ const FRAMEWORK_ORDER = [
   "lit",
 ];
 
-function parseArgs(argv) {
-  let framework = null;
-  let rows10kSkip = false;
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--framework") {
-      framework = argv[i + 1];
-      i += 1;
-    } else if (arg === "--rows-10k-skip") {
-      rows10kSkip = true;
-    } else {
-      throw new Error(`unknown argument: ${arg}`);
-    }
-  }
-  return { framework, rows10kSkip };
-}
-
 async function main() {
-  const { framework, rows10kSkip } = parseArgs(process.argv.slice(2));
+  // --framework の値欠落は かつて framework=undefined として既定の全件実行へ
+  // fail-open していた（PR #1370 codex 第 5 巡レビュー指摘 P1 と同族）。
+  // 値必須・FRAMEWORK_ORDER との完全一致・重複/未知引数の拒否を共通パーサで
+  // renderer の import より前に fail-closed に検証する。
+  const parsed = parseFrameworkCliArgs(process.argv.slice(2), FRAMEWORK_ORDER, {
+    extraFlags: ["--rows-10k-skip"],
+  });
+  if (parsed.error) {
+    process.stderr.write(`${parsed.error}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const framework = parsed.only;
+  const rows10kSkip = parsed.flags.has("--rows-10k-skip");
 
   let targets = FRAMEWORK_ORDER;
   if (framework !== null) {
+    // parseFrameworkCliArgs が許可リスト照合済みだが、RENDERER_MODULES との
+    // 対応欠落（リスト間ドリフト）を検知する多層防御として残す。
     if (!Object.hasOwn(RENDERER_MODULES, framework)) {
       process.stderr.write(
         `unknown --framework value: ${framework} (known: ${FRAMEWORK_ORDER.join(", ")})\n`,

@@ -27,10 +27,25 @@ import { execSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ALL_FRAMEWORKS } from "./frameworks.mjs";
+import { ALL_FRAMEWORKS, parseFrameworkCliArgs } from "./frameworks.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST = join(ROOT, "dist");
+
+// join(DIST, name) の第 2 層防御（許可リスト照合が主、これは多層防御）:
+// resolve 結果が DIST 配下でなければ即エラーにする。この dir は
+// startStaticServer の配信 root になるため、ここを通らない値で dist 外の
+// ディレクトリが chromium（--no-sandbox）へ配信されることを構築点でも
+// 遮断する（.claude/rules/security.md A01。startStaticServer 側の境界検証
+// は root からの脱出のみを防ぎ、root 自体の妥当性はここが担う）。
+function frameworkDistDir(name) {
+  const distRoot = resolve(DIST);
+  const dir = resolve(distRoot, name);
+  if (!dir.startsWith(distRoot + sep)) {
+    throw new Error(`refusing to serve a directory outside dist root: ${dir}`);
+  }
+  return dir;
+}
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -271,7 +286,7 @@ async function validate(page) {
 // --- フレームワーク 1 件分の実行 --------------------------------------------
 
 async function runFramework(browser, name, chromiumNote) {
-  const distDir = join(DIST, name);
+  const distDir = frameworkDistDir(name);
   if (!existsSync(join(distDir, "index.html"))) {
     console.error(`[run] ${name}: skip (not built)`);
     return null;
@@ -357,9 +372,17 @@ async function runFramework(browser, name, chromiumNote) {
 }
 
 async function main() {
-  const argv = process.argv.slice(2);
-  const frameworkFlagIdx = argv.indexOf("--framework");
-  const only = frameworkFlagIdx >= 0 ? argv[frameworkFlagIdx + 1] : null;
+  // 引数検証は共通パーサへ委譲する（値必須・ALL_FRAMEWORKS との完全一致・
+  // 重複/未知引数の拒否、bench/PROTOCOL.md §3）。配信 root のパス構築・
+  // ブラウザ起動より前に不正値を拒否することがパストラバーサル遮断の
+  // 主防御になる（PR #1370 codex 第 5 巡レビュー指摘 P0）。
+  const parsed = parseFrameworkCliArgs(process.argv.slice(2), ALL_FRAMEWORKS);
+  if (parsed.error) {
+    console.error(`[run] ${parsed.error}`);
+    process.exitCode = 1;
+    return;
+  }
+  const only = parsed.only;
   const targets = only ? [only] : ALL_FRAMEWORKS;
 
   const chromiumPath = resolveChromiumPath();

@@ -16,6 +16,7 @@ import { compile } from "svelte/compiler";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseFrameworkCliArgs } from "./frameworks.mjs";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST = join(ROOT, "dist");
@@ -133,8 +134,24 @@ async function buildFramework(fw) {
 }
 
 async function main() {
+  // 引数検証は共通パーサへ委譲する（値必須・ビルド対象リストとの完全一致・
+  // 重複/未知引数の拒否、bench/PROTOCOL.md §3）。値の欠落は かつて
+  // `only=undefined` として既定の全件ビルドへ fail-open していた
+  // （PR #1370 codex 第 5 巡レビュー指摘 P1）。fandhe はこのスクリプトの
+  // 対象外（build.sh 担当）のため、valid 名の列挙にはその旨を添える。
+  const parsed = parseFrameworkCliArgs(
+    process.argv.slice(2),
+    FRAMEWORKS.map((fw) => fw.name),
+    { unknownValueHint: "fandhe is built by bench/csr/fandhe/build.sh, not this script" },
+  );
+  if (parsed.error) {
+    console.error(`[build] ${parsed.error}`);
+    process.exitCode = 1;
+    return;
+  }
+  const only = parsed.only;
+
   mkdirSync(DIST, { recursive: true });
-  const only = process.argv.includes("--framework") ? process.argv[process.argv.indexOf("--framework") + 1] : null;
 
   let builtCount = 0;
   for (const fw of FRAMEWORKS) {
@@ -143,10 +160,10 @@ async function main() {
     builtCount += 1;
   }
 
-  // --framework の値が一覧に無い（typo 等）とき、0 件ビルドのまま exit 0 に
-  // なる fail-open を防ぐ（run_csr.mjs / measure.mjs の「対象 0 件は
-  // エラー」契約と同型）。fandhe はこのスクリプトの対象外（build.sh 担当）
-  // のため、known の列挙にはその旨を添える。
+  // --framework 指定時に 0 件ビルドのまま exit 0 になる fail-open を防ぐ
+  // （run_csr.mjs / measure.mjs の「対象 0 件はエラー」契約と同型）。
+  // 現在は parseFrameworkCliArgs の許可リスト照合が先に拒否するため通常は
+  // 到達しないが、多層防御として残す。
   if (only && builtCount === 0) {
     console.error(
       `[build] no framework was built (target: ${only}; known: ${FRAMEWORKS.map((fw) => fw.name).join(", ")}; ` +
