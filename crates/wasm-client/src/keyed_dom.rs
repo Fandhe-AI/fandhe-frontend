@@ -405,16 +405,22 @@ struct WebSysKeyedDom<'a> {
     /// [`crate::keyed_apply::apply_ops`] は [`crate::keyed_diff::diff_keys`]
     /// が生成した操作列（`Remove` が必ず先頭にまとまり、続く `Move`/
     /// `Insert` は昇順 `index` で並ぶ、`keyed_diff` モジュール doc・
-    /// `diff_keys` 実装参照）を順に適用するため、最初の `child_at` 呼び出し
-    /// （最初の `Move`/`Insert` の直前）時点で全 `Remove` は実 DOM へ適用
-    /// 済みであり、ここで sibling 走査して得る並びは「削除後・挿入/移動
-    /// 適用前」の基準状態と一致する。以降 `insert_before`/`move_before`/
-    /// `remove_child` が実 DOM への適用と同時にこの `Vec` へも追随更新する
-    /// ため、キャッシュは常に実 DOM の並びと同期したまま保たれる（イシュー
-    /// #1374 で `remove_child` も `key` 引数を受けてインプレース追随更新す
-    /// るよう変更した。旧実装は「Remove はキャッシュ構築前にのみ呼ばれる」
-    /// 前提で成功・失敗を問わず丸ごと `None` 無効化する fail-safe を持って
-    /// いたが、[`crate::keyed_apply::KeyedListDom::find_by_key`] が
+    /// `diff_keys` 実装参照）を順に適用する。イシュー #1374 以降は `Remove`
+    /// の対象解決も [`crate::keyed_apply::KeyedListDom::find_by_key`]
+    /// （`ensure_children_cache` を内部で呼ぶ）を経由するため、キャッシュの
+    /// 初回構築は「最初の `Move`/`Insert` の直前」ではなく「最初の
+    /// `Remove`/`Move`/`Update` op の直前」（＝操作列中の最初の op の直前、
+    /// 通常は先頭にまとまる `Remove` の 1 件目）に前倒しされる。この時点は
+    /// まだどの `Remove` も実 DOM へ適用されていないため、sibling 走査して
+    /// 得る並びは「削除・挿入・移動のいずれも未適用」の基準状態と一致する
+    /// （旧 doc が述べていた「削除後・挿入/移動適用前」ではない）。以降
+    /// `insert_before`/`move_before`/`remove_child` が実 DOM への適用と同時に
+    /// この `Vec` へも追随更新するため、キャッシュは常に実 DOM の並びと
+    /// 同期したまま保たれる（イシュー #1374 で `remove_child` も `key`
+    /// 引数を受けてインプレース追随更新するよう変更した。旧実装は
+    /// 「Remove はキャッシュ構築前にのみ呼ばれる」前提で成功・失敗を問わず
+    /// 丸ごと `None` 無効化する fail-safe を持っていたが、
+    /// [`crate::keyed_apply::KeyedListDom::find_by_key`] が
     /// `Remove`/`Move`/`Update` 共通の対象解決を担うようになったことで
     /// この前提は崩れ、丸ごと無効化のままだと全削除ワークロードで O(N²)
     /// を再導入するため置き換えた。`remove_child` の doc 参照）。
