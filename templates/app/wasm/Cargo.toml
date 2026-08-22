@@ -31,8 +31,10 @@ members = ["."]
 # REQ-3（60 件/深さ 6）の計測基準（標準サーバー構成）への影響もない。
 [dependencies]
 # イシュー #1324 で wasm-client 0.4.0 へバンプ（`template_vendor_drift`
-# テストが正本 version との一致を強制するため追随必須）。
-fandhe-frontend-wasm-client = "0.4.0"
+# テストが正本 version との一致を強制するため追随必須）。イシュー #1375
+# （keyed diff の軽量ハッシャ化）に伴う core 0.3.1 バンプの連鎖で
+# wasm-client も 0.4.1 へバンプしたため、本テンプレート側も追随する。
+fandhe-frontend-wasm-client = "0.4.1"
 
 [lib]
 crate-type = ["cdylib"]

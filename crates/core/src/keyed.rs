@@ -181,8 +181,11 @@ pub fn keyed_list(
     // 構成）と完全に同一（回帰テスト `duplicate_error_precedence_is_stable`
     // が固定）。直下スコープのみを対象に、初出インデックスを HashMap で記録
     // して O(n) で重複判定する（非再帰、DoS 耐性）。
-    let mut first_index_of: std::collections::HashMap<&str, usize> =
-        std::collections::HashMap::with_capacity(items.len());
+    // ハッシャは軽量ハッシャ（`crate::fx_hash`）を使う。選定根拠・脅威
+    // モデルは `fx_hash` モジュール doc 参照（イシュー #1375: keyed diff
+    // 専用の内部照合であり HashDoS の脅威モデル外）。
+    let mut first_index_of: crate::fx_hash::FxHashMap<&str, usize> =
+        crate::fx_hash::map_with_capacity(items.len());
 
     for (index, (key, item)) in items.iter().enumerate() {
         if key.is_empty() {
@@ -422,14 +425,16 @@ pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Vec<KeyedOp> {
 /// 構築する（最初の出現の内容と比較すると、保持されないノードの内容と
 /// 誤って比較してしまう）。
 fn remove_pass(old_keys: &[String], new_keys: &[String], ops: &mut Vec<KeyedOp>) -> Vec<String> {
-    let new_set: std::collections::HashSet<&str> = new_keys.iter().map(String::as_str).collect();
+    // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。
+    let new_set: crate::fx_hash::FxHashSet<&str> = new_keys.iter().map(String::as_str).collect();
 
     // 各キーの「最後の出現インデックス」を先に求める。ループ中に
     // 「これ以降その key は二度と現れない」かを判定する必要があるため、
     // 逆順走査ではなく前方 1 パスで `key -> 最後に出現した index` を
     // 構築してから本走査に使う。
-    let mut last_index_of: std::collections::HashMap<&str, usize> =
-        std::collections::HashMap::with_capacity(old_keys.len());
+    let mut last_index_of: crate::fx_hash::FxHashMap<&str, usize> =
+        crate::fx_hash::map_with_capacity(old_keys.len());
     for (index, key) in old_keys.iter().enumerate() {
         last_index_of.insert(key.as_str(), index);
     }
@@ -491,8 +496,10 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
     // （イシュー #1336 codex レビュー P1 是正。旧実装は `new_keys` の重複を
     // 検出せず全要素を走査していたため、2 件目以降が保持キューの枯渇後に
     // 誤って Insert として発行されていた）。
-    let mut seen_new: std::collections::HashSet<&str> =
-        std::collections::HashSet::with_capacity(new_keys.len());
+    // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。
+    let mut seen_new: crate::fx_hash::FxHashSet<&str> =
+        crate::fx_hash::set_with_capacity(new_keys.len());
 
     // `index`（`new_keys.iter().enumerate()` の生インデックス）ではなく、
     // 重複でスキップした要素を除いた「出力後の並びでの位置」を
@@ -533,8 +540,10 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
     let mut head: Option<usize> = Some(0);
 
     // キーごとに未消費ノードの添字を出現順（昇順）で保持するキュー。
-    let mut queue: std::collections::HashMap<&str, std::collections::VecDeque<usize>> =
-        std::collections::HashMap::with_capacity(n);
+    // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。
+    let mut queue: crate::fx_hash::FxHashMap<&str, std::collections::VecDeque<usize>> =
+        crate::fx_hash::map_with_capacity(n);
     for (i, key) in working.iter().enumerate() {
         queue.entry(key.as_str()).or_default().push_back(i);
     }
@@ -650,14 +659,16 @@ pub fn diff_keyed_items(
     // 出現」の内容でなければならない。最初の出現の内容と比較すると、
     // 実際には保持されない（Remove される）ノードの内容と誤って比較して
     // しまい、Update の要否判定を誤る。
-    let mut old_by_key: std::collections::HashMap<&str, &Node> =
-        std::collections::HashMap::with_capacity(old_items.len());
+    // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。
+    let mut old_by_key: crate::fx_hash::FxHashMap<&str, &Node> =
+        crate::fx_hash::map_with_capacity(old_items.len());
     for (key, node) in old_items {
         old_by_key.insert(key.as_str(), node);
     }
 
-    let mut seen_new_keys: std::collections::HashSet<&str> =
-        std::collections::HashSet::with_capacity(new_items.len());
+    let mut seen_new_keys: crate::fx_hash::FxHashSet<&str> =
+        crate::fx_hash::set_with_capacity(new_items.len());
     for (key, new_node) in new_items {
         // new_items 側の重複キーも最初の 1 件のみを対象とする（同一防御を
         // 対称に適用する）。

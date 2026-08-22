@@ -21,8 +21,8 @@ publish = false
 # `cargo metadata` で依存件数・深さへの影響を確認し、REQ-3 の目安
 # （60 件/深さ 6）を参考にすること。
 [dependencies]
-fandhe-frontend-core = "0.3.0"
-fandhe-frontend-app = "0.2.2"
+fandhe-frontend-core = "0.3.1"
+fandhe-frontend-app = "0.2.3"
 
 [dev-dependencies]
 

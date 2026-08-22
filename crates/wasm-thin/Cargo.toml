@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-thin"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 description = "fandhe-frontend-wasm-thin: REQ-11 の薄い JS グルー方式（オプトイン）向け WASM ランタイム。イベント配線・DOM 更新は JS グルーに委ね、WASM 側は文字列 in・文字列 out の純粋計算（状態遷移＋既定エスケープ済み HTML 描画）に限定する。"
 license = "MIT OR Apache-2.0"
@@ -31,8 +31,8 @@ categories = ["wasm", "web-programming"]
 # 新規外部パッケージではなく既存のワークスペース内 path 依存であるため、
 # 依存グラフ上限（REQ-3）・Cargo.lock への影響はない。
 [dependencies]
-fandhe-frontend-interactive = { path = "../interactive", version = "0.2.3" }
-fandhe-frontend-core = { path = "../core", version = "0.3.0" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.2.4" }
+fandhe-frontend-core = { path = "../core", version = "0.3.1" }
 wasm-bindgen = "0.2"
 
 [lib]
