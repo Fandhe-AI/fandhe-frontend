@@ -76,7 +76,10 @@ SSR 8 種・CSR 7 種・payload 7 種。リストの増減は本表の更新 + �
   床を伴うため、全フレームワークの create が 31〜33ms へ張り付き判別力を
   失っていた。代わりに「`__bench[op]()` の完了（各アプリは戻り値の
   await 完了時点で DOM 反映済みであることを保証する。具体的には
-  React は `flushSync`、Preact は `preact/test-utils` の `act()`、Vue は
+  React は `flushSync`、Preact は props 駆動のトップレベル `render()` の
+  同期性（state を hooks に持たせず、操作ごとに `render()` を呼び直す。
+  `preact/test-utils` の `act()` はテスト専用モジュールで production
+  bundle 純度〔§4〕に反するため不採用）、Vue は
   `nextTick()` の待ち受け、Svelte は `flushSync()`。vanilla/lit/fandhe は
   元々同期反映のため変更不要） + `bench-table` 要素の `offsetHeight`
   読み出しによる強制 layout flush」を計測境界とする。**paint（実際の
@@ -160,7 +163,8 @@ node bench/payload/measure.mjs
   chromium が headless でも rAF 60Hz 固定であり回避策
   （`--disable-frame-rate-limit` / `--disable-gpu-vsync`）も効かないため
   不採用とした（§2.2 参照）。各フレームワークが「DOM 反映完了」を
-  同期的に保証する手段（React の `flushSync`、Preact の `act()`、Vue の
+  同期的に保証する手段（React の `flushSync`、Preact のトップレベル
+  `render()` 呼び直し（同期 diff・コミット）、Vue の
   `nextTick()`、Svelte の `flushSync()`）を明示的に呼ぶ構成であり、
   フレームワークが本来持つ非同期バッチング自体のコストは（同期化の
   オーバーヘッドを除き）計測から隠蔽される。paint コストを含めた

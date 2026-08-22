@@ -1,18 +1,26 @@
-// Preact 10 による CSR ベンチアプリ。React 版と対称的な構成（preact/hooks の
-// useState + preact の render）にし、フレームワークオーバーヘッドの差分のみが
-// 計測結果へ現れるようにする。
+// Preact 10 による CSR ベンチアプリ。状態（rows 配列）をモジュール変数に
+// 置き、各操作で props 駆動のトップレベル render() を呼び直す構成にする。
+// preact のトップレベル render() は同期的に diff・コミットするため、
+// 呼び出しが返った時点で DOM 反映済みであり、計測境界（PROTOCOL §2.2 の
+// 「__bench[op]() 完了時点で DOM 反映済み」）を本番 API のみで満たせる。
+//
+// React 版（useState + flushSync）と実装形が非対称になるが、flushSync は
+// react-dom の本番 API である一方、preact で hooks の setState を同期
+// フラッシュする唯一の公式手段 act() は preact/test-utils（テスト専用
+// モジュール）であり、production bundle へテストランタイムが混入して
+// CSR 実行時間・payload サイズ比較の双方で Preact だけが不要なコードを
+// 負担する（PROTOCOL §4 の production 相当・同一条件契約に反する。
+// PR #1370 codex レビュー P1 指摘）。production bundle 純度を優先し、
+// hooks / test-utils を使わない本構成を採用した。
 import { render } from "preact";
-import { useState } from "preact/hooks";
-import { act } from "preact/test-utils";
 import { generateRows, updateRows } from "../../common/rowData.mjs";
 
-// React 版と同様、useEffect を経由せず render 本体で setter を直接退避する
-// （effect コミット後実行を待つ非同期な隙間をなくすため）。
-let setRowsExternal;
+// 現在の表示状態。各操作がこれを更新してから rerender() を呼ぶ。
+let rows = [];
 
-function Rows() {
-  const [rows, setRows] = useState([]);
-  setRowsExternal = setRows;
+// props 駆動の関数コンポーネント。keyed 描画（key={row.id}）は維持する
+// （キー付きリスト描画を持つフレームワークは id をキーに使う、PROTOCOL §2.2）。
+function Rows({ rows }) {
   return rows.map((row) => (
     <tr key={row.id}>
       <td>{row.id}</td>
@@ -23,26 +31,24 @@ function Rows() {
 
 function main() {
   const tbody = document.querySelector("#bench-table tbody");
-  // React 版と異なり、preact の render() は初回マウントも含めて常に同期的
-  // にコンポーネント関数を実行してコミットする（React の createRoot の
-  // ような並行スケジューラを持たない）。そのため setRowsExternal はこの
-  // 呼び出しが返った時点で必ず代入済みであり、PR #1370 レビュー指摘の
-  // React 側の初期化順序問題（flushSync で初回マウントを包む必要が
-  // あった件）は preact には存在しない（確認済み・追加対応不要）。
-  render(<Rows />, tbody);
+  // トップレベル render() は前回の vnode ツリーとの diff を同期実行して
+  // コミットする（初回マウント含む）。setState のような rAF/マイクロ
+  // タスクへのデバウンスを経由しないため、追加の同期化手段は不要。
+  const rerender = () => render(<Rows rows={rows} />, tbody);
+  rerender();
 
-  // Preact の setState はデフォルトで rAF/マイクロタスクにデバウンスされ
-  // 非同期に描画されるため、__bench 呼び出し完了時点で DOM 反映済みを
-  // 保証するには同期フラッシュが要る。preact/test-utils の act() は
-  // options.debounceRendering を一時的に同期化して pending rerender を
-  // 即時ドレインする（内部的には preact 自身が提供する唯一の公式な
-  // 同期フラッシュ手段）。hooks + useState の構成をそのまま維持でき、
-  // React 版と対称的な実装を保てるため、component ツリーを直接
-  // render() し直す構成（フックを使わない案）よりこちらを採用した
-  // （計測境界の変更、bench/PROTOCOL.md §2.2 参照）。
-  const create = () => act(() => setRowsExternal(generateRows(1000)));
-  const update = () => act(() => setRowsExternal((prev) => updateRows(prev)));
-  const clear = () => act(() => setRowsExternal([]));
+  const create = () => {
+    rows = generateRows(1000);
+    rerender();
+  };
+  const update = () => {
+    rows = updateRows(rows);
+    rerender();
+  };
+  const clear = () => {
+    rows = [];
+    rerender();
+  };
 
   window.__bench = { create, update, clear };
   document.querySelector("#create").addEventListener("click", create);
