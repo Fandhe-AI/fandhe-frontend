@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-client"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"
@@ -172,10 +172,29 @@ categories = ["wasm", "web-programming"]
 # `pub(crate)` 内部変更のみで公開型・公開シグネチャに変更はないため、
 # 引き続き同じ「未公開ウィンドウ中の変更相乗り」として 0.4.0 へ吸収させ、
 # 追加のバンプは行わない。
+#
+# イシュー #1373（keyed list 全キー削除の一括 clear 経路化）: 全キー削除
+# （保持キー 0 件）の検出時、`diff_keyed_items`（core）を経由した
+# `Remove` N 件の逐次適用の代わりに `KeyedListDom::clear_children`（新設、
+# 既定実装なし・全実装で実装必須。テキストノード残存を防ぐため既定実装は
+# 意図的に設けない〔codex-review P2 是正〕。`keyed_apply.rs`）を 1 回だけ
+# 呼ぶ経路を `apply_ops_with_items` へ追加した。`web-sys` 実装
+# （`keyed_dom.rs::WebSysKeyedDom::clear_children`）は
+# `Node::set_text_content(None)` 1 回で実装し、N 回の `remove_child` 境界
+# 呼び出しを 1 回へ集約する（親トラッキング #1371 が実測した O(N) の是正）。
+# `pub(crate)` トレイトへのメソッド追加・内部適用アルゴリズムの変更のみで
+# 公開型・公開シグネチャに変更はないため、引き続き同じ「未公開ウィンドウ
+# 中の変更相乗り」として吸収させ、追加のバンプは行わない（実装時点で
+# sparse index を再確認し 0.4.0 が未公開のままであることを確認済み）。
+# なお本イシューの実装ブランチが origin/main（イシュー #1375、core の
+# keyed diff FxStrMap/FxStrSet 化に伴う 0.4.0 → 0.5.0 バンプ）を取り込んだ
+# ことで、実際の吸収先は 0.5.0（本 Cargo.toml の `version` フィールド）へ
+# 前進している。0.5.0 も同じく sparse index で未公開を確認済みであり、
+# 「未公開ウィンドウ中の変更相乗り」の判断自体は変わらない。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.3.0" }
-fandhe-frontend-app = { path = "../app", version = "0.2.2" }
-fandhe-frontend-interactive = { path = "../interactive", version = "0.2.3" }
+fandhe-frontend-core = { path = "../core", version = "0.4.0" }
+fandhe-frontend-app = { path = "../app", version = "0.2.3" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.2.4" }
 wasm-bindgen = "0.2"
 
 # イシュー #345（束縛点更新 + keyed list への置換）で以下 3 feature を追加。
