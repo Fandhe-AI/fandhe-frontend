@@ -1317,15 +1317,23 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                 // 参照）。
                 //
                 // このため `pos < adjusted` を検知した時点で不変条件違反
-                // として `resync_required` を立てたうえで、`pos == adjusted`
-                // 以外は必ず実際に `move_before` を呼ぶ（`pos + 1 ==
-                // adjusted` の局所的な no-op 最適化は撤回する。正しさを
-                // 優先し、`child_at`/`move_before` 呼び出し 1 回分のコスト
-                // よりも「未達成 Move を成功扱いしない」ことを優先する）。
+                // として `resync_required` を立て、**DOM・キャッシュには
+                // 一切触れない**（fail-closed）。違反状態で `move_before` を
+                // 呼ぶと、`KeyedChildrenCache::move_to` は移動元が移動先
+                // 以降にあることを前提とするため、DOM の `insertBefore`
+                // （後方参照ノードでは実際には `adjusted - 1` へ着地する）
+                // とキャッシュの並びが同一 apply 内の後続 op から乖離し、
+                // resync が効く前に誤った操作を連鎖させてしまう
+                // （PR #1392 Bugbot Medium 指摘）。乖離の解消は
+                // `resync_required` による構造フォールバックへ委ねる。
+                // `pos > adjusted` の正常系のみ実際に `move_before` を呼ぶ
+                // （`pos + 1 == adjusted` の局所的な no-op 最適化は撤回
+                // 済み。正しさを優先し、`child_at`/`move_before` 呼び出し
+                // 1 回分のコストよりも「未達成 Move を成功扱いしない」
+                // ことを優先する。PR #1392 codex-review 第 3 巡 P1）。
                 if pos < adjusted {
                     resync_required = true;
-                }
-                if pos != adjusted {
+                } else if pos != adjusted {
                     let reference = dom.child_at(adjusted);
                     if !dom.move_before(adjusted, &key, &existing, reference.as_ref()) {
                         // 実 DOM への移動自体が失敗（`move_before` 契約により
@@ -5176,24 +5184,21 @@ mod tests {
              場合は resync_required が立つはず（内訳: {:?}）",
             dom.calls
         );
+        // 不変条件違反（pos < adjusted）の検知時は DOM・キャッシュに一切
+        // 触れず fail-closed に resync へ委ねる（PR #1392 Bugbot Medium
+        // 指摘: 違反状態で move_before を呼ぶと `KeyedChildrenCache::
+        // move_to` の前提〔移動元は移動先以降〕が崩れ、同一 apply 内の
+        // 後続 op がキャッシュと実 DOM の乖離を連鎖させる）。
         assert_eq!(
-            dom.calls.move_before, 1,
-            "pos == adjusted の厳密一致ではないため move_before は \
-             skip されず実際に呼ばれるはず（内訳: {:?}）",
+            dom.calls.move_before, 0,
+            "不変条件違反の検知時は move_before を呼ばず DOM を無変更の \
+             まま resync へ委ねるはず（内訳: {:?}）",
             dom.calls
         );
-        // 実 DOM が目標順（[a, c, b]）へ到達するか、到達しない場合は
-        // resync_required が立っていることのいずれかが成り立てばよい
-        // （タスク指示の受け入れ基準）。本ケースは `insertBefore` 自体が
-        // ローカルには no-op のため実 DOM は乖離したまま残るが、上記の
-        // `resync_required` アサーションにより「未達成」であることは
-        // 正しく可視化されている。
-        assert!(
-            outcome.resync_required || dom.items == vec!["a", "c", "b"],
-            "目標順へ到達するか resync_required が立つはずだが、いずれも \
-             満たさない（items={:?}, resync_required={}）",
+        assert_eq!(
             dom.items,
-            outcome.resync_required
+            vec!["c", "a", "b"],
+            "不変条件違反の検知時はライブ DOM を変更しないはず"
         );
     }
 }
