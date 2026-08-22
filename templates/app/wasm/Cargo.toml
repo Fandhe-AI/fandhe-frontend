@@ -39,8 +39,11 @@ members = ["."]
 # の sibling 走査をキー→Element ハンドルキャッシュへ統合）は当初 0.5.0 の
 # 枠内への吸収を予定していたが、PR #1392 codex-review P1 是正（公開クレート
 # の src/ 変更に対するバンプ必須条項の適用）を受けて 0.5.1 への独立 patch
-# バンプへ切り替えたため、本テンプレート側も 0.5.1 へ追随する。
-fandhe-frontend-wasm-client = "0.5.1"
+# バンプへ切り替えたため、本テンプレート側も 0.5.1 へ追随した。イシュー
+# #1376（core の keyed diff 前段スキップ）で fandhe-frontend-core 0.4.1 →
+# 依存元（interactive/headless-ui/.../wasm-client）が連鎖的にパッチバンプ
+# された（0.5.1 → 0.5.2）ため、本テンプレート側も追随する。
+fandhe-frontend-wasm-client = "0.5.2"
 
 [lib]
 crate-type = ["cdylib"]

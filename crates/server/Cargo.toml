@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-server"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 description = "fandhe-frontend-server: パスマッチングルーティング（router.rs）+ SSR/SSG エントリ（ssr.rs/ssg.rs）。外部依存ゼロ。HTTP 配信は fandhe-frontend-dist-server へ委譲する。"
 license = "MIT OR Apache-2.0"
@@ -17,7 +17,7 @@ default-run = "fandhe-frontend-server"
 # 通常の path 依存へ昇格した（外部クレートの追加は行っていない）。本クレートは
 # 引き続き外部クレートを一切追加しない自前実装のみで構成する。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.4.0" }
-fandhe-frontend-app = { path = "../app", version = "0.2.3" }
+fandhe-frontend-core = { path = "../core", version = "0.4.1" }
+fandhe-frontend-app = { path = "../app", version = "0.2.4" }
 
 [dev-dependencies]
