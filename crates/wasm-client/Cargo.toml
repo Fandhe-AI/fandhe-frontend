@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-client"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"
