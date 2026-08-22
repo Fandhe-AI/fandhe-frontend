@@ -39,7 +39,7 @@ members = ["."]
 # の sibling 走査をキー→Element ハンドルキャッシュへ統合）は wasm-client
 # 内部実装のみの変更（`pub(crate)` トレイト拡張、公開シグネチャ不変）で
 # あり、この 0.5.0 の枠内に吸収済み。
-fandhe-frontend-wasm-client = "0.5.0"
+fandhe-frontend-wasm-client = "0.5.1"
 
 [lib]
 crate-type = ["cdylib"]
