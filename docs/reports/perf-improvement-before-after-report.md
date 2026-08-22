@@ -508,3 +508,93 @@ dirty 差分適用は full 再適用比 6.61〜184.18 倍高速であり、環�
 ### 12.5 制約の継続
 
 本追補環境（macOS 実機）での制約は §11.5 と同一である。フレームワーク横断ベンチハーネス `_/bench/` の非存在により、他フレームワークとの同日相対位置の再計測および CSR create/update/clear のブラウザ実測は本追補でも未実施である（詳細は §11.5 参照）。
+
+## 13. 追補 3: 2026-08-22 Linux 再計測（`make bench` 経由）
+
+PR #1368 で追加した `make bench` ターゲット（常設 xtask ベンチ 3 種を `--release --locked` で一括実行する入口）を、§11 と同一の Linux 環境で単発実行した記録である。区分ラベルは [再計測] を用いる。既存セクションの数値・記述は変更しない。
+
+### 13.1 計測環境（本追補分）
+
+| 項目 | 値 |
+|------|-----|
+| OS | Ubuntu 26.04 LTS（Linux 7.0.0-29-generic） |
+| CPU | 12 vCPU（仮想化 CPU） |
+| rustc | 1.96.0 (ac68faa20 2026-05-25) |
+| 実行コマンド | `make bench`（`cargo run -p xtask --release --locked -- bench-ssr` / `bench-state-update` / `bench-binding-update` を順次実行） |
+| 実行方式 | `--release` プロファイルでの単発実行（§11.1 の 5 回反復とは異なる。ラン間分散は推定できないため、比較は §11 のラン間範囲との照合にとどめる） |
+| 計測日 | 2026-08-22 |
+
+OS・カーネル・CPU 数・rustc は §11.1 と同一であり、対象クレートバージョン（core 0.3.0 / interactive 0.2.3）も §11・§12 から変化していない。§11 との差分は実行方式（5 回反復 → 単発）と、実行入口が `make bench` である（`--locked` が付く）ことのみ。
+
+### 13.2 [再計測] `xtask bench-ssr`（fandhe-frontend-core 0.3.0、単発）
+
+実測 JSON（1 行サマリ原文を整形転記）:
+
+```
+{"framework":"fandhe-frontend","version":"0.3.0","mode":"ssr","workload_schema_version":1,
+ "rows1k":{"iters":100,"mean_ms":0.1066,"p50_ms":0.1029,"p95_ms":0.1302,"min_ms":0.0960},
+ "rows10k":{"iters":10,"mean_ms":1.2513,"p50_ms":1.3333,"p95_ms":1.4152,"min_ms":1.0095},
+ "html_bytes_1k":118931,"escape_ok":true,"row_count_ok":true,"notes":"profile=release"}
+```
+
+| 指標 | 2026-08-21（§11.2、5 回、min〜max） | 2026-08-22（単発） |
+|------|--------------------------------------|---------------------|
+| rows1k mean | 0.1065〜0.1085 ms | 0.1066 ms |
+| rows1k p95 | 0.1299〜0.1352 ms | 0.1302 ms |
+| rows10k mean | 1.2377〜1.2734 ms | 1.2513 ms |
+| rows10k p95 | 1.3862〜1.4688 ms | 1.4152 ms |
+| escape_ok / row_count_ok | 5 回すべて true / true（PASS） | true / true（PASS） |
+
+html_bytes_1k は 118931 で §11.2・§12.2 と一致（ワークロード同一性の傍証）。全指標が §11.2 のラン間範囲内にあり、**今回の単発計測の範囲では SSR 性能の顕著な悪化は観測されなかった**（§11.1 と同じ限定を付す）。
+
+### 13.3 [再計測] `xtask bench-state-update`（fandhe-frontend-interactive 0.2.3、単発）
+
+実測 JSON:
+
+```
+{"framework":"fandhe-frontend","version":"0.2.3","mode":"state-update","workload_schema_version":1,"bindings":1000,
+ "grid1k":{"update":{"iters":200,"mean_us":0.0260,"p50_us":0.0250,"p95_us":0.0260,"min_us":0.0230},
+  "binding_apply":{"iters":200,"mean_us":0.0461,"p50_us":0.0450,"p95_us":0.0470,"min_us":0.0440},
+  "render":{"iters":200,"mean_us":94.4553,"p50_us":93.7350,"p95_us":98.2460,"min_us":91.9110},
+  "noop_update":{"iters":200,"mean_us":0.0197,"p50_us":0.0200,"p95_us":0.0200,"min_us":0.0180}},
+ "appstate1k":{"update":{"iters":200,"mean_us":0.0338,"p50_us":0.0300,"p95_us":0.0790,"min_us":0.0280},
+  "binding_apply":{"iters":200,"mean_us":0.0384,"p50_us":0.0350,"p95_us":0.0740,"min_us":0.0330},
+  "render":{"iters":200,"mean_us":328.0381,"p50_us":326.5000,"p95_us":339.4620,"min_us":319.2940},
+  "noop_update":{"iters":200,"mean_us":0.0272,"p50_us":0.0250,"p95_us":0.0420,"min_us":0.0240}},
+ "escape_ok":true,"noop_ok":true,"notes":"profile=release"}
+```
+
+| シナリオ・指標（mean） | 2026-08-21（§11.3、5 回、min〜max） | 2026-08-22（単発） |
+|------------------------|--------------------------------------|---------------------|
+| grid1k update | 0.0260〜0.0261 µs | 0.0260 µs |
+| grid1k binding_apply | 0.0461〜0.0474 µs | 0.0461 µs |
+| grid1k render | 93.1265〜94.7754 µs | 94.4553 µs |
+| grid1k noop_update | 0.0197〜0.0199 µs | 0.0197 µs |
+| appstate1k update | 0.0339〜0.0369 µs | 0.0338 µs |
+| appstate1k binding_apply | 0.0388〜0.0436 µs | 0.0384 µs |
+| appstate1k render | 325.8694〜336.2030 µs | 328.0381 µs |
+| appstate1k noop_update | 0.0267〜0.0322 µs | 0.0272 µs |
+
+escape_ok / noop_ok とも true（PASS）。appstate1k update（-0.0001 µs）・binding_apply（-0.0004 µs）が §11.3 のラン間範囲の下端をわずかに下回るほかは全指標が範囲内にあり、下回り幅もタイマー分解能水準にとどまる。**今回の単発計測の範囲では状態変更負荷の顕著な悪化は観測されなかった**（§11.1 と同じ限定を付す）。
+
+### 13.4 [再計測] `xtask bench-binding-update`（2026-08-22、単発）
+
+実測出力原文:
+
+```
+bench-binding-update: scenario=appstate-increment full_ns=2081.35 dirty_ns=28.90 ratio=72.01
+bench-binding-update: scenario=disclosure-toggle full_ns=67.15 dirty_ns=0.64 ratio=105.56
+bench-binding-update: scenario=single-select-select full_ns=75.52 dirty_ns=11.45 ratio=6.60
+```
+
+| シナリオ | full_ns（§11.4、5 回、min〜max） | full_ns（単発） | ratio（§11.4、5 回、min〜max） | ratio（単発） |
+|----------|-----------------------------------|-----------------|--------------------------------|---------------|
+| appstate-increment | 2078.13〜2124.61 | 2081.35 | 71.47〜73.66 | 72.01 |
+| disclosure-toggle | 65.70〜67.86 | 67.15 | 101.51〜104.60 | 105.56 |
+| single-select-select | 75.38〜80.00 | 75.52 | 6.75〜7.67 | 6.60 |
+
+full_ns は 3 シナリオとも §11.4 のラン間範囲内。ratio の範囲外れ（disclosure-toggle の 105.56、single-select-select の 6.60）はいずれも分母 dirty_ns の極小値（0.64 ns / 11.45 ns）による比の増幅・縮小であり（§11.4 で注記済みの性質）、full_ns 自体に顕著な悪化は見られない。dirty 差分適用の優位（full 再適用比 6.60〜105.56 倍高速）という定性的傾向も §6.2・§11.4・§12.4 と一致する。
+
+### 13.5 制約の継続
+
+本追補の制約は §11.5 と同一である（フレームワーク横断ベンチハーネス `_/bench/` の非存在により、他フレームワーク相対位置・CSR ブラウザ実測は未実施）。

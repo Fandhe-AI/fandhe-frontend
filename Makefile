@@ -6,7 +6,7 @@
 #
 # 使い方: `make help`（既定ターゲット）でターゲット一覧を表示する。
 .DEFAULT_GOAL := help
-.PHONY: help setup build test fmt lint gate docs docker-dev-build docker-dev
+.PHONY: help setup build test fmt lint gate bench docs docker-dev-build docker-dev
 
 help: ## このヘルプを表示する
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -43,6 +43,14 @@ gate: ## fw gate --project . を実行する（fw 未導入時は cargo run に�
 	else \
 		cargo run -p fandhe-frontend-cli --locked -- gate --project .; \
 	fi
+
+# 出力は stdout の 1 行サマリのみ（JSON またはプレーンテキスト行）。レポート
+# （docs/reports/perf-improvement-before-after-report.md）へは手動転記する運用で、
+# 各ベンチの実体・ワークロード定義は crates/xtask/src/bench_*.rs を正とする。
+bench: ## 常設ベンチマーク 3 種（bench-ssr / bench-state-update / bench-binding-update）を実行する
+	cargo run -p xtask --release --locked -- bench-ssr
+	cargo run -p xtask --release --locked -- bench-state-update
+	cargo run -p xtask --release --locked -- bench-binding-update
 
 docs: ## docs サイトを dist/ へビルドする
 	cargo run -p fandhe-frontend-docs-site --locked -- --out dist/
