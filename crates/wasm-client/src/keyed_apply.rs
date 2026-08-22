@@ -559,18 +559,20 @@ pub(crate) trait KeyedListDom {
     ///   キャッシュ（`web-sys` 実装の `children`）を「空」として確定しては
     ///   ならない（[`Self::remove_child`]・[`Self::insert_before_batch`]
     ///   と同じ「キャッシュ更新は完全成功時のみ」契約）。
-    /// - 既定実装は [`Self::first_element_child`]/[`Self::remove_child`]
-    ///   による per-item フォールバック（本メソッドをオーバーライドしない
-    ///   実装でも安全に動作する。native テストのモック
-    ///   `CountingDom`（オーバーライドなし版）はこの既定実装を検証する）。
-    fn clear_children(&mut self) -> bool {
-        while let Some(child) = self.first_element_child() {
-            if !self.remove_child(&child) {
-                return false;
-            }
-        }
-        true
-    }
+    /// - **既定実装は設けない（イシュー #1373 codex-review P2 対応）**:
+    ///   [`Self::first_element_child`]/[`Self::remove_child`] は要素のみを
+    ///   走査する API であり、これらだけを使う per-item フォールバックを
+    ///   トレイトの既定実装として提供すると、要素間のテキストノードや
+    ///   要素を持たないテキストのみのコンテナを削除し損ねたまま `true` を
+    ///   返してしまい、上記「全子ノード」契約に反する（本番実装
+    ///   [`crate::keyed_dom::WebSysKeyedDom`] は `textContent` 代入でこの
+    ///   問題を構造的に回避しているため直ちには顕在化しないが、将来
+    ///   本メソッドをオーバーライドせずに `KeyedListDom` を実装した場合に
+    ///   達成済みと誤認される潜在バグになる）。per-item フォールバックを
+    ///   選ぶ実装は、要素以外のノードも別途除去してから `true` を返す
+    ///   こと（native テストのモック `DefaultClearDom` はこの「per-item
+    ///   フォールバックでも全ノード除去を満たす」実装例を示す）。
+    fn clear_children(&mut self) -> bool;
 }
 
 /// [`KeyedListDom::replace_item_children`]（子ノード列交換）のコミット
@@ -2038,16 +2040,25 @@ mod tests {
         }
     }
 
-    /// [`KeyedListDom::clear_children`] の既定実装（`first_element_child`/
-    /// `remove_child` による per-item フォールバック）を検証する専用モック
-    /// （イシュー #1373）。[`CountingDom`] はオーバーライドを持つため、
-    /// 「オーバーライドしない実装でも安全に動作する」既定実装自体の契約は
-    /// 本モックでのみ検証できる。
+    /// `clear_children` の per-item フォールバック実装（`first_element_child`/
+    /// `remove_child` による走査）を検証する専用モック（イシュー #1373、
+    /// codex-review P2〔`clear_children` に既定実装を設けなくした対応〕で
+    /// 「per-item フォールバックを選ぶ実装でも全ノード除去契約を満たせる」
+    /// 実装例として位置づけ直した。[`CountingDom`] は 1 回の
+    /// `set_text_content` 相当オーバーライドを持つため、per-item 走査
+    /// そのものの契約は本モックでのみ検証できる。
     #[derive(Default)]
     struct DefaultClearDom {
         items: Vec<String>,
         first_element_child_calls: usize,
         remove_child_calls: usize,
+        /// `first_element_child`/`remove_child`（要素のみを走査する API）
+        /// では検出できない非要素の子ノード（要素間のテキストノード等）
+        /// の代理カウンタ。`clear_children` は per-item 走査に加えて本
+        /// フィールドも明示的にクリアすることで、「要素だけ走査して
+        /// テキストノードを残したまま `true` を返す」codex-review P2 の
+        /// 指摘シナリオが再発しないことを機械的に固定する。
+        stray_text_nodes: usize,
     }
 
     impl KeyedListDom for DefaultClearDom {
@@ -2129,7 +2140,21 @@ mod tests {
             true
         }
 
-        // `clear_children` はオーバーライドしない（既定実装の検証が目的）。
+        /// per-item フォールバック（`first_element_child`/`remove_child`）に
+        /// 加えて `stray_text_nodes`（非要素の子ノードの代理）も明示的に
+        /// クリアする。要素のみを走査する API の組み合わせだけでは
+        /// 「全子ノード」契約（トレイト doc 参照）を満たせないため、
+        /// per-item フォールバックを選ぶ実装はこのような追加クリアが
+        /// 必須であることを示す実装例（イシュー #1373 codex-review P2）。
+        fn clear_children(&mut self) -> bool {
+            while let Some(child) = self.first_element_child() {
+                if !self.remove_child(&child) {
+                    return false;
+                }
+            }
+            self.stray_text_nodes = 0;
+            true
+        }
     }
 
     fn keys_n(n: usize) -> Vec<String> {
@@ -2384,6 +2409,9 @@ mod tests {
         }
         fn replace_root(&mut self, old: &Self::Handle, key: &str, new: Self::NewNode) -> bool {
             self.inner.replace_root(old, key, new)
+        }
+        fn clear_children(&mut self) -> bool {
+            self.inner.clear_children()
         }
     }
 
@@ -4606,11 +4634,11 @@ mod tests {
         assert_eq!(dom.calls.clear_children, 1);
     }
 
-    /// [`KeyedListDom::clear_children`] の既定実装（オーバーライドなし）は
-    /// `first_element_child`/`remove_child` による per-item フォールバック
-    /// へ収束し、最終的に全キーを取り除く（[`DefaultClearDom`] 参照）。
+    /// [`DefaultClearDom::clear_children`]（per-item フォールバック実装）は
+    /// `first_element_child`/`remove_child` による走査へ収束し、最終的に
+    /// 全キーを取り除く。
     #[test]
-    fn clear_children_default_impl_falls_back_to_per_item_remove() {
+    fn clear_children_per_item_fallback_removes_all_element_children() {
         let mut dom = DefaultClearDom {
             items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
             ..Default::default()
@@ -4622,12 +4650,52 @@ mod tests {
         assert!(dom.items.is_empty());
         assert_eq!(
             dom.remove_child_calls, 3,
-            "既定実装は remove_child を要素数分だけ呼ぶはず"
+            "per-item フォールバックは remove_child を要素数分だけ呼ぶはず"
         );
         assert_eq!(
             dom.first_element_child_calls, 4,
             "先頭要素を都度読み直す per-item 走査のはず（3 回の削除 + \
              最終確認で None を返す 1 回）"
+        );
+    }
+
+    /// codex-review P2（イシュー #1373）回帰固定: `first_element_child`/
+    /// `remove_child` は要素のみを走査する API のため、要素間のテキスト
+    /// ノード等（`stray_text_nodes` が代理）は per-item 走査だけでは
+    /// 検出・除去できない。`clear_children` はこれらも明示的にクリアして
+    /// はじめて「全子ノード」契約（[`KeyedListDom::clear_children`] doc
+    /// 参照）を満たすことを固定する。要素が 0 件（`first_element_child` が
+    /// 一度も `Some` を返さない）の構成でも検証し、「要素を持たない
+    /// テキストのみのコンテナ」ケースを直接カバーする。
+    #[test]
+    fn clear_children_per_item_fallback_also_removes_stray_text_nodes() {
+        let mut dom = DefaultClearDom {
+            items: vec!["a".to_string()],
+            stray_text_nodes: 2,
+            ..Default::default()
+        };
+
+        let ok = dom.clear_children();
+
+        assert!(ok, "全件削除に成功すれば true を返すはず");
+        assert!(dom.items.is_empty(), "要素も除去されるはず");
+        assert_eq!(
+            dom.stray_text_nodes, 0,
+            "per-item フォールバックは要素以外の子ノード（テキストノード等）も \
+             除去して初めて「全子ノード」契約を満たすはず"
+        );
+
+        let mut text_only_dom = DefaultClearDom {
+            items: vec![],
+            stray_text_nodes: 1,
+            ..Default::default()
+        };
+        assert!(text_only_dom.clear_children());
+        assert_eq!(
+            text_only_dom.stray_text_nodes, 0,
+            "要素を持たないテキストのみのコンテナでも stray_text_nodes は \
+             除去されるはず（要素ゼロで per-item 走査が早期終了しても \
+             テキスト除去を省略してはならない）"
         );
     }
 

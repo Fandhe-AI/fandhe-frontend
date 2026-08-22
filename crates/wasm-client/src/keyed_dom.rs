@@ -637,8 +637,12 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     /// [MDN](https://developer.mozilla.org/docs/Web/API/Node/textContent)
     /// 参照）代入は、要素・テキストを問わず全子ノードを除去し新規テキスト
     /// ノードも追加しない仕様であるため、`list_element.first_element_child()`
-    /// を回しながら `remove_child` を N 回呼ぶ既定実装（`KeyedListDom::clear_children`
-    /// 既定実装）と等価な結果を、N 回の JS 境界呼び出しではなく 1 回で
+    /// を回しながら `remove_child` を N 回呼ぶ per-item フォールバック
+    /// （`crate::keyed_apply::keyed_apply_tests::DefaultClearDom` 参照。
+    /// このフォールバックは要素のみを走査するため、`KeyedListDom::clear_children`
+    /// は既定実装を持たず全実装に完全な全ノード除去を要求する契約へ
+    /// 変更済み〔イシュー #1373 codex-review P2〕）と等価な結果を、
+    /// N 回の JS 境界呼び出しではなく 1 回で
     /// 達成できる（lit / vue / js-framework-benchmark 上位実装と同型の
     /// 定石、`textContent = ""`）。`Element::insert_before`/`remove_child`
     /// を個々に組み合わせる `replace_children`（可変長引数の分割メソッド
