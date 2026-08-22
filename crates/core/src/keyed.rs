@@ -70,14 +70,30 @@ pub const KEY_ATTR: &str = "data-key";
 /// と設計思想が矛盾する。このためガードは全ターゲット共通のコード
 /// パスに置き、`cfg` 分岐を持たない。
 ///
-/// # 値の根拠（`N^2` 見積もり）
+/// # 値の根拠（項目数の上限としての役割。旧 `N^2` バイト比較見積もりは
+/// 破棄済み、PR #1390 codex-review 第 2 巡 P1 是正）
 ///
-/// [`crate::fx_hash`] の軽量ハッシャ（wasm32-unknown-unknown で使われる
-/// 実体）は固定初期状態のため、攻撃者は全項目が同一バケットへ収まる
-/// キー列を事前計算できる（最悪計算量が `O(n^2)` へ劣化する HashDoS の
-/// 前提）。`N = 4_096` のとき最悪計算量は `N^2 = 16_777_216` 回程度の
-/// バイト単位比較に収まり、1 ブラウザタブ内の単発処理として許容できる
-/// 規模に留める。
+/// 当初この定数は「`N^2` 回程度のバイト単位比較に収まる」という見積もり
+/// で正当化されていたが、codex-review から「比較回数は拘束できていても
+/// 個々の比較の重さ（同一バケット内候補どうしの共通接頭辞長）を拘束して
+/// いない」との指摘を受けた。長い共通接頭辞を持つ衝突キー列を用意すれば、
+/// 同じ `N = 4_096` でも比較バイト総量は `N^2` バイト比較の見積もりを
+/// はるかに超えて劣化し得る（概算 10 億 byte 相当）。
+///
+/// この指摘を受け、`keyed.rs` の文字列キー `HashMap`/`HashSet` はすべて
+/// [`crate::fx_hash::FxStrMap`]/[`crate::fx_hash::FxStrSet`]
+/// （64bit 一次ハッシュ経由の間接テーブル、衝突時は
+/// [`KeyedListError::KeyHashCollision`] で fail-closed 拒否）へ置き換えた。
+/// これにより **比較バイト総量は `O(総キーバイト数)` の線形**で拘束され、
+/// 「件数の 2 乗 × 共通接頭辞長」という項は構造的に消滅する（詳細・
+/// 内側マップの衝突が安全な理由・意図的な衝突キーに対する挙動は
+/// [`crate::fx_hash::FxStrMap`] の型 doc 参照）。
+///
+/// 本定数（[`MAX_KEYED_LIST_ITEMS`]）は、この線形拘束のもとでも残る
+/// **操作回数**（`HashMap`/`HashSet` への `get`/`insert` 呼び出し回数、
+/// `Vec` 走査・アロケーション回数）を有界にする役割へ性質が変わった。
+/// バイト単位比較コストの拘束はもはや本定数ではなく `FxStrMap`/`FxStrSet`
+/// の一次ハッシュ間接化が担う。
 pub const MAX_KEYED_LIST_ITEMS: usize = 4_096;
 
 /// keyed list 1 件あたりに許容するキー文字列の合計バイト数
@@ -167,6 +183,25 @@ pub enum KeyedListError {
         /// 衝突した予約属性名。
         attr: &'static str,
     },
+    /// 内部で使うキー用ハッシュテーブル（[`crate::fx_hash::FxStrMap`]/
+    /// [`crate::fx_hash::FxStrSet`]）が、64bit 一次ハッシュ値の衝突する
+    /// 異なる文字列キーを検出した（HashDoS 対策の追加防御その 2、PR #1390
+    /// codex-review 第 2 巡 P1 是正、イシュー #1375）。[`keyed_list`]・
+    /// [`diff_keys`]・[`diff_keyed_items`] のいずれからも返り得る。
+    ///
+    /// 偶発的な衝突確率の見積もり（`n = 4096` で約 `4.5 * 10^-13`）・
+    /// fail-closed で拒否する設計根拠は [`crate::fx_hash::FxStrMap`] の型
+    /// doc を参照。**wasm32-unknown-unknown 上では、攻撃者が意図的に同一
+    /// 一次ハッシュ値を持つ 2 文字列を構成することは依然として可能**
+    /// （固定初期状態・非暗号学的ハッシャのため）であり、本 variant は
+    /// それを「起こさない」保証ではなく「起きたときに CPU を無期限に
+    /// 消費させず、その場で決定的に拒否する」保証を表す
+    /// （`crate::fx_hash` モジュール doc「wasm32-unknown-unknown における
+    /// 『意図的な』一次ハッシュ衝突」節参照）。ネイティブ/wasm32-wasi 等
+    /// （`RandomState`/SipHash、秘匿シード）では、攻撃者はシードを知り得
+    /// ないため意図的な衝突ペアの事前計算はできず、本 variant は実質的に
+    /// 偶発確率のみに支配される。
+    KeyHashCollision,
 }
 
 impl std::fmt::Display for KeyedListError {
@@ -204,11 +239,28 @@ impl std::fmt::Display for KeyedListError {
             KeyedListError::ReservedAttr { attr } => {
                 write!(f, "keyed_list: attribute \"{attr}\" is reserved")
             }
+            KeyedListError::KeyHashCollision => {
+                write!(
+                    f,
+                    "keyed_list: two distinct keys collided on their primary hash value"
+                )
+            }
         }
     }
 }
 
 impl std::error::Error for KeyedListError {}
+
+/// [`crate::fx_hash::FxStrMap`]/[`crate::fx_hash::FxStrSet`] が返す
+/// 一次ハッシュ衝突エラーを [`KeyedListError::KeyHashCollision`] へ変換する。
+/// キー文字列そのものは運ばない（`KeyedListError::Display` と同じ
+/// 機微情報非露出方針、OWASP A09 対策）ため、変換は情報を持たない単純な
+/// マッピングで済む。
+impl From<crate::fx_hash::KeyHashCollisionError> for KeyedListError {
+    fn from(_: crate::fx_hash::KeyHashCollisionError) -> Self {
+        KeyedListError::KeyHashCollision
+    }
+}
 
 /// keyed list を構築する。構造変化（挿入・削除・並べ替え）を表現できる
 /// **唯一の経路**（設計書第 5 節）。
@@ -278,12 +330,15 @@ pub fn keyed_list(
     // (1.5) 項目数・キー総バイト数の上限チェック（HashDoS 対策の追加防御、
     // イシュー #1375 codex-review P1 是正。cfg 分岐を持たず全ターゲット
     // 共通で適用する理由は [`MAX_KEYED_LIST_ITEMS`] doc 参照）。以降の
-    // HashMap 構築・走査（(2)(3)）が攻撃者の事前に選んだキー列に対しても
-    // 最悪 `O(n^2)` に収まる規模であることを、この時点の fail-closed
-    // 拒否で保証する。項目数チェックを先に行うことで、項目数自体が
-    // 過大な場合は `first_index_of` の `with_capacity` 割り当てより前に
-    // 拒否できる。[`enforce_key_limits`] は [`diff_keys`]/[`diff_keyed_items`]
-    // とも共有する（PR #1390 レビュー是正、下記 doc 参照）。
+    // `FxStrMap`/`FxStrSet` 構築・走査（(2)(3)）が攻撃者の事前に選んだ
+    // キー列に対しても操作回数が有界であることを、この時点の fail-closed
+    // 拒否で保証する（バイト単位比較コストの拘束は本チェックではなく
+    // `FxStrMap`/`FxStrSet` の 64bit 一次ハッシュ間接化が担う。詳細は
+    // [`MAX_KEYED_LIST_ITEMS`] doc・`crate::fx_hash::FxStrMap` 型 doc
+    // 参照）。項目数チェックを先に行うことで、項目数自体が過大な場合は
+    // `first_index_of` の `with_capacity` 割り当てより前に拒否できる。
+    // [`enforce_key_limits`] は [`diff_keys`]/[`diff_keyed_items`] とも
+    // 共有する（PR #1390 レビュー是正、下記 doc 参照）。
     let total_key_bytes: usize = items.iter().map(|(key, _)| key.len()).sum();
     enforce_key_limits(items.len(), total_key_bytes)?;
 
@@ -297,21 +352,24 @@ pub fn keyed_list(
     // ハッシャは `crate::fx_hash`（ネイティブ: `RandomState`/SipHash、
     // wasm32: 軽量 FxHasher とターゲット別に切り替え）を使う。選定根拠・
     // 脅威モデルは `fx_hash` モジュール doc「ターゲット別ハッシャ選択」節
-    // 参照（イシュー #1375）。
-    let mut first_index_of: crate::fx_hash::FxHashMap<&str, usize> =
-        crate::fx_hash::map_with_capacity(items.len());
+    // 参照（イシュー #1375）。文字列を直接ハッシュテーブルへ渡さず
+    // 64bit 一次ハッシュ経由で衝突を fail-closed 検出する
+    // [`crate::fx_hash::FxStrMap`] を使う理由は同モジュール doc「追加防御
+    // その 2」節参照（PR #1390 codex-review 第 2 巡 P1 是正）。
+    let mut first_index_of: crate::fx_hash::FxStrMap<'_, usize> =
+        crate::fx_hash::FxStrMap::with_capacity(items.len());
 
     for (index, (key, item)) in items.iter().enumerate() {
         if key.is_empty() {
             return Err(KeyedListError::EmptyKey { index });
         }
-        if let Some(&first_index) = first_index_of.get(key.as_str()) {
+        if let Some(&first_index) = first_index_of.get(key.as_str())? {
             return Err(KeyedListError::DuplicateKey {
                 first_index,
                 duplicate_index: index,
             });
         }
-        first_index_of.insert(key.as_str(), index);
+        first_index_of.insert(key.as_str(), index)?;
 
         let Node::Element {
             attrs: item_attrs, ..
@@ -522,8 +580,8 @@ pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Result<Vec<KeyedOp
     enforce_key_limits(new_keys.len(), new_keys.iter().map(String::len).sum())?;
 
     let mut ops = Vec::new();
-    let working = remove_pass(old_keys, new_keys, &mut ops);
-    insert_or_move_pass(working, new_keys, &mut ops);
+    let working = remove_pass(old_keys, new_keys, &mut ops)?;
+    insert_or_move_pass(working, new_keys, &mut ops)?;
     Ok(ops)
 }
 
@@ -559,31 +617,42 @@ pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Result<Vec<KeyedOp
 /// ここで保持されるのが最後の出現であることに合わせて上書き挿入で
 /// 構築する（最初の出現の内容と比較すると、保持されないノードの内容と
 /// 誤って比較してしまう）。
-fn remove_pass(old_keys: &[String], new_keys: &[String], ops: &mut Vec<KeyedOp>) -> Vec<String> {
+fn remove_pass(
+    old_keys: &[String],
+    new_keys: &[String],
+    ops: &mut Vec<KeyedOp>,
+) -> Result<Vec<String>, KeyedListError> {
     // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
-    // `fx_hash` モジュール doc 参照（イシュー #1375）。
-    let new_set: crate::fx_hash::FxHashSet<&str> = new_keys.iter().map(String::as_str).collect();
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。64bit 一次ハッシュ
+    // 経由で衝突を fail-closed 検出する [`crate::fx_hash::FxStrMap`]/
+    // [`crate::fx_hash::FxStrSet`] を使う理由は同モジュール doc「追加防御
+    // その 2」節参照（PR #1390 codex-review 第 2 巡 P1 是正）。
+    let mut new_set: crate::fx_hash::FxStrSet<'_> =
+        crate::fx_hash::FxStrSet::with_capacity(new_keys.len());
+    for key in new_keys.iter() {
+        new_set.insert(key.as_str())?;
+    }
 
     // 各キーの「最後の出現インデックス」を先に求める。ループ中に
     // 「これ以降その key は二度と現れない」かを判定する必要があるため、
     // 逆順走査ではなく前方 1 パスで `key -> 最後に出現した index` を
     // 構築してから本走査に使う。
-    let mut last_index_of: crate::fx_hash::FxHashMap<&str, usize> =
-        crate::fx_hash::map_with_capacity(old_keys.len());
+    let mut last_index_of: crate::fx_hash::FxStrMap<'_, usize> =
+        crate::fx_hash::FxStrMap::with_capacity(old_keys.len());
     for (index, key) in old_keys.iter().enumerate() {
-        last_index_of.insert(key.as_str(), index);
+        last_index_of.insert(key.as_str(), index)?;
     }
 
     let mut working: Vec<String> = Vec::with_capacity(old_keys.len());
     for (index, key) in old_keys.iter().enumerate() {
-        let is_last_occurrence = last_index_of.get(key.as_str()) == Some(&index);
-        if new_set.contains(key.as_str()) && is_last_occurrence {
+        let is_last_occurrence = last_index_of.get(key.as_str())? == Some(&index);
+        if new_set.contains(key.as_str())? && is_last_occurrence {
             working.push(key.clone());
         } else {
             ops.push(KeyedOp::Remove { key: key.clone() });
         }
     }
-    working
+    Ok(working)
 }
 
 /// [`diff_keys`] 第 2 パス: `working`（保持キーのみ、旧順序）を `new_keys`
@@ -619,7 +688,11 @@ fn remove_pass(old_keys: &[String], new_keys: &[String], ops: &mut Vec<KeyedOp>)
 /// 再挿入しない点が実装上の差分だが、再挿入された要素は以後の反復で
 /// 二度と参照されない（`new_keys` の走査は単調増加のインデックスのみを
 /// 見る）ため、単純に連結リストから完全に取り除いても出力に影響しない。
-fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<KeyedOp>) {
+fn insert_or_move_pass(
+    working: Vec<String>,
+    new_keys: &[String],
+    ops: &mut Vec<KeyedOp>,
+) -> Result<(), KeyedListError> {
     let n = working.len();
 
     // `new_keys` 側にキー重複が混入している場合（[`keyed_list`] が構築時点
@@ -632,9 +705,12 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
     // 検出せず全要素を走査していたため、2 件目以降が保持キューの枯渇後に
     // 誤って Insert として発行されていた）。
     // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
-    // `fx_hash` モジュール doc 参照（イシュー #1375）。
-    let mut seen_new: crate::fx_hash::FxHashSet<&str> =
-        crate::fx_hash::set_with_capacity(new_keys.len());
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。64bit 一次ハッシュ
+    // 経由で衝突を fail-closed 検出する [`crate::fx_hash::FxStrSet`] を
+    // 使う理由は同モジュール doc「追加防御その 2」節参照（PR #1390
+    // codex-review 第 2 巡 P1 是正）。
+    let mut seen_new: crate::fx_hash::FxStrSet<'_> =
+        crate::fx_hash::FxStrSet::with_capacity(new_keys.len());
 
     // `index`（`new_keys.iter().enumerate()` の生インデックス）ではなく、
     // 重複でスキップした要素を除いた「出力後の並びでの位置」を
@@ -652,7 +728,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
 
     if n == 0 {
         for key in new_keys.iter() {
-            if !seen_new.insert(key.as_str()) {
+            if !seen_new.insert(key.as_str())? {
                 continue;
             }
             ops.push(KeyedOp::Insert {
@@ -661,7 +737,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
             });
             out_index += 1;
         }
-        return;
+        return Ok(());
     }
 
     // working を双方向連結リストとして表現する（ノード index = working
@@ -676,15 +752,20 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
 
     // キーごとに未消費ノードの添字を出現順（昇順）で保持するキュー。
     // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
-    // `fx_hash` モジュール doc 参照（イシュー #1375）。
-    let mut queue: crate::fx_hash::FxHashMap<&str, std::collections::VecDeque<usize>> =
-        crate::fx_hash::map_with_capacity(n);
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。64bit 一次ハッシュ
+    // 経由で衝突を fail-closed 検出する [`crate::fx_hash::FxStrMap`] を
+    // 使う理由は同モジュール doc「追加防御その 2」節参照（PR #1390
+    // codex-review 第 2 巡 P1 是正）。
+    let mut queue: crate::fx_hash::FxStrMap<'_, std::collections::VecDeque<usize>> =
+        crate::fx_hash::FxStrMap::with_capacity(n);
     for (i, key) in working.iter().enumerate() {
-        queue.entry(key.as_str()).or_default().push_back(i);
+        queue
+            .get_or_insert_with(key.as_str(), std::collections::VecDeque::new)?
+            .push_back(i);
     }
 
     for key in new_keys.iter() {
-        if !seen_new.insert(key.as_str()) {
+        if !seen_new.insert(key.as_str())? {
             // 2 件目以降の重複キーは無条件にスキップする（op を発行せず、
             // `out_index` も進めない。上記コメント参照）。
             continue;
@@ -693,7 +774,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
         if let Some(h) = head {
             if working[h] == *key {
                 // 先頭ノードが期待キーと一致: 操作を発行せず消費するのみ。
-                if let Some(q) = queue.get_mut(key.as_str()) {
+                if let Some(q) = queue.get_mut(key.as_str())? {
                     q.pop_front();
                 }
                 head = next[h];
@@ -702,7 +783,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
             }
         }
 
-        let found = queue.get_mut(key.as_str()).and_then(|q| q.pop_front());
+        let found = queue.get_mut(key.as_str())?.and_then(|q| q.pop_front());
         if let Some(node) = found {
             // 連結リストから O(1) で取り外す（旧実装の Vec::remove +
             // Vec::insert による O(n) シフトを回避）。
@@ -729,6 +810,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
         }
         out_index += 1;
     }
+    Ok(())
 }
 
 /// 内容比較付き keyed list diff（イシュー #1323、設計書 §3.1・§3.4・§4.2）。
@@ -802,8 +884,8 @@ pub fn diff_keyed_items(
     let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
 
     let mut ops = Vec::new();
-    let working = remove_pass(&old_keys, &new_keys, &mut ops);
-    insert_or_move_pass(working, &new_keys, &mut ops);
+    let working = remove_pass(&old_keys, &new_keys, &mut ops)?;
+    insert_or_move_pass(working, &new_keys, &mut ops)?;
 
     // 第 3 パス: 保持キー（重複混入時も `remove_pass` と同じ fail-closed
     // 防御を適用）を new_items 順に走査し、新旧 Node が不一致のときのみ
@@ -817,22 +899,25 @@ pub fn diff_keyed_items(
     // 実際には保持されない（Remove される）ノードの内容と誤って比較して
     // しまい、Update の要否判定を誤る。
     // ハッシャは軽量ハッシャ（`crate::fx_hash`）。選定根拠・脅威モデルは
-    // `fx_hash` モジュール doc 参照（イシュー #1375）。
-    let mut old_by_key: crate::fx_hash::FxHashMap<&str, &Node> =
-        crate::fx_hash::map_with_capacity(old_items.len());
+    // `fx_hash` モジュール doc 参照（イシュー #1375）。64bit 一次ハッシュ
+    // 経由で衝突を fail-closed 検出する [`crate::fx_hash::FxStrMap`]/
+    // [`crate::fx_hash::FxStrSet`] を使う理由は同モジュール doc「追加防御
+    // その 2」節参照（PR #1390 codex-review 第 2 巡 P1 是正）。
+    let mut old_by_key: crate::fx_hash::FxStrMap<'_, &Node> =
+        crate::fx_hash::FxStrMap::with_capacity(old_items.len());
     for (key, node) in old_items {
-        old_by_key.insert(key.as_str(), node);
+        old_by_key.insert(key.as_str(), node)?;
     }
 
-    let mut seen_new_keys: crate::fx_hash::FxHashSet<&str> =
-        crate::fx_hash::set_with_capacity(new_items.len());
+    let mut seen_new_keys: crate::fx_hash::FxStrSet<'_> =
+        crate::fx_hash::FxStrSet::with_capacity(new_items.len());
     for (key, new_node) in new_items {
         // new_items 側の重複キーも最初の 1 件のみを対象とする（同一防御を
         // 対称に適用する）。
-        if !seen_new_keys.insert(key.as_str()) {
+        if !seen_new_keys.insert(key.as_str())? {
             continue;
         }
-        if let Some(old_node) = old_by_key.get(key.as_str()) {
+        if let Some(old_node) = old_by_key.get(key.as_str())? {
             if *old_node != new_node {
                 ops.push(KeyedOp::Update { key: key.clone() });
             }

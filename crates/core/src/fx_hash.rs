@@ -95,6 +95,59 @@
 //!   `diff_keys`/`diff_keyed_items` の発行 op 順序・SSR/SSG 出力バイトへ
 //!   影響することはない（既存の回帰テストが固定する決定性は不変）。
 //!
+//! ## 追加防御その 2: 一次ハッシュ衝突時の fail-closed 拒否
+//! （PR #1390 codex-review 第 2 巡 P1 是正、イシュー #1375）
+//!
+//! 上記「項目数・キー総バイト数の上限」だけでは、**比較回数**は拘束できて
+//! も**個々の比較の重さ**（同一バケット内で候補どうしが持つ共通接頭辞の
+//! 長さ）までは拘束できないとの追加指摘を受けた。攻撃者は固定初期状態の
+//! 軽量 `FxHasher`（wasm32-unknown-unknown）で同一バケットへ落ち、かつ
+//! 互いに長い共通接頭辞を持つキー列を事前計算できるため、上限ぎりぎりの
+//! 件数（4096 件・約 64 byte）でも `str` バイト単位比較の総量は
+//! 見積もりよりはるかに大きく劣化し得る（概算 10 億 byte 相当）。
+//!
+//! この指摘を受け、`keyed.rs` の文字列キー `HashMap`/`HashSet` はすべて
+//! [`FxStrMap`]/[`FxStrSet`] へ置き換えた。文字列を直接ハッシュテーブルへ
+//! 渡さず、まず `S::hash_one(key)` で 64bit 値へ一次ハッシュしてから、その
+//! `u64` をキーとする内側マップへ格納する。各操作はスロットが埋まって
+//! いる場合のみ格納済み `&str` と probe を**高々 1 回**比較し、不一致
+//! （= 64bit ハッシュの衝突）なら [`KeyHashCollisionError`] を返してその場
+//! で拒否する（`keyed.rs` 側では `KeyedListError::KeyHashCollision` へ変換
+//! して伝播する）。これにより総比較バイト数は
+//! `O(総キーバイト数)`（≤ `keyed::MAX_KEYED_LIST_KEY_BYTES`）の線形で拘束
+//! され、「件数の 2 乗 × 共通接頭辞長」という項は構造的に消滅する。設計の
+//! 詳細・内側マップの衝突が安全な理由・正規入力が誤って衝突判定される
+//! 確率の見積もりは [`FxStrMap`] の型 doc を参照。
+//!
+//! ### wasm32-unknown-unknown における「意図的な」一次ハッシュ衝突
+//!
+//! [`FxStrMap`] 型 doc の確率見積もり（`n = 4096` で約 `4.5 * 10^-13`）は
+//! **偶発的な**衝突の話であり、**攻撃者が意図的に**衝突を作れるかどうか
+//! とは別の問題である。ネイティブ（`RandomState`/SipHash、OS エントロピー
+//! 由来の秘匿シード）では攻撃者はシードを知り得ないため、オフラインで
+//! 衝突ペアを事前計算することはできない。一方 wasm32-unknown-unknown の
+//! `FxHasher` は非暗号学的（rotate/xor/定数乗算のみの可逆に近い mix）かつ
+//! 固定初期状態であり、シードの秘匿という前提自体が成立しない
+//! （モジュール doc「ターゲット別ハッシャ選択」節参照）。このため
+//! **wasm32-unknown-unknown 上では、攻撃者が同一の 64bit 一次ハッシュ値を
+//! 持つ 2 つの異なる文字列キーを意図的に構成することは依然として可能**
+//! であり、[`FxStrMap`]/[`FxStrSet`] の衝突検知はこれを「起こさない」
+//! 保証ではなく「起きたときの被害を有界にする」保証である。
+//!
+//! 具体的には、衝突キーが混入した場合の帰結が「そのタブの CPU 時間が
+//! 無期限に劣化する」（旧 `N^2` バイト比較見積もりが防ごうとしていた
+//! 事態）から「その場で決定的に [`KeyHashCollisionError`]
+//! （`keyed.rs` 側では [`crate::keyed::KeyedListError::KeyHashCollision`]）
+//! を返し、当該 `keyed_list` 構築・`diff_keys`/`diff_keyed_items` 呼び出し
+//! 全体を fail-closed に拒否する」へと**性質が変わる**。この拒否は
+//! panic・メモリ安全性・他タブ・サーバープロセスへの影響を一切持たず、
+//! 「1 ブラウザタブ内の自己完結型の劣化」というモジュール doc 「ターゲット
+//! 別ハッシャ選択」節の脅威モデルの範囲内に収まる（無期限の CPU 占有では
+//! なく即時の決定的エラーへ置き換わる点で、むしろ攻撃者にとっての実利は
+//! 「CPU を奪う」から「機能を使わせない」へ後退する）。これが本節が
+//! 「衝突を防ぐ」ではなく「衝突のコストを拘束する」設計として位置づける
+//! 理由である。
+//!
 //! ## ゼロ埋め残余バイトによる衝突バグの是正（codex-review 指摘）
 //!
 //! 旧実装は残余（0〜7 バイト）をゼロ埋めした固定長バッファにコピーして
@@ -112,7 +165,7 @@
 //! `core` は `forbid(unsafe_code)` 域のため、バイト列 → `u64` の変換は
 //! `u64::from_le_bytes` と配列コピーのみで行い、`unsafe` は一切使わない。
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// ターゲット別のハッシャ実体・[`FxBuildHasher`] 定義。
 ///
@@ -230,46 +283,374 @@ mod backend {
 /// 軽量 `FxHasher`）。`keyed.rs` はターゲット差を意識せずこの型を使う。
 pub(crate) type FxBuildHasher = backend::FxBuildHasher;
 
-/// キー型を `&str` に限らない一般形（`keyed.rs` は `&str` キーのみ使用）。
+/// キー型を `&str` に限らない一般形。[`FxStrMap`]/[`FxStrSet`]
+/// （`keyed.rs` が実際に使う 64bit 一次ハッシュ間接テーブル）の内側実装
+/// として使われる（型 doc「内側 `HashMap<u64, ..>` のハッシャに追加防御が
+/// 不要な理由」節参照）。
 pub(crate) type FxHashMap<K, V> = HashMap<K, V, FxBuildHasher>;
-pub(crate) type FxHashSet<T> = HashSet<T, FxBuildHasher>;
 
 /// 容量指定付きで空の [`FxHashMap`] を作る。
 ///
 /// `HashMap::with_capacity` は既定ハッシャ（`RandomState`）専用のため、
 /// カスタムハッシャでの容量確保には `with_capacity_and_hasher` を使う
-/// 薄いラッパとして提供する（`keyed.rs` の呼び出し側を簡潔に保つ）。
+/// 薄いラッパとして提供する（[`FxStrMap`]/[`FxStrSet`] の内側マップ構築を
+/// 簡潔に保つ）。
 #[inline]
 pub(crate) fn map_with_capacity<K, V>(capacity: usize) -> FxHashMap<K, V> {
     FxHashMap::with_capacity_and_hasher(capacity, FxBuildHasher::default())
 }
 
-/// 容量指定付きで空の [`FxHashSet`] を作る（[`map_with_capacity`] と対）。
-#[inline]
-pub(crate) fn set_with_capacity<T>(capacity: usize) -> FxHashSet<T> {
-    FxHashSet::with_capacity_and_hasher(capacity, FxBuildHasher::default())
+/// [`FxStrMap`]/[`FxStrSet`] が「同一の 64bit ハッシュ値を持つが中身の
+/// 異なる 2 つの文字列キー」を検出したときに返す fail-closed エラー。
+///
+/// # 意図的にキー文字列を含めない理由
+///
+/// `KeyedListError::Display`（`keyed.rs`）と同じ規約（ログ・エラー
+/// メッセージへアプリ状態を含めない、OWASP A09 対策）に合わせ、衝突した
+/// 2 つの文字列そのものは運ばない。呼び出し側（`keyed.rs`）が
+/// `KeyedListError::KeyHashCollision` へ変換する際も同様に内容を含めない。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct KeyHashCollisionError;
+
+/// `str` キーの `HashMap` を「64bit ハッシュ値をキーとする間接テーブル」に
+/// 置き換えた `pub(crate)` コレクション（PR #1390 codex-review 第 2 巡 P1
+/// 是正、イシュー #1375）。
+///
+/// # 何を解決するか
+///
+/// [`FxHashMap`]（素の `HashMap<&str, V, FxBuildHasher>`）は、同一バケットに
+/// 複数の候補が衝突すると各候補に対して `str` の等価比較（バイト単位、
+/// キー長に比例するコスト）を行う。[`crate::keyed::MAX_KEYED_LIST_ITEMS`] /
+/// [`crate::keyed::MAX_KEYED_LIST_KEY_BYTES`] は「比較回数」の上限は与える
+/// が、**個々の比較の重さ**（共通接頭辞長）は拘束していない。攻撃者が
+/// 「固定初期状態の軽量ハッシャ（wasm32-unknown-unknown、モジュール doc
+/// 「ターゲット別ハッシャ選択」節）で同一バケットへ落ち、かつ長い共通
+/// 接頭辞を持つ」キー列を事前計算すると、上限ぎりぎりの件数でも比較
+/// バイト数の総量が大きく劣化し得る（codex-review 指摘: 4096 件・64 byte
+/// キーで約 10 億 byte 相当の比較になり得る）。
+///
+/// 本型は文字列キーを直接ハッシュテーブルへ渡さず、まず
+/// `S::hash_one(key)` で 64bit 値へ一次ハッシュしてから、その `u64` を
+/// キーとする内側の `HashMap<u64, (&str, V), FxBuildHasher>` へ格納する。
+/// 各操作（[`Self::get`]/[`Self::insert`]/[`Self::get_mut`]/
+/// [`Self::get_or_insert_with`]）はスロットが埋まっている場合のみ、格納
+/// 済みの `&str` と probe の `&str` を**高々 1 回**比較する。一致すれば
+/// 通常の同一キー動作（上書き・参照・`or_insert` 相当）、不一致（= 64bit
+/// ハッシュの衝突）なら [`KeyHashCollisionError`] を返して**その場で拒否**
+/// する。これにより 1 回の探索あたりの比較は「格納済み 1 本との比較」に
+/// 限定され、総比較バイト数は `O(総キーバイト数)`
+/// （≤ [`crate::keyed::MAX_KEYED_LIST_KEY_BYTES`]）の線形で拘束される。
+/// 「件数の 2 乗 × 共通接頭辞長」という項は構造的に発生し得ない。
+///
+/// # 内側 `HashMap<u64, ..>` のハッシャに追加防御が不要な理由
+///
+/// 内側マップは `u64` キー（= 既に一次ハッシュ済みの値）を保持する。この
+/// `u64` を内側マップ用に**さらに**ハッシュしてバケットへ振り分ける際、
+/// 攻撃者が内側バケットの衝突（`u64` 値どうしの二次衝突）を作れたとしても、
+/// 同一バケット内の候補比較は `u64` の等値比較（O(1)、レジスタ 1 個分の
+/// 比較）に留まり、`str` のバイト単位比較には一切至らない。つまり内側
+/// マップの衝突は探索コストを最大でも定数倍にしか劣化させず、本型が解決
+/// したい「キー長・共通接頭辞長に比例する比較コスト」を再導入しない。
+/// このため内側マップは既存の [`FxBuildHasher`]
+/// （ネイティブ: `RandomState`、wasm32: 軽量 `FxHasher`）をそのまま流用し、
+/// 追加の型・追加のハッシャ実装は導入しない。
+///
+/// # 正規入力が誤って衝突判定される確率
+///
+/// 一次ハッシュは 64bit 空間へ写像するため、意図しない偶発的な衝突が
+/// `n` 個のキーの間で 1 件でも起きる確率は誕生日近似で `n^2 / 2 / 2^64`。
+/// [`crate::keyed::MAX_KEYED_LIST_ITEMS`]（`n = 4096`）を代入すると
+/// 約 `4.5 * 10^-13` であり、実運用上は無視できる水準に留まる（意図的な
+/// 攻撃者が算出した衝突ペアは別として、通常のアプリ入力が誤って
+/// [`KeyHashCollisionError`] になる懸念はない）。
+///
+/// # 決定性への影響（イテレートしない不変条件を継承）
+///
+/// `keyed.rs` の使用箇所はいずれも `get`/`insert`/`get_mut`/
+/// `get_or_insert_with` のみを使い、内側 `HashMap` を**イテレートしない**
+/// （`fx_hash` モジュール doc「追加防御」節が定める不変条件をそのまま
+/// 継承する）。このため一次ハッシュ・内側マップいずれの衝突分布も
+/// `diff_keys`/`diff_keyed_items` の発行 op 順序・SSR/SSG 出力バイトへ
+/// 影響しない。
+///
+/// # `S` を型パラメータにする理由（テスト用ハッシャ注入）
+///
+/// 既定は [`FxBuildHasher`] だが、テストコードから「全キーが同一ハッシュ
+/// 値になる」定数ハッシャを注入できるよう `S: BuildHasher` をジェネリクス
+/// として露出する（[`Self::with_capacity_and_hasher`]）。本番経路
+/// （`keyed.rs`）は常に既定の [`FxBuildHasher`] を使う
+/// （[`Self::with_capacity`]）。
+pub(crate) struct FxStrMap<'a, V, S = FxBuildHasher> {
+    entries: FxHashMap<u64, (&'a str, V)>,
+    hasher: S,
+}
+
+impl<'a, V> FxStrMap<'a, V, FxBuildHasher> {
+    /// 既定ハッシャ（[`FxBuildHasher`]）で容量指定付きの空マップを作る。
+    #[inline]
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        Self::with_capacity_and_hasher(capacity, FxBuildHasher::default())
+    }
+}
+
+impl<'a, V, S: std::hash::BuildHasher> FxStrMap<'a, V, S> {
+    /// 一次ハッシュに使うハッシャ `S` を明示指定して空マップを作る
+    /// （テスト用の衝突ハッシャ注入経路、型 doc 参照）。
+    #[inline]
+    pub(crate) fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+        FxStrMap {
+            entries: map_with_capacity(capacity),
+            hasher,
+        }
+    }
+
+    /// `key` の一次ハッシュ（`u64`）を計算する。
+    #[inline]
+    fn primary_hash(&self, key: &str) -> u64 {
+        self.hasher.hash_one(key)
+    }
+
+    /// `key` に対応する値への参照を返す。
+    ///
+    /// スロットが空なら `Ok(None)`。スロットが埋まっており格納済みキーが
+    /// `key` と一致すれば `Ok(Some(&value))`。格納済みキーが `key` と
+    /// 不一致（一次ハッシュの衝突）なら [`KeyHashCollisionError`]。
+    #[inline]
+    pub(crate) fn get(&self, key: &str) -> Result<Option<&V>, KeyHashCollisionError> {
+        match self.entries.get(&self.primary_hash(key)) {
+            None => Ok(None),
+            Some((stored_key, value)) if *stored_key == key => Ok(Some(value)),
+            Some(_) => Err(KeyHashCollisionError),
+        }
+    }
+
+    /// `key` に対応する値への可変参照を返す（[`Self::get`] の `&mut` 版）。
+    #[inline]
+    pub(crate) fn get_mut(&mut self, key: &str) -> Result<Option<&mut V>, KeyHashCollisionError> {
+        match self.entries.get_mut(&self.primary_hash(key)) {
+            None => Ok(None),
+            Some((stored_key, value)) if *stored_key == key => Ok(Some(value)),
+            Some(_) => Err(KeyHashCollisionError),
+        }
+    }
+
+    /// `key` に `value` を関連付ける。
+    ///
+    /// スロットが空なら新規挿入して `Ok(None)`。格納済みキーが `key` と
+    /// 一致すれば値を上書きして `Ok(Some(旧値))`（通常の `HashMap::insert`
+    /// と同じ同一キー上書きセマンティクス）。格納済みキーが `key` と不一致
+    /// （一次ハッシュの衝突）なら **値を書き換えずに**
+    /// [`KeyHashCollisionError`] を返す。
+    #[inline]
+    pub(crate) fn insert(
+        &mut self,
+        key: &'a str,
+        value: V,
+    ) -> Result<Option<V>, KeyHashCollisionError> {
+        use std::collections::hash_map::Entry;
+        match self.entries.entry(self.hasher.hash_one(key)) {
+            Entry::Vacant(slot) => {
+                slot.insert((key, value));
+                Ok(None)
+            }
+            Entry::Occupied(mut slot) => {
+                if slot.get().0 == key {
+                    let (_, old_value) = std::mem::replace(slot.get_mut(), (key, value));
+                    Ok(Some(old_value))
+                } else {
+                    Err(KeyHashCollisionError)
+                }
+            }
+        }
+    }
+
+    /// `key` の値が既にあればその可変参照を返し、なければ `default()` で
+    /// 生成した値を挿入してその可変参照を返す（`entry(..).or_insert_with`
+    /// 相当。`keyed.rs` の `queue` 構築で使う）。
+    #[inline]
+    pub(crate) fn get_or_insert_with(
+        &mut self,
+        key: &'a str,
+        default: impl FnOnce() -> V,
+    ) -> Result<&mut V, KeyHashCollisionError> {
+        let slot = self
+            .entries
+            .entry(self.hasher.hash_one(key))
+            .or_insert_with(|| (key, default()));
+        if slot.0 == key {
+            Ok(&mut slot.1)
+        } else {
+            Err(KeyHashCollisionError)
+        }
+    }
+}
+
+/// [`FxStrMap`] の集合版（`FxStrMap<'a, ()>` の薄いラッパではなく、
+/// `contains`/`insert` の呼び出し側可読性のため専用の型として提供する）。
+/// 設計・脅威モデルは [`FxStrMap`] の型 doc と完全に同一。
+pub(crate) struct FxStrSet<'a, S = FxBuildHasher> {
+    entries: FxHashMap<u64, &'a str>,
+    hasher: S,
+}
+
+impl<'a> FxStrSet<'a, FxBuildHasher> {
+    /// 既定ハッシャ（[`FxBuildHasher`]）で容量指定付きの空集合を作る。
+    #[inline]
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        Self::with_capacity_and_hasher(capacity, FxBuildHasher::default())
+    }
+}
+
+impl<'a, S: std::hash::BuildHasher> FxStrSet<'a, S> {
+    /// 一次ハッシュに使うハッシャ `S` を明示指定して空集合を作る
+    /// （テスト用の衝突ハッシャ注入経路、[`FxStrMap`] 型 doc 参照）。
+    #[inline]
+    pub(crate) fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+        FxStrSet {
+            entries: map_with_capacity(capacity),
+            hasher,
+        }
+    }
+
+    /// `key` が集合に含まれるかを返す（[`FxStrMap::get`] と同じ衝突判定）。
+    #[inline]
+    pub(crate) fn contains(&self, key: &str) -> Result<bool, KeyHashCollisionError> {
+        match self.entries.get(&self.hasher.hash_one(key)) {
+            None => Ok(false),
+            Some(stored_key) if *stored_key == key => Ok(true),
+            Some(_) => Err(KeyHashCollisionError),
+        }
+    }
+
+    /// `key` を集合へ追加する。新規追加なら `Ok(true)`、既に同一文字列の
+    /// キーが存在していたなら追加せず `Ok(false)`（`HashSet::insert` と
+    /// 同じ戻り値セマンティクス）。一次ハッシュが衝突した場合（格納済み
+    /// キーが `key` と不一致）は [`KeyHashCollisionError`]。
+    #[inline]
+    pub(crate) fn insert(&mut self, key: &'a str) -> Result<bool, KeyHashCollisionError> {
+        use std::collections::hash_map::Entry;
+        match self.entries.entry(self.hasher.hash_one(key)) {
+            Entry::Vacant(slot) => {
+                slot.insert(key);
+                Ok(true)
+            }
+            Entry::Occupied(slot) => {
+                if *slot.get() == key {
+                    Ok(false)
+                } else {
+                    Err(KeyHashCollisionError)
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// [`map_with_capacity`] / [`set_with_capacity`] が通常の
-    /// get/insert/entry 操作で機能することを確認する（`keyed.rs` の
-    /// 使用パターンの最小再現。ネイティブ・wasm32 いずれのハッシャ実体
-    /// でも成立する）。
+    /// [`map_with_capacity`] が通常の get/insert 操作で機能することを
+    /// 確認する（[`FxStrMap`]/[`FxStrSet`] が内側マップとして使う際の
+    /// 最小再現。ネイティブ・wasm32 いずれのハッシャ実体でも成立する）。
     #[test]
-    fn map_and_set_basic_operations() {
+    fn map_basic_operations() {
         let mut map: FxHashMap<&str, usize> = map_with_capacity(4);
         map.insert("a", 0);
         map.insert("b", 1);
         assert_eq!(map.get("a"), Some(&0));
         assert_eq!(map.get("z"), None);
+    }
 
-        let mut set: FxHashSet<&str> = set_with_capacity(4);
-        set.insert("a");
-        assert!(set.contains("a"));
-        assert!(!set.contains("z"));
+    /// テスト専用 `BuildHasher`: 入力に関わらず常に同一の `u64` を返す
+    /// （全キーが同一バケットへ強制的に衝突する状況を [`FxStrMap`]/
+    /// [`FxStrSet`] に対して再現するための注入用ハッシャ、PR #1390
+    /// codex-review 第 2 巡 P1 是正のテスト）。
+    #[derive(Clone, Default)]
+    struct ConstantHasher;
+
+    struct ConstantHasherImpl;
+
+    impl std::hash::Hasher for ConstantHasherImpl {
+        fn write(&mut self, _bytes: &[u8]) {}
+        fn finish(&self) -> u64 {
+            42
+        }
+    }
+
+    impl std::hash::BuildHasher for ConstantHasher {
+        type Hasher = ConstantHasherImpl;
+        fn build_hasher(&self) -> Self::Hasher {
+            ConstantHasherImpl
+        }
+    }
+
+    /// (a) [`FxStrMap`]: 一次ハッシュが衝突する異なる文字列キーは
+    /// [`KeyHashCollisionError`] で拒否される。
+    #[test]
+    fn str_map_rejects_different_keys_that_collide_on_primary_hash() {
+        let mut map: FxStrMap<'_, usize, ConstantHasher> =
+            FxStrMap::with_capacity_and_hasher(4, ConstantHasher);
+        assert_eq!(map.insert("alpha", 1), Ok(None));
+        // "beta" は ConstantHasher の下で "alpha" と同一の一次ハッシュ値に
+        // なるが、格納済み文字列は "alpha" のため不一致 = 衝突として拒否
+        // される。
+        assert_eq!(map.insert("beta", 2), Err(KeyHashCollisionError));
+        assert_eq!(map.get("beta"), Err(KeyHashCollisionError));
+        assert_eq!(map.get_mut("beta"), Err(KeyHashCollisionError));
+        assert_eq!(
+            map.get_or_insert_with("beta", || 99),
+            Err(KeyHashCollisionError)
+        );
+        // 衝突拒否後も先着の "alpha" エントリは書き換えられていない
+        // （fail-closed: 拒否時に既存状態を変更しない）。
+        assert_eq!(map.get("alpha"), Ok(Some(&1)));
+    }
+
+    /// (b) [`FxStrMap`]: 一次ハッシュが衝突しても同一文字列キーであれば
+    /// 従来の `HashMap` と同じ上書き・参照セマンティクスのまま動作する。
+    #[test]
+    fn str_map_same_key_reuses_normal_semantics_even_under_forced_collision() {
+        let mut map: FxStrMap<'_, usize, ConstantHasher> =
+            FxStrMap::with_capacity_and_hasher(4, ConstantHasher);
+        assert_eq!(map.insert("alpha", 1), Ok(None));
+        assert_eq!(map.insert("alpha", 2), Ok(Some(1)));
+        assert_eq!(map.get("alpha"), Ok(Some(&2)));
+        // "missing" は未挿入だが `ConstantHasher` の下では "alpha" と同一
+        // スロットへ写像されるため、空スロットの `Ok(None)` ではなく
+        // 衝突として `Err` になる（これは意図した仕様どおりの挙動: 空か
+        // どうかの判定もスロット占有状況に依存するため）。
+
+        let value = map.get_or_insert_with("alpha", || 999).unwrap();
+        assert_eq!(*value, 2);
+        *value = 3;
+        assert_eq!(map.get("alpha"), Ok(Some(&3)));
+    }
+
+    /// (a) [`FxStrSet`]: 一次ハッシュが衝突する異なる文字列キーは
+    /// [`KeyHashCollisionError`] で拒否される。
+    #[test]
+    fn str_set_rejects_different_keys_that_collide_on_primary_hash() {
+        let mut set: FxStrSet<'_, ConstantHasher> =
+            FxStrSet::with_capacity_and_hasher(4, ConstantHasher);
+        assert_eq!(set.insert("alpha"), Ok(true));
+        assert_eq!(set.insert("beta"), Err(KeyHashCollisionError));
+        assert_eq!(set.contains("beta"), Err(KeyHashCollisionError));
+        // 衝突拒否後も先着の "alpha" は影響を受けない。
+        assert_eq!(set.contains("alpha"), Ok(true));
+    }
+
+    /// (b) [`FxStrSet`]: 一次ハッシュが衝突しても同一文字列キーであれば
+    /// 従来の `HashSet` と同じ重複判定セマンティクスのまま動作する。
+    #[test]
+    fn str_set_same_key_reuses_normal_semantics_even_under_forced_collision() {
+        let mut set: FxStrSet<'_, ConstantHasher> =
+            FxStrSet::with_capacity_and_hasher(4, ConstantHasher);
+        assert_eq!(set.insert("alpha"), Ok(true));
+        assert_eq!(set.insert("alpha"), Ok(false));
+        assert_eq!(set.contains("alpha"), Ok(true));
+        // "missing" は "alpha" と同一スロットへ写像されるため衝突として
+        // `Err` になる（上の [`FxStrMap`] 版テストの注記と同じ理由）。
+        assert_eq!(set.contains("missing"), Err(KeyHashCollisionError));
     }
 }
 
