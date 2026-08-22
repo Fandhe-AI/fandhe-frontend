@@ -88,7 +88,32 @@ pub const MAX_KEYED_LIST_ITEMS: usize = 4_096;
 /// バイト数を独立に拘束することで、この経路も塞ぐ。
 pub const MAX_KEYED_LIST_KEY_BYTES: usize = 262_144;
 
-/// [`keyed_list`] 構築時の fail-closed エラー。
+/// [`MAX_KEYED_LIST_ITEMS`]/[`MAX_KEYED_LIST_KEY_BYTES`] を強制する共通
+/// ゲート（PR #1390 codex-review P1 是正、イシュー #1375）。
+///
+/// 当初 [`keyed_list`] のみが適用していたが、[`diff_keys`]/
+/// [`diff_keyed_items`] は `keyed_list` を経由しない生の `&[String]`/
+/// `&[(String, Node)]` を直接受け取れる公開 API であり、`keyed_list` の
+/// 上限を経由せずに攻撃者が選んだキー列を直接投入できてしまう（wasm32-
+/// unknown-unknown 上の軽量 `FxHasher` は固定初期状態であるため、この経路
+/// をすり抜けると `keyed_list` 側の追加防御が無意味化する。`fx_hash`
+/// モジュール doc「ターゲット別ハッシャ選択」節参照）。このため両関数も
+/// 呼び出し直後にこのゲートを通す（内部で `HashMap`/`HashSet` を構築する
+/// 前に必ず適用する）。
+fn enforce_key_limits(count: usize, total_key_bytes: usize) -> Result<(), KeyedListError> {
+    if count > MAX_KEYED_LIST_ITEMS {
+        return Err(KeyedListError::TooManyItems { count });
+    }
+    if total_key_bytes > MAX_KEYED_LIST_KEY_BYTES {
+        return Err(KeyedListError::KeyBytesExceeded {
+            total_bytes: total_key_bytes,
+        });
+    }
+    Ok(())
+}
+
+/// [`keyed_list`] 構築時、および [`diff_keys`]/[`diff_keyed_items`] 実行時の
+/// fail-closed エラー。
 ///
 /// いずれの異常系も `panic!`/`unwrap()` ではなく `Err` として安全側に倒す
 /// （ライブラリコードでの panic 回避規約、OWASP A05 安全でない設計への対抗）。
@@ -96,26 +121,33 @@ pub const MAX_KEYED_LIST_KEY_BYTES: usize = 262_144;
 /// 目的を、`render()` 呼び出し時点ではなく**構築時点**で満たす（不正な状態を
 /// そもそも表現不能にする設計。`docs/design/dom-binding-update-design.md`
 /// §5.2 改訂内容を参照）。
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyedListError {
     /// 項目数が [`MAX_KEYED_LIST_ITEMS`] を超えている（HashDoS 対策の追加
-    /// 防御、イシュー #1375 codex-review P1 是正）。
+    /// 防御、イシュー #1375 codex-review P1 是正）。[`keyed_list`]・
+    /// [`diff_keys`]・[`diff_keyed_items`] のいずれからも返り得る
+    /// （PR #1390 レビュー是正で `diff_keys`/`diff_keyed_items` にも同じ
+    /// ゲート [`enforce_key_limits`] を適用したため）。
     TooManyItems {
         /// 実際の項目数。
         count: usize,
     },
     /// 全項目のキー文字列の合計バイト数が [`MAX_KEYED_LIST_KEY_BYTES`]
-    /// を超えている（同上）。
+    /// を超えている（同上。同じく 3 関数いずれからも返り得る）。
     KeyBytesExceeded {
         /// 実際の合計バイト数。
         total_bytes: usize,
     },
     /// キーが空文字列（キー欠落）。`index` は `items` 内の位置。
+    /// [`keyed_list`] 専用（[`diff_keys`]/[`diff_keyed_items`] は生の
+    /// キー列を比較するのみで空キーを拒否しない）。
     EmptyKey {
         /// `items` 内のインデックス。
         index: usize,
     },
     /// 同一リスト内でキーが重複している（直下の子スコープのみが対象）。
+    /// [`keyed_list`] 専用。
     DuplicateKey {
         /// 最初に当該キーが出現したインデックス。
         first_index: usize,
@@ -123,12 +155,14 @@ pub enum KeyedListError {
         duplicate_index: usize,
     },
     /// 子ノードが `Node::Element` でなく、`data-key` 属性を付与できない。
+    /// [`keyed_list`] 専用。
     NonElementItem {
         /// `items` 内のインデックス。
         index: usize,
     },
     /// 呼び出し側が渡した属性列に予約マーカー属性
     /// （[`BIND_LIST_ATTR`] / [`KEY_ATTR`]）が既に含まれている。
+    /// [`keyed_list`] 専用。
     ReservedAttr {
         /// 衝突した予約属性名。
         attr: &'static str,
@@ -248,16 +282,10 @@ pub fn keyed_list(
     // 最悪 `O(n^2)` に収まる規模であることを、この時点の fail-closed
     // 拒否で保証する。項目数チェックを先に行うことで、項目数自体が
     // 過大な場合は `first_index_of` の `with_capacity` 割り当てより前に
-    // 拒否できる。
-    if items.len() > MAX_KEYED_LIST_ITEMS {
-        return Err(KeyedListError::TooManyItems { count: items.len() });
-    }
+    // 拒否できる。[`enforce_key_limits`] は [`diff_keys`]/[`diff_keyed_items`]
+    // とも共有する（PR #1390 レビュー是正、下記 doc 参照）。
     let total_key_bytes: usize = items.iter().map(|(key, _)| key.len()).sum();
-    if total_key_bytes > MAX_KEYED_LIST_KEY_BYTES {
-        return Err(KeyedListError::KeyBytesExceeded {
-            total_bytes: total_key_bytes,
-        });
-    }
+    enforce_key_limits(items.len(), total_key_bytes)?;
 
     // (2)(3) 各子要素の検証: Element であること・キー非空・キー一意性・予約
     // 属性の非混入。パス 1（本ループ）は `items.iter()` による**参照のみ**の
@@ -471,11 +499,32 @@ pub enum KeyedOp {
 /// §4.1）。挙動・op 発行順は移管元と完全に同一（回帰テストで固定）。
 /// wasm-client 側の同名関数は #1324 で本関数への re-export へ置換予定で
 /// あり、それまでの一時的な実装重複は意図的。
-pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Vec<KeyedOp> {
+///
+/// # HashDoS 対策の追加防御（PR #1390 レビュー是正、イシュー #1375）
+///
+/// 本関数は [`keyed_list`] を経由しない生の `&[String]` を直接受け取れる
+/// 公開 API のため、`keyed_list` 側の項目数・キー総バイト数の上限
+/// （[`MAX_KEYED_LIST_ITEMS`]/[`MAX_KEYED_LIST_KEY_BYTES`]）を経由せずに
+/// 攻撃者が選んだキー列を直接投入できてしまう。内部で `HashMap`/
+/// `HashSet` を構築する [`remove_pass`]/[`insert_or_move_pass`] を呼ぶ前に、
+/// `old_keys`/`new_keys` それぞれへ同じ上限ゲート（[`enforce_key_limits`]）
+/// を適用し、超過時は `HashMap`/`HashSet` を一切構築せずに `Err` を返す。
+///
+/// # Errors
+///
+/// - [`KeyedListError::TooManyItems`][]: `old_keys`/`new_keys` のいずれかの
+///   要素数が [`MAX_KEYED_LIST_ITEMS`] を超えている。
+/// - [`KeyedListError::KeyBytesExceeded`][]: `old_keys`/`new_keys`
+///   いずれかのキー文字列の合計バイト数が [`MAX_KEYED_LIST_KEY_BYTES`]
+///   を超えている。
+pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Result<Vec<KeyedOp>, KeyedListError> {
+    enforce_key_limits(old_keys.len(), old_keys.iter().map(String::len).sum())?;
+    enforce_key_limits(new_keys.len(), new_keys.iter().map(String::len).sum())?;
+
     let mut ops = Vec::new();
     let working = remove_pass(old_keys, new_keys, &mut ops);
     insert_or_move_pass(working, new_keys, &mut ops);
-    ops
+    Ok(ops)
 }
 
 /// [`diff_keys`] 第 1 パス: `new_keys` に存在しないキーを [`KeyedOp::Remove`]
@@ -714,7 +763,7 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
 ///     ("a".to_string(), el("li", vec![], vec![text("a")])),
 /// ];
 ///
-/// let ops = diff_keyed_items(&old_items, &new_items);
+/// let ops = diff_keyed_items(&old_items, &new_items).expect("within limits");
 /// assert_eq!(
 ///     ops,
 ///     vec![
@@ -723,10 +772,32 @@ fn insert_or_move_pass(working: Vec<String>, new_keys: &[String], ops: &mut Vec<
 ///     ],
 /// );
 /// ```
+///
+/// # HashDoS 対策の追加防御（PR #1390 レビュー是正、イシュー #1375）
+///
+/// [`diff_keys`] と同じ理由（doc 参照）で、`old_items`/`new_items` それぞれ
+/// へ [`enforce_key_limits`] を適用してから `HashMap`/`HashSet` を構築する。
+///
+/// # Errors
+///
+/// - [`KeyedListError::TooManyItems`][]: `old_items`/`new_items` のいずれか
+///   の要素数が [`MAX_KEYED_LIST_ITEMS`] を超えている。
+/// - [`KeyedListError::KeyBytesExceeded`][]: `old_items`/`new_items`
+///   いずれかのキー文字列の合計バイト数が [`MAX_KEYED_LIST_KEY_BYTES`]
+///   を超えている。
 pub fn diff_keyed_items(
     old_items: &[(String, Node)],
     new_items: &[(String, Node)],
-) -> Vec<KeyedOp> {
+) -> Result<Vec<KeyedOp>, KeyedListError> {
+    enforce_key_limits(
+        old_items.len(),
+        old_items.iter().map(|(k, _)| k.len()).sum(),
+    )?;
+    enforce_key_limits(
+        new_items.len(),
+        new_items.iter().map(|(k, _)| k.len()).sum(),
+    )?;
+
     let old_keys: Vec<String> = old_items.iter().map(|(k, _)| k.clone()).collect();
     let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
 
@@ -768,7 +839,7 @@ pub fn diff_keyed_items(
         }
     }
 
-    ops
+    Ok(ops)
 }
 
 #[cfg(test)]
@@ -1157,7 +1228,7 @@ mod tests {
     fn diff_keys_returns_empty_ops_when_unchanged() {
         let old = keys(&["a", "b", "c"]);
         let new = keys(&["a", "b", "c"]);
-        assert_eq!(diff_keys(&old, &new), Vec::new());
+        assert_eq!(diff_keys(&old, &new).unwrap(), Vec::new());
     }
 
     /// 末尾への追加は Insert 1 件のみ。
@@ -1166,7 +1237,7 @@ mod tests {
         let old = keys(&["a", "b"]);
         let new = keys(&["a", "b", "c"]);
         assert_eq!(
-            diff_keys(&old, &new),
+            diff_keys(&old, &new).unwrap(),
             vec![KeyedOp::Insert {
                 index: 2,
                 key: "c".to_string()
@@ -1180,7 +1251,7 @@ mod tests {
         let old = keys(&["b", "c"]);
         let new = keys(&["a", "b", "c"]);
         assert_eq!(
-            diff_keys(&old, &new),
+            diff_keys(&old, &new).unwrap(),
             vec![KeyedOp::Insert {
                 index: 0,
                 key: "a".to_string()
@@ -1194,7 +1265,7 @@ mod tests {
         let old = keys(&["a", "b", "c"]);
         let new = keys(&["a", "c"]);
         assert_eq!(
-            diff_keys(&old, &new),
+            diff_keys(&old, &new).unwrap(),
             vec![KeyedOp::Remove {
                 key: "b".to_string()
             }]
@@ -1207,7 +1278,7 @@ mod tests {
         let old = keys(&["a", "b"]);
         let new: Vec<String> = Vec::new();
         assert_eq!(
-            diff_keys(&old, &new),
+            diff_keys(&old, &new).unwrap(),
             vec![
                 KeyedOp::Remove {
                     key: "a".to_string()
@@ -1225,7 +1296,7 @@ mod tests {
         let old: Vec<String> = Vec::new();
         let new = keys(&["a", "b"]);
         assert_eq!(
-            diff_keys(&old, &new),
+            diff_keys(&old, &new).unwrap(),
             vec![
                 KeyedOp::Insert {
                     index: 0,
@@ -1245,7 +1316,7 @@ mod tests {
     fn diff_keys_detects_adjacent_swap_as_single_move() {
         let old = keys(&["a", "b"]);
         let new = keys(&["b", "a"]);
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![KeyedOp::Move {
@@ -1260,7 +1331,7 @@ mod tests {
     fn diff_keys_detects_move_from_tail_to_head() {
         let old = keys(&["a", "b", "c"]);
         let new = keys(&["c", "a", "b"]);
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![KeyedOp::Move {
@@ -1276,7 +1347,7 @@ mod tests {
     fn diff_keys_handles_mixed_remove_insert_move() {
         let old = keys(&["a", "b", "c", "d"]);
         let new = keys(&["d", "a", "e", "c"]);
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         // "b" は new に存在しないため削除される。
         assert!(ops.contains(&KeyedOp::Remove {
             key: "b".to_string()
@@ -1299,7 +1370,7 @@ mod tests {
         let old = keys(&["a", "a", "b"]);
         let new = keys(&["a", "b"]);
         // panic しないことのみを確認する。
-        let _ = diff_keys(&old, &new);
+        let _ = diff_keys(&old, &new).unwrap();
     }
 
     /// `old_keys` に発行された [`KeyedOp`] 列を素朴に適用し、結果のキー列
@@ -1346,7 +1417,7 @@ mod tests {
         let old = keys(&["a", "a", "b"]);
         let new = keys(&["a", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         let applied = apply_ops(&old, &ops);
 
         assert_eq!(
@@ -1362,7 +1433,7 @@ mod tests {
         let old = keys(&["a", "a", "a", "b", "b", "c"]);
         let new = keys(&["c", "a", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         let applied = apply_ops(&old, &ops);
 
         assert_eq!(applied, new);
@@ -1385,7 +1456,7 @@ mod tests {
         let old = keys(&["a", "b", "a"]);
         let new = keys(&["a", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         let applied = apply_ops(&old, &ops);
 
         assert_eq!(
@@ -1406,7 +1477,7 @@ mod tests {
         let old = keys(&["a"]);
         let new = keys(&["a", "a"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert!(
             !ops.iter()
@@ -1429,7 +1500,7 @@ mod tests {
         let old: Vec<String> = vec![];
         let new = keys(&["a", "a", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         let insert_count_for_a = ops
             .iter()
@@ -1454,7 +1525,7 @@ mod tests {
         let old: Vec<String> = vec![];
         let new = keys(&["a", "a", "c", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert_eq!(
             ops,
@@ -1490,7 +1561,7 @@ mod tests {
         let old = keys(&["b"]);
         let new = keys(&["a", "a", "c", "b"]);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         let applied = apply_ops(&old, &ops);
 
         // new_keys 側の重複は最初の 1 件のみを対象とする fail-closed
@@ -1510,7 +1581,7 @@ mod tests {
         let old = keys(&["a", "b"]);
         let new = keys(&["a", "a", "a", "b"]);
         // panic しないことに加え、重複分に Insert が発行されないことも確認する。
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
         let insert_count_for_a = ops
             .iter()
             .filter(|op| matches!(op, KeyedOp::Insert { key, .. } if key == "a"))
@@ -1536,7 +1607,7 @@ mod tests {
         let old: Vec<String> = Vec::new();
         let new: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert_eq!(ops.len(), N, "空 → N 行は Insert ちょうど N 件のみのはず");
         for (i, op) in ops.iter().enumerate() {
@@ -1560,7 +1631,7 @@ mod tests {
         let mut new: Vec<String> = vec!["new".to_string()];
         new.extend(old.iter().cloned());
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert_eq!(
             ops,
@@ -1580,7 +1651,7 @@ mod tests {
         let mut new: Vec<String> = old.clone();
         new.push("new".to_string());
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert_eq!(
             ops,
@@ -1601,7 +1672,7 @@ mod tests {
         let old: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
         let new: Vec<String> = old.iter().rev().cloned().collect();
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert!(
             ops.iter().all(|op| matches!(op, KeyedOp::Move { .. })),
@@ -1643,7 +1714,7 @@ mod tests {
         let mut new = old.clone();
         lcg_shuffle(&mut new, 0x1318_1318_1318_1318);
 
-        let ops = diff_keys(&old, &new);
+        let ops = diff_keys(&old, &new).unwrap();
 
         assert!(
             ops.iter().all(|op| matches!(op, KeyedOp::Move { .. })),
@@ -1669,7 +1740,7 @@ mod tests {
         let new = vec![item("a", "new")];
 
         assert_eq!(
-            diff_keyed_items(&old, &new),
+            diff_keyed_items(&old, &new).unwrap(),
             vec![KeyedOp::Update {
                 key: "a".to_string()
             }]
@@ -1682,7 +1753,7 @@ mod tests {
         let old: Vec<(String, Node)> = (0..1_000).map(|i| item(&format!("k{i}"), "v")).collect();
         let new = old.clone();
 
-        assert_eq!(diff_keyed_items(&old, &new), Vec::new());
+        assert_eq!(diff_keyed_items(&old, &new).unwrap(), Vec::new());
     }
 
     /// 混在ケース: 削除 + 新規挿入 + 移動かつ内容変更。無関係キーへの余分な
@@ -1694,7 +1765,7 @@ mod tests {
         // b は削除される。c は先頭へ移動しつつ内容変更。d は新規挿入。
         let new = vec![item("c", "c-v2"), item("a", "a-v"), item("d", "d-v")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![
@@ -1722,7 +1793,7 @@ mod tests {
         let old = vec![item("a", "a-v"), item("b", "b-old")];
         let new = vec![item("b", "b-new"), item("a", "a-v")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![
@@ -1743,7 +1814,7 @@ mod tests {
         let old = vec![item("a", "a-old"), item("b", "b-old")];
         let new = vec![item("a", "a-new"), item("b", "b-new")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![
@@ -1763,7 +1834,7 @@ mod tests {
         let old = vec![item("a", "v"), item("b", "v")];
         let new = vec![item("b", "v"), item("a", "v")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![KeyedOp::Move {
@@ -1780,7 +1851,7 @@ mod tests {
         let old = vec![item("a", "v")];
         let new = vec![item("a", "v"), item("b", "v")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
         assert_eq!(
             ops,
             vec![KeyedOp::Insert {
@@ -1797,7 +1868,7 @@ mod tests {
         let new = vec![item("a", "v3"), item("b", "v")];
 
         // panic しないことのみを確認する（重複時の正確な操作列は未規定）。
-        let _ = diff_keyed_items(&old, &new);
+        let _ = diff_keyed_items(&old, &new).unwrap();
     }
 
     /// 回帰（PR #1336 codex レビュー P1 是正）: `old_items` 側にキーが
@@ -1815,7 +1886,7 @@ mod tests {
         let old = vec![item("a", "v1"), item("a", "v2")];
         let new = vec![item("a", "v1")];
 
-        let ops = diff_keyed_items(&old, &new);
+        let ops = diff_keyed_items(&old, &new).unwrap();
 
         assert_eq!(
             ops,
@@ -1838,7 +1909,7 @@ mod tests {
         let old = vec![item("a", "v")];
         let new = vec![item("a", "v1"), item("a", "v2")];
 
-        let _ = diff_keyed_items(&old, &new);
+        let _ = diff_keyed_items(&old, &new).unwrap();
     }
 
     /// 構造的固定: 内容全一致時、`diff_keys`（キー列のみ）と
@@ -1853,8 +1924,86 @@ mod tests {
         let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
 
         assert_eq!(
-            diff_keys(&old_keys, &new_keys),
-            diff_keyed_items(&old_items, &new_items),
+            diff_keys(&old_keys, &new_keys).unwrap(),
+            diff_keyed_items(&old_items, &new_items).unwrap(),
         );
+    }
+
+    /// 異常系（PR #1390 レビュー是正、イシュー #1375）: `diff_keys` は
+    /// `keyed_list` を経由しない生のキー列を直接受け取れる公開 API のため、
+    /// `old_keys`/`new_keys` いずれかの要素数が [`MAX_KEYED_LIST_ITEMS`] を
+    /// 超えると `HashMap`/`HashSet` を構築せず TooManyItems で拒否される
+    /// （`keyed_list` 側の上限を経由しない直接投入をここで塞ぐ）。
+    #[test]
+    fn diff_keys_rejects_too_many_new_keys() {
+        let old: Vec<String> = Vec::new();
+        let new: Vec<String> = (0..=MAX_KEYED_LIST_ITEMS)
+            .map(|i| format!("k{i}"))
+            .collect();
+        let count = new.len();
+        let err = diff_keys(&old, &new).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 異常系（同上）: `old_keys` 側の要素数超過も同じ上限で拒否される
+    /// （`new_keys` 側のみを検査する非対称な実装になっていないことの固定）。
+    #[test]
+    fn diff_keys_rejects_too_many_old_keys() {
+        let old: Vec<String> = (0..=MAX_KEYED_LIST_ITEMS)
+            .map(|i| format!("k{i}"))
+            .collect();
+        let new: Vec<String> = Vec::new();
+        let count = old.len();
+        let err = diff_keys(&old, &new).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 異常系（同上）: 項目数は少なくてもキー文字列の合計バイト数が
+    /// [`MAX_KEYED_LIST_KEY_BYTES`] を超えると KeyBytesExceeded で拒否
+    /// される（`keyed_list` の `key_bytes_exceeded_is_rejected` と対称）。
+    #[test]
+    fn diff_keys_rejects_key_bytes_exceeded() {
+        let huge_key = "k".repeat(MAX_KEYED_LIST_KEY_BYTES + 1);
+        let total_bytes = huge_key.len();
+        let old: Vec<String> = Vec::new();
+        let new: Vec<String> = vec![huge_key];
+        let err = diff_keys(&old, &new).unwrap_err();
+        assert_eq!(err, KeyedListError::KeyBytesExceeded { total_bytes });
+    }
+
+    /// 異常系（PR #1390 レビュー是正、イシュー #1375）: `diff_keyed_items`
+    /// も同じ上限ゲートを `old_items`/`new_items` それぞれへ適用する
+    /// （`diff_keys` と対称の回帰確認）。
+    #[test]
+    fn diff_keyed_items_rejects_too_many_new_items() {
+        let old: Vec<(String, Node)> = Vec::new();
+        let new: Vec<(String, Node)> = (0..=MAX_KEYED_LIST_ITEMS)
+            .map(|i| (format!("k{i}"), el("li", vec![], vec![])))
+            .collect();
+        let count = new.len();
+        let err = diff_keyed_items(&old, &new).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 異常系（同上）: `old_items` 側の要素数超過も同じ上限で拒否される。
+    #[test]
+    fn diff_keyed_items_rejects_too_many_old_items() {
+        let old: Vec<(String, Node)> = (0..=MAX_KEYED_LIST_ITEMS)
+            .map(|i| (format!("k{i}"), el("li", vec![], vec![])))
+            .collect();
+        let new: Vec<(String, Node)> = Vec::new();
+        let count = old.len();
+        let err = diff_keyed_items(&old, &new).unwrap_err();
+        assert_eq!(err, KeyedListError::TooManyItems { count });
+    }
+
+    /// 正常系（境界値）: `old_keys`/`new_keys` ともちょうど
+    /// [`MAX_KEYED_LIST_ITEMS`] 件なら拒否されない（`diff_keys` 版の
+    /// `item_count_at_the_limit_is_accepted` 相当）。
+    #[test]
+    fn diff_keys_item_count_at_the_limit_is_accepted() {
+        let old: Vec<String> = (0..MAX_KEYED_LIST_ITEMS).map(|i| format!("k{i}")).collect();
+        let new: Vec<String> = old.clone();
+        assert!(diff_keys(&old, &new).is_ok());
     }
 }

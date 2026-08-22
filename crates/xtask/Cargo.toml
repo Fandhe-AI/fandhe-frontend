@@ -20,7 +20,7 @@ publish = false
 # `docs/design/dom-binding-update-design.md` 追補節参照）。`structure.toml` の
 # `[directories.xtask] depends_on` と完全一致させること（fw gate が検証する）。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.3.1" }
+fandhe-frontend-core = { path = "../core", version = "0.4.0" }
 fandhe-frontend-interactive = { path = "../interactive", version = "0.2.4" }
 fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.28.3" }
 
