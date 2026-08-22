@@ -29,7 +29,12 @@ function Rows() {
 function main() {
   const tbody = document.querySelector("#bench-table tbody");
   const root = createRoot(tbody);
-  root.render(<Rows />);
+  // 初回マウントも flushSync で包む。createRoot(...).render() は同期コミットを
+  // 保証しないため、これを省くとハーネスが window.__bench の存在を検知した
+  // 直後に呼ぶ最初の clear() の時点で Rows がまだ一度も実行されておらず、
+  // setRowsExternal が undefined のままになり得る（flushSync(() =>
+  // setRowsExternal(...)) が TypeError になる不具合、PR #1370 レビュー指摘）。
+  flushSync(() => root.render(<Rows />));
 
   // React 19 は createRoot 配下の setState を自動バッチングするため、
   // __bench 呼び出し完了時点で DOM 反映済みであることを保証するには

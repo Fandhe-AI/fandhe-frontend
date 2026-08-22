@@ -23,6 +23,12 @@ function Rows() {
 
 function main() {
   const tbody = document.querySelector("#bench-table tbody");
+  // React 版と異なり、preact の render() は初回マウントも含めて常に同期的
+  // にコンポーネント関数を実行してコミットする（React の createRoot の
+  // ような並行スケジューラを持たない）。そのため setRowsExternal はこの
+  // 呼び出しが返った時点で必ず代入済みであり、PR #1370 レビュー指摘の
+  // React 側の初期化順序問題（flushSync で初回マウントを包む必要が
+  // あった件）は preact には存在しない（確認済み・追加対応不要）。
   render(<Rows />, tbody);
 
   // Preact の setState はデフォルトで rAF/マイクロタスクにデバウンスされ

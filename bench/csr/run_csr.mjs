@@ -211,6 +211,16 @@ async function validate(page) {
     return target ? target.children[1]?.textContent ?? null : null;
   });
   const scriptCountAfterCreate = await page.evaluate(() => document.scripts.length);
+  // label 文字列（`<script>alert(1)</script>` 等のタグ様文字列を含む）が
+  // innerHTML 経由で要素として注入されていないことを確認する。innerHTML
+  // 経由で挿入された <script> は仕様上実行されないため「実行されたか」を
+  // 検知する手段（例: window.__xssExecuted のようなフラグ）はどのワーク
+  // ロードもそもそも設定せず常に無意味な true になる（PR #1370 Bugbot
+  // 指摘）。代わりに「要素として注入されていない＝テキストとして
+  // 保持されている」ことを直接検証する。
+  const injectedElementFound = await page.evaluate(
+    () => document.querySelector("#bench-table script, #bench-table img, #bench-table svg") !== null,
+  );
 
   await callBench(page, "update");
   const updatedCount = await page.evaluate(() => {
@@ -228,14 +238,12 @@ async function validate(page) {
     () => document.querySelectorAll("#bench-table tbody tr").length,
   );
 
-  const xssExecutedUndefined = await page.evaluate(() => typeof window.__xssExecuted === "undefined");
-
   const rowsOk = rowCountAfterCreate === 1000 && updatedCount === 100 && rowCountAfterClear === 0;
   const escapeOk =
     typeof sampleLabel === "string" &&
     sampleLabel.includes("<script>alert(1)</script>") &&
     scriptCountAfterCreate === scriptCountBaseline &&
-    xssExecutedUndefined;
+    !injectedElementFound;
 
   return { rowsOk, escapeOk };
 }
@@ -288,8 +296,16 @@ async function runFramework(browser, name, chromiumPath) {
 
     const REPS = 25;
     const createDurations = await timedRuns(page, "create", REPS, "clear");
-    await settleOp(page, "create");
-    const updateDurations = await timedRuns(page, "update", REPS, null);
+    // update は毎回、未計測の create（settleOp 経由。layout flush 込みの
+    // リセット）で未更新の 1,000 行へ戻してから計測する。before を
+    // 付けずに 25 回連続で update を適用すると、対象行の label へ
+    // ` !!!` が累積し（1 回目 +4 文字 → 25 回目で +100 文字）、
+    // PROTOCOL §2.2 が定義する「100 行へ ` !!!` を追記」という同一
+    // ワークロードを毎回計測できなくなる（PR #1370 codex レビュー
+    // 指摘 P1）。fandhe の bench_update も同様に累積する実装だが、
+    // create がフル初期状態を再構築するためこのハーネス側の変更のみで
+    // 全フレームワークに一律で効く。
+    const updateDurations = await timedRuns(page, "update", REPS, "create");
     const clearDurations = await timedRuns(page, "clear", REPS, "create");
 
     return {
@@ -332,6 +348,7 @@ async function main() {
   });
 
   let anyFailed = false;
+  let measuredCount = 0;
   try {
     for (const name of targets) {
       let result;
@@ -346,11 +363,22 @@ async function main() {
         continue;
       }
       if (result === null) continue;
+      measuredCount += 1;
       console.log(JSON.stringify(result));
       if (!result.rows_ok || !result.escape_ok) anyFailed = true;
     }
   } finally {
     await browser.close();
+  }
+
+  // 全対象が「skip (not built)」だった場合、anyFailed は立たず JSON 0 行の
+  // まま終了コード 0 になってしまう（dist を全部欠いた状態が誤って
+  // 「成功」に見える、PR #1370 Bugbot 指摘）。payload/measure.mjs の
+  // fail-closed 方針（対象 0 件はエラー）と揃える。
+  if (measuredCount === 0) {
+    console.error(`[run] no framework was measured (0/${targets.length} built under ${DIST})`);
+    process.exitCode = 1;
+    return;
   }
 
   if (anyFailed) {

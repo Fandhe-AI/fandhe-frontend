@@ -84,10 +84,17 @@ SSR 8 種・CSR 7 種・payload 7 種。リストの増減は本表の更新 + �
   廃したことで「体感相当の描画完了時間」の近似はできなくなった代わりに、
   vsync 量子化のない高分解能な JS 実行 + layout コストの計測になっている
 - 反復: ウォームアップとして計測前に create→clear を 5 往復（未計測）
-  行った後、create / update / clear 各 25 回反復（create は毎回 clear 後、
-  update は create 済み状態から、clear は毎回 create 後。いずれも
-  リセット手順自体も同じ layout flush 付きで未計測実行し、リセット由来の
-  pending なレイアウト再計算が後続の計測値へ混入しないようにする）
+  行った後、create / update / clear 各 25 回反復する。create・update・
+  clear のいずれも**毎回、未計測の create（layout flush 付きの
+  settleOp 経由）で未更新の 1,000 行へリセットしてから計測する**
+  （create は毎回 clear 後にリセットしてから計測、update・clear は
+  毎回 create 後にリセットしてから計測）。update に before リセットを
+  付けず 25 回連続で適用する初期実装は、対象行の label へ ` !!!` が
+  累積し（1 回目 +4 文字 → 25 回目で +100 文字）、本節が定義する
+  「100 行へ ` !!!` を追記」という同一ワークロードを毎回計測できて
+  いなかったため是正した（PR #1370 レビュー指摘）。いずれのリセット
+  手順も同じ layout flush 付きで未計測実行し、リセット由来の pending な
+  レイアウト再計算が後続の計測値へ混入しないようにする
 - 実行系: playwright-core + システム chromium（ヘッドレス）。ブラウザ
   バイナリはダウンロードせず、`BENCH_CHROMIUM` 環境変数または既知パスから
   検出する。配信は 127.0.0.1 バインドのローカル http サーバ
