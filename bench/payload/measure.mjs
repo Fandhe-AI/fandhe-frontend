@@ -3,7 +3,10 @@
 //
 // bench/csr/dist/<name>/ 配下の JS（+ fandhe のみ .wasm も対象）について
 // raw バイト数と gzip（zlib, level 9）バイト数を計測する。index.html は
-// 全フレームワーク共通の骨格であり比較対象として無意味なため除外する。
+// 全フレームワーク共通の骨格（起動コードを持たないマークアップのみ）で
+// あり比較対象として無意味なため除外する。fandhe の起動コードは独立
+// ファイル bootstrap.js（.js のため自動的に計測対象）として dist に
+// 置かれる（bench/PROTOCOL.md §2.3）。
 import { gzipSync } from "node:zlib";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, extname, join, relative } from "node:path";
@@ -37,6 +40,30 @@ function collectTargetFiles(dir) {
     results.push(fullPath);
   }
   return results;
+}
+
+// fandhe の dist/fandhe/meta.json から wasm-opt 適用状態を読む。
+// bench/csr/fandhe/build.sh が書く契約フィールド "wasm_opt"（適用時は
+// バージョン文字列、BENCH_SKIP_WASM_OPT=1 ビルド時は "skipped"）を
+// 検証し、meta.json 不在・パース不能・フィールド不在は fail-closed で
+// エラー文字列を返す（wasm-opt の有無で fandhe の payload 計測条件が
+// 変わることをサイレントに見過ごさないため。bench/PROTOCOL.md §2.3、
+// PR #1370 codex 第 4 巡レビュー指摘 P1）。
+function readFandheWasmOptState(dir) {
+  const metaPath = join(dir, "meta.json");
+  if (!existsSync(metaPath)) {
+    return { error: `fandhe meta.json not found: ${metaPath} — rebuild with bench/csr/fandhe/build.sh (it records the wasm-opt state required by bench/PROTOCOL.md §2.3)` };
+  }
+  let meta;
+  try {
+    meta = JSON.parse(readFileSync(metaPath, "utf8"));
+  } catch {
+    return { error: `fandhe meta.json is not valid JSON: ${metaPath} — rebuild with bench/csr/fandhe/build.sh` };
+  }
+  if (typeof meta.wasm_opt !== "string" || meta.wasm_opt === "") {
+    return { error: `fandhe meta.json lacks the "wasm_opt" field: ${metaPath} — the artifact predates the wasm-opt contract (bench/PROTOCOL.md §2.3); rebuild with bench/csr/fandhe/build.sh` };
+  }
+  return { wasmOpt: meta.wasm_opt };
 }
 
 function measureFramework(name, dir) {
@@ -124,9 +151,35 @@ function main() {
     return;
   }
 
+  // fandhe を計測対象に含む実行（既定・--framework fandhe のいずれも）では
+  // meta.json の wasm-opt 状態検証を出力前に fail-closed で通す。
+  // "skipped"（BENCH_SKIP_WASM_OPT=1 ビルド）の場合は計測自体は続行するが、
+  // 未最適化条件での計測であることを結果 JSON の wasm_opt フィールドと
+  // stderr 警告の双方で明示する（他フレームワークの production 相当
+  // ビルドとの直接比較には使えないため）。
+  let fandheWasmOpt = null;
+  if (measured.includes("fandhe")) {
+    const state = readFandheWasmOptState(join(DIST, "fandhe"));
+    if (state.error) {
+      console.error(`[payload] ${state.error}`);
+      process.exitCode = 1;
+      return;
+    }
+    fandheWasmOpt = state.wasmOpt;
+    if (fandheWasmOpt === "skipped") {
+      console.error(
+        "[payload] warning: fandhe was built with BENCH_SKIP_WASM_OPT=1 (wasm-opt skipped). " +
+          "Its payload is NOT production-equivalent and must not be compared against the optimized builds (bench/PROTOCOL.md §2.3).",
+      );
+    }
+  }
+
   for (const name of measured.sort()) {
     const dir = join(DIST, name);
     const result = measureFramework(name, dir);
+    if (name === "fandhe" && fandheWasmOpt === "skipped") {
+      result.wasm_opt = "skipped";
+    }
     console.log(JSON.stringify(result));
   }
 }

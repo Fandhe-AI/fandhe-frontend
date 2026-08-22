@@ -21,6 +21,19 @@
  * 出力: renderer 1 件につき JSON 1 行（stdout）。全件 escape_ok/row_count_ok
  * が true の場合のみ終了コード 0、いずれかが false なら 1（fail-closed）。
  */
+// production 相当ビルドでの計測を保証するため、renderer の dynamic import
+// より前（本モジュールの評価時点）に NODE_ENV を明示代入する。
+// react-dom/server と @vue/server-renderer は NODE_ENV 分岐で dev ビルド
+// （余分な検証・警告コード入り）へフォールバックするため、未設定のまま
+// 実行すると SSR 実行時間が dev ビルドのものになってしまう。他 6 種
+// （vanilla / preact / solid / svelte / lit）は NODE_ENV に依存しない。
+// 設定値は runner.mjs が notes へ `NODE_ENV=<値>` として記録し、
+// 再発（未設定計測）を結果 JSON 上で機械検知できるようにする。
+// なお下の静的 import（runner.mjs）は hoisting によりこの代入より先に
+// 評価されるが、renderer 本体は main() 内の dynamic import でのみ読み
+// 込むため、NODE_ENV 分岐を持つモジュールの評価は必ずこの代入の後になる。
+process.env.NODE_ENV = "production";
+
 import { runFramework, reportToJsonLine } from "./lib/runner.mjs";
 
 const RENDERER_MODULES = {
@@ -71,7 +84,8 @@ async function main() {
       process.stderr.write(
         `unknown --framework value: ${framework} (known: ${FRAMEWORK_ORDER.join(", ")})\n`,
       );
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     targets = [framework];
   }
@@ -90,10 +104,14 @@ async function main() {
     }
   }
 
-  process.exit(allOk ? 0 : 1);
+  // run_csr.mjs / measure.mjs と同様式: process.exit() の即時終了ではなく
+  // exitCode + 自然終了で stdout の flush を待つ。
+  if (!allOk) {
+    process.exitCode = 1;
+  }
 }
 
 main().catch((err) => {
   process.stderr.write(`bench-ssr fatal error: ${err.stack || err}\n`);
-  process.exit(1);
+  process.exitCode = 1;
 });

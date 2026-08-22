@@ -6,14 +6,15 @@
 // production 相当の最適化フラグ（NODE_ENV 定義・minify）を各フレームワークへ
 // 適用し、payload/実行時間の双方で「実運用に近い」計測条件を揃える。
 //
-// fandhe（bench/csr/fandhe/）はここではビルドしない。別エージェントの
-// build.sh が bench/csr/dist/fandhe/ を独立に生成する前提であり、
-// run_csr.mjs / measure.mjs 側で「存在すれば使う・なければ skip」の
-// fail-soft 処理を行う。
+// fandhe（bench/csr/fandhe/）はここではビルドしない。Rust/wasm ツール
+// チェーンを要する別工程（bench/csr/fandhe/build.sh）が bench/csr/dist/
+// fandhe/ を生成する。run_csr.mjs / payload/measure.mjs の既定実行は
+// frameworks.mjs の全 7 種（fandhe 含む）の dist が揃うことを必須とし、
+// 欠落は fail-closed でエラー終了する（bench/PROTOCOL.md §2.2）。
 import { build } from "esbuild";
 import { compile } from "svelte/compiler";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -90,7 +91,19 @@ const FRAMEWORKS = [
 ];
 
 async function buildFramework(fw) {
-  const outDir = join(DIST, fw.name);
+  // ビルド前に当該フレームワークの出力ディレクトリのみを清掃する。
+  // 旧成果物（例: 過去に生成された別名ファイル）を残したまま上書きすると、
+  // payload/measure.mjs が stale なファイルを計測に混入させてしまうため
+  // （PR #1370 codex 第 4 巡レビュー指摘 P1）。削除対象は path.resolve で
+  // dist ルート配下であることを検証してからに限定する（フレームワーク名は
+  // 正本 frameworks.mjs 由来の固定リストだが、防御的にパストラバーサルを
+  // 遮断する。.claude/rules/security.md A01）。
+  const distRoot = resolve(DIST);
+  const outDir = resolve(DIST, fw.name);
+  if (!outDir.startsWith(distRoot + sep)) {
+    throw new Error(`refusing to clean output directory outside dist root: ${outDir}`);
+  }
+  rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
 
   const define = {
@@ -123,13 +136,28 @@ async function main() {
   mkdirSync(DIST, { recursive: true });
   const only = process.argv.includes("--framework") ? process.argv[process.argv.indexOf("--framework") + 1] : null;
 
+  let builtCount = 0;
   for (const fw of FRAMEWORKS) {
     if (only && fw.name !== only) continue;
     await buildFramework(fw);
+    builtCount += 1;
+  }
+
+  // --framework の値が一覧に無い（typo 等）とき、0 件ビルドのまま exit 0 に
+  // なる fail-open を防ぐ（run_csr.mjs / measure.mjs の「対象 0 件は
+  // エラー」契約と同型）。fandhe はこのスクリプトの対象外（build.sh 担当）
+  // のため、known の列挙にはその旨を添える。
+  if (only && builtCount === 0) {
+    console.error(
+      `[build] no framework was built (target: ${only}; known: ${FRAMEWORKS.map((fw) => fw.name).join(", ")}; ` +
+        "fandhe is built by bench/csr/fandhe/build.sh, not this script)",
+    );
+    process.exitCode = 1;
+    return;
   }
 
   if (!existsSync(join(DIST, "fandhe"))) {
-    console.error("[build] fandhe: skip (dist/fandhe not present; built independently by another agent's build.sh)");
+    console.error("[build] note: dist/fandhe not present yet — build it with bench/csr/fandhe/build.sh before the default full run of run_csr.mjs / measure.mjs");
   }
 }
 

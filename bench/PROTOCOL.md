@@ -25,7 +25,7 @@ git 管理外（`.gitignore` の `/_/`）だったため喪失し、比較対象
 | フレームワーク | SSR | CSR | payload | 備考 |
 |---------------|-----|-----|---------|------|
 | fandhe-frontend | ✔（xtask bench-ssr） | ✔（wasm、`csr/fandhe/`） | ✔（wasm + glue） | workspace 現行コード |
-| vanilla JS | ✔（文字列連結 + 手書きエスケープ） | ✔（素の DOM API） | ✔ | ベースライン |
+| vanilla JS | ✔（最小ノード木 + 既定エスケープ経由シリアライズ） | ✔（素の DOM API） | ✔ | ベースライン。SSR も HTML 文字列直接組み立てはしない（リポジトリ規約準拠） |
 | React | ✔ react-dom/server | ✔ | ✔ | |
 | Preact | ✔ preact-render-to-string | ✔ | ✔ | |
 | Vue | ✔ vue/server-renderer | ✔（render 関数、SFC 不使用） | ✔ | |
@@ -117,14 +117,42 @@ SSR 8 種・CSR 7 種・payload 7 種。リストの増減は本表の更新 + �
 ### 2.3 payload（`payload/measure.mjs`）
 
 `csr/dist/<framework>/` の JS（fandhe は .wasm 含む）の raw / gzip
-（zlib level 9）バイト数。index.html は全フレームワーク共通骨格のため対象外。
+（zlib level 9）バイト数。index.html は全フレームワーク共通骨格（起動
+コードを持たないマークアップのみ）のため対象外。fandhe の起動コード
+（wasm 初期化 + `window.__bench` 束縛）は inline `<script>` ではなく独立
+ファイル `bootstrap.js` として dist へ配置し **payload 計測対象に含める**
+（他フレームワークは起動コード込みの bundle.js を計測しているため、
+fandhe だけ起動コードを index.html へ逃すと非対称になる）。fandhe の
+wasm-bindgen glue JS（`fandhe_bench.js`）と `bootstrap.js` は
+`csr/fandhe/build.sh` が他 6 種と同じ esbuild で minify（`--minify
+--format=esm`）してから配置する（JS 系の esbuild minify:true と同一条件）。
 既定実行の fail-closed 契約は §2.2 末尾を参照。
+
+**fandhe の wasm-opt 契約（fail-closed）**: fandhe の .wasm は
+`csr/fandhe/build.sh` が wasm-opt（binaryen、`-Os`）で最適化した
+production 相当ビルドを正とする。他フレームワークの minify 済み bundle と
+同一条件で比較するため、build.sh は wasm-opt を**必須**とし、バージョンを
+`WASM_OPT_EXPECTED_VERSION`（build.sh 内の定数、現在 116）へ pin する。
+未導入・pin 不一致はエラー停止する（実行環境によって fandhe の配布物
+サイズが変わる soft-skip は再現性契約違反のため廃止。PR #1370 codex
+第 4 巡レビュー指摘）。例外は環境変数 `BENCH_SKIP_WASM_OPT=1` による
+明示オプトアウトのみで、このとき build.sh は最適化なしでビルドを継続し
+`meta.json` の `"wasm_opt"` へ `"skipped"` を記録する（通常ビルドでは
+適用した wasm-opt のバージョン文字列を記録する）。`payload/measure.mjs`
+は fandhe を計測対象に含む実行（既定・`--framework fandhe`）で必ず
+`meta.json` の `"wasm_opt"` を検証し、meta.json 不在・フィールド不在は
+fail-closed でエラー終了、`"skipped"` の場合は fandhe の結果 JSON 行へ
+`wasm_opt: "skipped"` を付与し stderr へ警告を出す（未最適化条件での
+計測であることを結果自体に明示し、最適化済みビルドとの直接比較への
+誤用を防ぐ）。
 
 ## 3. 実行手順
 
 前提: Node 24+ / npm、Rust stable + wasm32-unknown-unknown target、
 wasm-bindgen-cli（バージョンは `csr/fandhe/` の Cargo.lock に自動整合、
-不一致時は build.sh が是正コマンドを提示して停止）、システム chromium。
+不一致時は build.sh が是正コマンドを提示して停止）、wasm-opt
+（binaryen。バージョンは build.sh の `WASM_OPT_EXPECTED_VERSION` に pin、
+未導入・不一致は停止。§2.3 参照）、システム chromium。
 
 ```bash
 # 0) 依存導入（初回・lockfile 更新時のみ。--ignore-scripts 必須）
@@ -170,6 +198,24 @@ node bench/payload/measure.mjs
   オーバーヘッドを除き）計測から隠蔽される。paint コストを含めた
   「体感相当時間」が必要な場合は、rAF 固定でない実機ブラウザでの
   再計測を別途行う必要がある（本ハーネスの既知の限界）
+- 「production 相当」の同一条件は payload だけでなく**実行時間比較にも
+  及ぶ**: SSR ハーネス（`ssr/run_ssr.mjs`）は renderer の import 前に
+  `process.env.NODE_ENV = "production"` を明示代入する（react-dom/server
+  と @vue/server-renderer は NODE_ENV 分岐で dev ビルド〔検証・警告コード
+  入り〕へフォールバックし、SSR 実行時間が production ビルドと大きく
+  変わるため。他 6 種は NODE_ENV 非依存）。設定値は各結果 JSON の notes へ
+  `NODE_ENV=production` として記録され、未設定計測の再発を機械検知できる。
+  CSR は build.mjs が `define` で `NODE_ENV=production` を焼き込み、fandhe
+  の glue JS / bootstrap.js も minify 済み（§2.3）で、実行時間・payload の
+  双方が production 相当ビルドで測られる
+- payload 比較の公平性は「各フレームワークの production 相当ビルド同士」
+  で成立する: JS 系は esbuild minify + `NODE_ENV=production`、fandhe は
+  `--release` + wasm-opt `-Os`（バージョン pin、§2.3）+ glue/bootstrap JS
+  の esbuild minify。fandhe だけ
+  wasm-opt の有無が環境依存で揺れると比較が成立しないため build.sh は
+  fail-closed であり、`BENCH_SKIP_WASM_OPT=1` で意図的に未最適化ビルドを
+  計測した結果（`wasm_opt: "skipped"` 付き）は最適化済みビルドの結果と
+  同じ表へ混ぜない
 - 各アプリは「そのフレームワークで普通に書いた場合」の実装とし、
   フレームワーク固有の高度な最適化 API（手動 memo 化の作り込み等）は
   使わない。fandhe は keyed_list + `apply_keyed_list_with_previous`
@@ -191,3 +237,14 @@ node bench/payload/measure.mjs
   `npm install --ignore-scripts --save-exact <pkg>@latest` で更新し、
   package.json / package-lock.json の差分をコミットしてから全種を再計測する
 - lockfile 更新時は `npm audit`（ネットワーク到達可能な環境で）を確認する
+- wasm-bindgen-cli / wasm-opt はバージョン一致検証のみで SHA256 検証は
+  行わない（本ハーネスは CI 非常設のローカル専用ツールであり、
+  `cargo install --locked` 経由で導入すれば crates.io のチェックサム検証を
+  受けるため。cargo-deny 等の「SHA256 検証済みプリビルトバイナリ」パターン
+  〔`.claude/rules/ci.md`〕との意図的な非対称）
+- wasm-opt（binaryen）を更新するときは、`csr/fandhe/build.sh` の
+  `WASM_OPT_EXPECTED_VERSION` pin を新バージョンへ書き換えてコミットし、
+  同一コミット・同一環境で**全フレームワークを再計測する**（wasm-opt の
+  バージョン差は fandhe の配布物サイズを変えるため、pin 更新前後の
+  payload 値を同じ表へ混ぜない）。pin と実環境の不一致は build.sh が
+  エラー停止で検知する（§2.3）

@@ -75,7 +75,10 @@ export async function runFramework(renderer, { rows10kSkip = false } = {}) {
     html_bytes_1k: Buffer.byteLength(html1k, "utf8"),
     escape_ok: escapeOk,
     row_count_ok: rowCountOk,
-    notes: `node ${process.version}`,
+    // NODE_ENV を notes へ明示記録する（run_ssr.mjs が production を代入
+    // する契約。react/vue が dev ビルドで計測される事故を結果 JSON 上で
+    // 機械検知できるようにするため、実際の値をそのまま記録する）。
+    notes: `node ${process.version}; NODE_ENV=${process.env.NODE_ENV}`,
   };
 }
 

@@ -1,12 +1,12 @@
 //! フレームワーク横断 CSR ベンチマーク（`bench/PROTOCOL.md` §2.2）向けの
 //! fandhe-frontend wasm アプリ。
 //!
-//! playwright ハーネス（`bench/csr/run_csr.mjs`、別エージェント実装）が
-//! `bench/csr/dist/fandhe/` を配信し、`window.__bench.{create,update,clear}`
-//! を呼び出して perf 計測する。本クレートはその 3 関数を `#[wasm_bindgen]`
-//! でエクスポートし、`bench/csr/fandhe/index.html` の `<script type="module">`
-//! が `window.__bench` へ束縛する（束縛自体は JS グルー側の責務、本クレートは
-//! Rust 関数を提供するのみ）。
+//! playwright ハーネス（`bench/csr/run_csr.mjs`）が `bench/csr/dist/fandhe/`
+//! を配信し、`window.__bench.{create,update,clear}` を呼び出して perf 計測
+//! する。本クレートはその 3 関数を `#[wasm_bindgen]` でエクスポートし、
+//! `bench/csr/fandhe/bootstrap.js`（起動コード。`build.sh` が minify して
+//! dist へ配置する）が `window.__bench` へ束縛する（束縛自体は JS グルー側
+//! の責務、本クレートは Rust 関数を提供するのみ）。
 //!
 //! # ワークロード定義
 //!

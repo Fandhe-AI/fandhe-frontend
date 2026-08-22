@@ -24,7 +24,7 @@
 import { chromium } from "playwright-core";
 import { createServer } from "node:http";
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ALL_FRAMEWORKS } from "./frameworks.mjs";
@@ -54,7 +54,15 @@ function commandExists(cmd) {
 
 function resolveChromiumPath() {
   const envPath = process.env.BENCH_CHROMIUM;
-  if (envPath && existsSync(envPath)) return envPath;
+  if (envPath) {
+    // 明示指定が不正なら既知パスへ silent fallback せずエラー停止する
+    // （fallback すると「指定したつもりの chromium」と別バイナリで計測した
+    // 結果が区別なく混ざる。fail-closed）。
+    if (!existsSync(envPath)) {
+      throw new Error(`BENCH_CHROMIUM=${envPath} not found`);
+    }
+    return envPath;
+  }
   if (existsSync("/usr/bin/chromium-browser")) return "/usr/bin/chromium-browser";
   if (existsSync("/snap/bin/chromium")) return "/snap/bin/chromium";
   if (commandExists("google-chrome")) return "google-chrome";
@@ -66,7 +74,10 @@ function resolveChromiumPath() {
 // --- 静的ファイル配信（外部アクセスなし・127.0.0.1 バインドのみ） -----------
 
 function startStaticServer(rootDir) {
-  const root = resolve(rootDir);
+  // symlink 境界検証（後述）の基準も realpath で揃えるため、root 自体を
+  // 先に realpath 化しておく（dist が symlink 経由で参照されていても
+  // 正しく配下判定できるようにする）。
+  const root = realpathSync(resolve(rootDir));
   const server = createServer((req, res) => {
     // 不正なパーセントエンコーディングは decodeURIComponent が throw する。
     // 未捕捉のままハンドラ外へ逃すとサーバごと落ちるため 400 に落とす。
@@ -89,7 +100,17 @@ function startStaticServer(rootDir) {
       return;
     }
     try {
-      const body = readFileSync(filePath);
+      // symlink 経由の境界外配信防止: パス文字列上は root 配下でも、
+      // dist 内に境界外を指す symlink が紛れ込んでいれば realpath は
+      // 外へ出る。realpath（実体パス）でも root（realpath 済み）配下で
+      // あることを検証する（.claude/rules/security.md A01）。
+      const realPath = realpathSync(filePath);
+      if (realPath !== root && !realPath.startsWith(root + sep)) {
+        res.writeHead(403);
+        res.end();
+        return;
+      }
+      const body = readFileSync(realPath);
       const type = MIME[extname(filePath)] ?? "application/octet-stream";
       res.writeHead(200, { "Content-Type": type });
       res.end(body);
@@ -249,23 +270,32 @@ async function validate(page) {
 
 // --- フレームワーク 1 件分の実行 --------------------------------------------
 
-async function runFramework(browser, name, chromiumPath) {
+async function runFramework(browser, name, chromiumNote) {
   const distDir = join(DIST, name);
   if (!existsSync(join(distDir, "index.html"))) {
     console.error(`[run] ${name}: skip (not built)`);
     return null;
   }
 
-  let version = "unknown";
+  // meta.json はビルダー（build.mjs / fandhe は build.sh）が必ず書く契約
+  // ファイル。不在・パース不能・version 欠落はビルド成果物が壊れている
+  // 証拠なので、payload/measure.mjs と同じく fail-closed でエラーにする
+  // （version=unknown のまま計測を続ける fail-soft は、どのバージョンを
+  // 測ったのか結果 JSON から復元できなくなる）。
   const metaPath = join(distDir, "meta.json");
-  if (existsSync(metaPath)) {
-    try {
-      const meta = JSON.parse(readFileSync(metaPath, "utf8"));
-      if (meta.version) version = meta.version;
-    } catch {
-      // meta.json が壊れていても version=unknown で継続する（fail-soft）。
-    }
+  if (!existsSync(metaPath)) {
+    throw new Error(`meta.json not found: ${metaPath} — rebuild (bench/csr/build.mjs, or bench/csr/fandhe/build.sh for fandhe)`);
   }
+  let meta;
+  try {
+    meta = JSON.parse(readFileSync(metaPath, "utf8"));
+  } catch {
+    throw new Error(`meta.json is not valid JSON: ${metaPath} — rebuild (bench/csr/build.mjs, or bench/csr/fandhe/build.sh for fandhe)`);
+  }
+  if (typeof meta.version !== "string" || meta.version === "") {
+    throw new Error(`meta.json lacks the "version" field: ${metaPath} — rebuild (bench/csr/build.mjs, or bench/csr/fandhe/build.sh for fandhe)`);
+  }
+  const version = meta.version;
 
   const server = await startStaticServer(distDir);
   const { port } = server.address();
@@ -276,8 +306,9 @@ async function runFramework(browser, name, chromiumPath) {
   try {
     await page.goto(`http://127.0.0.1:${port}/index.html`, { waitUntil: "load" });
     // window.__bench は同期的な <script> 実行で即座に用意できるアプリ
-    // （vanilla/lit 等）もあれば、fandhe のように `<script type="module">`
-    // 内で `await init()`（wasm 初期化）を経てから代入するアプリもある。
+    // （vanilla/lit 等）もあれば、fandhe のように module スクリプト
+    // （bootstrap.js）内で `await init()`（wasm 初期化）を経てから代入する
+    // アプリもある。
     // load イベント完了だけでは後者が未定義のままになり得るため、
     // window.__bench.{create,update,clear} が揃うまで明示的に待つ。
     await page.waitForFunction(
@@ -317,7 +348,7 @@ async function runFramework(browser, name, chromiumPath) {
       clear_ms: statsFromDurations(clearDurations),
       rows_ok: rowsOk,
       escape_ok: escapeOk,
-      notes: `chromium ${chromiumPath}`,
+      notes: chromiumNote,
     };
   } finally {
     await context.close();
@@ -345,6 +376,10 @@ async function main() {
     // ローカル専用ツールで、外部入力・外部サイトを扱わないため許容する。
     args: ["--no-sandbox", "--disable-dev-shm-usage"],
   });
+  // 計測に使った chromium の実バージョンを結果 JSON の notes へ記録する
+  // （数値はブラウザバージョンに依存するため〔bench/PROTOCOL.md §4〕、
+  // パスだけでは結果の再現条件を復元できない）。
+  const chromiumNote = `chromium ${chromiumPath} version ${browser.version()}`;
 
   let anyFailed = false;
   const measuredNames = [];
@@ -353,11 +388,12 @@ async function main() {
     for (const name of targets) {
       let result;
       try {
-        result = await runFramework(browser, name, chromiumPath);
+        result = await runFramework(browser, name, chromiumNote);
       } catch (err) {
-        // 1 フレームワークの実行時エラー（例: 他エージェントが並行整備中の
-        // dist/fandhe が過渡的に壊れている等）で全体を落とさない。
-        // 該当フレームワークのみ失敗として報告し、残りは続行する。
+        // 1 フレームワークの実行時エラー（壊れた dist・meta.json 契約違反・
+        // ページ内例外等）で残りの計測結果まで失わないよう、該当
+        // フレームワークのみ失敗として stderr へ報告し、残りは続行する。
+        // 終了コードは anyFailed 経由で必ず 1 になる（fail-closed は不変）。
         console.error(`[run] ${name}: FAILED (${err.message ?? err})`);
         anyFailed = true;
         continue;

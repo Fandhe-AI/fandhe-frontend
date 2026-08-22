@@ -38,8 +38,11 @@ crate-type = ["cdylib"]
 # 採用構成）に揃える。JS フレームワーク側は minify 済み production ビルド
 # （実際に配布される形態）で計測するため、fandhe も配布形態のビルドで
 # CSR 実行時間・payload の双方を測るのが公平、という判断
-# （bench/PROTOCOL.md §4）。wasm-opt は build.sh 側で存在すれば適用
-# （なければ soft-skip、その場合 payload は wasm-opt なしの上限値になる）。
+# （bench/PROTOCOL.md §4）。wasm-opt は build.sh 側が必須ツールとして適用
+# する（バージョンは build.sh の WASM_OPT_EXPECTED_VERSION に pin、未導入・
+# 不一致は fail-closed でエラー停止。BENCH_SKIP_WASM_OPT=1 の明示オプト
+# アウト時のみ未最適化で継続し meta.json の wasm_opt へ "skipped" を記録
+# する。bench/PROTOCOL.md §2.3）。
 [profile.release]
 opt-level = "s"
 lto = true
