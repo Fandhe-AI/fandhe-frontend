@@ -43,15 +43,21 @@
 //! は「ターゲットごとに異なる保証を明示的に文書化した上で、実際に保証
 //! できる範囲でのみ SipHash を外す」設計へ改める。
 //!
-//! - **ネイティブ（`not(target_arch = "wasm32")`、主に SSR/SSG サーバー
-//!   プロセス）**: [`FxBuildHasher`] は `std::collections::hash_map::RandomState`
+//! - **ネイティブおよび wasm32-wasi 等
+//!   （`not(all(target_arch = "wasm32", target_os = "unknown"))`、主に
+//!   SSR/SSG サーバープロセス・共有プロセスで動く wasm32 ターゲット）**:
+//!   [`FxBuildHasher`] は `std::collections::hash_map::RandomState`
 //!   （SipHash）**そのもの**を使う。OS エントロピー由来の乱数シードによる
 //!   本物の HashDoS 耐性を持ち、std 既定ハッシャと完全に同じ保証を得る
-//!   （このターゲットでは payload 削減の動機がそもそも無く、SSR/SSG
+//!   （このターゲットでは payload 削減の動機がそもそも無く、これらの
 //!   プロセスは複数リクエストを跨いで長時間稼働するため HashDoS の脅威が
-//!   実在する）。
-//! - **wasm32（`target_arch = "wasm32"`、CSR/ハイドレーション。1 ブラウザ
-//!   タブ内でのみ動作）**: [`FxBuildHasher`] は本モジュール実装の軽量
+//!   実在する）。判定を `target_arch = "wasm32"` 単独ではなく
+//!   `target_os = "unknown"` も要求する組み合わせにする理由は次項参照
+//!   （codex-review P1 指摘、イシュー #1375）。
+//! - **wasm32-unknown-unknown
+//!   （`all(target_arch = "wasm32", target_os = "unknown")`、ブラウザでの
+//!   CSR/ハイドレーション。1 ブラウザタブ内でのみ動作）**:
+//!   [`FxBuildHasher`] は本モジュール実装の軽量
 //!   `FxHasher`（固定初期状態、rustc-hash 相当の mix）を使う。
 //!   `RandomState` を一切参照しないため SipHash 実装がリンクから脱落し、
 //!   #1375 の payload 削減目的を実際に達成する。**HashDoS 耐性は主張しない**
@@ -96,16 +102,35 @@ use std::collections::{HashMap, HashSet};
 ///
 /// ネイティブと wasm32 で異なる `BuildHasher` を選ぶ理由はモジュール doc
 /// 「ターゲット別ハッシャ選択」節を参照。
-#[cfg(not(target_arch = "wasm32"))]
+///
+/// # cfg 判定はブラウザ実行（`wasm32-unknown-unknown`）に限定する
+/// （codex-review P1 指摘、イシュー #1375）
+///
+/// `target_arch = "wasm32"` 単独の判定は `wasm32-unknown-unknown`
+/// （ブラウザ、1 タブ内に閉じる）だけでなく `wasm32-wasi`/`wasm32-wasip1`
+/// 等のサーバー側 wasm32 ターゲットにも一致してしまう。本モジュールが
+/// 固定シードの軽量ハッシャを許容する根拠（モジュール doc 「ターゲット別
+/// ハッシャ選択」節）は「1 ブラウザタブ内に閉じる自己完結型の劣化」に
+/// 依存しており、WASI 等の共有プロセスへ `core` が組み込まれる構成では
+/// 成立しない（外部由来の keyed-list キーから意図的な衝突を作られると、
+/// 共有プロセスの CPU を消費する HashDoS 防御の後退になる）。そのため
+/// 軽量ハッシャの選択条件は `target_arch = "wasm32"` に加えて
+/// `target_os = "unknown"`（`wasm32-unknown-unknown` を一意に特定する
+/// 唯一の組み合わせ。他の wasm32 ターゲットはいずれも `target_os` が
+/// `"wasi"` 等の非 `"unknown"` 値を持つ）を要求する。この組み合わせに
+/// 一致しない wasm32 ターゲット（WASI 等）はネイティブ側と同じ
+/// `RandomState`（本物の HashDoS 耐性）にフォールバックする。
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod backend {
-    /// ネイティブ（SSR/SSG サーバープロセス想定）では std 既定の
-    /// `RandomState`（SipHash-1-3、OS エントロピー由来の乱数シード）を
-    /// そのまま使う。本物の HashDoS 耐性が必要なターゲットであり、payload
-    /// 削減の動機もないため、独自ハッシャへの置き換えは行わない。
+    /// ネイティブおよび wasm32-wasi 等（SSR/SSG・共有サーバープロセス
+    /// 想定）では std 既定の `RandomState`（SipHash-1-3、OS エントロピー
+    /// 由来の乱数シード）をそのまま使う。本物の HashDoS 耐性が必要な
+    /// ターゲットであり、payload 削減の動機もないため、独自ハッシャへの
+    /// 置き換えは行わない。
     pub(crate) type FxBuildHasher = std::collections::hash_map::RandomState;
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 mod backend {
     use std::hash::{BuildHasherDefault, Hasher};
 
@@ -232,15 +257,18 @@ mod tests {
     }
 }
 
-/// wasm32 専用 [`backend::FxHasher`] の単体テスト。ネイティブビルド
-/// （`cargo test -p fandhe-frontend-core`）では一切コンパイルされない
-/// （`cfg(target_arch = "wasm32")` の実装自体がネイティブに存在しないため）。
+/// wasm32-unknown-unknown 専用 [`backend::FxHasher`] の単体テスト。
+/// ネイティブビルド（`cargo test -p fandhe-frontend-core`）では一切
+/// コンパイルされない（`cfg(all(target_arch = "wasm32", target_os =
+/// "unknown"))` の実装自体がネイティブ・wasm32-wasi 等には存在しないため。
+/// 判定条件を `target_os = "unknown"` まで絞り込む理由はモジュール doc
+/// 「cfg 判定はブラウザ実行に限定する」節参照）。
 /// `clippy-wasm32` ジョブ（`.claude/rules/ci.md` 参照）はこの実装を
 /// コンパイルレベルで検証するが、`cargo test` を wasm32 target で実行する
 /// CI ジョブは現状存在しないため、本テストの実行は wasm-pack 等の
 /// ブラウザ/Node ハーネスをローカルまたは将来の CI で用いる場合に限られる
 /// （既知の制約。std 自身のターゲット限定コードと同じ扱い）。
-#[cfg(all(test, target_arch = "wasm32"))]
+#[cfg(all(test, target_arch = "wasm32", target_os = "unknown"))]
 mod wasm_tests {
     use super::backend::FxHasher;
     use std::hash::{Hash, Hasher};
