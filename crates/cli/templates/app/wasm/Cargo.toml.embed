@@ -30,9 +30,9 @@ members = ["."]
 # root（templates/app 直下）の依存グラフには一切含まれないため、
 # REQ-3（60 件/深さ 6）の計測基準（標準サーバー構成）への影響もない。
 [dependencies]
-# イシュー #1324 で wasm-client 0.4.0 へバンプ（`template_vendor_drift`
+# イシュー #1374 で wasm-client 0.4.1 へバンプ（`template_vendor_drift`
 # テストが正本 version との一致を強制するため追随必須）。
-fandhe-frontend-wasm-client = "0.4.0"
+fandhe-frontend-wasm-client = "0.4.1"
 
 [lib]
 crate-type = ["cdylib"]

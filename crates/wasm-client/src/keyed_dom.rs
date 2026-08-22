@@ -408,12 +408,16 @@ struct WebSysKeyedDom<'a> {
     /// `diff_keys` 実装参照）を順に適用するため、最初の `child_at` 呼び出し
     /// （最初の `Move`/`Insert` の直前）時点で全 `Remove` は実 DOM へ適用
     /// 済みであり、ここで sibling 走査して得る並びは「削除後・挿入/移動
-    /// 適用前」の基準状態と一致する。以降 `insert_before`/`move_before` が
-    /// 実 DOM への適用と同時にこの `Vec` へも追随更新するため、キャッシュは
-    /// 常に実 DOM の並びと同期したまま保たれる。`remove_child` は
-    /// キャッシュ構築前にのみ呼ばれる契約だが、将来の呼び出し順変更に
-    /// 備えてキャッシュ構築後に呼ばれた場合は無効化（`None` へリセット、
-    /// 次回 `child_at` で再構築）する fail-safe を持つ。
+    /// 適用前」の基準状態と一致する。以降 `insert_before`/`move_before`/
+    /// `remove_child` が実 DOM への適用と同時にこの `Vec` へも追随更新する
+    /// ため、キャッシュは常に実 DOM の並びと同期したまま保たれる（イシュー
+    /// #1374 で `remove_child` も `key` 引数を受けてインプレース追随更新す
+    /// るよう変更した。旧実装は「Remove はキャッシュ構築前にのみ呼ばれる」
+    /// 前提で成功・失敗を問わず丸ごと `None` 無効化する fail-safe を持って
+    /// いたが、[`crate::keyed_apply::KeyedListDom::find_by_key`] が
+    /// `Remove`/`Move`/`Update` 共通の対象解決を担うようになったことで
+    /// この前提は崩れ、丸ごと無効化のままだと全削除ワークロードで O(N²)
+    /// を再導入するため置き換えた。`remove_child` の doc 参照）。
     children: Option<Vec<(String, Element)>>,
 }
 
@@ -607,25 +611,30 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         true
     }
 
-    fn remove_child(&mut self, child: &Element) -> bool {
+    /// `key` 一致エントリを `children` キャッシュから実 DOM 再問い合わせ
+    /// なしにインプレース除去する（イシュー #1374。旧実装は成功・失敗
+    /// いずれでもキャッシュを丸ごと `None` へ無効化していたが、これは
+    /// 「Remove はキャッシュ構築前にのみ呼ばれる」前提に依存しており、
+    /// [`KeyedListDom::find_by_key`]（`Remove`/`Move`/`Update` の対象解決を
+    /// 共通で担う、`keyed_apply::KeyedListDom::find_by_key` doc 参照）の
+    /// 導入でこの前提は崩れた。丸ごと無効化のまま維持すると、全削除
+    /// ワークロードで「Remove 1 件ごとにキャッシュを O(n) 再構築」を
+    /// 繰り返し O(N²) を再導入してしまう（親イシュー #1371 実測起点）。
+    fn remove_child(&mut self, key: &str, child: &Element) -> bool {
         if self.list_element.remove_child(child).is_err() {
             // 実 DOM への削除自体が失敗（`child` が既に `list_element` の
-            // 子でない等）。`child` は実 DOM 上に残ったままのため、
-            // `children` キャッシュを無効化して「削除済み」と誤って扱わ
-            // ないようにする（次回 `child_at` で実 DOM から再構築させる
-            // fail-safe。イシュー #1340 codex-review P1〔3 巡目〕全走査
-            // 対応）。
-            self.children = None;
+            // 子でない等）。DOM 標準上 `removeChild` 失敗時は no-op であり
+            // `child` は実 DOM 上に残ったままのため、キャッシュも無変更の
+            // まま `false` を返す（トレイト契約「失敗時は DOM・内部
+            // キャッシュとも無変更」、イシュー #1340 codex-review P1
+            // 〔3 巡目〕全走査対応を `remove_child` にも一貫適用）。
             return false;
         }
-        // `diff_keys` は Remove を Move/Insert より必ず先に列挙するため
-        // （`keyed_diff` doc 参照）、通常は `children` キャッシュが構築
-        // される（最初の `child_at` 呼び出しが起きる）前にここへ到達する。
-        // 仮に将来アルゴリズムが変わりキャッシュ構築後に Remove が来ても、
-        // キャッシュを丸ごと無効化して次回 `child_at` で再構築させることで
-        // （コストは O(n) の再走査 1 回に留まる）誤ったキャッシュを使い
-        // 続けて誤挿入位置を返す不整合を防ぐ（fail-safe）。
-        self.children = None;
+        if let Some(children) = self.children.as_mut() {
+            if let Some(pos) = children.iter().position(|(k, _)| k == key) {
+                children.remove(pos);
+            }
+        }
         true
     }
 
@@ -846,18 +855,23 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     }
 
     /// `children` キャッシュ（[`Self::ensure_children_cache`]、`child_at`
-    /// と共有）への線形走査で `key` の既存要素を解決する（イシュー #1324、
+    /// と共有）への線形走査で `key` の既存要素の「現在位置とハンドル」を
+    /// 解決する（イシュー #1324/#1374、
     /// [`crate::keyed_apply::KeyedListDom::find_by_key`] doc 参照）。
     /// キャッシュ未構築時はここで初めて実 DOM を 1 度だけ sibling 走査する
-    /// （`Update` のみが発生する構成、すなわち `Insert`/`Move` が 1 件も
-    /// 無く `child_at` が未呼び出しのケースでも、実 DOM 走査は高々 1 回に
-    /// 抑えられる契約をここで担保する）。
-    fn find_by_key(&mut self, key: &str) -> Option<Element> {
+    /// （`Update`/`Remove`/`Move` のみが発生する構成、すなわち `Insert` が
+    /// 1 件も無く `child_at` が未呼び出しのケースでも、実 DOM 走査は高々
+    /// 1 回に抑えられる契約をここで担保する）。イシュー #1374 で
+    /// `Remove`/`Move` の対象解決（旧 `find_child_by_key` の sibling 走査）
+    /// もここへ統合され、全削除ワークロードの O(N²) 退行を解消した。
+    fn find_by_key(&mut self, key: &str) -> Option<(usize, Element)> {
         self.ensure_children_cache();
-        self.children
-            .as_ref()
-            .and_then(|children| children.iter().find(|(k, _)| k == key))
-            .map(|(_, el)| el.clone())
+        self.children.as_ref().and_then(|children| {
+            children
+                .iter()
+                .position(|(k, _)| k == key)
+                .map(|pos| (pos, children[pos].1.clone()))
+        })
     }
 
     /// `new`（[`crate::keyed_apply::KeyedListDom::create_item`] が構築済みの
