@@ -35,8 +35,12 @@ members = ["."]
 # （keyed diff の軽量ハッシャ化）に伴う core 0.4.0 バンプの連鎖で
 # wasm-client も 0.5.0 へバンプ（diff_keys/diff_keyed_items の Result 化が
 # pub re-export 経由で公開 API に波及する破壊的変更のためマイナーバンプ）
-# したため、本テンプレート側も追随する。
-fandhe-frontend-wasm-client = "0.5.0"
+# したため、本テンプレート側も追随する。イシュー #1374（find_child_by_key
+# の sibling 走査をキー→Element ハンドルキャッシュへ統合）は当初 0.5.0 の
+# 枠内への吸収を予定していたが、PR #1392 codex-review P1 是正（公開クレート
+# の src/ 変更に対するバンプ必須条項の適用）を受けて 0.5.1 への独立 patch
+# バンプへ切り替えたため、本テンプレート側も 0.5.1 へ追随する。
+fandhe-frontend-wasm-client = "0.5.1"
 
 [lib]
 crate-type = ["cdylib"]

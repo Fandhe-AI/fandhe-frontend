@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-full"
-version = "0.7.5"
+version = "0.7.6"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -176,7 +176,7 @@ fandhe-frontend-interactive = { path = "../interactive", version = "0.2.4" }
 # へ再シードされる不具合を修正した。`Runtime` の公開シグネチャは不変・
 # 内部実装のみの変更のため、引き続き 0.7.4（本 PR で未公開のまま）へ
 # 吸収させ、追加のバンプは行わない。
-fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.5.0", default-features = false }
+fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.5.1", default-features = false }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 

@@ -374,8 +374,9 @@ fn build_dom_node_with_namespace(
 /// （本モジュール冒頭 doc の 2 層構成、`keyed_apply` モジュール doc 参照）。
 ///
 /// [`crate::keyed_apply::KeyedListDom::child_at`] のみ 1:1 委譲ではなく、
-/// `children` フィールド（本 struct 内で保持する `(key, Element)` の
-/// `Vec` キャッシュ）への添字アクセスで解決する（イシュー #1319。
+/// `children` フィールド（本 struct 内で保持する
+/// [`crate::keyed_children_cache::KeyedChildrenCache`]、`(key, Element)` の
+/// 順序付きキャッシュ）への添字アクセスで解決する（イシュー #1319。
 /// codex-review 指摘: `Element::children()` + `HtmlCollection::item(index)`
 /// を都度呼ぶ実装は、`HTMLCollection` が live collection であり
 /// `item(index)` の計算量が WHATWG 仕様上保証されないため、ブラウザ側の
@@ -385,7 +386,11 @@ fn build_dom_node_with_namespace(
 /// 実 DOM を一切問い合わせない純粋な `Vec` 操作のみで
 /// `insert_before`/`move_before` の追随更新を行う。これによりブラウザの
 /// `item()` 実装がどのような計算量であっても本アダプタの `child_at` は
-/// ブラウザ API のその計算量に依存しない）。
+/// ブラウザ API のその計算量に依存しない）。全削除ワークロードでの
+/// `Vec::remove` 連続呼び出しによる O(N²) 退行（PR #1392 codex-review P1
+/// 指摘）は [`crate::keyed_children_cache::KeyedChildrenCache`] が
+/// tombstone 化 + 遅延 compact で解消する（同モジュール doc「計算量保証」
+/// 参照）。
 struct WebSysKeyedDom<'a> {
     document: &'a Document,
     list_element: &'a Element,
@@ -398,23 +403,39 @@ struct WebSysKeyedDom<'a> {
     /// rustdoc 参照。SVG keyed list への挿入で HTML 名前空間の要素が生成
     /// されてしまう不具合の是正を維持する）。
     namespace: Option<&'a str>,
-    /// `child_at` が返す「現在の子要素列」のキャッシュ（`(data-key, Element)`
-    /// 順序付き `Vec`）。`None` は未構築（初回 `child_at` 呼び出しで
-    /// 実 DOM を 1 度だけ sibling 走査して埋める）を表す。
+    /// `child_at` が返す「現在の子要素列」のキャッシュ
+    /// （[`crate::keyed_children_cache::KeyedChildrenCache`]、`(data-key,
+    /// Element)` の順序付きハンドルキャッシュ）。`None` は未構築（初回
+    /// `child_at` 呼び出しで実 DOM を 1 度だけ sibling 走査して埋める）を
+    /// 表す。
     ///
     /// [`crate::keyed_apply::apply_ops`] は [`crate::keyed_diff::diff_keys`]
     /// が生成した操作列（`Remove` が必ず先頭にまとまり、続く `Move`/
     /// `Insert` は昇順 `index` で並ぶ、`keyed_diff` モジュール doc・
-    /// `diff_keys` 実装参照）を順に適用するため、最初の `child_at` 呼び出し
-    /// （最初の `Move`/`Insert` の直前）時点で全 `Remove` は実 DOM へ適用
-    /// 済みであり、ここで sibling 走査して得る並びは「削除後・挿入/移動
-    /// 適用前」の基準状態と一致する。以降 `insert_before`/`move_before` が
-    /// 実 DOM への適用と同時にこの `Vec` へも追随更新するため、キャッシュは
-    /// 常に実 DOM の並びと同期したまま保たれる。`remove_child` は
-    /// キャッシュ構築前にのみ呼ばれる契約だが、将来の呼び出し順変更に
-    /// 備えてキャッシュ構築後に呼ばれた場合は無効化（`None` へリセット、
-    /// 次回 `child_at` で再構築）する fail-safe を持つ。
-    children: Option<Vec<(String, Element)>>,
+    /// `diff_keys` 実装参照）を順に適用する。イシュー #1374 以降は `Remove`
+    /// の対象解決も [`crate::keyed_apply::KeyedListDom::find_by_key`]
+    /// （`ensure_children_cache` を内部で呼ぶ）を経由するため、キャッシュの
+    /// 初回構築は「最初の `Move`/`Insert` の直前」ではなく「最初の
+    /// `Remove`/`Move`/`Update` op の直前」（＝操作列中の最初の op の直前、
+    /// 通常は先頭にまとまる `Remove` の 1 件目）に前倒しされる。この時点は
+    /// まだどの `Remove` も実 DOM へ適用されていないため、sibling 走査して
+    /// 得る並びは「削除・挿入・移動のいずれも未適用」の基準状態と一致する
+    /// （旧 doc が述べていた「削除後・挿入/移動適用前」ではない）。以降
+    /// `insert_before`/`move_before`/`remove_child` が実 DOM への適用と同時に
+    /// このキャッシュへも追随更新するため、実 DOM の並びと同期したまま
+    /// 保たれる（イシュー #1374 で `remove_child` も `key` 引数を受けて
+    /// インプレース追随更新するよう変更した。旧実装は「Remove はキャッシュ
+    /// 構築前にのみ呼ばれる」前提で成功・失敗を問わず丸ごと `None`
+    /// 無効化する fail-safe を持っていたが、
+    /// [`crate::keyed_apply::KeyedListDom::find_by_key`] が
+    /// `Remove`/`Move`/`Update` 共通の対象解決を担うようになったことで
+    /// この前提は崩れ、丸ごと無効化のままだと全削除ワークロードで O(N²)
+    /// を再導入するため置き換えた。PR #1392 codex-review P1 是正で
+    /// `Vec::remove(pos)` を直接呼ぶ実装自体も全削除時に O(N²) の要素
+    /// シフトを引き起こすと判明し、
+    /// [`crate::keyed_children_cache::KeyedChildrenCache`]（tombstone 化 +
+    /// 遅延 compact）へ置き換えた。`remove_child` の doc 参照）。
+    children: Option<crate::keyed_children_cache::KeyedChildrenCache<Element>>,
 }
 
 impl WebSysKeyedDom<'_> {
@@ -432,7 +453,7 @@ impl WebSysKeyedDom<'_> {
     /// 経由することで、`Update` のみが発生する構成（構造変化なしの純粋な
     /// 内容変更、実運用上最も典型的な keyed list 更新パターン）でも実 DOM
     /// 走査は初回 1 回に抑えられ、以降は `children` への添字/線形走査
-    /// （実 DOM 呼び出しを伴わない `Vec` 操作）のみで完結する。
+    /// （実 DOM 呼び出しを伴わない純粋なメモリ操作）のみで完結する。
     fn ensure_children_cache(&mut self) {
         if self.children.is_some() {
             return;
@@ -446,7 +467,9 @@ impl WebSysKeyedDom<'_> {
                 items.push((key, child));
             }
         }
-        self.children = Some(items);
+        self.children = Some(crate::keyed_children_cache::KeyedChildrenCache::from_items(
+            items,
+        ));
     }
 }
 
@@ -475,10 +498,7 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     /// 実 DOM に触れない）。
     fn child_at(&mut self, index: usize) -> Option<Element> {
         self.ensure_children_cache();
-        self.children
-            .as_ref()
-            .and_then(|children| children.get(index))
-            .map(|(_, el)| el.clone())
+        self.children.as_mut()?.get(index)
     }
 
     fn create_item(&mut self, key: &str) -> Option<web_sys::Node> {
@@ -593,39 +613,49 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
             // #1340 codex-review P1〔3 巡目〕全走査対応）。
             return false;
         }
-        if let Some(children) = self.children.as_mut() {
-            // キャッシュ内の旧位置を `key` の文字列比較で特定する（実 DOM
-            // 呼び出しを一切伴わない純粋な `Vec` 走査。ブラウザ API の
-            // 計算量に依存しないという `child_at` の契約を、この追随更新
-            // 側でも維持するための設計）。
-            if let Some(pos) = children.iter().position(|(k, _)| k == key) {
-                children.remove(pos);
-            }
-            let pos = index.min(children.len());
-            children.insert(pos, (key.to_string(), child.clone()));
+        if let Some(cache) = self.children.as_mut() {
+            // キャッシュ内の旧位置を `key` の文字列比較で特定し、新しい
+            // 位置へ挿入し直す（実 DOM 呼び出しを一切伴わない純粋なメモリ
+            // 操作。ブラウザ API の計算量に依存しないという `child_at` の
+            // 契約を、この追随更新側でも維持するための設計。
+            // [`crate::keyed_children_cache::KeyedChildrenCache::move_to`]
+            // doc 参照）。
+            cache.move_to(key, index, child.clone());
         }
         true
     }
 
-    fn remove_child(&mut self, child: &Element) -> bool {
+    /// `key` 一致エントリを `children` キャッシュから実 DOM 再問い合わせ
+    /// なしに除去する（イシュー #1374。旧実装は成功・失敗いずれでも
+    /// キャッシュを丸ごと `None` へ無効化していたが、これは「Remove は
+    /// キャッシュ構築前にのみ呼ばれる」前提に依存しており、
+    /// [`KeyedListDom::find_by_key`]（`Remove`/`Move`/`Update` の対象解決を
+    /// 共通で担う、`keyed_apply::KeyedListDom::find_by_key` doc 参照）の
+    /// 導入でこの前提は崩れた。丸ごと無効化のまま維持すると、全削除
+    /// ワークロードで「Remove 1 件ごとにキャッシュを O(n) 再構築」を
+    /// 繰り返し O(N²) を再導入してしまう（親イシュー #1371 実測起点）。
+    ///
+    /// PR #1392 codex-review P1 是正: `children.remove(pos)`（`Vec` への
+    /// 直接除去）に置き換えた版も、全削除ワークロードでは対象が常に
+    /// 先頭（`pos == 0`）になるため `Vec::remove(0)` が残り全要素をシフト
+    /// し、合計の要素移動量が O(N²) へ退行していた（呼び出し回数自体は
+    /// O(N) のままのため、呼び出し回数だけを数える固定テストでは検知
+    /// できない）。[`crate::keyed_children_cache::KeyedChildrenCache::remove`]
+    /// （tombstone 化 + 遅延 compact、モジュール doc「計算量保証」参照）へ
+    /// 委譲することで、この経路の要素移動量を amortized O(N) へ是正した。
+    fn remove_child(&mut self, key: &str, child: &Element) -> bool {
         if self.list_element.remove_child(child).is_err() {
             // 実 DOM への削除自体が失敗（`child` が既に `list_element` の
-            // 子でない等）。`child` は実 DOM 上に残ったままのため、
-            // `children` キャッシュを無効化して「削除済み」と誤って扱わ
-            // ないようにする（次回 `child_at` で実 DOM から再構築させる
-            // fail-safe。イシュー #1340 codex-review P1〔3 巡目〕全走査
-            // 対応）。
-            self.children = None;
+            // 子でない等）。DOM 標準上 `removeChild` 失敗時は no-op であり
+            // `child` は実 DOM 上に残ったままのため、キャッシュも無変更の
+            // まま `false` を返す（トレイト契約「失敗時は DOM・内部
+            // キャッシュとも無変更」、イシュー #1340 codex-review P1
+            // 〔3 巡目〕全走査対応を `remove_child` にも一貫適用）。
             return false;
         }
-        // `diff_keys` は Remove を Move/Insert より必ず先に列挙するため
-        // （`keyed_diff` doc 参照）、通常は `children` キャッシュが構築
-        // される（最初の `child_at` 呼び出しが起きる）前にここへ到達する。
-        // 仮に将来アルゴリズムが変わりキャッシュ構築後に Remove が来ても、
-        // キャッシュを丸ごと無効化して次回 `child_at` で再構築させることで
-        // （コストは O(n) の再走査 1 回に留まる）誤ったキャッシュを使い
-        // 続けて誤挿入位置を返す不整合を防ぐ（fail-safe）。
-        self.children = None;
+        if let Some(cache) = self.children.as_mut() {
+            cache.remove(key);
+        }
         true
     }
 
@@ -656,7 +686,14 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     /// （本メソッドに失敗しうる分岐が存在しないため）。
     fn clear_children(&mut self) -> bool {
         self.list_element.set_text_content(None);
-        self.children = Some(Vec::new());
+        match self.children.as_mut() {
+            Some(cache) => cache.clear(),
+            None => {
+                self.children = Some(crate::keyed_children_cache::KeyedChildrenCache::from_items(
+                    Vec::new(),
+                ))
+            }
+        }
         true
     }
 
@@ -877,18 +914,22 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     }
 
     /// `children` キャッシュ（[`Self::ensure_children_cache`]、`child_at`
-    /// と共有）への線形走査で `key` の既存要素を解決する（イシュー #1324、
-    /// [`crate::keyed_apply::KeyedListDom::find_by_key`] doc 参照）。
-    /// キャッシュ未構築時はここで初めて実 DOM を 1 度だけ sibling 走査する
-    /// （`Update` のみが発生する構成、すなわち `Insert`/`Move` が 1 件も
-    /// 無く `child_at` が未呼び出しのケースでも、実 DOM 走査は高々 1 回に
-    /// 抑えられる契約をここで担保する）。
-    fn find_by_key(&mut self, key: &str) -> Option<Element> {
+    /// と共有）から `key` の既存要素の「現在位置とハンドル」を解決する
+    /// （イシュー #1324/#1374、
+    /// [`crate::keyed_apply::KeyedListDom::find_by_key`] doc 参照）。実体は
+    /// [`crate::keyed_children_cache::KeyedChildrenCache::find`] へ委譲する
+    /// （tombstone を跨いだ前方走査 + フォールバックの compact、同モジュール
+    /// doc「計算量保証」参照。PR #1392 codex-review P1 是正で単純な
+    /// `Vec::position` 全走査から置き換えた）。キャッシュ未構築時はここで
+    /// 初めて実 DOM を 1 度だけ sibling 走査する（`Update`/`Remove`/`Move`
+    /// のみが発生する構成、すなわち `Insert` が 1 件も無く `child_at` が
+    /// 未呼び出しのケースでも、実 DOM 走査は高々 1 回に抑えられる契約を
+    /// ここで担保する）。イシュー #1374 で `Remove`/`Move` の対象解決（旧
+    /// `find_child_by_key` の sibling 走査）もここへ統合され、全削除
+    /// ワークロードの O(N²) 退行を解消した。
+    fn find_by_key(&mut self, key: &str) -> Option<(usize, Element)> {
         self.ensure_children_cache();
-        self.children
-            .as_ref()
-            .and_then(|children| children.iter().find(|(k, _)| k == key))
-            .map(|(_, el)| el.clone())
+        self.children.as_mut()?.find(key)
     }
 
     /// `new`（[`crate::keyed_apply::KeyedListDom::create_item`] が構築済みの
@@ -930,11 +971,9 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         if !crate::keyed_apply::replace_root_node(&mut adapter, &old_as_node, &new) {
             return false;
         }
-        if let Some(children) = self.children.as_mut() {
-            if let Some(pos) = children.iter().position(|(k, _)| k == key) {
-                let new_element: Element = new.unchecked_into();
-                children[pos] = (key.to_string(), new_element);
-            }
+        if let Some(cache) = self.children.as_mut() {
+            let new_element: Element = new.unchecked_into();
+            cache.replace(key, new_element);
         }
         true
     }
@@ -946,18 +985,20 @@ impl WebSysKeyedDom<'_> {
     /// （キャッシュ未構築なら no-op、[`Self::child_at`] doc 参照。トレイト
     /// 非公開のヘルパーのため本 struct の inherent メソッドとして持つ）。
     fn cache_inserted_nodes(&mut self, start_index: usize, items: Vec<(String, web_sys::Node)>) {
-        let Some(children) = self.children.as_mut() else {
+        let Some(cache) = self.children.as_mut() else {
             return;
         };
-        let start = start_index.min(children.len());
-        for (pos, (key, node)) in (start..).zip(items) {
+        for (pos, (key, node)) in (start_index..).zip(items) {
             // `node` は `build_dom_node_with_namespace` が `Node::Element`
             // から構築した要素ノード（`create_item` の契約、`keyed_dom`
             // モジュール doc 不変条件 4 参照）であり `Element` へのダウン
-            // キャストは安全。以降は実 DOM を問い合わせない純粋な `Vec`
-            // 操作のみでキャッシュを追随させる。
+            // キャストは安全。以降は実 DOM を問い合わせない純粋なメモリ
+            // 操作のみでキャッシュを追随させる
+            // （[`crate::keyed_children_cache::KeyedChildrenCache::insert`]
+            // が挿入先位置を現在の生存件数でクランプするため、ここでの
+            // 事前クランプは不要）。
             let element: Element = node.unchecked_into();
-            children.insert(pos, (key, element));
+            cache.insert(pos, key, element);
         }
     }
 }

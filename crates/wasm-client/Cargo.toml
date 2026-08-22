@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-client"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"
@@ -191,6 +191,14 @@ categories = ["wasm", "web-programming"]
 # ことで、実際の吸収先は 0.5.0（本 Cargo.toml の `version` フィールド）へ
 # 前進している。0.5.0 も同じく sparse index で未公開を確認済みであり、
 # 「未公開ウィンドウ中の変更相乗り」の判断自体は変わらない。
+#
+# 0.5.0 → 0.5.1（イシュー #1374、PR #1392）: find_child_by_key の sibling
+# 走査をキー→Element ハンドルキャッシュ（`keyed_children_cache.rs` 新設、
+# tombstone + 遅延一括 compaction）へ統合する src/ 実体変更のため、公開
+# クレートの semver バンプ必須条項（`.claude/rules/coding-rust.md`、
+# PR #1392 codex-review P1 指摘）に従い patch バンプした。公開 API の
+# シグネチャ追加・変更はなく内部実装のみのため patch とする（0.5.1 も
+# crates.io 未公開ウィンドウ内）。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.4.0" }
 fandhe-frontend-app = { path = "../app", version = "0.2.3" }

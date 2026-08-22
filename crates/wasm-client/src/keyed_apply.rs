@@ -347,17 +347,32 @@ pub(crate) trait KeyedListDom {
         reference: Option<&Self::Handle>,
     ) -> bool;
 
-    /// `child` をコンテナから取り除く（`Element::remove_child`）。
+    /// `child`（キー `key`）をコンテナから取り除く（`Element::remove_child`）。
     ///
     /// # 戻り値（イシュー #1340 codex-review P1〔3 巡目〕全走査対応）
     ///
     /// 実 DOM への `remove_child` が失敗した場合は `false` を返す（`child`
     /// は実 DOM 上に残ったまま）。`remove_child` は単一 DOM 呼び出しのみで
     /// 構成され、失敗時は仕様上 DOM を一切変更しないためロールバックは
-    /// 不要。実装は失敗時に内部の索引キャッシュから `child` を除去しては
-    /// ならない（キャッシュ上だけ「削除済み」として扱うと、以後の差分基準
-    /// が実 DOM と恒久的に乖離する）。
-    fn remove_child(&mut self, child: &Self::Handle) -> bool;
+    /// 不要。
+    ///
+    /// # `key` 引数とキャッシュ追随更新（イシュー #1374）
+    ///
+    /// 成功時、実装は内部の索引キャッシュから `key` 一致エントリを実 DOM
+    /// への再問い合わせなしに特定して除去すること（`move_before` が `key`
+    /// を受けて純 Vec 操作でキャッシュ追随更新する既存パターンの踏襲、
+    /// [`crate::keyed_dom::WebSysKeyedDom::move_before`] 参照）。旧実装
+    /// （`Handle` のみを受け取り、成功・失敗いずれでもキャッシュを丸ごと
+    /// `None` へ無効化する fail-safe）は「Remove はキャッシュ構築前にのみ
+    /// 呼ばれる」前提に依存していたが、[`Self::find_by_key`] が
+    /// `Remove`/`Move`/`Update` の対象解決を共通で担うようになった
+    /// （イシュー #1374、`find_by_key` doc 参照）ことでこの前提は崩れて
+    /// おり、丸ごと無効化のまま維持すると「Remove 件数 × リスト長」の
+    /// 再構築コストが積み上がり全削除ワークロードで O(N²) を再導入する。
+    /// 失敗時は DOM 無変更のためキャッシュも無変更のまま `false` を返す
+    /// （キャッシュ上だけ「削除済み」として扱うと、以後の差分基準が実 DOM
+    /// と恒久的に乖離するため）。
+    fn remove_child(&mut self, key: &str, child: &Self::Handle) -> bool;
 
     /// `child` の現在のタグ名を ASCII 小文字化して返す（`Element::tagName`
     /// 相当、イシュー #1340 codex-review P1/Bugbot〔10 巡目〕対応）。
@@ -474,21 +489,29 @@ pub(crate) trait KeyedListDom {
     /// 成功した場合のみ既存の子を除去し新しい子を追加して `true` を返す。
     fn replace_item_children(&mut self, child: &Self::Handle, new_children: &[Node]) -> bool;
 
-    /// `key` に対応する既存要素のハンドルを解決する（[`KeyedOp::Update`]
-    /// 適用専用、イシュー #1324）。
+    /// `key` に対応する既存要素の「現在位置（0-origin）とハンドル」を解決
+    /// する（[`KeyedOp::Remove`]/[`KeyedOp::Move`]/[`KeyedOp::Update`] 共通の
+    /// 対象解決、イシュー #1324/#1374）。
     ///
-    /// [`find_child_by_key`]（`Remove`/`Move` が使う、`first_element_child`/
-    /// `next_element_sibling`/`item_key` による毎回の sibling 走査）を
-    /// `Update` にも流用すると、`Update` 件数 × リスト長 に比例する実 DOM
-    /// 呼び出し（構造変化を伴わない純粋な内容変更のみの構成では
-    /// [`Self::child_at`] が一度も呼ばれないため、`web-sys` 実装のキャッシュ
-    /// も温まらない）が発生し、#1318/#1319 が固定した O(n) 相当の契約を
-    /// `Update` 経路だけ破ってしまう。実装は [`Self::child_at`] と同様に
-    /// 初回呼び出しでのみ実 DOM を走査し、以降は実 DOM 呼び出しを伴わない
-    /// 索引・線形走査で解決すること（`web-sys` 実装
-    /// [`crate::keyed_dom::WebSysKeyedDom`] は `child_at` と同じ `children`
-    /// キャッシュを共有する）。
-    fn find_by_key(&mut self, key: &str) -> Option<Self::Handle>;
+    /// 旧実装は `Update` 専用であり、`Remove`/`Move` は独自に
+    /// `first_element_child`/`next_element_sibling`/`item_key` による毎回の
+    /// sibling 走査（`find_child_by_key`、イシュー #1374 で削除）を使って
+    /// いた。全削除ワークロードでは「op 件数 × リスト長」に比例する実 DOM
+    /// 呼び出しとなり O(N²) へ退行する（親イシュー #1371 実測）。本メソッド
+    /// へ統合することで `Remove`/`Move`/`Update` のいずれも [`Self::child_at`]
+    /// と同じ索引・線形走査で解決され、#1318/#1319 が固定した O(n) 相当の
+    /// 契約を一貫して満たす。
+    ///
+    /// 実装は [`Self::child_at`] と同様に初回呼び出しでのみ実 DOM を走査し、
+    /// 以降は実 DOM 呼び出しを伴わない索引・線形走査で解決すること
+    /// （`web-sys` 実装 [`crate::keyed_dom::WebSysKeyedDom`] は `child_at` と
+    /// 同じ `children` キャッシュを共有する）。戻り値の位置は呼び出し元
+    /// （[`apply_ops_with_items`]）が [`Self::move_before`] の「既に正位置」
+    /// 判定（`pos == adjusted` のときのみ `move_before` 呼び出し自体を省略
+    /// する。`pos < adjusted` は目標順への不到達を示す不変条件違反として
+    /// `resync_required` を立てる、PR #1392 codex-review 第 3 巡 P1 是正）
+    /// に使う。
+    fn find_by_key(&mut self, key: &str) -> Option<(usize, Self::Handle)>;
 
     /// `old`（キー `key` の既存要素）を `new`（[`Self::create_item`] が
     /// 構築済みの新規ノード）へ置き換える（[`KeyedOp::Update`] のうち
@@ -780,19 +803,6 @@ pub(crate) fn synthesize_live_placeholder_items<D: KeyedListDom>(
         .collect()
 }
 
-/// `key` に対応する既存の子要素を探す（`data-key` 属性の完全一致、
-/// [`crate::keyed_dom::find_child_by_key`] の等価移植）。
-fn find_child_by_key<D: KeyedListDom>(dom: &mut D, key: &str) -> Option<D::Handle> {
-    let mut maybe_child = dom.first_element_child();
-    while let Some(child) = maybe_child {
-        if dom.item_key(&child).as_deref() == Some(key) {
-            return Some(child);
-        }
-        maybe_child = dom.next_element_sibling(&child);
-    }
-    None
-}
-
 /// `dom` の現在のキー列を読み出したうえで [`crate::keyed_diff::diff_keys`]
 /// が計画した操作列を適用する（[`crate::keyed_dom::apply_keyed_list`] の
 /// 走査アルゴリズム本体、等価移植）。
@@ -912,8 +922,8 @@ fn apply_ops_list<D: KeyedListDom>(dom: &mut D, ops: Vec<KeyedOp>) -> bool {
     while i < ops.len() {
         match &ops[i] {
             KeyedOp::Remove { key } => {
-                if let Some(child) = find_child_by_key(dom, key) {
-                    if !dom.remove_child(&child) {
+                if let Some((_, child)) = dom.find_by_key(key) {
+                    if !dom.remove_child(key, &child) {
                         // 実 DOM への `remove_child` 自体が失敗（`child` は
                         // 実 DOM 上に残存）。当該キーは目標状態（削除済み）
                         // に到達していないため未達成として扱う（イシュー
@@ -975,7 +985,7 @@ fn apply_ops_list<D: KeyedListDom>(dom: &mut D, ops: Vec<KeyedOp>) -> bool {
                 i = j;
             }
             KeyedOp::Move { index, key } => {
-                if let Some(existing) = find_child_by_key(dom, key) {
+                if let Some((_pos, existing)) = dom.find_by_key(key) {
                     let adjusted = index.saturating_sub(index_offset);
                     let reference = dom.child_at(adjusted);
                     if !dom.move_before(adjusted, key, &existing, reference.as_ref()) {
@@ -1211,8 +1221,11 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
     for op in ops {
         match op {
             KeyedOp::Remove { key } => {
-                if let Some(child) = find_child_by_key(dom, &key) {
-                    if !dom.remove_child(&child) {
+                // `find_child_by_key`（sibling 走査）は削除済み。`Update` と
+                // 同じくハンドルキャッシュ経由の `find_by_key` で解決する
+                // （イシュー #1374、全削除ワークロードの O(N²) 解消が本体）。
+                if let Some((_, child)) = dom.find_by_key(&key) {
+                    if !dom.remove_child(&key, &child) {
                         // 実 DOM への `remove_child` 自体が失敗（`child` は
                         // 実 DOM 上に残存）。`Remove` は位置を持たない op の
                         // ため `index_offset` は変えないが、対象キーが最終的
@@ -1260,7 +1273,11 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                 }
             }
             KeyedOp::Move { index, key } => {
-                let Some(existing) = find_child_by_key(dom, &key) else {
+                // `find_child_by_key`（sibling 走査）は削除済み。`Remove`/
+                // `Update` と同じくハンドルキャッシュ経由の `find_by_key` で
+                // 解決する（イシュー #1374）。戻り値の現在位置 `pos` は下記
+                // 「既に正位置」判定にも使う。
+                let Some((pos, existing)) = dom.find_by_key(&key) else {
                     // 移動対象キーがライブ DOM 上に見つからない（改ざん等の
                     // 異常系）。目標スロットが埋まらないため `Insert` の
                     // 構築失敗と同様に未達成スロットとして扱う
@@ -1271,23 +1288,70 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     continue;
                 };
                 let adjusted = index.saturating_sub(index_offset);
-                let reference = dom.child_at(adjusted);
-                if !dom.move_before(adjusted, &key, &existing, reference.as_ref()) {
-                    // 実 DOM への移動自体が失敗（`move_before` 契約により
-                    // DOM・内部キャッシュとも無変更のまま、`existing` は
-                    // 移動前の位置に残る）。アイテム数自体は変わらないため
-                    // `index_offset` は増やさないが、並び順が計画と乖離する
-                    // ため `resync_required` を立てる（イシュー #1340
-                    // codex-review P1〔3 巡目〕全走査対応）。
+                // 「既に正位置」判定は `pos == adjusted`（参照ノードが自分
+                // 自身であり `insertBefore` が no-op になるケース）のみに
+                // 限定する（PR #1392 codex-review 第 3 巡 P1 是正、イシュー
+                // #1374）。
+                //
+                // 旧実装は `pos + 1 == adjusted`（参照ノードが直後の兄弟）も
+                // 同じ skip 対象にしていたが、この条件は「ローカルな
+                // `insertBefore` 呼び出し 1 回が no-op になる」ことしか
+                // 保証せず、「目標順（`adjusted`）へ到達している」ことを
+                // 保証しない。`diff_keyed_items`（`insert_or_move_pass`、
+                // core `keyed.rs`）が発行する `Move { index, .. }` は「位置
+                // 0..adjusted は既に目標順で確定済み」という不変条件の下で
+                // 計算されており、この不変条件が保たれている限り移動対象
+                // アイテムの生存順位置 `pos` は常に `adjusted` 以上になる
+                // （`pos` が `adjusted` 未満の位置は、既に確定済みの別
+                // アイテムで占有されているはずのため）。したがって
+                // `pos + 1 == adjusted`（`pos == adjusted - 1`）は、この
+                // 不変条件が保たれている限り理論上到達しない分岐であり、
+                // 実際に到達した場合はライブ DOM とキャッシュ・計画上の
+                // 位置が乖離している（改ざん・cache-miss フォールバック
+                // 由来の desync 等）ことを意味する。この乖離を「参照ノードが
+                // 直後の兄弟だから no-op で正しい」と誤認して黙って
+                // skip すると、`ApplyOutcome::final_keys` が示す目標キー列と
+                // 実 DOM の並びが恒久的に乖離したまま `resync_required` が
+                // 立たない（PR #1392 codex-review 第 3 巡 P1 指摘、実例は
+                // `apply_ops_with_items_move_before_desync_below_adjusted_sets_resync_required`
+                // 参照）。
+                //
+                // このため `pos < adjusted` を検知した時点で不変条件違反
+                // として `resync_required` を立て、**DOM・キャッシュには
+                // 一切触れない**（fail-closed）。違反状態で `move_before` を
+                // 呼ぶと、`KeyedChildrenCache::move_to` は移動元が移動先
+                // 以降にあることを前提とするため、DOM の `insertBefore`
+                // （後方参照ノードでは実際には `adjusted - 1` へ着地する）
+                // とキャッシュの並びが同一 apply 内の後続 op から乖離し、
+                // resync が効く前に誤った操作を連鎖させてしまう
+                // （PR #1392 Bugbot Medium 指摘）。乖離の解消は
+                // `resync_required` による構造フォールバックへ委ねる。
+                // `pos > adjusted` の正常系のみ実際に `move_before` を呼ぶ
+                // （`pos + 1 == adjusted` の局所的な no-op 最適化は撤回
+                // 済み。正しさを優先し、`child_at`/`move_before` 呼び出し
+                // 1 回分のコストよりも「未達成 Move を成功扱いしない」
+                // ことを優先する。PR #1392 codex-review 第 3 巡 P1）。
+                if pos < adjusted {
                     resync_required = true;
+                } else if pos != adjusted {
+                    let reference = dom.child_at(adjusted);
+                    if !dom.move_before(adjusted, &key, &existing, reference.as_ref()) {
+                        // 実 DOM への移動自体が失敗（`move_before` 契約により
+                        // DOM・内部キャッシュとも無変更のまま、`existing` は
+                        // 移動前の位置に残る）。アイテム数自体は変わらないため
+                        // `index_offset` は増やさないが、並び順が計画と乖離する
+                        // ため `resync_required` を立てる（イシュー #1340
+                        // codex-review P1〔3 巡目〕全走査対応）。
+                        resync_required = true;
+                    }
                 }
             }
             KeyedOp::Update { key } => {
-                // `find_child_by_key`（sibling 走査、Remove/Move 用）ではなく
+                // `Remove`/`Move` と共通のハンドルキャッシュ経由
                 // `KeyedListDom::find_by_key` を使う（O(n²) 退行防止、
                 // `find_by_key` doc・本モジュール doc「Update op の DOM
-                // 適用」参照）。
-                let Some(existing) = dom.find_by_key(&key) else {
+                // 適用」参照）。現在位置は Update では未使用のため破棄する。
+                let Some((_pos, existing)) = dom.find_by_key(&key) else {
                     // 保持キーのはずが実 DOM 上に見つからない（改ざん等の
                     // 異常系）。`Update` は構造（位置）を変えない op のため
                     // `index_offset` は増やさないが、対象キーの内容が
@@ -1849,7 +1913,7 @@ mod tests {
                 .items
                 .iter()
                 .position(|k| k == child)
-                .expect("move_before の対象は事前に find_child_by_key で存在確認済みのはず");
+                .expect("move_before の対象は事前に find_by_key で存在確認済みのはず");
             let removed = self.items.remove(from);
             let pos = match reference {
                 Some(r) => self
@@ -1863,7 +1927,7 @@ mod tests {
             true
         }
 
-        fn remove_child(&mut self, child: &Self::Handle) -> bool {
+        fn remove_child(&mut self, _key: &str, child: &Self::Handle) -> bool {
             self.calls.remove_child += 1;
             if self.fail_remove_child_for.contains(child) {
                 // 実 DOM 削除失敗を模擬: `self.items` を一切変更せず `false`
@@ -2052,9 +2116,12 @@ mod tests {
         /// は初回のみ実 DOM を走査してキャッシュを構築し、以降は同様に
         /// 実 DOM 非依存の走査で解決する契約であり、本モックは「初回構築
         /// 後は実 DOM 呼び出しゼロ」という性質のみを模している）。
-        fn find_by_key(&mut self, key: &str) -> Option<Self::Handle> {
+        fn find_by_key(&mut self, key: &str) -> Option<(usize, Self::Handle)> {
             self.calls.find_by_key += 1;
-            self.items.iter().find(|k| k.as_str() == key).cloned()
+            self.items
+                .iter()
+                .position(|k| k.as_str() == key)
+                .map(|pos| (pos, self.items[pos].clone()))
         }
 
         /// `web-sys` 実装（`textContent` クリア 1 回）を模擬する
@@ -2143,7 +2210,7 @@ mod tests {
             unreachable!("本テストは全キー削除のみを exercise するため Move は呼ばれない")
         }
 
-        fn remove_child(&mut self, child: &Self::Handle) -> bool {
+        fn remove_child(&mut self, _key: &str, child: &Self::Handle) -> bool {
             self.remove_child_calls += 1;
             if let Some(pos) = self.items.iter().position(|k| k == child) {
                 self.items.remove(pos);
@@ -2169,8 +2236,11 @@ mod tests {
             true
         }
 
-        fn find_by_key(&mut self, key: &str) -> Option<Self::Handle> {
-            self.items.iter().find(|k| k.as_str() == key).cloned()
+        fn find_by_key(&mut self, key: &str) -> Option<(usize, Self::Handle)> {
+            self.items
+                .iter()
+                .position(|k| k.as_str() == key)
+                .map(|pos| (pos, self.items[pos].clone()))
         }
 
         fn replace_root(&mut self, _old: &Self::Handle, _key: &str, _new: Self::NewNode) -> bool {
@@ -2185,7 +2255,8 @@ mod tests {
         /// 必須であることを示す実装例（イシュー #1373 codex-review P2）。
         fn clear_children(&mut self) -> bool {
             while let Some(child) = self.first_element_child() {
-                if !self.remove_child(&child) {
+                let key = child.clone();
+                if !self.remove_child(&key, &child) {
                     return false;
                 }
             }
@@ -2422,8 +2493,8 @@ mod tests {
         ) -> bool {
             self.inner.move_before(index, key, child, reference)
         }
-        fn remove_child(&mut self, child: &Self::Handle) -> bool {
-            self.inner.remove_child(child)
+        fn remove_child(&mut self, key: &str, child: &Self::Handle) -> bool {
+            self.inner.remove_child(key, child)
         }
         fn tag_name(&mut self, child: &Self::Handle) -> String {
             self.inner.tag_name(child)
@@ -2441,7 +2512,7 @@ mod tests {
         fn replace_item_children(&mut self, child: &Self::Handle, new_children: &[Node]) -> bool {
             self.inner.replace_item_children(child, new_children)
         }
-        fn find_by_key(&mut self, key: &str) -> Option<Self::Handle> {
+        fn find_by_key(&mut self, key: &str) -> Option<(usize, Self::Handle)> {
             self.inner.find_by_key(key)
         }
         fn replace_root(&mut self, old: &Self::Handle, key: &str, new: Self::NewNode) -> bool {
@@ -4875,6 +4946,259 @@ mod tests {
             "1,000 行中 1 件更新の DOM 操作総数は 1,500 回以内のはず \
              （実測: {total}、内訳: {:?}）",
             dom.calls
+        );
+    }
+
+    // --- コスト固定テスト（イシュー #1374、Remove/Move のハンドル
+    // キャッシュ統合版）---
+    //
+    // `apply_ops_with_items` は `Remove`/`Move` の対象解決に旧
+    // `find_child_by_key`（`first_element_child`/`next_element_sibling`/
+    // `item_key` による毎回の sibling 走査）を使わず、`Update` と共通の
+    // `KeyedListDom::find_by_key`（ハンドルキャッシュ経由）を使う（本
+    // モジュール doc・`find_by_key` トレイト doc 参照）。以下のテストは
+    // `apply_ops_with_items` の diff 適用ループ中に sibling 走査系メソッド
+    // （`first_element_child`/`next_element_sibling`/`item_key`）が一切
+    // 呼ばれないことを固定する（受け入れ基準 1 の機械固定、退行時は
+    // これらのカウンタが 0 でなくなり即座に検知する）。
+
+    /// 1,000 行中 999 行削除・1 行保持（全削除ではなく、`Remove` op 適用
+    /// ループを実際に通す構成、PR #1392 Bugbot Medium 指摘の是正）:
+    /// `new_items` を空にする従来の書き方では、`apply_ops_with_items` 冒頭の
+    /// 一括 clear 高速経路（イシュー #1373、`new_items.is_empty()` かつ
+    /// `old_items` 非空で `diff_keyed_items`/`find_by_key`/`remove_child` を
+    /// 一切呼ばず `clear_children` 1 回に集約する分岐、本関数冒頭のコメント
+    /// 参照）へ迂回してしまい、本テストが検証したいはずの `Remove` op
+    /// 適用ループ（`find_by_key`/`remove_child`）を一度も通らないまま
+    /// `dom.calls.clear_children == 1` だけで PASS していた（本コメント修正
+    /// 前の実測は `clear_children` 1 回のみ、`find_by_key`/`remove_child`
+    /// は 0 回）。一括 clear 経路自体の検証は専用テスト
+    /// [`apply_ops_with_items_clears_all_keys_via_single_clear_children_call`]・
+    /// [`apply_ops_with_items_does_not_use_clear_path_when_some_keys_are_kept`]・
+    /// [`apply_ops_with_items_signals_resync_required_when_clear_children_fails`]
+    /// が別途担うため、本テストは `new_items` を非空（末尾 1 件を保持）に
+    /// して確実に通常の diff 適用ループへ入るようにする。
+    ///
+    /// `apply_ops_with_items` は `old_items`（引数）を diff 入力に使い、DOM
+    /// から現在のキー列を読まない（[`apply_ops`] の `dom_item_keys` 呼び出し
+    /// はここには無い）ため、sibling 走査は構造的にゼロになる。
+    /// `diff_keyed_items` は `Remove` を `old_items` の出現順（`k0, k1, ...`）
+    /// で発行し、各 `Remove` の対象キーは直前の `Remove` で先頭要素が取り
+    /// 除かれた結果、常に `CountingDom.items` の先頭（index 0）に位置する。
+    /// `find_by_key` の実装（`Vec::position`）は一致した時点で走査を打ち
+    /// 切るため、この「常に先頭」という性質により 999 件の削除でも
+    /// `find_by_key` の総走査コストは O(n) に収まる（最悪ケースなら O(n²)
+    /// になり得る一般的な `Vec` 線形走査とは異なる、本テスト固有の理由。
+    /// なお `CountingDom` は呼び出し回数のみを数えるモックであり、実際の
+    /// 要素移動量〔`Vec::remove` によるシフトコスト〕は計測しない —
+    /// その計算量保証は実装本体
+    /// [`crate::keyed_children_cache::KeyedChildrenCache`] を直接駆動する
+    /// native テスト
+    /// `crate::keyed_children_cache::tests::remove_all_but_last_never_shifts_elements`
+    /// が固定する）。末尾 1 件（保持対象）は内容も位置も変わらないため
+    /// `Move`/`Update` は発生しない。実測 1,998 回（`find_by_key`/
+    /// `remove_child` 各 999 回）に余裕を持った上限（2,500 回）で固定する。
+    #[test]
+    fn apply_ops_with_items_remove_all_but_last_of_1000_rows_stays_linear() {
+        const N: usize = 1_000;
+        let old_items = items_n(N, "v");
+        let new_items: Vec<(String, Node)> = vec![old_items[N - 1].clone()];
+        let mut dom = CountingDom {
+            items: (0..N).map(|i| format!("k{i}")).collect(),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert_eq!(
+            outcome.final_keys,
+            vec![format!("k{}", N - 1)],
+            "末尾 1 件のみ保持されるはず"
+        );
+        assert!(!outcome.resync_required);
+        assert_eq!(
+            dom.items,
+            vec![format!("k{}", N - 1)],
+            "全削除後はライブ側（items）も保持した 1 件のみになるはず"
+        );
+        assert_eq!(
+            dom.calls.clear_children, 0,
+            "本テストは一括 clear 高速経路（イシュー #1373）を通らない \
+             構成のはず（`new_items` が非空）。0 でなければ意図せず \
+             clear 経路へ迂回しており、Remove op 適用ループの \
+             find_by_key/remove_child が未検証のまま PASS してしまう \
+             （PR #1392 Bugbot Medium 指摘の再発検知）"
+        );
+        assert_eq!(
+            dom.calls.first_element_child + dom.calls.next_element_sibling + dom.calls.item_key,
+            0,
+            "Remove の対象解決に sibling 走査（first_element_child/ \
+             next_element_sibling/item_key）が発生してはならない \
+             （旧 find_child_by_key の再混入を検知、内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.calls.find_by_key,
+            N - 1,
+            "Remove 999 件それぞれが find_by_key を 1 回ずつ呼ぶはず \
+             （内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.calls.remove_child,
+            N - 1,
+            "Remove 999 件それぞれが remove_child を 1 回ずつ呼ぶはず \
+             （内訳: {:?}）",
+            dom.calls
+        );
+        let total = dom.calls.total();
+        assert!(
+            total <= 2_500,
+            "1,000 行中 999 行削除の DOM 操作総数は 2,500 回以内のはず \
+             （実測: {total}、内訳: {:?}）。ハンドルキャッシュ統合 \
+             （イシュー #1374）からの退行を検知する上限",
+            dom.calls
+        );
+    }
+
+    /// 1,000 行の並び替え（先頭↔末尾を含む全体反転、Move 主体）:
+    /// `Remove`/`Insert` を伴わない純粋な Move のみの構成でも sibling 走査
+    /// （`first_element_child`/`next_element_sibling`/`item_key`）が一切
+    /// 発生しないことを固定する（受け入れ基準 1）。適用後の並びが目標
+    /// （反転順）と一致することも合わせて検証する。合計呼び出し回数は
+    /// 上限を設けない（`find_by_key` の `Vec` 線形走査コスト自体は本
+    /// イシューの対象外、本モジュール `find_by_key` トレイト doc 参照）。
+    #[test]
+    fn apply_ops_with_items_reorder_1000_rows_has_no_sibling_traversal() {
+        const N: usize = 1_000;
+        let old_items = items_n(N, "v");
+        let mut new_items = old_items.clone();
+        new_items.reverse();
+        let mut dom = CountingDom {
+            items: (0..N).map(|i| format!("k{i}")).collect(),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        let expected: Vec<String> = (0..N).rev().map(|i| format!("k{i}")).collect();
+        assert_eq!(
+            dom.items, expected,
+            "適用後のライブ側の並びは反転順と一致するはず"
+        );
+        assert_eq!(
+            dom.calls.first_element_child + dom.calls.next_element_sibling + dom.calls.item_key,
+            0,
+            "Move の対象解決に sibling 走査が発生してはならない（旧 \
+             find_child_by_key の再混入を検知、内訳: {:?}）",
+            dom.calls
+        );
+    }
+
+    /// `Move` op の対象が既にライブ DOM 上で目標位置（`pos == adjusted`）に
+    /// ある場合、`move_before`（参照ノード解決の `child_at` を含む）自体を
+    /// 丸ごと省略する最適化（イシュー #1374。PR #1392 codex-review 第 3 巡
+    /// P1 是正により、対象は `pos == adjusted` の厳密一致のみへ縮小した。
+    /// 縮小の経緯は `apply_ops_with_items` 内 `KeyedOp::Move` arm の doc
+    /// コメント参照）。
+    ///
+    /// `old_items`/`new_items` は `diff_keyed_items` が
+    /// `Move { index: 1, key: "c" }` 1 件のみを発行する構成
+    /// （`old=[a,b,c]` → `new=[a,c,b]`）を使う。`dom`（ライブ側）は
+    /// `old_items` とは独立した引数（`apply_ops_with_items` は両者の同期を
+    /// 前提としない）だが、本テストでは意図的に**目標順を既に達成した**
+    /// `[a, c, b]` で初期化する。`c` の現在位置 `pos=1` は `Move` の目標
+    /// 位置 `adjusted=1` と厳密一致するため、`move_before`/`child_at` を
+    /// 呼ばずに skip してもライブ DOM は目標順のまま変化しない（真に
+    /// 「既に正位置」であるケースのみを skip 対象にする本来の意図を表す）。
+    #[test]
+    fn apply_ops_with_items_skips_move_before_when_already_in_position() {
+        let old_items = vec![item("a", "v"), item("b", "v"), item("c", "v")];
+        let new_items = vec![item("a", "v"), item("c", "v"), item("b", "v")];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string(), "c".to_string(), "b".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        assert_eq!(
+            dom.calls.move_before, 0,
+            "既に正位置（pos == adjusted）の Move は move_before を呼ばずに \
+             skip されるはず（内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.calls.child_at, 0,
+            "skip 時は参照ノード解決（child_at）自体も呼ばれないはず \
+             （内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.items,
+            vec!["a".to_string(), "c".to_string(), "b".to_string()],
+            "skip 後もライブ DOM の並びは目標順のまま変化しないはず"
+        );
+    }
+
+    /// PR #1392 codex-review 第 3 巡 P1 回帰固定: `pos + 1 == adjusted`
+    /// （参照ノードが移動対象の直後の兄弟）というローカルな `insertBefore`
+    /// no-op 条件だけで「既に正位置」とみなし `move_before` を skip する旧
+    /// 実装は、ライブ DOM が `old_items` の想定並びから乖離している場合に
+    /// **目標順へ到達していない Move を成功扱いしてしまう**バグを持って
+    /// いた（`apply_ops_with_items` 内 `KeyedOp::Move` arm の doc コメント
+    /// 「既に正位置」判定の縮小理由も参照）。
+    ///
+    /// `old_items`/`new_items` は `diff_keyed_items` が
+    /// `Move { index: 1, key: "c" }` 1 件のみを発行する構成
+    /// （`old=[a,b,c]` → `new=[a,c,b]`）を使う。`dom`（ライブ側）は
+    /// `old_items` の想定並びとは異なる `[c, a, b]` で初期化し、
+    /// 「ライブ DOM が計画とずれている」不変条件違反を模擬する
+    /// （`c` の現在位置 `pos=0` は目標位置 `adjusted=1` を 1 下回る
+    /// `pos + 1 == adjusted` のケース）。
+    ///
+    /// 是正後の実装は `pos < adjusted` を検知した時点で不変条件違反として
+    /// `resync_required` を立て、かつ `pos == adjusted` の厳密一致でない
+    /// 限り必ず `move_before` を実際に呼ぶ（本ケースは `insertBefore` 自体は
+    /// ローカルには no-op になるため実 DOM の並びは `[c, a, b]` のまま
+    /// 目標順 `[a, c, b]` には到達しないが、その未達成を
+    /// `resync_required = true` で正しく可視化する。これは弱体化ではなく
+    /// 「未達成 Move を黙って成功扱いしていた」旧テストの期待を是正した
+    /// ものである）。
+    #[test]
+    fn apply_ops_with_items_move_before_desync_below_adjusted_sets_resync_required() {
+        let old_items = vec![item("a", "v"), item("b", "v"), item("c", "v")];
+        let new_items = vec![item("a", "v"), item("c", "v"), item("b", "v")];
+        let mut dom = CountingDom {
+            items: vec!["c".to_string(), "a".to_string(), "b".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "ライブ DOM が計画上の並びから乖離している（pos < adjusted）\
+             場合は resync_required が立つはず（内訳: {:?}）",
+            dom.calls
+        );
+        // 不変条件違反（pos < adjusted）の検知時は DOM・キャッシュに一切
+        // 触れず fail-closed に resync へ委ねる（PR #1392 Bugbot Medium
+        // 指摘: 違反状態で move_before を呼ぶと `KeyedChildrenCache::
+        // move_to` の前提〔移動元は移動先以降〕が崩れ、同一 apply 内の
+        // 後続 op がキャッシュと実 DOM の乖離を連鎖させる）。
+        assert_eq!(
+            dom.calls.move_before, 0,
+            "不変条件違反の検知時は move_before を呼ばず DOM を無変更の \
+             まま resync へ委ねるはず（内訳: {:?}）",
+            dom.calls
+        );
+        assert_eq!(
+            dom.items,
+            vec!["c", "a", "b"],
+            "不変条件違反の検知時はライブ DOM を変更しないはず"
         );
     }
 }
