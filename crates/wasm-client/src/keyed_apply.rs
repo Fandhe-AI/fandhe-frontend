@@ -1148,6 +1148,25 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
     // 何もせず `ApplyOutcome::default()` 相当を返す（境界呼び出しゼロを
     // 維持）。
     if !old_items.is_empty() && new_items.is_empty() {
+        // 一括 clear 経路でも通常経路（`diff_keyed_items` 内の
+        // `enforce_key_limits`）と同一の上限検証を先に適用する（PR #1391
+        // codex-review P1 是正）。この経路は `HashMap`/`HashSet` を構築せず
+        // HashDoS の計算量リスク自体は持たないが、上限超過入力の扱いが
+        // 「通常経路は fail-closed に `resync_required`、全削除だけ成功」と
+        // 入力形状で分岐すると、既存防御の契約（上限超過リストは常に構造
+        // フォールバックへ送る）を迂回できてしまう。判定式は
+        // `fandhe_frontend_core::keyed::diff_keyed_items` 冒頭の
+        // `enforce_key_limits(old_items.len(), Σ key.len())` と同一
+        // （`new_items` は空のため new 側の検証は自明に通る）。
+        if old_items.len() > fandhe_frontend_core::keyed::MAX_KEYED_LIST_ITEMS
+            || old_items.iter().map(|(k, _)| k.len()).sum::<usize>()
+                > fandhe_frontend_core::keyed::MAX_KEYED_LIST_KEY_BYTES
+        {
+            return ApplyOutcome {
+                resync_required: true,
+                ..ApplyOutcome::default()
+            };
+        }
         let ok = dom.clear_children();
         return ApplyOutcome {
             final_keys: Vec::new(),
@@ -4741,6 +4760,33 @@ mod tests {
             dom.items.is_empty(),
             "上限超過時は diff 計算・DOM 操作を一切行わないはず"
         );
+        assert!(outcome.invalidated_nested_fields.is_empty());
+    }
+
+    /// 一括 clear 経路（イシュー #1373）も通常経路と同一の上限検証を先に
+    /// 適用し、上限超過の `old_items` + 空 `new_items` で `clear_children`
+    /// を呼ばず fail-closed に `resync_required` を返すこと（PR #1391
+    /// codex-review P1 是正: 入力形状による既存防御の迂回を塞ぐ）。
+    #[test]
+    fn clear_fast_path_signals_resync_required_when_old_items_exceed_limit() {
+        let old_items: Vec<(String, Node)> = (0
+            ..=fandhe_frontend_core::keyed::MAX_KEYED_LIST_ITEMS)
+            .map(|i| item(&format!("k{i}"), "v"))
+            .collect();
+        let new_items: Vec<(String, Node)> = vec![];
+        let mut dom = CountingDom::default();
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(
+            outcome.resync_required,
+            "上限超過の全削除は clear ではなく再同期を要求するはず"
+        );
+        assert_eq!(
+            dom.calls.clear_children, 0,
+            "上限超過時は clear_children を呼ばないはず"
+        );
+        assert!(outcome.final_keys.is_empty());
         assert!(outcome.invalidated_nested_fields.is_empty());
     }
 

@@ -176,7 +176,8 @@ categories = ["wasm", "web-programming"]
 # イシュー #1373（keyed list 全キー削除の一括 clear 経路化）: 全キー削除
 # （保持キー 0 件）の検出時、`diff_keyed_items`（core）を経由した
 # `Remove` N 件の逐次適用の代わりに `KeyedListDom::clear_children`（新設、
-# 既定実装付きで既存実装者への必須波及なし。`keyed_apply.rs`）を 1 回だけ
+# 既定実装なし・全実装で実装必須。テキストノード残存を防ぐため既定実装は
+# 意図的に設けない〔codex-review P2 是正〕。`keyed_apply.rs`）を 1 回だけ
 # 呼ぶ経路を `apply_ops_with_items` へ追加した。`web-sys` 実装
 # （`keyed_dom.rs::WebSysKeyedDom::clear_children`）は
 # `Node::set_text_content(None)` 1 回で実装し、N 回の `remove_child` 境界
