@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<!--
+  フレームワーク横断 CSR ベンチマーク（bench/PROTOCOL.md §2.2）向けの
+  fandhe-frontend ページ骨格。build.sh が本ファイルを bench/csr/dist/fandhe/
+  へそのままコピーする。起動コード（wasm 初期化 + window.__bench 束縛）は
+  bootstrap.js（payload 計測対象の独立 .js。build.sh が minify して配置）に
+  分離しており、本 HTML は他フレームワークの index.html と同じく計測対象外の
+  共通骨格のみを持つ。
+
+  playwright ハーネス（bench/csr/run_csr.mjs）は
+  window.__bench.{create,update,clear} の 3 関数が揃うことを
+  waitForFunction で待ち受けてから計測する（bootstrap.js が wasm 初期化
+  完了後に束縛するため、この束縛自体が準備完了の合図になる）。
+-->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>fandhe-frontend CSR bench</title>
+  </head>
+  <body>
+    <button id="create" type="button">Create 1,000 rows</button>
+    <button id="update" type="button">Update every 10th row</button>
+    <button id="clear" type="button">Clear</button>
+    <table id="bench-table">
+      <tbody id="bench-body"></tbody>
+    </table>
+    <script type="module" src="bootstrap.js"></script>
+  </body>
+</html>
