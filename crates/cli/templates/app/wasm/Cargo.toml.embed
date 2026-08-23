@@ -46,10 +46,11 @@ members = ["."]
 # #1382（`sync_attrs` への属性同値スキップ追加）で 0.5.2 → 0.5.3 へ
 # パッチバンプされ、続けてイシュー #1384（keyed list アイテムの構造同型
 # 判定と束縛点パス導出）で fandhe-frontend-core 0.4.1 → 0.4.2 への公開 API
-# 追加バンプが連鎖した（core への依存要求のみの変更で wasm-client 自体の
-# バージョンは #1382 由来の 0.5.3 のまま据え置き）ため、本テンプレート側も
-# 0.5.3 へ追随する。
-fandhe-frontend-wasm-client = "0.5.3"
+# 追加バンプが連鎖した。PR #1398 codex-review P1 指摘（`.claude/rules/coding-rust.md`
+# の semver バンプ必須条項は Cargo.toml 変更を伴う PR での本クレート自身の
+# version バンプも要求する）を受け、wasm-client 自体も 0.5.3 → 0.5.4 へ
+# パッチバンプしたため、本テンプレート側も 0.5.4 へ追随する。
+fandhe-frontend-wasm-client = "0.5.4"
 
 [lib]
 crate-type = ["cdylib"]

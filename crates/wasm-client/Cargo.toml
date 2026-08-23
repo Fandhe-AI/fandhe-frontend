@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-client"
-version = "0.5.3"
+version = "0.5.4"
 edition = "2021"
 description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"
@@ -205,6 +205,14 @@ categories = ["wasm", "web-programming"]
 # 公開クレートの semver バンプ必須条項（`.claude/rules/coding-rust.md`）に
 # 従い patch バンプした。公開 API のシグネチャ追加・変更はなく内部実装の
 # みのため patch とする（0.5.2 も crates.io 未公開ウィンドウ内）。
+#
+# 0.5.3 → 0.5.4（イシュー #1384、PR #1398 codex-review P1 指摘）: 依存先
+# `fandhe-frontend-core` 0.4.2 バンプ（keyed list アイテムの構造同型判定・
+# 束縛点パス導出、本 Cargo.toml 直下の依存 version 要求更新）への追随のみで
+# 本クレート自体の src/ に変更はないが、`.claude/rules/coding-rust.md` の
+# semver バンプ必須条項は Cargo.toml 変更を伴う PR での本クレート自身の
+# version バンプも要求するため patch バンプした（0.5.3 も crates.io
+# 未公開ウィンドウ内）。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.4.2" }
 fandhe-frontend-app = { path = "../app", version = "0.2.5" }
