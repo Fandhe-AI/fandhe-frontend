@@ -16,6 +16,14 @@
 // （__benchMeasure 参照）。paint（実際の画面書き換え）は計測に含まない
 // 既知の限界であり、rAF 待ちを廃したことで paint 完了の近似はできなくなる。
 //
+// イシュー #1377: 上記の一体計測はさらに「op 時間（DOM 反映まで）」と
+// 「layout flush 時間」の 2 区間へ分離し、op_ms/layout_ms/total_ms の
+// 3 系列を結果 JSON へ記録する（__benchMeasure 参照）。total_ms は従来
+// 境界と同一定義で意味不変、比較 KPI は引き続き total_ms（既存
+// create_ms/update_ms/clear_ms）とする。fandhe 改善イシュー群（#1371 配下）
+// の改善追跡 KPI は op_ms（layout flush は全フレームワーク共通の床であり
+// ハーネス側では改善不能）。詳細は bench/PROTOCOL.md §2.2 参照。
+//
 // 計測前に「既定エスケープ経路のみで label が安全にテキスト挿入されているか」
 // を検証し（XSS 回帰の代理指標）、fail-closed で不合格を検知する。
 //
@@ -175,17 +183,34 @@ async function doubleRaf(page) {
 // 保証する）を待ってから、bench-table の offsetHeight を読み出して
 // style/layout を強制 flush する（rAF を挟まないため、paint 完了までは
 // 含まない）。
+//
+// イシュー #1377: 親トラッキング #1371 の区間プロファイル実測で、CSR total
+// の最大要素は layout flush（create で約 10ms、全フレームワーク共通の床）
+// であり、wasm 側の改善が効くのは op 部分（DOM 反映までの時間）のみと
+// 判明したため、performance.now() を 3 点（開始前 t0 / __bench[op]() 完了
+// 直後 t1 / offsetHeight 読み出し後 t2）で取り、op_ms（t1 - t0、DOM 反映
+// まで）・layout_ms（t2 - t1、強制 layout flush）・total_ms（t2 - t0、
+// 従来境界と同一・意味不変）の 3 区間へ分離する。この計測点はハーネス
+// 共通ヘルパー（全フレームワーク一律）にのみ存在し、fandhe 専用の計測点・
+// 分岐は作らない（公平性維持、bench/PROTOCOL.md §4 参照）。1 反復内では
+// op_ms + layout_ms === total_ms が成り立つが、統計値（mean/p50/p95/min）は
+// 系列ごとに独立集計するため percentile の加法性はない（bench/PROTOCOL.md
+// §2.2 参照）。
 async function installMeasureHelper(page) {
   await page.evaluate(() => {
     window.__benchMeasure = async (op) => {
       const t0 = performance.now();
       await window.__bench[op]();
+      const t1 = performance.now();
       void document.getElementById("bench-table").offsetHeight;
-      return performance.now() - t0;
+      const t2 = performance.now();
+      return { op_ms: t1 - t0, layout_ms: t2 - t1, total_ms: t2 - t0 };
     };
   });
 }
 
+// __benchMeasure の返り値（{op_ms, layout_ms, total_ms}）をそのまま返す。
+// timedRuns 側で 3 系列に分けて収集する。
 async function measureOnce(page, op) {
   return page.evaluate((o) => window.__benchMeasure(o), op);
 }
@@ -211,12 +236,16 @@ async function settleOp(page, op) {
 
 // reps 回、op を計測する。before が指定された場合は計測前（未計測扱い）に
 // 一度呼んで状態を整える（例: create 計測前に毎回 clear してから測る）。
+// measureOnce が返す {op_ms, layout_ms, total_ms} を系列ごとの配列へ分けて
+// 集計する（イシュー #1377。op/layout 分離計測、bench/PROTOCOL.md §2.2）。
 async function timedRuns(page, op, reps, before) {
-  const durations = [];
+  const durations = { op: [], layout: [], total: [] };
   for (let i = 0; i < reps; i += 1) {
     if (before) await settleOp(page, before);
-    const ms = await measureOnce(page, op);
-    durations.push(ms);
+    const { op_ms, layout_ms, total_ms } = await measureOnce(page, op);
+    durations.op.push(op_ms);
+    durations.layout.push(layout_ms);
+    durations.total.push(total_ms);
   }
   return durations;
 }
@@ -353,14 +382,24 @@ async function runFramework(browser, name, chromiumNote) {
     const updateDurations = await timedRuns(page, "update", REPS, "create");
     const clearDurations = await timedRuns(page, "clear", REPS, "create");
 
+    // 既存キー（create_ms/update_ms/clear_ms）は total 系列＝従来境界と
+    // 同一定義のまま名前・形とも不変で、比較 KPI として維持する
+    // （bench/PROTOCOL.md §2.2）。*_op_ms/*_layout_ms はイシュー #1377 で
+    // 追加した改善追跡用の分離計測キー（キー追加のみの後方互換）。
     return {
       framework: name,
       version,
       mode: "csr",
       workload_schema_version: 1,
-      create_ms: statsFromDurations(createDurations),
-      update_ms: statsFromDurations(updateDurations),
-      clear_ms: statsFromDurations(clearDurations),
+      create_ms: statsFromDurations(createDurations.total),
+      update_ms: statsFromDurations(updateDurations.total),
+      clear_ms: statsFromDurations(clearDurations.total),
+      create_op_ms: statsFromDurations(createDurations.op),
+      create_layout_ms: statsFromDurations(createDurations.layout),
+      update_op_ms: statsFromDurations(updateDurations.op),
+      update_layout_ms: statsFromDurations(updateDurations.layout),
+      clear_op_ms: statsFromDurations(clearDurations.op),
+      clear_layout_ms: statsFromDurations(clearDurations.layout),
       rows_ok: rowsOk,
       escape_ok: escapeOk,
       notes: chromiumNote,
