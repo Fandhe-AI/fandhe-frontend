@@ -690,17 +690,37 @@ REQ-11 受け入れ基準の恒常的未達）には依拠せず、本設計の�
   明記、P1-2 対応）: per-child diff は達成 Node キャッシュに実内容がある
   ことを前提とする比較駆動の仕組みであり、cache-miss はその前提を欠くため
   比較を一切行わず既存の `replace_item_children`（§2 手順 3・4）を無条件に
-  呼ぶだけの、#1330/#1340 で確立済みの**別経路**である。したがってこの
-  呼び出し自体が失敗した場合の終端は、本書が定義する 3 段ラダー（段 1→
-  段 2→段 3 `resync_required`）には合流させず、**§2 手順 4 が定める現行
-  契約（`stale_update_keys` への記録）のまま変更しない**（本書の変更範囲
-  外）。cache-miss 経路と per-child diff 駆動の段 1 (A) narrow fallback は
-  いずれも同じ `replace_item_children` API を呼ぶ点で実装を共有しうるが、
-  「比較の結果として narrow fallback へ入ったのか（段 1→段 2→段 3 の
-  対象）」と「比較を行わず forced に呼ばれたのか（cache-miss、
-  `stale_update_keys` のまま）」を呼び出し元で区別する必要があり、その
-  区別方法（呼び出し元のコンテキストフラグ等）は #1381 の実装判断に
-  委ねる。
+  呼ぶだけの、#1330/#1340 で確立済みの**別経路**である。cache-miss 経路と
+  per-child diff 駆動の段 1 (A) narrow fallback はいずれも同じ
+  `replace_item_children` API を呼ぶ点で実装を共有しうるが、「比較の
+  結果として narrow fallback へ入ったのか（段 1→段 2→段 3 の対象）」と
+  「比較を行わず forced に呼ばれたのか（cache-miss）」を呼び出し元で
+  区別する必要があり、その区別方法（呼び出し元のコンテキストフラグ等）は
+  #1381 の実装判断に委ねる。**この呼び出し自体が失敗した場合の終端は、
+  §2 手順 4 が定める `stale_update_keys` のまま残るのではなく、既存の
+  `crates/wasm-client/src/keyed_dom.rs::apply_keyed_list_core`（1257〜1292
+  行、#1340 で追加された fail-closed 防御）が既に
+  `KeyedListApplyResult::ResyncRequired` へ変換している**（本改訂で訂正、
+  PR #1395 codex-review 13 巡目 P0 対応。以前の版は「§2 手順 4 が定める
+  現行契約〔`stale_update_keys` への記録〕のまま変更しない・本書の変更
+  範囲外」としていたが、これは現行コードの記述として誤りだった。
+  cache-miss（`old_items_are_placeholders == true`）ではプレースホルダを
+  「達成 Node」として確定するとライブ DOM とキャッシュが乖離するため
+  （実コードの doc コメント参照: プレースホルダの内容は per-child 差分の
+  根拠にならないのと同じ理由で、達成 Node の根拠にもならない）、
+  `apply_ops_with_items` が返す `stale_update_keys` が 1 件でも非空なら
+  `apply_keyed_list_core` は達成 Node の合成自体を行わず
+  `ResyncRequired` を返す。**`apply_ops_with_items` 自身（純粋層）は
+  `stale_update_keys` フィールドへの記録を引き続き行う**（cache-miss か
+  否かを純粋層は知らないため、これ自体は変更しない）。この
+  `stale_update_keys` を「（with-previous 経路と同じ）終端」として扱うか
+  「ResyncRequired へ変換する追加のブロッキング検証を経由させるか」は
+  **呼び出し元のコンテキスト（cache-miss か否か）で分岐する既存の契約**
+  であり、cache-miss 側で得られる `ResyncRequired` は本書 §6.1・§6.2 が
+  定める 3 段ラダーの段 3 と同じ扱い（呼び出し元による即時再同期・
+  失敗時のクリア終端の対象）に自然に合流する（新しい合流経路を追加する
+  わけではなく、既存の `ResyncRequired` 変換が本書の即時再同期契約の
+  対象に含まれるようになるだけである）。
 - 達成 Node の合成規則（§6 の 3 段エスカレーションと対応させる）: 段 1
   の各書き込み単位（`set_data` 成功・同値スキップ・`sync_attrs` が §3.2
   「(B) 書き込み失敗」に該当しなかった場合・narrow local
@@ -824,17 +844,30 @@ REQ-11 受け入れ基準の恒常的未達）には依拠せず、本設計の�
    リスト全体の構造フォールバック）へ合流する。後退（成功済みの書き込み
    を個別に「戻す」処理）は一切行わない。
 3. **収束の範囲と時期の正直な区別**（本改訂で訂正、PR #1395 codex-review
-   10 巡目 P0・12 巡目 P0 対応）。**不変条件（正確化版）**: 呼び出し元
-   （`crates/wasm-full` の `commit_keyed_list_result` 相当）にとっての
-   1 回の更新サイクル（1 回の `dispatch`／`apply_update_for_dirty` 呼び
-   出し）が終了した時点で、当該 keyed list フィールドは次のいずれかの
-   確定状態にある: (a) 新しい view（意図した内容）へ収束済み（段 1・
-   段 2 の成功、または段 3 到達後の即時再同期の成功）。(b) 空（段 3
-   到達後の即時再同期も失敗した場合のクリア終端、下記参照）。新旧混在の
-   部分適用状態がこの更新サイクルの境界を越えて持ち越されることはない
-   （クリア終端自体がさらに失敗する二重障害の場合を除く。この例外は
-   保証の撤回ではなく前提条件の明示であり、詳細は下記参照）。以下、
-   この不変条件が成立する経路を詳述する: 段 1→段 2 のエスカレーションは
+   10 巡目 P0・12 巡目 P0・13 巡目 Bugbot High 対応）。**不変条件
+   （正確化版、3 値）**: 呼び出し元（`crates/wasm-full` の
+   `commit_keyed_list_result` 相当）にとっての 1 回の更新サイクル（1 回の
+   `dispatch`／`apply_update_for_dirty` 呼び出し）が終了した時点で、当該
+   keyed list フィールドは次のいずれかの確定状態にある: (a) 新しい view
+   （意図した内容）へ収束済み（段 1・段 2 の成功、または段 3 到達後の
+   即時再同期の成功）。(b) 旧 view（Update 開始前の内容）のまま無傷で
+   確定（`ResyncRequired` が**ライブ DOM への書き込みを 1 件も行わずに**
+   到達した「no-touch」経路。詳細は下記「`dom_mutated` 判定」参照）。
+   (c) 空（段 3 到達後、ライブ DOM が変更済みの状態で即時再同期も失敗した
+   場合のクリア終端、下記参照）。新旧混在の部分適用状態がこの更新サイクル
+   の境界を越えて持ち越されることはない（クリア終端自体がさらに失敗する
+   二重障害の場合を除く。この例外は保証の撤回ではなく前提条件の明示で
+   あり、詳細は下記参照）。**(b) と (c) を区別する理由**: `ResyncRequired`
+   は「達成 Node を確定できない」という一点のみを表す信号であり、その
+   時点でライブ DOM が実際にどの状態にあるか（無傷の旧 view のままか、
+   一部書き込み済みの中間状態か）を区別しない。無傷の旧 view のまま残る
+   `ResyncRequired`（例: 上限超過・非 `Element` view・detached な構築
+   失敗等、ライブ DOM への書き込みを一切試みる前に判明する契約外入力の
+   拒否）に対してまで一括クリアを適用すると、破損していない健全なリスト
+   を不必要に消去してしまう（本改訂で是正、PR #1395 codex-review 13 巡目
+   Bugbot High 対応。以前の版は `ResyncRequired` を無条件でクリア終端の
+   対象としており、この区別を欠いていた）。以下、この不変条件が成立する
+   経路を詳述する: 段 1→段 2 のエスカレーションは
    同一 `apply_ops_with_items` 呼び出し内で完結し、観測可能な中間状態は
    その呼び出し内のごく短い過渡期間に限られる。段 2 も失敗し段 3
    （`resync_required`）へ到達した場合、`apply_ops_with_items` 自体は
@@ -859,30 +892,70 @@ REQ-11 受け入れ基準の恒常的未達）には依拠せず、本設計の�
    〔dispatch の再発生〕そのものは保証しない）。本改訂は、この即時
    再同期呼び出しを段 3 の契約そのものへ格上げすることで、この持ち越し
    を解消する（実装詳細・回帰テストは §7 参照）。
-   - **即時再同期は 1 回のみ実行し、再帰的リトライはしない**。
-   - **即時再同期自体が実行時に失敗した場合（クリア終端、本改訂で追加、
-     PR #1395 codex-review 12 巡目 P0 対応）**: 以前の版は「キャッシュ
-     entry が不在のまま終わり、修復は次回 dirty 時の自己修復ループに
-     委ねられる」としていたが、これは §6.1 冒頭で問題視した「次回の
-     到来〔dispatch の再発生〕は保証されない」という状況をこの終端で
-     再び許してしまう誤りであり撤回する。即時再同期が実行時に失敗した
-     場合、呼び出し元は**同一更新サイクル内で直ちに、当該フィールドの
-     keyed list コンテナ全体を [`KeyedListDom::clear_children`]
-     （`web-sys` 実装では `set_text_content(None)` の単一呼び出し。
-     PR #1391 でマージ済みの全キー削除一括 clear 経路プリミティブの
-     再利用であり新しい DOM 操作プリミティブを追加しない）で一括
-     クリアし、リストを「空」という確定状態へ倒す**。設計根拠: (i) 新旧
-     混在の DOM を無期限に表示し続けるより、空リストという一貫した
-     確定状態のほうが fail-closed である（誤ったデータ・部分的に古い
-     データが利用者へ表示され続けることを防ぐ）。(ii) `clear_children`
-     は最粗粒度・単一 DOM 呼び出しであり、複数ステップから成る再構築
-     （即時再同期の `apply_keyed_list` 自体）よりも失敗面が最小
-     （`set_text_content` 1 回の成否のみに帰着する）。(iii) クリア後は
-     達成 Node キャッシュの entry が存在しないため、次回 dirty 到来時は
-     既存の cache-miss 分岐が空コンテナから keyed list 全体を再構築する
-     （既存の自己修復ループと同一経路であり、新しい回復メカニズムを
-     追加しない）。
-   - **クリア終端自体が実行時に失敗した場合の残余**: `clear_children`
+   - **`dom_mutated` 判定（本改訂で新設、PR #1395 codex-review 13 巡目
+     Bugbot High 対応）**: `KeyedListApplyResult::ResyncRequired`
+     （および `apply_ops_with_items` が返す `ApplyOutcome`）へ、この
+     適用試行で**ライブ DOM への書き込みが 1 件でも実行されたか**を表す
+     `dom_mutated: bool` 相当のフィールドを追加する（具体的な API 形状
+     ―― `ResyncRequired` variant への直接追加か、`ApplyOutcome` から
+     `KeyedListApplyResult` 変換時に導出するか ―― は #1381 の実装判断に
+     委ねる）。**分類原則**: `dom_mutated = false` となるのは、ライブ
+     DOM への書き込み（`setAttribute`/`removeAttribute`/`set_text_data`/
+     `insertBefore`/`removeChild`/`appendChild` 等の web-sys 境界呼び出し）
+     を 1 件も発行する前に `ResyncRequired` が確定する経路に限る。具体例
+     （実コードで確認済み、`crates/wasm-client/src/keyed_dom.rs` 参照）:
+     `new_list_node`/`previous_list_node` が契約外の非 `Element` 形状
+     （1213・1405・1565・1570 行）、`diff_keyed_items` の上限超過検証
+     （§2 参照、diff 計算自体を行わず `dom` に一切触れない）、`list_element`
+     の親要素不在（1133 行）、コンテナ自身のタグ変更時の detached 構築
+     失敗（`build_dom_node_with_namespace` が `None`、1142 行）。これら
+     以外の `ResyncRequired`（段 1 の書き込みを 1 件以上試みた後に段 2 も
+     失敗した経路、cache-miss + `stale_update_keys` 変換〔§5 参照。この
+     経路は他の保持キーが実際に丸ごと新規構築されライブ DOM が変化して
+     いる可能性があるため、既定は `dom_mutated = true` とする〕を含む）
+     は `dom_mutated = true` として扱う。判定に迷う場合は
+     `dom_mutated = true`（より安全側、後述のとおり mutated 側は
+     no-touch 側より過剰動作のリスクが小さいクリア終端で決着する）に
+     倒す。
+   - **即時再同期は 1 回のみ実行し、再帰的リトライはしない**。即時
+     再同期自体は `dom_mutated` の値に関わらず試みてよい（no-touch
+     経路でも、収束を早められる機会があれば活かす。詳細は次項）。
+   - **即時再同期自体が実行時に失敗した場合（`dom_mutated` で分岐、
+     本改訂で追加・13 巡目で拡張、PR #1395 codex-review 12 巡目・13 巡目
+     P0/Bugbot High 対応）**:
+     - **`dom_mutated == true`（ライブ DOM が変更済みの状態、従来どおり
+       クリア終端）**: 以前の版は「キャッシュ entry が不在のまま終わり、
+       修復は次回 dirty 時の自己修復ループに委ねられる」としていたが、
+       これは §6.1 冒頭で問題視した「次回の到来〔dispatch の再発生〕は
+       保証されない」という状況をこの終端で再び許してしまう誤りであり
+       撤回する。呼び出し元は**同一更新サイクル内で直ちに、当該
+       フィールドの keyed list コンテナ全体を [`KeyedListDom::clear_children`]
+       （`web-sys` 実装では `set_text_content(None)` の単一呼び出し。
+       PR #1391 でマージ済みの全キー削除一括 clear 経路プリミティブの
+       再利用であり新しい DOM 操作プリミティブを追加しない）で一括
+       クリアし、リストを「空」という確定状態へ倒す**。設計根拠:
+       (i) 新旧混在の DOM を無期限に表示し続けるより、空リストという
+       一貫した確定状態のほうが fail-closed である（誤ったデータ・
+       部分的に古いデータが利用者へ表示され続けることを防ぐ）。
+       (ii) `clear_children` は最粗粒度・単一 DOM 呼び出しであり、
+       複数ステップから成る再構築（即時再同期の `apply_keyed_list`
+       自体）よりも失敗面が最小（`set_text_content` 1 回の成否のみに
+       帰着する）。(iii) クリア後は達成 Node キャッシュの entry が
+       存在しないため、次回 dirty 到来時は既存の cache-miss 分岐が空
+       コンテナから keyed list 全体を再構築する（既存の自己修復ループと
+       同一経路であり、新しい回復メカニズムを追加しない）。
+     - **`dom_mutated == false`（ライブ DOM は Update 開始前の旧 view の
+       まま無傷、本改訂で追加、PR #1395 codex-review 13 巡目 Bugbot High
+       対応）**: この場合は**クリアしない**。旧 view は既に確定状態
+       （上記不変条件 (b)）であり、新旧混在は存在しないため「持ち越し
+       禁止」の不変条件に抵触しない。呼び出し元は達成 Node キャッシュの
+       entry を不在（未確定）のままにし、修復は次回 dirty 時の
+       cache-miss 自己修復ループへ委ねる（無傷のリストをクリアで壊す
+       ことは fail-closed の趣旨に反するため、あえて何もしない選択が
+       正しい）。
+   - **クリア終端自体が実行時に失敗した場合の残余（`dom_mutated == true`
+     の分岐にのみ存在する。`dom_mutated == false` はそもそもクリアを
+     試みないため、この残余リスクの対象外）**: `clear_children`
      （単一の `set_text_content` 呼び出し）すら失敗する環境は、DOM への
      一切の書き込みが不能な状態であり、初回レンダリングを含むあらゆる
      描画が構造的に不能な環境異常に相当する。この場合に限り、キャッシュ
@@ -1002,26 +1075,35 @@ item 全体の子ノード列を作り直す。新方式は二値原子性を過
    構造フォールバック）を実行し、当該フィールドを新しい view と一致
    させる**（本改訂で段 3 の契約へ格上げ、PR #1395 codex-review 10 巡目
    P0 対応。次回の `dispatch` を待つ設計では中間状態が無期限に残り
-   うるため）。**この即時再同期自体が実行時に失敗した場合は、同一更新
-   サイクル内で直ちに [`KeyedListDom::clear_children`] による一括クリア
-   （クリア終端）を実行し、リストを「空」という確定状態へ倒す**（本改訂
-   で追加、PR #1395 codex-review 12 巡目 P0 対応。詳細・設計根拠・
-   トレードオフ・クリア終端自体が失敗した場合の残余は §6.1「収束の範囲と
-   時期の正直な区別」参照）。**`stale_update_keys`
-   （現行コードの `replace_item_children` 失敗時の終端、§2 手順 4）は、
-   本書のエスカレーション設計における段 1→段 2 の合流により、**per-child
-   diff 駆動の**（すなわち達成 Node キャッシュに実内容があり、実際に
-   比較を行ったうえで narrow fallback へ入った）Update op 適用ラダーの
-   終端としては使われなくなる**（段 1 の narrow fallback 失敗は段 2 へ
-   直行するため）。一方、**§5 で明記したとおり cache-miss 経路（比較を
-   行わず forced に `replace_item_children` を呼ぶ、本書 §3.2・§6 の
-   ラダーの対象外）における同じ `replace_item_children` 呼び出しの失敗は、
-   §2 手順 4 が定める現行契約（`stale_update_keys` への記録）のまま
-   変更しない**（本改訂で明記、P1-2 対応）。`stale_update_keys`
-   フィールド自体はこの cache-miss 経路の終端という明確な用途を維持する
-   ため撤去は提案しないが、本書が新しく定義する per-child diff 駆動の
-   3 段ラダーの中では終端としての役割を持たず、補助的な位置づけ（防御の
-   多層化の一部）へ格下げする。
+   うるため）。**この即時再同期自体が実行時に失敗した場合、`dom_mutated`
+   （§6.1 参照）が `true`（ライブ DOM が変更済み）なら同一更新サイクル内で
+   直ちに [`KeyedListDom::clear_children`] による一括クリア（クリア終端）
+   を実行してリストを「空」という確定状態へ倒し、`false`（ライブ DOM は
+   旧 view のまま無傷）ならクリアせず旧 view を温存したまま次回 dirty の
+   自己修復へ委ねる**（本改訂で追加・13 巡目で `dom_mutated` 分岐を追加、
+   PR #1395 codex-review 12 巡目 P0・13 巡目 Bugbot High 対応。詳細・
+   設計根拠・トレードオフ・クリア終端自体が失敗した場合の残余は §6.1
+   「収束の範囲と時期の正直な区別」参照）。**`stale_update_keys`
+   （現行コードの `replace_item_children` 失敗時に `apply_ops_with_items`
+   が記録するフィールド、§2 手順 4）は、本書のエスカレーション設計に
+   おける段 1→段 2 の合流により、**per-child diff 駆動の**（すなわち
+   達成 Node キャッシュに実内容があり、実際に比較を行ったうえで narrow
+   fallback へ入った）Update op 適用ラダーの終端としては使われなくなる**
+   （段 1 の narrow fallback 失敗は段 2 へ直行するため）。**cache-miss
+   経路（比較を行わず forced に `replace_item_children` を呼ぶ、本書
+   §3.2・§6 のラダーの対象外）でこの `stale_update_keys` が非空になった
+   場合は、既存の `apply_keyed_list_core`（`crates/wasm-client/src/keyed_dom.rs`
+   1257〜1292 行、#1340 の fail-closed 防御）が達成 Node の合成を行わず
+   `KeyedListApplyResult::ResyncRequired` へ変換する**（本改訂で訂正、
+   PR #1395 codex-review 13 巡目 P0 対応。以前の版は「§2 手順 4 が定める
+   現行契約〔`stale_update_keys` への記録〕のまま変更しない・本書の変更
+   範囲外」としていたが、これは現行コードの記述として誤りだった。詳細は
+   §5 参照）。`stale_update_keys` フィールド自体（`apply_ops_with_items`
+   が記録する内部状態）は撤去を提案しないが、cache-miss 経路でこれが
+   非空になったときの**呼び出し元から見た最終結果**は、本書が新しく
+   定義する per-child diff 駆動の 3 段ラダーと同じく `ResyncRequired`
+   （段 3 相当）であり、§6.1・§6.2 が定める即時再同期・クリア終端の
+   対象に自然に合流する。
 
 **この方式が旧稿の指摘・P0 指摘をどう解消するか**:
 
@@ -1119,7 +1201,15 @@ narrow fallback（段 1 (A)）の対象になり、ノード再生成される�
    field を（特定のアイテムに限らず）**フィールド全体について保守的に**
    無効化する**（本改訂で追加、PR #1395 codex-review 12 巡目 P0 対応。
    クリア終端はアイテム単位ではなくリストコンテナ全体を対象とするため、
-   無効化の範囲もそれに合わせて広げる）。
+   無効化の範囲もそれに合わせて広げる）。**一方、`resync_required`
+   が `dom_mutated == false`（§6.1 参照。ライブ DOM が旧 view のまま無傷）
+   で到達した場合は、この段 3 到達時点の「アイテム全体について保守的に
+   無効化する」規則そのものを適用しない**（本改訂で追加、PR #1395
+   codex-review 13 巡目 Bugbot High 対応。ライブ DOM が一切変更されて
+   いない以上、そのアイテム配下の nested field のキャッシュも実際の
+   ライブ DOM と乖離していないため、無効化する対象が存在しない。即時
+   再同期が成功すれば通常どおり収束し、失敗しても §6.1 のとおりクリア
+   しないため、この経路では nested field の無効化は一切発生しない）。
 5. 1 回の Update op 適用で複数のアイテムが独立に段 1 (A) 成功・段 2
    成功・段 3 到達のいずれかを取りうる場合、各アイテムごとに得た
    field 集合を和集合として `invalidated_nested_fields` へ集約する
@@ -1260,15 +1350,20 @@ narrow fallback（段 1 (A)）の対象になり、ノード再生成される�
   実際に試みた上で）段 2 が `create_item` の構築失敗、または
   `replace_root_node` の部分失敗のいずれかで終端まで解消しなかった
   ケースを固定する。(1) `ApplyOutcome::resync_required` が `true` に
-  なること、(2) このケースでは `stale_update_keys` へ記録されないこと
-  （本書のラダーでは段 1→段 2 の合流により、per-child diff 駆動の Update
-  op 適用の終端として `stale_update_keys` を使わないことの回帰。**この
-  非記録は per-child diff 駆動の経路に限った回帰であり、cache-miss 経路
-  〔§5 参照〕の `replace_item_children` 失敗が `stale_update_keys` へ
-  記録される既存契約とは別のケースを検証している**点を、この回帰テスト
-  自体のケース設定〔達成 Node キャッシュに実内容がある通常の
-  `apply_keyed_list_with_previous` 経路〕で明示する。本改訂で明記、
-  P1-2 対応）、(3) 呼び出し元が今回の適用結果を達成 Node キャッシュへ
+  なること、(2)（本改訂で訂正、PR #1395 codex-review 13 巡目 P0 対応）
+  `ApplyOutcome::stale_update_keys` 自体は（本ケースでは段 1→段 2 の
+  合流により narrow fallback 失敗が段 2 へ直行するため）空のままである
+  こと。**この非記録は「per-child diff 駆動の経路では `stale_update_keys`
+  が Update op 適用ラダーの終端として使われない」ことの回帰にすぎず、
+  cache-miss 経路の `replace_item_children` 失敗とは無関係な独立の主張
+  である**点に注意する（以前の版はこれを「cache-miss 経路の
+  `stale_update_keys` 記録契約とは別のケース」と対比していたが、
+  cache-miss 経路でも `stale_update_keys` が非空になれば
+  `apply_keyed_list_core` が `ResyncRequired` へ変換する既存の fail-closed
+  防御があり〔§5 参照〕、両経路とも最終的に `ResyncRequired` へ合流する
+  点では同じであるため、この対比の書き方は撤回する）。ケース設定は
+  達成 Node キャッシュに実内容がある通常の `apply_keyed_list_with_previous`
+  経路を使う。(3) 呼び出し元が今回の適用結果を達成 Node キャッシュへ
   確定させないこと、その後に呼び出す
   [`crate::keyed_dom::apply_keyed_list`]（ライブ DOM 直接読み出しの
   構造フォールバック）で当該アイテムの子ノード列全体が再構築される
@@ -1279,42 +1374,55 @@ narrow fallback（段 1 (A)）の対象になり、ノード再生成される�
   `crates/wasm-full` 層の即時再同期テストとして別途固定する。下記
   「段 3 到達後の即時再同期（wasm-full 層）」参照）。
 - **段 3 到達後の即時再同期とクリア終端（wasm-full 層、本改訂で新設・
-  12 巡目 P0 で拡張、PR #1395 codex-review 10 巡目・12 巡目 P0 対応）**:
-  `crates/wasm-full/src/lib.rs::commit_keyed_list_result` の
-  `KeyedListApplyResult::ResyncRequired` アームを、キャッシュ entry の
+  12 巡目 P0・13 巡目 Bugbot High で拡張、PR #1395 codex-review 10 巡目・
+  12 巡目・13 巡目対応）**: `crates/wasm-full/src/lib.rs::commit_keyed_list_result`
+  の `KeyedListApplyResult::ResyncRequired` アームを、キャッシュ entry の
   `remove` のみで終える現行実装から、**同一呼び出し内で直ちに
   [`crate::keyed_dom::apply_keyed_list`] を 1 回実行し、その結果で
   当該フィールドの DOM・キャッシュを確定させる。この即時再同期自体が
-  失敗した場合は、同一呼び出し内で直ちに [`KeyedListDom::clear_children`]
-  を 1 回実行し、当該フィールドのリストコンテナを空へ倒したうえで
-  キャッシュ entry を確定的に不在（未確定）とする**実装へ変更する
-  （#1381 の実装範囲、詳細な呼び出しシグネチャは実装時に確定する）。
-  回帰テストとして次を固定する: (1) 段 3（`resync_required`）へ到達する
-  入力（段 2 の `create_item` 構築失敗または `replace_root_node` 部分
-  失敗を注入したモック DOM）を与えたとき、**同一の更新サイクル呼び出し
-  （`apply_update_for_dirty` 1 回の呼び出し）内**で当該キーを含む
-  keyed list 全体が new view（望ましい内容）と一致すること（次回の
+  失敗した場合、`dom_mutated`（§6.1 参照）が `true` なら同一呼び出し内で
+  直ちに [`KeyedListDom::clear_children`] を 1 回実行してリストコンテナを
+  空へ倒したうえでキャッシュ entry を確定的に不在（未確定）とし、
+  `false` ならクリアせずキャッシュ entry のみ不在（未確定）のまま旧
+  view を温存する**実装へ変更する（#1381 の実装範囲、詳細な呼び出し
+  シグネチャは実装時に確定する）。回帰テストとして次を固定する:
+  (1) 段 3（`resync_required`）へ到達する入力（段 2 の `create_item`
+  構築失敗または `replace_root_node` 部分失敗を注入したモック DOM。
+  `dom_mutated == true` の代表ケース）を与えたとき、**同一の更新サイクル
+  呼び出し（`apply_update_for_dirty` 1 回の呼び出し）内**で当該キーを
+  含む keyed list 全体が new view（望ましい内容）と一致すること（次回の
   `dispatch`／再度の dirty 化を待たずに収束することの確認。次回
   `dispatch` が発生しなくても収束することを、テストが 2 回目の
   `apply_update_for_dirty` 呼び出しを行わずに確認する形で固定する）。
-  (2)（本改訂で追加、PR #1395 codex-review 12 巡目 P0 対応）即時再同期
-  自体が失敗する経路（モックの `apply_keyed_list` 相当を失敗させる注入）
-  では、**同一の更新サイクル呼び出し内**で `clear_children` が 1 回
-  呼ばれ、当該フィールドのライブ DOM コンテナが空（子要素 0 件）になる
-  こと、新旧混在の部分適用状態が一切残らないこと、キャッシュ entry が
-  不在（未確定）のまま処理が終わることを固定する（以前の版は「キャッシュ
-  entry が不在のまま終わり、次回 dirty 時の自己修復ループに委ねられる」
-  としていたが、これはクリア終端を経ずに中間状態のライブ DOM をそのまま
-  残す誤りであり撤回する）。(3)（本改訂で追加）即時再同期・
-  `clear_children` の**両方**が失敗する二重障害の経路（モックの両方を
-  失敗させる注入）に限り、キャッシュ entry が不在のまま処理が終わり、
-  修復が次回 dirty 時の自己修復ループへ委ねられること、この経路でも
-  `unwrap()`/`panic!` が発生しないことを確認する（§6.1 が明記する
-  「クリア終端自体が失敗した場合の残余」の回帰）。(4) 即時再同期・
-  クリア終端いずれも 1 回のみ実行され、再帰的リトライは行われないことを
-  確認する。(5) 即時再同期・クリア終端対象でない他のフィールド・他の
-  キーへその実行が波及しない（対象フィールド 1 件に閉じる）ことを
-  確認する。
+  (2)（本改訂で追加、PR #1395 codex-review 12 巡目 P0 対応）`dom_mutated
+  == true` の経路で即時再同期自体が失敗する経路（モックの
+  `apply_keyed_list` 相当を失敗させる注入）では、**同一の更新サイクル
+  呼び出し内**で `clear_children` が 1 回呼ばれ、当該フィールドのライブ
+  DOM コンテナが空（子要素 0 件）になること、新旧混在の部分適用状態が
+  一切残らないこと、キャッシュ entry が不在（未確定）のまま処理が終わる
+  ことを固定する（以前の版は「キャッシュ entry が不在のまま終わり、次回
+  dirty 時の自己修復ループに委ねられる」としていたが、これはクリア終端を
+  経ずに中間状態のライブ DOM をそのまま残す誤りであり撤回する）。
+  (2b)（本改訂で追加、PR #1395 codex-review 13 巡目 Bugbot High 対応）
+  `dom_mutated == false`（ライブ DOM への書き込みを 1 件も行う前に
+  `ResyncRequired` が確定した入力。例: 契約外の非 `Element` view、
+  上限超過、`list_element` 親不在、コンテナタグ変更時の detached 構築
+  失敗を注入したモック DOM）を与えたとき、(i) 即時再同期を試みてよいが
+  試みた場合は成功すれば通常どおり収束すること、(ii) 即時再同期自体が
+  失敗しても `clear_children` は**呼ばれない**こと（モックの呼び出し
+  回数で確認する）、(iii) 当該フィールドのライブ DOM コンテナが
+  Update 開始前の旧 view のまま子要素・属性ともに一切変更されていない
+  ことを固定する（無傷の健全なリストを誤って空にしてしまう回帰の防止。
+  この確認が本テストの中核である）。(3)（本改訂で追加）`dom_mutated ==
+  true` の経路で即時再同期・`clear_children` の**両方**が失敗する二重
+  障害の経路（モックの両方を失敗させる注入）に限り、キャッシュ entry が
+  不在のまま処理が終わり、修復が次回 dirty 時の自己修復ループへ委ねられる
+  こと、この経路でも `unwrap()`/`panic!` が発生しないことを確認する
+  （§6.1 が明記する「クリア終端自体が失敗した場合の残余」の回帰）。
+  (4) 即時再同期・クリア終端いずれも 1 回のみ実行され、再帰的リトライは
+  行われないことを確認する。(5) 即時再同期・クリア終端対象でない他の
+  フィールド・他のキーへその実行が波及しない（対象フィールド 1 件に
+  閉じる）ことを確認する。
 - **hydrate ドリフト属性の扱い（finding 3 対応、undo ではなく新規生成で
   解消することの確認）**: モックのライブ属性初期状態へ、達成 Node
   キャッシュ（`old_attrs`/`new_attrs` いずれにも）現れない属性を 1 件
@@ -1334,7 +1442,16 @@ narrow fallback（段 1 (A)）の対象になり、ノード再生成される�
   固定する。
 - **cache-miss フォールバックの回帰**: プレースホルダ旧 `Node` が渡される
   経路で per-child diff がスキップされ、必ず従来の全再構築経路を通る
-  ことを固定するテストを追加する（§5 不変条件の回帰防止）。
+  ことを固定するテストを追加する（§5 不変条件の回帰防止）。加えて
+  （本改訂で追加、PR #1395 codex-review 13 巡目 P0 対応）、cache-miss
+  経路で `replace_item_children` が失敗し `ApplyOutcome::stale_update_keys`
+  が非空になるケースを固定し、`apply_keyed_list_core`（既存の #1340
+  fail-closed 防御）が達成 Node の合成を行わず
+  `KeyedListApplyResult::ResyncRequired` を返すこと（`stale_update_keys`
+  のまま終端しないこと）を確認する既存の回帰保証（`crates/wasm-client/src/keyed_dom.rs`
+  の既存テスト）を、本書のスコープ外として削除・弱体化しないことを
+  明記する。この `ResyncRequired` は本書 §6.1・§6.2 が定める即時再同期・
+  クリア終端の対象になる（下記「段 3 到達後の即時再同期とクリア終端」参照）。
 - **ネストした binding キャッシュ無効化の回帰（§6.3 の P1 契約固定）**:
   (1) 段 1 (A) narrow fallback が成功したスコープ配下にネストした
   `data-bind-list` がある場合、その field が `invalidated_nested_fields`
