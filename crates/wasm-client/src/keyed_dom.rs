@@ -1036,6 +1036,72 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     }
 }
 
+/// [`crate::keyed_apply::ChildNodeDom`] の `web-sys` 実装（イシュー #1381、
+/// `KeyedOp::Update` 適用の子ノード最小差分化）。
+///
+/// アイテムルート要素だけでなく [`crate::keyed_apply::diff_children`] が
+/// 降りる任意深さの Element ノードへも同じ `Handle`（`Element`）で
+/// 再入力される（`ChildNodeDom: KeyedListDom` の supertrait 契約、トレイト
+/// doc 参照）。`children` キャッシュ（`KeyedListDom` の他メソッドが使う
+/// アイテムルート直下専用の索引）はここでは一切使わない
+/// （`child_handles` は毎回 `Node::childNodes` を直接問い合わせる。
+/// `diff_children` 自身が「書き込み単位ごとに再検証する」契約
+/// （設計書 §3.2a）を満たすためにこのメソッドを何度も呼び直すため、
+/// アイテムルート専用キャッシュを流用すると子孫スコープの解決と整合しない）。
+impl crate::keyed_apply::ChildNodeDom for WebSysKeyedDom<'_> {
+    type ChildHandle = web_sys::Node;
+
+    fn child_handles(&mut self, parent: &Element) -> Vec<web_sys::Node> {
+        let list = parent.child_nodes();
+        let len = list.length();
+        let mut out = Vec::with_capacity(len as usize);
+        for i in 0..len {
+            if let Some(node) = list.get(i) {
+                out.push(node);
+            }
+        }
+        out
+    }
+
+    /// `Node::nodeType`（DOM 標準の数値定数、`web_sys::Node::TEXT_NODE`/
+    /// `ELEMENT_NODE` 等）で種別判定する。`Text`/`Element` のいずれにも
+    /// 該当しない値（コメントノード `COMMENT_NODE` 等）は `Other` を返し、
+    /// 誤分類・パニックのいずれも行わない（[`ChildNodeKind`] doc 参照）。
+    fn child_kind(&mut self, node: &web_sys::Node) -> crate::keyed_apply::ChildNodeKind {
+        match node.node_type() {
+            web_sys::Node::TEXT_NODE => crate::keyed_apply::ChildNodeKind::Text,
+            web_sys::Node::ELEMENT_NODE => crate::keyed_apply::ChildNodeKind::Element,
+            _ => crate::keyed_apply::ChildNodeKind::Other,
+        }
+    }
+
+    fn as_element(&mut self, node: &web_sys::Node) -> Option<Element> {
+        node.clone().dyn_into::<Element>().ok()
+    }
+
+    /// `CharacterData.data` への文字列代入（`set_data`、REQ-1 既定
+    /// エスケープの不変条件参照: HTML パースを一切経由しない代入であり
+    /// `innerHTML`/`insertAdjacentHTML` の新設・使用は行わない）。DOM 標準
+    /// 上この代入自体は失敗しないが、`node` が `CharacterData` へ変換
+    /// できない（`child_kind` が `Text` を返したにもかかわらず実際には
+    /// 異なる、あり得ない乖離）場合のみ `false` を返す。
+    fn set_text_data(&mut self, node: &web_sys::Node, value: &str) -> bool {
+        match node.dyn_ref::<web_sys::CharacterData>() {
+            Some(cd) => {
+                cd.set_data(value);
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn text_data(&mut self, node: &web_sys::Node) -> String {
+        node.dyn_ref::<web_sys::CharacterData>()
+            .map(|cd| cd.data())
+            .unwrap_or_default()
+    }
+}
+
 impl WebSysKeyedDom<'_> {
     /// [`crate::keyed_apply::KeyedListDom::insert_before_batch`] 実装が
     /// 実 DOM へ適用した挿入結果を `children` キャッシュへ追随させる
@@ -1187,8 +1253,10 @@ fn replace_list_element_for_tag_change(
     new_list_node: &Node,
 ) -> KeyedListApplyResult {
     let Some(parent) = list_element.parent_node() else {
+        // DOM に一切触れていない（`parent_node()` の読み出しのみ）。
         return KeyedListApplyResult::ResyncRequired {
             invalidated_nested_fields: std::collections::HashSet::new(),
+            dom_mutated: false,
         };
     };
 
@@ -1196,16 +1264,21 @@ fn replace_list_element_for_tag_change(
     let Some(new_container) =
         build_dom_node_with_namespace(document, new_list_node, namespace.as_deref())
     else {
+        // detached 構築の失敗のみ（ライブ DOM への書き込みは未試行）。
         return KeyedListApplyResult::ResyncRequired {
             invalidated_nested_fields: std::collections::HashSet::new(),
+            dom_mutated: false,
         };
     };
 
     let old_as_node: web_sys::Node = list_element.clone().unchecked_into();
     let mut adapter = ParentNodeRootReplace { parent: &parent };
     if !crate::keyed_apply::replace_root_node(&mut adapter, &old_as_node, &new_container) {
+        // `replace_root_node` はライブ DOM への `insert_before`/`remove` を
+        // 試行済み（成否は不問、`dom_mutated` は試行基準）。
         return KeyedListApplyResult::ResyncRequired {
             invalidated_nested_fields: std::collections::HashSet::new(),
+            dom_mutated: true,
         };
     }
 
@@ -1269,6 +1342,7 @@ fn apply_keyed_list_core(
     else {
         return KeyedListApplyResult::ResyncRequired {
             invalidated_nested_fields: std::collections::HashSet::new(),
+            dom_mutated: false,
         };
     };
 
@@ -1308,6 +1382,7 @@ fn apply_keyed_list_core(
         // 収集済みのためここでそのまま伝播しても偽陽性は生じない）。
         return KeyedListApplyResult::ResyncRequired {
             invalidated_nested_fields: outcome.invalidated_nested_fields,
+            dom_mutated: outcome.dom_mutated,
         };
     }
 
@@ -1345,6 +1420,7 @@ fn apply_keyed_list_core(
         // 実際に丸ごと新規構築されライブ DOM が変化している）。
         return KeyedListApplyResult::ResyncRequired {
             invalidated_nested_fields: outcome.invalidated_nested_fields,
+            dom_mutated: outcome.dom_mutated,
         };
     }
 
@@ -1461,6 +1537,7 @@ pub fn apply_keyed_list(
     if !matches!(new_list_node, Node::Element { .. }) {
         return KeyedListApplyResult::ResyncRequired {
             invalidated_nested_fields: std::collections::HashSet::new(),
+            dom_mutated: false,
         };
     }
     let namespace = list_element.namespace_uri();
@@ -1541,6 +1618,21 @@ pub enum KeyedListApplyResult {
         /// 変更・`replace_root_node`/`insert_before_batch`/`move_before`/
         /// `remove_child` の実 DOM 操作失敗）は空集合を返す。
         invalidated_nested_fields: std::collections::HashSet<String>,
+        /// この適用試行でライブ DOM への書き込み操作を**最初に試行した
+        /// 時点**で `true` になる実測フラグ（成功不問。イシュー #1381
+        /// 設計 §6.1「`dom_mutated` 判定」、
+        /// `crate::keyed_apply::ApplyOutcome::dom_mutated` doc 参照）。
+        /// 呼び出し元（`fandhe-frontend-wasm-full` の
+        /// `commit_keyed_list_result`）は、この `ResyncRequired` を受けた
+        /// 同一更新サイクル内で即時再同期（[`apply_keyed_list`]）を実行し、
+        /// それも失敗した場合、最初の適用試行の本フィールドと即時再同期
+        /// 試行自身の `dom_mutated`（同様に実測）の論理和が `true` なら
+        /// [`crate::keyed_apply::KeyedListDom::clear_children`] による
+        /// 一括クリアでリストを「空」という確定状態へ倒す（OR が `false`
+        /// ならクリアせず旧 view を温存する）。DOM に一切触れていない・
+        /// ロールバックで DOM 未変更相当に戻した早期 `ResyncRequired`は
+        /// `false` を返す。
+        dom_mutated: bool,
     },
 }
 
@@ -1621,11 +1713,13 @@ pub fn apply_keyed_list_with_previous(
     else {
         return KeyedListApplyResult::ResyncRequired {
             invalidated_nested_fields: std::collections::HashSet::new(),
+            dom_mutated: false,
         };
     };
     if !matches!(new_list_node, Node::Element { .. }) {
         return KeyedListApplyResult::ResyncRequired {
             invalidated_nested_fields: std::collections::HashSet::new(),
+            dom_mutated: false,
         };
     }
 
@@ -1638,6 +1732,27 @@ pub fn apply_keyed_list_with_previous(
         false,
         new_list_node,
     )
+}
+
+/// `list_element`（keyed list コンテナ）の全子ノードを一括除去する
+/// （イシュー #1381 設計 §6.1/§6.2 段 3「クリア終端」の実装本体）。
+///
+/// `fandhe-frontend-wasm-full` の `Runtime::commit_keyed_list_result` が、
+/// `KeyedListApplyResult::ResyncRequired` を受けた同一更新サイクル内で
+/// 即時再同期（[`apply_keyed_list`]）を試みてもなお収束できず、かつ
+/// 最初の適用試行・即時再同期試行のいずれかがライブ DOM への書き込みを
+/// 試行済み（`dom_mutated` の論理和が `true`）の場合にのみ呼ぶ。
+///
+/// 実装は [`crate::keyed_apply::KeyedListDom::clear_children`] の
+/// `web-sys` 実装（`Node::textContent` への `None` 代入 1 回）と同一手段を
+/// 公開エントリポイントとして再利用する（PR #1391 でマージ済みの全キー
+/// 削除一括 clear 経路プリミティブの再利用であり、新しい DOM 操作
+/// プリミティブを追加しない）。`set_text_content` は DOM 標準上失敗しない
+/// ため戻り値は常に `true`（呼び出し元は失敗時のベストエフォート継続
+/// ロジックを持つが、本関数自体が `false` を返すことは実質ない）。
+pub fn clear_keyed_list_container(list_element: &Element) -> bool {
+    list_element.set_text_content(None);
+    true
 }
 
 #[cfg(test)]

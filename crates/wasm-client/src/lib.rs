@@ -114,9 +114,9 @@ mod keyed_children_cache;
 mod keyed_dom;
 #[cfg(target_arch = "wasm32")]
 pub use keyed_dom::{
-    apply_keyed_list, apply_keyed_list_with_previous, build_dom_node, collect_keyed_list_nodes,
-    find_keyed_list_node, find_list_element, sanitize_keyed_list_node_for_achieved,
-    KeyedListApplyResult,
+    apply_keyed_list, apply_keyed_list_with_previous, build_dom_node, clear_keyed_list_container,
+    collect_keyed_list_nodes, find_keyed_list_node, find_list_element,
+    sanitize_keyed_list_node_for_achieved, KeyedListApplyResult,
 };
 
 /// view 外パラメータ付き部分描画（サブツリー再マウント）の safe ヘルパ

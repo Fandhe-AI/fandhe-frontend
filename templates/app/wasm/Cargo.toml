@@ -45,8 +45,11 @@ members = ["."]
 # された（0.5.1 → 0.5.2）ため、本テンプレート側も追随する。イシュー
 # #1382（`sync_attrs` への属性同値スキップ追加）で 0.5.2 → 0.5.3 へ
 # パッチバンプされたため、本テンプレート側も追随する
-# （`template_vendor_drift` テスト対応）。
-fandhe-frontend-wasm-client = "0.5.3"
+# （`template_vendor_drift` テスト対応）。イシュー #1381（`KeyedOp::Update`
+# 適用の子ノード最小差分化、`KeyedListApplyResult::ResyncRequired` への
+# `dom_mutated` フィールド追加）で 0.5.3 → 0.6.0 へマイナーバンプされたため、
+# 本テンプレート側も追随する。
+fandhe-frontend-wasm-client = "0.6.0"
 
 [lib]
 crate-type = ["cdylib"]

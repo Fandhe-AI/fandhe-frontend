@@ -17,6 +17,15 @@
 //!    （`Runtime::keyed_list_cache` による達成 Node 保持の回帰）
 //! 3. XSS 回帰: 更新値に script 相当のペイロードを含めても script 要素が
 //!    生成されない
+//!
+//! イシュー #1381（`KeyedOp::Update` 適用の子ノード最小差分化）で追加の
+//! 受け入れ条件:
+//!
+//! 4. ラベルのみの変更は `set_data`（`CharacterData.data` 代入）のみで
+//!    適用され、`MutationObserver`（`childList: true, subtree: true`）で
+//!    要素の追加・削除 record が 0 件のまま `characterData` 変更のみが
+//!    観測されること（native テストでは到達できない、実 DOM の
+//!    `insertBefore`/`removeChild` が一切発行されないことの直接確認）。
 
 #![cfg(target_arch = "wasm32")]
 
@@ -25,8 +34,12 @@ use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 use fandhe_frontend_wasm_full::Runtime;
+use wasm_bindgen::prelude::Closure;
+use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, Event, EventInit};
+use web_sys::{
+    Document, Element, Event, EventInit, MutationObserver, MutationObserverInit, MutationRecord,
+};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -283,4 +296,94 @@ fn rename_with_script_payload_is_kept_as_plain_text_not_element() {
         .expect("query_selector must not fail")
         .expect("item must exist");
     assert_eq!(item.text_content().as_deref(), Some(malicious));
+}
+
+// --- 受け入れ条件 4（イシュー #1381、per-child diff の最小差分化） -------
+
+/// `headless_avatar_browser.rs::microtask_tick` と同じ意図・実装（`set_data`
+/// の同期呼び出しが積む `MutationRecord` をマイクロタスクキュー消化まで
+/// 待つ決定的な手法、固定 `sleep` に頼らない）。
+async fn microtask_tick() {
+    let promise = js_sys::Promise::resolve(&wasm_bindgen::JsValue::NULL);
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .expect("microtask promise must resolve");
+}
+
+/// 受け入れ条件 4: ラベルのみの変更（`ListState::items` の keyed list
+/// アイテムはテキストノード 1 個のみを子に持つ）は
+/// `CharacterData.data` への直接代入（[`crate::keyed_apply::diff_children`]
+/// の `set_text_data`、`crates/wasm-client/src/keyed_apply.rs` 参照）で
+/// 適用され、要素ノードの追加・削除（`childList` 変異）を一切発生させ
+/// ないこと。native テスト（`keyed_apply.rs::tests::diff_children_*`）は
+/// モック DOM で `set_text_data`/`replace_item_children` の呼び出し回数を
+/// 固定済みだが、実ブラウザの `insertBefore`/`removeChild` が本当に
+/// 発行されないことは `MutationObserver` 経由でしか直接観測できない
+/// （本テストがそれを担う）。
+#[wasm_bindgen_test]
+async fn rename_applies_via_character_data_mutation_without_child_list_change() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "keyed-update-root-container-4");
+    let _guard = RemoveOnDrop(placeholder.clone());
+
+    let state = ListState::new(&[(1, "old-label")]);
+    let runtime =
+        Runtime::mount("keyed-update-root-container-4", state).expect("mount must succeed");
+    let root = runtime.root();
+
+    let records = std::rc::Rc::new(std::cell::RefCell::new(Vec::<MutationRecord>::new()));
+    let records_clone = records.clone();
+    let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
+        move |entries: js_sys::Array, _observer: MutationObserver| {
+            for entry in entries.iter() {
+                if let Ok(record) = entry.dyn_into::<MutationRecord>() {
+                    records_clone.borrow_mut().push(record);
+                }
+            }
+        },
+    );
+    let observer = MutationObserver::new(callback.as_ref().unchecked_ref())
+        .expect("MutationObserver::new must not fail");
+    let init = MutationObserverInit::new();
+    init.set_child_list(true);
+    init.set_subtree(true);
+    init.set_character_data(true);
+    observer
+        .observe_with_options(root, &init)
+        .expect("observe_with_options must not fail");
+
+    dispatch_rename(&document, root, 1, "new-label");
+    microtask_tick().await;
+
+    let observed = records.borrow();
+    assert!(
+        !observed.is_empty(),
+        "少なくとも characterData 変異が 1 件は観測されるはず"
+    );
+    assert!(
+        observed.iter().all(|record| record.type_() != "childList"),
+        "ラベルのみの変更で要素ノードの追加・削除（childList 変異）が \
+         発生してはならない（set_data 直接代入で完結するはず）: \
+         {:?}",
+        observed.iter().map(|r| r.type_()).collect::<Vec<_>>()
+    );
+    assert!(
+        observed
+            .iter()
+            .any(|record| record.type_() == "characterData"),
+        "テキストノードへの set_data 適用は characterData 変異として \
+         観測されるはず"
+    );
+
+    let item = root
+        .query_selector("[data-testid='keyed-update-item']")
+        .expect("query_selector must not fail")
+        .expect("item must still exist after rename");
+    assert_eq!(item.text_content().as_deref(), Some("new-label"));
+
+    observer.disconnect();
+    // `Closure::forget`: 本テストのライフタイムに閉じたリーク
+    // （observer 自体がコールバックを保持し続けるため、
+    // observer.disconnect() 後は再発火しない）。
+    callback.forget();
 }

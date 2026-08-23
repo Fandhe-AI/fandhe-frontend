@@ -1,6 +1,10 @@
 [package]
 name = "fandhe-frontend-wasm-full"
-version = "0.7.8"
+# イシュー #1381: `Runtime::commit_keyed_list_result` が
+# `KeyedListApplyResult::ResyncRequired` の即時再同期 + クリア終端契約
+# （設計書 §6.1/§6.2 段 3）に対応。公開 API は不変・内部実装のみの変更の
+# ため patch バンプ（`.claude/rules/coding-rust.md` #638 条項）。
+version = "0.7.9"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -156,6 +160,13 @@ categories = ["wasm", "web-programming"]
 # 追随バンプのみ。本クレート自身の `src/` 実体変更はないが、公開クレートの
 # semver バンプ必須条項（`.claude/rules/coding-rust.md`）に従い依存先バンプに
 # 追随して patch バンプする。
+#
+# 0.7.8 → 0.7.9（イシュー #1381）: `Runtime::commit_keyed_list_result` が
+# `KeyedListApplyResult::ResyncRequired` の即時再同期 + クリア終端契約に
+# 対応（内部実装のみ）。依存先 `fandhe-frontend-wasm-client` 0.5.3 →
+# 0.6.0（`ResyncRequired` への `dom_mutated` フィールド追加、破壊的変更）に
+# 伴う `dep-version-check`（`xtask check-dep-versions --fix`）の
+# `version = "..."` 追随バンプ。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.2.4" }
 fandhe-frontend-core = { path = "../core", version = "0.4.1" }
@@ -182,7 +193,7 @@ fandhe-frontend-interactive = { path = "../interactive", version = "0.2.5" }
 # へ再シードされる不具合を修正した。`Runtime` の公開シグネチャは不変・
 # 内部実装のみの変更のため、引き続き 0.7.4（本 PR で未公開のまま）へ
 # 吸収させ、追加のバンプは行わない。
-fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.5.3", default-features = false }
+fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.6.0", default-features = false }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 
