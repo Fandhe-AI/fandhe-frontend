@@ -175,14 +175,27 @@ AI エージェントが変更の影響範囲を判断するために読み込�
       回避）。
     - 通常の束縛点更新（テキスト・属性・class）は `input` イベント中も
       冪等に適用する。旧実装の `should_repaint`（`input` イベント時の
-      再描画抑止）は撤去済みであり、フォーカス・キャレット位置の保持は
-      `wasm-client::binding_dom` の value プロパティ等値ガード（変更が
-      無ければ `set_text_content`/`set_attribute` 等を呼ばない）が担う。
+      再描画抑止）は撤去済みである。フォーカス・キャレット位置の保持は
+      `wasm-client::binding_dom` が `Attr("value")` かつ対象要素が
+      `HtmlInputElement` の場合に限り呼ぶ `set_value` の等値ガード
+      （`input.value() != text` のときだけ `set_value` を呼び、ブラウザの
+      live value プロパティを不要に上書きしない）が担う。この等値ガードは
+      `set_value` 呼び出しの要否のみを絞る局所条件であり、
+      `set_text_content`/`set_attribute`（`value` 以外）全般を等値判定なしで
+      抑止する仕組みではない。
     - `dom::mount_initial` が `set_inner_html` へ渡す文字列は必ず
       `fandhe_frontend_core::render()` の既定エスケープ済み出力である
       （REQ-1 の不変条件、`.claude/rules/coding-rust.md` の既定エスケープ
-      厳守と一致）。束縛点更新・keyed list 経由の更新も同じくエスケープ
-      済み出力のみが DOM へ到達する不変条件を維持している。
+      厳守と一致）。この経路は初回マウント（CSR 初回描画・hydrate
+      フォールバック）に限られる。以後の束縛点更新・keyed list 経由の
+      更新は `set_inner_html` を経由せず、`set_text_content`/
+      `set_attribute`/`DomTokenList::toggle_with_force` の DOM API を直接
+      呼ぶ経路であり、安全性は HTML パーサを介さない DOM API の性質
+      （テキスト・属性値として literal に設定され HTML として再解釈され
+      ない）と属性検証（`BindingKind`/`spec.field` による許可属性への
+      限定）が担う。既定エスケープ済み出力のみが到達するのは
+      `set_inner_html` 経路の不変条件であり、DOM API 更新経路には
+      別種の安全性根拠が働く、という 2 経路の区別を維持している。
     - op 生成（diff・内容比較）は core 側 `keyed.rs` の責務として確定・
       実装済みである（イシュー #1323「`diff_keys` への Update op 追加」、
       `KeyedOp` / `diff_keys` / `diff_keyed_items`、設計は
