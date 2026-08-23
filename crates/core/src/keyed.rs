@@ -693,19 +693,56 @@ fn trimmed_bounds_items(old: &[(String, Node)], new: &[(String, Node)]) -> (usiz
     (prefix, suffix)
 }
 
-/// `keys` の中に重複するキー文字列がないかを判定する（イシュー #1376）。
+/// `keys` の中に重複するキー文字列がないか（または安全に判定できない
+/// 一次ハッシュ衝突が起きていないか）を判定する（イシュー #1376。
+/// HashDoS 対策の再設計は PR #1394 codex-review P1 是正、イシュー #1376
+/// 追補）。
 ///
 /// [`diff_keys`]/[`diff_keyed_items`] の前段スキップを安全に適用できるか
-/// のゲート判定に使う（両関数の doc「前段スキップ」節参照）。借用のみの
-/// `Vec<&str>` を構築してソートし、隣接要素を比較するだけで判定が完結
-/// する。**`HashMap`/`HashSet` を一切構築しない**（受け入れ条件「キー列
-/// 不変ケースで HashMap 構築が発生しない」を、ゲート判定自体でも満たす
-/// ための実装選択。ハッシュテーブルの間接テーブル構築・64bit 一次ハッシュ
-/// 計算のコストを避け、キー文字列の `clone` も発生しない）。
+/// のゲート判定に使う（両関数の doc「前段スキップ」節参照）。
+///
+/// # 実装（HashDoS 対策の再設計）
+///
+/// 旧実装は借用のみの `Vec<&str>` を構築してソートし、隣接要素を `&str`
+/// の辞書式比較で照合していた。**この方式は本モジュールが他所で確立した
+/// HashDoS 線形拘束（[`crate::fx_hash`] モジュール doc「追加防御その 2」
+/// 節・`MAX_KEYED_LIST_KEY_BYTES` doc 参照）を迂回する**: `sort_unstable`
+/// の比較回数は `O(n log n)` であり、各比較は共通接頭辞長ぶんの `str`
+/// バイト比較を伴うため、長い共通接頭辞を持つキー列を攻撃者が事前計算
+/// すれば総比較バイト数は `O(総キーバイト数 × log n)` まで劣化し得る
+/// （`O(総キーバイト数)` という確立済みの線形上界を破る。PR #1394
+/// codex-review P1 指摘）。
+///
+/// 新実装は `&str` を一切ソートしない。各キーを
+/// [`crate::fx_hash::FxBuildHasher`]（[`FxStrMap`]/[`FxStrSet`] が内部で
+/// 使うのと同じ一次ハッシュ、`std::hash::BuildHasher::hash_one`）で
+/// `u64` へ一次ハッシュしてから、その `u64` だけをソートする。`u64`
+/// 比較は定数時間のため、ソート自体のコストは総キーバイト数に依存せず
+/// `O(n log n)`（整数比較のみ）に収まり、ハッシュ計算のパス（`O(総キー
+/// バイト数)`、[`enforce_key_limits`] が上限を保証）と合わせても全体で
+/// `O(総キーバイト数 + n log n)` の線形拘束を回復する。
+///
+/// 隣接する `u64` が一致した場合、**その中身の `&str` を比較しない**まま
+/// 「重複あり」として `true` を返す（安全側に倒す設計）。理由:
+/// 一致が (a) 真の重複キー、(b) 異なる 2 つのキーが偶然/意図的に同じ
+/// 64bit 一次ハッシュへ落ちた衝突、のいずれであっても、本関数の呼び出し
+/// 元（[`diff_keys`]/[`diff_keyed_items`]）は `true` を「前段スキップを
+/// 適用せず全域スローパスへフォールバックせよ」の合図としてのみ使う。
+/// フォールバック先の全域スローパスは [`FxStrMap`]/[`FxStrSet`]
+/// （同じ一次ハッシュ・同じ衝突検知）を使うため、(b) の場合は
+/// [`KeyedListError::KeyHashCollision`] として決定的に拒否され、(a) の
+/// 場合は既存の自己修復ロジックがそのまま働く。つまり `&str` 比較を省いて
+/// も **偽陰性（真の重複を見逃す）は起こらず**、偽陽性（衝突を重複と誤認
+/// してフォールバックする）は「前段スキップの機会を 1 回逃すだけ」で
+/// 安全に吸収される。この非対称性により、`&str` バイト比較を完全に排除
+/// してもなお正しさが保たれる。
 fn has_duplicate_keys<'a>(keys: impl Iterator<Item = &'a str>) -> bool {
-    let mut refs: Vec<&str> = keys.collect();
-    refs.sort_unstable();
-    refs.windows(2).any(|pair| pair[0] == pair[1])
+    let hasher = crate::fx_hash::FxBuildHasher::default();
+    let mut hashes: Vec<u64> = keys
+        .map(|key| std::hash::BuildHasher::hash_one(&hasher, key))
+        .collect();
+    hashes.sort_unstable();
+    hashes.windows(2).any(|pair| pair[0] == pair[1])
 }
 
 /// [`diff_keys`] 第 1 パス: `new_keys` に存在しないキーを [`KeyedOp::Remove`]
