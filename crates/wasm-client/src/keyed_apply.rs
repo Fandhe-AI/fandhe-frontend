@@ -173,10 +173,12 @@
 //! 対象外: `set_attribute` の実行時失敗は `.ok()?` で要素構築全体を
 //! `None` にする既存の fail-closed 契約（本モジュール doc「セキュリティ
 //! 不変条件の引き継ぎ」参照）にそのまま含まれ、当該 op 自体が丸ごと
-//! 未達成（`Insert` の `failed_inserts`・`replace_root` の失敗による
-//! `resync_required`・`replace_item_children` 失敗による
-//! `stale_update_keys`）として扱われるため、達成 Node が「構築されなかった
-//! 要素の属性」を含んでしまう余地が構造的に存在しない。
+//! 未達成（`Insert` の `failed_inserts`・`replace_root` の失敗・
+//! per-child diff の narrow fallback 失敗による段2 エスカレーション先
+//! `replace_root` の失敗による `resync_required`・cache-miss forced 経路
+//! （`old_children_for_diff` が `None`）専用の `replace_item_children`
+//! 失敗による `stale_update_keys`）として扱われるため、達成 Node が
+//! 「構築されなかった要素の属性」を含んでしまう余地が構造的に存在しない。
 //!
 //! # cache-miss フォールバックの達成契約（イシュー #1340 codex-review
 //! P1・Bugbot〔10 巡目〕対応）
@@ -697,8 +699,12 @@ pub(crate) enum ChildDiffResult {
     /// 実行時失敗、または (B) 書き込み失敗（`set_text_data` が `false`）、
     /// または子孫がネストした binding ルート（`data-bind-list`）の値が
     /// 新旧で相違するケース（`docs/design/keyed-item-minimal-update-design.md`
-    /// §3.2 規則 3）。このアイテム全体を「旧内容のまま据え置く」
-    /// （`ApplyOutcome::stale_update_keys`）べきことを呼び出し元へ伝える。
+    /// §3.2 規則 3）。呼び出し元（`apply_ops_with_items`）はこれを受けて
+    /// 設計書 §6.2 段1→段2 のエスカレーション契約に従い、タグが一致して
+    /// いても `create_item` + `replace_root` によるアイテム丸ごとの
+    /// 差し替え（段2）へ直行する（`stale_update_keys` へ据え置く旧契約は
+    /// per-child diff 駆動の経路の終端としてはもはや使われない、§6.2
+    /// 末尾参照）。
     Failed,
 }
 
@@ -736,9 +742,10 @@ pub(crate) enum ChildDiffResult {
 /// を持つ Element（ネスト keyed list のルート）である場合、旧新の値が
 /// 一致する限り `data-bind-list` を予約属性として扱い `sync_attrs` の
 /// 比較・書き換え対象から除外する。旧新の値が相違する場合は binding
-/// identity の構造変更であり、`ChildDiffResult::Failed` を返してアイテム
-/// 全体を「旧内容のまま据え置く」（narrow fallback では対象 Element 自身の
-/// 属性を変更できないため、単なる属性値更新としては扱えない）。
+/// identity の構造変更であり、`ChildDiffResult::Failed` を返す（narrow
+/// fallback では対象 Element 自身の属性を変更できないため、単なる属性値
+/// 更新としては扱えない。呼び出し元はこれを受けてアイテム丸ごとの
+/// 差し替え、設計書 §6.2 段2 へ直行する）。
 ///
 /// # `nested_fields` への記録
 ///
@@ -1472,7 +1479,14 @@ pub(crate) struct ApplyOutcome {
     /// 集合（「達成 Node」合成時にこの集合のキーは新内容ではなく旧内容を
     /// 使う）。ノード参照・位置は保たれたまま内容だけが据え置かれるため
     /// [`Self::final_keys`]/「達成 Node」で正しく表現でき、
-    /// [`Self::resync_required`] の対象にはしない。
+    /// [`Self::resync_required`] の対象にはしない。イシュー #1381 の
+    /// per-child diff エンジン導入以降、この集合を実際に埋めるのは
+    /// **cache-miss forced 経路**（`old_children_for_diff` が `None`、
+    /// 従来どおり forced に `replace_item_children` を呼ぶ経路）のみである。
+    /// per-child diff 駆動の経路（`old_children_for_diff` が `Some`）では
+    /// narrow fallback（[`ChildDiffResult::Failed`]）失敗時は設計書 §6.2
+    /// 段2 のアイテム丸ごと差し替えへ直行するため、この集合の終端として
+    /// 使われない（§6.2 末尾参照）。
     pub(crate) stale_update_keys: std::collections::HashSet<String>,
     /// op 列中に 1 件でも「計画どおりに適用できなかった」もの（`Insert` の
     /// `create_item` 失敗、`Move`/`Update` の対象キーがライブ DOM 上に
@@ -1923,15 +1937,62 @@ pub(crate) fn apply_ops_with_items<D: ChildNodeDom>(
                         &mut invalidated_nested_fields,
                     ) {
                         ChildDiffResult::Failed => {
-                            // 子ノード列の最小差分適用に失敗（narrow
-                            // fallback 自体の実行時失敗・`set_text_data` の
-                            // 実行時失敗・ネスト binding ルートの値相違の
-                            // いずれか）。ノード参照・位置を保ったまま
-                            // 内容が旧値のまま据え置かれる（`resync_required`
-                            // の対象にしない、既存の `stale_update_keys`
-                            // 契約と同型）。属性同期（`sync_attrs`）は
-                            // 行わない。
-                            stale_update_keys.insert(key);
+                            // 設計書 §6.2 段1「(A) 前提不一致」「(B) 書き込み
+                            // 失敗」: per-child diff（narrow fallback 自体の
+                            // 実行時失敗・`set_text_data`/`sync_attrs` の実行時
+                            // 失敗・ネスト binding ルートの値相違のいずれか）が
+                            // 失敗した場合、**タグが一致していても**段2
+                            // （item 丸ごと差し替え）へ直行する（§6.2「段 1 の
+                            // いずれかの失敗という新しいトリガー条件」）。
+                            // 段1 は子ノード数量分だけ独立に書き込むため副作用
+                            // が原子的でなく、途中まで新値が反映された「新旧
+                            // 混在の部分適用状態」がライブ DOM に残りうる。
+                            // 旧実装はここで `stale_update_keys` へ記録して
+                            // `old_by_key`（完全に旧内容）をそのまま「達成
+                            // Node」として確定させていたが、これは新旧混在の
+                            // 部分適用状態を解消できず恒久的にキャッシュと
+                            // 乖離しうる（§6.2 末尾「per-child diff 駆動の
+                            // 経路では `stale_update_keys` は終端として使われ
+                            // なくなる」契約に反する）。段2 は常に新しい
+                            // `Node` から作り直すため、この部分適用状態は
+                            // 個別に「戻す」処理を経ずまとめて新しい内容へ
+                            // 上書きされる（§6.2「finding 1」「P0-1」参照）。
+                            // 下記はタグ不一致時（上記 `!old_tag_matches` 分岐）
+                            // と同じ `create_item` + `replace_root` 手順を
+                            // 再利用する。
+                            let Some(new_dom_node) = dom.create_item(&key) else {
+                                // 構築失敗（`RawHtml` 混入等）。ライブ DOM
+                                // には一切触れない fail-closed（`create_item`
+                                // の既存契約と同じ）。段1 の部分適用状態が
+                                // 旧タグのまま残る事実の検出は次回診断
+                                // （`resync_required` による構造フォール
+                                // バック）へ委ねる。
+                                resync_required = true;
+                                continue;
+                            };
+                            dom_mutated = true;
+                            if !dom.replace_root(&existing, &key, new_dom_node) {
+                                // 挿入・除去いずれかが失敗し完全な置換が
+                                // できなかった（`replace_root` doc「戻り値と
+                                // 部分失敗時の契約」参照）。ライブ DOM は
+                                // 不定状態になりうるため、次回はライブ DOM
+                                // から再構築する構造フォールバックへ委ねる
+                                // （§6.2 段3 `resync_required`）。
+                                resync_required = true;
+                            } else {
+                                // アイテム全置換成功。ルートを含む部分木
+                                // 全体が新規構築されたため、子孫の別 field
+                                // も新しい状態になっている（独立敵対レビュー
+                                // 指摘 A、`ApplyOutcome::invalidated_nested_
+                                // fields` doc 参照）。`achieved_nodes` へは
+                                // 挿入しない（`compose_achieved_children` は
+                                // `stale_update_keys`/`achieved_nodes` の
+                                // いずれにも無いキーを新規構築経路として
+                                // `sanitize_node_for_achieved(new_node)` で
+                                // 扱う契約、上記タグ不一致分岐と同型）。
+                                invalidated_nested_fields
+                                    .extend(collect_nested_bind_list_fields(new_node));
+                            }
                         }
                         ChildDiffResult::Ok(achieved_children) => {
                             dom_mutated = true;
@@ -3529,13 +3590,21 @@ mod tests {
         );
     }
 
-    /// `replace_item_children` が失敗（子ノード構築失敗）した場合、対象
-    /// アイテムの子孫はライブ DOM 上で一切変更されないため
-    /// `invalidated_nested_fields` へ記録してはならない（未達成の部分木を
-    /// 「新しい状態になった」と偽って伝播しないこと、`ApplyOutcome::
-    /// invalidated_nested_fields` doc「構築が失敗した op は含めない」参照）。
+    /// per-child diff の narrow fallback（`replace_item_children`）が失敗
+    /// した場合、設計書 §6.2 段1 (A) の新しいトリガー条件により**タグが
+    /// 一致していても**段2（`create_item` + `replace_root` によるアイテム
+    /// 丸ごと差し替え）へ直行する。`CountingDom` の既定実装では
+    /// `create_item`/`replace_root` はいずれも成功するため、段2 は成功し
+    /// アイテム全体が新しい `Node` から作り直される。この結果ルートを
+    /// 含む部分木全体が新規構築されるため、ネストした keyed list（`children`
+    /// field）も新しい状態になり `invalidated_nested_fields` へ記録される
+    /// （`ApplyOutcome::invalidated_nested_fields` doc・タグ不一致時の
+    /// `replace_root` 分岐と同型、旧稿は narrow fallback 失敗時に
+    /// `stale_update_keys` へ据え置く旧実装を前提にしていたため
+    /// `invalidated_nested_fields` が空であることを検証していたが、本改訂
+    /// （イシュー #1381 レビュー対応）でこの前提が変わった）。
     #[test]
-    fn apply_ops_with_items_does_not_record_invalidated_nested_field_when_content_update_fails() {
+    fn apply_ops_with_items_escalates_to_item_replace_when_child_diff_narrow_fallback_fails() {
         let nested = fandhe_frontend_core::keyed::keyed_list(
             "ul",
             vec![],
@@ -3557,12 +3626,24 @@ mod tests {
         let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
 
         assert!(!outcome.resync_required);
-        assert!(outcome.stale_update_keys.contains("g1"));
         assert!(
-            outcome.invalidated_nested_fields.is_empty(),
-            "子ノード構築失敗時はライブ DOM が変化していないため記録して \
-             はならない: {:?}",
+            outcome.stale_update_keys.is_empty(),
+            "段1 (A) の narrow fallback 失敗は段2 の item 丸ごと差し替えへ \
+             直行するため、per-child diff 駆動の経路で stale_update_keys が \
+             終端として使われることはないはず（設計書 §6.2 末尾参照）: {:?}",
+            outcome.stale_update_keys
+        );
+        assert_eq!(
+            outcome.invalidated_nested_fields,
+            std::collections::HashSet::from(["children".to_string()]),
+            "段2 でアイテム全体が新規構築されるため、ネストした keyed list \
+             field も新しい状態になっているはず: {:?}",
             outcome.invalidated_nested_fields
+        );
+        assert_eq!(
+            dom.calls.replace_root, 1,
+            "段2 のエスカレーション経路（create_item + replace_root）が \
+             実際に呼ばれたことを確認する"
         );
     }
 
@@ -4255,12 +4336,19 @@ mod tests {
         )
     }
 
-    /// 子ノード構築失敗（`RawHtml` 混入相当）の注入: 当該キーは
-    /// `stale_update_keys` へ記録され、`final_keys` には引き続き含まれる
-    /// （ライブ DOM 上に旧内容のままアイテムが残っているため）。他アイテムの
-    /// 適用は妨げられない（複数アイテムの Update 混在ケース）。
+    /// per-child diff の narrow fallback 失敗（`RawHtml` 混入相当）の注入:
+    /// 設計書 §6.2 段1 (A) の新しいトリガー条件により段2（`create_item` +
+    /// `replace_root`）へ直行し、`CountingDom` の既定実装では両方とも
+    /// 成功するためアイテムは丸ごと新しい `Node` から作り直される。この
+    /// ため当該キーは `stale_update_keys` へは記録されない（段1→段2 の
+    /// 合流により per-child diff 駆動の経路では `stale_update_keys` は
+    /// 終端として使われなくなる、§6.2 末尾参照）。`final_keys` には
+    /// 引き続き含まれる（`replace_root` 成功によりアイテムはライブ DOM 上に
+    /// 新内容で残存するため）。他アイテムの適用は妨げられない（複数
+    /// アイテムの Update 混在ケース）。
     #[test]
-    fn apply_ops_with_items_marks_stale_on_child_build_failure_without_blocking_others() {
+    fn apply_ops_with_items_escalates_child_build_failure_to_item_replace_without_blocking_others()
+    {
         let old_items = vec![item("a", "old-a"), item("b", "old-b")];
         let new_items = vec![item("a", "new-a"), item("b", "new-b")];
         let mut dom = CountingDom {
@@ -4274,22 +4362,31 @@ mod tests {
         assert_eq!(
             outcome.final_keys,
             vec!["a".to_string(), "b".to_string()],
-            "構築失敗した a も DOM 上に残存しているため final_keys に含まれ続けるはず"
+            "段2 で置換された a も DOM 上に残存しているため final_keys に \
+             含まれ続けるはず"
         );
-        assert_eq!(
-            outcome.stale_update_keys,
-            std::collections::HashSet::from(["a".to_string()]),
-            "構築失敗したキーのみが stale として記録されるはず"
+        assert!(
+            outcome.stale_update_keys.is_empty(),
+            "段1 (A) の narrow fallback 失敗は段2 の item 丸ごと差し替えへ \
+             直行し stale_update_keys を終端として使わないはず: {:?}",
+            outcome.stale_update_keys
         );
         assert!(
             !outcome.resync_required,
-            "子ノード構築失敗はノード参照・位置を保ったまま stale_update_keys \
-             で正しく表現できるため、resync_required の対象にはならないはず"
+            "段2（create_item + replace_root）が成功した場合は \
+             resync_required の対象にはならないはず"
+        );
+        assert_eq!(
+            dom.calls.replace_root, 1,
+            "a のみ段2 のエスカレーション経路が呼ばれたはず"
         );
         assert_eq!(
             dom.children.get("a"),
             None,
-            "構築失敗時はライブ DOM の子ノードが変更されないはず（fail-closed）"
+            "段2 は `create_item`（detached 構築）+ `replace_root`（ノード \
+             差し替え）のみで `replace_item_children` を経由しないため、\
+             `dom.children`（narrow fallback 経由の代理状態）は変更されない \
+             はず"
         );
         assert_eq!(
             dom.children.get("b"),
@@ -4299,12 +4396,17 @@ mod tests {
     }
 
     /// codex-review P1 回帰固定（PR #1340、イシュー #1340）: 属性削除を
-    /// 伴う Update で子ノード構築（`replace_item_children`）が失敗した
-    /// 場合、属性も一切変更されないこと（`sync_attrs` が呼ばれないこと）を
-    /// 直接確認する。旧実装は `sync_attrs` を先に呼んでいたため、この
-    /// ケースで実 DOM は「属性は新、子ノードは旧」という不整合な状態になり
-    /// `stale_update_keys` 経由でキャッシュへ確定させる「達成 Node」
-    /// （旧属性・旧子ノード）と食い違っていた。
+    /// 伴う Update で子ノード構築（`replace_item_children`、per-child diff
+    /// の narrow fallback）が失敗した場合、`sync_attrs` は一切呼ばれない
+    /// ことを直接確認する。旧実装は `sync_attrs` を先に呼んでいたため、この
+    /// ケースで実 DOM は「属性は新、子ノードは旧」という不整合な状態に
+    /// なっていた。イシュー #1381 で導入された設計書 §6.2 段1 (A) の
+    /// エスカレーション（段2「item 丸ごと差し替え」への直行）後もこの
+    /// 順序契約は変わらない: `ChildDiffResult::Failed` の arm は
+    /// `sync_attrs` を呼ばず `create_item`/`replace_root` のみを呼ぶため、
+    /// 「属性は新、子ノードは旧」という不整合状態はこの経路でも発生しない
+    /// （段2 が成功すればアイテム全体が新しい `Node` から作り直され、
+    /// `stale_update_keys` はもはや使われない）。
     #[test]
     fn apply_ops_with_items_leaves_attrs_untouched_when_child_build_fails_on_update() {
         let old_items = vec![(
@@ -4334,25 +4436,31 @@ mod tests {
 
         let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
 
-        assert_eq!(
-            outcome.stale_update_keys,
-            std::collections::HashSet::from(["a".to_string()])
+        assert!(
+            outcome.stale_update_keys.is_empty(),
+            "段1 (A) の narrow fallback 失敗は段2 の item 丸ごと差し替えへ \
+             直行し stale_update_keys を終端として使わないはず: {:?}",
+            outcome.stale_update_keys
         );
         assert_eq!(
             dom.calls.sync_attrs, 0,
             "子ノード構築が失敗した場合、sync_attrs は一切呼ばれないはず \
-             （属性だけ新しい値へ変更済みという不整合状態を防ぐ）"
+             （属性だけ新しい値へ変更済みという不整合状態を防ぐ。段2 の \
+             `create_item` は新しい `Node` から detached に構築するため \
+             `sync_attrs` を経由しない）"
         );
         assert_eq!(
             dom.attrs.get("a"),
             None,
-            "属性はライブ DOM 上でも一切変更されていないはず（class の \
-             'old' → 'new' も data-removed の削除も反映されない）"
+            "属性はライブ DOM 上でも `sync_attrs` 経由では変更されていない \
+             はず（段2 の `create_item`/`replace_root` は `dom.attrs`〔narrow \
+             fallback 経由の代理状態〕を更新しない）"
         );
         assert_eq!(
             dom.children.get("a"),
             None,
-            "子ノードも変更されないはず（fail-closed）"
+            "子ノードも `replace_item_children` 経由では変更されないはず \
+             （段2 は `create_item`/`replace_root` のみを経由する）"
         );
     }
 
