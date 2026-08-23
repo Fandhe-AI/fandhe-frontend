@@ -153,6 +153,18 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     属性・class）と keyed list の最小 DOM 操作
     （`fandhe_frontend_wasm_client::{find_list_element, apply_keyed_list}`）へ
     置換済みである（`crates/wasm-full/src/dom.rs` ・ `crates/wasm-full/src/lib.rs`）。
+    加えて、dirty field のうち束縛点にも keyed list にも解決できないものが
+    1 件でもあれば、`Runtime::apply_update_for_dirty` が
+    `Runtime::rerender_subtree`（`state.view()` から新規構築したサブツリーで
+    `root` の全子ノードを丸ごと差し替える構造フォールバック、イシュー
+    #1120）を呼ぶ。画面遷移のような「束縛点にも keyed list にも対応しない
+    DOM 構造変化」を表現する唯一の経路であり、`set_inner_html` は使わない
+    （`fandhe_frontend_wasm_client::build_dom_node` によるノード木構築、
+    `crates/wasm-full/src/lib.rs` の `apply_update_for_dirty` / `rerender_subtree`
+    doc 参照）。この構造フォールバックは `input` イベント由来の dispatch
+    からも除外されない（`should_repaint` によるイベント種別ごとの抑止は
+    後述のとおり撤去済みであり、フォールバックの要否は dirty field の
+    解決可否のみで決まる）。
     `set_inner_html` の残存は `dom::mount_initial`（旧 `paint`。初回マウント
     限定 API へ改名・限定済み。`Runtime::mount` の CSR 初回描画と
     `Runtime::hydrate` の CSR フォールバックからのみ呼ばれる）の 1 箇所に
@@ -161,8 +173,11 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     - イベント委譲配線（`click` / `input`）をマウント時に 1 回だけルート
       要素へ登録する（`Closure` の都度 `forget` によるリークを構造的に
       回避）。
-    - `input` イベント中は再描画を行わない（フォーカス・キャレット位置の
-      破棄を避けるため）。
+    - 通常の束縛点更新（テキスト・属性・class）は `input` イベント中も
+      冪等に適用する。旧実装の `should_repaint`（`input` イベント時の
+      再描画抑止）は撤去済みであり、フォーカス・キャレット位置の保持は
+      `wasm-client::binding_dom` の value プロパティ等値ガード（変更が
+      無ければ `set_text_content`/`set_attribute` 等を呼ばない）が担う。
     - `dom::mount_initial` が `set_inner_html` へ渡す文字列は必ず
       `fandhe_frontend_core::render()` の既定エスケープ済み出力である
       （REQ-1 の不変条件、`.claude/rules/coding-rust.md` の既定エスケープ
