@@ -61,7 +61,7 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "fandhe-frontend-app"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "fandhe-frontend-core",
 ]
@@ -72,11 +72,11 @@ version = "0.3.8"
 
 [[package]]
 name = "fandhe-frontend-core"
-version = "0.4.1"
+version = "0.4.2"
 
 [[package]]
 name = "fandhe-frontend-dist-server"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
@@ -99,7 +99,7 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-headless-ui"
-version = "0.28.4"
+version = "0.28.5"
 dependencies = [
  "fandhe-frontend-core",
  "fandhe-frontend-interactive",
@@ -107,14 +107,14 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-interactive"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "fandhe-frontend-core",
 ]
 
 [[package]]
 name = "fandhe-frontend-pre-styled-ui"
-version = "0.40.4"
+version = "0.40.5"
 dependencies = [
  "fandhe-frontend-core",
  "fandhe-frontend-headless-ui",
@@ -123,7 +123,7 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-server"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
@@ -131,7 +131,7 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-wasm-client"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
@@ -146,7 +146,7 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-wasm-full"
-version = "0.7.7"
+version = "0.7.8"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
@@ -162,7 +162,7 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-wasm-thin"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "fandhe-frontend-core",
  "fandhe-frontend-interactive",

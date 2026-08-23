@@ -42,8 +42,12 @@ members = ["."]
 # バンプへ切り替えたため、本テンプレート側も 0.5.1 へ追随した。イシュー
 # #1376（core の keyed diff 前段スキップ）で fandhe-frontend-core 0.4.1 →
 # 依存元（interactive/headless-ui/.../wasm-client）が連鎖的にパッチバンプ
-# された（0.5.1 → 0.5.2）ため、本テンプレート側も追随する。
-fandhe-frontend-wasm-client = "0.5.2"
+# された（0.5.1 → 0.5.2）ため、本テンプレート側も追随する。イシュー
+# #1384（keyed list アイテムの構造同型判定と束縛点パス導出）で
+# fandhe-frontend-core 0.4.1 → 0.4.2 への公開 API 追加バンプが連鎖し
+# （interactive/headless-ui/.../wasm-client も各パッチバンプ）、本テンプレート
+# 側も 0.5.3 へ追随する。
+fandhe-frontend-wasm-client = "0.5.3"
 
 [lib]
 crate-type = ["cdylib"]
