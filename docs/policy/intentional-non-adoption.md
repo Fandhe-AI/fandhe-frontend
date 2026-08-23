@@ -192,8 +192,12 @@ AI エージェントが変更の影響範囲を判断するために読み込�
       `set_attribute`/`DomTokenList::toggle_with_force` の DOM API を直接
       呼ぶ経路であり、安全性は HTML パーサを介さない DOM API の性質
       （テキスト・属性値として literal に設定され HTML として再解釈され
-      ない）と属性検証（`BindingKind`/`spec.field` による許可属性への
-      限定）が担う。既定エスケープ済み出力のみが到達するのは
+      ない）と属性検証（`parse_binding_tokens` による属性名の構文検証・
+      `on*` イベント属性の拒否、および `binding_dom::apply_one` による
+      イベント属性・URL スキーム・`srcset` の値検証。`BindingKind::Attr`/
+      `spec.field` は許可属性の allowlist ではなく、構文上妥当な任意の
+      属性名を束縛対象にし得る点に注意）が担う。既定エスケープ済み出力
+      のみが到達するのは
       `set_inner_html` 経路の不変条件であり、DOM API 更新経路には
       別種の安全性根拠が働く、という 2 経路の区別を維持している。
     - op 生成（diff・内容比較）は core 側 `keyed.rs` の責務として確定・
