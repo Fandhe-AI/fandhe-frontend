@@ -278,24 +278,36 @@ codex-review 指摘 4 件対応。詳細・区別の理由は §6 参照）:
      いずれか）**: これは binding identity の構造変更（このスコープが
      指すネスト keyed list の field 名そのものが変わった、または
      binding ルートであること自体が変わった）であり、単なる属性値の
-     更新として扱わない。**(A) 前提不一致として扱い、このスコープへ
-     narrow fallback する**（本改訂で追加。`reserved_attr` による保護
-     対象にはしない。理由: `data-bind-list` を通常の属性として
-     `sync_attrs` の比較・書き換え対象に含めてしまうと、(a) binding の
-     field 識別子そのものが Update 経路から書き換わる、(b) `sync_attrs`
-     は既存 DOM ノードを再生成しないため §6.3 規則 1〜3 が定めるノード
-     再生成トリガーに一致せず `invalidated_nested_fields` へのキャッシュ
-     無効化も走らない、という 2 点で §6.3 のネスト binding キャッシュ
-     契約が壊れる。narrow fallback〔`replace_item_children`〕はこの
-     スコープの子ノード列を detached 構築 + 交換するため、新しい
-     binding ルート要素〔新しい `data-bind-list` 値を持つ〕が正しく
-     生成され、§6.3 の通常の無効化契約がそのまま働く）。**このスコープの
-     narrow fallback が成功した場合、無効化すべき nested field は新しい
-     `data-bind-list` 値だけでなく、旧い `data-bind-list` 値も含む**
-     （詳細・理由は §6.3 参照。narrow fallback 後の新しい部分木を
-     `collect_nested_bind_list_fields` で走査しても旧い field 名は
-     現れないため、この位置での値相違を検出した時点で旧い field 名を
-     別途記録しておく必要がある）。既存の `sync_parent_attrs`
+     更新として扱わない。**narrow fallback（(A) 前提不一致の扱い）では
+     なく、アイテム全体を直ちに段 2（`create_item`+`replace_root` による
+     item 全置換）へ進める**（本改訂で訂正、PR #1395 codex-review 15 巡目
+     P1 対応。以前の版は「(A) 前提不一致として扱い、このスコープへ
+     narrow fallback する」としていたが、これは誤りであり撤回する:
+     narrow fallback〔`replace_item_children`〕が交換するのは対象
+     Element の**子ノード列だけ**であり、`data-bind-list` を持つ Element
+     自身は再生成されない。予約属性として `sync_attrs` からも除外される
+     ため、この Element 自身のライブ DOM 上の `data-bind-list` 属性値は
+     旧値のまま残り、「新しい `data-bind-list` 値を持つ binding ルート
+     要素が生成される」という当初の主張は成立しなかった〔narrow
+     fallback ではこの Element 自身の識別子・属性を変更できないという、
+     §3.2 冒頭で定義した narrow fallback 自体の不変条件〔「そのスコープの
+     子ノード列のみを対象とし、要素自身の識別子・属性には一切触れない」〕
+     から直接導かれる帰結であり、見落としだった〕。段 2 は item 全体を
+     新しい `Node` から新規構築するため、`data-bind-list` を持つ
+     Element 自身も新しい要素として作り直され、新しい `data-bind-list`
+     値がライブ DOM 上に実際に反映される。**この判定はアイテムルート
+     直下だけでなく、任意深さの子孫スコープで検出された場合も同様に
+     アイテム全体の段 2 直行を発火させる**（narrow fallback 失敗時の
+     「対象スコープを 1 つ外側へずらして再試行する」という段階的
+     エスカレーションは §6.1 で正式に撤回済みであり、ここでも同じ理由で
+     採らない: 親スコープでの子ノード列交換に留める案は、結局「対象
+     スコープを 1 つ外側へずらす」再帰的エスカレーションの再導入に
+     近づくため）。**段 2 が成功した場合、無効化すべき nested field は
+     新しい `data-bind-list` 値だけでなく、旧い `data-bind-list` 値も
+     含む**（詳細・理由は §6.3 参照。段 2 が新規構築した item 全体の
+     部分木を `collect_nested_bind_list_fields` で走査しても旧い
+     field 名は現れないため、この位置での値相違を検出した時点で旧い
+     field 名を別途記録しておく必要がある）。既存の `sync_parent_attrs`
      〔`crates/wasm-client/src/keyed_apply.rs`〕が親要素の `data-bind-list`
      を同じ理由で予約属性として扱う既存パターンは、旧新一致ケースの
      処理としてそのまま踏襲する。この例外を除き、通常の（binding
@@ -1191,31 +1203,22 @@ PR #1395 codex-review 11 巡目 Bugbot Medium 対応）と対をなす: 旧新�
 `data-bind-list` の値は変更されず、ノードも再生成されないため、この
 スコープでの通常の属性同期（narrow fallback に至らない、下記 2.）では
 `invalidated_nested_fields` へ何も追加しない。一方、旧新値が**一致しない**
-場合は §3.2 規則 3 のとおりこのスコープ自体が (A) 前提不一致として
-narrow fallback（段 1 (A)）の対象になり、ノード再生成される。この場合は
-下記 1.・3. の一般規則がそのまま適用され、`data-bind-list` を含む
-新しい属性集合が反映された新ノードから field を再収集する**が、旧い
-`data-bind-list` 値（旧 field 名）は新しい部分木のどこにも現れないため、
-下記 1. が定める追加の扱いに従い別途無効化する**:
+場合は §3.2 規則 3 のとおりアイテム全体が直ちに段 2（item 全置換）へ
+進む（本改訂で訂正、PR #1395 codex-review 15 巡目 P1 対応。以前の版は
+このケースを段 1 (A) narrow fallback の対象としていたが、narrow
+fallback が交換するのは対象 Element の子ノード列だけで `data-bind-list`
+を持つ Element 自身は再生成されないため、この案は成立しなかった。詳細は
+§3.2 参照）。この場合は下記 3. の一般規則がそのまま適用され、
+`data-bind-list` を含む新しい属性集合が反映された item 全体の新ノードから
+field を再収集する**が、旧い `data-bind-list` 値（旧 field 名）はこの
+新しい部分木のどこにも現れないため、下記 3. が定める追加の扱いに従い
+別途無効化する**:
 
 1. **段 1 (A) narrow fallback が成功した場合**: そのスコープの新しい
    内容（narrow fallback で構築した部分木）へ `collect_nested_bind_list_fields`
    を適用し、得られた field 集合を `invalidated_nested_fields` へ
    追加する。無効化の範囲はそのスコープ配下に閉じ、他のスコープの
-   field は含めない。**このスコープが §3.2 規則 3 の `data-bind-list`
-   値相違（新設ケース）を原因として narrow fallback へ入った場合は、
-   上記の新しい部分木由来の field 集合に加え、旧い `data-bind-list` の
-   値（達成 Node キャッシュ側 `old_attrs` から読み取れる旧 field 名）を
-   明示的に `invalidated_nested_fields` へ追加する**（本改訂で追加、
-   PR #1395 codex-review 11 巡目 Bugbot Medium 対応。`collect_nested_bind_list_fields`
-   は新しい部分木のみを走査するため、旧 field 名は自動的には収集され
-   ない。この位置での値相違を検出した時点で旧 field 名を保持しておき、
-   narrow fallback 成功時に和集合として追加する必要がある。これにより、
-   旧 field 用の達成 Node キャッシュ entry が新しい binding 識別と乖離
-   したまま残ることを防ぐ）。narrow fallback がこの原因以外（子数・種別・
-   タグの通常の構造変更、またはネストした binding を持たないスコープ）
-   で発火した場合は、この追加の扱いは適用しない（新しい部分木の走査
-   結果のみを使う、既存の一般規則のまま）。
+   field は含めない。
 2. **段 1 の `set_text_data`／`sync_attrs`（narrow fallback に至らな
    かった単位）の扱い**: これらは既存 DOM ノードを再生成しない（Text
    ノード・Element ノードの参照は保持されたまま値のみが変わる）ため、
@@ -1227,7 +1230,21 @@ narrow fallback（段 1 (A)）の対象になり、ノード再生成される�
    `replace_root` 成功時の集約方式と同型）。段 1 で一部のスコープが
    既に narrow fallback で無効化を計上していた場合でも、段 2 は item
    全体を対象に改めて計上する（和集合として扱えば冪等であり、二重
-   計上は実害がない）。
+   計上は実害がない）。**このアイテムが §3.2 規則 3 の `data-bind-list`
+   値相違（追加・削除・値変更）を原因として段 2 へ直行した場合は、
+   上記の新しい部分木由来の field 集合に加え、旧い `data-bind-list` の
+   値（達成 Node キャッシュ側 `old_attrs` から読み取れる旧 field 名）を
+   明示的に `invalidated_nested_fields` へ追加する**（本改訂で§3.2 規則 3
+   の訂正〔narrow fallback → 段 2 直行〕に合わせて紐づけ先を変更、
+   PR #1395 codex-review 11 巡目 Bugbot Medium・15 巡目 P1 対応。
+   `collect_nested_bind_list_fields` は新しい部分木のみを走査するため、
+   旧 field 名は自動的には収集されない。この位置での値相違を検出した
+   時点で旧 field 名を保持しておき、段 2 成功時に和集合として追加する
+   必要がある。これにより、旧 field 用の達成 Node キャッシュ entry が
+   新しい binding 識別と乖離したまま残ることを防ぐ）。段 2 がこの原因
+   以外（段 1 のいずれかの単位の実行時失敗、narrow fallback 自体の
+   実行時失敗）で発火した場合は、この追加の扱いは適用しない（新しい
+   部分木の走査結果のみを使う、既存の一般規則のまま）。
 4. **段 3（`resync_required`）に到達した場合**: §6.1・§6.2 が確定する
    即時再同期契約により、呼び出し元が同一更新サイクル内で直ちにライブ
    DOM 直接読み出しによる構造フォールバックを実行するため、当該アイテム
@@ -1553,19 +1570,28 @@ narrow fallback（段 1 (A)）の対象になり、ノード再生成される�
   の値が変更・削除されず（比較・書き換え対象から除外され）、ノードも
   再生成されないためこの単位単独では `invalidated_nested_fields` へ
   何も追加されないことを固定する（§6.3 の P1 契約固定）。(7)（本改訂で
-  追加、PR #1395 codex-review 11 巡目 Bugbot Medium 対応）子孫（非
-  ルート）Element が `data-bind-list` を持ち、旧新でその**値が異なる**
-  （旧 `groupA`・新 `groupB` 等）ケースで、(a) `sync_attrs` は呼ばれず
-  `reserved_attr` 保護も適用されず、このスコープが直ちに (A) 前提不一致
-  として narrow fallback（`replace_item_children`）へ切り替わること、
-  (b) narrow fallback が成功した場合、`invalidated_nested_fields` に
+  追加・15 巡目で経路を訂正、PR #1395 codex-review 11 巡目 Bugbot
+  Medium・15 巡目 P1 対応）子孫（非ルート）Element が `data-bind-list`
+  を持ち、旧新でその**値が異なる**（旧 `groupA`・新 `groupB` 等）ケースで、
+  (a) `sync_attrs` はこの Element に対して呼ばれず `reserved_attr` 保護も
+  適用されず、narrow fallback（`replace_item_children`、このスコープの
+  子ノード列のみを対象とする narrow な交換）も試みられずに、**アイテム
+  全体が直ちに段 2**（`create_item`+`replace_root` による item 全置換）
+  へ切り替わること（以前の版は「narrow fallback へ切り替わる」として
+  いたが、これは narrow fallback がこの Element 自身の `data-bind-list`
+  属性を再生成できないため撤回した）を、モックの呼び出し順序・引数から
+  固定する。(b) 段 2 が成功した場合、`invalidated_nested_fields` に
   **新旧両方の field 名**（`groupA` と `groupB`）が含まれること（新
-  field は narrow fallback 後の新しい部分木の走査から、旧 field は
-  §6.3 が定める明示的な追加規則から、それぞれ独立に加わることを確認
-  する）、(c) narrow fallback 自体が失敗した場合は §6.2 のとおりアイテム
-  全体が段 2 へ進み、§6.3 規則 3（段 2 成功時は item 全体の nested
-  field を追加）が適用され、この場合も新旧両 field を含む item 全体の
-  再収集で結果的に両方が捕捉されることを確認する。
+  field は段 2 が新規構築した item 全体の部分木の走査から、旧 field は
+  §6.3 規則 3 が定める明示的な追加規則から、それぞれ独立に加わることを
+  確認する）、(c) 段 2 が生成する新しいアイテムルート・当該 Element は
+  いずれも新しい `Node` から再生成されたものであり、当該 Element が
+  ライブ DOM 上で実際に新しい `data-bind-list` 値（`groupB`）を保持する
+  ことを固定する（narrow fallback 案では成立しなかった主張が、段 2
+  直行案では実際に成立することの回帰）。(d) 段 2 自体が失敗した場合は
+  §6.2 のとおり段 3（`resync_required`）へ進み、§6.1・§6.2 が定める
+  即時再同期・（`dom_mutated` の OR に応じた）クリア終端の対象になる
+  ことを確認する（14 巡目までの改訂との整合）。
 
 ## 8. 受け入れ基準対応表
 
