@@ -759,6 +759,38 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     /// ライブ列挙を使うことと矛盾しない。詳細は同 doc 参照）。全操作成功時
     /// は戻り値が `new_attrs` とバイト等価になり、失敗時のみ実際の DOM
     /// 状態が反映される。
+    ///
+    /// # 同値スキップ（イシュー #1382）
+    ///
+    /// set ループでは、`new_attrs` の各エントリが `old_attrs`（達成 Node
+    /// キャッシュ由来、直前 tick の実 DOM 読み戻し値 = ground truth）と
+    /// 名前（ASCII 大小文字非区別）・値（バイト厳密）とも同値の場合、
+    /// `set_attribute` の wasm→JS 境界呼び出しを省略する
+    /// （[`crate::keyed_apply::attr_value_unchanged`] が判定を担う）。
+    /// 判定は予約属性チェックの直後・イベントハンドラ / URL / `srcset`
+    /// の書き込み検証より前に置く: スキップは書き込みを一切行わない
+    /// 判定であり、実際に書き込む経路は従来どおり全検証を通るため
+    /// 検証バイパスにはならない。
+    ///
+    /// **適用対象からのイベントハンドラ / URL / `srcset` 属性の除外**
+    /// （イシュー #1382 codex-review P0 対応）: `old_attrs` キャッシュは
+    /// あくまで直前 tick の読み戻し値であり、ライブ DOM の**現在**の値を
+    /// 保証しない。外部スクリプト等がキャッシュ・新 view の値を変えずに
+    /// ライブ属性だけを `javascript:` 等の危険値へ直接書き換えた場合、
+    /// 同値スキップは「変わっていない」という誤った前提で危険なライブ値
+    /// をそのまま放置してしまう（REQ-1 既定エスケープの弱体化）。この
+    /// リスクを避けるため、イベントハンドラ属性・URL 属性・`srcset` の
+    /// 3 カテゴリは同値スキップの対象外とし、毎 tick 従来どおり検証・
+    /// 書き込み経路を通す（安全なら安全値を書き戻して同一 tick で自己
+    /// 修復する）。同値スキップは `class` 等それ以外の属性にのみ適用される。
+    ///
+    /// スキップ後も読み戻し（下記の決定的正規化）は変更しないため、
+    /// 外部コードによるライブ値ドリフト（テストや他スクリプトが直接
+    /// `setAttribute` した場合等）があっても achieved には実 DOM の値が
+    /// 反映され、次 tick の diff で自己修復される（ground truth 契約は
+    /// 崩さない）。`old_attrs` が空（cache-miss フォールバック経路、
+    /// hydrate 直後の属性ドリフト是正のための初回適用）ではスキップは
+    /// 一切発動しない。
     fn sync_attrs(
         &mut self,
         child: &Element,
@@ -792,6 +824,31 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
             if name.eq_ignore_ascii_case(reserved_attr) {
                 // 多層防御: 呼び出し元が既に除外済みの前提だが、万一
                 // 予約属性が紛れ込んでも書き込まない。
+                continue;
+            }
+            // セキュリティ上重要な属性カテゴリ（イベントハンドラ / URL /
+            // `srcset`）は同値スキップの対象から除外する（イシュー #1382
+            // codex-review P0 対応、上記 doc「同値スキップ」参照）。
+            // `old_attrs` キャッシュは直前 tick の読み戻し値であり、外部
+            // スクリプト等がライブ DOM を直接 `setAttribute` で書き換えた
+            // 場合（キャッシュ・新 view の値は変わらないままライブ値だけが
+            // ドリフトするケース）を検知できない。危険なライブ値
+            // （`javascript:` スキーム等）がキャッシュと新 view の値の一致
+            // だけを根拠にスキップされると、同一 tick での自己修復が失われ
+            // 少なくとも次 tick まで残存してしまう（REQ-1 既定エスケープの
+            // 弱体化）。このためこれら 3 カテゴリは常に検証・書き込み経路を
+            // 通し、安全な場合は毎 tick 安全値を書き戻して即時修復する
+            // 従来の挙動を維持する。同値スキップはそれ以外の属性
+            // （`class` 等）にのみ適用される。
+            let is_security_sensitive = fandhe_frontend_core::is_event_handler_attr(name)
+                || fandhe_frontend_core::is_url_attr(name)
+                || name.eq_ignore_ascii_case("srcset");
+            if !is_security_sensitive
+                && crate::keyed_apply::attr_value_unchanged(old_attrs, name, value)
+            {
+                // 同値スキップ（イシュー #1382、上記 doc「同値スキップ」
+                // 参照）: 書き込みを一切行わない判定であり、検証
+                // バイパスにはならない。
                 continue;
             }
             if fandhe_frontend_core::is_event_handler_attr(name) {
@@ -2849,6 +2906,270 @@ mod tests {
             &achieved_parent_attrs, expected_parent_attrs,
             "達成 Node の親属性は new_list_node の親属性とバイト等価\
              （順序・大小文字とも一致）であるはず"
+        );
+    }
+
+    // --- 同値属性スキップ（イシュー #1382）--------------------------------
+    //
+    // `MutationObserver`（`attributes: true`）で「値が不変の属性へ
+    // `set_attribute` の境界呼び出しが発生しないこと」（受け入れ条件 1）を
+    // 直接証明する。`takeRecords()` はコールバック発火（マイクロタスク）を
+    // 待たず、キューに積まれた `MutationRecord` を同期的に返す DOM 仕様
+    // （`crates/wasm-full` の `headless_avatar_browser.rs` で同型の
+    // 「同値 setAttribute でも mutation record が発火する」仕様の利用実績
+    // あり）のため、固定 `sleep`/`await` に頼らず決定的に検証できる。
+
+    /// `target`（`Element`）への属性変異を記録する `MutationObserver` を
+    /// 開始する。コールバック本体はテストでは使わず（`takeRecords()` の
+    /// 同期呼び出しのみで十分）、`Closure` はテスト実行中生存すればよい
+    /// ため `forget` してリークを許容する（テスト専用ヘルパー、製品コード
+    /// 経路には現れない）。
+    fn observe_attribute_mutations(target: &Element) -> web_sys::MutationObserver {
+        let callback = wasm_bindgen::closure::Closure::<
+            dyn FnMut(js_sys::Array, web_sys::MutationObserver),
+        >::new(
+            |_mutations: js_sys::Array, _observer: web_sys::MutationObserver| {}
+        );
+        let observer = web_sys::MutationObserver::new(callback.as_ref().unchecked_ref())
+            .expect("MutationObserver construction must not fail");
+        callback.forget();
+        let init = web_sys::MutationObserverInit::new();
+        init.set_attributes(true);
+        observer
+            .observe_with_options(target, &init)
+            .expect("observe must not fail");
+        observer
+    }
+
+    /// `observer.take_records()` が返す `MutationRecord` 列から
+    /// `attributeName`（変異した属性名）だけを取り出す。
+    fn taken_attribute_names(observer: &web_sys::MutationObserver) -> Vec<String> {
+        observer
+            .take_records()
+            .to_vec()
+            .into_iter()
+            .map(|record| {
+                record
+                    .unchecked_into::<web_sys::MutationRecord>()
+                    .attribute_name()
+                    .unwrap_or_default()
+            })
+            .collect()
+    }
+
+    /// 受け入れ条件 1: 不変属性 + 変更属性が混在する `sync_attrs` 呼び出しで
+    /// `MutationRecord.attributeName` の集合が変更属性のみになる（不変属性
+    /// への `set_attribute` 呼び出しが発生していないことの直接証明）。
+    /// あわせて achieved が `new_attrs` とバイト等価のままであること
+    /// （決定的正規化契約の維持、既存 `apply_keyed_list_with_previous_syncs_parent_attrs`
+    /// と同型の確認）も固定する。
+    #[wasm_bindgen_test]
+    fn sync_attrs_skips_set_attribute_for_unchanged_attr_but_writes_changed_attr() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a"]);
+        let item_element = list_element.first_element_child().unwrap();
+        item_element.set_attribute("class", "old").unwrap();
+        item_element.set_attribute("data-fixed", "same").unwrap();
+
+        let previous_items: Vec<(String, Node)> = vec![(
+            "a".to_string(),
+            li(
+                vec![("class", "old"), ("data-fixed", "same")],
+                vec![text("a")],
+            ),
+        )];
+        let previous = keyed_list("ul", vec![], "items", previous_items).unwrap();
+
+        let updated_items: Vec<(String, Node)> = vec![(
+            "a".to_string(),
+            li(
+                vec![("class", "new"), ("data-fixed", "same")],
+                vec![text("a")],
+            ),
+        )];
+        let updated = keyed_list("ul", vec![], "items", updated_items).unwrap();
+
+        let observer = observe_attribute_mutations(&item_element);
+
+        let result = apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        let attribute_names = taken_attribute_names(&observer);
+        assert_eq!(
+            attribute_names,
+            vec!["class".to_string()],
+            "値が不変の data-fixed への set_attribute は発生せず、値が \
+             変わった class のみ mutation record が記録されるはず（内訳: \
+             {attribute_names:?}）"
+        );
+        assert_eq!(item_element.get_attribute("class").as_deref(), Some("new"));
+        assert_eq!(
+            item_element.get_attribute("data-fixed").as_deref(),
+            Some("same")
+        );
+
+        let KeyedListApplyResult::Achieved { node: achieved, .. } = result else {
+            panic!("全操作成功時は Achieved が返るはず");
+        };
+        assert_eq!(
+            achieved, updated,
+            "同値スキップがあっても achieved は new view とバイト等価の \
+             ままであるはず（決定的正規化契約は不変）"
+        );
+    }
+
+    /// 受け入れ条件 1: 全属性が不変の Update では attribute mutation
+    /// record が 0 件であること（不変属性のみのケースでも同値スキップが
+    /// 確実に発動することの固定）。
+    #[wasm_bindgen_test]
+    fn sync_attrs_emits_no_attribute_mutation_when_all_attrs_unchanged() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a"]);
+        let item_element = list_element.first_element_child().unwrap();
+        item_element.set_attribute("class", "same").unwrap();
+
+        let previous_items: Vec<(String, Node)> = vec![(
+            "a".to_string(),
+            li(vec![("class", "same")], vec![text("a")]),
+        )];
+        let previous = keyed_list("ul", vec![], "items", previous_items).unwrap();
+
+        // テキストのみ変更し、属性は完全に同一の view を Update として
+        // 適用する（Update op 自体は発火するが属性同期は全件スキップ
+        // される想定）。
+        let updated_items: Vec<(String, Node)> = vec![(
+            "a".to_string(),
+            li(vec![("class", "same")], vec![text("a-updated")]),
+        )];
+        let updated = keyed_list("ul", vec![], "items", updated_items).unwrap();
+
+        let observer = observe_attribute_mutations(&item_element);
+
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        let attribute_names = taken_attribute_names(&observer);
+        assert!(
+            attribute_names.is_empty(),
+            "全属性が不変の場合 attribute mutation record は 0 件のはず \
+             （内訳: {attribute_names:?}）"
+        );
+    }
+
+    /// 受け入れ条件 2 の関連確認（ground truth 契約の回帰固定）: `old_attrs`
+    /// との同値でスキップが発動しても、ライブ DOM が
+    /// `old_attrs`/`new_attrs` の値と異なる値へ外部からドリフトしていた
+    /// 場合は achieved にそのライブ実値が反映されること。スキップは
+    /// 「新しい書き込みを省略する」判定に過ぎず、読み戻し（決定的正規化）
+    /// は変更しないため、この自己修復性は同値スキップ導入後も崩れない。
+    #[wasm_bindgen_test]
+    fn sync_attrs_skip_does_not_break_live_drift_self_healing_via_readback() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a"]);
+        let item_element = list_element.first_element_child().unwrap();
+        item_element.set_attribute("class", "old").unwrap();
+
+        let previous_items: Vec<(String, Node)> =
+            vec![("a".to_string(), li(vec![("class", "old")], vec![text("a")]))];
+        let previous = keyed_list("ul", vec![], "items", previous_items).unwrap();
+
+        // old_attrs（previous）と new_attrs（updated）が同値の Update を
+        // 用意しつつ、適用前にライブ DOM だけを外部ドリフトさせておく。
+        let updated_items: Vec<(String, Node)> = vec![(
+            "a".to_string(),
+            li(vec![("class", "old")], vec![text("a-updated")]),
+        )];
+        let updated = keyed_list("ul", vec![], "items", updated_items).unwrap();
+
+        // 外部コード（他スクリプト等）によるライブ値ドリフトを模す。
+        item_element.set_attribute("class", "drifted").unwrap();
+
+        let result = apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        assert_eq!(
+            item_element.get_attribute("class").as_deref(),
+            Some("drifted"),
+            "old_attrs/new_attrs 同値によるスキップはライブ実値を書き換え \
+             ないため、外部ドリフト後の値がそのまま残るはず"
+        );
+        let KeyedListApplyResult::Achieved { node: achieved, .. } = result else {
+            panic!("全操作成功時は Achieved が返るはず");
+        };
+        let Node::Element {
+            children: achieved_children,
+            ..
+        } = &achieved
+        else {
+            panic!("achieved は Node::Element のはず");
+        };
+        let Node::Element {
+            attrs: achieved_item_attrs,
+            ..
+        } = &achieved_children[0]
+        else {
+            panic!("achieved の子要素は Node::Element のはず");
+        };
+        assert_eq!(
+            achieved_item_attrs,
+            &vec![
+                ("class".to_string(), "drifted".to_string()),
+                ("data-key".to_string(), "a".to_string()),
+            ],
+            "achieved は読み戻し（決定的正規化）によりライブ実値 \
+             \"drifted\" を反映するはず（ground truth 契約は同値スキップ \
+             導入後も不変。data-key は keyed list 項目要素の予約属性として \
+             compose_achieved_children が別途付与する）"
+        );
+    }
+
+    /// 受け入れ条件 1（エンドツーエンド）: `apply_keyed_list_with_previous`
+    /// 経由の通常経路でも、不変属性のみの子要素への Update で attribute
+    /// mutation record が発生しないこと。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_emits_no_attribute_mutation_for_unchanged_item_attrs() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "b"]);
+        let item_a = list_element.first_element_child().unwrap();
+        let item_b = list_element.children().item(1).unwrap();
+        item_a.set_attribute("class", "keep").unwrap();
+        item_b.set_attribute("class", "keep").unwrap();
+
+        let previous_items: Vec<(String, Node)> = vec![
+            (
+                "a".to_string(),
+                li(vec![("class", "keep")], vec![text("a")]),
+            ),
+            (
+                "b".to_string(),
+                li(vec![("class", "keep")], vec![text("b")]),
+            ),
+        ];
+        let previous = keyed_list("ul", vec![], "items", previous_items).unwrap();
+
+        let updated_items: Vec<(String, Node)> = vec![
+            (
+                "a".to_string(),
+                li(vec![("class", "keep")], vec![text("a")]),
+            ),
+            (
+                "b".to_string(),
+                li(vec![("class", "keep")], vec![text("b-changed")]),
+            ),
+        ];
+        let updated = keyed_list("ul", vec![], "items", updated_items).unwrap();
+
+        let observer_a = observe_attribute_mutations(&item_a);
+        let observer_b = observe_attribute_mutations(&item_b);
+
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &updated);
+
+        assert!(
+            taken_attribute_names(&observer_a).is_empty(),
+            "変更されない項目 a の class への set_attribute は発生しない \
+             はず"
+        );
+        assert!(
+            taken_attribute_names(&observer_b).is_empty(),
+            "テキストのみ変わる項目 b でも class が不変なら set_attribute \
+             は発生しないはず"
         );
     }
 }

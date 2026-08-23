@@ -472,6 +472,29 @@ pub(crate) trait KeyedListDom {
     /// 完全にバイト等価（順序・大小文字とも）になり、失敗系（ポリシー
     /// 拒否・実行時失敗）・hydrate ドリフト系（削除成功時は単に戻り値に
     /// 現れない）でのみ実際の DOM 状態が反映される。
+    ///
+    /// # 同値属性のスキップ許容（イシュー #1382）
+    ///
+    /// 実装は `new_attrs` の各エントリについて、`old_attrs` に
+    /// 名前（ASCII 大小文字非区別）・値（バイト厳密）とも一致するエントリ
+    /// が存在する場合、`set_attribute` 相当の物理書き込みを省略してよい
+    /// （wasm→JS 境界呼び出しの削減。判定述語は
+    /// [`crate::keyed_apply::attr_value_unchanged`]）。省略は「書き込みを
+    /// 一切行わない」判定に限られ、削除判定・URL スキーム/イベント
+    /// ハンドラ検証・読み戻しによる決定的正規化のいずれの契約も変えない
+    /// （書き込まないため検証バイパスにはならない）。この省略があっても
+    /// 上記の戻り値契約（正常系でのバイト等価性・失敗時の実 DOM 反映）は
+    /// 不変のまま成立しなければならない。**イベントハンドラ属性・URL
+    /// 属性・`srcset` の 3 カテゴリはこのスキップ許容の対象外**とする
+    /// （codex-review P0 対応）: `old_attrs` キャッシュは直前 tick の
+    /// 読み戻し値でしかなく、外部コードによる直接 `setAttribute` 等で
+    /// ライブ DOM の現在値がキャッシュ・新 view の値と無関係にドリフト
+    /// し得る。これら 3 カテゴリで同値判定のみを根拠にスキップすると、
+    /// 危険なライブ値（`javascript:` スキーム等）が検証・修復されないまま
+    /// 少なくとも次 tick まで残存する（REQ-1 既定エスケープの弱体化）。
+    /// 実装は毎 tick これら 3 カテゴリを検証・書き込み経路へ通し、安全な
+    /// 場合は安全値を書き戻して同一 tick で自己修復する（同値スキップ
+    /// 導入前の挙動を維持する）。
     fn sync_attrs(
         &mut self,
         child: &Self::Handle,
@@ -1720,6 +1743,33 @@ fn is_attr_write_rejected(name: &str, value: &str) -> bool {
     fandhe_frontend_core::is_event_handler_attr(name)
         || (fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value))
         || (name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value))
+}
+
+/// `old_attrs`（達成 Node キャッシュ由来、実 DOM 読み戻し値 = ground
+/// truth）中に `name`/`value` と同値のエントリが存在するかを判定する
+/// （イシュー #1382）。
+/// [`crate::keyed_dom::WebSysKeyedDom::sync_attrs`] の set ループが本述語
+/// を使い、値が不変の属性への `set_attribute` 呼び出し（wasm→JS 境界
+/// コスト）を省略する（`KeyedListDom::sync_attrs` トレイト doc「同値属性
+/// のスキップ許容」参照）。
+///
+/// 名前の一致判定は ASCII 大小文字を区別しない（本モジュール既存の
+/// 削除判定・予約属性判定と同じ `eq_ignore_ascii_case` 規約、HTML
+/// 属性名はライブ DOM 上で小文字化されて列挙されるため）。値は決定性
+/// 維持のためバイト厳密比較（`==`、大小文字を区別）する。
+///
+/// keyed_dom は `#[cfg(target_arch = "wasm32")]` ゲート配下で native
+/// テスト不能なため、判定意味論の固定は本関数の host `cargo test`
+/// （`mod tests`）で行う（本モジュール既存の「述語共有」パターンの踏襲、
+/// `is_attr_write_rejected` 参照）。
+pub(crate) fn attr_value_unchanged(
+    old_attrs: &[(String, String)],
+    name: &str,
+    value: &str,
+) -> bool {
+    old_attrs
+        .iter()
+        .any(|(old_name, old_value)| old_name.eq_ignore_ascii_case(name) && old_value == value)
 }
 
 #[cfg(test)]
@@ -5199,6 +5249,48 @@ mod tests {
             dom.items,
             vec!["c", "a", "b"],
             "不変条件違反の検知時はライブ DOM を変更しないはず"
+        );
+    }
+
+    // `attr_value_unchanged`（イシュー #1382）: 判定意味論の固定。
+    // keyed_dom（wasm32 ゲート配下）から native テスト不能なため、
+    // この host テストが名前の大小文字非区別・値のバイト厳密比較を
+    // 契約として固定する（`is_attr_write_rejected` と同じ「述語共有」
+    // パターンの踏襲）。
+
+    #[test]
+    fn attr_value_unchanged_true_when_name_case_insensitive_and_value_equal() {
+        let old_attrs = vec![("Class".to_string(), "btn".to_string())];
+        assert!(
+            attr_value_unchanged(&old_attrs, "class", "btn"),
+            "属性名の大小文字違いは無視して同値と判定するはず"
+        );
+    }
+
+    #[test]
+    fn attr_value_unchanged_false_when_value_case_differs() {
+        let old_attrs = vec![("class".to_string(), "Btn".to_string())];
+        assert!(
+            !attr_value_unchanged(&old_attrs, "class", "btn"),
+            "属性値は大小文字を区別するため不一致のはず（決定性維持）"
+        );
+    }
+
+    #[test]
+    fn attr_value_unchanged_false_when_name_absent() {
+        let old_attrs = vec![("id".to_string(), "x".to_string())];
+        assert!(
+            !attr_value_unchanged(&old_attrs, "class", "btn"),
+            "old_attrs に名前が存在しない場合は同値と判定しないはず"
+        );
+    }
+
+    #[test]
+    fn attr_value_unchanged_false_when_old_attrs_empty() {
+        assert!(
+            !attr_value_unchanged(&[], "class", "btn"),
+            "空の old_attrs（cache-miss フォールバック経路相当）では \
+             スキップが一切発動しないはず"
         );
     }
 }

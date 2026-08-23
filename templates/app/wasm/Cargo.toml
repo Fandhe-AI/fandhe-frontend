@@ -42,8 +42,11 @@ members = ["."]
 # バンプへ切り替えたため、本テンプレート側も 0.5.1 へ追随した。イシュー
 # #1376（core の keyed diff 前段スキップ）で fandhe-frontend-core 0.4.1 →
 # 依存元（interactive/headless-ui/.../wasm-client）が連鎖的にパッチバンプ
-# された（0.5.1 → 0.5.2）ため、本テンプレート側も追随する。
-fandhe-frontend-wasm-client = "0.5.2"
+# された（0.5.1 → 0.5.2）ため、本テンプレート側も追随する。イシュー
+# #1382（`sync_attrs` への属性同値スキップ追加）で 0.5.2 → 0.5.3 へ
+# パッチバンプされたため、本テンプレート側も追随する
+# （`template_vendor_drift` テスト対応）。
+fandhe-frontend-wasm-client = "0.5.3"
 
 [lib]
 crate-type = ["cdylib"]
