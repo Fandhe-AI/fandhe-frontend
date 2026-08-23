@@ -772,6 +772,18 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     /// 判定であり、実際に書き込む経路は従来どおり全検証を通るため
     /// 検証バイパスにはならない。
     ///
+    /// **適用対象からのイベントハンドラ / URL / `srcset` 属性の除外**
+    /// （イシュー #1382 codex-review P0 対応）: `old_attrs` キャッシュは
+    /// あくまで直前 tick の読み戻し値であり、ライブ DOM の**現在**の値を
+    /// 保証しない。外部スクリプト等がキャッシュ・新 view の値を変えずに
+    /// ライブ属性だけを `javascript:` 等の危険値へ直接書き換えた場合、
+    /// 同値スキップは「変わっていない」という誤った前提で危険なライブ値
+    /// をそのまま放置してしまう（REQ-1 既定エスケープの弱体化）。この
+    /// リスクを避けるため、イベントハンドラ属性・URL 属性・`srcset` の
+    /// 3 カテゴリは同値スキップの対象外とし、毎 tick 従来どおり検証・
+    /// 書き込み経路を通す（安全なら安全値を書き戻して同一 tick で自己
+    /// 修復する）。同値スキップは `class` 等それ以外の属性にのみ適用される。
+    ///
     /// スキップ後も読み戻し（下記の決定的正規化）は変更しないため、
     /// 外部コードによるライブ値ドリフト（テストや他スクリプトが直接
     /// `setAttribute` した場合等）があっても achieved には実 DOM の値が
@@ -814,7 +826,26 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
                 // 予約属性が紛れ込んでも書き込まない。
                 continue;
             }
-            if crate::keyed_apply::attr_value_unchanged(old_attrs, name, value) {
+            // セキュリティ上重要な属性カテゴリ（イベントハンドラ / URL /
+            // `srcset`）は同値スキップの対象から除外する（イシュー #1382
+            // codex-review P0 対応、上記 doc「同値スキップ」参照）。
+            // `old_attrs` キャッシュは直前 tick の読み戻し値であり、外部
+            // スクリプト等がライブ DOM を直接 `setAttribute` で書き換えた
+            // 場合（キャッシュ・新 view の値は変わらないままライブ値だけが
+            // ドリフトするケース）を検知できない。危険なライブ値
+            // （`javascript:` スキーム等）がキャッシュと新 view の値の一致
+            // だけを根拠にスキップされると、同一 tick での自己修復が失われ
+            // 少なくとも次 tick まで残存してしまう（REQ-1 既定エスケープの
+            // 弱体化）。このためこれら 3 カテゴリは常に検証・書き込み経路を
+            // 通し、安全な場合は毎 tick 安全値を書き戻して即時修復する
+            // 従来の挙動を維持する。同値スキップはそれ以外の属性
+            // （`class` 等）にのみ適用される。
+            let is_security_sensitive = fandhe_frontend_core::is_event_handler_attr(name)
+                || fandhe_frontend_core::is_url_attr(name)
+                || name.eq_ignore_ascii_case("srcset");
+            if !is_security_sensitive
+                && crate::keyed_apply::attr_value_unchanged(old_attrs, name, value)
+            {
                 // 同値スキップ（イシュー #1382、上記 doc「同値スキップ」
                 // 参照）: 書き込みを一切行わない判定であり、検証
                 // バイパスにはならない。
