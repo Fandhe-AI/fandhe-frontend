@@ -87,6 +87,18 @@ pub fn derive_item_template(items: &[&Node]) -> Option<ItemTemplate> {
         return None;
     }
 
+    // 単一アイテム（rest が空）でも fail-safe 契約（RawHtml 混入の検知、
+    // 本モジュール doc「責務境界」節）を必ず通すため、first を自分自身に
+    // 対して同型判定する。`rest` を走査するペアワイズ比較のみに頼ると
+    // items.len() == 1 のときループが 0 回になり、first の部分木に
+    // RawHtml が含まれていても検知できず #1385 の Node-to-DOM 1:1 不変
+    // 条件を破って Some を返してしまう（nodes_isomorphic は RawHtml 同士
+    // の比較も variant 一致とはみなさず `_ => false` 腕で必ず不成立に
+    // するため、自己比較でも正しく検知できる）。
+    if !nodes_isomorphic(first, first, true) {
+        return None;
+    }
+
     for other in rest {
         if !nodes_isomorphic(first, other, true) {
             return None;
@@ -428,6 +440,23 @@ mod tests {
         )]
         let b = el("div", vec![], vec![raw_html("a")]);
         let items: Vec<&Node> = vec![&a, &b];
+        assert!(derive_item_template(&items).is_none());
+    }
+
+    #[test]
+    fn raw_html_single_item_is_none() {
+        // Bugbot 指摘（PR #1398）: items が単一要素だと nodes_isomorphic の
+        // ペアワイズ比較（rest 走査）がループ 0 回で完全にスキップされ、
+        // RawHtml を含む単一 Element ルートでも Some を返してしまう回帰。
+        // 本モジュール doc「責務境界」節の fail-safe 契約
+        // （RawHtml 混入は必ず None）と #1385 の Node-to-DOM 1:1 不変条件を
+        // 単一アイテムでも保つことを固定する。
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "ESCAPE-REVIEWED: RawHtml 混入時の不成立判定を検証するテスト固定文字列、ユーザー入力なし"
+        )]
+        let a = el("div", vec![], vec![raw_html("<b>x</b>")]);
+        let items: Vec<&Node> = vec![&a];
         assert!(derive_item_template(&items).is_none());
     }
 
