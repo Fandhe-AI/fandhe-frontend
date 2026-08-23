@@ -253,27 +253,56 @@ codex-review 指摘 4 件対応。詳細・区別の理由は §6 参照）:
    を渡し、`new_attrs`/`old_attrs` は一切フィルタしない。ただし、その
    子孫がネストした binding のルート（`data-bind-list`
    〔`fandhe_frontend_core::keyed::BIND_LIST_ATTR`〕を持つ Element、
-   §6.3 が扱うネスト keyed list のルート）である場合は例外とし、
-   `data-key` のアイテムルート扱いと同型に `reserved_attr` へ
-   `data-bind-list` を渡し、`new_attrs`/`old_attrs` から `data-bind-list`
-   を除外したうえで呼び出し、達成 Node 合成時に `new_node` 側の
-   `data-bind-list` の値をそのまま再付加する**（本改訂で追加、PR #1395
-   codex-review 10 巡目 P1 対応。既存の `sync_parent_attrs`
-   〔`crates/wasm-client/src/keyed_apply.rs`〕が親要素の `data-bind-list`
-   を同じ理由で予約属性として扱う既存パターンをそのまま踏襲する。この
-   例外を設けない場合、`data-bind-list` が子孫再帰の中で通常の属性として
-   `sync_attrs` の削除候補・比較対象に含まれてしまい、(a) 再帰更新中に
-   `data-bind-list` の値が変更・削除されうる〔ネスト binding の field
-   識別子そのものが Update 経路から書き換わってしまう〕、(b)
-   `sync_attrs` は既存 DOM ノードを再生成しないため、§6.3 規則 1〜2 が
-   定めるノード再生成トリガー（narrow fallback 成功・段 2 成功）に
-   一致せず `invalidated_nested_fields` へのキャッシュ無効化も走らない
-   〔binding 識別が変わったにもかかわらずキャッシュが古い field 名の
-   まま残る〕、という 2 点で §6.3 のネスト binding キャッシュ契約が
-   壊れる）。この例外を除き、通常の（binding ルートでない）子孫の
-   成功判定（上記 (B) の基準）は未フィルタの `new_attrs` を基準に行い、
-   達成 Node 合成でも `sync_attrs` の戻り値をそのまま使う（再付加の
-   後処理は不要）。失敗（(B)）した場合は上記のとおりアイテム全体が
+   §6.3 が扱うネスト keyed list のルート）である場合は例外とする。**この
+   例外は、旧新の `data-bind-list` 値が一致する場合に限る**（本改訂で
+   条件を精緻化、PR #1395 codex-review 11 巡目 Bugbot Medium 対応。
+   以前の版は値の一致を問わず常に予約扱いとしていたが、これは誤りで
+   あり撤回する）:
+   - **旧新の `data-bind-list` 値が一致する場合**（達成 Node キャッシュ
+     側 `old_attrs` の `data-bind-list` 値と `new_node` 側 `new_attrs`
+     の `data-bind-list` 値が文字列として同一。両方に存在することが
+     前提で、この場合は同一の binding field を指し続けていることを
+     意味する）: `data-key` のアイテムルート扱いと同型に `reserved_attr`
+     へ `data-bind-list` を渡し、`new_attrs`/`old_attrs` から
+     `data-bind-list` を除外したうえで `sync_attrs` を呼び出す。達成
+     Node 合成時に再付加する値は、**旧新一致が確認済みのこの値**（すなわち
+     `old_attrs`／`new_attrs` いずれの表記でも同一の値）を使う（本改訂で
+     明記: 「`new_node` の値をそのまま再付加する」という以前の記述は、
+     この値が旧値と一致することを何ら検証せずに信頼する体裁になって
+     いたため撤回する。旧新一致を確認したうえで初めてこの値を「ライブ
+     DOM が実際に保持し続ける値」として扱える。`sync_attrs` はこの
+     属性を一切書き込まないため、ライブ DOM の実際の値を個別に読み
+     戻す新しい API は不要であり、旧新一致の確認自体が「ライブ DOM が
+     この値を保持している」ことの根拠になる）。
+   - **旧新の `data-bind-list` 値が異なる場合（追加・削除・値変更の
+     いずれか）**: これは binding identity の構造変更（このスコープが
+     指すネスト keyed list の field 名そのものが変わった、または
+     binding ルートであること自体が変わった）であり、単なる属性値の
+     更新として扱わない。**(A) 前提不一致として扱い、このスコープへ
+     narrow fallback する**（本改訂で追加。`reserved_attr` による保護
+     対象にはしない。理由: `data-bind-list` を通常の属性として
+     `sync_attrs` の比較・書き換え対象に含めてしまうと、(a) binding の
+     field 識別子そのものが Update 経路から書き換わる、(b) `sync_attrs`
+     は既存 DOM ノードを再生成しないため §6.3 規則 1〜3 が定めるノード
+     再生成トリガーに一致せず `invalidated_nested_fields` へのキャッシュ
+     無効化も走らない、という 2 点で §6.3 のネスト binding キャッシュ
+     契約が壊れる。narrow fallback〔`replace_item_children`〕はこの
+     スコープの子ノード列を detached 構築 + 交換するため、新しい
+     binding ルート要素〔新しい `data-bind-list` 値を持つ〕が正しく
+     生成され、§6.3 の通常の無効化契約がそのまま働く）。**このスコープの
+     narrow fallback が成功した場合、無効化すべき nested field は新しい
+     `data-bind-list` 値だけでなく、旧い `data-bind-list` 値も含む**
+     （詳細・理由は §6.3 参照。narrow fallback 後の新しい部分木を
+     `collect_nested_bind_list_fields` で走査しても旧い field 名は
+     現れないため、この位置での値相違を検出した時点で旧い field 名を
+     別途記録しておく必要がある）。既存の `sync_parent_attrs`
+     〔`crates/wasm-client/src/keyed_apply.rs`〕が親要素の `data-bind-list`
+     を同じ理由で予約属性として扱う既存パターンは、旧新一致ケースの
+     処理としてそのまま踏襲する。この例外を除き、通常の（binding
+     ルートでない）子孫の成功判定（上記 (B) の基準）は未フィルタの
+     `new_attrs` を基準に行い、達成 Node 合成でも `sync_attrs` の戻り値
+     をそのまま使う（再付加の後処理は不要）。失敗（(B)）した場合は
+     上記のとおりアイテム全体が
    段 2 へ進む（この Element 自身の子ノード列交換は試みない。
    P0-1 対応）。属性適用が成功した場合、その要素の子ノード列へ本節の
    規則を**同じ深さで再適用**する（新旧の種別・タグが同型と確認できる
@@ -339,8 +368,22 @@ Text ノード・任意深さの Element ノードへ実際に**到達するた�
     §3.2 が既に許容している「Rust 側の値比較コストは安価」という前提の
     範囲内に収まる）。
   - `fn child_kind(&mut self, node: &Self::ChildHandle) -> ChildNodeKind;`
-    （`enum ChildNodeKind { Text, Element }`）— 種別判定（`Node::nodeType`
-    相当）。
+    （`enum ChildNodeKind { Text, Element, Other }`。**`Other` は本改訂で
+    追加、PR #1395 codex-review 11 巡目 P1-2 対応**）— 種別判定
+    （`Node::nodeType` 相当）。`Other` は hydrate 後に残存するコメント
+    ノード（`<!-- -->`）・外部コード挿入の CDATA・processing instruction
+    等、達成 Node キャッシュが表現できる `Node::Text`/`Node::Element` の
+    いずれにも該当しない DOM ノード種別を指す。**`child_kind` はこれらを
+    `Text`/`Element` へ誤って分類してはならず、また `unreachable!()`/
+    `panic!()` を用いてもならない**（fail-closed 回復経路の迂回・
+    パニックによるクラッシュのいずれも避ける。旧稿は 2 値のみでこの
+    ケースを表現できず、実装が誤分類かパニックのいずれかを選ばざるを
+    得ない欠陥があった）。`Other` を返した位置は、下記「ライブ観測と
+    キャッシュ前提の整合チェック」規則 2 の種別一致判定において
+    `Node::Text`/`Node::Element` のいずれとも一致しないため、この位置を
+    含むスコープは自動的に (A) 前提不一致として narrow fallback へ
+    倒れる（新しい判定ルールを追加する必要はなく、既存の種別不一致
+    判定がそのまま `Other` を吸収する）。
   - `fn as_element(&mut self, node: &Self::ChildHandle) -> Option<Self::Handle>;`
     — `child_kind` が `Element` の場合のみ `Some` を返し、既存
     `KeyedListDom::Handle`（`sync_attrs`/`replace_item_children`/
@@ -419,6 +462,61 @@ per-child 規則そのものには一切変更がないため保たれる）。S
 タグ名・Text 値は §3.2 規則 1・2 が前提とする「同種であること」の判定
 根拠そのものであり、`sync_attrs` が吸収する属性値ドリフトとは異なり
 前提不一致 (A) 側で扱う）。
+**書き込み単位ごとの再検証（stale ハンドル対策、本改訂で新設、PR #1395
+codex-review 11 巡目 P1-1 対応）**: 上記の関門は「対象スコープについて
+書き込みを開始する**直前に 1 回**」検証する設計だったが、これだけでは
+不十分である。同一スコープ内で複数の書き込み単位（Text の
+`set_text_data`・Element の `sync_attrs`）を**順に**適用する構成である
+以上、先行する単位の書き込みが後続の単位に影響を及ぼしうる: `sync_attrs`
+が内部で呼ぶ `setAttribute`/`removeAttribute` は、対象がカスタム要素
+（`customElements.define` 登録済み要素）であれば `attributeChangedCallback`
+を**同期的に**発火させる（CEReactions の反応キューは当該呼び出しの
+末尾で同期的に処理される）。このコールバックは任意のアプリケーション・
+ライブラリコードであり、後続の兄弟ノードを削除・置換する副作用を持ち
+うる。この場合、スコープ開始時に 1 回だけ取得した `child_handles(parent)`
+の後続位置のハンドルは detached（親から切り離された）またはライブ DOM
+上の実際の内容と乖離した stale なハンドルのまま処理が継続してしまう。
+stale ハンドルへの `set_text_data`/`sync_attrs` が（DOM 標準上・実装上
+`false` を返さず）成功を報告すると、ライブ DOM は実際には更新されて
+いないにもかかわらず達成 Node キャッシュだけが新状態として確定し、
+§6.1 が保証する収束契約（達成 Node は「呼び出し後に実 DOM が実際に
+表している内容」と一致する）を破る。
+
+修正: **各書き込み単位（Text の `set_text_data`・Element の
+`sync_attrs`）の直前に、そのつどそのスコープの子数・対象位置の種別・
+タグ（`Element` の場合）・Text 値（`Text` の場合）を上記「ライブ観測と
+キャッシュ前提の整合チェック」規則 1〜5 と同一の基準で再検証する**
+（`child_handles(parent)` を毎回改めて呼び直し、スコープ開始時に取得
+した古いスナップショットを使い回さない）。1 点でも乖離が検出された
+時点で、その単位への書き込みは行わず、上記 (A) 前提不一致と同じ扱いで
+このスコープを narrow fallback へフォールバックする（§3.2 の統一規則を
+そのまま適用し、新しいフォールバック粒度の規則を追加しない）。この
+再検証は「対象スコープの検証を書き込み開始直前に 1 回行う」という
+当初の記述（旧稿）を撤回し、「対象スコープ内の**各**書き込み単位の
+直前に行う」へ改訂したものである。
+
+**検証コストの増分（§4 と対応させる正直な開示）**: この改訂により、
+1 つのスコープ（子数 `k`）に対する `child_handles` 呼び出し回数は
+「スコープ開始時に 1 回」から「書き込み単位ごとに 1 回（最大 `k` 回）」
+へ増える。`child_handles` の実装が親の子ノード列を毎回フルスキャンする
+場合、1 スコープあたりの検証コストは `O(k)` 回の呼び出し × 呼び出し
+あたり `O(k)` の走査で最悪 `O(k²)` となり、§3.2a が当初想定していた
+「アイテム 1 件・部分木 1 件あたり高々 1 回の走査」という前提から後退
+する。この後退を正直に認めたうえで、次の理由により許容する: (1) `k` は
+**keyed list アイテム 1 件の子ノード数**（または子孫の部分木 1 件の
+子ノード数）に閉じたローカルな値であり、keyed list 全体の要素数（`n`）
+には依存しない。実測ワークロード（親 #1371 の `tr > td > text`）のように
+アイテム内の子ノード数が定数に近い構成では実質 `O(1)`（呼び出し回数も
+走査コストも定数）のままである。(2) この再検証はいずれも Rust 側の
+値比較のみで完結し（`child_kind`/`as_element`/`tag_name`/`text_data` は
+いずれも読み取り専用の観測であり web-sys 境界への書き込みを伴わない）、
+§3.2 が既に許容している「Rust 側の比較コストは安価」という前提の範囲内
+に収まる。(3) この再検証を経ずに stale ハンドルへの書き込みを許すことは
+§6.1 の収束契約そのものを破る安全性上の欠陥であり、性能とのトレード
+オフではなく必須の是正である。§4「コンテキスト消費」への影響はなし
+（新しいトレイト・メソッド・データ構造を追加せず、既存 `ChildNodeDom`
+の各メソッドを呼ぶ回数・タイミングを変えるのみ）。
+
 - **native 単体テストでのモック方法**: 既存モック（`type Handle = String`、
   アイテムキーを表す文字列）と同型に、`type ChildHandle` もモックの
   内部ツリー表現上の位置を指す不透明な値（例: `String` のパス表現や
@@ -928,20 +1026,38 @@ item 全体の子ノード列を作り直す。新方式は二値原子性を過
 一般化する。**本節の無効化契約は、子孫がネストした binding ルート
 自身であるスコープ（`data-bind-list` を持つ Element）で `sync_attrs`
 が呼ばれる場合、§3.2 規則 3 が定める `reserved_attr` 例外
-（`data-bind-list` を予約属性として扱い比較・書き換え対象から除外する）
-と対をなす: 予約属性として除外されるため `sync_attrs` 単体では
+（旧新の `data-bind-list` 値が一致する場合に限り、`data-bind-list` を
+予約属性として扱い比較・書き換え対象から除外する。本改訂で条件を精緻化、
+PR #1395 codex-review 11 巡目 Bugbot Medium 対応）と対をなす: 旧新値が
+一致し予約属性として除外される場合、`sync_attrs` 単体では
 `data-bind-list` の値は変更されず、ノードも再生成されないため、この
 スコープでの通常の属性同期（narrow fallback に至らない、下記 2.）では
-`invalidated_nested_fields` へ何も追加しない。一方、このスコープ自体が
-narrow fallback（段 1 (A)）や段 2 の対象としてノード再生成される場合は
+`invalidated_nested_fields` へ何も追加しない。一方、旧新値が**一致しない**
+場合は §3.2 規則 3 のとおりこのスコープ自体が (A) 前提不一致として
+narrow fallback（段 1 (A)）の対象になり、ノード再生成される。この場合は
 下記 1.・3. の一般規則がそのまま適用され、`data-bind-list` を含む
-新しい属性集合が反映された新ノードから field を再収集する。**:
+新しい属性集合が反映された新ノードから field を再収集する**が、旧い
+`data-bind-list` 値（旧 field 名）は新しい部分木のどこにも現れないため、
+下記 1. が定める追加の扱いに従い別途無効化する**:
 
 1. **段 1 (A) narrow fallback が成功した場合**: そのスコープの新しい
    内容（narrow fallback で構築した部分木）へ `collect_nested_bind_list_fields`
    を適用し、得られた field 集合を `invalidated_nested_fields` へ
    追加する。無効化の範囲はそのスコープ配下に閉じ、他のスコープの
-   field は含めない。
+   field は含めない。**このスコープが §3.2 規則 3 の `data-bind-list`
+   値相違（新設ケース）を原因として narrow fallback へ入った場合は、
+   上記の新しい部分木由来の field 集合に加え、旧い `data-bind-list` の
+   値（達成 Node キャッシュ側 `old_attrs` から読み取れる旧 field 名）を
+   明示的に `invalidated_nested_fields` へ追加する**（本改訂で追加、
+   PR #1395 codex-review 11 巡目 Bugbot Medium 対応。`collect_nested_bind_list_fields`
+   は新しい部分木のみを走査するため、旧 field 名は自動的には収集され
+   ない。この位置での値相違を検出した時点で旧 field 名を保持しておき、
+   narrow fallback 成功時に和集合として追加する必要がある。これにより、
+   旧 field 用の達成 Node キャッシュ entry が新しい binding 識別と乖離
+   したまま残ることを防ぐ）。narrow fallback がこの原因以外（子数・種別・
+   タグの通常の構造変更、またはネストした binding を持たないスコープ）
+   で発火した場合は、この追加の扱いは適用しない（新しい部分木の走査
+   結果のみを使う、既存の一般規則のまま）。
 2. **段 1 の `set_text_data`／`sync_attrs`（narrow fallback に至らな
    かった単位）の扱い**: これらは既存 DOM ノードを再生成しない（Text
    ノード・Element ノードの参照は保持されたまま値のみが変わる）ため、
@@ -1018,7 +1134,32 @@ narrow fallback（段 1 (A)）や段 2 の対象としてノード再生成さ�
   対応）種別が `Text` の位置で `ChildNodeDom::text_data` が返すライブ
   文字列値がキャッシュの `i` 番目の Text 値と不一致（新値がキャッシュの
   旧値と同値であってもフォールバックすることを含めて固定し、Text 同値
-  スキップがライブ値ドリフトを放置しないことを確認する）。
+  スキップがライブ値ドリフトを放置しないことを確認する）。(6)（本改訂で
+  追加、PR #1395 codex-review 11 巡目 P1-2 対応）ある位置の `child_kind`
+  が `ChildNodeKind::Other`（コメントノード混入を模す）を返すケースで、
+  `Text`/`Element` いずれとも一致しないため上記 (2) と同じ経路で即座に
+  narrow fallback（段 1 (A)）へ切り替わり、`unreachable!()`/`panic!()`
+  が発生しない（native テストがパニックなく完了する）ことを固定する。
+- **書き込み単位ごとの再検証（stale ハンドル対策、本改訂で追加、PR #1395
+  codex-review 11 巡目 P1-1 対応）**: 兄弟が複数（`k >= 2`）ある子ノード
+  列で、単位 0（先頭の Element）への `sync_attrs` 呼び出しをモックへ
+  発火順序制御で注入し、その呼び出しの**内部で**（`attributeChangedCallback`
+  相当の同期的副作用を模して）親の子ノード列を書き換える（例: 単位 1
+  以降のノードを削除する、または別のノードに置き換える）ケースを構成
+  する。次を決定的に固定する: (1) 単位 1 への書き込み（`set_text_data`
+  または `sync_attrs`）を試みる前に `child_handles(parent)` が**再度**
+  呼ばれ、スコープ開始時の古いスナップショットがそのまま使い回されない
+  こと。(2) 再検証が子数・種別・タグ・Text 値のいずれかの乖離を検出した
+  場合、単位 1 への書き込みは 1 件も発生せず（モックの呼び出し回数で
+  確認する）、このスコープが直ちに narrow fallback（段 1 (A)）へ
+  切り替わること。(3) narrow fallback が成功した場合、達成 Node が
+  「単位 0 の書き込み後、実際にライブ DOM 上に存在する内容」と一致し、
+  stale ハンドルへの書き込みが成功したかのように誤った新状態がキャッシュ
+  へ紛れ込まないこと（§6.1 の収束契約の回帰）。(4) 逆に、単位 0 の
+  書き込みが後続の子ノード列に一切影響しない通常ケース（同期的副作用
+  なし）では、単位 1 以降への再検証呼び出しが検出する乖離がなく、
+  narrow fallback を経由せず全単位が per-child diff のまま完了すること
+  （再検証の追加が通常経路の適用計画を変えないことの確認）。
 - **書き込み失敗の判定と段 2 への直行（finding 1・P0-1・P0（ポリシー
   拒否分離）対応）**: (1) `set_text_data` が `false` を返すケースで、
   そのアイテムが narrow fallback を一切経由せず（この Text ノードの
@@ -1154,7 +1295,20 @@ narrow fallback（段 1 (A)）や段 2 の対象としてノード再生成さ�
   再付加パスを通ること）をモックの呼び出し引数から確認し、`data-bind-list`
   の値が変更・削除されず（比較・書き換え対象から除外され）、ノードも
   再生成されないためこの単位単独では `invalidated_nested_fields` へ
-  何も追加されないことを固定する（§6.3 の P1 契約固定）。
+  何も追加されないことを固定する（§6.3 の P1 契約固定）。(7)（本改訂で
+  追加、PR #1395 codex-review 11 巡目 Bugbot Medium 対応）子孫（非
+  ルート）Element が `data-bind-list` を持ち、旧新でその**値が異なる**
+  （旧 `groupA`・新 `groupB` 等）ケースで、(a) `sync_attrs` は呼ばれず
+  `reserved_attr` 保護も適用されず、このスコープが直ちに (A) 前提不一致
+  として narrow fallback（`replace_item_children`）へ切り替わること、
+  (b) narrow fallback が成功した場合、`invalidated_nested_fields` に
+  **新旧両方の field 名**（`groupA` と `groupB`）が含まれること（新
+  field は narrow fallback 後の新しい部分木の走査から、旧 field は
+  §6.3 が定める明示的な追加規則から、それぞれ独立に加わることを確認
+  する）、(c) narrow fallback 自体が失敗した場合は §6.2 のとおりアイテム
+  全体が段 2 へ進み、§6.3 規則 3（段 2 成功時は item 全体の nested
+  field を追加）が適用され、この場合も新旧両 field を含む item 全体の
+  再収集で結果的に両方が捕捉されることを確認する。
 
 ## 8. 受け入れ基準対応表
 
