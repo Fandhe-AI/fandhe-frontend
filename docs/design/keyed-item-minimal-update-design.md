@@ -173,15 +173,41 @@ codex-review 指摘 4 件対応。詳細・区別の理由は §6 参照）:
   アイテム全体について残る段 1 処理をすべて打ち切り、直ちに§6 の段 2
   （item 丸ごと差し替え）へ進む。
 - **(B) 書き込み失敗**（実際に web-sys 境界への書き込みを試みた後に
-  判明。新規、§6 参照）: Text の `set_text_data` が `false` を返す、
-  Element の `sync_attrs` の戻り値が要求した `new_attrs` と一致しない
-  場合。**このユニット（Text ノード・Element ノード）自身への narrow
-  fallback は一切試みない**（Element 自身の属性書き込み失敗は、その
-  Element を子として含む親スコープの子ノード列交換でしか本質的に修復
-  できず、その Element 自身の子ノード列交換〔narrow fallback〕では
-  属性に触れられないため。本改訂で明確化、P0-1 対応）。(B) が起きた
-  時点で、アイテム全体について残る段 1 処理をすべて直ちに打ち切り、
-  §6 の段 2（item 丸ごと差し替え）へ進む。
+  判明。新規、§6 参照）: Text の `set_text_data` が `false` を返す場合、
+  または Element の `sync_attrs` の戻り値が**「ポリシー拒否を除いた
+  期待 achieved 集合」**と一致しない場合。**「ポリシー拒否を除いた期待
+  achieved 集合」とは、`new_attrs` のうち
+  `is_attr_write_rejected`（`crates/wasm-client/src/keyed_apply.rs`、
+  イベントハンドラ属性・危険 URL スキーム・不正 `srcset` の判定述語、
+  `crate::keyed_dom::WebSysKeyedDom::sync_attrs` が web-sys 実装として
+  共有する同一述語）が `false` を返すエントリのみを取り出した部分集合
+  を指す**（本改訂で判定基準を精緻化、PR #1395 codex-review 継続指摘
+  P0 対応）。判定は次の 2 条件のいずれかが破れた場合に (B) とする:
+  (i) この部分集合の各 `(name, value)` について、`sync_attrs` の戻り値
+  に `(name, value)` と完全一致するエントリが存在すること。(ii) 戻り値
+  に `new_attrs` に存在しない名前のエントリ（`removeAttribute` の実行時
+  失敗により削除できず残存した属性）が 1 件も含まれないこと。
+  `is_attr_write_rejected` が `true` のエントリ（ポリシー拒否）は
+  この判定に**一切用いない**: ポリシー拒否は `docs/design/keyed-update-op-design.md`
+  §3.2 c 案・本書「属性検証規則の共有」が定める**意図的な skip**であり、
+  `crates/wasm-client/tests/`／`crates/wasm-client/src/keyed_apply.rs`
+  の既存テスト（`compose_achieved_children_keeps_old_value_when_attr_update_is_rejected`・
+  `compose_achieved_children_omits_attr_when_new_attr_addition_is_rejected`）
+  が固定するとおり、拒否時は実 DOM の旧安全値（存在すれば）またはその
+  属性の不在をそのまま「達成」として扱い、失敗として扱わない契約が
+  既に確立している。本書の (B) 判定がこの契約を上書きしないよう、
+  ポリシー拒否と実行時失敗（`setAttribute`/`removeAttribute` の `Err`）
+  を明確に分離する。**このユニット（Text ノード・Element ノード）自身
+  への narrow fallback は（(B) と判定された場合に限り）一切試みない**
+  （Element 自身の属性書き込み失敗は、その Element を子として含む親
+  スコープの子ノード列交換でしか本質的に修復できず、その Element 自身
+  の子ノード列交換〔narrow fallback〕では属性に触れられないため。
+  本改訂で明確化、P0-1 対応）。(B) と判定された時点で、アイテム全体に
+  ついて残る段 1 処理をすべて直ちに打ち切り、§6 の段 2（item 丸ごと
+  差し替え）へ進む。ポリシー拒否のみで (B) に該当しない場合は、段 1 の
+  この単位は成功として扱い、`sync_attrs` の戻り値（ポリシー拒否分の
+  旧値・不在を含む、実 DOM の実際の状態）をそのままこのスコープの達成
+  内容として用いる（§5 参照）。
 
 1. **子数が一致し、かつ各インデックス `i` の新旧ノードが同種
    （Text↔Text または Element↔Element かつ同タグ）である場合のみ**、
@@ -196,8 +222,20 @@ codex-review 指摘 4 件対応。詳細・区別の理由は §6 参照）:
    段 2 へ進む。
 3. **Element ↔ 同タグ Element**: 属性集合の差分適用（Update op 設計書
    §3.2 c 案が定義する `sync_attrs` の検証規則をそのまま再利用する。
-   規則を複製しない）を行う。失敗（(B)）した場合は上記のとおりアイテム
-   全体が段 2 へ進む（この Element 自身の子ノード列交換は試みない。
+   規則を複製しない）を行う。**`reserved_attr` 引数（`sync_attrs` の
+   予約属性名パラメータ、§2 参照）は、対象がアイテムルートか子孫かで
+   異なる**（本改訂で明記、P1-3 対応）: アイテムルートは既存の正規化
+   契約どおり `data-key` を渡し、`new_attrs`/`old_attrs` から `data-key`
+   を除外したうえで呼び出し、達成 Node 合成時に `new_node` 側の
+   `data-key` の値をそのまま再付加する（既存の
+   `compose_in_place_updated_node` 契約、変更なし）。一方、**子孫
+   （非ルート）の Element には `data-key` のような予約属性が存在しない
+   ため、`reserved_attr` には「一致する属性名が存在しない値」（空文字列
+   相当）を渡し、`new_attrs`/`old_attrs` は一切フィルタしない**。成功
+   判定（上記 (B) の基準）もこの未フィルタの `new_attrs` を基準に行い、
+   達成 Node 合成でも `sync_attrs` の戻り値をそのまま使う（再付加の
+   後処理は不要）。失敗（(B)）した場合は上記のとおりアイテム全体が
+   段 2 へ進む（この Element 自身の子ノード列交換は試みない。
    P0-1 対応）。属性適用が成功した場合、その要素の子ノード列へ本節の
    規則を**同じ深さで再適用**する（新旧の種別・タグが同型と確認できる
    限り、子孫のさらに内側へも同規則を適用し続ける。子孫の内側だけを
@@ -400,7 +438,25 @@ Update op 設計書 §5 の 4 軸論証を継承・拡張し、本書の適用�
   （タグ不一致時のアイテム全置換、§2 手順 2）を**そのまま再利用**し、
   段 3 に既存の `resync_required` 契約（PR #1391/#1392 で確定済み）を
   **そのまま再利用**するため、新しいデータ構造・新しい DOM 操作
-  プリミティブは 1 つも追加しない（当初 undo ログ方式・その後の再帰的
+  プリミティブは 1 つも追加しない。**この「新しいデータ構造を追加しない」
+  という評価はアイテムキー粒度の話であり、内部表現の path 粒度化までは
+  含まない点を明示的に留保する**（本改訂で追加、P1-1 対応）:
+  `ApplyOutcome::achieved_attrs`（`crates/wasm-client/src/keyed_apply.rs`）
+  は現行実装ではアイテムキー 1 本につき `Vec<(String, String)>` 1 件を
+  持つフラットな `HashMap<String, Vec<(String, String)>>` であり、これは
+  アイテムルート 1 箇所のみが `sync_attrs` を呼ぶ現行の（#1381 以前の）
+  Update op 適用を前提にした形である。本書 §3.2 規則 3 が導入する子孫
+  再帰では、1 個のアイテム内で複数のスコープ（アイテムルート・任意深さの
+  Element）がそれぞれ独立に `sync_attrs` を呼びうるため、達成属性を
+  アイテムキーのみで区別するこの現行の内部表現では、どのスコープの
+  結果かを区別できない。**この内部表現をアイテムキー粒度のまま維持する
+  か、スコープ（path）粒度へ拡張するかは、本書では確定せず #1381 の実装
+  判断に委ねる**（例: `HashMap` のキーをアイテムキーとスコープ path の
+  組にする、達成 Node のツリー traversal 中に直接埋め込む、等はいずれも
+  実装内部の選択肢であり、`ChildNodeDom`／`KeyedListDom` の公開シグネ
+  チャや DOM 操作プリミティブの追加を要しない範囲に収まる限り、本節の
+  「新しい DOM 操作プリミティブを追加しない」という結論とは独立である）。
+  （当初 undo ログ方式・その後の再帰的
   スコープエスカレーション方式を順に検討したが、いずれも達成できない
   復元を要求する構造的な欠陥・失敗時の巻き戻し先の定義不能という欠陥が
   あったため、本改訂で撤回した。PR #1395 codex-review 継続指摘対応、
@@ -487,11 +543,35 @@ REQ-11 受け入れ基準の恒常的未達）には依拠せず、本設計の�
   detached 構築 + `exchange_children` へフォールバックする**（不変条件。
   §2 で確認した既存の「ルート要素タグ一致判定をライブ DOM 照会にする」
   判断と同じ理由: プレースホルダの内容は per-child 差分の根拠にならない）。
+  **この forced な `replace_item_children` 呼び出しは、本書 §3.2・§6 の
+  per-child diff・3 段エスカレーションのいずれの対象でもない**（本改訂で
+  明記、P1-2 対応）: per-child diff は達成 Node キャッシュに実内容がある
+  ことを前提とする比較駆動の仕組みであり、cache-miss はその前提を欠くため
+  比較を一切行わず既存の `replace_item_children`（§2 手順 3・4）を無条件に
+  呼ぶだけの、#1330/#1340 で確立済みの**別経路**である。したがってこの
+  呼び出し自体が失敗した場合の終端は、本書が定義する 3 段ラダー（段 1→
+  段 2→段 3 `resync_required`）には合流させず、**§2 手順 4 が定める現行
+  契約（`stale_update_keys` への記録）のまま変更しない**（本書の変更範囲
+  外）。cache-miss 経路と per-child diff 駆動の段 1 (A) narrow fallback は
+  いずれも同じ `replace_item_children` API を呼ぶ点で実装を共有しうるが、
+  「比較の結果として narrow fallback へ入ったのか（段 1→段 2→段 3 の
+  対象）」と「比較を行わず forced に呼ばれたのか（cache-miss、
+  `stale_update_keys` のまま）」を呼び出し元で区別する必要があり、その
+  区別方法（呼び出し元のコンテキストフラグ等）は #1381 の実装判断に
+  委ねる。
 - 達成 Node の合成規則（§6 の 3 段エスカレーションと対応させる）: 段 1
-  の各書き込み単位（`set_data` 成功・同値スキップ・`sync_attrs` 成功・
-  narrow local `replace_item_children` 成功）はそれぞれ、そのスコープに
-  ついて新しい内容を持つ `Node` として合成する（#1330 §4.2a・#1340 の
-  既存の達成 Node 整合規則・`compose_achieved_children`／
+  の各書き込み単位（`set_data` 成功・同値スキップ・`sync_attrs` が §3.2
+  「(B) 書き込み失敗」に該当しなかった場合・narrow local
+  `replace_item_children` 成功）はそれぞれ、そのスコープについて新しい
+  内容を持つ `Node` として合成する。**`sync_attrs` の単位について「新しい
+  内容」とは `new_attrs` そのものではなく、`sync_attrs` の実際の戻り値
+  （ポリシー拒否分の旧安全値・不在を含む、実 DOM の実際の達成状態）を
+  指す**（本改訂で明記、P0 対応。ポリシー拒否は (B) に該当しないため
+  段 1 の単位としては成功扱いになるが、達成 Node には拒否された危険値
+  ではなく実 DOM の実際の状態を反映させる。既存の
+  `compose_achieved_children_keeps_old_value_when_attr_update_is_rejected`
+  テストが固定する契約と同型）。この合成は既存の達成 Node 整合規則
+  （#1330 §4.2a・#1340・`compose_achieved_children`／
   `sanitize_node_for_achieved`／`achieved_attrs` の延長として定義し、
   新しい合成規則を別途追加しない）。段 2（item 全置換）が成功した場合は
   item 全体を新しい `Node`（`new_node`）として合成する（既存のタグ不一致
@@ -602,16 +682,22 @@ item 全体の子ノード列を作り直す。新方式は二値原子性を過
      受けず継続する。**失敗**すれば、このスコープに閉じた再試行や
      一つ外側のスコープへの段階的な波及は行わず、アイテム全体について
      残る段 1 処理をすべて打ち切り、直ちに段 2 へ進む。
-   - **(B) 書き込み失敗**（`set_text_data` が `false`、または
-     `sync_attrs` の戻り値が要求 `new_attrs` とバイト等価にならない。
-     `sync_attrs` の戻り値が正規化契約〔上記「属性検証規則の共有」〕
-     どおり `new_attrs` と完全一致することを成功の唯一の判定基準と
-     する）が起きた場合、その Element・Text 自身への narrow fallback は
-     **一切試みない**（P0-1 の再発防止: Element 自身の属性書き込み失敗
-     は、その Element を子として含む親スコープの子ノード列交換でしか
-     本質的に修復できず、その Element 自身の子ノード列交換〔narrow
-     fallback〕では属性に触れられないため）。アイテム全体について残る
-     段 1 処理をすべて打ち切り、直ちに段 2 へ進む。
+   - **(B) 書き込み失敗**（`set_text_data` が `false` を返す場合、または
+     `sync_attrs` の戻り値が§3.2「(B) 書き込み失敗」の定義どおり**「ポリシー
+     拒否を除いた期待 achieved 集合」**と一致しない場合）が起きた場合、
+     その Element・Text 自身への narrow fallback は**一切試みない**
+     （P0-1 の再発防止: Element 自身の属性書き込み失敗は、その Element を
+     子として含む親スコープの子ノード列交換でしか本質的に修復できず、
+     その Element 自身の子ノード列交換〔narrow fallback〕では属性に触れ
+     られないため）。**ポリシー拒否（`is_attr_write_rejected` が
+     `true` のエントリの skip）自体は (B) に該当しない**（本改訂で明確化、
+     P0 対応。危険 URL スキーム・`srcset`・イベントハンドラ属性の意図的
+     skip は仕様どおりの挙動であり、`crates/wasm-client/src/keyed_apply.rs`
+     の既存テスト `compose_achieved_children_keeps_old_value_when_attr_update_is_rejected`／
+     `compose_achieved_children_omits_attr_when_new_attr_addition_is_rejected`
+     が固定する「拒否時は旧安全値を保持し op 自体は計画どおり適用できて
+     いる」契約と矛盾させない）。(B) と判定された時点で、アイテム全体に
+     ついて残る段 1 処理をすべて打ち切り、直ちに段 2 へ進む。
 2. **段 2（item 丸ごと差し替え）**: §2 手順 2 が既に定義するタグ不一致
    時の既存経路（`KeyedListDom::create_item` による detached 構築 →
    `KeyedListDom::replace_root` によるルート要素の差し替え）を、タグ
@@ -645,12 +731,19 @@ item 全体の子ノード列を作り直す。新方式は二値原子性を過
    次回の適用を [`crate::keyed_dom::apply_keyed_list`]（ライブ DOM を
    直接読み出す構造フォールバック）へ委ねる。**`stale_update_keys`
    （現行コードの `replace_item_children` 失敗時の終端、§2 手順 4）は、
-   本書のエスカレーション設計における段 1→段 2 の合流により、Update op
-   適用ラダーの終端としては使われなくなる**（段 1 の narrow fallback
-   失敗は段 2 へ直行するため）。`stale_update_keys` フィールド自体は
-   他の失敗経路（本書のスコープ外）で用途を持ちうるため撤去は提案
-   しないが、本書が定義する 3 段ラダーの中では終端としての役割を持たず、
-   補助的な位置づけ（防御の多層化の一部）へ格下げする。
+   本書のエスカレーション設計における段 1→段 2 の合流により、**per-child
+   diff 駆動の**（すなわち達成 Node キャッシュに実内容があり、実際に
+   比較を行ったうえで narrow fallback へ入った）Update op 適用ラダーの
+   終端としては使われなくなる**（段 1 の narrow fallback 失敗は段 2 へ
+   直行するため）。一方、**§5 で明記したとおり cache-miss 経路（比較を
+   行わず forced に `replace_item_children` を呼ぶ、本書 §3.2・§6 の
+   ラダーの対象外）における同じ `replace_item_children` 呼び出しの失敗は、
+   §2 手順 4 が定める現行契約（`stale_update_keys` への記録）のまま
+   変更しない**（本改訂で明記、P1-2 対応）。`stale_update_keys`
+   フィールド自体はこの cache-miss 経路の終端という明確な用途を維持する
+   ため撤去は提案しないが、本書が新しく定義する per-child diff 駆動の
+   3 段ラダーの中では終端としての役割を持たず、補助的な位置づけ（防御の
+   多層化の一部）へ格下げする。
 
 **この方式が旧稿の指摘・P0 指摘をどう解消するか**:
 
@@ -766,35 +859,43 @@ item 全体の子ノード列を作り直す。新方式は二値原子性を過
   (3) 段 2 が成功した場合、部分達成の属性状態が最終状態としては残らず
   （item 全体が段 2 で構築した新しい `Node` 由来の内容へ完全に上書き
   される）、その結果を native モックの最終状態から確認する。
-- **段 2 自体の失敗と段 3 への直行（finding 2・3・P0-2 対応）**: 兄弟が
-  複数ある子ノード列で、単位 `k`（`k < n`）が成功し**た後**に単位
-  `k+1` が書き込み失敗（(B)）するケースを、モックへ発火順序制御を
-  注入して構成する。次を決定的に固定する: (1) 単位 `k+1` の失敗時点で、
-  この Element・Text 自身への narrow fallback も一つ外側のスコープへの
-  段階的な再試行も一切行われず、直ちに段 2（`create_item`+`replace_root`）
-  が呼ばれること、(2) 段 2 の `create_item` が `Node` 構築に失敗する
-  ケースでは、その失敗時点でライブ DOM への書き込みが 1 件も発生して
-  いないこと（`insert_before`/`remove` いずれも呼ばれないことをモックの
-  呼び出し回数で確認する）を固定し、そのうえで `resync_required` が
-  立つ（段 3）ことを確認する、(3) 段 2 の `replace_root_node` が
-  `insert_before` 成功後 `remove` に失敗するケースでは、`replace_root_node`
-  自身のロールバック（挿入した新要素を取り除く）が実行されたうえで
+- **段 2 自体の失敗と段 3 への直行（finding 2・3・P0-2 対応）**: 前項
+  「書き込み失敗の判定と段 2 への直行」で構成した「単位 `k`（`k < n`）が
+  成功し**た後**に単位 `k+1` が書き込み失敗（(B)）し段 2 が呼ばれる」
+  ケースを土台に、**段 2 の呼び出し自体がさらに失敗する場合**を追加で
+  固定する（段 1 (B)→段 2 への遷移そのものの固定は前項の対象であり、本項
+  では重複させない。本改訂で見出しと内容の対応を是正、P2 対応）。
+  (1) 段 2 の `create_item` が `Node` 構築に失敗するケースでは、その
+  失敗時点でライブ DOM への書き込みが 1 件も発生していないこと
+  （`insert_before`/`remove` いずれも呼ばれないことをモックの呼び出し
+  回数で確認する）を固定し、そのうえで `resync_required` が立つ（段 3）
+  ことを確認する。(2) 段 2 の `replace_root_node` が `insert_before`
+  成功後 `remove` に失敗するケースでは、`replace_root_node` 自身の
+  ロールバック（挿入した新要素を取り除く）が実行されたうえで
   `resync_required` が立つ（段 3）ことを固定し、このロールバックが
   「単位 `1..=k` の成功済み書き込みを含む item 全体を Update 開始前の
   状態へ戻す」ものではなく「段 2 の試行直前状態（単位 `1..=k` の書き込み
   を含みうる）へ戻すだけ」であることをモックの内部状態から確認する
   （P0-2 が指摘した「巻き戻し先の不整合」を、`resync_required` への
   fail-closed な合流によって解消できていることの回帰）。
-- **終端の `resync_required`（finding 2・3・P0-2 対応）**: 段 2 が
-  `create_item` の構築失敗、または `replace_root_node` の部分失敗の
-  いずれかで終端まで解消しなかったケースを固定する。(1) `ApplyOutcome::resync_required`
-  が `true` になること、(2) `stale_update_keys` へは記録されないこと
-  （本書のラダーでは段 1→段 2 の合流により、Update op 適用の終端として
-  `stale_update_keys` を使わないことの回帰）、(3) 呼び出し元が今回の
-  適用結果を達成 Node キャッシュへ確定させず、次回の
-  [`crate::keyed_dom::apply_keyed_list`]（ライブ DOM 直接読み出しの
-  構造フォールバック）で当該アイテムの子ノード列全体が再構築される
-  こと（cache-miss フォールバック回帰テストと同一の検証手段を流用する）。
+- **終端の `resync_required`（finding 2・3・P0-2 対応）**: **per-child
+  diff 駆動の**（達成 Node キャッシュに実内容があり、段 1 の書き込みを
+  実際に試みた上で）段 2 が `create_item` の構築失敗、または
+  `replace_root_node` の部分失敗のいずれかで終端まで解消しなかった
+  ケースを固定する。(1) `ApplyOutcome::resync_required` が `true` に
+  なること、(2) このケースでは `stale_update_keys` へ記録されないこと
+  （本書のラダーでは段 1→段 2 の合流により、per-child diff 駆動の Update
+  op 適用の終端として `stale_update_keys` を使わないことの回帰。**この
+  非記録は per-child diff 駆動の経路に限った回帰であり、cache-miss 経路
+  〔§5 参照〕の `replace_item_children` 失敗が `stale_update_keys` へ
+  記録される既存契約とは別のケースを検証している**点を、この回帰テスト
+  自体のケース設定〔達成 Node キャッシュに実内容がある通常の
+  `apply_keyed_list_with_previous` 経路〕で明示する。本改訂で明記、
+  P1-2 対応）、(3) 呼び出し元が今回の適用結果を達成 Node キャッシュへ
+  確定させず、次回の [`crate::keyed_dom::apply_keyed_list`]（ライブ DOM
+  直接読み出しの構造フォールバック）で当該アイテムの子ノード列全体が
+  再構築されること（cache-miss フォールバック回帰テストと同一の検証
+  手段を流用する）。
 - **hydrate ドリフト属性の扱い（finding 3 対応、undo ではなく新規生成で
   解消することの確認）**: モックのライブ属性初期状態へ、達成 Node
   キャッシュ（`old_attrs`/`new_attrs` いずれにも）現れない属性を 1 件
