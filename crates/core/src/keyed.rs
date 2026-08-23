@@ -558,6 +558,34 @@ pub enum KeyedOp {
 /// wasm-client 側の同名関数は #1324 で本関数への re-export へ置換予定で
 /// あり、それまでの一時的な実装重複は意図的。
 ///
+/// # 前段スキップ（共通接頭辞・接尾辞トリム、イシュー #1376）
+///
+/// vue `patchKeyedChildren` / lit `repeat` / solid `mapArray` が共通で採る
+/// 前処理として、[`trimmed_bounds`] で新旧キー列の共通接頭辞・接尾辞を
+/// 先に求め、不一致の中間区間に対してのみ [`remove_pass`]/
+/// [`insert_or_move_pass`] を適用する（`base_index` で中間区間の
+/// オフセットを補正する）。キー列が完全一致する場合（CSR update
+/// ワークロードの典型）は中間区間が空になり、`HashMap`/`HashSet` を
+/// 一切構築せずキー列の `==` 比較のみで空の `ops` を返す。
+///
+/// この前段スキップを安全に適用できるのは、**`old_keys`/`new_keys` の
+/// それぞれの内部にキー重複が一切ない**場合に限る
+/// （[`has_duplicate_keys`] でゲートする）。理由: 重複がなければ、ある
+/// キーは配列内に高々 1 回しか出現しないため、接頭辞・接尾辞領域の
+/// キーが中間区間に再出現することは構造的にあり得ず、中間区間だけの
+/// diff 結果は全域スローパスの対応部分と完全に一致する
+/// （`old`/`new` それぞれ独立に重複がないことを要求し、両方の間で
+/// キーを共有していないことまでは要求しない点に注意）。重複キーが
+/// 混入している場合（[`keyed_list`] が構築時点で拒否するため通常
+/// 到達しないが、DOM 改ざん等の防御として想定）は前段スキップを一切
+/// 行わず全域スローパスへフォールバックする。これは
+/// `old=["a","a","c"], new=["a","a","d"]` のような「重複キーが
+/// 接頭辞・接尾辞領域に完全に閉じている」ケースで、中間区間のみの
+/// 素朴な diff が [`remove_pass`] の自己修復（最後の出現のみ保持）を
+/// 取りこぼし、適用結果が dedup(new) と一致しなくなる不具合を防ぐ
+/// ために必須（接頭辞・接尾辞と中間区間の対応関係だけを見る素朴な
+/// ゲートでは検出できない。全域重複検査が唯一の健全な条件）。
+///
 /// # HashDoS 対策の追加防御（PR #1390 レビュー是正、イシュー #1375）
 ///
 /// 本関数は [`keyed_list`] を経由しない生の `&[String]` を直接受け取れる
@@ -579,10 +607,142 @@ pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Result<Vec<KeyedOp
     enforce_key_limits(old_keys.len(), old_keys.iter().map(String::len).sum())?;
     enforce_key_limits(new_keys.len(), new_keys.iter().map(String::len).sum())?;
 
+    let (prefix, suffix) = trimmed_bounds(old_keys, new_keys);
+    let mid_old_len = old_keys.len() - prefix - suffix;
+    let mid_new_len = new_keys.len() - prefix - suffix;
+
+    if mid_old_len == 0 && mid_new_len == 0 {
+        // 完全一致（新旧キー列が要素ごとに同一。CSR update ワークロードの
+        // 典型）。old_keys に重複がなければ new_keys も要素ごとに同一の
+        // ため重複はなく、安全に空 ops を返せる（HashMap/HashSet 構築ゼロ）。
+        // 重複があれば remove_pass の自己修復が必要なため下段の全域
+        // スローパスへフォールバックする（本関数 doc「前段スキップ」節）。
+        if !has_duplicate_keys(old_keys.iter().map(String::as_str)) {
+            return Ok(Vec::new());
+        }
+    } else if prefix > 0 || suffix > 0 {
+        // 中間区間のみの diff（前段スキップ、本関数 doc 参照）。安全性
+        // 検証ゲート（重複キーなし）を通過したときのみ適用する。
+        if !has_duplicate_keys(old_keys.iter().map(String::as_str))
+            && !has_duplicate_keys(new_keys.iter().map(String::as_str))
+        {
+            let mid_old = &old_keys[prefix..old_keys.len() - suffix];
+            let mid_new = &new_keys[prefix..new_keys.len() - suffix];
+            let mut ops = Vec::new();
+            let working = remove_pass(mid_old, mid_new, &mut ops)?;
+            insert_or_move_pass(working, mid_new, &mut ops, prefix)?;
+            return Ok(ops);
+        }
+    }
+
+    // 全域スローパス（トリムの余地がない場合、または重複キー混入による
+    // フォールバック）。旧実装と完全に同一の 2 パス構成。
     let mut ops = Vec::new();
     let working = remove_pass(old_keys, new_keys, &mut ops)?;
-    insert_or_move_pass(working, new_keys, &mut ops)?;
+    insert_or_move_pass(working, new_keys, &mut ops, 0)?;
     Ok(ops)
+}
+
+/// [`diff_keys`]/[`diff_keyed_items`] の前段スキップが用いる共通接頭辞・
+/// 共通接尾辞長 `(p, s)` を計算する（イシュー #1376）。
+///
+/// `p + s <= min(old.len(), new.len())` にクランプする（接頭辞・接尾辞の
+/// 走査範囲が重なって二重にスキップされることを防ぐ。例:
+/// `old=["a","b"], new=["a","x","b"]` で素朴に接頭辞 `p=1`・接尾辞 `s=1`
+/// を独立に求めると `p+s=2 <= old.len()=2` で境界だが、`old.len()` が
+/// より小さいケースでは重なりが起き得るため、接尾辞側の走査上限を
+/// `remaining = len - p` に基づいて算出する）。要素の `==` 比較のみで
+/// 完結し、`HashMap`/`HashSet` を一切構築しない。
+fn trimmed_bounds<T: PartialEq>(old: &[T], new: &[T]) -> (usize, usize) {
+    let max_prefix = old.len().min(new.len());
+    let mut prefix = 0;
+    while prefix < max_prefix && old[prefix] == new[prefix] {
+        prefix += 1;
+    }
+
+    let remaining_old = old.len() - prefix;
+    let remaining_new = new.len() - prefix;
+    let max_suffix = remaining_old.min(remaining_new);
+    let mut suffix = 0;
+    while suffix < max_suffix && old[old.len() - 1 - suffix] == new[new.len() - 1 - suffix] {
+        suffix += 1;
+    }
+
+    (prefix, suffix)
+}
+
+/// [`trimmed_bounds`] の `(String, Node)` ペア列版。キー（`.0`）のみを
+/// 比較し、`Node`（`.1`）の内容比較は行わない（前段スキップの境界判定は
+/// キー一致のみに基づく。内容比較は [`diff_keyed_items`] の Update
+/// 判定パスが別途担う）。
+fn trimmed_bounds_items(old: &[(String, Node)], new: &[(String, Node)]) -> (usize, usize) {
+    let max_prefix = old.len().min(new.len());
+    let mut prefix = 0;
+    while prefix < max_prefix && old[prefix].0 == new[prefix].0 {
+        prefix += 1;
+    }
+
+    let remaining_old = old.len() - prefix;
+    let remaining_new = new.len() - prefix;
+    let max_suffix = remaining_old.min(remaining_new);
+    let mut suffix = 0;
+    while suffix < max_suffix && old[old.len() - 1 - suffix].0 == new[new.len() - 1 - suffix].0 {
+        suffix += 1;
+    }
+
+    (prefix, suffix)
+}
+
+/// `keys` の中に重複するキー文字列がないか（または安全に判定できない
+/// 一次ハッシュ衝突が起きていないか）を判定する（イシュー #1376。
+/// HashDoS 対策の再設計は PR #1394 codex-review P1 是正、イシュー #1376
+/// 追補）。
+///
+/// [`diff_keys`]/[`diff_keyed_items`] の前段スキップを安全に適用できるか
+/// のゲート判定に使う（両関数の doc「前段スキップ」節参照）。
+///
+/// # 実装（HashDoS 対策の再設計）
+///
+/// 旧実装は借用のみの `Vec<&str>` を構築してソートし、隣接要素を `&str`
+/// の辞書式比較で照合していた。**この方式は本モジュールが他所で確立した
+/// HashDoS 線形拘束（[`crate::fx_hash`] モジュール doc「追加防御その 2」
+/// 節・`MAX_KEYED_LIST_KEY_BYTES` doc 参照）を迂回する**: `sort_unstable`
+/// の比較回数は `O(n log n)` であり、各比較は共通接頭辞長ぶんの `str`
+/// バイト比較を伴うため、長い共通接頭辞を持つキー列を攻撃者が事前計算
+/// すれば総比較バイト数は `O(総キーバイト数 × log n)` まで劣化し得る
+/// （`O(総キーバイト数)` という確立済みの線形上界を破る。PR #1394
+/// codex-review P1 指摘）。
+///
+/// 新実装は `&str` を一切ソートしない。各キーを
+/// [`crate::fx_hash::FxBuildHasher`]（[`FxStrMap`]/[`FxStrSet`] が内部で
+/// 使うのと同じ一次ハッシュ、`std::hash::BuildHasher::hash_one`）で
+/// `u64` へ一次ハッシュしてから、その `u64` だけをソートする。`u64`
+/// 比較は定数時間のため、ソート自体のコストは総キーバイト数に依存せず
+/// `O(n log n)`（整数比較のみ）に収まり、ハッシュ計算のパス（`O(総キー
+/// バイト数)`、[`enforce_key_limits`] が上限を保証）と合わせても全体で
+/// `O(総キーバイト数 + n log n)` の線形拘束を回復する。
+///
+/// 隣接する `u64` が一致した場合、**その中身の `&str` を比較しない**まま
+/// 「重複あり」として `true` を返す（安全側に倒す設計）。理由:
+/// 一致が (a) 真の重複キー、(b) 異なる 2 つのキーが偶然/意図的に同じ
+/// 64bit 一次ハッシュへ落ちた衝突、のいずれであっても、本関数の呼び出し
+/// 元（[`diff_keys`]/[`diff_keyed_items`]）は `true` を「前段スキップを
+/// 適用せず全域スローパスへフォールバックせよ」の合図としてのみ使う。
+/// フォールバック先の全域スローパスは [`FxStrMap`]/[`FxStrSet`]
+/// （同じ一次ハッシュ・同じ衝突検知）を使うため、(b) の場合は
+/// [`KeyedListError::KeyHashCollision`] として決定的に拒否され、(a) の
+/// 場合は既存の自己修復ロジックがそのまま働く。つまり `&str` 比較を省いて
+/// も **偽陰性（真の重複を見逃す）は起こらず**、偽陽性（衝突を重複と誤認
+/// してフォールバックする）は「前段スキップの機会を 1 回逃すだけ」で
+/// 安全に吸収される。この非対称性により、`&str` バイト比較を完全に排除
+/// してもなお正しさが保たれる。
+fn has_duplicate_keys<'a>(keys: impl Iterator<Item = &'a str>) -> bool {
+    let hasher = crate::fx_hash::FxBuildHasher::default();
+    let mut hashes: Vec<u64> = keys
+        .map(|key| std::hash::BuildHasher::hash_one(&hasher, key))
+        .collect();
+    hashes.sort_unstable();
+    hashes.windows(2).any(|pair| pair[0] == pair[1])
 }
 
 /// [`diff_keys`] 第 1 パス: `new_keys` に存在しないキーを [`KeyedOp::Remove`]
@@ -688,10 +848,23 @@ fn remove_pass(
 /// 再挿入しない点が実装上の差分だが、再挿入された要素は以後の反復で
 /// 二度と参照されない（`new_keys` の走査は単調増加のインデックスのみを
 /// 見る）ため、単純に連結リストから完全に取り除いても出力に影響しない。
+///
+/// # `base_index`（前段スキップとの連携、イシュー #1376）
+///
+/// [`diff_keys`]/[`diff_keyed_items`] が中間区間のみを対象に本関数を
+/// 呼ぶ場合（[`trimmed_bounds`]/[`trimmed_bounds_items`] が求めた共通
+/// 接頭辞長 `p`）、`working`/`new_keys` は元の配列の `[p..len-s)`
+/// スライスであり、発行する `Insert`/`Move` の `index` は「新しい並び
+/// 全体」における位置でなければならない。`out_index` の初期値を `0` では
+/// なく `base_index`（トリムなしの呼び出しでは `0`）から始めることで、
+/// 中間区間の出力位置を元の配列全体でのオフセットへ補正する。全域
+/// スローパス（トリムなし）は `base_index = 0` を渡し、旧実装と完全に
+/// 同一の `index` 値を発行する。
 fn insert_or_move_pass(
     working: Vec<String>,
     new_keys: &[String],
     ops: &mut Vec<KeyedOp>,
+    base_index: usize,
 ) -> Result<(), KeyedListError> {
     let n = working.len();
 
@@ -724,7 +897,9 @@ fn insert_or_move_pass(
     // が `["a","b","c"]` になってしまうが、正しくは `["a","c","b"]`）。
     // `out_index` は「新側で実際に処理対象となった要素」（マッチ消費・
     // Move・Insert のいずれか、重複スキップを除く）ごとに 1 ずつ進める。
-    let mut out_index: usize = 0;
+    // 初期値は `base_index`（中間区間のオフセット補正、本関数 doc
+    // 「base_index」節参照。トリムなしの全域スローパスでは 0）。
+    let mut out_index: usize = base_index;
 
     if n == 0 {
         for key in new_keys.iter() {
@@ -855,6 +1030,28 @@ fn insert_or_move_pass(
 /// );
 /// ```
 ///
+/// # 前段スキップ（共通接頭辞・接尾辞トリム、イシュー #1376）
+///
+/// [`diff_keys`] doc「前段スキップ」節と同じ前処理・安全性検証ゲート
+/// （[`trimmed_bounds_items`]/[`has_duplicate_keys`]、old/new それぞれの
+/// 内部に重複キーがないことが適用条件）を用いる。異なるのは第 3 パス
+/// （Update 判定）の扱いのみ: **スキップ区間（接頭辞・接尾辞）にも
+/// Update 判定は必須**（キー一致は内容一致を意味しないため。イシュー
+/// #1376 の明示要件）。前段スキップが適用されるとき:
+///
+/// - 構造 op（Remove/Insert/Move）は中間区間のみを対象に計算する
+///   （`base_index` で位置を補正）。
+/// - Update 判定は、接頭辞（位置ごとの直接比較）・中間区間（中間区間
+///   限定の小さな `old_by_key`/`seen_new_keys`）・接尾辞（位置ごとの
+///   直接比較）の 3 段に分けて行うが、いずれも `new_items` 全体の順序
+///   （接頭辞 → 中間 → 接尾辞）で `ops` へ追記するため、トリムなしで
+///   全域を走査した場合と発行順・内容が完全に一致する。
+///
+/// 接頭辞・接尾辞の Update 判定は位置ベースの直接比較（`old_items[i].1
+/// != new_items[i].1`）のみで完結し、`HashMap`/`HashSet` を構築しない
+/// （old/new で同じ位置に同じキーが並んでいることは [`trimmed_bounds_items`]
+/// の構築条件そのもの）。
+///
 /// # HashDoS 対策の追加防御（PR #1390 レビュー是正、イシュー #1375）
 ///
 /// [`diff_keys`] と同じ理由（doc 参照）で、`old_items`/`new_items` それぞれ
@@ -880,12 +1077,99 @@ pub fn diff_keyed_items(
         new_items.iter().map(|(k, _)| k.len()).sum(),
     )?;
 
+    let (prefix, suffix) = trimmed_bounds_items(old_items, new_items);
+    let old_len = old_items.len();
+    let new_len = new_items.len();
+    let mid_old_len = old_len - prefix - suffix;
+    let mid_new_len = new_len - prefix - suffix;
+
+    if mid_old_len == 0 && mid_new_len == 0 {
+        // 完全一致（キー列が要素ごとに同一）。重複キーがなければ構造 op は
+        // 発生しない（diff_keys 側と同じ理由）。Update 判定のみ、全位置を
+        // 直接比較する（HashMap/HashSet 構築ゼロ）。
+        if !has_duplicate_keys(old_items.iter().map(|(k, _)| k.as_str())) {
+            let mut ops = Vec::new();
+            for i in 0..old_len {
+                let (_, old_node) = &old_items[i];
+                let (new_key, new_node) = &new_items[i];
+                if old_node != new_node {
+                    ops.push(KeyedOp::Update {
+                        key: new_key.clone(),
+                    });
+                }
+            }
+            return Ok(ops);
+        }
+    } else if prefix > 0 || suffix > 0 {
+        // 中間区間のみの diff（前段スキップ、本関数 doc 参照）。安全性
+        // 検証ゲート（重複キーなし）を通過したときのみ適用する。
+        if !has_duplicate_keys(old_items.iter().map(|(k, _)| k.as_str()))
+            && !has_duplicate_keys(new_items.iter().map(|(k, _)| k.as_str()))
+        {
+            let mid_old_items = &old_items[prefix..old_len - suffix];
+            let mid_new_items = &new_items[prefix..new_len - suffix];
+            // 中間区間分のみキーを clone する（旧実装の全キー clone を
+            // 縮小、イシュー #1376）。
+            let mid_old_keys: Vec<String> = mid_old_items.iter().map(|(k, _)| k.clone()).collect();
+            let mid_new_keys: Vec<String> = mid_new_items.iter().map(|(k, _)| k.clone()).collect();
+
+            let mut ops = Vec::new();
+            let working = remove_pass(&mid_old_keys, &mid_new_keys, &mut ops)?;
+            insert_or_move_pass(working, &mid_new_keys, &mut ops, prefix)?;
+
+            // Update 判定（本関数 doc「前段スキップ」節）: 接頭辞 → 中間 →
+            // 接尾辞の順で new_items 全体の順序を維持する。
+            for i in 0..prefix {
+                if old_items[i].1 != new_items[i].1 {
+                    ops.push(KeyedOp::Update {
+                        key: new_items[i].0.clone(),
+                    });
+                }
+            }
+
+            // 中間区間限定の小さな old_by_key/seen_new_keys（旧実装の全域
+            // map 構築を中間区間サイズへ縮小）。ハッシャ・衝突時 fail-closed
+            // の理由は旧実装コメント（全域スローパス側）参照。
+            let mut old_by_key: crate::fx_hash::FxStrMap<'_, &Node> =
+                crate::fx_hash::FxStrMap::with_capacity(mid_old_items.len());
+            for (key, node) in mid_old_items {
+                old_by_key.insert(key.as_str(), node)?;
+            }
+            let mut seen_new_keys: crate::fx_hash::FxStrSet<'_> =
+                crate::fx_hash::FxStrSet::with_capacity(mid_new_items.len());
+            for (key, new_node) in mid_new_items {
+                if !seen_new_keys.insert(key.as_str())? {
+                    continue;
+                }
+                if let Some(old_node) = old_by_key.get(key.as_str())? {
+                    if *old_node != new_node {
+                        ops.push(KeyedOp::Update { key: key.clone() });
+                    }
+                }
+            }
+
+            for i in 0..suffix {
+                let old_index = old_len - suffix + i;
+                let new_index = new_len - suffix + i;
+                if old_items[old_index].1 != new_items[new_index].1 {
+                    ops.push(KeyedOp::Update {
+                        key: new_items[new_index].0.clone(),
+                    });
+                }
+            }
+
+            return Ok(ops);
+        }
+    }
+
+    // 全域スローパス（トリムの余地がない場合、または重複キー混入による
+    // フォールバック）。旧実装と完全に同一の 3 パス構成。
     let old_keys: Vec<String> = old_items.iter().map(|(k, _)| k.clone()).collect();
     let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
 
     let mut ops = Vec::new();
     let working = remove_pass(&old_keys, &new_keys, &mut ops)?;
-    insert_or_move_pass(working, &new_keys, &mut ops)?;
+    insert_or_move_pass(working, &new_keys, &mut ops, 0)?;
 
     // 第 3 パス: 保持キー（重複混入時も `remove_pass` と同じ fail-closed
     // 防御を適用）を new_items 順に走査し、新旧 Node が不一致のときのみ
@@ -2090,5 +2374,428 @@ mod tests {
         let old: Vec<String> = (0..MAX_KEYED_LIST_ITEMS).map(|i| format!("k{i}")).collect();
         let new: Vec<String> = old.clone();
         assert!(diff_keys(&old, &new).is_ok());
+    }
+
+    // --- 前段スキップ（共通接頭辞・接尾辞トリム、イシュー #1376）。
+
+    /// [`diff_keys`] の全域スローパスを直接呼び出す（前段スキップを経由
+    /// しない、旧実装相当のリファレンス実装）。等価性テスト
+    /// （[`diff_keys_fast_path_matches_slow_path_reference_for_all_duplicate_free_pairs`]
+    /// 等）が「トリム適用時の出力」と比較する基準として使う。
+    fn diff_keys_slow_path_reference(
+        old_keys: &[String],
+        new_keys: &[String],
+    ) -> Result<Vec<KeyedOp>, KeyedListError> {
+        let mut ops = Vec::new();
+        let working = remove_pass(old_keys, new_keys, &mut ops)?;
+        insert_or_move_pass(working, new_keys, &mut ops, 0)?;
+        Ok(ops)
+    }
+
+    /// 性質テスト: 接頭辞・接尾辞を共有した中間区間のみの変化は、中間
+    /// 区間ぶんの Remove/Insert のみを発行する（イシュー #1376 実装方針の
+    /// 中核ケース）。
+    #[test]
+    fn diff_keys_trims_shared_prefix_and_suffix_around_middle_change() {
+        let old = keys(&["a", "b", "c", "d", "e"]);
+        let new = keys(&["a", "b", "x", "d", "e"]);
+
+        assert_eq!(
+            diff_keys(&old, &new).unwrap(),
+            vec![
+                KeyedOp::Remove {
+                    key: "c".to_string()
+                },
+                KeyedOp::Insert {
+                    index: 2,
+                    key: "x".to_string()
+                },
+            ]
+        );
+    }
+
+    /// 性質テスト: 中間区間内での Move も、共有端の外側（接頭辞・接尾辞）
+    /// には一切 op を発行しない。
+    #[test]
+    fn diff_keys_trims_shared_ends_around_middle_move() {
+        let old = keys(&["a", "b", "c", "d", "e"]);
+        let new = keys(&["a", "d", "c", "b", "e"]);
+
+        let ops = diff_keys(&old, &new).unwrap();
+        // 共有端（先頭 "a"・末尾 "e"）に対する op は存在しない。
+        assert!(ops
+            .iter()
+            .all(|op| !matches!(op, KeyedOp::Remove { key } | KeyedOp::Insert { key, .. } | KeyedOp::Move { key, .. } if key == "a" || key == "e")));
+        // 適用結果は new と一致する（apply_ops は本モジュール tests 内の
+        // 既存ヘルパー）。
+        assert_eq!(apply_ops(&old, &ops), new);
+    }
+
+    /// 性質テスト: 先頭削除は Remove 1 件のみ（接尾辞側全体が共有端として
+    /// スキップされる）。
+    #[test]
+    fn diff_keys_trims_removal_at_head() {
+        let old = keys(&["a", "b", "c"]);
+        let new = keys(&["b", "c"]);
+        assert_eq!(
+            diff_keys(&old, &new).unwrap(),
+            vec![KeyedOp::Remove {
+                key: "a".to_string()
+            }]
+        );
+    }
+
+    /// 性質テスト: 末尾削除は Remove 1 件のみ。
+    #[test]
+    fn diff_keys_trims_removal_at_tail() {
+        let old = keys(&["a", "b", "c"]);
+        let new = keys(&["a", "b"]);
+        assert_eq!(
+            diff_keys(&old, &new).unwrap(),
+            vec![KeyedOp::Remove {
+                key: "c".to_string()
+            }]
+        );
+    }
+
+    /// 境界値: `p + s` が `min(old.len(), new.len())` にちょうどクランプ
+    /// される（接頭辞・接尾辞の走査範囲が重ならないことの回帰確認）。
+    /// `old=["a","b"], new=["a","x","b"]` は接頭辞 "a" 1 件・接尾辞 "b"
+    /// 1 件が候補だが、`old.len()=2` のため合計は 2 件に留まり、
+    /// 中間区間は old 側が空・new 側が `["x"]` になる。
+    #[test]
+    fn diff_keys_trim_bounds_clamp_at_shorter_length() {
+        let old = keys(&["a", "b"]);
+        let new = keys(&["a", "x", "b"]);
+        assert_eq!(
+            diff_keys(&old, &new).unwrap(),
+            vec![KeyedOp::Insert {
+                index: 1,
+                key: "x".to_string()
+            }]
+        );
+    }
+
+    /// 等価性テスト（イシュー #1376）: 重複キーを含まないランダムな
+    /// キー列ペアについて、前段スキップ適用時の出力（[`diff_keys`]）が
+    /// 全域スローパス（[`diff_keys_slow_path_reference`]）の出力と
+    /// 完全一致する。固定シード LCG シャッフル（[`lcg_shuffle`]）で複数
+    /// パターンの新旧キー列を決定的に生成する。
+    #[test]
+    fn diff_keys_fast_path_matches_slow_path_reference_for_shuffled_pairs() {
+        const N: usize = 200;
+        let base: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+
+        for seed in [
+            0x1318_1318_1318_1318,
+            0x0000_0000_0000_0001,
+            0xDEAD_BEEF_CAFE_F00D,
+            0x1234_5678_9abc_def0,
+        ] {
+            let old = base.clone();
+            let mut new = base.clone();
+            lcg_shuffle(&mut new, seed);
+
+            let fast = diff_keys(&old, &new).unwrap();
+            let slow = diff_keys_slow_path_reference(&old, &new).unwrap();
+            assert_eq!(fast, slow, "seed={seed:#x}");
+            assert_eq!(apply_ops(&old, &fast), new, "seed={seed:#x}");
+        }
+    }
+
+    /// 網羅テスト（イシュー #1376）: 小アルファベット（3 記号・長さ ≤ 4）
+    /// の全 old/new 組み合わせについて、`diff_keys` が panic しないこと、
+    /// および重複キーを含まないペアでは前段スキップ適用時の出力が全域
+    /// スローパスの出力と完全一致することを固定する。重複キーを含む
+    /// ペアは（本関数 doc の安全性検証ゲートにより）常に全域スローパスへ
+    /// フォールバックするため `diff_keys` 自身が両者の等価性を保証する
+    /// （素朴な実装ではなく、フォールバック分岐そのものの健全性を検査
+    /// する）。
+    #[test]
+    fn diff_keys_exhaustive_small_alphabet_sweep() {
+        let all_sequences = small_alphabet_key_sequences();
+
+        for old in &all_sequences {
+            for new in &all_sequences {
+                let fast = diff_keys(old, new).unwrap();
+                let slow = diff_keys_slow_path_reference(old, new).unwrap();
+                assert_eq!(fast, slow, "old={old:?}, new={new:?}");
+            }
+        }
+    }
+
+    /// 小アルファベット（3 記号・長さ ≤ 4）の全キー列を列挙する
+    /// （[`diff_keys_exhaustive_small_alphabet_sweep`]/
+    /// [`diff_keyed_items_exhaustive_small_alphabet_sweep`] が共有する
+    /// 生成ロジック）。空列 1 件 + 各長さ（1〜4）ぶんの `3^len` 件、
+    /// 合計 121 件を返す。
+    fn small_alphabet_key_sequences() -> Vec<Vec<String>> {
+        let alphabet = ["a", "b", "c"];
+        let mut all_sequences: Vec<Vec<String>> = vec![Vec::new()];
+        // `frontier` は「直前の反復で生成した、ちょうど 1 つ短い長さの
+        // 列」だけを保持する。`all_sequences` 全体を毎回再走査すると
+        // 既に生成済みの短い列を繰り返し拡張してしまい、意図しない重複
+        // （かつ長さ 4 超への拡張）を生む。
+        let mut frontier: Vec<Vec<String>> = vec![Vec::new()];
+        for _ in 0..4 {
+            let mut next = Vec::new();
+            for seq in &frontier {
+                for &symbol in &alphabet {
+                    let mut extended = seq.clone();
+                    extended.push(symbol.to_string());
+                    next.push(extended);
+                }
+            }
+            all_sequences.extend(next.iter().cloned());
+            frontier = next;
+        }
+        all_sequences
+    }
+
+    /// map 非構築テスト（受け入れ条件 2、イシュー #1376）: キー列が
+    /// 完全一致（内容変更なし）の場合、`diff_keys` は
+    /// `FxStrMap`/`FxStrSet` を 1 回も構築しない
+    /// （[`crate::fx_hash::build_counter`] で計測）。
+    #[test]
+    fn diff_keys_builds_no_hash_tables_when_keys_unchanged() {
+        let old = keys(&["a", "b", "c", "d", "e"]);
+        let new = old.clone();
+
+        crate::fx_hash::build_counter::reset();
+        let ops = diff_keys(&old, &new).unwrap();
+        assert_eq!(ops, Vec::new());
+        assert_eq!(
+            crate::fx_hash::build_counter::get(),
+            0,
+            "キー列不変ケースでは HashMap/HashSet を一切構築しないはず"
+        );
+    }
+
+    /// map 非構築テスト（受け入れ条件 2 の健全性確認）: シャッフル済み
+    /// （大規模な並べ替え）キー列では、前段スキップの中間区間 diff が
+    /// `FxStrMap`/`FxStrSet` を構築する（カウンタ自体が実際に増分する
+    /// ことの回帰確認。常に 0 を返す壊れたカウンタの見逃しを防ぐ）。
+    #[test]
+    fn diff_keys_builds_hash_tables_when_keys_are_shuffled() {
+        const N: usize = 50;
+        let old: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+        let mut new = old.clone();
+        lcg_shuffle(&mut new, 0x1318_1318_1318_1318);
+
+        crate::fx_hash::build_counter::reset();
+        let _ = diff_keys(&old, &new).unwrap();
+        assert!(
+            crate::fx_hash::build_counter::get() > 0,
+            "シャッフル済みキー列では HashMap/HashSet が構築されるはず"
+        );
+    }
+
+    /// Update 判定テスト（イシュー #1376 の明示要件）: キー列が完全一致
+    /// していても、内容（`Node`）が変化した位置には `Update` が発行される
+    /// （スキップは「map 構築と移動判定」のみに限られ、内容比較は
+    /// スキップしないことの回帰確認）。
+    #[test]
+    fn diff_keyed_items_emits_update_for_content_change_when_keys_unchanged() {
+        let old = vec![item("a", "a1"), item("b", "b-old"), item("c", "c1")];
+        let new = vec![item("a", "a1"), item("b", "b-new"), item("c", "c1")];
+
+        assert_eq!(
+            diff_keyed_items(&old, &new).unwrap(),
+            vec![KeyedOp::Update {
+                key: "b".to_string()
+            }]
+        );
+    }
+
+    /// Update 判定テスト: 前段スキップが適用される（先頭・末尾が共有端）
+    /// ケースでも、共有端そのものの内容変更は Update として検出される
+    /// （スキップ区間は「構造 op なし」を意味するのみで「内容比較なし」
+    /// ではないことの回帰確認）。op 列は「構造 op（中間区間） → Update
+    /// （接頭辞 → 中間 → 接尾辞の new_items 順）」という契約どおりの
+    /// 完全な列を `assert_eq!` で固定する（`contains` ベースの旧アサート
+    /// では順序違反・重複発行・余剰 op を見逃すため、イシュー #1376
+    /// advisor 指摘を受けて厳格化）。
+    #[test]
+    fn diff_keyed_items_detects_update_within_trimmed_prefix_and_suffix() {
+        let old = vec![item("a", "a-old"), item("b", "b"), item("c", "c-old")];
+        // b は削除される（中間区間の構造変化）。a（接頭辞）・c（接尾辞）は
+        // キー位置こそ保持されるが内容が変わっている。
+        let new = vec![item("a", "a-new"), item("c", "c-new")];
+
+        let ops = diff_keyed_items(&old, &new).unwrap();
+        assert_eq!(
+            ops,
+            vec![
+                KeyedOp::Remove {
+                    key: "b".to_string()
+                },
+                KeyedOp::Update {
+                    key: "a".to_string()
+                },
+                KeyedOp::Update {
+                    key: "c".to_string()
+                },
+            ]
+        );
+    }
+
+    /// 契約差分固定テスト（イシュー #1376）: `diff_keys`/`diff_keyed_items`
+    /// は前段スキップの安全性検証ゲート（[`has_duplicate_keys`]、
+    /// old/new それぞれの内部に重複キーがないことを要求）により、
+    /// 重複キーが混入した入力では常に全域スローパスへフォールバックする
+    /// （既存の重複キー回帰テスト群が固定する op 列・
+    /// `apply_ops` 適用結果が `dedup(new)` と一致する契約は、前段スキップ
+    /// 導入後も一切変化しない）。この事実そのものを、完全一致かつ重複
+    /// ありという「素朴なゲートなら見逃しやすい」境界ケースで固定する:
+    /// old=new=["a","a","b"]（内容も完全一致）でも、`remove_pass` の
+    /// 自己修復（最後の出現のみ保持）により最初の "a" への `Remove` が
+    /// 発行される（前段スキップの完全一致ショートカットは重複なし
+    /// 入力のみに限定されることの回帰確認、本モジュール `diff_keys`
+    /// doc「前段スキップ」節参照）。
+    #[test]
+    fn diff_keys_full_match_with_duplicate_keys_still_self_repairs() {
+        let old = keys(&["a", "a", "b"]);
+        let new = old.clone();
+
+        let ops = diff_keys(&old, &new).unwrap();
+        assert_eq!(
+            ops,
+            vec![KeyedOp::Remove {
+                key: "a".to_string()
+            }],
+            "完全一致でも重複キーがあれば自己修復 Remove が発行されるはず"
+        );
+        assert_eq!(apply_ops(&old, &ops), keys(&["a", "b"]));
+    }
+
+    /// 契約差分固定テスト（advisor 指摘の反例、イシュー #1376）:
+    /// 重複キーが前段スキップの共有端（接頭辞）にのみ閉じており、中間
+    /// 区間には現れない入力
+    /// （`old=["a","a","c"], new=["a","a","d"]`）でも、
+    /// `has_duplicate_keys` による全域スローパスへのフォールバックにより
+    /// 適用結果が `dedup(new)`（`["a","d"]`）と一致する。素朴な「共有端
+    /// キーが中間区間のキー集合に含まれるか」だけを見るゲートでは
+    /// このケースを見逃し、適用結果が `["a","a","d"]`
+    /// （`dedup(new)` と不一致）になってしまう。
+    #[test]
+    fn diff_keys_duplicate_confined_to_skip_region_still_falls_back_to_slow_path() {
+        let old = keys(&["a", "a", "c"]);
+        let new = keys(&["a", "a", "d"]);
+
+        let ops = diff_keys(&old, &new).unwrap();
+        let applied = apply_ops(&old, &ops);
+        assert_eq!(
+            applied,
+            keys(&["a", "d"]),
+            "重複キーが接頭辞に閉じていても dedup(new) と一致するはず"
+        );
+    }
+
+    // --- diff_keyed_items の前段スキップ等価性検証（イシュー #1376、
+    // advisor 指摘: diff_keys 側の等価性テストのみでは `diff_keyed_items`
+    // 固有の Update 発行（接頭辞 → 中間 → 接尾辞の 3 段合成）を検証
+    // できないため、同型のリファレンス実装 + 全数スイープを追加する）。
+
+    /// [`diff_keyed_items`] の全域スローパスを直接呼び出す（前段スキップを
+    /// 経由しない、旧実装相当のリファレンス実装。関数本体は旧実装の
+    /// フォールバック分岐と完全に同一）。
+    fn diff_keyed_items_slow_path_reference(
+        old_items: &[(String, Node)],
+        new_items: &[(String, Node)],
+    ) -> Result<Vec<KeyedOp>, KeyedListError> {
+        let old_keys: Vec<String> = old_items.iter().map(|(k, _)| k.clone()).collect();
+        let new_keys: Vec<String> = new_items.iter().map(|(k, _)| k.clone()).collect();
+
+        let mut ops = Vec::new();
+        let working = remove_pass(&old_keys, &new_keys, &mut ops)?;
+        insert_or_move_pass(working, &new_keys, &mut ops, 0)?;
+
+        let mut old_by_key: crate::fx_hash::FxStrMap<'_, &Node> =
+            crate::fx_hash::FxStrMap::with_capacity(old_items.len());
+        for (key, node) in old_items {
+            old_by_key.insert(key.as_str(), node)?;
+        }
+
+        let mut seen_new_keys: crate::fx_hash::FxStrSet<'_> =
+            crate::fx_hash::FxStrSet::with_capacity(new_items.len());
+        for (key, new_node) in new_items {
+            if !seen_new_keys.insert(key.as_str())? {
+                continue;
+            }
+            if let Some(old_node) = old_by_key.get(key.as_str())? {
+                if *old_node != new_node {
+                    ops.push(KeyedOp::Update { key: key.clone() });
+                }
+            }
+        }
+
+        Ok(ops)
+    }
+
+    /// `seq` から `(キー, Node)` 列を構築する。`mutate_key` と一致するキーは
+    /// 内容（テキスト）を変化させ、それ以外はキーそのものを内容とする
+    /// （新旧で `mutate_key` を変えることで、位置（接頭辞/中間/接尾辞）に
+    /// 関わらず Update が実際に発火するケースをスイープへ含める）。
+    fn build_items_with_mutation(seq: &[String], mutate_key: &str) -> Vec<(String, Node)> {
+        seq.iter()
+            .map(|k| {
+                let content = if k == mutate_key {
+                    format!("{k}-mutated")
+                } else {
+                    k.clone()
+                };
+                item(k, &content)
+            })
+            .collect()
+    }
+
+    /// 網羅テスト（イシュー #1376、advisor 指摘対応）: 小アルファベット
+    /// （3 記号・長さ ≤ 4）の全 old/new 組み合わせ × 変異キー（"a"/"b"/"c"/
+    /// 変異なし）について、`diff_keyed_items`（前段スキップ適用）の出力が
+    /// 全域スローパス（[`diff_keyed_items_slow_path_reference`]）の出力と
+    /// 完全一致することを固定する。重複キーを含むペアも
+    /// `diff_keyed_items` 自身が内部でフォールバックするため、除外せず
+    /// 全ペアを対象にする。
+    #[test]
+    fn diff_keyed_items_exhaustive_small_alphabet_sweep() {
+        let all_sequences = small_alphabet_key_sequences();
+
+        for old_seq in &all_sequences {
+            for new_seq in &all_sequences {
+                for mutate_key in ["", "a", "b", "c"] {
+                    let old_items = build_items_with_mutation(old_seq, "");
+                    let new_items = build_items_with_mutation(new_seq, mutate_key);
+
+                    let fast = diff_keyed_items(&old_items, &new_items).unwrap();
+                    let slow =
+                        diff_keyed_items_slow_path_reference(&old_items, &new_items).unwrap();
+                    assert_eq!(
+                        fast, slow,
+                        "old={old_seq:?}, new={new_seq:?}, mutate_key={mutate_key:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// map 非構築テスト（受け入れ条件 2、イシュー #1376、advisor 指摘対応）:
+    /// `diff_keys` 版（[`diff_keys_builds_no_hash_tables_when_keys_unchanged`]）
+    /// と対になる `diff_keyed_items` 版。キー列・内容ともに完全一致の場合、
+    /// `diff_keyed_items` は `FxStrMap`/`FxStrSet` を 1 回も構築しない
+    /// （完全一致ブランチが位置ベースの直接比較のみで完結することの
+    /// 回帰確認）。
+    #[test]
+    fn diff_keyed_items_builds_no_hash_tables_when_fully_unchanged() {
+        let old = vec![item("a", "a1"), item("b", "b1"), item("c", "c1")];
+        let new = old.clone();
+
+        crate::fx_hash::build_counter::reset();
+        let ops = diff_keyed_items(&old, &new).unwrap();
+        assert_eq!(ops, Vec::new());
+        assert_eq!(
+            crate::fx_hash::build_counter::get(),
+            0,
+            "キー列・内容とも完全一致ケースでは HashMap/HashSet を一切構築しないはず"
+        );
     }
 }

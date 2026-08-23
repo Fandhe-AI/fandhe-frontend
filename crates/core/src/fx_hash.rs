@@ -167,6 +167,40 @@
 
 use std::collections::HashMap;
 
+/// [`FxStrMap`]/[`FxStrSet`] の構築回数を数えるテスト専用カウンタ
+/// （イシュー #1376）。
+///
+/// `crates/core/src/keyed.rs` の前段スキップ（共通接頭辞・接尾辞トリム）
+/// が「キー列不変ケースで `HashMap`/`HashSet` を一切構築しない」ことを、
+/// ベンチ実測に頼らずユニットテストで機械検証するための計測点。
+/// `#[cfg(test)]` 限定であり、prod ビルドには一切残らない（コード自体が
+/// コンパイル対象から除外される。`thread_local!` の実行時オーバーヘッドも
+/// テストバイナリのみに閉じる）。
+#[cfg(test)]
+pub(crate) mod build_counter {
+    use std::cell::Cell;
+
+    thread_local! {
+        static COUNT: Cell<usize> = const { Cell::new(0) };
+    }
+
+    /// カウンタを 0 へリセットする（各テストの計測区間の開始点）。
+    pub(crate) fn reset() {
+        COUNT.with(|c| c.set(0));
+    }
+
+    /// 現在の構築回数を返す。
+    pub(crate) fn get() -> usize {
+        COUNT.with(|c| c.get())
+    }
+
+    /// [`super::FxStrMap`]/[`super::FxStrSet`] の `with_capacity_and_hasher`
+    /// から呼ばれる、構築 1 回ぶんの計上。
+    pub(crate) fn increment() {
+        COUNT.with(|c| c.set(c.get() + 1));
+    }
+}
+
 /// ターゲット別のハッシャ実体・[`FxBuildHasher`] 定義。
 ///
 /// ネイティブと wasm32 で異なる `BuildHasher` を選ぶ理由はモジュール doc
@@ -398,6 +432,10 @@ impl<'a, V, S: std::hash::BuildHasher> FxStrMap<'a, V, S> {
     /// （テスト用の衝突ハッシャ注入経路、型 doc 参照）。
     #[inline]
     pub(crate) fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+        // テスト専用の構築回数カウンタ（イシュー #1376、`build_counter`
+        // doc 参照）。prod ビルドには一切残らない。
+        #[cfg(test)]
+        build_counter::increment();
         FxStrMap {
             entries: map_with_capacity(capacity),
             hasher,
@@ -506,6 +544,10 @@ impl<'a, S: std::hash::BuildHasher> FxStrSet<'a, S> {
     /// （テスト用の衝突ハッシャ注入経路、[`FxStrMap`] 型 doc 参照）。
     #[inline]
     pub(crate) fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+        // テスト専用の構築回数カウンタ（イシュー #1376、`build_counter`
+        // doc 参照）。prod ビルドには一切残らない。
+        #[cfg(test)]
+        build_counter::increment();
         FxStrSet {
             entries: map_with_capacity(capacity),
             hasher,

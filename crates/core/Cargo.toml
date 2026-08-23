@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-core"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 description = "fandhe-frontend-core: 描画コア（ノード木 API・既定エスケープレンダラ）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"

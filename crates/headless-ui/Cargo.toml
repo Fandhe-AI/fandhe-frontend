@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-headless-ui"
-version = "0.28.3"
+version = "0.28.4"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
@@ -16,5 +16,5 @@ categories = ["web-programming", "gui"]
 # クレートではなく本 workspace 内部の path 依存。structure.toml の
 # depends_on = ["core", "interactive"] と完全一致させること、fw gate が検証する）。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.4.0" }
-fandhe-frontend-interactive = { path = "../interactive", version = "0.2.4" }
+fandhe-frontend-core = { path = "../core", version = "0.4.1" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.2.5" }
