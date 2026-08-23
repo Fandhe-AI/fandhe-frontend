@@ -141,23 +141,70 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     に限定した DOM 変異のみを行う（`crates/wasm-client/src/binding.rs` ・
     `crates/wasm-client/src/binding_dom.rs`、イシュー #343、`docs/design/dom-binding-update-design.md`
     §3）。
-  - `fandhe-frontend-wasm-full`（状態機械つきの既定インタラクション）: 現時点では
-    `paint()` が `web_sys::Element::set_inner_html` によるイベント単位の
-    領域再描画を行う（`crates/wasm-full/src/dom.rs`）。以下の設計制約でリスクと
-    コストを抑えている（`docs/design/wasm-full-architecture.md` 第 7 節・
-    不変条件表）。
+  - `fandhe-frontend-wasm-full`（状態機械つきの既定インタラクション）: keyed
+    list プリミティブ（イシュー #344）・`set_inner_html` 全置換の撤去
+    （イシュー #345）はいずれも完了済みである。構造変化（リストの挿入・
+    削除・並べ替え）を表現する唯一の経路として、keyed list プリミティブが
+    `crates/core/src/keyed.rs` に実装済みである（`keyed_list` が
+    `data-bind-list` / `data-key` 属性付きの `Node` 木を生成し、汎用 diff・
+    仮想 DOM は実装しない設計は不変）。`Runtime::wire`（イベント後更新）は
+    `set_inner_html` を一切呼ばず、束縛点更新
+    （`fandhe_frontend_wasm_client::BindingTable::apply_update`。テキスト・
+    属性・class）と keyed list の最小 DOM 操作
+    （`fandhe_frontend_wasm_client::{find_list_element, apply_keyed_list}`）へ
+    置換済みである（`crates/wasm-full/src/dom.rs` ・ `crates/wasm-full/src/lib.rs`）。
+    加えて、dirty field のうち束縛点にも keyed list にも解決できないものが
+    1 件でもあれば、`Runtime::apply_update_for_dirty` が
+    `Runtime::rerender_subtree`（`state.view()` から新規構築したサブツリーで
+    `root` の全子ノードを丸ごと差し替える構造フォールバック、イシュー
+    #1120）を呼ぶ。画面遷移のような「束縛点にも keyed list にも対応しない
+    DOM 構造変化」を表現する唯一の経路であり、`set_inner_html` は使わない
+    （`fandhe_frontend_wasm_client::build_dom_node` によるノード木構築、
+    `crates/wasm-full/src/lib.rs` の `apply_update_for_dirty` / `rerender_subtree`
+    doc 参照）。この構造フォールバックは `input` イベント由来の dispatch
+    からも除外されない（`should_repaint` によるイベント種別ごとの抑止は
+    後述のとおり撤去済みであり、フォールバックの要否は dirty field の
+    解決可否のみで決まる）。
+    `set_inner_html` の残存は `dom::mount_initial`（旧 `paint`。初回マウント
+    限定 API へ改名・限定済み。`Runtime::mount` の CSR 初回描画と
+    `Runtime::hydrate` の CSR フォールバックからのみ呼ばれる）の 1 箇所に
+    限定されている。以下の設計制約でリスクとコストを抑えている
+    （`docs/design/wasm-full-architecture.md` 第 7 節・不変条件表）。
     - イベント委譲配線（`click` / `input`）をマウント時に 1 回だけルート
       要素へ登録する（`Closure` の都度 `forget` によるリークを構造的に
       回避）。
-    - `input` イベント中は再描画を行わない（フォーカス・キャレット位置の
-      破棄を避けるため）。
-    - `paint()` が `set_inner_html` へ渡す文字列は必ず `fandhe_frontend_core::render()`
-      の既定エスケープ済み出力である（REQ-1 の不変条件、
-      `.claude/rules/coding-rust.md` の既定エスケープ厳守と一致）。
-    - `wasm-client` が既に守っている最小更新路線への一般化はイシュー #345
-      「`set_inner_html` 全置換を束縛点更新 + keyed list へ置換」として
-      追跡中であり、本書執筆時点で未着手（open）。keyed list プリミティブ
-      自体（イシュー #344）も同様に未着手（open）である。
+    - 通常の束縛点更新（テキスト・属性・class）は `input` イベント中も
+      冪等に適用する。旧実装の `should_repaint`（`input` イベント時の
+      再描画抑止）は撤去済みである。フォーカス・キャレット位置の保持は
+      `wasm-client::binding_dom` が `Attr("value")` かつ対象要素が
+      `HtmlInputElement` の場合に限り呼ぶ `set_value` の等値ガード
+      （`input.value() != text` のときだけ `set_value` を呼び、ブラウザの
+      live value プロパティを不要に上書きしない）が担う。この等値ガードは
+      `set_value` 呼び出しの要否のみを絞る局所条件であり、
+      `set_text_content`/`set_attribute`（`value` 以外）全般を等値判定なしで
+      抑止する仕組みではない。
+    - `dom::mount_initial` が `set_inner_html` へ渡す文字列は必ず
+      `fandhe_frontend_core::render()` の既定エスケープ済み出力である
+      （REQ-1 の不変条件、`.claude/rules/coding-rust.md` の既定エスケープ
+      厳守と一致）。この経路は初回マウント（CSR 初回描画・hydrate
+      フォールバック）に限られる。以後の束縛点更新・keyed list 経由の
+      更新は `set_inner_html` を経由せず、`set_text_content`/
+      `set_attribute`/`DomTokenList::toggle_with_force` の DOM API を直接
+      呼ぶ経路であり、安全性は HTML パーサを介さない DOM API の性質
+      （テキスト・属性値として literal に設定され HTML として再解釈され
+      ない）と属性検証（`parse_binding_tokens` による属性名の構文検証・
+      `on*` イベント属性の拒否、および `binding_dom::apply_one` による
+      イベント属性・URL スキーム・`srcset` の値検証。`BindingKind::Attr`/
+      `spec.field` は許可属性の allowlist ではなく、構文上妥当な任意の
+      属性名を束縛対象にし得る点に注意）が担う。既定エスケープ済み出力
+      のみが到達するのは
+      `set_inner_html` 経路の不変条件であり、DOM API 更新経路には
+      別種の安全性根拠が働く、という 2 経路の区別を維持している。
+    - op 生成（diff・内容比較）は core 側 `keyed.rs` の責務として確定・
+      実装済みである（イシュー #1323「`diff_keys` への Update op 追加」、
+      `KeyedOp` / `diff_keys` / `diff_keyed_items`、設計は
+      `docs/design/keyed-update-op-design.md` §4.1）。Update op の DOM 適用・
+      browser テストは wasm-client 側で完了済みである（イシュー #1324）。
   - 性能実測: `docs/ci/perf-browser-harness.md` / `docs/reports/perf-browser-report.md`
     （REQ-11 の受け入れ基準としての実ブラウザ計測）。
 - **再評価トリガー**: 仮想 DOM の再導入検討は、束縛点更新 + keyed list への
@@ -1417,8 +1464,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 ## 6. スコープ外（放置しない事項）
 
 - `fandhe-frontend-wasm-full` への束縛点更新 + keyed list の一般化（イシュー #344・
-  #345）自体の実装は本書のスコープ外であり、追跡状況の記録にとどめる。
-  実装は既存イシューで追跡済みのため新規起票は不要。
+  #345）は完了済みである（§3.1 参照）。実装自体は本書のスコープ外であり、
+  実装状況の記録にとどめる。
 - 評価軸（§2）を `fw gate` 等の機械ゲートへ組み込む自動化は、イシュー
   #381 で検討し非採用と判断した（§3.12）。再評価トリガー（§3.12）充足
   時に別イシューとして再提案する。

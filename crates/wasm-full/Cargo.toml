@@ -150,6 +150,12 @@ categories = ["wasm", "web-programming"]
 # 由来で追加済みのため重複追加はしない、上記参照）。新規外部クレート追加
 # ゼロ、既存 web-sys の feature 追加のみ。`cargo metadata` 実測（パッケージ数・
 # 依存グラフ深さ）に変化がないことを PR 本文に記録する。
+# 0.7.7 → 0.7.8（イシュー #1382）: 依存先 `fandhe-frontend-wasm-client`
+# 0.5.2 → 0.5.3（`sync_attrs` への属性同値スキップ追加）に伴う
+# `dep-version-check`（`xtask check-dep-versions --fix`）の `version = "..."`
+# 追随バンプのみ。本クレート自身の `src/` 実体変更はないが、公開クレートの
+# semver バンプ必須条項（`.claude/rules/coding-rust.md`）に従い依存先バンプに
+# 追随して patch バンプする。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.2.5" }
 fandhe-frontend-core = { path = "../core", version = "0.4.2" }

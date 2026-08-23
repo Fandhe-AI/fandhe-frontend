@@ -199,6 +199,12 @@ categories = ["wasm", "web-programming"]
 # PR #1392 codex-review P1 指摘）に従い patch バンプした。公開 API の
 # シグネチャ追加・変更はなく内部実装のみのため patch とする（0.5.1 も
 # crates.io 未公開ウィンドウ内）。
+#
+# 0.5.2 → 0.5.3（イシュー #1382）: `WebSysKeyedDom::sync_attrs`
+# （`keyed_dom.rs`）へ属性同値スキップを追加した src/ 実体変更のため、
+# 公開クレートの semver バンプ必須条項（`.claude/rules/coding-rust.md`）に
+# 従い patch バンプした。公開 API のシグネチャ追加・変更はなく内部実装の
+# みのため patch とする（0.5.2 も crates.io 未公開ウィンドウ内）。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.4.2" }
 fandhe-frontend-app = { path = "../app", version = "0.2.5" }
@@ -307,6 +313,22 @@ fandhe-frontend-server = { path = "../server" }
 # ブラウザテスト（`binding_browser.rs`）が `Element::children()` で
 # 「要素子が生成されていないこと」（受け入れ条件 2、innerHTML 不使用の
 # 回帰固定）を検証するために必要。
+#
+# イシュー #1382（`sync_attrs` への属性同値スキップ追加）: `keyed_dom.rs`
+# の `mod tests` が `MutationObserver`（`attributes: true` + 同期
+# `takeRecords()`）で「不変属性へ `set_attribute` が呼ばれないこと」
+# （受け入れ条件 1）を直接証明するために必要。`crates/wasm-full` の
+# `headless_avatar_browser.rs` で同型の同値 `setAttribute` でも mutation
+# record が発火する仕様の利用実績あり。既存 web-sys への feature 追加の
+# みで新規外部パッケージの増加はゼロ（`cargo metadata` 実測をコミットで
+# 記録）。
 [dev-dependencies.web-sys]
 version = "0.3"
-features = ["HtmlElement", "EventInit", "HtmlCollection"]
+features = [
+  "HtmlElement",
+  "EventInit",
+  "HtmlCollection",
+  "MutationObserver",
+  "MutationObserverInit",
+  "MutationRecord",
+]
