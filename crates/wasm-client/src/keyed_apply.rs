@@ -777,11 +777,28 @@ pub(crate) enum ChildDiffResult {
 /// per-child 規則のみで完結したスコープ（既存 DOM ノードの参照が保持され
 /// たまま値のみが変わる）でも、`is_bind_root` な Element（ネスト keyed
 /// list のルート、`data-bind-list` の旧新値が一致するため per-child 規則を
-/// 適用したもの）を経由して子孫を直接書き換えた場合は、その field 自身を
-/// この集合へ追加する（PR #1401 codex-review P1 対応、[`diff_children`] 内
-/// `is_bind_root` 分岐参照）。この書き換えは当該 field 自身の
-/// `Runtime::keyed_list_cache` を経由しない直接 DOM 操作であるため、次回
-/// その field を更新する際のキャッシュ基準がライブ DOM と乖離する。
+/// 適用したもの）を経由して子孫のライブ DOM が実際に書き換わった場合は、
+/// その field 自身をこの集合へ追加する（PR #1401 codex-review P1 対応、
+/// [`diff_children_core`] 内 `is_bind_root` 分岐参照）。「実際に書き換
+/// わった」の判定は次の 2 signal の OR とする（PR #1401 Cursor Bugbot
+/// Medium 指摘「Nested cache over-invalidated on updates」対応、
+/// [`diff_children_core`] doc「存在理由」参照）:
+/// 1. `old_kids != new_kids`〔`Node` の構造的 `PartialEq`〕— 旧新の
+///    `Node` 表現上、内容が実際に変わった場合。
+/// 2. 子孫のどこかで narrow fallback（子ノード列丸ごと破棄・再構築）が
+///    発火した場合 — `old_kids == new_kids`（`Node` 表現上は同一）でも、
+///    ライブ DOM が外部要因で乖離しており `live_check_text`/
+///    `live_check_element` が narrow fallback へ倒れることがあるため
+///    （advisor 指摘、イシュー #1381）、値比較だけでは検知できない。
+///
+/// この書き換えは当該 field 自身の `Runtime::keyed_list_cache` を経由
+/// しない直接 DOM 操作であるため、次回その field を更新する際のキャッシュ
+/// 基準がライブ DOM と乖離する。一方、上記いずれの signal も発生しない
+/// （内容が完全に同一かつライブ DOM も乖離していない）場合は per-child
+/// 規則がこのスコープ配下で 1 件も書き込みを行わない（設計書 §6.3.2
+/// 規則 2）ため追加しない（`sync_attrs` はこの Element 自身に差分が
+/// なくても常に呼ばれるため、`dom_mutated`〔下記〕の「試行基準」は
+/// この判定には使えない）。
 ///
 /// # `dom_mutated` への記録
 ///
@@ -798,6 +815,53 @@ pub(crate) fn diff_children<D: ChildNodeDom>(
     dom_mutated: &mut bool,
     nested_fields: &mut std::collections::HashSet<String>,
 ) -> ChildDiffResult {
+    // 呼び出し元は「narrow fallback がどこかで発火したか」を知る必要が
+    // ないため使い捨てのローカル値を渡す（`diff_children_core` doc
+    // 参照）。この情報が必要な唯一の呼び出し元（`is_bind_root` 分岐、
+    // 上記本関数内の再帰呼び出し）は `diff_children_core` を直接呼ぶ。
+    let mut discarded_rebuilt_via_narrow_fallback = false;
+    diff_children_core(
+        dom,
+        scope,
+        old_children,
+        new_children,
+        dom_mutated,
+        nested_fields,
+        &mut discarded_rebuilt_via_narrow_fallback,
+    )
+}
+
+/// [`diff_children`] の実装本体。`rebuilt_via_narrow_fallback` は
+/// `scope` 配下（このスコープ自身とその子孫全体、再帰の末端まで含む）で
+/// [`narrow_fallback`] が 1 回でも発火したかを呼び出し元へ伝える追加の
+/// out パラメータで、[`narrow_fallback`] 呼び出し・自己再帰呼び出しの
+/// いずれでも常に「そのまま」（値を握り潰さず）伝播する。
+///
+/// # 存在理由（PR #1401 Cursor Bugbot Medium 指摘対応）
+///
+/// ネスト binding ルート（`is_bind_root`）が per-child 規則のみで完結
+/// したかどうかの判定に `old_kids != new_kids`（`Node` の構造的
+/// `PartialEq`）だけを使うと、旧新の `Node` 表現上は同一でもライブ DOM
+/// が外部要因で乖離しているケース（`live_check_text`/`live_check_element`
+/// が不一致を検出し `narrow_fallback` へ倒れるケース）を見逃す:
+/// `narrow_fallback` は対象スコープの子ノード列を丸ごと破棄・再構築する
+/// ため、その配下に含まれる別 field の `Runtime::keyed_list_cache`
+/// エントリは実際には無効化が必要なのに、`old_kids == new_kids` という
+/// 値比較だけでは検知できない。`dom_mutated`（既存の out パラメータ）は
+/// 使えない: `sync_attrs` は Element 自身に差分がなくても常に「試行」
+/// されるため、`dom_mutated` は子孫に Element が 1 つでもあれば
+/// ほぼ常に `true` になり、「内容が実際に変わったか」を判別する用途には
+/// 使えない。narrow fallback はこれと異なり構造不一致・ライブ観測不一致
+/// でのみ発火する疎な signal であり、ゲート条件として安全に使える。
+fn diff_children_core<D: ChildNodeDom>(
+    dom: &mut D,
+    scope: &D::Handle,
+    old_children: &[Node],
+    new_children: &[Node],
+    dom_mutated: &mut bool,
+    nested_fields: &mut std::collections::HashSet<String>,
+    rebuilt_via_narrow_fallback: &mut bool,
+) -> ChildDiffResult {
     if !same_shape(old_children, new_children) {
         return narrow_fallback(
             dom,
@@ -806,6 +870,7 @@ pub(crate) fn diff_children<D: ChildNodeDom>(
             new_children,
             dom_mutated,
             nested_fields,
+            rebuilt_via_narrow_fallback,
         );
     }
 
@@ -837,6 +902,7 @@ pub(crate) fn diff_children<D: ChildNodeDom>(
                             new_children,
                             dom_mutated,
                             nested_fields,
+                            rebuilt_via_narrow_fallback,
                         );
                     };
                     achieved.push(Node::Text(new_text.clone()));
@@ -850,6 +916,7 @@ pub(crate) fn diff_children<D: ChildNodeDom>(
                         new_children,
                         dom_mutated,
                         nested_fields,
+                        rebuilt_via_narrow_fallback,
                     );
                 };
                 *dom_mutated = true;
@@ -879,6 +946,7 @@ pub(crate) fn diff_children<D: ChildNodeDom>(
                         new_children,
                         dom_mutated,
                         nested_fields,
+                        rebuilt_via_narrow_fallback,
                     );
                 };
 
@@ -925,19 +993,35 @@ pub(crate) fn diff_children<D: ChildNodeDom>(
                     return ChildDiffResult::Failed;
                 }
 
-                let child_achieved = match diff_children(
+                // is_bind_root の場合のみ、この Element の子孫（＝この
+                // field のキーリストアイテム列）専用の `local_rebuilt` を
+                // 用意し、`diff_children_core` へ直接渡す（`diff_children`
+                // 公開ラッパーは使い捨てのローカル値しか公開しないため、
+                // ここでは意図的にラッパーを経由しない）。narrow fallback
+                // がこの子孫のどこか 1 箇所でも発火すれば、再帰を通じて
+                // `local_rebuilt` が `true` になる（`diff_children_core`
+                // doc「存在理由」参照）。
+                let mut local_rebuilt = false;
+                let child_achieved = match diff_children_core(
                     dom,
                     &elem_handle,
                     old_kids,
                     new_kids,
                     dom_mutated,
                     nested_fields,
+                    &mut local_rebuilt,
                 ) {
                     ChildDiffResult::Ok(v) => v,
                     ChildDiffResult::Failed => return ChildDiffResult::Failed,
                 };
+                // この Element 自身が narrow fallback の対象ではなくても
+                // （`same_shape` は保たれているためここには到達している）、
+                // その子孫でだけ narrow fallback が発火した可能性がある
+                // ため、呼び出し元（この関数自身の `rebuilt_via_narrow_
+                // fallback` 引数、さらに上位へ連鎖）へも伝播する。
+                *rebuilt_via_narrow_fallback |= local_rebuilt;
 
-                if is_bind_root {
+                if is_bind_root && (old_kids != new_kids || local_rebuilt) {
                     // per-child 規則のみでネスト binding ルートの子孫
                     // （＝この field のキーリストアイテム列）を直接
                     // diff_children で走査・書き込みした（codex-review P1
@@ -950,6 +1034,29 @@ pub(crate) fn diff_children<D: ChildNodeDom>(
                     // 事実だけを記録すればよい。narrow fallback 経由
                     // （`nested_fields` doc 参照）とは異なる、この
                     // per-child 経路固有の記録漏れを埋める。
+                    //
+                    // ゲート条件は 2 つの独立した signal の OR とする
+                    // （PR #1401 Cursor Bugbot Medium 指摘「Nested cache
+                    // over-invalidated on updates」対応、[`diff_children_
+                    // core`] doc「存在理由」参照）:
+                    // (1) `old_kids != new_kids`（`Node` の構造的
+                    // `PartialEq`）— 旧新の `Node` 表現上、内容が実際に
+                    // 変わった場合。設計書 §6.3.2 規則 2「`set_text_data`
+                    // ／`sync_attrs`（narrow fallback に至らなかった単位）
+                    // は既存 DOM ノードを再生成しないため invalidated_
+                    // nested_fields へ何も追加しない」の一般則を、この
+                    // is_bind_root 固有の記録にも適用する。`sync_attrs`
+                    // はこの Element 自身に差分がなくても常に呼ばれる
+                    // （`dom_mutated` の「試行基準」ドキュメント参照）ため、
+                    // `dom_mutated` の値では判別できない。
+                    // (2) `local_rebuilt`（上記） — `old_kids == new_kids`
+                    // （`Node` 表現上は同一）でも、ライブ DOM が外部要因で
+                    // 乖離しており `live_check_text`/`live_check_element`
+                    // が narrow fallback（子ノード列丸ごと破棄・再構築）へ
+                    // 倒れた場合。この場合は `Node` の値比較だけでは
+                    // 検知できないが、実際にはこのスコープの DOM ノードが
+                    // 再構築されているため無効化が必要（advisor 指摘、
+                    // イシュー #1381）。
                     if let Some(v) = new_bind {
                         nested_fields.insert(v.to_string());
                     }
@@ -980,6 +1087,7 @@ pub(crate) fn diff_children<D: ChildNodeDom>(
                     new_children,
                     dom_mutated,
                     nested_fields,
+                    rebuilt_via_narrow_fallback,
                 );
             }
         }
@@ -1085,8 +1193,18 @@ fn narrow_fallback<D: ChildNodeDom>(
     new_children: &[Node],
     dom_mutated: &mut bool,
     nested_fields: &mut std::collections::HashSet<String>,
+    rebuilt_via_narrow_fallback: &mut bool,
 ) -> ChildDiffResult {
     *dom_mutated = true;
+    // narrow fallback（`scope` の子ノード列を丸ごと破棄・再構築する経路）
+    // が発火した事実そのものを呼び出し元へ伝える（PR #1401 Cursor Bugbot
+    // Medium 指摘対応、[`diff_children_core`] doc「存在理由」参照）。
+    // 成否を問わず「この scope への narrow fallback を試みた」時点で立てる
+    // （`*dom_mutated = true` と同じ「試行基準」）。失敗時（`replace_item_
+    // children` が `false` を返す）は `ChildDiffResult::Failed` が呼び出し
+    // 元チェーン全体へそのまま伝播し、この値を消費する `is_bind_root`
+    // ゲート（`diff_children_core` 内）まで到達しないため実害はない。
+    *rebuilt_via_narrow_fallback = true;
     if dom.replace_item_children(scope, new_children) {
         for child in new_children {
             collect_nested_bind_list_fields_into(child, nested_fields);
@@ -2166,8 +2284,27 @@ pub(crate) fn apply_ops_with_items<D: ChildNodeDom>(
                                     children: achieved_children,
                                 },
                             );
-                            invalidated_nested_fields
-                                .extend(collect_nested_bind_list_fields(new_node));
+                            // `collect_nested_bind_list_fields(new_node)` を
+                            // ここで改めて呼ばない（削除済み、PR #1401
+                            // Cursor Bugbot Medium 指摘「Nested cache
+                            // over-invalidated on updates」対応）。この
+                            // `Ok` は per-child diff（`diff_children`）が
+                            // ルート要素の子ノード列すべてを走査し終えた
+                            // ことを意味し、その走査中に到達した
+                            // ネスト binding ルートは `diff_children` 内の
+                            // `is_bind_root` 分岐が `old_kids != new_kids`
+                            // （内容が実際に変わった場合のみ）で個別に
+                            // `nested_fields` へ記録済みである
+                            // （上記 `diff_children` 内コメント参照）。
+                            // ここで `new_node`（アイテム全体）を丸ごと再走査
+                            // すると、内容が一切変わっていない別 field
+                            // （例: ラベルのみの更新で無関係なネスト
+                            // keyed list を含むアイテム）まで無差別に
+                            // invalidate してしまい、`Runtime::
+                            // keyed_list_cache` から該当 field が毎回
+                            // 追い出されて次回 cache-miss 全再構築へ
+                            // 退行する（PR #1381 が最小差分化しようとした
+                            // 対象そのもの）。
                         }
                     }
                 } else {
@@ -6770,6 +6907,131 @@ mod tests {
             nested.contains("same_field"),
             "narrow fallback を経由しなくても、bind root 自身の field は \
              invalidate されるはず: {:?}",
+            nested
+        );
+    }
+
+    /// PR #1401 Cursor Bugbot Medium 指摘「Nested cache over-invalidated
+    /// on updates」の回帰固定: `data-bind-list` の値が旧新で一致するネスト
+    /// binding ルートを per-child 規則で経由しても、その**内容が完全に
+    /// 同一**（`old_kids == new_kids`）なら、この field 自身は
+    /// `nested_fields` へ追加されない。上記
+    /// `diff_children_records_nested_field_when_per_child_rule_alone_
+    /// mutates_bind_root_descendant`（内容が実際に変わるケース）と対を
+    /// なす: 設計書 §6.3.2 規則 2「`set_text_data`／`sync_attrs`
+    /// （narrow fallback に至らなかった単位）は既存 DOM ノードを再生成
+    /// しないため `invalidated_nested_fields` へ何も追加しない」の一般則
+    /// は、is_bind_root スコープ自身の属性同期だけでなく、その子孫（＝
+    /// ネスト field 自身の内容）が変化しない場合にも適用される。この
+    /// field を不要に invalidate すると、次回その field を独立更新する
+    /// 際に `Runtime::keyed_list_cache` の cache-miss 全再構築へ退行し、
+    /// PR #1381 が最小差分化しようとした対象そのものが失われる。
+    #[test]
+    fn diff_children_does_not_invalidate_nested_field_when_content_is_unchanged() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let nested_root = dom.push_element(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "same_field")],
+        );
+        let inner_text = dom.push_text("same");
+        dom.set_children(&nested_root, vec![inner_text.clone()]);
+        dom.set_children(&root, vec![nested_root]);
+
+        let old_children = vec![el(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "same_field")],
+            vec![text(String::from("same"))],
+        )];
+        let new_children = old_children.clone();
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(matches!(result, ChildDiffResult::Ok(_)));
+        assert_eq!(
+            dom.calls.replace_item_children, 0,
+            "narrow fallback を一切経由しない per-child 経路のみで完結する \
+             シナリオであることの前提確認"
+        );
+        assert_eq!(
+            dom.calls.set_text_data, 0,
+            "内容が同値のため set_text_data は呼ばれないはず"
+        );
+        assert!(
+            nested.is_empty(),
+            "ネスト field の内容が完全に同一なら invalidate されないはず \
+             （キャッシュはライブ DOM と乖離していない）: {:?}",
+            nested
+        );
+    }
+
+    /// advisor 指摘（PR #1401、イシュー #1381）の回帰固定: 上記
+    /// `diff_children_does_not_invalidate_nested_field_when_content_is_
+    /// unchanged` と異なり、`old_kids == new_kids`（`Node` 表現上は
+    /// 同一）でも、ネスト binding ルート配下のライブ DOM が外部要因で
+    /// 乖離している場合は narrow fallback（`replace_item_children`）で
+    /// 修復され、その field 自身が `nested_fields` へ記録されなければ
+    /// ならない。`old_kids != new_kids` という値比較だけをゲート条件に
+    /// すると、この「値は同じだがライブ DOM だけ乖離している」ケースを
+    /// 見逃し、`Runtime::keyed_list_cache["same_field"]` が破棄済みの
+    /// DOM を指したまま残置される（`diff_children_core` doc「存在理由」
+    /// 参照）。
+    #[test]
+    fn diff_children_invalidates_nested_field_when_bind_root_descendant_narrow_fallback_recovers_drift(
+    ) {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let nested_root = dom.push_element(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "same_field")],
+        );
+        // ライブ DOM 側は「same」ではなく「drifted」（キャッシュされた
+        // old_text とは無関係な外部改変を想定、`diff_children_recovers_
+        // when_same_value_text_has_drifted_live_dom` と同じ手法）。
+        let inner_text = dom.push_text("drifted");
+        dom.set_children(&nested_root, vec![inner_text]);
+        dom.set_children(&root, vec![nested_root]);
+
+        let old_children = vec![el(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "same_field")],
+            vec![text(String::from("same"))],
+        )];
+        // `old_kids == new_kids`（`Node` 表現上は完全同一）だが、ライブ
+        // DOM は上記のとおり乖離している。
+        let new_children = old_children.clone();
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(matches!(result, ChildDiffResult::Ok(_)));
+        assert_eq!(
+            dom.calls.replace_item_children, 1,
+            "ネスト binding ルート配下のライブ DOM 乖離は narrow fallback \
+             （子ノード列丸ごと再構築）で修復されるはず"
+        );
+        assert!(
+            nested.contains("same_field"),
+            "narrow fallback で子ノード列が再構築された以上、この field \
+             自身も invalidate されるはず（`old_kids == new_kids` という \
+             値比較だけでは検知できないケース）: {:?}",
             nested
         );
     }
