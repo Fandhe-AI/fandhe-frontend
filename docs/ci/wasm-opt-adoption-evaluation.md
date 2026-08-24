@@ -210,7 +210,9 @@ pin する値（`.github/workflows/ci.yml` の env が単一宣言点）:
   誤差範囲を超えて悪化したため不採用継続。次に再評価する条件は
   「`opt-level="z"` + `-Oz` でも update 経路の op_ms が ±5% 目安の誤差範囲
   に収まる改善（コンパイラ側の最適化前進、または当該経路のホット
-  パス縮小等）が確認できた場合」とする
+  パス縮小等）が確認できた場合」とする。#1394/#1397/#1402 で update 経路の
+  ホットパス縮小が入った後の**再判定は非充足**（下記「再評価トリガー
+  充足判定（イシュー #1408、2026-08-24）」節参照）
 - Vue 水準（gzip 約 22KB）への到達を明確な目標とする場合（dist-server 経路
   への適用を含めた追加削減の検討）
 - ~~`_/bench/` の実行環境が本評価作業と同一 worktree で利用可能になり、
@@ -367,4 +369,67 @@ nightly の `panic = "immediate-abort"`（`-Zbuild-std` 併用）は payload
 
 **再評価トリガー**: `immediate-abort` 相当の効果が stable チャンネルで
 得られるようになった場合（`panic_immediate_abort` の安定化、または
-同等の代替手段の登場）。
+同等の代替手段の登場）。**2026-08-24 時点で非充足**（下記「再評価トリガー
+充足判定（イシュー #1408、2026-08-24）」節参照）。
+
+## 再評価トリガー充足判定（イシュー #1408、2026-08-24）
+
+親 #1405（wasm payload 残レバー一覧）配下。上記 2 件の再評価トリガーが
+現時点で充足しているかを実測・一次情報で判定した記録。**実装・依存追加は
+行わない（本イシューは docs 作業のみ）**。
+
+### (a) `opt-level="z"` + `wasm-opt -Oz`（bench 経路）の再判定
+
+`opt-level="s"`+`-Os`（現行採用）を基準に、`bench/csr/fandhe/` の
+`opt-level` を `"z"` へ・`build.sh` の `wasm-opt -Os` を `-Oz` へ一時変更し
+（#1387 と同一手法）、変更前後で `bench/payload/measure.mjs` と
+`bench/csr/run_csr.mjs`（各 5 回実行 mean）を再計測した。#1394（共通接頭辞・
+接尾辞スキップ）・#1397（属性同値スキップ）・#1402（panic・fmt 縮減）で
+update 経路のホットパスが縮小された後の状態での再判定である。
+
+payload（1 回実行で決定的）:
+
+| 指標 | before（`"s"`+`-Os`） | after（`"z"`+`-Oz`） | 差分 |
+|------|------:|------:|------:|
+| wasm raw | 98,683 B | 90,812 B | −7,871 B（−8.0%） |
+| wasm gzip | 41,341 B | 40,770 B | −571 B（−1.4%） |
+| total gzip | 44,346 B | 43,775 B | −571 B（−1.3%） |
+
+CSR `op_ms`（5 回実行 mean。総計測 10 回中 rows_ok/escape_ok は全件 PASS）:
+
+| 経路 | before mean | after mean | 差分 |
+|------|------:|------:|------:|
+| create_op_ms | 3.246ms | 3.581ms | +10.3%（誤差範囲超過） |
+| update_op_ms | 1.965ms | 2.162ms | **+10.0%（誤差範囲超過）** |
+| clear_op_ms | 1.290ms | 1.311ms | +1.7%（誤差範囲） |
+
+**判定: 非充足**。#1387 時点（update_op_ms +12.3%）からホットパス縮小
+（#1394/#1397/#1402）を経ても update_op_ms の悪化幅は +10.0% と ±5% 目安を
+明確に超過したままであり、payload 削減効果自体も panic/fmt 縮減
+（#1388）により以前より小さくなっている（total gzip −1.3% 対 #1387 時点の
+−9.0%、いずれも total gzip 同士の比較）。トリガーは充足せず、
+`opt-level="s"`+`-Os` の据え置きを継続する。
+
+### (b) nightly `panic_immediate_abort` の stable 化状況
+
+一次情報を確認した（確認日 2026-08-24）:
+
+- [rust-lang/rust#115022](https://github.com/rust-lang/rust/issues/115022)
+  （`panic_immediate_abort` 安定化トラッキング issue）は 2023-08-24 に
+  `Closing this as I think stabilizing build-std features are better
+  tracked as part of that effort.`（`ChrisDenton`）として close 済みであり、
+  安定化自体は `-Z build-std` の安定化と不可分と位置づけられている
+- `-Z build-std` を管理する [rust-lang/wg-cargo-std-aware](https://github.com/rust-lang/wg-cargo-std-aware)
+  は 2026-08-24 時点でも活動中だが、`build-std` 自体が nightly 専用機能の
+  ままであり、stable チャンネルでの利用経路は存在しない
+
+**判定: 非充足**。`panic_immediate_abort` は `-Z build-std`（nightly 専用）
+に不可分に依存しており、2026-08-24 時点で stable チャンネルでの安定化・
+同等の代替手段のいずれも確認できなかった。`rust-toolchain.toml`
+（`channel = "stable"`）の単一真実源方針（イシュー #1273）を崩す動機は
+現時点でも生じていない。
+
+### 総括
+
+本イシュー（#1408）で判定した 2 件の再評価トリガーはいずれも
+**非充足**であり、現時点で実装 issue 化を提案するレバーはない。
