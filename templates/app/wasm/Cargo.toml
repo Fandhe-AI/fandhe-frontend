@@ -53,7 +53,7 @@ members = ["."]
 # 最小差分化、`KeyedListApplyResult::ResyncRequired` への `dom_mutated`
 # フィールド追加）で 0.5.4 → 0.6.0 へマイナーバンプされたため、本テンプレート
 # 側も 0.6.0 へ追随する。
-fandhe-frontend-wasm-client = "0.6.0"
+fandhe-frontend-wasm-client = "0.6.1"
 
 [lib]
 crate-type = ["cdylib"]

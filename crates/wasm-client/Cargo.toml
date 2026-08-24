@@ -9,7 +9,13 @@ name = "fandhe-frontend-wasm-client"
 # モジュール `keyed_apply_result`（常時コンパイル）へ切り出し、
 # host（native）の `cargo test` からも本型を構築できるようにした
 # （公開パス・フィールドは不変、可用ターゲットの拡大のみ）。
-version = "0.6.0"
+# イシュー #1385: 連続 Insert 区間を行プロトタイプ cloneNode + 束縛点
+# 書き込みで一括生成する経路を追加した（`keyed_apply::KeyedListDom` へ
+# `pub(crate)` トレイトメソッド `create_items_from_template` を追加、
+# `crate::keyed_dom::WebSysKeyedDom` に実装）。公開 API（クレート外部から
+# 見える型・関数シグネチャ）は不変で内部実装のみの変更だが、`.claude/
+# rules/coding-rust.md` #638 条項に従い patch バンプする。
+version = "0.6.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"

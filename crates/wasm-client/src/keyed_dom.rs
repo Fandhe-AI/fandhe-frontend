@@ -365,6 +365,66 @@ fn build_dom_node_with_namespace(
     }
 }
 
+/// `root`（`build_dom_node_with_namespace`/`clone_node_with_deep(true)` で
+/// 構築済みの行プロトタイプまたはその複製）から `template.text_paths()`
+/// が示す束縛点（アイテムルートからの子インデックス列、
+/// `fandhe_frontend_core::keyed::template::ItemTemplate` doc「クレート間
+/// 契約」参照）を `first_child`/`next_sibling` の走査で解決し、`values`
+/// （文書順のテキスト値列、`text_paths` と同数・同順の契約）を
+/// [`web_sys::CharacterData::set_data`] で書き込む（イシュー #1385、
+/// [`WebSysKeyedDom::create_items_from_template`] の実装本体）。
+///
+/// パス上の各位置が `web_sys::CharacterData`（`instanceof Text` 相当の
+/// `dyn_ref` 検証）へ解決できなかった場合は書き込みを一切行わず `false` を
+/// 返す（呼び出し元はこれを「テンプレートと実際の複製構造が食い違った」
+/// fail-safe シグナルとして扱い、区間全体を個別生成へフォールバックする。
+/// `root` はまだ `list_element` に未接続の detached ノードのため、途中まで
+/// 書き込んでも実 DOM への副作用は残らない）。`childNodes` の添字アクセス
+/// は使わず `first_child`/`next_sibling`（ブラウザが隣接ポインタで実装する
+/// O(1) 操作）のみで到達する（`KeyedListDom::child_at` doc と同じ計算量
+/// 契約の踏襲）。
+fn write_template_text_paths(
+    root: &web_sys::Node,
+    text_paths: &[Vec<usize>],
+    values: &[&str],
+) -> bool {
+    if text_paths.len() != values.len() {
+        // `text_values` は `template.text_paths()` と同数を返す契約
+        // （`fandhe_frontend_core::keyed::template::text_values` doc
+        // 参照）。ここへ到達するのは呼び出し元契約違反時のみだが、
+        // 添字アクセスの範囲外パニックを避けるため fail-safe に `false`
+        // を返す。
+        return false;
+    }
+    for (path, value) in text_paths.iter().zip(values.iter()) {
+        let Some(target) = resolve_child_path(root, path) else {
+            return false;
+        };
+        let Some(char_data) = target.dyn_ref::<web_sys::CharacterData>() else {
+            return false;
+        };
+        char_data.set_data(value);
+    }
+    true
+}
+
+/// `node` から `path`（子インデックス列）を `first_child`/`next_sibling`
+/// で辿って到達するノードを返す（[`write_template_text_paths`] 専用の
+/// 走査ヘルパー）。`childNodes` の添字アクセス（ライブ collection の
+/// `item(index)`）は使わない（`KeyedListDom::child_at` doc と同じ計算量
+/// 契約の踏襲）。範囲外・未接続等で辿れない場合は `None`。
+fn resolve_child_path(node: &web_sys::Node, path: &[usize]) -> Option<web_sys::Node> {
+    let mut current = node.clone();
+    for &idx in path {
+        let mut child = current.first_child()?;
+        for _ in 0..idx {
+            child = child.next_sibling()?;
+        }
+        current = child;
+    }
+    Some(current)
+}
+
 /// [`crate::keyed_apply::KeyedListDom`] の `web-sys` 実装アダプタ
 /// （イシュー #1318）。
 ///
@@ -703,6 +763,79 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
     /// P1/Bugbot〔10 巡目〕対応、`KeyedListDom::tag_name` doc 参照）。
     fn tag_name(&mut self, child: &Element) -> String {
         child.tag_name().to_ascii_lowercase()
+    }
+
+    /// 連続 Insert 区間（同型テンプレート成立時）を行プロトタイプ
+    /// `cloneNode(true)` + 束縛点書き込みで一括構築する（イシュー #1385、
+    /// 親 #1383「行テンプレート複製化」の DOM 適用側本体。
+    /// [`crate::keyed_apply::KeyedListDom::create_items_from_template`]
+    /// doc「契約」参照）。
+    ///
+    /// # 手順
+    ///
+    /// 1. `items[0]` を [`build_dom_node_with_namespace`] で detached
+    ///    構築してプロトタイプとする（既存の [`Self::create_item`] と同じ
+    ///    構築手段のため、URL スキーム・イベントハンドラ・`srcset` の
+    ///    検証・除去は不変条件のまま継承される）。プロトタイプ自身を
+    ///    `items[0]` の成果物として使う（clone 1 回を節約）。
+    /// 2. `items[1..]` は `Node::clone_node_with_deep(true)`（DOM 標準の
+    ///    ノード複製、`innerHTML` は経由しない）1 回のみで複製し、ルート
+    ///    要素の [`KEY_ATTR`]（`data-key`）をそのアイテム自身のキーへ
+    ///    上書きしたうえで、`template.text_paths()`（core
+    ///    `fandhe_frontend_core::keyed::template`）が示す束縛点へ
+    ///    `fandhe_frontend_core::keyed::template::text_values` が返す
+    ///    テキスト値を [`web_sys::CharacterData::set_data`] で書き込む
+    ///    （`innerHTML`/`insertAdjacentHTML` は一切使わない、モジュール
+    ///    冒頭 doc 不変条件 1・2 の継承）。
+    ///
+    /// # fail-safe（全ノードが detached のまま破棄可能）
+    ///
+    /// プロトタイプ構築失敗・複製失敗・束縛点パスが期待どおり `Text`
+    /// ノードへ解決できない（[`resolve_bind_path`] が `None`）のいずれか
+    /// が起きた時点で `None` を返す。ここまで構築した全ノードはいずれも
+    /// `list_element` へ未接続（detached）のままであり、実 DOM への副作用
+    /// はゼロ（呼び出し元 [`crate::keyed_apply::apply_ops_with_items`] は
+    /// `None` を受けて区間全体を [`Self::create_item`] による個別生成へ
+    /// フォールバックする）。
+    ///
+    /// # 名前空間の継承
+    ///
+    /// `clone_node` は DOM 標準仕様上ノードの名前空間を保持するため、
+    /// プロトタイプを `self.namespace`（[`build_dom_node_with_namespace`]
+    /// 経由）で構築しておけば、SVG keyed list（例: SignaturePad の
+    /// `strokes`）への挿入でも clone 先はすべて SVG 名前空間のまま複製
+    /// される（追加の名前空間指定は不要）。
+    fn create_items_from_template(
+        &mut self,
+        template: &fandhe_frontend_core::keyed::template::ItemTemplate,
+        items: &[(String, &Node)],
+    ) -> Option<Vec<(String, web_sys::Node)>> {
+        let (first_key, first_node) = items.first()?;
+        let proto = build_dom_node_with_namespace(self.document, first_node, self.namespace)?;
+
+        let mut built: Vec<(String, web_sys::Node)> = Vec::with_capacity(items.len());
+        for (key, node) in &items[1..] {
+            let Ok(cloned) = proto.clone_node_with_deep(true) else {
+                return None;
+            };
+            // ルートは常に Element（`derive_item_template` が非 Element
+            // ルートを事前に不成立とする契約、core `keyed::template`
+            // モジュール doc「クレート間契約」参照）であり、
+            // `build_dom_node_with_namespace` が `Node::Element` から
+            // 構築した要素の複製へのダウンキャストは安全。
+            let elem: Element = cloned.clone().unchecked_into();
+            if elem.set_attribute(KEY_ATTR, key).is_err() {
+                return None;
+            }
+            let values = fandhe_frontend_core::keyed::template::text_values(node, template)?;
+            if !write_template_text_paths(&cloned, template.text_paths(), &values) {
+                return None;
+            }
+            built.push((key.clone(), cloned));
+        }
+
+        built.insert(0, (first_key.clone(), proto));
+        Some(built)
     }
 
     /// `child` の属性を `old_attrs`（呼び出し元 `keyed_apply::apply_ops_with_items`
@@ -3203,5 +3336,366 @@ mod tests {
             "テキストのみ変わる項目 b でも class が不変なら set_attribute \
              は発生しないはず"
         );
+    }
+
+    // --- 連続 Insert 区間の行プロトタイプ clone 経路（イシュー #1385）---
+
+    /// 同型の連続 Insert 区間（空リストへの一括挿入）で、各行が正しい
+    /// `data-key`・テキスト値を持ち、かつ互いに別ノード（`cloneNode` に
+    /// よる複製であり同一ノードの使い回しではない）であることを固定する
+    /// （受け入れ基準 1・計画 §5.2）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_inserts_isomorphic_rows_via_template_clone() {
+        let document = doc();
+        let list_element = make_list_element(&document, &[]);
+        let previous = keyed_items(&[]);
+        let new_tree = keyed_items(&["a", "b", "c", "d", "e"]);
+
+        let result = apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tree);
+        assert!(
+            matches!(result, KeyedListApplyResult::Achieved { .. }),
+            "同型 5 行の一括挿入は全 op 達成のはず: {result:?}"
+        );
+
+        let children = list_element.children();
+        assert_eq!(children.length(), 5);
+        let keys = ["a", "b", "c", "d", "e"];
+        let mut nodes: Vec<Element> = Vec::with_capacity(5);
+        for (i, expected_key) in keys.iter().enumerate() {
+            let child = children.item(i as u32).unwrap();
+            assert_eq!(
+                child.get_attribute(KEY_ATTR).as_deref(),
+                Some(*expected_key)
+            );
+            assert_eq!(child.text_content().as_deref(), Some(*expected_key));
+            nodes.push(child);
+        }
+        for i in 0..nodes.len() {
+            for j in (i + 1)..nodes.len() {
+                assert!(
+                    !nodes[i].is_same_node(Some(&nodes[j])),
+                    "行 {i} と行 {j} は cloneNode による別ノードであり \
+                     同一ノードの使い回しであってはならない"
+                );
+            }
+        }
+    }
+
+    /// ルート・子要素に静的属性を持つ同型行の一括挿入で、各行の静的属性が
+    /// 複製先にも反映され、`data-key` のみが行ごとに異なることを固定する。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_template_clone_preserves_static_attributes() {
+        let document = doc();
+        let list_element = make_list_element(&document, &[]);
+        let previous = keyed_items(&[]);
+        let row = |key: &str| {
+            (
+                key.to_string(),
+                el(
+                    "li",
+                    vec![("class", "row")],
+                    vec![el("span", vec![("data-role", "label")], vec![text(key)])],
+                ),
+            )
+        };
+        let new_tree =
+            keyed_list("ul", vec![], "items", vec![row("a"), row("b"), row("c")]).unwrap();
+
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tree);
+
+        let children = list_element.children();
+        assert_eq!(children.length(), 3);
+        for (i, expected_key) in ["a", "b", "c"].iter().enumerate() {
+            let li_el = children.item(i as u32).unwrap();
+            assert_eq!(
+                li_el.get_attribute(KEY_ATTR).as_deref(),
+                Some(*expected_key)
+            );
+            assert_eq!(
+                li_el.get_attribute("class").as_deref(),
+                Some("row"),
+                "静的属性はすべての複製先へ引き継がれるはず"
+            );
+            let span = li_el.query_selector("span").unwrap().unwrap();
+            assert_eq!(span.get_attribute("data-role").as_deref(), Some("label"));
+            assert_eq!(span.text_content().as_deref(), Some(*expected_key));
+        }
+    }
+
+    /// 深さ 3（`li > div > span(text)` + 兄弟 Text）の同型行で、束縛点
+    /// パス走査が正しい Text へ書き込むことを固定する（`text_values` の
+    /// 文書順と一致することの確認）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_template_clone_handles_nested_bind_points() {
+        let document = doc();
+        let list_element = make_list_element(&document, &[]);
+        let previous = keyed_items(&[]);
+        let row = |key: &str, label: &str, note: &str| {
+            (
+                key.to_string(),
+                el(
+                    "li",
+                    vec![],
+                    vec![
+                        el("div", vec![], vec![el("span", vec![], vec![text(label)])]),
+                        text(note),
+                    ],
+                ),
+            )
+        };
+        let new_tree = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![
+                row("a", "Alice", "note-a"),
+                row("b", "Bob", "note-b"),
+                row("c", "Carol", "note-c"),
+            ],
+        )
+        .unwrap();
+
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tree);
+
+        let children = list_element.children();
+        assert_eq!(children.length(), 3);
+        let expected = [
+            ("a", "Alice", "note-a"),
+            ("b", "Bob", "note-b"),
+            ("c", "Carol", "note-c"),
+        ];
+        for (i, (key, label, note)) in expected.iter().enumerate() {
+            let li_el = children.item(i as u32).unwrap();
+            assert_eq!(li_el.get_attribute(KEY_ATTR).as_deref(), Some(*key));
+            let span = li_el.query_selector("span").unwrap().unwrap();
+            assert_eq!(span.text_content().as_deref(), Some(*label));
+            assert_eq!(
+                li_el.text_content().as_deref(),
+                Some(format!("{label}{note}").as_str()),
+                "div>span のテキストと兄弟 Text が文書順どおり両方反映される \
+                 はず"
+            );
+        }
+    }
+
+    /// 途中 1 行だけタグが異なる非同型区間は個別生成へフォールバックし、
+    /// 結果 DOM が全行正しく反映されること（テンプレート経路の有無に
+    /// 関わらず正しい結果になることの確認）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_falls_back_when_rows_are_not_isomorphic() {
+        let document = doc();
+        let list_element = make_list_element(&document, &[]);
+        let previous = keyed_items(&[]);
+        let new_tree = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![
+                ("a".to_string(), li(vec![], vec![text("a")])),
+                ("b".to_string(), el("span", vec![], vec![text("b")])),
+                ("c".to_string(), li(vec![], vec![text("c")])),
+            ],
+        )
+        .unwrap();
+
+        let result = apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tree);
+        assert!(matches!(result, KeyedListApplyResult::Achieved { .. }));
+
+        let children = list_element.children();
+        assert_eq!(children.length(), 3);
+        assert_eq!(
+            children.item(0).unwrap().tag_name().to_ascii_lowercase(),
+            "li"
+        );
+        assert_eq!(
+            children.item(1).unwrap().tag_name().to_ascii_lowercase(),
+            "span",
+            "非同型行はタグそのまま反映されるはず（個別生成経路）"
+        );
+        assert_eq!(
+            children.item(2).unwrap().tag_name().to_ascii_lowercase(),
+            "li"
+        );
+        for (i, expected) in ["a", "b", "c"].iter().enumerate() {
+            assert_eq!(
+                children.item(i as u32).unwrap().text_content().as_deref(),
+                Some(*expected)
+            );
+        }
+    }
+
+    /// XSS 回帰（テンプレート clone 経路版）: 同型行の一括挿入で `<script>`
+    /// を含むテキスト値を与えても要素化されず、`text_content` がそのまま
+    /// 反映されること（`innerHTML` 不使用の回帰固定を clone 経路にも
+    /// 適用）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_template_clone_inserts_script_like_text_as_plain_text() {
+        let document = doc();
+        let list_element = make_list_element(&document, &[]);
+        let previous = keyed_items(&[]);
+        let malicious_a = "<script>alert(1)</script>";
+        let malicious_b = "&\"'<img src=x onerror=alert(1)>";
+        let new_tree = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![
+                ("a".to_string(), li(vec![], vec![text(malicious_a)])),
+                ("b".to_string(), li(vec![], vec![text(malicious_b)])),
+                ("c".to_string(), li(vec![], vec![text("safe")])),
+            ],
+        )
+        .unwrap();
+
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tree);
+
+        assert_eq!(list_element.children().length(), 3);
+        assert_eq!(
+            list_element.query_selector("script").unwrap(),
+            None,
+            "script 要素は生成されないはず"
+        );
+        assert_eq!(
+            list_element.query_selector("img").unwrap(),
+            None,
+            "img 要素も生成されないはず"
+        );
+        let children = list_element.children();
+        assert_eq!(
+            children.item(0).unwrap().text_content().as_deref(),
+            Some(malicious_a)
+        );
+        assert_eq!(
+            children.item(1).unwrap().text_content().as_deref(),
+            Some(malicious_b)
+        );
+    }
+
+    /// 危険属性（テンプレート clone 経路版）: ルートに `onclick`/`href`
+    /// （危険スキーム）を持つ同型行の一括挿入で、いずれもプロトタイプ
+    /// 構築段階で除去され、複製先にも一切現れないことを固定する。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_template_clone_drops_dangerous_attrs() {
+        let document = doc();
+        let list_element = make_list_element(&document, &[]);
+        let previous = keyed_items(&[]);
+        let row = |key: &str| {
+            (
+                key.to_string(),
+                el(
+                    "a",
+                    vec![
+                        ("onclick", "alert(1)"),
+                        ("href", "javascript:alert(1)"),
+                        ("class", "safe"),
+                    ],
+                    vec![text(key)],
+                ),
+            )
+        };
+        let new_tree =
+            keyed_list("ul", vec![], "items", vec![row("a"), row("b"), row("c")]).unwrap();
+
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tree);
+
+        let children = list_element.children();
+        assert_eq!(children.length(), 3);
+        for i in 0..3u32 {
+            let a_el = children.item(i).unwrap();
+            assert!(
+                a_el.get_attribute("onclick").is_none(),
+                "イベントハンドラ属性は除去されるはず"
+            );
+            assert!(
+                a_el.get_attribute("href").is_none(),
+                "危険スキームの href は除去されるはず"
+            );
+            assert_eq!(a_el.get_attribute("class").as_deref(), Some("safe"));
+        }
+    }
+
+    /// SVG 名前空間（テンプレート clone 経路版）: `svg` 親の keyed list へ
+    /// 同型 `path` 行を複数挿入し、全 clone の名前空間が SVG のままである
+    /// ことを固定する（`clone_node` が名前空間を保持する DOM 標準仕様の
+    /// 回帰固定）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_template_clone_inserts_svg_children_in_svg_namespace() {
+        let document = doc();
+        let list_element = document
+            .create_element_ns(Some(SVG_NAMESPACE), "svg")
+            .unwrap();
+        list_element
+            .set_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "strokes")
+            .unwrap();
+        let previous = keyed_list("svg", vec![], "strokes", Vec::new()).unwrap();
+
+        // `d` は全行で完全に同一の値にする（Bugbot 指摘・PR #1403）。
+        // `attrs_isomorphic` はルート属性の値差異を `KEY_ATTR` にしか
+        // 許容しないため、行ごとに異なる `d` を与えると
+        // `derive_item_template` が非同型と判定して `create_item`
+        // （非 clone 経路）へフォールバックし、本テストが検証したい
+        // `create_items_from_template`（clone 経路）が一度も呼ばれず
+        // clone 経路の名前空間回帰を検知できなくなる。
+        const D: &str = "M0.00,0.00 L1.00,1.00";
+        let row = |key: &str| (key.to_string(), el("path", vec![("d", D)], vec![]));
+        let new_tree =
+            keyed_list("svg", vec![], "strokes", vec![row("0"), row("1"), row("2")]).unwrap();
+
+        apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tree);
+
+        let paths = list_element.query_selector_all("path").unwrap();
+        assert_eq!(paths.length(), 3);
+        for i in 0..paths.length() {
+            let path: Element = paths.get(i).unwrap().unchecked_into();
+            assert_eq!(
+                path.namespace_uri().as_deref(),
+                Some(SVG_NAMESPACE),
+                "テンプレート clone 経路で挿入された <path> も SVG 名前空間 \
+                 のままのはず"
+            );
+            assert_eq!(
+                path.get_attribute("d").as_deref(),
+                Some(D),
+                "clone 元プロトタイプの静的属性が複製先にも複製されているはず"
+            );
+        }
+    }
+
+    /// with_previous 経路: 既存 2 行の間に同型 3 行を挿入し、既存ノードの
+    /// 同一性が保たれたまま新規行がプロトタイプ clone で構築されることを
+    /// 固定する（既存の `preserves_focus_across_fragment_batched_insert`
+    /// と同型の確認をテンプレート経路にも適用）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_with_previous_template_clone_preserves_existing_nodes_between() {
+        let document = doc();
+        let list_element = make_list_element(&document, &["a", "z"]);
+        let existing_a = list_element.first_element_child().unwrap();
+        let existing_z = list_element.children().item(1).unwrap();
+
+        let previous = keyed_items(&["a", "z"]);
+        let new_tree = keyed_items(&["a", "x", "y", "w", "z"]);
+        let result = apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tree);
+        assert!(matches!(result, KeyedListApplyResult::Achieved { .. }));
+
+        let children = list_element.children();
+        assert_eq!(children.length(), 5);
+        assert!(
+            existing_a.is_same_node(Some(&children.item(0).unwrap())),
+            "既存の a はノード同一性を保ったまま先頭に残るはず"
+        );
+        assert!(
+            existing_z.is_same_node(Some(&children.item(4).unwrap())),
+            "既存の z はノード同一性を保ったまま末尾に残るはず"
+        );
+        for (i, expected_key) in ["x", "y", "w"].iter().enumerate() {
+            assert_eq!(
+                children
+                    .item((i + 1) as u32)
+                    .unwrap()
+                    .get_attribute(KEY_ATTR)
+                    .as_deref(),
+                Some(*expected_key)
+            );
+        }
     }
 }
