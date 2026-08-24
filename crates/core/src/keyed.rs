@@ -322,6 +322,12 @@ impl From<crate::fx_hash::KeyHashCollisionError> for KeyedListError {
 ///     ),
 /// );
 /// ```
+///
+/// wasm クライアント（`fandhe-frontend-wasm-client`/`fandhe-frontend-
+/// wasm-full`）から呼ぶ場合、戻り値の `Result` を `.expect()`/`.unwrap()`
+/// すると `KeyedListError: Debug`（derive）の整形機構（`escape_debug_ext`・
+/// `Formatter::pad` 等）が wasm payload へリンクされる（イシュー #1388
+/// 実測で約 6KB）。`?`/`match` で扱うこと。
 pub fn keyed_list(
     tag: &'static str,
     attrs: Vec<(&str, &str)>,
@@ -610,6 +616,12 @@ pub enum KeyedOp {
 /// - [`KeyedListError::KeyBytesExceeded`][]: `old_keys`/`new_keys`
 ///   いずれかのキー文字列の合計バイト数が [`MAX_KEYED_LIST_KEY_BYTES`]
 ///   を超えている。
+///
+/// wasm クライアント（`fandhe-frontend-wasm-client`/`fandhe-frontend-
+/// wasm-full`）から呼ぶ場合、戻り値の `Result` を `.expect()`/`.unwrap()`
+/// すると `KeyedListError: Debug`（derive）の整形機構（`escape_debug_ext`・
+/// `Formatter::pad` 等）が wasm payload へリンクされる（イシュー #1388
+/// 実測で約 6KB）。`?`/`match` で扱うこと。
 pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Result<Vec<KeyedOp>, KeyedListError> {
     enforce_key_limits(old_keys.len(), old_keys.iter().map(String::len).sum())?;
     enforce_key_limits(new_keys.len(), new_keys.iter().map(String::len).sum())?;
@@ -661,19 +673,25 @@ pub fn diff_keys(old_keys: &[String], new_keys: &[String]) -> Result<Vec<KeyedOp
 /// `remaining = len - p` に基づいて算出する）。要素の `==` 比較のみで
 /// 完結し、`HashMap`/`HashSet` を一切構築しない。
 fn trimmed_bounds<T: PartialEq>(old: &[T], new: &[T]) -> (usize, usize) {
-    let max_prefix = old.len().min(new.len());
-    let mut prefix = 0;
-    while prefix < max_prefix && old[prefix] == new[prefix] {
-        prefix += 1;
-    }
+    // 添字（`old[prefix]` 等）による走査は panic 整形機構
+    // （`panic_bounds_check`）を wasm へ引き込むため、イテレータ
+    // （`zip`/`take_while`）で表現する（イシュー #1388）。
+    let prefix = old
+        .iter()
+        .zip(new.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
 
     let remaining_old = old.len() - prefix;
     let remaining_new = new.len() - prefix;
     let max_suffix = remaining_old.min(remaining_new);
-    let mut suffix = 0;
-    while suffix < max_suffix && old[old.len() - 1 - suffix] == new[new.len() - 1 - suffix] {
-        suffix += 1;
-    }
+    let suffix = old
+        .iter()
+        .rev()
+        .zip(new.iter().rev())
+        .take(max_suffix)
+        .take_while(|(a, b)| a == b)
+        .count();
 
     (prefix, suffix)
 }
@@ -683,19 +701,24 @@ fn trimmed_bounds<T: PartialEq>(old: &[T], new: &[T]) -> (usize, usize) {
 /// キー一致のみに基づく。内容比較は [`diff_keyed_items`] の Update
 /// 判定パスが別途担う）。
 fn trimmed_bounds_items(old: &[(String, Node)], new: &[(String, Node)]) -> (usize, usize) {
-    let max_prefix = old.len().min(new.len());
-    let mut prefix = 0;
-    while prefix < max_prefix && old[prefix].0 == new[prefix].0 {
-        prefix += 1;
-    }
+    // trimmed_bounds と同じ理由（添字アクセスの panic 整形機構回避、
+    // イシュー #1388）で zip/take_while イテレータ化する。
+    let prefix = old
+        .iter()
+        .zip(new.iter())
+        .take_while(|(a, b)| a.0 == b.0)
+        .count();
 
     let remaining_old = old.len() - prefix;
     let remaining_new = new.len() - prefix;
     let max_suffix = remaining_old.min(remaining_new);
-    let mut suffix = 0;
-    while suffix < max_suffix && old[old.len() - 1 - suffix].0 == new[new.len() - 1 - suffix].0 {
-        suffix += 1;
-    }
+    let suffix = old
+        .iter()
+        .rev()
+        .zip(new.iter().rev())
+        .take(max_suffix)
+        .take_while(|(a, b)| a.0 == b.0)
+        .count();
 
     (prefix, suffix)
 }
@@ -749,7 +772,13 @@ fn has_duplicate_keys<'a>(keys: impl Iterator<Item = &'a str>) -> bool {
         .map(|key| std::hash::BuildHasher::hash_one(&hasher, key))
         .collect();
     hashes.sort_unstable();
-    hashes.windows(2).any(|pair| pair[0] == pair[1])
+    // `windows(2)` + 添字（`pair[0]`/`pair[1]`）は panic 整形機構
+    // （`panic_bounds_check`）を wasm へ引き込むため、隣接ペアの比較を
+    // `zip` イテレータで表現する（イシュー #1388）。
+    hashes
+        .iter()
+        .zip(hashes.iter().skip(1))
+        .any(|(a, b)| a == b)
 }
 
 /// [`diff_keys`] 第 1 パス: `new_keys` に存在しないキーを [`KeyedOp::Remove`]
@@ -953,13 +982,19 @@ fn insert_or_move_pass(
             continue;
         }
 
+        // `working.get(h)`/`next.get(h)` 等: `h`/`node` は連結リスト内部で
+        // 生成された `working` の添字であり不変条件上は常に範囲内だが、
+        // 添字アクセスは panic 整形機構（`panic_bounds_check`）を wasm へ
+        // 引き込むため `get`/`get_mut` へ置換した（イシュー #1388）。
+        // 到達不能分岐（`None`）は「操作を発行せず次のキーへ進む」
+        // fail-closed に倒す。
         if let Some(h) = head {
-            if working[h] == *key {
+            if working.get(h) == Some(key) {
                 // 先頭ノードが期待キーと一致: 操作を発行せず消費するのみ。
                 if let Some(q) = queue.get_mut(key.as_str())? {
                     q.pop_front();
                 }
-                head = next[h];
+                head = next.get(h).copied().flatten();
                 out_index += 1;
                 continue;
             }
@@ -969,13 +1004,17 @@ fn insert_or_move_pass(
         if let Some(node) = found {
             // 連結リストから O(1) で取り外す（旧実装の Vec::remove +
             // Vec::insert による O(n) シフトを回避）。
-            let node_prev = prev[node];
-            let node_next = next[node];
+            let node_prev = prev.get(node).copied().flatten();
+            let node_next = next.get(node).copied().flatten();
             if let Some(p) = node_prev {
-                next[p] = node_next;
+                if let Some(slot) = next.get_mut(p) {
+                    *slot = node_next;
+                }
             }
             if let Some(nx) = node_next {
-                prev[nx] = node_prev;
+                if let Some(slot) = prev.get_mut(nx) {
+                    *slot = node_prev;
+                }
             }
             if head == Some(node) {
                 head = node_next;
@@ -1071,6 +1110,12 @@ fn insert_or_move_pass(
 /// - [`KeyedListError::KeyBytesExceeded`][]: `old_items`/`new_items`
 ///   いずれかのキー文字列の合計バイト数が [`MAX_KEYED_LIST_KEY_BYTES`]
 ///   を超えている。
+///
+/// wasm クライアント（`fandhe-frontend-wasm-client`/`fandhe-frontend-
+/// wasm-full`）から呼ぶ場合、戻り値の `Result` を `.expect()`/`.unwrap()`
+/// すると `KeyedListError: Debug`（derive）の整形機構（`escape_debug_ext`・
+/// `Formatter::pad` 等）が wasm payload へリンクされる（イシュー #1388
+/// 実測で約 6KB）。`?`/`match` で扱うこと。
 pub fn diff_keyed_items(
     old_items: &[(String, Node)],
     new_items: &[(String, Node)],
@@ -1096,9 +1141,10 @@ pub fn diff_keyed_items(
         // 直接比較する（HashMap/HashSet 構築ゼロ）。
         if !has_duplicate_keys(old_items.iter().map(|(k, _)| k.as_str())) {
             let mut ops = Vec::new();
-            for i in 0..old_len {
-                let (_, old_node) = &old_items[i];
-                let (new_key, new_node) = &new_items[i];
+            // 添字（`old_items[i]`/`new_items[i]`）は panic 整形機構
+            // （`panic_bounds_check`）を wasm へ引き込むため zip イテレータで
+            // 表現する（イシュー #1388）。
+            for ((_, old_node), (new_key, new_node)) in old_items.iter().zip(new_items.iter()) {
                 if old_node != new_node {
                     ops.push(KeyedOp::Update {
                         key: new_key.clone(),
@@ -1126,10 +1172,10 @@ pub fn diff_keyed_items(
 
             // Update 判定（本関数 doc「前段スキップ」節）: 接頭辞 → 中間 →
             // 接尾辞の順で new_items 全体の順序を維持する。
-            for i in 0..prefix {
-                if old_items[i].1 != new_items[i].1 {
+            for (old_item, new_item) in old_items.iter().zip(new_items.iter()).take(prefix) {
+                if old_item.1 != new_item.1 {
                     ops.push(KeyedOp::Update {
-                        key: new_items[i].0.clone(),
+                        key: new_item.0.clone(),
                     });
                 }
             }
@@ -1155,12 +1201,14 @@ pub fn diff_keyed_items(
                 }
             }
 
-            for i in 0..suffix {
-                let old_index = old_len - suffix + i;
-                let new_index = new_len - suffix + i;
-                if old_items[old_index].1 != new_items[new_index].1 {
+            // 接尾辞区間はスライス + zip で走査する（計算した添字での
+            // 直接アクセスは panic 整形機構を引き込むため、イシュー #1388）。
+            let old_suffix_items = &old_items[old_len - suffix..];
+            let new_suffix_items = &new_items[new_len - suffix..];
+            for (old_item, new_item) in old_suffix_items.iter().zip(new_suffix_items.iter()) {
+                if old_item.1 != new_item.1 {
                     ops.push(KeyedOp::Update {
-                        key: new_items[new_index].0.clone(),
+                        key: new_item.0.clone(),
                     });
                 }
             }

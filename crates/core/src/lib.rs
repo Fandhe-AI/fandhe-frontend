@@ -126,6 +126,13 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+// panic 整形機構（`unwrap`/`expect` 由来の `Formatter::pad` 等）が
+// wasm payload を押し上げるため（イシュー #1388 実測）、製品コード
+// （テストを除く）での使用を機械的に禁止する。`escape.rs`/`url.rs` の
+// 添字・スライスは既定エスケープ経路（REQ-1）のため本イシューでは
+// 変更せず、`indexing_slicing` は対象外とする（別途判断、イシュー
+// #1388 §9 スコープ外候補 3）。
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
 mod bind;
 mod escape;

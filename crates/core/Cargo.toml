@@ -1,6 +1,9 @@
 [package]
 name = "fandhe-frontend-core"
-version = "0.4.2"
+# イシュー #1388: keyed diff（keyed.rs）の添字アクセスを get/イテレータへ
+# 置換し panic 整形機構（panic_bounds_check 等）を wasm payload から
+# 縮減した（内部実装のみ、公開 API 不変、patch バンプ）。
+version = "0.4.3"
 edition = "2021"
 description = "fandhe-frontend-core: 描画コア（ノード木 API・既定エスケープレンダラ）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"
