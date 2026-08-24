@@ -6,6 +6,10 @@ name = "fandhe-frontend-wasm-full"
 # ため patch バンプ（`.claude/rules/coding-rust.md` #638 条項）。
 # イシュー #1388: fandhe-frontend-core 0.4.3 / fandhe-frontend-wasm-client
 # 0.6.1 依存追随（check-dep-versions --fix）に伴う patch バンプ。
+# イシュー #1385: 依存先 `fandhe-frontend-wasm-client` 0.6.0 → 0.6.1
+# （連続 Insert 区間の行プロトタイプ clone 化）への `version = "..."`
+# 追随バンプ（`cargo run -p xtask -- check-dep-versions --fix`）。本クレート
+# 自身は公開 API を追加していないため内部変更のみの patch バンプ。
 version = "0.7.11"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
