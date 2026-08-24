@@ -198,6 +198,277 @@ pub fn dispatch_and_render_headless<C: Component>(
     component.view()
 }
 
+/// [`fandhe_frontend_wasm_client::KeyedListApplyResult`] を
+/// `keyed_list_cache` へ反映する共通処理の DOM 非依存な判定・分岐本体
+/// （呼び出し元は `Runtime::commit_keyed_list_result`、イシュー #1381
+/// 設計 §6.1/§6.2 段 3「即時再同期 + クリア終端」）。
+///
+/// `resync`/`clear` をクロージャとして注入することで、ライブ DOM 操作
+/// （`web-sys` 呼び出し）を伴わず native `cargo test` から決定的にテスト
+/// できる。`Runtime<C>` 自体・`Runtime::commit_keyed_list_result` は
+/// `web_sys::Element`/`web_sys::Document` を扱うため
+/// `#[cfg(target_arch = "wasm32")]` でゲートされ native からは到達
+/// できない（`dispatch_and_render_headless` doc 参照、2 層構成方針）が、
+/// 本関数自体は `Runtime<C>` に依存しない自由関数として切り出してあり
+/// ゲートしない（native `cargo test --workspace` から直接呼べる）。
+///
+/// # 契約（設計書 §6.1「収束の範囲と時期の正直な区別」）
+///
+/// `ResyncRequired` を受けた**同一更新サイクル内**で直ちに `resync`
+/// （[`fandhe_frontend_wasm_client::apply_keyed_list`]、ライブ DOM を
+/// 直接読み出す構造フォールバック）を 1 回だけ試行する（再帰的な
+/// リトライは行わない）。`resync` も `ResyncRequired` を返した場合、
+/// 最初の適用試行の `dom_mutated` と `resync` 試行自身の
+/// `dom_mutated` の論理和が `true`（いずれかがライブ DOM への書き込み
+/// を 1 件でも試行した）なら `clear`（[`fandhe_frontend_wasm_client::clear_keyed_list_container`]
+/// 相当）で当該 field のコンテナ全体を一括クリアし、`keyed_list_cache`
+/// 全体を無効化する（設計書 §6.3 規則 4。`field` は
+/// `data-bind-list` 属性値の任意の文字列であり nested field との間に
+/// path/prefix 関係が保証されないため、クリア対象コンテナ配下の
+/// nested field のみを field 文字列から選り分けることはできず、
+/// fail-closed に `keyed_list_cache` を丸ごと無効化する
+/// （`Runtime::rerender_subtree` の構造フォールバックと同じ判断、
+/// 詳細は本体実装内コメント参照）。クリア後は達成 Node キャッシュの
+/// entry が存在しないため、次回 dirty 到来時は既存の cache-miss 分岐が
+/// 空コンテナから再構築する自己修復ループへ委ねる）。論理和が `false`
+/// （両試行ともライブ DOM へ一切書き込みを試行していない）ならクリア
+/// せず旧 view を無傷のまま温存する。
+///
+/// # ネストした keyed list の field 間キャッシュ無効化（イシュー
+/// #1340 独立敵対レビュー指摘 A 対応）
+///
+/// `field` は field ごとに独立してキャッシュされるが、`Achieved` が
+/// 丸ごと新規構築した部分木（`Insert`・タグ変更を伴う `Update`・
+/// 内容変更の `Update`・親タグ変更）の子孫に**別の** keyed list
+/// field のマーカーが含まれる場合（ネストした keyed list）、その
+/// ライブ DOM も同時に新しい状態へ更新されている。しかし
+/// `keyed_list_cache` はこの副作用を知らないため、当該ネスト field
+/// のキャッシュが古い内容のまま取り残され、次回その field を dirty
+/// 処理する際に誤った diff 基準（存在しないキーへの `Update`・重複
+/// `Insert` 等）を生む。`invalidated_nested_fields` に含まれる field は
+/// `keyed_list_cache` から remove する（fail-closed、`Achieved`
+/// 側と同じ「未達成状態をキャッシュしない」設計、
+/// `KeyedListApplyResult::Achieved` doc 参照）。次回その field が
+/// dirty になった際は cache-miss フォールバック（ライブ DOM 読み
+/// 出し基準、常に正しい）で自己修復する。
+///
+/// 本番経路の呼び出し元 [`Runtime::commit_keyed_list_result`] は
+/// `#[cfg(target_arch = "wasm32")]` 配下のみに存在するため、host の
+/// 通常ビルド（非 `test`）では本関数が未使用になり `-D warnings` の
+/// dead_code に抵触する。`keyed_apply`/`keyed_children_cache` と同じ
+/// 理由で `test` cfg でも有効化する。
+#[cfg(any(test, target_arch = "wasm32"))]
+fn commit_keyed_list_result_with_resync(
+    field: &'static str,
+    result: fandhe_frontend_wasm_client::KeyedListApplyResult,
+    keyed_list_cache: &std::rc::Rc<
+        std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+    >,
+    resync: impl FnOnce() -> fandhe_frontend_wasm_client::KeyedListApplyResult,
+    clear: impl FnOnce() -> bool,
+) {
+    match result {
+        fandhe_frontend_wasm_client::KeyedListApplyResult::Achieved {
+            node,
+            invalidated_nested_fields,
+        } => {
+            keyed_list_cache
+                .borrow_mut()
+                .insert(field.to_string(), node);
+            for nested_field in invalidated_nested_fields {
+                keyed_list_cache.borrow_mut().remove(&nested_field);
+            }
+        }
+        fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields,
+            dom_mutated: first_dom_mutated,
+        } => {
+            // 最終確認レビュー指摘 1（イシュー #1340）対応:
+            // `resync_required` が立つ前に成功していた op で既に
+            // ライブ DOM が変化した部分木に含まれるネスト field も
+            // 同様に無効化する（`Achieved` アームと同じ扱い）。
+            keyed_list_cache.borrow_mut().remove(field);
+            for nested_field in invalidated_nested_fields {
+                keyed_list_cache.borrow_mut().remove(&nested_field);
+            }
+
+            // イシュー #1381 設計 §6.1/§6.2 段 3: 次回の dispatch を
+            // 待たず、同一更新サイクル内で直ちに 1 回だけライブ DOM
+            // 直接読み出しの構造フォールバックを試みる。
+            match resync() {
+                fandhe_frontend_wasm_client::KeyedListApplyResult::Achieved {
+                    node,
+                    invalidated_nested_fields: resync_nested,
+                } => {
+                    keyed_list_cache
+                        .borrow_mut()
+                        .insert(field.to_string(), node);
+                    for nested_field in resync_nested {
+                        keyed_list_cache.borrow_mut().remove(&nested_field);
+                    }
+                }
+                fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired {
+                    invalidated_nested_fields: resync_nested,
+                    dom_mutated: resync_dom_mutated,
+                } => {
+                    for nested_field in resync_nested {
+                        keyed_list_cache.borrow_mut().remove(&nested_field);
+                    }
+                    if first_dom_mutated || resync_dom_mutated {
+                        if clear() {
+                            // 設計書 §6.3 規則 4: クリア対象コンテナ
+                            // 配下の nested field を保守的に無効化
+                            // する。`field` は `data-bind-list`
+                            // 属性値の任意の文字列であり、nested
+                            // field との間に path/prefix 関係は
+                            // 保証されない
+                            // （`collect_nested_bind_list_fields_into`
+                            // 参照。単純な文字列一致で「配下」を
+                            // 判別できない）ため、どの nested field
+                            // がクリア対象コンテナ配下にあったかを
+                            // `field` 文字列から特定する手段がない。
+                            // fail-closed に倒し、`structural_fallback`
+                            // 相当（`Runtime::rerender_subtree` の
+                            // DOM ごと差し替えるフォールバック、同ファイル
+                            // `keyed_list_cache.clear()` 呼び出し箇所
+                            // doc 参照）と同じく `keyed_list_cache` を
+                            // 丸ごと無効化する。次回以降は cache-miss
+                            // フォールバック（ライブ DOM 読み出し基準、
+                            // 常に正しい）が各 field を自己修復する。
+                            keyed_list_cache.borrow_mut().clear();
+                        } else {
+                            // クリア終端自体が失敗した二重障害。
+                            // `unwrap()`/`panic!` は使わずベスト
+                            // エフォートで処理を継続する（設計書
+                            // §6.1「クリア終端自体が実行時に失敗した
+                            // 場合の残余」参照）。
+                            web_sys::console::warn_1(
+                                &"fandhe-frontend-wasm-full: Runtime keyed list clear \
+                                  termination failed, keeping cache entry absent"
+                                    .into(),
+                            );
+                        }
+                    }
+                    // OR == false: ライブ DOM は旧 view のまま無傷
+                    // （設計書 §6.1 不変条件 (b)）。クリアせず、
+                    // キャッシュ entry も不在のまま次回 dirty の
+                    // 自己修復ループへ委ねる。
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod commit_keyed_list_result_with_resync_tests {
+    //! [`commit_keyed_list_result_with_resync`] の DOM 非依存な判定・分岐
+    //! 本体を native `cargo test` から検証する（イシュー #1381）。
+    //! `resync`/`clear` はクロージャ注入のためライブ DOM を一切必要と
+    //! しない。
+
+    use super::commit_keyed_list_result_with_resync;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+    use std::rc::Rc;
+
+    fn cache_with(
+        entries: &[(&str, &str)],
+    ) -> Rc<RefCell<HashMap<String, fandhe_frontend_core::Node>>> {
+        let mut map = HashMap::new();
+        for (key, text) in entries {
+            map.insert(
+                (*key).to_string(),
+                fandhe_frontend_core::Node::Text((*text).to_string()),
+            );
+        }
+        Rc::new(RefCell::new(map))
+    }
+
+    fn resync_required(dom_mutated: bool) -> fandhe_frontend_wasm_client::KeyedListApplyResult {
+        fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields: std::collections::HashSet::new(),
+            dom_mutated,
+        }
+    }
+
+    /// 設計書 §6.3 規則 4: 二重 `ResyncRequired` かつ dom_mutated が
+    /// いずれかで `true` のとき `clear` クロージャが呼ばれて `true` を
+    /// 返す場合、`keyed_list_cache` 全体（`field` 自身・無関係な他
+    /// field を問わず）が無効化される。field 文字列と nested field の
+    /// 間に path/prefix 関係が保証されないため、プレフィックス一致の
+    /// 部分無効化ではなく丸ごとクリアが正しい設計であることを固定する。
+    #[test]
+    fn clear_success_invalidates_entire_cache() {
+        let cache = cache_with(&[
+            ("items", "items-cached"),
+            ("items.0.tags", "nested-cached"),
+            ("other", "unrelated-cached"),
+        ]);
+        let cleared = Rc::new(RefCell::new(false));
+        let cleared_flag = Rc::clone(&cleared);
+
+        commit_keyed_list_result_with_resync(
+            "items",
+            resync_required(true),
+            &cache,
+            || resync_required(false),
+            move || {
+                *cleared_flag.borrow_mut() = true;
+                true
+            },
+        );
+
+        assert!(*cleared.borrow(), "clear クロージャが呼ばれるはず");
+        assert!(
+            cache.borrow().is_empty(),
+            "clear 成功時は keyed_list_cache 全体が無効化されるはず（field 自身・\
+             nested field・無関係な field を問わず）"
+        );
+    }
+
+    /// dom_mutated が両試行とも `false` の場合は `clear` を呼ばず、
+    /// 既存キャッシュ（`field` 自身の entry は先行して remove 済みだが、
+    /// 無関係な nested field は温存される）をそのまま残す。
+    #[test]
+    fn no_dom_mutation_keeps_nested_cache_untouched() {
+        let cache = cache_with(&[
+            ("items", "items-cached"),
+            ("items.0.tags", "nested-cached"),
+            ("other", "unrelated-cached"),
+        ]);
+        let cleared = Rc::new(RefCell::new(false));
+        let cleared_flag = Rc::clone(&cleared);
+
+        commit_keyed_list_result_with_resync(
+            "items",
+            resync_required(false),
+            &cache,
+            || resync_required(false),
+            move || {
+                *cleared_flag.borrow_mut() = true;
+                true
+            },
+        );
+
+        assert!(
+            !*cleared.borrow(),
+            "dom_mutated が両試行とも false のときは clear を呼ばないはず"
+        );
+        // `field`（"items"）自身の entry は ResyncRequired アームの
+        // 冒頭で無条件 remove されるため残らないが、無関係な nested
+        // field のエントリはそのまま残ることを確認する。
+        assert!(!cache.borrow().contains_key("items"));
+        assert!(
+            cache.borrow().contains_key("items.0.tags"),
+            "clear が発生しない限り無関係な nested field のキャッシュは温存されるはず"
+        );
+        assert!(
+            cache.borrow().contains_key("other"),
+            "clear が発生しない限り無関係な field のキャッシュは温存されるはず"
+        );
+    }
+}
+
 /// 状態機械 `C` を保持し、マウント・イベント配線・再描画のライフサイクルを
 /// 統括する中核型（`docs/design/wasm-full-architecture.md` 第 3.2 節の公開 API
 /// 凍結表）。PoC-5 の `AppState` グローバル状態を汎用化する。
@@ -361,6 +632,35 @@ where
         }
     }
 
+    /// [`fandhe_frontend_wasm_client::KeyedListApplyResult`] を
+    /// `keyed_list_cache` へ反映し、`ResyncRequired` の場合は即時再同期
+    /// （[`fandhe_frontend_wasm_client::apply_keyed_list`]）+ クリア終端
+    /// （[`fandhe_frontend_wasm_client::clear_keyed_list_container`]）を
+    /// 行う（判定ロジック本体は自由関数 [`commit_keyed_list_result_with_resync`]
+    /// （モジュールトップレベル、native `cargo test` から到達可能にする
+    /// ため `Runtime<C>` から独立させている）、イシュー #1381）。
+    /// `document`/`list_element`/`list_node` は即時再同期の実行に必要な
+    /// 引数（`apply_update_for_dirty` の呼び出し元が既に解決済みのものを
+    /// そのまま渡す）。
+    fn commit_keyed_list_result(
+        field: &'static str,
+        result: fandhe_frontend_wasm_client::KeyedListApplyResult,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+        document: &web_sys::Document,
+        list_element: &web_sys::Element,
+        list_node: &fandhe_frontend_core::Node,
+    ) {
+        commit_keyed_list_result_with_resync(
+            field,
+            result,
+            keyed_list_cache,
+            || fandhe_frontend_wasm_client::apply_keyed_list(document, list_element, list_node),
+            || fandhe_frontend_wasm_client::clear_keyed_list_container(list_element),
+        );
+    }
+
     /// dispatch 後の dirty field 群を DOM へ反映する共通ロジック
     /// （イシュー #1120 で `Self::wire`／`Self::wire_signature_pad` から
     /// 共通化）。
@@ -389,179 +689,6 @@ where
     /// `build_dom_node` が `None`（`RawHtml` 混入等、fail-closed）を返す
     /// 場合は既存 DOM を維持したまま固定英語文言で `console::warn` する
     /// （内部状態を含めない、`lib.rs` クレート doc 不変条件 6 と同方針）。
-    /// [`fandhe_frontend_wasm_client::KeyedListApplyResult`] を
-    /// `keyed_list_cache` へ反映する共通処理（`apply_update_for_dirty` の
-    /// with-previous 経路・cache-miss フォールバック経路の双方が使う）。
-    ///
-    /// # ネストした keyed list の field 間キャッシュ無効化（イシュー
-    /// #1340 独立敵対レビュー指摘 A 対応）
-    ///
-    /// `field` は field ごとに独立してキャッシュされるが、`Achieved` が
-    /// 丸ごと新規構築した部分木（`Insert`・タグ変更を伴う `Update`・
-    /// 内容変更の `Update`・親タグ変更）の子孫に**別の** keyed list
-    /// field のマーカーが含まれる場合（ネストした keyed list）、その
-    /// ライブ DOM も同時に新しい状態へ更新されている。しかし
-    /// `keyed_list_cache` はこの副作用を知らないため、当該ネスト field
-    /// のキャッシュが古い内容のまま取り残され、次回その field を dirty
-    /// 処理する際に誤った diff 基準（存在しないキーへの `Update`・重複
-    /// `Insert` 等）を生む（同一 dispatch 内で当該 field が
-    /// `dirty` に含まれない限り顕在化しないが、含まれる場合は処理順序に
-    /// 関わらず必ずここで検知・除去する: ある field を処理した直後に
-    /// その field がネストして含む別 field のキャッシュを毎回無条件で
-    /// 破棄するため、`dirty` 内の処理順序（例: 親 field → 子 field、
-    /// 子 field → 親 field のいずれの順でも）に依存しない）。
-    ///
-    /// `invalidated_nested_fields` に含まれる field は
-    /// `keyed_list_cache` から remove する（fail-closed、`achieved`
-    /// 側と同じ「未達成状態をキャッシュしない」設計、
-    /// `KeyedListApplyResult::Achieved` doc 参照）。次回その field が
-    /// dirty になった際は cache-miss フォールバック（ライブ DOM 読み
-    /// 出し基準、常に正しい）で自己修復する。
-    /// [`Self::commit_keyed_list_result`] の DOM 非依存な判定・分岐本体
-    /// （イシュー #1381 設計 §6.1/§6.2 段 3「即時再同期 + クリア終端」）。
-    ///
-    /// `resync`/`clear` をクロージャとして注入することで、ライブ DOM 操作
-    /// （`web-sys` 呼び出し）を伴わず native `cargo test` から決定的に
-    /// テストできる（wasm32 のみで到達できる `commit_keyed_list_result`
-    /// 本体から、判定ロジックのみを切り出した設計）。
-    ///
-    /// # 契約（設計書 §6.1「収束の範囲と時期の正直な区別」）
-    ///
-    /// `ResyncRequired` を受けた**同一更新サイクル内**で直ちに `resync`
-    /// （[`fandhe_frontend_wasm_client::apply_keyed_list`]、ライブ DOM を
-    /// 直接読み出す構造フォールバック）を 1 回だけ試行する（再帰的な
-    /// リトライは行わない）。`resync` も `ResyncRequired` を返した場合、
-    /// 最初の適用試行の `dom_mutated` と `resync` 試行自身の
-    /// `dom_mutated` の論理和が `true`（いずれかがライブ DOM への書き込み
-    /// を 1 件でも試行した）なら `clear`（[`clear_keyed_list_container`]
-    /// 相当）で当該 field のコンテナ全体を一括クリアし、当該 field 配下の
-    /// nested field を**フィールド全体について保守的に**無効化する
-    /// （設計書 §6.3 規則 4。クリア後は達成 Node キャッシュの entry が
-    /// 存在しないため、次回 dirty 到来時は既存の cache-miss 分岐が空
-    /// コンテナから再構築する自己修復ループへ委ねる）。論理和が `false`
-    /// （両試行ともライブ DOM へ一切書き込みを試行していない）ならクリア
-    /// せず旧 view を無傷のまま温存する。
-    fn commit_keyed_list_result_with_resync(
-        field: &'static str,
-        result: fandhe_frontend_wasm_client::KeyedListApplyResult,
-        keyed_list_cache: &std::rc::Rc<
-            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
-        >,
-        resync: impl FnOnce() -> fandhe_frontend_wasm_client::KeyedListApplyResult,
-        clear: impl FnOnce() -> bool,
-    ) {
-        match result {
-            fandhe_frontend_wasm_client::KeyedListApplyResult::Achieved {
-                node,
-                invalidated_nested_fields,
-            } => {
-                keyed_list_cache
-                    .borrow_mut()
-                    .insert(field.to_string(), node);
-                for nested_field in invalidated_nested_fields {
-                    keyed_list_cache.borrow_mut().remove(&nested_field);
-                }
-            }
-            fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired {
-                invalidated_nested_fields,
-                dom_mutated: first_dom_mutated,
-            } => {
-                // 最終確認レビュー指摘 1（イシュー #1340）対応:
-                // `resync_required` が立つ前に成功していた op で既に
-                // ライブ DOM が変化した部分木に含まれるネスト field も
-                // 同様に無効化する（`Achieved` アームと同じ扱い）。
-                keyed_list_cache.borrow_mut().remove(field);
-                for nested_field in invalidated_nested_fields {
-                    keyed_list_cache.borrow_mut().remove(&nested_field);
-                }
-
-                // イシュー #1381 設計 §6.1/§6.2 段 3: 次回の dispatch を
-                // 待たず、同一更新サイクル内で直ちに 1 回だけライブ DOM
-                // 直接読み出しの構造フォールバックを試みる。
-                match resync() {
-                    fandhe_frontend_wasm_client::KeyedListApplyResult::Achieved {
-                        node,
-                        invalidated_nested_fields: resync_nested,
-                    } => {
-                        keyed_list_cache
-                            .borrow_mut()
-                            .insert(field.to_string(), node);
-                        for nested_field in resync_nested {
-                            keyed_list_cache.borrow_mut().remove(&nested_field);
-                        }
-                    }
-                    fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired {
-                        invalidated_nested_fields: resync_nested,
-                        dom_mutated: resync_dom_mutated,
-                    } => {
-                        for nested_field in resync_nested {
-                            keyed_list_cache.borrow_mut().remove(&nested_field);
-                        }
-                        if first_dom_mutated || resync_dom_mutated {
-                            if clear() {
-                                // フィールド全体を保守的に無効化する
-                                // （設計書 §6.3 規則 4）。field 自身の
-                                // entry は既に remove 済み（上記）。
-                                // どのネスト field がクリア対象コンテナ
-                                // 配下にあったかは、この時点では
-                                // `keyed_list_cache` のキー集合からしか
-                                // 判別できないため、field プレフィックス
-                                // 一致という粗い基準ではなく、呼び出し元
-                                // （`commit_keyed_list_result`）が
-                                // クリア発生を呼び出し元へ伝える設計とし、
-                                // 実際の無効化はキャッシュ全 remove では
-                                // なく本関数の戻り値（クリア発生の有無）
-                                // を見て呼び出し元が判断する。
-                            } else {
-                                // クリア終端自体が失敗した二重障害。
-                                // `unwrap()`/`panic!` は使わずベスト
-                                // エフォートで処理を継続する（設計書
-                                // §6.1「クリア終端自体が実行時に失敗した
-                                // 場合の残余」参照）。
-                                web_sys::console::warn_1(
-                                    &"fandhe-frontend-wasm-full: Runtime keyed list clear \
-                                      termination failed, keeping cache entry absent"
-                                        .into(),
-                                );
-                            }
-                        }
-                        // OR == false: ライブ DOM は旧 view のまま無傷
-                        // （設計書 §6.1 不変条件 (b)）。クリアせず、
-                        // キャッシュ entry も不在のまま次回 dirty の
-                        // 自己修復ループへ委ねる。
-                    }
-                }
-            }
-        }
-    }
-
-    /// [`fandhe_frontend_wasm_client::KeyedListApplyResult`] を
-    /// `keyed_list_cache` へ反映し、`ResyncRequired` の場合は即時再同期
-    /// （[`fandhe_frontend_wasm_client::apply_keyed_list`]）+ クリア終端
-    /// （[`fandhe_frontend_wasm_client::clear_keyed_list_container`]）を
-    /// 行う（判定ロジック本体は [`Self::commit_keyed_list_result_with_resync`]、
-    /// イシュー #1381）。`document`/`list_element`/`list_node` は即時
-    /// 再同期の実行に必要な引数（`apply_update_for_dirty` の呼び出し元が
-    /// 既に解決済みのものをそのまま渡す）。
-    fn commit_keyed_list_result(
-        field: &'static str,
-        result: fandhe_frontend_wasm_client::KeyedListApplyResult,
-        keyed_list_cache: &std::rc::Rc<
-            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
-        >,
-        document: &web_sys::Document,
-        list_element: &web_sys::Element,
-        list_node: &fandhe_frontend_core::Node,
-    ) {
-        Self::commit_keyed_list_result_with_resync(
-            field,
-            result,
-            keyed_list_cache,
-            || fandhe_frontend_wasm_client::apply_keyed_list(document, list_element, list_node),
-            || fandhe_frontend_wasm_client::clear_keyed_list_container(list_element),
-        );
-    }
-
     fn apply_update_for_dirty(
         state: &C,
         root: &web_sys::Element,
