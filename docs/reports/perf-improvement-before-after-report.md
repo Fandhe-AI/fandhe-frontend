@@ -598,3 +598,310 @@ full_ns は 3 シナリオとも §11.4 のラン間範囲内。ratio の範囲�
 ### 13.5 制約の継続
 
 本追補の制約は §11.5 と同一である（フレームワーク横断ベンチハーネス `_/bench/` の非存在により、他フレームワーク相対位置・CSR ブラウザ実測は未実施）。
+
+## 14. 追補 4: 2026-08-24 フレームワーク横断ベンチ実測（`make bench-cross`）と常設ベンチ再計測
+
+本レポート初版〜§13 で「未実施の制約」として残っていたフレームワーク横断ベンチ（旧 `_/bench/` 喪失）を、git 管理下の v2 ハーネス（`bench/`、イシュー #1370 で再構築、`bench/PROTOCOL.md` が正）で実施した**初のフルラン転記**である。旧記録値（issue #1313、2026-08-11）との順位互換はない（PROTOCOL の注記どおり）。区分ラベルはすべて [再計測]。
+
+### 14.1 計測環境（本追補分）
+
+| 項目 | 値 |
+|------|-----|
+| OS | Ubuntu 26.04 LTS（Linux 7.0.0-29-generic） |
+| CPU | 12 vCPU（仮想化 CPU） |
+| rustc | 1.96.0 (ac68faa20 2026-05-25) |
+| Node.js | v24.13.0 |
+| chromium | /usr/bin/chromium-browser 151.0.7922.108（システム chromium、playwright-core 経由 headless） |
+| 実行コマンド | `make bench-cross`（`bench/PROTOCOL.md` §3 の手順） + `cargo run -p xtask --release --locked -- bench-state-update` / `bench-binding-update`（単発） |
+| 実行方式 | `--release --locked` プロファイルでの単発実行 |
+| 計測日 | 2026-08-24 |
+| `bench/PROTOCOL.md` 最終コミット | 5f445b9 |
+| 計測時 HEAD | 17daec7 |
+| クレートバージョン | fandhe-frontend-core 0.4.3 / -interactive 0.2.7 / -app 0.2.6 / -wasm-client 0.6.1 |
+
+注記: 本追補のクレートバージョン（core 0.4.3 / interactive 0.2.7）は §11〜§13 の core 0.3.0 / interactive 0.2.3 と**バージョンが異なる**。#1371 系列の CSR 改善・#1394/#1397 の diff/属性同期改善を含む現行コードの計測であり、§13 との数値比較はバージョン跨ぎである旨を明記する。
+
+### 14.2 [再計測] SSR（8 種フレームワーク）
+
+実測 JSON（1 行サマリを整形転記）:
+
+```
+fandhe-frontend 0.4.3:
+{"framework":"fandhe-frontend","version":"0.4.3","mode":"ssr","workload_schema_version":1,
+ "rows1k":{"iters":100,"mean_ms":0.1154,"p50_ms":0.1124,"p95_ms":0.1417,"min_ms":0.1080},
+ "rows10k":{"iters":10,"mean_ms":1.3282,"p50_ms":1.2767,"p95_ms":1.5230,"min_ms":1.1342},
+ "html_bytes_1k":118931,"escape_ok":true,"row_count_ok":true,"notes":"profile=release"}
+
+vanilla v24.13.0:
+{"framework":"vanilla","version":"v24.13.0","mode":"ssr","workload_schema_version":1,
+ "rows1k":{"iters":100,"mean_ms":0.8181,"p50_ms":0.6927,"p95_ms":1.6884,"min_ms":0.6355},
+ "rows10k":{"iters":10,"mean_ms":12.1511,"p50_ms":11.6108,"p95_ms":15.9502,"min_ms":6.8001},
+ "html_bytes_1k":116931,"escape_ok":true,"row_count_ok":true,"notes":"node v24.13.0; NODE_ENV=production"}
+
+react 19.2.8:
+{"framework":"react","version":"19.2.8","mode":"ssr","workload_schema_version":1,
+ "rows1k":{"iters":100,"mean_ms":0.7285,"p50_ms":0.6233,"p95_ms":1.4328,"min_ms":0.5772},
+ "rows10k":{"iters":10,"mean_ms":9.8971,"p50_ms":7.4154,"p95_ms":13.0594,"min_ms":6.7849},
+ "html_bytes_1k":118944,"escape_ok":true,"row_count_ok":true,"notes":"node v24.13.0; NODE_ENV=production"}
+
+preact 10.29.8:
+{"framework":"preact","version":"10.29.8","mode":"ssr","workload_schema_version":1,
+ "rows1k":{"iters":100,"mean_ms":0.6254,"p50_ms":0.5194,"p95_ms":0.5731,"min_ms":0.4883},
+ "rows10k":{"iters":10,"mean_ms":6.429,"p50_ms":4.8857,"p95_ms":9.3034,"min_ms":4.6517},
+ "html_bytes_1k":102931,"escape_ok":true,"row_count_ok":true,"notes":"node v24.13.0; NODE_ENV=production"}
+
+vue 3.5.41:
+{"framework":"vue","version":"3.5.41","mode":"ssr","workload_schema_version":1,
+ "rows1k":{"iters":100,"mean_ms":0.7291,"p50_ms":0.6102,"p95_ms":0.7008,"min_ms":0.578},
+ "rows10k":{"iters":10,"mean_ms":9.2842,"p50_ms":6.4729,"p95_ms":12.6091,"min_ms":6.1485},
+ "html_bytes_1k":116931,"escape_ok":true,"row_count_ok":true,"notes":"node v24.13.0; NODE_ENV=production"}
+
+solid 1.9.15:
+{"framework":"solid","version":"1.9.15","mode":"ssr","workload_schema_version":1,
+ "rows1k":{"iters":100,"mean_ms":0.4135,"p50_ms":0.3104,"p95_ms":0.3535,"min_ms":0.2893},
+ "rows10k":{"iters":10,"mean_ms":4.4786,"p50_ms":3.164,"p95_ms":7.3923,"min_ms":3.0191},
+ "html_bytes_1k":95938,"escape_ok":true,"row_count_ok":true,"notes":"node v24.13.0; NODE_ENV=production"}
+
+svelte 5.56.10:
+{"framework":"svelte","version":"5.56.10","mode":"ssr","workload_schema_version":1,
+ "rows1k":{"iters":100,"mean_ms":0.4947,"p50_ms":0.2468,"p95_ms":0.4875,"min_ms":0.2308},
+ "rows10k":{"iters":10,"mean_ms":3.8816,"p50_ms":2.3829,"p95_ms":3.3332,"min_ms":2.3646},
+ "html_bytes_1k":92965,"escape_ok":true,"row_count_ok":true,"notes":"node v24.13.0; NODE_ENV=production"}
+
+lit 3.3.3:
+{"framework":"lit","version":"3.3.3","mode":"ssr","workload_schema_version":1,
+ "rows1k":{"iters":100,"mean_ms":1.0035,"p50_ms":0.9401,"p95_ms":1.5683,"min_ms":0.9128},
+ "rows10k":{"iters":10,"mean_ms":13.3339,"p50_ms":13.7143,"p95_ms":16.6441,"min_ms":9.2954},
+ "html_bytes_1k":223037,"escape_ok":true,"row_count_ok":true,"notes":"node v24.13.0; NODE_ENV=production"}
+```
+
+| framework | version | rows1k mean | rows10k mean | html_bytes_1k | escape_ok |
+|-----------|---------|------------|------------|-------|-----------|
+| fandhe-frontend | 0.4.3 | 0.1154 ms | 1.3282 ms | 118931 | true |
+| solid | 1.9.15 | 0.4135 ms | 4.4786 ms | 95938 | true |
+| svelte | 5.56.10 | 0.4947 ms | 3.8816 ms | 92965 | true |
+| preact | 10.29.8 | 0.6254 ms | 6.429 ms | 102931 | true |
+| react | 19.2.8 | 0.7285 ms | 9.8971 ms | 118944 | true |
+| vue | 3.5.41 | 0.7291 ms | 9.2842 ms | 116931 | true |
+| vanilla | v24.13.0 | 0.8181 ms | 12.1511 ms | 116931 | true |
+| lit | 3.3.3 | 1.0035 ms | 13.3339 ms | 223037 | true |
+
+fandhe-frontend はネイティブ Rust ビルド（release）、他 7 種は Node.js ランタイム（NODE_ENV=production）という言語・ランタイム差を含む比較である（`bench/PROTOCOL.md` §4）。fandhe rows1k 0.1154 ms は 2 位の solid 0.4135 ms の約 3.6 倍高速であり、rows10k も最速である。
+
+### 14.3 [再計測] CSR（7 種フレームワーク）
+
+実測 JSON（1 行サマリからの抜粋・丸め転記。`*_layout_ms`（layout flush 分離指標）は割愛し、mean/p50/p95/min は小数 3 桁へ丸めた。ブラウザ側 `performance.now()` の分解能は 0.1 ms であり、原文の下位桁は浮動小数点表現由来のため情報を失わない）:
+
+```
+vanilla:
+{"framework":"vanilla","version":"n/a","mode":"csr","workload_schema_version":1,
+ "create_ms":{"iters":25,"mean_ms":10.864,"p50_ms":10.200,"p95_ms":13.5,"min_ms":9.600},
+ "update_ms":{"iters":25,"mean_ms":12.632,"p50_ms":11.300,"p95_ms":16.5,"min_ms":10.200},
+ "clear_ms":{"iters":25,"mean_ms":0.880,"p50_ms":0.800,"p95_ms":1.100,"min_ms":0.600},
+ "create_op_ms":{"iters":25,"mean_ms":0.944,"p50_ms":0.900,"p95_ms":1.000,"min_ms":0.800},
+ "update_op_ms":{"iters":25,"mean_ms":1.816,"p50_ms":1.700,"p95_ms":2.300,"min_ms":1.500},
+ "clear_op_ms":{"iters":25,"mean_ms":0.836,"p50_ms":0.800,"p95_ms":1.100,"min_ms":0.600},
+ "rows_ok":true,"escape_ok":true,"notes":"chromium /usr/bin/chromium-browser version 151.0.7922.108"}
+
+react 19.2.8:
+{"framework":"react","version":"19.2.8","mode":"csr","workload_schema_version":1,
+ "create_ms":{"iters":25,"mean_ms":14.112,"p50_ms":12.500,"p95_ms":18.100,"min_ms":11.200},
+ "update_ms":{"iters":25,"mean_ms":3.492,"p50_ms":3.300,"p95_ms":4.100,"min_ms":3.100},
+ "clear_ms":{"iters":25,"mean_ms":1.488,"p50_ms":1.500,"p95_ms":1.800,"min_ms":1.300},
+ "create_op_ms":{"iters":25,"mean_ms":2.964,"p50_ms":2.900,"p95_ms":4.500,"min_ms":2.100},
+ "update_op_ms":{"iters":25,"mean_ms":0.496,"p50_ms":0.500,"p95_ms":0.700,"min_ms":0.300},
+ "clear_op_ms":{"iters":25,"mean_ms":1.432,"p50_ms":1.400,"p95_ms":1.700,"min_ms":1.200},
+ "rows_ok":true,"escape_ok":true,"notes":"chromium /usr/bin/chromium-browser version 151.0.7922.108"}
+
+preact 10.29.8:
+{"framework":"preact","version":"10.29.8","mode":"csr","workload_schema_version":1,
+ "create_ms":{"iters":25,"mean_ms":11.448,"p50_ms":11.100,"p95_ms":12.200,"min_ms":10.000},
+ "update_ms":{"iters":25,"mean_ms":3.476,"p50_ms":3.400,"p95_ms":3.800,"min_ms":3.000},
+ "clear_ms":{"iters":25,"mean_ms":1.076,"p50_ms":1.100,"p95_ms":1.200,"min_ms":0.800},
+ "create_op_ms":{"iters":25,"mean_ms":1.748,"p50_ms":1.700,"p95_ms":2.100,"min_ms":1.400},
+ "update_op_ms":{"iters":25,"mean_ms":0.532,"p50_ms":0.500,"p95_ms":0.900,"min_ms":0.200},
+ "clear_op_ms":{"iters":25,"mean_ms":1.024,"p50_ms":1.000,"p95_ms":1.100,"min_ms":0.800},
+ "rows_ok":true,"escape_ok":true,"notes":"chromium /usr/bin/chromium-browser version 151.0.7922.108"}
+
+vue 3.5.41:
+{"framework":"vue","version":"3.5.41","mode":"csr","workload_schema_version":1,
+ "create_ms":{"iters":25,"mean_ms":11.644,"p50_ms":11.000,"p95_ms":13.100,"min_ms":10.500},
+ "update_ms":{"iters":25,"mean_ms":4.080,"p50_ms":4.000,"p95_ms":4.800,"min_ms":3.500},
+ "clear_ms":{"iters":25,"mean_ms":1.192,"p50_ms":1.200,"p95_ms":1.300,"min_ms":1.100},
+ "create_op_ms":{"iters":25,"mean_ms":1.916,"p50_ms":1.700,"p95_ms":2.600,"min_ms":1.500},
+ "update_op_ms":{"iters":25,"mean_ms":1.072,"p50_ms":1.000,"p95_ms":1.500,"min_ms":0.800},
+ "clear_op_ms":{"iters":25,"mean_ms":1.128,"p50_ms":1.100,"p95_ms":1.200,"min_ms":1.000},
+ "rows_ok":true,"escape_ok":true,"notes":"chromium /usr/bin/chromium-browser version 151.0.7922.108"}
+
+svelte 5.56.10:
+{"framework":"svelte","version":"5.56.10","mode":"csr","workload_schema_version":1,
+ "create_ms":{"iters":25,"mean_ms":13.828,"p50_ms":13.500,"p95_ms":16.500,"min_ms":12.300},
+ "update_ms":{"iters":25,"mean_ms":4.584,"p50_ms":4.000,"p95_ms":6.700,"min_ms":3.600},
+ "clear_ms":{"iters":25,"mean_ms":1.368,"p50_ms":1.300,"p95_ms":1.500,"min_ms":1.100},
+ "create_op_ms":{"iters":25,"mean_ms":4.172,"p50_ms":3.800,"p95_ms":5.600,"min_ms":3.500},
+ "update_op_ms":{"iters":25,"mean_ms":1.128,"p50_ms":1.000,"p95_ms":1.500,"min_ms":0.800},
+ "clear_op_ms":{"iters":25,"mean_ms":1.312,"p50_ms":1.300,"p95_ms":1.500,"min_ms":1.000},
+ "rows_ok":true,"escape_ok":true,"notes":"chromium /usr/bin/chromium-browser version 151.0.7922.108"}
+
+lit 3.3.3:
+{"framework":"lit","version":"3.3.3","mode":"csr","workload_schema_version":1,
+ "create_ms":{"iters":25,"mean_ms":13.500,"p50_ms":12.600,"p95_ms":18.600,"min_ms":11.400},
+ "update_ms":{"iters":25,"mean_ms":3.188,"p50_ms":3.000,"p95_ms":3.700,"min_ms":2.700},
+ "clear_ms":{"iters":25,"mean_ms":994.432,"p50_ms":932.900,"p95_ms":1292.200,"min_ms":644.600},
+ "create_op_ms":{"iters":25,"mean_ms":2.584,"p50_ms":2.400,"p95_ms":3.800,"min_ms":2.100},
+ "update_op_ms":{"iters":25,"mean_ms":0.156,"p50_ms":0.100,"p95_ms":0.200,"min_ms":0.100},
+ "clear_op_ms":{"iters":25,"mean_ms":994.068,"p50_ms":932.600,"p95_ms":1291.800,"min_ms":644.400},
+ "rows_ok":true,"escape_ok":true,"notes":"chromium /usr/bin/chromium-browser version 151.0.7922.108"}
+
+fandhe-frontend 0.6.1:
+{"framework":"fandhe","version":"0.6.1","mode":"csr","workload_schema_version":1,
+ "create_ms":{"iters":25,"mean_ms":12.880,"p50_ms":12.800,"p95_ms":14.100,"min_ms":11.500},
+ "update_ms":{"iters":25,"mean_ms":4.900,"p50_ms":4.800,"p95_ms":5.600,"min_ms":4.400},
+ "clear_ms":{"iters":25,"mean_ms":1.268,"p50_ms":1.200,"p95_ms":1.500,"min_ms":1.000},
+ "create_op_ms":{"iters":25,"mean_ms":3.176,"p50_ms":3.100,"p95_ms":3.500,"min_ms":2.700},
+ "update_op_ms":{"iters":25,"mean_ms":1.912,"p50_ms":1.800,"p95_ms":2.200,"min_ms":1.700},
+ "clear_op_ms":{"iters":25,"mean_ms":1.224,"p50_ms":1.200,"p95_ms":1.500,"min_ms":1.000},
+ "rows_ok":true,"escape_ok":true,"notes":"chromium /usr/bin/chromium-browser version 151.0.7922.108"}
+```
+
+#### 14.3.1 全体比較（create/update/clear）
+
+| framework | version | create_ms | update_ms | clear_ms |
+|-----------|---------|-----------|-----------|----------|
+| vanilla | n/a | 10.864 | 12.632 | 0.880 |
+| react | 19.2.8 | 14.112 | 3.492 | 1.488 |
+| preact | 10.29.8 | 11.448 | 3.476 | 1.076 |
+| vue | 3.5.41 | 11.644 | 4.080 | 1.192 |
+| svelte | 5.56.10 | 13.828 | 4.584 | 1.368 |
+| lit | 3.3.3 | 13.500 | 3.188 | 994.432 |
+| fandhe | 0.6.1 | 12.880 | 4.900 | 1.268 |
+
+#### 14.3.2 op 分離（layout flush 除外）
+
+| framework | version | create_op_ms | update_op_ms | clear_op_ms |
+|-----------|---------|--------------|--------------|-------------|
+| vanilla | n/a | 0.944 | 1.816 | 0.836 |
+| react | 19.2.8 | 2.964 | 0.496 | 1.432 |
+| preact | 10.29.8 | 1.748 | 0.532 | 1.024 |
+| vue | 3.5.41 | 1.916 | 1.072 | 1.128 |
+| svelte | 5.56.10 | 4.172 | 1.128 | 1.312 |
+| lit | 3.3.3 | 2.584 | 0.156 | 994.068 |
+| fandhe | 0.6.1 | 3.176 | 1.912 | 1.224 |
+
+注記: 計測境界は DOM 反映 + 強制 layout flush で paint を含まない（`bench/PROTOCOL.md` §2.2）。lit の clear_ms 994.432 ms（clear_op_ms 994.068 ms）は他と 3 桁異なる外れ値であり、lit-html + repeat の全行削除経路の特性と考えられる（本ハーネスでの観測事実としてのみ記録）。
+
+fandhe-frontend の位置づけ: update_op_ms 1.912 ms は vanilla の逐次更新 1.816 ms と同水準で、diff 系（react 0.496 / preact 0.532 / vue 1.072 / svelte 1.128）より遅い。create_op_ms 3.176 ms は react 2.964 ms と同水準である（CSR 横断の実測は本追補が v2 初回であり、過去値との傾向比較は行わない）。
+
+### 14.4 [再計測] payload（gzip）
+
+実測 JSON（1 行サマリを整形転記）:
+
+```
+fandhe-frontend:
+{"framework":"fandhe","mode":"payload","files":[
+ {"file":"bootstrap.js","raw":421,"gzip":204},
+ {"file":"fandhe_bench.js","raw":7945,"gzip":2801},
+ {"file":"fandhe_bench_bg.wasm","raw":98608,"gzip":41317}],
+ "total_raw":106974,"total_gzip":44322}
+
+lit 3.3.3:
+{"framework":"lit","mode":"payload","files":[
+ {"file":"bundle.js","raw":19059,"gzip":7423}],
+ "total_raw":19059,"total_gzip":7423}
+
+preact 10.29.8:
+{"framework":"preact","mode":"payload","files":[
+ {"file":"bundle.js","raw":11910,"gzip":5022}],
+ "total_raw":11910,"total_gzip":5022}
+
+react 19.2.8:
+{"framework":"react","mode":"payload","files":[
+ {"file":"bundle.js","raw":195009,"gzip":60773}],
+ "total_raw":195009,"total_gzip":60773}
+
+svelte 5.56.10:
+{"framework":"svelte","mode":"payload","files":[
+ {"file":"bundle.js","raw":59239,"gzip":21966}],
+ "total_raw":59239,"total_gzip":21966}
+
+vanilla:
+{"framework":"vanilla","mode":"payload","files":[
+ {"file":"bundle.js","raw":1174,"gzip":570}],
+ "total_raw":1174,"total_gzip":570}
+
+vue 3.5.41:
+{"framework":"vue","mode":"payload","files":[
+ {"file":"bundle.js","raw":62522,"gzip":25213}],
+ "total_raw":62522,"total_gzip":25213}
+```
+
+| framework | version | total_raw | total_gzip |
+|-----------|---------|-----------|------------|
+| vanilla | n/a | 1174 B | 570 B |
+| preact | 10.29.8 | 11910 B | 5022 B |
+| lit | 3.3.3 | 19059 B | 7423 B |
+| svelte | 5.56.10 | 59239 B | 21966 B |
+| vue | 3.5.41 | 62522 B | 25213 B |
+| fandhe | 0.6.1 | 106974 B | 44322 B |
+| react | 19.2.8 | 195009 B | 60773 B |
+
+fandhe-frontend 44,322 B gzip は react 60,773 B より小さいが preact 5,022 B / lit 7,423 B / svelte 21,966 B / vue 25,213 B より大きい。wasm 本体 41,317 B gzip が支配的で、削減レバーが構造的に尽きていることは `docs/reports/wasm-dom-apply-payload-reduction-1407.md` / `docs/ci/wasm-allocator-adoption-evaluation.md` に記録済みである。
+
+### 14.5 [再計測] 常設ベンチ（state-update / binding-update）
+
+#### 14.5.1 `xtask bench-state-update`（fandhe-frontend-interactive 0.2.7、単発）
+
+実測 JSON:
+
+```
+{"framework":"fandhe-frontend","version":"0.2.7","mode":"state-update","workload_schema_version":1,"bindings":1000,
+ "grid1k":{"update":{"iters":200,"mean_us":0.0265,"p50_us":0.0250,"p95_us":0.0260,"min_us":0.0240},
+  "binding_apply":{"iters":200,"mean_us":0.0468,"p50_us":0.0460,"p95_us":0.0480,"min_us":0.0440},
+  "render":{"iters":200,"mean_us":93.2808,"p50_us":92.6110,"p95_us":97.7840,"min_us":90.3110},
+  "noop_update":{"iters":200,"mean_us":0.0200,"p50_us":0.0200,"p95_us":0.0210,"min_us":0.0190}},
+ "appstate1k":{"update":{"iters":200,"mean_us":0.0361,"p50_us":0.0310,"p95_us":0.0770,"min_us":0.0290},
+  "binding_apply":{"iters":200,"mean_us":0.0386,"p50_us":0.0360,"p95_us":0.0700,"min_us":0.0340},
+  "render":{"iters":200,"mean_us":350.5845,"p50_us":350.0250,"p95_us":360.4750,"min_us":336.7830},
+  "noop_update":{"iters":200,"mean_us":0.0262,"p50_us":0.0240,"p95_us":0.0440,"min_us":0.0230}},
+ "escape_ok":true,"noop_ok":true,"notes":"profile=release"}
+```
+
+| シナリオ・指標（mean） | 2026-08-22（§13.3、interactive 0.2.3） | 2026-08-24（interactive 0.2.7） |
+|------------------------|--------------------------------------|---------------------|
+| grid1k update | 0.0260 µs | 0.0265 µs |
+| grid1k binding_apply | 0.0461 µs | 0.0468 µs |
+| grid1k render | 94.4553 µs | 93.2808 µs |
+| grid1k noop_update | 0.0197 µs | 0.0200 µs |
+| appstate1k update | 0.0338 µs | 0.0361 µs |
+| appstate1k binding_apply | 0.0384 µs | 0.0386 µs |
+| appstate1k render | 328.0381 µs | 350.5845 µs |
+| appstate1k noop_update | 0.0272 µs | 0.0262 µs |
+
+escape_ok / noop_ok は共に true（PASS）。interactive 0.2.3 → 0.2.7 のバージョン跨ぎ比較である旨を明記する。appstate1k render は 328.04 µs → 350.58 µs と約 7% 大きくなっているが、バージョン跨ぎ・単発のため回帰と断定しない。要因切り分けは行っていない（継続的な回帰監視は `--baseline` オプション機構が担う）。
+
+#### 14.5.2 `xtask bench-binding-update`（2026-08-24、単発）
+
+実測出力原文:
+
+```
+bench-binding-update: scenario=appstate-increment full_ns=2192.01 dirty_ns=29.27 ratio=74.88
+bench-binding-update: scenario=disclosure-toggle full_ns=64.48 dirty_ns=0.89 ratio=72.36
+bench-binding-update: scenario=single-select-select full_ns=78.12 dirty_ns=10.59 ratio=7.37
+```
+
+| シナリオ | full_ns（§13.4、単発） | full_ns（本計測） | ratio（§13.4、単発） | ratio（本計測） |
+|----------|------------------------|------------------|----------------------|-----------------|
+| appstate-increment | 2081.35 | 2192.01 | 72.01 | 74.88 |
+| disclosure-toggle | 67.15 | 64.48 | 105.56 | 72.36 |
+| single-select-select | 75.52 | 78.12 | 6.60 | 7.37 |
+
+appstate-increment・single-select-select は full_ns が前回 §13.4 値と近い水準にあり、顕著な悪化は見られない。disclosure-toggle の ratio 減少（105.56 → 72.36）は分母 dirty_ns が増加（0.64 ns → 0.89 ns）したことによる変動であり、full_ns 自体は 67.15 ns → 64.48 ns とむしろ微小に短縮している。dirty 差分適用の優位性（full 再適用比 7.37〜74.88 倍高速）という定性的傾向は §11.4・§13.4 と一致する。
+
+### 14.6 制約の解消と継続
+
+§11.5・§13.5 の「フレームワーク横断ベンチハーネス `_/bench/` の非存在により他フレームワーク相対位置・CSR ブラウザ実測は未実施」という制約は、git 管理下 v2 ハーネス（`bench/`、`bench/PROTOCOL.md`）の導入（イシュー #1370）により**本追補で解消された**（SSR 8 種・CSR 7 種・payload 7 種の初のフル同日計測を実現）。ただし旧 `_/bench/` との順位互換はなく（PROTOCOL 注記）、本追補の 14.2 / 14.3 / 14.4 は v2 系列の初回基準値という位置づけである。
+
+一方、本追補でも継続する制約:
+
+- **paint 非包含**: 計測境界は DOM 反映 + 強制 layout flush までであり、実際の画面 paint は含まない（§14.3 に明記）。CSR create・update は CPU 演算バウンドで paint のないブラウザコンテキストでの計測であり、実ブラウザでのビジュアル確認は別途必要である。
+- **単発実行**: 本追補の計測は各項目 1 回の実行であり、ラン間分散は不明。回帰判定の信頼度は限定的であり、継続的な回帰監視は `--baseline` オプション機構が担う（§14.5.1 の注記参照）。
