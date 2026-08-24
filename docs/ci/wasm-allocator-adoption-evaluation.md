@@ -109,7 +109,7 @@ op_ms ±5% 目安）を踏襲する。**成果物は本評価文書のみであ�
 
 | 候補 | 追加パッケージ | 内訳 |
 |---|---|---|
-| lol_alloc 0.4.1 | 3 件 | `lol_alloc` → `spin` → `lock_api` → `scopeguard` |
+| lol_alloc 0.4.1 | 4 件 | `lol_alloc` → `spin` → `lock_api` → `scopeguard` |
 | talc 5.0.4 | 4 件 | `talc` → `allocator-api2` / `lock_api` → `scopeguard` |
 
 いずれも既存の `bench/csr/fandhe/` 依存総数 28 件（一時追加後）に収まり、
