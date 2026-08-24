@@ -110,13 +110,21 @@ mod keyed_apply;
 #[cfg(any(test, target_arch = "wasm32"))]
 mod keyed_children_cache;
 
+/// [`KeyedListApplyResult`] の DOM 非依存な定義（イシュー #1381）。
+/// `web-sys` に依存しないため `keyed_dom`（wasm32 配線層）とは独立に
+/// ゲートせず常時コンパイルし、`fandhe-frontend-wasm-full` の判定ロジック
+/// が native `cargo test` から本型を直接構築してテストできるようにする
+/// （モジュール doc 参照）。
+mod keyed_apply_result;
+pub use keyed_apply_result::KeyedListApplyResult;
+
 #[cfg(target_arch = "wasm32")]
 mod keyed_dom;
 #[cfg(target_arch = "wasm32")]
 pub use keyed_dom::{
-    apply_keyed_list, apply_keyed_list_with_previous, build_dom_node, collect_keyed_list_nodes,
-    find_keyed_list_node, find_list_element, sanitize_keyed_list_node_for_achieved,
-    KeyedListApplyResult,
+    apply_keyed_list, apply_keyed_list_with_previous, build_dom_node, clear_keyed_list_container,
+    collect_keyed_list_nodes, find_keyed_list_node, find_list_element,
+    sanitize_keyed_list_node_for_achieved,
 };
 
 /// view 外パラメータ付き部分描画（サブツリー再マウント）の safe ヘルパ

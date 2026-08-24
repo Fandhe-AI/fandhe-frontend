@@ -144,11 +144,11 @@
 //! ある属性名だけを `child.get_attribute(name)` で個別照会して行う
 //! （[`KeyedListDom::sync_attrs`] doc「決定的な正規化契約」参照）。
 //! 全操作成功時は戻り値が `new_attrs` とバイト等価になり、失敗時のみ実際の
-//! DOM 状態が反映される。[`ApplyOutcome::achieved_attrs`] がこの戻り値を
-//! キーごとに保持し、[`compose_achieved_children`] は in-place 更新
-//! （`sync_attrs` 経由）のキーについてこの実測値をそのまま使う（もはや
-//! `sanitize_node_for_achieved` によるポリシー再計算は不要 —— 読み戻し値が
-//! ポリシー拒否も実行時失敗も両方織り込み済みのため）。
+//! DOM 状態が反映される。[`ApplyOutcome::achieved_nodes`] がこの戻り値を
+//! 反映した「達成 Node」全体をキーごとに保持し、[`compose_achieved_children`]
+//! は in-place 更新（`sync_attrs` 経由）のキーについてこの実測値をそのまま
+//! 使う（もはや `sanitize_node_for_achieved` によるポリシー再計算は不要 ——
+//! 読み戻し値がポリシー拒否も実行時失敗も両方織り込み済みのため）。
 //!
 //! # 削除判定とライブ属性ドリフト（イシュー #1340 codex-review Bugbot
 //! 〔8 巡目〕対応）
@@ -173,10 +173,12 @@
 //! 対象外: `set_attribute` の実行時失敗は `.ok()?` で要素構築全体を
 //! `None` にする既存の fail-closed 契約（本モジュール doc「セキュリティ
 //! 不変条件の引き継ぎ」参照）にそのまま含まれ、当該 op 自体が丸ごと
-//! 未達成（`Insert` の `failed_inserts`・`replace_root` の失敗による
-//! `resync_required`・`replace_item_children` 失敗による
-//! `stale_update_keys`）として扱われるため、達成 Node が「構築されなかった
-//! 要素の属性」を含んでしまう余地が構造的に存在しない。
+//! 未達成（`Insert` の `failed_inserts`・`replace_root` の失敗・
+//! per-child diff の narrow fallback 失敗による段2 エスカレーション先
+//! `replace_root` の失敗による `resync_required`・cache-miss forced 経路
+//! （`old_children_for_diff` が `None`）専用の `replace_item_children`
+//! 失敗による `stale_update_keys`）として扱われるため、達成 Node が
+//! 「構築されなかった要素の属性」を含んでしまう余地が構造的に存在しない。
 //!
 //! # cache-miss フォールバックの達成契約（イシュー #1340 codex-review
 //! P1・Bugbot〔10 巡目〕対応）
@@ -619,6 +621,606 @@ pub(crate) trait KeyedListDom {
     ///   こと（native テストのモック `DefaultClearDom` はこの「per-item
     ///   フォールバックでも全ノード除去を満たす」実装例を示す）。
     fn clear_children(&mut self) -> bool;
+}
+
+/// `(属性名, 属性値)` 列（イシュー #1381、`diff_children` 内の型複雑度
+/// 抑制用エイリアス）。
+type AttrList = Vec<(String, String)>;
+
+/// [`ChildNodeDom::child_kind`] の戻り値（イシュー #1381 設計 §3.2a）。
+///
+/// keyed list アイテムの子孫を「達成 Node キャッシュが表現できる種別
+/// （`Node::Text`/`Node::Element`）」と一致するかどうかで分類する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ChildNodeKind {
+    /// テキストノード（`Node::Text` に対応）。
+    Text,
+    /// 要素ノード（`Node::Element` に対応）。
+    Element,
+    /// hydrate 後に残存するコメントノード・外部コード挿入の CDATA・
+    /// processing instruction 等、`Text`/`Element` のいずれにも該当しない
+    /// 種別。誤って `Text`/`Element` へ分類してはならない
+    /// （[`ChildNodeDom::child_kind`] doc 参照）。
+    Other,
+}
+
+/// keyed list アイテムの子孫（Text ノード・任意深さの Element ノード）へ
+/// 到達するための走査手段を抽象化するトレイト（イシュー #1381 設計
+/// §3.2a、`KeyedOp::Update` 適用の最小差分化）。
+///
+/// [`KeyedListDom`] はキー付きアイテムの**ルート要素**を解決した後に呼ぶ
+/// API 群（`sync_attrs`/`replace_item_children`/`tag_name` はいずれも
+/// `&Self::Handle` を取る汎用 Element ハンドル API）であり、子孫の Text
+/// ノード・任意深さの Element ノードへ実際に到達する走査手段そのものは
+/// 持たない。本トレイトはその走査手段のみを追加する新設の別トレイト
+/// （既存 `KeyedListDom` のメソッド・シグネチャは 1 つも変更しない）。
+///
+/// per-child diff（[`diff_children`]）は、この列挙結果への**位置
+/// （インデックス）アクセスのみ**を使う（探索を行わない不変条件を
+/// ハンドル取得層でも保つ）。
+pub(crate) trait ChildNodeDom: KeyedListDom {
+    /// DOM 上の子ノード 1 個（Text または Element のいずれか）を指す
+    /// ハンドル型（`web-sys` 実装では `web_sys::Node`）。
+    type ChildHandle: Clone;
+
+    /// `parent`（アイテムルートでも、per-child diff で降りた任意深さの
+    /// Element でも同じ [`KeyedListDom::Handle`] を再利用する）直下の
+    /// 子ノードを DOM 順で列挙する（`Node::childNodes` 相当）。
+    fn child_handles(&mut self, parent: &Self::Handle) -> Vec<Self::ChildHandle>;
+
+    /// `node` の種別を判定する（`Node::nodeType` 相当）。`Text`/`Element`
+    /// のいずれにも該当しないノードは `Other` を返すこと（誤分類・
+    /// `unreachable!()`/`panic!()` のいずれも禁止、[`ChildNodeKind`] doc
+    /// 参照）。
+    fn child_kind(&mut self, node: &Self::ChildHandle) -> ChildNodeKind;
+
+    /// `child_kind` が `Element` の場合のみ `Some` を返し、
+    /// [`KeyedListDom::Handle`]（`sync_attrs`/`replace_item_children`/
+    /// `tag_name`/[`Self::child_handles`] 自身への再入力）として使える
+    /// ハンドルへ変換する。
+    fn as_element(&mut self, node: &Self::ChildHandle) -> Option<Self::Handle>;
+
+    /// `child_kind` が `Text` の場合の `CharacterData.data` への代入
+    /// （`set_data` 本体）。失敗した場合 `false`。
+    fn set_text_data(&mut self, node: &Self::ChildHandle, value: &str) -> bool;
+
+    /// `child_kind` が `Text` の場合の `CharacterData.data` の読み取り
+    /// 専用参照（ライブ観測とキャッシュ前提の整合チェック専用、
+    /// [`diff_children`] doc 参照。適用計画の分岐条件には使わない）。
+    fn text_data(&mut self, node: &Self::ChildHandle) -> String;
+}
+
+/// [`diff_children`] の 1 スコープ（アイテムルートまたは子孫 Element）への
+/// 適用結果（イシュー #1381 設計 §3.2/§6）。
+pub(crate) enum ChildDiffResult {
+    /// 全単位が同値スキップまたは書き込み成功。達成子ノード列を返す。
+    Ok(Vec<Node>),
+    /// (A) narrow fallback（[`KeyedListDom::replace_item_children`]）自体の
+    /// 実行時失敗、または (B) 書き込み失敗（`set_text_data` が `false`）、
+    /// または子孫がネストした binding ルート（`data-bind-list`）の値が
+    /// 新旧で相違するケース（`docs/design/keyed-item-minimal-update-design.md`
+    /// §3.2 規則 3）。呼び出し元（`apply_ops_with_items`）はこれを受けて
+    /// 設計書 §6.2 段1→段2 のエスカレーション契約に従い、タグが一致して
+    /// いても `create_item` + `replace_root` によるアイテム丸ごとの
+    /// 差し替え（段2）へ直行する（`stale_update_keys` へ据え置く旧契約は
+    /// per-child diff 駆動の経路の終端としてはもはや使われない、§6.2
+    /// 末尾参照）。
+    Failed,
+}
+
+/// `old_children`（達成 Node キャッシュ由来の旧子ノード列）と
+/// `new_children`（新しい view の子ノード列）を位置対応で比較し、
+/// Text の `set_data` 直接代入・Element の `sync_attrs` による最小差分
+/// 更新を試みる（イシュー #1381、
+/// `docs/design/keyed-item-minimal-update-design.md` §3.2/§3.2a/§6）。
+///
+/// # 適用規則（設計書 §3.2）
+///
+/// 1. 子数が一致し、かつ各位置の新旧ノードが同種（Text↔Text または
+///    Element↔Element かつ同タグ）である場合のみ per-child 規則を適用
+///    する。1 箇所でも崩れていれば、このスコープ（`scope`）へ narrow
+///    （子ノード列のみを対象とする） detached 構築 + 交換フォールバック
+///    （[`KeyedListDom::replace_item_children`]）を試みる。
+/// 2. Text↔Text は `PartialEq` で旧新の値が同値なら `set_text_data` 呼び
+///    出しを省略する（境界呼び出しゼロ）が、`live_check_text` によるライブ
+///    DOM 検証（期待長・Text ノードであること・実テキストが `old_text` と
+///    一致すること）は同値時も省略しない（PR #1401 codex-review P1 対応:
+///    検証を省略すると、外部要因でライブ DOM が乖離していても「同値」判定
+///    により恒久的に見逃され続ける収束バグになるため）。検証に失敗した
+///    場合は narrow fallback へ委ねる。値が不一致の場合は従来どおり検証後
+///    `set_text_data` を 1 回呼ぶ。
+/// 3. Element↔同タグ Element は `sync_attrs`（既存の属性検証規則を再利用、
+///    規則を複製しない）を呼んだうえで、同じ規則を子ノード列へ再帰
+///    適用する。`sync_attrs` の戻り値が「ポリシー拒否を除いた期待
+///    achieved 集合」（[`attrs_write_achieved`]、設計書 §3.2「(B) 書き込み
+///    失敗」）と一致しない場合、この Element 自身への narrow fallback は
+///    試みず（Element 自身の子ノード列交換では属性に触れられないため）、
+///    子ノード列への再帰を開始せず直ちに [`ChildDiffResult::Failed`] を
+///    返す。この判定はアイテム**ルート**要素自身の属性同期
+///    （`apply_ops_with_items` が本関数呼び出し前に別途行う既存の
+///    `sync_attrs` 呼び出し）には適用されない（本関数 `diff_children` が
+///    扱うのは常に「ある要素の**子ノード列**」であり、ルート要素自身は
+///    呼び出し元の対象。ルート属性書き込み失敗時の挙動は既存の
+///    `compose_achieved_children` 契約のまま変更しない、スコープ境界の
+///    明記）。
+///
+/// # ライブ観測とキャッシュ前提の整合チェック（設計書 §3.2a）
+///
+/// 各書き込み単位（`set_text_data`・`sync_attrs`）を実際に開始する
+/// **直前**に、[`ChildNodeDom::child_handles`] を呼び直し、対象スコープの
+/// 子数・対象位置の種別・タグ（Element）・Text 値がキャッシュ前提と一致
+/// することを検証する（stale ハンドル対策。1 度だけの検証ではなく
+/// 書き込み単位ごとに毎回再検証する）。1 点でも乖離が検出された場合は
+/// このスコープを narrow fallback へフォールバックする。
+///
+/// # ネストした binding ルートの扱い（設計書 §3.2 規則 3）
+///
+/// 子孫が `data-bind-list`（[`fandhe_frontend_core::keyed::BIND_LIST_ATTR`]）
+/// を持つ Element（ネスト keyed list のルート）である場合、旧新の値が
+/// 一致する限り `data-bind-list` を予約属性として扱い `sync_attrs` の
+/// 比較・書き換え対象から除外する。旧新の値が相違する場合は binding
+/// identity の構造変更であり、`ChildDiffResult::Failed` を返す（narrow
+/// fallback では対象 Element 自身の属性を変更できないため、単なる属性値
+/// 更新としては扱えない。呼び出し元はこれを受けてアイテム丸ごとの
+/// 差し替え、設計書 §6.2 段2 へ直行する）。
+///
+/// # `nested_fields` への記録
+///
+/// narrow fallback が成功したスコープでは、破棄される旧部分木・新規構築
+/// される新部分木の**両方**に含まれる別 field の keyed list マーカー
+/// （[`collect_nested_bind_list_fields`]）をこの集合へ追加する（PR #1401
+/// codex-review P1・Cursor Bugbot High 指摘対応: 新側のみだと、旧側にのみ
+/// 存在した field〔ネスト keyed list 自体が削除された等〕の
+/// `Runtime::keyed_list_cache` エントリが破棄済み DOM を指したまま残置
+/// される）。
+///
+/// per-child 規則のみで完結したスコープ（既存 DOM ノードの参照が保持され
+/// たまま値のみが変わる）でも、`is_bind_root` な Element（ネスト keyed
+/// list のルート、`data-bind-list` の旧新値が一致するため per-child 規則を
+/// 適用したもの）を経由して子孫のライブ DOM が実際に書き換わった場合は、
+/// その field 自身をこの集合へ追加する（PR #1401 codex-review P1 対応、
+/// [`diff_children_core`] 内 `is_bind_root` 分岐参照）。「実際に書き換
+/// わった」の判定は次の 2 signal の OR とする（PR #1401 Cursor Bugbot
+/// Medium 指摘「Nested cache over-invalidated on updates」対応、
+/// [`diff_children_core`] doc「存在理由」参照）:
+/// 1. `old_kids != new_kids`〔`Node` の構造的 `PartialEq`〕— 旧新の
+///    `Node` 表現上、内容が実際に変わった場合。
+/// 2. 子孫のどこかで narrow fallback（子ノード列丸ごと破棄・再構築）が
+///    発火した場合 — `old_kids == new_kids`（`Node` 表現上は同一）でも、
+///    ライブ DOM が外部要因で乖離しており `live_check_text`/
+///    `live_check_element` が narrow fallback へ倒れることがあるため
+///    （advisor 指摘、イシュー #1381）、値比較だけでは検知できない。
+///
+/// この書き換えは当該 field 自身の `Runtime::keyed_list_cache` を経由
+/// しない直接 DOM 操作であるため、次回その field を更新する際のキャッシュ
+/// 基準がライブ DOM と乖離する。一方、上記いずれの signal も発生しない
+/// （内容が完全に同一かつライブ DOM も乖離していない）場合は per-child
+/// 規則がこのスコープ配下で 1 件も書き込みを行わない（設計書 §6.3.2
+/// 規則 2）ため追加しない（`sync_attrs` はこの Element 自身に差分が
+/// なくても常に呼ばれるため、`dom_mutated`〔下記〕の「試行基準」は
+/// この判定には使えない）。
+///
+/// # `dom_mutated` への記録
+///
+/// ライブ DOM への書き込み操作（`set_text_data`/`sync_attrs`/
+/// `replace_item_children`）を**試行した時点**（成功不問）で `true` に
+/// する（`ApplyOutcome::dom_mutated` doc 参照。読み出し専用の
+/// `child_handles`/`child_kind`/`as_element`/`text_data`/`tag_name` は
+/// 含めない）。
+pub(crate) fn diff_children<D: ChildNodeDom>(
+    dom: &mut D,
+    scope: &D::Handle,
+    old_children: &[Node],
+    new_children: &[Node],
+    dom_mutated: &mut bool,
+    nested_fields: &mut std::collections::HashSet<String>,
+) -> ChildDiffResult {
+    // 呼び出し元は「narrow fallback がどこかで発火したか」を知る必要が
+    // ないため使い捨てのローカル値を渡す（`diff_children_core` doc
+    // 参照）。この情報が必要な唯一の呼び出し元（`is_bind_root` 分岐、
+    // 上記本関数内の再帰呼び出し）は `diff_children_core` を直接呼ぶ。
+    let mut discarded_rebuilt_via_narrow_fallback = false;
+    diff_children_core(
+        dom,
+        scope,
+        old_children,
+        new_children,
+        dom_mutated,
+        nested_fields,
+        &mut discarded_rebuilt_via_narrow_fallback,
+    )
+}
+
+/// [`diff_children`] の実装本体。`rebuilt_via_narrow_fallback` は
+/// `scope` 配下（このスコープ自身とその子孫全体、再帰の末端まで含む）で
+/// [`narrow_fallback`] が 1 回でも発火したかを呼び出し元へ伝える追加の
+/// out パラメータで、[`narrow_fallback`] 呼び出し・自己再帰呼び出しの
+/// いずれでも常に「そのまま」（値を握り潰さず）伝播する。
+///
+/// # 存在理由（PR #1401 Cursor Bugbot Medium 指摘対応）
+///
+/// ネスト binding ルート（`is_bind_root`）が per-child 規則のみで完結
+/// したかどうかの判定に `old_kids != new_kids`（`Node` の構造的
+/// `PartialEq`）だけを使うと、旧新の `Node` 表現上は同一でもライブ DOM
+/// が外部要因で乖離しているケース（`live_check_text`/`live_check_element`
+/// が不一致を検出し `narrow_fallback` へ倒れるケース）を見逃す:
+/// `narrow_fallback` は対象スコープの子ノード列を丸ごと破棄・再構築する
+/// ため、その配下に含まれる別 field の `Runtime::keyed_list_cache`
+/// エントリは実際には無効化が必要なのに、`old_kids == new_kids` という
+/// 値比較だけでは検知できない。`dom_mutated`（既存の out パラメータ）は
+/// 使えない: `sync_attrs` は Element 自身に差分がなくても常に「試行」
+/// されるため、`dom_mutated` は子孫に Element が 1 つでもあれば
+/// ほぼ常に `true` になり、「内容が実際に変わったか」を判別する用途には
+/// 使えない。narrow fallback はこれと異なり構造不一致・ライブ観測不一致
+/// でのみ発火する疎な signal であり、ゲート条件として安全に使える。
+fn diff_children_core<D: ChildNodeDom>(
+    dom: &mut D,
+    scope: &D::Handle,
+    old_children: &[Node],
+    new_children: &[Node],
+    dom_mutated: &mut bool,
+    nested_fields: &mut std::collections::HashSet<String>,
+    rebuilt_via_narrow_fallback: &mut bool,
+) -> ChildDiffResult {
+    if !same_shape(old_children, new_children) {
+        return narrow_fallback(
+            dom,
+            scope,
+            old_children,
+            new_children,
+            dom_mutated,
+            nested_fields,
+            rebuilt_via_narrow_fallback,
+        );
+    }
+
+    let expected_len = old_children.len();
+    let mut achieved = Vec::with_capacity(new_children.len());
+
+    for (i, (old_child, new_child)) in old_children.iter().zip(new_children.iter()).enumerate() {
+        match (old_child, new_child) {
+            (Node::Text(old_text), Node::Text(new_text)) => {
+                if old_text == new_text {
+                    // codex-review P1 対応（PR #1401）: 値が同じでも
+                    // ライブ DOM を検証せず素通りすると、外部要因で
+                    // ライブ DOM がキャッシュ済みの `old_text` から乖離
+                    // している場合（改ざん・別経路の直接 DOM 操作等）に
+                    // その乖離が固定され、以後この位置は「同値」判定で
+                    // 恒久的にスキップされ続けて自己修復しない収束バグに
+                    // なる。値が同じ場合も `live_check_text` でライブ DOM
+                    // の構造（期待長・Text ノードであること・実テキストが
+                    // `old_text` と一致すること）を検証し、一致しなければ
+                    // narrow fallback（この scope の子ノード列を丸ごと
+                    // detached 再構築）で修復する。一致していれば内容は
+                    // 既に正しいため `set_text_data` の呼び出しは不要。
+                    let Some(_handle) = live_check_text(dom, scope, expected_len, i, old_text)
+                    else {
+                        return narrow_fallback(
+                            dom,
+                            scope,
+                            old_children,
+                            new_children,
+                            dom_mutated,
+                            nested_fields,
+                            rebuilt_via_narrow_fallback,
+                        );
+                    };
+                    achieved.push(Node::Text(new_text.clone()));
+                    continue;
+                }
+                let Some(handle) = live_check_text(dom, scope, expected_len, i, old_text) else {
+                    return narrow_fallback(
+                        dom,
+                        scope,
+                        old_children,
+                        new_children,
+                        dom_mutated,
+                        nested_fields,
+                        rebuilt_via_narrow_fallback,
+                    );
+                };
+                *dom_mutated = true;
+                if !dom.set_text_data(&handle, new_text) {
+                    return ChildDiffResult::Failed;
+                }
+                achieved.push(Node::Text(new_text.clone()));
+            }
+            (
+                Node::Element {
+                    tag: old_tag,
+                    attrs: old_attrs,
+                    children: old_kids,
+                },
+                Node::Element {
+                    tag: new_tag,
+                    attrs: new_attrs,
+                    children: new_kids,
+                },
+            ) => {
+                let Some(elem_handle) = live_check_element(dom, scope, expected_len, i, old_tag)
+                else {
+                    return narrow_fallback(
+                        dom,
+                        scope,
+                        old_children,
+                        new_children,
+                        dom_mutated,
+                        nested_fields,
+                        rebuilt_via_narrow_fallback,
+                    );
+                };
+
+                let old_bind = attr_value(old_attrs, fandhe_frontend_core::keyed::BIND_LIST_ATTR);
+                let new_bind = attr_value(new_attrs, fandhe_frontend_core::keyed::BIND_LIST_ATTR);
+                let is_bind_root = old_bind.is_some() || new_bind.is_some();
+                if is_bind_root && old_bind != new_bind {
+                    // binding identity の構造変更（設計書 §3.2 規則 3）:
+                    // narrow fallback は対象 Element 自身の属性を変更
+                    // できないため単なる属性値更新としては扱えず、
+                    // アイテム全体を旧内容のまま据え置く。旧 field 名は
+                    // 呼び出し元（`apply_ops_with_items`）が
+                    // `stale_update_keys` 経由で旧内容をそのまま保持する
+                    // ため、ここで別途無効化対象へ記録する必要はない
+                    // （旧内容自体が変化していないため）。
+                    return ChildDiffResult::Failed;
+                }
+                let reserved_attr: &str = if is_bind_root {
+                    fandhe_frontend_core::keyed::BIND_LIST_ATTR
+                } else {
+                    ""
+                };
+                let (filtered_old, filtered_new): (AttrList, AttrList) = if is_bind_root {
+                    (
+                        filter_out(old_attrs, fandhe_frontend_core::keyed::BIND_LIST_ATTR),
+                        filter_out(new_attrs, fandhe_frontend_core::keyed::BIND_LIST_ATTR),
+                    )
+                } else {
+                    (old_attrs.clone(), new_attrs.clone())
+                };
+
+                *dom_mutated = true;
+                let synced =
+                    dom.sync_attrs(&elem_handle, reserved_attr, &filtered_old, &filtered_new);
+
+                // 設計書 §3.2「(B) 書き込み失敗」: `sync_attrs` の戻り値が
+                // 「ポリシー拒否を除いた期待 achieved 集合」と一致しない
+                // 場合、この Element 自身への narrow fallback は試みず
+                // （その子ノード列交換では属性に触れられないため、
+                // P0-1 対応）、直ちにアイテム全体を段 2（item 丸ごと
+                // 差し替え）へ進める。子ノード列の diff（以降の
+                // `diff_children` 再帰）はこの時点で開始しない。
+                if !attrs_write_achieved(&filtered_new, &synced) {
+                    return ChildDiffResult::Failed;
+                }
+
+                // is_bind_root の場合のみ、この Element の子孫（＝この
+                // field のキーリストアイテム列）専用の `local_rebuilt` を
+                // 用意し、`diff_children_core` へ直接渡す（`diff_children`
+                // 公開ラッパーは使い捨てのローカル値しか公開しないため、
+                // ここでは意図的にラッパーを経由しない）。narrow fallback
+                // がこの子孫のどこか 1 箇所でも発火すれば、再帰を通じて
+                // `local_rebuilt` が `true` になる（`diff_children_core`
+                // doc「存在理由」参照）。
+                let mut local_rebuilt = false;
+                let child_achieved = match diff_children_core(
+                    dom,
+                    &elem_handle,
+                    old_kids,
+                    new_kids,
+                    dom_mutated,
+                    nested_fields,
+                    &mut local_rebuilt,
+                ) {
+                    ChildDiffResult::Ok(v) => v,
+                    ChildDiffResult::Failed => return ChildDiffResult::Failed,
+                };
+                // この Element 自身が narrow fallback の対象ではなくても
+                // （`same_shape` は保たれているためここには到達している）、
+                // その子孫でだけ narrow fallback が発火した可能性がある
+                // ため、呼び出し元（この関数自身の `rebuilt_via_narrow_
+                // fallback` 引数、さらに上位へ連鎖）へも伝播する。
+                *rebuilt_via_narrow_fallback |= local_rebuilt;
+
+                if is_bind_root && (old_kids != new_kids || local_rebuilt) {
+                    // per-child 規則のみでネスト binding ルートの子孫
+                    // （＝この field のキーリストアイテム列）を直接
+                    // diff_children で走査・書き込みした（codex-review P1
+                    // 指摘対応、PR #1401）。この Element へ到達した時点で
+                    // `old_bind != new_bind` は既に `ChildDiffResult::Failed`
+                    // で弾かれている（上記チェック参照）ため、ここでは
+                    // `new_bind == old_bind` が保証されており、ライブ DOM
+                    // への書き込みが `Runtime::keyed_list_cache` の
+                    // このネスト field 分のキャッシュを迂回して行われた
+                    // 事実だけを記録すればよい。narrow fallback 経由
+                    // （`nested_fields` doc 参照）とは異なる、この
+                    // per-child 経路固有の記録漏れを埋める。
+                    //
+                    // ゲート条件は 2 つの独立した signal の OR とする
+                    // （PR #1401 Cursor Bugbot Medium 指摘「Nested cache
+                    // over-invalidated on updates」対応、[`diff_children_
+                    // core`] doc「存在理由」参照）:
+                    // (1) `old_kids != new_kids`（`Node` の構造的
+                    // `PartialEq`）— 旧新の `Node` 表現上、内容が実際に
+                    // 変わった場合。設計書 §6.3.2 規則 2「`set_text_data`
+                    // ／`sync_attrs`（narrow fallback に至らなかった単位）
+                    // は既存 DOM ノードを再生成しないため invalidated_
+                    // nested_fields へ何も追加しない」の一般則を、この
+                    // is_bind_root 固有の記録にも適用する。`sync_attrs`
+                    // はこの Element 自身に差分がなくても常に呼ばれる
+                    // （`dom_mutated` の「試行基準」ドキュメント参照）ため、
+                    // `dom_mutated` の値では判別できない。
+                    // (2) `local_rebuilt`（上記） — `old_kids == new_kids`
+                    // （`Node` 表現上は同一）でも、ライブ DOM が外部要因で
+                    // 乖離しており `live_check_text`/`live_check_element`
+                    // が narrow fallback（子ノード列丸ごと破棄・再構築）へ
+                    // 倒れた場合。この場合は `Node` の値比較だけでは
+                    // 検知できないが、実際にはこのスコープの DOM ノードが
+                    // 再構築されているため無効化が必要（advisor 指摘、
+                    // イシュー #1381）。
+                    if let Some(v) = new_bind {
+                        nested_fields.insert(v.to_string());
+                    }
+                }
+
+                let mut result_attrs = synced;
+                if is_bind_root {
+                    if let Some(v) = new_bind {
+                        result_attrs.push((
+                            fandhe_frontend_core::keyed::BIND_LIST_ATTR.to_string(),
+                            v.to_string(),
+                        ));
+                    }
+                }
+                achieved.push(Node::Element {
+                    tag: new_tag,
+                    attrs: result_attrs,
+                    children: child_achieved,
+                });
+            }
+            _ => {
+                // `same_shape` は変わっていないはずだが、防御的に narrow
+                // fallback へ倒す（到達しない想定）。
+                return narrow_fallback(
+                    dom,
+                    scope,
+                    old_children,
+                    new_children,
+                    dom_mutated,
+                    nested_fields,
+                    rebuilt_via_narrow_fallback,
+                );
+            }
+        }
+    }
+    ChildDiffResult::Ok(achieved)
+}
+
+/// `old_children`/`new_children` が per-child 規則を適用できる形状か
+/// （設計書 §3.2 規則 1、達成 Node キャッシュ由来の Rust 側値比較のみ）を
+/// 判定する。web-sys 境界への問い合わせは一切発生しない。
+fn same_shape(old_children: &[Node], new_children: &[Node]) -> bool {
+    if old_children.len() != new_children.len() {
+        return false;
+    }
+    old_children
+        .iter()
+        .zip(new_children.iter())
+        .all(|(o, n)| match (o, n) {
+            (Node::Text(_), Node::Text(_)) => true,
+            (Node::Element { tag: ot, .. }, Node::Element { tag: nt, .. }) => ot == nt,
+            _ => false,
+        })
+}
+
+fn attr_value<'a>(attrs: &'a [(String, String)], name: &str) -> Option<&'a str> {
+    attrs
+        .iter()
+        .find(|(n, _)| n == name)
+        .map(|(_, v)| v.as_str())
+}
+
+fn filter_out(attrs: &[(String, String)], name: &str) -> Vec<(String, String)> {
+    attrs.iter().filter(|(n, _)| n != name).cloned().collect()
+}
+
+/// 書き込み単位（Text の `set_text_data`）の直前に呼ぶライブ観測とキャッシュ
+/// 前提の整合チェック（設計書 §3.2a）。`child_handles(scope)` を毎回呼び
+/// 直し、スコープ開始時の古いスナップショットを使い回さない（stale
+/// ハンドル対策）。
+fn live_check_text<D: ChildNodeDom>(
+    dom: &mut D,
+    scope: &D::Handle,
+    expected_len: usize,
+    index: usize,
+    old_text: &str,
+) -> Option<D::ChildHandle> {
+    let handles = dom.child_handles(scope);
+    if handles.len() != expected_len {
+        return None;
+    }
+    let handle = handles.get(index)?.clone();
+    if dom.child_kind(&handle) != ChildNodeKind::Text {
+        return None;
+    }
+    if dom.text_data(&handle) != old_text {
+        return None;
+    }
+    Some(handle)
+}
+
+/// [`live_check_text`] の Element 版。`as_element` 変換とライブタグ名の
+/// 一致まで検証する（設計書 §3.2a 規則 3・4）。
+fn live_check_element<D: ChildNodeDom>(
+    dom: &mut D,
+    scope: &D::Handle,
+    expected_len: usize,
+    index: usize,
+    old_tag: &str,
+) -> Option<D::Handle> {
+    let handles = dom.child_handles(scope);
+    if handles.len() != expected_len {
+        return None;
+    }
+    let handle = handles.get(index)?.clone();
+    if dom.child_kind(&handle) != ChildNodeKind::Element {
+        return None;
+    }
+    let elem = dom.as_element(&handle)?;
+    if !dom.tag_name(&elem).eq_ignore_ascii_case(old_tag) {
+        return None;
+    }
+    Some(elem)
+}
+
+/// (A) 前提不一致・構造変更時の narrow fallback（設計書 §3.2/§6.2 段 1）:
+/// `scope` の子ノード列のみを対象に detached 構築 + 交換
+/// （[`KeyedListDom::replace_item_children`]）を試みる。`scope` 自身の
+/// 識別子・属性には一切触れない。
+///
+/// `old_children` は交換前にライブ DOM が表していた（と `diff_children` が
+/// 前提としていた）子ノード列。交換成功時、`new_children` だけでなく
+/// `old_children` の子孫に含まれる別 field の keyed list マーカーも
+/// `nested_fields` へ記録する（PR #1401 codex-review P1・Cursor Bugbot
+/// High 指摘対応）: `replace_item_children` は `scope` の子ノード列を
+/// 丸ごと破棄・再構築するため、旧子ノード列の子孫にのみ存在していた
+/// field（新側には対応するマーカーが無い、例えばネスト keyed list 自体が
+/// 削除された場合）の `Runtime::keyed_list_cache` エントリも破棄済み DOM
+/// を指したまま残置されてしまう。
+fn narrow_fallback<D: ChildNodeDom>(
+    dom: &mut D,
+    scope: &D::Handle,
+    old_children: &[Node],
+    new_children: &[Node],
+    dom_mutated: &mut bool,
+    nested_fields: &mut std::collections::HashSet<String>,
+    rebuilt_via_narrow_fallback: &mut bool,
+) -> ChildDiffResult {
+    *dom_mutated = true;
+    // narrow fallback（`scope` の子ノード列を丸ごと破棄・再構築する経路）
+    // が発火した事実そのものを呼び出し元へ伝える（PR #1401 Cursor Bugbot
+    // Medium 指摘対応、[`diff_children_core`] doc「存在理由」参照）。
+    // 成否を問わず「この scope への narrow fallback を試みた」時点で立てる
+    // （`*dom_mutated = true` と同じ「試行基準」）。失敗時（`replace_item_
+    // children` が `false` を返す）は `ChildDiffResult::Failed` が呼び出し
+    // 元チェーン全体へそのまま伝播し、この値を消費する `is_bind_root`
+    // ゲート（`diff_children_core` 内）まで到達しないため実害はない。
+    *rebuilt_via_narrow_fallback = true;
+    if dom.replace_item_children(scope, new_children) {
+        for child in new_children {
+            collect_nested_bind_list_fields_into(child, nested_fields);
+        }
+        for child in old_children {
+            collect_nested_bind_list_fields_into(child, nested_fields);
+        }
+        ChildDiffResult::Ok(
+            new_children
+                .iter()
+                .map(sanitize_node_for_achieved)
+                .collect(),
+        )
+    } else {
+        ChildDiffResult::Failed
+    }
 }
 
 /// [`KeyedListDom::replace_item_children`]（子ノード列交換）のコミット
@@ -1117,7 +1719,14 @@ pub(crate) struct ApplyOutcome {
     /// 集合（「達成 Node」合成時にこの集合のキーは新内容ではなく旧内容を
     /// 使う）。ノード参照・位置は保たれたまま内容だけが据え置かれるため
     /// [`Self::final_keys`]/「達成 Node」で正しく表現でき、
-    /// [`Self::resync_required`] の対象にはしない。
+    /// [`Self::resync_required`] の対象にはしない。イシュー #1381 の
+    /// per-child diff エンジン導入以降、この集合を実際に埋めるのは
+    /// **cache-miss forced 経路**（`old_children_for_diff` が `None`、
+    /// 従来どおり forced に `replace_item_children` を呼ぶ経路）のみである。
+    /// per-child diff 駆動の経路（`old_children_for_diff` が `Some`）では
+    /// narrow fallback（[`ChildDiffResult::Failed`]）失敗時は設計書 §6.2
+    /// 段2 のアイテム丸ごと差し替えへ直行するため、この集合の終端として
+    /// 使われない（§6.2 末尾参照）。
     pub(crate) stale_update_keys: std::collections::HashSet<String>,
     /// op 列中に 1 件でも「計画どおりに適用できなかった」もの（`Insert` の
     /// `create_item` 失敗、`Move`/`Update` の対象キーがライブ DOM 上に
@@ -1135,15 +1744,30 @@ pub(crate) struct ApplyOutcome {
     /// （[`crate::keyed_dom::apply_keyed_list`]）へ委ねること
     /// （`KeyedListApplyResult::ResyncRequired` doc 参照）。
     pub(crate) resync_required: bool,
-    /// in-place 更新（`sync_attrs` 経由）が成功したキーについて、
-    /// [`KeyedListDom::sync_attrs`] が返した「実際に達成できた属性状態」
-    /// （予約属性 `data-key` を除く、イシュー #1340 codex-review P1
-    /// 〔5 巡目〕対応）。`sync_attrs` を呼ばなかったキー（`stale_update_keys`
-    /// に記録された子ノード構築失敗・タグ変更を伴う `replace_root`・
-    /// `Insert` 等）はここに含まれない。[`compose_achieved_children`] は
+    /// in-place 更新（[`diff_children`] 経由の per-child diff、または
+    /// cache-miss フォールバックの forced `replace_item_children` +
+    /// `sync_attrs`）が成功したキーについて、実際にライブ DOM が表す
+    /// 「達成 Node」全体（タグ・属性・子ノード列）を保持する（イシュー
+    /// #1381 で `achieved_attrs`〔ルート属性のみ〕から置き換え、per-child
+    /// diff が任意深さで得る実測値をそのまま格納できるようにした）。
+    /// `stale_update_keys` に記録されたキー・タグ変更を伴う `replace_root`・
+    /// `Insert` 等はここに含まれない。[`compose_achieved_children`] は
     /// このキーの有無で「in-place 更新の実測値を使う」か「新規構築の
     /// ポリシー再計算〔[`sanitize_node_for_achieved`]〕を使う」かを分岐する。
-    pub(crate) achieved_attrs: std::collections::HashMap<String, Vec<(String, String)>>,
+    pub(crate) achieved_nodes: std::collections::HashMap<String, Node>,
+    /// この適用試行でライブ DOM への書き込み操作
+    /// （`insertBefore`/`removeChild`/`appendChild`/`replace`/
+    /// `set_text_data`/`setAttribute`/`removeAttribute`/`clear_children`
+    /// 等の web-sys 境界呼び出し）を**最初に試行した時点**で `true` になる
+    /// 実測フラグ（イシュー #1381 設計 §6.1「`dom_mutated` 判定」）。
+    /// 判定基準は「試行」であって「成功」ではない: 書き込み呼び出しを
+    /// 一度でも発行すれば、その呼び出しが失敗しても `true` とする。
+    /// detached 構築・読み出し専用の観測（`child_kind`/`tag_name`/
+    /// `text_data`/`get_attribute` 等）は含めない。呼び出し元
+    /// （`fandhe-frontend-wasm-full` の即時再同期・クリア終端契約）が
+    /// 「ライブ DOM が Update 開始前の旧 view のまま無傷かどうか」を
+    /// 判定するために使う。
+    pub(crate) dom_mutated: bool,
     /// [`collect_nested_bind_list_fields`] doc 参照（独立敵対レビュー指摘
     /// A 対応）: 本関数が丸ごと新規構築した部分木（`Insert`・タグ変更を
     /// 伴う `Update`〔`replace_root`〕・内容変更の `Update`
@@ -1163,7 +1787,7 @@ pub(crate) struct ApplyOutcome {
 /// 直前に反映した `Node` 内容を保持している前提。
 /// [`crate::keyed_dom::apply_keyed_list_with_previous`] doc 参照）。
 /// `Remove`/`Insert`/`Move` の適用アルゴリズムは [`apply_ops`] と同一。
-pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
+pub(crate) fn apply_ops_with_items<D: ChildNodeDom>(
     dom: &mut D,
     old_items: &[(String, Node)],
     new_items: &[(String, Node)],
@@ -1200,10 +1824,14 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                 ..ApplyOutcome::default()
             };
         }
+        // `clear_children` はコンテナ全体を一括除去するライブ DOM 書き込み
+        // 操作であり、呼び出しを試行した時点で `dom_mutated` を立てる
+        // （成功不問、`ApplyOutcome::dom_mutated` doc 参照）。
         let ok = dom.clear_children();
         return ApplyOutcome {
             final_keys: Vec::new(),
             resync_required: !ok,
+            dom_mutated: true,
             ..Default::default()
         };
     }
@@ -1224,10 +1852,10 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
     };
     let mut failed_inserts: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut stale_update_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
-    // `sync_attrs`（in-place 更新）が返した「実際に達成できた属性状態」の
-    // キーごとの記録（[`ApplyOutcome::achieved_attrs`] doc・モジュール冒頭
-    // doc「`sync_attrs` の実行時失敗と「達成 Node」の整合」参照）。
-    let mut achieved_attrs: std::collections::HashMap<String, Vec<(String, String)>> =
+    // in-place 更新（per-child diff・cache-miss forced 更新のいずれか）が
+    // 成功したキーごとの「達成 Node」全体の記録
+    // （[`ApplyOutcome::achieved_nodes`] doc 参照）。
+    let mut achieved_nodes: std::collections::HashMap<String, Node> =
         std::collections::HashMap::new();
     // ライブ DOM 上の実際の位置と `diff_keyed_items` が計画した `index` との
     // 累計ズレ（[`apply_ops`] doc「未達成スロットの index 補正」と同じ目的・
@@ -1236,6 +1864,8 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
     // 1 件でも op が計画どおりに適用できなかった場合に `true`
     // （[`ApplyOutcome::resync_required`] doc 参照）。
     let mut resync_required = false;
+    // [`ApplyOutcome::dom_mutated`] doc 参照（イシュー #1381）。
+    let mut dom_mutated = false;
     // [`ApplyOutcome::invalidated_nested_fields`] doc 参照（独立敵対
     // レビュー指摘 A 対応）。
     let mut invalidated_nested_fields: std::collections::HashSet<String> =
@@ -1248,6 +1878,7 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                 // 同じくハンドルキャッシュ経由の `find_by_key` で解決する
                 // （イシュー #1374、全削除ワークロードの O(N²) 解消が本体）。
                 if let Some((_, child)) = dom.find_by_key(&key) {
+                    dom_mutated = true;
                     if !dom.remove_child(&key, &child) {
                         // 実 DOM への `remove_child` 自体が失敗（`child` は
                         // 実 DOM 上に残存）。`Remove` は位置を持たない op の
@@ -1274,6 +1905,7 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                 // 適用する構成のため、要素数 1 の `items` で呼び出す
                 // （契約上「新しい並びで `start_index` から連続する新規
                 // ノード列」を満たせば良く、単一要素はこれを自明に満たす）。
+                dom_mutated = true;
                 if !dom.insert_before_batch(
                     adjusted,
                     vec![(key.clone(), new_node)],
@@ -1358,6 +1990,7 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     resync_required = true;
                 } else if pos != adjusted {
                     let reference = dom.child_at(adjusted);
+                    dom_mutated = true;
                     if !dom.move_before(adjusted, &key, &existing, reference.as_ref()) {
                         // 実 DOM への移動自体が失敗（`move_before` 契約により
                         // DOM・内部キャッシュとも無変更のまま、`existing` は
@@ -1388,6 +2021,16 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                     resync_required = true;
                     continue;
                 };
+                // 段2（item 丸ごと差し替え）で旧部分木が丸ごと破棄される
+                // 際、旧部分木の子孫に含まれていた別 field の keyed list
+                // マーカーも `invalidated_nested_fields` へ記録するために
+                // 保持する（Cursor Bugbot High 指摘: replace_root 成功後は
+                // `collect_nested_bind_list_fields(new_node)` のみでは新側の
+                // field しか捕捉できず、旧側だけに存在した field 名が
+                // 漏れて `Runtime::keyed_list_cache` に破棄済み DOM を指す
+                // stale エントリが残置される）。
+                let old_node_for_invalidation =
+                    old_items.iter().find(|(k, _)| k == &key).map(|(_, n)| n);
                 let Node::Element {
                     tag: new_tag,
                     attrs: new_attrs,
@@ -1444,6 +2087,7 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                         resync_required = true;
                         continue;
                     };
+                    dom_mutated = true;
                     if !dom.replace_root(&existing, &key, new_dom_node) {
                         // 挿入・除去いずれかが失敗し完全な置換ができな
                         // かった（`replace_root` doc「戻り値と部分失敗時の
@@ -1459,6 +2103,14 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                         // なっている（独立敵対レビュー指摘 A、
                         // `ApplyOutcome::invalidated_nested_fields` doc 参照）。
                         invalidated_nested_fields.extend(collect_nested_bind_list_fields(new_node));
+                        // 旧ルート要素の部分木も丸ごと破棄されたため、旧側
+                        // にのみ存在した別 field の keyed list マーカーも
+                        // 同様に invalidate する（PR #1401 Cursor Bugbot
+                        // High 指摘対応、上記コメント参照）。
+                        if let Some(old_node) = old_node_for_invalidation {
+                            invalidated_nested_fields
+                                .extend(collect_nested_bind_list_fields(old_node));
+                        }
                     }
                     continue;
                 }
@@ -1507,39 +2159,195 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
                         _ => None,
                     })
                     .unwrap_or_default();
-                if !dom.replace_item_children(&existing, new_children) {
-                    // 子ノード構築失敗はノード参照・位置を保ったまま内容が
-                    // 旧値のまま据え置かれるだけなので `final_keys`/
-                    // `stale_update_keys` で正しく表現できる
-                    // （`resync_required` の対象にしない、
-                    // [`ApplyOutcome::stale_update_keys`] doc 参照）。
-                    // 属性同期は行わない（上記コメント参照、ライブ DOM
-                    // 全体を旧内容のまま保つ）。
-                    stale_update_keys.insert(key);
-                } else {
-                    // `sync_attrs` は `setAttribute`/`removeAttribute` 個々の
-                    // 実行時失敗（不正な属性名等）をロールバック対象とは
-                    // しない（本モジュール doc「Update op の DOM 適用」の
-                    // 単純化根拠と同じ）が、呼び出し後にライブ DOM が実際に
-                    // 持つ属性状態を戻り値として返す契約へ変更した
-                    // （イシュー #1340 codex-review P1〔5 巡目〕対応、
-                    // `KeyedListDom::sync_attrs` doc・モジュール冒頭 doc
-                    // 「`sync_attrs` の実行時失敗と「達成 Node」の整合」
-                    // 参照）。子ノード構築の成功を確認した後でのみ呼ぶため、
-                    // 呼び出し自体は常に行われるが、「達成」の中身（新値か
-                    // 旧値かの取捨）はこの戻り値が正確に表す。
-                    let synced = dom.sync_attrs(
+                // per-child diff エンジン（[`diff_children`]、イシュー #1381）
+                // は達成 Node キャッシュ由来の**本物の**直前子ノード列
+                // （`old_items` の該当エントリが `Node::Element` である
+                // with-previous 経路）を要求する。cache-miss フォールバック
+                // （`old_items` に `Node::Text(String::new())` プレースホルダを
+                // 割り当てる経路、モジュール冒頭 doc「cache-miss フォール
+                // バックの達成契約」参照）には本物の旧内容が無く per-child
+                // 比較の基準を持たないため、従来どおり forced に
+                // `replace_item_children` を呼ぶ既存契約のまま据え置く
+                // （設計書 §6.2「cache-miss 経路...本書§3.2・§6のラダーの
+                // 対象外」）。
+                let old_children_for_diff =
+                    old_items
+                        .iter()
+                        .find(|(k, _)| k == &key)
+                        .and_then(|(_, old_node)| match old_node {
+                            Node::Element { children, .. } => Some(children.as_slice()),
+                            _ => None,
+                        });
+
+                if let Some(old_children) = old_children_for_diff {
+                    // with-previous 経路: per-child diff エンジンで子ノード
+                    // 列を最小差分更新する（テキストのみの変更は `set_data`
+                    // 1 回、同値はスキップ。子ノード構築を先に完了させて
+                    // からのみルート要素自身の属性を同期する順序は既存の
+                    // 「子ノード → 属性」の順序契約（上記コメント参照）を
+                    // 維持する）。
+                    match diff_children(
+                        dom,
                         &existing,
-                        fandhe_frontend_core::keyed::KEY_ATTR,
-                        &filtered_old_attrs,
-                        &filtered_attrs,
-                    );
-                    achieved_attrs.insert(key, synced);
-                    // 子ノード構築成功。子孫がまるごと新規構築されたため、
-                    // ネストした別 field も新しい状態になっている
-                    // （独立敵対レビュー指摘 A、
-                    // `ApplyOutcome::invalidated_nested_fields` doc 参照）。
-                    invalidated_nested_fields.extend(collect_nested_bind_list_fields(new_node));
+                        old_children,
+                        new_children,
+                        &mut dom_mutated,
+                        &mut invalidated_nested_fields,
+                    ) {
+                        ChildDiffResult::Failed => {
+                            // 設計書 §6.2 段1「(A) 前提不一致」「(B) 書き込み
+                            // 失敗」: per-child diff（narrow fallback 自体の
+                            // 実行時失敗・`set_text_data`/`sync_attrs` の実行時
+                            // 失敗・ネスト binding ルートの値相違のいずれか）が
+                            // 失敗した場合、**タグが一致していても**段2
+                            // （item 丸ごと差し替え）へ直行する（§6.2「段 1 の
+                            // いずれかの失敗という新しいトリガー条件」）。
+                            // 段1 は子ノード数量分だけ独立に書き込むため副作用
+                            // が原子的でなく、途中まで新値が反映された「新旧
+                            // 混在の部分適用状態」がライブ DOM に残りうる。
+                            // 旧実装はここで `stale_update_keys` へ記録して
+                            // `old_by_key`（完全に旧内容）をそのまま「達成
+                            // Node」として確定させていたが、これは新旧混在の
+                            // 部分適用状態を解消できず恒久的にキャッシュと
+                            // 乖離しうる（§6.2 末尾「per-child diff 駆動の
+                            // 経路では `stale_update_keys` は終端として使われ
+                            // なくなる」契約に反する）。段2 は常に新しい
+                            // `Node` から作り直すため、この部分適用状態は
+                            // 個別に「戻す」処理を経ずまとめて新しい内容へ
+                            // 上書きされる（§6.2「finding 1」「P0-1」参照）。
+                            // 下記はタグ不一致時（上記 `!old_tag_matches` 分岐）
+                            // と同じ `create_item` + `replace_root` 手順を
+                            // 再利用する。
+                            let Some(new_dom_node) = dom.create_item(&key) else {
+                                // 構築失敗（`RawHtml` 混入等）。ライブ DOM
+                                // には一切触れない fail-closed（`create_item`
+                                // の既存契約と同じ）。段1 の部分適用状態が
+                                // 旧タグのまま残る事実の検出は次回診断
+                                // （`resync_required` による構造フォール
+                                // バック）へ委ねる。
+                                resync_required = true;
+                                continue;
+                            };
+                            dom_mutated = true;
+                            if !dom.replace_root(&existing, &key, new_dom_node) {
+                                // 挿入・除去いずれかが失敗し完全な置換が
+                                // できなかった（`replace_root` doc「戻り値と
+                                // 部分失敗時の契約」参照）。ライブ DOM は
+                                // 不定状態になりうるため、次回はライブ DOM
+                                // から再構築する構造フォールバックへ委ねる
+                                // （§6.2 段3 `resync_required`）。
+                                resync_required = true;
+                            } else {
+                                // アイテム全置換成功。ルートを含む部分木
+                                // 全体が新規構築されたため、子孫の別 field
+                                // も新しい状態になっている（独立敵対レビュー
+                                // 指摘 A、`ApplyOutcome::invalidated_nested_
+                                // fields` doc 参照）。`achieved_nodes` へは
+                                // 挿入しない（`compose_achieved_children` は
+                                // `stale_update_keys`/`achieved_nodes` の
+                                // いずれにも無いキーを新規構築経路として
+                                // `sanitize_node_for_achieved(new_node)` で
+                                // 扱う契約、上記タグ不一致分岐と同型）。
+                                invalidated_nested_fields
+                                    .extend(collect_nested_bind_list_fields(new_node));
+                                // 旧ルート要素の部分木も丸ごと破棄された
+                                // ため、旧側にのみ存在した別 field の keyed
+                                // list マーカーも同様に invalidate する
+                                // （PR #1401 codex-review P1・Cursor Bugbot
+                                // High 指摘対応、上記タグ不一致分岐の
+                                // コメント参照）。
+                                if let Some(old_node) = old_node_for_invalidation {
+                                    invalidated_nested_fields
+                                        .extend(collect_nested_bind_list_fields(old_node));
+                                }
+                            }
+                        }
+                        ChildDiffResult::Ok(achieved_children) => {
+                            dom_mutated = true;
+                            let synced = dom.sync_attrs(
+                                &existing,
+                                fandhe_frontend_core::keyed::KEY_ATTR,
+                                &filtered_old_attrs,
+                                &filtered_attrs,
+                            );
+                            let key_attr_entry = new_attrs
+                                .iter()
+                                .find(|(name, _)| name == fandhe_frontend_core::keyed::KEY_ATTR)
+                                .cloned();
+                            let mut result_attrs = synced;
+                            result_attrs.extend(key_attr_entry);
+                            achieved_nodes.insert(
+                                key,
+                                Node::Element {
+                                    tag: new_tag,
+                                    attrs: result_attrs,
+                                    children: achieved_children,
+                                },
+                            );
+                            // `collect_nested_bind_list_fields(new_node)` を
+                            // ここで改めて呼ばない（削除済み、PR #1401
+                            // Cursor Bugbot Medium 指摘「Nested cache
+                            // over-invalidated on updates」対応）。この
+                            // `Ok` は per-child diff（`diff_children`）が
+                            // ルート要素の子ノード列すべてを走査し終えた
+                            // ことを意味し、その走査中に到達した
+                            // ネスト binding ルートは `diff_children` 内の
+                            // `is_bind_root` 分岐が `old_kids != new_kids`
+                            // （内容が実際に変わった場合のみ）で個別に
+                            // `nested_fields` へ記録済みである
+                            // （上記 `diff_children` 内コメント参照）。
+                            // ここで `new_node`（アイテム全体）を丸ごと再走査
+                            // すると、内容が一切変わっていない別 field
+                            // （例: ラベルのみの更新で無関係なネスト
+                            // keyed list を含むアイテム）まで無差別に
+                            // invalidate してしまい、`Runtime::
+                            // keyed_list_cache` から該当 field が毎回
+                            // 追い出されて次回 cache-miss 全再構築へ
+                            // 退行する（PR #1381 が最小差分化しようとした
+                            // 対象そのもの）。
+                        }
+                    }
+                } else {
+                    // cache-miss forced 経路: 従来どおり forced に
+                    // `replace_item_children` を呼ぶ（ライブ DOM への書き込み
+                    // 試行、成否不問で `dom_mutated` を立てる）。
+                    dom_mutated = true;
+                    let children_built = dom.replace_item_children(&existing, new_children);
+                    if !children_built {
+                        // cache-miss forced 経路（子ノード構築失敗）: 従来どおり
+                        // ノード参照・位置を保ったまま内容が旧値のまま据え置か
+                        // れる（`resync_required` の対象にしない、
+                        // [`ApplyOutcome::stale_update_keys`] doc 参照）。属性
+                        // 同期は行わない（上記コメント参照、ライブ DOM 全体を
+                        // 旧内容のまま保つ）。
+                        stale_update_keys.insert(key);
+                    } else {
+                        // cache-miss forced 経路（子ノード構築成功）。
+                        // `sync_attrs` は `setAttribute`/`removeAttribute` 個々の
+                        // 実行時失敗（不正な属性名等）をロールバック対象とは
+                        // しない（本モジュール doc「Update op の DOM 適用」の
+                        // 単純化根拠と同じ）が、呼び出し後にライブ DOM が実際に
+                        // 持つ属性状態を戻り値として返す契約へ変更した
+                        // （イシュー #1340 codex-review P1〔5 巡目〕対応、
+                        // `KeyedListDom::sync_attrs` doc・モジュール冒頭 doc
+                        // 「`sync_attrs` の実行時失敗と「達成 Node」の整合」
+                        // 参照）。子ノード構築の成功を確認した後でのみ呼ぶため、
+                        // 呼び出し自体は常に行われるが、「達成」の中身（新値か
+                        // 旧値かの取捨）はこの戻り値が正確に表す。
+                        let synced = dom.sync_attrs(
+                            &existing,
+                            fandhe_frontend_core::keyed::KEY_ATTR,
+                            &filtered_old_attrs,
+                            &filtered_attrs,
+                        );
+                        achieved_nodes
+                            .insert(key, compose_in_place_updated_node(new_node, &synced));
+                        // 子ノード構築成功。子孫がまるごと新規構築されたため、
+                        // ネストした別 field も新しい状態になっている
+                        // （独立敵対レビュー指摘 A、
+                        // `ApplyOutcome::invalidated_nested_fields` doc 参照）。
+                        invalidated_nested_fields.extend(collect_nested_bind_list_fields(new_node));
+                    }
                 }
             }
         }
@@ -1555,7 +2363,8 @@ pub(crate) fn apply_ops_with_items<D: KeyedListDom>(
         final_keys,
         stale_update_keys,
         resync_required,
-        achieved_attrs,
+        achieved_nodes,
+        dom_mutated,
         invalidated_nested_fields,
     }
 }
@@ -1589,15 +2398,13 @@ pub(crate) fn compose_achieved_children(
                 return old_by_key.get(key.as_str()).map(|n| (*n).clone());
             }
             let new_node = new_by_key.get(key.as_str())?;
-            if let Some(achieved) = outcome.achieved_attrs.get(key) {
-                // in-place 更新（`sync_attrs` 経由）: `sync_attrs` が実 DOM を
-                // 読み戻して返した「実際に達成できた属性状態」をそのまま
-                // 使う（ポリシー拒否・実行時失敗のいずれも織り込み済み、
-                // モジュール冒頭 doc「`sync_attrs` の実行時失敗と「達成
-                // Node」の整合」参照）。子ノードは `replace_item_children`
-                // が新規構築するため、その内部の検証拒否だけは
-                // `sanitize_node_for_achieved` で反映する。
-                Some(compose_in_place_updated_node(new_node, achieved))
+            if let Some(achieved) = outcome.achieved_nodes.get(key) {
+                // in-place 更新（per-child diff・cache-miss forced 更新の
+                // いずれか）: ライブ DOM から実測した「達成 Node」全体を
+                // そのまま使う（ポリシー拒否・実行時失敗のいずれも織り込み
+                // 済み、モジュール冒頭 doc「`sync_attrs` の実行時失敗と
+                // 「達成 Node」の整合」参照）。
+                Some(achieved.clone())
             } else {
                 // 新規構築経路（`Insert`・タグ変更を伴う `replace_root`）:
                 // `sync_attrs` を経由しないため実測値がなく、ポリシー
@@ -1770,6 +2577,50 @@ pub(crate) fn attr_value_unchanged(
     old_attrs
         .iter()
         .any(|(old_name, old_value)| old_name.eq_ignore_ascii_case(name) && old_value == value)
+}
+
+/// [`KeyedListDom::sync_attrs`] の戻り値 `synced` が、設計書
+/// （`docs/design/keyed-item-minimal-update-design.md` §3.2「(B) 書き込み
+/// 失敗」）の定める「ポリシー拒否を除いた期待 achieved 集合」と一致する
+/// かを判定する（イシュー #1381 §6.2 (B)）。
+///
+/// `expected_new_attrs` には `sync_attrs` 呼び出し時に実際に渡した
+/// フィルタ済み属性列（`reserved_attr` を除外済みの `filtered_new`）を
+/// そのまま渡すこと。`sync_attrs` はこの引数に含まれない属性（予約属性）
+/// を一切書き込まないため、フィルタ前の `new_attrs` を渡すと予約属性の
+/// 不在を誤って (B) と判定してしまう。
+///
+/// 判定は次の 2 条件のいずれかが破れた場合に (B)（`false`）とする:
+/// 1. `expected_new_attrs` のうち [`is_attr_write_rejected`] が `false`
+///    を返すエントリ（ポリシー拒否ではない、書き込みが期待される属性）
+///    それぞれについて、`synced` に名前（ASCII 大小文字非区別）・値
+///    （バイト厳密）とも一致するエントリが存在すること。
+/// 2. `synced` に `expected_new_attrs` のどの名前（ASCII 大小文字
+///    非区別）とも一致しないエントリ（`removeAttribute` の実行時失敗に
+///    より削除できず残存した属性）が 1 件も含まれないこと。
+///
+/// `is_attr_write_rejected` が `true` のエントリ（危険 URL スキーム・
+/// `srcset`・イベントハンドラ属性の意図的 skip）は判定 1 の対象から
+/// 除外する（§3.2「ポリシー拒否のみで (B) に該当しない場合は...成功と
+/// して扱う」契約。ポリシー拒否と実行時失敗を混同しない）。
+fn attrs_write_achieved(
+    expected_new_attrs: &[(String, String)],
+    synced: &[(String, String)],
+) -> bool {
+    let all_expected_present = expected_new_attrs
+        .iter()
+        .filter(|(name, value)| !is_attr_write_rejected(name, value))
+        .all(|(name, value)| {
+            synced
+                .iter()
+                .any(|(s_name, s_value)| s_name.eq_ignore_ascii_case(name) && s_value == value)
+        });
+    let no_stale_residue = synced.iter().all(|(s_name, _)| {
+        expected_new_attrs
+            .iter()
+            .any(|(name, _)| name.eq_ignore_ascii_case(s_name))
+    });
+    all_expected_present && no_stale_residue
 }
 
 #[cfg(test)]
@@ -2194,6 +3045,45 @@ mod tests {
         }
     }
 
+    /// [`CountingDom`] の `ChildNodeDom` 実装（イシュー #1381）。
+    ///
+    /// 本モックは `self.children`（キーごとの子ノード内容の代理）を
+    /// `web_sys::Node` 相当の個別ハンドルへ分解する手段を持たないため、
+    /// `child_handles` は常に空 `Vec` を返す**恒常フォールバック**実装
+    /// とする。これにより [`diff_children`] のライブ観測チェック
+    /// （`child_handles(scope).len() != expected_len`）が非空の子ノード列
+    /// を持つあらゆるスコープで即座に不一致となり、常に narrow fallback
+    /// （[`KeyedListDom::replace_item_children`]）へ倒れる。この挙動は
+    /// 本イシュー #1381 導入前の `apply_ops_with_items` が常に
+    /// `replace_item_children` を呼んでいた挙動と完全に一致するため、
+    /// 既存の `CountingDom` ベースのテスト群は無改修のまま通る（子ノードが
+    /// 空の場合のみ `same_shape` が早期に `Ok(vec![])` を返しライブ観測を
+    /// 経由しない）。per-child diff エンジン自体の単体テストは専用の
+    /// `MockChildDom`（後述）が担う。
+    impl ChildNodeDom for CountingDom {
+        type ChildHandle = String;
+
+        fn child_handles(&mut self, _parent: &Self::Handle) -> Vec<Self::ChildHandle> {
+            Vec::new()
+        }
+
+        fn child_kind(&mut self, _node: &Self::ChildHandle) -> ChildNodeKind {
+            ChildNodeKind::Other
+        }
+
+        fn as_element(&mut self, _node: &Self::ChildHandle) -> Option<Self::Handle> {
+            None
+        }
+
+        fn set_text_data(&mut self, _node: &Self::ChildHandle, _value: &str) -> bool {
+            false
+        }
+
+        fn text_data(&mut self, _node: &Self::ChildHandle) -> String {
+            String::new()
+        }
+    }
+
     /// `clear_children` の per-item フォールバック実装（`first_element_child`/
     /// `remove_child` による走査）を検証する専用モック（イシュー #1373、
     /// codex-review P2〔`clear_children` に既定実装を設けなくした対応〕で
@@ -2573,6 +3463,33 @@ mod tests {
         }
     }
 
+    /// [`PoisonedCreateDom`] の `ChildNodeDom` 実装（イシュー #1381）。
+    /// `inner`（[`CountingDom`]）へ丸ごと委譲する（`create_item` のみを
+    /// 差し替えるモックであり、per-child diff の走査手段には無関係）。
+    impl ChildNodeDom for PoisonedCreateDom {
+        type ChildHandle = String;
+
+        fn child_handles(&mut self, parent: &Self::Handle) -> Vec<Self::ChildHandle> {
+            self.inner.child_handles(parent)
+        }
+
+        fn child_kind(&mut self, node: &Self::ChildHandle) -> ChildNodeKind {
+            self.inner.child_kind(node)
+        }
+
+        fn as_element(&mut self, node: &Self::ChildHandle) -> Option<Self::Handle> {
+            self.inner.as_element(node)
+        }
+
+        fn set_text_data(&mut self, node: &Self::ChildHandle, value: &str) -> bool {
+            self.inner.set_text_data(node, value)
+        }
+
+        fn text_data(&mut self, node: &Self::ChildHandle) -> String {
+            self.inner.text_data(node)
+        }
+    }
+
     #[test]
     fn apply_ops_skips_only_the_item_whose_create_item_fails_within_a_run() {
         let mut dom = PoisonedCreateDom {
@@ -2820,6 +3737,12 @@ mod tests {
             Some(&vec![text("new")]),
             "新しい子ノード内容が反映されているはず"
         );
+        assert!(
+            outcome.dom_mutated,
+            "ライブ DOM への書き込み（sync_attrs/replace_item_children）を \
+             試行したため true のはず（イシュー #1381、advisor 指摘の \
+             回帰固定）"
+        );
     }
 
     // --- ネストした keyed list の field 間キャッシュ無効化（イシュー
@@ -2998,13 +3921,21 @@ mod tests {
         );
     }
 
-    /// `replace_item_children` が失敗（子ノード構築失敗）した場合、対象
-    /// アイテムの子孫はライブ DOM 上で一切変更されないため
-    /// `invalidated_nested_fields` へ記録してはならない（未達成の部分木を
-    /// 「新しい状態になった」と偽って伝播しないこと、`ApplyOutcome::
-    /// invalidated_nested_fields` doc「構築が失敗した op は含めない」参照）。
+    /// per-child diff の narrow fallback（`replace_item_children`）が失敗
+    /// した場合、設計書 §6.2 段1 (A) の新しいトリガー条件により**タグが
+    /// 一致していても**段2（`create_item` + `replace_root` によるアイテム
+    /// 丸ごと差し替え）へ直行する。`CountingDom` の既定実装では
+    /// `create_item`/`replace_root` はいずれも成功するため、段2 は成功し
+    /// アイテム全体が新しい `Node` から作り直される。この結果ルートを
+    /// 含む部分木全体が新規構築されるため、ネストした keyed list（`children`
+    /// field）も新しい状態になり `invalidated_nested_fields` へ記録される
+    /// （`ApplyOutcome::invalidated_nested_fields` doc・タグ不一致時の
+    /// `replace_root` 分岐と同型、旧稿は narrow fallback 失敗時に
+    /// `stale_update_keys` へ据え置く旧実装を前提にしていたため
+    /// `invalidated_nested_fields` が空であることを検証していたが、本改訂
+    /// （イシュー #1381 レビュー対応）でこの前提が変わった）。
     #[test]
-    fn apply_ops_with_items_does_not_record_invalidated_nested_field_when_content_update_fails() {
+    fn apply_ops_with_items_escalates_to_item_replace_when_child_diff_narrow_fallback_fails() {
         let nested = fandhe_frontend_core::keyed::keyed_list(
             "ul",
             vec![],
@@ -3026,12 +3957,24 @@ mod tests {
         let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
 
         assert!(!outcome.resync_required);
-        assert!(outcome.stale_update_keys.contains("g1"));
         assert!(
-            outcome.invalidated_nested_fields.is_empty(),
-            "子ノード構築失敗時はライブ DOM が変化していないため記録して \
-             はならない: {:?}",
+            outcome.stale_update_keys.is_empty(),
+            "段1 (A) の narrow fallback 失敗は段2 の item 丸ごと差し替えへ \
+             直行するため、per-child diff 駆動の経路で stale_update_keys が \
+             終端として使われることはないはず（設計書 §6.2 末尾参照）: {:?}",
+            outcome.stale_update_keys
+        );
+        assert_eq!(
+            outcome.invalidated_nested_fields,
+            std::collections::HashSet::from(["children".to_string()]),
+            "段2 でアイテム全体が新規構築されるため、ネストした keyed list \
+             field も新しい状態になっているはず: {:?}",
             outcome.invalidated_nested_fields
+        );
+        assert_eq!(
+            dom.calls.replace_root, 1,
+            "段2 のエスカレーション経路（create_item + replace_root）が \
+             実際に呼ばれたことを確認する"
         );
     }
 
@@ -3212,7 +4155,7 @@ mod tests {
         // を直接構築する（`final_keys` に対象キーを含み、`stale_update_keys`
         // は空・`resync_required` は `false` が「完全に適用できた」ことを
         // 表す契約、[`ApplyOutcome`] doc 参照）。
-        // `achieved_attrs` を空（`Default`）のまま残すことで、`sync_attrs`
+        // `achieved_nodes` を空（`Default`）のまま残すことで、`sync_attrs`
         // を経由しない新規構築経路（`compose_achieved_children` の else 腕）
         // をこのテストが正しく踏むことを示す。
         let outcome = ApplyOutcome {
@@ -3724,12 +4667,19 @@ mod tests {
         )
     }
 
-    /// 子ノード構築失敗（`RawHtml` 混入相当）の注入: 当該キーは
-    /// `stale_update_keys` へ記録され、`final_keys` には引き続き含まれる
-    /// （ライブ DOM 上に旧内容のままアイテムが残っているため）。他アイテムの
-    /// 適用は妨げられない（複数アイテムの Update 混在ケース）。
+    /// per-child diff の narrow fallback 失敗（`RawHtml` 混入相当）の注入:
+    /// 設計書 §6.2 段1 (A) の新しいトリガー条件により段2（`create_item` +
+    /// `replace_root`）へ直行し、`CountingDom` の既定実装では両方とも
+    /// 成功するためアイテムは丸ごと新しい `Node` から作り直される。この
+    /// ため当該キーは `stale_update_keys` へは記録されない（段1→段2 の
+    /// 合流により per-child diff 駆動の経路では `stale_update_keys` は
+    /// 終端として使われなくなる、§6.2 末尾参照）。`final_keys` には
+    /// 引き続き含まれる（`replace_root` 成功によりアイテムはライブ DOM 上に
+    /// 新内容で残存するため）。他アイテムの適用は妨げられない（複数
+    /// アイテムの Update 混在ケース）。
     #[test]
-    fn apply_ops_with_items_marks_stale_on_child_build_failure_without_blocking_others() {
+    fn apply_ops_with_items_escalates_child_build_failure_to_item_replace_without_blocking_others()
+    {
         let old_items = vec![item("a", "old-a"), item("b", "old-b")];
         let new_items = vec![item("a", "new-a"), item("b", "new-b")];
         let mut dom = CountingDom {
@@ -3743,22 +4693,31 @@ mod tests {
         assert_eq!(
             outcome.final_keys,
             vec!["a".to_string(), "b".to_string()],
-            "構築失敗した a も DOM 上に残存しているため final_keys に含まれ続けるはず"
+            "段2 で置換された a も DOM 上に残存しているため final_keys に \
+             含まれ続けるはず"
         );
-        assert_eq!(
-            outcome.stale_update_keys,
-            std::collections::HashSet::from(["a".to_string()]),
-            "構築失敗したキーのみが stale として記録されるはず"
+        assert!(
+            outcome.stale_update_keys.is_empty(),
+            "段1 (A) の narrow fallback 失敗は段2 の item 丸ごと差し替えへ \
+             直行し stale_update_keys を終端として使わないはず: {:?}",
+            outcome.stale_update_keys
         );
         assert!(
             !outcome.resync_required,
-            "子ノード構築失敗はノード参照・位置を保ったまま stale_update_keys \
-             で正しく表現できるため、resync_required の対象にはならないはず"
+            "段2（create_item + replace_root）が成功した場合は \
+             resync_required の対象にはならないはず"
+        );
+        assert_eq!(
+            dom.calls.replace_root, 1,
+            "a のみ段2 のエスカレーション経路が呼ばれたはず"
         );
         assert_eq!(
             dom.children.get("a"),
             None,
-            "構築失敗時はライブ DOM の子ノードが変更されないはず（fail-closed）"
+            "段2 は `create_item`（detached 構築）+ `replace_root`（ノード \
+             差し替え）のみで `replace_item_children` を経由しないため、\
+             `dom.children`（narrow fallback 経由の代理状態）は変更されない \
+             はず"
         );
         assert_eq!(
             dom.children.get("b"),
@@ -3768,12 +4727,17 @@ mod tests {
     }
 
     /// codex-review P1 回帰固定（PR #1340、イシュー #1340）: 属性削除を
-    /// 伴う Update で子ノード構築（`replace_item_children`）が失敗した
-    /// 場合、属性も一切変更されないこと（`sync_attrs` が呼ばれないこと）を
-    /// 直接確認する。旧実装は `sync_attrs` を先に呼んでいたため、この
-    /// ケースで実 DOM は「属性は新、子ノードは旧」という不整合な状態になり
-    /// `stale_update_keys` 経由でキャッシュへ確定させる「達成 Node」
-    /// （旧属性・旧子ノード）と食い違っていた。
+    /// 伴う Update で子ノード構築（`replace_item_children`、per-child diff
+    /// の narrow fallback）が失敗した場合、`sync_attrs` は一切呼ばれない
+    /// ことを直接確認する。旧実装は `sync_attrs` を先に呼んでいたため、この
+    /// ケースで実 DOM は「属性は新、子ノードは旧」という不整合な状態に
+    /// なっていた。イシュー #1381 で導入された設計書 §6.2 段1 (A) の
+    /// エスカレーション（段2「item 丸ごと差し替え」への直行）後もこの
+    /// 順序契約は変わらない: `ChildDiffResult::Failed` の arm は
+    /// `sync_attrs` を呼ばず `create_item`/`replace_root` のみを呼ぶため、
+    /// 「属性は新、子ノードは旧」という不整合状態はこの経路でも発生しない
+    /// （段2 が成功すればアイテム全体が新しい `Node` から作り直され、
+    /// `stale_update_keys` はもはや使われない）。
     #[test]
     fn apply_ops_with_items_leaves_attrs_untouched_when_child_build_fails_on_update() {
         let old_items = vec![(
@@ -3803,25 +4767,31 @@ mod tests {
 
         let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
 
-        assert_eq!(
-            outcome.stale_update_keys,
-            std::collections::HashSet::from(["a".to_string()])
+        assert!(
+            outcome.stale_update_keys.is_empty(),
+            "段1 (A) の narrow fallback 失敗は段2 の item 丸ごと差し替えへ \
+             直行し stale_update_keys を終端として使わないはず: {:?}",
+            outcome.stale_update_keys
         );
         assert_eq!(
             dom.calls.sync_attrs, 0,
             "子ノード構築が失敗した場合、sync_attrs は一切呼ばれないはず \
-             （属性だけ新しい値へ変更済みという不整合状態を防ぐ）"
+             （属性だけ新しい値へ変更済みという不整合状態を防ぐ。段2 の \
+             `create_item` は新しい `Node` から detached に構築するため \
+             `sync_attrs` を経由しない）"
         );
         assert_eq!(
             dom.attrs.get("a"),
             None,
-            "属性はライブ DOM 上でも一切変更されていないはず（class の \
-             'old' → 'new' も data-removed の削除も反映されない）"
+            "属性はライブ DOM 上でも `sync_attrs` 経由では変更されていない \
+             はず（段2 の `create_item`/`replace_root` は `dom.attrs`〔narrow \
+             fallback 経由の代理状態〕を更新しない）"
         );
         assert_eq!(
             dom.children.get("a"),
             None,
-            "子ノードも変更されないはず（fail-closed）"
+            "子ノードも `replace_item_children` 経由では変更されないはず \
+             （段2 は `create_item`/`replace_root` のみを経由する）"
         );
     }
 
@@ -3943,6 +4913,47 @@ mod tests {
             "構築が成功した場合は完全達成のため再同期は不要のはず"
         );
         assert_eq!(outcome.final_keys, vec!["a".to_string()]);
+    }
+
+    /// PR #1401 Cursor Bugbot High 指摘の回帰固定: タグ変更を伴う Update
+    /// （`replace_root` 経路）で旧ルート要素の子孫にのみ存在した別 field
+    /// の keyed list マーカーが `invalidated_nested_fields` へ記録される
+    /// こと。新側にはこの field が存在しないため（タグ変更に伴い当該
+    /// ネスト keyed list ごと消えた想定）、旧側スキャンなしでは記録が
+    /// 漏れ、`Runtime::keyed_list_cache` に破棄済み DOM を指す stale
+    /// エントリが残置される。
+    #[test]
+    fn apply_ops_with_items_records_invalidated_nested_field_from_old_side_on_tag_change() {
+        let nested_old = fandhe_frontend_core::keyed::keyed_list(
+            "ul",
+            vec![],
+            "old_children",
+            vec![("c1".to_string(), el("li", vec![], vec![text("c1")]))],
+        )
+        .expect("valid nested keyed list");
+        let old_items = vec![(
+            "a".to_string(),
+            el("li", vec![("data-key", "a")], vec![nested_old]),
+        )];
+        let new_items = vec![(
+            "a".to_string(),
+            el("div", vec![("data-key", "a")], vec![text("new")]),
+        )];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert_eq!(dom.calls.replace_root, 1);
+        assert_eq!(
+            outcome.invalidated_nested_fields,
+            std::collections::HashSet::from(["old_children".to_string()]),
+            "旧タグの部分木にのみ存在した別 field も invalidate される \
+             はず: {:?}",
+            outcome.invalidated_nested_fields
+        );
     }
 
     /// 上記のタグ変更ケースで、新しい要素の構築自体が失敗（`RawHtml`
@@ -4767,6 +5778,10 @@ mod tests {
         assert!(outcome.final_keys.is_empty());
         assert!(!outcome.resync_required);
         assert_eq!(dom.calls.total(), 0, "境界呼び出しは 1 回も発生しないはず");
+        assert!(
+            !outcome.dom_mutated,
+            "境界呼び出しが 1 回も発生しないため false のはず（イシュー #1381）"
+        );
     }
 
     /// `clear_children` が失敗（`false`）を返した場合、`resync_required` が
@@ -5291,6 +6306,928 @@ mod tests {
             !attr_value_unchanged(&[], "class", "btn"),
             "空の old_attrs（cache-miss フォールバック経路相当）では \
              スキップが一切発動しないはず"
+        );
+    }
+
+    // --- `diff_children`（per-child diff エンジン、イシュー #1381） ---
+
+    /// [`diff_children`] 専用の最小ツリーモック。`Handle`/`ChildHandle` は
+    /// いずれも合成 id（`String`）で、要素ノードはさらに `elements` に
+    /// タグ・属性・子ノード id 列を保持する。テキストノードは `texts` に
+    /// 現在値を保持する。`fail_set_text_for`/`fail_replace_children_for` で
+    /// 書き込み失敗を注入できる（`CountingDom` と同じ命名規約）。
+    /// element id -> (tag, 属性列, 子ノード id 列)（`MockChildDom` 専用、
+    /// clippy 型複雑度抑制用エイリアス）。
+    type MockElementEntry = (String, Vec<(String, String)>, Vec<String>);
+
+    #[derive(Default)]
+    struct MockChildDom {
+        next_id: usize,
+        elements: std::collections::HashMap<String, MockElementEntry>,
+        /// text ノード id -> 現在の文字列値。
+        texts: std::collections::HashMap<String, String>,
+        fail_set_text_for: std::collections::HashSet<String>,
+        fail_replace_children_for: std::collections::HashSet<String>,
+        /// `setAttribute` の実行時失敗を模す注入（`(要素 id, 属性名)`）。
+        /// `attrs_write_achieved`（§3.2「(B) 書き込み失敗」）の判定対象
+        /// にするため、`sync_attrs` はこのエントリのみ新値を反映せず旧値
+        /// （不在なら不在）のまま据え置く（イシュー #1381 §6.2 (B) 回帰）。
+        fail_set_attribute_for: std::collections::HashSet<(String, String)>,
+        /// `removeAttribute` の実行時失敗を模す注入（`(要素 id, 属性名)`）。
+        /// `attrs_write_achieved` 判定 (ii)（`new_attrs` に無い名前の
+        /// エントリが `synced` に残存していないか）の判定対象にするため、
+        /// `sync_attrs` はこのエントリの削除を skip し、旧値を `synced`
+        /// へ残存させる（イシュー #1381 §6.2 (B) 回帰、判定 (ii) 用）。
+        fail_remove_attribute_for: std::collections::HashSet<(String, String)>,
+        calls: MockChildDomCalls,
+    }
+
+    #[derive(Default, Debug, Clone, Copy)]
+    struct MockChildDomCalls {
+        set_text_data: usize,
+        sync_attrs: usize,
+        replace_item_children: usize,
+    }
+
+    impl MockChildDom {
+        fn fresh_id(&mut self) -> String {
+            self.next_id += 1;
+            format!("n{}", self.next_id)
+        }
+
+        /// `tag` の要素ノードを新規 id で登録し、その id を返す。
+        fn push_element(&mut self, tag: &str, attrs: Vec<(&str, &str)>) -> String {
+            let id = self.fresh_id();
+            self.elements.insert(
+                id.clone(),
+                (
+                    tag.to_string(),
+                    attrs
+                        .into_iter()
+                        .map(|(n, v)| (n.to_string(), v.to_string()))
+                        .collect(),
+                    Vec::new(),
+                ),
+            );
+            id
+        }
+
+        /// `value` のテキストノードを新規 id で登録し、その id を返す。
+        fn push_text(&mut self, value: &str) -> String {
+            let id = self.fresh_id();
+            self.texts.insert(id.clone(), value.to_string());
+            id
+        }
+
+        /// `parent`（要素 id）の子ノード列を `children` へ設定する。
+        fn set_children(&mut self, parent: &str, children: Vec<String>) {
+            self.elements.get_mut(parent).unwrap().2 = children;
+        }
+    }
+
+    impl KeyedListDom for MockChildDom {
+        type Handle = String;
+        type NewNode = String;
+
+        fn first_element_child(&mut self) -> Option<Self::Handle> {
+            unreachable!("diff_children はこのメソッドを呼ばない")
+        }
+        fn next_element_sibling(&mut self, _child: &Self::Handle) -> Option<Self::Handle> {
+            unreachable!("diff_children はこのメソッドを呼ばない")
+        }
+        fn item_key(&mut self, _child: &Self::Handle) -> Option<String> {
+            unreachable!("diff_children はこのメソッドを呼ばない")
+        }
+        fn child_at(&mut self, _index: usize) -> Option<Self::Handle> {
+            unreachable!("diff_children はこのメソッドを呼ばない")
+        }
+        fn create_item(&mut self, _key: &str) -> Option<Self::NewNode> {
+            unreachable!("diff_children はこのメソッドを呼ばない")
+        }
+        fn insert_before_batch(
+            &mut self,
+            _start_index: usize,
+            _items: Vec<(String, Self::NewNode)>,
+            _reference: Option<&Self::Handle>,
+        ) -> bool {
+            unreachable!("diff_children はこのメソッドを呼ばない")
+        }
+        fn move_before(
+            &mut self,
+            _index: usize,
+            _key: &str,
+            _child: &Self::Handle,
+            _reference: Option<&Self::Handle>,
+        ) -> bool {
+            unreachable!("diff_children はこのメソッドを呼ばない")
+        }
+        fn remove_child(&mut self, _key: &str, _child: &Self::Handle) -> bool {
+            unreachable!("diff_children はこのメソッドを呼ばない")
+        }
+        fn tag_name(&mut self, child: &Self::Handle) -> String {
+            self.elements
+                .get(child)
+                .map(|(tag, _, _)| tag.clone())
+                .unwrap_or_default()
+        }
+        fn sync_attrs(
+            &mut self,
+            child: &Self::Handle,
+            reserved_attr: &str,
+            _old_attrs: &[(String, String)],
+            new_attrs: &[(String, String)],
+        ) -> Vec<(String, String)> {
+            self.calls.sync_attrs += 1;
+            let entry = self.elements.get_mut(child).unwrap();
+            let reserved: Vec<(String, String)> = entry
+                .1
+                .iter()
+                .filter(|(n, _)| n == reserved_attr)
+                .cloned()
+                .collect();
+            let old_live: Vec<(String, String)> = entry.1.clone();
+            // ポリシー拒否・実行時失敗の注入を反映した「実際に達成できた
+            // 状態」のみを書き込む（`WebSysKeyedDom::sync_attrs` の契約と
+            // 同じく、拒否・失敗したエントリは旧値〔不在なら不在〕のまま
+            // 据え置く。イシュー #1381 §6.2 (B) 回帰テスト用）。
+            let mut achieved: Vec<(String, String)> = Vec::with_capacity(new_attrs.len());
+            for (name, value) in new_attrs {
+                let rejected = is_attr_write_rejected(name, value);
+                let write_failed = self
+                    .fail_set_attribute_for
+                    .contains(&(child.clone(), name.clone()));
+                if rejected || write_failed {
+                    if let Some((_, old_value)) = old_live.iter().find(|(n, _)| n == name) {
+                        achieved.push((name.clone(), old_value.clone()));
+                    }
+                } else {
+                    achieved.push((name.clone(), value.clone()));
+                }
+            }
+            // 削除候補（`new_attrs`/予約属性のいずれにも無い旧ライブ属性）
+            // のうち `fail_remove_attribute_for` に注入されたものは
+            // `removeAttribute` 実行時失敗を模して `achieved` に残存させる
+            // （`attrs_write_achieved` 判定 (ii) の「新しい view に無い
+            // 名前の残存」ケースを構成するためのテスト専用フック、イシュー
+            // #1381 §6.2 (B) 回帰）。
+            for (name, value) in &old_live {
+                if name == reserved_attr || new_attrs.iter().any(|(n, _)| n == name) {
+                    continue;
+                }
+                if self
+                    .fail_remove_attribute_for
+                    .contains(&(child.clone(), name.clone()))
+                {
+                    achieved.push((name.clone(), value.clone()));
+                }
+            }
+            let mut merged = achieved.clone();
+            merged.extend(reserved);
+            entry.1 = merged;
+            achieved
+        }
+        fn replace_item_children(&mut self, child: &Self::Handle, new_children: &[Node]) -> bool {
+            self.calls.replace_item_children += 1;
+            if self.fail_replace_children_for.contains(child) {
+                return false;
+            }
+            let mut ids = Vec::with_capacity(new_children.len());
+            for c in new_children {
+                let id = build_mock_node(self, c);
+                ids.push(id);
+            }
+            self.set_children(child, ids);
+            true
+        }
+        fn find_by_key(&mut self, _key: &str) -> Option<(usize, Self::Handle)> {
+            unreachable!("diff_children はこのメソッドを呼ばない")
+        }
+        fn replace_root(&mut self, _old: &Self::Handle, _key: &str, _new: Self::NewNode) -> bool {
+            unreachable!("diff_children はこのメソッドを呼ばない")
+        }
+        fn clear_children(&mut self) -> bool {
+            unreachable!("diff_children はこのメソッドを呼ばない")
+        }
+    }
+
+    /// [`fandhe_frontend_core::Node`] から `MockChildDom` 上へ detached に
+    /// 新規ノード（要素・テキスト）を構築する（`replace_item_children` の
+    /// narrow fallback 経路専用ヘルパー、`RawHtml` は未対応=常に空要素扱い
+    /// とする単純化）。
+    fn build_mock_node(dom: &mut MockChildDom, node: &Node) -> String {
+        match node {
+            Node::Text(value) => dom.push_text(value),
+            Node::Element {
+                tag,
+                attrs,
+                children,
+            } => {
+                let id = dom.push_element(
+                    tag,
+                    attrs
+                        .iter()
+                        .map(|(n, v)| (n.as_str(), v.as_str()))
+                        .collect(),
+                );
+                let child_ids: Vec<String> =
+                    children.iter().map(|c| build_mock_node(dom, c)).collect();
+                dom.set_children(&id, child_ids);
+                id
+            }
+            Node::RawHtml(_) => {
+                // per-child diff の narrow fallback 契約（本モジュール冒頭
+                // doc「セキュリティ不変条件の引き継ぎ」参照）に合わせ、
+                // `RawHtml` は構築失敗として扱いたいところだが、本モックの
+                // `replace_item_children` は成否を一括で返す設計のため、
+                // テストでは `RawHtml` を含む入力を使わない（未到達）。
+                unreachable!("本テストスイートは RawHtml を含む入力を使わない")
+            }
+        }
+    }
+
+    impl ChildNodeDom for MockChildDom {
+        type ChildHandle = String;
+
+        fn child_handles(&mut self, parent: &Self::Handle) -> Vec<Self::ChildHandle> {
+            self.elements
+                .get(parent)
+                .map(|(_, _, children)| children.clone())
+                .unwrap_or_default()
+        }
+
+        fn child_kind(&mut self, node: &Self::ChildHandle) -> ChildNodeKind {
+            if self.elements.contains_key(node) {
+                ChildNodeKind::Element
+            } else if self.texts.contains_key(node) {
+                ChildNodeKind::Text
+            } else {
+                ChildNodeKind::Other
+            }
+        }
+
+        fn as_element(&mut self, node: &Self::ChildHandle) -> Option<Self::Handle> {
+            if self.elements.contains_key(node) {
+                Some(node.clone())
+            } else {
+                None
+            }
+        }
+
+        fn set_text_data(&mut self, node: &Self::ChildHandle, value: &str) -> bool {
+            self.calls.set_text_data += 1;
+            if self.fail_set_text_for.contains(node) {
+                return false;
+            }
+            self.texts.insert(node.clone(), value.to_string());
+            true
+        }
+
+        fn text_data(&mut self, node: &Self::ChildHandle) -> String {
+            self.texts.get(node).cloned().unwrap_or_default()
+        }
+    }
+
+    /// ハッピーパスの核心（イシュー #1381 受入基準 (a)）: テキストのみの
+    /// 変更は `set_text_data` を 1 回呼ぶのみで、`replace_item_children`
+    /// （子ノード列の丸ごと再構築）は一切呼ばれない。
+    #[test]
+    fn diff_children_updates_text_only_change_via_set_text_data() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let text_id = dom.push_text("old");
+        dom.set_children(&root, vec![text_id.clone()]);
+
+        let old_children = vec![text(String::from("old"))];
+        let new_children = vec![text(String::from("new"))];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        match result {
+            ChildDiffResult::Ok(achieved) => {
+                assert_eq!(achieved, vec![text(String::from("new"))]);
+            }
+            ChildDiffResult::Failed => panic!("成功するはず"),
+        }
+        assert_eq!(dom.calls.set_text_data, 1);
+        assert_eq!(
+            dom.calls.replace_item_children, 0,
+            "テキストのみの変更で子ノード列の丸ごと再構築が発生してはならない"
+        );
+        assert!(dom_mutated, "set_text_data を試行したため true のはず");
+        assert_eq!(dom.text_data(&text_id), "new");
+    }
+
+    /// 同値スキップ（イシュー #1381 §3.2 規則 2）: 旧新のテキスト値が同一
+    /// なら境界呼び出しはゼロ、`dom_mutated` も立たない。
+    #[test]
+    fn diff_children_skips_write_when_text_value_is_unchanged() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let text_id = dom.push_text("same");
+        dom.set_children(&root, vec![text_id]);
+
+        let old_children = vec![text(String::from("same"))];
+        let new_children = vec![text(String::from("same"))];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(matches!(result, ChildDiffResult::Ok(_)));
+        assert_eq!(dom.calls.set_text_data, 0, "同値なら書き込みゼロのはず");
+        assert!(
+            !dom_mutated,
+            "書き込みを一切試行していないため false のはず"
+        );
+    }
+
+    /// PR #1401 codex-review P1 指摘の回帰固定: 旧新のテキスト値が
+    /// `old_text == new_text` で同値であっても、ライブ DOM が
+    /// キャッシュ済みの `old_text` から乖離している場合（外部要因による
+    /// 直接 DOM 操作等を想定）は narrow fallback（この scope の子ノード列
+    /// 丸ごと再構築）で自己修復すること。旧実装は `live_check_text` を
+    /// 呼ばずに素通りしていたため、この乖離が固定され以後永久に修復
+    /// されない収束バグになっていた。
+    #[test]
+    fn diff_children_recovers_when_same_value_text_has_drifted_live_dom() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        // ライブ DOM 側は「same」ではなく「drifted」（キャッシュされた
+        // `old_text` とは無関係な外部改変を想定）。
+        let text_id = dom.push_text("drifted");
+        dom.set_children(&root, vec![text_id]);
+
+        let old_children = vec![text(String::from("same"))];
+        let new_children = vec![text(String::from("same"))];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(matches!(result, ChildDiffResult::Ok(_)));
+        assert_eq!(
+            dom.calls.replace_item_children, 1,
+            "ライブ DOM 乖離を検出した場合は narrow fallback で修復する \
+             はず"
+        );
+        assert!(
+            dom_mutated,
+            "narrow fallback は書き込みを試行するため true のはず"
+        );
+    }
+
+    /// (B) 書き込み失敗（イシュー #1381 §3.2/§6.2）: `set_text_data` が
+    /// `false` を返す場合、`ChildDiffResult::Failed` を返す（呼び出し元は
+    /// アイテム全体を旧内容のまま据え置く）。書き込みを試行した事実は
+    /// `dom_mutated` に反映される。
+    #[test]
+    fn diff_children_returns_failed_when_set_text_data_fails() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let text_id = dom.push_text("old");
+        dom.set_children(&root, vec![text_id.clone()]);
+        dom.fail_set_text_for.insert(text_id);
+
+        let old_children = vec![text(String::from("old"))];
+        let new_children = vec![text(String::from("new"))];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(matches!(result, ChildDiffResult::Failed));
+        assert!(
+            dom_mutated,
+            "set_text_data の呼び出し自体は試行しているため true のはず \
+             （dom_mutated は成功不問の試行フラグ、advisor 指摘の回帰固定）"
+        );
+    }
+
+    /// 構造不一致（子数が変わる）ケースは narrow fallback
+    /// （`replace_item_children`）へ倒れ、`set_text_data` は呼ばれない。
+    #[test]
+    fn diff_children_falls_back_to_replace_item_children_on_structural_mismatch() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("ul", vec![]);
+        let t1 = dom.push_text("a");
+        dom.set_children(&root, vec![t1]);
+
+        let old_children = vec![text(String::from("a"))];
+        let new_children = vec![text(String::from("a")), text(String::from("b"))];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(matches!(result, ChildDiffResult::Ok(_)));
+        assert_eq!(
+            dom.calls.replace_item_children, 1,
+            "子数不一致は narrow fallback（子ノード列丸ごと再構築）へ倒れるはず"
+        );
+        assert_eq!(dom.calls.set_text_data, 0);
+        assert!(dom_mutated);
+    }
+
+    /// PR #1401 codex-review P1・Cursor Bugbot High 指摘の回帰固定:
+    /// narrow fallback は破棄される旧子ノード列に含まれる別 field の
+    /// keyed list マーカーも `nested_fields` へ記録すること。新側の子
+    /// ノード列にはこのマーカーが存在しないため、旧側スキャンなしでは
+    /// この field の `Runtime::keyed_list_cache` エントリが破棄済み DOM
+    /// を指したまま残置される。
+    #[test]
+    fn diff_children_narrow_fallback_invalidates_nested_field_present_only_in_old_children() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("ul", vec![]);
+        let t1 = dom.push_text("a");
+        dom.set_children(&root, vec![t1]);
+
+        let old_children = vec![el(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "old_field")],
+            vec![],
+        )];
+        // 子数不一致で `same_shape` を崩し、narrow fallback を強制する。
+        let new_children = vec![text(String::from("a")), text(String::from("b"))];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(matches!(result, ChildDiffResult::Ok(_)));
+        assert!(
+            nested.contains("old_field"),
+            "破棄される旧子ノード列にのみ存在した別 field も invalidate \
+             されるはず: {:?}",
+            nested
+        );
+    }
+
+    /// ネスト Element の再帰: 子孫要素の属性同期（`sync_attrs`）とその
+    /// さらに内側のテキスト変更が同じ規則で適用される
+    /// （イシュー #1381 §3.2 規則 3「同じ深さで再適用」）。
+    #[test]
+    fn diff_children_recurses_into_nested_element_for_attrs_and_text() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let span = dom.push_element("span", vec![("class", "old")]);
+        let inner_text = dom.push_text("old-text");
+        dom.set_children(&span, vec![inner_text.clone()]);
+        dom.set_children(&root, vec![span.clone()]);
+
+        let old_children = vec![el(
+            "span",
+            vec![("class", "old")],
+            vec![text(String::from("old-text"))],
+        )];
+        let new_children = vec![el(
+            "span",
+            vec![("class", "new")],
+            vec![text(String::from("new-text"))],
+        )];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(matches!(result, ChildDiffResult::Ok(_)));
+        assert_eq!(
+            dom.calls.sync_attrs, 1,
+            "span 自身の属性同期が 1 回呼ばれるはず"
+        );
+        assert_eq!(
+            dom.calls.set_text_data, 1,
+            "内側のテキスト変更も適用されるはず"
+        );
+        assert_eq!(dom.calls.replace_item_children, 0);
+        assert_eq!(dom.text_data(&inner_text), "new-text");
+    }
+
+    /// PR #1401 codex-review P1 指摘の回帰固定: `data-bind-list` の値が
+    /// 旧新で一致するネスト binding ルート（ネスト keyed list のルート）を
+    /// 経由して、その子孫を **narrow fallback を一切経由せず** per-child
+    /// 規則のみで直接書き換えた場合でも、この field 自身が `nested_fields`
+    /// へ記録されること。narrow fallback を経由しないため
+    /// `collect_nested_bind_list_fields_into` は一切呼ばれず、`diff_children`
+    /// 自身がこの field を記録しない限り
+    /// `Runtime::keyed_list_cache` のこの field 分のキャッシュがライブ DOM
+    /// への直接書き込みを知らないまま残置される。
+    #[test]
+    fn diff_children_records_nested_field_when_per_child_rule_alone_mutates_bind_root_descendant() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let nested_root = dom.push_element(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "same_field")],
+        );
+        let inner_text = dom.push_text("old");
+        dom.set_children(&nested_root, vec![inner_text.clone()]);
+        dom.set_children(&root, vec![nested_root]);
+
+        let old_children = vec![el(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "same_field")],
+            vec![text(String::from("old"))],
+        )];
+        let new_children = vec![el(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "same_field")],
+            vec![text(String::from("new"))],
+        )];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(matches!(result, ChildDiffResult::Ok(_)));
+        assert_eq!(
+            dom.calls.replace_item_children, 0,
+            "narrow fallback を一切経由しない per-child 経路のみで完結する \
+             シナリオであることの前提確認"
+        );
+        assert_eq!(dom.calls.set_text_data, 1);
+        assert!(
+            nested.contains("same_field"),
+            "narrow fallback を経由しなくても、bind root 自身の field は \
+             invalidate されるはず: {:?}",
+            nested
+        );
+    }
+
+    /// PR #1401 Cursor Bugbot Medium 指摘「Nested cache over-invalidated
+    /// on updates」の回帰固定: `data-bind-list` の値が旧新で一致するネスト
+    /// binding ルートを per-child 規則で経由しても、その**内容が完全に
+    /// 同一**（`old_kids == new_kids`）なら、この field 自身は
+    /// `nested_fields` へ追加されない。上記
+    /// `diff_children_records_nested_field_when_per_child_rule_alone_
+    /// mutates_bind_root_descendant`（内容が実際に変わるケース）と対を
+    /// なす: 設計書 §6.3.2 規則 2「`set_text_data`／`sync_attrs`
+    /// （narrow fallback に至らなかった単位）は既存 DOM ノードを再生成
+    /// しないため `invalidated_nested_fields` へ何も追加しない」の一般則
+    /// は、is_bind_root スコープ自身の属性同期だけでなく、その子孫（＝
+    /// ネスト field 自身の内容）が変化しない場合にも適用される。この
+    /// field を不要に invalidate すると、次回その field を独立更新する
+    /// 際に `Runtime::keyed_list_cache` の cache-miss 全再構築へ退行し、
+    /// PR #1381 が最小差分化しようとした対象そのものが失われる。
+    #[test]
+    fn diff_children_does_not_invalidate_nested_field_when_content_is_unchanged() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let nested_root = dom.push_element(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "same_field")],
+        );
+        let inner_text = dom.push_text("same");
+        dom.set_children(&nested_root, vec![inner_text.clone()]);
+        dom.set_children(&root, vec![nested_root]);
+
+        let old_children = vec![el(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "same_field")],
+            vec![text(String::from("same"))],
+        )];
+        let new_children = old_children.clone();
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(matches!(result, ChildDiffResult::Ok(_)));
+        assert_eq!(
+            dom.calls.replace_item_children, 0,
+            "narrow fallback を一切経由しない per-child 経路のみで完結する \
+             シナリオであることの前提確認"
+        );
+        assert_eq!(
+            dom.calls.set_text_data, 0,
+            "内容が同値のため set_text_data は呼ばれないはず"
+        );
+        assert!(
+            nested.is_empty(),
+            "ネスト field の内容が完全に同一なら invalidate されないはず \
+             （キャッシュはライブ DOM と乖離していない）: {:?}",
+            nested
+        );
+    }
+
+    /// advisor 指摘（PR #1401、イシュー #1381）の回帰固定: 上記
+    /// `diff_children_does_not_invalidate_nested_field_when_content_is_
+    /// unchanged` と異なり、`old_kids == new_kids`（`Node` 表現上は
+    /// 同一）でも、ネスト binding ルート配下のライブ DOM が外部要因で
+    /// 乖離している場合は narrow fallback（`replace_item_children`）で
+    /// 修復され、その field 自身が `nested_fields` へ記録されなければ
+    /// ならない。`old_kids != new_kids` という値比較だけをゲート条件に
+    /// すると、この「値は同じだがライブ DOM だけ乖離している」ケースを
+    /// 見逃し、`Runtime::keyed_list_cache["same_field"]` が破棄済みの
+    /// DOM を指したまま残置される（`diff_children_core` doc「存在理由」
+    /// 参照）。
+    #[test]
+    fn diff_children_invalidates_nested_field_when_bind_root_descendant_narrow_fallback_recovers_drift(
+    ) {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let nested_root = dom.push_element(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "same_field")],
+        );
+        // ライブ DOM 側は「same」ではなく「drifted」（キャッシュされた
+        // old_text とは無関係な外部改変を想定、`diff_children_recovers_
+        // when_same_value_text_has_drifted_live_dom` と同じ手法）。
+        let inner_text = dom.push_text("drifted");
+        dom.set_children(&nested_root, vec![inner_text]);
+        dom.set_children(&root, vec![nested_root]);
+
+        let old_children = vec![el(
+            "ul",
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "same_field")],
+            vec![text(String::from("same"))],
+        )];
+        // `old_kids == new_kids`（`Node` 表現上は完全同一）だが、ライブ
+        // DOM は上記のとおり乖離している。
+        let new_children = old_children.clone();
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(matches!(result, ChildDiffResult::Ok(_)));
+        assert_eq!(
+            dom.calls.replace_item_children, 1,
+            "ネスト binding ルート配下のライブ DOM 乖離は narrow fallback \
+             （子ノード列丸ごと再構築）で修復されるはず"
+        );
+        assert!(
+            nested.contains("same_field"),
+            "narrow fallback で子ノード列が再構築された以上、この field \
+             自身も invalidate されるはず（`old_kids == new_kids` という \
+             値比較だけでは検知できないケース）: {:?}",
+            nested
+        );
+    }
+
+    /// 設計書 §6.2 段1「(B) 書き込み失敗」の回帰: 子孫 Element の
+    /// `sync_attrs` の戻り値が期待 achieved 集合（ポリシー拒否を除く）と
+    /// 一致しない場合（`setAttribute` の実行時失敗）、この Element 自身
+    /// への narrow fallback（`replace_item_children`）は一切試みず、
+    /// アイテム全体を [`ChildDiffResult::Failed`] として即座に打ち切る
+    /// （P0-1: Element 自身の属性書き込み失敗は、その子ノード列交換では
+    /// 修復できないため）。子ノード列への再帰（内側のテキスト変更）も
+    /// この時点で一切開始されないことをあわせて確認する。
+    #[test]
+    fn diff_children_returns_failed_when_child_attr_write_fails_at_runtime() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let span = dom.push_element("span", vec![("class", "old")]);
+        let inner_text = dom.push_text("old-text");
+        dom.set_children(&span, vec![inner_text.clone()]);
+        dom.set_children(&root, vec![span.clone()]);
+        dom.fail_set_attribute_for
+            .insert((span.clone(), "class".to_string()));
+
+        let old_children = vec![el(
+            "span",
+            vec![("class", "old")],
+            vec![text(String::from("old-text"))],
+        )];
+        let new_children = vec![el(
+            "span",
+            vec![("class", "new")],
+            vec![text(String::from("new-text"))],
+        )];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(
+            matches!(result, ChildDiffResult::Failed),
+            "class の setAttribute 失敗は (B) 判定によりアイテム全体を \
+             段2 へ進めるはず"
+        );
+        assert_eq!(
+            dom.calls.replace_item_children, 0,
+            "(B) 書き込み失敗は Element 自身への narrow fallback を \
+             試みないはず（P0-1）"
+        );
+        assert_eq!(
+            dom.calls.set_text_data, 0,
+            "属性同期が (B) と判定された時点で子ノード列への再帰は \
+             開始されないはず"
+        );
+        assert!(
+            dom_mutated,
+            "sync_attrs 呼び出し自体は試行しているため true のはず"
+        );
+        assert_eq!(
+            dom.text_data(&inner_text),
+            "old-text",
+            "子ノード列への再帰が行われないため内側のテキストは旧値の \
+             まま残るはず"
+        );
+    }
+
+    /// 設計書 §6.2 段1「(B) 書き込み失敗」判定 (ii) の回帰:
+    /// `removeAttribute` の実行時失敗により、新しい view には存在しない
+    /// 属性名のエントリが `sync_attrs` の戻り値に残存するケース
+    /// （`attrs_write_achieved` の「`synced` に `expected_new_attrs` の
+    /// どの名前とも一致しないエントリが 1 件も含まれないこと」判定）。
+    /// `setAttribute` 失敗（判定 (i)）とは異なる経路で (B) と判定され、
+    /// 同じく narrow fallback を試みず段2へ直行することを確認する。
+    #[test]
+    fn diff_children_returns_failed_when_child_attr_removal_fails_at_runtime() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let span = dom.push_element("span", vec![("class", "old"), ("data-extra", "x")]);
+        let inner_text = dom.push_text("old-text");
+        dom.set_children(&span, vec![inner_text.clone()]);
+        dom.set_children(&root, vec![span.clone()]);
+        dom.fail_remove_attribute_for
+            .insert((span.clone(), "data-extra".to_string()));
+
+        let old_children = vec![el(
+            "span",
+            vec![("class", "old"), ("data-extra", "x")],
+            vec![text(String::from("old-text"))],
+        )];
+        let new_children = vec![el(
+            "span",
+            vec![("class", "old")],
+            vec![text(String::from("new-text"))],
+        )];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(
+            matches!(result, ChildDiffResult::Failed),
+            "data-extra の removeAttribute 失敗は判定 (ii) によりアイテム \
+             全体を段2 へ進めるはず"
+        );
+        assert_eq!(
+            dom.calls.replace_item_children, 0,
+            "(B) 書き込み失敗は Element 自身への narrow fallback を \
+             試みないはず（P0-1）"
+        );
+        assert_eq!(
+            dom.calls.set_text_data, 0,
+            "属性同期が (B) と判定された時点で子ノード列への再帰は \
+             開始されないはず"
+        );
+        assert_eq!(
+            dom.text_data(&inner_text),
+            "old-text",
+            "子ノード列への再帰が行われないため内側のテキストは旧値の \
+             まま残るはず"
+        );
+    }
+
+    /// 設計書 §3.2「(B) 書き込み失敗」がポリシー拒否（危険 URL スキーム等）
+    /// を対象にしないことの回帰: `href` を `javascript:` スキームへ更新
+    /// しようとする変更は `is_attr_write_rejected` により意図的に skip
+    /// されるだけであり、実行時失敗ではないため段2へは進まない。属性の
+    /// skip は成功として扱われ、子ノード列への再帰（内側のテキスト変更）
+    /// も通常どおり継続する。
+    #[test]
+    fn diff_children_does_not_escalate_when_child_attr_update_is_policy_rejected() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let anchor = dom.push_element("a", vec![("href", "/safe")]);
+        let inner_text = dom.push_text("old-text");
+        dom.set_children(&anchor, vec![inner_text.clone()]);
+        dom.set_children(&root, vec![anchor.clone()]);
+
+        let old_children = vec![el(
+            "a",
+            vec![("href", "/safe")],
+            vec![text(String::from("old-text"))],
+        )];
+        let new_children = vec![el(
+            "a",
+            vec![("href", "javascript:alert(1)")],
+            vec![text(String::from("new-text"))],
+        )];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(
+            matches!(result, ChildDiffResult::Ok(_)),
+            "ポリシー拒否のみでは (B) に該当せず段2 へ進まないはず"
+        );
+        assert_eq!(
+            dom.calls.replace_item_children, 0,
+            "narrow fallback へ倒れていないはず"
+        );
+        assert_eq!(
+            dom.calls.set_text_data, 1,
+            "属性が成功扱いのため子ノード列への再帰は継続し、内側の \
+             テキスト変更も適用されるはず"
+        );
+        assert_eq!(dom.text_data(&inner_text), "new-text");
+        let ChildDiffResult::Ok(achieved) = result else {
+            unreachable!()
+        };
+        let Node::Element { attrs, .. } = &achieved[0] else {
+            panic!("要素ノードのはず");
+        };
+        assert!(
+            attrs.contains(&("href".to_string(), "/safe".to_string())),
+            "危険な href は書き込まれず旧安全値が達成 Node に反映される \
+             はず: {attrs:?}"
         );
     }
 }

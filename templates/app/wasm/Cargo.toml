@@ -49,8 +49,11 @@ members = ["."]
 # 追加バンプが連鎖した。PR #1398 codex-review P1 指摘（`.claude/rules/coding-rust.md`
 # の semver バンプ必須条項は Cargo.toml 変更を伴う PR での本クレート自身の
 # version バンプも要求する）を受け、wasm-client 自体も 0.5.3 → 0.5.4 へ
-# パッチバンプしたため、本テンプレート側も 0.5.4 へ追随する。
-fandhe-frontend-wasm-client = "0.5.4"
+# パッチバンプした。さらにイシュー #1381（`KeyedOp::Update` 適用の子ノード
+# 最小差分化、`KeyedListApplyResult::ResyncRequired` への `dom_mutated`
+# フィールド追加）で 0.5.4 → 0.6.0 へマイナーバンプされたため、本テンプレート
+# 側も 0.6.0 へ追随する。
+fandhe-frontend-wasm-client = "0.6.0"
 
 [lib]
 crate-type = ["cdylib"]

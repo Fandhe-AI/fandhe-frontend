@@ -1,6 +1,15 @@
 [package]
 name = "fandhe-frontend-wasm-client"
-version = "0.5.4"
+# イシュー #1381: `KeyedOp::Update` 適用の子ノード最小差分化（per-child
+# diff エンジン、`keyed_apply.rs::diff_children`）に伴い
+# `KeyedListApplyResult::ResyncRequired` へ公開フィールド `dom_mutated`
+# を追加した（破壊的変更、`.claude/rules/coding-rust.md` #638 条項に
+# 従い 0.x のマイナーバンプ）。加えて `KeyedListApplyResult` の定義を
+# `keyed_dom`（`#[cfg(target_arch = "wasm32")]`）から DOM 非依存の新規
+# モジュール `keyed_apply_result`（常時コンパイル）へ切り出し、
+# host（native）の `cargo test` からも本型を構築できるようにした
+# （公開パス・フィールドは不変、可用ターゲットの拡大のみ）。
+version = "0.6.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"
@@ -251,9 +260,17 @@ wasm-bindgen = "0.2"
 # （`NamedNodeMap`・各エントリ `Attr`）を読む。新規外部クレート追加では
 # なく既存 web-sys の feature 追加のみ（`cargo metadata` の総パッケージ数・
 # 依存グラフ深さに変化がないことを実測確認、PR 本文に記録）。
+#
+# イシュー #1381: `KeyedOp::Update` 適用の子ノード最小差分化（per-child
+# diff エンジン、`keyed_apply.rs::diff_children`）が、Text ノードの
+# `CharacterData.data` を直接代入・読み取りするために `CharacterData`
+# feature を追加する（`WebSysKeyedDom` の `ChildNodeDom` 実装、
+# `keyed_dom.rs`）。新規外部クレート追加ではなく既存 web-sys の feature
+# 追加のみ。
 [dependencies.web-sys]
 version = "0.3"
 features = [
+  "CharacterData",
   "Document",
   "DocumentFragment",
   "Element",
