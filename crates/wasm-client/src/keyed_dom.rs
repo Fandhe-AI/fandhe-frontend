@@ -171,11 +171,11 @@ pub fn find_list_element(
 /// 場合に出す固定英語文言の警告（設計書 §6 不変条件 6「残る有限の
 /// リスク」・不変条件 7〔キー値・アイテム内容を含めない〕）。`unwrap()`/
 /// `panic!` は使わず、当該アイテム 1 件が不定状態になりうることを警告
-/// ログのみで示し処理を継続する。
+/// ログのみで示し処理を継続する。文言は rodata 削減のため短縮している
+/// （不変条件 6・7 は保ったまま、イシュー #1388）。
 fn warn_replace_item_children_rollback_failed() {
     web_sys::console::warn_1(
-        &"fandhe-frontend-wasm-client: keyed_dom failed to roll back a partially applied \
-          child node replacement (structural restoration incomplete for this item)"
+        &"fandhe-frontend-wasm-client: child replacement rollback failed (item left in an inconsistent state)"
             .into(),
     );
 }
@@ -186,11 +186,11 @@ fn warn_replace_item_children_rollback_failed() {
 /// 〔キー値・アイテム内容を含めない〕、イシュー #1340 codex-review P1
 /// 〔3 巡目〕対応）。`unwrap()`/`panic!` は使わず、当該アイテム 1 件が
 /// 不定状態（旧要素・新要素が同時に存在しうる）になりうることを警告ログ
-/// のみで示し処理を継続する。
+/// のみで示し処理を継続する。文言は rodata 削減のため短縮している
+/// （不変条件 6・7 は保ったまま、イシュー #1388）。
 fn warn_replace_root_rollback_failed() {
     web_sys::console::warn_1(
-        &"fandhe-frontend-wasm-client: keyed_dom failed to roll back a partially applied \
-          root element replacement (structural restoration incomplete for this item)"
+        &"fandhe-frontend-wasm-client: root replacement rollback failed (item left in an inconsistent state)"
             .into(),
     );
 }
@@ -356,9 +356,10 @@ fn build_dom_node_with_namespace(
         Node::RawHtml(_) => {
             // keyed list 経由の挿入ノードに raw_html を混入させる経路を
             // 構造的に持たない（設計書 §9 不変条件 4）。内容は含めない
-            // 固定英語文言でログのみ残す（不変条件 6）。
+            // 固定英語文言でログのみ残す（不変条件 6。文言は rodata 削減の
+            // ため短縮している、イシュー #1388）。
             web_sys::console::warn_1(
-                &"fandhe-frontend-wasm-client: keyed_dom skipped a RawHtml node (unsupported in keyed list insertion)".into(),
+                &"fandhe-frontend-wasm-client: skipped an unsupported RawHtml node".into(),
             );
             None
         }
@@ -541,7 +542,13 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
             reference.cloned().map(|el| el.unchecked_into());
 
         if items.len() == 1 {
-            let (key, node) = items.into_iter().next().expect("len == 1 で確認済み");
+            // `items.len() == 1` を確認済みのため `next()` は必ず `Some` だが、
+            // panic 整形機構（`expect_failed`）を wasm へ引き込まないよう
+            // 到達不能分岐は「DOM・キャッシュ無変更で false を返す」fail-closed
+            // に倒す（イシュー #1388）。
+            let Some((key, node)) = items.into_iter().next() else {
+                return false;
+            };
             if self
                 .list_element
                 .insert_before(&node, reference_web_node.as_ref())

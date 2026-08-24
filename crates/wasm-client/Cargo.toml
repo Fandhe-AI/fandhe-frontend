@@ -9,7 +9,12 @@ name = "fandhe-frontend-wasm-client"
 # モジュール `keyed_apply_result`（常時コンパイル）へ切り出し、
 # host（native）の `cargo test` からも本型を構築できるようにした
 # （公開パス・フィールドは不変、可用ターゲットの拡大のみ）。
-version = "0.6.0"
+# イシュー #1388: panic 整形機構（`expect`/`unwrap`/添字アクセス由来の
+# `escape_debug_ext`・`Formatter::pad`・`panic_bounds_check` 等）を wasm
+# payload から縮減するため、`expect`/添字アクセスを `get`/イテレータ・
+# fail-closed 早期 return へ内部実装のみ置換した（公開 API 不変、patch
+# バンプ）。
+version = "0.6.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"
