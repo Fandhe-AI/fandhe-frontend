@@ -228,9 +228,9 @@ categories = ["wasm", "web-programming"]
 # version バンプも要求するため patch バンプした（0.5.3 も crates.io
 # 未公開ウィンドウ内）。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.4.2" }
-fandhe-frontend-app = { path = "../app", version = "0.2.5" }
-fandhe-frontend-interactive = { path = "../interactive", version = "0.2.6" }
+fandhe-frontend-core = { path = "../core", version = "0.4.3" }
+fandhe-frontend-app = { path = "../app", version = "0.2.6" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.2.7" }
 wasm-bindgen = "0.2"
 
 # イシュー #345（束縛点更新 + keyed list への置換）で以下 3 feature を追加。

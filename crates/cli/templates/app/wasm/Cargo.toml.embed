@@ -52,8 +52,10 @@ members = ["."]
 # パッチバンプした。さらにイシュー #1381（`KeyedOp::Update` 適用の子ノード
 # 最小差分化、`KeyedListApplyResult::ResyncRequired` への `dom_mutated`
 # フィールド追加）で 0.5.4 → 0.6.0 へマイナーバンプされたため、本テンプレート
-# 側も 0.6.0 へ追随する。
-fandhe-frontend-wasm-client = "0.6.0"
+# 側も 0.6.0 へ追随する。イシュー #1388（panic 整形機構の縮減、内部実装
+# のみ・公開 API 不変）で wasm-client 0.6.0 → 0.6.1 へパッチバンプされた
+# ため、本テンプレート側も追随する。
+fandhe-frontend-wasm-client = "0.6.1"
 
 [lib]
 crate-type = ["cdylib"]
