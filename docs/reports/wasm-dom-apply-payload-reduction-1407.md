@@ -51,12 +51,22 @@ node bench/payload/measure.mjs --framework fandhe  # raw/gzip 実測
 ### 2.2 twiggy 用名前付き変種の生成
 
 ```bash
-cargo build --manifest-path bench/csr/fandhe/Cargo.toml \
-  --target wasm32-unknown-unknown --release   # 専用 CARGO_TARGET_DIR 指定
-wasm-bindgen --target web --out-dir <scratch> --out-name fandhe_bench <artifact>
-wasm-opt -Os -g <bindgen 出力>/fandhe_bench_bg.wasm -o <scratch>/named.wasm
-twiggy top -n 3000 / twiggy monos -n 20 / twiggy diff <before> <after> <scratch>/named.wasm
+CARGO_TARGET_DIR=<scratch>/target cargo build \
+  --manifest-path bench/csr/fandhe/Cargo.toml \
+  --target wasm32-unknown-unknown --release
+wasm-bindgen --target web --out-dir <scratch> --out-name fandhe_bench \
+  <scratch>/target/wasm32-unknown-unknown/release/fandhe_bench.wasm
+wasm-opt -Os -g <scratch>/fandhe_bench_bg.wasm -o <scratch>/named.wasm
+twiggy top -n 3000 <scratch>/named.wasm
+twiggy monos -n 20 <scratch>/named.wasm
+twiggy diff <before>/named.wasm <scratch>/named.wasm
 ```
+
+（`<scratch>` はセッション専用スクラッチパッド配下の隔離ディレクトリ。
+`CARGO_TARGET_DIR` はフィクスチャ専用ディレクトリを明示指定する
+`.claude/rules/ci.md` の原則を踏襲し、共有 target dir から隔離する。
+`twiggy top`/`twiggy monos`/`twiggy diff` はそれぞれ独立したコマンドで
+あり、`/` 連結はシェルでは実行できないため各行に分けて記載する）
 
 `#1406` §2.2 と同じ手順。`-Os -g` named wasm は name section 分だけ配布物
 （`-Os` のみ）より大きく、内訳の相対比較専用として扱う（payload の正の値
@@ -224,15 +234,19 @@ gzip の悪化）を正とする**。
    `Result` 化・エラー型・呼び出し側適応のコード増（+2,958B）がハッシュ
    マップ単型化の縮小（-499B）を上回った」こと（#1406 §5.2）
 2. SipHash 実装バイトを実際に回収するには、**wasm-client 内の最後の std
-   `HashMap`/`HashSet` 利用者まで変換し切る必要がある**（`keyed_apply.rs`
-   ・`keyed_dom.rs` に加え `registry.rs`/`timer.rs` の static
-   `RefCell<HashMap<...>>` も含む）。本 bench ワークロードでは
-   `registry.rs`/`timer.rs` は未到達だが、**到達性は「リンクされるか」
-   とは無関係**（static な `HashMap` フィールドの型が残る限り、
-   `RandomState`/`SipHash` の実装コードはバイナリから外れない）。したがって
-   `keyed_apply.rs`/`keyed_dom.rs` だけを変換しても SipHash 実装バイトは
-   回収できず、#1375 と同じ「適応コストだけが乗って正味悪化する」失敗
-   パターンを再現するリスクが高い
+   `HashMap`/`HashSet` 利用者まで変換し切る必要がある可能性が高い**
+   （`keyed_apply.rs`・`keyed_dom.rs` に加え `registry.rs`/`timer.rs` の
+   static `RefCell<HashMap<...>>` も含む）。本 bench ワークロードでは
+   `registry.rs`/`timer.rs` は未到達だが、この懸念は**未検証の仮説**である:
+   一般に static な `HashMap` フィールドの型が残る限り
+   `RandomState`/`SipHash` の実装コードがリンカの dead-code elimination
+   で除去されない可能性はあるが、本イシューでは
+   `keyed_apply.rs`/`keyed_dom.rs` のみを変換した部分変換版を実際に
+   ビルドして twiggy で SipHash 実装バイトの残存有無を確認する実測は
+   行っていない。したがって「`keyed_apply.rs`/`keyed_dom.rs` だけの変換
+   では SipHash 実装バイトを回収できない」は実測根拠のない仮説であり、
+   #1375 と同じ「適応コストだけが乗って正味悪化する」失敗パターンを
+   再現する**リスクがあると見積もっている**（断定はしない）
 3. 91 箇所（`keyed_apply.rs` 83 + `keyed_dom.rs` 8）+ `registry.rs`/
    `timer.rs` の全書き換えは、型エイリアスへの機械的差し替えとはいえ
    diff 規模が大きく、本イシューの実測サイクル（レバーごとに独立測定・
@@ -242,17 +256,20 @@ gzip の悪化）を正とする**。
 
 **再挑戦する場合の前提条件**（#1406 §6 を踏襲・具体化）: (a)
 `keyed_apply.rs`・`keyed_dom.rs`・`registry.rs`・`timer.rs` の**全** std
-`HashMap`/`HashSet` を同一 PR で一括変換する（部分変換は SipHash 実装
-バイトを回収できず高確率で悪化する）、(b) シグネチャ変更（`Result` 化等）
+`HashMap`/`HashSet` を同一 PR で一括変換する（§6.1 のとおり部分変換で
+SipHash 実装バイトを回収できるかは未検証であり、まず一括変換で検証する
+方が高確率での悪化再現を避けられる）、(b) シグネチャ変更（`Result` 化等）
 を混在させない最小差分に限定する、(c) 変換後に twiggy で
 `core::hash::sip` シンボルの消滅を確認してから payload 実測を確定値とする
 （消滅しなければ着手前提が崩れているため即座に revert 判断）。
 
 ### 6.2 `registry.rs`/`timer.rs` のハッシャ置換単独
 
-§6.1 のとおり `keyed_apply.rs`/`keyed_dom.rs` を伴わない単独変換では
-SipHash 実装バイトを回収できないため、単独では意味がない（優先度は
-低いままとする、#1406 §6 の記録を継承）。
+§6.1 のとおり `keyed_apply.rs`/`keyed_dom.rs` を伴わない単独変換で
+SipHash 実装バイトを回収できるかは未検証だが、その最大の呼び出し数
+（91 箇所中）を占める `keyed_apply.rs`/`keyed_dom.rs` を残したままでは
+回収の可能性が低いと見積もられるため、単独では優先度は低いままとする
+（#1406 §6 の記録を継承）。
 
 ## 7. op_ms 計測について
 
