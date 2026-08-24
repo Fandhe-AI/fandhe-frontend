@@ -26,25 +26,25 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-app"
-version = "0.2.2"
+version = "0.2.6"
 dependencies = [
  "fandhe-frontend-core",
 ]
 
 [[package]]
 name = "fandhe-frontend-core"
-version = "0.3.0"
+version = "0.4.3"
 
 [[package]]
 name = "fandhe-frontend-interactive"
-version = "0.2.3"
+version = "0.2.7"
 dependencies = [
  "fandhe-frontend-core",
 ]
 
 [[package]]
 name = "fandhe-frontend-wasm-client"
-version = "0.4.0"
+version = "0.6.1"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
