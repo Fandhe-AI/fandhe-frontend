@@ -725,7 +725,18 @@ pub(crate) enum ChildDiffResult {
 ///    ゼロ）。不一致なら `set_text_data` を 1 回呼ぶ。
 /// 3. Element↔同タグ Element は `sync_attrs`（既存の属性検証規則を再利用、
 ///    規則を複製しない）を呼んだうえで、同じ規則を子ノード列へ再帰
-///    適用する。
+///    適用する。`sync_attrs` の戻り値が「ポリシー拒否を除いた期待
+///    achieved 集合」（[`attrs_write_achieved`]、設計書 §3.2「(B) 書き込み
+///    失敗」）と一致しない場合、この Element 自身への narrow fallback は
+///    試みず（Element 自身の子ノード列交換では属性に触れられないため）、
+///    子ノード列への再帰を開始せず直ちに [`ChildDiffResult::Failed`] を
+///    返す。この判定はアイテム**ルート**要素自身の属性同期
+///    （`apply_ops_with_items` が本関数呼び出し前に別途行う既存の
+///    `sync_attrs` 呼び出し）には適用されない（本関数 `diff_children` が
+///    扱うのは常に「ある要素の**子ノード列**」であり、ルート要素自身は
+///    呼び出し元の対象。ルート属性書き込み失敗時の挙動は既存の
+///    `compose_achieved_children` 契約のまま変更しない、スコープ境界の
+///    明記）。
 ///
 /// # ライブ観測とキャッシュ前提の整合チェック（設計書 §3.2a）
 ///
@@ -841,6 +852,17 @@ pub(crate) fn diff_children<D: ChildNodeDom>(
                 *dom_mutated = true;
                 let synced =
                     dom.sync_attrs(&elem_handle, reserved_attr, &filtered_old, &filtered_new);
+
+                // 設計書 §3.2「(B) 書き込み失敗」: `sync_attrs` の戻り値が
+                // 「ポリシー拒否を除いた期待 achieved 集合」と一致しない
+                // 場合、この Element 自身への narrow fallback は試みず
+                // （その子ノード列交換では属性に触れられないため、
+                // P0-1 対応）、直ちにアイテム全体を段 2（item 丸ごと
+                // 差し替え）へ進める。子ノード列の diff（以降の
+                // `diff_children` 再帰）はこの時点で開始しない。
+                if !attrs_write_achieved(&filtered_new, &synced) {
+                    return ChildDiffResult::Failed;
+                }
 
                 let child_achieved = match diff_children(
                     dom,
@@ -2290,6 +2312,50 @@ pub(crate) fn attr_value_unchanged(
     old_attrs
         .iter()
         .any(|(old_name, old_value)| old_name.eq_ignore_ascii_case(name) && old_value == value)
+}
+
+/// [`KeyedListDom::sync_attrs`] の戻り値 `synced` が、設計書
+/// （`docs/design/keyed-item-minimal-update-design.md` §3.2「(B) 書き込み
+/// 失敗」）の定める「ポリシー拒否を除いた期待 achieved 集合」と一致する
+/// かを判定する（イシュー #1381 §6.2 (B)）。
+///
+/// `expected_new_attrs` には `sync_attrs` 呼び出し時に実際に渡した
+/// フィルタ済み属性列（`reserved_attr` を除外済みの `filtered_new`）を
+/// そのまま渡すこと。`sync_attrs` はこの引数に含まれない属性（予約属性）
+/// を一切書き込まないため、フィルタ前の `new_attrs` を渡すと予約属性の
+/// 不在を誤って (B) と判定してしまう。
+///
+/// 判定は次の 2 条件のいずれかが破れた場合に (B)（`false`）とする:
+/// 1. `expected_new_attrs` のうち [`is_attr_write_rejected`] が `false`
+///    を返すエントリ（ポリシー拒否ではない、書き込みが期待される属性）
+///    それぞれについて、`synced` に名前（ASCII 大小文字非区別）・値
+///    （バイト厳密）とも一致するエントリが存在すること。
+/// 2. `synced` に `expected_new_attrs` のどの名前（ASCII 大小文字
+///    非区別）とも一致しないエントリ（`removeAttribute` の実行時失敗に
+///    より削除できず残存した属性）が 1 件も含まれないこと。
+///
+/// `is_attr_write_rejected` が `true` のエントリ（危険 URL スキーム・
+/// `srcset`・イベントハンドラ属性の意図的 skip）は判定 1 の対象から
+/// 除外する（§3.2「ポリシー拒否のみで (B) に該当しない場合は...成功と
+/// して扱う」契約。ポリシー拒否と実行時失敗を混同しない）。
+fn attrs_write_achieved(
+    expected_new_attrs: &[(String, String)],
+    synced: &[(String, String)],
+) -> bool {
+    let all_expected_present = expected_new_attrs
+        .iter()
+        .filter(|(name, value)| !is_attr_write_rejected(name, value))
+        .all(|(name, value)| {
+            synced
+                .iter()
+                .any(|(s_name, s_value)| s_name.eq_ignore_ascii_case(name) && s_value == value)
+        });
+    let no_stale_residue = synced.iter().all(|(s_name, _)| {
+        expected_new_attrs
+            .iter()
+            .any(|(name, _)| name.eq_ignore_ascii_case(s_name))
+    });
+    all_expected_present && no_stale_residue
 }
 
 #[cfg(test)]
@@ -5956,6 +6022,11 @@ mod tests {
         texts: std::collections::HashMap<String, String>,
         fail_set_text_for: std::collections::HashSet<String>,
         fail_replace_children_for: std::collections::HashSet<String>,
+        /// `setAttribute` の実行時失敗を模す注入（`(要素 id, 属性名)`）。
+        /// `attrs_write_achieved`（§3.2「(B) 書き込み失敗」）の判定対象
+        /// にするため、`sync_attrs` はこのエントリのみ新値を反映せず旧値
+        /// （不在なら不在）のまま据え置く（イシュー #1381 §6.2 (B) 回帰）。
+        fail_set_attribute_for: std::collections::HashSet<(String, String)>,
         calls: MockChildDomCalls,
     }
 
@@ -6062,10 +6133,29 @@ mod tests {
                 .filter(|(n, _)| n == reserved_attr)
                 .cloned()
                 .collect();
-            let mut merged = new_attrs.to_vec();
+            let old_live: Vec<(String, String)> = entry.1.clone();
+            // ポリシー拒否・実行時失敗の注入を反映した「実際に達成できた
+            // 状態」のみを書き込む（`WebSysKeyedDom::sync_attrs` の契約と
+            // 同じく、拒否・失敗したエントリは旧値〔不在なら不在〕のまま
+            // 据え置く。イシュー #1381 §6.2 (B) 回帰テスト用）。
+            let mut achieved: Vec<(String, String)> = Vec::with_capacity(new_attrs.len());
+            for (name, value) in new_attrs {
+                let rejected = is_attr_write_rejected(name, value);
+                let write_failed = self
+                    .fail_set_attribute_for
+                    .contains(&(child.clone(), name.clone()));
+                if rejected || write_failed {
+                    if let Some((_, old_value)) = old_live.iter().find(|(n, _)| n == name) {
+                        achieved.push((name.clone(), old_value.clone()));
+                    }
+                } else {
+                    achieved.push((name.clone(), value.clone()));
+                }
+            }
+            let mut merged = achieved.clone();
             merged.extend(reserved);
             entry.1 = merged;
-            new_attrs.to_vec()
+            achieved
         }
         fn replace_item_children(&mut self, child: &Self::Handle, new_children: &[Node]) -> bool {
             self.calls.replace_item_children += 1;
@@ -6349,5 +6439,137 @@ mod tests {
         );
         assert_eq!(dom.calls.replace_item_children, 0);
         assert_eq!(dom.text_data(&inner_text), "new-text");
+    }
+
+    /// 設計書 §6.2 段1「(B) 書き込み失敗」の回帰: 子孫 Element の
+    /// `sync_attrs` の戻り値が期待 achieved 集合（ポリシー拒否を除く）と
+    /// 一致しない場合（`setAttribute` の実行時失敗）、この Element 自身
+    /// への narrow fallback（`replace_item_children`）は一切試みず、
+    /// アイテム全体を [`ChildDiffResult::Failed`] として即座に打ち切る
+    /// （P0-1: Element 自身の属性書き込み失敗は、その子ノード列交換では
+    /// 修復できないため）。子ノード列への再帰（内側のテキスト変更）も
+    /// この時点で一切開始されないことをあわせて確認する。
+    #[test]
+    fn diff_children_returns_failed_when_child_attr_write_fails_at_runtime() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let span = dom.push_element("span", vec![("class", "old")]);
+        let inner_text = dom.push_text("old-text");
+        dom.set_children(&span, vec![inner_text.clone()]);
+        dom.set_children(&root, vec![span.clone()]);
+        dom.fail_set_attribute_for
+            .insert((span.clone(), "class".to_string()));
+
+        let old_children = vec![el(
+            "span",
+            vec![("class", "old")],
+            vec![text(String::from("old-text"))],
+        )];
+        let new_children = vec![el(
+            "span",
+            vec![("class", "new")],
+            vec![text(String::from("new-text"))],
+        )];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(
+            matches!(result, ChildDiffResult::Failed),
+            "class の setAttribute 失敗は (B) 判定によりアイテム全体を \
+             段2 へ進めるはず"
+        );
+        assert_eq!(
+            dom.calls.replace_item_children, 0,
+            "(B) 書き込み失敗は Element 自身への narrow fallback を \
+             試みないはず（P0-1）"
+        );
+        assert_eq!(
+            dom.calls.set_text_data, 0,
+            "属性同期が (B) と判定された時点で子ノード列への再帰は \
+             開始されないはず"
+        );
+        assert!(
+            dom_mutated,
+            "sync_attrs 呼び出し自体は試行しているため true のはず"
+        );
+        assert_eq!(
+            dom.text_data(&inner_text),
+            "old-text",
+            "子ノード列への再帰が行われないため内側のテキストは旧値の \
+             まま残るはず"
+        );
+    }
+
+    /// 設計書 §3.2「(B) 書き込み失敗」がポリシー拒否（危険 URL スキーム等）
+    /// を対象にしないことの回帰: `href` を `javascript:` スキームへ更新
+    /// しようとする変更は `is_attr_write_rejected` により意図的に skip
+    /// されるだけであり、実行時失敗ではないため段2へは進まない。属性の
+    /// skip は成功として扱われ、子ノード列への再帰（内側のテキスト変更）
+    /// も通常どおり継続する。
+    #[test]
+    fn diff_children_does_not_escalate_when_child_attr_update_is_policy_rejected() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let anchor = dom.push_element("a", vec![("href", "/safe")]);
+        let inner_text = dom.push_text("old-text");
+        dom.set_children(&anchor, vec![inner_text.clone()]);
+        dom.set_children(&root, vec![anchor.clone()]);
+
+        let old_children = vec![el(
+            "a",
+            vec![("href", "/safe")],
+            vec![text(String::from("old-text"))],
+        )];
+        let new_children = vec![el(
+            "a",
+            vec![("href", "javascript:alert(1)")],
+            vec![text(String::from("new-text"))],
+        )];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(
+            matches!(result, ChildDiffResult::Ok(_)),
+            "ポリシー拒否のみでは (B) に該当せず段2 へ進まないはず"
+        );
+        assert_eq!(
+            dom.calls.replace_item_children, 0,
+            "narrow fallback へ倒れていないはず"
+        );
+        assert_eq!(
+            dom.calls.set_text_data, 1,
+            "属性が成功扱いのため子ノード列への再帰は継続し、内側の \
+             テキスト変更も適用されるはず"
+        );
+        assert_eq!(dom.text_data(&inner_text), "new-text");
+        let ChildDiffResult::Ok(achieved) = result else {
+            unreachable!()
+        };
+        let Node::Element { attrs, .. } = &achieved[0] else {
+            panic!("要素ノードのはず");
+        };
+        assert!(
+            attrs.contains(&("href".to_string(), "/safe".to_string())),
+            "危険な href は書き込まれず旧安全値が達成 Node に反映される \
+             はず: {attrs:?}"
+        );
     }
 }

@@ -331,6 +331,27 @@ async fn rename_applies_via_character_data_mutation_without_child_list_change() 
         Runtime::mount("keyed-update-root-container-4", state).expect("mount must succeed");
     let root = runtime.root();
 
+    // `dispatch_rename`（他の受け入れ条件と共有するヘルパー）はイベント
+    // 委譲リスナー（`root` への `bubbling_click_event`）が捕捉できるよう
+    // トリガーの `<button>` を `root` の子として追加・除去する。この
+    // 追加・除去自体が `root` を対象にした `childList` 変異であり、本テスト
+    // が検証したい「Update op 適用そのものが `childList` 変異を起こさない
+    // こと」とは無関係なノイズになる。`MutationObserver` の観測窓を
+    // `dispatch_event`（Update op の適用がここで同期的に走る）呼び出しの
+    // 前後だけに絞り、トリガーの追加・除去は観測窓の外側で行う（イシュー
+    // #1381 §受け入れ条件 4 の検証意図を壊さないための隔離）。
+    let trigger = document
+        .create_element("button")
+        .expect("create_element must not fail for a plain button");
+    trigger
+        .set_attribute("data-action", "rename")
+        .expect("set_attribute must not fail");
+    trigger
+        .set_attribute("data-payload", "1:new-label")
+        .expect("set_attribute must not fail");
+    root.append_child(&trigger)
+        .expect("append_child must not fail for a detached button");
+
     let records = std::rc::Rc::new(std::cell::RefCell::new(Vec::<MutationRecord>::new()));
     let records_clone = records.clone();
     let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
@@ -352,8 +373,16 @@ async fn rename_applies_via_character_data_mutation_without_child_list_change() 
         .observe_with_options(root, &init)
         .expect("observe_with_options must not fail");
 
-    dispatch_rename(&document, root, 1, "new-label");
+    trigger
+        .dispatch_event(&bubbling_click_event())
+        .expect("dispatch_event must not fail");
     microtask_tick().await;
+
+    // これ以降のトリガー除去（観測窓の外側で行う後始末）が誤って
+    // `childList` 変異として記録されないよう、アサーション対象の
+    // `records` を確定させてから観測を止める。
+    observer.disconnect();
+    trigger.remove();
 
     let observed = records.borrow();
     assert!(

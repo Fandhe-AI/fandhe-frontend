@@ -359,116 +359,6 @@ fn commit_keyed_list_result_with_resync(
     }
 }
 
-#[cfg(test)]
-mod commit_keyed_list_result_with_resync_tests {
-    //! [`commit_keyed_list_result_with_resync`] の DOM 非依存な判定・分岐
-    //! 本体を native `cargo test` から検証する（イシュー #1381）。
-    //! `resync`/`clear` はクロージャ注入のためライブ DOM を一切必要と
-    //! しない。
-
-    use super::commit_keyed_list_result_with_resync;
-    use std::cell::RefCell;
-    use std::collections::HashMap;
-    use std::rc::Rc;
-
-    fn cache_with(
-        entries: &[(&str, &str)],
-    ) -> Rc<RefCell<HashMap<String, fandhe_frontend_core::Node>>> {
-        let mut map = HashMap::new();
-        for (key, text) in entries {
-            map.insert(
-                (*key).to_string(),
-                fandhe_frontend_core::Node::Text((*text).to_string()),
-            );
-        }
-        Rc::new(RefCell::new(map))
-    }
-
-    fn resync_required(dom_mutated: bool) -> fandhe_frontend_wasm_client::KeyedListApplyResult {
-        fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired {
-            invalidated_nested_fields: std::collections::HashSet::new(),
-            dom_mutated,
-        }
-    }
-
-    /// 設計書 §6.3 規則 4: 二重 `ResyncRequired` かつ dom_mutated が
-    /// いずれかで `true` のとき `clear` クロージャが呼ばれて `true` を
-    /// 返す場合、`keyed_list_cache` 全体（`field` 自身・無関係な他
-    /// field を問わず）が無効化される。field 文字列と nested field の
-    /// 間に path/prefix 関係が保証されないため、プレフィックス一致の
-    /// 部分無効化ではなく丸ごとクリアが正しい設計であることを固定する。
-    #[test]
-    fn clear_success_invalidates_entire_cache() {
-        let cache = cache_with(&[
-            ("items", "items-cached"),
-            ("items.0.tags", "nested-cached"),
-            ("other", "unrelated-cached"),
-        ]);
-        let cleared = Rc::new(RefCell::new(false));
-        let cleared_flag = Rc::clone(&cleared);
-
-        commit_keyed_list_result_with_resync(
-            "items",
-            resync_required(true),
-            &cache,
-            || resync_required(false),
-            move || {
-                *cleared_flag.borrow_mut() = true;
-                true
-            },
-        );
-
-        assert!(*cleared.borrow(), "clear クロージャが呼ばれるはず");
-        assert!(
-            cache.borrow().is_empty(),
-            "clear 成功時は keyed_list_cache 全体が無効化されるはず（field 自身・\
-             nested field・無関係な field を問わず）"
-        );
-    }
-
-    /// dom_mutated が両試行とも `false` の場合は `clear` を呼ばず、
-    /// 既存キャッシュ（`field` 自身の entry は先行して remove 済みだが、
-    /// 無関係な nested field は温存される）をそのまま残す。
-    #[test]
-    fn no_dom_mutation_keeps_nested_cache_untouched() {
-        let cache = cache_with(&[
-            ("items", "items-cached"),
-            ("items.0.tags", "nested-cached"),
-            ("other", "unrelated-cached"),
-        ]);
-        let cleared = Rc::new(RefCell::new(false));
-        let cleared_flag = Rc::clone(&cleared);
-
-        commit_keyed_list_result_with_resync(
-            "items",
-            resync_required(false),
-            &cache,
-            || resync_required(false),
-            move || {
-                *cleared_flag.borrow_mut() = true;
-                true
-            },
-        );
-
-        assert!(
-            !*cleared.borrow(),
-            "dom_mutated が両試行とも false のときは clear を呼ばないはず"
-        );
-        // `field`（"items"）自身の entry は ResyncRequired アームの
-        // 冒頭で無条件 remove されるため残らないが、無関係な nested
-        // field のエントリはそのまま残ることを確認する。
-        assert!(!cache.borrow().contains_key("items"));
-        assert!(
-            cache.borrow().contains_key("items.0.tags"),
-            "clear が発生しない限り無関係な nested field のキャッシュは温存されるはず"
-        );
-        assert!(
-            cache.borrow().contains_key("other"),
-            "clear が発生しない限り無関係な field のキャッシュは温存されるはず"
-        );
-    }
-}
-
 /// 状態機械 `C` を保持し、マウント・イベント配線・再描画のライフサイクルを
 /// 統括する中核型（`docs/design/wasm-full-architecture.md` 第 3.2 節の公開 API
 /// 凍結表）。PoC-5 の `AppState` グローバル状態を汎用化する。
@@ -1440,6 +1330,116 @@ where
             &self.root,
             &self.binding_table,
             &self.keyed_list_cache,
+        );
+    }
+}
+
+#[cfg(test)]
+mod commit_keyed_list_result_with_resync_tests {
+    //! [`commit_keyed_list_result_with_resync`] の DOM 非依存な判定・分岐
+    //! 本体を native `cargo test` から検証する（イシュー #1381）。
+    //! `resync`/`clear` はクロージャ注入のためライブ DOM を一切必要と
+    //! しない。
+
+    use super::commit_keyed_list_result_with_resync;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+    use std::rc::Rc;
+
+    fn cache_with(
+        entries: &[(&str, &str)],
+    ) -> Rc<RefCell<HashMap<String, fandhe_frontend_core::Node>>> {
+        let mut map = HashMap::new();
+        for (key, text) in entries {
+            map.insert(
+                (*key).to_string(),
+                fandhe_frontend_core::Node::Text((*text).to_string()),
+            );
+        }
+        Rc::new(RefCell::new(map))
+    }
+
+    fn resync_required(dom_mutated: bool) -> fandhe_frontend_wasm_client::KeyedListApplyResult {
+        fandhe_frontend_wasm_client::KeyedListApplyResult::ResyncRequired {
+            invalidated_nested_fields: std::collections::HashSet::new(),
+            dom_mutated,
+        }
+    }
+
+    /// 設計書 §6.3 規則 4: 二重 `ResyncRequired` かつ dom_mutated が
+    /// いずれかで `true` のとき `clear` クロージャが呼ばれて `true` を
+    /// 返す場合、`keyed_list_cache` 全体（`field` 自身・無関係な他
+    /// field を問わず）が無効化される。field 文字列と nested field の
+    /// 間に path/prefix 関係が保証されないため、プレフィックス一致の
+    /// 部分無効化ではなく丸ごとクリアが正しい設計であることを固定する。
+    #[test]
+    fn clear_success_invalidates_entire_cache() {
+        let cache = cache_with(&[
+            ("items", "items-cached"),
+            ("items.0.tags", "nested-cached"),
+            ("other", "unrelated-cached"),
+        ]);
+        let cleared = Rc::new(RefCell::new(false));
+        let cleared_flag = Rc::clone(&cleared);
+
+        commit_keyed_list_result_with_resync(
+            "items",
+            resync_required(true),
+            &cache,
+            || resync_required(false),
+            move || {
+                *cleared_flag.borrow_mut() = true;
+                true
+            },
+        );
+
+        assert!(*cleared.borrow(), "clear クロージャが呼ばれるはず");
+        assert!(
+            cache.borrow().is_empty(),
+            "clear 成功時は keyed_list_cache 全体が無効化されるはず（field 自身・\
+             nested field・無関係な field を問わず）"
+        );
+    }
+
+    /// dom_mutated が両試行とも `false` の場合は `clear` を呼ばず、
+    /// 既存キャッシュ（`field` 自身の entry は先行して remove 済みだが、
+    /// 無関係な nested field は温存される）をそのまま残す。
+    #[test]
+    fn no_dom_mutation_keeps_nested_cache_untouched() {
+        let cache = cache_with(&[
+            ("items", "items-cached"),
+            ("items.0.tags", "nested-cached"),
+            ("other", "unrelated-cached"),
+        ]);
+        let cleared = Rc::new(RefCell::new(false));
+        let cleared_flag = Rc::clone(&cleared);
+
+        commit_keyed_list_result_with_resync(
+            "items",
+            resync_required(false),
+            &cache,
+            || resync_required(false),
+            move || {
+                *cleared_flag.borrow_mut() = true;
+                true
+            },
+        );
+
+        assert!(
+            !*cleared.borrow(),
+            "dom_mutated が両試行とも false のときは clear を呼ばないはず"
+        );
+        // `field`（"items"）自身の entry は ResyncRequired アームの
+        // 冒頭で無条件 remove されるため残らないが、無関係な nested
+        // field のエントリはそのまま残ることを確認する。
+        assert!(!cache.borrow().contains_key("items"));
+        assert!(
+            cache.borrow().contains_key("items.0.tags"),
+            "clear が発生しない限り無関係な nested field のキャッシュは温存されるはず"
+        );
+        assert!(
+            cache.borrow().contains_key("other"),
+            "clear が発生しない限り無関係な field のキャッシュは温存されるはず"
         );
     }
 }
