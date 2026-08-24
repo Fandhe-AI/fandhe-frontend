@@ -3629,18 +3629,17 @@ mod tests {
             .unwrap();
         let previous = keyed_list("svg", vec![], "strokes", Vec::new()).unwrap();
 
-        let row = |key: &str, d: &str| (key.to_string(), el("path", vec![("d", d)], vec![]));
-        let new_tree = keyed_list(
-            "svg",
-            vec![],
-            "strokes",
-            vec![
-                row("0", "M0.00,0.00 L1.00,1.00"),
-                row("1", "M1.00,1.00 L2.00,2.00"),
-                row("2", "M2.00,2.00 L3.00,3.00"),
-            ],
-        )
-        .unwrap();
+        // `d` は全行で完全に同一の値にする（Bugbot 指摘・PR #1403）。
+        // `attrs_isomorphic` はルート属性の値差異を `KEY_ATTR` にしか
+        // 許容しないため、行ごとに異なる `d` を与えると
+        // `derive_item_template` が非同型と判定して `create_item`
+        // （非 clone 経路）へフォールバックし、本テストが検証したい
+        // `create_items_from_template`（clone 経路）が一度も呼ばれず
+        // clone 経路の名前空間回帰を検知できなくなる。
+        const D: &str = "M0.00,0.00 L1.00,1.00";
+        let row = |key: &str| (key.to_string(), el("path", vec![("d", D)], vec![]));
+        let new_tree =
+            keyed_list("svg", vec![], "strokes", vec![row("0"), row("1"), row("2")]).unwrap();
 
         apply_keyed_list_with_previous(&document, &list_element, &previous, &new_tree);
 
@@ -3653,6 +3652,11 @@ mod tests {
                 Some(SVG_NAMESPACE),
                 "テンプレート clone 経路で挿入された <path> も SVG 名前空間 \
                  のままのはず"
+            );
+            assert_eq!(
+                path.get_attribute("d").as_deref(),
+                Some(D),
+                "clone 元プロトタイプの静的属性が複製先にも複製されているはず"
             );
         }
     }
