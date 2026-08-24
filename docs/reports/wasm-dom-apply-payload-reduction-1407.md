@@ -50,19 +50,29 @@ node bench/payload/measure.mjs --framework fandhe  # raw/gzip 実測
 
 ### 2.2 twiggy 用名前付き変種の生成
 
+事前に `$SCRATCH_DIR`（今回の named wasm 生成先の隔離ディレクトリ）と
+`$BEFORE_DIR`（比較元となる before 側の named wasm を格納したディレクトリ。
+`twiggy diff` による前後比較を行わない場合は不要）を通常のシェル変数として
+設定してから実行する（`<scratch>`/`<before>` のような山括弧プレースホルダは
+POSIX shell では入出力リダイレクト演算子として解釈され、掲載コマンドを
+そのまま実行できないため使わない）。
+
 ```bash
-CARGO_TARGET_DIR=<scratch>/target cargo build \
+SCRATCH_DIR=/path/to/scratch   # 例: セッション専用スクラッチパッド配下
+BEFORE_DIR=/path/to/before     # 比較元 named wasm の格納先（diff を取らない場合は省略可）
+
+CARGO_TARGET_DIR="$SCRATCH_DIR/target" cargo build \
   --manifest-path bench/csr/fandhe/Cargo.toml \
   --target wasm32-unknown-unknown --release
-wasm-bindgen --target web --out-dir <scratch> --out-name fandhe_bench \
-  <scratch>/target/wasm32-unknown-unknown/release/fandhe_bench.wasm
-wasm-opt -Os -g <scratch>/fandhe_bench_bg.wasm -o <scratch>/named.wasm
-twiggy top -n 3000 <scratch>/named.wasm
-twiggy monos -n 20 <scratch>/named.wasm
-twiggy diff <before>/named.wasm <scratch>/named.wasm
+wasm-bindgen --target web --out-dir "$SCRATCH_DIR" --out-name fandhe_bench \
+  "$SCRATCH_DIR/target/wasm32-unknown-unknown/release/fandhe_bench.wasm"
+wasm-opt -Os -g "$SCRATCH_DIR/fandhe_bench_bg.wasm" -o "$SCRATCH_DIR/named.wasm"
+twiggy top -n 3000 "$SCRATCH_DIR/named.wasm"
+twiggy monos -n 20 "$SCRATCH_DIR/named.wasm"
+twiggy diff "$BEFORE_DIR/named.wasm" "$SCRATCH_DIR/named.wasm"
 ```
 
-（`<scratch>` はセッション専用スクラッチパッド配下の隔離ディレクトリ。
+（`$SCRATCH_DIR` はセッション専用スクラッチパッド配下の隔離ディレクトリ。
 `CARGO_TARGET_DIR` はフィクスチャ専用ディレクトリを明示指定する
 `.claude/rules/ci.md` の原則を踏襲し、共有 target dir から隔離する。
 `twiggy top`/`twiggy monos`/`twiggy diff` はそれぞれ独立したコマンドで
@@ -145,7 +155,7 @@ reserve_rehash・insert 系）と `wasm-bindgen` 生成コード（`invoke` 系�
 **縮減候補として、`apply_ops_with_items` 内の明確に「稀パス」と判定できる
 関数**（`resync_required`・rollback・警告 `warn_*`・エラー分岐）に
 `#[cold]`/`#[inline(never)]` を付与し、正常系ホットパス（create/update/
-clear）へのインライン展開を避ける仮説を実測で検証した（§4.3）。
+clear）へのインライン展開を避ける仮説を実測で検証した（§5）。
 
 ## 5. 実装レバー: cold path 抑制の試行と実測結果（差し戻し）
 
