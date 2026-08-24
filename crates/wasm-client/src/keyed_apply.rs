@@ -6027,6 +6027,12 @@ mod tests {
         /// にするため、`sync_attrs` はこのエントリのみ新値を反映せず旧値
         /// （不在なら不在）のまま据え置く（イシュー #1381 §6.2 (B) 回帰）。
         fail_set_attribute_for: std::collections::HashSet<(String, String)>,
+        /// `removeAttribute` の実行時失敗を模す注入（`(要素 id, 属性名)`）。
+        /// `attrs_write_achieved` 判定 (ii)（`new_attrs` に無い名前の
+        /// エントリが `synced` に残存していないか）の判定対象にするため、
+        /// `sync_attrs` はこのエントリの削除を skip し、旧値を `synced`
+        /// へ残存させる（イシュー #1381 §6.2 (B) 回帰、判定 (ii) 用）。
+        fail_remove_attribute_for: std::collections::HashSet<(String, String)>,
         calls: MockChildDomCalls,
     }
 
@@ -6149,6 +6155,23 @@ mod tests {
                         achieved.push((name.clone(), old_value.clone()));
                     }
                 } else {
+                    achieved.push((name.clone(), value.clone()));
+                }
+            }
+            // 削除候補（`new_attrs`/予約属性のいずれにも無い旧ライブ属性）
+            // のうち `fail_remove_attribute_for` に注入されたものは
+            // `removeAttribute` 実行時失敗を模して `achieved` に残存させる
+            // （`attrs_write_achieved` 判定 (ii) の「新しい view に無い
+            // 名前の残存」ケースを構成するためのテスト専用フック、イシュー
+            // #1381 §6.2 (B) 回帰）。
+            for (name, value) in &old_live {
+                if name == reserved_attr || new_attrs.iter().any(|(n, _)| n == name) {
+                    continue;
+                }
+                if self
+                    .fail_remove_attribute_for
+                    .contains(&(child.clone(), name.clone()))
+                {
                     achieved.push((name.clone(), value.clone()));
                 }
             }
@@ -6500,6 +6523,69 @@ mod tests {
         assert!(
             dom_mutated,
             "sync_attrs 呼び出し自体は試行しているため true のはず"
+        );
+        assert_eq!(
+            dom.text_data(&inner_text),
+            "old-text",
+            "子ノード列への再帰が行われないため内側のテキストは旧値の \
+             まま残るはず"
+        );
+    }
+
+    /// 設計書 §6.2 段1「(B) 書き込み失敗」判定 (ii) の回帰:
+    /// `removeAttribute` の実行時失敗により、新しい view には存在しない
+    /// 属性名のエントリが `sync_attrs` の戻り値に残存するケース
+    /// （`attrs_write_achieved` の「`synced` に `expected_new_attrs` の
+    /// どの名前とも一致しないエントリが 1 件も含まれないこと」判定）。
+    /// `setAttribute` 失敗（判定 (i)）とは異なる経路で (B) と判定され、
+    /// 同じく narrow fallback を試みず段2へ直行することを確認する。
+    #[test]
+    fn diff_children_returns_failed_when_child_attr_removal_fails_at_runtime() {
+        let mut dom = MockChildDom::default();
+        let root = dom.push_element("li", vec![]);
+        let span = dom.push_element("span", vec![("class", "old"), ("data-extra", "x")]);
+        let inner_text = dom.push_text("old-text");
+        dom.set_children(&span, vec![inner_text.clone()]);
+        dom.set_children(&root, vec![span.clone()]);
+        dom.fail_remove_attribute_for
+            .insert((span.clone(), "data-extra".to_string()));
+
+        let old_children = vec![el(
+            "span",
+            vec![("class", "old"), ("data-extra", "x")],
+            vec![text(String::from("old-text"))],
+        )];
+        let new_children = vec![el(
+            "span",
+            vec![("class", "old")],
+            vec![text(String::from("new-text"))],
+        )];
+        let mut dom_mutated = false;
+        let mut nested = std::collections::HashSet::new();
+
+        let result = diff_children(
+            &mut dom,
+            &root,
+            &old_children,
+            &new_children,
+            &mut dom_mutated,
+            &mut nested,
+        );
+
+        assert!(
+            matches!(result, ChildDiffResult::Failed),
+            "data-extra の removeAttribute 失敗は判定 (ii) によりアイテム \
+             全体を段2 へ進めるはず"
+        );
+        assert_eq!(
+            dom.calls.replace_item_children, 0,
+            "(B) 書き込み失敗は Element 自身への narrow fallback を \
+             試みないはず（P0-1）"
+        );
+        assert_eq!(
+            dom.calls.set_text_data, 0,
+            "属性同期が (B) と判定された時点で子ノード列への再帰は \
+             開始されないはず"
         );
         assert_eq!(
             dom.text_data(&inner_text),
