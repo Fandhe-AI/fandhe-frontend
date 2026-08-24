@@ -821,7 +821,10 @@ impl crate::keyed_apply::KeyedListDom for WebSysKeyedDom<'_> {
         let proto = build_dom_node_with_namespace(self.document, first_node, self.namespace)?;
 
         let mut built: Vec<(String, web_sys::Node)> = Vec::with_capacity(items.len());
-        for (key, node) in &items[1..] {
+        // イシュー #1388 の deny(clippy::indexing_slicing) に整合させるため、
+        // 先頭要素（プロトタイプ元）を除く残りはスライスではなくイテレータで
+        // 走査する（`items.first()?` 通過済みでも機械検証を優先する）。
+        for (key, node) in items.iter().skip(1) {
             let Ok(cloned) = proto.clone_node_with_deep(true) else {
                 return None;
             };
