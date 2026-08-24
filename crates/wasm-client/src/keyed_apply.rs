@@ -1971,6 +1971,17 @@ pub(crate) fn apply_ops_with_items<D: ChildNodeDom>(
                 let run_len = run_keys.len();
                 let mut items: Vec<(String, D::NewNode)> = Vec::new();
                 let mut used_template = false;
+                // テンプレート経路成功時のみ、区間内の各キーが由来する
+                // `new_items` 側の `&Node` を保持する（`used_template` が
+                // 立っているときだけ非空）。挿入成功後の
+                // `invalidated_nested_fields` 収集をこの列の再利用で
+                // O(run_len) に抑え、`new_items` 全体への線形探索
+                // （テンプレート経路導入前からの `apply_ops_with_items`
+                // 全体としては O(n²) 相当）を避ける（レビュー指摘、イシュー
+                // #1385）。`items`（`create_items_from_template` の戻り値）
+                // と同順・同数であることは呼び出し直後の長さ検証で
+                // 確定済み。
+                let mut used_template_run_nodes: Vec<(String, &Node)> = Vec::new();
 
                 // 区間長 2 以上のときのみ行プロトタイプ clone 経路を試みる
                 // （区間長 1 は clone の利得がなく `derive_item_template` の
@@ -2008,8 +2019,24 @@ pub(crate) fn apply_ops_with_items<D: ChildNodeDom>(
                             if let Some(built) =
                                 dom.create_items_from_template(&template, &run_nodes)
                             {
-                                items = built;
-                                used_template = true;
+                                // `Self::create_items_from_template` doc の
+                                // 契約（`Some` の場合 `items` と同順・同数を
+                                // 返す）を呼び出し側でも fail-closed に検証
+                                // する（レビュー指摘、イシュー #1385）。
+                                // 現行の唯一の実装
+                                // `WebSysKeyedDom::create_items_from_template`
+                                // は `?` による early return で all-or-`None`
+                                // のため到達しないが、トレイト契約を守らない
+                                // 実装が将来追加された場合に長さ不一致の
+                                // まま `index_offset` がライブ DOM と乖離
+                                // するのを防ぐ（同モジュールの
+                                // `write_template_text_paths` と同様の
+                                // fail-safe skip）。
+                                if built.len() == run_nodes.len() {
+                                    items = built;
+                                    used_template = true;
+                                    used_template_run_nodes = run_nodes;
+                                }
                             }
                         }
                     }
@@ -2053,11 +2080,24 @@ pub(crate) fn apply_ops_with_items<D: ChildNodeDom>(
                         // 新規構築時点で新しい状態になっている（独立敵対
                         // レビュー指摘 A、
                         // `ApplyOutcome::invalidated_nested_fields` doc 参照）。
-                        for k in &inserted_keys {
-                            if let Some((_, source_node)) = new_items.iter().find(|(nk, _)| nk == k)
-                            {
+                        if used_template {
+                            // テンプレート経路成功時は `used_template_run_nodes`
+                            // が `inserted_keys` と同順・同数（呼び出し直後の
+                            // 長さ検証で確定済み）であるため、`new_items`
+                            // 全体への線形探索を経ずに O(run_len) で解決
+                            // できる（レビュー指摘、イシュー #1385）。
+                            for (_, source_node) in &used_template_run_nodes {
                                 invalidated_nested_fields
                                     .extend(collect_nested_bind_list_fields(source_node));
+                            }
+                        } else {
+                            for k in &inserted_keys {
+                                if let Some((_, source_node)) =
+                                    new_items.iter().find(|(nk, _)| nk == k)
+                                {
+                                    invalidated_nested_fields
+                                        .extend(collect_nested_bind_list_fields(source_node));
+                                }
                             }
                         }
                     }
