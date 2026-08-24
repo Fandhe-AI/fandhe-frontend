@@ -233,6 +233,7 @@ use crate::keyed_diff::{diff_keyed_items, KeyedOp};
 // イシュー #1340 codex-review P1/Bugbot〔10 巡目〕対応）。
 #[cfg(test)]
 use crate::keyed_diff::diff_keys;
+use fandhe_frontend_core::keyed::template::ItemTemplate;
 use fandhe_frontend_core::Node;
 
 /// keyed list コンテナに対する DOM 操作を抽象化するトレイト。
@@ -621,6 +622,51 @@ pub(crate) trait KeyedListDom {
     ///   こと（native テストのモック `DefaultClearDom` はこの「per-item
     ///   フォールバックでも全ノード除去を満たす」実装例を示す）。
     fn clear_children(&mut self) -> bool;
+
+    /// 連続 Insert 区間（同型テンプレート成立時）を一括構築する（イシュー
+    /// #1385、親 #1383「行テンプレート複製化」の DOM 適用側本体）。
+    ///
+    /// `items[0]` を [`Self::create_item`] 相当の手段で detached 構築した
+    /// うえでプロトタイプとし、`items[1..]` は `cloneNode(true)` 相当の
+    /// 複製 1 回 + `template.text_paths()`（`fandhe_frontend_core::keyed::
+    /// template`）が示す束縛点への Text 値書き込み・ルートの `data-key`
+    /// 更新のみで構築することを想定する（`innerHTML`/`insertAdjacentHTML`
+    /// は使わない、`web-sys` 実装 [`crate::keyed_dom::WebSysKeyedDom`]
+    /// doc「行プロトタイプ clone 経路」参照）。
+    ///
+    /// # 契約
+    ///
+    /// - `items` は `derive_item_template` が同型と判定した `(key, &Node)`
+    ///   列（呼び出し元 [`apply_ops_with_items`] が解決済み）。長さ 2 以上
+    ///   のみを渡す契約（区間長 1 では呼ばない、[`apply_ops_with_items`]
+    ///   の呼び出し箇所参照）。
+    /// - 戻り値 `Some` の場合、`items` と同順・同数の `(key, Self::NewNode)`
+    ///   列を返す。途中で構築・複製・束縛点書き込みのいずれかが失敗した
+    ///   場合は部分結果を返さず必ず `None` にする（区間全体を呼び出し元が
+    ///   [`Self::create_item`] による個別生成へフォールバックする、
+    ///   `None` = 本経路を使えない/途中で失敗した）。
+    /// - `None` を返す場合、実 DOM への副作用は一切残さないこと（本メソッド
+    ///   が構築するノードはすべて detached のまま破棄可能でなければ
+    ///   ならない。呼び出し元は `None` を「実 DOM は無傷」の前提で個別
+    ///   生成へフォールバックする）。
+    ///
+    /// # 既定実装（イシュー #1385 codex-review 想定: 安全側の `None`）
+    ///
+    /// 既定実装は常に `None`（＝本経路非対応）を返す。[`Self::clear_children`]
+    /// と異なり、既定 `None` は「呼び出し元が個別生成へフォールバックする」
+    /// fail-safe な方向であるため、既存の native モック（`CountingDom` 等）
+    /// はこのメソッドを実装しなくても既存の意味論のまま通る。`web-sys`
+    /// 実装（[`crate::keyed_dom::WebSysKeyedDom`]）の実装忘れは browser
+    /// テストの境界呼び出しカウンタ（`crates/wasm-client/src/keyed_dom.rs`
+    /// のテスト参照）が検知する。
+    fn create_items_from_template(
+        &mut self,
+        template: &ItemTemplate,
+        items: &[(String, &Node)],
+    ) -> Option<Vec<(String, Self::NewNode)>> {
+        let _ = (template, items);
+        None
+    }
 }
 
 /// `(属性名, 属性値)` 列（イシュー #1381、`diff_children` 内の型複雑度
@@ -1871,7 +1917,17 @@ pub(crate) fn apply_ops_with_items<D: ChildNodeDom>(
     let mut invalidated_nested_fields: std::collections::HashSet<String> =
         std::collections::HashSet::new();
 
-    for op in ops {
+    // `ops` を 1 件ずつ消費しつつ、`Insert` の直後を先読みして極大の連続
+    // 区間を検出する（イシュー #1385）。`apply_ops_list`（`#[cfg(test)]`、
+    // 本番非到達）の index ベース走査と同じ「index がちょうど 1 ずつ増える
+    // 極大区間」規則を `Peekable` で表現する。本番経路
+    // `apply_ops_with_items` は従来 `Insert` を 1 件ずつ適用しており
+    // （行あたり `insert_before_batch` 1 回、区間集約は `apply_ops_list`
+    // にしか存在しなかった）、本イシューでこの区間検出を本番経路へ
+    // 導入することで既存の DocumentFragment 集約（#1320）と行プロトタイプ
+    // clone（下記）の双方を同一区間に対して適用できるようにする。
+    let mut ops_iter = ops.into_iter().peekable();
+    while let Some(op) = ops_iter.next() {
         match op {
             KeyedOp::Remove { key } => {
                 // `find_child_by_key`（sibling 走査）は削除済み。`Update` と
@@ -1891,41 +1947,126 @@ pub(crate) fn apply_ops_with_items<D: ChildNodeDom>(
                 }
             }
             KeyedOp::Insert { index, key } => {
-                let Some(new_node) = dom.create_item(&key) else {
-                    failed_inserts.insert(key);
-                    index_offset += 1;
-                    resync_required = true;
-                    continue;
-                };
-                let adjusted = index.saturating_sub(index_offset);
-                let reference = dom.child_at(adjusted);
-                // トレイトが提供する挿入 API は #1320 で `insert_before_batch`
-                // へ一本化された（連続 Insert 区間の DocumentFragment
-                // 集約）。本関数は `diff_keyed_items` の op 列を 1 件ずつ
-                // 適用する構成のため、要素数 1 の `items` で呼び出す
-                // （契約上「新しい並びで `start_index` から連続する新規
-                // ノード列」を満たせば良く、単一要素はこれを自明に満たす）。
-                dom_mutated = true;
-                if !dom.insert_before_batch(
-                    adjusted,
-                    vec![(key.clone(), new_node)],
-                    reference.as_ref(),
-                ) {
-                    // 実 DOM への挿入自体が失敗（`insert_before_batch` 契約
-                    // により DOM・内部キャッシュとも無変更のまま）。
-                    // `create_item` 失敗と同様に未達成スロットとして扱う
-                    // （イシュー #1340 codex-review P1〔3 巡目〕全走査対応）。
-                    failed_inserts.insert(key);
-                    index_offset += 1;
-                    resync_required = true;
-                } else if let Some((_, source_node)) = new_items.iter().find(|(k, _)| k == &key) {
-                    // 新規挿入成功。この部分木の子孫に別 field の keyed
-                    // list マーカーが含まれていれば、そのライブ DOM も
-                    // 新規構築時点で新しい状態になっている（独立敵対
-                    // レビュー指摘 A、`ApplyOutcome::invalidated_nested_fields`
-                    // doc 参照）。
-                    invalidated_nested_fields.extend(collect_nested_bind_list_fields(source_node));
+                let start_index = index;
+                let mut expected_index = start_index + 1;
+                let mut run_keys: Vec<String> = vec![key];
+                while let Some(KeyedOp::Insert {
+                    index: next_index, ..
+                }) = ops_iter.peek()
+                {
+                    if *next_index != expected_index {
+                        // 極大の連続 Insert 区間はここで終わる（次の
+                        // Insert は index が飛んでおり、区間を跨いだ
+                        // 「既に一致していたため op を持たない」既存項目が
+                        // 間に挟まっている、`apply_ops_list` と同じ規則）。
+                        break;
+                    }
+                    let Some(KeyedOp::Insert { key: next_key, .. }) = ops_iter.next() else {
+                        unreachable!("直前の peek で Insert であることを確認済み");
+                    };
+                    run_keys.push(next_key);
+                    expected_index += 1;
                 }
+
+                let run_len = run_keys.len();
+                let mut items: Vec<(String, D::NewNode)> = Vec::new();
+                let mut used_template = false;
+
+                // 区間長 2 以上のときのみ行プロトタイプ clone 経路を試みる
+                // （区間長 1 は clone の利得がなく `derive_item_template` の
+                // 呼び出し自体を省く、設計 §3.3）。
+                if run_len >= 2 {
+                    // 各 key の &Node を new_items から解決する。まず
+                    // 「計画上の位置」（`diff_keyed_items` の `index` は
+                    // 新しい並び＝`new_items` 上の位置と一致する契約、
+                    // `fandhe_frontend_core::keyed::KeyedOp` doc 参照）で
+                    // O(1) 解決し、キー不一致（重複キー等の縁辺ケース）の
+                    // ときのみ従来の線形 find へフォールバックする。
+                    let mut run_nodes: Vec<(String, &Node)> = Vec::with_capacity(run_len);
+                    let mut all_resolved = true;
+                    for (offset, k) in run_keys.iter().enumerate() {
+                        let planned_idx = start_index + offset;
+                        let resolved = new_items
+                            .get(planned_idx)
+                            .filter(|(nk, _)| nk == k)
+                            .map(|(_, n)| n)
+                            .or_else(|| new_items.iter().find(|(nk, _)| nk == k).map(|(_, n)| n));
+                        match resolved {
+                            Some(n) => run_nodes.push((k.clone(), n)),
+                            None => {
+                                all_resolved = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    if all_resolved {
+                        let node_refs: Vec<&Node> = run_nodes.iter().map(|(_, n)| *n).collect();
+                        if let Some(template) =
+                            fandhe_frontend_core::keyed::template::derive_item_template(&node_refs)
+                        {
+                            if let Some(built) =
+                                dom.create_items_from_template(&template, &run_nodes)
+                            {
+                                items = built;
+                                used_template = true;
+                            }
+                        }
+                    }
+                }
+
+                let mut failed_in_run: usize = 0;
+                if !used_template {
+                    // テンプレート経路を使わない（区間長 1・非同型・
+                    // 構築失敗のいずれか）。従来どおり `create_item` を
+                    // 1 件ずつ適用する（`apply_ops_list` と同じ fail-closed
+                    // skip 規則: 構築失敗した個々のキーのみ `items` から
+                    // 除外し、残りは通常どおり一括挿入する）。
+                    for k in &run_keys {
+                        if let Some(new_node) = dom.create_item(k) {
+                            items.push((k.clone(), new_node));
+                        } else {
+                            failed_inserts.insert(k.clone());
+                            failed_in_run += 1;
+                        }
+                    }
+                }
+
+                if !items.is_empty() {
+                    let adjusted_start = start_index.saturating_sub(index_offset);
+                    let reference = dom.child_at(adjusted_start);
+                    let inserted_keys: Vec<String> = items.iter().map(|(k, _)| k.clone()).collect();
+                    dom_mutated = true;
+                    if !dom.insert_before_batch(adjusted_start, items, reference.as_ref()) {
+                        // 実 DOM への挿入自体が失敗（`insert_before_batch`
+                        // 契約により DOM・内部キャッシュとも無変更のまま）。
+                        // 区間内で構築済みだった全アイテムを未達成スロット
+                        // として扱う（イシュー #1340 codex-review P1
+                        // 〔3 巡目〕全走査対応、`apply_ops_list` と同じ扱い）。
+                        failed_in_run += inserted_keys.len();
+                        for k in inserted_keys {
+                            failed_inserts.insert(k);
+                        }
+                    } else {
+                        // 新規挿入成功。この部分木の子孫に別 field の keyed
+                        // list マーカーが含まれていれば、そのライブ DOM も
+                        // 新規構築時点で新しい状態になっている（独立敵対
+                        // レビュー指摘 A、
+                        // `ApplyOutcome::invalidated_nested_fields` doc 参照）。
+                        for k in &inserted_keys {
+                            if let Some((_, source_node)) = new_items.iter().find(|(nk, _)| nk == k)
+                            {
+                                invalidated_nested_fields
+                                    .extend(collect_nested_bind_list_fields(source_node));
+                            }
+                        }
+                    }
+                }
+
+                if failed_in_run > 0 {
+                    resync_required = true;
+                }
+                index_offset += failed_in_run;
             }
             KeyedOp::Move { index, key } => {
                 // `find_child_by_key`（sibling 走査）は削除済み。`Remove`/
@@ -2683,6 +2824,10 @@ mod tests {
         /// `clear_children` に実 DOM クリア失敗を注入するフラグ（イシュー
         /// #1373。`false` を返すオーバーライドの回帰テスト用）。
         fail_clear_children: bool,
+        /// `create_items_from_template` を常に `None`（本経路非対応、既定
+        /// 実装と同じ挙動）に固定するフラグ（イシュー #1385。テンプレート
+        /// 構築失敗時の個別生成フォールバック回帰テスト用）。
+        force_template_path_unavailable: bool,
     }
 
     #[derive(Default, Debug, Clone, Copy)]
@@ -2701,6 +2846,14 @@ mod tests {
         replace_root: usize,
         tag_name: usize,
         clear_children: usize,
+        /// `create_items_from_template` の呼び出し回数（イシュー #1385。
+        /// 総計 `total()` には含めない: このモックは `Some` を返す限り
+        /// 内部で `create_item` 個別呼び出しを一切行わない〔行プロトタイプ
+        /// clone 経路が個別ノード生成を代替する本体〕ため、`total()`
+        /// （実 DOM 呼び出し合計として既存テストが固定している値）へ
+        /// 混ぜると既存の 1,000 行系コスト固定テストの数値契約を変えて
+        /// しまう。本フィールドは新規テストが個別に検証する）。
+        create_items_from_template: usize,
     }
 
     impl CallCounts {
@@ -2763,6 +2916,27 @@ mod tests {
         fn create_item(&mut self, key: &str) -> Option<Self::NewNode> {
             self.calls.create_item += 1;
             Some(key.to_string())
+        }
+
+        /// テストモック実装（イシュー #1385）。`force_template_path_unavailable`
+        /// が立っていれば既定実装と同じ `None`（本経路非対応）を返し、
+        /// 呼び出し元の個別生成フォールバックを検証できるようにする。
+        /// それ以外は `items` のキー列をそのまま `(key, key)` の
+        /// `(String, NewNode)` 列へ変換して常に成功させる（`Handle`/
+        /// `NewNode` がいずれも `String`（key そのもの）という本モックの
+        /// 単純化に合わせた最小実装。`create_item` を経由しないことが
+        /// 「行プロトタイプ clone が個別ノード生成を代替する」経路の
+        /// テスト上の表現）。
+        fn create_items_from_template(
+            &mut self,
+            _template: &fandhe_frontend_core::keyed::template::ItemTemplate,
+            items: &[(String, &Node)],
+        ) -> Option<Vec<(String, Self::NewNode)>> {
+            self.calls.create_items_from_template += 1;
+            if self.force_template_path_unavailable {
+                return None;
+            }
+            Some(items.iter().map(|(k, _)| (k.clone(), k.clone())).collect())
         }
 
         fn insert_before_batch(
@@ -6159,6 +6333,253 @@ mod tests {
              find_child_by_key の再混入を検知、内訳: {:?}）",
             dom.calls
         );
+    }
+
+    // --- 連続 Insert 区間の行プロトタイプ clone 経路（イシュー #1385）---
+
+    /// 空リストへ 1,000 行を一括挿入する構成（同型テンプレート成立）で
+    /// `create_items_from_template` がちょうど 1 回だけ呼ばれ、`create_item`
+    /// は 0 回のまま（個別生成を一切経由しない）ことを固定する（受け入れ
+    /// 基準 1・計画 §5.1）。`insert_before_batch` も区間 1 件につき 1 回
+    /// （#1320 の集約契約）に留まる。
+    #[test]
+    fn apply_ops_with_items_create_1000_rows_from_empty_uses_single_template_batch() {
+        const N: usize = 1_000;
+        let old_items: Vec<(String, Node)> = Vec::new();
+        let new_items = items_n(N, "v");
+        let mut dom = CountingDom::default();
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        let expected: Vec<String> = (0..N).map(|i| format!("k{i}")).collect();
+        assert_eq!(dom.items, expected);
+        assert_eq!(
+            dom.calls.create_items_from_template, 1,
+            "同型 1,000 行は 1 回のテンプレート一括構築で完結するはず"
+        );
+        assert_eq!(
+            dom.calls.create_item, 0,
+            "テンプレート経路成功時は個別 create_item を呼ばないはず"
+        );
+        assert_eq!(
+            dom.calls.insert_before_batch, 1,
+            "連続 Insert 区間 1 件につき挿入は 1 回に集約されるはず（#1320）"
+        );
+    }
+
+    /// 区間長 1（`Insert` が 1 件のみ、前後を保持キーが挟む）の場合は
+    /// `derive_item_template` の呼び出し自体を含めテンプレート経路を使わず
+    /// 従来どおり `create_item` 1 回で構築することを固定する（clone の
+    /// 利得がない区間長 1 での退行防止、計画 §3.3）。
+    #[test]
+    fn apply_ops_with_items_single_insert_does_not_use_template_path() {
+        let old_items = vec![item("a", "v"), item("c", "v")];
+        let new_items = vec![item("a", "v"), item("b", "v"), item("c", "v")];
+        let mut dom = CountingDom {
+            items: vec!["a".to_string(), "c".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        assert_eq!(
+            dom.items,
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+        assert_eq!(dom.calls.create_items_from_template, 0);
+        assert_eq!(dom.calls.create_item, 1);
+    }
+
+    /// 非同型混在（1 行だけタグが異なる）区間は `derive_item_template` が
+    /// `None` を返すため個別生成へフォールバックし、`create_items_from_template`
+    /// 自体が呼ばれないことを固定する。
+    #[test]
+    fn apply_ops_with_items_falls_back_to_create_item_when_run_is_not_isomorphic() {
+        let old_items: Vec<(String, Node)> = Vec::new();
+        let mut new_items = vec![item("a", "v"), item("b", "v"), item("c", "v")];
+        // "b" だけ異なるタグ（`span`）にして非同型を作る。
+        new_items[1] = (
+            "b".to_string(),
+            el("span", vec![("data-key", "b")], vec![text("v")]),
+        );
+        let mut dom = CountingDom::default();
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        assert_eq!(
+            dom.items,
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+        assert_eq!(
+            dom.calls.create_items_from_template, 0,
+            "非同型混在は derive_item_template の時点で None になり \
+             create_items_from_template 自体を呼ばないはず"
+        );
+        assert_eq!(dom.calls.create_item, 3);
+    }
+
+    /// `create_items_from_template` が `None`（本経路非対応/失敗）を返した
+    /// 場合、区間全体が個別生成へフォールバックし、結果（並び・
+    /// `resync_required`）が通常の個別挿入と一致することを固定する。
+    #[test]
+    fn apply_ops_with_items_falls_back_to_create_item_when_template_build_returns_none() {
+        let old_items: Vec<(String, Node)> = Vec::new();
+        let new_items = items_n(5, "v");
+        let mut dom = CountingDom {
+            force_template_path_unavailable: true,
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        let expected: Vec<String> = (0..5).map(|i| format!("k{i}")).collect();
+        assert_eq!(dom.items, expected);
+        assert_eq!(dom.calls.create_items_from_template, 1);
+        assert_eq!(
+            dom.calls.create_item, 5,
+            "テンプレート構築失敗時は区間全体が個別生成へ倒れるはず"
+        );
+        assert_eq!(dom.calls.insert_before_batch, 1);
+    }
+
+    /// 別々の連続 Insert 区間（間に保持キーが挟まる）はそれぞれ独立して
+    /// テンプレート一括構築の対象になることを固定する（区間検出が
+    /// `apply_ops_list` と同じ「極大区間」規則で分割されることの確認）。
+    #[test]
+    fn apply_ops_with_items_batches_each_disjoint_insert_run_separately() {
+        let old_items = vec![item("mid", "v")];
+        let new_items = vec![
+            item("a0", "v"),
+            item("a1", "v"),
+            item("mid", "v"),
+            item("b0", "v"),
+            item("b1", "v"),
+        ];
+        let mut dom = CountingDom {
+            items: vec!["mid".to_string()],
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        assert_eq!(
+            dom.items,
+            vec![
+                "a0".to_string(),
+                "a1".to_string(),
+                "mid".to_string(),
+                "b0".to_string(),
+                "b1".to_string(),
+            ]
+        );
+        assert_eq!(
+            dom.calls.create_items_from_template, 2,
+            "保持キーで分断された 2 区間がそれぞれ一括構築されるはず"
+        );
+        assert_eq!(dom.calls.insert_before_batch, 2);
+    }
+
+    /// `RawHtml` 混入行は `derive_item_template`（core、`fandhe_frontend_core::
+    /// keyed::template`）の同型判定で不成立（`None`）となるため、
+    /// `apply_ops_with_items` は `create_items_from_template` 自体を呼ばず
+    /// 区間全体を個別 `create_item` へフォールバックする。`CountingDom` は
+    /// `Handle`/`NewNode` をキー文字列のみで表す簡易モックで `create_item`
+    /// が `Node` の内容（`RawHtml` か否か）を見て失敗する挙動は持たない
+    /// （実際に `RawHtml` 構築が失敗し `None` を返すのは `web-sys` 実装
+    /// `WebSysKeyedDom::create_item` → `build_dom_node_with_namespace`、
+    /// browser テスト側で確認する）ため、本 native テストは「非同型混入は
+    /// テンプレート一括構築を経由せず個別生成へフォールバックする」経路
+    /// 選択のみを固定する。
+    #[test]
+    fn apply_ops_with_items_run_with_raw_html_item_falls_back_and_skips_only_that_item() {
+        let old_items: Vec<(String, Node)> = Vec::new();
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "ESCAPE-REVIEWED: RawHtml 混入時の同型判定不成立（フォールバック \
+                      経路選択）を検証するテスト。固定の信頼済み文字列のみ"
+        )]
+        let raw_html_node = fandhe_frontend_core::raw_html("<b>x</b>");
+        let new_items = vec![
+            item("a", "v"),
+            ("b".to_string(), raw_html_node),
+            item("c", "v"),
+        ];
+        let mut dom = CountingDom::default();
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        assert_eq!(
+            dom.items,
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+        assert_eq!(
+            dom.calls.create_items_from_template, 0,
+            "RawHtml 混入は derive_item_template の時点で None になり \
+             create_items_from_template 自体を呼ばないはず"
+        );
+        assert_eq!(dom.calls.create_item, 3);
+    }
+
+    /// 連続 Insert 区間のテンプレート一括構築が成功しても、`insert_before_batch`
+    /// 自体が失敗すれば区間全体が未達成スロットとして扱われ
+    /// `resync_required` が立つことを固定する（イシュー #1340 codex-review
+    /// P1〔3 巡目〕全走査対応と同型の契約をテンプレート経路にも適用）。
+    #[test]
+    fn apply_ops_with_items_signals_resync_required_when_batched_insert_fails() {
+        let old_items: Vec<(String, Node)> = Vec::new();
+        let new_items = items_n(3, "v");
+        let mut dom = CountingDom {
+            fail_insert_before_batch_for: ["k0".to_string(), "k1".to_string(), "k2".to_string()]
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        };
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(outcome.resync_required);
+        assert!(
+            dom.items.is_empty(),
+            "insert_before_batch 失敗時は DOM・内部キャッシュとも無変更のはず"
+        );
+        assert_eq!(dom.calls.create_items_from_template, 1);
+    }
+
+    /// ネストした `data-bind-list` を持つ行の一括挿入で、テンプレート経路
+    /// 成功時も個別経路と同じく `invalidated_nested_fields` が全件分
+    /// 収集されることを固定する（独立敵対レビュー指摘 A、
+    /// `ApplyOutcome::invalidated_nested_fields` doc 参照）。
+    #[test]
+    fn apply_ops_with_items_records_invalidated_nested_field_for_every_item_in_batched_insert() {
+        let old_items: Vec<(String, Node)> = Vec::new();
+        let nested_row = |key: &str| {
+            (
+                key.to_string(),
+                el(
+                    "li",
+                    vec![("data-key", key)],
+                    vec![el(
+                        "ul",
+                        vec![("data-bind-list", "children")],
+                        vec![text("x")],
+                    )],
+                ),
+            )
+        };
+        let new_items = vec![nested_row("a"), nested_row("b"), nested_row("c")];
+        let mut dom = CountingDom::default();
+
+        let outcome = apply_ops_with_items(&mut dom, &old_items, &new_items);
+
+        assert!(!outcome.resync_required);
+        assert_eq!(dom.calls.create_items_from_template, 1);
+        assert!(outcome.invalidated_nested_fields.contains("children"));
     }
 
     /// `Move` op の対象が既にライブ DOM 上で目標位置（`pos == adjusted`）に

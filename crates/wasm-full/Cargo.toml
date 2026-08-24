@@ -4,7 +4,11 @@ name = "fandhe-frontend-wasm-full"
 # `KeyedListApplyResult::ResyncRequired` の即時再同期 + クリア終端契約
 # （設計書 §6.1/§6.2 段 3）に対応。公開 API は不変・内部実装のみの変更の
 # ため patch バンプ（`.claude/rules/coding-rust.md` #638 条項）。
-version = "0.7.10"
+# イシュー #1385: 依存先 `fandhe-frontend-wasm-client` 0.6.0 → 0.6.1
+# （連続 Insert 区間の行プロトタイプ clone 化）への `version = "..."`
+# 追随バンプ（`cargo run -p xtask -- check-dep-versions --fix`）。本クレート
+# 自身は公開 API を追加していないため内部変更のみの patch バンプ。
+version = "0.7.11"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -199,7 +203,7 @@ fandhe-frontend-interactive = { path = "../interactive", version = "0.2.6" }
 # へ再シードされる不具合を修正した。`Runtime` の公開シグネチャは不変・
 # 内部実装のみの変更のため、引き続き 0.7.4（本 PR で未公開のまま）へ
 # 吸収させ、追加のバンプは行わない。
-fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.6.0", default-features = false }
+fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.6.1", default-features = false }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 
