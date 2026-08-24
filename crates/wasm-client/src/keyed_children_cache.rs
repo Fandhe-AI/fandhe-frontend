@@ -156,7 +156,7 @@ impl<H: Clone> KeyedChildrenCache<H> {
             {
                 self.scanned += 1;
             }
-            if let Some((k, h)) = &self.slots[i] {
+            if let Some(Some((k, h))) = self.slots.get(i) {
                 if k == key {
                     return Some((i - self.dead, h.clone()));
                 }
@@ -166,12 +166,16 @@ impl<H: Clone> KeyedChildrenCache<H> {
         // フェーズ 2: `cursor` より前に対象がある可能性（`Move`/`Update`）。
         // 一括 `compact` してから素の線形走査で確実に見つける。
         self.compact();
+        // `.position` 直後の再添字（`slots[pos]`）は panic 整形機構
+        // （`panic_bounds_check`）を wasm へ引き込むため、`enumerate` +
+        // `find_map` で 1 パスにまとめて添字アクセス自体を避ける
+        // （イシュー #1388）。
         self.slots
             .iter()
-            .position(|slot| matches!(slot, Some((k, _)) if k == key))
-            .map(|pos| {
-                let (_, h) = self.slots[pos].as_ref().expect("position で存在確認済み");
-                (pos, h.clone())
+            .enumerate()
+            .find_map(|(pos, slot)| match slot {
+                Some((k, h)) if k == key => Some((pos, h.clone())),
+                _ => None,
             })
     }
 
@@ -187,11 +191,13 @@ impl<H: Clone> KeyedChildrenCache<H> {
             {
                 self.scanned += 1;
             }
-            if matches!(&self.slots[i], Some((k, _)) if k == key) {
-                self.slots[i] = None;
-                self.dead += 1;
-                self.cursor = i + 1;
-                return true;
+            if let Some(slot) = self.slots.get_mut(i) {
+                if matches!(slot, Some((k, _)) if k == key) {
+                    *slot = None;
+                    self.dead += 1;
+                    self.cursor = i + 1;
+                    return true;
+                }
             }
             i += 1;
         }
@@ -262,7 +268,9 @@ impl<H: Clone> KeyedChildrenCache<H> {
             .iter()
             .position(|slot| matches!(slot, Some((k, _)) if k == key))
         {
-            self.slots[pos] = Some((key.to_string(), handle));
+            if let Some(slot) = self.slots.get_mut(pos) {
+                *slot = Some((key.to_string(), handle));
+            }
         }
     }
 

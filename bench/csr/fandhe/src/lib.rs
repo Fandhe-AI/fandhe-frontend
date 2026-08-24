@@ -108,14 +108,20 @@ fn build_label(id: u32) -> String {
 /// エスケープ経由のテキストノード）で包み、HTML 文字列の直接組み立ては
 /// 行わない（`.claude/rules/coding-rust.md`）。
 ///
-/// # Panics
-///
 /// `rows` のキー（`id` の文字列表現）が空文字列・重複することはなく
 /// （`id` は `u32` の一意な連番）、各アイテムは必ず `Node::Element`
 /// （[`tr`]）であるため、[`keyed_list`] は本関数の呼び出し文脈では常に
-/// `Ok` を返す。`.expect` はこの不変条件の表明であり、キー生成ロジックを
-/// 変更する場合はこの前提を保つこと。
-fn build_tbody_node(rows: &[(u32, String)]) -> Node {
+/// `Ok` を返す想定である。キー生成ロジックを変更する場合はこの前提を保つ
+/// こと。
+///
+/// # Errors
+///
+/// 上記不変条件が破れた場合（`keyed_list` の `KeyedListError`）、固定英語文言の
+/// `Err` を返す。かつては `.expect` で表明していたが、`Result` を
+/// `expect`/`unwrap` すると `KeyedListError: Debug`（derive）の整形機構
+/// （`escape_debug_ext`・`Formatter::pad` 等）が wasm へリンクされ payload
+/// を押し上げる（イシュー #1388 実測で約 6KB）ため、`?` 伝播へ置換した。
+fn build_tbody_node(rows: &[(u32, String)]) -> Result<Node, JsValue> {
     let items: Vec<(String, Node)> = rows
         .iter()
         .map(|(id, label)| {
@@ -134,7 +140,7 @@ fn build_tbody_node(rows: &[(u32, String)]) -> Node {
     // ノード木由来の新要素で置換するため、ここに id が無いと初回適用後に
     // `#bench-body` の解決が失敗する（実挙動で確認済み）。
     keyed_list("tbody", vec![("id", TBODY_ID)], "rows", items)
-        .expect("bench の keyed list キーは id 由来の非空一意文字列であり常に Ok")
+        .map_err(|_| JsValue::from_str("bench: keyed_list invariant violated"))
 }
 
 /// `TBODY_ID` の要素を解決する。要素不在は環境エラーとして `Err` を返す
@@ -192,12 +198,12 @@ fn apply_and_commit(new_node: Node) -> Result<(), JsValue> {
 ///
 /// # Errors
 ///
-/// `#bench-body` 要素が見つからない等、DOM 解決に失敗した場合に `Err` を
-/// 返す。
+/// `#bench-body` 要素が見つからない等、DOM 解決に失敗した場合、または
+/// `build_tbody_node` の keyed list 不変条件違反時に `Err` を返す。
 #[wasm_bindgen]
 pub fn bench_create() -> Result<(), JsValue> {
     let rows: Vec<(u32, String)> = (0..1000u32).map(|id| (id, build_label(id))).collect();
-    let new_node = build_tbody_node(&rows);
+    let new_node = build_tbody_node(&rows)?;
     STATE.with(|cell| cell.borrow_mut().rows = rows);
     apply_and_commit(new_node)
 }
@@ -207,7 +213,8 @@ pub fn bench_create() -> Result<(), JsValue> {
 ///
 /// # Errors
 ///
-/// [`bench_create`] と同じ DOM 解決失敗条件で `Err` を返す。
+/// [`bench_create`] と同じ条件（DOM 解決失敗・keyed list 不変条件違反）で
+/// `Err` を返す。
 #[wasm_bindgen]
 pub fn bench_update() -> Result<(), JsValue> {
     let rows = STATE.with(|cell| {
@@ -220,7 +227,7 @@ pub fn bench_update() -> Result<(), JsValue> {
         cell.borrow_mut().rows = rows.clone();
         rows
     });
-    let new_node = build_tbody_node(&rows);
+    let new_node = build_tbody_node(&rows)?;
     apply_and_commit(new_node)
 }
 
@@ -228,10 +235,11 @@ pub fn bench_update() -> Result<(), JsValue> {
 ///
 /// # Errors
 ///
-/// [`bench_create`] と同じ DOM 解決失敗条件で `Err` を返す。
+/// [`bench_create`] と同じ条件（DOM 解決失敗・keyed list 不変条件違反）で
+/// `Err` を返す。
 #[wasm_bindgen]
 pub fn bench_clear() -> Result<(), JsValue> {
     STATE.with(|cell| cell.borrow_mut().rows = Vec::new());
-    let new_node = build_tbody_node(&[]);
+    let new_node = build_tbody_node(&[])?;
     apply_and_commit(new_node)
 }

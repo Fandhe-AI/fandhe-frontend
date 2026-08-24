@@ -1342,7 +1342,7 @@ pub(crate) fn exchange_children<D: ChildExchangeDom>(dom: &mut D, built: &[D::No
 
     for (i, old_child) in old_children.iter().enumerate() {
         if !dom.remove_child(old_child) {
-            for removed in &old_children[..i] {
+            for removed in old_children.iter().take(i) {
                 if !dom.insert_before(removed, Some(old_child)) {
                     dom.on_rollback_failed();
                 }
@@ -1353,7 +1353,7 @@ pub(crate) fn exchange_children<D: ChildExchangeDom>(dom: &mut D, built: &[D::No
 
     for (j, node) in built.iter().enumerate() {
         if !dom.insert_before(node, None) {
-            for appended in &built[..j] {
+            for appended in built.iter().take(j) {
                 if !dom.remove_child(appended) {
                     dom.on_rollback_failed();
                 }

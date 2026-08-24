@@ -275,3 +275,96 @@ update 経路の実行速度悪化と天秤にかけ、本フレームワーク�
 とそれぞれの cli 同梱コピー）は bench 経路と同一プロファイル構成に揃える
 方針（本文書「適用方針」節）のため、bench 経路を不採用とした本判定に伴い
 追随変更も行わない（現行 `opt-level="s"` + `wasm-opt -Os` を維持）。
+
+## panic・fmt 機構の手書き縮減（イシュー #1388、2026-08-24）
+
+親 #1371 Phase 4（#1386）配下。twiggy 実測で fmt/panic 機構
+（`char::escape_debug_ext`・`Formatter::pad`・`slice_error_fail` 等）が
+CSR wasm payload の相当割合を占めていることが判明したため、**stable の
+範囲で** panic メッセージ整形を伴う経路（`expect`/`unwrap`/添字・スライス
+添字）を手書きで排除した。nightly の `panic = "immediate-abort"`
+（`-Zbuild-std`）は既知の効果があるが、`rust-toolchain.toml` の stable
+単一真実源を崩すため別途不採用（下記「nightly `immediate-abort` の評価」
+節）。
+
+### 計測手順
+
+1. ベースライン（before）: `git archive origin/main` で当時の worktree を
+   隔離コピーへ展開し、`bench/csr/fandhe/` で
+   `cargo build --target wasm32-unknown-unknown --release` →
+   `wasm-bindgen --target web` →
+   `wasm-opt -Os`（配布物サイズの正）と `wasm-opt -Os -g`（twiggy 用の
+   名前付き変種。**wasm-opt は既定で name section を落とす**ため twiggy
+   解析には `-g` 付き別出力が必要）の 2 系統を生成する。
+2. 実装後（after）: 同じ手順を本 PR の worktree（`bench/csr/fandhe/
+   Cargo.lock` は計測後 `git checkout --` で復元し、コミットへ含めない）
+   で実行する。
+3. `twiggy top -n 3000 <名前付き wasm>` を保存し、fmt/panic 関連の項目名
+   （`escape_debug_ext|slice_error_fail|expect_failed|panic_bounds_check|
+   slice_index_fail|unwrap_failed|panic_fmt|panic_with_hook|Debug|
+   PadAdapter|DebugStruct` の正規表現）で抽出した shallow bytes を合算する。
+4. `twiggy paths <wasm> '<同正規表現>' --regex -d 2` で到達経路（呼び出し
+   元）を確認する。
+5. `strings -n 8 <wasm-opt -Os 出力> | sort -u` の before/after 差分で
+   rodata（Debug derive の名前列・`unicode/printable.rs`・panic
+   `Location` の絶対パス等）の削減を確認する。
+
+### 原因表
+
+| 到達経路 | 発生源 |
+|---|---|
+| `KeyedListError` を `.expect()` した `Result<Node, KeyedListError>` → `Debug` derive の整形機構一式（`escape_debug_ext`・`slice_error_fail`・`PadAdapter`・`DebugStruct` 等） | `bench/csr/fandhe/src/lib.rs`（`build_tbody_node` の `.expect(...)`）。単独で fmt/panic カテゴリの過半を占めていた |
+| `Option::expect` → `expect_failed` | `crates/wasm-client/src/keyed_dom.rs`（`insert_before_batch` の `items.into_iter().next().expect(..)`） |
+| 添字 → `panic_bounds_check` | `crates/core/src/keyed.rs`（`insert_or_move_pass`: `working[h]`・`next[h]`・`prev[node]`・`next[p]`・`prev[nx]`）・`has_duplicate_keys`（`windows(2)` + 添字）・`trimmed_bounds`/`trimmed_bounds_items`・`diff_keyed_items`（完全一致・接頭辞・接尾辞判定ループ） |
+| スライス範囲添字 → `slice_index_fail` | `crates/wasm-client/src/keyed_apply.rs`（`exchange_children` のロールバック走査） |
+
+### before/after 実測値（`bench/csr/fandhe/`、wasm-opt 116・wasm-bindgen 0.2.127）
+
+| 指標 | before | after | 差分 |
+|---|---:|---:|---:|
+| wasm raw（`wasm-opt -Os`） | 104,489 B | 93,726 B | **−10,763 B（−10.3%）** |
+| wasm gzip -9 | 44,416 B | 38,684 B | **−5,732 B（−12.9%）** |
+| fmt/panic カテゴリ shallow bytes 合算（twiggy top、名前付き変種） | 7,133 B | 821 B | **−6,312 B** |
+
+fmt/panic カテゴリの残存 821B の内訳は `slice_index_fail`（276B、`core::
+keyed::diff_keyed_items` の中間区間スライス `&old_items[prefix..old_len -
+suffix]` 等、範囲スライスは計算量最適化の前提として意図的に維持。
+`crates/core/src/keyed.rs` rustdoc 参照）・`panic_with_hook`/`panic_fmt`
+（254B+215B、hashbrown・`thread_local!` 初期化等 stable では排除不能な
+標準ライブラリ内部由来）・`Formatter::pad` 系の残存少数（`RefCell:
+Display` 経由、bench glue の `thread_local! RefCell` と wasm-bindgen 内部の
+`RefCell` 双方に起因、stable では排除不能）。
+
+`strings -n 8` 差分では、`Debug` derive の variant/field 名列
+（`TooManyItemscountKeyBytesExceeded...`）・`unicode/printable.rs` テーブル・
+panic `Location` の絶対パス文字列（`crates/core/src/keyed.rs`・
+`crates/wasm-client/src/{keyed_apply,keyed_children_cache,keyed_dom}.rs`
+の 4 ファイル分）・`index out of bounds`/`is not a char boundary` 等の
+固定 panic 文言が before にのみ存在し after では消えていることを確認した
+（40 行の行単位差分、詳細は本 PR の作業ログ参照）。
+
+CSR 実行時間（`op_ms`、create/update/clear）の実測は、本イシュー実装環境
+に `bench/csr/node_modules`（playwright-core 経由の system chromium 起動）
+が未導入だったため本 PR では未実施である。意味論上は「同じ判定を
+`get`/イテレータで表現し直しただけ」（分岐の到達可否・返り値は不変、
+新規に追加した到達不能分岐は「DOM・キャッシュ無変更で `false` を返す」
+fail-closed のみ）であり速度退行の理論的な根拠はないが、実測での確認は
+別途 `node bench/csr/run_csr.mjs --framework fandhe` で追検証することを
+推奨する（再現手順は本節「計測手順」参照）。
+
+### nightly `immediate-abort` の評価
+
+nightly の `panic = "immediate-abort"`（`-Zbuild-std` 併用）は payload
+削減効果が実測されている（−31KB 相当、`docs/ci/` 内の既存評価記録
+・親イシュー調査で確認）が、以下の理由により本イシューでは不採用とする:
+
+- `rust-toolchain.toml`（`channel = "stable"`）が CI・ローカル開発の
+  唯一の toolchain 真実源であり、nightly feature 前提の `-Zbuild-std` を
+  導入すると単一真実源の設計（イシュー #1273）が崩れる
+- `-Zbuild-std` は標準ライブラリ自体の再ビルドを要し、CI キャッシュ戦略
+  （`docs/ci/hosted-runner-migration.md`）・ビルド時間への影響が本イシュー
+  のスコープに対して大きい
+
+**再評価トリガー**: `immediate-abort` 相当の効果が stable チャンネルで
+得られるようになった場合（`panic_immediate_abort` の安定化、または
+同等の代替手段の登場）。

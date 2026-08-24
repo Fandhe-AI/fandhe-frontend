@@ -9,6 +9,11 @@ name = "fandhe-frontend-wasm-client"
 # モジュール `keyed_apply_result`（常時コンパイル）へ切り出し、
 # host（native）の `cargo test` からも本型を構築できるようにした
 # （公開パス・フィールドは不変、可用ターゲットの拡大のみ）。
+# イシュー #1388: panic 整形機構（`expect`/`unwrap`/添字アクセス由来の
+# `escape_debug_ext`・`Formatter::pad`・`panic_bounds_check` 等）を wasm
+# payload から縮減するため、`expect`/添字アクセスを `get`/イテレータ・
+# fail-closed 早期 return へ内部実装のみ置換した（公開 API 不変、patch
+# バンプ）。
 # イシュー #1385: 連続 Insert 区間を行プロトタイプ cloneNode + 束縛点
 # 書き込みで一括生成する経路を追加した（`keyed_apply::KeyedListDom` へ
 # `pub(crate)` トレイトメソッド `create_items_from_template` を追加、
@@ -229,9 +234,9 @@ categories = ["wasm", "web-programming"]
 # version バンプも要求するため patch バンプした（0.5.3 も crates.io
 # 未公開ウィンドウ内）。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.4.2" }
-fandhe-frontend-app = { path = "../app", version = "0.2.5" }
-fandhe-frontend-interactive = { path = "../interactive", version = "0.2.6" }
+fandhe-frontend-core = { path = "../core", version = "0.4.3" }
+fandhe-frontend-app = { path = "../app", version = "0.2.6" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.2.7" }
 wasm-bindgen = "0.2"
 
 # イシュー #345（束縛点更新 + keyed list への置換）で以下 3 feature を追加。

@@ -66,9 +66,23 @@
 //!    未挿入）の構築段階で検出し、当該アイテムのみ丸ごと skip する
 //!    （ライブ DOM は一切変更しない、`keyed_apply` モジュール doc
 //!    「Update op の DOM 適用」参照）。
+//! 10. panic 整形機構を引き込む `unwrap`/`expect`/添字アクセスを製品コード
+//!     （テストを除く）で使わない（イシュー #1388、機械強制はクレート属性の
+//!     clippy deny。到達不能分岐は「DOM・キャッシュ無変更で `false`/`None`
+//!     を返す」fail-closed へ倒す。既存の panic 回避方針（不変条件 6）の
+//!     機械強制版）。
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
+// panic 整形機構（`unwrap`/`expect`/添字アクセス由来の
+// `escape_debug_ext`・`Formatter::pad`・`slice_error_fail` 等）が
+// wasm payload を押し上げるため（イシュー #1388 実測）、製品コード
+// （テストを除く）での使用を機械的に禁止する。テストコードは
+// `.claude/rules/coding-rust.md` の例外規定により対象外。
+#![cfg_attr(
+    not(test),
+    deny(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)
+)]
 
 use fandhe_frontend_app::{
     assemble_detail_page, assemble_list_page, DemoItemDetailLoader, DemoItemsLoader, Item, Loader,

@@ -20,9 +20,12 @@ publish = false
 # が強制）の範囲内で必要な外部クレート（例: serde）を追加してよい。追加時は
 # `cargo metadata` で依存件数・深さへの影響を確認し、REQ-3 の目安
 # （60 件/深さ 6）を参考にすること。
+# イシュー #1388: fandhe-frontend-core 0.4.2 → 0.4.3 / fandhe-frontend-app
+# 0.2.5 → 0.2.6 へのバンプ連鎖（依存元 core の panic 整形機構縮減、内部実装
+# のみ・公開 API 不変）に追随する。
 [dependencies]
-fandhe-frontend-core = "0.4.2"
-fandhe-frontend-app = "0.2.5"
+fandhe-frontend-core = "0.4.3"
+fandhe-frontend-app = "0.2.6"
 
 [dev-dependencies]
 

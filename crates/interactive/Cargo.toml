@@ -1,6 +1,7 @@
 [package]
 name = "fandhe-frontend-interactive"
-version = "0.2.6"
+# イシュー #1388: fandhe-frontend-core 0.4.3 依存追随（check-dep-versions --fix）に伴う patch バンプ。
+version = "0.2.7"
 edition = "2021"
 description = "fandhe-frontend-interactive: 状態管理コア（DOM/wasm-bindgen 非依存の状態機械・ハイドレーション契約）。外部依存は fandhe-frontend-core のみ。"
 license = "MIT OR Apache-2.0"
@@ -12,6 +13,6 @@ categories = ["web-programming"]
 # docs/api/interactive-api.md 第 2 節: 外部依存は fandhe-frontend-core（path）のみを厳守する。
 # 新規クレートを追加する場合は事前にユーザー承認を得ること（.claude/rules/coding-rust.md）。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.4.2" }
+fandhe-frontend-core = { path = "../core", version = "0.4.3" }
 
 [dev-dependencies]
