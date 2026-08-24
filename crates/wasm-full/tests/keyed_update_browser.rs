@@ -30,7 +30,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_core::keyed::keyed_list;
-use fandhe_frontend_core::{el, text, Node};
+use fandhe_frontend_core::{el, raw_html, text, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 use fandhe_frontend_wasm_full::Runtime;
@@ -86,6 +86,16 @@ struct ListState {
     dirty: Vec<&'static str>,
 }
 
+/// 内容がこのマーカーのアイテムは、[`ListState::view`] が `Node::RawHtml`
+/// 混入つきで構築するため `build_dom_node` が `None` を返し、
+/// `KeyedOp::Update` の子ノード構築が恒久的に失敗する（Cursor Bugbot
+/// 「Resync clear wipes valid items」回帰の再現用、`keyed_insert_skip_
+/// resync_browser.rs::POISON_MARKER` と同じ意図。ただしあちらは `Insert`
+/// 〔cache-miss 経路〕、本ファイルは `Update`〔with-previous 経路、
+/// `Runtime::keyed_list_cache` が既にマウント時点で `items` を種付け
+/// 済み〕を誘発する点が異なる）。
+const POISON_MARKER: &str = "__poison__";
+
 impl ListState {
     const FIELD_ITEMS: &'static str = "items";
 
@@ -105,6 +115,11 @@ enum ListAction {
     /// `id` の項目内容を `content` へ置き換える（同一キー内容変更、
     /// `KeyedOp::Update` を誘発する唯一の操作）。
     Rename { id: u64, content: String },
+    /// `ok_id` を正当な新内容（`"new-label"` 固定）へ、`poison_id` を
+    /// [`POISON_MARKER`]（`Node::RawHtml` 混入、構築恒久失敗）へ**同一
+    /// dispatch サイクル内**で同時に更新する（Cursor Bugbot 回帰再現用、
+    /// [`POISON_MARKER`] doc 参照）。
+    PoisonAndRename { ok_id: u64, poison_id: u64 },
 }
 
 impl Component for ListState {
@@ -121,6 +136,32 @@ impl Component for ListState {
                     }
                 }
             }
+            ListAction::PoisonAndRename { ok_id, poison_id } => {
+                let mut changed = false;
+                if let Some(item) = self
+                    .items
+                    .iter_mut()
+                    .find(|(existing, _)| *existing == ok_id)
+                {
+                    if item.1 != "new-label" {
+                        item.1 = "new-label".to_string();
+                        changed = true;
+                    }
+                }
+                if let Some(item) = self
+                    .items
+                    .iter_mut()
+                    .find(|(existing, _)| *existing == poison_id)
+                {
+                    if item.1 != POISON_MARKER {
+                        item.1 = POISON_MARKER.to_string();
+                        changed = true;
+                    }
+                }
+                if changed {
+                    self.dirty.push(Self::FIELD_ITEMS);
+                }
+            }
         }
     }
 
@@ -129,12 +170,28 @@ impl Component for ListState {
             .items
             .iter()
             .map(|(id, content)| {
+                let child = if content == POISON_MARKER {
+                    // テスト専用の意図的な壊れたノード（`build_dom_node`
+                    // の fail-closed 契約を検証するための固定文字列。
+                    // 外部入力・利用者制御値を一切含まない、ハードコード
+                    // されたテストフィクスチャであるため ESCAPE-REVIEWED
+                    // とする（`keyed_insert_skip_resync_browser.rs` と
+                    // 同じ方針）。
+                    #[expect(
+                        clippy::disallowed_methods,
+                        reason = "ESCAPE-REVIEWED: fixed test fixture literal, no external input"
+                    )]
+                    let poisoned = raw_html("<script>alert(1)</script>");
+                    poisoned
+                } else {
+                    text(content)
+                };
                 (
                     id.to_string(),
                     el(
                         "li",
                         vec![("data-testid", "keyed-update-item")],
-                        vec![text(content)],
+                        vec![child],
                     ),
                 )
             })
@@ -156,6 +213,13 @@ impl Component for ListState {
                     id,
                     content: content.to_string(),
                 })
+            }
+            // payload 形式: "<ok_id>:<poison_id>"。
+            "poison_and_rename" => {
+                let (ok_str, poison_str) = payload.split_once(':')?;
+                let ok_id = ok_str.parse::<u64>().ok()?;
+                let poison_id = poison_str.parse::<u64>().ok()?;
+                Some(ListAction::PoisonAndRename { ok_id, poison_id })
             }
             _ => None,
         }
@@ -185,14 +249,21 @@ impl BindingSource for ListState {
 /// の delegation は `closest("[data-action]")` による祖先探索のため、
 /// 子孫要素への動的追加でも成立する）。
 fn dispatch_rename(document: &Document, root: &Element, id: u64, content: &str) {
+    dispatch_action(document, root, "rename", &format!("{id}:{content}"));
+}
+
+/// `dispatch_rename` を任意のアクション名・payload へ一般化したもの
+/// （`PoisonAndRename` のような複合アクションも同じ手順で dispatch
+/// できるようにする）。
+fn dispatch_action(document: &Document, root: &Element, action: &str, payload: &str) {
     let trigger = document
         .create_element("button")
         .expect("create_element must not fail for a plain button");
     trigger
-        .set_attribute("data-action", "rename")
+        .set_attribute("data-action", action)
         .expect("set_attribute must not fail");
     trigger
-        .set_attribute("data-payload", &format!("{id}:{content}"))
+        .set_attribute("data-payload", payload)
         .expect("set_attribute must not fail");
     root.append_child(&trigger)
         .expect("append_child must not fail for a detached button");
@@ -415,4 +486,96 @@ async fn rename_applies_via_character_data_mutation_without_child_list_change() 
     // （observer 自体がコールバックを保持し続けるため、
     // observer.disconnect() 後は再発火しない）。
     callback.forget();
+}
+
+// --- Cursor Bugbot 指摘（PR #1401、イシュー #1381）回帰固定 -------------
+
+/// with-previous 経路（`apply_keyed_list_with_previous`）で `ResyncRequired`
+/// が起き、即時再同期（`apply_keyed_list`、cache-miss と同一の強制フル
+/// 再同期）も同じ理由で `ResyncRequired` を返した場合に、コンテナ全体を
+/// `clear` して**正しく更新済みだった他のアイテムまで破棄しない**こと
+/// （旧実装は `dom_mutated`〔書き込み試行の有無、成否は無関係〕が両試行の
+/// いずれかで `true` なら `clear_keyed_list_container` を呼び、コンテナ
+/// 全体を空にしていた。本テストの `id=1` は正しく更新され `dom_mutated`
+/// を立てる一方、`id=2` は `Node::RawHtml` 混入で恒久的に構築失敗し続け
+/// `ResyncRequired` を立てる——この 2 つが同一 dispatch サイクル内で
+/// 両立するケースが実際の回帰シナリオだった）。
+///
+/// `keyed_insert_skip_resync_browser.rs` は同種の恒久失敗を `Insert`
+/// （cache-miss、`None` 分岐）経由で検証済みだが、`Runtime::mount` が
+/// 初期 view から `items` keyed list を事前にキャッシュ種付けする
+/// （`Runtime::keyed_list_cache` doc 参照）ため、本ファイルの `ListState`
+/// のように**マウント時点で `items` が既に存在する** component は常に
+/// with-previous 経路（`Some(previous_node)` 分岐）から始まる。この経路の
+/// `ResyncRequired` 二重発生は cache-miss 分岐とは別のコード経路
+/// （`Runtime::commit_keyed_list_result` → `commit_keyed_list_result_with_resync`）
+/// を通るため、`keyed_insert_skip_resync_browser.rs` の受け入れではこの
+/// 回帰を検知できない。
+#[wasm_bindgen_test]
+fn resync_required_from_permanent_failure_does_not_wipe_healthy_sibling() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let placeholder = create_placeholder(&document, "keyed-update-root-container-5");
+    let _guard = RemoveOnDrop(placeholder.clone());
+
+    let state = ListState::new(&[(1, "first"), (2, "second")]);
+    let runtime =
+        Runtime::mount("keyed-update-root-container-5", state).expect("mount must succeed");
+    let root = runtime.root();
+
+    // id=1 の更新（正当な内容）と id=2 の更新（RawHtml 混入で恒久的に
+    // 構築失敗）を**同一 dispatch サイクル内**で同時に発生させる
+    // （`ListAction::PoisonAndRename` doc 参照）。
+    dispatch_action(&document, root, "poison_and_rename", "1:2");
+
+    let items = root
+        .query_selector_all("[data-testid='keyed-update-item']")
+        .expect("query_selector_all must not fail");
+    assert_eq!(
+        items.length(),
+        2,
+        "clear が発火してコンテナ全体（id=1・id=2 とも）が破棄されて \
+         はならない: 恒久失敗した id=2 だけでなく、正しく更新済みだった \
+         id=1 も残っているはず"
+    );
+
+    let ok_item = root
+        .query_selector("[data-key='1']")
+        .expect("query_selector must not fail")
+        .expect("id=1 must still exist after the dispatch");
+    assert_eq!(
+        ok_item.text_content().as_deref(),
+        Some("new-label"),
+        "id=1 は正しく新内容へ更新されているはず（恒久失敗した id=2 に \
+         巻き込まれて破棄・据え置きになってはならない）"
+    );
+
+    let poisoned_item = root
+        .query_selector("[data-key='2']")
+        .expect("query_selector must not fail")
+        .expect(
+            "id=2 は構築失敗のため fail-closed skip されるが、要素自体は \
+             コンテナごと破棄されず残っているはず",
+        );
+    assert_eq!(
+        poisoned_item.text_content().as_deref(),
+        Some("second"),
+        "id=2 は構築失敗のため旧内容のまま据え置かれるはず（クリアされて \
+         空になってはならない）"
+    );
+    assert_eq!(
+        root.query_selector("script").unwrap(),
+        None,
+        "構築失敗した RawHtml ペイロードが script 要素として混入しては \
+         ならない（fail-closed skip の XSS 回帰固定）"
+    );
+
+    assert_eq!(
+        runtime.component().items,
+        vec![
+            (1u64, "new-label".to_string()),
+            (2u64, POISON_MARKER.to_string())
+        ],
+        "内部状態は両方とも更新済みのまま（次回 dirty 到来時の \
+         cache-miss フォールバックによる自己修復ループへ委ねられる）"
+    );
 }
