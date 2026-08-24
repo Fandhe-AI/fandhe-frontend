@@ -203,9 +203,75 @@ pin する値（`.github/workflows/ci.yml` の env が単一宣言点）:
 
 - `crates/wasm-client/src/` のコード増加により payload が再増加した場合
   （内訳分析によるコード側削減の再検討）
-- binaryen が Rust/wasm-bindgen 向け最適化を大きく前進させ、`-Os` と
-  `-Oz`/`-O3` の性能特性差が実測で無視できなくなった場合
+- ~~binaryen が Rust/wasm-bindgen 向け最適化を大きく前進させ、`-Os` と
+  `-Oz`/`-O3` の性能特性差が実測で無視できなくなった場合~~ →
+  イシュー #1387 で消化済み（下記「再評価（イシュー #1387、2026-08-23）」
+  節参照）。`-Oz` は payload をさらに削減するが update 経路の op_ms が
+  誤差範囲を超えて悪化したため不採用継続。次に再評価する条件は
+  「`opt-level="z"` + `-Oz` でも update 経路の op_ms が ±5% 目安の誤差範囲
+  に収まる改善（コンパイラ側の最適化前進、または当該経路のホット
+  パス縮小等）が確認できた場合」とする
 - Vue 水準（gzip 約 22KB）への到達を明確な目標とする場合（dist-server 経路
   への適用を含めた追加削減の検討）
-- `_/bench/` の実行環境が本評価作業と同一 worktree で利用可能になり、
-  create/update/clear の実測に基づく非劣化確認が可能になった場合
+- ~~`_/bench/` の実行環境が本評価作業と同一 worktree で利用可能になり、
+  create/update/clear の実測に基づく非劣化確認が可能になった場合~~ →
+  イシュー #1387 で消化済み（`bench/csr/`・`bench/payload/` が git 管理下に
+  再構築済み〔PR #1370〕であり、本評価時点で create/update/clear の実測に
+  基づく非劣化確認を実施できた）
+
+## 再評価（イシュー #1387、2026-08-23）
+
+親 #1371（CSR 性能・wasm payload 改善トラッキング）Phase 4 配下のイシュー。
+上記 2 件の再評価トリガー（性能特性差の実測不能・create/update/clear 実測
+不能）が `bench/` v2 再構築（PR #1370）で解消されたことを受け、
+`opt-level="z"` + `wasm-opt -Oz` への切り替え可否を実測で確定した。
+
+### 対象・手順
+
+`bench/csr/fandhe/`（bench 専用の独立ワークスペース、glue クレート
+`fandhe-bench-csr-wasm`）の `[profile.release]` を `opt-level = "s"` →
+`"z"` へ、`build.sh` の `wasm-opt -Os` → `-Oz` へ変更し、変更前後で
+`bench/payload/measure.mjs`（payload raw/gzip）と `bench/csr/run_csr.mjs`
+（create/update/clear の `op_ms`。イシュー #1377 で分離計測済みの改善追跡
+KPI）を各 5 回実行し mean を比較した（実行環境: wasm-opt 116・
+wasm-bindgen 0.2.127・システム chromium）。
+
+### 実測値
+
+payload（`bench/payload/measure.mjs --framework fandhe`、1 回実行で決定的）:
+
+| 指標 | before（`"s"`+`-Os`） | after（`"z"`+`-Oz`） | 差分 |
+|------|------:|------:|------:|
+| wasm raw | 98,126B | 85,301B | −12,825B（−13.1%） |
+| total raw | 105,579B | 92,754B | −12,825B（−12.1%） |
+| total gzip | 45,189B | 41,137B | −4,052B（−9.0%） |
+
+CSR `op_ms`（`bench/csr/run_csr.mjs --framework fandhe` を 5 回実行した mean
+の平均。総計測 20 回中 escape_ok/rows_ok は全件 PASS）:
+
+| 経路 | before mean | after mean | 差分 |
+|------|------:|------:|------:|
+| create_op_ms | 5.734ms | 5.771ms | +0.7%（誤差範囲） |
+| update_op_ms | 2.146ms | 2.410ms | **+12.3%（誤差範囲超過）** |
+| clear_op_ms | 1.322ms | 1.346ms | +1.9%（誤差範囲） |
+
+update_op_ms は before（2.09〜2.25ms）/after（2.35〜2.47ms）でサンプル
+レンジが重ならず、計測誤差ではなく実際の悪化と判断した。
+
+### 判定
+
+**bench 経路（`bench/csr/fandhe/`）のプロファイル変更は不採用**。イシュー
+本文が定めた受け入れ基準（op_ms 悪化が ±5% 目安の誤差範囲に収まること）
+に対し update_op_ms が +12.3% と明確に超過したため、安全側の判断として
+`opt-level="s"` + `wasm-opt -Os`（#1327 の既存採用構成）を据え置く。
+`bench/csr/fandhe/Cargo.toml`・`build.sh` への変更は行わず、この評価文書
+（`docs/ci/wasm-opt-adoption-evaluation.md`）の追記のみで判断を記録する。
+
+payload 削減効果（raw −12.1%／gzip −9.0%）自体は実測として確認できたが、
+update 経路の実行速度悪化と天秤にかけ、本フレームワークが CSR 実行時間を
+主要 KPI として追跡している方針（親 #1371）を優先した。
+
+配布経路（`templates/app/wasm`・`examples/interactive-view-transitions/wasm`
+とそれぞれの cli 同梱コピー）は bench 経路と同一プロファイル構成に揃える
+方針（本文書「適用方針」節）のため、bench 経路を不採用とした本判定に伴い
+追随変更も行わない（現行 `opt-level="s"` + `wasm-opt -Os` を維持）。
