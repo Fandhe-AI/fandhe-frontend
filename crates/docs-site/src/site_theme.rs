@@ -1495,6 +1495,7 @@ fn typography_css() -> Result<String, SiteThemeError> {
             decl("border", "none"),
             decl("padding", "0"),
             decl("font-size", "0.85em"),
+            decl("color", "var(--fandhe-color-fg)"),
         ],
     )?;
 
