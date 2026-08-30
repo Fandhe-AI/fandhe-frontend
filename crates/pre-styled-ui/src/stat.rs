@@ -163,6 +163,17 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-danger-emphasized)"),
             ],
         )
+        // イシュー #1681: Xs/Xl は Sm(lg)→Md(2xl)→Lg(3xl) の非等差進行
+        // （+2 段→+1 段と縮小）を両端へ外挿した Xs=xs（3 段分の跳躍）・
+        // Xl=4xl（1 段分の跳躍を継続）。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl(
+                "--fandhe-stat-value-font-size",
+                "var(--fandhe-font-font-size-xs)",
+            )],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -185,6 +196,14 @@ fn recipe() -> SlotRecipe {
             vec![decl(
                 "--fandhe-stat-value-font-size",
                 "var(--fandhe-font-font-size-3xl)",
+            )],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl(
+                "--fandhe-stat-value-font-size",
+                "var(--fandhe-font-font-size-4xl)",
             )],
         )
         .default_variant(Size::Md)

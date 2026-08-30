@@ -14,6 +14,11 @@ const COLOR_SWATCH_GOLDEN_CSS: &str = r#"[data-scope="color-swatch"][data-part="
   background-size: 100% 100%, 8px 8px;
 }
 
+[data-scope="color-swatch"][data-part="root"].fd-color-swatch--size-xs {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
 [data-scope="color-swatch"][data-part="root"].fd-color-swatch--size-sm {
   width: 1rem;
   height: 1rem;
@@ -27,6 +32,11 @@ const COLOR_SWATCH_GOLDEN_CSS: &str = r#"[data-scope="color-swatch"][data-part="
 [data-scope="color-swatch"][data-part="root"].fd-color-swatch--size-lg {
   width: 2rem;
   height: 2rem;
+}
+
+[data-scope="color-swatch"][data-part="root"].fd-color-swatch--size-xl {
+  width: 2.5rem;
+  height: 2.5rem;
 }
 
 [data-scope="color-swatch"][data-part="root"].fd-color-swatch--shape-square {

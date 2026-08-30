@@ -81,14 +81,23 @@ fn scratch_root() -> PathBuf {
 /// 同方針（外部クレート `tempfile` を追加しない、REQ-3）。
 struct TempDir(PathBuf);
 
+/// 同一プロセス内で並行実行される複数テストが同一ナノ秒に
+/// `SystemTime::now()` を観測した場合の経路名衝突を防ぐカウンタ。
+/// `pid + nanos` のみでは、サイトビルドの所要時間が伸びて複数スレッドの
+/// 呼び出しタイミングが揃うと衝突し得る（片方のテストの
+/// [`TempDir::drop`] がもう片方のテストの出力ディレクトリを削除して
+/// しまい、後続の `fs::read_to_string` が ENOENT で panic する）。
+static TEMP_DIR_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 impl TempDir {
     fn new(tag: &str) -> Self {
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
+        let seq = TEMP_DIR_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let path = scratch_root().join(format!(
-            "fandhe-frontend-docs-site-no-js-{tag}-{}-{unique}",
+            "fandhe-frontend-docs-site-no-js-{tag}-{}-{unique}-{seq}",
             std::process::id()
         ));
         std::fs::create_dir_all(&path).expect("create temp dir for no_js_contract.rs test");

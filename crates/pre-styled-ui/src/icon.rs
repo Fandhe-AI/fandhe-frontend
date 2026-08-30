@@ -42,6 +42,12 @@ fn recipe() -> SlotRecipe {
                 decl("vertical-align", "middle"),
             ],
         )
+        // イシュー #1681: Xs/Xl は Sm→Md→Lg の 0.5rem 刻み等差進行を外挿。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("width", "0.5rem"), decl("height", "0.5rem")],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -56,6 +62,11 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![decl("width", "2rem"), decl("height", "2rem")],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("width", "2.5rem"), decl("height", "2.5rem")],
         )
         .default_variant(Size::Md)
 }

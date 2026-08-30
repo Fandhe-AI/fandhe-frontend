@@ -95,9 +95,13 @@ fn recipe() -> SlotRecipe {
                 decl("margin-top", "var(--fandhe-space-2, 0.5rem)"),
             ],
         )
+        // イシュー #1681: Xs/Xl は Sm(2)→Md(3)→Lg(4) の 1rem 刻み等差進行を
+        // 外挿。
+        .variant(Size::Xs, "root", vec![decl("padding", "1rem")])
         .variant(Size::Sm, "root", vec![decl("padding", "2rem")])
         .variant(Size::Md, "root", vec![decl("padding", "3rem")])
         .variant(Size::Lg, "root", vec![decl("padding", "4rem")])
+        .variant(Size::Xl, "root", vec![decl("padding", "5rem")])
         .default_variant(Size::Md)
 }
 

@@ -35,6 +35,11 @@ const PROGRESS_GOLDEN_CSS: &str = r#"[data-scope="progress"][data-part="label"] 
   transition: stroke-dashoffset 0.2s ease;
 }
 
+[data-scope="progress"][data-part="root"].fd-progress--size-xs {
+  --fandhe-progress-size: 1rem;
+  --fandhe-progress-thickness: 0.15rem;
+}
+
 [data-scope="progress"][data-part="root"].fd-progress--size-sm {
   --fandhe-progress-size: 2rem;
   --fandhe-progress-thickness: 0.2rem;
@@ -48,6 +53,11 @@ const PROGRESS_GOLDEN_CSS: &str = r#"[data-scope="progress"][data-part="label"] 
 [data-scope="progress"][data-part="root"].fd-progress--size-lg {
   --fandhe-progress-size: 4rem;
   --fandhe-progress-thickness: 0.3rem;
+}
+
+[data-scope="progress"][data-part="root"].fd-progress--size-xl {
+  --fandhe-progress-size: 5rem;
+  --fandhe-progress-thickness: 0.35rem;
 }
 
 [data-scope="progress"][data-part="circle"][data-state="indeterminate"] {

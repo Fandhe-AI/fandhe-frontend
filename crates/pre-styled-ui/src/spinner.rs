@@ -14,7 +14,7 @@
 //! 静的文字列として別途連結する）。
 
 use crate::css::decl;
-use crate::recipe::{palette_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
+use crate::recipe::{palette_scale_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, aria_hidden, aria_label, role, Anatomy};
 
@@ -58,6 +58,12 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        // イシュー #1681: Xs/Xl は Sm→Md→Lg の 0.5rem 刻み等差進行を外挿。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("width", "0.5rem"), decl("height", "0.5rem")],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -73,6 +79,11 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![decl("width", "2rem"), decl("height", "2rem")],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("width", "2.5rem"), decl("height", "2.5rem")],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -82,8 +93,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -234,6 +246,7 @@ mod tests {
             (ColorPalette::Success, "fd-spinner--color-palette-success"),
             (ColorPalette::Warning, "fd-spinner--color-palette-warning"),
             (ColorPalette::Danger, "fd-spinner--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-spinner--color-palette-neutral"),
         ] {
             let node = spinner(&SpinnerProps {
                 palette,

@@ -33,6 +33,10 @@ const QR_CODE_GOLDEN_CSS: &str = r#"[data-scope="qr-code"][data-part="root"] {
   margin: auto;
 }
 
+[data-scope="qr-code"][data-part="root"].fd-qr-code--size-xs {
+  --fandhe-qr-code-size: 5rem;
+}
+
 [data-scope="qr-code"][data-part="root"].fd-qr-code--size-sm {
   --fandhe-qr-code-size: 6rem;
 }
@@ -43,6 +47,10 @@ const QR_CODE_GOLDEN_CSS: &str = r#"[data-scope="qr-code"][data-part="root"] {
 
 [data-scope="qr-code"][data-part="root"].fd-qr-code--size-lg {
   --fandhe-qr-code-size: 12rem;
+}
+
+[data-scope="qr-code"][data-part="root"].fd-qr-code--size-xl {
+  --fandhe-qr-code-size: 20rem;
 }
 "#;
 

@@ -116,6 +116,12 @@ fn recipe() -> SlotRecipe {
             "series-line",
             vec![decl("fill", "none"), decl("stroke-width", "1.5")],
         )
+        // イシュー #1681: Xs/Xl は Sm→Md→Lg の 16px 刻み等差進行を外挿。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("--fandhe-sparkline-height", "16px")],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -130,6 +136,11 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![decl("--fandhe-sparkline-height", "64px")],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("--fandhe-sparkline-height", "80px")],
         )
         .default_variant(Size::Md)
 }

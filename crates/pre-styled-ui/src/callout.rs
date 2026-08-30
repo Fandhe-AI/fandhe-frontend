@@ -19,7 +19,7 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{palette_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
+use crate::recipe::{palette_scale_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -101,6 +101,14 @@ fn recipe() -> SlotRecipe {
                 decl("line-height", "var(--fandhe-font-line-height-normal)"),
             ],
         )
+        // イシュー #1681: Xs は padding 0.25rem 刻みの等差進行を外挿。
+        // font-size はトークン下限 xs を Sm と共有する。
+        .variant(Size::Xs, "root", vec![decl("padding", "0.25rem 0.5rem")])
+        .variant(
+            Size::Xs,
+            "text",
+            vec![decl("font-size", "var(--fandhe-font-font-size-xs)")],
+        )
         .variant(Size::Sm, "root", vec![decl("padding", "0.5rem 0.75rem")])
         .variant(
             Size::Sm,
@@ -118,6 +126,12 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "text",
             vec![decl("font-size", "var(--fandhe-font-font-size-md)")],
+        )
+        .variant(Size::Xl, "root", vec![decl("padding", "1.25rem 1.5rem")])
+        .variant(
+            Size::Xl,
+            "text",
+            vec![decl("font-size", "var(--fandhe-font-font-size-lg)")],
         )
         .variant(
             CalloutVariant::Soft,
@@ -155,8 +169,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -283,6 +298,7 @@ mod tests {
             (ColorPalette::Success, "fd-callout--color-palette-success"),
             (ColorPalette::Warning, "fd-callout--color-palette-warning"),
             (ColorPalette::Danger, "fd-callout--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-callout--color-palette-neutral"),
         ] {
             let props = CalloutProps {
                 palette,

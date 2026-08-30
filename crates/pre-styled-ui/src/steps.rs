@@ -94,7 +94,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `Steps` 状態機械はあえて再エクスポートしない（本モジュール冒頭の rustdoc
@@ -369,6 +369,12 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("disabled"),
             vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
         )
+        // イシュー #1681: Xs/Xl は Sm→Md→Lg の 0.5rem 刻み等差進行を外挿。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("--fandhe-steps-indicator-size", "1rem")],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -384,6 +390,11 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![decl("--fandhe-steps-indicator-size", "2.5rem")],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("--fandhe-steps-indicator-size", "3rem")],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -393,8 +404,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -635,6 +647,7 @@ mod tests {
             (ColorPalette::Success, "fd-steps--color-palette-success"),
             (ColorPalette::Warning, "fd-steps--color-palette-warning"),
             (ColorPalette::Danger, "fd-steps--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-steps--color-palette-neutral"),
         ] {
             let html = render(&root(Size::Md, palette, &s, vec![], vec![]));
             assert!(html.contains(class), "palette={palette:?} -> {html}");

@@ -165,6 +165,17 @@ fn recipe() -> SlotRecipe {
             StateCondition::AttrEq("data-state", "hidden"),
             vec![decl("display", "none")],
         )
+        // イシュー #1681: Xs/Xl は Sm(2)→Md(3)→Lg(4) の 1rem 刻み等差進行を
+        // 両端へ外挿。font-size はトークン名を Size と同名の段へ 1:1 対応。
+        .variant(
+            crate::recipe::Size::Xs,
+            "root",
+            vec![
+                decl("width", "1rem"),
+                decl("height", "1rem"),
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+            ],
+        )
         .variant(
             crate::recipe::Size::Sm,
             "root",
@@ -190,6 +201,15 @@ fn recipe() -> SlotRecipe {
                 decl("width", "4rem"),
                 decl("height", "4rem"),
                 decl("font-size", "var(--fandhe-font-font-size-lg)"),
+            ],
+        )
+        .variant(
+            crate::recipe::Size::Xl,
+            "root",
+            vec![
+                decl("width", "5rem"),
+                decl("height", "5rem"),
+                decl("font-size", "var(--fandhe-font-font-size-xl)"),
             ],
         )
         .default_variant(crate::recipe::Size::Md)

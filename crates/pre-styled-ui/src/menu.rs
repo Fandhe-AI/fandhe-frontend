@@ -275,6 +275,24 @@ fn recipe() -> SlotRecipe {
         // Md はフォールバック値と同一の現行外観を維持する）。`--fandhe-reference-width`/
         // `--fandhe-arrow-*`/`--fandhe-x`/`--fandhe-y`（wasm positioning 契約、
         // #663/#588）には手を触れない（モジュール rustdoc 参照）。
+        // イシュー #1681: Xs は Sm(1,2)→Md(2,3)→Lg(3,4) の等差進行を 1 段
+        // 外挿した (0-5, 1)（`space-0`は未定義のため最小刻み `space-0-5` を
+        // 使う）。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-menu-trigger-padding",
+                    "var(--fandhe-space-0-5) var(--fandhe-space-1)",
+                ),
+                decl(
+                    "--fandhe-menu-item-padding",
+                    "var(--fandhe-space-0-5) var(--fandhe-space-1)",
+                ),
+                decl("--fandhe-menu-content-padding", "var(--fandhe-space-0-5)"),
+            ],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -318,6 +336,21 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-space-3) var(--fandhe-space-4)",
                 ),
                 decl("--fandhe-menu-content-padding", "var(--fandhe-space-3)"),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-menu-trigger-padding",
+                    "var(--fandhe-space-4) var(--fandhe-space-5)",
+                ),
+                decl(
+                    "--fandhe-menu-item-padding",
+                    "var(--fandhe-space-4) var(--fandhe-space-5)",
+                ),
+                decl("--fandhe-menu-content-padding", "var(--fandhe-space-4)"),
             ],
         )
         .default_variant(Size::Md)
