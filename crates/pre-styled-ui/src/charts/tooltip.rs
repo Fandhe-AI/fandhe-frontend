@@ -16,7 +16,11 @@
 //! 3. [`crate::recipe::StateCondition::Hover`] による `:hover` 時の視覚的
 //!    強調（`stroke`/`stroke-width` 変更、CSS のみ。SVG の既定 `stroke` は
 //!    `none` のため `stroke-width` 単独では効果がなく、明示的な `stroke`
-//!    色の指定を必須とする）
+//!    色の指定を必須とする。イシュー #1425 で当該規則は
+//!    `@media (hover: hover)` 内・セレクタ末尾 `:not([data-disabled])` 付き
+//!    で出力される形へ変更された。タッチ端末での hover 貼り付き回避と
+//!    disabled 規則との勝敗を記述順に依存させないための共通対策であり、
+//!    本モジュールのコード自体は無変更）
 //!
 //! を組み合わせて埋め込み、JS なしで「ホバーで詳細が分かる」体験を実現する。
 
