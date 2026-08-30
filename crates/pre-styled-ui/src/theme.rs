@@ -254,6 +254,11 @@ pub struct Theme {
     /// `control-font-size-<段>` の 3 系統を `var(--fandhe-size-<name>)` として
     /// 参照する想定のトークン（既定値は [`DEFAULT_SIZES`]）。
     sizes: Vec<ScaleToken>,
+    /// transition の duration / easing のモード非依存スケール（イシュー #1425）。
+    /// `duration-` で始まる名前を持つトークンのみ、`prefers-reduced-motion:
+    /// reduce` 下で [`Theme::to_css`] が `0ms` へ一括上書きする
+    /// （[`Theme::to_css`] rustdoc の出力構造 5. を参照）。
+    motions: Vec<ScaleToken>,
 }
 
 impl Default for Theme {
@@ -275,6 +280,7 @@ impl Default for Theme {
             shadows: Vec::new(),
             z_indices: Vec::new(),
             sizes: Vec::new(),
+            motions: Vec::new(),
         };
 
         for (name, light, dark) in DEFAULT_COLORS {
@@ -309,6 +315,11 @@ impl Default for Theme {
         }
         for (name, value) in DEFAULT_SIZES {
             theme.push_size(name, value).expect(
+                "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
+            );
+        }
+        for (name, value) in DEFAULT_MOTIONS {
+            theme.push_motion(name, value).expect(
                 "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
             );
         }
@@ -576,6 +587,24 @@ const DEFAULT_SIZES: &[(&str, &str)] = &[
     ("control-font-size-xl", "var(--fandhe-font-font-size-xl)"),
 ];
 
+/// 既定の transition トークン（name, value）。モード非依存の新規グループ
+/// （イシュー #1425）。既存 recipe が個別に手書きしていた `0.15s` / `0.2s
+/// ease` 等のリテラルを吸収する対応表（`docs/design/
+/// pre-styled-ui-interaction-visual-language.md` 参照）: `0.15s` →
+/// `duration-fast`、`0.2s ease` → `duration-normal`。duration 3 段
+/// （chakra-ui / Radix の既定値帯に合わせた `fast`/`normal`/`slow`）と easing
+/// 2 種（`standard`: 汎用の enter/exit、`emphasized`: モーダル等の強調遷移）
+/// を持つ。`duration-` で始まる名前のみ [`Theme::to_css`] が
+/// `prefers-reduced-motion: reduce` 下で `0ms` へ一括上書きする対象になる
+/// （easing はそれ単体では動きを生まないため対象外）。
+const DEFAULT_MOTIONS: &[(&str, &str)] = &[
+    ("duration-fast", "150ms"),
+    ("duration-normal", "200ms"),
+    ("duration-slow", "300ms"),
+    ("easing-standard", "cubic-bezier(0.4, 0, 0.2, 1)"),
+    ("easing-emphasized", "cubic-bezier(0.2, 0, 0, 1)"),
+];
+
 impl Theme {
     /// 空のテーマを構築する（既定トークンなし）。カスタムテーマをゼロから
     /// 組み立てたい呼び出し元向け。既定パレットが欲しい場合は
@@ -590,6 +619,7 @@ impl Theme {
             shadows: Vec::new(),
             z_indices: Vec::new(),
             sizes: Vec::new(),
+            motions: Vec::new(),
         }
     }
 
@@ -715,6 +745,18 @@ impl Theme {
         push_scale(&mut self.sizes, name, value)
     }
 
+    /// モード非依存の transition（duration / easing）トークンを追加する
+    /// （イシュー #1425）。`fandhe-frontend-pre-styled-ui` の styled 部品が
+    /// [`crate::recipe::transition_declaration`] 経由で
+    /// `var(--fandhe-motion-<name>)` として参照する想定のトークン。
+    ///
+    /// # Errors
+    ///
+    /// [`Theme::push_color`] と同様（`name`/`value` の検証・重複拒否）。
+    pub fn push_motion(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        push_scale(&mut self.motions, name, value)
+    }
+
     /// ライト/ダーク値を持つ色トークンを追加、または既存トークンを上書きする
     /// （イシュー #1138）。
     ///
@@ -820,22 +862,41 @@ impl Theme {
         upsert_scale(&mut self.sizes, name, value)
     }
 
+    /// モード非依存の transition（duration / easing）トークンを追加、または
+    /// 既存トークンを上書きする（イシュー #1425）。セマンティクスは
+    /// [`Theme::upsert_color`] 参照。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `value` のいずれかが allowlist 検証を通過しない場合。
+    pub fn upsert_motion(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        upsert_scale(&mut self.motions, name, value)
+    }
+
     /// テーマを決定的なプレーン CSS 文字列へ変換する。
     ///
     /// 出力構造（固定順、`docs` は伴わず本 rustdoc が正）:
     ///
     /// 1. `:root { color-scheme: light dark; --fandhe-... }`（light 値、
     ///    colors → spaces → typography → radii → shadows → z-indices →
-    ///    sizes の順。radii/z-indices/sizes はモード非依存のため 1 値、
-    ///    shadows は light 値をここに出力する。イシュー #606 で追加した
-    ///    radii/shadows、イシュー #1423 で追加した z-indices、イシュー
-    ///    #1678 で追加した sizes はいずれも末尾に純追加する構成のため、
-    ///    当該グループを push しないテーマの出力は追加前とバイト同一になる）
+    ///    sizes → motions の順。radii/z-indices/sizes/motions はモード非依存
+    ///    のため 1 値、shadows は light 値をここに出力する。イシュー #606 で
+    ///    追加した radii/shadows、イシュー #1423 で追加した z-indices、イシュー
+    ///    #1678 で追加した sizes、イシュー #1425 で追加した motions はいずれも
+    ///    末尾に純追加する構成のため、当該グループを push しないテーマの出力は
+    ///    追加前とバイト同一になる）
     /// 2. `:root[data-theme="light"] { color-scheme: light; }`
     /// 3. `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }`
     ///    （dark 値。OS 設定追従。colors → shadows の順）
     /// 4. `:root[data-theme="dark"] { ... }`（dark 値。明示指定は常に勝つ。
     ///    3 と同特異度のため、末尾に置く出力順序でメディアクエリより優先させる）
+    /// 5. `@media (prefers-reduced-motion: reduce) { :root { --fandhe-motion-duration-...: 0ms; } }`
+    ///    （イシュー #1425。motions のうち名前が `duration-` で始まるものが
+    ///    1 件以上あるときのみ出力する。`transition: none` ではなく `0ms` を
+    ///    選ぶのは、`transition-property` の宣言自体は維持しつつ遷移時間だけ
+    ///    ゼロ化することで、`transitionend` イベントに依存する JS 側の
+    ///    ロジックを壊さないため。easing トークンはそれ単体では動きを
+    ///    生まないため対象外）
     ///
     /// 3 と 4 の dark トークン列は同一の内部ヘルパ（[`Theme::write_dark_declarations`]）
     /// から生成し、二重管理による乖離を構造的に防ぐ。
@@ -898,6 +959,13 @@ impl Theme {
                 token.value.as_str()
             ));
         }
+        for token in &self.motions {
+            out.push_str(&format!(
+                "  {VAR_PREFIX}-motion-{}: {};\n",
+                token.name.as_str(),
+                token.value.as_str()
+            ));
+        }
         out.push_str("}\n");
 
         out.push_str(":root[data-theme=\"light\"] { color-scheme: light; }\n");
@@ -914,7 +982,39 @@ impl Theme {
         self.write_dark_declarations(&mut out, "  ");
         out.push_str("}\n");
 
+        self.write_reduced_motion_block(&mut out);
+
         out
+    }
+
+    /// `prefers-reduced-motion: reduce` 下で duration トークンのみ `0ms` へ
+    /// 一括上書きするブロックを書き出す内部ヘルパ（イシュー #1425）。
+    ///
+    /// `motions` のうち名前が `duration-` で始まるものが 1 件も無い場合は
+    /// 何も出力しない（motion トークンを push しないテーマの `to_css()` 出力を
+    /// 本イシュー導入前とバイト同一に保つため）。easing トークンは対象外
+    /// （[`Theme::to_css`] rustdoc の出力構造 5. 参照）。
+    fn write_reduced_motion_block(&self, out: &mut String) {
+        let durations: Vec<&ScaleToken> = self
+            .motions
+            .iter()
+            .filter(|t| t.name.as_str().starts_with("duration-"))
+            .collect();
+
+        if durations.is_empty() {
+            return;
+        }
+
+        out.push_str("@media (prefers-reduced-motion: reduce) {\n");
+        out.push_str("  :root {\n");
+        for token in durations {
+            out.push_str(&format!(
+                "    {VAR_PREFIX}-motion-{}: 0ms;\n",
+                token.name.as_str()
+            ));
+        }
+        out.push_str("  }\n");
+        out.push_str("}\n");
     }
 
     /// dark モードの custom property 宣言列を書き出す内部ヘルパ。
@@ -1100,6 +1200,19 @@ pub fn z_index_var(name: &str) -> Result<String, ThemeError> {
 pub fn size_var(name: &str) -> Result<String, ThemeError> {
     let name = TokenName::new(name)?;
     Ok(format!("var({VAR_PREFIX}-size-{})", name.as_str()))
+}
+
+/// transition（duration / easing）トークン名から `var(--fandhe-motion-<name>)`
+/// 参照を組み立てる（イシュー #1425）。styled 部品は通常
+/// [`crate::recipe::transition_declaration`] 経由で間接的にこの参照を得るが、
+/// 個別に `var()` を組み立てたい呼び出し元向けに公開する。
+///
+/// # Errors
+///
+/// [`color_var`] と同様。
+pub fn motion_var(name: &str) -> Result<String, ThemeError> {
+    let name = TokenName::new(name)?;
+    Ok(format!("var({VAR_PREFIX}-motion-{})", name.as_str()))
 }
 
 /// タイポグラフィトークン名から `var(--fandhe-font-<name>)` 参照を組み立てる。

@@ -6,7 +6,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # 返すようになる観測可能な破壊的変更のため、0.x の破壊的変更はマイナーバンプと
 # する規約（.claude/rules/coding-rust.md「公開済みクレートの実体変更時は
 # semver バンプ必須」）に従い minor バンプする（PR #1704 codex-review P1 指摘）。
-version = "0.43.0"
+# イシュー #1425: hover/disabled/transition の共通ビジュアル言語導入
+# （`recipe::hover_surface_declarations` 等の公開 API 追加）に伴い、
+# 独立に 0.42.0 へ到達していた main（#1704）とマージ後の実体変更を反映し
+# 0.43.0 へマイナーバンプする（0.x の破壊的変更はマイナーバンプの規約）。
+# イシュー #1678: size / ColorPalette 軸の段階数・名称決定とトークン・列挙型
+# 定義（本ブランチ側の公開 API 追加）も merge base（0.42.0）から独立に
+# 0.43.0 へ到達していたため、main（#1425 の 0.43.0）とのマージにより
+# 双方の実体変更を統合した結果として 0.44.0 へさらにマイナーバンプする
+# （0.x の破壊的変更はマイナーバンプの規約。同一版数への偶発的衝突を
+# そのまま採用しない）。
+version = "0.44.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

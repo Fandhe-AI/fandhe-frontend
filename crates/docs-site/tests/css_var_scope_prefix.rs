@@ -70,6 +70,13 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   このリストへ載せたままだと `shared_var_hits` が更新されず
 ///   `shared_vars_table_has_no_stale_entries` が stale 検知で FAIL する。
 ///   `docs/design/color-token-system.md` §1 参照）。
+/// - `--fandhe-hover-bg`: hover 時の背景色を variant ごとに間接参照させる
+///   ための共通 custom property（イシュー #1425、`crate::recipe::
+///   hover_surface_declarations`/`hover_bg_solid`/`hover_bg_muted`）。
+///   `--fandhe-palette` と同じ「複数部品が同じ名前を変数として共有し、
+///   実値は各 scope の variant 側が定義する」設計であり、`button.rs`（参照
+///   実装）とそれを流用する `download_trigger.rs` の双方が参照するため
+///   scope 固有名ではなく共有トークン扱いとする。
 const SHARED_VARS: &[&str] = &[
     "--fandhe-palette",
     "--fandhe-palette-emphasized",
@@ -79,6 +86,7 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-arrow-x",
     "--fandhe-arrow-y",
     "--fandhe-reference-width",
+    "--fandhe-hover-bg",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。

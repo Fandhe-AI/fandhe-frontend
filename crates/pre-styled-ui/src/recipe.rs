@@ -364,6 +364,122 @@ pub fn palette_scale_declarations(p: ColorPalette) -> Vec<Declaration> {
     }
 }
 
+/// disabled / hover / transition の共通ビジュアル言語（イシュー #1425、
+/// 親 #1421）。Phase 1 以降の各部品 issue が本節のヘルパから選んで使う想定
+/// （適用手順・duration 写像表は
+/// `docs/design/pre-styled-ui-interaction-visual-language.md` 参照）。
+///
+/// - **disabled**: [`disabled_declarations`] を `root`（や disabled になり得る
+///   slot）へ `.state(slot, StateCondition::Attr("data-disabled"),
+///   disabled_declarations())` として登録する。`:disabled` ではなく
+///   `[data-disabled]` を正とするのは、`<li>`/`<a>`/`<div>` ベースの
+///   item/trigger にも同じ 1 経路で適用できるため（`:disabled` はネイティブ
+///   フォーム要素にしか効かない）。
+/// - **hover**: インタラクティブ slot（`cursor: pointer` を持つ、または
+///   `<button>`/`<a>`/`role=option|menuitem|tab` 等を担う slot）にのみ、
+///   各 variant が [`hover_bg_solid`]/[`hover_bg_muted`] のいずれかで
+///   `--fandhe-hover-bg` を定義し、`root`（または対象 slot）へ
+///   `.state(slot, StateCondition::Hover, hover_surface_declarations())` を
+///   1 本登録する（variant ごとの色差は custom property 経由の間接参照で
+///   表現し、`SlotRecipe` に「variant × state」の複合条件を持ち込まない）。
+///   表示専用の slot（badge/alert/card/stat 等）には付けない。
+/// - **transition**: [`transition_declarations`] を base（`root`）へ追加する。
+#[must_use]
+pub fn disabled_declarations() -> Vec<Declaration> {
+    vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")]
+}
+
+/// hover 時の背景色を適用する宣言（[`disabled_declarations`] 群の doc 参照）。
+///
+/// 実際の色は宣言に埋め込まず `var(--fandhe-hover-bg)` を参照するのみとし、
+/// どの色になるかは各 variant が [`hover_bg_solid`]/[`hover_bg_muted`] で
+/// 定義した `--fandhe-hover-bg` に委ねる（[`SlotRecipe`] が持たない
+/// 「variant × state」の複合条件を、custom property の間接参照で代替する
+/// 既存パターン。[`crate::table`] の `--fandhe-table-stripe-bg` と同型）。
+#[must_use]
+pub fn hover_surface_declarations() -> Vec<Declaration> {
+    vec![decl("background", "var(--fandhe-hover-bg)")]
+}
+
+/// solid 系 variant（面が既に強調色で塗られている）向けの `--fandhe-hover-bg`
+/// 定義。既存の `<palette>-emphasized` 段（`palette_declarations` が定義する
+/// `var(--fandhe-palette-emphasized)`）を再利用し、hover 専用の新しい色段を
+/// 追加しない。
+#[must_use]
+pub fn hover_bg_solid() -> Declaration {
+    decl("--fandhe-hover-bg", "var(--fandhe-palette-emphasized)")
+}
+
+/// ghost/outline/subtle 系 variant・list item 等（面を持たない、または
+/// 淡い面のみを持つ）向けの `--fandhe-hover-bg` 定義。
+#[must_use]
+pub fn hover_bg_muted() -> Declaration {
+    decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)")
+}
+
+/// [`transition_declarations`] が既定 easing として使うトークン
+/// （汎用の enter/exit、[`crate::theme`] の `easing-standard` 既定値）。
+const TRANSITION_EASING_VAR: &str = "var(--fandhe-motion-easing-standard)";
+
+/// [`transition_declarations`] が受け取る duration の 3 段（イシュー #1425）。
+/// [`crate::theme`] の `duration-fast`/`duration-normal`/`duration-slow`
+/// トークンに 1:1 対応する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MotionDuration {
+    /// `var(--fandhe-motion-duration-fast)`（150ms 既定）。ホバー等の軽微な
+    /// 表面変化向け。
+    Fast,
+    /// `var(--fandhe-motion-duration-normal)`（200ms 既定）。開閉等の一般的な
+    /// 遷移向け。
+    Normal,
+    /// `var(--fandhe-motion-duration-slow)`（300ms 既定）。モーダル等の
+    /// 強調遷移向け。
+    Slow,
+}
+
+impl MotionDuration {
+    /// `var(--fandhe-motion-duration-<name>)` を返す。[`crate::theme::motion_var`]
+    /// と同じトークン名を参照する固定 `&'static str` であり、文字列連結を
+    /// 一切行わない（[`Declaration::value`] の `&'static str` 制約を満たす
+    /// ための設計、本関数群冒頭 doc 参照）。
+    const fn var_ref(self) -> &'static str {
+        match self {
+            MotionDuration::Fast => "var(--fandhe-motion-duration-fast)",
+            MotionDuration::Normal => "var(--fandhe-motion-duration-normal)",
+            MotionDuration::Slow => "var(--fandhe-motion-duration-slow)",
+        }
+    }
+}
+
+/// transition 宣言 3 件（`transition-property`/`transition-duration`/
+/// `transition-timing-function`）を組み立てる（イシュー #1425）。
+///
+/// CSS shorthand `transition:` ではなく longhand 3 プロパティへ分解するのは、
+/// duration/easing をトークン共通化しつつプロパティ名一覧のみ呼び出し側で
+/// 変えられるようにするため。shorthand で複数プロパティへ同一 duration を
+/// 割り当てるには各プロパティごとに duration/easing の反復記述が必要になり、
+/// [`Declaration::value`] の `&'static str` 制約下では実行時の文字列連結
+/// なしに表現できない（本モジュール冒頭のセキュリティ不変条件 - `decl()` は
+/// ソースコード中のリテラルからのみ構築される - を保つため、`format!` した
+/// 文字列を `Box::leak` する等の回避策は採らない）。
+///
+/// `properties` はカンマ区切りの CSS プロパティ名列を表すソースコード内
+/// リテラル（例: `"background, border-color, color, box-shadow"`）を渡す
+/// 想定。easing は常に `easing-standard` に固定する（本イシューでは
+/// duration のみを可変にする単純化、`docs/design/
+/// pre-styled-ui-interaction-visual-language.md` 参照）。
+#[must_use]
+pub fn transition_declarations(
+    properties: &'static str,
+    duration: MotionDuration,
+) -> Vec<Declaration> {
+    vec![
+        decl("transition-property", properties),
+        decl("transition-duration", duration.var_ref()),
+        decl("transition-timing-function", TRANSITION_EASING_VAR),
+    ]
+}
+
 /// slot 1 個への base 宣言登録（内部表現）。
 struct BaseRule {
     slot: &'static str,
@@ -688,12 +804,17 @@ impl SlotRecipe {
     /// （`FocusWithin`、イシュー #683）・
     /// `[data-scope="<scope>"][data-part="<slot>"]:last-child`
     /// （`LastChild`、イシュー #752）・
-    /// `[data-scope="<scope>"][data-part="<slot>"]:hover`
-    /// （`Hover`、イシュー #847）のいずれか（出力順が最後尾のため CSS
-    /// カスケードの後勝ちで variant/compound variant を上書きする。
-    /// `LastChild` は同一 slot への他の state 規則より後に登録することで
-    /// 詳細度が同じでも記述順の後勝ちで上書きする契約、`state()` の
-    /// 「登録順」規約参照）。
+    /// `[data-scope="<scope>"][data-part="<slot>"]:hover:not([data-disabled])`
+    /// （`Hover`、イシュー #847。イシュー #1425 でタッチ端末の hover
+    /// 貼り付き対策として `@media (hover: hover) { ... }` 配下へまとめて
+    /// 出力する形へ変更し、`:not([data-disabled])` を付与して disabled 規則
+    /// との勝敗を記述順に依存させない契約にした。この `@media` ブロックは
+    /// 通常の state 規則がすべて出力された後、[`SlotRecipe::css`] の
+    /// 出力の最後尾に 1 つだけ現れる）のいずれか（`Hover` 以外は出力順が
+    /// 最後尾のため CSS カスケードの後勝ちで variant/compound variant を
+    /// 上書きする。`LastChild` は同一 slot への他の state 規則より後に
+    /// 登録することで詳細度が同じでも記述順の後勝ちで上書きする契約、
+    /// `state()` の「登録順」規約参照）。
     ///
     /// `scope`（[`SlotRecipe::new`] に渡した値）が識別子として不正な場合は
     /// 空文字列を返す（fail-closed。`slot`/`axis`/`value` と同様に `scope` も
@@ -786,6 +907,8 @@ impl SlotRecipe {
             }
         }
 
+        let mut hover_css = String::new();
+
         for rule in &self.states {
             if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
                 continue;
@@ -828,12 +951,43 @@ impl SlotRecipe {
                         selector.push_str(&format!("[{name}=\"{value}\"]"));
                     }
                 }
-                StateCondition::Hover => selector.push_str(":hover"),
+                StateCondition::Hover => {
+                    // タッチ端末での hover 貼り付き（tap 後もホバー状態が
+                    // 残り続ける）を避けるため `@media (hover: hover)` 配下へ
+                    // まとめて出力する（イシュー #1425）。`:not([data-disabled])`
+                    // で disabled 規則との勝敗を記述順に依存させない。
+                    selector.push_str(":hover:not([data-disabled])");
+                }
             }
+            // Hover は states ループの通常出力先ではなく専用バッファへ集約し、
+            // css() 末尾で `@media (hover: hover)` に 1 つだけまとめて出す
+            // （イシュー #1425、本関数 rustdoc の出力順序節参照）。
+            let target = if matches!(rule.condition, StateCondition::Hover) {
+                &mut hover_css
+            } else {
+                &mut out
+            };
             if let Some(css) = serialize_rule(&selector, &rule.declarations) {
-                out.push_str(&css);
-                out.push('\n');
+                target.push_str(&css);
+                target.push('\n');
             }
+        }
+
+        if !hover_css.is_empty() {
+            // hover_css 側の各規則末尾に付与済みの区切り空行はそのまま
+            // 空行として保持し、非空行のみへインデントを足す（空行への
+            // 余計な末尾空白混入を避ける）。
+            out.push_str("@media (hover: hover) {\n");
+            for line in hover_css.trim_end_matches('\n').lines() {
+                if line.is_empty() {
+                    out.push('\n');
+                } else {
+                    out.push_str("  ");
+                    out.push_str(line);
+                    out.push('\n');
+                }
+            }
+            out.push_str("}\n");
         }
 
         // 末尾の空行は規則ブロック間の区切りとしてのみ入れるため、
