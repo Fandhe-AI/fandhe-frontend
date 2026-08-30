@@ -80,7 +80,7 @@
 //! 同型。`size`（[`Size`]）は [`root`] へのみクラスを付与し、[`recipe`] が
 //! 登録する `--fandhe-radio-card-*` の root スコープ custom property 経由で
 //! `item`/`item_indicator`/`item_text` の寸法を切り替える。`palette`
-//! （[`ColorPalette`]）は [`crate::recipe::palette_declarations`] を `root`
+//! （[`ColorPalette`]）は [`crate::recipe::palette_scale_declarations`] を `root`
 //! へ登録し、選択済みカードの枠線・背景・ドット色を
 //! `var(--fandhe-palette, ...)` 経由で切り替える。
 //!
@@ -134,7 +134,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 use fandhe_frontend_headless_ui::aria::{aria_labelledby, aria_orientation, role};
 pub use fandhe_frontend_headless_ui::data_attrs::Orientation;
@@ -357,6 +357,19 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-radio-card-padding", "0.25rem"),
+                decl("--fandhe-radio-card-control-size", "0.7rem"),
+                decl("--fandhe-radio-card-dot-inset", "1px"),
+                decl(
+                    "--fandhe-radio-card-label-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -395,6 +408,19 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-radio-card-padding", "1.25rem"),
+                decl("--fandhe-radio-card-control-size", "1.5rem"),
+                decl("--fandhe-radio-card-dot-inset", "5px"),
+                decl(
+                    "--fandhe-radio-card-label-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -404,8 +430,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -686,9 +713,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-radio-card--size-xs"),
             (Size::Sm, "fd-radio-card--size-sm"),
             (Size::Md, "fd-radio-card--size-md"),
             (Size::Lg, "fd-radio-card--size-lg"),
+            (Size::Xl, "fd-radio-card--size-xl"),
         ] {
             let html = render(&root(
                 size,
@@ -717,6 +746,10 @@ mod tests {
                 "fd-radio-card--color-palette-warning",
             ),
             (ColorPalette::Danger, "fd-radio-card--color-palette-danger"),
+            (
+                ColorPalette::Neutral,
+                "fd-radio-card--color-palette-neutral",
+            ),
         ] {
             let html = render(&root(Size::Md, palette, false, None, None, vec![], vec![]));
             assert!(html.contains(class), "palette={palette:?} -> {html}");

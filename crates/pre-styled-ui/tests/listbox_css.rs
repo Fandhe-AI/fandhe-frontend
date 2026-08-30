@@ -57,6 +57,12 @@ const LISTBOX_GOLDEN_CSS: &str = r#"[data-scope="listbox"][data-part="root"] {
   color: var(--fandhe-color-fg-muted);
 }
 
+[data-scope="listbox"][data-part="root"].fd-listbox--size-xs {
+  --fandhe-listbox-item-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
+  --fandhe-listbox-content-padding: var(--fandhe-space-0-5);
+  --fandhe-listbox-content-max-height: 8rem;
+}
+
 [data-scope="listbox"][data-part="root"].fd-listbox--size-sm {
   --fandhe-listbox-item-padding: var(--fandhe-space-1) var(--fandhe-space-2);
   --fandhe-listbox-content-padding: var(--fandhe-space-1);
@@ -73,6 +79,12 @@ const LISTBOX_GOLDEN_CSS: &str = r#"[data-scope="listbox"][data-part="root"] {
   --fandhe-listbox-item-padding: var(--fandhe-space-3) var(--fandhe-space-4);
   --fandhe-listbox-content-padding: var(--fandhe-space-3);
   --fandhe-listbox-content-max-height: 20rem;
+}
+
+[data-scope="listbox"][data-part="root"].fd-listbox--size-xl {
+  --fandhe-listbox-item-padding: var(--fandhe-space-4) var(--fandhe-space-5);
+  --fandhe-listbox-content-padding: var(--fandhe-space-4);
+  --fandhe-listbox-content-max-height: 24rem;
 }
 
 [data-scope="listbox"][data-part="root"][data-disabled] {

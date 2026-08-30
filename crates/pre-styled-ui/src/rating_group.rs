@@ -43,7 +43,7 @@
 //! 要素であるため、[`crate::recipe::SlotRecipe`] へ子孫セレクタ機構を追加
 //! せずに実現できる、[`crate::radio_group`] と同型）経由で星の寸法を切り
 //! 替える。`palette`（[`ColorPalette`]）は既存の
-//! [`crate::recipe::palette_declarations`]（chakra-ui virtual token 方式、
+//! [`crate::recipe::palette_scale_declarations`]（chakra-ui virtual token 方式、
 //! #606）を `root` へ登録し、点灯時の星の塗り色を `var(--fandhe-palette,
 //! ...)` 経由で切り替える。`base`/`state` 規則の `var()` にはいずれも Md
 //! サイズ・Accent パレット相当のフォールバック値を書き、styled `root` を
@@ -74,7 +74,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -165,6 +165,13 @@ fn recipe() -> SlotRecipe {
             vec![decl("cursor", "default")],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-rating-group-item-size", "0.75rem"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![decl("--fandhe-rating-group-item-size", "1rem")],
@@ -179,6 +186,13 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![decl("--fandhe-rating-group-item-size", "1.5rem")],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-rating-group-item-size", "1.75rem"),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -188,8 +202,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -322,9 +337,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-rating-group--size-xs"),
             (Size::Sm, "fd-rating-group--size-sm"),
             (Size::Md, "fd-rating-group--size-md"),
             (Size::Lg, "fd-rating-group--size-lg"),
+            (Size::Xl, "fd-rating-group--size-xl"),
         ] {
             let html = render(&root(
                 size,
@@ -357,6 +374,10 @@ mod tests {
             (
                 ColorPalette::Danger,
                 "fd-rating-group--color-palette-danger",
+            ),
+            (
+                ColorPalette::Neutral,
+                "fd-rating-group--color-palette-neutral",
             ),
         ] {
             let html = render(&root(Size::Md, palette, false, false, vec![], vec![]));

@@ -134,6 +134,14 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
+            Size::Xs,
+            "input",
+            vec![
+                decl("padding", "0.125rem 0.375rem"),
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "input",
             vec![
@@ -155,6 +163,14 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("padding", "0.5rem 1rem"),
                 decl("font-size", "var(--fandhe-font-font-size-md)"),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "input",
+            vec![
+                decl("padding", "0.625rem 1.25rem"),
+                decl("font-size", "var(--fandhe-font-font-size-lg)"),
             ],
         )
         .variant(
@@ -308,9 +324,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-field--size-xs"),
             (Size::Sm, "fd-field--size-sm"),
             (Size::Md, "fd-field--size-md"),
             (Size::Lg, "fd-field--size-lg"),
+            (Size::Xl, "fd-field--size-xl"),
         ] {
             let field = default_field("f");
             let props = InputProps {

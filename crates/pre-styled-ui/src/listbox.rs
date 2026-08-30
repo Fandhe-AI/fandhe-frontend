@@ -199,6 +199,15 @@ fn recipe() -> SlotRecipe {
         // 値と同一の現行外観を維持する。[`crate::select`] の `size` variant と
         // 同型の判断）。
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-listbox-item-padding", "var(--fandhe-space-0-5) var(--fandhe-space-1)"),
+                decl("--fandhe-listbox-content-padding", "var(--fandhe-space-0-5)"),
+                decl("--fandhe-listbox-content-max-height", "8rem"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -232,6 +241,15 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl("--fandhe-listbox-content-padding", "var(--fandhe-space-3)"),
                 decl("--fandhe-listbox-content-max-height", "20rem"),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-listbox-item-padding", "var(--fandhe-space-4) var(--fandhe-space-5)"),
+                decl("--fandhe-listbox-content-padding", "var(--fandhe-space-4)"),
+                decl("--fandhe-listbox-content-max-height", "24rem"),
             ],
         )
         .default_variant(Size::Md)
@@ -303,7 +321,7 @@ mod tests {
 
     #[test]
     fn size_variant_appends_single_class_to_root_and_drops_caller_class() {
-        for size in [Size::Sm, Size::Md, Size::Lg] {
+        for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
             let html = render(&root(
                 size,
                 OpenState::Closed,

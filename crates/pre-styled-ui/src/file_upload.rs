@@ -252,6 +252,14 @@ fn recipe() -> SlotRecipe {
             vec![decl("cursor", "not-allowed")],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![decl(
+                "--fandhe-file-upload-font-size",
+                "var(--fandhe-font-font-size-xs)",
+            )],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![decl(
@@ -273,6 +281,14 @@ fn recipe() -> SlotRecipe {
             vec![decl(
                 "--fandhe-file-upload-font-size",
                 "var(--fandhe-font-font-size-md)",
+            )],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl(
+                "--fandhe-file-upload-font-size",
+                "var(--fandhe-font-font-size-lg)",
             )],
         )
         .default_variant(Size::Md)
@@ -385,9 +401,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-file-upload--size-xs"),
             (Size::Sm, "fd-file-upload--size-sm"),
             (Size::Md, "fd-file-upload--size-md"),
             (Size::Lg, "fd-file-upload--size-lg"),
+            (Size::Xl, "fd-file-upload--size-xl"),
         ] {
             let html = render(&root(size, false, vec![], vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");

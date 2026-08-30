@@ -200,6 +200,18 @@ fn recipe() -> SlotRecipe {
             vec![decl("cursor", "not-allowed"), decl("opacity", "0.4")],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-number-input-control-height", "1.5rem"),
+                decl(
+                    "--fandhe-number-input-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+                decl("--fandhe-number-input-trigger-size", "1rem"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -233,6 +245,18 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-font-font-size-md)",
                 ),
                 decl("--fandhe-number-input-trigger-size", "1.75rem"),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-number-input-control-height", "3.5rem"),
+                decl(
+                    "--fandhe-number-input-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
+                decl("--fandhe-number-input-trigger-size", "2rem"),
             ],
         )
         .default_variant(Size::Md)
@@ -331,9 +355,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-number-input--size-xs"),
             (Size::Sm, "fd-number-input--size-sm"),
             (Size::Md, "fd-number-input--size-md"),
             (Size::Lg, "fd-number-input--size-lg"),
+            (Size::Xl, "fd-number-input--size-xl"),
         ] {
             let html = render(&root(size, false, false, vec![], vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");

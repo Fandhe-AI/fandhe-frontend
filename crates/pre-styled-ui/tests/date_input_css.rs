@@ -44,6 +44,11 @@ const DATE_INPUT_GOLDEN_CSS: &str = r#"[data-scope="date-input"][data-part="root
   outline: none;
 }
 
+[data-scope="date-input"][data-part="root"].fd-date-input--size-xs {
+  --fandhe-date-input-segment-size: 1.5rem;
+  --fandhe-date-input-font-size: var(--fandhe-font-font-size-xs);
+}
+
 [data-scope="date-input"][data-part="root"].fd-date-input--size-sm {
   --fandhe-date-input-segment-size: 2rem;
   --fandhe-date-input-font-size: var(--fandhe-font-font-size-sm);
@@ -57,6 +62,11 @@ const DATE_INPUT_GOLDEN_CSS: &str = r#"[data-scope="date-input"][data-part="root
 [data-scope="date-input"][data-part="root"].fd-date-input--size-lg {
   --fandhe-date-input-segment-size: 3rem;
   --fandhe-date-input-font-size: var(--fandhe-font-font-size-md);
+}
+
+[data-scope="date-input"][data-part="root"].fd-date-input--size-xl {
+  --fandhe-date-input-segment-size: 3.5rem;
+  --fandhe-date-input-font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="date-input"][data-part="root"][data-disabled] {

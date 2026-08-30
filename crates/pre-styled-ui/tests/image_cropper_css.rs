@@ -56,6 +56,10 @@ const IMAGE_CROPPER_GOLDEN_CSS: &str = r#"[data-scope="image-cropper"][data-part
   background-size: calc(100% / 3) 100%, 100% calc(100% / 3);
 }
 
+[data-scope="image-cropper"][data-part="root"].fd-image-cropper--size-xs {
+  --fandhe-image-cropper-handle-size: 0.35rem;
+}
+
 [data-scope="image-cropper"][data-part="root"].fd-image-cropper--size-sm {
   --fandhe-image-cropper-handle-size: 0.55rem;
 }
@@ -66,6 +70,10 @@ const IMAGE_CROPPER_GOLDEN_CSS: &str = r#"[data-scope="image-cropper"][data-part
 
 [data-scope="image-cropper"][data-part="root"].fd-image-cropper--size-lg {
   --fandhe-image-cropper-handle-size: 0.95rem;
+}
+
+[data-scope="image-cropper"][data-part="root"].fd-image-cropper--size-xl {
+  --fandhe-image-cropper-handle-size: 1.15rem;
 }
 
 [data-scope="image-cropper"][data-part="handle"][data-handle-position="n"] {

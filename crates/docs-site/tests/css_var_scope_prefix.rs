@@ -81,10 +81,24 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   実値は各 scope の variant 側が定義する」設計であり、`button.rs`（参照
 ///   実装）とそれを流用する `download_trigger.rs` の双方が参照するため
 ///   scope 固有名ではなく共有トークン扱いとする。
+/// - `--fandhe-palette-subtle` / `-muted` / `-fg-subtle`: イシュー #1679 で
+///   `mark.rs`/`blockquote.rs` が `crate::recipe::palette_declarations`
+///   （3 役割）から `crate::recipe::palette_scale_declarations`（6 役割）へ
+///   移行したことで新たに参照する共有 custom property。`--fandhe-palette`
+///   と同じ colorPalette 系の共有トークンであり、実値は各 scope の
+///   `color-palette-*` variant 側が定義する。
 const SHARED_VARS: &[&str] = &[
     "--fandhe-palette",
     "--fandhe-palette-emphasized",
     "--fandhe-palette-fg",
+    // イシュー #1678/#1680: `palette_scale_declarations`（6 役割版）が
+    // 新設した 3 変数。Forms カテゴリの 13 部品（イシュー #1680）が
+    // `palette_declarations` から切り替えたことで新たに出現した
+    // （先行の #1679/PR #1711 で Typography/Utilities 分の 2 部品が
+    // 同じ切り替えを行い、この 3 変数を要求している）。
+    "--fandhe-palette-subtle",
+    "--fandhe-palette-muted",
+    "--fandhe-palette-fg-subtle",
     "--fandhe-x",
     "--fandhe-y",
     "--fandhe-arrow-x",

@@ -9,19 +9,26 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1425: hover/disabled/transition の共通ビジュアル言語導入
 # （`recipe::hover_surface_declarations` 等の公開 API 追加）に伴い、
 # 独立に 0.42.0 へ到達していた main（#1704）とマージ後の実体変更を反映し
-# 0.43.0 へマイナーバンプ済み（main に先行マージ済み）。
+# 0.43.0 へマイナーバンプする（0.x の破壊的変更はマイナーバンプの規約）。
 # イシュー #1424: 上記 0.43.0 に続けて、フォーカスリング
 # （`--fandhe-focus-ring-*` トークン・`recipe::focus_ring_declarations`）と
 # size バリアント共通生成手段（`recipe::SlotRecipe::size_variants`）を追加する
 # 公開 API 拡張のためマイナーバンプ（0.x の破壊的変更ではない純追加）。
-# 一方 main 側ではイシュー #1678（size / ColorPalette 軸の段階数・名称決定と
-# トークン・列挙型定義）が merge base（0.42.0）から独立に 0.43.0 へ到達し、
-# さらに 0.44.0 へマイナーバンプ済みの状態で main に存在した。本 PR の
-# base 取り込みマージは #1424（0.44.0 積み増しのつもりだった）と main の
-# 0.44.0 が偶発的に同一版数へ衝突するため、規約
-# （「同一版数への偶発的衝突をそのまま採用しない」）に従い #1424・#1678
-# 双方の実体変更を統合した結果として 0.45.0 へさらにマイナーバンプする。
-version = "0.45.0"
+# イシュー #1678: size / ColorPalette 軸の段階数・名称決定とトークン・列挙型
+# 定義（本ブランチ側の公開 API 追加）も merge base（0.42.0）から独立に
+# 0.43.0 へ到達していたため、双方の実体変更を統合した結果として 0.44.0 へ
+# さらにマイナーバンプし、0.45.0 へ到達していた（0.x の破壊的変更はマイナー
+# バンプの規約。同一版数への偶発的衝突をそのまま採用しない）。
+# イシュー #1680/#1679: main 側では #1678 で追加した Size::Xs/Xl・
+# ColorPalette::Neutral を Forms カテゴリ（size/palette 軸）・Typography
+# カテゴリ（mark / blockquote）へ実際に登録し、CSS 出力（golden 更新込み）
+# を伴う観測可能な変更を加えた結果、merge base（0.44.0）から独立に 0.46.0
+# へマイナーバンプ済みの状態で main に存在した。本 PR の base 取り込み
+# マージは本ブランチ側の #1424 実体変更（0.45.0）と main 側の #1680/#1679
+# 実体変更（0.46.0）を統合するため、いずれの版数もそのまま採用せず
+# 0.47.0 へさらにマイナーバンプする（0.x の破壊的変更はマイナーバンプの
+# 規約。同一版数への偶発的衝突をそのまま採用しない）。
+version = "0.47.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

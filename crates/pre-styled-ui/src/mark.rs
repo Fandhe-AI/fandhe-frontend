@@ -4,7 +4,7 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{palette_declarations, ColorPalette, SlotRecipe, VariantValue};
+use crate::recipe::{palette_scale_declarations, ColorPalette, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -61,9 +61,10 @@ impl Default for MarkProps {
 
 /// Mark の recipe（scope `"mark"`、slot `"root"` のみ）。
 ///
-/// 色は [`crate::recipe::palette_declarations`] 経由の
-/// `--fandhe-palette`/`--fandhe-palette-fg`（[`crate::badge::recipe`] と
-/// 同型）を参照する。
+/// 色は [`crate::recipe::palette_scale_declarations`] 経由の
+/// `--fandhe-palette`/`-emphasized`/`-fg`/`-subtle`/`-muted`/`-fg-subtle`
+/// （[`crate::badge::recipe`] と同型）を参照する（イシュー #1679 で 6 役割版へ
+/// 移行）。
 fn recipe() -> SlotRecipe {
     let mut recipe = SlotRecipe::new("mark", &["root"])
         .base(
@@ -116,8 +117,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -195,6 +197,7 @@ mod tests {
             (ColorPalette::Success, "fd-mark--color-palette-success"),
             (ColorPalette::Warning, "fd-mark--color-palette-warning"),
             (ColorPalette::Danger, "fd-mark--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-mark--color-palette-neutral"),
         ] {
             let props = MarkProps {
                 palette,
