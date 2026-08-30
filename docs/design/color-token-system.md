@@ -174,7 +174,11 @@ stale 検知で FAIL する。よって本イシューでこの 2 件を `SHARED
   `-fg-subtle` 追加、`ColorPalette::Neutral` の追加は本イシューでは行わない**:
   追加すると Button/Badge/Alert/Toast 等 colorPalette を持つ全部品の出力
   CSS が変わり golden テストが広範に壊れるため。#1678（ColorPalette 軸の
-  段階数決定）へ提案として申し送る。
+  段階数決定）へ提案として申し送る。**追記（イシュー #1678 実装済み）**:
+  `ColorPalette::Neutral` を追加し、6 役割版 `palette_scale_declarations`
+  を新設した。`palette_declarations`（3 役割）自体は本イシューの判断
+  どおり不変（既存部品の golden CSS はバイト不変）。詳細は
+  `docs/design/pre-styled-ui-size-and-color-palette-axes.md` 参照。
 - **dialog/drawer の `rgba(0, 0, 0, 0.4)` → `bg-overlay` への置換は本
   イシューでは行わない**: 両部品の golden/`contains` テスト更新と見た目
   変更（dark 側の濃度変化）を伴うため。Phase 1 の部品 issue へ申し送る。

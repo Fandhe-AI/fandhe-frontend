@@ -31,8 +31,14 @@ impl VariantValue for Tone {
 fn build_recipe() -> SlotRecipe {
     SlotRecipe::new("button", &["root"])
         .base("root", vec![decl("display", "inline-flex")])
+        // イシュー #1678: `Size` が 3 段から 5 段（`Xs`〜`Xl`）へ拡張されたため、
+        // 新段も既存段と同じ決定性保証（byte 一致・繰り返し呼び出し安定性）の
+        // 対象であることを回帰検知する。
+        .variant(Size::Xs, "root", vec![decl("padding", "1px 4px")])
         .variant(Size::Sm, "root", vec![decl("padding", "2px 6px")])
         .variant(Size::Md, "root", vec![decl("padding", "4px 10px")])
+        .variant(Size::Lg, "root", vec![decl("padding", "6px 14px")])
+        .variant(Size::Xl, "root", vec![decl("padding", "8px 18px")])
         .variant(Tone::Solid, "root", vec![decl("background", "blue")])
         .variant(
             Tone::Outline,
