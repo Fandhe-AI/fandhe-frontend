@@ -36,12 +36,18 @@ fn default_theme_css_contains_issue_1422_color_tokens() {
     // （tree-view/menubar/navigation-menu/toolbar/date-input）がフォールバック
     // 無し・フォールバック付きで参照していた未定義トークンの正式化であり、
     // `neutral`/`bg-overlay` は新設のトークングループである。
+    //
+    // `focus-ring` の dark 値は #1422 時点では暫定 `#4299e1`（`accent` の
+    // dark 値と同値）だったが、#1424 で `accent` トークンから独立させる
+    // 意図的な確定値 `#63b3ed`（`info` dark と同値）へ変更された
+    // （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3
+    // 「トークン」行、`theme.rs` の `DEFAULT_COLORS` コメント参照）。
     let css = Theme::default().to_css();
 
     assert!(css.contains("--fandhe-color-accent-subtle: #ebf8ff;"));
     assert!(css.contains("--fandhe-color-accent-subtle: #1a2b3d;"));
     assert!(css.contains("--fandhe-color-focus-ring: #3182ce;"));
-    assert!(css.contains("--fandhe-color-focus-ring: #4299e1;"));
+    assert!(css.contains("--fandhe-color-focus-ring: #63b3ed;"));
     assert!(css.contains("--fandhe-color-neutral: #718096;"));
     assert!(css.contains("--fandhe-color-neutral: #a0aec0;"));
     assert!(css.contains("--fandhe-color-bg-overlay: rgba(0, 0, 0, 0.4);"));

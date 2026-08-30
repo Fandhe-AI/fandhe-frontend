@@ -27,6 +27,16 @@
 //!    間接的に得る（dev-dependency としてのみ利用、後述）。styled 部品の
 //!    `Node` 型参照は `fandhe_frontend_headless_ui::fandhe_frontend_core::Node`
 //!    （headless-ui が再エクスポートする core、イシュー #550）経由で得る。
+//! 5. **フォーカスリングは [`recipe::focus_ring_declarations`] 経由**
+//!    （イシュー #1424）: 各 styled 部品がキーボードフォーカスリング
+//!    （`:focus-visible`/`:focus-within`/hidden-input パターン）を独自の
+//!    `outline`/`box-shadow` 手書き宣言で表現しない。`outline` +
+//!    `outline-offset` の 2 宣言・トークン参照（太さ/オフセット/色は
+//!    `--fandhe-focus-ring-*`）に統一する規約の詳細・`size` バリアントの
+//!    命名/既定/保有判定基準は
+//!    `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` を参照
+//!    （107 部品への段階的移行は Phase 1 以降のイシューへ委ねる。本イシュー
+//!    時点では [`radio_group`] のみが移行済みのパイロット実装）。
 //!
 //! # 実装済み API（イシュー #546/#547/#548/#550/#551/#606）
 //!

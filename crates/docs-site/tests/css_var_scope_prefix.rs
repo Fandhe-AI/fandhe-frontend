@@ -17,7 +17,11 @@
 //! # 免除面（2 つの literal 完全一致表のみ、カテゴリ免除は行わない）
 //!
 //! - [`SHARED_VARS`]: 複数部品が共有するテーマ非依存の custom property
-//!   （colorPalette 系・positioning 系・未登録の共有色トークン 2 件）。
+//!   （colorPalette 系・positioning 系・未登録の共有色トークン 1 件）。
+//!   `--fandhe-color-focus-ring` はイシュー #1424 で `Theme::default()` の
+//!   実トークン（`colors` グループ）へ昇格したため、`theme_token_names()`
+//!   側で拾われるようになり本表からは削除した（stale エントリ化を
+//!   `shared_vars_table_has_no_stale_entries` が検知したための是正）。
 //! - [`KNOWN_DEVIATIONS`]: `(data-scope, 変数名)` の既知の未是正逸脱。
 //!   現在は `angle-slider` の `--fandhe-angle` の 1 件のみ。
 //!   `crates/pre-styled-ui/src/angle_slider.rs` が動的インライン値として

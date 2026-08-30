@@ -646,6 +646,103 @@ fn state_fail_closed_cases_are_skipped_not_panicking() {
     assert!(css.contains("display: none;"));
 }
 
+// イシュー #1424: フォーカスリング宣言ヘルパ・size_variants の統合テスト。
+
+use fandhe_frontend_pre_styled_ui::recipe::{
+    focus_ring_declarations, FocusRingColor, FocusRingOffset,
+};
+
+#[test]
+fn focus_ring_declarations_token_outside_matches_canonical_form() {
+    let recipe = SlotRecipe::new("widget", &["root"]).state(
+        "root",
+        StateCondition::FocusVisible,
+        focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+    );
+    let css = recipe.css();
+    assert!(css.contains(
+        "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+    ));
+    assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+}
+
+#[test]
+fn focus_ring_declarations_palette_outside_falls_back_to_focus_ring_token() {
+    let recipe = SlotRecipe::new("widget", &["root"]).state(
+        "root",
+        StateCondition::FocusVisible,
+        focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
+    );
+    let css = recipe.css();
+    assert!(css.contains(
+        "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));"
+    ));
+}
+
+#[test]
+fn focus_ring_declarations_inset_uses_negative_calc_offset() {
+    let recipe = SlotRecipe::new("widget", &["root"]).state(
+        "root",
+        StateCondition::FocusVisible,
+        focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
+    );
+    let css = recipe.css();
+    assert!(css.contains("outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));"));
+}
+
+#[test]
+fn size_variants_registers_each_size_and_defaults_to_md() {
+    let recipe = SlotRecipe::new("widget", &["root"]).size_variants(
+        "root",
+        &[
+            (Size::Sm, vec![decl("padding", "4px")]),
+            (Size::Lg, vec![decl("padding", "12px")]),
+        ],
+    );
+
+    let css = recipe.css();
+    assert!(css.contains(r#"[data-scope="widget"][data-part="root"].fd-widget--size-sm {"#));
+    assert!(css.contains("padding: 4px;"));
+    assert!(css.contains(r#"[data-scope="widget"][data-part="root"].fd-widget--size-lg {"#));
+    assert!(css.contains("padding: 12px;"));
+
+    // sizes に Size::Md の宣言を含めなくても、既定 variant は必ず md になる
+    // （default_variant の設定漏れ防止という本メソッドの目的）。
+    assert_eq!(recipe.variant_classes(&[]), "fd-widget--size-md");
+}
+
+#[test]
+fn size_variants_default_is_always_md_even_when_md_declarations_are_included() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .size_variants("root", &[(Size::Md, vec![decl("padding", "8px")])]);
+    assert_eq!(recipe.variant_classes(&[]), "fd-widget--size-md");
+    assert!(recipe.css().contains("padding: 8px;"));
+}
+
+#[test]
+fn size_variants_overrides_pre_existing_size_default_variant() {
+    // codex-review #1707 P1 指摘の回帰テスト: 呼び出し元 recipe が
+    // `size_variants` 呼び出し以前に `default_variant(Size::Sm)` 等で
+    // `size` 軸の既定値を設定済みだった場合でも、本メソッドが最後に
+    // 呼ばれれば「既定は必ず md」という公開 API 契約
+    // （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4）
+    // を満たすことを固定する。修正前は単純な末尾追加のため
+    // `variant_classes` の `find`（axis ごとに最初に登録された
+    // `default_variant` を採用）が先に登録された `Sm` を優先してしまい、
+    // 本テストは `fd-widget--size-sm` を返して失敗していた。
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .default_variant(Size::Sm)
+        .size_variants(
+            "root",
+            &[
+                (Size::Sm, vec![decl("padding", "4px")]),
+                (Size::Lg, vec![decl("padding", "12px")]),
+            ],
+        );
+
+    assert_eq!(recipe.variant_classes(&[]), "fd-widget--size-md");
+}
+
 /// disabled / hover / transition の共通ヘルパ（イシュー #1425）の golden
 /// テスト。`recipe.rs` の doc コメント「disabled / hover / transition の
 /// 共通ビジュアル言語」節が示す契約（`decl()` 経由・`&'static str` のみ）を
