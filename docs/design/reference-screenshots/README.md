@@ -19,7 +19,7 @@ UI 部品スタイル調整（参考サイト基準への調整、ルート issu
 | Ark UI (https://ark-ui.com) | https://github.com/chakra-ui/ark | MIT | Copyright (c) Chakra UI |
 | Radix Primitives / Radix Themes (https://www.radix-ui.com) | https://github.com/radix-ui/website（原稿・デモ）, https://github.com/radix-ui/primitives, https://github.com/radix-ui/themes | MIT | Copyright (c) WorkOS |
 
-各リポジトリの LICENSE 全文（MIT 許諾表示）は上記 URL を参照する。各サイトのロゴ・商標は本ディレクトリに
+各リポジトリの LICENSE 全文（MIT 許諾表示）は `THIRD_PARTY_NOTICES.md` に同梱する（画像との対応は `SOURCES.md`）。各サイトのロゴ・商標は本ディレクトリに
 含めない（取得対象はデモ領域のみ）。
 
 issue 本文からはコミット SHA 固定の raw URL で参照する。
