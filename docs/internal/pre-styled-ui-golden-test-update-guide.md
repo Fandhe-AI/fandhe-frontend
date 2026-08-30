@@ -37,7 +37,7 @@ nav 未登録のためリンク化しません）。
 | 方式 | 内容 | 該当ファイル |
 |------|------|-------------|
 | (a) golden バイト一致 | `assert_eq!(<module>::css(), EXPECTED)` で CSS 全文を固定 | 下記対応表の大多数 |
-| (b) 契約アサーション方式 | CSS 全文ではなく「スロットセレクタの存在」「主要な状態セレクタの存在」「CSS breakout 不在」のみを固定 | `menubar_css.rs` / `navigation_menu_css.rs`（イシュー #992 実装計画で、多パーツ部品では宣言 1 個の増減でも無関係な diff が広範囲に生じる brittle さを避けるためと明記済み） |
+| (b) 契約アサーション方式 | CSS 全文ではなく「スロットセレクタの存在」「主要な状態セレクタの存在」「CSS breakout 不在」のみを固定 | `menubar_css.rs` / `navigation_menu_css.rs`（イシュー #992 実装計画で、多パーツ部品では宣言 1 個の増減でも無関係な diff が広範囲に生じる brittle さを避けるためと明記済み）、`download_trigger_css.rs`（固定 `const` を持たず、`button::css()` からの派生値との比較・存在確認で流用契約を固定する派生比較変種）、`table_data_list_css.rs`（ファイル冒頭 rustdoc に「決定性 + 重要規則の存在確認」形式と明記済み） |
 | (c) golden 不在 | XSS 回帰・決定性テストのみで golden は未整備 | 下記「golden 不在の部品」参照 |
 
 方式 (b) を新たに採用する場合は、(a) の方が向いている（パーツ数が少なく
@@ -55,7 +55,7 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 ### 3.1 1 対 1 対応（規則: `<snake>_css.rs`）
 
 accordion / callout / carousel / checkbox / checkbox_card / checkbox_group /
-color_picker / color_swatch / date_input / dialog / download_trigger /
+color_picker / color_swatch / date_input / dialog / **download_trigger（方式 b）** /
 drawer / editable / file_upload / floating_panel / highlight / hover_card /
 image_cropper / listbox / marquee / menu / **menubar（方式 b）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
@@ -64,10 +64,12 @@ select / separator / skeleton / skip_nav / splitter / stat / steps / switch /
 tab_nav / tags_input / timeline / timer / toast / toggle_tip / tour /
 visually_hidden
 
-menubar / navigation_menu はファイル名こそ `<snake>_css.rs` の規則どおり
-ですが、内容は §2.1 の方式 (b)（契約アサーション、CSS 全文の golden では
-ない）です。golden バイト一致を期待して開くと構成が異なるので注意して
-ください。
+menubar / navigation_menu / download_trigger はファイル名こそ
+`<snake>_css.rs` の規則どおりですが、内容は §2.1 の方式 (b)（契約アサー
+ション、CSS 全文の golden ではない）です。golden バイト一致を期待して
+開くと構成が異なるので注意してください。download_trigger は固定
+`const` を持たず、`button::css()` からの派生値（scope 置換した文字列）
+との比較・存在確認で流用契約を固定する派生比較変種です（§2.1 参照）。
 
 ### 3.2 グルーピングファイル（複数部品を 1 ファイルに集約）
 
@@ -78,7 +80,7 @@ menubar / navigation_menu はファイル名こそ `<snake>_css.rs` の規則ど
 | `form_controls_css.rs` | input / textarea / native_select（`field` scope を共有） |
 | `image_icon_css.rs` | image / icon |
 | `tag_kbd_code_css.rs` | tag / kbd / code |
-| `table_data_list_css.rs` | table / data_list |
+| `table_data_list_css.rs`（方式 b） | table / data_list |
 | `status_empty_state_css.rs` | status / empty_state |
 | `popover_tooltip_css.rs` | popover / tooltip |
 | `pie_donut_chart_css.rs` | pie_chart / donut_chart |
@@ -86,6 +88,13 @@ menubar / navigation_menu はファイル名こそ `<snake>_css.rs` の規則ど
 | `charts_parts_css.rs` | charts 内部パーツ: `charts::axis` / `charts::grid` / `charts::legend` / `charts::tooltip` |
 | `scatter_radar_chart_css.rs` | `charts::scatter_chart` / `charts::radar_chart` |
 | `tabs_css.rs` | tabs（`recipe_css.rs` は recipe 機構自体の golden であり tabs はその一実例として参照するのみ） |
+
+`table_data_list_css.rs` は他のグルーピングファイル（`assert_eq!` による
+CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約アサーション、
+「決定性 + 重要規則の存在確認」形式）です。§5 の通常フロー（`assert_eq!`
+の差分を実出力で貼り替える手順）は適用できません。更新時は該当アサー
+ション（`assert!(css.contains(...))`）を意図した変更に合わせて書き換えて
+ください。
 
 ### 3.3 golden 不在の部品
 
