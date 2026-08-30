@@ -201,14 +201,18 @@ pub fn palette_declarations(p: ColorPalette) -> Vec<Declaration> {
 /// `--fandhe-palette` へフォールバック付きで連動させるかを選ぶ。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusRingColor {
-    /// `var(--fandhe-color-focus-ring)` を直接参照する（`palette` 軸を
-    /// 持たない部品、または hidden-input パターンの内側リング等）。
+    /// `var(--fandhe-color-focus-ring, var(--fandhe-color-accent))` を
+    /// 参照する（`palette` 軸を持たない部品、または hidden-input パターン
+    /// の内側リング等）。`--fandhe-color-focus-ring` 未定義時（`Theme::empty()`
+    /// ベースの既存カスタムテーマ）は本イシュー以前から存在する
+    /// `--fandhe-color-accent` へフォールバックし、リングが消えない
+    /// （イシュー #1424 レビュー指摘対応、[`focus_ring_declarations`] 参照）。
     Token,
-    /// `var(--fandhe-palette, var(--fandhe-color-focus-ring))` を参照する
-    /// （`ColorPalette` 軸を公開する部品。選択中の palette があればそれを
-    /// 使い、`palette` 未設定の文脈〔`--fandhe-palette` が root 側で
-    /// 定義されない場合〕では `--fandhe-color-focus-ring` へフォールバック
-    /// する）。
+    /// `var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)))`
+    /// を参照する（`ColorPalette` 軸を公開する部品。選択中の palette が
+    /// あればそれを使い、`palette` 未設定の文脈〔`--fandhe-palette` が
+    /// root 側で定義されない場合〕では `--fandhe-color-focus-ring`
+    /// （さらに未定義なら `--fandhe-color-accent`）へフォールバックする）。
     Palette,
 }
 
@@ -219,9 +223,11 @@ pub enum FocusRingColor {
 /// のを避けたい splitter/scroll-area 等）に描くかを選ぶ。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FocusRingOffset {
-    /// 要素の外側（既定）。`outline-offset: var(--fandhe-focus-ring-offset)`。
+    /// 要素の外側（既定）。
+    /// `outline-offset: var(--fandhe-focus-ring-offset, 2px)`。
     Outside,
-    /// 要素の内側。`outline-offset: calc(-1 * var(--fandhe-focus-ring-offset))`
+    /// 要素の内側。
+    /// `outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px))`
     /// （符号反転のみで表現し、専用トークンを増やさない）。
     Inset,
 }
@@ -234,8 +240,13 @@ pub enum FocusRingOffset {
 /// ため。`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
 /// §3 参照）。値はすべて [`crate::theme`] のトークン参照
 /// （`--fandhe-focus-ring-width`/`--fandhe-focus-ring-offset`/
-/// `--fandhe-color-focus-ring`）で構成され、リテラル値をハードコードしない
-/// （太さ・オフセット・色をテーマ側 1 箇所で変更できる）。
+/// `--fandhe-color-focus-ring`）で構成され、テーマ側 1 箇所で太さ・
+/// オフセット・色を変更できる。各 `var()` はイシュー本文の 0.42.0
+/// バンプ根拠（「破壊的変更ではない純追加」）を成立させるため、いずれも
+/// 第 2 引数へ本イシュー以前の実際の既定値（`2px`・`--fandhe-color-accent`
+/// 系）をフォールバックとして持つ（`Theme::empty()` ベースの既存カスタム
+/// テーマがこれら新トークンを未定義でもキーボードフォーカス表示が消えない、
+/// イシュー #1424 レビュー指摘対応）。
 ///
 /// 呼び出し元は [`SlotRecipe::state`] の `declarations` 引数へそのまま渡す
 /// （`StateCondition::FocusVisible`/`FocusWithin`/`Attr("data-focus-visible")`
@@ -243,20 +254,33 @@ pub enum FocusRingOffset {
 /// 直書き）と組み合わせて使わない規約は上記設計文書 §3 参照）。
 #[must_use]
 pub fn focus_ring_declarations(color: FocusRingColor, offset: FocusRingOffset) -> Vec<Declaration> {
+    // フォールバック値（イシュー #1424 レビュー指摘対応）:
+    // `--fandhe-focus-ring-width`/`--fandhe-focus-ring-offset`/
+    // `--fandhe-color-focus-ring` は本イシューで新設したトークンであり、
+    // `Theme::empty()` から構築した既存カスタムテーマはこれらを定義して
+    // いない。フォールバックなしで直接参照すると `outline` 宣言全体が
+    // computed-value time に無効となりキーボードフォーカス表示が消える
+    // （0.42.0 を「破壊的変更ではない純追加」とする Cargo.toml のバンプ
+    // 理由と矛盾する）。旧実装（本イシュー以前）が使っていた
+    // `2px`/`var(--fandhe-color-accent)`（`--fandhe-color-accent` は
+    // `DEFAULT_COLORS` の一員として本イシュー以前から存在するため、既存
+    // カスタムテーマが定義している可能性が高い）を第 2 引数のフォール
+    // バックに据えることで、新トークン未定義時も旧来の見た目を再現する。
     let outline = match color {
-        FocusRingColor::Token => {
-            decl("outline", "var(--fandhe-focus-ring-width) solid var(--fandhe-color-focus-ring)")
-        }
+        FocusRingColor::Token => decl(
+            "outline",
+            "var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent))",
+        ),
         FocusRingColor::Palette => decl(
             "outline",
-            "var(--fandhe-focus-ring-width) solid var(--fandhe-palette, var(--fandhe-color-focus-ring))",
+            "var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)))",
         ),
     };
     let outline_offset = match offset {
-        FocusRingOffset::Outside => decl("outline-offset", "var(--fandhe-focus-ring-offset)"),
+        FocusRingOffset::Outside => decl("outline-offset", "var(--fandhe-focus-ring-offset, 2px)"),
         FocusRingOffset::Inset => decl(
             "outline-offset",
-            "calc(-1 * var(--fandhe-focus-ring-offset))",
+            "calc(-1 * var(--fandhe-focus-ring-offset, 2px))",
         ),
     };
     vec![outline, outline_offset]

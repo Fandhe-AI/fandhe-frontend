@@ -419,7 +419,7 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="radio-group"][data-part="item"]:focus-within {"#));
         assert!(css.contains(
-            "outline: var(--fandhe-focus-ring-width) solid var(--fandhe-palette, var(--fandhe-color-focus-ring));"
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));"
         ));
     }
 

@@ -565,9 +565,10 @@ fn focus_ring_declarations_token_outside_matches_canonical_form() {
         focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
     );
     let css = recipe.css();
-    assert!(css
-        .contains("outline: var(--fandhe-focus-ring-width) solid var(--fandhe-color-focus-ring);"));
-    assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset);"));
+    assert!(css.contains(
+        "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+    ));
+    assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
 }
 
 #[test]
@@ -579,7 +580,7 @@ fn focus_ring_declarations_palette_outside_falls_back_to_focus_ring_token() {
     );
     let css = recipe.css();
     assert!(css.contains(
-        "outline: var(--fandhe-focus-ring-width) solid var(--fandhe-palette, var(--fandhe-color-focus-ring));"
+        "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));"
     ));
 }
 
@@ -591,7 +592,7 @@ fn focus_ring_declarations_inset_uses_negative_calc_offset() {
         focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
     );
     let css = recipe.css();
-    assert!(css.contains("outline-offset: calc(-1 * var(--fandhe-focus-ring-offset));"));
+    assert!(css.contains("outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));"));
 }
 
 #[test]
