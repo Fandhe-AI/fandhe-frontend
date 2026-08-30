@@ -14,23 +14,28 @@ name: Docker image size (REQ-9)
 # 整合（#101）はいずれもマージ済みであり、本ジョブは常時 fail-closed で
 # 判定する（skip 機構は撤去済み。#101 で「job レベル env の hashFiles 使用に
 # よる workflow 検証エラー（起動自体の失敗）」を解消した経緯を残す）。
+#
+# required check 化に伴う常時起動 + ステップ内 skip 方式（PR #1706 codex
+# レビュー P0 指摘、コメント id 3889985391 対応）:
+# 本ワークフローは required status check（ruleset `main-protection`）の
+# 対象であり、かつては `pull_request.paths` フィルタで対象パスに変更が
+# ない PR では起動自体をスキップしていた。GitHub の required status check
+# は「未報告」を「保留」として扱い続けるため、`paths` フィルタと
+# `paths-ignore` 鏡像ワークフローの組で補完する案を最初に採ったが、
+# `paths-ignore` は `paths` の補集合にならない（例: Dockerfile と
+# README.md を同時変更すると両方起動し同名 success が実チェック失敗を
+# 隠し得る fail-open。片方のワークフローファイルだけ変更すると鏡像が
+# 起動せずもう片方の required check が未報告のままになる）ため不採用と
+# した。代わりに本ワークフロー自身を `pull_request` で常時起動させ、
+# ジョブ冒頭の「Detect relevant changes」ステップで変更パスを判定し、
+# 対象パスに変更があれば実処理、なければ明示 skip ステップのどちらか
+# 一方だけを実行する単一経路にした。同名ジョブは常にこのワークフロー
+# だけが報告するため二重報告・判定の食い違いは起きない。
 
 on:
   push:
     branches: [main]
   pull_request:
-    # イメージサイズに影響し得る変更のみをトリガー対象にする。
-    # Dockerfile の COPY 列挙（本リポジトリの workspace members）と同期させる。
-    # イシュー #436（`crates/` 配下移設）で全メンバークレートが `crates/**`
-    # 1 パターンに集約された。
-    paths:
-      - "Dockerfile"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "crates/**"
-      - "static/**"
-      - ".dockerignore"
-      - ".github/workflows/image-size.yml"
   workflow_dispatch:
 
 permissions:
@@ -76,12 +81,60 @@ jobs:
       - name: Checkout
         # actions/checkout v7.0.1（ci.yml と同一 SHA に固定）。
         # docs/spec サブモジュールは本計測に不要のため取得しない。
+        # required check 常時起動化に伴い、変更パス判定（次ステップ）で
+        # `origin/${{ github.base_ref }}` との差分を取る必要があるため
+        # fetch-depth: 0 を明示する（ci.yml の version-bump-guard ジョブと
+        # 同一理由。fetch-depth: 0 は checkout 内部で全ブランチをフェッチ
+        # するため別途 `git fetch origin <base>` は不要）。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect relevant changes
+        # このジョブの実処理（Docker ビルド・サイズ計測）が必要な変更
+        # （Dockerfile・依存構成・workspace members・静的アセット・本
+        # ワークフロー自身）が含まれる PR かどうかを判定する。push・
+        # workflow_dispatch では常に relevant=true（フィルタなしで実行）。
+        # 判定失敗時（git diff 自体が失敗する等）は fail-closed で
+        # relevant=true にし、実処理を走らせる（対象パス判定の不具合で
+        # required check が静かにスキップされ続ける事態を避ける）。
+        # base_ref はユーザー制御ではないが、他ジョブと同様 env 経由で
+        # 受け渡し、シェルへの直接展開を避ける（script injection 対策の
+        # 一貫性、security.md）。
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -uo pipefail
+          if [ "${EVENT_NAME}" != "pull_request" ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! diff_output=$(git diff --name-only "origin/${BASE_REF}...HEAD" 2>&1); then
+            echo "::warning::failed to compute changed files against origin/${BASE_REF} (fail-closed, treating as relevant): ${diff_output}" >&2
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          relevant=false
+          while IFS= read -r path; do
+            [ -z "${path}" ] && continue
+            case "${path}" in
+              Dockerfile|Cargo.toml|Cargo.lock|.dockerignore|crates/*|static/*|.github/workflows/image-size.yml)
+                relevant=true
+                ;;
+            esac
+          done <<< "${diff_output}"
+          echo "relevant=${relevant}" >> "$GITHUB_OUTPUT"
+
+      - name: "skip: no relevant path changes"
+        if: steps.changes.outputs.relevant != 'true'
+        run: echo "対象パスに変更がないためスキップ（required check の success 報告のみ）"
 
       - name: Setup Rust toolchain
+        if: steps.changes.outputs.relevant == 'true'
         # deps-check.yml と同一の理由・同一 SHA 固定（本ジョブ末尾の
         # `cargo run -p xtask -- check-image-size` に必要）。ホステッドランナーは
         # ジョブごとに初期化されたクリーン VM のため、毎回導入する。
@@ -90,11 +143,13 @@ jobs:
         uses: Fandhe-AI/actions/rust-toolchain-setup@latest
 
       - name: Build docker image
+        if: steps.changes.outputs.relevant == 'true'
         # push・レジストリログインは行わない。ジョブローカルのタグのみを使い、
         # 計測後は ubuntu-latest ランナーの破棄とともに揮発する。
         run: docker build -t fandhe-frontend-dist-server:ci .
 
       - name: Allocate app port
+        if: steps.changes.outputs.relevant == 'true'
         id: app_port
         # 旧 DooD（Docker-outside-of-Docker）対応（self-hosted 固有の CID 解決 +
         # `--network container:<runner CID>` 分岐）はホステッドランナー移行
@@ -125,6 +180,7 @@ jobs:
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
 
       - name: Verify WASM assets are served (TASK-10.3c, issue #117)
+        if: steps.changes.outputs.relevant == 'true'
         # TASK-10.3b（#116）でコンテナ内 WASM 再ビルドが builder ステージへ
         # 統合され、`static/wasm/*` はホスト事前ビルドではなくコンテナ内
         # `crates/dist-server/build.rs`（#110）の実行結果として埋め込まれる。本
@@ -263,6 +319,7 @@ jobs:
           docker rm -f "${CONTAINER_NAME}"
 
       - name: Verify final image does not leak the build toolchain (TASK-10.3c, issue #117)
+        if: steps.changes.outputs.relevant == 'true'
         # TASK-10.3b で builder ステージへ追加した curl・wasm32 ターゲット・
         # wasm-bindgen-cli 等がマルチステージビルドの境界を越えて最終イメージ
         # （FROM scratch 以降）へ漏れていないことを機械的に固定する
@@ -283,6 +340,7 @@ jobs:
           fi
 
       - name: Run xtask check-image-size
+        if: steps.changes.outputs.relevant == 'true'
         # xtask check-image-size の終了コードをそのまま CI の成否に伝播させる
         # （fail-closed）。set -o pipefail を明示し、tee 経由でも cargo run の
         # 終了コードが失われないようにする（loc-check ジョブと同一パターン）。
@@ -292,7 +350,7 @@ jobs:
           cargo run --locked -p xtask -- check-image-size --image fandhe-frontend-dist-server:ci | tee image-size.log
 
       - name: Publish image-size summary
-        if: always()
+        if: always() && steps.changes.outputs.relevant == 'true'
         # format_report（crates/xtask/src/check_image_size.rs）の 1 行サマリ契約
         # 「image-size: image=<tag> size_bytes=<n>/<limit> size_mb=<x.xx> result=<PASS|FAIL>」を
         # Step Summary に転記する。この契約は crates/xtask/tests/cli_check_image_size.rs と
@@ -315,7 +373,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail if measurement missing
-        if: always()
+        if: always() && steps.changes.outputs.relevant == 'true'
         # 上の summary ステップで「image-size.log が欠落」と判定したケースを、
         # 実際に job 失敗として伝播させる（summary への記載のみでは CI が
         # green のままになってしまうため）。
@@ -326,7 +384,7 @@ jobs:
           fi
 
       - name: Cleanup fandhe-frontend-ci container (always)
-        if: always()
+        if: always() && steps.changes.outputs.relevant == 'true'
         # イシュー #294 Bugbot 指摘2（Missing cleanup leaks containers）対応:
         # "Verify WASM assets are served" ステップ内の `docker rm -f` は
         # 同ステップの成功パス・エラーパス（各 `exit 1` の直前）でのみ実行
