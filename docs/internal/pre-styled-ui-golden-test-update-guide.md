@@ -212,7 +212,27 @@ golden テストと異なり、以下の横断テストは通常のスタイル�
 
 ## 10. Phase 1 での検証記録
 
-未検証です。Phase 1 の最初の部品 issue で本ガイドどおりに golden 更新を
-実際に行い、手順・対応表に齟齬がなかったかをこの節に追記してください
-（親イシュー #1421 へのコメント、および本イシュー #1427 の受け入れ条件 2
-に対応します）。
+イシュー #1679（`mark`/`blockquote` への `ColorPalette::Neutral` 追加 +
+`palette_declarations` → `palette_scale_declarations`〔6 役割版〕移行）が
+Phase 1 で本ガイドに従って golden 更新を行った最初の事例です。
+
+- §3.2「グルーピングファイル」の対応表どおり `mark`/`blockquote` の両 golden
+  は `crates/pre-styled-ui/tests/typography_css.rs` の
+  `MARK_GOLDEN_CSS`/`BLOCKQUOTE_GOLDEN_CSS` に集約されており、対応表と実態に
+  齟齬はありませんでした。
+- §5「更新手順（通常フロー）」どおり、まず `cargo test -p
+  fandhe-frontend-pre-styled-ui --test typography_css` を実行して
+  `assert_eq!` の diff（left = 実出力 / right = 旧期待値）を確認し、
+  差分が「既存 palette 5 ブロックへの 3 宣言追加 + `--color-palette-neutral`
+  ブロックの新規追加」という**純追加のみ**であることを目視確認してから
+  実出力で期待値定数を置き換えました。手順どおり `#[ignore]` 追加・比較
+  緩和は行っていません。
+- §7「横断テストが落ちたときの読み解き方」の想定どおり、golden 更新と
+  同一 PR 内で `crates/docs-site/tests/css_var_scope_prefix.rs` の
+  `SHARED_VARS`（新規参照した `--fandhe-palette-subtle`/`-muted`/
+  `-fg-subtle` の 3 件）を追随更新する必要がありました。`site_typography_
+  contract.rs`（variant 宣言の内容は変更していないため）は無変更のまま
+  green を維持できました。
+- 手順・対応表とも齟齬なく完走でき、本ガイドの記述を修正する必要は
+  ありませんでした（親イシュー #1421 へコメント報告、本イシュー #1427 の
+  受け入れ条件 2 に対応）。

@@ -77,6 +77,12 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   実値は各 scope の variant 側が定義する」設計であり、`button.rs`（参照
 ///   実装）とそれを流用する `download_trigger.rs` の双方が参照するため
 ///   scope 固有名ではなく共有トークン扱いとする。
+/// - `--fandhe-palette-subtle` / `-muted` / `-fg-subtle`: イシュー #1679 で
+///   `mark.rs`/`blockquote.rs` が `crate::recipe::palette_declarations`
+///   （3 役割）から `crate::recipe::palette_scale_declarations`（6 役割）へ
+///   移行したことで新たに参照する共有 custom property。`--fandhe-palette`
+///   と同じ colorPalette 系の共有トークンであり、実値は各 scope の
+///   `color-palette-*` variant 側が定義する。
 const SHARED_VARS: &[&str] = &[
     "--fandhe-palette",
     "--fandhe-palette-emphasized",
@@ -95,6 +101,9 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-arrow-y",
     "--fandhe-reference-width",
     "--fandhe-hover-bg",
+    "--fandhe-palette-subtle",
+    "--fandhe-palette-muted",
+    "--fandhe-palette-fg-subtle",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。

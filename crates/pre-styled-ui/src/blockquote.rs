@@ -13,7 +13,7 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{palette_declarations, ColorPalette, SlotRecipe, VariantValue};
+use crate::recipe::{palette_scale_declarations, ColorPalette, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -59,10 +59,11 @@ impl VariantValue for BlockquoteVariant {
 ///
 /// `caption` の文字色は `--fandhe-blockquote-caption-fg`（既定
 /// `var(--fandhe-color-fg-muted)`）というローカル custom property 経由で
-/// 参照する（[`palette_declarations`] と同型のパターン）。custom property は
+/// 参照する（[`crate::recipe::palette_scale_declarations`] と同型のパターン）。custom property は
 /// クラスの有無に関わらず DOM の継承で子要素（`caption` は `root` の子）へ
 /// 伝わるため、`caption` 自身にクラスを付けなくても `root` 側の variant
-/// 宣言で上書きできる。`Solid` variant は `root` の背景を `--fandhe-palette`
+/// 宣言で上書きできる（palette 宣言はイシュー #1679 で
+/// [`crate::recipe::palette_scale_declarations`]（6 役割版）へ移行済み）。`Solid` variant は `root` の背景を `--fandhe-palette`
 /// で塗る（`caption` はその子孫）ため、`--fandhe-blockquote-caption-fg` を
 /// `var(--fandhe-palette-fg)` へ上書きし、muted な前景色が solid 背景の上で
 /// コントラスト不足になることを防ぐ（Bugbot 指摘）。
@@ -130,8 +131,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
