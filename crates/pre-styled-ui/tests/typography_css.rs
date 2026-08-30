@@ -188,9 +188,7 @@ const BLOCKQUOTE_GOLDEN_CSS: &str = r#"[data-scope="blockquote"][data-part="root
 }
 
 [data-scope="blockquote"][data-part="root"].fd-blockquote--variant-subtle {
-  background: var(--fandhe-color-bg-subtle);
-  border-inline-start: 4px solid var(--fandhe-palette);
-  border-radius: var(--fandhe-radius-sm);
+  border-inline-start: 4px solid var(--fandhe-palette-muted);
 }
 
 [data-scope="blockquote"][data-part="root"].fd-blockquote--variant-solid {
