@@ -1114,47 +1114,71 @@ const CSS_LENGTH_UNITS: &[&str] = &[
 ];
 
 /// [`validate_focus_ring_value`] が値の許可条件をトークン名別に分岐する
-/// ための分類（イシュー #1424、PR #1707 レビュー指摘対応）。
+/// ための分類（イシュー #1424、PR #1707 レビュー指摘対応。CSS-wide
+/// keyword の扱いをトークンの実際の生成先文法に合わせて修正した
+/// 2 回目の PR #1707 レビュー指摘対応を含む）。
 ///
 /// フォーカスリング寸法トークンは `width`（`outline-width` の値）と
 /// `offset`（`outline-offset` の値、`crates/pre-styled-ui/src/recipe.rs::focus_ring_declarations`
 /// の [`FocusRingOffset::Inset`] 側で符号反転して使う）を同じ
-/// [`Theme::push_focus_ring`] 経路で登録するが、CSS `outline-width` の
-/// `<line-width>` は `auto` を許可せず（`auto` は `outline-style` 等の値で
-/// あり `outline-width` の有効値でも CSS-wide keyword でもない）、負の長さも
-/// 無効という非対称な制約を持つ（`outline-offset` は逆に負の長さが有効な
-/// 唯一の理由となる用途を持つ）。名前を区別せず両方に同じ許容集合を適用
-/// すると `push_focus_ring("width", "auto")` や
-/// `push_focus_ring("width", "-2px")` が検証を素通りし、`outline` 宣言
-/// 全体が computed-value time に無効となってキーボードフォーカス表示が
-/// 消え得る（codex-review #1707 P1 指摘、Cursor Bugbot 同一指摘）。
+/// [`Theme::push_focus_ring`] 経路で登録するが、両者は生成先の CSS 文法が
+/// 異なるため許容集合も異なる。
+///
+/// - `width` は常に `outline: var(--fandhe-focus-ring-width, 2px) solid
+///   ...` という **shorthand の一部**として埋め込まれる
+///   （[`focus_ring_declarations`] 参照）。CSS-wide keyword
+///   （`inherit`/`initial`/`revert`/`revert-layer`/`unset`、そして
+///   `outline-width` の有効値でも無い `auto`）は他の shorthand 成分と
+///   併用できず、1 つでも紛れ込むと `outline` 宣言全体が
+///   computed-value time に無効となりキーボードフォーカス表示が消える。
+///   したがって `width` は CSS-wide keyword を一切許可せず、非負の
+///   `<length>`（実質ゼロを除く負の長さは無効）のみを許可する。
+/// - `offset` は `outline-offset: var(--fandhe-focus-ring-offset, 2px)`
+///   という**単独宣言**の値であり、CSS-wide keyword は単独宣言であれば
+///   有効（shorthand との併用問題が起きない）。ただし `outline-offset` は
+///   `<length>` のみを受け付け `auto` は無効値であるため、`auto` だけは
+///   個別に拒否する。負の長さは `outline-offset` で意味を持つため許可する。
+/// - 上記いずれにも該当しない任意の名前（テストの `gap`/`keyword` 等、
+///   実際の CSS プロパティに直結しない拡張用途）には、後方互換のため
+///   従来どおり寛容な許容集合（`auto` を含む全 CSS-wide keyword + 符号
+///   任意の長さ）を適用する。
+///
+/// この分類を導入する前は `push_focus_ring("width", "inherit")` が
+/// `outline: inherit solid ...` という無効な shorthand を、
+/// `push_focus_ring("offset", "auto")` が無効な `outline-offset: auto`
+/// を、それぞれ検証を素通りして生成していた（codex-review #1707 P1 指摘、
+/// Cursor Bugbot 同一指摘）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FocusRingTokenKind {
-    /// `outline-width` 用（`width` という名前のトークンのみ）。
+    /// `outline-width` 用（`width` という名前のトークンのみ）。CSS-wide
+    /// keyword を一切許可しない。
     Width,
-    /// `width` 以外（`offset` を含む）。`outline-offset` は負の長さが
-    /// 有効であり、利用者が追加する任意の名前（テストの `gap`/`keyword`
-    /// 等）にも従来どおりの寛容な許容集合を適用する。
+    /// `outline-offset` 用（`offset` という名前のトークンのみ）。`auto`
+    /// のみを拒否し、他の CSS-wide keyword・負の長さは許可する。
+    Offset,
+    /// `width`/`offset` 以外。利用者が追加する任意の名前（テストの
+    /// `gap`/`keyword` 等）に従来どおりの寛容な許容集合を適用する。
     Other,
 }
 
 impl FocusRingTokenKind {
-    /// トークン名から分類を決定する。`width` の判定はグループ内の名前
-    /// そのもの（大文字小文字を区別しない揺れは許容しない、
-    /// [`TokenName`] の命名規則により英小文字を含む allowlist に既に
-    /// 正規化されている）と完全一致するかで行う。
+    /// トークン名から分類を決定する。判定はグループ内の名前そのもの
+    /// （大文字小文字を区別しない揺れは許容しない、[`TokenName`] の
+    /// 命名規則により英小文字を含む allowlist に既に正規化されている）
+    /// と完全一致するかで行う。
     fn from_name(name: &TokenName) -> Self {
-        if name.as_str() == "width" {
-            FocusRingTokenKind::Width
-        } else {
-            FocusRingTokenKind::Other
+        match name.as_str() {
+            "width" => FocusRingTokenKind::Width,
+            "offset" => FocusRingTokenKind::Offset,
+            _ => FocusRingTokenKind::Other,
         }
     }
 }
 
 /// [`Theme::push_focus_ring`] / [`Theme::upsert_focus_ring`] 共通の値検証
 /// （イシュー #1424、codex-review #1707 P1 指摘対応。`kind` によるトークン名
-/// 別検証への修正は PR #1707 レビュー指摘対応）。
+/// 別検証への修正、および CSS-wide keyword の許容範囲を生成先の実際の
+/// 文法に合わせた修正は PR #1707 レビュー指摘対応）。
 ///
 /// フォーカスリングの寸法トークンは `crates/pre-styled-ui/src/recipe.rs::focus_ring_declarations`
 /// が `outline-width`/`outline-offset` の値として直接埋め込む。`CssValue`
@@ -1163,18 +1187,18 @@ impl FocusRingTokenKind {
 /// time に無効となりキーボードフォーカス表示が消える
 /// （[`ThemeError::InvalidFocusRingValue`] rustdoc 参照）。
 ///
-/// # 許可する値
+/// # 許可する値（`kind` 別の詳細は [`FocusRingTokenKind`] 参照）
 ///
 /// - 単位なしの `0`（`-0`/`+0` を含む。CSS が唯一単位省略を許す長さ）
 /// - 符号任意の数値（整数・小数、`1.5` `.5` 形式のいずれも可）+
 ///   [`CSS_LENGTH_UNITS`] のいずれかの単位（大文字小文字を区別しない）
 /// - CSS グローバル値（`auto` `inherit` `initial` `revert` `revert-layer`
-///   `unset`）
+///   `unset`）。ただし [`FocusRingTokenKind::Width`] は一切許可せず、
+///   [`FocusRingTokenKind::Offset`] は `auto` のみ許可しない。
 ///
-/// `kind` が [`FocusRingTokenKind::Width`] の場合は上記から `auto` を除外
-/// し、さらに負の長さ（`-0`/`-0px` 等の実質ゼロを除く）も拒否する
-/// （`outline-width` は非負の `<line-width>` のみが有効で `auto` は
-/// `outline-width` の値としては無効かつ CSS-wide keyword でもないため）。
+/// [`FocusRingTokenKind::Width`] はさらに負の長さ（`-0`/`-0px` 等の
+/// 実質ゼロを除く）も拒否する（`outline-width` は非負の `<line-width>`
+/// のみが有効なため）。
 ///
 /// # Errors
 ///
@@ -1189,11 +1213,11 @@ fn validate_focus_ring_value(
     let s = css_value.as_str();
 
     let is_auto = s == "auto";
-    let is_global_keyword = is_auto
-        || matches!(
-            s,
-            "inherit" | "initial" | "revert" | "revert-layer" | "unset"
-        );
+    let is_other_global_keyword = matches!(
+        s,
+        "inherit" | "initial" | "revert" | "revert-layer" | "unset"
+    );
+    let is_global_keyword = is_auto || is_other_global_keyword;
 
     let is_negative = s.starts_with('-');
     let numeric_part = s
@@ -1212,12 +1236,19 @@ fn validate_focus_ring_value(
     });
 
     let is_valid_length = is_bare_zero || is_length_with_unit;
+    let is_non_negative_length = is_valid_length && (!is_negative || is_bare_zero);
 
     let ok = match kind {
         FocusRingTokenKind::Width => {
-            // `outline-width` は `auto` を許可せず、負の長さ（実質ゼロを
-            // 除く）も無効（非負の `<line-width>` のみが有効）。
-            !(is_auto || (is_negative && !is_bare_zero)) && (is_valid_length || is_global_keyword)
+            // `outline` shorthand の一部として埋め込まれるため CSS-wide
+            // keyword は一切許可しない（併用すると宣言全体が無効になる）。
+            // `outline-width` は非負の `<line-width>` のみが有効。
+            is_non_negative_length
+        }
+        FocusRingTokenKind::Offset => {
+            // `outline-offset` は単独宣言のため CSS-wide keyword は有効だが、
+            // `auto` は `outline-offset` の値としては無効。負の長さは有効。
+            is_valid_length || is_other_global_keyword
         }
         FocusRingTokenKind::Other => is_valid_length || is_global_keyword,
     };
@@ -2084,17 +2115,57 @@ mod tests {
         );
     }
 
+    // PR #1707 2 回目のレビュー指摘（codex-review P1）の回帰テスト:
+    // `validate_focus_ring_value` は CSS-wide keyword の許容を `width`
+    // でのみ特別扱いしており、`offset` は `width` 以外の寛容な許容集合を
+    // 継承して `auto` まで許可していた。`outline-offset: auto` は無効な
+    // 宣言となりキーボードフォーカス表示が消えるため、`offset` は `auto`
+    // のみを拒否し、他の CSS-wide keyword・負の長さは許可することを固定
+    // する。
+
     #[test]
-    fn push_focus_ring_accepts_auto_and_negative_length_for_offset() {
+    fn push_focus_ring_rejects_auto_for_offset() {
         let mut theme = Theme::empty();
-        // `outline-offset` は `auto` を持たないが、CSS グローバル値としての
-        // `auto` 相当（本トークンは `outline-offset` 専用ではなく、`width`
-        // 以外の任意トークン名に共通の寛容な許容集合を適用する設計であり、
-        // `offset` という名前自体には `auto` を拒否する特別扱いをしない）
-        // と、`outline-offset` で実際に意味を持つ負の長さの双方を許可する
-        // ことを固定する。
-        assert!(theme.push_focus_ring("offset", "auto").is_ok());
+        assert_eq!(
+            theme.push_focus_ring("offset", "auto"),
+            Err(ThemeError::InvalidFocusRingValue {
+                value: "auto".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn push_focus_ring_accepts_negative_length_and_other_global_keywords_for_offset() {
+        let mut theme = Theme::empty();
+        assert!(theme.push_focus_ring("offset", "-2px").is_ok());
         assert!(theme.push_focus_ring("gap", "-2px").is_ok());
+    }
+
+    #[test]
+    fn push_focus_ring_accepts_non_auto_global_keywords_for_offset() {
+        let mut theme = Theme::empty();
+        assert!(theme.push_focus_ring("offset", "inherit").is_ok());
+    }
+
+    // PR #1707 2 回目のレビュー指摘（codex-review P1）の回帰テスト:
+    // `width` は `outline` shorthand の一部として埋め込まれるため、
+    // `auto` 以外の CSS-wide keyword（`inherit` 等）も shorthand 全体を
+    // 無効化する。`push_focus_ring("width", "inherit")` が
+    // `outline: inherit solid ...` という無効な宣言を生成しないことを
+    // 固定する。
+
+    #[test]
+    fn push_focus_ring_rejects_non_auto_global_keywords_for_width() {
+        let mut theme = Theme::empty();
+        for keyword in ["inherit", "initial", "revert", "revert-layer", "unset"] {
+            assert_eq!(
+                theme.push_focus_ring("width", keyword),
+                Err(ThemeError::InvalidFocusRingValue {
+                    value: keyword.to_string()
+                }),
+                "width should reject CSS-wide keyword {keyword:?}"
+            );
+        }
     }
 
     #[test]
