@@ -1359,12 +1359,22 @@ fn strip_suffix_ignore_ascii_case<'a>(s: &'a str, suffix: &str) -> Option<&'a st
 /// CSS `<number>` として妥当な文字列か判定する（符号なし。呼び出し元で
 /// 符号を既に剥がしている前提）。整数部・小数部の少なくとも一方が必須で、
 /// 小数点は高々 1 個まで（[`validate_focus_ring_value`] 専用）。
+///
+/// 小数点を含む場合は**小数点の後ろに少なくとも 1 桁**を必須とする
+/// （codex-review #1707 P1 指摘）。CSS `<number>` の文法上 `1.`（末尾に
+/// 桁のない小数点）は無効であり、これを許すと `push_focus_ring("width",
+/// "1.px")` のような値が `outline-width` として無効な CSS
+/// （`outline: 1.px solid ...`）をそのまま生成してしまう。一方 `.5`
+/// （先頭に整数部を持たない小数）は CSS `<number>` として有効なため、
+/// 整数部の省略は引き続き許可する（小数部側の省略のみを拒否する非対称
+/// な検証）。
 fn is_valid_css_number(s: &str) -> bool {
     if s.is_empty() {
         return false;
     }
     let mut seen_dot = false;
-    let mut has_digit = false;
+    let mut digits_before_dot = false;
+    let mut digits_after_dot = false;
     for c in s.chars() {
         if c == '.' {
             if seen_dot {
@@ -1372,12 +1382,20 @@ fn is_valid_css_number(s: &str) -> bool {
             }
             seen_dot = true;
         } else if c.is_ascii_digit() {
-            has_digit = true;
+            if seen_dot {
+                digits_after_dot = true;
+            } else {
+                digits_before_dot = true;
+            }
         } else {
             return false;
         }
     }
-    has_digit
+    if seen_dot {
+        digits_after_dot
+    } else {
+        digits_before_dot
+    }
 }
 
 /// [`Theme::push_space`] / [`Theme::push_typography`] 共通の検証・追加ロジック。
@@ -2141,6 +2159,39 @@ mod tests {
         assert!(theme.push_focus_ring("offset", "0").is_ok());
         assert!(theme.push_focus_ring("gap", "0.125rem").is_ok());
         assert!(theme.push_focus_ring("keyword", "inherit").is_ok());
+    }
+
+    // codex-review #1707 P1 指摘（コメント 3890360041）の回帰テスト:
+    // `is_valid_css_number` が末尾に桁のない小数点（`1.` 形式）を CSS
+    // `<number>` として妥当と誤判定していたため、`push_focus_ring` が
+    // `1.px`/`2.rem` のような無効な寸法値を素通りさせ、`outline-width`
+    // として無効な CSS（`outline: 1.px solid ...`）を生成し得た。小数点を
+    // 含む場合は小数点の後ろに少なくとも 1 桁を要求するよう修正し、
+    // 末尾小数点の値を拒否することを固定する。一方、先頭に整数部を
+    // 持たない `.5rem` 形式（CSS `<number>` として有効）は既存仕様どおり
+    // 引き続き許可されることも合わせて固定する。
+
+    #[test]
+    fn push_focus_ring_rejects_trailing_dot_length() {
+        let mut theme = Theme::empty();
+        assert_eq!(
+            theme.push_focus_ring("width", "1.px"),
+            Err(ThemeError::InvalidFocusRingValue {
+                value: "1.px".to_string()
+            })
+        );
+        assert_eq!(
+            theme.push_focus_ring("gap", "2.rem"),
+            Err(ThemeError::InvalidFocusRingValue {
+                value: "2.rem".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn push_focus_ring_accepts_leading_dot_length() {
+        let mut theme = Theme::empty();
+        assert!(theme.push_focus_ring("gap", ".5rem").is_ok());
     }
 
     #[test]
