@@ -244,7 +244,8 @@ pub fn palette_declarations(p: ColorPalette) -> Vec<Declaration> {
 /// 完全に同一の順序・同一の値になる（`recipe_css.rs` の
 /// `palette_scale_declarations_prefix_equals_palette_declarations` で固定）。
 /// Phase 1 の各部品 issue が golden 更新時にこちらへ移行する想定であり、
-/// 本イシュー時点でこの関数を呼ぶ styled 部品は存在しない。
+/// イシュー #1679 で `mark` / `blockquote` が既にこちらへ移行済み（他の
+/// styled 部品は今後の Phase で順次移行する）。
 ///
 /// [`Declaration`] は `&'static str` のみを保持できる設計（`crate::css` の
 /// 型レベル不変条件、動的文字列混入経路を塞ぐ）のため、`format!` で値を

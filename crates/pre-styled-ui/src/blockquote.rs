@@ -59,7 +59,7 @@ impl VariantValue for BlockquoteVariant {
 ///
 /// `caption` の文字色は `--fandhe-blockquote-caption-fg`（既定
 /// `var(--fandhe-color-fg-muted)`）というローカル custom property 経由で
-/// 参照する（[`palette_declarations`] と同型のパターン）。custom property は
+/// 参照する（[`crate::recipe::palette_scale_declarations`] と同型のパターン）。custom property は
 /// クラスの有無に関わらず DOM の継承で子要素（`caption` は `root` の子）へ
 /// 伝わるため、`caption` 自身にクラスを付けなくても `root` 側の variant
 /// 宣言で上書きできる（palette 宣言はイシュー #1679 で
