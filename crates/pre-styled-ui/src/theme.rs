@@ -61,6 +61,22 @@ pub enum ThemeError {
         /// 検証に失敗した入力。
         value: String,
     },
+    /// [`Theme::push_focus_ring`] / [`Theme::upsert_focus_ring`] に渡された
+    /// 値が `outline-width`/`outline-offset` の寸法値として無効だった
+    /// （イシュー #1424、codex-review #1707 P1 指摘）。`CssValue` の文字
+    /// allowlist は満たすが、色・`rgba(...)` 等の寸法として無効な値を
+    /// ここで拒否する。フォーカスリング色は本バリアントの対象外
+    /// （[`Theme::push_color`]（`focus-ring` 名）が別途担う）であり、色
+    /// 以外の無効値（例: `expression(...)`（`CssValue::new` 側で既に拒否）
+    /// を除く任意の非寸法トークン）が寸法値としてそのまま `outline` 宣言に
+    /// 混入すると、CSS の型不一致で宣言全体が computed-value time に無効
+    /// となりキーボードフォーカス表示が消え得る。許可されるのは CSS
+    /// `<length>`（数値 + 単位、または単位なしの `0`）と CSS グローバル値
+    /// （`auto` `inherit` `initial` `revert` `revert-layer` `unset`）のみ。
+    InvalidFocusRingValue {
+        /// 検証に失敗した入力。
+        value: String,
+    },
 }
 
 impl fmt::Display for ThemeError {
@@ -79,6 +95,12 @@ impl fmt::Display for ThemeError {
                 write!(
                     f,
                     "invalid z-index value (not an integer or CSS global value): {value:?}"
+                )
+            }
+            ThemeError::InvalidFocusRingValue { value } => {
+                write!(
+                    f,
+                    "invalid focus-ring dimension value (not a CSS length or global value): {value:?}"
                 )
             }
         }
@@ -691,9 +713,24 @@ impl Theme {
     ///
     /// # Errors
     ///
-    /// [`Theme::push_color`] と同様（`name`/`value` の検証・重複拒否）。
+    /// - `name` が [`TokenName`] の命名規則を満たさない場合
+    /// - `value` が `outline-width`/`outline-offset` の寸法値として無効な
+    ///   場合（[`ThemeError::InvalidFocusRingValue`]。CSS `<length>` と
+    ///   CSS グローバル値のみ許可、詳細は同バリアントの rustdoc 参照。
+    ///   codex-review #1707 P1 指摘対応）
+    /// - `name` が focus_ring グループ内で既に登録済みの場合（[`ThemeError::DuplicateTokenName`]）
     pub fn push_focus_ring(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
-        push_scale(&mut self.focus_ring, name, value)
+        let name = TokenName::new(name)?;
+        let value = validate_focus_ring_value(value)?;
+
+        if self.focus_ring.iter().any(|t| t.name == name) {
+            return Err(ThemeError::DuplicateTokenName {
+                name: name.as_str().to_string(),
+            });
+        }
+
+        self.focus_ring.push(ScaleToken { name, value });
+        Ok(())
     }
 
     /// ライト/ダーク値を持つ色トークンを追加、または既存トークンを上書きする
@@ -794,9 +831,19 @@ impl Theme {
     ///
     /// # Errors
     ///
-    /// `name` / `value` のいずれかが allowlist 検証を通過しない場合。
+    /// `name` / `value` のいずれかが検証を通過しない場合。`value` の検証は
+    /// [`Theme::push_focus_ring`] と同一（[`ThemeError::InvalidFocusRingValue`]。
+    /// codex-review #1707 P1 指摘対応）。
     pub fn upsert_focus_ring(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
-        upsert_scale(&mut self.focus_ring, name, value)
+        let name = TokenName::new(name)?;
+        let value = validate_focus_ring_value(value)?;
+
+        if let Some(existing) = self.focus_ring.iter_mut().find(|t| t.name == name) {
+            existing.value = value;
+        } else {
+            self.focus_ring.push(ScaleToken { name, value });
+        }
+        Ok(())
     }
 
     /// テーマを決定的なプレーン CSS 文字列へ変換する。
@@ -957,6 +1004,109 @@ fn validate_z_index_value(value: &str) -> Result<CssValue, ThemeError> {
             value: value.to_string(),
         })
     }
+}
+
+/// CSS `<length>` の単位として認める文字列（降順ではなく列挙順、
+/// [`validate_focus_ring_value`] 専用）。`ch`/`ex` 等の希少単位も含め、
+/// MDN `<length>` の代表的な絶対/相対単位を allowlist する。
+const CSS_LENGTH_UNITS: &[&str] = &[
+    "px", "rem", "em", "ch", "ex", "vh", "vw", "vmin", "vmax", "pt", "pc", "in", "cm", "mm", "q",
+];
+
+/// [`Theme::push_focus_ring`] / [`Theme::upsert_focus_ring`] 共通の値検証
+/// （イシュー #1424、codex-review #1707 P1 指摘対応）。
+///
+/// フォーカスリングの寸法トークンは `crates/pre-styled-ui/src/recipe.rs::focus_ring_declarations`
+/// が `outline-width`/`outline-offset` の値として直接埋め込む。`CssValue`
+/// の文字 allowlist は満たすが CSS `<length>` としては無効な値（色・
+/// `rgba(...)` 等）を許してしまうと、`outline` 宣言全体が computed-value
+/// time に無効となりキーボードフォーカス表示が消える
+/// （[`ThemeError::InvalidFocusRingValue`] rustdoc 参照）。
+///
+/// # 許可する値
+///
+/// - 単位なしの `0`（`-0`/`+0` を含む。CSS が唯一単位省略を許す長さ）
+/// - 符号任意の数値（整数・小数、`1.5` `.5` 形式のいずれも可）+
+///   [`CSS_LENGTH_UNITS`] のいずれかの単位（大文字小文字を区別しない）
+/// - CSS グローバル値（`auto` `inherit` `initial` `revert` `revert-layer`
+///   `unset`）
+///
+/// # Errors
+///
+/// [`CssValue::new`] が失敗した場合は [`ThemeError::InvalidCssValue`]、
+/// 文字集合は満たすが上記のいずれにも該当しない場合は
+/// [`ThemeError::InvalidFocusRingValue`] を返す。
+fn validate_focus_ring_value(value: &str) -> Result<CssValue, ThemeError> {
+    let css_value = CssValue::new(value)?;
+    let s = css_value.as_str();
+
+    let is_global_keyword = matches!(
+        s,
+        "auto" | "inherit" | "initial" | "revert" | "revert-layer" | "unset"
+    );
+
+    let numeric_part = s
+        .strip_prefix('-')
+        .or_else(|| s.strip_prefix('+'))
+        .unwrap_or(s);
+    let is_bare_zero = numeric_part == "0";
+
+    // 単位を後方一致（大文字小文字無視）で剥がし、残りが妥当な数値
+    // （整数・小数点付き、空でない）であることを確認する。
+    let is_length_with_unit = CSS_LENGTH_UNITS.iter().any(|unit| {
+        let Some(rest) = strip_suffix_ignore_ascii_case(numeric_part, unit) else {
+            return false;
+        };
+        is_valid_css_number(rest)
+    });
+
+    if is_bare_zero || is_length_with_unit || is_global_keyword {
+        Ok(css_value)
+    } else {
+        Err(ThemeError::InvalidFocusRingValue {
+            value: value.to_string(),
+        })
+    }
+}
+
+/// ASCII 大文字小文字を無視して `s` の末尾から `suffix` を剥がす
+/// （[`validate_focus_ring_value`] 専用の内部ヘルパ。`str::strip_suffix`
+/// は大文字小文字を区別するため、単位表記の揺れ（`PX`/`Px` 等）を
+/// 吸収するために自前実装する）。
+fn strip_suffix_ignore_ascii_case<'a>(s: &'a str, suffix: &str) -> Option<&'a str> {
+    if s.len() < suffix.len() {
+        return None;
+    }
+    let (rest, tail) = s.split_at(s.len() - suffix.len());
+    if tail.eq_ignore_ascii_case(suffix) {
+        Some(rest)
+    } else {
+        None
+    }
+}
+
+/// CSS `<number>` として妥当な文字列か判定する（符号なし。呼び出し元で
+/// 符号を既に剥がしている前提）。整数部・小数部の少なくとも一方が必須で、
+/// 小数点は高々 1 個まで（[`validate_focus_ring_value`] 専用）。
+fn is_valid_css_number(s: &str) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+    let mut seen_dot = false;
+    let mut has_digit = false;
+    for c in s.chars() {
+        if c == '.' {
+            if seen_dot {
+                return false;
+            }
+            seen_dot = true;
+        } else if c.is_ascii_digit() {
+            has_digit = true;
+        } else {
+            return false;
+        }
+    }
+    has_digit
 }
 
 /// [`Theme::push_space`] / [`Theme::push_typography`] 共通の検証・追加ロジック。
@@ -1680,6 +1830,53 @@ mod tests {
         theme.push_focus_ring("width", "2px").unwrap();
         theme.upsert_focus_ring("width", "3px").unwrap();
         assert!(theme.to_css().contains("--fandhe-focus-ring-width: 3px;"));
+    }
+
+    // codex-review #1707 P1 指摘の回帰テスト: `push_focus_ring`/
+    // `upsert_focus_ring` は `outline-width`/`outline-offset` の寸法値と
+    // して無効な値（色・`rgba(...)` 等）を拒否しなければならない
+    // （型不一致で `outline` 宣言全体が無効化されキーボードフォーカス
+    // 表示が消え得るため）。
+
+    #[test]
+    fn push_focus_ring_accepts_valid_lengths_and_global_keywords() {
+        let mut theme = Theme::empty();
+        assert!(theme.push_focus_ring("width", "2px").is_ok());
+        assert!(theme.push_focus_ring("offset", "0").is_ok());
+        assert!(theme.push_focus_ring("gap", "0.125rem").is_ok());
+        assert!(theme.push_focus_ring("keyword", "inherit").is_ok());
+    }
+
+    #[test]
+    fn push_focus_ring_rejects_color_value() {
+        let mut theme = Theme::empty();
+        assert_eq!(
+            theme.push_focus_ring("width", "#4299e1"),
+            Err(ThemeError::InvalidFocusRingValue {
+                value: "#4299e1".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn push_focus_ring_rejects_rgba_value() {
+        let mut theme = Theme::empty();
+        assert!(matches!(
+            theme.push_focus_ring("width", "rgba(0, 0, 0, 0.4)"),
+            Err(ThemeError::InvalidFocusRingValue { .. })
+        ));
+    }
+
+    #[test]
+    fn upsert_focus_ring_rejects_invalid_dimension_value() {
+        let mut theme = Theme::empty();
+        theme.push_focus_ring("width", "2px").unwrap();
+        assert!(matches!(
+            theme.upsert_focus_ring("width", "solid"),
+            Err(ThemeError::InvalidFocusRingValue { .. })
+        ));
+        // 検証失敗時は既存値を上書きしない。
+        assert!(theme.to_css().contains("--fandhe-focus-ring-width: 2px;"));
     }
 
     #[test]

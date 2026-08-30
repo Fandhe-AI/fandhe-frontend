@@ -623,3 +623,27 @@ fn size_variants_default_is_always_md_even_when_md_declarations_are_included() {
     assert_eq!(recipe.variant_classes(&[]), "fd-widget--size-md");
     assert!(recipe.css().contains("padding: 8px;"));
 }
+
+#[test]
+fn size_variants_overrides_pre_existing_size_default_variant() {
+    // codex-review #1707 P1 指摘の回帰テスト: 呼び出し元 recipe が
+    // `size_variants` 呼び出し以前に `default_variant(Size::Sm)` 等で
+    // `size` 軸の既定値を設定済みだった場合でも、本メソッドが最後に
+    // 呼ばれれば「既定は必ず md」という公開 API 契約
+    // （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4）
+    // を満たすことを固定する。修正前は単純な末尾追加のため
+    // `variant_classes` の `find`（axis ごとに最初に登録された
+    // `default_variant` を採用）が先に登録された `Sm` を優先してしまい、
+    // 本テストは `fd-widget--size-sm` を返して失敗していた。
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .default_variant(Size::Sm)
+        .size_variants(
+            "root",
+            &[
+                (Size::Sm, vec![decl("padding", "4px")]),
+                (Size::Lg, vec![decl("padding", "12px")]),
+            ],
+        );
+
+    assert_eq!(recipe.variant_classes(&[]), "fd-widget--size-md");
+}

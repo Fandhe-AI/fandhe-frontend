@@ -529,6 +529,18 @@ impl SlotRecipe {
         for (size, declarations) in sizes {
             self = self.variant(*size, slot, declarations.clone());
         }
+        // 呼び出し元 recipe が本メソッド呼び出し以前に `default_variant(Size::...)`
+        // で `size` 軸の既定値を設定済みの場合、単純な末尾追加では
+        // `variant_classes` の `find`（axis ごとに最初に登録された
+        // `default_variant` を採用、`SlotRecipe::variant_classes` rustdoc
+        // 参照）が既存の（`Md` ではない）既定値を優先してしまい、「size
+        // 軸を持つ styled 部品は既定が必ず `md`」という規約
+        // （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+        // §4）を満たせない（codex-review #1707 P1 指摘）。同一 axis の
+        // 既存エントリを退避してから追加することで、本メソッドが最後に
+        // 呼ばれれば必ず `Md` が既定になることを保証する。
+        let axis = Size::Md.axis();
+        self.default_variants.retain(|d| d.axis != axis);
         self.default_variant(Size::Md)
     }
 
