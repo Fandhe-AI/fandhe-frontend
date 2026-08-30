@@ -101,9 +101,6 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-arrow-y",
     "--fandhe-reference-width",
     "--fandhe-hover-bg",
-    "--fandhe-palette-subtle",
-    "--fandhe-palette-muted",
-    "--fandhe-palette-fg-subtle",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。
