@@ -74,7 +74,7 @@
 //! 祖先要素であるため、[`crate::recipe::SlotRecipe`] へ子孫セレクタ機構を
 //! 追加せずに実現できる）経由で `item-control` の寸法・選択ドットの見た目を
 //! 切り替える。`palette`（[`ColorPalette`]）は既存の
-//! [`crate::recipe::palette_declarations`]（chakra-ui virtual token 方式、
+//! [`crate::recipe::palette_scale_declarations`]（chakra-ui virtual token 方式、
 //! #606）を `root` へ登録し、checked 時の `item-control` の枠色・背景・
 //! `:focus-within` のアウトライン色を `var(--fandhe-palette, ...)` 経由で
 //! 切り替える。`base`/`state` 規則の `var()` にはいずれも Md サイズ・
@@ -101,7 +101,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -254,6 +254,18 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-radio-group-control-size", "0.7rem"),
+                decl("--fandhe-radio-group-dot-inset", "1px"),
+                decl(
+                    "--fandhe-radio-group-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -289,6 +301,18 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-radio-group-control-size", "1.5rem"),
+                decl("--fandhe-radio-group-dot-inset", "5px"),
+                decl(
+                    "--fandhe-radio-group-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -298,8 +322,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -458,9 +483,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-radio-group--size-xs"),
             (Size::Sm, "fd-radio-group--size-sm"),
             (Size::Md, "fd-radio-group--size-md"),
             (Size::Lg, "fd-radio-group--size-lg"),
+            (Size::Xl, "fd-radio-group--size-xl"),
         ] {
             let html = render(&root(
                 size,
@@ -489,6 +516,10 @@ mod tests {
                 "fd-radio-group--color-palette-warning",
             ),
             (ColorPalette::Danger, "fd-radio-group--color-palette-danger"),
+            (
+                ColorPalette::Neutral,
+                "fd-radio-group--color-palette-neutral",
+            ),
         ] {
             let html = render(&root(Size::Md, palette, false, None, None, vec![], vec![]));
             assert!(html.contains(class), "palette={palette:?} -> {html}");

@@ -87,15 +87,20 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-palette",
     "--fandhe-palette-emphasized",
     "--fandhe-palette-fg",
+    // イシュー #1678/#1680: `palette_scale_declarations`（6 役割版）が
+    // 新設した 3 変数。Forms カテゴリの 13 部品（イシュー #1680）が
+    // `palette_declarations` から切り替えたことで新たに出現した
+    // （先行の #1679/PR #1711 で Typography/Utilities 分の 2 部品が
+    // 同じ切り替えを行い、この 3 変数を要求している）。
+    "--fandhe-palette-subtle",
+    "--fandhe-palette-muted",
+    "--fandhe-palette-fg-subtle",
     "--fandhe-x",
     "--fandhe-y",
     "--fandhe-arrow-x",
     "--fandhe-arrow-y",
     "--fandhe-reference-width",
     "--fandhe-hover-bg",
-    "--fandhe-palette-subtle",
-    "--fandhe-palette-muted",
-    "--fandhe-palette-fg-subtle",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。

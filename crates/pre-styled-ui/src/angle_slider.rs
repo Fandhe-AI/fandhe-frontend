@@ -51,7 +51,7 @@
 //! `--fandhe-angle-slider-track-size`/`-thumb-size` の root スコープ custom
 //! property（CSS の通常のプロパティ継承により `control`/`thumb` へ伝わる）
 //! 経由で寸法を切り替える（[`crate::slider`] と同型）。`palette`
-//! （[`ColorPalette`]）は既存の [`crate::recipe::palette_declarations`]
+//! （[`ColorPalette`]）は既存の [`crate::recipe::palette_scale_declarations`]
 //! （chakra-ui virtual token 方式、#606）を `root` へ登録し、`thumb` の色を
 //! `var(--fandhe-palette, ...)` 経由で切り替える。
 //!
@@ -74,7 +74,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `AngleSlider` 状態機械・headless 自由関数 `root`/`thumb` はあえて再
@@ -211,6 +211,14 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-angle-slider-track-size", "2.5rem"),
+                decl("--fandhe-angle-slider-thumb-size", "0.5rem"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -234,6 +242,14 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-angle-slider-thumb-size", "1.1rem"),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-angle-slider-track-size", "6.5rem"),
+                decl("--fandhe-angle-slider-thumb-size", "1.3rem"),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -243,8 +259,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -391,9 +408,11 @@ mod tests {
     fn size_enumeration_maps_to_expected_classes() {
         let s = AngleSlider::default();
         for (size, class) in [
+            (Size::Xs, "fd-angle-slider--size-xs"),
             (Size::Sm, "fd-angle-slider--size-sm"),
             (Size::Md, "fd-angle-slider--size-md"),
             (Size::Lg, "fd-angle-slider--size-lg"),
+            (Size::Xl, "fd-angle-slider--size-xl"),
         ] {
             let html = render(&root(size, ColorPalette::Accent, &s, false, vec![], vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");
@@ -420,6 +439,10 @@ mod tests {
             (
                 ColorPalette::Danger,
                 "fd-angle-slider--color-palette-danger",
+            ),
+            (
+                ColorPalette::Neutral,
+                "fd-angle-slider--color-palette-neutral",
             ),
         ] {
             let html = render(&root(Size::Md, palette, &s, false, vec![], vec![]));

@@ -59,6 +59,12 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
   line-height: 1;
 }
 
+[data-scope="number-input"][data-part="root"].fd-number-input--size-xs {
+  --fandhe-number-input-control-height: 1.5rem;
+  --fandhe-number-input-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-number-input-trigger-size: 1rem;
+}
+
 [data-scope="number-input"][data-part="root"].fd-number-input--size-sm {
   --fandhe-number-input-control-height: 2rem;
   --fandhe-number-input-font-size: var(--fandhe-font-font-size-sm);
@@ -75,6 +81,12 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
   --fandhe-number-input-control-height: 3rem;
   --fandhe-number-input-font-size: var(--fandhe-font-font-size-md);
   --fandhe-number-input-trigger-size: 1.75rem;
+}
+
+[data-scope="number-input"][data-part="root"].fd-number-input--size-xl {
+  --fandhe-number-input-control-height: 3.5rem;
+  --fandhe-number-input-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-number-input-trigger-size: 2rem;
 }
 
 [data-scope="number-input"][data-part="root"][data-disabled] {

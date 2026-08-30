@@ -28,6 +28,11 @@ const INPUT_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="input"] {
   transition: border-color 0.15s, background 0.15s;
 }
 
+[data-scope="field"][data-part="input"].fd-field--size-xs {
+  padding: 0.125rem 0.375rem;
+  font-size: var(--fandhe-font-font-size-xs);
+}
+
 [data-scope="field"][data-part="input"].fd-field--size-sm {
   padding: 0.25rem 0.5rem;
   font-size: var(--fandhe-font-font-size-sm);
@@ -41,6 +46,11 @@ const INPUT_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="input"] {
 [data-scope="field"][data-part="input"].fd-field--size-lg {
   padding: 0.5rem 1rem;
   font-size: var(--fandhe-font-font-size-md);
+}
+
+[data-scope="field"][data-part="input"].fd-field--size-xl {
+  padding: 0.625rem 1.25rem;
+  font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="field"][data-part="input"].fd-field--variant-outline {
@@ -84,6 +94,11 @@ const TEXTAREA_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="textarea"] 
   transition: border-color 0.15s, background 0.15s;
 }
 
+[data-scope="field"][data-part="textarea"].fd-field--size-xs {
+  padding: 0.125rem 0.375rem;
+  font-size: var(--fandhe-font-font-size-xs);
+}
+
 [data-scope="field"][data-part="textarea"].fd-field--size-sm {
   padding: 0.25rem 0.5rem;
   font-size: var(--fandhe-font-font-size-sm);
@@ -97,6 +112,11 @@ const TEXTAREA_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="textarea"] 
 [data-scope="field"][data-part="textarea"].fd-field--size-lg {
   padding: 0.5rem 1rem;
   font-size: var(--fandhe-font-font-size-md);
+}
+
+[data-scope="field"][data-part="textarea"].fd-field--size-xl {
+  padding: 0.625rem 1.25rem;
+  font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="field"][data-part="textarea"].fd-field--variant-outline {
@@ -144,6 +164,11 @@ const NATIVE_SELECT_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="select
   transition: border-color 0.15s, background 0.15s;
 }
 
+[data-scope="field"][data-part="select"].fd-field--size-xs {
+  padding: 0.125rem 0.375rem;
+  font-size: var(--fandhe-font-font-size-xs);
+}
+
 [data-scope="field"][data-part="select"].fd-field--size-sm {
   padding: 0.25rem 0.5rem;
   font-size: var(--fandhe-font-font-size-sm);
@@ -157,6 +182,11 @@ const NATIVE_SELECT_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="select
 [data-scope="field"][data-part="select"].fd-field--size-lg {
   padding: 0.5rem 1rem;
   font-size: var(--fandhe-font-font-size-md);
+}
+
+[data-scope="field"][data-part="select"].fd-field--size-xl {
+  padding: 0.625rem 1.25rem;
+  font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="field"][data-part="select"].fd-field--variant-outline {

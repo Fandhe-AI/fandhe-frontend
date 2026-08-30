@@ -59,7 +59,7 @@
 //! （`root` スコープの custom property 経由で `item-control`/`item-text` の
 //! 寸法・見た目を切り替える）に従う。`size` は
 //! `--fandhe-checkbox-group-control-size`/`-font-size` を、`palette` は
-//! [`crate::recipe::palette_declarations`] を登録する。`var()` にはいずれも
+//! [`crate::recipe::palette_scale_declarations`] を登録する。`var()` にはいずれも
 //! Md サイズ・Accent パレット相当のフォールバック値を書き、styled `root` を
 //! 経由しない headless 直接利用マークアップでも現行外観を維持する
 //! （fail-safe）。
@@ -83,7 +83,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -243,6 +243,19 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-checkbox-group-control-size", "0.7rem"),
+                decl("--fandhe-checkbox-group-check-width", "0.15rem"),
+                decl("--fandhe-checkbox-group-check-height", "0.3rem"),
+                decl(
+                    "--fandhe-checkbox-group-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -281,6 +294,19 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-checkbox-group-control-size", "1.5rem"),
+                decl("--fandhe-checkbox-group-check-width", "0.35rem"),
+                decl("--fandhe-checkbox-group-check-height", "0.7rem"),
+                decl(
+                    "--fandhe-checkbox-group-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -290,8 +316,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -470,9 +497,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-checkbox-group--size-xs"),
             (Size::Sm, "fd-checkbox-group--size-sm"),
             (Size::Md, "fd-checkbox-group--size-md"),
             (Size::Lg, "fd-checkbox-group--size-lg"),
+            (Size::Xl, "fd-checkbox-group--size-xl"),
         ] {
             let html = render(&root(
                 size,
@@ -506,6 +535,10 @@ mod tests {
             (
                 ColorPalette::Danger,
                 "fd-checkbox-group--color-palette-danger",
+            ),
+            (
+                ColorPalette::Neutral,
+                "fd-checkbox-group--color-palette-neutral",
             ),
         ] {
             let html = render(&root(Size::Md, palette, false, None, None, vec![], vec![]));

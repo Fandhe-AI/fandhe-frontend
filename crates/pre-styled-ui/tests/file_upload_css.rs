@@ -101,6 +101,10 @@ const FILE_UPLOAD_GOLDEN_CSS: &str = r#"[data-scope="file-upload"][data-part="ro
   font-size: var(--fandhe-file-upload-font-size, var(--fandhe-font-font-size-sm));
 }
 
+[data-scope="file-upload"][data-part="root"].fd-file-upload--size-xs {
+  --fandhe-file-upload-font-size: var(--fandhe-font-font-size-xs);
+}
+
 [data-scope="file-upload"][data-part="root"].fd-file-upload--size-sm {
   --fandhe-file-upload-font-size: var(--fandhe-font-font-size-xs);
 }
@@ -111,6 +115,10 @@ const FILE_UPLOAD_GOLDEN_CSS: &str = r#"[data-scope="file-upload"][data-part="ro
 
 [data-scope="file-upload"][data-part="root"].fd-file-upload--size-lg {
   --fandhe-file-upload-font-size: var(--fandhe-font-font-size-md);
+}
+
+[data-scope="file-upload"][data-part="root"].fd-file-upload--size-xl {
+  --fandhe-file-upload-font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="file-upload"][data-part="root"][data-disabled] {

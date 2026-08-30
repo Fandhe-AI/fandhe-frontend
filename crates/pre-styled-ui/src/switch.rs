@@ -81,7 +81,7 @@
 //! `root` は `<label>` でこれらのパーツを内包する祖先要素であるため、
 //! [`crate::recipe::SlotRecipe`] へ子孫セレクタ機構を追加せずに実現できる）
 //! 経由で `control`/`thumb`/`label` の寸法を切り替える。`palette`
-//! （[`ColorPalette`]）は既存の [`crate::recipe::palette_declarations`]
+//! （[`ColorPalette`]）は既存の [`crate::recipe::palette_scale_declarations`]
 //! （chakra-ui virtual token 方式、#606）を `root` へ登録し、checked 時の
 //! `control` 背景・`thumb` の色を `var(--fandhe-palette, ...)` 経由で
 //! 切り替える。`base`/`state` 規則の `var()` にはいずれも Md サイズ・
@@ -101,7 +101,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `Switch` 状態機械・headless 自由関数 `root` はあえて再エクスポートしない
@@ -211,6 +211,20 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-switch-track-width", "1.5rem"),
+                decl("--fandhe-switch-track-height", "0.9rem"),
+                decl("--fandhe-switch-thumb-size", "0.6rem"),
+                decl("--fandhe-switch-thumb-travel", "0.6rem"),
+                decl(
+                    "--fandhe-switch-label-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -252,6 +266,20 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-switch-track-width", "3.5rem"),
+                decl("--fandhe-switch-track-height", "1.9rem"),
+                decl("--fandhe-switch-thumb-size", "1.6rem"),
+                decl("--fandhe-switch-thumb-travel", "1.6rem"),
+                decl(
+                    "--fandhe-switch-label-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -261,8 +289,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -410,9 +439,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-switch--size-xs"),
             (Size::Sm, "fd-switch--size-sm"),
             (Size::Md, "fd-switch--size-md"),
             (Size::Lg, "fd-switch--size-lg"),
+            (Size::Xl, "fd-switch--size-xl"),
         ] {
             let html = render(&root(
                 size,
@@ -434,6 +465,7 @@ mod tests {
             (ColorPalette::Success, "fd-switch--color-palette-success"),
             (ColorPalette::Warning, "fd-switch--color-palette-warning"),
             (ColorPalette::Danger, "fd-switch--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-switch--color-palette-neutral"),
         ] {
             let html = render(&root(Size::Md, palette, false, false, vec![], vec![]));
             assert!(html.contains(class), "palette={palette:?} -> {html}");
@@ -471,7 +503,7 @@ mod tests {
         // （`radio_group.rs` の `--fandhe-radio-group-font-size` と対称の
         // 契約）。
         let css = stylesheet();
-        for size in [Size::Sm, Size::Md, Size::Lg] {
+        for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
             let selector = format!(
                 r#"[data-scope="switch"][data-part="root"].fd-switch--size-{}"#,
                 size.value()

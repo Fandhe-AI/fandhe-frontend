@@ -84,6 +84,13 @@ const RADIO_CARD_GOLDEN_CSS: &str = r#"[data-scope="radio-card"][data-part="root
   border: 0;
 }
 
+[data-scope="radio-card"][data-part="root"].fd-radio-card--size-xs {
+  --fandhe-radio-card-padding: 0.25rem;
+  --fandhe-radio-card-control-size: 0.7rem;
+  --fandhe-radio-card-dot-inset: 1px;
+  --fandhe-radio-card-label-font-size: var(--fandhe-font-font-size-xs);
+}
+
 [data-scope="radio-card"][data-part="root"].fd-radio-card--size-sm {
   --fandhe-radio-card-padding: 0.5rem;
   --fandhe-radio-card-control-size: 0.85rem;
@@ -105,34 +112,65 @@ const RADIO_CARD_GOLDEN_CSS: &str = r#"[data-scope="radio-card"][data-part="root
   --fandhe-radio-card-label-font-size: var(--fandhe-font-font-size-md);
 }
 
+[data-scope="radio-card"][data-part="root"].fd-radio-card--size-xl {
+  --fandhe-radio-card-padding: 1.25rem;
+  --fandhe-radio-card-control-size: 1.5rem;
+  --fandhe-radio-card-dot-inset: 5px;
+  --fandhe-radio-card-label-font-size: var(--fandhe-font-font-size-lg);
+}
+
 [data-scope="radio-card"][data-part="root"].fd-radio-card--color-palette-accent {
   --fandhe-palette: var(--fandhe-color-accent);
   --fandhe-palette-emphasized: var(--fandhe-color-accent-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-accent-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-accent-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-accent-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-accent-fg-subtle);
 }
 
 [data-scope="radio-card"][data-part="root"].fd-radio-card--color-palette-info {
   --fandhe-palette: var(--fandhe-color-info);
   --fandhe-palette-emphasized: var(--fandhe-color-info-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-info-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-info-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-info-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-info-fg-subtle);
 }
 
 [data-scope="radio-card"][data-part="root"].fd-radio-card--color-palette-success {
   --fandhe-palette: var(--fandhe-color-success);
   --fandhe-palette-emphasized: var(--fandhe-color-success-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-success-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-success-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-success-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-success-fg-subtle);
 }
 
 [data-scope="radio-card"][data-part="root"].fd-radio-card--color-palette-warning {
   --fandhe-palette: var(--fandhe-color-warning);
   --fandhe-palette-emphasized: var(--fandhe-color-warning-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-warning-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-warning-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-warning-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-warning-fg-subtle);
 }
 
 [data-scope="radio-card"][data-part="root"].fd-radio-card--color-palette-danger {
   --fandhe-palette: var(--fandhe-color-danger);
   --fandhe-palette-emphasized: var(--fandhe-color-danger-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-danger-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-danger-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-danger-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-danger-fg-subtle);
+}
+
+[data-scope="radio-card"][data-part="root"].fd-radio-card--color-palette-neutral {
+  --fandhe-palette: var(--fandhe-color-neutral);
+  --fandhe-palette-emphasized: var(--fandhe-color-neutral-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-neutral-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
 }
 
 [data-scope="radio-card"][data-part="root"][data-orientation="horizontal"] {
