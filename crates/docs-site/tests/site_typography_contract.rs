@@ -207,31 +207,36 @@ fn blockquote_declarations_mirror_pre_styled_ui_blockquote_subtle_variant() {
         assert_declaration_mirrored(&docs_css, property, value, "blockquote (docs mirror)");
     }
 
-    // Subtle variant（`--fandhe-palette` は docs 側で常に accent へ解決する
-    // ため、component 側の宣言そのものではなく解決後の値を照合する）。
+    // Subtle variant（イシュー #1431 で背景・角丸を廃し、
+    // `--fandhe-palette-muted` の左罫線のみへ変更した。`--fandhe-palette-muted`
+    // は docs 側で常に accent-muted へ解決するため、component 側の宣言
+    // そのものではなく解決後の値を照合する）。
     assert_declaration_mirrored(
         &blockquote_css,
-        "background",
-        "var(--fandhe-color-bg-subtle)",
+        "border-inline-start",
+        "4px solid var(--fandhe-palette-muted)",
         "blockquote Subtle variant (component)",
     );
     assert_declaration_mirrored(
         &docs_css,
-        "background",
-        "var(--fandhe-color-bg-subtle)",
+        "border-inline-start",
+        "4px solid var(--fandhe-color-accent-muted)",
         "blockquote (docs mirror, palette resolved)",
     );
-    assert_declaration_mirrored(
-        &blockquote_css,
-        "border-radius",
-        "var(--fandhe-radius-sm)",
-        "blockquote Subtle variant (component)",
+    let blockquote_rule_start = docs_css
+        .find(".docs-content blockquote {")
+        .expect(".docs-content blockquote 規則が生成 CSS に存在する");
+    let blockquote_rule = docs_css[blockquote_rule_start..]
+        .split('}')
+        .next()
+        .expect(".docs-content blockquote 規則が閉じている");
+    assert!(
+        !blockquote_rule.contains("background"),
+        "blockquote (docs mirror) は #1431 是正後、背景の面を持たない"
     );
-    assert_declaration_mirrored(
-        &docs_css,
-        "border-radius",
-        "var(--fandhe-radius-sm)",
-        "blockquote (docs mirror)",
+    assert!(
+        !blockquote_rule.contains("border-radius"),
+        "blockquote (docs mirror) は #1431 是正後、角丸を持たない"
     );
 }
 

@@ -25,14 +25,23 @@ const ANATOMY: Anatomy = anatomy("blockquote");
 const SLOTS: &[&str] = &["root", "content", "caption"];
 
 /// Blockquote の見た目 variant。
+///
+/// 参照サイト（chakra-ui / Radix Themes）比較によるイシュー #1431 の是正で
+/// `Subtle`（既定）の宣言を変更した。chakra-ui の blockquote 既定は
+/// 背景なし・muted 調の左罫線のみであり、本リポジトリが従来持っていた
+/// `bg-subtle` 背景 + 角丸は参照 2 サイトのいずれにも無い装飾だったため
+/// 廃し、罫線色も `--fandhe-palette`（強い accent 色）から
+/// `--fandhe-palette-muted`（淡色ロール）へ差し替えた（詳細は [`recipe`]
+/// rustdoc）。`Solid`（塗りつぶし）・`Plain`（罫線のみ・強色）は意図的に
+/// 変更しない（[`recipe`] rustdoc 参照）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BlockquoteVariant {
-    /// 淡色背景 + アクセント色の左罫線（既定）。
+    /// muted 調の左罫線のみ・背景なし（既定。chakra-ui 既定に一致）。
     #[default]
     Subtle,
     /// 塗りつぶし。
     Solid,
-    /// 罫線のみ・背景なし。
+    /// 罫線のみ・背景なし・強い accent 色（Radix Themes 既定に相当）。
     Plain,
 }
 
@@ -67,6 +76,28 @@ impl VariantValue for BlockquoteVariant {
 /// で塗る（`caption` はその子孫）ため、`--fandhe-blockquote-caption-fg` を
 /// `var(--fandhe-palette-fg)` へ上書きし、muted な前景色が solid 背景の上で
 /// コントラスト不足になることを防ぐ（Bugbot 指摘）。
+///
+/// ## variant 別の参照サイト対応関係（イシュー #1431 の視覚比較・7 軸チェック）
+///
+/// - **Subtle（既定）**: 背景・角丸を廃し、`border-inline-start`
+///   のみを `--fandhe-palette-muted`（6 役割 palette 宣言の淡色ロール）で
+///   描く。chakra-ui の blockquote 既定（背景なし・muted 調の左罫線）に
+///   一致させた。旧宣言（`bg-subtle` 背景 + 強い accent 罫線 + 角丸）は
+///   参照 2 サイトのいずれにも無い装飾であり、#1711 が新設した
+///   `-muted` ロールの未消化分をここで解消する。
+/// - **Solid**: 塗りつぶし表現を維持する（意図的差分）。参照 2 サイトに
+///   塗りつぶし variant は無いが、リポジトリ横断で `solid` = 塗りつぶし
+///   という語彙の一貫性を優先した。
+/// - **Plain**: 背景なし・強い accent 罫線を維持する。Radix Themes の
+///   既定（背景なし・accent 罫線）に相当する対応関係として記録する。
+///
+/// `size` 軸は追加しない（Typography 周辺部品は size 軸を持たない方針、
+/// `docs/design/pre-styled-ui-size-and-color-palette-axes.md` 保有判定
+/// 基準 (c)）。`hover`/`disabled`/`transition`/フォーカスリングも、
+/// blockquote が非インタラクティブ・非フォーカス対象の表示専用部品で
+/// あるため適用しない（`docs/design/pre-styled-ui-interaction-visual-language.md`
+/// §3/§5、`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+/// §3）。
 fn recipe() -> SlotRecipe {
     let mut recipe = SlotRecipe::new("blockquote", SLOTS)
         .base(
@@ -94,11 +125,10 @@ fn recipe() -> SlotRecipe {
         .variant(
             BlockquoteVariant::Subtle,
             "root",
-            vec![
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("border-inline-start", "4px solid var(--fandhe-palette)"),
-                decl("border-radius", "var(--fandhe-radius-sm)"),
-            ],
+            vec![decl(
+                "border-inline-start",
+                "4px solid var(--fandhe-palette-muted)",
+            )],
         )
         .variant(
             BlockquoteVariant::Solid,
@@ -272,11 +302,32 @@ mod tests {
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
     }
 
+    /// Subtle（既定）variant は背景・角丸を持たず、muted 罫線のみを
+    /// 宣言することを固定する（イシュー #1431 是正の回帰防止）。
     #[test]
-    fn css_output_declares_radius_and_border_inline_start() {
+    fn css_output_declares_subtle_muted_border_without_background_or_radius() {
         let out = css();
-        assert!(out.contains("border-radius: var(--fandhe-radius-sm);"));
-        assert!(out.contains("border-inline-start: 4px solid var(--fandhe-palette);"));
+        assert!(out.contains("border-inline-start: 4px solid var(--fandhe-palette-muted);"));
+        let subtle_block = out
+            .split("[data-part=\"root\"].fd-blockquote--variant-subtle {")
+            .nth(1)
+            .expect("subtle variant ブロックが存在する")
+            .split('}')
+            .next()
+            .expect("subtle variant ブロックが閉じている");
+        assert!(!subtle_block.contains("background"));
+        assert!(!subtle_block.contains("border-radius"));
+    }
+
+    /// Plain variant は従来どおり強い accent 罫線（`--fandhe-palette`）を
+    /// 維持することを固定する（Radix Themes 既定への対応関係、イシュー
+    /// #1431 は Plain を意図的に変更しない）。
+    #[test]
+    fn css_output_plain_variant_keeps_strong_palette_border() {
+        let out = css();
+        assert!(out.contains(
+            "[data-part=\"root\"].fd-blockquote--variant-plain {\n  background: transparent;\n  border-inline-start: 4px solid var(--fandhe-palette);\n}"
+        ));
     }
 
     /// Solid variant では `caption` の文字色が muted 固定ではなく

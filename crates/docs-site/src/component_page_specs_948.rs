@@ -309,14 +309,14 @@ const BLOCKQUOTE_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "root（figure）/content（素の blockquote）/caption（figcaption）の 3 パーツで構成する",
         "content が素の <blockquote> タグのため引用の HTML 意味論を保つ",
-        "variant（subtle/solid/plain）と colorPalette（5 値、root のみ）を持つ",
+        "variant（subtle/solid/plain）と colorPalette（6 値、root のみ）を持つ",
     ],
     arguments: &[
         ArgRow {
             name: "variant",
             kind: "BlockquoteVariant",
             default: "Subtle",
-            description: "見た目のバリアント（subtle: 淡色背景+左罫線 / solid: 塗りつぶし / plain: 罫線のみ）。",
+            description: "見た目のバリアント（subtle: 背景なし・muted 罫線のみ〔既定〕 / solid: 塗りつぶし / plain: 背景なし・強い accent 罫線）。",
         },
         ArgRow {
             name: "palette",

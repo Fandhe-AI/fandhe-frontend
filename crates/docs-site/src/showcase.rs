@@ -1494,25 +1494,35 @@ fn strong_section() -> Node {
     )
 }
 
-/// Blockquote 節: `subtle` variant の引用ブロック（content + caption）。
+/// Blockquote 節: 3 variant（Subtle/Solid/Plain）の引用ブロック
+/// （content + caption）を縦積みで並置する（イシュー #1431 の視覚比較
+/// 対象を Demo 上でも確認できるようにする）。
 fn blockquote_section() -> Node {
-    let blockquote_demo = blockquote::root(
-        BlockquoteVariant::Subtle,
-        ColorPalette::Accent,
-        vec![],
-        vec![
-            blockquote::content(
-                vec![],
-                vec![text("プレーンな HTML / JavaScript / CSS を尊重する。")],
-            ),
-            blockquote::caption(vec![], vec![text("— fandhe-frontend CLAUDE.md")]),
-        ],
-    );
+    let make = |variant: BlockquoteVariant, label: &'static str| {
+        blockquote::root(
+            variant,
+            ColorPalette::Accent,
+            vec![],
+            vec![
+                blockquote::content(
+                    vec![],
+                    vec![text("プレーンな HTML / JavaScript / CSS を尊重する。")],
+                ),
+                blockquote::caption(vec![], vec![text(label)]),
+            ],
+        )
+    };
+
+    let blockquote_stack = stack(vec![
+        make(BlockquoteVariant::Subtle, "— subtle（既定）"),
+        make(BlockquoteVariant::Solid, "— solid"),
+        make(BlockquoteVariant::Plain, "— plain"),
+    ]);
 
     section(
         "Blockquote",
-        "素の blockquote 要素を content/caption の 2 パーツで styled 化した引用部品。",
-        vec![blockquote_demo],
+        "素の blockquote 要素を content/caption の 2 パーツで styled 化した引用部品。variant（subtle/solid/plain）3 種。",
+        vec![blockquote_stack],
     )
 }
 

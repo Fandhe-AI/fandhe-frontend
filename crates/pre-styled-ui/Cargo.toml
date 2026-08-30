@@ -46,7 +46,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 本マージは双方の実体変更を統合するため、いずれの版数もそのまま採用せず
 # 0.48.0 へさらにマイナーバンプする（0.x の破壊的変更はマイナーバンプの
 # 規約。同一版数への偶発的衝突をそのまま採用しない）。
-version = "0.48.0"
+# イシュー #1431: blockquote の Subtle variant を参考サイト（chakra-ui /
+# Radix Themes）基準へ調整（背景・角丸を廃し `--fandhe-palette-muted` の
+# 左罫線のみへ変更）。variant 語彙・公開関数シグネチャは不変で CSS 宣言の
+# みの変更のため patch バンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+version = "0.48.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

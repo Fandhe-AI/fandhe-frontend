@@ -1294,7 +1294,7 @@ fn push_typography_rule(
 /// | `ul`/`ol` | [`fandhe_frontend_pre_styled_ui::list`] `ListVariant::Marker`（root） | |
 /// | `li` | 同 item base | |
 /// | `a` | [`fandhe_frontend_pre_styled_ui::link`] base | hover 下線は docs 固有 |
-/// | `blockquote` | [`fandhe_frontend_pre_styled_ui::blockquote`] root base + `Subtle` variant | `--fandhe-palette` 系カスタムプロパティは本文脈で常に accent 固定のため `var(--fandhe-color-accent)` 系トークンへ直接解決する（docs 側の意図的な単純化。palette 切り替え UI を持たない） |
+/// | `blockquote` | [`fandhe_frontend_pre_styled_ui::blockquote`] root base + `Subtle` variant | `--fandhe-palette-muted` 系カスタムプロパティは本文脈で常に accent 固定のため `var(--fandhe-color-accent-muted)` 系トークンへ直接解決する（docs 側の意図的な単純化。palette 切り替え UI を持たない）。イシュー #1431 で Subtle variant の背景・角丸を廃したため、ミラー側も背景・角丸を持たない |
 /// | `code`（インライン） | [`fandhe_frontend_pre_styled_ui::code`] base | `pre code` のリセットと `pre` 自体のブロック装飾は docs 固有 |
 /// | `em` | [`fandhe_frontend_pre_styled_ui::em`] | |
 /// | `table`/`th`/`td`/`strong` | 対応部品なし | 現行トークンベーススタイル・ブラウザ既定を維持（対象外、PR 本文参照） |
@@ -1429,9 +1429,11 @@ fn typography_css() -> Result<String, SiteThemeError> {
     )?;
 
     // ---- 引用（blockquote root base + Subtle variant のミラー。
-    // `--fandhe-palette` は本文脈で常に accent 固定のため
-    // `var(--fandhe-color-accent...)` へ直接解決する。docs 固有の margin・
-    // caption 文字色相当の本文色を併せ持つ）----
+    // イシュー #1431 で Subtle variant が背景・角丸を廃し
+    // `--fandhe-palette-muted` の左罫線のみへ変更されたため、ミラー側も
+    // 追随する。`--fandhe-palette-muted` は本文脈で常に accent 固定のため
+    // `var(--fandhe-color-accent-muted)` へ直接解決する。docs 固有の
+    // margin・caption 文字色相当の本文色を併せ持つ）----
     push_typography_rule(
         &mut out,
         ".docs-content blockquote",
@@ -1439,12 +1441,10 @@ fn typography_css() -> Result<String, SiteThemeError> {
             decl("margin", "0 0 1.05rem"),
             decl("padding-inline-start", "1rem"),
             decl("padding-block", "0.5rem"),
-            decl("background", "var(--fandhe-color-bg-subtle)"),
             decl(
                 "border-inline-start",
-                "4px solid var(--fandhe-color-accent)",
+                "4px solid var(--fandhe-color-accent-muted)",
             ),
-            decl("border-radius", "var(--fandhe-radius-sm)"),
             decl("color", "var(--fandhe-color-fg-muted)"),
         ],
     )?;
