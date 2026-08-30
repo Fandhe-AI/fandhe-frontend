@@ -134,6 +134,14 @@ fn recipe() -> SlotRecipe {
             vec![decl("border-color", "var(--fandhe-color-accent)")],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-date-picker-input-padding", "var(--fandhe-space-0-5) var(--fandhe-space-1)"),
+                decl("--fandhe-date-picker-content-padding", "var(--fandhe-space-0-5)"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -173,6 +181,14 @@ fn recipe() -> SlotRecipe {
                     "--fandhe-date-picker-content-padding",
                     "var(--fandhe-space-3)",
                 ),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-date-picker-input-padding", "var(--fandhe-space-4) var(--fandhe-space-5)"),
+                decl("--fandhe-date-picker-content-padding", "var(--fandhe-space-4)"),
             ],
         )
         .default_variant(Size::Md)
@@ -230,7 +246,7 @@ mod tests {
 
     #[test]
     fn size_variant_appends_single_class_to_root_and_drops_caller_class() {
-        for size in [Size::Sm, Size::Md, Size::Lg] {
+        for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
             let html = render(&root(
                 size,
                 OpenState::Closed,

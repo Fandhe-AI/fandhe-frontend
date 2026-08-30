@@ -50,7 +50,7 @@
 //! `--fandhe-toggle-padding-x`/`-padding-y`/`-font-size` の root スコープ
 //! custom property（CSS の通常のプロパティ継承・`root` 自身への直接適用で
 //! 寸法を切り替える）。`palette`（[`ColorPalette`]）は既存の
-//! [`crate::recipe::palette_declarations`]（chakra-ui virtual token 方式、
+//! [`crate::recipe::palette_scale_declarations`]（chakra-ui virtual token 方式、
 //! #606）を `root` へ登録し、on 時の背景色を `var(--fandhe-palette, ...)`
 //! 経由で切り替える。`base`/`state` 規則の `var()` にはいずれも Md サイズ・
 //! Accent パレット相当のフォールバック値を書き、styled `root` を経由しない
@@ -70,7 +70,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -152,6 +152,15 @@ fn recipe() -> SlotRecipe {
             vec![decl("display", "none")],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-toggle-padding-y", "0.125rem"),
+                decl("--fandhe-toggle-padding-x", "0.25rem"),
+                decl("--fandhe-toggle-font-size", "var(--fandhe-font-font-size-xs)"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -187,6 +196,15 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-toggle-padding-y", "0.625rem"),
+                decl("--fandhe-toggle-padding-x", "1.25rem"),
+                decl("--fandhe-toggle-font-size", "var(--fandhe-font-font-size-lg)"),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -196,8 +214,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -322,9 +341,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-toggle--size-xs"),
             (Size::Sm, "fd-toggle--size-sm"),
             (Size::Md, "fd-toggle--size-md"),
             (Size::Lg, "fd-toggle--size-lg"),
+            (Size::Xl, "fd-toggle--size-xl"),
         ] {
             let html = render(&root(
                 size,
@@ -346,6 +367,7 @@ mod tests {
             (ColorPalette::Success, "fd-toggle--color-palette-success"),
             (ColorPalette::Warning, "fd-toggle--color-palette-warning"),
             (ColorPalette::Danger, "fd-toggle--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-toggle--color-palette-neutral"),
         ] {
             let html = render(&root(Size::Md, palette, false, false, vec![], vec![]));
             assert!(html.contains(class), "palette={palette:?} -> {html}");

@@ -61,7 +61,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -159,6 +159,15 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-toggle-group-item-padding-y", "0.125rem"),
+                decl("--fandhe-toggle-group-item-padding-x", "0.25rem"),
+                decl("--fandhe-toggle-group-item-font-size", "var(--fandhe-font-font-size-xs)"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -194,6 +203,15 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-toggle-group-item-padding-y", "0.625rem"),
+                decl("--fandhe-toggle-group-item-padding-x", "1.25rem"),
+                decl("--fandhe-toggle-group-item-font-size", "var(--fandhe-font-font-size-lg)"),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -203,8 +221,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -341,9 +360,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-toggle-group--size-xs"),
             (Size::Sm, "fd-toggle-group--size-sm"),
             (Size::Md, "fd-toggle-group--size-md"),
             (Size::Lg, "fd-toggle-group--size-lg"),
+            (Size::Xl, "fd-toggle-group--size-xl"),
         ] {
             let html = render(&root(
                 size,
@@ -377,6 +398,10 @@ mod tests {
             (
                 ColorPalette::Danger,
                 "fd-toggle-group--color-palette-danger",
+            ),
+            (
+                ColorPalette::Neutral,
+                "fd-toggle-group--color-palette-neutral",
             ),
         ] {
             let html = render(&root(Size::Md, palette, false, None, None, vec![], vec![]));

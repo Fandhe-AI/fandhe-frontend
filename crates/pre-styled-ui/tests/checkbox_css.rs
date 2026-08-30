@@ -58,6 +58,14 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
   border: 0;
 }
 
+[data-scope="checkbox"][data-part="root"].fd-checkbox--size-xs {
+  --fandhe-checkbox-control-size: 0.7rem;
+  --fandhe-checkbox-check-width: 0.15rem;
+  --fandhe-checkbox-check-height: 0.3rem;
+  --fandhe-checkbox-dash-width: 0.3rem;
+  --fandhe-checkbox-label-font-size: var(--fandhe-font-font-size-xs);
+}
+
 [data-scope="checkbox"][data-part="root"].fd-checkbox--size-sm {
   --fandhe-checkbox-control-size: 0.85rem;
   --fandhe-checkbox-check-width: 0.2rem;
@@ -82,34 +90,66 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
   --fandhe-checkbox-label-font-size: var(--fandhe-font-font-size-md);
 }
 
+[data-scope="checkbox"][data-part="root"].fd-checkbox--size-xl {
+  --fandhe-checkbox-control-size: 1.5rem;
+  --fandhe-checkbox-check-width: 0.35rem;
+  --fandhe-checkbox-check-height: 0.7rem;
+  --fandhe-checkbox-dash-width: 0.7rem;
+  --fandhe-checkbox-label-font-size: var(--fandhe-font-font-size-lg);
+}
+
 [data-scope="checkbox"][data-part="root"].fd-checkbox--color-palette-accent {
   --fandhe-palette: var(--fandhe-color-accent);
   --fandhe-palette-emphasized: var(--fandhe-color-accent-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-accent-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-accent-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-accent-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-accent-fg-subtle);
 }
 
 [data-scope="checkbox"][data-part="root"].fd-checkbox--color-palette-info {
   --fandhe-palette: var(--fandhe-color-info);
   --fandhe-palette-emphasized: var(--fandhe-color-info-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-info-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-info-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-info-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-info-fg-subtle);
 }
 
 [data-scope="checkbox"][data-part="root"].fd-checkbox--color-palette-success {
   --fandhe-palette: var(--fandhe-color-success);
   --fandhe-palette-emphasized: var(--fandhe-color-success-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-success-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-success-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-success-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-success-fg-subtle);
 }
 
 [data-scope="checkbox"][data-part="root"].fd-checkbox--color-palette-warning {
   --fandhe-palette: var(--fandhe-color-warning);
   --fandhe-palette-emphasized: var(--fandhe-color-warning-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-warning-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-warning-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-warning-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-warning-fg-subtle);
 }
 
 [data-scope="checkbox"][data-part="root"].fd-checkbox--color-palette-danger {
   --fandhe-palette: var(--fandhe-color-danger);
   --fandhe-palette-emphasized: var(--fandhe-color-danger-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-danger-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-danger-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-danger-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-danger-fg-subtle);
+}
+
+[data-scope="checkbox"][data-part="root"].fd-checkbox--color-palette-neutral {
+  --fandhe-palette: var(--fandhe-color-neutral);
+  --fandhe-palette-emphasized: var(--fandhe-color-neutral-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-neutral-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
 }
 
 [data-scope="checkbox"][data-part="root"][data-disabled] {

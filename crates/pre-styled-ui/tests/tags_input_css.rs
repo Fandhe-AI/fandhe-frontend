@@ -81,6 +81,10 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
   font-size: var(--fandhe-tags-input-font-size, var(--fandhe-font-font-size-sm));
 }
 
+[data-scope="tags-input"][data-part="root"].fd-tags-input--size-xs {
+  --fandhe-tags-input-font-size: var(--fandhe-font-font-size-xs);
+}
+
 [data-scope="tags-input"][data-part="root"].fd-tags-input--size-sm {
   --fandhe-tags-input-font-size: var(--fandhe-font-font-size-xs);
 }
@@ -91,6 +95,10 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
 
 [data-scope="tags-input"][data-part="root"].fd-tags-input--size-lg {
   --fandhe-tags-input-font-size: var(--fandhe-font-font-size-md);
+}
+
+[data-scope="tags-input"][data-part="root"].fd-tags-input--size-xl {
+  --fandhe-tags-input-font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="tags-input"][data-part="root"][data-disabled] {

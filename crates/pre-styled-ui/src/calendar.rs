@@ -188,6 +188,14 @@ fn recipe() -> SlotRecipe {
         )
         // `size` variant（root スコープの CSS custom property）。
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-calendar-root-padding", "var(--fandhe-space-1)"),
+                decl("--fandhe-calendar-day-size", "var(--fandhe-space-4)"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -209,6 +217,14 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-calendar-root-padding", "var(--fandhe-space-4)"),
                 decl("--fandhe-calendar-day-size", "var(--fandhe-space-10)"),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-calendar-root-padding", "var(--fandhe-space-5)"),
+                decl("--fandhe-calendar-day-size", "var(--fandhe-space-12)"),
             ],
         )
         .default_variant(Size::Md)
@@ -262,7 +278,7 @@ mod tests {
 
     #[test]
     fn size_variant_appends_single_class_to_root_and_drops_caller_class() {
-        for size in [Size::Sm, Size::Md, Size::Lg] {
+        for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
             let html = render(&root(size, vec![("class", "attacker")], vec![]));
             let expected_class = format!("fd-calendar--size-{}", size.value());
             assert!(html.contains(&expected_class), "html={html}");

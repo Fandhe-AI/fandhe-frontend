@@ -45,7 +45,7 @@ use crate::css::decl;
 use crate::icon::{icon, IconProps};
 use crate::recipe::{
     disabled_declarations, hover_bg_muted, hover_bg_solid, hover_surface_declarations,
-    palette_declarations, transition_declarations, when, ColorPalette, MotionDuration, Size,
+    palette_scale_declarations, transition_declarations, when, ColorPalette, MotionDuration, Size,
     SlotRecipe, StateCondition, VariantValue,
 };
 use crate::spinner::spinner_decorative;
@@ -186,7 +186,7 @@ impl Default for ButtonProps {
 
 /// Button の recipe（既定 scope `"button"`、slot `"root"` のみ）。
 ///
-/// 色は [`crate::recipe::palette_declarations`] が生成する
+/// 色は [`crate::recipe::palette_scale_declarations`] が生成する
 /// `--fandhe-palette`/`--fandhe-palette-emphasized`/`--fandhe-palette-fg`
 /// （イシュー #606）経由で参照し、`var(--fandhe-color-accent)` 等の
 /// セマンティック色を直接参照しない（`palette` variant の切り替えだけで
@@ -207,6 +207,11 @@ fn recipe() -> SlotRecipe {
             vec![decl("aspect-ratio", "1 / 1")],
         )
         .compound_variant(
+            vec![when(ButtonIcon::Only), when(Size::Xs)],
+            "root",
+            vec![decl("padding", "0.125rem")],
+        )
+        .compound_variant(
             vec![when(ButtonIcon::Only), when(Size::Sm)],
             "root",
             vec![decl("padding", "0.25rem")],
@@ -220,6 +225,11 @@ fn recipe() -> SlotRecipe {
             vec![when(ButtonIcon::Only), when(Size::Lg)],
             "root",
             vec![decl("padding", "0.75rem")],
+        )
+        .compound_variant(
+            vec![when(ButtonIcon::Only), when(Size::Xl)],
+            "root",
+            vec![decl("padding", "1rem")],
         )
 }
 
@@ -269,6 +279,14 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
             ),
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("padding", "0.125rem 0.25rem"),
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -290,6 +308,14 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
             vec![
                 decl("padding", "0.75rem 1.5rem"),
                 decl("font-size", "var(--fandhe-font-font-size-lg)"),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("padding", "1rem 2rem"),
+                decl("font-size", "var(--fandhe-font-font-size-xl)"),
             ],
         )
         .variant(
@@ -360,8 +386,9 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -596,9 +623,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-button--size-xs"),
             (Size::Sm, "fd-button--size-sm"),
             (Size::Md, "fd-button--size-md"),
             (Size::Lg, "fd-button--size-lg"),
+            (Size::Xl, "fd-button--size-xl"),
         ] {
             let props = ButtonProps {
                 size,
@@ -624,6 +653,7 @@ mod tests {
             (ColorPalette::Success, "fd-button--color-palette-success"),
             (ColorPalette::Warning, "fd-button--color-palette-warning"),
             (ColorPalette::Danger, "fd-button--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-button--color-palette-neutral"),
         ] {
             let props = ButtonProps {
                 palette,
@@ -913,12 +943,16 @@ mod tests {
     #[test]
     fn css_output_contains_icon_only_compound_variant_rules() {
         let out = css();
+        assert!(out.contains(".fd-button--icon-only.fd-button--size-xs"));
+        assert!(out.contains("padding: 0.125rem;"));
         assert!(out.contains(".fd-button--icon-only.fd-button--size-sm"));
         assert!(out.contains("padding: 0.25rem;"));
         assert!(out.contains(".fd-button--icon-only.fd-button--size-md"));
         assert!(out.contains("padding: 0.5rem;"));
         assert!(out.contains(".fd-button--icon-only.fd-button--size-lg"));
         assert!(out.contains("padding: 0.75rem;"));
+        assert!(out.contains(".fd-button--icon-only.fd-button--size-xl"));
+        assert!(out.contains("padding: 1rem;"));
         assert!(out.contains("aspect-ratio: 1 / 1;"));
     }
 }
