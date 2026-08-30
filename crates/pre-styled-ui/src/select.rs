@@ -264,6 +264,15 @@ fn recipe() -> SlotRecipe {
         // `--fandhe-x`/`--fandhe-y`（wasm positioning 契約、#663）には手を
         // 触れない（モジュール rustdoc 参照）。
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-select-trigger-padding", "var(--fandhe-space-0-5) var(--fandhe-space-1)"),
+                decl("--fandhe-select-item-padding", "var(--fandhe-space-0-5) var(--fandhe-space-1)"),
+                decl("--fandhe-select-content-padding", "var(--fandhe-space-0-5)"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -306,6 +315,15 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-space-3) var(--fandhe-space-4)",
                 ),
                 decl("--fandhe-select-content-padding", "var(--fandhe-space-3)"),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-select-trigger-padding", "var(--fandhe-space-4) var(--fandhe-space-5)"),
+                decl("--fandhe-select-item-padding", "var(--fandhe-space-4) var(--fandhe-space-5)"),
+                decl("--fandhe-select-content-padding", "var(--fandhe-space-4)"),
             ],
         )
         .default_variant(Size::Md)
@@ -400,7 +418,7 @@ mod tests {
 
     #[test]
     fn size_variant_appends_single_class_to_root_and_drops_caller_class() {
-        for size in [Size::Sm, Size::Md, Size::Lg] {
+        for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
             let html = render(&root(
                 size,
                 OpenState::Closed,

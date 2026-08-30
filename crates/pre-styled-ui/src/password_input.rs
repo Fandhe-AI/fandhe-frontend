@@ -50,7 +50,7 @@
 //! `--fandhe-password-input-height`/`-font-size`/`-padding-x` の root
 //! スコープ custom property（CSS の通常のプロパティ継承により `control`/
 //! `input` へ伝わる）経由で寸法を切り替える。`palette`（[`ColorPalette`]）は
-//! 既存の [`crate::recipe::palette_declarations`]（chakra-ui virtual token
+//! 既存の [`crate::recipe::palette_scale_declarations`]（chakra-ui virtual token
 //! 方式、#606）を `root` へ登録し、表示中の `visibility-trigger` の色・
 //! `control` のフォーカスリング色を `var(--fandhe-palette, ...)` 経由で
 //! 切り替える。`base`/`state` 規則の `var()` にはいずれも Md サイズ・Accent
@@ -67,7 +67,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `PasswordInput` 状態機械・headless 自由関数 `root` はあえて再エクスポート
@@ -203,6 +203,18 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-password-input-height", "1.5rem"),
+                decl("--fandhe-password-input-padding-x", "0.25rem"),
+                decl(
+                    "--fandhe-password-input-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -238,6 +250,18 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-password-input-height", "3.5rem"),
+                decl("--fandhe-password-input-padding-x", "1.25rem"),
+                decl(
+                    "--fandhe-password-input-font-size",
+                    "var(--fandhe-font-font-size-xl)",
+                ),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -247,8 +271,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -392,9 +417,11 @@ mod tests {
     fn size_enumeration_maps_to_expected_classes() {
         let props = default_props("pw");
         for (size, class) in [
+            (Size::Xs, "fd-password-input--size-xs"),
             (Size::Sm, "fd-password-input--size-sm"),
             (Size::Md, "fd-password-input--size-md"),
             (Size::Lg, "fd-password-input--size-lg"),
+            (Size::Xl, "fd-password-input--size-xl"),
         ] {
             let html = render(&root(
                 size,
@@ -428,6 +455,10 @@ mod tests {
             (
                 ColorPalette::Danger,
                 "fd-password-input--color-palette-danger",
+            ),
+            (
+                ColorPalette::Neutral,
+                "fd-password-input--color-palette-neutral",
             ),
         ] {
             let html = render(&root(Size::Md, palette, false, &props, vec![], vec![]));

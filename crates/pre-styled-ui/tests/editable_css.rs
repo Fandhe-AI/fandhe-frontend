@@ -67,6 +67,10 @@ const EDITABLE_GOLDEN_CSS: &str = r#"[data-scope="editable"][data-part="root"] {
   cursor: pointer;
 }
 
+[data-scope="editable"][data-part="root"].fd-editable--size-xs {
+  --fandhe-editable-font-size: var(--fandhe-font-font-size-xs, 0.75rem);
+}
+
 [data-scope="editable"][data-part="root"].fd-editable--size-sm {
   --fandhe-editable-font-size: var(--fandhe-font-font-size-xs, 0.75rem);
 }
@@ -77,6 +81,10 @@ const EDITABLE_GOLDEN_CSS: &str = r#"[data-scope="editable"][data-part="root"] {
 
 [data-scope="editable"][data-part="root"].fd-editable--size-lg {
   --fandhe-editable-font-size: var(--fandhe-font-font-size-md);
+}
+
+[data-scope="editable"][data-part="root"].fd-editable--size-xl {
+  --fandhe-editable-font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="editable"][data-part="root"][data-disabled] {

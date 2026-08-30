@@ -91,6 +91,12 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   border: 0;
 }
 
+[data-scope="select"][data-part="root"].fd-select--size-xs {
+  --fandhe-select-trigger-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
+  --fandhe-select-item-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
+  --fandhe-select-content-padding: var(--fandhe-space-0-5);
+}
+
 [data-scope="select"][data-part="root"].fd-select--size-sm {
   --fandhe-select-trigger-padding: var(--fandhe-space-1) var(--fandhe-space-2);
   --fandhe-select-item-padding: var(--fandhe-space-1) var(--fandhe-space-2);
@@ -107,6 +113,12 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   --fandhe-select-trigger-padding: var(--fandhe-space-3) var(--fandhe-space-4);
   --fandhe-select-item-padding: var(--fandhe-space-3) var(--fandhe-space-4);
   --fandhe-select-content-padding: var(--fandhe-space-3);
+}
+
+[data-scope="select"][data-part="root"].fd-select--size-xl {
+  --fandhe-select-trigger-padding: var(--fandhe-space-4) var(--fandhe-space-5);
+  --fandhe-select-item-padding: var(--fandhe-space-4) var(--fandhe-space-5);
+  --fandhe-select-content-padding: var(--fandhe-space-4);
 }
 
 [data-scope="select"][data-part="trigger"][data-state="open"] {

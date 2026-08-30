@@ -223,6 +223,14 @@ fn recipe() -> SlotRecipe {
             vec![decl("cursor", "not-allowed"), decl("opacity", "0.4")],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![decl(
+                "--fandhe-editable-font-size",
+                "var(--fandhe-font-font-size-xs, 0.75rem)",
+            )],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![decl(
@@ -244,6 +252,14 @@ fn recipe() -> SlotRecipe {
             vec![decl(
                 "--fandhe-editable-font-size",
                 "var(--fandhe-font-font-size-md)",
+            )],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl(
+                "--fandhe-editable-font-size",
+                "var(--fandhe-font-font-size-lg)",
             )],
         )
         .default_variant(Size::Md)
@@ -415,9 +431,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-editable--size-xs"),
             (Size::Sm, "fd-editable--size-sm"),
             (Size::Md, "fd-editable--size-md"),
             (Size::Lg, "fd-editable--size-lg"),
+            (Size::Xl, "fd-editable--size-xl"),
         ] {
             let html = render(&root(
                 size,

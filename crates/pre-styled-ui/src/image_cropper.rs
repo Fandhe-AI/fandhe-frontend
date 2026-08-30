@@ -252,6 +252,11 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![decl("--fandhe-image-cropper-handle-size", "0.35rem")],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![decl("--fandhe-image-cropper-handle-size", "0.55rem")],
@@ -265,6 +270,11 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![decl("--fandhe-image-cropper-handle-size", "0.95rem")],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("--fandhe-image-cropper-handle-size", "1.15rem")],
         )
         .default_variant(Size::Md)
 }
@@ -410,9 +420,11 @@ mod tests {
     fn size_enumeration_maps_to_expected_classes() {
         let c = ImageCropper::default();
         for (size, class) in [
+            (Size::Xs, "fd-image-cropper--size-xs"),
             (Size::Sm, "fd-image-cropper--size-sm"),
             (Size::Md, "fd-image-cropper--size-md"),
             (Size::Lg, "fd-image-cropper--size-lg"),
+            (Size::Xl, "fd-image-cropper--size-xl"),
         ] {
             let html = render(&root(size, &c, vec![], vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");

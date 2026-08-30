@@ -36,6 +36,11 @@ const PIN_INPUT_GOLDEN_CSS: &str = r#"[data-scope="pin-input"][data-part="root"]
   transition: border-color 0.15s, background 0.15s;
 }
 
+[data-scope="pin-input"][data-part="root"].fd-pin-input--size-xs {
+  --fandhe-pin-input-size: 1.5rem;
+  --fandhe-pin-input-font-size: var(--fandhe-font-font-size-xs);
+}
+
 [data-scope="pin-input"][data-part="root"].fd-pin-input--size-sm {
   --fandhe-pin-input-size: 2rem;
   --fandhe-pin-input-font-size: var(--fandhe-font-font-size-sm);
@@ -49,6 +54,11 @@ const PIN_INPUT_GOLDEN_CSS: &str = r#"[data-scope="pin-input"][data-part="root"]
 [data-scope="pin-input"][data-part="root"].fd-pin-input--size-lg {
   --fandhe-pin-input-size: 3rem;
   --fandhe-pin-input-font-size: var(--fandhe-font-font-size-lg);
+}
+
+[data-scope="pin-input"][data-part="root"].fd-pin-input--size-xl {
+  --fandhe-pin-input-size: 3.5rem;
+  --fandhe-pin-input-font-size: var(--fandhe-font-font-size-xl);
 }
 
 [data-scope="pin-input"][data-part="root"][data-disabled] {

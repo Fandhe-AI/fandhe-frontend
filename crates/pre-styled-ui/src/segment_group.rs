@@ -255,6 +255,15 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-segment-group-font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("--fandhe-segment-group-padding-block", "0.125rem"),
+                decl("--fandhe-segment-group-padding-inline", "0.25rem"),
+            ],
+        )
+        .variant(
             Size::Sm,
             "root",
             vec![
@@ -288,6 +297,15 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl("--fandhe-segment-group-padding-block", "0.5rem"),
                 decl("--fandhe-segment-group-padding-inline", "1rem"),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-segment-group-font-size", "var(--fandhe-font-font-size-lg)"),
+                decl("--fandhe-segment-group-padding-block", "0.625rem"),
+                decl("--fandhe-segment-group-padding-inline", "1.25rem"),
             ],
         )
         .default_variant(Size::Md)
@@ -439,9 +457,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-segment-group--size-xs"),
             (Size::Sm, "fd-segment-group--size-sm"),
             (Size::Md, "fd-segment-group--size-md"),
             (Size::Lg, "fd-segment-group--size-lg"),
+            (Size::Xl, "fd-segment-group--size-xl"),
         ] {
             let html = render(&root(size, false, None, None, vec![], vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");
