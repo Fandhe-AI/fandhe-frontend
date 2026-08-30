@@ -106,7 +106,12 @@ impl CssValue {
     ///
     /// # 許可文字
     ///
-    /// ASCII 英数字・空白・`#` `%` `.` `,` `(` `)` `-` `_` のみ。
+    /// ASCII 英数字・空白・`#` `%` `.` `,` `(` `)` `-` `_` `+` のみ。
+    /// `+` は `z-index` 等の CSS `<integer>` が許可する正符号
+    /// （`+1` `+1600` 等、イシュー #1423・codex-review #1705 P1 指摘）を
+    /// 表現するために許可する。`+` 自体は宣言追加・セレクタ脱出・
+    /// スクリプト実行のいずれの構文要素にもならないため、下記拒否文字の
+    /// 安全性不変条件を弱めない。
     ///
     /// # 拒否条件
     ///
@@ -138,6 +143,7 @@ impl CssValue {
                     || c == ')'
                     || c == '-'
                     || c == '_'
+                    || c == '+'
             })
             && !s.to_ascii_lowercase().contains("expression(");
 
@@ -802,7 +808,7 @@ impl Theme {
 /// （イシュー #1423、codex-review #1705 P1 指摘）。
 ///
 /// [`CssValue::new`] の文字 allowlist 検証に加え、`z-index` プロパティとして
-/// 意味を持つ値のみを許可する: 符号任意の整数（`-1` `0` `1600` 等）、または
+/// 意味を持つ値のみを許可する: 符号任意の整数（`-1` `0` `1600` `+1` 等）、または
 /// CSS グローバル値（`auto` `inherit` `initial` `revert` `revert-layer`
 /// `unset`）。`red` `1rem` `url(foo)` のような文字集合は満たすが `z-index` と
 /// しては無効な値をここで拒否する（ブラウザに宣言ごと破棄され重なり順が
@@ -817,7 +823,10 @@ fn validate_z_index_value(value: &str) -> Result<CssValue, ThemeError> {
     let css_value = CssValue::new(value)?;
     let s = css_value.as_str();
 
-    let numeric_part = s.strip_prefix('-').unwrap_or(s);
+    let numeric_part = s
+        .strip_prefix('-')
+        .or_else(|| s.strip_prefix('+'))
+        .unwrap_or(s);
     let is_integer = !numeric_part.is_empty() && numeric_part.bytes().all(|b| b.is_ascii_digit());
     let is_global_keyword = matches!(
         s,
@@ -964,6 +973,10 @@ mod tests {
         assert!(CssValue::new("1rem").is_ok());
         assert!(CssValue::new("system-ui, sans-serif").is_ok());
         assert!(CssValue::new("rgba(0, 0, 0)").is_ok());
+        // `+` は z-index 等の正符号付き整数のために許可する
+        // （イシュー #1423・codex-review #1705 P1 指摘）。
+        assert!(CssValue::new("+1").is_ok());
+        assert!(CssValue::new("+1600").is_ok());
     }
 
     #[test]
@@ -1297,6 +1310,31 @@ mod tests {
         let css = theme.to_css();
         assert!(css.contains("--fandhe-z-index-neg: -1;"));
         assert!(css.contains("--fandhe-z-index-auto: auto;"));
+    }
+
+    /// codex-review #1705 P1 回帰: 正符号付きの整数（`+1` `+1600` 等）も
+    /// CSS の有効な `<integer>` であり、`push_z_index` は受理しなければ
+    /// ならない（`strip_prefix('-')` のみで `'+'` を考慮していなかった
+    /// ためのすり抜けの再発防止）。
+    #[test]
+    fn push_z_index_accepts_positive_signed_integers() {
+        let mut theme = Theme::empty();
+        theme.push_z_index("plus-one", "+1").unwrap();
+        theme.push_z_index("plus-big", "+1600").unwrap();
+        let css = theme.to_css();
+        assert!(css.contains("--fandhe-z-index-plus-one: +1;"));
+        assert!(css.contains("--fandhe-z-index-plus-big: +1600;"));
+    }
+
+    /// 同上の回帰テスト（`upsert_z_index` 側）。
+    #[test]
+    fn upsert_z_index_accepts_positive_signed_integers() {
+        let mut theme = Theme::empty();
+        theme.upsert_z_index("plus-one", "+1").unwrap();
+        theme.upsert_z_index("plus-big", "+1600").unwrap();
+        let css = theme.to_css();
+        assert!(css.contains("--fandhe-z-index-plus-one: +1;"));
+        assert!(css.contains("--fandhe-z-index-plus-big: +1600;"));
     }
 
     #[test]
