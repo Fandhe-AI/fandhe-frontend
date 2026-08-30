@@ -6,7 +6,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # 返すようになる観測可能な破壊的変更のため、0.x の破壊的変更はマイナーバンプと
 # する規約（.claude/rules/coding-rust.md「公開済みクレートの実体変更時は
 # semver バンプ必須」）に従い minor バンプする（PR #1704 codex-review P1 指摘）。
-version = "0.42.0"
+version = "0.43.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

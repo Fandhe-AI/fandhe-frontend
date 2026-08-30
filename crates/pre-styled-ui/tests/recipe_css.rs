@@ -14,9 +14,10 @@ use fandhe_frontend_headless_ui::tabs::{tabs, TabItem, TabsProps};
 use fandhe_frontend_headless_ui::Orientation;
 use fandhe_frontend_pre_styled_ui::decl;
 use fandhe_frontend_pre_styled_ui::recipe::{
-    palette_declarations, when, ColorPalette as StdColorPalette, Size, SlotRecipe, StateCondition,
-    VariantValue,
+    palette_declarations, palette_scale_declarations, when, ColorPalette as StdColorPalette, Size,
+    SlotRecipe, StateCondition, VariantValue,
 };
+use fandhe_frontend_pre_styled_ui::theme::Theme;
 
 /// `colorPalette` 相当を独立の仕組みとしてではなく通常の variant 軸として
 /// 表現できることを示すための variant enum（イシューの設計方針 §3.2 参照）。
@@ -291,11 +292,29 @@ fn color_palette_axis_and_value_are_stable() {
         (StdColorPalette::Success, "success"),
         (StdColorPalette::Warning, "warning"),
         (StdColorPalette::Danger, "danger"),
+        (StdColorPalette::Neutral, "neutral"),
     ] {
         assert_eq!(variant.axis(), "color-palette");
         assert_eq!(variant.value(), value);
     }
     assert_eq!(StdColorPalette::default(), StdColorPalette::Accent);
+}
+
+/// イシュー #1678: `Size` が `Xs`〜`Xl` の 5 段・順序どおりに `value()` を
+/// 返すことを固定する（既存 3 段の `Sm`/`Md`/`Lg` は #606 導入時の値から
+/// 変更していない）。
+#[test]
+fn size_axis_has_five_ordered_values() {
+    for (variant, value) in [
+        (Size::Xs, "xs"),
+        (Size::Sm, "sm"),
+        (Size::Md, "md"),
+        (Size::Lg, "lg"),
+        (Size::Xl, "xl"),
+    ] {
+        assert_eq!(variant.axis(), "size");
+        assert_eq!(variant.value(), value);
+    }
 }
 
 /// イシュー #606: `palette_declarations` が各 palette 値に対して
@@ -310,6 +329,7 @@ fn palette_declarations_reference_matching_theme_color_tokens() {
         (StdColorPalette::Success, "success"),
         (StdColorPalette::Warning, "warning"),
         (StdColorPalette::Danger, "danger"),
+        (StdColorPalette::Neutral, "neutral"),
     ] {
         let decls = palette_declarations(variant);
         assert_eq!(decls.len(), 3);
@@ -328,6 +348,74 @@ fn palette_declarations_reference_matching_theme_color_tokens() {
             decls[2].value(),
             format!("var(--fandhe-color-{theme_name}-fg)")
         );
+    }
+}
+
+/// イシュー #1678: `palette_scale_declarations` の先頭 3 件が
+/// `palette_declarations` と完全一致する（同一順序・同一 property・同一
+/// value）ことを固定する。Phase 1 の各部品 issue が golden 更新時に
+/// `palette_declarations` から本関数へ移行する際、既存の 3 役割部分の
+/// 挙動が変わらないことの保証になる。
+#[test]
+fn palette_scale_declarations_prefix_equals_palette_declarations() {
+    for variant in [
+        StdColorPalette::Accent,
+        StdColorPalette::Info,
+        StdColorPalette::Success,
+        StdColorPalette::Warning,
+        StdColorPalette::Danger,
+        StdColorPalette::Neutral,
+    ] {
+        let base = palette_declarations(variant);
+        let scale = palette_scale_declarations(variant);
+        assert_eq!(scale.len(), 6);
+        assert_eq!(&scale[..3], base.as_slice());
+    }
+}
+
+/// イシュー #1678: `palette_scale_declarations` が返す 6 宣言すべてが、
+/// `Theme::default().to_css()` に実在する `--fandhe-color-<name>-<role>`
+/// トークンへの `var()` 参照であることを fail-closed に確認する
+/// （未定義変数参照による「透明描画」バグ、#1704 が閉じた種類の再発防止）。
+#[test]
+fn palette_scale_declarations_reference_existing_theme_tokens() {
+    let default_css = Theme::default().to_css();
+
+    for variant in [
+        StdColorPalette::Accent,
+        StdColorPalette::Info,
+        StdColorPalette::Success,
+        StdColorPalette::Warning,
+        StdColorPalette::Danger,
+        StdColorPalette::Neutral,
+    ] {
+        let theme_name = variant.value();
+        let decls = palette_scale_declarations(variant);
+        assert_eq!(decls.len(), 6);
+
+        let expected_properties = [
+            "--fandhe-palette",
+            "--fandhe-palette-emphasized",
+            "--fandhe-palette-fg",
+            "--fandhe-palette-subtle",
+            "--fandhe-palette-muted",
+            "--fandhe-palette-fg-subtle",
+        ];
+        let expected_roles = ["", "-emphasized", "-fg", "-subtle", "-muted", "-fg-subtle"];
+
+        for (i, decl) in decls.iter().enumerate() {
+            assert_eq!(decl.property(), expected_properties[i]);
+            let expected_value = format!("var(--fandhe-color-{theme_name}{})", expected_roles[i]);
+            assert_eq!(decl.value(), expected_value);
+
+            // 参照先トークンが既定テーマに実在することを確認する。
+            let token_decl = format!("--fandhe-color-{theme_name}{}:", expected_roles[i]);
+            assert!(
+                default_css.contains(&token_decl),
+                "既定テーマに {token_decl:?} が存在しない（{variant:?} の {} 役割）",
+                expected_properties[i]
+            );
+        }
     }
 }
 

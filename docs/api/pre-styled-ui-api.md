@@ -779,7 +779,7 @@ CSS のみの視覚強調と組み合わせて「ホバーで詳細が分かる�
   決定的に描画する（golden テスト `crates/pre-styled-ui/tests/charts_line_area_sparkline.rs`
   参照）。
 
-## 4l. `theme` モジュール: Theme トークン API と `upsert_*`（イシュー #547/#606/#1138/#1423）
+## 4l. `theme` モジュール: Theme トークン API と `upsert_*`（イシュー #547/#606/#1138/#1423/#1678）
 
 ### API 一覧
 
@@ -795,6 +795,7 @@ impl Theme {
     pub fn push_radius(&mut self, name: &str, value: &str) -> Result<(), ThemeError>;
     pub fn push_shadow(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
     pub fn push_z_index(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1423
+    pub fn push_size(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1678
 
     // 追加または上書き（イシュー #1138。DuplicateTokenName を返さない）
     pub fn upsert_color(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
@@ -803,17 +804,19 @@ impl Theme {
     pub fn upsert_radius(&mut self, name: &str, value: &str) -> Result<(), ThemeError>;
     pub fn upsert_shadow(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError>;
     pub fn upsert_z_index(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1423
+    pub fn upsert_size(&mut self, name: &str, value: &str) -> Result<(), ThemeError>; // イシュー #1678
 
     pub fn to_css(&self) -> String;
 }
 
 // var(--fandhe-...) 参照ヘルパ（自由関数、`Theme` の inherent メソッドではない）
 pub fn z_index_var(name: &str) -> Result<String, ThemeError>; // イシュー #1423
+pub fn size_var(name: &str) -> Result<String, ThemeError>; // イシュー #1678
 ```
 
 色（colors）・影（shadows）はライト/ダーク 2 値、余白（spaces）・
 タイポグラフィ（typography）・角丸（radii）・重なり順（z-indices、イシュー
-#1423 で新設）はモード非依存の 1 値を取る。
+#1423 で新設）・size（イシュー #1678 で新設）はモード非依存の 1 値を取る。
 
 ### `Theme::default()` の既定色トークン一覧（イシュー #1422）
 
@@ -833,8 +836,8 @@ Themes の色スケールとの対応表・「どの部品がどの semantic 名
 
 | API | 同名トークンが既存の場合 | 用途 |
 |-----|--------------------------|------|
-| `push_color` / `push_space` / `push_typography` / `push_radius` / `push_shadow` / `push_z_index` | `ThemeError::DuplicateTokenName` を返して拒否（fail-closed） | 新規トークンの追加。意図しない上書きを防ぐ既定挙動 |
-| `upsert_color` / `upsert_space` / `upsert_typography` / `upsert_radius` / `upsert_shadow` / `upsert_z_index` | 挿入順（＝ `Theme::to_css` の出力順）を保ったまま値を in-place 置換。存在しなければ末尾追加 | 既存トークン（既定パレット含む）の明示的な上書き。`DuplicateTokenName` を返すことはない |
+| `push_color` / `push_space` / `push_typography` / `push_radius` / `push_shadow` / `push_z_index` / `push_size` | `ThemeError::DuplicateTokenName` を返して拒否（fail-closed） | 新規トークンの追加。意図しない上書きを防ぐ既定挙動 |
+| `upsert_color` / `upsert_space` / `upsert_typography` / `upsert_radius` / `upsert_shadow` / `upsert_z_index` / `upsert_size` | 挿入順（＝ `Theme::to_css` の出力順）を保ったまま値を in-place 置換。存在しなければ末尾追加 | 既存トークン（既定パレット含む）の明示的な上書き。`DuplicateTokenName` を返すことはない |
 
 ### `Theme::default()` の既定値を差し替える正規経路
 
@@ -895,6 +898,24 @@ upsert API は `fandhe-frontend-pre-styled-ui` v0.38.0 以降に収録される
 `max` の 12 件）・部品ごとの割り当て方針・見送り項目の詳細は
 `docs/design/pre-styled-ui-scale-tokens.md` を参照。radii（8 段）・
 shadows（6 段）・spaces（15 段）の拡充も同バージョンから収録される。
+
+`push_size` / `upsert_size` / `size_var`（`size` variant 軸トークン、イシュー
+#1678）は v0.43.0 以降に収録される。既定スケール（`control-height`/
+`control-padding-x`/`control-font-size` の 3 系統 × `xs`/`sm`/`md`/`lg`/`xl`
+の 5 段、計 15 件）・判断記録の詳細は
+`docs/design/pre-styled-ui-size-and-color-palette-axes.md` を参照。
+
+### `recipe::Size` / `recipe::ColorPalette` の共通軸拡張（イシュー #1678）
+
+`recipe::Size`（5 段: `Xs`/`Sm`/`Md`/`Lg`/`Xl`）・`recipe::ColorPalette`
+（6 値: `Accent`/`Info`/`Success`/`Warning`/`Danger`/`Neutral`）は
+styled 部品が共用する 2 つの標準 variant 軸である。イシュー #1678 で
+既存段・既存値へ純追加した拡張であり、各部品の実際の登録段は
+部品ごとに異なる（本書 §4d の variant 表・各部品モジュールの rustdoc が
+実際の登録内容の正）。`recipe::palette_scale_declarations`（6 役割版、
+`palette_declarations` の 3 役割はそのまま維持）も同イシューで新設した。
+判断根拠・非採用事項・再評価トリガーの詳細は
+`docs/design/pre-styled-ui-size-and-color-palette-axes.md` を参照。
 
 ## 5. 関連ドキュメント
 
