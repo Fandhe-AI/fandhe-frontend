@@ -7,7 +7,7 @@
 //! 破壊的変更時は本ファイルの更新とあわせて周知する。
 
 use fandhe_frontend_pre_styled_ui::theme::{
-    color_var, radius_var, shadow_var, space_var, typography_var, z_index_var, Theme,
+    color_var, motion_var, radius_var, shadow_var, space_var, typography_var, z_index_var, Theme,
 };
 
 #[test]
@@ -273,4 +273,110 @@ fn upsert_on_default_theme_keeps_token_order_and_determinism() {
         bg_pos < bg_subtle_pos,
         "upsert しても既定トークンの相対順序（挿入順）が保たれること"
     );
+}
+
+#[test]
+fn default_theme_includes_new_1425_motion_tokens() {
+    // イシュー #1425: 既定テーマに duration 3 段・easing 2 種が `:root` へ
+    // 出力されることを固定する（`DEFAULT_MOTIONS` の値と一致）。
+    let css = Theme::default().to_css();
+
+    assert!(css.contains("--fandhe-motion-duration-fast: 150ms;"));
+    assert!(css.contains("--fandhe-motion-duration-normal: 200ms;"));
+    assert!(css.contains("--fandhe-motion-duration-slow: 300ms;"));
+    assert!(css.contains("--fandhe-motion-easing-standard: cubic-bezier(0.4, 0, 0.2, 1);"));
+    assert!(css.contains("--fandhe-motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);"));
+}
+
+#[test]
+fn default_theme_reduced_motion_block_overrides_durations_only() {
+    // イシュー #1425: `prefers-reduced-motion: reduce` 下で duration 3 段の
+    // みが `0ms` へ一括上書きされ、easing はブロックに含まれないことを
+    // 固定する（`Theme::to_css` rustdoc 出力構造 5. 参照）。
+    let css = Theme::default().to_css();
+
+    let block_start = css
+        .find("@media (prefers-reduced-motion: reduce)")
+        .expect("reduced-motion block must exist");
+    let block = &css[block_start..];
+
+    assert!(block.contains("--fandhe-motion-duration-fast: 0ms;"));
+    assert!(block.contains("--fandhe-motion-duration-normal: 0ms;"));
+    assert!(block.contains("--fandhe-motion-duration-slow: 0ms;"));
+    assert!(
+        !block.contains("easing"),
+        "easing トークンは reduced-motion の上書き対象に含めない"
+    );
+    // ブロックは全体で 1 回だけ出現する（複数回出力されない）。
+    assert_eq!(
+        css.matches("@media (prefers-reduced-motion: reduce)")
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn theme_without_motion_tokens_omits_reduced_motion_block() {
+    // motion を一切 push しないテーマ（`Theme::empty()` ベース）の出力には
+    // `@media (prefers-reduced-motion: reduce)` ブロック自体が現れないこと
+    // を固定する（本イシュー導入前の出力とバイト同一に保つ後方互換要件、
+    // `custom_theme_output_matches_full_snapshot` と同型の判断）。
+    let mut theme = Theme::empty();
+    theme.push_color("bg", "#ffffff", "#000000").unwrap();
+
+    let css = theme.to_css();
+    assert!(!css.contains("prefers-reduced-motion"));
+}
+
+#[test]
+fn motion_tokens_are_mode_independent_and_absent_from_dark_blocks() {
+    // motion はモード非依存（`ScaleToken`、`write_dark_declarations` の
+    // 走査対象外）のため、`--fandhe-motion-duration-fast: 150ms;` は
+    // `:root` ブロック 1 箇所にのみ現れる（dark 値としての再出力がない）。
+    // reduced-motion ブロックは `0ms` へ上書きするため別文字列であり、
+    // このアサーションと衝突しない
+    // （`custom_z_index_extends_full_snapshot_without_breaking_pre_1423_output`
+    // と同型の判断）。
+    let css = Theme::default().to_css();
+
+    assert_eq!(
+        css.matches("--fandhe-motion-duration-fast: 150ms;").count(),
+        1
+    );
+    assert_eq!(
+        css.matches("--fandhe-motion-duration-fast: 0ms;").count(),
+        1
+    );
+}
+
+#[test]
+fn motion_var_builds_expected_reference() {
+    assert_eq!(
+        motion_var("duration-fast").unwrap(),
+        "var(--fandhe-motion-duration-fast)"
+    );
+    assert_eq!(
+        motion_var("easing-standard").unwrap(),
+        "var(--fandhe-motion-easing-standard)"
+    );
+}
+
+#[test]
+fn push_motion_and_upsert_motion_share_scale_semantics() {
+    // `push_motion`/`upsert_motion` が `push_scale`/`upsert_scale` を再利用
+    // していること（allowlist 検証・重複拒否・in-place 上書き）を、
+    // `push_space`/`upsert_space` 系の既存テストと同型に固定する。
+    let mut theme = Theme::empty();
+    theme.push_motion("duration-slow", "300ms").unwrap();
+    assert!(theme
+        .push_motion("duration-slow", "400ms")
+        .is_err_and(|e| matches!(
+            e,
+            fandhe_frontend_pre_styled_ui::theme::ThemeError::DuplicateTokenName { .. }
+        )));
+
+    theme.upsert_motion("duration-slow", "400ms").unwrap();
+    let css = theme.to_css();
+    assert!(css.contains("--fandhe-motion-duration-slow: 400ms;"));
+    assert!(!css.contains("--fandhe-motion-duration-slow: 300ms;"));
 }

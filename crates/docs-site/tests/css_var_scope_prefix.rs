@@ -69,6 +69,13 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   トークン扱いとする（本イシュー #1061 の対象である `data-scope`
 ///   プレフィックス不一致とは無関係の既存ギャップであり、Theme への
 ///   正式追加は別イシューのスコープ）。
+/// - `--fandhe-hover-bg`: hover 時の背景色を variant ごとに間接参照させる
+///   ための共通 custom property（イシュー #1425、`crate::recipe::
+///   hover_surface_declarations`/`hover_bg_solid`/`hover_bg_muted`）。
+///   `--fandhe-palette` と同じ「複数部品が同じ名前を変数として共有し、
+///   実値は各 scope の variant 側が定義する」設計であり、`button.rs`（参照
+///   実装）とそれを流用する `download_trigger.rs` の双方が参照するため
+///   scope 固有名ではなく共有トークン扱いとする。
 const SHARED_VARS: &[&str] = &[
     "--fandhe-palette",
     "--fandhe-palette-emphasized",
@@ -80,6 +87,7 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-reference-width",
     "--fandhe-color-accent-subtle",
     "--fandhe-color-focus-ring",
+    "--fandhe-hover-bg",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。

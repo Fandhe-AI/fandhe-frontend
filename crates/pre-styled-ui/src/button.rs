@@ -43,7 +43,11 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::icon::{icon, IconProps};
-use crate::recipe::{palette_declarations, when, ColorPalette, Size, SlotRecipe, VariantValue};
+use crate::recipe::{
+    disabled_declarations, hover_bg_muted, hover_bg_solid, hover_surface_declarations,
+    palette_declarations, transition_declarations, when, ColorPalette, MotionDuration, Size,
+    SlotRecipe, StateCondition, VariantValue,
+};
 use crate::spinner::spinner_decorative;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
 use fandhe_frontend_headless_ui::{anatomy, aria_disabled, aria_label, data_disabled, Anatomy};
@@ -253,6 +257,17 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
                 decl("text-decoration", "none"),
             ],
         )
+        .base(
+            "root",
+            // hover/disabled の見た目切り替えを滑らかにする（イシュー #1425、
+            // 共通ビジュアル言語の参照実装）。`base` は同一 slot への複数回
+            // 登録が許され出力順で連結されるため、既存の base ブロックを
+            // 書き換えずに純追加できる。
+            transition_declarations(
+                "background, border-color, color, box-shadow",
+                MotionDuration::Fast,
+            ),
+        )
         .variant(
             Size::Sm,
             "root",
@@ -284,6 +299,12 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
                 decl("background", "var(--fandhe-palette)"),
                 decl("color", "var(--fandhe-palette-fg)"),
                 decl("border", "none"),
+                // hover 時の背景色をこの palette の emphasized 段へ差し替える
+                // （イシュー #1425。`--fandhe-hover-bg` の実値は variant ごとに
+                // ここで定義し、実際の `background: var(--fandhe-hover-bg)`
+                // 適用は下記 `.state(..., StateCondition::Hover, ...)` 1 本に
+                // 集約する）。
+                hover_bg_solid(),
             ],
         )
         .variant(
@@ -293,6 +314,9 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
                 decl("background", "transparent"),
                 decl("color", "var(--fandhe-palette)"),
                 decl("border", "1px solid var(--fandhe-palette)"),
+                // 面を持たない variant は淡い bg-muted 段で hover を表現する
+                // （イシュー #1425、[`ButtonVariant::Solid`] と対称の設計）。
+                hover_bg_muted(),
             ],
         )
         .variant(
@@ -302,6 +326,7 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
                 decl("background", "transparent"),
                 decl("color", "var(--fandhe-palette)"),
                 decl("border", "none"),
+                hover_bg_muted(),
             ],
         )
         .variant(
@@ -311,11 +336,24 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg-subtle)"),
                 decl("color", "var(--fandhe-palette)"),
                 decl("border", "none"),
+                hover_bg_muted(),
             ],
         )
         .default_variant(Size::Md)
         .default_variant(ButtonVariant::Solid)
-        .default_variant(ColorPalette::Accent);
+        .default_variant(ColorPalette::Accent)
+        .state("root", StateCondition::Hover, hover_surface_declarations())
+        // `data-disabled` を recipe が消費する（イシュー #1425 で方針転換。
+        // 本モジュール冒頭 rustdoc「`data-disabled` を recipe が消費しない」
+        // 旧記述はここで解消した。`recipe_with_scope` は `download_trigger`
+        // と宣言を共有するため、`download_trigger` 側にも同じ規則が波及する
+        // が、`download_trigger` は `disabled` を持たない設計（`crate::download_trigger`
+        // rustdoc 参照）のため実害はなく dead CSS の混入に留まる）。
+        .state(
+            "root",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        );
 
     for palette in [
         ColorPalette::Accent,

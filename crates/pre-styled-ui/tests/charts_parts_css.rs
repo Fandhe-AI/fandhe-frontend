@@ -91,14 +91,20 @@ fn legend_css_matches_golden_fixture_byte_for_byte() {
 
 #[test]
 fn tooltip_css_matches_golden_fixture_byte_for_byte() {
+    // イシュー #1425: `StateCondition::Hover` の出力先が `@media (hover:
+    // hover)` ブロックへ変更され、セレクタにも `:not([data-disabled])` が
+    // 付与された（タッチ端末での hover 貼り付き対策、`recipe.rs` の
+    // `SlotRecipe::css` rustdoc 参照）。
     let expected = concat!(
         "[data-scope=\"chart\"][data-part=\"datum\"] {\n",
         "  cursor: default;\n",
         "}\n",
         "\n",
-        "[data-scope=\"chart\"][data-part=\"datum\"]:hover {\n",
-        "  stroke: var(--fandhe-color-accent-emphasized);\n",
-        "  stroke-width: 2;\n",
+        "@media (hover: hover) {\n",
+        "  [data-scope=\"chart\"][data-part=\"datum\"]:hover:not([data-disabled]) {\n",
+        "    stroke: var(--fandhe-color-accent-emphasized);\n",
+        "    stroke-width: 2;\n",
+        "  }\n",
         "}\n",
     );
     assert_eq!(tooltip::css(), expected);

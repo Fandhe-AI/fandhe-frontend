@@ -14,8 +14,9 @@ use fandhe_frontend_headless_ui::tabs::{tabs, TabItem, TabsProps};
 use fandhe_frontend_headless_ui::Orientation;
 use fandhe_frontend_pre_styled_ui::decl;
 use fandhe_frontend_pre_styled_ui::recipe::{
-    palette_declarations, when, ColorPalette as StdColorPalette, Size, SlotRecipe, StateCondition,
-    VariantValue,
+    disabled_declarations, hover_bg_muted, hover_bg_solid, hover_surface_declarations,
+    palette_declarations, transition_declarations, when, ColorPalette as StdColorPalette,
+    MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 /// `colorPalette` 相当を独立の仕組みとしてではなく通常の variant 軸として
@@ -497,9 +498,14 @@ fn state_hover_generates_pseudo_class_selector() {
         vec![decl("opacity", "0.8")],
     );
 
+    // イシュー #1425: `StateCondition::Hover` の出力先が `@media (hover:
+    // hover)` ブロックへ変更され、セレクタにも `:not([data-disabled])` が
+    // 付与された（`recipe.rs` の `SlotRecipe::css` rustdoc 参照）。
     let expected = concat!(
-        "[data-scope=\"chart\"][data-part=\"datum\"]:hover {\n",
-        "  opacity: 0.8;\n",
+        "@media (hover: hover) {\n",
+        "  [data-scope=\"chart\"][data-part=\"datum\"]:hover:not([data-disabled]) {\n",
+        "    opacity: 0.8;\n",
+        "  }\n",
         "}\n",
     );
     assert_eq!(recipe.css(), expected);
@@ -549,4 +555,112 @@ fn state_fail_closed_cases_are_skipped_not_panicking() {
     assert!(!css.contains("orange"));
     assert!(css.contains(r#"[data-scope="widget"][data-part="root"][hidden] {"#));
     assert!(css.contains("display: none;"));
+}
+
+/// disabled / hover / transition の共通ヘルパ（イシュー #1425）の golden
+/// テスト。`recipe.rs` の doc コメント「disabled / hover / transition の
+/// 共通ビジュアル言語」節が示す契約（`decl()` 経由・`&'static str` のみ）を
+/// 固定する。
+#[test]
+fn disabled_declarations_matches_existing_de_facto_standard() {
+    // 既存 40 箇所超（switch/checkbox_group 等）が個別に手書きしていた
+    // `opacity: 0.5` + `cursor: not-allowed` と同一の値であることを固定する。
+    let declarations = disabled_declarations();
+    assert_eq!(declarations.len(), 2);
+    assert_eq!(declarations[0].property(), "opacity");
+    assert_eq!(declarations[0].value(), "0.5");
+    assert_eq!(declarations[1].property(), "cursor");
+    assert_eq!(declarations[1].value(), "not-allowed");
+}
+
+#[test]
+fn hover_surface_declarations_references_indirection_custom_property() {
+    // 実際の色を埋め込まず `var(--fandhe-hover-bg)` の間接参照のみを持つ
+    // ことを固定する（variant 側が `--fandhe-hover-bg` を定義する契約）。
+    let declarations = hover_surface_declarations();
+    assert_eq!(declarations.len(), 1);
+    assert_eq!(declarations[0].property(), "background");
+    assert_eq!(declarations[0].value(), "var(--fandhe-hover-bg)");
+}
+
+#[test]
+fn hover_bg_solid_and_muted_define_distinct_custom_property_values() {
+    let solid = hover_bg_solid();
+    assert_eq!(solid.property(), "--fandhe-hover-bg");
+    assert_eq!(solid.value(), "var(--fandhe-palette-emphasized)");
+
+    let muted = hover_bg_muted();
+    assert_eq!(muted.property(), "--fandhe-hover-bg");
+    assert_eq!(muted.value(), "var(--fandhe-color-bg-muted)");
+}
+
+#[test]
+fn transition_declarations_produces_longhand_triplet_per_duration() {
+    // shorthand `transition:` ではなく longhand 3 プロパティへ分解する契約
+    // （`recipe.rs::transition_declarations` rustdoc 参照）。duration ごとに
+    // `transition-duration` の値だけが切り替わることを固定する。
+    let fast = transition_declarations("background, color", MotionDuration::Fast);
+    assert_eq!(fast.len(), 3);
+    assert_eq!(fast[0].property(), "transition-property");
+    assert_eq!(fast[0].value(), "background, color");
+    assert_eq!(fast[1].property(), "transition-duration");
+    assert_eq!(fast[1].value(), "var(--fandhe-motion-duration-fast)");
+    assert_eq!(fast[2].property(), "transition-timing-function");
+    assert_eq!(fast[2].value(), "var(--fandhe-motion-easing-standard)");
+
+    let normal = transition_declarations("background, color", MotionDuration::Normal);
+    assert_eq!(normal[1].value(), "var(--fandhe-motion-duration-normal)");
+
+    let slow = transition_declarations("background, color", MotionDuration::Slow);
+    assert_eq!(slow[1].value(), "var(--fandhe-motion-duration-slow)");
+}
+
+#[test]
+fn transition_declarations_serializes_into_recipe_css() {
+    let recipe = SlotRecipe::new("widget", &["root"]).base(
+        "root",
+        transition_declarations("background, box-shadow", MotionDuration::Normal),
+    );
+
+    let expected = concat!(
+        "[data-scope=\"widget\"][data-part=\"root\"] {\n",
+        "  transition-property: background, box-shadow;\n",
+        "  transition-duration: var(--fandhe-motion-duration-normal);\n",
+        "  transition-timing-function: var(--fandhe-motion-easing-standard);\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
+#[test]
+fn hover_state_and_other_states_coexist_with_hover_block_emitted_once_at_end() {
+    // イシュー #1425: `Hover` 以外の state（`Attr`）は通常どおり登録順で
+    // 出力され、`Hover` は種類・登録順に関わらず `@media (hover: hover)`
+    // ブロックへ集約されて css() 出力の最後尾に 1 つだけ現れることを固定
+    // する（`SlotRecipe::css` rustdoc 出力順序節参照）。
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .state("root", StateCondition::Hover, hover_surface_declarations())
+        .state(
+            "root",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        );
+
+    let css = recipe.css();
+    assert_eq!(css.matches("@media (hover: hover)").count(), 1);
+
+    let disabled_pos = css
+        .find("[data-disabled]")
+        .expect("disabled rule must exist");
+    let media_pos = css
+        .find("@media (hover: hover)")
+        .expect("hover media block must exist");
+    assert!(
+        disabled_pos < media_pos,
+        "Hover 以外の state は @media ブロックより前に出力される"
+    );
+    assert!(
+        css.ends_with("}\n"),
+        "@media ブロックが css() 出力の末尾であること"
+    );
 }

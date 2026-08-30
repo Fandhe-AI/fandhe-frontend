@@ -28,6 +28,12 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
   text-decoration: none;
 }
 
+[data-scope="button"][data-part="root"] {
+  transition-property: background, border-color, color, box-shadow;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
 [data-scope="button"][data-part="root"].fd-button--size-sm {
   padding: 0.25rem 0.5rem;
   font-size: var(--fandhe-font-font-size-sm);
@@ -47,24 +53,28 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
   background: var(--fandhe-palette);
   color: var(--fandhe-palette-fg);
   border: none;
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized);
 }
 
 [data-scope="button"][data-part="root"].fd-button--variant-outline {
   background: transparent;
   color: var(--fandhe-palette);
   border: 1px solid var(--fandhe-palette);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
 }
 
 [data-scope="button"][data-part="root"].fd-button--variant-ghost {
   background: transparent;
   color: var(--fandhe-palette);
   border: none;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
 }
 
 [data-scope="button"][data-part="root"].fd-button--variant-subtle {
   background: var(--fandhe-color-bg-subtle);
   color: var(--fandhe-palette);
   border: none;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
 }
 
 [data-scope="button"][data-part="root"].fd-button--color-palette-accent {
@@ -111,6 +121,17 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
 
 [data-scope="button"][data-part="root"].fd-button--icon-only.fd-button--size-lg {
   padding: 0.75rem;
+}
+
+[data-scope="button"][data-part="root"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) {
+  [data-scope="button"][data-part="root"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
