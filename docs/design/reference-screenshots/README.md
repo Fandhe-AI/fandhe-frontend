@@ -23,11 +23,23 @@ UI 部品スタイル調整（参考サイト基準への調整、ルート issu
 全件がこの規約に一致していることは、以下のコマンドが空出力を返すことで確認できる（自己検証コマンド）。
 
 ```bash
-ls docs/design/reference-screenshots/*.png | xargs -n1 basename \
+# (1) サブディレクトリが存在しないこと（フラット配置の確認）
+find docs/design/reference-screenshots -mindepth 1 -type d
+# 空出力なら PASS
+
+# (2) トップレベルファイルが命名規約 2 パターンまたは付随文書 3 点のいずれかに一致すること
+find docs/design/reference-screenshots -maxdepth 1 -type f | xargs -n1 basename \
   | grep -vE '^(chakra|ark|radixp|radixt)-[a-z0-9-]+-[0-9]+\.png$' \
-  | grep -vE '^(themes|primitives)-[a-z0-9-]+\.png$'
+  | grep -vE '^(themes|primitives)-[a-z0-9-]+\.png$' \
+  | grep -vE '^(README|SOURCES|THIRD_PARTY_NOTICES)\.md$'
 # 空出力なら PASS（2026-08-30 時点の 703 枚全件で確認済み）
 ```
+
+`find` でディレクトリツリー全体を列挙するため、`ls '*.png'` 限定と異なり
+命名規約違反（誤命名）だけでなくサブディレクトリ配置・非 PNG（GIF・動画等）
+ファイルの混入も検出できる。正規表現は single quote 内でバックスラッシュ
+1 個（`\.png$`）を使い、ERE の「バックスラッシュ＋任意文字」誤解釈を避ける
+（ドットをリテラルとしてエスケープする正しい記法）。
 
 ## ローカルスクショ再取得手順
 
