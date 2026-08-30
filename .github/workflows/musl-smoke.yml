@@ -22,24 +22,28 @@ name: x86_64 musl startup smoke (REQ-9)
 #
 # aarch64 側の CI 実測・イメージサイズや起動時間の性能再検証は本イシューの
 # 対象外（イシュー本文で明示的に除外）。
+#
+# required check 化に伴う常時起動 + ステップ内 skip 方式（PR #1706 codex
+# レビュー P0 指摘、コメント id 3889985391 対応）:
+# 本ワークフローは required status check（ruleset `main-protection`）の
+# 対象であり、かつては `pull_request.paths` フィルタで対象パスに変更が
+# ない PR では起動自体をスキップしていた。GitHub の required status check
+# は「未報告」を「保留」として扱い続けるため、`paths` フィルタと
+# `paths-ignore` 鏡像ワークフローの組で補完する案を最初に採ったが、
+# `paths-ignore` は `paths` の補集合にならない（例: Dockerfile と
+# README.md を同時変更すると両方起動し同名 success が実チェック失敗を
+# 隠し得る fail-open。片方のワークフローファイルだけ変更すると鏡像が
+# 起動せずもう片方の required check が未報告のままになる）ため不採用と
+# した。代わりに本ワークフロー自身を `pull_request` で常時起動させ、
+# ジョブ冒頭の「Detect relevant changes」ステップで変更パスを判定し、
+# 対象パスに変更があれば実処理、なければ明示 skip ステップのどちらか
+# 一方だけを実行する単一経路にした。同名ジョブは常にこのワークフロー
+# だけが報告するため二重報告・判定の食い違いは起きない。
 
 on:
   push:
     branches: [main]
   pull_request:
-    # image-size.yml（#103）と同一のパスフィルタ（Dockerfile の COPY 列挙 =
-    # workspace members と同期。member 変更が docker build を壊すケースを
-    # 本ワークフローでも検出できるようにする）に、本ファイル自身を加える。
-    # イシュー #436（`crates/` 配下移設）で全メンバークレートが `crates/**`
-    # 1 パターンに集約された。
-    paths:
-      - "Dockerfile"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "crates/**"
-      - "static/**"
-      - ".dockerignore"
-      - ".github/workflows/musl-smoke.yml"
   workflow_dispatch:
 
 permissions:
@@ -79,12 +83,60 @@ jobs:
       - name: Checkout
         # actions/checkout v7.0.1（image-size.yml / ci.yml と同一 SHA に固定）。
         # docs/spec サブモジュールは本検証に不要のため取得しない。
+        # required check 常時起動化に伴い、変更パス判定（次ステップ）で
+        # `origin/${{ github.base_ref }}` との差分を取る必要があるため
+        # fetch-depth: 0 を明示する（ci.yml の version-bump-guard ジョブと
+        # 同一理由。fetch-depth: 0 は checkout 内部で全ブランチをフェッチ
+        # するため別途 `git fetch origin <base>` は不要）。
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: false
           persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect relevant changes
+        # このジョブの実処理（Docker ビルド・起動スモーク）が必要な変更
+        # （Dockerfile・依存構成・workspace members・静的アセット・本
+        # ワークフロー自身）が含まれる PR かどうかを判定する。push・
+        # workflow_dispatch では常に relevant=true（フィルタなしで実行）。
+        # 判定失敗時（git diff 自体が失敗する等）は fail-closed で
+        # relevant=true にし、実処理を走らせる（対象パス判定の不具合で
+        # required check が静かにスキップされ続ける事態を避ける）。
+        # base_ref はユーザー制御ではないが、他ジョブと同様 env 経由で
+        # 受け渡し、シェルへの直接展開を避ける（script injection 対策の
+        # 一貫性、security.md）。
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -uo pipefail
+          if [ "${EVENT_NAME}" != "pull_request" ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! diff_output=$(git diff --name-only "origin/${BASE_REF}...HEAD" 2>&1); then
+            echo "::warning::failed to compute changed files against origin/${BASE_REF} (fail-closed, treating as relevant): ${diff_output}" >&2
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          relevant=false
+          while IFS= read -r path; do
+            [ -z "${path}" ] && continue
+            case "${path}" in
+              Dockerfile|Cargo.toml|Cargo.lock|.dockerignore|crates/*|static/*|.github/workflows/musl-smoke.yml)
+                relevant=true
+                ;;
+            esac
+          done <<< "${diff_output}"
+          echo "relevant=${relevant}" >> "$GITHUB_OUTPUT"
+
+      - name: "skip: no relevant path changes"
+        if: steps.changes.outputs.relevant != 'true'
+        run: echo "対象パスに変更がないためスキップ（required check の success 報告のみ）"
 
       - name: Assert runner architecture is x86_64
+        if: steps.changes.outputs.relevant == 'true'
         # 本ワークフローの前提（Dockerfile の x86_64-unknown-linux-musl 分岐が
         # 実行されること）が GitHub-hosted ランナーの仕様変更等で崩れていないか
         # を明示的に確認する（fail-closed。前提が崩れたまま以降のステップが
@@ -98,6 +150,7 @@ jobs:
           fi
 
       - name: Build docker image
+        if: steps.changes.outputs.relevant == 'true'
         # ビルダーコンテナ内の `uname -m` も x86_64 となり、Dockerfile の
         # x86_64-unknown-linux-musl 分岐（未検証だった側）を確実に実行させる。
         # レジストリ push・ログインは行わず、ジョブローカルタグのみを使う
@@ -105,6 +158,7 @@ jobs:
         run: docker build -t fandhe-frontend-dist-server:musl-smoke .
 
       - name: Ensure file/binutils utilities are available
+        if: steps.changes.outputs.relevant == 'true'
         # ubuntu-latest には `file`/`readelf`（binutils）が標準搭載済みのため、
         # 通常はこのステップで何もしない。存在チェック付きインストールは
         # ホステッドランナーのイメージ内容が将来変わっても壊れないための
@@ -129,6 +183,7 @@ jobs:
           fi
 
       - name: Extract binary and verify static musl linkage
+        if: steps.changes.outputs.relevant == 'true'
         # docker cp でホスト側へバイナリを取り出してから検査する（scratch
         # イメージ内にはシェル・file・readelf が存在しないため）。
         # 「x86_64 かつ静的リンク」であることをアーキテクチャ・リンク方式の
@@ -153,6 +208,7 @@ jobs:
           grep -q "Advanced Micro Devices X86-64" readelf-output.log
 
       - name: Host direct startup smoke
+        if: steps.changes.outputs.relevant == 'true'
         # musl 静的リンクのバイナリは glibc ホスト上でもそのまま起動できる
         # ことが単一バイナリ配布（REQ-9）の中核価値であり、これを最も直接的に
         # 証明するステップ。コンテナを介さずホストの ubuntu-latest ランナー上で
@@ -172,6 +228,7 @@ jobs:
             http://127.0.0.1:3101/ > /dev/null
 
       - name: Container startup smoke
+        if: steps.changes.outputs.relevant == 'true'
         # Dockerfile が生成する scratch ベースの実コンテナとして起動し、
         # ルーティング（routes.rs）の主要契約 — ページ応答・埋め込みアセット
         # 配信・パストラバーサル拒否 — が配布バイナリ経路でも成立することを
@@ -227,13 +284,14 @@ jobs:
           grep -q "assets=embedded" /tmp/container.log
 
       - name: Stop container
-        if: always()
+        if: always() && steps.changes.outputs.relevant == 'true'
         # 起動スモークが途中で失敗しても、ランナー破棄前にコンテナを明示停止
         # し残置させない（image-size.yml のジョブローカル運用と同様、
         # レジストリ push なしでランナーの破棄とともに揮発させる方針を維持）。
         run: docker stop fandhe-frontend-musl-smoke 2>/dev/null || true
 
       - name: Publish smoke summary
+        if: steps.changes.outputs.relevant == 'true'
         # 固定文言の 1 行サマリのみを出力し、ランナー内部パス等の機微情報は
         # 含めない（security.md A09）。前段のいずれかが失敗すればこのステップ
         # 自体が実行されず job は red のままになる（`if: always()` にしない
