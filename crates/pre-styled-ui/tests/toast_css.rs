@@ -10,7 +10,7 @@ use fandhe_frontend_pre_styled_ui::toast;
 
 const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   position: fixed;
-  z-index: var(--fandhe-z-index-toast);
+  z-index: var(--fandhe-z-index-toast, 9999);
   display: flex;
   flex-direction: column;
   gap: var(--fandhe-space-2);

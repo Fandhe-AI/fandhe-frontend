@@ -432,8 +432,13 @@ const DEFAULT_TYPOGRAPHY: &[(&str, &str)] = &[
 /// `overlay`/`modal` とし、同時表示時の前後関係は DOM 順に委ねる。chakra
 /// も同段）。値の割り当て根拠・部品ごとの適用予定（後続 Phase の各部品
 /// issue が消し込む）は `docs/design/pre-styled-ui-scale-tokens.md` 参照。
-/// `toast.rs` が既に使っていた未宣言変数 `--fandhe-z-index-toast`（fallback
-/// 付き参照）はこの正式トークン化を受けて fallback を除去した。
+/// `toast.rs` が既に使っていた未宣言変数 `--fandhe-z-index-toast` は
+/// この正式トークン化を受けてテーマ側の宣言を追加したが、`toast.rs` 側の
+/// `var(--fandhe-z-index-toast, 9999)` fallback は維持している
+/// （codex-review #1705 P1 指摘: `Theme::empty()` から必要トークンのみ
+/// 構築する既存利用者・`toast::stylesheet()` 単独利用者ではテーマ CSS が
+/// 注入されず未定義のままになり得るため、公開クレートの既存 CSS 契約を
+/// 壊さないよう fallback を残す）。
 const DEFAULT_Z_INDICES: &[(&str, &str)] = &[
     ("hide", "-1"),
     ("base", "0"),

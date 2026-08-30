@@ -150,22 +150,30 @@ API は既存 `push_scale`/`upsert_scale`（内部共通ヘルパ）を再利用
 同一性（z-indices を push しないテーマの出力は #1423 前と同一）を
 `crates/pre-styled-ui/tests/theme_css.rs` の回帰テストで固定している。
 
-**toast の正式トークン化**: `toast.rs` は
-`decl("z-index", "var(--fandhe-z-index-toast, 9999)")`（未宣言変数への
-fallback 付き参照）だったが、`Theme::default()` が必ず宣言するように
-なったため `decl("z-index", "var(--fandhe-z-index-toast)")` へ fallback を
-除去した。これに伴い `crates/docs-site/tests/css_var_scope_prefix.rs` の
-`SHARED_VARS`（免除表）から `--fandhe-z-index-toast` を削除した
-（`theme_token_names()` が `Theme::default().to_css()` から自動収集する
-ため、免除を残すと `shared_vars_table_has_no_stale_entries` が stale
-エントリとして FAIL する）。
+**toast の正式トークン化**: `toast.rs` が使っていた未宣言変数
+`--fandhe-z-index-toast`（`var(--fandhe-z-index-toast, 9999)` という
+fallback 付き参照）を受けて `Theme::default()` 側に正式トークンとして
+`--fandhe-z-index-toast: 1600;` を追加した。これに伴い
+`crates/docs-site/tests/css_var_scope_prefix.rs` の `SHARED_VARS`
+（免除表）から `--fandhe-z-index-toast` を削除した（`theme_token_names()`
+が `Theme::default().to_css()` から自動収集するため、免除を残すと
+`shared_vars_table_has_no_stale_entries` が stale エントリとして FAIL
+する）。**`toast.rs` 側の `var(--fandhe-z-index-toast, 9999)` fallback
+自体は除去せず維持する**（codex-review #1705 P1 指摘・実装時追記）:
+`Theme::empty()` から必要トークンのみ構築する既存利用者や
+`toast::stylesheet()` を単独利用しテーマ CSS を注入しない利用者では
+`--fandhe-z-index-toast` が未定義のままになり得る。CSS カスタム
+プロパティが unset の場合 `var()` に fallback がないと宣言全体が無効化
+され `z-index` ごと失われ、Toast の重なり順（最前面表示）が壊れる。
+公開クレート（crates.io 公開済み）の既存 CSS 契約を壊さないため、正式
+トークン化後も fallback は残す。
 
 ## 4. 対象ファイル
 
 | パス | 変更内容 |
 |------|----------|
 | `crates/pre-styled-ui/src/theme.rs` | `DEFAULT_RADII`/`DEFAULT_SHADOWS`/`DEFAULT_SPACES` への純追加、`DEFAULT_Z_INDICES` 新設、`Theme` へ `z_indices` フィールド、`push_z_index`/`upsert_z_index`/`z_index_var`、`to_css()` 末尾出力、ユニットテスト |
-| `crates/pre-styled-ui/src/toast.rs` | `z-index` の fallback 除去 |
+| `crates/pre-styled-ui/src/toast.rs` | `z-index` を正式トークン参照へ更新（fallback は後方互換のため維持） |
 | `crates/pre-styled-ui/tests/toast_css.rs` | golden CSS の z-index 行を追随 |
 | `crates/pre-styled-ui/tests/theme_css.rs` | z-index の出力構造 golden・var helper 一致・dark ブロック不在の確認 |
 | `crates/pre-styled-ui/tests/theme_injection.rs` | `push_z_index`/`upsert_z_index` のインジェクション payload・重複拒否テスト |
