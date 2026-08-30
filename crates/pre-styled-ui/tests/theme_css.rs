@@ -7,7 +7,7 @@
 //! 破壊的変更時は本ファイルの更新とあわせて周知する。
 
 use fandhe_frontend_pre_styled_ui::theme::{
-    color_var, radius_var, shadow_var, space_var, typography_var, Theme,
+    color_var, radius_var, shadow_var, space_var, typography_var, z_index_var, Theme,
 };
 
 #[test]
@@ -202,6 +202,41 @@ fn custom_radii_and_shadows_extend_full_snapshot_without_breaking_pre_606_output
 ";
 
     assert_eq!(theme.to_css(), expected);
+}
+
+#[test]
+fn custom_z_index_extends_full_snapshot_without_breaking_pre_1423_output() {
+    // z-indices を push しないテーマは `custom_theme_output_matches_full_snapshot`
+    // （本ファイル）の既存スナップショットとバイト同一のままであることが
+    // #1423 の後方互換要件。ここでは z-index を追加した場合の出力構造を
+    // 個別に固定する（フルスナップショットへ混入させ既存テストを壊さない）。
+    // z-index はモード非依存のため `:root` ブロックのみに現れ、dark ブロック
+    // （@media / [data-theme="dark"]）には一切出現しないことも併せて固定する。
+    let mut theme = Theme::empty();
+    theme.push_color("bg", "#ffffff", "#000000").unwrap();
+    theme.push_z_index("toast", "1600").unwrap();
+
+    let expected = "\
+:root {
+  color-scheme: light dark;
+  --fandhe-color-bg: #ffffff;
+  --fandhe-z-index-toast: 1600;
+}
+:root[data-theme=\"light\"] { color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=\"light\"]) {
+    color-scheme: dark;
+    --fandhe-color-bg: #000000;
+  }
+}
+:root[data-theme=\"dark\"] {
+  color-scheme: dark;
+  --fandhe-color-bg: #000000;
+}
+";
+
+    assert_eq!(theme.to_css(), expected);
+    assert_eq!(z_index_var("toast").unwrap(), "var(--fandhe-z-index-toast)");
 }
 
 #[test]

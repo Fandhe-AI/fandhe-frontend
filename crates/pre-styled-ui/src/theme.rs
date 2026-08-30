@@ -51,6 +51,16 @@ pub enum ThemeError {
         /// 重複していたトークン名。
         name: String,
     },
+    /// [`Theme::push_z_index`] / [`Theme::upsert_z_index`] に渡された値が
+    /// `z-index` プロパティとして無効だった（イシュー #1423、codex-review
+    /// #1705 P1 指摘）。`CssValue` の文字 allowlist は満たすが、`z-index` の
+    /// 値として意味を持たない入力（例: `red` `1rem` `url(foo)`）をここで
+    /// 拒否する。許可されるのは整数（符号任意）と CSS グローバル値
+    /// （`auto` `inherit` `initial` `revert` `revert-layer` `unset`）のみ。
+    InvalidZIndexValue {
+        /// 検証に失敗した入力。
+        value: String,
+    },
 }
 
 impl fmt::Display for ThemeError {
@@ -64,6 +74,12 @@ impl fmt::Display for ThemeError {
             }
             ThemeError::DuplicateTokenName { name } => {
                 write!(f, "duplicate token name in the same group: {name:?}")
+            }
+            ThemeError::InvalidZIndexValue { value } => {
+                write!(
+                    f,
+                    "invalid z-index value (not an integer or CSS global value): {value:?}"
+                )
             }
         }
     }
@@ -90,7 +106,12 @@ impl CssValue {
     ///
     /// # 許可文字
     ///
-    /// ASCII 英数字・空白・`#` `%` `.` `,` `(` `)` `-` `_` のみ。
+    /// ASCII 英数字・空白・`#` `%` `.` `,` `(` `)` `-` `_` `+` のみ。
+    /// `+` は `z-index` 等の CSS `<integer>` が許可する正符号
+    /// （`+1` `+1600` 等、イシュー #1423・codex-review #1705 P1 指摘）を
+    /// 表現するために許可する。`+` 自体は宣言追加・セレクタ脱出・
+    /// スクリプト実行のいずれの構文要素にもならないため、下記拒否文字の
+    /// 安全性不変条件を弱めない。
     ///
     /// # 拒否条件
     ///
@@ -122,6 +143,7 @@ impl CssValue {
                     || c == ')'
                     || c == '-'
                     || c == '_'
+                    || c == '+'
             })
             && !s.to_ascii_lowercase().contains("expression(");
 
@@ -224,6 +246,8 @@ pub struct Theme {
     typography: Vec<ScaleToken>,
     radii: Vec<ScaleToken>,
     shadows: Vec<DualModeToken>,
+    /// 重なり順（`z-index`）のモード非依存スケール（イシュー #1423）。
+    z_indices: Vec<ScaleToken>,
 }
 
 impl Default for Theme {
@@ -243,6 +267,7 @@ impl Default for Theme {
             typography: Vec::new(),
             radii: Vec::new(),
             shadows: Vec::new(),
+            z_indices: Vec::new(),
         };
 
         for (name, light, dark) in DEFAULT_COLORS {
@@ -267,6 +292,11 @@ impl Default for Theme {
         }
         for (name, light, dark) in DEFAULT_SHADOWS {
             theme.push_shadow(name, light, dark).expect(
+                "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
+            );
+        }
+        for (name, value) in DEFAULT_Z_INDICES {
+            theme.push_z_index(name, value).expect(
                 "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
             );
         }
@@ -375,18 +405,29 @@ const DEFAULT_COLORS: &[(&str, &str, &str)] = &[
 
 /// 既定の角丸トークン（name, value）。モード非依存。既存 styled 部品
 /// （Button/Badge/Spinner/Alert/Card、イシュー #550）のリテラル値をそのまま
-/// 吸収する初期スケール（イシュー #606）。
+/// 吸収する初期スケール（イシュー #606）。イシュー #1423 で `none`/`xs`/`2xl`
+/// を純追加し 5 段 → 8 段へ拡充した（chakra-ui `xs`〜`2xl` 相当、Radix
+/// `--radius-1..6` との対応は `docs/design/pre-styled-ui-scale-tokens.md` 参照。
+/// 既存 5 段の名前・値は不変のため、この追加は既存出力を壊さない）。
 const DEFAULT_RADII: &[(&str, &str)] = &[
+    ("none", "0"),
+    ("xs", "0.125rem"),
     ("sm", "0.25rem"),
     ("md", "0.375rem"),
     ("lg", "0.5rem"),
     ("xl", "0.75rem"),
+    ("2xl", "1rem"),
     ("full", "9999px"),
 ];
 
 /// 既定の影トークン（name, light, dark）。ダークモードは light 比で不透明度を
 /// 上げ、暗背景上でも輪郭が視認できるようにする（イシュー #606）。`sm` の
 /// light 値は Card Elevated の既存リテラル（イシュー #550）を踏襲する。
+/// イシュー #1423 で `xl`/`2xl` を末尾へ純追加し 4 段 → 6 段へ拡充した
+/// （chakra-ui `xs`〜`2xl`・Radix `--shadow-1..6` と同段数。ダーク値は既存
+/// 規則〔light 比で不透明度を上げる〕を踏襲し、overlay 系部品が別途持つ
+/// `border` による境界確保〔Radix 方式〕への切り替えは色トークン確定後の
+/// 再評価事項として `docs/design/pre-styled-ui-scale-tokens.md` に明記する）。
 const DEFAULT_SHADOWS: &[(&str, &str, &str)] = &[
     (
         "xs",
@@ -408,12 +449,30 @@ const DEFAULT_SHADOWS: &[(&str, &str, &str)] = &[
         "0 10px 15px rgba(0, 0, 0, 0.16)",
         "0 10px 15px rgba(0, 0, 0, 0.4)",
     ),
+    (
+        "xl",
+        "0 20px 25px rgba(0, 0, 0, 0.2)",
+        "0 20px 25px rgba(0, 0, 0, 0.5)",
+    ),
+    (
+        "2xl",
+        "0 25px 50px rgba(0, 0, 0, 0.25)",
+        "0 25px 50px rgba(0, 0, 0, 0.55)",
+    ),
 ];
 
 /// 既定の余白トークン（name, value）。chakra 風のスケール。モード非依存。
+/// イシュー #1423 で `0-5`/`1-5`/`2-5`（4px 格子の半刻み）と `20`/`24`
+/// （大きめの余白）を純追加し 10 段 → 15 段へ拡充した。既存 10 段の名前・
+/// 値は不変。[`TokenName`] は `.` を許可しないため chakra の `0.5`/`1.5`/
+/// `2.5` 相当は `-` 区切り（`0-5`/`1-5`/`2-5`）で表記する
+/// （`docs/design/pre-styled-ui-scale-tokens.md` 参照）。
 const DEFAULT_SPACES: &[(&str, &str)] = &[
+    ("0-5", "0.125rem"),
     ("1", "0.25rem"),
+    ("1-5", "0.375rem"),
     ("2", "0.5rem"),
+    ("2-5", "0.625rem"),
     ("3", "0.75rem"),
     ("4", "1rem"),
     ("5", "1.25rem"),
@@ -422,6 +481,8 @@ const DEFAULT_SPACES: &[(&str, &str)] = &[
     ("10", "2.5rem"),
     ("12", "3rem"),
     ("16", "4rem"),
+    ("20", "5rem"),
+    ("24", "6rem"),
 ];
 
 /// 既定のタイポグラフィトークン（name, value）。モード非依存。
@@ -445,6 +506,35 @@ const DEFAULT_TYPOGRAPHY: &[(&str, &str)] = &[
     ("line-height-relaxed", "1.75"),
 ];
 
+/// 既定の z-index トークン（name, value）。モード非依存の新規グループ
+/// （イシュー #1423）。chakra-ui の `hide`〜`max` を参考にした 100 刻みの
+/// 重なり順スケールで、`dropdown < sticky < popover < overlay < modal <
+/// skip-nav < toast < tooltip` の順を満たす（dialog/drawer は同段
+/// `overlay`/`modal` とし、同時表示時の前後関係は DOM 順に委ねる。chakra
+/// も同段）。値の割り当て根拠・部品ごとの適用予定（後続 Phase の各部品
+/// issue が消し込む）は `docs/design/pre-styled-ui-scale-tokens.md` 参照。
+/// `toast.rs` が既に使っていた未宣言変数 `--fandhe-z-index-toast` は
+/// この正式トークン化を受けてテーマ側の宣言を追加したが、`toast.rs` 側の
+/// `var(--fandhe-z-index-toast, 9999)` fallback は維持している
+/// （codex-review #1705 P1 指摘: `Theme::empty()` から必要トークンのみ
+/// 構築する既存利用者・`toast::stylesheet()` 単独利用者ではテーマ CSS が
+/// 注入されず未定義のままになり得るため、公開クレートの既存 CSS 契約を
+/// 壊さないよう fallback を残す）。
+const DEFAULT_Z_INDICES: &[(&str, &str)] = &[
+    ("hide", "-1"),
+    ("base", "0"),
+    ("docked", "10"),
+    ("dropdown", "1000"),
+    ("sticky", "1100"),
+    ("popover", "1200"),
+    ("overlay", "1300"),
+    ("modal", "1400"),
+    ("skip-nav", "1500"),
+    ("toast", "1600"),
+    ("tooltip", "1700"),
+    ("max", "2147483647"),
+];
+
 impl Theme {
     /// 空のテーマを構築する（既定トークンなし）。カスタムテーマをゼロから
     /// 組み立てたい呼び出し元向け。既定パレットが欲しい場合は
@@ -457,6 +547,7 @@ impl Theme {
             typography: Vec::new(),
             radii: Vec::new(),
             shadows: Vec::new(),
+            z_indices: Vec::new(),
         }
     }
 
@@ -536,6 +627,37 @@ impl Theme {
         Ok(())
     }
 
+    /// モード非依存の重なり順（`z-index`）トークンを追加する（イシュー #1423）。
+    ///
+    /// `fandhe-frontend-pre-styled-ui` の overlay 系 styled 部品（Menu/Popover/
+    /// Dialog/Drawer/Toast/Tooltip 等）が `z-index: var(--fandhe-z-index-<name>)`
+    /// として参照する想定のトークン。既定スケール（[`DEFAULT_Z_INDICES`]）は
+    /// dropdown < sticky < popover < overlay < modal < skip-nav < toast <
+    /// tooltip の重なり順を満たす。
+    ///
+    /// # Errors
+    ///
+    /// [`Theme::push_color`] と同様（`name`/`value` の検証・重複拒否）。
+    /// # Errors
+    ///
+    /// - `name` が [`TokenName`] の命名規則を満たさない場合
+    /// - `value` が `z-index` として無効な場合（[`ThemeError::InvalidZIndexValue`]。
+    ///   整数と CSS グローバル値のみ許可、詳細は同バリアントの rustdoc 参照）
+    /// - `name` が z-indices グループ内で既に登録済みの場合（[`ThemeError::DuplicateTokenName`]）
+    pub fn push_z_index(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        let name = TokenName::new(name)?;
+        let value = validate_z_index_value(value)?;
+
+        if self.z_indices.iter().any(|t| t.name == name) {
+            return Err(ThemeError::DuplicateTokenName {
+                name: name.as_str().to_string(),
+            });
+        }
+
+        self.z_indices.push(ScaleToken { name, value });
+        Ok(())
+    }
+
     /// ライト/ダーク値を持つ色トークンを追加、または既存トークンを上書きする
     /// （イシュー #1138）。
     ///
@@ -604,15 +726,40 @@ impl Theme {
         upsert_dual(&mut self.shadows, name, light, dark)
     }
 
+    /// モード非依存の重なり順（`z-index`）トークンを追加、または既存
+    /// トークンを上書きする（イシュー #1423）。セマンティクスは
+    /// [`Theme::upsert_color`] 参照。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `value` のいずれかが allowlist 検証を通過しない場合。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `value` のいずれかが検証を通過しない場合。`value` の検証は
+    /// [`Theme::push_z_index`] と同一（[`ThemeError::InvalidZIndexValue`]）。
+    pub fn upsert_z_index(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        let name = TokenName::new(name)?;
+        let value = validate_z_index_value(value)?;
+
+        if let Some(existing) = self.z_indices.iter_mut().find(|t| t.name == name) {
+            existing.value = value;
+        } else {
+            self.z_indices.push(ScaleToken { name, value });
+        }
+        Ok(())
+    }
+
     /// テーマを決定的なプレーン CSS 文字列へ変換する。
     ///
     /// 出力構造（固定順、`docs` は伴わず本 rustdoc が正）:
     ///
     /// 1. `:root { color-scheme: light dark; --fandhe-... }`（light 値、
-    ///    colors → spaces → typography → radii → shadows の順。radii は
-    ///    モード非依存のため 1 値、shadows は light 値をここに出力する。
-    ///    イシュー #606 で追加した 2 グループは末尾に純追加する構成のため、
-    ///    radii/shadows を push しないテーマの出力は変更前とバイト同一になる）
+    ///    colors → spaces → typography → radii → shadows → z-indices の順。
+    ///    radii/z-indices はモード非依存のため 1 値、shadows は light 値を
+    ///    ここに出力する。イシュー #606 で追加した radii/shadows、イシュー
+    ///    #1423 で追加した z-indices はいずれも末尾に純追加する構成のため、
+    ///    当該グループを push しないテーマの出力は追加前とバイト同一になる）
     /// 2. `:root[data-theme="light"] { color-scheme: light; }`
     /// 3. `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }`
     ///    （dark 値。OS 設定追従。colors → shadows の順）
@@ -666,6 +813,13 @@ impl Theme {
                 token.light.as_str()
             ));
         }
+        for token in &self.z_indices {
+            out.push_str(&format!(
+                "  {VAR_PREFIX}-z-index-{}: {};\n",
+                token.name.as_str(),
+                token.value.as_str()
+            ));
+        }
         out.push_str("}\n");
 
         out.push_str(":root[data-theme=\"light\"] { color-scheme: light; }\n");
@@ -706,6 +860,44 @@ impl Theme {
                 token.dark.as_str()
             ));
         }
+    }
+}
+
+/// [`Theme::push_z_index`] / [`Theme::upsert_z_index`] 共通の値検証ロジック
+/// （イシュー #1423、codex-review #1705 P1 指摘）。
+///
+/// [`CssValue::new`] の文字 allowlist 検証に加え、`z-index` プロパティとして
+/// 意味を持つ値のみを許可する: 符号任意の整数（`-1` `0` `1600` `+1` 等）、または
+/// CSS グローバル値（`auto` `inherit` `initial` `revert` `revert-layer`
+/// `unset`）。`red` `1rem` `url(foo)` のような文字集合は満たすが `z-index` と
+/// しては無効な値をここで拒否する（ブラウザに宣言ごと破棄され重なり順が
+/// 失われるのを防ぐ）。
+///
+/// # Errors
+///
+/// [`CssValue::new`] が失敗した場合は [`ThemeError::InvalidCssValue`]、文字集合は
+/// 満たすが整数でも既知のグローバル値でもない場合は
+/// [`ThemeError::InvalidZIndexValue`] を返す。
+fn validate_z_index_value(value: &str) -> Result<CssValue, ThemeError> {
+    let css_value = CssValue::new(value)?;
+    let s = css_value.as_str();
+
+    let numeric_part = s
+        .strip_prefix('-')
+        .or_else(|| s.strip_prefix('+'))
+        .unwrap_or(s);
+    let is_integer = !numeric_part.is_empty() && numeric_part.bytes().all(|b| b.is_ascii_digit());
+    let is_global_keyword = matches!(
+        s,
+        "auto" | "inherit" | "initial" | "revert" | "revert-layer" | "unset"
+    );
+
+    if is_integer || is_global_keyword {
+        Ok(css_value)
+    } else {
+        Err(ThemeError::InvalidZIndexValue {
+            value: value.to_string(),
+        })
     }
 }
 
@@ -809,6 +1001,17 @@ pub fn shadow_var(name: &str) -> Result<String, ThemeError> {
     Ok(format!("var({VAR_PREFIX}-shadow-{})", name.as_str()))
 }
 
+/// z-index トークン名から `var(--fandhe-z-index-<name>)` 参照を組み立てる
+/// （イシュー #1423）。styled 部品が `z-index` の値として参照する想定。
+///
+/// # Errors
+///
+/// [`color_var`] と同様。
+pub fn z_index_var(name: &str) -> Result<String, ThemeError> {
+    let name = TokenName::new(name)?;
+    Ok(format!("var({VAR_PREFIX}-z-index-{})", name.as_str()))
+}
+
 /// タイポグラフィトークン名から `var(--fandhe-font-<name>)` 参照を組み立てる。
 ///
 /// # Errors
@@ -829,6 +1032,10 @@ mod tests {
         assert!(CssValue::new("1rem").is_ok());
         assert!(CssValue::new("system-ui, sans-serif").is_ok());
         assert!(CssValue::new("rgba(0, 0, 0)").is_ok());
+        // `+` は z-index 等の正符号付き整数のために許可する
+        // （イシュー #1423・codex-review #1705 P1 指摘）。
+        assert!(CssValue::new("+1").is_ok());
+        assert!(CssValue::new("+1600").is_ok());
     }
 
     #[test]
@@ -1203,6 +1410,133 @@ mod tests {
         }
     }
 
+    // イシュー #1423: radius/shadow/spacing 拡充・z-index 新設のユニットテスト。
+
+    #[test]
+    fn z_index_var_builds_expected_reference() {
+        assert_eq!(z_index_var("toast").unwrap(), "var(--fandhe-z-index-toast)");
+        assert!(z_index_var("Toast").is_err());
+    }
+
+    #[test]
+    fn push_z_index_rejects_duplicate_name() {
+        let mut theme = Theme::empty();
+        theme.push_z_index("toast", "1600").unwrap();
+        assert!(theme.push_z_index("toast", "1700").is_err());
+    }
+
+    #[test]
+    fn upsert_z_index_overwrites_existing_value() {
+        let mut theme = Theme::empty();
+        theme.push_z_index("toast", "1600").unwrap();
+        theme.upsert_z_index("toast", "1650").unwrap();
+        assert!(theme.to_css().contains("--fandhe-z-index-toast: 1650;"));
+    }
+
+    /// codex-review #1705 P1 指摘の回帰テスト: `CssValue` の文字 allowlist は
+    /// 満たすが `z-index` プロパティとしては無効な値（色名・単位付き寸法・
+    /// `url()`）を `push_z_index` が拒否することを固定する。
+    #[test]
+    fn push_z_index_rejects_non_integer_non_keyword_values() {
+        let mut theme = Theme::empty();
+        assert_eq!(
+            theme.push_z_index("bad", "red"),
+            Err(ThemeError::InvalidZIndexValue {
+                value: "red".to_string(),
+            })
+        );
+        assert_eq!(
+            theme.push_z_index("bad", "1rem"),
+            Err(ThemeError::InvalidZIndexValue {
+                value: "1rem".to_string(),
+            })
+        );
+        assert_eq!(
+            theme.push_z_index("bad", "url(foo)"),
+            Err(ThemeError::InvalidZIndexValue {
+                value: "url(foo)".to_string(),
+            })
+        );
+        // 拒否した場合は一切追加されない。
+        assert!(theme.to_css().is_empty() || !theme.to_css().contains("z-index-bad"));
+    }
+
+    /// 同上の回帰テスト（`upsert_z_index` 側）。
+    #[test]
+    fn upsert_z_index_rejects_non_integer_non_keyword_values() {
+        let mut theme = Theme::empty();
+        assert_eq!(
+            theme.upsert_z_index("bad", "1rem"),
+            Err(ThemeError::InvalidZIndexValue {
+                value: "1rem".to_string(),
+            })
+        );
+    }
+
+    /// 整数（符号付き含む）と CSS グローバル値は許可されることを固定する。
+    #[test]
+    fn push_z_index_accepts_integers_and_global_keywords() {
+        let mut theme = Theme::empty();
+        theme.push_z_index("neg", "-1").unwrap();
+        theme.push_z_index("zero", "0").unwrap();
+        theme.push_z_index("big", "2147483647").unwrap();
+        theme.push_z_index("auto", "auto").unwrap();
+        theme.push_z_index("inherited", "inherit").unwrap();
+        let css = theme.to_css();
+        assert!(css.contains("--fandhe-z-index-neg: -1;"));
+        assert!(css.contains("--fandhe-z-index-auto: auto;"));
+    }
+
+    /// codex-review #1705 P1 回帰: 正符号付きの整数（`+1` `+1600` 等）も
+    /// CSS の有効な `<integer>` であり、`push_z_index` は受理しなければ
+    /// ならない（`strip_prefix('-')` のみで `'+'` を考慮していなかった
+    /// ためのすり抜けの再発防止）。
+    #[test]
+    fn push_z_index_accepts_positive_signed_integers() {
+        let mut theme = Theme::empty();
+        theme.push_z_index("plus-one", "+1").unwrap();
+        theme.push_z_index("plus-big", "+1600").unwrap();
+        let css = theme.to_css();
+        assert!(css.contains("--fandhe-z-index-plus-one: +1;"));
+        assert!(css.contains("--fandhe-z-index-plus-big: +1600;"));
+    }
+
+    /// 同上の回帰テスト（`upsert_z_index` 側）。
+    #[test]
+    fn upsert_z_index_accepts_positive_signed_integers() {
+        let mut theme = Theme::empty();
+        theme.upsert_z_index("plus-one", "+1").unwrap();
+        theme.upsert_z_index("plus-big", "+1600").unwrap();
+        let css = theme.to_css();
+        assert!(css.contains("--fandhe-z-index-plus-one: +1;"));
+        assert!(css.contains("--fandhe-z-index-plus-big: +1600;"));
+    }
+
+    #[test]
+    fn default_theme_includes_new_1423_tokens() {
+        let css = Theme::default().to_css();
+        // radii の純追加分。
+        assert!(css.contains("--fandhe-radius-none: 0;"));
+        assert!(css.contains("--fandhe-radius-xs: 0.125rem;"));
+        assert!(css.contains("--fandhe-radius-2xl: 1rem;"));
+        // shadows の純追加分。
+        assert!(css.contains("--fandhe-shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.2);"));
+        assert!(css.contains("--fandhe-shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.25);"));
+        // spaces の純追加分。
+        assert!(css.contains("--fandhe-space-0-5: 0.125rem;"));
+        assert!(css.contains("--fandhe-space-1-5: 0.375rem;"));
+        assert!(css.contains("--fandhe-space-2-5: 0.625rem;"));
+        assert!(css.contains("--fandhe-space-20: 5rem;"));
+        assert!(css.contains("--fandhe-space-24: 6rem;"));
+        // z-index 新設グループ（既定 12 件）。
+        for (name, value) in DEFAULT_Z_INDICES {
+            assert!(
+                css.contains(&format!("--fandhe-z-index-{name}: {value};")),
+                "missing z-index token: {name}"
+            );
+        }
+    }
+
     #[test]
     fn large_text_and_ui_pairs_meet_wcag_3_to_1_in_light_and_dark() {
         for (fg_name, bg_name) in LARGE_TEXT_UI_PAIRS {
@@ -1221,5 +1555,31 @@ mod tests {
                 "dark: {fg_name}/{bg_name} = {dark_ratio:.3} (< 3:1)"
             );
         }
+    }
+
+    #[test]
+    fn default_theme_z_indices_do_not_appear_in_dark_blocks() {
+        // z-index はモード非依存のため、`write_dark_declarations` 経由の
+        // dark ブロック（`@media` と `[data-theme="dark"]`）には一切現れず、
+        // `:root` ブロックの 1 箇所にのみ出現する（radii と同じ扱い）。
+        let css = Theme::default().to_css();
+        let count = css.matches("--fandhe-z-index-toast:").count();
+        assert_eq!(
+            count, 1,
+            "z-index はモード非依存のため :root に 1 回だけ出現するはず"
+        );
+    }
+
+    #[test]
+    fn empty_theme_without_z_indices_omits_z_index_vars() {
+        // z-indices を一切 push しないテーマの `to_css()` 出力は、本イシュー
+        // （#1423）で追加した z-indices グループの純追加であることを保証する
+        // 回帰テスト（`theme_without_radii_or_shadows_matches_pre_606_snapshot`
+        // と対をなす）。
+        let mut theme = Theme::empty();
+        theme.push_color("bg", "#ffffff", "#111111").unwrap();
+
+        let css = theme.to_css();
+        assert!(!css.contains("--fandhe-z-index-"));
     }
 }

@@ -17,8 +17,7 @@
 //! # 免除面（2 つの literal 完全一致表のみ、カテゴリ免除は行わない）
 //!
 //! - [`SHARED_VARS`]: 複数部品が共有するテーマ非依存の custom property
-//!   （colorPalette 系・positioning 系・z-index・未登録の共有色トークン
-//!   2 件）。
+//!   （colorPalette 系・positioning 系・未登録の共有色トークン 2 件）。
 //! - [`KNOWN_DEVIATIONS`]: `(data-scope, 変数名)` の既知の未是正逸脱。
 //!   現在は `angle-slider` の `--fandhe-angle` の 1 件のみ。
 //!   `crates/pre-styled-ui/src/angle_slider.rs` が動的インライン値として
@@ -58,17 +57,18 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   positioning 系（wasm-full が実行時に設定、イシュー #663。
 ///   `menu.rs`/`popover.rs`/`select.rs`/`combobox.rs`/`tooltip.rs`/
 ///   `hover_card.rs`/`toggle_tip.rs`/`floating_panel.rs`）。
-/// - `--fandhe-z-index-toast`: レイヤ z-index（`toast.rs`。
-///   `Theme::to_css` は宣言しないためテーマトークンではない）。
-/// - `--fandhe-color-accent-subtle` / `--fandhe-color-focus-ring`（イシュー
-///   #1422 で `Theme::default()` の既定パレットへ正式追加するまで、この表の
-///   エントリだった）: `analyze()` は `theme_tokens.contains(&name)` を
-///   `SHARED_VARS` 判定より先に見るため、正式なテーマトークンになった時点で
+/// - `--fandhe-z-index-toast`（旧免除、イシュー #1423 で解消）: `toast.rs` が
+///   参照するレイヤ z-index は #1423 で `Theme::to_css`（z-indices グループ）
+///   が正式に宣言するテーマトークンとなったため、本表からは削除済み
+///   （`theme_token_names()` が自動的にテーマトークンとして認識する）。
+/// - `--fandhe-color-accent-subtle` / `--fandhe-color-focus-ring`（旧免除、
+///   イシュー #1422 で解消）: `menubar.rs`/`navigation-menu.rs`/
+///   `tree-view.rs`/`toolbar.rs`/`date-input.rs` の 5 部品が参照するレイヤ
+///   色トークンは #1422 で `Theme::default()` の既定パレットへ正式追加
+///   されテーマトークンとなったため、本表からは削除済み（`analyze()` は
+///   `theme_tokens.contains(&name)` を `SHARED_VARS` 判定より先に見るため、
 ///   このリストへ載せたままだと `shared_var_hits` が更新されず
 ///   `shared_vars_table_has_no_stale_entries` が stale 検知で FAIL する。
-///   よって #1422 でこの 2 件を削除した（`menubar.rs`/`navigation-menu.rs`/
-///   `tree-view.rs`/`toolbar.rs`/`date-input.rs` の 5 部品が参照する事実は
-///   変わらないが、免除は `theme_tokens` 経由に一本化される。
 ///   `docs/design/color-token-system.md` §1 参照）。
 const SHARED_VARS: &[&str] = &[
     "--fandhe-palette",
@@ -79,7 +79,6 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-arrow-x",
     "--fandhe-arrow-y",
     "--fandhe-reference-width",
-    "--fandhe-z-index-toast",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。
