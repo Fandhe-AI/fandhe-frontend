@@ -252,6 +252,20 @@ fn recipe() -> SlotRecipe {
         )
         // イシュー #729: `size` variant（root スコープの CSS custom property。
         // Md はフォールバック値と同一の現行外観を維持する）。
+        // イシュー #1681: Xs/Xl は Sm→Md→Lg の等差進行（padding 2 段刻み・
+        // max-width 8〜10rem 刻み・font-size 1 段オフセット）を両端へ外挿。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-dialog-content-padding", "var(--fandhe-space-2)"),
+                decl("--fandhe-dialog-content-max-width", "16rem"),
+                decl(
+                    "--fandhe-dialog-title-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+            ],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -285,6 +299,18 @@ fn recipe() -> SlotRecipe {
                 decl(
                     "--fandhe-dialog-title-font-size",
                     "var(--fandhe-font-font-size-xl)",
+                ),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-dialog-content-padding", "var(--fandhe-space-10)"),
+                decl("--fandhe-dialog-content-max-width", "52rem"),
+                decl(
+                    "--fandhe-dialog-title-font-size",
+                    "var(--fandhe-font-font-size-2xl)",
                 ),
             ],
         )

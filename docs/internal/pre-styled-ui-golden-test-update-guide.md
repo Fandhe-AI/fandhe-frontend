@@ -236,3 +236,47 @@ Phase 1 で本ガイドに従って golden 更新を行った最初の事例で�
 - 手順・対応表とも齟齬なく完走でき、本ガイドの記述を修正する必要は
   ありませんでした（親イシュー #1421 へコメント報告、本イシュー #1427 の
   受け入れ条件 2 に対応）。
+
+イシュー #1681（`Size::Xs`/`Size::Xl` と `ColorPalette::Neutral` を
+Interactive・Data Display・Charts の該当 24 部品〔既に該当軸を
+registrar 済みの部品のみ〕へ適用）も同じ手順で完走しました。
+
+- 対象再計測（`git grep`）の結果、調査時点の一覧（Interactive:
+  pagination/splitter/steps/tabs/tour が palette、accordion/breadcrumb/
+  carousel/dialog/drawer/menu/pagination/splitter/steps/tabs が size。
+  Data Display: badge/callout/spinner/status/tag/timeline が palette、
+  avatar/badge/callout/color_swatch/empty_state/icon/progress/qr_code/
+  spinner/stat/status/table/tag/timeline が size。Charts: area_chart/
+  donut_chart/line_chart/pie_chart/sparkline が size）と実態に齟齬は
+  ありませんでした。`alert` は palette 軸を持たないため変更なし。
+- §3.2 の対応表どおり、golden は `accordion_css.rs` / `callout_css.rs` /
+  `carousel_css.rs` / `charts_css.rs`（line/area/sparkline）/
+  `color_swatch_css.rs` / `dialog_css.rs` / `drawer_css.rs` /
+  `image_icon_css.rs`（icon 分のみ）/ `menu_css.rs` / `pagination_css.rs` /
+  `pie_donut_chart_css.rs` / `progress_css.rs` / `qr_code_css.rs` /
+  `splitter_css.rs` / `stat_css.rs` / `status_empty_state_css.rs`
+  （status/empty_state 双方）/ `steps_css.rs` / `tabs_css.rs` /
+  `tag_kbd_code_css.rs`（tag 分のみ）/ `timeline_css.rs` /
+  `tour_css.rs` の 24 test fn に分散していました（`avatar`/`table` は
+  golden 不在〔決定性テストのみ〕のため対象外）。
+- 差分はすべて「既存 5 段（Sm/Md/Lg）ブロックへの Xs/Xl 純追加」または
+  「既存 5 値 palette ブロックへの Neutral 純追加（6 役割版 palette
+  宣言への切替を含む）」のみであることを目視確認してから期待値定数を
+  置き換えました。`#[ignore]` 追加・比較緩和は行っていません。
+- Xs/Xl のリテラル値は「既存宣言が等差進行なら両端へ 1 段外挿」
+  「トークン参照なら同系トークンの下限/上限（無ければ最も近い既存
+  トークンで clamp）」を機械的な規則として適用し、部品ごとの導出根拠は
+  `src/<part>.rs` 内のコメントに残しました（詳細は PR 本文）。
+- 横断テスト（`data_attr_vocabulary.rs`/`xss_escape_styled.rs`/
+  `recipe_determinism.rs`/`theme_css.rs`）は期待値変更なしで green の
+  ままでした。新規トークン参照はいずれも #1422/#1423 で既に導入済みの
+  ものだけを使ったため、`css_var_scope_prefix.rs` の `SHARED_VARS` 追随は
+  不要でした。
+- `crates/docs-site/tests/no_js_contract.rs` の `TempDir::new` が
+  `pid + nanos` のみで一時出力先を一意化していたため、サイトビルドの
+  所要時間が伸びたことで並列実行中の 2 テストが同一パスへ衝突し、
+  片方の `Drop` がもう片方の出力ディレクトリを削除してしまう既存の
+  レースが顕在化しました（golden 更新そのものとは無関係）。原子的な
+  カウンタを追加してパスを一意化し解消しています（同ファイル参照）。
+- 手順・対応表とも齟齬なく完走でき、本ガイドの記述を修正する必要は
+  ありませんでした（親イシュー #1426 へコメント報告）。

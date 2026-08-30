@@ -1249,16 +1249,21 @@ fn badge_section() -> Node {
             )
         })
         .collect());
+    // イシュー #1681: 共有 `palettes()`（5 値）はまだ Neutral を含めない
+    // （#1680 適用完了まで宣言なしデモの公開を避ける）。この節限定で
+    // Neutral エントリを末尾へ連結する。
     let palette_row = row(palettes()
         .iter()
+        .copied()
+        .chain([(ColorPalette::Neutral, "Neutral")])
         .map(|(palette, label)| {
             badge::badge(
                 &BadgeProps {
-                    palette: *palette,
+                    palette,
                     ..BadgeProps::default()
                 },
                 vec![],
-                vec![text(*label)],
+                vec![text(label)],
             )
         })
         .collect());
@@ -1272,9 +1277,11 @@ fn badge_section() -> Node {
 /// Spinner 節: size バリエーション。
 fn spinner_section() -> Node {
     let sizes = [
+        (Size::Xs, "Loading (xs)"),
         (Size::Sm, "Loading (small)"),
         (Size::Md, "Loading (medium)"),
         (Size::Lg, "Loading (large)"),
+        (Size::Xl, "Loading (xl)"),
     ];
     let size_row = row(sizes
         .iter()
@@ -1692,12 +1699,17 @@ fn callout_section() -> Node {
             })
             .collect(),
     );
+    // イシュー #1681: 共有 `palettes()`（5 値）はまだ Neutral を含めない
+    // （#1680 適用完了まで宣言なしデモの公開を避ける）。この節限定で
+    // Neutral エントリを末尾へ連結する。
     let palette_row = stack(
         palettes()
             .iter()
+            .copied()
+            .chain([(ColorPalette::Neutral, "Neutral")])
             .map(|(palette, label)| {
                 let props = CalloutProps {
-                    palette: *palette,
+                    palette,
                     ..CalloutProps::default()
                 };
                 callout::root(
@@ -1705,7 +1717,7 @@ fn callout_section() -> Node {
                     vec![],
                     vec![
                         callout::icon(vec![], vec![text("i")]),
-                        callout::text(props.size, vec![], vec![text(*label)]),
+                        callout::text(props.size, vec![], vec![text(label)]),
                     ],
                 )
             })
@@ -2746,25 +2758,31 @@ const AVATAR_INLINE_SVG_SRC: &str =
 /// しない方針）。`image` パーツ自体は `ImageStatus` に応じて headless 層が
 /// `hidden` 存在属性を出力するため、Error 状態でも anatomy には含まれる。
 fn avatar_section() -> Node {
-    let size_row = row(vec![(Size::Sm, "FT"), (Size::Md, "FT"), (Size::Lg, "FT")]
-        .into_iter()
-        .map(|(size, initials)| {
-            avatar::root(
-                size,
-                AvatarShape::default(),
-                vec![],
-                vec![
-                    avatar::image(
-                        ImageStatus::Error,
-                        AVATAR_EMPTY_IMAGE_SRC,
-                        "Fandhe Team",
-                        vec![],
-                    ),
-                    avatar::fallback(ImageStatus::Error, vec![], vec![text(initials)]),
-                ],
-            )
-        })
-        .collect());
+    let size_row = row(vec![
+        (Size::Xs, "FT"),
+        (Size::Sm, "FT"),
+        (Size::Md, "FT"),
+        (Size::Lg, "FT"),
+        (Size::Xl, "FT"),
+    ]
+    .into_iter()
+    .map(|(size, initials)| {
+        avatar::root(
+            size,
+            AvatarShape::default(),
+            vec![],
+            vec![
+                avatar::image(
+                    ImageStatus::Error,
+                    AVATAR_EMPTY_IMAGE_SRC,
+                    "Fandhe Team",
+                    vec![],
+                ),
+                avatar::fallback(ImageStatus::Error, vec![], vec![text(initials)]),
+            ],
+        )
+    })
+    .collect());
 
     let shape_row = row(vec![
         AvatarShape::Circle,
@@ -5037,16 +5055,21 @@ fn navigation_menu_section() -> Node {
 
 /// Status 節（イシュー #765）: colorPalette 軸ごとのドット + ラベル表示。
 fn status_section() -> Node {
+    // イシュー #1681: 共有 `palettes()`（5 値）はまだ Neutral を含めない
+    // （#1680 適用完了まで宣言なしデモの公開を避ける）。この節限定で
+    // Neutral エントリを末尾へ連結する。
     let palette_row = row(palettes()
         .iter()
+        .copied()
+        .chain([(ColorPalette::Neutral, "Neutral")])
         .map(|(palette, label)| {
             status::root(
                 &StatusProps {
-                    palette: *palette,
+                    palette,
                     ..StatusProps::default()
                 },
                 vec![],
-                vec![status::indicator(vec![]), text(*label)],
+                vec![status::indicator(vec![]), text(label)],
             )
         })
         .collect());
@@ -5169,9 +5192,11 @@ fn progress_section() -> Node {
 
     let determinate = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
     let size_row = row(vec![
+        circle_demo(&determinate, Size::Xs, Some("40%")),
         circle_demo(&determinate, Size::Sm, Some("40%")),
         circle_demo(&determinate, Size::Md, Some("40%")),
         circle_demo(&determinate, Size::Lg, Some("40%")),
+        circle_demo(&determinate, Size::Xl, Some("40%")),
     ]);
 
     let complete = Progress::new(0.0, 100.0, Some(100.0), Orientation::Horizontal);
@@ -5217,7 +5242,13 @@ fn qr_code_section() -> Node {
         )
     };
 
-    let size_row = row(vec![demo(Size::Sm), demo(Size::Md), demo(Size::Lg)]);
+    let size_row = row(vec![
+        demo(Size::Xs),
+        demo(Size::Sm),
+        demo(Size::Md),
+        demo(Size::Lg),
+        demo(Size::Xl),
+    ]);
 
     let with_overlay = qr_code::root(
         Size::Lg,
@@ -5321,7 +5352,7 @@ fn icon_section() -> Node {
         )
     };
 
-    let size_row = row(vec![Size::Sm, Size::Md, Size::Lg]
+    let size_row = row(vec![Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
         .into_iter()
         .map(|size| {
             icon(
@@ -6090,7 +6121,7 @@ fn pie_chart_section() -> Node {
     )
     .expect("ショーケース固定データは常に有効な ChartData を構築できる");
 
-    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
         .into_iter()
         .map(|size| {
             pie_chart(
@@ -6136,7 +6167,7 @@ fn donut_chart_section() -> Node {
     )
     .expect("ショーケース固定データは常に有効な ChartData を構築できる");
 
-    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
         .into_iter()
         .map(|size| {
             donut_chart(
@@ -6243,7 +6274,7 @@ fn tag_section() -> Node {
             )
         })
         .collect());
-    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
         .iter()
         .map(|size| {
             tag::root(
@@ -6256,16 +6287,21 @@ fn tag_section() -> Node {
             )
         })
         .collect());
+    // イシュー #1681: 共有 `palettes()`（5 値）はまだ Neutral を含めない
+    // （Forms 側〔#1680〕の適用完了まで宣言なしデモが公開されるのを避ける
+    // ため）。この節限定で Neutral エントリを末尾へ連結する。
     let palette_row = row(palettes()
         .iter()
+        .copied()
+        .chain([(ColorPalette::Neutral, "Neutral")])
         .map(|(palette, label)| {
             tag::root(
                 &TagProps {
-                    palette: *palette,
+                    palette,
                     ..TagProps::default()
                 },
                 vec![],
-                vec![text(*label)],
+                vec![text(label)],
             )
         })
         .collect());
@@ -6317,7 +6353,7 @@ fn code_section() -> Node {
 /// チェッカーボード表示確認。
 fn color_swatch_section() -> Node {
     let blue = Color::from_rgb(Rgb::new(0x3b, 0x82, 0xf6));
-    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
         .iter()
         .map(|size| {
             color_swatch::color_swatch(

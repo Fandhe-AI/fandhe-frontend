@@ -88,7 +88,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `Splitter` 状態機械・headless 自由関数 `root`/`panel`/`resize_trigger` は
@@ -194,6 +194,14 @@ fn recipe() -> SlotRecipe {
                 decl("outline-offset", "-2px"),
             ],
         )
+        // イシュー #1681: Xs/Xl は Sm→Md→Lg の 0.125rem 刻みの等差進行を
+        // 両端へ外挿（Xs は 0 に到達させず視認可能な最小値 0.0625rem に
+        // クランプ）。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("--fandhe-splitter-trigger-size", "0.0625rem")],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -209,6 +217,11 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![decl("--fandhe-splitter-trigger-size", "0.375rem")],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("--fandhe-splitter-trigger-size", "0.5rem")],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -218,8 +231,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -438,6 +452,7 @@ mod tests {
             (ColorPalette::Success, "fd-splitter--color-palette-success"),
             (ColorPalette::Warning, "fd-splitter--color-palette-warning"),
             (ColorPalette::Danger, "fd-splitter--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-splitter--color-palette-neutral"),
         ] {
             let html = render(&root(Size::Md, palette, &s, false, vec![], vec![]));
             assert!(html.contains(class), "palette={palette:?} -> {html}");

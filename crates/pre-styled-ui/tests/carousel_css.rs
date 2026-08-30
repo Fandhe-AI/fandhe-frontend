@@ -78,6 +78,11 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
   height: var(--fandhe-carousel-indicator-size, 0.5rem);
 }
 
+[data-scope="carousel"][data-part="root"].fd-carousel--size-xs {
+  --fandhe-carousel-trigger-size: 1.5rem;
+  --fandhe-carousel-indicator-size: 0.25rem;
+}
+
 [data-scope="carousel"][data-part="root"].fd-carousel--size-sm {
   --fandhe-carousel-trigger-size: 2rem;
   --fandhe-carousel-indicator-size: 0.375rem;
@@ -91,6 +96,11 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
 [data-scope="carousel"][data-part="root"].fd-carousel--size-lg {
   --fandhe-carousel-trigger-size: 3rem;
   --fandhe-carousel-indicator-size: 0.625rem;
+}
+
+[data-scope="carousel"][data-part="root"].fd-carousel--size-xl {
+  --fandhe-carousel-trigger-size: 3.5rem;
+  --fandhe-carousel-indicator-size: 0.75rem;
 }
 
 [data-scope="carousel"][data-part="item-group"][data-orientation="vertical"] {

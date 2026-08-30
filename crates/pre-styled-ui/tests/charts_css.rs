@@ -24,6 +24,10 @@ const LINE_CHART_GOLDEN_CSS: &str = r#"[data-scope="line-chart"][data-part="root
   stroke-width: 2;
 }
 
+[data-scope="line-chart"][data-part="root"].fd-line-chart--size-xs {
+  --fandhe-line-chart-height: 58px;
+}
+
 [data-scope="line-chart"][data-part="root"].fd-line-chart--size-sm {
   --fandhe-line-chart-height: 96px;
 }
@@ -34,6 +38,10 @@ const LINE_CHART_GOLDEN_CSS: &str = r#"[data-scope="line-chart"][data-part="root
 
 [data-scope="line-chart"][data-part="root"].fd-line-chart--size-lg {
   --fandhe-line-chart-height: 220px;
+}
+
+[data-scope="line-chart"][data-part="root"].fd-line-chart--size-xl {
+  --fandhe-line-chart-height: 306px;
 }
 "#;
 
@@ -58,6 +66,10 @@ const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root
   stroke-width: 2;
 }
 
+[data-scope="area-chart"][data-part="root"].fd-area-chart--size-xs {
+  --fandhe-area-chart-height: 58px;
+}
+
 [data-scope="area-chart"][data-part="root"].fd-area-chart--size-sm {
   --fandhe-area-chart-height: 96px;
 }
@@ -68,6 +80,10 @@ const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root
 
 [data-scope="area-chart"][data-part="root"].fd-area-chart--size-lg {
   --fandhe-area-chart-height: 220px;
+}
+
+[data-scope="area-chart"][data-part="root"].fd-area-chart--size-xl {
+  --fandhe-area-chart-height: 306px;
 }
 "#;
 
@@ -92,6 +108,10 @@ const SPARKLINE_GOLDEN_CSS: &str = r#"[data-scope="sparkline"][data-part="root"]
   stroke-width: 1.5;
 }
 
+[data-scope="sparkline"][data-part="root"].fd-sparkline--size-xs {
+  --fandhe-sparkline-height: 16px;
+}
+
 [data-scope="sparkline"][data-part="root"].fd-sparkline--size-sm {
   --fandhe-sparkline-height: 32px;
 }
@@ -102,6 +122,10 @@ const SPARKLINE_GOLDEN_CSS: &str = r#"[data-scope="sparkline"][data-part="root"]
 
 [data-scope="sparkline"][data-part="root"].fd-sparkline--size-lg {
   --fandhe-sparkline-height: 64px;
+}
+
+[data-scope="sparkline"][data-part="root"].fd-sparkline--size-xl {
+  --fandhe-sparkline-height: 80px;
 }
 "#;
 

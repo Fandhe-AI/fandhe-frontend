@@ -134,6 +134,12 @@ fn recipe() -> SlotRecipe {
                 decl("text-anchor", "middle"),
             ],
         )
+        // イシュー #1681: Xs/Xl は Sm→Md→Lg の 6rem 刻み等差進行を外挿。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("--fandhe-donut-chart-size", "4rem")],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -148,6 +154,11 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![decl("--fandhe-donut-chart-size", "22rem")],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("--fandhe-donut-chart-size", "28rem")],
         )
         .default_variant(Size::Md)
 }

@@ -168,6 +168,13 @@ fn recipe() -> SlotRecipe {
             "series-line",
             vec![decl("fill", "none"), decl("stroke-width", "2")],
         )
+        // イシュー #1681: `crate::area_chart::recipe` と同一の高さ値・
+        // 導出根拠（差分 54→70 の拡大則を外挿）を共有する。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("--fandhe-line-chart-height", "58px")],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -182,6 +189,11 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![decl("--fandhe-line-chart-height", "220px")],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("--fandhe-line-chart-height", "306px")],
         )
         .default_variant(Size::Md)
 }
