@@ -527,3 +527,10 @@ fandhe_frontend_headless_ui::<mod>::*;`）・選択的個別・（styled 側の
 `version-bump-exempt: fandhe-frontend-pre-styled-ui`（理由: rustdoc・
 コメント・テスト追加のみで公開 API は不変）を宣言し、`version-bump-guard`
 の対象から除外した。
+
+## golden テスト（バイト一致）の更新手順（イシュー #1427）
+
+`crates/pre-styled-ui/tests/*_css.rs` の golden（バイト一致）テストを更新
+する際の手順・部品対応表・禁止事項は
+`docs/internal/pre-styled-ui-golden-test-update-guide.md` に切り出した。
+Phase 1 以降の各部品スタイル調整 PR ではこちらを参照する。
