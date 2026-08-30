@@ -1449,7 +1449,14 @@ fn typography_css() -> Result<String, SiteThemeError> {
         ],
     )?;
 
-    // ---- インラインコード（code base のミラー）----
+    // ---- インラインコード（code base + 既定 variant/size/palette
+    // 〔Subtle・Md・Neutral〕のミラー、イシュー #1432）----
+    // pre-styled-ui の `code` recipe は `--fandhe-palette-*`（呼び出し側が
+    // 選んだ colorPalette へ動的接続する custom property）経由で配色するが、
+    // 本ミラーはコンポーネントを介さない生 Markdown レンダリングのため
+    // palette 配線を持たない。既定 palette（Neutral）の具体トークンへ
+    // 直接接続し、既定の見た目（recipe 側の Subtle+Md+Neutral 相当）を
+    // 再現する。
     push_typography_rule(
         &mut out,
         ".docs-content code",
@@ -1458,11 +1465,11 @@ fn typography_css() -> Result<String, SiteThemeError> {
                 "font-family",
                 "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
             ),
-            decl("background", "var(--fandhe-color-bg-subtle)"),
             decl("border-radius", "var(--fandhe-radius-sm)"),
-            decl("padding", "0.0625rem 0.375rem"),
+            decl("padding", "0.125rem 0.5rem"),
             decl("font-size", "var(--fandhe-font-font-size-sm)"),
-            decl("color", "var(--fandhe-color-fg)"),
+            decl("background", "var(--fandhe-color-neutral-subtle)"),
+            decl("color", "var(--fandhe-color-neutral-fg-subtle)"),
         ],
     )?;
 

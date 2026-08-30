@@ -91,7 +91,7 @@ use fandhe_frontend_pre_styled_ui::charts::tooltip as chart_tooltip;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::checkbox_group;
-use fandhe_frontend_pre_styled_ui::code::code;
+use fandhe_frontend_pre_styled_ui::code::{code, CodeProps, CodeVariant};
 use fandhe_frontend_pre_styled_ui::color_picker;
 use fandhe_frontend_pre_styled_ui::color_swatch::{
     self, Color, ColorSwatchProps, Rgb, SwatchShape,
@@ -6348,14 +6348,61 @@ fn kbd_section() -> Node {
     )
 }
 
-/// Code 節（イシュー #768）: インライン `<code>` のみを扱う（CodeBlock は
-/// 対象外確定済み）。
+/// Code 節（イシュー #768、#1432 で variant/size/colorPalette 軸を追加）:
+/// インライン `<code>` のみを扱う（CodeBlock は対象外確定済み）。
 fn code_section() -> Node {
-    let row_node = row(vec![code(vec![], vec![text("cargo build")])]);
+    let variants = [
+        (CodeVariant::Solid, "Solid"),
+        (CodeVariant::Subtle, "Subtle"),
+        (CodeVariant::Outline, "Outline"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, label)| {
+            code(
+                &CodeProps {
+                    variant: *variant,
+                    ..CodeProps::default()
+                },
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .iter()
+        .map(|size| {
+            code(
+                &CodeProps {
+                    size: *size,
+                    ..CodeProps::default()
+                },
+                vec![],
+                vec![text("code")],
+            )
+        })
+        .collect());
+    // 共有 `palettes()`（5 値、Neutral なし）に本部品の既定 palette
+    // （Neutral）を末尾連結する（tag::section と同様の理由）。
+    let palette_row = row(palettes()
+        .iter()
+        .copied()
+        .chain([(ColorPalette::Neutral, "Neutral")])
+        .map(|(palette, label)| {
+            code(
+                &CodeProps {
+                    palette,
+                    ..CodeProps::default()
+                },
+                vec![],
+                vec![text(label)],
+            )
+        })
+        .collect());
     section(
         "Code",
-        "インラインコード片の表示。chakra-ui の CodeBlock 相当は対象外です。",
-        vec![row_node],
+        "インラインコード片の表示。variant / size / colorPalette を組み合わせます。chakra-ui の CodeBlock 相当は対象外です。",
+        vec![variant_row, size_row, palette_row],
     )
 }
 

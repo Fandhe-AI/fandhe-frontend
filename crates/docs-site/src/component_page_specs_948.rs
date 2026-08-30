@@ -70,7 +70,7 @@ use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
 use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
     self, ScatterChartProps, ScatterData, ScatterSeries,
 };
-use fandhe_frontend_pre_styled_ui::code::code;
+use fandhe_frontend_pre_styled_ui::code::{code, CodeProps, CodeVariant};
 use fandhe_frontend_pre_styled_ui::color_picker;
 use fandhe_frontend_pre_styled_ui::color_swatch::{Color, Rgb};
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment};
@@ -483,18 +483,56 @@ const KBD_SPEC: ComponentPageSpec = ComponentPageSpec {
 };
 
 fn code_example() -> Node {
-    row(vec![code(vec![], vec![text("cargo build")])])
+    row(vec![
+        code(&CodeProps::default(), vec![], vec![text("subtle")]),
+        code(
+            &CodeProps {
+                variant: CodeVariant::Solid,
+                ..CodeProps::default()
+            },
+            vec![],
+            vec![text("solid")],
+        ),
+        code(
+            &CodeProps {
+                variant: CodeVariant::Outline,
+                ..CodeProps::default()
+            },
+            vec![],
+            vec![text("outline")],
+        ),
+    ])
 }
 
 const CODE_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "インラインコード片表示のための単一 slot 静的部品（<code>）",
+        "インラインコード片表示のための単一 recipe styled 部品（<code>）",
         "chakra-ui の CodeBlock（複数行・シンタックスハイライト）相当は対象外確定済み",
+        "variant（solid/subtle/outline）3 種、size 5 段、colorPalette 6 値を持つ（イシュー #1432、mark と同型の単一 recipe パターン）",
     ],
-    arguments: &[],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "CodeVariant",
+            default: "Subtle",
+            description: "見た目のバリアント（solid/subtle/outline）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ軸（xs/sm/md/lg/xl）。",
+        },
+        ArgRow {
+            name: "palette",
+            kind: "ColorPalette",
+            default: "Neutral",
+            description: "colorPalette 軸。",
+        },
+    ],
     examples: &[ExampleEntry {
-        title: "インラインコード",
-        description: "文中にコマンド・識別子等を <code> で埋め込みます。",
+        title: "variant 3 種",
+        description: "solid/subtle/outline の見た目を並べます。",
         render: code_example,
     }],
     keyboard: &[],
