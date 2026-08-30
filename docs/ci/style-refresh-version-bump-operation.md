@@ -7,7 +7,7 @@ UI 部品スタイル調整イシューツリー（ルート #1420、Phase 1〜1
 ## 2. 事実確認（運用決定の根拠）
 
 - **機械判定と成文規約のずれ**: `version-bump-guard` ジョブが呼ぶ `xtask check-version-bump`（`crates/xtask/src/check_version_bump.rs`）は「`version` が crates.io 既公開バージョン集合に含まれる」場合のみ FAIL する。一方 `.claude/rules/coding-rust.md` は「公開済みクレートの `src/`・`Cargo.toml`・`build.rs` を変更する PR は必ず `version` をバンプする（または `version-bump-exempt:` 宣言で免除する）」と成文規定している。両者の関係は「機械判定は最終防波堤、成文規約が本来のルール」であり、本運用は成文規約に従う。
-- **per-PR patch バンプの先例が既に存在する**: 本文書作成時点のワークスペースは `crates/pre-styled-ui/Cargo.toml` が `version = "0.46.0"`（crates.io 公開は 0.40.0 系）、`crates/headless-ui/Cargo.toml` が `version = "0.28.6"`（公開 0.28.0）、`crates/wasm-full/Cargo.toml` が `version = "0.7.11"`（公開 0.7.1）であり、未公開のまま PR 毎に patch を積む運用が既に実績を持つ。`crates/pre-styled-ui/Cargo.toml` 冒頭コメント（#1388「依存追随に伴う patch バンプ」）も同型。
+- **per-PR patch バンプの先例が既に存在する**: 本文書作成時点（2026-08-31）のワークスペースは `crates/pre-styled-ui/Cargo.toml` が `version = "0.47.0"`（crates.io 公開は 0.40.0 系）、`crates/headless-ui/Cargo.toml` が `version = "0.28.6"`（公開 0.28.0）、`crates/wasm-full/Cargo.toml` が `version = "0.7.11"`（公開 0.7.1）であり、未公開のまま PR 毎に patch を積む運用が既に実績を持つ（並列 PR のマージにより上記具体値は本文書公開後も随時進行する。正確な現在値は各 `crates/*/Cargo.toml` の `version` を参照し、本文書中の具体値は参考実績としてのみ扱う）。`crates/pre-styled-ui/Cargo.toml` 冒頭コメント（#1388「依存追随に伴う patch バンプ」）も同型。
 - **pre-styled-ui 単体のバンプは dep 追随を発生させない（ただし Cargo.lock 同期は別途必要）**: `version = "..."` 併記で `fandhe-frontend-pre-styled-ui` に依存するクレートは存在しない。`crates/docs-site/Cargo.toml` は `fandhe-frontend-pre-styled-ui = { path = "../pre-styled-ui" }`（version 併記なし）であり、同ファイル冒頭コメントに「本クレートは `publish = false` のため、workspace 内 path 依存に version 併記は不要（`xtask check-dep-versions` のルール 2 は publish 対象クレートのみが対象）」と明記済み。**Themes（`crates/pre-styled-ui/`）のみを触る Phase の PR は他クレートの `version = "..."` 追随こそ不要だが、ルート `Cargo.lock` はワークスペースメンバーである `fandhe-frontend-pre-styled-ui` パッケージ自身の `version` を記録しているため、`Cargo.toml` の `version` を変更したら必ず `cargo metadata --no-deps -q >/dev/null`（または `cargo build`/`cargo check` 等の通常操作）を 1 回実行して `Cargo.lock` を新バージョンへ同期し、更新された `Cargo.lock` をコミットに含める（`fw gate`・CI の `--locked` 系コマンドは `Cargo.lock` と `Cargo.toml` の不一致を fail-closed で検知して失敗する）。詳細な独立手順は §3.4a 参照。**
 - **headless-ui のバンプのみ 3 箇所へ連鎖する**: `fandhe-frontend-headless-ui` を `version = "0.28.6"` 併記で依存するのは `crates/wasm-full/Cargo.toml`・`crates/pre-styled-ui/Cargo.toml`・`crates/xtask/Cargo.toml` の 3 箇所。このうち `pre-styled-ui`・`wasm-full` は公開対象クレートのため依存元自身も patch バンプが必要（`dep-version-check` ルール 1: `req == "^" + 依存先の現行 version` の完全一致要求）。`xtask` は `publish = false` のため Cargo.toml の version 要求追随のみでよく、自身のバンプは不要。
 - **crates.io 公開デッドロック（#884/#1306）は非該当**: `templates/app`・`templates/app/wasm` は `fandhe-frontend-core`/`fandhe-frontend-app`/`fandhe-frontend-wasm-client` のみに依存し、headless-ui / pre-styled-ui のバンプは `template-app-wasm-smoke` ジョブにも `templates/app/wasm/Cargo.lock` にも影響しない。`examples/headless-pre-styled-ui` は公開済みバージョン（`^0.40.0` 系）への caret 依存であり、未公開の patch バンプの影響を受けない。したがって同時公開フロー（`docs/ci/version-bump-publish-order-gap.md` §10）の適用は不要である。
@@ -21,7 +21,7 @@ UI 部品スタイル調整イシューツリー（ルート #1420、Phase 1〜1
 
 `crates/pre-styled-ui/src/`・`crates/headless-ui/src/` を変更する PR は、その PR 内で対象クレートの `version` を patch バンプする（例: `0.46.0` → `0.46.1`）。
 
-- 根拠: `.claude/rules/coding-rust.md` の成文規定にそのまま従い、規約変更・`version-bump-exempt:` の解釈拡大を必要としない。§2 の既存実績（0.40.0 → 0.46.0 等）と同型であり、バンプは crates.io 公開を伴わない。ただし `Cargo.toml` の `version` 変更は必ずルート `Cargo.lock` の同期（§3.4a）とセットで行う（`Cargo.lock` 未更新のまま `Cargo.toml` だけ変更すると `--locked` を使う既存処理が失敗する）。
+- 根拠: `.claude/rules/coding-rust.md` の成文規定にそのまま従い、規約変更・`version-bump-exempt:` の解釈拡大を必要としない。§2 の既存実績（0.40.0 系 → 0.47.0 等、具体値は随時進行）と同型であり、バンプは crates.io 公開を伴わない。ただし `Cargo.toml` の `version` 変更は必ずルート `Cargo.lock` の同期（§3.4a）とセットで行う（`Cargo.lock` 未更新のまま `Cargo.toml` だけ変更すると `--locked` を使う既存処理が失敗する）。
 - 不採用案: 「Phase 単位でまとめてバンプし個別 PR は `version-bump-exempt:` で免除」は、CSS 変更を免除対象と解釈する規約の弱体化を要するため不採用（§3.2 参照）。「作業ブランチへバンプをまとめて集約」は `implement-issue-tree` の並列 worktree 運用と干渉するため不採用。
 
 ### 3.2 `version-bump-exempt:` の CSS 変更への適用: 不可
@@ -57,8 +57,10 @@ pre-styled-ui のみを変更する PR（Themes Phase の大半）は上記 head
 
 ### 3.5 crates.io 公開タイミング
 
-Phase 完了ごとに `main` ブランチから `.github/workflows/release.yml`（`workflow_dispatch`、`mode: publish` を明示選択）を実行し、依存順（headless-ui → pre-styled-ui → wasm-full）で公開する。
+Phase 完了ごとに `main` ブランチから `.github/workflows/release.yml`（`workflow_dispatch`、`mode: publish` を明示選択）を実行し、**そのフェーズでバンプされ、かつ crates.io へ未公開のクレートのみ**を、依存順（headless-ui → pre-styled-ui → wasm-full の順序を守りつつ、対象になっているものだけを実行）で公開する。
 
+- **固定 3 クレート同時公開ではない**: Themes のみを触った Phase（pre-styled-ui 単体のバンプ、§3.4a）では headless-ui・wasm-full はバンプされておらず、既に crates.io へ公開済みの現行バージョンのまま変わらない。この 2 クレートに対して `release.yml` の `mode: publish` を実行すると、`verify` ジョブの既公開バージョン検証（`.claude/rules/ci.md` の release ワークフロー節参照）が「version already published」として fail-closed に停止するため、**実行しない**。公開対象は毎回 `git diff`（前回公開コミット以降）または各 `Cargo.toml` の `version` と crates.io sparse index の突合で「バンプ済み・かつ未公開」と確認できたクレートに限定する。
+- 複数クレートが対象になる場合（headless-ui をバンプした Phase 等）は、依存元が依存先の新バージョンへ追随済み（§3.4）であることを前提に、headless-ui → pre-styled-ui → wasm-full の順で該当クレートのみ公開する。
 - 本件は §2 で確認したとおり `templates/app` 系のビルドに影響しないため #884/#1306 のデッドロックに該当せず、PR ブランチからの先行公開（同時公開フロー、`docs/ci/version-bump-publish-order-gap.md` §10）は適用しない。
 - `mode: publish` の明示選択・`CARGO_REGISTRY_TOKEN` のステップ限定注入という既存の承認境界・トークン供給経路は変更しない。
 
