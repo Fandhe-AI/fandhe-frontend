@@ -65,14 +65,15 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   参照するレイヤ z-index は #1423 で `Theme::to_css`（z-indices グループ）
 ///   が正式に宣言するテーマトークンとなったため、本表からは削除済み
 ///   （`theme_token_names()` が自動的にテーマトークンとして認識する）。
-/// - `--fandhe-color-accent-subtle` / `--fandhe-color-focus-ring`: `--fandhe-color-`
-///   命名規約（`Theme::to_css` のカラートークン接頭辞）に沿うが
-///   `Theme::default()` の既定パレットには未登録の意味論トークン。
-///   `menubar.rs`/`navigation-menu.rs`/`tree-view.rs`/`toolbar.rs`/
-///   `date-input.rs` の 5 部品が横断参照するため部品固有ではなく共有
-///   トークン扱いとする（本イシュー #1061 の対象である `data-scope`
-///   プレフィックス不一致とは無関係の既存ギャップであり、Theme への
-///   正式追加は別イシューのスコープ）。
+/// - `--fandhe-color-accent-subtle` / `--fandhe-color-focus-ring`（旧免除、
+///   イシュー #1422 で解消）: `menubar.rs`/`navigation-menu.rs`/
+///   `tree-view.rs`/`toolbar.rs`/`date-input.rs` の 5 部品が参照するレイヤ
+///   色トークンは #1422 で `Theme::default()` の既定パレットへ正式追加
+///   されテーマトークンとなったため、本表からは削除済み（`analyze()` は
+///   `theme_tokens.contains(&name)` を `SHARED_VARS` 判定より先に見るため、
+///   このリストへ載せたままだと `shared_var_hits` が更新されず
+///   `shared_vars_table_has_no_stale_entries` が stale 検知で FAIL する。
+///   `docs/design/color-token-system.md` §1 参照）。
 const SHARED_VARS: &[&str] = &[
     "--fandhe-palette",
     "--fandhe-palette-emphasized",
@@ -82,7 +83,6 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-arrow-x",
     "--fandhe-arrow-y",
     "--fandhe-reference-width",
-    "--fandhe-color-accent-subtle",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。
