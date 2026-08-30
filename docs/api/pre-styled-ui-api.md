@@ -809,6 +809,20 @@ impl Theme {
 色（colors）・影（shadows）はライト/ダーク 2 値、余白（spaces）・
 タイポグラフィ（typography）・角丸（radii）はモード非依存の 1 値を取る。
 
+### `Theme::default()` の既定色トークン一覧（イシュー #1422）
+
+`DEFAULT_COLORS` は 55 件: `bg` 系 5 件（`bg`/`bg-subtle`/`bg-muted`/
+`bg-emphasized`/`bg-overlay`）、`fg` 系 3 件（`fg`/`fg-muted`/`fg-subtle`）、
+`border` 系 4 件（`border`/`border-muted`/`border-subtle`/
+`border-emphasized`）、ステータス系統（`accent`/`info`/`success`/`warning`/
+`danger`）各 6 件（`<p>`/`-emphasized`/`-fg`/`-subtle`/`-muted`/
+`-fg-subtle`）、`neutral` 系統 6 件（同型）、`focus-ring` 1 件、
+`chart-1`〜`chart-6` の系列配色 6 件。chakra-ui semantic token / Radix
+Themes の色スケールとの対応表・「どの部品がどの semantic 名を使うべきか」
+の方針・WCAG コントラスト検証手段は
+`docs/design/color-token-system.md` を正とする（本 API リファレンスでは
+値を複製しない）。
+
 ### `push_*` と `upsert_*` の意味論対比
 
 | API | 同名トークンが既存の場合 | 用途 |

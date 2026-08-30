@@ -244,7 +244,7 @@ CSS 変数スケールと Theme prop の選択肢は基数が異なるため分�
 
 | 軸 | Radix Themes | fandhe pre-styled-ui `theme.rs` | 粒度差・欠落 |
 |---|---|---|---|
-| color スケール段数 | accent 12 段 + gray 12 段（各アルファ版 12 段を含めると実質 24 変数 ×2 系統、§4.1） | `DEFAULT_COLORS`（theme.rs:274）29 件（semantic 23 + chart 6、`(name, light, dark)` の 3 つ組） | Radix は数値スケール（1〜12）+ アルファ版という機械的な段階構造。fandhe は `bg`/`fg`/`accent`/`info`/`success`/`warning`/`danger` 等の semantic 名 + chart 系列 6 色という直接命名構造で、数値スケールを持たない |
+| color スケール段数 | accent 12 段 + gray 12 段（各アルファ版 12 段を含めると実質 24 変数 ×2 系統、§4.1） | `DEFAULT_COLORS`（theme.rs、イシュー #1422 で 29 → 55 件へ拡張）55 件（semantic 49 + chart 6、`(name, light, dark)` の 3 つ組。詳細な内訳・値・chakra/Radix 対応表は `docs/design/color-token-system.md` を正とする） | Radix は数値スケール（1〜12）+ アルファ版という機械的な段階構造。fandhe は `bg`/`fg`/`accent`/`info`/`success`/`warning`/`danger`/`neutral` 等の semantic 名 + `-subtle`/`-muted`/`-fg-subtle` の役割拡張（#1422）+ chart 系列 6 色という直接命名構造で、数値スケールは意図的に不採用（再評価トリガーは `docs/design/color-token-system.md` §6） |
 | color の accent/gray 切り替え | Theme の `accentColor`/`grayColor` prop で動的に切り替え可能（§4.6） | 切り替え機構なし（`accent`/`accent-emphasized`/`accent-fg` は固定値） | fandhe は単一アクセント色の直接値のみで、Radix のような複数カラースキームからの選択機構を持たない |
 | radius（CSS 変数スケール） | `--radius-1`〜`--radius-6`（6 段）+ `full`/`thumb`/`factor`（§4.2） | `DEFAULT_RADII`（theme.rs:315）5 件: `sm`/`md`/`lg`/`xl`/`full` | Radix は数値スケール、fandhe は t-shirt サイズ命名。段数はほぼ同等（Radix 6 vs fandhe 5）だが `thumb` 専用トークンは fandhe に対応がない |
 | radius（Theme prop の選択肢） | `none`/`small`/`medium`/`large`/`full`（5 択、§4.2） | 対応なし（fandhe は provider コンポーネントを持たない） | fandhe には Theme 相当の実行時 prop 切り替え機構自体が存在しない（§6） |
