@@ -158,7 +158,7 @@ fn recipe() -> SlotRecipe {
             "group",
             vec![
                 decl("position", "fixed"),
-                decl("z-index", "var(--fandhe-z-index-toast, 9999)"),
+                decl("z-index", "var(--fandhe-z-index-toast)"),
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
                 decl("gap", "var(--fandhe-space-2)"),

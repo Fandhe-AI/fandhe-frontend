@@ -1,7 +1,7 @@
 [package]
 name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1388: fandhe-frontend-core 0.4.3 依存追随（check-dep-versions --fix）に伴う patch バンプ。
-version = "0.40.6"
+version = "0.41.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

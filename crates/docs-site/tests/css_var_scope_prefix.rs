@@ -17,8 +17,7 @@
 //! # 免除面（2 つの literal 完全一致表のみ、カテゴリ免除は行わない）
 //!
 //! - [`SHARED_VARS`]: 複数部品が共有するテーマ非依存の custom property
-//!   （colorPalette 系・positioning 系・z-index・未登録の共有色トークン
-//!   2 件）。
+//!   （colorPalette 系・positioning 系・未登録の共有色トークン 2 件）。
 //! - [`KNOWN_DEVIATIONS`]: `(data-scope, 変数名)` の既知の未是正逸脱。
 //!   現在は `angle-slider` の `--fandhe-angle` の 1 件のみ。
 //!   `crates/pre-styled-ui/src/angle_slider.rs` が動的インライン値として
@@ -58,8 +57,10 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   positioning 系（wasm-full が実行時に設定、イシュー #663。
 ///   `menu.rs`/`popover.rs`/`select.rs`/`combobox.rs`/`tooltip.rs`/
 ///   `hover_card.rs`/`toggle_tip.rs`/`floating_panel.rs`）。
-/// - `--fandhe-z-index-toast`: レイヤ z-index（`toast.rs`。
-///   `Theme::to_css` は宣言しないためテーマトークンではない）。
+/// - `--fandhe-z-index-toast`（旧免除、イシュー #1423 で解消）: `toast.rs` が
+///   参照するレイヤ z-index は #1423 で `Theme::to_css`（z-indices グループ）
+///   が正式に宣言するテーマトークンとなったため、本表からは削除済み
+///   （`theme_token_names()` が自動的にテーマトークンとして認識する）。
 /// - `--fandhe-color-accent-subtle` / `--fandhe-color-focus-ring`: `--fandhe-color-`
 ///   命名規約（`Theme::to_css` のカラートークン接頭辞）に沿うが
 ///   `Theme::default()` の既定パレットには未登録の意味論トークン。
@@ -77,7 +78,6 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-arrow-x",
     "--fandhe-arrow-y",
     "--fandhe-reference-width",
-    "--fandhe-z-index-toast",
     "--fandhe-color-accent-subtle",
     "--fandhe-color-focus-ring",
 ];
