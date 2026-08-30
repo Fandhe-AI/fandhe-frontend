@@ -900,7 +900,7 @@ upsert API は `fandhe-frontend-pre-styled-ui` v0.38.0 以降に収録される
 shadows（6 段）・spaces（15 段）の拡充も同バージョンから収録される。
 
 `push_size` / `upsert_size` / `size_var`（`size` variant 軸トークン、イシュー
-#1678）は v0.43.0 以降に収録される。既定スケール（`control-height`/
+#1678）は v0.44.0 以降に収録される。既定スケール（`control-height`/
 `control-padding-x`/`control-font-size` の 3 系統 × `xs`/`sm`/`md`/`lg`/`xl`
 の 5 段、計 15 件）・判断記録の詳細は
 `docs/design/pre-styled-ui-size-and-color-palette-axes.md` を参照。

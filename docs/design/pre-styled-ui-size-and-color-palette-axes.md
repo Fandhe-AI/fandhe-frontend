@@ -127,9 +127,10 @@ hover/active の使い分け規約自体は #1425 のスコープ。
 各部品 issue が golden 更新時に行う。
 
 `to_css` の出力順は「colors → spaces → typography → radii → shadows →
-z-indices →（#1707 の focus_ring があれば）→ sizes」で**末尾に純追加**
-する。`Theme::empty()` ベースで `push_size` を呼ばないテーマの出力は
-バイト不変（`theme_css.rs::custom_theme_output_matches_full_snapshot`
+z-indices → sizes → motions（#1707 でマージされた focus_ring 由来の
+motion トークン）」で**末尾に純追加**する。`Theme::empty()` ベースで
+`push_size` を呼ばないテーマの出力はバイト不変
+（`theme_css.rs::custom_theme_output_matches_full_snapshot`
 がそのまま保証、`empty_theme_without_sizes_omits_size_vars` も参照）。
 
 prefix `--fandhe-size-` は既存の部品 scope 名と衝突しない（`size` という
