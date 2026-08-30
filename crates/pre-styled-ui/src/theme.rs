@@ -317,30 +317,89 @@ impl Default for Theme {
 }
 
 /// 既定の色トークン（name, light, dark）。chakra-ui semantic token 参考の最小構成。
+///
+/// イシュー #1422 で `bg-emphasized`/`bg-overlay`・`border-subtle`/
+/// `border-emphasized`・各ステータス（accent/info/success/warning/danger）の
+/// `-subtle`/`-muted`/`-fg-subtle`・`neutral` 系統・`focus-ring` の 26 件を
+/// 追加した（29 → 55 件）。既存 29 件の名前・値は破壊的変更を避けるため
+/// 変更していない（`docs/design/color-token-system.md` §8 参照）。Radix
+/// Themes の 12 段数値トークンはここでは採用せず、chakra-ui 風の直接命名
+/// （semantic 名）のまま拡張する方針を維持する（同文書 §6 の非採用判断）。
+/// light/dark 双方のコントラスト比は `contrast` テストモジュール
+/// （本ファイル下部）で WCAG 2.x 相対輝度を計算して回帰検証する。
 const DEFAULT_COLORS: &[(&str, &str, &str)] = &[
     ("bg", "#ffffff", "#111111"),
     ("bg-subtle", "#f7f7f7", "#1a1a1a"),
     ("bg-muted", "#eeeeee", "#242424"),
+    // chakra `bg.emphasized` / Radix gray 4-5 相当（hover 等の強調背景）。
+    ("bg-emphasized", "#e2e2e2", "#2e2e2e"),
+    // dialog/drawer の backdrop（イシュー #1422 時点では未使用、部品側の
+    // `rgba(0, 0, 0, 0.4)` リテラルからの置換は Phase 1 部品 issue へ申し送り。
+    // `docs/design/color-token-system.md` §6 参照）。
+    ("bg-overlay", "rgba(0, 0, 0, 0.4)", "rgba(0, 0, 0, 0.6)"),
     ("fg", "#111111", "#f7f7f7"),
     ("fg-muted", "#4a4a4a", "#cccccc"),
     ("fg-subtle", "#767676", "#a3a3a3"),
     ("border", "#d9d9d9", "#3a3a3a"),
     ("border-muted", "#e6e6e6", "#2a2a2a"),
+    // chakra `border.subtle` / Radix gray 6 相当（`border-muted` よりさらに淡い）。
+    ("border-subtle", "#f0f0f0", "#202020"),
+    // chakra `border.emphasized` / Radix gray 8 相当（hover 時の強調枠線）。
+    ("border-emphasized", "#b3b3b3", "#525252"),
     ("accent", "#3182ce", "#4299e1"),
     ("accent-emphasized", "#2b6cb0", "#63b3ed"),
     ("accent-fg", "#ffffff", "#0b1720"),
+    // chakra `<palette>.subtle` / Radix accent 3 相当（淡色背景）。
+    // `tree-view.rs`/`menubar.rs`/`navigation-menu.rs`/`toolbar.rs` が
+    // フォールバック無しで参照していた未定義トークンをここで正式定義する
+    // （イシュー #1422、既存の透明描画バグを閉じる）。
+    ("accent-subtle", "#ebf8ff", "#1a2b3d"),
+    // chakra `<palette>.muted` / Radix accent 5-6 相当（淡色枠線・hover 淡色）。
+    ("accent-muted", "#bee3f8", "#2c4a66"),
+    // chakra `<palette>.fg` / Radix accent 11 相当（`accent-subtle` 背景上の
+    // 本文色。既存 `accent-fg` は solid 背景上の文字色＝ chakra
+    // `<palette>.contrast` に相当するため別名が必要、イシュー #1422）。
+    ("accent-fg-subtle", "#1a4971", "#90cdf4"),
     ("info", "#3182ce", "#63b3ed"),
     ("info-emphasized", "#2b6cb0", "#90cdf4"),
     ("info-fg", "#ffffff", "#0b1720"),
+    ("info-subtle", "#ebf8ff", "#1a2b3d"),
+    ("info-muted", "#bee3f8", "#2c4a66"),
+    ("info-fg-subtle", "#1a4971", "#90cdf4"),
     ("success", "#2f855a", "#68d391"),
     ("success-emphasized", "#276749", "#9ae6b4"),
     ("success-fg", "#ffffff", "#0b1a12"),
+    ("success-subtle", "#f0fff4", "#122a1c"),
+    ("success-muted", "#c6f6d5", "#1c4a32"),
+    ("success-fg-subtle", "#1c4a32", "#9ae6b4"),
     ("warning", "#b7791f", "#f6ad55"),
     ("warning-emphasized", "#975a16", "#fbd38d"),
     ("warning-fg", "#ffffff", "#1a1203"),
+    ("warning-subtle", "#fffaf0", "#2e2410"),
+    ("warning-muted", "#feebc8", "#4a3510"),
+    ("warning-fg-subtle", "#5a3c0a", "#fbd38d"),
     ("danger", "#c53030", "#fc8181"),
     ("danger-emphasized", "#9b2c2c", "#feb2b2"),
     ("danger-fg", "#ffffff", "#1a0b0b"),
+    ("danger-subtle", "#fff5f5", "#2e1616"),
+    ("danger-muted", "#fed7d7", "#4a1f1f"),
+    ("danger-fg-subtle", "#6b1414", "#feb2b2"),
+    // neutral（gray）系統。chakra `gray` colorPalette / Radix gray 9-12 相当。
+    // ステータス色 5 系統（accent/info/success/warning/danger）に対する
+    // 5 系統目としての中立色（イシュー #1422、チェックリスト
+    // 「info / success / warning / error / neutral」）。
+    ("neutral", "#718096", "#a0aec0"),
+    ("neutral-emphasized", "#4a5568", "#cbd5e0"),
+    ("neutral-fg", "#ffffff", "#0b1720"),
+    ("neutral-subtle", "#f7f7f7", "#1a1a1a"),
+    ("neutral-muted", "#e2e8f0", "#2d3748"),
+    ("neutral-fg-subtle", "#333333", "#d4d4d4"),
+    // フォーカスリング（イシュー #1422）。`date-input.rs` が
+    // `var(--fandhe-color-focus-ring, var(--fandhe-color-accent))`
+    // フォールバック付きで参照していた未定義トークンをここで正式定義する。
+    // 値は `accent` と同一にし、#1424（フォーカスリング規約）が上書きできる
+    // 単一の入口として機能させる。
+    ("focus-ring", "#3182ce", "#4299e1"),
     // 系列配色トークン（イシュー #846）。chakra-ui の chart カラースケール
     // （blue/orange/green/purple/pink/teal 系統）を参考にした 6 色。light/dark
     // ともに `bg`/`bg-subtle` 背景（本ファイル冒頭の DEFAULT_COLORS 参照）に
@@ -1348,6 +1407,122 @@ mod tests {
         assert!(theme.upsert_color("bg", "#eeeeee", "#222222").is_ok());
     }
 
+    // --- WCAG コントラスト回帰（イシュー #1422） ---
+    //
+    // `DEFAULT_COLORS` の主要な前景/背景ペアが WCAG 2.x のコントラスト比
+    // 閾値（本文 4.5:1・大字/UI 部品 3:1）を light/dark 双方で満たすことを
+    // 固定する。値の調整自体は `docs/design/color-token-system.md` §7/§8 の
+    // 記録対象であり、本テストは「閾値を緩めずに検証する」歯止めを担う
+    // （`docs/spec` 側の受け入れ基準・親 #1421 のチェックリスト項目）。
+    // 外部クレート依存ゼロ（std のみ）で相対輝度・コントラスト比を計算する。
+
+    /// `#rrggbb` の 1 チャンネル値を sRGB → 線形光へ変換する（WCAG 2.x 定義）。
+    fn linearize_channel(c: u8) -> f64 {
+        let c = f64::from(c) / 255.0;
+        if c <= 0.039_28 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    /// `#rrggbb` 形式の 6 桁 hex から WCAG 2.x 相対輝度を計算する。
+    ///
+    /// # Panics
+    ///
+    /// テスト専用ヘルパのため、`#` 始まり 6 桁 hex 以外の入力（本ファイルの
+    /// `DEFAULT_COLORS` に含まれる `rgba(...)` 値等）を渡すとパニックする。
+    /// 呼び出し側でペア検証対象から `bg-overlay` を除外する。
+    fn relative_luminance(hex: &str) -> f64 {
+        let hex = hex.strip_prefix('#').expect("hex color must start with #");
+        assert_eq!(hex.len(), 6, "expected 6-digit hex color, got: {hex}");
+        let r = u8::from_str_radix(&hex[0..2], 16).expect("valid hex red channel");
+        let g = u8::from_str_radix(&hex[2..4], 16).expect("valid hex green channel");
+        let b = u8::from_str_radix(&hex[4..6], 16).expect("valid hex blue channel");
+        0.2126 * linearize_channel(r)
+            + 0.7152 * linearize_channel(g)
+            + 0.0722 * linearize_channel(b)
+    }
+
+    /// WCAG 2.x のコントラスト比（明度の高い方 / 低い方）を計算する。
+    fn contrast_ratio(a: &str, b: &str) -> f64 {
+        let la = relative_luminance(a);
+        let lb = relative_luminance(b);
+        let (l1, l2) = if la > lb { (la, lb) } else { (lb, la) };
+        (l1 + 0.05) / (l2 + 0.05)
+    }
+
+    /// `DEFAULT_COLORS` からトークン名でライト/ダーク値を引く（テスト専用）。
+    fn default_color(name: &str) -> (&'static str, &'static str) {
+        DEFAULT_COLORS
+            .iter()
+            .find(|(n, _, _)| *n == name)
+            .map(|(_, light, dark)| (*light, *dark))
+            .unwrap_or_else(|| panic!("DEFAULT_COLORS に {name} が存在しない"))
+    }
+
+    /// 本文相当ペア（4.5:1 以上）。5 ステータス系統 + neutral の
+    /// `<p>-fg-subtle`/`<p>-subtle`（淡色背景上の本文）を含む。
+    const BODY_TEXT_PAIRS: &[(&str, &str)] = &[
+        ("fg", "bg"),
+        ("fg", "bg-subtle"),
+        ("fg", "bg-muted"),
+        ("fg-muted", "bg"),
+        ("accent-fg-subtle", "accent-subtle"),
+        ("info-fg-subtle", "info-subtle"),
+        ("success-fg-subtle", "success-subtle"),
+        ("warning-fg-subtle", "warning-subtle"),
+        ("danger-fg-subtle", "danger-subtle"),
+        ("neutral-fg-subtle", "neutral-subtle"),
+    ];
+
+    /// 大字・UI 部品相当ペア（3:1 以上）。solid 背景上の文字色・背景自体の
+    /// 可読性・フォーカスリングの視認性を含む。`border`/`bg` は chakra-ui /
+    /// Radix Themes でも満たさない設計（gray 6 系）のため対象外とする
+    /// （`docs/design/color-token-system.md` §7 に記録）。
+    const LARGE_TEXT_UI_PAIRS: &[(&str, &str)] = &[
+        ("accent-fg", "accent"),
+        ("accent-fg", "accent-emphasized"),
+        ("info-fg", "info"),
+        ("info-fg", "info-emphasized"),
+        ("success-fg", "success"),
+        ("success-fg", "success-emphasized"),
+        ("warning-fg", "warning"),
+        ("warning-fg", "warning-emphasized"),
+        ("danger-fg", "danger"),
+        ("danger-fg", "danger-emphasized"),
+        ("neutral-fg", "neutral"),
+        ("neutral-fg", "neutral-emphasized"),
+        ("fg-subtle", "bg"),
+        ("accent", "bg"),
+        ("info", "bg"),
+        ("success", "bg"),
+        ("warning", "bg"),
+        ("danger", "bg"),
+        ("neutral", "bg"),
+        ("focus-ring", "bg"),
+    ];
+
+    #[test]
+    fn body_text_pairs_meet_wcag_4_5_to_1_in_light_and_dark() {
+        for (fg_name, bg_name) in BODY_TEXT_PAIRS {
+            let (fg_light, fg_dark) = default_color(fg_name);
+            let (bg_light, bg_dark) = default_color(bg_name);
+
+            let light_ratio = contrast_ratio(fg_light, bg_light);
+            assert!(
+                light_ratio >= 4.5,
+                "light: {fg_name}/{bg_name} = {light_ratio:.3} (< 4.5:1)"
+            );
+
+            let dark_ratio = contrast_ratio(fg_dark, bg_dark);
+            assert!(
+                dark_ratio >= 4.5,
+                "dark: {fg_name}/{bg_name} = {dark_ratio:.3} (< 4.5:1)"
+            );
+        }
+    }
+
     // イシュー #1423: radius/shadow/spacing 拡充・z-index 新設のユニットテスト。
 
     #[test]
@@ -1471,6 +1646,26 @@ mod tests {
             assert!(
                 css.contains(&format!("--fandhe-z-index-{name}: {value};")),
                 "missing z-index token: {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn large_text_and_ui_pairs_meet_wcag_3_to_1_in_light_and_dark() {
+        for (fg_name, bg_name) in LARGE_TEXT_UI_PAIRS {
+            let (fg_light, fg_dark) = default_color(fg_name);
+            let (bg_light, bg_dark) = default_color(bg_name);
+
+            let light_ratio = contrast_ratio(fg_light, bg_light);
+            assert!(
+                light_ratio >= 3.0,
+                "light: {fg_name}/{bg_name} = {light_ratio:.3} (< 3:1)"
+            );
+
+            let dark_ratio = contrast_ratio(fg_dark, bg_dark);
+            assert!(
+                dark_ratio >= 3.0,
+                "dark: {fg_name}/{bg_name} = {dark_ratio:.3} (< 3:1)"
             );
         }
     }

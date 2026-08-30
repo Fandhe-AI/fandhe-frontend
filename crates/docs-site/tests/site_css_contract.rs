@@ -1294,6 +1294,27 @@ fn generated_site_css_declares_docs_specific_tokens_in_both_dark_blocks() {
 }
 
 #[test]
+fn generated_site_css_declares_issue_1422_accent_subtle_token_in_both_dark_blocks() {
+    // イシュー #1422 で `Theme::default()` へ追加した `accent-subtle` が
+    // docs サイト生成 CSS でも 3 ブロック規約（light/`@media` dark/
+    // `data-theme` dark）を満たすことを固定する（`site_theme.rs` の
+    // `color_and_shadow_tokens_are_defined_in_all_three_mode_blocks` と対をなす
+    // dark ブロック個別検証）。
+    let css = site_css();
+    let media_block = extract_block(&css, "@media (prefers-color-scheme: dark) {");
+    let data_theme_block = extract_block(&css, ":root[data-theme=\"dark\"] {");
+
+    assert!(
+        collect_declared_token_names(media_block).contains("--fandhe-color-accent-subtle"),
+        "--fandhe-color-accent-subtle が @media dark ブロックに無い"
+    );
+    assert!(
+        collect_declared_token_names(data_theme_block).contains("--fandhe-color-accent-subtle"),
+        "--fandhe-color-accent-subtle が :root[data-theme=\"dark\"] ブロックに無い"
+    );
+}
+
+#[test]
 fn generated_site_css_orders_data_theme_block_after_media_query_block() {
     // `@media` と `:root[data-theme="dark"]` は同特異度のため、後勝ちである
     // CSS のカスケード規則上、`data-theme` ブロックが出力順で後に来ることが

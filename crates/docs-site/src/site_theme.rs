@@ -166,8 +166,11 @@ fn docs_theme() -> Result<Theme, ThemeError> {
     let mut theme = Theme::default();
 
     // 現在ページのサイドバーリンク背景（`--fandhe-color-accent` 系と調和する
-    // アクセント淡色。theme 既定パレットに accent-subtle 相当が無いため
-    // docs 固有トークンとして追加する）。
+    // アクセント淡色）。イシュー #1422 で theme 既定パレットへ
+    // `--fandhe-color-accent-subtle` が正式追加されたが、本トークンは
+    // それ以前から docs サイト固有の値として運用されており、値・トークン名
+    // ともに変更せず docs 固有トークンのまま維持する（無用な見た目変更を
+    // 避けるため）。
     theme.push_color("docs-accent-bg", "#ebf4ff", "#1c2740")?;
 
     // テーブル横スクロールの端フェード影（イシュー #1079）。`.docs-content
@@ -2274,6 +2277,12 @@ mod tests {
             "--fandhe-color-bg-muted",
             "--fandhe-color-accent",
             "--fandhe-color-docs-accent-bg",
+            // イシュー #1422 で theme 既定パレットへ追加した新規色トークン。
+            // docs サイトも `Theme::default()` を基底に組むため、生成 CSS の
+            // 3 ブロック規約（light/`@media` dark/`data-theme` dark）を
+            // そのまま満たすことを確認する。
+            "--fandhe-color-accent-subtle",
+            "--fandhe-color-neutral",
             "--fandhe-shadow-md",
         ] {
             let count = css.matches(&format!("{name}:")).count();

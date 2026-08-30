@@ -29,6 +29,25 @@ fn default_theme_css_contains_expected_structure() {
 }
 
 #[test]
+fn default_theme_css_contains_issue_1422_color_tokens() {
+    // イシュー #1422 で追加した新規色トークンが light/dark 双方に出力される
+    // ことを固定する。`accent-subtle`/`focus-ring` は既存部品
+    // （tree-view/menubar/navigation-menu/toolbar/date-input）がフォールバック
+    // 無し・フォールバック付きで参照していた未定義トークンの正式化であり、
+    // `neutral`/`bg-overlay` は新設のトークングループである。
+    let css = Theme::default().to_css();
+
+    assert!(css.contains("--fandhe-color-accent-subtle: #ebf8ff;"));
+    assert!(css.contains("--fandhe-color-accent-subtle: #1a2b3d;"));
+    assert!(css.contains("--fandhe-color-focus-ring: #3182ce;"));
+    assert!(css.contains("--fandhe-color-focus-ring: #4299e1;"));
+    assert!(css.contains("--fandhe-color-neutral: #718096;"));
+    assert!(css.contains("--fandhe-color-neutral: #a0aec0;"));
+    assert!(css.contains("--fandhe-color-bg-overlay: rgba(0, 0, 0, 0.4);"));
+    assert!(css.contains("--fandhe-color-bg-overlay: rgba(0, 0, 0, 0.6);"));
+}
+
+#[test]
 fn default_theme_shadow_dark_value_appears_in_media_and_data_theme_blocks() {
     // shadow はダークモードで光量の異なる値を持つ（イシュー #606）。既定テーマの
     // `shadow-sm` について、colors と同じ「media クエリブロック + data-theme
