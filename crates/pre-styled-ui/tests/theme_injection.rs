@@ -132,6 +132,36 @@ fn push_shadow_rejects_injection_payloads_and_duplicate_name() {
 }
 
 #[test]
+fn push_z_index_rejects_injection_payloads_and_duplicate_name() {
+    // イシュー #1423 で新設した z-indices グループも、radii/shadows と同じ
+    // `CssValue`/`TokenName` allowlist（fail-closed）を経由することを固定する。
+    let mut theme = Theme::empty();
+    assert!(theme.push_z_index("toast", "1600; } .evil {").is_err());
+    assert!(theme
+        .push_z_index("toast", "</style><script>alert(1)</script>")
+        .is_err());
+    assert!(theme.push_z_index("toast!", "1600").is_err());
+
+    theme.push_z_index("toast", "1600").unwrap();
+    assert!(theme.push_z_index("toast", "1700").is_err());
+}
+
+#[test]
+fn upsert_z_index_rejects_injection_payloads_without_mutation() {
+    // イシュー #1423: upsert_z_index も push_z_index と同じ allowlist 検証を
+    // 唯一の入口とし、迂回経路にならないことを固定する。
+    let mut theme = Theme::empty();
+    assert!(theme
+        .upsert_z_index("toast", "expression(alert(1))")
+        .is_err());
+    assert!(theme.upsert_z_index("toast;evil", "1600").is_err());
+
+    // 検証失敗後も theme は空のまま（部分書き込みなし）。
+    let css = theme.to_css();
+    assert!(!css.contains("--fandhe-z-index-"));
+}
+
+#[test]
 fn validated_theme_with_radii_and_shadows_output_never_contains_angle_bracket() {
     // radii/shadows を含めても、`<` を拒否文字に含める allowlist 検証の帰結として
     // `</style>` 脱出が原理的に混入し得ないことを固定する

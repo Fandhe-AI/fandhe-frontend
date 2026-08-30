@@ -158,6 +158,14 @@ fn recipe() -> SlotRecipe {
             "group",
             vec![
                 decl("position", "fixed"),
+                // NOTE(#1423 codex-review P1): `Theme::default()` は
+                // `--fandhe-z-index-toast` を正式トークンとして宣言するが、
+                // `Theme::empty()` から必要トークンのみ構築する既存利用者・
+                // `toast::stylesheet()` を単独利用する利用者（テーマ CSS を
+                // 注入しない）では未定義のままになり得る。CSS カスタム
+                // プロパティが unset だと宣言全体が無効化され重なり順が
+                // 失われるため、後方互換のため fallback 値を維持する
+                // （公開クレートの既存 CSS 契約を壊さないための意図的措置）。
                 decl("z-index", "var(--fandhe-z-index-toast, 9999)"),
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
