@@ -78,7 +78,7 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{palette_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
+use crate::recipe::{palette_scale_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -275,6 +275,16 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-timeline-indicator-border", "none"),
             ],
         )
+        // イシュー #1681: Xs/Xl は indicator-size 0.375rem 刻み・
+        // separator-width 0.5px 刻みの Sm→Md→Lg 等差進行を外挿。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-timeline-indicator-size", "0.75rem"),
+                decl("--fandhe-timeline-separator-width", "1px"),
+            ],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -299,6 +309,14 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-timeline-separator-width", "2.5px"),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-timeline-indicator-size", "2.25rem"),
+                decl("--fandhe-timeline-separator-width", "3px"),
+            ],
+        )
         .default_variant(TimelineVariant::Solid)
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
@@ -309,8 +327,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -469,6 +488,7 @@ mod tests {
             (ColorPalette::Success, "fd-timeline--color-palette-success"),
             (ColorPalette::Warning, "fd-timeline--color-palette-warning"),
             (ColorPalette::Danger, "fd-timeline--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-timeline--color-palette-neutral"),
         ] {
             let html = render(&root(
                 TimelineVariant::default(),

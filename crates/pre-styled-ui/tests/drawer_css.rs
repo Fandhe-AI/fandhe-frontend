@@ -51,6 +51,10 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   color: var(--fandhe-color-fg-muted);
 }
 
+[data-scope="drawer"][data-part="root"].fd-drawer--size-xs {
+  --fandhe-drawer-size: 12rem;
+}
+
 [data-scope="drawer"][data-part="root"].fd-drawer--size-sm {
   --fandhe-drawer-size: 16rem;
 }
@@ -61,6 +65,10 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
 
 [data-scope="drawer"][data-part="root"].fd-drawer--size-lg {
   --fandhe-drawer-size: 28rem;
+}
+
+[data-scope="drawer"][data-part="root"].fd-drawer--size-xl {
+  --fandhe-drawer-size: 36rem;
 }
 
 [data-scope="drawer"][data-part="positioner"][data-placement="start"] {

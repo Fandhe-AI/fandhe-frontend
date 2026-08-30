@@ -68,7 +68,7 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -234,6 +234,20 @@ fn recipe() -> SlotRecipe {
                 decl("outline-offset", "2px"),
             ],
         )
+        // イシュー #1681: Xs/Xl は item-size の Sm→Md→Lg 等差進行（0.5rem
+        // 刻み）を両端へ外挿。font-size は Sm=Md=sm、Lg=md の段差を踏襲し、
+        // Xs=xs（1 段下）、Xl=lg（1 段上）とする。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-pagination-item-size", "1rem"),
+                decl(
+                    "--fandhe-pagination-item-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+            ],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -267,6 +281,17 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-pagination-item-size", "3rem"),
+                decl(
+                    "--fandhe-pagination-item-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -276,8 +301,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -440,6 +466,10 @@ mod tests {
                 "fd-pagination--color-palette-warning",
             ),
             (ColorPalette::Danger, "fd-pagination--color-palette-danger"),
+            (
+                ColorPalette::Neutral,
+                "fd-pagination--color-palette-neutral",
+            ),
         ] {
             let html = render(&root(Size::Md, palette, "pagination", vec![], vec![]));
             assert!(html.contains(class), "palette={palette:?} -> {html}");

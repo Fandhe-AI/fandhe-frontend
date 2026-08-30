@@ -29,7 +29,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # とのマージにより、双方の実体変更を統合した結果として 0.46.0 へさらに
 # マイナーバンプする（0.x の破壊的変更はマイナーバンプの規約。同一版数
 # への偶発的衝突をそのまま採用しない）。
-version = "0.46.0"
+# イシュー #1681: 同じく #1678 で確定した `Size::Xs`/`Size::Xl` と
+# `ColorPalette::Neutral`（6 役割版 palette 宣言）を Interactive・
+# Data Display・Charts の該当部品（recipe が該当軸を registrar 済みの
+# もののみ）へ適用し、golden CSS を更新した（公開 CSS 契約の実体変更）
+# ため独立に 0.46.0 へ到達していた main（#1711 マージ後）とのさらなる
+# マージにより、双方の実体変更を統合した結果として 0.47.0 へさらに
+# マイナーバンプする（0.x の破壊的変更はマイナーバンプの規約。同一版数
+# への偶発的衝突をそのまま採用しない）。
+version = "0.47.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

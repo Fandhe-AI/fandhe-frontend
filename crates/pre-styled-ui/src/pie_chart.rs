@@ -150,6 +150,13 @@ fn recipe() -> SlotRecipe {
                 decl("text-anchor", "middle"),
             ],
         )
+        // イシュー #1681: `crate::donut_chart::recipe` と同一の 6rem 刻み
+        // 進行を共有する（size 値は donut と揃えている）。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("--fandhe-pie-chart-size", "4rem")],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -164,6 +171,11 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![decl("--fandhe-pie-chart-size", "22rem")],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("--fandhe-pie-chart-size", "28rem")],
         )
         .default_variant(Size::Md)
 }

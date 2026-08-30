@@ -122,6 +122,14 @@ fn recipe() -> SlotRecipe {
             "series-line",
             vec![decl("fill", "none"), decl("stroke-width", "2")],
         )
+        // イシュー #1681: Xs/Xl は Sm(96)→Md(150)→Lg(220) の非等差進行
+        // （差分 54→70、差分自体が 16 ずつ拡大）を両端へ同じ増分則で外挿
+        // （前段差分 38 → Xs=58、次段差分 86 → Xl=306）。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("--fandhe-area-chart-height", "58px")],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -136,6 +144,11 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![decl("--fandhe-area-chart-height", "220px")],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("--fandhe-area-chart-height", "306px")],
         )
         .default_variant(Size::Md)
 }

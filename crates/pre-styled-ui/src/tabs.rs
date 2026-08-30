@@ -54,7 +54,7 @@
 
 use crate::css::{decl, Declaration};
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `tabs`/`tabs_with_root_attrs` はあえて再エクスポートしない
@@ -164,6 +164,19 @@ fn recipe() -> SlotRecipe {
         )
         // イシュー #729: `size` variant（root スコープの CSS custom property。
         // Md はフォールバック値と同一の現行外観を維持する）。
+        // イシュー #1681: Xs は Sm(1,3)→Md(2,4)→Lg(3,5) の等差進行を 1 段
+        // 外挿した (0-5, 2)（`space-0`は未定義のため最小刻み `space-0-5`）。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-tabs-trigger-padding",
+                    "var(--fandhe-space-0-5) var(--fandhe-space-2)",
+                ),
+                decl("--fandhe-tabs-content-padding", "var(--fandhe-space-2) 0"),
+            ],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -197,6 +210,17 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-tabs-content-padding", "var(--fandhe-space-5) 0"),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-tabs-trigger-padding",
+                    "var(--fandhe-space-4) var(--fandhe-space-6)",
+                ),
+                decl("--fandhe-tabs-content-padding", "var(--fandhe-space-6) 0"),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -206,8 +230,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -390,6 +415,7 @@ mod tests {
             ColorPalette::Success,
             ColorPalette::Warning,
             ColorPalette::Danger,
+            ColorPalette::Neutral,
         ] {
             let props = default_props("t1", "one");
             let html = render(&tabs(Size::Md, palette, &props, vec![item("one")]));

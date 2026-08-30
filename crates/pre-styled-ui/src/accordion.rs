@@ -155,6 +155,22 @@ fn recipe() -> SlotRecipe {
         )
         // イシュー #729: `size` variant（root スコープの CSS custom property。
         // Md はフォールバック値と同一の現行外観を維持する）。
+        // イシュー #1681: Xs/Xl は Sm→Md→Lg の `space-3`/`4`/`5` の等差進行を
+        // 両端へ 1 段ずつ外挿した `space-2`/`space-6`。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-accordion-trigger-padding",
+                    "var(--fandhe-space-2)",
+                ),
+                decl(
+                    "--fandhe-accordion-content-padding",
+                    "var(--fandhe-space-2)",
+                ),
+            ],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -194,6 +210,20 @@ fn recipe() -> SlotRecipe {
                 decl(
                     "--fandhe-accordion-content-padding",
                     "var(--fandhe-space-5)",
+                ),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-accordion-trigger-padding",
+                    "var(--fandhe-space-6)",
+                ),
+                decl(
+                    "--fandhe-accordion-content-padding",
+                    "var(--fandhe-space-6)",
                 ),
             ],
         )

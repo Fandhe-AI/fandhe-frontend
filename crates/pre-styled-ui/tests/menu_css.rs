@@ -81,6 +81,12 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   margin: var(--fandhe-space-2) 0;
 }
 
+[data-scope="menu"][data-part="root"].fd-menu--size-xs {
+  --fandhe-menu-trigger-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
+  --fandhe-menu-item-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
+  --fandhe-menu-content-padding: var(--fandhe-space-0-5);
+}
+
 [data-scope="menu"][data-part="root"].fd-menu--size-sm {
   --fandhe-menu-trigger-padding: var(--fandhe-space-1) var(--fandhe-space-2);
   --fandhe-menu-item-padding: var(--fandhe-space-1) var(--fandhe-space-2);
@@ -97,6 +103,12 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   --fandhe-menu-trigger-padding: var(--fandhe-space-3) var(--fandhe-space-4);
   --fandhe-menu-item-padding: var(--fandhe-space-3) var(--fandhe-space-4);
   --fandhe-menu-content-padding: var(--fandhe-space-3);
+}
+
+[data-scope="menu"][data-part="root"].fd-menu--size-xl {
+  --fandhe-menu-trigger-padding: var(--fandhe-space-4) var(--fandhe-space-5);
+  --fandhe-menu-item-padding: var(--fandhe-space-4) var(--fandhe-space-5);
+  --fandhe-menu-content-padding: var(--fandhe-space-4);
 }
 
 [data-scope="menu"][data-part="trigger"][data-state="open"] {

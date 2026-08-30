@@ -28,6 +28,10 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
   box-shadow: inset 0 0 0 9999px var(--fandhe-palette, transparent);
 }
 
+[data-scope="splitter"][data-part="root"].fd-splitter--size-xs {
+  --fandhe-splitter-trigger-size: 0.0625rem;
+}
+
 [data-scope="splitter"][data-part="root"].fd-splitter--size-sm {
   --fandhe-splitter-trigger-size: 0.125rem;
 }
@@ -40,34 +44,62 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
   --fandhe-splitter-trigger-size: 0.375rem;
 }
 
+[data-scope="splitter"][data-part="root"].fd-splitter--size-xl {
+  --fandhe-splitter-trigger-size: 0.5rem;
+}
+
 [data-scope="splitter"][data-part="root"].fd-splitter--color-palette-accent {
   --fandhe-palette: var(--fandhe-color-accent);
   --fandhe-palette-emphasized: var(--fandhe-color-accent-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-accent-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-accent-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-accent-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-accent-fg-subtle);
 }
 
 [data-scope="splitter"][data-part="root"].fd-splitter--color-palette-info {
   --fandhe-palette: var(--fandhe-color-info);
   --fandhe-palette-emphasized: var(--fandhe-color-info-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-info-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-info-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-info-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-info-fg-subtle);
 }
 
 [data-scope="splitter"][data-part="root"].fd-splitter--color-palette-success {
   --fandhe-palette: var(--fandhe-color-success);
   --fandhe-palette-emphasized: var(--fandhe-color-success-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-success-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-success-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-success-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-success-fg-subtle);
 }
 
 [data-scope="splitter"][data-part="root"].fd-splitter--color-palette-warning {
   --fandhe-palette: var(--fandhe-color-warning);
   --fandhe-palette-emphasized: var(--fandhe-color-warning-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-warning-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-warning-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-warning-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-warning-fg-subtle);
 }
 
 [data-scope="splitter"][data-part="root"].fd-splitter--color-palette-danger {
   --fandhe-palette: var(--fandhe-color-danger);
   --fandhe-palette-emphasized: var(--fandhe-color-danger-emphasized);
   --fandhe-palette-fg: var(--fandhe-color-danger-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-danger-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-danger-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-danger-fg-subtle);
+}
+
+[data-scope="splitter"][data-part="root"].fd-splitter--color-palette-neutral {
+  --fandhe-palette: var(--fandhe-color-neutral);
+  --fandhe-palette-emphasized: var(--fandhe-color-neutral-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-neutral-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
 }
 
 [data-scope="splitter"][data-part="root"][data-orientation="vertical"] {

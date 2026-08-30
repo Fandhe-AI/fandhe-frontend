@@ -224,6 +224,16 @@ fn recipe() -> SlotRecipe {
         // バック値と同一の現行外観を維持する）。`--fandhe-carousel-index`
         // （wasm 層/headless の位置契約）には手を触れない（モジュール
         // rustdoc 参照）。
+        // イシュー #1681: Xs/Xl は Sm→Md→Lg の等差進行（trigger-size 0.5rem
+        // 刻み・indicator-size 0.125rem 刻み）を両端へ 1 段ずつ外挿した値。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-carousel-trigger-size", "1.5rem"),
+                decl("--fandhe-carousel-indicator-size", "0.25rem"),
+            ],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -246,6 +256,14 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-carousel-trigger-size", "3rem"),
                 decl("--fandhe-carousel-indicator-size", "0.625rem"),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-carousel-trigger-size", "3.5rem"),
+                decl("--fandhe-carousel-indicator-size", "0.75rem"),
             ],
         )
         .default_variant(Size::Md)
