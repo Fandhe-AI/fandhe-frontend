@@ -274,6 +274,11 @@ pub struct Theme {
     /// （イシュー #1424）。リング色は `colors` グループ（`focus-ring`）が
     /// 担う（ダークモード追従のため）。
     focus_ring: Vec<ScaleToken>,
+    /// transition の duration / easing のモード非依存スケール（イシュー #1425）。
+    /// `duration-` で始まる名前を持つトークンのみ、`prefers-reduced-motion:
+    /// reduce` 下で [`Theme::to_css`] が `0ms` へ一括上書きする
+    /// （[`Theme::to_css`] rustdoc の出力構造 5. を参照）。
+    motions: Vec<ScaleToken>,
 }
 
 impl Default for Theme {
@@ -295,6 +300,7 @@ impl Default for Theme {
             shadows: Vec::new(),
             z_indices: Vec::new(),
             focus_ring: Vec::new(),
+            motions: Vec::new(),
         };
 
         for (name, light, dark) in DEFAULT_COLORS {
@@ -329,6 +335,11 @@ impl Default for Theme {
         }
         for (name, value) in DEFAULT_FOCUS_RING {
             theme.push_focus_ring(name, value).expect(
+                "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
+            );
+        }
+        for (name, value) in DEFAULT_MOTIONS {
+            theme.push_motion(name, value).expect(
                 "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
             );
         }
@@ -582,6 +593,24 @@ const DEFAULT_Z_INDICES: &[(&str, &str)] = &[
 /// （ダークモード追従が必要なため `colors` グループが担う）。
 const DEFAULT_FOCUS_RING: &[(&str, &str)] = &[("width", "2px"), ("offset", "2px")];
 
+/// 既定の transition トークン（name, value）。モード非依存の新規グループ
+/// （イシュー #1425）。既存 recipe が個別に手書きしていた `0.15s` / `0.2s
+/// ease` 等のリテラルを吸収する対応表（`docs/design/
+/// pre-styled-ui-interaction-visual-language.md` 参照）: `0.15s` →
+/// `duration-fast`、`0.2s ease` → `duration-normal`。duration 3 段
+/// （chakra-ui / Radix の既定値帯に合わせた `fast`/`normal`/`slow`）と easing
+/// 2 種（`standard`: 汎用の enter/exit、`emphasized`: モーダル等の強調遷移）
+/// を持つ。`duration-` で始まる名前のみ [`Theme::to_css`] が
+/// `prefers-reduced-motion: reduce` 下で `0ms` へ一括上書きする対象になる
+/// （easing はそれ単体では動きを生まないため対象外）。
+const DEFAULT_MOTIONS: &[(&str, &str)] = &[
+    ("duration-fast", "150ms"),
+    ("duration-normal", "200ms"),
+    ("duration-slow", "300ms"),
+    ("easing-standard", "cubic-bezier(0.4, 0, 0.2, 1)"),
+    ("easing-emphasized", "cubic-bezier(0.2, 0, 0, 1)"),
+];
+
 impl Theme {
     /// 空のテーマを構築する（既定トークンなし）。カスタムテーマをゼロから
     /// 組み立てたい呼び出し元向け。既定パレットが欲しい場合は
@@ -596,6 +625,7 @@ impl Theme {
             shadows: Vec::new(),
             z_indices: Vec::new(),
             focus_ring: Vec::new(),
+            motions: Vec::new(),
         }
     }
 
@@ -721,7 +751,7 @@ impl Theme {
     /// - `name` が focus_ring グループ内で既に登録済みの場合（[`ThemeError::DuplicateTokenName`]）
     pub fn push_focus_ring(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
         let name = TokenName::new(name)?;
-        let value = validate_focus_ring_value(value)?;
+        let value = validate_focus_ring_value(value, FocusRingTokenKind::from_name(&name))?;
 
         if self.focus_ring.iter().any(|t| t.name == name) {
             return Err(ThemeError::DuplicateTokenName {
@@ -731,6 +761,18 @@ impl Theme {
 
         self.focus_ring.push(ScaleToken { name, value });
         Ok(())
+    }
+
+    /// モード非依存の transition（duration / easing）トークンを追加する
+    /// （イシュー #1425）。`fandhe-frontend-pre-styled-ui` の styled 部品が
+    /// [`crate::recipe::transition_declaration`] 経由で
+    /// `var(--fandhe-motion-<name>)` として参照する想定のトークン。
+    ///
+    /// # Errors
+    ///
+    /// [`Theme::push_color`] と同様（`name`/`value` の検証・重複拒否）。
+    pub fn push_motion(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        push_scale(&mut self.motions, name, value)
     }
 
     /// ライト/ダーク値を持つ色トークンを追加、または既存トークンを上書きする
@@ -836,7 +878,7 @@ impl Theme {
     /// codex-review #1707 P1 指摘対応）。
     pub fn upsert_focus_ring(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
         let name = TokenName::new(name)?;
-        let value = validate_focus_ring_value(value)?;
+        let value = validate_focus_ring_value(value, FocusRingTokenKind::from_name(&name))?;
 
         if let Some(existing) = self.focus_ring.iter_mut().find(|t| t.name == name) {
             existing.value = value;
@@ -846,23 +888,42 @@ impl Theme {
         Ok(())
     }
 
+    /// モード非依存の transition（duration / easing）トークンを追加、または
+    /// 既存トークンを上書きする（イシュー #1425）。セマンティクスは
+    /// [`Theme::upsert_color`] 参照。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `value` のいずれかが allowlist 検証を通過しない場合。
+    pub fn upsert_motion(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        upsert_scale(&mut self.motions, name, value)
+    }
+
     /// テーマを決定的なプレーン CSS 文字列へ変換する。
     ///
     /// 出力構造（固定順、`docs` は伴わず本 rustdoc が正）:
     ///
     /// 1. `:root { color-scheme: light dark; --fandhe-... }`（light 値、
     ///    colors → spaces → typography → radii → shadows → z-indices →
-    ///    focus-ring の順。radii/z-indices/focus-ring はモード非依存のため
-    ///    1 値、shadows は light 値をここに出力する。イシュー #606 で追加した
-    ///    radii/shadows、イシュー #1423 で追加した z-indices、イシュー #1424
-    ///    で追加した focus-ring（寸法。リング色は `colors` グループの
-    ///    `focus-ring` エントリが担う）はいずれも末尾に純追加する構成のため、
-    ///    当該グループを push しないテーマの出力は追加前とバイト同一になる）
+    ///    focus-ring → motions の順。radii/z-indices/focus-ring/motions は
+    ///    モード非依存のため 1 値、shadows は light 値をここに出力する。
+    ///    イシュー #606 で追加した radii/shadows、イシュー #1423 で追加した
+    ///    z-indices、イシュー #1424 で追加した focus-ring（寸法。リング色は
+    ///    `colors` グループの `focus-ring` エントリが担う）、イシュー #1425
+    ///    で追加した motions はいずれも末尾に純追加する構成のため、当該
+    ///    グループを push しないテーマの出力は追加前とバイト同一になる）
     /// 2. `:root[data-theme="light"] { color-scheme: light; }`
     /// 3. `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }`
     ///    （dark 値。OS 設定追従。colors → shadows の順）
     /// 4. `:root[data-theme="dark"] { ... }`（dark 値。明示指定は常に勝つ。
     ///    3 と同特異度のため、末尾に置く出力順序でメディアクエリより優先させる）
+    /// 5. `@media (prefers-reduced-motion: reduce) { :root { --fandhe-motion-duration-...: 0ms; } }`
+    ///    （イシュー #1425。motions のうち名前が `duration-` で始まるものが
+    ///    1 件以上あるときのみ出力する。`transition: none` ではなく `0ms` を
+    ///    選ぶのは、`transition-property` の宣言自体は維持しつつ遷移時間だけ
+    ///    ゼロ化することで、`transitionend` イベントに依存する JS 側の
+    ///    ロジックを壊さないため。easing トークンはそれ単体では動きを
+    ///    生まないため対象外）
     ///
     /// 3 と 4 の dark トークン列は同一の内部ヘルパ（[`Theme::write_dark_declarations`]）
     /// から生成し、二重管理による乖離を構造的に防ぐ。
@@ -925,6 +986,13 @@ impl Theme {
                 token.value.as_str()
             ));
         }
+        for token in &self.motions {
+            out.push_str(&format!(
+                "  {VAR_PREFIX}-motion-{}: {};\n",
+                token.name.as_str(),
+                token.value.as_str()
+            ));
+        }
         out.push_str("}\n");
 
         out.push_str(":root[data-theme=\"light\"] { color-scheme: light; }\n");
@@ -941,7 +1009,39 @@ impl Theme {
         self.write_dark_declarations(&mut out, "  ");
         out.push_str("}\n");
 
+        self.write_reduced_motion_block(&mut out);
+
         out
+    }
+
+    /// `prefers-reduced-motion: reduce` 下で duration トークンのみ `0ms` へ
+    /// 一括上書きするブロックを書き出す内部ヘルパ（イシュー #1425）。
+    ///
+    /// `motions` のうち名前が `duration-` で始まるものが 1 件も無い場合は
+    /// 何も出力しない（motion トークンを push しないテーマの `to_css()` 出力を
+    /// 本イシュー導入前とバイト同一に保つため）。easing トークンは対象外
+    /// （[`Theme::to_css`] rustdoc の出力構造 5. 参照）。
+    fn write_reduced_motion_block(&self, out: &mut String) {
+        let durations: Vec<&ScaleToken> = self
+            .motions
+            .iter()
+            .filter(|t| t.name.as_str().starts_with("duration-"))
+            .collect();
+
+        if durations.is_empty() {
+            return;
+        }
+
+        out.push_str("@media (prefers-reduced-motion: reduce) {\n");
+        out.push_str("  :root {\n");
+        for token in durations {
+            out.push_str(&format!(
+                "    {VAR_PREFIX}-motion-{}: 0ms;\n",
+                token.name.as_str()
+            ));
+        }
+        out.push_str("  }\n");
+        out.push_str("}\n");
     }
 
     /// dark モードの custom property 宣言列を書き出す内部ヘルパ。
@@ -1013,8 +1113,48 @@ const CSS_LENGTH_UNITS: &[&str] = &[
     "px", "rem", "em", "ch", "ex", "vh", "vw", "vmin", "vmax", "pt", "pc", "in", "cm", "mm", "q",
 ];
 
+/// [`validate_focus_ring_value`] が値の許可条件をトークン名別に分岐する
+/// ための分類（イシュー #1424、PR #1707 レビュー指摘対応）。
+///
+/// フォーカスリング寸法トークンは `width`（`outline-width` の値）と
+/// `offset`（`outline-offset` の値、`crates/pre-styled-ui/src/recipe.rs::focus_ring_declarations`
+/// の [`FocusRingOffset::Inset`] 側で符号反転して使う）を同じ
+/// [`Theme::push_focus_ring`] 経路で登録するが、CSS `outline-width` の
+/// `<line-width>` は `auto` を許可せず（`auto` は `outline-style` 等の値で
+/// あり `outline-width` の有効値でも CSS-wide keyword でもない）、負の長さも
+/// 無効という非対称な制約を持つ（`outline-offset` は逆に負の長さが有効な
+/// 唯一の理由となる用途を持つ）。名前を区別せず両方に同じ許容集合を適用
+/// すると `push_focus_ring("width", "auto")` や
+/// `push_focus_ring("width", "-2px")` が検証を素通りし、`outline` 宣言
+/// 全体が computed-value time に無効となってキーボードフォーカス表示が
+/// 消え得る（codex-review #1707 P1 指摘、Cursor Bugbot 同一指摘）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FocusRingTokenKind {
+    /// `outline-width` 用（`width` という名前のトークンのみ）。
+    Width,
+    /// `width` 以外（`offset` を含む）。`outline-offset` は負の長さが
+    /// 有効であり、利用者が追加する任意の名前（テストの `gap`/`keyword`
+    /// 等）にも従来どおりの寛容な許容集合を適用する。
+    Other,
+}
+
+impl FocusRingTokenKind {
+    /// トークン名から分類を決定する。`width` の判定はグループ内の名前
+    /// そのもの（大文字小文字を区別しない揺れは許容しない、
+    /// [`TokenName`] の命名規則により英小文字を含む allowlist に既に
+    /// 正規化されている）と完全一致するかで行う。
+    fn from_name(name: &TokenName) -> Self {
+        if name.as_str() == "width" {
+            FocusRingTokenKind::Width
+        } else {
+            FocusRingTokenKind::Other
+        }
+    }
+}
+
 /// [`Theme::push_focus_ring`] / [`Theme::upsert_focus_ring`] 共通の値検証
-/// （イシュー #1424、codex-review #1707 P1 指摘対応）。
+/// （イシュー #1424、codex-review #1707 P1 指摘対応。`kind` によるトークン名
+/// 別検証への修正は PR #1707 レビュー指摘対応）。
 ///
 /// フォーカスリングの寸法トークンは `crates/pre-styled-ui/src/recipe.rs::focus_ring_declarations`
 /// が `outline-width`/`outline-offset` の値として直接埋め込む。`CssValue`
@@ -1031,20 +1171,31 @@ const CSS_LENGTH_UNITS: &[&str] = &[
 /// - CSS グローバル値（`auto` `inherit` `initial` `revert` `revert-layer`
 ///   `unset`）
 ///
+/// `kind` が [`FocusRingTokenKind::Width`] の場合は上記から `auto` を除外
+/// し、さらに負の長さ（`-0`/`-0px` 等の実質ゼロを除く）も拒否する
+/// （`outline-width` は非負の `<line-width>` のみが有効で `auto` は
+/// `outline-width` の値としては無効かつ CSS-wide keyword でもないため）。
+///
 /// # Errors
 ///
 /// [`CssValue::new`] が失敗した場合は [`ThemeError::InvalidCssValue`]、
 /// 文字集合は満たすが上記のいずれにも該当しない場合は
 /// [`ThemeError::InvalidFocusRingValue`] を返す。
-fn validate_focus_ring_value(value: &str) -> Result<CssValue, ThemeError> {
+fn validate_focus_ring_value(
+    value: &str,
+    kind: FocusRingTokenKind,
+) -> Result<CssValue, ThemeError> {
     let css_value = CssValue::new(value)?;
     let s = css_value.as_str();
 
-    let is_global_keyword = matches!(
-        s,
-        "auto" | "inherit" | "initial" | "revert" | "revert-layer" | "unset"
-    );
+    let is_auto = s == "auto";
+    let is_global_keyword = is_auto
+        || matches!(
+            s,
+            "inherit" | "initial" | "revert" | "revert-layer" | "unset"
+        );
 
+    let is_negative = s.starts_with('-');
     let numeric_part = s
         .strip_prefix('-')
         .or_else(|| s.strip_prefix('+'))
@@ -1060,7 +1211,18 @@ fn validate_focus_ring_value(value: &str) -> Result<CssValue, ThemeError> {
         is_valid_css_number(rest)
     });
 
-    if is_bare_zero || is_length_with_unit || is_global_keyword {
+    let is_valid_length = is_bare_zero || is_length_with_unit;
+
+    let ok = match kind {
+        FocusRingTokenKind::Width => {
+            // `outline-width` は `auto` を許可せず、負の長さ（実質ゼロを
+            // 除く）も無効（非負の `<line-width>` のみが有効）。
+            !(is_auto || (is_negative && !is_bare_zero)) && (is_valid_length || is_global_keyword)
+        }
+        FocusRingTokenKind::Other => is_valid_length || is_global_keyword,
+    };
+
+    if ok {
         Ok(css_value)
     } else {
         Err(ThemeError::InvalidFocusRingValue {
@@ -1232,6 +1394,19 @@ pub fn z_index_var(name: &str) -> Result<String, ThemeError> {
 pub fn focus_ring_var(name: &str) -> Result<String, ThemeError> {
     let name = TokenName::new(name)?;
     Ok(format!("var({VAR_PREFIX}-focus-ring-{})", name.as_str()))
+}
+
+/// transition（duration / easing）トークン名から `var(--fandhe-motion-<name>)`
+/// 参照を組み立てる（イシュー #1425）。styled 部品は通常
+/// [`crate::recipe::transition_declaration`] 経由で間接的にこの参照を得るが、
+/// 個別に `var()` を組み立てたい呼び出し元向けに公開する。
+///
+/// # Errors
+///
+/// [`color_var`] と同様。
+pub fn motion_var(name: &str) -> Result<String, ThemeError> {
+    let name = TokenName::new(name)?;
+    Ok(format!("var({VAR_PREFIX}-motion-{})", name.as_str()))
 }
 
 /// タイポグラフィトークン名から `var(--fandhe-font-<name>)` 参照を組み立てる。
@@ -1873,6 +2048,61 @@ mod tests {
         theme.push_focus_ring("width", "2px").unwrap();
         assert!(matches!(
             theme.upsert_focus_ring("width", "solid"),
+            Err(ThemeError::InvalidFocusRingValue { .. })
+        ));
+        // 検証失敗時は既存値を上書きしない。
+        assert!(theme.to_css().contains("--fandhe-focus-ring-width: 2px;"));
+    }
+
+    // PR #1707 レビュー指摘（codex-review P1・Cursor Bugbot 同一指摘）の
+    // 回帰テスト: `validate_focus_ring_value` はトークン名（`width`/
+    // `offset`）を区別せずに検証しており、`auto` と負の長さを `width` に
+    // まで常に許可してしまっていた。`auto` は `outline-width` の有効値
+    // ではなく CSS-wide keyword でもなく、負の長さも `outline-width` では
+    // 無効（`outline-offset` では有効）なため、`width` トークンのみ拒否
+    // することを固定する。
+
+    #[test]
+    fn push_focus_ring_rejects_auto_for_width() {
+        let mut theme = Theme::empty();
+        assert_eq!(
+            theme.push_focus_ring("width", "auto"),
+            Err(ThemeError::InvalidFocusRingValue {
+                value: "auto".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn push_focus_ring_rejects_negative_length_for_width() {
+        let mut theme = Theme::empty();
+        assert_eq!(
+            theme.push_focus_ring("width", "-2px"),
+            Err(ThemeError::InvalidFocusRingValue {
+                value: "-2px".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn push_focus_ring_accepts_auto_and_negative_length_for_offset() {
+        let mut theme = Theme::empty();
+        // `outline-offset` は `auto` を持たないが、CSS グローバル値としての
+        // `auto` 相当（本トークンは `outline-offset` 専用ではなく、`width`
+        // 以外の任意トークン名に共通の寛容な許容集合を適用する設計であり、
+        // `offset` という名前自体には `auto` を拒否する特別扱いをしない）
+        // と、`outline-offset` で実際に意味を持つ負の長さの双方を許可する
+        // ことを固定する。
+        assert!(theme.push_focus_ring("offset", "auto").is_ok());
+        assert!(theme.push_focus_ring("gap", "-2px").is_ok());
+    }
+
+    #[test]
+    fn upsert_focus_ring_rejects_auto_for_width() {
+        let mut theme = Theme::empty();
+        theme.push_focus_ring("width", "2px").unwrap();
+        assert!(matches!(
+            theme.upsert_focus_ring("width", "auto"),
             Err(ThemeError::InvalidFocusRingValue { .. })
         ));
         // 検証失敗時は既存値を上書きしない。
