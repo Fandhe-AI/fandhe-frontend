@@ -8,20 +8,20 @@ UI 部品スタイル調整イシューツリー（ルート #1420、Phase 1〜1
 
 - **機械判定と成文規約のずれ**: `version-bump-guard` ジョブが呼ぶ `xtask check-version-bump`（`crates/xtask/src/check_version_bump.rs`）は「`version` が crates.io 既公開バージョン集合に含まれる」場合のみ FAIL する。一方 `.claude/rules/coding-rust.md` は「公開済みクレートの `src/`・`Cargo.toml`・`build.rs` を変更する PR は必ず `version` をバンプする（または `version-bump-exempt:` 宣言で免除する）」と成文規定している。両者の関係は「機械判定は最終防波堤、成文規約が本来のルール」であり、本運用は成文規約に従う。
 - **per-PR patch バンプの先例が既に存在する**: 本文書作成時点のワークスペースは `crates/pre-styled-ui/Cargo.toml` が `version = "0.46.0"`（crates.io 公開は 0.40.0 系）、`crates/headless-ui/Cargo.toml` が `version = "0.28.6"`（公開 0.28.0）、`crates/wasm-full/Cargo.toml` が `version = "0.7.11"`（公開 0.7.1）であり、未公開のまま PR 毎に patch を積む運用が既に実績を持つ。`crates/pre-styled-ui/Cargo.toml` 冒頭コメント（#1388「依存追随に伴う patch バンプ」）も同型。
-- **pre-styled-ui 単体のバンプは dep 追随を発生させない**: `version = "..."` 併記で `fandhe-frontend-pre-styled-ui` に依存するクレートは存在しない。`crates/docs-site/Cargo.toml` は `fandhe-frontend-pre-styled-ui = { path = "../pre-styled-ui" }`（version 併記なし）であり、同ファイル冒頭コメントに「本クレートは `publish = false` のため、workspace 内 path 依存に version 併記は不要（`xtask check-dep-versions` のルール 2 は publish 対象クレートのみが対象）」と明記済み。**Themes（`crates/pre-styled-ui/`）のみを触る Phase の PR はバンプ 1 行のみで完結する。**
+- **pre-styled-ui 単体のバンプは dep 追随を発生させない（ただし Cargo.lock 同期は別途必要）**: `version = "..."` 併記で `fandhe-frontend-pre-styled-ui` に依存するクレートは存在しない。`crates/docs-site/Cargo.toml` は `fandhe-frontend-pre-styled-ui = { path = "../pre-styled-ui" }`（version 併記なし）であり、同ファイル冒頭コメントに「本クレートは `publish = false` のため、workspace 内 path 依存に version 併記は不要（`xtask check-dep-versions` のルール 2 は publish 対象クレートのみが対象）」と明記済み。**Themes（`crates/pre-styled-ui/`）のみを触る Phase の PR は他クレートの `version = "..."` 追随こそ不要だが、ルート `Cargo.lock` はワークスペースメンバーである `fandhe-frontend-pre-styled-ui` パッケージ自身の `version` を記録しているため、`Cargo.toml` の `version` を変更したら必ず `cargo metadata --no-deps -q >/dev/null`（または `cargo build`/`cargo check` 等の通常操作）を 1 回実行して `Cargo.lock` を新バージョンへ同期し、更新された `Cargo.lock` をコミットに含める（`fw gate`・CI の `--locked` 系コマンドは `Cargo.lock` と `Cargo.toml` の不一致を fail-closed で検知して失敗する）。詳細な独立手順は §3.4a 参照。**
 - **headless-ui のバンプのみ 3 箇所へ連鎖する**: `fandhe-frontend-headless-ui` を `version = "0.28.6"` 併記で依存するのは `crates/wasm-full/Cargo.toml`・`crates/pre-styled-ui/Cargo.toml`・`crates/xtask/Cargo.toml` の 3 箇所。このうち `pre-styled-ui`・`wasm-full` は公開対象クレートのため依存元自身も patch バンプが必要（`dep-version-check` ルール 1: `req == "^" + 依存先の現行 version` の完全一致要求）。`xtask` は `publish = false` のため Cargo.toml の version 要求追随のみでよく、自身のバンプは不要。
 - **crates.io 公開デッドロック（#884/#1306）は非該当**: `templates/app`・`templates/app/wasm` は `fandhe-frontend-core`/`fandhe-frontend-app`/`fandhe-frontend-wasm-client` のみに依存し、headless-ui / pre-styled-ui のバンプは `template-app-wasm-smoke` ジョブにも `templates/app/wasm/Cargo.lock` にも影響しない。`examples/headless-pre-styled-ui` は公開済みバージョン（`^0.40.0` 系）への caret 依存であり、未公開の patch バンプの影響を受けない。したがって同時公開フロー（`docs/ci/version-bump-publish-order-gap.md` §10）の適用は不要である。
 - **theme.rs → docs-site 契約テストへの依存辺**: `crates/pre-styled-ui/src/theme.rs` のトークン変更は `crates/docs-site/tests/site_css_contract.rs`・`crates/docs-site/tests/site_typography_contract.rs` を落とし得る。この依存辺は #1422・#1423・#1425 の本文には明示済みである一方、**#1424（フォーカスリング・size バリアント規約統一）のみ「該当 golden テスト」という抽象表記に留まり、上記 2 ファイルへの明示参照がない**。#1424 側での補記は本文書公開後にフォローする。
 
 ## 3. 決定事項
 
-自動運転での実装のため、既存の成文規約・fail-closed 契約を一切弱めない選択肢を採る。本文書は PR レビュー・マージをもってユーザー承認を得る（§8「承認の扱い」参照）。
+自動運転での実装のため、既存の成文規約・fail-closed 契約を一切弱めない選択肢を採る。本文書は PR レビュー・マージをもってユーザー承認を得る（本節が承認の扱いの正であり、他に独立した「承認の扱い」節は設けない）。
 
 ### 3.1 バンプ粒度: PR 毎に patch バンプ
 
 `crates/pre-styled-ui/src/`・`crates/headless-ui/src/` を変更する PR は、その PR 内で対象クレートの `version` を patch バンプする（例: `0.46.0` → `0.46.1`）。
 
-- 根拠: `.claude/rules/coding-rust.md` の成文規定にそのまま従い、規約変更・`version-bump-exempt:` の解釈拡大を必要としない。§2 の既存実績（0.40.0 → 0.46.0 等）と同型であり、バンプは crates.io 公開を伴わないため 1 行の変更で完結する。
+- 根拠: `.claude/rules/coding-rust.md` の成文規定にそのまま従い、規約変更・`version-bump-exempt:` の解釈拡大を必要としない。§2 の既存実績（0.40.0 → 0.46.0 等）と同型であり、バンプは crates.io 公開を伴わない。ただし `Cargo.toml` の `version` 変更は必ずルート `Cargo.lock` の同期（§3.4a）とセットで行う（`Cargo.lock` 未更新のまま `Cargo.toml` だけ変更すると `--locked` を使う既存処理が失敗する）。
 - 不採用案: 「Phase 単位でまとめてバンプし個別 PR は `version-bump-exempt:` で免除」は、CSS 変更を免除対象と解釈する規約の弱体化を要するため不採用（§3.2 参照）。「作業ブランチへバンプをまとめて集約」は `implement-issue-tree` の並列 worktree 運用と干渉するため不採用。
 
 ### 3.2 `version-bump-exempt:` の CSS 変更への適用: 不可
@@ -42,8 +42,18 @@ UI 部品スタイル調整イシューツリー（ルート #1420、Phase 1〜1
 2. `cargo run -p xtask -- check-dep-versions --fix` を実行し、`crates/wasm-full/Cargo.toml`・`crates/pre-styled-ui/Cargo.toml`・`crates/xtask/Cargo.toml` の `version = "..."` 要求を追随させる。
 3. `wasm-full`・`pre-styled-ui` は依存元自身も公開対象クレートのため、これらの `version` も patch バンプする（`xtask` は `publish = false` のためバンプ不要、追随のみで足りる）。
 4. `cargo run -p xtask -- check-dep-versions`（`--fix` なし）を再実行し、FAIL が残っていないことを確認する。
+5. `cargo check`（ワークスペース全体、または少なくとも `-p fandhe-frontend-headless-ui -p fandhe-frontend-pre-styled-ui -p fandhe-frontend-wasm-full`）を実行してルート `Cargo.lock` を上記 3 クレートの新バージョンへ同期し、更新された `Cargo.lock` をコミットに含める（§3.4a 手順 2〜3 と同じ理由。`Cargo.lock` を置き去りにすると `--locked` を使う既存処理が失敗する）。
 
-pre-styled-ui のみを変更する PR（Themes Phase の大半）はこの連鎖が発生しないため、手順 1 のみで完結する（§2 参照）。
+pre-styled-ui のみを変更する PR（Themes Phase の大半）は上記 headless-ui 連鎖手順（手順 1〜4）を実行する対象ではない（手順 1 は `crates/headless-ui/Cargo.toml` のバンプであり、pre-styled-ui のみを変更する PR でこれを実行すると変更していない headless-ui を不要にバンプしてしまう）。pre-styled-ui 単体の場合は §3.4a の独立手順に従う。
+
+### 3.4a pre-styled-ui 単体変更時の独立バンプ手順
+
+`crates/pre-styled-ui/src/` のみを変更し `crates/headless-ui/` に変更がない PR（Themes Phase の大半）は、headless-ui のバンプ・依存元追随を一切行わず、次の独立手順のみで完結する（§2 のとおり `fandhe-frontend-pre-styled-ui` に `version = "..."` 併記で依存するクレートが存在しないため、依存元追随は発生しない）。
+
+1. `crates/pre-styled-ui/Cargo.toml` の `version` を patch（または §3.3 の破壊的変更時は minor）バンプする。
+2. `cargo check -p fandhe-frontend-pre-styled-ui`（または `cargo metadata --no-deps -q`／`cargo test -p fandhe-frontend-pre-styled-ui` 等、Cargo.lock を書き換える任意の通常操作）を実行し、ルート `Cargo.lock` 内の `fandhe-frontend-pre-styled-ui` パッケージエントリの `version` を新バージョンへ同期する。
+3. `git status`／`git diff Cargo.lock` で `Cargo.lock` が更新されていることを確認し、`Cargo.toml` と同一コミットへ含める（`Cargo.lock` を置き去りにしない。`fw gate`・CI の `--locked` 系コマンドは不一致を fail-closed で検知する）。
+4. `cargo run -p xtask -- check-dep-versions`（`--fix` なし）を実行し、FAIL が発生しないことを確認する（pre-styled-ui 単体変更では通常 FAIL しないことの再確認）。
 
 ### 3.5 crates.io 公開タイミング
 
@@ -62,6 +72,7 @@ Phase 1 以降の各部品 PR は以下を満たすことを確認する。
 
 - [ ] 対象クレート（`fandhe-frontend-pre-styled-ui` および/または `fandhe-frontend-headless-ui`）の `version` を patch（意匠調整のみ）または minor（セレクタ・CSS 変数名等の破壊的変更、§3.3）でバンプした
 - [ ] headless-ui をバンプした場合は `cargo run -p xtask -- check-dep-versions --fix` を実行し、`wasm-full` / `pre-styled-ui` / `xtask` の依存元追随・バンプ連鎖（§3.4）を完了した
+- [ ] `Cargo.toml` の `version` を変更したクレート分について、ルート `Cargo.lock` の同期（§3.4 手順 5／§3.4a 手順 2〜3）を実行し、更新された `Cargo.lock` を同一コミットに含めた
 - [ ] `cargo test -p fandhe-frontend-pre-styled-ui` および/または `cargo test -p fandhe-frontend-headless-ui` が green
 - [ ] `theme.rs` を変更した場合は `cargo test -p fandhe-frontend-docs-site`（`site_css_contract` / `site_typography_contract`）が green
 - [ ] golden テスト更新手順は #1427 の手順に従う
