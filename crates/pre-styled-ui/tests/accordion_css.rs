@@ -45,6 +45,11 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
   color: var(--fandhe-color-fg);
 }
 
+[data-scope="accordion"][data-part="root"].fd-accordion--size-xs {
+  --fandhe-accordion-trigger-padding: var(--fandhe-space-2);
+  --fandhe-accordion-content-padding: var(--fandhe-space-2);
+}
+
 [data-scope="accordion"][data-part="root"].fd-accordion--size-sm {
   --fandhe-accordion-trigger-padding: var(--fandhe-space-3);
   --fandhe-accordion-content-padding: var(--fandhe-space-3);
@@ -58,6 +63,11 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
 [data-scope="accordion"][data-part="root"].fd-accordion--size-lg {
   --fandhe-accordion-trigger-padding: var(--fandhe-space-5);
   --fandhe-accordion-content-padding: var(--fandhe-space-5);
+}
+
+[data-scope="accordion"][data-part="root"].fd-accordion--size-xl {
+  --fandhe-accordion-trigger-padding: var(--fandhe-space-6);
+  --fandhe-accordion-content-padding: var(--fandhe-space-6);
 }
 
 [data-scope="accordion"][data-part="item-trigger"][data-state="open"] {

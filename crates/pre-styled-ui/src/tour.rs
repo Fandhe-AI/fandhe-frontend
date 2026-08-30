@@ -89,7 +89,9 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{palette_declarations, ColorPalette, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    palette_scale_declarations, ColorPalette, SlotRecipe, StateCondition, VariantValue,
+};
 
 // `Tour` 状態機械はあえて再エクスポートしない（本モジュール冒頭の rustdoc
 // 「全パーツが `state: &Tour` を取る理由」節参照)。状態管理・hydration が
@@ -387,8 +389,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }

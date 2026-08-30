@@ -156,6 +156,16 @@ fn recipe() -> SlotRecipe {
                 decl("transition", "stroke-dashoffset 0.2s ease"),
             ],
         )
+        // イシュー #1681: Xs/Xl は size 1rem 刻み・thickness 0.05rem 刻みの
+        // Sm→Md→Lg 等差進行を外挿。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-progress-size", "1rem"),
+                decl("--fandhe-progress-thickness", "0.15rem"),
+            ],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -178,6 +188,14 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-progress-size", "4rem"),
                 decl("--fandhe-progress-thickness", "0.3rem"),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-progress-size", "5rem"),
+                decl("--fandhe-progress-thickness", "0.35rem"),
             ],
         )
         .default_variant(Size::Md)

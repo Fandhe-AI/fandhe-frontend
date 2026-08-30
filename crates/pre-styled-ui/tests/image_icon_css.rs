@@ -54,6 +54,11 @@ const ICON_GOLDEN_CSS: &str = r#"[data-scope="icon"][data-part="root"] {
   vertical-align: middle;
 }
 
+[data-scope="icon"][data-part="root"].fd-icon--size-xs {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
 [data-scope="icon"][data-part="root"].fd-icon--size-sm {
   width: 1rem;
   height: 1rem;
@@ -67,6 +72,11 @@ const ICON_GOLDEN_CSS: &str = r#"[data-scope="icon"][data-part="root"] {
 [data-scope="icon"][data-part="root"].fd-icon--size-lg {
   width: 2rem;
   height: 2rem;
+}
+
+[data-scope="icon"][data-part="root"].fd-icon--size-xl {
+  width: 2.5rem;
+  height: 2.5rem;
 }
 "#;
 

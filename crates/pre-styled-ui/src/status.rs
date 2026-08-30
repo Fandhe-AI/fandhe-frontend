@@ -13,7 +13,7 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{palette_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
+use crate::recipe::{palette_scale_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -71,6 +71,16 @@ fn recipe() -> SlotRecipe {
                 decl("flex-shrink", "0"),
             ],
         )
+        // イシュー #1681: Xs は dot-size 0.125rem 刻みの等差進行を外挿。
+        // font-size はトークン下限 xs を Sm と共有する。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("--fandhe-status-dot-size", "0.25rem"),
+            ],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -95,6 +105,14 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-status-dot-size", "0.625rem"),
             ],
         )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-lg)"),
+                decl("--fandhe-status-dot-size", "0.75rem"),
+            ],
+        )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
@@ -104,8 +122,9 @@ fn recipe() -> SlotRecipe {
         ColorPalette::Success,
         ColorPalette::Warning,
         ColorPalette::Danger,
+        ColorPalette::Neutral,
     ] {
-        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
     recipe
 }
@@ -198,6 +217,7 @@ mod tests {
             (ColorPalette::Success, "fd-status--color-palette-success"),
             (ColorPalette::Warning, "fd-status--color-palette-warning"),
             (ColorPalette::Danger, "fd-status--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-status--color-palette-neutral"),
         ] {
             let props = StatusProps {
                 palette,

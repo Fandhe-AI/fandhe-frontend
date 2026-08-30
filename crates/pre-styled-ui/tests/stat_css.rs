@@ -54,6 +54,10 @@ const STAT_GOLDEN_CSS: &str = r#"[data-scope="stat"][data-part="root"] {
   background: var(--fandhe-color-danger-emphasized);
 }
 
+[data-scope="stat"][data-part="root"].fd-stat--size-xs {
+  --fandhe-stat-value-font-size: var(--fandhe-font-font-size-xs);
+}
+
 [data-scope="stat"][data-part="root"].fd-stat--size-sm {
   --fandhe-stat-value-font-size: var(--fandhe-font-font-size-lg);
 }
@@ -64,6 +68,10 @@ const STAT_GOLDEN_CSS: &str = r#"[data-scope="stat"][data-part="root"] {
 
 [data-scope="stat"][data-part="root"].fd-stat--size-lg {
   --fandhe-stat-value-font-size: var(--fandhe-font-font-size-3xl);
+}
+
+[data-scope="stat"][data-part="root"].fd-stat--size-xl {
+  --fandhe-stat-value-font-size: var(--fandhe-font-font-size-4xl);
 }
 "#;
 

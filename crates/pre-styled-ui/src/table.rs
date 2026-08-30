@@ -280,6 +280,20 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(TableVariant::Line)
+        // イシュー #1681: Xs は cell-padding 0.25rem 刻みの等差進行を外挿
+        // した (0.25rem, 0.5rem)。font-size はトークン下限 xs をそのまま
+        // 使う（Sm と同一。より小さいトークンが存在しないため）。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![
+                decl("--fandhe-table-cell-padding", "0.25rem 0.5rem"),
+                decl(
+                    "--fandhe-table-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+            ],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -310,6 +324,17 @@ fn recipe() -> SlotRecipe {
                 decl(
                     "--fandhe-table-font-size",
                     "var(--fandhe-font-font-size-md)",
+                ),
+            ],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![
+                decl("--fandhe-table-cell-padding", "1.25rem 1.5rem"),
+                decl(
+                    "--fandhe-table-font-size",
+                    "var(--fandhe-font-font-size-lg)",
                 ),
             ],
         )

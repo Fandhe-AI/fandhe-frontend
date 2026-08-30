@@ -61,6 +61,12 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   color: var(--fandhe-color-fg-muted);
 }
 
+[data-scope="dialog"][data-part="root"].fd-dialog--size-xs {
+  --fandhe-dialog-content-padding: var(--fandhe-space-2);
+  --fandhe-dialog-content-max-width: 16rem;
+  --fandhe-dialog-title-font-size: var(--fandhe-font-font-size-sm);
+}
+
 [data-scope="dialog"][data-part="root"].fd-dialog--size-sm {
   --fandhe-dialog-content-padding: var(--fandhe-space-4);
   --fandhe-dialog-content-max-width: 24rem;
@@ -77,6 +83,12 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   --fandhe-dialog-content-padding: var(--fandhe-space-8);
   --fandhe-dialog-content-max-width: 42rem;
   --fandhe-dialog-title-font-size: var(--fandhe-font-font-size-xl);
+}
+
+[data-scope="dialog"][data-part="root"].fd-dialog--size-xl {
+  --fandhe-dialog-content-padding: var(--fandhe-space-10);
+  --fandhe-dialog-content-max-width: 52rem;
+  --fandhe-dialog-title-font-size: var(--fandhe-font-font-size-2xl);
 }
 
 [data-scope="dialog"][data-part="backdrop"][data-state="open"] {

@@ -94,6 +94,13 @@ fn recipe() -> SlotRecipe {
                 decl("margin", "auto"),
             ],
         )
+        // イシュー #1681: Xs/Xl は Sm(6)→Md(8)→Lg(12) の非等差進行
+        // （差分 2→4 の倍加）を、両端それぞれ隣接差分を踏襲して外挿。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("--fandhe-qr-code-size", "5rem")],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -108,6 +115,11 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![decl("--fandhe-qr-code-size", "12rem")],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("--fandhe-qr-code-size", "20rem")],
         )
         .default_variant(Size::Md)
 }

@@ -29,6 +29,10 @@ const PIE_CHART_GOLDEN_CSS: &str = r#"[data-scope="pie-chart"][data-part="root"]
   text-anchor: middle;
 }
 
+[data-scope="pie-chart"][data-part="root"].fd-pie-chart--size-xs {
+  --fandhe-pie-chart-size: 4rem;
+}
+
 [data-scope="pie-chart"][data-part="root"].fd-pie-chart--size-sm {
   --fandhe-pie-chart-size: 10rem;
 }
@@ -39,6 +43,10 @@ const PIE_CHART_GOLDEN_CSS: &str = r#"[data-scope="pie-chart"][data-part="root"]
 
 [data-scope="pie-chart"][data-part="root"].fd-pie-chart--size-lg {
   --fandhe-pie-chart-size: 22rem;
+}
+
+[data-scope="pie-chart"][data-part="root"].fd-pie-chart--size-xl {
+  --fandhe-pie-chart-size: 28rem;
 }
 "#;
 
@@ -63,6 +71,10 @@ const DONUT_CHART_GOLDEN_CSS: &str = r#"[data-scope="donut-chart"][data-part="ro
   text-anchor: middle;
 }
 
+[data-scope="donut-chart"][data-part="root"].fd-donut-chart--size-xs {
+  --fandhe-donut-chart-size: 4rem;
+}
+
 [data-scope="donut-chart"][data-part="root"].fd-donut-chart--size-sm {
   --fandhe-donut-chart-size: 10rem;
 }
@@ -73,6 +85,10 @@ const DONUT_CHART_GOLDEN_CSS: &str = r#"[data-scope="donut-chart"][data-part="ro
 
 [data-scope="donut-chart"][data-part="root"].fd-donut-chart--size-lg {
   --fandhe-donut-chart-size: 22rem;
+}
+
+[data-scope="donut-chart"][data-part="root"].fd-donut-chart--size-xl {
+  --fandhe-donut-chart-size: 28rem;
 }
 "#;
 

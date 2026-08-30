@@ -161,6 +161,14 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
+            crate::recipe::Size::Xs,
+            "root",
+            vec![decl(
+                "--fandhe-breadcrumb-font-size",
+                "var(--fandhe-font-font-size-xs)",
+            )],
+        )
+        .variant(
             crate::recipe::Size::Sm,
             "root",
             vec![decl(
@@ -182,6 +190,14 @@ fn recipe() -> SlotRecipe {
             vec![decl(
                 "--fandhe-breadcrumb-font-size",
                 "var(--fandhe-font-font-size-lg)",
+            )],
+        )
+        .variant(
+            crate::recipe::Size::Xl,
+            "root",
+            vec![decl(
+                "--fandhe-breadcrumb-font-size",
+                "var(--fandhe-font-font-size-xl)",
             )],
         )
         .default_variant(crate::recipe::Size::Md)

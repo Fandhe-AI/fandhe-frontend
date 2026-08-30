@@ -282,6 +282,13 @@ fn recipe() -> SlotRecipe {
         )
         // イシュー #758: `size` variant（root スコープの CSS custom
         // property。Md はフォールバック値と同一の現行外観を維持する）。
+        // イシュー #1681: Xs/Xl は Sm(16)→Md(20)→Lg(28) の非等差進行を、
+        // 両端それぞれ隣接差分（Sm-Md=4 / Md-Lg=8）を踏襲して外挿した値。
+        .variant(
+            Size::Xs,
+            "root",
+            vec![decl("--fandhe-drawer-size", "12rem")],
+        )
         .variant(
             Size::Sm,
             "root",
@@ -296,6 +303,11 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![decl("--fandhe-drawer-size", "28rem")],
+        )
+        .variant(
+            Size::Xl,
+            "root",
+            vec![decl("--fandhe-drawer-size", "36rem")],
         )
         .default_variant(Size::Md)
 }
