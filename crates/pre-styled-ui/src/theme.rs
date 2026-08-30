@@ -274,6 +274,12 @@ pub struct Theme {
     /// （イシュー #1424）。リング色は `colors` グループ（`focus-ring`）が
     /// 担う（ダークモード追従のため）。
     focus_ring: Vec<ScaleToken>,
+    /// `size` variant 軸（[`crate::recipe::Size`]）に対応するモード非依存
+    /// スケール（イシュー #1678）。styled 部品が `size` variant を実装する際、
+    /// `control-height-<段>` / `control-padding-x-<段>` /
+    /// `control-font-size-<段>` の 3 系統を `var(--fandhe-size-<name>)` として
+    /// 参照する想定のトークン（既定値は [`DEFAULT_SIZES`]）。
+    sizes: Vec<ScaleToken>,
     /// transition の duration / easing のモード非依存スケール（イシュー #1425）。
     /// `duration-` で始まる名前を持つトークンのみ、`prefers-reduced-motion:
     /// reduce` 下で [`Theme::to_css`] が `0ms` へ一括上書きする
@@ -300,6 +306,7 @@ impl Default for Theme {
             shadows: Vec::new(),
             z_indices: Vec::new(),
             focus_ring: Vec::new(),
+            sizes: Vec::new(),
             motions: Vec::new(),
         };
 
@@ -335,6 +342,11 @@ impl Default for Theme {
         }
         for (name, value) in DEFAULT_FOCUS_RING {
             theme.push_focus_ring(name, value).expect(
+                "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
+            );
+        }
+        for (name, value) in DEFAULT_SIZES {
+            theme.push_size(name, value).expect(
                 "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
             );
         }
@@ -593,6 +605,35 @@ const DEFAULT_Z_INDICES: &[(&str, &str)] = &[
 /// （ダークモード追従が必要なため `colors` グループが担う）。
 const DEFAULT_FOCUS_RING: &[(&str, &str)] = &[("width", "2px"), ("offset", "2px")];
 
+/// 既定の `size` トークン（name, value、イシュー #1678）。
+/// [`crate::recipe::Size`]（`xs`/`sm`/`md`/`lg`/`xl` の 5 段）に対応する
+/// `control-height` / `control-padding-x` / `control-font-size` の 3 系統。
+/// chakra-ui v3 の Button サイズを基準値とし、Radix Themes の数値スケール
+/// （`1`〜`4`）との対応は `control-height` の `md`/`xl` が Radix `3`/`4`
+/// （40px/48px）に一致する（判断記録は
+/// `docs/design/pre-styled-ui-size-and-color-palette-axes.md` 参照）。
+/// `control-font-size-*` は独立した px/rem 値を持たず、既存のタイポグラフィ
+/// スケール（[`DEFAULT_TYPOGRAPHY`]）を `var(--fandhe-font-font-size-<段>)`
+/// として参照する（2 重管理を避け、フォントサイズ変更時に size 軸側の
+/// 追随漏れが起きない構成）。
+const DEFAULT_SIZES: &[(&str, &str)] = &[
+    ("control-height-xs", "2rem"),
+    ("control-height-sm", "2.25rem"),
+    ("control-height-md", "2.5rem"),
+    ("control-height-lg", "2.75rem"),
+    ("control-height-xl", "3rem"),
+    ("control-padding-x-xs", "0.625rem"),
+    ("control-padding-x-sm", "0.75rem"),
+    ("control-padding-x-md", "1rem"),
+    ("control-padding-x-lg", "1.25rem"),
+    ("control-padding-x-xl", "1.5rem"),
+    ("control-font-size-xs", "var(--fandhe-font-font-size-xs)"),
+    ("control-font-size-sm", "var(--fandhe-font-font-size-sm)"),
+    ("control-font-size-md", "var(--fandhe-font-font-size-md)"),
+    ("control-font-size-lg", "var(--fandhe-font-font-size-lg)"),
+    ("control-font-size-xl", "var(--fandhe-font-font-size-xl)"),
+];
+
 /// 既定の transition トークン（name, value）。モード非依存の新規グループ
 /// （イシュー #1425）。既存 recipe が個別に手書きしていた `0.15s` / `0.2s
 /// ease` 等のリテラルを吸収する対応表（`docs/design/
@@ -625,6 +666,7 @@ impl Theme {
             shadows: Vec::new(),
             z_indices: Vec::new(),
             focus_ring: Vec::new(),
+            sizes: Vec::new(),
             motions: Vec::new(),
         }
     }
@@ -763,6 +805,21 @@ impl Theme {
         Ok(())
     }
 
+    /// モード非依存の `size` variant トークンを追加する（イシュー #1678）。
+    ///
+    /// `fandhe-frontend-pre-styled-ui` の styled 部品が [`crate::recipe::Size`]
+    /// の各段に対応させて `height`/`padding`/`font-size` 等を
+    /// `var(--fandhe-size-<name>)` として参照する想定のトークン。既定スケール
+    /// （[`DEFAULT_SIZES`]）は `control-height`/`control-padding-x`/
+    /// `control-font-size` の 3 系統 × `xs`/`sm`/`md`/`lg`/`xl` の 5 段。
+    ///
+    /// # Errors
+    ///
+    /// [`Theme::push_color`] と同様（`name`/`value` の検証・重複拒否）。
+    pub fn push_size(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        push_scale(&mut self.sizes, name, value)
+    }
+
     /// モード非依存の transition（duration / easing）トークンを追加する
     /// （イシュー #1425）。`fandhe-frontend-pre-styled-ui` の styled 部品が
     /// [`crate::recipe::transition_declaration`] 経由で
@@ -888,6 +945,19 @@ impl Theme {
         Ok(())
     }
 
+    /// `size` トークンを追加、または既存トークンを上書きする（イシュー #1678）。
+    ///
+    /// [`Theme::push_size`] と同様（`name`/`value` の検証）を経てから、
+    /// 既存位置があれば in-place 置換・なければ末尾追加する（[`upsert_scale`]
+    /// を再利用、挿入順＝出力順の決定性を保つ）。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `value` のいずれかが allowlist 検証を通過しない場合。
+    pub fn upsert_size(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        upsert_scale(&mut self.sizes, name, value)
+    }
+
     /// モード非依存の transition（duration / easing）トークンを追加、または
     /// 既存トークンを上書きする（イシュー #1425）。セマンティクスは
     /// [`Theme::upsert_color`] 参照。
@@ -905,13 +975,14 @@ impl Theme {
     ///
     /// 1. `:root { color-scheme: light dark; --fandhe-... }`（light 値、
     ///    colors → spaces → typography → radii → shadows → z-indices →
-    ///    focus-ring → motions の順。radii/z-indices/focus-ring/motions は
-    ///    モード非依存のため 1 値、shadows は light 値をここに出力する。
-    ///    イシュー #606 で追加した radii/shadows、イシュー #1423 で追加した
-    ///    z-indices、イシュー #1424 で追加した focus-ring（寸法。リング色は
-    ///    `colors` グループの `focus-ring` エントリが担う）、イシュー #1425
-    ///    で追加した motions はいずれも末尾に純追加する構成のため、当該
-    ///    グループを push しないテーマの出力は追加前とバイト同一になる）
+    ///    focus-ring → sizes → motions の順。radii/z-indices/focus-ring/
+    ///    sizes/motions はモード非依存のため 1 値、shadows は light 値を
+    ///    ここに出力する。イシュー #606 で追加した radii/shadows、イシュー
+    ///    #1423 で追加した z-indices、イシュー #1424 で追加した focus-ring
+    ///    （寸法。リング色は `colors` グループの `focus-ring` エントリが
+    ///    担う）、イシュー #1678 で追加した sizes、イシュー #1425 で追加した
+    ///    motions はいずれも末尾に純追加する構成のため、当該グループを push
+    ///    しないテーマの出力は追加前とバイト同一になる）
     /// 2. `:root[data-theme="light"] { color-scheme: light; }`
     /// 3. `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }`
     ///    （dark 値。OS 設定追従。colors → shadows の順）
@@ -982,6 +1053,13 @@ impl Theme {
         for token in &self.focus_ring {
             out.push_str(&format!(
                 "  {VAR_PREFIX}-focus-ring-{}: {};\n",
+                token.name.as_str(),
+                token.value.as_str()
+            ));
+        }
+        for token in &self.sizes {
+            out.push_str(&format!(
+                "  {VAR_PREFIX}-size-{}: {};\n",
                 token.name.as_str(),
                 token.value.as_str()
             ));
@@ -1425,6 +1503,18 @@ pub fn z_index_var(name: &str) -> Result<String, ThemeError> {
 pub fn focus_ring_var(name: &str) -> Result<String, ThemeError> {
     let name = TokenName::new(name)?;
     Ok(format!("var({VAR_PREFIX}-focus-ring-{})", name.as_str()))
+}
+
+/// `size` トークン名から `var(--fandhe-size-<name>)` 参照を組み立てる
+/// （イシュー #1678）。styled 部品が `height`/`padding`/`font-size` 等の値
+/// として参照する想定。
+///
+/// # Errors
+///
+/// [`color_var`] と同様。
+pub fn size_var(name: &str) -> Result<String, ThemeError> {
+    let name = TokenName::new(name)?;
+    Ok(format!("var({VAR_PREFIX}-size-{})", name.as_str()))
 }
 
 /// transition（duration / easing）トークン名から `var(--fandhe-motion-<name>)`
@@ -2209,5 +2299,88 @@ mod tests {
 
         let css = theme.to_css();
         assert!(!css.contains("--fandhe-focus-ring-"));
+    }
+
+    // イシュー #1678: size 軸トークンのユニットテスト。
+
+    #[test]
+    fn size_var_builds_expected_reference() {
+        assert_eq!(
+            size_var("control-height-md").unwrap(),
+            "var(--fandhe-size-control-height-md)"
+        );
+        assert!(size_var("Control-Height-Md").is_err());
+    }
+
+    #[test]
+    fn push_size_rejects_duplicate_name() {
+        let mut theme = Theme::empty();
+        theme.push_size("control-height-md", "2.5rem").unwrap();
+        assert!(theme.push_size("control-height-md", "3rem").is_err());
+    }
+
+    #[test]
+    fn upsert_size_overwrites_existing_value() {
+        let mut theme = Theme::empty();
+        theme.push_size("control-height-md", "2.5rem").unwrap();
+        theme.upsert_size("control-height-md", "2.75rem").unwrap();
+        assert!(theme
+            .to_css()
+            .contains("--fandhe-size-control-height-md: 2.75rem;"));
+    }
+
+    #[test]
+    fn default_theme_contains_all_default_sizes() {
+        // `DEFAULT_SIZES` の全件が既定テーマの `to_css()` 出力に含まれる
+        // ことを固定する（`DEFAULT_Z_INDICES` の同型テストに準拠）。
+        let css = Theme::default().to_css();
+        for (name, value) in DEFAULT_SIZES {
+            let expected = format!("  --fandhe-size-{name}: {value};\n");
+            assert!(
+                css.contains(&expected),
+                "既定テーマの to_css() に {expected:?} が含まれない"
+            );
+        }
+    }
+
+    #[test]
+    fn default_theme_sizes_do_not_appear_in_dark_blocks() {
+        // size はモード非依存のため、`write_dark_declarations` 経由の
+        // dark ブロックには一切現れず、`:root` ブロックの 1 箇所にのみ
+        // 出現する（z-index/radii と同じ扱い）。
+        let css = Theme::default().to_css();
+        let count = css.matches("--fandhe-size-control-height-md:").count();
+        assert_eq!(
+            count, 1,
+            "size はモード非依存のため :root に 1 回だけ出現するはず"
+        );
+    }
+
+    #[test]
+    fn empty_theme_without_sizes_omits_size_vars() {
+        // sizes を一切 push しないテーマの `to_css()` 出力は、本イシュー
+        // （#1678）で追加した sizes グループの純追加であることを保証する
+        // 回帰テスト（`empty_theme_without_z_indices_omits_z_index_vars`
+        // と対をなす）。
+        let mut theme = Theme::empty();
+        theme.push_color("bg", "#ffffff", "#111111").unwrap();
+
+        let css = theme.to_css();
+        assert!(!css.contains("--fandhe-size-"));
+    }
+
+    #[test]
+    fn size_token_values_stay_within_css_value_allowlist() {
+        // `control-font-size-*` は `var(--fandhe-font-font-size-<段>)` 形式で
+        // 既存タイポグラフィトークンを参照する。`CssValue::new` の
+        // allowlist（英数字・空白・`#` `%` `.` `,` `(` `)` `-` `_` `+`）を
+        // 満たすことを固定する（既定値は `Theme::default()` 構築時に
+        // 検証済みだが、値の形が想定どおりであることを明示的に回帰させる）。
+        for (name, value) in DEFAULT_SIZES {
+            assert!(
+                CssValue::new(value).is_ok(),
+                "DEFAULT_SIZES の {name} の値 {value:?} が CssValue の allowlist を満たさない"
+            );
+        }
     }
 }

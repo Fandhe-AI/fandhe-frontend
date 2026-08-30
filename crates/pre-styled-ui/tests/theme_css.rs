@@ -7,7 +7,8 @@
 //! 破壊的変更時は本ファイルの更新とあわせて周知する。
 
 use fandhe_frontend_pre_styled_ui::theme::{
-    color_var, motion_var, radius_var, shadow_var, space_var, typography_var, z_index_var, Theme,
+    color_var, motion_var, radius_var, shadow_var, size_var, space_var, typography_var,
+    z_index_var, Theme,
 };
 
 #[test]
@@ -243,6 +244,64 @@ fn custom_z_index_extends_full_snapshot_without_breaking_pre_1423_output() {
 
     assert_eq!(theme.to_css(), expected);
     assert_eq!(z_index_var("toast").unwrap(), "var(--fandhe-z-index-toast)");
+}
+
+#[test]
+fn custom_size_extends_full_snapshot_without_breaking_pre_1678_output() {
+    // sizes を push しないテーマは `custom_theme_output_matches_full_snapshot`
+    // （本ファイル）の既存スナップショットとバイト同一のままであることが
+    // #1678 の後方互換要件。ここでは size を追加した場合の出力構造を個別に
+    // 固定する（フルスナップショットへ混入させ既存テストを壊さない）。
+    // size は z-index/radii と同じくモード非依存のため `:root` ブロックの
+    // みに現れ、dark ブロック（@media / [data-theme="dark"]）には一切
+    // 出現しないことも併せて固定する。出力順は「z-indices の後・末尾」
+    // であることも本テストの `expected` 全文一致で固定する。
+    let mut theme = Theme::empty();
+    theme.push_color("bg", "#ffffff", "#000000").unwrap();
+    theme.push_z_index("toast", "1600").unwrap();
+    theme.push_size("control-height-md", "2.5rem").unwrap();
+
+    let expected = "\
+:root {
+  color-scheme: light dark;
+  --fandhe-color-bg: #ffffff;
+  --fandhe-z-index-toast: 1600;
+  --fandhe-size-control-height-md: 2.5rem;
+}
+:root[data-theme=\"light\"] { color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=\"light\"]) {
+    color-scheme: dark;
+    --fandhe-color-bg: #000000;
+  }
+}
+:root[data-theme=\"dark\"] {
+  color-scheme: dark;
+  --fandhe-color-bg: #000000;
+}
+";
+
+    assert_eq!(theme.to_css(), expected);
+    assert_eq!(
+        size_var("control-height-md").unwrap(),
+        "var(--fandhe-size-control-height-md)"
+    );
+}
+
+/// イシュー #1678: 既定テーマ（`Theme::default()`）が
+/// `DEFAULT_SIZES`（`src/theme.rs`）の全トークンを含むことを固定する。
+#[test]
+fn default_theme_css_contains_issue_1678_size_tokens() {
+    let css = Theme::default().to_css();
+
+    assert!(css.contains("--fandhe-size-control-height-xs: 2rem;"));
+    assert!(css.contains("--fandhe-size-control-height-sm: 2.25rem;"));
+    assert!(css.contains("--fandhe-size-control-height-md: 2.5rem;"));
+    assert!(css.contains("--fandhe-size-control-height-lg: 2.75rem;"));
+    assert!(css.contains("--fandhe-size-control-height-xl: 3rem;"));
+    assert!(css.contains("--fandhe-size-control-padding-x-xs: 0.625rem;"));
+    assert!(css.contains("--fandhe-size-control-padding-x-md: 1rem;"));
+    assert!(css.contains("--fandhe-size-control-font-size-md: var(--fandhe-font-font-size-md);"));
 }
 
 #[test]

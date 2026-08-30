@@ -74,14 +74,34 @@ pub trait VariantValue: Copy {
 }
 
 /// 標準の `size` 軸。#550 以降の styled 部品が共用する最初の具象 variant。
+///
+/// イシュー #1678 で `Xs`（先頭）・`Xl`（末尾）を純追加し 3 段から 5 段へ
+/// 拡張した（t-shirt 語彙、chakra-ui 系に整合。Radix Themes の数値連番
+/// `1`〜`4` は不採用）。既存 3 段（`Sm`/`Md`/`Lg`）の名前・`value()` は
+/// 変更していないため、追加前から `Size` を使っている styled 部品の
+/// golden CSS はバイト不変（新段を登録しないテーマ・recipe の出力は
+/// 変わらない）。`2xl` は追加しない（共通 enum に載せると全部品が空の段を
+/// 抱えるため。個別に必要な部品は専用の `VariantValue` 実装で扱う）。
+/// 既定値（`Default`）は実装しない（安全側判断。呼び出し元が明示的に
+/// 選択する現状の契約を変えない）。判断記録は
+/// `docs/design/pre-styled-ui-size-and-color-palette-axes.md` を参照。
+///
+/// `size` 軸は enum として値をすべて公開するが、各 styled 部品が
+/// `SlotRecipe::variant`/`SlotRecipe::size_variants` へ実際に登録する段は
+/// レシピごとに異なる（未登録の段を `size` に指定しても class は付くが
+/// 宣言は出ない、既存 [`SlotRecipe`] の挙動のまま）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Size {
+    /// 極小サイズ（イシュー #1678 で追加）。
+    Xs,
     /// 小サイズ。
     Sm,
     /// 中サイズ（既定値として使われることが多い）。
     Md,
     /// 大サイズ。
     Lg,
+    /// 極大サイズ（イシュー #1678 で追加）。
+    Xl,
 }
 
 impl VariantValue for Size {
@@ -91,9 +111,11 @@ impl VariantValue for Size {
 
     fn value(self) -> &'static str {
         match self {
+            Size::Xs => "xs",
             Size::Sm => "sm",
             Size::Md => "md",
             Size::Lg => "lg",
+            Size::Xl => "xl",
         }
     }
 }
@@ -101,9 +123,18 @@ impl VariantValue for Size {
 /// 標準の `color-palette` 軸（chakra-ui の `colorPalette` 相当、イシュー #606）。
 ///
 /// [`crate::theme`] の既定パレット（`accent`/`info`/`success`/`warning`/
-/// `danger`）と 1:1 対応する。Button/Badge/Spinner がこの軸を公開 API の
-/// variant として持ち、[`palette_declarations`] が生成する宣言を通じて
+/// `danger`/`neutral`）と 1:1 対応する。Button/Badge/Spinner がこの軸を公開
+/// API の variant として持ち、[`palette_declarations`] が生成する宣言を通じて
 /// `--fandhe-palette` 系のローカル custom property を上書きする。
+///
+/// イシュー #1678 で `Neutral`（末尾、イシュー #1422 で追加された
+/// `neutral*` トークンと 1:1）を純追加した。既存 5 値の名前・`value()`・
+/// [`palette_declarations`] の出力は変更していないため、golden CSS は
+/// バイト不変。`Gray` という別名は設けない（テーマ側のトークン名が
+/// `neutral` のため）。任意色（利用者定義パレット）を受け付ける軸は
+/// 設けない（`value()` は `&'static str` の固定語彙のみを返す設計を維持し、
+/// 動的文字列を受ける入口を増やさない）。判断記録は
+/// `docs/design/pre-styled-ui-size-and-color-palette-axes.md` を参照。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ColorPalette {
     /// 強調色（既定）。
@@ -117,6 +148,8 @@ pub enum ColorPalette {
     Warning,
     /// 危険・エラー色。
     Danger,
+    /// 中立色（イシュー #1678 で追加、chakra `gray` colorPalette 相当）。
+    Neutral,
 }
 
 impl VariantValue for ColorPalette {
@@ -131,6 +164,7 @@ impl VariantValue for ColorPalette {
             ColorPalette::Success => "success",
             ColorPalette::Warning => "warning",
             ColorPalette::Danger => "danger",
+            ColorPalette::Neutral => "neutral",
         }
     }
 }
@@ -188,6 +222,144 @@ pub fn palette_declarations(p: ColorPalette) -> Vec<Declaration> {
                 "var(--fandhe-color-danger-emphasized)",
             ),
             decl("--fandhe-palette-fg", "var(--fandhe-color-danger-fg)"),
+        ],
+        ColorPalette::Neutral => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-neutral)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-neutral-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-neutral-fg)"),
+        ],
+    }
+}
+
+/// `palette` が選択されたときに root slot へ登録する宣言列（6 役割版、
+/// イシュー #1678）。
+///
+/// [`palette_declarations`]（3 役割: base/emphasized/fg）は既存 styled 部品の
+/// golden CSS を守るため出力を変更していない。本関数は同じ 3 役割に加えて
+/// イシュー #1422 で追加された `-subtle`/`-muted`/`-fg-subtle` の 3 役割を
+/// 加えた 6 役割版で、返す宣言列の先頭 3 件は [`palette_declarations`] と
+/// 完全に同一の順序・同一の値になる（`recipe_css.rs` の
+/// `palette_scale_declarations_prefix_equals_palette_declarations` で固定）。
+/// Phase 1 の各部品 issue が golden 更新時にこちらへ移行する想定であり、
+/// 本イシュー時点でこの関数を呼ぶ styled 部品は存在しない。
+///
+/// [`Declaration`] は `&'static str` のみを保持できる設計（`crate::css` の
+/// 型レベル不変条件、動的文字列混入経路を塞ぐ）のため、`format!` で値を
+/// 組み立てず [`palette_declarations`] と同様に palette 値ごとの `match` で
+/// リテラルを列挙する。
+#[must_use]
+pub fn palette_scale_declarations(p: ColorPalette) -> Vec<Declaration> {
+    match p {
+        ColorPalette::Accent => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-accent)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-accent-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-accent-fg)"),
+            decl(
+                "--fandhe-palette-subtle",
+                "var(--fandhe-color-accent-subtle)",
+            ),
+            decl("--fandhe-palette-muted", "var(--fandhe-color-accent-muted)"),
+            decl(
+                "--fandhe-palette-fg-subtle",
+                "var(--fandhe-color-accent-fg-subtle)",
+            ),
+        ],
+        ColorPalette::Info => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-info)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-info-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-info-fg)"),
+            decl("--fandhe-palette-subtle", "var(--fandhe-color-info-subtle)"),
+            decl("--fandhe-palette-muted", "var(--fandhe-color-info-muted)"),
+            decl(
+                "--fandhe-palette-fg-subtle",
+                "var(--fandhe-color-info-fg-subtle)",
+            ),
+        ],
+        ColorPalette::Success => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-success)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-success-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-success-fg)"),
+            decl(
+                "--fandhe-palette-subtle",
+                "var(--fandhe-color-success-subtle)",
+            ),
+            decl(
+                "--fandhe-palette-muted",
+                "var(--fandhe-color-success-muted)",
+            ),
+            decl(
+                "--fandhe-palette-fg-subtle",
+                "var(--fandhe-color-success-fg-subtle)",
+            ),
+        ],
+        ColorPalette::Warning => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-warning)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-warning-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-warning-fg)"),
+            decl(
+                "--fandhe-palette-subtle",
+                "var(--fandhe-color-warning-subtle)",
+            ),
+            decl(
+                "--fandhe-palette-muted",
+                "var(--fandhe-color-warning-muted)",
+            ),
+            decl(
+                "--fandhe-palette-fg-subtle",
+                "var(--fandhe-color-warning-fg-subtle)",
+            ),
+        ],
+        ColorPalette::Danger => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-danger)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-danger-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-danger-fg)"),
+            decl(
+                "--fandhe-palette-subtle",
+                "var(--fandhe-color-danger-subtle)",
+            ),
+            decl("--fandhe-palette-muted", "var(--fandhe-color-danger-muted)"),
+            decl(
+                "--fandhe-palette-fg-subtle",
+                "var(--fandhe-color-danger-fg-subtle)",
+            ),
+        ],
+        ColorPalette::Neutral => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-neutral)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-neutral-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-neutral-fg)"),
+            decl(
+                "--fandhe-palette-subtle",
+                "var(--fandhe-color-neutral-subtle)",
+            ),
+            decl(
+                "--fandhe-palette-muted",
+                "var(--fandhe-color-neutral-muted)",
+            ),
+            decl(
+                "--fandhe-palette-fg-subtle",
+                "var(--fandhe-color-neutral-fg-subtle)",
+            ),
         ],
     }
 }
