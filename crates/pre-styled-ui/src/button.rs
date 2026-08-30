@@ -343,12 +343,11 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
         .default_variant(ButtonVariant::Solid)
         .default_variant(ColorPalette::Accent)
         .state("root", StateCondition::Hover, hover_surface_declarations())
-        // `data-disabled` を recipe が消費する（イシュー #1425 で方針転換。
-        // 本モジュール冒頭 rustdoc「`data-disabled` を recipe が消費しない」
-        // 旧記述はここで解消した。`recipe_with_scope` は `download_trigger`
-        // と宣言を共有するため、`download_trigger` 側にも同じ規則が波及する
-        // が、`download_trigger` は `disabled` を持たない設計（`crate::download_trigger`
-        // rustdoc 参照）のため実害はなく dead CSS の混入に留まる）。
+        // `data-disabled` を recipe が消費する（イシュー #1425 で方針転換）。
+        // `recipe_with_scope` は `download_trigger` と宣言を共有するため、
+        // `download_trigger` 側にも同じ規則が波及するが、`download_trigger`
+        // は `disabled` を持たない設計（`crate::download_trigger` rustdoc
+        // 参照）のため実害はなく dead CSS の混入に留まる。
         .state(
             "root",
             StateCondition::Attr("data-disabled"),

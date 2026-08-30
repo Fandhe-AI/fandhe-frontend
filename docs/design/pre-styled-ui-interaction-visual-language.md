@@ -10,9 +10,9 @@
 
 ## 2. 現状調査結果（実装時点で再計測）
 
-- **hover 欠落**（`cursor: pointer` を持つが `StateCondition::Hover` 未登録）: 47 モジュール（本 PR で `button.rs` を解消済み、Phase 1 以降の残数は 47）
+- **hover 欠落**（`cursor: pointer` を持つが `StateCondition::Hover` 未登録）: 計測は `button.rs` 対応前の時点で 47 モジュール。本 PR で `button.rs` を解消したため、Phase 1 以降の残数は 46
 - **disabled 未消費**（disabled を扱うが `Attr("data-disabled")` が recipe に無い）: `tabs.rs` / `select.rs` / `menu.rs` / `color_picker.rs` / `signature_pad.rs` / `steps.rs`（`steps.rs` は `Attr("disabled")` というネイティブ属性語彙を使っており `data-disabled` への統一が別途必要）。`button.rs` は本 PR で解消済み
-- **transition 欠落**（インタラクティブだが `transition` 宣言なし）: 36 モジュール（本 PR で `button.rs` を解消済み）。既存 18 モジュールはリテラル duration（`0.15s` 等）を個別に手書きしており、本イシューが定めたトークンへの置換対象
+- **transition 欠落**（インタラクティブだが `transition` 宣言なし）: 計測は `button.rs` 対応前の時点で 36 モジュール。本 PR で `button.rs` を解消したため、Phase 1 以降の残数は 35。既存 18 モジュールはリテラル duration（`0.15s` 等）を個別に手書きしており、本イシューが定めたトークンへの置換対象
 
 いずれも `grep` による機械的再計測であり、Plan フェーズ時点の見積もりと一致した。
 
