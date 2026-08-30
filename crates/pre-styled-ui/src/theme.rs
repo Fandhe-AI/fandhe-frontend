@@ -51,6 +51,16 @@ pub enum ThemeError {
         /// 重複していたトークン名。
         name: String,
     },
+    /// [`Theme::push_z_index`] / [`Theme::upsert_z_index`] に渡された値が
+    /// `z-index` プロパティとして無効だった（イシュー #1423、codex-review
+    /// #1705 P1 指摘）。`CssValue` の文字 allowlist は満たすが、`z-index` の
+    /// 値として意味を持たない入力（例: `red` `1rem` `url(foo)`）をここで
+    /// 拒否する。許可されるのは整数（符号任意）と CSS グローバル値
+    /// （`auto` `inherit` `initial` `revert` `revert-layer` `unset`）のみ。
+    InvalidZIndexValue {
+        /// 検証に失敗した入力。
+        value: String,
+    },
 }
 
 impl fmt::Display for ThemeError {
@@ -64,6 +74,12 @@ impl fmt::Display for ThemeError {
             }
             ThemeError::DuplicateTokenName { name } => {
                 write!(f, "duplicate token name in the same group: {name:?}")
+            }
+            ThemeError::InvalidZIndexValue { value } => {
+                write!(
+                    f,
+                    "invalid z-index value (not an integer or CSS global value): {value:?}"
+                )
             }
         }
     }
@@ -557,8 +573,24 @@ impl Theme {
     /// # Errors
     ///
     /// [`Theme::push_color`] と同様（`name`/`value` の検証・重複拒否）。
+    /// # Errors
+    ///
+    /// - `name` が [`TokenName`] の命名規則を満たさない場合
+    /// - `value` が `z-index` として無効な場合（[`ThemeError::InvalidZIndexValue`]。
+    ///   整数と CSS グローバル値のみ許可、詳細は同バリアントの rustdoc 参照）
+    /// - `name` が z-indices グループ内で既に登録済みの場合（[`ThemeError::DuplicateTokenName`]）
     pub fn push_z_index(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
-        push_scale(&mut self.z_indices, name, value)
+        let name = TokenName::new(name)?;
+        let value = validate_z_index_value(value)?;
+
+        if self.z_indices.iter().any(|t| t.name == name) {
+            return Err(ThemeError::DuplicateTokenName {
+                name: name.as_str().to_string(),
+            });
+        }
+
+        self.z_indices.push(ScaleToken { name, value });
+        Ok(())
     }
 
     /// ライト/ダーク値を持つ色トークンを追加、または既存トークンを上書きする
@@ -636,8 +668,21 @@ impl Theme {
     /// # Errors
     ///
     /// `name` / `value` のいずれかが allowlist 検証を通過しない場合。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `value` のいずれかが検証を通過しない場合。`value` の検証は
+    /// [`Theme::push_z_index`] と同一（[`ThemeError::InvalidZIndexValue`]）。
     pub fn upsert_z_index(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
-        upsert_scale(&mut self.z_indices, name, value)
+        let name = TokenName::new(name)?;
+        let value = validate_z_index_value(value)?;
+
+        if let Some(existing) = self.z_indices.iter_mut().find(|t| t.name == name) {
+            existing.value = value;
+        } else {
+            self.z_indices.push(ScaleToken { name, value });
+        }
+        Ok(())
     }
 
     /// テーマを決定的なプレーン CSS 文字列へ変換する。
@@ -750,6 +795,41 @@ impl Theme {
                 token.dark.as_str()
             ));
         }
+    }
+}
+
+/// [`Theme::push_z_index`] / [`Theme::upsert_z_index`] 共通の値検証ロジック
+/// （イシュー #1423、codex-review #1705 P1 指摘）。
+///
+/// [`CssValue::new`] の文字 allowlist 検証に加え、`z-index` プロパティとして
+/// 意味を持つ値のみを許可する: 符号任意の整数（`-1` `0` `1600` 等）、または
+/// CSS グローバル値（`auto` `inherit` `initial` `revert` `revert-layer`
+/// `unset`）。`red` `1rem` `url(foo)` のような文字集合は満たすが `z-index` と
+/// しては無効な値をここで拒否する（ブラウザに宣言ごと破棄され重なり順が
+/// 失われるのを防ぐ）。
+///
+/// # Errors
+///
+/// [`CssValue::new`] が失敗した場合は [`ThemeError::InvalidCssValue`]、文字集合は
+/// 満たすが整数でも既知のグローバル値でもない場合は
+/// [`ThemeError::InvalidZIndexValue`] を返す。
+fn validate_z_index_value(value: &str) -> Result<CssValue, ThemeError> {
+    let css_value = CssValue::new(value)?;
+    let s = css_value.as_str();
+
+    let numeric_part = s.strip_prefix('-').unwrap_or(s);
+    let is_integer = !numeric_part.is_empty() && numeric_part.bytes().all(|b| b.is_ascii_digit());
+    let is_global_keyword = matches!(
+        s,
+        "auto" | "inherit" | "initial" | "revert" | "revert-layer" | "unset"
+    );
+
+    if is_integer || is_global_keyword {
+        Ok(css_value)
+    } else {
+        Err(ThemeError::InvalidZIndexValue {
+            value: value.to_string(),
+        })
     }
 }
 
@@ -1163,6 +1243,60 @@ mod tests {
         theme.push_z_index("toast", "1600").unwrap();
         theme.upsert_z_index("toast", "1650").unwrap();
         assert!(theme.to_css().contains("--fandhe-z-index-toast: 1650;"));
+    }
+
+    /// codex-review #1705 P1 指摘の回帰テスト: `CssValue` の文字 allowlist は
+    /// 満たすが `z-index` プロパティとしては無効な値（色名・単位付き寸法・
+    /// `url()`）を `push_z_index` が拒否することを固定する。
+    #[test]
+    fn push_z_index_rejects_non_integer_non_keyword_values() {
+        let mut theme = Theme::empty();
+        assert_eq!(
+            theme.push_z_index("bad", "red"),
+            Err(ThemeError::InvalidZIndexValue {
+                value: "red".to_string(),
+            })
+        );
+        assert_eq!(
+            theme.push_z_index("bad", "1rem"),
+            Err(ThemeError::InvalidZIndexValue {
+                value: "1rem".to_string(),
+            })
+        );
+        assert_eq!(
+            theme.push_z_index("bad", "url(foo)"),
+            Err(ThemeError::InvalidZIndexValue {
+                value: "url(foo)".to_string(),
+            })
+        );
+        // 拒否した場合は一切追加されない。
+        assert!(theme.to_css().is_empty() || !theme.to_css().contains("z-index-bad"));
+    }
+
+    /// 同上の回帰テスト（`upsert_z_index` 側）。
+    #[test]
+    fn upsert_z_index_rejects_non_integer_non_keyword_values() {
+        let mut theme = Theme::empty();
+        assert_eq!(
+            theme.upsert_z_index("bad", "1rem"),
+            Err(ThemeError::InvalidZIndexValue {
+                value: "1rem".to_string(),
+            })
+        );
+    }
+
+    /// 整数（符号付き含む）と CSS グローバル値は許可されることを固定する。
+    #[test]
+    fn push_z_index_accepts_integers_and_global_keywords() {
+        let mut theme = Theme::empty();
+        theme.push_z_index("neg", "-1").unwrap();
+        theme.push_z_index("zero", "0").unwrap();
+        theme.push_z_index("big", "2147483647").unwrap();
+        theme.push_z_index("auto", "auto").unwrap();
+        theme.push_z_index("inherited", "inherit").unwrap();
+        let css = theme.to_css();
+        assert!(css.contains("--fandhe-z-index-neg: -1;"));
+        assert!(css.contains("--fandhe-z-index-auto: auto;"));
     }
 
     #[test]
