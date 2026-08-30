@@ -120,13 +120,13 @@ const RADIO_GROUP_GOLDEN_CSS: &str = r#"[data-scope="radio-group"][data-part="ro
 }
 
 [data-scope="radio-group"][data-part="item"]:focus-within {
-  outline: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width) solid var(--fandhe-palette, var(--fandhe-color-focus-ring));
+  outline-offset: var(--fandhe-focus-ring-offset);
 }
 
 [data-scope="radio-group"][data-part="item-control"][data-focus-visible] {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width) solid var(--fandhe-color-focus-ring);
+  outline-offset: var(--fandhe-focus-ring-offset);
 }
 "#;
 

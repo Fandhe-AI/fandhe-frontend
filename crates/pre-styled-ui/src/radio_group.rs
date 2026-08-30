@@ -101,7 +101,8 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    focus_ring_declarations, palette_declarations, ColorPalette, FocusRingColor, FocusRingOffset,
+    Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -231,27 +232,25 @@ fn recipe() -> SlotRecipe {
         // イシュー #683: visually-hidden 化した `item-hidden-input` へ実
         // フォーカスがあるときのフォーカスリングを、祖先 `item`
         // （モジュール rustdoc 参照）へ `:focus-within` で反映する。
+        // イシュー #1424: フォーカスリング規約に従い canonical ヘルパへ
+        // 移行（`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+        // §3）。`palette` 軸を公開する部品のため
+        // `FocusRingColor::Palette`（`var(--fandhe-palette, var(--fandhe-color-focus-ring))`）
+        // を使う。
         .state(
             "item",
             StateCondition::FocusWithin,
-            vec![
-                decl(
-                    "outline",
-                    "2px solid var(--fandhe-palette, var(--fandhe-color-accent))",
-                ),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         // イシュー #709: wasm 層が付け外しする `data-focus-visible` による
         // キーボード操作専用のフォーカスリング（`:focus-within` の no-JS
         // フォールバックとは独立に共存する。モジュール rustdoc 参照）。
+        // イシュー #1424: こちらは `palette` 非連動の直接トークン参照
+        // （`FocusRingColor::Token`）。
         .state(
             "item-control",
             StateCondition::Attr("data-focus-visible"),
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .variant(
             Size::Sm,
@@ -415,11 +414,13 @@ mod tests {
     fn item_focus_within_gets_accent_outline_ring() {
         // イシュー #683 受け入れ条件: visually-hidden 化した `item-hidden-input`
         // への実フォーカスが、祖先 `item` の `:focus-within` として反映される。
+        // イシュー #1424 でリング色がフォーカスリング専用トークン
+        // （`--fandhe-color-focus-ring`）経由の canonical 形へ移行した。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="radio-group"][data-part="item"]:focus-within {"#));
-        assert!(
-            css.contains("outline: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));")
-        );
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width) solid var(--fandhe-palette, var(--fandhe-color-focus-ring));"
+        ));
     }
 
     // --- variant クラス（イシュー #708） ---

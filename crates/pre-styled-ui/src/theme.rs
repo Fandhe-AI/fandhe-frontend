@@ -248,6 +248,10 @@ pub struct Theme {
     shadows: Vec<DualModeToken>,
     /// 重なり順（`z-index`）のモード非依存スケール（イシュー #1423）。
     z_indices: Vec<ScaleToken>,
+    /// フォーカスリングの寸法（`width`/`offset`）のモード非依存スケール
+    /// （イシュー #1424）。リング色は `colors` グループ（`focus-ring`）が
+    /// 担う（ダークモード追従のため）。
+    focus_ring: Vec<ScaleToken>,
 }
 
 impl Default for Theme {
@@ -268,6 +272,7 @@ impl Default for Theme {
             radii: Vec::new(),
             shadows: Vec::new(),
             z_indices: Vec::new(),
+            focus_ring: Vec::new(),
         };
 
         for (name, light, dark) in DEFAULT_COLORS {
@@ -297,6 +302,11 @@ impl Default for Theme {
         }
         for (name, value) in DEFAULT_Z_INDICES {
             theme.push_z_index(name, value).expect(
+                "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
+            );
+        }
+        for (name, value) in DEFAULT_FOCUS_RING {
+            theme.push_focus_ring(name, value).expect(
                 "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
             );
         }
@@ -342,6 +352,12 @@ const DEFAULT_COLORS: &[(&str, &str, &str)] = &[
     ("chart-4", "#805ad5", "#b794f4"),
     ("chart-5", "#d53f8c", "#f687b3"),
     ("chart-6", "#00a3c4", "#76e4f7"),
+    // フォーカスリング専用色トークン（イシュー #1424）。値は既存の
+    // accent（light）/ info dark（dark）と同値だが、`accent` トークンの
+    // 意味（アクセントカラー全般）から独立させることで、フォーカスリング
+    // 色だけを差し替えたい場合に他の accent 用途へ波及しない
+    // （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` 参照）。
+    ("focus-ring", "#3182ce", "#63b3ed"),
 ];
 
 /// 既定の角丸トークン（name, value）。モード非依存。既存 styled 部品
@@ -476,6 +492,16 @@ const DEFAULT_Z_INDICES: &[(&str, &str)] = &[
     ("max", "2147483647"),
 ];
 
+/// 既定のフォーカスリング寸法トークン（name, value）。モード非依存
+/// （イシュー #1424）。`width`/`offset` を分離トークン化することで、
+/// `crates/pre-styled-ui/src/recipe.rs::focus_ring_declarations` が
+/// 太さ・オフセットを個別に参照でき、太さのみ・オフセットのみの変更が
+/// 1 箇所で完結する（規約の詳細は
+/// `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` 参照）。
+/// リング色は色トークン（`DEFAULT_COLORS` の `focus-ring`）で別管理する
+/// （ダークモード追従が必要なため `colors` グループが担う）。
+const DEFAULT_FOCUS_RING: &[(&str, &str)] = &[("width", "2px"), ("offset", "2px")];
+
 impl Theme {
     /// 空のテーマを構築する（既定トークンなし）。カスタムテーマをゼロから
     /// 組み立てたい呼び出し元向け。既定パレットが欲しい場合は
@@ -489,6 +515,7 @@ impl Theme {
             radii: Vec::new(),
             shadows: Vec::new(),
             z_indices: Vec::new(),
+            focus_ring: Vec::new(),
         }
     }
 
@@ -599,6 +626,18 @@ impl Theme {
         Ok(())
     }
 
+    /// モード非依存のフォーカスリング寸法（`width`/`offset`）トークンを追加
+    /// する（イシュー #1424）。`crates/pre-styled-ui/src/recipe.rs::focus_ring_declarations`
+    /// が `outline-width`/`outline-offset` の値として参照する想定のトークン。
+    /// リング色は [`Theme::push_color`]（`focus-ring` 名）が担う。
+    ///
+    /// # Errors
+    ///
+    /// [`Theme::push_color`] と同様（`name`/`value` の検証・重複拒否）。
+    pub fn push_focus_ring(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        push_scale(&mut self.focus_ring, name, value)
+    }
+
     /// ライト/ダーク値を持つ色トークンを追加、または既存トークンを上書きする
     /// （イシュー #1138）。
     ///
@@ -691,15 +730,28 @@ impl Theme {
         Ok(())
     }
 
+    /// モード非依存のフォーカスリング寸法（`width`/`offset`）トークンを追加、
+    /// または既存トークンを上書きする（イシュー #1424）。セマンティクスは
+    /// [`Theme::upsert_color`] 参照。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `value` のいずれかが allowlist 検証を通過しない場合。
+    pub fn upsert_focus_ring(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        upsert_scale(&mut self.focus_ring, name, value)
+    }
+
     /// テーマを決定的なプレーン CSS 文字列へ変換する。
     ///
     /// 出力構造（固定順、`docs` は伴わず本 rustdoc が正）:
     ///
     /// 1. `:root { color-scheme: light dark; --fandhe-... }`（light 値、
-    ///    colors → spaces → typography → radii → shadows → z-indices の順。
-    ///    radii/z-indices はモード非依存のため 1 値、shadows は light 値を
-    ///    ここに出力する。イシュー #606 で追加した radii/shadows、イシュー
-    ///    #1423 で追加した z-indices はいずれも末尾に純追加する構成のため、
+    ///    colors → spaces → typography → radii → shadows → z-indices →
+    ///    focus-ring の順。radii/z-indices/focus-ring はモード非依存のため
+    ///    1 値、shadows は light 値をここに出力する。イシュー #606 で追加した
+    ///    radii/shadows、イシュー #1423 で追加した z-indices、イシュー #1424
+    ///    で追加した focus-ring（寸法。リング色は `colors` グループの
+    ///    `focus-ring` エントリが担う）はいずれも末尾に純追加する構成のため、
     ///    当該グループを push しないテーマの出力は追加前とバイト同一になる）
     /// 2. `:root[data-theme="light"] { color-scheme: light; }`
     /// 3. `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }`
@@ -757,6 +809,13 @@ impl Theme {
         for token in &self.z_indices {
             out.push_str(&format!(
                 "  {VAR_PREFIX}-z-index-{}: {};\n",
+                token.name.as_str(),
+                token.value.as_str()
+            ));
+        }
+        for token in &self.focus_ring {
+            out.push_str(&format!(
+                "  {VAR_PREFIX}-focus-ring-{}: {};\n",
                 token.name.as_str(),
                 token.value.as_str()
             ));
@@ -951,6 +1010,20 @@ pub fn shadow_var(name: &str) -> Result<String, ThemeError> {
 pub fn z_index_var(name: &str) -> Result<String, ThemeError> {
     let name = TokenName::new(name)?;
     Ok(format!("var({VAR_PREFIX}-z-index-{})", name.as_str()))
+}
+
+/// フォーカスリング寸法トークン名から `var(--fandhe-focus-ring-<name>)`
+/// 参照を組み立てる（イシュー #1424）。
+/// `crates/pre-styled-ui/src/recipe.rs::focus_ring_declarations` が
+/// `outline-width`/`outline-offset` の値として参照する想定。リング色は
+/// [`color_var`]（`focus-ring` 名）を使う。
+///
+/// # Errors
+///
+/// [`color_var`] と同様。
+pub fn focus_ring_var(name: &str) -> Result<String, ThemeError> {
+    let name = TokenName::new(name)?;
+    Ok(format!("var({VAR_PREFIX}-focus-ring-{})", name.as_str()))
 }
 
 /// タイポグラフィトークン名から `var(--fandhe-font-<name>)` 参照を組み立てる。
@@ -1386,5 +1459,63 @@ mod tests {
 
         let css = theme.to_css();
         assert!(!css.contains("--fandhe-z-index-"));
+    }
+
+    // イシュー #1424: フォーカスリングトークン（寸法グループ + 専用色）の
+    // ユニットテスト。
+
+    #[test]
+    fn focus_ring_var_builds_expected_reference() {
+        assert_eq!(
+            focus_ring_var("width").unwrap(),
+            "var(--fandhe-focus-ring-width)"
+        );
+        assert!(focus_ring_var("Width").is_err());
+    }
+
+    #[test]
+    fn push_focus_ring_rejects_duplicate_name() {
+        let mut theme = Theme::empty();
+        theme.push_focus_ring("width", "2px").unwrap();
+        assert!(theme.push_focus_ring("width", "3px").is_err());
+    }
+
+    #[test]
+    fn upsert_focus_ring_overwrites_existing_value() {
+        let mut theme = Theme::empty();
+        theme.push_focus_ring("width", "2px").unwrap();
+        theme.upsert_focus_ring("width", "3px").unwrap();
+        assert!(theme.to_css().contains("--fandhe-focus-ring-width: 3px;"));
+    }
+
+    #[test]
+    fn default_theme_includes_focus_ring_tokens() {
+        let css = Theme::default().to_css();
+        // 寸法トークン（モード非依存、:root に 1 回のみ）。
+        assert!(css.contains("--fandhe-focus-ring-width: 2px;"));
+        assert!(css.contains("--fandhe-focus-ring-offset: 2px;"));
+        assert_eq!(css.matches("--fandhe-focus-ring-width:").count(), 1);
+
+        // 専用色トークン（colors グループ経由、light は :root、dark は
+        // メディアクエリと data-theme の 2 箇所）。
+        assert!(css.contains("--fandhe-color-focus-ring: #3182ce;"));
+        assert_eq!(
+            css.matches("--fandhe-color-focus-ring: #63b3ed;").count(),
+            2,
+            "dark 値は media query と data-theme の双方に出現するはず"
+        );
+    }
+
+    #[test]
+    fn empty_theme_without_focus_ring_omits_focus_ring_vars() {
+        // focus_ring を一切 push しないテーマの `to_css()` 出力は、本イシュー
+        // （#1424）で追加した focus_ring グループの純追加であることを保証する
+        // 回帰テスト（`empty_theme_without_z_indices_omits_z_index_vars` と
+        // 対をなす）。
+        let mut theme = Theme::empty();
+        theme.push_color("bg", "#ffffff", "#111111").unwrap();
+
+        let css = theme.to_css();
+        assert!(!css.contains("--fandhe-focus-ring-"));
     }
 }

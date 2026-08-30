@@ -1,7 +1,10 @@
 [package]
 name = "fandhe-frontend-pre-styled-ui"
-# イシュー #1388: fandhe-frontend-core 0.4.3 依存追随（check-dep-versions --fix）に伴う patch バンプ。
-version = "0.41.0"
+# イシュー #1424: フォーカスリング（`--fandhe-focus-ring-*` トークン・
+# `recipe::focus_ring_declarations`）と size バリアント共通生成手段
+# （`recipe::SlotRecipe::size_variants`）を追加する公開 API 拡張のため
+# マイナーバンプ（0.x の破壊的変更ではない純追加）。
+version = "0.42.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

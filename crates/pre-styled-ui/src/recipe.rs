@@ -192,6 +192,76 @@ pub fn palette_declarations(p: ColorPalette) -> Vec<Declaration> {
     }
 }
 
+/// フォーカスリング色の参照形（イシュー #1424、規約は
+/// `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` 参照）。
+///
+/// [`focus_ring_declarations`] の第 1 引数として渡し、リング色を
+/// `--fandhe-color-focus-ring` トークンへ固定するか、
+/// [`ColorPalette`]（`palette_declarations`）が切り替える
+/// `--fandhe-palette` へフォールバック付きで連動させるかを選ぶ。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusRingColor {
+    /// `var(--fandhe-color-focus-ring)` を直接参照する（`palette` 軸を
+    /// 持たない部品、または hidden-input パターンの内側リング等）。
+    Token,
+    /// `var(--fandhe-palette, var(--fandhe-color-focus-ring))` を参照する
+    /// （`ColorPalette` 軸を公開する部品。選択中の palette があればそれを
+    /// 使い、`palette` 未設定の文脈〔`--fandhe-palette` が root 側で
+    /// 定義されない場合〕では `--fandhe-color-focus-ring` へフォールバック
+    /// する）。
+    Palette,
+}
+
+/// フォーカスリングのオフセット方向（イシュー #1424）。
+///
+/// [`focus_ring_declarations`] の第 2 引数として渡し、リングを要素の外側
+/// （既定）に描くか、内側（`overflow: hidden` な祖先の中でリングが切れる
+/// のを避けたい splitter/scroll-area 等）に描くかを選ぶ。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusRingOffset {
+    /// 要素の外側（既定）。`outline-offset: var(--fandhe-focus-ring-offset)`。
+    Outside,
+    /// 要素の内側。`outline-offset: calc(-1 * var(--fandhe-focus-ring-offset))`
+    /// （符号反転のみで表現し、専用トークンを増やさない）。
+    Inset,
+}
+
+/// フォーカスリングの canonical 宣言列を組み立てる（イシュー #1424）。
+///
+/// `outline` + `outline-offset` の 2 宣言のみで構成し、`box-shadow` による
+/// リング表現は行わない（`forced-colors: active` で `outline` の色は
+/// システム色へ強制置換され必ず描画されるが、`box-shadow` は除去される
+/// ため。`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+/// §3 参照）。値はすべて [`crate::theme`] のトークン参照
+/// （`--fandhe-focus-ring-width`/`--fandhe-focus-ring-offset`/
+/// `--fandhe-color-focus-ring`）で構成され、リテラル値をハードコードしない
+/// （太さ・オフセット・色をテーマ側 1 箇所で変更できる）。
+///
+/// 呼び出し元は [`SlotRecipe::state`] の `declarations` 引数へそのまま渡す
+/// （`StateCondition::FocusVisible`/`FocusWithin`/`Attr("data-focus-visible")`
+/// のいずれかと組み合わせる。`:focus`（`-visible`/`-within` を伴わない
+/// 直書き）と組み合わせて使わない規約は上記設計文書 §3 参照）。
+#[must_use]
+pub fn focus_ring_declarations(color: FocusRingColor, offset: FocusRingOffset) -> Vec<Declaration> {
+    let outline = match color {
+        FocusRingColor::Token => {
+            decl("outline", "var(--fandhe-focus-ring-width) solid var(--fandhe-color-focus-ring)")
+        }
+        FocusRingColor::Palette => decl(
+            "outline",
+            "var(--fandhe-focus-ring-width) solid var(--fandhe-palette, var(--fandhe-color-focus-ring))",
+        ),
+    };
+    let outline_offset = match offset {
+        FocusRingOffset::Outside => decl("outline-offset", "var(--fandhe-focus-ring-offset)"),
+        FocusRingOffset::Inset => decl(
+            "outline-offset",
+            "calc(-1 * var(--fandhe-focus-ring-offset))",
+        ),
+    };
+    vec![outline, outline_offset]
+}
+
 /// slot 1 個への base 宣言登録（内部表現）。
 struct BaseRule {
     slot: &'static str,
@@ -410,6 +480,32 @@ impl SlotRecipe {
             value: v.value(),
         });
         self
+    }
+
+    /// `size` 軸の variant 一式を一括登録する（builder、自己消費。イシュー
+    /// #1424 の size 規約における「共通生成手段」）。
+    ///
+    /// `sizes` に列挙した `(Size, declarations)` の組をそれぞれ
+    /// [`SlotRecipe::variant`] へ登録したうえで、`Size::Md` を必ず
+    /// [`SlotRecipe::default_variant`] として設定する。size 軸を持つ styled
+    /// 部品は「既定は必ず `md`」という規約
+    /// （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4）を
+    /// 個別に手書きすると既定値の設定漏れが起こり得るため、本メソッドは
+    /// その設定漏れを構造的に防ぐ（`sizes` に `Size::Md` の宣言が含まれるか
+    /// どうかに関わらず、既定 variant としては常に `Size::Md` を登録する。
+    /// `Size::Md` 用の宣言そのものを省略したい呼び出し元は `sizes` から
+    /// 単に `Size::Md` の要素を除けばよい）。
+    ///
+    /// 個別の size だけを他 slot・他条件付きで追加登録したい場合は、従来
+    /// どおり [`SlotRecipe::variant`] / [`SlotRecipe::default_variant`] を
+    /// 直接呼ぶ経路も残っている（本メソッドは追加の共通手段であり、
+    /// 既存 API を置き換えない）。
+    #[must_use]
+    pub fn size_variants(mut self, slot: &'static str, sizes: &[(Size, Vec<Declaration>)]) -> Self {
+        for (size, declarations) in sizes {
+            self = self.variant(*size, slot, declarations.clone());
+        }
+        self.default_variant(Size::Md)
     }
 
     /// 複数 variant 軸の組み合わせ条件が満たされたときの `slot` への宣言を
