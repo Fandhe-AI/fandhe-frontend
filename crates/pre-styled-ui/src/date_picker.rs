@@ -13,10 +13,69 @@
 //! 状態機械 [`fandhe_frontend_headless_ui::date_picker::DatePicker`] は
 //! **あえて**再エクスポートしない（[`crate::calendar`]/[`crate::select`] と
 //! 同じ理由）。
+//!
+//! # スタイル調整（イシュー #1471、control/input/trigger/clear-trigger
+//! パートのみ）
+//!
+//! 親 #1470（chakra-ui / ark-ui 基準への調整、Phase 2 / ルート #1420）のうち
+//! `control`/`input`/`trigger`/`clear-trigger` の 4 パートを担当する分割
+//! 1/3。分割 2/3（カレンダーグリッド、#1472）・3/3（ビュー切り替え・
+//! ポジショナ、#1473）とはファイルを共有するため、以下は本イシューが
+//! 確定した意図的差分である（combobox 1/2、PR #1744・イシュー #1467 と
+//! 同型の記録方針）:
+//!
+//! - **radius トークン化**: `input`/`trigger` の `border-radius`（生
+//!   `0.375rem`）を `var(--fandhe-radius-md)` へ置換した。`root`/`label`/
+//!   `positioner`/`content` は 2/3・3/3 のスコープのため変更しない
+//! - **canonical フォーカスリング**: `input`/`trigger` の
+//!   `:focus-visible` を [`crate::recipe::focus_ring_declarations`]
+//!   （`FocusRingColor::Token`、date-picker は palette 軸を持たないため）
+//!   へ置換した。`trigger` はハードコードの `outline: 2px solid
+//!   var(--fandhe-color-accent)` を、`input` は `border-color` のみの
+//!   弱い表現をそれぞれ置き換えている
+//! - **hover は `trigger`/`clear-trigger` にのみ付ける**: `control` は
+//!   レイアウトのみのコンテナ（headless が `data-state` のみを出し、
+//!   クリック操作を担わない）で hover 対象としない。`input` はテキスト
+//!   入力面であり参照サイト（chakra-ui/ark-ui）もこの面自体への hover
+//!   表現を持たないため対象外とする（combobox 1/2 の `control`/`input` と
+//!   同じ判断軸）。`trigger`/`clear-trigger`（クリック操作を担う slot）
+//!   にのみ [`crate::recipe::hover_bg_muted`]（`--fandhe-hover-bg` 定義）+
+//!   `.state(slot, StateCondition::Hover,
+//!   crate::recipe::hover_surface_declarations())`（実適用）を付ける
+//! - **disabled 視覚は `input`/`trigger` のみに付ける**: headless
+//!   （`crates/headless-ui/src/date_picker.rs`）が `data-disabled` を出すのは
+//!   `input`/`trigger` のみで、`control`/`clear-trigger` へは出さないため
+//!   本 CSS 側でも対象外とする（消費できない属性へ規則を書かない、
+//!   combobox 1/2 と同じ判断）
+//! - **`control` は変更しない**: border を持たない純レイアウトコンテナで
+//!   あり、headless も `data-state` 以外の状態属性を出さないため、7 軸
+//!   チェックリスト上で是正対象がない
+//! - `clear-trigger`（`<button>`）にブラウザ既定のボタン装飾（border・
+//!   背景）が露出していた実不具合を是正し、`trigger` と同じリセット
+//!   （`display: inline-flex`/`align-items: center`/`justify-content:
+//!   center`/`background: transparent`/`border: none`）+
+//!   `border-radius: var(--fandhe-radius-sm)` + `hover_bg_muted()` を
+//!   追加した（combobox 1/2 の `clear-trigger` 是正と同型）。headless が
+//!   `clear-trigger` へ `data-disabled` を出さないため disabled 視覚は
+//!   付けない
+//! - **transition は純追加**: `input`/`trigger`/`clear-trigger` へ
+//!   [`crate::recipe::transition_declarations`] を `base` の 2 個目登録
+//!   （同一 slot への複数回 `.base()` 登録は出力順で連結される）として
+//!   追加し、既存 `base` ブロックは書き換えない
+//! - **variant 軸（chakra の `outline`/`subtle` 相当）の追加は見送る**:
+//!   `root()` シグネチャ変更（破壊的）を伴い Forms 家族横断の軸判断で
+//!   あるため、部品単独で先行しない（checkbox 1/2・combobox 1/2 と同じ
+//!   判断軸）
+//! - **size 連動の `font-size` 追加は見送る**: 同上の横断判断のため
+//!   見送る
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
+};
 
 pub use fandhe_frontend_headless_ui::date_picker::{
     clear_trigger, content, control, input, label, positioner, trigger,
@@ -66,12 +125,19 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl(
                     "padding",
                     "var(--fandhe-date-picker-input-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
                 ),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（combobox 1/2、
+        // イシュー #1467 の transition 追加と同型のパターン）。
+        .base(
+            "input",
+            transition_declarations("border-color, background", MotionDuration::Fast),
         )
         .base(
             "trigger",
@@ -80,16 +146,32 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("padding", "var(--fandhe-space-2)"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "trigger",
+            transition_declarations("border-color, background, color", MotionDuration::Fast),
         )
         .base(
             "clear-trigger",
             vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("background", "transparent"),
+                decl("border", "none"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("cursor", "pointer"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "clear-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         .base(
             "positioner",
@@ -123,15 +205,39 @@ fn recipe() -> SlotRecipe {
         .state(
             "trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "input",
             StateCondition::FocusVisible,
-            vec![decl("border-color", "var(--fandhe-color-accent)")],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // headless（`crates/headless-ui/src/date_picker.rs`）が `input`/
+        // `trigger` へ出す `data-disabled` を消費する（`control`/
+        // `clear-trigger` へは出さないため対象外、モジュール rustdoc
+        // 「スタイル調整」節参照）。
+        .state(
+            "input",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // trigger/clear-trigger の hover 実適用（`--fandhe-hover-bg` の間接
+        // 参照経由、モジュール rustdoc「スタイル調整」節参照）。`control`/
+        // `input` 自体には付けない。
+        .state(
+            "trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "clear-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         .variant(
             Size::Xs,
@@ -266,5 +372,93 @@ mod tests {
         assert!(
             css.contains(r#"[data-scope="date-picker"][data-part="trigger"][data-state="open"]"#)
         );
+    }
+
+    #[test]
+    fn input_and_trigger_use_tokenized_radius_not_raw_literal() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="date-picker"][data-part="input"] {
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="date-picker"][data-part="trigger"] {
+  cursor: pointer;
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);"#
+        ));
+    }
+
+    #[test]
+    fn content_border_radius_is_untouched_raw_literal() {
+        // root/label/positioner/content は分割 2/3・3/3（#1472/#1473）の
+        // スコープであり、本イシューでは変更しない（意図的な非対称、
+        // モジュール rustdoc「スタイル調整」節参照）。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="date-picker"][data-part="content"] {
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: 0.375rem;"#
+        ));
+    }
+
+    #[test]
+    fn input_and_trigger_expose_canonical_focus_ring() {
+        let css = stylesheet();
+        let ring = "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));";
+        assert!(css.contains(ring), "css={css}");
+        // ハードコードのアウトラインが残っていないこと。
+        assert!(!css.contains("outline: 2px solid var(--fandhe-color-accent);"));
+    }
+
+    #[test]
+    fn disabled_declarations_apply_to_input_and_trigger_only() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="date-picker"][data-part="input"][data-disabled]"#));
+        assert!(css.contains(r#"[data-scope="date-picker"][data-part="trigger"][data-disabled]"#));
+        assert!(!css.contains(r#"[data-scope="date-picker"][data-part="control"][data-disabled]"#));
+        assert!(!css
+            .contains(r#"[data-scope="date-picker"][data-part="clear-trigger"][data-disabled]"#));
+        assert!(css.contains("opacity: 0.5"));
+        assert!(css.contains("cursor: not-allowed"));
+    }
+
+    #[test]
+    fn hover_rules_are_scoped_to_media_hover_query() {
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        let media_start = css
+            .find("@media (hover: hover)")
+            .expect("media block present");
+        let media_block = &css[media_start..];
+        assert!(media_block.contains(
+            r#"[data-scope="date-picker"][data-part="trigger"]:hover:not([data-disabled])"#
+        ));
+        assert!(media_block.contains(
+            r#"[data-scope="date-picker"][data-part="clear-trigger"]:hover:not([data-disabled])"#
+        ));
+    }
+
+    #[test]
+    fn clear_trigger_resets_native_button_chrome() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="date-picker"][data-part="clear-trigger"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--fandhe-radius-sm);
+  cursor: pointer;
+  color: var(--fandhe-color-fg-muted);"#
+        ));
     }
 }
