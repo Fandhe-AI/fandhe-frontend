@@ -7,6 +7,10 @@
 //! 内部でのみ組み立てて返す。ボタン自身の `aria-busy` が既に読み上げ状態を
 //! 伝えるため、公開 API の [`crate::spinner::spinner`] が持つ
 //! `role="status"` + `aria-label` のライブリージョンを二重に埋め込まない）。
+//! ただし [`icon_button`]/[`close_button`]（icon-only）は例外で、Spinner を
+//! アイコンの手前へ追加せず**置換**する（子ノードが常に 1 個の前提で正方形
+//! を保つため、モジュール内 rustdoc「size スケール・icon-only・loading」
+//! 節・`assemble` rustdoc 参照、イシュー #1449 Cursor Bugbot 指摘の是正）。
 //! また `loading: true` のときは `disabled: true` と同様に `disabled` 属性・
 //! `data-disabled`・`aria-disabled="true"` も付与し、読み込み中のクリック・
 //! 暗黙 submit による重複アクションの発火を防ぐ（Medium severity のバグ
@@ -603,6 +607,18 @@ fn spinner_size_for(size: Size) -> Size {
 /// 一箇所へ集約し、3 つの公開関数がこの契約を完全に共有することを保証する
 /// （イシュー #830。挙動の分岐は `icon_only` による class 選択への
 /// `("icon", "only")` 追加のみ）。
+///
+/// `icon_only && loading` の子ノード置換（イシュー #1449 Cursor Bugbot
+/// Medium 指摘の是正）: icon-only の正方形は `padding: 0` +
+/// `aspect-ratio: 1 / 1`（[`recipe`] 参照）で成立し、内容量に依存しない
+/// 前提で保たれている。テキストボタン（非 icon-only）と同じく Spinner を
+/// 呼び出し側アイコンの手前へ**追加**すると、`gap` を挟んで 2 個の
+/// 子要素（Spinner + アイコン）が横並びになり、コンテンツ幅が正方形の幅を
+/// 超えて横長化してしまう（アイコンボタンは元々アイコン 1 個分の内容量を
+/// 前提にしている）。icon-only かつ loading のときは呼び出し側 `children`
+/// （アイコン）を描画せず Spinner のみへ**置換**し、常に子ノード 1 個の
+/// まま正方形の前提を保つ（chakra-ui `IconButton` の `loading` 実装と同型:
+/// アイコンと Spinner を並べず Spinner がアイコンの代役を務める）。
 fn assemble<'a>(
     props: &ButtonProps,
     icon_only: bool,
@@ -632,14 +648,22 @@ fn assemble<'a>(
     }
     merged.extend(drop_class_attr(attrs));
 
-    let mut node_children = Vec::with_capacity(children.len() + 1);
-    if props.loading {
-        node_children.push(spinner_decorative(
-            spinner_size_for(props.size),
-            props.palette,
-        ));
-    }
-    node_children.extend(children);
+    let node_children = if props.loading {
+        let spinner = spinner_decorative(spinner_size_for(props.size), props.palette);
+        if icon_only {
+            // 上記 rustdoc 参照: icon-only は正方形（padding: 0 +
+            // aspect-ratio 1/1）を子ノード 1 個の内容量前提で保っている
+            // ため、アイコンを描画に含めず Spinner のみへ置換する。
+            vec![spinner]
+        } else {
+            let mut node_children = Vec::with_capacity(children.len() + 1);
+            node_children.push(spinner);
+            node_children.extend(children);
+            node_children
+        }
+    } else {
+        children
+    };
 
     ANATOMY.part("root", "button", merged, node_children)
 }
@@ -991,6 +1015,43 @@ mod tests {
         assert!(html.contains(r#"aria-disabled="true""#));
         assert!(html.contains(r#"aria-busy="true""#));
         assert!(html.contains(r#"data-scope="spinner" data-part="root""#));
+    }
+
+    /// イシュー #1449 Cursor Bugbot（Medium）指摘の是正: icon-only +
+    /// `loading: true` のとき、呼び出し側アイコンを Spinner の隣へ
+    /// 追加せず Spinner のみへ置換する（正方形の前提である「子ノード
+    /// 1 個」を保つ、`assemble` rustdoc 参照）。
+    #[test]
+    fn icon_button_loading_replaces_icon_with_spinner_instead_of_appending() {
+        let props = ButtonProps {
+            loading: true,
+            ..ButtonProps::default()
+        };
+        let html = render(&icon_button(
+            &props,
+            "Search",
+            vec![],
+            vec![text("caller-icon-marker")],
+        ));
+        assert!(html.contains(r#"data-scope="spinner" data-part="root""#));
+        assert!(
+            !html.contains("caller-icon-marker"),
+            "loading 中は呼び出し側アイコンを描画せず Spinner のみへ置換するべき: {html}"
+        );
+    }
+
+    /// 非 icon-only（テキストボタン）は従来どおり Spinner を子ノード先頭へ
+    /// 追加し、既存の `children` は描画され続ける（icon-only 例外の
+    /// 対象外であることの回帰固定）。
+    #[test]
+    fn button_loading_still_prepends_spinner_and_keeps_children() {
+        let props = ButtonProps {
+            loading: true,
+            ..ButtonProps::default()
+        };
+        let html = render(&button(&props, vec![], vec![text("Save")]));
+        assert!(html.contains(r#"data-scope="spinner" data-part="root""#));
+        assert!(html.contains("Save"));
     }
 
     #[test]

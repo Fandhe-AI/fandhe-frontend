@@ -198,7 +198,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # バンプは行わず 0.55.0 をそのまま維持する
 # （0.x の破壊的変更はマイナーバンプの規約、
 # `docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
-version = "0.55.0"
+# PR #1731 レビュー指摘の是正（イシュー #1449、Cursor Bugbot Medium）:
+# icon-only + `loading: true` のとき `assemble` が呼び出し側アイコンを
+# Spinner の隣へ追加していたため、`gap` を挟んだ 2 個の子要素で内容量が
+# 増え、icon-only の正方形（`padding: 0` + `aspect-ratio: 1 / 1`、内容量
+# 1 個前提）が崩れて横長化する不具合を修正した。icon-only かつ loading の
+# ときは呼び出し側アイコンを描画せず Spinner のみへ置換するよう変更した
+# （`assemble`/モジュール冒頭 rustdoc 参照）。Rust API シグネチャ・
+# `data-*` 属性は不変で描画される子ノード構成のみの是正のため patch
+# バンプする（`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+version = "0.55.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
