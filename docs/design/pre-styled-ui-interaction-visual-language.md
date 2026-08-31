@@ -48,8 +48,11 @@
 ### 4.3 `button.rs`（参照実装）
 
 - `recipe_with_scope` の `root` base へ `transition_declarations("background, border-color, color, box-shadow", MotionDuration::Fast)` を追加
-- `Solid` variant に `hover_bg_solid()`、`Outline`/`Ghost`/`Subtle` に `hover_bg_muted()` を追加
+- `Solid` variant に `hover_bg_solid()`、`Outline`/`Ghost` に `hover_bg_muted()` を追加（本節が定義する初期実装。以下はイシュー #1448 による更新）
 - `root` へ `.state(_, StateCondition::Hover, hover_surface_declarations())` と `.state(_, StateCondition::Attr("data-disabled"), disabled_declarations())` を追加
+- **イシュー #1448 での更新（`Surface`/`Plain` 追加・`Subtle` の hover 再設計を含む 6 variant 化）**:
+  - `Subtle`/`Surface`（chakra-ui v3 準拠の `palette_scale_declarations` による tint 着色面）は `hover_bg_muted()` ではなく `decl("--fandhe-hover-bg", "var(--fandhe-palette-muted)")` を直接指定する。tint 面に中立色 `bg-muted` を当てると tint → gray の不自然な遷移になるため、`hover_bg_muted()` 自体は使わず、#1425 の趣旨（既存段の再利用・新段を作らない）に沿って `--fandhe-palette-muted` を採用した意図的差分である。`Outline`/`Ghost` の hover は #1425 の参照実装（`hover_bg_muted()`）のまま変更しない
+  - `Plain`（背景・輪郭なしの最小装飾）は hover 背景変化を持たない chakra-ui v3 の `plain` に合わせ、`--fandhe-hover-bg` を `transparent` として明示定義する（未定義のまま共有 Hover state に任せると `background: var(--fandhe-hover-bg)` が computed-value time に無効化される非決定的挙動になるため、明示定義で回避する fail-closed 設計）
 
 ### 4.4 `charts::tooltip`
 
@@ -60,7 +63,7 @@
 各部品 issue は以下を確認する:
 
 1. **インタラクティブ slot 判定**: `cursor: pointer` を持つ slot、または `<button>`/`<a>`/`role=option|menuitem|tab` 等を担う slot にのみ hover を適用する
-2. **hover**: 各 variant で `--fandhe-hover-bg` を `hover_bg_solid()`/`hover_bg_muted()` のいずれかで定義し、対象 slot へ `.state(_, StateCondition::Hover, hover_surface_declarations())` を 1 本登録する
+2. **hover**: 各 variant で `--fandhe-hover-bg` を定義し、対象 slot へ `.state(_, StateCondition::Hover, hover_surface_declarations())` を 1 本登録する。定義方法は原則 `hover_bg_solid()`（solid 系）/ `hover_bg_muted()`（`Outline`/`Ghost` 等の面なし系）のいずれかだが、tint 着色面（`palette_scale_declarations` を使う variant。`Subtle`/`Surface` 参照）のように中立色 bg-muted を当てると tint → gray の不自然な遷移になる場合は `decl("--fandhe-hover-bg", "var(--fandhe-palette-muted)")` を直接指定してよい（イシュー #1448）。hover 背景変化を持たない variant（`Plain` 参照）は `transparent` を明示定義する（未定義のまま共有 Hover state に任せると computed-value time に無効化される非決定的挙動になるため）
 3. **disabled**: `Attr("data-disabled")` + `disabled_declarations()` を登録する。`:disabled` ネイティブ擬似クラスや独自の `opacity`/`cursor` 値は使わない。`steps.rs` は `Attr("disabled")` → `Attr("data-disabled")` への語彙統一も行う
 4. **transition**: 既存リテラル duration をトークン参照へ置換する。写像表: `0.15s` → `MotionDuration::Fast`、`0.2s`（`ease` 有無問わず）→ `MotionDuration::Normal`、`0.3s` → `MotionDuration::Slow`。未導入モジュールは `transition_declarations` を base へ追加する
 

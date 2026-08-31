@@ -185,7 +185,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # で双方の実体変更を統合するため同一版数への衝突をそのまま採用せず 0.54.4 へ
 # さらにパッチバンプする（0.x の破壊的変更ではない意匠調整の重複、
 # `docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
-version = "0.54.4"
+# イシュー #1448: button の variant 網羅（1/2、PR #1730）。公開 enum
+# `ButtonVariant` へ `Surface`/`Plain` を追加（利用者側の網羅 `match` を
+# 壊す 0.x 破壊的変更）し、`Subtle` の配色を中立色から palette 着色面
+# （`--fandhe-palette-subtle`/`-fg-subtle`/`-muted`）へ移行、button root へ
+# `focus_ring_declarations` によるフォーカスリング state を追加した
+# （golden CSS 実体変更）ため main 側は独立に 0.55.0 へマイナーバンプ済み
+# だった。本マージは #1449（本ブランチ、0.54.4 パッチ相当）と #1448
+# （main、0.55.0 マイナー相当）双方の button.rs 実体変更を統合するが、
+# 先行するマイナーバンプ（0.55.0）が本ブランチ側のパッチバンプ（0.54.4）
+# より既に新しいため、同一版数への偶発的衝突は生じない。よって further
+# バンプは行わず 0.55.0 をそのまま維持する
+# （0.x の破壊的変更はマイナーバンプの規約、
+# `docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+version = "0.55.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

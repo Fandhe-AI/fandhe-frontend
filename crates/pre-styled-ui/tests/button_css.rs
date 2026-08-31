@@ -16,12 +16,13 @@ use fandhe_frontend_pre_styled_ui::button;
 ///
 /// 出力順は `SlotRecipe::css`（`crates/pre-styled-ui/src/recipe.rs`）の
 /// 契約どおり「base → variants（登録順: size → variant → color-palette →
-/// icon-only）→ states（登録順: disabled → focus-visible。hover のみ
-/// `@media (hover: hover)` へ集約され常に末尾）」。size variant は
-/// イシュー #1449 で `--fandhe-size-control-*` トークン（イシュー #1678
-/// 新設）を参照するよう変更し、icon-only は 5 段の均等 padding
-/// compound variant を `padding: 0` へ簡約した（`button.rs` モジュール
-/// 冒頭 rustdoc「size スケール・icon-only・loading」節参照）。
+/// icon-only）→ states（登録順: focus-visible → data-disabled。hover のみ
+/// `@media (hover: hover)` へ集約され常に末尾）」（イシュー #1448 で
+/// focus-visible state を追加）。size variant はイシュー #1449 で
+/// `--fandhe-size-control-*` トークン（イシュー #1678 新設）を参照する
+/// よう変更し、icon-only は 5 段の均等 padding compound variant を
+/// `padding: 0` へ簡約した（`button.rs` モジュール冒頭 rustdoc「size
+/// スケール・icon-only・loading」節参照）。
 const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
   display: inline-flex;
   box-sizing: border-box;
@@ -92,10 +93,24 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
 }
 
 [data-scope="button"][data-part="root"].fd-button--variant-subtle {
-  background: var(--fandhe-color-bg-subtle);
-  color: var(--fandhe-palette);
+  background: var(--fandhe-palette-subtle);
+  color: var(--fandhe-palette-fg-subtle);
   border: none;
-  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  --fandhe-hover-bg: var(--fandhe-palette-muted);
+}
+
+[data-scope="button"][data-part="root"].fd-button--variant-surface {
+  background: var(--fandhe-palette-subtle);
+  color: var(--fandhe-palette-fg-subtle);
+  border: 1px solid var(--fandhe-palette-muted);
+  --fandhe-hover-bg: var(--fandhe-palette-muted);
+}
+
+[data-scope="button"][data-part="root"].fd-button--variant-plain {
+  background: transparent;
+  color: var(--fandhe-palette-fg-subtle);
+  border: none;
+  --fandhe-hover-bg: transparent;
 }
 
 [data-scope="button"][data-part="root"].fd-button--color-palette-accent {
@@ -157,14 +172,14 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
   padding: 0;
 }
 
-[data-scope="button"][data-part="root"][data-disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 [data-scope="button"][data-part="root"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="button"][data-part="root"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @media (hover: hover) {

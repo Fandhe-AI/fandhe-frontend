@@ -1037,6 +1037,8 @@ fn button_section() -> Node {
         (ButtonVariant::Outline, "Outline"),
         (ButtonVariant::Ghost, "Ghost"),
         (ButtonVariant::Subtle, "Subtle"),
+        (ButtonVariant::Surface, "Surface"),
+        (ButtonVariant::Plain, "Plain"),
     ];
     let variant_row = row(variants
         .iter()
@@ -1172,6 +1174,8 @@ fn download_trigger_section() -> Node {
         (ButtonVariant::Outline, "Outline"),
         (ButtonVariant::Ghost, "Ghost"),
         (ButtonVariant::Subtle, "Subtle"),
+        (ButtonVariant::Surface, "Surface"),
+        (ButtonVariant::Plain, "Plain"),
     ];
     let variant_row = row(variants
         .iter()
