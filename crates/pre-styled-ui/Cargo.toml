@@ -92,7 +92,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更（rustdoc・レビュー可能な判断記録の追加）を伴うため .claude/rules/
 # coding-rust.md の semver バンプ運用に従いパッチバンプする
 # （docs/ci/style-refresh-version-bump-operation.md §3.4a）。
-version = "0.53.2"
+# イシュー #1442: text の rustdoc へ参考サイト基準（chakra-ui / Radix Themes
+# Text）との 7 軸比較節を追加し、7 軸比較の結果に基づき `TextSize` へ
+# `Xl2`/`Xl3`/`Xl4`（[`crate::heading`] と同じテーマトークン全 8 段網羅）を
+# 追加、新規 `TextWeight` 軸（`Normal`/`Medium`/`Semibold`/`Bold`）と
+# `TextProps::weight` フィールドを追加した。enum variant・pub フィールドの
+# 追加は 0.x の破壊的変更（既存の網羅的パターンマッチ・フィールド列挙
+# コンストラクタ呼び出し元がコンパイルエラーになりうる）にあたるため、
+# .claude/rules/coding-rust.md の semver バンプ運用に従いマイナーバンプする。
+version = "0.54.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
