@@ -197,19 +197,24 @@ const SLOTS: &[&str] = &["root", "control", "indicator", "label", "hidden-input"
 /// `root`（[`crate::recipe::palette_declarations`]）を経由しない headless
 /// 直接利用マークアップでは `--fandhe-palette-emphasized` が未定義となり
 /// `background: var(--fandhe-hover-bg)` が computed-value time に無効化
-/// されて hover 面が透明へ戻る回帰を生む（レビュー指摘）。本モジュールの
-/// 他の checked/indeterminate 宣言（border-color/background）と同じ
-/// `var(--fandhe-palette-emphasized, var(--fandhe-palette,
-/// var(--fandhe-color-accent)))` フォールバック連鎖を適用し、モジュール冒頭
-/// rustdoc が約束する fail-safe（styled root 非経由でも現行外観を維持する）
-/// を hover 面にも及ぼす。[`crate::recipe::hover_bg_solid`] 自体は button 等
-/// 他部品からも参照される共有ヘルパであり、本 Issue（#1454, root/control/
-/// indicator パート）のスコープ外である他部品の挙動を変えないよう、
-/// 修正はここへ局所化する。
+/// されて hover 面が透明へ戻る回帰を生む（レビュー指摘）。
+///
+/// フォールバック先は `--fandhe-color-accent`（rest state の fill トークン）
+/// **ではなく** `--fandhe-color-accent-emphasized` とする（[`crate::link`]
+/// の hover 規則と同型、PR #1734 Cursor Bugbot 指摘の是正）。前者へ
+/// フォールバックすると、styled `root` を経由しない headless 直接利用
+/// マークアップで checked/indeterminate の hover が rest state（`background:
+/// var(--fandhe-palette, var(--fandhe-color-accent))`）と同色になり、
+/// fail-safe が hover 外観そのものを失ってしまう。中間項の
+/// `--fandhe-palette`（emphasized ではなく base の fill トークン）も同じ
+/// 理由で連鎖に含めない: styled root 利用時は `palette_scale_declarations`
+/// が `--fandhe-palette-emphasized`/`--fandhe-palette` を常に同時定義する
+/// ため中間項が単独で効く場面はなく、含めると headless 直接利用時に
+/// 誤って rest state 色へ落ちる経路を新設するだけになる。
 fn hover_bg_solid_with_fallback() -> Declaration {
     decl(
         "--fandhe-hover-bg",
-        "var(--fandhe-palette-emphasized, var(--fandhe-palette, var(--fandhe-color-accent)))",
+        "var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized))",
     )
 }
 
@@ -580,7 +585,7 @@ mod tests {
             r#"[data-scope="checkbox"][data-part="control"][data-state="checked"] {
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   background: var(--fandhe-palette, var(--fandhe-color-accent));
-  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-palette, var(--fandhe-color-accent)));
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
 }"#
         ));
         assert!(css.contains(

@@ -175,13 +175,13 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
 [data-scope="checkbox"][data-part="control"][data-state="checked"] {
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   background: var(--fandhe-palette, var(--fandhe-color-accent));
-  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-palette, var(--fandhe-color-accent)));
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
 }
 
 [data-scope="checkbox"][data-part="control"][data-state="indeterminate"] {
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   background: var(--fandhe-palette, var(--fandhe-color-accent));
-  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-palette, var(--fandhe-color-accent)));
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
 }
 
 [data-scope="checkbox"][data-part="control"][data-invalid] {
