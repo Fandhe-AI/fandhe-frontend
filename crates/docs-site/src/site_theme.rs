@@ -1500,13 +1500,15 @@ fn typography_css() -> Result<String, SiteThemeError> {
     )?;
 
     // ---- 強調（em のミラー）----
+    //
+    // イシュー #1433: 参考サイト（chakra-ui / Radix Themes）7 軸比較の
+    // 結果、font-weight は本文から継承させる（medium への上書きは参照
+    // サイトのいずれにも無い装飾のため廃止）。詳細は
+    // `fandhe_frontend_pre_styled_ui::em` モジュール rustdoc 参照。
     push_typography_rule(
         &mut out,
         ".docs-content em",
-        &[
-            decl("font-style", "italic"),
-            decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
-        ],
+        &[decl("font-style", "italic")],
     )?;
 
     // ---- テーブル（対応する pre-styled-ui 部品なし、対象外事項として

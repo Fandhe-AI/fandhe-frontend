@@ -5,8 +5,12 @@
 //!
 //! [`crate::em`]（`<em>`、文法的な強勢の強調）との役割差: `strong` は
 //! 重要性・緊急性を表す強調（HTML 意味論上 `<strong>` と `<em>` は別概念）
-//! であり、見た目上も `font-weight: bold`（`em` の `medium` より太い）で
-//! 区別する。
+//! であり、見た目上も `font-weight: bold` と `font-style: italic` で
+//! 区別する。イシュー #1433 の参考サイト（chakra-ui / Radix Themes）
+//! 7 軸比較を受け、`em` は本文の font-weight を継承する（`bold` への
+//! 上書きは持たない）よう是正済みであり、両部品の役割差は「太字か
+//! 斜体か」という様式の違いで成立する（[`crate::em`] モジュール
+//! rustdoc 参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
