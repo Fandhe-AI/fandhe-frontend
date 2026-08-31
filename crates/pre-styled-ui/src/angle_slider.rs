@@ -61,6 +61,39 @@
 //! ため、通常の `:focus-visible` 疑似クラスを [`recipe`] へ直接登録する
 //! （[`StateCondition::FocusVisible`]、[`crate::slider`] と同型）。
 //!
+//! # マーカー（目盛り）は CSS-only 表現（anatomy 非追加、イシュー #1445）
+//!
+//! ark-ui の Angle Slider は外周の目盛りリングと中心点を持つが、headless
+//! `angle-slider` anatomy（`crates/headless-ui/src/angle_slider.rs`）に
+//! MarkerGroup/Marker パーツは存在しない（意図的スコープ外、headless
+//! モジュール doc に明記済み）。本イシューの対象ファイルは本モジュール
+//! （`crates/pre-styled-ui/src/angle_slider.rs`）のみであり headless 側の
+//! anatomy を増やす変更は範囲外のため、目盛り・中心点は新しい DOM 要素を
+//! 追加せず [`recipe`] の `control` `background` に多層グラデーション
+//! （`radial-gradient` の中心点 + 内側を面色で覆う `radial-gradient` +
+//! `repeating-conic-gradient` の目盛りリング + 面色）を静的リテラルとして
+//! 重ねることで再現する（先例: [`crate::color_picker`]/
+//! [`crate::color_swatch`] の複数背景レイヤー手法）。`decl()` の
+//! `&'static str` 制約によりすべてソースコード内リテラルで完結し、実行時
+//! 文字列連結は行わない（本モジュールの XSS 不変条件を保つ）。
+//!
+//! # サムの形状はニードルへ寄せない（意図的に合わせない差分）
+//!
+//! ark-ui はニードル（線 + 先端の点）形状だが、本実装は既存の「回転する
+//! 点」形状を維持する。ニードル形状にすると `transform-origin` の基準点・
+//! `--fandhe-angle` 1 点で完結する回転機構（モジュール冒頭 doc「動的な値は
+//! `--fandhe-angle` の 1 点のみ」参照）の再設計が必要になり、本イシューが
+//! 担当するトラック・サム・マーカーの見た目調整の範囲を超えるため、最小
+//! 差分（サイズ・面・フォーカスリング・hover・transition の是正のみ）に
+//! 留める。
+//!
+//! # variant 軸を追加しない（バリアント判断）
+//!
+//! ark-ui Angle Slider に variant 軸はなく、chakra-ui / Radix UI にも同種の
+//! 部品は存在しない（`docs/design/component-coverage-map.md` 参照）ため、
+//! 新しい variant 軸（`ButtonVariant` 相当）は追加しない。既存の `size`/
+//! `palette` 2 軸のみで十分であり、過不足のない状態と判断する。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく MarkerGroup/Marker・pointer ドラッグ/キーボード
@@ -70,11 +103,15 @@
 //!   AngleSlider 追加は、未公開の新バージョンを参照できないため本イシュー
 //!   のスコープ外とする（[`crate::slider`] 冒頭 rustdoc の先例どおり
 //!   crates.io 公開後に追随）。
+//! - ラベル・値テキスト（`label`/`value_text`）の型階層調整は分割 2/2
+//!   （イシュー #1446）の担当であり本イシューでは触らない。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_solid, hover_surface_declarations,
+    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `AngleSlider` 状態機械・headless 自由関数 `root`/`thumb` はあえて再
@@ -139,7 +176,7 @@ fn recipe() -> SlotRecipe {
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
         )
         .base(
             "label",
@@ -160,8 +197,19 @@ fn recipe() -> SlotRecipe {
                     "height",
                     "var(--fandhe-angle-slider-track-size, 4.5rem)",
                 ),
-                decl("border-radius", "999px"),
-                decl("background", "var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-full)"),
+                // ark-ui の「白い面 + 影 + 外周目盛りリング + 中心点」を
+                // 新しい DOM 要素を追加せず多層グラデーションで再現する
+                // （モジュール冒頭 doc「マーカーは CSS-only 表現」参照）。
+                // 手前から: (a) 中心のグレー点、(b) (c) の内側を面色で覆い
+                // 目盛りが外周のみに見えるようにするマスク層、(c) 目盛り
+                // リング（`repeating-conic-gradient`）、(d) 面色（最終層は
+                // `background` shorthand の仕様上プレーンな色のみ許容）。
+                decl(
+                    "background",
+                    "radial-gradient(circle, var(--fandhe-color-fg-muted) 0 2px, transparent 2px), radial-gradient(circle, var(--fandhe-color-bg) 0 calc(50% - 6px), transparent calc(50% - 6px)), repeating-conic-gradient(var(--fandhe-color-border) 0deg 1deg, transparent 1deg 30deg), var(--fandhe-color-bg)",
+                ),
+                decl("box-shadow", "var(--fandhe-shadow-sm)"),
             ],
         )
         .base(
@@ -188,27 +236,39 @@ fn recipe() -> SlotRecipe {
                     "calc(var(--fandhe-angle-slider-thumb-size, 0.9rem) / 2) calc(var(--fandhe-angle-slider-track-size, 4.5rem) / 2)",
                 ),
                 decl("transform", "rotate(var(--fandhe-angle, 0deg))"),
-                decl("border-radius", "999px"),
+                decl("border-radius", "var(--fandhe-radius-full)"),
                 decl(
                     "background",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
+                // hover 時の背景色差し替え用 custom property の定義（実際の
+                // `background: var(--fandhe-hover-bg)` 適用は下記
+                // `.state("thumb", StateCondition::Hover, ...)` 1 本に集約
+                // する、`crate::button` の solid variant と同型）。
+                hover_bg_solid(),
                 decl("box-sizing", "border-box"),
                 decl("cursor", "pointer"),
             ],
+        )
+        .base(
+            "thumb",
+            // `transform`（ドラッグ中の角度追従）は含めない —
+            // `--fandhe-angle` の変化に transition を掛けるとポインタ操作の
+            // 追従が遅延して見えるため、面・影のみを滑らかにする
+            // （イシュー #1425 共通ビジュアル言語の適用、`prefers-reduced-motion`
+            // は `Theme::to_css` の duration 一括 0ms 化で自動対応）。
+            transition_declarations("background, box-shadow", MotionDuration::Fast),
         )
         .state(
             "thumb",
             StateCondition::Attr("data-disabled"),
             vec![decl("cursor", "not-allowed")],
         )
+        .state("thumb", StateCondition::Hover, hover_surface_declarations())
         .state(
             "thumb",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         .variant(
             Size::Xs,
@@ -362,6 +422,40 @@ mod tests {
     fn stylesheet_links_thumb_to_focus_visible() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="angle-slider"][data-part="thumb"]:focus-visible {"#));
+        assert!(css.contains("var(--fandhe-focus-ring-width, 2px)"));
+        assert!(css.contains("var(--fandhe-focus-ring-offset, 2px)"));
+    }
+
+    #[test]
+    fn stylesheet_control_uses_full_radius_and_shadow_token() {
+        // トラック・サムはスケールトークン外のローカル値（`999px`）ではなく
+        // 共通 `--fandhe-radius-full` トークンを参照する（イシュー #1445）。
+        let css = stylesheet();
+        assert!(!css.contains("999px"));
+        assert!(css.contains("border-radius: var(--fandhe-radius-full);"));
+        assert!(css.contains("box-shadow: var(--fandhe-shadow-sm);"));
+    }
+
+    #[test]
+    fn stylesheet_control_layers_marker_gradients_without_new_dom() {
+        // マーカー（目盛り・中心点）は anatomy を増やさず `control` の
+        // `background` 多層グラデーションで表現する（モジュール冒頭 doc
+        // 「マーカーは CSS-only 表現」参照）。
+        let css = stylesheet();
+        assert!(css.contains("repeating-conic-gradient(var(--fandhe-color-border)"));
+        assert!(css.contains("radial-gradient(circle, var(--fandhe-color-fg-muted)"));
+    }
+
+    #[test]
+    fn stylesheet_links_thumb_to_hover_and_transition() {
+        let css = stylesheet();
+        assert!(css.contains("var(--fandhe-hover-bg)"));
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-palette-emphasized);"));
+        assert!(css.contains("transition-property: background, box-shadow;"));
+        // ドラッグ中の角度追従を遅延させないため `transform` は
+        // transition-property に含めない（モジュール冒頭 doc「サムの形状」
+        // に隣接するコメント、`recipe` の `thumb` transition 登録箇所参照）。
+        assert!(!css.contains("transition-property: transform"));
     }
 
     #[test]
