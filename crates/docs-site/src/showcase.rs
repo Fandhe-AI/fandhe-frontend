@@ -165,7 +165,7 @@ use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
 use fandhe_frontend_pre_styled_ui::tags_input;
-use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize};
+use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
@@ -1383,25 +1383,59 @@ fn heading_section() -> Node {
     )
 }
 
-/// Text 節: size（sm/md/lg）3 段の本文テキスト。
+/// Text 節: size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold
+/// の 4 段階）でスタイル化した本文テキスト（イシュー #1442 で拡充）。
 fn text_section() -> Node {
-    let text_stack = stack(
-        [TextSize::Sm, TextSize::Md, TextSize::Lg]
-            .iter()
-            .map(|size| {
-                styled_text(
-                    &TextProps { size: *size },
-                    vec![],
-                    vec![text(format!("本文テキスト（size={size:?}）"))],
-                )
-            })
-            .collect(),
+    let size_stack = stack(
+        [
+            TextSize::Xs,
+            TextSize::Sm,
+            TextSize::Md,
+            TextSize::Lg,
+            TextSize::Xl,
+            TextSize::Xl2,
+            TextSize::Xl3,
+            TextSize::Xl4,
+        ]
+        .iter()
+        .map(|size| {
+            styled_text(
+                &TextProps {
+                    size: *size,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(format!("本文テキスト（size={size:?}）"))],
+            )
+        })
+        .collect(),
+    );
+
+    let weight_stack = stack(
+        [
+            TextWeight::Normal,
+            TextWeight::Medium,
+            TextWeight::Semibold,
+            TextWeight::Bold,
+        ]
+        .iter()
+        .map(|weight| {
+            styled_text(
+                &TextProps {
+                    weight: *weight,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(format!("本文テキスト（weight={weight:?}）"))],
+            )
+        })
+        .collect(),
     );
 
     section(
         "Text",
-        "素の p 要素を size（sm/md/lg）でスタイル化した本文テキスト部品。",
-        vec![text_stack],
+        "素の p 要素を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold の 4 段階）でスタイル化した本文テキスト部品。",
+        vec![size_stack, weight_stack],
     )
 }
 
@@ -1533,7 +1567,11 @@ fn blockquote_section() -> Node {
     )
 }
 
-/// List 節: 順序なし（marker variant）・順序ありの 2 種。
+/// List 節: 順序なし（marker variant）・順序あり・plain + indicator の 3 種。
+///
+/// イシュー #1438: 3 つ目（`ListVariant::Plain` + [`list::indicator`]）は
+/// 参照サイト是正（indicator の間隔・整列・`Plain` variant の item
+/// 整列）を Demo 上で視覚確認できるようにするための追加。
 fn list_section() -> Node {
     let marker_list = list::root(
         ListType::Unordered,
@@ -1555,11 +1593,36 @@ fn list_section() -> Node {
             list::item(vec![], vec![text("検証")]),
         ],
     );
+    let plain_list_with_indicator = list::root(
+        ListType::Unordered,
+        ListVariant::Plain,
+        vec![],
+        vec![
+            list::item(
+                vec![],
+                vec![
+                    list::indicator(vec![], vec![text("✓")]),
+                    text("既定エスケープ"),
+                ],
+            ),
+            list::item(
+                vec![],
+                vec![
+                    list::indicator(vec![], vec![text("✓")]),
+                    text("forbid(unsafe_code)"),
+                ],
+            ),
+        ],
+    );
 
     section(
         "List",
-        "素の ul/ol/li 意味論をそのまま styled 化したリスト部品。順序なし（marker variant）・順序ありの 2 種。",
-        vec![stack(vec![marker_list, ordered_list])],
+        "素の ul/ol/li 意味論をそのまま styled 化したリスト部品。順序なし（marker variant）・順序あり・plain + indicator（カスタムマーカー）の 3 種。",
+        vec![stack(vec![
+            marker_list,
+            ordered_list,
+            plain_list_with_indicator,
+        ])],
     )
 }
 

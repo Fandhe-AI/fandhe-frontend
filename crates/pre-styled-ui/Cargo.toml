@@ -85,6 +85,30 @@ name = "fandhe-frontend-pre-styled-ui"
 # API シグネチャは不変・既存クラス名や CSS 変数の削除改名もない意匠調整の
 # ため、0.53.1 へパッチバンプする（.claude/rules/coding-rust.md、
 # docs/ci/style-refresh-version-bump-operation.md §3.4a）。
+# イシュー #1438: list（marker/plain variant）の item ::marker 色・
+# indicator 間隔・Plain variant の item 整列を是正した。Rust API シグネ
+# チャは不変の意匠調整のため独立に 0.53.1 へパッチバンプしていたが、
+# main 側（#1439）も同時に 0.53.0 → 0.53.1 へ到達しており、本マージで
+# 双方の実体変更を統合するため同一版数への偶発的衝突を避けて 0.53.2 へ
+# さらにパッチバンプする（0.x の破壊的変更ではない意匠調整の重複、
+# `docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+# イシュー #1438 codex-review P1 / Cursor Bugbot 指摘の是正: `list::css()`
+# が Plain variant の item 整列に使うセレクタが root にしか付与されない
+# variant クラスを item 自身に要求しており、実際には一致せず整列規則が
+# 適用されなかった不具合を修正した（root を祖先条件とする子孫セレクタへ
+# 変更）。Rust API シグネチャ・data-* 属性は不変で CSS 出力のみの是正の
+# ため 0.53.3 へパッチバンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+# イシュー #1438 codex-review P1 再指摘・Cursor Bugbot（Medium/Low）指摘の
+# 追加是正: 前項の子孫セレクタ化だけでは `display: inline-flex` が item を
+# インラインレベルのボックス化してしまい、複数の短い item が縦積みされず
+# 同じ行に横並びしてしまう不具合が残っていたため `display: flex`
+# （block-level の flex コンテナ）へ変更した。あわせて子孫結合子のままだと
+# Plain root 配下にネストした別リスト（Marker variant 等）の item にも
+# 波及し `::marker` を消してしまう問題があったため、セレクタを子コンビ
+# ネータ（`>`）へ限定した。Rust API シグネチャ・data-* 属性は不変で CSS
+# 出力のみの是正のため 0.53.4 へパッチバンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
 # イシュー #1440: quote の rustdoc へ参考サイト基準（Radix Themes Quote）
 # との 7 軸比較節を追加した。7 軸比較の結果、CSS 出力（font-style: italic
 # の 1 宣言のみ）は変更不要と判定し recipe() は不変（Rust API シグネチャ・
@@ -92,6 +116,32 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更（rustdoc・レビュー可能な判断記録の追加）を伴うため .claude/rules/
 # coding-rust.md の semver バンプ運用に従いパッチバンプする
 # （docs/ci/style-refresh-version-bump-operation.md §3.4a）。
+# イシュー #1438: main 側（#1440）も独立に 0.53.2 へ到達しており、本
+# マージで双方の実体変更（本ブランチの list 是正・main の quote rustdoc
+# 追加）を統合するため同一版数への偶発的衝突を避けて 0.53.5 へさらに
+# パッチバンプする（0.x の破壊的変更ではない意匠調整・rustdoc 追加の
+# 重複、`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+# イシュー #1438 PR #1724 Cursor Bugbot（Medium）再指摘の是正:
+# `list::css()` の Plain variant item 規則が `flex-wrap: wrap` を無条件に
+# 付与していたため、ネストリストを持たない通常の item（indicator + 長い
+# テキスト）でも折り返し時にテキストが indicator と別の flex line へ
+# 分離してしまう不具合を修正した（`flex-wrap: wrap` を
+# `:has(> [data-part="root"])` でネスト root を持つ item のみへ限定）。
+# Rust API シグネチャ・data-* 属性は不変で CSS 出力のみの是正のため
+# 0.53.6 へパッチバンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+# base 取り込み（イシュー #1442）: main 側は #1438 の list Bugbot 是正を経て
+# 独立に 0.53.6 へ到達していたが、本ブランチは #1442 の enum variant / pub
+# フィールド追加によりマイナーバンプ済みの 0.54.0（> 0.53.6）へ到達している
+# ため、偶発的な同一版数衝突ではなく単純な採用としてそのまま 0.54.0 を維持する。
+# イシュー #1442: text の rustdoc へ参考サイト基準（chakra-ui / Radix Themes
+# Text）との 7 軸比較節を追加し、7 軸比較の結果に基づき `TextSize` へ
+# `Xl2`/`Xl3`/`Xl4`（[`crate::heading`] と同じテーマトークン全 8 段網羅）を
+# 追加、新規 `TextWeight` 軸（`Normal`/`Medium`/`Semibold`/`Bold`）と
+# `TextProps::weight` フィールドを追加した。enum variant・pub フィールドの
+# 追加は 0.x の破壊的変更（既存の網羅的パターンマッチ・フィールド列挙
+# コンストラクタ呼び出し元がコンパイルエラーになりうる）にあたるため、
+# .claude/rules/coding-rust.md の semver バンプ運用に従いマイナーバンプする。
 # イシュー #1441: strong の rustdoc へ参考サイト基準（Radix Themes Strong）
 # との 7 軸比較節を追加した。7 軸比較の結果、CSS 出力（font-weight: var(
 # --fandhe-font-font-weight-bold) の 1 宣言のみ）は変更不要と判定し
@@ -100,7 +150,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 記録の追加）を伴うため .claude/rules/coding-rust.md の semver バンプ
 # 運用に従いパッチバンプする
 # （docs/ci/style-refresh-version-bump-operation.md §3.4a）。
-version = "0.53.3"
+# base 取り込み（イシュー #1441）: main 側は #1442 のマイナーバンプで 0.54.0 へ
+# 到達しており、本ブランチの #1441 実体変更（rustdoc 追加のみ・パッチ相当）を
+# その上へ統合するため 0.54.1 へパッチバンプする（同一版数への偶発的衝突では
+# なく、main の 0.54.0 を基点とした追加バンプ。
+# `docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+version = "0.54.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

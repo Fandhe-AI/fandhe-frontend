@@ -91,7 +91,7 @@ use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
-use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize};
+use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
 use fandhe_frontend_pre_styled_ui::timer::{self, Timer, TimerControl, TimerUnit};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
@@ -170,32 +170,57 @@ const HEADING_SPEC: ComponentPageSpec = ComponentPageSpec {
 fn text_example() -> Node {
     stack(vec![
         styled_text(
-            &TextProps { size: TextSize::Sm },
+            &TextProps {
+                size: TextSize::Sm,
+                ..TextProps::default()
+            },
             vec![],
             vec![text("本文テキスト（size=sm）")],
         ),
         styled_text(
-            &TextProps { size: TextSize::Xl },
+            &TextProps {
+                size: TextSize::Xl,
+                ..TextProps::default()
+            },
             vec![],
             vec![text("本文テキスト（size=xl）")],
+        ),
+        styled_text(
+            &TextProps {
+                weight: TextWeight::Bold,
+                ..TextProps::default()
+            },
+            vec![],
+            vec![text("本文テキスト（weight=bold）")],
         ),
     ])
 }
 
-const TEXT_SPEC: ComponentPageSpec = ComponentPageSpec {
-    features: &[
-        "素の <p> 要素を size（xs/sm/md/lg/xl）でスタイル化した本文テキスト部品",
-        "variant・colorPalette 軸は持たない最小構成",
-    ],
-    arguments: &[ArgRow {
+const TEXT_ARGUMENTS: &[ArgRow] = &[
+    ArgRow {
         name: "size",
         kind: "TextSize",
         default: "Md",
-        description: "フォントサイズ・行間の視覚サイズ軸（xs/sm/md/lg/xl）。",
-    }],
+        description: "フォントサイズ・行間の視覚サイズ軸（xs/sm/md/lg/xl/xl2/xl3/xl4）。",
+    },
+    ArgRow {
+        name: "weight",
+        kind: "TextWeight",
+        default: "Normal",
+        description:
+            "フォントウェイトの視覚軸（normal/medium/semibold/bold）。イシュー #1442 で追加。",
+    },
+];
+
+const TEXT_SPEC: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "素の <p> 要素を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold）でスタイル化した本文テキスト部品",
+        "variant・colorPalette 軸は持たない最小構成",
+    ],
+    arguments: TEXT_ARGUMENTS,
     examples: &[ExampleEntry {
-        title: "size 軸",
-        description: "size（xs〜xl）で本文の視覚サイズを切り替えます。",
+        title: "size・weight 軸",
+        description: "size（xs〜xl4）・weight（normal〜bold）を独立に選べます。",
         render: text_example,
     }],
     keyboard: &[],
@@ -361,12 +386,41 @@ fn list_example() -> Node {
     ])
 }
 
+/// `ListVariant::Plain` + [`list::indicator`] の実例（イシュー #1438、
+/// indicator の間隔・整列と Plain variant の item 整列を Demo 上で視覚
+/// 確認できるようにする）。
+fn list_plain_indicator_example() -> Node {
+    list::root(
+        ListType::Unordered,
+        ListVariant::Plain,
+        vec![],
+        vec![
+            list::item(
+                vec![],
+                vec![
+                    list::indicator(vec![], vec![text("✓")]),
+                    text("既定エスケープ"),
+                ],
+            ),
+            list::item(
+                vec![],
+                vec![
+                    list::indicator(vec![], vec![text("✓")]),
+                    text("forbid(unsafe_code)"),
+                ],
+            ),
+        ],
+    )
+}
+
 const LIST_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "root（ul/ol）/item（li）/indicator（span aria-hidden）の 3 パーツで構成する",
         "ListType（Unordered/Ordered）でレンダリングするタグそのものを選ぶ",
         "ListVariant（marker/plain）でマーカー表示の有無を切り替える",
         "indicator は常時 aria-hidden=\"true\"（呼び出し側が外せない fail-closed）",
+        "marker（箇条書きの点・番号）は本文より淡いグレー（fg.muted）で描く",
+        "indicator はテキストとの間隔・行頭揃えを持ち、plain variant の item は複数行でも行頭が揃う",
     ],
     arguments: &[
         ArgRow {
@@ -382,11 +436,18 @@ const LIST_SPEC: ComponentPageSpec = ComponentPageSpec {
             description: "マーカー（箇条書き記号・番号）表示の有無。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "順序なし・順序ありの 2 種",
-        description: "ListType で ul/ol を切り替えます。",
-        render: list_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "順序なし・順序ありの 2 種",
+            description: "ListType で ul/ol を切り替えます。",
+            render: list_example,
+        },
+        ExampleEntry {
+            title: "plain + indicator（カスタムマーカー）",
+            description: "ListVariant::Plain と indicator を組み合わせ、アイコン等のカスタムマーカーを行頭に揃えて表示します。",
+            render: list_plain_indicator_example,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,
