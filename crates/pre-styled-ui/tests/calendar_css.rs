@@ -1,5 +1,6 @@
-//! styled Calendar の決定的 CSS 出力ゴールデンテスト（イシュー #1451:
-//! 月グリッドと日セルの状態表現、親トラッキング #1450）。
+//! styled Calendar の決定的 CSS 出力ゴールデンテスト（親トラッキング
+//! #1450: 分割 1/2 #1451 で新設、分割 2/2 #1452 でヘッダー・ビュー切り替え・
+//! 週表示の是正を反映して更新）。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` / `angle_slider_css.rs` の
 //! golden fixture テストの前例に倣い、`stylesheet()` が返す CSS 全文を
@@ -7,12 +8,12 @@
 //! `@media (hover: hover)`）が崩れた場合や意図しない宣言の追加・欠落が
 //! あった場合に、この golden テストが即座に検知する。
 //!
-//! 本ファイルは分割 1/2（#1451、月グリッドと日セルの状態表現：table /
-//! table-row / table-body / table-cell / day-trigger）で新設した。担当外
-//! スロット（heading / prev-trigger / next-trigger / table-header /
-//! table-head-cell / root）は分割 2/2（#1452）が是正する予定であり、
-//! そのマージ後に本ファイルの `EXPECTED_CSS` を更新する責任は 2/2 側が
-//! 負う（並列 PR 間の更新責任の明記）。
+//! 分割 1/2（#1451）は月グリッドと日セルの状態表現（table / table-row /
+//! table-body / table-cell / day-trigger）を、分割 2/2（#1452、本更新）は
+//! ヘッダー行・ナビトリガー・週ヘッダー・root 枠（heading / prev-trigger /
+//! next-trigger / table-header / table-head-cell / root）を是正した。両者の
+//! 是正内容は `crates/pre-styled-ui/src/calendar.rs` モジュール冒頭 rustdoc
+//! を参照。
 //!
 //! 期待値は `crates/pre-styled-ui/src/calendar.rs::recipe` の実出力から
 //! 生成した。
@@ -23,49 +24,84 @@ use fandhe_frontend_pre_styled_ui::calendar;
 ///
 /// 出力順は `SlotRecipe::css`（`crates/pre-styled-ui/src/recipe.rs`）の
 /// 契約どおり「base（`SLOTS` 宣言順: root → heading → prev-trigger →
-/// next-trigger → table → table-head-cell → table-cell → day-trigger →
+/// prev-trigger transition base → next-trigger → next-trigger transition
+/// base → table → table-head-cell → table-cell → day-trigger →
 /// day-trigger transition base）→ variants（登録順: size 5 段）→
 /// states（登録順: day-trigger selected → today → outside-month →
-/// disabled → focus-visible → prev-trigger disabled → next-trigger
-/// disabled）→ `@media (hover: hover)`（day-trigger hover のみ、states
-/// ループとは別集計で末尾にまとめて出力）」。
+/// disabled → focus-visible → prev-trigger disabled → hover → focus-visible
+/// → next-trigger disabled → hover → focus-visible）→
+/// `@media (hover: hover)`（day-trigger → prev-trigger → next-trigger の
+/// hover、states ループとは別集計で末尾にまとめて出力）」。
 const EXPECTED_CSS: &str = r#"[data-scope="calendar"][data-part="root"] {
-  display: inline-flex;
-  flex-direction: column;
+  display: inline-grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
   gap: var(--fandhe-space-2);
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
+  border-radius: var(--fandhe-radius-md);
   padding: var(--fandhe-calendar-root-padding, var(--fandhe-space-3));
 }
 
 [data-scope="calendar"][data-part="heading"] {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   font-weight: 600;
+  font-size: var(--fandhe-font-font-size-sm);
+  grid-row: 1;
+  grid-column: 2;
 }
 
 [data-scope="calendar"][data-part="prev-trigger"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   background: transparent;
   border: none;
   color: var(--fandhe-color-fg);
-  border-radius: 0.25rem;
+  border-radius: var(--fandhe-radius-sm);
+  width: var(--fandhe-calendar-day-size, var(--fandhe-space-8));
+  height: var(--fandhe-calendar-day-size, var(--fandhe-space-8));
+  grid-row: 1;
+  grid-column: 1;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="calendar"][data-part="prev-trigger"] {
+  transition-property: background, color, box-shadow;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="calendar"][data-part="next-trigger"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   background: transparent;
   border: none;
   color: var(--fandhe-color-fg);
-  border-radius: 0.25rem;
+  border-radius: var(--fandhe-radius-sm);
+  width: var(--fandhe-calendar-day-size, var(--fandhe-space-8));
+  height: var(--fandhe-calendar-day-size, var(--fandhe-space-8));
+  grid-row: 1;
+  grid-column: 3;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="calendar"][data-part="next-trigger"] {
+  transition-property: background, color, box-shadow;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="calendar"][data-part="table"] {
   border-collapse: collapse;
   width: 100%;
+  grid-column: 1 / -1;
 }
 
 [data-scope="calendar"][data-part="table-head-cell"] {
@@ -74,6 +110,8 @@ const EXPECTED_CSS: &str = r#"[data-scope="calendar"][data-part="root"] {
   font-weight: 500;
   padding: var(--fandhe-space-1);
   text-align: center;
+  border-width: 0;
+  background: transparent;
 }
 
 [data-scope="calendar"][data-part="table-cell"] {
@@ -152,17 +190,35 @@ const EXPECTED_CSS: &str = r#"[data-scope="calendar"][data-part="root"] {
 }
 
 [data-scope="calendar"][data-part="prev-trigger"][data-disabled] {
+  opacity: 0.5;
   cursor: not-allowed;
-  opacity: 0.4;
+}
+
+[data-scope="calendar"][data-part="prev-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="calendar"][data-part="next-trigger"][data-disabled] {
+  opacity: 0.5;
   cursor: not-allowed;
-  opacity: 0.4;
+}
+
+[data-scope="calendar"][data-part="next-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 @media (hover: hover) {
   [data-scope="calendar"][data-part="day-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="calendar"][data-part="prev-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="calendar"][data-part="next-trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
   }
 }

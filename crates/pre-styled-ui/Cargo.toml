@@ -216,6 +216,23 @@ name = "fandhe-frontend-pre-styled-ui"
 # minor バンプへ相乗りして据え置くことはできない、§5 のコンフリクト解決
 # 手順と同型: main 現在値の patch を +1 する）。よって 0.55.1 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§5）。
+# イシュー #1452（親 #1450 分割 2/2、calendar のヘッダー・ビュー切り替え・
+# 週表示是正）: `calendar::stylesheet()` の CSS 出力をさらに変更する実体
+# 変更のため、独立パッチバンプ運用（§3.4a）に従い 0.55.1 → 0.55.2 とする。
+# なお base 取り込み時点（イシュー #1449 / PR #1731）で、本ブランチは
+# button.rs（PR #1731 の Cursor Bugbot 指摘是正）、main 側は #1451
+# （calendar.rs、月グリッド・日セルの状態表現是正）によりそれぞれ独立に
+# 0.55.1 へパッチバンプ済みだった（偶発的な同一版数衝突、対象ファイルは
+# 異なる）。本コミットはさらに calendar.rs の実体変更（#1452）を重ねる
+# ため、衝突をそのまま採用せず 0.55.2 とした。
+# 追記（PR #1733 codex-review P1 是正）: その後 base（main）側で #1731
+# （button のスタイル調整 2/2）がマージされ、base の現在値は既に
+# 0.55.2 になっていた。本 PR も calendar::stylesheet() の CSS 出力を
+# さらに変更する実体変更であるため、base 現在値へ据え置くのではなく
+# base 現在値から独立にパッチを 1 つ進める必要がある（§3.1/§5 の
+# 「main 現在値の patch を +1 する」原則どおり）。よって 0.55.2 →
+# 0.55.3 とする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
 # base 取り込み（イシュー #1449 / PR #1731）: 本ブランチは PR #1731 の
 # Cursor Bugbot 指摘是正（button.rs、icon-only + loading の子ノード構成
 # 是正）により独立に 0.55.1 へパッチバンプ済みで、main 側も #1451
@@ -230,7 +247,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # transition_declarations / hover の canonical ヘルパ適用、`data-invalid` の
 # 視覚反映）。Rust API シグネチャ不変・意匠調整のみのため patch バンプ
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
-version = "0.55.3"
+# base 取り込み（イシュー #1454）: 本ブランチは checkbox のスタイル調整
+# （#1454、root/control/indicator の状態表現とフォーカスリング）により
+# 独立に 0.55.3 へパッチバンプ済みで、main 側も #1452（calendar のヘッダー・
+# ビュー切り替え・週表示是正）により独立に 0.55.3 へパッチバンプ済みだった
+# （偶発的な同一版数衝突。対象ファイルは checkbox.rs と calendar.rs で
+# 異なる実体変更）。本マージで双方の実体変更を統合するため同一版数への
+# 衝突をそのまま採用せず 0.55.4 へさらにパッチバンプする（0.x の破壊的
+# 変更ではない意匠調整の重複、
+# `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
+version = "0.55.4"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
