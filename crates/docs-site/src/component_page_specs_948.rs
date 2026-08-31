@@ -264,7 +264,8 @@ fn mark_example() -> Node {
 const MARK_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "テキストの一部を強調する単一 slot 静的部品",
-        "variant（subtle/solid/text/plain）4 種、colorPalette 5 値を持つ（badge と同型の単一 recipe パターン）",
+        "variant（subtle/solid/text/plain）4 種、colorPalette 6 値を持つ（badge と同型の単一 recipe パターン）",
+        "subtle は palette 連動の淡色背景 + 本文継承の文字色、text は透明背景 + 本文継承の文字色 + medium ウェイト（イシュー #1439 で chakra-ui 基準へ是正）",
     ],
     arguments: &[
         ArgRow {
@@ -276,7 +277,7 @@ const MARK_SPEC: ComponentPageSpec = ComponentPageSpec {
         ArgRow {
             name: "palette",
             kind: "ColorPalette",
-            default: "Accent",
+            default: "Neutral",
             description: "colorPalette 軸。",
         },
     ],

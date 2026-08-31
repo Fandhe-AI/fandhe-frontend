@@ -1,6 +1,54 @@
 //! Mark（イシュー #771）: 単一 recipe styled 部品。テキストハイライト
 //! （`<mark>`）を `variant`/`colorPalette` の 2 軸で組み立てる
 //! （[`crate::badge`] と同型の単一 recipe パターン）。
+//!
+//! # イシュー #1439 の参照サイト比較（7 軸チェック）
+//!
+//! chakra-ui（`typography/mark.md`）とスクリーンショット比較した結果を
+//! 記録する（Radix Themes に Mark 相当なし、ark-ui は headless utility の
+//! みで独自スタイルを持たない）。
+//!
+//! - **サイズ**: 軸を新設しない。
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4(c)
+//!   の保有判定基準により、mark は size 軸を持たない Typography 周辺部品
+//!   と確定済み。
+//! - **バリアント**: `subtle`（既定）/`solid`/`text`/`plain` の 4 値は
+//!   chakra と一致しており追加なし。
+//! - **subtle（既定）の是正**: 旧実装は `background:
+//!   var(--fandhe-color-bg-subtle)`（中立背景固定）+
+//!   `color: var(--fandhe-palette)`（色付き文字）だったが、chakra は
+//!   `bg: colorPalette.subtle`（palette 連動の淡色背景）+
+//!   `color: inherit`（文字色は本文を継承）と定義している。本 issue で
+//!   `background: var(--fandhe-palette-subtle)` + `color: inherit` へ
+//!   是正した。[`crate::code`]（#1432）の subtle は
+//!   `--fandhe-palette-fg-subtle`（色付き文字）を採るが、これは chakra
+//!   側で Code と Mark の subtle 定義そのものが異なる（Code は色付き fg・
+//!   Mark は inherit）ことの反映であり、両部品間の不整合ではない。
+//! - **text の是正**: 旧実装は `background: transparent` +
+//!   `color: var(--fandhe-palette)`（色付き文字）だったが、chakra の
+//!   Mark text は `fontWeight: medium` のみを持ち色は inherit のため、
+//!   `background: transparent` + `color: inherit` +
+//!   `font-weight: var(--fandhe-font-font-weight-medium)` へ是正した。
+//! - **solid/plain**: chakra と一致しており変更なし。
+//! - **既定 palette の是正**: 旧既定 [`ColorPalette::Accent`] は chakra の
+//!   既定 colorPalette（`gray`）と乖離していたため、[`ColorPalette::Neutral`]
+//!   へ是正した（[`crate::code`] #1432・kbd #1721 と同一判断。#1711 が
+//!   Phase 1 部品側の宿題として残した「subtle 系配色の 6 役割移行」を
+//!   本 issue で消化する）。
+//! - **`data-*` 状態**: `data-scope`/`data-part` のみを持つ静的部品であり
+//!   変更なし。
+//! - **ダーク**: 全宣言が `--fandhe-*` トークン参照のみ（生色リテラル
+//!   なし）のため `write_dark_declarations` の一元機構に自動追従する。
+//! - **状態（hover/disabled/transition）・フォーカスリング**: 適用しない
+//!   （意図的）。mark は非インタラクティブな表示専用部品であり、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md`
+//!   （hover はインタラクティブ slot のみ）・
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+//!   （フォーカスリングはフォーカス対象部品のみ）のいずれの適用対象にも
+//!   当たらない（[`crate::code`]・[`crate::highlight`] と同一判断）。
+//! - **`white-space: nowrap`**: chakra base はこれを持つが、意図的に
+//!   非採用とする。日本語文中の複数語・長句ハイライトで折り返し不能に
+//!   なり本文レイアウトを壊すため（フレームワークの国際化前提を優先）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -45,8 +93,9 @@ impl VariantValue for MarkVariant {
 pub struct MarkProps {
     /// 見た目 variant（既定 `Subtle`）。
     pub variant: MarkVariant,
-    /// colorPalette 軸（既定 `Accent`）。[`crate::theme`] のセマンティック色
-    /// から選択する。
+    /// colorPalette 軸（既定 `Neutral`。イシュー #1439 で chakra の既定
+    /// colorPalette（`gray`）へ合わせ `Accent` から是正）。[`crate::theme`]
+    /// のセマンティック色から選択する。
     pub palette: ColorPalette,
 }
 
@@ -54,7 +103,7 @@ impl Default for MarkProps {
     fn default() -> Self {
         MarkProps {
             variant: MarkVariant::Subtle,
-            palette: ColorPalette::Accent,
+            palette: ColorPalette::Neutral,
         }
     }
 }
@@ -78,8 +127,8 @@ fn recipe() -> SlotRecipe {
             MarkVariant::Subtle,
             "root",
             vec![
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-palette)"),
+                decl("background", "var(--fandhe-palette-subtle)"),
+                decl("color", "inherit"),
             ],
         )
         .variant(
@@ -95,7 +144,8 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("background", "transparent"),
-                decl("color", "var(--fandhe-palette)"),
+                decl("color", "inherit"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
             ],
         )
         .variant(
@@ -109,7 +159,7 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(MarkVariant::Subtle)
-        .default_variant(ColorPalette::Accent);
+        .default_variant(ColorPalette::Neutral);
 
     for palette in [
         ColorPalette::Accent,
@@ -161,11 +211,11 @@ mod tests {
     use fandhe_frontend_core::{render, text};
 
     #[test]
-    fn default_props_render_subtle_accent() {
+    fn default_props_render_subtle_neutral() {
         let html = render(&mark(&MarkProps::default(), vec![], vec![text("hi")]));
         assert_eq!(
             html,
-            r#"<mark data-scope="mark" data-part="root" class="fd-mark--variant-subtle fd-mark--color-palette-accent">hi</mark>"#
+            r#"<mark data-scope="mark" data-part="root" class="fd-mark--variant-subtle fd-mark--color-palette-neutral">hi</mark>"#
         );
     }
 
@@ -183,7 +233,7 @@ mod tests {
             };
             let html = render(&mark(&props, vec![], vec![]));
             assert!(
-                html.contains(&format!("class=\"{class} fd-mark--color-palette-accent\"")),
+                html.contains(&format!("class=\"{class} fd-mark--color-palette-neutral\"")),
                 "variant={variant:?} -> {html}"
             );
         }
