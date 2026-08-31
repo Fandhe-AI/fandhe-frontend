@@ -49,6 +49,60 @@
 //! `channel_slider_track`/`channel_slider_thumb` も再エクスポートしない
 //! （名前衝突する本モジュールの styled 版を経由させるため）。
 //!
+//! # エリア・スライダー群のサム状態表現（イシュー #1464、親トラッキング
+//! #1462、分割 2/3）
+//!
+//! 担当範囲は [`area`]/[`area_background`]/[`area_thumb`]/
+//! [`channel_slider`]/[`channel_slider_track`]/[`channel_slider_thumb`]
+//! （`hue-slider*`/`alpha-slider*` の 2 CSS slot）に限定する（トリガー・
+//! スウォッチ・プレビューは分割 1/3、チャネル入力・フォーマット切り替えは
+//! 分割 3/3 の担当であり、いずれも本イシューでは触れない）。7 軸チェック
+//! リストのうち以下を是正した:
+//!
+//! - **フォーカスリング**: サム 3 slot（`area-thumb`/`hue-slider-thumb`/
+//!   `alpha-slider-thumb`）はいずれもネイティブフォーカス可能
+//!   （`role="slider"` + `tabindex`）なため、[`crate::angle_slider`] の
+//!   `thumb` と同型に [`StateCondition::FocusVisible`] +
+//!   [`focus_ring_declarations`] を直接登録する。`palette` 軸を持たない
+//!   部品のため [`FocusRingColor::Token`] を使う。
+//! - **disabled**: headless 層（`crates/headless-ui/src/color_picker.rs`）
+//!   の `area_thumb`/`channel_slider_thumb` は disabled 時に `data-disabled`
+//!   を出力するが、recipe 側が未消費だった。サム 3 slot へ
+//!   `StateCondition::Attr("data-disabled")` + [`disabled_declarations`]
+//!   を追加する。`area`（コンテナ）には `data-disabled` が出ないため付けない。
+//! - **角丸のトークン化**: `border-radius: 9999px`/`999px` の生リテラルを
+//!   `var(--fandhe-radius-full)`（[`crate::angle_slider`] の thumb と同型）
+//!   へ置換する（イシュー #1423 スケールトークン）。
+//! - **サム寸法の統一**: `area-thumb`（旧 0.9rem）とスライダーサム
+//!   （旧 1rem）の不揃いを `var(--fandhe-color-picker-thumb-size, 1rem)`
+//!   の共通 custom property 間接参照で解消する（[`crate::angle_slider`]
+//!   の `--fandhe-angle-slider-thumb-size` と同型）。
+//! - **transition**: サム 3 slot の base へ
+//!   `transition_declarations("box-shadow, border-color",
+//!   MotionDuration::Fast)` を追加する。`left`/`top`（ドラッグ中の位置
+//!   追従）は含めない — 追従が遅延して見えるため（[`crate::angle_slider`]
+//!   の `thumb` が `transform` を除外した判断と同型。`prefers-reduced-motion`
+//!   は `Theme::to_css` の duration 一括 0ms 化で自動対応）。
+//!
+//! ## hover は `box-shadow` 強調のみ（`--fandhe-hover-bg` 1 本集約からの
+//! 意図的差分）
+//!
+//! サム 3 slot は `background: transparent`（背面の色をそのまま見せる
+//! ことで「現在の値を指す位置」を表現する）ため、イシュー #1425 の共通
+//! ビジュアル言語（`hover_surface_declarations()` で `--fandhe-hover-bg`
+//! を塗る）を適用すると背景色を覆い隠し部品の意味を壊す。代わりに
+//! サム 3 slot それぞれへ `box-shadow` の輪郭を 1 段強調する宣言のみを
+//! `.state(slot, StateCondition::Hover, ...)` として個別登録する
+//! （[`trigger`] が同種の理由で背景塗りを避けた判断と同型）。
+//!
+//! ## 意図的に残すもの（トークン化しない色リテラル）
+//!
+//! `area-background` の `#000`/`#fff`、`hue-slider-track` の 7 ストップ、
+//! サム 3 slot の `border: 2px solid #fff`/`box-shadow: rgba(0,0,0,0.35)`
+//! は「任意の下地色の上で視認させる物理表現」でありテーマトークン化しない
+//! （ダークモードでも白縁 + 暗影が参照サイト共通の表現。チェッカーボード
+//! は既に `--fandhe-color-border`/`--fandhe-color-bg` トークン参照済み）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく pointer ドラッグ・キーボード操作の DOM 配線・
@@ -58,14 +112,19 @@
 //!   [`Channel::Value`]）専用の styled グラデーションは提供しない
 //!   （2 次元の [`area`] がこの 2 軸を担うため。呼び出し側が単軸スライダー
 //!   として使いたい場合は headless 自由関数を直接呼べる）。
-//! - `size`/`palette` variant は本イシューのスコープ外（固定サイズ・単色の
-//!   最小実装、最小サブセット方針は [`crate::color_swatch`] と同型）。
+//! - `size`/`palette` variant は本イシューのスコープ外（trigger 等の
+//!   シグネチャ変更を伴う横断事項であり、親イシュー #1462 が out-of-scope
+//!   宣言済みの判断を踏襲する。固定サイズ・単色の最小実装、最小サブセット
+//!   方針は [`crate::color_swatch`] と同型）。
 //! - `examples/headless-pre-styled-ui` への追加は crates.io 未公開の新
 //!   バージョンを参照できないためスコープ外（[`crate::slider`] 冒頭
 //!   rustdoc の先例どおり crates.io 公開後に追随）。
 
 use crate::css::decl;
-use crate::recipe::SlotRecipe;
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, transition_declarations, FocusRingColor,
+    FocusRingOffset, MotionDuration, SlotRecipe, StateCondition,
+};
 
 // `ColorPicker` 状態機械・headless 自由関数 `root`/`trigger`/`area`/
 // `area_background`/`area_thumb`/`channel_slider`/`channel_slider_track`/
@@ -243,15 +302,48 @@ fn recipe() -> SlotRecipe {
                 decl("position", "absolute"),
                 decl("left", "var(--fandhe-color-picker-x, 0%)"),
                 decl("top", "var(--fandhe-color-picker-y, 0%)"),
-                decl("width", "0.9rem"),
-                decl("height", "0.9rem"),
-                decl("border-radius", "9999px"),
+                decl("width", "var(--fandhe-color-picker-thumb-size, 1rem)"),
+                decl("height", "var(--fandhe-color-picker-thumb-size, 1rem)"),
+                decl("border-radius", "var(--fandhe-radius-full)"),
                 decl("border", "2px solid #fff"),
                 decl("box-shadow", "0 0 0 1px rgba(0, 0, 0, 0.35)"),
                 decl("transform", "translate(-50%, -50%)"),
                 decl("background", "transparent"),
                 decl("cursor", "pointer"),
             ],
+        )
+        .base(
+            "area-thumb",
+            // `left`/`top`（ドラッグ中の位置追従）は含めない — 追従が
+            // 遅延して見えるため面・影のみを滑らかにする
+            // （`crate::angle_slider` の `thumb` が `transform` を除外した
+            // 判断と同型、イシュー #1425 共通ビジュアル言語の適用。
+            // `prefers-reduced-motion` は `Theme::to_css` の duration
+            // 一括 0ms 化で自動対応）。
+            transition_declarations("box-shadow, border-color", MotionDuration::Fast),
+        )
+        .state(
+            "area-thumb",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "area-thumb",
+            StateCondition::Hover,
+            // サムは背面の色をそのまま見せる透明背景（`background:
+            // transparent`）のため、共通の `hover_surface_declarations()`
+            // （`--fandhe-hover-bg` で背景を塗る）を適用すると「現在の値を
+            // 指す位置」という部品の意味を壊す。代わりに輪郭の box-shadow
+            // を 1 段強調するだけに留める（`crate::color_picker` 冒頭
+            // rustdoc へ理由を追記、イシュー #1425「--fandhe-hover-bg 1 本
+            // 集約」からの意図的差分。`crate::color_picker` の trigger が
+            // 同種の理由で背景塗りを避けた判断と同型）。
+            vec![decl("box-shadow", "0 0 0 2px rgba(0, 0, 0, 0.45)")],
+        )
+        .state(
+            "area-thumb",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .base(
             "hue-slider",
@@ -266,7 +358,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("position", "absolute"),
                 decl("inset", "0"),
-                decl("border-radius", "999px"),
+                decl("border-radius", "var(--fandhe-radius-full)"),
                 decl(
                     "background-image",
                     "linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)",
@@ -283,14 +375,36 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-color-picker-thumb-percent, 0%)",
                 ),
                 decl("transform", "translate(-50%, -50%)"),
-                decl("width", "1rem"),
-                decl("height", "1rem"),
-                decl("border-radius", "9999px"),
+                decl("width", "var(--fandhe-color-picker-thumb-size, 1rem)"),
+                decl("height", "var(--fandhe-color-picker-thumb-size, 1rem)"),
+                decl("border-radius", "var(--fandhe-radius-full)"),
                 decl("border", "2px solid #fff"),
                 decl("box-shadow", "0 0 0 1px rgba(0, 0, 0, 0.35)"),
                 decl("background", "transparent"),
                 decl("cursor", "pointer"),
             ],
+        )
+        .base(
+            "hue-slider-thumb",
+            // area-thumb と同じ理由で `left`（位置追従）は除外する。
+            transition_declarations("box-shadow, border-color", MotionDuration::Fast),
+        )
+        .state(
+            "hue-slider-thumb",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "hue-slider-thumb",
+            StateCondition::Hover,
+            // area-thumb と同じ理由（透明背景の意味を壊さない）で
+            // box-shadow のみ強調する。
+            vec![decl("box-shadow", "0 0 0 2px rgba(0, 0, 0, 0.45)")],
+        )
+        .state(
+            "hue-slider-thumb",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .base(
             "alpha-slider",
@@ -305,7 +419,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("position", "absolute"),
                 decl("inset", "0"),
-                decl("border-radius", "999px"),
+                decl("border-radius", "var(--fandhe-radius-full)"),
                 decl(
                     "background-image",
                     "linear-gradient(to right, transparent, var(--fandhe-color-picker-alpha-color, #000)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, var(--fandhe-color-bg) 0% 50%)",
@@ -323,14 +437,36 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-color-picker-thumb-percent, 0%)",
                 ),
                 decl("transform", "translate(-50%, -50%)"),
-                decl("width", "1rem"),
-                decl("height", "1rem"),
-                decl("border-radius", "9999px"),
+                decl("width", "var(--fandhe-color-picker-thumb-size, 1rem)"),
+                decl("height", "var(--fandhe-color-picker-thumb-size, 1rem)"),
+                decl("border-radius", "var(--fandhe-radius-full)"),
                 decl("border", "2px solid #fff"),
                 decl("box-shadow", "0 0 0 1px rgba(0, 0, 0, 0.35)"),
                 decl("background", "transparent"),
                 decl("cursor", "pointer"),
             ],
+        )
+        .base(
+            "alpha-slider-thumb",
+            // area-thumb と同じ理由で `left`（位置追従）は除外する。
+            transition_declarations("box-shadow, border-color", MotionDuration::Fast),
+        )
+        .state(
+            "alpha-slider-thumb",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "alpha-slider-thumb",
+            StateCondition::Hover,
+            // area-thumb と同じ理由（透明背景の意味を壊さない）で
+            // box-shadow のみ強調する。
+            vec![decl("box-shadow", "0 0 0 2px rgba(0, 0, 0, 0.45)")],
+        )
+        .state(
+            "alpha-slider-thumb",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .base(
             "channel-input",
@@ -545,6 +681,78 @@ mod tests {
         let out = css();
         assert!(out.contains(r#"[data-scope="color-picker"][data-part="area"]"#));
         assert!(out.contains(r#"[data-scope="color-picker"][data-part="hue-slider-thumb"]"#));
+    }
+
+    // --- イシュー #1464: サム 3 slot（area-thumb/hue-slider-thumb/
+    // alpha-slider-thumb）の状態表現 ---
+
+    #[test]
+    fn thumb_slots_declare_focus_visible_ring_via_tokens() {
+        let out = css();
+        for part in ["area-thumb", "hue-slider-thumb", "alpha-slider-thumb"] {
+            let selector =
+                format!(r#"[data-scope="color-picker"][data-part="{part}"]:focus-visible {{"#);
+            assert!(
+                out.contains(&selector),
+                "missing focus-visible rule for {part}"
+            );
+        }
+        assert!(out.contains("var(--fandhe-focus-ring-width, 2px)"));
+        assert!(out.contains("var(--fandhe-focus-ring-offset, 2px)"));
+    }
+
+    #[test]
+    fn thumb_slots_declare_disabled_state() {
+        let out = css();
+        for part in ["area-thumb", "hue-slider-thumb", "alpha-slider-thumb"] {
+            let selector =
+                format!(r#"[data-scope="color-picker"][data-part="{part}"][data-disabled] {{"#);
+            assert!(
+                out.contains(&selector),
+                "missing [data-disabled] rule for {part}"
+            );
+        }
+    }
+
+    #[test]
+    fn thumb_slots_hover_uses_media_hover_and_box_shadow_not_background() {
+        let out = css();
+        assert!(out.contains("@media (hover: hover)"));
+        for part in ["area-thumb", "hue-slider-thumb", "alpha-slider-thumb"] {
+            let selector = format!(
+                r#"[data-scope="color-picker"][data-part="{part}"]:hover:not([data-disabled])"#
+            );
+            assert!(out.contains(&selector), "missing hover rule for {part}");
+        }
+        // 透明背景の意味（現在値を指す位置）を壊さないため、hover は
+        // `--fandhe-hover-bg` による背景塗りを使わない（モジュール冒頭
+        // rustdoc「hover は box-shadow 強調のみ」参照）。
+        assert!(!out.contains("var(--fandhe-hover-bg)"));
+    }
+
+    #[test]
+    fn thumb_slots_transition_excludes_position_properties() {
+        let out = css();
+        // `left`/`top`（ドラッグ中の位置追従）へ transition を掛けると
+        // 操作の追従が遅延して見えるため、面・影のみを滑らかにする
+        // （モジュール冒頭 rustdoc 参照）。
+        assert!(out.contains("transition-property: box-shadow, border-color;"));
+        assert!(!out.contains("transition-property: left"));
+        assert!(!out.contains("transition-property: top"));
+    }
+
+    #[test]
+    fn thumb_slots_border_radius_uses_full_token_not_raw_literal() {
+        let out = css();
+        assert!(!out.contains("9999px"));
+        assert!(!out.contains("999px"));
+        assert!(out.contains("border-radius: var(--fandhe-radius-full);"));
+    }
+
+    #[test]
+    fn thumb_slots_share_unified_size_custom_property() {
+        let out = css();
+        assert!(out.contains("var(--fandhe-color-picker-thumb-size, 1rem)"));
     }
 
     // --- root/trigger ---
