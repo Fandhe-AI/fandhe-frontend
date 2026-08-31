@@ -30,7 +30,11 @@
 //!   前提）に item を `inline-flex` + `align-items: flex-start` 化し、
 //!   複数行テキストでもアイコンと行頭が揃うようにする。旧実装は root の
 //!   `list-style: none` のみで item 側の宣言がなかったため、
-//!   `ListVariant::Plain` の item slot 宣言を新設した。
+//!   `ListVariant::Plain` の item slot 宣言を新設した。item の間隔は
+//!   indicator 側の `margin-inline-end`（前項）が既に担っているため、
+//!   ここでは `gap` を追加しない（flex の `gap` と `margin-inline-end` を
+//!   併用すると加算されてしまい、indicator とテキストの間隔が意図の
+//!   2 倍になるため。レビュー指摘で是正）。
 //! - **サイズ軸**: 追加しない（意図的）。chakra List に size prop はなく、
 //!   Radix Themes には List 部品自体が存在しない（周囲の typography を
 //!   継承する設計）。既存の中立部品としての位置づけを変えない。
@@ -152,7 +156,6 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "flex-start"),
-                decl("gap", "var(--fandhe-space-2)"),
             ],
         )
         .default_variant(ListVariant::Marker)

@@ -292,7 +292,6 @@ const LIST_GOLDEN_CSS: &str = r#"[data-scope="list"][data-part="root"] {
 [data-scope="list"][data-part="item"].fd-list--variant-plain {
   display: inline-flex;
   align-items: flex-start;
-  gap: var(--fandhe-space-2);
 }
 
 [data-scope="list"][data-part="item"]::marker {
