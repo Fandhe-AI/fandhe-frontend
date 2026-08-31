@@ -57,7 +57,18 @@
 //!   §3）であり、フォーカスリングもフォーカス対象部品限定
 //!   （`pre-styled-ui-focus-ring-and-size-conventions.md` §3）のため、
 //!   `quote` には付与しない。
-//! - **余白・角丸・影**: 両者とも持たない。`quote` も持たない。
+//! - **角丸・影**: 両者とも持たない。`quote` も持たない。
+//! - **余白**: Radix Themes の Quote は他の Typography 部品と同様に
+//!   共通レイアウト props（`m`/`mx`/`my`/`mt`/`mr`/`mb`/`ml` の margin
+//!   props）を持つ。ただし本フレームワークはコンポーネント単位の
+//!   レイアウト・スペーシング props システム自体を採用しておらず
+//!   （`heading` の rustdoc・イシュー #1433 系比較と同じ判断軸）、
+//!   `margin: 0` を明示宣言しない代わりに余白は呼び出し側（利用者）の
+//!   責務とする方針を chakra の marginless 方針と同様に踏襲している。
+//!   `quote` は元々 margin 宣言を一切持たないインライン要素であり、
+//!   Radix Themes 側の margin props と同等の軸を追加しない（layout
+//!   utility props システムの新設は本 recipe 単体の変更範囲を超える
+//!   横断設計判断であり、本イシューのスコープ外）。
 //!
 //! 以上より、CSS 出力（`font-style: italic` の 1 宣言のみ）は現状のまま
 //! 変更不要と判定した。差分はすべて意図的非採用として本節に記録する。
