@@ -174,6 +174,11 @@ mod tests {
             ),
             (ButtonVariant::Ghost, "fd-download-trigger--variant-ghost"),
             (ButtonVariant::Subtle, "fd-download-trigger--variant-subtle"),
+            (
+                ButtonVariant::Surface,
+                "fd-download-trigger--variant-surface",
+            ),
+            (ButtonVariant::Plain, "fd-download-trigger--variant-plain"),
         ] {
             let props = DownloadTriggerProps {
                 variant,

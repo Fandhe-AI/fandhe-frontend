@@ -16,7 +16,10 @@ use fandhe_frontend_pre_styled_ui::button;
 ///
 /// 出力順は `SlotRecipe::css`（`crates/pre-styled-ui/src/recipe.rs`）の
 /// 契約どおり「base → variants（登録順: size → variant → color-palette →
-/// icon-only）→ compound variants（登録順: icon-only×size の sm/md/lg）」。
+/// icon-only）→ compound variants（登録順: icon-only×size の sm/md/lg）→
+/// states（登録順: focus-visible → data-disabled、hover は末尾
+/// `@media (hover: hover)` へ集約）」（イシュー #1448 で focus-visible state
+/// を追加）。
 const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
   display: inline-flex;
   align-items: center;
@@ -81,10 +84,24 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
 }
 
 [data-scope="button"][data-part="root"].fd-button--variant-subtle {
-  background: var(--fandhe-color-bg-subtle);
-  color: var(--fandhe-palette);
+  background: var(--fandhe-palette-subtle);
+  color: var(--fandhe-palette-fg-subtle);
   border: none;
-  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  --fandhe-hover-bg: var(--fandhe-palette-muted);
+}
+
+[data-scope="button"][data-part="root"].fd-button--variant-surface {
+  background: var(--fandhe-palette-subtle);
+  color: var(--fandhe-palette-fg-subtle);
+  border: 1px solid var(--fandhe-palette-muted);
+  --fandhe-hover-bg: var(--fandhe-palette-muted);
+}
+
+[data-scope="button"][data-part="root"].fd-button--variant-plain {
+  background: transparent;
+  color: var(--fandhe-palette-fg-subtle);
+  border: none;
+  --fandhe-hover-bg: transparent;
 }
 
 [data-scope="button"][data-part="root"].fd-button--color-palette-accent {
@@ -163,6 +180,11 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
 
 [data-scope="button"][data-part="root"].fd-button--icon-only.fd-button--size-xl {
   padding: 1rem;
+}
+
+[data-scope="button"][data-part="root"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="button"][data-part="root"][data-disabled] {
