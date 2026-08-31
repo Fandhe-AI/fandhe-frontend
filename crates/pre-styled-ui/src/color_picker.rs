@@ -343,7 +343,15 @@ fn recipe() -> SlotRecipe {
         .state(
             "area-thumb",
             StateCondition::FocusVisible,
-            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+            // `area`（`overflow: hidden`）の子要素であるため
+            // `FocusRingOffset::Outside`（既定）だとサムがエッジ付近
+            // （白・黒・純色などの一般的な値）にあるときリング外側が
+            // `overflow` クリップで見えなくなる。`FocusRingOffset::Inset`
+            // （要素の内側にリングを描く）へ切り替えることでクリップの
+            // 影響を受けなくする（`crate::recipe::FocusRingOffset` の
+            // splitter/scroll-area 向け意図と同型の適用、イシュー #1464
+            // Bugbot 指摘対応）。
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
         )
         .base(
             "hue-slider",

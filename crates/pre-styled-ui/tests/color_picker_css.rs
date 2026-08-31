@@ -180,7 +180,7 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
 
 [data-scope="color-picker"][data-part="area-thumb"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
-  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
 }
 
 [data-scope="color-picker"][data-part="hue-slider-thumb"][data-disabled] {
