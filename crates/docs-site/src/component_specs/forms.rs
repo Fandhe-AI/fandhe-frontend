@@ -1437,13 +1437,21 @@ fn demo_angle_slider() -> Node {
             &state,
             false,
             vec![],
+            // 型階層（イシュー #1446）を Demo で視覚確認できるよう
+            // label・value_text を追加する（`primitive_specs/forms_a.rs::ex_angle_slider`
+            // の構成と整合、`crates/pre-styled-ui/src/angle_slider.rs`
+            // モジュール doc 参照）。`thumb_styled` は `position: absolute`
+            // を前提に `control`（`position: relative` の円盤）を基準座標
+            // として配置されるため、`root` 直下ではなく `control` の子として
+            // 配置する（イシュー #1445。従来は `control` を挟んでおらず
+            // 円盤・サムが描画されていなかった）。
             vec![
-                // 型階層（イシュー #1446）を Demo で視覚確認できるよう
-                // label・value_text を追加する（`primitive_specs/forms_a.rs::ex_angle_slider`
-                // の構成と整合、`crates/pre-styled-ui/src/angle_slider.rs`
-                // モジュール doc 参照）。
                 angle_slider::label(vec![], vec![text("Rotation")]),
-                angle_slider::thumb_styled(&state, false, vec![]),
+                angle_slider::control(
+                    false,
+                    vec![],
+                    vec![angle_slider::thumb_styled(&state, false, vec![])],
+                ),
                 angle_slider::value_text(vec![], vec![text("0deg")]),
             ],
         ),
