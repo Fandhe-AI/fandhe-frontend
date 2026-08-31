@@ -2377,24 +2377,48 @@ fn listbox_section() -> Node {
 }
 
 /// Combobox 節: 入力によるフィルタリング後の listbox が開いた静的マークアップ
-/// （イシュー #749）。[`combobox::filter_options`] を実演し、入力値
-/// `"re"` に対するフィルタ結果（`"React"` のみ）をそのまま候補として掲示する。
+/// （イシュー #749）。[`combobox::filter_options`] を実演し、入力値 `"e"`
+/// に対するフィルタ結果（3 件全件、いずれも `"e"` を含む）をそのまま候補
+/// として掲示する。イシュー #1468 で item の選択済み（`item_indicator` 付き
+/// チェックマーク表示）・highlight（`data-highlighted`）・disabled の 3 状態
+/// を 1 件ずつ割り当て、リスト側パーツの視覚表現を確認できるようにした
+/// （デモ専用の恒久デモデータであり、選択・キーボード操作等の動作は伴わない
+/// 静的掲示）。
 fn combobox_section() -> Node {
     let options = [("vue", "Vue"), ("react", "React"), ("svelte", "Svelte")];
-    let query = "re";
+    let query = "e";
     let filtered = combobox::filter_options(&options, query);
 
     let items = filtered
         .into_iter()
         .map(|(value, label)| {
+            // "react" を選択済み（item-indicator 表示）、"svelte" を
+            // highlight 中、"vue" を disabled として固定する
+            // （イシュー #1468、item/item-indicator パートの状態表現デモ）。
+            let selected = value == "react";
+            let highlighted = value == "svelte";
+            let disabled = value == "vue";
+            let selected_state = if selected {
+                OpenState::Open
+            } else {
+                OpenState::Closed
+            };
+            // R3（`crates/docs-site/tests/combobox_aria_association.rs`）:
+            // highlight 中の item は `aria-activedescendant` から参照可能な
+            // `id` を持つ必要があるため、highlight する項目にのみ id を付与
+            // する（下の `input` 呼び出しの `activedescendant` 引数と対）。
+            let id = highlighted.then_some("showcase-combobox-item-svelte");
             combobox::item(
-                OpenState::Closed,
-                false,
-                false,
+                selected_state,
+                disabled,
+                highlighted,
                 value,
-                None,
+                id,
                 vec![],
-                vec![combobox::item_text(None, vec![], vec![text(label)])],
+                vec![
+                    combobox::item_text(None, vec![], vec![text(label)]),
+                    combobox::item_indicator(selected_state, vec![], vec![text("✓")]),
+                ],
             )
         })
         .collect();
@@ -2419,7 +2443,10 @@ fn combobox_section() -> Node {
                         query,
                         false,
                         Some("showcase-combobox-content"),
-                        None,
+                        // "svelte" item が highlight 中のため、その id を
+                        // `aria-activedescendant` として参照する（R3 契約、
+                        // 上の item 生成コメント参照）。
+                        Some("showcase-combobox-item-svelte"),
                         None,
                         vec![("id", "showcase-combobox-input")],
                     ),
@@ -2448,7 +2475,7 @@ fn combobox_section() -> Node {
     section(
         "Combobox",
         &format!(
-            "headless-ui の Combobox（role=\"combobox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。入力値 \"{query}\" による filter_options の絞り込み結果を候補として表示しています。positioner はフロー内配置へ中和しています。"
+            "headless-ui の Combobox（role=\"combobox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。入力値 \"{query}\" による filter_options の絞り込み結果を候補として表示しています。\"React\" は選択済み（チェックマーク表示）、\"Svelte\" は highlight 中、\"Vue\" は disabled として固定しています。positioner はフロー内配置へ中和しています。"
         ),
         vec![node],
     )

@@ -1,4 +1,4 @@
-//! styled Combobox（イシュー #1467）の決定的 CSS 出力ゴールデンテスト。
+//! styled Combobox（イシュー #1467/#1468）の決定的 CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの前例に
 //! 倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。出力順
@@ -6,13 +6,12 @@
 //! へ集約されて末尾）が崩れた場合や意図しない宣言の追加・欠落があった場合に、
 //! この golden テストが即座に検知する。
 //!
-//! 本テストは分割 1/2（イシュー #1467、control/input/trigger/clear-trigger
-//! パート）が確定させた出力を固定する。分割 2/2（content/item/item-group/
-//! item-indicator パート、イシュー #1468）が同一 `stylesheet()` を後続変更
-//! するため、2/2 のマージ時にこの golden の期待値更新が必要になる
-//! （`docs/internal/pre-styled-ui-golden-test-update-guide.md` の手順に従う）。
+//! 分割 1/2（イシュー #1467、control/input/trigger/clear-trigger パート）が
+//! 新設し、分割 2/2（イシュー #1468、content/item/item-group/item-indicator
+//! パート）が期待値を更新済み（`docs/internal/
+//! pre-styled-ui-golden-test-update-guide.md` の手順に従った）。
 //!
-//! 期待値は control/input/trigger/clear-trigger パートの是正後の
+//! 期待値は 1/2・2/2 双方の是正後の
 //! `crates/pre-styled-ui/src/combobox.rs::recipe` の実出力から生成した。
 
 use fandhe_frontend_pre_styled_ui::combobox;
@@ -104,8 +103,8 @@ const EXPECTED_CSS: &str = r#"[data-scope="combobox"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+  border-radius: var(--fandhe-radius-md);
+  box-shadow: var(--fandhe-shadow-md);
   padding: var(--fandhe-combobox-content-padding, var(--fandhe-space-2));
   min-width: var(--fandhe-reference-width, auto);
 }
@@ -117,9 +116,23 @@ const EXPECTED_CSS: &str = r#"[data-scope="combobox"][data-part="root"] {
 }
 
 [data-scope="combobox"][data-part="item"] {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-2);
   padding: var(--fandhe-combobox-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;
-  border-radius: 0.25rem;
+  border-radius: var(--fandhe-radius-sm);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="combobox"][data-part="item"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="combobox"][data-part="item-indicator"] {
+  margin-left: auto;
 }
 
 [data-scope="combobox"][data-part="root"].fd-combobox--size-xs {
@@ -189,6 +202,11 @@ const EXPECTED_CSS: &str = r#"[data-scope="combobox"][data-part="root"] {
   cursor: not-allowed;
 }
 
+[data-scope="combobox"][data-part="item"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 [data-scope="combobox"][data-part="positioner"][data-positioned] {
   position: fixed;
   top: 0;
@@ -203,6 +221,10 @@ const EXPECTED_CSS: &str = r#"[data-scope="combobox"][data-part="root"] {
   }
 
   [data-scope="combobox"][data-part="clear-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="combobox"][data-part="item"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
   }
 }
