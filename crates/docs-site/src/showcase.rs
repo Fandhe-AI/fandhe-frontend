@@ -120,7 +120,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::tour::{Tour, Tou
 use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
-use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
+use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps, HighlightVariant};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
@@ -1598,9 +1598,10 @@ fn separator_section() -> Node {
     )
 }
 
-/// Highlight 節（イシュー #775）: 単一一致・複数一致（`match_all`）・
-/// `ignore_case` の実演。一致判定は正規表現を使わない決定的な部分文字列
-/// 検索（`crates/pre-styled-ui/src/highlight.rs` rustdoc 参照）。
+/// Highlight 節（イシュー #775、イシュー #1435 で variant/palette 軸を追加）:
+/// 単一一致・複数一致（`match_all`）・`ignore_case`・variant・colorPalette の
+/// 実演。一致判定は正規表現を使わない決定的な部分文字列検索
+/// （`crates/pre-styled-ui/src/highlight.rs` rustdoc 参照）。
 fn highlight_section() -> Node {
     let single_match_row = row(vec![highlight(
         &HighlightProps {
@@ -1628,10 +1629,54 @@ fn highlight_section() -> Node {
         vec![],
         "The quick brown fox jumps over the lazy dog",
     )]);
+    let variants = [
+        (HighlightVariant::Subtle, "subtle"),
+        (HighlightVariant::Solid, "solid"),
+        (HighlightVariant::Text, "text"),
+        (HighlightVariant::Plain, "plain"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, label)| {
+            highlight(
+                &HighlightProps {
+                    query: &[*label],
+                    variant: *variant,
+                    ..HighlightProps::default()
+                },
+                vec![],
+                label,
+            )
+        })
+        .collect());
+    // 共有 `palettes()`（5 値、Neutral なし）に本部品の既定 palette
+    // （Accent、mark::section と同様）以外を末尾連結する（badge/code と同型）。
+    let palette_row = row(palettes()
+        .iter()
+        .copied()
+        .chain([(ColorPalette::Neutral, "Neutral")])
+        .map(|(palette, label)| {
+            highlight(
+                &HighlightProps {
+                    query: &[label],
+                    palette,
+                    ..HighlightProps::default()
+                },
+                vec![],
+                label,
+            )
+        })
+        .collect());
     section(
         "Highlight",
-        "テキスト中の一致語句を <mark> で強調します。正規表現ではなく決定的な部分文字列検索のみで一致判定します。query（複数可）・match_all（全一致 or 最初の 1 件）・ignore_case（ASCII 限定）の 3 プロパティを持ちます。",
-        vec![single_match_row, match_all_row, ignore_case_row],
+        "テキスト中の一致語句を <mark> で強調します。正規表現ではなく決定的な部分文字列検索のみで一致判定します。query（複数可）・match_all（全一致 or 最初の 1 件）・ignore_case（ASCII 限定）・variant（subtle/solid/text/plain）・colorPalette の各プロパティを持ちます。",
+        vec![
+            single_match_row,
+            match_all_row,
+            ignore_case_row,
+            variant_row,
+            palette_row,
+        ],
     )
 }
 

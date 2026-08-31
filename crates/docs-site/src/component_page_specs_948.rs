@@ -83,7 +83,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::{
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::date_input::DateInput;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
-use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
+use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps, HighlightVariant};
 use fandhe_frontend_pre_styled_ui::kbd::kbd;
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
@@ -422,11 +422,53 @@ fn highlight_example() -> Node {
     ])
 }
 
+fn highlight_variant_example() -> Node {
+    row(vec![
+        highlight(
+            &HighlightProps {
+                query: &["subtle"],
+                variant: HighlightVariant::Subtle,
+                ..HighlightProps::default()
+            },
+            vec![],
+            "subtle",
+        ),
+        highlight(
+            &HighlightProps {
+                query: &["solid"],
+                variant: HighlightVariant::Solid,
+                ..HighlightProps::default()
+            },
+            vec![],
+            "solid",
+        ),
+        highlight(
+            &HighlightProps {
+                query: &["text"],
+                variant: HighlightVariant::Text,
+                ..HighlightProps::default()
+            },
+            vec![],
+            "text",
+        ),
+        highlight(
+            &HighlightProps {
+                query: &["plain"],
+                variant: HighlightVariant::Plain,
+                ..HighlightProps::default()
+            },
+            vec![],
+            "plain",
+        ),
+    ])
+}
+
 const HIGHLIGHT_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "テキスト中の一致語句を <mark> で囲んで強調する",
         "正規表現ではなく決定的な部分文字列検索のみで一致判定する（ReDoS の面を持たない）",
         "query（複数可）・match_all（全一致 or 最初の 1 件）・ignore_case（ASCII 限定）の 3 プロパティを持つ",
+        "variant（subtle/solid/text/plain）4 種、colorPalette 6 値を持つ（mark と同一語彙、イシュー #1435）",
     ],
     arguments: &[
         ArgRow {
@@ -447,12 +489,31 @@ const HIGHLIGHT_SPEC: ComponentPageSpec = ComponentPageSpec {
             default: "false",
             description: "true なら全一致箇所、false なら最初の 1 箇所のみ強調する。",
         },
+        ArgRow {
+            name: "variant",
+            kind: "HighlightVariant",
+            default: "Subtle",
+            description: "見た目のバリアント（subtle/solid/text/plain）。",
+        },
+        ArgRow {
+            name: "palette",
+            kind: "ColorPalette",
+            default: "Accent",
+            description: "colorPalette 軸。",
+        },
     ],
-    examples: &[ExampleEntry {
-        title: "単一一致・全一致・大文字小文字無視",
-        description: "query / match_all / ignore_case の組み合わせを並べます。",
-        render: highlight_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "単一一致・全一致・大文字小文字無視",
+            description: "query / match_all / ignore_case の組み合わせを並べます。",
+            render: highlight_example,
+        },
+        ExampleEntry {
+            title: "variant 4 種",
+            description: "subtle/solid/text/plain の見た目を並べます。",
+            render: highlight_variant_example,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,
