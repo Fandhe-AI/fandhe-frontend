@@ -38,7 +38,7 @@ const EXPECTED_CSS: &str = r#"[data-scope="angle-slider"][data-part="root"] {
   width: var(--fandhe-angle-slider-track-size, 4.5rem);
   height: var(--fandhe-angle-slider-track-size, 4.5rem);
   border-radius: var(--fandhe-radius-full);
-  background: radial-gradient(circle, var(--fandhe-color-fg-muted) 0 2px, transparent 2px), radial-gradient(circle, var(--fandhe-color-bg) 0 calc(50% - 6px), transparent calc(50% - 6px)), repeating-conic-gradient(var(--fandhe-color-border) 0deg 1deg, transparent 1deg 30deg), var(--fandhe-color-bg);
+  background: radial-gradient(circle, var(--fandhe-color-fg-muted) 0 2px, transparent 2px), radial-gradient(circle closest-side, var(--fandhe-color-bg) 0 calc(100% - 6px), transparent calc(100% - 6px)), repeating-conic-gradient(var(--fandhe-color-border) 0deg 1deg, transparent 1deg 30deg), var(--fandhe-color-bg);
   box-shadow: var(--fandhe-shadow-sm);
 }
 

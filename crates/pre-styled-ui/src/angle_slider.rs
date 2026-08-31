@@ -205,9 +205,16 @@ fn recipe() -> SlotRecipe {
                 // 目盛りが外周のみに見えるようにするマスク層、(c) 目盛り
                 // リング（`repeating-conic-gradient`）、(d) 面色（最終層は
                 // `background` shorthand の仕様上プレーンな色のみ許容）。
+                // (b) は `circle closest-side` を明示する（サイズキーワード
+                // 省略時の既定 `farthest-corner` だと `%` が対角線基準に
+                // なり、正方形ボックスでは外接円（`farthest-corner`）と
+                // 内接円（`closest-side` = 表示上の円の半径）が一致しない。
+                // これにより `calc(100% - 6px)` が円の半径から 6px 引いた
+                // 値になり、外側 6px リングだけを露出できる。Bugbot 指摘
+                // イシュー #1445 PR #1728 で是正）。
                 decl(
                     "background",
-                    "radial-gradient(circle, var(--fandhe-color-fg-muted) 0 2px, transparent 2px), radial-gradient(circle, var(--fandhe-color-bg) 0 calc(50% - 6px), transparent calc(50% - 6px)), repeating-conic-gradient(var(--fandhe-color-border) 0deg 1deg, transparent 1deg 30deg), var(--fandhe-color-bg)",
+                    "radial-gradient(circle, var(--fandhe-color-fg-muted) 0 2px, transparent 2px), radial-gradient(circle closest-side, var(--fandhe-color-bg) 0 calc(100% - 6px), transparent calc(100% - 6px)), repeating-conic-gradient(var(--fandhe-color-border) 0deg 1deg, transparent 1deg 30deg), var(--fandhe-color-bg)",
                 ),
                 decl("box-shadow", "var(--fandhe-shadow-sm)"),
             ],
