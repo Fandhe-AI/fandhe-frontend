@@ -347,7 +347,26 @@ name = "fandhe-frontend-pre-styled-ui"
 # 1 つ進めて 0.56.3 とする（PR ごと patch バンプの成文規約、`docs/ci/
 # style-refresh-version-bump-operation.md` §3.1/§3.4a/§5、checkbox 1/2・
 # 2/2 が両方バンプした先例と同型）。
-version = "0.56.3"
+#
+# イシュー #1468（combobox のスタイル調整 2/2 — リスト）: content/item/
+# item-group/item-indicator の 4 パートへ共通ビジュアル言語
+# （色トークン化・disabled/hover/transition）を適用する意匠調整の純追加。
+# base（#1467）が先に 0.56.3 へ到達していたため、同一版数への偶発的衝突を
+# 避けて base 現在値 0.56.3 から独立にパッチを 1 つ進めて 0.56.4 とした
+# （PR ごと patch バンプの成文規約、`docs/ci/
+# style-refresh-version-bump-operation.md` §3.1/§3.4a/§5、checkbox 1/2・
+# 2/2 が両方バンプした先例と同型）。
+#
+# その後、hover が highlighted の視覚状態を上書きする問題の修正
+# （PR #1745、コミット 4b11a1e）で `StateCondition`（非 `#[non_exhaustive]`
+# の pub enum）へ新 variant `HoverExceptAttr` を追加した。これは Rust API
+# シグネチャの変更を伴う 0.x の破壊的変更（利用側の網羅的 match がコンパイル
+# 不能になり得る）であり、`style-refresh-version-bump-operation.md` §3.3
+# 「Rust API シグネチャが不変で意匠調整のみに留まる変更は patch、契約破壊は
+# minor」および `.claude/rules/coding-rust.md` の「0.x の破壊的変更は
+# マイナーバンプ」に従い、patch ではなくマイナーバンプとして 0.56.4 から
+# 0.57.0 とする（codex-review / Bugbot 指摘対応、イシュー #1468）。
+version = "0.57.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

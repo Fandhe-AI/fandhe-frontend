@@ -105,6 +105,71 @@
 //!   center`/`background: transparent`/`border: none`）+
 //!   `border-radius: var(--fandhe-radius-sm)` を追加した。`trigger` にも
 //!   hover 面の形状用に同じ `border-radius` を追加している
+//!
+//! # スタイル調整（イシュー #1468、content/item/item-group/item-indicator
+//! パートのみ）
+//!
+//! 親 #1466 のうち `content`/`item`/`item-group`/`item-indicator` の 4 パート
+//! （リスト側）を担当する。分割 1/2（`control`/`input`/`trigger`/
+//! `clear-trigger`、#1467、PR #1744）が確定した意図的差分（上記節）は
+//! 変更しない。本イシューが確定した意図的差分は以下（checkbox 1/2・2/2、
+//! イシュー #1454/#1737 と同型の記録方針）:
+//!
+//! - **色トークン化**: `content` の `border-radius`（生 `0.375rem` →
+//!   `var(--fandhe-radius-md)`）・`box-shadow`（生 `rgba()` →
+//!   `var(--fandhe-shadow-md)`、[`crate::toast`] の `box-shadow:
+//!   var(--fandhe-shadow-md)` が先例）、`item` の `border-radius`（生
+//!   `0.25rem` → `var(--fandhe-radius-sm)`）をトークン参照へ置換した
+//! - **item の状態表現を追加**: headless（`crates/headless-ui/src/
+//!   combobox.rs::item`）が出す `data-disabled` を
+//!   [`crate::recipe::disabled_declarations`] で消費し、hover（`cursor:
+//!   pointer` を持つインタラクティブ slot）を
+//!   [`crate::recipe::hover_bg_muted`] +
+//!   `StateCondition::HoverExceptAttr("data-highlighted")` で追加した
+//!   （親イシュー指摘の代表欠落）。transition（`background, color`/
+//!   `MotionDuration::Fast`）も 1/2 の control/trigger と同型で純追加した
+//! - **hover と `data-highlighted` の優先順位（PR #1745 codex-review P1 /
+//!   Bugbot Medium 指摘対応）**: 素の `StateCondition::Hover` は
+//!   `@media (hover: hover)` 配下へ `[...]:hover:not([data-disabled])`
+//!   （詳細度 (0,4,0)）として出力され、highlight 表示のセレクタ
+//!   `[data-highlighted]`（(0,3,0)）に勝つ。ポインタが highlight 中の item
+//!   に重なると accent 背景が muted 背景で上書きされ、かつ
+//!   `hover_surface_declarations()` は `background` shorthand のみを
+//!   差し替えるため文字色（`--fandhe-color-accent-fg`）だけが取り残されて
+//!   コントラストが崩れる（virtual focus の視覚状態が失われる実害）。
+//!   [`crate::color_picker`] の `trigger`/`StateCondition::HoverExcept(
+//!   "data-state", "open")` と同型の判断で、値付き属性版ではなく存在属性
+//!   （headless が `data-highlighted` を常に空文字値
+//!   `data-highlighted=""` の存在属性として出すため、値等価の
+//!   `HoverExcept` へ空文字列を渡すと [`crate::css::is_valid_identifier`]
+//!   が拒否し規則ごと無音に脱落する）版の
+//!   `StateCondition::HoverExceptAttr("data-highlighted")` へ変更し、
+//!   highlight 中の item を hover の対象から除外することで highlight と
+//!   hover が重なる場合は highlight 側の規則のみが適用されるよう解消した。
+//!   既存の選択済み表示（`data-state="open"` → bg-muted）・highlight
+//!   （accent）の 2 段階設計自体は select 系ファミリーの確立済み設計であり
+//!   変更しない
+//! - **`item` をチェックマーク右端整列レイアウトへ**: `display: flex` /
+//!   `align-items: center` / `gap` を追加し、`item-indicator` へ
+//!   `margin-left: auto` を追加した
+//! - **`item-indicator` に `display` を宣言しない**: headless
+//!   （`crates/headless-ui/src/combobox.rs::item_indicator`）は非選択時に
+//!   `hidden` 存在属性を付ける。styled 側で `display` を宣言すると author
+//!   規則（詳細度 (0,2,0)）が UA の `[hidden] { display: none }`
+//!   （(0,1,0)）に勝って表示制御が壊れる（[`crate::avatar`]/
+//!   [`crate::action_bar`] の rustdoc に既知の教訓として明記済み）ため、
+//!   `margin-left`/`flex-shrink` 相当の非 `display` 宣言のみに留める
+//! - **`item-group` へ視覚宣言を追加しない**: `item-group` はコンテナで、
+//!   見た目は `item-group-label` が既に担っている。参照サイト
+//!   （chakra-ui/ark-ui）にも `item-group` 自体への視覚宣言は実質なく、
+//!   本イシューでも追加しない
+//! - **size 連動の `font-size` 軸は見送る**: 1/2 が「#1468 と衝突するため
+//!   見送り」とした事項と同じ理由（`--fandhe-combobox-*-padding` custom
+//!   property が root variant 経由で全パートへ波及する Forms 家族横断の
+//!   軸判断であり、本イシューでも単独先行しない）
+//! - **`content` の `max-height` + スクロール導入は見送る**: 7 軸
+//!   チェックリスト外であり、positioning 契約（`--fandhe-reference-width`/
+//!   `data-positioned`）への影響評価が必要なためスコープ外とする
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -251,8 +316,8 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
-                decl("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.15)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("box-shadow", "var(--fandhe-shadow-md)"),
                 decl(
                     "padding",
                     "var(--fandhe-combobox-content-padding, var(--fandhe-space-2))",
@@ -263,14 +328,30 @@ fn recipe() -> SlotRecipe {
         .base(
             "item",
             vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
                 decl(
                     "padding",
                     "var(--fandhe-combobox-item-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
                 ),
                 decl("cursor", "pointer"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
             ],
         )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（1/2 の control/trigger
+        // と同型のパターン、モジュール rustdoc「スタイル調整（#1468）」節参照）。
+        .base(
+            "item",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        // チェックマーク（item-indicator）を item 末尾へ寄せる。`display` は
+        // ここでは宣言しない（headless の非選択時 `hidden` 存在属性による
+        // 表示制御と衝突するため、モジュール rustdoc「スタイル調整（#1468）」
+        // 節参照）。
+        .base("item-indicator", vec![decl("margin-left", "auto")])
         .base(
             "item-group-label",
             vec![
@@ -333,6 +414,14 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-disabled"),
             disabled_declarations(),
         )
+        // イシュー #1468: item も headless（`crates/headless-ui/src/
+        // combobox.rs::item`）が `data-disabled` を出す（`disabled: bool`
+        // 引数を対で反映）ため、input/trigger と同じ経路で消費する。
+        .state(
+            "item",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
         // trigger/clear-trigger の hover 実適用（`--fandhe-hover-bg` の間接
         // 参照経由、モジュール rustdoc「スタイル調整」節参照）。`control`
         // 自体には付けない。
@@ -344,6 +433,34 @@ fn recipe() -> SlotRecipe {
         .state(
             "clear-trigger",
             StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        // item の hover 実適用（イシュー #1468。`@media (hover: hover)`
+        // ブロック内へ集約される）。`StateCondition::Hover` ではなく
+        // `StateCondition::HoverExceptAttr("data-highlighted")` を使う
+        // （PR #1745 codex-review P1 / Bugbot Medium 指摘対応）: 素の
+        // `Hover` は `[data-highlighted]`（(0,3,0)）より selector
+        // specificity が高く（`:hover:not([data-disabled])` は (0,4,0)、
+        // `crate::recipe::StateCondition::HoverExceptAttr` rustdoc 参照）、
+        // highlight 中の item にポインタが重なると muted 背景が accent
+        // 背景を上書きし virtual focus の視覚状態（アクセント背景 +
+        // `--fandhe-color-accent-fg` 文字色）が失われ、
+        // `hover_surface_declarations()` は `background` shorthand のみを
+        // 差し替えるため文字色（accent-fg）だけが残存しコントラストが
+        // 崩れる問題があった。headless
+        // `crates/headless-ui/src/combobox.rs::item` は `data-highlighted`
+        // を常に空文字値 `data-highlighted=""` の存在属性として出すため、
+        // 値等価の `StateCondition::HoverExcept("data-highlighted", "")`
+        // は `is_valid_identifier` が空文字列を拒否し規則ごと無音に
+        // 脱落する（[`crate::color_picker`] の `trigger`/
+        // `HoverExcept("data-state", "open")` と同型の判断だが値が
+        // 空でない点が異なるため使えなかった）。存在属性版
+        // `HoverExceptAttr` は highlight 中の item 自体を hover の対象
+        // から除外するため、highlight かつポインタ重複中は highlight 側
+        // の規則のみが適用される。
+        .state(
+            "item",
+            StateCondition::HoverExceptAttr("data-highlighted"),
             hover_surface_declarations(),
         )
         // wasm 層が `data-positioned` マーカーを付与したら確定座標
@@ -696,5 +813,82 @@ mod tests {
                 );
             }
         }
+    }
+
+    // --- イシュー #1468: content/item/item-group/item-indicator ---
+
+    #[test]
+    fn content_radius_and_shadow_use_tokens_not_raw_literals() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="combobox"][data-part="content"] {"#));
+        assert!(css.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(css.contains("box-shadow: var(--fandhe-shadow-md);"));
+        assert!(!css.contains("0.375rem"));
+        assert!(!css.contains("rgba("));
+    }
+
+    #[test]
+    fn item_radius_uses_token_not_raw_literal() {
+        let css = stylesheet();
+        assert!(!css.contains("border-radius: 0.25rem;"));
+    }
+
+    #[test]
+    fn item_consumes_data_disabled_attribute() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="combobox"][data-part="item"][data-disabled] {"#));
+    }
+
+    #[test]
+    fn item_hover_rule_is_wrapped_in_hover_media_query() {
+        let css = stylesheet();
+        let media_idx = css
+            .find("@media (hover: hover) {")
+            .expect("hover media query block must exist");
+        let media_block = &css[media_idx..];
+        // PR #1745 codex-review P1 / Bugbot Medium 指摘対応: highlight 中の
+        // item を hover 対象から除外する `:not([data-highlighted])` を
+        // 伴う（モジュール rustdoc「hover と `data-highlighted` の優先順位」
+        // 節参照）。
+        assert!(media_block.contains(
+            r#"[data-scope="combobox"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {"#
+        ));
+    }
+
+    #[test]
+    fn item_hover_rule_excludes_highlighted_item() {
+        let css = stylesheet();
+        assert!(!css
+            .contains(r#"[data-scope="combobox"][data-part="item"]:hover:not([data-disabled]) {"#));
+    }
+
+    #[test]
+    fn item_indicator_never_declares_display() {
+        // hidden 契約の回帰防止（モジュール rustdoc「スタイル調整（#1468）」
+        // 節参照）: `item-indicator` セレクタに `display` 宣言を含めると、
+        // headless の非選択時 `hidden` 存在属性による UA 既定
+        // `[hidden] { display: none }` を上書きしてしまう。
+        let css = stylesheet();
+        let selector = r#"[data-scope="combobox"][data-part="item-indicator"] {"#;
+        let start = css
+            .find(selector)
+            .expect("item-indicator base rule must exist");
+        let body_start = start + selector.len();
+        let body_end = css[body_start..]
+            .find('}')
+            .map(|i| body_start + i)
+            .expect("item-indicator rule must be closed");
+        let body = &css[body_start..body_end];
+        assert!(!body.contains("display"));
+        assert!(body.contains("margin-left: auto;"));
+    }
+
+    #[test]
+    fn item_group_has_no_visual_base_declarations() {
+        // モジュール rustdoc「スタイル調整（#1468）」節参照: item-group は
+        // コンテナで見た目は item-group-label が担うため、視覚宣言を追加
+        // しない意図的な判断を固定する。
+        let css = stylesheet();
+        assert!(!css.contains(r#"[data-scope="combobox"][data-part="item-group"] {"#));
     }
 }
