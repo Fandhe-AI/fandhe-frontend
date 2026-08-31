@@ -4576,11 +4576,12 @@ fn checkbox_card_section() -> Node {
                         &props,
                         vec![],
                         vec![
-                            checkbox_card::indicator(
-                                &props,
-                                vec![],
-                                vec![checkbox_card::indicator_check(&props, vec![], vec![])],
-                            ),
+                            // イシュー #1458: chakra-ui/Radix Themes は indicator を
+                            // 右端に配置する（左右位置の意図的差分、
+                            // `crates/pre-styled-ui/src/checkbox_card.rs` rustdoc
+                            // 参照）。CSS `order` は使わず DOM 順（content →
+                            // indicator）で決めるため、Demo でも同じ子順にして
+                            // 視覚確認できるようにする。
                             checkbox_card::content(
                                 &props,
                                 vec![],
@@ -4593,6 +4594,56 @@ fn checkbox_card_section() -> Node {
                                     ),
                                 ],
                             ),
+                            checkbox_card::indicator(
+                                &props,
+                                vec![],
+                                vec![checkbox_card::indicator_check(&props, vec![], vec![])],
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        })
+        .collect());
+    // イシュー #1458: size 5 段（xs〜xl）で padding・control 寸法・
+    // description font-size・root 余白（gap）が単調に連動することを
+    // 視覚確認できる行（`crate::checkbox` #1455 の size_row と同型）。
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .iter()
+        .map(|size| {
+            let props = CheckboxProps {
+                checked: CheckedState::Checked,
+                ..CheckboxProps::default()
+            };
+            let name = format!("showcase-checkbox-card-size-{}", size.value());
+            checkbox_card::root(
+                *size,
+                ColorPalette::Accent,
+                &props,
+                vec![],
+                vec![
+                    checkbox_card::hidden_input(&props, &name, "on", vec![]),
+                    checkbox_card::control(
+                        &props,
+                        vec![],
+                        vec![
+                            checkbox_card::content(
+                                &props,
+                                vec![],
+                                vec![
+                                    checkbox_card::label(&props, vec![], vec![text(size.value())]),
+                                    checkbox_card::description(
+                                        &props,
+                                        vec![],
+                                        vec![text("size demo")],
+                                    ),
+                                ],
+                            ),
+                            checkbox_card::indicator(
+                                &props,
+                                vec![],
+                                vec![checkbox_card::indicator_check(&props, vec![], vec![])],
+                            ),
                         ],
                     ),
                 ],
@@ -4602,7 +4653,7 @@ fn checkbox_card_section() -> Node {
     section(
         "CheckboxCard",
         "chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は Checkbox（headless）をそのまま再利用し、data-scope=\"checkbox-card\" の新規 anatomy でカード外観を重ねます。",
-        vec![demo_row],
+        vec![demo_row, size_row],
     )
 }
 
