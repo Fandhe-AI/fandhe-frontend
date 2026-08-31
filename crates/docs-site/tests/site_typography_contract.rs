@@ -138,11 +138,8 @@ fn link_declarations_mirror_pre_styled_ui_link_recipe() {
     let docs_css = site_css();
     let link_css = fandhe_frontend_pre_styled_ui::link::stylesheet();
 
+    // text-decoration/cursor は component 側・docs 側で同一の宣言値。
     for (property, value) in [
-        (
-            "color",
-            "var(--fandhe-color-accent, var(--fandhe-color-fg))",
-        ),
         (
             "text-decoration",
             "var(--fandhe-link-text-decoration, none)",
@@ -152,6 +149,38 @@ fn link_declarations_mirror_pre_styled_ui_link_recipe() {
         assert_declaration_mirrored(&link_css, property, value, "link base (component)");
         assert_declaration_mirrored(&docs_css, property, value, "a (docs mirror)");
     }
+
+    // イシュー #1437: base `color` は component 側で
+    // `var(--fandhe-palette, var(--fandhe-color-accent))` へ変更されたが、
+    // docs 文脈では palette 軸を公開しないため常に accent 固定で解決する
+    // （blockquote #1431 の先例と同じ単純化）。
+    assert_declaration_mirrored(
+        &link_css,
+        "color",
+        "var(--fandhe-palette, var(--fandhe-color-accent))",
+        "link base (component)",
+    );
+    assert_declaration_mirrored(
+        &docs_css,
+        "color",
+        "var(--fandhe-color-accent, var(--fandhe-color-fg))",
+        "a (docs mirror, palette resolved)",
+    );
+
+    // hover 時の文字色強調（component 側は palette-emphasized、docs 側は
+    // accent-emphasized へ固定解決）。
+    assert_declaration_mirrored(
+        &link_css,
+        "color",
+        "var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized))",
+        "link hover (component)",
+    );
+    assert_declaration_mirrored(
+        &docs_css,
+        "color",
+        "var(--fandhe-color-accent-emphasized, var(--fandhe-color-fg))",
+        "a:hover (docs mirror, palette resolved)",
+    );
 }
 
 #[test]

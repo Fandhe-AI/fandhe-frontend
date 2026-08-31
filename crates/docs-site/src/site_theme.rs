@@ -1407,6 +1407,14 @@ fn typography_css() -> Result<String, SiteThemeError> {
     )?;
 
     // ---- リンク（link base のミラー、hover 下線は docs 固有）----
+    // イシュー #1437: link recipe の base `color` は
+    // `var(--fandhe-palette, var(--fandhe-color-accent))` へ変更されたが、
+    // docs 文脈では常に accent 固定（palette 軸を公開しない）ため、
+    // blockquote #1431 の先例と同じ単純化で `var(--fandhe-color-accent,
+    // var(--fandhe-color-fg))` へ直接解決する。hover の文字色強調（component
+    // 側 `var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized))`）
+    // も同様に accent-emphasized へ固定し、docs 固有の hover 下線とあわせて
+    // ミラーする。
     push_typography_rule(
         &mut out,
         ".docs-content a",
@@ -1425,7 +1433,13 @@ fn typography_css() -> Result<String, SiteThemeError> {
     push_typography_rule(
         &mut out,
         ".docs-content a:hover",
-        &[decl("text-decoration", "underline")],
+        &[
+            decl(
+                "color",
+                "var(--fandhe-color-accent-emphasized, var(--fandhe-color-fg))",
+            ),
+            decl("text-decoration", "underline"),
+        ],
     )?;
 
     // ---- 引用（blockquote root base + Subtle variant のミラー。

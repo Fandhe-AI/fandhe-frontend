@@ -40,7 +40,7 @@
 //! が `component_specs/` 配下を再帰走査してこれを固定する）。
 
 use fandhe_frontend_core::{div, el, text, Node};
-use fandhe_frontend_pre_styled_ui::link::{self, LinkVariant};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::link_overlay;
 use fandhe_frontend_pre_styled_ui::nav_list;
 
@@ -56,17 +56,20 @@ fn link_example() -> Node {
     row(vec![
         link::root(
             "",
-            false,
-            true,
-            LinkVariant::Underline,
+            &LinkProps {
+                current: true,
+                variant: LinkVariant::Underline,
+                ..LinkProps::default()
+            },
             vec![],
             vec![text("Guides")],
         ),
         link::root(
             "",
-            false,
-            false,
-            LinkVariant::Underline,
+            &LinkProps {
+                variant: LinkVariant::Underline,
+                ..LinkProps::default()
+            },
             vec![],
             vec![text("API Reference")],
         ),
@@ -78,7 +81,8 @@ const LINK: ComponentPageSpec = ComponentPageSpec {
         "素の <a> 要素 1 パーツ（anatomy root）のみで構成する最小部品（crates/headless-ui/src/link.rs:16-19）",
         "external=true のとき target=\"_blank\" と rel=\"noopener noreferrer\" を不可分に付与する（片方のみを付与できる API は持たない、reverse tabnabbing 対策。crates/headless-ui/src/link.rs:14-19, 84-88）",
         "current=true のとき aria-current=\"page\" + data-current を付与する（crates/headless-ui/src/link.rs:21-24, 89-92）",
-        "Plain（既定・下線なし）/ Underline（常時下線）の 2 variant。current 状態の装飾（フォント太字化）は aria-current=\"page\" を条件にした CSS 状態セレクタで表現し、追加の bool 引数は持たない（crates/pre-styled-ui/src/link.rs:14-19, 98-101）",
+        "Plain（既定・下線なし）/ Underline（常時下線）の 2 variant。current 状態の装飾（フォント太字化）は aria-current=\"page\" を条件にした CSS 状態セレクタで表現し、追加の bool 引数は持たない（crates/pre-styled-ui/src/link.rs 参照）",
+        "ColorPalette 軸（6 値、既定 Accent）。hover 時に文字色を emphasized 段へ強調し、focus-visible 時にフォーカスリングを表示、color の transition を伴う（イシュー #1437、crates/pre-styled-ui/src/link.rs 参照）",
         "href の URL スキーム検証（javascript: 等の拒否）は core の render() が担う deny-by-default（crates/headless-ui/src/link.rs:41-45）",
     ],
     arguments: &[
@@ -86,25 +90,31 @@ const LINK: ComponentPageSpec = ComponentPageSpec {
             name: "href",
             kind: "&str",
             default: "",
-            description: "a 要素の href（crates/pre-styled-ui/src/link.rs:127）。",
+            description: "a 要素の href（crates/pre-styled-ui/src/link.rs）。",
         },
         ArgRow {
-            name: "external",
+            name: "props.external",
             kind: "bool",
             default: "false",
             description: "true のとき target=\"_blank\" + rel=\"noopener noreferrer\" を付与する（crates/headless-ui/src/link.rs:70-73）。",
         },
         ArgRow {
-            name: "current",
+            name: "props.current",
             kind: "bool",
             default: "false",
             description: "true のとき aria-current=\"page\" + data-current を付与する（crates/headless-ui/src/link.rs:74-77）。",
         },
         ArgRow {
-            name: "variant",
+            name: "props.variant",
             kind: "LinkVariant",
             default: "LinkVariant::Plain",
-            description: "root の見た目（Plain/Underline、crates/pre-styled-ui/src/link.rs:44-50）。",
+            description: "root の見た目（Plain/Underline、crates/pre-styled-ui/src/link.rs）。",
+        },
+        ArgRow {
+            name: "props.palette",
+            kind: "ColorPalette",
+            default: "ColorPalette::Accent",
+            description: "colorPalette 軸（イシュー #1437、crates/pre-styled-ui/src/link.rs）。",
         },
     ],
     examples: &[ExampleEntry {
