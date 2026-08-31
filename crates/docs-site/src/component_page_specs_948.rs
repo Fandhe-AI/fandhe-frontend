@@ -84,7 +84,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::date_input::Date
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps, HighlightVariant};
-use fandhe_frontend_pre_styled_ui::kbd::kbd;
+use fandhe_frontend_pre_styled_ui::kbd::{kbd, KbdProps, KbdVariant};
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
@@ -521,21 +521,56 @@ const HIGHLIGHT_SPEC: ComponentPageSpec = ComponentPageSpec {
 
 fn kbd_example() -> Node {
     row(vec![
-        kbd(vec![], vec![text("Ctrl")]),
+        kbd(&KbdProps::default(), vec![], vec![text("Ctrl")]),
         text(" + "),
-        kbd(vec![], vec![text("K")]),
+        kbd(&KbdProps::default(), vec![], vec![text("K")]),
+        kbd(
+            &KbdProps {
+                variant: KbdVariant::Subtle,
+                ..KbdProps::default()
+            },
+            vec![],
+            vec![text("subtle")],
+        ),
+        kbd(
+            &KbdProps {
+                variant: KbdVariant::Outline,
+                ..KbdProps::default()
+            },
+            vec![],
+            vec![text("outline")],
+        ),
     ])
 }
 
 const KBD_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "キーボード入力・ショートカット表示のための単一 slot 静的部品（<kbd>）",
-        "variant 軸を持たず class 属性を出力しない（呼び出し側の class は破棄する）",
+        "キーボード入力・ショートカット表示のための単一 recipe styled 部品（<kbd>）",
+        "variant（raised/subtle/outline）3 種、size 5 段、colorPalette 6 値を持つ（イシュー #1436、code と同型の単一 recipe パターン）",
     ],
-    arguments: &[],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "KbdVariant",
+            default: "Raised",
+            description: "見た目のバリアント（raised/subtle/outline）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ軸（xs/sm/md/lg/xl）。",
+        },
+        ArgRow {
+            name: "palette",
+            kind: "ColorPalette",
+            default: "Neutral",
+            description: "colorPalette 軸。",
+        },
+    ],
     examples: &[ExampleEntry {
-        title: "キーの組み合わせ",
-        description: "複数の kbd をテキストで連結してショートカットを表現します。",
+        title: "キーの組み合わせ・variant 3 種",
+        description: "複数の kbd をテキストで連結してショートカットを表現し、raised/subtle/outline の見た目を並べます。",
         render: kbd_example,
     }],
     keyboard: &[],
