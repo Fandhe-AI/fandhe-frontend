@@ -146,7 +146,7 @@ const HEADING_ARGUMENTS: &[ArgRow] = &[
         name: "props.size",
         kind: "HeadingSize",
         default: "Xl",
-        description: "視覚サイズ（sm/md/lg/xl/xl2/xl3/xl4）。タグ選択（意味論）とは独立した軸。",
+        description: "視覚サイズ（xs/sm/md/lg/xl/xl2/xl3/xl4）。タグ選択（意味論）とは独立した軸。",
     },
 ];
 
@@ -154,12 +154,12 @@ const HEADING_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "素の h1〜h6 意味論をタグとしてそのまま維持しつつ、視覚サイズを variant として独立に切り替える",
         "colorPalette 軸を持たない単一 recipe 静的部品",
-        "chakra-ui の 9 段階サイズをテーマトークン範囲（sm〜4xl の 7 段階）へ縮約済み",
+        "chakra-ui の 9 段階サイズをテーマトークン範囲（xs〜4xl の 8 段階）へ縮約済み",
     ],
     arguments: HEADING_ARGUMENTS,
     examples: &[ExampleEntry {
         title: "タグとサイズの独立軸",
-        description: "レンダリングするタグ（h1〜h6）と視覚サイズ（sm〜4xl）を独立に選べます。",
+        description: "レンダリングするタグ（h1〜h6）と視覚サイズ（xs〜4xl）を独立に選べます。",
         render: heading_example,
     }],
     keyboard: &[],

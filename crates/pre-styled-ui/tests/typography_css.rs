@@ -15,6 +15,11 @@ const HEADING_GOLDEN_CSS: &str = r#"[data-scope="heading"][data-part="root"] {
   letter-spacing: -0.01em;
 }
 
+[data-scope="heading"][data-part="root"].fd-heading--size-xs {
+  font-size: var(--fandhe-font-font-size-xs);
+  line-height: 1.3;
+}
+
 [data-scope="heading"][data-part="root"].fd-heading--size-sm {
   font-size: var(--fandhe-font-font-size-sm);
   line-height: 1.25;
