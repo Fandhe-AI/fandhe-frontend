@@ -1340,39 +1340,41 @@ fn skeleton_section() -> Node {
 // 衝突を避ける（本節自体の `h2` はショーケース節見出し〔[`section`] ヘルパ〕
 // であり対象外）。各関数はこの前提のもとで 1〜2 文の部品固有説明のみを持つ。
 
-/// Heading 節: `h4`（size=lg）/ `h5`（size=md）/ `h6`（size=sm）の 3 段。
+/// Heading 節: `size` スケール全 8 段（`xs`〜`xl4`）を縦積み掲示する
+/// （イシュー #1434。chakra-ui のサイズデモ（`docs/design/
+/// reference-screenshots/chakra-heading-2.png`、sm〜6xl を縦積み掲示）と
+/// 視覚比較できる状態にするため、意味論タグ（h1〜h6）とは独立に単一タグ
+/// （h2）で size 軸のみを掲示する。タグと視覚サイズの独立性自体は
+/// [`fandhe_frontend_pre_styled_ui::heading`] のモジュール rustdoc
+/// 「意味論レベルと視覚サイズの独立」節で説明済み）。
 fn heading_section() -> Node {
-    let heading_row = row(vec![
-        heading(
-            HeadingLevel::H4,
-            &HeadingProps {
-                size: HeadingSize::Lg,
-            },
-            vec![],
-            vec![text("見出し (h4, size=lg)")],
-        ),
-        heading(
-            HeadingLevel::H5,
-            &HeadingProps {
-                size: HeadingSize::Md,
-            },
-            vec![],
-            vec![text("見出し (h5, size=md)")],
-        ),
-        heading(
-            HeadingLevel::H6,
-            &HeadingProps {
-                size: HeadingSize::Sm,
-            },
-            vec![],
-            vec![text("見出し (h6, size=sm)")],
-        ),
-    ]);
+    let heading_stack = stack(
+        [
+            HeadingSize::Xs,
+            HeadingSize::Sm,
+            HeadingSize::Md,
+            HeadingSize::Lg,
+            HeadingSize::Xl,
+            HeadingSize::Xl2,
+            HeadingSize::Xl3,
+            HeadingSize::Xl4,
+        ]
+        .iter()
+        .map(|size| {
+            heading(
+                HeadingLevel::H2,
+                &HeadingProps { size: *size },
+                vec![],
+                vec![text(format!("見出し（size={size:?}）"))],
+            )
+        })
+        .collect(),
+    );
 
     section(
         "Heading",
-        "素の h1〜h6 意味論を size（sm/md/lg）でスタイル化した見出し部品。",
-        vec![heading_row],
+        "素の h1〜h6 意味論を size（xs〜xl4 の 8 段階）でスタイル化した見出し部品。",
+        vec![heading_stack],
     )
 }
 

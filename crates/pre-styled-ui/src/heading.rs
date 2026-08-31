@@ -17,13 +17,54 @@
 //!
 //! chakra-ui の Heading は `xs`〜`7xl` の 9 段階を持つが、[`crate::theme`]
 //! のテーマトークンは `font-size-xs`〜`font-size-4xl` の 8 段階までしか
-//! 持たない。本実装は `sm`〜`4xl` の 7 段階（chakra の `5xl`〜`7xl` は非採用）
+//! 持たない。本実装は `xs`〜`4xl` の 8 段階（chakra の `5xl`〜`7xl` は非採用）
 //! へ縮約する。テーマトークンの拡張は本イシューのスコープ外。
 //!
 //! # colorPalette 軸を持たない理由
 //!
 //! テキストは前景色トークンを継承する中立部品であり、ステータス色を持たない
 //! （[`crate::card`]・[`crate::skeleton`] が同じ判断をした根拠と同型）。
+//!
+//! ## 参考サイト基準との 7 軸比較（イシュー #1434）
+//!
+//! chakra-ui / Radix Themes の Heading 相当部品とサイズ・バリアント・色・
+//! 状態・ダーク・フォーカス・余白 / hover / disabled / transition の
+//! 7 軸で比較した結果（スクショは
+//! `docs/design/reference-screenshots/{chakra,radixt}-heading-*.png`）:
+//!
+//! - **サイズ軸**: chakra は `xs`〜`7xl` の 9 段階、Radix Themes は
+//!   `1`〜`9` の 9 段階を持つ。旧実装は `sm`〜`xl4` の 7 段階までしか
+//!   なく、両サイトが持つ最小段（chakra `xs`）に対応する段が欠落していた。
+//!   [`crate::theme`] のテーマトークンは既に `font-size-xs` を持つため、
+//!   本イシューで [`HeadingSize::Xs`] を追加しテーマトークン全 8 段
+//!   （`xs`〜`4xl`）を網羅する形にした。上端（chakra `5xl`〜`7xl` /
+//!   Radix `size 8`〜`9` 相当）はテーマトークンが `4xl` までのため
+//!   引き続き非採用（前節「サイズトークンの縮約」参照。再評価トリガーは
+//!   「複数部品で 4xl 超の要求が出た時点」）。
+//! - **バリアント軸**: 両サイト共に Heading へ `variant`（solid/subtle 等）
+//!   prop を持たない。当部品も軸を追加しない。
+//! - **色**: 両サイト共に前景色を継承する中立部品として実装されており、
+//!   `colorPalette` 相当の軸を持たない。当部品も一致（前節参照）。
+//! - **状態（data-*）**: heading は headless 状態機械を持たない静的部品
+//!   であり、両サイトの Heading も操作状態（`data-state` 等）を持たない。
+//!   一致。
+//! - **ダーク**: 色宣言を持たず本文色に自動追従するため、両サイトと同様
+//!   ライト / ダーク双方で自動的に一致する。
+//! - **フォーカス / hover / disabled / transition**: heading は非
+//!   インタラクティブな表示専用 slot であり、両サイトの Heading もこれら
+//!   の状態を持たない。本フレームワークでも hover / disabled / transition
+//!   はインタラクティブ slot のみに適用する方針
+//!   （`docs/design/pre-styled-ui-interaction-visual-language.md` §3）
+//!   であり、フォーカスリングもフォーカス対象部品限定
+//!   （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3）
+//!   のため付与しない（一致）。
+//! - **余白・letter-spacing**: `margin: 0`（余白は利用者責務）は chakra
+//!   の marginless 方針と一致。大サイズ（`xl3`/`xl4`）でのネガティブ
+//!   letter-spacing 強化（chakra 4xl+ 相当）は、収集済みスクリーンショット
+//!   の解像度・構図では参照サイトの正確なトラッキング値を実測で裏付け
+//!   できなかったため、根拠不十分な意匠変更を避け**本イシューでは見送る**
+//!   （安全側の判断）。一律 `-0.01em` の現状維持。再評価は実機での
+//!   フォント計測ツールを用いた比較が可能になった時点で行う。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -68,10 +109,14 @@ impl HeadingLevel {
 }
 
 /// Heading の視覚サイズ variant（`font-size`/`line-height`。chakra-ui の
-/// `size` prop 相当。テーマトークンの範囲に合わせ `sm`〜`4xl` の 7 段階へ
+/// `size` prop 相当。テーマトークンの範囲に合わせ `xs`〜`4xl` の 8 段階へ
 /// 縮約する）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HeadingSize {
+    /// 極小サイズ（イシュー #1434 で追加。参考サイト基準との 7 軸比較で
+    /// chakra-ui `xs` / Radix Themes 最小段に対応する段が欠落していたため
+    /// 追加した。モジュール rustdoc「参考サイト基準との 7 軸比較」節参照）。
+    Xs,
     /// 小サイズ。
     Sm,
     /// 中サイズ。
@@ -96,6 +141,7 @@ impl VariantValue for HeadingSize {
 
     fn value(self) -> &'static str {
         match self {
+            Self::Xs => "xs",
             Self::Sm => "sm",
             Self::Md => "md",
             Self::Lg => "lg",
@@ -127,6 +173,14 @@ fn recipe() -> SlotRecipe {
                 decl("margin", "0"),
                 decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
                 decl("letter-spacing", "-0.01em"),
+            ],
+        )
+        .variant(
+            HeadingSize::Xs,
+            "root",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("line-height", "1.3"),
             ],
         )
         .variant(
@@ -267,6 +321,7 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (HeadingSize::Xs, "fd-heading--size-xs"),
             (HeadingSize::Sm, "fd-heading--size-sm"),
             (HeadingSize::Md, "fd-heading--size-md"),
             (HeadingSize::Lg, "fd-heading--size-lg"),
@@ -312,6 +367,7 @@ mod tests {
     fn css_output_declares_all_size_font_tokens() {
         let out = css();
         for token in [
+            "font-size-xs",
             "font-size-sm",
             "font-size-md",
             "font-size-lg",
