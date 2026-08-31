@@ -80,7 +80,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 全てコンパイルエラーになる破壊的変更）。あわせて hover（文字色強調）・
 # focus-visible（フォーカスリング）・transition（color）を新設した。0.x の
 # 破壊的変更はマイナーバンプする規約に従い 0.53.0 へマイナーバンプする。
-version = "0.53.0"
+# イシュー #1439: mark の subtle/text variant の配色（背景・文字色）と
+# 既定 colorPalette（Accent → Neutral）を chakra-ui 基準へ是正した。Rust
+# API シグネチャは不変・既存クラス名や CSS 変数の削除改名もない意匠調整の
+# ため、0.53.1 へパッチバンプする（.claude/rules/coding-rust.md、
+# docs/ci/style-refresh-version-bump-operation.md §3.4a）。
+version = "0.53.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

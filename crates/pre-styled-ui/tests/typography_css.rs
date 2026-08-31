@@ -97,8 +97,8 @@ const MARK_GOLDEN_CSS: &str = r#"[data-scope="mark"][data-part="root"] {
 }
 
 [data-scope="mark"][data-part="root"].fd-mark--variant-subtle {
-  background: var(--fandhe-color-bg-subtle);
-  color: var(--fandhe-palette);
+  background: var(--fandhe-palette-subtle);
+  color: inherit;
 }
 
 [data-scope="mark"][data-part="root"].fd-mark--variant-solid {
@@ -108,7 +108,8 @@ const MARK_GOLDEN_CSS: &str = r#"[data-scope="mark"][data-part="root"] {
 
 [data-scope="mark"][data-part="root"].fd-mark--variant-text {
   background: transparent;
-  color: var(--fandhe-palette);
+  color: inherit;
+  font-weight: var(--fandhe-font-font-weight-medium);
 }
 
 [data-scope="mark"][data-part="root"].fd-mark--variant-plain {
