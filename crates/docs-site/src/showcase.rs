@@ -1193,10 +1193,16 @@ fn download_trigger_section() -> Node {
         })
         .collect());
 
+    // イシュー #1474: Button 側（#1449）の size variant 5 段化に対称して
+    // Xs/Xl を含む全段を掲示する（従来は Sm/Md/Lg の 3 段のみで非対称
+    // だった。本モジュール冒頭 rustdoc「デモの構成は button_section と
+    // 対称に揃える」契約の是正）。
     let sizes = [
+        (Size::Xs, "Extra Small"),
         (Size::Sm, "Small"),
         (Size::Md, "Medium"),
         (Size::Lg, "Large"),
+        (Size::Xl, "Extra Large"),
     ];
     let size_row = row(sizes
         .iter()
