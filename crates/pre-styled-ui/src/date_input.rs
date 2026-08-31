@@ -71,7 +71,17 @@
 //!   `disabled_declarations()`（`opacity` + `cursor: not-allowed`）へ
 //!   統一。headless（`crates/headless-ui/src/date_input.rs`）が
 //!   `segment` へ出す `data-readonly` を新たに `cursor: default` へ
-//!   消費（[`crate::rating_group`] の同型消費と同じ判断）。
+//!   消費（[`crate::rating_group`] の同型消費と同じ判断）。disabled かつ
+//!   readonly が同一 `segment` に共存する場合（headless 側は独立した
+//!   2 属性のため両立しうる）、`cursor` は継承プロパティで `root`/
+//!   `segment-group` の `[data-disabled]` は祖先規則にすぎず、`segment`
+//!   自身への直接指定である readonly の `cursor: default` が常に勝って
+//!   しまい無効コントロール上で通常カーソルに見える不整合があった
+//!   （codex-review 指摘、PR #1746）。これを避けるため `segment`
+//!   `[data-disabled]` へ `cursor: not-allowed` のみを readonly 規則の
+//!   後段に追加し（同じ詳細度 `[name]` 同士のため登録順で後勝ちさせる）、
+//!   disabled を readonly より優先させる。`opacity` は含めないため
+//!   直後の「意図的に合わせなかった点」の二重減光回避とは矛盾しない。
 //! - **意図的に合わせなかった点**:
 //!   - **variant 軸（chakra `outline`/`subtle`/`flushed` 相当）は追加
 //!     しない**。`root` のシグネチャ変更を伴う破壊的変更であり、
@@ -81,11 +91,14 @@
 //!     `segment-group` の `[data-invalid]`（`border-color: danger`）で
 //!     参照サイト相当の invalid 表現が既に成立しており、二重の視覚強調
 //!     は不要と判断した。
-//!   - **`segment` へ `disabled_declarations()` は付与しない**。`root`
-//!     の disabled 状態が既に `opacity: 0.5` を子孫へ継承させるため、
-//!     `segment` へも付けると `0.5 × 0.5` の二重減光になる
-//!     （`segment-group` の `[data-disabled]` 側 `cursor: not-allowed`
-//!     は headless 直接利用時の fail-safe として維持）。
+//!   - **`segment` へ `disabled_declarations()`（`opacity` 込み）は付与
+//!     しない**。`root` の disabled 状態が既に `opacity: 0.5` を子孫へ
+//!     継承させるため、`segment` へも付けると `0.5 × 0.5` の二重減光に
+//!     なる（`segment-group` の `[data-disabled]` 側 `cursor:
+//!     not-allowed` は headless 直接利用時の fail-safe として維持）。
+//!     `segment` `[data-disabled]` へは上記「是正」節のとおり `cursor:
+//!     not-allowed` のみを別途追加しており、`opacity` は含めないため
+//!     二重減光は生じない。
 //!   - **サイズ / バリアント（5 段）・色（トークン参照のみ）・ダーク
 //!     （`--fandhe-color-focus-ring` 等が追従済み）は元々参照サイト水準に
 //!     達していたため変更しない**。
@@ -217,6 +230,22 @@ fn recipe() -> SlotRecipe {
             "segment",
             StateCondition::Attr("data-readonly"),
             vec![decl("cursor", "default")],
+        )
+        // `data-readonly` 規則より後に登録する（同じ詳細度 `[name]`
+        // (0,1,0) 同士のため、`state()` の「登録順」契約〔`crate::recipe`
+        // の `SlotRecipe::css` rustdoc「LastChild」節と同型〕により
+        // 後勝ちで上書きさせる）。disabled かつ readonly の両方が真な
+        // segment（headless 側は独立した 2 属性として出しうる、
+        // `crates/headless-ui/src/date_input.rs::segment` 参照）で
+        // `cursor: default` に上書きされ通常カーソルへ戻ってしまう
+        // 不具合を防ぐ（codex-review 指摘、イシュー #1469 PR #1746）。
+        // `root`/`segment-group` の `[data-disabled]` は継承値のため、
+        // 同一要素に直接付く本規則がなければ readonly の直接指定が
+        // 常に勝ってしまう。
+        .state(
+            "segment",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
         )
         .state(
             "segment",
@@ -397,6 +426,30 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="date-input"][data-part="segment"][data-readonly] {"#));
         assert!(css.contains("cursor: default;"));
+    }
+
+    #[test]
+    fn segment_disabled_cursor_overrides_readonly_by_source_order() {
+        // イシュー #1469 PR #1746 codex-review 指摘: disabled かつ readonly が
+        // 同一 segment に共存する場合、`cursor` は継承プロパティのため
+        // `root`/`segment-group` 側の `[data-disabled]`（祖先規則）では
+        // readonly の直接指定に勝てない。`segment` 自身への
+        // `[data-disabled]` 規則を readonly 規則より後段に登録することで
+        // 同一詳細度・登録順の後勝ちにより disabled を優先させる。
+        let css = stylesheet();
+        let readonly_idx = css
+            .find(r#"[data-scope="date-input"][data-part="segment"][data-readonly] {"#)
+            .expect("segment readonly rule must exist");
+        let disabled_idx = css
+            .find(r#"[data-scope="date-input"][data-part="segment"][data-disabled] {"#)
+            .expect("segment disabled rule must exist");
+        assert!(
+            disabled_idx > readonly_idx,
+            "segment[data-disabled] must be registered after segment[data-readonly] so it wins by source order"
+        );
+        let disabled_block = &css[disabled_idx..];
+        let block_end = disabled_block.find('}').unwrap_or(disabled_block.len());
+        assert!(disabled_block[..block_end].contains("cursor: not-allowed;"));
     }
 
     #[test]

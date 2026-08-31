@@ -97,6 +97,10 @@ const DATE_INPUT_GOLDEN_CSS: &str = r#"[data-scope="date-input"][data-part="root
   cursor: default;
 }
 
+[data-scope="date-input"][data-part="segment"][data-disabled] {
+  cursor: not-allowed;
+}
+
 [data-scope="date-input"][data-part="segment"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
