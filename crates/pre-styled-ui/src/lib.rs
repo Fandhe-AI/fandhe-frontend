@@ -280,8 +280,10 @@
 //!   （Tag、`variant`/`size`/`color-palette` の 3 軸 variant を持つ
 //!   root/label/close-trigger の 3 パーツ。close-trigger は状態機械を持たず
 //!   `data-action` 属性の出力のみを担う。[`crate::badge`] と同型の判断） /
-//!   [`mod@kbd`]（Kbd、variant 軸を持たない単一 slot） / [`mod@code`]（Code、
-//!   インライン `<code>`。variant 軸を持たない単一 slot。chakra-ui の
+//!   [`mod@kbd`]（Kbd、`variant`/`size`/`color-palette` の 3 軸 variant を
+//!   持つ単一 slot。イシュー #1436 で参照サイト基準へ調整済み） /
+//!   [`mod@code`]（Code、インライン `<code>`。`variant`/`size`/
+//!   `color-palette` の 3 軸 variant を持つ単一 slot。chakra-ui の
 //!   CodeBlock は対象外確定済み）。詳細は各モジュール rustdoc 参照。
 //! - headless ラッパー（イシュー #762）: [`mod@action_bar`]（ActionBar、
 //!   複数選択時に画面下部中央へ固定表示する操作バー）。`size`/`color-palette`
@@ -764,7 +766,7 @@ pub use highlight::{highlight, HighlightProps};
 pub use icon::{icon, IconProps};
 pub use image::{image, AspectRatio, ImageFit, ImageProps};
 pub use input::{input, InputProps, InputVariant};
-pub use kbd::kbd;
+pub use kbd::{kbd, KbdProps, KbdVariant};
 pub use list::{ListType, ListVariant};
 pub use mark::{mark, MarkProps, MarkVariant};
 pub use marquee::{marquee, MarqueeDirection, MarqueeProps};

@@ -73,7 +73,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # `HighlightProps` への pub フィールド追加は 0.x の破壊的変更（全フィールド
 # 列挙の構造体リテラルを壊し得る）のためマイナーバンプする規約に従い
 # 0.51.0 へマイナーバンプする。
-version = "0.51.0"
+version = "0.52.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

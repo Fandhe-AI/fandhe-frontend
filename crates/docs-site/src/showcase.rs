@@ -126,7 +126,7 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
-use fandhe_frontend_pre_styled_ui::kbd::kbd;
+use fandhe_frontend_pre_styled_ui::kbd::{kbd, KbdProps, KbdVariant};
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
 use fandhe_frontend_pre_styled_ui::link::{self, LinkVariant};
 use fandhe_frontend_pre_styled_ui::link_overlay;
@@ -6386,17 +6386,66 @@ fn tag_section() -> Node {
     )
 }
 
-/// Kbd 節（イシュー #768）: variant 軸を持たない単一 slot 部品。
+/// Kbd 節（イシュー #768、#1436 で variant/size/colorPalette 軸を追加）:
+/// キーボード入力・ショートカット表示のための単一 slot 静的部品。
 fn kbd_section() -> Node {
-    let row_node = row(vec![
-        kbd(vec![], vec![text("Ctrl")]),
+    let shortcut_row = row(vec![
+        kbd(&KbdProps::default(), vec![], vec![text("Ctrl")]),
         text(" + "),
-        kbd(vec![], vec![text("K")]),
+        kbd(&KbdProps::default(), vec![], vec![text("K")]),
     ]);
+    let variants = [
+        (KbdVariant::Raised, "Raised"),
+        (KbdVariant::Subtle, "Subtle"),
+        (KbdVariant::Outline, "Outline"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, label)| {
+            kbd(
+                &KbdProps {
+                    variant: *variant,
+                    ..KbdProps::default()
+                },
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .iter()
+        .map(|size| {
+            kbd(
+                &KbdProps {
+                    size: *size,
+                    ..KbdProps::default()
+                },
+                vec![],
+                vec![text("Esc")],
+            )
+        })
+        .collect());
+    // 共有 `palettes()`（5 値、Neutral なし）に本部品の既定 palette
+    // （Neutral）を末尾連結する（code::section と同様の理由）。
+    let palette_row = row(palettes()
+        .iter()
+        .copied()
+        .chain([(ColorPalette::Neutral, "Neutral")])
+        .map(|(palette, label)| {
+            kbd(
+                &KbdProps {
+                    palette,
+                    ..KbdProps::default()
+                },
+                vec![],
+                vec![text(label)],
+            )
+        })
+        .collect());
     section(
         "Kbd",
-        "キーボード入力・ショートカット表示。variant 軸を持たない単一 slot の静的部品です。",
-        vec![row_node],
+        "キーボード入力・ショートカット表示。variant / size / colorPalette を組み合わせます。",
+        vec![shortcut_row, variant_row, size_row, palette_row],
     )
 }
 
