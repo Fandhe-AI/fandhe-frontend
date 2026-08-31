@@ -1,11 +1,57 @@
-//! List（イシュー #771）: slot recipe styled 部品。root（`<ul>`/`<ol>`）/
-//! item（`<li>`）/ indicator（装飾マーカー用 `<span>`）の 3 パーツで構成する
-//! リスト表示。
+//! List（イシュー #771、#1438 で参照サイト基準へ調整）: slot recipe styled
+//! 部品。root（`<ul>`/`<ol>`）/ item（`<li>`）/ indicator（装飾マーカー用
+//! `<span>`）の 3 パーツで構成するリスト表示。
 //!
 //! [`ListType`] は [`crate::heading::HeadingLevel`] と同じ「variant クラス
 //! ではなくレンダリングするタグそのものを選ぶ」方式で `<ul>`/`<ol>` を選択
 //! する。colorPalette 軸は付与しない（中立部品。`indicator` の色は呼び出し
 //! 側が children/attrs で指定する）。
+//!
+//! # イシュー #1438 の参照サイト比較（7 軸チェック）
+//!
+//! chakra-ui（`typography/list.md`、`marker`(既定)/`plain` variant・
+//! size/colorPalette 軸なし）のスクリーンショット
+//! （`docs/design/reference-screenshots/chakra-list-{1,2,3}.png`）と現状
+//! （`themes-list.png`）を比較した結果を記録する。
+//!
+//! - **マーカー色**: chakra は箇条書きの点・番号を本文より淡いグレー
+//!   （`fg.muted` 相当）で描く。旧実装はマーカー色の指定がなく本文色と
+//!   同一だったため、`css()` に item の `::marker` を対象とした固定 CSS
+//!   規則を追記して是正した（`::marker` は擬似要素であり
+//!   [`crate::recipe::StateCondition`] では表現できないため、
+//!   [`crate::scroll_area::stylesheet`] が `::-webkit-scrollbar` 系規則を
+//!   固定文字列で追記する precedent と同型の手法を採る）。
+//! - **indicator の間隔・整列**: chakra はアイコンとテキストの間に一定の
+//!   ギャップを保ち行頭で揃える。旧実装は `display: inline-block` のみで
+//!   余白・整列指定がなかったため、`margin-inline-end`
+//!   （`--fandhe-space-2` スケールトークン）・`vertical-align: middle`・
+//!   `flex-shrink: 0` を追加した。
+//! - **`Plain` variant の item**: chakra は `plain` 使用時（indicator 併用
+//!   前提）に item を `inline-flex` + `align-items: flex-start` 化し、
+//!   複数行テキストでもアイコンと行頭が揃うようにする。旧実装は root の
+//!   `list-style: none` のみで item 側の宣言がなかったため、
+//!   `ListVariant::Plain` の item slot 宣言を新設した。
+//! - **サイズ軸**: 追加しない（意図的）。chakra List に size prop はなく、
+//!   Radix Themes には List 部品自体が存在しない（周囲の typography を
+//!   継承する設計）。既存の中立部品としての位置づけを変えない。
+//! - **colorPalette 軸**: 追加しない（意図的）。chakra はマーカーを中立色
+//!   `fg.muted` 固定で描き、palette 連動は行わない。indicator の色は
+//!   引き続き呼び出し側指定という既存契約を維持する（モジュール冒頭で
+//!   既記載の設計判断を本節で再掲）。
+//! - **状態（hover/disabled/focus-visible/transition）・`data-*`**: 適用
+//!   しない（意図的）。list は非インタラクティブな表示専用部品であり、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md`・
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` の
+//!   いずれの適用対象にも当たらない（kbd #1436・code #1432 と同一判断）。
+//!   `data-*` の増減もなし。
+//! - **余白**: item の `margin-block: 0.25rem` は `--fandhe-space-1`、root
+//!   Marker variant の `padding-inline-start: 1.5rem` は `--fandhe-space-6`
+//!   と厳密に一致するため、両方ともスケールトークン参照へ載せ替えた
+//!   （実効値は不変、`docs/design/pre-styled-ui-scale-tokens.md` が示す
+//!   トークン移行の方針に合わせる）。
+//! - **ダーク**: 追加した `::marker` 規則もトークン参照
+//!   （`var(--fandhe-color-fg-muted)`）のみで構成されるため、
+//!   `write_dark_declarations` の一元機構に自動追従する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -70,15 +116,26 @@ fn recipe() -> SlotRecipe {
         .base("root", vec![decl("margin", "0")])
         .base(
             "item",
-            vec![decl("margin-block", "0.25rem"), decl("line-height", "1.5")],
+            vec![
+                decl("margin-block", "var(--fandhe-space-1)"),
+                decl("line-height", "1.5"),
+            ],
         )
-        .base("indicator", vec![decl("display", "inline-block")])
+        .base(
+            "indicator",
+            vec![
+                decl("display", "inline-block"),
+                decl("margin-inline-end", "var(--fandhe-space-2)"),
+                decl("vertical-align", "middle"),
+                decl("flex-shrink", "0"),
+            ],
+        )
         .variant(
             ListVariant::Marker,
             "root",
             vec![
                 decl("list-style", "revert"),
-                decl("padding-inline-start", "1.5rem"),
+                decl("padding-inline-start", "var(--fandhe-space-6)"),
             ],
         )
         .variant(
@@ -89,13 +146,35 @@ fn recipe() -> SlotRecipe {
                 decl("padding-inline-start", "0"),
             ],
         )
+        .variant(
+            ListVariant::Plain,
+            "item",
+            vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "flex-start"),
+                decl("gap", "var(--fandhe-space-2)"),
+            ],
+        )
         .default_variant(ListVariant::Marker)
 }
 
-/// List の静的 CSS 全文。
+/// この styled List が生成する静的 CSS 全量を返す（決定的）。
+///
+/// recipe が生成する規則群に続けて、item の `::marker`（箇条書きの点・
+/// 番号）を淡色（`fg.muted` 相当）へ固定する規則を追記する（`::marker` は
+/// 擬似要素であり [`crate::recipe::StateCondition`] では表現できないため、
+/// [`crate::scroll_area::stylesheet`] の `::-webkit-scrollbar` 系規則
+/// 追記と同型の precedent を採る）。値はソースコード中の固定リテラル +
+/// テーマ CSS 変数参照のみで構成され、外部入力は一切混入しない。
 #[must_use]
 pub fn css() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    out.push('\n');
+    out.push_str(
+        "[data-scope=\"list\"][data-part=\"item\"]::marker {\n  \
+         color: var(--fandhe-color-fg-muted);\n}\n",
+    );
+    out
 }
 
 /// root パーツ（`<ul>`/`<ol>`）を組み立てる。`list_type` がレンダリングする
@@ -248,5 +327,28 @@ mod tests {
     fn css_output_declares_plain_list_style_reset() {
         let out = css();
         assert!(out.contains("list-style: none;"));
+    }
+
+    #[test]
+    fn css_output_declares_muted_marker_color() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="list"][data-part="item"]::marker"#));
+        assert!(out.contains("color: var(--fandhe-color-fg-muted);"));
+    }
+
+    #[test]
+    fn css_output_declares_indicator_gap_and_alignment() {
+        let out = css();
+        assert!(out.contains("margin-inline-end: var(--fandhe-space-2);"));
+        assert!(out.contains("vertical-align: middle;"));
+        assert!(out.contains("flex-shrink: 0;"));
+    }
+
+    #[test]
+    fn plain_variant_item_uses_inline_flex_alignment() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="list"][data-part="item"].fd-list--variant-plain"#));
+        assert!(out.contains("display: inline-flex;"));
+        assert!(out.contains("align-items: flex-start;"));
     }
 }

@@ -360,12 +360,41 @@ fn list_example() -> Node {
     ])
 }
 
+/// `ListVariant::Plain` + [`list::indicator`] の実例（イシュー #1438、
+/// indicator の間隔・整列と Plain variant の item 整列を Demo 上で視覚
+/// 確認できるようにする）。
+fn list_plain_indicator_example() -> Node {
+    list::root(
+        ListType::Unordered,
+        ListVariant::Plain,
+        vec![],
+        vec![
+            list::item(
+                vec![],
+                vec![
+                    list::indicator(vec![], vec![text("✓")]),
+                    text("既定エスケープ"),
+                ],
+            ),
+            list::item(
+                vec![],
+                vec![
+                    list::indicator(vec![], vec![text("✓")]),
+                    text("forbid(unsafe_code)"),
+                ],
+            ),
+        ],
+    )
+}
+
 const LIST_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "root（ul/ol）/item（li）/indicator（span aria-hidden）の 3 パーツで構成する",
         "ListType（Unordered/Ordered）でレンダリングするタグそのものを選ぶ",
         "ListVariant（marker/plain）でマーカー表示の有無を切り替える",
         "indicator は常時 aria-hidden=\"true\"（呼び出し側が外せない fail-closed）",
+        "marker（箇条書きの点・番号）は本文より淡いグレー（fg.muted）で描く",
+        "indicator はテキストとの間隔・行頭揃えを持ち、plain variant の item は複数行でも行頭が揃う",
     ],
     arguments: &[
         ArgRow {
@@ -381,11 +410,18 @@ const LIST_SPEC: ComponentPageSpec = ComponentPageSpec {
             description: "マーカー（箇条書き記号・番号）表示の有無。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "順序なし・順序ありの 2 種",
-        description: "ListType で ul/ol を切り替えます。",
-        render: list_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "順序なし・順序ありの 2 種",
+            description: "ListType で ul/ol を切り替えます。",
+            render: list_example,
+        },
+        ExampleEntry {
+            title: "plain + indicator（カスタムマーカー）",
+            description: "ListVariant::Plain と indicator を組み合わせ、アイコン等のカスタムマーカーを行頭に揃えて表示します。",
+            render: list_plain_indicator_example,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,

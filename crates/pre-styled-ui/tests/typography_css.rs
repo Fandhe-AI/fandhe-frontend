@@ -268,22 +268,35 @@ const LIST_GOLDEN_CSS: &str = r#"[data-scope="list"][data-part="root"] {
 }
 
 [data-scope="list"][data-part="item"] {
-  margin-block: 0.25rem;
+  margin-block: var(--fandhe-space-1);
   line-height: 1.5;
 }
 
 [data-scope="list"][data-part="indicator"] {
   display: inline-block;
+  margin-inline-end: var(--fandhe-space-2);
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 [data-scope="list"][data-part="root"].fd-list--variant-marker {
   list-style: revert;
-  padding-inline-start: 1.5rem;
+  padding-inline-start: var(--fandhe-space-6);
 }
 
 [data-scope="list"][data-part="root"].fd-list--variant-plain {
   list-style: none;
   padding-inline-start: 0;
+}
+
+[data-scope="list"][data-part="item"].fd-list--variant-plain {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--fandhe-space-2);
+}
+
+[data-scope="list"][data-part="item"]::marker {
+  color: var(--fandhe-color-fg-muted);
 }
 "#;
 
