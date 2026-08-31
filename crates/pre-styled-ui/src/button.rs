@@ -44,9 +44,10 @@ use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::icon::{icon, IconProps};
 use crate::recipe::{
-    disabled_declarations, hover_bg_muted, hover_bg_solid, hover_surface_declarations,
-    palette_scale_declarations, transition_declarations, when, ColorPalette, MotionDuration, Size,
-    SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid,
+    hover_surface_declarations, palette_scale_declarations, transition_declarations, when,
+    ColorPalette, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
 };
 use crate::spinner::spinner_decorative;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
@@ -121,7 +122,9 @@ impl VariantValue for ButtonIcon {
 /// `data-scope="button"` を固定した本コンポーネントの anatomy。
 const ANATOMY: Anatomy = anatomy("button");
 
-/// Button の見た目 variant（chakra-ui v3 準拠の最小サブセット）。
+/// Button の見た目 variant（chakra-ui v3 準拠、イシュー #1448 で
+/// `Surface`/`Plain` を追加し 6 値へ拡張。solid/outline/ghost/subtle/
+/// surface/plain の chakra-ui v3 6 variant に対応する）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ButtonVariant {
     /// 塗りつぶし（既定）。
@@ -131,8 +134,18 @@ pub enum ButtonVariant {
     Outline,
     /// 背景なし・最小装飾。
     Ghost,
-    /// 淡色背景。
+    /// 淡色背景（イシュー #1448 で palette 着色面へ移行、`recipe_with_scope`
+    /// 参照）。
     Subtle,
+    /// 淡色背景 + 輪郭（イシュー #1448 新設）。chakra-ui v3 の `surface` は
+    /// box-shadow リングだが、本フレームワークは `outline`（`Outline`
+    /// variant と同型の実 border）を採用する（`recipe_with_scope` 内コメント
+    /// 参照。新規 box-shadow リングを増やさない #1424 の判断とも整合）。
+    Surface,
+    /// 背景・輪郭なしの最小装飾（イシュー #1448 新設）。chakra-ui v3 の
+    /// `plain` に相当し、hover 背景変化を持たない（`recipe_with_scope`
+    /// 内コメント参照）。
+    Plain,
 }
 
 impl VariantValue for ButtonVariant {
@@ -146,6 +159,8 @@ impl VariantValue for ButtonVariant {
             Self::Outline => "outline",
             Self::Ghost => "ghost",
             Self::Subtle => "subtle",
+            Self::Surface => "surface",
+            Self::Plain => "plain",
         }
     }
 }
@@ -359,16 +374,71 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
             ButtonVariant::Subtle,
             "root",
             vec![
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-palette)"),
+                // イシュー #1448: 中立色 `--fandhe-color-bg-subtle` から
+                // palette 着色面（`palette_scale_declarations` が定義する
+                // `--fandhe-palette-subtle`/`-fg-subtle`）へ移行する。
+                // `palette` variant の切り替えだけで全 variant の色が追従する
+                // という本 recipe の設計方針（モジュール冒頭 rustdoc 参照）を
+                // `Subtle` にも適用する。
+                decl("background", "var(--fandhe-palette-subtle)"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
                 decl("border", "none"),
-                hover_bg_muted(),
+                // #1425 の「面なし系は bg-muted」原則は palette 着色面の
+                // 導入前の語彙であり、tint 面に中立色 bg-muted を当てると
+                // tint→gray の不自然な遷移になるため、同原則の趣旨
+                // （既存段の再利用・新段を作らない）に沿って
+                // `--fandhe-palette-muted` を用いる（`Outline`/`Ghost` の
+                // hover は #1425 の参照実装のまま変更しない意図的差分）。
+                decl("--fandhe-hover-bg", "var(--fandhe-palette-muted)"),
+            ],
+        )
+        .variant(
+            ButtonVariant::Surface,
+            "root",
+            vec![
+                // イシュー #1448 新設: 淡色背景 + 輪郭。chakra-ui v3 の
+                // `surface` は box-shadow リングだが、`Outline` と同じ実
+                // border を採用し、部品間の視覚言語の一貫性を優先する
+                // （#1424 が新規 box-shadow リングを増やさない判断とも
+                // 整合。理由はモジュール冒頭 `ButtonVariant::Surface` の
+                // rustdoc 参照）。
+                decl("background", "var(--fandhe-palette-subtle)"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
+                decl("border", "1px solid var(--fandhe-palette-muted)"),
+                decl("--fandhe-hover-bg", "var(--fandhe-palette-muted)"),
+            ],
+        )
+        .variant(
+            ButtonVariant::Plain,
+            "root",
+            vec![
+                // イシュー #1448 新設: 背景・輪郭なしの最小装飾。
+                // `--fandhe-hover-bg` を `transparent` として明示定義する
+                // （未定義のまま共有 Hover state が `background:
+                // var(--fandhe-hover-bg)` を適用すると computed-value time
+                // に無効化される非決定的挙動を避ける fail-closed。chakra-ui
+                // v3 の `plain` は hover 背景変化を持たないため、この
+                // 明示定義が挙動としても正しい）。
+                decl("background", "transparent"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
+                decl("border", "none"),
+                decl("--fandhe-hover-bg", "transparent"),
             ],
         )
         .default_variant(Size::Md)
         .default_variant(ButtonVariant::Solid)
         .default_variant(ColorPalette::Accent)
         .state("root", StateCondition::Hover, hover_surface_declarations())
+        // イシュー #1448: キーボードフォーカス表示（`recipe::
+        // focus_ring_declarations` 経由の canonical outline、#1424 規約）。
+        // palette 連動色（`FocusRingColor::Palette`）を使い、`data-disabled`
+        // 状態より前に登録して disabled の後勝ち（opacity/cursor 上書き）を
+        // 保つ。
+        .state(
+            "root",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
+        )
         // `data-disabled` を recipe が消費する（イシュー #1425 で方針転換）。
         // `recipe_with_scope` は `download_trigger` と宣言を共有するため、
         // `download_trigger` 側にも同じ規則が波及するが、`download_trigger`
@@ -605,6 +675,8 @@ mod tests {
             (ButtonVariant::Outline, "fd-button--variant-outline"),
             (ButtonVariant::Ghost, "fd-button--variant-ghost"),
             (ButtonVariant::Subtle, "fd-button--variant-subtle"),
+            (ButtonVariant::Surface, "fd-button--variant-surface"),
+            (ButtonVariant::Plain, "fd-button--variant-plain"),
         ] {
             let props = ButtonProps {
                 variant,
