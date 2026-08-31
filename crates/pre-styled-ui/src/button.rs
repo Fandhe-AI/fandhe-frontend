@@ -51,16 +51,31 @@
 //! [`recipe_with_scope`] の `size` variant（xs〜xl の 5 段）は
 //! [`crate::theme`] の `--fandhe-size-control-{height,padding-x,font-size}-*`
 //! トークン（イシュー #1678 で新設、3 系統 × 5 段）を参照する。button が
-//! このトークン系統の最初の消費者であり、縦方向は `height` トークンで固定
-//! し（縦 padding は 0）、水平方向は `padding-x` トークンのみを使う（値は
-//! いずれもソースコード内 `&'static str` リテラルの `var()` 参照であり、
-//! `format!` による動的合成は行わない）。[`ButtonIcon::Only`] の compound
-//! variant は `height` 固定に伴い正方形の根拠が変わるため、5 段の均等
-//! padding リテラルをやめて `padding: 0`（`aspect-ratio: 1 / 1` は不変）へ
-//! 簡約した（正方形の成立条件は「高さ固定 + `aspect-ratio: 1 / 1`」であり、
-//! padding では担わない）。`recipe_with_scope` を共有する
-//! [`crate::download_trigger`] にも同じ size 宣言（height/padding-x/
-//! font-size のトークン化）が波及する（意図的、golden テスト参照）。
+//! このトークン系統の最初の消費者であり、縦方向は `height` トークンを
+//! 下限とする `min-height` で表現し（縦 padding は 0）、水平方向は
+//! `padding-x` トークンのみを使う（値はいずれもソースコード内
+//! `&'static str` リテラルの `var()` 参照であり、`format!` による動的
+//! 合成は行わない）。**codex-review #1731 P1 指摘の是正**: 当初 `height`
+//! （固定）で表現していたが、ブラウザの既定フォントサイズ拡大・
+//! `--fandhe-size-control-font-size-*` の利用者上書き・ラベル折り返しで
+//! 内容が固定高さを超えるとラベルがボタン外へあふれる不具合があった
+//! ため、ラベル付きボタン（[`button`]）は `min-height` へ変更し、内容が
+//! 下限を超える場合はボックス自体が自然に伸長するようにした。
+//! [`ButtonIcon::Only`] は子ノードが常にアイコン 1 個（固定サイズ・
+//! 折り返し要因なし、モジュール冒頭 rustdoc 参照）であり `min-height` の
+//! ままでは `aspect-ratio: 1 / 1` が確定サイズを得られず正方形を保証
+//! できないため、[`recipe`] が `icon`×`size` の compound variant として
+//! 5 段ぶんの確定 `height` を追加登録し、icon-only の場合のみ正方形を
+//! 復元する（正方形の成立条件は「icon-only 時の確定 `height` +
+//! `aspect-ratio: 1 / 1`」であり、padding では担わない。詳細は
+//! [`recipe`] rustdoc 参照）。[`ButtonIcon::Only`] の通常 variant は
+//! 5 段の均等 padding リテラルをやめて `padding: 0`
+//! （`aspect-ratio: 1 / 1` は不変）へ簡約したまま変更していない。
+//! `recipe_with_scope` を共有する [`crate::download_trigger`] にも同じ
+//! size 宣言（min-height/padding-x/font-size のトークン化）が波及する
+//! （意図的、golden テスト参照。icon×size の compound variant は
+//! [`recipe`]（button 専用の公開 API）にのみ追加するため download_trigger
+//! へは波及しない）。
 //! [`assemble`] が埋め込む loading 中の Spinner サイズはボタンの `size`
 //! から決定的に写像する（`xs`/`sm`/`md` → `Size::Sm`、`lg`/`xl` →
 //! `Size::Md`。ボタンの `font-size` に近い視覚サイズへ追随させるための
@@ -77,9 +92,9 @@ use crate::css::decl;
 use crate::icon::{icon, IconProps};
 use crate::recipe::{
     disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid,
-    hover_surface_declarations, palette_scale_declarations, transition_declarations, ColorPalette,
-    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
-    VariantValue,
+    hover_surface_declarations, palette_scale_declarations, transition_declarations, when,
+    ColorPalette, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
 };
 use crate::spinner::spinner_decorative;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
@@ -263,11 +278,62 @@ fn recipe() -> SlotRecipe {
     // variant の登録順序を icon-only より後へ動かす変更は本規則を静かに
     // 破壊するため、`recipe_with_scope` 側を変更する際はこの出力順依存を
     // 意識すること（golden テスト `button_css.rs` がバイト一致で固定）。
-    recipe_with_scope("button").variant(
-        ButtonIcon::Only,
-        "root",
-        vec![decl("aspect-ratio", "1 / 1"), decl("padding", "0")],
-    )
+    //
+    // イシュー #1449 codex-review P1 指摘の是正: `recipe_with_scope` の
+    // size variant は固定 `height` から `min-height` へ変更した（ラベル
+    // 付きボタンがブラウザの既定フォントサイズ拡大・
+    // `--fandhe-size-control-font-size-*` の利用者上書き・ラベル折り返しで
+    // 内容が `height` を超えても、ボタンが `min-height` を下限として自然に
+    // 伸長し、内容が枠外へあふれる/隣接要素と重なることを防ぐ）。ただし
+    // icon-only（[`ButtonIcon::Only`]）は子ノードが常にアイコン 1 個
+    // （固定サイズ・折り返し要因なし、モジュール冒頭 rustdoc 参照）で
+    // あるため `min-height` だけでは正方形が保証できない（`aspect-ratio`
+    // は `min-height` のような制約でなく確定サイズを要求するため、
+    // コンテンツ幅次第で正方形が崩れうる）。ここで `ButtonIcon::Only` と
+    // 各 `Size` の compound variant として明示的な固定 `height` を追加登録
+    // し、icon-only の各 size だけ正方形の確定サイズを復元する
+    // （`compound_variant` はクラス 2 個分のセレクタで size variant 単体
+    // より詳細度が高いため出力順に依存せず必ず上書きする）。
+    recipe_with_scope("button")
+        .variant(
+            ButtonIcon::Only,
+            "root",
+            vec![decl("aspect-ratio", "1 / 1"), decl("padding", "0")],
+        )
+        .compound_variant(
+            vec![when(ButtonIcon::Only), when(Size::Xs)],
+            "root",
+            vec![decl("height", "var(--fandhe-size-control-height-xs, 2rem)")],
+        )
+        .compound_variant(
+            vec![when(ButtonIcon::Only), when(Size::Sm)],
+            "root",
+            vec![decl(
+                "height",
+                "var(--fandhe-size-control-height-sm, 2.25rem)",
+            )],
+        )
+        .compound_variant(
+            vec![when(ButtonIcon::Only), when(Size::Md)],
+            "root",
+            vec![decl(
+                "height",
+                "var(--fandhe-size-control-height-md, 2.5rem)",
+            )],
+        )
+        .compound_variant(
+            vec![when(ButtonIcon::Only), when(Size::Lg)],
+            "root",
+            vec![decl(
+                "height",
+                "var(--fandhe-size-control-height-lg, 2.75rem)",
+            )],
+        )
+        .compound_variant(
+            vec![when(ButtonIcon::Only), when(Size::Xl)],
+            "root",
+            vec![decl("height", "var(--fandhe-size-control-height-xl, 3rem)")],
+        )
 }
 
 /// [`recipe`] の scope 引数化版（イシュー #828）。
@@ -348,7 +414,7 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
             Size::Xs,
             "root",
             vec![
-                decl("height", "var(--fandhe-size-control-height-xs, 2rem)"),
+                decl("min-height", "var(--fandhe-size-control-height-xs, 2rem)"),
                 decl(
                     "padding",
                     "0 var(--fandhe-size-control-padding-x-xs, 0.625rem)",
@@ -363,7 +429,10 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
             Size::Sm,
             "root",
             vec![
-                decl("height", "var(--fandhe-size-control-height-sm, 2.25rem)"),
+                decl(
+                    "min-height",
+                    "var(--fandhe-size-control-height-sm, 2.25rem)",
+                ),
                 decl(
                     "padding",
                     "0 var(--fandhe-size-control-padding-x-sm, 0.75rem)",
@@ -378,7 +447,7 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
             Size::Md,
             "root",
             vec![
-                decl("height", "var(--fandhe-size-control-height-md, 2.5rem)"),
+                decl("min-height", "var(--fandhe-size-control-height-md, 2.5rem)"),
                 decl("padding", "0 var(--fandhe-size-control-padding-x-md, 1rem)"),
                 decl(
                     "font-size",
@@ -390,7 +459,10 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
             Size::Lg,
             "root",
             vec![
-                decl("height", "var(--fandhe-size-control-height-lg, 2.75rem)"),
+                decl(
+                    "min-height",
+                    "var(--fandhe-size-control-height-lg, 2.75rem)",
+                ),
                 decl(
                     "padding",
                     "0 var(--fandhe-size-control-padding-x-lg, 1.25rem)",
@@ -405,7 +477,7 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
             Size::Xl,
             "root",
             vec![
-                decl("height", "var(--fandhe-size-control-height-xl, 3rem)"),
+                decl("min-height", "var(--fandhe-size-control-height-xl, 3rem)"),
                 decl(
                     "padding",
                     "0 var(--fandhe-size-control-padding-x-xl, 1.5rem)",
@@ -1178,10 +1250,12 @@ mod tests {
         assert!(!html.contains("fd-button--icon-"));
     }
 
-    /// イシュー #1449: size variant が `height` トークンで高さを固定する
-    /// ようになったため、icon-only の正方形は「高さ固定 +
-    /// `aspect-ratio: 1 / 1`」で成立し、5 段の均等 padding compound
-    /// variant（旧実装）は不要になった（`padding: 0` へ簡約）。
+    /// イシュー #1449: icon-only 修飾 variant 単体（size 非依存）は
+    /// `aspect-ratio: 1 / 1` + `padding: 0` のみを持ち、正方形の確定
+    /// `height` は icon×size の compound variant 側が担う
+    /// （[`css_output_icon_only_size_compound_declares_fixed_height`]
+    /// 参照。codex-review #1731 P1 是正後の役割分担、`recipe()` rustdoc
+    /// 参照）。
     #[test]
     fn css_output_contains_icon_only_variant_rule() {
         let out = css();
@@ -1190,9 +1264,12 @@ mod tests {
         assert!(out.contains("padding: 0;"));
     }
 
-    /// イシュー #1449: size variant の `height`/`padding`/`font-size` が
+    /// イシュー #1449: size variant の `min-height`/`padding`/`font-size` が
     /// `--fandhe-size-control-*` トークン（イシュー #1678 新設）を参照する
-    /// ことを固定する。
+    /// ことを固定する。**codex-review #1731 P1 指摘の是正**: ラベル折り返し・
+    /// フォント拡大時にラベルがボタン外へあふれないよう、固定 `height` から
+    /// `min-height` へ変更した（モジュール冒頭 rustdoc「size スケール・
+    /// icon-only・loading」節参照）。
     #[test]
     fn css_output_declares_size_control_tokens() {
         let out = css();
@@ -1209,9 +1286,9 @@ mod tests {
         ] {
             assert!(
                 out.contains(&format!(
-                    "height: var(--fandhe-size-control-height-{suffix}, {height_fallback});"
+                    "min-height: var(--fandhe-size-control-height-{suffix}, {height_fallback});"
                 )),
-                "size={suffix} の height トークンが見つからない: {out}"
+                "size={suffix} の min-height トークンが見つからない: {out}"
             );
             assert!(
                 out.contains(&format!(
@@ -1224,6 +1301,30 @@ mod tests {
                     "font-size: var(--fandhe-size-control-font-size-{suffix}, var(--fandhe-font-font-size-{suffix}));"
                 )),
                 "size={suffix} の font-size トークンが見つからない: {out}"
+            );
+        }
+    }
+
+    /// **codex-review #1731 P1 指摘の是正の回帰テスト**: icon-only は
+    /// `min-height` だけでは `aspect-ratio: 1 / 1` が確定サイズを得られず
+    /// 正方形を保証できないため、`icon`×`size` の compound variant
+    /// （`.fd-button--icon-only.fd-button--size-<suffix>`）が 5 段ぶんの
+    /// 確定 `height` を追加することを固定する（`recipe()` rustdoc 参照）。
+    #[test]
+    fn css_output_icon_only_size_compound_declares_fixed_height() {
+        let out = css();
+        for (suffix, height_fallback) in [
+            ("xs", "2rem"),
+            ("sm", "2.25rem"),
+            ("md", "2.5rem"),
+            ("lg", "2.75rem"),
+            ("xl", "3rem"),
+        ] {
+            assert!(
+                out.contains(&format!(
+                    ".fd-button--icon-only.fd-button--size-{suffix} {{\n  height: var(--fandhe-size-control-height-{suffix}, {height_fallback});\n}}"
+                )),
+                "size={suffix} の icon-only 確定 height compound variant が見つからない: {out}"
             );
         }
     }
