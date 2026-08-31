@@ -92,7 +92,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 双方の実体変更を統合するため同一版数への偶発的衝突を避けて 0.53.2 へ
 # さらにパッチバンプする（0.x の破壊的変更ではない意匠調整の重複、
 # `docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
-version = "0.53.2"
+# イシュー #1438 codex-review P1 / Cursor Bugbot 指摘の是正: `list::css()`
+# が Plain variant の item 整列に使うセレクタが root にしか付与されない
+# variant クラスを item 自身に要求しており、実際には一致せず整列規則が
+# 適用されなかった不具合を修正した（root を祖先条件とする子孫セレクタへ
+# 変更）。Rust API シグネチャ・data-* 属性は不変で CSS 出力のみの是正の
+# ため 0.53.3 へパッチバンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+version = "0.53.3"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

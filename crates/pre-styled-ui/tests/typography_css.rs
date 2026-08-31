@@ -290,13 +290,13 @@ const LIST_GOLDEN_CSS: &str = r#"[data-scope="list"][data-part="root"] {
   padding-inline-start: 0;
 }
 
-[data-scope="list"][data-part="item"].fd-list--variant-plain {
-  display: inline-flex;
-  align-items: flex-start;
-}
-
 [data-scope="list"][data-part="item"]::marker {
   color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="list"][data-part="root"].fd-list--variant-plain [data-scope="list"][data-part="item"] {
+  display: inline-flex;
+  align-items: flex-start;
 }
 "#;
 

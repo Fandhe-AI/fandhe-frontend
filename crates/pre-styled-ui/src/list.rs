@@ -150,32 +150,47 @@ fn recipe() -> SlotRecipe {
                 decl("padding-inline-start", "0"),
             ],
         )
-        .variant(
-            ListVariant::Plain,
-            "item",
-            vec![
-                decl("display", "inline-flex"),
-                decl("align-items", "flex-start"),
-            ],
-        )
         .default_variant(ListVariant::Marker)
 }
 
 /// この styled List が生成する静的 CSS 全量を返す（決定的）。
 ///
-/// recipe が生成する規則群に続けて、item の `::marker`（箇条書きの点・
-/// 番号）を淡色（`fg.muted` 相当）へ固定する規則を追記する（`::marker` は
-/// 擬似要素であり [`crate::recipe::StateCondition`] では表現できないため、
-/// [`crate::scroll_area::stylesheet`] の `::-webkit-scrollbar` 系規則
-/// 追記と同型の precedent を採る）。値はソースコード中の固定リテラル +
-/// テーマ CSS 変数参照のみで構成され、外部入力は一切混入しない。
+/// recipe が生成する規則群に続けて、2 種の固定 CSS リテラルを追記する
+/// （`::marker`・子孫セレクタのいずれも [`SlotRecipe::variant`] の
+/// 一律なセレクタ生成では表現できないため、[`crate::scroll_area::stylesheet`]
+/// の `::-webkit-scrollbar` 系規則追記と同型の precedent を採る）。値は
+/// ソースコード中の固定リテラル + テーマ CSS 変数参照のみで構成され、
+/// 外部入力は一切混入しない。
+///
+/// 1. item の `::marker`（箇条書きの点・番号）を淡色（`fg.muted` 相当）へ
+///    固定する規則（`::marker` は擬似要素であり
+///    [`crate::recipe::StateCondition`] では表現できない）。
+/// 2. `Plain` variant 使用時の item 整列規則。[`SlotRecipe::variant`] が
+///    生成するセレクタは対象スロット自身に variant クラスが付与されて
+///    いる前提（`[data-part="item"].fd-list--variant-plain`）だが、
+///    variant クラスを実際に持つのは [`root`] が返す要素のみで、`item`
+///    （常に `ANATOMY.part("item", ...)` のみで組み立て、variant を引数に
+///    取らない）は持たない。そのため recipe の `.variant(_, "item", _)`
+///    登録では一致しないセレクタが生成され、Plain variant でも item に
+///    整列規則が適用されない不具合があった（イシュー #1438 codex-review
+///    P1 / Cursor Bugbot 指摘）。是正として `.variant(_, "item", _)` 登録は
+///    削除し、`root` 自身を祖先条件としたセレクタ
+///    （`[data-part="root"].fd-list--variant-plain` 配下の
+///    `[data-part="item"]`）を手書きし、root の variant クラス配下にある
+///    item 全てへ子孫結合子で適用する。
+///    `tests::plain_variant_root_and_item_dom_matches_plain_item_selector`
+///    が root(Plain) と item() の実際の DOM 出力からこのセレクタが一致
+///    することを検証する。
 #[must_use]
 pub fn css() -> String {
     let mut out = recipe().css();
     out.push('\n');
     out.push_str(
         "[data-scope=\"list\"][data-part=\"item\"]::marker {\n  \
-         color: var(--fandhe-color-fg-muted);\n}\n",
+         color: var(--fandhe-color-fg-muted);\n}\n\
+         \n\
+         [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain [data-scope=\"list\"][data-part=\"item\"] {\n  \
+         display: inline-flex;\n  align-items: flex-start;\n}\n",
     );
     out
 }
@@ -350,8 +365,56 @@ mod tests {
     #[test]
     fn plain_variant_item_uses_inline_flex_alignment() {
         let out = css();
-        assert!(out.contains(r#"[data-scope="list"][data-part="item"].fd-list--variant-plain"#));
+        assert!(out.contains(
+            r#"[data-scope="list"][data-part="root"].fd-list--variant-plain [data-scope="list"][data-part="item"]"#
+        ));
         assert!(out.contains("display: inline-flex;"));
         assert!(out.contains("align-items: flex-start;"));
+    }
+
+    /// イシュー #1438 codex-review P1 / Cursor Bugbot 指摘の回帰テスト。
+    ///
+    /// `css()` が Plain variant の item 整列に使うセレクタ
+    /// （`[data-part="root"].fd-list--variant-plain [data-part="item"]`）が、
+    /// `root(ListType::default(), ListVariant::Plain, ...)` と `item(...)`
+    /// が実際に生成する DOM 属性と一致することを、文字列レベルで検証する
+    /// （セレクタの各条件が対応する要素の実属性に現れるかを機械的に確認し、
+    /// 「CSS 文字列に含まれているだけ」で実 DOM に一致しない状態を防ぐ）。
+    #[test]
+    fn plain_variant_root_and_item_dom_matches_plain_item_selector() {
+        let root_html = render(&root(
+            ListType::default(),
+            ListVariant::Plain,
+            vec![],
+            vec![],
+        ));
+        // セレクタ祖先条件 `[data-part="root"].fd-list--variant-plain` が
+        // root(Plain) の実属性（data-part="root" と class 内の
+        // fd-list--variant-plain）に一致することを確認する。
+        assert!(
+            root_html.contains(r#"data-part="root""#),
+            "root_html={root_html}"
+        );
+        assert!(
+            root_html.contains("fd-list--variant-plain"),
+            "root_html={root_html}"
+        );
+
+        let item_html = render(&item(vec![], vec![]));
+        // セレクタ子孫条件 `[data-part="item"]` が item() の実属性に一致
+        // することを確認する（item は variant を引数に取らず、常に同一の
+        // data-part="item" を持つ）。
+        assert!(
+            item_html.contains(r#"data-part="item""#),
+            "item_html={item_html}"
+        );
+
+        // css() が生成するセレクタが、上記 2 要素の実属性のみから機械的に
+        // 組み立てたセレクタ文字列と一致することを確認する（DOM 側の属性が
+        // 変わればこのテストも追随して失敗し、セレクタと DOM のドリフトを
+        // 検知する）。
+        let expected_selector = r#"[data-scope="list"][data-part="root"].fd-list--variant-plain [data-scope="list"][data-part="item"]"#;
+        let out = css();
+        assert!(out.contains(expected_selector), "out={out}");
     }
 }
