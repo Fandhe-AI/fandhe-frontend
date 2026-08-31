@@ -9,8 +9,9 @@
 //!
 //! 分割 1/3（イシュー #1471、control/input/trigger/clear-trigger パート）が
 //! 新設し、分割 2/3（カレンダーグリッド、#1472）・3/3（ビュー切り替え・
-//! ポジショナ、#1473）が期待値を更新する（`docs/internal/
-//! pre-styled-ui-golden-test-update-guide.md` の手順に従う）。
+//! ポジショナ、#1473）が期待値を更新した（`docs/internal/
+//! pre-styled-ui-golden-test-update-guide.md` の手順に従う）。3/3 の完了に
+//! より親イシュー #1470 の 3 分割は全て完了している。
 //!
 //! date_picker は「golden 不在」部品だった（同ガイド §3.3）ため、本ファイルは
 //! 1/3 の是正後の `crates/pre-styled-ui/src/date_picker.rs::recipe` の実出力
@@ -88,7 +89,7 @@ const EXPECTED_CSS: &str = r#"[data-scope="date-picker"][data-part="root"] {
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 10;
+  z-index: var(--fandhe-z-index-dropdown, 10);
   margin-top: var(--fandhe-space-1);
 }
 
@@ -96,8 +97,8 @@ const EXPECTED_CSS: &str = r#"[data-scope="date-picker"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+  border-radius: var(--fandhe-radius-md);
+  box-shadow: var(--fandhe-shadow-md);
   padding: var(--fandhe-date-picker-content-padding, var(--fandhe-space-2));
 }
 

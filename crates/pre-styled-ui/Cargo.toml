@@ -383,7 +383,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # みで Rust API シグネチャは不変のため、同じく patch バンプとして
 # 0.57.2 から 0.57.3 とする（`docs/ci/style-refresh-version-bump-operation.md`
 # §3.1/§3.4a の運用に従う）。
-version = "0.57.3"
+# date-picker のスタイル調整 (3/3)（イシュー #1473）: `date_picker::recipe`
+# の positioner/content パートの色・z-index トークン化（生リテラルの
+# `border-radius`/`box-shadow`/`z-index` をテーマトークン参照へ置換）のみで
+# Rust API シグネチャは不変のため、同じく patch バンプとして 0.57.3 から
+# 0.57.4 とする。
+version = "0.57.4"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
