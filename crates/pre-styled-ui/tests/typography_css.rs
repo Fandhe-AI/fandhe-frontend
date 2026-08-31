@@ -297,6 +297,9 @@ const LIST_GOLDEN_CSS: &str = r#"[data-scope="list"][data-part="root"] {
 [data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"] {
   display: flex;
   align-items: flex-start;
+}
+
+[data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"]:has(> [data-scope="list"][data-part="root"]) {
   flex-wrap: wrap;
 }
 

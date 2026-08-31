@@ -121,7 +121,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 追加）を統合するため同一版数への偶発的衝突を避けて 0.53.5 へさらに
 # パッチバンプする（0.x の破壊的変更ではない意匠調整・rustdoc 追加の
 # 重複、`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
-version = "0.53.5"
+# イシュー #1438 PR #1724 Cursor Bugbot（Medium）再指摘の是正:
+# `list::css()` の Plain variant item 規則が `flex-wrap: wrap` を無条件に
+# 付与していたため、ネストリストを持たない通常の item（indicator + 長い
+# テキスト）でも折り返し時にテキストが indicator と別の flex line へ
+# 分離してしまう不具合を修正した（`flex-wrap: wrap` を
+# `:has(> [data-part="root"])` でネスト root を持つ item のみへ限定）。
+# Rust API シグネチャ・data-* 属性は不変で CSS 出力のみの是正のため
+# 0.53.6 へパッチバンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+version = "0.53.6"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
