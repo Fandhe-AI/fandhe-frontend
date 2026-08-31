@@ -1,12 +1,15 @@
-//! styled ColorPicker（イシュー #839）の決定的 CSS 出力ゴールデンテスト。
+//! styled ColorPicker（イシュー #839、状態表現の是正はイシュー #1464）の
+//! 決定的 CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/color_swatch_css.rs` の体裁に倣い、`css()` が
-//! 返す CSS 全文をバイト単位で固定する。出力順（base のみ、variant なし）が
+//! 返す CSS 全文をバイト単位で固定する。出力順（base → `.state(...)` 登録順）が
 //! 崩れた場合や意図しない宣言の追加・欠落があった場合に、この golden
 //! テストが即座に検知する。Area の 2 レイヤーグラデーション・色相スライダー
 //! の静的 7 ストップグラデーション・アルファスライダーのチェッカーボード
-//! 表現が固定対象の中核（`crates/pre-styled-ui/src/color_picker.rs::recipe`
-//! rustdoc 参照）。
+//! 表現に加え、サム 3 slot（`area-thumb`/`hue-slider-thumb`/
+//! `alpha-slider-thumb`）の `[data-disabled]`/`:hover`/`:focus-visible`/
+//! `transition-property` が固定対象の中核（`crates/pre-styled-ui/src/
+//! color_picker.rs::recipe` rustdoc 参照）。
 
 use fandhe_frontend_pre_styled_ui::color_picker;
 
@@ -72,14 +75,20 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
   position: absolute;
   left: var(--fandhe-color-picker-x, 0%);
   top: var(--fandhe-color-picker-y, 0%);
-  width: 0.9rem;
-  height: 0.9rem;
-  border-radius: 9999px;
+  width: var(--fandhe-color-picker-thumb-size, 1rem);
+  height: var(--fandhe-color-picker-thumb-size, 1rem);
+  border-radius: var(--fandhe-radius-full);
   border: 2px solid #fff;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
   transform: translate(-50%, -50%);
   background: transparent;
   cursor: pointer;
+}
+
+[data-scope="color-picker"][data-part="area-thumb"] {
+  transition-property: box-shadow, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="color-picker"][data-part="hue-slider"] {
@@ -91,7 +100,7 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
 [data-scope="color-picker"][data-part="hue-slider-track"] {
   position: absolute;
   inset: 0;
-  border-radius: 999px;
+  border-radius: var(--fandhe-radius-full);
   background-image: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
 }
 
@@ -100,13 +109,19 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
   top: 50%;
   left: var(--fandhe-color-picker-thumb-percent, 0%);
   transform: translate(-50%, -50%);
-  width: 1rem;
-  height: 1rem;
-  border-radius: 9999px;
+  width: var(--fandhe-color-picker-thumb-size, 1rem);
+  height: var(--fandhe-color-picker-thumb-size, 1rem);
+  border-radius: var(--fandhe-radius-full);
   border: 2px solid #fff;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
   background: transparent;
   cursor: pointer;
+}
+
+[data-scope="color-picker"][data-part="hue-slider-thumb"] {
+  transition-property: box-shadow, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="color-picker"][data-part="alpha-slider"] {
@@ -118,7 +133,7 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
 [data-scope="color-picker"][data-part="alpha-slider-track"] {
   position: absolute;
   inset: 0;
-  border-radius: 999px;
+  border-radius: var(--fandhe-radius-full);
   background-image: linear-gradient(to right, transparent, var(--fandhe-color-picker-alpha-color, #000)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, var(--fandhe-color-bg) 0% 50%);
   background-size: 100% 100%, 8px 8px;
 }
@@ -128,13 +143,19 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
   top: 50%;
   left: var(--fandhe-color-picker-thumb-percent, 0%);
   transform: translate(-50%, -50%);
-  width: 1rem;
-  height: 1rem;
-  border-radius: 9999px;
+  width: var(--fandhe-color-picker-thumb-size, 1rem);
+  height: var(--fandhe-color-picker-thumb-size, 1rem);
+  border-radius: var(--fandhe-radius-full);
   border: 2px solid #fff;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
   background: transparent;
   cursor: pointer;
+}
+
+[data-scope="color-picker"][data-part="alpha-slider-thumb"] {
+  transition-property: box-shadow, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="color-picker"][data-part="channel-input"] {
@@ -150,6 +171,50 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
 [data-scope="color-picker"][data-part="value-text"] {
   font-size: var(--fandhe-font-font-size-sm);
   color: var(--fandhe-color-fg);
+}
+
+[data-scope="color-picker"][data-part="area-thumb"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="color-picker"][data-part="area-thumb"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+}
+
+[data-scope="color-picker"][data-part="hue-slider-thumb"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="color-picker"][data-part="hue-slider-thumb"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="color-picker"][data-part="alpha-slider-thumb"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="color-picker"][data-part="alpha-slider-thumb"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (hover: hover) {
+  [data-scope="color-picker"][data-part="area-thumb"]:hover:not([data-disabled]) {
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+  }
+
+  [data-scope="color-picker"][data-part="hue-slider-thumb"]:hover:not([data-disabled]) {
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+  }
+
+  [data-scope="color-picker"][data-part="alpha-slider-thumb"]:hover:not([data-disabled]) {
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+  }
 }
 "#;
 
