@@ -388,7 +388,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # `border-radius`/`box-shadow`/`z-index` をテーマトークン参照へ置換）のみで
 # Rust API シグネチャは不変のため、同じく patch バンプとして 0.57.3 から
 # 0.57.4 とする。
-version = "0.57.4"
+# editable のスタイル調整 (1/2)（イシュー #1476）: `editable::recipe` の
+# `preview`/`input` パート（プレビュー・入力の切り替え表現。`area` は
+# 参照側の見た目契約を既に満たしており変更なし）へ
+# color/focus-ring/readonly-cursor/transition の CSS 宣言追加のみで
+# Rust API シグネチャは不変のため、同じく patch バンプとして 0.57.4 から
+# 0.57.5 とする。
+version = "0.57.5"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

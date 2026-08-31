@@ -53,6 +53,57 @@
 //! 描画され「重ね合わせ」にならず、chakra-ui 由来の見た目契約に反していた
 //! （Bugbot 指摘）。
 //!
+//! # スタイル調整（イシュー #1476、`preview`/`input` パートのみ。
+//! `area` は担当範囲だが後述のとおり変更なし）
+//!
+//! 親イシュー #1475（chakra-ui / ark-ui 基準への意匠調整）の分割 1/2。
+//! `edit-trigger`/`submit-trigger`/`cancel-trigger`/`root`/`label`/`control`
+//! は兄弟イシュー #1477（2/2）のスコープであり、本イシューでは触れない
+//! （同一ファイルを共有する 2 PR のコンフリクト最小化。combobox 1/2
+//! （PR #1744）・checkbox 1/2（PR #1734）と同型の分割運用）。
+//!
+//! 7 軸チェックリスト（`docs/design/pre-styled-ui-interaction-visual-language.md`）
+//! との突合で担当 3 パートに加えた変更・意図的に加えなかった変更:
+//!
+//! - **色**: `input` に `color` 宣言がなく UA 既定色に依存していたため
+//!   （ダークテーマで前景色が崩れる恐れ）、`color: var(--fandhe-color-fg)`
+//!   を base へ追加した（[`crate::combobox`] の `control` と同型）。
+//! - **フォーカス**: `input` にフォーカスリングが一切なかったため、
+//!   `.state("input", StateCondition::FocusVisible, focus_ring_declarations(...))`
+//!   を追加した。`editable` は `ColorPalette` 軸を持たないため
+//!   [`FocusRingColor::Token`] を使う（`docs/design/
+//!   pre-styled-ui-focus-ring-and-size-conventions.md` の canonical 形のみを
+//!   使う規約に従い、`:focus` 直書きはしない）。
+//! - **状態（`data-*`）**: headless が `input` へ出す `data-readonly`
+//!   （`fandhe_frontend_headless_ui::editable::input`）が非視覚だったため、
+//!   `cursor: default` を追加した（[`crate::date_input`] の `segment`
+//!   readonly 対応と同型）。**`input[data-disabled]` へ `opacity` は追加
+//!   しない**: `root[data-disabled]` が既に `opacity: 0.5`
+//!   （CSS の継承により `input` へも及ぶ）を担っており、`input` 側へも
+//!   同じ宣言を足すと実効 `opacity` が `0.5 * 0.5 = 0.25` へ二重適用
+//!   されてしまうため、disabled の視覚化は root 側の 1 箇所に分担を
+//!   固定する。
+//! - **トランジション**: `input`/`preview` とも `transition` 宣言が
+//!   なかったため、[`transition_declarations`] を既存 `base` ブロックを
+//!   書き換えずに純追加した（`.base(slot, ...)` の複数回登録は同一 slot
+//!   への出力が連結される契約、[`crate::combobox`]/[`crate::date_input`]
+//!   と同型）。
+//! - **hover（`preview`、意図的に非採用）**: chakra-ui `Editable.Preview`
+//!   は参照ドキュメント（`.claude/skills/chakra-ui` 経由の公式リファレンス）
+//!   上も淡い hover 面を持たず、`docs/design/reference-screenshots/
+//!   chakra-editable-*.png`・`ark-editable-*.png` にも hover 状態のスタイル
+//!   差分が確認できない（`preview` は `cursor: text` の「テキストらしさ」
+//!   を保つ操作面であり、`edit-trigger` 等のボタン系パートとは異なり
+//!   hover 面を持たせる参照側の意匠が存在しない）。このため
+//!   `hover_bg_muted()`/`hover_surface_declarations()` は採用しない。
+//! - **バリアント（variant 軸）**: chakra 相当の variant 軸追加は Forms
+//!   家族横断の語彙判断であり、部品単独で先行導入しない（combobox #1467・
+//!   checkbox #1454・date-input #1469 と同一の判断軸）。
+//! - **サイズ・余白・角丸・影・ダーク**: 既に規約準拠（`size` は root の
+//!   `--fandhe-editable-font-size` 経由で継承済み、トークンはダーク対応
+//!   済み）のため変更なし。`area` の Grid 重ね合わせレイアウト（PR #792）
+//!   も参照側の見た目契約を既に満たしており変更なし。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく activationMode/submitMode の実挙動・autoResize は
@@ -62,10 +113,15 @@
 //!   Editable 追加は、未公開の新バージョンを参照できないため本イシューの
 //!   スコープ外とする（[`crate::slider`] の先例どおり crates.io 公開後に
 //!   追随）。
+//! - `edit-trigger`/`submit-trigger`/`cancel-trigger`/`root`/`label`/
+//!   `control` の意匠調整は兄弟イシュー #1477（2/2）のスコープ。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, transition_declarations, FocusRingColor, FocusRingOffset,
+    MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+};
 
 // `Editable` 状態機械・headless 自由関数 `root` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。状態管理・
@@ -136,12 +192,36 @@ fn recipe() -> SlotRecipe {
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-md, 0.375rem)"),
                 decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg)"),
             ],
+        )
+        // 別 `.base` 呼び出しでの純追加（イシュー #1476。combobox 1/2
+        // （PR #1744）の「既存 base ブロックを書き換えない」パターンを
+        // 踏襲する。本モジュール冒頭 rustdoc「スタイル調整」節参照）。
+        .base(
+            "input",
+            transition_declarations("border-color, background, color", MotionDuration::Fast),
         )
         .state(
             "input",
             StateCondition::Attr("data-disabled"),
             vec![decl("cursor", "not-allowed")],
+        )
+        // headless 層が `input` へ出す `data-readonly`
+        // （`fandhe_frontend_headless_ui::editable::input`）を視覚化する
+        // （イシュー #1476）。`opacity` は含めない: disabled の視覚化
+        // （opacity 0.5）は root 側が継承で担う分担であり、`input` 側へも
+        // 重ねると実効 opacity が二重適用される（本モジュール冒頭 rustdoc
+        // 参照）。
+        .state(
+            "input",
+            StateCondition::Attr("data-readonly"),
+            vec![decl("cursor", "default")],
+        )
+        .state(
+            "input",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .base(
             "preview",
@@ -157,6 +237,13 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "var(--fandhe-radius-md, 0.375rem)"),
                 decl("cursor", "text"),
             ],
+        )
+        // 別 `.base` 呼び出しでの純追加（イシュー #1476。上記 `input` と
+        // 同じ「既存 base ブロックを書き換えない」パターン）。hover は
+        // 意図的に非採用（本モジュール冒頭 rustdoc「スタイル調整」節参照）。
+        .base(
+            "preview",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         // PR #792 Bugbot 指摘対応（High）: preview の base 規則が
         // `display: inline-block` を宣言しており、UA 既定の
@@ -364,6 +451,69 @@ mod tests {
         let css = stylesheet();
         assert!(css
             .contains(r#"[data-scope="editable"][data-part="preview"][data-placeholder-shown] {"#));
+    }
+
+    #[test]
+    fn input_focus_visible_uses_canonical_focus_ring() {
+        // イシュー #1476: `input` にフォーカスリングが一切なかった不足を
+        // 是正する。canonical 形（`outline`/`outline-offset` の 2 宣言、
+        // `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`）
+        // で出力されることを固定する。
+        let css = stylesheet();
+        let selector = r#"[data-scope="editable"][data-part="input"]:focus-visible {"#;
+        assert!(css.contains(selector), "{css}");
+        let rule_start = css.find(selector).expect("input focus-visible rule");
+        let rule_body = &css[rule_start..];
+        let rule_end = rule_body.find('}').expect("rule must be closed");
+        let body = &rule_body[..rule_end];
+        assert!(body.contains("outline: var(--fandhe-focus-ring-width"));
+        assert!(body.contains("outline-offset: var(--fandhe-focus-ring-offset"));
+    }
+
+    #[test]
+    fn input_readonly_attribute_gets_default_cursor() {
+        // イシュー #1476: headless が出す `data-readonly`（非視覚）を
+        // `cursor: default` として視覚化する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="editable"][data-part="input"][data-readonly] {"#));
+        let selector = r#"[data-scope="editable"][data-part="input"][data-readonly] {"#;
+        let rule_start = css.find(selector).expect("input readonly rule");
+        let rule_body = &css[rule_start..];
+        let rule_end = rule_body.find('}').expect("rule must be closed");
+        assert!(rule_body[..rule_end].contains("cursor: default;"));
+    }
+
+    #[test]
+    fn input_disabled_rule_does_not_duplicate_opacity() {
+        // イシュー #1476: disabled の視覚化（opacity 0.5）は
+        // `root[data-disabled]`（CSS 継承）が担う分担であり、`input` 側の
+        // `[data-disabled]` 規則へ `opacity` を重ねて二重適用しないことを
+        // 固定する（本モジュール冒頭 rustdoc「スタイル調整」節参照）。
+        let css = stylesheet();
+        let selector = r#"[data-scope="editable"][data-part="input"][data-disabled] {"#;
+        let rule_start = css.find(selector).expect("input disabled rule");
+        let rule_body = &css[rule_start..];
+        let rule_end = rule_body.find('}').expect("rule must be closed");
+        let body = &rule_body[..rule_end];
+        assert!(body.contains("cursor: not-allowed;"));
+        assert!(!body.contains("opacity"));
+    }
+
+    #[test]
+    fn input_and_preview_have_transition_declarations() {
+        // イシュー #1476: `input`/`preview` とも transition 宣言がなかった
+        // 不足を是正する（3 longhand プロパティで構成、`crate::recipe::
+        // transition_declarations` 参照）。
+        let css = stylesheet();
+        let input_selector = r#"[data-scope="editable"][data-part="input"] {"#;
+        let input_start = css.find(input_selector).expect("input base rule");
+        let input_body = &css[input_start..];
+        assert!(input_body.contains("transition-property: border-color, background, color;"));
+
+        let preview_selector = r#"[data-scope="editable"][data-part="preview"] {"#;
+        let preview_start = css.find(preview_selector).expect("preview base rule");
+        let preview_body = &css[preview_start..];
+        assert!(preview_body.contains("transition-property: background, color;"));
     }
 
     #[test]
