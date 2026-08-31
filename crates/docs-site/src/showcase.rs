@@ -4523,12 +4523,14 @@ fn checkbox_card_section() -> Node {
         (
             CheckedState::Unchecked,
             false,
+            false,
             "showcase-checkbox-card-unchecked",
             "Starter",
             "個人利用向けの基本プラン。",
         ),
         (
             CheckedState::Checked,
+            false,
             false,
             "showcase-checkbox-card-checked",
             "Pro",
@@ -4537,17 +4539,30 @@ fn checkbox_card_section() -> Node {
         (
             CheckedState::Checked,
             true,
+            false,
             "showcase-checkbox-card-disabled",
             "Enterprise",
             "現在準備中のプランです。",
         ),
+        // イシュー #1457: root の `data-invalid` 状態（枠線を
+        // `--fandhe-color-danger` へ切り替える）を Demo で視覚確認できるよう
+        // 追加する（root スタイル調整の担当範囲）。
+        (
+            CheckedState::Unchecked,
+            false,
+            true,
+            "showcase-checkbox-card-invalid",
+            "Team",
+            "選択が必須の項目です。",
+        ),
     ];
     let demo_row = row(states
         .iter()
-        .map(|(checked, disabled, name, label, description)| {
+        .map(|(checked, disabled, invalid, name, label, description)| {
             let props = CheckboxProps {
                 checked: *checked,
                 disabled: *disabled,
+                invalid: *invalid,
                 ..CheckboxProps::default()
             };
             checkbox_card::root(
