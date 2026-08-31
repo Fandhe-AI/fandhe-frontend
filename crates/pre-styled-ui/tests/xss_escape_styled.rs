@@ -2721,8 +2721,13 @@ fn highlight_text_query_and_attrs_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "highlight 呼び出し側 attrs コンテキスト");
 
         // 属性値経路 c: 呼び出し側 attrs の class（drop_class_attr により
-        // 生ペイロードは出力されない。highlight は variant を持たないため
-        // recipe 生成クラスへの置換ではなく、class 属性自体が出力されない）。
+        // 生ペイロードは出力されない。root には class を出力しないため、
+        // 一致なし（"hello world" は query と不一致）の本ケースでは
+        // `<mark>` も生成されず class 属性自体が出力されない
+        // （イシュー #1435 で variant/palette 軸を持つ `<mark>` 生成 class は
+        // 一致箇所にのみ付与されるようになった。root への漏出がないことは
+        // `caller_attrs_class_and_data_scope_part_are_dropped`〔インライン
+        // テスト〕が別途固定する）。
         let html = render(&highlight(
             &HighlightProps::default(),
             vec![("class", payload)],
@@ -2735,7 +2740,7 @@ fn highlight_text_query_and_attrs_are_escaped_for_all_payloads() {
         );
         assert!(
             !html.contains("class=\""),
-            "highlight は variant を持たないため class 属性を出力しないはずだが出力されている: \
+            "一致なしの本ケースでは <mark> が生成されず class 属性が出力されないはずだが出力されている: \
              html={html}"
         );
     }

@@ -37,29 +37,86 @@
 //! まま）をそのまま [`fandhe_frontend_core::text`] へ渡す。`ignore_case` は
 //! 一致判定のみに影響し、出力される文字列を変形しない。
 //!
-//! # variant 軸を提供しない理由
+//! # イシュー #1435 の参照サイト比較（7 軸チェック）
 //!
-//! `size`/`color-palette` 軸は提供しない。強調表示は文脈依存の中立な
-//! 装飾でありステータス色を持たない（[`crate::skeleton`]/[`crate::separator`]
-//! が同じ理由で軸を非提供とした判断に整合する）。root に `class` は付与せず、
-//! スタイルは `[data-scope="highlight"][data-part="mark"]` セレクタで直接
-//! 当てる（[`crate::card::body`] のような variant を持たない slot と同型）。
+//! chakra-ui（`typography/highlight.md`）とスクリーンショット比較した結果を
+//! 記録する（Radix Themes に Highlight 相当なし、ark-ui は headless
+//! utility のみで独自スタイルを持たない）。chakra Highlight 自体は
+//! `styles` prop による自由な CSS-in-JS 指定でプリセット variant 体系を
+//! 持たないため、任意 CSS 注入面を持ち込まず既存語彙（[`crate::mark`]、
+//! イシュー #1711 で 6 役割 palette 化済み）のプリセットへ写像する。
+//!
+//! - **サイズ**: 軸を新設しない（現状維持）。
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4(c)
+//!   が本部品を「size 軸を持たない Typography 周辺部品」と規約確定済み。
+//! - **バリアント**: [`HighlightVariant`]（`Subtle`〔既定〕/`Solid`/`Text`/
+//!   `Plain`）を新設した。[`crate::mark::MarkVariant`] と同一語彙であり、
+//!   chakra の淡色背景・濃色背景・文字装飾のみの 3 用例を既存語彙の
+//!   プリセットで写像する。
+//! - **色**: [`ColorPalette`] 軸（6 値、既定 `Accent`）を新設した。
+//!   [`crate::recipe::palette_scale_declarations`] 経由でトークン参照のみ
+//!   （生色リテラルなし）。
+//! - **`data-*` 状態**: 変更なし。headless 状態機械を持たない静的部品の
+//!   ため `data-scope`/`data-part` のみを維持する。
+//! - **ダーク**: 全宣言が `--fandhe-*` トークン参照のみのため
+//!   `write_dark_declarations` の一元機構に自動追従する。
+//! - **フォーカス / hover / disabled / transition**: 適用しない
+//!   （意図的）。非インタラクティブな表示専用部品であり、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md`
+//!   （hover はインタラクティブ slot のみ）・
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+//!   （フォーカスリングはフォーカス対象部品のみ）のいずれの適用対象にも
+//!   当たらない（[`crate::code`] #1432 と同一判断）。
+//! - **余白・角丸**: `padding-inline` を [`crate::mark`] と同じ `0.25em`
+//!   （chakra `px: 0.5` 相当の視覚量）へ統一した。角丸は
+//!   `--fandhe-radius-sm` を維持する。
 
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::SlotRecipe;
+use crate::recipe::{palette_scale_declarations, ColorPalette, SlotRecipe, VariantValue};
 
 /// `data-scope="highlight"` を固定した本コンポーネントの anatomy。
 const ANATOMY: Anatomy = anatomy("highlight");
+
+/// Highlight の見た目 variant（[`crate::mark::MarkVariant`] と同一語彙。
+/// モジュール冒頭 rustdoc「イシュー #1435 の参照サイト比較」節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HighlightVariant {
+    /// 淡色背景（既定）。
+    #[default]
+    Subtle,
+    /// 塗りつぶし。
+    Solid,
+    /// 背景なし・文字色のみ。
+    Text,
+    /// 装飾なし（旧実装相当の中立表示）。
+    Plain,
+}
+
+impl VariantValue for HighlightVariant {
+    fn axis(self) -> &'static str {
+        "variant"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Subtle => "subtle",
+            Self::Solid => "solid",
+            Self::Text => "text",
+            Self::Plain => "plain",
+        }
+    }
+}
 
 /// [`highlight`] の設定。
 ///
 /// 既定値（`#[derive(Default)]`）は `query: &[]`（一致対象なし）・
 /// `ignore_case: false`・`match_all: false`（ark-ui 既定 `matchAll: false`
-/// に合わせる）。
+/// に合わせる）・`variant: HighlightVariant::Subtle`・
+/// `palette: ColorPalette::Accent`。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HighlightProps<'a> {
     /// 強調する語句（複数可）。空文字列の要素は無視する（無限ループ防止、
@@ -72,22 +129,75 @@ pub struct HighlightProps<'a> {
     /// `true` なら全一致箇所、`false`（既定）なら最初の 1 箇所のみ強調する
     /// （ark-ui 既定 `matchAll: false` に合わせる）。
     pub match_all: bool,
+    /// 見た目 variant（既定 `Subtle`）。モジュール冒頭 rustdoc「イシュー
+    /// #1435 の参照サイト比較」節参照。
+    pub variant: HighlightVariant,
+    /// colorPalette 軸（既定 `Accent`）。[`crate::theme`] のセマンティック色
+    /// から選択する。
+    pub palette: ColorPalette,
 }
 
 /// Highlight の recipe（scope `"highlight"`、slot `"root"`/`"mark"`）。
 ///
-/// variant 軸を持たないため、いずれの slot にも `class` を出力しない
-/// （モジュール冒頭 rustdoc「variant 軸を提供しない理由」節参照）。
+/// `root` は素通しのコンテナのため規則を持たない。`mark` slot へ
+/// variant/palette の宣言を登録する（[`crate::mark::recipe`] と同型）。
 fn recipe() -> SlotRecipe {
-    SlotRecipe::new("highlight", &["root", "mark"]).base(
-        "mark",
-        vec![
-            decl("background", "var(--fandhe-color-bg-subtle)"),
-            decl("color", "inherit"),
-            decl("padding-inline", "0.125rem"),
-            decl("border-radius", "var(--fandhe-radius-sm)"),
-        ],
-    )
+    let mut recipe = SlotRecipe::new("highlight", &["root", "mark"])
+        .base(
+            "mark",
+            vec![
+                decl("padding-inline", "0.25em"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+            ],
+        )
+        .variant(
+            HighlightVariant::Subtle,
+            "mark",
+            vec![
+                decl("background", "var(--fandhe-color-bg-subtle)"),
+                decl("color", "var(--fandhe-palette)"),
+            ],
+        )
+        .variant(
+            HighlightVariant::Solid,
+            "mark",
+            vec![
+                decl("background", "var(--fandhe-palette)"),
+                decl("color", "var(--fandhe-palette-fg)"),
+            ],
+        )
+        .variant(
+            HighlightVariant::Text,
+            "mark",
+            vec![
+                decl("background", "transparent"),
+                decl("color", "var(--fandhe-palette)"),
+            ],
+        )
+        .variant(
+            HighlightVariant::Plain,
+            "mark",
+            vec![
+                decl("background", "transparent"),
+                decl("color", "inherit"),
+                decl("padding-inline", "0"),
+                decl("border-radius", "0"),
+            ],
+        )
+        .default_variant(HighlightVariant::Subtle)
+        .default_variant(ColorPalette::Accent);
+
+    for palette in [
+        ColorPalette::Accent,
+        ColorPalette::Info,
+        ColorPalette::Success,
+        ColorPalette::Warning,
+        ColorPalette::Danger,
+        ColorPalette::Neutral,
+    ] {
+        recipe = recipe.variant(palette, "mark", palette_scale_declarations(palette));
+    }
+    recipe
 }
 
 /// Highlight の静的 CSS 全文。`root` は素通しのコンテナのため規則を持たず、
@@ -197,7 +307,7 @@ fn find_matches(text: &str, props: &HighlightProps<'_>) -> Vec<Match> {
 /// Highlight 1 個を組み立てる。
 ///
 /// `text` を非一致区間の [`fandhe_frontend_core::text`] ノードと、一致区間の
-/// `<mark data-scope="highlight" data-part="mark">` ノード（子は同じく
+/// `<mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">` ノード（子は同じく
 /// `text()`）へ交互に分割する。両方とも既定エスケープ経由でのみ HTML へ
 /// 出力するため、`text`/`query` のどちらにペイロードを含めても
 /// `raw_html()` を経由しない限り実タグとして解釈されない（REQ-1）。
@@ -220,7 +330,7 @@ fn find_matches(text: &str, props: &HighlightProps<'_>) -> Vec<Match> {
 ///     vec![],
 ///     "The quick brown fox",
 /// ));
-/// assert!(html.contains(r#"<mark data-scope="highlight" data-part="mark">fox</mark>"#));
+/// assert!(html.contains(r#"<mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">fox</mark>"#));
 /// ```
 #[must_use]
 pub fn highlight<'a>(
@@ -229,6 +339,12 @@ pub fn highlight<'a>(
     text_content: &str,
 ) -> Node {
     let matches = find_matches(text_content, props);
+
+    let recipe = recipe();
+    let mark_class = recipe.variant_classes(&[
+        ("variant", props.variant.value()),
+        ("color-palette", props.palette.value()),
+    ]);
 
     let mut children: Vec<Node> = Vec::with_capacity(matches.len() * 2 + 1);
     let mut cursor = 0usize;
@@ -239,7 +355,7 @@ pub fn highlight<'a>(
         children.push(ANATOMY.part(
             "mark",
             "mark",
-            vec![],
+            vec![("class", mark_class.as_str())],
             vec![text(&text_content[m.start..m.end])],
         ));
         cursor = m.end;
@@ -273,7 +389,7 @@ mod tests {
         ));
         assert_eq!(
             html,
-            r#"<span data-scope="highlight" data-part="root">The quick brown <mark data-scope="highlight" data-part="mark">fox</mark></span>"#
+            r#"<span data-scope="highlight" data-part="root">The quick brown <mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">fox</mark></span>"#
         );
     }
 
@@ -333,7 +449,7 @@ mod tests {
         ));
         assert_eq!(
             html,
-            r#"<span data-scope="highlight" data-part="root">f<mark data-scope="highlight" data-part="mark">o</mark><mark data-scope="highlight" data-part="mark">o</mark> b<mark data-scope="highlight" data-part="mark">o</mark><mark data-scope="highlight" data-part="mark">o</mark></span>"#
+            r#"<span data-scope="highlight" data-part="root">f<mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">o</mark><mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">o</mark> b<mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">o</mark><mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">o</mark></span>"#
         );
     }
 
@@ -350,7 +466,7 @@ mod tests {
         ));
         assert_eq!(
             html,
-            r#"<span data-scope="highlight" data-part="root">f<mark data-scope="highlight" data-part="mark">o</mark>o boo</span>"#
+            r#"<span data-scope="highlight" data-part="root">f<mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">o</mark>o boo</span>"#
         );
     }
 
@@ -367,7 +483,7 @@ mod tests {
         ));
         assert_eq!(
             html,
-            r#"<span data-scope="highlight" data-part="root">the <mark data-scope="highlight" data-part="mark">brown</mark> fox</span>"#
+            r#"<span data-scope="highlight" data-part="root">the <mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">brown</mark> fox</span>"#
         );
     }
 
@@ -398,7 +514,7 @@ mod tests {
         ));
         assert_eq!(
             html,
-            r#"<span data-scope="highlight" data-part="root">the <mark data-scope="highlight" data-part="mark">fox</mark></span>"#
+            r#"<span data-scope="highlight" data-part="root">the <mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">fox</mark></span>"#
         );
     }
 
@@ -408,10 +524,57 @@ mod tests {
             query: &["brown", "fox"],
             match_all: true,
             ignore_case: false,
+            ..HighlightProps::default()
         };
         let first = render(&highlight(&props, vec![], "the brown fox jumps"));
         let second = render(&highlight(&props, vec![], "the brown fox jumps"));
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn variant_enumeration_maps_to_expected_classes() {
+        for (variant, class) in [
+            (HighlightVariant::Subtle, "fd-highlight--variant-subtle"),
+            (HighlightVariant::Solid, "fd-highlight--variant-solid"),
+            (HighlightVariant::Text, "fd-highlight--variant-text"),
+            (HighlightVariant::Plain, "fd-highlight--variant-plain"),
+        ] {
+            let props = HighlightProps {
+                query: &["fox"],
+                variant,
+                ..HighlightProps::default()
+            };
+            let html = render(&highlight(&props, vec![], "the fox"));
+            assert!(
+                html.contains(&format!(
+                    "class=\"{class} fd-highlight--color-palette-accent\""
+                )),
+                "variant={variant:?} -> {html}"
+            );
+        }
+    }
+
+    #[test]
+    fn palette_enumeration_maps_to_expected_classes() {
+        for (palette, class) in [
+            (ColorPalette::Accent, "fd-highlight--color-palette-accent"),
+            (ColorPalette::Info, "fd-highlight--color-palette-info"),
+            (ColorPalette::Success, "fd-highlight--color-palette-success"),
+            (ColorPalette::Warning, "fd-highlight--color-palette-warning"),
+            (ColorPalette::Danger, "fd-highlight--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-highlight--color-palette-neutral"),
+        ] {
+            let props = HighlightProps {
+                query: &["fox"],
+                palette,
+                ..HighlightProps::default()
+            };
+            let html = render(&highlight(&props, vec![], "the fox"));
+            assert!(
+                html.contains(&format!("class=\"fd-highlight--variant-subtle {class}\"")),
+                "palette={palette:?} -> {html}"
+            );
+        }
     }
 
     #[test]
@@ -444,7 +607,7 @@ mod tests {
         ));
         assert_eq!(
             html,
-            r#"<span data-scope="highlight" data-part="root">こんにちは <mark data-scope="highlight" data-part="mark">cat</mark> 世界🐈</span>"#
+            r#"<span data-scope="highlight" data-part="root">こんにちは <mark data-scope="highlight" data-part="mark" class="fd-highlight--variant-subtle fd-highlight--color-palette-accent">cat</mark> 世界🐈</span>"#
         );
     }
 }
