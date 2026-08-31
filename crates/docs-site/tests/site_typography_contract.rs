@@ -215,13 +215,29 @@ fn em_declarations_mirror_pre_styled_ui_em_recipe() {
     let docs_css = site_css();
     let em_css = fandhe_frontend_pre_styled_ui::em::css();
 
-    for (property, value) in [
-        ("font-style", "italic"),
-        ("font-weight", "var(--fandhe-font-font-weight-medium)"),
-    ] {
-        assert_declaration_mirrored(&em_css, property, value, "em base (component)");
-        assert_declaration_mirrored(&docs_css, property, value, "em (docs mirror)");
-    }
+    // イシュー #1433: font-weight の上書きは参考サイト（chakra-ui /
+    // Radix Themes）のいずれにも存在しないため廃止済み。italic のみを
+    // ミラー対象とする。
+    let (property, value) = ("font-style", "italic");
+    assert_declaration_mirrored(&em_css, property, value, "em base (component)");
+    assert_declaration_mirrored(&docs_css, property, value, "em (docs mirror)");
+    assert!(
+        !em_css.contains("font-weight"),
+        "em base (component) が font-weight を宣言してはならない"
+    );
+    // `.docs-content em` の規則ブロック自体（`serialize_rule` の凍結書式）
+    // が italic のみであることをブロック単位で固定する（他部品ミラーの
+    // font-weight-medium 宣言との誤検知を避けるため、部分文字列一致では
+    // なく規則全文で照合する）。
+    assert!(
+        docs_css.contains(
+            ".docs-content em {
+  font-style: italic;
+}
+"
+        ),
+        "em (docs mirror) の規則ブロックが italic のみで構成されていない"
+    );
 }
 
 #[test]

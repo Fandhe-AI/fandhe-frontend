@@ -83,7 +83,6 @@ const TEXT_GOLDEN_CSS: &str = r#"[data-scope="text"][data-part="root"] {
 
 const EM_GOLDEN_CSS: &str = r#"[data-scope="em"][data-part="root"] {
   font-style: italic;
-  font-weight: var(--fandhe-font-font-weight-medium);
 }
 "#;
 
