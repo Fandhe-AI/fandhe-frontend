@@ -1,14 +1,15 @@
-//! AngleSlider（イシュー #1445: トラック・サム・マーカーのスタイル調整）の
-//! golden CSS テスト。
+//! styled AngleSlider の決定的 CSS 出力ゴールデンテスト（イシュー #1445:
+//! トラック・サム・マーカーのスタイル調整、イシュー #1446: 値テキストと
+//! ラベルの型階層、親トラッキング #1444 の分割 1/2・2/2 の統合後の状態）。
 //!
-//! `angle_slider::stylesheet()` の出力全文をバイト単位で固定し、以後の
-//! 宣言変更（既存 variant の誤った書き換え・意図しない追加削除）を機械的に
-//! 検知する（`docs/internal/pre-styled-ui-golden-test-update-guide.md` §3.3
-//! 「golden 不在の 20 部品」の新設）。分割 2/2（イシュー #1446、ラベル・
-//! 値テキストの型階層調整）が本ファイルの EXPECTED_CSS を後続で再更新する
-//! 前提を明記する（本 golden は 1/2 時点の `root`/`label`/`control`/`thumb`
-//! の宣言のみを対象とし、2/2 のマージでラベル・値テキスト部分が変わって
-//! も本ファイル側の追随修正が必要になる）。
+//! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの
+//! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。
+//! 出力順（base → variants → compound → states）が崩れた場合や意図しない
+//! 宣言の追加・欠落があった場合に、この golden テストが即座に検知する。
+//!
+//! 期待値は base 取り込み後の `crates/pre-styled-ui/src/angle_slider.rs::recipe`
+//! の実出力から生成した（#1445 のトラック・サム・マーカー是正と #1446 の
+//! ラベル・値テキスト型階層是正の双方を反映済み）。
 
 use fandhe_frontend_pre_styled_ui::angle_slider;
 
@@ -16,9 +17,9 @@ use fandhe_frontend_pre_styled_ui::angle_slider;
 ///
 /// 出力順は `SlotRecipe::css`（`crates/pre-styled-ui/src/recipe.rs`）の
 /// 契約どおり「base（登録順: root → root disabled state → label → control →
-/// thumb → thumb transition base）→ variants（登録順: size → color-palette）
-/// → states（登録順: root disabled → thumb disabled → thumb focus-visible →
-/// thumb hover）」。
+/// thumb → thumb transition base → value-text）→ variants（登録順:
+/// size → color-palette）→ states（登録順: root disabled → thumb disabled →
+/// thumb hover → thumb focus-visible）」。
 const EXPECTED_CSS: &str = r#"[data-scope="angle-slider"][data-part="root"] {
   display: inline-flex;
   flex-direction: column;
@@ -27,7 +28,11 @@ const EXPECTED_CSS: &str = r#"[data-scope="angle-slider"][data-part="root"] {
 }
 
 [data-scope="angle-slider"][data-part="label"] {
-  font-size: var(--fandhe-font-font-size-sm);
+  font-size: var(--fandhe-font-font-size-xs);
+  font-weight: var(--fandhe-font-font-weight-medium);
+  color: var(--fandhe-color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 [data-scope="angle-slider"][data-part="control"] {
@@ -65,29 +70,42 @@ const EXPECTED_CSS: &str = r#"[data-scope="angle-slider"][data-part="root"] {
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
+[data-scope="angle-slider"][data-part="value-text"] {
+  font-size: var(--fandhe-angle-slider-value-font-size, var(--fandhe-font-font-size-lg));
+  font-weight: var(--fandhe-font-font-weight-semibold);
+  line-height: var(--fandhe-font-line-height-tight);
+  color: var(--fandhe-color-fg);
+  font-variant-numeric: tabular-nums;
+}
+
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--size-xs {
   --fandhe-angle-slider-track-size: 2.5rem;
   --fandhe-angle-slider-thumb-size: 0.5rem;
+  --fandhe-angle-slider-value-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--size-sm {
   --fandhe-angle-slider-track-size: 3.5rem;
   --fandhe-angle-slider-thumb-size: 0.7rem;
+  --fandhe-angle-slider-value-font-size: var(--fandhe-font-font-size-md);
 }
 
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--size-md {
   --fandhe-angle-slider-track-size: 4.5rem;
   --fandhe-angle-slider-thumb-size: 0.9rem;
+  --fandhe-angle-slider-value-font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--size-lg {
   --fandhe-angle-slider-track-size: 5.5rem;
   --fandhe-angle-slider-thumb-size: 1.1rem;
+  --fandhe-angle-slider-value-font-size: var(--fandhe-font-font-size-xl);
 }
 
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--size-xl {
   --fandhe-angle-slider-track-size: 6.5rem;
   --fandhe-angle-slider-thumb-size: 1.3rem;
+  --fandhe-angle-slider-value-font-size: var(--fandhe-font-font-size-2xl);
 }
 
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--color-palette-accent {

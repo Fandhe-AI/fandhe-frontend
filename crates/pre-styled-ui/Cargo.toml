@@ -163,13 +163,28 @@ name = "fandhe-frontend-pre-styled-ui"
 # CSS 実体変更のため `docs/ci/style-refresh-version-bump-operation.md`
 # §3.1（PR 毎 patch バンプ、CSS 変更への `version-bump-exempt:` 不可）に
 # 従いパッチバンプする。
+# イシュー #1446: angle_slider の value-text/label 型階層を是正した
+# （Review 指摘、value-font-size を Xs/Md/Xl にも明示登録し単調な型階層に
+# 修正）。CSS 出力（root スコープ custom property の値）を変える実体変更
+# であり、Rust API シグネチャ・既存クラス名・CSS 変数名の削除改名を伴わない
+# 意匠調整のためパッチバンプする（docs/ci/style-refresh-version-bump-
+# operation.md §3.4a）。
+# base 取り込み（イシュー #1446）: main 側は #1445 の angle-slider recipe 是正で
+# 独立に 0.54.2 へ到達しており、本ブランチも #1446 の value-text/label 型階層
+# 是正で独立に 0.54.2 へ到達していた（偶発的な同一版数衝突）。本マージで双方の
+# 実体変更を統合するため同一版数への衝突をそのまま採用せず 0.54.3 へさらに
+# パッチバンプする（0.x の破壊的変更ではない意匠調整の重複、
+# `docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
 # イシュー #1448: button の variant 網羅（1/2）。公開 enum `ButtonVariant`
 # へ `Surface`/`Plain` を追加（利用者側の網羅 `match` を壊す 0.x 破壊的
 # 変更）し、`Subtle` の配色を中立色から palette 着色面
 # （`--fandhe-palette-subtle`/`-fg-subtle`/`-muted`）へ移行、button root へ
 # `focus_ring_declarations` によるフォーカスリング state を追加した
 # （golden CSS 実体変更）ため minor バンプする（0.x の破壊的変更は
-# マイナーバンプの規約）。
+# マイナーバンプの規約）。本ブランチは merge-base（0.54.2）から独立に
+# 0.55.0 へマイナーバンプ済みであり、main 側の 0.54.3（patch バンプ）を
+# 統合しても 0.55.0 の方が新しいため、同一版数への偶発的衝突は生じない。
+# よって further バンプは行わず 0.55.0 をそのまま維持する。
 version = "0.55.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
