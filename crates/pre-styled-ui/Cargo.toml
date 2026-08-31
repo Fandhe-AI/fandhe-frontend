@@ -224,10 +224,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # （calendar.rs、月グリッド・日セルの状態表現是正）によりそれぞれ独立に
 # 0.55.1 へパッチバンプ済みだった（偶発的な同一版数衝突、対象ファイルは
 # 異なる）。本コミットはさらに calendar.rs の実体変更（#1452）を重ねる
-# ため、衝突をそのまま採用せず引き続き 0.55.2 とする（0.x の破壊的変更
-# ではない意匠調整の重複、
-# `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
-version = "0.55.2"
+# ため、衝突をそのまま採用せず 0.55.2 とした。
+# 追記（PR #1733 codex-review P1 是正）: その後 base（main）側で #1731
+# （button のスタイル調整 2/2）がマージされ、base の現在値は既に
+# 0.55.2 になっていた。本 PR も calendar::stylesheet() の CSS 出力を
+# さらに変更する実体変更であるため、base 現在値へ据え置くのではなく
+# base 現在値から独立にパッチを 1 つ進める必要がある（§3.1/§5 の
+# 「main 現在値の patch を +1 する」原則どおり）。よって 0.55.2 →
+# 0.55.3 とする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
+version = "0.55.3"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
