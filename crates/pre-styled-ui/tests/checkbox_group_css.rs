@@ -105,6 +105,128 @@ fn class_attr_is_single_and_caller_class_is_dropped() {
     assert!(!html.contains("attacker-controlled"));
 }
 
+#[test]
+fn size_variant_xs_and_sm_control_sizes_are_on_4px_grid() {
+    // イシュー #1461: xs/sm の control 寸法を 4px 格子（12px/14px）へ是正
+    // する（`crate::checkbox` #1735 と同値）。md/lg/xl は現行外観を変えない。
+    let css = stylesheet();
+    let xs_selector =
+        r#"[data-scope="checkbox-group"][data-part="root"].fd-checkbox-group--size-xs"#;
+    let xs_start = css
+        .find(xs_selector)
+        .unwrap_or_else(|| panic!("xs size variant selector not found in {css}"));
+    let xs_end = css[xs_start..]
+        .find('}')
+        .map(|i| xs_start + i)
+        .unwrap_or(css.len());
+    assert!(
+        css[xs_start..xs_end].contains("--fandhe-checkbox-group-control-size: 0.75rem;"),
+        "xs control-size not on 4px grid: {}",
+        &css[xs_start..xs_end]
+    );
+
+    let sm_selector =
+        r#"[data-scope="checkbox-group"][data-part="root"].fd-checkbox-group--size-sm"#;
+    let sm_start = css
+        .find(sm_selector)
+        .unwrap_or_else(|| panic!("sm size variant selector not found in {css}"));
+    let sm_end = css[sm_start..]
+        .find('}')
+        .map(|i| sm_start + i)
+        .unwrap_or(css.len());
+    assert!(
+        css[sm_start..sm_end].contains("--fandhe-checkbox-group-control-size: 0.875rem;"),
+        "sm control-size not on 4px grid: {}",
+        &css[sm_start..sm_end]
+    );
+}
+
+#[test]
+fn size_variants_define_item_gap_and_root_gap_custom_properties() {
+    // イシュー #1461: 5 段すべての size variant ブロックに item-gap（control
+    // ↔ text 余白）と root gap（項目間余白、1/2 が用意した受け口）の両方の
+    // custom property が登録されていることを固定する。
+    let css = stylesheet();
+    for size in ["xs", "sm", "md", "lg", "xl"] {
+        let selector = format!(
+            r#"[data-scope="checkbox-group"][data-part="root"].fd-checkbox-group--size-{size}"#
+        );
+        let start = css
+            .find(&selector)
+            .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+        let end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        let block = &css[start..end];
+        assert!(
+            block.contains("--fandhe-checkbox-group-item-gap"),
+            "size={size} missing item-gap custom property: {block}"
+        );
+        assert!(
+            block.contains("--fandhe-checkbox-group-gap"),
+            "size={size} missing root gap custom property: {block}"
+        );
+    }
+}
+
+#[test]
+fn label_is_medium_weight_and_item_text_is_not() {
+    // イシュー #1461: グループ見出し `label` と項目テキスト `item-text` の
+    // 2 段階の型階層（label = medium ウェイト、item-text = 通常ウェイト）
+    // を固定する。
+    let css = stylesheet();
+
+    let label_selector = r#"[data-scope="checkbox-group"][data-part="label"] {"#;
+    let label_start = css
+        .find(label_selector)
+        .unwrap_or_else(|| panic!("label base selector not found in {css}"));
+    let label_end = css[label_start..]
+        .find('}')
+        .map(|i| label_start + i)
+        .unwrap_or(css.len());
+    assert!(
+        css[label_start..label_end].contains("font-weight: var(--fandhe-font-font-weight-medium);"),
+        "label missing medium font-weight: {}",
+        &css[label_start..label_end]
+    );
+
+    let item_text_selector = r#"[data-scope="checkbox-group"][data-part="item-text"] {"#;
+    let item_text_start = css
+        .find(item_text_selector)
+        .unwrap_or_else(|| panic!("item-text base selector not found in {css}"));
+    let item_text_end = css[item_text_start..]
+        .find('}')
+        .map(|i| item_text_start + i)
+        .unwrap_or(css.len());
+    assert!(
+        !css[item_text_start..item_text_end].contains("font-weight:"),
+        "item-text should not declare font-weight: {}",
+        &css[item_text_start..item_text_end]
+    );
+}
+
+#[test]
+fn item_text_prevents_text_selection() {
+    // イシュー #1461: `item`（`<label>`）内テキストをクリックでトグルする
+    // 操作の誤選択防止（chakra label と同じ、`crate::checkbox` の `label`
+    // と対称）。
+    let css = stylesheet();
+    let selector = r#"[data-scope="checkbox-group"][data-part="item-text"] {"#;
+    let start = css
+        .find(selector)
+        .unwrap_or_else(|| panic!("item-text base selector not found in {css}"));
+    let end = css[start..]
+        .find('}')
+        .map(|i| start + i)
+        .unwrap_or(css.len());
+    assert!(
+        css[start..end].contains("user-select: none;"),
+        "item-text missing user-select: {}",
+        &css[start..end]
+    );
+}
+
 // --- XSS 回帰 ---
 
 #[test]
