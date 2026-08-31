@@ -17,6 +17,8 @@ const FILE_UPLOAD_GOLDEN_CSS: &str = r#"[data-scope="file-upload"][data-part="ro
 
 [data-scope="file-upload"][data-part="label"] {
   font-size: var(--fandhe-font-font-size-sm);
+  font-weight: var(--fandhe-font-font-weight-medium);
+  color: var(--fandhe-color-fg);
 }
 
 [data-scope="file-upload"][data-part="dropzone"] {
@@ -31,6 +33,10 @@ const FILE_UPLOAD_GOLDEN_CSS: &str = r#"[data-scope="file-upload"][data-part="ro
   border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
   cursor: pointer;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  transition-property: background, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="file-upload"][data-part="trigger"] {
@@ -41,6 +47,10 @@ const FILE_UPLOAD_GOLDEN_CSS: &str = r#"[data-scope="file-upload"][data-part="ro
   cursor: pointer;
   font-size: var(--fandhe-file-upload-font-size, var(--fandhe-font-font-size-sm));
   padding: var(--fandhe-space-1) var(--fandhe-space-3);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  transition-property: background, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="file-upload"][data-part="item-group"] {
@@ -136,8 +146,13 @@ const FILE_UPLOAD_GOLDEN_CSS: &str = r#"[data-scope="file-upload"][data-part="ro
 }
 
 [data-scope="file-upload"][data-part="dropzone"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="file-upload"][data-part="trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="file-upload"][data-part="trigger"][data-disabled] {
@@ -150,6 +165,16 @@ const FILE_UPLOAD_GOLDEN_CSS: &str = r#"[data-scope="file-upload"][data-part="ro
 
 [data-scope="file-upload"][data-part="clear-trigger"][data-disabled] {
   cursor: not-allowed;
+}
+
+@media (hover: hover) {
+  [data-scope="file-upload"][data-part="dropzone"]:hover:not([data-disabled]):not([data-dragging]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="file-upload"][data-part="trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 

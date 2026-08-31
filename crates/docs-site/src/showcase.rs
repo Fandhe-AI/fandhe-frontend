@@ -3561,7 +3561,27 @@ fn file_upload_section() -> Node {
         ],
     );
 
-    let demo_row = row(vec![normal, disabled]);
+    // イシュー #1696: `data-dragging` state（ドラッグ中の dropzone 強調表示）
+    // を確認できる態が Demo に無かったため追加する。
+    let dragging = file_upload::root(
+        Size::Md,
+        false,
+        vec![],
+        vec![
+            file_upload::label(vec![], vec![text("Dragging")]),
+            file_upload::dropzone(
+                false,
+                true,
+                vec![],
+                vec![
+                    file_upload::trigger(false, vec![], vec![text("Browse files")]),
+                    file_upload::hidden_input("image/*,.pdf", true, false, vec![]),
+                ],
+            ),
+        ],
+    );
+
+    let demo_row = row(vec![normal, disabled, dragging]);
     section(
         "FileUpload",
         "ファイルメタデータ（name/size/mime type）のみを扱い、File オブジェクト自体は headless 層で保持しません。実 File API 接触は wasm-full 側の配線層に隔離されています。",

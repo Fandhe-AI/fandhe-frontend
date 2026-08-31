@@ -49,10 +49,59 @@
 //! `dropzone`（`role="button"` + `tabindex="0"`）であるため、
 //! `StateCondition::FocusVisible`（`:focus-visible` 疑似クラス）を
 //! `dropzone` slot へ登録する。
+//!
+//! # 外枠パートのスタイル調整（イシュー #1696、親 #1478）
+//!
+//! 参照サイト（chakra-ui / ark-ui）基準の視覚調整のうち、**外枠パート
+//! （`root`/`label`/`dropzone`/`trigger`）のみ**を本イシューで扱う。
+//! `item-group` 以下の内部パート・`data-invalid` 表示・内部パートへの
+//! transition 適用は兄弟イシュー #1697 の担当であり、本モジュールでは
+//! 一切変更しない。
+//!
+//! 適用した変更（`crate::recipe` の共通ビジュアル言語ヘルパへの置換、
+//! イシュー #1424/#1425）:
+//!
+//! - `dropzone`: base へ [`hover_bg_muted`] +
+//!   [`transition_declarations`]（`background, border-color` /
+//!   [`MotionDuration::Fast`]）を追加し、
+//!   `StateCondition::HoverExceptAttr("data-dragging")` へ
+//!   [`hover_surface_declarations`] を登録した。`data-dragging` 中は
+//!   既存の強調表示（accent 枠 + bg-subtle）を優先し、hover の
+//!   bg-muted で洗い流されないようにするため（`:hover:not([data-disabled])
+//!   :not([data-dragging])` セレクタ、[`crate::checkbox_card`] 等の先例と
+//!   同型）。`FocusVisible` の直書き `outline`/`outline-offset` は
+//!   [`focus_ring_declarations`]（[`FocusRingColor::Token`] /
+//!   [`FocusRingOffset::Outside`]）の canonical 形へ置換した（出力値は
+//!   トークン参照 + 従来値フォールバックへ変わるのみで見た目は不変）。
+//! - `trigger`: `StateCondition::FocusVisible` へ
+//!   [`focus_ring_declarations`] を新規登録した（従来フォーカスリングが
+//!   一切なく、キーボード操作時に操作対象を視認できなかった不足の是正）。
+//!   base へ [`hover_bg_muted`] + [`transition_declarations`] を追加し、
+//!   `StateCondition::Hover` へ [`hover_surface_declarations`] を登録した。
+//!   `data-disabled` state は [`crate::recipe::disabled_declarations`] へ
+//!   置換せず、現状の `cursor: not-allowed` のみを意図的に維持する
+//!   （`trigger` は常に `root` 配下で使われ、`root` 側の `data-disabled`
+//!   state が既に `opacity: 0.5` を適用済みのため、`disabled_declarations`
+//!   を重ねると `0.5 * 0.5 = 0.25` の二重 opacity になってしまう）。
+//! - `label`: `font-weight: var(--fandhe-font-font-weight-medium)` +
+//!   `color: var(--fandhe-color-fg)` を追加し、参照サイトの「ラベルの型
+//!   階層」（[`crate::checkbox`] 等の先例）に合わせた。
+//!
+//! 意図的に参照サイトへ合わせない点:
+//!
+//! - `clear-trigger` は #1696/#1697 いずれの対象列挙にも含まれないため
+//!   不変とする（親イシュー #1478 の差分メモとして PR 本文へ記載）。
+//! - variant 軸（chakra 相当の面バリアント）の追加は [`root`] のシグネ
+//!   チャ変更（破壊的変更）を伴うため対象外とする（[`crate::checkbox_card`]
+//!   の先例と同判断）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, hover_bg_muted, hover_surface_declarations, transition_declarations,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
+};
 
 // `FileUpload` 状態機械・headless 自由関数 `root` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。状態管理・
@@ -103,7 +152,11 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "label",
-            vec![decl("font-size", "var(--fandhe-font-font-size-sm)")],
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("color", "var(--fandhe-color-fg)"),
+            ],
         )
         .base(
             "dropzone",
@@ -122,7 +175,19 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("cursor", "pointer"),
-            ],
+                hover_bg_muted(),
+            ]
+            .into_iter()
+            .chain(transition_declarations(
+                "background, border-color",
+                MotionDuration::Fast,
+            ))
+            .collect(),
+        )
+        .state(
+            "dropzone",
+            StateCondition::HoverExceptAttr("data-dragging"),
+            hover_surface_declarations(),
         )
         .state(
             "dropzone",
@@ -140,10 +205,7 @@ fn recipe() -> SlotRecipe {
         .state(
             "dropzone",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .base(
             "trigger",
@@ -158,7 +220,24 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-file-upload-font-size, var(--fandhe-font-font-size-sm))",
                 ),
                 decl("padding", "var(--fandhe-space-1) var(--fandhe-space-3)"),
-            ],
+                hover_bg_muted(),
+            ]
+            .into_iter()
+            .chain(transition_declarations(
+                "background, border-color",
+                MotionDuration::Fast,
+            ))
+            .collect(),
+        )
+        .state(
+            "trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "trigger",
@@ -363,9 +442,42 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(
             r#"[data-scope="file-upload"][data-part="dropzone"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_links_trigger_to_focus_visible_outline() {
+        // イシュー #1696: `trigger` は従来フォーカスリングを一切持たず、
+        // キーボード操作時に操作対象を視認できなかった不足を是正した。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="file-upload"][data-part="trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_links_dropzone_hover_excludes_dragging() {
+        // イシュー #1696: ドラッグ中は既存の強調表示（accent 枠 + bg-subtle）を
+        // hover の bg-muted で洗い流さない（モジュール rustdoc 参照）。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="file-upload"][data-part="dropzone"]:hover:not([data-disabled]):not([data-dragging]) {"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_links_trigger_to_hover_surface() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="file-upload"][data-part="trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }"#
         ));
     }
 

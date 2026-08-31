@@ -400,7 +400,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # CSS 宣言を追加し、`control` へ `align-items: center` を追加した。
 # `root`/`label` は点検の結果変更なし。Rust API シグネチャは不変のため、
 # 同じく patch バンプとして 0.57.5 から 0.57.6 とする。
-version = "0.57.6"
+# file-upload の外枠パート（dropzone/trigger/label）のスタイル調整
+# （イシュー #1696）: `dropzone`/`trigger` へ hover/transition の共通ビジュ
+# アル言語ヘルパを追加し、`dropzone` の `FocusVisible` state を canonical
+# focus-ring 形へ置換、`trigger` へ `FocusVisible` state（フォーカスリング）
+# を新規登録、`label` へ font-weight/color を追加した。item-group 以下の
+# 内部パートは兄弟イシュー #1697 の担当のため不変。Rust API シグネチャは
+# 不変のため patch バンプとして 0.57.6 から 0.57.7 とする。
+version = "0.57.7"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
