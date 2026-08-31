@@ -30,7 +30,13 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
   border-radius: var(--fandhe-radius-sm);
   background: var(--fandhe-color-bg);
   flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="checkbox"][data-part="control"] {
+  transition-property: background, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="checkbox"][data-part="indicator"] {
@@ -162,23 +168,29 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
 }
 
 [data-scope="checkbox"][data-part="root"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="checkbox"][data-part="control"][data-state="checked"] {
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   background: var(--fandhe-palette, var(--fandhe-color-accent));
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
 }
 
 [data-scope="checkbox"][data-part="control"][data-state="indeterminate"] {
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   background: var(--fandhe-palette, var(--fandhe-color-accent));
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
+}
+
+[data-scope="checkbox"][data-part="control"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
 }
 
 [data-scope="checkbox"][data-part="control"][data-focus-visible] {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="checkbox"][data-part="indicator"][data-state="indeterminate"] {
@@ -188,6 +200,12 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
   width: var(--fandhe-checkbox-dash-width, 0.5rem);
   height: 0;
   margin-bottom: 0;
+}
+
+@media (hover: hover) {
+  [data-scope="checkbox"][data-part="control"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 

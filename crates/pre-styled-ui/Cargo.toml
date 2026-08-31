@@ -233,6 +233,29 @@ name = "fandhe-frontend-pre-styled-ui"
 # 「main 現在値の patch を +1 する」原則どおり）。よって 0.55.2 →
 # 0.55.3 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
+# base 取り込み（イシュー #1449 / PR #1731）: 本ブランチは PR #1731 の
+# Cursor Bugbot 指摘是正（button.rs、icon-only + loading の子ノード構成
+# 是正）により独立に 0.55.1 へパッチバンプ済みで、main 側も #1451
+# （calendar.rs、月グリッド・日セルの状態表現是正）により独立に 0.55.1 へ
+# パッチバンプ済みだった（偶発的な同一版数衝突。対象ファイルは button.rs
+# と calendar.rs で異なる実体変更）。本マージで双方の実体変更を統合する
+# ため同一版数への衝突をそのまま採用せず 0.55.2 へさらにパッチバンプする
+# （0.x の破壊的変更ではない意匠調整の重複、
+# `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
+# イシュー #1454: checkbox のスタイル調整 (1/2) — root/control/indicator の
+# 状態表現とフォーカスリング（focus_ring_declarations / disabled_declarations /
+# transition_declarations / hover の canonical ヘルパ適用、`data-invalid` の
+# 視覚反映）。Rust API シグネチャ不変・意匠調整のみのため patch バンプ
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
+# base 取り込み（イシュー #1454）: 本ブランチは checkbox のスタイル調整
+# （#1454、root/control/indicator の状態表現とフォーカスリング）により
+# 独立に 0.55.3 へパッチバンプ済みで、main 側も #1452（calendar のヘッダー・
+# ビュー切り替え・週表示是正）により独立に 0.55.3 へパッチバンプ済みだった
+# （偶発的な同一版数衝突。対象ファイルは checkbox.rs と calendar.rs で
+# 異なる実体変更）。本マージで双方の実体変更を統合するため同一版数への
+# 衝突をそのまま採用せず 0.55.4 へさらにパッチバンプする（0.x の破壊的
+# 変更ではない意匠調整の重複、
+# `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
 # イシュー #1455（checkbox のスタイル調整 2/2: size バリアント・ラベル/
 # 説明の型階層）で checkbox.rs の recipe を実体変更するため、0.55.3 →
 # 0.55.4 へパッチバンプする。分割 1/2（イシュー #1454、PR #1734）も
@@ -240,7 +263,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 関わらず base 現在値から独立にパッチを 1 つ進める同原則に従う（先に
 # マージされた側の値が base の新しい現在値になり、後からマージされる
 # 側は rebase 時に再バンプする）。
-version = "0.55.4"
+# PR #1734 Cursor Bugbot 指摘是正（イシュー #1454）: checkbox.rs の
+# hover_bg_solid_with_fallback() フォールバック連鎖を修正する実体変更の
+# ため、base 取り込み後の現在値 0.55.4 から独立にパッチを 1 つ進めて
+# 0.55.5 とする（`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
+version = "0.55.5"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

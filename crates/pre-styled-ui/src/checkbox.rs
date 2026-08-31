@@ -77,6 +77,41 @@
 //! styled `root` を経由しない headless 直接利用マークアップでも現行外観を
 //! 維持する（fail-safe）。
 //!
+//! # スタイル調整（イシュー #1454、root/control/indicator パートのみ）
+//!
+//! 親 #1453（chakra-ui / Radix Themes / Radix Primitives / ark-ui 基準への
+//! 調整）のうち root/control/indicator の状態表現とフォーカスリングを担当
+//! する。分割 2/2（size バリアント・ラベル/説明の型階層、#1455）とはファイル
+//! を共有するため、以下は本イシューが確定した意図的差分である:
+//!
+//! - **variant 軸（chakra の `solid/subtle/outline`、Radix Themes の
+//!   `classic/surface/soft` 相当）は追加しない**。追加は `root()` の
+//!   シグネチャ変更（破壊的）を伴い #1455 と同一ファイルで衝突するうえ、
+//!   checkbox-card / checkbox-group 等 Forms 家族の軸語彙と足並みを揃える
+//!   べき横断判断であり、size/palette 段階数を #1426/#1712 で横断決定した
+//!   前例に倣い部品単独で先行しない
+//! - **`data-readonly` は視覚化しない**: 参照 4 サイトのいずれも readonly
+//!   状態に checkbox 固有の視覚差を付けないため、`data-invalid`（下記）とは
+//!   異なり CSS 規則を追加しない
+//! - **hover は `--fandhe-hover-bg` custom property 経由の間接参照で表現する**
+//!   （`crate::recipe` の disabled/hover/transition 共通ビジュアル言語、
+//!   イシュー #1425）。`control` base が `hover_bg_muted()` で unchecked 時の
+//!   面色を定義し、checked/indeterminate の `state` 規則が同名プロパティを
+//!   `hover_bg_solid()`（palette の emphasized 段）で上書きする。hover の
+//!   実適用（`background: var(--fandhe-hover-bg)`）は `control` へ 1 本
+//!   （`StateCondition::Hover`）のみ登録し、`:hover:not([data-disabled])`
+//!   セレクタの詳細度が `[data-state="checked"]` 単体規則より高いため、
+//!   直値ではなく間接参照でなければ checked 面が中立色へ落ちてしまう
+//!   （`button.rs` solid variant と同型の設計、モジュール冒頭 rustdoc
+//!   「複合部品の variant 統一方針」節も参照）
+//! - **`indicator` の `margin-bottom: 0.1rem` は光学調整でありスケール外**:
+//!   チェックマーク（`border-right`/`border-bottom` + `rotate(45deg)`）の
+//!   視覚的重心を control 中央へ合わせるための微調整値であり、
+//!   `--fandhe-space-*` 等のスケールトークンに丸めない意図的な例外
+//! - フォーカスリングは `recipe::focus_ring_declarations` へ、disabled は
+//!   `recipe::disabled_declarations` へそれぞれ canonical 化した
+//!   （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §6、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md`）
 //! # スタイル調整（イシュー #1455、size バリアント・ラベル/説明の型階層）
 //!
 //! 親 #1453（chakra-ui / Radix Themes / Radix Primitives / ark-ui 基準への
@@ -133,9 +168,11 @@
 //!   は視認性上妥当で、chakra も SVG アイコンで線幅を固定している。
 
 use crate::class_attr::drop_class_attr;
-use crate::css::decl;
+use crate::css::{decl, Declaration};
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `Checkbox` 状態機械・headless 自由関数 `root` はあえて再エクスポートしない
@@ -154,6 +191,33 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 /// 変更時は両ファイルを合わせて確認する）。
 const SLOTS: &[&str] = &["root", "control", "indicator", "label", "hidden-input"];
 
+/// checked/indeterminate 時の `control` hover 面を定義する `--fandhe-hover-bg`
+/// 宣言（内部ヘルパ）。[`crate::recipe::hover_bg_solid`] は
+/// `var(--fandhe-palette-emphasized)` を直値で参照するのみで、styled
+/// `root`（[`crate::recipe::palette_declarations`]）を経由しない headless
+/// 直接利用マークアップでは `--fandhe-palette-emphasized` が未定義となり
+/// `background: var(--fandhe-hover-bg)` が computed-value time に無効化
+/// されて hover 面が透明へ戻る回帰を生む（レビュー指摘）。
+///
+/// フォールバック先は `--fandhe-color-accent`（rest state の fill トークン）
+/// **ではなく** `--fandhe-color-accent-emphasized` とする（[`crate::link`]
+/// の hover 規則と同型、PR #1734 Cursor Bugbot 指摘の是正）。前者へ
+/// フォールバックすると、styled `root` を経由しない headless 直接利用
+/// マークアップで checked/indeterminate の hover が rest state（`background:
+/// var(--fandhe-palette, var(--fandhe-color-accent))`）と同色になり、
+/// fail-safe が hover 外観そのものを失ってしまう。中間項の
+/// `--fandhe-palette`（emphasized ではなく base の fill トークン）も同じ
+/// 理由で連鎖に含めない: styled root 利用時は `palette_scale_declarations`
+/// が `--fandhe-palette-emphasized`/`--fandhe-palette` を常に同時定義する
+/// ため中間項が単独で効く場面はなく、含めると headless 直接利用時に
+/// 誤って rest state 色へ落ちる経路を新設するだけになる。
+fn hover_bg_solid_with_fallback() -> Declaration {
+    decl(
+        "--fandhe-hover-bg",
+        "var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized))",
+    )
+}
+
 /// この styled Checkbox の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
     let mut recipe = SlotRecipe::new("checkbox", SLOTS)
@@ -169,7 +233,7 @@ fn recipe() -> SlotRecipe {
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            disabled_declarations(),
         )
         .base(
             "control",
@@ -184,8 +248,20 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("flex-shrink", "0"),
-                decl("transition", "background 0.15s, border-color 0.15s"),
+                // unchecked 時の hover 面（イシュー #1425、モジュール rustdoc
+                // 「hover の間接参照設計」節参照）。checked/indeterminate 時は
+                // 下記 state 規則が同名カスタムプロパティを上書きし、hover
+                // セレクタ側は `hover_surface_declarations()` 1 本のみで両方の
+                // 面色に追従する。
+                hover_bg_muted(),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（`button.rs` の
+        // transition 追加と同型のパターン、イシュー #1425 参照実装）。
+        .base(
+            "control",
+            transition_declarations("background, border-color", MotionDuration::Fast),
         )
         .state(
             "control",
@@ -199,6 +275,19 @@ fn recipe() -> SlotRecipe {
                     "background",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
+                // checked 面の hover は palette の emphasized 段へ（`button`
+                // solid variant と同型、モジュール rustdoc 参照）。hover
+                // セレクタは `:hover:not([data-disabled])` で詳細度が本規則
+                // より高いため、直値ではなく間接参照でなければ checked 面が
+                // 中立色（`hover_bg_muted()`）へ落ちてしまう。`hover_bg_solid()`
+                // は styled root（`palette_declarations`）が定義する
+                // `--fandhe-palette-emphasized` への参照であり、そのままでは
+                // headless 直接利用（styled root 非経由）で未定義変数参照と
+                // なり computed-value time に無効化されて hover 面が消える
+                // 回帰を招く（レビュー指摘）。直前の border-color/background と
+                // 同じフォールバック連鎖を `--fandhe-hover-bg` にも適用し
+                // fail-safe を維持する（`hover_bg_solid_with_fallback`）。
+                hover_bg_solid_with_fallback(),
             ],
         )
         .state(
@@ -213,21 +302,41 @@ fn recipe() -> SlotRecipe {
                     "background",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
+                hover_bg_solid_with_fallback(),
             ],
+        )
+        // headless 層が invalid な選択肢へ出す `data-invalid`（`input.rs`
+        // の `field::input` と同型の視覚言語）を、これまで未消費だった
+        // control slot へ反映する。`data-readonly` は参照サイト（chakra-ui /
+        // Radix Themes・Primitives / ark-ui）のいずれも視覚差を付けないため
+        // 意図的に不採用とする。
+        .state(
+            "control",
+            StateCondition::Attr("data-invalid"),
+            vec![decl("border-color", "var(--fandhe-color-danger)")],
         )
         // イシュー #709: 実フォーカスは hidden-input が受けるため、wasm 層
         // （`fandhe-frontend-wasm-full` の focus 配線）が `control` へも
         // 付け外しする `data-focus-visible` をキーボード操作専用のフォーカス
         // リング条件として使う（`switch` の `control`
         // `StateCondition::Attr("data-focus-visible")` と同型の視覚言語、
-        // モジュール rustdoc 参照）。
+        // モジュール rustdoc 参照）。イシュー #1454 でリング宣言を canonical
+        // ヘルパ（`recipe::focus_ring_declarations`）へ置換し、`palette`
+        // 軸を持つ本部品ではリング色も選択中 palette へ連動させる
+        // （`FocusRingColor::Palette`、`docs/design/
+        // pre-styled-ui-focus-ring-and-size-conventions.md` §6）。
         .state(
             "control",
             StateCondition::Attr("data-focus-visible"),
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
+        )
+        // hover の実適用は 1 本のみ（`--fandhe-hover-bg` の間接参照経由で
+        // unchecked/checked/indeterminate いずれの面色にも追従する。
+        // モジュール rustdoc「hover の間接参照設計」節参照）。
+        .state(
+            "control",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         // `indicator` の base に `display` 宣言を置かない（モジュール rustdoc
         // 「`indicator` の `hidden` 属性意味論を CSS が壊さない設計」節参照。
@@ -476,6 +585,7 @@ mod tests {
             r#"[data-scope="checkbox"][data-part="control"][data-state="checked"] {
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   background: var(--fandhe-palette, var(--fandhe-color-accent));
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
 }"#
         ));
         assert!(css.contains(
@@ -485,13 +595,41 @@ mod tests {
 
     #[test]
     fn stylesheet_links_control_to_focus_visible_outline() {
-        // 受け入れ条件 2: switch control と同型の outline 規則。
+        // 受け入れ条件 2: switch control と同型の outline 規則
+        // （イシュー #1454 で canonical ヘルパへ置換、palette 連動色）。
         let css = stylesheet();
         assert!(css.contains(
             r#"[data-scope="checkbox"][data-part="control"][data-focus-visible] {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_links_control_to_data_invalid_state() {
+        // イシュー #1454: `field::input`（`input.rs`）と同型の視覚言語で
+        // headless 層が出す `data-invalid` を control slot へ反映する。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="checkbox"][data-part="control"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
+}"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_registers_control_hover_inside_hover_media_query() {
+        // イシュー #1454/#1425: タッチ端末の hover 貼り付き対策として
+        // `@media (hover: hover)` 配下へ集約される 1 本のみの hover 規則。
+        // `--fandhe-hover-bg` 経由の間接参照により unchecked/checked/
+        // indeterminate いずれの面色にも追従する（モジュール rustdoc参照）。
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover) {"));
+        assert!(css.contains(
+            r#"[data-scope="checkbox"][data-part="control"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }"#
         ));
     }
 
