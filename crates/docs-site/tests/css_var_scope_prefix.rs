@@ -87,6 +87,18 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 ///   移行したことで新たに参照する共有 custom property。`--fandhe-palette`
 ///   と同じ colorPalette 系の共有トークンであり、実値は各 scope の
 ///   `color-palette-*` variant 側が定義する。
+/// - `--fandhe-calendar-day-size`: イシュー #1472 で `date-picker` の
+///   `root` size variant が新たに定義する。本来の所有 scope は `calendar`
+///   （`calendar::root` の size variant が既定値を定義し、`day-trigger` の
+///   寸法として消費する）だが、`date_picker::content` は `calendar::root`
+///   を経由せず `calendar::table` を直接合成するため、この custom
+///   property が入れ子のグリッドへ CSS 継承で届くよう `date-picker` 側の
+///   `root` からも同名で上書き定義する意図的な cross-scope 設計（詳細は
+///   `crate::date_picker` モジュール rustdoc「スタイル調整」節参照）。
+///   `--fandhe-hover-bg`/`--fandhe-palette` と同じ「複数部品が同じ名前を
+///   変数として共有し、実値は各 scope 側が定義する」設計の一種だが、
+///   所有 scope（`calendar`）自身は前方一致規約を満たしているため、この
+///   免除は「他 scope から上書き定義される」ケースにのみ適用される。
 const SHARED_VARS: &[&str] = &[
     "--fandhe-palette",
     "--fandhe-palette-emphasized",
@@ -105,6 +117,7 @@ const SHARED_VARS: &[&str] = &[
     "--fandhe-arrow-y",
     "--fandhe-reference-width",
     "--fandhe-hover-bg",
+    "--fandhe-calendar-day-size",
 ];
 
 /// 既知の未是正逸脱（`(data-scope, 変数名)` の literal 完全一致のみ）。

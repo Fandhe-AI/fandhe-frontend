@@ -68,6 +68,42 @@
 //!   判断軸）
 //! - **size 連動の `font-size` 追加は見送る**: 同上の横断判断のため
 //!   見送る
+//!
+//! # スタイル調整（イシュー #1472、カレンダーグリッド）
+//!
+//! 分割 2/3。イシュー本文の担当範囲名（`table`/`table-cell`/
+//! `table-cell-trigger`）は ark-ui の date-picker anatomy 名であり、本実装の
+//! `date_picker` 8 パーツには存在しない。本実装ではカレンダーグリッドを
+//! [`crate::calendar`] の styled パーツ（`table`/`table-header`/`table-row`/
+//! `table-head-cell`/`table-body`/`table-cell`/`day-trigger`）を `content`
+//! 内へ合成する設計であり、ark-ui `table`→calendar `table`、
+//! `table-cell`→calendar `table-cell`、`table-cell-trigger`→calendar
+//! `day-trigger` に対応する。
+//!
+//! - **グリッドの状態表現（selected/today/outside-month/disabled/hover/
+//!   focus-visible/transition）はカレンダー担当イシュー（#1451 系）で是正
+//!   済み**: `day-trigger` の `data-selected`/`data-today`/
+//!   `data-outside-month`/`data-disabled`・hover（`@media (hover: hover)`
+//!   集約）・[`crate::recipe::focus_ring_declarations`]・transition が
+//!   `crate::calendar::recipe` に揃っており、`[data-scope="calendar"]`
+//!   セレクタで当たるため date-picker への合成先でも自動的に適用される。
+//!   `calendar.rs` 本体は他イシュー担当済みのため本イシューでは変更しない
+//!   （二重管理の回避）
+//! - **是正対象は date-picker 側の size 連動の欠落のみ**: `calendar::root`
+//!   の size variant は `--fandhe-calendar-day-size`（xs〜xl で
+//!   `--fandhe-space-4`〜`--fandhe-space-12`）を定義するが、date-picker の
+//!   合成では `calendar::root` を使わず `content` 直下へ `calendar::table`
+//!   を置くためこの custom property が未定義になり、日セルが常に既定
+//!   `var(--fandhe-space-8)`（md 相当）へ固定されていた。本イシューで
+//!   `date-picker` の `root` size variant（5 段）へ同スケールの
+//!   `--fandhe-calendar-day-size` を追加定義し、CSS custom property の
+//!   継承で入れ子の calendar グリッドへ届くようにした
+//!   （`--fandhe-date-picker-input-padding` と同型のパターン）
+//! - **`content` の padding 等は変更しない**: 3/3（#1473）のスコープのため
+//!   触らない
+//! - **バリアント軸（chakra の `outline`/`subtle` 相当）の追加は見送る**:
+//!   1/3 と同じく `root()` シグネチャ変更を伴う Forms 家族横断の軸判断の
+//!   ため部品単独で先行しない
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -243,6 +279,7 @@ fn recipe() -> SlotRecipe {
             Size::Xs,
             "root",
             vec![
+                decl("--fandhe-calendar-day-size", "var(--fandhe-space-4)"),
                 decl("--fandhe-date-picker-input-padding", "var(--fandhe-space-0-5) var(--fandhe-space-1)"),
                 decl("--fandhe-date-picker-content-padding", "var(--fandhe-space-0-5)"),
             ],
@@ -251,6 +288,7 @@ fn recipe() -> SlotRecipe {
             Size::Sm,
             "root",
             vec![
+                decl("--fandhe-calendar-day-size", "var(--fandhe-space-6)"),
                 decl(
                     "--fandhe-date-picker-input-padding",
                     "var(--fandhe-space-1) var(--fandhe-space-2)",
@@ -265,6 +303,7 @@ fn recipe() -> SlotRecipe {
             Size::Md,
             "root",
             vec![
+                decl("--fandhe-calendar-day-size", "var(--fandhe-space-8)"),
                 decl(
                     "--fandhe-date-picker-input-padding",
                     "var(--fandhe-space-2) var(--fandhe-space-3)",
@@ -279,6 +318,7 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![
+                decl("--fandhe-calendar-day-size", "var(--fandhe-space-10)"),
                 decl(
                     "--fandhe-date-picker-input-padding",
                     "var(--fandhe-space-3) var(--fandhe-space-4)",
@@ -293,6 +333,7 @@ fn recipe() -> SlotRecipe {
             Size::Xl,
             "root",
             vec![
+                decl("--fandhe-calendar-day-size", "var(--fandhe-space-12)"),
                 decl("--fandhe-date-picker-input-padding", "var(--fandhe-space-4) var(--fandhe-space-5)"),
                 decl("--fandhe-date-picker-content-padding", "var(--fandhe-space-4)"),
             ],
@@ -444,6 +485,42 @@ mod tests {
         assert!(media_block.contains(
             r#"[data-scope="date-picker"][data-part="clear-trigger"]:hover:not([data-disabled])"#
         ));
+    }
+
+    #[test]
+    fn size_variants_define_calendar_day_size_for_grid_propagation() {
+        // date-picker の合成先（`content` 直下の `calendar::table`）は
+        // `calendar::root` を経由しないため、`--fandhe-calendar-day-size` は
+        // date-picker 側の root size variant が定義しない限り未定義になり、
+        // 入れ子の日セルが calendar 側の既定値（md 相当）に固定される
+        // （イシュー #1472、モジュール rustdoc「スタイル調整」節参照）。
+        let css = stylesheet();
+        let expectations: &[(Size, &str)] = &[
+            (Size::Xs, "var(--fandhe-space-4)"),
+            (Size::Sm, "var(--fandhe-space-6)"),
+            (Size::Md, "var(--fandhe-space-8)"),
+            (Size::Lg, "var(--fandhe-space-10)"),
+            (Size::Xl, "var(--fandhe-space-12)"),
+        ];
+        for (size, expected_value) in expectations {
+            let selector = format!(
+                r#"[data-scope="date-picker"][data-part="root"].fd-date-picker--size-{}"#,
+                size.value()
+            );
+            let block_start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("selector not found: {selector}, css={css}"));
+            let block_end = css[block_start..]
+                .find('}')
+                .map(|offset| block_start + offset)
+                .unwrap_or_else(|| panic!("unterminated block for {selector}"));
+            let block = &css[block_start..block_end];
+            let decl = format!("--fandhe-calendar-day-size: {expected_value};");
+            assert!(
+                block.contains(&decl),
+                "size={size:?} block={block} expected_decl={decl}"
+            );
+        }
     }
 
     #[test]
