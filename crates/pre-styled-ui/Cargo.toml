@@ -405,7 +405,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # `item-delete-trigger` へ hover/transition/disabled 統一形を追加した。
 # Rust API シグネチャは不変のため、同じく patch バンプとして 0.57.6 から
 # 0.57.7 とする。
-version = "0.57.7"
+# image-cropper のスタイル調整 (1/2)（イシュー #1480）: `selection`
+# （クロップ枠）・`handle`（8 方位リサイズハンドル）・`grid`（三分割
+# グリッド線）のフォーカスリングトークン化・暗幕トークン化・写真上の
+# クロームの白固定・hover/transition/角丸/影の追加を行った。CSS 出力の
+# 観測可能な変更のみで Rust API シグネチャは不変のため、同じく patch
+# バンプとして 0.57.7 から 0.57.8 とする。
+version = "0.57.8"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

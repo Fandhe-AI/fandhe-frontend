@@ -33,8 +33,8 @@ const IMAGE_CROPPER_GOLDEN_CSS: &str = r#"[data-scope="image-cropper"][data-part
   width: var(--fandhe-image-cropper-w, 100%);
   height: var(--fandhe-image-cropper-h, 100%);
   box-sizing: border-box;
-  border: 2px solid var(--fandhe-color-bg);
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 9999px var(--fandhe-color-bg-overlay);
   cursor: move;
 }
 
@@ -42,18 +42,28 @@ const IMAGE_CROPPER_GOLDEN_CSS: &str = r#"[data-scope="image-cropper"][data-part
   position: absolute;
   width: var(--fandhe-image-cropper-handle-size, 0.75rem);
   height: var(--fandhe-image-cropper-handle-size, 0.75rem);
-  background: var(--fandhe-color-bg);
-  border: 1px solid var(--fandhe-color-border);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: var(--fandhe-radius-xs);
+  box-shadow: var(--fandhe-shadow-sm);
   box-sizing: border-box;
   transform: translate(-50%, -50%);
+}
+
+[data-scope="image-cropper"][data-part="handle"] {
+  transition-property: background, box-shadow;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="image-cropper"][data-part="grid"] {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.5) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.5) 1px, transparent 1px);
-  background-size: calc(100% / 3) 100%, 100% calc(100% / 3);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5));
+  background-size: 1px 100%, 1px 100%, 100% 1px, 100% 1px;
+  background-position: calc(100% / 3) 0, calc(100% / 3 * 2) 0, 0 calc(100% / 3), 0 calc(100% / 3 * 2);
+  background-repeat: no-repeat;
 }
 
 [data-scope="image-cropper"][data-part="root"].fd-image-cropper--size-xs {
@@ -125,8 +135,14 @@ const IMAGE_CROPPER_GOLDEN_CSS: &str = r#"[data-scope="image-cropper"][data-part
 }
 
 [data-scope="image-cropper"][data-part="handle"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 1px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (hover: hover) {
+  [data-scope="image-cropper"][data-part="handle"]:hover:not([data-disabled]) {
+    background: #f0f0f0;
+  }
 }
 "#;
 
