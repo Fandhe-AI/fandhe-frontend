@@ -113,12 +113,11 @@
 //!   `docs/design/pre-styled-ui-interaction-visual-language.md`）
 
 use crate::class_attr::drop_class_attr;
-use crate::css::decl;
+use crate::css::{decl, Declaration};
 use crate::recipe::{
-    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid,
-    hover_surface_declarations, palette_scale_declarations, transition_declarations, ColorPalette,
-    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
-    VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `Checkbox` 状態機械・headless 自由関数 `root` はあえて再エクスポートしない
@@ -136,6 +135,28 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 /// 一部パーツの CSS を出力しない fail-closed 側の不具合として現れるため、
 /// 変更時は両ファイルを合わせて確認する）。
 const SLOTS: &[&str] = &["root", "control", "indicator", "label", "hidden-input"];
+
+/// checked/indeterminate 時の `control` hover 面を定義する `--fandhe-hover-bg`
+/// 宣言（内部ヘルパ）。[`crate::recipe::hover_bg_solid`] は
+/// `var(--fandhe-palette-emphasized)` を直値で参照するのみで、styled
+/// `root`（[`crate::recipe::palette_declarations`]）を経由しない headless
+/// 直接利用マークアップでは `--fandhe-palette-emphasized` が未定義となり
+/// `background: var(--fandhe-hover-bg)` が computed-value time に無効化
+/// されて hover 面が透明へ戻る回帰を生む（レビュー指摘）。本モジュールの
+/// 他の checked/indeterminate 宣言（border-color/background）と同じ
+/// `var(--fandhe-palette-emphasized, var(--fandhe-palette,
+/// var(--fandhe-color-accent)))` フォールバック連鎖を適用し、モジュール冒頭
+/// rustdoc が約束する fail-safe（styled root 非経由でも現行外観を維持する）
+/// を hover 面にも及ぼす。[`crate::recipe::hover_bg_solid`] 自体は button 等
+/// 他部品からも参照される共有ヘルパであり、本 Issue（#1454, root/control/
+/// indicator パート）のスコープ外である他部品の挙動を変えないよう、
+/// 修正はここへ局所化する。
+fn hover_bg_solid_with_fallback() -> Declaration {
+    decl(
+        "--fandhe-hover-bg",
+        "var(--fandhe-palette-emphasized, var(--fandhe-palette, var(--fandhe-color-accent)))",
+    )
+}
 
 /// この styled Checkbox の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
@@ -198,8 +219,15 @@ fn recipe() -> SlotRecipe {
                 // solid variant と同型、モジュール rustdoc 参照）。hover
                 // セレクタは `:hover:not([data-disabled])` で詳細度が本規則
                 // より高いため、直値ではなく間接参照でなければ checked 面が
-                // 中立色（`hover_bg_muted()`）へ落ちてしまう。
-                hover_bg_solid(),
+                // 中立色（`hover_bg_muted()`）へ落ちてしまう。`hover_bg_solid()`
+                // は styled root（`palette_declarations`）が定義する
+                // `--fandhe-palette-emphasized` への参照であり、そのままでは
+                // headless 直接利用（styled root 非経由）で未定義変数参照と
+                // なり computed-value time に無効化されて hover 面が消える
+                // 回帰を招く（レビュー指摘）。直前の border-color/background と
+                // 同じフォールバック連鎖を `--fandhe-hover-bg` にも適用し
+                // fail-safe を維持する（`hover_bg_solid_with_fallback`）。
+                hover_bg_solid_with_fallback(),
             ],
         )
         .state(
@@ -214,7 +242,7 @@ fn recipe() -> SlotRecipe {
                     "background",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
-                hover_bg_solid(),
+                hover_bg_solid_with_fallback(),
             ],
         )
         // headless 層が invalid な選択肢へ出す `data-invalid`（`input.rs`
@@ -478,7 +506,7 @@ mod tests {
             r#"[data-scope="checkbox"][data-part="control"][data-state="checked"] {
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   background: var(--fandhe-palette, var(--fandhe-color-accent));
-  --fandhe-hover-bg: var(--fandhe-palette-emphasized);
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-palette, var(--fandhe-color-accent)));
 }"#
         ));
         assert!(css.contains(
