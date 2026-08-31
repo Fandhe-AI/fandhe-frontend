@@ -4670,10 +4670,116 @@ fn checkbox_group_section() -> Node {
         vec![],
         children,
     );
+
+    // イシュー #1460: `data-orientation="horizontal"` の折り返し横並び
+    // レイアウト（`flex-wrap: wrap` + `column-gap: var(--fandhe-space-4)`）
+    // を可視化する 2 件目のデモ。項目・状態は縦積みデモと同一。
+    let horizontal_label_id = "showcase-checkbox-group-horizontal-label";
+    let mut horizontal_children = vec![checkbox_group::label(
+        Some(horizontal_label_id),
+        vec![],
+        vec![text("Colors (horizontal)")],
+    )];
+    horizontal_children.extend(items.iter().map(|(value, label, checked, disabled)| {
+        let props = CheckboxProps {
+            checked: if *checked {
+                CheckedState::Checked
+            } else {
+                CheckedState::Unchecked
+            },
+            disabled: *disabled,
+            ..CheckboxProps::default()
+        };
+        checkbox_group::item(
+            *checked,
+            *disabled,
+            value,
+            vec![],
+            vec![
+                checkbox::hidden_input(&props, "showcase-checkbox-group-horizontal", value, vec![]),
+                checkbox_group::item_control(
+                    *checked,
+                    *disabled,
+                    vec![],
+                    vec![checkbox_group::item_indicator(
+                        *checked,
+                        *disabled,
+                        vec![],
+                        vec![],
+                    )],
+                ),
+                checkbox_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+            ],
+        )
+    }));
+    let horizontal_demo = checkbox_group::root(
+        Size::Md,
+        ColorPalette::Accent,
+        false,
+        Some(Orientation::Horizontal),
+        Some(horizontal_label_id),
+        vec![],
+        horizontal_children,
+    );
+
+    // イシュー #1460: `data-invalid` は headless 層が出力しないため（`root`
+    // の `attrs` へ利用者が直接付与する経路のみ）、その付与例をデモとして
+    // 示す。CSS 側は `root[data-invalid]` から `item-control` の
+    // border-color へ custom property 経由で伝播するのみで、headless 層に
+    // `invalid` フラグを追加するものではない（#1603 の射程、`checkbox_group.rs`
+    // rustdoc「本イシューのスコープ外」節参照）。
+    let invalid_label_id = "showcase-checkbox-group-invalid-label";
+    let mut invalid_children = vec![checkbox_group::label(
+        Some(invalid_label_id),
+        vec![],
+        vec![text("Colors (invalid)")],
+    )];
+    invalid_children.extend(items.iter().map(|(value, label, checked, disabled)| {
+        let props = CheckboxProps {
+            checked: if *checked {
+                CheckedState::Checked
+            } else {
+                CheckedState::Unchecked
+            },
+            disabled: *disabled,
+            ..CheckboxProps::default()
+        };
+        checkbox_group::item(
+            *checked,
+            *disabled,
+            value,
+            vec![],
+            vec![
+                checkbox::hidden_input(&props, "showcase-checkbox-group-invalid", value, vec![]),
+                checkbox_group::item_control(
+                    *checked,
+                    *disabled,
+                    vec![],
+                    vec![checkbox_group::item_indicator(
+                        *checked,
+                        *disabled,
+                        vec![],
+                        vec![],
+                    )],
+                ),
+                checkbox_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+            ],
+        )
+    }));
+    let invalid_demo = checkbox_group::root(
+        Size::Md,
+        ColorPalette::Accent,
+        false,
+        Some(Orientation::Vertical),
+        Some(invalid_label_id),
+        vec![("data-invalid", "")],
+        invalid_children,
+    );
+
     section(
         "CheckboxGroup",
         "複数選択の選択肢グループ。ネイティブ input[type=\"checkbox\"]（fandhe_frontend_pre_styled_ui::checkbox::hidden_input の再利用）による同時選択・キーボード操作を data-scope=\"checkbox-group\" の anatomy へ重ねます。",
-        vec![demo],
+        vec![demo, horizontal_demo, invalid_demo],
     )
 }
 

@@ -49,11 +49,23 @@ fn stylesheet_does_not_reimplement_visually_hidden_hidden_input_rules() {
 
 #[test]
 fn orientation_horizontal_switches_root_to_row_layout() {
+    // イシュー #1460: 横並びは折り返し + space-4 の列間隔も伴う（縦積み用の
+    // `gap`〔custom property 化〕を row-gap として継承し、column-gap のみ
+    // 追加指定する）。
     let css = stylesheet();
     assert!(css.contains(
         r#"[data-scope="checkbox-group"][data-part="root"][data-orientation="horizontal"]"#
     ));
     assert!(css.contains("flex-direction: row;"));
+    assert!(css.contains("flex-wrap: wrap;"));
+    assert!(css.contains("column-gap: var(--fandhe-space-4);"));
+}
+
+#[test]
+fn root_gap_is_custom_property_with_space_1_fallback() {
+    // イシュー #1460: 2/2（#1461）が size variant で切り替える受け口。
+    let css = stylesheet();
+    assert!(css.contains("gap: var(--fandhe-checkbox-group-gap, var(--fandhe-space-1));"));
 }
 
 #[test]
@@ -64,15 +76,53 @@ fn disabled_item_gets_not_allowed_cursor() {
 }
 
 #[test]
+fn item_has_fit_content_width_for_click_area() {
+    // イシュー #1460: Radix Themes item に合わせ、縦積み時のクリック領域が
+    // 行幅いっぱいに広がるのを防ぐ。
+    let css = stylesheet();
+    assert!(css.contains("width: fit-content;"));
+}
+
+#[test]
 fn checked_item_control_gets_palette_fill_not_circular_radio_shape() {
     let css = stylesheet();
     assert!(css.contains(
         r#"[data-scope="checkbox-group"][data-part="item-control"][data-state="checked"]"#
     ));
-    assert!(css.contains("border-color: var(--fandhe-palette, var(--fandhe-color-accent));"));
+    // イシュー #1460: root からの invalid 伝播（custom property）が checked
+    // 状態でも優先されるよう、border-color はその custom property を経由する。
+    assert!(css.contains(
+        "border-color: var(--fandhe-checkbox-group-control-border-color, var(--fandhe-palette, var(--fandhe-color-accent)));"
+    ));
     // Radix Themes Checkbox Group の item-control は角丸の四角であり、
     // radio_group（円形）と異なることの回帰固定。
     assert!(!css.contains("border-radius: 50%;"));
+}
+
+#[test]
+fn root_invalid_and_disabled_propagate_via_custom_properties() {
+    // イシュー #1460: headless 層は `data-invalid`/`data-disabled` を
+    // `item-control`/`item` へ直接出力しないため（`data-disabled` は出力
+    // するが、opacity の多重適用回避のため root 側は custom property
+    // のみを定義する）、`root` の状態伝播は custom property 経由の
+    // 参照でのみ成立する（モジュール rustdoc 参照）。
+    let css = stylesheet();
+    assert!(css.contains(r#"[data-scope="checkbox-group"][data-part="root"][data-invalid]"#));
+    assert!(
+        css.contains("--fandhe-checkbox-group-control-border-color: var(--fandhe-color-danger);")
+    );
+    assert!(css.contains(r#"[data-scope="checkbox-group"][data-part="root"][data-disabled]"#));
+    assert!(css.contains("--fandhe-checkbox-group-item-opacity: 0.5;"));
+    assert!(css.contains("--fandhe-checkbox-group-item-cursor: not-allowed;"));
+}
+
+#[test]
+fn item_control_invalid_sets_danger_border_color() {
+    let css = stylesheet();
+    assert!(
+        css.contains(r#"[data-scope="checkbox-group"][data-part="item-control"][data-invalid]"#)
+    );
+    assert!(css.contains("border-color: var(--fandhe-color-danger);"));
 }
 
 #[test]
