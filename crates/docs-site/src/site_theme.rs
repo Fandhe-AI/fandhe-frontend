@@ -1391,19 +1391,32 @@ fn typography_css() -> Result<String, SiteThemeError> {
     )?;
 
     // ---- リスト（list base/Marker variant/item base のミラー、docs 固有の margin）----
+    // イシュー #1438: item base の margin-block・Marker variant の
+    // padding-inline-start はコンポーネント側でスケールトークン参照
+    // （`--fandhe-space-1`/`--fandhe-space-6`）へ載せ替えられたため、
+    // ミラーも同じトークン参照へ追随する（実効値は不変）。マーカー色
+    // （`::marker` の `fg.muted` 化）も同 issue の是正をミラーする。
     push_typography_rule(
         &mut out,
         ".docs-content ul,\n.docs-content ol",
         &[
             decl("margin", "0 0 1.05rem"),
             decl("list-style", "revert"),
-            decl("padding-inline-start", "1.5rem"),
+            decl("padding-inline-start", "var(--fandhe-space-6)"),
         ],
     )?;
     push_typography_rule(
         &mut out,
         ".docs-content li",
-        &[decl("margin-block", "0.25rem"), decl("line-height", "1.5")],
+        &[
+            decl("margin-block", "var(--fandhe-space-1)"),
+            decl("line-height", "1.5"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content li::marker",
+        &[decl("color", "var(--fandhe-color-fg-muted)")],
     )?;
 
     // ---- リンク（link base のミラー、hover 下線は docs 固有）----

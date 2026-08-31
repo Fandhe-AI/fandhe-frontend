@@ -116,7 +116,10 @@ fn list_declarations_mirror_pre_styled_ui_list_recipe() {
     let list_css = fandhe_frontend_pre_styled_ui::list::css();
 
     // root（ul/ol）: ListVariant::Marker.
-    for (property, value) in [("list-style", "revert"), ("padding-inline-start", "1.5rem")] {
+    for (property, value) in [
+        ("list-style", "revert"),
+        ("padding-inline-start", "var(--fandhe-space-6)"),
+    ] {
         assert_declaration_mirrored(
             &list_css,
             property,
@@ -127,10 +130,18 @@ fn list_declarations_mirror_pre_styled_ui_list_recipe() {
     }
 
     // item（li）base.
-    for (property, value) in [("margin-block", "0.25rem"), ("line-height", "1.5")] {
+    for (property, value) in [
+        ("margin-block", "var(--fandhe-space-1)"),
+        ("line-height", "1.5"),
+    ] {
         assert_declaration_mirrored(&list_css, property, value, "list item base (component)");
         assert_declaration_mirrored(&docs_css, property, value, "li (docs mirror)");
     }
+
+    // item の ::marker（イシュー #1438、fg.muted 化）.
+    let (property, value) = ("color", "var(--fandhe-color-fg-muted)");
+    assert_declaration_mirrored(&list_css, property, value, "list item ::marker (component)");
+    assert_declaration_mirrored(&docs_css, property, value, "li::marker (docs mirror)");
 }
 
 #[test]

@@ -1,11 +1,69 @@
-//! List（イシュー #771）: slot recipe styled 部品。root（`<ul>`/`<ol>`）/
-//! item（`<li>`）/ indicator（装飾マーカー用 `<span>`）の 3 パーツで構成する
-//! リスト表示。
+//! List（イシュー #771、#1438 で参照サイト基準へ調整）: slot recipe styled
+//! 部品。root（`<ul>`/`<ol>`）/ item（`<li>`）/ indicator（装飾マーカー用
+//! `<span>`）の 3 パーツで構成するリスト表示。
 //!
 //! [`ListType`] は [`crate::heading::HeadingLevel`] と同じ「variant クラス
 //! ではなくレンダリングするタグそのものを選ぶ」方式で `<ul>`/`<ol>` を選択
 //! する。colorPalette 軸は付与しない（中立部品。`indicator` の色は呼び出し
 //! 側が children/attrs で指定する）。
+//!
+//! # イシュー #1438 の参照サイト比較（7 軸チェック）
+//!
+//! chakra-ui（`typography/list.md`、`marker`(既定)/`plain` variant・
+//! size/colorPalette 軸なし）のスクリーンショット
+//! （`docs/design/reference-screenshots/chakra-list-{1,2,3}.png`）と現状
+//! （`themes-list.png`）を比較した結果を記録する。
+//!
+//! - **マーカー色**: chakra は箇条書きの点・番号を本文より淡いグレー
+//!   （`fg.muted` 相当）で描く。旧実装はマーカー色の指定がなく本文色と
+//!   同一だったため、`css()` に item の `::marker` を対象とした固定 CSS
+//!   規則を追記して是正した（`::marker` は擬似要素であり
+//!   [`crate::recipe::StateCondition`] では表現できないため、
+//!   [`crate::scroll_area::stylesheet`] が `::-webkit-scrollbar` 系規則を
+//!   固定文字列で追記する precedent と同型の手法を採る）。
+//! - **indicator の間隔・整列**: chakra はアイコンとテキストの間に一定の
+//!   ギャップを保ち行頭で揃える。旧実装は `display: inline-block` のみで
+//!   余白・整列指定がなかったため、`margin-inline-end`
+//!   （`--fandhe-space-2` スケールトークン）・`vertical-align: middle`・
+//!   `flex-shrink: 0` を追加した。
+//! - **`Plain` variant の item**: chakra は `plain` 使用時（indicator 併用
+//!   前提）に item を flex 化し `align-items: flex-start` を与え、
+//!   複数行テキストでもアイコンと行頭が揃うようにする。旧実装は root の
+//!   `list-style: none` のみで item 側の宣言がなかったため、
+//!   `ListVariant::Plain` の item slot 宣言を新設した。item の間隔は
+//!   indicator 側の `margin-inline-end`（前項）が既に担っているため、
+//!   ここでは `gap` を追加しない（flex の `gap` と `margin-inline-end` を
+//!   併用すると加算されてしまい、indicator とテキストの間隔が意図の
+//!   2 倍になるため。レビュー指摘で是正）。当初 `display: inline-flex`
+//!   を指定していたが、`inline-flex` は item 自体をインラインレベルの
+//!   ボックスにしてしまい、複数の短い item が縦に積まれず同じ行へ横並び
+//!   してしまう不具合があった（イシュー #1438 codex-review P1 /
+//!   Cursor Bugbot 指摘）。root 側に列方向の flex コンテナ宣言を追加する
+//!   のではなく、item 側を block-level の flex コンテナである
+//!   `display: flex` へ是正した（`<li>` は既定で block レベルのため、
+//!   `flex` にしても通常のブロック配置のまま縦に積まれ、item 内部の
+//!   indicator とテキストだけが横並びになる）。
+//! - **サイズ軸**: 追加しない（意図的）。chakra List に size prop はなく、
+//!   Radix Themes には List 部品自体が存在しない（周囲の typography を
+//!   継承する設計）。既存の中立部品としての位置づけを変えない。
+//! - **colorPalette 軸**: 追加しない（意図的）。chakra はマーカーを中立色
+//!   `fg.muted` 固定で描き、palette 連動は行わない。indicator の色は
+//!   引き続き呼び出し側指定という既存契約を維持する（モジュール冒頭で
+//!   既記載の設計判断を本節で再掲）。
+//! - **状態（hover/disabled/focus-visible/transition）・`data-*`**: 適用
+//!   しない（意図的）。list は非インタラクティブな表示専用部品であり、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md`・
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` の
+//!   いずれの適用対象にも当たらない（kbd #1436・code #1432 と同一判断）。
+//!   `data-*` の増減もなし。
+//! - **余白**: item の `margin-block: 0.25rem` は `--fandhe-space-1`、root
+//!   Marker variant の `padding-inline-start: 1.5rem` は `--fandhe-space-6`
+//!   と厳密に一致するため、両方ともスケールトークン参照へ載せ替えた
+//!   （実効値は不変、`docs/design/pre-styled-ui-scale-tokens.md` が示す
+//!   トークン移行の方針に合わせる）。
+//! - **ダーク**: 追加した `::marker` 規則もトークン参照
+//!   （`var(--fandhe-color-fg-muted)`）のみで構成されるため、
+//!   `write_dark_declarations` の一元機構に自動追従する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -70,15 +128,26 @@ fn recipe() -> SlotRecipe {
         .base("root", vec![decl("margin", "0")])
         .base(
             "item",
-            vec![decl("margin-block", "0.25rem"), decl("line-height", "1.5")],
+            vec![
+                decl("margin-block", "var(--fandhe-space-1)"),
+                decl("line-height", "1.5"),
+            ],
         )
-        .base("indicator", vec![decl("display", "inline-block")])
+        .base(
+            "indicator",
+            vec![
+                decl("display", "inline-block"),
+                decl("margin-inline-end", "var(--fandhe-space-2)"),
+                decl("vertical-align", "middle"),
+                decl("flex-shrink", "0"),
+            ],
+        )
         .variant(
             ListVariant::Marker,
             "root",
             vec![
                 decl("list-style", "revert"),
-                decl("padding-inline-start", "1.5rem"),
+                decl("padding-inline-start", "var(--fandhe-space-6)"),
             ],
         )
         .variant(
@@ -92,10 +161,100 @@ fn recipe() -> SlotRecipe {
         .default_variant(ListVariant::Marker)
 }
 
-/// List の静的 CSS 全文。
+/// この styled List が生成する静的 CSS 全量を返す（決定的）。
+///
+/// recipe が生成する規則群に続けて、2 種の固定 CSS リテラルを追記する
+/// （`::marker`・子孫セレクタのいずれも [`SlotRecipe::variant`] の
+/// 一律なセレクタ生成では表現できないため、[`crate::scroll_area::stylesheet`]
+/// の `::-webkit-scrollbar` 系規則追記と同型の precedent を採る）。値は
+/// ソースコード中の固定リテラル + テーマ CSS 変数参照のみで構成され、
+/// 外部入力は一切混入しない。
+///
+/// 1. item の `::marker`（箇条書きの点・番号）を淡色（`fg.muted` 相当）へ
+///    固定する規則（`::marker` は擬似要素であり
+///    [`crate::recipe::StateCondition`] では表現できない）。
+/// 2. `Plain` variant 使用時の item 整列規則。[`SlotRecipe::variant`] が
+///    生成するセレクタは対象スロット自身に variant クラスが付与されて
+///    いる前提（`[data-part="item"].fd-list--variant-plain`）だが、
+///    variant クラスを実際に持つのは [`root`] が返す要素のみで、`item`
+///    （常に `ANATOMY.part("item", ...)` のみで組み立て、variant を引数に
+///    取らない）は持たない。そのため recipe の `.variant(_, "item", _)`
+///    登録では一致しないセレクタが生成され、Plain variant でも item に
+///    整列規則が適用されない不具合があった（イシュー #1438 codex-review
+///    P1 / Cursor Bugbot 指摘）。是正として `.variant(_, "item", _)` 登録は
+///    削除し、`root` 自身を祖先条件としたセレクタ
+///    （`[data-part="root"].fd-list--variant-plain` 直下の
+///    `[data-part="item"]`）を手書きし、root の variant クラスを持つ
+///    要素の直接の子である item へ子コンビネータ（`>`）で適用する。
+///    子孫結合子ではなく子コンビネータを用いるのは、子孫結合子だと
+///    Plain root 配下にネストした別リスト（例: Marker variant の
+///    ネストリスト）の item にも意図せずマッチし、ネスト側の
+///    `display: list-item` を上書きして `::marker`（bullet/番号）を
+///    消してしまうため（イシュー #1438 Cursor Bugbot 指摘）。
+///    `tests::plain_variant_root_and_item_dom_matches_plain_item_selector`
+///    が root(Plain) と item() の実際の DOM 出力からこのセレクタが一致
+///    することを検証する。
+/// 3. `Plain` variant の item にネストした別リスト（`root` を子孫として
+///    含む場合。例: item 内に indicator + label を横並びさせつつ、その
+///    下にネストした sub-list を続ける構成）が横並びのまま留まってしまう
+///    不具合の是正（イシュー #1438 Cursor Bugbot Medium 指摘）。上記 2 の
+///    item 規則は `display: flex` のみで `flex-wrap` を指定していなかった
+///    ため、item の直接の子（indicator・テキスト・ネストした
+///    `root`〔`<ul>`/`<ol>`〕）がすべて既定の `flex-wrap: nowrap` で
+///    横一列に並び、ネストリストが縦積みされなかった。是正として item
+///    の直接の子である
+///    ネスト `root` へ `flex-basis: 100%; width: 100%;` を宣言する規則を
+///    追加した。これによりネスト `root` は常に自身の行いっぱいの幅を
+///    要求するため、indicator・テキストの直後で強制的に折り返され、
+///    見た目上は縦積み（次の行）として描画される。セレクタは規則 2 と
+///    同じく子コンビネータ（`>`）で 1 段階のみに限定しており、
+///    ネストしたリストの**孫**にあたる item（ネストリスト自身が Plain
+///    variant で入れ子になった場合の item）へは波及しない
+///    （`tests::plain_variant_nested_root_child_gets_full_width_wrap`
+///    が css() のセレクタ文字列からこれを検証する）。
+/// 4. `flex-wrap: wrap` は item 自身へ常時適用せず、`:has(> [data-part="root"])`
+///    でネスト `root` を直接の子として**持つ** item のみへ限定する
+///    是正（イシュー #1438 PR #1724 Cursor Bugbot Medium 再指摘）。規則
+///    3 導入時は item 規則へ `flex-wrap: wrap` を無条件に付与していた
+///    ため、ネストリストを持たない通常の Plain item（indicator +
+///    長いテキストのみ）でも flex-wrap が働き、テキストが匿名 flex item
+///    として折り返す際に indicator と同じ行に留まらず次の行へ丸ごと
+///    送られてしまう（indicator とテキストが視覚的に分離する）不具合が
+///    あった。是正として `flex-wrap: wrap` を item 基本規則から外し、
+///    ネスト `root` の存在を検知する `:has()` 条件付き規則へ切り出した。
+///    ネストリストを持たない item は既定の `flex-wrap: nowrap` のまま
+///    残るため、テキスト自体はインライン折り返し（通常の word-wrap）で
+///    複数行になっても indicator と同じ行（flex item 内）に留まる。
+///    `:has()` は全モダンブラウザで既定サポート済みの標準機能であり、
+///    `SlotRecipe`（[`crate::recipe::StateCondition`]）の状態遷移機構を
+///    拡張するものではなく本 CSS 文字列への直接追記に留まるため、
+///    `crate::switch` rustdoc が言及する「関係セレクタを状態機械へ
+///    持ち込まない」方針とは抵触しない（あちらは `data-*` 属性の
+///    付け外しをクライアントランタイムに委ねる設計判断であり、本件は
+///    単一の静的 CSS 規則の適用範囲を絞るだけの変更）。
+///    `tests::plain_variant_item_without_nested_root_does_not_wrap` が
+///    ネストなし item 規則に `flex-wrap: wrap` が現れないことを、
+///    `tests::plain_variant_nested_root_child_gets_full_width_wrap` が
+///    `:has()` 付き規則に `flex-wrap: wrap` が現れることをそれぞれ固定
+///    する。
 #[must_use]
 pub fn css() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    out.push('\n');
+    out.push_str(
+        "[data-scope=\"list\"][data-part=\"item\"]::marker {\n  \
+         color: var(--fandhe-color-fg-muted);\n}\n\
+         \n\
+         [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > [data-scope=\"list\"][data-part=\"item\"] {\n  \
+         display: flex;\n  align-items: flex-start;\n}\n\
+         \n\
+         [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > [data-scope=\"list\"][data-part=\"item\"]:has(> [data-scope=\"list\"][data-part=\"root\"]) {\n  \
+         flex-wrap: wrap;\n}\n\
+         \n\
+         [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > [data-scope=\"list\"][data-part=\"item\"] > [data-scope=\"list\"][data-part=\"root\"] {\n  \
+         flex-basis: 100%;\n  width: 100%;\n}\n",
+    );
+    out
 }
 
 /// root パーツ（`<ul>`/`<ol>`）を組み立てる。`list_type` がレンダリングする
@@ -248,5 +407,234 @@ mod tests {
     fn css_output_declares_plain_list_style_reset() {
         let out = css();
         assert!(out.contains("list-style: none;"));
+    }
+
+    #[test]
+    fn css_output_declares_muted_marker_color() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="list"][data-part="item"]::marker"#));
+        assert!(out.contains("color: var(--fandhe-color-fg-muted);"));
+    }
+
+    #[test]
+    fn css_output_declares_indicator_gap_and_alignment() {
+        let out = css();
+        assert!(out.contains("margin-inline-end: var(--fandhe-space-2);"));
+        assert!(out.contains("vertical-align: middle;"));
+        assert!(out.contains("flex-shrink: 0;"));
+    }
+
+    #[test]
+    fn plain_variant_item_uses_flex_alignment() {
+        let out = css();
+        assert!(out.contains(
+            r#"[data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"]"#
+        ));
+        assert!(out.contains("display: flex;"));
+        assert!(out.contains("align-items: flex-start;"));
+    }
+
+    /// イシュー #1438 Cursor Bugbot（Medium）指摘の回帰テスト。
+    ///
+    /// Plain variant の item にネストした別リスト（`root`）が、item の
+    /// 直接の子として横並びのまま留まらず、`:has(> [data-part="root"])`
+    /// で限定した `flex-wrap: wrap` + `flex-basis: 100%`/`width: 100%`
+    /// によって縦積み（強制折り返し）されることを css() のセレクタ・
+    /// 宣言から固定する。
+    #[test]
+    fn plain_variant_nested_root_child_gets_full_width_wrap() {
+        let out = css();
+
+        // ネスト root を直接の子として持つ item にのみ折り返しが許可
+        // されること（indicator・テキストの後段にネスト root を強制的に
+        // 次の行へ送るための前提）。PR #1724 Cursor Bugbot 再指摘により
+        // 無条件の item 規則ではなく `:has()` 限定規則へ切り出した
+        // （`plain_variant_item_without_nested_root_does_not_wrap` 参照）。
+        let has_selector = r#"[data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"]:has(> [data-scope="list"][data-part="root"]) {"#;
+        let item_rule_start = out
+            .find(has_selector)
+            .expect(":has() 限定の flex-wrap 規則が存在すること");
+        let item_rule_end = out[item_rule_start..]
+            .find('}')
+            .map(|offset| item_rule_start + offset)
+            .expect("plain item :has() 規則が閉じていること");
+        let item_rule = &out[item_rule_start..item_rule_end];
+        assert!(
+            item_rule.contains("flex-wrap: wrap;"),
+            "Plain item :has() rule must allow wrapping so a nested root is not forced onto the same row: {item_rule}"
+        );
+
+        // item の直接の子であるネスト root が常にフル幅を要求し、強制的に
+        // 折り返される（＝縦積みされる）ことを固定する。
+        let nested_root_selector = r#"[data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"] > [data-scope="list"][data-part="root"]"#;
+        assert!(out.contains(nested_root_selector), "out={out}");
+        let nested_rule_start = out
+            .find(nested_root_selector)
+            .expect("nested root rule must exist");
+        let nested_rule = &out[nested_rule_start..];
+        assert!(
+            nested_rule.contains("flex-basis: 100%;"),
+            "out={nested_rule}"
+        );
+        assert!(nested_rule.contains("width: 100%;"), "out={nested_rule}");
+    }
+
+    /// イシュー #1438 PR #1724 Cursor Bugbot（Medium）再指摘の回帰テスト。
+    ///
+    /// ネストした別リストを持たない通常の Plain item（indicator +
+    /// テキストのみ）に適用される基本規則には `flex-wrap: wrap` が
+    /// 現れないことを固定する。無条件に `flex-wrap: wrap` を付与すると、
+    /// indicator に隣接する素のテキストが匿名 flex item となり、長い
+    /// ラベルが折り返す際に item 全体が複数の flex line に分かれて
+    /// indicator と分離してしまう（`display: flex` の既定
+    /// `flex-wrap: nowrap` のままであれば、テキストはインライン折り返し
+    /// のみで indicator と同じ行内に留まる）。
+    #[test]
+    fn plain_variant_item_without_nested_root_does_not_wrap() {
+        let out = css();
+        let base_selector = r#"[data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"] {"#;
+        let base_rule_start = out
+            .find(base_selector)
+            .expect("plain item base rule must exist");
+        let base_rule_end = out[base_rule_start..]
+            .find('}')
+            .map(|offset| base_rule_start + offset)
+            .expect("plain item base rule must be closed");
+        let base_rule = &out[base_rule_start..base_rule_end];
+        assert!(
+            !base_rule.contains("flex-wrap"),
+            "Plain item base rule (no :has() condition) must not force flex-wrap so plain text stays on the same line as the indicator: {base_rule}"
+        );
+        assert!(base_rule.contains("display: flex;"), "out={base_rule}");
+    }
+
+    /// イシュー #1438 codex-review P1 指摘の回帰テスト。
+    ///
+    /// Plain variant の item セレクタが `display: inline-flex`
+    /// （インラインレベルのボックス）ではなく `display: flex`
+    /// （block-level の flex コンテナ）を宣言することを固定する。
+    /// `inline-flex` のままだと item 自体がインラインボックス化し、
+    /// 複数の短い item が縦に積まれず同じ行に横並びしてしまう
+    /// （`<li>` は既定で block レベルのため、`flex` であれば通常の
+    /// ブロック配置のまま縦積みを維持できる）。
+    #[test]
+    fn plain_variant_item_is_not_inline_level() {
+        let out = css();
+        let plain_rule_start = out
+            .find(r#"[data-part="root"].fd-list--variant-plain > "#)
+            .expect("plain item rule must exist");
+        let plain_rule = &out[plain_rule_start..];
+        assert!(
+            !plain_rule.contains("display: inline-flex;"),
+            "Plain item selector must not use inline-flex (causes horizontal wrapping): {plain_rule}"
+        );
+        assert!(plain_rule.contains("display: flex;"), "out={out}");
+    }
+
+    /// イシュー #1438 Cursor Bugbot（Low）指摘の回帰テスト。
+    ///
+    /// Plain root の item 整列セレクタが子コンビネータ（`>`）で
+    /// 限定されており、子孫結合子（半角スペース）でネストした別リストの
+    /// item にまで波及しないことを固定する。子孫結合子のままだと
+    /// Plain root 配下にネストした Marker variant のリストの item にも
+    /// マッチし、ネスト側の `display: list-item` を上書きして
+    /// `::marker`（bullet/番号）が消えてしまう。
+    #[test]
+    fn plain_variant_item_selector_is_scoped_to_direct_children() {
+        let out = css();
+        let expected_child_selector = r#"[data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"]"#;
+        assert!(out.contains(expected_child_selector), "out={out}");
+
+        // 子孫結合子版（`>` を単なる半角スペースへ緩めた形）が生成されて
+        // いないことを確認し、直接の子への限定が保たれていることを固定する。
+        let descendant_selector = r#"[data-scope="list"][data-part="root"].fd-list--variant-plain [data-scope="list"][data-part="item"]"#;
+        assert!(
+            !out.contains(descendant_selector),
+            "must not regress to a descendant combinator (leaks into nested lists): out={out}"
+        );
+    }
+
+    /// イシュー #1438 codex-review P1 指摘の回帰テスト。
+    ///
+    /// Plain variant の root 配下に複数の item を並べたとき、item 自身が
+    /// インラインレベルのボックスにならない（＝縦積みのブロック配置を
+    /// 維持する）ことを、実際の DOM 構造（root(Plain) 配下に item を
+    /// 複数配置）と css() の対応から検証する。ブラウザレイアウトは
+    /// 単体テストで直接測れないため、契約として「複数 item がある場合に
+    /// item へ適用される規則が inline-flex ではないこと」を
+    /// `plain_variant_item_is_not_inline_level` と併せて固定する。
+    #[test]
+    fn plain_variant_multiple_items_render_as_sibling_block_level_nodes() {
+        let root_html = render(&root(
+            ListType::default(),
+            ListVariant::Plain,
+            vec![],
+            vec![
+                item(vec![], vec![text("one")]),
+                item(vec![], vec![text("two")]),
+            ],
+        ));
+        // 2 item が root 直下の兄弟要素として存在することを確認する
+        // （item 自身に個別の inline コンテナ指定が無いことの前提）。
+        assert_eq!(root_html.matches(r#"data-part="item""#).count(), 2);
+
+        let out = css();
+        let plain_rule_start = out
+            .find(r#"[data-part="root"].fd-list--variant-plain > "#)
+            .expect("plain item rule must exist");
+        assert!(
+            !out[plain_rule_start..].contains("display: inline-flex;"),
+            "Plain item rule must not make items inline-level (breaks vertical stacking of siblings)"
+        );
+    }
+
+    /// イシュー #1438 codex-review P1 / Cursor Bugbot 指摘の回帰テスト。
+    ///
+    /// `css()` が Plain variant の item 整列に使うセレクタ
+    /// （`[data-part="root"].fd-list--variant-plain > [data-part="item"]`）が、
+    /// `root(ListType::default(), ListVariant::Plain, ...)` と `item(...)`
+    /// が実際に生成する DOM 属性と一致することを、文字列レベルで検証する
+    /// （セレクタの各条件が対応する要素の実属性に現れるかを機械的に確認し、
+    /// 「CSS 文字列に含まれているだけ」で実 DOM に一致しない状態を防ぐ）。
+    /// セレクタは子コンビネータ（`>`）で限定されており（ネストしたリストへの
+    /// 波及防止、`plain_variant_item_selector_is_scoped_to_direct_children`
+    /// 参照）、item は実際に `root` が返す要素の直接の子として配置される
+    /// 想定である。
+    #[test]
+    fn plain_variant_root_and_item_dom_matches_plain_item_selector() {
+        let root_html = render(&root(
+            ListType::default(),
+            ListVariant::Plain,
+            vec![],
+            vec![],
+        ));
+        // セレクタ祖先条件 `[data-part="root"].fd-list--variant-plain` が
+        // root(Plain) の実属性（data-part="root" と class 内の
+        // fd-list--variant-plain）に一致することを確認する。
+        assert!(
+            root_html.contains(r#"data-part="root""#),
+            "root_html={root_html}"
+        );
+        assert!(
+            root_html.contains("fd-list--variant-plain"),
+            "root_html={root_html}"
+        );
+
+        let item_html = render(&item(vec![], vec![]));
+        // セレクタ子条件 `[data-part="item"]` が item() の実属性に一致
+        // することを確認する（item は variant を引数に取らず、常に同一の
+        // data-part="item" を持つ）。
+        assert!(
+            item_html.contains(r#"data-part="item""#),
+            "item_html={item_html}"
+        );
+
+        // css() が生成するセレクタが、上記 2 要素の実属性のみから機械的に
+        // 組み立てたセレクタ文字列と一致することを確認する（DOM 側の属性が
+        // 変わればこのテストも追随して失敗し、セレクタと DOM のドリフトを
+        // 検知する）。
+        let expected_selector = r#"[data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"]"#;
+        let out = css();
+        assert!(out.contains(expected_selector), "out={out}");
     }
 }

@@ -1567,7 +1567,11 @@ fn blockquote_section() -> Node {
     )
 }
 
-/// List 節: 順序なし（marker variant）・順序ありの 2 種。
+/// List 節: 順序なし（marker variant）・順序あり・plain + indicator の 3 種。
+///
+/// イシュー #1438: 3 つ目（`ListVariant::Plain` + [`list::indicator`]）は
+/// 参照サイト是正（indicator の間隔・整列・`Plain` variant の item
+/// 整列）を Demo 上で視覚確認できるようにするための追加。
 fn list_section() -> Node {
     let marker_list = list::root(
         ListType::Unordered,
@@ -1589,11 +1593,36 @@ fn list_section() -> Node {
             list::item(vec![], vec![text("検証")]),
         ],
     );
+    let plain_list_with_indicator = list::root(
+        ListType::Unordered,
+        ListVariant::Plain,
+        vec![],
+        vec![
+            list::item(
+                vec![],
+                vec![
+                    list::indicator(vec![], vec![text("✓")]),
+                    text("既定エスケープ"),
+                ],
+            ),
+            list::item(
+                vec![],
+                vec![
+                    list::indicator(vec![], vec![text("✓")]),
+                    text("forbid(unsafe_code)"),
+                ],
+            ),
+        ],
+    );
 
     section(
         "List",
-        "素の ul/ol/li 意味論をそのまま styled 化したリスト部品。順序なし（marker variant）・順序ありの 2 種。",
-        vec![stack(vec![marker_list, ordered_list])],
+        "素の ul/ol/li 意味論をそのまま styled 化したリスト部品。順序なし（marker variant）・順序あり・plain + indicator（カスタムマーカー）の 3 種。",
+        vec![stack(vec![
+            marker_list,
+            ordered_list,
+            plain_list_with_indicator,
+        ])],
     )
 }
 
