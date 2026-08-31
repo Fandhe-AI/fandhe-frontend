@@ -16,11 +16,13 @@
 //!
 //! ## 参考サイト基準との 7 軸比較（イシュー #1441）
 //!
-//! Radix Themes の `Strong` 相当部品（chakra-ui の `Strong` も参照補助）と
-//! サイズ・バリアント・色・状態 `data-*`・ダーク・フォーカス・
-//! 余白 / hover / disabled / transition の 7 軸で比較した結果:
+//! Radix Themes の `Strong` とサイズ・バリアント・色・状態 `data-*`・
+//! ダーク・フォーカス・余白 / hover / disabled / transition の 7 軸で
+//! 比較した結果（chakra-ui には `Strong` 相当部品が存在しないため比較
+//! 対象は Radix Themes 単独とする。`docs/design/component-coverage-map.md`
+//! の Strong 行でも chakra-ui 対応欄は `—` である）:
 //!
-//! - **サイズ・バリアント軸**: 両サイト共に `size`/`variant` prop を
+//! - **サイズ・バリアント軸**: Radix Themes は `size`/`variant` prop を
 //!   持たない（size は親 `Text` から継承）。`strong` も軸を追加しない
 //!   （Typography 周辺部品は size 軸を持たない、
 //!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
@@ -40,18 +42,18 @@
 //!   いずれも既定値は継承（無指定）であり実質的な差分を生まない。上記と
 //!   同じ理由で専用トークン層は新設しない（**意図的に非採用**）。
 //! - **色・ダーク**: 色宣言を持たず本文色を継承するため、ライト / ダーク
-//!   どちらでも自動的に本文へ追従する（両サイトと一致）。
+//!   どちらでも自動的に本文へ追従する（Radix Themes と一致）。
 //! - **状態 `data-*`**: headless-ui 側に `strong` の状態属性は存在せず、
-//!   両サイトも状態を持たない表示専用部品のため変更不要。
+//!   Radix Themes も状態を持たない表示専用部品のため変更不要。
 //! - **hover / disabled / transition / フォーカスリング**: `strong` は
-//!   非インタラクティブな表示専用 slot であり、両サイトともこれらの
+//!   非インタラクティブな表示専用 slot であり、Radix Themes もこれらの
 //!   状態を持たない。本フレームワークでも hover / disabled / transition
 //!   はインタラクティブ slot のみに適用する方針
 //!   （`docs/design/pre-styled-ui-interaction-visual-language.md` §3）
 //!   であり、フォーカスリングもフォーカス対象部品限定
 //!   （`pre-styled-ui-focus-ring-and-size-conventions.md` §3）のため、
 //!   `strong` には付与しない。
-//! - **余白・角丸・影**: 両サイト共に持たない。`strong` も持たない。
+//! - **余白・角丸・影**: Radix Themes は持たない。`strong` も持たない。
 //!
 //! 上記比較の結果、CSS 出力の変更は不要と判断した（既存の
 //! `font-weight: var(--fandhe-font-font-weight-bold)` 1 宣言のみで
