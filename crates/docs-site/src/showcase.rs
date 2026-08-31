@@ -6797,6 +6797,38 @@ fn color_picker_section() -> Node {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::Channel;
 
     let state = ColorPicker::from_color(Color::from_rgba(Rgb::new(0x3b, 0x82, 0xf6), 0xcc));
+    // イシュー #1463: 閉状態の trigger（通常 / disabled）を Demo へ追加する。
+    // 開状態の `content`（既存の `demo` 行）は positioner が `hidden` を
+    // 出さない疑似的な「常に開いている」表示のため、trigger 自体は元々
+    // 一度も描画されていなかった（親イシュー #1462 の指摘事項）。
+    let closed = row(vec![color_picker::root(
+        &state,
+        vec![],
+        vec![
+            color_picker::label(vec![], vec![text("Color")]),
+            color_picker::control(
+                vec![],
+                vec![
+                    color_picker::channel_input(state.hex().as_str(), false, vec![]),
+                    color_picker::trigger(&state, false, None, vec![], vec![]),
+                ],
+            ),
+        ],
+    )]);
+    let closed_disabled = row(vec![color_picker::root(
+        &state,
+        vec![],
+        vec![
+            color_picker::label(vec![], vec![text("Color (disabled)")]),
+            color_picker::control(
+                vec![],
+                vec![
+                    color_picker::channel_input(state.hex().as_str(), true, vec![]),
+                    color_picker::trigger(&state, true, None, vec![], vec![]),
+                ],
+            ),
+        ],
+    )]);
     let demo = row(vec![color_picker::content(
         state.state(),
         None,
@@ -6845,8 +6877,8 @@ fn color_picker_section() -> Node {
     )]);
     section(
         "ColorPicker",
-        "HSV 色相環 + アルファ選択の静的表示です（canvas 非依存、CSS グラデーション + 検証済み割合のみで構成）。ポインタ操作の実配線は wasm 層の後続対応です。",
-        vec![demo],
+        "HSV 色相環 + アルファ選択の静的表示です（canvas 非依存、CSS グラデーション + 検証済み割合のみで構成）。ポインタ操作の実配線は wasm 層の後続対応です。閉状態の trigger（通常 / disabled）と、開状態の content を並べています。",
+        vec![closed, closed_disabled, demo],
     )
 }
 
