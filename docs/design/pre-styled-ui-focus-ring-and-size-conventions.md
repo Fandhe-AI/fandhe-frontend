@@ -57,7 +57,7 @@ Phase 1 以降で `crates/pre-styled-ui` 107 部品を chakra-ui / Radix Themes
 | ColorPalette 対応部品 | `outline-color`（＝ `outline` の色部分）を `var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)))` にする variant を許容 | 既存 12 ファイルの palette 連動を維持しつつ、フォールバック先を新トークン経由で旧来の accent へ到達させる |
 | inset（内側）リング | `outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px))` | splitter/listbox/scroll-area の 3 件。独立トークンを増やさず符号反転で表現する |
 | 適用セレクタ | `:focus-visible`（`StateCondition::FocusVisible`）を既定。hidden-input パターン（実フォーカスが visually-hidden な `<input>` にある構成）は `Attr("data-focus-visible")`、visually-hidden 子孫を持つ `<label>` 等祖先は `FocusWithin`。`:focus` 直書きは禁止（現状 0 件を維持） | 既存 `recipe.rs` の `StateCondition` 契約を規約として明文化するのみで、新しい概念は導入しない |
-| `outline: none` | 「同一部品内の祖先 slot に canonical リングが `:focus-within` で存在する」場合のみ許容。単独使用は禁止（`forced-colors` でリングが消える唯一の経路のため） | combobox/date-input/password-input/tags-input の 4 件はこのパターン。ただし **skip-nav の `content` slot は例外**: `tabindex="-1"` で視覚的内容を持たないプログラム的フォーカスターゲットであり、そもそも視認可能なリングを表示する意味がないため祖先リングの有無を問わず許容する（§6 参照） |
+| `outline: none` | 「同一部品内の祖先 slot に canonical リングが `:focus-within` で存在する」場合のみ許容。単独使用は禁止（`forced-colors` でリングが消える唯一の経路のため） | combobox/password-input/tags-input の 3 件はこのパターン（当初は date-input を含む 4 件だったが、イシュー #1469 で date-input の `segment` は `outline: none` 単独使用を廃止し canonical リングへ移行済み、下記 §3.1 追記参照）。ただし **skip-nav の `content` slot は例外**: `tabindex="-1"` で視覚的内容を持たないプログラム的フォーカスターゲットであり、そもそも視認可能なリングを表示する意味がないため祖先リングの有無を問わず許容する（§6 参照） |
 | virtual focus（Menu/Select/Listbox/Combobox の `item`） | `[data-highlighted]` の背景表現を維持し、`item` へリングは付けない | 既存 `recipe.rs` `StateCondition::FocusVisible` doc の契約をそのまま踏襲 |
 
 ### 3.1 `date_input.rs` の `box-shadow` 先行参照について
@@ -76,6 +76,14 @@ Phase 1 以降で `crates/pre-styled-ui` 107 部品を chakra-ui / Radix Themes
 点は §3 の canonical 形と異なる**。date-input 自体の `outline`/`box-shadow`
 移行は Phase 1 以降の個別部品 issue のスコープとし、本書 §7 のスコープ外
 一覧へ記載する。
+
+**イシュー #1469 で移行済み**: `segment` の `outline: none`（単独使用）を
+除去し、`:focus-visible` を `focus_ring_declarations(FocusRingColor::Token,
+FocusRingOffset::Inset)` の canonical 形へ置換した。`box-shadow` は使わなく
+なった。祖先リングを持たない構成のため（date-input には他の canonical
+リングを持つ祖先 slot がない）、上記表の「`outline: none`（単独）」の
+4 件から date-input を除外する形になる（combobox/password-input/
+tags-input の 3 件は引き続き該当）。
 
 ## 4. size 規約
 
@@ -147,7 +155,8 @@ Phase 1 以降の個別 issue へ委ねる。
 - **107 部品の `focus_ring_declarations` への一括移行と golden 更新**:
   Phase 1 以降の各部品 issue（本書 §6 の移行手順を適用）。
 - **`date_input.rs` の `box-shadow` → `outline` 移行可否**: Phase 1 の
-  date-input 個別 issue（§3.1 参照）。
+  date-input 個別 issue（§3.1 参照）。**イシュー #1469 で移行完了**
+  （`FocusRingColor::Token` / `FocusRingOffset::Inset`）。
 
 ## 8. 棚卸し再現コマンド
 

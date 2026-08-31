@@ -441,7 +441,9 @@ const DEFAULT_COLORS: &[(&str, &str, &str)] = &[
     // フォーカスリング（イシュー #1422 で追加、#1424 で値確定）。
     // `date-input.rs` が `var(--fandhe-color-focus-ring,
     // var(--fandhe-color-accent))` フォールバック付きで参照していた
-    // 未定義トークンをここで正式定義する（#1422）。値は既存の
+    // （#1422 当時は `box-shadow` 経由。#1469 で canonical `outline`
+    // 経由へ移行済みだが同じ変数参照は不変）未定義トークンをここで
+    // 正式定義する（#1422）。値は既存の
     // accent（light）/ info dark（dark）と同値だが、`accent` トークンの
     // 意味（アクセントカラー全般）から独立させることで、フォーカスリング
     // 色だけを差し替えたい場合に他の accent 用途へ波及しないよう #1424 で
