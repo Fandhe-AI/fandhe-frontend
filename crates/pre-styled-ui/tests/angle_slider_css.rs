@@ -67,6 +67,7 @@ const ANGLE_SLIDER_GOLDEN_CSS: &str = r#"[data-scope="angle-slider"][data-part="
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--size-xs {
   --fandhe-angle-slider-track-size: 2.5rem;
   --fandhe-angle-slider-thumb-size: 0.5rem;
+  --fandhe-angle-slider-value-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--size-sm {
@@ -78,6 +79,7 @@ const ANGLE_SLIDER_GOLDEN_CSS: &str = r#"[data-scope="angle-slider"][data-part="
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--size-md {
   --fandhe-angle-slider-track-size: 4.5rem;
   --fandhe-angle-slider-thumb-size: 0.9rem;
+  --fandhe-angle-slider-value-font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--size-lg {
@@ -89,6 +91,7 @@ const ANGLE_SLIDER_GOLDEN_CSS: &str = r#"[data-scope="angle-slider"][data-part="
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--size-xl {
   --fandhe-angle-slider-track-size: 6.5rem;
   --fandhe-angle-slider-thumb-size: 1.3rem;
+  --fandhe-angle-slider-value-font-size: var(--fandhe-font-font-size-2xl);
 }
 
 [data-scope="angle-slider"][data-part="root"].fd-angle-slider--color-palette-accent {

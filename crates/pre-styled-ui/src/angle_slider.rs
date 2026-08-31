@@ -85,8 +85,10 @@
 //!   （slot 自身へのコンパウンドセレクタは実レンダリングに一致せず死んだ
 //!   CSS になる）に従い、`size` 連動は `root` スコープの
 //!   `--fandhe-angle-slider-value-font-size` custom property 経由でのみ
-//!   行う（`Md` は登録せず既定値へフォールバックする既存の track/thumb-size
-//!   と同型）。
+//!   行う（[`crate::stat`] の `value-font-size` と同型。Xs/Sm/Md/Lg/Xl の
+//!   全 5 サイズを明示登録し、単調増加する型階層〔xs<sm<md<lg<xl〕にする。
+//!   Review 是正: Md/Xs/Xl のみ base 宣言の fallback へ委ねる非登録案は
+//!   非単調な結果を生むため採らない）。
 //!
 //! 意図的に行わないこと（`.claude/rules/out-of-scope-tracking.md` 対応）:
 //! `label`/`value-text` は非インタラクティブなテキストのため hover/
@@ -284,6 +286,13 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-angle-slider-track-size", "2.5rem"),
                 decl("--fandhe-angle-slider-thumb-size", "0.5rem"),
+                // 型階層（イシュー #1446、Review 是正）: `crate::stat` に
+                // 倣い Xs/Sm/Md/Lg/Xl の全 5 サイズを明示登録し、単調な
+                // 型階層（xs<sm<md<lg<xl）にする。
+                decl(
+                    "--fandhe-angle-slider-value-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
             ],
         )
         .variant(
@@ -306,6 +315,13 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-angle-slider-track-size", "4.5rem"),
                 decl("--fandhe-angle-slider-thumb-size", "0.9rem"),
+                // 型階層（イシュー #1446、Review 是正）: base 宣言の
+                // fallback（`font-size-lg`）と同値だが `crate::stat` の
+                // Md（fallback と同値でも明示登録）に倣い明示する。
+                decl(
+                    "--fandhe-angle-slider-value-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
             ],
         )
         .variant(
@@ -328,6 +344,12 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-angle-slider-track-size", "6.5rem"),
                 decl("--fandhe-angle-slider-thumb-size", "1.3rem"),
+                // 型階層（イシュー #1446、Review 是正）: Lg（xl）よりさらに
+                // 1 段大きい `2xl` を明示登録し単調増加を保つ。
+                decl(
+                    "--fandhe-angle-slider-value-font-size",
+                    "var(--fandhe-font-font-size-2xl)",
+                ),
             ],
         )
         .default_variant(Size::Md)
