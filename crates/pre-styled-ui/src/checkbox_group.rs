@@ -114,7 +114,19 @@
 //!   側は `--fandhe-checkbox-group-item-opacity`/`-item-cursor` custom
 //!   property のみを定義し、`item` がそれを既定値（`1`/`pointer`）付きで
 //!   参照する形にする。ビジュアル言語自体（`opacity: 0.5` +
-//!   `cursor: not-allowed`）は変えない。
+//!   `cursor: not-allowed`）は変えない。同じ custom property 間接参照で
+//!   `--fandhe-checkbox-group-item-pointer-events`（既定値 `auto`）も
+//!   `item` へ伝播する（イシュー #1460 codex-review P1 / Cursor Bugbot
+//!   是正）。`root` だけ disabled で個々の item は disabled=false という
+//!   公開 API 上可能な構成では headless 層が `item`/`item-control` へ
+//!   `data-disabled` を出力しないため、`item-control` の
+//!   `:hover:not([data-disabled])` 規則だけでは root 由来の無効化を検知
+//!   できず hover 背景が変化してしまっていた。`pointer-events` は
+//!   inherited プロパティのため、`item` が `none` を受けると
+//!   明示宣言を持たない子孫 `item-control` もそれを継承し、ブラウザが
+//!   hit-test 自体を行わなくなるため `:hover` が発火しなくなる（headless
+//!   側で個々の item へ disabled 状態を実伝播する代替案より、既存の
+//!   custom property 間接参照パターンと一貫させた）。
 //! - **`item:focus-within`/`item-control` のフォーカスリング・hover・
 //!   transition を canonical ヘルパへ移行**: `recipe::focus_ring_declarations`
 //!   （`FocusRingColor::Palette`、`FocusRingOffset::Outside`）・
@@ -247,6 +259,20 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-checkbox-group-item-opacity", "0.5"),
                 decl("--fandhe-checkbox-group-item-cursor", "not-allowed"),
+                // codex-review P1 / Cursor Bugbot 指摘（同一欠陥、イシュー
+                // #1460）回帰是正: opacity/cursor だけでは item-control の
+                // `:hover:not([data-disabled])` 規則が root 由来の無効化を
+                // 検知できず、root だけ disabled で各 item が
+                // disabled=false（公開 API 上可能な構成）なとき hover 背景が
+                // 変化してしまっていた。`pointer-events` は inherited
+                // プロパティであるため、`item`（下記 base）へ同型の custom
+                // property 間接参照で反映すれば、子孫の `item-control` は
+                // 明示的な `pointer-events` 宣言を持たないため継承した
+                // `none` によりブラウザが hit-test 自体を行わなくなり
+                // `:hover` が発火しない（headless 側で個々の item へ
+                // disabled 状態を伝播する代替案より、既存の custom
+                // property 間接参照パターンと一貫する）。
+                decl("--fandhe-checkbox-group-item-pointer-events", "none"),
             ],
         )
         .base(
@@ -275,6 +301,17 @@ fn recipe() -> SlotRecipe {
                 decl(
                     "cursor",
                     "var(--fandhe-checkbox-group-item-cursor, pointer)",
+                ),
+                // 上記 `root[data-disabled]` の pointer-events 間接参照
+                // （伝播理由は当該 state 規則のコメント参照）。個々の item
+                // が自身の `data-disabled` を持つ場合は下記
+                // `item[data-disabled]` 規則（`disabled_declarations()`）が
+                // 別途 opacity/cursor を上書きするが、pointer-events の
+                // 明示宣言は持たないため root 由来のこの値がそのまま効く
+                // （個別 disabled でも操作不能という意図と矛盾しない）。
+                decl(
+                    "pointer-events",
+                    "var(--fandhe-checkbox-group-item-pointer-events, auto)",
                 ),
             ],
         )
@@ -690,6 +727,41 @@ mod tests {
         assert!(block.contains("width: fit-content;"));
         assert!(block.contains("opacity: var(--fandhe-checkbox-group-item-opacity, 1);"));
         assert!(block.contains("cursor: var(--fandhe-checkbox-group-item-cursor, pointer);"));
+        assert!(block
+            .contains("pointer-events: var(--fandhe-checkbox-group-item-pointer-events, auto);"));
+    }
+
+    #[test]
+    fn root_disabled_propagates_pointer_events_to_suppress_item_control_hover() {
+        // codex-review P1 / Cursor Bugbot 指摘（同一欠陥、イシュー #1460）
+        // 回帰固定: root だけ disabled（各 item は disabled=false）という
+        // 公開 API 上可能な構成で、`item-control` の
+        // `:hover:not([data-disabled])` 規則が誤って発火し hover 背景が
+        // 変化してしまっていた。root の disabled state 規則が
+        // `--fandhe-checkbox-group-item-pointer-events: none;` を定義し、
+        // それを継承する `item` base の `pointer-events` 間接参照
+        // （inherited プロパティ）により、明示宣言を持たない子孫
+        // `item-control` は hit-test 自体が行われず `:hover` が発火し
+        // 得ないことを固定する。
+        let css = stylesheet();
+        let scope = r#"[data-scope="checkbox-group"][data-part="root"][data-disabled] {"#;
+        let start = css.find(scope).expect("root[data-disabled] block missing");
+        let end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .expect("closing brace missing");
+        let root_block = &css[start..end];
+        assert!(root_block.contains("--fandhe-checkbox-group-item-pointer-events: none;"));
+
+        let item_scope = r#"[data-scope="checkbox-group"][data-part="item"] {"#;
+        let item_start = css.find(item_scope).expect("item base block missing");
+        let item_end = css[item_start..]
+            .find('}')
+            .map(|i| item_start + i)
+            .expect("closing brace missing");
+        let item_block = &css[item_start..item_end];
+        assert!(item_block
+            .contains("pointer-events: var(--fandhe-checkbox-group-item-pointer-events, auto);"));
     }
 
     #[test]
