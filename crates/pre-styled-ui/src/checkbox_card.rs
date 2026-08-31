@@ -121,6 +121,58 @@
 //! `root` へ登録し、checked/indeterminate 時の枠線・背景色を
 //! `var(--fandhe-palette, ...)` 経由で切り替える。
 //!
+//! # スタイル調整（イシュー #1458、内部レイアウト slot と size 軸）
+//!
+//! 親 #1456（chakra-ui `checkbox-card` / Radix Themes `checkbox-cards` 基準
+//! への視覚調整）の 2/2 分割。1/2（イシュー #1457・PR #1736）が `root` slot の
+//! base/state（hover / disabled / transition / focus-ring / `data-invalid`）を
+//! 担当するのに対し、本イシューは内部レイアウト slot（`control`/`content`/
+//! `label`/`description`/`addon`/`indicator`/`indicator-check`）と size
+//! バリアント（`root` へ登録する `--fandhe-checkbox-card-*` custom property
+//! 群）を担当する。**`root` の base/state 宣言は一切変更しない**（slot 境界の
+//! 競合を避けるため）。
+//!
+//! - **size 軸を `size_variants` へ移行**: 5 段の `.variant(Size::*, "root",
+//!   ...)` を個別に手書きする代わりに [`crate::recipe::SlotRecipe::size_variants`]
+//!   （イシュー #1424 の共通生成手段、[`crate::checkbox`] #1455 と同型）を使い、
+//!   既定 `md` の設定漏れを構造的に防ぐ。
+//! - **padding を spacing トークンへ**: 生 rem リテラルだった `xs`〜`xl` の
+//!   `--fandhe-checkbox-card-padding` を chakra md（16px）を基準に 4px 格子・
+//!   spacing トークン（`--fandhe-space-2`/`-3`/`-4`/`-5`/`-6`）で単調増加させる。
+//! - **control-size を [`crate::checkbox`] と統一**: indicator 寸法（`0.75rem`〜
+//!   `1.5rem`）を checkbox 家族で共通化する（chakra のカード indicator が
+//!   通常 checkbox より 1 段大きい点は意図的に合わせない）。
+//! - **`control` の `gap` を size 連動に**: `--fandhe-checkbox-card-gap`
+//!   （新設）を `control` の `gap: var(--fandhe-checkbox-card-gap,
+//!   var(--fandhe-space-2))` へ登録し、xs〜xl で spacing トークンの単調増加
+//!   （`--fandhe-space-1`/`-1-5`/`-2-5`/`-3`/`-4`）を割り当てる。
+//! - **`label` に型階層を追加**: `font-weight: medium`・`color: fg` に加え、
+//!   `line-height: normal`（複数行ラベルの行送り）と `user-select: none`
+//!   （[`crate::checkbox`] の `label` と同語彙）を追加する。
+//! - **`description` を size 連動フォントサイズに**: `--fandhe-checkbox-card-
+//!   description-font-size`（新設、label より常に 1 段下）+ `line-height:
+//!   normal` を追加する。色は opacity ではなくトークン `fg-muted` を維持する
+//!   （ダーク追従のため、chakra の `opacity: 0.64` に対する意図的差分）。
+//! - **`addon` を description と同じ型階層に**: `align-items: center` +
+//!   `gap` + `font-size`/`color`（description と同じ custom property・
+//!   トークン）を追加する。chakra の下部フッター帯（`border-top` 付き）は
+//!   本クレートの anatomy（content 内の縦積み子）には転用しない意図的差分
+//!   （帯にする場合は独立 slot の新設を要し、本イシューのスコープ外）。
+//! - **`indicator` の transition を motion トークンへ**: 直書きの
+//!   `transition: background 0.15s, border-color 0.15s` を
+//!   [`crate::recipe::transition_declarations`]（[`crate::recipe::MotionDuration::Fast`]）へ
+//!   置換する（イシュー #1425 写像表）。
+//! - **`indicator` へ invalid 表現を追加**: [`crate::checkbox::control`] と
+//!   同型の `[data-invalid] { border-color: danger }` を追加する（`root` 側の
+//!   invalid 表現は 1/2 の担当）。
+//! - **意図的に合わせなかった点**: (1) indicator の左右位置は chakra/Radix
+//!   ともに右端だがローカルは左のまま維持する（CSS `order` は使わず DOM 順で
+//!   決める設計方針のため、`showcase` の子順変更のみで視覚確認する）。
+//!   (2) disabled 時の二重減光（chakra は label/description/addon にも
+//!   `opacity: 0.5`）は追加しない（`root` の `opacity: 0.5` が子孫へ CSS
+//!   継承で波及済みのため）。(3) indicator は非インタラクティブ slot のため
+//!   hover を追加しない（#1425 判定基準）。
+//!
 //! # セキュリティ不変条件
 //!
 //! `raw_html()` は使用しない。CSS 宣言値はすべて静的リテラルで、動的値
@@ -299,7 +351,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("align-items", "flex-start"),
-                decl("gap", "var(--fandhe-space-2)"),
+                decl("gap", "var(--fandhe-checkbox-card-gap, var(--fandhe-space-2))"),
                 decl("flex", "1"),
             ],
         )
@@ -320,17 +372,35 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-checkbox-card-label-font-size, var(--fandhe-font-font-size-sm))",
                 ),
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                decl("user-select", "none"),
             ],
         )
         .base(
             "description",
             vec![
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-checkbox-card-description-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
         )
-        .base("addon", vec![decl("display", "flex")])
+        .base(
+            "addon",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-checkbox-card-description-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+            ],
+        )
         .base(
             "indicator",
             vec![
@@ -344,8 +414,16 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("flex-shrink", "0"),
-                decl("transition", "background 0.15s, border-color 0.15s"),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（イシュー #1425 写像表、
+        // `crate::checkbox::control` と同型のパターン）。直書きの
+        // `transition: background 0.15s, border-color 0.15s` を motion
+        // トークン経由（`MotionDuration::Fast`）へ置換する（イシュー #1458）。
+        .base(
+            "indicator",
+            transition_declarations("background, border-color", MotionDuration::Fast),
         )
         .state(
             "indicator",
@@ -374,6 +452,15 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
             ],
+        )
+        // headless 層が invalid な選択肢へ出す `data-invalid` を indicator
+        // slot へ反映する（[`crate::checkbox::control`] の `data-invalid`
+        // 規則と同型の視覚言語。イシュー #1458。`root` 側の invalid 表現は
+        // 1/2（PR #1736）の担当のため本規則は追加しない）。
+        .state(
+            "indicator",
+            StateCondition::Attr("data-invalid"),
+            vec![decl("border-color", "var(--fandhe-color-danger)")],
         )
         // `indicator-check` の base に `display` 宣言を置かない（モジュール
         // rustdoc「`indicator_check` の `hidden` 属性意味論」節参照。
@@ -426,82 +513,117 @@ fn recipe() -> SlotRecipe {
                 decl("border", "0"),
             ],
         )
-        .variant(
-            Size::Xs,
+        // イシュー #1458: 5 段の `.variant(Size::*, "root", ...)` を個別に
+        // 手書きする代わりに `size_variants`（イシュー #1424 の共通生成
+        // 手段、`crate::checkbox` #1455 と同型）を使い、既定 `md` の設定漏れを
+        // 構造的に防ぐ。padding は生 rem リテラルではなく spacing トークン
+        // （chakra md=16px を基準に 4px 格子で単調増加）へ載せ替え、
+        // description の size 連動フォントサイズ（label より 1 段下）と
+        // root 全体の gap（`--fandhe-checkbox-card-gap`、[`control`] base が
+        // 参照）を新設する。control-size は [`crate::checkbox`] と同一値へ
+        // そろえる（fandhe の checkbox 家族で indicator 寸法を統一する意図的
+        // 判断。chakra のカード indicator が通常 checkbox より 1 段大きい点は
+        // 意図的に合わせない）。チェックマーク寸法（比率値）は現状維持。
+        .size_variants(
             "root",
-            vec![
-                decl("--fandhe-checkbox-card-padding", "0.25rem"),
-                decl("--fandhe-checkbox-card-control-size", "0.7rem"),
-                decl("--fandhe-checkbox-card-check-width", "0.15rem"),
-                decl("--fandhe-checkbox-card-check-height", "0.3rem"),
-                decl("--fandhe-checkbox-card-dash-width", "0.3rem"),
-                decl(
-                    "--fandhe-checkbox-card-label-font-size",
-                    "var(--fandhe-font-font-size-xs)",
+            &[
+                (
+                    Size::Xs,
+                    vec![
+                        decl("--fandhe-checkbox-card-padding", "var(--fandhe-space-2)"),
+                        decl("--fandhe-checkbox-card-control-size", "0.75rem"),
+                        decl("--fandhe-checkbox-card-check-width", "0.15rem"),
+                        decl("--fandhe-checkbox-card-check-height", "0.3rem"),
+                        decl("--fandhe-checkbox-card-dash-width", "0.3rem"),
+                        decl(
+                            "--fandhe-checkbox-card-label-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                        decl(
+                            "--fandhe-checkbox-card-description-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                        decl("--fandhe-checkbox-card-gap", "var(--fandhe-space-1)"),
+                    ],
+                ),
+                (
+                    Size::Sm,
+                    vec![
+                        decl("--fandhe-checkbox-card-padding", "var(--fandhe-space-3)"),
+                        decl("--fandhe-checkbox-card-control-size", "0.875rem"),
+                        decl("--fandhe-checkbox-card-check-width", "0.2rem"),
+                        decl("--fandhe-checkbox-card-check-height", "0.4rem"),
+                        decl("--fandhe-checkbox-card-dash-width", "0.4rem"),
+                        decl(
+                            "--fandhe-checkbox-card-label-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl(
+                            "--fandhe-checkbox-card-description-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                        decl("--fandhe-checkbox-card-gap", "var(--fandhe-space-1-5)"),
+                    ],
+                ),
+                (
+                    Size::Md,
+                    vec![
+                        decl("--fandhe-checkbox-card-padding", "var(--fandhe-space-4)"),
+                        decl("--fandhe-checkbox-card-control-size", "1rem"),
+                        decl("--fandhe-checkbox-card-check-width", "0.25rem"),
+                        decl("--fandhe-checkbox-card-check-height", "0.5rem"),
+                        decl("--fandhe-checkbox-card-dash-width", "0.5rem"),
+                        decl(
+                            "--fandhe-checkbox-card-label-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl(
+                            "--fandhe-checkbox-card-description-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-checkbox-card-gap", "var(--fandhe-space-2-5)"),
+                    ],
+                ),
+                (
+                    Size::Lg,
+                    vec![
+                        decl("--fandhe-checkbox-card-padding", "var(--fandhe-space-5)"),
+                        decl("--fandhe-checkbox-card-control-size", "1.25rem"),
+                        decl("--fandhe-checkbox-card-check-width", "0.3rem"),
+                        decl("--fandhe-checkbox-card-check-height", "0.6rem"),
+                        decl("--fandhe-checkbox-card-dash-width", "0.6rem"),
+                        decl(
+                            "--fandhe-checkbox-card-label-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                        decl(
+                            "--fandhe-checkbox-card-description-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-checkbox-card-gap", "var(--fandhe-space-3)"),
+                    ],
+                ),
+                (
+                    Size::Xl,
+                    vec![
+                        decl("--fandhe-checkbox-card-padding", "var(--fandhe-space-6)"),
+                        decl("--fandhe-checkbox-card-control-size", "1.5rem"),
+                        decl("--fandhe-checkbox-card-check-width", "0.35rem"),
+                        decl("--fandhe-checkbox-card-check-height", "0.7rem"),
+                        decl("--fandhe-checkbox-card-dash-width", "0.7rem"),
+                        decl(
+                            "--fandhe-checkbox-card-label-font-size",
+                            "var(--fandhe-font-font-size-lg)",
+                        ),
+                        decl(
+                            "--fandhe-checkbox-card-description-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                        decl("--fandhe-checkbox-card-gap", "var(--fandhe-space-4)"),
+                    ],
                 ),
             ],
         )
-        .variant(
-            Size::Sm,
-            "root",
-            vec![
-                decl("--fandhe-checkbox-card-padding", "0.5rem"),
-                decl("--fandhe-checkbox-card-control-size", "0.85rem"),
-                decl("--fandhe-checkbox-card-check-width", "0.2rem"),
-                decl("--fandhe-checkbox-card-check-height", "0.4rem"),
-                decl("--fandhe-checkbox-card-dash-width", "0.4rem"),
-                decl(
-                    "--fandhe-checkbox-card-label-font-size",
-                    "var(--fandhe-font-font-size-sm)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Md,
-            "root",
-            vec![
-                decl("--fandhe-checkbox-card-padding", "0.75rem"),
-                decl("--fandhe-checkbox-card-control-size", "1rem"),
-                decl("--fandhe-checkbox-card-check-width", "0.25rem"),
-                decl("--fandhe-checkbox-card-check-height", "0.5rem"),
-                decl("--fandhe-checkbox-card-dash-width", "0.5rem"),
-                decl(
-                    "--fandhe-checkbox-card-label-font-size",
-                    "var(--fandhe-font-font-size-sm)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Lg,
-            "root",
-            vec![
-                decl("--fandhe-checkbox-card-padding", "1rem"),
-                decl("--fandhe-checkbox-card-control-size", "1.25rem"),
-                decl("--fandhe-checkbox-card-check-width", "0.3rem"),
-                decl("--fandhe-checkbox-card-check-height", "0.6rem"),
-                decl("--fandhe-checkbox-card-dash-width", "0.6rem"),
-                decl(
-                    "--fandhe-checkbox-card-label-font-size",
-                    "var(--fandhe-font-font-size-md)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Xl,
-            "root",
-            vec![
-                decl("--fandhe-checkbox-card-padding", "1.25rem"),
-                decl("--fandhe-checkbox-card-control-size", "1.5rem"),
-                decl("--fandhe-checkbox-card-check-width", "0.35rem"),
-                decl("--fandhe-checkbox-card-check-height", "0.7rem"),
-                decl("--fandhe-checkbox-card-dash-width", "0.7rem"),
-                decl(
-                    "--fandhe-checkbox-card-label-font-size",
-                    "var(--fandhe-font-font-size-lg)",
-                ),
-            ],
-        )
-        .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
     for palette in [
@@ -823,6 +945,225 @@ mod tests {
             !css[start..end].contains("display"),
             "indicator-check base block must not declare display: {}",
             &css[start..end]
+        );
+    }
+
+    // --- イシュー #1458: 内部レイアウト slot・size 軸 ---
+
+    /// `--fandhe-checkbox-card-gap`（`control` の `gap` が参照）が xs〜xl で
+    /// spacing トークン経由の単調増加になることを固定する。
+    #[test]
+    fn size_variants_set_gap_custom_property_monotonically() {
+        let css = stylesheet();
+        let expected = [
+            (Size::Xs, "var(--fandhe-space-1)"),
+            (Size::Sm, "var(--fandhe-space-1-5)"),
+            (Size::Md, "var(--fandhe-space-2-5)"),
+            (Size::Lg, "var(--fandhe-space-3)"),
+            (Size::Xl, "var(--fandhe-space-4)"),
+        ];
+        for (size, gap) in expected {
+            let selector = format!(
+                r#"[data-scope="checkbox-card"][data-part="root"].fd-checkbox-card--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            let block = &css[start..block_end];
+            let expected_decl = format!("--fandhe-checkbox-card-gap: {gap};");
+            assert!(
+                block.contains(&expected_decl),
+                "size={size:?} variant block missing {expected_decl}: {block}"
+            );
+        }
+    }
+
+    /// `--fandhe-checkbox-card-padding` が生 rem リテラルではなく spacing
+    /// トークンで xs〜xl 定義されることを固定する。
+    #[test]
+    fn size_variants_padding_uses_spacing_tokens() {
+        let css = stylesheet();
+        let expected = [
+            (Size::Xs, "var(--fandhe-space-2)"),
+            (Size::Sm, "var(--fandhe-space-3)"),
+            (Size::Md, "var(--fandhe-space-4)"),
+            (Size::Lg, "var(--fandhe-space-5)"),
+            (Size::Xl, "var(--fandhe-space-6)"),
+        ];
+        for (size, padding) in expected {
+            let selector = format!(
+                r#"[data-scope="checkbox-card"][data-part="root"].fd-checkbox-card--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            let block = &css[start..block_end];
+            let expected_decl = format!("--fandhe-checkbox-card-padding: {padding};");
+            assert!(
+                block.contains(&expected_decl),
+                "size={size:?} variant block missing {expected_decl}: {block}"
+            );
+            assert!(
+                !block.contains("--fandhe-checkbox-card-padding: 0.")
+                    && !block.contains("--fandhe-checkbox-card-padding: 1."),
+                "size={size:?} variant block still uses a raw rem literal for padding: {block}"
+            );
+        }
+    }
+
+    /// control 寸法（`--fandhe-checkbox-card-control-size`）が xs〜xl で
+    /// 単調増加することを rem 値の parse で固定する（[`crate::checkbox`] と
+    /// 同一値へそろえる意図的判断、モジュール rustdoc 参照）。
+    #[test]
+    fn size_variants_control_size_is_monotonic() {
+        let css = stylesheet();
+        let mut sizes_rem = Vec::new();
+        for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
+            let selector = format!(
+                r#"[data-scope="checkbox-card"][data-part="root"].fd-checkbox-card--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            let block = &css[start..block_end];
+            let decl_start = block
+                .find("--fandhe-checkbox-card-control-size: ")
+                .unwrap_or_else(|| panic!("control-size declaration not found in {block}"));
+            let after = &block[decl_start + "--fandhe-checkbox-card-control-size: ".len()..];
+            let value_end = after
+                .find(';')
+                .unwrap_or_else(|| panic!("control-size declaration not terminated in {block}"));
+            let raw = &after[..value_end];
+            let rem = raw
+                .strip_suffix("rem")
+                .unwrap_or_else(|| panic!("control-size value not in rem: {raw}"))
+                .parse::<f64>()
+                .unwrap_or_else(|_| panic!("control-size value not numeric: {raw}"));
+            sizes_rem.push((size, rem));
+        }
+        for pair in sizes_rem.windows(2) {
+            let (prev_size, prev) = pair[0];
+            let (next_size, next) = pair[1];
+            assert!(
+                prev < next,
+                "control-size not monotonic: {prev_size:?}={prev} >= {next_size:?}={next}"
+            );
+        }
+    }
+
+    /// `--fandhe-checkbox-card-description-font-size` が xs〜xl すべてで
+    /// 定義され、`description` base がそれを参照することを固定する。
+    #[test]
+    fn size_variants_set_description_font_size_custom_property() {
+        let css = stylesheet();
+        for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
+            let selector = format!(
+                r#"[data-scope="checkbox-card"][data-part="root"].fd-checkbox-card--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            assert!(
+                css[start..block_end].contains("--fandhe-checkbox-card-description-font-size"),
+                "size={size:?} variant block missing --fandhe-checkbox-card-description-font-size: {}",
+                &css[start..block_end]
+            );
+        }
+        let description_selector = r#"[data-scope="checkbox-card"][data-part="description"] {"#;
+        let start = css
+            .find(description_selector)
+            .expect("description base block must exist");
+        let block_end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        assert!(
+            css[start..block_end].contains(
+                "font-size: var(--fandhe-checkbox-card-description-font-size, var(--fandhe-font-font-size-sm));"
+            ),
+            "description base block missing size-linked font-size: {}",
+            &css[start..block_end]
+        );
+    }
+
+    /// label が [`crate::checkbox`] と同型の型階層（medium font-weight・
+    /// 前景色・行送り・誤選択防止）を持つことを固定する。
+    #[test]
+    fn label_has_typography_hierarchy_declarations() {
+        let css = stylesheet();
+        let selector = r#"[data-scope="checkbox-card"][data-part="label"] {"#;
+        let start = css
+            .find(selector)
+            .unwrap_or_else(|| panic!("label base selector not found in {css}"));
+        let block_end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        let block = &css[start..block_end];
+        assert!(
+            block.contains("font-weight: var(--fandhe-font-font-weight-medium);"),
+            "label block missing font-weight: {block}"
+        );
+        assert!(
+            block.contains("line-height: var(--fandhe-font-line-height-normal);"),
+            "label block missing line-height: {block}"
+        );
+        assert!(
+            block.contains("color: var(--fandhe-color-fg);"),
+            "label block missing color: {block}"
+        );
+        assert!(
+            block.contains("user-select: none;"),
+            "label block missing user-select: {block}"
+        );
+    }
+
+    /// `indicator` の transition が motion トークン経由になり、直書きの
+    /// `transition:` shorthand が残らないことを固定する（イシュー #1425）。
+    #[test]
+    fn indicator_transition_uses_motion_tokens() {
+        // `SlotRecipe::base` は同一 slot への複数回登録を出力順で連結する
+        // （`checkbox.rs` の `control` と同型）ため、`indicator` の base
+        // 宣言はセレクタが同じ 2 つの `{...}` ブロックに分かれて出力される。
+        // 単一ブロックの範囲切り出しではなく全文検索で確認する。
+        let css = stylesheet();
+        assert!(
+            css.contains("transition-duration: var(--fandhe-motion-duration-fast);"),
+            "stylesheet missing motion-token transition-duration for indicator: {css}"
+        );
+        assert!(
+            !css.contains("transition: background 0.15s"),
+            "stylesheet still contains raw transition shorthand for indicator: {css}"
+        );
+    }
+
+    /// `indicator` が `data-invalid` へ [`crate::checkbox::control`] と同型の
+    /// 枠線色変化を反映することを固定する（`root` 側は 1/2 の担当）。
+    #[test]
+    fn stylesheet_links_indicator_to_data_invalid_state() {
+        let css = stylesheet();
+        assert!(
+            css.contains(r#"[data-scope="checkbox-card"][data-part="indicator"][data-invalid] {"#)
         );
     }
 

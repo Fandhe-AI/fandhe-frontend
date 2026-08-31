@@ -31,7 +31,7 @@ const CHECKBOX_CARD_GOLDEN_CSS: &str = r#"[data-scope="checkbox-card"][data-part
 [data-scope="checkbox-card"][data-part="control"] {
   display: flex;
   align-items: flex-start;
-  gap: var(--fandhe-space-2);
+  gap: var(--fandhe-checkbox-card-gap, var(--fandhe-space-2));
   flex: 1;
 }
 
@@ -45,16 +45,23 @@ const CHECKBOX_CARD_GOLDEN_CSS: &str = r#"[data-scope="checkbox-card"][data-part
 [data-scope="checkbox-card"][data-part="label"] {
   font-size: var(--fandhe-checkbox-card-label-font-size, var(--fandhe-font-font-size-sm));
   font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-normal);
   color: var(--fandhe-color-fg);
+  user-select: none;
 }
 
 [data-scope="checkbox-card"][data-part="description"] {
-  font-size: var(--fandhe-font-font-size-sm);
+  font-size: var(--fandhe-checkbox-card-description-font-size, var(--fandhe-font-font-size-sm));
+  line-height: var(--fandhe-font-line-height-normal);
   color: var(--fandhe-color-fg-muted);
 }
 
 [data-scope="checkbox-card"][data-part="addon"] {
   display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-2);
+  font-size: var(--fandhe-checkbox-card-description-font-size, var(--fandhe-font-font-size-sm));
+  color: var(--fandhe-color-fg-muted);
 }
 
 [data-scope="checkbox-card"][data-part="indicator"] {
@@ -68,7 +75,12 @@ const CHECKBOX_CARD_GOLDEN_CSS: &str = r#"[data-scope="checkbox-card"][data-part
   border-radius: var(--fandhe-radius-sm);
   background: var(--fandhe-color-bg);
   flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s;
+}
+
+[data-scope="checkbox-card"][data-part="indicator"] {
+  transition-property: background, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="checkbox-card"][data-part="indicator-check"] {
@@ -93,48 +105,58 @@ const CHECKBOX_CARD_GOLDEN_CSS: &str = r#"[data-scope="checkbox-card"][data-part
 }
 
 [data-scope="checkbox-card"][data-part="root"].fd-checkbox-card--size-xs {
-  --fandhe-checkbox-card-padding: 0.25rem;
-  --fandhe-checkbox-card-control-size: 0.7rem;
+  --fandhe-checkbox-card-padding: var(--fandhe-space-2);
+  --fandhe-checkbox-card-control-size: 0.75rem;
   --fandhe-checkbox-card-check-width: 0.15rem;
   --fandhe-checkbox-card-check-height: 0.3rem;
   --fandhe-checkbox-card-dash-width: 0.3rem;
   --fandhe-checkbox-card-label-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-checkbox-card-description-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-checkbox-card-gap: var(--fandhe-space-1);
 }
 
 [data-scope="checkbox-card"][data-part="root"].fd-checkbox-card--size-sm {
-  --fandhe-checkbox-card-padding: 0.5rem;
-  --fandhe-checkbox-card-control-size: 0.85rem;
+  --fandhe-checkbox-card-padding: var(--fandhe-space-3);
+  --fandhe-checkbox-card-control-size: 0.875rem;
   --fandhe-checkbox-card-check-width: 0.2rem;
   --fandhe-checkbox-card-check-height: 0.4rem;
   --fandhe-checkbox-card-dash-width: 0.4rem;
   --fandhe-checkbox-card-label-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-checkbox-card-description-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-checkbox-card-gap: var(--fandhe-space-1-5);
 }
 
 [data-scope="checkbox-card"][data-part="root"].fd-checkbox-card--size-md {
-  --fandhe-checkbox-card-padding: 0.75rem;
+  --fandhe-checkbox-card-padding: var(--fandhe-space-4);
   --fandhe-checkbox-card-control-size: 1rem;
   --fandhe-checkbox-card-check-width: 0.25rem;
   --fandhe-checkbox-card-check-height: 0.5rem;
   --fandhe-checkbox-card-dash-width: 0.5rem;
   --fandhe-checkbox-card-label-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-checkbox-card-description-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-checkbox-card-gap: var(--fandhe-space-2-5);
 }
 
 [data-scope="checkbox-card"][data-part="root"].fd-checkbox-card--size-lg {
-  --fandhe-checkbox-card-padding: 1rem;
+  --fandhe-checkbox-card-padding: var(--fandhe-space-5);
   --fandhe-checkbox-card-control-size: 1.25rem;
   --fandhe-checkbox-card-check-width: 0.3rem;
   --fandhe-checkbox-card-check-height: 0.6rem;
   --fandhe-checkbox-card-dash-width: 0.6rem;
   --fandhe-checkbox-card-label-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-checkbox-card-description-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-checkbox-card-gap: var(--fandhe-space-3);
 }
 
 [data-scope="checkbox-card"][data-part="root"].fd-checkbox-card--size-xl {
-  --fandhe-checkbox-card-padding: 1.25rem;
+  --fandhe-checkbox-card-padding: var(--fandhe-space-6);
   --fandhe-checkbox-card-control-size: 1.5rem;
   --fandhe-checkbox-card-check-width: 0.35rem;
   --fandhe-checkbox-card-check-height: 0.7rem;
   --fandhe-checkbox-card-dash-width: 0.7rem;
   --fandhe-checkbox-card-label-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-checkbox-card-description-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-checkbox-card-gap: var(--fandhe-space-4);
 }
 
 [data-scope="checkbox-card"][data-part="root"].fd-checkbox-card--color-palette-accent {
@@ -223,6 +245,10 @@ const CHECKBOX_CARD_GOLDEN_CSS: &str = r#"[data-scope="checkbox-card"][data-part
 [data-scope="checkbox-card"][data-part="indicator"][data-state="indeterminate"] {
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   background: var(--fandhe-palette, var(--fandhe-color-accent));
+}
+
+[data-scope="checkbox-card"][data-part="indicator"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
 }
 
 [data-scope="checkbox-card"][data-part="indicator-check"][data-state="indeterminate"] {
