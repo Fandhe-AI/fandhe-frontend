@@ -1445,12 +1445,20 @@ fn demo_angle_slider() -> Node {
             // として配置されるため、`root` 直下ではなく `control` の子として
             // 配置する（イシュー #1445。従来は `control` を挟んでおらず
             // 円盤・サムが描画されていなかった）。
+            // `headless_ui::angle_slider::label` の契約上、呼び出し側が
+            // `label` へ一意な `id` を付与し `thumb`（`role="slider"`）側の
+            // `aria-labelledby` へ同じ値を渡さない限りアクセシブルネームが
+            // 関連付けられない（イシュー #1446 codex-review 指摘）。
             vec![
-                angle_slider::label(vec![], vec![text("Rotation")]),
+                angle_slider::label(vec![("id", "angle-slider-demo-label")], vec![text("Rotation")]),
                 angle_slider::control(
                     false,
                     vec![],
-                    vec![angle_slider::thumb_styled(&state, false, vec![])],
+                    vec![angle_slider::thumb_styled(
+                        &state,
+                        false,
+                        vec![("aria-labelledby", "angle-slider-demo-label")],
+                    )],
                 ),
                 angle_slider::value_text(vec![], vec![text("0deg")]),
             ],
