@@ -61,11 +61,48 @@
 //! ため、通常の `:focus-visible` 疑似クラスを [`recipe`] へ直接登録する
 //! （[`StateCondition::FocusVisible`]、[`crate::slider`] と同型）。
 //!
+//! # 値テキストとラベルの型階層（イシュー #1446、親トラッキング #1444 の
+//! 分割 2/2）
+//!
+//! 参考サイト（ark-ui Angle Slider）のスクリーンショットでは、`label` が
+//! 「小さめ・大文字・letter-spacing 広め・muted 色」、`value-text` が
+//! 「大きめ・太字・前景色」の明確な 2 段の型階層を成す。是正前の
+//! `label` は `font-size` 1 宣言のみ、`value-text` は [`SLOTS`] に登録
+//! されているのに base 宣言が皆無（型階層が存在しない）状態だった。
+//!
+//! - `label`: [`crate::timer`] の `item-label`（`text-transform: uppercase`）
+//!   と [`crate::heading`] の `letter-spacing` 強化（トークン非提供のため
+//!   ローカルリテラル、[`crate::heading`] 冒頭 rustdoc「余白・
+//!   letter-spacing」節と同型の判断）を踏襲する。サイズ非連動（`Xs` 固定）
+//!   とする。参考サイトでもラベルはダイヤルの `size` variant に関わらず
+//!   一定の見た目のため、`size` 軸には連動させない。
+//! - `value-text`: [`crate::stat`] の `value-text`（`font-weight`・
+//!   root スコープ custom property 経由の `font-size` 伝搬）と
+//!   [`crate::timer`]/[`crate::progress`] の
+//!   `font-variant-numeric: tabular-nums`（回転操作中に数値が変動しても
+//!   幅がぶれない）を組み合わせる。`value-text` パーツは `class` を
+//!   一切出力しないため、[`crate::stat`] 冒頭 rustdoc が明記する教訓
+//!   （slot 自身へのコンパウンドセレクタは実レンダリングに一致せず死んだ
+//!   CSS になる）に従い、`size` 連動は `root` スコープの
+//!   `--fandhe-angle-slider-value-font-size` custom property 経由でのみ
+//!   行う（`Md` は登録せず既定値へフォールバックする既存の track/thumb-size
+//!   と同型）。
+//!
+//! 意図的に行わないこと（`.claude/rules/out-of-scope-tracking.md` 対応）:
+//! `label`/`value-text` は非インタラクティブなテキストのため hover/
+//! transition は追加しない（サムの状態表現は #1445 の担当）。視覚的な
+//! disabled 表現は既存の `root` の `[data-disabled]`（`opacity: 0.5`）が
+//! テキストへも波及済みのため `data-*` 属性の追加はしない。ラベルの
+//! 配置・順序（anatomy 構造）は headless 層の責務でありここでは扱わない。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく MarkerGroup/Marker・pointer ドラッグ/キーボード
 //!   操作の DOM 配線はスコープ外
 //!   （`fandhe_frontend_headless_ui::angle_slider` モジュール doc 参照）。
+//! - トラック・サム・マーカー（状態表現・フォーカスリング）は並行する
+//!   分割 1/2（イシュー #1445）の担当であり、本モジュールの型階層是正
+//!   （イシュー #1446）では触れない。
 //! - `examples/headless-pre-styled-ui`（crates.io バージョン依存）への
 //!   AngleSlider 追加は、未公開の新バージョンを参照できないため本イシュー
 //!   のスコープ外とする（[`crate::slider`] 冒頭 rustdoc の先例どおり
@@ -143,7 +180,20 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "label",
-            vec![decl("font-size", "var(--fandhe-font-font-size-sm)")],
+            vec![
+                // 型階層（イシュー #1446 モジュール doc 参照）: 小さめ・大文字・
+                // letter-spacing 広め・muted 色。サイズ非連動（参考サイトでも
+                // `size` variant に関わらず一定の見た目のため）。
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("text-transform", "uppercase"),
+                // letter-spacing にはトークンが存在しないため、
+                // `crate::heading` の letter-spacing 強化と同型のローカル
+                // リテラル（`crate::heading` 冒頭 rustdoc「余白・
+                // letter-spacing」節参照）。
+                decl("letter-spacing", "0.08em"),
+            ],
         )
         .base(
             "control",
@@ -197,6 +247,24 @@ fn recipe() -> SlotRecipe {
                 decl("cursor", "pointer"),
             ],
         )
+        .base(
+            "value-text",
+            vec![
+                // 型階層（イシュー #1446 モジュール doc 参照）: 大きめ・太字・
+                // 前景色・回転操作中も幅がぶれない tabular-nums。`value-text`
+                // は class を出力しないため `size` 連動は root スコープ
+                // custom property 経由のみ（`crate::stat` 冒頭 rustdoc の
+                // 教訓と同型、以下 fallback は Md 相当）。
+                decl(
+                    "font-size",
+                    "var(--fandhe-angle-slider-value-font-size, var(--fandhe-font-font-size-lg))",
+                ),
+                decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                decl("line-height", "var(--fandhe-font-line-height-tight)"),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("font-variant-numeric", "tabular-nums"),
+            ],
+        )
         .state(
             "thumb",
             StateCondition::Attr("data-disabled"),
@@ -224,6 +292,12 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-angle-slider-track-size", "3.5rem"),
                 decl("--fandhe-angle-slider-thumb-size", "0.7rem"),
+                // 型階層（イシュー #1446）: `value-text` の base 宣言が参照
+                // する custom property 経由の連動（`crate::stat` と同型）。
+                decl(
+                    "--fandhe-angle-slider-value-font-size",
+                    "var(--fandhe-font-font-size-md)",
+                ),
             ],
         )
         .variant(
@@ -240,6 +314,12 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-angle-slider-track-size", "5.5rem"),
                 decl("--fandhe-angle-slider-thumb-size", "1.1rem"),
+                // 型階層（イシュー #1446）: Sm 側と同じ連動（`crate::stat`
+                // と同型）。
+                decl(
+                    "--fandhe-angle-slider-value-font-size",
+                    "var(--fandhe-font-font-size-xl)",
+                ),
             ],
         )
         .variant(
@@ -370,6 +450,27 @@ mod tests {
         assert!(css.contains("--size-"));
         assert!(css.contains("--color-palette-"));
         assert!(css.contains("--fandhe-angle-slider-track-size"));
+    }
+
+    // --- 型階層（イシュー #1446） ---
+
+    #[test]
+    fn stylesheet_gives_label_and_value_text_distinct_typography() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="angle-slider"][data-part="label"] {"#));
+        assert!(css.contains("text-transform: uppercase;"));
+        assert!(css.contains("letter-spacing: 0.08em;"));
+        assert!(css.contains(r#"[data-scope="angle-slider"][data-part="value-text"] {"#));
+        assert!(css.contains("font-variant-numeric: tabular-nums;"));
+    }
+
+    #[test]
+    fn stylesheet_value_text_font_size_is_size_linked_via_root_custom_property() {
+        let css = stylesheet();
+        assert!(css.contains("--fandhe-angle-slider-value-font-size"));
+        assert!(css.contains(
+            "font-size: var(--fandhe-angle-slider-value-font-size, var(--fandhe-font-font-size-lg));"
+        ));
     }
 
     // --- root ---
