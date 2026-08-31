@@ -36,10 +36,46 @@
 //!   クラスと合成するため、`class` 属性は常に単一（呼び出し側からのクラス
 //!   偽装・重複混入を防ぐ）。
 //!
+//! # 参考サイト基準との比較結論（イシュー #1474）
+//!
+//! Themes 部品の視覚比較ツリー（phase:2）の一環として、参考サイト
+//! （chakra-ui / ark-ui）基準の 7 軸（サイズ・バリアント・色・`data-*`
+//! 状態・ダーク・フォーカス・余白/hover/disabled/トランジション）で
+//! 本部品を検証した。ark-ui の `DownloadTrigger` は unstyled headless
+//! ユーティリティ（見た目を持たない）のため、視覚比較の実体は chakra-ui
+//! 側の Button の見た目である。本モジュールは前述のとおり Button recipe
+//! を宣言差分ゼロで流用する設計であり、この流用そのものが「参考サイト
+//! 基準の見た目」を実現する手段になっている。
+//!
+//! - **継承により充足済み（是正不要）**: サイズ（`Size` 5 段、#1449）・
+//!   バリアント（`ButtonVariant` 6 種、#1448）・色（`--fandhe-palette-*`/
+//!   `--fandhe-color-*` トークン経由）・ダーク（`Theme::to_css` のトークン
+//!   再定義）・フォーカス（`:focus-visible` + `focus_ring_declarations`、
+//!   #1448）・hover/disabled/トランジション（#1425/#1708 の共通ビジュアル
+//!   言語、`prefers-reduced-motion` 一括無効化込み）は、いずれも Button
+//!   recipe の委譲経由で継承済みであり、本モジュール側での追加是正は
+//!   不要と判断した。
+//! - **意図的に参考サイトへ合わせない点**: `disabled`/`loading` 状態は
+//!   本モジュールで提供しない（前述のとおり `a` 要素に `disabled` の
+//!   意味論が存在しないため）。icon-only 修飾（IconButton 相当）も
+//!   本部品には適用しない（ダウンロードリンクはラベルテキストを必須と
+//!   する用途が主であり、Button 側 #830 の icon-only 拡張をそのまま
+//!   輸入する動機がない）。CSS 宣言の独自追加はしない（追加すると
+//!   「宣言はここでは一切追加しない」という流用契約に反し、golden
+//!   テスト `tests/download_trigger_css.rs` が FAIL する設計であるため、
+//!   乖離の是正が必要になった場合は Button 側イシューで行うのが本設計
+//!   の正）。
+//! - **是正した点**: docs サイト Demo（`crates/docs-site/src/showcase.rs`
+//!   の `download_trigger_section`）の size 行が `button_section` と
+//!   非対称（Sm/Md/Lg の 3 段のみ）だったため、Xs/Xl を追加して 5 段へ
+//!   揃えた。CSS 実体の変更ではなく Demo 表示範囲の是正である。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
 //!   イシュー側のスコープ。
+//! - ark-ui 側のスクリーンショット取得（unstyled headless のため視覚
+//!   比較には寄与しない、上記比較結論節参照）。
 
 use crate::button::{recipe_with_scope, ButtonVariant};
 use crate::class_attr::drop_class_attr;
