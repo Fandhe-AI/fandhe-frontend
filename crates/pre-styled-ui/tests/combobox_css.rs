@@ -224,7 +224,7 @@ const EXPECTED_CSS: &str = r#"[data-scope="combobox"][data-part="root"] {
     background: var(--fandhe-hover-bg);
   }
 
-  [data-scope="combobox"][data-part="item"]:hover:not([data-disabled]) {
+  [data-scope="combobox"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {
     background: var(--fandhe-hover-bg);
   }
 }

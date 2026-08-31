@@ -124,18 +124,31 @@
 //!   combobox.rs::item`）が出す `data-disabled` を
 //!   [`crate::recipe::disabled_declarations`] で消費し、hover（`cursor:
 //!   pointer` を持つインタラクティブ slot）を
-//!   [`crate::recipe::hover_bg_muted`] + `StateCondition::Hover` で追加した
-//!   （親イシュー指摘の代表欠落）。transition
-//!   （`background, color`/`MotionDuration::Fast`）も 1/2 の
-//!   control/trigger と同型で純追加した
-//! - **hover と `data-highlighted` の優先順位（既知の相互作用）**: hover
-//!   規則は `@media (hover: hover)` として出力され、セレクタ
-//!   `[...]:hover:not([data-disabled])`（詳細度 (0,4,0)）が
+//!   [`crate::recipe::hover_bg_muted`] +
+//!   `StateCondition::HoverExceptAttr("data-highlighted")` で追加した
+//!   （親イシュー指摘の代表欠落）。transition（`background, color`/
+//!   `MotionDuration::Fast`）も 1/2 の control/trigger と同型で純追加した
+//! - **hover と `data-highlighted` の優先順位（PR #1745 codex-review P1 /
+//!   Bugbot Medium 指摘対応）**: 素の `StateCondition::Hover` は
+//!   `@media (hover: hover)` 配下へ `[...]:hover:not([data-disabled])`
+//!   （詳細度 (0,4,0)）として出力され、highlight 表示のセレクタ
 //!   `[data-highlighted]`（(0,3,0)）に勝つ。ポインタが highlight 中の item
-//!   に重なると accent ではなく muted 背景になるが、wasm 層は pointer 移動
-//!   でも `data-highlighted` を張り替えるため実害は限定的。既存の選択済み
-//!   表示（`data-state="open"` → bg-muted）・highlight（accent）の 2 段階
-//!   設計自体は select 系ファミリーの確立済み設計であり変更しない
+//!   に重なると accent 背景が muted 背景で上書きされ、かつ
+//!   `hover_surface_declarations()` は `background` shorthand のみを
+//!   差し替えるため文字色（`--fandhe-color-accent-fg`）だけが取り残されて
+//!   コントラストが崩れる（virtual focus の視覚状態が失われる実害）。
+//!   [`crate::color_picker`] の `trigger`/`StateCondition::HoverExcept(
+//!   "data-state", "open")` と同型の判断で、値付き属性版ではなく存在属性
+//!   （headless が `data-highlighted` を常に空文字値
+//!   `data-highlighted=""` の存在属性として出すため、値等価の
+//!   `HoverExcept` へ空文字列を渡すと [`crate::css::is_valid_identifier`]
+//!   が拒否し規則ごと無音に脱落する）版の
+//!   `StateCondition::HoverExceptAttr("data-highlighted")` へ変更し、
+//!   highlight 中の item を hover の対象から除外することで highlight と
+//!   hover が重なる場合は highlight 側の規則のみが適用されるよう解消した。
+//!   既存の選択済み表示（`data-state="open"` → bg-muted）・highlight
+//!   （accent）の 2 段階設計自体は select 系ファミリーの確立済み設計であり
+//!   変更しない
 //! - **`item` をチェックマーク右端整列レイアウトへ**: `display: flex` /
 //!   `align-items: center` / `gap` を追加し、`item-indicator` へ
 //!   `margin-left: auto` を追加した
@@ -423,13 +436,33 @@ fn recipe() -> SlotRecipe {
             hover_surface_declarations(),
         )
         // item の hover 実適用（イシュー #1468。`@media (hover: hover)`
-        // ブロック内へ集約される。ポインタが highlight 中の item に重なると
-        // `:hover:not([data-disabled])`（(0,4,0)）が `[data-highlighted]`
-        // （(0,3,0)）に勝つため muted 背景が一時的に優先されるが、wasm 層は
-        // pointer 移動でも `data-highlighted` を張り替えるため実害は限定的
-        // （モジュール rustdoc「スタイル調整（#1468）」節参照の既知の
-        // 相互作用）。
-        .state("item", StateCondition::Hover, hover_surface_declarations())
+        // ブロック内へ集約される）。`StateCondition::Hover` ではなく
+        // `StateCondition::HoverExceptAttr("data-highlighted")` を使う
+        // （PR #1745 codex-review P1 / Bugbot Medium 指摘対応）: 素の
+        // `Hover` は `[data-highlighted]`（(0,3,0)）より selector
+        // specificity が高く（`:hover:not([data-disabled])` は (0,4,0)、
+        // `crate::recipe::StateCondition::HoverExceptAttr` rustdoc 参照）、
+        // highlight 中の item にポインタが重なると muted 背景が accent
+        // 背景を上書きし virtual focus の視覚状態（アクセント背景 +
+        // `--fandhe-color-accent-fg` 文字色）が失われ、
+        // `hover_surface_declarations()` は `background` shorthand のみを
+        // 差し替えるため文字色（accent-fg）だけが残存しコントラストが
+        // 崩れる問題があった。headless
+        // `crates/headless-ui/src/combobox.rs::item` は `data-highlighted`
+        // を常に空文字値 `data-highlighted=""` の存在属性として出すため、
+        // 値等価の `StateCondition::HoverExcept("data-highlighted", "")`
+        // は `is_valid_identifier` が空文字列を拒否し規則ごと無音に
+        // 脱落する（[`crate::color_picker`] の `trigger`/
+        // `HoverExcept("data-state", "open")` と同型の判断だが値が
+        // 空でない点が異なるため使えなかった）。存在属性版
+        // `HoverExceptAttr` は highlight 中の item 自体を hover の対象
+        // から除外するため、highlight かつポインタ重複中は highlight 側
+        // の規則のみが適用される。
+        .state(
+            "item",
+            StateCondition::HoverExceptAttr("data-highlighted"),
+            hover_surface_declarations(),
+        )
         // wasm 層が `data-positioned` マーカーを付与したら確定座標
         // （viewport 座標系の `position: fixed`）へ切り替える（[`crate::select`]
         // と同じ契約、モジュール rustdoc 参照）。
@@ -813,7 +846,19 @@ mod tests {
             .find("@media (hover: hover) {")
             .expect("hover media query block must exist");
         let media_block = &css[media_idx..];
-        assert!(media_block
+        // PR #1745 codex-review P1 / Bugbot Medium 指摘対応: highlight 中の
+        // item を hover 対象から除外する `:not([data-highlighted])` を
+        // 伴う（モジュール rustdoc「hover と `data-highlighted` の優先順位」
+        // 節参照）。
+        assert!(media_block.contains(
+            r#"[data-scope="combobox"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {"#
+        ));
+    }
+
+    #[test]
+    fn item_hover_rule_excludes_highlighted_item() {
+        let css = stylesheet();
+        assert!(!css
             .contains(r#"[data-scope="combobox"][data-part="item"]:hover:not([data-disabled]) {"#));
     }
 
