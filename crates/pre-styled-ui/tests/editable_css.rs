@@ -32,6 +32,13 @@ const EDITABLE_GOLDEN_CSS: &str = r#"[data-scope="editable"][data-part="root"] {
   border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-md, 0.375rem);
   background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+}
+
+[data-scope="editable"][data-part="input"] {
+  transition-property: border-color, background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="editable"][data-part="preview"] {
@@ -42,6 +49,12 @@ const EDITABLE_GOLDEN_CSS: &str = r#"[data-scope="editable"][data-part="root"] {
   border: 1px solid transparent;
   border-radius: var(--fandhe-radius-md, 0.375rem);
   cursor: text;
+}
+
+[data-scope="editable"][data-part="preview"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="editable"][data-part="control"] {
@@ -91,8 +104,17 @@ const EDITABLE_GOLDEN_CSS: &str = r#"[data-scope="editable"][data-part="root"] {
   opacity: 0.5;
 }
 
+[data-scope="editable"][data-part="input"][data-readonly] {
+  cursor: default;
+}
+
 [data-scope="editable"][data-part="input"][data-disabled] {
   cursor: not-allowed;
+}
+
+[data-scope="editable"][data-part="input"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="editable"][data-part="preview"][hidden] {
