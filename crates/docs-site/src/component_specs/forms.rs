@@ -284,6 +284,7 @@ const CHECKBOX_GROUP: ComponentPageSpec = ComponentPageSpec {
         "`radio_group` と対称の構造だが、複数選択状態機械（`MultiSelect`）を埋め込み、dispatch は `select`/`deselect`/`toggle` の 3 語彙を受理する。",
         "ネイティブ `<input type=\"checkbox\">` は自前パーツを持たず、`checkbox::hidden_input` を `item` 配下へ入れ子で再利用する（`hidden-input` の視覚的非表示化は `checkbox` の recipe が担う）。",
         "`aria-checked`/`role=\"checkbox\"` は `item-control` へ重複付与しない（二重読み上げ防止）。グループ全体の関連付けは `root` の `aria-labelledby` で行う。",
+        "`size` は control 寸法・root/item 余白・font-size を custom property 経由で連動させ、`label`（グループ見出し）は medium ウェイト、`item-text`（項目）は通常ウェイトの 2 段階の型階層を持つ。",
     ],
     arguments: &[
         ArgRow {
