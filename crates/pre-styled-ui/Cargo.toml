@@ -256,6 +256,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 衝突をそのまま採用せず 0.55.4 へさらにパッチバンプする（0.x の破壊的
 # 変更ではない意匠調整の重複、
 # `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
+# イシュー #1455（checkbox のスタイル調整 2/2: size バリアント・ラベル/
+# 説明の型階層）で checkbox.rs の recipe を実体変更するため、0.55.3 →
+# 0.55.4 へパッチバンプする。分割 1/2（イシュー #1454、PR #1734）も
+# 同じ checkbox.rs を変更中で 0.55.3 を宣言しているが、マージ順に
+# 関わらず base 現在値から独立にパッチを 1 つ進める同原則に従う（先に
+# マージされた側の値が base の新しい現在値になり、後からマージされる
+# 側は rebase 時に再バンプする）。
 version = "0.55.4"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

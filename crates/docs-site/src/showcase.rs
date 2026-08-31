@@ -180,7 +180,7 @@ use fandhe_frontend_pre_styled_ui::{
     accordion, alert, badge, callout, card, combobox, menu, popover, radio_group, select, switch,
     toggle, toggle_tip, tooltip, AlertStatus, BadgeProps, BadgeVariant, CalloutProps,
     CalloutVariant, CardVariant, ColorPalette, OpenState, Orientation, Size, StyleSheet,
-    StylesheetError,
+    StylesheetError, VariantValue,
 };
 
 /// 索引ページ（凡例 + カテゴリ別リンク集）の `page.path`。`site/nav.toml`
@@ -3008,10 +3008,37 @@ fn checkbox_section() -> Node {
             )
         })
         .collect());
+    // イシュー #1455: size 5 段（xs〜xl）で control 寸法・root 余白（gap）・
+    // label font-size が単調に連動することを視覚確認できる行。
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .iter()
+        .map(|size| {
+            let props = CheckboxProps {
+                checked: CheckedState::Checked,
+                ..CheckboxProps::default()
+            };
+            let name = format!("showcase-checkbox-size-{}", size.value());
+            checkbox::root(
+                *size,
+                ColorPalette::Accent,
+                &props,
+                vec![],
+                vec![
+                    checkbox::hidden_input(&props, &name, "on", vec![]),
+                    checkbox::control(
+                        &props,
+                        vec![],
+                        vec![checkbox::indicator(&props, vec![], vec![])],
+                    ),
+                    checkbox::label(&props, vec![], vec![text(size.value())]),
+                ],
+            )
+        })
+        .collect());
     section(
         "Checkbox",
         "data-state=\"checked\"/\"unchecked\"/\"indeterminate\" の 3 態を持つチェックボックス。visually-hidden な input[type=\"checkbox\"] がフォーム送信・キーボード操作の意味論を担い、チェックマークは CSS の border 合成で描画します（画像アセット不使用）。",
-        vec![demo_row],
+        vec![demo_row, size_row],
     )
 }
 

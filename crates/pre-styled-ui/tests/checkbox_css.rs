@@ -15,7 +15,7 @@ use fandhe_frontend_pre_styled_ui::checkbox;
 const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
   display: inline-flex;
   align-items: center;
-  gap: var(--fandhe-space-2);
+  gap: var(--fandhe-checkbox-gap, var(--fandhe-space-2));
   cursor: pointer;
 }
 
@@ -50,6 +50,10 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
 
 [data-scope="checkbox"][data-part="label"] {
   font-size: var(--fandhe-checkbox-label-font-size, var(--fandhe-font-font-size-sm));
+  font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-normal);
+  color: var(--fandhe-color-fg);
+  user-select: none;
 }
 
 [data-scope="checkbox"][data-part="hidden-input"] {
@@ -65,19 +69,21 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
 }
 
 [data-scope="checkbox"][data-part="root"].fd-checkbox--size-xs {
-  --fandhe-checkbox-control-size: 0.7rem;
+  --fandhe-checkbox-control-size: 0.75rem;
   --fandhe-checkbox-check-width: 0.15rem;
   --fandhe-checkbox-check-height: 0.3rem;
   --fandhe-checkbox-dash-width: 0.3rem;
   --fandhe-checkbox-label-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-checkbox-gap: var(--fandhe-space-1);
 }
 
 [data-scope="checkbox"][data-part="root"].fd-checkbox--size-sm {
-  --fandhe-checkbox-control-size: 0.85rem;
+  --fandhe-checkbox-control-size: 0.875rem;
   --fandhe-checkbox-check-width: 0.2rem;
   --fandhe-checkbox-check-height: 0.4rem;
   --fandhe-checkbox-dash-width: 0.4rem;
   --fandhe-checkbox-label-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-checkbox-gap: var(--fandhe-space-1-5);
 }
 
 [data-scope="checkbox"][data-part="root"].fd-checkbox--size-md {
@@ -86,6 +92,7 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
   --fandhe-checkbox-check-height: 0.5rem;
   --fandhe-checkbox-dash-width: 0.5rem;
   --fandhe-checkbox-label-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-checkbox-gap: var(--fandhe-space-2);
 }
 
 [data-scope="checkbox"][data-part="root"].fd-checkbox--size-lg {
@@ -94,6 +101,7 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
   --fandhe-checkbox-check-height: 0.6rem;
   --fandhe-checkbox-dash-width: 0.6rem;
   --fandhe-checkbox-label-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-checkbox-gap: var(--fandhe-space-2-5);
 }
 
 [data-scope="checkbox"][data-part="root"].fd-checkbox--size-xl {
@@ -102,6 +110,7 @@ const CHECKBOX_GOLDEN_CSS: &str = r#"[data-scope="checkbox"][data-part="root"] {
   --fandhe-checkbox-check-height: 0.7rem;
   --fandhe-checkbox-dash-width: 0.7rem;
   --fandhe-checkbox-label-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-checkbox-gap: var(--fandhe-space-3);
 }
 
 [data-scope="checkbox"][data-part="root"].fd-checkbox--color-palette-accent {
