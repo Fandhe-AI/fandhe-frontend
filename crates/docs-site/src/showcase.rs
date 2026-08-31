@@ -128,7 +128,7 @@ use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProp
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::{kbd, KbdProps, KbdVariant};
 use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
-use fandhe_frontend_pre_styled_ui::link::{self, LinkVariant};
+use fandhe_frontend_pre_styled_ui::link::{self, LinkProps, LinkVariant};
 use fandhe_frontend_pre_styled_ui::link_overlay;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
@@ -4939,42 +4939,49 @@ fn tab_nav_section() -> Node {
 /// `href` の値に依存しないため、空文字列のままでも掲示として成立する）。
 fn link_section() -> Node {
     let node = row(vec![
+        link::root("", &LinkProps::default(), vec![], vec![text("Plain link")]),
         link::root(
             "",
-            false,
-            false,
-            LinkVariant::Plain,
-            vec![],
-            vec![text("Plain link")],
-        ),
-        link::root(
-            "",
-            false,
-            false,
-            LinkVariant::Underline,
+            &LinkProps {
+                variant: LinkVariant::Underline,
+                ..LinkProps::default()
+            },
             vec![],
             vec![text("Underline link")],
         ),
         link::root(
             "",
-            false,
-            true,
-            LinkVariant::Plain,
+            &LinkProps {
+                current: true,
+                ..LinkProps::default()
+            },
             vec![],
             vec![text("Current page")],
         ),
         link::root(
             "",
-            true,
-            false,
-            LinkVariant::Plain,
+            &LinkProps {
+                external: true,
+                ..LinkProps::default()
+            },
             vec![],
             vec![text("External link")],
+        ),
+        // イシュー #1437: ColorPalette 軸新設のデモ（Accent 以外 1 例、
+        // 視覚確認可能にする）。
+        link::root(
+            "",
+            &LinkProps {
+                palette: ColorPalette::Danger,
+                ..LinkProps::default()
+            },
+            vec![],
+            vec![text("Danger palette link")],
         ),
     ]);
     section(
         "Link",
-        "pre-styled-ui 単独定義の anatomy（data-scope=\"link\"）による静的掲示です。Plain（既定・下線なし）/Underline（常時下線）の 2 variant、Current page（aria-current=\"page\"）、External link（target=\"_blank\" + rel=\"noopener noreferrer\" を不可分に付与）を並べています。",
+        "pre-styled-ui 単独定義の anatomy（data-scope=\"link\"）による静的掲示です。Plain（既定・下線なし）/Underline（常時下線）の 2 variant、Current page（aria-current=\"page\"）、External link（target=\"_blank\" + rel=\"noopener noreferrer\" を不可分に付与）、ColorPalette（既定 Accent、Danger 例を併記）を並べています。",
         vec![node],
     )
 }

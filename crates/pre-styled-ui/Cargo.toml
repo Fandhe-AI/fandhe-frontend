@@ -73,7 +73,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # `HighlightProps` への pub フィールド追加は 0.x の破壊的変更（全フィールド
 # 列挙の構造体リテラルを壊し得る）のためマイナーバンプする規約に従い
 # 0.51.0 へマイナーバンプする。
-version = "0.52.0"
+# イシュー #1437: link に `LinkProps`（`external`/`current`/`variant`/
+# `palette: ColorPalette`）を新設し、`root()` の公開関数シグネチャを
+# `root(href, external, current, variant, attrs, children)` から
+# `root(href, &LinkProps, attrs, children)` へ変更した（既存呼び出し元は
+# 全てコンパイルエラーになる破壊的変更）。あわせて hover（文字色強調）・
+# focus-visible（フォーカスリング）・transition（color）を新設した。0.x の
+# 破壊的変更はマイナーバンプする規約に従い 0.53.0 へマイナーバンプする。
+version = "0.53.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

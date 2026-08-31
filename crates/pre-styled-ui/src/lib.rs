@@ -265,7 +265,8 @@
 //!   本イシューと切り分けたスコープ外。詳細は [`mod@progress`] rustdoc 参照。
 //! - headless ラッパー 3 種（イシュー #756、#716 追加候補・最優先候補の消化）:
 //!   [`mod@link`]（Link、`variant` の下線表示切り替え + `aria-current="page"`
-//!   状態装飾）、[`mod@link_overlay`]（LinkOverlay、`::before` 疑似要素の
+//!   状態装飾 + colorPalette/hover/focus-visible/transition〔イシュー #1437〕）、
+//!   [`mod@link_overlay`]（LinkOverlay、`::before` 疑似要素の
 //!   代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する
 //!   カード全面クリック化。詳細は headless 層 rustdoc 参照）、
 //!   [`mod@nav_list`]（NavList、`docs/design/docs-site-styled-ui-adoption.md`
@@ -767,6 +768,7 @@ pub use icon::{icon, IconProps};
 pub use image::{image, AspectRatio, ImageFit, ImageProps};
 pub use input::{input, InputProps, InputVariant};
 pub use kbd::{kbd, KbdProps, KbdVariant};
+pub use link::{LinkProps, LinkVariant};
 pub use list::{ListType, ListVariant};
 pub use mark::{mark, MarkProps, MarkVariant};
 pub use marquee::{marquee, MarqueeDirection, MarqueeProps};
