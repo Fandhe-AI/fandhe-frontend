@@ -109,7 +109,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # ネータ（`>`）へ限定した。Rust API シグネチャ・data-* 属性は不変で CSS
 # 出力のみの是正のため 0.53.4 へパッチバンプする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
-version = "0.53.4"
+# イシュー #1440: quote の rustdoc へ参考サイト基準（Radix Themes Quote）
+# との 7 軸比較節を追加した。7 軸比較の結果、CSS 出力（font-style: italic
+# の 1 宣言のみ）は変更不要と判定し recipe() は不変（Rust API シグネチャ・
+# 既存クラス名・CSS 変数の削除改名もなし）だが、公開済みクレートの実体
+# 変更（rustdoc・レビュー可能な判断記録の追加）を伴うため .claude/rules/
+# coding-rust.md の semver バンプ運用に従いパッチバンプする
+# （docs/ci/style-refresh-version-bump-operation.md §3.4a）。
+# イシュー #1438: main 側（#1440）も独立に 0.53.2 へ到達しており、本
+# マージで双方の実体変更（本ブランチの list 是正・main の quote rustdoc
+# 追加）を統合するため同一版数への偶発的衝突を避けて 0.53.5 へさらに
+# パッチバンプする（0.x の破壊的変更ではない意匠調整・rustdoc 追加の
+# 重複、`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+version = "0.53.5"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
