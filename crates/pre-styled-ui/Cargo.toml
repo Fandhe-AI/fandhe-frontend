@@ -99,7 +99,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更）。Rust API シグネチャ・data-* 属性は不変で CSS 出力のみの是正の
 # ため 0.53.3 へパッチバンプする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
-version = "0.53.3"
+# イシュー #1438 codex-review P1 再指摘・Cursor Bugbot（Medium/Low）指摘の
+# 追加是正: 前項の子孫セレクタ化だけでは `display: inline-flex` が item を
+# インラインレベルのボックス化してしまい、複数の短い item が縦積みされず
+# 同じ行に横並びしてしまう不具合が残っていたため `display: flex`
+# （block-level の flex コンテナ）へ変更した。あわせて子孫結合子のままだと
+# Plain root 配下にネストした別リスト（Marker variant 等）の item にも
+# 波及し `::marker` を消してしまう問題があったため、セレクタを子コンビ
+# ネータ（`>`）へ限定した。Rust API シグネチャ・data-* 属性は不変で CSS
+# 出力のみの是正のため 0.53.4 へパッチバンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+version = "0.53.4"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

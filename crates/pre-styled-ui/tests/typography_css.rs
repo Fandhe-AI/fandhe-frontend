@@ -294,8 +294,8 @@ const LIST_GOLDEN_CSS: &str = r#"[data-scope="list"][data-part="root"] {
   color: var(--fandhe-color-fg-muted);
 }
 
-[data-scope="list"][data-part="root"].fd-list--variant-plain [data-scope="list"][data-part="item"] {
-  display: inline-flex;
+[data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"] {
+  display: flex;
   align-items: flex-start;
 }
 "#;
