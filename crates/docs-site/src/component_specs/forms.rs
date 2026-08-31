@@ -1437,7 +1437,16 @@ fn demo_angle_slider() -> Node {
             &state,
             false,
             vec![],
-            vec![angle_slider::thumb_styled(&state, false, vec![])],
+            // `thumb_styled` は `position: absolute` を前提に `control`
+            // （`position: relative` の円盤）を基準座標として配置される
+            // ため、`root` 直下ではなく `control` の子として配置する
+            // （イシュー #1445。従来は `control` を挟んでおらず円盤・
+            // サムが描画されていなかった）。
+            vec![angle_slider::control(
+                false,
+                vec![],
+                vec![angle_slider::thumb_styled(&state, false, vec![])],
+            )],
         ),
     )
 }
