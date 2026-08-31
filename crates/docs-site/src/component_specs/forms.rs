@@ -1439,16 +1439,31 @@ fn demo_angle_slider() -> Node {
             &state,
             false,
             vec![],
-            // `thumb_styled` は `position: absolute` を前提に `control`
-            // （`position: relative` の円盤）を基準座標として配置される
-            // ため、`root` 直下ではなく `control` の子として配置する
-            // （イシュー #1445。従来は `control` を挟んでおらず円盤・
-            // サムが描画されていなかった）。
-            vec![angle_slider::control(
-                false,
-                vec![],
-                vec![angle_slider::thumb_styled(&state, false, vec![])],
-            )],
+            // 型階層（イシュー #1446）を Demo で視覚確認できるよう
+            // label・value_text を追加する（`primitive_specs/forms_a.rs::ex_angle_slider`
+            // の構成と整合、`crates/pre-styled-ui/src/angle_slider.rs`
+            // モジュール doc 参照）。`thumb_styled` は `position: absolute`
+            // を前提に `control`（`position: relative` の円盤）を基準座標
+            // として配置されるため、`root` 直下ではなく `control` の子として
+            // 配置する（イシュー #1445。従来は `control` を挟んでおらず
+            // 円盤・サムが描画されていなかった）。
+            // `headless_ui::angle_slider::label` の契約上、呼び出し側が
+            // `label` へ一意な `id` を付与し `thumb`（`role="slider"`）側の
+            // `aria-labelledby` へ同じ値を渡さない限りアクセシブルネームが
+            // 関連付けられない（イシュー #1446 codex-review 指摘）。
+            vec![
+                angle_slider::label(vec![("id", "angle-slider-demo-label")], vec![text("Rotation")]),
+                angle_slider::control(
+                    false,
+                    vec![],
+                    vec![angle_slider::thumb_styled(
+                        &state,
+                        false,
+                        vec![("aria-labelledby", "angle-slider-demo-label")],
+                    )],
+                ),
+                angle_slider::value_text(vec![], vec![text("0deg")]),
+            ],
         ),
     )
 }
