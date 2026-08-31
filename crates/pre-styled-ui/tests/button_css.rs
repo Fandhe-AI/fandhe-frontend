@@ -24,6 +24,7 @@ use fandhe_frontend_pre_styled_ui::button;
 /// 冒頭 rustdoc「size スケール・icon-only・loading」節参照）。
 const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
   display: inline-flex;
+  box-sizing: border-box;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;

@@ -270,6 +270,16 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
             "root",
             vec![
                 decl("display", "inline-flex"),
+                // イシュー #1449 codex-review P1 指摘の是正: size variant が
+                // `height` をトークンで固定する公開 CSS 契約（モジュール冒頭
+                // rustdoc 参照）を border 付き variant（Outline）でも成立させる
+                // ため `box-sizing: border-box` を base へ追加する。UA 既定の
+                // `content-box` のままだと Outline の `border: 1px solid` が
+                // `height` の外側に積み増され、実際の外寸が
+                // `--fandhe-size-control-height-*` トークン値より上下合計 2px
+                // 大きくなってしまう（`download_trigger` は recipe を共有する
+                // ため同じ是正が及ぶ）。
+                decl("box-sizing", "border-box"),
                 decl("align-items", "center"),
                 decl("justify-content", "center"),
                 decl("gap", "0.5rem"),
