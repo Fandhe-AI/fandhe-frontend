@@ -165,7 +165,7 @@ use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
 use fandhe_frontend_pre_styled_ui::tags_input;
-use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize};
+use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize, TextWeight};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
@@ -1383,25 +1383,59 @@ fn heading_section() -> Node {
     )
 }
 
-/// Text 節: size（sm/md/lg）3 段の本文テキスト。
+/// Text 節: size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold
+/// の 4 段階）でスタイル化した本文テキスト（イシュー #1442 で拡充）。
 fn text_section() -> Node {
-    let text_stack = stack(
-        [TextSize::Sm, TextSize::Md, TextSize::Lg]
-            .iter()
-            .map(|size| {
-                styled_text(
-                    &TextProps { size: *size },
-                    vec![],
-                    vec![text(format!("本文テキスト（size={size:?}）"))],
-                )
-            })
-            .collect(),
+    let size_stack = stack(
+        [
+            TextSize::Xs,
+            TextSize::Sm,
+            TextSize::Md,
+            TextSize::Lg,
+            TextSize::Xl,
+            TextSize::Xl2,
+            TextSize::Xl3,
+            TextSize::Xl4,
+        ]
+        .iter()
+        .map(|size| {
+            styled_text(
+                &TextProps {
+                    size: *size,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(format!("本文テキスト（size={size:?}）"))],
+            )
+        })
+        .collect(),
+    );
+
+    let weight_stack = stack(
+        [
+            TextWeight::Normal,
+            TextWeight::Medium,
+            TextWeight::Semibold,
+            TextWeight::Bold,
+        ]
+        .iter()
+        .map(|weight| {
+            styled_text(
+                &TextProps {
+                    weight: *weight,
+                    ..TextProps::default()
+                },
+                vec![],
+                vec![text(format!("本文テキスト（weight={weight:?}）"))],
+            )
+        })
+        .collect(),
     );
 
     section(
         "Text",
-        "素の p 要素を size（sm/md/lg）でスタイル化した本文テキスト部品。",
-        vec![text_stack],
+        "素の p 要素を size（xs〜xl4 の 8 段階）・weight（normal/medium/semibold/bold の 4 段階）でスタイル化した本文テキスト部品。",
+        vec![size_stack, weight_stack],
     )
 }
 

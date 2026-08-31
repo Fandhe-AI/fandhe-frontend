@@ -783,7 +783,7 @@ pub use strong::strong;
 pub use stylesheet::{StyleSheet, StylesheetError};
 pub use table::TableVariant;
 pub use tag::TagVariant;
-pub use text::{text, TextProps, TextSize};
+pub use text::{text, TextProps, TextSize, TextWeight};
 pub use textarea::{textarea, TextareaProps, TextareaVariant};
 
 // `fandhe_frontend_headless_ui` クレートそのものの再エクスポート（イシュー #685）。

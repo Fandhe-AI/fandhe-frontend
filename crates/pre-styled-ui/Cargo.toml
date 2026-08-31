@@ -130,7 +130,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # Rust API シグネチャ・data-* 属性は不変で CSS 出力のみの是正のため
 # 0.53.6 へパッチバンプする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
-version = "0.53.6"
+# base 取り込み（イシュー #1442）: main 側は #1438 の list Bugbot 是正を経て
+# 独立に 0.53.6 へ到達していたが、本ブランチは #1442 の enum variant / pub
+# フィールド追加によりマイナーバンプ済みの 0.54.0（> 0.53.6）へ到達している
+# ため、偶発的な同一版数衝突ではなく単純な採用としてそのまま 0.54.0 を維持する。
+# イシュー #1442: text の rustdoc へ参考サイト基準（chakra-ui / Radix Themes
+# Text）との 7 軸比較節を追加し、7 軸比較の結果に基づき `TextSize` へ
+# `Xl2`/`Xl3`/`Xl4`（[`crate::heading`] と同じテーマトークン全 8 段網羅）を
+# 追加、新規 `TextWeight` 軸（`Normal`/`Medium`/`Semibold`/`Bold`）と
+# `TextProps::weight` フィールドを追加した。enum variant・pub フィールドの
+# 追加は 0.x の破壊的変更（既存の網羅的パターンマッチ・フィールド列挙
+# コンストラクタ呼び出し元がコンパイルエラーになりうる）にあたるため、
+# .claude/rules/coding-rust.md の semver バンプ運用に従いマイナーバンプする。
+version = "0.54.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
