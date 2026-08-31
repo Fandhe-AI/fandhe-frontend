@@ -297,6 +297,12 @@ const LIST_GOLDEN_CSS: &str = r#"[data-scope="list"][data-part="root"] {
 [data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"] {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+[data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"] > [data-scope="list"][data-part="root"] {
+  flex-basis: 100%;
+  width: 100%;
 }
 "#;
 

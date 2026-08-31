@@ -194,6 +194,24 @@ fn recipe() -> SlotRecipe {
 ///    `tests::plain_variant_root_and_item_dom_matches_plain_item_selector`
 ///    が root(Plain) と item() の実際の DOM 出力からこのセレクタが一致
 ///    することを検証する。
+/// 3. `Plain` variant の item にネストした別リスト（`root` を子孫として
+///    含む場合。例: item 内に indicator + label を横並びさせつつ、その
+///    下にネストした sub-list を続ける構成）が横並びのまま留まってしまう
+///    不具合の是正（イシュー #1438 Cursor Bugbot Medium 指摘）。上記 2 の
+///    item 規則は `display: flex` のみで `flex-wrap` を指定していなかった
+///    ため、item の直接の子（indicator・テキスト・ネストした
+///    `root`〔`<ul>`/`<ol>`〕）がすべて既定の `flex-wrap: nowrap` で
+///    横一列に並び、ネストリストが縦積みされなかった。是正として item
+///    規則へ `flex-wrap: wrap` を追加し、さらに item の直接の子である
+///    ネスト `root` へ `flex-basis: 100%; width: 100%;` を宣言する規則を
+///    追加した。これによりネスト `root` は常に自身の行いっぱいの幅を
+///    要求するため、indicator・テキストの直後で強制的に折り返され、
+///    見た目上は縦積み（次の行）として描画される。セレクタは規則 2 と
+///    同じく子コンビネータ（`>`）で 1 段階のみに限定しており、
+///    ネストしたリストの**孫**にあたる item（ネストリスト自身が Plain
+///    variant で入れ子になった場合の item）へは波及しない
+///    （`tests::plain_variant_nested_root_child_gets_full_width_wrap`
+///    が css() のセレクタ文字列からこれを検証する）。
 #[must_use]
 pub fn css() -> String {
     let mut out = recipe().css();
@@ -203,7 +221,10 @@ pub fn css() -> String {
          color: var(--fandhe-color-fg-muted);\n}\n\
          \n\
          [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > [data-scope=\"list\"][data-part=\"item\"] {\n  \
-         display: flex;\n  align-items: flex-start;\n}\n",
+         display: flex;\n  align-items: flex-start;\n  flex-wrap: wrap;\n}\n\
+         \n\
+         [data-scope=\"list\"][data-part=\"root\"].fd-list--variant-plain > [data-scope=\"list\"][data-part=\"item\"] > [data-scope=\"list\"][data-part=\"root\"] {\n  \
+         flex-basis: 100%;\n  width: 100%;\n}\n",
     );
     out
 }
@@ -383,6 +404,46 @@ mod tests {
         ));
         assert!(out.contains("display: flex;"));
         assert!(out.contains("align-items: flex-start;"));
+    }
+
+    /// イシュー #1438 Cursor Bugbot（Medium）指摘の回帰テスト。
+    ///
+    /// Plain variant の item にネストした別リスト（`root`）が、item の
+    /// 直接の子として横並びのまま留まらず、`flex-wrap: wrap` +
+    /// `flex-basis: 100%`/`width: 100%` によって縦積み（強制折り返し）
+    /// されることを css() のセレクタ・宣言から固定する。
+    #[test]
+    fn plain_variant_nested_root_child_gets_full_width_wrap() {
+        let out = css();
+
+        // item 自身が折り返しを許可していること（indicator・テキストの
+        // 後段にネスト root を強制的に次の行へ送るための前提）。
+        let item_rule_start = out
+            .find(r#"[data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"] {"#)
+            .expect("plain item rule must exist");
+        let item_rule_end = out[item_rule_start..]
+            .find('}')
+            .map(|offset| item_rule_start + offset)
+            .expect("plain item rule must be closed");
+        let item_rule = &out[item_rule_start..item_rule_end];
+        assert!(
+            item_rule.contains("flex-wrap: wrap;"),
+            "Plain item rule must allow wrapping so a nested root is not forced onto the same row: {item_rule}"
+        );
+
+        // item の直接の子であるネスト root が常にフル幅を要求し、強制的に
+        // 折り返される（＝縦積みされる）ことを固定する。
+        let nested_root_selector = r#"[data-scope="list"][data-part="root"].fd-list--variant-plain > [data-scope="list"][data-part="item"] > [data-scope="list"][data-part="root"]"#;
+        assert!(out.contains(nested_root_selector), "out={out}");
+        let nested_rule_start = out
+            .find(nested_root_selector)
+            .expect("nested root rule must exist");
+        let nested_rule = &out[nested_rule_start..];
+        assert!(
+            nested_rule.contains("flex-basis: 100%;"),
+            "out={nested_rule}"
+        );
+        assert!(nested_rule.contains("width: 100%;"), "out={nested_rule}");
     }
 
     /// イシュー #1438 codex-review P1 指摘の回帰テスト。
