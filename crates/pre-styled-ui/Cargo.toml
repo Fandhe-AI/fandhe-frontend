@@ -263,11 +263,24 @@ name = "fandhe-frontend-pre-styled-ui"
 # 関わらず base 現在値から独立にパッチを 1 つ進める同原則に従う（先に
 # マージされた側の値が base の新しい現在値になり、後からマージされる
 # 側は rebase 時に再バンプする）。
+# イシュー #1457（checkbox-card のスタイル調整 1/2: root の状態表現・
+# フォーカスリング/hover/transition の canonical 化）で checkbox_card.rs
+# の recipe を実体変更するため、0.55.4 → 0.55.5 へパッチバンプする
+# （Rust API は不変、CSS 出力のみの意匠調整）。
 # PR #1734 Cursor Bugbot 指摘是正（イシュー #1454）: checkbox.rs の
 # hover_bg_solid_with_fallback() フォールバック連鎖を修正する実体変更の
 # ため、base 取り込み後の現在値 0.55.4 から独立にパッチを 1 つ進めて
 # 0.55.5 とする（`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
-version = "0.55.5"
+# base 取り込み（イシュー #1457）: 本ブランチは checkbox-card のスタイル調整
+# （#1457、checkbox_card.rs の root 状態表現・フォーカスリング是正）により
+# 独立に 0.55.5 へパッチバンプ済みで、main 側も PR #1734 Cursor Bugbot 指摘
+# 是正（checkbox.rs の hover_bg_solid_with_fallback() 修正）により独立に
+# 0.55.5 へパッチバンプ済みだった（偶発的な同一版数衝突。対象ファイルは
+# checkbox_card.rs と checkbox.rs で異なる実体変更）。本マージで双方の
+# 実体変更を統合するため同一版数への衝突をそのまま採用せず 0.55.6 へ
+# さらにパッチバンプする（0.x の破壊的変更ではない意匠調整の重複、
+# `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
+version = "0.55.6"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
