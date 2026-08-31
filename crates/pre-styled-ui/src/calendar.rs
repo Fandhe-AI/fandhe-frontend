@@ -77,6 +77,66 @@
 //! - `ColorPalette` 軸の導入: chakra calendar の既定も palette 切り替えを
 //!   前面に出さず、選択セルは accent トークン経由の単色で足りるため導入
 //!   しない。
+//!
+//! # ヘッダー・ビュー切り替え・週表示の是正（イシュー #1452、親 #1450 分割 2/2）
+//!
+//! 担当スロット範囲（本 issue の分割契約 2/2）は `heading` /
+//! `prev-trigger` / `next-trigger` / `table-header` / `table-head-cell` /
+//! `root` 枠。`table` / `table-row` / `table-body` / `table-cell` /
+//! `day-trigger`（月グリッドと日セル）は分割 1/2（#1451、マージ済み）が
+//! 担当済みのため、本 issue では変更しない（`table` の `grid-column`
+//! 追加のみ例外、下記参照）。
+//!
+//! - **ヘッダー行レイアウト**: `root` を `inline-flex` + `column` から
+//!   `inline-grid` + `grid-template-columns: auto 1fr auto` へ変更し、
+//!   `prev-trigger` / `heading` / `next-trigger` を 1 行 3 列へ明示配置
+//!   （`grid-row`/`grid-column`）する。従来は showcase 側の合成順
+//!   （heading → prev → next → table）に描画順が依存し、`root` が
+//!   `column` 方向だったため ‹ › が縦積みになっていた（chakra は 1 行）。
+//!   明示配置により呼び出し側の DOM 合成順に依存しなくなる。
+//! - **table の grid 越境宣言**: `table` へ `grid-column: 1 / -1` を
+//!   1 宣言のみ追加する。担当スロットとしては 1/2 側だが、root の
+//!   grid 化（2/2 が要求するヘッダーレイアウト是正）に必須の配置指定の
+//!   ため、1/2 が是正した `border-collapse`/`width` には触れずにこの
+//!   宣言のみ本 issue 側で追加した。
+//! - **heading の見た目**: `justify-content: space-between` → `center`
+//!   （grid 化で左右揃えが不要になったため）、`font-size:
+//!   --fandhe-font-font-size-sm` を追加（chakra のコンパクトな中央寄せ
+//!   月年ラベル相当）。
+//! - **ナビトリガー（ビュー切り替えコントロール）**: `prev-trigger`/
+//!   `next-trigger` を `day-trigger` と同寸の正方形 ghost ボタン
+//!   （`--fandhe-calendar-day-size` を再利用し size variant 5 段と連動）
+//!   にし、[`crate::recipe::hover_bg_muted`] + [`crate::recipe::
+//!   hover_surface_declarations`]（[`crate::recipe::StateCondition::
+//!   Hover`]）・[`crate::recipe::focus_ring_declarations`]
+//!   （[`crate::recipe::StateCondition::FocusVisible`]、`FocusRingColor::
+//!   Token`）・[`crate::recipe::transition_declarations`]
+//!   （`MotionDuration::Fast`）を `day-trigger` と同型で追加する。
+//!   disabled は独自の `opacity: 0.4` を [`crate::recipe::
+//!   disabled_declarations`]（`opacity: 0.5` + `cursor: not-allowed`、
+//!   イシュー #1425 の統一形。1/2 の rustdoc が本 issue の担当と明記
+//!   済みの積み残し）へ置換する。
+//! - **週ヘッダー（table-head-cell）**: `border-width: 0` +
+//!   `background: transparent` を追加し、`table-cell` と同じ理由
+//!   （docs サイト側 `.docs-content th` 規則の罫線・背景漏れ）で
+//!   打ち消す。`color`/`font-size`/`font-weight`/`text-align` は
+//!   chakra の週ラベル（小さな muted テキスト）と既に整合するため維持。
+//!   `table-header`/`table-row` はそもそも宣言を持たず、chakra との
+//!   差分是正に追加宣言も不要と判断し変更しない。
+//! - **root 枠のトークン化**: `border-radius: 0.375rem` を
+//!   `var(--fandhe-radius-md)` へ置換（値は同一、トークンスケール
+//!   準拠）。
+//!
+//! **意図的にスコープ外とした事項（2/2）**:
+//! - 月・年ビュー切替（chakra の view-control 相当）: headless anatomy
+//!   （`crates/headless-ui/src/calendar.rs`）に該当パーツ・状態機械が
+//!   存在しないため実装しない。anatomy 追加は headless 層の変更であり
+//!   イシュー #1625（anatomy 突合）の担当領域。
+//! - `day-trigger` の `data-outside-month` が `data-selected` より後に
+//!   登録されているため、selected かつ outside-month のセルで文字色が
+//!   上書きされ得る問題: `day-trigger` は 1/2 の担当スロットであり本
+//!   issue の宣言範囲外のため、本 PR には含めず別途の対応検討を提案する
+//!   （`.claude/rules/out-of-scope-tracking.md`）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -122,13 +182,18 @@ fn recipe() -> SlotRecipe {
         .base(
             "root",
             vec![
-                decl("display", "inline-flex"),
-                decl("flex-direction", "column"),
+                // chakra 基準のヘッダー行（‹ 月年 ›）を 1 行に並べるため
+                // grid 化する（本モジュール冒頭 rustdoc「ヘッダー行レイアウト」節）。
+                // 3 列（prev / heading / next）を明示配置し、table はこの
+                // grid の 2 行目全幅を占める。
+                decl("display", "inline-grid"),
+                decl("grid-template-columns", "auto 1fr auto"),
+                decl("align-items", "center"),
                 decl("gap", "var(--fandhe-space-2)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl(
                     "padding",
                     "var(--fandhe-calendar-root-padding, var(--fandhe-space-3))",
@@ -140,33 +205,80 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("align-items", "center"),
-                decl("justify-content", "space-between"),
+                decl("justify-content", "center"),
                 decl("font-weight", "600"),
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("grid-row", "1"),
+                decl("grid-column", "2"),
             ],
         )
         .base(
             "prev-trigger",
             vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
                 decl("cursor", "pointer"),
                 decl("background", "transparent"),
                 decl("border", "none"),
                 decl("color", "var(--fandhe-color-fg)"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                decl(
+                    "width",
+                    "var(--fandhe-calendar-day-size, var(--fandhe-space-8))",
+                ),
+                decl(
+                    "height",
+                    "var(--fandhe-calendar-day-size, var(--fandhe-space-8))",
+                ),
+                decl("grid-row", "1"),
+                decl("grid-column", "1"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "prev-trigger",
+            transition_declarations("background, color, box-shadow", MotionDuration::Fast),
         )
         .base(
             "next-trigger",
             vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
                 decl("cursor", "pointer"),
                 decl("background", "transparent"),
                 decl("border", "none"),
                 decl("color", "var(--fandhe-color-fg)"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                decl(
+                    "width",
+                    "var(--fandhe-calendar-day-size, var(--fandhe-space-8))",
+                ),
+                decl(
+                    "height",
+                    "var(--fandhe-calendar-day-size, var(--fandhe-space-8))",
+                ),
+                decl("grid-row", "1"),
+                decl("grid-column", "3"),
+                hover_bg_muted(),
             ],
         )
         .base(
+            "next-trigger",
+            transition_declarations("background, color, box-shadow", MotionDuration::Fast),
+        )
+        .base(
             "table",
-            vec![decl("border-collapse", "collapse"), decl("width", "100%")],
+            vec![
+                decl("border-collapse", "collapse"),
+                decl("width", "100%"),
+                // root の grid 化（3 列: prev / heading / next）に伴い、
+                // table は grid 2 行目の全幅を占める必要がある。1/2（#1451）
+                // 担当の `border-collapse`/`width` には触れず、この 1 宣言のみ
+                // 2/2（本 issue）のヘッダーレイアウト是正として追加する。
+                decl("grid-column", "1 / -1"),
+            ],
         )
         .base(
             "table-head-cell",
@@ -176,6 +288,12 @@ fn recipe() -> SlotRecipe {
                 decl("font-weight", "500"),
                 decl("padding", "var(--fandhe-space-1)"),
                 decl("text-align", "center"),
+                // docs サイト側の `.docs-content th, .docs-content td` 規則
+                // （罫線・背景）がセレクタ詳細度で漏れて出てしまうのを部品
+                // CSS 側で確実に打ち消す（`table-cell` と同じ理由、
+                // 本モジュール冒頭 rustdoc 参照）。
+                decl("border-width", "0"),
+                decl("background", "transparent"),
             ],
         )
         .base(
@@ -265,12 +383,32 @@ fn recipe() -> SlotRecipe {
         .state(
             "prev-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.4")],
+            disabled_declarations(),
+        )
+        .state(
+            "prev-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "prev-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "next-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.4")],
+            disabled_declarations(),
+        )
+        .state(
+            "next-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "next-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         // `size` variant（root スコープの CSS custom property）。
         .variant(
@@ -407,5 +545,57 @@ mod tests {
         assert!(css.contains(
             "[data-scope=\"calendar\"][data-part=\"table-cell\"] {\n  padding: 1px;\n  text-align: center;\n  border-width: 0;\n  background: transparent;\n}"
         ));
+    }
+
+    // 以下、イシュー #1452（親 #1450 分割 2/2）で追加した検証。
+    // ヘッダー行・ナビトリガー・週ヘッダーの是正が golden fixture に
+    // 反映されていることを、意図別に独立して確認する。
+
+    #[test]
+    fn root_uses_grid_layout_for_header_row() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="calendar"][data-part="root"] {"#));
+        assert!(css.contains("grid-template-columns: auto 1fr auto;"));
+    }
+
+    #[test]
+    fn nav_triggers_hover_is_scoped_to_hover_media_and_excludes_disabled() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="calendar"][data-part="prev-trigger"]:hover:not([data-disabled])"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="calendar"][data-part="next-trigger"]:hover:not([data-disabled])"#
+        ));
+    }
+
+    #[test]
+    fn nav_triggers_disabled_use_common_visual_language() {
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"calendar\"][data-part=\"prev-trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}"
+        ));
+        assert!(css.contains(
+            "[data-scope=\"calendar\"][data-part=\"next-trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}"
+        ));
+    }
+
+    #[test]
+    fn nav_triggers_have_focus_visible_ring() {
+        let css = stylesheet();
+        assert!(
+            css.contains(r#"[data-scope="calendar"][data-part="prev-trigger"]:focus-visible {"#)
+        );
+        assert!(
+            css.contains(r#"[data-scope="calendar"][data-part="next-trigger"]:focus-visible {"#)
+        );
+        assert!(css.contains("--fandhe-focus-ring-width"));
+    }
+
+    #[test]
+    fn table_head_cell_suppresses_docs_site_borrowed_borders() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="calendar"][data-part="table-head-cell"] {"#));
+        assert!(css.contains("border-width: 0;\n  background: transparent;\n}"));
     }
 }
