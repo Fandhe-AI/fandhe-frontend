@@ -59,25 +59,68 @@ const EDITABLE_GOLDEN_CSS: &str = r#"[data-scope="editable"][data-part="root"] {
 
 [data-scope="editable"][data-part="control"] {
   display: inline-flex;
+  align-items: center;
   gap: var(--fandhe-space-1);
 }
 
 [data-scope="editable"][data-part="edit-trigger"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--fandhe-space-1);
   border: none;
+  border-radius: var(--fandhe-radius-sm);
   background: transparent;
+  color: var(--fandhe-color-fg-muted);
+  font-size: var(--fandhe-editable-font-size, var(--fandhe-font-font-size-sm));
   cursor: pointer;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="editable"][data-part="edit-trigger"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="editable"][data-part="submit-trigger"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--fandhe-space-1);
   border: none;
+  border-radius: var(--fandhe-radius-sm);
   background: transparent;
+  color: var(--fandhe-color-fg-muted);
+  font-size: var(--fandhe-editable-font-size, var(--fandhe-font-font-size-sm));
   cursor: pointer;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="editable"][data-part="submit-trigger"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="editable"][data-part="cancel-trigger"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--fandhe-space-1);
   border: none;
+  border-radius: var(--fandhe-radius-sm);
   background: transparent;
+  color: var(--fandhe-color-fg-muted);
+  font-size: var(--fandhe-editable-font-size, var(--fandhe-font-font-size-sm));
   cursor: pointer;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="editable"][data-part="cancel-trigger"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="editable"][data-part="root"].fd-editable--size-xs {
@@ -125,19 +168,60 @@ const EDITABLE_GOLDEN_CSS: &str = r#"[data-scope="editable"][data-part="root"] {
   color: var(--fandhe-color-fg-muted, currentColor);
 }
 
+[data-scope="editable"][data-part="edit-trigger"][hidden] {
+  display: none;
+}
+
+[data-scope="editable"][data-part="edit-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
 [data-scope="editable"][data-part="edit-trigger"][data-disabled] {
+  opacity: 0.5;
   cursor: not-allowed;
-  opacity: 0.4;
+}
+
+[data-scope="editable"][data-part="submit-trigger"][hidden] {
+  display: none;
+}
+
+[data-scope="editable"][data-part="submit-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="editable"][data-part="submit-trigger"][data-disabled] {
+  opacity: 0.5;
   cursor: not-allowed;
-  opacity: 0.4;
+}
+
+[data-scope="editable"][data-part="cancel-trigger"][hidden] {
+  display: none;
+}
+
+[data-scope="editable"][data-part="cancel-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="editable"][data-part="cancel-trigger"][data-disabled] {
+  opacity: 0.5;
   cursor: not-allowed;
-  opacity: 0.4;
+}
+
+@media (hover: hover) {
+  [data-scope="editable"][data-part="edit-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="editable"][data-part="submit-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="editable"][data-part="cancel-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
