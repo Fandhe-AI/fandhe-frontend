@@ -104,6 +104,57 @@
 //! - **バリアント軸（chakra の `outline`/`subtle` 相当）の追加は見送る**:
 //!   1/3 と同じく `root()` シグネチャ変更を伴う Forms 家族横断の軸判断の
 //!   ため部品単独で先行しない
+//!
+//! # スタイル調整（イシュー #1473、ビュー切り替えとポジショナ）
+//!
+//! 分割 3/3（最終回）。イシュー本文の担当範囲名 `view-control`/
+//! `view-trigger`/月・年ビューは ark-ui の date-picker anatomy 名であり、
+//! 本実装の `date_picker`（8 パーツ: root/label/control/input/trigger/
+//! clear-trigger/positioner/content）には存在しない。月表示の切り替え UI
+//! は本実装では `content` 内へ合成する [`crate::calendar`] の
+//! `heading`/`prev-trigger`/`next-trigger` が担い、これらは calendar 担当
+//! イシュー（#1451 系）で是正済み（`[data-scope="calendar"]` セレクタで
+//! 合成先にも自動適用される）。月・年ビューへの切り替え状態機械そのものは
+//! headless 側に存在せず、headless anatomy 突合はオープンイシュー #1627 が
+//! 追跡する。したがって本イシューで実際に是正したパートは `positioner`/
+//! `content` の 2 つである。
+//!
+//! - **`content` の色トークン化（角丸・影）**: `border-radius`（生
+//!   `0.375rem`）を `var(--fandhe-radius-md)` へ、`box-shadow`（生
+//!   `0 4px 6px rgba(0, 0, 0, 0.15)`）を `var(--fandhe-shadow-md)` へ
+//!   置換した。`docs/design/pre-styled-ui-scale-tokens.md` §3.2 が
+//!   dropdown 型（date-picker 含む）へ shadow `md` を割り当て済み
+//!   （light 値の alpha が `0.15`→`0.1` へ寄る想定どおりの変化。
+//!   [`crate::combobox`] の `content` が先例）
+//! - **`positioner` の z-index トークン化**: `z-index: 10` を
+//!   `var(--fandhe-z-index-dropdown, 10)` へ置換した
+//!   （`docs/design/pre-styled-ui-scale-tokens.md` §3.4 の割り当て表で
+//!   `dropdown` = date-picker positioner と明記済み）。フォールバック値
+//!   `10` を残すのは [`crate::toast`] の
+//!   `var(--fandhe-z-index-toast, 9999)` と同じ理由 — `date_picker::
+//!   stylesheet()` 単独利用でテーマ CSS が注入されない構成での挙動を
+//!   変えないため
+//! - **view-control/view-trigger/月・年ビューへの anatomy 追加は見送る**:
+//!   上記マッピングのとおり現 anatomy に存在せず、headless 側の追跡は
+//!   #1627。pre-styled-ui 側で anatomy を先行追加しない
+//!   （`docs/policy/intentional-non-adoption.md` §3.25 の責務境界にも
+//!   整合する）
+//! - **`positioner` への `data-positioned`（fixed 切り替え）規則の追加は
+//!   見送る**: `fandhe-frontend-wasm-full` の位置決めロジック
+//!   （`position.rs::from_scope`）は `date-picker` scope を受け付けて
+//!   おらず、wasm 層が date-picker を位置決めしない。positioning 契約の
+//!   拡張は 7 軸チェックリスト外（combobox 2/2 が `content` の
+//!   `max-height` を同じ理由で見送った判断と同型）
+//! - **`content` の開閉アニメーション追加は見送る**: 開閉の表示制御は
+//!   headless が出す `hidden` 存在属性が担い、既存 overlay 系（select/
+//!   combobox/popover）のいずれも open/close アニメーションを持たない。
+//!   overlay 家族横断の判断であり部品単独で先行しない
+//! - **`root`/`label` は 7 軸上の是正対象なし**: `label` は全宣言が
+//!   トークン参照済み、`root` は `position: relative` のみで是正の余地
+//!   がない
+//! - **バリアント軸・size 連動 `font-size` の追加は見送る**: 1/3・2/3 と
+//!   同じ理由（`root()` シグネチャ変更を伴う Forms 家族横断判断）で見送り
+//!   継続する
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -215,7 +266,7 @@ fn recipe() -> SlotRecipe {
                 decl("position", "absolute"),
                 decl("top", "100%"),
                 decl("left", "0"),
-                decl("z-index", "10"),
+                decl("z-index", "var(--fandhe-z-index-dropdown, 10)"),
                 decl("margin-top", "var(--fandhe-space-1)"),
             ],
         )
@@ -225,8 +276,8 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
-                decl("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.15)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("box-shadow", "var(--fandhe-shadow-md)"),
                 decl(
                     "padding",
                     "var(--fandhe-date-picker-content-padding, var(--fandhe-space-2))",
@@ -436,18 +487,36 @@ mod tests {
     }
 
     #[test]
-    fn content_border_radius_is_untouched_raw_literal() {
-        // root/label/positioner/content は分割 2/3・3/3（#1472/#1473）の
-        // スコープであり、本イシューでは変更しない（意図的な非対称、
-        // モジュール rustdoc「スタイル調整」節参照）。
+    fn content_uses_tokenized_radius_and_shadow_not_raw_literal() {
+        // content の角丸・影は #1473 でトークン参照へ置換した
+        // （モジュール rustdoc「スタイル調整（イシュー #1473）」節参照）。
         let css = stylesheet();
         assert!(css.contains(
             r#"[data-scope="date-picker"][data-part="content"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;"#
+  border-radius: var(--fandhe-radius-md);
+  box-shadow: var(--fandhe-shadow-md);"#
         ));
+        assert!(!css.contains("border-radius: 0.375rem;"));
+        assert!(!css.contains("rgba(0, 0, 0, 0.15)"));
+    }
+
+    #[test]
+    fn positioner_uses_tokenized_z_index_not_raw_literal() {
+        // positioner の z-index は #1473 でトークン参照へ置換した
+        // （フォールバック値 10 は toast の
+        // `var(--fandhe-z-index-toast, 9999)` と同じ理由で維持）。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="date-picker"][data-part="positioner"] {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: var(--fandhe-z-index-dropdown, 10);"#
+        ));
+        assert!(!css.contains("z-index: 10;"));
     }
 
     #[test]
