@@ -112,13 +112,58 @@
 //!   [`Channel::Value`]）専用の styled グラデーションは提供しない
 //!   （2 次元の [`area`] がこの 2 軸を担うため。呼び出し側が単軸スライダー
 //!   として使いたい場合は headless 自由関数を直接呼べる）。
-//! - `size`/`palette` variant は本イシューのスコープ外（trigger 等の
-//!   シグネチャ変更を伴う横断事項であり、親イシュー #1462 が out-of-scope
-//!   宣言済みの判断を踏襲する。固定サイズ・単色の最小実装、最小サブセット
-//!   方針は [`crate::color_swatch`] と同型）。
+//! - `size`/`palette` variant は本イシューのスコープ外（`trigger()`/`root()`
+//!   のシグネチャ変更を伴う破壊的変更のため、3 分割イシュー全体を横断して
+//!   親 #1462 で判断すべき事項。イシュー #1463 でも見送りを継続する。
+//!   固定サイズ・単色の最小実装、最小サブセット方針は [`crate::color_swatch`]
+//!   と同型）。
 //! - `examples/headless-pre-styled-ui` への追加は crates.io 未公開の新
 //!   バージョンを参照できないためスコープ外（[`crate::slider`] 冒頭
 //!   rustdoc の先例どおり crates.io 公開後に追随）。
+//!
+//! # スタイル調整（イシュー #1463、`trigger` のみ。3 分割の 1/3）
+//!
+//! 親 #1462 が定義する比較観点（サイズ / バリアント / 色 / `data-*` 状態 /
+//! ダーク / フォーカス / 余白・角丸・影 / hover / disabled / トランジション）
+//! のうち、本イシューが担当する `trigger`（現在色のプレビューボタン）分を
+//! 是正した。`area`/`area-thumb`/`hue-slider*`/`alpha-slider*` は #1464、
+//! `channel-input`/format 切替/eye-dropper は #1465 の担当であり、本モジュール
+//! 内の当該 slot 宣言・`SLOTS` 配列には触れていない。
+//!
+//! - **是正した点**: サイズを `1.75rem` 固定から `Input` md と揃う
+//!   `--fandhe-size-control-height-md` トークン基準（部品ローカルの上書き点
+//!   `--fandhe-color-picker-trigger-size` を公開）へ、角丸を `radius-sm` から
+//!   `radius-md` へ変更した。`open`（枠線強調、[`crate::select`] の trigger と
+//!   同型）・`disabled`（[`disabled_declarations`]）・キーボードフォーカス
+//!   （[`focus_ring_declarations`]）・hover（下記）の 4 状態と
+//!   [`transition_declarations`]（[`MotionDuration::Fast`]）を追加した。生の
+//!   色リテラル `#000` フォールバック（未注入時にプレビュー面が黒く見える
+//!   不具合）を `transparent` へ置換した。
+//! - **swatch / swatch-indicator / transparency-grid の対応関係**: headless
+//!   `color_picker` anatomy（イシュー #839）にこれらのパーツは存在しない
+//!   （headless モジュール冒頭 rustdoc で「styled 層で `ColorSwatch` 相当を
+//!   組み合わせて代替可能」とスコープ外宣言済み）。本モジュールの `SLOTS` は
+//!   headless anatomy と同期する契約のため、styled 側だけに架空のパートを
+//!   追加しない。代わりに `trigger` の `background-image` 3 層（前面 =
+//!   プレビュー色面 = swatch 相当、中間 = チェッカーボード = transparency-grid
+//!   相当、背面 = ボタン面）でこれらの見た目を実現し、`background-origin`/
+//!   `background-clip` を `content-box, content-box, border-box` として前 2 層
+//!   を `padding` の内側（swatch-indicator が囲む領域相当）に閉じ込める。
+//!   headless anatomy への専用パート追加（`swatch-group`/`swatch`/
+//!   `swatch-indicator`/`transparency-grid`）は別クレートのバンプ連鎖と
+//!   #1464/#1465 との衝突を避けるため本 PR のスコープ外とし、フォローアップ
+//!   Issue 提案として PR 本文へ記載する。
+//! - **hover が `hover_surface_declarations()` を使わない理由**: 共通規約
+//!   （`docs/design/pre-styled-ui-interaction-visual-language.md` §5）は
+//!   原則 `background: var(--fandhe-hover-bg)` だが、`trigger` は
+//!   `background-image` の多層レイヤーで現在色プレビューを描いており、
+//!   `background` shorthand を当てると `background-image` ごと上書きされて
+//!   プレビューが消えてしまう。[`StateCondition::Hover`]（条件式の出力形は
+//!   共通）はそのまま使い、宣言のみ `border-color:
+//!   var(--fandhe-color-border-emphasized)` に差し替えている。
+//! - **チェッカーボードのタイルサイズ `8px 8px`**: [`crate::color_swatch`]
+//!   と同じ値を維持した。トークン化（例: `--fandhe-space-2` 系）は
+//!   `color_swatch` 側と同時に行うべき横断事項のため本 PR では行わない。
 
 use crate::css::decl;
 use crate::recipe::{
@@ -243,19 +288,37 @@ fn recipe() -> SlotRecipe {
         .base(
             "trigger",
             vec![
-                decl("display", "inline-block"),
-                decl("width", "1.75rem"),
-                decl("height", "1.75rem"),
-                decl("padding", "0"),
+                decl("box-sizing", "border-box"),
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("flex-shrink", "0"),
+                decl(
+                    "width",
+                    "var(--fandhe-color-picker-trigger-size, var(--fandhe-size-control-height-md, 2.5rem))",
+                ),
+                decl(
+                    "height",
+                    "var(--fandhe-color-picker-trigger-size, var(--fandhe-size-control-height-md, 2.5rem))",
+                ),
+                decl("padding", "var(--fandhe-space-1)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "var(--fandhe-radius-sm)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("cursor", "pointer"),
                 decl(
                     "background-image",
-                    "linear-gradient(var(--fandhe-color-picker-preview, #000), var(--fandhe-color-picker-preview, #000)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, var(--fandhe-color-bg) 0% 50%)",
+                    "linear-gradient(var(--fandhe-color-picker-preview, transparent), var(--fandhe-color-picker-preview, transparent)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, var(--fandhe-color-bg) 0% 50%), linear-gradient(var(--fandhe-color-bg), var(--fandhe-color-bg))",
                 ),
-                decl("background-size", "100% 100%, 8px 8px"),
-            ],
+                decl("background-size", "100% 100%, 8px 8px, 100% 100%"),
+                decl("background-origin", "content-box, content-box, border-box"),
+                decl("background-clip", "content-box, content-box, border-box"),
+            ]
+            .into_iter()
+            .chain(transition_declarations(
+                "border-color, box-shadow",
+                MotionDuration::Fast,
+            ))
+            .collect(),
         )
         .base(
             "positioner",
@@ -494,6 +557,49 @@ fn recipe() -> SlotRecipe {
                 decl("font-size", "var(--fandhe-font-font-size-sm)"),
                 decl("color", "var(--fandhe-color-fg)"),
             ],
+        )
+        // イシュー #1463 受け入れ条件: `trigger` の開閉・disabled・
+        // キーボードフォーカス・hover の視覚差（`crate::select` の
+        // trigger と同じ「open で枠線強調」パターン、`crate::checkbox_card`
+        // と同じ disabled/focus/hover ヘルパ適用）。
+        .state(
+            "trigger",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("border-color", "var(--fandhe-color-accent)")],
+        )
+        .state(
+            "trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // hover は `hover_surface_declarations()`（`background` shorthand）
+        // を使わない: trigger は `background-image` の多層レイヤーで現在色
+        // プレビュー・透過グリッド・ボタン面を描いており、`background`
+        // shorthand を当てると `background-image` ごと上書きされてプレビュー
+        // が消える。代わりに枠線色の変化のみで hover を表現する（本モジュール
+        // 冒頭 rustdoc「スタイル調整」節参照）。
+        //
+        // `StateCondition::Hover` ではなく `HoverExcept("data-state",
+        // "open")` を使う（PR #1740 Bugbot レビュー Medium severity 指摘
+        // 「Hover overrides open border」対応）: 素の `Hover` は
+        // `[data-state="open"]` より selector specificity が高く（`crate::
+        // recipe::StateCondition::HoverExcept` rustdoc 参照）、open な
+        // trigger にホバーすると open のアクセント枠線がホバー色へ
+        // 上書きされてしまう。`HoverExcept` は open な要素そのものを
+        // hover の対象から除外するため、open かつホバー中は open 側の
+        // 規則のみが適用される。
+        .state(
+            "trigger",
+            StateCondition::HoverExcept("data-state", "open"),
+            vec![decl(
+                "border-color",
+                "var(--fandhe-color-border-emphasized)",
+            )],
         )
 }
 
@@ -796,6 +902,99 @@ mod tests {
         ));
         assert_eq!(html.matches("style=\"").count(), 1);
         assert!(!html.contains("attacker"));
+    }
+
+    // --- trigger CSS 契約（イシュー #1463） ---
+
+    #[test]
+    fn trigger_base_uses_control_height_token_and_radius_md() {
+        let out = css();
+        assert!(out.contains(
+            "width: var(--fandhe-color-picker-trigger-size, var(--fandhe-size-control-height-md, 2.5rem));"
+        ));
+        assert!(out.contains(
+            "height: var(--fandhe-color-picker-trigger-size, var(--fandhe-size-control-height-md, 2.5rem));"
+        ));
+        assert!(out.contains("border-radius: var(--fandhe-radius-md);"));
+    }
+
+    #[test]
+    fn trigger_base_has_no_raw_color_literal_fallback() {
+        let start = css()
+            .find(r#"[data-scope="color-picker"][data-part="trigger"] {"#)
+            .expect("trigger base ブロックが存在する");
+        let end = css()[start..]
+            .find("}\n")
+            .map(|rel| start + rel)
+            .expect("trigger base ブロックの終端が存在する");
+        let block = &css()[start..end];
+        assert!(!block.contains('#'));
+    }
+
+    #[test]
+    fn trigger_open_state_emphasizes_border() {
+        let out = css();
+        assert!(out.contains(
+            "[data-scope=\"color-picker\"][data-part=\"trigger\"][data-state=\"open\"] {\n  border-color: var(--fandhe-color-accent);\n}"
+        ));
+    }
+
+    #[test]
+    fn trigger_hover_excludes_open_state_so_open_border_is_not_overridden() {
+        // hover が `[data-state="open"]` な要素を対象から除外することを
+        // 固定する（PR #1740 Bugbot レビュー Medium severity 指摘「Hover
+        // overrides open border」の回帰防止。`StateCondition::HoverExcept`
+        // rustdoc 参照）。open と hover のセレクタが互いに排他的であるため、
+        // open な trigger にホバーしても open 側の規則がそのまま適用される。
+        let out = css();
+        assert!(out.contains(
+            "[data-scope=\"color-picker\"][data-part=\"trigger\"]:hover:not([data-disabled]):not([data-state=\"open\"]) {\n    border-color: var(--fandhe-color-border-emphasized);\n  }"
+        ));
+    }
+
+    #[test]
+    fn trigger_disabled_uses_shared_disabled_declarations() {
+        let out = css();
+        assert!(out.contains(
+            "[data-scope=\"color-picker\"][data-part=\"trigger\"][data-disabled] {\n  opacity: 0.5;\n  cursor: not-allowed;\n}"
+        ));
+    }
+
+    #[test]
+    fn trigger_focus_visible_uses_focus_ring_tokens() {
+        let out = css();
+        assert!(out.contains(
+            "[data-scope=\"color-picker\"][data-part=\"trigger\"]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n}"
+        ));
+    }
+
+    #[test]
+    fn trigger_hover_is_inside_hover_media_query_and_keeps_background_layers() {
+        let out = css();
+        let media_start = out
+            .find("@media (hover: hover) {")
+            .expect("hover は @media ブロックにまとめて出力される");
+        let media_block = &out[media_start..];
+        assert!(media_block.contains(
+            "[data-scope=\"color-picker\"][data-part=\"trigger\"]:hover:not([data-disabled]):not([data-state=\"open\"]) {\n    border-color: var(--fandhe-color-border-emphasized);\n  }"
+        ));
+        // trigger の hover は background shorthand を使わない
+        // （プレビュー層を上書きしないための逸脱、モジュール冒頭 rustdoc 参照）。
+        assert!(!media_block.contains("background:"));
+    }
+
+    #[test]
+    fn trigger_transition_uses_motion_tokens() {
+        let start = css()
+            .find(r#"[data-scope="color-picker"][data-part="trigger"] {"#)
+            .expect("trigger base ブロックが存在する");
+        let end = css()[start..]
+            .find("}\n")
+            .map(|rel| start + rel)
+            .expect("trigger base ブロックの終端が存在する");
+        let block = &css()[start..end];
+        assert!(block.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+        assert!(!block.contains("transition:"));
     }
 
     // --- area/area_background/area_thumb ---

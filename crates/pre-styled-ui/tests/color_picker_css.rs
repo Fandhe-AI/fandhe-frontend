@@ -29,15 +29,24 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
 }
 
 [data-scope="color-picker"][data-part="trigger"] {
-  display: inline-block;
-  width: 1.75rem;
-  height: 1.75rem;
-  padding: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--fandhe-color-picker-trigger-size, var(--fandhe-size-control-height-md, 2.5rem));
+  height: var(--fandhe-color-picker-trigger-size, var(--fandhe-size-control-height-md, 2.5rem));
+  padding: var(--fandhe-space-1);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: var(--fandhe-radius-sm);
+  border-radius: var(--fandhe-radius-md);
   cursor: pointer;
-  background-image: linear-gradient(var(--fandhe-color-picker-preview, #000), var(--fandhe-color-picker-preview, #000)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, var(--fandhe-color-bg) 0% 50%);
-  background-size: 100% 100%, 8px 8px;
+  background-image: linear-gradient(var(--fandhe-color-picker-preview, transparent), var(--fandhe-color-picker-preview, transparent)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, var(--fandhe-color-bg) 0% 50%), linear-gradient(var(--fandhe-color-bg), var(--fandhe-color-bg));
+  background-size: 100% 100%, 8px 8px, 100% 100%;
+  background-origin: content-box, content-box, border-box;
+  background-clip: content-box, content-box, border-box;
+  transition-property: border-color, box-shadow;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="color-picker"][data-part="positioner"] {
@@ -203,6 +212,20 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
+[data-scope="color-picker"][data-part="trigger"][data-state="open"] {
+  border-color: var(--fandhe-color-accent);
+}
+
+[data-scope="color-picker"][data-part="trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="color-picker"][data-part="trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
 @media (hover: hover) {
   [data-scope="color-picker"][data-part="area-thumb"]:hover:not([data-disabled]) {
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
@@ -214,6 +237,10 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
 
   [data-scope="color-picker"][data-part="alpha-slider-thumb"]:hover:not([data-disabled]) {
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+  }
+
+  [data-scope="color-picker"][data-part="trigger"]:hover:not([data-disabled]):not([data-state="open"]) {
+    border-color: var(--fandhe-color-border-emphasized);
   }
 }
 "#;
