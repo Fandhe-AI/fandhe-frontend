@@ -49,11 +49,35 @@ fn stylesheet_does_not_reimplement_visually_hidden_hidden_input_rules() {
 
 #[test]
 fn orientation_horizontal_switches_root_to_row_layout() {
+    // イシュー #1460: 横並びは折り返し + space-4 の列間隔も伴う（縦積み用の
+    // `gap`〔custom property 化〕を row-gap として継承し、column-gap のみ
+    // 追加指定する）。
     let css = stylesheet();
     assert!(css.contains(
         r#"[data-scope="checkbox-group"][data-part="root"][data-orientation="horizontal"]"#
     ));
     assert!(css.contains("flex-direction: row;"));
+    assert!(css.contains("flex-wrap: wrap;"));
+    assert!(css.contains("column-gap: var(--fandhe-space-4);"));
+}
+
+#[test]
+fn label_stays_on_its_own_line_under_horizontal_wrap() {
+    // イシュー #1460 Cursor Bugbot 指摘: `data-orientation="horizontal"`
+    // では `root` が `flex-wrap: wrap` の flex コンテナになり、`label` も
+    // `item` と同じコンテナの兄弟要素であるため、対策なしでは折り返し行へ
+    // 混入し得る。`root` 横並び state が定義する custom property を
+    // `label` 側の `flex-basis` で受け取り、フルライン幅の独立行にする。
+    let css = stylesheet();
+    assert!(css.contains("--fandhe-checkbox-group-label-basis: 100%;"));
+    assert!(css.contains("flex-basis: var(--fandhe-checkbox-group-label-basis, auto);"));
+}
+
+#[test]
+fn root_gap_is_custom_property_with_space_1_fallback() {
+    // イシュー #1460: 2/2（#1461）が size variant で切り替える受け口。
+    let css = stylesheet();
+    assert!(css.contains("gap: var(--fandhe-checkbox-group-gap, var(--fandhe-space-1));"));
 }
 
 #[test]
@@ -64,15 +88,63 @@ fn disabled_item_gets_not_allowed_cursor() {
 }
 
 #[test]
+fn item_has_fit_content_width_for_click_area() {
+    // イシュー #1460: Radix Themes item に合わせ、縦積み時のクリック領域が
+    // 行幅いっぱいに広がるのを防ぐ。
+    let css = stylesheet();
+    assert!(css.contains("width: fit-content;"));
+}
+
+#[test]
 fn checked_item_control_gets_palette_fill_not_circular_radio_shape() {
     let css = stylesheet();
     assert!(css.contains(
         r#"[data-scope="checkbox-group"][data-part="item-control"][data-state="checked"]"#
     ));
-    assert!(css.contains("border-color: var(--fandhe-palette, var(--fandhe-color-accent));"));
+    // イシュー #1460: root からの invalid 伝播（custom property）が checked
+    // 状態でも優先されるよう、border-color はその custom property を経由する。
+    assert!(css.contains(
+        "border-color: var(--fandhe-checkbox-group-control-border-color, var(--fandhe-palette, var(--fandhe-color-accent)));"
+    ));
     // Radix Themes Checkbox Group の item-control は角丸の四角であり、
     // radio_group（円形）と異なることの回帰固定。
     assert!(!css.contains("border-radius: 50%;"));
+}
+
+#[test]
+fn root_invalid_propagates_via_custom_property_but_disabled_does_not() {
+    // イシュー #1460: `data-invalid` は headless 層が出力しないため、
+    // `root` の `attrs` へ利用者が直接付与する経路のみで、その伝播は
+    // custom property 経由の参照でのみ成立する（モジュール rustdoc 参照）。
+    //
+    // `data-disabled` は当初 `data-invalid` と同型の custom property
+    // 間接参照（`--fandhe-checkbox-group-item-opacity`/`-item-cursor`/
+    // `-item-pointer-events`）で `item` へ伝播させていたが、CSS だけでは
+    // ネイティブ `<input>` のタブ順序を変更できずキーボード操作
+    // （Tab+Space）を阻止できないこと、`pointer-events: none` が
+    // cursor/tooltip 表示とクリック透過を壊すことが codex-review P1 /
+    // Cursor Bugbot で指摘され（同一イシュー #1460 の再指摘）、撤去した
+    // （`crates/pre-styled-ui/src/checkbox_group.rs` モジュール doc
+    // 「スタイル調整」節参照）。この回帰固定は `root[data-disabled]` ブロック
+    // 自体が出力されないことを固定する。
+    let css = stylesheet();
+    assert!(css.contains(r#"[data-scope="checkbox-group"][data-part="root"][data-invalid]"#));
+    assert!(
+        css.contains("--fandhe-checkbox-group-control-border-color: var(--fandhe-color-danger);")
+    );
+    assert!(!css.contains(r#"[data-scope="checkbox-group"][data-part="root"][data-disabled]"#));
+    assert!(!css.contains("--fandhe-checkbox-group-item-opacity"));
+    assert!(!css.contains("--fandhe-checkbox-group-item-cursor"));
+    assert!(!css.contains("--fandhe-checkbox-group-item-pointer-events"));
+}
+
+#[test]
+fn item_control_invalid_sets_danger_border_color() {
+    let css = stylesheet();
+    assert!(
+        css.contains(r#"[data-scope="checkbox-group"][data-part="item-control"][data-invalid]"#)
+    );
+    assert!(css.contains("border-color: var(--fandhe-color-danger);"));
 }
 
 #[test]
