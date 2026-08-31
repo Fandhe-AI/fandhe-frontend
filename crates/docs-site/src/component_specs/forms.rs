@@ -452,6 +452,8 @@ const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "headless-ui の `file_upload::root` へ委譲し、`size` variant クラスのみを付与する。",
         "`disabled` の単一状態フラグを直接引数で受け取る。",
+        "`item` の `data-invalid` は headless 層が出力しないため（`checkbox_group` と同型の判断）、利用者が `item` の `attrs` へ `(\"data-invalid\", \"\")` を直接付与することで border-color を danger 色化できる。",
+        "`item` は border と border-color の transition（`data-invalid` 用）を持つ。`item-delete-trigger` は hover（`@media (hover: hover)`）を持つが、`item` が既に opacity 0.5 で dim 済みのため disabled は `cursor: not-allowed` のみに留め、opacity の三重適用（root × item × item-delete-trigger）を避ける。",
     ],
     arguments: &[
         ArgRow {
