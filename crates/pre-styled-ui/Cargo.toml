@@ -372,7 +372,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # disabled/transition の共通ヘルパ適用・segment padding 追加）のみで
 # Rust API シグネチャは不変のため、`style-refresh-version-bump-operation.md`
 # §3.1/§3.3 に従い patch バンプとして 0.57.0 から 0.57.1 とする。
-version = "0.57.1"
+# date-picker のスタイル調整 (1/3)（イシュー #1471）: `date_picker::recipe`
+# の control/input/trigger/clear-trigger パートの意匠調整（radius トークン
+# 化・canonical focus-ring 化・hover/disabled/transition の共通ヘルパ適用・
+# clear-trigger のブラウザ既定ボタン装飾リセット）のみで Rust API シグネ
+# チャは不変のため、同じく patch バンプとして 0.57.1 から 0.57.2 とする。
+version = "0.57.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
