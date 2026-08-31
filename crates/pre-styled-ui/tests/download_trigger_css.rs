@@ -28,19 +28,22 @@ use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps
 /// 取り出す（本ファイル冒頭 rustdoc 「イシュー #830 の追記」節参照）。
 ///
 /// イシュー #1425 で `recipe_with_scope` へ `.state(..., Hover, ...)` /
-/// `.state(..., Attr("data-disabled"), ...)` が加わったことで、
+/// `.state(..., Attr("data-disabled"), ...)` が、イシュー #1448 で
+/// `.state(..., FocusVisible, ...)` がそれぞれ加わったことで、
 /// `SlotRecipe::css` の出力順（states は常に末尾、`recipe.rs` の
 /// `SlotRecipe::css` rustdoc 参照）上、これらの共有 states は
 /// `button::recipe()`（公開 API）が追記する icon-only 専用の compound
 /// variant 群よりも**後**に出力される。そのため icon-only マーカーで単純に
 /// 前半だけを切り出すと共有 states が失われてしまう。ICON_ONLY_MARKER
-/// より前（base/variants の共有部分）と DISABLED_MARKER 以降（共有 states）
-/// の 2 区間を連結して「icon-only 専用部分だけを除いた共有部分」を復元する。
+/// より前（base/variants の共有部分）と FOCUS_VISIBLE_MARKER 以降（共有
+/// states: focus-visible → data-disabled → hover の登録順、`button.rs`
+/// `recipe_with_scope` 参照）の 2 区間を連結して「icon-only 専用部分だけを
+/// 除いた共有部分」を復元する。
 fn button_css_shared_prefix() -> String {
     let button_css = fandhe_frontend_pre_styled_ui::button::css();
     const ICON_ONLY_MARKER: &str =
         "[data-scope=\"button\"][data-part=\"root\"].fd-button--icon-only";
-    const DISABLED_MARKER: &str = "[data-scope=\"button\"][data-part=\"root\"][data-disabled]";
+    const FOCUS_VISIBLE_MARKER: &str = "[data-scope=\"button\"][data-part=\"root\"]:focus-visible";
 
     let prefix = button_css
         .split(ICON_ONLY_MARKER)
@@ -48,9 +51,9 @@ fn button_css_shared_prefix() -> String {
         .expect("button::css() should contain a splittable prefix")
         .trim_end_matches('\n');
     let shared_states = button_css
-        .find(DISABLED_MARKER)
+        .find(FOCUS_VISIBLE_MARKER)
         .map(|idx| &button_css[idx..])
-        .expect("button::css() should contain the shared disabled/hover states");
+        .expect("button::css() should contain the shared focus-visible/disabled/hover states");
 
     format!("{prefix}\n\n{shared_states}")
 }
