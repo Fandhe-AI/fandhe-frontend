@@ -103,11 +103,68 @@
 //! （ダークモードでも白縁 + 暗影が参照サイト共通の表現。チェッカーボード
 //! は既に `--fandhe-color-border`/`--fandhe-color-bg` トークン参照済み）。
 //!
+//! # チャネル入力・値テキストの状態表現（イシュー #1465、親トラッキング
+//! #1462、分割 3/3）
+//!
+//! 担当範囲は [`channel_input`]/[`value_text`]（`channel-input`/
+//! `value-text` の 2 CSS slot）に限定する（トリガー・スウォッチ・
+//! プレビューは分割 1/3、エリア・スライダー群は分割 2/3 の担当であり、
+//! いずれも本イシューでは触れない）。7 軸チェックリストのうち以下を
+//! `channel-input`（HEX 直接入力欄）へ是正した:
+//!
+//! - **トークン化**: `font-family: monospace` の生値を `font-mono`
+//!   トークン（`var(--fandhe-font-font-mono)`）へ、未指定だった
+//!   `font-size` を `var(--fandhe-font-font-size-sm)` へ置換する。
+//! - **フォーカスリング**: ネイティブ `<input>` のためサム 3 slot
+//!   （分割 2/3）と同型に [`StateCondition::FocusVisible`] +
+//!   [`focus_ring_declarations`] を登録する。`palette` 軸を持たない
+//!   部品のため [`FocusRingColor::Token`] を使う。
+//! - **disabled**: headless 層（`crates/headless-ui/src/color_picker.rs`）
+//!   の `channel_input` は disabled 時にネイティブ `disabled` 属性 +
+//!   `data-disabled` を出力するが recipe 側が未消費だった。
+//!   `StateCondition::Attr("data-disabled")` + [`disabled_declarations`]
+//!   を追加する。
+//! - **hover**: テキスト入力は「背景を塗る」より「枠線強調」が参照 3
+//!   サイト共通の表現のため、`--fandhe-hover-bg` による背景塗り
+//!   （[`crate::recipe::hover_surface_declarations`]）ではなく、
+//!   `border-color: var(--fandhe-color-border-emphasized)` のみを
+//!   `.state("channel-input", StateCondition::Hover, ...)` として登録
+//!   する（サム 3 slot が同種の理由で背景塗りを避けた判断と同型）。
+//! - **transition**: base へ
+//!   `transition_declarations("border-color", MotionDuration::Fast)` を
+//!   追加する（hover の枠線強調のみに効く。focus ring は
+//!   [`focus_ring_declarations`] が `outline`/`outline-offset` のみを
+//!   変化させ `box-shadow` はどの状態でも変化しないため、
+//!   `box-shadow` は transition 対象に含めない。`prefers-reduced-motion`
+//!   は `Theme::to_css` の duration 一括 0ms 化で自動対応）。
+//!
+//! [`value_text`] は現在値の表示テキストのみで非インタラクティブ
+//! （headless 層も `data-*` を一切出さない）なため、`font-family` の
+//! トークン化（`channel-input` と揃えた等幅表示）のみを行い、
+//! hover/focus/disabled/transition は付けない。
+//!
+//! ## 意図的に追加しないもの（サイズ・バリアント軸）
+//!
+//! `width: 6rem` は部品ローカル固定値のまま維持する。参照サイトの
+//! チャネル入力も固定幅であり、`size` variant の新設は親 #1462 が
+//! out-of-scope 宣言済みの判断（分割 2/3 と同型）を踏襲する。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく pointer ドラッグ・キーボード操作の DOM 配線・
 //!   EyeDropperTrigger・SwatchGroup 系・format 切替はスコープ外
 //!   （`fandhe_frontend_headless_ui::color_picker` モジュール doc 参照）。
+//! - **`format-select`（RGBA/HSLA 表示切替）・`EyeDropperTrigger`**:
+//!   イシュー #1465 のタイトルはこの 2 パーツへの言及を含むが、
+//!   headless 層の anatomy（`crates/headless-ui/src/color_picker.rs`）
+//!   には存在しない（headless 層は HEX 表示のみを提供し、format 切替・
+//!   EyeDropperTrigger は意図的にスコープ外と宣言済み）。pre-styled-ui
+//!   は headless の anatomy（`[data-scope][data-part]`）へ CSS を当てる
+//!   層のため、存在しないパーツへスタイルを実装することはできない。
+//!   headless 側への新パート追加は本イシューの範囲外（対象ファイルが
+//!   `crates/pre-styled-ui/src/color_picker.rs` + golden テストに限定
+//!   されるため）であり、anatomy の参照サイト突合はイシュー #1604
+//!   （headless-ui color-picker の anatomy / data-* 突合）が追跡する。
 //! - `saturation-slider`/`value-slider`（[`Channel::Saturation`]/
 //!   [`Channel::Value`]）専用の styled グラデーションは提供しない
 //!   （2 次元の [`area`] がこの 2 軸を担うため。呼び出し側が単軸スライダー
@@ -543,7 +600,8 @@ fn recipe() -> SlotRecipe {
             "channel-input",
             vec![
                 decl("width", "6rem"),
-                decl("font-family", "monospace"),
+                decl("font-family", "var(--fandhe-font-font-mono)"),
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
                 decl("padding", "var(--fandhe-space-1) var(--fandhe-space-2)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-sm)"),
@@ -552,8 +610,43 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .base(
+            "channel-input",
+            // hover の枠線強調（`border-color`）のみを transition 対象と
+            // する。`focus_ring_declarations` は `outline`/`outline-offset`
+            // のみを変化させ `box-shadow` はどの状態でも変化しないため、
+            // `box-shadow` を対象に含めると宣言だけが存在し実際には
+            // どの状態変化にも反応しない死んだ transition になる
+            // （イシュー #1465 codex-review 指摘対応）。
+            transition_declarations("border-color", MotionDuration::Fast),
+        )
+        .state(
+            "channel-input",
+            StateCondition::Hover,
+            // 参照 3 サイト共通の表現に合わせ、テキスト入力は背景塗り
+            // （`hover_surface_declarations()`）ではなく枠線強調のみとする
+            // （サム 3 slot が背景塗りを避けた判断〔`crate::color_picker`
+            // 冒頭 rustdoc「hover は box-shadow 強調のみ」〕と同型）。
+            vec![decl(
+                "border-color",
+                "var(--fandhe-color-border-emphasized)",
+            )],
+        )
+        .state(
+            "channel-input",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "channel-input",
+            StateCondition::FocusVisible,
+            // `palette` 軸を持たない部品のためサム 3 slot と同じ
+            // `FocusRingColor::Token` を使う。
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        .base(
             "value-text",
             vec![
+                decl("font-family", "var(--fandhe-font-font-mono)"),
                 decl("font-size", "var(--fandhe-font-font-size-sm)"),
                 decl("color", "var(--fandhe-color-fg)"),
             ],
@@ -867,6 +960,59 @@ mod tests {
     fn thumb_slots_share_unified_size_custom_property() {
         let out = css();
         assert!(out.contains("var(--fandhe-color-picker-thumb-size, 1rem)"));
+    }
+
+    // --- イシュー #1465: channel-input/value-text の状態表現 ---
+
+    #[test]
+    fn channel_input_declares_mono_font_and_size_tokens() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="color-picker"][data-part="channel-input"] {"#));
+        assert!(out.contains("font-family: var(--fandhe-font-font-mono);"));
+        assert!(!out.contains("font-family: monospace;"));
+    }
+
+    #[test]
+    fn value_text_declares_mono_font_token() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="color-picker"][data-part="value-text"] {"#));
+        assert!(out.contains("font-family: var(--fandhe-font-font-mono);"));
+    }
+
+    #[test]
+    fn channel_input_declares_focus_visible_ring_via_tokens() {
+        let out = css();
+        let selector = r#"[data-scope="color-picker"][data-part="channel-input"]:focus-visible {"#;
+        assert!(out.contains(selector));
+        assert!(out.contains("var(--fandhe-focus-ring-width, 2px)"));
+    }
+
+    #[test]
+    fn channel_input_declares_disabled_state() {
+        let out = css();
+        let selector = r#"[data-scope="color-picker"][data-part="channel-input"][data-disabled] {"#;
+        assert!(out.contains(selector));
+    }
+
+    #[test]
+    fn channel_input_hover_uses_border_color_not_background() {
+        let out = css();
+        let selector =
+            r#"[data-scope="color-picker"][data-part="channel-input"]:hover:not([data-disabled])"#;
+        assert!(out.contains(selector));
+        assert!(out.contains("border-color: var(--fandhe-color-border-emphasized);"));
+    }
+
+    #[test]
+    fn channel_input_transition_covers_border_color_only() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="color-picker"][data-part="channel-input"] {"#));
+        // base に複数の `.base(...)` 呼び出しがあっても `transition-property`
+        // 宣言が失われず出力されることを確認する（連続 `.base()` 呼び出しの
+        // 累積契約）。`box-shadow` は含めない: `channel-input` のどの状態
+        // 変化（hover/focus-visible/disabled）も `box-shadow` を変化させ
+        // ないため（codex-review 指摘対応、rustdoc「transition」節参照）。
+        assert!(out.contains("transition-property: border-color;"));
     }
 
     // --- root/trigger ---

@@ -1,5 +1,5 @@
-//! styled ColorPicker（イシュー #839、状態表現の是正はイシュー #1464）の
-//! 決定的 CSS 出力ゴールデンテスト。
+//! styled ColorPicker（イシュー #839、状態表現の是正はイシュー #1464・
+//! #1465）の決定的 CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/color_swatch_css.rs` の体裁に倣い、`css()` が
 //! 返す CSS 全文をバイト単位で固定する。出力順（base → `.state(...)` 登録順）が
@@ -8,6 +8,8 @@
 //! の静的 7 ストップグラデーション・アルファスライダーのチェッカーボード
 //! 表現に加え、サム 3 slot（`area-thumb`/`hue-slider-thumb`/
 //! `alpha-slider-thumb`）の `[data-disabled]`/`:hover`/`:focus-visible`/
+//! `transition-property`、および `channel-input`（HEX 直接入力欄）の
+//! フォントトークン化・`[data-disabled]`/`:hover`/`:focus-visible`/
 //! `transition-property` が固定対象の中核（`crates/pre-styled-ui/src/
 //! color_picker.rs::recipe` rustdoc 参照）。
 
@@ -169,7 +171,8 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
 
 [data-scope="color-picker"][data-part="channel-input"] {
   width: 6rem;
-  font-family: monospace;
+  font-family: var(--fandhe-font-font-mono);
+  font-size: var(--fandhe-font-font-size-sm);
   padding: var(--fandhe-space-1) var(--fandhe-space-2);
   border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-sm);
@@ -177,7 +180,14 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
   color: var(--fandhe-color-fg);
 }
 
+[data-scope="color-picker"][data-part="channel-input"] {
+  transition-property: border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
 [data-scope="color-picker"][data-part="value-text"] {
+  font-family: var(--fandhe-font-font-mono);
   font-size: var(--fandhe-font-font-size-sm);
   color: var(--fandhe-color-fg);
 }
@@ -212,6 +222,16 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
+[data-scope="color-picker"][data-part="channel-input"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="color-picker"][data-part="channel-input"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
 [data-scope="color-picker"][data-part="trigger"][data-state="open"] {
   border-color: var(--fandhe-color-accent);
 }
@@ -237,6 +257,10 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
 
   [data-scope="color-picker"][data-part="alpha-slider-thumb"]:hover:not([data-disabled]) {
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+  }
+
+  [data-scope="color-picker"][data-part="channel-input"]:hover:not([data-disabled]) {
+    border-color: var(--fandhe-color-border-emphasized);
   }
 
   [data-scope="color-picker"][data-part="trigger"]:hover:not([data-disabled]):not([data-state="open"]) {

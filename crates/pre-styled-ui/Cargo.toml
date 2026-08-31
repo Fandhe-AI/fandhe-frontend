@@ -329,7 +329,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 追加は 0.x の破壊的変更ではない意匠調整の純追加のため、統合後もマイナー
 # バンプへ昇格させる理由はない、
 # `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
-version = "0.56.1"
+# イシュー #1465: color-picker のスタイル調整 (3/3) — チャネル入力と値
+# テキスト（`channel-input`/`value-text` のフォントトークン化・
+# フォーカスリング/disabled/hover/transition 追加）。`color_picker.rs` の
+# `recipe()` の CSS 出力を実体変更するため、base 現在値 0.55.9 から独立に
+# パッチを 1 つ進めて 0.55.10 とする予定だったが、rebase 時点で並行 PR
+# （イシュー #1463 分・#1464 分）が先にマージされ base が 0.56.1 まで
+# 進んでいたため、原則（`docs/ci/style-refresh-version-bump-operation.md`
+# §3.1/§3.4a/§5）に従い base 現在値 0.56.1 から独立にパッチを 1 つ
+# 進めて 0.56.2 とする。
+version = "0.56.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
