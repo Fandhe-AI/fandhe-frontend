@@ -89,7 +89,7 @@ const STRONG: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "素の <strong> 要素をそのまま styled 化した重要性の強調テキスト部品",
         "variant 軸を持たない最小部品（em/link_overlay と同型）",
-        "font-weight: bold で em（font-weight: medium）と見た目を区別する",
+        "font-weight: bold（em は font-style: italic のみで weight は継承）と見た目を区別する",
     ],
     arguments: &[],
     examples: &[ExampleEntry {
