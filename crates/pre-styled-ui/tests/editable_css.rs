@@ -104,12 +104,12 @@ const EDITABLE_GOLDEN_CSS: &str = r#"[data-scope="editable"][data-part="root"] {
   opacity: 0.5;
 }
 
-[data-scope="editable"][data-part="input"][data-disabled] {
-  cursor: not-allowed;
-}
-
 [data-scope="editable"][data-part="input"][data-readonly] {
   cursor: default;
+}
+
+[data-scope="editable"][data-part="input"][data-disabled] {
+  cursor: not-allowed;
 }
 
 [data-scope="editable"][data-part="input"]:focus-visible {

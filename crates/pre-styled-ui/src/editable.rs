@@ -202,21 +202,31 @@ fn recipe() -> SlotRecipe {
             "input",
             transition_declarations("border-color, background, color", MotionDuration::Fast),
         )
-        .state(
-            "input",
-            StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed")],
-        )
         // headless 層が `input` へ出す `data-readonly`
         // （`fandhe_frontend_headless_ui::editable::input`）を視覚化する
         // （イシュー #1476）。`opacity` は含めない: disabled の視覚化
         // （opacity 0.5）は root 側が継承で担う分担であり、`input` 側へも
         // 重ねると実効 opacity が二重適用される（本モジュール冒頭 rustdoc
         // 参照）。
+        //
+        // `EditableInputFlags` は `disabled` と `readonly` を同時に
+        // true にでき、その場合 `input` へ両方の data-* 属性が付与される
+        // （`[data-disabled]`/`[data-readonly]` は同じ specificity
+        // (0,3,0)）。このため本規則は disabled 規則より**先に**登録し、
+        // `cursor: not-allowed`（disabled）が `cursor: default`
+        // （readonly）を CSS のソース順で確実に上書きするようにする
+        // （disabled の視覚表現を優先。イシュー #1476 PR #1751
+        // codex-review P1 / Cursor Bugbot Medium 指摘「readonly 規則が
+        // disabled カーソルを上書きする」対応）。
         .state(
             "input",
             StateCondition::Attr("data-readonly"),
             vec![decl("cursor", "default")],
+        )
+        .state(
+            "input",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
         )
         .state(
             "input",
@@ -497,6 +507,28 @@ mod tests {
         let body = &rule_body[..rule_end];
         assert!(body.contains("cursor: not-allowed;"));
         assert!(!body.contains("opacity"));
+    }
+
+    #[test]
+    fn input_disabled_cursor_wins_over_readonly_cursor_when_both_present() {
+        // イシュー #1476 PR #1751 codex-review P1 / Cursor Bugbot Medium
+        // 指摘「readonly 規則が disabled カーソルを上書きする」対応。
+        // `EditableInputFlags` は `disabled` と `readonly` を同時に true に
+        // でき、その場合 `input` へ `[data-disabled]`/`[data-readonly]`
+        // （同じ specificity）が両方付与される。CSS のソース順で
+        // disabled 規則（`cursor: not-allowed`）が readonly 規則
+        // （`cursor: default`）より後に出力され、カスケードで disabled の
+        // 視覚表現が保たれることを固定する。
+        let css = stylesheet();
+        let readonly_selector = r#"[data-scope="editable"][data-part="input"][data-readonly] {"#;
+        let disabled_selector = r#"[data-scope="editable"][data-part="input"][data-disabled] {"#;
+        let readonly_pos = css.find(readonly_selector).expect("input readonly rule");
+        let disabled_pos = css.find(disabled_selector).expect("input disabled rule");
+        assert!(
+            readonly_pos < disabled_pos,
+            "disabled 規則は readonly 規則より後に出力され、カスケードで \
+             cursor: not-allowed を優先しなければならない"
+        );
     }
 
     #[test]
