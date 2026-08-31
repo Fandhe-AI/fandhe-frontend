@@ -394,7 +394,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # color/focus-ring/readonly-cursor/transition の CSS 宣言追加のみで
 # Rust API シグネチャは不変のため、同じく patch バンプとして 0.57.4 から
 # 0.57.5 とする。
-version = "0.57.5"
+# editable のスタイル調整 (2/2)（イシュー #1477）: `editable::recipe` の
+# コントロール群（`edit-trigger`/`submit-trigger`/`cancel-trigger`）へ
+# color/hover/focus-ring/disabled 標準化/transition/`[hidden]` 上書きの
+# CSS 宣言を追加し、`control` へ `align-items: center` を追加した。
+# `root`/`label` は点検の結果変更なし。Rust API シグネチャは不変のため、
+# 同じく patch バンプとして 0.57.5 から 0.57.6 とする。
+version = "0.57.6"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

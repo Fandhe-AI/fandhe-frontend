@@ -58,9 +58,9 @@
 //!
 //! 親イシュー #1475（chakra-ui / ark-ui 基準への意匠調整）の分割 1/2。
 //! `edit-trigger`/`submit-trigger`/`cancel-trigger`/`root`/`label`/`control`
-//! は兄弟イシュー #1477（2/2）のスコープであり、本イシューでは触れない
-//! （同一ファイルを共有する 2 PR のコンフリクト最小化。combobox 1/2
-//! （PR #1744）・checkbox 1/2（PR #1734）と同型の分割運用）。
+//! は兄弟イシュー #1477（2/2、後述の「スタイル調整（イシュー #1477）」節）の
+//! スコープだった（同一ファイルを共有する 2 PR のコンフリクト最小化。
+//! combobox 1/2（PR #1744）・checkbox 1/2（PR #1734）と同型の分割運用）。
 //!
 //! 7 軸チェックリスト（`docs/design/pre-styled-ui-interaction-visual-language.md`）
 //! との突合で担当 3 パートに加えた変更・意図的に加えなかった変更:
@@ -104,6 +104,68 @@
 //!   済み）のため変更なし。`area` の Grid 重ね合わせレイアウト（PR #792）
 //!   も参照側の見た目契約を既に満たしており変更なし。
 //!
+//! # スタイル調整（イシュー #1477、分割 2/2。コントロール群
+//! `edit-trigger`/`submit-trigger`/`cancel-trigger` と、上記 1/2 が
+//! 先送りした `root`/`label`/`control` の点検）
+//!
+//! 親イシュー #1475 の分割 2/2。上記「スタイル調整（イシュー #1476）」節の
+//! 3 パートに続き、残りのコントロール群と `root`/`label`/`control` を
+//! 7 軸チェックリストと突合した。
+//!
+//! - **色**: `edit-trigger`/`submit-trigger`/`cancel-trigger` はいずれも
+//!   `border: none; background: transparent` のみで前景色が UA 既定に
+//!   依存していたため、`color: var(--fandhe-color-fg-muted)` を追加した
+//!   （`date_picker::clear-trigger`〔#1747〕と同型。「テキストらしさ」を
+//!   保つ `preview` とは異なりボタン系パートのため muted 色を採用）。
+//!   ボタン要素は UA 既定でフォントサイズを継承しないため、
+//!   `font-size: var(--fandhe-editable-font-size, ...)` も併せて追加し、
+//!   `size` variant の寸法切り替えへ載せた。
+//! - **面・角丸**: `display: inline-flex` + 中央寄せ（`align-items`/
+//!   `justify-content: center`）・`padding: var(--fandhe-space-1)`・
+//!   `border-radius: var(--fandhe-radius-sm)` を追加し、小型アイコン
+//!   ボタンとしての枠を明示した（従来はテキストノードそのままの寸法に
+//!   依存していた）。
+//! - **hover**: 3 種とも [`hover_bg_muted`] で `--fandhe-hover-bg` を定義し、
+//!   `.state(slot, StateCondition::Hover, hover_surface_declarations())`
+//!   を追加した（面なし ghost 系ボタンの標準、`date_picker::trigger`/
+//!   `clear-trigger` と同型）。
+//! - **フォーカス**: 3 種とも `.state(slot, StateCondition::FocusVisible,
+//!   focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside))`
+//!   を追加した（`editable` は `ColorPalette` 軸を持たないため `input` と
+//!   同じ [`FocusRingColor::Token`]）。
+//! - **状態（`data-*`）・disabled の標準化**: 独自の
+//!   `cursor: not-allowed; opacity: 0.4` を [`disabled_declarations`]
+//!   （`opacity: 0.5` + `cursor: not-allowed`）へ置換した。`input` は
+//!   root の `opacity: 0.5` 継承へ一本化する分担だったが（イシュー #1476、
+//!   PR #1751 codex-review P1 対応）、トリガー 3 種は headless 層が
+//!   個別に `disabled`/`data-disabled` を付与し得る独立したボタンであり、
+//!   root 非 disabled のまま単独で disabled になり得るため、自前の
+//!   dimming を保持する判断とした。root と同時に disabled になった場合
+//!   （継承 0.5 × 自前 0.5）実効 opacity が 0.25 まで沈むが、「全体無効時に
+//!   ボタンがさらに沈む」許容差として受け入れる（`input` とは異なり単独
+//!   disabled が主要ユースケースであるため）。
+//! - **`[hidden]` 上書き（最重要の落とし穴）**: headless 層はモードに応じて
+//!   `edit-trigger`（edit 時）/`submit-trigger`・`cancel-trigger`（preview
+//!   時）へ `hidden` 存在属性を出して排他表示する。base への
+//!   `display: inline-flex` 追加は UA 既定 `[hidden] { display: none }`
+//!   （詳細度 (0,1,0)）を `[data-scope][data-part]`（(0,2,0)）で上書きして
+//!   しまうため、`preview`（イシュー #1476、PR #792 Bugbot 指摘対応と同型）
+//!   に倣い 3 パートすべてへ `[hidden] { display: none }` を明示追加した
+//!   （表示排他の回帰防止、[`stylesheet`] のテスト参照）。
+//! - **トランジション**: [`transition_declarations`] を base へ純追加した
+//!   （`background, color`、`MotionDuration::Fast`）。
+//! - **`root`（点検、変更なし）**: `display: inline-flex; flex-direction:
+//!   column; gap: space-1` + `[data-disabled] { opacity: 0.5 }` は
+//!   [`crate::number_input`] の `root` と同型であり既に規約準拠のため
+//!   変更なし。
+//! - **`label`（点検、変更なし）**: `font-size` のみの宣言は
+//!   [`crate::date_picker`]/[`crate::number_input`] の `label` と同水準で
+//!   あり変更なし。
+//! - **`control`（点検、`align-items: center` を追加）**: `display:
+//!   inline-flex; gap: space-1` に `align-items: center` を追加した
+//!   ([`crate::date_picker`] の `control` と同型）。トリガー間の高さの
+//!   わずかな差異による縦ズレを防ぐ。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく activationMode/submitMode の実挙動・autoResize は
@@ -113,14 +175,18 @@
 //!   Editable 追加は、未公開の新バージョンを参照できないため本イシューの
 //!   スコープ外とする（[`crate::slider`] の先例どおり crates.io 公開後に
 //!   追随）。
-//! - `edit-trigger`/`submit-trigger`/`cancel-trigger`/`root`/`label`/
-//!   `control` の意匠調整は兄弟イシュー #1477（2/2）のスコープ。
+//! - headless 層の挙動・examples への Editable 追加は既存の記述どおり。
+//!   `crates/docs-site/tests/wrap_state.rs::extract_headless_refs` の
+//!   コメント走査 panic 対策（コメント行を
+//!   `fandhe_frontend_headless_ui::` で終わらせない）はスキャナ本体の
+//!   修正を伴うため引き続き本モジュールのスコープ外とする。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    focus_ring_declarations, transition_declarations, FocusRingColor, FocusRingOffset,
-    MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
 };
 
 // `Editable` 状態機械・headless 自由関数 `root` はあえて再エクスポートしない
@@ -277,47 +343,153 @@ fn recipe() -> SlotRecipe {
             "control",
             vec![
                 decl("display", "inline-flex"),
+                decl("align-items", "center"),
                 decl("gap", "var(--fandhe-space-1)"),
             ],
         )
+        // トリガー 3 種（edit/submit/cancel）は共通のビジュアル言語
+        // （`docs/design/pre-styled-ui-interaction-visual-language.md` §5）に
+        // 揃えた小型 ghost アイコンボタンとして扱う（イシュー #1477、
+        // `date_picker::clear-trigger`〔#1747〕と同型）。3 種とも同一内容。
         .base(
             "edit-trigger",
             vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("padding", "var(--fandhe-space-1)"),
                 decl("border", "none"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("background", "transparent"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-editable-font-size, var(--fandhe-font-font-size-sm))",
+                ),
                 decl("cursor", "pointer"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "edit-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        // headless 層（`fandhe_frontend_headless_ui::editable`）は edit
+        // モード時に `edit-trigger` へ `hidden` 存在属性を付与して非表示化
+        // する。base の `display: inline-flex`
+        // （`[data-scope][data-part]`、詳細度 (0,2,0)）が UA 既定
+        // `[hidden] { display: none }`（(0,1,0)）を上書きしてしまうため、
+        // `preview`（イシュー #1476、PR #792 Bugbot 指摘対応と同型）に
+        // 倣い `[hidden]` 属性セレクタで明示的に上書きする（表示排他の
+        // 回帰防止、モジュール冒頭 rustdoc 参照）。
+        .state(
+            "edit-trigger",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "edit-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "edit-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "edit-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.4")],
+            disabled_declarations(),
         )
         .base(
             "submit-trigger",
             vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("padding", "var(--fandhe-space-1)"),
                 decl("border", "none"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("background", "transparent"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-editable-font-size, var(--fandhe-font-font-size-sm))",
+                ),
                 decl("cursor", "pointer"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "submit-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        // headless 層は preview モード時に `submit-trigger`/`cancel-trigger`
+        // へ `hidden` を付与する（`edit-trigger` と表示排他の向きが逆。
+        // 同じ理由で `[hidden]` 上書きが必要、上記コメント参照）。
+        .state(
+            "submit-trigger",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "submit-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "submit-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "submit-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.4")],
+            disabled_declarations(),
         )
         .base(
             "cancel-trigger",
             vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("padding", "var(--fandhe-space-1)"),
                 decl("border", "none"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("background", "transparent"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-editable-font-size, var(--fandhe-font-font-size-sm))",
+                ),
                 decl("cursor", "pointer"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "cancel-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        .state(
+            "cancel-trigger",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        )
+        .state(
+            "cancel-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "cancel-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "cancel-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.4")],
+            disabled_declarations(),
         )
         .variant(
             Size::Xs,
@@ -740,5 +912,110 @@ mod tests {
 
         let restored = Editable::from_hydration_attrs(&e.hydration_attrs()).unwrap();
         assert_eq!(restored, e);
+    }
+
+    #[test]
+    fn trigger_group_focus_visible_uses_canonical_focus_ring() {
+        // イシュー #1477: トリガー 3 種にフォーカスリングが一切なかった
+        // 不足を是正する。`input`（イシュー #1476）と同じ canonical 形
+        // （`outline`/`outline-offset` の 2 宣言）で出力されることを固定する。
+        let css = stylesheet();
+        for part in ["edit-trigger", "submit-trigger", "cancel-trigger"] {
+            let selector =
+                format!(r#"[data-scope="editable"][data-part="{part}"]:focus-visible {{"#);
+            let rule_start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("{part} focus-visible rule missing"));
+            let rule_body = &css[rule_start..];
+            let rule_end = rule_body.find('}').expect("rule must be closed");
+            let body = &rule_body[..rule_end];
+            assert!(
+                body.contains("outline: var(--fandhe-focus-ring-width"),
+                "{part}: {css}"
+            );
+            assert!(
+                body.contains("outline-offset: var(--fandhe-focus-ring-offset"),
+                "{part}: {css}"
+            );
+        }
+    }
+
+    #[test]
+    fn trigger_group_hover_is_scoped_to_media_hover_query() {
+        // イシュー #1477: トリガー 3 種を `hover_bg_muted()` +
+        // `hover_surface_declarations()` の ghost ボタン標準へ揃える
+        // （`date_picker::trigger`/`clear-trigger` と同型）。タッチ端末の
+        // hover 貼り付き対策として `@media (hover: hover)` 配下へ集約され、
+        // `:not([data-disabled])` で disabled 規則と衝突しないことを固定する。
+        let css = stylesheet();
+        let media_start = css
+            .find("@media (hover: hover)")
+            .expect("hover media block must be present");
+        let media_body = &css[media_start..];
+        for part in ["edit-trigger", "submit-trigger", "cancel-trigger"] {
+            let selector = format!(
+                r#"[data-scope="editable"][data-part="{part}"]:hover:not([data-disabled]) {{"#
+            );
+            assert!(media_body.contains(&selector), "{part}: {css}");
+        }
+    }
+
+    #[test]
+    fn trigger_group_hidden_attr_overrides_display_inline_flex() {
+        // イシュー #1477: `edit-trigger` base の `display: inline-flex`
+        // 追加は UA 既定 `[hidden] { display: none }`（(0,1,0)）を
+        // `[data-scope][data-part]`（(0,2,0)）で上書きしてしまう。headless
+        // 層がモードに応じて 3 パートへ `hidden` 存在属性を出す表示排他
+        // （`edit-trigger` は edit 時、`submit-trigger`/`cancel-trigger` は
+        // preview 時）が壊れないよう、`preview`（イシュー #1476）と同型の
+        // `[hidden] { display: none }` 上書きが base より後段に出力される
+        // ことを固定する（回帰防止）。
+        let css = stylesheet();
+        for part in ["edit-trigger", "submit-trigger", "cancel-trigger"] {
+            let hidden_selector =
+                format!(r#"[data-scope="editable"][data-part="{part}"][hidden] {{"#);
+            let rule_start = css
+                .find(&hidden_selector)
+                .unwrap_or_else(|| panic!("{part}[hidden] rule missing"));
+            let rule_body = &css[rule_start..];
+            let rule_end = rule_body.find('}').expect("rule must be closed");
+            assert!(
+                rule_body[..rule_end].contains("display: none;"),
+                "{part}: {css}"
+            );
+
+            let base_selector = format!(r#"[data-scope="editable"][data-part="{part}"] {{"#);
+            let base_start = css
+                .find(&base_selector)
+                .unwrap_or_else(|| panic!("{part} base rule missing"));
+            assert!(
+                base_start < rule_start,
+                "{part}: [hidden] 規則は base 規則より後に出力されなければならない"
+            );
+        }
+    }
+
+    #[test]
+    fn trigger_group_disabled_uses_standard_disabled_declarations() {
+        // イシュー #1477: トリガー 3 種の独自 dimming
+        // （`cursor: not-allowed; opacity: 0.4`）を共通ビジュアル言語の
+        // `disabled_declarations()`（`opacity: 0.5` + `cursor:
+        // not-allowed`）へ標準化した（本モジュール冒頭 rustdoc
+        // 「スタイル調整（イシュー #1477）」節参照。`input` の
+        // root 継承一本化とは異なる分担意図を明記）。
+        let css = stylesheet();
+        for part in ["edit-trigger", "submit-trigger", "cancel-trigger"] {
+            let selector =
+                format!(r#"[data-scope="editable"][data-part="{part}"][data-disabled] {{"#);
+            let rule_start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("{part}[data-disabled] rule missing"));
+            let rule_body = &css[rule_start..];
+            let rule_end = rule_body.find('}').expect("rule must be closed");
+            let body = &rule_body[..rule_end];
+            assert!(body.contains("opacity: 0.5;"), "{part}: {css}");
+            assert!(body.contains("cursor: not-allowed;"), "{part}: {css}");
+            assert!(!body.contains("0.4"), "{part}: {css}");
+        }
     }
 }
