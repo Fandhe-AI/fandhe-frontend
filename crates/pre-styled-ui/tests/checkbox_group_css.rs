@@ -100,20 +100,30 @@ fn checked_item_control_gets_palette_fill_not_circular_radio_shape() {
 }
 
 #[test]
-fn root_invalid_and_disabled_propagate_via_custom_properties() {
-    // イシュー #1460: headless 層は `data-invalid`/`data-disabled` を
-    // `item-control`/`item` へ直接出力しないため（`data-disabled` は出力
-    // するが、opacity の多重適用回避のため root 側は custom property
-    // のみを定義する）、`root` の状態伝播は custom property 経由の
-    // 参照でのみ成立する（モジュール rustdoc 参照）。
+fn root_invalid_propagates_via_custom_property_but_disabled_does_not() {
+    // イシュー #1460: `data-invalid` は headless 層が出力しないため、
+    // `root` の `attrs` へ利用者が直接付与する経路のみで、その伝播は
+    // custom property 経由の参照でのみ成立する（モジュール rustdoc 参照）。
+    //
+    // `data-disabled` は当初 `data-invalid` と同型の custom property
+    // 間接参照（`--fandhe-checkbox-group-item-opacity`/`-item-cursor`/
+    // `-item-pointer-events`）で `item` へ伝播させていたが、CSS だけでは
+    // ネイティブ `<input>` のタブ順序を変更できずキーボード操作
+    // （Tab+Space）を阻止できないこと、`pointer-events: none` が
+    // cursor/tooltip 表示とクリック透過を壊すことが codex-review P1 /
+    // Cursor Bugbot で指摘され（同一イシュー #1460 の再指摘）、撤去した
+    // （`crates/pre-styled-ui/src/checkbox_group.rs` モジュール doc
+    // 「スタイル調整」節参照）。この回帰固定は `root[data-disabled]` ブロック
+    // 自体が出力されないことを固定する。
     let css = stylesheet();
     assert!(css.contains(r#"[data-scope="checkbox-group"][data-part="root"][data-invalid]"#));
     assert!(
         css.contains("--fandhe-checkbox-group-control-border-color: var(--fandhe-color-danger);")
     );
-    assert!(css.contains(r#"[data-scope="checkbox-group"][data-part="root"][data-disabled]"#));
-    assert!(css.contains("--fandhe-checkbox-group-item-opacity: 0.5;"));
-    assert!(css.contains("--fandhe-checkbox-group-item-cursor: not-allowed;"));
+    assert!(!css.contains(r#"[data-scope="checkbox-group"][data-part="root"][data-disabled]"#));
+    assert!(!css.contains("--fandhe-checkbox-group-item-opacity"));
+    assert!(!css.contains("--fandhe-checkbox-group-item-cursor"));
+    assert!(!css.contains("--fandhe-checkbox-group-item-pointer-events"));
 }
 
 #[test]

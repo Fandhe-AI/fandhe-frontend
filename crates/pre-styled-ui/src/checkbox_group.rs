@@ -108,25 +108,39 @@
 //!   （Field 連携は #1603 の射程、本モジュール doc「本イシューのスコープ外」
 //!   節参照）ため、本 CSS は**参照のみ**を追加する。利用者は `root` の
 //!   `attrs` へ `(\"data-invalid\", \"\")` を直接渡すことで有効化できる。
-//! - **`root` の `data-disabled` を custom property 経由で `item` へ伝播**:
-//!   `root`/`item` の双方が disabled のとき `disabled_declarations()` を
-//!   両方へ直接置くと `opacity` が 0.5 × 0.5 に多重適用されるため、`root`
-//!   側は `--fandhe-checkbox-group-item-opacity`/`-item-cursor` custom
-//!   property のみを定義し、`item` がそれを既定値（`1`/`pointer`）付きで
-//!   参照する形にする。ビジュアル言語自体（`opacity: 0.5` +
-//!   `cursor: not-allowed`）は変えない。同じ custom property 間接参照で
-//!   `--fandhe-checkbox-group-item-pointer-events`（既定値 `auto`）も
-//!   `item` へ伝播する（イシュー #1460 codex-review P1 / Cursor Bugbot
-//!   是正）。`root` だけ disabled で個々の item は disabled=false という
-//!   公開 API 上可能な構成では headless 層が `item`/`item-control` へ
-//!   `data-disabled` を出力しないため、`item-control` の
-//!   `:hover:not([data-disabled])` 規則だけでは root 由来の無効化を検知
-//!   できず hover 背景が変化してしまっていた。`pointer-events` は
-//!   inherited プロパティのため、`item` が `none` を受けると
-//!   明示宣言を持たない子孫 `item-control` もそれを継承し、ブラウザが
-//!   hit-test 自体を行わなくなるため `:hover` が発火しなくなる（headless
-//!   側で個々の item へ disabled 状態を実伝播する代替案より、既存の
-//!   custom property 間接参照パターンと一貫させた）。
+//! - **`root` の `data-disabled` から `item`/`item-control` への CSS 伝播は
+//!   行わない（イシュー #1460 codex-review P1 / Cursor Bugbot 再指摘を受けた
+//!   方針転換）**: 一度は `--fandhe-checkbox-group-item-opacity`/
+//!   `-item-cursor`/`-item-pointer-events` の custom property 間接参照で
+//!   `root` の disabled 見た目を `item` へ CSS のみで伝播させる実装を試みた
+//!   （`pointer-events: none` を `item` が継承し、子孫 `item-control` の
+//!   hit-test 自体を止めて `:hover` を抑止する案）。しかしこの実装は
+//!   2 件の新規指摘を生んだ: (1) キーボード操作の Tab+Space による値変更を
+//!   一切阻止できない — ネイティブ `<input type=\"checkbox\">`（呼び出し側が
+//!   [`crate::checkbox::hidden_input`] を [`item`] 配下へ入れ子にする、
+//!   モジュール doc「`item-hidden-input` を本モジュールが持たない理由」節
+//!   参照）の実際の `disabled` 属性は、各 item ごとに呼び出し側が渡す
+//!   `CheckboxProps.disabled` にのみ従い、`root` の disabled 状態からは
+//!   独立している。CSS の `pointer-events`/`cursor`/`opacity` はいずれも
+//!   タブ順序（tabbability）を変更できないため、`root` のみ disabled で
+//!   各 item が disabled=false（公開 API 上可能な構成）のとき、マウス操作は
+//!   `pointer-events: none` で止まる一方、キーボードでは Tab で
+//!   フォーカスでき Space で値を変更・フォーム送信できてしまう
+//!   入力方式依存の状態になる（アクセシビリティ・キーボード操作契約違反）。
+//!   (2) `pointer-events: none` は要素自身を hit-test の対象から外すため、
+//!   `cursor: not-allowed` が表示されない・`title` 属性等によるツールチップに
+//!   到達できない・クリックが背後の要素へ透過してしまう（共有の interaction
+//!   visual language 違反）。この 2 点は「CSS だけでは disabled の実効性を
+//!   偽装できない」という同一原因に基づき、CSS 側の緩和では解決できない。
+//!   したがって本モジュールは `root[data-disabled]` から `item`/
+//!   `item-control` への見た目の伝播を一切行わない（`item[data-disabled]`
+//!   規則が引き続き自身の disabled 見た目を担う。下記「本イシューの
+//!   スコープ外」節に恒久的な解決方針を記録する）。呼び出し側が `root` を
+//!   disabled にする場合は、各 item の [`item`]/[`item_control`]/
+//!   [`item_indicator`]/[`item_text`] と対応する
+//!   [`crate::checkbox::hidden_input`] の `CheckboxProps.disabled` の
+//!   すべてに同じ `true` を明示的に渡す必要がある（headless 層はこの一貫性を
+//!   強制しない。呼び出し側の契約）。
 //! - **`item:focus-within`/`item-control` のフォーカスリング・hover・
 //!   transition を canonical ヘルパへ移行**: `recipe::focus_ring_declarations`
 //!   （`FocusRingColor::Palette`、`FocusRingOffset::Outside`）・
@@ -161,6 +175,19 @@
 //!   `invalid` フラグ追加）は #1603 の射程
 //! - variant 軸（chakra solid/subtle/outline 相当）の Forms 家族横断判断
 //! - size variant 値・label/item-text 型階層は 2/2（#1461）が担当
+//! - **`root` disabled → 各 item（`item`/`item-control`/`item-indicator`/
+//!   `item-text` と `checkbox::hidden_input` の `CheckboxProps.disabled`）
+//!   への実際の disabled 状態の一貫伝播**（イシュー #1460 codex-review P1 /
+//!   Cursor Bugbot 指摘）: CSS のみでは `<input>` のタブ順序を変更できず
+//!   偽装的な視覚のみの disabled 表現になってしまう（本モジュール doc
+//!   「スタイル調整」節参照）ため、CSS 側での解消を断念した。恒久対応には
+//!   headless 層（`crates/headless-ui/src/checkbox_group.rs`）の API 設計
+//!   変更（`CheckboxGroup` 状態機械が root disabled を保持し、
+//!   `item`/`item_control`/`item_indicator`/`item_text` の各利便メソッドが
+//!   root disabled との OR を自動計算する等）が必要で、`checkbox` モジュール
+//!   の `hidden_input` 呼び出し規約にも影響するため本イシュー（グループ
+//!   レイアウト・invalid 伝播に限定）のスコープを超える。フォローアップ
+//!   Issue は TBD（切り出し先は PR 本文「## 対象外（out-of-scope）」節参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::{decl, Declaration};
@@ -248,33 +275,6 @@ fn recipe() -> SlotRecipe {
                 "var(--fandhe-color-danger)",
             )],
         )
-        // `data-disabled`（headless 層が `data_disabled` 経由で出力）を
-        // `item` へ custom property 経由で伝播する（モジュール doc「`root`
-        // の `data-disabled` を custom property 経由で `item` へ伝播」節
-        // 参照。`disabled_declarations()` を `root` へ直接置かない理由も
-        // 同節）。
-        .state(
-            "root",
-            StateCondition::Attr("data-disabled"),
-            vec![
-                decl("--fandhe-checkbox-group-item-opacity", "0.5"),
-                decl("--fandhe-checkbox-group-item-cursor", "not-allowed"),
-                // codex-review P1 / Cursor Bugbot 指摘（同一欠陥、イシュー
-                // #1460）回帰是正: opacity/cursor だけでは item-control の
-                // `:hover:not([data-disabled])` 規則が root 由来の無効化を
-                // 検知できず、root だけ disabled で各 item が
-                // disabled=false（公開 API 上可能な構成）なとき hover 背景が
-                // 変化してしまっていた。`pointer-events` は inherited
-                // プロパティであるため、`item`（下記 base）へ同型の custom
-                // property 間接参照で反映すれば、子孫の `item-control` は
-                // 明示的な `pointer-events` 宣言を持たないため継承した
-                // `none` によりブラウザが hit-test 自体を行わなくなり
-                // `:hover` が発火しない（headless 側で個々の item へ
-                // disabled 状態を伝播する代替案より、既存の custom
-                // property 間接参照パターンと一貫する）。
-                decl("--fandhe-checkbox-group-item-pointer-events", "none"),
-            ],
-        )
         .base(
             "label",
             vec![
@@ -294,25 +294,6 @@ fn recipe() -> SlotRecipe {
                 // いっぱいへ伸びクリック領域が余白まで広がるのを防ぐ
                 // （モジュール doc 参照）。
                 decl("width", "fit-content"),
-                decl(
-                    "opacity",
-                    "var(--fandhe-checkbox-group-item-opacity, 1)",
-                ),
-                decl(
-                    "cursor",
-                    "var(--fandhe-checkbox-group-item-cursor, pointer)",
-                ),
-                // 上記 `root[data-disabled]` の pointer-events 間接参照
-                // （伝播理由は当該 state 規則のコメント参照）。個々の item
-                // が自身の `data-disabled` を持つ場合は下記
-                // `item[data-disabled]` 規則（`disabled_declarations()`）が
-                // 別途 opacity/cursor を上書きするが、pointer-events の
-                // 明示宣言は持たないため root 由来のこの値がそのまま効く
-                // （個別 disabled でも操作不能という意図と矛盾しない）。
-                decl(
-                    "pointer-events",
-                    "var(--fandhe-checkbox-group-item-pointer-events, auto)",
-                ),
             ],
         )
         .base(
@@ -691,31 +672,7 @@ mod tests {
     }
 
     #[test]
-    fn root_disabled_defines_item_custom_properties_without_direct_opacity() {
-        // root と item の双方が disabled のとき opacity が多重適用されない
-        // 回帰固定（モジュール doc「`root` の `data-disabled` を custom
-        // property 経由で `item` へ伝播」節参照）。
-        let css = stylesheet();
-        let scope = r#"[data-scope="checkbox-group"][data-part="root"][data-disabled] {"#;
-        let start = css.find(scope).expect("root[data-disabled] block missing");
-        let end = css[start..]
-            .find('}')
-            .map(|i| start + i)
-            .expect("closing brace missing");
-        let block = &css[start..end];
-        assert!(block.contains("--fandhe-checkbox-group-item-opacity: 0.5;"));
-        assert!(block.contains("--fandhe-checkbox-group-item-cursor: not-allowed;"));
-        // `--fandhe-checkbox-group-item-opacity: 0.5;` 自体が部分文字列として
-        // `opacity: 0.5;` を含むため、単純な `!contains` では検知できない
-        // （custom property の間接参照 1 行のみで、直接 `opacity` 宣言
-        // （行頭が `opacity:` で始まる行）が無いことを回帰固定する）。
-        assert!(!block
-            .lines()
-            .any(|line| line.trim_start().starts_with("opacity:")));
-    }
-
-    #[test]
-    fn item_base_uses_fit_content_width_and_disabled_custom_properties() {
+    fn item_base_uses_fit_content_width_without_root_disabled_indirection() {
         let css = stylesheet();
         let scope = r#"[data-scope="checkbox-group"][data-part="item"] {"#;
         let start = css.find(scope).expect("item base block missing");
@@ -725,43 +682,32 @@ mod tests {
             .expect("closing brace missing");
         let block = &css[start..end];
         assert!(block.contains("width: fit-content;"));
-        assert!(block.contains("opacity: var(--fandhe-checkbox-group-item-opacity, 1);"));
-        assert!(block.contains("cursor: var(--fandhe-checkbox-group-item-cursor, pointer);"));
-        assert!(block
-            .contains("pointer-events: var(--fandhe-checkbox-group-item-pointer-events, auto);"));
+        // イシュー #1460 codex-review P1 / Cursor Bugbot 指摘の再指摘
+        // （root のみ disabled でもキーボード操作 (Tab+Space) が阻止できない・
+        // `pointer-events: none` が cursor/tooltip/クリック透過を壊す）を
+        // 受けて `root[data-disabled]` からの CSS 間接参照伝播を撤去した
+        // 回帰固定（モジュール doc「スタイル調整」節参照）。`item` base が
+        // これらの custom property を一切参照しないことを固定する。
+        assert!(!block.contains("--fandhe-checkbox-group-item-opacity"));
+        assert!(!block.contains("--fandhe-checkbox-group-item-cursor"));
+        assert!(!block.contains("--fandhe-checkbox-group-item-pointer-events"));
+        assert!(!block
+            .lines()
+            .any(|line| line.trim_start().starts_with("pointer-events:")));
     }
 
     #[test]
-    fn root_disabled_propagates_pointer_events_to_suppress_item_control_hover() {
-        // codex-review P1 / Cursor Bugbot 指摘（同一欠陥、イシュー #1460）
-        // 回帰固定: root だけ disabled（各 item は disabled=false）という
-        // 公開 API 上可能な構成で、`item-control` の
-        // `:hover:not([data-disabled])` 規則が誤って発火し hover 背景が
-        // 変化してしまっていた。root の disabled state 規則が
-        // `--fandhe-checkbox-group-item-pointer-events: none;` を定義し、
-        // それを継承する `item` base の `pointer-events` 間接参照
-        // （inherited プロパティ）により、明示宣言を持たない子孫
-        // `item-control` は hit-test 自体が行われず `:hover` が発火し
-        // 得ないことを固定する。
+    fn root_disabled_state_block_is_not_emitted() {
+        // 上記回帰固定の裏返し: `root[data-disabled]` 規則自体を
+        // `SlotRecipe` へ登録していないため、対応する CSS ブロックが
+        // 出力されないことを固定する（再導入の検知）。
         let css = stylesheet();
-        let scope = r#"[data-scope="checkbox-group"][data-part="root"][data-disabled] {"#;
-        let start = css.find(scope).expect("root[data-disabled] block missing");
-        let end = css[start..]
-            .find('}')
-            .map(|i| start + i)
-            .expect("closing brace missing");
-        let root_block = &css[start..end];
-        assert!(root_block.contains("--fandhe-checkbox-group-item-pointer-events: none;"));
-
-        let item_scope = r#"[data-scope="checkbox-group"][data-part="item"] {"#;
-        let item_start = css.find(item_scope).expect("item base block missing");
-        let item_end = css[item_start..]
-            .find('}')
-            .map(|i| item_start + i)
-            .expect("closing brace missing");
-        let item_block = &css[item_start..item_end];
-        assert!(item_block
-            .contains("pointer-events: var(--fandhe-checkbox-group-item-pointer-events, auto);"));
+        let scope = r#"[data-scope="checkbox-group"][data-part="root"][data-disabled]"#;
+        assert!(
+            !css.contains(scope),
+            "root[data-disabled] block must not be emitted (see module doc \
+             \"スタイル調整\" section for why the CSS-only cascade was removed)"
+        );
     }
 
     #[test]
