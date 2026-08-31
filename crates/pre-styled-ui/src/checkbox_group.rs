@@ -235,12 +235,14 @@
 //! 判明したスコープ外事項:
 //!
 //! - `hover_bg_solid_with_fallback()` の `crate::recipe` への共通化
-//!   （`checkbox.rs`/`checkbox_group.rs` で重複）
+//!   （`checkbox.rs`/`checkbox_group.rs` で重複、フォローアップ Issue #1741）
 //! - wasm-full `focus_visible.rs` への
 //!   `(\"checkbox-group\", \"hidden-input\") -> \"item-control\"` 写像追加
+//!   （フォローアップ Issue #1741）
 //! - headless 側での `data-invalid` 出力（`root`/`item`/`item-control` への
 //!   `invalid` フラグ追加）は #1603 の射程
 //! - variant 軸（chakra solid/subtle/outline 相当）の Forms 家族横断判断
+//!   （フォローアップ Issue #1741）
 //! - size variant 値・label/item-text 型階層は 2/2（#1461）が担当
 //! - **`root` disabled → 各 item（`item`/`item-control`/`item-indicator`/
 //!   `item-text` と `checkbox::hidden_input` の `CheckboxProps.disabled`）
@@ -254,7 +256,7 @@
 //!   root disabled との OR を自動計算する等）が必要で、`checkbox` モジュール
 //!   の `hidden_input` 呼び出し規約にも影響するため本イシュー（グループ
 //!   レイアウト・invalid 伝播に限定）のスコープを超える。フォローアップ
-//!   Issue は TBD（切り出し先は PR 本文「## 対象外（out-of-scope）」節参照）。
+//!   Issue #1741（親 #1459 の子）で追跡する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::{decl, Declaration};
@@ -327,6 +329,16 @@ fn recipe() -> SlotRecipe {
                 decl("flex-direction", "row"),
                 decl("flex-wrap", "wrap"),
                 decl("column-gap", "var(--fandhe-space-4)"),
+                // `label`（グループ見出し）は `root` と同じ flex コンテナの
+                // 兄弟要素であるため、`flex-wrap: wrap` 適用下では対策なしに
+                // `item` の折り返し行へ混入し得る（イシュー #1460 Cursor
+                // Bugbot 指摘）。`root` 側でのみ custom property を定義し、
+                // 子孫セレクタを持たない `SlotRecipe` の制約下で上記
+                // `data-invalid` 伝播と同型の間接参照パターンにより `label`
+                // へ「常にフルライン幅を占有し独立行になる」効果を伝える
+                // （縦積み時はこの custom property が未定義のためフォール
+                // バックの `auto` が使われ既存レイアウトへ影響しない）。
+                decl("--fandhe-checkbox-group-label-basis", "100%"),
             ],
         )
         // `data-invalid`（headless 未出力、`attrs` 経由でのみ付与可能。
@@ -354,6 +366,20 @@ fn recipe() -> SlotRecipe {
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
                 decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("margin-bottom", "var(--fandhe-space-1)"),
+                // `root` は常に `display: flex`（縦積み・横並びどちらの
+                // orientation でも）のため、`label` は常に `root` の flex
+                // item である。横並び時のみ `root` が定義する
+                // `--fandhe-checkbox-group-label-basis` を `flex-basis` へ
+                // 反映し、`label` にフルライン幅を占有させて `item` の折り
+                // 返し行と混じらない独立行にする（上記 `root`
+                // `data-orientation="horizontal"` state 参照）。縦積み時は
+                // 未定義のため `auto` にフォールバックし、`flex-direction:
+                // column` 下の `flex-basis`（高さ方向）へ悪影響を与えない。
+                decl(
+                    "flex-basis",
+                    "var(--fandhe-checkbox-group-label-basis, auto)",
+                ),
+                decl("flex-shrink", "0"),
             ],
         )
         .base(

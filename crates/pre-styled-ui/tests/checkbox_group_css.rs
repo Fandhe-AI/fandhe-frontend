@@ -62,6 +62,18 @@ fn orientation_horizontal_switches_root_to_row_layout() {
 }
 
 #[test]
+fn label_stays_on_its_own_line_under_horizontal_wrap() {
+    // イシュー #1460 Cursor Bugbot 指摘: `data-orientation="horizontal"`
+    // では `root` が `flex-wrap: wrap` の flex コンテナになり、`label` も
+    // `item` と同じコンテナの兄弟要素であるため、対策なしでは折り返し行へ
+    // 混入し得る。`root` 横並び state が定義する custom property を
+    // `label` 側の `flex-basis` で受け取り、フルライン幅の独立行にする。
+    let css = stylesheet();
+    assert!(css.contains("--fandhe-checkbox-group-label-basis: 100%;"));
+    assert!(css.contains("flex-basis: var(--fandhe-checkbox-group-label-basis, auto);"));
+}
+
+#[test]
 fn root_gap_is_custom_property_with_space_1_fallback() {
     // イシュー #1460: 2/2（#1461）が size variant で切り替える受け口。
     let css = stylesheet();
