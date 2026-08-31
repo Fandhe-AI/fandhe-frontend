@@ -4446,7 +4446,7 @@ fn splitter_section() -> Node {
 fn date_input_section() -> Node {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::date_input::DateInput;
 
-    let build = |id_prefix: &str, state: &DateInput, size: Size, disabled: bool| {
+    let build = |id_prefix: &str, state: &DateInput, size: Size, disabled: bool, readonly: bool| {
         date_input::root(
             size,
             disabled,
@@ -4470,9 +4470,9 @@ fn date_input_section() -> Node {
                             state.is_invalid(),
                             vec![],
                             vec![
-                                state.segment(DateSegment::Year, disabled, false, vec![]),
-                                state.segment(DateSegment::Month, disabled, false, vec![]),
-                                state.segment(DateSegment::Day, disabled, false, vec![]),
+                                state.segment(DateSegment::Year, disabled, readonly, vec![]),
+                                state.segment(DateSegment::Month, disabled, readonly, vec![]),
+                                state.segment(DateSegment::Day, disabled, readonly, vec![]),
                             ],
                         ),
                         state.hidden_input(&format!("{id_prefix}-value"), disabled, vec![]),
@@ -4484,7 +4484,13 @@ fn date_input_section() -> Node {
 
     // 入力済み・妥当な日付。
     let filled_state = DateInput::new(Some(2026), Some(7), Some(22), None, None);
-    let filled = build("showcase-date-input-filled", &filled_state, Size::Md, false);
+    let filled = build(
+        "showcase-date-input-filled",
+        &filled_state,
+        Size::Md,
+        false,
+        false,
+    );
 
     // 未入力（3 セグメントとも placeholder 表示）。
     let empty_state_value = DateInput::default();
@@ -4492,6 +4498,7 @@ fn date_input_section() -> Node {
         "showcase-date-input-empty",
         &empty_state_value,
         Size::Md,
+        false,
         false,
     );
 
@@ -4503,6 +4510,7 @@ fn date_input_section() -> Node {
         &invalid_state,
         Size::Md,
         false,
+        false,
     );
 
     // disabled。
@@ -4511,6 +4519,18 @@ fn date_input_section() -> Node {
         "showcase-date-input-disabled",
         &disabled_state,
         Size::Md,
+        true,
+        false,
+    );
+
+    // readonly（イシュー #1469: `segment` の `data-readonly` 視覚
+    // 〔`cursor: default`〕を Demo で確認できるよう追加）。
+    let readonly_state = DateInput::new(Some(2026), Some(7), Some(22), None, None);
+    let readonly = build(
+        "showcase-date-input-readonly",
+        &readonly_state,
+        Size::Md,
+        false,
         true,
     );
 
@@ -4523,16 +4543,18 @@ fn date_input_section() -> Node {
             &state,
             size,
             false,
+            false,
         ));
     }
 
     section(
         "DateInput",
-        "年/月/日セグメント入力 DateInput の静的掲示（入力済み・未入力・invalid・disabled・size 各種）。各セグメントは role=\"spinbutton\" + aria-valuemin/max/now（未入力時は valuenow 省略）を持ちます（キーボード操作は wasm 層のスコープ外）。",
+        "年/月/日セグメント入力 DateInput の静的掲示（入力済み・未入力・invalid・disabled・readonly・size 各種）。各セグメントは role=\"spinbutton\" + aria-valuemin/max/now（未入力時は valuenow 省略）を持ちます（キーボード操作は wasm 層のスコープ外）。",
         vec![
             row(vec![filled]),
             row(vec![empty]),
             row(vec![invalid]),
+            row(vec![readonly]),
             row(vec![disabled]),
             row(size_demos),
         ],

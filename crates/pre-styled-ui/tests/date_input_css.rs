@@ -41,7 +41,14 @@ const DATE_INPUT_GOLDEN_CSS: &str = r#"[data-scope="date-input"][data-part="root
   justify-content: center;
   font-size: var(--fandhe-date-input-font-size, var(--fandhe-font-font-size-sm));
   border-radius: var(--fandhe-radius-sm, 0.25rem);
-  outline: none;
+  padding: 0 var(--fandhe-space-1);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="date-input"][data-part="segment"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="date-input"][data-part="root"].fd-date-input--size-xs {
@@ -71,6 +78,7 @@ const DATE_INPUT_GOLDEN_CSS: &str = r#"[data-scope="date-input"][data-part="root
 
 [data-scope="date-input"][data-part="root"][data-disabled] {
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="date-input"][data-part="segment-group"][data-invalid] {
@@ -85,8 +93,23 @@ const DATE_INPUT_GOLDEN_CSS: &str = r#"[data-scope="date-input"][data-part="root
   color: var(--fandhe-color-fg-muted);
 }
 
+[data-scope="date-input"][data-part="segment"][data-readonly] {
+  cursor: default;
+}
+
+[data-scope="date-input"][data-part="segment"][data-disabled] {
+  cursor: not-allowed;
+}
+
 [data-scope="date-input"][data-part="segment"]:focus-visible {
-  box-shadow: 0 0 0 2px var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+}
+
+@media (hover: hover) {
+  [data-scope="date-input"][data-part="segment"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
