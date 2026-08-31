@@ -141,10 +141,102 @@ const KBD_GOLDEN_CSS: &str = r#"[data-scope="kbd"][data-part="root"] {
 
 const CODE_GOLDEN_CSS: &str = r#"[data-scope="code"][data-part="root"] {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  background: var(--fandhe-color-bg-subtle);
   border-radius: var(--fandhe-radius-sm);
+}
+
+[data-scope="code"][data-part="root"].fd-code--size-xs {
+  padding: 0.03125rem 0.25rem;
+  font-size: var(--fandhe-font-font-size-xs);
+}
+
+[data-scope="code"][data-part="root"].fd-code--size-sm {
   padding: 0.0625rem 0.375rem;
+  font-size: var(--fandhe-font-font-size-xs);
+}
+
+[data-scope="code"][data-part="root"].fd-code--size-md {
+  padding: 0.125rem 0.5rem;
   font-size: var(--fandhe-font-font-size-sm);
+}
+
+[data-scope="code"][data-part="root"].fd-code--size-lg {
+  padding: 0.25rem 0.625rem;
+  font-size: var(--fandhe-font-font-size-md);
+}
+
+[data-scope="code"][data-part="root"].fd-code--size-xl {
+  padding: 0.5rem 0.75rem;
+  font-size: var(--fandhe-font-font-size-lg);
+}
+
+[data-scope="code"][data-part="root"].fd-code--variant-solid {
+  background: var(--fandhe-palette);
+  color: var(--fandhe-palette-fg);
+}
+
+[data-scope="code"][data-part="root"].fd-code--variant-subtle {
+  background: var(--fandhe-palette-subtle);
+  color: var(--fandhe-palette-fg-subtle);
+}
+
+[data-scope="code"][data-part="root"].fd-code--variant-outline {
+  background: transparent;
+  color: var(--fandhe-palette-fg-subtle);
+  border: 1px solid var(--fandhe-palette-muted);
+}
+
+[data-scope="code"][data-part="root"].fd-code--color-palette-accent {
+  --fandhe-palette: var(--fandhe-color-accent);
+  --fandhe-palette-emphasized: var(--fandhe-color-accent-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-accent-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-accent-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-accent-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-accent-fg-subtle);
+}
+
+[data-scope="code"][data-part="root"].fd-code--color-palette-info {
+  --fandhe-palette: var(--fandhe-color-info);
+  --fandhe-palette-emphasized: var(--fandhe-color-info-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-info-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-info-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-info-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-info-fg-subtle);
+}
+
+[data-scope="code"][data-part="root"].fd-code--color-palette-success {
+  --fandhe-palette: var(--fandhe-color-success);
+  --fandhe-palette-emphasized: var(--fandhe-color-success-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-success-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-success-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-success-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-success-fg-subtle);
+}
+
+[data-scope="code"][data-part="root"].fd-code--color-palette-warning {
+  --fandhe-palette: var(--fandhe-color-warning);
+  --fandhe-palette-emphasized: var(--fandhe-color-warning-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-warning-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-warning-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-warning-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-warning-fg-subtle);
+}
+
+[data-scope="code"][data-part="root"].fd-code--color-palette-danger {
+  --fandhe-palette: var(--fandhe-color-danger);
+  --fandhe-palette-emphasized: var(--fandhe-color-danger-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-danger-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-danger-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-danger-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-danger-fg-subtle);
+}
+
+[data-scope="code"][data-part="root"].fd-code--color-palette-neutral {
+  --fandhe-palette: var(--fandhe-color-neutral);
+  --fandhe-palette-emphasized: var(--fandhe-color-neutral-emphasized);
+  --fandhe-palette-fg: var(--fandhe-color-neutral-fg);
+  --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
+  --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
+  --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
 }
 "#;
 

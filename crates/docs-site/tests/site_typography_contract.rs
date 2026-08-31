@@ -159,19 +159,55 @@ fn code_declarations_mirror_pre_styled_ui_code_recipe() {
     let docs_css = site_css();
     let code_css = fandhe_frontend_pre_styled_ui::code::css();
 
+    // base（variant/size/palette 非依存）宣言のミラー確認。
     for (property, value) in [
         (
             "font-family",
             "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
         ),
-        ("background", "var(--fandhe-color-bg-subtle)"),
         ("border-radius", "var(--fandhe-radius-sm)"),
-        ("padding", "0.0625rem 0.375rem"),
-        ("font-size", "var(--fandhe-font-font-size-sm)"),
     ] {
         assert_declaration_mirrored(&code_css, property, value, "code base (component)");
         assert_declaration_mirrored(&docs_css, property, value, "inline code (docs mirror)");
     }
+
+    // 既定 variant/size（Subtle・Md）の宣言はコンポーネント側では
+    // `.fd-code--variant-subtle`/`.fd-code--size-md` クラスへ載るが、docs
+    // ミラーはコンポーネントを介さないため具体値のみを比較する
+    // （`.docs-content code` 側は palette 非配線で `--fandhe-color-neutral-*`
+    // へ直接接続する、[`crate`] 冒頭 rustdoc 参照）。
+    assert!(
+        code_css.contains("padding: 0.125rem 0.5rem;"),
+        "code component missing Md padding: {code_css}"
+    );
+    assert_declaration_mirrored(
+        &docs_css,
+        "padding",
+        "0.125rem 0.5rem",
+        "inline code (docs mirror)",
+    );
+    assert!(
+        code_css.contains("font-size: var(--fandhe-font-font-size-sm);"),
+        "code component missing Md font-size: {code_css}"
+    );
+    assert_declaration_mirrored(
+        &docs_css,
+        "font-size",
+        "var(--fandhe-font-font-size-sm)",
+        "inline code (docs mirror)",
+    );
+    assert_declaration_mirrored(
+        &docs_css,
+        "background",
+        "var(--fandhe-color-neutral-subtle)",
+        "inline code (docs mirror)",
+    );
+    assert_declaration_mirrored(
+        &docs_css,
+        "color",
+        "var(--fandhe-color-neutral-fg-subtle)",
+        "inline code (docs mirror)",
+    );
 }
 
 #[test]

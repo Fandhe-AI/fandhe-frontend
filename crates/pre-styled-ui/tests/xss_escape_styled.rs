@@ -3104,11 +3104,14 @@ fn data_list_styled_root_and_parts_are_escaped_for_all_payloads() {
 /// 2. 属性値経路: `tag::close_trigger` の `action` 引数（`data-action`
 ///    属性値として出力される）・呼び出し側 `attrs`。
 /// 3. class 破棄経路: `tag::root`/`kbd::kbd`/`code::code` へ `class` を渡し、
-///    recipe 生成クラスへの完全置換（`kbd`/`code` は variant を持たないため
-///    `class` 属性自体が出力されないことも併せて固定する）ことを確認する。
+///    recipe 生成クラスへの完全置換を確認する（`kbd` は variant を持たない
+///    ため `class` 属性自体が出力されないことを固定する一方、`code` は
+///    イシュー #1432 で variant/size/colorPalette 軸を持つ単一 recipe 部品へ
+///    変わったため、`tag::root` と同様に recipe 生成クラスへの完全置換
+///    〔class 属性は 1 個のみ・payload 不残留〕を確認する）。
 #[test]
 fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
-    use fandhe_frontend_pre_styled_ui::code::code;
+    use fandhe_frontend_pre_styled_ui::code::{code, CodeProps};
     use fandhe_frontend_pre_styled_ui::kbd::kbd;
     use fandhe_frontend_pre_styled_ui::tag::{self, TagProps};
 
@@ -3127,7 +3130,7 @@ fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
         let html = render(&kbd(vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "kbd children コンテキスト");
 
-        let html = render(&code(vec![], vec![text(payload)]));
+        let html = render(&code(&CodeProps::default(), vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "code children コンテキスト");
 
         // (2) 属性値経路: close_trigger の action（data-action 属性値）。
@@ -3178,7 +3181,7 @@ fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
             "tag::root で recipe 生成クラスが失われている: html={html}"
         );
 
-        // (3) class 破棄経路: kbd/code は variant を持たず class 属性自体を
+        // (3) class 破棄経路: kbd は variant を持たず class 属性自体を
         // 出力しない（drop_class_attr により生ペイロードも一切残らない）。
         let html = render(&kbd(vec![("class", payload)], vec![]));
         assert!(
@@ -3191,15 +3194,28 @@ fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
             "kbd は variant を持たないため class 属性を出力しないはず: html={html}"
         );
 
-        let html = render(&code(vec![("class", payload)], vec![]));
+        // (3) class 破棄経路: code はイシュー #1432 で variant/size/
+        // colorPalette 軸を持つ単一 recipe 部品へ変わったため、tag::root と
+        // 同様に recipe 生成クラスへの完全置換（class 属性は 1 個のみ・
+        // payload 不残留）を確認する。
+        let html = render(&code(
+            &CodeProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
         assert!(
             !html.contains(payload),
             "code の class 属性に渡した生ペイロードが出力に残っている: \
              payload={payload:?}, html={html}"
         );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "code の class 属性が複数出現している: html={html}"
+        );
         assert!(
-            !html.contains("class="),
-            "code は variant を持たないため class 属性を出力しないはず: html={html}"
+            html.contains("fd-code--"),
+            "code で recipe 生成クラスが失われている: html={html}"
         );
     }
 }
