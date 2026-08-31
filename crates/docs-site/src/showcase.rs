@@ -1052,10 +1052,14 @@ fn button_section() -> Node {
         })
         .collect());
 
+    // イシュー #1449: size variant を 5 段（Xs〜Xl）へ拡張したことに伴い、
+    // Demo でも Xs/Xl を含む全段を掲示する（従来は Sm/Md/Lg の 3 段のみ）。
     let sizes = [
+        (Size::Xs, "Extra Small"),
         (Size::Sm, "Small"),
         (Size::Md, "Medium"),
         (Size::Lg, "Large"),
+        (Size::Xl, "Extra Large"),
     ];
     let size_row = row(sizes
         .iter()

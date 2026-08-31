@@ -38,15 +38,44 @@
 //! 現在の recipe（[`recipe`]）はこの属性を `StateCondition` として参照
 //! しない（CSS 消費者なし）。AT 向けの読み上げ意味論は併記する
 //! `aria-busy="true"` が担い、`data-loading` は利用者側 CSS/JS が任意で
-//! フックするための存在表示に留まる。
+//! フックするための存在表示に留まる。イシュー #1449 でこの判断を再確認
+//! 済み（disabled 視覚は `data-disabled` 併記経由で loading 時も成立する
+//! ため、新規セレクタは追加しない）。
+//!
+//! # size スケール・icon-only・loading（イシュー #1449）
+//!
+//! [`recipe_with_scope`] の `size` variant（xs〜xl の 5 段）は
+//! [`crate::theme`] の `--fandhe-size-control-{height,padding-x,font-size}-*`
+//! トークン（イシュー #1678 で新設、3 系統 × 5 段）を参照する。button が
+//! このトークン系統の最初の消費者であり、縦方向は `height` トークンで固定
+//! し（縦 padding は 0）、水平方向は `padding-x` トークンのみを使う（値は
+//! いずれもソースコード内 `&'static str` リテラルの `var()` 参照であり、
+//! `format!` による動的合成は行わない）。[`ButtonIcon::Only`] の compound
+//! variant は `height` 固定に伴い正方形の根拠が変わるため、5 段の均等
+//! padding リテラルをやめて `padding: 0`（`aspect-ratio: 1 / 1` は不変）へ
+//! 簡約した（正方形の成立条件は「高さ固定 + `aspect-ratio: 1 / 1`」であり、
+//! padding では担わない）。`recipe_with_scope` を共有する
+//! [`crate::download_trigger`] にも同じ size 宣言（height/padding-x/
+//! font-size のトークン化）が波及する（意図的、golden テスト参照）。
+//! [`assemble`] が埋め込む loading 中の Spinner サイズはボタンの `size`
+//! から決定的に写像する（`xs`/`sm`/`md` → `Size::Sm`、`lg`/`xl` →
+//! `Size::Md`。ボタンの `font-size` に近い視覚サイズへ追随させるための
+//! 単純な 2 分割であり、Spinner 自体は 5 段の `size` 軸を持たないため
+//! 全段を写像先に持たない）。フォーカスリングは [`recipe_with_scope`] が
+//! `palette` 軸を公開する部品向けの canonical 形
+//! （[`focus_ring_declarations`]`(`[`FocusRingColor::Palette`]`,`
+//! [`FocusRingOffset::Outside`]`)`、`docs/design/
+//! pre-styled-ui-focus-ring-and-size-conventions.md` 準拠）で新規追加した
+//! （`link.rs`/`radio_group.rs`/`angle_slider.rs` と同型）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::icon::{icon, IconProps};
 use crate::recipe::{
-    disabled_declarations, hover_bg_muted, hover_bg_solid, hover_surface_declarations,
-    palette_scale_declarations, transition_declarations, when, ColorPalette, MotionDuration, Size,
-    SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid,
+    hover_surface_declarations, palette_scale_declarations, transition_declarations, ColorPalette,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
 };
 use crate::spinner::spinner_decorative;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
@@ -200,37 +229,27 @@ impl Default for ButtonProps {
 /// class 出力・golden CSS を不変に保つため `default_variant` は登録しない
 /// （[`ButtonIcon`] rustdoc 参照）。
 fn recipe() -> SlotRecipe {
-    recipe_with_scope("button")
-        .variant(
-            ButtonIcon::Only,
-            "root",
-            vec![decl("aspect-ratio", "1 / 1")],
-        )
-        .compound_variant(
-            vec![when(ButtonIcon::Only), when(Size::Xs)],
-            "root",
-            vec![decl("padding", "0.125rem")],
-        )
-        .compound_variant(
-            vec![when(ButtonIcon::Only), when(Size::Sm)],
-            "root",
-            vec![decl("padding", "0.25rem")],
-        )
-        .compound_variant(
-            vec![when(ButtonIcon::Only), when(Size::Md)],
-            "root",
-            vec![decl("padding", "0.5rem")],
-        )
-        .compound_variant(
-            vec![when(ButtonIcon::Only), when(Size::Lg)],
-            "root",
-            vec![decl("padding", "0.75rem")],
-        )
-        .compound_variant(
-            vec![when(ButtonIcon::Only), when(Size::Xl)],
-            "root",
-            vec![decl("padding", "1rem")],
-        )
+    // イシュー #1449: size variant が `--fandhe-size-control-height-*`
+    // トークンで高さを固定するようになったため、icon-only の正方形は
+    // 「高さ固定 + `aspect-ratio: 1 / 1`」で成立し、5 段の均等 padding
+    // リテラル（旧実装）は不要になった。`padding: 0` へ簡約し、水平方向も
+    // 高さと同じ長さへ揃える（モジュール冒頭 rustdoc「size スケール・
+    // icon-only・loading」節参照）。
+    //
+    // `.fd-button--icon-only` と `.fd-button--size-*` はセレクタ specificity
+    // が同値（(0,3,0)、`data-scope`/`data-part`/単一クラス）のため、この
+    // `padding: 0` が size 側の `padding` を上書きできるのは specificity
+    // ではなく **CSS 出力順（後勝ち）** による（`SlotRecipe::css` は
+    // variant を登録順に出力し、本 `recipe()` は `recipe_with_scope` が
+    // size variant を登録し終えた後にのみ icon-only を追加する）。size
+    // variant の登録順序を icon-only より後へ動かす変更は本規則を静かに
+    // 破壊するため、`recipe_with_scope` 側を変更する際はこの出力順依存を
+    // 意識すること（golden テスト `button_css.rs` がバイト一致で固定）。
+    recipe_with_scope("button").variant(
+        ButtonIcon::Only,
+        "root",
+        vec![decl("aspect-ratio", "1 / 1"), decl("padding", "0")],
+    )
 }
 
 /// [`recipe`] の scope 引数化版（イシュー #828）。
@@ -278,44 +297,95 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
                 MotionDuration::Fast,
             ),
         )
+        // イシュー #1449: size variant を `--fandhe-size-control-*`
+        // トークン（イシュー #1678 新設、`crate::theme::DEFAULT_SIZES`）で
+        // 表現する。button が本トークン系統の最初の消費者。縦方向は
+        // `height` で固定し（縦 padding は 0）、水平方向のみ `padding-x`
+        // トークンを使う（モジュール冒頭 rustdoc 参照）。値はすべて
+        // ソースコード内 `&'static str` リテラルの `var()` 参照。
+        //
+        // 各 `var()` は第 2 引数へ `DEFAULT_SIZES` の既定値をそのまま
+        // フォールバックとして持つ（`focus_ring_declarations` の rustdoc・
+        // イシュー #1424 レビュー指摘と同じ理由）。`--fandhe-size-control-*`
+        // は本イシュー以前には存在しなかったトークンであり、`Theme::empty()`
+        // ベースの既存カスタムテーマはこれらを定義していない。フォール
+        // バックなしで直接参照すると `height`/`padding`/`font-size` の
+        // computed-value time 無効化により無効な最終値（`auto`/`0`/
+        // 初期値）へ落ち、パッチバンプ（0.54.2 → 0.54.3、§3.1）の
+        // 「破壊的変更ではない CSS 実体変更」という前提と矛盾する。
+        // `control-font-size-*` の既定値自体が
+        // `var(--fandhe-font-font-size-<段>)` 参照のため、フォールバックは
+        // その参照をそのまま埋め込む（`DEFAULT_SIZES` 定義と同値）。
         .variant(
             Size::Xs,
             "root",
             vec![
-                decl("padding", "0.125rem 0.25rem"),
-                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("height", "var(--fandhe-size-control-height-xs, 2rem)"),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-size-control-padding-x-xs, 0.625rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs))",
+                ),
             ],
         )
         .variant(
             Size::Sm,
             "root",
             vec![
-                decl("padding", "0.25rem 0.5rem"),
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("height", "var(--fandhe-size-control-height-sm, 2.25rem)"),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-size-control-padding-x-sm, 0.75rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm))",
+                ),
             ],
         )
         .variant(
             Size::Md,
             "root",
             vec![
-                decl("padding", "0.5rem 1rem"),
-                decl("font-size", "var(--fandhe-font-font-size-md)"),
+                decl("height", "var(--fandhe-size-control-height-md, 2.5rem)"),
+                decl("padding", "0 var(--fandhe-size-control-padding-x-md, 1rem)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md))",
+                ),
             ],
         )
         .variant(
             Size::Lg,
             "root",
             vec![
-                decl("padding", "0.75rem 1.5rem"),
-                decl("font-size", "var(--fandhe-font-font-size-lg)"),
+                decl("height", "var(--fandhe-size-control-height-lg, 2.75rem)"),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-size-control-padding-x-lg, 1.25rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-lg))",
+                ),
             ],
         )
         .variant(
             Size::Xl,
             "root",
             vec![
-                decl("padding", "1rem 2rem"),
-                decl("font-size", "var(--fandhe-font-font-size-xl)"),
+                decl("height", "var(--fandhe-size-control-height-xl, 3rem)"),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-size-control-padding-x-xl, 1.5rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-xl))",
+                ),
             ],
         )
         .variant(
@@ -378,6 +448,16 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
             "root",
             StateCondition::Attr("data-disabled"),
             disabled_declarations(),
+        )
+        // イシュー #1449: `palette` 軸を公開する部品向けの canonical
+        // フォーカスリング（#1424 §3/§6、`link.rs`/`radio_group.rs`/
+        // `angle_slider.rs` と同型）。`recipe_with_scope` を共有する
+        // `download_trigger`（`<a>`）にも波及するが、`<a>` はフォーカス
+        // 可能なので妥当（モジュール冒頭 rustdoc 参照）。
+        .state(
+            "root",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         );
 
     for palette in [
@@ -425,6 +505,20 @@ pub fn button<'a>(
     assemble(props, false, attrs, children)
 }
 
+/// [`assemble`] が `loading: true` のとき埋め込む装飾用途 Spinner の
+/// サイズを、ボタンの [`Size`]（5 段）から決定的に写像する（イシュー
+/// #1449）。[`crate::spinner`] は `size` 軸自体を 5 段持たないため
+/// （`SpinnerProps` の既定は `Sm`/`Md` 中心）、ボタンの `font-size` に近い
+/// 視覚サイズへ追随させる単純な 2 分割とする: `Xs`/`Sm`/`Md` →
+/// `Size::Sm`、`Lg`/`Xl` → `Size::Md`（モジュール冒頭 rustdoc「size
+/// スケール・icon-only・loading」節参照）。
+fn spinner_size_for(size: Size) -> Size {
+    match size {
+        Size::Xs | Size::Sm | Size::Md => Size::Sm,
+        Size::Lg | Size::Xl => Size::Md,
+    }
+}
+
 /// `button()`/[`icon_button`]/[`close_button`] 共有の組み立てロジック
 /// （内部専用）。`type="button"` 固定・`disabled`/`loading` の三点セット・
 /// `loading` 時の spinner 埋め込み・`drop_class_attr` による `class` 一意化を
@@ -462,7 +556,10 @@ fn assemble<'a>(
 
     let mut node_children = Vec::with_capacity(children.len() + 1);
     if props.loading {
-        node_children.push(spinner_decorative(Size::Sm, props.palette));
+        node_children.push(spinner_decorative(
+            spinner_size_for(props.size),
+            props.palette,
+        ));
     }
     node_children.extend(children);
 
@@ -940,19 +1037,92 @@ mod tests {
         assert!(!html.contains("fd-button--icon-"));
     }
 
+    /// イシュー #1449: size variant が `height` トークンで高さを固定する
+    /// ようになったため、icon-only の正方形は「高さ固定 +
+    /// `aspect-ratio: 1 / 1`」で成立し、5 段の均等 padding compound
+    /// variant（旧実装）は不要になった（`padding: 0` へ簡約）。
     #[test]
-    fn css_output_contains_icon_only_compound_variant_rules() {
+    fn css_output_contains_icon_only_variant_rule() {
         let out = css();
-        assert!(out.contains(".fd-button--icon-only.fd-button--size-xs"));
-        assert!(out.contains("padding: 0.125rem;"));
-        assert!(out.contains(".fd-button--icon-only.fd-button--size-sm"));
-        assert!(out.contains("padding: 0.25rem;"));
-        assert!(out.contains(".fd-button--icon-only.fd-button--size-md"));
-        assert!(out.contains("padding: 0.5rem;"));
-        assert!(out.contains(".fd-button--icon-only.fd-button--size-lg"));
-        assert!(out.contains("padding: 0.75rem;"));
-        assert!(out.contains(".fd-button--icon-only.fd-button--size-xl"));
-        assert!(out.contains("padding: 1rem;"));
+        assert!(out.contains(".fd-button--icon-only"));
         assert!(out.contains("aspect-ratio: 1 / 1;"));
+        assert!(out.contains("padding: 0;"));
+    }
+
+    /// イシュー #1449: size variant の `height`/`padding`/`font-size` が
+    /// `--fandhe-size-control-*` トークン（イシュー #1678 新設）を参照する
+    /// ことを固定する。
+    #[test]
+    fn css_output_declares_size_control_tokens() {
+        let out = css();
+        // `(suffix, height フォールバック, padding-x フォールバック)`。
+        // `crate::theme::DEFAULT_SIZES` の既定値と同値（イシュー #1424
+        // レビュー指摘と同型のフォールバック契約、モジュール冒頭 rustdoc
+        // 参照）。
+        for (suffix, height_fallback, padding_x_fallback) in [
+            ("xs", "2rem", "0.625rem"),
+            ("sm", "2.25rem", "0.75rem"),
+            ("md", "2.5rem", "1rem"),
+            ("lg", "2.75rem", "1.25rem"),
+            ("xl", "3rem", "1.5rem"),
+        ] {
+            assert!(
+                out.contains(&format!(
+                    "height: var(--fandhe-size-control-height-{suffix}, {height_fallback});"
+                )),
+                "size={suffix} の height トークンが見つからない: {out}"
+            );
+            assert!(
+                out.contains(&format!(
+                    "padding: 0 var(--fandhe-size-control-padding-x-{suffix}, {padding_x_fallback});"
+                )),
+                "size={suffix} の padding-x トークンが見つからない: {out}"
+            );
+            assert!(
+                out.contains(&format!(
+                    "font-size: var(--fandhe-size-control-font-size-{suffix}, var(--fandhe-font-font-size-{suffix}));"
+                )),
+                "size={suffix} の font-size トークンが見つからない: {out}"
+            );
+        }
+    }
+
+    /// イシュー #1449: `loading: true` 時に埋め込む Spinner のサイズが
+    /// ボタンの `size` から決定的に写像されることを固定する（`spinner_size_for`
+    /// rustdoc 参照: xs/sm/md → Sm、lg/xl → Md）。
+    #[test]
+    fn loading_spinner_size_follows_button_size() {
+        for (size, expected_class) in [
+            (Size::Xs, "fd-spinner--size-sm"),
+            (Size::Sm, "fd-spinner--size-sm"),
+            (Size::Md, "fd-spinner--size-sm"),
+            (Size::Lg, "fd-spinner--size-md"),
+            (Size::Xl, "fd-spinner--size-md"),
+        ] {
+            let props = ButtonProps {
+                size,
+                loading: true,
+                ..ButtonProps::default()
+            };
+            let html = render(&button(&props, vec![], vec![]));
+            assert!(
+                html.contains(expected_class),
+                "size={size:?} -> {html} (expected {expected_class})"
+            );
+        }
+    }
+
+    /// イシュー #1449（#1424 §3/§6 準拠）: `:focus-visible` で
+    /// `focus_ring_declarations(FocusRingColor::Palette, ...)` の canonical
+    /// 宣言（`outline`/`outline-offset`）が出力されることを固定する。
+    #[test]
+    fn css_output_declares_focus_visible_ring() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="button"][data-part="root"]:focus-visible {"#));
+        assert!(out.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, \
+             var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));"
+        ));
+        assert!(out.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
     }
 }

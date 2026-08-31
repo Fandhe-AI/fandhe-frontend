@@ -143,9 +143,11 @@ const ANGLE_SLIDER: ComponentPageSpec = ComponentPageSpec {
 
 const BUTTON: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "見た目 variant（`Solid`/`Outline`/`Ghost`/`Subtle`）・サイズ・colorPalette の 3 軸を持つ単一 recipe styled 部品。",
+        "見た目 variant（`Solid`/`Outline`/`Ghost`/`Subtle`）・サイズ（`Xs`/`Sm`/`Md`/`Lg`/`Xl` の 5 段、イシュー #1449）・colorPalette の 3 軸を持つ単一 recipe styled 部品。",
+        "size variant は高さ・水平 padding・font-size をトークン（`--fandhe-size-control-*`）で固定し、`icon_button`/`close_button`（icon-only）は高さ基準の正方形になる（イシュー #1449）。",
         "`loading: true` のとき `disabled` と同様に `disabled` 属性・`data-disabled`・`aria-disabled=\"true\"` を付与し、`aria-busy=\"true\"` を追加する。",
-        "`loading: true` のとき装飾用途の Spinner（`role`/`aria-label` を持たない）を子ノード先頭へ自動挿入する。",
+        "`loading: true` のとき装飾用途の Spinner（`role`/`aria-label` を持たない）を子ノード先頭へ自動挿入する。Spinner のサイズはボタンの `size` へ追随する（`Xs`/`Sm`/`Md` → 小、`Lg`/`Xl` → 中、イシュー #1449）。",
+        "`:focus-visible` で palette 連動のフォーカスリングを表示する（イシュー #1449、#1424 準拠）。",
         "`button`/`icon_button`/`close_button` の 3 公開関数が共通の組み立てロジックを共有する（イシュー #830）。",
     ],
     arguments: &[

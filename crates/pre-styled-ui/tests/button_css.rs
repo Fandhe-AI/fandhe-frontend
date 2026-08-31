@@ -16,7 +16,12 @@ use fandhe_frontend_pre_styled_ui::button;
 ///
 /// 出力順は `SlotRecipe::css`（`crates/pre-styled-ui/src/recipe.rs`）の
 /// 契約どおり「base → variants（登録順: size → variant → color-palette →
-/// icon-only）→ compound variants（登録順: icon-only×size の sm/md/lg）」。
+/// icon-only）→ states（登録順: disabled → focus-visible。hover のみ
+/// `@media (hover: hover)` へ集約され常に末尾）」。size variant は
+/// イシュー #1449 で `--fandhe-size-control-*` トークン（イシュー #1678
+/// 新設）を参照するよう変更し、icon-only は 5 段の均等 padding
+/// compound variant を `padding: 0` へ簡約した（`button.rs` モジュール
+/// 冒頭 rustdoc「size スケール・icon-only・loading」節参照）。
 const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
   display: inline-flex;
   align-items: center;
@@ -35,28 +40,33 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
 }
 
 [data-scope="button"][data-part="root"].fd-button--size-xs {
-  padding: 0.125rem 0.25rem;
-  font-size: var(--fandhe-font-font-size-xs);
+  height: var(--fandhe-size-control-height-xs, 2rem);
+  padding: 0 var(--fandhe-size-control-padding-x-xs, 0.625rem);
+  font-size: var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs));
 }
 
 [data-scope="button"][data-part="root"].fd-button--size-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: var(--fandhe-font-font-size-sm);
+  height: var(--fandhe-size-control-height-sm, 2.25rem);
+  padding: 0 var(--fandhe-size-control-padding-x-sm, 0.75rem);
+  font-size: var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm));
 }
 
 [data-scope="button"][data-part="root"].fd-button--size-md {
-  padding: 0.5rem 1rem;
-  font-size: var(--fandhe-font-font-size-md);
+  height: var(--fandhe-size-control-height-md, 2.5rem);
+  padding: 0 var(--fandhe-size-control-padding-x-md, 1rem);
+  font-size: var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md));
 }
 
 [data-scope="button"][data-part="root"].fd-button--size-lg {
-  padding: 0.75rem 1.5rem;
-  font-size: var(--fandhe-font-font-size-lg);
+  height: var(--fandhe-size-control-height-lg, 2.75rem);
+  padding: 0 var(--fandhe-size-control-padding-x-lg, 1.25rem);
+  font-size: var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-lg));
 }
 
 [data-scope="button"][data-part="root"].fd-button--size-xl {
-  padding: 1rem 2rem;
-  font-size: var(--fandhe-font-font-size-xl);
+  height: var(--fandhe-size-control-height-xl, 3rem);
+  padding: 0 var(--fandhe-size-control-padding-x-xl, 1.5rem);
+  font-size: var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-xl));
 }
 
 [data-scope="button"][data-part="root"].fd-button--variant-solid {
@@ -143,31 +153,17 @@ const EXPECTED_CSS: &str = r#"[data-scope="button"][data-part="root"] {
 
 [data-scope="button"][data-part="root"].fd-button--icon-only {
   aspect-ratio: 1 / 1;
-}
-
-[data-scope="button"][data-part="root"].fd-button--icon-only.fd-button--size-xs {
-  padding: 0.125rem;
-}
-
-[data-scope="button"][data-part="root"].fd-button--icon-only.fd-button--size-sm {
-  padding: 0.25rem;
-}
-
-[data-scope="button"][data-part="root"].fd-button--icon-only.fd-button--size-md {
-  padding: 0.5rem;
-}
-
-[data-scope="button"][data-part="root"].fd-button--icon-only.fd-button--size-lg {
-  padding: 0.75rem;
-}
-
-[data-scope="button"][data-part="root"].fd-button--icon-only.fd-button--size-xl {
-  padding: 1rem;
+  padding: 0;
 }
 
 [data-scope="button"][data-part="root"][data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+[data-scope="button"][data-part="root"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 @media (hover: hover) {

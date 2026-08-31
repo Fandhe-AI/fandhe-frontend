@@ -163,7 +163,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # CSS 実体変更のため `docs/ci/style-refresh-version-bump-operation.md`
 # §3.1（PR 毎 patch バンプ、CSS 変更への `version-bump-exempt:` 不可）に
 # 従いパッチバンプする。
-version = "0.54.2"
+# イシュー #1449: button の size variant トークン化（height/padding-x/
+# font-size を `--fandhe-size-control-*` へ）・icon-only compound variant
+# の簡約・loading Spinner サイズ追随・focus-visible リング追加を伴う CSS
+# 実体変更のため、同運用（§3.1）に従いパッチバンプする。
+version = "0.54.3"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
