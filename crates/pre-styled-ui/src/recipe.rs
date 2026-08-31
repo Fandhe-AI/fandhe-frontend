@@ -677,6 +677,25 @@ pub enum StateCondition {
     /// `FocusVisible`/`NthChildEven` 等と同じく「消費者が現れた時点で
     /// 追加する」前例に従う（本モジュール冒頭 doc 参照）。
     Hover,
+    /// `:hover:not([data-disabled]):not([<name>="<value>"])`（[`Hover`]
+    /// の disabled 除外に加え、値付き属性 1 件も除外する。イシュー #1463
+    /// PR #1740 Bugbot レビュー Medium severity 指摘「Hover overrides open
+    /// border」対応）。
+    ///
+    /// [`crate::color_picker`] の `trigger` は `open` 状態でアクセント色の
+    /// 枠線（[`StateCondition::AttrEq`]）を表示するが、同じ slot へ素の
+    /// [`Hover`] を併用すると `:hover:not([data-disabled])`
+    /// （specificity (0,4,0)）が `[data-state="open"]`（specificity
+    /// (0,3,0)）より高く、かつ [`SlotRecipe::css`] が hover 規則を
+    /// `@media (hover: hover)` として常に末尾へ集約出力するため、open な
+    /// trigger にホバーすると open のアクセント枠線が hover の枠線色へ
+    /// 上書きされてしまう（specificity・ソース順の両方で hover が勝つ）。
+    /// 本 variant は hover 条件の対象から `[<name>="<value>"]` に一致する
+    /// 要素そのものを除外する（`:not()` によるマッチ除外であり、
+    /// [`Hover`] 自体の specificity や `AttrEq`/`AttrEqAll` 側の
+    /// specificity を変更しない）ため、open かつ hover な trigger では
+    /// この規則が一切マッチせず、open 側の規則がそのまま残る。
+    HoverExcept(&'static str, &'static str),
 }
 
 /// slot 1 個・状態条件 1 個への宣言登録（内部表現、イシュー #643）。
@@ -1066,6 +1085,9 @@ impl SlotRecipe {
                         })
                 }
                 StateCondition::Hover => true,
+                StateCondition::HoverExcept(name, value) => {
+                    is_valid_identifier(name) && is_valid_identifier(value)
+                }
             };
             if !condition_valid {
                 continue;
@@ -1095,11 +1117,24 @@ impl SlotRecipe {
                     // で disabled 規則との勝敗を記述順に依存させない。
                     selector.push_str(":hover:not([data-disabled])");
                 }
+                StateCondition::HoverExcept(name, value) => {
+                    // [`Hover`] と同じく `@media (hover: hover)` 配下へ集約
+                    // 出力される（下記 `matches!` の対象に含める）。加えて
+                    // `[<name>="<value>"]` に一致する要素を hover 対象から
+                    // 除外する（`StateCondition::HoverExcept` rustdoc 参照）。
+                    selector.push_str(&format!(
+                        ":hover:not([data-disabled]):not([{name}=\"{value}\"])"
+                    ));
+                }
             }
-            // Hover は states ループの通常出力先ではなく専用バッファへ集約し、
-            // css() 末尾で `@media (hover: hover)` に 1 つだけまとめて出す
-            // （イシュー #1425、本関数 rustdoc の出力順序節参照）。
-            let target = if matches!(rule.condition, StateCondition::Hover) {
+            // Hover/HoverExcept は states ループの通常出力先ではなく専用
+            // バッファへ集約し、css() 末尾で `@media (hover: hover)` に
+            // 1 つだけまとめて出す（イシュー #1425、本関数 rustdoc の
+            // 出力順序節参照）。
+            let target = if matches!(
+                rule.condition,
+                StateCondition::Hover | StateCondition::HoverExcept(_, _)
+            ) {
                 &mut hover_css
             } else {
                 &mut out

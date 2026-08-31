@@ -26,6 +26,7 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
 }
 
 [data-scope="color-picker"][data-part="trigger"] {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -175,7 +176,7 @@ const COLOR_PICKER_GOLDEN_CSS: &str = r#"[data-scope="color-picker"][data-part="
 }
 
 @media (hover: hover) {
-  [data-scope="color-picker"][data-part="trigger"]:hover:not([data-disabled]) {
+  [data-scope="color-picker"][data-part="trigger"]:hover:not([data-disabled]):not([data-state="open"]) {
     border-color: var(--fandhe-color-border-emphasized);
   }
 }

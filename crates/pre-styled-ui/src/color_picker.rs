@@ -232,6 +232,7 @@ fn recipe() -> SlotRecipe {
         .base(
             "trigger",
             vec![
+                decl("box-sizing", "border-box"),
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
                 decl("justify-content", "center"),
@@ -441,9 +442,19 @@ fn recipe() -> SlotRecipe {
         // shorthand を当てると `background-image` ごと上書きされてプレビュー
         // が消える。代わりに枠線色の変化のみで hover を表現する（本モジュール
         // 冒頭 rustdoc「スタイル調整」節参照）。
+        //
+        // `StateCondition::Hover` ではなく `HoverExcept("data-state",
+        // "open")` を使う（PR #1740 Bugbot レビュー Medium severity 指摘
+        // 「Hover overrides open border」対応）: 素の `Hover` は
+        // `[data-state="open"]` より selector specificity が高く（`crate::
+        // recipe::StateCondition::HoverExcept` rustdoc 参照）、open な
+        // trigger にホバーすると open のアクセント枠線がホバー色へ
+        // 上書きされてしまう。`HoverExcept` は open な要素そのものを
+        // hover の対象から除外するため、open かつホバー中は open 側の
+        // 規則のみが適用される。
         .state(
             "trigger",
-            StateCondition::Hover,
+            StateCondition::HoverExcept("data-state", "open"),
             vec![decl(
                 "border-color",
                 "var(--fandhe-color-border-emphasized)",
@@ -716,6 +727,19 @@ mod tests {
     }
 
     #[test]
+    fn trigger_hover_excludes_open_state_so_open_border_is_not_overridden() {
+        // hover が `[data-state="open"]` な要素を対象から除外することを
+        // 固定する（PR #1740 Bugbot レビュー Medium severity 指摘「Hover
+        // overrides open border」の回帰防止。`StateCondition::HoverExcept`
+        // rustdoc 参照）。open と hover のセレクタが互いに排他的であるため、
+        // open な trigger にホバーしても open 側の規則がそのまま適用される。
+        let out = css();
+        assert!(out.contains(
+            "[data-scope=\"color-picker\"][data-part=\"trigger\"]:hover:not([data-disabled]):not([data-state=\"open\"]) {\n    border-color: var(--fandhe-color-border-emphasized);\n  }"
+        ));
+    }
+
+    #[test]
     fn trigger_disabled_uses_shared_disabled_declarations() {
         let out = css();
         assert!(out.contains(
@@ -739,7 +763,7 @@ mod tests {
             .expect("hover は @media ブロックにまとめて出力される");
         let media_block = &out[media_start..];
         assert!(media_block.contains(
-            "[data-scope=\"color-picker\"][data-part=\"trigger\"]:hover:not([data-disabled]) {\n    border-color: var(--fandhe-color-border-emphasized);\n  }"
+            "[data-scope=\"color-picker\"][data-part=\"trigger\"]:hover:not([data-disabled]):not([data-state=\"open\"]) {\n    border-color: var(--fandhe-color-border-emphasized);\n  }"
         ));
         // trigger の hover は background shorthand を使わない
         // （プレビュー層を上書きしないための逸脱、モジュール冒頭 rustdoc 参照）。
