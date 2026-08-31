@@ -175,6 +175,38 @@ name = "fandhe-frontend-pre-styled-ui"
 # 実体変更を統合するため同一版数への衝突をそのまま採用せず 0.54.3 へさらに
 # パッチバンプする（0.x の破壊的変更ではない意匠調整の重複、
 # `docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+# イシュー #1449: button の size variant トークン化（height/padding-x/
+# font-size を `--fandhe-size-control-*` へ）・icon-only compound variant
+# の簡約・loading Spinner サイズ追随・focus-visible リング追加を伴う CSS
+# 実体変更のため、同運用（§3.1）に従いパッチバンプする。
+# base 取り込み（イシュー #1449）: main 側は #1446 の angle-slider 型階層是正で
+# 独立に 0.54.3 へ到達しており、本ブランチも #1449 の button size variant
+# トークン化で独立に 0.54.3 へ到達していた（偶発的な同一版数衝突）。本マージ
+# で双方の実体変更を統合するため同一版数への衝突をそのまま採用せず 0.54.4 へ
+# さらにパッチバンプする（0.x の破壊的変更ではない意匠調整の重複、
+# `docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+# イシュー #1448: button の variant 網羅（1/2、PR #1730）。公開 enum
+# `ButtonVariant` へ `Surface`/`Plain` を追加（利用者側の網羅 `match` を
+# 壊す 0.x 破壊的変更）し、`Subtle` の配色を中立色から palette 着色面
+# （`--fandhe-palette-subtle`/`-fg-subtle`/`-muted`）へ移行、button root へ
+# `focus_ring_declarations` によるフォーカスリング state を追加した
+# （golden CSS 実体変更）ため main 側は独立に 0.55.0 へマイナーバンプ済み
+# だった。本マージは #1449（本ブランチ、0.54.4 パッチ相当）と #1448
+# （main、0.55.0 マイナー相当）双方の button.rs 実体変更を統合するが、
+# 先行するマイナーバンプ（0.55.0）が本ブランチ側のパッチバンプ（0.54.4）
+# より既に新しいため、同一版数への偶発的衝突は生じない。よって further
+# バンプは行わず 0.55.0 をそのまま維持する
+# （0.x の破壊的変更はマイナーバンプの規約、
+# `docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+# PR #1731 レビュー指摘の是正（イシュー #1449、Cursor Bugbot Medium）:
+# icon-only + `loading: true` のとき `assemble` が呼び出し側アイコンを
+# Spinner の隣へ追加していたため、`gap` を挟んだ 2 個の子要素で内容量が
+# 増え、icon-only の正方形（`padding: 0` + `aspect-ratio: 1 / 1`、内容量
+# 1 個前提）が崩れて横長化する不具合を修正した。icon-only かつ loading の
+# ときは呼び出し側アイコンを描画せず Spinner のみへ置換するよう変更した
+# （`assemble`/モジュール冒頭 rustdoc 参照）。Rust API シグネチャ・
+# `data-*` 属性は不変で描画される子ノード構成のみの是正のため patch
+# バンプする（`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
 # イシュー #1451（calendar 月グリッドと日セルの状態表現）: セレクタ・CSS
 # 変数名の削除/改名を伴わない意匠調整のためパッチバンプ相当の実体変更。
 # base 取り込み時点で main 側は #1448（button variant 網羅、公開 enum
@@ -184,7 +216,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # minor バンプへ相乗りして据え置くことはできない、§5 のコンフリクト解決
 # 手順と同型: main 現在値の patch を +1 する）。よって 0.55.1 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§5）。
-version = "0.55.1"
+# base 取り込み（イシュー #1449 / PR #1731）: 本ブランチは PR #1731 の
+# Cursor Bugbot 指摘是正（button.rs、icon-only + loading の子ノード構成
+# 是正）により独立に 0.55.1 へパッチバンプ済みで、main 側も #1451
+# （calendar.rs、月グリッド・日セルの状態表現是正）により独立に 0.55.1 へ
+# パッチバンプ済みだった（偶発的な同一版数衝突。対象ファイルは button.rs
+# と calendar.rs で異なる実体変更）。本マージで双方の実体変更を統合する
+# ため同一版数への衝突をそのまま採用せず 0.55.2 へさらにパッチバンプする
+# （0.x の破壊的変更ではない意匠調整の重複、
+# `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
+version = "0.55.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
