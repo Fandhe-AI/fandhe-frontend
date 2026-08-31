@@ -69,10 +69,50 @@
 //! 提供する `position: relative` は共通の祖先である `root` に付与する
 //! （[`crate::select`] の `root`/`control`/`positioner` 配置と同型の判断、
 //! PR #575 Bugbot 指摘の教訓を踏襲）。
+//!
+//! # スタイル調整（イシュー #1467、control/input/trigger/clear-trigger
+//! パートのみ）
+//!
+//! 親 #1466（chakra-ui / ark-ui 基準への調整、Phase 2 / ルート #1420）のうち
+//! `control`/`input`/`trigger`/`clear-trigger` の 4 パートを担当する。分割
+//! 2/2（`content`/`item`/`item-group`/`item-indicator`、#1468）とは
+//! ファイルを共有するため、以下は本イシューが確定した意図的差分である
+//! （checkbox 1/2、PR #1734・イシュー #1454 と同型の記録方針）:
+//!
+//! - **variant 軸（chakra の `outline`/`subtle`/`flushed` 相当）は追加しない**。
+//!   追加は `root()` のシグネチャ変更（破壊的）を伴ううえ、Forms 家族横断の
+//!   軸語彙判断であり部品単独で先行しない（checkbox 1/2 と同じ判断軸）
+//! - **size 連動の `font-size` 追加は見送る**: `--fandhe-combobox-*-padding`
+//!   custom property は root variant（`item`/`content` 等 2/2 スコープの
+//!   パートも共有）へ波及し、#1468 の作業と衝突するため
+//! - **hover は `control` 自体には付けない**: `control` はテキスト入力面
+//!   であり参照サイト（chakra-ui/ark-ui）もこの面自体への hover 表現を
+//!   持たない。`trigger`/`clear-trigger`（クリック操作を担う slot）にのみ
+//!   `hover_bg_muted()` + `StateCondition::Hover` を付ける
+//! - **disabled 視覚は `input`/`trigger` のみに付ける**: headless
+//!   （`crates/headless-ui/src/combobox.rs`）が `data-disabled` を出すのは
+//!   `input`/`trigger` のみで、`control`/`clear-trigger` へは出さないため
+//!   本 CSS 側でも対象外とする（消費できない属性へ規則を書かない）
+//! - フォーカスリングは `control` の `:focus-within` を
+//!   `recipe::focus_ring_declarations`（`FocusRingColor::Token`、combobox は
+//!   palette 軸を持たないため）へ canonical 化した。`input` の
+//!   `outline: none` は祖先 `control` のリングと併存させる許容パターン
+//!   （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3）で
+//!   あり維持する
+//! - `clear-trigger`（`<button>`）にブラウザ既定のボタン装飾（border・
+//!   背景）が露出していた実不具合を是正し、`trigger` と同じリセット
+//!   （`display: inline-flex`/`align-items: center`/`justify-content:
+//!   center`/`background: transparent`/`border: none`）+
+//!   `border-radius: var(--fandhe-radius-sm)` を追加した。`trigger` にも
+//!   hover 面の形状用に同じ `border-radius` を追加している
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
+};
 
 // headless 自由関数 `root`・状態機械 `Combobox` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。未スタイル・
@@ -130,12 +170,19 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl(
                     "padding",
                     "var(--fandhe-combobox-control-padding, var(--fandhe-space-1) var(--fandhe-space-2))",
                 ),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（checkbox 1/2、
+        // イシュー #1454 の transition 追加と同型のパターン）。
+        .base(
+            "control",
+            transition_declarations("border-color, background", MotionDuration::Fast),
         )
         .base(
             "input",
@@ -160,16 +207,33 @@ fn recipe() -> SlotRecipe {
                 decl("justify-content", "center"),
                 decl("background", "transparent"),
                 decl("border", "none"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
                 decl("cursor", "pointer"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         .base(
             "clear-trigger",
             vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("background", "transparent"),
+                decl("border", "none"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("cursor", "pointer"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "clear-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         .base(
             "positioner",
@@ -248,13 +312,39 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             vec![decl("outline", "none")],
         )
+        // イシュー #1467: リング宣言を canonical ヘルパへ置換（combobox は
+        // palette 軸を持たないため `FocusRingColor::Token`、モジュール
+        // rustdoc「スタイル調整」節参照）。
         .state(
             "control",
             StateCondition::FocusWithin,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // headless（`crates/headless-ui/src/combobox.rs`）が `input`/`trigger`
+        // へ出す `data-disabled` を消費する（`control`/`clear-trigger` へは
+        // 出さないため対象外、モジュール rustdoc「スタイル調整」節参照）。
+        .state(
+            "input",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // trigger/clear-trigger の hover 実適用（`--fandhe-hover-bg` の間接
+        // 参照経由、モジュール rustdoc「スタイル調整」節参照）。`control`
+        // 自体には付けない。
+        .state(
+            "trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "clear-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         // wasm 層が `data-positioned` マーカーを付与したら確定座標
         // （viewport 座標系の `position: fixed`）へ切り替える（[`crate::select`]
@@ -498,7 +588,61 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="combobox"][data-part="item"][data-highlighted] {"#));
         assert!(css.contains(r#"[data-scope="combobox"][data-part="control"]:focus-within {"#));
-        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+    }
+
+    #[test]
+    fn control_border_radius_uses_radius_token() {
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"combobox\"][data-part=\"control\"] {\n  \
+             display: flex;\n  \
+             align-items: center;\n  \
+             gap: var(--fandhe-space-2);\n  \
+             background: var(--fandhe-color-bg);\n  \
+             color: var(--fandhe-color-fg);\n  \
+             border: 1px solid var(--fandhe-color-border);\n  \
+             border-radius: var(--fandhe-radius-md);\n"
+        ));
+    }
+
+    #[test]
+    fn input_and_trigger_consume_data_disabled_attribute() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="combobox"][data-part="input"][data-disabled] {"#));
+        assert!(css.contains(r#"[data-scope="combobox"][data-part="trigger"][data-disabled] {"#));
+        assert!(css.contains("opacity: 0.5;"));
+        assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn trigger_and_clear_trigger_hover_rules_are_wrapped_in_hover_media_query() {
+        let css = stylesheet();
+        let media_idx = css
+            .find("@media (hover: hover) {")
+            .expect("hover media query block must exist");
+        let media_block = &css[media_idx..];
+        assert!(media_block.contains(
+            r#"[data-scope="combobox"][data-part="trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(media_block.contains(
+            r#"[data-scope="combobox"][data-part="clear-trigger"]:hover:not([data-disabled]) {"#
+        ));
+        // control 自体には hover を付けない（モジュール rustdoc「スタイル
+        // 調整」節参照）。
+        assert!(!media_block.contains(
+            r#"[data-scope="combobox"][data-part="control"]:hover:not([data-disabled]) {"#
+        ));
+    }
+
+    #[test]
+    fn clear_trigger_resets_native_button_chrome() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="combobox"][data-part="clear-trigger"] {"#));
+        assert!(css.contains("display: inline-flex;"));
+        assert!(css.contains("border-radius: var(--fandhe-radius-sm);"));
     }
 
     #[test]
