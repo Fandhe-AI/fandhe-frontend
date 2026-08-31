@@ -184,7 +184,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # minor バンプへ相乗りして据え置くことはできない、§5 のコンフリクト解決
 # 手順と同型: main 現在値の patch を +1 する）。よって 0.55.1 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§5）。
-version = "0.55.1"
+# イシュー #1452（親 #1450 分割 2/2、calendar のヘッダー・ビュー切り替え・
+# 週表示是正）: `calendar::stylesheet()` の CSS 出力をさらに変更する実体
+# 変更のため、独立パッチバンプ運用（§3.4a）に従い 0.55.1 → 0.55.2 とする。
+version = "0.55.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
