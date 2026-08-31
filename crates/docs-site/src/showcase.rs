@@ -1344,9 +1344,14 @@ fn skeleton_section() -> Node {
 /// （イシュー #1434。chakra-ui のサイズデモ（`docs/design/
 /// reference-screenshots/chakra-heading-2.png`、sm〜6xl を縦積み掲示）と
 /// 視覚比較できる状態にするため、意味論タグ（h1〜h6）とは独立に単一タグ
-/// （h2）で size 軸のみを掲示する。タグと視覚サイズの独立性自体は
+/// で size 軸のみを掲示する。タグと視覚サイズの独立性自体は
 /// [`fandhe_frontend_pre_styled_ui::heading`] のモジュール rustdoc
-/// 「意味論レベルと視覚サイズの独立」節で説明済み）。
+/// 「意味論レベルと視覚サイズの独立」節で説明済み。タグは `h2` ではなく
+/// `h4` を使う（イシュー #1434 の codex-review/Bugbot 指摘）: 本ファイル
+/// 冒頭の節コメントが明記するとおり `.docs-content` 見出し規則は
+/// `h1`〜`h3` を対象とし、`border-top`/`padding-top` 等のサイト骨格装飾を
+/// 付与する。デモを `h2` にすると全 8 段へこの装飾が混入しサイズ比較の
+/// 見た目を汚すため、装飾対象外の `h4` で統一する）。
 fn heading_section() -> Node {
     let heading_stack = stack(
         [
@@ -1362,7 +1367,7 @@ fn heading_section() -> Node {
         .iter()
         .map(|size| {
             heading(
-                HeadingLevel::H2,
+                HeadingLevel::H4,
                 &HeadingProps { size: *size },
                 vec![],
                 vec![text(format!("見出し（size={size:?}）"))],
