@@ -288,6 +288,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 未マージのため、rebase 時に衝突する場合は先にマージされた側の値を
 # 新しい base として再バンプする原則、
 # `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
+# イシュー #1463: color-picker のスタイル調整 1/3（トリガー・スウォッチ・
+# プレビュー）。`recipe()` の `trigger` slot の CSS 出力を実体変更するため、
+# base 現在値 0.55.7 から独立にパッチを 1 つ進めて 0.55.8 とする（並行 PR
+# #1464/#1465〔2/3・3/3〕は本 PR 提出時点で未着手のため、rebase 時に衝突する
+# 場合は先にマージされた側の値を新しい base として再バンプする原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
 # base 取り込み（イシュー #1460）: 本ブランチが取り込む main 側は
 # checkbox-group のスタイル調整 2/2（#1461、size バリアント・ラベル/
 # item-text の型階層、PR #1739）を経て独立に 0.55.7 へパッチバンプ
@@ -297,23 +303,42 @@ name = "fandhe-frontend-pre-styled-ui"
 # 進めて 0.55.8 とする（先にマージされた側の値が base の新しい現在値に
 # なり、後からマージされる側は rebase 時に再バンプする同原則、
 # `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
-# イシュー #1464: color-picker のスタイル調整 (2/3) — エリア・スライダ群
-# （サム 3 slot のフォーカスリング/disabled/hover/transition 追加・角丸
-# トークン化・サム寸法統一）。`color_picker.rs` の `recipe()` の CSS 出力を
-# 実体変更するため、base 現在値 0.55.8 から独立にパッチを 1 つ進めて
-# 0.55.9 とする（並行 PR #1740〔1/3、イシュー #1463〕は本 PR 提出時点で
-# 未マージのため、rebase 時に衝突する場合は先にマージされた側の値を
-# 新しい base として再バンプする原則、
+# base 取り込み（イシュー #1463）: 本ブランチ（#1463、color-picker の
+# trigger スタイル調整）は独立に 0.55.8 へパッチバンプ済みで、main 側も
+# checkbox-group のスタイル調整 1/2（#1460、PR #1738）を経て独立に
+# 0.55.8 へパッチバンプ済みだった（偶発的な同一版数衝突。対象ファイルは
+# color_picker.rs と checkbox_group.rs で異なる実体変更）。本マージで
+# 双方の実体変更を統合するため同一版数への衝突をそのまま採用せず
+# 0.55.9 へさらにパッチバンプする（0.x の破壊的変更ではない意匠調整の
+# 重複、`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
+# イシュー #1463 PR #1740 codex-review P1 指摘の是正: `StateCondition` は
+# 公開かつ `#[non_exhaustive]` ではない enum であり、新 variant
+# `HoverExcept` の追加は利用側の網羅 `match` を壊し得る破壊的変更に
+# あたる（0.x でもマイナーバンプ対象）。0.55.9 のパッチバンプ扱いは誤り
+# だったため 0.56.0 へマイナーバンプへ是正する
+# （.claude/rules/coding-rust.md、`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+# base 取り込み（イシュー #1464）: 本マージが取り込む main 側は
+# color-picker のスタイル調整 (2/3)（#1464、エリア・スライダ群のサム
+# フォーカスリング/disabled/hover/transition 追加・角丸トークン化・サム
+# 寸法統一、PR 未特定時点で 0.55.8 から独立にパッチバンプ済み 0.55.9）
+# であり、`color_picker.rs` の `recipe()` の CSS 出力を trigger（本ブランチ
+# #1463 分）とは非重複の slot（area-thumb/hue-slider-thumb/alpha-slider-thumb）
+# で実体変更する。本ブランチ側は上記是正により既に 0.56.0（マイナー
+# バンプ）へ到達済みのため、双方の実体変更を統合した結果として base
+# 現在値 0.56.0 から独立にパッチを 1 つ進めて 0.56.1 とする（#1464 側の
+# 追加は 0.x の破壊的変更ではない意匠調整の純追加のため、統合後もマイナー
+# バンプへ昇格させる理由はない、
 # `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
 # イシュー #1465: color-picker のスタイル調整 (3/3) — チャネル入力と値
 # テキスト（`channel-input`/`value-text` のフォントトークン化・
 # フォーカスリング/disabled/hover/transition 追加）。`color_picker.rs` の
 # `recipe()` の CSS 出力を実体変更するため、base 現在値 0.55.9 から独立に
-# パッチを 1 つ進めて 0.55.10 とする（並行 PR #1740〔1/3、イシュー
-# #1463〕は本ブランチ着手時点で未マージのため、rebase 時に衝突する場合は
-# 先にマージされた側の値を新しい base として再バンプする原則、
-# `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.4a/§5）。
-version = "0.55.10"
+# パッチを 1 つ進めて 0.55.10 とする予定だったが、rebase 時点で並行 PR
+# （イシュー #1463 分・#1464 分）が先にマージされ base が 0.56.1 まで
+# 進んでいたため、原則（`docs/ci/style-refresh-version-bump-operation.md`
+# §3.1/§3.4a/§5）に従い base 現在値 0.56.1 から独立にパッチを 1 つ
+# 進めて 0.56.2 とする。
+version = "0.56.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
