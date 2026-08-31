@@ -4827,10 +4827,67 @@ fn checkbox_group_section() -> Node {
         invalid_children,
     );
 
+    // イシュー #1461: size 5 段（xs〜xl）で control 寸法・root/item 余白・
+    // font-size が単調に連動し、label（見出し）が item-text（項目）より
+    // 太いことを視覚確認できる行（`checkbox_section`/`checkbox_card_section`
+    // の `size_row` と同型）。
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .iter()
+        .map(|size| {
+            let size_label_id = format!("showcase-checkbox-group-size-{}-label", size.value());
+            let mut size_children = vec![checkbox_group::label(
+                Some(&size_label_id),
+                vec![],
+                vec![text(size.value())],
+            )];
+            size_children.extend(items.iter().map(|(value, label, checked, disabled)| {
+                let props = CheckboxProps {
+                    checked: if *checked {
+                        CheckedState::Checked
+                    } else {
+                        CheckedState::Unchecked
+                    },
+                    disabled: *disabled,
+                    ..CheckboxProps::default()
+                };
+                let name = format!("showcase-checkbox-group-size-{}", size.value());
+                checkbox_group::item(
+                    *checked,
+                    *disabled,
+                    value,
+                    vec![],
+                    vec![
+                        checkbox::hidden_input(&props, &name, value, vec![]),
+                        checkbox_group::item_control(
+                            *checked,
+                            *disabled,
+                            vec![],
+                            vec![checkbox_group::item_indicator(
+                                *checked,
+                                *disabled,
+                                vec![],
+                                vec![],
+                            )],
+                        ),
+                        checkbox_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                    ],
+                )
+            }));
+            checkbox_group::root(
+                *size,
+                ColorPalette::Accent,
+                false,
+                Some(Orientation::Vertical),
+                Some(&size_label_id),
+                vec![],
+                size_children,
+            )
+        })
+        .collect());
     section(
         "CheckboxGroup",
         "複数選択の選択肢グループ。ネイティブ input[type=\"checkbox\"]（fandhe_frontend_pre_styled_ui::checkbox::hidden_input の再利用）による同時選択・キーボード操作を data-scope=\"checkbox-group\" の anatomy へ重ねます。",
-        vec![demo, horizontal_demo, invalid_demo],
+        vec![demo, horizontal_demo, invalid_demo, size_row],
     )
 }
 

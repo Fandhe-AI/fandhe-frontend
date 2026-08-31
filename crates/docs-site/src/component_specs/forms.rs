@@ -286,6 +286,7 @@ const CHECKBOX_GROUP: ComponentPageSpec = ComponentPageSpec {
         "`aria-checked`/`role=\"checkbox\"` は `item-control` へ重複付与しない（二重読み上げ防止）。グループ全体の関連付けは `root` の `aria-labelledby` で行う。",
         "`data-orientation=\"horizontal\"` では折り返し（`flex-wrap: wrap`）付きの横並びへ切り替わる。",
         "`root` の `data-invalid` は custom property 経由で `item-control` の border-color へ伝播する（headless 層が出力しないため、利用者が `root` の `attrs` へ直接付与する）。`root` の `data-disabled` は CSS のみでは各 item のネイティブ入力を実際に無効化できない（タブ順序を変更できない）ため伝播しない。グループ全体を無効化する場合は、各 item・`checkbox::hidden_input` の `disabled` を利用者が一貫して付与する。",
+        "`size` は control 寸法・root/item 余白・font-size を custom property 経由で連動させ、`label`（グループ見出し）は medium ウェイト、`item-text`（項目）は通常ウェイトの 2 段階の型階層を持つ。",
     ],
     arguments: &[
         ArgRow {

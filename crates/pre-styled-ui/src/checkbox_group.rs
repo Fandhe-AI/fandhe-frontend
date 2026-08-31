@@ -58,11 +58,78 @@
 //! [`crate::radio_group`] rustdoc「`size`/`palette` variant」節と同じ設計
 //! （`root` スコープの custom property 経由で `item-control`/`item-text` の
 //! 寸法・見た目を切り替える）に従う。`size` は
-//! `--fandhe-checkbox-group-control-size`/`-font-size` を、`palette` は
+//! `--fandhe-checkbox-group-control-size`/`-font-size`/`-item-gap`/`-gap`
+//! （イシュー #1461 で `-item-gap`/`-gap` を新設）を、`palette` は
 //! [`crate::recipe::palette_scale_declarations`] を登録する。`var()` にはいずれも
 //! Md サイズ・Accent パレット相当のフォールバック値を書き、styled `root` を
 //! 経由しない headless 直接利用マークアップでも現行外観を維持する
-//! （fail-safe）。
+//! （fail-safe）。size variant の一括登録は [`crate::recipe::SlotRecipe::size_variants`]
+//! （イシュー #1424 の共通生成手段）を使い、既定 `md` の設定漏れを構造的に
+//! 防ぐ。
+//!
+//! # スタイル調整（イシュー #1461、size バリアント・ラベル/item-text の型階層）
+//!
+//! 親 #1459（checkbox-group を chakra-ui / Radix Themes 基準へ調整）の
+//! 分割 2/2。1/2（イシュー #1460）が root の `gap` custom property 化
+//! （受け口）・`orientation` 折り返し・`data-invalid`/`data-disabled`
+//! 伝播・`item` の `width`/opacity/cursor・`item-control` の
+//! hover/transition/focus ring canonical 化を担当するのに対し、本イシューは
+//! **size バリアントの寸法段階設計とラベル・item-text の型階層**を担当する
+//! （担当領域を分けているため互いの変更範囲には触れない）。
+//!
+//! - **size variant の一括登録**: 5 段の `.variant(Size::*, "root", ...)` を
+//!   個別に手書きする代わりに [`crate::recipe::SlotRecipe::size_variants`]
+//!   を使う（`crate::checkbox`/`crate::checkbox_card` と同型）。
+//! - **control 寸法を 4px 格子へ**: `xs`/`sm` のみ `0.75rem`（12px）/
+//!   `0.875rem`（14px）へ変更する（`crate::checkbox` #1735 と同値、Radix
+//!   Themes `size1`/`size2` 相当）。`md`/`lg`/`xl` は既存の外観を変えない。
+//!   チェックマーク寸法（`check-width`/`check-height`）は control に対する
+//!   光学的な比率値であり、[`item_indicator`] の `margin-bottom: 0.1rem` と
+//!   同じ「spacing スケール外の意図的な例外」として現状値のまま維持する。
+//! - **`item` の `gap` を size 連動に**: `--fandhe-checkbox-group-item-gap`
+//!   （control ↔ text 余白）を新設し、`item` base の `gap` 宣言を
+//!   `var(--fandhe-checkbox-group-item-gap, var(--fandhe-space-2))` へ変更
+//!   する（フォールバックは既存の Md 相当値）。xs〜xl で `--fandhe-space-1`/
+//!   `-1-5`/`-2`/`-2-5`/`-3` の単調増加（`crate::checkbox` の
+//!   `--fandhe-checkbox-gap` と同じ段階）。
+//! - **`root` の `gap` を size 連動に**: `--fandhe-checkbox-group-gap`
+//!   （項目間余白、1/2 が用意した受け口）を xs〜xl で `--fandhe-space-0-5`/
+//!   `-1`/`-1`/`-1-5`/`-2` の**非減少**（sm と md が同値）で定義する。厳密
+//!   単調にすると md の既定外観が変わるため、現行外観維持を優先し非減少に
+//!   留める。
+//! - **`label`（グループ見出し）の型階層**: `font-size` を固定 `sm` から
+//!   size 連動 custom property へ変更し、`font-weight: medium` と
+//!   `line-height: normal` を追加する（chakra `Fieldset.Legend` の
+//!   `textStyle: sm` + medium と同型、`crate::checkbox`/`crate::checkbox_card`
+//!   の `label` 語彙に揃える）。
+//! - **`item-text`（項目テキスト）の型階層**: `line-height: normal`
+//!   （複数行項目の行送り）と `user-select: none`（クリックでトグルする
+//!   `item`〔`<label>`〕内テキストの誤選択防止、chakra label と同じ）を
+//!   追加する。`font-weight` は宣言せず通常ウェイトを継承する（Radix
+//!   Themes 参照スクリーンショットの項目テキストが通常ウェイトであること、
+//!   `label` の medium との 2 段階を作ることが根拠）。
+//!
+//! ## 意図的に合わせない点
+//!
+//! - **ヘルパーテキスト（description）パートは追加しない**: headless
+//!   anatomy（`crates/headless-ui/src/checkbox_group.rs`）に存在せず、
+//!   anatomy 構造は headless 層の責務（`crate::checkbox` #1455 と同じ判断）。
+//!   `data-part="description"` を pre-styled-ui 側だけで新設すると
+//!   Primitives/Themes 間の anatomy ドリフト検知
+//!   （`crates/docs-site/tests/wrap_state.rs` 等）と公開 API 追加を伴うため
+//!   見送る。説明文が必要な呼び出し側は `--fandhe-color-fg-muted` + 1 段
+//!   小さい font-size を自前合成する。headless 側の description パート
+//!   検討はイシュー #1602 の射程とする。
+//! - **`label` の `margin-bottom` は size 連動させない**: `root` の `gap`
+//!   と加算されるため、現行外観維持のため据え置く。
+//! - **`label`/`item-text` へ hover/transition/`data-*` は追加しない**:
+//!   非インタラクティブなテキストで、disabled の見た目は 1/2 の `item`
+//!   opacity 伝播が波及済みで足りる。
+//! - **チェックマーク線幅（2px 固定）は size 連動させない**: `crate::checkbox`
+//!   と同じ判断。
+//! - **variant 軸（solid/subtle/outline 等）は追加しない**: 1/2・
+//!   `crate::checkbox`/`crate::checkbox_card` と同じ判断（`root()` シグネ
+//!   チャ変更は破壊的、Forms 家族横断の判断が必要）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -280,7 +347,12 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "block"),
                 decl("color", "var(--fandhe-color-fg)"),
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-checkbox-group-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("margin-bottom", "var(--fandhe-space-1)"),
             ],
         )
@@ -289,7 +361,11 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("align-items", "center"),
-                decl("gap", "var(--fandhe-space-2)"),
+                decl(
+                    "gap",
+                    "var(--fandhe-checkbox-group-item-gap, var(--fandhe-space-2))",
+                ),
+                decl("cursor", "pointer"),
                 // Radix Themes item に合わせ、縦積み時に `<label>` が行幅
                 // いっぱいへ伸びクリック領域が余白まで広がるのを防ぐ
                 // （モジュール doc 参照）。
@@ -332,6 +408,8 @@ fn recipe() -> SlotRecipe {
                     "font-size",
                     "var(--fandhe-checkbox-group-font-size, var(--fandhe-font-font-size-sm))",
                 ),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+                decl("user-select", "none"),
             ],
         )
         // イシュー #997: indicator の base に `display` 宣言を置かない
@@ -423,72 +501,100 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusWithin,
             focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
-        .variant(
-            Size::Xs,
+        // イシュー #1461: 5 段の `.variant(Size::*, "root", ...)` を個別に
+        // 手書きする代わりに `size_variants`（イシュー #1424 の共通生成
+        // 手段、`checkbox.rs`/`checkbox_card.rs` と同型）を使い、既定 `md`
+        // の設定漏れを構造的に防ぐ（規約は
+        // `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+        // §4）。control 寸法は xs/sm のみ 4px 格子（12px/14px）へ是正し、
+        // md/lg/xl は既存外観を維持する（`checkbox.rs` #1735 と同値）。
+        // チェックマーク寸法（比率値）は現状維持。`--fandhe-checkbox-group-
+        // item-gap`（item 内の control ↔ text 余白）と
+        // `--fandhe-checkbox-group-gap`（root の項目間余白）は本イシューで
+        // 新設した size 連動 custom property。item-gap は xs〜xl まで
+        // spacing トークン経由で単調増加させる。root の gap は現行外観
+        // （md）を変えないため非減少（sm と md が同値）に留める。
+        .size_variants(
             "root",
-            vec![
-                decl("--fandhe-checkbox-group-control-size", "0.7rem"),
-                decl("--fandhe-checkbox-group-check-width", "0.15rem"),
-                decl("--fandhe-checkbox-group-check-height", "0.3rem"),
-                decl(
-                    "--fandhe-checkbox-group-font-size",
-                    "var(--fandhe-font-font-size-xs)",
+            &[
+                (
+                    Size::Xs,
+                    vec![
+                        decl("--fandhe-checkbox-group-control-size", "0.75rem"),
+                        decl("--fandhe-checkbox-group-check-width", "0.15rem"),
+                        decl("--fandhe-checkbox-group-check-height", "0.3rem"),
+                        decl(
+                            "--fandhe-checkbox-group-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                        decl("--fandhe-checkbox-group-item-gap", "var(--fandhe-space-1)"),
+                        decl("--fandhe-checkbox-group-gap", "var(--fandhe-space-0-5)"),
+                    ],
+                ),
+                (
+                    Size::Sm,
+                    vec![
+                        decl("--fandhe-checkbox-group-control-size", "0.875rem"),
+                        decl("--fandhe-checkbox-group-check-width", "0.2rem"),
+                        decl("--fandhe-checkbox-group-check-height", "0.4rem"),
+                        decl(
+                            "--fandhe-checkbox-group-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl(
+                            "--fandhe-checkbox-group-item-gap",
+                            "var(--fandhe-space-1-5)",
+                        ),
+                        decl("--fandhe-checkbox-group-gap", "var(--fandhe-space-1)"),
+                    ],
+                ),
+                (
+                    Size::Md,
+                    vec![
+                        decl("--fandhe-checkbox-group-control-size", "1rem"),
+                        decl("--fandhe-checkbox-group-check-width", "0.25rem"),
+                        decl("--fandhe-checkbox-group-check-height", "0.5rem"),
+                        decl(
+                            "--fandhe-checkbox-group-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-checkbox-group-item-gap", "var(--fandhe-space-2)"),
+                        decl("--fandhe-checkbox-group-gap", "var(--fandhe-space-1)"),
+                    ],
+                ),
+                (
+                    Size::Lg,
+                    vec![
+                        decl("--fandhe-checkbox-group-control-size", "1.25rem"),
+                        decl("--fandhe-checkbox-group-check-width", "0.3rem"),
+                        decl("--fandhe-checkbox-group-check-height", "0.6rem"),
+                        decl(
+                            "--fandhe-checkbox-group-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                        decl(
+                            "--fandhe-checkbox-group-item-gap",
+                            "var(--fandhe-space-2-5)",
+                        ),
+                        decl("--fandhe-checkbox-group-gap", "var(--fandhe-space-1-5)"),
+                    ],
+                ),
+                (
+                    Size::Xl,
+                    vec![
+                        decl("--fandhe-checkbox-group-control-size", "1.5rem"),
+                        decl("--fandhe-checkbox-group-check-width", "0.35rem"),
+                        decl("--fandhe-checkbox-group-check-height", "0.7rem"),
+                        decl(
+                            "--fandhe-checkbox-group-font-size",
+                            "var(--fandhe-font-font-size-lg)",
+                        ),
+                        decl("--fandhe-checkbox-group-item-gap", "var(--fandhe-space-3)"),
+                        decl("--fandhe-checkbox-group-gap", "var(--fandhe-space-2)"),
+                    ],
                 ),
             ],
         )
-        .variant(
-            Size::Sm,
-            "root",
-            vec![
-                decl("--fandhe-checkbox-group-control-size", "0.85rem"),
-                decl("--fandhe-checkbox-group-check-width", "0.2rem"),
-                decl("--fandhe-checkbox-group-check-height", "0.4rem"),
-                decl(
-                    "--fandhe-checkbox-group-font-size",
-                    "var(--fandhe-font-font-size-sm)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Md,
-            "root",
-            vec![
-                decl("--fandhe-checkbox-group-control-size", "1rem"),
-                decl("--fandhe-checkbox-group-check-width", "0.25rem"),
-                decl("--fandhe-checkbox-group-check-height", "0.5rem"),
-                decl(
-                    "--fandhe-checkbox-group-font-size",
-                    "var(--fandhe-font-font-size-sm)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Lg,
-            "root",
-            vec![
-                decl("--fandhe-checkbox-group-control-size", "1.25rem"),
-                decl("--fandhe-checkbox-group-check-width", "0.3rem"),
-                decl("--fandhe-checkbox-group-check-height", "0.6rem"),
-                decl(
-                    "--fandhe-checkbox-group-font-size",
-                    "var(--fandhe-font-font-size-md)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Xl,
-            "root",
-            vec![
-                decl("--fandhe-checkbox-group-control-size", "1.5rem"),
-                decl("--fandhe-checkbox-group-check-width", "0.35rem"),
-                decl("--fandhe-checkbox-group-check-height", "0.7rem"),
-                decl(
-                    "--fandhe-checkbox-group-font-size",
-                    "var(--fandhe-font-font-size-lg)",
-                ),
-            ],
-        )
-        .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
     for palette in [
@@ -803,6 +909,229 @@ mod tests {
             "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));"
         ));
         assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+    }
+
+    /// イシュー #1461: control 寸法（`--fandhe-checkbox-group-control-size`）
+    /// が xs〜xl で単調増加することを rem 値の parse で固定する
+    /// （`crate::checkbox` の同名テストと同型）。
+    #[test]
+    fn size_variants_control_size_is_monotonic() {
+        let css = stylesheet();
+        let mut sizes_rem = Vec::new();
+        for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
+            let selector = format!(
+                r#"[data-scope="checkbox-group"][data-part="root"].fd-checkbox-group--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            let block = &css[start..block_end];
+            let decl_start = block
+                .find("--fandhe-checkbox-group-control-size: ")
+                .unwrap_or_else(|| panic!("control-size declaration not found in {block}"));
+            let after = &block[decl_start + "--fandhe-checkbox-group-control-size: ".len()..];
+            let value_end = after
+                .find(';')
+                .unwrap_or_else(|| panic!("control-size declaration not terminated in {block}"));
+            let raw = &after[..value_end];
+            let rem = raw
+                .strip_suffix("rem")
+                .unwrap_or_else(|| panic!("control-size value not in rem: {raw}"))
+                .parse::<f64>()
+                .unwrap_or_else(|_| panic!("control-size value not numeric: {raw}"));
+            sizes_rem.push((size, rem));
+        }
+        for pair in sizes_rem.windows(2) {
+            let (prev_size, prev) = pair[0];
+            let (next_size, next) = pair[1];
+            assert!(
+                prev < next,
+                "control-size not monotonic: {prev_size:?}={prev}rem >= {next_size:?}={next}rem"
+            );
+        }
+    }
+
+    /// イシュー #1461: `--fandhe-checkbox-group-item-gap`（item 内の control
+    /// ↔ text 余白）が xs〜xl で spacing トークン経由の単調増加になることを
+    /// 固定する。
+    #[test]
+    fn size_variants_set_item_gap_custom_property_monotonically() {
+        let css = stylesheet();
+        let expected = [
+            (Size::Xs, "var(--fandhe-space-1)"),
+            (Size::Sm, "var(--fandhe-space-1-5)"),
+            (Size::Md, "var(--fandhe-space-2)"),
+            (Size::Lg, "var(--fandhe-space-2-5)"),
+            (Size::Xl, "var(--fandhe-space-3)"),
+        ];
+        for (size, gap) in expected {
+            let selector = format!(
+                r#"[data-scope="checkbox-group"][data-part="root"].fd-checkbox-group--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            let block = &css[start..block_end];
+            let expected_decl = format!("--fandhe-checkbox-group-item-gap: {gap};");
+            assert!(
+                block.contains(&expected_decl),
+                "size={size:?} variant block missing {expected_decl}: {block}"
+            );
+        }
+    }
+
+    /// イシュー #1461: `--fandhe-checkbox-group-gap`（root の項目間余白）が
+    /// xs〜xl で非減少（sm と md が同値、md の現行外観維持のため厳密単調
+    /// にしない旨のコメントをモジュール doc に残す）になることを固定する。
+    #[test]
+    fn size_variants_set_root_gap_custom_property_non_decreasing() {
+        let css = stylesheet();
+        let expected = [
+            (Size::Xs, "var(--fandhe-space-0-5)"),
+            (Size::Sm, "var(--fandhe-space-1)"),
+            (Size::Md, "var(--fandhe-space-1)"),
+            (Size::Lg, "var(--fandhe-space-1-5)"),
+            (Size::Xl, "var(--fandhe-space-2)"),
+        ];
+        for (size, gap) in expected {
+            let selector = format!(
+                r#"[data-scope="checkbox-group"][data-part="root"].fd-checkbox-group--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            let block = &css[start..block_end];
+            let expected_decl = format!("--fandhe-checkbox-group-gap: {gap};");
+            assert!(
+                block.contains(&expected_decl),
+                "size={size:?} variant block missing {expected_decl}: {block}"
+            );
+        }
+    }
+
+    /// イシュー #1461: 5 段すべての size variant ブロックに
+    /// `--fandhe-checkbox-group-font-size` が登録されていることを固定する。
+    #[test]
+    fn size_variants_set_font_size_custom_property() {
+        let css = stylesheet();
+        for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
+            let selector = format!(
+                r#"[data-scope="checkbox-group"][data-part="root"].fd-checkbox-group--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            assert!(
+                css[start..block_end].contains("--fandhe-checkbox-group-font-size"),
+                "size={size:?} variant block missing --fandhe-checkbox-group-font-size: {}",
+                &css[start..block_end]
+            );
+        }
+    }
+
+    /// イシュー #1461: `label`（グループ見出し）が `item-text`（項目テキスト）
+    /// より 1 段強い型階層（medium ウェイト・行送り・size 連動 font-size）を
+    /// 持つことを固定する。
+    #[test]
+    fn label_has_typography_hierarchy_declarations() {
+        let css = stylesheet();
+        let selector = r#"[data-scope="checkbox-group"][data-part="label"] {"#;
+        let start = css
+            .find(selector)
+            .unwrap_or_else(|| panic!("label base selector not found in {css}"));
+        let block_end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        let block = &css[start..block_end];
+        assert!(
+            block.contains(
+                "font-size: var(--fandhe-checkbox-group-font-size, var(--fandhe-font-font-size-sm));"
+            ),
+            "label block missing size-linked font-size: {block}"
+        );
+        assert!(
+            block.contains("font-weight: var(--fandhe-font-font-weight-medium);"),
+            "label block missing font-weight: {block}"
+        );
+        assert!(
+            block.contains("line-height: var(--fandhe-font-line-height-normal);"),
+            "label block missing line-height: {block}"
+        );
+        assert!(
+            block.contains("color: var(--fandhe-color-fg);"),
+            "label block missing color: {block}"
+        );
+    }
+
+    /// イシュー #1461: `item-text`（項目テキスト）が `line-height`/
+    /// `user-select` を持つ一方、`font-weight` は持たない（label との
+    /// 2 段階の型階層を作る）ことを固定する。
+    #[test]
+    fn item_text_has_line_height_and_user_select_without_font_weight() {
+        let css = stylesheet();
+        let selector = r#"[data-scope="checkbox-group"][data-part="item-text"] {"#;
+        let start = css
+            .find(selector)
+            .unwrap_or_else(|| panic!("item-text base selector not found in {css}"));
+        let block_end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        let block = &css[start..block_end];
+        assert!(
+            block.contains("line-height: var(--fandhe-font-line-height-normal);"),
+            "item-text block missing line-height: {block}"
+        );
+        assert!(
+            block.contains("user-select: none;"),
+            "item-text block missing user-select: {block}"
+        );
+        assert!(
+            !block.contains("font-weight:"),
+            "item-text block should not declare font-weight: {block}"
+        );
+    }
+
+    /// イシュー #1461: `item` base の `gap` が `--fandhe-checkbox-group-
+    /// item-gap` custom property をフォールバック `--fandhe-space-2`（既存
+    /// Md 相当値）付きで参照することを固定する。
+    #[test]
+    fn item_base_gap_uses_item_gap_custom_property_with_space_2_fallback() {
+        let css = stylesheet();
+        let selector = r#"[data-scope="checkbox-group"][data-part="item"] {"#;
+        let start = css
+            .find(selector)
+            .unwrap_or_else(|| panic!("item base selector not found in {css}"));
+        let block_end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        let block = &css[start..block_end];
+        assert!(
+            block.contains("gap: var(--fandhe-checkbox-group-item-gap, var(--fandhe-space-2));"),
+            "item block missing item-gap linked gap: {block}"
+        );
     }
 
     // --- variant クラス ---
