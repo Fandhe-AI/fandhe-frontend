@@ -102,26 +102,31 @@ const EXPECTED_CSS: &str = r#"[data-scope="date-picker"][data-part="root"] {
 }
 
 [data-scope="date-picker"][data-part="root"].fd-date-picker--size-xs {
+  --fandhe-calendar-day-size: var(--fandhe-space-4);
   --fandhe-date-picker-input-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
   --fandhe-date-picker-content-padding: var(--fandhe-space-0-5);
 }
 
 [data-scope="date-picker"][data-part="root"].fd-date-picker--size-sm {
+  --fandhe-calendar-day-size: var(--fandhe-space-6);
   --fandhe-date-picker-input-padding: var(--fandhe-space-1) var(--fandhe-space-2);
   --fandhe-date-picker-content-padding: var(--fandhe-space-1);
 }
 
 [data-scope="date-picker"][data-part="root"].fd-date-picker--size-md {
+  --fandhe-calendar-day-size: var(--fandhe-space-8);
   --fandhe-date-picker-input-padding: var(--fandhe-space-2) var(--fandhe-space-3);
   --fandhe-date-picker-content-padding: var(--fandhe-space-2);
 }
 
 [data-scope="date-picker"][data-part="root"].fd-date-picker--size-lg {
+  --fandhe-calendar-day-size: var(--fandhe-space-10);
   --fandhe-date-picker-input-padding: var(--fandhe-space-3) var(--fandhe-space-4);
   --fandhe-date-picker-content-padding: var(--fandhe-space-3);
 }
 
 [data-scope="date-picker"][data-part="root"].fd-date-picker--size-xl {
+  --fandhe-calendar-day-size: var(--fandhe-space-12);
   --fandhe-date-picker-input-padding: var(--fandhe-space-4) var(--fandhe-space-5);
   --fandhe-date-picker-content-padding: var(--fandhe-space-4);
 }
