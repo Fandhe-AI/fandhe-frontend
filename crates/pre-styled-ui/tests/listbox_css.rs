@@ -5,6 +5,10 @@
 //! バイト単位で固定する（受け入れ条件: golden CSS テスト）。出力順
 //! （base → variants → compound → states）が崩れた場合や意図しない宣言の
 //! 追加・欠落があった場合に、この golden テストが即座に検知する。
+//!
+//! item hover 規則のセレクタが祖先 `root` の `[data-disabled]` 不在を
+//! 要求する形（PR #1762 codex-review P1 是正、`listbox::stylesheet`
+//! rustdoc 参照）へ変わったことも本 fixture が固定する。
 
 use fandhe_frontend_pre_styled_ui::listbox;
 
@@ -27,7 +31,7 @@ const LISTBOX_GOLDEN_CSS: &str = r#"[data-scope="listbox"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
+  border-radius: var(--fandhe-radius-md, 0.375rem);
   overflow-y: auto;
   max-height: var(--fandhe-listbox-content-max-height, 16rem);
   padding: var(--fandhe-listbox-content-padding, var(--fandhe-space-2));
@@ -45,7 +49,14 @@ const LISTBOX_GOLDEN_CSS: &str = r#"[data-scope="listbox"][data-part="root"] {
   gap: var(--fandhe-space-2);
   padding: var(--fandhe-listbox-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;
-  border-radius: 0.25rem;
+  border-radius: var(--fandhe-radius-sm, 0.25rem);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="listbox"][data-part="item"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="listbox"][data-part="item-text"] {
@@ -88,8 +99,8 @@ const LISTBOX_GOLDEN_CSS: &str = r#"[data-scope="listbox"][data-part="root"] {
 }
 
 [data-scope="listbox"][data-part="root"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="listbox"][data-part="item"][data-state="open"] {
@@ -107,8 +118,14 @@ const LISTBOX_GOLDEN_CSS: &str = r#"[data-scope="listbox"][data-part="root"] {
 }
 
 [data-scope="listbox"][data-part="content"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: -2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+}
+
+@media (hover: hover) {
+  [data-scope="listbox"][data-part="root"]:not([data-disabled]) [data-scope="listbox"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
