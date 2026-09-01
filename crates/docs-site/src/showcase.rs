@@ -3340,9 +3340,12 @@ fn number_input_section() -> Node {
             ),
         ],
     );
-    // readonly（イシュー #1485: `input` パートの `data-readonly` 視覚
-    // 〔`cursor: default`〕を Demo で確認できるよう追加。date-input #1469
-    // の readonly 行追加と同型）。
+    // readonly（イシュー #1485: readonly 状態を Demo で確認できるよう
+    // 追加。`input` パートはネイティブ `<input type="text">` のため
+    // `data-readonly` へ視覚宣言〔`cursor: default` 等〕を追加しない
+    // （`crate::input` の readonly 意図的非採用と同型、Cursor Bugbot
+    // 指摘 PR #1764 の是正）。date-input #1469 の readonly 行追加とは
+    // 見た目の扱いが異なる点に注意）。
     let readonly = number_input::root(
         Size::Md,
         false,

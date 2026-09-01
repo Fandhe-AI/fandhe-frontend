@@ -79,12 +79,14 @@
 //!   `opacity: 0.5` を負うため、`input` へ重ねるとネストした opacity の
 //!   掛け算で約 25% まで減光してしまう。[`crate::pin_input`]/
 //!   [`crate::date_input`] の segment と同型、Cursor Bugbot 指摘、
-//!   イシュー #1485 PR #1764）。`data-readonly`
-//!   を新設（`cursor: default`、date-input 先例）。**登録順は
-//!   readonly → disabled**とし、両立時は disabled の `cursor` が source
-//!   order で勝つ（date-input の
-//!   `segment_disabled_cursor_overrides_readonly_by_source_order` と
-//!   同型、下記テスト参照）。フォーカスリングは
+//!   イシュー #1485 PR #1764）。`data-readonly` への視覚宣言は追加しない
+//!   （[`crate::input`] の「readonly（意図的非採用）」節と同型の判断。
+//!   ネイティブ `<input type="text">` は選択・キャレット操作が可能な
+//!   ため既定の `cursor: text` のままが適切で、date-input `segment`
+//!   〔`<span role="spinbutton">` の非ネイティブ要素〕から流用した
+//!   `cursor: default` を付けるとテキストキャレットが消えてしまう
+//!   不具合を是正した、Cursor Bugbot 指摘、イシュー #1485 PR #1764）。
+//!   フォーカスリングは
 //!   `focus_ring_declarations(Token, Outside)`（input.rs と同一）。
 //!   hover 背景は付与しない（input.rs と同じ判断: `<input>` は
 //!   `cursor: text` でありインタラクティブ slot の hover 対象外、
@@ -99,9 +101,15 @@
 //!   `position: absolute` で密着配置されており、Outside（+2px）リングは
 //!   `input` の枠線・隣接トリガーへ重なって視認性を損なうため、
 //!   splitter/listbox 等と同じ符号反転 inset を採る）。境界到達時の
-//!   `data-disabled` は [`crate::recipe::disabled_declarations`]
-//!   （`opacity: 0.5`）へ統一する（従来の `opacity: 0.4` から変更、
-//!   共通 disabled ビジュアル言語への統一）。
+//!   `data-disabled` は `cursor: not-allowed` のみを [`recipe`] へ登録し
+//!   （従来の `opacity: 0.4` 直書きから変更、共通 disabled ビジュアル
+//!   言語の `opacity: 0.5` への統一という意図は維持）、`opacity: 0.5`
+//!   自体は [`stylesheet`] が `root:not([data-disabled])` を祖先に持つ
+//!   場合に限る raw CSS として追記する。`root` と両トリガーが同時に
+//!   `data-disabled` になる通常の全体 disabled 構成で `root` の
+//!   `opacity: 0.5` とトリガー自身の `opacity: 0.5` が二重適用され
+//!   実効 0.25 まで減光してしまう不具合の是正（codex-review P1 指摘、
+//!   イシュー #1485 PR #1764。詳細は [`stylesheet`] rustdoc 参照）。
 //! - **`root` パート**: `data-disabled` の `opacity: 0.5` 直書きを
 //!   [`crate::recipe::disabled_declarations`] へ置換する（`cursor:
 //!   not-allowed` が純追加される）。
@@ -132,7 +140,7 @@
 //!   スコープ外とする（起票はユーザー承認後）。
 
 use crate::class_attr::drop_class_attr;
-use crate::css::decl;
+use crate::css::{decl, serialize_rule};
 use crate::recipe::{
     disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
     transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
@@ -231,18 +239,16 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-invalid"),
             vec![decl("border-color", "var(--fandhe-color-danger)")],
         )
-        .state(
-            "input",
-            StateCondition::Attr("data-readonly"),
-            vec![decl("cursor", "default")],
-        )
-        // `data-readonly` 規則より後に登録する（date-input #1469 の
-        // `segment_disabled_cursor_overrides_readonly_by_source_order` と
-        // 同型: 同一詳細度 `[name]` (0,1,0) 同士のため、`state()` の
-        // 「登録順」契約により後勝ちで disabled の `cursor` が readonly を
-        // 上書きする。disabled かつ readonly の両方が真な input で
-        // `cursor: default` に上書きされ通常カーソルへ戻ってしまう不具合を
-        // 防ぐ）。
+        // `data-readonly` への視覚宣言は追加しない（`input` パートは
+        // ネイティブ `<input type="text">` であり、[`crate::input`] の
+        // 「readonly（意図的非採用）」節と同型の判断。ネイティブ
+        // `<input readonly>` は選択・キャレット操作が可能なため既定の
+        // `cursor: text` のままが適切で、`cursor: default` を付けると
+        // テキストキャレットが消え非対話に見えてしまう。date-input
+        // `segment`（`<span role="spinbutton">` の非ネイティブ要素）へ
+        // 付けた `cursor: default` を誤って流用していた不具合の是正
+        // （Cursor Bugbot 指摘、イシュー #1485 PR #1764）。
+        //
         // `opacity` は `root` のみに適用する（[`crate::pin_input`]/
         // [`crate::date_input`] の segment と同じ方針）。呼び出し側は
         // `input` が disabled になるとき常に `root` も disabled にする
@@ -295,10 +301,17 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
         )
+        // opacity は root と increment-trigger の data-disabled が同時に
+        // 真になる通常の全体 disabled 構成で二重適用（0.5 × 0.5 = 0.25）
+        // してしまうため、ここでは cursor のみを適用する。opacity 0.5
+        // は境界到達（root は disabled でない）ときに限り [`stylesheet`]
+        // が祖先セレクタ付き raw CSS として追加する
+        // （[`crate::listbox`] の item hover raw CSS と同型のパターン、
+        // codex-review P1 指摘、イシュー #1485 PR #1764）。
         .state(
             "increment-trigger",
             StateCondition::Attr("data-disabled"),
-            disabled_declarations(),
+            vec![decl("cursor", "not-allowed")],
         )
         .base(
             "decrement-trigger",
@@ -333,10 +346,11 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
         )
+        // increment-trigger と同じ理由・同じ是正（上記コメント参照）。
         .state(
             "decrement-trigger",
             StateCondition::Attr("data-disabled"),
-            disabled_declarations(),
+            vec![decl("cursor", "not-allowed")],
         )
         // size（イシュー #1678 の `--fandhe-size-control-height/padding-x/
         // font-size-*` トークンへ移行、イシュー #1485。input #1482・
@@ -444,9 +458,46 @@ fn recipe() -> SlotRecipe {
 
 /// この styled NumberInput が生成する静的 CSS 全量を返す（決定的。
 /// [`crate::switch::stylesheet`] と同じ契約）。
+///
+/// # トリガー disabled の opacity を祖先セレクタ付き raw CSS で追記する理由
+/// （codex-review P1 指摘、イシュー #1485 PR #1764）
+///
+/// headless 層の `NumberInput::increment_trigger`/`decrement_trigger`
+/// （`crates/headless-ui/src/number_input.rs`）は呼び出し側の全体
+/// `disabled` と境界到達（`can_increment`/`can_decrement` が偽）を
+/// `||` で合成した最終値を各トリガーの `data-disabled` へ渡す。このため
+/// NumberInput 全体を disabled にする通常の構成では `root` と両トリガーが
+/// 同時に `data-disabled` を持つ。[`recipe`] の `increment-trigger`/
+/// `decrement-trigger` の `data-disabled` 規則は `cursor: not-allowed` の
+/// みを持ち `opacity` を含めない（[`input`] パートの `opacity` を `root`
+/// のみに一元化した方針と同型、`recipe` 内コメント参照）ため、`root` の
+/// `opacity: 0.5` がトリガーへも自然継承されるだけで済み、二重適用
+/// （0.5 × 0.5 = 0.25 まで減光）が起きない。
+///
+/// 一方で「境界到達のみでトリガー単独が disabled、`root` は disabled で
+/// ない」構成では、トリガー自身の減光が要る（ボタンが押せないことを
+/// 示す視覚的フィードバック）。[`SlotRecipe::state`] が生成するセレクタは
+/// 常に `[data-scope="number-input"][data-part="<slot>"]` を先頭に固定した
+/// 自パーツ属性条件のみで、祖先パーツ（`root`）の属性を検査するセレクタを
+/// 組めないため、本関数が [`crate::listbox::stylesheet`] の item hover
+/// raw CSS 追記と同型のパターンで、`root:not([data-disabled])` を祖先に
+/// 持つ場合に限りトリガーへ `opacity: 0.5` を追加する規則を末尾へ追記する。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    for part in ["increment-trigger", "decrement-trigger"] {
+        let selector = format!(
+            "[data-scope=\"number-input\"][data-part=\"root\"]:not([data-disabled]) \
+                [data-scope=\"number-input\"][data-part=\"{part}\"][data-disabled]"
+        );
+        if let Some(rule) = serialize_rule(&selector, &[decl("opacity", "0.5")]) {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(&rule);
+        }
+    }
+    out
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
@@ -615,48 +666,87 @@ mod tests {
     }
 
     #[test]
-    fn root_and_triggers_disabled_use_canonical_disabled_declarations() {
+    fn root_uses_canonical_disabled_declarations() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="number-input"][data-part="root"][data-disabled] {"#));
-        assert!(css.contains(
-            r#"[data-scope="number-input"][data-part="increment-trigger"][data-disabled] {"#
-        ));
-        assert!(css.contains(
-            r#"[data-scope="number-input"][data-part="decrement-trigger"][data-disabled] {"#
-        ));
-        assert!(css.contains("opacity: 0.5;"));
-        assert!(css.contains("cursor: not-allowed;"));
+        let root_idx = css
+            .find(r#"[data-scope="number-input"][data-part="root"][data-disabled] {"#)
+            .expect("root disabled rule must exist");
+        let root_block = &css[root_idx..];
+        let block_end = root_block.find('}').unwrap_or(root_block.len());
+        assert!(root_block[..block_end].contains("opacity: 0.5;"));
+        assert!(root_block[..block_end].contains("cursor: not-allowed;"));
     }
 
     #[test]
-    fn input_consumes_data_readonly_attribute() {
+    fn triggers_disabled_own_rule_has_cursor_only_no_opacity() {
+        // codex-review P1 指摘（イシュー #1485 PR #1764）是正の固定:
+        // トリガー自身の `[data-disabled]` 規則（`root` の状態を問わず
+        // 常に適用される規則）は `cursor: not-allowed` のみを持ち
+        // `opacity` を含まない。`opacity` は `root` からの通常継承、
+        // または下記 `triggers_disabled_opacity_is_scoped_to_root_enabled`
+        // が検証する祖先スコープ付き raw CSS のいずれか一方でのみ効く
+        // ことで、二重適用（0.25 まで減光）を防ぐ。
         let css = stylesheet();
-        assert!(css.contains(r#"[data-scope="number-input"][data-part="input"][data-readonly] {"#));
-        assert!(css.contains("cursor: default;"));
+        for part in ["increment-trigger", "decrement-trigger"] {
+            let selector =
+                format!(r#"[data-scope="number-input"][data-part="{part}"][data-disabled] {{"#);
+            let idx = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("{part} disabled rule must exist: {css}"));
+            let block = &css[idx..];
+            let block_end = block.find('}').unwrap_or(block.len());
+            let body = &block[..block_end];
+            assert!(body.contains("cursor: not-allowed;"), "{part}: {body}");
+            assert!(
+                !body.contains("opacity"),
+                "{part} own rule must not carry opacity: {body}"
+            );
+        }
     }
 
     #[test]
-    fn input_disabled_cursor_overrides_readonly_by_source_order() {
-        // date-input #1469 の
-        // `segment_disabled_cursor_overrides_readonly_by_source_order` と
-        // 同型: disabled かつ readonly の両方が真な input で `cursor:
-        // default` に上書きされ通常カーソルへ戻ってしまう不具合を防ぐため、
-        // `[data-disabled]` 規則を `[data-readonly]` 規則より後段に登録し
-        // 同一詳細度・登録順の後勝ちで disabled を優先させる。
+    fn triggers_disabled_opacity_is_scoped_to_root_enabled() {
+        // 境界到達（root は disabled でない）による trigger 単独 disabled
+        // の減光（0.5）は、root 祖先が disabled でないことを条件にした
+        // raw CSS 規則としてのみ出力される（[`stylesheet`] rustdoc 参照）。
         let css = stylesheet();
-        let readonly_idx = css
-            .find(r#"[data-scope="number-input"][data-part="input"][data-readonly] {"#)
-            .expect("input readonly rule must exist");
-        let disabled_idx = css
+        for part in ["increment-trigger", "decrement-trigger"] {
+            let selector = format!(
+                r#"[data-scope="number-input"][data-part="root"]:not([data-disabled]) [data-scope="number-input"][data-part="{part}"][data-disabled] {{"#
+            );
+            assert!(
+                css.contains(&selector),
+                "missing scoped opacity rule for {part}: {css}"
+            );
+            let idx = css.find(&selector).unwrap();
+            let block = &css[idx..];
+            let block_end = block.find('}').unwrap_or(block.len());
+            assert!(block[..block_end].contains("opacity: 0.5;"));
+        }
+    }
+
+    #[test]
+    fn input_does_not_style_data_readonly() {
+        // Cursor Bugbot 指摘（イシュー #1485 PR #1764）是正の固定:
+        // ネイティブ `<input type="text">` の readonly はテキストキャレット
+        // を維持すべきで（[`crate::input`] の「readonly（意図的非採用）」
+        // 節と同型）、`data-readonly` へ視覚宣言（`cursor: default` 等）を
+        // 追加しない。
+        let css = stylesheet();
+        assert!(!css.contains(r#"[data-scope="number-input"][data-part="input"][data-readonly]"#));
+    }
+
+    #[test]
+    fn input_disabled_still_applies_not_allowed_cursor() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="number-input"][data-part="input"][data-disabled] {"#));
+        let idx = css
             .find(r#"[data-scope="number-input"][data-part="input"][data-disabled] {"#)
             .expect("input disabled rule must exist");
-        assert!(
-            disabled_idx > readonly_idx,
-            "input[data-disabled] must be registered after input[data-readonly] so it wins by source order"
-        );
-        let disabled_block = &css[disabled_idx..];
-        let block_end = disabled_block.find('}').unwrap_or(disabled_block.len());
-        assert!(disabled_block[..block_end].contains("cursor: not-allowed;"));
+        let block = &css[idx..];
+        let block_end = block.find('}').unwrap_or(block.len());
+        assert!(block[..block_end].contains("cursor: not-allowed;"));
     }
 
     #[test]
