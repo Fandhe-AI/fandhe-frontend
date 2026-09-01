@@ -429,15 +429,21 @@ impl CheckboxGroup {
 
     /// 項目 `value` のネイティブ `<input type="checkbox">`（[`crate::checkbox::hidden_input`]
     /// の再利用、モジュール doc「ネイティブ semantics」節参照）へ実効
-    /// disabled を注入する利便メソッド（イシュー #1741）。`props.disabled`
-    /// は項目単体の disabled として扱い、root disabled との OR は内部で
-    /// 自動計算する（[`Self::item`] rustdoc の disabled 契約と同型）。
-    /// anatomy パーツは新設せず `data-scope="checkbox"` のまま
-    /// （モジュール doc「anatomy」節の `item-hidden-input` 非新設判断を
-    /// 維持する）。ネイティブ `disabled` 属性へ実効値を反映することで、
-    /// CSS のみでは変更できない `<input>` のタブ順序・フォーム送信を
-    /// 実際に無効化する（本型を経由しない自由関数直接利用時は、この OR を
-    /// 呼び出し側が明示的に行う契約は変わらない）。
+    /// disabled と現在の checked 状態を注入する利便メソッド（イシュー
+    /// #1741）。`props.disabled` は項目単体の disabled として扱い、root
+    /// disabled との OR は内部で自動計算する（[`Self::item`] rustdoc の
+    /// disabled 契約と同型）。`props.checked` は呼び出し側の指定を使わず
+    /// `self.is_checked(value)` から常に上書きする（[`crate::checkbox::Checkbox::hidden_input`]
+    /// と同型の契約）。こうしないと `select`/`deselect`/`toggle`
+    /// dispatch 後に他の利便メソッドが示す `data-state` とネイティブ
+    /// `<input>` の `checked` 属性・フォーム送信値が食い違う
+    /// （イシュー #1760 レビュー指摘の回帰固定）。anatomy パーツは新設せず
+    /// `data-scope="checkbox"` のまま（モジュール doc「anatomy」節の
+    /// `item-hidden-input` 非新設判断を維持する）。ネイティブ `disabled`
+    /// 属性へ実効値を反映することで、CSS のみでは変更できない `<input>`
+    /// のタブ順序・フォーム送信を実際に無効化する（本型を経由しない自由
+    /// 関数直接利用時は、この OR を呼び出し側が明示的に行う契約は変わら
+    /// ない）。
     #[must_use]
     pub fn item_hidden_input<'a>(
         &self,
@@ -447,6 +453,11 @@ impl CheckboxGroup {
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
         props.disabled = self.item_effective_disabled(props.disabled);
+        props.checked = if self.is_checked(value) {
+            crate::checkbox::CheckedState::Checked
+        } else {
+            crate::checkbox::CheckedState::Unchecked
+        };
         crate::checkbox::hidden_input(&props, name, value, attrs)
     }
 }
@@ -864,6 +875,51 @@ mod tests {
             vec![],
         ));
         assert!(html.contains("disabled"));
+    }
+
+    #[test]
+    fn checkbox_group_item_hidden_input_overrides_checked_from_select_state() {
+        // イシュー #1760 レビュー指摘の回帰固定: 呼び出し側が渡した
+        // `props.checked` を無視し、`self.is_checked(value)` から常に
+        // 上書きする（[`crate::checkbox::Checkbox::hidden_input`] と同型）。
+        // これにより select/toggle 後もネイティブ `<input>` の `checked`
+        // 属性・フォーム送信値が `data-state` と一致する。
+        use crate::checkbox::CheckboxProps;
+
+        let mut g = CheckboxGroup::default();
+        dispatch(&mut g, "select", "red");
+
+        // 呼び出し側が誤って Unchecked を渡しても、実際の選択状態
+        // （Checked）が優先される。
+        let checked_html = render(&g.item_hidden_input(
+            "red",
+            CheckboxProps {
+                checked: CheckedState::Unchecked,
+                disabled: false,
+                invalid: false,
+                required: false,
+                readonly: false,
+            },
+            "colors",
+            vec![],
+        ));
+        assert!(checked_html.contains(" checked"));
+
+        // 未選択の項目値は呼び出し側が Checked を渡しても Unchecked へ
+        // 上書きされる。
+        let unchecked_html = render(&g.item_hidden_input(
+            "blue",
+            CheckboxProps {
+                checked: CheckedState::Checked,
+                disabled: false,
+                invalid: false,
+                required: false,
+                readonly: false,
+            },
+            "colors",
+            vec![],
+        ));
+        assert!(!unchecked_html.contains(" checked"));
     }
 
     // --- CheckboxGroup: SSR 状態なし初期描画 ---
