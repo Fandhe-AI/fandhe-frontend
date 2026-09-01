@@ -42,16 +42,75 @@
 //! 上書き規則を追加し、`display: flex` より詳細度・出現順の両方で優先させる
 //! ことでこれを固定する。
 //!
+//! # 参考サイト基準へのスタイル調整（イシュー #1516）
+//!
+//! chakra-ui ActionBar（MCP `get_component_example`/`get_theme` で一次確認）
+//! を基準に、7 軸チェックリスト（色/角丸/影・フォーカス・hover・
+//! トランジション・タイポグラフィ）の不足を是正した。
+//!
+//! - **角丸・影のトークン化**: `content` の `border-radius`/`box-shadow` は
+//!   生リテラルではなく [`crate::theme`] のスケールトークン
+//!   （`--fandhe-radius-lg`/`--fandhe-shadow-md`）を参照する。`box-shadow`
+//!   は [`crate::combobox`]/[`crate::select`]/[`crate::toast`]/
+//!   [`crate::date_picker`] の overlay 系部品がいずれも `shadow-md` を使う
+//!   前例に揃え、`action-bar` だけ独自の 1 段強い影（`shadow-lg`）を持たせる
+//!   差別化はしない（他 overlay と同じ浮遊感で統一する判断）。
+//! - **selection-trigger / close-trigger のボタン化**: chakra-ui の
+//!   ActionBar は selection-trigger を破線ボーダーの小型ボタン、
+//!   close-trigger を ghost の小型 close ボタンとして描く。headless 層は
+//!   これらへ `<button>` 相当の役割のみ与え面（padding/border/radius/
+//!   背景）を持たないため、[`recipe`] 側で面を追加した上で
+//!   [`crate::recipe::hover_bg_muted`]/[`crate::recipe::
+//!   hover_surface_declarations`]（イシュー #1425 共通ビジュアル言語）を
+//!   `.state(_, StateCondition::Hover, ...)` として登録し、初めて hover
+//!   変化を表現できるようにした。
+//! - **フォーカスリングの canonical 化**: 旧実装の手書き
+//!   `outline: 2px solid var(--fandhe-color-accent)` を
+//!   [`crate::recipe::focus_ring_declarations`]（イシュー #1424）へ移行し、
+//!   太さ・オフセット・色をテーマ側 1 箇所（`--fandhe-focus-ring-*`）で
+//!   変更できるようにした。`palette` 軸を持たない部品のため
+//!   [`crate::recipe::FocusRingColor::Token`] を選ぶ。
+//! - **トランジション**: `content` の `data-state` open/closed 切り替えへ
+//!   [`crate::recipe::transition_declarations`]（イシュー #1425）で
+//!   `opacity`/`translate` の遷移を追加し、closed 側に軽い下方向オフセット
+//!   （`translate: 0 0.5rem`）を加えて chakra の slide-fade 相当の出現
+//!   モーションを表現する。`prefers-reduced-motion` は
+//!   [`crate::theme::Theme::to_css`] 側の duration 一括無効化に委ね、本
+//!   モジュールで `@media` を書かない（[`crate::segment_group`] 等の既存
+//!   判断と同型）。`[hidden]` 属性による `display: none` 切り替え自体は
+//!   アニメーションしない既知の制約は [`crate::dialog`] と同様。
+//!
+//! ## size / variant 軸を追加しない根拠
+//!
+//! chakra-ui ActionBar 自体が size/variant prop を持たず、内部のボタン
+//! （selection-trigger/close-trigger 相当）は利用者が持ち込む `Button`
+//! コンポーネントが担う設計になっている（MCP `get_component_example` で
+//! 実例確認済み）。本モジュールも同じ構成（headless 層は anatomy・
+//! アクセシビリティ・`data-*` のみを担い、size/variant のような見た目の
+//! バリエーションは持たない）を踏襲し、`SlotRecipe::variant` 軸を追加しない
+//! （`REEXPORT-GLOB-REVIEWED` 規約 B-2 とも整合）。
+//!
+//! ## disabled 視覚を付けない根拠
+//!
+//! headless `action-bar`（`crates/headless-ui/src/action_bar.rs`）は
+//! `data-disabled` を一切発行しない。selection-trigger/close-trigger の
+//! 無効化表現は、利用者が中に配置する `Button` 部品（[`crate::button`]）側
+//! が `data-disabled`/`disabled_declarations()` で担う責務であり、
+//! action-bar 自体のトリガー slot へ disabled 視覚を持ち込まない。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - Portal 描画・外側クリックでの閉鎖・アニメーションは headless 層の
-//!   ドキュメント（`crates/headless-ui/src/action_bar.rs`）で既にスコープ外
-//!   と明記済みであり、本モジュールもそれを継承する。
+//! - Portal 描画・外側クリックでの閉鎖・アニメーション（状態機械側）は
+//!   headless 層のドキュメント（`crates/headless-ui/src/action_bar.rs`）で
+//!   既にスコープ外と明記済みであり、本モジュールもそれを継承する。
 //! - `placement` variant（`bottom-start`/`bottom-end`）: 既定の bottom 中央
 //!   固定のみ実装する。variant 追加は `SlotRecipe::variant` で後続可能。
 
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{
+    focus_ring_declarations, hover_bg_muted, hover_surface_declarations, transition_declarations,
+    FocusRingColor, FocusRingOffset, MotionDuration, SlotRecipe, StateCondition,
+};
 
 // REEXPORT-GLOB-REVIEWED: 本モジュールが定義する pub 項目は stylesheet() の
 // みで styled パーツ関数・variant 型を再定義しない（規約 B-1）。variant 軸
@@ -93,27 +152,41 @@ fn recipe() -> SlotRecipe {
                 decl("justify-content", "center"),
             ],
         )
-        .base(
-            "content",
-            vec![
+        .base("content", {
+            let mut declarations = vec![
                 decl("display", "flex"),
                 decl("align-items", "center"),
                 decl("gap", "var(--fandhe-space-3)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.5rem"),
-                decl("box-shadow", "0 0.25rem 1rem rgba(0, 0, 0, 0.15)"),
+                decl("border-radius", "var(--fandhe-radius-lg)"),
+                decl("box-shadow", "var(--fandhe-shadow-md)"),
                 decl("padding", "var(--fandhe-space-3) var(--fandhe-space-4)"),
-            ],
-        )
-        .base(
-            "selection-trigger",
-            vec![
-                decl("cursor", "pointer"),
+            ];
+            declarations.extend(transition_declarations(
+                "opacity, translate",
+                MotionDuration::Normal,
+            ));
+            declarations
+        })
+        .base("selection-trigger", {
+            let mut declarations = vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
                 decl("color", "var(--fandhe-color-fg)"),
-            ],
-        )
+                decl("padding", "var(--fandhe-space-1) var(--fandhe-space-3)"),
+                decl("border", "1px dashed var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("background", "transparent"),
+                decl("cursor", "pointer"),
+                hover_bg_muted(),
+            ];
+            declarations.extend(transition_declarations("background", MotionDuration::Fast));
+            declarations
+        })
         .base(
             "separator",
             vec![
@@ -122,23 +195,43 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-border)"),
             ],
         )
-        .base(
-            "close-trigger",
-            vec![
-                decl("cursor", "pointer"),
+        .base("close-trigger", {
+            let mut declarations = vec![
                 decl("color", "var(--fandhe-color-fg-muted)"),
-            ],
-        )
-        // `content` の開閉状態に応じた見た目の切り替え。
+                decl("padding", "var(--fandhe-space-1)"),
+                decl("border", "none"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("background", "transparent"),
+                decl("cursor", "pointer"),
+                hover_bg_muted(),
+            ];
+            declarations.extend(transition_declarations("background", MotionDuration::Fast));
+            declarations
+        })
+        // `content` の開閉状態に応じた見た目の切り替え（opacity + 軽い
+        // slide-fade。上記モジュール doc「トランジション」節参照）。
         .state(
             "content",
             StateCondition::AttrEq("data-state", "open"),
-            vec![decl("opacity", "1")],
+            vec![decl("opacity", "1"), decl("translate", "0 0")],
         )
         .state(
             "content",
             StateCondition::AttrEq("data-state", "closed"),
-            vec![decl("opacity", "0")],
+            vec![decl("opacity", "0"), decl("translate", "0 0.5rem")],
+        )
+        // selection-trigger/close-trigger の hover（イシュー #1425 共通
+        // ビジュアル言語。`--fandhe-hover-bg` は上記 base の `hover_bg_muted()`
+        // が定義する）。
+        .state(
+            "selection-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "close-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         // 本モジュール冒頭 rustdoc「closed 時の positioner は必ず非表示化する」
         // 節参照: positioner の base 規則が `display: flex` を宣言しており、
@@ -149,22 +242,17 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("hidden"),
             vec![decl("display", "none")],
         )
-        // キーボード操作時のみのフォーカスリング。
+        // キーボード操作時のみのフォーカスリング（イシュー #1424 canonical
+        // ヘルパへ移行。`palette` 軸を持たないため `FocusRingColor::Token`）。
         .state(
             "selection-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "close-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
 }
 
@@ -239,7 +327,41 @@ mod tests {
         assert!(
             css.contains(r#"[data-scope="action-bar"][data-part="close-trigger"]:focus-visible {"#)
         );
-        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+        assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+    }
+
+    #[test]
+    fn content_uses_token_scale_radius_and_shadow() {
+        let css = stylesheet();
+        assert!(css.contains("border-radius: var(--fandhe-radius-lg);"));
+        assert!(css.contains("box-shadow: var(--fandhe-shadow-md);"));
+    }
+
+    #[test]
+    fn content_declares_transition_for_open_close_slide_fade() {
+        let css = stylesheet();
+        assert!(css.contains("transition-property: opacity, translate;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-normal);"));
+        assert!(css.contains(r#"[data-part="content"][data-state="open"]"#));
+        assert!(css.contains("translate: 0 0;"));
+        assert!(css.contains("translate: 0 0.5rem;"));
+    }
+
+    #[test]
+    fn selection_trigger_and_close_trigger_declare_hover_background() {
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="action-bar"][data-part="selection-trigger"]:hover:not([data-disabled])"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="action-bar"][data-part="close-trigger"]:hover:not([data-disabled])"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
     }
 
     #[test]

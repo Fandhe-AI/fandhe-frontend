@@ -677,7 +677,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # base 取り込みにより #1513 の patch バンプ（0.58.0 → 0.58.1）と版数が
 # 偶発的に衝突したため、双方の実体変更を統合した結果として 0.58.2 へ
 # さらに patch バンプする（同一版数への偶発的衝突をそのまま採用しない）。
-version = "0.58.2"
+# イシュー #1516: action-bar の既定 CSS を参考サイト基準へ調整（角丸/影の
+# トークン化・selection-trigger/close-trigger の面追加と hover・フォーカス
+# リングの canonical 化・content の開閉トランジション追加）。既存セレクタ
+# （`data-scope`/`data-part`/`data-state` 等）・公開 Rust API シグネチャの
+# 削除/改名を伴わず宣言の追加・値変更のみのため patch バンプする。
+version = "0.58.3"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
