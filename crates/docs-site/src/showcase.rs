@@ -4992,12 +4992,18 @@ fn checkbox_group_section() -> Node {
 /// 参照）でカード外観を重ねる。
 fn radio_card_section() -> Node {
     let label_id = "showcase-radio-card-label";
+    // イシュー #1491: 4 枚目に invalid 状態のカードを追加し、`item` の
+    // `data-invalid` 状態表現（境界線の danger 色化）を Demo 上で確認できる
+    // ようにする。headless `radio_group` は `data-invalid` を出力しないため
+    // （モジュール rustdoc「スタイル調整」節参照）、呼び出し側 `attrs`
+    // パススルーで付与する（`ITEM_RESERVED` は非予約）。
     let items = [
         (
             "plan-free-card",
             "Free",
             "基本機能のみ利用可能。",
             true,
+            false,
             false,
         ),
         (
@@ -5006,11 +5012,21 @@ fn radio_card_section() -> Node {
             "チーム機能・優先サポート付き。",
             false,
             false,
+            false,
         ),
         (
             "plan-enterprise-card",
             "Enterprise",
             "SSO・監査ログに対応。",
+            false,
+            true,
+            false,
+        ),
+        (
+            "plan-invalid-card",
+            "Invalid",
+            "選択に問題があるカードの例。",
+            false,
             false,
             true,
         ),
@@ -5023,12 +5039,17 @@ fn radio_card_section() -> Node {
     children.extend(
         items
             .iter()
-            .map(|(value, label, description, checked, disabled)| {
+            .map(|(value, label, description, checked, disabled, invalid)| {
+                let attrs = if *invalid {
+                    vec![("data-invalid", "")]
+                } else {
+                    vec![]
+                };
                 radio_card::item(
                     *checked,
                     *disabled,
                     value,
-                    vec![],
+                    attrs,
                     vec![
                         radio_card::item_hidden_input(
                             *checked,

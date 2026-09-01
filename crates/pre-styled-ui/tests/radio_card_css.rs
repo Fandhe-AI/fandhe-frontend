@@ -30,7 +30,10 @@ const RADIO_CARD_GOLDEN_CSS: &str = r#"[data-scope="radio-card"][data-part="root
   border-radius: var(--fandhe-radius-lg);
   padding: var(--fandhe-radio-card-padding, 0.75rem);
   background: var(--fandhe-color-bg);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  transition-property: background, border-color, box-shadow;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="radio-card"][data-part="item-control"] {
@@ -182,20 +185,30 @@ const RADIO_CARD_GOLDEN_CSS: &str = r#"[data-scope="radio-card"][data-part="root
   box-shadow: 0 0 0 1px var(--fandhe-palette, var(--fandhe-color-accent));
 }
 
+[data-scope="radio-card"][data-part="item"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
+}
+
 [data-scope="radio-card"][data-part="item"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="radio-card"][data-part="item"]:focus-within {
-  outline: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="radio-card"][data-part="item-indicator"][data-state="checked"] {
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   background: var(--fandhe-palette, var(--fandhe-color-accent));
   box-shadow: inset 0 0 0 var(--fandhe-radio-card-dot-inset, 3px) var(--fandhe-color-bg);
+}
+
+@media (hover: hover) {
+  [data-scope="radio-card"][data-part="item"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 

@@ -65,14 +65,59 @@
 //! （[`crate::radio_group::item_hidden_input`] の CSS と同一の 9 宣言）で
 //! 覆い隠し、`item_indicator` をカスタムラジオ円として描画する。
 //!
-//! # フォーカスリング（本イシューのスコープ、§ out-of-scope 参照）
+//! # フォーカスリング（イシュー #1424 規約への canonical 化、イシュー #1491）
 //!
 //! 実フォーカスは [`item_hidden_input`] が受けるため、[`crate::radio_group`]
 //! の `item` と同型の [`StateCondition::FocusWithin`]（no-JS フォールバック）
-//! のみを [`item`] へ登録する。`data-focus-visible`（wasm 配線によるキー
-//! ボード操作専用リング）は `crates/wasm-full/src/focus_visible.rs` の
-//! `(scope, part)` マッピングに `"radio-card"` が未登録のため本イシューでは
-//! 実装しない（フォローアップ、PR 本文参照）。
+//! のみを [`item`] へ登録する。宣言列は `crate::recipe::focus_ring_declarations`
+//! （[`crate::recipe::FocusRingColor::Palette`] /
+//! [`crate::recipe::FocusRingOffset::Outside`]）が組み立てる canonical 形
+//! （`outline`/`outline-offset` の 2 宣言、トークン参照）へ統一し、以前の
+//! `:focus-within` 直書きは廃止した
+//! （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` 参照）。
+//! `data-focus-visible`（wasm 配線によるキーボード操作専用リング）は
+//! `crates/wasm-full/src/focus_visible.rs` の `(scope, part)` マッピングに
+//! `"radio-card"` が未登録のため本イシューでは実装しない（フォローアップ、
+//! PR 本文参照）。
+//!
+//! # スタイル調整（イシュー #1491、`item` slot のみ）
+//!
+//! 親 #1490（chakra-ui `radio-card` / Radix Themes `radio-cards` 準拠の
+//! 見た目調整）の 1/2 分割で、担当範囲は `item`（カード枠）の状態表現に限る。
+//! `item-indicator`/`item-text`/`item-description`/`item-addon`/
+//! `item-control`/`item-content`/`item-hidden-input` および size バリアント
+//! は兄弟イシュー #1492（2/2）の担当であり、本イシューでは変更しない。
+//!
+//! 本イシューで `item` へ適用した変更:
+//! - hover: `crate::recipe::hover_bg_muted` を base へ、
+//!   `crate::recipe::hover_surface_declarations` を
+//!   [`StateCondition::Hover`] へ登録し、参照サイトと同様のカード面変化を
+//!   反映する。
+//! - disabled: `crate::recipe::disabled_declarations` へ置換（値は不変、
+//!   宣言順のみ変わる）。
+//! - transition: `crate::recipe::transition_declarations`
+//!   （`background, border-color, box-shadow` /
+//!   [`crate::recipe::MotionDuration::Fast`]）へ置換し、reduced-motion は
+//!   `crate::theme::Theme::to_css` の一括上書きに委ねる。
+//! - `data-invalid`: `border-color` を `var(--fandhe-color-danger)` へ切り替える
+//!   状態を新規登録する（`box-shadow` は palette 色のまま残し、枠線のみで
+//!   invalid を表現する方針は [`crate::checkbox_card`] の `root` と同型）。
+//!   headless `radio_group` は現状 `data-invalid` を出力しないため
+//!   （Field #538 連携は headless 側の将来イシュー）、呼び出し側 `attrs`
+//!   パススルー（[`ITEM_RESERVED`] は非予約）で付与する契約とする。
+//!
+//! 意図的に参照サイトへ合わせない点（親 #1490 の比較チェックリスト・イシュー
+//! 本文参照）:
+//! - **variant 軸**（chakra `surface/subtle/outline/solid`、Radix
+//!   `surface/classic`）は追加しない。`root()`/`item()` のシグネチャ変更
+//!   （破壊的変更）を伴い、`checkbox`/`checkbox-card`/`radio-group` 等 Forms
+//!   家族の軸語彙と横断で判断すべき事項のため（[`crate::checkbox_card`] の
+//!   同型判断と同じ）。
+//! - **`data-readonly`** は参照サイトいずれも視覚差がないため非視覚化を維持する。
+//! - **`:focus-within` 継続**（`data-focus-visible` の wasm 配線は別クレート・
+//!   別イシューの担当、上記フォーカスリング節参照）。
+//! - **内部レイアウト**（label / description / addon / indicator / size
+//!   バリアント）は兄弟イシュー #1492 の担当。
 //!
 //! # `size`/`palette` variant
 //!
@@ -134,7 +179,9 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
 };
 use fandhe_frontend_headless_ui::aria::{aria_labelledby, aria_orientation, role};
 pub use fandhe_frontend_headless_ui::data_attrs::Orientation;
@@ -237,8 +284,14 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "var(--fandhe-radius-lg)"),
                 decl("padding", "var(--fandhe-radio-card-padding, 0.75rem)"),
                 decl("background", "var(--fandhe-color-bg)"),
-                decl("transition", "border-color 0.15s, box-shadow 0.15s"),
-            ],
+                hover_bg_muted(),
+            ]
+            .into_iter()
+            .chain(transition_declarations(
+                "background, border-color, box-shadow",
+                MotionDuration::Fast,
+            ))
+            .collect(),
         )
         .state(
             "item",
@@ -256,23 +309,29 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "item",
-            StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            StateCondition::Attr("data-invalid"),
+            vec![decl("border-color", "var(--fandhe-color-danger)")],
         )
-        // イシュー #747: 実フォーカスは item-hidden-input が受けるため、
+        .state(
+            "item",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // イシュー #1424: フォーカスリングは `crate::recipe::focus_ring_declarations`
+        // の canonical 形（outline + outline-offset の 2 宣言、トークン参照）
+        // へ統一する。実フォーカスは item-hidden-input が受けるため、
         // 祖先 item（`<label>`）へ `:focus-within` で no-JS フォールバックの
         // リングを反映する（[`crate::radio_group`] の `item` と同型）。
         .state(
             "item",
             StateCondition::FocusWithin,
-            vec![
-                decl(
-                    "outline",
-                    "2px solid var(--fandhe-palette, var(--fandhe-color-accent))",
-                ),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
+        // イシュー #1491: hover 時のカード面変化（`hover_bg_muted()` で
+        // `--fandhe-hover-bg` を base に定義し、`hover_surface_declarations()`
+        // が参照する。`item` は `<label>` + `cursor: pointer` のインタラ
+        // クティブ slot のため対象とする。
+        .state("item", StateCondition::Hover, hover_surface_declarations())
         .base(
             "item-control",
             vec![
@@ -674,7 +733,43 @@ mod tests {
     #[test]
     fn item_focus_within_gets_accent_outline_ring() {
         let css = stylesheet();
-        assert!(css.contains(r#"[data-scope="radio-card"][data-part="item"]:focus-within {"#));
+        let start = css
+            .find(r#"[data-scope="radio-card"][data-part="item"]:focus-within {"#)
+            .expect("item focus-within block must exist");
+        let block = &css[start..];
+        assert!(block.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));"
+        ));
+        assert!(block.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+    }
+
+    #[test]
+    fn stylesheet_links_item_to_data_invalid_state() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="radio-card"][data-part="item"][data-invalid] {"#));
+        assert!(css.contains("border-color: var(--fandhe-color-danger);"));
+    }
+
+    #[test]
+    fn stylesheet_registers_item_hover_inside_hover_media_query() {
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover) {"));
+        assert!(css.contains(
+            r#"[data-scope="radio-card"][data-part="item"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+    }
+
+    #[test]
+    fn item_transition_uses_motion_tokens() {
+        let css = stylesheet();
+        let start = css
+            .find(r#"[data-scope="radio-card"][data-part="item"] {"#)
+            .expect("item base block must exist");
+        let end = css[start..].find('}').expect("item base block must close");
+        let block = &css[start..start + end];
+        assert!(block.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+        assert!(!block.contains("transition: "));
     }
 
     // --- variant クラス ---
