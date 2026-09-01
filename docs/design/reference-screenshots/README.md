@@ -23,8 +23,9 @@ UI 部品スタイル調整（参考サイト基準への調整、ルート issu
 全件がこの規約に一致していることは、以下のコマンドが空出力を返すことで確認できる（自己検証コマンド）。
 
 ```bash
-# (1) サブディレクトリが存在しないこと（フラット配置の確認）
-find docs/design/reference-screenshots -mindepth 1 -type d
+# (1) サブディレクトリが存在しないこと（フラット配置の確認。`after/` は下記「`after/`
+#     ディレクトリ」節で説明する意図的な例外のため除外する）
+find docs/design/reference-screenshots -mindepth 1 -type d -not -path 'docs/design/reference-screenshots/after'
 # 空出力なら PASS
 
 # (2) トップレベルファイルが命名規約 2 パターンまたは付随文書 3 点のいずれかに一致すること
@@ -61,6 +62,24 @@ find docs/design/reference-screenshots -maxdepth 1 -type f | xargs -n1 basename 
 - 取得時は `SOURCES.md` へ当該画像の取得元 URL・取得日を追加する
 - 各サイトの MIT ライセンス帰属表示（本 README の帰属表・`THIRD_PARTY_NOTICES.md`）を維持する
 - 用途は本リポジトリの UI 部品との視覚比較（設計資料）に限る。それ以外の目的（宣伝・独立した二次配布等）での利用は想定しない
+
+## `after/` ディレクトリ（Phase 2 実装後スクショ、イシュー #1420 系）
+
+`after/themes-<kebab>.png` は、ルート issue #1420 の Phase 2（button / checkbox /
+checkbox-group のスタイル調整、PR #1730・#1731・#1734・#1735・#1738・#1739）
+マージ後に `make docs` で再ビルドした docs サイトを、base path `/fandhe-frontend/`
+を含む静的サーバ（`site/nav.toml` が絶対パスでアセットを参照するため、dist を
+直接ルート配信すると CSS 404 でスタイル未適用になる。`python3 -m http.server` で
+`dist` を `fandhe-frontend` という名前のディレクトリ配下に見せる、またはリバース
+プロキシで `/fandhe-frontend/` プレフィックスを付与して配信する）から撮影した
+実装後のローカルスクショである（撮影日 2026-09-01、撮影コミット
+`chore/phase2-after-screenshots` ブランチのマージコミット、viewport 1280 幅・
+ライトテーマ）。トップレベルの `themes-<kebab>.png`（実装前・Demo 領域のみの
+クロップ）と異なり、`after/` 配下は各部品ページの**フルページ**スクショである。
+本ディレクトリはフラット配置が原則（上記「命名・配置規約」）だが、`after/` は
+スタイル調整前後の比較を issue コメントに残す受け入れ条件（各子 issue の受け入れ
+条件参照）専用の意図的な例外ディレクトリであり、上記の自己検証コマンド
+（サブディレクトリ非存在チェック）は `after/` を対象外とする。
 
 ## issue への貼り付け手順（raw URL）
 
