@@ -11,12 +11,20 @@
 //! `-content-padding`）を `var(..., <Md 既定値>)` で参照する形へ変更した
 //! （フォールバック値は変更前の固定値と同一、headless 直接利用時の現行
 //! 外観を維持する）。accordion は `color-palette` 軸を持たない。
+//!
+//! イシュー #1515（参考サイト基準への調整）で以下を追加・置換した:
+//! `root` の角丸トークン化・最終 item の二重罫線解消（`LastChild`）・
+//! `item-trigger` のラベル左/シェブロン右レイアウトと見出し級タイポ・
+//! hover（`hover_bg_muted()` + `Hover` state、`@media (hover: hover)`
+//! 集約出力）・disabled（`[data-disabled]` 消費）・transition
+//! （`item-trigger`/`item-indicator`）・フォーカスリングの canonical 化
+//! （`focus_ring_declarations(Token, Inset)`）。
 
 use fandhe_frontend_pre_styled_ui::accordion;
 
 const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"] {
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.5rem;
+  border-radius: var(--fandhe-radius-lg);
   overflow: hidden;
 }
 
@@ -26,18 +34,35 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
 
 [data-scope="accordion"][data-part="item-trigger"] {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fandhe-space-2);
   width: 100%;
   padding: var(--fandhe-accordion-trigger-padding, var(--fandhe-space-4));
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
+  font-weight: var(--fandhe-font-font-weight-medium);
   cursor: pointer;
   border: 0;
   text-align: left;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="accordion"][data-part="item-trigger"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="accordion"][data-part="item-indicator"] {
   display: inline-block;
   color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="accordion"][data-part="item-indicator"] {
+  transition-property: transform;
+  transition-duration: var(--fandhe-motion-duration-normal);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="accordion"][data-part="item-content"] {
@@ -70,6 +95,10 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
   --fandhe-accordion-content-padding: var(--fandhe-space-6);
 }
 
+[data-scope="accordion"][data-part="item"]:last-child {
+  border-bottom: 0;
+}
+
 [data-scope="accordion"][data-part="item-trigger"][data-state="open"] {
   color: var(--fandhe-color-accent);
 }
@@ -78,9 +107,20 @@ const ACCORDION_GOLDEN_CSS: &str = r#"[data-scope="accordion"][data-part="root"]
   transform: rotate(180deg);
 }
 
+[data-scope="accordion"][data-part="item-trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 [data-scope="accordion"][data-part="item-trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+}
+
+@media (hover: hover) {
+  [data-scope="accordion"][data-part="item-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 

@@ -51,10 +51,43 @@
 //! マークアップでも現行外観を維持する（fail-safe、`crate::lib` rustdoc
 //! 「複合部品の variant 統一方針」節参照）。accordion は `color-palette`
 //! 軸を持たない（variant 表の方針、`docs/api/pre-styled-ui-api.md` §4d 参照）。
+//!
+//! # 参考サイト基準への調整（イシュー #1515）
+//!
+//! 参照 3 サイト（chakra-ui / Radix Primitives / ark-ui）と比較し、
+//! 以下を [`recipe`] へ追加した: `root` の角丸トークン化
+//! （`--fandhe-radius-lg`）・最終 item の二重罫線解消
+//! （[`crate::recipe::StateCondition::LastChild`]）・`item-trigger` の
+//! ラベル左/シェブロン右レイアウトと見出し級タイポ・hover
+//! （[`crate::recipe::hover_bg_muted`] + [`crate::recipe::StateCondition::Hover`]）・
+//! disabled（headless 層が出力する `data-disabled` の CSS 消費）・
+//! transition（`item-trigger`/`item-indicator`）・フォーカスリングの
+//! canonical 化（[`crate::recipe::focus_ring_declarations`]）。
+//!
+//! 以下は意図的に非採用とした（`docs/policy/intentional-non-adoption.md`
+//! の評価軸を再確認せず単独判断で持ち込まない）:
+//!
+//! - **variant 軸（chakra `outline`/`subtle`/`enclosed`/`plain` 相当）の
+//!   新設**: 現行既定は chakra `enclosed` 相当（外枠 + 角丸）であり用途を
+//!   満たす。軸の新設は [`root`] の公開シグネチャ変更（0.x 破壊的変更・
+//!   minor バンプ）と Demo/原稿の波及を伴うため、toggle（#1512 → PR #1785
+//!   で見送り済み）と同じ判断を踏襲する。
+//! - **開閉時の高さアニメーション**（Radix
+//!   `--radix-accordion-content-height` 相当）: content 高さの実測（JS）が
+//!   前提であり、レイアウト計測の関心を `headless-ui` へ持ち込まない方針
+//!   （`docs/policy/intentional-non-adoption.md` §3.25）と、docs サイトの
+//!   無 JS 制約に反するため非採用。
+//! - **size 軸・palette 軸の追加**: size は既に 5 段（xs〜xl）で chakra と
+//!   同数のため過不足なし。palette 軸非保有は本モジュール冒頭の既定方針の
+//!   まま維持する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
+};
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭の
 // rustdoc「選択的 re-export」節参照）。未スタイル・variant クラス非付与の
@@ -89,7 +122,10 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.5rem"),
+                // イシュー #1515: 生値 `0.5rem` からトークン参照へ（値は不変、
+                // `docs/design/pre-styled-ui-scale-tokens.md` §5.3 の写像表
+                // どおり `radius-lg`）。
+                decl("border-radius", "var(--fandhe-radius-lg)"),
                 decl("overflow", "hidden"),
             ],
         )
@@ -100,10 +136,24 @@ fn recipe() -> SlotRecipe {
                 "1px solid var(--fandhe-color-border-muted)",
             )],
         )
+        // イシュー #1515: 最終 item は `root` の外枠 border と `item` の
+        // `border-bottom` が重なり二重罫線に見えるため打ち消す
+        // （`steps.rs` の `LastChild` 先例と同型。同一 slot への状態規則は
+        // 登録順の後勝ちで上書きされる契約のため base より後に置く）。
+        .state(
+            "item",
+            StateCondition::LastChild,
+            vec![decl("border-bottom", "0")],
+        )
         .base(
             "item-trigger",
             vec![
                 decl("display", "flex"),
+                // イシュー #1515: 参照 3 サイト（chakra-ui / Radix Primitives
+                // / ark-ui）共通のラベル左・シェブロン右配置。
+                decl("align-items", "center"),
+                decl("justify-content", "space-between"),
+                decl("gap", "var(--fandhe-space-2)"),
                 decl("width", "100%"),
                 decl(
                     "padding",
@@ -111,10 +161,21 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                // イシュー #1515: 見出し級のタイポ（参照 3 サイト共通）。
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
                 decl("cursor", "pointer"),
                 decl("border", "0"),
                 decl("text-align", "left"),
+                // イシュー #1515: hover 面色（off 面 1 色のみのため
+                // `hover_bg_muted()` を base 直置きにする。variant 軸を
+                // 持たない部品のため `crate::toggle` のような on/off 面差し
+                // 替えは不要、`crate::recipe` 冒頭 doc「hover」節参照）。
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "item-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         .base(
             "item-indicator",
@@ -122,6 +183,10 @@ fn recipe() -> SlotRecipe {
                 decl("display", "inline-block"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
+        )
+        .base(
+            "item-indicator",
+            transition_declarations("transform", MotionDuration::Normal),
         )
         .base(
             "item-content",
@@ -144,14 +209,34 @@ fn recipe() -> SlotRecipe {
             StateCondition::AttrEq("data-state", "open"),
             vec![decl("transform", "rotate(180deg)")],
         )
-        // イシュー #643: キーボード操作時のみのフォーカスリング。
+        // イシュー #1515: hover の実適用は 1 本のみ（`--fandhe-hover-bg` の
+        // 間接参照経由。`Hover` は `:not([data-disabled])` 込みで
+        // `@media (hover: hover)` へ集約出力される既存機構、`crate::toggle`
+        // と同型のパターン）。
+        .state(
+            "item-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        // イシュー #1515: headless 層（`crates/headless-ui/src/accordion.rs`）
+        // が `item`/`item-trigger` へ出力する `data-disabled` を CSS 側で
+        // 消費する（従来は規則がなく視覚差が付かなかった）。
+        .state(
+            "item-trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // イシュー #643 → #1515: キーボード操作時のみのフォーカスリング。
+        // 直書き 2 宣言を Phase 0（#1424）の canonical ヘルパへ置換する。
+        // `Token`: accordion は palette 軸を持たない部品
+        // （`docs/api/pre-styled-ui-api.md` §4d）。`Inset`: `root` が
+        // `overflow: hidden` を持ち、外側リング（`Outside`）は root 境界で
+        // 切れるため（`FocusRingOffset::Inset` の rustdoc が明記する想定
+        // ユースケース。docs-site ローカルビルドで視覚確認済み）。
         .state(
             "item-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
         )
         // イシュー #729: `size` variant（root スコープの CSS custom property。
         // Md はフォールバック値と同一の現行外観を維持する）。
@@ -359,12 +444,87 @@ mod tests {
 
     #[test]
     fn item_trigger_declares_focus_visible_ring() {
-        // イシュー #643 受け入れ条件: キーボード操作系属性（:focus-visible）
-        // が recipe 経由で反映されることを固定する。
+        // イシュー #643 → #1515 受け入れ条件: キーボード操作系属性
+        // （:focus-visible）が recipe 経由で反映されることを固定する。
+        // #1515 で直書き 2 宣言を canonical ヘルパ（`focus_ring_declarations`、
+        // `FocusRingColor::Token` + `FocusRingOffset::Inset`）へ置換した。
         let css = stylesheet();
         assert!(
             css.contains(r#"[data-scope="accordion"][data-part="item-trigger"]:focus-visible {"#)
         );
-        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+        assert!(css.contains("outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));"));
+    }
+
+    // --- イシュー #1515: 参考サイト基準への調整 ---
+
+    #[test]
+    fn root_border_radius_uses_radius_lg_token() {
+        // 角丸の生値 `0.5rem` をトークン参照へ（値は不変）。
+        let css = stylesheet();
+        assert!(css.contains("border-radius: var(--fandhe-radius-lg);"));
+        assert!(!css.contains("border-radius: 0.5rem;"));
+    }
+
+    #[test]
+    fn last_item_has_no_double_border() {
+        // root の外枠 border と item の border-bottom が重なる二重罫線を
+        // last-child で打ち消す。
+        let css = stylesheet();
+        assert!(
+            css.contains(r#"[data-scope="accordion"][data-part="item"]:last-child {"#),
+            "css={css}"
+        );
+        assert!(css.contains("border-bottom: 0;"));
+    }
+
+    #[test]
+    fn item_trigger_declares_hover_and_disabled_and_transition() {
+        let css = stylesheet();
+        // hover: タッチ端末の hover 貼り付き対策のため `@media (hover: hover)`
+        // 配下へ集約出力される（`crate::recipe::StateCondition::Hover`）。
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="accordion"][data-part="item-trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+        // disabled: headless 層が出力する `data-disabled` を CSS 側で消費する。
+        assert!(
+            css.contains(r#"[data-scope="accordion"][data-part="item-trigger"][data-disabled] {"#)
+        );
+        assert!(css.contains("opacity: 0.5;"));
+        assert!(css.contains("cursor: not-allowed;"));
+        // transition: 開閉・hover に伴う視覚変化へ transition を当てる。
+        assert!(css.contains("transition-property: background, color;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+        assert!(css.contains("transition-property: transform;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-normal);"));
+    }
+
+    #[test]
+    fn item_trigger_has_space_between_layout_and_medium_weight() {
+        // 参照 3 サイト（chakra-ui / Radix Primitives / ark-ui）共通の
+        // ラベル左・シェブロン右配置と見出し級タイポ。
+        let css = stylesheet();
+        let block_start = css
+            .find(r#"[data-scope="accordion"][data-part="item-trigger"] {"#)
+            .expect("item-trigger base block must exist");
+        let block_end = css[block_start..]
+            .find('}')
+            .map(|i| block_start + i)
+            .expect("item-trigger base block must be closed");
+        let block = &css[block_start..block_end];
+        assert!(block.contains("align-items: center;"), "block={block}");
+        assert!(
+            block.contains("justify-content: space-between;"),
+            "block={block}"
+        );
+        assert!(
+            block.contains("font-weight: var(--fandhe-font-font-weight-medium);"),
+            "block={block}"
+        );
     }
 }

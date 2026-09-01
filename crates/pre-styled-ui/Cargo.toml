@@ -682,6 +682,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # リングの canonical 化・content の開閉トランジション追加）。既存セレクタ
 # （`data-scope`/`data-part`/`data-state` 等）・公開 Rust API シグネチャの
 # 削除/改名を伴わず宣言の追加・値変更のみのため patch バンプする。
+# イシュー #1515（accordion のスタイルを参考サイト基準へ調整）は
+# `item-trigger`/`item-indicator`/`item` slot の hover/disabled/transition/
+# フォーカスリングの canonical ヘルパ移行・角丸 `--fandhe-radius-lg` 化・
+# 最終 item の二重罫線解消（`LastChild`）・trigger のレイアウト/タイポ
+# 調整という CSS 出力の変更のみで、公開 Rust API シグネチャ・CSS 変数名
+# （既存分）・クラス名・`data-*` セレクタの削除/改名を伴わないため、
+# §3.4a の通常運用に従い patch バンプする。
 version = "0.58.3"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
