@@ -23,8 +23,9 @@ UI 部品スタイル調整（参考サイト基準への調整、ルート issu
 全件がこの規約に一致していることは、以下のコマンドが空出力を返すことで確認できる（自己検証コマンド）。
 
 ```bash
-# (1) サブディレクトリが存在しないこと（フラット配置の確認）
-find docs/design/reference-screenshots -mindepth 1 -type d
+# (1) サブディレクトリが存在しないこと（フラット配置の確認。`after/` は下記「`after/`
+#     ディレクトリ」節で説明する意図的な例外のため除外する）
+find docs/design/reference-screenshots -mindepth 1 -type d -not -path 'docs/design/reference-screenshots/after'
 # 空出力なら PASS
 
 # (2) トップレベルファイルが命名規約 2 パターンまたは付随文書 3 点のいずれかに一致すること
@@ -61,6 +62,22 @@ find docs/design/reference-screenshots -maxdepth 1 -type f | xargs -n1 basename 
 - 取得時は `SOURCES.md` へ当該画像の取得元 URL・取得日を追加する
 - 各サイトの MIT ライセンス帰属表示（本 README の帰属表・`THIRD_PARTY_NOTICES.md`）を維持する
 - 用途は本リポジトリの UI 部品との視覚比較（設計資料）に限る。それ以外の目的（宣伝・独立した二次配布等）での利用は想定しない
+
+## `after/` ディレクトリ（Phase 2 実装後スクショ、イシュー #1420 系）
+
+`after/themes-<kebab>.png` は、ルート issue #1420 の Phase 2（button / checkbox /
+checkbox-group のスタイル調整、PR #1730・#1731・#1734・#1735・#1738・#1739）
+マージ後に `make docs` で再ビルドした docs サイトから撮影した実装後のローカル
+スクショである（撮影日 2026-09-01、撮影コミット `chore/phase2-after-screenshots`
+ブランチのマージコミット、viewport 1280 幅・ライトテーマ）。トップレベルの
+`themes-<kebab>.png`（実装前・Demo 領域のみのクロップ）と異なり、`after/` 配下は
+各部品ページの**フルページ**スクショであり、ページ本文の分量差（API リファレンス
+表の行数等）によりファイルサイズが上記「サイズ方針」の 1 枚 500 KB 上限をわずかに
+超える場合がある（`after/themes-checkbox-group.png` が実測約 556 KB）。本ディレクトリ
+はフラット配置が原則（上記「命名・配置規約」）だが、`after/` はスタイル調整前後の
+比較を issue コメントに残す受け入れ条件（各子 issue の受け入れ条件参照）専用の
+意図的な例外ディレクトリであり、上記の自己検証コマンド（サブディレクトリ非存在
+チェック）は `after/` を対象外とする。
 
 ## issue への貼り付け手順（raw URL）
 
