@@ -643,6 +643,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # （引数追加）であり、上記の CSS-only 変更と異なり patch では済まない。0.x の
 # 破壊的変更はマイナーバンプとする方針（`.claude/rules/coding-rust.md`）に従い
 # 0.57.37 から 0.58.0 へマイナーバンプする。
+# イシュー #1511（textarea のスタイルを参考サイト基準へ調整、親 #1510）は
+# 上記マイナーバンプ後の base（main）側で独立に 0.57.36 から 0.57.37 へ
+# patch バンプされていた（`textarea` slot の focus ring/transition/
+# disabled の canonical ヘルパ移行・角丸 `--fandhe-radius-md` 化・size の
+# padding-x/font-size トークン移行という CSS 出力の変更のみで、公開 Rust
+# API シグネチャ・CSS 変数名（既存分）・クラス名・`data-*` セレクタの
+# 削除/改名を伴わない）。base 取り込みによりこの patch バンプ（0.57.37）は
+# 上記マイナーバンプ（0.57.37 → 0.58.0）の版数区間に包含されるため、
+# 本マージでは 0.58.0 を採用し追加のバンプは行わない（0.x の破壊的変更は
+# マイナーバンプとする方針上、マイナーバンプはそれ以前の patch バンプを
+# 版数として包含する）。
 version = "0.58.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
