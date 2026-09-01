@@ -3530,7 +3530,7 @@ fn file_upload_section() -> Node {
             file_upload::dropzone(
                 false,
                 false,
-                vec![],
+                vec![("aria-label", "Upload files")],
                 vec![
                     file_upload::trigger(false, vec![], vec![text("Browse files")]),
                     file_upload::hidden_input("image/*,.pdf", true, false, vec![]),
@@ -3550,7 +3550,7 @@ fn file_upload_section() -> Node {
             file_upload::dropzone(
                 true,
                 false,
-                vec![],
+                vec![("aria-label", "Upload files")],
                 vec![
                     file_upload::trigger(true, vec![], vec![text("Browse files")]),
                     file_upload::hidden_input("image/*,.pdf", true, true, vec![]),
@@ -3572,7 +3572,7 @@ fn file_upload_section() -> Node {
             file_upload::dropzone(
                 false,
                 true,
-                vec![],
+                vec![("aria-label", "Upload files")],
                 vec![
                     file_upload::trigger(false, vec![], vec![text("Browse files")]),
                     file_upload::hidden_input("image/*,.pdf", true, false, vec![]),
