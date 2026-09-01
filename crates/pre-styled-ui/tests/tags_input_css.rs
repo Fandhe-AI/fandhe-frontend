@@ -17,7 +17,9 @@
 //! #1510）で以下を反映済み: `item`（新規、`display: inline-flex` +
 //! `[data-disabled]` cursor のみ）・`item-preview` への transition 追加
 //! （`data-highlighted` 反転を滑らかに）・`item-input`（新規、UA 既定
-//! リセット + 書体統一）・`item-delete-trigger` への hover/transition
+//! リセット + 書体統一 + 固定 `width`、PR #1782 レビュー指摘の是正で
+//! UA 既定幅（約 20 文字分）残存によるレイアウト崩れを解消）・
+//! `item-delete-trigger` への hover/transition
 //! 追加（`@media (hover: hover)` 配下、#1425 規約是正）。`data-selected`
 //! は headless 側が可変属性を出力しないため対象外（`crates/pre-styled-ui/
 //! src/tags_input.rs` モジュール rustdoc「内部パートのスタイル調整」節
@@ -95,6 +97,7 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
   outline: none;
   background: transparent;
   padding: 0;
+  width: var(--fandhe-tags-input-item-input-width, 4rem);
   font-size: var(--fandhe-tags-input-font-size, var(--fandhe-font-font-size-sm));
   color: var(--fandhe-color-fg);
 }

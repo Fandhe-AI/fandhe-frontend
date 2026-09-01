@@ -131,6 +131,17 @@
 //!   外枠 `control` の `:focus-within` に出す）と整合する。`item-input` も
 //!   `control` 配下の要素であるため、`item-input` がフォーカスを受けても
 //!   `control` の `:focus-within` によりリングは変わらず表示される。
+//!   **`width`（PR #1782 レビュー指摘の是正）**: 上記のリセット群は UA の
+//!   枠・背景のみを対象とし、`<input>` の UA 既定幅（およそ 20 文字分）は
+//!   未指定のまま残っていたため、編集モードへ入るとチップに対して
+//!   フィールドが大幅に広がりレイアウトが飛ぶ不具合があった。`input`
+//!   （外枠側）が `min-width: var(--fandhe-tags-input-input-min-width,
+//!   6rem)` で伸縮を許容するのに対し、`item-input` は 1 タグ分の短い
+//!   編集欄であるため伸縮を許容せず固定幅
+//!   `width: var(--fandhe-tags-input-item-input-width, 4rem)` を新設した
+//!   （`min-width` ではなく `width` を選ぶ理由: `item` は `display:
+//!   inline-flex` で内容にフィットするため、`min-width` のみでは UA 既定の
+//!   本来幅が下限として残り是正にならない）。
 //! - **`item-delete-trigger` に hover/transition を追加**:
 //!   `cursor: pointer` を持つインタラクティブ slot にもかかわらず
 //!   hover/transition を欠いていた（#1425 規約違反状態）ため是正した。
@@ -360,6 +371,10 @@ fn recipe() -> SlotRecipe {
                 decl("background", "transparent"),
                 decl("padding", "0"),
                 decl(
+                    "width",
+                    "var(--fandhe-tags-input-item-input-width, 4rem)",
+                ),
+                decl(
                     "font-size",
                     "var(--fandhe-tags-input-font-size, var(--fandhe-font-font-size-sm))",
                 ),
@@ -544,7 +559,8 @@ mod tests {
   border: none;
   outline: none;
   background: transparent;
-  padding: 0;"#
+  padding: 0;
+  width: var(--fandhe-tags-input-item-input-width, 4rem);"#
         ));
     }
 
