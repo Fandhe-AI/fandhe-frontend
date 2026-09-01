@@ -571,7 +571,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # バンプする。イシュー #1502（select リスト側パーツのスタイル調整 2/2）も
 # 同型（CSS 出力の純追加・トークン化のみで公開 Rust API 不変。combobox
 # 2/2 と同じ判断）のため 0.57.27 から 0.57.28 へ patch バンプする。
-version = "0.57.28"
+# イシュー #1503（signature-pad のスタイル調整）も同型（CSS 出力の
+# state 規則追加・トークン化のみで公開 Rust API 不変。クラス名・
+# CSS 変数名・セレクタの削除/改名なし）のため 0.57.28 から 0.57.29 へ
+# patch バンプする。
+version = "0.57.29"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

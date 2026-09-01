@@ -19,6 +19,46 @@
 //! [`SignaturePadAction`]/[`MAX_POINTS_PER_STROKE`]/[`MAX_STROKES`]）のみを
 //! 選択的に再エクスポートする。
 //!
+//! # スタイル調整（イシュー #1503）
+//!
+//! 参考サイト（ark-ui signature-pad。chakra-ui / Radix に同等部品なし）と
+//! 比較し、以下を是正した。
+//!
+//! - `control` を寸法・枠線のみの空欄から、淡い面（
+//!   `var(--fandhe-color-bg-muted)`）・大きめ角丸（`--fandhe-radius-lg`）・
+//!   空でも潰れない最小寸法（`min-width`/`min-height`）を持つ「署名欄」の
+//!   見た目へ実体化した。`cursor: crosshair` と `touch-action: none` は
+//!   描画面の操作性のための追加（装飾ではなく操作契約）
+//! - `label`/`root`/`guide`/`clear-trigger` のリテラル値
+//!   （`0.375rem`/`0.25rem`/`0.5rem`/`0.75rem`/`1.5rem` 等）をトークン
+//!   スケール（`--fandhe-radius-*`/`--fandhe-space-*`）参照へ置き換えた
+//! - `label` に型階層（`font-size`/`font-weight`/`line-height`）を新設した
+//!   （rating-group/radio-group と同型）
+//! - `clear-trigger` に hover 背景・`:focus-visible` リング・
+//!   `data-disabled` の視覚反映・transition を追加した（Phase 0 共通
+//!   ビジュアル言語、`crate::recipe` のヘルパ経由）
+//! - `root`/`control` にも `data-disabled` の視覚反映（`opacity`/`cursor`）
+//!   を追加した
+//!
+//! 意図的に参考サイトへ合わせない点（理由付き）:
+//!
+//! - **size / variant 軸は追加しない**: ark-ui にも size/variant 軸はなく、
+//!   寸法は headless `segment` の `width`/`height` 引数が既に呼び出し側
+//!   制御の主経路であるため（既存設計判断、変更なし）
+//! - **`control` へ `:hover` は付けない**: 描画面は「押すと描ける」面で
+//!   あり、hover 背景変化の対象（ボタン・リンク類）ではない。ark も pad
+//!   面に hover 変化を持たない
+//! - **`control` へ `:focus-visible`/`:focus-within` リングは付けない**:
+//!   headless `control` は `<div>`（tabindex なし）でフォーカスを持たず、
+//!   フォーカス可能要素はリング付与済みの `clear-trigger` と
+//!   `hidden-input`（視覚外）のみ
+//! - **`data-empty` の視覚差は付けない**: guide（破線）は ark 同様に常時
+//!   表示で足り、空状態の表示切替は利用者判断（headless の `data-empty`
+//!   は既に出力されており利用者 CSS で拡張可能）
+//! - **`data-readonly` の視覚差は付けない**: 現時点で `cursor` 差分等を
+//!   追加する明確な参考サイト上の根拠がなく、`disabled` 系と混同しない
+//!   よう見送る（将来 issue で再検討可能）
+//!
 //! # セキュリティ不変条件
 //!
 //! 本モジュールは headless 層の再エクスポートと静的 CSS 生成のみで構成され、
@@ -37,7 +77,11 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::SlotRecipe;
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, SlotRecipe,
+    StateCondition,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::signature_pad::{
     clear_trigger as headless_clear_trigger, control as headless_control,
@@ -68,7 +112,10 @@ const SLOTS: &[&str] = &[
 /// 提供しない（署名欄はフォーム内で寸法を呼び出し側が明示指定する場面が
 /// 大半であり、`crates/headless-ui/src/signature_pad.rs::segment` の
 /// `width`/`height` 引数が既に呼び出し側制御の主経路であるため、
-/// `class` variant による寸法切替を重ねて設けない設計判断）。
+/// `class` variant による寸法切替を重ねて設けない設計判断）。state 規則
+/// （hover/focus-visible/disabled）は [`crate::recipe`] の Phase 0 共通
+/// ビジュアル言語ヘルパを使い、モジュール冒頭「スタイル調整」節の
+/// 是正点・意図的差分の理由に従う（イシュー #1503）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("signature-pad", SLOTS)
         .base(
@@ -76,7 +123,15 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("flex-direction", "column"),
-                decl("gap", "0.5rem"),
+                decl("gap", "var(--fandhe-space-2)"),
+            ],
+        )
+        .base(
+            "label",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
             ],
         )
         .base(
@@ -84,8 +139,12 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("position", "relative"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
-                decl("background", "var(--fandhe-color-bg)"),
+                decl("border-radius", "var(--fandhe-radius-lg)"),
+                decl("background", "var(--fandhe-color-bg-muted)"),
+                decl("min-width", "16rem"),
+                decl("min-height", "8rem"),
+                decl("cursor", "crosshair"),
+                decl("touch-action", "none"),
             ],
         )
         .base(
@@ -106,22 +165,57 @@ fn recipe() -> SlotRecipe {
             "guide",
             vec![
                 decl("position", "absolute"),
-                decl("left", "0.75rem"),
-                decl("right", "0.75rem"),
-                decl("bottom", "1.5rem"),
+                decl("left", "var(--fandhe-space-3)"),
+                decl("right", "var(--fandhe-space-3)"),
+                decl("bottom", "var(--fandhe-space-6)"),
                 decl("border-bottom", "1px dashed var(--fandhe-color-border)"),
             ],
         )
-        .base(
-            "clear-trigger",
-            vec![
+        .base("clear-trigger", {
+            let mut declarations = vec![
                 decl("align-self", "flex-start"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
-                decl("padding", "0.25rem 0.75rem"),
+                decl("padding", "var(--fandhe-space-1) var(--fandhe-space-3)"),
                 decl("cursor", "pointer"),
-            ],
+                // 面を持たない（淡い bg のみの）ボタン系 slot のため
+                // `hover_bg_muted()` で `--fandhe-hover-bg` を定義する
+                // （`crate::button::ButtonVariant::Outline`/`Ghost` と同型、
+                // 定義と適用〔下記 `.state(..., StateCondition::Hover, ...)`〕
+                // を分離する既存パターン）。
+                hover_bg_muted(),
+            ];
+            declarations.extend(transition_declarations(
+                "background, border-color",
+                MotionDuration::Fast,
+            ));
+            declarations
+        })
+        .state(
+            "clear-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "clear-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        .state(
+            "clear-trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "control",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "root",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
         )
 }
 
@@ -202,6 +296,36 @@ mod tests {
         assert_eq!(a, b);
         assert!(a.contains(r#"[data-scope="signature-pad"][data-part="control"]"#));
         assert!(a.contains(r#"[data-scope="signature-pad"][data-part="segment-path"]"#));
+    }
+
+    /// イシュー #1503 で追加した hover / focus-visible / disabled の
+    /// state 規則を検証する（Phase 0 共通ビジュアル言語ヘルパの適用結果）。
+    #[test]
+    fn stylesheet_contains_interaction_visual_language_rules() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="signature-pad"][data-part="clear-trigger"]:hover:not([data-disabled])"#
+        ));
+        assert!(css
+            .contains(r#"[data-scope="signature-pad"][data-part="clear-trigger"]:focus-visible"#));
+        assert!(css
+            .contains(r#"[data-scope="signature-pad"][data-part="clear-trigger"][data-disabled]"#));
+        assert!(css.contains(r#"[data-scope="signature-pad"][data-part="control"][data-disabled]"#));
+        assert!(css.contains(r#"[data-scope="signature-pad"][data-part="root"][data-disabled]"#));
+        assert!(css.contains("--fandhe-hover-bg"));
+    }
+
+    /// イシュー #1503 で `control` を空でも潰れない署名欄の見た目へ
+    /// 実体化したことを検証する（トークン化・最小寸法・操作性宣言）。
+    #[test]
+    fn stylesheet_control_has_visible_pad_declarations() {
+        let css = stylesheet();
+        assert!(css.contains("background: var(--fandhe-color-bg-muted);"));
+        assert!(css.contains("border-radius: var(--fandhe-radius-lg);"));
+        assert!(css.contains("min-width: 16rem;"));
+        assert!(css.contains("min-height: 8rem;"));
+        assert!(css.contains("cursor: crosshair;"));
+        assert!(css.contains("touch-action: none;"));
     }
 
     #[test]
