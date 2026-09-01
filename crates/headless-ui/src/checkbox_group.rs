@@ -119,7 +119,7 @@ use crate::aria::{aria_labelledby, aria_orientation, role};
 use crate::data_attrs::{data_disabled, data_orientation, data_state, Orientation};
 use crate::state::{checked_data_state, MultiSelect, MultiSelectAction};
 use fandhe_frontend_core::Node;
-use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
+use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
 /// `data-state` 属性値 "checked"。[`crate::radio_group::DATA_STATE_CHECKED`]
 /// と同じ共通機械 [`crate::state::Checkable`] の値語彙（互換 re-export）。
@@ -270,7 +270,7 @@ pub fn item_text<'a>(
 /// 可能。`Default` は未選択・disabled=false（SSR の状態なし初期描画に
 /// 対応する既定値）。
 ///
-/// # root disabled の伝播（イシュー #1741）
+/// # root disabled の伝播（イシュー #1741、hydration 往復は #1760 P1 是正）
 ///
 /// `disabled` フィールドはグループ全体の無効化状態を保持する。呼び出し側は
 /// [`Self::set_disabled`]/[`Self::with_disabled`] で設定し、[`Self::item`]/
@@ -280,13 +280,17 @@ pub fn item_text<'a>(
 /// を各パーツへ注入する。root disabled 未設定（`false`）時は従来の出力と
 /// 完全に一致し、この追加は非破壊的である。
 ///
-/// dispatch（[`Component::update`]）で変化しない表示プロパティのため
-/// hydration 状態形式（`docs/api/hydration-state-format.md`）へは含めず、
-/// [`Hydrate`] 実装は従来どおり [`MultiSelect`] へ全委譲する（[`Self::view`]
-/// も disabled を注入しない最小正準ビューを維持し、hydration round-trip の
-/// 不変条件を壊さない側に倒した）。SSR 自由関数直接利用時は、呼び出し側が
-/// 各パーツへ明示的に同じ disabled を渡す契約が従来どおり有効（本型の
-/// 利便メソッドを経由する場合のみ自動 OR される）。
+/// [`Component::view`]（`render_for_hydration` 等の標準描画経路）は
+/// `self.disabled` を [`root`] へ渡す（PR #1760 codex-review P1 是正: 以前は
+/// 常に `false` を渡しており、disabled な `CheckboxGroup` でも
+/// `data-disabled` が出力されなかった）。`disabled` は
+/// [`Component::update`]/dispatch では変化しない表示プロパティだが、
+/// hydration 状態形式（`docs/api/hydration-state-format.md`）の
+/// [`Self::FIELD_DISABLED`] としても往復させる（同 P1: 往復させないと
+/// disabled=true な `CheckboxGroup` が hydration 後に常に有効化され、
+/// タブ移動・Space 操作・フォーム送信が可能になってしまう）。SSR 自由関数
+/// 直接利用時は、呼び出し側が各パーツへ明示的に同じ disabled を渡す契約が
+/// 従来どおり有効（本型の利便メソッドを経由する場合のみ自動 OR される）。
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CheckboxGroup {
     select: MultiSelect,
@@ -294,6 +298,12 @@ pub struct CheckboxGroup {
 }
 
 impl CheckboxGroup {
+    /// `data-hydrate-disabled` 属性名のフィールド部分（イシュー #1760
+    /// P1 是正: root disabled を hydration 状態形式へ往復させる。
+    /// [`crate::carousel::Carousel::FIELD_LOOP`] と同じ `"true"`/`"false"`
+    /// 文字列エンコードを踏襲する）。
+    pub const FIELD_DISABLED: &'static str = "disabled";
+
     /// 現在選択中の項目値の一覧。
     #[must_use]
     pub fn selected(&self) -> &[String] {
@@ -474,9 +484,12 @@ impl Component for CheckboxGroup {
     /// を持つ素の `div` を返すため使わず、本モジュールの `root` を明示的に
     /// 呼んで上書きする。`render_for_hydration` がルートを `Node::Element`
     /// と仮定する不変条件は維持される、[`crate::radio_group::RadioGroup::view`]
-    /// と同型）。
+    /// と同型）。`self.disabled` を渡す（PR #1760 codex-review P1 是正:
+    /// 以前は常に `false` を渡しており、`render_for_hydration(&group)` 等の
+    /// 標準描画経路で disabled な `CheckboxGroup` でも `data-disabled` が
+    /// 出力されなかった）。
     fn view(&self) -> Node {
-        root(false, None, None, Vec::new(), Vec::new())
+        root(self.disabled, None, None, Vec::new(), Vec::new())
     }
 
     /// クライアント由来の文字列アクション名を `"select"`/`"deselect"`/
@@ -490,20 +503,51 @@ impl Component for CheckboxGroup {
 }
 
 impl Hydrate for CheckboxGroup {
+    /// [`MultiSelect::hydration_attrs`] の選択状態に加え、
+    /// [`Self::FIELD_DISABLED`] として root disabled を往復させる（PR #1760
+    /// codex-review P1 是正、[`CheckboxGroup`] rustdoc「root disabled の
+    /// 伝播」節参照）。`disabled` は dispatch では変化しない表示プロパティ
+    /// だが、往復させないと disabled=true な状態が hydration 後に常に
+    /// `false` へ解除されてしまう。
     fn hydration_attrs(&self) -> Vec<(String, String)> {
-        self.select.hydration_attrs()
+        let mut attrs = self.select.hydration_attrs();
+        attrs.push((
+            format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_DISABLED),
+            self.disabled.to_string(),
+        ));
+        attrs
     }
 
+    /// クライアント改ざん入力として扱う。[`Self::FIELD_DISABLED`] の欠落は
+    /// [`HydrateError::MissingAttr`]、`"true"`/`"false"` 以外の値は
+    /// [`HydrateError::InvalidValue`]（panic しない、
+    /// [`crate::carousel::Carousel::from_hydration_attrs`] の `loop` 解析と
+    /// 同型の fail-closed 契約）。
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
-        Ok(Self {
-            select: MultiSelect::from_hydration_attrs(attrs)?,
-            // disabled は dispatch で変化しない表示プロパティのため
-            // hydration 状態形式に含めない（[`CheckboxGroup`] rustdoc「root
-            // disabled の伝播」節参照）。復元時は `Default` と同じ `false`
-            // に固定し、呼び出し側が必要なら再ハイドレーション後に
-            // `set_disabled` で明示的に設定する契約とする。
-            disabled: false,
-        })
+        // select の復元を先に行う（既存の MissingAttr/InvalidValue 優先順位
+        // ── 「data-hydrate-selected」欠落・不正値を最初に報告する既存の
+        // テスト契約 ── を崩さないため。disabled 欠落・不正値の判定は
+        // select 復元が成功した後に行う）。
+        let select = MultiSelect::from_hydration_attrs(attrs)?;
+
+        let attr_name_disabled = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_DISABLED);
+        let disabled_raw = attrs
+            .iter()
+            .find(|(k, _)| *k == attr_name_disabled)
+            .map(|(_, v)| v.as_str())
+            .ok_or_else(|| HydrateError::MissingAttr(attr_name_disabled.clone()))?;
+        let disabled = match disabled_raw {
+            "true" => true,
+            "false" => false,
+            _ => {
+                return Err(HydrateError::InvalidValue {
+                    attr: attr_name_disabled,
+                    reason: "expected \"true\" or \"false\"".to_string(),
+                })
+            }
+        };
+
+        Ok(Self { select, disabled })
     }
 }
 
@@ -947,6 +991,21 @@ mod tests {
         assert!(rendered.contains(r#"role="group""#));
     }
 
+    #[test]
+    fn checkbox_group_view_reflects_root_disabled() {
+        // PR #1760 codex-review P1 回帰固定: Component::view が
+        // self.disabled を無視して常に false を root へ渡していたため、
+        // render_for_hydration(&group) 等の標準描画経路で disabled な
+        // CheckboxGroup でも data-disabled が出力されなかった不具合。
+        let disabled_group = CheckboxGroup::default().with_disabled(true);
+        let rendered = render(&disabled_group.view());
+        assert!(rendered.contains(r#"data-disabled="""#));
+
+        let enabled_group = CheckboxGroup::default();
+        let rendered = render(&enabled_group.view());
+        assert!(!rendered.contains("data-disabled"));
+    }
+
     // --- CheckboxGroup: hydration 経路 ---
 
     #[test]
@@ -967,6 +1026,68 @@ mod tests {
         let g = CheckboxGroup::default();
         let restored = CheckboxGroup::from_hydration_attrs(&g.hydration_attrs()).unwrap();
         assert_eq!(restored, g);
+    }
+
+    #[test]
+    fn checkbox_group_hydration_attrs_includes_disabled_field() {
+        // PR #1760 codex-review P1 回帰固定: hydration_attrs が disabled を
+        // 状態属性として運ぶことの直接確認（data-hydrate-disabled）。
+        let g = CheckboxGroup::default().with_disabled(true);
+        let attrs = g.hydration_attrs();
+        assert!(attrs
+            .iter()
+            .any(|(k, v)| k == "data-hydrate-disabled" && v == "true"));
+    }
+
+    #[test]
+    fn checkbox_group_hydration_round_trip_preserves_root_disabled_true() {
+        // PR #1760 codex-review P1 回帰固定: hydration_attrs が disabled を
+        // 保存せず from_hydration_attrs が常に disabled: false を設定して
+        // いたため、disabled=true な CheckboxGroup が hydration 往復後に
+        // 有効化されてしまう不具合（タブ移動・Space 操作・フォーム送信が
+        // 可能になる）。往復後も is_disabled() が true のままであることを
+        // 固定する。
+        let g = CheckboxGroup::default().with_disabled(true);
+        let restored = CheckboxGroup::from_hydration_attrs(&g.hydration_attrs()).unwrap();
+        assert!(restored.is_disabled());
+        assert_eq!(restored, g);
+    }
+
+    #[test]
+    fn checkbox_group_hydration_round_trip_preserves_root_disabled_false() {
+        let g = CheckboxGroup::default();
+        let restored = CheckboxGroup::from_hydration_attrs(&g.hydration_attrs()).unwrap();
+        assert!(!restored.is_disabled());
+    }
+
+    #[test]
+    fn checkbox_group_from_hydration_attrs_missing_disabled_attr_does_not_panic() {
+        // data-hydrate-selected はあるが data-hydrate-disabled が欠落した
+        // 改ざん入力を fail-closed に拒否する（panic しない）。
+        use fandhe_frontend_interactive::codec;
+        let attrs = vec![(
+            "data-hydrate-selected".to_string(),
+            codec::encode_list(&Vec::<String>::new()),
+        )];
+        let err = CheckboxGroup::from_hydration_attrs(&attrs).unwrap_err();
+        assert_eq!(
+            err,
+            HydrateError::MissingAttr("data-hydrate-disabled".to_string())
+        );
+    }
+
+    #[test]
+    fn checkbox_group_from_hydration_attrs_invalid_disabled_value_rejected_fail_closed() {
+        use fandhe_frontend_interactive::codec;
+        let attrs = vec![
+            (
+                "data-hydrate-selected".to_string(),
+                codec::encode_list(&Vec::<String>::new()),
+            ),
+            ("data-hydrate-disabled".to_string(), "yes".to_string()),
+        ];
+        let err = CheckboxGroup::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
     }
 
     #[test]
