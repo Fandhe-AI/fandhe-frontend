@@ -25,8 +25,8 @@ const PASSWORD_INPUT_GOLDEN_CSS: &str = r#"[data-scope="password-input"][data-pa
   align-items: center;
   box-sizing: border-box;
   width: 100%;
-  height: var(--fandhe-password-input-height, 2.5rem);
-  padding: 0 var(--fandhe-password-input-padding-x, 0.75rem);
+  height: var(--fandhe-password-input-height, var(--fandhe-size-control-height-md, 2.5rem));
+  padding: 0 var(--fandhe-password-input-padding-x, var(--fandhe-size-control-padding-x-md, 1rem));
   border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
@@ -45,7 +45,7 @@ const PASSWORD_INPUT_GOLDEN_CSS: &str = r#"[data-scope="password-input"][data-pa
   outline: none;
   color: var(--fandhe-color-fg);
   padding: 0;
-  font-size: var(--fandhe-password-input-font-size, var(--fandhe-font-font-size-md));
+  font-size: var(--fandhe-password-input-font-size, var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md)));
 }
 
 [data-scope="password-input"][data-part="visibility-trigger"] {
@@ -73,34 +73,40 @@ const PASSWORD_INPUT_GOLDEN_CSS: &str = r#"[data-scope="password-input"][data-pa
   align-items: center;
 }
 
+[data-scope="password-input"][data-part="indicator"] {
+  transition-property: color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
 [data-scope="password-input"][data-part="root"].fd-password-input--size-xs {
-  --fandhe-password-input-height: 1.5rem;
-  --fandhe-password-input-padding-x: 0.25rem;
-  --fandhe-password-input-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-password-input-height: var(--fandhe-size-control-height-xs, 2rem);
+  --fandhe-password-input-padding-x: var(--fandhe-size-control-padding-x-xs, 0.625rem);
+  --fandhe-password-input-font-size: var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs));
 }
 
 [data-scope="password-input"][data-part="root"].fd-password-input--size-sm {
-  --fandhe-password-input-height: 2rem;
-  --fandhe-password-input-padding-x: 0.5rem;
-  --fandhe-password-input-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-password-input-height: var(--fandhe-size-control-height-sm, 2.25rem);
+  --fandhe-password-input-padding-x: var(--fandhe-size-control-padding-x-sm, 0.75rem);
+  --fandhe-password-input-font-size: var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm));
 }
 
 [data-scope="password-input"][data-part="root"].fd-password-input--size-md {
-  --fandhe-password-input-height: 2.5rem;
-  --fandhe-password-input-padding-x: 0.75rem;
-  --fandhe-password-input-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-password-input-height: var(--fandhe-size-control-height-md, 2.5rem);
+  --fandhe-password-input-padding-x: var(--fandhe-size-control-padding-x-md, 1rem);
+  --fandhe-password-input-font-size: var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md));
 }
 
 [data-scope="password-input"][data-part="root"].fd-password-input--size-lg {
-  --fandhe-password-input-height: 3rem;
-  --fandhe-password-input-padding-x: 1rem;
-  --fandhe-password-input-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-password-input-height: var(--fandhe-size-control-height-lg, 2.75rem);
+  --fandhe-password-input-padding-x: var(--fandhe-size-control-padding-x-lg, 1.25rem);
+  --fandhe-password-input-font-size: var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-lg));
 }
 
 [data-scope="password-input"][data-part="root"].fd-password-input--size-xl {
-  --fandhe-password-input-height: 3.5rem;
-  --fandhe-password-input-padding-x: 1.25rem;
-  --fandhe-password-input-font-size: var(--fandhe-font-font-size-xl);
+  --fandhe-password-input-height: var(--fandhe-size-control-height-xl, 3rem);
+  --fandhe-password-input-padding-x: var(--fandhe-size-control-padding-x-xl, 1.5rem);
+  --fandhe-password-input-font-size: var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-xl));
 }
 
 [data-scope="password-input"][data-part="root"].fd-password-input--color-palette-accent {
@@ -177,6 +183,10 @@ const PASSWORD_INPUT_GOLDEN_CSS: &str = r#"[data-scope="password-input"][data-pa
 
 [data-scope="password-input"][data-part="visibility-trigger"][data-disabled] {
   cursor: not-allowed;
+}
+
+[data-scope="password-input"][data-part="indicator"][data-state="visible"] {
+  color: var(--fandhe-palette, var(--fandhe-color-accent));
 }
 
 @media (hover: hover) {
