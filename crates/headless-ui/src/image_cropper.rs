@@ -455,9 +455,27 @@ pub fn viewport<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node
 
 /// Image パーツ（`img`）。`src`/`alt` を必須引数とする（[`crate::avatar::image`]
 /// と同じくアクセシビリティ担保のため）。
+///
+/// `draggable="false"` を既定で付与する（イシュー #1481 codex-review 指摘の
+/// 是正）。styled 層（`crates/pre-styled-ui/src/image_cropper.rs`）が
+/// `image` パートへ宣言する `user-select: none` は CSS のテキスト/要素選択
+/// 制御に過ぎず、HTML5 Drag and Drop（ブラウザ既定のネイティブ画像
+/// ドラッグ・`dragstart` イベント）を抑止できない。ネイティブドラッグの
+/// 抑止は `draggable` 属性でのみ実現できるため、headless 層のこの関数が
+/// 唯一の生成経路として既定値を固定する。呼び出し側 `attrs` に
+/// `draggable`（大文字小文字を無視）が含まれる場合はそれを優先し、
+/// こちらの既定値を出力しない（`fandhe_frontend_headless_ui::progress` の
+/// `drop_style_attr` と同型の、後勝ちではなく重複属性そのものを避ける
+/// fail-closed な合成方針）。
 #[must_use]
 pub fn image<'a>(src: &'a str, alt: &'a str, attrs: Vec<(&'a str, &'a str)>) -> Node {
+    let caller_overrides_draggable = attrs
+        .iter()
+        .any(|(k, _)| k.eq_ignore_ascii_case("draggable"));
     let mut merged: Vec<(&'a str, &'a str)> = vec![("src", src), ("alt", alt)];
+    if !caller_overrides_draggable {
+        merged.push(("draggable", "false"));
+    }
     merged.extend(attrs);
     ANATOMY.part("image", "img", merged, Vec::new())
 }
@@ -1206,6 +1224,25 @@ mod tests {
         assert!(html.contains(r#"data-part="image""#));
         assert!(html.contains(r#"src="/a.png""#));
         assert!(html.contains(r#"alt="photo""#));
+    }
+
+    #[test]
+    fn image_outputs_draggable_false_by_default() {
+        // イシュー #1481 codex-review 指摘の是正: CSS の `user-select: none`
+        // だけでは HTML5 Drag and Drop（ネイティブ画像ドラッグ）を止められない
+        // ため、headless 層が `draggable="false"` を既定で出力することを固定する。
+        let html = render(&image("/a.png", "photo", vec![]));
+        assert!(html.contains(r#"draggable="false""#));
+    }
+
+    #[test]
+    fn image_caller_draggable_attr_overrides_default_without_duplication() {
+        // 呼び出し側が明示的に `draggable` を指定した場合はそちらを優先し、
+        // 既定値との重複属性を出力しない（fail-closed な合成方針の固定）。
+        let html = render(&image("/a.png", "photo", vec![("draggable", "true")]));
+        assert!(html.contains(r#"draggable="true""#));
+        assert!(!html.contains(r#"draggable="false""#));
+        assert_eq!(html.matches("draggable=").count(), 1);
     }
 
     #[test]

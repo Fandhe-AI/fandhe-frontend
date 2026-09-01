@@ -81,6 +81,62 @@
 //! headless が `data-handle-position` 以外の `data-*` を発行しないため
 //! 追加対象がない（headless への属性追加は本イシューのスコープ外）。
 //!
+//! # イシュー #1481（2/2）: ズーム・回転コントロールは対象外、
+//! viewport/image を 7 軸是正
+//!
+//! 親イシュー #1479（分割 1/2 は #1480、PR #1755 マージ済み。selection/
+//! handle/grid を是正）の残り分。イシュータイトルは「ズーム・回転
+//! コントロールとプレビュー」だが、以下の理由でズーム・回転コントロールは
+//! **対象外**と判断した:
+//!
+//! - ark-ui の Image Cropper anatomy は Root / Viewport / Image /
+//!   Selection / Handle / Grid の 6 パーツのみであり、zoom / rotation は
+//!   anatomy パーツではなく状態機械の props（`zoom`/`maxZoom`/`minZoom`/
+//!   `rotation`）である（参照サイトのデモは Slider 等の別部品との合成で
+//!   実現している）。
+//! - headless 層（`fandhe_frontend_headless_ui::image_cropper` モジュール
+//!   doc「スコープ外」節）は zoom / rotation / flip / cropShape circle を
+//!   明示的にスコープ外と記録済みであり、対応する anatomy パーツが存在
+//!   しない。
+//! - UI コンポーネント層の責務境界（`.claude/rules/coding-rust.md` §3.25）
+//!   により anatomy（構造）の新設は headless 層の責務であり、pre-styled-ui
+//!   単独で新パートを発明しない。headless 側の anatomy/`data-*` 突合は
+//!   open イシュー #1610 が担当する。
+//!
+//! 「プレビュー」は画像表示領域（viewport/image パート）に対応すると解釈
+//! し、1/2 が触っていない root/viewport/image へ 7 軸チェックリスト
+//! （余白・角丸・影／色／サイズ／`data-*` 状態／ダーク／フォーカス・
+//! hover・トランジション）を適用した:
+//!
+//! - **余白・角丸・影**: `viewport` へ `border-radius: var(--fandhe-radius-lg)`
+//!   を追加（`overflow: hidden` により画像もクリップされる）。ark-ui の
+//!   角丸コンテナ相当。
+//! - **色**: `viewport` の背景に `var(--fandhe-color-bg-muted)`（画像ロード
+//!   前・アスペクト比差のレターボックス時のみ可視）を追加。生リテラルは
+//!   使わない。
+//! - **操作性の表示宣言**: `viewport` へ `user-select: none` を追加。
+//!   `touch-action: none`（タッチでの crop 操作中にブラウザ既定のスクロール
+//!   /ピンチズームが介入しないよう意図表明）は当初 `viewport` 全体へ追加
+//!   し、その後ドラッグ起点である `selection`/`handle` パートへ限定
+//!   適用するよう是正したが、対応する pointer/touch イベント配線（crop
+//!   矩形のドラッグ操作）が headless 側スコープ外で未実装のままである限り、
+//!   適用先を移すだけでは operable な要素が実際には無いのにタッチデバイス
+//!   のスクロール・ピンチズームだけを恒常的に止める同じ操作性/
+//!   アクセシビリティ回帰が解消されないため（codex-review 再指摘、イシュー
+//!   #1481）、`touch-action: none` の宣言自体を全パートから見送った。実
+//!   ドラッグ操作の実装後、当該配線と合わせて再導入を検討する。`image` へも
+//!   `user-select: none`（ネイティブのゴーストドラッグ・テキスト選択
+//!   抑止）を追加するが、`pointer-events: none` は付与しない（画像上から
+//!   の新規ドラッグ開始を将来の DOM 配線が使えるよう、操作起点を
+//!   `selection`/`handle` に限定するスタイル側の固定を避けるため）。
+//! - **サイズ/`data-*` 状態/フォーカス/hover/トランジション**: `viewport`/
+//!   `image` はいずれも非フォーカサブルで headless が `data-*` を発行
+//!   しない（`data-handle-position` は `handle` のみ）ため追加是正なし。
+//!   位置系のトランジション非付与は 1/2 の判断を踏襲する。
+//!
+//! `root` は 1/2 が触っていないが、`display`/`position` のみで
+//! チェックリストに該当する差分がないため変更なし。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく canvas による実画像切り出し・pointer ドラッグ/
@@ -156,11 +212,51 @@ fn recipe() -> SlotRecipe {
                 decl("display", "block"),
                 decl("width", "100%"),
                 decl("height", "100%"),
+                // 角丸（イシュー #1481）: ark-ui の Image Cropper デモは
+                // viewport（プレビュー領域）を角丸コンテナで囲む。
+                // `overflow: hidden` が既にあるため角丸で画像自体もクリップ
+                // される。共通トークンスケール（xs〜xl）から視覚比較で
+                // `lg` を選定。
+                decl("border-radius", "var(--fandhe-radius-lg)"),
+                // 背景色（イシュー #1481）: 画像ロード前・アスペクト比の
+                // 差でレターボックスが生じたときにのみ可視になる下地。
+                // `--fandhe-color-bg-muted` トークン経由（生リテラル直書き
+                // をしない、モジュール既存方針）。
+                decl("background", "var(--fandhe-color-bg-muted)"),
+                // ユーザー選択抑止（イシュー #1481）: プレビュー領域上の
+                // テキスト選択ジェスチャ（誤ドラッグ選択）を防ぐ、非操作的な
+                // 表示宣言。`touch-action: none` は viewport 全体には適用
+                // しない（イシュー #1481 codex-review 指摘）: 対応する
+                // pointer/touch イベント配線（crop 矩形のドラッグ操作）は
+                // headless 側スコープ外で未実装のため、viewport 全体へ
+                // 常時適用すると、operable な要素が無いままタッチデバイスの
+                // 縦横スクロール・ピンチズームだけを恒常的に止める操作性/
+                // アクセシビリティ回帰になる。ドラッグ起点となる
+                // `selection`/`handle` パート側にのみ限定して宣言する
+                // （下記 `selection`/`handle` base 参照）。
+                decl("user-select", "none"),
             ],
         )
         .base(
             "image",
-            vec![decl("display", "block"), decl("max-width", "100%")],
+            vec![
+                decl("display", "block"),
+                decl("max-width", "100%"),
+                // テキスト/要素選択の抑止（イシュー #1481）。`user-select`
+                // は CSS の選択制御のみを担い、ブラウザ既定のネイティブ画像
+                // ドラッグ（HTML5 Drag and Drop・`dragstart`）は抑止しない
+                // （イシュー #1481 codex-review 指摘）。ネイティブドラッグの
+                // 抑止は headless 層の
+                // `fandhe_frontend_headless_ui::image_cropper::image` が
+                // 既定で出力する `draggable="false"` が担う（本モジュールは
+                // 当該関数をそのまま再エクスポートするのみで、スタイル層は
+                // 関与しない）。`pointer-events: none` は付与しない: 将来
+                // DOM 配線（headless スコープ外）で画像上から crop 矩形の
+                // 新規ドラッグ開始を実装する余地を残すため（`selection`/
+                // `handle` のみが操作起点という制約をスタイル層で先に
+                // 固定しない）。
+                decl("user-select", "none"),
+            ],
         )
         .base(
             "selection",
@@ -180,6 +276,15 @@ fn recipe() -> SlotRecipe {
                 // 移行（rgba リテラル直書きの解消）。
                 decl("box-shadow", "0 0 0 9999px var(--fandhe-color-bg-overlay)"),
                 decl("cursor", "move"),
+                // `touch-action: none` は付与しない（イシュー #1481
+                // codex-review 再指摘）: `selection` は crop 矩形の移動
+                // ドラッグの起点だが、対応する pointer/touch イベント配線
+                // （ドラッグ操作の実装）は headless 側スコープ外で未実装の
+                // ため、`viewport` から `selection`/`handle` へ移しただけ
+                // では同じ回帰（operable な要素が実際には無いのにタッチの
+                // スクロール・ピンチズームだけを常時止める）が解消されない。
+                // 実ドラッグ操作の実装後、当該配線と合わせて再導入を検討
+                // する（モジュール冒頭 rustdoc・`viewport` base 参照）。
                 // transition は付けない: left/top/width/height はドラッグ追従値
                 // であり、遷移を付けると指の動きに対して視覚的な遅延が生まれる
                 // （`angle_slider` の thumb `transform` 除外と同じ理由）。
@@ -191,6 +296,10 @@ fn recipe() -> SlotRecipe {
                 decl("position", "absolute"),
                 decl("width", "var(--fandhe-image-cropper-handle-size, 0.75rem)"),
                 decl("height", "var(--fandhe-image-cropper-handle-size, 0.75rem)"),
+                // `touch-action: none` は付与しない（イシュー #1481
+                // codex-review 再指摘）: `handle` はリサイズドラッグの
+                // 起点だが、`selection` と同じ理由（実ドラッグ操作が未実装）
+                // で見送る。
                 // 面・縁はテーマ非依存の固定色（モジュール冒頭 rustdoc「写真上
                 // のクローム」節参照）。ダークテーマで `--fandhe-color-bg` が
                 // 暗色へ反転すると暗い写真 + 暗幕上でハンドルが視認できなく
@@ -501,6 +610,50 @@ mod tests {
         assert!(css.contains("transition-property: background, box-shadow"));
         assert!(!css.contains("transition-property: background, box-shadow, transform"));
         assert!(!css.contains("transition-property: top, left"));
+    }
+
+    #[test]
+    fn viewport_has_radius_token_and_background_but_not_touch_action() {
+        // イシュー #1481: viewport（プレビュー領域）へ角丸・背景（レターボックス
+        // 用）を追加したことを固定する。`touch-action: none` は
+        // viewport 全体には適用しない（codex-review 是正）。
+        let css = stylesheet();
+        let viewport_block = css
+            .split("\n\n")
+            .find(|b| b.contains(r#"[data-part="viewport"]"#))
+            .expect("viewport block missing");
+        assert!(viewport_block.contains("border-radius: var(--fandhe-radius-lg);"));
+        assert!(viewport_block.contains("background: var(--fandhe-color-bg-muted);"));
+        assert!(viewport_block.contains("user-select: none;"));
+        assert!(!viewport_block.contains("touch-action: none;"));
+    }
+
+    #[test]
+    fn no_part_declares_touch_action_none_while_drag_is_unimplemented() {
+        // イシュー #1481 codex-review 再指摘: crop 矩形のドラッグ操作
+        // （移動・リサイズ）に対応する pointer/touch イベント配線は
+        // headless 側スコープ外で未実装のため、`selection`/`handle` へ
+        // 限定適用しても operable な要素が実際には無いままタッチデバイス
+        // のスクロール・ピンチズームだけを止める同じ回帰が残る。実
+        // ドラッグ操作の実装まで `touch-action: none` をどのパートにも
+        // 一切宣言しないことを固定する。
+        let css = stylesheet();
+        assert!(!css.contains("touch-action"));
+    }
+
+    #[test]
+    fn image_has_user_select_none_but_not_pointer_events_none() {
+        // イシュー #1481: image はネイティブドラッグ/選択を抑止する
+        // `user-select: none` のみ追加し、`pointer-events: none` は付与
+        // しない（画像上からの新規ドラッグ開始を将来の DOM 配線に残すため、
+        // モジュール冒頭 rustdoc「イシュー #1481」節参照）。
+        let css = stylesheet();
+        let image_block = css
+            .split("\n\n")
+            .find(|b| b.contains(r#"[data-part="image"]"#))
+            .expect("image block missing");
+        assert!(image_block.contains("user-select: none;"));
+        assert!(!image_block.contains("pointer-events: none;"));
     }
 
     #[test]
