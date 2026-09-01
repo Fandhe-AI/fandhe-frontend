@@ -31,9 +31,6 @@ const ACTION_BAR_GOLDEN_CSS: &str = r#"[data-scope="action-bar"][data-part="posi
   border-radius: var(--fandhe-radius-lg);
   box-shadow: var(--fandhe-shadow-md);
   padding: var(--fandhe-space-3) var(--fandhe-space-4);
-  transition-property: opacity, translate;
-  transition-duration: var(--fandhe-motion-duration-normal);
-  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="action-bar"][data-part="selection-trigger"] {

@@ -70,15 +70,22 @@
 //!   太さ・オフセット・色をテーマ側 1 箇所（`--fandhe-focus-ring-*`）で
 //!   変更できるようにした。`palette` 軸を持たない部品のため
 //!   [`crate::recipe::FocusRingColor::Token`] を選ぶ。
-//! - **トランジション**: `content` の `data-state` open/closed 切り替えへ
-//!   [`crate::recipe::transition_declarations`]（イシュー #1425）で
-//!   `opacity`/`translate` の遷移を追加し、closed 側に軽い下方向オフセット
-//!   （`translate: 0 0.5rem`）を加えて chakra の slide-fade 相当の出現
-//!   モーションを表現する。`prefers-reduced-motion` は
-//!   [`crate::theme::Theme::to_css`] 側の duration 一括無効化に委ね、本
-//!   モジュールで `@media` を書かない（[`crate::segment_group`] 等の既存
-//!   判断と同型）。`[hidden]` 属性による `display: none` 切り替え自体は
-//!   アニメーションしない既知の制約は [`crate::dialog`] と同様。
+//! - **トランジションは追加しない（PR #1790 codex-review P1 指摘対応）**:
+//!   `content` の開閉は祖先 `positioner` の `[hidden]`（UA 既定
+//!   `display: none`）と同一の [`fandhe_frontend_headless_ui::state::OpenState`]
+//!   から同期的に決まり、遅延なく即座に切り替わる（headless 層に
+//!   `data-state`/`hidden` の切り替えタイミングをずらす状態機械は存在しない、
+//!   `crates/headless-ui/src/action_bar.rs` 参照）。そのため `content` へ
+//!   `opacity`/`translate` の `transition_declarations` を宣言しても、
+//!   開くときは非表示（`display: none`）から直ちに open の値で描画され、
+//!   閉じるときも closed 側の遷移が描画される前に祖先が非表示化されるため、
+//!   どちらの方向でも slide-fade は視覚的に成立しない。状態機械側で
+//!   遷移完了まで `hidden` 切り替えを遅らせる変更は本モジュール冒頭
+//!   「本イシューのスコープ外」節が指す `アニメーション（状態機械側）は
+//!   headless 層のドキュメントで既にスコープ外と明記済み」の対象そのもの
+//!   であり本イシューでは行わない。よって機能しない transition 宣言は
+//!   持たず、`content` の open/closed `data-state` 切り替え自体は
+//!   （後続の状態機械変更でアニメーション対応する余地を残すため）維持する。
 //!
 //! ## size / variant 軸を追加しない根拠
 //!
@@ -152,8 +159,9 @@ fn recipe() -> SlotRecipe {
                 decl("justify-content", "center"),
             ],
         )
-        .base("content", {
-            let mut declarations = vec![
+        .base(
+            "content",
+            vec![
                 decl("display", "flex"),
                 decl("align-items", "center"),
                 decl("gap", "var(--fandhe-space-3)"),
@@ -163,13 +171,13 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "var(--fandhe-radius-lg)"),
                 decl("box-shadow", "var(--fandhe-shadow-md)"),
                 decl("padding", "var(--fandhe-space-3) var(--fandhe-space-4)"),
-            ];
-            declarations.extend(transition_declarations(
-                "opacity, translate",
-                MotionDuration::Normal,
-            ));
-            declarations
-        })
+                // PR #1790 codex-review P1 指摘対応: 祖先 positioner の
+                // `[hidden]`（display: none）と同期的に切り替わるため、
+                // opacity/translate の transition は視覚的に成立しない
+                // （本モジュール冒頭 rustdoc「トランジションは追加しない」
+                // 節参照）。よって transition_declarations は宣言しない。
+            ],
+        )
         .base("selection-trigger", {
             let mut declarations = vec![
                 decl("display", "inline-flex"),
@@ -341,13 +349,34 @@ mod tests {
     }
 
     #[test]
-    fn content_declares_transition_for_open_close_slide_fade() {
+    fn content_open_close_state_switches_instantly_without_a_broken_transition() {
+        // PR #1790 codex-review P1 再指摘の是正回帰: content は祖先
+        // positioner の `[hidden]`（display: none）と同期的に切り替わるため、
+        // opacity/translate へ transition-property/duration を宣言しても
+        // 視覚的に成立しない（module rustdoc「トランジションは追加しない」
+        // 節参照）。data-state ごとの値自体は維持しつつ、機能しない
+        // transition 宣言が復活していないことを固定する。
         let css = stylesheet();
-        assert!(css.contains("transition-property: opacity, translate;"));
-        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-normal);"));
-        assert!(css.contains(r#"[data-part="content"][data-state="open"]"#));
+        assert!(
+            css.contains(r#"[data-scope="action-bar"][data-part="content"][data-state="open"]"#)
+        );
+        assert!(
+            css.contains(r#"[data-scope="action-bar"][data-part="content"][data-state="closed"]"#)
+        );
         assert!(css.contains("translate: 0 0;"));
         assert!(css.contains("translate: 0 0.5rem;"));
+        let content_base_rule_start = css
+            .find(r#"[data-scope="action-bar"][data-part="content"] {"#)
+            .expect("content base rule must be present");
+        let content_base_rule_body = &css[content_base_rule_start..];
+        let content_base_rule_end = content_base_rule_body
+            .find('}')
+            .expect("content base rule must be closed");
+        assert!(
+            !content_base_rule_body[..content_base_rule_end].contains("transition"),
+            "content base rule must not declare a transition: display: none 切り替えと \
+             同期するため opacity/translate の transition は視覚的に成立しない"
+        );
     }
 
     #[test]
