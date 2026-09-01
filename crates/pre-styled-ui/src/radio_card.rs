@@ -254,7 +254,9 @@ use crate::recipe::{
 };
 use fandhe_frontend_headless_ui::aria::{aria_labelledby, aria_orientation, role};
 pub use fandhe_frontend_headless_ui::data_attrs::Orientation;
-use fandhe_frontend_headless_ui::data_attrs::{data_disabled, data_orientation, data_state};
+use fandhe_frontend_headless_ui::data_attrs::{
+    data_disabled, data_invalid, data_orientation, data_state,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -277,7 +279,7 @@ const ROOT_RESERVED: &[&str] = &[
 /// 一覧（`crates/pre-styled-ui/src/checkbox_card.rs` の `STATE_RESERVED` と
 /// 同型の判断、モジュール冒頭 rustdoc 参照）。[`item`] のみさらに `data-value`
 /// を追加で保護する。
-const STATE_RESERVED: &[&str] = &["data-state", "data-disabled"];
+const STATE_RESERVED: &[&str] = &["data-state", "data-disabled", "data-invalid"];
 
 /// [`item`] がさらに固定付与する属性キー（[`STATE_RESERVED`] に加えて保護）。
 const ITEM_RESERVED: &[&str] = &["data-state", "data-value", "data-disabled"];
@@ -776,11 +778,26 @@ pub fn item_addon<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> No
 /// （[`crate::radio_group::item_control`] 相当の box-shadow inset ドット
 /// 描画。名前は headless `radio_group::item_control` と異なるが、混同を
 /// 避けるため本モジュールでは `item_indicator` と命名する）。
+///
+/// `invalid` は呼び出し側（headless `radio_group` が `data-invalid` を
+/// 出力しないため、通常はアプリ側のバリデーション結果）から明示的に渡す。
+/// [`item`] の attrs パススルーで付与された `data-invalid` は子 slot の
+/// `item_indicator` へ自動伝播しない（DOM 上は兄弟であり親子ではない）ため、
+/// 呼び出し側は [`item`] と [`item_indicator`] の双方へ同じ invalid 判定を
+/// 渡す必要がある（イシュー #1492 codex-review P1 是正。checkbox-card の
+/// `CheckboxProps.invalid` のような共通 props 型を持たないため、真偽値
+/// 引数として個別に受け取る設計とする）。
 #[must_use]
-pub fn item_indicator<'a>(checked: bool, disabled: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
+pub fn item_indicator<'a>(
+    checked: bool,
+    disabled: bool,
+    invalid: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![data_state(if checked { "checked" } else { "unchecked" })];
     merged.extend(data_disabled(disabled));
+    merged.extend(data_invalid(invalid));
     merged.extend(drop_reserved(attrs, STATE_RESERVED));
     ANATOMY.part("item-indicator", "span", merged, vec![])
 }
@@ -1414,6 +1431,20 @@ mod tests {
             "item-indicator base block missing box-sizing: {}",
             &css[start..block_end]
         );
+    }
+
+    /// [`item_indicator`] の `invalid` 引数が `data-invalid` 存在属性を
+    /// 出力すること（イシュー #1492 codex-review P1 是正の回帰）。`item` へ
+    /// 渡す `data-invalid`（attrs パススルー）は子 slot の `item_indicator`
+    /// へ自動伝播しないため、呼び出し側が `item_indicator` へも独立して
+    /// `invalid` を渡す契約を固定する。
+    #[test]
+    fn item_indicator_invalid_true_emits_data_invalid_attribute() {
+        let invalid = render(&item_indicator(false, false, true, vec![]));
+        assert!(invalid.contains("data-invalid"));
+
+        let valid = render(&item_indicator(false, false, false, vec![]));
+        assert!(!valid.contains("data-invalid"));
     }
 
     /// `item-indicator` が `data-invalid` へ checkbox-card `indicator`
