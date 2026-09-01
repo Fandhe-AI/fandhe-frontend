@@ -73,7 +73,7 @@ pub struct BoundaryCandidate {
 /// （既存の公開 API を破壊しない 0.x 運用）。配線層 [`wiring::resolve_boundary`]
 /// は候補を先頭から順に `closest` 解決し、最初に一致したものを採用する。
 ///
-/// checkbox-group の item 配下に入れ子にした [`crate::checkbox::hidden_input`]
+/// checkbox-group の item 配下に入れ子にした [`fandhe_frontend_headless_ui::checkbox::hidden_input`]
 /// 再利用（`data-scope="checkbox"` のまま、headless-ui `checkbox_group.rs`
 /// モジュール doc「anatomy」節の `item-hidden-input` 非新設判断参照）は、
 /// 単独 checkbox 用の候補（`("checkbox", "root")`）を試した後、グループ
@@ -96,7 +96,7 @@ pub struct BoundaryCandidate {
 /// (b) `item-control` は hidden-input の祖先ではなく兄弟要素であり、
 /// 祖先方向にしか辿らない `closest` では直接到達できない。
 ///
-/// 実現形は [`crate::radio_group`] の前例（境界 = `item`、[`wiring::set_focus_visible`]
+/// 実現形は [`fandhe_frontend_headless_ui::radio_group`] の前例（境界 = `item`、[`wiring::set_focus_visible`]
 /// が境界配下の同一 scope 要素すべてへ伝播することで `item-control` へも
 /// `data-focus-visible` が届く）と同型にした: 本関数は境界を
 /// `("checkbox-group", "item")` として返し、`item` 配下で `data-scope=
