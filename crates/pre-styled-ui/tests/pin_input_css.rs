@@ -25,45 +25,51 @@ const PIN_INPUT_GOLDEN_CSS: &str = r#"[data-scope="pin-input"][data-part="root"]
 
 [data-scope="pin-input"][data-part="input"] {
   box-sizing: border-box;
-  width: var(--fandhe-pin-input-size, 2.5rem);
-  height: var(--fandhe-pin-input-size, 2.5rem);
-  font-size: var(--fandhe-pin-input-font-size, var(--fandhe-font-font-size-md));
+  width: var(--fandhe-pin-input-size, var(--fandhe-size-control-height-md, 2.5rem));
+  height: var(--fandhe-pin-input-size, var(--fandhe-size-control-height-md, 2.5rem));
+  font-size: var(--fandhe-pin-input-font-size, var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md)));
   text-align: center;
   border: 1px solid var(--fandhe-color-border);
-  border-radius: var(--fandhe-radius-sm);
+  border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
-  transition: border-color 0.15s, background 0.15s;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="pin-input"][data-part="input"] {
+  transition-property: border-color, background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="pin-input"][data-part="root"].fd-pin-input--size-xs {
-  --fandhe-pin-input-size: 1.5rem;
-  --fandhe-pin-input-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-pin-input-size: var(--fandhe-size-control-height-xs, 2rem);
+  --fandhe-pin-input-font-size: var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs));
 }
 
 [data-scope="pin-input"][data-part="root"].fd-pin-input--size-sm {
-  --fandhe-pin-input-size: 2rem;
-  --fandhe-pin-input-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-pin-input-size: var(--fandhe-size-control-height-sm, 2.25rem);
+  --fandhe-pin-input-font-size: var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm));
 }
 
 [data-scope="pin-input"][data-part="root"].fd-pin-input--size-md {
-  --fandhe-pin-input-size: 2.5rem;
-  --fandhe-pin-input-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-pin-input-size: var(--fandhe-size-control-height-md, 2.5rem);
+  --fandhe-pin-input-font-size: var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md));
 }
 
 [data-scope="pin-input"][data-part="root"].fd-pin-input--size-lg {
-  --fandhe-pin-input-size: 3rem;
-  --fandhe-pin-input-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-pin-input-size: var(--fandhe-size-control-height-lg, 2.75rem);
+  --fandhe-pin-input-font-size: var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-lg));
 }
 
 [data-scope="pin-input"][data-part="root"].fd-pin-input--size-xl {
-  --fandhe-pin-input-size: 3.5rem;
-  --fandhe-pin-input-font-size: var(--fandhe-font-font-size-xl);
+  --fandhe-pin-input-size: var(--fandhe-size-control-height-xl, 3rem);
+  --fandhe-pin-input-font-size: var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-xl));
 }
 
 [data-scope="pin-input"][data-part="root"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="pin-input"][data-part="input"][data-complete] {
@@ -75,8 +81,14 @@ const PIN_INPUT_GOLDEN_CSS: &str = r#"[data-scope="pin-input"][data-part="root"]
 }
 
 [data-scope="pin-input"][data-part="input"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (hover: hover) {
+  [data-scope="pin-input"][data-part="input"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 

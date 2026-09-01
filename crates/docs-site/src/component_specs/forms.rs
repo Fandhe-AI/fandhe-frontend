@@ -1526,11 +1526,61 @@ fn demo_image_cropper() -> Node {
     )
 }
 
+/// `count` 桁分の PinInput `input` セルを組み立てる（内部ヘルパ、
+/// [`demo_pin_input`] のみが呼ぶ）。`complete: true` の場合は各セルへ
+/// ダミー値 `"1"` を入れて `data-complete` の枠色を視覚確認できるように
+/// する。
+fn pin_input_cells(count: usize, complete: bool, disabled: bool) -> Vec<Node> {
+    (0..count)
+        .map(|i| {
+            let value = if complete { "1" } else { "" };
+            pin_input::input(
+                i,
+                count,
+                value,
+                pin_input::PinInputKind::Numeric,
+                false,
+                false,
+                disabled,
+                complete,
+                vec![],
+            )
+        })
+        .collect()
+}
+
 fn demo_pin_input() -> Node {
+    // 完全な anatomy（label + control + input×4）を size 3 段
+    // （sm/md/lg）・complete・disabled の状態行で並べ、寸法・枠色・
+    // hover・フォーカスリング・減光を視覚確認できるようにする
+    // （イシュー #1489。従来は children 空の root のみで視覚確認できな
+    // かった）。
+    let build = |size: Size, complete: bool, disabled: bool| {
+        pin_input::root(
+            size,
+            complete,
+            disabled,
+            vec![],
+            vec![
+                pin_input::label(complete, vec![], vec![text("PIN code")]),
+                pin_input::control(vec![], pin_input_cells(4, complete, disabled)),
+            ],
+        )
+    };
     demo_section(
         "Pin Input",
         "PIN コード等、固定桁数の入力に使う部品。`complete`/`disabled` の 2 状態を持つ。",
-        pin_input::root(Size::Md, false, false, vec![], vec![]),
+        el(
+            "div",
+            vec![],
+            vec![
+                build(Size::Sm, false, false),
+                build(Size::Md, false, false),
+                build(Size::Lg, false, false),
+                build(Size::Md, true, false),
+                build(Size::Md, false, true),
+            ],
+        ),
     )
 }
 
