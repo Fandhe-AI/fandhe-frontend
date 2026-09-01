@@ -477,7 +477,25 @@ name = "fandhe-frontend-pre-styled-ui"
 # セレクタの宣言内容変更のみで既存 CSS 変数名・Rust API シグネチャの変更は
 # ないため、patch バンプとして 0.57.16 から 0.57.17 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
-version = "0.57.17"
+# マージ統合（イシュー #1483/#1484 系、本マージ分）: 本ブランチ側（PR #1762
+# codex-review P1 是正、0.57.13 から 0.57.14 へ独自にバンプ）と main 側
+# （#1484 NativeSelect スタイル調整、0.57.12 から 0.57.13 へ独自にバンプ）は
+# 独立に別パートへ実体変更を加えたまま偶発的に版数が交差していたため、
+# 双方を統合した結果としてさらに 0.57.15 へ patch バンプする（同一版数への
+# 偶発的衝突をそのまま採用しない規約）。
+# イシュー #1487: password-input のスタイル調整 (1/2)（canonical focus ring /
+# motion トークン / disabled ヘルパ化・二重減光是正 / hover 追加・角丸
+# トークン化）のみで、既存 CSS 変数名の削除・改名や Rust API シグネチャの
+# 変更はないため、listbox #1483・NativeSelect #1484 と同型で patch バンプ
+# として 0.57.15 から 0.57.16 とする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
+# マージ統合（イシュー #1485/#1487 系、本マージ分）: 本ブランチ側（PR #1764
+# レビュー是正、0.57.13 から 0.57.17 へ独自にバンプ）と main 側（#1487
+# password-input スタイル調整 (1/2)、0.57.13 から 0.57.16 へ独自にバンプ）は
+# 独立に別パートへ実体変更を加えたまま偶発的に版数が交差していたため、双方を
+# 統合した結果としてさらに 0.57.18 へ patch バンプする（同一版数への偶発的
+# 衝突をそのまま採用しない規約）。
+version = "0.57.18"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
