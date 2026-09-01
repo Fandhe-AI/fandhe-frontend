@@ -608,6 +608,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # クラス名・`data-*` セレクタの削除/改名を伴わない）のため 0.57.33 から
 # 0.57.34 へ patch バンプする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
+# イシュー #1492（radio-card のスタイル調整 2/2、内部レイアウト、親
+# #1490。1/2 は #1491/PR #1768）も同型（`size_variants` への移行〔padding
+# を spacing トークンへ載せ替え・control-size を checkbox 家族と統一〕・
+# `--fandhe-radio-card-gap`/`--fandhe-radio-card-description-font-size` の
+# 新設・`item-text`/`item-description`/`item-addon`/`label` の型階層宣言
+# 追加・`item-indicator` の `box-sizing`/transition トークン化/
+# `[data-invalid]` 追加という CSS 出力の変更のみで、公開 Rust API
+# シグネチャ・CSS 変数名（既存分）・クラス名・`data-*` セレクタの削除/
+# 改名を伴わない）のため 0.57.34 から 0.57.35 へ patch バンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
 # イシュー #1699（tags-input の内部パート item 等のスタイル調整と状態
 # 遷移、親 #1510）も同型（`item`/`item-input` slot の新規 CSS 追加・
 # `item-preview`/`item-delete-trigger` への transition/hover 追加という
@@ -622,12 +632,9 @@ name = "fandhe-frontend-pre-styled-ui"
 # `data-*` セレクタの削除/改名を伴わない）のため 0.57.35 から 0.57.36 へ
 # patch バンプする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
-# イシュー #1511（textarea のスタイルを参考サイト基準へ調整、親 #1510）も
-# 同型（`textarea` slot の focus ring/transition/disabled の canonical
-# ヘルパ移行・角丸 `--fandhe-radius-md` 化・size の padding-x/font-size
-# トークン移行という CSS 出力の変更のみで、公開 Rust API シグネチャ・
-# CSS 変数名（既存分）・クラス名・`data-*` セレクタの削除/改名を伴わない）
-# のため 0.57.36 から 0.57.37 へ patch バンプする
+# 上記 2 系統の patch バンプ（radio-card 内部レイアウト #1492 系列と
+# tags-input 系列 #1699/PR #1782 是正）が base 取り込みで合流したため、
+# 0.57.36 の上に radio-card 変更を patch バンプし 0.57.37 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
 # イシュー #1512（toggle のスタイルを参考サイト基準へ調整、親 #1443/#1420）
 # も同型（`root` slot の hover 新設・focus ring/disabled/transition の
@@ -635,7 +642,28 @@ name = "fandhe-frontend-pre-styled-ui"
 # シグネチャ・CSS 変数名（既存分）・クラス名・`data-*` セレクタの削除/
 # 改名を伴わない）のため 0.57.37 から 0.57.38 へ patch バンプする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
-version = "0.57.38"
+# PR #1783 codex-review P1 是正（イシュー #1492）: `radio_card::item_indicator`
+# に `invalid: bool` 引数を追加した（`item` の attrs パススルーで付与される
+# `data-invalid` が子 slot の `item-indicator` へ自動伝播しないため、呼び出し
+# 側から明示的に渡す契約へ変更）。これは公開 Rust API シグネチャの破壊的変更
+# （引数追加）であり、上記の CSS-only 変更と異なり patch では済まない。0.x の
+# 破壊的変更はマイナーバンプとする方針（`.claude/rules/coding-rust.md`）に従い
+# 0.57.37 から 0.58.0 へマイナーバンプする。
+# イシュー #1511（textarea のスタイルを参考サイト基準へ調整、親 #1510）は
+# 上記マイナーバンプ後の base（main）側で独立に 0.57.36 から 0.57.37 へ
+# patch バンプされていた（`textarea` slot の focus ring/transition/
+# disabled の canonical ヘルパ移行・角丸 `--fandhe-radius-md` 化・size の
+# padding-x/font-size トークン移行という CSS 出力の変更のみで、公開 Rust
+# API シグネチャ・CSS 変数名（既存分）・クラス名・`data-*` セレクタの
+# 削除/改名を伴わない）。base 取り込みによりこの patch バンプ（0.57.37）は
+# 上記マイナーバンプ（0.57.37 → 0.58.0）の版数区間に包含されるため、
+# 本マージでは 0.58.0 を採用し追加のバンプは行わない（0.x の破壊的変更は
+# マイナーバンプとする方針上、マイナーバンプはそれ以前の patch バンプを
+# 版数として包含する）。本ブランチ側の #1512 patch バンプ（0.57.38）も
+# 同様にこの区間へ包含されるため、双方の実体変更（toggle CSS 調整 +
+# radio_card::item_indicator API 変更）を統合した結果として 0.58.0 を
+# 採用する。
+version = "0.58.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
