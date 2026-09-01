@@ -159,8 +159,6 @@ Phase 1 以降の個別 issue へ委ねる。**イシュー #1494 で `item-cont
 `palette` 軸へ統一済み**（`checkbox` の `control` は #1454 で同型の変更を
 先行適用済み）。
 
-
-
 ## 7. #1426・#1678・#1425 との境界
 
 - **size 段階数の拡張（xs/xl・ColorPalette 拡張）**: #1426（判断）→
