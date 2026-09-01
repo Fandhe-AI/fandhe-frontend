@@ -5346,29 +5346,45 @@ fn radio_card_section() -> Node {
         .map(|size| {
             let value = format!("showcase-radio-card-size-{}", size.value());
             let name = format!("showcase-radio-card-size-group-{}", size.value());
-            radio_card::item(
-                true,
+            // `--fandhe-radio-card-padding` 等のサイズ依存 CSS 変数は
+            // `radio_card::root` にのみ定義されるため（`checkbox_card`
+            // #1458 の size_row と同型）、各カードを個別の root で包んで
+            // Size を反映させる（root なしの item 単体では既定値へ
+            // フォールバックし、xs〜xl のスケールデモが機能しない）。
+            radio_card::root(
+                *size,
+                ColorPalette::Accent,
                 false,
-                &value,
+                None,
+                None,
                 vec![],
-                vec![
-                    radio_card::item_hidden_input(true, false, Some(&name), &value, vec![]),
-                    radio_card::item_control(
-                        true,
-                        false,
-                        vec![],
-                        vec![
-                            radio_card::item_content(
-                                vec![],
-                                vec![
-                                    radio_card::item_text(vec![], vec![text(size.value())]),
-                                    radio_card::item_description(vec![], vec![text("size demo")]),
-                                ],
-                            ),
-                            radio_card::item_indicator(true, false, vec![]),
-                        ],
-                    ),
-                ],
+                vec![radio_card::item(
+                    true,
+                    false,
+                    &value,
+                    vec![],
+                    vec![
+                        radio_card::item_hidden_input(true, false, Some(&name), &value, vec![]),
+                        radio_card::item_control(
+                            true,
+                            false,
+                            vec![],
+                            vec![
+                                radio_card::item_content(
+                                    vec![],
+                                    vec![
+                                        radio_card::item_text(vec![], vec![text(size.value())]),
+                                        radio_card::item_description(
+                                            vec![],
+                                            vec![text("size demo")],
+                                        ),
+                                    ],
+                                ),
+                                radio_card::item_indicator(true, false, vec![]),
+                            ],
+                        ),
+                    ],
+                )],
             )
         })
         .collect());
