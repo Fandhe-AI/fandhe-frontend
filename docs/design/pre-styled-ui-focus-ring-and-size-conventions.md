@@ -85,6 +85,20 @@ FocusRingOffset::Inset)` の canonical 形へ置換した。`box-shadow` は使�
 4 件から date-input を除外する形になる（combobox/password-input/
 tags-input の 3 件は引き続き該当）。
 
+### 3.2 `password_input.rs` の `control` フォーカスリング canonical 化について
+
+**イシュー #1487 で移行済み**: `control` の `:focus-within` リングを、手書き
+の `outline: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
+outline-offset: 2px;` から `focus_ring_declarations(FocusRingColor::Palette,
+FocusRingOffset::Outside)` の canonical 形（`--fandhe-focus-ring-width`/
+`--fandhe-focus-ring-offset`/`--fandhe-color-focus-ring` トークン経由）へ
+置換した。`palette` 軸を公開する部品のため `Palette` を選ぶ（[`crate::radio_group`]
+と同じ判断）。上記 §2 の「`solid var(--fandhe-palette, var(--fandhe-color-accent))`
+（12 ファイル）」列から password-input を除外し、canonical 移行済み側（残り
+11 ファイル）へ移す。`input` の `outline: none`（祖先 `control` の canonical
+リングと併存する許容パターン）は維持しており、上記「`outline: none`
+（単独）」の combobox/password-input/tags-input 3 件のリストに変更はない。
+
 ## 4. size 規約
 
 | 項目 | 決定 |

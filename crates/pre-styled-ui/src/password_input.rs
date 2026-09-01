@@ -63,11 +63,66 @@
 //! - クライアント側の click → dispatch 配線（`fandhe-frontend-wasm-full`）。
 //! - `examples/headless-pre-styled-ui` への PasswordInput 追加（#608/#609 と
 //!   同じ後続分離、crates.io 版依存のため公開後にしか追随できない）。
+//!
+//! # スタイル調整 (1/2): 入力枠と可視切り替えトリガー（イシュー #1487、親
+//! #1486、`docs/design/pre-styled-ui-interaction-visual-language.md`）
+//!
+//! Phase 2 で確立済みの共通ビジュアル言語ヘルパ（[`crate::recipe`]）へ
+//! `control`/`visibility-trigger` を追随させた。兄弟イシュー #1488（2/2）が
+//! `indicator`（強度インジケータ）と `Size` variant 群を担当するため、本
+//! イシューはそれらに一切触れない。
+//!
+//! - **色**: `control` の `border-radius` を生リテラル `0.375rem` から
+//!   `var(--fandhe-radius-md)` トークン参照へ置換した（combobox #1744 と
+//!   同形）。
+//! - **フォーカス**: `control` の `:focus-within` リングを手書きの
+//!   `outline: 2px solid var(--fandhe-palette, ...)` から
+//!   [`crate::recipe::focus_ring_declarations`]`(FocusRingColor::Palette,
+//!   FocusRingOffset::Outside)` の canonical 形へ置換した。`palette`
+//!   軸を公開する部品のため `Palette` を選ぶ（[`crate::radio_group`] と
+//!   同じ判断）。`input`（実フォーカスを受けるネイティブ `<input>`）の
+//!   `outline: none` はあえて維持する（祖先 `control` の canonical リング
+//!   と併存する許容パターン、`docs/design/
+//!   pre-styled-ui-focus-ring-and-size-conventions.md` §3 参照）。
+//! - **hover**: `visibility-trigger`（クリック操作を担うゴーストアイコン
+//!   ボタン）へ [`crate::recipe::hover_bg_muted`] +
+//!   `.state(visibility-trigger, StateCondition::Hover,
+//!   hover_surface_declarations())` を追加した。参照 3 サイト（chakra-ui /
+//!   ark-ui / Radix）とも toggle をゴーストアイコンボタンとして hover
+//!   背景を持つため。**`control` 自体へは hover を付けない**（テキスト
+//!   入力面であり参照サイトもこの面自体への hover 表現を持たない、
+//!   combobox 1/2 と同一判断）。
+//! - **disabled**: `control`/`visibility-trigger` の `[data-disabled]` を
+//!   生の `cursor: not-allowed; opacity: 0.5` から
+//!   [`crate::recipe::disabled_declarations`] 経由へ置換した（`control`
+//!   のみ）。`visibility-trigger` は `control` の子孫であり、自身にも
+//!   `opacity: 0.5` を持つと `control` の減光と乗算され `0.25` へ二重
+//!   減光する既存不整合があったため、`visibility-trigger` 側は
+//!   `cursor: not-allowed` のみへ変更し `opacity` を持たせない
+//!   （date-input #1469 と同型の判断）。`input` の `[data-disabled]` へは
+//!   `disabled_declarations()` を付けない（同じ二重減光回避、祖先
+//!   `control` の opacity 継承のみに委ねる）。
+//! - **トランジション**: `control` の生 `transition: border-color 0.15s`
+//!   を除去し、別 `.base` 呼び出しで
+//!   `transition_declarations("border-color, background",
+//!   MotionDuration::Fast)` を純追加した。`visibility-trigger` にも
+//!   `transition_declarations("background, color", MotionDuration::Fast)`
+//!   を新規追加した（combobox 1/2 のパターン）。
+//!
+//! 意図的に合わせなかった点（親 #1486 チェックリストの担当範囲外）:
+//!
+//! - **variant 軸**（chakra `outline`/`subtle`/`flushed` 相当）は追加しない
+//!   （`root()` シグネチャ変更を伴う破壊的変更のため、Forms 家族横断の軸
+//!   語彙判断を部品単独で先行しない）。
+//! - **size / palette スケール**は触らない（size は #1488 の担当。palette
+//!   は既存の virtual token 方式で参照サイト水準）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `PasswordInput` 状態機械・headless 自由関数 `root` はあえて再エクスポート
@@ -128,10 +183,16 @@ fn recipe() -> SlotRecipe {
                     "0 var(--fandhe-password-input-padding-x, 0.75rem)",
                 ),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
-                decl("transition", "border-color 0.15s"),
             ],
+        )
+        // 別 `.base` 呼び出しでの純追加（combobox #1744 の「既存 base
+        // ブロックを書き換えない」パターンを踏襲する）。生の
+        // `transition: border-color 0.15s` を motion トークン経由へ置換。
+        .base(
+            "control",
+            transition_declarations("border-color, background", MotionDuration::Fast),
         )
         .state(
             "control",
@@ -141,18 +202,12 @@ fn recipe() -> SlotRecipe {
         .state(
             "control",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            disabled_declarations(),
         )
         .state(
             "control",
             StateCondition::FocusWithin,
-            vec![
-                decl(
-                    "outline",
-                    "2px solid var(--fandhe-palette, var(--fandhe-color-accent))",
-                ),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         .base(
             "input",
@@ -160,6 +215,12 @@ fn recipe() -> SlotRecipe {
                 decl("flex", "1"),
                 decl("border", "none"),
                 decl("background", "transparent"),
+                // 祖先 `control` の `:focus-within` canonical リング
+                // （上記）と併存する許容パターン
+                // （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+                // §3 参照）。実フォーカスを受けるネイティブ `<input>` 自体
+                // のブラウザ既定アウトラインのみを消し、視覚的なリングは
+                // 祖先 `control` 側が一枚で担う。
                 decl("outline", "none"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("padding", "0"),
@@ -169,6 +230,10 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        // `input[data-disabled]` へは `disabled_declarations()` を付けない
+        // （祖先 `control` の `[data-disabled]` opacity 0.5 継承との二重
+        // 減光回避、date-input #1469 と同型の判断。本モジュール冒頭
+        // rustdoc「スタイル調整」節参照）。
         .base(
             "visibility-trigger",
             vec![
@@ -177,10 +242,18 @@ fn recipe() -> SlotRecipe {
                 decl("justify-content", "center"),
                 decl("background", "transparent"),
                 decl("border", "none"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("cursor", "pointer"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
-                decl("padding", "0 0 0 var(--fandhe-space-2)"),
+                decl("padding", "var(--fandhe-space-1)"),
+                decl("margin-left", "var(--fandhe-space-1)"),
+                hover_bg_muted(),
             ],
+        )
+        // 別 `.base` 呼び出しでの純追加（combobox #1744 と同型）。
+        .base(
+            "visibility-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         .state(
             "visibility-trigger",
@@ -192,8 +265,18 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "visibility-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        // `cursor: not-allowed` のみ（`opacity` を持たせない）。trigger は
+        // `control`（disabled 時 opacity 0.5）の子孫であり、自身にも
+        // opacity を持たせると 0.25 へ二重減光する既存不整合の是正
+        // （date-input #1469 と同型、本モジュール冒頭 rustdoc「スタイル
+        // 調整」節参照）。
+        .state(
+            "visibility-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            vec![decl("cursor", "not-allowed")],
         )
         .base(
             "indicator",
@@ -367,8 +450,8 @@ mod tests {
         ));
         assert!(css.contains(
             r#"[data-scope="password-input"][data-part="control"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }"#
         ));
     }
@@ -381,6 +464,60 @@ mod tests {
   color: var(--fandhe-palette, var(--fandhe-color-accent));
 }"#
         ));
+    }
+
+    #[test]
+    fn control_focus_within_uses_canonical_palette_focus_ring() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="password-input"][data-part="control"]:focus-within {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}"#
+        ));
+        assert!(!css.contains("outline: 2px solid var(--fandhe-palette"));
+    }
+
+    #[test]
+    fn control_border_radius_uses_radius_token() {
+        let css = stylesheet();
+        assert!(css.contains("border-radius: var(--fandhe-radius-md)"));
+        assert!(!css.contains("border-radius: 0.375rem"));
+    }
+
+    #[test]
+    fn visibility_trigger_hover_rule_is_wrapped_in_hover_media_query() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"@media (hover: hover) {
+  [data-scope="password-input"][data-part="visibility-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+}"#
+        ));
+    }
+
+    #[test]
+    fn visibility_trigger_disabled_has_cursor_only_no_double_dimming() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="password-input"][data-part="visibility-trigger"][data-disabled] {
+  cursor: not-allowed;
+}"#
+        ));
+    }
+
+    #[test]
+    fn control_and_trigger_declare_motion_token_transitions() {
+        let css = stylesheet();
+        assert!(css.contains("transition-property: border-color, background;"));
+        assert!(css.contains("transition-property: background, color;"));
+        assert!(
+            css.matches("transition-duration: var(--fandhe-motion-duration-fast);")
+                .count()
+                >= 2
+        );
+        assert!(!css.contains("transition: border-color 0.15s"));
     }
 
     #[test]

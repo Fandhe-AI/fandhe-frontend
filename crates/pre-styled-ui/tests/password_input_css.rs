@@ -28,9 +28,14 @@ const PASSWORD_INPUT_GOLDEN_CSS: &str = r#"[data-scope="password-input"][data-pa
   height: var(--fandhe-password-input-height, 2.5rem);
   padding: 0 var(--fandhe-password-input-padding-x, 0.75rem);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
+  border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
-  transition: border-color 0.15s;
+}
+
+[data-scope="password-input"][data-part="control"] {
+  transition-property: border-color, background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="password-input"][data-part="input"] {
@@ -49,9 +54,18 @@ const PASSWORD_INPUT_GOLDEN_CSS: &str = r#"[data-scope="password-input"][data-pa
   justify-content: center;
   background: transparent;
   border: none;
+  border-radius: var(--fandhe-radius-sm);
   cursor: pointer;
   color: var(--fandhe-color-fg-muted);
-  padding: 0 0 0 var(--fandhe-space-2);
+  padding: var(--fandhe-space-1);
+  margin-left: var(--fandhe-space-1);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="password-input"][data-part="visibility-trigger"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="password-input"][data-part="indicator"] {
@@ -148,13 +162,13 @@ const PASSWORD_INPUT_GOLDEN_CSS: &str = r#"[data-scope="password-input"][data-pa
 }
 
 [data-scope="password-input"][data-part="control"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="password-input"][data-part="control"]:focus-within {
-  outline: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="password-input"][data-part="visibility-trigger"][data-state="visible"] {
@@ -163,7 +177,12 @@ const PASSWORD_INPUT_GOLDEN_CSS: &str = r#"[data-scope="password-input"][data-pa
 
 [data-scope="password-input"][data-part="visibility-trigger"][data-disabled] {
   cursor: not-allowed;
-  opacity: 0.5;
+}
+
+@media (hover: hover) {
+  [data-scope="password-input"][data-part="visibility-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
