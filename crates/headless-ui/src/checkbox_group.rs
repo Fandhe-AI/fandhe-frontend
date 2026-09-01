@@ -518,15 +518,20 @@ impl Hydrate for CheckboxGroup {
         attrs
     }
 
-    /// クライアント改ざん入力として扱う。[`Self::FIELD_DISABLED`] の欠落は
-    /// [`HydrateError::MissingAttr`]、`"true"`/`"false"` 以外の値は
-    /// [`HydrateError::InvalidValue`]（panic しない、
+    /// クライアント改ざん入力として扱う。[`Self::FIELD_DISABLED`] の**欠落**は
+    /// 既存 hydration 入力契約（本フィールド導入前の値。従来の暗黙値）との
+    /// 後方互換のため `disabled = false` として扱う（PR #1760 codex-review
+    /// P1 是正: 当初は欠落を `HydrateError::MissingAttr` として拒否していたが、
+    /// これは 0.x とはいえ patch バンプのまま公開する既存 hydration 入力の
+    /// 破壊的変更に当たると指摘された。値が明示されているのに
+    /// `"true"`/`"false"` 以外の不正値であるときのみ
+    /// [`HydrateError::InvalidValue`] を返す（panic しない、
     /// [`crate::carousel::Carousel::from_hydration_attrs`] の `loop` 解析と
     /// 同型の fail-closed 契約）。
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
         // select の復元を先に行う（既存の MissingAttr/InvalidValue 優先順位
         // ── 「data-hydrate-selected」欠落・不正値を最初に報告する既存の
-        // テスト契約 ── を崩さないため。disabled 欠落・不正値の判定は
+        // テスト契約 ── を崩さないため。disabled 不正値の判定は
         // select 復元が成功した後に行う）。
         let select = MultiSelect::from_hydration_attrs(attrs)?;
 
@@ -534,12 +539,12 @@ impl Hydrate for CheckboxGroup {
         let disabled_raw = attrs
             .iter()
             .find(|(k, _)| *k == attr_name_disabled)
-            .map(|(_, v)| v.as_str())
-            .ok_or_else(|| HydrateError::MissingAttr(attr_name_disabled.clone()))?;
+            .map(|(_, v)| v.as_str());
         let disabled = match disabled_raw {
-            "true" => true,
-            "false" => false,
-            _ => {
+            None => false,
+            Some("true") => true,
+            Some("false") => false,
+            Some(_) => {
                 return Err(HydrateError::InvalidValue {
                     attr: attr_name_disabled,
                     reason: "expected \"true\" or \"false\"".to_string(),
@@ -1061,19 +1066,19 @@ mod tests {
     }
 
     #[test]
-    fn checkbox_group_from_hydration_attrs_missing_disabled_attr_does_not_panic() {
+    fn checkbox_group_from_hydration_attrs_missing_disabled_attr_defaults_to_false() {
         // data-hydrate-selected はあるが data-hydrate-disabled が欠落した
-        // 改ざん入力を fail-closed に拒否する（panic しない）。
+        // 入力（本フィールド導入前の既存 hydration 入力契約と同形）は、
+        // 後方互換のため disabled=false として復元する（PR #1760
+        // codex-review P1 是正: 欠落を MissingAttr として拒否する当初実装は
+        // 既存契約への破壊的変更だったため、暗黙値へのフォールバックへ変更）。
         use fandhe_frontend_interactive::codec;
         let attrs = vec![(
             "data-hydrate-selected".to_string(),
             codec::encode_list(&Vec::<String>::new()),
         )];
-        let err = CheckboxGroup::from_hydration_attrs(&attrs).unwrap_err();
-        assert_eq!(
-            err,
-            HydrateError::MissingAttr("data-hydrate-disabled".to_string())
-        );
+        let restored = CheckboxGroup::from_hydration_attrs(&attrs).unwrap();
+        assert!(!restored.is_disabled());
     }
 
     #[test]
