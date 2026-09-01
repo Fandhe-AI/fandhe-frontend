@@ -549,7 +549,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既存クラス名の削除/改名を伴わないため、上記と同型で patch バンプとして
 # 0.57.23 から 0.57.24 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
-version = "0.57.24"
+# イシュー #1498（親 #1497 分割 1/2、segment-group のインジケータ・枠の
+# 状態表現調整）: インジケータ幅/高さの幾何是正・transition/focus-ring の
+# canonical 化・hover フィードバック追加・box-shadow フォールバック除去・
+# item disabled の canonical 化のみの CSS 宣言変更であり、Rust 公開 API
+# シグネチャ（`root()` 等）・CSS 変数名・クラス名・`data-*` セレクタの
+# 削除/改名を伴わないため、上記と同型で patch バンプとして 0.57.24 から
+# 0.57.25 とする（`docs/ci/style-refresh-version-bump-operation.md`
+# §3.1/§3.3/§3.4a）。
+version = "0.57.25"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
