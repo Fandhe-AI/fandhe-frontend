@@ -96,34 +96,36 @@ const TEXTAREA_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="textarea"] 
   font: inherit;
   color: var(--fandhe-color-fg);
   background: var(--fandhe-color-bg);
-  border-radius: var(--fandhe-radius-sm);
+  border-radius: var(--fandhe-radius-md);
   resize: vertical;
-  transition: border-color 0.15s, background 0.15s;
+  transition-property: border-color, background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="field"][data-part="textarea"].fd-field--size-xs {
-  padding: 0.125rem 0.375rem;
-  font-size: var(--fandhe-font-font-size-xs);
+  padding: 0.125rem var(--fandhe-size-control-padding-x-xs, 0.625rem);
+  font-size: var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs));
 }
 
 [data-scope="field"][data-part="textarea"].fd-field--size-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: var(--fandhe-font-font-size-sm);
+  padding: 0.25rem var(--fandhe-size-control-padding-x-sm, 0.75rem);
+  font-size: var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm));
 }
 
 [data-scope="field"][data-part="textarea"].fd-field--size-md {
-  padding: 0.375rem 0.75rem;
-  font-size: var(--fandhe-font-font-size-sm);
+  padding: 0.375rem var(--fandhe-size-control-padding-x-md, 1rem);
+  font-size: var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-sm));
 }
 
 [data-scope="field"][data-part="textarea"].fd-field--size-lg {
-  padding: 0.5rem 1rem;
-  font-size: var(--fandhe-font-font-size-md);
+  padding: 0.5rem var(--fandhe-size-control-padding-x-lg, 1.25rem);
+  font-size: var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-md));
 }
 
 [data-scope="field"][data-part="textarea"].fd-field--size-xl {
-  padding: 0.625rem 1.25rem;
-  font-size: var(--fandhe-font-font-size-lg);
+  padding: 0.625rem var(--fandhe-size-control-padding-x-xl, 1.5rem);
+  font-size: var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-lg));
 }
 
 [data-scope="field"][data-part="textarea"].fd-field--variant-outline {
@@ -151,8 +153,8 @@ const TEXTAREA_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="textarea"] 
 }
 
 [data-scope="field"][data-part="textarea"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="field"][data-part="textarea"][data-autoresize] {
