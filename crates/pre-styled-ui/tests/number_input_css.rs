@@ -15,7 +15,7 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
 }
 
 [data-scope="number-input"][data-part="label"] {
-  font-size: var(--fandhe-number-input-font-size, var(--fandhe-font-font-size-sm));
+  font-size: var(--fandhe-number-input-font-size, var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md)));
 }
 
 [data-scope="number-input"][data-part="control"] {
@@ -27,12 +27,20 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
 [data-scope="number-input"][data-part="input"] {
   box-sizing: border-box;
   width: 100%;
+  font: inherit;
+  color: var(--fandhe-color-fg);
   height: var(--fandhe-number-input-control-height, 2.5rem);
-  padding: 0 var(--fandhe-number-input-trigger-size, 1.5rem) 0 var(--fandhe-space-2);
-  font-size: var(--fandhe-number-input-font-size, var(--fandhe-font-font-size-sm));
+  padding: 0 var(--fandhe-number-input-trigger-size, 1.5rem) 0 var(--fandhe-number-input-padding-x, 1rem);
+  font-size: var(--fandhe-number-input-font-size, var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md)));
   border: 1px solid var(--fandhe-color-border);
-  border-radius: var(--fandhe-radius-md, 0.375rem);
+  border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
+}
+
+[data-scope="number-input"][data-part="input"] {
+  transition-property: border-color, background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="number-input"][data-part="increment-trigger"] {
@@ -41,10 +49,21 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
   top: 1px;
   width: var(--fandhe-number-input-trigger-size, 1.5rem);
   height: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
+  color: var(--fandhe-color-fg-muted);
   cursor: pointer;
   line-height: 1;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="number-input"][data-part="increment-trigger"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="number-input"][data-part="decrement-trigger"] {
@@ -53,44 +72,61 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
   bottom: 1px;
   width: var(--fandhe-number-input-trigger-size, 1.5rem);
   height: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
+  color: var(--fandhe-color-fg-muted);
   cursor: pointer;
   line-height: 1;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="number-input"][data-part="decrement-trigger"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="number-input"][data-part="root"].fd-number-input--size-xs {
-  --fandhe-number-input-control-height: 1.5rem;
-  --fandhe-number-input-font-size: var(--fandhe-font-font-size-xs);
-  --fandhe-number-input-trigger-size: 1rem;
-}
-
-[data-scope="number-input"][data-part="root"].fd-number-input--size-sm {
-  --fandhe-number-input-control-height: 2rem;
-  --fandhe-number-input-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-number-input-control-height: var(--fandhe-size-control-height-xs, 2rem);
+  --fandhe-number-input-font-size: var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs));
+  --fandhe-number-input-padding-x: var(--fandhe-size-control-padding-x-xs, 0.625rem);
   --fandhe-number-input-trigger-size: 1.25rem;
 }
 
+[data-scope="number-input"][data-part="root"].fd-number-input--size-sm {
+  --fandhe-number-input-control-height: var(--fandhe-size-control-height-sm, 2.25rem);
+  --fandhe-number-input-font-size: var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm));
+  --fandhe-number-input-padding-x: var(--fandhe-size-control-padding-x-sm, 0.75rem);
+  --fandhe-number-input-trigger-size: 1.375rem;
+}
+
 [data-scope="number-input"][data-part="root"].fd-number-input--size-md {
-  --fandhe-number-input-control-height: 2.5rem;
-  --fandhe-number-input-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-number-input-control-height: var(--fandhe-size-control-height-md, 2.5rem);
+  --fandhe-number-input-font-size: var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md));
+  --fandhe-number-input-padding-x: var(--fandhe-size-control-padding-x-md, 1rem);
   --fandhe-number-input-trigger-size: 1.5rem;
 }
 
 [data-scope="number-input"][data-part="root"].fd-number-input--size-lg {
-  --fandhe-number-input-control-height: 3rem;
-  --fandhe-number-input-font-size: var(--fandhe-font-font-size-md);
-  --fandhe-number-input-trigger-size: 1.75rem;
+  --fandhe-number-input-control-height: var(--fandhe-size-control-height-lg, 2.75rem);
+  --fandhe-number-input-font-size: var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-lg));
+  --fandhe-number-input-padding-x: var(--fandhe-size-control-padding-x-lg, 1.25rem);
+  --fandhe-number-input-trigger-size: 1.625rem;
 }
 
 [data-scope="number-input"][data-part="root"].fd-number-input--size-xl {
-  --fandhe-number-input-control-height: 3.5rem;
-  --fandhe-number-input-font-size: var(--fandhe-font-font-size-lg);
-  --fandhe-number-input-trigger-size: 2rem;
+  --fandhe-number-input-control-height: var(--fandhe-size-control-height-xl, 3rem);
+  --fandhe-number-input-font-size: var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-xl));
+  --fandhe-number-input-padding-x: var(--fandhe-size-control-padding-x-xl, 1.5rem);
+  --fandhe-number-input-trigger-size: 1.75rem;
 }
 
 [data-scope="number-input"][data-part="root"][data-disabled] {
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="number-input"][data-part="input"][data-invalid] {
@@ -101,14 +137,45 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
   cursor: not-allowed;
 }
 
+[data-scope="number-input"][data-part="input"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="number-input"][data-part="increment-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+}
+
 [data-scope="number-input"][data-part="increment-trigger"][data-disabled] {
   cursor: not-allowed;
-  opacity: 0.4;
+}
+
+[data-scope="number-input"][data-part="decrement-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
 }
 
 [data-scope="number-input"][data-part="decrement-trigger"][data-disabled] {
   cursor: not-allowed;
-  opacity: 0.4;
+}
+
+@media (hover: hover) {
+  [data-scope="number-input"][data-part="increment-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="number-input"][data-part="decrement-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+}
+
+[data-scope="number-input"][data-part="root"]:not([data-disabled]) > [data-scope="number-input"][data-part="control"] > [data-scope="number-input"][data-part="increment-trigger"][data-disabled] {
+  opacity: 0.5;
+}
+
+[data-scope="number-input"][data-part="root"]:not([data-disabled]) > [data-scope="number-input"][data-part="control"] > [data-scope="number-input"][data-part="decrement-trigger"][data-disabled] {
+  opacity: 0.5;
 }
 "#;
 

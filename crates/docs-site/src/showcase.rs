@@ -3340,7 +3340,59 @@ fn number_input_section() -> Node {
             ),
         ],
     );
-    let demo_row = row(vec![mid, at_min, disabled]);
+    // readonly（イシュー #1485: readonly 状態を Demo で確認できるよう
+    // 追加。`input` パートはネイティブ `<input type="text">` のため
+    // `data-readonly` へ視覚宣言〔`cursor: default` 等〕を追加しない
+    // （`crate::input` の readonly 意図的非採用と同型、Cursor Bugbot
+    // 指摘 PR #1764 の是正）。date-input #1469 の readonly 行追加とは
+    // 見た目の扱いが異なる点に注意）。
+    let readonly = number_input::root(
+        Size::Md,
+        false,
+        false,
+        vec![],
+        vec![
+            number_input::label(
+                false,
+                false,
+                Some("showcase-number-input-readonly"),
+                vec![],
+                vec![text("Readonly")],
+            ),
+            number_input::control(
+                false,
+                false,
+                vec![],
+                vec![
+                    number_input::input(
+                        "quantity-readonly",
+                        Some("showcase-number-input-readonly"),
+                        Some("7"),
+                        "0",
+                        "10",
+                        NumberInputFlags {
+                            readonly: true,
+                            ..NumberInputFlags::default()
+                        },
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("showcase-number-input-readonly"),
+                        true,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                    number_input::decrement_trigger(
+                        Some("showcase-number-input-readonly"),
+                        true,
+                        vec![],
+                        vec![text("-")],
+                    ),
+                ],
+            ),
+        ],
+    );
+    let demo_row = row(vec![mid, at_min, disabled, readonly]);
     section(
         "NumberInput",
         "min/max/step でクランプされる数値入力。increment/decrement トリガーは境界到達時に data-disabled を伴い無効化されます。",
