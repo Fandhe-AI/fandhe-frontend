@@ -326,6 +326,8 @@ pub fn stylesheet() -> String {
             vec![
                 decl("border-start-start-radius", "var(--fandhe-radius-md)"),
                 decl("border-end-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-start-end-radius", "0"),
+                decl("border-end-end-radius", "0"),
             ],
         ),
         (
@@ -333,11 +335,26 @@ pub fn stylesheet() -> String {
             vec![
                 decl("border-start-end-radius", "var(--fandhe-radius-md)"),
                 decl("border-end-end-radius", "var(--fandhe-radius-md)"),
+                decl("border-start-start-radius", "0"),
+                decl("border-end-start-radius", "0"),
             ],
         ),
         (
             format!("{ROOT} > {ITEM}:not(:first-child):not(:last-child)"),
             vec![decl("border-radius", "0")],
+        ),
+        // 単一 item（:first-child かつ :last-child）は上記 2 規則が競合し、
+        // どちらが勝つかは同一特異度のため後勝ちのソース順に依存してしまう
+        // （実際には後段の :last-child 規則が勝ち、始端側の角丸を失う）。
+        // 二重擬似クラスで特異度を明示的に引き上げ、四隅とも角丸を保証する。
+        (
+            format!("{ROOT} > {ITEM}:first-child:last-child"),
+            vec![
+                decl("border-start-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-start-end-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-end-radius", "var(--fandhe-radius-md)"),
+            ],
         ),
         (
             format!("{ROOT} > {ITEM} + {ITEM}"),
@@ -359,6 +376,18 @@ pub fn stylesheet() -> String {
                 decl("border-end-end-radius", "var(--fandhe-radius-md)"),
                 decl("border-start-start-radius", "0"),
                 decl("border-start-end-radius", "0"),
+            ],
+        ),
+        // vertical 単一 item も同様に :first-child/:last-child の競合で
+        // 始端側の角丸を失う（Cursor Bugbot 指摘）ため、二重擬似クラスで
+        // 特異度を引き上げ四隅とも角丸を保証する。
+        (
+            format!(r#"{ROOT}[data-orientation="vertical"] > {ITEM}:first-child:last-child"#),
+            vec![
+                decl("border-start-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-start-end-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-end-radius", "var(--fandhe-radius-md)"),
             ],
         ),
         (
@@ -537,6 +566,86 @@ mod tests {
             r#"[data-scope="toggle-group"][data-part="root"][data-orientation="vertical"] > [data-scope="toggle-group"][data-part="item"] + [data-scope="toggle-group"][data-part="item"] {"#
         ));
         assert!(css.contains("margin-block-start: -1px;"));
+    }
+
+    #[test]
+    fn stylesheet_zeroes_inner_corners_of_horizontal_end_items() {
+        // codex-review P1 / Cursor Bugbot 指摘（イシュー #1513）: 横並びの
+        // first-child/last-child が外側角丸を再設定するだけで内側の角丸を
+        // 0 にしていなかったため、2 要素以上の group で内側の角が丸いまま
+        // 重なり合う pill に見えてしまっていた。
+        let css = stylesheet();
+        let first_child_rule = extract_rule(
+            &css,
+            r#"[data-scope="toggle-group"][data-part="root"] > [data-scope="toggle-group"][data-part="item"]:first-child {"#,
+        );
+        assert!(first_child_rule.contains("border-start-end-radius: 0;"));
+        assert!(first_child_rule.contains("border-end-end-radius: 0;"));
+
+        let last_child_rule = extract_rule(
+            &css,
+            r#"[data-scope="toggle-group"][data-part="root"] > [data-scope="toggle-group"][data-part="item"]:last-child {"#,
+        );
+        assert!(last_child_rule.contains("border-start-start-radius: 0;"));
+        assert!(last_child_rule.contains("border-end-start-radius: 0;"));
+    }
+
+    #[test]
+    fn stylesheet_keeps_all_corners_rounded_for_a_single_item() {
+        // Cursor Bugbot 追加指摘（イシュー #1513）: :first-child/:last-child
+        // 双方が一致する単一 item では、上記の内側ゼロ化規則同士が競合し
+        // 同一特異度のソース順（後勝ち）に依存して始端側の角丸を失って
+        // しまう。二重擬似クラス（`:first-child:last-child`）による高特異度
+        // 規則で四隅とも角丸を保証する。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="toggle-group"][data-part="root"] > [data-scope="toggle-group"][data-part="item"]:first-child:last-child {"#
+        ));
+        let horizontal_only_child_rule = extract_rule(
+            &css,
+            r#"[data-scope="toggle-group"][data-part="root"] > [data-scope="toggle-group"][data-part="item"]:first-child:last-child {"#,
+        );
+        assert!(horizontal_only_child_rule
+            .contains("border-start-start-radius: var(--fandhe-radius-md);"));
+        assert!(horizontal_only_child_rule
+            .contains("border-end-start-radius: var(--fandhe-radius-md);"));
+        assert!(horizontal_only_child_rule
+            .contains("border-start-end-radius: var(--fandhe-radius-md);"));
+        assert!(
+            horizontal_only_child_rule.contains("border-end-end-radius: var(--fandhe-radius-md);")
+        );
+
+        assert!(css.contains(
+            r#"[data-scope="toggle-group"][data-part="root"][data-orientation="vertical"] > [data-scope="toggle-group"][data-part="item"]:first-child:last-child {"#
+        ));
+        let vertical_only_child_rule = extract_rule(
+            &css,
+            r#"[data-scope="toggle-group"][data-part="root"][data-orientation="vertical"] > [data-scope="toggle-group"][data-part="item"]:first-child:last-child {"#,
+        );
+        assert!(vertical_only_child_rule
+            .contains("border-start-start-radius: var(--fandhe-radius-md);"));
+        assert!(
+            vertical_only_child_rule.contains("border-start-end-radius: var(--fandhe-radius-md);")
+        );
+        assert!(
+            vertical_only_child_rule.contains("border-end-start-radius: var(--fandhe-radius-md);")
+        );
+        assert!(
+            vertical_only_child_rule.contains("border-end-end-radius: var(--fandhe-radius-md);")
+        );
+    }
+
+    /// 生成 CSS 文字列から、指定した `selector {` から対応する `}` までの
+    /// 1 ルール分を抜き出す（本テストモジュール限定のヘルパ。`{`/`}` の
+    /// ネストを持たない単純な宣言ブロックのみを対象とする素朴な実装で足りる）。
+    fn extract_rule<'a>(css: &'a str, rule_start: &str) -> &'a str {
+        let start = css
+            .find(rule_start)
+            .unwrap_or_else(|| panic!("rule not found: {rule_start}"));
+        let end = css[start..]
+            .find('}')
+            .unwrap_or_else(|| panic!("unterminated rule: {rule_start}"));
+        &css[start..start + end]
     }
 
     // --- variant クラス（root のみ） ---
