@@ -542,7 +542,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # （`root()`/`item()` 等）・`data-*` セレクタ・既存クラス名の削除/改名を
 # 伴わないため、上記と同型で patch バンプとして 0.57.22 から 0.57.23 と
 # する（`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
-version = "0.57.23"
+# イシュー #1496（rating-group のスタイル調整）: `control` への
+# フォーカスリング追加・`item` disabled canonical 化・transition 追加・
+# label 型階層（size 連動 font-size custom property）の CSS 宣言のみの
+# 変更であり、Rust 公開 API シグネチャ（`root()` 等）・`data-*` セレクタ・
+# 既存クラス名の削除/改名を伴わないため、上記と同型で patch バンプとして
+# 0.57.23 から 0.57.24 とする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
+version = "0.57.24"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

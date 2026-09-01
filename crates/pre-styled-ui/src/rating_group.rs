@@ -50,6 +50,50 @@
 //! 経由しない headless 直接利用マークアップでも現行外観を維持する
 //! （fail-safe、`crate::lib` rustdoc「複合部品の variant 統一方針」節参照）。
 //!
+//! # スタイル調整（イシュー #1496）
+//!
+//! 参照サイト（chakra-ui `rating` / ark-ui `rating-group`）基準との視覚差分を
+//! `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` /
+//! `docs/design/pre-styled-ui-interaction-visual-language.md` の共通ビジュアル
+//! 言語へ合わせて是正した。
+//!
+//! - **フォーカスリング**: `item` は `clip-path: polygon(...)` の星形であり、
+//!   CSS 仕様上 `clip-path` は `outline` を含む要素描画全体をクリップするため、
+//!   canonical 形（outline ベース）のリングを `item` へ付けても星形に切り
+//!   取られて視認できない。roving focus（wasm-full 配線）でどの `item` に
+//!   フォーカスがあっても `:focus-within` は祖先 `control` で成立するため、
+//!   `control` へ [`crate::recipe::focus_ring_declarations`]（`palette` 軸を
+//!   公開する部品のため `FocusRingColor::Palette`）を登録した。
+//! - **per-star の CSS `:hover` は意図的に追加しない**: rating の hover
+//!   フィードバックの正体は「hover した星番号までを塗るプレビュー」であり、
+//!   headless 層の `display_value = hover.or(value)` 契約 +
+//!   `RatingGroupAction::Hover`/`ClearHover` + `data-highlighted` が既に担う
+//!   （参照サイトも JS 駆動で、単一星だけ暗くする CSS hover はいずれの挙動
+//!   でもない）。固定セレクタ `:hover:not([data-disabled])`
+//!   （[`crate::recipe::hover_surface_declarations`]）を追加すると
+//!   `data-readonly`（平均評価表示等の常用形）へ hover が漏れる問題もあり
+//!   採用しない。代わりに `item` へ
+//!   [`crate::recipe::transition_declarations`]（`background`）を追加し、
+//!   JS 駆動プレビューの塗り替わりを滑らかにする。
+//! - **`data-disabled`**: `item` の規則を [`crate::recipe::disabled_declarations`]
+//!   （canonical 順: opacity → cursor）へ揃えた（値そのものは既存 ad-hoc
+//!   実装と同値）。
+//! - **label の型階層**: `font-size` を size 連動 custom property
+//!   （`--fandhe-rating-group-font-size`）へ変更し、`font-weight: medium` /
+//!   `line-height: normal` を追加した（`radio_group`/`checkbox_group` と
+//!   同型の 2 段階型階層）。
+//! - **未塗り星の表現は現状維持**: ark-ui のアウトライン（輪郭線のみ）星は
+//!   `clip-path` 塗りつぶし方式では表現できず、chakra-ui の「未塗り = 淡い
+//!   グレー塗り」（`var(--fandhe-color-border)`）に既に一致しているため
+//!   変更しない（意図的差分）。
+//! - **`data-invalid` は追加しない**: headless `rating_group` は未出力で
+//!   あり、chakra `rating` にも invalid 視覚言語がないため（`radio_group`
+//!   が装飾したのは form control 系の同型視覚言語があるため。rating は
+//!   対象外）。
+//! - **サイズ・バリアント・色トークンは変更不要**: 星寸法（`Size` 5 段）・
+//!   `ColorPalette` 6 色・全宣言のトークン参照は既に参照サイト水準を満たす
+//!   （variant 軸は chakra `rating`/ark `rating-group` も持たない）。
+//!
 //! # セキュリティ不変条件
 //!
 //! 本モジュールは headless 層の再エクスポートと静的 CSS 生成のみで構成され、
@@ -74,7 +118,9 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, palette_scale_declarations,
+    transition_declarations, ColorPalette, FocusRingColor, FocusRingOffset, MotionDuration, Size,
+    SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -102,7 +148,12 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "block"),
                 decl("color", "var(--fandhe-color-fg)"),
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-rating-group-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("margin-bottom", "var(--fandhe-space-1)"),
             ],
         )
@@ -138,6 +189,16 @@ fn recipe() -> SlotRecipe {
                 decl("flex-shrink", "0"),
             ],
         )
+        // `base` は同一 slot への複数回登録が許され出力順で連結される
+        // （`radio_group.rs`/`checkbox.rs` の transition 追加と同型のパターン）。
+        // hover プレビュー（`data-highlighted` の付け外し、モジュール doc
+        // 「星形 indicator」節参照）の塗り替わりを滑らかにする。per-star の
+        // CSS `:hover` 自体は意図的に追加しない（イシュー #1496 rustdoc
+        // 「スタイル調整」節参照）。
+        .base(
+            "item",
+            transition_declarations("background", MotionDuration::Fast),
+        )
         // hidden_input はフォーム送信専用のネイティブ input であり、視覚上は
         // 不要（`type="hidden"` のためブラウザが元々描画しないが、既定 CSS の
         // 一貫性のため明示的に display: none を与える）。
@@ -157,40 +218,82 @@ fn recipe() -> SlotRecipe {
         .state(
             "item",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            disabled_declarations(),
         )
         .state(
             "item",
             StateCondition::Attr("data-readonly"),
             vec![decl("cursor", "default")],
         )
+        // イシュー #1496: フォーカスリング皆無の是正。`item` は
+        // `clip-path: polygon(...)` の星形（モジュール doc「星形
+        // indicator」節参照）であり、CSS 仕様上 `clip-path` は `outline` を
+        // 含む要素描画全体をクリップするため、canonical 形（outline
+        // ベース、`crate::recipe::focus_ring_declarations` 参照）のリングが
+        // 星形に切り取られて視認できない。roving focus（wasm-full 配線）で
+        // どの `item` にフォーカスがあっても `:focus-within` は祖先
+        // `control` で成立するため、`item` ではなく `control` へリングを
+        // 登録し、星の外周にリングを出す。`palette` 軸を公開する部品の
+        // ため `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+        // §6 の規約に従い `FocusRingColor::Palette` を使う。
+        .state(
+            "control",
+            StateCondition::FocusWithin,
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
+        )
         .variant(
             Size::Xs,
             "root",
             vec![
                 decl("--fandhe-rating-group-item-size", "0.75rem"),
+                decl(
+                    "--fandhe-rating-group-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
             ],
         )
         .variant(
             Size::Sm,
             "root",
-            vec![decl("--fandhe-rating-group-item-size", "1rem")],
+            vec![
+                decl("--fandhe-rating-group-item-size", "1rem"),
+                decl(
+                    "--fandhe-rating-group-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+            ],
         )
         .variant(
             Size::Md,
             "root",
-            vec![decl("--fandhe-rating-group-item-size", "1.25rem")],
+            vec![
+                decl("--fandhe-rating-group-item-size", "1.25rem"),
+                decl(
+                    "--fandhe-rating-group-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+            ],
         )
         .variant(
             Size::Lg,
             "root",
-            vec![decl("--fandhe-rating-group-item-size", "1.5rem")],
+            vec![
+                decl("--fandhe-rating-group-item-size", "1.5rem"),
+                decl(
+                    "--fandhe-rating-group-font-size",
+                    "var(--fandhe-font-font-size-md)",
+                ),
+            ],
         )
         .variant(
             Size::Xl,
             "root",
             vec![
                 decl("--fandhe-rating-group-item-size", "1.75rem"),
+                decl(
+                    "--fandhe-rating-group-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
             ],
         )
         .default_variant(Size::Md)
@@ -297,6 +400,46 @@ mod tests {
         assert!(css.contains("cursor: default;"));
     }
 
+    /// イシュー #1496: `control` の `:focus-within` にフォーカスリングが
+    /// 登録されていることを固定する（`item` は clip-path 星形のため
+    /// outline が視認できず、祖先 `control` へ登録する設計。モジュール
+    /// doc「スタイル調整」節参照）。
+    #[test]
+    fn control_focus_within_gets_focus_ring() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="rating-group"][data-part="control"]:focus-within"#));
+        assert!(css.contains("outline:"));
+        assert!(css.contains("var(--fandhe-palette, var(--fandhe-color-focus-ring"));
+    }
+
+    /// イシュー #1496: `item` の hover プレビュー塗り替わりを滑らかにする
+    /// transition が base 規則として登録されていることを固定する。
+    #[test]
+    fn item_has_background_transition() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="rating-group"][data-part="item"] {"#));
+        assert!(css.contains("transition-property: background;"));
+    }
+
+    /// イシュー #1496: `data-disabled` の宣言順が canonical
+    /// （opacity → cursor）へ揃っていることを固定する（是正前は
+    /// cursor → opacity の逆順だった）。
+    #[test]
+    fn disabled_item_declares_opacity_before_cursor_canonical_order() {
+        let css = stylesheet();
+        let marker = r#"[data-scope="rating-group"][data-part="item"][data-disabled]"#;
+        let start = css.find(marker).expect("data-disabled block missing");
+        let block_start = css[start..].find('{').expect("block start missing") + start;
+        let block_end = css[block_start..].find('}').expect("block end missing") + block_start;
+        let block = &css[block_start..block_end];
+        let opacity_pos = block.find("opacity:").expect("opacity declaration missing");
+        let cursor_pos = block.find("cursor:").expect("cursor declaration missing");
+        assert!(
+            opacity_pos < cursor_pos,
+            "expected opacity before cursor (canonical order): {block}"
+        );
+    }
+
     #[test]
     fn hidden_input_is_display_none() {
         let css = stylesheet();
@@ -352,6 +495,35 @@ mod tests {
                 vec![],
             ));
             assert!(html.contains(class), "size={size:?} -> {html}");
+        }
+    }
+
+    /// イシュー #1496: `label` の型階層で追加した size 連動 custom property
+    /// （`--fandhe-rating-group-font-size`）が各 `Size` variant ブロックへ
+    /// 登録されていることを固定する（`checkbox_group`/`radio_group` と
+    /// 同型の写像: Xs->xs / Sm->sm / Md->sm / Lg->md / Xl->lg）。
+    #[test]
+    fn size_variant_registers_label_font_size_custom_property() {
+        let css = stylesheet();
+        for (class, expected_token) in [
+            ("fd-rating-group--size-xs", "--fandhe-font-font-size-xs"),
+            ("fd-rating-group--size-sm", "--fandhe-font-font-size-sm"),
+            ("fd-rating-group--size-md", "--fandhe-font-font-size-sm"),
+            ("fd-rating-group--size-lg", "--fandhe-font-font-size-md"),
+            ("fd-rating-group--size-xl", "--fandhe-font-font-size-lg"),
+        ] {
+            let selector = format!(r#".{class}"#);
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("variant selector missing: {selector} in {css}"));
+            let block_start = css[start..].find('{').expect("block start missing") + start;
+            let block_end = css[block_start..].find('}').expect("block end missing") + block_start;
+            let block = &css[block_start..block_end];
+            assert!(
+                block.contains("--fandhe-rating-group-font-size")
+                    && block.contains(expected_token),
+                "class={class} missing font-size custom property mapping to {expected_token}: {block}"
+            );
         }
     }
 
