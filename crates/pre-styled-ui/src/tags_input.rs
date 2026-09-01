@@ -44,16 +44,62 @@
 //! （color-palette 軸）は本イシューでは提供しない（[`crate::number_input`]
 //! の先例に倣う）。
 //!
-//! # フォーカスリング（実フォーカスを `input` 自身が受ける構成）
+//! # フォーカスリング（外枠 `control` に `:focus-within` として出す構成、
+//! イシュー #1698）
 //!
-//! [`crate::pin_input`] と同じく `input` は `<input type="text">` 自身が
-//! 実フォーカスを受けるネイティブ要素であるため、
-//! `StateCondition::FocusVisible`（`:focus-visible` 疑似クラス）を直接
-//! `input` slot へ登録する。
+//! 実フォーカスは `input`（`<input type="text">` 自身）が受けるネイティブ
+//! 要素だが、リングは `input` 自体ではなく外枠 `control` へ
+//! `StateCondition::FocusWithin`（`:focus-within` 疑似クラス）+
+//! [`crate::recipe::focus_ring_declarations`]（`FocusRingColor::Token`,
+//! `FocusRingOffset::Outside`）として出す（[`crate::combobox`]
+//! （イシュー #1467）と同型の chakra 的表現: `control` 側にタグチップ群と
+//! `input` を並べた「1 つの入力欄」として枠取りしているため、`input` へ
+//! 直接輪郭を描くより外枠 `control` へリングを出すほうが視覚的に自然）。
+//! `input` の base `outline: none` は維持し、`input` 自身は `:focus-visible`
+//! 用の state を持たない。**fail-safe の注記**: styled `control` を経由せず
+//! headless `input` を直接利用するマークアップ（`control` を介さない構成）
+//! ではリングが表示されなくなる副作用があるが、combobox #1467 が既に同じ
+//! トレードオフを確定させている。
+//!
+//! # 外枠パート（root/control/input）のスタイル調整（イシュー #1698、親
+//! #1510）
+//!
+//! 兄弟イシュー #1699（内部パート・状態遷移）とスコープを分割した前半分。
+//! 本節に列挙する変更のみを適用し、item 系・clear-trigger・label は一切
+//! 変更していない。
+//!
+//! - **`root` の disabled を canonical 化**: `[data-disabled]` を生の
+//!   `vec![cursor, opacity]` から [`crate::recipe::disabled_declarations`]
+//!   （宣言順 `opacity` → `cursor`）へ置換した（Phase 0 統一形、イシュー
+//!   #1425）。視覚は不変（宣言順のみ変わる golden 更新を伴う）。
+//! - **`control` の角丸を Forms 家族標準へ**: `var(--fandhe-radius-sm)` →
+//!   `var(--fandhe-radius-md)`（イシュー #1482、[`crate::input`]/
+//!   [`crate::date_input`] と同じ角丸）。
+//! - **`control` に transition を追加**: 上記フォーカスリング節の
+//!   `:focus-within` 遷移・`data-invalid` の枠色変化を滑らかにするため
+//!   `transition_declarations("border-color, background",
+//!   MotionDuration::Fast)` を base へ純追加した（combobox #1467 と同型）。
+//! - **`control` の `[data-disabled]`**: 上記フォーカスリング節の直後の
+//!   コード参照。
+//! - **`control` `[data-invalid]`**: 既存の
+//!   `border-color: var(--fandhe-color-danger)` はトークン準拠済みのため
+//!   変更なし（点検結果として記録）。
+//! - **hover は意図的に非採用のまま維持**: [`crate::input`] rustdoc が
+//!   明文化する方針（テキストフィールドは hover 背景変化を持たないのが
+//!   chakra / Radix Themes 標準。hover はインタラクティブ slot =
+//!   `cursor: pointer` を持つ slot のみ、イシュー #1425）に従い、`control`
+//!   へ hover state を追加しない。
+//! - **variant 軸（面バリアント）は対象外**: `root` シグネチャ変更（破壊的
+//!   変更）を伴うため見送り（checkbox_card / file-upload #1696 と同じ判断）。
+//! - **`label` はスコープ外**: #1698 の対象列挙（root/control/input）に
+//!   含まれないため変更しない。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, transition_declarations, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+};
 
 // `TagsInput` 状態機械・headless 自由関数 `root` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。状態管理・
@@ -99,7 +145,7 @@ fn recipe() -> SlotRecipe {
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            disabled_declarations(),
         )
         .base(
             "label",
@@ -115,14 +161,44 @@ fn recipe() -> SlotRecipe {
                 decl("box-sizing", "border-box"),
                 decl("padding", "var(--fandhe-space-2)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "var(--fandhe-radius-sm)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（combobox #1467 と
+        // 同型のパターン、モジュール rustdoc「外枠パートのスタイル調整」
+        // 節参照）。
+        .base(
+            "control",
+            transition_declarations("border-color, background", MotionDuration::Fast),
         )
         .state(
             "control",
             StateCondition::Attr("data-invalid"),
             vec![decl("border-color", "var(--fandhe-color-danger)")],
+        )
+        // 実フォーカスは `input`（`<input type="text">`）自身が受けるが、
+        // リングは外枠 `control` へ `:focus-within` として出す（combobox
+        // #1467 と同型、モジュール rustdoc「フォーカスリング」節参照）。
+        .state(
+            "control",
+            StateCondition::FocusWithin,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // headless `control` は自身の `disabled` 引数から `data-disabled` を
+        // 出す（`crates/headless-ui/src/tags_input.rs::control`）。
+        // `disabled_declarations()`（opacity 0.5 + cursor）ではなく
+        // `cursor: not-allowed` のみに留めるのは、`control` は常に `root`
+        // 配下で使われ `root` 側の `data-disabled` state が既に
+        // `opacity: 0.5` を適用済みのため（重ねると 0.5 × 0.5 = 0.25 の
+        // 二重 opacity になる。file-upload trigger（イシュー #1696）・
+        // 本ファイル `input`/`item-delete-trigger`/`clear-trigger` の既存
+        // `data-disabled` state と同じ判断）。
+        .state(
+            "control",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
         )
         .base(
             "item-preview",
@@ -195,16 +271,6 @@ fn recipe() -> SlotRecipe {
             "input",
             StateCondition::Attr("data-disabled"),
             vec![decl("cursor", "not-allowed")],
-        )
-        // 実フォーカスを `input` 自身が受けるため `:focus-visible` を直接
-        // 登録する（モジュール rustdoc「フォーカスリング」節参照）。
-        .state(
-            "input",
-            StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
         )
         .base(
             "clear-trigger",
@@ -338,14 +404,32 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_links_input_to_focus_visible_outline() {
+    fn stylesheet_links_control_to_focus_within_ring() {
+        // フォーカスリングは `input` ではなく外枠 `control` の
+        // `:focus-within` へ出す（モジュール rustdoc「フォーカスリング」節、
+        // combobox #1467 と同型）。canonical なトークン参照形
+        // （`--fandhe-focus-ring-width`/`--fandhe-color-focus-ring`）を持つ。
         let css = stylesheet();
         assert!(css.contains(
-            r#"[data-scope="tags-input"][data-part="input"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+            r#"[data-scope="tags-input"][data-part="control"]:focus-within {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }"#
         ));
+        // `input` 自身は `:focus-visible` state を持たない（リング移設に伴う
+        // 削除の確認）。
+        assert!(!css.contains(r#"[data-part="input"]:focus-visible"#));
+    }
+
+    #[test]
+    fn stylesheet_links_control_to_disabled_state_and_transition() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"][data-disabled] {"#));
+        assert!(css.contains(
+            r#"[data-scope="tags-input"][data-part="control"] {
+  display: flex"#
+        ));
+        assert!(css.contains("transition-property: border-color, background;"));
     }
 
     #[test]
@@ -353,6 +437,7 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="root"][data-disabled] {"#));
         assert!(css.contains("cursor: not-allowed;"));
+        assert!(css.contains("opacity: 0.5;"));
     }
 
     #[test]

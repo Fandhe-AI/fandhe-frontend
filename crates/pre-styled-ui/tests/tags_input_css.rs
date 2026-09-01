@@ -5,6 +5,13 @@
 //! バイト単位で固定する（受け入れ条件: golden CSS テスト）。出力順
 //! （base → variants → compound → states）が崩れた場合や意図しない宣言の
 //! 追加・欠落があった場合に、この golden テストが即座に検知する。
+//!
+//! イシュー #1698（外枠パート root/control/input のスタイル調整、親
+//! #1510）で以下を反映済み: `root` の disabled を
+//! `crate::recipe::disabled_declarations()`（宣言順 opacity → cursor）へ
+//! 置換・`control` の角丸を `--fandhe-radius-md` へ変更・`control` へ
+//! transition/`:focus-within` フォーカスリング/`[data-disabled]` を追加・
+//! `input` の `:focus-visible` outline を削除（リングは `control` へ移設）。
 
 use fandhe_frontend_pre_styled_ui::tags_input;
 
@@ -26,8 +33,14 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
   box-sizing: border-box;
   padding: var(--fandhe-space-2);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: var(--fandhe-radius-sm);
+  border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
+}
+
+[data-scope="tags-input"][data-part="control"] {
+  transition-property: border-color, background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="tags-input"][data-part="input"] {
@@ -102,12 +115,21 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
 }
 
 [data-scope="tags-input"][data-part="root"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="tags-input"][data-part="control"][data-invalid] {
   border-color: var(--fandhe-color-danger);
+}
+
+[data-scope="tags-input"][data-part="control"]:focus-within {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="tags-input"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
 }
 
 [data-scope="tags-input"][data-part="item-preview"][data-highlighted] {
@@ -121,11 +143,6 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
 
 [data-scope="tags-input"][data-part="input"][data-disabled] {
   cursor: not-allowed;
-}
-
-[data-scope="tags-input"][data-part="input"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
 }
 
 [data-scope="tags-input"][data-part="clear-trigger"][data-disabled] {
