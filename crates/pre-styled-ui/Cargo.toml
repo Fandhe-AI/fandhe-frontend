@@ -500,8 +500,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # 単独バンプしていた（コメント未追記のまま）。本マージはその 0.57.17 も
 # 取り込むが、本ブランチ側は既に 0.57.18 へ到達済みで main の 0.57.17 と
 # 数値が交差しない（0.57.18 > 0.57.17）ため、追加の patch バンプは不要と
-# 判断し 0.57.18 のまま維持する。
-version = "0.57.18"
+# 判断し 0.57.18 のまま維持した。
+# PR #1764 codex-review P1・Cursor Bugbot 指摘（イシュー #1485）の是正で
+# number_input.rs の実体を再度変更したため 0.57.19 へ追加 patch バンプする。
+version = "0.57.19"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

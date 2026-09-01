@@ -113,6 +113,15 @@
 //! - **`root` パート**: `data-disabled` の `opacity: 0.5` 直書きを
 //!   [`crate::recipe::disabled_declarations`] へ置換する（`cursor:
 //!   not-allowed` が純追加される）。
+//! - **`label`/`input` base の font-size フェイルセーフ**: `--fandhe-
+//!   number-input-font-size` 未定義時（styled `root` を経由しない headless
+//!   直接利用）のフォールバックは `--fandhe-size-control-font-size-md` 経由
+//!   （`var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md))`）
+//!   に統一する。既定 `size` が Md であるにもかかわらず、当初 `var(--fandhe-
+//!   font-font-size-sm)` へ直接フォールバックしていたのは password-input
+//!   の同種トークン移行前の記述が紛れ込んだ食い違いであり是正した
+//!   （Cursor Bugbot 指摘、イシュー #1485 PR #1764。[`crate::password_input`]
+//!   の base font-size フォールバックと同型）。
 //! - **バリアント軸（意図的非採用）**: chakra の `variant`
 //!   （outline/subtle/flushed）相当の軸は本イシューでは追加しない。
 //!   根拠: (1) native-select #1484・date-input #1469 が同判断で見送り
@@ -192,7 +201,7 @@ fn recipe() -> SlotRecipe {
             "label",
             vec![decl(
                 "font-size",
-                "var(--fandhe-number-input-font-size, var(--fandhe-font-font-size-sm))",
+                "var(--fandhe-number-input-font-size, var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md)))",
             )],
         )
         .base(
@@ -220,7 +229,7 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl(
                     "font-size",
-                    "var(--fandhe-number-input-font-size, var(--fandhe-font-font-size-sm))",
+                    "var(--fandhe-number-input-font-size, var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md)))",
                 ),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 // input #1482・native-select #1484 が確立した Forms 家族の
@@ -482,12 +491,30 @@ fn recipe() -> SlotRecipe {
 /// 組めないため、本関数が [`crate::listbox::stylesheet`] の item hover
 /// raw CSS 追記と同型のパターンで、`root:not([data-disabled])` を祖先に
 /// 持つ場合に限りトリガーへ `opacity: 0.5` を追加する規則を末尾へ追記する。
+///
+/// # 子孫結合子ではなく直接子結合子（`>`）を使う理由（codex-review P1
+/// 再指摘、イシュー #1485 PR #1764）
+///
+/// 上記セレクタを子孫結合子（半角スペース）で書くと、enabled な外側
+/// `NumberInput` の中に disabled な内側 `NumberInput` を入れ子配置した
+/// 場合に、外側の `root:not([data-disabled])` が内側 root 配下のトリガー
+/// にも一致してしまう。内側は自身の `root` が `data-disabled` を持つため
+/// 上記の「自然継承」で既に `opacity: 0.5` が掛かっており、外側由来の
+/// この raw CSS 規則が重ねて `opacity: 0.5` を直書きすると二重適用
+/// （実効 0.25）が入れ子構造で再発する。標準 anatomy は
+/// `root > control > increment-trigger`/`decrement-trigger`
+/// （`root` 直下に `control`、その直下にトリガー）で固定されているため、
+/// 本関数は祖先側 2 段を `>` で明示的に一段ずつ辿るセレクタへ限定し、
+/// 「このトリガー自身が属する `root`」の状態だけを見る（別の
+/// `NumberInput` インスタンスの `control`/`root` を経由した誤マッチを
+/// 構造的に排除する）。
 #[must_use]
 pub fn stylesheet() -> String {
     let mut out = recipe().css();
     for part in ["increment-trigger", "decrement-trigger"] {
         let selector = format!(
-            "[data-scope=\"number-input\"][data-part=\"root\"]:not([data-disabled]) \
+            "[data-scope=\"number-input\"][data-part=\"root\"]:not([data-disabled]) > \
+                [data-scope=\"number-input\"][data-part=\"control\"] > \
                 [data-scope=\"number-input\"][data-part=\"{part}\"][data-disabled]"
         );
         if let Some(rule) = serialize_rule(&selector, &[decl("opacity", "0.5")]) {
@@ -561,6 +588,25 @@ mod tests {
             r#"[data-scope="number-input"][data-part="decrement-trigger"][data-disabled] {"#
         ));
         assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn stylesheet_base_font_size_fallback_matches_md_control_token() {
+        // Cursor Bugbot 指摘（イシュー #1485 PR #1764）: `label`/`input` の
+        // base font-size フェイルセーフが既定 size（Md）と食い違う
+        // `--fandhe-font-font-size-sm` へ直接フォールバックしていたのを
+        // 是正した回帰テスト。password-input と同型の
+        // `--fandhe-size-control-font-size-md` 経由フォールバックへ統一する。
+        let css = stylesheet();
+        let expected = "var(--fandhe-number-input-font-size, var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md)))";
+        let occurrences = css.matches(expected).count();
+        assert_eq!(
+            occurrences, 2,
+            "expected label/input base font-size fallback via Md control token twice, got:\n{css}"
+        );
+        assert!(
+            !css.contains("var(--fandhe-number-input-font-size, var(--fandhe-font-font-size-sm))")
+        );
     }
 
     #[test]
@@ -712,8 +758,11 @@ mod tests {
         // raw CSS 規則としてのみ出力される（[`stylesheet`] rustdoc 参照）。
         let css = stylesheet();
         for part in ["increment-trigger", "decrement-trigger"] {
+            // 直接子結合子（`>`）で `root > control > trigger` を一段ずつ
+            // 辿るセレクタであること（子孫結合子版は入れ子構造で他インス
+            // タンスへ誤マッチするため不採用、`stylesheet` rustdoc 参照）。
             let selector = format!(
-                r#"[data-scope="number-input"][data-part="root"]:not([data-disabled]) [data-scope="number-input"][data-part="{part}"][data-disabled] {{"#
+                r#"[data-scope="number-input"][data-part="root"]:not([data-disabled]) > [data-scope="number-input"][data-part="control"] > [data-scope="number-input"][data-part="{part}"][data-disabled] {{"#
             );
             assert!(
                 css.contains(&selector),

@@ -15,7 +15,7 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
 }
 
 [data-scope="number-input"][data-part="label"] {
-  font-size: var(--fandhe-number-input-font-size, var(--fandhe-font-font-size-sm));
+  font-size: var(--fandhe-number-input-font-size, var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md)));
 }
 
 [data-scope="number-input"][data-part="control"] {
@@ -31,7 +31,7 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
   color: var(--fandhe-color-fg);
   height: var(--fandhe-number-input-control-height, 2.5rem);
   padding: 0 var(--fandhe-number-input-trigger-size, 1.5rem) 0 var(--fandhe-number-input-padding-x, 1rem);
-  font-size: var(--fandhe-number-input-font-size, var(--fandhe-font-font-size-sm));
+  font-size: var(--fandhe-number-input-font-size, var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md)));
   border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
@@ -170,11 +170,11 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
   }
 }
 
-[data-scope="number-input"][data-part="root"]:not([data-disabled]) [data-scope="number-input"][data-part="increment-trigger"][data-disabled] {
+[data-scope="number-input"][data-part="root"]:not([data-disabled]) > [data-scope="number-input"][data-part="control"] > [data-scope="number-input"][data-part="increment-trigger"][data-disabled] {
   opacity: 0.5;
 }
 
-[data-scope="number-input"][data-part="root"]:not([data-disabled]) [data-scope="number-input"][data-part="decrement-trigger"][data-disabled] {
+[data-scope="number-input"][data-part="root"]:not([data-disabled]) > [data-scope="number-input"][data-part="control"] > [data-scope="number-input"][data-part="decrement-trigger"][data-disabled] {
   opacity: 0.5;
 }
 "#;
