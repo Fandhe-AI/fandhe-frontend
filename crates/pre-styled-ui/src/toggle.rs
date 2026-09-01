@@ -57,6 +57,56 @@
 //! headless 直接利用マークアップでも現行外観を維持する（fail-safe、
 //! `crate::lib` rustdoc「複合部品の variant 統一方針」節参照）。
 //!
+//! # `root` の状態表現の是正（イシュー #1512、親 #1443/#1420）
+//!
+//! Phase 2（Themes / Forms のスタイル調整）の一環として、参照サイト
+//! （Radix Primitives / ark-ui。chakra-ui / Radix Themes は toggle の
+//! スクリーンショット参照対象に含まれないため該当外）と、Phase 0 で
+//! 確定した共通ビジュアル言語（イシュー #1424/#1425 の [`crate::recipe`]
+//! ヘルパ・トークン）を基準に `root` を是正した。先例は switch（#1508、
+//! hover 新設・focus ring ヘルパ化・transition のトークン化・disabled の
+//! canonical 化が同型）。
+//!
+//! - **hover**: `root` に `@media (hover: hover)` 経由の hover 面変化を
+//!   新設（従来は皆無だった）。off 面は base 背景 `--fandhe-color-bg`
+//!   より 1 段濃い [`crate::recipe::hover_bg_muted`]
+//!   （`--fandhe-color-bg-muted`）。on 面は
+//!   [`crate::recipe::hover_bg_solid_with_fallback`]（palette emphasized
+//!   段、未選択時は `--fandhe-color-accent-emphasized` へフォールバック）。
+//!   実適用は switch/checkbox/slider と同型の 1 本のみ
+//!   （[`crate::recipe::hover_surface_declarations`]、`--fandhe-hover-bg`
+//!   の間接参照経由で off/on 双方に追従）
+//! - **フォーカス**: `:focus-visible` の `outline`/`outline-offset` 直書き
+//!   → [`crate::recipe::focus_ring_declarations`]（`FocusRingColor::Palette`。
+//!   toggle は `ColorPalette` 対応部品のため palette 連動形。フォールバック
+//!   値は旧実装と同一のため見た目は不変）
+//! - **disabled**: `cursor`/`opacity` 直書きを canonical ヘルパ
+//!   [`crate::recipe::disabled_declarations`] へ置換（値は不変、宣言順が
+//!   `opacity` → `cursor` へ変わる）
+//! - **トランジション**: `transition: background 0.15s, border-color 0.15s,
+//!   color 0.15s` の shorthand 直書き →
+//!   [`crate::recipe::transition_declarations`]（`MotionDuration::Fast`、
+//!   150ms で従来と同値。longhand 3 宣言化により easing がトークン化され、
+//!   `prefers-reduced-motion` 対応（[`crate::theme`] の duration 一括
+//!   0ms 化）に載る）
+//!
+//! ## 意図的に参照サイトへ合わせなかった点
+//!
+//! - **size 5 段・palette 軸を維持**: 参照 2 サイトは size スケール・
+//!   variant 軸のいずれも持たない単一の bordered ghost 風ボタンのみだが、
+//!   リポジトリ横断の [`Size`] 5 段構成（イシュー #1678 の共通 Size 軸
+//!   決定）と `palette` 軸（[`ColorPalette`]、他部品との一貫性）はそのまま
+//!   維持する
+//! - **variant 軸は新設しない**: 参照サイトの表現は単一の bordered ghost
+//!   風のみであり、solid/outline 等の variant 軸は追加しない（本イシューは
+//!   既存 variant 構成を変えない是正のみを担う）
+//! - **影は追加しない**: 参照サイトの微妙な影は枠線 + hover で十分表現
+//!   されており、`border`/`box-shadow` の追加は見送る（button の是正でも
+//!   base への影追加は行っていない先例に倣う）
+//! - hover を `data-hover` 属性ではなく CSS `:hover`
+//!   （[`StateCondition::Hover`]）で表現する既存規約（switch/checkbox/
+//!   slider と同型）をそのまま踏襲した
+//!
 //! # セキュリティ不変条件
 //!
 //! 本モジュールは headless 層の再エクスポートと静的 CSS 生成のみで構成され、
@@ -70,7 +120,10 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid_with_fallback,
+    hover_surface_declarations, palette_scale_declarations, transition_declarations, ColorPalette,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -110,8 +163,23 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-toggle-font-size, var(--fandhe-font-font-size-sm))",
                 ),
                 decl("cursor", "pointer"),
-                decl("transition", "background 0.15s, border-color 0.15s, color 0.15s"),
+                // イシュー #1512: `transition: ... 0.15s` の shorthand 直書き
+                // を canonical ヘルパへ置換（switch #1508 / checkbox #1734 /
+                // slider #1777 と同型。150ms で従来と同値、longhand 3 宣言化
+                // により easing がトークン化され `prefers-reduced-motion`
+                // 対応に載る）。
+                // off 面（base）の hover 色。base 背景 `--fandhe-color-bg`
+                // より 1 段濃い `--fandhe-color-bg-muted` を使う
+                // （`hover_bg_muted()`）。on 時は下記 state 規則が同名
+                // カスタムプロパティを上書きし、hover セレクタ側は
+                // `hover_surface_declarations()` 1 本のみで両方の面色に
+                // 追従する（switch の `control` と同型のパターン）。
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "root",
+            transition_declarations("background, border-color, color", MotionDuration::Fast),
         )
         .state(
             "root",
@@ -123,12 +191,28 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl("border-color", "var(--fandhe-palette, var(--fandhe-color-accent))"),
                 decl("color", "var(--fandhe-palette-fg)"),
+                // on 面の hover は palette の emphasized 段へ（switch の
+                // checked `control` と同型）。`hover_bg_solid_with_fallback`
+                // は `--fandhe-palette-emphasized` 未定義時も
+                // `--fandhe-color-accent-emphasized` へ確実にフォールバック
+                // する（styled `root` 非経由の headless 直接利用でも hover
+                // 面が消えない fail-safe）。
+                hover_bg_solid_with_fallback(),
             ],
         )
+        // hover の実適用は 1 本のみ（`--fandhe-hover-bg` の間接参照経由で
+        // off/on いずれの面色にも追従する。switch/checkbox/slider の
+        // `control` hover と同型のパターン。`Hover` は
+        // `:not([data-disabled])` 込みで `@media (hover: hover)` へ
+        // 集約出力される既存機構）。
+        .state("root", StateCondition::Hover, hover_surface_declarations())
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            // イシュー #1512: `cursor`/`opacity` 直書きを共通ビジュアル言語
+            // （`crate::recipe` の disabled/hover/transition 節）へ置換。
+            // 宣言順は `opacity` → `cursor` に変わるが値そのものは不変。
+            disabled_declarations(),
         )
         // 実フォーカスは root 自身（ネイティブ button）が受けるため、
         // hidden-input パターン（switch/radio_group）の data-focus-visible
@@ -137,10 +221,11 @@ fn recipe() -> SlotRecipe {
         .state(
             "root",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            // イシュー #1512: outline 直書きを canonical ヘルパへ置換
+            // （`FocusRingColor::Palette`。palette 軸を持つ部品のため
+            // switch #1508 と同型。フォールバック値は旧実装と同一のため
+            // 新トークン未定義の既存カスタムテーマでも見た目は不変）。
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         .base("indicator", vec![decl("display", "inline-flex")])
         // indicator は off 時に非表示化する（headless 層は data-state のみを
@@ -298,6 +383,23 @@ mod tests {
     fn stylesheet_links_root_to_focus_visible() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="toggle"][data-part="root"]:focus-visible {"#));
+    }
+
+    #[test]
+    fn stylesheet_defines_hover_surface_via_media_hover() {
+        // イシュー #1512: root の hover 面新設を固定する（switch/checkbox/
+        // slider と同型のパターン。`--fandhe-hover-bg` の間接参照経由で
+        // off/on 双方の面色に追従するため、hover 適用規則は 1 本のみ）。
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(
+            css.contains(r#"[data-scope="toggle"][data-part="root"]:hover:not([data-disabled]) {"#)
+        );
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+        assert!(css.contains(
+            "--fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));"
+        ));
     }
 
     #[test]
