@@ -29,13 +29,24 @@
 //! （`FocusRingColor::Palette`）へ置換・`root` disabled 規則の
 //! `disabled_declarations()` 経由化（宣言順が `opacity` → `cursor` へ
 //! 変わる）が golden CSS 全文の差分。
+//!
+//! イシュー #1509: size バリアントと `label` slot 配置を是正した
+//! （`crates/pre-styled-ui/src/switch.rs` のモジュール doc「`size`
+//! バリアントと `label` 配置の是正」節参照）。`root` の `gap` を
+//! size 連動 custom property 化（`var(--fandhe-space-2)` 直参照 →
+//! `var(--fandhe-switch-gap, var(--fandhe-space-2))`）・各 size variant へ
+//! `--fandhe-switch-gap` の追加（xs〜xl で spacing トークン単調増加）・
+//! `label` base への型階層 4 宣言（`font-weight`/`line-height`/`color`/
+//! `user-select`）追加が golden CSS 全文の差分。トラック/サムの寸法値
+//! （`--fandhe-switch-track-width`/`-track-height`/`-thumb-size`/
+//! `-thumb-travel`）自体は参考スクショ比較の結果、据え置いた（同節参照）。
 
 use fandhe_frontend_pre_styled_ui::switch;
 
 const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   display: inline-flex;
   align-items: center;
-  gap: var(--fandhe-space-2);
+  gap: var(--fandhe-switch-gap, var(--fandhe-space-2));
   cursor: pointer;
 }
 
@@ -73,6 +84,10 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
 
 [data-scope="switch"][data-part="label"] {
   font-size: var(--fandhe-switch-label-font-size, var(--fandhe-font-font-size-sm));
+  font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-normal);
+  color: var(--fandhe-color-fg);
+  user-select: none;
 }
 
 [data-scope="switch"][data-part="hidden-input"] {
@@ -93,6 +108,7 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   --fandhe-switch-thumb-size: 0.6rem;
   --fandhe-switch-thumb-travel: 0.6rem;
   --fandhe-switch-label-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-switch-gap: var(--fandhe-space-1);
 }
 
 [data-scope="switch"][data-part="root"].fd-switch--size-sm {
@@ -101,6 +117,7 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   --fandhe-switch-thumb-size: 0.85rem;
   --fandhe-switch-thumb-travel: 0.85rem;
   --fandhe-switch-label-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-switch-gap: var(--fandhe-space-1-5);
 }
 
 [data-scope="switch"][data-part="root"].fd-switch--size-md {
@@ -109,6 +126,7 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   --fandhe-switch-thumb-size: 1.1rem;
   --fandhe-switch-thumb-travel: 1.1rem;
   --fandhe-switch-label-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-switch-gap: var(--fandhe-space-2);
 }
 
 [data-scope="switch"][data-part="root"].fd-switch--size-lg {
@@ -117,6 +135,7 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   --fandhe-switch-thumb-size: 1.35rem;
   --fandhe-switch-thumb-travel: 1.35rem;
   --fandhe-switch-label-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-switch-gap: var(--fandhe-space-2-5);
 }
 
 [data-scope="switch"][data-part="root"].fd-switch--size-xl {
@@ -125,6 +144,7 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   --fandhe-switch-thumb-size: 1.6rem;
   --fandhe-switch-thumb-travel: 1.6rem;
   --fandhe-switch-label-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-switch-gap: var(--fandhe-space-3);
 }
 
 [data-scope="switch"][data-part="root"].fd-switch--color-palette-accent {
