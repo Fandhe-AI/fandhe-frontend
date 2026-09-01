@@ -86,6 +86,33 @@
 //! [`FocusRingOffset::Outside`]`)`、`docs/design/
 //! pre-styled-ui-focus-ring-and-size-conventions.md` 準拠）で新規追加した
 //! （`link.rs`/`radio_group.rs`/`angle_slider.rs` と同型）。
+//!
+//! **Outline / Solid の高さ一致（イシュー #1756）**: `recipe_with_scope` の
+//! base（`box-sizing: border-box`、上記の是正参照）により、`border-box` の
+//! 下では `border`/`padding` は指定した `height`/`min-height` の**内側**に
+//! 含まれるため、border の有無だけでは外寸（描画高さ）が変化しない
+//! （`content-box` のままだと Outline のみ border 分（上下合計 2px）外寸が
+//! 大きくなっていた不具合の是正）。ただし本モジュールの size variant は
+//! `height` ではなく `min-height`（ラベル付きボタン、上記の是正参照）で
+//! あるため、この一致が保証されるのは (1) ラベルの内容が `min-height` の
+//! 下限に収まり、ボックスの実高さが `min-height` の値そのものに固定される
+//! 場合（この場合のみ border-box が border/padding を内側へ収め、
+//! Outline/Solid の外寸が一致する）、または (2) 確定 `height` を持つ
+//! [`ButtonIcon::Only`]（icon-only）の場合に限られる。**この一致が保証
+//! されない範囲（codex-review #1756 P2 指摘の是正）**: ラベルの内容が
+//! `min-height` の下限を超えると、ボックスは `min-height` に縛られず
+//! 内容 + padding + border の合計まで自然に伸長するため、border の有無
+//! （Outline: 1px、Solid: none）がそのまま外寸差（上下合計 2px）として
+//! 再度現れる。すなわち `box-sizing: border-box` は「border/padding を
+//! `height`/`min-height` の内側に含める」という、ボックスの実高さが
+//! ちょうど `min-height` に等しい間だけ効く前提条件であり、内容量に
+//! よらない任意ケースでの外寸完全一致を意味しない。ラベル付きボタンで
+//! 内容が下限を超えるケースは意図的に保証対象外とし（アプリケーション
+//! ロジックであるラベル文字列の折り返し・長さ制御は本コンポーネント層の
+//! 責務外）、本モジュールが不変条件として固定するのは確定 `height` を
+//! 持つ icon-only ケースのみである。この不変条件は
+//! `crates/pre-styled-ui/tests/button_css.rs` の意味的回帰テストで固定する
+//! （xs/sm/md/lg/xl の 5 size 全段を検証、下記参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

@@ -229,3 +229,196 @@ fn button_css_matches_golden_byte_for_byte() {
 fn button_css_is_deterministic() {
     assert_eq!(button::css(), button::css());
 }
+
+/// `css` から base ブロック（`[data-scope="button"][data-part="root"] {`
+/// で始まり、宣言群を持つ最初のブロック。同一セレクタは transition-only
+/// ブロック（`transition-property` 等のみを持つ 2 つ目のブロック）としても
+/// 再出現するため、単純な `str::contains` では base 以外の場所へ宣言が
+/// 移動していても検知できない。この関数は「セレクタ行に続く最初の
+/// `{`〜`}` ブロック」を厳密に 1 つだけ切り出す）。
+fn extract_button_root_base_block(css: &str) -> &str {
+    const SELECTOR: &str = "[data-scope=\"button\"][data-part=\"root\"] {\n";
+    let start = css
+        .find(SELECTOR)
+        .expect("button root セレクタが CSS 内に見つからない");
+    let body_start = start + SELECTOR.len();
+    let body_end = css[body_start..]
+        .find("\n}")
+        .expect("button root base ブロックの終端 `}` が見つからない");
+    &css[body_start..body_start + body_end]
+}
+
+/// イシュー #1756: golden（バイト完全一致）とは独立に、`box-sizing:
+/// border-box` が button root の **base ブロック内**に存在することを
+/// 意味的に固定する回帰テスト。
+///
+/// `box-sizing: border-box` の下では `border`/`padding` が `height`/
+/// `min-height` の内側に含まれるため、Outline variant（`border: 1px
+/// solid`）と Solid variant（`border: none`）の外寸（描画高さ）が一致する
+/// （`content-box` のままだと Outline のみ border 分〔上下合計 2px〕外寸が
+/// 大きくなる不具合があった。是正の記録は `button.rs` モジュール冒頭
+/// rustdoc「Outline / Solid の高さ一致」節参照）。**codex-review P2
+/// 指摘の是正**: 当初は `css.contains("box-sizing: border-box;")` で
+/// CSS 全文のどこか 1 箇所に宣言があれば成功していたため、base ブロックから
+/// 宣言が削除・別の variant/state ブロックへ移動しても、他の箇所（例えば
+/// 別 selector）に同一文字列が残っていれば検知できなかった。
+/// `extract_button_root_base_block` で base ブロックのみを切り出し、
+/// その断片に対して assert することで、base ブロックそのものからの
+/// 宣言消失・移動を確実に検知する（`radio_group.rs` の
+/// `item_control_has_border_box_sizing` と同型の意図を、対象ブロック限定
+/// まで強化したもの）。golden テスト
+/// （`button_css_matches_golden_byte_for_byte`）が将来 base ブロックの
+/// 宣言順・周辺装飾を変更しても、この不変条件だけは独立に検知できる。
+#[test]
+fn outline_and_solid_variants_share_total_height_via_border_box() {
+    let css = button::css();
+    let base_block = extract_button_root_base_block(&css);
+    assert!(
+        base_block.contains("box-sizing: border-box;"),
+        "button root の base ブロックに box-sizing: border-box が無いと、\
+         UA 既定の content-box 下で Outline variant の border 1px が \
+         height の外側へ積み増され、Solid variant と描画高さがずれる \
+         （イシュー #1756）。実際の base ブロック: {base_block:?}"
+    );
+}
+
+/// `css` から `selector` に一致するセレクタ行（前方一致、直後に ` {` を
+/// 伴う）に続く最初の `{`〜`}` ブロックを 1 つ切り出す汎用版。
+///
+/// `extract_button_root_base_block` は button root の base ブロック専用
+/// だったが、icon-only×size compound variant・variant（outline/solid）の
+/// ブロックも同様の手法で切り出す必要があるため、セレクタ文字列を引数化
+/// した汎用ヘルパとして分離する。
+fn extract_block_after_selector<'a>(css: &'a str, selector: &str) -> &'a str {
+    let needle = format!("{selector} {{\n");
+    let start = css
+        .find(&needle)
+        .unwrap_or_else(|| panic!("セレクタ {selector:?} が CSS 内に見つからない"));
+    let body_start = start + needle.len();
+    let body_end = css[body_start..]
+        .find("\n}")
+        .unwrap_or_else(|| panic!("セレクタ {selector:?} のブロック終端 `}}` が見つからない"));
+    &css[body_start..body_start + body_end]
+}
+
+/// イシュー #1756 codex-review P2 指摘の是正: `box-sizing: border-box` の
+/// **存在確認のみ**では、Outline/Solid 両 variant の実際の外寸（描画高さ）
+/// が一致するという不変条件そのものは検証できていなかった（例えば
+/// icon-only の `height` 宣言が `calc(... + 2px)` のように border 分を
+/// 上乗せする形へ書き換えられても、base ブロックに `box-sizing:
+/// border-box` さえ残っていれば `outline_and_solid_variants_share_total_height_via_border_box`
+/// は通ってしまう）。
+///
+/// **codex-review #1787 P2 再指摘の是正**: 当初この意味的テストは icon-only
+/// の 5 size（xs/sm/md/lg/xl）のうち `size-md` のみを検証していたため、
+/// `xs`/`sm`/`lg`/`xl` の `height` 宣言が削除・`calc()` 化されても golden
+/// スナップショット（`fd-button--icon-only` の CSS リテラル自体）を同時に
+/// 書き換えれば本テストは通ったままになり、rustdoc が掲げる「5 size 全段
+/// での外寸一致」という契約を固定できていなかった。以下の `ICON_ONLY_SIZES`
+/// 表（size サフィックス × 期待するトークン名 × フォールバック値）で 5 size
+/// 全てを走査し、各 compound variant（`icon-only.size-*`）が期待する固定
+/// `height` を個別に宣言していることを検証する。
+///
+/// この不変条件は次の 3 ブロックの組み合わせで初めて意味的に固定できる:
+/// 1. base ブロックが `box-sizing: border-box` を宣言している（既存テスト）
+/// 2. icon-only×size（xs/sm/md/lg/xl の全 5 段）ブロックが `height` を
+///    **固定値のみ**（`calc()`・border 幅を織り込んだ算術を含まない）で
+///    宣言している
+/// 3. Outline/Solid 両 variant ブロックが互いに異なる `border` 幅
+///    （outline: `1px solid`、solid: `none`）を宣言している
+///
+/// (2) と (3) を確認したうえで (1) の `box-sizing: border-box` が
+/// 効いていれば、CSS 仕様上 border 幅は `height` の内側に含まれるため
+/// border 幅の差（1px vs 0px）は要素の外寸（描画高さ）に一切影響しない
+/// ことが意味的に保証される。逆に (1) を欠く（`content-box` のままの）
+/// 場合は、この同じ (2)(3) の組み合わせから border 幅の差がそのまま外寸
+/// 差になることが導かれる（`content-box` 下では `height` が border の
+/// 内側の寸法を指すため、外寸 = height + border 幅 * 2 となり Outline の
+/// 方が Solid より 2px 大きくなる）。
+///
+/// なお本不変条件が保証するのは確定 `height` を持つ icon-only ケースのみ
+/// であり、ラベル付きボタン（`min-height`）で内容が下限を超えるケースは
+/// 保証対象外である（`crates/pre-styled-ui/src/button.rs` モジュール冒頭
+/// rustdoc「Outline / Solid の高さ一致（イシュー #1756）」節参照）。
+#[test]
+fn icon_only_height_and_variant_borders_combine_with_border_box_for_equal_outer_height() {
+    let css = button::css();
+
+    // (1) base ブロックに box-sizing: border-box があること（既存不変条件の再確認）。
+    let base_block = extract_button_root_base_block(&css);
+    assert!(
+        base_block.contains("box-sizing: border-box;"),
+        "button root の base ブロックに box-sizing: border-box が無い: {base_block:?}"
+    );
+
+    // (2) icon-only×size ブロックが xs/sm/md/lg/xl の全 5 段について固定
+    // height のみを宣言し、border 幅を織り込む算術（calc 等）を含まない
+    // こと。size サフィックス・トークン名・フォールバック値の対応表。
+    const ICON_ONLY_SIZES: [(&str, &str); 5] = [
+        ("xs", "2rem"),
+        ("sm", "2.25rem"),
+        ("md", "2.5rem"),
+        ("lg", "2.75rem"),
+        ("xl", "3rem"),
+    ];
+    for (suffix, fallback) in ICON_ONLY_SIZES {
+        let selector = format!(
+            "[data-scope=\"button\"][data-part=\"root\"].fd-button--icon-only.fd-button--size-{suffix}"
+        );
+        let icon_only_block = extract_block_after_selector(&css, &selector);
+        let expected_height =
+            format!("height: var(--fandhe-size-control-height-{suffix}, {fallback});");
+        assert!(
+            icon_only_block.contains(&expected_height),
+            "icon-only×size-{suffix} ブロックに期待する固定 height 宣言 \
+             {expected_height:?} が無い: {icon_only_block:?}"
+        );
+        assert!(
+            !icon_only_block.contains("calc("),
+            "icon-only×size-{suffix} の height が calc() で border 幅を \
+             織り込んでいる場合、box-sizing: border-box と二重に補正され \
+             外寸がずれる: {icon_only_block:?}"
+        );
+    }
+
+    // (3) Outline/Solid 両 variant が異なる border 幅を宣言していること
+    // （この差が (1)(2) の下で外寸に影響しないことが本テストの主張）。
+    let outline_block = extract_block_after_selector(
+        &css,
+        "[data-scope=\"button\"][data-part=\"root\"].fd-button--variant-outline",
+    );
+    assert!(
+        outline_block.contains("border: 1px solid var(--fandhe-palette);"),
+        "outline variant の border 宣言が期待値と異なる: {outline_block:?}"
+    );
+    let solid_block = extract_block_after_selector(
+        &css,
+        "[data-scope=\"button\"][data-part=\"root\"].fd-button--variant-solid",
+    );
+    assert!(
+        solid_block.contains("border: none;"),
+        "solid variant の border 宣言が期待値と異なる: {solid_block:?}"
+    );
+}
+
+/// `extract_button_root_base_block` 自体の健全性を確認する回帰テスト。
+///
+/// base ブロックには transition-only ブロックが持つ `transition-property`
+/// 宣言が含まれないこと（＝先頭の base ブロックを正しく切り出せていて、
+/// 2 つ目の transition-only ブロックまで読み進めていないこと）を確認する。
+#[test]
+fn extract_button_root_base_block_excludes_transition_only_block() {
+    let css = button::css();
+    let base_block = extract_button_root_base_block(&css);
+    assert!(
+        !base_block.contains("transition-property"),
+        "extract_button_root_base_block が transition-only ブロックまで \
+         取り込んでしまっている（base ブロックの終端検出が壊れている）: \
+         {base_block:?}"
+    );
+    assert!(
+        base_block.contains("display: inline-flex;"),
+        "extract_button_root_base_block が base ブロックの先頭宣言を \
+         含んでいない: {base_block:?}"
+    );
+}
