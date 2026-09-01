@@ -1,6 +1,6 @@
 //! styled Select（`size` variant 展開、イシュー #729。トリガー・
-//! コントロールのスタイル調整、イシュー #1501）の決定的 CSS 出力
-//! ゴールデンテスト。
+//! コントロールのスタイル調整、イシュー #1501。リスト側パーツの
+//! スタイル調整、イシュー #1502）の決定的 CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。出力順
@@ -24,9 +24,18 @@
 //! 置換した。`value-text` は base 宣言（truncation）と
 //! `[data-placeholder-shown]` の muted 色を新設し、`indicator` は base
 //! 宣言（`display: inline-block` + muted 色 + transition）と
-//! `[data-state="open"]` の回転を新設した。`content`/`item`/`item-group`/
-//! `item-indicator` は 2/2（#1502）の担当のため本イシューでは変更していない
-//! （`content`/`item` の生 `border-radius` リテラルが残っているのはこのため）。
+//! `[data-state="open"]` の回転を新設した。
+//!
+//! イシュー #1502（親 #1500 の 2/2 分割、`content`/`item`/`item-group`/
+//! `item-indicator` 担当）で `content` の `border-radius`（生 `0.375rem`
+//! → `var(--fandhe-radius-md)`）・`box-shadow`（生 `rgba()` →
+//! `var(--fandhe-shadow-md)`）、`item` の `border-radius`（生 `0.25rem`
+//! → `var(--fandhe-radius-sm)`）をトークン化した。`item` へ
+//! `display: flex`/`align-items: center`/`gap`（チェックマーク右端整列）・
+//! hover（`hover_bg_muted()` base + `HoverExceptAttr("data-highlighted")`）・
+//! disabled（`[data-disabled]`）・transition（`background, color`）を
+//! 追加し、`item-indicator` へ `margin-left: auto`（`display` は非宣言、
+//! headless の `hidden` 属性制御と衝突するため）を追加した。
 
 use fandhe_frontend_pre_styled_ui::select;
 
@@ -100,8 +109,8 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+  border-radius: var(--fandhe-radius-md);
+  box-shadow: var(--fandhe-shadow-md);
   padding: var(--fandhe-select-content-padding, var(--fandhe-space-2));
   min-width: var(--fandhe-reference-width, auto);
 }
@@ -113,9 +122,23 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
 }
 
 [data-scope="select"][data-part="item"] {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-2);
   padding: var(--fandhe-select-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;
-  border-radius: 0.25rem;
+  border-radius: var(--fandhe-radius-sm);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="select"][data-part="item"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="select"][data-part="item-indicator"] {
+  margin-left: auto;
 }
 
 [data-scope="select"][data-part="hidden-select"] {
@@ -173,6 +196,11 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   color: var(--fandhe-color-accent-fg);
 }
 
+[data-scope="select"][data-part="item"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 [data-scope="select"][data-part="trigger"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
@@ -200,6 +228,10 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
 }
 
 @media (hover: hover) {
+  [data-scope="select"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {
+    background: var(--fandhe-hover-bg);
+  }
+
   [data-scope="select"][data-part="trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
   }
