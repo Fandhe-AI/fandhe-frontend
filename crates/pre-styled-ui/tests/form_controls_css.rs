@@ -167,33 +167,40 @@ const NATIVE_SELECT_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="select
   font: inherit;
   color: var(--fandhe-color-fg);
   background: var(--fandhe-color-bg);
-  border-radius: var(--fandhe-radius-sm);
-  transition: border-color 0.15s, background 0.15s;
+  border-radius: var(--fandhe-radius-md);
+  transition-property: border-color, background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="field"][data-part="select"].fd-field--size-xs {
-  padding: 0.125rem 0.375rem;
-  font-size: var(--fandhe-font-font-size-xs);
+  height: var(--fandhe-size-control-height-xs, 2rem);
+  padding: 0 var(--fandhe-size-control-padding-x-xs, 0.625rem);
+  font-size: var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs));
 }
 
 [data-scope="field"][data-part="select"].fd-field--size-sm {
-  padding: 0.25rem 0.5rem;
-  font-size: var(--fandhe-font-font-size-sm);
+  height: var(--fandhe-size-control-height-sm, 2.25rem);
+  padding: 0 var(--fandhe-size-control-padding-x-sm, 0.75rem);
+  font-size: var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm));
 }
 
 [data-scope="field"][data-part="select"].fd-field--size-md {
-  padding: 0.375rem 0.75rem;
-  font-size: var(--fandhe-font-font-size-sm);
+  height: var(--fandhe-size-control-height-md, 2.5rem);
+  padding: 0 var(--fandhe-size-control-padding-x-md, 1rem);
+  font-size: var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md));
 }
 
 [data-scope="field"][data-part="select"].fd-field--size-lg {
-  padding: 0.5rem 1rem;
-  font-size: var(--fandhe-font-font-size-md);
+  height: var(--fandhe-size-control-height-lg, 2.75rem);
+  padding: 0 var(--fandhe-size-control-padding-x-lg, 1.25rem);
+  font-size: var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-lg));
 }
 
 [data-scope="field"][data-part="select"].fd-field--size-xl {
-  padding: 0.625rem 1.25rem;
-  font-size: var(--fandhe-font-font-size-lg);
+  height: var(--fandhe-size-control-height-xl, 3rem);
+  padding: 0 var(--fandhe-size-control-padding-x-xl, 1.5rem);
+  font-size: var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-xl));
 }
 
 [data-scope="field"][data-part="select"].fd-field--variant-outline {
@@ -220,8 +227,8 @@ const NATIVE_SELECT_GOLDEN_CSS: &str = r#"[data-scope="field"][data-part="select
 }
 
 [data-scope="field"][data-part="select"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 "#;
 

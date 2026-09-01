@@ -29,10 +29,36 @@
 //! （`crates/core/src/tags.rs` 冒頭 doc 参照）ため、呼び出し側が
 //! `fandhe_frontend_core::el("option", ..., ...)` で組み立てて `children` に
 //! 渡す（headless `field::select` rustdoc と同じ契約）。
+//!
+//! # 参考サイト基準への調整（イシュー #1484）
+//!
+//! chakra-ui v3 NativeSelect と視覚比較し、Phase 0 で確定した共通基盤
+//! （[`crate::recipe::focus_ring_declarations`]・
+//! [`crate::recipe::disabled_declarations`]・
+//! [`crate::recipe::transition_declarations`]・#1678 の
+//! `--fandhe-size-control-height/padding-x/font-size-*` トークン）へ移行
+//! した。[`crate::input`]（イシュー #1482）の差分をそのまま `select` slot へ
+//! 写像したもので、実装差分は無い（両モジュールとも `field` scope 下の 1
+//! slot・variant 3 種 × size 5 段の同型構造のため）。
+//!
+//! - **hover（意図的非採用）**: hover 背景は付与しない。
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md` の判定基準
+//!   （hover はインタラクティブ slot = `cursor: pointer` を持つ slot のみ）
+//!   に対しネイティブ `<select>` は既定カーソルが矢印であり対象外。chakra
+//!   v3 NativeSelect recipe（`mcp__chakra-ui__get_component_example` で確認）
+//!   もコンポーネント合成のみで hover 背景変化を宣言していない。
+//! - **readonly（意図的非採用）**: `data-readonly` への視覚宣言は追加しない。
+//!   [`crate::input`] と同判断（参照サイトも readonly の独自装飾を持たない）。
+//! - **ネイティブ矢印維持**: 本モジュール冒頭の既存設計判断（`appearance:
+//!   none` 不使用）を変更しない。chakra のカスタム `Indicator` への追随は
+//!   引き続き意図的非採用。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, transition_declarations, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
 pub use fandhe_frontend_headless_ui::field::{FieldIds, FieldProps};
@@ -90,19 +116,23 @@ impl Default for NativeSelectProps {
 /// この styled NativeSelect の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみ
 /// が呼ぶ）。
 fn recipe() -> SlotRecipe {
+    let mut base = vec![
+        decl("box-sizing", "border-box"),
+        decl("width", "100%"),
+        decl("font", "inherit"),
+        decl("color", "var(--fandhe-color-fg)"),
+        decl("background", "var(--fandhe-color-bg)"),
+        // input #1482 が確立した Forms 家族の標準角丸（旧
+        // `--fandhe-radius-sm` から変更、イシュー #1484）。
+        decl("border-radius", "var(--fandhe-radius-md)"),
+    ];
+    base.extend(transition_declarations(
+        "border-color, background",
+        MotionDuration::Fast,
+    ));
+
     SlotRecipe::new("field", SLOTS)
-        .base(
-            "select",
-            vec![
-                decl("box-sizing", "border-box"),
-                decl("width", "100%"),
-                decl("font", "inherit"),
-                decl("color", "var(--fandhe-color-fg)"),
-                decl("background", "var(--fandhe-color-bg)"),
-                decl("border-radius", "var(--fandhe-radius-sm)"),
-                decl("transition", "border-color 0.15s, background 0.15s"),
-            ],
-        )
+        .base("select", base)
         .state(
             "select",
             StateCondition::Attr("data-invalid"),
@@ -111,54 +141,85 @@ fn recipe() -> SlotRecipe {
         .state(
             "select",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
         )
         .state(
             "select",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
+        // size（イシュー #1678 の `--fandhe-size-control-height/padding-x/
+        // font-size-*` トークンへ移行、イシュー #1484。input #1482 と同一値）。
         .variant(
             Size::Xs,
             "select",
             vec![
-                decl("padding", "0.125rem 0.375rem"),
-                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("height", "var(--fandhe-size-control-height-xs, 2rem)"),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-size-control-padding-x-xs, 0.625rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs))",
+                ),
             ],
         )
         .variant(
             Size::Sm,
             "select",
             vec![
-                decl("padding", "0.25rem 0.5rem"),
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("height", "var(--fandhe-size-control-height-sm, 2.25rem)"),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-size-control-padding-x-sm, 0.75rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm))",
+                ),
             ],
         )
         .variant(
             Size::Md,
             "select",
             vec![
-                decl("padding", "0.375rem 0.75rem"),
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("height", "var(--fandhe-size-control-height-md, 2.5rem)"),
+                decl("padding", "0 var(--fandhe-size-control-padding-x-md, 1rem)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md))",
+                ),
             ],
         )
         .variant(
             Size::Lg,
             "select",
             vec![
-                decl("padding", "0.5rem 1rem"),
-                decl("font-size", "var(--fandhe-font-font-size-md)"),
+                decl("height", "var(--fandhe-size-control-height-lg, 2.75rem)"),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-size-control-padding-x-lg, 1.25rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-lg))",
+                ),
             ],
         )
         .variant(
             Size::Xl,
             "select",
             vec![
-                decl("padding", "0.625rem 1.25rem"),
-                decl("font-size", "var(--fandhe-font-font-size-lg)"),
+                decl("height", "var(--fandhe-size-control-height-xl, 3rem)"),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-size-control-padding-x-xl, 1.5rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-xl))",
+                ),
             ],
         )
         .variant(
@@ -284,6 +345,47 @@ mod tests {
         // ネイティブ矢印を維持する設計判断（モジュール rustdoc 参照）の回帰。
         let out = css();
         assert!(!out.contains("appearance"));
+    }
+
+    #[test]
+    fn stylesheet_uses_canonical_focus_ring_declarations() {
+        // イシュー #1484: focus ring がリテラル値ではなく canonical ヘルパ
+        // （`focus_ring_declarations`）由来のトークン参照であることを固定。
+        let out = css();
+        assert!(out.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+        assert!(out.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+    }
+
+    #[test]
+    fn stylesheet_uses_motion_token_transition() {
+        // イシュー #1484: transition がリテラル秒数ではなく motion トークン
+        // （`transition_declarations`）由来であることを固定。
+        let out = css();
+        assert!(out.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+        assert!(out.contains("transition-property: border-color, background;"));
+    }
+
+    #[test]
+    fn stylesheet_size_variants_use_control_tokens() {
+        // イシュー #1484: 各 size が #1678 の control トークンへ移行した
+        // ことを固定（input #1482 と同型の 3 点セット）。
+        let out = css();
+        for suffix in ["xs", "sm", "md", "lg", "xl"] {
+            assert!(
+                out.contains(&format!("--fandhe-size-control-height-{suffix}")),
+                "height token missing for {suffix} -> {out}"
+            );
+            assert!(
+                out.contains(&format!("--fandhe-size-control-padding-x-{suffix}")),
+                "padding-x token missing for {suffix} -> {out}"
+            );
+            assert!(
+                out.contains(&format!("--fandhe-size-control-font-size-{suffix}")),
+                "font-size token missing for {suffix} -> {out}"
+            );
+        }
     }
 
     #[test]
