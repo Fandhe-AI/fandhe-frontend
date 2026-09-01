@@ -1,4 +1,5 @@
-//! styled Select（`size` variant 展開、イシュー #729）の決定的 CSS 出力
+//! styled Select（`size` variant 展開、イシュー #729。トリガー・
+//! コントロールのスタイル調整、イシュー #1501）の決定的 CSS 出力
 //! ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの
@@ -13,6 +14,19 @@
 //! 利用時の現行外観を維持する）。`--fandhe-reference-width`/`--fandhe-x`/
 //! `--fandhe-y`（wasm positioning 契約、#663）は不変。select は
 //! `color-palette` 軸を持たない。
+//!
+//! イシュー #1501（親 #1500 の 1/2 分割、`control`/`trigger`/`value-text`/
+//! `indicator` 担当）で `trigger` の `border-radius` をトークン化
+//! （`var(--fandhe-radius-md)`、値は `0.375rem` と同一で外観不変）し、
+//! hover（`--fandhe-hover-bg` 経由）・disabled（`[data-disabled]`）・
+//! transition（`border-color, background, color`）を追加した。
+//! `:focus-visible` は canonical ヘルパ（`focus_ring_declarations`）へ
+//! 置換した。`value-text` は base 宣言（truncation）と
+//! `[data-placeholder-shown]` の muted 色を新設し、`indicator` は base
+//! 宣言（`display: inline-block` + muted 色 + transition）と
+//! `[data-state="open"]` の回転を新設した。`content`/`item`/`item-group`/
+//! `item-indicator` は 2/2（#1502）の担当のため本イシューでは変更していない
+//! （`content`/`item` の生 `border-radius` リテラルが残っているのはこのため）。
 
 use fandhe_frontend_pre_styled_ui::select;
 
@@ -39,14 +53,39 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
+  border-radius: var(--fandhe-radius-md);
   padding: var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="select"][data-part="trigger"] {
+  transition-property: border-color, background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="select"][data-part="value-text"] {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 [data-scope="select"][data-part="clear-trigger"] {
   cursor: pointer;
   color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="select"][data-part="indicator"] {
+  display: inline-block;
+  color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="select"][data-part="indicator"] {
+  transition-property: transform;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="select"][data-part="positioner"] {
@@ -135,8 +174,21 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
 }
 
 [data-scope="select"][data-part="trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="select"][data-part="trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="select"][data-part="value-text"][data-placeholder-shown] {
+  color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="select"][data-part="indicator"][data-state="open"] {
+  transform: rotate(180deg);
 }
 
 [data-scope="select"][data-part="positioner"][data-positioned] {
@@ -145,6 +197,12 @@ const SELECT_GOLDEN_CSS: &str = r#"[data-scope="select"][data-part="root"] {
   left: 0;
   margin-top: 0;
   transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
+}
+
+@media (hover: hover) {
+  [data-scope="select"][data-part="trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 

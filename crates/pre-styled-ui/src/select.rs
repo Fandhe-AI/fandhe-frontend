@@ -73,9 +73,54 @@
 //! ある `root` に付与する（PR #575 Bugbot 指摘 2 対応、`control` への誤付与を
 //! 修正）。
 
+//!
+//! # 担当パートの是正（イシュー #1501、親 #1500 の 1/2 分割。`control` /
+//! `trigger` / `value-text` / `indicator` のみ担当）
+//!
+//! 親イシュー #1500 の 7 軸チェックリスト（サイズ / バリアント / 色 / 状態 /
+//! ダーク / フォーカス / 余白・角丸・影 + hover / disabled / トランジション）
+//! に対し、本イシューが担当 4 パートで実施した是正・意図的に合わせなかった
+//! 点を記録する（`content`/`item`/`item-group`/`item-indicator` は 2/2
+//! （#1502）の担当のため触れていない）。
+//!
+//! - **`trigger`**: `border-radius` の生リテラル（`0.375rem`）を
+//!   `var(--fandhe-radius-md)` へトークン化（値は同一、外観不変。
+//!   date-picker 1/3 と同じ判断）。[`crate::recipe::hover_bg_muted`] +
+//!   [`crate::recipe::StateCondition::Hover`] で hover 背景、
+//!   [`crate::recipe::disabled_declarations`] +
+//!   `StateCondition::Attr("data-disabled")` で disabled 視覚反映、
+//!   [`crate::recipe::transition_declarations`] で `border-color,
+//!   background, color` の遷移を追加した。`:focus-visible` の直書き
+//!   outline 2 宣言は [`crate::recipe::focus_ring_declarations`]
+//!   （`FocusRingColor::Token`。select は `ColorPalette` 軸を持たないため）
+//!   へ置換した。
+//! - **`value-text`**: headless 層が付与する `data-placeholder-shown`
+//!   （プレースホルダ表示中）の視覚差（muted 色）を追加した。加えて
+//!   トリガー幅を超える長い選択値のための truncation
+//!   （`white-space: nowrap` + `overflow: hidden` + `text-overflow:
+//!   ellipsis` + `min-width: 0`）を新設した（参照サイトの valueText 相当）。
+//! - **`indicator`**: 開閉 `data-state` に応じたシェブロン回転
+//!   （`transform: rotate(180deg)`、accordion `item-indicator` と同型）と
+//!   そのための `display: inline-block`・muted 色・transition を新設した
+//!   （本イシュー以前は base 宣言ゼロだった）。
+//! - **`control`（意図的に大きな変更を加えなかった判断）**: select の実
+//!   フィールドは `trigger` 自身であり、`control` は `positioner` との
+//!   containing block 分離のためだけに存在する薄い兄弟ラッパー
+//!   （headless `root` の子、モジュール冒頭「hidden-select の視覚的非表示化」
+//!   節参照）。そのため hover/disabled/focus の実適用先は `trigger` へ
+//!   集約し、`control` 自体には追加しなかった（combobox の `control`
+//!   がテキスト入力を直接持つのとは構造が異なるための判断）。
+//! - **`size` variant 軸**: 既存の Xs〜Xl 5 段（イシュー #729）を変更なし
+//!   で維持。参照サイト固有の追加 variant 名は本イシューの担当範囲に
+//!   含めていない（必要なら親イシュー #1500 側で判断）。
+
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
+};
 
 // headless 自由関数 `root`・状態機械 `Select` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。未スタイル・
@@ -136,13 +181,48 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl(
                     "padding",
                     "var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
                 ),
                 decl("cursor", "pointer"),
+                hover_bg_muted(),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結される
+        // （date-picker 1/3、combobox 1/2 と同型のパターン、イシュー #1501）。
+        .base(
+            "trigger",
+            transition_declarations("border-color, background, color", MotionDuration::Fast),
+        )
+        .base(
+            "value-text",
+            vec![
+                // トリガー幅を超える長い選択値をトリガー内へ収める
+                // truncation（参照サイトの valueText 相当、イシュー #1501）。
+                // flex 子（`trigger` は `display: flex`）で ellipsis を効かせる
+                // には `min-width: 0` の明示が必要（初期値 `auto` のままだと
+                // コンテンツ幅ぶん縮まず overflow が発生しない）。
+                decl("min-width", "0"),
+                decl("white-space", "nowrap"),
+                decl("overflow", "hidden"),
+                decl("text-overflow", "ellipsis"),
+            ],
+        )
+        .base(
+            "indicator",
+            vec![
+                // `transform: rotate()` を効かせるための display
+                // （[`crate::accordion`] の `item-indicator` と同じ根拠、
+                // モジュール rustdoc「担当パートの是正」節参照）。
+                decl("display", "inline-block"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+            ],
+        )
+        .base(
+            "indicator",
+            transition_declarations("transform", MotionDuration::Fast),
         )
         .base(
             "positioner",
@@ -233,14 +313,50 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-accent-fg)"),
             ],
         )
-        // イシュー #643: `trigger` はキーボード操作時のみのフォーカスリング。
+        // イシュー #643 → #1501 で canonical ヘルパへ置換: `trigger` は
+        // キーボード操作時のみのフォーカスリング。select は palette 軸を
+        // 持たないため `FocusRingColor::Token`（date-picker 1/3・combobox
+        // 1/2 と同じ選択、モジュール rustdoc「担当パートの是正」節参照）。
         .state(
             "trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // イシュー #1501: headless `trigger`（`crates/headless-ui/src/
+        // select.rs`）が `disabled` 属性と対で付与する `data-disabled` を
+        // 消費する（combobox 1/2・date-picker 1/3 と同型）。
+        .state(
+            "trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // イシュー #1501: trigger の hover 実適用（`--fandhe-hover-bg` の
+        // 間接参照経由。`@media (hover: hover)` + `:not([data-disabled])`
+        // は `Hover` 側が自動付与する、モジュール rustdoc「担当パートの
+        // 是正」節参照）。
+        .state(
+            "trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        // イシュー #1501: headless `value_text`（`crates/headless-ui/src/
+        // select.rs`）が付与する `data-placeholder-shown` を消費し、
+        // プレースホルダ表示中は muted 色にする（editable `preview` の
+        // 同属性処理〔`crate::editable`〕と同型）。
+        .state(
+            "value-text",
+            StateCondition::Attr("data-placeholder-shown"),
+            vec![decl("color", "var(--fandhe-color-fg-muted)")],
+        )
+        // イシュー #1501: headless `indicator`（`crates/headless-ui/src/
+        // select.rs`）が開閉状態を反映する `data-state` を消費し、開いて
+        // いる間はシェブロンを反転させる（accordion `item-indicator` の
+        // `data-state="open"` 規則と同型、モジュール rustdoc「担当パート
+        // の是正」節参照）。
+        .state(
+            "indicator",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("transform", "rotate(180deg)")],
         )
         // イシュー #663: wasm 層が `data-positioned` マーカーを付与したら
         // 確定座標（viewport 座標系の `position: fixed`）へ切り替える
@@ -483,11 +599,90 @@ mod tests {
     fn item_highlighted_attr_is_styled_and_trigger_has_focus_visible_ring() {
         // イシュー #643 受け入れ条件: virtual focus の highlight 表示
         // （`data-highlighted`）とキーボード操作系属性（`:focus-visible`）が
-        // recipe 経由で反映されることを固定する。
+        // recipe 経由で反映されることを固定する。イシュー #1501 で
+        // `trigger` の focus ring を canonical ヘルパ
+        // （[`crate::recipe::focus_ring_declarations`]）へ置換したため、
+        // 期待値をトークン参照形へ更新した。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="select"][data-part="item"][data-highlighted] {"#));
         assert!(css.contains(r#"[data-scope="select"][data-part="trigger"]:focus-visible {"#));
-        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+    }
+
+    // --- イシュー #1501: trigger / value-text / indicator のスタイル調整 ---
+
+    #[test]
+    fn trigger_border_radius_uses_radius_md_token() {
+        // radius トークン化（外観不変、date-picker 1/3 と同じ判断）。
+        // `content`/`item`（2/2・#1502 の担当）は本イシューの対象外のため
+        // 生リテラルのまま残り得る点に注意し、`trigger` ブロックのみを
+        // 切り出して検証する。
+        let css = stylesheet();
+        let trigger_start = css
+            .find(r#"[data-scope="select"][data-part="trigger"] {"#)
+            .expect("trigger base rule must exist");
+        let trigger_block_end = css[trigger_start..]
+            .find(
+                "}
+",
+            )
+            .map(|idx| trigger_start + idx)
+            .expect("trigger base rule must be closed");
+        let trigger_block = &css[trigger_start..trigger_block_end];
+        assert!(trigger_block.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(!trigger_block.contains("border-radius: 0.375rem;"));
+    }
+
+    #[test]
+    fn trigger_disabled_attr_is_styled() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="select"][data-part="trigger"][data-disabled] {"#));
+        assert!(css.contains("opacity: 0.5;"));
+        assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn trigger_hover_rule_is_scoped_to_hover_capable_devices_and_excludes_disabled() {
+        // `StateCondition::Hover` は `@media (hover: hover)` 配下へ集約され
+        // `:not([data-disabled])` を自動付与する（`crate::recipe` 契約、
+        // モジュール rustdoc「担当パートの是正」節参照）。
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css
+            .contains(r#"[data-scope="select"][data-part="trigger"]:hover:not([data-disabled])"#));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+    }
+
+    #[test]
+    fn trigger_has_transition_declarations() {
+        let css = stylesheet();
+        assert!(css.contains("transition-property: border-color, background, color;"));
+    }
+
+    #[test]
+    fn value_text_truncates_and_reflects_placeholder_shown() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="select"][data-part="value-text"] {"#));
+        assert!(css.contains("white-space: nowrap;"));
+        assert!(css.contains("overflow: hidden;"));
+        assert!(css.contains("text-overflow: ellipsis;"));
+        assert!(css.contains(
+            r#"[data-scope="select"][data-part="value-text"][data-placeholder-shown] {"#
+        ));
+        assert!(css.contains("color: var(--fandhe-color-fg-muted);"));
+    }
+
+    #[test]
+    fn indicator_rotates_when_open() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="select"][data-part="indicator"] {"#));
+        assert!(css.contains("display: inline-block;"));
+        assert!(
+            css.contains(r#"[data-scope="select"][data-part="indicator"][data-state="open"] {"#)
+        );
+        assert!(css.contains("transform: rotate(180deg);"));
     }
 
     #[test]
