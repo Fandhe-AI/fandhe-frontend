@@ -1,5 +1,7 @@
 //! styled Slider の決定的 CSS 出力ゴールデンテスト（イシュー #1505:
-//! トラック・レンジ・サムのスタイル調整、親トラッキング #1504 の 1/2）。
+//! トラック・レンジ・サムのスタイル調整〔親トラッキング #1504 の 1/2〕・
+//! イシュー #1506: マーカー・ラベル・値テキストと orientation 2 方向
+//! 〔#1504 の 2/2〕）。
 //!
 //! `crates/pre-styled-ui/tests/angle_slider_css.rs`（イシュー #1445/#1446、
 //! 親 #1444）の golden fixture テストの前例に倣い、`stylesheet()` が返す
@@ -8,23 +10,23 @@
 //! golden テストが即座に検知する。
 //!
 //! 期待値は `crates/pre-styled-ui/src/slider.rs::recipe` の実出力から
-//! 生成した（#1505 のトラック/レンジ/サムの是正を反映済み）。marker/
-//! label/value-text の是正・orientation 状態規則の再設計は姉妹イシュー
-//! #1506（親 #1504 の 2/2）の担当のため、本 golden は #1505 完了時点の
-//! 出力を固定する。
+//! 生成した（#1505 のトラック/レンジ/サムの是正・#1506 のラベル/
+//! 値テキストの型階層・thumb vertical 状態規則の方向逆転修正を反映済み。
+//! #1504 の 2 分割はいずれも完了済み）。
 
 use fandhe_frontend_pre_styled_ui::slider;
 
 /// `slider::stylesheet()` の期待値（バイト完全一致）。
 ///
 /// 出力順は `SlotRecipe::css`（`crates/pre-styled-ui/src/recipe.rs`）の
-/// 契約どおり「base（登録順: root → root disabled state → label → control
-/// → control vertical state → track → track vertical state → range →
-/// range vertical state → thumb → thumb vertical state → thumb disabled
-/// state → thumb transition base）→ variants（登録順: size → color-palette）
-/// → states（登録順: root disabled → control vertical → track vertical →
-/// range vertical → thumb vertical → thumb disabled → thumb focus-visible
-/// → thumb hover）」。
+/// 契約どおり「base（登録順: root → root disabled state → label →
+/// value-text → control → control vertical state → track → track
+/// vertical state → range → range vertical state → thumb → thumb
+/// vertical state → thumb disabled state → thumb transition base）→
+/// variants（登録順: size → color-palette）→ states（登録順: root
+/// disabled → control vertical → track vertical → range vertical →
+/// thumb vertical → thumb disabled → thumb focus-visible → thumb
+/// hover）」。
 const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
   display: inline-flex;
   flex-direction: column;
@@ -33,6 +35,9 @@ const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
 
 [data-scope="slider"][data-part="label"] {
   font-size: var(--fandhe-font-font-size-sm);
+  font-weight: var(--fandhe-font-font-weight-medium);
+  color: var(--fandhe-color-fg);
+  line-height: var(--fandhe-font-line-height-normal);
 }
 
 [data-scope="slider"][data-part="control"] {
@@ -80,6 +85,13 @@ const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
   transition-property: background, border-color, box-shadow;
   transition-duration: var(--fandhe-motion-duration-fast);
   transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="slider"][data-part="value-text"] {
+  font-size: var(--fandhe-font-font-size-sm);
+  color: var(--fandhe-color-fg-muted);
+  line-height: var(--fandhe-font-line-height-normal);
+  font-variant-numeric: tabular-nums;
 }
 
 [data-scope="slider"][data-part="root"].fd-slider--size-xs {
@@ -185,9 +197,10 @@ const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
 }
 
 [data-scope="slider"][data-part="thumb"][data-orientation="vertical"] {
-  top: var(--fandhe-slider-percent, 0%);
+  top: auto;
+  bottom: var(--fandhe-slider-percent, 0%);
   left: 50%;
-  bottom: auto;
+  transform: translate(-50%, 50%);
 }
 
 [data-scope="slider"][data-part="thumb"][data-disabled] {
