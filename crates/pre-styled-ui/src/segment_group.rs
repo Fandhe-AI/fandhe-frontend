@@ -84,6 +84,50 @@
 //! いずれも Md サイズ相当のフォールバック値を書き、styled `root` を経由しない
 //! headless 直接利用マークアップでも既定外観を維持する（fail-safe）。
 //!
+//! # スタイル調整（イシュー #1499、親 #1497 分割 2/2）
+//!
+//! 分割 1/2（#1498）のインジケータ幾何是正に続き、残りの size /
+//! orientation バリアントと項目ラベル（item-text）の型階層を親イシュー
+//! #1497 の 7 軸チェックリストに沿って調整した。
+//!
+//! - **size バリアントの一括登録化**: 5 連の
+//!   `.variant(Size::*, "root", ...)` + 末尾 `.default_variant(Size::Md)`
+//!   を [`crate::recipe::SlotRecipe::size_variants`]（イシュー #1424 の
+//!   共通生成手段、`crate::radio_group`/`crate::checkbox` と同型）へ
+//!   置換した。既定 `md` の設定漏れを構造的に防ぐ（規約は `docs/design/
+//!   pre-styled-ui-focus-ring-and-size-conventions.md` §4）。5 段の宣言値
+//!   （font-size / padding-block / padding-inline）は既に単調で 2px/4px
+//!   格子に載っており是正対象がないため現状維持とした。
+//! - **項目ラベル（item-text）の型階層**: 未選択項目を
+//!   `var(--fandhe-color-fg-muted)`、選択項目を `var(--fandhe-color-fg)`
+//!   の 2 段階へ是正した（参照 3 サイト中 chakra-ui / Radix Themes は
+//!   選択項目を中立色で表現しており、accent 色採用は ark-ui のみ。本節
+//!   冒頭「選択状態は色ではなく indicator の移動 + 文字の強調で表現する」
+//!   という既存の設計宣言とも整合する）。あわせて生 `font-weight: 600`
+//!   リテラルを廃し、全項目へ `font-weight: var(--fandhe-font-font-weight-
+//!   medium)` を付与した（選択の強調は色差 + indicator が担う）。
+//!   `line-height: var(--fandhe-font-line-height-normal)` と
+//!   `user-select: none`（`<label>` クリックでの選択トグルに伴う誤選択
+//!   防止）は [`crate::radio_group`]/[`crate::checkbox_group`] の
+//!   item-text と同型で追加した。
+//! - **orientation**: vertical の CSS（root `flex-direction: column`・
+//!   indicator の translateY 対称形）は #1498 で成立済みのため変更して
+//!   いない。本イシューの担当は docs-site showcase での可視化に留まる。
+//!
+//! **本イシューで意図的に合わせなかった点**
+//! （`.claude/rules/code-comment-style.md`）:
+//!
+//! - **項目の等幅（`flex: 1`）を chakra の content-width に合わせない**:
+//!   indicator の CSS 変数幾何（`width = (root 内側幅) / count`・
+//!   `translateX(100% * index)`）が全項目等幅を前提とするため。
+//!   content-width 化は indicator 位置決めの再設計（JS 計測）を要し、
+//!   無 JS・決定的 SSR の設計前提と衝突する。
+//! - **size 5 段（xs〜xl）を chakra 4 段（xs〜lg）/ Radix Themes 3 段
+//!   （1〜3）に揃えない**: 本リポジトリの Forms 部品共通の 5 段語彙
+//!   （`pre-styled-ui-focus-ring-and-size-conventions.md` §4）を優先する。
+//! - **vertical orientation での項目テキスト左寄せ化は行わない**（中央
+//!   揃えを維持）: 参照サイトに明確な根拠が確認できなかったため。
+//!
 //! # セキュリティ不変条件
 //!
 //! 本モジュールは headless 層の再エクスポートと静的 CSS 生成のみで構成され、
@@ -270,23 +314,31 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-focus-visible"),
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
+        // イシュー #1499: 未選択 muted / 選択 fg の 2 段階の型階層へ是正
+        // （参照 3 サイト中 chakra-ui / Radix Themes は選択項目を中立色で
+        // 表現しており、本モジュール冒頭 rustdoc の「選択状態は色ではなく
+        // indicator の移動 + 文字の強調で表現する」宣言とも整合する）。
+        // `font-weight: medium` は全項目へ付与し（chakra 相当）、選択の
+        // 強調は色差 + indicator が担う。`line-height`/`user-select` は
+        // `crate::radio_group`/`crate::checkbox_group` の item-text と同型
+        // （`<label>` クリックでの誤選択防止）。
         .base(
             "item-text",
             vec![
-                decl("color", "var(--fandhe-color-fg)"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
                 decl(
                     "font-size",
                     "var(--fandhe-segment-group-font-size, var(--fandhe-font-font-size-sm))",
                 ),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+                decl("user-select", "none"),
             ],
         )
         .state(
             "item-text",
             StateCondition::AttrEq("data-state", "checked"),
-            vec![
-                decl("font-weight", "600"),
-                decl("color", "var(--fandhe-color-accent)"),
-            ],
+            vec![decl("color", "var(--fandhe-color-fg)")],
         )
         .base(
             "item-hidden-input",
@@ -302,61 +354,74 @@ fn recipe() -> SlotRecipe {
                 decl("border", "0"),
             ],
         )
-        .variant(
-            Size::Xs,
+        // イシュー #1499: 5 連の `.variant(Size::*, "root", ...)` +
+        // 末尾 `.default_variant(Size::Md)` の手書きから、共通生成手段
+        // `size_variants`（イシュー #1424、`crate::radio_group`/
+        // `crate::checkbox` と同型）へ置換した。既定 `md` の設定漏れを
+        // 構造的に防ぐ（`docs/design/
+        // pre-styled-ui-focus-ring-and-size-conventions.md` §4）。宣言値
+        // （font-size / padding-block / padding-inline）は現状維持（既に
+        // 単調で 2px/4px 格子に載っており是正対象がない）。
+        .size_variants(
             "root",
-            vec![
-                decl("--fandhe-segment-group-font-size", "var(--fandhe-font-font-size-xs)"),
-                decl("--fandhe-segment-group-padding-block", "0.125rem"),
-                decl("--fandhe-segment-group-padding-inline", "0.25rem"),
-            ],
-        )
-        .variant(
-            Size::Sm,
-            "root",
-            vec![
-                decl(
-                    "--fandhe-segment-group-font-size",
-                    "var(--fandhe-font-font-size-sm)",
+            &[
+                (
+                    Size::Xs,
+                    vec![
+                        decl(
+                            "--fandhe-segment-group-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                        decl("--fandhe-segment-group-padding-block", "0.125rem"),
+                        decl("--fandhe-segment-group-padding-inline", "0.25rem"),
+                    ],
                 ),
-                decl("--fandhe-segment-group-padding-block", "0.25rem"),
-                decl("--fandhe-segment-group-padding-inline", "0.5rem"),
-            ],
-        )
-        .variant(
-            Size::Md,
-            "root",
-            vec![
-                decl(
-                    "--fandhe-segment-group-font-size",
-                    "var(--fandhe-font-font-size-sm)",
+                (
+                    Size::Sm,
+                    vec![
+                        decl(
+                            "--fandhe-segment-group-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-segment-group-padding-block", "0.25rem"),
+                        decl("--fandhe-segment-group-padding-inline", "0.5rem"),
+                    ],
                 ),
-                decl("--fandhe-segment-group-padding-block", "0.375rem"),
-                decl("--fandhe-segment-group-padding-inline", "0.75rem"),
-            ],
-        )
-        .variant(
-            Size::Lg,
-            "root",
-            vec![
-                decl(
-                    "--fandhe-segment-group-font-size",
-                    "var(--fandhe-font-font-size-md)",
+                (
+                    Size::Md,
+                    vec![
+                        decl(
+                            "--fandhe-segment-group-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-segment-group-padding-block", "0.375rem"),
+                        decl("--fandhe-segment-group-padding-inline", "0.75rem"),
+                    ],
                 ),
-                decl("--fandhe-segment-group-padding-block", "0.5rem"),
-                decl("--fandhe-segment-group-padding-inline", "1rem"),
+                (
+                    Size::Lg,
+                    vec![
+                        decl(
+                            "--fandhe-segment-group-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                        decl("--fandhe-segment-group-padding-block", "0.5rem"),
+                        decl("--fandhe-segment-group-padding-inline", "1rem"),
+                    ],
+                ),
+                (
+                    Size::Xl,
+                    vec![
+                        decl(
+                            "--fandhe-segment-group-font-size",
+                            "var(--fandhe-font-font-size-lg)",
+                        ),
+                        decl("--fandhe-segment-group-padding-block", "0.625rem"),
+                        decl("--fandhe-segment-group-padding-inline", "1.25rem"),
+                    ],
+                ),
             ],
         )
-        .variant(
-            Size::Xl,
-            "root",
-            vec![
-                decl("--fandhe-segment-group-font-size", "var(--fandhe-font-font-size-lg)"),
-                decl("--fandhe-segment-group-padding-block", "0.625rem"),
-                decl("--fandhe-segment-group-padding-inline", "1.25rem"),
-            ],
-        )
-        .default_variant(Size::Md)
 }
 
 /// この styled SegmentGroup が生成する静的 CSS 全量を返す（決定的。
@@ -508,12 +573,60 @@ mod tests {
     }
 
     #[test]
-    fn checked_item_text_gets_emphasis() {
+    fn checked_item_text_gets_type_hierarchy_emphasis() {
+        // イシュー #1499: 選択の強調は色（中立 fg）で表現し、生の
+        // `font-weight: 600` リテラルは使わない（未選択は `fg-muted`、
+        // 選択は `fg` の 2 段階。ark-ui のみが accent 色を採用するが
+        // chakra-ui / Radix Themes は中立色であり、本モジュール冒頭
+        // rustdoc の設計宣言とも整合する）。
         let css = stylesheet();
         assert!(css.contains(
             r#"[data-scope="segment-group"][data-part="item-text"][data-state="checked"]"#
         ));
-        assert!(css.contains("font-weight: 600;"));
+        let checked_body = extract_rule_body(
+            &css,
+            r#"[data-scope="segment-group"][data-part="item-text"][data-state="checked"] {"#,
+        );
+        assert!(checked_body.contains("color: var(--fandhe-color-fg);"));
+        assert!(!checked_body.contains("font-weight:"));
+        // フォーカスリングのフォールバック（`focus_ring_declarations`）は
+        // `--fandhe-color-accent` を経由し続けるため、checked 規則本体
+        // （上で抜き出した `checked_body`）に限定して accent 色不使用を
+        // 確認する。
+        assert!(!checked_body.contains("var(--fandhe-color-accent)"));
+    }
+
+    #[test]
+    fn item_text_base_gets_muted_color_and_type_hierarchy_declarations() {
+        // イシュー #1499: 未選択項目は `fg-muted`（型階層の下段）。
+        // `font-weight: medium`・`line-height: normal`・`user-select: none`
+        // は `crate::radio_group`/`crate::checkbox_group` の item-text と
+        // 同型（`<label>` クリックでの誤選択防止）。
+        let css = stylesheet();
+        let base_body = extract_rule_body(
+            &css,
+            r#"[data-scope="segment-group"][data-part="item-text"] {"#,
+        );
+        assert!(base_body.contains("color: var(--fandhe-color-fg-muted);"));
+        assert!(base_body.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
+        assert!(base_body.contains("line-height: var(--fandhe-font-line-height-normal);"));
+        assert!(base_body.contains("user-select: none;"));
+    }
+
+    /// `selector {` からその直後の最初の `}` までの規則本体を抜き出す
+    /// （テスト専用ヘルパ。複数セレクタが同一先頭文字列を部分一致するのを
+    /// 避けるため、`checked_item_text_gets_type_hierarchy_emphasis` と
+    /// `item_text_base_gets_muted_color_and_type_hierarchy_declarations`
+    /// が個別ルールの宣言集合を厳密に検証する目的で使う）。
+    fn extract_rule_body<'a>(css: &'a str, selector_with_brace: &str) -> &'a str {
+        let start = css
+            .find(selector_with_brace)
+            .unwrap_or_else(|| panic!("selector not found: {selector_with_brace}"))
+            + selector_with_brace.len();
+        let end = css[start..]
+            .find('}')
+            .unwrap_or_else(|| panic!("closing brace not found after: {selector_with_brace}"));
+        &css[start..start + end]
     }
 
     #[test]

@@ -4082,18 +4082,31 @@ fn editable_section() -> Node {
     )
 }
 
-/// SegmentGroup 節（イシュー #743）: 既定（選択済み）・disabled・Size 3 種の
-/// 静的掲示。状態機械（[`fandhe_frontend_pre_styled_ui::segment_group::SegmentGroup`]、
+/// SegmentGroup 節（イシュー #743）: 既定（選択済み）・disabled・Size 5 種・
+/// vertical orientation の静的掲示。状態機械
+/// （[`fandhe_frontend_pre_styled_ui::segment_group::SegmentGroup`]、
 /// `radio_group::RadioGroup` への全委譲）は使わず、他の docs-site 節と同じく
 /// SSR 静的マークアップのみを組み立てる（本モジュール冒頭「インタラクティブ
 /// 部品の扱い」節参照）。indicator の位置は選択項目の `(index, count)` から
 /// 手計算で `segment_group::indicator` へ渡す（headless 層の SSR 決定的な
 /// 位置表現契約、`crates/headless-ui/src/segment_group.rs` module doc 参照）。
-fn segment_group_demo(id_prefix: &str, size: Size, disabled: bool, selected_index: usize) -> Node {
+///
+/// `orientation` はイシュー #1499 で追加した引数（既存呼び出しは `None` を
+/// 渡し現行の horizontal 出力を維持する）。`indicator`/`root` 双方へ同じ
+/// 値を渡す必要がある（`root` の `data-orientation` と `indicator` の CSS
+/// 変数幾何〔translateY 対称形〕が対で成立する契約、`segment_group.rs`
+/// 冒頭 rustdoc「Indicator の位置表現とスタイル連動」節参照）。
+fn segment_group_demo(
+    id_prefix: &str,
+    size: Size,
+    disabled: bool,
+    selected_index: usize,
+    orientation: Option<Orientation>,
+) -> Node {
     let items = ["List", "Grid", "Table"];
     let mut children = vec![segment_group::indicator(
         Some((selected_index, items.len())),
-        None,
+        orientation,
         vec![],
     )];
     children.extend(items.iter().enumerate().map(|(index, label)| {
@@ -4117,20 +4130,40 @@ fn segment_group_demo(id_prefix: &str, size: Size, disabled: bool, selected_inde
             ],
         )
     }));
-    segment_group::root(size, disabled, None, None, vec![], children)
+    segment_group::root(size, disabled, orientation, None, vec![], children)
 }
 
 fn segment_group_section() -> Node {
-    let size_row = row(vec![
-        segment_group_demo("showcase-segment-sm", Size::Sm, false, 0),
-        segment_group_demo("showcase-segment-md", Size::Md, false, 1),
-        segment_group_demo("showcase-segment-lg", Size::Lg, false, 2),
-    ]);
-    let disabled_demo = segment_group_demo("showcase-segment-disabled", Size::Md, true, 0);
+    // イシュー #1499: size 5 段（xs〜xl）で padding・font-size が単調に
+    // 連動することを視覚確認できる行（`radio_group` #1495 の `size_row` と
+    // 同型）。
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .iter()
+        .enumerate()
+        .map(|(index, size)| {
+            segment_group_demo(
+                &format!("showcase-segment-size-{}", size.value()),
+                *size,
+                false,
+                index % 3,
+                None,
+            )
+        })
+        .collect());
+    let disabled_demo = segment_group_demo("showcase-segment-disabled", Size::Md, true, 0, None);
+    // イシュー #1499: vertical orientation（indicator の translateY 幾何と
+    // column レイアウト）を可視化するデモ。
+    let vertical_demo = segment_group_demo(
+        "showcase-segment-vertical",
+        Size::Md,
+        false,
+        1,
+        Some(Orientation::Vertical),
+    );
     section(
         "SegmentGroup",
         "単一選択のセグメント UI（segmented control）。ネイティブ input[type=\"radio\"] による排他選択を data-scope=\"segment-group\" の anatomy へ重ね、選択中の項目を indicator の CSS 変数（--fandhe-segment-group-index/-count）で示します。状態機械は RadioGroup（SingleSelect）への全委譲です。",
-        vec![size_row, disabled_demo],
+        vec![size_row, disabled_demo, vertical_demo],
     )
 }
 
