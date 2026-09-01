@@ -3,9 +3,15 @@ name = "fandhe-frontend-headless-ui"
 # イシュー #1388: fandhe-frontend-core 0.4.3 依存追随（check-dep-versions --fix）に伴う patch バンプ。
 # イシュー #1741: `CheckboxGroup` へ `disabled` フィールド・
 # `set_disabled`/`with_disabled`/`is_disabled`/`item_effective_disabled`/
-# `root`/`item_hidden_input` の新規公開 API を追加（root disabled の
+# `item_hidden_input` の新規公開 API を追加（root disabled の
 # item 系利便メソッドへの一貫伝播）。既存メソッドのシグネチャは不変（内部
 # 計算のみ変更）のため非破壊的追加、patch バンプとして 0.28.6 から 0.28.7 とする。
+# （PR #1760 codex-review P1 是正: 当初は `root` inherent メソッドも
+# 追加していたが、`fandhe-frontend-pre-styled-ui` が同名型 `CheckboxGroup`
+# を再エクスポートしているため、inherent メソッドが再エクスポート先の
+# 拡張トレイトを不可視に隠し、styled `root` を取りこぼす経路になり得る
+# 破壊的変更だった。この追加は撤回済み（`crates/headless-ui/src/checkbox_group.rs`
+# 参照）で、残る追加分のみが非破壊的な patch バンプ対象である。）
 # イシュー #1481（画像 image-cropper 2/2）: `image_cropper::image` の
 # 既定 `draggable="false"` 付与に伴い patch バンプで独立に 0.28.7 へ
 # 到達していた main とのマージにより、双方の実体変更を統合した結果として

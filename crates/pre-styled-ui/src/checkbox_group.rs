@@ -16,20 +16,26 @@
 //! [`item_text`]/[`CheckboxGroup`]/[`DATA_STATE_CHECKED`]/
 //! [`DATA_STATE_UNCHECKED`]）のみを選択的に再エクスポートする。
 //!
-//! [`CheckboxGroup`] 状態機械は、当初（[`crate::radio_group`] の
-//! `RadioGroup` と同じ非対称処理により）inherent `root()` を持たなかった
-//! ため、そのまま再エクスポートしても未スタイル `root` の静かな適用漏れは
-//! 発生しなかった。**イシュー #1741 で headless 側に root disabled 伝播の
-//! 利便メソッド [`fandhe_frontend_headless_ui::checkbox_group::CheckboxGroup::root`]
-//! が新設されたため、この前提はもう成立しない**（イシュー #1760 レビュー
-//! 指摘）: 再エクスポートした型の inherent `root()` は headless 自由関数
-//! `root()` をそのまま呼ぶため `size`/`palette` の styled クラスを持たず、
-//! `fandhe_frontend_pre_styled_ui::checkbox_group::CheckboxGroup` 経由で
-//! `.root(...)` を呼ぶ styled クレート利用者はグループスタイルを取りこぼす。
-//! この経路を塞ぐため、本モジュールは [`CheckboxGroupStyledRoot`]
-//! 拡張トレイトで styled 版の便利メソッド [`CheckboxGroupStyledRoot::styled_root`]
-//! を提供する。状態機械経由で styled root を組み立てる場合は
-//! headless inherent `root()` ではなく必ず `styled_root()` を呼ぶこと。
+//! [`CheckboxGroup`] 状態機械は（[`crate::radio_group`] の `RadioGroup` と
+//! 同じ非対称処理により）inherent `root()` を持たない。そのため
+//! そのまま再エクスポートしても未スタイル `root` の静かな適用漏れは
+//! 発生しない。**イシュー #1741 の当初実装では headless 側に root disabled
+//! 伝播の利便メソッドとして inherent `CheckboxGroup::root()` を新設して
+//! いたが、この設計は撤回した**（イシュー #1760 codex-review P1 指摘）:
+//! 再エクスポートした型に inherent `root()` が存在すると、Rust の名前解決
+//! 規則上メソッド構文の呼び出しは常に inherent メソッドを優先するため、
+//! 本モジュールがどんな拡張トレイトを用意しても
+//! `fandhe_frontend_pre_styled_ui::checkbox_group::CheckboxGroup` 経由の
+//! `.root(...)` 呼び出しを styled 版へ差し替えることができず、`size`/
+//! `palette` の styled クラスを取りこぼす未スタイル `root` が静かに呼べて
+//! しまう（拡張トレイトはメソッド解決の優先順位で inherent メソッドに
+//! 敗れるため、この経路を構造的に塞げない）。この教訓により、
+//! `CheckboxGroup` へ `root`/`item`/`item_control` 等と同名の inherent
+//! メソッドを新設する変更は、名前が衝突する層をまたいだ styled 版の
+//! 有無を確認してから行う（`headless-ui` 側の変更で `pre-styled-ui` の
+//! 契約が壊れ得るため）。状態機械経由で styled root を組み立てる場合は
+//! [`CheckboxGroupStyledRoot`] 拡張トレイトの
+//! [`CheckboxGroupStyledRoot::styled_root`] を呼ぶこと。
 //!
 //! # `item-hidden-input` を本モジュールが持たない理由（`checkbox::stylesheet()` 併用が必須）
 //!
@@ -708,12 +714,9 @@ pub fn root<'a>(
 }
 
 /// [`CheckboxGroup`] 状態機械経由で styled root パーツを組み立てるための
-/// 拡張トレイト（イシュー #1760 レビュー指摘の回帰固定、モジュール doc
-/// 「選択的 re-export」節参照）。headless 側 inherent `root()`
-/// （`self.is_disabled()` のみ注入し `size`/`palette` の styled クラスを
-/// 持たない）を re-export 経由で誤って呼んでしまう経路を塞ぎ、本モジュール
-/// の [`root`] 関数（styled 版）へ委譲する唯一の状態機械経由の入口を提供
-/// する。
+/// 拡張トレイト（モジュール doc「選択的 re-export」節参照）。`disabled` を
+/// `self.is_disabled()` から自動注入し、本モジュールの [`root`] 関数
+/// （styled 版）へ委譲する状態機械経由の入口を提供する。
 pub trait CheckboxGroupStyledRoot {
     /// styled root パーツを組み立てる（[`root`] 関数と同じ実体。disabled
     /// は `self.is_disabled()` から自動注入する）。
@@ -1238,9 +1241,9 @@ mod tests {
 
     #[test]
     fn checkbox_group_styled_root_applies_size_and_palette_classes() {
-        // イシュー #1760 レビュー指摘の回帰固定: 状態機械経由の styled root
-        // 組み立ては headless inherent `root()`（styled クラスなし）ではなく
-        // `styled_root()` を通す必要がある。
+        // `styled_root()`（[`CheckboxGroupStyledRoot`]）経由の状態機械
+        // 組み立てが、`disabled` の自動注入込みで自由関数 [`root`] 直接
+        // 呼び出しと同じ出力になることを固定する。
         let g = CheckboxGroup::default();
         let via_state =
             render(&g.styled_root(Size::Lg, ColorPalette::Success, None, None, vec![], vec![]));

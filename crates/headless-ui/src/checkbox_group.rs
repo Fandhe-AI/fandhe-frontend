@@ -265,8 +265,7 @@ pub fn item_text<'a>(
 /// [`Self::is_checked`]/[`Self::item_checked_data_state`] が各項目値の
 /// チェック状態を決定し、各パーツ関数（[`item`]/[`item_control`]/
 /// [`item_indicator`]/[`item_text`]）へ注入する利便メソッドを提供する
-/// （[`Self::root`] を除き、[`label`] は状態非依存のため利便メソッドを持た
-/// ない）。SSR での自由関数直接利用（本型を経由しない構成）も引き続き
+/// （[`label`] は状態非依存のため利便メソッドを持たない）。SSR での自由関数直接利用（本型を経由しない構成）も引き続き
 /// 可能。`Default` は未選択・disabled=false（SSR の状態なし初期描画に
 /// 対応する既定値）。
 ///
@@ -346,20 +345,6 @@ impl CheckboxGroup {
     #[must_use]
     pub fn item_effective_disabled(&self, item_disabled: bool) -> bool {
         self.disabled || item_disabled
-    }
-
-    /// [`root`] へグループ全体の disabled 状態を注入する利便メソッド
-    /// （イシュー #1741。`orientation`/`labelled_by` は呼び出し側の関心の
-    /// ままパラメータとして受け取る）。
-    #[must_use]
-    pub fn root<'a>(
-        &self,
-        orientation: Option<Orientation>,
-        labelled_by: Option<&'a str>,
-        attrs: Vec<(&'a str, &'a str)>,
-        children: Vec<Node>,
-    ) -> Node {
-        root(self.disabled, orientation, labelled_by, attrs, children)
     }
 
     /// [`item`] へ項目 `value` の現在状態と実効 disabled を注入する
@@ -824,7 +809,7 @@ mod tests {
     fn checkbox_group_root_disabled_false_by_default() {
         let g = CheckboxGroup::default();
         assert!(!g.is_disabled());
-        let html = render(&g.root(None, None, vec![], vec![]));
+        let html = render(&root(g.is_disabled(), None, None, vec![], vec![]));
         assert!(!html.contains("data-disabled"));
     }
 
@@ -833,7 +818,7 @@ mod tests {
         let mut g = CheckboxGroup::default();
         g.set_disabled(true);
         assert!(g.is_disabled());
-        let html = render(&g.root(None, None, vec![], vec![]));
+        let html = render(&root(g.is_disabled(), None, None, vec![], vec![]));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
