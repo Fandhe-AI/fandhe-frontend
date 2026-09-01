@@ -1585,16 +1585,51 @@ fn demo_pin_input() -> Node {
 }
 
 fn demo_signature_pad() -> Node {
+    // イシュー #1503: 参考サイト（ark-ui signature-pad）のスクショと並べて
+    // 比較できるよう、label + control（segment/guide 込み）+ clear-trigger
+    // の通常例と disabled 例の 2 系統を並べる（従来は control が空の
+    // まま線 1 本しか見えず実態が伝わらなかった）。
     demo_section(
         "Signature Pad",
         "署名入力領域。`empty`（未署名）/`disabled` の 2 状態を持ち、`clear_trigger` で消去操作を提供する。",
-        signature_pad::root(
-            false,
-            true,
-            vec![],
+        el(
+            "div",
+            vec![("style", "display: flex; flex-direction: column; gap: 1.5rem;")],
             vec![
-                signature_pad::control(false, vec![], vec![]),
-                signature_pad::clear_trigger(false, vec![], vec![text("Clear")]),
+                signature_pad::root(
+                    false,
+                    true,
+                    vec![],
+                    vec![
+                        signature_pad::label(vec![], vec![text("Sign here")]),
+                        signature_pad::control(
+                            false,
+                            vec![],
+                            vec![
+                                signature_pad::segment(600, 200, Some("signature"), vec![], vec![]),
+                                signature_pad::guide(vec![], vec![]),
+                            ],
+                        ),
+                        signature_pad::clear_trigger(false, vec![], vec![text("Clear")]),
+                    ],
+                ),
+                signature_pad::root(
+                    true,
+                    true,
+                    vec![],
+                    vec![
+                        signature_pad::label(vec![], vec![text("Sign here (disabled)")]),
+                        signature_pad::control(
+                            true,
+                            vec![],
+                            vec![
+                                signature_pad::segment(600, 200, Some("signature"), vec![], vec![]),
+                                signature_pad::guide(vec![], vec![]),
+                            ],
+                        ),
+                        signature_pad::clear_trigger(true, vec![], vec![text("Clear")]),
+                    ],
+                ),
             ],
         ),
     )
