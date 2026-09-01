@@ -117,12 +117,14 @@
 //! - **操作性の表示宣言**: `viewport` へ `user-select: none` を追加。
 //!   `touch-action: none`（タッチでの crop 操作中にブラウザ既定のスクロール
 //!   /ピンチズームが介入しないよう意図表明）は当初 `viewport` 全体へ追加
-//!   していたが、対応する pointer/touch イベント配線（crop 矩形のドラッグ
-//!   操作）が headless 側スコープ外で未実装のまま viewport 全体へ常時適用
-//!   すると、operable な要素が無いままタッチデバイスのスクロール・ピンチ
-//!   ズームだけを恒常的に止める操作性/アクセシビリティ回帰になるため
-//!   （codex-review 指摘、イシュー #1481）、ドラッグ起点である
-//!   `selection`/`handle` パートへ限定適用するよう是正した。`image` へも
+//!   し、その後ドラッグ起点である `selection`/`handle` パートへ限定
+//!   適用するよう是正したが、対応する pointer/touch イベント配線（crop
+//!   矩形のドラッグ操作）が headless 側スコープ外で未実装のままである限り、
+//!   適用先を移すだけでは operable な要素が実際には無いのにタッチデバイス
+//!   のスクロール・ピンチズームだけを恒常的に止める同じ操作性/
+//!   アクセシビリティ回帰が解消されないため（codex-review 再指摘、イシュー
+//!   #1481）、`touch-action: none` の宣言自体を全パートから見送った。実
+//!   ドラッグ操作の実装後、当該配線と合わせて再導入を検討する。`image` へも
 //!   `user-select: none`（ネイティブのゴーストドラッグ・テキスト選択
 //!   抑止）を追加するが、`pointer-events: none` は付与しない（画像上から
 //!   の新規ドラッグ開始を将来の DOM 配線が使えるよう、操作起点を
@@ -267,13 +269,15 @@ fn recipe() -> SlotRecipe {
                 // 移行（rgba リテラル直書きの解消）。
                 decl("box-shadow", "0 0 0 9999px var(--fandhe-color-bg-overlay)"),
                 decl("cursor", "move"),
-                // タッチ操作抑止（イシュー #1481 codex-review 是正）:
-                // `selection` は crop 矩形の移動ドラッグの起点であるため、
-                // タッチデバイスでのドラッグ中にブラウザ既定のスクロール・
-                // ピンチズームが介入しないよう限定適用する（viewport 全体
-                // への適用は撤回、モジュール冒頭 rustdoc・`viewport` base
-                // 参照）。
-                decl("touch-action", "none"),
+                // `touch-action: none` は付与しない（イシュー #1481
+                // codex-review 再指摘）: `selection` は crop 矩形の移動
+                // ドラッグの起点だが、対応する pointer/touch イベント配線
+                // （ドラッグ操作の実装）は headless 側スコープ外で未実装の
+                // ため、`viewport` から `selection`/`handle` へ移しただけ
+                // では同じ回帰（operable な要素が実際には無いのにタッチの
+                // スクロール・ピンチズームだけを常時止める）が解消されない。
+                // 実ドラッグ操作の実装後、当該配線と合わせて再導入を検討
+                // する（モジュール冒頭 rustdoc・`viewport` base 参照）。
                 // transition は付けない: left/top/width/height はドラッグ追従値
                 // であり、遷移を付けると指の動きに対して視覚的な遅延が生まれる
                 // （`angle_slider` の thumb `transform` 除外と同じ理由）。
@@ -285,10 +289,10 @@ fn recipe() -> SlotRecipe {
                 decl("position", "absolute"),
                 decl("width", "var(--fandhe-image-cropper-handle-size, 0.75rem)"),
                 decl("height", "var(--fandhe-image-cropper-handle-size, 0.75rem)"),
-                // タッチ操作抑止（イシュー #1481 codex-review 是正）:
-                // `handle` はリサイズドラッグの起点であるため、`selection`
-                // と同じ理由で限定適用する。
-                decl("touch-action", "none"),
+                // `touch-action: none` は付与しない（イシュー #1481
+                // codex-review 再指摘）: `handle` はリサイズドラッグの
+                // 起点だが、`selection` と同じ理由（実ドラッグ操作が未実装）
+                // で見送る。
                 // 面・縁はテーマ非依存の固定色（モジュール冒頭 rustdoc「写真上
                 // のクローム」節参照）。ダークテーマで `--fandhe-color-bg` が
                 // 暗色へ反転すると暗い写真 + 暗幕上でハンドルが視認できなく
@@ -605,10 +609,7 @@ mod tests {
     fn viewport_has_radius_token_and_background_but_not_touch_action() {
         // イシュー #1481: viewport（プレビュー領域）へ角丸・背景（レターボックス
         // 用）を追加したことを固定する。`touch-action: none` は
-        // viewport 全体には適用しない（codex-review 是正: 対応するドラッグ
-        // 操作の配線が未実装のまま viewport 全体へ適用すると操作性回帰に
-        // なるため、`selection`/`handle` へ限定適用した。下記
-        // `selection_and_handle_have_touch_action_none_for_drag` 参照）。
+        // viewport 全体には適用しない（codex-review 是正）。
         let css = stylesheet();
         let viewport_block = css
             .split("\n\n")
@@ -621,22 +622,16 @@ mod tests {
     }
 
     #[test]
-    fn selection_and_handle_have_touch_action_none_for_drag() {
-        // イシュー #1481 codex-review 是正: crop 矩形のドラッグ操作起点で
-        // ある `selection`（移動）・`handle`（リサイズ）にのみ
-        // `touch-action: none` を限定適用し、操作可能な要素だけタッチの
-        // 既定スクロール/ピンチズーム介入を止めることを固定する。
+    fn no_part_declares_touch_action_none_while_drag_is_unimplemented() {
+        // イシュー #1481 codex-review 再指摘: crop 矩形のドラッグ操作
+        // （移動・リサイズ）に対応する pointer/touch イベント配線は
+        // headless 側スコープ外で未実装のため、`selection`/`handle` へ
+        // 限定適用しても operable な要素が実際には無いままタッチデバイス
+        // のスクロール・ピンチズームだけを止める同じ回帰が残る。実
+        // ドラッグ操作の実装まで `touch-action: none` をどのパートにも
+        // 一切宣言しないことを固定する。
         let css = stylesheet();
-        let selection_block = css
-            .split("\n\n")
-            .find(|b| b.contains(r#"[data-part="selection"]"#))
-            .expect("selection block missing");
-        assert!(selection_block.contains("touch-action: none;"));
-        let handle_block = css
-            .split("\n\n")
-            .find(|b| b.contains(r#"[data-part="handle"]"#) && b.contains("position: absolute"))
-            .expect("handle base block missing");
-        assert!(handle_block.contains("touch-action: none;"));
+        assert!(!css.contains("touch-action"));
     }
 
     #[test]

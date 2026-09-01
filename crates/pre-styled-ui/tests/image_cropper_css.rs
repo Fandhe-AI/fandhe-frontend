@@ -26,7 +26,6 @@ const IMAGE_CROPPER_GOLDEN_CSS: &str = r#"[data-scope="image-cropper"][data-part
   height: 100%;
   border-radius: var(--fandhe-radius-lg);
   background: var(--fandhe-color-bg-muted);
-  touch-action: none;
   user-select: none;
 }
 
