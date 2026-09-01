@@ -147,6 +147,21 @@ fn item_control_invalid_sets_danger_border_color() {
     assert!(css.contains("border-color: var(--fandhe-color-danger);"));
 }
 
+/// イシュー #1741: `fandhe-frontend-wasm-full` の
+/// `focus_visible::boundary_candidates_for` フォールバック追加により、
+/// item 配下の `checkbox::hidden_input` への実フォーカスが
+/// `item-control[data-focus-visible]` へ届くようになった。`checkbox.rs`
+/// の `control[data-focus-visible]` と同型のフォーカスリング CSS が
+/// 実際に出力されることを固定する。
+#[test]
+fn item_control_focus_visible_has_focus_ring() {
+    let css = stylesheet();
+    assert!(css.contains(
+        r#"[data-scope="checkbox-group"][data-part="item-control"][data-focus-visible]"#
+    ));
+    assert!(css.contains("outline: var(--fandhe-focus-ring-width, 2px) solid"));
+}
+
 #[test]
 fn size_and_palette_variant_classes_are_present() {
     let html = render(&root(

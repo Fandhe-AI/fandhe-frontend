@@ -424,6 +424,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 結果として main 側の値を基点にさらに 0.57.9 へ patch バンプする
 # （0.x の破壊的変更はマイナーバンプ・非破壊の実体変更は patch バンプの
 # 規約、同一版数への偶発的衝突をそのまま採用しない）。
+# checkbox-group スコープ外事項フォローアップ（イシュー #1741）:
+# `hover_bg_solid_with_fallback` の `crate::recipe` への共通化・
+# `item-control[data-focus-visible]` フォーカスリング CSS 追加・variant 軸
+# 横断判断の文書化。CSS 出力の観測可能な変更を含むため patch バンプとして
+# 0.57.9 から 0.57.10 とする。
 # イシュー #1481（親 #1479 の 2/2）: viewport/image パートの意匠調整
 # （既存セレクタ・CSS 変数名の削除/改名なし）のため patch バンプで足りる
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.3/§3.4a）。
@@ -437,7 +442,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既存 CSS 変数名の削除・改名や Rust API シグネチャの変更はないため、
 # combobox #1468 と同型で patch バンプとして 0.57.11 から 0.57.12 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
-version = "0.57.12"
+# マージ統合（イシュー #1741 系、本マージ分）: 本ブランチ側（#1483 listbox
+# スタイル調整、0.57.11 から 0.57.12 へ独自にバンプ）と main 側（#1760 系
+# フォローアップ統合、既に 0.57.12 へバンプ済み）は独立に別パートへ実体
+# 変更を加えたまま偶発的に同一版数へ再度到達していたため、双方を統合した
+# 結果としてさらに 0.57.13 へ patch バンプする（同一版数への偶発的衝突を
+# そのまま採用しない規約）。
+version = "0.57.13"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
@@ -451,7 +462,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.28.7" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.28.8" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

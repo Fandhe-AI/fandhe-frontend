@@ -162,3 +162,67 @@ git diff --stat origin/main -- crates/pre-styled-ui/tests \
 最後の `git diff` は空行のみが出力されることを確認し、既存 golden
 テストファイル（button_css.rs 等）を一切変更していないことを機械的に
 固定する。
+
+## 7. variant 軸（solid/subtle/outline 相当）の Forms 家族横断判断（イシュー #1741）
+
+`checkbox.rs`（#1734）・`checkbox_group.rs`（#1460）はいずれも「variant 軸は
+Forms 家族横断の判断が必要、部品単独で先行しない」として追加を見送り、
+本文書での横断判断をフォローアップ Issue #1741 に記録する形で先送りして
+いた。本節がその判断を記録する。
+
+### 7.1 参照 3 軸の事実
+
+| 参照 | variant 語彙 | 意味 |
+|---|---|---|
+| chakra-ui | `solid` / `subtle` / `outline`（Checkbox/Radio/Switch 等 Forms 系コンポーネントの一部にのみ存在。Button 等の action 系ほど普遍的ではない） | 面の塗り方（塗り潰し/淡色地/枠線のみ） |
+| Radix Themes | `classic` / `surface` / `soft`（Forms 系コンポーネント全体で共通の variant プロパティを持つ） | 立体感・境界線の描き方の系統差（chakra の 3 値とは意味論が異なる） |
+| Ark UI | variant 語彙なし（unstyled/headless であり見た目のバリエーションを持たない） | — |
+
+3 参照軸は語彙の値数こそ 3 で揃うが、**意味が一致しない**（chakra は
+「塗り」、Radix Themes は「境界線の描き方」）。共通の写像表を機械的に
+立てられない。
+
+### 7.2 fandhe Forms 家族の現状
+
+checkbox / checkbox-card / checkbox-group / radio-group / segment-group /
+switch / input / textarea / select 等の Forms 家族は、いずれも variant 軸を
+持たず、size 軸（`docs/design/pre-styled-ui-size-and-color-palette-axes.md`
+§4）と `ColorPalette` 軸（§3）のみで見た目のバリエーションを表現する
+既定 1 見た目の設計である。
+
+### 7.3 決定: 現時点では追加しない（見送り）
+
+理由:
+
+1. **家族横断の同時破壊的変更を要する**: variant 軸を追加する場合、
+   一貫性を保つには Forms 家族全部品の `root()`（または相当するエントリ
+   ポイント）シグネチャへ同時に手を入れる必要がある。0.x とはいえ
+   影響範囲が広い一括変更になり、単一部品のフォローアップ Issue の
+   スコープを超える。
+2. **参照軸間の語彙が収斂していない**: 上記 7.1 のとおり chakra の
+   `solid`/`subtle`/`outline` と Radix Themes の `classic`/`surface`/`soft`
+   は値数が一致するのみで意味が異なり、どちらか一方への追従・両者の
+   統合いずれも機械的な根拠を持たない。
+3. **既定 1 見た目 + palette 軸で参照サイトの既定表現は概ね再現済み**:
+   `ColorPalette` 軸（accent/info/success/warning/danger）と size 軸の
+   組み合わせで、各参照サイトの「既定 variant」相当の見た目はすでに
+   表現できている。
+
+### 7.4 再評価トリガー
+
+以下のいずれかが生じた場合に再評価する:
+
+- 利用者から具体的なユースケース（「outline 版の Checkbox が欲しい」等）
+  の要望が挙がった場合。
+- 参照軸（chakra-ui / Radix Themes / 将来追加される可能性のある他の
+  デザインシステム）の variant 語彙が収斂し、共通の写像表を機械的に
+  立てられるようになった場合。
+- Forms 家族全体を対象にした次期一括破壊的変更ウィンドウ（size/palette
+  軸導入時のような横断 Issue）が立った場合、そのタイミングで同時検討
+  する。
+
+### 7.5 スコープ
+
+本節は判断の記録のみを成果物とし、実装は行わない。採用へ転じる材料が
+将来判明した場合も、`out-of-scope-tracking.md` の方針どおりユーザー承認を
+得たうえで別 Issue として起票する。

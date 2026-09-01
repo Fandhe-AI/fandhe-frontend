@@ -516,6 +516,32 @@ pub fn hover_bg_muted() -> Declaration {
     decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)")
 }
 
+/// [`hover_bg_solid`] のフォールバック連鎖版。checked/indeterminate 状態の
+/// solid 面（`checkbox`/`checkbox-group` の control 系 slot）が、palette 軸
+/// 未選択時（`--fandhe-palette-emphasized` 未定義）でも `--fandhe-color-
+/// accent-emphasized` へ確実にフォールバックできるよう、CSS の 2 引数
+/// `var()` フォールバック構文をそのまま埋め込む。
+///
+/// [`hover_bg_solid`] を単純に呼ばず本関数を分けて持つ理由: [`hover_bg_solid`]
+/// は `SlotRecipe::variant` 経由（変数が必ず何らかの palette variant で
+/// 定義された後に参照される文脈）を主用途とし、フォールバックを持たない
+/// 素の間接参照のままにしている。一方 checkbox 系の checked/indeterminate
+/// 規則は variant 軸を経由せず `state()` から直接 palette 変数を参照するため、
+/// 未選択時のフォールバックが必要になる（`crates/pre-styled-ui/src/
+/// checkbox.rs` / `checkbox_group.rs` の checked 系 `border-color`/
+/// `background` 宣言と同じフォールバック連鎖）。
+///
+/// イシュー #1741: `checkbox.rs`/`checkbox_group.rs` に同一実装が複製されて
+/// いたものをここへ共通化した（両モジュールの「モジュール doc スコープ外」
+/// 記述は本共通化により解消済み）。
+#[must_use]
+pub fn hover_bg_solid_with_fallback() -> Declaration {
+    decl(
+        "--fandhe-hover-bg",
+        "var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized))",
+    )
+}
+
 /// [`transition_declarations`] が既定 easing として使うトークン
 /// （汎用の enter/exit、[`crate::theme`] の `easing-standard` 既定値）。
 const TRANSITION_EASING_VAR: &str = "var(--fandhe-motion-easing-standard)";

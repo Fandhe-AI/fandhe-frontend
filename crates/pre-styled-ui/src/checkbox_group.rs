@@ -16,10 +16,26 @@
 //! [`item_text`]/[`CheckboxGroup`]/[`DATA_STATE_CHECKED`]/
 //! [`DATA_STATE_UNCHECKED`]）のみを選択的に再エクスポートする。
 //!
-//! [`CheckboxGroup`] 状態機械は inherent `root()` を持たない（item 系
-//! メソッドのみ、`crates/headless-ui/src/checkbox_group.rs` 参照）ため、
+//! [`CheckboxGroup`] 状態機械は（[`crate::radio_group`] の `RadioGroup` と
+//! 同じ非対称処理により）inherent `root()` を持たない。そのため
 //! そのまま再エクスポートしても未スタイル `root` の静かな適用漏れは
-//! 発生しない（[`crate::radio_group`] の `RadioGroup` 非対称処理と同じ判断）。
+//! 発生しない。**イシュー #1741 の当初実装では headless 側に root disabled
+//! 伝播の利便メソッドとして inherent `CheckboxGroup::root()` を新設して
+//! いたが、この設計は撤回した**（イシュー #1760 codex-review P1 指摘）:
+//! 再エクスポートした型に inherent `root()` が存在すると、Rust の名前解決
+//! 規則上メソッド構文の呼び出しは常に inherent メソッドを優先するため、
+//! 本モジュールがどんな拡張トレイトを用意しても
+//! `fandhe_frontend_pre_styled_ui::checkbox_group::CheckboxGroup` 経由の
+//! `.root(...)` 呼び出しを styled 版へ差し替えることができず、`size`/
+//! `palette` の styled クラスを取りこぼす未スタイル `root` が静かに呼べて
+//! しまう（拡張トレイトはメソッド解決の優先順位で inherent メソッドに
+//! 敗れるため、この経路を構造的に塞げない）。この教訓により、
+//! `CheckboxGroup` へ `root`/`item`/`item_control` 等と同名の inherent
+//! メソッドを新設する変更は、名前が衝突する層をまたいだ styled 版の
+//! 有無を確認してから行う（`headless-ui` 側の変更で `pre-styled-ui` の
+//! 契約が壊れ得るため）。状態機械経由で styled root を組み立てる場合は
+//! [`CheckboxGroupStyledRoot`] 拡張トレイトの
+//! [`CheckboxGroupStyledRoot::styled_root`] を呼ぶこと。
 //!
 //! # `item-hidden-input` を本モジュールが持たない理由（`checkbox::stylesheet()` 併用が必須）
 //!
@@ -199,71 +215,68 @@
 //!   到達できない・クリックが背後の要素へ透過してしまう（共有の interaction
 //!   visual language 違反）。この 2 点は「CSS だけでは disabled の実効性を
 //!   偽装できない」という同一原因に基づき、CSS 側の緩和では解決できない。
-//!   したがって本モジュールは `root[data-disabled]` から `item`/
+//!   したがって本モジュールの CSS は `root[data-disabled]` から `item`/
 //!   `item-control` への見た目の伝播を一切行わない（`item[data-disabled]`
-//!   規則が引き続き自身の disabled 見た目を担う。下記「本イシューの
-//!   スコープ外」節に恒久的な解決方針を記録する）。呼び出し側が `root` を
-//!   disabled にする場合は、各 item の [`item`]/[`item_control`]/
-//!   [`item_indicator`]/[`item_text`] と対応する
-//!   [`crate::checkbox::hidden_input`] の `CheckboxProps.disabled` の
-//!   すべてに同じ `true` を明示的に渡す必要がある（headless 層はこの一貫性を
-//!   強制しない。呼び出し側の契約）。
+//!   規則が引き続き自身の disabled 見た目を担う）。**恒久対応**（イシュー
+//!   #1741 で実装済み）: headless 層 [`fandhe_frontend_headless_ui::checkbox_group::CheckboxGroup`]
+//!   が `disabled` フィールドを保持し、`item`/`item_control`/
+//!   `item_indicator`/`item_text`/`item_hidden_input` の各利便メソッドが
+//!   root disabled との OR を自動計算してネイティブ `<input>` の実際の
+//!   `disabled` 属性まで含めて一貫伝播する（CSS だけでは解決できない
+//!   タブ順序・フォーム送信の実効性は、この headless 層側の対応が担う）。
+//!   呼び出し側が本型（`CheckboxGroup`）の利便メソッドを経由しない SSR
+//!   自由関数直接利用の構成では、従来どおり各パーツへ明示的に同じ
+//!   disabled を渡す契約が有効（headless 層はこの一貫性を強制しない）。
 //! - **`item:focus-within`/`item-control` のフォーカスリング・hover・
 //!   transition を canonical ヘルパへ移行**: `recipe::focus_ring_declarations`
 //!   （`FocusRingColor::Palette`、`FocusRingOffset::Outside`）・
 //!   `recipe::hover_bg_muted`/`hover_surface_declarations`・
 //!   `recipe::transition_declarations`（`MotionDuration::Fast`）へ置き換え、
 //!   手書きのリテラル（`2px solid ...`・`0.15s` 等）を排除する。`checkbox.rs`
-//!   と同型のパターン（`hover_bg_solid_with_fallback` はモジュール内へ複製、
-//!   共通化は out-of-scope として記録）。
+//!   と同型のパターン（`hover_bg_solid_with_fallback` は `crate::recipe` へ
+//!   共通化済み、イシュー #1741）。
 //! - **`item` 行全体の hover は追加しない**: 参照 3 サイト（chakra-ui /
 //!   Ark UI / Radix Themes・Primitives）のいずれも checkbox-group の
 //!   `item`（list-item 型のクリック領域）行全体を hover 対象にしない。
 //!   `checkbox.rs` と同じく `item-control` のみを hover 対象とする。
 //! - **variant 軸（chakra solid/subtle/outline 等）は追加しない**:
 //!   `checkbox.rs`（#1734）の判断（Forms 家族横断の判断が必要、部品単独で
-//!   先行しない）を踏襲する。
-//! - **`item-control[data-focus-visible]` は追加しない**: wasm-full の
-//!   `focus_visible.rs` に checkbox-group の写像がなく（out-of-scope として
-//!   記録）、配線しても効かない CSS を残さないため。
+//!   先行しない）を踏襲する。横断判断はイシュー #1741 で
+//!   `docs/design/pre-styled-ui-size-and-color-palette-axes.md` §7 に
+//!   記録済み: 現時点では見送り。
+//! - **`item-control[data-focus-visible]` フォーカスリング（イシュー
+//!   #1741 で追加）**: `fandhe-frontend-wasm-full` の
+//!   `focus_visible::boundary_candidates_for` に checkbox-group 向けの
+//!   フォールバック候補（`(\"checkbox-group\", \"item\")`）が追加され、
+//!   item 配下の `checkbox::hidden_input`（`data-scope=\"checkbox\"` の
+//!   まま）への実フォーカスが `item`/`item-control` へ
+//!   `data-focus-visible` として伝播するようになった（[`crate::checkbox`]
+//!   の `control[data-focus-visible]` と同型の CSS を追加）。写像の実現形は
+//!   元イシュー記録の直訳とは異なる（`focus_visible.rs` の
+//!   `boundary_candidates_for` rustdoc「記録された写像との差分」節参照）。
 //!
 //! # 本イシューのスコープ外
 //!
 //! headless 層モジュール doc「out-of-scope」節（キーボードナビゲーション・
 //! 実 DOM 配線・全選択/一部選択集約・Field 連携・`checkbox_card` を item
-//! として使う構成）をそのまま継承する。加えて本イシュー（#1460）で新たに
-//! 判明したスコープ外事項:
+//! として使う構成）をそのまま継承する。加えて #1460/#1741 の過程で判明した
+//! 残存スコープ外事項:
 //!
-//! - `hover_bg_solid_with_fallback()` の `crate::recipe` への共通化
-//!   （`checkbox.rs`/`checkbox_group.rs` で重複、フォローアップ Issue #1741）
-//! - wasm-full `focus_visible.rs` への
-//!   `(\"checkbox-group\", \"hidden-input\") -> \"item-control\"` 写像追加
-//!   （フォローアップ Issue #1741）
 //! - headless 側での `data-invalid` 出力（`root`/`item`/`item-control` への
 //!   `invalid` フラグ追加）は #1603 の射程
-//! - variant 軸（chakra solid/subtle/outline 相当）の Forms 家族横断判断
-//!   （フォローアップ Issue #1741）
 //! - size variant 値・label/item-text 型階層は 2/2（#1461）が担当
-//! - **`root` disabled → 各 item（`item`/`item-control`/`item-indicator`/
-//!   `item-text` と `checkbox::hidden_input` の `CheckboxProps.disabled`）
-//!   への実際の disabled 状態の一貫伝播**（イシュー #1460 codex-review P1 /
-//!   Cursor Bugbot 指摘）: CSS のみでは `<input>` のタブ順序を変更できず
-//!   偽装的な視覚のみの disabled 表現になってしまう（本モジュール doc
-//!   「スタイル調整」節参照）ため、CSS 側での解消を断念した。恒久対応には
-//!   headless 層（`crates/headless-ui/src/checkbox_group.rs`）の API 設計
-//!   変更（`CheckboxGroup` 状態機械が root disabled を保持し、
-//!   `item`/`item_control`/`item_indicator`/`item_text` の各利便メソッドが
-//!   root disabled との OR を自動計算する等）が必要で、`checkbox` モジュール
-//!   の `hidden_input` 呼び出し規約にも影響するため本イシュー（グループ
-//!   レイアウト・invalid 伝播に限定）のスコープを超える。フォローアップ
-//!   Issue #1741（親 #1459 の子）で追跡する。
+//!
+//! （イシュー #1741 で解消済みの旧スコープ外事項: `hover_bg_solid_with_fallback`
+//! の共通化・`item-control` focus-visible 写像・variant 軸横断判断の文書化・
+//! `root` disabled の一貫伝播。詳細は上記「スタイル調整」節参照）
 
 use crate::class_attr::drop_class_attr;
-use crate::css::{decl, Declaration};
+use crate::css::decl;
 use crate::recipe::{
-    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
-    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
-    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid_with_fallback,
+    hover_surface_declarations, palette_scale_declarations, transition_declarations, ColorPalette,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -289,16 +302,9 @@ const SLOTS: &[&str] = &[
     "item-text",
 ];
 
-/// checked 状態の `item-control` hover 面を定義する `--fandhe-hover-bg`
-/// 宣言（内部ヘルパ）。`crate::checkbox::hover_bg_solid_with_fallback` と
-/// 同一の宣言を本モジュール内へ複製する（共通化は out-of-scope として記録、
-/// モジュール doc「本イシューのスコープ外」節参照）。
-fn hover_bg_solid_with_fallback() -> Declaration {
-    decl(
-        "--fandhe-hover-bg",
-        "var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized))",
-    )
-}
+// checked 状態の `item-control` hover 面は [`crate::recipe::hover_bg_solid_with_fallback`]
+// を使う（イシュー #1741 で `checkbox.rs` と共通化、旧実装はモジュール
+// ローカルの複製だった）。
 
 /// この styled CheckboxGroup の既定 CSS を組み立てる（内部ヘルパ、
 /// [`stylesheet`] のみが呼ぶ）。
@@ -508,6 +514,20 @@ fn recipe() -> SlotRecipe {
             StateCondition::Hover,
             hover_surface_declarations(),
         )
+        // イシュー #1741: `fandhe-frontend-wasm-full` の
+        // `focus_visible::boundary_candidates_for` に checkbox-group 向け
+        // フォールバック候補（`("checkbox-group", "item")`）が追加され、
+        // item 配下の `checkbox::hidden_input` への実フォーカスが `item`/
+        // `item-control` へ `data-focus-visible` として伝播するように
+        // なった（`crate::checkbox` の `control[data-focus-visible]` と
+        // 同型、モジュール doc「スタイル調整」節参照）。下記
+        // `item:focus-within` の no-JS フォールバックはこれと両立させて
+        // 維持する（`checkbox.rs`/`radio_group.rs` と同じく削除しない）。
+        .state(
+            "item-control",
+            StateCondition::Attr("data-focus-visible"),
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
+        )
         // `data-disabled`（headless 層が `data_disabled` 経由で `item`/
         // `item-control`/`item-indicator`/`item-text` へ出力）時の操作不能な
         // 見た目。canonical ヘルパへ移行（`checkbox.rs` と同型、値は現行と
@@ -691,6 +711,47 @@ pub fn root<'a>(
         merged,
         children,
     )
+}
+
+/// [`CheckboxGroup`] 状態機械経由で styled root パーツを組み立てるための
+/// 拡張トレイト（モジュール doc「選択的 re-export」節参照）。`disabled` を
+/// `self.is_disabled()` から自動注入し、本モジュールの [`root`] 関数
+/// （styled 版）へ委譲する状態機械経由の入口を提供する。
+pub trait CheckboxGroupStyledRoot {
+    /// styled root パーツを組み立てる（[`root`] 関数と同じ実体。disabled
+    /// は `self.is_disabled()` から自動注入する）。
+    #[must_use]
+    fn styled_root<'a>(
+        &self,
+        size: Size,
+        palette: ColorPalette,
+        orientation: Option<Orientation>,
+        labelled_by: Option<&'a str>,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node;
+}
+
+impl CheckboxGroupStyledRoot for CheckboxGroup {
+    fn styled_root<'a>(
+        &self,
+        size: Size,
+        palette: ColorPalette,
+        orientation: Option<Orientation>,
+        labelled_by: Option<&'a str>,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        root(
+            size,
+            palette,
+            self.is_disabled(),
+            orientation,
+            labelled_by,
+            attrs,
+            children,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -1176,6 +1237,35 @@ mod tests {
         assert!(html.contains(r#"data-scope="checkbox-group""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(html.contains(r#"role="group""#));
+    }
+
+    #[test]
+    fn checkbox_group_styled_root_applies_size_and_palette_classes() {
+        // `styled_root()`（[`CheckboxGroupStyledRoot`]）経由の状態機械
+        // 組み立てが、`disabled` の自動注入込みで自由関数 [`root`] 直接
+        // 呼び出しと同じ出力になることを固定する。
+        let g = CheckboxGroup::default();
+        let via_state =
+            render(&g.styled_root(Size::Lg, ColorPalette::Success, None, None, vec![], vec![]));
+        let via_free_fn = render(&root(
+            Size::Lg,
+            ColorPalette::Success,
+            false,
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert_eq!(via_state, via_free_fn);
+        assert!(via_state.contains("class="));
+    }
+
+    #[test]
+    fn checkbox_group_styled_root_propagates_disabled_from_state() {
+        let g = CheckboxGroup::default().with_disabled(true);
+        let html =
+            render(&g.styled_root(Size::Md, ColorPalette::Accent, None, None, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
