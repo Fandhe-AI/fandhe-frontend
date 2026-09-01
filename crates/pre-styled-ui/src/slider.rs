@@ -82,8 +82,9 @@
 //! （[`crate::recipe::disabled_declarations`]、イシュー #1425）へ、
 //! `thumb` の `:focus-visible` を共通フォーカスリングトークン
 //! （[`crate::recipe::focus_ring_declarations`]、イシュー #1424）へ置換し、
-//! `track`/`range`/`thumb` の角丸を `var(--fandhe-radius-full)` トークンへ
-//! 統一した。`thumb` へは参考サイト共通の「白面 + 影」表現
+//! `track`/`range`/`thumb` の角丸を `var(--fandhe-radius-full, 999px)`
+//! トークンへ統一した（フォールバックは codex-review 指摘、PR #1777 で
+//! 追加。`timeline` の `var(--fandhe-radius-full, 9999px)` と同型）。`thumb` へは参考サイト共通の「白面 + 影」表現
 //! （`box-shadow: var(--fandhe-shadow-sm)`）と hover/transition
 //! フィードバック（[`crate::recipe::hover_bg_muted`]/
 //! [`crate::recipe::transition_declarations`]）を追加した。`thumb` は常時
@@ -211,11 +212,14 @@ fn recipe() -> SlotRecipe {
                 decl("width", "100%"),
                 decl("height", "var(--fandhe-slider-track-height, 0.375rem)"),
                 // イシュー #1505: 角丸をトークン化（`999px` リテラル →
-                // `var(--fandhe-radius-full)`。angle-slider #1728 と同型の
-                // 是正、参照 4 サイト（chakra-ui/Radix Themes/Radix
+                // `var(--fandhe-radius-full, 999px)`。angle-slider #1728 と
+                // 同型の是正、参照 4 サイト（chakra-ui/Radix Themes/Radix
                 // Primitives/ark-ui）いずれも完全な pill 形状のため計算結果は
-                // 不変）。
-                decl("border-radius", "var(--fandhe-radius-full)"),
+                // 不変）。フォールバックは `--fandhe-radius-full` 未定義の
+                // 既存カスタムテーマ（`Theme::empty()` ベース）で角丸が
+                // 初期値 `0` へ落ちる互換性破壊を防ぐための codex-review
+                // 指摘（PR #1777、threadId: PRRT_kwDOTarxgc6eICfZ）対応。
+                decl("border-radius", "var(--fandhe-radius-full, 999px)"),
                 // トラック色は既存の `var(--fandhe-color-border)` を維持する
                 // （参照 4 サイトいずれも「淡いニュートラル面」であり、
                 // ダーク対応済みの本トークンで既に基準を満たすため変更しない。
@@ -240,7 +244,7 @@ fn recipe() -> SlotRecipe {
                 decl("height", "100%"),
                 decl("width", "var(--fandhe-slider-percent, 0%)"),
                 // イシュー #1505: `track` と同じ角丸トークン化。
-                decl("border-radius", "var(--fandhe-radius-full)"),
+                decl("border-radius", "var(--fandhe-radius-full, 999px)"),
                 decl(
                     "background",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
@@ -268,7 +272,7 @@ fn recipe() -> SlotRecipe {
                 decl("width", "var(--fandhe-slider-thumb-size, 1.1rem)"),
                 decl("height", "var(--fandhe-slider-thumb-size, 1.1rem)"),
                 // イシュー #1505: `track`/`range` と同じ角丸トークン化。
-                decl("border-radius", "var(--fandhe-radius-full)"),
+                decl("border-radius", "var(--fandhe-radius-full, 999px)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl(
                     "border",
@@ -531,10 +535,37 @@ mod tests {
     fn stylesheet_uses_radius_full_token_for_track_range_thumb() {
         let css = stylesheet();
         // イシュー #1505: `999px` リテラルをトークン化した契約を固定する
-        // （angle-slider #1728 と同型）。
-        assert!(!css.contains("999px"));
+        // （angle-slider #1728 と同型）。フォールバックは codex-review 指摘
+        // （PR #1777）を受け `var(--fandhe-radius-full, 999px)` の形（`timeline`
+        // の `var(--fandhe-radius-full, 9999px)` と同型）とし、`999px` の
+        // 生リテラル自体はフォールバック値としてのみ残す（3 箇所の重複を
+        // 数える契約は不変）。
         assert_eq!(
-            css.matches("border-radius: var(--fandhe-radius-full);")
+            css.matches("border-radius: var(--fandhe-radius-full, 999px);")
+                .count(),
+            3
+        );
+    }
+
+    #[test]
+    fn radius_full_fallback_keeps_pill_shape_on_theme_without_radius_full_token() {
+        // イシュー #1505 codex-review 指摘（PR #1777, threadId: PRRT_kwDOTarxgc6eICfZ）:
+        // `var(--fandhe-radius-full)` をフォールバックなしで参照すると、
+        // `--fandhe-radius-full` を定義しない `Theme::empty()` ベースの
+        // 既存カスタムテーマでは宣言全体が computed-value time に無効化され、
+        // `track`/`range`/`thumb` の角丸が初期値の `0` に落ちる
+        // （`Cargo.toml` が謳う「パッチバンプ = 計算結果は不変」契約への
+        // 違反）。`Theme::empty()` が `--fandhe-radius-full` を定義しない
+        // ことを確認したうえで、`stylesheet()` の角丸宣言がフォールバック
+        // 込みであることを固定し、退行を防ぐ。
+        use crate::theme::Theme;
+
+        let empty_theme_css = Theme::empty().to_css();
+        assert!(!empty_theme_css.contains("--fandhe-radius-full"));
+
+        let css = stylesheet();
+        assert_eq!(
+            css.matches("border-radius: var(--fandhe-radius-full, 999px);")
                 .count(),
             3
         );

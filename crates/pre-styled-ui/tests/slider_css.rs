@@ -46,7 +46,7 @@ const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
   position: relative;
   width: 100%;
   height: var(--fandhe-slider-track-height, 0.375rem);
-  border-radius: var(--fandhe-radius-full);
+  border-radius: var(--fandhe-radius-full, 999px);
   background: var(--fandhe-color-border);
 }
 
@@ -56,7 +56,7 @@ const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
   left: 0;
   height: 100%;
   width: var(--fandhe-slider-percent, 0%);
-  border-radius: var(--fandhe-radius-full);
+  border-radius: var(--fandhe-radius-full, 999px);
   background: var(--fandhe-palette, var(--fandhe-color-accent));
 }
 
@@ -67,7 +67,7 @@ const EXPECTED_CSS: &str = r#"[data-scope="slider"][data-part="root"] {
   transform: translate(-50%, -50%);
   width: var(--fandhe-slider-thumb-size, 1.1rem);
   height: var(--fandhe-slider-thumb-size, 1.1rem);
-  border-radius: var(--fandhe-radius-full);
+  border-radius: var(--fandhe-radius-full, 999px);
   background: var(--fandhe-color-bg);
   border: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
   box-shadow: var(--fandhe-shadow-sm);
