@@ -3340,7 +3340,56 @@ fn number_input_section() -> Node {
             ),
         ],
     );
-    let demo_row = row(vec![mid, at_min, disabled]);
+    // readonly（イシュー #1485: `input` パートの `data-readonly` 視覚
+    // 〔`cursor: default`〕を Demo で確認できるよう追加。date-input #1469
+    // の readonly 行追加と同型）。
+    let readonly = number_input::root(
+        Size::Md,
+        false,
+        false,
+        vec![],
+        vec![
+            number_input::label(
+                false,
+                false,
+                Some("showcase-number-input-readonly"),
+                vec![],
+                vec![text("Readonly")],
+            ),
+            number_input::control(
+                false,
+                false,
+                vec![],
+                vec![
+                    number_input::input(
+                        "quantity-readonly",
+                        Some("showcase-number-input-readonly"),
+                        Some("7"),
+                        "0",
+                        "10",
+                        NumberInputFlags {
+                            readonly: true,
+                            ..NumberInputFlags::default()
+                        },
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("showcase-number-input-readonly"),
+                        false,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                    number_input::decrement_trigger(
+                        Some("showcase-number-input-readonly"),
+                        false,
+                        vec![],
+                        vec![text("-")],
+                    ),
+                ],
+            ),
+        ],
+    );
+    let demo_row = row(vec![mid, at_min, disabled, readonly]);
     section(
         "NumberInput",
         "min/max/step でクランプされる数値入力。increment/decrement トリガーは境界到達時に data-disabled を伴い無効化されます。",

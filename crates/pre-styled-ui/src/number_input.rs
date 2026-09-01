@@ -60,6 +60,60 @@
 //! `data-focus-visible` 対応は不要（`input`/トリガー自体がフォーカスを
 //! 受ける契約、モジュール doc「`data-state` を持たない理由」参照）。
 //!
+//! # 参考サイト基準への調整（イシュー #1485）
+//!
+//! chakra-ui / ark-ui の NumberInput と視覚比較し、Phase 0 で確定した共通
+//! 基盤（[`crate::recipe::focus_ring_declarations`]・
+//! [`crate::recipe::disabled_declarations`]・
+//! [`crate::recipe::transition_declarations`]・#1678 の
+//! `--fandhe-size-control-height/padding-x/font-size-*` トークン）へ
+//! 移行した。input #1482（[`crate::input`]）・native-select #1484
+//! （[`crate::native_select`]）・date-input #1469（[`crate::date_input`]）
+//! と同型の是正である。
+//!
+//! - **`input` パート**: `font: inherit`/`color: var(--fandhe-color-fg)`
+//!   を追加し（input.rs base と同一）、border-radius・size の高さ/
+//!   フォント/左 padding を #1678 のトークンへ移行。`data-disabled` は
+//!   [`crate::recipe::disabled_declarations`] へ統一し、`data-readonly`
+//!   を新設（`cursor: default`、date-input 先例）。**登録順は
+//!   readonly → disabled**とし、両立時は disabled の `cursor` が source
+//!   order で勝つ（date-input の
+//!   `segment_disabled_cursor_overrides_readonly_by_source_order` と
+//!   同型、下記テスト参照）。フォーカスリングは
+//!   `focus_ring_declarations(Token, Outside)`（input.rs と同一）。
+//!   hover 背景は付与しない（input.rs と同じ判断: `<input>` は
+//!   `cursor: text` でありインタラクティブ slot の hover 対象外、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md` 参照）。
+//! - **`increment-trigger`/`decrement-trigger` パート**: `<button>` で
+//!   `cursor: pointer` を持つインタラクティブ slot のため
+//!   [`crate::recipe::hover_bg_muted`] + `.state(Hover,
+//!   hover_surface_declarations())` を新設する（date-input の `segment`
+//!   と同型）。フォーカスリングは
+//!   `focus_ring_declarations(Token, Inset)` を採用する
+//!   （**Inset を選ぶ理由**: トリガーは `control` 内に
+//!   `position: absolute` で密着配置されており、Outside（+2px）リングは
+//!   `input` の枠線・隣接トリガーへ重なって視認性を損なうため、
+//!   splitter/listbox 等と同じ符号反転 inset を採る）。境界到達時の
+//!   `data-disabled` は [`crate::recipe::disabled_declarations`]
+//!   （`opacity: 0.5`）へ統一する（従来の `opacity: 0.4` から変更、
+//!   共通 disabled ビジュアル言語への統一）。
+//! - **`root` パート**: `data-disabled` の `opacity: 0.5` 直書きを
+//!   [`crate::recipe::disabled_declarations`] へ置換する（`cursor:
+//!   not-allowed` が純追加される）。
+//! - **バリアント軸（意図的非採用）**: chakra の `variant`
+//!   （outline/subtle/flushed）相当の軸は本イシューでは追加しない。
+//!   根拠: (1) native-select #1484・date-input #1469 が同判断で見送り
+//!   済み、(2) `root()` へのシグネチャ追加は 0.x の破壊的変更（minor
+//!   バンプ・呼び出し元全修正）を伴い意匠調整 patch の粒度を超える、
+//!   (3) input #1482 で確立した `InputVariant` 語彙を number-input へ
+//!   写像する設計判断は Forms 家族横断で行うべき
+//!   （`.claude/rules/out-of-scope-tracking.md` 対応）。
+//!
+//! 既存の CSS 変数名（`--fandhe-number-input-control-height`/
+//! `-font-size`/`-trigger-size`）とクラス名・セレクタは一切削除・改名しない
+//! （削除・改名は minor バンプ要件になるため）。値の付け替えと新規宣言の
+//! 追加のみに留め、patch バンプ判定を維持する。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく Scrubber パーツ・キーボード操作の DOM 配線は
@@ -68,10 +122,17 @@
 //! - `examples/headless-pre-styled-ui`（crates.io バージョン依存）への
 //!   NumberInput 追加は、未公開の新バージョンを参照できないため本イシュー
 //!   のスコープ外とする（9c0e4f6 の先例どおり crates.io 公開後に追随）。
+//! - chakra の `variant`（outline/subtle/flushed）相当の軸を number-input
+//!   へ写像する設計判断は Forms 家族横断で検討すべきであり、本イシューの
+//!   スコープ外とする（起票はユーザー承認後）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
+};
 
 // `NumberInput` 状態機械・headless 自由関数 `root` はあえて再エクスポート
 // しない（本モジュール冒頭の rustdoc「選択的 re-export」節参照）。状態管理・
@@ -112,7 +173,7 @@ fn recipe() -> SlotRecipe {
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5")],
+            disabled_declarations(),
         )
         .base(
             "label",
@@ -134,22 +195,31 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("box-sizing", "border-box"),
                 decl("width", "100%"),
+                decl("font", "inherit"),
+                decl("color", "var(--fandhe-color-fg)"),
                 decl(
                     "height",
                     "var(--fandhe-number-input-control-height, 2.5rem)",
                 ),
                 decl(
                     "padding",
-                    "0 var(--fandhe-number-input-trigger-size, 1.5rem) 0 var(--fandhe-space-2)",
+                    "0 var(--fandhe-number-input-trigger-size, 1.5rem) 0 var(--fandhe-number-input-padding-x, 1rem)",
                 ),
                 decl(
                     "font-size",
                     "var(--fandhe-number-input-font-size, var(--fandhe-font-font-size-sm))",
                 ),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "var(--fandhe-radius-md, 0.375rem)"),
+                // input #1482・native-select #1484 が確立した Forms 家族の
+                // 標準角丸（`--fandhe-radius-md` は常時定義済みトークンの
+                // ためフォールバックリテラルを持たない、input.rs と同一）。
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
             ],
+        )
+        .base(
+            "input",
+            transition_declarations("border-color, background", MotionDuration::Fast),
         )
         .state(
             "input",
@@ -158,8 +228,25 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "input",
+            StateCondition::Attr("data-readonly"),
+            vec![decl("cursor", "default")],
+        )
+        // `data-readonly` 規則より後に登録する（date-input #1469 の
+        // `segment_disabled_cursor_overrides_readonly_by_source_order` と
+        // 同型: 同一詳細度 `[name]` (0,1,0) 同士のため、`state()` の
+        // 「登録順」契約により後勝ちで disabled の `cursor` が readonly を
+        // 上書きする。disabled かつ readonly の両方が真な input で
+        // `cursor: default` に上書きされ通常カーソルへ戻ってしまう不具合を
+        // 防ぐ）。
+        .state(
+            "input",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed")],
+            disabled_declarations(),
+        )
+        .state(
+            "input",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .base(
             "increment-trigger",
@@ -169,16 +256,35 @@ fn recipe() -> SlotRecipe {
                 decl("top", "1px"),
                 decl("width", "var(--fandhe-number-input-trigger-size, 1.5rem)"),
                 decl("height", "50%"),
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
                 decl("border", "none"),
                 decl("background", "transparent"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
                 decl("cursor", "pointer"),
                 decl("line-height", "1"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "increment-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        .state(
+            "increment-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "increment-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
         )
         .state(
             "increment-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.4")],
+            disabled_declarations(),
         )
         .base(
             "decrement-trigger",
@@ -188,49 +294,95 @@ fn recipe() -> SlotRecipe {
                 decl("bottom", "1px"),
                 decl("width", "var(--fandhe-number-input-trigger-size, 1.5rem)"),
                 decl("height", "50%"),
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
                 decl("border", "none"),
                 decl("background", "transparent"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
                 decl("cursor", "pointer"),
                 decl("line-height", "1"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "decrement-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        .state(
+            "decrement-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "decrement-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
         )
         .state(
             "decrement-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.4")],
+            disabled_declarations(),
         )
+        // size（イシュー #1678 の `--fandhe-size-control-height/padding-x/
+        // font-size-*` トークンへ移行、イシュー #1485。input #1482・
+        // native-select #1484 と同一のフォールバック値）。
+        // `--fandhe-number-input-trigger-size` は共有トークンに該当段が
+        // ないため component-local のまま維持し、新高さスケールに釣り合う
+        // 値へ調整する。
         .variant(
             Size::Xs,
             "root",
             vec![
-                decl("--fandhe-number-input-control-height", "1.5rem"),
+                decl(
+                    "--fandhe-number-input-control-height",
+                    "var(--fandhe-size-control-height-xs, 2rem)",
+                ),
                 decl(
                     "--fandhe-number-input-font-size",
-                    "var(--fandhe-font-font-size-xs)",
+                    "var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs))",
                 ),
-                decl("--fandhe-number-input-trigger-size", "1rem"),
+                decl(
+                    "--fandhe-number-input-padding-x",
+                    "var(--fandhe-size-control-padding-x-xs, 0.625rem)",
+                ),
+                decl("--fandhe-number-input-trigger-size", "1.25rem"),
             ],
         )
         .variant(
             Size::Sm,
             "root",
             vec![
-                decl("--fandhe-number-input-control-height", "2rem"),
+                decl(
+                    "--fandhe-number-input-control-height",
+                    "var(--fandhe-size-control-height-sm, 2.25rem)",
+                ),
                 decl(
                     "--fandhe-number-input-font-size",
-                    "var(--fandhe-font-font-size-sm)",
+                    "var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm))",
                 ),
-                decl("--fandhe-number-input-trigger-size", "1.25rem"),
+                decl(
+                    "--fandhe-number-input-padding-x",
+                    "var(--fandhe-size-control-padding-x-sm, 0.75rem)",
+                ),
+                decl("--fandhe-number-input-trigger-size", "1.375rem"),
             ],
         )
         .variant(
             Size::Md,
             "root",
             vec![
-                decl("--fandhe-number-input-control-height", "2.5rem"),
+                decl(
+                    "--fandhe-number-input-control-height",
+                    "var(--fandhe-size-control-height-md, 2.5rem)",
+                ),
                 decl(
                     "--fandhe-number-input-font-size",
-                    "var(--fandhe-font-font-size-sm)",
+                    "var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md))",
+                ),
+                decl(
+                    "--fandhe-number-input-padding-x",
+                    "var(--fandhe-size-control-padding-x-md, 1rem)",
                 ),
                 decl("--fandhe-number-input-trigger-size", "1.5rem"),
             ],
@@ -239,24 +391,38 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![
-                decl("--fandhe-number-input-control-height", "3rem"),
+                decl(
+                    "--fandhe-number-input-control-height",
+                    "var(--fandhe-size-control-height-lg, 2.75rem)",
+                ),
                 decl(
                     "--fandhe-number-input-font-size",
-                    "var(--fandhe-font-font-size-md)",
+                    "var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-lg))",
                 ),
-                decl("--fandhe-number-input-trigger-size", "1.75rem"),
+                decl(
+                    "--fandhe-number-input-padding-x",
+                    "var(--fandhe-size-control-padding-x-lg, 1.25rem)",
+                ),
+                decl("--fandhe-number-input-trigger-size", "1.625rem"),
             ],
         )
         .variant(
             Size::Xl,
             "root",
             vec![
-                decl("--fandhe-number-input-control-height", "3.5rem"),
+                decl(
+                    "--fandhe-number-input-control-height",
+                    "var(--fandhe-size-control-height-xl, 3rem)",
+                ),
                 decl(
                     "--fandhe-number-input-font-size",
-                    "var(--fandhe-font-font-size-lg)",
+                    "var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-xl))",
                 ),
-                decl("--fandhe-number-input-trigger-size", "2rem"),
+                decl(
+                    "--fandhe-number-input-padding-x",
+                    "var(--fandhe-size-control-padding-x-xl, 1.5rem)",
+                ),
+                decl("--fandhe-number-input-trigger-size", "1.75rem"),
             ],
         )
         .default_variant(Size::Md)
@@ -385,6 +551,98 @@ mod tests {
         assert!(css.contains("--size-"));
         assert!(css.contains("--fandhe-number-input-control-height"));
         assert!(css.contains("--fandhe-number-input-trigger-size"));
+    }
+
+    #[test]
+    fn stylesheet_references_size_control_tokens_for_all_five_sizes() {
+        // イシュー #1485: #1678 の共有 size-control トークンへ移行した
+        // ことを固定する（input #1482・native-select #1484 と同型）。
+        let css = stylesheet();
+        for suffix in ["xs", "sm", "md", "lg", "xl"] {
+            assert!(
+                css.contains(&format!("--fandhe-size-control-height-{suffix}")),
+                "missing height token for {suffix}: {css}"
+            );
+            assert!(
+                css.contains(&format!("--fandhe-size-control-padding-x-{suffix}")),
+                "missing padding-x token for {suffix}: {css}"
+            );
+            assert!(
+                css.contains(&format!("--fandhe-size-control-font-size-{suffix}")),
+                "missing font-size token for {suffix}: {css}"
+            );
+        }
+    }
+
+    #[test]
+    fn input_and_triggers_use_canonical_focus_ring() {
+        let css = stylesheet();
+        let expected_outline =
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));";
+        assert!(css.contains(expected_outline));
+        assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+        assert!(css.contains("outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));"));
+    }
+
+    #[test]
+    fn triggers_hover_rule_is_wrapped_in_hover_media_query() {
+        let css = stylesheet();
+        let media_idx = css
+            .find("@media (hover: hover) {")
+            .expect("hover media query block must exist");
+        let media_block = &css[media_idx..];
+        assert!(media_block.contains(
+            r#"[data-scope="number-input"][data-part="increment-trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(media_block.contains(
+            r#"[data-scope="number-input"][data-part="decrement-trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(media_block.contains("background: var(--fandhe-hover-bg);"));
+    }
+
+    #[test]
+    fn root_and_triggers_disabled_use_canonical_disabled_declarations() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="number-input"][data-part="root"][data-disabled] {"#));
+        assert!(css.contains(
+            r#"[data-scope="number-input"][data-part="increment-trigger"][data-disabled] {"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="number-input"][data-part="decrement-trigger"][data-disabled] {"#
+        ));
+        assert!(css.contains("opacity: 0.5;"));
+        assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn input_consumes_data_readonly_attribute() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="number-input"][data-part="input"][data-readonly] {"#));
+        assert!(css.contains("cursor: default;"));
+    }
+
+    #[test]
+    fn input_disabled_cursor_overrides_readonly_by_source_order() {
+        // date-input #1469 の
+        // `segment_disabled_cursor_overrides_readonly_by_source_order` と
+        // 同型: disabled かつ readonly の両方が真な input で `cursor:
+        // default` に上書きされ通常カーソルへ戻ってしまう不具合を防ぐため、
+        // `[data-disabled]` 規則を `[data-readonly]` 規則より後段に登録し
+        // 同一詳細度・登録順の後勝ちで disabled を優先させる。
+        let css = stylesheet();
+        let readonly_idx = css
+            .find(r#"[data-scope="number-input"][data-part="input"][data-readonly] {"#)
+            .expect("input readonly rule must exist");
+        let disabled_idx = css
+            .find(r#"[data-scope="number-input"][data-part="input"][data-disabled] {"#)
+            .expect("input disabled rule must exist");
+        assert!(
+            disabled_idx > readonly_idx,
+            "input[data-disabled] must be registered after input[data-readonly] so it wins by source order"
+        );
+        let disabled_block = &css[disabled_idx..];
+        let block_end = disabled_block.find('}').unwrap_or(disabled_block.len());
+        assert!(disabled_block[..block_end].contains("cursor: not-allowed;"));
     }
 
     #[test]
