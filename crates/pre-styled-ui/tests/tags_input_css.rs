@@ -12,6 +12,16 @@
 //! 置換・`control` の角丸を `--fandhe-radius-md` へ変更・`control` へ
 //! transition/`:focus-within` フォーカスリング/`[data-disabled]` を追加・
 //! `input` の `:focus-visible` outline を削除（リングは `control` へ移設）。
+//!
+//! イシュー #1699（内部パート item 等のスタイル調整・状態遷移、親
+//! #1510）で以下を反映済み: `item`（新規、`display: inline-flex` +
+//! `[data-disabled]` cursor のみ）・`item-preview` への transition 追加
+//! （`data-highlighted` 反転を滑らかに）・`item-input`（新規、UA 既定
+//! リセット + 書体統一）・`item-delete-trigger` への hover/transition
+//! 追加（`@media (hover: hover)` 配下、#1425 規約是正）。`data-selected`
+//! は headless 側が可変属性を出力しないため対象外（`crates/pre-styled-ui/
+//! src/tags_input.rs` モジュール rustdoc「内部パートのスタイル調整」節
+//! 参照）。`clear-trigger`/`label` は変更なし。
 
 use fandhe_frontend_pre_styled_ui::tags_input;
 
@@ -54,6 +64,10 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
   color: var(--fandhe-color-fg);
 }
 
+[data-scope="tags-input"][data-part="item"] {
+  display: inline-flex;
+}
+
 [data-scope="tags-input"][data-part="item-preview"] {
   display: inline-flex;
   align-items: center;
@@ -65,8 +79,24 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
   color: var(--fandhe-color-fg);
 }
 
+[data-scope="tags-input"][data-part="item-preview"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
 [data-scope="tags-input"][data-part="item-text"] {
   white-space: nowrap;
+}
+
+[data-scope="tags-input"][data-part="item-input"] {
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0;
+  font-size: var(--fandhe-tags-input-font-size, var(--fandhe-font-font-size-sm));
+  color: var(--fandhe-color-fg);
 }
 
 [data-scope="tags-input"][data-part="item-delete-trigger"] {
@@ -83,6 +113,16 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
   color: inherit;
   cursor: pointer;
   line-height: 1;
+}
+
+[data-scope="tags-input"][data-part="item-delete-trigger"] {
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="tags-input"][data-part="item-delete-trigger"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="tags-input"][data-part="clear-trigger"] {
@@ -132,6 +172,10 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
   cursor: not-allowed;
 }
 
+[data-scope="tags-input"][data-part="item"][data-disabled] {
+  cursor: not-allowed;
+}
+
 [data-scope="tags-input"][data-part="item-preview"][data-highlighted] {
   background: var(--fandhe-color-accent);
   color: var(--fandhe-color-accent-fg);
@@ -147,6 +191,12 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
 
 [data-scope="tags-input"][data-part="clear-trigger"][data-disabled] {
   cursor: not-allowed;
+}
+
+@media (hover: hover) {
+  [data-scope="tags-input"][data-part="item-delete-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 

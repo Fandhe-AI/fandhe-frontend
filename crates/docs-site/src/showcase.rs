@@ -3583,28 +3583,44 @@ fn password_input_section() -> Node {
     )
 }
 
-/// TagsInput 節: 通常タグ数件・max 到達（`data-invalid`/`aria-invalid`）・
-/// disabled の 3 態。
+/// TagsInput 節: 通常タグ数件（highlighted 1 件込み）・編集中タグ・max
+/// 到達（`data-invalid`/`aria-invalid`）・disabled の 4 態。
 ///
 /// `control` は `role="listbox"`、各タグの `item-preview` は `role="option"`
 /// （headless 層の listbox 相当 ARIA、`fandhe_frontend_pre_styled_ui::tags_input`
-/// のモジュール doc 参照）。SSR 静的掲示のため編集モード
-/// （`item-input`/`data-editing`）は掲載しない（wasm 層の対話が必要なため、
-/// モジュール rustdoc「スコープ外」節参照）。
+/// のモジュール doc 参照）。編集モード（`item-input`/`data-editing`）は
+/// SSR 静的実演として `editing` 列に 1 件掲示する（イシュー #1699。
+/// wasm 層の実対話〔キー入力に応じた編集開始/終了の状態遷移〕自体は
+/// 引き続き wasm-full の配線層が担う。ここでは `item-input` slot の見た目
+/// のみを静的マークアップで示す）。
 fn tags_input_section() -> Node {
-    fn tag_item(tag: &str, disabled: bool) -> Node {
+    fn tag_item(tag: &str, disabled: bool, highlighted: bool) -> Node {
         tags_input::item(
             disabled,
             false,
             vec![],
             vec![tags_input::item_preview(
-                false,
+                highlighted,
                 vec![],
                 vec![
                     tags_input::item_text(vec![], vec![text(tag)]),
                     tags_input::item_delete_trigger(tag, disabled, vec![], vec![text("\u{00d7}")]),
                 ],
             )],
+        )
+    }
+
+    /// 編集中のタグ 1 件（`data-editing` + `item-input`）を組み立てる
+    /// （イシュー #1699 静的実演。`item_preview`/`item_text` は編集中は
+    /// 描画せず `item_input` のみを子に持つ、headless
+    /// `crates/headless-ui/src/tags_input.rs::item` rustdoc の想定
+    /// マークアップに従う）。
+    fn editing_tag_item(value: &str) -> Node {
+        tags_input::item(
+            false,
+            true,
+            vec![],
+            vec![tags_input::item_input(value, vec![])],
         )
     }
 
@@ -3620,12 +3636,36 @@ fn tags_input_section() -> Node {
                 "Skills",
                 vec![],
                 vec![
-                    tag_item("rust", false),
-                    tag_item("wasm", false),
+                    tag_item("rust", false, false),
+                    // highlighted: キーボード操作でフォーカス移動中の 1 件
+                    // （`data-highlighted`、モジュール rustdoc「内部パートの
+                    // スタイル調整」節が追加した transition の実演を兼ねる）。
+                    tag_item("wasm", false, true),
                     tags_input::input("", false, false, vec![]),
                 ],
             ),
             tags_input::hidden_input("skills", "rust,wasm", false, vec![]),
+        ],
+    );
+
+    let editing = tags_input::root(
+        Size::Md,
+        false,
+        vec![],
+        vec![
+            tags_input::label(vec![], vec![text("Editing")]),
+            tags_input::control(
+                false,
+                false,
+                "Editing",
+                vec![],
+                vec![
+                    tag_item("go", false, false),
+                    editing_tag_item("wa"),
+                    tags_input::input("", false, false, vec![]),
+                ],
+            ),
+            tags_input::hidden_input("editing-tags", "go", false, vec![]),
         ],
     );
 
@@ -3644,8 +3684,8 @@ fn tags_input_section() -> Node {
                 "At max",
                 vec![],
                 vec![
-                    tag_item("a", false),
-                    tag_item("b", false),
+                    tag_item("a", false, false),
+                    tag_item("b", false, false),
                     tags_input::input("", false, true, vec![]),
                 ],
             ),
@@ -3665,7 +3705,7 @@ fn tags_input_section() -> Node {
                 "Disabled",
                 vec![],
                 vec![
-                    tag_item("readonly", true),
+                    tag_item("readonly", true, false),
                     tags_input::input("", true, false, vec![]),
                 ],
             ),
@@ -3673,10 +3713,10 @@ fn tags_input_section() -> Node {
         ],
     );
 
-    let demo_row = row(vec![normal, at_max, disabled]);
+    let demo_row = row(vec![normal, editing, at_max, disabled]);
     section(
         "TagsInput",
-        "自由入力によるタグ配列。control は role=\"listbox\"、各タグは role=\"option\" を持ち、max 到達時は input が data-invalid/aria-invalid を伴います。",
+        "自由入力によるタグ配列。control は role=\"listbox\"、各タグは role=\"option\" を持ち、max 到達時は input が data-invalid/aria-invalid を伴います。編集中のタグは item-input（ネイティブ input）で表示されます。",
         vec![demo_row],
     )
 }
