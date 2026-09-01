@@ -499,7 +499,9 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
-        // headless 層が invalid な選択肢へ出す `data-invalid` を item-indicator
+        // 呼び出し側が attrs パススルーで付与する `data-invalid`（headless
+        // `radio_group` は現状これを出力しない。上記モジュール doc コメント
+        // 「本イシューで `item` へ適用した変更」節参照）を item-indicator
         // slot へ反映する（checkbox-card `indicator` #1458 と同型の視覚言語。
         // `item` 側の invalid 表現は 1/2〔PR #1768〕の担当のため本規則は
         // 追加しない）。
