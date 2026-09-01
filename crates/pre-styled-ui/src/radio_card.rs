@@ -105,6 +105,10 @@
 //!   headless `radio_group` は現状 `data-invalid` を出力しないため
 //!   （Field #538 連携は headless 側の将来イシュー）、呼び出し側 `attrs`
 //!   パススルー（[`ITEM_RESERVED`] は非予約）で付与する契約とする。
+//!   `data-invalid` は境界線の視覚表現に留まる CSS フックであり、
+//!   支援技術への状態通知は別途 [`item_hidden_input`] の `attrs` へ
+//!   `aria-invalid="true"` を渡して併用することを呼び出し側の責務とする
+//!   （codex-review 指摘、イシュー #1491）。
 //!
 //! 意図的に参照サイトへ合わせない点（親 #1490 の比較チェックリスト・イシュー
 //! 本文参照）:

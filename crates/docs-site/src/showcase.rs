@@ -5097,6 +5097,17 @@ fn radio_card_section() -> Node {
                 } else {
                     vec![]
                 };
+                // イシュー #1491 codex-review P1 是正: `data-invalid`
+                // による枠線の視覚表現だけでは支援技術に invalid 状態が
+                // 伝わらないため、フォーカスを受ける実体である hidden
+                // input へも `aria-invalid="true"` を付与する
+                // （`item` 側の `data-invalid` は装飾用の CSS フックに
+                // とどめ、状態通知は WAI-ARIA 属性側の責務とする）。
+                let hidden_input_attrs = if *invalid {
+                    vec![("aria-invalid", "true")]
+                } else {
+                    vec![]
+                };
                 radio_card::item(
                     *checked,
                     *disabled,
@@ -5108,7 +5119,7 @@ fn radio_card_section() -> Node {
                             *disabled,
                             Some("showcase-radio-card"),
                             value,
-                            vec![],
+                            hidden_input_attrs,
                         ),
                         radio_card::item_control(
                             *checked,
