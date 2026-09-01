@@ -2897,10 +2897,95 @@ fn radio_group_section() -> Node {
         vec![],
         children,
     );
+
+    // イシュー #1495: `data-orientation="horizontal"` の折り返し横並び
+    // レイアウト（`flex-wrap: wrap` + `column-gap: var(--fandhe-space-4)`）と
+    // `label` の独立行占有を可視化する 2 件目のデモ（`checkbox_group`
+    // #1460 の `horizontal_demo` と同型）。項目・状態は縦積みデモと同一。
+    let horizontal_label_id = "showcase-radio-horizontal-label";
+    let mut horizontal_children = vec![radio_group::label(
+        Some(horizontal_label_id),
+        vec![],
+        vec![text("Plan (horizontal)")],
+    )];
+    horizontal_children.extend(items.iter().map(|(value, label, checked, disabled)| {
+        radio_group::item(
+            *checked,
+            *disabled,
+            value,
+            vec![],
+            vec![
+                radio_group::item_hidden_input(
+                    *checked,
+                    *disabled,
+                    Some("showcase-radio-horizontal"),
+                    value,
+                    vec![],
+                ),
+                radio_group::item_control(*checked, *disabled, vec![]),
+                radio_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+            ],
+        )
+    }));
+    let horizontal_demo = radio_group::root(
+        Size::Md,
+        ColorPalette::Accent,
+        false,
+        Some(Orientation::Horizontal),
+        Some(horizontal_label_id),
+        vec![],
+        horizontal_children,
+    );
+
+    // イシュー #1495: size 5 段（xs〜xl）で control 寸法・root/item 余白・
+    // font-size が単調に連動し、label（見出し）が item-text（項目）より
+    // 太いことを視覚確認できる行（`checkbox_group` #1461 の `size_row` と
+    // 同型）。
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .iter()
+        .map(|size| {
+            let size_label_id = format!("showcase-radio-size-{}-label", size.value());
+            let mut size_children = vec![radio_group::label(
+                Some(&size_label_id),
+                vec![],
+                vec![text(size.value())],
+            )];
+            size_children.extend(items.iter().map(|(value, label, checked, disabled)| {
+                let name = format!("showcase-radio-size-{}", size.value());
+                radio_group::item(
+                    *checked,
+                    *disabled,
+                    value,
+                    vec![],
+                    vec![
+                        radio_group::item_hidden_input(
+                            *checked,
+                            *disabled,
+                            Some(&name),
+                            value,
+                            vec![],
+                        ),
+                        radio_group::item_control(*checked, *disabled, vec![]),
+                        radio_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                    ],
+                )
+            }));
+            radio_group::root(
+                *size,
+                ColorPalette::Accent,
+                false,
+                Some(Orientation::Vertical),
+                Some(&size_label_id),
+                vec![],
+                size_children,
+            )
+        })
+        .collect());
+
     section(
         "RadioGroup",
         "単一選択の選択肢グループ。ネイティブ input[type=\"radio\"] による排他選択・キーボード操作を data-scope=\"radio-group\" の anatomy へ重ねます。",
-        vec![demo],
+        vec![demo, horizontal_demo, size_row],
     )
 }
 
