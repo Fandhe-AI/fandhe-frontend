@@ -230,26 +230,76 @@ fn button_css_is_deterministic() {
     assert_eq!(button::css(), button::css());
 }
 
-/// イシュー #1756: golden（バイト完全一致）とは独立に
-/// `box-sizing: border-box` の存在自体を意味的に固定する回帰テスト。
+/// `css` から base ブロック（`[data-scope="button"][data-part="root"] {`
+/// で始まり、宣言群を持つ最初のブロック。同一セレクタは transition-only
+/// ブロック（`transition-property` 等のみを持つ 2 つ目のブロック）としても
+/// 再出現するため、単純な `str::contains` では base 以外の場所へ宣言が
+/// 移動していても検知できない。この関数は「セレクタ行に続く最初の
+/// `{`〜`}` ブロック」を厳密に 1 つだけ切り出す）。
+fn extract_button_root_base_block(css: &str) -> &str {
+    const SELECTOR: &str = "[data-scope=\"button\"][data-part=\"root\"] {\n";
+    let start = css
+        .find(SELECTOR)
+        .expect("button root セレクタが CSS 内に見つからない");
+    let body_start = start + SELECTOR.len();
+    let body_end = css[body_start..]
+        .find("\n}")
+        .expect("button root base ブロックの終端 `}` が見つからない");
+    &css[body_start..body_start + body_end]
+}
+
+/// イシュー #1756: golden（バイト完全一致）とは独立に、`box-sizing:
+/// border-box` が button root の **base ブロック内**に存在することを
+/// 意味的に固定する回帰テスト。
 ///
 /// `box-sizing: border-box` の下では `border`/`padding` が `height`/
 /// `min-height` の内側に含まれるため、Outline variant（`border: 1px
 /// solid`）と Solid variant（`border: none`）の外寸（描画高さ）が一致する
 /// （`content-box` のままだと Outline のみ border 分〔上下合計 2px〕外寸が
 /// 大きくなる不具合があった。是正の記録は `button.rs` モジュール冒頭
-/// rustdoc「Outline / Solid の高さ一致」節参照）。golden
-/// テスト（`button_css_matches_golden_byte_for_byte`）が将来 base ブロックの
-/// 宣言順・周辺装飾を変更しても、この不変条件だけは独立に検知できるよう
-/// `assert!(contains(..))` で固定する（`radio_group.rs` の
-/// `item_control_has_border_box_sizing` と同型）。
+/// rustdoc「Outline / Solid の高さ一致」節参照）。**codex-review P2
+/// 指摘の是正**: 当初は `css.contains("box-sizing: border-box;")` で
+/// CSS 全文のどこか 1 箇所に宣言があれば成功していたため、base ブロックから
+/// 宣言が削除・別の variant/state ブロックへ移動しても、他の箇所（例えば
+/// 別 selector）に同一文字列が残っていれば検知できなかった。
+/// `extract_button_root_base_block` で base ブロックのみを切り出し、
+/// その断片に対して assert することで、base ブロックそのものからの
+/// 宣言消失・移動を確実に検知する（`radio_group.rs` の
+/// `item_control_has_border_box_sizing` と同型の意図を、対象ブロック限定
+/// まで強化したもの）。golden テスト
+/// （`button_css_matches_golden_byte_for_byte`）が将来 base ブロックの
+/// 宣言順・周辺装飾を変更しても、この不変条件だけは独立に検知できる。
 #[test]
 fn outline_and_solid_variants_share_total_height_via_border_box() {
     let css = button::css();
+    let base_block = extract_button_root_base_block(&css);
     assert!(
-        css.contains("box-sizing: border-box;"),
-        "button root に box-sizing: border-box が無いと、UA 既定の \
-         content-box 下で Outline variant の border 1px が height の外側へ \
-         積み増され、Solid variant と描画高さがずれる（イシュー #1756）"
+        base_block.contains("box-sizing: border-box;"),
+        "button root の base ブロックに box-sizing: border-box が無いと、\
+         UA 既定の content-box 下で Outline variant の border 1px が \
+         height の外側へ積み増され、Solid variant と描画高さがずれる \
+         （イシュー #1756）。実際の base ブロック: {base_block:?}"
+    );
+}
+
+/// `extract_button_root_base_block` 自体の健全性を確認する回帰テスト。
+///
+/// base ブロックには transition-only ブロックが持つ `transition-property`
+/// 宣言が含まれないこと（＝先頭の base ブロックを正しく切り出せていて、
+/// 2 つ目の transition-only ブロックまで読み進めていないこと）を確認する。
+#[test]
+fn extract_button_root_base_block_excludes_transition_only_block() {
+    let css = button::css();
+    let base_block = extract_button_root_base_block(&css);
+    assert!(
+        !base_block.contains("transition-property"),
+        "extract_button_root_base_block が transition-only ブロックまで \
+         取り込んでしまっている（base ブロックの終端検出が壊れている）: \
+         {base_block:?}"
+    );
+    assert!(
+        base_block.contains("display: inline-flex;"),
+        "extract_button_root_base_block が base ブロックの先頭宣言を \
+         含んでいない: {base_block:?}"
     );
 }
