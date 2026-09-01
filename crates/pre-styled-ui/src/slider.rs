@@ -105,9 +105,57 @@
 //!   スコープ外とする（[`crate::number_input`] 冒頭 rustdoc の先例どおり
 //!   crates.io 公開後に追随）。
 //! - marker/label/value-text の是正・`data-orientation="vertical"` の
-//!   状態規則の再設計は姉妹イシュー #1506（親 #1504 の 2/2）の担当であり、
-//!   本イシューでは触れない（本イシューの寸法・色是正は root スコープ
-//!   custom property・base 宣言経由で両方向へ自然伝搬するのみ）。
+//!   状態規則の再設計は姉妹イシュー #1506（親 #1504 の 2/2）が完了済み
+//!   （下記「イシュー #1506」節参照）。
+//!
+//! # イシュー #1506: マーカー・ラベル・値テキストと orientation 2 方向
+//! （親 #1504 の 2/2）
+//!
+//! 参考サイト（chakra-ui/Radix Themes/Radix Primitives/ark-ui）視覚比較に
+//! 基づき、#1505 が残した残りの担当範囲（マーカー・ラベル・値テキストの
+//! 型階層、vertical 方向の実バグ）を是正した。
+//!
+//! ## ラベル・値テキストの型階層
+//!
+//! - `label`: angle-slider（#1446、ark-ui 基準）の uppercase +
+//!   letter-spacing は採らない（参照サイトの linear slider にはない表現の
+//!   ため）。「通常ケース・medium ウェイト・前景色」の型階層のみを追加
+//!   （`font-weight`/`color`/`line-height`）。
+//! - `value-text`: #1505 完了時点で base 宣言が皆無で CSS ブロック自体が
+//!   出力されない状態だった（angle-slider の #1446 是正前と同一）。
+//!   `font-size`/`color`（`fg-muted`、`theme.rs` のコントラスト検証ペア
+//!   `("fg-muted", "bg")` 登録済み）/`line-height`/
+//!   `font-variant-numeric: tabular-nums`（値変動時に幅がぶれない）を
+//!   base として新設した。size 連動（root スコープ custom property）は
+//!   行わない。参照サイトの linear slider はラベル・値テキストをスライダー
+//!   size に関わらず一定の text-sm で表示するため（angle-slider の
+//!   大型ダイヤル読み出しとは役割が異なる）。
+//! - `label`/`value-text` は非インタラクティブなテキストのため hover/
+//!   transition は追加しない（angle-slider #1446 と同じ判断）。
+//!
+//! ## マーカー: 意図的非採用
+//!
+//! headless anatomy（`crates/headless-ui/src/slider.rs`）に Marker/
+//! MarkerGroup パーツが存在せず、anatomy 追加は headless-ui の責務で本
+//! モジュールの範囲外。angle-slider #1445 の「CSS-only 目盛りリング」先例は
+//! 360° 一様な装飾だから成立したが、linear slider のマーカーは任意の値
+//! 位置に意味を持って置かれる（chakra/ark-ui の Marker は値指定）ため、
+//! DOM なしの CSS-only 再現は意味論的に成立しない。追加する場合は headless
+//! 層のイシューから着手する必要がある。
+//!
+//! ## vertical 状態規則の再設計（実バグ修正）
+//!
+//! #1505 完了時点の `thumb` vertical 状態規則は `top` アンカー
+//! （`top: var(--fandhe-slider-percent, 0%)`）で、`range`（`bottom: 0;
+//! height: var(--fandhe-slider-percent)`、下から上へ伸長）と増加方向が
+//! **逆転**していた（percent=100 のとき range は全高を塗るが thumb は
+//! 最下端へ移動する不具合）。`thumb` を `bottom` アンカーへ変更し、
+//! `transform` の Y 成分を `-50%`（top アンカー用）から `+50%`（bottom
+//! アンカー用）へ反転してつまみ中心を位置点に載せることで、range と
+//! 増加方向を一致させた。`--fandhe-slider-percent` 1 点伝搬（headless 側の
+//! 値は 1 系統のまま）という既存契約は不変で、CSS の参照プロパティのみを
+//! 切り替えている。`control`/`track`/`range` の既存 vertical 規則と root の
+//! column レイアウトは参照サイトと整合しており変更していない。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -186,7 +234,36 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "label",
-            vec![decl("font-size", "var(--fandhe-font-font-size-sm)")],
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                // イシュー #1506: 型階層の追加宣言。angle-slider（#1446）の
+                // uppercase + letter-spacing とは異なり、参照サイトの linear
+                // slider ラベルは「通常ケース・medium ウェイト・前景色」の
+                // ため、その表現のみを追加する（モジュール doc「イシュー
+                // #1506」節参照）。
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+            ],
+        )
+        .base(
+            "value-text",
+            vec![
+                // イシュー #1506: `value-text` は #1505 完了時点で base 宣言が
+                // 皆無で CSS ブロック自体が出力されなかった（angle-slider の
+                // #1446 是正前と同一の状態）。参照サイトの linear slider は
+                // ラベル・値テキストをスライダー size に関わらず一定の
+                // text-sm で表示するため、angle-slider（#1446、大型ダイヤル
+                // 読み出し用に size 連動 font-size を持つ）とは異なり size
+                // 連動の root スコープ custom property は導入しない
+                // （モジュール doc「イシュー #1506」節参照）。
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+                // 値変動時に幅がぶれないよう固定幅数字を使う（timer /
+                // progress / angle-slider の value-text と同型）。
+                decl("font-variant-numeric", "tabular-nums"),
+            ],
         )
         .base(
             "control",
@@ -311,10 +388,19 @@ fn recipe() -> SlotRecipe {
         .state(
             "thumb",
             StateCondition::AttrEq("data-orientation", "vertical"),
+            // イシュー #1506: vertical 方向逆転バグの修正。`range` は
+            // `bottom: 0; height: var(--fandhe-slider-percent)`（下から上へ
+            // 伸長）だが、是正前の thumb は `top` アンカーで percent が
+            // 増えるほど下端へ移動しており、range と thumb の増加方向が
+            // 逆転していた。`bottom` アンカーへ切り替えて range と一致させ、
+            // `transform` の Y 成分も `-50%`（top アンカー用）から `+50%`
+            // （bottom アンカー用）へ反転してつまみ中心を位置点に載せる
+            // （モジュール doc「イシュー #1506」節参照）。
             vec![
-                decl("top", "var(--fandhe-slider-percent, 0%)"),
+                decl("top", "auto"),
+                decl("bottom", "var(--fandhe-slider-percent, 0%)"),
                 decl("left", "50%"),
-                decl("bottom", "auto"),
+                decl("transform", "translate(-50%, 50%)"),
             ],
         )
         .state(
@@ -508,6 +594,30 @@ mod tests {
         assert!(css.contains(
             r#"[data-scope="slider"][data-part="thumb"][data-orientation="vertical"] {"#
         ));
+    }
+
+    #[test]
+    fn stylesheet_vertical_thumb_direction_matches_range() {
+        // イシュー #1506: `range` は `bottom: 0; height:
+        // var(--fandhe-slider-percent)`（下から上へ伸長）であり、`thumb`
+        // vertical 状態規則もこれと同じ増加方向（`bottom` アンカー）を
+        // 参照する回帰テスト（是正前は `top` アンカーで方向が逆転していた）。
+        let css = stylesheet();
+        assert!(css.contains("bottom: var(--fandhe-slider-percent, 0%);"));
+        assert!(css.contains("transform: translate(-50%, 50%);"));
+    }
+
+    #[test]
+    fn stylesheet_gives_label_and_value_text_distinct_typography() {
+        // イシュー #1506: label / value-text 双方が CSS ブロックを出力し、
+        // 型階層（重み・色・line-height・tabular-nums）を持つことを固定する
+        // （#1505 完了時点では value-text の base 宣言が皆無だった）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="slider"][data-part="label"] {"#));
+        assert!(css.contains(r#"[data-scope="slider"][data-part="value-text"] {"#));
+        assert!(css.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
+        assert!(css.contains("color: var(--fandhe-color-fg-muted);"));
+        assert!(css.contains("font-variant-numeric: tabular-nums;"));
     }
 
     #[test]
