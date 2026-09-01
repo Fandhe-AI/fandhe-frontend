@@ -136,12 +136,56 @@
 //! - Radix Themes `classic` variant の inset shadow による立体表現・
 //!   surface variant は variant 軸の新設を伴うため不採用（本イシューは
 //!   既存 variant 構成を変えない是正のみを担う）
-//! - トラック/サムの寸法調整（`--fandhe-switch-*` custom property・size
-//!   variant 値そのもの）・`label` slot 配置は姉妹イシュー #1509 の担当
-//!   範囲であり本イシューでは触れない
 //! - hover を `data-hover` 属性ではなく CSS `:hover`
 //!   （`StateCondition::Hover`）で表現する既存規約（`checkbox`/`slider`
 //!   と同型）をそのまま踏襲した
+//!
+//! # `size` バリアントと `label` 配置の是正（イシュー #1509、親 #1507/#1443）
+//!
+//! 親イシュー #1507 の分割 2/2。1/2（#1508、上記節）が担わなかった残務
+//! （size バリアントの寸法段階設計・`label` slot の配置）を消化する。先例は
+//! checkbox（#1455、`size_variants` ヘルパへの移行・gap の size 連動・
+//! label 型階層付与が同型）。
+//!
+//! - **size variant の一括登録**: 5 段の `.variant(Size::*, "root", ...)`
+//!   を個別に手書きする代わりに [`crate::recipe::SlotRecipe::size_variants`]
+//!   （既定 `md` の設定漏れを構造的に防ぐ共通生成手段、規約は
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4）を
+//!   使うよう書き換えた。挙動・出力 CSS は変わらない（純粋なリファクタ）。
+//! - **寸法値そのものは据え置き**: 参考スクショ（`docs/design/
+//!   reference-screenshots/` 配下の switch 関連 PNG・`themes-switch.png`）
+//!   と比較した結果、既存の `--fandhe-switch-track-width`/`-track-height`/
+//!   `-thumb-size`/`-thumb-travel` は (1) `track-width = 2 × thumb-size +
+//!   2 × padding(0.15rem)`・`thumb-travel = thumb-size`・`track-height =
+//!   thumb-size + 2 × padding` の相互依存不変条件を既に満たしており、
+//!   (2) `track-width`（1.5/2/2.5/3rem）は chakra switch の xs/sm/md/lg と
+//!   一致済みであるため、明確な是正動機が見つからなかった。checkbox #1455
+//!   の保守的方針（乖離が明確な段のみ是正し既定 md の外観は極力維持する）
+//!   に倣い、寸法値の変更は行わない。padding `0 0.15rem` も checkbox の
+//!   `margin-bottom: 0.1rem` と同じ「スケール外の光学調整値」として現状
+//!   維持する。
+//! - **root の `gap` を size 連動に**: `--fandhe-switch-gap` の root
+//!   base custom property（フォールバック `var(--fandhe-space-2)`、既定
+//!   md の見た目を維持）を新設し、[`recipe`] の `size_variants` で xs〜xl
+//!   の spacing トークン（`--fandhe-space-1`/`-1-5`/`-2`/`-2-5`/`-3`）を
+//!   単調増加で割り当てる（checkbox #1455 と同一の spacing トークン列）。
+//! - **label に型階層を追加**: 従来 `font-size` 1 宣言のみだった `label`
+//!   base へ checkbox #1455 と同一語彙（`font-weight: medium`・
+//!   `line-height: normal`・`color: fg`・`user-select: none`）を追加した。
+//!
+//! ## 意図的に参照サイトへ合わせなかった点（#1509 分）
+//!
+//! - `xl` サイズは chakra（xs〜lg の 4 段）に対する過剰分だが、リポジトリ
+//!   横断の 5 段 [`Size`] 語彙（checkbox 等の他部品と同一構成）に合わせた
+//!   意図的な超過であり、削除しない。
+//! - chakra switch の `variant`（solid/raised）軸は追加しない（1/2 と同じ
+//!   判断。横断判断はイシュー #1741 で
+//!   `docs/design/pre-styled-ui-size-and-color-palette-axes.md` §7 に
+//!   記録済み: 現時点では見送り）。
+//! - label の左右配置切り替え（label 先行レイアウト）用の専用 variant は
+//!   追加しない。`root` は flex コンテナであり、anatomy の子要素（`label`/
+//!   `control`）の記述順は呼び出し側の責務のため、既存構成のままで表現
+//!   できる。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -182,7 +226,12 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
-                decl("gap", "var(--fandhe-space-2)"),
+                // イシュー #1509: `gap` を size 連動 custom property 化
+                // （`--fandhe-switch-gap`、checkbox #1455 と同型）。
+                // フォールバックは従来の固定値 `var(--fandhe-space-2)`
+                // のため、styled `root` 非経由の headless 直接利用でも
+                // 現行外観（md 相当）を維持する。
+                decl("gap", "var(--fandhe-switch-gap, var(--fandhe-space-2))"),
                 decl("cursor", "pointer"),
             ],
         )
@@ -311,10 +360,22 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "label",
-            vec![decl(
-                "font-size",
-                "var(--fandhe-switch-label-font-size, var(--fandhe-font-font-size-sm))",
-            )],
+            vec![
+                decl(
+                    "font-size",
+                    "var(--fandhe-switch-label-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                // イシュー #1509: checkbox（#1455）の label と同一語彙の
+                // 型階層を追加する。`font-weight: medium` + `color: fg` で
+                // 通常テキストより強調し、`line-height: normal` で複数行
+                // ラベルの行送りを整え、`user-select: none` はクリックで
+                // トグルする `<label>` 内テキストの誤選択を防ぐ
+                // （chakra の switch label と同じ挙動）。
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("user-select", "none"),
+            ],
         )
         // hidden-input の視覚的非表示化（[`crate::select`] の `hidden-select` と
         // 同じ visually-hidden パターン。モジュール doc 参照）。
@@ -332,77 +393,94 @@ fn recipe() -> SlotRecipe {
                 decl("border", "0"),
             ],
         )
-        .variant(
-            Size::Xs,
+        // イシュー #1509: 5 段の `.variant(Size::*, "root", ...)` を個別に
+        // 手書きする代わりに `size_variants`（イシュー #1424 の共通生成
+        // 手段、checkbox #1455 / slider #1777 と同型）を使い、既定 `md` の
+        // 設定漏れを構造的に防ぐ（規約は
+        // `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+        // §4）。寸法値自体は不変条件（`track-width = 2 × thumb-size + 2 ×
+        // padding(0.15rem)` / `thumb-travel = thumb-size` / `track-height =
+        // thumb-size + 2 × padding`）を既に満たし、track-width は chakra の
+        // xs/sm/md/lg（1.5/2/2.5/3rem）と一致済みのため据え置く（参考
+        // スクショ比較で明確な乖離が見つからなかった、モジュール rustdoc
+        // 「イシュー #1509」節参照）。`--fandhe-switch-gap` は本イシューで
+        // 新設した root 余白の size 連動 custom property で、checkbox と
+        // 同じ spacing トークンを xs〜xl まで単調増加させる。
+        .size_variants(
             "root",
-            vec![
-                decl("--fandhe-switch-track-width", "1.5rem"),
-                decl("--fandhe-switch-track-height", "0.9rem"),
-                decl("--fandhe-switch-thumb-size", "0.6rem"),
-                decl("--fandhe-switch-thumb-travel", "0.6rem"),
-                decl(
-                    "--fandhe-switch-label-font-size",
-                    "var(--fandhe-font-font-size-xs)",
+            &[
+                (
+                    Size::Xs,
+                    vec![
+                        decl("--fandhe-switch-track-width", "1.5rem"),
+                        decl("--fandhe-switch-track-height", "0.9rem"),
+                        decl("--fandhe-switch-thumb-size", "0.6rem"),
+                        decl("--fandhe-switch-thumb-travel", "0.6rem"),
+                        decl(
+                            "--fandhe-switch-label-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                        decl("--fandhe-switch-gap", "var(--fandhe-space-1)"),
+                    ],
+                ),
+                (
+                    Size::Sm,
+                    vec![
+                        decl("--fandhe-switch-track-width", "2rem"),
+                        decl("--fandhe-switch-track-height", "1.15rem"),
+                        decl("--fandhe-switch-thumb-size", "0.85rem"),
+                        decl("--fandhe-switch-thumb-travel", "0.85rem"),
+                        decl(
+                            "--fandhe-switch-label-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-switch-gap", "var(--fandhe-space-1-5)"),
+                    ],
+                ),
+                (
+                    Size::Md,
+                    vec![
+                        decl("--fandhe-switch-track-width", "2.5rem"),
+                        decl("--fandhe-switch-track-height", "1.4rem"),
+                        decl("--fandhe-switch-thumb-size", "1.1rem"),
+                        decl("--fandhe-switch-thumb-travel", "1.1rem"),
+                        decl(
+                            "--fandhe-switch-label-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-switch-gap", "var(--fandhe-space-2)"),
+                    ],
+                ),
+                (
+                    Size::Lg,
+                    vec![
+                        decl("--fandhe-switch-track-width", "3rem"),
+                        decl("--fandhe-switch-track-height", "1.65rem"),
+                        decl("--fandhe-switch-thumb-size", "1.35rem"),
+                        decl("--fandhe-switch-thumb-travel", "1.35rem"),
+                        decl(
+                            "--fandhe-switch-label-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                        decl("--fandhe-switch-gap", "var(--fandhe-space-2-5)"),
+                    ],
+                ),
+                (
+                    Size::Xl,
+                    vec![
+                        decl("--fandhe-switch-track-width", "3.5rem"),
+                        decl("--fandhe-switch-track-height", "1.9rem"),
+                        decl("--fandhe-switch-thumb-size", "1.6rem"),
+                        decl("--fandhe-switch-thumb-travel", "1.6rem"),
+                        decl(
+                            "--fandhe-switch-label-font-size",
+                            "var(--fandhe-font-font-size-lg)",
+                        ),
+                        decl("--fandhe-switch-gap", "var(--fandhe-space-3)"),
+                    ],
                 ),
             ],
         )
-        .variant(
-            Size::Sm,
-            "root",
-            vec![
-                decl("--fandhe-switch-track-width", "2rem"),
-                decl("--fandhe-switch-track-height", "1.15rem"),
-                decl("--fandhe-switch-thumb-size", "0.85rem"),
-                decl("--fandhe-switch-thumb-travel", "0.85rem"),
-                decl(
-                    "--fandhe-switch-label-font-size",
-                    "var(--fandhe-font-font-size-sm)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Md,
-            "root",
-            vec![
-                decl("--fandhe-switch-track-width", "2.5rem"),
-                decl("--fandhe-switch-track-height", "1.4rem"),
-                decl("--fandhe-switch-thumb-size", "1.1rem"),
-                decl("--fandhe-switch-thumb-travel", "1.1rem"),
-                decl(
-                    "--fandhe-switch-label-font-size",
-                    "var(--fandhe-font-font-size-sm)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Lg,
-            "root",
-            vec![
-                decl("--fandhe-switch-track-width", "3rem"),
-                decl("--fandhe-switch-track-height", "1.65rem"),
-                decl("--fandhe-switch-thumb-size", "1.35rem"),
-                decl("--fandhe-switch-thumb-travel", "1.35rem"),
-                decl(
-                    "--fandhe-switch-label-font-size",
-                    "var(--fandhe-font-font-size-md)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Xl,
-            "root",
-            vec![
-                decl("--fandhe-switch-track-width", "3.5rem"),
-                decl("--fandhe-switch-track-height", "1.9rem"),
-                decl("--fandhe-switch-thumb-size", "1.6rem"),
-                decl("--fandhe-switch-thumb-travel", "1.6rem"),
-                decl(
-                    "--fandhe-switch-label-font-size",
-                    "var(--fandhe-font-font-size-lg)",
-                ),
-            ],
-        )
-        .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
     for palette in [
@@ -689,6 +767,71 @@ mod tests {
                 css[start..block_end].contains("--fandhe-switch-label-font-size"),
                 "size={size:?} variant block missing --fandhe-switch-label-font-size: {}",
                 &css[start..block_end]
+            );
+        }
+    }
+
+    /// イシュー #1509: label が checkbox（#1455）と同一語彙の型階層
+    /// （medium font-weight・前景色・行送り・誤選択防止）を持つことを固定する。
+    #[test]
+    fn label_has_typography_hierarchy_declarations() {
+        let css = stylesheet();
+        let selector = r#"[data-scope="switch"][data-part="label"]"#;
+        let start = css
+            .find(selector)
+            .unwrap_or_else(|| panic!("label base selector not found in {css}"));
+        let block_end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        let block = &css[start..block_end];
+        assert!(
+            block.contains("font-weight: var(--fandhe-font-font-weight-medium);"),
+            "label block missing font-weight: {block}"
+        );
+        assert!(
+            block.contains("line-height: var(--fandhe-font-line-height-normal);"),
+            "label block missing line-height: {block}"
+        );
+        assert!(
+            block.contains("color: var(--fandhe-color-fg);"),
+            "label block missing color: {block}"
+        );
+        assert!(
+            block.contains("user-select: none;"),
+            "label block missing user-select: {block}"
+        );
+    }
+
+    /// イシュー #1509: `--fandhe-switch-gap` が xs〜xl で spacing トークン
+    /// 経由の単調増加になることを固定する（root 余白の size 連動）。
+    #[test]
+    fn size_variants_set_gap_custom_property_monotonically() {
+        let css = stylesheet();
+        let expected = [
+            (Size::Xs, "var(--fandhe-space-1)"),
+            (Size::Sm, "var(--fandhe-space-1-5)"),
+            (Size::Md, "var(--fandhe-space-2)"),
+            (Size::Lg, "var(--fandhe-space-2-5)"),
+            (Size::Xl, "var(--fandhe-space-3)"),
+        ];
+        for (size, gap) in expected {
+            let selector = format!(
+                r#"[data-scope="switch"][data-part="root"].fd-switch--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            let block = &css[start..block_end];
+            let expected_decl = format!("--fandhe-switch-gap: {gap};");
+            assert!(
+                block.contains(&expected_decl),
+                "size={size:?} variant block missing {expected_decl}: {block}"
             );
         }
     }

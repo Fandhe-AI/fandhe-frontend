@@ -594,7 +594,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # `data-*` セレクタの削除/改名を伴わない）のため 0.57.31 から 0.57.32 へ
 # patch バンプする（`docs/ci/style-refresh-version-bump-operation.md`
 # §3.1/§3.3/§3.4a）。
-version = "0.57.32"
+# イシュー #1509（switch のスタイル調整 2/2、size バリアントとラベル配置、
+# 親 #1507/#1443）も同型（`size_variants` への移行〔CSS 出力バイト不変〕・
+# `--fandhe-switch-gap` の新設・`label` 型階層 4 宣言の追加のみで、公開
+# Rust API シグネチャ・CSS 変数名（既存分）・クラス名・`data-*` セレクタの
+# 削除/改名を伴わない）のため 0.57.32 から 0.57.33 へ patch バンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
+version = "0.57.33"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

@@ -2861,10 +2861,36 @@ fn switch_section() -> Node {
             )
         })
         .collect());
+    // イシュー #1509: size 5 段（xs〜xl）で track/thumb 寸法・root 余白
+    // （gap）・label font-size が単調に連動することを視覚確認できる行
+    // （`crate::checkbox` #1455 の size_row と同型）。
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .iter()
+        .map(|size| {
+            let name = format!("showcase-switch-size-{}", size.value());
+            switch::root(
+                *size,
+                ColorPalette::Accent,
+                true,
+                false,
+                vec![],
+                vec![
+                    switch::hidden_input(&name, "on", true, false, false, vec![]),
+                    switch::control(
+                        true,
+                        false,
+                        vec![],
+                        vec![switch::thumb(true, vec![], vec![])],
+                    ),
+                    switch::label(true, vec![], vec![text(size.value())]),
+                ],
+            )
+        })
+        .collect());
     section(
         "Switch",
         "data-state=\"checked\"/\"unchecked\" で見た目が切り替わるオン/オフ スイッチ。visually-hidden な input[type=\"checkbox\"][role=\"switch\"] がフォーム送信・キーボード操作の意味論を担います。",
-        vec![demo_row],
+        vec![demo_row, size_row],
     )
 }
 
