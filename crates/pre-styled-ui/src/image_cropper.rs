@@ -242,12 +242,19 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "block"),
                 decl("max-width", "100%"),
-                // ネイティブの画像ドラッグ（ブラウザ既定のゴーストドラッグ）
-                // とテキスト選択の抑止（イシュー #1481）。`pointer-events:
-                // none` は付与しない: 将来 DOM 配線（headless スコープ外）で
-                // 画像上から crop 矩形の新規ドラッグ開始を実装する余地を
-                // 残すため（`selection`/`handle` のみが操作起点という制約を
-                // スタイル層で先に固定しない）。
+                // テキスト/要素選択の抑止（イシュー #1481）。`user-select`
+                // は CSS の選択制御のみを担い、ブラウザ既定のネイティブ画像
+                // ドラッグ（HTML5 Drag and Drop・`dragstart`）は抑止しない
+                // （イシュー #1481 codex-review 指摘）。ネイティブドラッグの
+                // 抑止は headless 層の
+                // `fandhe_frontend_headless_ui::image_cropper::image` が
+                // 既定で出力する `draggable="false"` が担う（本モジュールは
+                // 当該関数をそのまま再エクスポートするのみで、スタイル層は
+                // 関与しない）。`pointer-events: none` は付与しない: 将来
+                // DOM 配線（headless スコープ外）で画像上から crop 矩形の
+                // 新規ドラッグ開始を実装する余地を残すため（`selection`/
+                // `handle` のみが操作起点という制約をスタイル層で先に
+                // 固定しない）。
                 decl("user-select", "none"),
             ],
         )
