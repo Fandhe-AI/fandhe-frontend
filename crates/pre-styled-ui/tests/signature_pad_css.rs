@@ -72,13 +72,16 @@ const SIGNATURE_PAD_GOLDEN_CSS: &str = r#"[data-scope="signature-pad"][data-part
 }
 
 [data-scope="signature-pad"][data-part="clear-trigger"][data-disabled] {
-  opacity: 0.5;
   cursor: not-allowed;
 }
 
 [data-scope="signature-pad"][data-part="control"][data-disabled] {
-  opacity: 0.5;
   cursor: not-allowed;
+}
+
+[data-scope="signature-pad"][data-part="control"][data-readonly] {
+  touch-action: auto;
+  cursor: default;
 }
 
 [data-scope="signature-pad"][data-part="root"][data-disabled] {

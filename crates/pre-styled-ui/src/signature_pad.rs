@@ -37,8 +37,19 @@
 //! - `clear-trigger` に hover 背景・`:focus-visible` リング・
 //!   `data-disabled` の視覚反映・transition を追加した（Phase 0 共通
 //!   ビジュアル言語、`crate::recipe` のヘルパ経由）
-//! - `root`/`control` にも `data-disabled` の視覚反映（`opacity`/`cursor`）
-//!   を追加した
+//! - `root`/`control` にも `data-disabled` の視覚反映（`cursor`。`opacity`
+//!   は `root` にのみ適用し、子孫（`control`/`clear-trigger`）は `cursor`
+//!   のみへ縮小する。両方に `opacity: 0.5` を重ねると子孫が祖先の減光と
+//!   乗算され `0.25` へ二重減光してしまうため（`password_input`/
+//!   `date_input` #1469 と同型の判断、イシュー #1503 PR #1776 Bugbot
+//!   レビュー Medium severity 指摘対応）を追加した
+//! - `control` に `data-readonly` の視覚反映（`touch-action: auto`・
+//!   `cursor: default`）を追加した。read-only な署名欄は描画操作を
+//!   開始できないため、`base` の `touch-action: none`／`cursor:
+//!   crosshair`（描画面としての操作契約）をそのまま適用するとモバイルで
+//!   ブラウザ標準のパン・スクロールができない領域になり、かつ
+//!   `crosshair` が「描画可能」という誤った状態表示になる（イシュー
+//!   #1503 PR #1776 codex-review P1 指摘対応）
 //!
 //! 意図的に参考サイトへ合わせない点（理由付き）:
 //!
@@ -55,9 +66,6 @@
 //! - **`data-empty` の視覚差は付けない**: guide（破線）は ark 同様に常時
 //!   表示で足り、空状態の表示切替は利用者判断（headless の `data-empty`
 //!   は既に出力されており利用者 CSS で拡張可能）
-//! - **`data-readonly` の視覚差は付けない**: 現時点で `cursor` 差分等を
-//!   追加する明確な参考サイト上の根拠がなく、`disabled` 系と混同しない
-//!   よう見送る（将来 issue で再検討可能）
 //!
 //! # セキュリティ不変条件
 //!
@@ -202,15 +210,36 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
+        // `clear-trigger`/`control` はいずれも `root` の子孫であり、`root`
+        // の `[data-disabled]` へ `disabled_declarations()`（`opacity: 0.5`）
+        // が付くと、同じ opacity を子孫へも重ねて `0.25` へ二重減光する
+        // （`password_input`/`date_input` #1469 と同型の既存不整合、
+        // イシュー #1503 PR #1776 Bugbot レビュー Medium severity 指摘
+        // 対応）。他のフォームコントロールの慣例（`opacity` は `root`
+        // のみに適用し、子孫は `cursor: not-allowed` のみを持つ）に合わせ、
+        // `clear-trigger`/`control` は `cursor` のみへ縮小する。
         .state(
             "clear-trigger",
             StateCondition::Attr("data-disabled"),
-            disabled_declarations(),
+            vec![decl("cursor", "not-allowed")],
         )
         .state(
             "control",
             StateCondition::Attr("data-disabled"),
-            disabled_declarations(),
+            vec![decl("cursor", "not-allowed")],
+        )
+        // read-only な署名欄は描画操作を開始できないため、`base` の
+        // `touch-action: none`（描画中のブラウザ標準パン・スクロール抑止、
+        // 本モジュール冒頭 rustdoc「スタイル調整」節参照）を維持すると
+        // モバイルでスクロール操作自体ができない領域になってしまう
+        // （イシュー #1503 PR #1776 codex-review P1 指摘対応）。`data-
+        // readonly` では `touch-action: auto`（ブラウザ標準操作を復元）・
+        // `cursor: default`（`crosshair` は「描画可能」という誤った状態
+        // 表示になるため非描画用カーソルへ上書き）へ差し替える。
+        .state(
+            "control",
+            StateCondition::Attr("data-readonly"),
+            vec![decl("touch-action", "auto"), decl("cursor", "default")],
         )
         .state(
             "root",
@@ -313,6 +342,60 @@ mod tests {
         assert!(css.contains(r#"[data-scope="signature-pad"][data-part="control"][data-disabled]"#));
         assert!(css.contains(r#"[data-scope="signature-pad"][data-part="root"][data-disabled]"#));
         assert!(css.contains("--fandhe-hover-bg"));
+    }
+
+    /// イシュー #1503 PR #1776 codex-review P1 指摘対応: `data-readonly` の
+    /// `control` は `touch-action: auto`／`cursor: default` へ上書きされ、
+    /// `base` の `touch-action: none`／`cursor: crosshair`（描画面の操作
+    /// 契約）が read-only 時に残らないことを検証する。
+    #[test]
+    fn stylesheet_readonly_control_restores_scroll_and_non_drawing_cursor() {
+        let css = stylesheet();
+        let readonly_rule_start = css
+            .find(r#"[data-scope="signature-pad"][data-part="control"][data-readonly]"#)
+            .expect("data-readonly control 規則が存在する");
+        let readonly_rule_end = css[readonly_rule_start..]
+            .find('}')
+            .map(|offset| readonly_rule_start + offset)
+            .expect("規則の終端 `}` が存在する");
+        let readonly_rule = &css[readonly_rule_start..readonly_rule_end];
+        assert!(readonly_rule.contains("touch-action: auto;"));
+        assert!(readonly_rule.contains("cursor: default;"));
+    }
+
+    /// イシュー #1503 PR #1776 Cursor Bugbot レビュー Medium severity 指摘
+    /// 対応: `disabled_declarations()`（`opacity: 0.5` 込み）は `root` の
+    /// `[data-disabled]` にのみ適用され、子孫 `control`/`clear-trigger` の
+    /// `[data-disabled]` 規則は `opacity` を持たない（二重減光の回避）。
+    #[test]
+    fn stylesheet_disabled_opacity_applies_only_to_root() {
+        let css = stylesheet();
+        let control_rule_start = css
+            .find(r#"[data-scope="signature-pad"][data-part="control"][data-disabled]"#)
+            .expect("control disabled 規則が存在する");
+        let control_rule_end = css[control_rule_start..]
+            .find('}')
+            .map(|offset| control_rule_start + offset)
+            .expect("規則の終端 `}` が存在する");
+        assert!(!css[control_rule_start..control_rule_end].contains("opacity"));
+
+        let clear_trigger_rule_start = css
+            .find(r#"[data-scope="signature-pad"][data-part="clear-trigger"][data-disabled]"#)
+            .expect("clear-trigger disabled 規則が存在する");
+        let clear_trigger_rule_end = css[clear_trigger_rule_start..]
+            .find('}')
+            .map(|offset| clear_trigger_rule_start + offset)
+            .expect("規則の終端 `}` が存在する");
+        assert!(!css[clear_trigger_rule_start..clear_trigger_rule_end].contains("opacity"));
+
+        let root_rule_start = css
+            .find(r#"[data-scope="signature-pad"][data-part="root"][data-disabled]"#)
+            .expect("root disabled 規則が存在する");
+        let root_rule_end = css[root_rule_start..]
+            .find('}')
+            .map(|offset| root_rule_start + offset)
+            .expect("規則の終端 `}` が存在する");
+        assert!(css[root_rule_start..root_rule_end].contains("opacity: 0.5;"));
     }
 
     /// イシュー #1503 で `control` を空でも潰れない署名欄の見た目へ
