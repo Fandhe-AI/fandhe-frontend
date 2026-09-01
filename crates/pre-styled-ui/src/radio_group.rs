@@ -348,20 +348,37 @@ fn recipe() -> SlotRecipe {
         // 付与する（`item` 側で個別に disabled にできる粒度を持つ本部品
         // 固有の設計であり、`checkbox` の判断とは意図的に異なる）。
         //
-        // 既知の制約: `label`（グループ見出し）パートは `data-disabled` を
-        // 受け取らないため（headless `label()` doc 参照）、グループ全体
-        // disabled 時も見出しテキストの opacity は変化しない。同様に、
-        // 呼び出し側が `root` のみを disabled にして各 `item` へは
-        // disabled を伝播しなかった場合、`item`/`item-control` の
-        // hover・cursor は個別 disabled 扱いにならず操作可能な見た目の
-        // ままになる（Cursor Bugbot 指摘）。`SlotRecipe` の子孫セレクタ
-        // 非対応という同じ制約により CSS 側だけでは解決できないため、
-        // グループ全体を無効化する呼び出し側は必ず `root` と各 `item`
-        // 系パートの双方へ `disabled=true` を渡す運用契約とする。
+        // `pointer-events: none`（codex-review 指摘 PR #1769: root の
+        // `[data-disabled]` が `cursor: not-allowed` のみでは、呼び出し側が
+        // 各 `item`/`item-control`/`item-hidden-input` へ個別に
+        // `disabled=true` を伝播し忘れた場合、見た目は無効化されているのに
+        // pointer 操作（クリック・タップ・hover）だけは通ってしまう
+        // 不一致が生じる）。`pointer-events` は CSS の継承プロパティであり
+        // （`SlotRecipe` が子孫セレクタを持たない制約とは無関係に）祖先
+        // 要素へ `none` を設定するだけで子孫要素すべての pointer 操作が
+        // ブラウザのヒットテスト段階でブロックされる（`:hover` 疑似
+        // クラスもポインタが要素に重なった判定自体が発生しないため
+        // 発火しなくなる）。これにより「item 側へ個別に disabled を渡し
+        // 忘れても root disabled 時は誤操作できない」という pointer 操作
+        // 全般の実効的な無効化を CSS のみで保証する。
+        //
+        // 既知の制約（pointer-events では塞げない経路）: (1) `label`
+        // （グループ見出し）パートは `data-disabled` を受け取らないため
+        // （headless `label()` doc 参照）、グループ全体 disabled 時も
+        // 見出しテキストの opacity は変化しない。(2) `pointer-events: none`
+        // はポインタ操作のみを遮断し、ネイティブ `disabled` 属性を伴わない
+        // キーボード操作（Tab フォーカス・矢印キーでの選択）までは防げない
+        // （headless 層は各パートへ独立した `disabled` 引数を要求する契約、
+        // `root()`/`item()` doc 参照）。キーボード操作も含めた完全な無効化
+        // を保証するには、呼び出し側は引き続き `root` と各 `item` 系
+        // パートの双方へ `disabled=true` を渡す運用契約に従う必要がある。
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed")],
+            vec![
+                decl("cursor", "not-allowed"),
+                decl("pointer-events", "none"),
+            ],
         )
         // イシュー #683: visually-hidden 化した `item-hidden-input` へ実
         // フォーカスがあるときのフォーカスリングを、祖先 `item`
@@ -663,19 +680,27 @@ mod tests {
     }
 
     #[test]
-    fn root_disabled_sets_cursor_only_not_opacity() {
+    fn root_disabled_sets_cursor_and_pointer_events_not_opacity() {
         // headless `root` が一括 disabled で出す `data-disabled`（`root()` 関数
         // doc 参照）への反映。PR #1769 レビュー指摘: `item` 側にも同じ
         // `[data-disabled]` opacity 規則があるため、`root` 側でも opacity を
         // 出すと（グループ全体無効化時は通常両方に `data-disabled` が付く
-        // ため）0.5 × 0.5 = 0.25 まで過度に薄くなる。`root` は cursor のみ、
-        // opacity の実適用は `item` 側の 1 箇所に一本化する。
+        // ため）0.5 × 0.5 = 0.25 まで過度に薄くなる。`root` は
+        // cursor/pointer-events のみ、opacity の実適用は `item` 側の
+        // 1 箇所に一本化する。
+        //
+        // codex-review 指摘（PR #1769 追補）: `pointer-events: none` を
+        // 追加し、呼び出し側が各 `item` 系パートへ `disabled` を伝播し
+        // 忘れても pointer 操作（クリック・hover）が root 配下全体で
+        // 実効的にブロックされることを固定する（本モジュール `.state`
+        // 呼び出しの doc コメント参照）。
         let css = stylesheet();
         let root_disabled_selector =
             r#"[data-scope="radio-group"][data-part="root"][data-disabled]"#;
         assert!(css.contains(&format!("{root_disabled_selector} {{")));
         let body = rule_body(&css, root_disabled_selector);
         assert!(body.contains("cursor: not-allowed;"));
+        assert!(body.contains("pointer-events: none;"));
         assert!(
             !body.contains("opacity"),
             "root disabled 規則に opacity が含まれると item 側と多重適用される: {body:?}"

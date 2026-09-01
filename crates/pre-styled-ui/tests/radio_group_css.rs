@@ -5,7 +5,10 @@
 //! `data-invalid` 反映・box-sizing・focus ring の palette 統一を追加した。
 //! PR #1769 レビュー指摘対応: `root` の `[data-disabled]` 規則は
 //! `item` 側と opacity が多重適用されないよう `cursor: not-allowed` のみに
-//! 変更した（`radio_group.rs` の該当 `.state` 呼び出しの doc コメント参照）。
+//! 変更した。さらに codex-review 追補指摘（root 単独 disabled 時に子
+//! radio が pointer 操作可能なままになる不一致）を受け、継承プロパティ
+//! `pointer-events: none` を追加し pointer 操作全般を実効的にブロックする
+//! （`radio_group.rs` の該当 `.state` 呼び出しの doc コメント参照）。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。
@@ -175,6 +178,7 @@ const RADIO_GROUP_GOLDEN_CSS: &str = r#"[data-scope="radio-group"][data-part="ro
 
 [data-scope="radio-group"][data-part="root"][data-disabled] {
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 [data-scope="radio-group"][data-part="item"]:focus-within {
