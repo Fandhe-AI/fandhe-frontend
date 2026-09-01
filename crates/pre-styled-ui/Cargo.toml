@@ -629,7 +629,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # CSS 変数名（既存分）・クラス名・`data-*` セレクタの削除/改名を伴わない）
 # のため 0.57.36 から 0.57.37 へ patch バンプする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
-version = "0.57.37"
+# イシュー #1512（toggle のスタイルを参考サイト基準へ調整、親 #1443/#1420）
+# も同型（`root` slot の hover 新設・focus ring/disabled/transition の
+# canonical ヘルパ移行という CSS 出力の変更のみで、公開 Rust API
+# シグネチャ・CSS 変数名（既存分）・クラス名・`data-*` セレクタの削除/
+# 改名を伴わない）のため 0.57.37 から 0.57.38 へ patch バンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
+version = "0.57.38"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
