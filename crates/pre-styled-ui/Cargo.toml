@@ -432,7 +432,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既存 CSS 変数名の削除・改名や Rust API シグネチャの変更はないため、
 # date-input #1469 と同型で patch バンプとして 0.57.10 から 0.57.11 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
-version = "0.57.11"
+# イシュー #1483: listbox のスタイル調整（canonical focus ring / motion
+# トークン / disabled ヘルパ化 / hover 追加・角丸トークン化）のみで、
+# 既存 CSS 変数名の削除・改名や Rust API シグネチャの変更はないため、
+# combobox #1468 と同型で patch バンプとして 0.57.11 から 0.57.12 とする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
+version = "0.57.12"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

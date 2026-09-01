@@ -49,10 +49,56 @@
 //! 追随し、`size` variant のみを提供する（chakra 固有の `variant`
 //! （subtle/solid/plain）展開は out-of-scope として PR 本文で別イシュー化を
 //! 提案する）。
+//!
+//! # スタイル調整（イシュー #1483）
+//!
+//! 参考サイト（chakra-ui / ark-ui の listbox）基準・Phase 0 共通ビジュアル
+//! 言語（`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+//! 〔#1424〕・`docs/design/pre-styled-ui-interaction-visual-language.md`
+//! 〔#1425〕）へ揃えるための是正。combobox の先行是正（イシュー #1468、
+//! `crate::combobox` rustdoc「スタイル調整（#1468）」節）と同型のパターンを
+//! 踏襲する。
+//!
+//! - **角丸**: `content`/`item` の生リテラル `border-radius` を
+//!   `var(--fandhe-radius-md)`/`var(--fandhe-radius-sm)` トークンへ置換。
+//! - **disabled**: `root`/`item` の手書き宣言（宣言順が不一致だった）を
+//!   [`crate::recipe::disabled_declarations`] へ統一。
+//! - **hover**: `item` は `cursor: pointer` を持つ操作可能 slot だが hover
+//!   状態が未登録だったため、[`crate::recipe::hover_bg_muted`]（base）+
+//!   `StateCondition::HoverExceptAttr("data-highlighted")` +
+//!   [`crate::recipe::hover_surface_declarations`]（state）を追加する。
+//!   素の `Hover` ではなく `HoverExceptAttr` を使う理由は combobox item と
+//!   同一（[`crate::combobox`] rustdoc 参照）: headless
+//!   （`crates/headless-ui/src/listbox.rs::item`）は `data-highlighted` を
+//!   常に空文字値の存在属性として出すため、highlight 中の item にポインタが
+//!   重なった際に hover の背景（muted）が highlight の背景（accent）を
+//!   specificity で上書きし、`accent-fg` 文字色だけが取り残されてコントラ
+//!   ストが崩れる問題を避ける。選択済み `data-state="open"`（bg-muted）と
+//!   hover 色（bg-muted）は同値のため衝突しない（combobox と同じ受容判断）。
+//! - **focus ring**: `content:focus-visible` の旧形直書きを
+//!   [`crate::recipe::focus_ring_declarations`]（`FocusRingColor::Token`
+//!   — `color-palette` 軸を持たないため。`FocusRingOffset::Inset` —
+//!   `content` は境界を持つ面であり枠内側にリングを描く既存判断を維持）へ
+//!   置換。
+//! - **transition**: `item` へ `background, color` の
+//!   [`crate::recipe::transition_declarations`]（`MotionDuration::Fast`）を
+//!   純追加。`prefers-reduced-motion` は `Theme::to_css` 側のトークン一括
+//!   上書きで自動的に尊重されるため、本モジュール側で `@media` を追加する
+//!   必要はない。
+//! - **意図的に合わせない点**: (1) 影 — 本部品は常時展開リスト（ポップアップ
+//!   ではない）であり、参考サイトも影を持たないため追加しない。(2)
+//!   `item-indicator` の `margin-left: auto` — `item-text` が既に `flex: 1`
+//!   を持ち右端整列が成立済みのため、combobox のような追加は不要。
+//!   (3) `variant`（色軸）の追加 — 「`color-palette` 軸を提供しない判断」
+//!   節に記載のとおり Forms 家族横断の判断であり単独先行しない。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
+};
 
 // headless 自由関数 `root`・状態機械 `Listbox`/`MultiListbox` はあえて再
 // エクスポートしない（本モジュール冒頭の rustdoc「選択的 re-export」節参照）。
@@ -99,7 +145,7 @@ fn recipe() -> SlotRecipe {
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            disabled_declarations(),
         )
         .base(
             "label",
@@ -118,7 +164,7 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("overflow-y", "auto"),
                 decl(
                     "max-height",
@@ -149,8 +195,16 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-listbox-item-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
                 ),
                 decl("cursor", "pointer"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（combobox item と
+        // 同型のパターン、モジュール rustdoc「スタイル調整（#1483）」節参照）。
+        .base(
+            "item",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         .base(
             "item-text",
@@ -182,18 +236,29 @@ fn recipe() -> SlotRecipe {
         .state(
             "item",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
+        )
+        // item の hover 実適用（イシュー #1483。`@media (hover: hover)`
+        // ブロック内へ集約される）。`StateCondition::Hover` ではなく
+        // `StateCondition::HoverExceptAttr("data-highlighted")` を使う理由は
+        // combobox item と同一（モジュール rustdoc「スタイル調整（#1483）」
+        // 節参照）。
+        .state(
+            "item",
+            StateCondition::HoverExceptAttr("data-highlighted"),
+            hover_surface_declarations(),
         )
         // `content` 自身が DOM フォーカスを受けるため（headless module doc
         // 参照）、キーボード操作時のみのフォーカスリングを `content` へ登録する
-        // （[`crate::select`] の `trigger` に相当）。
+        // （[`crate::select`] の `trigger` に相当）。イシュー #1483:
+        // リング宣言を canonical ヘルパへ置換（`color-palette` 軸を持たない
+        // ため `FocusRingColor::Token`、`content` は境界を持つ面のため
+        // `FocusRingOffset::Inset`、モジュール rustdoc「スタイル調整
+        // （#1483）」節参照）。
         .state(
             "content",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "-2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
         )
         // `size` variant（root スコープの CSS custom property。Md はフォールバック
         // 値と同一の現行外観を維持する。[`crate::select`] の `size` variant と
@@ -362,6 +427,43 @@ mod tests {
     fn content_has_focus_visible_ring_since_it_receives_dom_focus() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="listbox"][data-part="content"]:focus-visible {"#));
+        // イシュー #1483: canonical フォーカスリングヘルパ（inset）へ
+        // 置換したことの確認。
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+        assert!(css.contains("outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));"));
+    }
+
+    #[test]
+    fn item_has_hover_state_except_when_highlighted() {
+        // イシュー #1483: item の hover 実適用。`HoverExceptAttr` により
+        // highlight 中の item は hover 側の背景で上書きされない
+        // （モジュール rustdoc「スタイル調整（#1483）」節参照）。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="listbox"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {"#
+        ));
+        assert!(css.contains("@media (hover: hover)"));
+    }
+
+    #[test]
+    fn item_and_content_use_radius_tokens_not_raw_literals() {
+        // イシュー #1483: 生リテラル border-radius をトークンへ置換した
+        // ことの確認（`0.375rem`/`0.25rem` の再発防止）。
+        let css = stylesheet();
+        assert!(css.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(css.contains("border-radius: var(--fandhe-radius-sm);"));
+        assert!(!css.contains("border-radius: 0.375rem;"));
+        assert!(!css.contains("border-radius: 0.25rem;"));
+    }
+
+    #[test]
+    fn item_has_transition_declarations() {
+        // イシュー #1483: item へ transition を純追加したことの確認。
+        let css = stylesheet();
+        assert!(css.contains("transition-property: background, color;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
     }
 
     #[test]
