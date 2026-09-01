@@ -94,9 +94,21 @@
 //!   を持ち右端整列が成立済みのため、combobox のような追加は不要。
 //!   (3) `variant`（色軸）の追加 — 「`color-palette` 軸を提供しない判断」
 //!   節に記載のとおり Forms 家族横断の判断であり単独先行しない。
+//!
+//! # スタイル調整（PR #1762 レビュー対応）
+//!
+//! 上記「hover」節の初版実装（`StateCondition::HoverExceptAttr`）は item
+//! 自身の `[data-disabled]` のみを検査するため、`root(..., disabled =
+//! true, ...)` で root 全体を disabled にしても（headless 層は disabled を
+//! 子 item へ伝播しない、`crates/headless-ui/src/listbox.rs` 参照）個々の
+//! item が disabled でなければ hover 背景が変化し、操作不能な UI が操作
+//! 可能に見えるフィードバックを出していた（codex-review P1 指摘）。
+//! [`stylesheet`] が item hover 規則を raw CSS として追記する形へ変更し、
+//! 祖先 `root` に `[data-disabled]` が無いことをセレクタへ明示することで
+//! 是正した（詳細は [`stylesheet`] rustdoc 参照）。
 
 use crate::class_attr::drop_class_attr;
-use crate::css::decl;
+use crate::css::{decl, serialize_rule};
 use crate::recipe::{
     disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
     transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
@@ -241,16 +253,10 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-disabled"),
             disabled_declarations(),
         )
-        // item の hover 実適用（イシュー #1483。`@media (hover: hover)`
-        // ブロック内へ集約される）。`StateCondition::Hover` ではなく
-        // `StateCondition::HoverExceptAttr("data-highlighted")` を使う理由は
-        // combobox item と同一（モジュール rustdoc「スタイル調整（#1483）」
-        // 節参照）。
-        .state(
-            "item",
-            StateCondition::HoverExceptAttr("data-highlighted"),
-            hover_surface_declarations(),
-        )
+        // item の hover 規則は本関数（`SlotRecipe::state`）へ登録せず
+        // [`stylesheet`] 側で raw CSS として追加する（root disabled 時の
+        // 抑止に祖先セレクタが要るため、モジュール rustdoc「スタイル調整
+        // （PR #1762 レビュー対応）」節参照）。
         // `content` 自身が DOM フォーカスを受けるため（headless module doc
         // 参照）、キーボード操作時のみのフォーカスリングを `content` へ登録する
         // （[`crate::select`] の `trigger` に相当）。イシュー #1483:
@@ -325,9 +331,51 @@ fn recipe() -> SlotRecipe {
 
 /// この styled Listbox が生成する静的 CSS 全量を返す（決定的。[`crate::select::stylesheet`]
 /// と同じ契約）。
+///
+/// # item hover を raw CSS で追記する理由（PR #1762 レビュー対応）
+///
+/// [`fandhe_frontend_headless_ui::listbox::root`] の `disabled` は子
+/// `item` へ伝播しない（`crates/headless-ui/src/listbox.rs` の `root`/
+/// `item` 各関数 doc 参照。`root(..., disabled = true, ...)` で root にのみ
+/// `data-disabled` が付与され、個々の `item` は呼び出し側が渡す `disabled`
+/// にのみ従う）。[`SlotRecipe::state`] が生成するセレクタは常に
+/// `[data-scope="listbox"][data-part="<slot>"]` を先頭に固定した自パーツ
+/// 属性条件のみで、祖先パーツの属性を検査するセレクタを組めない。その
+/// ため旧実装の `StateCondition::HoverExceptAttr("data-highlighted")`
+/// （`:hover:not([data-disabled]):not([data-highlighted])`）は item 自身の
+/// `data-disabled` しか見ておらず、root 全体が disabled でも個々の item が
+/// disabled でなければ hover 背景が変化し、操作不能な UI が操作可能に見える
+/// フィードバックを出していた（`checkbox_group` が同種の CSS のみでの
+/// disabled 偽装（`root[data-disabled]` からの伝播）を意図的に見送った
+/// 判断、`crate::checkbox_group` module doc「`root` の `data-disabled` から
+/// `item`/`item-control` への CSS 伝播は行わない」節と対称の問題）。
+///
+/// 本関数は [`SlotRecipe::css`] の出力へ、祖先 `root` の `[data-disabled]`
+/// 不在を前提に含む item hover 規則を [`marquee::css`] と同型の raw CSS
+/// 追記パターンで追加する（[`crate::marquee`] の `content` pause 規則
+/// 参照）。`checkbox_group` のケース（`pointer-events`/`cursor` 等で
+/// キーボード操作の実効性まで偽装しようとして撤回）と異なり、本追記は
+/// 装飾専用の hover 背景色 1 プロパティのみを対象とし、tabbability・
+/// クリック到達性・ツールチップ表示のいずれにも影響しないため、
+/// CSS のみでの是正が成立する。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    let selector = "[data-scope=\"listbox\"][data-part=\"root\"]:not([data-disabled]) \
+        [data-scope=\"listbox\"][data-part=\"item\"]:hover:not([data-disabled]):not([data-highlighted])";
+    if let Some(rule) = serialize_rule(selector, &hover_surface_declarations()) {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str("@media (hover: hover) {\n");
+        for line in rule.lines() {
+            out.push_str("  ");
+            out.push_str(line);
+            out.push('\n');
+        }
+        out.push_str("}\n");
+    }
+    out
 }
 
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
@@ -440,12 +488,15 @@ mod tests {
 
     #[test]
     fn item_has_hover_state_except_when_highlighted() {
-        // イシュー #1483: item の hover 実適用。`HoverExceptAttr` により
-        // highlight 中の item は hover 側の背景で上書きされない
-        // （モジュール rustdoc「スタイル調整（#1483）」節参照）。
+        // イシュー #1483: item の hover 実適用。highlight 中の item は
+        // hover 側の背景で上書きされない（モジュール rustdoc「スタイル
+        // 調整（#1483）」節参照）。PR #1762 レビュー対応により、item 自身の
+        // 属性条件に加え祖先 `root` が `[data-disabled]` を持たないことも
+        // セレクタへ含める（[`stylesheet`] rustdoc「item hover を raw CSS
+        // で追記する理由」節参照）。
         let css = stylesheet();
         assert!(css.contains(
-            r#"[data-scope="listbox"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {"#
+            r#"[data-scope="listbox"][data-part="root"]:not([data-disabled]) [data-scope="listbox"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {"#
         ));
         assert!(css.contains("@media (hover: hover)"));
     }

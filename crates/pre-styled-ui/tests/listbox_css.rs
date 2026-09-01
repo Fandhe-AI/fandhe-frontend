@@ -5,6 +5,10 @@
 //! バイト単位で固定する（受け入れ条件: golden CSS テスト）。出力順
 //! （base → variants → compound → states）が崩れた場合や意図しない宣言の
 //! 追加・欠落があった場合に、この golden テストが即座に検知する。
+//!
+//! item hover 規則のセレクタが祖先 `root` の `[data-disabled]` 不在を
+//! 要求する形（PR #1762 codex-review P1 是正、`listbox::stylesheet`
+//! rustdoc 参照）へ変わったことも本 fixture が固定する。
 
 use fandhe_frontend_pre_styled_ui::listbox;
 
@@ -119,7 +123,7 @@ const LISTBOX_GOLDEN_CSS: &str = r#"[data-scope="listbox"][data-part="root"] {
 }
 
 @media (hover: hover) {
-  [data-scope="listbox"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {
+  [data-scope="listbox"][data-part="root"]:not([data-disabled]) [data-scope="listbox"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {
     background: var(--fandhe-hover-bg);
   }
 }
