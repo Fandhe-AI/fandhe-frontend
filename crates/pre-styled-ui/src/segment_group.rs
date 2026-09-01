@@ -32,24 +32,45 @@
 //! して描画する。フォーム送信・キーボード操作・グループ内排他選択はネイティブ
 //! semantics のまま維持される（headless 側モジュール doc 参照）。
 //!
-//! # Indicator の位置表現とスタイル連動
+//! # Indicator の位置表現とスタイル連動（イシュー #1498 で幾何を是正）
 //!
 //! [`fandhe_frontend_headless_ui::segment_group::indicator`] が出力する
 //! `--fandhe-segment-group-index`/`--fandhe-segment-group-count` CSS 変数を
-//! 前提に、等幅セグメントの `width: calc(100% / var(--fandhe-segment-group-count))`
-//! と `transform: translateX(calc(100% * var(--fandhe-segment-group-index)))`
-//! （`data-orientation="vertical"` のときは translateY）で位置を表現する。
+//! 前提に、等幅セグメントの
+//! `width: calc((100% - 2 * space) / var(--fandhe-segment-group-count))` と
+//! `transform: translateX(calc(100% * var(--fandhe-segment-group-index)))`
+//! （`data-orientation="vertical"` のときは `height`/translateY の対称形）
+//! で位置を表現する。`translateX(100% * index)` は自身の幅を単位とする
+//! 移動量であり、幅が項目 1 個分の実寸（`(root 内側幅) / count`）と一致して
+//! はじめて `index` 番目の項目位置へ正しく到達する。イシュー #1498 以前の
+//! 式（`calc(100% / count - space)`）は幅が項目幅より `space` 分小さく、
+//! `count = 2` のときのみ偶然両者が一致し `count >= 3` で到達位置が徐々に
+//! ドリフトしていた（是正のみで CSS 変数名・セレクタは変更していない）。
 //! `indicator[data-state="unchecked"]`（未選択、headless 層が `style` 属性
-//! 自体を省略する状態）は `display: none` にして描画しない。
+//! 自体を省略する状態）は `display: none` にして描画しない。移動アニメー
+//! ションは [`crate::recipe::transition_declarations`]（イシュー #1425）を
+//! 経由し、`Theme::to_css` の `prefers-reduced-motion: reduce` 一括無効化に
+//! 従う。
 //!
-//! # `:focus-within` によるフォーカスリング
+//! # hover・フォーカスリング（イシュー #1425/#1424 の canonical 化）
+//!
+//! `item` は [`crate::recipe::hover_surface_declarations`] による面色変化を
+//! `StateCondition::HoverExcept("data-state", "checked")` で持つ（checked
+//! 項目は indicator が下に描画されているため、hover 面を重ねて見た目が
+//! 濁るのを避ける。disabled 項目の除外は `HoverExcept` 自体が行う）。
 //!
 //! `item-hidden-input` を視覚的に隠すため、[`crate::radio_group`] と同じく
 //! `item`（`<label>`、input の祖先）へ `:focus-within` を当てる（no-JS
 //! フォールバック）。加えて headless 層の `data-focus-visible`（イシュー
 //! #709 の契約、`crates/headless-ui/src/data_attrs.rs` 参照）を `item-control`
 //! slot の状態規則として追加する（`fandhe-frontend-wasm-full` の focus 配線
-//! 接続は別イシューのスコープ、下記「本イシューのスコープ外」参照）。
+//! 接続は別イシューのスコープ、下記「本イシューのスコープ外」参照）。両者
+//! とも [`crate::recipe::focus_ring_declarations`]（イシュー #1424、`--fandhe-
+//! focus-ring-*`/`--fandhe-color-focus-ring` トークン経由）へ canonical 化
+//! した。`item-control` base は `display: contents` でありボックスを生成
+//! しないため、この slot への outline は現行実装では描画されない
+//! （canonical 化のみに留め、視覚的な主経路は `item` の `:focus-within` が
+//! 担う。ボックス化を伴う是正は本イシューのスコープ外とする）。
 //!
 //! # `size` variant（`color-palette` 軸は非提供）
 //!
@@ -84,7 +105,11 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
+};
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
 // の rustdoc「選択的 re-export」節参照、`root` は本モジュールで styled 版
@@ -141,7 +166,7 @@ fn recipe() -> SlotRecipe {
                 decl("left", "var(--fandhe-space-1, 0.25rem)"),
                 decl(
                     "width",
-                    "calc(100% / var(--fandhe-segment-group-count, 1) - var(--fandhe-space-1, 0.25rem))",
+                    "calc((100% - 2 * var(--fandhe-space-1, 0.25rem)) / var(--fandhe-segment-group-count, 1))",
                 ),
                 decl(
                     "height",
@@ -151,11 +176,19 @@ fn recipe() -> SlotRecipe {
                     "transform",
                     "translateX(calc(100% * var(--fandhe-segment-group-index, 0)))",
                 ),
-                decl("transition", "transform 0.15s ease"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("border-radius", "var(--fandhe-radius-sm, 0.25rem)"),
-                decl("box-shadow", "var(--fandhe-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.1))"),
+                decl("box-shadow", "var(--fandhe-shadow-sm)"),
             ],
+        )
+        // トランジションの canonical 化（イシュー #1425）。`--fandhe-motion-
+        // duration-fast` トークン経由になり、`Theme::to_css` の
+        // `prefers-reduced-motion: reduce` 一括無効化（duration を 0ms へ）
+        // が効くようになる（生の `0.15s ease` リテラルのままでは対象外
+        // だった）。
+        .base(
+            "indicator",
+            transition_declarations("transform", MotionDuration::Fast),
         )
         .state(
             "indicator",
@@ -172,7 +205,7 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl(
                     "height",
-                    "calc(100% / var(--fandhe-segment-group-count, 1) - var(--fandhe-space-1, 0.25rem))",
+                    "calc((100% - 2 * var(--fandhe-space-1, 0.25rem)) / var(--fandhe-segment-group-count, 1))",
                 ),
                 decl("transform", "translateY(calc(100% * var(--fandhe-segment-group-index, 0)))"),
             ],
@@ -187,6 +220,7 @@ fn recipe() -> SlotRecipe {
                 decl("align-items", "center"),
                 decl("justify-content", "center"),
                 decl("cursor", "pointer"),
+                decl("border-radius", "var(--fandhe-radius-sm, 0.25rem)"),
                 decl(
                     "padding-block",
                     "var(--fandhe-segment-group-padding-block, 0.375rem)",
@@ -195,20 +229,37 @@ fn recipe() -> SlotRecipe {
                     "padding-inline",
                     "var(--fandhe-segment-group-padding-inline, 0.75rem)",
                 ),
+                // hover 面の色（`crate::recipe` 冒頭 doc「disabled / hover /
+                // transition の共通ビジュアル言語」節と同型の間接参照設計）。
+                // root 面が `bg-muted` のため、`hover_bg_muted()` が返す
+                // `bg-muted` では視覚差が出ない。1 段強い `bg-emphasized` を
+                // 直接指定する（他部品の `hover_bg_muted`/`hover_bg_solid`
+                // のいずれにも該当しない segment-group 固有の面色関係）。
+                decl("--fandhe-hover-bg", "var(--fandhe-color-bg-emphasized)"),
             ],
+        )
+        .base(
+            "item",
+            transition_declarations("background", MotionDuration::Fast),
         )
         .state(
             "item",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            disabled_declarations(),
+        )
+        // checked（選択中）の item は indicator が下に描画されるため hover
+        // 面を出さない（`HoverExcept("data-state", "checked")` で除外。
+        // `disabled` の除外は `HoverExcept`/`Hover` いずれも自動で行う、
+        // `crate::recipe::StateCondition::Hover` rustdoc 参照）。
+        .state(
+            "item",
+            StateCondition::HoverExcept("data-state", "checked"),
+            hover_surface_declarations(),
         )
         .state(
             "item",
             StateCondition::FocusWithin,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .base(
             "item-control",
@@ -217,10 +268,7 @@ fn recipe() -> SlotRecipe {
         .state(
             "item-control",
             StateCondition::Attr("data-focus-visible"),
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .base(
             "item-text",
@@ -391,6 +439,46 @@ mod tests {
     }
 
     #[test]
+    fn indicator_width_formula_normalizes_by_padded_inner_size_before_dividing() {
+        // イシュー #1498: `translateX(100% * index)` は自身の幅を単位とする
+        // 移動量のため、幅が「(root 内側幅) / count」の項目幅と一致しない
+        // 限り count >= 3 で到達位置がドリフトする（本モジュール冒頭 rustdoc
+        // 「Indicator の位置表現とスタイル連動」節参照）。是正後の式
+        // （先に space を引いてから count で割る）が出力されることを固定
+        // する。
+        let css = stylesheet();
+        assert!(css.contains(
+            "width: calc((100% - 2 * var(--fandhe-space-1, 0.25rem)) / var(--fandhe-segment-group-count, 1));"
+        ));
+        assert!(css.contains(
+            "height: calc((100% - 2 * var(--fandhe-space-1, 0.25rem)) / var(--fandhe-segment-group-count, 1));"
+        ));
+        // 是正前の式（count で割ってから space を引く）が残っていないこと。
+        assert!(!css.contains("calc(100% / var(--fandhe-segment-group-count, 1) - "));
+    }
+
+    #[test]
+    fn indicator_transition_uses_canonical_motion_tokens() {
+        // イシュー #1425 の `transition_declarations` へ canonical 化した
+        // ことで `prefers-reduced-motion: reduce` 一括無効化が効くように
+        // なる（生の `transition: transform 0.15s ease` リテラルのままでは
+        // duration が別トークン経由にならず対象外だった）。
+        let css = stylesheet();
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+        assert!(!css.contains("0.15s ease"));
+    }
+
+    #[test]
+    fn indicator_shadow_has_no_raw_color_fallback() {
+        // 他部品（card / angle-slider / image-cropper）が収斂済みの
+        // フォールバックなし `var(--fandhe-shadow-sm)` へ揃える（イシュー
+        // #1498）。
+        let css = stylesheet();
+        assert!(css.contains("box-shadow: var(--fandhe-shadow-sm);"));
+        assert!(!css.contains("rgba(0, 0, 0, 0.1)"));
+    }
+
+    #[test]
     fn indicator_unchecked_state_is_hidden() {
         let css = stylesheet();
         assert!(css.contains(
@@ -410,8 +498,12 @@ mod tests {
 
     #[test]
     fn disabled_item_gets_not_allowed_cursor() {
+        // イシュー #1498: `crate::recipe::disabled_declarations()`
+        // （共通ビジュアル言語、宣言順は opacity → cursor）へ canonical
+        // 化した。宣言内容は既存の ad-hoc 実装と同値。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="segment-group"][data-part="item"][data-disabled]"#));
+        assert!(css.contains("opacity: 0.5;"));
         assert!(css.contains("cursor: not-allowed;"));
     }
 
@@ -425,17 +517,45 @@ mod tests {
     }
 
     #[test]
-    fn item_focus_within_gets_accent_outline_ring() {
+    fn item_focus_within_gets_canonical_focus_ring_tokens() {
+        // イシュー #1424 の `focus_ring_declarations` へ canonical 化した
+        // ことを固定する（生の `2px solid var(--fandhe-color-accent)` の
+        // 手書きから、太さ・色・オフセットをテーマ 1 箇所で変更できる
+        // `--fandhe-focus-ring-*`/`--fandhe-color-focus-ring` トークン経由へ
+        // 移行）。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="segment-group"][data-part="item"]:focus-within {"#));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
     }
 
     #[test]
-    fn item_control_focus_visible_gets_accent_outline_ring() {
+    fn item_control_focus_visible_gets_canonical_focus_ring_tokens() {
         let css = stylesheet();
         assert!(css.contains(
             r#"[data-scope="segment-group"][data-part="item-control"][data-focus-visible]"#
         ));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+        assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+    }
+
+    #[test]
+    fn item_hover_shows_emphasized_surface_except_when_checked() {
+        // hover フィードバックの追加（親イシュー #1497 が実測で指摘した
+        // 代表的欠落）。checked 項目は indicator が下にあるため hover 面を
+        // 出さない（`HoverExcept("data-state", "checked")`）。タッチ端末の
+        // hover 貼り付き対策として `@media (hover: hover)` 配下へ集約
+        // 出力される（`crate::recipe::StateCondition::HoverExcept` 参照）。
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="segment-group"][data-part="item"]:hover:not([data-disabled]):not([data-state="checked"]) {"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-emphasized);"));
     }
 
     // --- variant クラス ---
