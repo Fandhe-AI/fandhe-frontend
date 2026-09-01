@@ -2243,15 +2243,31 @@ fn select_section() -> Node {
                                 select::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
                             ],
                         ),
+                        // "Other framework" を highlight 中の項目として固定
+                        // する（イシュー #1502、item/item-indicator パートの
+                        // 状態表現デモ。combobox 2/2 #1468 の先例に倣う）。
                         select::item(
                             OpenState::Closed,
                             false,
-                            false,
+                            true,
                             "other",
                             None,
                             vec![],
                             vec![
                                 select::item_text(None, vec![], vec![text("Other framework")]),
+                                select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                        // disabled 項目の視覚状態デモ（イシュー #1502）。
+                        select::item(
+                            OpenState::Closed,
+                            true,
+                            false,
+                            "legacy",
+                            None,
+                            vec![],
+                            vec![
+                                select::item_text(None, vec![], vec![text("Legacy framework")]),
                                 select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
                             ],
                         ),
@@ -2262,7 +2278,7 @@ fn select_section() -> Node {
     );
     section(
         "Select",
-        "headless-ui の Select（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。1 項目が選択済み（data-state=\"open\"）の listbox が開いた状態を固定表示しています。positioner はフロー内配置へ中和しています。",
+        "headless-ui の Select（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。1 項目が選択済み（data-state=\"open\"）・1 項目が highlight 中（data-highlighted）・1 項目が disabled（data-disabled）の listbox が開いた状態を固定表示しています。positioner はフロー内配置へ中和しています。",
         vec![node],
     )
 }

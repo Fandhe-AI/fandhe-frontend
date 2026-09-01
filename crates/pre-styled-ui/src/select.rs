@@ -113,6 +113,50 @@
 //! - **`size` variant 軸**: 既存の Xs〜Xl 5 段（イシュー #729）を変更なし
 //!   で維持。参照サイト固有の追加 variant 名は本イシューの担当範囲に
 //!   含めていない（必要なら親イシュー #1500 側で判断）。
+//!
+//! # スタイル調整（イシュー #1502、親 #1500 の 2/2 分割。`content` /
+//! `item` / `item-group`（`item-group-label` 含む）/ `item-indicator` の
+//! みを担当。`trigger`/`value-text`/`indicator`/`control` は 1/2（#1501/
+//! PR #1774）が既に是正済みのため触れていない）
+//!
+//! 先例は combobox 2/2（イシュー #1468/PR #1745）であり、宣言内容・判断
+//! 理由をこれに揃える。
+//!
+//! - **色トークン化**: `content` の `border-radius`（生 `0.375rem` →
+//!   `var(--fandhe-radius-md)`）・`box-shadow`（生 `rgba(0, 0, 0, 0.15)` →
+//!   `var(--fandhe-shadow-md)`）、`item` の `border-radius`（生
+//!   `0.25rem` → `var(--fandhe-radius-sm)`）をトークン化した。
+//! - **`item` の状態表現を追加**: headless
+//!   （`crates/headless-ui/src/select.rs::item`）が出す `data-disabled` を
+//!   [`crate::recipe::disabled_declarations`] で消費し、hover は
+//!   [`crate::recipe::hover_bg_muted`]（base）+
+//!   [`crate::recipe::StateCondition::HoverExceptAttr`]`("data-highlighted")`
+//!   + [`crate::recipe::hover_surface_declarations`] で追加した。
+//!     `Hover`（無条件）ではなく `HoverExceptAttr` を使う理由は combobox
+//!     2/2（PR #1745 codex-review P1 / Bugbot Medium 指摘対応）と同じ:
+//!     素の `:hover:not([data-disabled])` は selector specificity
+//!     （0,4,0）が `[data-highlighted]`（0,3,0）より高く、highlight 中の
+//!     item にポインタが重なると muted 背景が accent 背景（virtual focus
+//!     の視覚状態）を上書きしてコントラストが崩れるため、highlight 中の
+//!     item 自体を hover 適用の対象から除外する。
+//! - **`item` をチェックマーク右端整列レイアウトへ**: `display: flex` /
+//!   `align-items: center` / `gap: var(--fandhe-space-2)` を追加し、
+//!   `item-indicator` へ `margin-left: auto` を追加した。
+//! - **`item-indicator` に `display` を宣言しない**: headless
+//!   （`crates/headless-ui/src/select.rs::item_indicator`）は非選択時に
+//!   存在属性 `hidden` で表示制御する契約であり、`display` を明示すると
+//!   `hidden` 属性の初期表示抑制（UA 既定 `display: none`）を上書きして
+//!   非選択項目にもチェックマークが見えてしまう。combobox 2/2 と同じ
+//!   根拠であり、`margin-left`/`flex-shrink` 相当の非 `display` 宣言の
+//!   みに留める。
+//! - **`item-group` へ視覚宣言を追加しない**: `item-group` はコンテナで、
+//!   見た目は `item-group-label` が既に担っている。参照サイトにも
+//!   `item-group` 自体への視覚宣言は実質なく、combobox 2/2 と同じ判断。
+//! - **`content` の max-height + スクロール導入は見送り**: 長いリストへの
+//!   対応は参照サイトでは一般的だが、`positioner`/`content` の位置
+//!   ジオメトリ契約（`--fandhe-reference-width`/`data-positioned`/
+//!   `--fandhe-x`/`--fandhe-y`、イシュー #663）への影響評価が必要なため
+//!   combobox 2/2 と同じく本イシューでは見送る。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -240,8 +284,8 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
-                decl("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.15)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("box-shadow", "var(--fandhe-shadow-md)"),
                 decl(
                     "padding",
                     "var(--fandhe-select-content-padding, var(--fandhe-space-2))",
@@ -252,14 +296,30 @@ fn recipe() -> SlotRecipe {
         .base(
             "item",
             vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
                 decl(
                     "padding",
                     "var(--fandhe-select-item-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
                 ),
                 decl("cursor", "pointer"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
             ],
         )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（combobox 2/2 #1468 と
+        // 同型のパターン、モジュール rustdoc「スタイル調整（#1502）」節参照）。
+        .base(
+            "item",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        // チェックマーク（item-indicator）を item 末尾へ寄せる。`display` は
+        // ここでは宣言しない（headless の非選択時 `hidden` 存在属性による
+        // 表示制御と衝突するため、モジュール rustdoc「スタイル調整（#1502）」
+        // 節参照）。
+        .base("item-indicator", vec![decl("margin-left", "auto")])
         .base(
             "item-group-label",
             vec![
@@ -312,6 +372,26 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-accent)"),
                 decl("color", "var(--fandhe-color-accent-fg)"),
             ],
+        )
+        // イシュー #1502: headless（`crates/headless-ui/src/select.rs::item`）
+        // が `aria-disabled` と対で出す `data-disabled` を消費する
+        // （combobox 2/2 #1468 と同型）。
+        .state(
+            "item",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // イシュー #1502: item の hover 実適用。`StateCondition::Hover` では
+        // なく `StateCondition::HoverExceptAttr("data-highlighted")` を使う
+        // 理由は combobox 2/2（#1468、PR #1745 codex-review P1 / Bugbot
+        // Medium 指摘対応）と同じ: 素の `Hover` は selector specificity が
+        // `[data-highlighted]` より高く、highlight 中の item にポインタが
+        // 重なると muted 背景が accent 背景を上書きしコントラストが崩れる
+        // ため、highlight 中の item 自体を hover の対象から除外する。
+        .state(
+            "item",
+            StateCondition::HoverExceptAttr("data-highlighted"),
+            hover_surface_declarations(),
         )
         // イシュー #643 → #1501 で canonical ヘルパへ置換: `trigger` は
         // キーボード操作時のみのフォーカスリング。select は palette 軸を
