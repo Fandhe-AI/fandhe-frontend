@@ -74,7 +74,12 @@
 //! - **`input` パート**: `font: inherit`/`color: var(--fandhe-color-fg)`
 //!   を追加し（input.rs base と同一）、border-radius・size の高さ/
 //!   フォント/左 padding を #1678 のトークンへ移行。`data-disabled` は
-//!   [`crate::recipe::disabled_declarations`] へ統一し、`data-readonly`
+//!   `cursor: not-allowed` のみを付与する（`opacity` は付与しない。
+//!   `root` が [`crate::recipe::disabled_declarations`] で既に
+//!   `opacity: 0.5` を負うため、`input` へ重ねるとネストした opacity の
+//!   掛け算で約 25% まで減光してしまう。[`crate::pin_input`]/
+//!   [`crate::date_input`] の segment と同型、Cursor Bugbot 指摘、
+//!   イシュー #1485 PR #1764）。`data-readonly`
 //!   を新設（`cursor: default`、date-input 先例）。**登録順は
 //!   readonly → disabled**とし、両立時は disabled の `cursor` が source
 //!   order で勝つ（date-input の
@@ -238,10 +243,19 @@ fn recipe() -> SlotRecipe {
         // 上書きする。disabled かつ readonly の両方が真な input で
         // `cursor: default` に上書きされ通常カーソルへ戻ってしまう不具合を
         // 防ぐ）。
+        // `opacity` は `root` のみに適用する（[`crate::pin_input`]/
+        // [`crate::date_input`] の segment と同じ方針）。呼び出し側は
+        // `input` が disabled になるとき常に `root` も disabled にする
+        // 契約であり（`root` 独立で `input` のみ disabled になる正当な
+        // 状態はない）、両パーツへ `opacity: 0.5` を重ねるとネストした
+        // opacity の掛け算で `input` が実質約 25% まで減光し `root`
+        // （50%）と不整合になる。`cursor: not-allowed` のみ `input` にも
+        // 適用し、減光は `root` の 1 箇所に一元化する（Cursor Bugbot 指摘、
+        // イシュー #1485 PR #1764）。
         .state(
             "input",
             StateCondition::Attr("data-disabled"),
-            disabled_declarations(),
+            vec![decl("cursor", "not-allowed")],
         )
         .state(
             "input",

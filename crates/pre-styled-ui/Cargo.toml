@@ -471,7 +471,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 実体変更を加えたまま偶発的に版数が交差していたため、双方を統合した結果
 # としてさらに 0.57.16 へ patch バンプする（同一版数への偶発的衝突を
 # そのまま採用しない規約）。
-version = "0.57.16"
+# PR #1764 レビュー是正: `input` パートの `data-disabled` から `opacity`
+# を除去し `cursor: not-allowed` のみへ縮小（`root` と重ねた opacity の
+# 掛け算で約 25% まで減光する不整合を解消、Cursor Bugbot 指摘）。CSS
+# セレクタの宣言内容変更のみで既存 CSS 変数名・Rust API シグネチャの変更は
+# ないため、patch バンプとして 0.57.16 から 0.57.17 とする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
+version = "0.57.17"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

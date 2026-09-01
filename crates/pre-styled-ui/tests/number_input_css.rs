@@ -138,7 +138,6 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
 }
 
 [data-scope="number-input"][data-part="input"][data-disabled] {
-  opacity: 0.5;
   cursor: not-allowed;
 }
 

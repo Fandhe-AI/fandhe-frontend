@@ -3375,13 +3375,13 @@ fn number_input_section() -> Node {
                     ),
                     number_input::increment_trigger(
                         Some("showcase-number-input-readonly"),
-                        false,
+                        true,
                         vec![],
                         vec![text("+")],
                     ),
                     number_input::decrement_trigger(
                         Some("showcase-number-input-readonly"),
-                        false,
+                        true,
                         vec![],
                         vec![text("-")],
                     ),
