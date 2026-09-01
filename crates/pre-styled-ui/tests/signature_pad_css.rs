@@ -81,6 +81,7 @@ const SIGNATURE_PAD_GOLDEN_CSS: &str = r#"[data-scope="signature-pad"][data-part
 }
 
 [data-scope="signature-pad"][data-part="control"][data-disabled] {
+  touch-action: auto;
   cursor: not-allowed;
 }
 

@@ -50,6 +50,12 @@
 //!   ブラウザ標準のパン・スクロールができない領域になり、かつ
 //!   `crosshair` が「描画可能」という誤った状態表示になる（イシュー
 //!   #1503 PR #1776 codex-review P1 指摘対応）
+//! - `control` の `data-disabled` 規則にも `touch-action: auto` を追加
+//!   した。disabled と read-only は独立した属性であり、disabled 単独
+//!   （read-only ではない）の control でも `base` の `touch-action:
+//!   none` が残ったままだとモバイルでこの領域からページをパン・
+//!   スクロールできなくなるため（イシュー #1503 PR #1776 codex-review
+//!   P1 再指摘対応）
 //!
 //! 意図的に参考サイトへ合わせない点（理由付き）:
 //!
@@ -245,11 +251,17 @@ fn recipe() -> SlotRecipe {
         // `cursor: default` に上書きされ、disabled の視覚契約
         // （`not-allowed`）が失われる不具合を防ぐ（date_input #1469 と
         // 同型の判断、イシュー #1503 PR #1776 codex-review P1 / Bugbot
-        // 指摘対応）。
+        // 指摘対応）。disabled と read-only は独立した属性であり
+        // （`crates/headless-ui/src/signature_pad.rs::control`）、
+        // disabled 単独（read-only ではない）の control でも `base` の
+        // `touch-action: none` が残ったままだとモバイルでこの領域から
+        // ページをパン・スクロールできなくなるため、`touch-action:
+        // auto` も readonly 規則と同様にここへ含める（イシュー #1503
+        // PR #1776 codex-review P1 再指摘対応）。
         .state(
             "control",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed")],
+            vec![decl("touch-action", "auto"), decl("cursor", "not-allowed")],
         )
         .state(
             "root",
@@ -371,6 +383,27 @@ mod tests {
         let readonly_rule = &css[readonly_rule_start..readonly_rule_end];
         assert!(readonly_rule.contains("touch-action: auto;"));
         assert!(readonly_rule.contains("cursor: default;"));
+    }
+
+    /// イシュー #1503 PR #1776 codex-review P1 再指摘対応: disabled と
+    /// read-only は独立した属性であり、disabled 単独（read-only では
+    /// ない）の `control` でも `base` の `touch-action: none`
+    /// （モバイルのパン・スクロール抑止、描画中のみ有効な操作契約）が
+    /// 残ったままにならないことを検証する（`control[data-disabled]`
+    /// 規則が `touch-action: auto` を持つこと）。
+    #[test]
+    fn stylesheet_disabled_only_control_restores_scroll() {
+        let css = stylesheet();
+        let disabled_rule_start = css
+            .find(r#"[data-scope="signature-pad"][data-part="control"][data-disabled]"#)
+            .expect("data-disabled control 規則が存在する");
+        let disabled_rule_end = css[disabled_rule_start..]
+            .find('}')
+            .map(|offset| disabled_rule_start + offset)
+            .expect("規則の終端 `}` が存在する");
+        let disabled_rule = &css[disabled_rule_start..disabled_rule_end];
+        assert!(disabled_rule.contains("touch-action: auto;"));
+        assert!(disabled_rule.contains("cursor: not-allowed;"));
     }
 
     /// イシュー #1503 PR #1776 Cursor Bugbot レビュー Medium severity 指摘
