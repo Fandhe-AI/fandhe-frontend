@@ -400,6 +400,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # CSS 宣言を追加し、`control` へ `align-items: center` を追加した。
 # `root`/`label` は点検の結果変更なし。Rust API シグネチャは不変のため、
 # 同じく patch バンプとして 0.57.5 から 0.57.6 とする。
+# file-upload の外枠パート（dropzone/trigger/label）のスタイル調整
+# （イシュー #1696）: `dropzone`/`trigger` へ hover/transition の共通ビジュ
+# アル言語ヘルパを追加し、`dropzone` の `FocusVisible` state を canonical
+# focus-ring 形へ置換、`trigger` へ `FocusVisible` state（フォーカスリング）
+# を新規登録、`label` へ font-weight/color を追加した。item-group 以下の
+# 内部パートは兄弟イシュー #1697 の担当のため不変。Rust API シグネチャは
+# 不変のため patch バンプとして 0.57.6 から 0.57.7 とする。
 # file-upload 内部パートのスタイル調整（イシュー #1697）: `item` へ
 # border/background/transition/`data-disabled`/`data-invalid` を追加し、
 # `item-delete-trigger` へ hover/transition/disabled 統一形を追加した。
@@ -411,7 +418,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # クロームの白固定・hover/transition/角丸/影の追加を行った。CSS 出力の
 # 観測可能な変更のみで Rust API シグネチャは不変のため、同じく patch
 # バンプとして 0.57.7 から 0.57.8 とする。
-version = "0.57.8"
+# マージ統合（イシュー #1696）: 本ブランチ側（file-upload 外枠パート、
+# 0.57.7）と main 側（file-upload 内部パート #1697・image-cropper #1480、
+# 0.57.8）は独立に別パートへ実体変更を加えていたため、双方を統合した
+# 結果として main 側の値を基点にさらに 0.57.9 へ patch バンプする
+# （0.x の破壊的変更はマイナーバンプ・非破壊の実体変更は patch バンプの
+# 規約、同一版数への偶発的衝突をそのまま採用しない）。
+version = "0.57.9"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
