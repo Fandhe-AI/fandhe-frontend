@@ -1,9 +1,10 @@
 //! styled SegmentGroup（イシュー #743、親 #520/#545）の決定的 CSS 出力
 //! ゴールデンテスト。イシュー #1498（親 #1497 分割 1/2）でインジケータ
 //! 幾何の是正・トランジション/フォーカスリングの canonical 化・hover
-//! フィードバック追加・shadow フォールバック除去を行った。size /
-//! orientation バリアントと項目ラベルの型階層は兄弟イシュー #1499
-//! （2/2）が後続で更新する予定（`segment_group.rs` 冒頭 rustdoc 参照）。
+//! フィードバック追加・shadow フォールバック除去を行った。イシュー #1499
+//! （分割 2/2）で size バリアントの `size_variants` 一括登録化と項目
+//! ラベル（item-text）の型階層是正（未選択 muted / 選択 fg の 2 段階、
+//! 詳細は `segment_group.rs` 冒頭 rustdoc 参照）を行った。
 //!
 //! `crates/pre-styled-ui/tests/radio_group_css.rs` の golden fixture テスト
 //! の前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。
@@ -66,8 +67,11 @@ const SEGMENT_GROUP_GOLDEN_CSS: &str = r#"[data-scope="segment-group"][data-part
 }
 
 [data-scope="segment-group"][data-part="item-text"] {
-  color: var(--fandhe-color-fg);
+  color: var(--fandhe-color-fg-muted);
   font-size: var(--fandhe-segment-group-font-size, var(--fandhe-font-font-size-sm));
+  font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-normal);
+  user-select: none;
 }
 
 [data-scope="segment-group"][data-part="item-hidden-input"] {
@@ -146,8 +150,7 @@ const SEGMENT_GROUP_GOLDEN_CSS: &str = r#"[data-scope="segment-group"][data-part
 }
 
 [data-scope="segment-group"][data-part="item-text"][data-state="checked"] {
-  font-weight: 600;
-  color: var(--fandhe-color-accent);
+  color: var(--fandhe-color-fg);
 }
 
 @media (hover: hover) {
