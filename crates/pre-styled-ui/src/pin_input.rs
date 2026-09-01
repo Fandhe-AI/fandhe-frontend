@@ -61,11 +61,64 @@
 //! `<input type="password">` 自身が実フォーカスを受けるネイティブ要素で
 //! あるため、[`crate::accordion`]/[`crate::tabs`] と同様に
 //! `StateCondition::FocusVisible`（`:focus-visible` 疑似クラス）を直接
-//! `input` slot へ登録する。
+//! `input` slot へ登録する。実装は `outline`/`outline-offset` の canonical 形
+//! （[`crate::recipe::focus_ring_declarations`]）を使う（イシュー #1489 で
+//! リテラル直書きから移行、下記「スタイル調整」節参照）。`palette` 軸を
+//! 持たない部品のため [`crate::recipe::FocusRingColor::Token`] を使う。
+//! オフセットは密に並ぶセル間の視覚干渉がない独立セルのため `Outside`
+//! （既定）を選ぶ（[`crate::input`] と同じ判断）。
+//!
+//! # スタイル調整（イシュー #1489、親 UI 部品スタイル調整ツリー #1420）
+//!
+//! chakra-ui（PinInput は Input のスタイルを継承する設計）/ Radix
+//! Primitives（one-time-password-field）/ ark-ui と 7 軸で比較し是正した点・
+//! 意図的に合わせなかった点を記録する。特に input #1482（PR #1761）の
+//! 是正内容を最も直接の参照実装とした。
+//!
+//! - **是正**: `input` の角丸を `--fandhe-radius-sm` から `--fandhe-radius-md`
+//!   （button #1447・date-input #1469・input #1482 が確立した Forms 家族の
+//!   標準角丸）へ変更。`transition` の shorthand リテラルを
+//!   [`crate::recipe::transition_declarations`]（longhand 3 宣言 + motion
+//!   トークン）へ移行。`:focus-visible` を `focus_ring_declarations` の
+//!   canonical 形へ移行。`root` の `[data-disabled]` を
+//!   [`crate::recipe::disabled_declarations`] へ統一（宣言順が
+//!   `opacity` → `cursor` に変わるが値は不変）。`input` へ
+//!   [`crate::recipe::hover_bg_muted`] + `StateCondition::Hover` による
+//!   hover 背景を追加（ark-ui 参照スクショで小型セル群に hover
+//!   フィードバックがあり、構造的に最も近い date-input `segment`
+//!   （#1469）の先例と同型と判断。input #1761 は hover 非採用だが、
+//!   pin-input は独立した複数セルという date-input segment 側の構造に
+//!   近いため踏襲する）。size 5 段の値を #1678 の
+//!   `--fandhe-size-control-height-<段>`/`--fandhe-size-control-font-size-<段>`
+//!   参照（フォールバック付き）へ揃える。
+//! - **意図的に合わせなかった点**:
+//!   - **variant 軸（chakra `outline`/`subtle`/`flushed` 相当）は追加
+//!     しない**。date-input #1469・combobox #1467・checkbox #1454 と
+//!     同一の判断軸（Forms 家族横断の軸語彙判断のため本イシュー単独では
+//!     先行しない）。
+//!   - **`data-invalid`/`data-readonly` 軸は追加しない**。headless
+//!     （`crates/headless-ui/src/pin_input.rs`）が出す `data-*` は
+//!     `data-complete`/`data-disabled` の 2 種のみで、anatomy 変更を
+//!     要するため本イシューのスコープ外とする（下記「スコープ外」節）。
+//!   - **色・ダーク（トークン参照のみ）は元々参照サイト水準に達していた
+//!     ため変更しない**。focus-ring 色は canonical 形移行によりダーク
+//!     追従トークンへ自動的に載る。
+//!
+//! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
+//!
+//! - `data-invalid`/`data-readonly` 軸の追加は headless 層の anatomy 変更
+//!   （`crates/headless-ui/src/pin_input.rs`）を要するため本イシュー単独の
+//!   スコープ外とする。必要なら別 Issue として起票を提案する。
+//! - variant 軸（chakra `outline`/`subtle`/`flushed` 相当）の追加は
+//!   上記「スタイル調整」節のとおり本イシューのスコープ外とする。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
+};
 
 // `PinInput` 状態機械・headless 自由関数 `root` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。状態管理・
@@ -98,7 +151,7 @@ fn recipe() -> SlotRecipe {
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            disabled_declarations(),
         )
         .base(
             "label",
@@ -115,19 +168,31 @@ fn recipe() -> SlotRecipe {
             "input",
             vec![
                 decl("box-sizing", "border-box"),
-                decl("width", "var(--fandhe-pin-input-size, 2.5rem)"),
-                decl("height", "var(--fandhe-pin-input-size, 2.5rem)"),
+                decl(
+                    "width",
+                    "var(--fandhe-pin-input-size, var(--fandhe-size-control-height-md, 2.5rem))",
+                ),
+                decl(
+                    "height",
+                    "var(--fandhe-pin-input-size, var(--fandhe-size-control-height-md, 2.5rem))",
+                ),
                 decl(
                     "font-size",
-                    "var(--fandhe-pin-input-font-size, var(--fandhe-font-font-size-md))",
+                    "var(--fandhe-pin-input-font-size, var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md)))",
                 ),
                 decl("text-align", "center"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "var(--fandhe-radius-sm)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
-                decl("transition", "border-color 0.15s, background 0.15s"),
+                hover_bg_muted(),
             ],
+        )
+        // 別 `.base` 呼び出しでの純追加（date-input #1469 の「既存 base
+        // ブロックを書き換えない」パターンを踏襲する）。
+        .base(
+            "input",
+            transition_declarations("border-color, background", MotionDuration::Fast),
         )
         .state(
             "input",
@@ -146,24 +211,25 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-disabled"),
             vec![decl("cursor", "not-allowed")],
         )
+        .state("input", StateCondition::Hover, hover_surface_declarations())
         // 実フォーカスを `input` 自身が受けるため `:focus-visible` を直接
         // 登録する（モジュール rustdoc「フォーカスリング」節参照）。
         .state(
             "input",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .variant(
             Size::Xs,
             "root",
             vec![
-                decl("--fandhe-pin-input-size", "1.5rem"),
+                decl(
+                    "--fandhe-pin-input-size",
+                    "var(--fandhe-size-control-height-xs, 2rem)",
+                ),
                 decl(
                     "--fandhe-pin-input-font-size",
-                    "var(--fandhe-font-font-size-xs)",
+                    "var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs))",
                 ),
             ],
         )
@@ -171,10 +237,13 @@ fn recipe() -> SlotRecipe {
             Size::Sm,
             "root",
             vec![
-                decl("--fandhe-pin-input-size", "2rem"),
+                decl(
+                    "--fandhe-pin-input-size",
+                    "var(--fandhe-size-control-height-sm, 2.25rem)",
+                ),
                 decl(
                     "--fandhe-pin-input-font-size",
-                    "var(--fandhe-font-font-size-sm)",
+                    "var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm))",
                 ),
             ],
         )
@@ -182,10 +251,13 @@ fn recipe() -> SlotRecipe {
             Size::Md,
             "root",
             vec![
-                decl("--fandhe-pin-input-size", "2.5rem"),
+                decl(
+                    "--fandhe-pin-input-size",
+                    "var(--fandhe-size-control-height-md, 2.5rem)",
+                ),
                 decl(
                     "--fandhe-pin-input-font-size",
-                    "var(--fandhe-font-font-size-md)",
+                    "var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md))",
                 ),
             ],
         )
@@ -193,10 +265,13 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![
-                decl("--fandhe-pin-input-size", "3rem"),
+                decl(
+                    "--fandhe-pin-input-size",
+                    "var(--fandhe-size-control-height-lg, 2.75rem)",
+                ),
                 decl(
                     "--fandhe-pin-input-font-size",
-                    "var(--fandhe-font-font-size-lg)",
+                    "var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-lg))",
                 ),
             ],
         )
@@ -204,10 +279,13 @@ fn recipe() -> SlotRecipe {
             Size::Xl,
             "root",
             vec![
-                decl("--fandhe-pin-input-size", "3.5rem"),
+                decl(
+                    "--fandhe-pin-input-size",
+                    "var(--fandhe-size-control-height-xl, 3rem)",
+                ),
                 decl(
                     "--fandhe-pin-input-font-size",
-                    "var(--fandhe-font-font-size-xl)",
+                    "var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-xl))",
                 ),
             ],
         )
@@ -282,12 +360,13 @@ mod tests {
     #[test]
     fn stylesheet_links_input_to_focus_visible_outline() {
         let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="pin-input"][data-part="input"]:focus-visible {"#));
+        // イシュー #1489: canonical `outline` 形（`FocusRingColor::Token`・
+        // `FocusRingOffset::Outside`）へ移行したことを固定する。
         assert!(css.contains(
-            r#"[data-scope="pin-input"][data-part="input"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
-}"#
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
         ));
+        assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
     }
 
     #[test]
@@ -295,6 +374,61 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="pin-input"][data-part="root"][data-disabled] {"#));
         assert!(css.contains("cursor: not-allowed;"));
+        assert!(css.contains("opacity: 0.5;"));
+    }
+
+    #[test]
+    fn stylesheet_links_input_to_hover_background() {
+        // イシュー #1489: date-input `segment`（#1469）と同型の hover
+        // フィードバックを固定する。`hover_surface_declarations` +
+        // `hover_bg_muted` は `@media (hover: hover)` +
+        // `:hover:not([data-disabled])` で自動的にラップされる契約
+        // （`crate::recipe::SlotRecipe::css` 参照）。
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="pin-input"][data-part="input"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+    }
+
+    #[test]
+    fn stylesheet_input_transition_uses_longhand_declarations() {
+        // イシュー #1489: shorthand `transition` リテラルを
+        // `transition_declarations` 由来の longhand 3 宣言へ移行したことを
+        // 固定する。
+        let css = stylesheet();
+        assert!(!css.contains("transition: border-color 0.15s, background 0.15s;"));
+        assert!(css.contains("transition-property: border-color, background;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast"));
+    }
+
+    #[test]
+    fn stylesheet_input_uses_radius_md() {
+        // イシュー #1489: button #1447・date-input #1469・input #1482 が
+        // 確立した Forms 家族の標準角丸へ揃えたことを固定する。
+        let css = stylesheet();
+        assert!(css.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(!css.contains("border-radius: var(--fandhe-radius-sm);"));
+    }
+
+    #[test]
+    fn stylesheet_size_variants_reference_control_tokens() {
+        // イシュー #1489: size 5 段の値を #1678 の
+        // `--fandhe-size-control-height-*`/`--fandhe-size-control-font-size-*`
+        // 参照へ揃えたことを固定する。
+        let css = stylesheet();
+        for suffix in ["xs", "sm", "md", "lg", "xl"] {
+            assert!(
+                css.contains(&format!("--fandhe-size-control-height-{suffix}")),
+                "size={suffix} の height トークン参照が見つからない: {css}"
+            );
+            assert!(
+                css.contains(&format!("--fandhe-size-control-font-size-{suffix}")),
+                "size={suffix} の font-size トークン参照が見つからない: {css}"
+            );
+        }
     }
 
     #[test]
