@@ -79,8 +79,8 @@
 //! `-padding-block`/`-padding-inline`）経由でセグメントの寸法・文字サイズを
 //! 切り替える。`color-palette` 軸は提供しない（chakra-ui SegmentedControl の
 //! 既定が中立色であること、[`crate::number_input`] の「フォーム操作部品として
-//! `size` のみを対象とする」軸提供基準と同じ判断。選択状態は色ではなく
-//! indicator の移動 + 文字の強調で表現する）。base/state 規則の `var()` には
+//! `size` のみを対象とする」軸提供基準と同じ判断。選択状態は
+//! indicator の移動 + テキストの色の階層で表現する）。base/state 規則の `var()` には
 //! いずれも Md サイズ相当のフォールバック値を書き、styled `root` を経由しない
 //! headless 直接利用マークアップでも既定外観を維持する（fail-safe）。
 //!
@@ -102,7 +102,7 @@
 //!   `var(--fandhe-color-fg-muted)`、選択項目を `var(--fandhe-color-fg)`
 //!   の 2 段階へ是正した（参照 3 サイト中 chakra-ui / Radix Themes は
 //!   選択項目を中立色で表現しており、accent 色採用は ark-ui のみ。本節
-//!   冒頭「選択状態は色ではなく indicator の移動 + 文字の強調で表現する」
+//!   冒頭「選択状態は indicator の移動 + テキストの色の階層で表現する」
 //!   という既存の設計宣言とも整合する）。あわせて生 `font-weight: 600`
 //!   リテラルを廃し、全項目へ `font-weight: var(--fandhe-font-font-weight-
 //!   medium)` を付与した（選択の強調は色差 + indicator が担う）。
@@ -316,8 +316,8 @@ fn recipe() -> SlotRecipe {
         )
         // イシュー #1499: 未選択 muted / 選択 fg の 2 段階の型階層へ是正
         // （参照 3 サイト中 chakra-ui / Radix Themes は選択項目を中立色で
-        // 表現しており、本モジュール冒頭 rustdoc の「選択状態は色ではなく
-        // indicator の移動 + 文字の強調で表現する」宣言とも整合する）。
+        // 表現しており、本モジュール冒頭 rustdoc の「選択状態は indicator の
+        // 移動 + テキストの色の階層で表現する」宣言とも整合する）。
         // `font-weight: medium` は全項目へ付与し（chakra 相当）、選択の
         // 強調は色差 + indicator が担う。`line-height`/`user-select` は
         // `crate::radio_group`/`crate::checkbox_group` の item-text と同型
