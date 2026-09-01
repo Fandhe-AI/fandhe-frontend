@@ -16,10 +16,53 @@
 //! `field-sizing: content` + `resize: none` を登録し、この宣言的フックへ
 //! styled 層として応答する。`autoresize` が `false` のときは通常どおり
 //! `resize: vertical`（base 規則）のみが効く。
+//!
+//! # 参考サイト基準への調整（イシュー #1511）
+//!
+//! chakra-ui v3 Textarea / Radix Themes text-area と視覚比較し、Phase 0
+//! で確定した共通基盤（[`crate::recipe::focus_ring_declarations`]・
+//! [`crate::recipe::disabled_declarations`]・
+//! [`crate::recipe::transition_declarations`]・#1678 の
+//! `--fandhe-size-control-padding-x/font-size-*` トークン）へ移行した。
+//! [`crate::input`]（イシュー #1482）の差分を踏襲するが、以下の点で
+//! textarea 固有の事情により差分がある。
+//!
+//! - **固定 `height` を採らない（意図的差分）**: [`crate::input`] は
+//!   chakra v3 Input の固定高（h-8〜h-12）に合わせ `height` +
+//!   水平 padding のみで表現するが、`textarea` は複数行部品であり
+//!   `rows` 属性・内容量に応じて高さが伸縮するのが自然な挙動である。
+//!   chakra v3 Textarea・Radix Themes text-area のいずれも固定高を
+//!   宣言せず、縦 padding は入力欄と同じ理由で高さ計算に含める。本
+//!   モジュールも `--fandhe-size-control-height-*` トークンは使わず、
+//!   既存の縦 padding（rem 固定値、参照サイト比較で概ね妥当と判断し
+//!   維持）+ `--fandhe-size-control-padding-x-*`（水平のみ）+
+//!   `--fandhe-size-control-font-size-*` で表現する。
+//! - **フォーカス・トランジション・disabled・角丸**: [`crate::input`] と
+//!   同型（canonical ヘルパへの移行）。
+//! - **hover（意図的非採用）**: hover 背景は付与しない。
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md` の判定基準
+//!   （hover はインタラクティブ slot = `cursor: pointer` を持つ slot のみ）
+//!   に対しテキスト入力は `cursor: text` であり対象外。chakra v3
+//!   Textarea・Radix Themes text-area も hover 背景変化を持たない。
+//! - **readonly（意図的非採用）**: `data-readonly` への視覚宣言は追加しない。
+//!   ネイティブ `<textarea readonly>` は選択・キャレット操作可能なため
+//!   [`crate::input`] と同じ判断（参照サイトも readonly の独自装飾を
+//!   持たない）。
+//! - **size / variant の網羅性**: 既存の xs〜xl 5 段・outline/subtle/
+//!   flushed 3 variant を維持し、参照サイト名（chakra の solid/surface/
+//!   ghost、Radix の classic/soft 等）は持ち込まない（本リポジトリ既存
+//!   語彙優先）。
+//! - **placeholder 色（意図的非採用）**: [`crate::recipe::SlotRecipe`] の
+//!   [`crate::recipe::StateCondition`] に `::placeholder` 経路がなく、
+//!   本イシューの対応範囲では生セレクタ経路を新設しない既存設計を維持
+//!   する（recipe 基盤の拡張は本イシューのスコープ外）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, transition_declarations, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
 pub use fandhe_frontend_headless_ui::field::{FieldIds, FieldProps};
@@ -73,20 +116,24 @@ impl Default for TextareaProps {
 
 /// この styled Textarea の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
+    let mut base = vec![
+        decl("box-sizing", "border-box"),
+        decl("width", "100%"),
+        decl("font", "inherit"),
+        decl("color", "var(--fandhe-color-fg)"),
+        decl("background", "var(--fandhe-color-bg)"),
+        // input #1482・date-input #1469・button #1447 が確立した Forms
+        // 家族の標準角丸（旧 `--fandhe-radius-sm` から変更、イシュー #1511）。
+        decl("border-radius", "var(--fandhe-radius-md)"),
+        decl("resize", "vertical"),
+    ];
+    base.extend(transition_declarations(
+        "border-color, background",
+        MotionDuration::Fast,
+    ));
+
     SlotRecipe::new("field", SLOTS)
-        .base(
-            "textarea",
-            vec![
-                decl("box-sizing", "border-box"),
-                decl("width", "100%"),
-                decl("font", "inherit"),
-                decl("color", "var(--fandhe-color-fg)"),
-                decl("background", "var(--fandhe-color-bg)"),
-                decl("border-radius", "var(--fandhe-radius-sm)"),
-                decl("resize", "vertical"),
-                decl("transition", "border-color 0.15s, background 0.15s"),
-            ],
-        )
+        .base("textarea", base)
         .state(
             "textarea",
             StateCondition::Attr("data-invalid"),
@@ -95,15 +142,12 @@ fn recipe() -> SlotRecipe {
         .state(
             "textarea",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
         )
         .state(
             "textarea",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         // headless `autoresize` フック（モジュール rustdoc「`autoresize` フック」
         // 節参照）への styled 側の応答。`field-sizing` は対応ブラウザでのみ
@@ -114,44 +158,79 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-autoresize"),
             vec![decl("field-sizing", "content"), decl("resize", "none")],
         )
+        // size（イシュー #1678 の `--fandhe-size-control-padding-x/
+        // font-size-*` トークンへ移行、イシュー #1511）。複数行部品のため
+        // input と異なり `height` トークンは使わず、縦 padding は既存の
+        // rem 固定値を維持する（モジュール rustdoc「固定 `height` を
+        // 採らない」節参照）。
         .variant(
             Size::Xs,
             "textarea",
             vec![
-                decl("padding", "0.125rem 0.375rem"),
-                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl(
+                    "padding",
+                    "0.125rem var(--fandhe-size-control-padding-x-xs, 0.625rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs))",
+                ),
             ],
         )
         .variant(
             Size::Sm,
             "textarea",
             vec![
-                decl("padding", "0.25rem 0.5rem"),
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl(
+                    "padding",
+                    "0.25rem var(--fandhe-size-control-padding-x-sm, 0.75rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm))",
+                ),
             ],
         )
         .variant(
             Size::Md,
             "textarea",
             vec![
-                decl("padding", "0.375rem 0.75rem"),
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl(
+                    "padding",
+                    "0.375rem var(--fandhe-size-control-padding-x-md, 1rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-sm))",
+                ),
             ],
         )
         .variant(
             Size::Lg,
             "textarea",
             vec![
-                decl("padding", "0.5rem 1rem"),
-                decl("font-size", "var(--fandhe-font-font-size-md)"),
+                decl(
+                    "padding",
+                    "0.5rem var(--fandhe-size-control-padding-x-lg, 1.25rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-md))",
+                ),
             ],
         )
         .variant(
             Size::Xl,
             "textarea",
             vec![
-                decl("padding", "0.625rem 1.25rem"),
-                decl("font-size", "var(--fandhe-font-font-size-lg)"),
+                decl(
+                    "padding",
+                    "0.625rem var(--fandhe-size-control-padding-x-xl, 1.5rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-lg))",
+                ),
             ],
         )
         .variant(
@@ -277,6 +356,48 @@ mod tests {
   resize: none;
 }"#
         ));
+    }
+
+    #[test]
+    fn stylesheet_uses_canonical_focus_ring_declarations() {
+        // イシュー #1511: focus ring がリテラル値ではなく canonical ヘルパ
+        // （`focus_ring_declarations`）由来のトークン参照であることを固定。
+        let out = css();
+        assert!(out.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+        assert!(out.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+    }
+
+    #[test]
+    fn stylesheet_uses_motion_token_transition() {
+        // イシュー #1511: transition がリテラル秒数ではなく motion トークン
+        // （`transition_declarations`）由来であることを固定。
+        let out = css();
+        assert!(out.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+        assert!(out.contains("transition-property: border-color, background;"));
+    }
+
+    #[test]
+    fn stylesheet_size_variants_use_control_tokens() {
+        // イシュー #1511: 各 size が #1678 の control トークン（padding-x/
+        // font-size のみ、複数行部品のため height は使わない）へ移行した
+        // ことを固定。
+        let out = css();
+        for suffix in ["xs", "sm", "md", "lg", "xl"] {
+            assert!(
+                out.contains(&format!("--fandhe-size-control-padding-x-{suffix}")),
+                "padding-x token missing for {suffix} -> {out}"
+            );
+            assert!(
+                out.contains(&format!("--fandhe-size-control-font-size-{suffix}")),
+                "font-size token missing for {suffix} -> {out}"
+            );
+            assert!(
+                !out.contains(&format!("--fandhe-size-control-height-{suffix}")),
+                "height token unexpectedly present for {suffix} (textarea is multi-line, no fixed height) -> {out}"
+            );
+        }
     }
 
     #[test]
