@@ -89,7 +89,9 @@
 //!   シグネチャ変更（破壊的）を伴い #1455 と同一ファイルで衝突するうえ、
 //!   checkbox-card / checkbox-group 等 Forms 家族の軸語彙と足並みを揃える
 //!   べき横断判断であり、size/palette 段階数を #1426/#1712 で横断決定した
-//!   前例に倣い部品単独で先行しない
+//!   前例に倣い部品単独で先行しない（横断判断はイシュー #1741 で
+//!   `docs/design/pre-styled-ui-size-and-color-palette-axes.md` §7 に
+//!   記録済み: 現時点では見送り）
 //! - **`data-readonly` は視覚化しない**: 参照 4 サイトのいずれも readonly
 //!   状態に checkbox 固有の視覚差を付けないため、`data-invalid`（下記）とは
 //!   異なり CSS 規則を追加しない
@@ -163,16 +165,20 @@
 //!   テキストであり、disabled 時の見た目は `root` の
 //!   `data-disabled` 規則（opacity）が波及済みで足りる。
 //! - **variant 軸（solid/subtle/outline 等）は追加しない**: 1/2 と同じ判断
-//!   （`root()` シグネチャ変更は破壊的、Forms 家族横断の判断が必要）。
+//!   （`root()` シグネチャ変更は破壊的、Forms 家族横断の判断が必要。
+//!   横断判断はイシュー #1741 で
+//!   `docs/design/pre-styled-ui-size-and-color-palette-axes.md` §7 に
+//!   記録済み: 現時点では見送り）。
 //! - **チェックマーク線幅（2px 固定）は size 連動させない**: xs〜xl で 2px
 //!   は視認性上妥当で、chakra も SVG アイコンで線幅を固定している。
 
 use crate::class_attr::drop_class_attr;
-use crate::css::{decl, Declaration};
+use crate::css::decl;
 use crate::recipe::{
-    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
-    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
-    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid_with_fallback,
+    hover_surface_declarations, palette_scale_declarations, transition_declarations, ColorPalette,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
 };
 
 // `Checkbox` 状態機械・headless 自由関数 `root` はあえて再エクスポートしない
@@ -191,32 +197,23 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 /// 変更時は両ファイルを合わせて確認する）。
 const SLOTS: &[&str] = &["root", "control", "indicator", "label", "hidden-input"];
 
-/// checked/indeterminate 時の `control` hover 面を定義する `--fandhe-hover-bg`
-/// 宣言（内部ヘルパ）。[`crate::recipe::hover_bg_solid`] は
-/// `var(--fandhe-palette-emphasized)` を直値で参照するのみで、styled
-/// `root`（[`crate::recipe::palette_declarations`]）を経由しない headless
-/// 直接利用マークアップでは `--fandhe-palette-emphasized` が未定義となり
-/// `background: var(--fandhe-hover-bg)` が computed-value time に無効化
-/// されて hover 面が透明へ戻る回帰を生む（レビュー指摘）。
-///
-/// フォールバック先は `--fandhe-color-accent`（rest state の fill トークン）
-/// **ではなく** `--fandhe-color-accent-emphasized` とする（[`crate::link`]
-/// の hover 規則と同型、PR #1734 Cursor Bugbot 指摘の是正）。前者へ
-/// フォールバックすると、styled `root` を経由しない headless 直接利用
-/// マークアップで checked/indeterminate の hover が rest state（`background:
-/// var(--fandhe-palette, var(--fandhe-color-accent))`）と同色になり、
-/// fail-safe が hover 外観そのものを失ってしまう。中間項の
-/// `--fandhe-palette`（emphasized ではなく base の fill トークン）も同じ
-/// 理由で連鎖に含めない: styled root 利用時は `palette_scale_declarations`
-/// が `--fandhe-palette-emphasized`/`--fandhe-palette` を常に同時定義する
-/// ため中間項が単独で効く場面はなく、含めると headless 直接利用時に
-/// 誤って rest state 色へ落ちる経路を新設するだけになる。
-fn hover_bg_solid_with_fallback() -> Declaration {
-    decl(
-        "--fandhe-hover-bg",
-        "var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized))",
-    )
-}
+// checked/indeterminate 時の `control` hover 面は [`crate::recipe::hover_bg_solid_with_fallback`]
+// を使う（イシュー #1741 で `checkbox_group.rs` と共通化、旧実装はモジュール
+// ローカルの複製だった）。[`crate::recipe::hover_bg_solid`] は
+// `var(--fandhe-palette-emphasized)` を直値で参照するのみで、styled
+// `root`（[`crate::recipe::palette_declarations`]）を経由しない headless
+// 直接利用マークアップでは `--fandhe-palette-emphasized` が未定義となり
+// `background: var(--fandhe-hover-bg)` が computed-value time に無効化
+// されて hover 面が透明へ戻る回帰を生む（レビュー指摘）ため、
+// `hover_bg_solid_with_fallback` は `--fandhe-color-accent-emphasized`
+// （rest state の fill トークン `--fandhe-color-accent` ではなく、
+// [`crate::link`] の hover 規則と同型、PR #1734 Cursor Bugbot 指摘の是正）
+// へのフォールバックを連鎖に持つ。中間項の `--fandhe-palette`（emphasized
+// ではなく base の fill トークン）を連鎖に含めないのは、styled root 利用時は
+// `palette_scale_declarations` が `--fandhe-palette-emphasized`/
+// `--fandhe-palette` を常に同時定義するため中間項が単独で効く場面はなく、
+// 含めると headless 直接利用時に誤って rest state 色へ落ちる経路を新設する
+// だけになるため。
 
 /// この styled Checkbox の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {

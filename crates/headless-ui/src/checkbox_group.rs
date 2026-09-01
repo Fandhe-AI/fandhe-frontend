@@ -119,7 +119,7 @@ use crate::aria::{aria_labelledby, aria_orientation, role};
 use crate::data_attrs::{data_disabled, data_orientation, data_state, Orientation};
 use crate::state::{checked_data_state, MultiSelect, MultiSelectAction};
 use fandhe_frontend_core::Node;
-use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
+use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
 /// `data-state` 属性値 "checked"。[`crate::radio_group::DATA_STATE_CHECKED`]
 /// と同じ共通機械 [`crate::state::Checkable`] の値語彙（互換 re-export）。
@@ -265,15 +265,44 @@ pub fn item_text<'a>(
 /// [`Self::is_checked`]/[`Self::item_checked_data_state`] が各項目値の
 /// チェック状態を決定し、各パーツ関数（[`item`]/[`item_control`]/
 /// [`item_indicator`]/[`item_text`]）へ注入する利便メソッドを提供する
-/// （[`root`]/[`label`] は状態非依存のため利便メソッドを持たない）。SSR
-/// での自由関数直接利用（本型を経由しない構成）も引き続き可能。`Default`
-/// は未選択（SSR の状態なし初期描画に対応する既定値）。
+/// （[`label`] は状態非依存のため利便メソッドを持たない）。SSR での自由関数直接利用（本型を経由しない構成）も引き続き
+/// 可能。`Default` は未選択・disabled=false（SSR の状態なし初期描画に
+/// 対応する既定値）。
+///
+/// # root disabled の伝播（イシュー #1741、hydration 往復は #1760 P1 是正）
+///
+/// `disabled` フィールドはグループ全体の無効化状態を保持する。呼び出し側は
+/// [`Self::set_disabled`]/[`Self::with_disabled`] で設定し、[`Self::item`]/
+/// [`Self::item_control`]/[`Self::item_indicator`]/[`Self::item_text`]/
+/// [`Self::item_hidden_input`] の各利便メソッドは「項目単体の disabled」
+/// 引数と `self.disabled` を OR した実効値（[`Self::item_effective_disabled`]）
+/// を各パーツへ注入する。root disabled 未設定（`false`）時は従来の出力と
+/// 完全に一致し、この追加は非破壊的である。
+///
+/// [`Component::view`]（`render_for_hydration` 等の標準描画経路）は
+/// `self.disabled` を [`root`] へ渡す（PR #1760 codex-review P1 是正: 以前は
+/// 常に `false` を渡しており、disabled な `CheckboxGroup` でも
+/// `data-disabled` が出力されなかった）。`disabled` は
+/// [`Component::update`]/dispatch では変化しない表示プロパティだが、
+/// hydration 状態形式（`docs/api/hydration-state-format.md`）の
+/// [`Self::FIELD_DISABLED`] としても往復させる（同 P1: 往復させないと
+/// disabled=true な `CheckboxGroup` が hydration 後に常に有効化され、
+/// タブ移動・Space 操作・フォーム送信が可能になってしまう）。SSR 自由関数
+/// 直接利用時は、呼び出し側が各パーツへ明示的に同じ disabled を渡す契約が
+/// 従来どおり有効（本型の利便メソッドを経由する場合のみ自動 OR される）。
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CheckboxGroup {
     select: MultiSelect,
+    disabled: bool,
 }
 
 impl CheckboxGroup {
+    /// `data-hydrate-disabled` 属性名のフィールド部分（イシュー #1760
+    /// P1 是正: root disabled を hydration 状態形式へ往復させる。
+    /// [`crate::carousel::Carousel::FIELD_LOOP`] と同じ `"true"`/`"false"`
+    /// 文字列エンコードを踏襲する）。
+    pub const FIELD_DISABLED: &'static str = "disabled";
+
     /// 現在選択中の項目値の一覧。
     #[must_use]
     pub fn selected(&self) -> &[String] {
@@ -292,7 +321,36 @@ impl CheckboxGroup {
         checked_data_state(self.is_checked(value))
     }
 
-    /// [`item`] へ項目 `value` の現在状態を注入する利便メソッド。
+    /// グループ全体の disabled 状態を設定する（イシュー #1741）。
+    pub fn set_disabled(&mut self, disabled: bool) {
+        self.disabled = disabled;
+    }
+
+    /// [`Self::set_disabled`] のビルダー版。
+    #[must_use]
+    pub fn with_disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// グループ全体の disabled 状態。
+    #[must_use]
+    pub fn is_disabled(&self) -> bool {
+        self.disabled
+    }
+
+    /// 項目単体の `item_disabled` と `self.disabled`（root disabled）を OR
+    /// した実効 disabled を返す（イシュー #1741）。各利便メソッドが
+    /// パーツへ注入する値の唯一の計算経路。
+    #[must_use]
+    pub fn item_effective_disabled(&self, item_disabled: bool) -> bool {
+        self.disabled || item_disabled
+    }
+
+    /// [`item`] へ項目 `value` の現在状態と実効 disabled を注入する
+    /// 利便メソッド。`disabled` は項目単体の disabled（root disabled との
+    /// OR は内部で自動計算する、[`Self`] rustdoc「root disabled の伝播」節
+    /// 参照）。
     #[must_use]
     pub fn item<'a>(
         &self,
@@ -301,10 +359,17 @@ impl CheckboxGroup {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item(self.is_checked(value), disabled, value, attrs, children)
+        item(
+            self.is_checked(value),
+            self.item_effective_disabled(disabled),
+            value,
+            attrs,
+            children,
+        )
     }
 
-    /// [`item_control`] へ項目 `value` の現在状態を注入する利便メソッド。
+    /// [`item_control`] へ項目 `value` の現在状態と実効 disabled を注入する
+    /// 利便メソッド（[`Self::item`] rustdoc の disabled 契約参照）。
     #[must_use]
     pub fn item_control<'a>(
         &self,
@@ -313,10 +378,16 @@ impl CheckboxGroup {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item_control(self.is_checked(value), disabled, attrs, children)
+        item_control(
+            self.is_checked(value),
+            self.item_effective_disabled(disabled),
+            attrs,
+            children,
+        )
     }
 
-    /// [`item_indicator`] へ項目 `value` の現在状態を注入する利便メソッド。
+    /// [`item_indicator`] へ項目 `value` の現在状態と実効 disabled を注入する
+    /// 利便メソッド（[`Self::item`] rustdoc の disabled 契約参照）。
     #[must_use]
     pub fn item_indicator<'a>(
         &self,
@@ -325,10 +396,16 @@ impl CheckboxGroup {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item_indicator(self.is_checked(value), disabled, attrs, children)
+        item_indicator(
+            self.is_checked(value),
+            self.item_effective_disabled(disabled),
+            attrs,
+            children,
+        )
     }
 
-    /// [`item_text`] へ項目 `value` の現在状態を注入する利便メソッド。
+    /// [`item_text`] へ項目 `value` の現在状態と実効 disabled を注入する
+    /// 利便メソッド（[`Self::item`] rustdoc の disabled 契約参照）。
     #[must_use]
     pub fn item_text<'a>(
         &self,
@@ -337,7 +414,46 @@ impl CheckboxGroup {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item_text(self.is_checked(value), disabled, attrs, children)
+        item_text(
+            self.is_checked(value),
+            self.item_effective_disabled(disabled),
+            attrs,
+            children,
+        )
+    }
+
+    /// 項目 `value` のネイティブ `<input type="checkbox">`（[`crate::checkbox::hidden_input`]
+    /// の再利用、モジュール doc「ネイティブ semantics」節参照）へ実効
+    /// disabled と現在の checked 状態を注入する利便メソッド（イシュー
+    /// #1741）。`props.disabled` は項目単体の disabled として扱い、root
+    /// disabled との OR は内部で自動計算する（[`Self::item`] rustdoc の
+    /// disabled 契約と同型）。`props.checked` は呼び出し側の指定を使わず
+    /// `self.is_checked(value)` から常に上書きする（[`crate::checkbox::Checkbox::hidden_input`]
+    /// と同型の契約）。こうしないと `select`/`deselect`/`toggle`
+    /// dispatch 後に他の利便メソッドが示す `data-state` とネイティブ
+    /// `<input>` の `checked` 属性・フォーム送信値が食い違う
+    /// （イシュー #1760 レビュー指摘の回帰固定）。anatomy パーツは新設せず
+    /// `data-scope="checkbox"` のまま（モジュール doc「anatomy」節の
+    /// `item-hidden-input` 非新設判断を維持する）。ネイティブ `disabled`
+    /// 属性へ実効値を反映することで、CSS のみでは変更できない `<input>`
+    /// のタブ順序・フォーム送信を実際に無効化する（本型を経由しない自由
+    /// 関数直接利用時は、この OR を呼び出し側が明示的に行う契約は変わら
+    /// ない）。
+    #[must_use]
+    pub fn item_hidden_input<'a>(
+        &self,
+        value: &'a str,
+        mut props: crate::checkbox::CheckboxProps,
+        name: &'a str,
+        attrs: Vec<(&'a str, &'a str)>,
+    ) -> Node {
+        props.disabled = self.item_effective_disabled(props.disabled);
+        props.checked = if self.is_checked(value) {
+            crate::checkbox::CheckedState::Checked
+        } else {
+            crate::checkbox::CheckedState::Unchecked
+        };
+        crate::checkbox::hidden_input(&props, name, value, attrs)
     }
 }
 
@@ -353,9 +469,12 @@ impl Component for CheckboxGroup {
     /// を持つ素の `div` を返すため使わず、本モジュールの `root` を明示的に
     /// 呼んで上書きする。`render_for_hydration` がルートを `Node::Element`
     /// と仮定する不変条件は維持される、[`crate::radio_group::RadioGroup::view`]
-    /// と同型）。
+    /// と同型）。`self.disabled` を渡す（PR #1760 codex-review P1 是正:
+    /// 以前は常に `false` を渡しており、`render_for_hydration(&group)` 等の
+    /// 標準描画経路で disabled な `CheckboxGroup` でも `data-disabled` が
+    /// 出力されなかった）。
     fn view(&self) -> Node {
-        root(false, None, None, Vec::new(), Vec::new())
+        root(self.disabled, None, None, Vec::new(), Vec::new())
     }
 
     /// クライアント由来の文字列アクション名を `"select"`/`"deselect"`/
@@ -369,14 +488,56 @@ impl Component for CheckboxGroup {
 }
 
 impl Hydrate for CheckboxGroup {
+    /// [`MultiSelect::hydration_attrs`] の選択状態に加え、
+    /// [`Self::FIELD_DISABLED`] として root disabled を往復させる（PR #1760
+    /// codex-review P1 是正、[`CheckboxGroup`] rustdoc「root disabled の
+    /// 伝播」節参照）。`disabled` は dispatch では変化しない表示プロパティ
+    /// だが、往復させないと disabled=true な状態が hydration 後に常に
+    /// `false` へ解除されてしまう。
     fn hydration_attrs(&self) -> Vec<(String, String)> {
-        self.select.hydration_attrs()
+        let mut attrs = self.select.hydration_attrs();
+        attrs.push((
+            format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_DISABLED),
+            self.disabled.to_string(),
+        ));
+        attrs
     }
 
+    /// クライアント改ざん入力として扱う。[`Self::FIELD_DISABLED`] の**欠落**は
+    /// 既存 hydration 入力契約（本フィールド導入前の値。従来の暗黙値）との
+    /// 後方互換のため `disabled = false` として扱う（PR #1760 codex-review
+    /// P1 是正: 当初は欠落を `HydrateError::MissingAttr` として拒否していたが、
+    /// これは 0.x とはいえ patch バンプのまま公開する既存 hydration 入力の
+    /// 破壊的変更に当たると指摘された。値が明示されているのに
+    /// `"true"`/`"false"` 以外の不正値であるときのみ
+    /// [`HydrateError::InvalidValue`] を返す（panic しない、
+    /// [`crate::carousel::Carousel::from_hydration_attrs`] の `loop` 解析と
+    /// 同型の fail-closed 契約）。
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
-        Ok(Self {
-            select: MultiSelect::from_hydration_attrs(attrs)?,
-        })
+        // select の復元を先に行う（既存の MissingAttr/InvalidValue 優先順位
+        // ── 「data-hydrate-selected」欠落・不正値を最初に報告する既存の
+        // テスト契約 ── を崩さないため。disabled 不正値の判定は
+        // select 復元が成功した後に行う）。
+        let select = MultiSelect::from_hydration_attrs(attrs)?;
+
+        let attr_name_disabled = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_DISABLED);
+        let disabled_raw = attrs
+            .iter()
+            .find(|(k, _)| *k == attr_name_disabled)
+            .map(|(_, v)| v.as_str());
+        let disabled = match disabled_raw {
+            None => false,
+            Some("true") => true,
+            Some("false") => false,
+            Some(_) => {
+                return Err(HydrateError::InvalidValue {
+                    attr: attr_name_disabled,
+                    reason: "expected \"true\" or \"false\"".to_string(),
+                })
+            }
+        };
+
+        Ok(Self { select, disabled })
     }
 }
 
@@ -642,6 +803,159 @@ mod tests {
         assert!(indicator_blue.contains(r#"hidden="""#));
     }
 
+    // --- CheckboxGroup: root disabled の伝播（イシュー #1741） ---
+
+    #[test]
+    fn checkbox_group_root_disabled_false_by_default() {
+        let g = CheckboxGroup::default();
+        assert!(!g.is_disabled());
+        let html = render(&root(g.is_disabled(), None, None, vec![], vec![]));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn checkbox_group_set_disabled_reflects_in_root() {
+        let mut g = CheckboxGroup::default();
+        g.set_disabled(true);
+        assert!(g.is_disabled());
+        let html = render(&root(g.is_disabled(), None, None, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn checkbox_group_with_disabled_is_builder_equivalent_to_set_disabled() {
+        let mut a = CheckboxGroup::default();
+        a.set_disabled(true);
+        let b = CheckboxGroup::default().with_disabled(true);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn checkbox_group_item_effective_disabled_ors_root_and_item() {
+        let mut g = CheckboxGroup::default();
+        assert!(!g.item_effective_disabled(false));
+        assert!(g.item_effective_disabled(true));
+        g.set_disabled(true);
+        assert!(g.item_effective_disabled(false));
+        assert!(g.item_effective_disabled(true));
+    }
+
+    #[test]
+    fn checkbox_group_root_disabled_true_propagates_to_item_convenience_methods() {
+        let g = CheckboxGroup::default().with_disabled(true);
+
+        let item = render(&g.item("red", false, vec![], vec![]));
+        assert!(item.contains(r#"data-disabled="""#));
+
+        let control = render(&g.item_control("red", false, vec![], vec![]));
+        assert!(control.contains(r#"data-disabled="""#));
+
+        let indicator = render(&g.item_indicator("red", false, vec![], vec![]));
+        assert!(indicator.contains(r#"data-disabled="""#));
+
+        let text = render(&g.item_text("red", false, vec![], vec![]));
+        assert!(text.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn checkbox_group_root_disabled_false_and_item_false_keeps_prior_output() {
+        // root disabled 未設定時（既定値 false）は従来出力と完全一致する
+        // 回帰なし不変条件（[`CheckboxGroup`] rustdoc「root disabled の伝播」
+        // 節参照）。
+        let mut g = CheckboxGroup::default();
+        dispatch(&mut g, "select", "red");
+
+        let item_via_convenience = render(&g.item("red", false, vec![], vec![]));
+        let item_via_free_fn = render(&item(true, false, "red", vec![], vec![]));
+        assert_eq!(item_via_convenience, item_via_free_fn);
+    }
+
+    #[test]
+    fn checkbox_group_item_hidden_input_reflects_root_disabled() {
+        use crate::checkbox::CheckboxProps;
+
+        let g = CheckboxGroup::default().with_disabled(true);
+        let html = render(&g.item_hidden_input(
+            "red",
+            CheckboxProps {
+                checked: CheckedState::Unchecked,
+                disabled: false,
+                invalid: false,
+                required: false,
+                readonly: false,
+            },
+            "colors",
+            vec![],
+        ));
+        assert!(html.contains("disabled"));
+        assert!(html.contains(r#"type="checkbox""#));
+    }
+
+    #[test]
+    fn checkbox_group_item_hidden_input_item_disabled_true_still_disabled_when_root_false() {
+        use crate::checkbox::CheckboxProps;
+
+        let g = CheckboxGroup::default();
+        let html = render(&g.item_hidden_input(
+            "red",
+            CheckboxProps {
+                checked: CheckedState::Unchecked,
+                disabled: true,
+                invalid: false,
+                required: false,
+                readonly: false,
+            },
+            "colors",
+            vec![],
+        ));
+        assert!(html.contains("disabled"));
+    }
+
+    #[test]
+    fn checkbox_group_item_hidden_input_overrides_checked_from_select_state() {
+        // イシュー #1760 レビュー指摘の回帰固定: 呼び出し側が渡した
+        // `props.checked` を無視し、`self.is_checked(value)` から常に
+        // 上書きする（[`crate::checkbox::Checkbox::hidden_input`] と同型）。
+        // これにより select/toggle 後もネイティブ `<input>` の `checked`
+        // 属性・フォーム送信値が `data-state` と一致する。
+        use crate::checkbox::CheckboxProps;
+
+        let mut g = CheckboxGroup::default();
+        dispatch(&mut g, "select", "red");
+
+        // 呼び出し側が誤って Unchecked を渡しても、実際の選択状態
+        // （Checked）が優先される。
+        let checked_html = render(&g.item_hidden_input(
+            "red",
+            CheckboxProps {
+                checked: CheckedState::Unchecked,
+                disabled: false,
+                invalid: false,
+                required: false,
+                readonly: false,
+            },
+            "colors",
+            vec![],
+        ));
+        assert!(checked_html.contains(" checked"));
+
+        // 未選択の項目値は呼び出し側が Checked を渡しても Unchecked へ
+        // 上書きされる。
+        let unchecked_html = render(&g.item_hidden_input(
+            "blue",
+            CheckboxProps {
+                checked: CheckedState::Checked,
+                disabled: false,
+                invalid: false,
+                required: false,
+                readonly: false,
+            },
+            "colors",
+            vec![],
+        ));
+        assert!(!unchecked_html.contains(" checked"));
+    }
+
     // --- CheckboxGroup: SSR 状態なし初期描画 ---
 
     #[test]
@@ -667,6 +981,21 @@ mod tests {
         assert!(rendered.contains(r#"role="group""#));
     }
 
+    #[test]
+    fn checkbox_group_view_reflects_root_disabled() {
+        // PR #1760 codex-review P1 回帰固定: Component::view が
+        // self.disabled を無視して常に false を root へ渡していたため、
+        // render_for_hydration(&group) 等の標準描画経路で disabled な
+        // CheckboxGroup でも data-disabled が出力されなかった不具合。
+        let disabled_group = CheckboxGroup::default().with_disabled(true);
+        let rendered = render(&disabled_group.view());
+        assert!(rendered.contains(r#"data-disabled="""#));
+
+        let enabled_group = CheckboxGroup::default();
+        let rendered = render(&enabled_group.view());
+        assert!(!rendered.contains("data-disabled"));
+    }
+
     // --- CheckboxGroup: hydration 経路 ---
 
     #[test]
@@ -687,6 +1016,68 @@ mod tests {
         let g = CheckboxGroup::default();
         let restored = CheckboxGroup::from_hydration_attrs(&g.hydration_attrs()).unwrap();
         assert_eq!(restored, g);
+    }
+
+    #[test]
+    fn checkbox_group_hydration_attrs_includes_disabled_field() {
+        // PR #1760 codex-review P1 回帰固定: hydration_attrs が disabled を
+        // 状態属性として運ぶことの直接確認（data-hydrate-disabled）。
+        let g = CheckboxGroup::default().with_disabled(true);
+        let attrs = g.hydration_attrs();
+        assert!(attrs
+            .iter()
+            .any(|(k, v)| k == "data-hydrate-disabled" && v == "true"));
+    }
+
+    #[test]
+    fn checkbox_group_hydration_round_trip_preserves_root_disabled_true() {
+        // PR #1760 codex-review P1 回帰固定: hydration_attrs が disabled を
+        // 保存せず from_hydration_attrs が常に disabled: false を設定して
+        // いたため、disabled=true な CheckboxGroup が hydration 往復後に
+        // 有効化されてしまう不具合（タブ移動・Space 操作・フォーム送信が
+        // 可能になる）。往復後も is_disabled() が true のままであることを
+        // 固定する。
+        let g = CheckboxGroup::default().with_disabled(true);
+        let restored = CheckboxGroup::from_hydration_attrs(&g.hydration_attrs()).unwrap();
+        assert!(restored.is_disabled());
+        assert_eq!(restored, g);
+    }
+
+    #[test]
+    fn checkbox_group_hydration_round_trip_preserves_root_disabled_false() {
+        let g = CheckboxGroup::default();
+        let restored = CheckboxGroup::from_hydration_attrs(&g.hydration_attrs()).unwrap();
+        assert!(!restored.is_disabled());
+    }
+
+    #[test]
+    fn checkbox_group_from_hydration_attrs_missing_disabled_attr_defaults_to_false() {
+        // data-hydrate-selected はあるが data-hydrate-disabled が欠落した
+        // 入力（本フィールド導入前の既存 hydration 入力契約と同形）は、
+        // 後方互換のため disabled=false として復元する（PR #1760
+        // codex-review P1 是正: 欠落を MissingAttr として拒否する当初実装は
+        // 既存契約への破壊的変更だったため、暗黙値へのフォールバックへ変更）。
+        use fandhe_frontend_interactive::codec;
+        let attrs = vec![(
+            "data-hydrate-selected".to_string(),
+            codec::encode_list(&Vec::<String>::new()),
+        )];
+        let restored = CheckboxGroup::from_hydration_attrs(&attrs).unwrap();
+        assert!(!restored.is_disabled());
+    }
+
+    #[test]
+    fn checkbox_group_from_hydration_attrs_invalid_disabled_value_rejected_fail_closed() {
+        use fandhe_frontend_interactive::codec;
+        let attrs = vec![
+            (
+                "data-hydrate-selected".to_string(),
+                codec::encode_list(&Vec::<String>::new()),
+            ),
+            ("data-hydrate-disabled".to_string(), "yes".to_string()),
+        ];
+        let err = CheckboxGroup::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
     }
 
     #[test]
