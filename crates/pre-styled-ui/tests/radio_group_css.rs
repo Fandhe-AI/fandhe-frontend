@@ -10,7 +10,11 @@
 //! 表示されない一方、custom property 経由の伝播案は `crate::checkbox_group`
 //! が同型の伝播を撤回した理由――「CSS だけでは disabled の実効性を
 //! 偽装できない」――と同じ問題を持つため不採用とした。詳細は
-//! `radio_group.rs` の `root()` disabled 状態コメント参照）。
+//! `radio_group.rs` の `root()` disabled 状態コメント参照）。イシュー
+//! #1495（親 #1493 分割 2/2）で size バリアントの一括登録（`size_variants`
+//! 経由、xs/sm を 4px 格子へ是正）・`root`/`item` の gap の size 連動 custom
+//! property 化・orientation（horizontal）の折り返し是正・`label`/`item-text`
+//! の型階層を追加した。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。
@@ -22,21 +26,26 @@ use fandhe_frontend_pre_styled_ui::radio_group;
 const RADIO_GROUP_GOLDEN_CSS: &str = r#"[data-scope="radio-group"][data-part="root"] {
   display: flex;
   flex-direction: column;
-  gap: var(--fandhe-space-1);
+  gap: var(--fandhe-radio-group-gap, var(--fandhe-space-1));
 }
 
 [data-scope="radio-group"][data-part="label"] {
   display: block;
   color: var(--fandhe-color-fg);
-  font-size: var(--fandhe-font-font-size-sm);
+  font-size: var(--fandhe-radio-group-font-size, var(--fandhe-font-font-size-sm));
+  font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-normal);
   margin-bottom: var(--fandhe-space-1);
+  flex-basis: var(--fandhe-radio-group-label-basis, auto);
+  flex-shrink: 0;
 }
 
 [data-scope="radio-group"][data-part="item"] {
   display: flex;
   align-items: center;
-  gap: var(--fandhe-space-2);
+  gap: var(--fandhe-radio-group-item-gap, var(--fandhe-space-2));
   cursor: pointer;
+  width: fit-content;
 }
 
 [data-scope="radio-group"][data-part="item-control"] {
@@ -60,6 +69,8 @@ const RADIO_GROUP_GOLDEN_CSS: &str = r#"[data-scope="radio-group"][data-part="ro
 [data-scope="radio-group"][data-part="item-text"] {
   color: var(--fandhe-color-fg);
   font-size: var(--fandhe-radio-group-font-size, var(--fandhe-font-font-size-sm));
+  line-height: var(--fandhe-font-line-height-normal);
+  user-select: none;
 }
 
 [data-scope="radio-group"][data-part="item-hidden-input"] {
@@ -75,33 +86,43 @@ const RADIO_GROUP_GOLDEN_CSS: &str = r#"[data-scope="radio-group"][data-part="ro
 }
 
 [data-scope="radio-group"][data-part="root"].fd-radio-group--size-xs {
-  --fandhe-radio-group-control-size: 0.7rem;
+  --fandhe-radio-group-control-size: 0.75rem;
   --fandhe-radio-group-dot-inset: 1px;
   --fandhe-radio-group-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-radio-group-item-gap: var(--fandhe-space-1);
+  --fandhe-radio-group-gap: var(--fandhe-space-0-5);
 }
 
 [data-scope="radio-group"][data-part="root"].fd-radio-group--size-sm {
-  --fandhe-radio-group-control-size: 0.85rem;
+  --fandhe-radio-group-control-size: 0.875rem;
   --fandhe-radio-group-dot-inset: 2px;
   --fandhe-radio-group-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-radio-group-item-gap: var(--fandhe-space-1-5);
+  --fandhe-radio-group-gap: var(--fandhe-space-1);
 }
 
 [data-scope="radio-group"][data-part="root"].fd-radio-group--size-md {
   --fandhe-radio-group-control-size: 1rem;
   --fandhe-radio-group-dot-inset: 3px;
   --fandhe-radio-group-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-radio-group-item-gap: var(--fandhe-space-2);
+  --fandhe-radio-group-gap: var(--fandhe-space-1);
 }
 
 [data-scope="radio-group"][data-part="root"].fd-radio-group--size-lg {
   --fandhe-radio-group-control-size: 1.25rem;
   --fandhe-radio-group-dot-inset: 4px;
   --fandhe-radio-group-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-radio-group-item-gap: var(--fandhe-space-2-5);
+  --fandhe-radio-group-gap: var(--fandhe-space-1-5);
 }
 
 [data-scope="radio-group"][data-part="root"].fd-radio-group--size-xl {
   --fandhe-radio-group-control-size: 1.5rem;
   --fandhe-radio-group-dot-inset: 5px;
   --fandhe-radio-group-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-radio-group-item-gap: var(--fandhe-space-3);
+  --fandhe-radio-group-gap: var(--fandhe-space-2);
 }
 
 [data-scope="radio-group"][data-part="root"].fd-radio-group--color-palette-accent {
@@ -160,6 +181,9 @@ const RADIO_GROUP_GOLDEN_CSS: &str = r#"[data-scope="radio-group"][data-part="ro
 
 [data-scope="radio-group"][data-part="root"][data-orientation="horizontal"] {
   flex-direction: row;
+  flex-wrap: wrap;
+  column-gap: var(--fandhe-space-4);
+  --fandhe-radio-group-label-basis: 100%;
 }
 
 [data-scope="radio-group"][data-part="item-control"][data-state="checked"] {

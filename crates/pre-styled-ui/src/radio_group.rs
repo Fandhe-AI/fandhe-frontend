@@ -101,7 +101,67 @@
 //!   か否か）を統一する。
 //!
 //! `root`/`item` の `gap`・`item` の `cursor`・size 用 custom property 群・
-//! orientation 切り替えは 2/2（#1495）の担当のため変更しない。
+//! orientation 切り替えは 2/2（#1495）で実装済み（次節）。
+//!
+//! # スタイル調整（イシュー #1495、size/orientation バリアントとラベル・
+//! 説明の型階層）
+//!
+//! 分割 2/2。1/2（イシュー #1494）が残した「root/item の gap・item の
+//! cursor・size 用 custom property 群・orientation 切り替え」を担当する
+//! （`crate::checkbox_group` #1460/#1461 分割・`crate::checkbox` #1735 と
+//! 同型の判断を踏襲）:
+//!
+//! - **size バリアントの一括登録**: 5 段の `.variant(Size::*, "root", ...)`
+//!   を [`crate::recipe::SlotRecipe::size_variants`]（#1424 の共通生成手段）
+//!   へ置換し、既定 `md` の設定漏れを構造的に防ぐ。control 寸法は xs/sm の
+//!   み 4px 格子（0.7rem/0.85rem → 0.75rem/0.875rem）へ是正し、md/lg/xl は
+//!   既存外観を維持する（`crate::checkbox` #1735 と同一の段階・根拠）。
+//!   `--fandhe-radio-group-dot-inset`（選択ドットの光学的比率値）・
+//!   `--fandhe-radio-group-font-size` の段階は現状維持する（意図的な例外、
+//!   `checkbox` の check-width/height と同じ扱い）。
+//! - **gap の size 連動**: `root` の項目間余白を
+//!   `--fandhe-radio-group-gap`、`item` 内の control ↔ text 余白を
+//!   `--fandhe-radio-group-item-gap` として custom property 化する
+//!   （`crate::checkbox_group` #1461 と同型の 2 種類の gap 分離）。md は
+//!   フォールバック値と同値にし既定外観を変えない。
+//! - **orientation（horizontal）の是正**: `flex-direction: row` のみだった
+//!   規則へ `flex-wrap: wrap`（折り返しなしで溢れる現状の是正）・
+//!   `column-gap: var(--fandhe-space-4)`（chakra `HStack gap=4` 相当、
+//!   `row-gap` は `root` の `gap` を継承させ個別宣言しない）・
+//!   `--fandhe-radio-group-label-basis: 100%` を追加する
+//!   （`crate::checkbox_group` #1460 と同型）。`label` base へ
+//!   `flex-basis: var(--fandhe-radio-group-label-basis, auto)` と
+//!   `flex-shrink: 0` を追加し、横並び時のみ `label` が独立行として
+//!   フルライン幅を占有するようにする（縦積み時は `auto` フォールバックで
+//!   無影響）。
+//! - **`label`（グループ見出し）/`item-text`（項目テキスト）の型階層**:
+//!   `label` の `font-size` を固定 `var(--fandhe-font-font-size-sm)` から
+//!   size 連動 `var(--fandhe-radio-group-font-size, ...)` へ変更し、
+//!   `font-weight: medium`・`line-height: normal` を追加する。`item-text`
+//!   は `line-height: normal` と `user-select: none`（`<label>` のクリックで
+//!   選択がトグルするため誤選択防止、chakra label と同じ）を追加し、
+//!   `font-weight` は宣言せず通常ウェイトを継承させることで `label`
+//!   （medium）との 2 段階の型階層を作る（`crate::checkbox_group` #1461 と
+//!   同型）。
+//! - **item のクリック領域**: 縦積み時に `<label>` が行幅いっぱいへ伸びて
+//!   クリック領域が余白まで広がる問題を是正するため、`item` base へ
+//!   `width: fit-content` を追加する（Radix Themes 準拠、
+//!   `crate::checkbox_group` と同型）。
+//!
+//! **本イシューで意図的に合わせなかった点**（`.claude/rules/code-comment-style.md`）:
+//!
+//! - **`description` パートは追加しない**: headless anatomy
+//!   （`crates/headless-ui/src/radio_group.rs`）に存在せず、anatomy 構造は
+//!   headless 層の責務。参照元 chakra-ui も専用パートを持たず利用者合成に
+//!   委ねている。pre-styled-ui 単独での `data-part` 新設は anatomy
+//!   ドリフト検知（`wrap_state.rs` 等）と公開 API 追加を伴うため見送る
+//!   （`crate::checkbox` #1735 / `crate::checkbox_group` #1461 と同一判断）。
+//!   説明文が必要な呼び出し側は `fg-muted` + 1 段小さいサイズで自前合成する。
+//! - **`--fandhe-radio-group-dot-inset` は size 連動の比率値のまま維持**:
+//!   選択ドットの太さは control 寸法に対する光学的比率であり、4px 格子の
+//!   是正対象ではない（`checkbox` の check-width/height と同じ意図的例外）。
+//! - **variant 軸（solid/subtle 等の面表現）は追加しない**: radio に面
+//!   variant を持つ参照サイトはなく、`root()` シグネチャ変更は破壊的である。
 //!
 //! # `size`/`palette` variant（イシュー #708）
 //!
@@ -175,7 +235,14 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
-                decl("gap", "var(--fandhe-space-1)"),
+                // 項目間余白の size 連動受け口（イシュー #1495）。
+                // フォールバックは是正前の固定値（md 相当）を保ち、styled
+                // `root` を経由しない headless 直接利用でも現行外観を
+                // 維持する（fail-safe）。
+                decl(
+                    "gap",
+                    "var(--fandhe-radio-group-gap, var(--fandhe-space-1))",
+                ),
             ],
         )
         .base(
@@ -183,8 +250,25 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "block"),
                 decl("color", "var(--fandhe-color-fg)"),
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                // イシュー #1495: 固定 `font-size-sm` から size 連動へ変更し、
+                // `font-weight`/`line-height` を追加して `item-text`
+                // （通常ウェイト）との型階層を作る（`crate::checkbox_group`
+                // #1461 と同型）。
+                decl(
+                    "font-size",
+                    "var(--fandhe-radio-group-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("margin-bottom", "var(--fandhe-space-1)"),
+                // horizontal orientation 時のみ `label` を独立行にする
+                // 間接参照（`root` の `data-orientation="horizontal"` 規則が
+                // `--fandhe-radio-group-label-basis: 100%` を定義する。
+                // 縦積み時は `auto` フォールバックで無影響。
+                // `SlotRecipe` は子孫セレクタを持たないため custom property
+                // 経由の伝播が唯一の手段、`crate::checkbox_group` と同型）。
+                decl("flex-basis", "var(--fandhe-radio-group-label-basis, auto)"),
+                decl("flex-shrink", "0"),
             ],
         )
         .base(
@@ -192,8 +276,16 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("align-items", "center"),
-                decl("gap", "var(--fandhe-space-2)"),
+                // control ↔ text 余白の size 連動受け口（イシュー #1495）。
+                decl(
+                    "gap",
+                    "var(--fandhe-radio-group-item-gap, var(--fandhe-space-2))",
+                ),
                 decl("cursor", "pointer"),
+                // イシュー #1495: 縦積み時に `<label>` が行幅いっぱいへ
+                // 伸びてクリック領域が余白まで広がる問題の是正（Radix
+                // Themes 準拠、`crate::checkbox_group` と同型）。
+                decl("width", "fit-content"),
             ],
         )
         .base(
@@ -235,6 +327,13 @@ fn recipe() -> SlotRecipe {
                     "font-size",
                     "var(--fandhe-radio-group-font-size, var(--fandhe-font-font-size-sm))",
                 ),
+                // イシュー #1495: `label`（medium）との 2 段階の型階層を
+                // 作るため `font-weight` は宣言せず通常ウェイトを継承する。
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+                // `item`（`<label>`）のクリックで選択がトグルするための
+                // 誤選択防止（chakra label と同じ、`crate::checkbox_group`
+                // と同型）。
+                decl("user-select", "none"),
             ],
         )
         .base(
@@ -253,11 +352,22 @@ fn recipe() -> SlotRecipe {
         )
         // `root` の `data-orientation="horizontal"`（headless 層が
         // `data_orientation` 経由で出力、`crates/headless-ui/src/radio_group.rs`
-        // 参照）では縦積みではなく横並びへ切り替える。
+        // 参照）では縦積みではなく横並びへ切り替える。イシュー #1495 で
+        // `flex-wrap: wrap`（折り返しなしで溢れる現状の是正）・
+        // `column-gap: var(--fandhe-space-4)`（chakra `HStack gap=4` 相当。
+        // `row-gap` は `root` の `gap` を継承させ個別宣言しない）・
+        // `--fandhe-radio-group-label-basis: 100%`（`label` base の
+        // `flex-basis` 間接参照先、`crate::checkbox_group` #1460 と同型）を
+        // 追加した。
         .state(
             "root",
             StateCondition::AttrEq("data-orientation", "horizontal"),
-            vec![decl("flex-direction", "row")],
+            vec![
+                decl("flex-direction", "row"),
+                decl("flex-wrap", "wrap"),
+                decl("column-gap", "var(--fandhe-space-4)"),
+                decl("--fandhe-radio-group-label-basis", "100%"),
+            ],
         )
         // 選択済み項目のカスタムラジオ円の見た目（アクセントカラーの外枠 +
         // 内側ドット。`box-shadow` の inset で描く。ドットの太さは
@@ -386,67 +496,88 @@ fn recipe() -> SlotRecipe {
         // Themes / Radix Primitives / ark-ui）のいずれも readonly 状態に
         // radio 固有の視覚差を付けないため、`data-invalid`（上記）とは
         // 異なり CSS 規則を追加しない（`checkbox` #1454 と同じ判断）。
-        .variant(
-            Size::Xs,
+        // イシュー #1495: 5 段の `.variant(Size::*, "root", ...)` を個別に
+        // 手書きする代わりに `size_variants`（イシュー #1424 の共通生成
+        // 手段、`checkbox.rs`/`checkbox_group.rs` と同型）を使い、既定 `md`
+        // の設定漏れを構造的に防ぐ（規約は `docs/design/
+        // pre-styled-ui-focus-ring-and-size-conventions.md` §4）。control
+        // 寸法は xs/sm のみ 4px 格子（0.75rem/0.875rem）へ是正し、md/lg/xl
+        // は既存外観を維持する（`checkbox.rs` #1735 と同値）。dot-inset・
+        // font-size の段階は現状維持（意図的な例外、モジュール rustdoc
+        // 参照）。`--fandhe-radio-group-gap`（root の項目間余白）・
+        // `--fandhe-radio-group-item-gap`（item 内の control ↔ text 余白）は
+        // 本イシューで新設した size 連動 custom property（値は
+        // `checkbox_group.rs` の同名段階と揃える）。
+        .size_variants(
             "root",
-            vec![
-                decl("--fandhe-radio-group-control-size", "0.7rem"),
-                decl("--fandhe-radio-group-dot-inset", "1px"),
-                decl(
-                    "--fandhe-radio-group-font-size",
-                    "var(--fandhe-font-font-size-xs)",
+            &[
+                (
+                    Size::Xs,
+                    vec![
+                        decl("--fandhe-radio-group-control-size", "0.75rem"),
+                        decl("--fandhe-radio-group-dot-inset", "1px"),
+                        decl(
+                            "--fandhe-radio-group-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                        decl("--fandhe-radio-group-item-gap", "var(--fandhe-space-1)"),
+                        decl("--fandhe-radio-group-gap", "var(--fandhe-space-0-5)"),
+                    ],
+                ),
+                (
+                    Size::Sm,
+                    vec![
+                        decl("--fandhe-radio-group-control-size", "0.875rem"),
+                        decl("--fandhe-radio-group-dot-inset", "2px"),
+                        decl(
+                            "--fandhe-radio-group-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-radio-group-item-gap", "var(--fandhe-space-1-5)"),
+                        decl("--fandhe-radio-group-gap", "var(--fandhe-space-1)"),
+                    ],
+                ),
+                (
+                    Size::Md,
+                    vec![
+                        decl("--fandhe-radio-group-control-size", "1rem"),
+                        decl("--fandhe-radio-group-dot-inset", "3px"),
+                        decl(
+                            "--fandhe-radio-group-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-radio-group-item-gap", "var(--fandhe-space-2)"),
+                        decl("--fandhe-radio-group-gap", "var(--fandhe-space-1)"),
+                    ],
+                ),
+                (
+                    Size::Lg,
+                    vec![
+                        decl("--fandhe-radio-group-control-size", "1.25rem"),
+                        decl("--fandhe-radio-group-dot-inset", "4px"),
+                        decl(
+                            "--fandhe-radio-group-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                        decl("--fandhe-radio-group-item-gap", "var(--fandhe-space-2-5)"),
+                        decl("--fandhe-radio-group-gap", "var(--fandhe-space-1-5)"),
+                    ],
+                ),
+                (
+                    Size::Xl,
+                    vec![
+                        decl("--fandhe-radio-group-control-size", "1.5rem"),
+                        decl("--fandhe-radio-group-dot-inset", "5px"),
+                        decl(
+                            "--fandhe-radio-group-font-size",
+                            "var(--fandhe-font-font-size-lg)",
+                        ),
+                        decl("--fandhe-radio-group-item-gap", "var(--fandhe-space-3)"),
+                        decl("--fandhe-radio-group-gap", "var(--fandhe-space-2)"),
+                    ],
                 ),
             ],
         )
-        .variant(
-            Size::Sm,
-            "root",
-            vec![
-                decl("--fandhe-radio-group-control-size", "0.85rem"),
-                decl("--fandhe-radio-group-dot-inset", "2px"),
-                decl(
-                    "--fandhe-radio-group-font-size",
-                    "var(--fandhe-font-font-size-sm)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Md,
-            "root",
-            vec![
-                decl("--fandhe-radio-group-control-size", "1rem"),
-                decl("--fandhe-radio-group-dot-inset", "3px"),
-                decl(
-                    "--fandhe-radio-group-font-size",
-                    "var(--fandhe-font-font-size-sm)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Lg,
-            "root",
-            vec![
-                decl("--fandhe-radio-group-control-size", "1.25rem"),
-                decl("--fandhe-radio-group-dot-inset", "4px"),
-                decl(
-                    "--fandhe-radio-group-font-size",
-                    "var(--fandhe-font-font-size-md)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Xl,
-            "root",
-            vec![
-                decl("--fandhe-radio-group-control-size", "1.5rem"),
-                decl("--fandhe-radio-group-dot-inset", "5px"),
-                decl(
-                    "--fandhe-radio-group-font-size",
-                    "var(--fandhe-font-font-size-lg)",
-                ),
-            ],
-        )
-        .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
     for palette in [
@@ -797,6 +928,144 @@ mod tests {
         assert!(css.contains("--size-"));
         assert!(css.contains("--color-palette-"));
         assert!(css.contains("--fandhe-radio-group-control-size"));
+    }
+
+    // --- イシュー #1495（size/orientation バリアントとラベル・説明の型階層） ---
+
+    #[test]
+    fn root_orientation_horizontal_wraps_with_space_4_column_gap() {
+        // モジュール doc「orientation（horizontal）の是正」節の回帰固定
+        // （`crate::checkbox_group` #1460 と同型）。
+        let css = stylesheet();
+        let scope =
+            r#"[data-scope="radio-group"][data-part="root"][data-orientation="horizontal"] {"#;
+        let body = rule_body(&css, scope);
+        assert!(body.contains("flex-direction: row;"));
+        assert!(body.contains("flex-wrap: wrap;"));
+        assert!(body.contains("column-gap: var(--fandhe-space-4);"));
+        assert!(body.contains("--fandhe-radio-group-label-basis: 100%;"));
+    }
+
+    #[test]
+    fn root_gap_uses_custom_property_with_space_1_fallback() {
+        let css = stylesheet();
+        let scope = r#"[data-scope="radio-group"][data-part="root"] {"#;
+        let body = rule_body(&css, scope);
+        assert!(body.contains("gap: var(--fandhe-radio-group-gap, var(--fandhe-space-1));"));
+    }
+
+    #[test]
+    fn item_base_gap_uses_item_gap_custom_property_with_space_2_fallback() {
+        let css = stylesheet();
+        let scope = r#"[data-scope="radio-group"][data-part="item"] {"#;
+        let body = rule_body(&css, scope);
+        assert!(body.contains("gap: var(--fandhe-radio-group-item-gap, var(--fandhe-space-2));"));
+        assert!(body.contains("width: fit-content;"));
+    }
+
+    #[test]
+    fn label_has_medium_font_weight_and_item_text_does_not() {
+        // イシュー #1495: `label`（グループ見出し、medium）と `item-text`
+        // （項目テキスト、通常ウェイト）の 2 段階の型階層を固定する
+        // （`crate::checkbox_group` #1461 と同型）。
+        let css = stylesheet();
+        let label_body = rule_body(&css, r#"[data-scope="radio-group"][data-part="label"] {"#);
+        assert!(label_body.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
+        assert!(label_body.contains("line-height: var(--fandhe-font-line-height-normal);"));
+        assert!(label_body.contains(
+            "font-size: var(--fandhe-radio-group-font-size, var(--fandhe-font-font-size-sm));"
+        ));
+
+        let item_text_body = rule_body(
+            &css,
+            r#"[data-scope="radio-group"][data-part="item-text"] {"#,
+        );
+        assert!(item_text_body.contains("line-height: var(--fandhe-font-line-height-normal);"));
+        assert!(item_text_body.contains("user-select: none;"));
+        assert!(
+            !item_text_body.contains("font-weight:"),
+            "item-text block should not declare font-weight: {item_text_body}"
+        );
+    }
+
+    #[test]
+    fn size_variants_control_size_is_4px_grid_for_xs_and_sm() {
+        // イシュー #1495: xs/sm を 4px 格子（12px/14px）へ是正（`checkbox.rs`
+        // #1735 と同一段階）。md/lg/xl は既存外観を維持する。
+        let css = stylesheet();
+        let expected = [
+            (Size::Xs, "0.75rem"),
+            (Size::Sm, "0.875rem"),
+            (Size::Md, "1rem"),
+            (Size::Lg, "1.25rem"),
+            (Size::Xl, "1.5rem"),
+        ];
+        for (size, control_size) in expected {
+            let selector = format!(
+                r#"[data-scope="radio-group"][data-part="root"].fd-radio-group--size-{}"#,
+                size.value()
+            );
+            let body = rule_body(&css, &selector);
+            let expected_decl = format!("--fandhe-radio-group-control-size: {control_size};");
+            assert!(
+                body.contains(&expected_decl),
+                "size={size:?} variant block missing {expected_decl}: {body}"
+            );
+        }
+    }
+
+    #[test]
+    fn size_variants_set_item_gap_custom_property_monotonically() {
+        // イシュー #1495: `--fandhe-radio-group-item-gap` が xs〜xl で
+        // spacing トークン経由の単調増加になることを固定する
+        // （`checkbox_group.rs` の同名テストと同型）。
+        let css = stylesheet();
+        let expected = [
+            (Size::Xs, "var(--fandhe-space-1)"),
+            (Size::Sm, "var(--fandhe-space-1-5)"),
+            (Size::Md, "var(--fandhe-space-2)"),
+            (Size::Lg, "var(--fandhe-space-2-5)"),
+            (Size::Xl, "var(--fandhe-space-3)"),
+        ];
+        for (size, gap) in expected {
+            let selector = format!(
+                r#"[data-scope="radio-group"][data-part="root"].fd-radio-group--size-{}"#,
+                size.value()
+            );
+            let body = rule_body(&css, &selector);
+            let expected_decl = format!("--fandhe-radio-group-item-gap: {gap};");
+            assert!(
+                body.contains(&expected_decl),
+                "size={size:?} variant block missing {expected_decl}: {body}"
+            );
+        }
+    }
+
+    #[test]
+    fn size_variants_set_root_gap_custom_property_non_decreasing() {
+        // イシュー #1495: `--fandhe-radio-group-gap`（root の項目間余白）が
+        // xs〜xl で非減少（sm と md が同値、md の現行外観維持のため厳密単調
+        // にしない）になることを固定する。
+        let css = stylesheet();
+        let expected = [
+            (Size::Xs, "var(--fandhe-space-0-5)"),
+            (Size::Sm, "var(--fandhe-space-1)"),
+            (Size::Md, "var(--fandhe-space-1)"),
+            (Size::Lg, "var(--fandhe-space-1-5)"),
+            (Size::Xl, "var(--fandhe-space-2)"),
+        ];
+        for (size, gap) in expected {
+            let selector = format!(
+                r#"[data-scope="radio-group"][data-part="root"].fd-radio-group--size-{}"#,
+                size.value()
+            );
+            let body = rule_body(&css, &selector);
+            let expected_decl = format!("--fandhe-radio-group-gap: {gap};");
+            assert!(
+                body.contains(&expected_decl),
+                "size={size:?} variant block missing {expected_decl}: {body}"
+            );
+        }
     }
 
     #[test]
