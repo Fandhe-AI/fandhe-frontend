@@ -7,7 +7,10 @@
 //! あった場合に、この golden テストが即座に検知する。
 //!
 //! イシュー #1517（参考サイト基準への調整）で以下を追加・置換した:
-//! `list`/`item` の `gap` トークン化（生 `0.375rem` → `var(--fandhe-space-1-5)`）・
+//! `list`/`item` の `gap` トークン化（生 `0.375rem` →
+//! `var(--fandhe-space-1-5, 0.375rem)`。`Theme::empty()` 系カスタムテーマ
+//! での後方互換のためフォールバック値を明示する、codex-review #1791
+//! P1 指摘）・
 //! `link` の hover（`@media (hover: hover)` 集約出力、`fg-muted` → `fg`）・
 //! `link` のキーボードフォーカスリング（`focus_ring_declarations(Token,
 //! Outside)`）・`link` の色 transition・フォーカスリング形状のための
@@ -22,7 +25,7 @@ const BREADCRUMB_GOLDEN_CSS: &str = r#"[data-scope="breadcrumb"][data-part="list
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--fandhe-space-1-5);
+  gap: var(--fandhe-space-1-5, 0.375rem);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -32,7 +35,7 @@ const BREADCRUMB_GOLDEN_CSS: &str = r#"[data-scope="breadcrumb"][data-part="list
 [data-scope="breadcrumb"][data-part="item"] {
   display: inline-flex;
   align-items: center;
-  gap: var(--fandhe-space-1-5);
+  gap: var(--fandhe-space-1-5, 0.375rem);
 }
 
 [data-scope="breadcrumb"][data-part="link"] {

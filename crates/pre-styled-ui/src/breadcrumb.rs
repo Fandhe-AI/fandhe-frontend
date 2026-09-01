@@ -65,7 +65,11 @@
 //! - **`link` の transition**: [`crate::recipe::transition_declarations`]
 //!   （`"color"`、`MotionDuration::Fast`）を base へ追加した。
 //! - **`list`/`item` の `gap` トークン化**: 生値 `0.375rem` を
-//!   `var(--fandhe-space-1-5)` へ置換（計算値は不変）。
+//!   `var(--fandhe-space-1-5, 0.375rem)` へ置換（計算値は不変）。
+//!   フォールバック値を明示するのは、このトークンを定義しない
+//!   `Theme::empty()` 系カスタムテーマで `var()` が computed-value time
+//!   に無効となり余白が失われる後方互換性の問題を防ぐため
+//!   （codex-review #1791 P1 指摘）。
 //!
 //! **意図的に追随しない差分**（根拠を記録し、再評価は
 //! `docs/policy/intentional-non-adoption.md` の評価軸に従う）:
@@ -149,7 +153,14 @@ fn recipe() -> SlotRecipe {
                 decl("align-items", "center"),
                 // イシュー #1517: 生値からトークン参照へ（値は不変、
                 // `var(--fandhe-space-1-5)` = 0.375rem）。
-                decl("gap", "var(--fandhe-space-1-5)"),
+                // codex-review #1791 P1 指摘: フォールバックなしの
+                // `var()` は `--fandhe-space-1-5` を定義しない
+                // `Theme::empty()` 系カスタムテーマで computed-value
+                // time に無効となり余白が消える（gap の初期値
+                // `normal` へフォールバックし 0.375rem の余白が
+                // 失われる）ため、従来値 `0.375rem` を第 2 引数の
+                // フォールバックとして明示する（計算値は不変のまま）。
+                decl("gap", "var(--fandhe-space-1-5, 0.375rem)"),
                 decl("list-style", "none"),
                 decl("margin", "0"),
                 decl("padding", "0"),
@@ -165,7 +176,9 @@ fn recipe() -> SlotRecipe {
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
                 // イシュー #1517: `list` と同じくトークン参照へ。
-                decl("gap", "var(--fandhe-space-1-5)"),
+                // codex-review #1791 P1 指摘: `list` と同じ理由で
+                // フォールバック `0.375rem` を明示する。
+                decl("gap", "var(--fandhe-space-1-5, 0.375rem)"),
             ],
         )
         .base(
@@ -461,8 +474,10 @@ mod tests {
         assert!(css.contains("--fandhe-focus-ring-width"));
         assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px)"));
         assert!(css.contains("transition-property: color;"));
-        assert!(css.contains("var(--fandhe-space-1-5)"));
-        assert!(!css.contains("0.375rem"));
+        // codex-review #1791 P1 指摘: `Theme::empty()` 系カスタムテーマの
+        // 後方互換のためフォールバック付き（`var(--fandhe-space-1-5, 0.375rem)`）
+        // であることを golden fixture として固定する。
+        assert!(css.contains("gap: var(--fandhe-space-1-5, 0.375rem);"));
     }
 
     #[test]
