@@ -154,7 +154,10 @@ Highlight` の明示指定が必要と判明した場合は、本書 §7 の再�
 パイロット実装として `crates/pre-styled-ui/src/radio_group.rs`
 （`item` slot: `FocusRingColor::Palette`、`item-control` slot:
 `FocusRingColor::Token`）を本イシューで移行済み。他 106 部品への展開は
-Phase 1 以降の個別 issue へ委ねる。
+Phase 1 以降の個別 issue へ委ねる。**イシュー #1494 で `item-control` slot
+も `FocusRingColor::Palette` へ変更し、`item`/`item-control` 双方が
+`palette` 軸へ統一済み**（`checkbox` の `control` は #1454 で同型の変更を
+先行適用済み）。
 
 ## 7. #1426・#1678・#1425 との境界
 

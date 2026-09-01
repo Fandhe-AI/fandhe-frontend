@@ -64,6 +64,44 @@
 //! wasm なしでも成立する no-JS フォールバック / `data-focus-visible`
 //! （`item-control`） = wasm 配線時のみ有効なキーボード専用リング。両者は
 //! 独立した条件として共存し、どちらか一方が成立すればリングが表示される。
+//! イシュー #1494 で `item-control` のリング色を `FocusRingColor::Token`
+//! から `FocusRingColor::Palette` へ変更し、`item` の `:focus-within`
+//! リング（既に `Palette`）と統一した（`docs/design/
+//! pre-styled-ui-focus-ring-and-size-conventions.md` §6 手順 2、
+//! `crate::checkbox` の `control` は #1454 で同型の変更を先行適用済み）。
+//!
+//! # スタイル調整（イシュー #1494、root/item/item-control パートのみ）
+//!
+//! 親 #1493（chakra-ui / Radix Themes / Radix Primitives / ark-ui 基準への
+//! 調整）のうち **root/item/item-control の状態表現とフォーカスリング**を
+//! 担当する分割 1/2。分割 2/2（size/orientation バリアント・ラベル/説明の
+//! 型階層、イシュー #1495）とはファイルを共有するため、以下は本イシューが
+//! 確定した意図的差分である（`crate::checkbox` #1454/#1455 分割と同型の
+//! 判断）:
+//!
+//! - **hover は `--fandhe-hover-bg` custom property 経由の間接参照で表現
+//!   する**（`crate::recipe` の disabled/hover/transition 共通ビジュアル
+//!   言語、イシュー #1425）。`item-control` base が [`hover_bg_muted`] で
+//!   unchecked 時の面色を定義し、checked の `state` 規則が同名プロパティを
+//!   [`hover_bg_solid_with_fallback`] で上書きする。hover の実適用は
+//!   `item-control` へ 1 本（`StateCondition::Hover`）のみ登録する
+//!   （`crate::checkbox` の `control` と同型）。
+//! - **`data-readonly` は視覚化しない**: 参照 4 サイトのいずれも readonly
+//!   状態に radio 固有の視覚差を付けないため、`data-invalid`（下記）とは
+//!   異なり CSS 規則を追加しない。
+//! - **`data-invalid` は装飾のみの先行実装**: headless `radio_group` は
+//!   現状 `data-invalid` を出力しないため、呼び出し側が属性を明示的に
+//!   付与した場合のみ発火する（headless 側出力対応は Field #538 連携の
+//!   既存の追跡対象、`crate::checkbox`/`crate::radio_card` と同型の判断）。
+//! - **`hover_bg_solid_with_fallback` は `crate::recipe` の既存共通ヘルパを
+//!   そのまま再利用する**（イシュー #1741 で checkbox 系から共通化済みの
+//!   ものを流用するのみで、本モジュール専用のローカル複製は作らない）。
+//! - **`box-sizing: border-box`** を `item-control` base へ追加し、同じ
+//!   size トークン系の `crate::checkbox` `control` と寸法解釈（border 込み
+//!   か否か）を統一する。
+//!
+//! `root`/`item` の `gap`・`item` の `cursor`・size 用 custom property 群・
+//! orientation 切り替えは 2/2（#1495）の担当のため変更しない。
 //!
 //! # `size`/`palette` variant（イシュー #708）
 //!
@@ -101,8 +139,10 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    focus_ring_declarations, palette_scale_declarations, ColorPalette, FocusRingColor,
-    FocusRingOffset, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid_with_fallback,
+    hover_surface_declarations, palette_scale_declarations, transition_declarations, ColorPalette,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -160,13 +200,32 @@ fn recipe() -> SlotRecipe {
             "item-control",
             vec![
                 decl("display", "inline-flex"),
+                // checkbox `control`（イシュー #1454）と寸法解釈を統一する
+                // ため `border-box` を明示する。追加前は content-box 解釈
+                // となり、border 1px × 2 分だけ描画寸法が同じ size トークン
+                // 値でも checkbox より大きく見えていた（意匠上の純是正、
+                // イシュー #1494）。
+                decl("box-sizing", "border-box"),
                 decl("width", "var(--fandhe-radio-group-control-size, 1rem)"),
                 decl("height", "var(--fandhe-radio-group-control-size, 1rem)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "50%"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("flex-shrink", "0"),
+                // unchecked 時の hover 面（`crate::checkbox` の `control` と
+                // 同型の間接参照設計、`crate::recipe` 冒頭 doc「disabled /
+                // hover / transition の共通ビジュアル言語」節参照）。checked
+                // state 規則が同名カスタムプロパティを上書きし、hover
+                // セレクタ側は下記の `hover_surface_declarations()` 1 本の
+                // みで両方の面色に追従する。
+                hover_bg_muted(),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結される
+        // （`checkbox.rs` の transition 追加と同型のパターン）。
+        .base(
+            "item-control",
+            transition_declarations("background, border-color", MotionDuration::Fast),
         )
         .base(
             "item-text",
@@ -219,16 +278,83 @@ fn recipe() -> SlotRecipe {
                     "box-shadow",
                     "inset 0 0 0 var(--fandhe-radio-group-dot-inset, 3px) var(--fandhe-color-bg)",
                 ),
+                // checked 面の hover は palette の emphasized 段へ
+                // （`checkbox` の checked/indeterminate 規則と同型。hover
+                // セレクタは `:hover:not([data-disabled])` で詳細度が本規則
+                // より高いため、直値ではなく間接参照でなければ checked 面が
+                // 中立色（unchecked base の `hover_bg_muted()`）へ落ちて
+                // しまう。`hover_bg_solid_with_fallback` は styled root
+                // （`palette_scale_declarations`）非経由の headless 直接
+                // 利用時も `--fandhe-color-accent-emphasized` へフォール
+                // バックする共通ヘルパ〔イシュー #1741 で checkbox 系から
+                // `crate::recipe` へ共通化済み〕を再利用する。新規ローカル
+                // 複製は作らない）。
+                hover_bg_solid_with_fallback(),
             ],
+        )
+        // `data-invalid`（`crate::input`/`checkbox` と同型の視覚言語）を
+        // `item-control` slot へ反映する。headless `radio_group`
+        // （`crates/headless-ui/src/radio_group.rs`）は現状 `data-invalid`
+        // を出力しないため、本規則は呼び出し側が属性を明示的に付与した
+        // 場合のみ発火する装飾専用の先行実装であり、headless 側の出力
+        // 対応（Field #538 連携）は別途の追跡対象とする
+        // （`checkbox`/`radio-card` 1/2 と同型の判断）。
+        .state(
+            "item-control",
+            StateCondition::Attr("data-invalid"),
+            vec![decl("border-color", "var(--fandhe-color-danger)")],
+        )
+        // hover の実適用は 1 本のみ（`--fandhe-hover-bg` の間接参照経由で
+        // unchecked/checked いずれの面色にも追従する。`crate::checkbox` の
+        // `control` と同型）。`item-control` は headless 層が
+        // `data-disabled` を出力するため `hover_surface_declarations` が
+        // 直列化する `:hover:not([data-disabled])` セレクタで disabled 時の
+        // hover を自然に除外できる。
+        .state(
+            "item-control",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         // `data-disabled`（headless 層が `data_disabled` 経由で `item`/
         // `item-control`/`item-text`/`item-hidden-input` へ出力）時の
-        // 操作不能な見た目。
+        // 操作不能な見た目。`crate::recipe::disabled_declarations`
+        // （共通ビジュアル言語、宣言順は opacity → cursor）へ canonical 化
+        // する（`checkbox` と同型。宣言内容は既存の ad-hoc 実装と同値）。
         .state(
             "item",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            disabled_declarations(),
         )
+        // グループ全体の一括 disabled（headless `root` は `disabled=true`
+        // で `data-disabled` を出力済み、`root()` 関数 doc 参照）時の
+        // `root` 側 CSS 規則は意図的に**登録しない**（PR #1769 codex-review
+        // P1 再指摘への最終対応）。経緯: 当初 `cursor: not-allowed` のみの
+        // `root[data-disabled]` 規則を追加したが、`item` base が独立に
+        // `cursor: pointer` を宣言するため item 要素上では pointer が
+        // 表示され続け、root 自身の隙間でしか disabled 表現にならず
+        // 「各 item にも disabled=true を渡す契約下では冗長、渡さない
+        // 誤用下では item 上は pointer のまま」という指摘を受けた
+        // （pointer-events: none の不採用は既に撤回済み、直上の履歴参照）。
+        // 対応案として custom property 経由で `item` の cursor へ root
+        // disabled を CSS カスケードで伝播する案も検討したが、
+        // `crate::checkbox_group` が同型の 3 種 custom property
+        // （`-item-opacity`/`-item-cursor`/`-item-pointer-events`）伝播を
+        // 一度実装した後に撤回した判断（同モジュール rustdoc「スタイル
+        // 調整」節参照）と同じ理由で不採用とした: 呼び出し側が契約
+        // （各 `item`/`item-control`/`item-text`/`item-hidden-input` へも
+        // `disabled=true` を渡す）を満たさない構成では、ネイティブ
+        // `<input type="radio">` は実際には操作可能（Tab+Space で値変更
+        // 可能）なまま `cursor: not-allowed` だけが表示され、「CSS だけで
+        // disabled の実効性を偽装する」ことになる（`checkbox_group` と
+        // 同一原因）。したがって `root[data-disabled]` はどの CSS 宣言も
+        // 出力しない。誤操作防止は CSS ではなく、各パートへ個別に
+        // `disabled=true` を渡す運用契約（`root()`/`item()` の headless
+        // doc 参照）が担い、`item` 側の `[data-disabled]` 規則（直上）が
+        // 実際の opacity/cursor を担う。恒久対応（`checkbox_group` が
+        // イシュー #1741 で実装した、headless 層が root/item の disabled
+        // を OR 計算してネイティブ属性まで一貫伝播する型）は本モジュール
+        // （headless `radio_group::RadioGroup` は現状この種の便利メソッドを
+        // 持たない）には未実装であり、別途の追跡対象とする。
         // イシュー #683: visually-hidden 化した `item-hidden-input` へ実
         // フォーカスがあるときのフォーカスリングを、祖先 `item`
         // （モジュール rustdoc 参照）へ `:focus-within` で反映する。
@@ -245,13 +371,21 @@ fn recipe() -> SlotRecipe {
         // イシュー #709: wasm 層が付け外しする `data-focus-visible` による
         // キーボード操作専用のフォーカスリング（`:focus-within` の no-JS
         // フォールバックとは独立に共存する。モジュール rustdoc 参照）。
-        // イシュー #1424: こちらは `palette` 非連動の直接トークン参照
-        // （`FocusRingColor::Token`）。
+        // イシュー #1424 では暫定的に `palette` 非連動の `Token` を使って
+        // いたが、イシュー #1494 で `docs/design/
+        // pre-styled-ui-focus-ring-and-size-conventions.md` §6 の規約
+        // （`palette` 軸を公開する部品は `Palette` を使う）へ合わせ、
+        // `item` の `:focus-within` リング（上記、既に `Palette`）と統一
+        // した（`checkbox` の `control` は #1454 で同じ変更を先行適用済み）。
         .state(
             "item-control",
             StateCondition::Attr("data-focus-visible"),
-            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
+        // `data-readonly` は視覚化しない: 参照 4 サイト（chakra-ui / Radix
+        // Themes / Radix Primitives / ark-ui）のいずれも readonly 状態に
+        // radio 固有の視覚差を付けないため、`data-invalid`（上記）とは
+        // 異なり CSS 規則を追加しない（`checkbox` #1454 と同じ判断）。
         .variant(
             Size::Xs,
             "root",
@@ -387,6 +521,27 @@ mod tests {
     use super::*;
     use fandhe_frontend_core::{render, text};
 
+    /// 生成済み CSS 文字列から、指定セレクタで始まる 1 ルールブロック
+    /// （`{` 〜 対応する `}` まで）の宣言本文だけを取り出す（PR #1769
+    /// レビュー指摘対応のテスト専用ヘルパ）。`css.contains("opacity: 0.5;")`
+    /// のような全文検索では、同じ宣言を持つ別セレクタのルール（例:
+    /// `item` の disabled 規則）が存在するだけで偽陽性になり、対象
+    /// セレクタ自身が opacity を出していないことを検証できないため導入した。
+    fn rule_body<'a>(css: &'a str, selector: &str) -> &'a str {
+        let start = css
+            .find(selector)
+            .unwrap_or_else(|| panic!("selector `{selector}` not found in stylesheet"));
+        let open = css[start..]
+            .find('{')
+            .map(|i| start + i + 1)
+            .unwrap_or_else(|| panic!("no `{{` after selector `{selector}`"));
+        let close = css[open..]
+            .find('}')
+            .map(|i| open + i)
+            .unwrap_or_else(|| panic!("no `}}` closing selector `{selector}`"));
+        &css[open..close]
+    }
+
     #[test]
     fn stylesheet_is_deterministic_and_targets_data_scope_selectors() {
         let a = stylesheet();
@@ -446,6 +601,86 @@ mod tests {
         assert!(css.contains(
             "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));"
         ));
+    }
+
+    // --- イシュー #1494（root/item/item-control のスタイル調整） ---
+
+    #[test]
+    fn item_control_focus_visible_ring_is_palette_connected() {
+        // イシュー #1494: `item` の `:focus-within` と同じ `Palette` 参照形
+        // へ統一する（`docs/design/pre-styled-ui-focus-ring-and-size-
+        // conventions.md` §6 手順 2）。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="radio-group"][data-part="item-control"][data-focus-visible] {"#
+        ));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));"
+        ));
+    }
+
+    #[test]
+    fn item_control_has_unchecked_hover_and_transition() {
+        let css = stylesheet();
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+        assert!(css.contains("transition-property: background, border-color;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+        assert!(css.contains(
+            r#"[data-scope="radio-group"][data-part="item-control"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+    }
+
+    #[test]
+    fn item_control_checked_state_overrides_hover_bg_with_fallback() {
+        let css = stylesheet();
+        assert!(css.contains(
+            "--fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));"
+        ));
+    }
+
+    #[test]
+    fn item_control_has_border_box_sizing() {
+        let css = stylesheet();
+        assert!(css.contains("box-sizing: border-box;"));
+    }
+
+    #[test]
+    fn item_control_invalid_gets_danger_border() {
+        let css = stylesheet();
+        assert!(
+            css.contains(r#"[data-scope="radio-group"][data-part="item-control"][data-invalid] {"#)
+        );
+        assert!(css.contains("border-color: var(--fandhe-color-danger);"));
+    }
+
+    #[test]
+    fn root_disabled_state_block_is_not_emitted() {
+        // PR #1769 codex-review P1 再指摘への最終対応（`root` disabled 規則
+        // の doc コメント参照）: `root[data-disabled]` へ `.state` を登録
+        // していないため、対応する CSS ブロック自体が出力されないことを
+        // 固定する（再導入の検知。`crate::checkbox_group` の同名テストと
+        // 同型）。
+        let css = stylesheet();
+        let scope = r#"[data-scope="radio-group"][data-part="root"][data-disabled]"#;
+        assert!(
+            !css.contains(scope),
+            "root[data-disabled] block must not be emitted (see `root()` disabled              state comment in radio_group.rs for why the CSS-only cascade was              removed): {css:?}"
+        );
+    }
+
+    #[test]
+    fn item_disabled_still_gets_full_disabled_declarations() {
+        // `root` disabled 規則を持たない現在の設計でも、`item` 個別 disabled
+        // （グループ全体は有効なまま 1 件だけ無効化する既存ユースケース、
+        // `showcase::radio_group_section` 参照）は従来どおり
+        // `disabled_declarations()`（opacity + cursor）を保つ。
+        let css = stylesheet();
+        let item_disabled_selector =
+            r#"[data-scope="radio-group"][data-part="item"][data-disabled]"#;
+        let body = rule_body(&css, item_disabled_selector);
+        assert!(body.contains("opacity: 0.5;"));
+        assert!(body.contains("cursor: not-allowed;"));
     }
 
     // --- variant クラス（イシュー #708） ---

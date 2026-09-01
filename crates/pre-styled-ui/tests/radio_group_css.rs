@@ -1,6 +1,16 @@
 //! styled RadioGroup（イシュー #683、`size`/`palette` variant 拡張は #708、
 //! `data-focus-visible` フォーカスリング反映は #709）の決定的 CSS 出力
-//! ゴールデンテスト。
+//! ゴールデンテスト。イシュー #1494（親 #1493 分割 1/2）で
+//! root/item/item-control の hover・transition・disabled canonical 化・
+//! `data-invalid` 反映・box-sizing・focus ring の palette 統一を追加した。
+//! PR #1769 追補指摘（codex-review 再指摘）への最終対応: `root` の
+//! `[data-disabled]` 規則は登録せず、対応する CSS ブロック自体を出力しない
+//! （`item` base が独立に `cursor: pointer` を宣言するため、root 側の
+//! `cursor: not-allowed` は item 要素上ではカスケードで無効化され隙間にしか
+//! 表示されない一方、custom property 経由の伝播案は `crate::checkbox_group`
+//! が同型の伝播を撤回した理由――「CSS だけでは disabled の実効性を
+//! 偽装できない」――と同じ問題を持つため不採用とした。詳細は
+//! `radio_group.rs` の `root()` disabled 状態コメント参照）。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。
@@ -31,12 +41,20 @@ const RADIO_GROUP_GOLDEN_CSS: &str = r#"[data-scope="radio-group"][data-part="ro
 
 [data-scope="radio-group"][data-part="item-control"] {
   display: inline-flex;
+  box-sizing: border-box;
   width: var(--fandhe-radio-group-control-size, 1rem);
   height: var(--fandhe-radio-group-control-size, 1rem);
   border: 1px solid var(--fandhe-color-border);
   border-radius: 50%;
   background: var(--fandhe-color-bg);
   flex-shrink: 0;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="radio-group"][data-part="item-control"] {
+  transition-property: background, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="radio-group"][data-part="item-text"] {
@@ -148,11 +166,16 @@ const RADIO_GROUP_GOLDEN_CSS: &str = r#"[data-scope="radio-group"][data-part="ro
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   background: var(--fandhe-palette, var(--fandhe-color-accent));
   box-shadow: inset 0 0 0 var(--fandhe-radio-group-dot-inset, 3px) var(--fandhe-color-bg);
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
+}
+
+[data-scope="radio-group"][data-part="item-control"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
 }
 
 [data-scope="radio-group"][data-part="item"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="radio-group"][data-part="item"]:focus-within {
@@ -161,8 +184,14 @@ const RADIO_GROUP_GOLDEN_CSS: &str = r#"[data-scope="radio-group"][data-part="ro
 }
 
 [data-scope="radio-group"][data-part="item-control"][data-focus-visible] {
-  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (hover: hover) {
+  [data-scope="radio-group"][data-part="item-control"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
