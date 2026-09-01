@@ -5,6 +5,11 @@
 //! バイト単位で固定する。出力順（base → variants → compound → states）が
 //! 崩れた場合や意図しない宣言の追加・欠落があった場合に、この golden テスト
 //! が即座に検知する。
+//!
+//! イシュー #1481（親 #1479 の 2/2、分割 1/2 は #1480）で `viewport`/
+//! `image` パートへ角丸・背景・操作性宣言を追加したため、この golden
+//! 期待値も同一 PR 内で更新した（`crates/pre-styled-ui/src/image_cropper.rs`
+//! モジュール冒頭 rustdoc「イシュー #1481」節参照）。
 
 use fandhe_frontend_pre_styled_ui::image_cropper;
 
@@ -19,11 +24,16 @@ const IMAGE_CROPPER_GOLDEN_CSS: &str = r#"[data-scope="image-cropper"][data-part
   display: block;
   width: 100%;
   height: 100%;
+  border-radius: var(--fandhe-radius-lg);
+  background: var(--fandhe-color-bg-muted);
+  touch-action: none;
+  user-select: none;
 }
 
 [data-scope="image-cropper"][data-part="image"] {
   display: block;
   max-width: 100%;
+  user-select: none;
 }
 
 [data-scope="image-cropper"][data-part="selection"] {

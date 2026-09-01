@@ -424,7 +424,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # 結果として main 側の値を基点にさらに 0.57.9 へ patch バンプする
 # （0.x の破壊的変更はマイナーバンプ・非破壊の実体変更は patch バンプの
 # 規約、同一版数への偶発的衝突をそのまま採用しない）。
-version = "0.57.9"
+# イシュー #1481（親 #1479 の 2/2）: viewport/image パートの意匠調整
+# （既存セレクタ・CSS 変数名の削除/改名なし）のため patch バンプで足りる
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.3/§3.4a）。
+version = "0.57.10"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

@@ -81,6 +81,54 @@
 //! headless が `data-handle-position` 以外の `data-*` を発行しないため
 //! 追加対象がない（headless への属性追加は本イシューのスコープ外）。
 //!
+//! # イシュー #1481（2/2）: ズーム・回転コントロールは対象外、
+//! viewport/image を 7 軸是正
+//!
+//! 親イシュー #1479（分割 1/2 は #1480、PR #1755 マージ済み。selection/
+//! handle/grid を是正）の残り分。イシュータイトルは「ズーム・回転
+//! コントロールとプレビュー」だが、以下の理由でズーム・回転コントロールは
+//! **対象外**と判断した:
+//!
+//! - ark-ui の Image Cropper anatomy は Root / Viewport / Image /
+//!   Selection / Handle / Grid の 6 パーツのみであり、zoom / rotation は
+//!   anatomy パーツではなく状態機械の props（`zoom`/`maxZoom`/`minZoom`/
+//!   `rotation`）である（参照サイトのデモは Slider 等の別部品との合成で
+//!   実現している）。
+//! - headless 層（`fandhe_frontend_headless_ui::image_cropper` モジュール
+//!   doc「スコープ外」節）は zoom / rotation / flip / cropShape circle を
+//!   明示的にスコープ外と記録済みであり、対応する anatomy パーツが存在
+//!   しない。
+//! - UI コンポーネント層の責務境界（`.claude/rules/coding-rust.md` §3.25）
+//!   により anatomy（構造）の新設は headless 層の責務であり、pre-styled-ui
+//!   単独で新パートを発明しない。headless 側の anatomy/`data-*` 突合は
+//!   open イシュー #1610 が担当する。
+//!
+//! 「プレビュー」は画像表示領域（viewport/image パート）に対応すると解釈
+//! し、1/2 が触っていない root/viewport/image へ 7 軸チェックリスト
+//! （余白・角丸・影／色／サイズ／`data-*` 状態／ダーク／フォーカス・
+//! hover・トランジション）を適用した:
+//!
+//! - **余白・角丸・影**: `viewport` へ `border-radius: var(--fandhe-radius-lg)`
+//!   を追加（`overflow: hidden` により画像もクリップされる）。ark-ui の
+//!   角丸コンテナ相当。
+//! - **色**: `viewport` の背景に `var(--fandhe-color-bg-muted)`（画像ロード
+//!   前・アスペクト比差のレターボックス時のみ可視）を追加。生リテラルは
+//!   使わない。
+//! - **操作性の表示宣言**: `viewport` へ `touch-action: none`（タッチでの
+//!   crop 操作中にブラウザ既定のスクロール/ピンチズームが介入しないよう
+//!   意図表明）・`user-select: none` を追加。`image` へも
+//!   `user-select: none`（ネイティブのゴーストドラッグ・テキスト選択
+//!   抑止）を追加するが、`pointer-events: none` は付与しない（画像上から
+//!   の新規ドラッグ開始を将来の DOM 配線が使えるよう、操作起点を
+//!   `selection`/`handle` に限定するスタイル側の固定を避けるため）。
+//! - **サイズ/`data-*` 状態/フォーカス/hover/トランジション**: `viewport`/
+//!   `image` はいずれも非フォーカサブルで headless が `data-*` を発行
+//!   しない（`data-handle-position` は `handle` のみ）ため追加是正なし。
+//!   位置系のトランジション非付与は 1/2 の判断を踏襲する。
+//!
+//! `root` は 1/2 が触っていないが、`display`/`position` のみで
+//! チェックリストに該当する差分がないため変更なし。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく canvas による実画像切り出し・pointer ドラッグ/
@@ -156,11 +204,42 @@ fn recipe() -> SlotRecipe {
                 decl("display", "block"),
                 decl("width", "100%"),
                 decl("height", "100%"),
+                // 角丸（イシュー #1481）: ark-ui の Image Cropper デモは
+                // viewport（プレビュー領域）を角丸コンテナで囲む。
+                // `overflow: hidden` が既にあるため角丸で画像自体もクリップ
+                // される。共通トークンスケール（xs〜xl）から視覚比較で
+                // `lg` を選定。
+                decl("border-radius", "var(--fandhe-radius-lg)"),
+                // 背景色（イシュー #1481）: 画像ロード前・アスペクト比の
+                // 差でレターボックスが生じたときにのみ可視になる下地。
+                // `--fandhe-color-bg-muted` トークン経由（生リテラル直書き
+                // をしない、モジュール既存方針）。
+                decl("background", "var(--fandhe-color-bg-muted)"),
+                // ドラッグ操作中のブラウザ既定ジェスチャ抑止（イシュー
+                // #1481）: viewport はポインタ/タッチでの crop 矩形操作
+                // （`selection`/`handle` のドラッグ）の受け皿であり、
+                // タッチデバイスでのスクロール・ピンチズームの介入を防ぐ。
+                // 1/2（#1480）の handle cursor 系と同じ「表示層の操作性
+                // 宣言」の整理。実際の pointer/touch イベント配線は
+                // headless 側のスコープ外（モジュール冒頭 doc 参照）だが、
+                // スタイルとしての意図表明は pre-styled-ui 側で先行できる。
+                decl("touch-action", "none"),
+                decl("user-select", "none"),
             ],
         )
         .base(
             "image",
-            vec![decl("display", "block"), decl("max-width", "100%")],
+            vec![
+                decl("display", "block"),
+                decl("max-width", "100%"),
+                // ネイティブの画像ドラッグ（ブラウザ既定のゴーストドラッグ）
+                // とテキスト選択の抑止（イシュー #1481）。`pointer-events:
+                // none` は付与しない: 将来 DOM 配線（headless スコープ外）で
+                // 画像上から crop 矩形の新規ドラッグ開始を実装する余地を
+                // 残すため（`selection`/`handle` のみが操作起点という制約を
+                // スタイル層で先に固定しない）。
+                decl("user-select", "none"),
+            ],
         )
         .base(
             "selection",
@@ -501,6 +580,36 @@ mod tests {
         assert!(css.contains("transition-property: background, box-shadow"));
         assert!(!css.contains("transition-property: background, box-shadow, transform"));
         assert!(!css.contains("transition-property: top, left"));
+    }
+
+    #[test]
+    fn viewport_has_radius_token_background_and_touch_action() {
+        // イシュー #1481: viewport（プレビュー領域）へ角丸・背景（レターボックス
+        // 用）・タッチ操作抑止宣言を追加したことを固定する。
+        let css = stylesheet();
+        let viewport_block = css
+            .split("\n\n")
+            .find(|b| b.contains(r#"[data-part="viewport"]"#))
+            .expect("viewport block missing");
+        assert!(viewport_block.contains("border-radius: var(--fandhe-radius-lg);"));
+        assert!(viewport_block.contains("background: var(--fandhe-color-bg-muted);"));
+        assert!(viewport_block.contains("touch-action: none;"));
+        assert!(viewport_block.contains("user-select: none;"));
+    }
+
+    #[test]
+    fn image_has_user_select_none_but_not_pointer_events_none() {
+        // イシュー #1481: image はネイティブドラッグ/選択を抑止する
+        // `user-select: none` のみ追加し、`pointer-events: none` は付与
+        // しない（画像上からの新規ドラッグ開始を将来の DOM 配線に残すため、
+        // モジュール冒頭 rustdoc「イシュー #1481」節参照）。
+        let css = stylesheet();
+        let image_block = css
+            .split("\n\n")
+            .find(|b| b.contains(r#"[data-part="image"]"#))
+            .expect("image block missing");
+        assert!(image_block.contains("user-select: none;"));
+        assert!(!image_block.contains("pointer-events: none;"));
     }
 
     #[test]
