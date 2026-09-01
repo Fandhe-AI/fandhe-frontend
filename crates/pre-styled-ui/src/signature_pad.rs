@@ -223,11 +223,6 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-disabled"),
             vec![decl("cursor", "not-allowed")],
         )
-        .state(
-            "control",
-            StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed")],
-        )
         // read-only な署名欄は描画操作を開始できないため、`base` の
         // `touch-action: none`（描画中のブラウザ標準パン・スクロール抑止、
         // 本モジュール冒頭 rustdoc「スタイル調整」節参照）を維持すると
@@ -240,6 +235,21 @@ fn recipe() -> SlotRecipe {
             "control",
             StateCondition::Attr("data-readonly"),
             vec![decl("touch-action", "auto"), decl("cursor", "default")],
+        )
+        // `data-readonly` 規則より後に登録する（同じ詳細度 `[data-*]`
+        // 同士のため、`state()` の「登録順」契約〔`crate::recipe` の
+        // `SlotRecipe::css` rustdoc「LastChild」節と同型〕により後勝ちで
+        // 上書きさせる）。disabled かつ readonly の両方が真な control
+        // （headless 側は独立した 2 属性として出しうる、
+        // `crates/headless-ui/src/signature_pad.rs::control` 参照）で
+        // `cursor: default` に上書きされ、disabled の視覚契約
+        // （`not-allowed`）が失われる不具合を防ぐ（date_input #1469 と
+        // 同型の判断、イシュー #1503 PR #1776 codex-review P1 / Bugbot
+        // 指摘対応）。
+        .state(
+            "control",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
         )
         .state(
             "root",
@@ -396,6 +406,30 @@ mod tests {
             .map(|offset| root_rule_start + offset)
             .expect("規則の終端 `}` が存在する");
         assert!(css[root_rule_start..root_rule_end].contains("opacity: 0.5;"));
+    }
+
+    /// イシュー #1503 PR #1776 codex-review P1 / Cursor Bugbot 重複指摘
+    /// 対応: `control` が disabled かつ read-only の両方を持つとき、
+    /// `data-readonly` 規則（`cursor: default`）ではなく `data-disabled`
+    /// 規則（`cursor: not-allowed`）が最終的な表示カーソルとして勝つこと
+    /// を検証する（date_input #1469 と同型の「登録順」契約、
+    /// `crate::recipe::SlotRecipe::css` rustdoc「LastChild」節参照）。
+    #[test]
+    fn stylesheet_disabled_cursor_wins_over_readonly_cursor_when_both_present() {
+        let css = stylesheet();
+        let readonly_idx = css
+            .find(r#"[data-scope="signature-pad"][data-part="control"][data-readonly] {"#)
+            .expect("control readonly 規則が存在する");
+        let disabled_idx = css
+            .find(r#"[data-scope="signature-pad"][data-part="control"][data-disabled] {"#)
+            .expect("control disabled 規則が存在する");
+        assert!(
+            disabled_idx > readonly_idx,
+            "control[data-disabled] must be registered after control[data-readonly] so it wins by source order"
+        );
+        let disabled_block = &css[disabled_idx..];
+        let block_end = disabled_block.find('}').unwrap_or(disabled_block.len());
+        assert!(disabled_block[..block_end].contains("cursor: not-allowed;"));
     }
 
     /// イシュー #1503 で `control` を空でも潰れない署名欄の見た目へ

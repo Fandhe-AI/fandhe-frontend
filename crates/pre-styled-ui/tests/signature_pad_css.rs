@@ -75,13 +75,13 @@ const SIGNATURE_PAD_GOLDEN_CSS: &str = r#"[data-scope="signature-pad"][data-part
   cursor: not-allowed;
 }
 
-[data-scope="signature-pad"][data-part="control"][data-disabled] {
-  cursor: not-allowed;
-}
-
 [data-scope="signature-pad"][data-part="control"][data-readonly] {
   touch-action: auto;
   cursor: default;
+}
+
+[data-scope="signature-pad"][data-part="control"][data-disabled] {
+  cursor: not-allowed;
 }
 
 [data-scope="signature-pad"][data-part="root"][data-disabled] {
