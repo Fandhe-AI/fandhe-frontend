@@ -684,7 +684,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 調整という CSS 出力の変更のみで、公開 Rust API シグネチャ・CSS 変数名
 # （既存分）・クラス名・`data-*` セレクタの削除/改名を伴わないため、
 # §3.4a の通常運用に従い patch バンプする。
-version = "0.58.3"
+# イシュー #1517（breadcrumb のスタイルを参考サイト基準へ調整）は
+# `link` slot の hover/フォーカスリング/transition の canonical ヘルパ
+# 追加・`list`/`item` の `gap` トークン化という CSS 出力の変更のみで、
+# 公開 Rust API シグネチャ・CSS 変数名（既存分）・クラス名・`data-*`
+# セレクタの削除/改名を伴わないため、#1515 と同型の判断で patch バンプする。
+version = "0.58.4"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
