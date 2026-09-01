@@ -51,6 +51,7 @@ use fandhe_frontend_pre_styled_ui::angle_slider;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::AngleSlider;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
 use fandhe_frontend_pre_styled_ui::image_cropper;
+use fandhe_frontend_pre_styled_ui::image_cropper::HandlePosition;
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
@@ -452,6 +453,8 @@ const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "headless-ui の `file_upload::root` へ委譲し、`size` variant クラスのみを付与する。",
         "`disabled` の単一状態フラグを直接引数で受け取る。",
+        "`item` の `data-invalid` は headless 層が出力しないため（`checkbox_group` と同型の判断）、利用者が `item` の `attrs` へ `(\"data-invalid\", \"\")` を直接付与することで border-color を danger 色化できる。",
+        "`item` は border と border-color の transition（`data-invalid` 用）を持つ。`item-delete-trigger` は hover（`@media (hover: hover)`）を持つが、`item` が既に opacity 0.5 で dim 済みのため disabled は `cursor: not-allowed` のみに留め、opacity の三重適用（root × item × item-delete-trigger）を避ける。",
     ],
     arguments: &[
         ArgRow {
@@ -1471,16 +1474,54 @@ fn demo_angle_slider() -> Node {
     )
 }
 
+/// パーセントエンコード済みインライン SVG data URI（生の `<`・引用符を含まず、
+/// GitHub Pages 上で外部リクエスト・404 を発生させない。`crate::showcase`
+/// の `AVATAR_INLINE_SVG_SRC` と同型のプレースホルダー方針、イシュー
+/// #1480）。グラデーション矩形のダミー画像。
+const IMAGE_CROPPER_DEMO_IMAGE_SRC: &str =
+    "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%20200%20120%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%234a90d9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%23274b73%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27200%27%20height%3D%27120%27%20fill%3D%27url(%23g)%27%2F%3E%3C%2Fsvg%3E";
+
 fn demo_image_cropper() -> Node {
-    let state = ImageCropper::default();
+    // 200x120 の画像に対し中央 60%（x=20%/y=20%/w=60%/h=60%）を選択した状態。
+    // 既定（全域選択）のままだと selection・handle・grid が画像縁に重なり
+    // 視覚確認できないため、本イシュー（#1480）担当パートの視覚確認用に
+    // 非全域の選択状態を作る。
+    let state = ImageCropper::new(200, 120, 40, 24, 120, 72, None, 1);
+    let handles = [
+        HandlePosition::N,
+        HandlePosition::S,
+        HandlePosition::E,
+        HandlePosition::W,
+        HandlePosition::Ne,
+        HandlePosition::Nw,
+        HandlePosition::Se,
+        HandlePosition::Sw,
+    ]
+    .into_iter()
+    .map(|position| image_cropper::handle(position, vec![]))
+    .collect::<Vec<_>>();
+
     demo_section(
         "Image Cropper",
-        "画像切り抜き範囲の選択 UI。headless-ui の `ImageCropper` 状態機械（既定: 100x100 の全域選択）をラップする。",
+        "画像切り抜き範囲の選択 UI。headless-ui の `ImageCropper` 状態機械（クロップ枠・8 方位リサイズハンドル・三分割グリッド線を含む完全な anatomy）をラップする。",
         image_cropper::root(
             Size::Md,
             &state,
             vec![],
-            vec![image_cropper::selection(&state, vec![], vec![])],
+            vec![image_cropper::viewport(
+                vec![],
+                vec![
+                    image_cropper::image(IMAGE_CROPPER_DEMO_IMAGE_SRC, "", vec![]),
+                    image_cropper::selection(
+                        &state,
+                        vec![],
+                        handles
+                            .into_iter()
+                            .chain(std::iter::once(image_cropper::grid(vec![])))
+                            .collect(),
+                    ),
+                ],
+            )],
         ),
     )
 }

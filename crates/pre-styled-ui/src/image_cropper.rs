@@ -50,6 +50,37 @@
 //! に配色バリアントを持ち込む必然性がないため。`crate::steps` 等の
 //! `size`-only コンポーネントと同型の判断）。
 //!
+//! # 写真上のクローム（`selection`/`handle`/`grid` はテーマ非依存の固定色、
+//! イシュー #1480）
+//!
+//! `selection` の枠線・`handle` の面と縁・`grid` の線色は、いずれも
+//! `--fandhe-color-*` トークンを経由せず、テーマ（ライト/ダーク）に
+//! 関わらず固定の白系/黒系色を直書きする（他の多くの部品が従う「配色は
+//! トークン経由」の規約からの意図的な逸脱）。理由は、これらの要素が任意の
+//! 利用者写真の**上に**重なって描画されるオーバーレイであり、写真の明暗は
+//! テーマ設定と無関係だからである。ダークテーマで `--fandhe-color-bg` が
+//! 暗色（#111 系）へ反転すると、暗い写真 + 暗幕上で枠・ハンドルが視認
+//! できなくなる（本イシューで是正した実際の不具合）。参照サイト ark-ui の
+//! Image Cropper も同様にテーマ非依存の固定白でクロームを描く。切り抜き外
+//! の暗幕（`selection` の `box-shadow`）のみ `--fandhe-color-bg-overlay`
+//! （light 0.4 / dark 0.6）トークンを使う点が例外だが、これは暗幕の濃さを
+//! ダークテーマでやや強めることで写真の見やすさとのバランスを取る意図的な
+//! 選択であり（`theme.rs` が部品側からの置換を申し送っていたトークン）、
+//! 枠・ハンドル・グリッド線自体の固定色化とは矛盾しない。
+//!
+//! `grid`（三分割グリッド線）は headless 側が `data-*` 状態を発行しない
+//! （常時描画）ため、ark-ui のようなドラッグ中のみの表示切り替えは行わない
+//! （据え置き。本イシューのスコープ外事項として記録）。
+//!
+//! # variant 軸を追加しない判断（イシュー #1480）
+//!
+//! ark-ui の Image Cropper は `variant`/`size` の prop を持たない。既存の
+//! `size`（5 段）は「配色バリアント」ではなく handle 寸法の操作性スケール
+//! （タッチ/マウス操作のしやすさ）として既に存在するため、そのまま維持する
+//! （上記「`size` variant のみ」節参照）。disabled・その他の視覚状態は
+//! headless が `data-handle-position` 以外の `data-*` を発行しないため
+//! 追加対象がない（headless への属性追加は本イシューのスコープ外）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく canvas による実画像切り出し・pointer ドラッグ/
@@ -62,7 +93,10 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, transition_declarations, FocusRingColor, FocusRingOffset,
+    MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+};
 
 // `ImageCropper` 状態機械・headless 自由関数 `selection` はあえて
 // 再エクスポートしない（本モジュール冒頭の rustdoc「選択的 re-export」節
@@ -137,9 +171,18 @@ fn recipe() -> SlotRecipe {
                 decl("width", "var(--fandhe-image-cropper-w, 100%)"),
                 decl("height", "var(--fandhe-image-cropper-h, 100%)"),
                 decl("box-sizing", "border-box"),
-                decl("border", "2px solid var(--fandhe-color-bg)"),
-                decl("box-shadow", "0 0 0 9999px rgba(0, 0, 0, 0.5)"),
+                // 枠線はテーマ非依存の固定白（`--fandhe-color-*` を経由しない
+                // 意図的判断、モジュール冒頭 rustdoc「写真上のクローム」節
+                // 参照）。ark-ui 準拠の細枠。
+                decl("border", "1px solid rgba(255, 255, 255, 0.9)"),
+                // 切り抜き外の暗幕は `theme.rs` が部品側からの置換を申し送って
+                // いた `--fandhe-color-bg-overlay`（light 0.4 / dark 0.6）へ
+                // 移行（rgba リテラル直書きの解消）。
+                decl("box-shadow", "0 0 0 9999px var(--fandhe-color-bg-overlay)"),
                 decl("cursor", "move"),
+                // transition は付けない: left/top/width/height はドラッグ追従値
+                // であり、遷移を付けると指の動きに対して視覚的な遅延が生まれる
+                // （`angle_slider` の thumb `transform` 除外と同じ理由）。
             ],
         )
         .base(
@@ -148,11 +191,22 @@ fn recipe() -> SlotRecipe {
                 decl("position", "absolute"),
                 decl("width", "var(--fandhe-image-cropper-handle-size, 0.75rem)"),
                 decl("height", "var(--fandhe-image-cropper-handle-size, 0.75rem)"),
-                decl("background", "var(--fandhe-color-bg)"),
-                decl("border", "1px solid var(--fandhe-color-border)"),
+                // 面・縁はテーマ非依存の固定色（モジュール冒頭 rustdoc「写真上
+                // のクローム」節参照）。ダークテーマで `--fandhe-color-bg` が
+                // 暗色へ反転すると暗い写真 + 暗幕上でハンドルが視認できなく
+                // なるため、任意の写真の上でも見える白 + 淡い黒縁へ固定する
+                // （ark-ui も同様に固定白）。
+                decl("background", "#ffffff"),
+                decl("border", "1px solid rgba(0, 0, 0, 0.25)"),
+                decl("border-radius", "var(--fandhe-radius-xs)"),
+                decl("box-shadow", "var(--fandhe-shadow-sm)"),
                 decl("box-sizing", "border-box"),
                 decl("transform", "translate(-50%, -50%)"),
             ],
+        )
+        .base(
+            "handle",
+            transition_declarations("background, box-shadow", MotionDuration::Fast),
         )
         .state(
             "handle",
@@ -228,11 +282,22 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "handle",
+            // 直書き outline から共通トークン経由へ移行（イシュー #1424、
+            // `--fandhe-focus-ring-*`）。`palette` 軸を持たない部品のため
+            // `FocusRingColor::Token` を使う（モジュール冒頭 rustdoc「`size`
+            // variant のみ」節参照）。
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "1px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        .state(
+            "handle",
+            // hover フィードバック（イシュー #1425）。`hover_surface_declarations`
+            // は `--fandhe-hover-bg`（`palette_declarations` 前提）を参照するが
+            // 本部品は palette 軸を持たずテーマ非依存の固定白クロームのため、
+            // 直書きの淡いグレーで代替する（モジュール冒頭 rustdoc「写真上の
+            // クローム」節と同じ判断軸）。
+            StateCondition::Hover,
+            vec![decl("background", "#f0f0f0")],
         )
         .base(
             "grid",
@@ -240,15 +305,27 @@ fn recipe() -> SlotRecipe {
                 decl("position", "absolute"),
                 decl("inset", "0"),
                 decl("pointer-events", "none"),
+                // 三分割線は内側の 2 本（1/3・2/3 位置）のみを描く。
+                // `background-size` によるタイル方式（旧実装）は 0%/33%/66% の
+                // 3 本を描いてしまい、0% の線が selection の枠線（左端・上端）
+                // と重なって二重線になるため、`background-position` で
+                // 個別配置し `background-repeat: no-repeat` で繰り返しを止める。
                 decl(
                     "background-image",
-                    "linear-gradient(to right, rgba(255, 255, 255, 0.5) 1px, transparent 1px), \
-                     linear-gradient(to bottom, rgba(255, 255, 255, 0.5) 1px, transparent 1px)",
+                    "linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), \
+                     linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), \
+                     linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), \
+                     linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5))",
                 ),
                 decl(
                     "background-size",
-                    "calc(100% / 3) 100%, 100% calc(100% / 3)",
+                    "1px 100%, 1px 100%, 100% 1px, 100% 1px",
                 ),
+                decl(
+                    "background-position",
+                    "calc(100% / 3) 0, calc(100% / 3 * 2) 0, 0 calc(100% / 3), 0 calc(100% / 3 * 2)",
+                ),
+                decl("background-repeat", "no-repeat"),
             ],
         )
         .variant(
@@ -390,6 +467,49 @@ mod tests {
     fn stylesheet_links_handle_to_focus_visible() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="image-cropper"][data-part="handle"]:focus-visible {"#));
+    }
+
+    #[test]
+    fn handle_focus_ring_uses_common_token_not_legacy_outline() {
+        // イシュー #1480: フォーカスリングの直書き `outline: 2px solid
+        // var(--fandhe-color-accent)` を共通トークン
+        // （`--fandhe-focus-ring-*`）経由へ移行したことを固定する。
+        let css = stylesheet();
+        assert!(css.contains("var(--fandhe-focus-ring-width, 2px)"));
+        assert!(css.contains("var(--fandhe-focus-ring-offset, 2px)"));
+        assert!(!css.contains("outline: 2px solid var(--fandhe-color-accent)"));
+    }
+
+    #[test]
+    fn selection_backdrop_uses_overlay_token_not_raw_rgba() {
+        // イシュー #1480: `theme.rs` が申し送っていた rgba リテラル
+        // （切り抜き外の暗幕）を `--fandhe-color-bg-overlay` トークン
+        // （light 0.4 / dark 0.6）へ置換したことを固定する。
+        let css = stylesheet();
+        assert!(css.contains("var(--fandhe-color-bg-overlay)"));
+        assert!(!css.contains("rgba(0, 0, 0, 0.5)"));
+    }
+
+    #[test]
+    fn handle_has_hover_and_background_box_shadow_transition_only() {
+        // イシュー #1480: handle に hover フィードバックと transition を
+        // 新設した。`top`/`left`/`transform` はリサイズドラッグの追従値
+        // であり遷移を付けないため、`transition-property` に含まれないこと
+        // も併せて固定する。
+        let css = stylesheet();
+        assert!(css.contains("background: #f0f0f0"));
+        assert!(css.contains("transition-property: background, box-shadow"));
+        assert!(!css.contains("transition-property: background, box-shadow, transform"));
+        assert!(!css.contains("transition-property: top, left"));
+    }
+
+    #[test]
+    fn handle_has_radius_and_shadow_tokens() {
+        // イシュー #1480: handle を余白・角丸・影の共通トークンスケールへ
+        // 載せたことを固定する。
+        let css = stylesheet();
+        assert!(css.contains("border-radius: var(--fandhe-radius-xs)"));
+        assert!(css.contains("box-shadow: var(--fandhe-shadow-sm)"));
     }
 
     #[test]

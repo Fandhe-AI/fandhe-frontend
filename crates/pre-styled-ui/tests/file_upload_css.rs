@@ -68,9 +68,16 @@ const FILE_UPLOAD_GOLDEN_CSS: &str = r#"[data-scope="file-upload"][data-part="ro
   gap: var(--fandhe-space-2);
   box-sizing: border-box;
   padding: var(--fandhe-space-1) var(--fandhe-space-2);
+  border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-sm);
-  background: var(--fandhe-color-bg-subtle);
+  background: var(--fandhe-color-bg);
   font-size: var(--fandhe-file-upload-font-size, var(--fandhe-font-font-size-sm));
+}
+
+[data-scope="file-upload"][data-part="item"] {
+  transition-property: border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="file-upload"][data-part="item-name"] {
@@ -100,6 +107,13 @@ const FILE_UPLOAD_GOLDEN_CSS: &str = r#"[data-scope="file-upload"][data-part="ro
   color: inherit;
   cursor: pointer;
   line-height: 1;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="file-upload"][data-part="item-delete-trigger"] {
+  transition-property: background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="file-upload"][data-part="clear-trigger"] {
@@ -159,6 +173,15 @@ const FILE_UPLOAD_GOLDEN_CSS: &str = r#"[data-scope="file-upload"][data-part="ro
   cursor: not-allowed;
 }
 
+[data-scope="file-upload"][data-part="item"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="file-upload"][data-part="item"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
+}
+
 [data-scope="file-upload"][data-part="item-delete-trigger"][data-disabled] {
   cursor: not-allowed;
 }
@@ -173,6 +196,10 @@ const FILE_UPLOAD_GOLDEN_CSS: &str = r#"[data-scope="file-upload"][data-part="ro
   }
 
   [data-scope="file-upload"][data-part="trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="file-upload"][data-part="item-delete-trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
   }
 }

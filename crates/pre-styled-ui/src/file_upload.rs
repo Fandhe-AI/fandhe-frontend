@@ -94,13 +94,52 @@
 //! - variant 軸（chakra 相当の面バリアント）の追加は [`root`] のシグネ
 //!   チャ変更（破壊的変更）を伴うため対象外とする（[`crate::checkbox_card`]
 //!   の先例と同判断）。
+//! # 内部パート（`item-group` 以下）のスタイル調整（イシュー #1697、親 #1478）
+//!
+//! 親イシュー #1478 の比較観点チェックリスト（hover / disabled /
+//! transition / 状態の視覚反映）を内部パート（`item-group`/`item`/
+//! `item-name`/`item-size-text`/`item-delete-trigger`）へ適用する。外枠パート
+//! （`root`/`label`/`dropzone`/`trigger`）は兄弟イシュー #1696 の担当であり
+//! 本節の対象外。
+//!
+//! - **`item` の `data-invalid`（headless 未出力、`attrs` 経由でのみ付与
+//!   可能）**: [`crate::checkbox_group`] の同型記述に倣い、CSS 側は
+//!   `[data-invalid]` セレクタを常時出力するが、headless
+//!   `file_upload::item` はこの属性を出力しない。利用者が `item` の `attrs`
+//!   へ `("data-invalid", "")` を直接渡すことで有効化する（`border-color`
+//!   のみ danger 色化する Forms 家族共通の視覚言語、[`crate::checkbox`]/
+//!   [`crate::checkbox_card`]/[`crate::checkbox_group`] と統一）。
+//! - **`item` の `data-disabled` と `root` の disabled の opacity 重複を
+//!   許容する理由**: headless の API 上 `root` の disabled と `item` の
+//!   disabled は独立したフラグであり、両方 true にする構成は利用者判断に
+//!   委ねられている（`crate::checkbox` 家族と同型の挙動）。`item` 単体を
+//!   disabled にしても `root` は変化しないため、両方 disabled にした場合の
+//!   opacity 二重適用（0.5 × 0.5）は意図的な許容であり、item 側の
+//!   disabled 宣言を独自に弱めない。ただし三重適用（`root`×`item`×
+//!   `item-delete-trigger`）までは許容しない: `item-delete-trigger` の
+//!   `data-disabled` state は兄弟イシュー #1696 の `trigger`
+//!   （`root` 配下で常用されるため `disabled_declarations` を使わず
+//!   `cursor: not-allowed` のみに留めた判断）と同じ理由で
+//!   `disabled_declarations()` を使わず `cursor: not-allowed` のみに
+//!   留める（`item-delete-trigger` は常に `item` 配下で使われ、`item` の
+//!   `data-disabled` state が既に `opacity: 0.5` を適用済みのため）。
+//! - **`item`（`<li>` コンテナ）・`item-group`・`item-name`・
+//!   `item-size-text` へ hover を付けない理由**: 表示専用の slot（クリック
+//!   可能な操作面を持たない）であり、[`crate::recipe`] の「hover 共通
+//!   ビジュアル言語」節が定める「インタラクティブ slot にのみ付ける」規則に
+//!   従う。参照 3 サイト（ark-ui/chakra-ui/Radix）も file item 自体に hover
+//!   背景変化を持たない。
+//! - **`item-preview` パートは本コンポーネントの anatomy に存在しない**:
+//!   headless `file_upload` の `SLOTS`（11 slot）は `item-preview` を持たず、
+//!   `tags_input` の同名パートからの類推による誤認と判断し実装しない
+//!   （親イシュー #1478 へ N/A として記録）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    focus_ring_declarations, hover_bg_muted, hover_surface_declarations, transition_declarations,
-    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
-    VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
 };
 
 // `FileUpload` 状態機械・headless 自由関数 `root` はあえて再エクスポートしない
@@ -263,13 +302,38 @@ fn recipe() -> SlotRecipe {
                 decl("gap", "var(--fandhe-space-2)"),
                 decl("box-sizing", "border-box"),
                 decl("padding", "var(--fandhe-space-1) var(--fandhe-space-2)"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-sm)"),
-                decl("background", "var(--fandhe-color-bg-subtle)"),
+                decl("background", "var(--fandhe-color-bg)"),
                 decl(
                     "font-size",
                     "var(--fandhe-file-upload-font-size, var(--fandhe-font-font-size-sm))",
                 ),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（`checkbox_group.rs` と
+        // 同型）。`transition-property` は `data-invalid` が変える
+        // `border-color` のみを列挙する（`opacity`（`data-disabled` 用）は
+        // 本クレートの他モジュールに前例がない組み合わせのため見送り、
+        // `background`（`item` に動的変化の規則が無い）も含めない。
+        // `checkbox_group` の `item-control` と異なり本 slot は hover を
+        // 持たない、モジュール rustdoc 参照）。
+        .base(
+            "item",
+            transition_declarations("border-color", MotionDuration::Fast),
+        )
+        .state(
+            "item",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // `data-invalid`（headless 未出力、`attrs` 経由でのみ付与可能。
+        // モジュール rustdoc「内部パートのスタイル調整」節参照）。
+        .state(
+            "item",
+            StateCondition::Attr("data-invalid"),
+            vec![decl("border-color", "var(--fandhe-color-danger)")],
         )
         .base(
             "item-name",
@@ -304,8 +368,35 @@ fn recipe() -> SlotRecipe {
                 decl("color", "inherit"),
                 decl("cursor", "pointer"),
                 decl("line-height", "1"),
+                // ghost 系（背景 transparent）のため `hover_bg_muted()` で
+                // `--fandhe-hover-bg` を muted 背景に定義する（モジュール
+                // rustdoc「内部パートのスタイル調整」節参照）。
+                hover_bg_muted(),
             ],
         )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（`checkbox_group.rs` と
+        // 同型）。`transition-property` は実際に変化する `background`
+        // （hover）のみを列挙する（`color` は本 recipe のどの規則も変更
+        // しないため含めない）。
+        .base(
+            "item-delete-trigger",
+            transition_declarations("background", MotionDuration::Fast),
+        )
+        .state(
+            "item-delete-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        // `disabled_declarations()`（opacity 0.5 + cursor）ではなく
+        // `cursor: not-allowed` のみに留める（PR #1696 の `trigger` と同じ
+        // 判断: `item-delete-trigger` は常に `item` 配下で使われ、`item` の
+        // `data-disabled` state が既に `opacity: 0.5` を適用済みのため、
+        // ここでも `disabled_declarations` を使うと `root`（0.5）×
+        // `item`（0.5）× `item-delete-trigger`（0.5）で opacity が 0.125
+        // まで三重に減衰してしまう。モジュール rustdoc「内部パートの
+        // スタイル調整」節の「opacity 二重適用の許容」は `root`×`item` の
+        // 2 段に限った判断であり、3 段目はここで避ける）。
         .state(
             "item-delete-trigger",
             StateCondition::Attr("data-disabled"),
@@ -493,6 +584,38 @@ mod tests {
         // モジュール rustdoc「`hidden-input` に CSS を付与しない理由」参照。
         let css = stylesheet();
         assert!(!css.contains(r#"[data-part="hidden-input"]"#));
+    }
+
+    // --- 内部パート（イシュー #1697） ---
+
+    #[test]
+    fn stylesheet_links_item_to_invalid_state() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="file-upload"][data-part="item"][data-invalid] {"#));
+        assert!(css.contains("border-color: var(--fandhe-color-danger);"));
+    }
+
+    #[test]
+    fn stylesheet_links_item_to_disabled_state() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="file-upload"][data-part="item"][data-disabled] {"#));
+    }
+
+    #[test]
+    fn stylesheet_wraps_delete_trigger_hover_in_hover_media() {
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="file-upload"][data-part="item-delete-trigger"]:hover:not([data-disabled]) {"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_uses_motion_tokens_for_item_and_delete_trigger_transitions() {
+        let css = stylesheet();
+        assert!(css.contains("var(--fandhe-motion-duration-fast)"));
+        assert!(css.contains("transition-property: border-color;"));
+        assert!(css.contains("transition-property: background;"));
     }
 
     // --- variant クラス ---

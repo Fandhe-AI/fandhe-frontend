@@ -3508,11 +3508,21 @@ fn tags_input_section() -> Node {
 /// 接触は `fandhe-frontend-wasm-full::headless_file_upload` の配線層のみが
 /// 担う、`file_upload` モジュール rustdoc「保留解除」節参照）。
 fn file_upload_section() -> Node {
-    fn file_item(name: &str, size_bytes: u64, disabled: bool) -> Node {
+    // `invalid` は headless `item` が出力しない属性のため（イシュー #1697
+    // モジュール rustdoc「内部パートのスタイル調整」節参照）、呼び出し側が
+    // `attrs` へ `("data-invalid", "")` を直接渡すことで CSS の
+    // `[data-invalid]` 規則（border-color danger 化）を有効化できることを
+    // ここで実演する。
+    fn file_item(name: &str, size_bytes: u64, disabled: bool, invalid: bool) -> Node {
         let size_text = file_upload::item_size_text(size_bytes);
+        let attrs = if invalid {
+            vec![("data-invalid", "")]
+        } else {
+            vec![]
+        };
         file_upload::item(
             disabled,
-            vec![],
+            attrs,
             vec![
                 file_upload::item_name(vec![], vec![text(name)]),
                 file_upload::item_size_text_node(vec![], vec![text(&size_text)]),
@@ -3536,7 +3546,15 @@ fn file_upload_section() -> Node {
                     file_upload::hidden_input("image/*,.pdf", true, false, vec![]),
                 ],
             ),
-            file_upload::item_group(vec![], vec![file_item("report.pdf", 204_800, false)]),
+            file_upload::item_group(
+                vec![],
+                vec![
+                    file_item("report.pdf", 204_800, false, false),
+                    // `data-invalid` の視覚差（border-color danger 化）を
+                    // 通常態の一覧内で確認できるようにする実例。
+                    file_item("oversized.zip", 52_428_800, false, true),
+                ],
+            ),
             file_upload::clear_trigger(false, vec![], vec![text("Clear all")]),
         ],
     );
@@ -3556,7 +3574,7 @@ fn file_upload_section() -> Node {
                     file_upload::hidden_input("image/*,.pdf", true, true, vec![]),
                 ],
             ),
-            file_upload::item_group(vec![], vec![file_item("locked.txt", 1024, true)]),
+            file_upload::item_group(vec![], vec![file_item("locked.txt", 1024, true, false)]),
             file_upload::clear_trigger(true, vec![], vec![text("Clear all")]),
         ],
     );
