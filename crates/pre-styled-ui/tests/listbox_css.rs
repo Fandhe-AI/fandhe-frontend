@@ -27,7 +27,7 @@ const LISTBOX_GOLDEN_CSS: &str = r#"[data-scope="listbox"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: var(--fandhe-radius-md);
+  border-radius: var(--fandhe-radius-md, 0.375rem);
   overflow-y: auto;
   max-height: var(--fandhe-listbox-content-max-height, 16rem);
   padding: var(--fandhe-listbox-content-padding, var(--fandhe-space-2));
@@ -45,7 +45,7 @@ const LISTBOX_GOLDEN_CSS: &str = r#"[data-scope="listbox"][data-part="root"] {
   gap: var(--fandhe-space-2);
   padding: var(--fandhe-listbox-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;
-  border-radius: var(--fandhe-radius-sm);
+  border-radius: var(--fandhe-radius-sm, 0.25rem);
   --fandhe-hover-bg: var(--fandhe-color-bg-muted);
 }
 

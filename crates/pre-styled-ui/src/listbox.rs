@@ -60,7 +60,10 @@
 //! 踏襲する。
 //!
 //! - **角丸**: `content`/`item` の生リテラル `border-radius` を
-//!   `var(--fandhe-radius-md)`/`var(--fandhe-radius-sm)` トークンへ置換。
+//!   `var(--fandhe-radius-md, 0.375rem)`/`var(--fandhe-radius-sm, 0.25rem)`
+//!   トークンへ置換（旧リテラル値をフォールバックとして残し、
+//!   `Theme::empty()` ベースのカスタムテーマや `listbox::stylesheet()`
+//!   単独利用時にトークン未定義でも既存表示を維持する）。
 //! - **disabled**: `root`/`item` の手書き宣言（宣言順が不一致だった）を
 //!   [`crate::recipe::disabled_declarations`] へ統一。
 //! - **hover**: `item` は `cursor: pointer` を持つ操作可能 slot だが hover
@@ -164,7 +167,7 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("border-radius", "var(--fandhe-radius-md, 0.375rem)"),
                 decl("overflow-y", "auto"),
                 decl(
                     "max-height",
@@ -195,7 +198,7 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-listbox-item-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
                 ),
                 decl("cursor", "pointer"),
-                decl("border-radius", "var(--fandhe-radius-sm)"),
+                decl("border-radius", "var(--fandhe-radius-sm, 0.25rem)"),
                 hover_bg_muted(),
             ],
         )
@@ -452,10 +455,8 @@ mod tests {
         // イシュー #1483: 生リテラル border-radius をトークンへ置換した
         // ことの確認（`0.375rem`/`0.25rem` の再発防止）。
         let css = stylesheet();
-        assert!(css.contains("border-radius: var(--fandhe-radius-md);"));
-        assert!(css.contains("border-radius: var(--fandhe-radius-sm);"));
-        assert!(!css.contains("border-radius: 0.375rem;"));
-        assert!(!css.contains("border-radius: 0.25rem;"));
+        assert!(css.contains("border-radius: var(--fandhe-radius-md, 0.375rem);"));
+        assert!(css.contains("border-radius: var(--fandhe-radius-sm, 0.25rem);"));
     }
 
     #[test]
