@@ -516,7 +516,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # 版数が近接していたため、双方の実体変更を統合した結果としてさらに
 # 0.57.20 へ patch バンプする（同一版数への偶発的衝突をそのまま採用しない
 # 規約。値が異なる場合でも双方の実体変更を反映した最終版数へ揃える）。
-version = "0.57.20"
+# イシュー #1491: radio-card のスタイル調整 (1/2) — `item`（カード枠）の
+# hover（`hover_bg_muted`/`hover_surface_declarations`）・disabled
+# （`disabled_declarations` への置換）・transition
+# （`transition_declarations` への置換）・focus ring（`focus_ring_declarations`
+# canonical 化）・`data-invalid`（新規状態、`border-color` を
+# `var(--fandhe-color-danger)` へ切替）の CSS 実体変更のみで、既存 CSS
+# 変数名・クラス名・`data-*` セレクタの削除/改名や Rust API シグネチャの
+# 変更はないため、pin-input #1489・number-input #1485 と同型で patch
+# バンプとして 0.57.20 から 0.57.21 とする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a。
+# codex-review 指摘、PR #1768）。
+version = "0.57.21"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
