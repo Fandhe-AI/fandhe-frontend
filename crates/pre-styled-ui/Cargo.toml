@@ -458,6 +458,25 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既存 CSS 変数名の削除・改名や Rust API シグネチャの変更はないため、
 # input #1482 と同型で patch バンプとして 0.57.12 から 0.57.13 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
+# イシュー #1485: NumberInput のスタイル調整（canonical focus ring / motion
+# トークン / disabled ヘルパ / #1678 の size control トークンへの移行）
+# のみで、既存 CSS 変数名（`--fandhe-number-input-control-height`/
+# `-font-size`/`-trigger-size`）の削除・改名や Rust API シグネチャの変更は
+# ないため、input #1482・native-select #1484 と同型で patch バンプとして
+# 0.57.13 から 0.57.14 とする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
+# マージ統合（イシュー #1485 系、本マージ分）: 本ブランチ側（#1485
+# NumberInput スタイル調整、0.57.13 から 0.57.14 へ独自にバンプ）と main
+# 側（#1483/#1484 系統合分、0.57.15 へ既にバンプ済み）は独立に別パートへ
+# 実体変更を加えたまま偶発的に版数が交差していたため、双方を統合した結果
+# としてさらに 0.57.16 へ patch バンプする（同一版数への偶発的衝突を
+# そのまま採用しない規約）。
+# PR #1764 レビュー是正: `input` パートの `data-disabled` から `opacity`
+# を除去し `cursor: not-allowed` のみへ縮小（`root` と重ねた opacity の
+# 掛け算で約 25% まで減光する不整合を解消、Cursor Bugbot 指摘）。CSS
+# セレクタの宣言内容変更のみで既存 CSS 変数名・Rust API シグネチャの変更は
+# ないため、patch バンプとして 0.57.16 から 0.57.17 とする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
 # マージ統合（イシュー #1483/#1484 系、本マージ分）: 本ブランチ側（PR #1762
 # codex-review P1 是正、0.57.13 から 0.57.14 へ独自にバンプ）と main 側
 # （#1484 NativeSelect スタイル調整、0.57.12 から 0.57.13 へ独自にバンプ）は
@@ -470,13 +489,34 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更はないため、listbox #1483・NativeSelect #1484 と同型で patch バンプ
 # として 0.57.15 から 0.57.16 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
+# マージ統合（イシュー #1485/#1487 系、本マージ分）: 本ブランチ側（PR #1764
+# レビュー是正、0.57.13 から 0.57.17 へ独自にバンプ）と main 側（#1487
+# password-input スタイル調整 (1/2)、0.57.13 から 0.57.16 へ独自にバンプ）は
+# 独立に別パートへ実体変更を加えたまま偶発的に版数が交差していたため、双方を
+# 統合した結果としてさらに 0.57.18 へ patch バンプする（同一版数への偶発的
+# 衝突をそのまま採用しない規約）。
+# 追記（本マージ時点の是正）: 上記マージ後に main 側がさらに password-input
+# のスタイル調整 (2/2) — 強度インジケータ（#1766）で 0.57.16 から 0.57.17 へ
+# 単独バンプしていた（コメント未追記のまま）。本マージはその 0.57.17 も
+# 取り込むが、本ブランチ側は既に 0.57.18 へ到達済みで main の 0.57.17 と
+# 数値が交差しない（0.57.18 > 0.57.17）ため、追加の patch バンプは不要と
+# 判断し 0.57.18 のまま維持した。
+# PR #1764 codex-review P1・Cursor Bugbot 指摘（イシュー #1485）の是正で
+# number_input.rs の実体を再度変更したため 0.57.19 へ追加 patch バンプする。
 # イシュー #1489: pin-input のスタイル調整（canonical focus ring / motion
 # トークン / disabled ヘルパ化 / hover 追加・角丸トークン化・size 段階の
 # `--fandhe-size-control-*` 参照化）のみで、既存 CSS 変数名の削除・改名や
 # Rust API シグネチャの変更はないため、input #1482・date-input #1469 と
 # 同型で patch バンプとして 0.57.17 から 0.57.18 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3）。
-version = "0.57.18"
+# マージ統合（イシュー #1485/#1489 系、本マージ分）: 本ブランチ側（PR #1764
+# codex-review P1・Cursor Bugbot 指摘是正、0.57.13 から 0.57.19 へ独自に
+# バンプ）と main 側（#1489 pin-input のスタイル調整、0.57.13 から
+# 0.57.18 へ独自にバンプ）は独立に別パートへ実体変更を加えたまま偶発的に
+# 版数が近接していたため、双方の実体変更を統合した結果としてさらに
+# 0.57.20 へ patch バンプする（同一版数への偶発的衝突をそのまま採用しない
+# 規約。値が異なる場合でも双方の実体変更を反映した最終版数へ揃える）。
+version = "0.57.20"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
