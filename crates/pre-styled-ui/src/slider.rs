@@ -75,6 +75,26 @@
 //! 対応は不要で、通常の `:focus-visible` 疑似クラスを [`recipe`] へ直接
 //! 登録する（[`StateCondition::FocusVisible`]）。
 //!
+//! # イシュー #1505: トラック・レンジ・サムのスタイル調整（親 #1504 の 1/2）
+//!
+//! 参考サイト（chakra-ui/Radix Themes/Radix Primitives/ark-ui）視覚比較に
+//! 基づき、`root`/`thumb` の disabled を共通ビジュアル言語
+//! （[`crate::recipe::disabled_declarations`]、イシュー #1425）へ、
+//! `thumb` の `:focus-visible` を共通フォーカスリングトークン
+//! （[`crate::recipe::focus_ring_declarations`]、イシュー #1424）へ置換し、
+//! `track`/`range`/`thumb` の角丸を `var(--fandhe-radius-full, 999px)`
+//! トークンへ統一した（フォールバックは codex-review 指摘、PR #1777 で
+//! 追加。`timeline` の `var(--fandhe-radius-full, 9999px)` と同型）。`thumb` へは参考サイト共通の「白面 + 影」表現
+//! （`box-shadow: var(--fandhe-shadow-sm)`）と hover/transition
+//! フィードバック（[`crate::recipe::hover_bg_muted`]/
+//! [`crate::recipe::transition_declarations`]）を追加した。`thumb` は常時
+//! 「白面 + palette ボーダー」の outline 表現（checked/unchecked のような
+//! 二値状態を持たない）であるため、solid 面向けの `hover_bg_solid` ではなく
+//! `hover_bg_muted` を選んだ（[`recipe`] 内コメント参照）。
+//! `--fandhe-slider-percent` 由来の位置プロパティ（`transform`/`left`/`top`）
+//! には transition を掛けない（ドラッグ追従の即時性維持、angle-slider
+//! （イシュー #1445/PR #1728）と同型の判断）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく range slider（複数 thumb）・Marker/MarkerGroup・
@@ -84,11 +104,17 @@
 //!   Slider 追加は、未公開の新バージョンを参照できないため本イシューの
 //!   スコープ外とする（[`crate::number_input`] 冒頭 rustdoc の先例どおり
 //!   crates.io 公開後に追随）。
+//! - marker/label/value-text の是正・`data-orientation="vertical"` の
+//!   状態規則の再設計は姉妹イシュー #1506（親 #1504 の 2/2）の担当であり、
+//!   本イシューでは触れない（本イシューの寸法・色是正は root スコープ
+//!   custom property・base 宣言経由で両方向へ自然伝搬するのみ）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `Slider` 状態機械・headless 自由関数 `root`/`range` はあえて再エクスポート
@@ -152,7 +178,11 @@ fn recipe() -> SlotRecipe {
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
+            // イシュー #1505: `opacity`/`cursor` 直書きを共通ビジュアル言語
+            // （イシュー #1425、`crate::recipe` 冒頭 doc「disabled / hover /
+            // transition の共通ビジュアル言語」節）へ置換。値そのものは
+            // 変わらないため見た目に差分は出ない。
+            disabled_declarations(),
         )
         .base(
             "label",
@@ -181,7 +211,19 @@ fn recipe() -> SlotRecipe {
                 decl("position", "relative"),
                 decl("width", "100%"),
                 decl("height", "var(--fandhe-slider-track-height, 0.375rem)"),
-                decl("border-radius", "999px"),
+                // イシュー #1505: 角丸をトークン化（`999px` リテラル →
+                // `var(--fandhe-radius-full, 999px)`。angle-slider #1728 と
+                // 同型の是正、参照 4 サイト（chakra-ui/Radix Themes/Radix
+                // Primitives/ark-ui）いずれも完全な pill 形状のため計算結果は
+                // 不変）。フォールバックは `--fandhe-radius-full` 未定義の
+                // 既存カスタムテーマ（`Theme::empty()` ベース）で角丸が
+                // 初期値 `0` へ落ちる互換性破壊を防ぐための codex-review
+                // 指摘（PR #1777、threadId: PRRT_kwDOTarxgc6eICfZ）対応。
+                decl("border-radius", "var(--fandhe-radius-full, 999px)"),
+                // トラック色は既存の `var(--fandhe-color-border)` を維持する
+                // （参照 4 サイトいずれも「淡いニュートラル面」であり、
+                // ダーク対応済みの本トークンで既に基準を満たすため変更しない。
+                // イシュー #1505 Step 1 差分メモ参照）。
                 decl("background", "var(--fandhe-color-border)"),
             ],
         )
@@ -201,7 +243,8 @@ fn recipe() -> SlotRecipe {
                 decl("left", "0"),
                 decl("height", "100%"),
                 decl("width", "var(--fandhe-slider-percent, 0%)"),
-                decl("border-radius", "999px"),
+                // イシュー #1505: `track` と同じ角丸トークン化。
+                decl("border-radius", "var(--fandhe-radius-full, 999px)"),
                 decl(
                     "background",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
@@ -228,15 +271,42 @@ fn recipe() -> SlotRecipe {
                 decl("transform", "translate(-50%, -50%)"),
                 decl("width", "var(--fandhe-slider-thumb-size, 1.1rem)"),
                 decl("height", "var(--fandhe-slider-thumb-size, 1.1rem)"),
-                decl("border-radius", "999px"),
+                // イシュー #1505: `track`/`range` と同じ角丸トークン化。
+                decl("border-radius", "var(--fandhe-radius-full, 999px)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl(
                     "border",
                     "2px solid var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
+                // イシュー #1505: 参照 4 サイト（chakra-ui/Radix Themes/
+                // Radix Primitives/ark-ui）共通の「白面サム + 影による浮き
+                // 上がり」表現。`angle_slider` の `control`（面）が持つ
+                // `box-shadow: var(--fandhe-shadow-sm)` と同型のトークン。
+                decl("box-shadow", "var(--fandhe-shadow-sm)"),
+                // hover 時に切り替える面色の間接参照先を定義する（実際の
+                // `background` 適用は下記 `.state("thumb",
+                // StateCondition::Hover, ...)` 1 本に集約する、`crate::radio_group`
+                // の unchecked `item-control` と同型のパターン）。本サムは
+                // 常時「白面 + palette ボーダー」の outline 表現であり
+                // solid 面を持たないため、solid variant 向けの
+                // `hover_bg_solid`（`--fandhe-palette-emphasized` 参照）は
+                // 採らず、`hover_bg_muted`（`--fandhe-color-bg-muted`）で
+                // 淡い面の変化のみ表現する（`crate::recipe` 冒頭 doc
+                // 「hover」節の使い分け規約に従う判断）。
+                hover_bg_muted(),
                 decl("box-sizing", "border-box"),
                 decl("cursor", "pointer"),
             ],
+        )
+        .base(
+            "thumb",
+            // イシュー #1505: hover/focus 面変化を滑らかにする（`transform`/
+            // `left`/`top`（`--fandhe-slider-percent` 由来の位置）は含めない
+            // — ドラッグ中の位置追従に遅延を持ち込まないため。angle-slider
+            // #1728 の「`--fandhe-angle` に transition を掛けない」判断と
+            // 同型。`prefers-reduced-motion` 対応は `transition_declarations`
+            // の呼び出し先（`Theme::to_css` の duration 一括 0ms 化）が担う。
+            transition_declarations("background, border-color, box-shadow", MotionDuration::Fast),
         )
         .state(
             "thumb",
@@ -250,15 +320,29 @@ fn recipe() -> SlotRecipe {
         .state(
             "thumb",
             StateCondition::Attr("data-disabled"),
+            // 掴めないことの表現として `cursor: not-allowed` を維持する
+            // （`opacity` は `root` の `disabled_declarations()` が既に
+            // 全体へ適用済みのため、`thumb` 側で重複させない）。
             vec![decl("cursor", "not-allowed")],
         )
+        // イシュー #1505: hover の実適用は 1 本のみ（`--fandhe-hover-bg` の
+        // 間接参照経由。`crate::radio_group`/`crate::checkbox` の
+        // `item-control`/`control` と同型のパターン、`crate::recipe` 冒頭
+        // doc「hover」節参照）。`StateCondition::Hover` は
+        // `:hover:not([data-disabled])` へ直列化されるため disabled 時の
+        // hover は自然に除外される。
+        .state("thumb", StateCondition::Hover, hover_surface_declarations())
         .state(
             "thumb",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            // イシュー #1505: `outline`/`outline-offset` 直書きを
+            // `focus_ring_declarations`（イシュー #1424 共通トークン
+            // `--fandhe-focus-ring-*`・`--fandhe-color-focus-ring` 経由）へ
+            // 置換。`FocusRingColor::Palette` は選択中の palette へリング色
+            // を連動させる（angle-slider #1728 と同型）。フォールバック値は
+            // 旧実装と同じ `2px`/`var(--fandhe-color-accent)` のため、
+            // 新トークン未定義の既存カスタムテーマでも見た目は不変。
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         .variant(
             Size::Xs,
@@ -437,6 +521,70 @@ mod tests {
     fn stylesheet_links_thumb_to_focus_visible() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="slider"][data-part="thumb"]:focus-visible {"#));
+        // イシュー #1505: `outline` 直書きから `focus_ring_declarations`
+        // （共通トークン `--fandhe-focus-ring-*`/`--fandhe-color-focus-ring`、
+        // `FocusRingColor::Palette` の `--fandhe-palette` 連動フォールバック
+        // 連鎖）へ置換した契約を固定する。
+        assert!(css.contains("var(--fandhe-focus-ring-width, 2px)"));
+        assert!(css.contains(
+            "var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)))"
+        ));
+    }
+
+    #[test]
+    fn stylesheet_uses_radius_full_token_for_track_range_thumb() {
+        let css = stylesheet();
+        // イシュー #1505: `999px` リテラルをトークン化した契約を固定する
+        // （angle-slider #1728 と同型）。フォールバックは codex-review 指摘
+        // （PR #1777）を受け `var(--fandhe-radius-full, 999px)` の形（`timeline`
+        // の `var(--fandhe-radius-full, 9999px)` と同型）とし、`999px` の
+        // 生リテラル自体はフォールバック値としてのみ残す（3 箇所の重複を
+        // 数える契約は不変）。
+        assert_eq!(
+            css.matches("border-radius: var(--fandhe-radius-full, 999px);")
+                .count(),
+            3
+        );
+    }
+
+    #[test]
+    fn radius_full_fallback_keeps_pill_shape_on_theme_without_radius_full_token() {
+        // イシュー #1505 codex-review 指摘（PR #1777, threadId: PRRT_kwDOTarxgc6eICfZ）:
+        // `var(--fandhe-radius-full)` をフォールバックなしで参照すると、
+        // `--fandhe-radius-full` を定義しない `Theme::empty()` ベースの
+        // 既存カスタムテーマでは宣言全体が computed-value time に無効化され、
+        // `track`/`range`/`thumb` の角丸が初期値の `0` に落ちる
+        // （`Cargo.toml` が謳う「パッチバンプ = 計算結果は不変」契約への
+        // 違反）。`Theme::empty()` が `--fandhe-radius-full` を定義しない
+        // ことを確認したうえで、`stylesheet()` の角丸宣言がフォールバック
+        // 込みであることを固定し、退行を防ぐ。
+        use crate::theme::Theme;
+
+        let empty_theme_css = Theme::empty().to_css();
+        assert!(!empty_theme_css.contains("--fandhe-radius-full"));
+
+        let css = stylesheet();
+        assert_eq!(
+            css.matches("border-radius: var(--fandhe-radius-full, 999px);")
+                .count(),
+            3
+        );
+    }
+
+    #[test]
+    fn stylesheet_links_thumb_to_hover_and_transition() {
+        let css = stylesheet();
+        // イシュー #1505: outline 表現の白面サムは `hover_bg_muted`
+        // （淡い面変化）を選び、solid 面向け `hover_bg_solid`
+        // （`--fandhe-palette-emphasized` 参照）は使わない契約を固定する。
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+        assert!(css
+            .contains(r#"[data-scope="slider"][data-part="thumb"]:hover:not([data-disabled]) {"#));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+        assert!(css.contains("box-shadow: var(--fandhe-shadow-sm);"));
+        // ドラッグ追従の即時性を保つため、位置プロパティ
+        // （`transform`/`left`/`top`）を `transition-property` へ含めない。
+        assert!(css.contains("transition-property: background, border-color, box-shadow;"));
     }
 
     #[test]
