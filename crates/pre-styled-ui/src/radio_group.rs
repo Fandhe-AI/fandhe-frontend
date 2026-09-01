@@ -326,61 +326,35 @@ fn recipe() -> SlotRecipe {
             disabled_declarations(),
         )
         // グループ全体の一括 disabled（headless `root` は `disabled=true`
-        // で `data-disabled` を出力済み、`root()` 関数 doc 参照）。
-        // `checkbox` の `root` disabled 規則とは異なり `disabled_declarations()`
-        // （opacity 込み）をそのまま流用しない: `checkbox` は単一部品のため
-        // `root` の opacity が子孫 `control` を含めて視覚的に一括で薄くする
-        // だけで済むが、`radio-group` は「グループ全体を無効化する呼び出し
-        // 側は各 `item`/`item-control`/`item-text`/`item-hidden-input` へも
-        // 個別に `disabled=true` を渡す」契約（`root()`/`item()` の headless
-        // doc 参照。`disabled` はパート間で独立引数）であり、`item` 側にも
-        // 同じ `[data-disabled]` 規則が既に存在する。ここで opacity を
-        // 重ねると、`root`（親要素）の opacity 0.5 と `item`（子要素）の
-        // opacity 0.5 が描画時に乗算され実効 0.25 まで過度に薄くなる
-        // （opacity は要素ごとの合成結果に効くため、祖先・子孫の双方に
-        // 付けると多重適用される。PR #1769 レビュー指摘）。`SlotRecipe` は
-        // 子孫セレクタを持たない（本モジュール冒頭 doc 「colorPalette 軸」
-        // 節前段の既存方針）ため「root disabled かつ item 自身は
-        // disabled でない」を CSS 側だけで判別して opacity を 1 回のみ
-        // 適用する表現はできず、opacity の実適用は `item`（`checkbox` で
-        // 言えば `control` 相当のトグル可能単位）側に一本化し、`root` 自身
-        // は形状を持たないコンテナのため `cursor: not-allowed` のみを
-        // 付与する（`item` 側で個別に disabled にできる粒度を持つ本部品
-        // 固有の設計であり、`checkbox` の判断とは意図的に異なる）。
-        //
-        // `pointer-events: none` は不採用（codex-review / Cursor Bugbot
-        // 双方の指摘、PR #1769 追補）: `pointer-events` は要素自身を
-        // ブラウザのヒットテスト対象から除外するプロパティであり、
-        // 「クリックを無効化する」ものではなく「クリックを素通りさせて
-        // 背後の要素へ渡す」ものである。そのため `root` へ設定すると
-        // (1) `root` の背後に重なった別要素（ボタン・リンク等）が
-        // あればそこへクリックが透過してしまい、(2) `root` 自身が
-        // ヒットテスト対象から外れるため同じ規則の `cursor: not-allowed`
-        // すら表示されなくなる（ポインタが乗った判定自体が発生しない）、
-        // という 2 つの不整合を生む。`crate::checkbox_group` の `root`
-        // disabled 規則が同じ理由で `item`/`item-control` への
-        // `pointer-events`/`cursor` 間接参照伝播を撤去した判断
-        // （同モジュール rustdoc 参照）と同型であり、本モジュールでも
-        // 同じ結論を採る: `root[data-disabled]` からの pointer 操作
-        // 伝播は CSS では行わず、`cursor: not-allowed` のみを付与する。
-        //
-        // 誤操作防止（グループ全体無効化時に各 item への実クリックを
-        // 防ぐ）は、pointer-events による見た目上の遮断ではなく、
-        // ネイティブ `<input type="radio">` の `disabled` 属性を各
-        // `item-hidden-input` へ確実に伝播する運用契約で担保する
-        // （headless 層は各パートへ独立した `disabled` 引数を要求する
-        // 契約、`root()`/`item()` doc 参照）。呼び出し側は `root` を
-        // 無効化する際、必ず各 `item`/`item-control`/`item-text`/
-        // `item-hidden-input` へも `disabled=true` を渡す必要がある
-        // （`item` 側の `[data-disabled]` 規則が実際の opacity/cursor を
-        // 担う。上記コメント参照）。`root` の `cursor: not-allowed` は
-        // 補助的な視覚ヒントに留まり、操作抑止そのものはネイティブ
-        // `disabled` 属性が担う。
-        .state(
-            "root",
-            StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed")],
-        )
+        // で `data-disabled` を出力済み、`root()` 関数 doc 参照）時の
+        // `root` 側 CSS 規則は意図的に**登録しない**（PR #1769 codex-review
+        // P1 再指摘への最終対応）。経緯: 当初 `cursor: not-allowed` のみの
+        // `root[data-disabled]` 規則を追加したが、`item` base が独立に
+        // `cursor: pointer` を宣言するため item 要素上では pointer が
+        // 表示され続け、root 自身の隙間でしか disabled 表現にならず
+        // 「各 item にも disabled=true を渡す契約下では冗長、渡さない
+        // 誤用下では item 上は pointer のまま」という指摘を受けた
+        // （pointer-events: none の不採用は既に撤回済み、直上の履歴参照）。
+        // 対応案として custom property 経由で `item` の cursor へ root
+        // disabled を CSS カスケードで伝播する案も検討したが、
+        // `crate::checkbox_group` が同型の 3 種 custom property
+        // （`-item-opacity`/`-item-cursor`/`-item-pointer-events`）伝播を
+        // 一度実装した後に撤回した判断（同モジュール rustdoc「スタイル
+        // 調整」節参照）と同じ理由で不採用とした: 呼び出し側が契約
+        // （各 `item`/`item-control`/`item-text`/`item-hidden-input` へも
+        // `disabled=true` を渡す）を満たさない構成では、ネイティブ
+        // `<input type="radio">` は実際には操作可能（Tab+Space で値変更
+        // 可能）なまま `cursor: not-allowed` だけが表示され、「CSS だけで
+        // disabled の実効性を偽装する」ことになる（`checkbox_group` と
+        // 同一原因）。したがって `root[data-disabled]` はどの CSS 宣言も
+        // 出力しない。誤操作防止は CSS ではなく、各パートへ個別に
+        // `disabled=true` を渡す運用契約（`root()`/`item()` の headless
+        // doc 参照）が担い、`item` 側の `[data-disabled]` 規則（直上）が
+        // 実際の opacity/cursor を担う。恒久対応（`checkbox_group` が
+        // イシュー #1741 で実装した、headless 層が root/item の disabled
+        // を OR 計算してネイティブ属性まで一貫伝播する型）は本モジュール
+        // （headless `radio_group::RadioGroup` は現状この種の便利メソッドを
+        // 持たない）には未実装であり、別途の追跡対象とする。
         // イシュー #683: visually-hidden 化した `item-hidden-input` へ実
         // フォーカスがあるときのフォーカスリングを、祖先 `item`
         // （モジュール rustdoc 参照）へ `:focus-within` で反映する。
@@ -681,41 +655,24 @@ mod tests {
     }
 
     #[test]
-    fn root_disabled_sets_cursor_only_not_opacity_or_pointer_events() {
-        // headless `root` が一括 disabled で出す `data-disabled`（`root()` 関数
-        // doc 参照）への反映。PR #1769 レビュー指摘: `item` 側にも同じ
-        // `[data-disabled]` opacity 規則があるため、`root` 側でも opacity を
-        // 出すと（グループ全体無効化時は通常両方に `data-disabled` が付く
-        // ため）0.5 × 0.5 = 0.25 まで過度に薄くなる。`root` は cursor のみ、
-        // opacity の実適用は `item` 側の 1 箇所に一本化する。
-        //
-        // PR #1769 追補指摘（codex-review / Cursor Bugbot 双方）: 一旦追加
-        // した `pointer-events: none` は、要素をヒットテスト対象から除外
-        // するだけでクリックを背後の要素へ透過させ、かつ `root` 自身への
-        // ヒットテストも失われるため `cursor: not-allowed` の表示すら消える
-        // という不整合があり撤回した（本モジュール `.state` 呼び出しの doc
-        // コメント参照。`crate::checkbox_group` と同型の判断）。
+    fn root_disabled_state_block_is_not_emitted() {
+        // PR #1769 codex-review P1 再指摘への最終対応（`root` disabled 規則
+        // の doc コメント参照）: `root[data-disabled]` へ `.state` を登録
+        // していないため、対応する CSS ブロック自体が出力されないことを
+        // 固定する（再導入の検知。`crate::checkbox_group` の同名テストと
+        // 同型）。
         let css = stylesheet();
-        let root_disabled_selector =
-            r#"[data-scope="radio-group"][data-part="root"][data-disabled]"#;
-        assert!(css.contains(&format!("{root_disabled_selector} {{")));
-        let body = rule_body(&css, root_disabled_selector);
-        assert!(body.contains("cursor: not-allowed;"));
+        let scope = r#"[data-scope="radio-group"][data-part="root"][data-disabled]"#;
         assert!(
-            !body.contains("pointer-events"),
-            "root disabled 規則に pointer-events を含めるとクリックが背後へ透過し、\
-             root 自身のヒットテストも失われ cursor が表示されなくなる: {body:?}"
-        );
-        assert!(
-            !body.contains("opacity"),
-            "root disabled 規則に opacity が含まれると item 側と多重適用される: {body:?}"
+            !css.contains(scope),
+            "root[data-disabled] block must not be emitted (see `root()` disabled              state comment in radio_group.rs for why the CSS-only cascade was              removed): {css:?}"
         );
     }
 
     #[test]
     fn item_disabled_still_gets_full_disabled_declarations() {
-        // `root` から opacity を除いた後も、`item` 個別 disabled（グループ
-        // 全体は有効なまま 1 件だけ無効化する既存ユースケース、
+        // `root` disabled 規則を持たない現在の設計でも、`item` 個別 disabled
+        // （グループ全体は有効なまま 1 件だけ無効化する既存ユースケース、
         // `showcase::radio_group_section` 参照）は従来どおり
         // `disabled_declarations()`（opacity + cursor）を保つ。
         let css = stylesheet();
@@ -724,31 +681,6 @@ mod tests {
         let body = rule_body(&css, item_disabled_selector);
         assert!(body.contains("opacity: 0.5;"));
         assert!(body.contains("cursor: not-allowed;"));
-    }
-
-    #[test]
-    fn root_and_item_disabled_do_not_both_declare_opacity() {
-        // グループ全体無効化（呼び出し側が `root` と各 `item` 系パートの
-        // 双方へ `disabled=true` を渡す契約、`root()` disabled 規則の doc
-        // コメント参照）時、opacity の実適用が 2 箇所以上に重複していない
-        // ことを固定する回帰テスト。
-        let css = stylesheet();
-        let root_body = rule_body(
-            &css,
-            r#"[data-scope="radio-group"][data-part="root"][data-disabled]"#,
-        );
-        let item_body = rule_body(
-            &css,
-            r#"[data-scope="radio-group"][data-part="item"][data-disabled]"#,
-        );
-        let opacity_rule_count = [root_body, item_body]
-            .iter()
-            .filter(|b| b.contains("opacity"))
-            .count();
-        assert_eq!(
-            opacity_rule_count, 1,
-            "root/item いずれか 1 箇所のみが opacity を宣言すること"
-        );
     }
 
     // --- variant クラス（イシュー #708） ---

@@ -3,16 +3,14 @@
 //! ゴールデンテスト。イシュー #1494（親 #1493 分割 1/2）で
 //! root/item/item-control の hover・transition・disabled canonical 化・
 //! `data-invalid` 反映・box-sizing・focus ring の palette 統一を追加した。
-//! PR #1769 レビュー指摘対応: `root` の `[data-disabled]` 規則は
-//! `item` 側と opacity が多重適用されないよう `cursor: not-allowed` のみに
-//! 変更した。同 PR 追補指摘（codex-review / Cursor Bugbot 双方）を受け、
-//! 一旦追加した継承プロパティ `pointer-events: none` は撤回した:
-//! `pointer-events: none` は要素をヒットテスト対象から除外するだけで
-//! クリックを背後の要素へ透過させてしまい、`root` 自身へのヒットテストが
-//! 消えるため `cursor: not-allowed` の表示も失われる不整合があった
-//! （`crate::checkbox_group` の `root` disabled 規則が同じ理由で伝播を
-//! 撤去した判断と同型。`radio_group.rs` の該当 `.state` 呼び出しの doc
-//! コメント参照）。
+//! PR #1769 追補指摘（codex-review 再指摘）への最終対応: `root` の
+//! `[data-disabled]` 規則は登録せず、対応する CSS ブロック自体を出力しない
+//! （`item` base が独立に `cursor: pointer` を宣言するため、root 側の
+//! `cursor: not-allowed` は item 要素上ではカスケードで無効化され隙間にしか
+//! 表示されない一方、custom property 経由の伝播案は `crate::checkbox_group`
+//! が同型の伝播を撤回した理由――「CSS だけでは disabled の実効性を
+//! 偽装できない」――と同じ問題を持つため不採用とした。詳細は
+//! `radio_group.rs` の `root()` disabled 状態コメント参照）。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。
@@ -177,10 +175,6 @@ const RADIO_GROUP_GOLDEN_CSS: &str = r#"[data-scope="radio-group"][data-part="ro
 
 [data-scope="radio-group"][data-part="item"][data-disabled] {
   opacity: 0.5;
-  cursor: not-allowed;
-}
-
-[data-scope="radio-group"][data-part="root"][data-disabled] {
   cursor: not-allowed;
 }
 
