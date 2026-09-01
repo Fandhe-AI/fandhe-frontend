@@ -663,7 +663,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 同様にこの区間へ包含されるため、双方の実体変更（toggle CSS 調整 +
 # radio_card::item_indicator API 変更）を統合した結果として 0.58.0 を
 # 採用する。
-version = "0.58.0"
+# イシュー #1756: rustdoc（Outline/Solid 高さ一致の記録）・意味的回帰
+# テストの追加のみで CSS 出力・公開 API は不変だが、受け入れ条件がバンプを
+# 明示しているため §3.1（PR 毎 patch バンプ）の通常運用に従い patch バンプ
+# する（0.58.0 → 0.58.1）。
+version = "0.58.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

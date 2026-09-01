@@ -86,6 +86,16 @@
 //! [`FocusRingOffset::Outside`]`)`、`docs/design/
 //! pre-styled-ui-focus-ring-and-size-conventions.md` 準拠）で新規追加した
 //! （`link.rs`/`radio_group.rs`/`angle_slider.rs` と同型）。
+//!
+//! **Outline / Solid の高さ一致（イシュー #1756）**: `recipe_with_scope` の
+//! base（`box-sizing: border-box`、上記の是正参照）により、Outline
+//! variant（`border: 1px solid`）と Solid variant（`border: none`）は
+//! `min-height`/icon-only の確定 `height` を含む外寸（描画高さ）が完全に
+//! 一致する。`border-box` の下では `border`/`padding` は指定した
+//! `height`/`min-height` の**内側**に含まれるため、border の有無が外寸へ
+//! 影響しない（`content-box` のままだと Outline のみ border 分（上下合計
+//! 2px）外寸が大きくなっていた不具合の是正）。この不変条件は
+//! `crates/pre-styled-ui/tests/button_css.rs` の意味的回帰テストで固定する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

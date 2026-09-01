@@ -229,3 +229,27 @@ fn button_css_matches_golden_byte_for_byte() {
 fn button_css_is_deterministic() {
     assert_eq!(button::css(), button::css());
 }
+
+/// イシュー #1756: golden（バイト完全一致）とは独立に
+/// `box-sizing: border-box` の存在自体を意味的に固定する回帰テスト。
+///
+/// `box-sizing: border-box` の下では `border`/`padding` が `height`/
+/// `min-height` の内側に含まれるため、Outline variant（`border: 1px
+/// solid`）と Solid variant（`border: none`）の外寸（描画高さ）が一致する
+/// （`content-box` のままだと Outline のみ border 分〔上下合計 2px〕外寸が
+/// 大きくなる不具合があった。是正の記録は `button.rs` モジュール冒頭
+/// rustdoc「Outline / Solid の高さ一致」節参照）。golden
+/// テスト（`button_css_matches_golden_byte_for_byte`）が将来 base ブロックの
+/// 宣言順・周辺装飾を変更しても、この不変条件だけは独立に検知できるよう
+/// `assert!(contains(..))` で固定する（`radio_group.rs` の
+/// `item_control_has_border_box_sizing` と同型）。
+#[test]
+fn outline_and_solid_variants_share_total_height_via_border_box() {
+    let css = button::css();
+    assert!(
+        css.contains("box-sizing: border-box;"),
+        "button root に box-sizing: border-box が無いと、UA 既定の \
+         content-box 下で Outline variant の border 1px が height の外側へ \
+         積み増され、Solid variant と描画高さがずれる（イシュー #1756）"
+    );
+}
