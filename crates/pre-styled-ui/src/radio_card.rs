@@ -121,7 +121,72 @@
 //! - **`:focus-within` 継続**（`data-focus-visible` の wasm 配線は別クレート・
 //!   別イシューの担当、上記フォーカスリング節参照）。
 //! - **内部レイアウト**（label / description / addon / indicator / size
-//!   バリアント）は兄弟イシュー #1492 の担当。
+//!   バリアント）はイシュー #1492 の担当（下記「スタイル調整（イシュー
+//!   #1492、内部レイアウト slot と size 軸）」節参照）。
+//!
+//! # スタイル調整（イシュー #1492、内部レイアウト slot と size 軸）
+//!
+//! 親 #1490 の 2/2 分割で、担当範囲は上記 #1491（`item` slot の状態表現）
+//! を除く内部レイアウト slot（[`label`]/[`item_control`]/[`item_content`]/
+//! [`item_text`]/[`item_description`]/[`item_addon`]/[`item_indicator`]）と
+//! size バリアント（[`recipe`] が `root` へ登録する `--fandhe-radio-card-*`
+//! custom property 群）。同型の先例 checkbox-card 2/2（イシュー #1458）の
+//! 変更パターンをそのまま写像する。
+//!
+//! 本イシューで適用した変更:
+//! - [`item_control`]: `gap` を `var(--fandhe-space-2)` 固定から
+//!   `var(--fandhe-radio-card-gap, var(--fandhe-space-2))`（size 連動、
+//!   新設）へ変更した。
+//! - [`item_text`]: `line-height: var(--fandhe-font-line-height-normal)` と
+//!   `user-select: none` を追加した（checkbox-card `label`・radio_group
+//!   `item-text` #1495 と同語彙）。
+//! - [`item_description`]: `font-size` を固定 `sm` から
+//!   `var(--fandhe-radio-card-description-font-size, var(--fandhe-font-font-size-sm))`
+//!   （label より常に 1 段下、新設）へ変更し、`line-height` を追加した。
+//!   色は `fg-muted` トークンのまま維持する（chakra の `opacity: 0.64` に
+//!   対する意図的差分。ダーク追従のため、checkbox-card と同判断）。
+//! - [`item_addon`]: `align-items: center`/`gap`/`font-size`
+//!   （description と同じ custom property）/`color` を追加した。chakra の
+//!   下部フッター帯（border-top）は anatomy 転用しない意図的差分。
+//! - [`item_indicator`]: `box-sizing: border-box` を追加（checkbox
+//!   `control` #1454 / radio_group `item-control` #1494 と寸法解釈を
+//!   統一）。`transition_declarations` による motion トークン経由の
+//!   transition を純追加し（`base` の同一 slot 複数回登録は出力順で
+//!   連結される仕様、checkbox-card `indicator` と同型）、
+//!   `[data-invalid]` 状態（`border-color: var(--fandhe-color-danger)`）を
+//!   新規登録した（checkbox-card `indicator` #1458 と同型の視覚言語。
+//!   `item` 側の invalid 表現は 1/2 実装済みのため触らない）。
+//! - [`label`]（グループ見出し）: radio_group `label` #1495 と同型に
+//!   `font-size` を `var(--fandhe-radio-card-label-font-size, ...)`
+//!   （size 連動、[`item_text`] と custom property を共有）へ変更し、
+//!   `font-weight: medium`・`line-height: normal` を追加した。
+//!   `margin-bottom` は維持する。
+//! - size バリアントを 5 段の `.variant(Size::*, "root", ...)` 手書きから
+//!   [`crate::recipe::SlotRecipe::size_variants`]（既定 `md` を構造的に
+//!   保証、イシュー #1424）へ移行し、padding を生 rem リテラルから
+//!   spacing トークン（chakra md=16px 基準・4px 格子で単調増加、
+//!   checkbox-card と同値系列）へ、control-size を checkbox 家族と同一値へ
+//!   載せ替えた（chakra のカード indicator が通常より 1 段大きい点は意図
+//!   的に合わせない）。dot-inset・label-font-size は既存値を維持し、
+//!   description-font-size・gap の 2 custom property を新設した。
+//!
+//! 意図的に参照サイトへ合わせない点:
+//! - **indicator の左右位置**: CSS `order` は使わず DOM 順に委ねる
+//!   （showcase・呼び出し側が [`item_content`] → [`item_indicator`] の順で
+//!   子を並べれば右配置になる。宣言的な CSS レイアウト操作より呼び出し側
+//!   の DOM 構成に委ねる方針）。
+//! - **description の色**: 上記のとおり `fg-muted` トークンを維持する。
+//! - **addon のフッター帯**: chakra の border-top 区切りは転用しない。
+//! - **root グループ間隔**（`--fandhe-space-2` 固定）: [`crate::radio_group`]
+//!   と異なりカード間隔は size 非連動のまま維持する（chakra-ui の
+//!   `radio-card` グループ間隔も size 非連動であることに基づく意図的判断）。
+//! - **disabled の二重減光**: 追加しない。[`item`] の
+//!   `disabled_declarations()`（`opacity: 0.5`）が子孫へ継承されるため
+//!   [`item_indicator`] 側で重ねて減光しない。
+//! - **indicator の hover**: 追加しない。[`item_indicator`] は
+//!   `<span>` の非インタラクティブ slot であり、hover は祖先 [`item`]
+//!   （`<label>`）側で表現する契約のまま。
+//! - **variant 軸**: 上記 #1491 節と同じ理由で追加しない。
 //!
 //! # `size`/`palette` variant
 //!
@@ -273,7 +338,12 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "block"),
                 decl("color", "var(--fandhe-color-fg)"),
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-radio-card-label-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("margin-bottom", "var(--fandhe-space-1)"),
             ],
         )
@@ -341,7 +411,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("align-items", "flex-start"),
-                decl("gap", "var(--fandhe-space-2)"),
+                decl("gap", "var(--fandhe-radio-card-gap, var(--fandhe-space-2))"),
                 decl("flex", "1"),
             ],
         )
@@ -362,21 +432,40 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-radio-card-label-font-size, var(--fandhe-font-font-size-sm))",
                 ),
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                decl("user-select", "none"),
             ],
         )
         .base(
             "item-description",
             vec![
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-radio-card-description-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
         )
-        .base("item-addon", vec![decl("display", "flex")])
+        .base(
+            "item-addon",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-radio-card-description-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+            ],
+        )
         .base(
             "item-indicator",
             vec![
                 decl("display", "inline-flex"),
+                decl("box-sizing", "border-box"),
                 decl("width", "var(--fandhe-radio-card-control-size, 1rem)"),
                 decl("height", "var(--fandhe-radio-card-control-size, 1rem)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
@@ -384,6 +473,13 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("flex-shrink", "0"),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（checkbox-card
+        // `indicator` #1458 と同型のパターン）。
+        .base(
+            "item-indicator",
+            transition_declarations("background, border-color", MotionDuration::Fast),
         )
         .state(
             "item-indicator",
@@ -403,6 +499,15 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        // headless 層が invalid な選択肢へ出す `data-invalid` を item-indicator
+        // slot へ反映する（checkbox-card `indicator` #1458 と同型の視覚言語。
+        // `item` 側の invalid 表現は 1/2〔PR #1768〕の担当のため本規則は
+        // 追加しない）。
+        .state(
+            "item-indicator",
+            StateCondition::Attr("data-invalid"),
+            vec![decl("border-color", "var(--fandhe-color-danger)")],
+        )
         // item-hidden-input の視覚的非表示化（[`crate::radio_group::item_hidden_input`]
         // と同一の visually-hidden パターン）。
         .base(
@@ -419,72 +524,109 @@ fn recipe() -> SlotRecipe {
                 decl("border", "0"),
             ],
         )
-        .variant(
-            Size::Xs,
+        // イシュー #1492: 5 段の `.variant(Size::*, "root", ...)` を個別に
+        // 手書きする代わりに `size_variants`（イシュー #1424 の共通生成
+        // 手段、checkbox-card #1458 と同型）を使い、既定 `md` の設定漏れを
+        // 構造的に防ぐ（従来の `.default_variant(Size::Md)` 明示呼び出しは
+        // `size_variants` が構造的に保証するため削除）。padding は生 rem
+        // リテラルではなく spacing トークン（chakra md=16px を基準に 4px
+        // 格子で単調増加、checkbox-card と同値系列）へ載せ替える。
+        // control-size は checkbox 家族と同一値へそろえる（fandhe の
+        // checkbox 系で indicator 寸法を統一する意図的判断。chakra のカード
+        // indicator が通常より 1 段大きい点は意図的に合わせない）。
+        // description の size 連動フォントサイズ（label より常に 1 段下）と
+        // item-control の gap（`--fandhe-radio-card-gap`）を新設する。
+        // dot-inset・label-font-size は既存値を維持する。
+        .size_variants(
             "root",
-            vec![
-                decl("--fandhe-radio-card-padding", "0.25rem"),
-                decl("--fandhe-radio-card-control-size", "0.7rem"),
-                decl("--fandhe-radio-card-dot-inset", "1px"),
-                decl(
-                    "--fandhe-radio-card-label-font-size",
-                    "var(--fandhe-font-font-size-xs)",
+            &[
+                (
+                    Size::Xs,
+                    vec![
+                        decl("--fandhe-radio-card-padding", "var(--fandhe-space-2)"),
+                        decl("--fandhe-radio-card-control-size", "0.75rem"),
+                        decl("--fandhe-radio-card-dot-inset", "1px"),
+                        decl(
+                            "--fandhe-radio-card-label-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                        decl(
+                            "--fandhe-radio-card-description-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                        decl("--fandhe-radio-card-gap", "var(--fandhe-space-1)"),
+                    ],
+                ),
+                (
+                    Size::Sm,
+                    vec![
+                        decl("--fandhe-radio-card-padding", "var(--fandhe-space-3)"),
+                        decl("--fandhe-radio-card-control-size", "0.875rem"),
+                        decl("--fandhe-radio-card-dot-inset", "2px"),
+                        decl(
+                            "--fandhe-radio-card-label-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl(
+                            "--fandhe-radio-card-description-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                        decl("--fandhe-radio-card-gap", "var(--fandhe-space-1-5)"),
+                    ],
+                ),
+                (
+                    Size::Md,
+                    vec![
+                        decl("--fandhe-radio-card-padding", "var(--fandhe-space-4)"),
+                        decl("--fandhe-radio-card-control-size", "1rem"),
+                        decl("--fandhe-radio-card-dot-inset", "3px"),
+                        decl(
+                            "--fandhe-radio-card-label-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl(
+                            "--fandhe-radio-card-description-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-radio-card-gap", "var(--fandhe-space-2-5)"),
+                    ],
+                ),
+                (
+                    Size::Lg,
+                    vec![
+                        decl("--fandhe-radio-card-padding", "var(--fandhe-space-5)"),
+                        decl("--fandhe-radio-card-control-size", "1.25rem"),
+                        decl("--fandhe-radio-card-dot-inset", "4px"),
+                        decl(
+                            "--fandhe-radio-card-label-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                        decl(
+                            "--fandhe-radio-card-description-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-radio-card-gap", "var(--fandhe-space-3)"),
+                    ],
+                ),
+                (
+                    Size::Xl,
+                    vec![
+                        decl("--fandhe-radio-card-padding", "var(--fandhe-space-6)"),
+                        decl("--fandhe-radio-card-control-size", "1.5rem"),
+                        decl("--fandhe-radio-card-dot-inset", "5px"),
+                        decl(
+                            "--fandhe-radio-card-label-font-size",
+                            "var(--fandhe-font-font-size-lg)",
+                        ),
+                        decl(
+                            "--fandhe-radio-card-description-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                        decl("--fandhe-radio-card-gap", "var(--fandhe-space-4)"),
+                    ],
                 ),
             ],
         )
-        .variant(
-            Size::Sm,
-            "root",
-            vec![
-                decl("--fandhe-radio-card-padding", "0.5rem"),
-                decl("--fandhe-radio-card-control-size", "0.85rem"),
-                decl("--fandhe-radio-card-dot-inset", "2px"),
-                decl(
-                    "--fandhe-radio-card-label-font-size",
-                    "var(--fandhe-font-font-size-sm)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Md,
-            "root",
-            vec![
-                decl("--fandhe-radio-card-padding", "0.75rem"),
-                decl("--fandhe-radio-card-control-size", "1rem"),
-                decl("--fandhe-radio-card-dot-inset", "3px"),
-                decl(
-                    "--fandhe-radio-card-label-font-size",
-                    "var(--fandhe-font-font-size-sm)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Lg,
-            "root",
-            vec![
-                decl("--fandhe-radio-card-padding", "1rem"),
-                decl("--fandhe-radio-card-control-size", "1.25rem"),
-                decl("--fandhe-radio-card-dot-inset", "4px"),
-                decl(
-                    "--fandhe-radio-card-label-font-size",
-                    "var(--fandhe-font-font-size-md)",
-                ),
-            ],
-        )
-        .variant(
-            Size::Xl,
-            "root",
-            vec![
-                decl("--fandhe-radio-card-padding", "1.25rem"),
-                decl("--fandhe-radio-card-control-size", "1.5rem"),
-                decl("--fandhe-radio-card-dot-inset", "5px"),
-                decl(
-                    "--fandhe-radio-card-label-font-size",
-                    "var(--fandhe-font-font-size-lg)",
-                ),
-            ],
-        )
-        .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
 
     for palette in [
@@ -1010,5 +1152,275 @@ mod tests {
 
         let restored = RadioGroup::from_hydration_attrs(&g.hydration_attrs()).unwrap();
         assert_eq!(restored.value(), Some("red"));
+    }
+
+    // --- イシュー #1492: 内部レイアウト slot・size 軸 ---
+
+    /// `--fandhe-radio-card-gap`（`item-control` の `gap` が参照）が xs〜xl
+    /// で spacing トークン経由の単調増加になることを固定する
+    /// （checkbox-card `size_variants_set_gap_custom_property_monotonically`
+    /// #1458 と同型）。
+    #[test]
+    fn size_variants_set_gap_custom_property_monotonically() {
+        let css = stylesheet();
+        let expected = [
+            (Size::Xs, "var(--fandhe-space-1)"),
+            (Size::Sm, "var(--fandhe-space-1-5)"),
+            (Size::Md, "var(--fandhe-space-2-5)"),
+            (Size::Lg, "var(--fandhe-space-3)"),
+            (Size::Xl, "var(--fandhe-space-4)"),
+        ];
+        for (size, gap) in expected {
+            let selector = format!(
+                r#"[data-scope="radio-card"][data-part="root"].fd-radio-card--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            let block = &css[start..block_end];
+            let expected_decl = format!("--fandhe-radio-card-gap: {gap};");
+            assert!(
+                block.contains(&expected_decl),
+                "size={size:?} variant block missing {expected_decl}: {block}"
+            );
+        }
+    }
+
+    /// `--fandhe-radio-card-padding` が生 rem リテラルではなく spacing
+    /// トークンで xs〜xl 定義されることを固定する（checkbox-card
+    /// `size_variants_padding_uses_spacing_tokens` #1458 と同型）。
+    #[test]
+    fn size_variants_padding_uses_spacing_tokens() {
+        let css = stylesheet();
+        let expected = [
+            (Size::Xs, "var(--fandhe-space-2)"),
+            (Size::Sm, "var(--fandhe-space-3)"),
+            (Size::Md, "var(--fandhe-space-4)"),
+            (Size::Lg, "var(--fandhe-space-5)"),
+            (Size::Xl, "var(--fandhe-space-6)"),
+        ];
+        for (size, padding) in expected {
+            let selector = format!(
+                r#"[data-scope="radio-card"][data-part="root"].fd-radio-card--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            let block = &css[start..block_end];
+            let expected_decl = format!("--fandhe-radio-card-padding: {padding};");
+            assert!(
+                block.contains(&expected_decl),
+                "size={size:?} variant block missing {expected_decl}: {block}"
+            );
+            assert!(
+                !block.contains("--fandhe-radio-card-padding: 0.")
+                    && !block.contains("--fandhe-radio-card-padding: 1."),
+                "size={size:?} variant block still uses a raw rem literal for padding: {block}"
+            );
+        }
+    }
+
+    /// control 寸法（`--fandhe-radio-card-control-size`）が xs〜xl で単調
+    /// 増加することを rem 値の parse で固定する（checkbox 家族と同一値へ
+    /// そろえる意図的判断、モジュール rustdoc 参照。checkbox-card
+    /// `size_variants_control_size_is_monotonic` #1458 と同型）。
+    #[test]
+    fn size_variants_control_size_is_monotonic() {
+        let css = stylesheet();
+        let mut sizes_rem = Vec::new();
+        for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
+            let selector = format!(
+                r#"[data-scope="radio-card"][data-part="root"].fd-radio-card--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            let block = &css[start..block_end];
+            let decl_start = block
+                .find("--fandhe-radio-card-control-size: ")
+                .unwrap_or_else(|| panic!("control-size declaration not found in {block}"));
+            let after = &block[decl_start + "--fandhe-radio-card-control-size: ".len()..];
+            let value_end = after
+                .find(';')
+                .unwrap_or_else(|| panic!("control-size declaration not terminated in {block}"));
+            let raw = &after[..value_end];
+            let rem = raw
+                .strip_suffix("rem")
+                .unwrap_or_else(|| panic!("control-size value not in rem: {raw}"))
+                .parse::<f64>()
+                .unwrap_or_else(|_| panic!("control-size value not numeric: {raw}"));
+            sizes_rem.push((size, rem));
+        }
+        for pair in sizes_rem.windows(2) {
+            let (prev_size, prev) = pair[0];
+            let (next_size, next) = pair[1];
+            assert!(
+                prev < next,
+                "control-size not monotonic: {prev_size:?}={prev} >= {next_size:?}={next}"
+            );
+        }
+    }
+
+    /// `--fandhe-radio-card-description-font-size` が xs〜xl すべてで定義
+    /// され、`item-description` base がそれを参照することを固定する
+    /// （checkbox-card `size_variants_set_description_font_size_custom_property`
+    /// #1458 と同型）。
+    #[test]
+    fn size_variants_set_description_font_size_custom_property() {
+        let css = stylesheet();
+        for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
+            let selector = format!(
+                r#"[data-scope="radio-card"][data-part="root"].fd-radio-card--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            assert!(
+                css[start..block_end].contains("--fandhe-radio-card-description-font-size"),
+                "size={size:?} variant block missing --fandhe-radio-card-description-font-size: {}",
+                &css[start..block_end]
+            );
+        }
+        let description_selector = r#"[data-scope="radio-card"][data-part="item-description"] {"#;
+        let start = css
+            .find(description_selector)
+            .expect("item-description base block must exist");
+        let block_end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        assert!(
+            css[start..block_end].contains(
+                "font-size: var(--fandhe-radio-card-description-font-size, var(--fandhe-font-font-size-sm));"
+            ),
+            "item-description base block missing size-linked font-size: {}",
+            &css[start..block_end]
+        );
+    }
+
+    /// `item-text` が checkbox-card `label` #1458 と同型の型階層（medium
+    /// font-weight・行送り・誤選択防止）を持つことを固定する。
+    #[test]
+    fn item_text_has_typography_hierarchy_declarations() {
+        let css = stylesheet();
+        let selector = r#"[data-scope="radio-card"][data-part="item-text"] {"#;
+        let start = css
+            .find(selector)
+            .unwrap_or_else(|| panic!("item-text base selector not found in {css}"));
+        let block_end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        let block = &css[start..block_end];
+        assert!(
+            block.contains("font-weight: var(--fandhe-font-font-weight-medium);"),
+            "item-text block missing font-weight: {block}"
+        );
+        assert!(
+            block.contains("line-height: var(--fandhe-font-line-height-normal);"),
+            "item-text block missing line-height: {block}"
+        );
+        assert!(
+            block.contains("color: var(--fandhe-color-fg);"),
+            "item-text block missing color: {block}"
+        );
+        assert!(
+            block.contains("user-select: none;"),
+            "item-text block missing user-select: {block}"
+        );
+    }
+
+    /// `label`（グループ見出し）が radio_group `label` #1495 と同型に
+    /// size 連動 font-size・medium font-weight・行送りを持つことを固定
+    /// する。
+    #[test]
+    fn label_has_typography_hierarchy_declarations() {
+        let css = stylesheet();
+        let selector = r#"[data-scope="radio-card"][data-part="label"] {"#;
+        let start = css
+            .find(selector)
+            .unwrap_or_else(|| panic!("label base selector not found in {css}"));
+        let block_end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        let block = &css[start..block_end];
+        assert!(
+            block.contains(
+                "font-size: var(--fandhe-radio-card-label-font-size, var(--fandhe-font-font-size-sm));"
+            ),
+            "label block missing size-linked font-size: {block}"
+        );
+        assert!(
+            block.contains("font-weight: var(--fandhe-font-font-weight-medium);"),
+            "label block missing font-weight: {block}"
+        );
+        assert!(
+            block.contains("line-height: var(--fandhe-font-line-height-normal);"),
+            "label block missing line-height: {block}"
+        );
+    }
+
+    /// `item-indicator` の transition が motion トークン経由になることを
+    /// 固定する（checkbox-card `indicator_transition_uses_motion_tokens`
+    /// #1425/#1458 と同型）。
+    #[test]
+    fn item_indicator_transition_uses_motion_tokens() {
+        let css = stylesheet();
+        assert!(
+            css.contains("transition-duration: var(--fandhe-motion-duration-fast);"),
+            "stylesheet missing motion-token transition-duration for item-indicator: {css}"
+        );
+    }
+
+    /// `item-indicator` が `box-sizing: border-box` を持つことを固定する
+    /// （checkbox `control` #1454 / radio_group `item-control` #1494 と
+    /// 寸法解釈を統一する意図的判断）。
+    #[test]
+    fn item_indicator_has_box_sizing_border_box() {
+        let css = stylesheet();
+        let selector = r#"[data-scope="radio-card"][data-part="item-indicator"] {"#;
+        let start = css
+            .find(selector)
+            .unwrap_or_else(|| panic!("item-indicator base selector not found in {css}"));
+        let block_end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        assert!(
+            css[start..block_end].contains("box-sizing: border-box;"),
+            "item-indicator base block missing box-sizing: {}",
+            &css[start..block_end]
+        );
+    }
+
+    /// `item-indicator` が `data-invalid` へ checkbox-card `indicator`
+    /// #1458 と同型の枠線色変化を反映することを固定する（`item` 側は
+    /// 1/2〔PR #1768〕の担当）。
+    #[test]
+    fn stylesheet_links_item_indicator_to_data_invalid_state() {
+        let css = stylesheet();
+        assert!(css
+            .contains(r#"[data-scope="radio-card"][data-part="item-indicator"][data-invalid] {"#));
     }
 }

@@ -5300,12 +5300,18 @@ fn radio_card_section() -> Node {
                             value,
                             hidden_input_attrs,
                         ),
+                        // イシュー #1492: chakra-ui/Radix Themes は indicator を
+                        // 右端に配置する（左右位置の意図的差分、
+                        // `crates/pre-styled-ui/src/radio_card.rs` rustdoc
+                        // 参照）。CSS `order` は使わず DOM 順（content →
+                        // indicator）で決めるため、Demo でも同じ子順にして
+                        // 視覚確認できるようにする（checkbox-card #1458 の
+                        // Demo と同型）。
                         radio_card::item_control(
                             *checked,
                             *disabled,
                             vec![],
                             vec![
-                                radio_card::item_indicator(*checked, *disabled, vec![]),
                                 radio_card::item_content(
                                     vec![],
                                     vec![
@@ -5316,6 +5322,7 @@ fn radio_card_section() -> Node {
                                         ),
                                     ],
                                 ),
+                                radio_card::item_indicator(*checked, *disabled, vec![]),
                             ],
                         ),
                     ],
@@ -5331,10 +5338,44 @@ fn radio_card_section() -> Node {
         vec![],
         children,
     );
+    // イシュー #1492: size 5 段（xs〜xl）で padding・control 寸法・
+    // description font-size・item-control 余白（gap）が単調に連動することを
+    // 視覚確認できる行（checkbox-card #1458 の `size_row` と同型）。
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .iter()
+        .map(|size| {
+            let value = format!("showcase-radio-card-size-{}", size.value());
+            let name = format!("showcase-radio-card-size-group-{}", size.value());
+            radio_card::item(
+                true,
+                false,
+                &value,
+                vec![],
+                vec![
+                    radio_card::item_hidden_input(true, false, Some(&name), &value, vec![]),
+                    radio_card::item_control(
+                        true,
+                        false,
+                        vec![],
+                        vec![
+                            radio_card::item_content(
+                                vec![],
+                                vec![
+                                    radio_card::item_text(vec![], vec![text(size.value())]),
+                                    radio_card::item_description(vec![], vec![text("size demo")]),
+                                ],
+                            ),
+                            radio_card::item_indicator(true, false, vec![]),
+                        ],
+                    ),
+                ],
+            )
+        })
+        .collect());
     section(
         "RadioCard",
         "chakra-ui radio-card 相当のカード型選択 UI。状態機械は RadioGroup（headless）をそのまま再利用し、data-scope=\"radio-card\" の新規 anatomy でカード外観を重ねます。",
-        vec![demo],
+        vec![demo, size_row],
     )
 }
 

@@ -608,7 +608,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # クラス名・`data-*` セレクタの削除/改名を伴わない）のため 0.57.33 から
 # 0.57.34 へ patch バンプする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
-version = "0.57.34"
+# イシュー #1492（radio-card のスタイル調整 2/2、内部レイアウト、親
+# #1490。1/2 は #1491/PR #1768）も同型（`size_variants` への移行〔padding
+# を spacing トークンへ載せ替え・control-size を checkbox 家族と統一〕・
+# `--fandhe-radio-card-gap`/`--fandhe-radio-card-description-font-size` の
+# 新設・`item-text`/`item-description`/`item-addon`/`label` の型階層宣言
+# 追加・`item-indicator` の `box-sizing`/transition トークン化/
+# `[data-invalid]` 追加という CSS 出力の変更のみで、公開 Rust API
+# シグネチャ・CSS 変数名（既存分）・クラス名・`data-*` セレクタの削除/
+# 改名を伴わない）のため 0.57.34 から 0.57.35 へ patch バンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
+version = "0.57.35"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
