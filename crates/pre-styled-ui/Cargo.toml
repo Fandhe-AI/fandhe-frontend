@@ -608,7 +608,21 @@ name = "fandhe-frontend-pre-styled-ui"
 # クラス名・`data-*` セレクタの削除/改名を伴わない）のため 0.57.33 から
 # 0.57.34 へ patch バンプする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
-version = "0.57.34"
+# イシュー #1699（tags-input の内部パート item 等のスタイル調整と状態
+# 遷移、親 #1510）も同型（`item`/`item-input` slot の新規 CSS 追加・
+# `item-preview`/`item-delete-trigger` への transition/hover 追加という
+# CSS 出力の変更のみで、公開 Rust API シグネチャ・CSS 変数名（既存分）・
+# クラス名・`data-*` セレクタの削除/改名を伴わない）のため 0.57.34 から
+# 0.57.35 へ patch バンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
+# PR #1782 レビュー指摘の是正（`item-input` の UA 既定幅〔約 20 文字分〕
+# 残存によるレイアウト崩れ）も同型（`item-input` base への `width` 宣言
+# 純追加・新設 CSS 変数 `--fandhe-tags-input-item-input-width` の追加の
+# みで、公開 Rust API シグネチャ・CSS 変数名（既存分）・クラス名・
+# `data-*` セレクタの削除/改名を伴わない）のため 0.57.35 から 0.57.36 へ
+# patch バンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3/§3.4a）。
+version = "0.57.36"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

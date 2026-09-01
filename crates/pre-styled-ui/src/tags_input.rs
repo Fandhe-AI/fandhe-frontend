@@ -93,12 +93,81 @@
 //!   変更）を伴うため見送り（checkbox_card / file-upload #1696 と同じ判断）。
 //! - **`label` はスコープ外**: #1698 の対象列挙（root/control/input）に
 //!   含まれないため変更しない。
+//!
+//! # 内部パート（item 等）のスタイル調整と状態遷移（イシュー #1699、親
+//! #1510）
+//!
+//! #1698（外枠パート）の後半分。以下の内部パート・状態のみを変更し、
+//! `clear-trigger`・`label`・外枠パート（root/control/input）は一切
+//! 変更していない。
+//!
+//! - **`item`（新規）**: `display: inline-flex` を base として追加した
+//!   （`item-preview`/`item-input` を包む薄いコンテナとしての役割を明示。
+//!   従来は `<div>` の UA 既定 `display: block` に依存していた）。
+//!   `[data-disabled]`（headless `item` が自身の `disabled` 引数から出す）
+//!   には `cursor: not-allowed` のみを付与し、`disabled_declarations()`
+//!   （opacity 0.5 併載）は使わない。`item` は常に `root` 配下で使われ
+//!   `root` 側の `data-disabled` state が既に `opacity: 0.5` を適用済みの
+//!   ため、二重に重ねると 0.5 × 0.5 = 0.25 の過剰な減衰になる（`control`・
+//!   `input`・`item-delete-trigger`・`clear-trigger` の既存判断と同じ、
+//!   #1698 rustdoc 参照）。`[data-editing]` には CSS を付けない（編集中の
+//!   視覚は `item-input` 自身が担うため、`item` コンテナ側で追加の見た目
+//!   変化を持たせる必要がない）。
+//! - **`item-preview` に transition を追加**: `data-highlighted` の
+//!   accent 反転（既存）が瞬時切り替えだったのを
+//!   `transition_declarations("background, color", MotionDuration::Fast)`
+//!   の base 純追加で滑らかにした（#1425 統一形。duration は
+//!   `var(--fandhe-motion-duration-fast)` 参照のため
+//!   `prefers-reduced-motion: reduce` 環境では `Theme::to_css` 側の一括
+//!   上書きにより自動的に 0ms へ倒れる）。
+//! - **`item-text`**: 点検の結果、既存の `white-space: nowrap` のみで
+//!   参考サイトと乖離なし。変更なし。
+//! - **`item-input`（新規）**: 編集中タグのネイティブ `<input>` へ UA
+//!   既定の枠・背景をリセットし、兄弟 `input`（外枠側の新規タグ入力欄）と
+//!   書体を統一する（`box-sizing: border-box`・`border: none`・
+//!   `outline: none`・`background: transparent`・`padding: 0`・
+//!   `font-size`/`color` は `input` slot と同じトークン参照）。
+//!   `outline: none` は #1698 で確立したフォーカスリング方針（リングは
+//!   外枠 `control` の `:focus-within` に出す）と整合する。`item-input` も
+//!   `control` 配下の要素であるため、`item-input` がフォーカスを受けても
+//!   `control` の `:focus-within` によりリングは変わらず表示される。
+//!   **`width`（PR #1782 レビュー指摘の是正）**: 上記のリセット群は UA の
+//!   枠・背景のみを対象とし、`<input>` の UA 既定幅（およそ 20 文字分）は
+//!   未指定のまま残っていたため、編集モードへ入るとチップに対して
+//!   フィールドが大幅に広がりレイアウトが飛ぶ不具合があった。`input`
+//!   （外枠側）が `min-width: var(--fandhe-tags-input-input-min-width,
+//!   6rem)` で伸縮を許容するのに対し、`item-input` は 1 タグ分の短い
+//!   編集欄であるため伸縮を許容せず固定幅
+//!   `width: var(--fandhe-tags-input-item-input-width, 4rem)` を新設した
+//!   （`min-width` ではなく `width` を選ぶ理由: `item` は `display:
+//!   inline-flex` で内容にフィットするため、`min-width` のみでは UA 既定の
+//!   本来幅が下限として残り是正にならない）。
+//! - **`item-delete-trigger` に hover/transition を追加**:
+//!   `cursor: pointer` を持つインタラクティブ slot にもかかわらず
+//!   hover/transition を欠いていた（#1425 規約違反状態）ため是正した。
+//!   base へ [`hover_bg_muted`]（`--fandhe-hover-bg` 定義）+
+//!   `transition_declarations("background, color", MotionDuration::Fast)`
+//!   を純追加し、`.state("item-delete-trigger", StateCondition::Hover,
+//!   hover_surface_declarations())` を新設した（recipe 層が
+//!   `@media (hover: hover)` + `:hover:not([data-disabled])` として出力、
+//!   #1425 §5 手順どおり）。既存の `[data-disabled]`（cursor のみ）は
+//!   維持する。
+//! - **`data-selected` は意図的 N/A**: headless `item_preview` は
+//!   「既に確定したタグ」を表し `aria-selected="true"` を常時固定で出力し、
+//!   `data-selected` 属性は出力しない（選択が可変でない意味論、
+//!   `crates/headless-ui/src/tags_input.rs::item_preview` rustdoc 参照）。
+//!   死に CSS（存在しない属性へのセレクタ）を追加せず本節に理由のみ記録
+//!   する。将来 headless 側の意味論が変わる（`data-selected` の出力が
+//!   追加される）場合はこの判断を再評価する。
+//! - **`clear-trigger` はスコープ外**: #1699 の対象列挙（item 系）に
+//!   含まれないため変更しない。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    disabled_declarations, focus_ring_declarations, transition_declarations, FocusRingColor,
-    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
 };
 
 // `TagsInput` 状態機械・headless 自由関数 `root` はあえて再エクスポートしない
@@ -200,6 +269,24 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-disabled"),
             vec![decl("cursor", "not-allowed")],
         )
+        // `item` slot（新規、モジュール rustdoc「内部パートのスタイル
+        // 調整」節参照）: `item-preview`/`item-input` を包む薄い
+        // コンテナとして `display: inline-flex` を明示する。
+        .base("item", vec![decl("display", "inline-flex")])
+        // headless `item` は自身の `disabled` 引数から `data-disabled` を
+        // 出す。`item` は常に `root` 配下で使われ `root` 側の
+        // `data-disabled` state が既に `opacity: 0.5` を適用済みのため、
+        // `disabled_declarations()` は使わず `cursor: not-allowed` のみに
+        // 留める（`control`/`input`/`item-delete-trigger`/`clear-trigger`
+        // の既存判断と同じ、モジュール rustdoc「内部パートのスタイル
+        // 調整」節参照）。
+        .state(
+            "item",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed")],
+        )
+        // `data-editing` には CSS を付けない（編集中の視覚は `item-input`
+        // 自身が担う、モジュール rustdoc 参照）。
         .base(
             "item-preview",
             vec![
@@ -218,6 +305,14 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg-subtle)"),
                 decl("color", "var(--fandhe-color-fg)"),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結されるため、
+        // 上記 base ブロックを書き換えずに純追加する（#1698 と同型の
+        // パターン）。`data-highlighted` の accent 反転（下記 state）を
+        // 滑らかにする。
+        .base(
+            "item-preview",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         .state(
             "item-preview",
@@ -246,10 +341,45 @@ fn recipe() -> SlotRecipe {
                 decl("line-height", "1"),
             ],
         )
+        // `cursor: pointer` を持つインタラクティブ slot のため hover/
+        // transition を付与する（#1425 規約、モジュール rustdoc「内部
+        // パートのスタイル調整」節参照）。
+        .base(
+            "item-delete-trigger",
+            vec![hover_bg_muted()],
+        )
+        .base(
+            "item-delete-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        .state(
+            "item-delete-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
         .state(
             "item-delete-trigger",
             StateCondition::Attr("data-disabled"),
             vec![decl("cursor", "not-allowed")],
+        )
+        .base(
+            "item-input",
+            vec![
+                decl("box-sizing", "border-box"),
+                decl("border", "none"),
+                decl("outline", "none"),
+                decl("background", "transparent"),
+                decl("padding", "0"),
+                decl(
+                    "width",
+                    "var(--fandhe-tags-input-item-input-width, 4rem)",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-tags-input-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("color", "var(--fandhe-color-fg)"),
+            ],
         )
         .base(
             "input",
@@ -401,6 +531,66 @@ mod tests {
         assert!(css.contains(
             r#"[data-scope="tags-input"][data-part="item-preview"][data-highlighted] {"#
         ));
+    }
+
+    #[test]
+    fn stylesheet_links_item_to_disabled_state() {
+        // イシュー #1699: `item` の `[data-disabled]` は `cursor:
+        // not-allowed` のみ（`root` 側の opacity 二重減衰回避、モジュール
+        // rustdoc「内部パートのスタイル調整」節参照）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="tags-input"][data-part="item"][data-disabled] {"#));
+        assert!(css.contains(
+            r#"[data-scope="tags-input"][data-part="item"][data-disabled] {
+  cursor: not-allowed;
+}"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_styles_item_input_base() {
+        // イシュー #1699: 編集中タグの `item-input` は UA 既定をリセットし
+        // `input`（外枠の新規タグ入力欄）と書体を統一する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="tags-input"][data-part="item-input"] {"#));
+        assert!(css.contains(
+            r#"[data-scope="tags-input"][data-part="item-input"] {
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0;
+  width: var(--fandhe-tags-input-item-input-width, 4rem);"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_links_item_preview_to_highlighted_transition() {
+        // イシュー #1699: `data-highlighted` の accent 反転を滑らかにする
+        // transition（`item-preview` base への純追加）。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="tags-input"][data-part="item-preview"] {
+  display: inline-flex"#
+        ));
+        assert!(css.contains("transition-property: background, color;"));
+        assert!(css.contains("var(--fandhe-motion-duration-fast)"));
+    }
+
+    #[test]
+    fn stylesheet_links_item_delete_trigger_to_hover_under_hover_media() {
+        // イシュー #1699: `cursor: pointer` を持つインタラクティブ slot
+        // への hover 付与（#1425 規約是正）。recipe 層は hover state を
+        // `@media (hover: hover)` 配下の `:hover:not([data-disabled])` へ
+        // 集約出力する。
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover) {"));
+        assert!(css.contains(
+            r#"  [data-scope="tags-input"][data-part="item-delete-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }"#
+        ));
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
     }
 
     #[test]
