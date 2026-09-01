@@ -309,10 +309,21 @@ fn extract_block_after_selector<'a>(css: &'a str, selector: &str) -> &'a str {
 /// border-box` さえ残っていれば `outline_and_solid_variants_share_total_height_via_border_box`
 /// は通ってしまう）。
 ///
+/// **codex-review #1787 P2 再指摘の是正**: 当初この意味的テストは icon-only
+/// の 5 size（xs/sm/md/lg/xl）のうち `size-md` のみを検証していたため、
+/// `xs`/`sm`/`lg`/`xl` の `height` 宣言が削除・`calc()` 化されても golden
+/// スナップショット（`fd-button--icon-only` の CSS リテラル自体）を同時に
+/// 書き換えれば本テストは通ったままになり、rustdoc が掲げる「5 size 全段
+/// での外寸一致」という契約を固定できていなかった。以下の `ICON_ONLY_SIZES`
+/// 表（size サフィックス × 期待するトークン名 × フォールバック値）で 5 size
+/// 全てを走査し、各 compound variant（`icon-only.size-*`）が期待する固定
+/// `height` を個別に宣言していることを検証する。
+///
 /// この不変条件は次の 3 ブロックの組み合わせで初めて意味的に固定できる:
 /// 1. base ブロックが `box-sizing: border-box` を宣言している（既存テスト）
-/// 2. icon-only×size（md）ブロックが `height` を **固定値のみ**（`calc()`・
-///    border 幅を織り込んだ算術を含まない）で宣言している
+/// 2. icon-only×size（xs/sm/md/lg/xl の全 5 段）ブロックが `height` を
+///    **固定値のみ**（`calc()`・border 幅を織り込んだ算術を含まない）で
+///    宣言している
 /// 3. Outline/Solid 両 variant ブロックが互いに異なる `border` 幅
 ///    （outline: `1px solid`、solid: `none`）を宣言している
 ///
@@ -324,6 +335,11 @@ fn extract_block_after_selector<'a>(css: &'a str, selector: &str) -> &'a str {
 /// 差になることが導かれる（`content-box` 下では `height` が border の
 /// 内側の寸法を指すため、外寸 = height + border 幅 * 2 となり Outline の
 /// 方が Solid より 2px 大きくなる）。
+///
+/// なお本不変条件が保証するのは確定 `height` を持つ icon-only ケースのみ
+/// であり、ラベル付きボタン（`min-height`）で内容が下限を超えるケースは
+/// 保証対象外である（`crates/pre-styled-ui/src/button.rs` モジュール冒頭
+/// rustdoc「Outline / Solid の高さ一致（イシュー #1756）」節参照）。
 #[test]
 fn icon_only_height_and_variant_borders_combine_with_border_box_for_equal_outer_height() {
     let css = button::css();
@@ -335,22 +351,35 @@ fn icon_only_height_and_variant_borders_combine_with_border_box_for_equal_outer_
         "button root の base ブロックに box-sizing: border-box が無い: {base_block:?}"
     );
 
-    // (2) icon-only×size(md) ブロックが固定 height のみを宣言し、border 幅を
-    // 織り込む算術（calc 等）を含まないこと。
-    let icon_only_md_block = extract_block_after_selector(
-        &css,
-        "[data-scope=\"button\"][data-part=\"root\"].fd-button--icon-only.fd-button--size-md",
-    );
-    assert!(
-        icon_only_md_block.contains("height: var(--fandhe-size-control-height-md, 2.5rem);"),
-        "icon-only×size-md ブロックに期待する固定 height 宣言が無い: {icon_only_md_block:?}"
-    );
-    assert!(
-        !icon_only_md_block.contains("calc("),
-        "icon-only×size-md の height が calc() で border 幅を織り込んで \
-         いる場合、box-sizing: border-box と二重に補正され外寸がずれる: \
-         {icon_only_md_block:?}"
-    );
+    // (2) icon-only×size ブロックが xs/sm/md/lg/xl の全 5 段について固定
+    // height のみを宣言し、border 幅を織り込む算術（calc 等）を含まない
+    // こと。size サフィックス・トークン名・フォールバック値の対応表。
+    const ICON_ONLY_SIZES: [(&str, &str); 5] = [
+        ("xs", "2rem"),
+        ("sm", "2.25rem"),
+        ("md", "2.5rem"),
+        ("lg", "2.75rem"),
+        ("xl", "3rem"),
+    ];
+    for (suffix, fallback) in ICON_ONLY_SIZES {
+        let selector = format!(
+            "[data-scope=\"button\"][data-part=\"root\"].fd-button--icon-only.fd-button--size-{suffix}"
+        );
+        let icon_only_block = extract_block_after_selector(&css, &selector);
+        let expected_height =
+            format!("height: var(--fandhe-size-control-height-{suffix}, {fallback});");
+        assert!(
+            icon_only_block.contains(&expected_height),
+            "icon-only×size-{suffix} ブロックに期待する固定 height 宣言 \
+             {expected_height:?} が無い: {icon_only_block:?}"
+        );
+        assert!(
+            !icon_only_block.contains("calc("),
+            "icon-only×size-{suffix} の height が calc() で border 幅を \
+             織り込んでいる場合、box-sizing: border-box と二重に補正され \
+             外寸がずれる: {icon_only_block:?}"
+        );
+    }
 
     // (3) Outline/Solid 両 variant が異なる border 幅を宣言していること
     // （この差が (1)(2) の下で外寸に影響しないことが本テストの主張）。

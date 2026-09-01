@@ -95,15 +95,24 @@
 //! 大きくなっていた不具合の是正）。ただし本モジュールの size variant は
 //! `height` ではなく `min-height`（ラベル付きボタン、上記の是正参照）で
 //! あるため、この一致が保証されるのは (1) ラベルの内容が `min-height` の
-//! 下限に収まる場合（内容が下限を超えると `min-height` はボックスを
-//! 自然に伸長させ、Outline/Solid いずれも同じ内容依存の高さへ伸びるため
-//! 一致自体は保たれるが、両者とも `min-height` トークンとは異なる高さに
-//! なる）、または (2) 確定 `height` を持つ [`ButtonIcon::Only`]（icon-only）
-//! の場合に限られる。`box-sizing: border-box` が担うのは「border/padding
-//! を `height`/`min-height` の内側に含める」という一致の**前提条件**のみ
-//! であり、それ自体が任意の内容量下での外寸完全一致を意味しない。この
-//! 不変条件（icon-only の確定 `height` ケースにおける外寸一致）は
-//! `crates/pre-styled-ui/tests/button_css.rs` の意味的回帰テストで固定する。
+//! 下限に収まり、ボックスの実高さが `min-height` の値そのものに固定される
+//! 場合（この場合のみ border-box が border/padding を内側へ収め、
+//! Outline/Solid の外寸が一致する）、または (2) 確定 `height` を持つ
+//! [`ButtonIcon::Only`]（icon-only）の場合に限られる。**この一致が保証
+//! されない範囲（codex-review #1756 P2 指摘の是正）**: ラベルの内容が
+//! `min-height` の下限を超えると、ボックスは `min-height` に縛られず
+//! 内容 + padding + border の合計まで自然に伸長するため、border の有無
+//! （Outline: 1px、Solid: none）がそのまま外寸差（上下合計 2px）として
+//! 再度現れる。すなわち `box-sizing: border-box` は「border/padding を
+//! `height`/`min-height` の内側に含める」という、ボックスの実高さが
+//! ちょうど `min-height` に等しい間だけ効く前提条件であり、内容量に
+//! よらない任意ケースでの外寸完全一致を意味しない。ラベル付きボタンで
+//! 内容が下限を超えるケースは意図的に保証対象外とし（アプリケーション
+//! ロジックであるラベル文字列の折り返し・長さ制御は本コンポーネント層の
+//! 責務外）、本モジュールが不変条件として固定するのは確定 `height` を
+//! 持つ icon-only ケースのみである。この不変条件は
+//! `crates/pre-styled-ui/tests/button_css.rs` の意味的回帰テストで固定する
+//! （xs/sm/md/lg/xl の 5 size 全段を検証、下記参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
