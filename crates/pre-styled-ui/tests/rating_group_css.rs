@@ -16,7 +16,9 @@ const RATING_GROUP_GOLDEN_CSS: &str = r#"[data-scope="rating-group"][data-part="
 [data-scope="rating-group"][data-part="label"] {
   display: block;
   color: var(--fandhe-color-fg);
-  font-size: var(--fandhe-font-font-size-sm);
+  font-size: var(--fandhe-rating-group-font-size, var(--fandhe-font-font-size-sm));
+  font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-normal);
   margin-bottom: var(--fandhe-space-1);
 }
 
@@ -36,28 +38,39 @@ const RATING_GROUP_GOLDEN_CSS: &str = r#"[data-scope="rating-group"][data-part="
   flex-shrink: 0;
 }
 
+[data-scope="rating-group"][data-part="item"] {
+  transition-property: background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
 [data-scope="rating-group"][data-part="hidden-input"] {
   display: none;
 }
 
 [data-scope="rating-group"][data-part="root"].fd-rating-group--size-xs {
   --fandhe-rating-group-item-size: 0.75rem;
+  --fandhe-rating-group-font-size: var(--fandhe-font-font-size-xs);
 }
 
 [data-scope="rating-group"][data-part="root"].fd-rating-group--size-sm {
   --fandhe-rating-group-item-size: 1rem;
+  --fandhe-rating-group-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="rating-group"][data-part="root"].fd-rating-group--size-md {
   --fandhe-rating-group-item-size: 1.25rem;
+  --fandhe-rating-group-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="rating-group"][data-part="root"].fd-rating-group--size-lg {
   --fandhe-rating-group-item-size: 1.5rem;
+  --fandhe-rating-group-font-size: var(--fandhe-font-font-size-md);
 }
 
 [data-scope="rating-group"][data-part="root"].fd-rating-group--size-xl {
   --fandhe-rating-group-item-size: 1.75rem;
+  --fandhe-rating-group-font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="rating-group"][data-part="root"].fd-rating-group--color-palette-accent {
@@ -119,12 +132,17 @@ const RATING_GROUP_GOLDEN_CSS: &str = r#"[data-scope="rating-group"][data-part="
 }
 
 [data-scope="rating-group"][data-part="item"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="rating-group"][data-part="item"][data-readonly] {
   cursor: default;
+}
+
+[data-scope="rating-group"][data-part="control"]:focus-within {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 "#;
 

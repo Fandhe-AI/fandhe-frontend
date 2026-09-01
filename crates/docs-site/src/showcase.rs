@@ -3750,7 +3750,11 @@ fn file_upload_section() -> Node {
 /// doc「星形 indicator」節参照）。`hidden_input` はフォーム送信用の現在値を
 /// 送るネイティブ input（視覚上非表示、`display: none` の既定 CSS）。
 fn rating_group_section() -> Node {
-    let build = |id_prefix: &'static str, value: Option<u32>, disabled: bool, readonly: bool| {
+    let build = |id_prefix: &'static str,
+                 size: Size,
+                 value: Option<u32>,
+                 disabled: bool,
+                 readonly: bool| {
         let g = RatingGroup::new(5, value, readonly);
         let label_id = format!("{id_prefix}-label");
         let mut children = vec![rating_group::label(
@@ -3788,7 +3792,7 @@ fn rating_group_section() -> Node {
             vec![],
         ));
         rating_group::root(
-            Size::Md,
+            size,
             ColorPalette::Accent,
             disabled,
             readonly,
@@ -3797,14 +3801,29 @@ fn rating_group_section() -> Node {
         )
     };
 
-    let selected = build("showcase-rating-selected", Some(3), false, false);
-    let readonly = build("showcase-rating-readonly", Some(4), false, true);
-    let disabled = build("showcase-rating-disabled", Some(2), true, false);
+    let selected = build("showcase-rating-selected", Size::Md, Some(3), false, false);
+    let readonly = build("showcase-rating-readonly", Size::Md, Some(4), false, true);
+    let disabled = build("showcase-rating-disabled", Size::Md, Some(2), true, false);
+
+    // イシュー #1496: size variant 5 段（Xs〜Xl）を並べ、`label`
+    // font-size の size 連動を含めて視覚確認できる行を追加する
+    // （`download_trigger_section` #1750 の size_row と同型）。
+    let sizes = [
+        (Size::Xs, "showcase-rating-size-xs"),
+        (Size::Sm, "showcase-rating-size-sm"),
+        (Size::Md, "showcase-rating-size-md"),
+        (Size::Lg, "showcase-rating-size-lg"),
+        (Size::Xl, "showcase-rating-size-xl"),
+    ];
+    let size_row = row(sizes
+        .iter()
+        .map(|(size, id_prefix)| build(id_prefix, *size, Some(3), false, false))
+        .collect());
 
     section(
         "RatingGroup",
         "1..=count の星評価。data-highlighted が塗り表示（hover プレビュー優先）、data-checked が確定選択を表します。星形は SVG/画像 URL を使わない clip-path によるインライン表現です。",
-        vec![row(vec![selected, readonly, disabled])],
+        vec![row(vec![selected, readonly, disabled]), size_row],
     )
 }
 
