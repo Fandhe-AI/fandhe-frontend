@@ -326,14 +326,42 @@ fn recipe() -> SlotRecipe {
             disabled_declarations(),
         )
         // グループ全体の一括 disabled（headless `root` は `disabled=true`
-        // で `data-disabled` を出力済み、`root()` 関数 doc 参照）にも同じ
-        // 視覚を適用する（`checkbox` の `root` disabled 規則と同型。
-        // `item` 個別の disabled 規則と併存し、いずれか一方が成立すれば
-        // 適用される）。
+        // で `data-disabled` を出力済み、`root()` 関数 doc 参照）。
+        // `checkbox` の `root` disabled 規則とは異なり `disabled_declarations()`
+        // （opacity 込み）をそのまま流用しない: `checkbox` は単一部品のため
+        // `root` の opacity が子孫 `control` を含めて視覚的に一括で薄くする
+        // だけで済むが、`radio-group` は「グループ全体を無効化する呼び出し
+        // 側は各 `item`/`item-control`/`item-text`/`item-hidden-input` へも
+        // 個別に `disabled=true` を渡す」契約（`root()`/`item()` の headless
+        // doc 参照。`disabled` はパート間で独立引数）であり、`item` 側にも
+        // 同じ `[data-disabled]` 規則が既に存在する。ここで opacity を
+        // 重ねると、`root`（親要素）の opacity 0.5 と `item`（子要素）の
+        // opacity 0.5 が描画時に乗算され実効 0.25 まで過度に薄くなる
+        // （opacity は要素ごとの合成結果に効くため、祖先・子孫の双方に
+        // 付けると多重適用される。PR #1769 レビュー指摘）。`SlotRecipe` は
+        // 子孫セレクタを持たない（本モジュール冒頭 doc 「colorPalette 軸」
+        // 節前段の既存方針）ため「root disabled かつ item 自身は
+        // disabled でない」を CSS 側だけで判別して opacity を 1 回のみ
+        // 適用する表現はできず、opacity の実適用は `item`（`checkbox` で
+        // 言えば `control` 相当のトグル可能単位）側に一本化し、`root` 自身
+        // は形状を持たないコンテナのため `cursor: not-allowed` のみを
+        // 付与する（`item` 側で個別に disabled にできる粒度を持つ本部品
+        // 固有の設計であり、`checkbox` の判断とは意図的に異なる）。
+        //
+        // 既知の制約: `label`（グループ見出し）パートは `data-disabled` を
+        // 受け取らないため（headless `label()` doc 参照）、グループ全体
+        // disabled 時も見出しテキストの opacity は変化しない。同様に、
+        // 呼び出し側が `root` のみを disabled にして各 `item` へは
+        // disabled を伝播しなかった場合、`item`/`item-control` の
+        // hover・cursor は個別 disabled 扱いにならず操作可能な見た目の
+        // ままになる（Cursor Bugbot 指摘）。`SlotRecipe` の子孫セレクタ
+        // 非対応という同じ制約により CSS 側だけでは解決できないため、
+        // グループ全体を無効化する呼び出し側は必ず `root` と各 `item`
+        // 系パートの双方へ `disabled=true` を渡す運用契約とする。
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            disabled_declarations(),
+            vec![decl("cursor", "not-allowed")],
         )
         // イシュー #683: visually-hidden 化した `item-hidden-input` へ実
         // フォーカスがあるときのフォーカスリングを、祖先 `item`
@@ -501,6 +529,27 @@ mod tests {
     use super::*;
     use fandhe_frontend_core::{render, text};
 
+    /// 生成済み CSS 文字列から、指定セレクタで始まる 1 ルールブロック
+    /// （`{` 〜 対応する `}` まで）の宣言本文だけを取り出す（PR #1769
+    /// レビュー指摘対応のテスト専用ヘルパ）。`css.contains("opacity: 0.5;")`
+    /// のような全文検索では、同じ宣言を持つ別セレクタのルール（例:
+    /// `item` の disabled 規則）が存在するだけで偽陽性になり、対象
+    /// セレクタ自身が opacity を出していないことを検証できないため導入した。
+    fn rule_body<'a>(css: &'a str, selector: &str) -> &'a str {
+        let start = css
+            .find(selector)
+            .unwrap_or_else(|| panic!("selector `{selector}` not found in stylesheet"));
+        let open = css[start..]
+            .find('{')
+            .map(|i| start + i + 1)
+            .unwrap_or_else(|| panic!("no `{{` after selector `{selector}`"));
+        let close = css[open..]
+            .find('}')
+            .map(|i| open + i)
+            .unwrap_or_else(|| panic!("no `}}` closing selector `{selector}`"));
+        &css[open..close]
+    }
+
     #[test]
     fn stylesheet_is_deterministic_and_targets_data_scope_selectors() {
         let a = stylesheet();
@@ -614,13 +663,62 @@ mod tests {
     }
 
     #[test]
-    fn root_disabled_gets_disabled_declarations() {
+    fn root_disabled_sets_cursor_only_not_opacity() {
         // headless `root` が一括 disabled で出す `data-disabled`（`root()` 関数
-        // doc 参照）への反映。
+        // doc 参照）への反映。PR #1769 レビュー指摘: `item` 側にも同じ
+        // `[data-disabled]` opacity 規則があるため、`root` 側でも opacity を
+        // 出すと（グループ全体無効化時は通常両方に `data-disabled` が付く
+        // ため）0.5 × 0.5 = 0.25 まで過度に薄くなる。`root` は cursor のみ、
+        // opacity の実適用は `item` 側の 1 箇所に一本化する。
         let css = stylesheet();
-        assert!(css.contains(r#"[data-scope="radio-group"][data-part="root"][data-disabled] {"#));
-        assert!(css.contains("opacity: 0.5;"));
-        assert!(css.contains("cursor: not-allowed;"));
+        let root_disabled_selector =
+            r#"[data-scope="radio-group"][data-part="root"][data-disabled]"#;
+        assert!(css.contains(&format!("{root_disabled_selector} {{")));
+        let body = rule_body(&css, root_disabled_selector);
+        assert!(body.contains("cursor: not-allowed;"));
+        assert!(
+            !body.contains("opacity"),
+            "root disabled 規則に opacity が含まれると item 側と多重適用される: {body:?}"
+        );
+    }
+
+    #[test]
+    fn item_disabled_still_gets_full_disabled_declarations() {
+        // `root` から opacity を除いた後も、`item` 個別 disabled（グループ
+        // 全体は有効なまま 1 件だけ無効化する既存ユースケース、
+        // `showcase::radio_group_section` 参照）は従来どおり
+        // `disabled_declarations()`（opacity + cursor）を保つ。
+        let css = stylesheet();
+        let item_disabled_selector =
+            r#"[data-scope="radio-group"][data-part="item"][data-disabled]"#;
+        let body = rule_body(&css, item_disabled_selector);
+        assert!(body.contains("opacity: 0.5;"));
+        assert!(body.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn root_and_item_disabled_do_not_both_declare_opacity() {
+        // グループ全体無効化（呼び出し側が `root` と各 `item` 系パートの
+        // 双方へ `disabled=true` を渡す契約、`root()` disabled 規則の doc
+        // コメント参照）時、opacity の実適用が 2 箇所以上に重複していない
+        // ことを固定する回帰テスト。
+        let css = stylesheet();
+        let root_body = rule_body(
+            &css,
+            r#"[data-scope="radio-group"][data-part="root"][data-disabled]"#,
+        );
+        let item_body = rule_body(
+            &css,
+            r#"[data-scope="radio-group"][data-part="item"][data-disabled]"#,
+        );
+        let opacity_rule_count = [root_body, item_body]
+            .iter()
+            .filter(|b| b.contains("opacity"))
+            .count();
+        assert_eq!(
+            opacity_rule_count, 1,
+            "root/item いずれか 1 箇所のみが opacity を宣言すること"
+        );
     }
 
     // --- variant クラス（イシュー #708） ---
