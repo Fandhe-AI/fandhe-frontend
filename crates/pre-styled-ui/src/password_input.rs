@@ -116,6 +116,54 @@
 //!   語彙判断を部品単独で先行しない）。
 //! - **size / palette スケール**は触らない（size は #1488 の担当。palette
 //!   は既存の virtual token 方式で参照サイト水準）。
+//!
+//! # スタイル調整 (2/2): indicator と Size variant 群（イシュー #1488、親
+//! #1486）
+//!
+//! 1/2（#1487）が `control`/`visibility-trigger` を担当済みのため、本
+//! イシューは `indicator`（可視状態インジケータ）と `Size` variant 群
+//! （root スコープ custom property 定義）のみを担当する。
+//!
+//! - **`strength-*`（強度メーター）は実装しない**: イシュータイトルの
+//!   「強度インジケータ」について、現行の anatomy（headless-ui /
+//!   pre-styled-ui とも）に強度メーター（chakra-ui の
+//!   `PasswordStrengthMeter` 相当）のパートは存在しない。存在するのは
+//!   可視状態インジケータの `indicator` パート（`aria-hidden="true"`
+//!   固定の装飾用 span、`data-state="visible"/"hidden"` を持つ）のみで
+//!   ある。強度メーター相当のパート新設は headless-ui の anatomy 変更で
+//!   あり本イシューの対象ファイル（本モジュール + golden テスト）の
+//!   範囲外のため、既存 open イシュー #1614（headless-ui password-input
+//!   の anatomy / `data-*` 突合）へ判断を委ねる（新規イシュー起票は
+//!   しない）。本イシューでは既存 `indicator` パートのスタイル是正 +
+//!   Size variant のトークンスケール移行に限定する。
+//! - **サイズ（Size variant 群）**: root スコープ custom property
+//!   （`--fandhe-password-input-height`/`-padding-x`/`-font-size`）の値を、
+//!   部品ローカルの生 rem リテラルから、イシュー #1678 で確立済みの共通
+//!   size トークン（`--fandhe-size-control-height/padding-x/font-size-*`、
+//!   `crate::theme::DEFAULT_SIZES`）参照へ置換した。input（#1482）・
+//!   native-select（#1763）と同一のフォールバック付き参照形
+//!   （`var(--fandhe-size-control-height-xs, 2rem)` 等）を用いる。
+//!   xs の高さが 1.5rem → 2rem、xl が 3.5rem → 3rem 等、寸法が共通
+//!   スケールへ揃う視覚変更を意図的に行う（input #1482 と同一判断）。
+//!   root スコープ custom property へ書き込み CSS の通常のプロパティ
+//!   継承で `control`/`input` へ伝える機構自体は password-input 固有の
+//!   正当な設計のため維持し、値のみを置換した。base 規則側のフォール
+//!   バックも `var(--fandhe-password-input-height, var(--fandhe-size-control-height-md,
+//!   2.5rem))` の形へ、共通トークン→固定値の 2 段チェーンとして整合
+//!   させた（styled `root` を経由しない headless 直接利用時の fail-safe
+//!   を md 相当で維持する）。
+//! - **状態（data-*）**: `indicator` に
+//!   `.state("indicator", StateCondition::AttrEq("data-state", "visible"), ...)`
+//!   を追加し、`visibility-trigger` の同名規則とそろえた。
+//! - **トランジション**: 別 `.base` 呼び出しで
+//!   `transition_declarations("color", MotionDuration::Fast)` を純追加
+//!   した（combobox #1744 パターン踏襲）。
+//! - **hover / フォーカス / disabled**: `indicator` は非インタラクティブ
+//!   （`aria-hidden` 固定の装飾 span）のため付与しない。disabled は
+//!   祖先 `control` の opacity 0.5 継承のみに委ね、二重減光を作らない
+//!   （1/2 の `visibility-trigger` と同じ判断）。
+//! - **variant 軸**: 1/2 と同じ理由（Forms 家族横断の語彙判断を部品
+//!   単独で先行しない）で見送りを継承する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -177,10 +225,13 @@ fn recipe() -> SlotRecipe {
                 decl("align-items", "center"),
                 decl("box-sizing", "border-box"),
                 decl("width", "100%"),
-                decl("height", "var(--fandhe-password-input-height, 2.5rem)"),
+                decl(
+                    "height",
+                    "var(--fandhe-password-input-height, var(--fandhe-size-control-height-md, 2.5rem))",
+                ),
                 decl(
                     "padding",
-                    "0 var(--fandhe-password-input-padding-x, 0.75rem)",
+                    "0 var(--fandhe-password-input-padding-x, var(--fandhe-size-control-padding-x-md, 1rem))",
                 ),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-md)"),
@@ -226,7 +277,7 @@ fn recipe() -> SlotRecipe {
                 decl("padding", "0"),
                 decl(
                     "font-size",
-                    "var(--fandhe-password-input-font-size, var(--fandhe-font-font-size-md))",
+                    "var(--fandhe-password-input-font-size, var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md)))",
                 ),
             ],
         )
@@ -285,15 +336,59 @@ fn recipe() -> SlotRecipe {
                 decl("align-items", "center"),
             ],
         )
+        // 別 `.base` 呼び出しでの純追加（combobox #1744・visibility-trigger
+        // 上記と同型）。`indicator` は装飾用の可視状態アイコンであり、
+        // `visibility-trigger` のクリックに追随して即座に切り替わるが、
+        // motion トークン経由のトランジションを与え唐突な変化を避ける
+        // （イシュー #1488、本モジュール冒頭 rustdoc「スタイル調整 (2/2)」
+        // 節参照）。
+        .base(
+            "indicator",
+            transition_declarations("color", MotionDuration::Fast),
+        )
+        // `visibility-trigger` の同名状態規則（上記）とそろえ、可視状態を
+        // palette 色で明示する。`visibility-trigger` の子孫として配置
+        // される想定のため実質的には色の継承と同値になるが、`indicator`
+        // を単独配置する呼び出し側にも同じ視覚効果を保証する
+        // （イシュー #1488）。
+        .state(
+            "indicator",
+            StateCondition::AttrEq("data-state", "visible"),
+            vec![decl(
+                "color",
+                "var(--fandhe-palette, var(--fandhe-color-accent))",
+            )],
+        )
+        // `indicator` は `aria-hidden="true"` 固定の非インタラクティブな
+        // 装飾要素であり、hover / フォーカス / disabled の状態規則は
+        // 意図的に付与しない。disabled 時の減光は祖先 `control` の
+        // `[data-disabled]`（opacity 0.5）への継承のみに委ね、
+        // `visibility-trigger` と同じ二重減光回避の判断を踏襲する
+        // （イシュー #1488、本モジュール冒頭 rustdoc「スタイル調整 (2/2)」
+        // 節参照）。
+        // size（イシュー #1678 の `--fandhe-size-control-height/padding-x/
+        // font-size-*` 共通トークンへ移行。native-select #1763・input #1482
+        // と同型のフォールバック付き参照形。root スコープ custom property
+        // へ書き込み、CSS の通常のプロパティ継承で `control`/`input` へ
+        // 伝える機構自体は password-input 固有の正当な設計のため維持し、
+        // 値だけを部品ローカルの生 rem リテラルから共通スケール参照へ
+        // 置換する。イシュー #1488（本モジュール冒頭 rustdoc「スタイル
+        // 調整 (2/2)」節参照）。
         .variant(
             Size::Xs,
             "root",
             vec![
-                decl("--fandhe-password-input-height", "1.5rem"),
-                decl("--fandhe-password-input-padding-x", "0.25rem"),
+                decl(
+                    "--fandhe-password-input-height",
+                    "var(--fandhe-size-control-height-xs, 2rem)",
+                ),
+                decl(
+                    "--fandhe-password-input-padding-x",
+                    "var(--fandhe-size-control-padding-x-xs, 0.625rem)",
+                ),
                 decl(
                     "--fandhe-password-input-font-size",
-                    "var(--fandhe-font-font-size-xs)",
+                    "var(--fandhe-size-control-font-size-xs, var(--fandhe-font-font-size-xs))",
                 ),
             ],
         )
@@ -301,11 +396,17 @@ fn recipe() -> SlotRecipe {
             Size::Sm,
             "root",
             vec![
-                decl("--fandhe-password-input-height", "2rem"),
-                decl("--fandhe-password-input-padding-x", "0.5rem"),
+                decl(
+                    "--fandhe-password-input-height",
+                    "var(--fandhe-size-control-height-sm, 2.25rem)",
+                ),
+                decl(
+                    "--fandhe-password-input-padding-x",
+                    "var(--fandhe-size-control-padding-x-sm, 0.75rem)",
+                ),
                 decl(
                     "--fandhe-password-input-font-size",
-                    "var(--fandhe-font-font-size-sm)",
+                    "var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm))",
                 ),
             ],
         )
@@ -313,11 +414,17 @@ fn recipe() -> SlotRecipe {
             Size::Md,
             "root",
             vec![
-                decl("--fandhe-password-input-height", "2.5rem"),
-                decl("--fandhe-password-input-padding-x", "0.75rem"),
+                decl(
+                    "--fandhe-password-input-height",
+                    "var(--fandhe-size-control-height-md, 2.5rem)",
+                ),
+                decl(
+                    "--fandhe-password-input-padding-x",
+                    "var(--fandhe-size-control-padding-x-md, 1rem)",
+                ),
                 decl(
                     "--fandhe-password-input-font-size",
-                    "var(--fandhe-font-font-size-md)",
+                    "var(--fandhe-size-control-font-size-md, var(--fandhe-font-font-size-md))",
                 ),
             ],
         )
@@ -325,11 +432,17 @@ fn recipe() -> SlotRecipe {
             Size::Lg,
             "root",
             vec![
-                decl("--fandhe-password-input-height", "3rem"),
-                decl("--fandhe-password-input-padding-x", "1rem"),
+                decl(
+                    "--fandhe-password-input-height",
+                    "var(--fandhe-size-control-height-lg, 2.75rem)",
+                ),
+                decl(
+                    "--fandhe-password-input-padding-x",
+                    "var(--fandhe-size-control-padding-x-lg, 1.25rem)",
+                ),
                 decl(
                     "--fandhe-password-input-font-size",
-                    "var(--fandhe-font-font-size-lg)",
+                    "var(--fandhe-size-control-font-size-lg, var(--fandhe-font-font-size-lg))",
                 ),
             ],
         )
@@ -337,11 +450,17 @@ fn recipe() -> SlotRecipe {
             Size::Xl,
             "root",
             vec![
-                decl("--fandhe-password-input-height", "3.5rem"),
-                decl("--fandhe-password-input-padding-x", "1.25rem"),
+                decl(
+                    "--fandhe-password-input-height",
+                    "var(--fandhe-size-control-height-xl, 3rem)",
+                ),
+                decl(
+                    "--fandhe-password-input-padding-x",
+                    "var(--fandhe-size-control-padding-x-xl, 1.5rem)",
+                ),
                 decl(
                     "--fandhe-password-input-font-size",
-                    "var(--fandhe-font-font-size-xl)",
+                    "var(--fandhe-size-control-font-size-xl, var(--fandhe-font-font-size-xl))",
                 ),
             ],
         )
@@ -518,6 +637,68 @@ mod tests {
                 >= 2
         );
         assert!(!css.contains("transition: border-color 0.15s"));
+    }
+
+    #[test]
+    fn stylesheet_size_variants_use_control_tokens() {
+        // イシュー #1488: 各 size が #1678 の共通 control トークンへ移行した
+        // ことを固定（native-select #1763・input #1482 と同型の 3 点セット）。
+        let css = stylesheet();
+        for suffix in ["xs", "sm", "md", "lg", "xl"] {
+            assert!(
+                css.contains(&format!("--fandhe-size-control-height-{suffix}")),
+                "height token missing for {suffix} -> {css}"
+            );
+            assert!(
+                css.contains(&format!("--fandhe-size-control-padding-x-{suffix}")),
+                "padding-x token missing for {suffix} -> {css}"
+            );
+            assert!(
+                css.contains(&format!("--fandhe-size-control-font-size-{suffix}")),
+                "font-size token missing for {suffix} -> {css}"
+            );
+        }
+    }
+
+    #[test]
+    fn stylesheet_size_variants_no_longer_use_raw_rem_literals() {
+        // 是正前の部品ローカル生 rem リテラル（xs の高さ/padding-x 等）が
+        // 一切残っていないことを固定する。
+        let css = stylesheet();
+        assert!(!css.contains("--fandhe-password-input-height: 1.5rem"));
+        assert!(!css.contains("--fandhe-password-input-height: 2rem;\n"));
+        assert!(!css.contains("--fandhe-password-input-padding-x: 0.25rem"));
+        assert!(!css.contains("--fandhe-password-input-padding-x: 0.5rem;\n"));
+        assert!(!css.contains("--fandhe-password-input-height: 3.5rem"));
+        assert!(!css.contains("--fandhe-password-input-padding-x: 1.25rem;\n"));
+    }
+
+    #[test]
+    fn indicator_visible_state_uses_palette_color() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="password-input"][data-part="indicator"][data-state="visible"] {
+  color: var(--fandhe-palette, var(--fandhe-color-accent));
+}"#
+        ));
+    }
+
+    #[test]
+    fn indicator_declares_motion_token_transition() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="password-input"][data-part="indicator"] {
+  display: inline-flex;
+  align-items: center;
+}"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="password-input"][data-part="indicator"] {
+  transition-property: color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}"#
+        ));
     }
 
     #[test]
