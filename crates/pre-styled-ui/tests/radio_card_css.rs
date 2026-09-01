@@ -17,7 +17,9 @@ const RADIO_CARD_GOLDEN_CSS: &str = r#"[data-scope="radio-card"][data-part="root
 [data-scope="radio-card"][data-part="label"] {
   display: block;
   color: var(--fandhe-color-fg);
-  font-size: var(--fandhe-font-font-size-sm);
+  font-size: var(--fandhe-radio-card-label-font-size, var(--fandhe-font-font-size-sm));
+  font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-normal);
   margin-bottom: var(--fandhe-space-1);
 }
 
@@ -39,7 +41,7 @@ const RADIO_CARD_GOLDEN_CSS: &str = r#"[data-scope="radio-card"][data-part="root
 [data-scope="radio-card"][data-part="item-control"] {
   display: flex;
   align-items: flex-start;
-  gap: var(--fandhe-space-2);
+  gap: var(--fandhe-radio-card-gap, var(--fandhe-space-2));
   flex: 1;
 }
 
@@ -53,26 +55,40 @@ const RADIO_CARD_GOLDEN_CSS: &str = r#"[data-scope="radio-card"][data-part="root
 [data-scope="radio-card"][data-part="item-text"] {
   font-size: var(--fandhe-radio-card-label-font-size, var(--fandhe-font-font-size-sm));
   font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-normal);
   color: var(--fandhe-color-fg);
+  user-select: none;
 }
 
 [data-scope="radio-card"][data-part="item-description"] {
-  font-size: var(--fandhe-font-font-size-sm);
+  font-size: var(--fandhe-radio-card-description-font-size, var(--fandhe-font-font-size-sm));
+  line-height: var(--fandhe-font-line-height-normal);
   color: var(--fandhe-color-fg-muted);
 }
 
 [data-scope="radio-card"][data-part="item-addon"] {
   display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-2);
+  font-size: var(--fandhe-radio-card-description-font-size, var(--fandhe-font-font-size-sm));
+  color: var(--fandhe-color-fg-muted);
 }
 
 [data-scope="radio-card"][data-part="item-indicator"] {
   display: inline-flex;
+  box-sizing: border-box;
   width: var(--fandhe-radio-card-control-size, 1rem);
   height: var(--fandhe-radio-card-control-size, 1rem);
   border: 1px solid var(--fandhe-color-border);
   border-radius: 50%;
   background: var(--fandhe-color-bg);
   flex-shrink: 0;
+}
+
+[data-scope="radio-card"][data-part="item-indicator"] {
+  transition-property: background, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="radio-card"][data-part="item-hidden-input"] {
@@ -88,38 +104,48 @@ const RADIO_CARD_GOLDEN_CSS: &str = r#"[data-scope="radio-card"][data-part="root
 }
 
 [data-scope="radio-card"][data-part="root"].fd-radio-card--size-xs {
-  --fandhe-radio-card-padding: 0.25rem;
-  --fandhe-radio-card-control-size: 0.7rem;
+  --fandhe-radio-card-padding: var(--fandhe-space-2);
+  --fandhe-radio-card-control-size: 0.75rem;
   --fandhe-radio-card-dot-inset: 1px;
   --fandhe-radio-card-label-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-radio-card-description-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-radio-card-gap: var(--fandhe-space-1);
 }
 
 [data-scope="radio-card"][data-part="root"].fd-radio-card--size-sm {
-  --fandhe-radio-card-padding: 0.5rem;
-  --fandhe-radio-card-control-size: 0.85rem;
+  --fandhe-radio-card-padding: var(--fandhe-space-3);
+  --fandhe-radio-card-control-size: 0.875rem;
   --fandhe-radio-card-dot-inset: 2px;
   --fandhe-radio-card-label-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-radio-card-description-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-radio-card-gap: var(--fandhe-space-1-5);
 }
 
 [data-scope="radio-card"][data-part="root"].fd-radio-card--size-md {
-  --fandhe-radio-card-padding: 0.75rem;
+  --fandhe-radio-card-padding: var(--fandhe-space-4);
   --fandhe-radio-card-control-size: 1rem;
   --fandhe-radio-card-dot-inset: 3px;
   --fandhe-radio-card-label-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-radio-card-description-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-radio-card-gap: var(--fandhe-space-2-5);
 }
 
 [data-scope="radio-card"][data-part="root"].fd-radio-card--size-lg {
-  --fandhe-radio-card-padding: 1rem;
+  --fandhe-radio-card-padding: var(--fandhe-space-5);
   --fandhe-radio-card-control-size: 1.25rem;
   --fandhe-radio-card-dot-inset: 4px;
   --fandhe-radio-card-label-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-radio-card-description-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-radio-card-gap: var(--fandhe-space-3);
 }
 
 [data-scope="radio-card"][data-part="root"].fd-radio-card--size-xl {
-  --fandhe-radio-card-padding: 1.25rem;
+  --fandhe-radio-card-padding: var(--fandhe-space-6);
   --fandhe-radio-card-control-size: 1.5rem;
   --fandhe-radio-card-dot-inset: 5px;
   --fandhe-radio-card-label-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-radio-card-description-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-radio-card-gap: var(--fandhe-space-4);
 }
 
 [data-scope="radio-card"][data-part="root"].fd-radio-card--color-palette-accent {
@@ -203,6 +229,10 @@ const RADIO_CARD_GOLDEN_CSS: &str = r#"[data-scope="radio-card"][data-part="root
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   background: var(--fandhe-palette, var(--fandhe-color-accent));
   box-shadow: inset 0 0 0 var(--fandhe-radio-card-dot-inset, 3px) var(--fandhe-color-bg);
+}
+
+[data-scope="radio-card"][data-part="item-indicator"][data-invalid] {
+  border-color: var(--fandhe-color-danger);
 }
 
 @media (hover: hover) {
