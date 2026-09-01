@@ -53,15 +53,40 @@
 //! styled `root` は [`drop_class_attr`] により呼び出し側の `class` を除去
 //! してから合成するため、`class` 属性は常に単一。
 //!
+//! # 参考サイト基準のスタイル調整（イシュー #1513）
+//!
+//! Radix Primitives（`radixp-toggle-group-1`）/ ark-ui
+//! （`ark-toggle-group-1〜3`）のスクリーンショット比較を基に、
+//! [`crate::recipe`] の Phase 0 共通ビジュアル言語
+//! （[`crate::recipe::focus_ring_declarations`]/
+//! [`crate::recipe::transition_declarations`]/
+//! [`crate::recipe::disabled_declarations`]/
+//! [`crate::recipe::hover_bg_muted`]）へ載せ替え、item が隣接ボーダーを
+//! 共有する連結セグメント状の外観（詳細は [`stylesheet`] rustdoc）を追加した。
+//!
+//! 是正しない点（意図的な判断）:
+//!
+//! - **pressed の palette solid 塗りを維持する**: 参照サイトの淡い soft
+//!   背景ではなく、[`crate::toggle`] と共有する既存の `data-state="on"`
+//!   表現語彙（[`ColorPalette`] 軸の存在意義）をそのまま使う。
+//! - **variant 軸（solid/outline 等）は追加しない**: `crate::listbox`
+//!   （イシュー #1483）と同じ、Forms 家族横断の設計判断を要するため本
+//!   イシュー単体では追加しない。
+//! - **roving focus / loopFocus はスコープ外**: headless 層
+//!   （`crates/headless-ui/src/toggle_group.rs`）と同じく wasm keynav 層の
+//!   責務（下記「本イシューのスコープ外」節と同一事項）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - roving focus / loopFocus は headless 層（`crates/headless-ui/src/toggle_group.rs`）
 //!   と同じくスコープ外（wasm keynav 層の責務）。
 
 use crate::class_attr::drop_class_attr;
-use crate::css::decl;
+use crate::css::{decl, serialize_rule};
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -84,7 +109,14 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("display", "inline-flex"),
-                decl("gap", "var(--fandhe-space-1)"),
+                // 参照サイト（Radix Primitives / ark-ui）の Toggle Group は
+                // item 同士が隣接ボーダーを共有する連結セグメント状の外観
+                // であり、item 間に可視の隙間を持たない。`gap: 0` とし、
+                // 連結表現（隣接ボーダーの重ね合わせ・外端のみの角丸）は
+                // [`stylesheet`] の raw CSS 追記（`SlotRecipe` では表現
+                // できない `:first-child`/`:last-child` 構造擬似クラスと
+                // orientation 別セレクタを要するため）で行う。
+                decl("gap", "0"),
             ],
         )
         // headless 層が `data_orientation` 経由で出力する
@@ -99,7 +131,7 @@ fn recipe() -> SlotRecipe {
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            disabled_declarations(),
         )
         .base(
             "item",
@@ -121,11 +153,14 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-toggle-group-item-font-size, var(--fandhe-font-font-size-sm))",
                 ),
                 decl("cursor", "pointer"),
-                decl(
-                    "transition",
-                    "background 0.15s, border-color 0.15s, color 0.15s",
-                ),
-            ],
+                hover_bg_muted(),
+            ]
+            .into_iter()
+            .chain(transition_declarations(
+                "background, border-color, color",
+                MotionDuration::Fast,
+            ))
+            .collect::<Vec<_>>(),
         )
         .state(
             "item",
@@ -140,23 +175,32 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
                 decl("color", "var(--fandhe-palette-fg)"),
+                // 連結セグメント上で隣接ボーダー（下記 raw CSS の
+                // `margin-inline-start`/`margin-block-start` による重ね
+                // 合わせ）に押し潰されず on 状態の border-color が視認
+                // できるよう最前面へ引き上げる（`:focus-visible` の
+                // outline と同じ理由、[`stylesheet`] rustdoc 参照）。
+                decl("position", "relative"),
+                decl("z-index", "1"),
             ],
         )
         .state(
             "item",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            disabled_declarations(),
         )
         // item はネイティブ button 自身が実フォーカスを受けるため、
         // hidden-input パターン（switch/radio_group）の data-focus-visible
-        // 配線は不要（crate::toggle rustdoc と同じ判断）。
+        // 配線は不要（crate::toggle rustdoc と同じ判断）。canonical な
+        // フォーカスリング（イシュー #1424）は palette 軸を持つ本部品では
+        // `FocusRingColor::Palette` を使う（`crate::button` と同型）。
         .state(
             "item",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside)
+                .into_iter()
+                .chain([decl("position", "relative"), decl("z-index", "1")])
+                .collect::<Vec<_>>(),
         )
         .variant(
             Size::Xs,
@@ -230,9 +274,160 @@ fn recipe() -> SlotRecipe {
 
 /// この styled ToggleGroup が生成する静的 CSS 全量を返す（決定的。
 /// [`crate::toggle::stylesheet`] と同じ契約）。
+///
+/// # raw CSS 追記の理由（イシュー #1513、参照サイト基準の意匠是正）
+///
+/// 参照サイト（Radix Primitives `radixp-toggle-group-1` / ark-ui
+/// `ark-toggle-group-1〜3` のスクリーンショット比較、`docs/design/
+/// reference-screenshots/`）はいずれも item 同士が隣接ボーダーを共有する
+/// 連結セグメント状の外観（中間 item は角丸なし・外端の item のみ角丸）を
+/// 持つ。この表現は以下 2 点により [`SlotRecipe`] の型化された条件
+/// （`base`/`state`/`variant`）だけでは組めない:
+///
+/// 1. **構造擬似クラス**（`:first-child`/`:last-child`）と
+///    orientation 別の適用面（横並びは左右端、`[data-orientation="vertical"]`
+///    配下は上下端）の組み合わせが必要（`SlotRecipe::state` の
+///    `StateCondition` は自パーツの属性条件のみを表現し、構造擬似クラスを
+///    持たない）。
+/// 2. **hover** は祖先 `root` の `[data-disabled]` 不在を前提に含む必要が
+///    ある。headless 層の `root(disabled: true, ...)` は root にのみ
+///    `data-disabled` を付与し子 `item` へは伝播しない
+///    （`crates/headless-ui/src/toggle_group.rs` 参照）ため、`item` 自身の
+///    `data-disabled` だけを見る宣言では group 全体が disabled でも
+///    個々の item に hover 背景が付いてしまう（[`crate::listbox::stylesheet`]
+///    が同じ理由で raw CSS 追記している先例と同型の問題・同型の対処）。
+///
+/// いずれも [`marquee::css`](crate::marquee) / [`crate::listbox::stylesheet`]
+/// と同型の raw CSS 追記パターンで、[`recipe().css()`](SlotRecipe::css) の
+/// 出力へ後段追加する。
+///
+/// 参照サイトの pressed 表現（淡い soft 背景）に対し、本部品は palette
+/// solid 塗りを [`crate::toggle`] と共有する既存の `data-state="on"`
+/// 表現語彙として維持し、意図的に合わせない（`ColorPalette` 軸の存在意義。
+/// モジュール冒頭 rustdoc 参照）。同様に on 状態の hover 色変化は参照サイト
+/// でも僅少なため、hover 規則は `:not([data-state="on"])` を条件に含め on
+/// 状態には適用しない。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+
+    const ROOT: &str = r#"[data-scope="toggle-group"][data-part="root"]"#;
+    const ITEM: &str = r#"[data-scope="toggle-group"][data-part="item"]"#;
+
+    // 連結セグメント化: 横並び（既定 orientation）は外端の item（最初/最後）
+    // のみ角丸を残し、中間 item は角丸なしにする。隣接 item は 1px 分だけ
+    // 重ねて二重ボーダーの太線化を避ける（`data-state="on"`/フォーカス時の
+    // `z-index: 1` により重なった隣接ボーダーが視覚的に埋もれない、
+    // recipe() 側の state 宣言参照）。
+    let mut connected_rules = String::new();
+    for (selector, decls) in [
+        (
+            format!("{ROOT} > {ITEM}:first-child"),
+            vec![
+                decl("border-start-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-start-end-radius", "0"),
+                decl("border-end-end-radius", "0"),
+            ],
+        ),
+        (
+            format!("{ROOT} > {ITEM}:last-child"),
+            vec![
+                decl("border-start-end-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-end-radius", "var(--fandhe-radius-md)"),
+                decl("border-start-start-radius", "0"),
+                decl("border-end-start-radius", "0"),
+            ],
+        ),
+        (
+            format!("{ROOT} > {ITEM}:not(:first-child):not(:last-child)"),
+            vec![decl("border-radius", "0")],
+        ),
+        // 単一 item（:first-child かつ :last-child）は上記 2 規則が競合し、
+        // どちらが勝つかは同一特異度のため後勝ちのソース順に依存してしまう
+        // （実際には後段の :last-child 規則が勝ち、始端側の角丸を失う）。
+        // 二重擬似クラスで特異度を明示的に引き上げ、四隅とも角丸を保証する。
+        (
+            format!("{ROOT} > {ITEM}:first-child:last-child"),
+            vec![
+                decl("border-start-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-start-end-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-end-radius", "var(--fandhe-radius-md)"),
+            ],
+        ),
+        (
+            format!("{ROOT} > {ITEM} + {ITEM}"),
+            vec![decl("margin-inline-start", "-1px")],
+        ),
+        (
+            format!(r#"{ROOT}[data-orientation="vertical"] > {ITEM}:first-child"#),
+            vec![
+                decl("border-start-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-start-end-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-start-radius", "0"),
+                decl("border-end-end-radius", "0"),
+            ],
+        ),
+        (
+            format!(r#"{ROOT}[data-orientation="vertical"] > {ITEM}:last-child"#),
+            vec![
+                decl("border-end-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-end-radius", "var(--fandhe-radius-md)"),
+                decl("border-start-start-radius", "0"),
+                decl("border-start-end-radius", "0"),
+            ],
+        ),
+        // vertical 単一 item も同様に :first-child/:last-child の競合で
+        // 始端側の角丸を失う（Cursor Bugbot 指摘）ため、二重擬似クラスで
+        // 特異度を引き上げ四隅とも角丸を保証する。
+        (
+            format!(r#"{ROOT}[data-orientation="vertical"] > {ITEM}:first-child:last-child"#),
+            vec![
+                decl("border-start-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-start-end-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-start-radius", "var(--fandhe-radius-md)"),
+                decl("border-end-end-radius", "var(--fandhe-radius-md)"),
+            ],
+        ),
+        (
+            format!(r#"{ROOT}[data-orientation="vertical"] > {ITEM} + {ITEM}"#),
+            vec![
+                decl("margin-inline-start", "0"),
+                decl("margin-block-start", "-1px"),
+            ],
+        ),
+    ] {
+        if let Some(rule) = serialize_rule(&selector, &decls) {
+            connected_rules.push_str(&rule);
+        }
+    }
+    if !connected_rules.is_empty() {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(&connected_rules);
+    }
+
+    // hover: root/item いずれも disabled ではなく、on 状態でもない item の
+    // みへ適用する（本関数 rustdoc「raw CSS 追記の理由」節参照）。
+    let hover_selector = format!(
+        "{ROOT}:not([data-disabled]) > {ITEM}:hover:not([data-disabled]):not([data-state=\"on\"])"
+    );
+    if let Some(rule) = serialize_rule(&hover_selector, &hover_surface_declarations()) {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out.push_str("@media (hover: hover) {\n");
+        for line in rule.lines() {
+            out.push_str("  ");
+            out.push_str(line);
+            out.push('\n');
+        }
+        out.push_str("}\n");
+    }
+
+    out
 }
 
 /// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与
@@ -322,6 +517,135 @@ mod tests {
     fn stylesheet_links_item_to_focus_visible() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="toggle-group"][data-part="item"]:focus-visible {"#));
+        // canonical フォーカスリングトークン（イシュー #1424）へ移行済み
+        // であることの回帰（直書き `2px solid ...` へ後退させない）。
+        assert!(css.contains("var(--fandhe-focus-ring-width, 2px)"));
+    }
+
+    #[test]
+    fn stylesheet_uses_canonical_transition_and_disabled_helpers() {
+        let css = stylesheet();
+        // transition: Phase 0 共通ビジュアル言語（motion トークン）へ移行
+        // 済みであることの回帰（shorthand 直書きへ後退させない）。
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+        assert!(css.contains("transition-property: background, border-color, color;"));
+        // disabled: root/item ともヘルパ経由の宣言を維持する。
+        assert!(css.contains("cursor: not-allowed;"));
+        assert!(css.contains("opacity: 0.5;"));
+    }
+
+    #[test]
+    fn stylesheet_links_item_hover_to_muted_background_excluding_disabled_and_on() {
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover) {"));
+        assert!(css.contains(
+            r#"[data-scope="toggle-group"][data-part="root"]:not([data-disabled]) > [data-scope="toggle-group"][data-part="item"]:hover:not([data-disabled]):not([data-state="on"]) {"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+    }
+
+    #[test]
+    fn stylesheet_connects_items_into_a_segmented_group() {
+        let css = stylesheet();
+        // 横並び: 外端のみ角丸、中間は角丸なし、隣接ボーダーの重ね合わせ。
+        assert!(css.contains(
+            r#"[data-scope="toggle-group"][data-part="root"] > [data-scope="toggle-group"][data-part="item"]:first-child {"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="toggle-group"][data-part="root"] > [data-scope="toggle-group"][data-part="item"]:last-child {"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="toggle-group"][data-part="root"] > [data-scope="toggle-group"][data-part="item"]:not(:first-child):not(:last-child) {"#
+        ));
+        assert!(css.contains("margin-inline-start: -1px;"));
+        // vertical: 上下端の角丸系統が横並びとは独立して存在する。
+        assert!(css.contains(
+            r#"[data-scope="toggle-group"][data-part="root"][data-orientation="vertical"] > [data-scope="toggle-group"][data-part="item"]:first-child {"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="toggle-group"][data-part="root"][data-orientation="vertical"] > [data-scope="toggle-group"][data-part="item"] + [data-scope="toggle-group"][data-part="item"] {"#
+        ));
+        assert!(css.contains("margin-block-start: -1px;"));
+    }
+
+    #[test]
+    fn stylesheet_zeroes_inner_corners_of_horizontal_end_items() {
+        // codex-review P1 / Cursor Bugbot 指摘（イシュー #1513）: 横並びの
+        // first-child/last-child が外側角丸を再設定するだけで内側の角丸を
+        // 0 にしていなかったため、2 要素以上の group で内側の角が丸いまま
+        // 重なり合う pill に見えてしまっていた。
+        let css = stylesheet();
+        let first_child_rule = extract_rule(
+            &css,
+            r#"[data-scope="toggle-group"][data-part="root"] > [data-scope="toggle-group"][data-part="item"]:first-child {"#,
+        );
+        assert!(first_child_rule.contains("border-start-end-radius: 0;"));
+        assert!(first_child_rule.contains("border-end-end-radius: 0;"));
+
+        let last_child_rule = extract_rule(
+            &css,
+            r#"[data-scope="toggle-group"][data-part="root"] > [data-scope="toggle-group"][data-part="item"]:last-child {"#,
+        );
+        assert!(last_child_rule.contains("border-start-start-radius: 0;"));
+        assert!(last_child_rule.contains("border-end-start-radius: 0;"));
+    }
+
+    #[test]
+    fn stylesheet_keeps_all_corners_rounded_for_a_single_item() {
+        // Cursor Bugbot 追加指摘（イシュー #1513）: :first-child/:last-child
+        // 双方が一致する単一 item では、上記の内側ゼロ化規則同士が競合し
+        // 同一特異度のソース順（後勝ち）に依存して始端側の角丸を失って
+        // しまう。二重擬似クラス（`:first-child:last-child`）による高特異度
+        // 規則で四隅とも角丸を保証する。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="toggle-group"][data-part="root"] > [data-scope="toggle-group"][data-part="item"]:first-child:last-child {"#
+        ));
+        let horizontal_only_child_rule = extract_rule(
+            &css,
+            r#"[data-scope="toggle-group"][data-part="root"] > [data-scope="toggle-group"][data-part="item"]:first-child:last-child {"#,
+        );
+        assert!(horizontal_only_child_rule
+            .contains("border-start-start-radius: var(--fandhe-radius-md);"));
+        assert!(horizontal_only_child_rule
+            .contains("border-end-start-radius: var(--fandhe-radius-md);"));
+        assert!(horizontal_only_child_rule
+            .contains("border-start-end-radius: var(--fandhe-radius-md);"));
+        assert!(
+            horizontal_only_child_rule.contains("border-end-end-radius: var(--fandhe-radius-md);")
+        );
+
+        assert!(css.contains(
+            r#"[data-scope="toggle-group"][data-part="root"][data-orientation="vertical"] > [data-scope="toggle-group"][data-part="item"]:first-child:last-child {"#
+        ));
+        let vertical_only_child_rule = extract_rule(
+            &css,
+            r#"[data-scope="toggle-group"][data-part="root"][data-orientation="vertical"] > [data-scope="toggle-group"][data-part="item"]:first-child:last-child {"#,
+        );
+        assert!(vertical_only_child_rule
+            .contains("border-start-start-radius: var(--fandhe-radius-md);"));
+        assert!(
+            vertical_only_child_rule.contains("border-start-end-radius: var(--fandhe-radius-md);")
+        );
+        assert!(
+            vertical_only_child_rule.contains("border-end-start-radius: var(--fandhe-radius-md);")
+        );
+        assert!(
+            vertical_only_child_rule.contains("border-end-end-radius: var(--fandhe-radius-md);")
+        );
+    }
+
+    /// 生成 CSS 文字列から、指定した `selector {` から対応する `}` までの
+    /// 1 ルール分を抜き出す（本テストモジュール限定のヘルパ。`{`/`}` の
+    /// ネストを持たない単純な宣言ブロックのみを対象とする素朴な実装で足りる）。
+    fn extract_rule<'a>(css: &'a str, rule_start: &str) -> &'a str {
+        let start = css
+            .find(rule_start)
+            .unwrap_or_else(|| panic!("rule not found: {rule_start}"));
+        let end = css[start..]
+            .find('}')
+            .unwrap_or_else(|| panic!("unterminated rule: {rule_start}"));
+        &css[start..start + end]
     }
 
     // --- variant クラス（root のみ） ---

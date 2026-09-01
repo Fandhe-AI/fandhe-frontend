@@ -663,11 +663,21 @@ name = "fandhe-frontend-pre-styled-ui"
 # 同様にこの区間へ包含されるため、双方の実体変更（toggle CSS 調整 +
 # radio_card::item_indicator API 変更）を統合した結果として 0.58.0 を
 # 採用する。
+# イシュー #1513（toggle-group のスタイルを参考サイト基準へ調整）は
+# `item` slot の focus ring/transition/disabled/hover の canonical ヘルパ
+# 移行と、連結セグメント化（`gap: 0` + `:first-child`/`:last-child` の
+# 角丸・隣接ボーダー重ね合わせ raw CSS 追記）という CSS 出力の変更のみで、
+# 公開 Rust API シグネチャ・CSS 変数名（既存分）・クラス名・`data-*`
+# セレクタの削除/改名を伴わないため、上記で統合した 0.58.0 から 0.58.1 へ
+# patch バンプする（上記 #1511 と同型の判断）。
 # イシュー #1756: rustdoc（Outline/Solid 高さ一致の記録）・意味的回帰
 # テストの追加のみで CSS 出力・公開 API は不変だが、受け入れ条件がバンプを
 # 明示しているため §3.1（PR 毎 patch バンプ）の通常運用に従い patch バンプ
-# する（0.58.0 → 0.58.1）。
-version = "0.58.1"
+# する。本ブランチ側は base（0.58.0）から独立に 0.58.1 へ到達していたが、
+# base 取り込みにより #1513 の patch バンプ（0.58.0 → 0.58.1）と版数が
+# 偶発的に衝突したため、双方の実体変更を統合した結果として 0.58.2 へ
+# さらに patch バンプする（同一版数への偶発的衝突をそのまま採用しない）。
+version = "0.58.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
