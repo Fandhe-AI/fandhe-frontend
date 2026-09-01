@@ -16,6 +16,19 @@
 //! （`--fandhe-switch-*`/`--fandhe-palette*`）を `var(..., <Md/Accent 既定値>)`
 //! で参照する形へ変更した（フォールバック値は変更前の固定値と同一、
 //! headless 直接利用時の現行外観を維持する）。
+//!
+//! イシュー #1508: `control`/`thumb` の状態表現を参考サイト
+//! （chakra-ui/Radix Themes/Radix Primitives/ark-ui）基準へ是正した
+//! （`crates/pre-styled-ui/src/switch.rs` のモジュール doc「イシュー
+//! #1508」節参照）。角丸のトークン化（`999px` → `var(--fandhe-radius-full,
+//! 999px)`）・`transition` shorthand → `transition_declarations`
+//! （longhand 3 宣言・motion トークン化）・`thumb` への `box-shadow:
+//! var(--fandhe-shadow-sm)` 追加・`control` の hover 規則
+//! （`@media (hover: hover)` ブロック）新設・`data-focus-visible` の
+//! `outline`/`outline-offset` 直書きを `focus_ring_declarations`
+//! （`FocusRingColor::Palette`）へ置換・`root` disabled 規則の
+//! `disabled_declarations()` 経由化（宣言順が `opacity` → `cursor` へ
+//! 変わる）が golden CSS 全文の差分。
 
 use fandhe_frontend_pre_styled_ui::switch;
 
@@ -32,18 +45,30 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   box-sizing: border-box;
   width: var(--fandhe-switch-track-width, 2.5rem);
   height: var(--fandhe-switch-track-height, 1.4rem);
-  border-radius: 999px;
+  border-radius: var(--fandhe-radius-full, 999px);
   background: var(--fandhe-color-border);
   padding: 0 0.15rem;
-  transition: background 0.15s;
+  --fandhe-hover-bg: var(--fandhe-color-border-emphasized);
+}
+
+[data-scope="switch"][data-part="control"] {
+  transition-property: background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="switch"][data-part="thumb"] {
   width: var(--fandhe-switch-thumb-size, 1.1rem);
   height: var(--fandhe-switch-thumb-size, 1.1rem);
-  border-radius: 999px;
+  border-radius: var(--fandhe-radius-full, 999px);
   background: var(--fandhe-color-bg);
-  transition: transform 0.15s;
+  box-shadow: var(--fandhe-shadow-sm);
+}
+
+[data-scope="switch"][data-part="thumb"] {
+  transition-property: transform;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="switch"][data-part="label"] {
@@ -157,21 +182,28 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
 }
 
 [data-scope="switch"][data-part="root"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="switch"][data-part="control"][data-state="checked"] {
   background: var(--fandhe-palette, var(--fandhe-color-accent));
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
 }
 
 [data-scope="switch"][data-part="control"][data-focus-visible] {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="switch"][data-part="thumb"][data-state="checked"] {
   transform: translateX(var(--fandhe-switch-thumb-travel, 1.1rem));
+}
+
+@media (hover: hover) {
+  [data-scope="switch"][data-part="control"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
