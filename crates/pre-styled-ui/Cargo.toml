@@ -424,7 +424,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 結果として main 側の値を基点にさらに 0.57.9 へ patch バンプする
 # （0.x の破壊的変更はマイナーバンプ・非破壊の実体変更は patch バンプの
 # 規約、同一版数への偶発的衝突をそのまま採用しない）。
-version = "0.57.9"
+# checkbox-group スコープ外事項フォローアップ（イシュー #1741）:
+# `hover_bg_solid_with_fallback` の `crate::recipe` への共通化・
+# `item-control[data-focus-visible]` フォーカスリング CSS 追加・variant 軸
+# 横断判断の文書化。CSS 出力の観測可能な変更を含むため patch バンプ。
+version = "0.57.10"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
@@ -438,7 +442,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.28.6" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.28.7" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

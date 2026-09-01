@@ -141,6 +141,63 @@ fn build_radio_group_dom(
     (root, item, item_control, item_hidden_input)
 }
 
+/// `crates/headless-ui/src/checkbox_group.rs` の SSR 出力契約（root >
+/// item（label） > item-control + `crates/headless-ui/src/checkbox.rs`
+/// の `hidden_input` 再利用、`data-scope="checkbox"` のまま）を手組みで
+/// 再現した CheckboxGroup DOM を生成する（イシュー #1741）。
+///
+/// hidden-input が `data-scope="checkbox"` を保つ（`data-scope="checkbox-group"`
+/// へは変えない）点が [`build_switch_dom`]/[`build_radio_group_dom`] との
+/// 意図的な相違であり、[`fandhe_frontend_wasm_full::focus_visible::boundary_candidates_for`]
+/// のフォールバック候補（`("checkbox", "root")` に一致する要素が存在しない
+/// 場合に `("checkbox-group", "item")` を境界として選ぶ）を実 DOM で検証する
+/// ための構造そのものである。返り値: `(root, item, item_control,
+/// hidden_input)`。
+fn build_checkbox_group_dom(
+    document: &Document,
+    root_id: &str,
+) -> (Element, Element, Element, Element) {
+    let root = document.create_element("div").unwrap();
+    root.set_id(root_id);
+    root.set_attribute("data-scope", "checkbox-group").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+
+    let item = document.create_element("label").unwrap();
+    item.set_attribute("data-scope", "checkbox-group").unwrap();
+    item.set_attribute("data-part", "item").unwrap();
+
+    let item_control = document.create_element("span").unwrap();
+    item_control
+        .set_attribute("data-scope", "checkbox-group")
+        .unwrap();
+    item_control
+        .set_attribute("data-part", "item-control")
+        .unwrap();
+    item.append_child(&item_control).unwrap();
+
+    // `crate::checkbox::hidden_input` の再利用（scope は "checkbox" の
+    // まま）。checkbox 単独の `[data-scope="checkbox"][data-part="root"]`
+    // 祖先が存在しないグループ文脈であることに注意（フォールバック候補が
+    // 選ばれる前提条件）。
+    let hidden_input = document.create_element("input").unwrap();
+    hidden_input.set_attribute("type", "checkbox").unwrap();
+    hidden_input
+        .set_attribute("data-scope", "checkbox")
+        .unwrap();
+    hidden_input
+        .set_attribute("data-part", "hidden-input")
+        .unwrap();
+    item.append_child(&hidden_input).unwrap();
+
+    root.append_child(&item).unwrap();
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append_child must not fail for a detached div");
+    (root, item, item_control, hidden_input)
+}
+
 /// 検証 1（Switch）: hidden-input への focus で `root`/`control` 双方へ
 /// `data-focus-visible` が付与され、blur で双方から除去される（付与・除去
 /// 両方向を検証する。片方向のみで PASS 扱いにしない）。
@@ -289,4 +346,128 @@ fn pointer_events_while_focus_retained_keep_data_focus_visible_in_sync_with_focu
              while hidden-input retains focus"
         );
     }
+}
+
+/// 検証 5（CheckboxGroup、イシュー #1741）: item 配下に入れ子にした
+/// `checkbox::hidden_input`（`data-scope="checkbox"` のまま）への focus で
+/// `item`/`item-control` 双方へ `data-focus-visible` が付与され、blur で
+/// 除去される。単独 checkbox 用の `[data-scope="checkbox"][data-part="root"]`
+/// 祖先が存在しないグループ文脈で、`boundary_candidates_for` の
+/// フォールバック候補（`("checkbox-group", "item")`）が実際に選ばれ、
+/// 従来は no-op だった構成へ新たに反応することを検証する（回帰方向の
+/// 確認を兼ねる: フォールバック追加前は本テストの `item`/`item-control`
+/// いずれも `data-focus-visible` を得られなかった）。
+#[wasm_bindgen_test]
+fn checkbox_group_hidden_input_focus_and_blur_toggle_data_focus_visible_on_item_and_item_control() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, item, item_control, hidden_input) =
+        build_checkbox_group_dom(&document, "fv-checkbox-group-1");
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_focus_visible(root.clone()).expect("wire_focus_visible must succeed");
+
+    assert!(!item.has_attribute("data-focus-visible"));
+    assert!(!item_control.has_attribute("data-focus-visible"));
+
+    html_element(&hidden_input)
+        .focus()
+        .expect("focus must not fail");
+
+    assert!(
+        item.has_attribute("data-focus-visible"),
+        "item must gain data-focus-visible after grouped checkbox hidden-input focus \
+         (checkbox-group boundary fallback)"
+    );
+    assert!(
+        item_control.has_attribute("data-focus-visible"),
+        "item-control must gain data-focus-visible after grouped checkbox hidden-input focus"
+    );
+
+    html_element(&hidden_input)
+        .blur()
+        .expect("blur must not fail");
+
+    assert!(
+        !item.has_attribute("data-focus-visible"),
+        "item must lose data-focus-visible after grouped checkbox hidden-input blur"
+    );
+    assert!(
+        !item_control.has_attribute("data-focus-visible"),
+        "item-control must lose data-focus-visible after grouped checkbox hidden-input blur"
+    );
+}
+
+/// 検証 6（CheckboxGroup、イシュー #1741）: 単独 checkbox 用の
+/// `[data-scope="checkbox"][data-part="root"]` 祖先が存在する場合は、
+/// グループ文脈へフォールバックせず従来どおり checkbox root が境界として
+/// 選ばれる（[`boundary_candidates_for`] の順序契約 — 同一 scope の候補を
+/// 先に試す — が、group 祖先を偶然持つ DOM でも壊れないことを固定する）。
+#[wasm_bindgen_test]
+fn checkbox_root_boundary_is_preferred_over_checkbox_group_fallback_when_both_ancestors_exist() {
+    let document = web_sys::window().unwrap().document().unwrap();
+
+    // 外側は checkbox-group の root/item（フォールバック候補の祖先）。
+    let group_root = document.create_element("div").unwrap();
+    group_root.set_id("fv-checkbox-group-nested-root");
+    group_root
+        .set_attribute("data-scope", "checkbox-group")
+        .unwrap();
+    group_root.set_attribute("data-part", "root").unwrap();
+
+    let item = document.create_element("label").unwrap();
+    item.set_attribute("data-scope", "checkbox-group").unwrap();
+    item.set_attribute("data-part", "item").unwrap();
+    group_root.append_child(&item).unwrap();
+
+    // item の内側にさらに単独 checkbox の root/control を入れ子にする
+    // （実際の構成としては非典型だが、順序契約の検証には十分な最小 DOM）。
+    let checkbox_root = document.create_element("label").unwrap();
+    checkbox_root
+        .set_attribute("data-scope", "checkbox")
+        .unwrap();
+    checkbox_root.set_attribute("data-part", "root").unwrap();
+    item.append_child(&checkbox_root).unwrap();
+
+    let checkbox_control = document.create_element("span").unwrap();
+    checkbox_control
+        .set_attribute("data-scope", "checkbox")
+        .unwrap();
+    checkbox_control
+        .set_attribute("data-part", "control")
+        .unwrap();
+    checkbox_root.append_child(&checkbox_control).unwrap();
+
+    let hidden_input = document.create_element("input").unwrap();
+    hidden_input.set_attribute("type", "checkbox").unwrap();
+    hidden_input
+        .set_attribute("data-scope", "checkbox")
+        .unwrap();
+    hidden_input
+        .set_attribute("data-part", "hidden-input")
+        .unwrap();
+    checkbox_root.append_child(&hidden_input).unwrap();
+
+    document
+        .body()
+        .unwrap()
+        .append_child(&group_root)
+        .expect("append_child must not fail for a detached div");
+    let _cleanup = RemoveOnDrop(group_root.clone());
+
+    wire_focus_visible(group_root.clone()).expect("wire_focus_visible must succeed");
+
+    html_element(&hidden_input)
+        .focus()
+        .expect("focus must not fail");
+
+    assert!(
+        checkbox_root.has_attribute("data-focus-visible"),
+        "checkbox root (same-scope candidate) must be preferred over checkbox-group fallback"
+    );
+    assert!(
+        checkbox_control.has_attribute("data-focus-visible"),
+        "checkbox control must gain data-focus-visible via the checkbox-scope boundary"
+    );
+    // checkbox-group 側の item は checkbox scope ではないため対象外
+    // （伝播 selector は境界の data-scope のみを対象にする）。
+    assert!(!item.has_attribute("data-focus-visible"));
 }

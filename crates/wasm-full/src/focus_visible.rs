@@ -53,9 +53,85 @@ pub fn boundary_part_for(scope: &str, part: &str) -> Option<&'static str> {
     }
 }
 
+/// 境界候補 1 件。[`boundary_candidates_for`] が返す候補列は
+/// `closest("[data-scope=\"{scope}\"][data-part=\"{part}\"]")` の探索に
+/// そのまま使う `(scope, part)` の組を表す（[`boundary_part_for`] の
+/// 「同一 scope の境界パーツ名」だけを返す単一マッピングと異なり、境界の
+/// `data-scope` 自体が hidden-input と異なりうる構成に対応する）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BoundaryCandidate {
+    /// 境界パーツの `data-scope` 値。
+    pub scope: &'static str,
+    /// 境界パーツの `data-part` 値。
+    pub part: &'static str,
+}
+
+/// `(data-scope, data-part)` から、フォーカスリングを反映すべき境界候補の
+/// 優先順位付き列挙への静的マッピング（イシュー #1741）。
+///
+/// [`boundary_part_for`] を置き換えるのではなく、その上位互換として追加する
+/// （既存の公開 API を破壊しない 0.x 運用）。配線層 [`wiring::resolve_boundary`]
+/// は候補を先頭から順に `closest` 解決し、最初に一致したものを採用する。
+///
+/// checkbox-group の item 配下に入れ子にした [`crate::checkbox::hidden_input`]
+/// 再利用（`data-scope="checkbox"` のまま、headless-ui `checkbox_group.rs`
+/// モジュール doc「anatomy」節の `item-hidden-input` 非新設判断参照）は、
+/// 単独 checkbox 用の候補（`("checkbox", "root")`）を試した後、グループ
+/// 文脈の候補（`("checkbox-group", "item")`）へフォールバックする。
+/// 単独 checkbox 候補を先に置く順序自体が正しさの根拠になる: 単独 checkbox
+/// が偶然 checkbox-group の祖先を持つ DOM 構成であっても、`checkbox` root が
+/// 存在すれば従来どおりそちらが境界として選ばれる（グループ文脈のみが
+/// フォールバック対象になる）。
+///
+/// # イシュー #1741 記録の写像との差分
+///
+/// 元イシューは `("checkbox-group", "hidden-input") -> "item-control"`
+/// という写像を記録していたが、これは文字どおりには成立しない。
+/// (a) hidden-input の `data-scope` は `"checkbox"` のままであり
+/// `"checkbox-group"` へ変更していない（変更すると `fandhe-frontend-
+/// pre-styled-ui` の checkbox stylesheet が持つ
+/// `[data-scope="checkbox"][data-part="hidden-input"]` の visually-hidden
+/// 規則が外れて hidden-input が可視化する回帰、および #997 の
+/// 「`item-hidden-input` パーツを新設しない」設計判断の反転になる）。
+/// (b) `item-control` は hidden-input の祖先ではなく兄弟要素であり、
+/// 祖先方向にしか辿らない `closest` では直接到達できない。
+///
+/// 実現形は [`crate::radio_group`] の前例（境界 = `item`、[`wiring::set_focus_visible`]
+/// が境界配下の同一 scope 要素すべてへ伝播することで `item-control` へも
+/// `data-focus-visible` が届く）と同型にした: 本関数は境界を
+/// `("checkbox-group", "item")` として返し、`item` 配下で `data-scope=
+/// "checkbox-group"` を共有する `item-control`/`item-indicator`/
+/// `item-text` すべてへ伝播する（視覚ターゲット `item-control` にも
+/// 届く）。
+#[must_use]
+pub fn boundary_candidates_for(scope: &str, part: &str) -> &'static [BoundaryCandidate] {
+    match (scope, part) {
+        ("switch", "hidden-input") => &[BoundaryCandidate {
+            scope: "switch",
+            part: "root",
+        }],
+        ("radio-group", "item-hidden-input") => &[BoundaryCandidate {
+            scope: "radio-group",
+            part: "item",
+        }],
+        ("checkbox", "hidden-input") => &[
+            BoundaryCandidate {
+                scope: "checkbox",
+                part: "root",
+            },
+            BoundaryCandidate {
+                scope: "checkbox-group",
+                part: "item",
+            },
+        ],
+        _ => &[],
+    }
+}
+
 /// hidden-input 側 `data-part` を対象とする CSS セレクタ（focusin/focusout
-/// のターゲット判定に使う。[`boundary_part_for`] のマッピング表と 1:1
-/// 対応させる契約であり、表に組を追加する際は本セレクタにも追記する）。
+/// のターゲット判定に使う。[`boundary_part_for`]/[`boundary_candidates_for`]
+/// のマッピング表と 1:1 対応させる契約であり、表に組を追加する際は本
+/// セレクタにも追記する）。
 pub const HIDDEN_INPUT_SELECTOR: &str = "[data-scope=\"switch\"][data-part=\"hidden-input\"], \
      [data-scope=\"radio-group\"][data-part=\"item-hidden-input\"], \
      [data-scope=\"checkbox\"][data-part=\"hidden-input\"]";
@@ -83,6 +159,54 @@ mod tests {
         assert_eq!(boundary_part_for("unknown", "hidden-input"), None);
         assert_eq!(boundary_part_for("switch", ""), None);
     }
+
+    // --- boundary_candidates_for（イシュー #1741） ---
+
+    #[test]
+    fn switch_and_radio_group_have_single_candidate_matching_boundary_part_for() {
+        assert_eq!(
+            boundary_candidates_for("switch", "hidden-input"),
+            &[BoundaryCandidate {
+                scope: "switch",
+                part: "root"
+            }]
+        );
+        assert_eq!(
+            boundary_candidates_for("radio-group", "item-hidden-input"),
+            &[BoundaryCandidate {
+                scope: "radio-group",
+                part: "item"
+            }]
+        );
+    }
+
+    #[test]
+    fn checkbox_has_two_candidates_same_scope_root_first_then_group_item() {
+        let candidates = boundary_candidates_for("checkbox", "hidden-input");
+        assert_eq!(
+            candidates,
+            &[
+                BoundaryCandidate {
+                    scope: "checkbox",
+                    part: "root"
+                },
+                BoundaryCandidate {
+                    scope: "checkbox-group",
+                    part: "item"
+                },
+            ]
+        );
+        // 単独 checkbox 用（同一 scope）の候補が先頭であることを固定する
+        // 契約（doc「順序契約」節参照）。
+        assert_eq!(candidates[0].scope, "checkbox");
+    }
+
+    #[test]
+    fn unknown_combinations_yield_empty_candidate_slice() {
+        assert_eq!(boundary_candidates_for("switch", "control"), &[]);
+        assert_eq!(boundary_candidates_for("unknown", "hidden-input"), &[]);
+        assert_eq!(boundary_candidates_for("switch", ""), &[]);
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -92,7 +216,7 @@ mod tests {
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::{boundary_part_for, HIDDEN_INPUT_SELECTOR};
+    use super::{boundary_candidates_for, HIDDEN_INPUT_SELECTOR};
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, Event};
@@ -103,8 +227,21 @@ mod wiring {
     const DATA_FOCUS_VISIBLE: &str = "data-focus-visible";
 
     /// `target` が [`HIDDEN_INPUT_SELECTOR`] に一致し `root` 配下にある場合、
-    /// `(data-scope, 境界パーツを表す Element)` を返す。`data-scope` 欠落・
-    /// 未知の組・`root` 外要素はいずれも `None`（fail-closed）。
+    /// `(境界パーツの data-scope, 境界パーツを表す Element)` を返す。
+    /// `data-scope` 欠落・未知の組・`root` 外要素はいずれも `None`
+    /// （fail-closed）。
+    ///
+    /// [`boundary_candidates_for`] が返す候補列を先頭から順に試し、
+    /// `closest` が最初に一致したものを採用する（イシュー #1741。単一
+    /// 候補のみを持つ switch/radio-group は従来と同じ 1 回の `closest`
+    /// 呼び出しに帰着し挙動は不変。checkbox のみ 2 候補目
+    /// （`checkbox-group`/`item`）を持ち、単独 checkbox 用の `root` が
+    /// 見つからない場合にグループ文脈の `item` へフォールバックする。
+    /// 戻り値の scope は候補側の scope（境界パーツの `data-scope`）であり、
+    /// hidden-input 自身の scope とは異なりうる — [`set_focus_visible`]/
+    /// [`remove_focus_visible`] の伝播 selector をこの scope で組み立てる
+    /// ことで、checkbox-group フォールバック時に `item-control` 等
+    /// `checkbox-group` scope の descendant へ正しく伝播する）。
     fn resolve_boundary(root: &Element, target: &Element) -> Option<(String, Element)> {
         if !target.matches(HIDDEN_INPUT_SELECTOR).unwrap_or(false) {
             return None;
@@ -112,15 +249,22 @@ mod wiring {
         if !root.contains(Some(target)) {
             return None;
         }
-        let scope = target.get_attribute("data-scope")?;
+        let hidden_input_scope = target.get_attribute("data-scope")?;
         let part = target.get_attribute("data-part")?;
-        let boundary_part = boundary_part_for(&scope, &part)?;
-        let selector = format!("[data-scope=\"{scope}\"][data-part=\"{boundary_part}\"]");
-        let boundary = target.closest(&selector).ok().flatten()?;
-        if !root.contains(Some(&boundary)) {
-            return None;
+        for candidate in boundary_candidates_for(&hidden_input_scope, &part) {
+            let selector = format!(
+                "[data-scope=\"{}\"][data-part=\"{}\"]",
+                candidate.scope, candidate.part
+            );
+            let Some(boundary) = target.closest(&selector).ok().flatten() else {
+                continue;
+            };
+            if !root.contains(Some(&boundary)) {
+                continue;
+            }
+            return Some((candidate.scope.to_string(), boundary));
         }
-        Some((scope, boundary))
+        None
     }
 
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
