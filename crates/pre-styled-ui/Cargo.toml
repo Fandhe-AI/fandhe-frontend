@@ -699,7 +699,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # （main, イシュー #1515 の 0.58.3）を取り込んだ結果 version 番号が偶発的に
 # 一致していたが、本イシュー自体の実体変更が未反映だったため 0.58.4 へ
 # さらに patch バンプする（codex-review P1 指摘、PR #1790）。
-# イシュー #1517（breadcrumb のスタイルを参考サイト基準へ調整、本 PR #1791）は
+# イシュー #1518: carousel のスタイルを参考サイト基準へ調整（hover/フォーカス
+# リング/disabled/トランジションの canonical 化、角丸のトークン化）。
+# 既存セレクタ・公開 Rust API シグネチャの削除/改名を伴わない宣言の追加・
+# 値変更のみのため patch バンプする（`docs/ci/style-refresh-version-bump-operation.md`
+# 準拠）。
+# イシュー #1517（breadcrumb のスタイルを参考サイト基準へ調整、PR #1791）は
 # 直前の #1516（action-bar）で使用済みの 0.58.4 のまま実体変更（`link` slot の
 # hover/フォーカスリング/transition の canonical ヘルパ追加・`list`/`item` の
 # `gap` トークン化）が版数に未反映だったため（codex-review P1 指摘・Cursor
@@ -711,6 +716,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # トークン化・`input` 背景の白背景相当への変更を伴う CSS 実体変更のため、
 # 0.58.6 へ patch バンプする（既存セレクタ・公開 Rust API シグネチャの
 # 削除/改名を伴わないため patch 相当、#1515/#1516/#1517 と同じ判断）。
+# base 取り込みにより、本ブランチ側の #1518（carousel、0.58.4 → 0.58.5）と
+# 上記 #1517（breadcrumb、0.58.4 → 0.58.5）の版数が偶発的に衝突したため、
+# 双方の実体変更を統合した結果として 0.58.6 へさらに patch バンプする
+# （同一版数への偶発的衝突をそのまま採用しない）。
 version = "0.58.6"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
