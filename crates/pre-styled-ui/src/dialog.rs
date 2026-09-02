@@ -113,8 +113,9 @@
 //! （1〜2 文字のグリフ相当の短い children、支援技術向けラベルは
 //! `("aria-label", "...")` 属性で付与）へ明示的に変更した。従来
 //! `text("Close")` のような複数文字テキストを children に渡す使用例が
-//! 存在したが、絶対配置 + `title` 側の固定ガター（`var(--fandhe-space-8)`）
-//! の組み合わせでは長いテキストが `title` と重なるため、この使い方は
+//! 存在したが、絶対配置 + `title` 側の固定ガター
+//! （`calc(var(--fandhe-space-8) + var(--fandhe-space-2))`）の組み合わせでは
+//! 長いテキストが `title` と重なるため、この使い方は
 //! 0.59.0 以降サポート外とする（`recipe()` の `close-trigger` base が
 //! `width`/`height` を固定し `overflow: hidden` で視覚上の重なりを防ぐが、
 //! これは緩和策であり正式な使用法ではない）。呼び出し側は
@@ -342,13 +343,21 @@ fn recipe() -> SlotRecipe {
                 decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
                 decl("line-height", "var(--fandhe-font-line-height-tight)"),
                 decl("margin", "0 0 var(--fandhe-space-2) 0"),
-                // Medium 指摘（イシュー #1693 レビュー）: close-trigger を
-                // content 右上へ絶対配置で重ねているため、title 側に
-                // インライン終端方向のガター（close-trigger の想定占有幅
-                // 相当）を確保しないと、title が折り返す/長い場合に
-                // テキストと close-trigger が重なる。参照サイト実装
-                // （Radix 等）が header/title 側にガターを設ける慣行に倣う。
-                decl("padding-inline-end", "var(--fandhe-space-8)"),
+                // Medium 指摘（イシュー #1693 レビュー、codex-review/Bugbot
+                // PR #1795 再指摘）: close-trigger を content 右上へ絶対配置
+                // で重ねているため、title 側にインライン終端方向のガターを
+                // 確保しないと、title が折り返す/長い場合にテキストと
+                // close-trigger が重なる。参照サイト実装（Radix 等）が
+                // header/title 側にガターを設ける慣行に倣う。close-trigger
+                // は `box-sizing: border-box` を明示するため実占有幅は
+                // `width`（`--fandhe-space-8`）で確定するが、絶対配置の
+                // 基準点は content の inline-end からの `inset-inline-end`
+                // （`--fandhe-space-2`）だけ内側にずれているため、ガターは
+                // 両者の合計（`calc(width + inset)`）を確保する。
+                decl(
+                    "padding-inline-end",
+                    "calc(var(--fandhe-space-8) + var(--fandhe-space-2))",
+                ),
             ],
         )
         .base(
@@ -385,7 +394,8 @@ fn recipe() -> SlotRecipe {
         //
         // codex-review（PR #1795）P1 指摘対応: 呼び出し側が children に
         // `text("Close")` 等の複数文字テキストを渡すと、絶対配置 + `title`
-        // 側の固定ガター（`var(--fandhe-space-8)`）を超えて `title` と
+        // 側の固定ガター（`calc(var(--fandhe-space-8) + var(--fandhe-space-2))`）を
+        // 超えて `title` と
         // 視覚的に重なる。本パーツは **アイコン専用**（1〜2 文字のグリフ
         // 相当）契約であることを `width`/`height` の明示固定と
         // `overflow: hidden` で強制する（誤ってテキストを渡しても正方形の
@@ -405,6 +415,14 @@ fn recipe() -> SlotRecipe {
                     decl("display", "inline-flex"),
                     decl("align-items", "center"),
                     decl("justify-content", "center"),
+                    // codex-review/Bugbot 指摘（PR #1795）: `box-sizing` 未
+                    // 指定だと既定の `content-box` になり、`padding`
+                    // （`--fandhe-space-1`）が `width`/`height`
+                    // （`--fandhe-space-8`）に加算されて実描画サイズが
+                    // documented な 2rem square（`--fandhe-space-8`）を
+                    // 超える（2rem + 0.5rem*2 = 2.5rem）。`border-box` を
+                    // 明示し、`width`/`height` を実占有サイズの確定値にする。
+                    decl("box-sizing", "border-box"),
                     decl("width", "var(--fandhe-space-8)"),
                     decl("height", "var(--fandhe-space-8)"),
                     decl("overflow", "hidden"),
@@ -776,6 +794,38 @@ mod tests {
             .expect("close-trigger base rule must be present");
         let close_trigger_end = css[close_trigger_start..].find('}').unwrap() + close_trigger_start;
         assert!(css[close_trigger_start..close_trigger_end].contains("position: absolute;"));
+    }
+
+    #[test]
+    fn close_trigger_uses_border_box_and_title_gutter_matches_occupied_space() {
+        // codex-review（PR #1795）P1 指摘 + Cursor Bugbot 指摘: close-trigger
+        // は `width`/`height`（`--fandhe-space-8`）と `padding`
+        // （`--fandhe-space-1`）を併せ持つため、`box-sizing: border-box` が
+        // ないと content-box の既定で実描画サイズが documented な 2rem
+        // square を超える（2rem + 0.5rem*2 = 2.5rem）。かつ、`title` 側の
+        // ガター（`padding-inline-end`）は close-trigger の実占有幅
+        // （`width`）と絶対配置の基準点のずれ（`inset-inline-end`）の
+        // 合計を確保しないと、xs dialog のような狭い content で title と
+        // 重なり得る。両者を固定する。
+        let css = stylesheet();
+
+        let close_trigger_start = css
+            .find(r#"[data-scope="dialog"][data-part="close-trigger"] {"#)
+            .expect("close-trigger base rule must be present");
+        let close_trigger_end = css[close_trigger_start..].find('}').unwrap() + close_trigger_start;
+        let close_trigger_rule = &css[close_trigger_start..close_trigger_end];
+        assert!(close_trigger_rule.contains("box-sizing: border-box;"));
+        assert!(close_trigger_rule.contains("width: var(--fandhe-space-8);"));
+        assert!(close_trigger_rule.contains("height: var(--fandhe-space-8);"));
+        assert!(close_trigger_rule.contains("inset-inline-end: var(--fandhe-space-2);"));
+
+        let title_start = css
+            .find(r#"[data-scope="dialog"][data-part="title"] {"#)
+            .expect("title base rule must be present");
+        let title_end = css[title_start..].find('}').unwrap() + title_start;
+        let title_rule = &css[title_start..title_end];
+        assert!(title_rule
+            .contains("padding-inline-end: calc(var(--fandhe-space-8) + var(--fandhe-space-2));"));
     }
 
     #[test]

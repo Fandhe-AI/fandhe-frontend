@@ -26,6 +26,11 @@
 //! トランジション（`transition-property` 追加）は headless 層の `hidden`
 //! 即時付与契約と両立しない（codex-review #1795 P1 指摘）ため見送った
 //! （同 rustdoc「開閉トランジションを追加しない理由」節参照）。
+//!
+//! PR #1795 再指摘（codex-review P1 + Cursor Bugbot）を受け、
+//! `close-trigger` へ `box-sizing: border-box` を追加し、`title` の
+//! `padding-inline-end` を `calc(var(--fandhe-space-8) + var(--fandhe-space-2))`
+//! （close-trigger の実占有幅 + 絶対配置の inset 分）へ拡大した。
 
 use fandhe_frontend_pre_styled_ui::dialog;
 
@@ -75,7 +80,7 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   font-weight: var(--fandhe-font-font-weight-semibold);
   line-height: var(--fandhe-font-line-height-tight);
   margin: 0 0 var(--fandhe-space-2) 0;
-  padding-inline-end: var(--fandhe-space-8);
+  padding-inline-end: calc(var(--fandhe-space-8) + var(--fandhe-space-2));
 }
 
 [data-scope="dialog"][data-part="description"] {
@@ -91,6 +96,7 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   width: var(--fandhe-space-8);
   height: var(--fandhe-space-8);
   overflow: hidden;
