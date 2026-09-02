@@ -9,12 +9,21 @@
 //! イシュー #1539 で indicator / separator の期待値を更新（親 #1538 の
 //! 1/2、色トークン是正・角丸/線幅のトークン化・separator の min-width・
 //! transition・size 別 indicator フォントサイズ）。
+//!
+//! イシュー #1540 で content/trigger/prev-trigger/next-trigger/orientation
+//! の期待値を更新（親 #1538 の 2/2、hover/disabled/focus/transition 共通
+//! ヘルパへの置換・`--fandhe-steps-font-size` custom property 追加・縦向き
+//! root レイアウト切替）。PR #1814 codex-review 対応（P1: 縦向き root で
+//! `list` 以外の直下要素が横並びになるレイアウト回帰）で pre-styled-ui
+//! 専用のグルーピングパーツ `body` を新設したことに伴い、`body` slot の
+//! CSS を追加した。
 
 use fandhe_frontend_pre_styled_ui::steps;
 
 const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
   display: flex;
   flex-direction: column;
+  gap: var(--fandhe-space-4);
 }
 
 [data-scope="steps"][data-part="list"] {
@@ -37,13 +46,27 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
 [data-scope="steps"][data-part="trigger"] {
   display: inline-flex;
   align-items: center;
-  gap: var(--fandhe-space-2);
+  gap: var(--fandhe-space-3);
   background: none;
   border: none;
+  border-radius: var(--fandhe-radius-md);
   cursor: pointer;
   font: inherit;
+  font-size: var(--fandhe-steps-font-size, var(--fandhe-font-font-size-sm));
+  font-weight: var(--fandhe-font-font-weight-medium);
   color: inherit;
   padding: 0;
+  text-align: start;
+}
+
+[data-scope="steps"][data-part="trigger"] {
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="steps"][data-part="trigger"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="steps"][data-part="indicator"] {
@@ -82,49 +105,100 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
+[data-scope="steps"][data-part="content"] {
+  color: var(--fandhe-color-fg);
+}
+
+[data-scope="steps"][data-part="completed-content"] {
+  color: var(--fandhe-color-fg);
+}
+
 [data-scope="steps"][data-part="prev-trigger"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: var(--fandhe-size-control-height-sm, 2.25rem);
+  padding: 0 var(--fandhe-size-control-padding-x-sm, 0.75rem);
   cursor: pointer;
   font: inherit;
-  padding: var(--fandhe-space-1) var(--fandhe-space-3);
+  font-size: var(--fandhe-steps-font-size, var(--fandhe-font-font-size-sm));
   border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
 }
 
+[data-scope="steps"][data-part="prev-trigger"] {
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="steps"][data-part="prev-trigger"] {
+  transition-property: background, border-color, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
 [data-scope="steps"][data-part="next-trigger"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: var(--fandhe-size-control-height-sm, 2.25rem);
+  padding: 0 var(--fandhe-size-control-padding-x-sm, 0.75rem);
   cursor: pointer;
   font: inherit;
-  padding: var(--fandhe-space-1) var(--fandhe-space-3);
+  font-size: var(--fandhe-steps-font-size, var(--fandhe-font-font-size-sm));
   border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-palette, var(--fandhe-color-accent));
-  color: var(--fandhe-color-bg);
+  color: var(--fandhe-palette-fg, var(--fandhe-color-accent-fg));
+}
+
+[data-scope="steps"][data-part="next-trigger"] {
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
+}
+
+[data-scope="steps"][data-part="next-trigger"] {
+  transition-property: background, border-color, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="steps"][data-part="body"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fandhe-space-4);
 }
 
 [data-scope="steps"][data-part="root"].fd-steps--size-xs {
   --fandhe-steps-indicator-size: 1rem;
   --fandhe-steps-indicator-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-steps-font-size: var(--fandhe-font-font-size-xs);
 }
 
 [data-scope="steps"][data-part="root"].fd-steps--size-sm {
   --fandhe-steps-indicator-size: 1.5rem;
   --fandhe-steps-indicator-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-steps-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="steps"][data-part="root"].fd-steps--size-md {
   --fandhe-steps-indicator-size: 2rem;
   --fandhe-steps-indicator-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-steps-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="steps"][data-part="root"].fd-steps--size-lg {
   --fandhe-steps-indicator-size: 2.5rem;
   --fandhe-steps-indicator-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-steps-font-size: var(--fandhe-font-font-size-md);
 }
 
 [data-scope="steps"][data-part="root"].fd-steps--size-xl {
   --fandhe-steps-indicator-size: 3rem;
   --fandhe-steps-indicator-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-steps-font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="steps"][data-part="root"].fd-steps--color-palette-accent {
@@ -181,6 +255,11 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
 }
 
+[data-scope="steps"][data-part="root"][data-orientation="vertical"] {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
 [data-scope="steps"][data-part="list"][data-orientation="vertical"] {
   flex-direction: column;
   align-items: stretch;
@@ -198,8 +277,8 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
 }
 
 [data-scope="steps"][data-part="trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="steps"][data-part="indicator"][data-state="current"] {
@@ -230,13 +309,18 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
   display: none;
 }
 
+[data-scope="steps"][data-part="content"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
 [data-scope="steps"][data-part="completed-content"][data-state="closed"] {
   display: none;
 }
 
-[data-scope="steps"][data-part="prev-trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+[data-scope="steps"][data-part="completed-content"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="steps"][data-part="prev-trigger"][disabled] {
@@ -244,14 +328,43 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
   cursor: not-allowed;
 }
 
-[data-scope="steps"][data-part="next-trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+[data-scope="steps"][data-part="prev-trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="steps"][data-part="prev-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="steps"][data-part="next-trigger"][disabled] {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+[data-scope="steps"][data-part="next-trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="steps"][data-part="next-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (hover: hover) {
+  [data-scope="steps"][data-part="trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="steps"][data-part="prev-trigger"]:hover:not([data-disabled]):not([disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="steps"][data-part="next-trigger"]:hover:not([data-disabled]):not([disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
