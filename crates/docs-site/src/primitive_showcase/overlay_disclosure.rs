@@ -146,7 +146,11 @@ pub(super) fn dialog_section() -> Node {
                                 vec![],
                                 vec![text("This cannot be undone.")],
                             ),
-                            dialog::close_trigger(vec![], vec![text("Close")]),
+                            // codex-review 指摘（PR #1795）: dialog の
+                            // close-trigger はアイコン専用契約（0.59.0〜、
+                            // `crates/pre-styled-ui/src/dialog.rs` rustdoc
+                            // 参照）。支援技術向けラベルは aria-label で維持する。
+                            dialog::close_trigger(vec![("aria-label", "Close")], vec![text("×")]),
                         ],
                     )],
                 ),

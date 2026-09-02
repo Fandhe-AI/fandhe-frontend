@@ -2073,7 +2073,33 @@ fn dialog_section() -> Node {
                                     vec![],
                                     vec![text("この操作は取り消せません。")],
                                 ),
-                                dialog::close_trigger(vec![], vec![text("Close")]),
+                                // イシュー #1693: footer 相当のアクション配置例
+                                // （headless anatomy に専用 footer パートが
+                                // 存在しないため、description 直後に通常の
+                                // 行として掲示する。`.showcase-row` は掲示用
+                                // レイアウトのみを担い、製品 CSS には footer
+                                // 規則を持ち込まない）。
+                                div(
+                                    vec![("class", "showcase-row")],
+                                    vec![
+                                        button(
+                                            &ButtonProps {
+                                                variant: ButtonVariant::Outline,
+                                                ..ButtonProps::default()
+                                            },
+                                            vec![],
+                                            vec![text("Cancel")],
+                                        ),
+                                        button(&ButtonProps::default(), vec![], vec![text("Save")]),
+                                    ],
+                                ),
+                                // イシュー #1693: content 右上のゴーストボタン
+                                // 化に伴い視覚はアイコンボタン化（`×`）。
+                                // 支援技術向けラベルは `aria-label` で維持する。
+                                dialog::close_trigger(
+                                    vec![("aria-label", "Close")],
+                                    vec![text("×")],
+                                ),
                             ],
                         )],
                     ),
@@ -2083,7 +2109,7 @@ fn dialog_section() -> Node {
     );
     section(
         "Dialog",
-        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。",
+        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下にアクション行（footer 相当、掲示用レイアウトのみ）を配置しています。",
         vec![node],
     )
 }

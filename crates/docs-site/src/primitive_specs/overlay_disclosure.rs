@@ -394,7 +394,14 @@ fn ex_dialog_alert_non_modal() -> Node {
                                     vec![],
                                     vec![text("Delete this item?")],
                                 ),
-                                dialog::close_trigger(vec![], vec![text("Cancel")]),
+                                // codex-review 指摘（PR #1795）: dialog の
+                                // close-trigger はアイコン専用契約（0.59.0〜、
+                                // `crates/pre-styled-ui/src/dialog.rs` rustdoc
+                                // 参照）。支援技術向けラベルは aria-label で維持する。
+                                dialog::close_trigger(
+                                    vec![("aria-label", "Cancel")],
+                                    vec![text("×")],
+                                ),
                             ],
                         )],
                     ),

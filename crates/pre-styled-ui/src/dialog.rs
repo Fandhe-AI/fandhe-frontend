@@ -82,6 +82,90 @@
 //! 両パーツに `z-index` を設定し、常に最前面に来るようにする（menu/select の
 //! dropdown positioner（z-index: 10）より高い値にする）。
 //!
+//! # 内部パートのスタイル調整（イシュー #1693、親 #1520）
+//!
+//! 参照サイト基準の意匠調整として、`title`/`description`/`close-trigger`
+//! （内部パート）のスタイルを本イシューで追加する。兄弟イシュー #1692 が
+//! 担う `trigger`/`backdrop`/`positioner`/`content` の枠・影・サイズ
+//! （border/box-shadow/max-width 等）には触れない。開閉トランジション
+//! （CSS `transition-property` による fade/scale アニメーション）は、
+//! 下記「開閉トランジションを追加しない理由」のとおり本イシューでは
+//! 見送る。
+//!
+//! - **`content` の `position: relative`**: 絶対配置する `close-trigger`
+//!   （後述）の配置基準。枠・影・サイズの変更ではないため #1692 側ではなく
+//!   本イシューで追加する（`content` base 宣言を両イシューが編集するため、
+//!   マージ順によっては手動 conflict 解消が必要になる点に注意）。
+//! - **`title`/`description` の行送り**: [`crate::recipe`] のタイポグラフィ
+//!   トークン（`--fandhe-font-line-height-tight`/`-normal`）を追加し、
+//!   `description` の下余白を広げて後続のアクション行（footer 相当）との
+//!   縦リズムを確保する。
+//! - **`close-trigger` を content 右上のゴーストボタン化**: `position:
+//!   absolute` で右上に固定し、hover 時のみ背景が付く（[`hover_bg_muted`] +
+//!   [`hover_surface_declarations`]）ghost ボタンの見た目にする。focus-visible
+//!   リングは [`focus_ring_declarations`]（イシュー #1424 共通トークン）へ
+//!   移行する（`trigger` 側のフォーカスリングは #1692 のスコープのため
+//!   本イシューでは変更しない）。
+//!
+//! ## `close-trigger` はアイコン専用契約（codex-review #1795 P1 指摘対応、0.59.0 破壊的変更）
+//!
+//! 上記の絶対配置化に伴い、`close-trigger` の公開契約を**アイコン専用**
+//! （1〜2 文字のグリフ相当の短い children、支援技術向けラベルは
+//! `("aria-label", "...")` 属性で付与）へ明示的に変更した。従来
+//! `text("Close")` のような複数文字テキストを children に渡す使用例が
+//! 存在したが、絶対配置 + `title` 側の固定ガター
+//! （`calc(var(--fandhe-space-8) + var(--fandhe-space-2))`）の組み合わせでは
+//! 長いテキストが `title` と重なるため、この使い方は
+//! 0.59.0 以降サポート外とする（`recipe()` の `close-trigger` base が
+//! `width`/`height` を固定し `overflow: hidden` で視覚上の重なりを防ぐが、
+//! これは緩和策であり正式な使用法ではない）。呼び出し側は
+//! `close_trigger(vec![("aria-label", "Close")], vec![text("×")])` の形へ
+//! 移行すること（`crates/docs-site/src/showcase.rs`・
+//! `examples/headless-pre-styled-ui` の同型呼び出しを参照）。公開 API
+//! シグネチャ（`close_trigger` の引数型）自体は変更しないため、コンパイル
+//! エラーにはならない静的検知不能な破壊的変更である点に注意する。
+//!
+//! ## 開閉トランジションを追加しない理由（codex-review #1795 P1 指摘対応）
+//!
+//! 当初 `backdrop`/`content` の base へ [`transition_declarations`]
+//! （`MotionDuration::Slow`）を追加し、`content` の `data-state` 連動規則へ
+//! `opacity` を加えて fade + scale の複合遷移を試みたが、headless 層
+//! （`crates/headless-ui/src/dialog.rs`）は open/closed の切り替え時に
+//! `positioner`/`backdrop`/`content` へ `hidden` 存在属性を**同一フレームで
+//! 即時**付与・除去する契約になっている。ブラウザは `[hidden]` による
+//! `display: none` ⇔ 表示の切り替えを離散的に即座に適用するため、
+//! `opacity`/`transform` の遷移前フレームが一切描画されず、**開く方向・
+//! 閉じる方向のいずれも**視覚上トランジションは発火しない（閉じる側のみの
+//! 制約とする従来の記述は不正確だった）。この状態で `transition-property`
+//! だけを宣言すると、実際には効果のない CSS を「開閉トランジション」という
+//! 機能として謳うことになり契約不整合となるため、本イシューでは
+//! `transition_declarations` の追加そのものを取り下げる（`backdrop` の
+//! opacity 状態切り替え・`content` の transform 状態切り替え自体は #551 から
+//! 存在する記述であり、開閉トランジションの機能追加を主張しない限りは
+//! 従来どおり残す）。真に機能させるには次のいずれかが必要であり、いずれも
+//! 本イシュー（pre-styled-ui の CSS 調整）のスコープを超える設計変更を伴う
+//! ため、別イシュー・ユーザー承認が必要な対象外事項として記録する
+//! （`.claude/rules/out-of-scope-tracking.md` 対応）:
+//!
+//! - headless 層と協調し、閉じる際は退場アニメーション完了まで `hidden`
+//!   付与を遅延させ、開く際は `hidden` 解除と `data-state="open"` 適用の
+//!   間に遷移前スタイルを一度描画させる状態管理（JS 側のタイミング制御が
+//!   前提になり得る）
+//! - `@starting-style` + `transition-behavior: allow-discrete`
+//!   （CSS ネイティブの離散プロパティ遷移機構）を [`crate::recipe::SlotRecipe`]
+//!   へ新規サポートとして追加する設計（`recipe.rs` は全 styled 部品が
+//!   共有する基盤であり、fail-closed 検証・出力順序・
+//!   `tests/recipe_css.rs` 契約への影響を伴う横断判断が必要）
+//! - **footer 相当のアクション配置**: headless anatomy に `footer` パートが
+//!   存在せず、[`crate::recipe::SlotRecipe`] は子孫セレクタ機構を持たない
+//!   （イシュー #708 で不採用確定）ため、専用 footer パートの CSS を
+//!   pre-styled 側だけで新設することはできない。本イシューでは
+//!   `description` の下余白確保までに留め、showcase デモ
+//!   （`crates/docs-site/src/showcase.rs::dialog_section`）でアクション行の
+//!   掲示例を示す。`dialog` への `footer` anatomy パート追加は headless-ui
+//!   の anatomy 変更を伴うため、別イシュー・ユーザー承認が必要な対象外事項
+//!   として記録する（`.claude/rules/out-of-scope-tracking.md` 対応）。
+//!
 //! # closed 時の `positioner` は必ず非表示化する（PR #575 Bugbot 指摘対応、High）
 //!
 //! headless 層（`crates/headless-ui/src/dialog.rs`）は dialog が closed の
@@ -224,6 +308,11 @@ fn recipe() -> SlotRecipe {
         .base(
             "content",
             vec![
+                // イシュー #1693: close-trigger の絶対配置基準
+                // （枠・影・サイズではないため #1692 側ではなく本
+                // イシューで追加、両イシューが `content` base を
+                // 編集する点に注意）。
+                decl("position", "relative"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 // 計算値は旧生値 0.5rem と同一（トークン化のみ、見た目不変）。
@@ -252,14 +341,31 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-dialog-title-font-size, var(--fandhe-font-font-size-lg))",
                 ),
                 decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                decl("line-height", "var(--fandhe-font-line-height-tight)"),
                 decl("margin", "0 0 var(--fandhe-space-2) 0"),
+                // Medium 指摘（イシュー #1693 レビュー、codex-review/Bugbot
+                // PR #1795 再指摘）: close-trigger を content 右上へ絶対配置
+                // で重ねているため、title 側にインライン終端方向のガターを
+                // 確保しないと、title が折り返す/長い場合にテキストと
+                // close-trigger が重なる。参照サイト実装（Radix 等）が
+                // header/title 側にガターを設ける慣行に倣う。close-trigger
+                // は `box-sizing: border-box` を明示するため実占有幅は
+                // `width`（`--fandhe-space-8`）で確定するが、絶対配置の
+                // 基準点は content の inline-end からの `inset-inline-end`
+                // （`--fandhe-space-2`）だけ内側にずれているため、ガターは
+                // 両者の合計（`calc(width + inset)`）を確保する。
+                decl(
+                    "padding-inline-end",
+                    "calc(var(--fandhe-space-8) + var(--fandhe-space-2))",
+                ),
             ],
         )
         .base(
             "description",
             vec![
                 decl("color", "var(--fandhe-color-fg-muted)"),
-                decl("margin", "0"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+                decl("margin", "0 0 var(--fandhe-space-4) 0"),
             ],
         )
         .base(
@@ -280,12 +386,66 @@ fn recipe() -> SlotRecipe {
             ))
             .collect(),
         )
+        // イシュー #1693: content 右上のゴーストボタン化（参照サイト標準）。
+        // `position: absolute` は同イシューで追加した `content` の
+        // `position: relative` を基準とする。位置指定は論理プロパティで
+        // 統一する（`inset-block-start`/`inset-inline-end`、一貫性のため
+        // 物理プロパティの `top` は使わない）。
+        //
+        // codex-review（PR #1795）P1 指摘対応: 呼び出し側が children に
+        // `text("Close")` 等の複数文字テキストを渡すと、絶対配置 + `title`
+        // 側の固定ガター（`calc(var(--fandhe-space-8) + var(--fandhe-space-2))`）を
+        // 超えて `title` と
+        // 視覚的に重なる。本パーツは **アイコン専用**（1〜2 文字のグリフ
+        // 相当）契約であることを `width`/`height` の明示固定と
+        // `overflow: hidden` で強制する（誤ってテキストを渡しても正方形の
+        // 枠内で切り詰められ、`title` への重なりを防ぐ）。この契約変更は
+        // 0.x の破壊的変更のためマイナーバンプ（0.59.0）で公開する。
+        // 呼び出し側は `close_trigger(vec![("aria-label", "Close")],
+        // vec![text("×")])` のようにアイコン + `aria-label` の組み合わせで
+        // 渡すこと（`crates/docs-site/src/showcase.rs` の同型呼び出しを
+        // 参照）。
         .base(
             "close-trigger",
-            vec![
-                decl("cursor", "pointer"),
-                decl("color", "var(--fandhe-color-fg-muted)"),
-            ],
+            [
+                vec![
+                    decl("position", "absolute"),
+                    decl("inset-block-start", "var(--fandhe-space-2)"),
+                    decl("inset-inline-end", "var(--fandhe-space-2)"),
+                    decl("display", "inline-flex"),
+                    decl("align-items", "center"),
+                    decl("justify-content", "center"),
+                    // codex-review/Bugbot 指摘（PR #1795）: `box-sizing` 未
+                    // 指定だと既定の `content-box` になり、`padding`
+                    // （`--fandhe-space-1`）が `width`/`height`
+                    // （`--fandhe-space-8`）に加算されて実描画サイズが
+                    // documented な 2rem square（`--fandhe-space-8`）を
+                    // 超える（2rem + 0.5rem*2 = 2.5rem）。`border-box` を
+                    // 明示し、`width`/`height` を実占有サイズの確定値にする。
+                    decl("box-sizing", "border-box"),
+                    decl("width", "var(--fandhe-space-8)"),
+                    decl("height", "var(--fandhe-space-8)"),
+                    decl("overflow", "hidden"),
+                    decl("border", "none"),
+                    decl("border-radius", "var(--fandhe-radius-sm)"),
+                    decl("background", "transparent"),
+                    decl("padding", "var(--fandhe-space-1)"),
+                    decl("cursor", "pointer"),
+                    decl("color", "var(--fandhe-color-fg-muted)"),
+                ],
+                vec![hover_bg_muted()],
+                // `hover_surface_declarations()`（下記 state 登録）は
+                // `background` のみを変更し `color` を変える規則を持たない
+                // ため、到達しない宣言を避けて `background` のみ
+                // transition 対象にする。
+                transition_declarations("background", MotionDuration::Fast),
+            ]
+            .concat(),
+        )
+        .state(
+            "close-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         // イシュー #551 受け入れ条件: `backdrop`/`content` の開閉状態に応じた
         // 見た目の切り替え。
@@ -335,13 +495,14 @@ fn recipe() -> SlotRecipe {
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
+        // イシュー #1693: close-trigger の focus-visible をイシュー #1424
+        // 共通トークンへ移行する（trigger 側も #1692 で同じ canonical
+        // ヘルパへ移行済み、base 取り込み後の統合により両者とも
+        // トークン参照形で揃う）。
         .state(
             "close-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         // イシュー #729: `size` variant（root スコープの CSS custom property。
         // Md はフォールバック値と同一の現行外観を維持する）。
@@ -593,33 +754,78 @@ mod tests {
     #[test]
     fn trigger_and_close_trigger_declare_focus_visible_ring() {
         // イシュー #643 受け入れ条件: キーボード操作系属性（:focus-visible）
-        // が recipe 経由で反映されることを固定する。
-        //
-        // イシュー #1692 で trigger 側は canonical ヘルパ
-        // （[`focus_ring_declarations`]）へ置換した（出力値は従来と同一）。
-        // close-trigger は兄弟イシュー #1693 の担当のため旧来の直書き形の
-        // ままであることを分けて固定する。
+        // が recipe 経由で反映されることを固定する。イシュー #1692/#1693 の
+        // base 取り込みにより trigger/close-trigger の双方が共通トークン
+        // （#1424 canonical ヘルパ）へ移行済みであることを固定する。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="dialog"][data-part="trigger"]:focus-visible {"#));
         assert!(css.contains(r#"[data-scope="dialog"][data-part="close-trigger"]:focus-visible {"#));
-        let trigger_focus_start = css
-            .find(r#"[data-scope="dialog"][data-part="trigger"]:focus-visible {"#)
-            .expect("trigger focus-visible rule must be present");
-        let trigger_rule_body = &css[trigger_focus_start..];
-        let trigger_rule_end = trigger_rule_body.find('}').expect("rule must be closed");
-        assert!(trigger_rule_body[..trigger_rule_end].contains(
+        assert!(css.matches(
             "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
-        ));
+        ).count() == 2);
+    }
 
-        let close_trigger_focus_start = css
-            .find(r#"[data-scope="dialog"][data-part="close-trigger"]:focus-visible {"#)
-            .expect("close-trigger focus-visible rule must be present");
-        let close_trigger_rule_body = &css[close_trigger_focus_start..];
-        let close_trigger_rule_end = close_trigger_rule_body
-            .find('}')
-            .expect("rule must be closed");
-        assert!(close_trigger_rule_body[..close_trigger_rule_end]
-            .contains("outline: 2px solid var(--fandhe-color-accent);"));
+    #[test]
+    fn close_trigger_declares_hover_surface_inside_hover_media_query() {
+        // イシュー #1693: close-trigger の hover 規則が `@media (hover:
+        // hover)` 内に `:hover:not([data-disabled])` で出力されることを
+        // 固定する（#1425 規約、`SlotRecipe::css` の集約契約）。
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="dialog"][data-part="close-trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+    }
+
+    #[test]
+    fn content_and_close_trigger_declare_positioning_pair() {
+        // イシュー #1693: close-trigger の絶対配置は content の
+        // `position: relative` を基準とする（対で出力されることを固定）。
+        let css = stylesheet();
+        let content_start = css
+            .find(r#"[data-scope="dialog"][data-part="content"] {"#)
+            .expect("content base rule must be present");
+        let content_end = css[content_start..].find('}').unwrap() + content_start;
+        assert!(css[content_start..content_end].contains("position: relative;"));
+
+        let close_trigger_start = css
+            .find(r#"[data-scope="dialog"][data-part="close-trigger"] {"#)
+            .expect("close-trigger base rule must be present");
+        let close_trigger_end = css[close_trigger_start..].find('}').unwrap() + close_trigger_start;
+        assert!(css[close_trigger_start..close_trigger_end].contains("position: absolute;"));
+    }
+
+    #[test]
+    fn close_trigger_uses_border_box_and_title_gutter_matches_occupied_space() {
+        // codex-review（PR #1795）P1 指摘 + Cursor Bugbot 指摘: close-trigger
+        // は `width`/`height`（`--fandhe-space-8`）と `padding`
+        // （`--fandhe-space-1`）を併せ持つため、`box-sizing: border-box` が
+        // ないと content-box の既定で実描画サイズが documented な 2rem
+        // square を超える（2rem + 0.5rem*2 = 2.5rem）。かつ、`title` 側の
+        // ガター（`padding-inline-end`）は close-trigger の実占有幅
+        // （`width`）と絶対配置の基準点のずれ（`inset-inline-end`）の
+        // 合計を確保しないと、xs dialog のような狭い content で title と
+        // 重なり得る。両者を固定する。
+        let css = stylesheet();
+
+        let close_trigger_start = css
+            .find(r#"[data-scope="dialog"][data-part="close-trigger"] {"#)
+            .expect("close-trigger base rule must be present");
+        let close_trigger_end = css[close_trigger_start..].find('}').unwrap() + close_trigger_start;
+        let close_trigger_rule = &css[close_trigger_start..close_trigger_end];
+        assert!(close_trigger_rule.contains("box-sizing: border-box;"));
+        assert!(close_trigger_rule.contains("width: var(--fandhe-space-8);"));
+        assert!(close_trigger_rule.contains("height: var(--fandhe-space-8);"));
+        assert!(close_trigger_rule.contains("inset-inline-end: var(--fandhe-space-2);"));
+
+        let title_start = css
+            .find(r#"[data-scope="dialog"][data-part="title"] {"#)
+            .expect("title base rule must be present");
+        let title_end = css[title_start..].find('}').unwrap() + title_start;
+        let title_rule = &css[title_start..title_end];
+        assert!(title_rule
+            .contains("padding-inline-end: calc(var(--fandhe-space-8) + var(--fandhe-space-2));"));
     }
 
     #[test]
