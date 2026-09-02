@@ -50,7 +50,7 @@
 //! 切り替える。`base`/`state` 規則の `var()` にはいずれも Md サイズ・Accent
 //! パレット相当のフォールバック値を書き、styled `root`/`tabs` を経由しない
 //! headless 直接利用マークアップでも現行外観を維持する（fail-safe、
-//! `crate::lib` rustdoc「複合部品の変体統一方針」節参照）。
+//! `crate::lib` rustdoc「複合部品の variant 統一方針」節参照）。
 //!
 //! # 参考サイト基準への調整（イシュー #1542）
 //!
