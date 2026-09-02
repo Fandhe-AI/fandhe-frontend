@@ -115,6 +115,7 @@ const FLOATING_PANEL_GOLDEN_CSS: &str = r#"[data-scope="floating-panel"][data-pa
 [data-scope="floating-panel"][data-part="content"][data-stage="maximized"] {
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
 }
 
 [data-scope="floating-panel"][data-part="trigger"]:focus-visible {
