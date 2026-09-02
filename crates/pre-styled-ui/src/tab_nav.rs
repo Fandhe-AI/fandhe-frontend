@@ -28,26 +28,6 @@
 //! は水平タブ外観の `root`/`link` 2 パーツのみで構成し、リストマークアップ
 //! を持たない。
 //!
-//! # CSS 共有の設計（[`crate::tabs`] とのセレクタ非共有・宣言列レベル共有）
-//!
-//! [`crate::recipe::SlotRecipe`] は `data-scope` をセレクタへ埋め込むため、
-//! `data-scope="tabs"` と `data-scope="tab-nav"` はセレクタ文字列としては
-//! 常に別ルールになり、CSS 規則そのものを共有することはできない。そこで
-//! 「タブ列コンテナ」「タブ項目」「選択中の強調」の 3 種の宣言列を
-//! [`crate::tabs::shared_tab_list_declarations`]/
-//! [`crate::tabs::shared_tab_item_declarations`]/
-//! [`crate::tabs::shared_tab_item_active_declarations`] として `tabs.rs` 側に
-//! `pub(crate)` で切り出し、本モジュールの [`recipe`] がそれを呼ぶ形で
-//! Rust 側の宣言列のみを共有する。`crates/pre-styled-ui/tests/tabs_css.rs`
-//! の `TABS_GOLDEN_CSS` はこのリファクタ後もバイト単位で不変（絶対条件）。
-//!
-//! # `size`/`color-palette` variant は非提供
-//!
-//! [`crate::toolbar`]/[`crate::menubar`] と同型の判断（ナビゲーション構造
-//! 部品であり寸法・強調色の variant 対象外）。`root` は variant クラスを
-//! 付与しないが、呼び出し側の `class` 注入経路は [`drop_class_attr`] で
-//! 塞ぐ（`nav_list::root` の慣行に合わせる）。
-//!
 //! # セキュリティ不変条件
 //!
 //! `href`/`aria-label`/`attrs`/children はすべて
@@ -63,6 +43,74 @@
 //! `data-scope`/`data-part` のみを守るため、それ以外の予約キー保護は本
 //! モジュール自身の責務、[`crate::radio_card`] と同型の判断）。
 //!
+//! # 参考サイト基準への調整（イシュー #1541）
+//!
+//! 参照サイト（Radix Themes `TabNav` のみ。chakra-ui / Ark UI / Radix
+//! Primitives には TabNav 相当が存在しない。Tabs は兄弟イシュー #1542 の
+//! 対象）との視覚比較（issue #1541 コメントに転記した 7 軸チェック）を
+//! 踏まえ、以下を是正した:
+//!
+//! - **`tabs.rs` 共有ヘルパからの独立**: 従来 [`recipe`] は
+//!   `crate::tabs::shared_tab_{list,item,item_active}_declarations` を
+//!   呼んでいたが、並列実行中の兄弟イシュー #1542（`tabs` のスタイル調整）
+//!   が同ヘルパを変更する見込みのため、golden CSS の相互破壊を避ける目的で
+//!   本イシューにて共有をやめ自前の宣言列を持つ（`tabs.rs`/
+//!   `tests/tabs_css.rs` は本 PR で一切変更しない）。`tabs.rs` 側の
+//!   3 ヘルパ rustdoc に残る「`tab_nav` が共有する」旨の記述は #1542 の
+//!   編集範囲と重なるため本 PR では追随せず、`.claude/rules/
+//!   out-of-scope-tracking.md` に従い別途記録する。
+//! - **`size` 軸の新設（破壊的変更）**: [`root`] の第 1 引数へ
+//!   [`crate::recipe::Size`]（Xs/Sm/Md/Lg/Xl、既定 Md）を追加した。
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 が
+//!   本部品を「size 軸追加候補」として名指ししていたことに応える。padding
+//!   の段進行は [`crate::tabs`] の size 進行と同一、font-size の段対応は
+//!   [`crate::pagination`] と同一とし、Radix Themes TabNav の size 2 = 14px
+//!   （sm）/ size 1 = 12px（xs）に整合させる。
+//! - **hover**: [`crate::recipe::StateCondition::Hover`] +
+//!   [`crate::recipe::hover_surface_declarations`] を追加した（`--fandhe-
+//!   hover-bg` は [`crate::recipe::hover_bg_muted`]）。参照サイトは現在
+//!   ページにも hover 背景を付けるため、`nav_list` の
+//!   `HoverExcept`（現在リンクを hover 対象から除外する specificity 競合
+//!   回避）は不要と判断した（現在リンクの `color` は既に `fg` であり
+//!   hover 規則の `color: fg` と衝突しないため）。
+//! - **フォーカスリング**: 直書き `outline` を
+//!   [`crate::recipe::focus_ring_declarations`]（`FocusRingColor::Token`:
+//!   本部品は `palette` 軸を持たない／`FocusRingOffset::Outside`）へ
+//!   canonical 化した。
+//! - **余白・角丸**: `link` に上側のみの角丸
+//!   （`border-radius: var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0 0`）
+//!   を追加した。下線（`border-bottom`）は直線のまま維持し、hover 面が
+//!   上側だけ丸くなる参照サイトの見た目に合わせる。
+//! - **現在ページの強調**: `[aria-current="page"]` へ
+//!   `font-weight: var(--fandhe-font-font-weight-medium)` を追加した。
+//! - **トランジション**: [`crate::recipe::transition_declarations`]
+//!   （`"color, background, border-color"`、
+//!   [`crate::recipe::MotionDuration::Fast`]）を追加した。
+//!   `prefers-reduced-motion` は [`crate::theme::Theme::to_css`] の
+//!   duration 一括 0ms 化で自動的に尊重される。
+//!
+//! **意図的に追随しない差分**（根拠を記録し、再評価は
+//! `docs/policy/intentional-non-adoption.md` の評価軸に従う）:
+//!
+//! - **バリアント軸の不採用**: 参照サイトにも variant 軸（solid/outline
+//!   等）は存在しない。
+//! - **`color-palette` 軸の不採用**: 現在ページの下線色は既に祖先の
+//!   `--fandhe-palette` を継承する経路（`var(--fandhe-palette,
+//!   var(--fandhe-color-accent))`）を持っており、[`crate::nav_list`] と
+//!   API 面を揃えるため専用の `palette` variant は追加しない。呼び出し側
+//!   が単一インスタンス単位で palette を切り替える要望が現れた時点で
+//!   再評価する。
+//! - **disabled 状態の不追加**: [`link`] は headless `data-disabled` を
+//!   出力する概念を持たない（該当なし、N/A）。
+//! - **inner span によるホバー面分離**: Radix の DOM 構造（`link` 内側に
+//!   別要素を持ち hover 面を下線から浮かせる）は本モジュールの anatomy
+//!   （`root`/`link` の 2 パーツ）を増やす変更になるため採らず、`link`
+//!   全面に上側角丸の hover 面を当てる単純な構成を維持する。
+//! - **現在ページの隠しテキスト幅固定**: Radix が現在ページの
+//!   font-weight 変化による幅の揺れを防ぐために使う隠しテキストトリックは、
+//!   tab-nav がページ遷移を伴うナビ（hover 中に太さが変わらない）である
+//!   ため不要と判断した。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `fandhe-frontend-wasm-full` によるクライアント側の現在地追跡（SPA
@@ -72,15 +120,15 @@
 //!   との厳守事項により明示的に禁止。将来 headless 層が必要になった場合は
 //!   別イシュー）。
 //! - `examples/headless-pre-styled-ui` への追随（crates.io 公開後に別 PR）。
-//! - `size`/`color-palette` variant の提供（`toolbar`/`menubar` と同じ判断
-//!   で初版非提供。必要になった場合は [`crate::tabs`] の variant 機構を
-//!   そのまま移植できる）。
+//! - `tabs.rs` 側の共有ヘルパ rustdoc（「`tab_nav` が共有する」旨の記述）の
+//!   追随は #1542（tabs のスタイル調整）または後続 PR で行う。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
-use crate::tabs::{
-    shared_tab_item_active_declarations, shared_tab_item_declarations, shared_tab_list_declarations,
+use crate::recipe::{
+    focus_ring_declarations, hover_bg_muted, hover_surface_declarations, transition_declarations,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
 };
 use fandhe_frontend_headless_ui::data_attrs::data_current;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
@@ -115,33 +163,155 @@ fn drop_reserved<'a>(
 }
 
 /// この styled Tab Nav の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`]
-/// のみが呼ぶ）。`list`/`trigger`/選択中強調の宣言は [`crate::tabs`] の
-/// `pub(crate)` ヘルパから再利用する（モジュール冒頭 rustdoc「CSS 共有の
-/// 設計」節参照）。
+/// のみが呼ぶ）。イシュー #1541 で `crate::tabs` の `pub(crate)` ヘルパ
+/// 共有をやめ、自前の宣言列を持つ（モジュール冒頭 rustdoc「参考サイト基準
+/// への調整」節参照）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("tab-nav", SLOTS)
-        .base("root", shared_tab_list_declarations())
-        .base("link", {
-            let mut decls = shared_tab_item_declarations(
-                "var(--fandhe-tab-nav-link-padding, var(--fandhe-space-2) var(--fandhe-space-4))",
-            );
-            // `<a>` 固有: `tabs` の `trigger` は `<button>` のため
-            // text-decoration の既定除去が不要だが、`link` は `<a>` の
-            // ため明示的に除去する。
-            decls.push(decl("text-decoration", "none"));
-            decls
-        })
+        .base(
+            "root",
+            vec![
+                decl("display", "flex"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl("border-bottom", "1px solid var(--fandhe-color-border)"),
+            ],
+        )
+        .base(
+            "link",
+            vec![
+                decl(
+                    "padding",
+                    "var(--fandhe-tab-nav-link-padding, var(--fandhe-space-2) var(--fandhe-space-4))",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-tab-nav-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("background", "transparent"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("border", "0"),
+                decl("border-bottom", "2px solid transparent"),
+                // イシュー #1541: 参照サイト（Radix Themes TabNav）は hover
+                // 面が上側だけ丸い。下線（border-bottom）は直線のまま維持。
+                decl(
+                    "border-radius",
+                    "var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0 0",
+                ),
+                decl("cursor", "pointer"),
+                decl("text-decoration", "none"),
+                // イシュー #1541: 未選択面の hover 色。current ページ
+                // （aria-current="page"）にも同じ hover 面を適用する
+                // （nav_list の HoverExcept は現在リンクの color が既に fg
+                // で hover 規則と衝突しないため不要）。
+                hover_bg_muted(),
+            ],
+        )
+        .base(
+            "link",
+            transition_declarations("color, background, border-color", MotionDuration::Fast),
+        )
         .state(
             "link",
             StateCondition::AttrEq("aria-current", "page"),
-            shared_tab_item_active_declarations(),
+            vec![
+                decl("color", "var(--fandhe-color-fg)"),
+                decl(
+                    "border-bottom-color",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+            ],
         )
         .state(
             "link",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        .state("link", StateCondition::Hover, {
+            let mut decls = hover_surface_declarations();
+            // イシュー #1541: 参照サイトは非現在リンクを hover 時に fg-muted
+            // → fg へ強調する（`nav_list` の hover 規則と同型）。hover
+            // セレクタ `:hover:not([data-disabled])`（specificity (0,4,0)）は
+            // 現在ページの `[aria-current="page"]`（(0,3,0)）より高いが、
+            // 両者が唯一共有するプロパティ `color` は互いに同じ
+            // `var(--fandhe-color-fg)` を指すため、現在ページの見た目は
+            // hover 時も変化しない（`nav_list` の `HoverExcept` のような
+            // 除外は不要）。
+            decls.push(decl("color", "var(--fandhe-color-fg)"));
+            decls
+        })
+        // イシュー #1541: size 軸（Xs〜Xl、既定 Md）。padding は
+        // `crate::tabs` の size 進行と同一、font-size の段対応は
+        // `crate::pagination` と同一（Radix Themes TabNav size 2=14px(sm)/
+        // size 1=12px(xs) に整合）。
+        .size_variants(
+            "root",
+            &[
+                (
+                    Size::Xs,
+                    vec![
+                        decl(
+                            "--fandhe-tab-nav-link-padding",
+                            "var(--fandhe-space-0-5) var(--fandhe-space-2)",
+                        ),
+                        decl(
+                            "--fandhe-tab-nav-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Sm,
+                    vec![
+                        decl(
+                            "--fandhe-tab-nav-link-padding",
+                            "var(--fandhe-space-1) var(--fandhe-space-3)",
+                        ),
+                        decl(
+                            "--fandhe-tab-nav-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Md,
+                    vec![
+                        decl(
+                            "--fandhe-tab-nav-link-padding",
+                            "var(--fandhe-space-2) var(--fandhe-space-4)",
+                        ),
+                        decl(
+                            "--fandhe-tab-nav-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Lg,
+                    vec![
+                        decl(
+                            "--fandhe-tab-nav-link-padding",
+                            "var(--fandhe-space-3) var(--fandhe-space-5)",
+                        ),
+                        decl(
+                            "--fandhe-tab-nav-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Xl,
+                    vec![
+                        decl(
+                            "--fandhe-tab-nav-link-padding",
+                            "var(--fandhe-space-4) var(--fandhe-space-6)",
+                        ),
+                        decl(
+                            "--fandhe-tab-nav-font-size",
+                            "var(--fandhe-font-font-size-lg)",
+                        ),
+                    ],
+                ),
             ],
         )
 }
@@ -153,24 +323,32 @@ pub fn stylesheet() -> String {
     recipe().css()
 }
 
-/// `root`（`<nav>`）パーツを組み立てる。`label` は `aria-label` として
-/// 必須付与する（landmark のアクセシブルネーム欠落を型で防ぐ、
-/// [`crate::nav_list::root`] と同型の判断）。呼び出し側 `attrs` の `class`
-/// は [`drop_class_attr`] で除去し、[`ROOT_RESERVED`] の偽装は
-/// [`drop_reserved`] で除去してから合成する。
+/// `root`（`<nav>`）パーツを組み立てる。`size` に応じたクラスを付与する
+/// 唯一のパーツ（イシュー #1541、[`crate::pagination::root`] と同型）。
+/// `label` は `aria-label` として必須付与する（landmark のアクセシブル
+/// ネーム欠落を型で防ぐ、[`crate::nav_list::root`] と同型の判断）。呼び出し
+/// 側 `attrs` の `class` は [`drop_class_attr`] で除去し、[`ROOT_RESERVED`]
+/// の偽装は [`drop_reserved`] で除去してから合成する。
 ///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
 /// use fandhe_frontend_pre_styled_ui::tab_nav;
+/// use fandhe_frontend_pre_styled_ui::Size;
 ///
-/// let node = tab_nav::root("Section navigation", vec![], vec![]);
+/// let node = tab_nav::root(Size::Md, "Section navigation", vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="tab-nav" data-part="root""#));
 /// ```
 #[must_use]
-pub fn root<'a>(label: &'a str, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&str, &str)> = vec![("aria-label", label)];
+pub fn root<'a>(
+    size: Size,
+    label: &'a str,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let class = recipe().variant_classes(&[("size", size.value())]);
+    let mut merged: Vec<(&str, &str)> = vec![("aria-label", label), ("class", class.as_str())];
     merged.extend(drop_reserved(drop_class_attr(attrs), ROOT_RESERVED));
     ANATOMY.part("root", "nav", merged, children)
 }
@@ -224,7 +402,7 @@ mod tests {
 
     #[test]
     fn root_outputs_scope_part_tag_and_aria_label() {
-        let html = render(&root("Section navigation", vec![], vec![]));
+        let html = render(&root(Size::Md, "Section navigation", vec![], vec![]));
         assert!(html.starts_with("<nav"));
         assert!(html.contains(r#"data-scope="tab-nav""#));
         assert!(html.contains(r#"data-part="root""#));
@@ -245,7 +423,7 @@ mod tests {
 
     #[test]
     fn root_and_link_never_output_role_or_tablist() {
-        let root_html = render(&root("Section navigation", vec![], vec![]));
+        let root_html = render(&root(Size::Md, "Section navigation", vec![], vec![]));
         let link_html = render(&link("/docs", true, vec![], vec![text("Docs")]));
         assert!(!root_html.contains("role="));
         assert!(!link_html.contains("role="));
@@ -270,6 +448,7 @@ mod tests {
     #[test]
     fn caller_data_scope_and_part_spoofing_is_dropped() {
         let html = render(&root(
+            Size::Md,
             "Section navigation",
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
@@ -281,6 +460,7 @@ mod tests {
     #[test]
     fn root_reserved_attr_spoofing_is_dropped() {
         let html = render(&root(
+            Size::Md,
             "Section navigation",
             vec![("aria-label", "attacker")],
             vec![],
@@ -310,6 +490,7 @@ mod tests {
     #[test]
     fn class_attr_from_caller_is_dropped() {
         let html = render(&root(
+            Size::Md,
             "Section navigation",
             vec![("class", "attacker-controlled")],
             vec![],
@@ -337,11 +518,63 @@ mod tests {
         assert!(!css.contains('<'));
     }
 
+    // --- イシュー #1541: hover / フォーカスリング / size 軸 ---
+
+    #[test]
+    fn stylesheet_contains_hover_surface_declaration() {
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(":hover:not([data-disabled])"));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+    }
+
+    #[test]
+    fn stylesheet_contains_focus_ring_declarations() {
+        let css = stylesheet();
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+        assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+        assert!(css.contains(":focus-visible"));
+    }
+
+    #[test]
+    fn stylesheet_contains_all_five_size_variant_classes() {
+        let css = stylesheet();
+        for class in [
+            "fd-tab-nav--size-xs",
+            "fd-tab-nav--size-sm",
+            "fd-tab-nav--size-md",
+            "fd-tab-nav--size-lg",
+            "fd-tab-nav--size-xl",
+        ] {
+            assert!(css.contains(class), "missing size class: {class}");
+        }
+    }
+
+    #[test]
+    fn root_applies_default_md_size_class_when_unspecified_elsewhere() {
+        let html = render(&root(Size::Md, "Section navigation", vec![], vec![]));
+        assert!(html.contains("fd-tab-nav--size-md"));
+    }
+
+    #[test]
+    fn root_applies_requested_size_class() {
+        let html = render(&root(Size::Lg, "Section navigation", vec![], vec![]));
+        assert!(html.contains("fd-tab-nav--size-lg"));
+    }
+
     // --- エスケープ回帰 ---
 
     #[test]
     fn root_label_is_escaped() {
-        let html = render(&root("\"><script>alert(1)</script>", vec![], vec![]));
+        let html = render(&root(
+            Size::Md,
+            "\"><script>alert(1)</script>",
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
     }

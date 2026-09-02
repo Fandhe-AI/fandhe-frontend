@@ -429,12 +429,12 @@
 //!   [`mod@navigation_menu`] rustdoc 参照。
 //! - pre-styled-ui 単独定義（イシュー #996、`docs/design/component-coverage-map.md`
 //!   実装対象、Radix Themes Tab Nav 相当）: [`mod@tab_nav`]（`root`/`link`
-//!   の 2 パーツ、新規 anatomy `data-scope="tab-nav"`）。[`mod@tabs`] の
-//!   見た目のみを共有するナビゲーションリンク集合であり、`role="tablist"`
-//!   を一切出力せず `aria-current="page"` で現在地を示す。[`crate::radio_card`]・
-//!   [`crate::checkbox_card`] と同型に headless-ui へ mod を追加せず本層で
-//!   anatomy を新規定義する。`size`/`color-palette` 軸は持たない。詳細は
-//!   [`mod@tab_nav`] rustdoc 参照。
+//!   の 2 パーツ、新規 anatomy `data-scope="tab-nav"`）。見た目は `role="tablist"`
+//!   を一切出力せず `aria-current="page"` で現在地を示すナビゲーションリンク
+//!   集合であり、[`crate::radio_card`]・[`crate::checkbox_card`] と同型に
+//!   headless-ui へ mod を追加せず本層で anatomy を新規定義する。`size` 軸を
+//!   持ち `color-palette` 軸は持たない（#1541）。詳細は [`mod@tab_nav`]
+//!   rustdoc 参照。
 //! - headless ラッパー（イシュー #997、`docs/design/component-coverage-map.md`
 //!   実装対象、Radix Themes Checkbox Group 相当）: [`mod@checkbox_group`]
 //!   （CheckboxGroup、Root/Label/Item/ItemControl/ItemIndicator/ItemText の
