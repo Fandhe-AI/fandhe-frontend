@@ -12,6 +12,14 @@
 //! 参照する形へ変更した（フォールバック値は変更前の固定値と同一、headless
 //! 直接利用時の現行外観を維持する）。dialog は `color-palette` 軸を持たない。
 //!
+//! イシュー #1692（親 #1520）: 外枠パート（trigger/backdrop/positioner/
+//! content）の枠・影・サイズを調整した。trigger のボタン化（背景・枠・
+//! 角丸・padding・hover surface・transition）、backdrop の
+//! `--fandhe-color-bg-overlay`/`--fandhe-z-index-overlay` トークン化、
+//! positioner の `--fandhe-z-index-modal` トークン化、content の
+//! `--fandhe-radius-lg` トークン化 + `--fandhe-shadow-lg` 新規追加を反映
+//! する（詳細は `crates/pre-styled-ui/src/dialog.rs` rustdoc 参照）。
+//!
 //! イシュー #1693 で `title`/`description`/`close-trigger`（内部パート）の
 //! スタイル調整と `backdrop`/`content` の開閉トランジションを追加した
 //! （詳細は `crates/pre-styled-ui/src/dialog.rs` モジュール冒頭 rustdoc
@@ -20,15 +28,23 @@
 use fandhe_frontend_pre_styled_ui::dialog;
 
 const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
+  background: var(--fandhe-color-bg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+  padding: var(--fandhe-space-2) var(--fandhe-space-3);
   cursor: pointer;
   color: var(--fandhe-color-fg);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  transition-property: background, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="dialog"][data-part="backdrop"] {
   position: fixed;
   inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.4);
+  z-index: var(--fandhe-z-index-overlay, 1000);
+  background: var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.4));
 }
 
 [data-scope="dialog"][data-part="backdrop"] {
@@ -40,7 +56,7 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
 [data-scope="dialog"][data-part="positioner"] {
   position: fixed;
   inset: 0;
-  z-index: 1001;
+  z-index: var(--fandhe-z-index-modal, 1001);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -51,7 +67,8 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   position: relative;
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
-  border-radius: 0.5rem;
+  border-radius: var(--fandhe-radius-lg, 0.5rem);
+  box-shadow: var(--fandhe-shadow-lg);
   padding: var(--fandhe-dialog-content-padding, var(--fandhe-space-6));
   max-width: var(--fandhe-dialog-content-max-width, 32rem);
   width: 100%;
@@ -146,8 +163,8 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
 }
 
 [data-scope="dialog"][data-part="trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="dialog"][data-part="close-trigger"]:focus-visible {
@@ -157,6 +174,10 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
 
 @media (hover: hover) {
   [data-scope="dialog"][data-part="close-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="dialog"][data-part="trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
   }
 }
