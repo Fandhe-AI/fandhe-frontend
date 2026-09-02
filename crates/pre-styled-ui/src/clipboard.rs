@@ -55,6 +55,48 @@
 //!   （headless 層の既存不変条件をそのまま継承、
 //!   `crates/headless-ui/src/clipboard.rs` rustdoc 参照）。
 //!
+//! # 参考サイト基準への調整（イシュー #1519）
+//!
+//! chakra-ui / ark-ui の Clipboard 実装と視覚比較し、以下を是正した
+//! （`accordion.rs`（#1515）/ `breadcrumb.rs`（#1517）と同型のパターン）。
+//!
+//! - **hover**: `trigger` に [`hover_bg_muted`]（base 直置き。variant 軸を
+//!   持たない部品のため on/off 面差し替えは不要）+
+//!   `.state("trigger", StateCondition::Hover, hover_surface_declarations())`
+//!   を追加。
+//! - **フォーカスリング**: `trigger`/`input` の `:focus-visible` に
+//!   [`focus_ring_declarations`] を追加（`FocusRingColor::Token`: 本部品は
+//!   palette 軸を持たない。`FocusRingOffset::Outside`: `root` が
+//!   `overflow: hidden` を持たないため外側リングで問題ない）。
+//! - **トランジション**: `trigger` の背景・文字色・枠線色に
+//!   [`transition_declarations`]（`MotionDuration::Fast`）を追加し、
+//!   `data-copied` の色遷移・hover を滑らかにする。
+//! - **タイポグラフィ**: `label`/`trigger` に
+//!   `font-size: var(--fandhe-font-font-size-sm)` +
+//!   `font-weight: var(--fandhe-font-font-weight-medium)` を追加（参照
+//!   2 サイトとも label・trigger は小さめ・medium ウェイト）。
+//! - **トークン化**: `input`/`value-text` の `font-family: monospace`
+//!   生値を `var(--fandhe-font-font-mono)` へ置換。
+//! - **`input` の背景**: 参照 2 サイトとも白背景相当のため、生値
+//!   `var(--fandhe-color-bg-subtle)`（灰色）から `var(--fandhe-color-bg)`
+//!   へ変更する。
+//!
+//! ## 意図的非採用（本イシューでは持ち込まない）
+//!
+//! - **size / color-palette variant の新設**: 上記「variant を提供しない
+//!   判断」節の既存判断を維持する。公開シグネチャ変更を伴うため別イシュー
+//!   一括検討へ回す。
+//! - **`navigator.clipboard` 実配線・自動リセット**: 下記スコープ外節の
+//!   既存判断どおり `fandhe-frontend-wasm-full` の責務。
+//! - **disabled 視覚**: headless 層
+//!   （[`fandhe_frontend_headless_ui::clipboard`]）が `trigger` へ
+//!   `data-disabled` を出力しないため、CSS 側の規則だけでは disabled 状態を
+//!   表現できない。headless 層への属性追加は別イシュー相当としてスコープ
+//!   外とする。
+//! - **indicator base への `display` 宣言追加**: 上記「Indicator の可視性
+//!   切り替え」節の詳細度多層防御を壊すため、引き続き禁止（既存テスト
+//!   `indicator_base_rule_does_not_declare_display` が固定）。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
@@ -64,7 +106,10 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{
+    focus_ring_declarations, hover_bg_muted, hover_surface_declarations, transition_declarations,
+    FocusRingColor, FocusRingOffset, MotionDuration, SlotRecipe, StateCondition,
+};
 pub use fandhe_frontend_headless_ui::clipboard::{
     control, indicator, input, label, trigger, value_text, ClipboardAction,
 };
@@ -96,6 +141,15 @@ fn recipe() -> SlotRecipe {
                 decl("gap", "var(--fandhe-space-1)"),
             ],
         )
+        // イシュー #1519: 参照 2 サイト（chakra-ui / ark-ui）はいずれも
+        // label が小さめ・medium ウェイトのタイポ。
+        .base(
+            "label",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+            ],
+        )
         .base(
             "control",
             vec![
@@ -111,9 +165,14 @@ fn recipe() -> SlotRecipe {
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("padding", "var(--fandhe-space-2)"),
-                decl("background", "var(--fandhe-color-bg-subtle)"),
+                // イシュー #1519: 参照 2 サイトとも白背景相当（readonly
+                // 表現としての灰色よりも参照基準を優先、モジュール rustdoc
+                // 「参考サイト基準への調整」節参照）。
+                decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
-                decl("font-family", "monospace"),
+                // イシュー #1519: 生値 `monospace` からトークン参照へ。
+                decl("font-family", "var(--fandhe-font-font-mono)"),
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
             ],
         )
         .base(
@@ -128,8 +187,19 @@ fn recipe() -> SlotRecipe {
                 decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
                 decl("cursor", "pointer"),
+                // イシュー #1519: hover 面色（off 面 1 色のみのため
+                // `hover_bg_muted()` を base 直置きにする。variant 軸を
+                // 持たない部品のため on/off 面差し替えは不要、
+                // `crate::recipe` 冒頭 doc「hover」節参照）。
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "trigger",
+            transition_declarations("background, color, border-color", MotionDuration::Fast),
         )
         .state(
             "trigger",
@@ -145,6 +215,30 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        // イシュー #1519: hover の実適用は 1 本のみ（`--fandhe-hover-bg` の
+        // 間接参照経由。`Hover` は `:not([data-disabled])` 込みで
+        // `@media (hover: hover)` へ集約出力される既存機構、`crate::accordion`
+        // と同型のパターン）。
+        .state(
+            "trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        // イシュー #1519: キーボード操作時のみのフォーカスリング。
+        // `Token`: clipboard は palette 軸を持たない部品。`Outside`: `root`
+        // は `overflow: hidden` を持たないため外側リングで問題ない
+        // （`FocusRingOffset::Outside` の想定ユースケース、`breadcrumb.rs`
+        // （#1517）と同型の判断）。
+        .state(
+            "trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        .state(
+            "input",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
         .base("indicator", vec![decl("align-items", "center")])
         // headless 層の `hidden` 存在属性（UA 既定 `[hidden] { display: none }`）
         // による JS なし SSR の表示制御を、`data-state="hidden"` 一致時の
@@ -158,7 +252,9 @@ fn recipe() -> SlotRecipe {
         .base(
             "value-text",
             vec![
-                decl("font-family", "monospace"),
+                // イシュー #1519: 生値 `monospace` からトークン参照へ。
+                decl("font-family", "var(--fandhe-font-font-mono)"),
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
                 decl("word-break", "break-all"),
             ],
         )
@@ -299,6 +395,99 @@ mod tests {
         let css = stylesheet();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    // --- イシュー #1519: 参考サイト基準への調整 ---
+
+    #[test]
+    fn trigger_declares_hover_and_transition() {
+        let css = stylesheet();
+        // hover: タッチ端末の hover 貼り付き対策のため `@media (hover: hover)`
+        // 配下へ集約出力される（`crate::recipe::StateCondition::Hover`）。
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="clipboard"][data-part="trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+        // transition: hover・data-copied の色遷移を滑らかにする。
+        assert!(css.contains("transition-property: background, color, border-color;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+    }
+
+    #[test]
+    fn trigger_and_input_declare_focus_visible_ring() {
+        // キーボード操作系属性（:focus-visible）が recipe 経由で反映される
+        // ことを固定する（`FocusRingColor::Token` + `FocusRingOffset::Outside`）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="clipboard"][data-part="trigger"]:focus-visible {"#));
+        assert!(css.contains(r#"[data-scope="clipboard"][data-part="input"]:focus-visible {"#));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+        assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+    }
+
+    #[test]
+    fn input_and_value_text_use_font_mono_token_not_raw_monospace() {
+        // 生値 `monospace` からトークン参照へ（イシュー #1519）。
+        let css = stylesheet();
+        assert!(css.contains("font-family: var(--fandhe-font-font-mono);"));
+        assert!(!css.contains("font-family: monospace;"));
+    }
+
+    #[test]
+    fn input_background_uses_bg_token_not_subtle() {
+        // 参照 2 サイト（chakra-ui / ark-ui）とも白背景相当。
+        let start = stylesheet()
+            .find(r#"[data-scope="clipboard"][data-part="input"] {"#)
+            .expect("input base rule must exist");
+        let css = stylesheet();
+        let end = css[start..].find('}').map(|i| start + i).unwrap();
+        let block = &css[start..end];
+        assert!(
+            block.contains("background: var(--fandhe-color-bg);"),
+            "block={block}"
+        );
+        assert!(!block.contains("bg-subtle"), "block={block}");
+    }
+
+    #[test]
+    fn label_and_trigger_have_small_medium_weight_typography() {
+        let css = stylesheet();
+        let label_start = css
+            .find(r#"[data-scope="clipboard"][data-part="label"] {"#)
+            .expect("label base rule must exist");
+        let label_end = css[label_start..]
+            .find('}')
+            .map(|i| label_start + i)
+            .unwrap();
+        let label_block = &css[label_start..label_end];
+        assert!(
+            label_block.contains("font-size: var(--fandhe-font-font-size-sm);"),
+            "label_block={label_block}"
+        );
+        assert!(
+            label_block.contains("font-weight: var(--fandhe-font-font-weight-medium);"),
+            "label_block={label_block}"
+        );
+
+        let trigger_start = css
+            .find(r#"[data-scope="clipboard"][data-part="trigger"] {"#)
+            .expect("trigger base rule must exist");
+        let trigger_end = css[trigger_start..]
+            .find('}')
+            .map(|i| trigger_start + i)
+            .unwrap();
+        let trigger_block = &css[trigger_start..trigger_end];
+        assert!(
+            trigger_block.contains("font-size: var(--fandhe-font-font-size-sm);"),
+            "trigger_block={trigger_block}"
+        );
+        assert!(
+            trigger_block.contains("font-weight: var(--fandhe-font-font-weight-medium);"),
+            "trigger_block={trigger_block}"
+        );
     }
 
     // --- 状態機械: headless 経由の SSR/hydration 往復 ---
