@@ -699,7 +699,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # （main, イシュー #1515 の 0.58.3）を取り込んだ結果 version 番号が偶発的に
 # 一致していたが、本イシュー自体の実体変更が未反映だったため 0.58.4 へ
 # さらに patch バンプする（codex-review P1 指摘、PR #1790）。
-version = "0.58.4"
+# イシュー #1517（breadcrumb のスタイルを参考サイト基準へ調整、本 PR #1791）は
+# 直前の #1516（action-bar）で使用済みの 0.58.4 のまま実体変更（`link` slot の
+# hover/フォーカスリング/transition の canonical ヘルパ追加・`list`/`item` の
+# `gap` トークン化）が版数に未反映だったため（codex-review P1 指摘・Cursor
+# Bugbot 指摘、PR #1791）、0.58.5 へさらに patch バンプする。既存セレクタ・
+# 公開 Rust API シグネチャの削除/改名を伴わないため引き続き patch 相当。
+version = "0.58.5"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
