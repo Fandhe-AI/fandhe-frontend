@@ -56,6 +56,43 @@
 //! styled `root` は [`drop_class_attr`] により呼び出し側の `class` を除去
 //! してから合成するため、`class` 属性は常に単一。
 //!
+//! # `item`/`ellipsis` のスタイル是正（イシュー #1532、親 #1531 の 1/2 分割）
+//!
+//! 参考サイト（chakra-ui / Ark UI）基準へのスタイル是正 #1531 のうち、本
+//! モジュールでは **項目ボタン `item`（current / hover / focus / disabled
+//! の各状態）と省略記号 `ellipsis`** のみを担当する。前後トリガー
+//! （`prev-trigger`/`next-trigger`）と size バリアントは 2/2（#1533）の担当
+//! のため触れていない（`prev-trigger`/`next-trigger` の `data-disabled`/
+//! `FocusVisible` は本 PR 時点でも旧実装のまま）。
+//!
+//! - **hover**: `item` base へ [`hover_bg_muted`] を追加し `--fandhe-hover-bg`
+//!   を未選択面の色（`--fandhe-color-bg-muted`）へ定義、`data-selected` 規則
+//!   へ [`hover_bg_solid_with_fallback`] を追加して current ページ hover 時
+//!   のみ emphasized 段へ上書きする。hover の実適用は
+//!   `.state("item", StateCondition::Hover, hover_surface_declarations())`
+//!   1 本のみで足りる（custom property 間接参照で variant × state の複合
+//!   条件を回避する既存パターン、[`crate::toggle`] の `root` と同型）。
+//! - **focus**: `item` の直書き `outline` を [`focus_ring_declarations`]
+//!   （`FocusRingColor::Palette`、`FocusRingOffset::Outside`）へ置換。
+//! - **disabled**: `item` の `[data-disabled]` を [`disabled_declarations`]
+//!   へ置換（値は同一、宣言順のみ `opacity` → `cursor` に変わる）。
+//! - **transition**: `item` base の shorthand `transition: ... 0.15s` を
+//!   [`transition_declarations`]（`MotionDuration::Fast`）へ置換。
+//! - **色**: `ellipsis` の `opacity: 0.6` 直書きを廃し
+//!   `color: var(--fandhe-color-fg-muted)` トークンへ統一。あわせて
+//!   `item` と同じ font-size 継承経路（`--fandhe-pagination-item-font-size`）
+//!   に載せる。
+//!
+//! ## 意図的非対応
+//!
+//! - variant 軸（solid/outline 等）は追加しない。`palette` 軸で既に色の
+//!   切り替えが可能であり、同型部品（[`crate::toggle_group`]）との一貫性
+//!   を優先する。
+//! - 影（box-shadow）は追加しない。枠線 + hover 背景色のみで状態表現する
+//!   既存方針を維持する（[`crate::toggle`] と同じ判断）。
+//! - size バリアント・`prev-trigger`/`next-trigger` の是正は 2/2（#1533）の
+//!   担当のため本 PR では変更しない。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - roving focus / キーボードナビゲーションは headless 層
@@ -68,7 +105,10 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid_with_fallback,
+    hover_surface_declarations, palette_scale_declarations, transition_declarations, ColorPalette,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
 };
 
 // headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭
@@ -115,11 +155,21 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl("text-decoration", "none"),
                 decl("cursor", "pointer"),
-                decl(
-                    "transition",
-                    "background 0.15s, border-color 0.15s, color 0.15s",
-                ),
+                // イシュー #1532: 未選択面の hover 色。base 背景
+                // `--fandhe-color-bg` より 1 段濃い `--fandhe-color-bg-muted`
+                // を `--fandhe-hover-bg` へ定義する（toggle #1785 の off 面と
+                // 同型）。current ページ（`data-selected`）は下記 state 規則
+                // が同名カスタムプロパティを emphasized 段へ上書きする。
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "item",
+            // イシュー #1532: `transition: background 0.15s, ...` の
+            // shorthand 直書きを canonical ヘルパへ置換（toggle #1785 等と
+            // 同型。150ms で従来と同値、longhand 3 宣言化により easing が
+            // トークン化され `prefers-reduced-motion` 対応に載る）。
+            transition_declarations("background, border-color, color", MotionDuration::Fast),
         )
         .base(
             "ellipsis",
@@ -129,8 +179,17 @@ fn recipe() -> SlotRecipe {
                 decl("justify-content", "center"),
                 decl("min-width", "var(--fandhe-pagination-item-size, 2rem)"),
                 decl("height", "var(--fandhe-pagination-item-size, 2rem)"),
-                decl("color", "var(--fandhe-color-fg)"),
-                decl("opacity", "0.6"),
+                // イシュー #1532: muted 表現を `--fandhe-color-fg-muted`
+                // トークン経由へ統一（`color` + `opacity: 0.6` の直書きを
+                // 廃止。ダーク側はトークン再定義で自動成立し、コントラスト
+                // 検査対象トークンのため 4.5:1 が担保される）。
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                // item と同じ font-size 継承経路に載せる（size 変更時に
+                // 省略記号だけ大きさが取り残される不整合を防ぐ）。
+                decl(
+                    "font-size",
+                    "var(--fandhe-pagination-item-font-size, var(--fandhe-font-font-size-sm))",
+                ),
             ],
         )
         .base(
@@ -190,13 +249,27 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
                 decl("color", "var(--fandhe-palette-fg)"),
+                // イシュー #1532: current ページの hover は palette の
+                // emphasized 段へ（toggle #1785 の on 面と同型）。
+                // `hover_bg_solid_with_fallback` は `--fandhe-palette-
+                // emphasized` 未定義時も `--fandhe-color-accent-emphasized`
+                // へ確実にフォールバックする。
+                hover_bg_solid_with_fallback(),
             ],
         )
         .state(
             "item",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            // イシュー #1532: `cursor`/`opacity` 直書きを共通ヘルパへ置換
+            // （出力順が `opacity` → `cursor` に変わるが値は不変）。
+            disabled_declarations(),
         )
+        // イシュー #1532: hover の実適用は 1 本のみ（`--fandhe-hover-bg` の
+        // 間接参照経由で未選択面・current 面いずれの色にも追従する。toggle
+        // #1785 の `root` hover と同型のパターン）。`Hover` は
+        // `:not([data-disabled])` 込みで `@media (hover: hover)` へ集約
+        // 出力される既存機構。
+        .state("item", StateCondition::Hover, hover_surface_declarations())
         .state(
             "prev-trigger",
             StateCondition::Attr("data-disabled"),
@@ -213,10 +286,12 @@ fn recipe() -> SlotRecipe {
         .state(
             "item",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            // イシュー #1532: outline 直書きを共通フォーカスリングトークン
+            // 経由の canonical ヘルパへ置換（`FocusRingColor::Palette`。
+            // pagination は root に palette 軸を持つため toggle_group の
+            // item と同じ選定。フォールバック値は旧実装と同一のため新
+            // トークン未定義の既存カスタムテーマでも見た目は不変）。
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         .state(
             "prev-trigger",
@@ -388,6 +463,48 @@ mod tests {
     fn stylesheet_links_item_to_focus_visible() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="pagination"][data-part="item"]:focus-visible {"#));
+    }
+
+    // イシュー #1532: item hover が `@media (hover: hover)` へ集約出力され、
+    // `--fandhe-hover-bg` の間接参照経由で背景色を切り替えることを確認する。
+    #[test]
+    fn stylesheet_defines_item_hover_via_media_hover() {
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="pagination"][data-part="item"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg)"));
+    }
+
+    // イシュー #1532: current ページ（`data-selected`）の hover 時は
+    // emphasized 段（フォールバック連鎖付き）へ上書きされることを確認する。
+    #[test]
+    fn selected_item_overrides_hover_bg_to_emphasized() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="pagination"][data-part="item"][data-selected] {"#));
+        assert!(css.contains(
+            "--fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized))"
+        ));
+    }
+
+    // イシュー #1532: item の focus-visible が直書き outline ではなく共通
+    // フォーカスリングトークン経由になっていることを確認する。
+    #[test]
+    fn item_focus_ring_uses_common_tokens() {
+        let css = stylesheet();
+        assert!(css.contains("--fandhe-focus-ring-width"));
+        assert!(css.contains("--fandhe-color-focus-ring"));
+    }
+
+    // イシュー #1532: ellipsis が `opacity` 直書きではなく fg-muted トークン
+    // 経由になっていることを確認する。
+    #[test]
+    fn ellipsis_uses_fg_muted_token() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="pagination"][data-part="ellipsis"] {"#));
+        assert!(css.contains("color: var(--fandhe-color-fg-muted)"));
+        assert!(!css.contains("opacity: 0.6"));
     }
 
     // モジュール冒頭 rustdoc「複合部品の variant 統一方針」節が謳う「root の

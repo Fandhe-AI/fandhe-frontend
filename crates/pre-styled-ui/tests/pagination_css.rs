@@ -29,7 +29,13 @@ const PAGINATION_GOLDEN_CSS: &str = r#"[data-scope="pagination"][data-part="root
   font-size: var(--fandhe-pagination-item-font-size, var(--fandhe-font-font-size-sm));
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="pagination"][data-part="item"] {
+  transition-property: background, border-color, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="pagination"][data-part="ellipsis"] {
@@ -38,8 +44,8 @@ const PAGINATION_GOLDEN_CSS: &str = r#"[data-scope="pagination"][data-part="root
   justify-content: center;
   min-width: var(--fandhe-pagination-item-size, 2rem);
   height: var(--fandhe-pagination-item-size, 2rem);
-  color: var(--fandhe-color-fg);
-  opacity: 0.6;
+  color: var(--fandhe-color-fg-muted);
+  font-size: var(--fandhe-pagination-item-font-size, var(--fandhe-font-font-size-sm));
 }
 
 [data-scope="pagination"][data-part="prev-trigger"] {
@@ -157,11 +163,12 @@ const PAGINATION_GOLDEN_CSS: &str = r#"[data-scope="pagination"][data-part="root
   background: var(--fandhe-palette, var(--fandhe-color-accent));
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
   color: var(--fandhe-palette-fg);
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
 }
 
 [data-scope="pagination"][data-part="item"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="pagination"][data-part="prev-trigger"][data-disabled] {
@@ -175,8 +182,8 @@ const PAGINATION_GOLDEN_CSS: &str = r#"[data-scope="pagination"][data-part="root
 }
 
 [data-scope="pagination"][data-part="item"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="pagination"][data-part="prev-trigger"]:focus-visible {
@@ -187,6 +194,12 @@ const PAGINATION_GOLDEN_CSS: &str = r#"[data-scope="pagination"][data-part="root
 [data-scope="pagination"][data-part="next-trigger"]:focus-visible {
   outline: 2px solid var(--fandhe-color-accent);
   outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  [data-scope="pagination"][data-part="item"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
