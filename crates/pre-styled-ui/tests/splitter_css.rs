@@ -41,6 +41,7 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
 [data-scope="splitter"][data-part="resize-trigger-indicator"] {
   width: 0.75rem;
   height: 0.75rem;
+  flex-shrink: 0;
   background: var(--fandhe-color-bg);
   border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-full, 999px);

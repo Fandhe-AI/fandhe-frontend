@@ -314,6 +314,22 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("width", "0.75rem"),
                 decl("height", "0.75rem"),
+                // イシュー #1536 Review 指摘是正: `resize-trigger` は
+                // `display: flex`（既定 row）で indicator を中央配置する。
+                // 水平（既定）orientation では root の主軸に沿って
+                // `resize-trigger` 自体の幅が `--fandhe-splitter-trigger-size`
+                // （Md 既定 `0.25rem` = 4px）まで縮められ、`resize-trigger`
+                // 内部の flex 方向も row のままのため、indicator の主軸
+                // （幅）が 4px コンテナに置かれる。`flex-shrink` を明示
+                // しないと既定値 1・`min-width: auto`（空 div の
+                // content-based min は実質 0）により 12px 幅指定が 4px まで
+                // 縮小されてしまい、正方形（等方）のグリップという設計
+                // 意図（本モジュール doc「意図的に採らなかった変更」節）が
+                // まさに既定ケースで崩れる（垂直 orientation は root の
+                // 主軸が column に変わり `resize-trigger` の幅が stretch で
+                // 確保されるため indicator 側の主軸に制約がかからず
+                // 再現しない）。`flex-shrink: 0` で固定サイズを保証する。
+                decl("flex-shrink", "0"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-full, 999px)"),
