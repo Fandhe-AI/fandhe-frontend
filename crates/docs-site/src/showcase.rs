@@ -4611,14 +4611,14 @@ fn steps_demo(orientation: Orientation) -> Node {
             steps::next_trigger(&s, vec![], vec![text("Next")]),
         ],
     );
+    // PR #1814 codex-review 対応（P1）: `list` 以外（content/nav）を
+    // `steps::body` でまとめる（[`steps::root`] rustdoc 「縦向きでの
+    // children 構成契約」節参照）。縦向きで root が `flex-direction: row`
+    // へ切り替わる際、root 直下を `list`/`body` の 2 要素に保つことで
+    // list を左・content+nav を右カラムに縦積みして表示する。
+    let body = steps::body(vec![], vec![content, nav]);
 
-    steps::root(
-        Size::Md,
-        ColorPalette::Accent,
-        &s,
-        vec![],
-        vec![list, content, nav],
-    )
+    steps::root(Size::Md, ColorPalette::Accent, &s, vec![], vec![list, body])
 }
 
 fn steps_section() -> Node {

@@ -5,6 +5,18 @@
 //! バイト単位で固定する。出力順（base → variants → compound → states）が
 //! 崩れた場合や意図しない宣言の追加・欠落があった場合に、この golden テスト
 //! が即座に検知する。
+//!
+//! イシュー #1539 で indicator / separator の期待値を更新（親 #1538 の
+//! 1/2、色トークン是正・角丸/線幅のトークン化・separator の min-width・
+//! transition・size 別 indicator フォントサイズ）。
+//!
+//! イシュー #1540 で content/trigger/prev-trigger/next-trigger/orientation
+//! の期待値を更新（親 #1538 の 2/2、hover/disabled/focus/transition 共通
+//! ヘルパへの置換・`--fandhe-steps-font-size` custom property 追加・縦向き
+//! root レイアウト切替）。PR #1814 codex-review 対応（P1: 縦向き root で
+//! `list` 以外の直下要素が横並びになるレイアウト回帰）で pre-styled-ui
+//! 専用のグルーピングパーツ `body` を新設したことに伴い、`body` slot の
+//! CSS を追加した。
 
 use fandhe_frontend_pre_styled_ui::steps;
 
@@ -63,16 +75,34 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
   justify-content: center;
   width: var(--fandhe-steps-indicator-size, 2rem);
   height: var(--fandhe-steps-indicator-size, 2rem);
-  border-radius: 999px;
-  border: 2px solid var(--fandhe-color-border);
-  color: var(--fandhe-color-fg);
+  border-radius: var(--fandhe-radius-full, 999px);
+  border: var(--fandhe-steps-thickness, 2px) solid var(--fandhe-color-border);
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg-muted);
+  font-size: var(--fandhe-steps-indicator-font-size, var(--fandhe-font-font-size-sm));
+  font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: 1;
   flex-shrink: 0;
+}
+
+[data-scope="steps"][data-part="indicator"] {
+  transition-property: background, border-color, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="steps"][data-part="separator"] {
   flex: 1;
-  height: 2px;
+  min-width: var(--fandhe-space-8);
+  height: var(--fandhe-steps-thickness, 2px);
+  border-radius: var(--fandhe-radius-full, 999px);
   background: var(--fandhe-color-border);
+}
+
+[data-scope="steps"][data-part="separator"] {
+  transition-property: background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="steps"][data-part="content"] {
@@ -135,28 +165,39 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
+[data-scope="steps"][data-part="body"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fandhe-space-4);
+}
+
 [data-scope="steps"][data-part="root"].fd-steps--size-xs {
   --fandhe-steps-indicator-size: 1rem;
+  --fandhe-steps-indicator-font-size: var(--fandhe-font-font-size-xs);
   --fandhe-steps-font-size: var(--fandhe-font-font-size-xs);
 }
 
 [data-scope="steps"][data-part="root"].fd-steps--size-sm {
   --fandhe-steps-indicator-size: 1.5rem;
+  --fandhe-steps-indicator-font-size: var(--fandhe-font-font-size-xs);
   --fandhe-steps-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="steps"][data-part="root"].fd-steps--size-md {
   --fandhe-steps-indicator-size: 2rem;
+  --fandhe-steps-indicator-font-size: var(--fandhe-font-font-size-sm);
   --fandhe-steps-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="steps"][data-part="root"].fd-steps--size-lg {
   --fandhe-steps-indicator-size: 2.5rem;
+  --fandhe-steps-indicator-font-size: var(--fandhe-font-font-size-md);
   --fandhe-steps-font-size: var(--fandhe-font-font-size-md);
 }
 
 [data-scope="steps"][data-part="root"].fd-steps--size-xl {
   --fandhe-steps-indicator-size: 3rem;
+  --fandhe-steps-indicator-font-size: var(--fandhe-font-font-size-lg);
   --fandhe-steps-font-size: var(--fandhe-font-font-size-lg);
 }
 
@@ -241,21 +282,23 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
 }
 
 [data-scope="steps"][data-part="indicator"][data-state="current"] {
+  background: var(--fandhe-palette-subtle, var(--fandhe-color-accent-subtle));
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
-  color: var(--fandhe-palette, var(--fandhe-color-accent));
+  color: var(--fandhe-palette-fg-subtle, var(--fandhe-color-accent-fg-subtle));
 }
 
 [data-scope="steps"][data-part="indicator"][data-state="complete"] {
   background: var(--fandhe-palette, var(--fandhe-color-accent));
   border-color: var(--fandhe-palette, var(--fandhe-color-accent));
-  color: var(--fandhe-color-bg);
+  color: var(--fandhe-palette-fg, var(--fandhe-color-accent-fg));
 }
 
 [data-scope="steps"][data-part="separator"][data-orientation="vertical"] {
-  width: 2px;
+  width: var(--fandhe-steps-thickness, 2px);
   height: auto;
+  min-width: 0;
   align-self: stretch;
-  margin-left: calc(var(--fandhe-steps-indicator-size, 2rem) / 2 - 1px);
+  margin-left: calc(var(--fandhe-steps-indicator-size, 2rem) / 2 - var(--fandhe-steps-thickness, 2px) / 2);
 }
 
 [data-scope="steps"][data-part="separator"][data-complete] {

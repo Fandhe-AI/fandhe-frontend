@@ -869,15 +869,25 @@ name = "fandhe-frontend-pre-styled-ui"
 # 背景・余白）・`size` variant への `--fandhe-splitter-panel-padding` 追加
 # のみで、既存の CSS 変数名・クラス名・セレクタ・公開 Rust API シグネチャ
 # （`root`/`panel`/`resize_trigger` の引数)はいずれも変更・削除しないため
-# patch で足りる。
+# patch で足りる。この時点で 0.61.9 → 0.61.10 へバンプ済み（#1812）。
+# イシュー #1539（steps のインジケータ・セパレータのスタイル調整、親
+# #1538 の 1/2 分割）も同型の patch バンプ: `recipe()` への宣言変更・
+# 新規 custom property 参照（`--fandhe-steps-thickness`/`--fandhe-steps-
+# indicator-font-size`）・transition 追加に留まり、Rust 公開 API
+# シグネチャ・既存 CSS セレクタの削除/改名はないため patch で足りる。
+# origin/main 側で #1537 が先に 0.61.10 へバンプ済みのため、#1539 は
+# 0.61.10 → 0.61.11 へバンプ済み（同一 patch バージョンの衝突回避）。
 # イシュー #1540: steps のスタイル調整 (2/2) — content/trigger/prev-trigger/
 # next-trigger/orientation の recipe 是正（hover/disabled/focus/transition
 # 共通ヘルパへの置換・`--fandhe-steps-font-size` custom property 追加・縦向き
-# root レイアウト切替）を伴う CSS 実体変更のため
-# `docs/ci/style-refresh-version-bump-operation.md` §3.1（PR 毎 patch バンプ）
-# に従いパッチバンプする。既存クラス名・CSS 変数名・公開 Rust API シグネチャ
-# の削除改名はなし。
-version = "0.61.11"
+# root レイアウト切替・レビュー対応の `body` グルーピングパーツ新設）を伴う
+# CSS 実体変更のため `docs/ci/style-refresh-version-bump-operation.md` §3.1
+# （PR 毎 patch バンプ）に従いパッチバンプする。既存クラス名・CSS 変数名・
+# 公開 Rust API シグネチャの削除改名はなし（`body` は追加のみ）。main 側の
+# #1539 が既に 0.61.11 へバンプ済み（PR ブランチ作成後に main で先行マージ
+# された）ため、本イシューは 0.61.11 → 0.61.12 へバンプする（同一 patch
+# バージョンの衝突回避）。
+version = "0.61.12"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
