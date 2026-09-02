@@ -689,6 +689,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 追加・`list`/`item` の `gap` トークン化という CSS 出力の変更のみで、
 # 公開 Rust API シグネチャ・CSS 変数名（既存分）・クラス名・`data-*`
 # セレクタの削除/改名を伴わないため、#1515 と同型の判断で patch バンプする。
+# イシュー #1516: action-bar の既定 CSS を参考サイト基準へ調整（角丸/影の
+# トークン化・selection-trigger/close-trigger の面追加と hover・フォーカス
+# リングの canonical 化）。フォローアップコミットで content の開閉
+# トランジションは「`[hidden]` の `display: none` 切り替えと同期し視覚的に
+# 成立しない」ため撤去済み（本モジュール rustdoc 参照）。既存セレクタ
+# （`data-scope`/`data-part`/`data-state` 等）・公開 Rust API シグネチャの
+# 削除/改名を伴わず宣言の追加・値変更のみのため patch バンプする。base
+# （main, イシュー #1515 の 0.58.3）を取り込んだ結果 version 番号が偶発的に
+# 一致していたが、本イシュー自体の実体変更が未反映だったため 0.58.4 へ
+# さらに patch バンプする（codex-review P1 指摘、PR #1790）。
 version = "0.58.4"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
