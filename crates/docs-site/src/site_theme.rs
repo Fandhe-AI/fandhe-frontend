@@ -622,10 +622,26 @@ body {\n\
  * `.docs-sidebar nav.sidebar ...`（詳細度 0,2,1 以上）で対策済みなのと\n\
  * 同型で、以下 padding/color/font-weight を上書きするセレクタは\n\
  * `.docs-header nav.docs-header-nav .docs-header-dropdown ...`\n\
- * （詳細度 0,3,1 以上、`nav_list` 側の最大 0,3,0 を常に上回る）で\n\
+ * （詳細度 0,3,1 以上、`nav_list` 側の従来最大 0,3,0 を常に上回る）で\n\
  * 固定する。開閉トグル（`display`）・右端アンカー（`left`/`right`）は\n\
  * `nav_list::stylesheet()` 側に競合するプロパティが存在しないため\n\
  * プレフィックス不要のまま据え置く。\n\
+ *\n\
+ * `a:hover` のみ例外的に `:hover` を追加で 2 回繰り返し\n\
+ * （`a:hover:hover:hover`、詳細度は (0,4,2) → (0,6,2)）でさらに底上げ\n\
+ * する。イシュー #1529 で `nav_list::stylesheet()` の `link` hover が\n\
+ * `StateCondition::HoverExcept(\"aria-current\", \"page\")` へ変更され、\n\
+ * `[data-scope][data-part]:hover:not([data-disabled]):not([aria-current=\"\n\
+ * page\"])`（詳細度 (0,5,0)）が新たな nav_list 側の最大となったため\n\
+ * （旧最大 0,3,0 を上回った）。`:hover` の重複指定はマッチ対象を変えず\n\
+ * （同一擬似クラスの多重指定は仕様上有効）specificity の b 成分のみを\n\
+ * 底上げする。b 成分（6 > 5）だけで確実に上回るため c 成分の大小関係に\n\
+ * 依存しない。加えて `:not([aria-current=\"page\"])` を末尾に付与し、\n\
+ * 現在ページリンク（下記 `a[aria-current=\"page\"]` が accent で強調する\n\
+ * 対象）を本 hover 規則の一致対象から除外する。これを付けないと本規則\n\
+ * が現在ページ強調規則に hover 時のみ競り勝ち、現在ページリンクを\n\
+ * ホバーすると accent 表示が通常 hover 表示へ戻ってしまう\n\
+ * （codex-review P1 / Cursor Bugbot(Medium) 指摘、PR #1805）。\n\
  */\n\
 .docs-header nav.docs-header-nav .docs-header-dropdown {\n\
   position: absolute;\n\
@@ -674,7 +690,7 @@ body {\n\
   font-size: 0.85rem;\n\
 }\n\
 \n\
-.docs-header nav.docs-header-nav .docs-header-dropdown a:hover {\n\
+.docs-header nav.docs-header-nav .docs-header-dropdown a:hover:hover:hover:not([aria-current=\"page\"]) {\n\
   color: var(--fandhe-color-fg);\n\
   background: var(--fandhe-color-bg-subtle);\n\
 }\n\
@@ -827,7 +843,23 @@ body {\n\
   border-left: 2px solid transparent;\n\
 }\n\
 \n\
-.docs-sidebar nav.sidebar a:hover {\n\
+/*\n\
+ * `a:hover` は `:hover` を追加で 3 回繰り返し（`a:hover:hover:hover:hover`、\n\
+ * 詳細度は (0,3,2) → (0,6,2)）で `nav_list::stylesheet()` の `link` hover\n\
+ * （イシュー #1529 で `StateCondition::HoverExcept(\"aria-current\",\n\
+ * \"page\")` へ変更され `[data-scope][data-part]:hover:not([data-disabled]):\n\
+ * not([aria-current=\"page\"])`、詳細度 (0,5,0) が新たな最大となった）を\n\
+ * 常に上回る。ヘッダードロップダウン（上記コメント参照）と同型の対策、\n\
+ * `:hover` の重複指定はマッチ対象を変えず specificity の b 成分のみを\n\
+ * 底上げする。b 成分（6 > 5）だけで確実に上回るため c 成分の大小関係に\n\
+ * 依存しない。加えて `:not([aria-current=\"page\"])` を末尾に付与し、\n\
+ * 現在ページリンク（下記 `a[aria-current=\"page\"]` が accent で強調する\n\
+ * 対象）を本 hover 規則の一致対象から除外する。これを付けないと本規則\n\
+ * が現在ページ強調規則に hover 時のみ競り勝ち、現在ページリンクを\n\
+ * ホバーすると accent 表示が通常 hover 表示へ戻ってしまう\n\
+ * （codex-review P1 / Cursor Bugbot(Medium) 指摘、PR #1805）。\n\
+ */\n\
+.docs-sidebar nav.sidebar a:hover:hover:hover:hover:not([aria-current=\"page\"]) {\n\
   color: var(--fandhe-color-fg);\n\
   background: var(--fandhe-color-bg-subtle);\n\
 }\n\
@@ -1905,7 +1937,7 @@ mod tests {
         for selector in [
             ".docs-header nav.docs-header-nav .docs-header-dropdown {",
             ".docs-header nav.docs-header-nav .docs-header-dropdown a {",
-            ".docs-header nav.docs-header-nav .docs-header-dropdown a:hover {",
+            ".docs-header nav.docs-header-nav .docs-header-dropdown a:hover:hover:hover:not([aria-current=\"page\"]) {",
             ".docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"page\"] {",
         ] {
             assert!(
@@ -1918,6 +1950,49 @@ mod tests {
         assert!(!css.contains("\n.docs-header-dropdown {"));
         assert!(!css.contains("\n.docs-header-dropdown a {"));
         assert!(!css.contains("\n.docs-header-dropdown a[aria-current=\"page\"] {"));
+    }
+
+    #[test]
+    fn stylesheet_sidebar_and_header_dropdown_hover_outrank_nav_list_hover_except() {
+        // codex-review P1 指摘（PR #1805、イシュー #1529）の回帰テスト:
+        // `nav_list::stylesheet()` の `link` hover が
+        // `StateCondition::HoverExcept(\"aria-current\", \"page\")` へ変更され、
+        // `[data-scope][data-part]:hover:not([data-disabled]):
+        // not([aria-current=\"page\"])`（詳細度 (0,5,0)）が新たな nav_list 側の
+        // 最大となった。docs-site 固有の sidebar/header dropdown hover は
+        // `:hover` の追加多重指定で詳細度 (0,6,2) へ底上げし、b 成分（6 > 5）
+        // だけで確実に上回ることを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(css.contains(
+            ".docs-sidebar nav.sidebar a:hover:hover:hover:hover:not([aria-current=\"page\"]) {"
+        ));
+        assert!(css.contains(
+            ".docs-header nav.docs-header-nav .docs-header-dropdown a:hover:hover:hover:not([aria-current=\"page\"]) {"
+        ));
+        // 弱い（詳細度不足の）旧セレクタが残っていないことも固定する。
+        assert!(!css.contains("\n.docs-sidebar nav.sidebar a:hover {"));
+        assert!(!css.contains("\n.docs-header nav.docs-header-nav .docs-header-dropdown a:hover {"));
+    }
+
+    #[test]
+    fn stylesheet_sidebar_and_header_dropdown_hover_excludes_current_page() {
+        // codex-review P1 / Cursor Bugbot(Medium) 指摘（PR #1805、イシュー #1529）
+        // の回帰テスト: 上記テストで固定した高詳細度 hover セレクタ
+        // （`a:hover:hover:hover(:hover)`）が `aria-current="page"` の現在
+        // ページリンクにも一致すると、後続の現在ページ強調規則
+        // （ヘッダー (0,4,2) / サイドバー (0,3,2)）より詳細度で勝ってしまい、
+        // 現在ページリンクをホバーすると accent 表示が通常 hover 表示へ
+        // 戻ってしまう回帰があった。`:not([aria-current="page"])` を追加して
+        // 現在ページリンクを hover 規則の対象から除外したことを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(css.contains(
+            ".docs-sidebar nav.sidebar a:hover:hover:hover:hover:not([aria-current=\"page\"]) {"
+        ));
+        assert!(css.contains(
+            ".docs-header nav.docs-header-nav .docs-header-dropdown a:hover:hover:hover:not([aria-current=\"page\"]) {"
+        ));
     }
 
     #[test]
