@@ -40,13 +40,26 @@
 //! 1 個のみを得る API）を個別に呼び、各 slot が自身の軸のクラスのみを持つ
 //! ようにする。
 //!
-//! # status 配色（Alert との整合）
+//! # status 配色（イシュー #1544、参考 3 サイト突合）
 //!
+//! [`fandhe_frontend_headless_ui::toast::ToastStatus`] は
 //! [`crate::alert::AlertStatus`] と同じ値語彙（`info`/`success`/`warning`/
-//! `error`）を [`fandhe_frontend_headless_ui::toast::ToastStatus`] がそのまま
-//! 持つため、本モジュールは [`crate::alert`] の `status_declarations` と同型の
-//! `--fandhe-palette` 束ねパターンを `root` slot へ適用し、Alert との配色整合を
-//! 保つ。
+//! `error`）を持つが、本モジュールは [`crate::alert`] の
+//! （`--fandhe-palette` 1 本＋白背景＋文字色のみの）`status_declarations` を
+//! 踏襲しない。代わりに [`crate::recipe::palette_scale_declarations`]
+//! （6 役割束ね、イシュー #1678）を [`crate::recipe::ColorPalette`] へ適用し、
+//! `background: var(--fandhe-palette-subtle)` / `border-color:
+//! var(--fandhe-palette-muted)` / `color: var(--fandhe-palette-fg-subtle)`
+//! の**淡色面（tint）**方式で `root` slot を配色する。chakra-ui v3 の
+//! toast recipe（success/warning/error = solid 面 + contrast 文字）は
+//! 意図的に採らない: `warning` の solid 面上コントラスト文字色は本文
+//! 4.5:1 を満たさない（`docs-ci` 実測、[`crate::theme`] の
+//! `BODY_TEXT_PAIRS` は `<p>-fg-subtle`/`<p>-subtle` の組を light/dark
+//! とも 4.5:1 以上に固定済み）。6 役割を丸ごと束ねるのは、2/2（#1545）の
+//! action-trigger/close-trigger の hover 配色が同じ `--fandhe-palette-*`
+//! 変数群から続けて参照できるようにするためで、`alert` とは
+//! `info`/`success`/`warning`/`error` の値語彙のみ対応させ、宣言の中身は
+//! 共有しない（`alert` 側の同型是正は #1553 で別途検討）。
 //!
 //! # RTL 対応（`placement` の `start`/`end`、Bugbot 指摘・PR #805 レビュー）
 //!
@@ -73,10 +86,16 @@
 //! - `examples/headless-pre-styled-ui` showcase への追随は、本イシューによる
 //!   headless-ui/pre-styled-ui のバージョン公開後の別 PR で行う（`.claude/rules/ci.md`
 //!   の crates.io バージョン依存前提を参照。#677 の先行例と同じ運用）。
+//! - `action-trigger`/`close-trigger` のスタイル（hover/focus/disabled）・
+//!   `group` slot のスタック配置・enter/exit 遷移（`prefers-reduced-motion`
+//!   込み）は親 issue #1543 の 2/2（#1545）が担当する（本イシュー #1544
+//!   は 1/2 = `root` slot の枠・status 別配色のみ）。
+//! - `alert.rs` の配色を同じ 6 役割淡色面へ揃える是正は #1553（既存
+//!   open issue）で別途検討する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, VariantValue};
+use crate::recipe::{palette_scale_declarations, ColorPalette, SlotRecipe, VariantValue};
 
 // `Toaster` 状態機械・headless 自由関数 `group`/`root` はあえて再エクスポート
 // しない（本モジュール冒頭の rustdoc「選択的 re-export」節参照）。状態管理・
@@ -121,34 +140,21 @@ impl VariantValue for ToastStatus {
     }
 }
 
-/// `status` に対応するセマンティック色トークン名から、`root` slot への宣言列を
-/// 組み立てる（[`crate::alert::status_declarations`] と同型。Alert との配色
-/// 整合を保つため、命名・マッピングを完全に一致させる）。
-fn status_declarations(theme_name: &'static str) -> Vec<crate::css::Declaration> {
-    match theme_name {
-        "info" => vec![
-            decl("--fandhe-palette", "var(--fandhe-color-info)"),
-            decl("background", "var(--fandhe-color-bg)"),
-            decl("color", "var(--fandhe-palette)"),
-        ],
-        "success" => vec![
-            decl("--fandhe-palette", "var(--fandhe-color-success)"),
-            decl("background", "var(--fandhe-color-bg)"),
-            decl("color", "var(--fandhe-palette)"),
-        ],
-        "warning" => vec![
-            decl("--fandhe-palette", "var(--fandhe-color-warning)"),
-            decl("background", "var(--fandhe-color-bg)"),
-            decl("color", "var(--fandhe-palette)"),
-        ],
-        // "danger"（ToastStatus::Error）および将来呼び出し漏れに対する
-        // fail-closed な既定値。
-        _ => vec![
-            decl("--fandhe-palette", "var(--fandhe-color-danger)"),
-            decl("background", "var(--fandhe-color-bg)"),
-            decl("color", "var(--fandhe-palette)"),
-        ],
-    }
+/// `status` に対応する [`ColorPalette`] から、`root` slot への宣言列を
+/// 組み立てる（イシュー #1544）。[`palette_scale_declarations`]（6 役割
+/// 束ね、イシュー #1678）を土台に、淡色面（tint）方式の 3 面宣言
+/// （background/border-color/color）を追加する。`ColorPalette` の網羅
+/// match は呼び出し側（[`recipe`]）に閉じるため、旧実装が持っていた
+/// 文字列 match の fail-closed 既定分岐（未知文字列を danger 扱いする
+/// 必要）は型で不要になった。
+fn status_declarations(palette: ColorPalette) -> Vec<crate::css::Declaration> {
+    let mut decls = palette_scale_declarations(palette);
+    decls.extend([
+        decl("background", "var(--fandhe-palette-subtle)"),
+        decl("border-color", "var(--fandhe-palette-muted)"),
+        decl("color", "var(--fandhe-palette-fg-subtle)"),
+    ]);
+    decls
 }
 
 /// この styled Toast の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
@@ -181,11 +187,25 @@ fn recipe() -> SlotRecipe {
                 decl("flex-direction", "column"),
                 decl("gap", "var(--fandhe-space-1)"),
                 decl("min-width", "18rem"),
-                decl("padding", "var(--fandhe-space-3)"),
+                // 狭幅ビューポートで group の左右 padding（space-4 × 2 =
+                // space-8）分を残して収める。固定幅化は group 側の
+                // スタック配置と密結合のため 2/2（#1545）へ委ねる。
+                decl("max-width", "calc(100vw - var(--fandhe-space-8))"),
+                decl("padding", "var(--fandhe-space-4)"),
+                // 参照 3 サイト（chakra l2 / ark l2 / Radix 6px）とも md
+                // 相当のため段を変えない。
                 decl("border-radius", "var(--fandhe-radius-md)"),
-                decl("box-shadow", "var(--fandhe-shadow-md)"),
+                // overlay 系共通の輪郭（`docs/design/pre-styled-ui-scale-tokens.md`
+                // §3.2 のダーク影方針が border による境界担保を前提とする）。
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                // toast / action-bar は lg（同 §3.2）。chakra recipe の
+                // xl はここでは採らない。
+                decl("box-shadow", "var(--fandhe-shadow-lg)"),
                 decl("pointer-events", "auto"),
+                // status variant 未付与（headless root 直接利用）時の
+                // neutral panel 既定。
                 decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg)"),
             ],
         )
         .base(
@@ -276,10 +296,26 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(ToastPlacement::BottomEnd)
-        .variant(ToastStatus::Info, "root", status_declarations("info"))
-        .variant(ToastStatus::Success, "root", status_declarations("success"))
-        .variant(ToastStatus::Warning, "root", status_declarations("warning"))
-        .variant(ToastStatus::Error, "root", status_declarations("danger"))
+        .variant(
+            ToastStatus::Info,
+            "root",
+            status_declarations(ColorPalette::Info),
+        )
+        .variant(
+            ToastStatus::Success,
+            "root",
+            status_declarations(ColorPalette::Success),
+        )
+        .variant(
+            ToastStatus::Warning,
+            "root",
+            status_declarations(ColorPalette::Warning),
+        )
+        .variant(
+            ToastStatus::Error,
+            "root",
+            status_declarations(ColorPalette::Danger),
+        )
         .default_variant(ToastStatus::Info)
 }
 
@@ -378,13 +414,43 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_declares_all_four_status_variants_with_alert_aligned_palette() {
+    fn stylesheet_declares_all_four_status_variants_with_palette_scale_binding() {
         let css = stylesheet();
-        assert!(css.contains("--fandhe-palette: var(--fandhe-color-info)"));
-        assert!(css.contains("--fandhe-palette: var(--fandhe-color-success)"));
-        assert!(css.contains("--fandhe-palette: var(--fandhe-color-warning)"));
-        assert!(css.contains("--fandhe-palette: var(--fandhe-color-danger)"));
-        assert!(css.contains("color: var(--fandhe-palette);"));
+        for role in ["info", "success", "warning", "danger"] {
+            assert!(css.contains(&format!(
+                "--fandhe-palette-subtle: var(--fandhe-color-{role}-subtle)"
+            )));
+            assert!(css.contains(&format!(
+                "--fandhe-palette-muted: var(--fandhe-color-{role}-muted)"
+            )));
+            assert!(css.contains(&format!(
+                "--fandhe-palette-fg-subtle: var(--fandhe-color-{role}-fg-subtle)"
+            )));
+        }
+        assert!(css.contains("background: var(--fandhe-palette-subtle);"));
+        assert!(css.contains("border-color: var(--fandhe-palette-muted);"));
+        assert!(css.contains("color: var(--fandhe-palette-fg-subtle);"));
+        // 旧実装の 1 本のみの淡色バインディングは出力に残らない
+        // （淡色面方式への完全移行を固定、イシュー #1544）。
+        assert!(!css.contains("color: var(--fandhe-palette);"));
+    }
+
+    #[test]
+    fn root_base_declares_panel_frame_with_shared_tokens() {
+        let css = stylesheet();
+        assert!(css.contains("border: 1px solid var(--fandhe-color-border);"));
+        assert!(css.contains("box-shadow: var(--fandhe-shadow-lg);"));
+        assert!(css.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(css.contains("padding: var(--fandhe-space-4);"));
+        assert!(css.contains("max-width: calc(100vw - var(--fandhe-space-8));"));
+        assert!(css.contains("color: var(--fandhe-color-fg);"));
+    }
+
+    #[test]
+    fn stylesheet_has_no_raw_color_literals() {
+        let css = stylesheet();
+        assert!(!css.contains('#'));
+        assert!(!css.contains("rgb("));
     }
 
     #[test]
