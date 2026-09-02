@@ -86,14 +86,19 @@
 //! - **disabled**: 前述のとおり headless 層に disabled 概念がないため
 //!   適用しない（N/A）。
 //! - **トランジション**: `trigger` の `color` に
-//!   [`crate::recipe::transition_declarations`]（`MotionDuration::Fast`）
-//!   を、`content` の開閉フェードとして `opacity, visibility` に同
-//!   （`MotionDuration::Normal`）を新設した。`content` の closed state へ
-//!   `opacity: 0` を追加し、`visibility` は transition 期間中旧値を維持
-//!   するため `opacity` が 0 へ落ちきってから非表示化される（フェード
-//!   アウトの視認性を確保する意図的な多重指定）。
+//!   [`crate::recipe::transition_declarations`]（`MotionDuration::Fast`）を
+//!   新設した。`content` の開閉には `opacity`/`visibility` の transition に
+//!   よるフェード演出を一度導入したが、headless 層は closed 時に即座に
+//!   `content`/`positioner` へ `hidden` 存在属性を付与し UA 既定
+//!   `[hidden] { display: none }` が同時に適用されるため、transition の
+//!   開始点となる表示状態も終了を待つ非表示化もないままではフェードが
+//!   描画されない不具合があった（codex-review/Bugbot 指摘、PR #1799）。
+//!   `hidden` 属性の遅延ライフサイクル実装は headless/実行時層をまたぐ
+//!   変更を要し本イシューのスコープ外のため、機能しない transition/opacity
+//!   宣言は削除し [`crate::tooltip`] と同じ `visibility` 切替のみへ戻した。
 //!   `prefers-reduced-motion` は [`crate::theme::Theme::to_css`] の
-//!   duration 一括 0ms 化で自動的に尊重される。
+//!   duration 一括 0ms 化で `trigger` の `color` transition について
+//!   自動的に尊重される。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -102,6 +107,10 @@
 //! - `openDelay`/`closeDelay`/`interactive` は headless 層のドキュメント
 //!   （`crates/headless-ui/src/hover_card.rs`）で既にスコープ外と明記済みの
 //!   クライアントサイド実行時挙動であり、本モジュールもそれを継承する。
+//! - `content`/`positioner` の開閉フェード演出（`hidden` 属性を遅延して
+//!   `opacity`/`visibility` の transition を描画させるライフサイクル）も
+//!   同じ理由でスコープ外とする（headless 層・`fandhe-frontend-wasm-full`
+//!   の実行時層をまたぐ設計変更が必要。PR #1799 codex-review/Bugbot 指摘）。
 //! - `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）は
 //!   [`crate::tooltip`]/[`crate::popover`] と同じ理由で本イシューの対象外。
 
@@ -198,23 +207,22 @@ fn recipe() -> SlotRecipe {
                 decl("max-width", "20rem"),
             ],
         )
-        // content の開閉フェード（イシュー #1523）。`opacity` の
-        // transition のみでは `visibility: hidden` が即座に切り替わり
-        // フェードアウトが視認できないため `visibility` も transition
-        // 対象に含める（transition 期間中は旧値が維持されるため、
-        // opacity が 0 へ落ちきってから非表示化される。
-        // `prefers-reduced-motion` は [`crate::theme::Theme::to_css`] の
-        // duration 一括 0ms 化で自動的に尊重される）。
-        .base(
-            "content",
-            transition_declarations("opacity, visibility", MotionDuration::Normal),
-        )
         // `content` の開閉状態に応じた見た目の切り替え（[`crate::tooltip`] と
-        // 同じ判断）。
+        // 同じ判断）。イシュー #1523 で `opacity`/`visibility` の
+        // transition によるフェード演出を一度導入したが、headless 層
+        // （`crates/headless-ui/src/hover_card.rs`）は closed 時に即座に
+        // `content`/`positioner` へ `hidden` 存在属性を付与するため UA 既定
+        // `[hidden] { display: none }` が同時に適用され、transition の
+        // 開始点となる表示状態（open 時の `opacity: 0` 相当）も終了を
+        // 待つ非表示化（`hidden` 遅延）もないままではフェードが描画され
+        // ない（codex-review/Bugbot 指摘、PR #1799）。`hidden` 属性の
+        // 遅延ライフサイクルは headless/実行時層をまたぐ変更を要しスコープ
+        // 外のため、[`crate::tooltip`] と同じく機能する `visibility` 切替
+        // のみを残し、機能しない transition/opacity 宣言は削除した。
         .state(
             "content",
             StateCondition::AttrEq("data-state", "closed"),
-            vec![decl("visibility", "hidden"), decl("opacity", "0")],
+            vec![decl("visibility", "hidden")],
         )
         // trigger の hover 強調（イシュー #1523）。hover-card の trigger は
         // 面を持たないインラインテキストの slot であり、
@@ -328,14 +336,17 @@ mod tests {
     }
 
     #[test]
-    fn trigger_and_content_declare_transitions() {
-        // イシュー #1523: trigger の色変化・content の開閉フェードへ
-        // transition_declarations を新設したことを固定する。
+    fn trigger_declares_color_transition() {
+        // イシュー #1523: trigger の色変化へ transition_declarations を
+        // 新設したことを固定する。content の開閉フェード transition は
+        // headless 層の `hidden` 属性ライフサイクルと競合し機能しないため
+        // PR #1799 の codex-review/Bugbot 指摘を受けて削除済み（モジュール
+        // doc の「トランジション」節参照）。ここでは opacity/visibility の
+        // transition-property が再導入されていないことも合わせて固定する。
         let css = stylesheet();
         assert!(css.contains("transition-property: color;"));
         assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
-        assert!(css.contains("transition-property: opacity, visibility;"));
-        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-normal);"));
+        assert!(!css.contains("transition-property: opacity, visibility;"));
     }
 
     #[test]
@@ -349,12 +360,16 @@ mod tests {
     }
 
     #[test]
-    fn closed_content_fades_out_via_opacity_and_visibility() {
-        // イシュー #1523: 開閉フェードのため closed state へ opacity: 0 を
-        // 追加したことを固定する（visibility: hidden との併用理由はモジュール
-        // doc の「トランジション」節参照）。
+    fn closed_content_hides_via_visibility_only() {
+        // PR #1799 codex-review/Bugbot 指摘: opacity: 0 は機能しない
+        // transition の残骸だったため削除し、[`crate::tooltip`] と同じ
+        // visibility: hidden のみへ戻したことを固定する（モジュール doc の
+        // 「トランジション」節参照）。
         let css = stylesheet();
         assert!(css.contains(
+            "[data-scope=\"hover-card\"][data-part=\"content\"][data-state=\"closed\"] {\n  visibility: hidden;\n}\n"
+        ));
+        assert!(!css.contains(
             "[data-scope=\"hover-card\"][data-part=\"content\"][data-state=\"closed\"] {\n  visibility: hidden;\n  opacity: 0;\n}\n"
         ));
     }
