@@ -75,7 +75,11 @@
 //!   （`data-stage="maximized"`）は既に全面化していたが `content` が
 //!   追随せず全画面表示が視覚的に成立していなかったため、
 //!   `content[data-stage="maximized"]` へ `width: 100%; height: 100%` を
-//!   追加した。
+//!   追加した。`content` は `border`（1px）+ `border-radius` を持つため、
+//!   `box-sizing: border-box` も併せて指定し、border 込みの外寸が
+//!   `positioner` の全面領域を縦横 2px 超過してビューポートオーバーフロー
+//!   を起こさないようにした（CI codex-review P1 / Cursor Bugbot 指摘、
+//!   イシュー #1522）。
 //!
 //! ## size / variant 軸を追加しない根拠
 //!
@@ -295,7 +299,16 @@ fn recipe() -> SlotRecipe {
         .state(
             "content",
             StateCondition::AttrEq("data-stage", "maximized"),
-            vec![decl("width", "100%"), decl("height", "100%")],
+            vec![
+                decl("width", "100%"),
+                decl("height", "100%"),
+                // `content` は `border`（1px）と `border-radius` を持つため、既定の
+                // `content-box` のままだと width/height 100% の外寸が全面化された
+                // `positioner` から縦横 2px はみ出しビューポートを超過する
+                // （CI codex-review P1 / Cursor Bugbot 指摘、イシュー #1522）。
+                // `border-box` で border 込みの外寸を 100% に固定しはみ出しを防ぐ。
+                decl("box-sizing", "border-box"),
+            ],
         )
         // trigger/stage-trigger/close-trigger の hover（イシュー #1425
         // 共通ビジュアル言語。`--fandhe-hover-bg` は上記 base の
@@ -455,6 +468,10 @@ mod tests {
         let rule_end = rule_body.find('}').expect("rule must be closed");
         assert!(rule_body[..rule_end].contains("width: 100%;"));
         assert!(rule_body[..rule_end].contains("height: 100%;"));
+        // `content` の `border`(1px)+`border-radius` により content-box のままだと
+        // 全面化された `positioner` から縦横 2px はみ出すため、border-box で
+        // 外寸を固定する（イシュー #1522、CI codex-review P1 / Cursor Bugbot 指摘）。
+        assert!(rule_body[..rule_end].contains("box-sizing: border-box;"));
     }
 
     #[test]
