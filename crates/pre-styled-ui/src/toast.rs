@@ -186,7 +186,18 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
                 decl("gap", "var(--fandhe-space-1)"),
-                decl("min-width", "18rem"),
+                // border-box 化により、直後の min-width/max-width が
+                // border・padding を含めた外寸を基準に評価されるように
+                // する（codex-review P1 / Bugbot 指摘: content-box のままだと
+                // max-width が content box にのみ適用され、border・padding
+                // 分だけ実際の外寸が calc の想定より広がってしまう）。
+                decl("box-sizing", "border-box"),
+                // 狭幅ビューポート（利用可能幅 < 18rem）では min-width が
+                // max-width を上回って後者を無効化しないよう、利用可能幅を
+                // 上限とする（100% は group の content box 幅。group 自身も
+                // 左右 padding〔space-4 × 2〕を持つため、root の border-box
+                // 全体が group の content box 内に収まる）。
+                decl("min-width", "min(18rem, 100%)"),
                 // 狭幅ビューポートで group の左右 padding（space-4 × 2 =
                 // space-8）分を残して収める。固定幅化は group 側の
                 // スタック配置と密結合のため 2/2（#1545）へ委ねる。
@@ -443,6 +454,13 @@ mod tests {
         assert!(css.contains("border-radius: var(--fandhe-radius-md);"));
         assert!(css.contains("padding: var(--fandhe-space-4);"));
         assert!(css.contains("max-width: calc(100vw - var(--fandhe-space-8));"));
+        // box-sizing: border-box 化と min-width の利用可能幅上限化
+        // （codex-review P1 / Bugbot 指摘、#1544）: border-box なしでは
+        // max-width が content box にのみ適用され border・padding 分だけ
+        // 外寸が広がる。min-width も 100% 上限がないと max-width より
+        // 優先され狭幅ビューポートで縮小されない。
+        assert!(css.contains("box-sizing: border-box;"));
+        assert!(css.contains("min-width: min(18rem, 100%);"));
         assert!(css.contains("color: var(--fandhe-color-fg);"));
     }
 

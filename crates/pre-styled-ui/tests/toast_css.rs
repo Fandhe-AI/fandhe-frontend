@@ -22,7 +22,8 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   display: flex;
   flex-direction: column;
   gap: var(--fandhe-space-1);
-  min-width: 18rem;
+  box-sizing: border-box;
+  min-width: min(18rem, 100%);
   max-width: calc(100vw - var(--fandhe-space-8));
   padding: var(--fandhe-space-4);
   border-radius: var(--fandhe-radius-md);
