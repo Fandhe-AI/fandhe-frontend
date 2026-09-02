@@ -869,8 +869,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 背景・余白）・`size` variant への `--fandhe-splitter-panel-padding` 追加
 # のみで、既存の CSS 変数名・クラス名・セレクタ・公開 Rust API シグネチャ
 # （`root`/`panel`/`resize_trigger` の引数)はいずれも変更・削除しないため
-# patch で足りる。
-version = "0.61.10"
+# patch で足りる。この時点で 0.61.9 → 0.61.10 へバンプ済み（#1812）。
+# イシュー #1539（steps のインジケータ・セパレータのスタイル調整、親
+# #1538 の 1/2 分割）も同型の patch バンプ: `recipe()` への宣言変更・
+# 新規 custom property 参照（`--fandhe-steps-thickness`/`--fandhe-steps-
+# indicator-font-size`）・transition 追加に留まり、Rust 公開 API
+# シグネチャ・既存 CSS セレクタの削除/改名はないため patch で足りる。
+# origin/main 側で #1537 が先に 0.61.10 へバンプ済みのため、本イシューは
+# 0.61.10 → 0.61.11 へバンプする（同一 patch バージョンの衝突回避）。
+version = "0.61.11"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

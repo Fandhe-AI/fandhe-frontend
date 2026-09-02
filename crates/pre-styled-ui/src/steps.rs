@@ -43,6 +43,53 @@
 //! （存在属性、`crates/headless-ui/src/data_attrs.rs::data_complete`）の
 //! 有無で完了色に変化する。
 //!
+//! # イシュー #1539: インジケータ・セパレータのスタイル調整（親 #1538 の 1/2）
+//!
+//! 親 #1538（steps 全体のスタイル調整）の 7 軸チェックリストを
+//! `indicator`/`separator` パートへ適用した是正内容と、意図的に合わせ
+//! なかった点を記録する（`trigger`/`prev-trigger`/`next-trigger`・
+//! `list`/`item`/`content`・root の幅・orientation レイアウトは姉妹イシュー
+//! #1540 の担当範囲であり本イシューでは触らない）。
+//!
+//! - **色**: `indicator` の `current` を「淡色背景（`--fandhe-palette-
+//!   subtle`）+ palette 枠 + 淡色文字（`--fandhe-palette-fg-subtle`）」へ、
+//!   `incomplete`（既定）を「`bg` 塗り + 淡色枠 + `fg-muted` 文字」へ、
+//!   `complete` の文字色を `var(--fandhe-color-bg)`（非検証ペア）から
+//!   `var(--fandhe-palette-fg, ...)`（`LARGE_TEXT_UI_PAIRS` で 3:1 検証済み）
+//!   へ、それぞれ chakra-ui/ark-ui 基準に合わせて是正した。
+//! - **separator の可視性**: shrink-to-fit なコンテナ（showcase の
+//!   `.showcase-row`）に置かれると `flex: 1` の separator が幅ゼロへ縮退し
+//!   接続線が消える不具合を、`min-width: var(--fandhe-space-8)` の追加で
+//!   是正した（`data-orientation="vertical"` では `min-width: 0` で打ち
+//!   消す）。
+//! - **角丸/線幅トークン化**: `border-radius` の `999px` リテラルを
+//!   `var(--fandhe-radius-full, 999px)` へ、`indicator` の枠線幅・
+//!   `separator` の線幅・vertical の `margin-left` 計算に散在していた
+//!   `2px`/`1px` リテラルを `var(--fandhe-steps-thickness, 2px)` へ統一し、
+//!   呼び出し側からの一括上書きを可能にした。
+//! - **文字**: `indicator` に `font-weight: medium`/`line-height: 1` を追加
+//!   し、`root` の size variant へ `--fandhe-steps-indicator-font-size`
+//!   （chakra-ui の size 別 fontSize xs/xs/sm/md 写像、xl は lg から外挿）
+//!   を新設した。
+//! - **transition**: `indicator`（`background, border-color, color`）・
+//!   `separator`（`background`）へ [`crate::recipe::transition_declarations`]
+//!   （`MotionDuration::Fast`）を追加した。
+//!
+//! 意図的に合わせなかった点:
+//!
+//! - **サイズ段階**（xs 1rem〜xl 3rem）は変更しない。md 2rem は ark-ui の
+//!   既定寸法と一致しており、chakra-ui より 1 段小さい配置はイシュー
+//!   #1681 で確定した等差進行の決定を優先する。
+//! - **variant 軸**（chakra-ui の `solid`/`subtle`）は追加しない。
+//!   `root(size, palette, ...)` の公開シグネチャ変更を伴い、姉妹イシュー
+//!   #1540 と同一ファイルを並行編集中のため衝突リスクが高いと判断した。
+//!   chakra-ui `solid` 相当を既定表現として採用し、`subtle` 相当は本
+//!   イシューのスコープ外（下記節参照）。
+//! - **hover/disabled/focus** は `indicator`/`separator` へ追加しない。
+//!   両パーツは非インタラクティブ（`trigger` のみが実 `<button>`）であり、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md` の
+//!   「インタラクティブ slot のみ」規約に合致する。
+//!
 //! # `item`/`separator` のレイアウト契約（イシュー #752 PR #797 レビュー対応）
 //!
 //! `separator`（`flex: 1` でステップ間の接続線を描画）が実際に伸長するには
@@ -90,11 +137,16 @@
 //!   Steps 追加は、未公開の新バージョンを参照できないため本イシューの
 //!   スコープ外とする（[`crate::rating_group`] 冒頭 rustdoc の先例どおり
 //!   crates.io 公開後に追随）。
+//! - イシュー #1539: chakra-ui が持つ `variant`（`solid`/`subtle`）軸は
+//!   本イシューでは追加しない（上記「意図的に合わせなかった点」節参照）。
+//!   `subtle` variant の追加は後続イシュー候補であり、起票はユーザー承認
+//!   事項とする。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    palette_scale_declarations, transition_declarations, ColorPalette, MotionDuration, Size,
+    SlotRecipe, StateCondition, VariantValue,
 };
 
 // `Steps` 状態機械はあえて再エクスポートしない（本モジュール冒頭の rustdoc
@@ -231,7 +283,10 @@ fn recipe() -> SlotRecipe {
                 decl("outline-offset", "2px"),
             ],
         )
-        // indicator: 円形マーカー。既定（incomplete）は枠線のみの中抜き円。
+        // indicator: 円形マーカー。既定（incomplete）は白地（bg）+ 淡色枠 +
+        // 淡色文字（イシュー #1539: chakra-ui `solid` variant の incomplete
+        // 表現 `bg` 塗り + `border` 枠 + やや淡い文字に合わせる。旧実装は
+        // 背景透過だった）。
         .base(
             "indicator",
             vec![
@@ -240,25 +295,66 @@ fn recipe() -> SlotRecipe {
                 decl("justify-content", "center"),
                 decl("width", "var(--fandhe-steps-indicator-size, 2rem)"),
                 decl("height", "var(--fandhe-steps-indicator-size, 2rem)"),
-                decl("border-radius", "999px"),
-                decl("border", "2px solid var(--fandhe-color-border)"),
-                decl("color", "var(--fandhe-color-fg)"),
+                // イシュー #1539: 角丸リテラル `999px` を他部品
+                // （angle_slider/avatar/carousel 等）と同じ
+                // `--fandhe-radius-full` トークン参照へ統一（フォールバック
+                // 値は旧リテラルと同一の 999px を維持し見た目を変えない）。
+                decl("border-radius", "var(--fandhe-radius-full, 999px)"),
+                // イシュー #1539: 線幅を separator と共有するトークン参照へ
+                // （chakra-ui の `--steps-thickness` に相当。root へ新規
+                // custom property は定義せず、`--fandhe-steps-connector-
+                // min-height` と同型の「フォールバック付き参照のみ」パター
+                // ンを踏襲する）。
+                decl(
+                    "border",
+                    "var(--fandhe-steps-thickness, 2px) solid var(--fandhe-color-border)",
+                ),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                // イシュー #1539: chakra-ui は size 別に fontSize
+                // xs/xs/sm/md を持つ（root の size variant 側で段階付与、
+                // 本 base は Md 相当の既定フォールバックのみ）。
+                decl(
+                    "font-size",
+                    "var(--fandhe-steps-indicator-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "1"),
                 decl("flex-shrink", "0"),
             ],
         )
-        // current: 枠線・文字色をアクセントへ切り替える。
+        .base(
+            "indicator",
+            transition_declarations("background, border-color, color", MotionDuration::Fast),
+        )
+        // current: chakra-ui / ark-ui の「淡色背景 + palette 枠 + palette
+        // 文字」表現へ統一（イシュー #1539。旧実装は白地 + accent 枠のみで
+        // 背景塗りがなく、参照サイトと乖離していた）。`--fandhe-palette-
+        // subtle`/`--fandhe-palette-fg-subtle` は `palette_scale_
+        // declarations`（本 recipe の root variant）が定義済み。
         .state(
             "indicator",
             StateCondition::AttrEq("data-state", "current"),
             vec![
                 decl(
+                    "background",
+                    "var(--fandhe-palette-subtle, var(--fandhe-color-accent-subtle))",
+                ),
+                decl(
                     "border-color",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
-                decl("color", "var(--fandhe-palette, var(--fandhe-color-accent))"),
+                decl(
+                    "color",
+                    "var(--fandhe-palette-fg-subtle, var(--fandhe-color-accent-fg-subtle))",
+                ),
             ],
         )
-        // complete: 塗りつぶし背景へ切り替える（current との視覚的区別）。
+        // complete: 塗りつぶし背景 + `--fandhe-palette-fg`（solid 背景上の
+        // コントラスト検証済み文字色トークン）。イシュー #1539: 旧実装の
+        // `var(--fandhe-color-bg)` はダークテーマで `bg=#111111` が accent
+        // 背景に載る非検証ペアだったため、`LARGE_TEXT_UI_PAIRS` で
+        // 3:1 検証済みの `palette-fg` へ置換する。
         .state(
             "indicator",
             StateCondition::AttrEq("data-state", "complete"),
@@ -271,28 +367,45 @@ fn recipe() -> SlotRecipe {
                     "border-color",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
-                decl("color", "var(--fandhe-color-bg)"),
+                decl(
+                    "color",
+                    "var(--fandhe-palette-fg, var(--fandhe-color-accent-fg))",
+                ),
             ],
         )
         // separator: item 間の区切り線。既定は境界色、complete で塗り色へ。
+        // イシュー #1539: `min-width` を追加し、shrink-to-fit なコンテナ
+        // （showcase の `.showcase-row` = `display:flex; flex-wrap:wrap`）
+        // に置かれても `flex: 1` が幅ゼロへ縮退せず接続線が消えないように
+        // する（root の幅方針自体は #1540 のレイアウト担当範囲）。
         .base(
             "separator",
             vec![
                 decl("flex", "1"),
-                decl("height", "2px"),
+                decl("min-width", "var(--fandhe-space-8)"),
+                decl("height", "var(--fandhe-steps-thickness, 2px)"),
+                decl("border-radius", "var(--fandhe-radius-full, 999px)"),
                 decl("background", "var(--fandhe-color-border)"),
             ],
+        )
+        .base(
+            "separator",
+            transition_declarations("background", MotionDuration::Fast),
         )
         .state(
             "separator",
             StateCondition::AttrEq("data-orientation", "vertical"),
             vec![
-                decl("width", "2px"),
+                decl("width", "var(--fandhe-steps-thickness, 2px)"),
                 decl("height", "auto"),
+                // base の `min-width` は `width` より優先されるため、
+                // vertical では明示的に打ち消す（イシュー #1539。打ち消さ
+                // ないと縦向きでも `--fandhe-space-8` 幅が残ってしまう）。
+                decl("min-width", "0"),
                 decl("align-self", "stretch"),
                 decl(
                     "margin-left",
-                    "calc(var(--fandhe-steps-indicator-size, 2rem) / 2 - 1px)",
+                    "calc(var(--fandhe-steps-indicator-size, 2rem) / 2 - var(--fandhe-steps-thickness, 2px) / 2)",
                 ),
             ],
         )
@@ -370,30 +483,64 @@ fn recipe() -> SlotRecipe {
             vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
         )
         // イシュー #1681: Xs/Xl は Sm→Md→Lg の 0.5rem 刻み等差進行を外挿。
+        // イシュー #1539: `--fandhe-steps-indicator-font-size` を各段に追加
+        // し、chakra-ui の size 別 `fontSize` xs/xs/sm/md 写像を踏襲する
+        // （xl は lg から外挿）。indicator の `base` はこの custom
+        // property を通常の CSS 継承で参照する。
         .variant(
             Size::Xs,
             "root",
-            vec![decl("--fandhe-steps-indicator-size", "1rem")],
+            vec![
+                decl("--fandhe-steps-indicator-size", "1rem"),
+                decl(
+                    "--fandhe-steps-indicator-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+            ],
         )
         .variant(
             Size::Sm,
             "root",
-            vec![decl("--fandhe-steps-indicator-size", "1.5rem")],
+            vec![
+                decl("--fandhe-steps-indicator-size", "1.5rem"),
+                decl(
+                    "--fandhe-steps-indicator-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+            ],
         )
         .variant(
             Size::Md,
             "root",
-            vec![decl("--fandhe-steps-indicator-size", "2rem")],
+            vec![
+                decl("--fandhe-steps-indicator-size", "2rem"),
+                decl(
+                    "--fandhe-steps-indicator-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+            ],
         )
         .variant(
             Size::Lg,
             "root",
-            vec![decl("--fandhe-steps-indicator-size", "2.5rem")],
+            vec![
+                decl("--fandhe-steps-indicator-size", "2.5rem"),
+                decl(
+                    "--fandhe-steps-indicator-font-size",
+                    "var(--fandhe-font-font-size-md)",
+                ),
+            ],
         )
         .variant(
             Size::Xl,
             "root",
-            vec![decl("--fandhe-steps-indicator-size", "3rem")],
+            vec![
+                decl("--fandhe-steps-indicator-size", "3rem"),
+                decl(
+                    "--fandhe-steps-indicator-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
+            ],
         )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
@@ -582,6 +729,92 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="steps"][data-part="separator"][data-complete] {"#));
         assert!(css.contains("background: var(--fandhe-palette, var(--fandhe-color-accent));"));
+    }
+
+    // イシュー #1539: indicator の current/complete が palette トークンへ
+    // 是正されたこと、非検証ペア `var(--fandhe-color-bg)` が complete の
+    // 文字色として残っていないことを固定する。
+    #[test]
+    fn indicator_states_use_palette_tokens_and_verified_contrast_pairs() {
+        let css = stylesheet();
+        assert!(css.contains("var(--fandhe-palette-subtle, var(--fandhe-color-accent-subtle))"));
+        assert!(
+            css.contains("var(--fandhe-palette-fg-subtle, var(--fandhe-color-accent-fg-subtle))")
+        );
+        assert!(css.contains("var(--fandhe-palette-fg, var(--fandhe-color-accent-fg))"));
+        // `next-trigger` は元々 `color: var(--fandhe-color-bg)` を持つ
+        // （本イシューのスコープ外、#1540 担当）ため、indicator の
+        // complete 選択子ブロック内に限定して非検証ペアが残っていない
+        // ことを確認する。
+        let complete_selector =
+            r#"[data-scope="steps"][data-part="indicator"][data-state="complete"] {"#;
+        let start = css
+            .find(complete_selector)
+            .expect("indicator complete selector missing");
+        let end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .expect("indicator complete selector block not closed");
+        let block = &css[start..end];
+        assert!(
+            !block.contains("color: var(--fandhe-color-bg);"),
+            "block:\n{block}"
+        );
+    }
+
+    // イシュー #1539: 角丸リテラル `999px` 単独ではなく
+    // `var(--fandhe-radius-full, 999px)` トークン参照へ統一されたことを
+    // 固定する（indicator/separator の 2 箇所）。
+    #[test]
+    fn indicator_and_separator_use_radius_full_token_with_fallback() {
+        let css = stylesheet();
+        let occurrences = css.matches("var(--fandhe-radius-full, 999px)").count();
+        assert_eq!(occurrences, 2, "css:\n{css}");
+        assert!(!css.contains("border-radius: 999px;"));
+    }
+
+    // イシュー #1539: separator が `min-width` を持ち、幅ゼロへの縮退
+    // （showcase の shrink-to-fit コンテナで接続線が消える不具合）を
+    // 防いでいること、vertical では `min-width: 0` で打ち消していることを
+    // 固定する。
+    #[test]
+    fn separator_has_min_width_and_vertical_resets_it() {
+        let css = stylesheet();
+        assert!(css.contains("min-width: var(--fandhe-space-8);"));
+        assert!(css.contains("min-width: 0;"));
+    }
+
+    // イシュー #1539: indicator/separator の状態遷移に transition が
+    // 付与されたことを固定する（`MotionDuration::Fast`）。
+    #[test]
+    fn indicator_and_separator_have_transition_with_motion_tokens() {
+        let css = stylesheet();
+        assert!(css.contains("transition-property: background, border-color, color;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+    }
+
+    // イシュー #1539: root の size variant 5 段すべてで
+    // `--fandhe-steps-indicator-font-size` が定義されていることを固定する。
+    #[test]
+    fn size_variants_define_indicator_font_size() {
+        let css = stylesheet();
+        for class in [
+            "fd-steps--size-xs",
+            "fd-steps--size-sm",
+            "fd-steps--size-md",
+            "fd-steps--size-lg",
+            "fd-steps--size-xl",
+        ] {
+            let selector = format!(".{class}");
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("selector {selector} not found in css:\n{css}"));
+            let block = &css[start..(start + 400).min(css.len())];
+            assert!(
+                block.contains("--fandhe-steps-indicator-font-size"),
+                "size variant block for {class} missing indicator font-size: {block}"
+            );
+        }
     }
 
     #[test]
