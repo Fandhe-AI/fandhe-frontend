@@ -91,6 +91,9 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: var(--fandhe-space-8);
+  height: var(--fandhe-space-8);
+  overflow: hidden;
   border: none;
   border-radius: var(--fandhe-radius-sm);
   background: transparent;

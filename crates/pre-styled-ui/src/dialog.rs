@@ -106,6 +106,24 @@
 //!   リングは [`focus_ring_declarations`]（イシュー #1424 共通トークン）へ
 //!   移行する（`trigger` 側のフォーカスリングは #1692 のスコープのため
 //!   本イシューでは変更しない）。
+//!
+//! ## `close-trigger` はアイコン専用契約（codex-review #1795 P1 指摘対応、0.59.0 破壊的変更）
+//!
+//! 上記の絶対配置化に伴い、`close-trigger` の公開契約を**アイコン専用**
+//! （1〜2 文字のグリフ相当の短い children、支援技術向けラベルは
+//! `("aria-label", "...")` 属性で付与）へ明示的に変更した。従来
+//! `text("Close")` のような複数文字テキストを children に渡す使用例が
+//! 存在したが、絶対配置 + `title` 側の固定ガター（`var(--fandhe-space-8)`）
+//! の組み合わせでは長いテキストが `title` と重なるため、この使い方は
+//! 0.59.0 以降サポート外とする（`recipe()` の `close-trigger` base が
+//! `width`/`height` を固定し `overflow: hidden` で視覚上の重なりを防ぐが、
+//! これは緩和策であり正式な使用法ではない）。呼び出し側は
+//! `close_trigger(vec![("aria-label", "Close")], vec![text("×")])` の形へ
+//! 移行すること（`crates/docs-site/src/showcase.rs`・
+//! `examples/headless-pre-styled-ui` の同型呼び出しを参照）。公開 API
+//! シグネチャ（`close_trigger` の引数型）自体は変更しないため、コンパイル
+//! エラーにはならない静的検知不能な破壊的変更である点に注意する。
+//!
 //! ## 開閉トランジションを追加しない理由（codex-review #1795 P1 指摘対応）
 //!
 //! 当初 `backdrop`/`content` の base へ [`transition_declarations`]
@@ -364,6 +382,19 @@ fn recipe() -> SlotRecipe {
         // `position: relative` を基準とする。位置指定は論理プロパティで
         // 統一する（`inset-block-start`/`inset-inline-end`、一貫性のため
         // 物理プロパティの `top` は使わない）。
+        //
+        // codex-review（PR #1795）P1 指摘対応: 呼び出し側が children に
+        // `text("Close")` 等の複数文字テキストを渡すと、絶対配置 + `title`
+        // 側の固定ガター（`var(--fandhe-space-8)`）を超えて `title` と
+        // 視覚的に重なる。本パーツは **アイコン専用**（1〜2 文字のグリフ
+        // 相当）契約であることを `width`/`height` の明示固定と
+        // `overflow: hidden` で強制する（誤ってテキストを渡しても正方形の
+        // 枠内で切り詰められ、`title` への重なりを防ぐ）。この契約変更は
+        // 0.x の破壊的変更のためマイナーバンプ（0.59.0）で公開する。
+        // 呼び出し側は `close_trigger(vec![("aria-label", "Close")],
+        // vec![text("×")])` のようにアイコン + `aria-label` の組み合わせで
+        // 渡すこと（`crates/docs-site/src/showcase.rs` の同型呼び出しを
+        // 参照）。
         .base(
             "close-trigger",
             [
@@ -374,6 +405,9 @@ fn recipe() -> SlotRecipe {
                     decl("display", "inline-flex"),
                     decl("align-items", "center"),
                     decl("justify-content", "center"),
+                    decl("width", "var(--fandhe-space-8)"),
+                    decl("height", "var(--fandhe-space-8)"),
+                    decl("overflow", "hidden"),
                     decl("border", "none"),
                     decl("border-radius", "var(--fandhe-radius-sm)"),
                     decl("background", "transparent"),

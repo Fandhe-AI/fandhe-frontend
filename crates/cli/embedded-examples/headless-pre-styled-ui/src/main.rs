@@ -318,7 +318,17 @@ fn dialog_section() -> Node {
                                     vec![],
                                     vec![text("この操作は取り消せません。続行しますか？")],
                                 ),
-                                dialog::close_trigger(vec![], vec![text("Close")]),
+                                // イシュー #1693/#1795: close-trigger は
+                                // content 右上のゴーストボタン化に伴い
+                                // アイコン専用契約になった。支援技術向け
+                                // ラベルは aria-label で維持する
+                                // （crates/pre-styled-ui/src/dialog.rs の
+                                // rustdoc「close-trigger はアイコン専用
+                                // 契約」参照）。
+                                dialog::close_trigger(
+                                    vec![("aria-label", "Close")],
+                                    vec![text("×")],
+                                ),
                             ],
                         )],
                     ),
