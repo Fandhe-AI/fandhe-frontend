@@ -740,8 +740,11 @@ pub enum StateCondition {
     /// 勝ってしまい、ポインタが highlight 中の item に重なると accent 背景
     /// が muted 背景に上書きされる／`hover_surface_declarations()` は
     /// `background` shorthand のみのため文字色 accent-fg だけが取り残され
-    /// コントラストが崩れる）が最初の消費者。[`HoverExcept`] と同じく
-    /// `:not()` によるマッチ除外のみで specificity は変更しない。
+    /// コントラストが崩れる）が最初の消費者。`:not()` 自体は specificity を
+    /// 加算しないが、その引数（属性セレクタ）の specificity はそのまま
+    /// 寄与するため、[`HoverExcept`] と同じく `:not([<name>])` の追加分
+    /// （属性セレクタ 1 個分 = (0,1,0)）だけ規則全体の specificity が
+    /// [`Hover`] 単体より高くなる。
     HoverExceptAttr(&'static str),
     /// `:hover:not([data-disabled]):not([<attr_name>]):not([<eq_name>="<eq_value>"])`
     /// （[`HoverExceptAttr`] の存在属性除外と [`HoverExcept`] の値等価除外を
@@ -758,9 +761,11 @@ pub enum StateCondition {
     /// open の `accent-subtle` 背景を muted hover 背景で上書きしてしまう
     /// （highlighted のみを除外しても open は除外されないため）。本
     /// variant は両方を `:not()` で除外し、open な trigger・highlighted な
-    /// trigger のいずれも hover で洗い流されないようにする。[`HoverExcept`]・
-    /// [`HoverExceptAttr`] と同じく `:not()` によるマッチ除外のみで
-    /// specificity は変更しない。
+    /// trigger のいずれも hover で洗い流されないようにする。`:not()` 自体は
+    /// specificity を加算しないが、その引数（属性セレクタ）の specificity は
+    /// そのまま寄与するため、[`HoverExcept`]・[`HoverExceptAttr`] の
+    /// `:not()` 節に加えてさらに 1 個分（属性セレクタ 1 個分 = (0,1,0)）
+    /// specificity が高くなり、素の [`Hover`] より高い specificity を持つ。
     HoverExceptAttrEq(&'static str, &'static str, &'static str),
 }
 
