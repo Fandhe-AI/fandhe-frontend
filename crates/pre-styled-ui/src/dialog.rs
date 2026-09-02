@@ -82,12 +82,15 @@
 //! 両パーツに `z-index` を設定し、常に最前面に来るようにする（menu/select の
 //! dropdown positioner（z-index: 10）より高い値にする）。
 //!
-//! # 内部パートのスタイル調整と開閉トランジション（イシュー #1693、親 #1520）
+//! # 内部パートのスタイル調整（イシュー #1693、親 #1520）
 //!
 //! 参照サイト基準の意匠調整として、`title`/`description`/`close-trigger`
-//! （内部パート）と `backdrop`/`content` の開閉トランジションを本イシューで
-//! 追加する。兄弟イシュー #1692 が担う `trigger`/`backdrop`/`positioner`/
-//! `content` の枠・影・サイズ（border/box-shadow/max-width 等）には触れない。
+//! （内部パート）のスタイルを本イシューで追加する。兄弟イシュー #1692 が
+//! 担う `trigger`/`backdrop`/`positioner`/`content` の枠・影・サイズ
+//! （border/box-shadow/max-width 等）には触れない。開閉トランジション
+//! （CSS `transition-property` による fade/scale アニメーション）は、
+//! 下記「開閉トランジションを追加しない理由」のとおり本イシューでは
+//! 見送る。
 //!
 //! - **`content` の `position: relative`**: 絶対配置する `close-trigger`
 //!   （後述）の配置基準。枠・影・サイズの変更ではないため #1692 側ではなく
@@ -103,17 +106,37 @@
 //!   リングは [`focus_ring_declarations`]（イシュー #1424 共通トークン）へ
 //!   移行する（`trigger` 側のフォーカスリングは #1692 のスコープのため
 //!   本イシューでは変更しない）。
-//! - **開閉トランジション**: `backdrop`/`content` の base へ
-//!   [`transition_declarations`]（`MotionDuration::Slow`、モーダル等の
-//!   強調遷移向け 300ms 既定、イシュー #1425 規約）を追加し、`content` の
-//!   `data-state` 連動規則へ `opacity` を追加して fade + scale の複合遷移に
-//!   する。`prefers-reduced-motion` は `Theme::to_css` が duration トークンを
-//!   一括 `0ms` 化する共通経路で担保されるため、本モジュールでは
-//!   `@media (prefers-reduced-motion)` を書かない（#1425 規約）。
-//!   なお headless 層（`crates/headless-ui/src/dialog.rs`）は closed 時に
-//!   `positioner`/`backdrop`/`content` へ `hidden` 属性を即時付与する契約の
-//!   ため、closed 側の遷移は `display: none` により視覚上は省略される
-//!   （既知の制約。headless 側の契約変更は本イシューのスコープ外）。
+//! ## 開閉トランジションを追加しない理由（codex-review #1795 P1 指摘対応）
+//!
+//! 当初 `backdrop`/`content` の base へ [`transition_declarations`]
+//! （`MotionDuration::Slow`）を追加し、`content` の `data-state` 連動規則へ
+//! `opacity` を加えて fade + scale の複合遷移を試みたが、headless 層
+//! （`crates/headless-ui/src/dialog.rs`）は open/closed の切り替え時に
+//! `positioner`/`backdrop`/`content` へ `hidden` 存在属性を**同一フレームで
+//! 即時**付与・除去する契約になっている。ブラウザは `[hidden]` による
+//! `display: none` ⇔ 表示の切り替えを離散的に即座に適用するため、
+//! `opacity`/`transform` の遷移前フレームが一切描画されず、**開く方向・
+//! 閉じる方向のいずれも**視覚上トランジションは発火しない（閉じる側のみの
+//! 制約とする従来の記述は不正確だった）。この状態で `transition-property`
+//! だけを宣言すると、実際には効果のない CSS を「開閉トランジション」という
+//! 機能として謳うことになり契約不整合となるため、本イシューでは
+//! `transition_declarations` の追加そのものを取り下げる（`backdrop` の
+//! opacity 状態切り替え・`content` の transform 状態切り替え自体は #551 から
+//! 存在する記述であり、開閉トランジションの機能追加を主張しない限りは
+//! 従来どおり残す）。真に機能させるには次のいずれかが必要であり、いずれも
+//! 本イシュー（pre-styled-ui の CSS 調整）のスコープを超える設計変更を伴う
+//! ため、別イシュー・ユーザー承認が必要な対象外事項として記録する
+//! （`.claude/rules/out-of-scope-tracking.md` 対応）:
+//!
+//! - headless 層と協調し、閉じる際は退場アニメーション完了まで `hidden`
+//!   付与を遅延させ、開く際は `hidden` 解除と `data-state="open"` 適用の
+//!   間に遷移前スタイルを一度描画させる状態管理（JS 側のタイミング制御が
+//!   前提になり得る）
+//! - `@starting-style` + `transition-behavior: allow-discrete`
+//!   （CSS ネイティブの離散プロパティ遷移機構）を [`crate::recipe::SlotRecipe`]
+//!   へ新規サポートとして追加する設計（`recipe.rs` は全 styled 部品が
+//!   共有する基盤であり、fail-closed 検証・出力順序・
+//!   `tests/recipe_css.rs` 契約への影響を伴う横断判断が必要）
 //! - **footer 相当のアクション配置**: headless anatomy に `footer` パートが
 //!   存在せず、[`crate::recipe::SlotRecipe`] は子孫セレクタ機構を持たない
 //!   （イシュー #708 で不採用確定）ため、専用 footer パートの CSS を
@@ -249,14 +272,6 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
-        // イシュー #1693: 開閉トランジション（モーダルの強調遷移向け
-        // `MotionDuration::Slow`、#1425 規約）。closed 側は headless 層が
-        // `hidden` 属性を即時付与するため視覚上は省略される（モジュール
-        // 冒頭 rustdoc「内部パートのスタイル調整と開閉トランジション」節参照）。
-        .base(
-            "backdrop",
-            transition_declarations("opacity", MotionDuration::Slow),
-        )
         .base(
             "positioner",
             vec![
@@ -273,37 +288,31 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "content",
-            [
-                vec![
-                    // イシュー #1693: close-trigger の絶対配置基準
-                    // （枠・影・サイズではないため #1692 側ではなく本
-                    // イシューで追加、両イシューが `content` base を
-                    // 編集する点に注意）。
-                    decl("position", "relative"),
-                    decl("background", "var(--fandhe-color-bg)"),
-                    decl("color", "var(--fandhe-color-fg)"),
-                    // 計算値は旧生値 0.5rem と同一（トークン化のみ、見た目不変）。
-                    // フォールバックに旧生値を残す（`dialog::stylesheet()` の単独利用や
-                    // `Theme::empty()` ベースのカスタムテーマでトークン未定義の場合に
-                    // 宣言全体が無効化され角丸が失われる後方互換性破壊を防ぐため。
-                    // 同一モジュール内の backdrop/positioner・toast のトークン化と揃える）。
-                    decl("border-radius", "var(--fandhe-radius-lg, 0.5rem)"),
-                    // `docs/design/pre-styled-ui-scale-tokens.md` §3.2:
-                    // dialog/drawer content = lg。参照サイトが共通して持つ
-                    // 面パネルの影が本モジュールに欠落していたため新規追加。
-                    decl("box-shadow", "var(--fandhe-shadow-lg)"),
-                    decl(
-                        "padding",
-                        "var(--fandhe-dialog-content-padding, var(--fandhe-space-6))",
-                    ),
-                    decl("max-width", "var(--fandhe-dialog-content-max-width, 32rem)"),
-                    decl("width", "100%"),
-                ],
-                // イシュー #1693: 開閉トランジション（#1425 規約、モジュール
-                // 冒頭 rustdoc 参照）。
-                transition_declarations("opacity, transform", MotionDuration::Slow),
-            ]
-            .concat(),
+            vec![
+                // イシュー #1693: close-trigger の絶対配置基準
+                // （枠・影・サイズではないため #1692 側ではなく本
+                // イシューで追加、両イシューが `content` base を
+                // 編集する点に注意）。
+                decl("position", "relative"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg)"),
+                // 計算値は旧生値 0.5rem と同一（トークン化のみ、見た目不変）。
+                // フォールバックに旧生値を残す（`dialog::stylesheet()` の単独利用や
+                // `Theme::empty()` ベースのカスタムテーマでトークン未定義の場合に
+                // 宣言全体が無効化され角丸が失われる後方互換性破壊を防ぐため。
+                // 同一モジュール内の backdrop/positioner・toast のトークン化と揃える）。
+                decl("border-radius", "var(--fandhe-radius-lg, 0.5rem)"),
+                // `docs/design/pre-styled-ui-scale-tokens.md` §3.2:
+                // dialog/drawer content = lg。参照サイトが共通して持つ
+                // 面パネルの影が本モジュールに欠落していたため新規追加。
+                decl("box-shadow", "var(--fandhe-shadow-lg)"),
+                decl(
+                    "padding",
+                    "var(--fandhe-dialog-content-padding, var(--fandhe-space-6))",
+                ),
+                decl("max-width", "var(--fandhe-dialog-content-max-width, 32rem)"),
+                decl("width", "100%"),
+            ],
         )
         .base(
             "title",
@@ -401,12 +410,12 @@ fn recipe() -> SlotRecipe {
         .state(
             "content",
             StateCondition::AttrEq("data-state", "open"),
-            vec![decl("opacity", "1"), decl("transform", "scale(1)")],
+            vec![decl("transform", "scale(1)")],
         )
         .state(
             "content",
             StateCondition::AttrEq("data-state", "closed"),
-            vec![decl("opacity", "0"), decl("transform", "scale(0.95)")],
+            vec![decl("transform", "scale(0.95)")],
         )
         // PR #575 Bugbot 指摘対応（High）: positioner の base 規則が
         // `display: flex` を宣言しており、UA 既定の `[hidden] { display: none }`
@@ -715,37 +724,6 @@ mod tests {
             r#"[data-scope="dialog"][data-part="close-trigger"]:hover:not([data-disabled]) {"#
         ));
         assert!(css.contains("background: var(--fandhe-hover-bg);"));
-    }
-
-    #[test]
-    fn backdrop_and_content_declare_transition_for_open_close() {
-        // イシュー #1693: 開閉トランジション（backdrop/content の base に
-        // transition-property/-duration/-timing-function が含まれること）。
-        let css = stylesheet();
-        assert!(css.contains("transition-property: opacity;"));
-        assert!(css.contains("transition-property: opacity, transform;"));
-        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-slow);"));
-        assert!(css.contains("transition-timing-function: var(--fandhe-motion-easing-standard);"));
-    }
-
-    #[test]
-    fn content_open_and_closed_states_include_opacity() {
-        // イシュー #1693: content の data-state 連動規則に opacity が
-        // 含まれ、fade + scale の複合遷移になることを固定する。
-        let css = stylesheet();
-        let open_start = css
-            .find(r#"[data-scope="dialog"][data-part="content"][data-state="open"] {"#)
-            .expect("content open rule must be present");
-        let open_end = css[open_start..].find('}').unwrap() + open_start;
-        assert!(css[open_start..open_end].contains("opacity: 1;"));
-        assert!(css[open_start..open_end].contains("transform: scale(1);"));
-
-        let closed_start = css
-            .find(r#"[data-scope="dialog"][data-part="content"][data-state="closed"] {"#)
-            .expect("content closed rule must be present");
-        let closed_end = css[closed_start..].find('}').unwrap() + closed_start;
-        assert!(css[closed_start..closed_end].contains("opacity: 0;"));
-        assert!(css[closed_start..closed_end].contains("transform: scale(0.95);"));
     }
 
     #[test]

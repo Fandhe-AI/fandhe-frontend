@@ -21,9 +21,11 @@
 //! する（詳細は `crates/pre-styled-ui/src/dialog.rs` rustdoc 参照）。
 //!
 //! イシュー #1693 で `title`/`description`/`close-trigger`（内部パート）の
-//! スタイル調整と `backdrop`/`content` の開閉トランジションを追加した
-//! （詳細は `crates/pre-styled-ui/src/dialog.rs` モジュール冒頭 rustdoc
-//! 「内部パートのスタイル調整と開閉トランジション」節参照）。
+//! スタイル調整を追加した（詳細は `crates/pre-styled-ui/src/dialog.rs`
+//! モジュール冒頭 rustdoc「内部パートのスタイル調整」節参照）。開閉
+//! トランジション（`transition-property` 追加）は headless 層の `hidden`
+//! 即時付与契約と両立しない（codex-review #1795 P1 指摘）ため見送った
+//! （同 rustdoc「開閉トランジションを追加しない理由」節参照）。
 
 use fandhe_frontend_pre_styled_ui::dialog;
 
@@ -47,12 +49,6 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   background: var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.4));
 }
 
-[data-scope="dialog"][data-part="backdrop"] {
-  transition-property: opacity;
-  transition-duration: var(--fandhe-motion-duration-slow);
-  transition-timing-function: var(--fandhe-motion-easing-standard);
-}
-
 [data-scope="dialog"][data-part="positioner"] {
   position: fixed;
   inset: 0;
@@ -72,9 +68,6 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   padding: var(--fandhe-dialog-content-padding, var(--fandhe-space-6));
   max-width: var(--fandhe-dialog-content-max-width, 32rem);
   width: 100%;
-  transition-property: opacity, transform;
-  transition-duration: var(--fandhe-motion-duration-slow);
-  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="dialog"][data-part="title"] {
@@ -149,12 +142,10 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
 }
 
 [data-scope="dialog"][data-part="content"][data-state="open"] {
-  opacity: 1;
   transform: scale(1);
 }
 
 [data-scope="dialog"][data-part="content"][data-state="closed"] {
-  opacity: 0;
   transform: scale(0.95);
 }
 
