@@ -9,27 +9,36 @@
 use fandhe_frontend_pre_styled_ui::drawer;
 
 const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
+  background: var(--fandhe-color-bg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+  padding: var(--fandhe-space-2) var(--fandhe-space-3);
   cursor: pointer;
   color: var(--fandhe-color-fg);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  transition-property: background, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="drawer"][data-part="backdrop"] {
   position: fixed;
   inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.4);
+  z-index: var(--fandhe-z-index-overlay, 1000);
+  background: var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.4));
 }
 
 [data-scope="drawer"][data-part="positioner"] {
   position: fixed;
   inset: 0;
-  z-index: 1001;
+  z-index: var(--fandhe-z-index-modal, 1001);
   display: flex;
 }
 
 [data-scope="drawer"][data-part="content"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
+  box-shadow: var(--fandhe-shadow-lg);
   padding: var(--fandhe-drawer-content-padding, var(--fandhe-space-6));
   box-sizing: border-box;
   overflow-y: auto;
@@ -132,13 +141,19 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
 }
 
 [data-scope="drawer"][data-part="trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="drawer"][data-part="close-trigger"]:focus-visible {
   outline: 2px solid var(--fandhe-color-accent);
   outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  [data-scope="drawer"][data-part="trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 

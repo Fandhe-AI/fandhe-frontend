@@ -59,10 +59,63 @@
 //!   を検討する）。
 //! - `wasm-full` の Drawer 対応（`OverlayKind::from_scope` が `"drawer"` を
 //!   未受理）は headless 層のスコープ外と同じ。
+//!
+//! # 外枠パート（trigger/backdrop/positioner/content）のスタイル調整
+//! （イシュー #1694、親 #1521。[`crate::dialog`] の外枠調整（イシュー #1692/
+//! PR #1794）と同型の適用）
+//!
+//! drawer は dialog の薄い委譲変種（モジュール冒頭 rustdoc 参照）であるため、
+//! 直近でマージ済みの dialog 外枠調整より前の未是正状態のまま残っていた。
+//! 本イシューで dialog と同じ是正を適用する:
+//!
+//! - **trigger**: `<button type="button">` 実体でありながら枠・背景・角丸・
+//!   padding が一切なく UA 既定外観のままだったため、`background`/`border`/
+//!   `border-radius`/`padding` を新規追加した（[`crate::dialog`] の trigger
+//!   と同型）。hover フィードバックとして
+//!   [`crate::recipe::hover_bg_muted`] + [`crate::recipe::transition_declarations`]
+//!   （`background, border-color` / [`crate::recipe::MotionDuration::Fast`]）
+//!   を base へ追加し、`StateCondition::Hover` に
+//!   [`crate::recipe::hover_surface_declarations`] を新規登録した（dialog/
+//!   file-upload の trigger と同型）。既存の `StateCondition::FocusVisible`
+//!   の直書き `outline`/`outline-offset` は
+//!   [`crate::recipe::focus_ring_declarations`]（[`crate::recipe::FocusRingColor::Token`]/
+//!   [`crate::recipe::FocusRingOffset::Outside`]）の canonical 形へ置換した
+//!   （出力値は従来と同一のトークン参照 + フォールバック形への置換のみで
+//!   見た目は不変）。**`close-trigger` の `FocusVisible` は兄弟イシュー
+//!   #1695（内部パート・状態遷移）の担当のため触れない**。
+//! - **backdrop**: `z-index: 1000`（生値）を
+//!   `var(--fandhe-z-index-overlay, 1000)`（イシュー #1423 系トークン）へ、
+//!   `background: rgba(0, 0, 0, 0.4)`（生値）を
+//!   `var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.4))`（イシュー #1422、
+//!   light 0.4 / dark 0.6）へ置換した。いずれも旧生値をフォールバックへ残す
+//!   （`drawer::stylesheet()` 単独利用・テーマ CSS 非注入時に暗幕が透明化
+//!   する・重なり順を失う事故を避けるため、dialog と同型の安全側判断）。
+//! - **positioner**: `z-index: 1001`（生値）を
+//!   `var(--fandhe-z-index-modal, 1001)` へ置換した。placement 4 方向の
+//!   flex レイアウト規則（`data-placement` に応じた `flex-direction`/
+//!   `justify-content`）は点検の上、参照サイト基準と齟齬がないため現状
+//!   維持とした。
+//! - **content**: 面パネルの影（`docs/design/pre-styled-ui-scale-tokens.md`
+//!   §3.2 が dialog/drawer content = lg と割り当て済み）が欠落していたため
+//!   `box-shadow: var(--fandhe-shadow-lg)` を新規追加した。
+//!
+//! **意図的に変更しない点**: `content` への `border-radius` 追加はしない
+//!   （drawer パネルは画面端に接する全高/全幅パネルであり、参照サイト
+//!   （chakra-ui / ark-ui の Drawer）も角丸を持たない。dialog の面パネルとは
+//!   異なり境界の一部が画面端と一致するため角丸は視覚的に不自然になる）。
+//!   `positioner` への `overflow: auto` 等の挙動変更はしない（視覚調整を
+//!   超えるため、dialog #1692 と同判断）。`root()` シグネチャを変える
+//!   variant 軸の追加はしない。title / description / close-trigger の
+//!   スタイル・`data-state` 開閉トランジション・`prefers-reduced-motion`
+//!   対応は兄弟イシュー #1695 の担当であり本イシューでは触れない。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, hover_bg_muted, hover_surface_declarations, transition_declarations,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
+};
 
 // headless 自由関数 `root`・状態機械 `Drawer` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。
@@ -100,8 +153,18 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("position", "fixed"),
                 decl("inset", "0"),
-                decl("z-index", "1000"),
-                decl("background", "rgba(0, 0, 0, 0.4)"),
+                // イシュー #1694: `--fandhe-z-index-overlay`
+                // （Theme::default() では 1300）。単独利用時のフォール
+                // バックとして旧生値 1000 を残す（dialog/toast/date_picker
+                // と同型）。
+                decl("z-index", "var(--fandhe-z-index-overlay, 1000)"),
+                // イシュー #1694: `--fandhe-color-bg-overlay`
+                // （light 0.4 / dark 0.6）。単独利用時のフォールバックとして
+                // 旧生値を残す（透明化して暗幕が消えないための安全側判断）。
+                decl(
+                    "background",
+                    "var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.4))",
+                ),
             ],
         )
         .base(
@@ -109,7 +172,9 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("position", "fixed"),
                 decl("inset", "0"),
-                decl("z-index", "1001"),
+                // イシュー #1694: `--fandhe-z-index-modal`
+                // （Theme::default() では 1400、backdrop の overlay より前面）。
+                decl("z-index", "var(--fandhe-z-index-modal, 1001)"),
                 decl("display", "flex"),
             ],
         )
@@ -118,6 +183,13 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                // `docs/design/pre-styled-ui-scale-tokens.md` §3.2:
+                // dialog/drawer content = lg。参照サイトが共通して持つ
+                // 面パネルの影が本モジュールに欠落していたため新規追加
+                // （イシュー #1694）。`border-radius` は追加しない
+                // （drawer パネルは画面端に接する全高/全幅パネルであり、
+                // 参照サイトも角丸を持たない、モジュール冒頭 rustdoc 参照）。
+                decl("box-shadow", "var(--fandhe-shadow-lg)"),
                 decl(
                     "padding",
                     "var(--fandhe-drawer-content-padding, var(--fandhe-space-6))",
@@ -149,9 +221,24 @@ fn recipe() -> SlotRecipe {
         .base(
             "trigger",
             vec![
+                // イシュー #1694: `<button type="button">` 実体でありながら
+                // 枠・背景・角丸・padding が一切なく UA 既定外観のままだった
+                // ため、操作部品カテゴリ既定段（dialog/file-upload の
+                // trigger と同型）を新規追加する。
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
                 decl("cursor", "pointer"),
                 decl("color", "var(--fandhe-color-fg)"),
-            ],
+                hover_bg_muted(),
+            ]
+            .into_iter()
+            .chain(transition_declarations(
+                "background, border-color",
+                MotionDuration::Fast,
+            ))
+            .collect(),
         )
         .base(
             "close-trigger",
@@ -263,14 +350,22 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("hidden"),
             vec![decl("display", "none")],
         )
-        // イシュー #643: キーボード操作時のみのフォーカスリング。
+        // イシュー #1694: trigger の hover surface（dialog/file-upload の
+        // trigger と同型、`--fandhe-hover-bg` は上記 base の
+        // `hover_bg_muted()` が定義する）。
+        .state(
+            "trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        // イシュー #643 / #1694: キーボード操作時のみのフォーカスリング。
+        // canonical ヘルパへ置換（出力値は従来と同一、トークン参照 +
+        // 旧来値フォールバックへの置換のみで見た目は不変）。close-trigger
+        // 側は兄弟イシュー #1695 の担当のため直書きのまま変更しない。
         .state(
             "trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "close-trigger",
@@ -380,8 +475,54 @@ mod tests {
     fn backdrop_and_positioner_declare_stacking_order() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="drawer"][data-part="backdrop"] {"#));
-        assert!(css.contains("z-index: 1000;"));
-        assert!(css.contains("z-index: 1001;"));
+        // イシュー #1694 でトークン参照へ置換（旧生値はフォールバックとして残す）。
+        assert!(css.contains("z-index: var(--fandhe-z-index-overlay, 1000);"));
+        assert!(css.contains("z-index: var(--fandhe-z-index-modal, 1001);"));
+    }
+
+    #[test]
+    fn backdrop_uses_bg_overlay_token_with_legacy_fallback() {
+        // イシュー #1694: backdrop の暗幕をライト/ダーク対応トークン
+        // （イシュー #1422）へ切り替える。`drawer::stylesheet()` 単独利用
+        // （テーマ CSS 非注入）でも透明化しないよう旧生値をフォールバック
+        // として残す（dialog #1692 と同型）。
+        let css = stylesheet();
+        assert!(css.contains("background: var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.4));"));
+    }
+
+    #[test]
+    fn content_declares_shadow_lg() {
+        // イシュー #1694: `docs/design/pre-styled-ui-scale-tokens.md` §3.2
+        // が割り当てる面パネルの影を新規追加する。`border-radius` は
+        // 意図的に追加しない（モジュール冒頭 rustdoc 参照）。
+        let css = stylesheet();
+        assert!(css.contains("box-shadow: var(--fandhe-shadow-lg);"));
+    }
+
+    #[test]
+    fn trigger_declares_button_chrome_and_hover_and_transition() {
+        // イシュー #1694: trigger をボタンとしての枠・背景・角丸・padding
+        // を持つ操作部品既定段（dialog #1692/file-upload #1696 と同型）へ
+        // 載せ、hover surface + transition を新規登録する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="drawer"][data-part="trigger"] {"#));
+        let trigger_start = css
+            .find(r#"[data-scope="drawer"][data-part="trigger"] {"#)
+            .expect("trigger base rule must be present");
+        let rule_body = &css[trigger_start..];
+        let rule_end = rule_body.find('}').expect("rule must be closed");
+        let base_rule = &rule_body[..rule_end];
+        assert!(base_rule.contains("border: 1px solid var(--fandhe-color-border);"));
+        assert!(base_rule.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(base_rule.contains("background: var(--fandhe-color-bg);"));
+        assert!(base_rule.contains("padding: var(--fandhe-space-2) var(--fandhe-space-3);"));
+        assert!(base_rule.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+        assert!(base_rule.contains("transition-property: background, border-color;"));
+
+        assert!(css.contains(
+            r#"[data-scope="drawer"][data-part="trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
     }
 
     #[test]
@@ -456,9 +597,16 @@ mod tests {
 
     #[test]
     fn trigger_and_close_trigger_declare_focus_visible_ring() {
+        // イシュー #1694: trigger 側のみ #1424 canonical ヘルパへ移行する
+        // （出力値は従来と同一のトークン参照 + フォールバック形への置換の
+        // みで見た目は不変）。close-trigger 側は兄弟イシュー #1695 の担当の
+        // ため直書きのまま変更しない。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="drawer"][data-part="trigger"]:focus-visible {"#));
         assert!(css.contains(r#"[data-scope="drawer"][data-part="close-trigger"]:focus-visible {"#));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
         assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
     }
 
