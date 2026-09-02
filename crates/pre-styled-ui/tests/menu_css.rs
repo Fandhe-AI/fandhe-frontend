@@ -22,8 +22,14 @@
 //! （`item` の flex 化・radius トークン化・hover/disabled/transition、
 //! `indicator` の開閉回転・transition）を反映した golden 更新。
 //! `item-group`/`item-group-label`/`separator` は意図的に現状維持。
-//! 詳細は `crates/pre-styled-ui/src/menu.rs` モジュール rustdoc「担当
-//! パートの是正」節を参照。
+//!
+//! イシュー #1527（親 #1524 の 3/3 分割）で `checkbox-item`/`radio-item`/
+//! `trigger-item`/`context-trigger` の是正（headless anatomy には存在した
+//! が CSS 未着装だった 5 パートのうち規則を持つ 4 パートを追加）を反映した
+//! golden 更新。`radio-item-group` は意図的に規則なし。ネスト時のサブ
+//! メニュー配置は静的 CSS で対応しない（意図的な非対応）。詳細は
+//! `crates/pre-styled-ui/src/menu.rs` モジュール rustdoc「担当パートの
+//! 是正」節を参照。
 
 use fandhe_frontend_pre_styled_ui::menu;
 
@@ -120,6 +126,71 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   margin: var(--fandhe-space-2) 0;
 }
 
+[data-scope="menu"][data-part="trigger-item"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fandhe-space-2);
+  padding: var(--fandhe-menu-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));
+  cursor: pointer;
+  border-radius: var(--fandhe-radius-sm);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="menu"][data-part="trigger-item"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="menu"][data-part="context-trigger"] {
+  cursor: pointer;
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+  padding: var(--fandhe-menu-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="menu"][data-part="context-trigger"] {
+  transition-property: border-color, background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="menu"][data-part="checkbox-item"] {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-2);
+  padding: var(--fandhe-menu-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));
+  cursor: pointer;
+  border-radius: var(--fandhe-radius-sm);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="menu"][data-part="checkbox-item"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="menu"][data-part="radio-item"] {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-2);
+  padding: var(--fandhe-menu-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));
+  cursor: pointer;
+  border-radius: var(--fandhe-radius-sm);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="menu"][data-part="radio-item"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
 [data-scope="menu"][data-part="root"].fd-menu--size-xs {
   --fandhe-menu-trigger-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
   --fandhe-menu-item-padding: var(--fandhe-space-0-5) var(--fandhe-space-1);
@@ -190,12 +261,79 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
 }
 
+[data-scope="menu"][data-part="checkbox-item"][data-state="checked"] {
+  background: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="menu"][data-part="checkbox-item"][data-highlighted] {
+  background: var(--fandhe-color-accent);
+  color: var(--fandhe-color-accent-fg);
+}
+
+[data-scope="menu"][data-part="checkbox-item"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="menu"][data-part="radio-item"][data-state="checked"] {
+  background: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="menu"][data-part="radio-item"][data-highlighted] {
+  background: var(--fandhe-color-accent);
+  color: var(--fandhe-color-accent-fg);
+}
+
+[data-scope="menu"][data-part="radio-item"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="menu"][data-part="trigger-item"][data-state="open"] {
+  background: var(--fandhe-color-accent-subtle);
+}
+
+[data-scope="menu"][data-part="trigger-item"][data-highlighted] {
+  background: var(--fandhe-color-accent);
+  color: var(--fandhe-color-accent-fg);
+}
+
+[data-scope="menu"][data-part="trigger-item"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="menu"][data-part="context-trigger"][data-state="open"] {
+  border-color: var(--fandhe-color-accent);
+}
+
+[data-scope="menu"][data-part="context-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
 @media (hover: hover) {
   [data-scope="menu"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {
     background: var(--fandhe-hover-bg);
   }
 
   [data-scope="menu"][data-part="trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="menu"][data-part="checkbox-item"]:hover:not([data-disabled]):not([data-highlighted]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="menu"][data-part="radio-item"]:hover:not([data-disabled]):not([data-highlighted]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="menu"][data-part="trigger-item"]:hover:not([data-disabled]):not([data-highlighted]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="menu"][data-part="context-trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
   }
 }
@@ -216,4 +354,20 @@ fn stylesheet_never_contains_style_breakout_sequences() {
     let css = menu::stylesheet();
     assert!(!css.contains("</style"));
     assert!(!css.contains('<'));
+}
+
+/// イシュー #1527: `checkbox-item`/`radio-item`/`trigger-item`/
+/// `context-trigger` の代表セレクタが出力に含まれることを固定する
+/// （golden バイト一致に加え、パート名・状態組み合わせの存在を明示的に
+/// 検証する focused テスト）。
+#[test]
+fn new_parts_state_selectors_are_present() {
+    let css = menu::stylesheet();
+    assert!(css.contains(r#"[data-scope="menu"][data-part="checkbox-item"][data-state="checked"]"#));
+    assert!(css.contains(r#"[data-scope="menu"][data-part="radio-item"][data-state="checked"]"#));
+    assert!(css.contains(r#"[data-scope="menu"][data-part="trigger-item"][data-state="open"]"#));
+    assert!(css.contains(r#"[data-scope="menu"][data-part="context-trigger"]:focus-visible"#));
+    // context-trigger は disabled 引数を持たないため data-disabled 規則は
+    // 登録しない（モジュール rustdoc「担当パートの是正（#1527）」節参照）。
+    assert!(!css.contains(r#"[data-scope="menu"][data-part="context-trigger"][data-disabled]"#));
 }
