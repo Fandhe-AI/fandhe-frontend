@@ -61,7 +61,15 @@
 //! - **trigger / stage-trigger / close-trigger の hover・トランジション**:
 //!   [`crate::recipe::hover_bg_muted`]/[`crate::recipe::
 //!   hover_surface_declarations`]（イシュー #1425 共通ビジュアル言語）を
-//!   `.state(_, StateCondition::Hover, ...)` として登録した。
+//!   登録した。`trigger` は headless 層の `disabled` 引数がネイティブ
+//!   `disabled` 存在属性のみを出力し `data-disabled` を発行しない
+//!   （下記「disabled 視覚を付けない根拠」参照）ため、
+//!   `StateCondition::HoverExceptAttr("disabled")`
+//!   （`:hover:not([data-disabled]):not([disabled])`）を用いて操作不能な
+//!   trigger への hover 背景適用を防ぐ（CI codex-review P1 指摘、イシュー
+//!   #1522）。`stage-trigger`/`close-trigger` は headless 層が disabled
+//!   引数自体を持たないため従来どおり `StateCondition::Hover`
+//!   （`:hover:not([data-disabled])`）のままとする。
 //!   stage-trigger/close-trigger は chakra-ui では `IconButton
 //!   variant="ghost" size="2xs"` として描かれる（MCP 確認済み）ため、面
 //!   （`padding`/`border-radius`/`display: inline-flex` による中央寄せ）
@@ -89,12 +97,20 @@
 //! 設計）。本モジュールも同じ構成を踏襲し、`SlotRecipe::variant` 軸を
 //! 追加しない（`REEXPORT-GLOB-REVIEWED` 規約 B-2 とも整合）。
 //!
-//! ## disabled 視覚を付けない根拠
+//! ## disabled 視覚を付けない根拠（data-disabled 版）
 //!
 //! headless `floating_panel`（`crates/headless-ui/src/floating_panel.rs`）
-//! の trigger は popover と異なり disabled 引数を持たず、`data-disabled`
-//! を一切発行しない（[`crate::action_bar`] #1516 の「disabled 視覚を付け
-//! ない根拠」と同型）。
+//! の `trigger`/`stage-trigger`/`close-trigger` はいずれも popover と異なり
+//! `data-disabled` を一切発行しない（[`crate::action_bar`] #1516 の
+//! 「disabled 視覚を付けない根拠」と同型）ため、`data-disabled` を狙った
+//! 専用の disabled 視覚は追加しない。ただし `trigger` は `disabled: bool`
+//! 引数を持ち `true` のときネイティブ `disabled` 存在属性のみを出力する
+//! （`stage-trigger`/`close-trigger` は disabled 引数自体を持たない）。この
+//! ネイティブ `disabled` を hover セレクタが除外できていないと、操作不能な
+//! trigger にも hover 背景が表示され誤った視覚フィードバックになる（CI
+//! codex-review P1 指摘、イシュー #1522）ため、上記「hover・トランジション」
+//!節のとおり `trigger` のみ `HoverExceptAttr("disabled")` で `:not([disabled])`
+//! を追加する。
 //!
 //! ## 開閉（data-state）トランジションを追加しない根拠
 //!
@@ -313,11 +329,19 @@ fn recipe() -> SlotRecipe {
         // trigger/stage-trigger/close-trigger の hover（イシュー #1425
         // 共通ビジュアル言語。`--fandhe-hover-bg` は上記 base の
         // `hover_bg_muted()` が定義する）。
+        // `trigger` はネイティブ `disabled` 属性を native-disabled として
+        // 持ちうる（headless 層 `trigger(disabled: bool, ...)`）ため、
+        // `HoverExceptAttr("disabled")` で `:not([disabled])` を追加し
+        // disabled 状態への hover 背景適用を防ぐ（CI codex-review P1 指摘、
+        // イシュー #1522。上記モジュール doc「hover・トランジション」節・
+        // 「disabled 視覚を付けない根拠（data-disabled 版）」節参照）。
         .state(
             "trigger",
-            StateCondition::Hover,
+            StateCondition::HoverExceptAttr("disabled"),
             hover_surface_declarations(),
         )
+        // stage-trigger/close-trigger は headless 層が disabled 引数自体を
+        // 持たないため、従来どおり `Hover` のままでよい。
         .state(
             "stage-trigger",
             StateCondition::Hover,
@@ -434,9 +458,16 @@ mod tests {
     fn trigger_stage_trigger_and_close_trigger_declare_hover_surface() {
         let css = stylesheet();
         assert!(css.contains("@media (hover: hover)"));
+        // `trigger` はネイティブ `disabled` 属性を持ちうる（headless 層
+        // `trigger(disabled: bool, ...)`）ため、`:not([data-disabled])` に
+        // 加えて `:not([disabled])` も除外条件へ含まれる（CI codex-review
+        // P1 指摘、イシュー #1522。native-disabled 回帰テストは下記
+        // `trigger_hover_excludes_native_disabled_attribute` 参照）。
         assert!(css.contains(
-            r#"[data-scope="floating-panel"][data-part="trigger"]:hover:not([data-disabled])"#
+            r#"[data-scope="floating-panel"][data-part="trigger"]:hover:not([data-disabled]):not([disabled])"#
         ));
+        // stage-trigger/close-trigger は headless 層が disabled 引数自体を
+        // 持たないため、`data-disabled` 除外のみで従来どおり。
         assert!(css.contains(
             r#"[data-scope="floating-panel"][data-part="stage-trigger"]:hover:not([data-disabled])"#
         ));
@@ -445,6 +476,28 @@ mod tests {
         ));
         assert!(css.contains("background: var(--fandhe-hover-bg);"));
         assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+    }
+
+    /// native-disabled（headless 層 `trigger(disabled: true, ...)` が出力する
+    /// ネイティブ `disabled` 存在属性）回帰テスト（CI codex-review P1 指摘、
+    /// イシュー #1522）。`trigger` の hover セレクタが `:not([disabled])` を
+    /// 含まないと、操作不能な trigger にも hover 背景が適用され、disabled
+    /// 状態なのに操作可能であるかのような誤った視覚フィードバックになる。
+    #[test]
+    fn trigger_hover_excludes_native_disabled_attribute() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="floating-panel"][data-part="trigger"]:hover:not([data-disabled]):not([disabled])"#
+        ));
+        // stage-trigger/close-trigger のセレクタには `:not([disabled])` が
+        // 含まれないこと（disabled 引数自体を持たないため過剰な除外条件を
+        // 追加しない）も併せて固定する。
+        assert!(!css.contains(
+            r#"[data-scope="floating-panel"][data-part="stage-trigger"]:hover:not([data-disabled]):not([disabled])"#
+        ));
+        assert!(!css.contains(
+            r#"[data-scope="floating-panel"][data-part="close-trigger"]:hover:not([data-disabled]):not([disabled])"#
+        ));
     }
 
     #[test]

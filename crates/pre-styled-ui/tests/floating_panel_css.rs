@@ -134,7 +134,7 @@ const FLOATING_PANEL_GOLDEN_CSS: &str = r#"[data-scope="floating-panel"][data-pa
 }
 
 @media (hover: hover) {
-  [data-scope="floating-panel"][data-part="trigger"]:hover:not([data-disabled]) {
+  [data-scope="floating-panel"][data-part="trigger"]:hover:not([data-disabled]):not([disabled]) {
     background: var(--fandhe-hover-bg);
   }
 
