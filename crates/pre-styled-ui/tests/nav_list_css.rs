@@ -16,6 +16,16 @@
 //! （size / variant 軸不採用・ダークモード個別規則なし・disabled 状態なし）
 //! は `crates/pre-styled-ui/src/nav_list.rs` モジュール doc「参考サイト
 //! 基準への調整（イシュー #1529）」節に記録する。
+//!
+//! PR #1805 の codex-review / Bugbot 指摘（「Hover washes out current
+//! page」）を受け、`link` の hover を
+//! `StateCondition::Hover`（`:hover:not([data-disabled])`,
+//! specificity (0,4,0)）から
+//! `StateCondition::HoverExcept("aria-current", "page")`
+//! （`:hover:not([data-disabled]):not([aria-current="page"])`）へ変更した。
+//! 素の `Hover` は現在ページを示す `[aria-current="page"]` 規則
+//! （specificity (0,3,0)）より高い specificity を持つため、現在ページの
+//! link にホバーすると accent 色が `fg` へ上書きされてしまっていた。
 
 use fandhe_frontend_pre_styled_ui::nav_list;
 
@@ -60,7 +70,7 @@ const NAV_LIST_GOLDEN_CSS: &str = r#"[data-scope="nav-list"][data-part="heading"
 }
 
 @media (hover: hover) {
-  [data-scope="nav-list"][data-part="link"]:hover:not([data-disabled]) {
+  [data-scope="nav-list"][data-part="link"]:hover:not([data-disabled]):not([aria-current="page"]) {
     color: var(--fandhe-color-fg);
     background: var(--fandhe-color-bg-muted);
   }
@@ -82,4 +92,21 @@ fn stylesheet_never_contains_style_breakout_sequences() {
     let css = nav_list::stylesheet();
     assert!(!css.contains("</style"));
     assert!(!css.contains('<'));
+}
+
+#[test]
+fn link_hover_excludes_current_page_so_accent_is_not_overridden() {
+    // PR #1805 の codex-review(P1) / Bugbot(Medium) 指摘「Hover washes out
+    // current page」の回帰防止。hover が `[aria-current="page"]` な要素を
+    // 対象から除外することを固定する（`StateCondition::HoverExcept`
+    // rustdoc・`crate::color_picker` の同型対応参照）。現在ページと hover
+    // のセレクタが互いに排他的であるため、現在ページの link にホバーしても
+    // 現在ページ側の accent 規則がそのまま適用される。
+    let css = nav_list::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"nav-list\"][data-part=\"link\"]:hover:not([data-disabled]):not([aria-current=\"page\"]) {\n    color: var(--fandhe-color-fg);\n    background: var(--fandhe-color-bg-muted);\n  }"
+    ));
+    assert!(
+        !css.contains("[data-scope=\"nav-list\"][data-part=\"link\"]:hover:not([data-disabled]) {")
+    );
 }

@@ -25,10 +25,16 @@
 //! 比較を踏まえ、以下を是正した（先行 #1517〔breadcrumb〕と同型の作業、
 //! Phase 0（#1424/#1425）の canonical ヘルパを使用）:
 //!
-//! - **`link` の hover**: [`crate::recipe::StateCondition::Hover`] で
-//!   `color`（`fg-muted` → `fg`）と面色（`background`）の変化を追加した
-//!   （`@media (hover: hover)` 配下へ集約出力。非対話 slot である
-//!   `heading`/`list`/`item` には付けない）。
+//! - **`link` の hover**: [`crate::recipe::StateCondition::HoverExcept`]
+//!   （`("aria-current", "page")`）で `color`（`fg-muted` → `fg`）と面色
+//!   （`background`）の変化を追加した（`@media (hover: hover)` 配下へ
+//!   集約出力。非対話 slot である `heading`/`list`/`item` には付けない）。
+//!   `HoverExcept` により現在ページ（`[aria-current="page"]`,
+//!   specificity (0,3,0)）を hover 対象から除外している。素の
+//!   `StateCondition::Hover`（`:hover:not([data-disabled])`,
+//!   specificity (0,4,0)）のままだと現在ページの link にホバーした際に
+//!   accent 色が `fg` へ上書きされ、現在位置を accent で強調する表示契約に
+//!   違反する（codex-review / Bugbot 指摘、PR #1805）。
 //! - **`link` の余白・角丸**: hover 背景・フォーカスリングの形状が
 //!   意味を持つよう `padding`（`var(--fandhe-space-1, 0.25rem)
 //!   var(--fandhe-space-2, 0.5rem)`）・`border-radius`
@@ -165,9 +171,19 @@ fn recipe() -> SlotRecipe {
         )
         // イシュー #1529: chakra 相当の hover（`fg-muted` → `fg` + 面色）。
         // 非対話 slot（heading/list/item）には付けない。
+        //
+        // codex-review / Bugbot 指摘（PR #1805）: 素の `StateCondition::Hover`
+        // が生成する `:hover:not([data-disabled])`（specificity (0,4,0)）は
+        // 現在ページを示す `[aria-current="page"]` 規則（(0,3,0)）より高く、
+        // 現在ページの link にホバーすると accent 色が `fg` へ上書きされ
+        // 表示契約（現在位置を accent で強調する）に違反する。
+        // `StateCondition::HoverExcept` （`crate::color_picker` の
+        // 「open trigger への hover 上書き」と同型の specificity 競合）で
+        // `[aria-current="page"]` に一致する要素そのものを hover 対象から
+        // 除外する。
         .state(
             "link",
-            StateCondition::Hover,
+            StateCondition::HoverExcept("aria-current", "page"),
             vec![
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("background", "var(--fandhe-color-bg-muted)"),
