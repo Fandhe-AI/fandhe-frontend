@@ -35,6 +35,11 @@
 //!   `trigger:hover:not([data-disabled])`（`@media (hover: hover)` 末尾集約）
 //! - `trigger:focus-visible` の `outline` を直書きから
 //!   `focus_ring_declarations(FocusRingColor::Palette, ...)` へ canonical 化
+//!
+//! PR #1816 レビュー指摘（Bugbot「Vertical divider does not span
+//! content」）の是正: `root[data-orientation="vertical"]` の
+//! `align-items: flex-start` を削除し既定値（`stretch`）へ戻した
+//! （`crates/pre-styled-ui/src/tabs.rs` `recipe()` 参照）。
 
 use fandhe_frontend_pre_styled_ui::tabs;
 
@@ -189,7 +194,6 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
 
 [data-scope="tabs"][data-part="root"][data-orientation="vertical"] {
   display: flex;
-  align-items: flex-start;
 }
 
 [data-scope="tabs"][data-part="list"][data-orientation="vertical"] {

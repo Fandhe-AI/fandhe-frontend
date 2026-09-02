@@ -276,10 +276,16 @@ fn recipe() -> SlotRecipe {
         )
         // イシュー #1542: `data-orientation="vertical"`（headless が
         // root/list/trigger/content へ出力するが視覚差がなかった不足）。
+        // `align-items` は既定値（`stretch`）のまま明示しない: `flex-start`
+        // を指定すると `list`/`content` が root の高さへストレッチされず
+        // 自身の内容量分の高さしか持たなくなり、`list` に付けた
+        // `border-inline-end`（区切り線）が `content`（パネル）全体の高さに
+        // 沿わずタブトリガー分の高さで止まってしまう（レビュー指摘、
+        // Bugbot「Vertical divider does not span content」）。
         .state(
             "root",
             StateCondition::AttrEq("data-orientation", "vertical"),
-            vec![decl("display", "flex"), decl("align-items", "flex-start")],
+            vec![decl("display", "flex")],
         )
         .state(
             "list",
