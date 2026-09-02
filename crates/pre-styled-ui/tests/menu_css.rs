@@ -16,9 +16,14 @@
 //!
 //! イシュー #1525（親 #1524 の 1/3 分割）で `trigger`/`content` の是正
 //! （radius/shadow のトークン化、`trigger` の hover/disabled/transition/
-//! focus-visible ヘルパ統一）を反映した golden 更新。詳細は
-//! `crates/pre-styled-ui/src/menu.rs` モジュール rustdoc「担当パートの
-//! 是正」節を参照。
+//! focus-visible ヘルパ統一）を反映した golden 更新。
+//!
+//! イシュー #1526（親 #1524 の 2/3 分割）で `item`/`indicator` の是正
+//! （`item` の flex 化・radius トークン化・hover/disabled/transition、
+//! `indicator` の開閉回転・transition）を反映した golden 更新。
+//! `item-group`/`item-group-label`/`separator` は意図的に現状維持。
+//! 詳細は `crates/pre-styled-ui/src/menu.rs` モジュール rustdoc「担当
+//! パートの是正」節を参照。
 
 use fandhe_frontend_pre_styled_ui::menu;
 
@@ -38,6 +43,17 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
 
 [data-scope="menu"][data-part="trigger"] {
   transition-property: border-color, background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="menu"][data-part="indicator"] {
+  display: inline-block;
+  color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="menu"][data-part="indicator"] {
+  transition-property: transform;
   transition-duration: var(--fandhe-motion-duration-fast);
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
@@ -77,9 +93,19 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
 }
 
 [data-scope="menu"][data-part="item"] {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-2);
   padding: var(--fandhe-menu-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));
   cursor: pointer;
-  border-radius: 0.25rem;
+  border-radius: var(--fandhe-radius-sm);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="menu"][data-part="item"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="menu"][data-part="item-group-label"] {
@@ -137,6 +163,15 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   color: var(--fandhe-color-accent-fg);
 }
 
+[data-scope="menu"][data-part="item"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="menu"][data-part="indicator"][data-state="open"] {
+  transform: rotate(180deg);
+}
+
 [data-scope="menu"][data-part="trigger"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
@@ -156,6 +191,10 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
 }
 
 @media (hover: hover) {
+  [data-scope="menu"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {
+    background: var(--fandhe-hover-bg);
+  }
+
   [data-scope="menu"][data-part="trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
   }

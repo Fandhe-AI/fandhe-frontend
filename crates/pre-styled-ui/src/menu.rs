@@ -143,6 +143,60 @@
 //! - **`color-palette`/variant 軸**: menu は元々これらの軸を持たない
 //!   （2/3 #1526 の item highlight 配色が対象領域になり得るため、本
 //!   イシューでは追加しない）。
+//!
+//! # 担当パートの是正（イシュー #1526、親 #1524 の 2/3 分割。`item` /
+//! `item-group` / `item-group-label` / `separator` / `indicator` を担当。
+//! `checkbox_item`/`radio_item`/`trigger_item`（サブメニュー）系は 3/3
+//! （#1527）の担当のため触れていない）
+//!
+//! **スコープ解釈の注記**: イシュータイトルの「item-text / item-indicator」
+//! は headless `menu` anatomy（本モジュール冒頭 rustdoc・`ANATOMY.part(...)`
+//! 一覧参照）に存在しない（select の part 名との混同とみられる）。1/3
+//! （#1525）が本モジュール rustdoc に記録した分担（`item`/`item-group`/
+//! `item-group-label`/`separator`/`indicator` = 2/3 本イシュー）に従う。
+//!
+//! - **`item`**: select 2/2（#1502）・combobox 2/2 と同型で是正した。
+//!   `display: flex` / `align-items: center` /
+//!   `gap: var(--fandhe-space-2)` を追加してレイアウトを整え、
+//!   `border-radius` の生リテラル（`0.25rem`）を
+//!   `var(--fandhe-radius-sm)` へトークン化（値は同一、外観不変）。
+//!   [`crate::recipe::hover_bg_muted`]、
+//!   [`crate::recipe::StateCondition::HoverExceptAttr`]`("data-highlighted")`、
+//!   [`crate::recipe::hover_surface_declarations`] で hover 背景を追加
+//!   した（`Hover`（無条件）ではなく `HoverExceptAttr` を使う理由は
+//!   select 2/2・combobox 2/2〔PR #1745 codex-review P1 指摘対応〕と同じ:
+//!   素の `:hover:not([data-disabled])` は selector specificity
+//!   （0,4,0）が `[data-highlighted]`（0,3,0）より高く、highlight 中の
+//!   item にポインタが重なると muted 背景が accent 背景〔virtual focus
+//!   の視覚状態〕を上書きしてコントラストが崩れるため）。
+//!   [`crate::recipe::disabled_declarations`]、
+//!   `StateCondition::Attr("data-disabled")` で headless
+//!   （`crates/headless-ui/src/menu.rs::item`）が `disabled` 引数と対で
+//!   付与する `data-disabled` を反映し、
+//!   [`crate::recipe::transition_declarations`] で `background, color` の
+//!   遷移を追加した。既存の `data-highlighted`（accent 背景 +
+//!   accent-fg）は維持した。
+//! - **`indicator`**: select 1/2（#1501）と同型。base 追加:
+//!   `display: inline-block`（`transform: rotate()` を効かせるため）+
+//!   `color: var(--fandhe-color-fg-muted)`。2 回目の base 登録で
+//!   `transition_declarations("transform", MotionDuration::Fast)` を
+//!   純追加した。headless `indicator`（`crates/headless-ui/src/menu.rs`）
+//!   が反映する `data-state="open"` で `transform: rotate(180deg)` へ
+//!   切り替える state を追加した。
+//! - **`item-group` / `item-group-label` / `separator` は現状維持
+//!   （意図的な非対応）**:
+//!   - `item-group`: 参照サイトでも構造コンテナのみで独自視覚なし。
+//!     select 2/2 も未スタイル（`crate::select` 同モジュール rustdoc
+//!     参照）のため同じ判断を踏襲する。
+//!   - `item-group-label`: select の canonical 形（`fg-muted` /
+//!     `font-size-xs` / padding）と既に同一のため是正不要。
+//!   - `separator`: 既にトークン経由（`border-muted` / `space-2`）で
+//!     参照サイトと同等のため是正不要。
+//! - **`color-palette`/variant 軸は追加しない（意図的非採用）**: 1/3
+//!   の rustdoc が「2/3 の item highlight 配色が対象領域になり得る」と
+//!   申し送っていたが、select 2/2・combobox 2/2 と同じく accent トークン
+//!   直による highlight を維持し palette 軸は追加しない（同型部品間の
+//!   一貫性優先。ダーク側はトークン再定義経由で自動成立する）。
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
@@ -266,13 +320,37 @@ fn recipe() -> SlotRecipe {
         .base(
             "item",
             vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
                 decl(
                     "padding",
                     "var(--fandhe-menu-item-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
                 ),
                 decl("cursor", "pointer"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結される
+        // （1/3・select 2/2 と同型のパターン、イシュー #1526）。
+        .base(
+            "item",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        .base(
+            "indicator",
+            vec![
+                // `transform: rotate()` を効かせるための display（select 1/2
+                // #1501・accordion `item-indicator` と同じ根拠、モジュール
+                // rustdoc「担当パートの是正（#1526）」節参照）。
+                decl("display", "inline-block"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+            ],
+        )
+        .base(
+            "indicator",
+            transition_declarations("transform", MotionDuration::Fast),
         )
         .base(
             "item-group-label",
@@ -311,6 +389,36 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-accent)"),
                 decl("color", "var(--fandhe-color-accent-fg)"),
             ],
+        )
+        // イシュー #1526: headless `item`（`crates/headless-ui/src/menu.rs`）
+        // が `disabled` 引数と対で付与する `data-disabled` を消費する
+        // （select 2/2・combobox 2/2 と同型）。
+        .state(
+            "item",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // イシュー #1526: item の hover 実適用。`StateCondition::Hover` では
+        // なく `StateCondition::HoverExceptAttr("data-highlighted")` を使う
+        // 理由は select 2/2（#1502）・combobox 2/2（PR #1745 codex-review
+        // P1 指摘）と同じ: 素の `Hover` は selector specificity
+        // （0,4,0）が `[data-highlighted]`（0,3,0）より高く、highlight 中の
+        // item にポインタが重なると muted 背景が accent 背景（virtual
+        // focus の視覚状態）を上書きしてコントラストが崩れるため、
+        // highlight 中の item 自体を hover の対象から除外する。
+        .state(
+            "item",
+            StateCondition::HoverExceptAttr("data-highlighted"),
+            hover_surface_declarations(),
+        )
+        // イシュー #1526: headless `indicator`（`crates/headless-ui/src/
+        // menu.rs`）が反映する `data-state="open"` に応じてシェブロン等の
+        // 開閉インジケータを反転させる（select 1/2 #1501・accordion
+        // `item-indicator` と同型）。
+        .state(
+            "indicator",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("transform", "rotate(180deg)")],
         )
         // イシュー #643 → #1525 で canonical ヘルパへ置換: `trigger` は
         // キーボード操作時のみのフォーカスリング。menu は palette 軸を
@@ -739,5 +847,64 @@ mod tests {
                 );
             }
         }
+    }
+
+    // --- イシュー #1526: item / indicator のスタイル調整 ---
+
+    #[test]
+    fn item_border_radius_uses_radius_sm_token() {
+        // radius トークン化（外観不変、select 2/2 と同じ判断）。
+        let css = stylesheet();
+        let item_start = css
+            .find(r#"[data-scope="menu"][data-part="item"] {"#)
+            .expect("item base rule must exist");
+        let item_block_end = css[item_start..]
+            .find(
+                "}
+",
+            )
+            .map(|idx| item_start + idx)
+            .expect("item base rule must be closed");
+        let item_block = &css[item_start..item_block_end];
+        assert!(item_block.contains("border-radius: var(--fandhe-radius-sm);"));
+        assert!(!item_block.contains("border-radius: 0.25rem;"));
+    }
+
+    #[test]
+    fn item_disabled_attr_is_styled() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menu"][data-part="item"][data-disabled] {"#));
+        assert!(css.contains("opacity: 0.5;"));
+        assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn item_hover_rule_is_scoped_and_excludes_highlighted() {
+        // `StateCondition::HoverExceptAttr` は `@media (hover: hover)`
+        // 配下へ集約され `:not([data-highlighted])` を自動付与する
+        // （select 2/2・combobox 2/2 と同型、モジュール rustdoc「担当
+        // パートの是正（#1526）」節参照）。
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="menu"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted])"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+    }
+
+    #[test]
+    fn item_has_transition_declarations() {
+        let css = stylesheet();
+        assert!(css.contains("transition-property: background, color;"));
+    }
+
+    #[test]
+    fn indicator_rotates_when_open_and_has_transform_transition() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menu"][data-part="indicator"] {"#));
+        assert!(css.contains("display: inline-block;"));
+        assert!(css.contains("transition-property: transform;"));
+        assert!(css.contains(r#"[data-scope="menu"][data-part="indicator"][data-state="open"] {"#));
+        assert!(css.contains("transform: rotate(180deg);"));
     }
 }
