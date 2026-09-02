@@ -807,7 +807,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 宣言追加・トークン化・既存 `StateCondition` variant（`HoverExceptAttr`/
 # `HoverExceptAttrEq`、#1702/#1803 で導入済み）の適用のみで、Rust API
 # シグネチャ変更・既存セレクタ削除は無い。
-version = "0.61.1"
+# イシュー #1529（nav-list のスタイルを参考サイト基準へ調整）も同型の patch
+# バンプ: recipe() への宣言追加（hover/フォーカスリング/transition/余白・
+# 角丸/縦間隔・色トークン変更）のみで、既存 `StateCondition` variant
+# （`Hover`/`FocusVisible`/`AttrEq`）の適用に留まり新規 variant 追加なし。
+# Rust API シグネチャ不変・既存 4 セレクタ（heading/list/link/
+# link[aria-current="page"]）削除なし・CSS 宣言のみの意匠調整のため
+# patch バンプする。
+version = "0.61.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
