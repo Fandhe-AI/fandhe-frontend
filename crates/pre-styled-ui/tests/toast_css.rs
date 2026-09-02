@@ -1,10 +1,11 @@
-//! styled Toast（イシュー #760）の決定的 CSS 出力ゴールデンテスト。
+//! styled Toast（イシュー #760/#1544/#1545）の決定的 CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの前例に
 //! 倣い、`stylesheet()` が返す CSS 全文（placement 6 variant・status 4
-//! variant を含む）をバイト単位で固定する。出力順（base → variants）が
-//! 崩れた場合や意図しない宣言の追加・欠落があった場合に、この golden
-//! テストが即座に検知する。
+//! variant・action-trigger/close-trigger の hover/focus/disabled/transition・
+//! enter 遷移 `@keyframes` を含む）をバイト単位で固定する。出力順
+//! （base → variants → states → keyframes）が崩れた場合や意図しない宣言の
+//! 追加・欠落があった場合に、この golden テストが即座に検知する。
 
 use fandhe_frontend_pre_styled_ui::toast;
 
@@ -16,6 +17,8 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   gap: var(--fandhe-space-2);
   padding: var(--fandhe-space-4);
   pointer-events: none;
+  box-sizing: border-box;
+  max-width: 100vw;
 }
 
 [data-scope="toast"][data-part="root"] {
@@ -23,15 +26,18 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   flex-direction: column;
   gap: var(--fandhe-space-1);
   box-sizing: border-box;
-  min-width: min(18rem, 100%);
+  position: relative;
+  width: min(24rem, 100%);
   max-width: calc(100vw - var(--fandhe-space-8));
   padding: var(--fandhe-space-4);
+  padding-inline-end: var(--fandhe-space-10);
   border-radius: var(--fandhe-radius-md);
   border: 1px solid var(--fandhe-color-border);
   box-shadow: var(--fandhe-shadow-lg);
   pointer-events: auto;
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
+  animation: fd-toast-enter var(--fandhe-motion-duration-normal) var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="toast"][data-part="title"] {
@@ -42,9 +48,51 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   font-size: var(--fandhe-font-font-size-sm);
 }
 
-[data-scope="toast"][data-part="close-trigger"] {
+[data-scope="toast"][data-part="action-trigger"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  margin-block-start: var(--fandhe-space-1);
+  box-sizing: border-box;
+  height: var(--fandhe-space-8);
+  padding: 0 var(--fandhe-space-3);
+  font-family: inherit;
+  font-size: var(--fandhe-font-font-size-sm);
+  font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-tight);
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--fandhe-palette-muted, var(--fandhe-color-border));
+  border-radius: var(--fandhe-radius-md);
   cursor: pointer;
-  align-self: flex-end;
+  --fandhe-hover-bg: var(--fandhe-palette-muted, var(--fandhe-color-bg-muted));
+  transition-property: background, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="toast"][data-part="close-trigger"] {
+  position: absolute;
+  inset-block-start: var(--fandhe-space-2);
+  inset-inline-end: var(--fandhe-space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--fandhe-space-8);
+  height: var(--fandhe-space-8);
+  overflow: hidden;
+  border: none;
+  border-radius: var(--fandhe-radius-sm);
+  background: transparent;
+  padding: var(--fandhe-space-1);
+  cursor: pointer;
+  color: inherit;
+  --fandhe-hover-bg: var(--fandhe-palette-muted, var(--fandhe-color-bg-muted));
+  transition-property: background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-top-start {
@@ -52,6 +100,7 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   inset-inline-start: 0;
   align-items: flex-start;
   flex-direction: column-reverse;
+  --fandhe-toast-enter-translate: 0 calc(-1 * var(--fandhe-space-2));
 }
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-top {
@@ -60,6 +109,7 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   transform: translateX(-50%);
   align-items: center;
   flex-direction: column-reverse;
+  --fandhe-toast-enter-translate: 0 calc(-1 * var(--fandhe-space-2));
 }
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-top-end {
@@ -67,12 +117,14 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   inset-inline-end: 0;
   align-items: flex-end;
   flex-direction: column-reverse;
+  --fandhe-toast-enter-translate: 0 calc(-1 * var(--fandhe-space-2));
 }
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-bottom-start {
   bottom: 0;
   inset-inline-start: 0;
   align-items: flex-start;
+  --fandhe-toast-enter-translate: 0 var(--fandhe-space-2);
 }
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-bottom {
@@ -80,12 +132,14 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   left: 50%;
   transform: translateX(-50%);
   align-items: center;
+  --fandhe-toast-enter-translate: 0 var(--fandhe-space-2);
 }
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-bottom-end {
   bottom: 0;
   inset-inline-end: 0;
   align-items: flex-end;
+  --fandhe-toast-enter-translate: 0 var(--fandhe-space-2);
 }
 
 [data-scope="toast"][data-part="root"].fd-toast--status-info {
@@ -134,6 +188,47 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   background: var(--fandhe-palette-subtle);
   border-color: var(--fandhe-palette-muted);
   color: var(--fandhe-palette-fg-subtle);
+}
+
+[data-scope="toast"][data-part="action-trigger"][disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="toast"][data-part="action-trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="toast"][data-part="action-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="toast"][data-part="close-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (hover: hover) {
+  [data-scope="toast"][data-part="action-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="toast"][data-part="close-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+}
+
+@keyframes fd-toast-enter {
+  from {
+    opacity: 0;
+    translate: var(--fandhe-toast-enter-translate, 0 var(--fandhe-space-2));
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
 "#;
 
