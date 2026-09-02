@@ -5692,6 +5692,15 @@ fn menubar_section() -> Node {
                                             vec![],
                                             vec![text("report.md")],
                                         ),
+                                        // イシュー #1703: `disabled_declarations()`
+                                        // 経由の視覚（opacity/cursor）を掲示する。
+                                        menubar::item(
+                                            "print",
+                                            true,
+                                            false,
+                                            vec![],
+                                            vec![text("Print…")],
+                                        ),
                                     ],
                                 ),
                                 menubar::separator(vec![], vec![]),
@@ -5701,7 +5710,30 @@ fn menubar_section() -> Node {
                                     false,
                                     Some("menubar-export-sub-content"),
                                     vec![],
-                                    vec![text("Export")],
+                                    // イシュー #1703: anatomy に `indicator`
+                                    // パートが無いため、`justify-content:
+                                    // space-between`（既存）が確保する右端の
+                                    // 余白へマークアップ側の示唆グリフを
+                                    // 置く読み替えで表現する（モジュール doc
+                                    // 「イシュー #1703」節「意図的に合わせ
+                                    // なかった点」参照）。隣接する 2 つの
+                                    // text() ノードのままだと 1 つの連続
+                                    // テキストランとして単一の匿名 flex
+                                    // item になり `justify-content:
+                                    // space-between` が効かないため
+                                    // （PR #1804 Bugbot 指摘）、ラベルと
+                                    // グリフをそれぞれ `span` で包んで
+                                    // 独立した flex item にする。グリフ側の
+                                    // `span` には `aria-hidden="true"` を
+                                    // 付け、装飾用の示唆グリフが "Export"
+                                    // と一緒にアクセシブル名として読み上げ
+                                    // られないようにする（PR #1804
+                                    // codex-review 指摘、AGENTS.md「UI 部品
+                                    // の責務境界（アクセシビリティ）」）。
+                                    vec![
+                                        el("span", vec![], vec![text("Export")]),
+                                        el("span", vec![("aria-hidden", "true")], vec![text("▸")]),
+                                    ],
                                 ),
                                 menubar::sub_content(
                                     export_submenu_state,
@@ -5730,7 +5762,7 @@ fn menubar_section() -> Node {
     );
     section(
         "Menubar",
-        "headless-ui の Menubar（role=\"menubar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。File / Edit の 2 Menu を水平配置し、File Menu を開いた状態（open=Some(0)）で表示しています。Item Group（Recent）・Separator・SubTrigger/SubContent（Export → PDF）の入れ子構造も含みます。roving tabindex（focused=0）により先頭の File トリガーのみ tabindex=\"0\" です。Edit トリガーは highlighted=true とし、trigger の data-highlighted 配色（イシュー #1702）も掲示します。",
+        "headless-ui の Menubar（role=\"menubar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。File / Edit の 2 Menu を水平配置し、File Menu を開いた状態（open=Some(0)）で表示しています。Item Group（Recent）・Separator・SubTrigger/SubContent（Export → PDF）の入れ子構造も含みます。roving tabindex（focused=0）により先頭の File トリガーのみ tabindex=\"0\" です。Edit トリガーは highlighted=true とし、trigger の data-highlighted 配色（イシュー #1702）も掲示します。File Menu の Print… item は disabled=true とし、内部パート是正（イシュー #1703）の disabled_declarations 配色・item/sub-trigger の hover・トランジション・トークン整合（radius/shadow/border-muted）を掲示します。Export sub-trigger は右端に示唆グリフ（▸）のテキストノードを添え、anatomy に indicator パートが無い制約下でのサブメニュー示唆を表現します。",
         vec![node],
     )
 }

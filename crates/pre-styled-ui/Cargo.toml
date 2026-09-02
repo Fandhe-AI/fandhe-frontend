@@ -802,7 +802,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # している利用者コードを non-exhaustive にする観測可能な破壊的変更のため、
 # 0.x の破壊的変更はマイナーバンプとする規約（.claude/rules/coding-rust.md）
 # に従い minor バンプする（codex-review P1 指摘・Bugbot 指摘、PR #1803）。
-version = "0.61.0"
+# イシュー #1703（menubar の内部パート positioner 等のスタイル調整と状態
+# 遷移、親 #1528 の 2h 分割 2 本目）も同型の patch バンプ: recipe() への
+# 宣言追加・トークン化・既存 `StateCondition` variant（`HoverExceptAttr`/
+# `HoverExceptAttrEq`、#1702/#1803 で導入済み）の適用のみで、Rust API
+# シグネチャ変更・既存セレクタ削除は無い。
+version = "0.61.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
