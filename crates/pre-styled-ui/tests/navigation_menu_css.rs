@@ -75,3 +75,52 @@ fn stylesheet_never_contains_style_breakout_sequences() {
     assert!(!css.contains('<'));
     assert!(!css.contains("</style"));
 }
+
+#[test]
+fn stylesheet_declares_hover_feedback_on_trigger_and_link_excluding_active_state() {
+    // イシュー #1700: trigger（open 状態）と link（現在地リンク）は accent
+    // 背景を維持するため hover から除外される（`src/navigation_menu.rs`
+    // モジュール doc「担当パートの是正」節参照）。
+    let css = navigation_menu::stylesheet();
+    assert!(css.contains(
+        r#"[data-scope="navigation-menu"][data-part="trigger"]:hover:not([data-disabled]):not([data-state="open"])"#
+    ));
+    assert!(css.contains(
+        r#"[data-scope="navigation-menu"][data-part="link"]:hover:not([data-disabled]):not([data-current])"#
+    ));
+}
+
+#[test]
+fn stylesheet_does_not_declare_hover_feedback_on_list_or_item() {
+    // list（表示専用 <ul>）・item（<li> ラッパー）は非インタラクティブの
+    // ため hover 規則を持たない。
+    let css = navigation_menu::stylesheet();
+    assert!(!css.contains(r#"[data-scope="navigation-menu"][data-part="list"]:hover"#));
+    assert!(!css.contains(r#"[data-scope="navigation-menu"][data-part="item"]:hover"#));
+}
+
+#[test]
+fn stylesheet_tokenizes_trigger_and_link_border_radius() {
+    // イシュー #1700: 生リテラル `0.25rem` を `var(--fandhe-radius-sm)` へ
+    // トークン化した（値は同一、外観不変）。
+    let css = navigation_menu::stylesheet();
+    assert!(css.contains("border-radius: var(--fandhe-radius-sm);"));
+    assert!(!css.contains("border-radius: 0.25rem;"));
+}
+
+#[test]
+fn stylesheet_declares_transition_on_trigger_and_link() {
+    let css = navigation_menu::stylesheet();
+    assert!(css.contains("transition-property: background, color;"));
+    assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+}
+
+#[test]
+fn stylesheet_uses_canonical_focus_ring_helper_on_trigger() {
+    // イシュー #1700: `focus_ring_declarations(FocusRingColor::Token, ...)`
+    // 経由のトークン参照形へ置換した。
+    let css = navigation_menu::stylesheet();
+    assert!(css.contains(
+        "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+    ));
+}

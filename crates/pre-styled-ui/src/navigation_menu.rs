@@ -36,6 +36,67 @@
 //! `trigger` のみに登録する（headless 層が `link` へ独自の highlight
 //! 状態を持たないため）。
 //!
+//! # 担当パートの是正（イシュー #1700、親 #1530 の 1/2 分割。外枠パート
+//! `list`/`item`/`trigger`/`link` のみ担当。内部パート（`content`）と
+//! `data-state` 開閉トランジションは兄弟 #1701（2/2）の担当のため一切
+//! 触れていない）
+//!
+//! 親イシュー #1530 の実測（横断的な hover フィードバック欠落・Phase 0
+//! ヘルパ未経由の直書き宣言）に対し、本イシューが担当する外枠パートで
+//! 実施した是正・意図的に合わせなかった点を記録する。
+//!
+//! - **`trigger`**: `border-radius` の生リテラル（`0.25rem`）を
+//!   `var(--fandhe-radius-sm)` へトークン化（値は同一、外観不変）。
+//!   [`crate::recipe::hover_bg_muted`] +
+//!   [`crate::recipe::StateCondition::HoverExcept`]`("data-state", "open")` +
+//!   [`crate::recipe::hover_surface_declarations`] で hover 背景を追加した
+//!   （`Hover`（無条件）ではなく `HoverExcept` を使う理由は
+//!   `color_picker`（イシュー #1463/PR #1740）と同型: open 状態の
+//!   `--fandhe-color-accent-subtle` 背景〔selector specificity
+//!   (0,4,0) の hover 規則が末尾の `@media (hover: hover)` ブロックへ
+//!   集約されるため必ず勝つ〕を hover の muted 背景で洗い流さないため）。
+//!   `data-disabled` の直書き宣言（`opacity`/`cursor`）を
+//!   [`crate::recipe::disabled_declarations`] へ置換（出力バイト同一）。
+//!   `:focus-visible` の直書き outline 2 宣言を
+//!   [`crate::recipe::focus_ring_declarations`]（`FocusRingColor::Token`。
+//!   navigation-menu は `ColorPalette` 軸を持たないため menu 1/3 等と同じ
+//!   選択）へ置換した。
+//!   [`crate::recipe::transition_declarations`]（`background, color`、
+//!   `MotionDuration::Fast`）で状態遷移のトランジションを追加した。
+//! - **`link`**: `border-radius`（生 `0.25rem` →
+//!   `var(--fandhe-radius-sm)`）をトークン化。
+//!   [`crate::recipe::hover_bg_muted`] +
+//!   [`crate::recipe::StateCondition::HoverExceptAttr`]`("data-current")` +
+//!   [`crate::recipe::hover_surface_declarations`] で hover 背景を追加した
+//!   （`data-current` は値なしの存在属性のため、値付き `HoverExcept`
+//!   ではなく `HoverExceptAttr` を使う。combobox `data-highlighted`
+//!   （イシュー #1468/PR #1745）と同型で、accent 背景 + accent-fg 文字色
+//!   の現在地リンクへ muted 背景が重なりコントラストが崩れるのを防ぐ）。
+//!   [`crate::recipe::transition_declarations`]（`background, color`、
+//!   `MotionDuration::Fast`）を追加した。既存の `data-current` 表現
+//!   （accent 背景 + accent-fg 文字色）はトークン経由済みのため維持した。
+//! - **`item`**: `data-disabled` の直書き宣言を
+//!   [`crate::recipe::disabled_declarations`] へ置換した（出力バイト
+//!   同一）。`item` は非インタラクティブな `<li>` ラッパーのため hover・
+//!   transition は付与しない。
+//! - **`list` は是正対象なし（意図的な非対応）**: gap/margin/padding は
+//!   既にトークン経由・リセット済みで、`align-items: flex-start` は
+//!   モジュール冒頭 rustdoc「レイアウト」節の縦ずれ回帰予防の固定値
+//!   （PR #1000 の反省）のため変更しない。表示専用の `<ul>` レイアウト
+//!   コンテナであり hover 対象でもない。
+//! - **indicator パートは実装しない（意図的な非対応）**: headless 層
+//!   （`crates/headless-ui/src/navigation_menu.rs`）の anatomy は
+//!   root/list/item/trigger/content/link の 6 パーツのみで Indicator は
+//!   スコープ外として明示的に非実装（イシュー #993 継承）。本モジュールは
+//!   headless anatomy の再エクスポート + stylesheet のみの薄い委譲（規約
+//!   B-1）であり、pre-styled-ui 単独では indicator パートを追加できない
+//!   （headless 層の anatomy 拡張が前提になる別スコープ）。
+//! - **`:active`（押下）擬似クラスは追加しない（意図的な非対応）**:
+//!   [`crate::recipe::StateCondition`] に `:active` に相当する variant が
+//!   存在せず、新設は本イシューの 2h 粒度・recipe 契約変更の双方に対して
+//!   過大であるため見送った。「active」は headless 層が実際に出す
+//!   `data-current`（アクティブリンク）で表現する。
+//!
 //! # 本イシューのスコープ外
 //!
 //! headless 層（`crates/headless-ui/src/navigation_menu.rs`）のモジュール
@@ -44,7 +105,11 @@
 //! 操作の実 DOM 配線）。
 
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, SlotRecipe,
+    StateCondition,
+};
 
 // REEXPORT-GLOB-REVIEWED: 本モジュールが定義する pub 項目は stylesheet() の
 // みで styled パーツ関数を再定義しない（規約 B-1）。variant 軸も提供せず
@@ -99,9 +164,16 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("background", "transparent"),
                 decl("border", "none"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("padding", "var(--fandhe-space-1) var(--fandhe-space-3)"),
+                hover_bg_muted(),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結される
+        // （menu 1/3 #1525 と同型のパターン）。
+        .base(
+            "trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         .base(
             "content",
@@ -127,8 +199,13 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("text-decoration", "none"),
                 decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "link",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         // 開いている trigger を視覚的に強調する。
         .state(
@@ -153,21 +230,35 @@ fn recipe() -> SlotRecipe {
         .state(
             "trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
         )
         .state(
             "item",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
         )
         // trigger はキーボード操作時のみのフォーカスリング。
         .state(
             "trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // イシュー #1700: trigger の hover 実適用。素の `Hover` ではなく
+        // `HoverExcept("data-state", "open")` を使う理由はモジュール冒頭
+        // rustdoc「担当パートの是正」節参照（open 状態の accent-subtle
+        // 背景を hover の muted 背景で洗い流さないため）。
+        .state(
+            "trigger",
+            StateCondition::HoverExcept("data-state", "open"),
+            hover_surface_declarations(),
+        )
+        // イシュー #1700: link の hover 実適用。`data-current` は値なしの
+        // 存在属性のため `HoverExceptAttr` を使う（モジュール冒頭 rustdoc
+        // 「担当パートの是正」節参照）。
+        .state(
+            "link",
+            StateCondition::HoverExceptAttr("data-current"),
+            hover_surface_declarations(),
         )
 }
 
@@ -240,6 +331,76 @@ mod tests {
         assert!(
             !css.contains(r#"[data-scope="navigation-menu"][data-part="link"]:focus-visible {"#)
         );
+        // イシュー #1700: focus_ring_declarations(FocusRingColor::Token, ...)
+        // 経由のトークン参照形へ置換したことの確認（menu 1/3 #1525 と同型）。
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+    }
+
+    #[test]
+    fn trigger_and_link_declare_hover_feedback_excluding_active_state() {
+        // イシュー #1700: trigger/link に hover フィードバックを追加した
+        // ことの確認。open trigger（data-state="open"）と現在地リンク
+        // （data-current）は accent 背景を維持するため hover から除外
+        // される（モジュール冒頭 rustdoc「担当パートの是正」節参照）。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="navigation-menu"][data-part="trigger"]:hover:not([data-disabled]):not([data-state="open"])"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="navigation-menu"][data-part="link"]:hover:not([data-disabled]):not([data-current])"#
+        ));
+    }
+
+    #[test]
+    fn list_and_item_do_not_declare_hover_feedback() {
+        // list（表示専用の <ul>）と item（<li> ラッパー）は非インタラクティブ
+        // のため hover 規則を持たない（#1425 の判定基準）。
+        let css = stylesheet();
+        assert!(!css.contains(r#"[data-scope="navigation-menu"][data-part="list"]:hover"#));
+        assert!(!css.contains(r#"[data-scope="navigation-menu"][data-part="item"]:hover"#));
+    }
+
+    #[test]
+    fn trigger_and_link_border_radius_is_tokenized() {
+        // イシュー #1700: 生リテラル `0.25rem` を `var(--fandhe-radius-sm)`
+        // へトークン化した（値は同一、外観不変）。
+        let css = stylesheet();
+        assert!(css.contains("border-radius: var(--fandhe-radius-sm);"));
+        assert!(!css.contains("border-radius: 0.25rem;"));
+    }
+
+    #[test]
+    fn trigger_and_link_declare_state_transition() {
+        // イシュー #1700: transition_declarations("background, color",
+        // MotionDuration::Fast) による状態遷移を trigger/link へ追加した
+        // （longhand 3 プロパティで構成、recipe.rs の
+        // transition_declarations rustdoc 参照）。
+        let css = stylesheet();
+        assert!(css.contains("transition-property: background, color;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+        assert!(css.contains("transition-timing-function: var(--fandhe-motion-easing-standard);"));
+    }
+
+    #[test]
+    fn trigger_and_item_disabled_declarations_use_canonical_helper() {
+        // イシュー #1700: 直書き宣言を disabled_declarations() へ置換
+        // （出力バイト同一）。
+        let css = stylesheet();
+        let trigger_disabled = css
+            .split(r#"[data-scope="navigation-menu"][data-part="trigger"][data-disabled] {"#)
+            .nth(1)
+            .and_then(|s| s.split('}').next())
+            .expect("trigger data-disabled block must exist");
+        let item_disabled = css
+            .split(r#"[data-scope="navigation-menu"][data-part="item"][data-disabled] {"#)
+            .nth(1)
+            .and_then(|s| s.split('}').next())
+            .expect("item data-disabled block must exist");
+        assert_eq!(trigger_disabled, item_disabled);
+        assert!(trigger_disabled.contains("opacity"));
+        assert!(trigger_disabled.contains("cursor"));
     }
 
     #[test]
