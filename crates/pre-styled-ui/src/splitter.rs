@@ -75,6 +75,53 @@
 //! `data-focus-visible` 対応は不要で、通常の `:focus-visible` 疑似クラスを
 //! [`recipe`] へ直接登録する（[`StateCondition::FocusVisible`]）。
 //!
+//! # イシュー #1536: リサイズハンドルのスタイル調整（親 #1535 の 1/2）
+//!
+//! 親イシュー #1535（splitter のスタイルを参考サイト基準へ調整）のうち、
+//! `resize-trigger`/`resize-trigger-indicator` パート（リサイズハンドル）
+//! のみを担当する。`root`/`panel` のレイアウト・余白は兄弟イシュー #1537
+//! （2/2）が担当し、本イシューでは触れない。
+//!
+//! 是正内容:
+//!
+//! - `resize-trigger` の既定色を、常時 palette で塗る
+//!   `box-shadow: inset 0 0 0 9999px var(--fandhe-palette, transparent)`
+//!   から、参照 3 サイト（chakra-ui/ark-ui/Radix）共通の淡いニュートラル
+//!   細線（`background: var(--fandhe-color-border)`）へ変更した。強調表現
+//!   は hover 時の `--fandhe-hover-bg`（[`hover_bg_solid_with_fallback`]、
+//!   [`crate::slider`] の `thumb` と同型）へ移した。
+//! - hover 状態（[`StateCondition::Hover`]）・[`transition_declarations`]
+//!   を新設した（親イシュー #1535 チェックリストの共通ビジュアル言語
+//!   軸）。
+//! - `:focus-visible` の `outline` 直書きを共通フォーカスリングトークン
+//!   （[`focus_ring_declarations`]、イシュー #1424）へ置換した。
+//!   `FocusRingOffset::Inset` は `resize-trigger` が `overflow: hidden` な
+//!   `panel` の隣に配置されることを踏まえ、外側リングが視覚的に切れる
+//!   のを避けるために選ぶ。
+//! - `resize-trigger`/root 双方が重複適用していた disabled 時の
+//!   `opacity: 0.5` を root 側の 1 箇所へ一本化した（`resize-trigger`
+//!   側は `cursor: not-allowed` のみ残す）。
+//! - `resize-trigger-indicator`（それまで CSS 規則を持たなかった）へ、
+//!   参照 3 サイト共通の中央グリップ pill 表現の base 規則を新設した。
+//!
+//! 意図的に採らなかった変更（`.claude/rules/out-of-scope-tracking.md`
+//! 対応）:
+//!
+//! - **active（押下・ドラッグ中）の視覚表現**: [`StateCondition`] に
+//!   `:active` 相当の variant が存在せず、新設は recipe 契約の変更を
+//!   伴う。加えて headless 層はドラッグ DOM 配線をスコープ外としており
+//!   `data-active` 等の属性も出さない
+//!   （[`fandhe_frontend_headless_ui::splitter`] モジュール doc 参照）ため
+//!   実データがない。[`crate::navigation_menu`] における同種の判断
+//!   （イシュー #1701）と同じ理由で見送る。
+//! - **`resize-trigger-indicator` の orientation 別寸法**: `data-orientation`
+//!   は headless 層で `resize-trigger`（親）にのみ付与され indicator
+//!   自身は受け取らない。[`SlotRecipe::state`] は対象 slot 自身の
+//!   セレクタへ属性条件を直接連結するのみで子孫結合子を持たないため、
+//!   縦横で寸法を入れ替える表現は本ヘルパの契約では組めない
+//!   （[`recipe`] 内 `resize-trigger-indicator` 規則のコメント参照）。
+//!   正方形（等方）のグリップに統一することで代替する。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく pointer ドラッグ・キーボード操作の DOM 配線、
@@ -88,7 +135,9 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    focus_ring_declarations, hover_bg_solid_with_fallback, hover_surface_declarations,
+    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `Splitter` 状態機械・headless 自由関数 `root`/`panel`/`resize_trigger` は
@@ -168,13 +217,40 @@ fn recipe() -> SlotRecipe {
             "resize-trigger",
             vec![
                 decl("flex", "0 0 var(--fandhe-splitter-trigger-size, 0.25rem)"),
+                // イシュー #1536: 常時 palette 塗り（旧 `box-shadow: inset 0
+                // 0 0 9999px var(--fandhe-palette, transparent)`）を廃し、
+                // 参照 3 サイト（chakra-ui/ark-ui/Radix）共通の「淡い
+                // ニュートラル細線」既定へ一本化する。強調表現は下記 hover
+                // 状態規則（`--fandhe-hover-bg` 経由）へ移した。
                 decl("background", "var(--fandhe-color-border)"),
                 decl("cursor", "col-resize"),
-                decl(
-                    "box-shadow",
-                    "inset 0 0 0 9999px var(--fandhe-palette, transparent)",
-                ),
+                // `resize-trigger-indicator`（中央グリップ）を中央配置する
+                // ための flex コンテナ化。indicator 自体の寸法・装飾は
+                // 専用の base 規則（下記）が担う。
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                // イシュー #1505 の slider `thumb`/`track` と同型のトークン化
+                // （`--fandhe-radius-full` 未定義時は `999px` へフォール
+                // バック）。細線自体の丸みではなく hover 面の丸みに効く。
+                decl("border-radius", "var(--fandhe-radius-full, 999px)"),
+                // hover 時に切り替える面色の間接参照先を定義する（実際の
+                // `background` 適用は下記 `.state("resize-trigger",
+                // StateCondition::Hover, ...)` 1 本に集約する、
+                // `crate::slider` の `thumb` と同型のパターン）。常時
+                // palette 塗りを廃した分、hover/drag 時のみ強調する
+                // solid 面（`--fandhe-palette-emphasized` フォールバック
+                // 付き）を選ぶ。
+                hover_bg_solid_with_fallback(),
             ],
+        )
+        .base(
+            "resize-trigger",
+            // イシュー #1536: hover/focus 面変化を滑らかにする
+            // （`crate::slider` の `thumb` と同型。`prefers-reduced-motion`
+            // 対応は `transition_declarations` の呼び出し先〔`Theme::to_css`
+            // の duration 一括 0ms 化〕が担う）。
+            transition_declarations("background, box-shadow", MotionDuration::Fast),
         )
         .state(
             "resize-trigger",
@@ -184,14 +260,65 @@ fn recipe() -> SlotRecipe {
         .state(
             "resize-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            // イシュー #1536: `opacity: 0.5` を除去（root の
+            // `[data-disabled]` 規則が既に全体へ適用済みのため、
+            // `resize-trigger` 側で重複させない。`crate::slider` の
+            // `thumb` disabled 規則と同型の判断）。掴めないことの表現
+            // として `cursor: not-allowed` のみ残す。
+            vec![decl("cursor", "not-allowed")],
+        )
+        // イシュー #1536: hover の実適用は 1 本のみ（`--fandhe-hover-bg`
+        // の間接参照経由。`crate::slider` の `thumb` と同型のパターン）。
+        // `StateCondition::Hover` は `:hover:not([data-disabled])` へ
+        // 直列化されるため disabled 時の hover は自然に除外される。
+        .state(
+            "resize-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         .state(
             "resize-trigger",
             StateCondition::FocusVisible,
+            // イシュー #1536: `outline`/`outline-offset` 直書きを
+            // `focus_ring_declarations`（イシュー #1424 共通トークン
+            // `--fandhe-focus-ring-*`・`--fandhe-color-focus-ring` 経由）へ
+            // 置換。`FocusRingOffset::Inset` は `resize-trigger` が
+            // `overflow: hidden` な祖先（`panel`）の隣に配置されドラッグ
+            // 操作の当たり判定を保つため外側リングが視覚的に切れやすい
+            // ことを踏まえ、リングを要素内側に描く（rustdoc 「splitter を
+            // 明示的に想定用途として挙げる」節参照）。`FocusRingColor::
+            // Palette` は選択中の palette へリング色を連動させる
+            // （`crate::slider` の `thumb` と同型）。
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Inset),
+        )
+        .base(
+            "resize-trigger-indicator",
+            // イシュー #1536: 参照 3 サイト共通の「中央グリップ pill」表現。
+            // `resize-trigger` 自体は細線のまま、視認可能な操作ハンドルを
+            // indicator パーツへ集約する。寸法はトリガーの既定太さ
+            // （`--fandhe-splitter-trigger-size` の Md 既定 `0.25rem`）より
+            // 一回り大きい固定の正方形（丸）とし、`size` variant には連動
+            // させない（indicator は「つまみやすさ」の目印であり、太さの
+            // 伸縮はトリガー本体の責務のため）。
+            //
+            // 意図的に orientation で寸法を出し分けない（`.claude/rules/
+            // out-of-scope-tracking.md` 対応）: `data-orientation` は
+            // headless 層で `resize-trigger`（親）にのみ付与され
+            // （`crates/headless-ui/src/splitter.rs::resize_trigger`）、
+            // `resize-trigger-indicator` 自身は受け取らない。[`SlotRecipe::
+            // state`] は対象 slot 自身のセレクタへ属性条件を直接連結する
+            // のみで子孫結合子は持たないため、縦横で寸法を入れ替える
+            // 縦長/横長 pill 表現（参照サイトの一部が採る形）は本ヘルパの
+            // 契約では表現できない。正方形（等方）の丸グリップに統一する
+            // ことで向きに依存しない一貫した見た目にする。
             vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "-2px"),
+                decl("width", "0.75rem"),
+                decl("height", "0.75rem"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-full, 999px)"),
+                decl("box-shadow", "var(--fandhe-shadow-sm)"),
+                decl("pointer-events", "none"),
             ],
         )
         // イシュー #1681: Xs/Xl は Sm→Md→Lg の 0.125rem 刻みの等差進行を
@@ -388,6 +515,51 @@ mod tests {
         assert!(
             css.contains(r#"[data-scope="splitter"][data-part="resize-trigger"]:focus-visible {"#)
         );
+    }
+
+    // イシュー #1536: `outline` 直書きから共通フォーカスリングトークンへの
+    // 置換を機械固定する（`crate::slider` の同種テストと同型）。
+    #[test]
+    fn resize_trigger_focus_visible_uses_focus_ring_tokens() {
+        let css = stylesheet();
+        assert!(css.contains("--fandhe-focus-ring-width"));
+        assert!(css.contains("--fandhe-color-focus-ring"));
+    }
+
+    // イシュー #1536: hover 状態が新設され、常時 palette 塗りの
+    // `box-shadow: inset` 表現が消えたことを固定する。
+    #[test]
+    fn resize_trigger_hover_replaces_constant_palette_fill() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="splitter"][data-part="resize-trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(!css.contains("box-shadow: inset 0 0 0 9999px"));
+    }
+
+    // イシュー #1536: `resize-trigger-indicator` に base 規則が新設された
+    // ことを固定する（それまで CSS 規則を持たなかった）。
+    #[test]
+    fn resize_trigger_indicator_has_base_css() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="splitter"][data-part="resize-trigger-indicator"] {"#));
+    }
+
+    // イシュー #1536: disabled 時の `opacity: 0.5` が root 側の 1 箇所へ
+    // 一本化され、`resize-trigger` 側から除去されたことを固定する。
+    #[test]
+    fn resize_trigger_disabled_no_longer_duplicates_opacity() {
+        let css = stylesheet();
+        let trigger_disabled_start = css
+            .find(r#"[data-scope="splitter"][data-part="resize-trigger"][data-disabled] {"#)
+            .expect("resize-trigger disabled rule must exist");
+        let trigger_disabled_end = css[trigger_disabled_start..]
+            .find('}')
+            .map(|i| trigger_disabled_start + i)
+            .expect("disabled rule must be closed");
+        let block = &css[trigger_disabled_start..trigger_disabled_end];
+        assert!(!block.contains("opacity"));
+        assert!(block.contains("cursor: not-allowed;"));
     }
 
     #[test]

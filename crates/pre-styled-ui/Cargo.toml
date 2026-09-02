@@ -855,7 +855,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # content の開閉フェード演出はスコープ外として見送り（`popover.rs` rustdoc
 # 参照）。Rust API シグネチャ不変・既存セレクタ削除なしのため patch
 # バンプする。
-version = "0.61.8"
+# イシュー #1536（splitter のリサイズハンドルのスタイル調整、親 #1535 の
+# 1/2 分割）も同型の patch バンプ: recipe() への宣言追加・トークン化
+# （hover/フォーカスリング/disabled/transition の新設、`resize-trigger-
+# indicator` の base 規則新設）のみで、既存 `StateCondition` variant
+# （`Hover`/`FocusVisible`/`Attr`/`AttrEq`）の適用に留まり新規 variant
+# 追加なし。常時 palette 塗り（`box-shadow: inset`）を hover 時のみの
+# 強調へ変更する見た目の意図的変更だが、CSS 変数名・クラス名・セレクタの
+# 削除/改名はないため patch で足りる。Rust API シグネチャ不変・既存
+# セレクタ削除なしのため patch バンプする。
+version = "0.61.9"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
