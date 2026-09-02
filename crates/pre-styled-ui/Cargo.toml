@@ -847,7 +847,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # `Attr`）の適用に留まり新規 variant 追加なし。size バリアント（Xs〜Xl）は
 # #1681/#1714 で既に登録済みのためテストカバレッジ拡充のみ。Rust API
 # シグネチャ不変・既存セレクタ削除なしのため patch バンプする。
-version = "0.61.7"
+# イシュー #1534（popover のスタイルを参考サイト基準へ調整）も同型の patch
+# バンプ: recipe() への宣言追加・トークン化（角丸/影/z-index のスケール
+# トークン化、hover/フォーカスリング/disabled/transition の新設）のみで、
+# 既存 `StateCondition` variant（`Hover`/`FocusVisible`/`Attr`）の適用に
+# 留まり新規 variant 追加なし。close-trigger の絶対配置ゴーストボタン化・
+# content の開閉フェード演出はスコープ外として見送り（`popover.rs` rustdoc
+# 参照）。Rust API シグネチャ不変・既存セレクタ削除なしのため patch
+# バンプする。
+version = "0.61.8"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
