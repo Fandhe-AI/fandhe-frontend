@@ -96,10 +96,65 @@
 //! [`state_css`] に `[data-scope="dialog"][data-part="positioner"][hidden]`
 //! に対する `display: none` の明示的な上書き規則を追加し、`display: flex`
 //! より詳細度・出現順の両方で優先させることでこれを固定する。
+//!
+//! # 外枠パート（trigger/backdrop/positioner/content）のスタイル調整
+//! （イシュー #1692、親 #1520）
+//!
+//! chakra-ui / Radix Themes / Radix Primitives / ark-ui の Dialog 実装と
+//! 視覚比較し、以下の枠・影・サイズを是正した。
+//!
+//! - **trigger**: `<button type="button">` 実体でありながら枠・背景・角丸・
+//!   padding を持たず UA 既定外観のままだったため、他部品（[`crate::switch`]
+//!   の未スタイル root と同種の問題）と同じ操作部品カテゴリ既定段
+//!   （`docs/design/pre-styled-ui-scale-tokens.md` §3.1: radius `md`）へ
+//!   載せた。`background`/`border`/`border-radius`/`padding` を追加し、
+//!   [`crate::recipe::hover_bg_muted`] + [`crate::recipe::transition_declarations`]
+//!   （`background, border-color` / [`crate::recipe::MotionDuration::Fast`]）
+//!   を base へ、[`crate::recipe::StateCondition::Hover`] へ
+//!   [`crate::recipe::hover_surface_declarations`] を新規登録した
+//!   （file-upload の trigger（イシュー #1696）と同型）。既存の
+//!   `StateCondition::FocusVisible` の直書き `outline`/`outline-offset` は
+//!   [`crate::recipe::focus_ring_declarations`]（[`crate::recipe::FocusRingColor::Token`]/
+//!   [`crate::recipe::FocusRingOffset::Outside`]）の canonical 形へ置換した
+//!   （出力される値は従来と同一、トークン参照 + 旧来値フォールバックへの
+//!   置換のみで見た目は不変）。**`close-trigger` の `FocusVisible` は兄弟
+//!   イシュー #1693（内部パート）の担当のため本イシューでは変更しない**。
+//! - **backdrop**: `background: rgba(0, 0, 0, 0.4)`（生値）を
+//!   `var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.4))`
+//!   （イシュー #1422、light 0.4 / dark 0.6）へ、`z-index: 1000`（生値）を
+//!   `var(--fandhe-z-index-overlay, 1000)`（イシュー #1423）へ置換した。
+//!   フォールバックを残すのは `dialog::stylesheet()` 単独利用（テーマ CSS
+//!   非注入）で backdrop が透明化する・重なり順を失う事故を避けるため
+//!   （`toast.rs`/`date_picker.rs` の z-index フォールバックと同型の判断）。
+//! - **positioner**: `z-index: 1001`（生値）を
+//!   `var(--fandhe-z-index-modal, 1001)`（イシュー #1423）へ置換した。
+//! - **content**: `border-radius: 0.5rem`（生値）を
+//!   `var(--fandhe-radius-lg, 0.5rem)`
+//!   （計算値は同じ 0.5rem、見た目不変のトークン化。フォールバックを残すのは
+//!   backdrop/positioner と同じ理由で `dialog::stylesheet()` 単独利用時に
+//!   角丸が失われる後方互換性破壊を避けるため）へ置換し、
+//!   `box-shadow: var(--fandhe-shadow-lg)` を新規追加した
+//!   （`docs/design/pre-styled-ui-scale-tokens.md` §3.2 が dialog/drawer
+//!   content へ割り当てる影。参照サイトはいずれも面パネルに影を持つが
+//!   本モジュールにはこれまで欠落していた）。
+//! - **size**: イシュー #729/#1681 で整備済みの Xs〜Xl 5 段 variant は
+//!   点検の結果、過不足なしのため変更しない。
+//!
+//! **意図的に変更しない点**: `content` への `border` 追加はしない
+//!   （chakra / Radix とも dialog content は枠線なし・影のみで境界を表現
+//!   する）。`positioner` への `overflow: auto` / `content` の `max-height`
+//!   追加はしない（視覚調整を超える挙動変更のため）。`root()` シグネチャを
+//!   変える variant 軸の追加はしない。title / description / close-trigger /
+//!   `data-state` 開閉トランジション・`prefers-reduced-motion` 対応は
+//!   兄弟イシュー #1693 の担当であり本イシューでは触れない。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, hover_bg_muted, hover_surface_declarations, transition_declarations,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
+};
 
 // headless 自由関数 `root`・状態機械 `Dialog` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。未スタイル・
@@ -139,8 +194,17 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("position", "fixed"),
                 decl("inset", "0"),
-                decl("z-index", "1000"),
-                decl("background", "rgba(0, 0, 0, 0.4)"),
+                // イシュー #1423: `--fandhe-z-index-overlay`
+                // （Theme::default() では 1300）。単独利用時のフォール
+                // バックとして旧生値 1000 を残す（toast/date_picker と同型）。
+                decl("z-index", "var(--fandhe-z-index-overlay, 1000)"),
+                // イシュー #1422: `--fandhe-color-bg-overlay`
+                // （light 0.4 / dark 0.6）。単独利用時のフォールバックとして
+                // 旧生値を残す（透明化して暗幕が消えないための安全側判断）。
+                decl(
+                    "background",
+                    "var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.4))",
+                ),
             ],
         )
         .base(
@@ -148,7 +212,9 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("position", "fixed"),
                 decl("inset", "0"),
-                decl("z-index", "1001"),
+                // イシュー #1423: `--fandhe-z-index-modal`
+                // （Theme::default() では 1400、backdrop の overlay より前面）。
+                decl("z-index", "var(--fandhe-z-index-modal, 1001)"),
                 decl("display", "flex"),
                 decl("align-items", "center"),
                 decl("justify-content", "center"),
@@ -160,7 +226,16 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
-                decl("border-radius", "0.5rem"),
+                // 計算値は旧生値 0.5rem と同一（トークン化のみ、見た目不変）。
+                // フォールバックに旧生値を残す（`dialog::stylesheet()` の単独利用や
+                // `Theme::empty()` ベースのカスタムテーマでトークン未定義の場合に
+                // 宣言全体が無効化され角丸が失われる後方互換性破壊を防ぐため。
+                // 同一モジュール内の backdrop/positioner・toast のトークン化と揃える）。
+                decl("border-radius", "var(--fandhe-radius-lg, 0.5rem)"),
+                // `docs/design/pre-styled-ui-scale-tokens.md` §3.2:
+                // dialog/drawer content = lg。参照サイトが共通して持つ
+                // 面パネルの影が本モジュールに欠落していたため新規追加。
+                decl("box-shadow", "var(--fandhe-shadow-lg)"),
                 decl(
                     "padding",
                     "var(--fandhe-dialog-content-padding, var(--fandhe-space-6))",
@@ -190,9 +265,20 @@ fn recipe() -> SlotRecipe {
         .base(
             "trigger",
             vec![
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
                 decl("cursor", "pointer"),
                 decl("color", "var(--fandhe-color-fg)"),
-            ],
+                hover_bg_muted(),
+            ]
+            .into_iter()
+            .chain(transition_declarations(
+                "background, border-color",
+                MotionDuration::Fast,
+            ))
+            .collect(),
         )
         .base(
             "close-trigger",
@@ -233,14 +319,21 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("hidden"),
             vec![decl("display", "none")],
         )
-        // イシュー #643: キーボード操作時のみのフォーカスリング。
+        // イシュー #1692: trigger の hover surface（file-upload の trigger
+        // と同型、`--fandhe-hover-bg` は上記 base の `hover_bg_muted()` が
+        // 定義する）。
+        .state(
+            "trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        // イシュー #643 / #1692: キーボード操作時のみのフォーカスリング。
+        // canonical ヘルパへ置換（出力値は従来と同一、トークン参照 +
+        // 旧来値フォールバックへの置換のみで見た目は不変）。
         .state(
             "trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "close-trigger",
@@ -386,8 +479,58 @@ mod tests {
         // 他の position 指定 UI の下に隠れないことを固定する。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="dialog"][data-part="backdrop"] {"#));
-        assert!(css.contains("z-index: 1000;"));
-        assert!(css.contains("z-index: 1001;"));
+        // イシュー #1423 でトークン参照へ置換（旧生値はフォールバックとして残す）。
+        assert!(css.contains("z-index: var(--fandhe-z-index-overlay, 1000);"));
+        assert!(css.contains("z-index: var(--fandhe-z-index-modal, 1001);"));
+    }
+
+    #[test]
+    fn backdrop_uses_bg_overlay_token_with_legacy_fallback() {
+        // イシュー #1692: backdrop の暗幕をライト/ダーク対応トークン
+        // （イシュー #1422）へ切り替える。`dialog::stylesheet()` 単独利用
+        // （テーマ CSS 非注入）でも透明化しないよう旧生値をフォールバック
+        // として残す。
+        let css = stylesheet();
+        assert!(css.contains("background: var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.4));"));
+    }
+
+    #[test]
+    fn content_declares_radius_lg_and_shadow_lg() {
+        // イシュー #1692: content の角丸をトークン化（計算値は旧生値
+        // 0.5rem と同一）し、`docs/design/pre-styled-ui-scale-tokens.md`
+        // §3.2 が割り当てる面パネルの影を新規追加する。フォールバックに
+        // 旧生値 0.5rem を残す（PR #1794 codex-review 指摘: 単独利用時の
+        // 後方互換性破壊防止）。
+        let css = stylesheet();
+        assert!(css.contains("border-radius: var(--fandhe-radius-lg, 0.5rem);"));
+        assert!(css.contains("box-shadow: var(--fandhe-shadow-lg);"));
+    }
+
+    #[test]
+    fn trigger_declares_button_chrome_and_hover_and_transition() {
+        // イシュー #1692: trigger をボタンとしての枠・背景・角丸・padding
+        // を持つ操作部品既定段（`docs/design/pre-styled-ui-scale-tokens.md`
+        // §3.1: radius `md`）へ載せ、hover surface + transition を
+        // 新規登録する（file-upload の trigger、イシュー #1696 と同型）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="dialog"][data-part="trigger"] {"#));
+        let trigger_start = css
+            .find(r#"[data-scope="dialog"][data-part="trigger"] {"#)
+            .expect("trigger base rule must be present");
+        let rule_body = &css[trigger_start..];
+        let rule_end = rule_body.find('}').expect("rule must be closed");
+        let base_rule = &rule_body[..rule_end];
+        assert!(base_rule.contains("border: 1px solid var(--fandhe-color-border);"));
+        assert!(base_rule.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(base_rule.contains("background: var(--fandhe-color-bg);"));
+        assert!(base_rule.contains("padding: var(--fandhe-space-2) var(--fandhe-space-3);"));
+        assert!(base_rule.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+        assert!(base_rule.contains("transition-property: background, border-color;"));
+
+        assert!(css.contains(
+            r#"[data-scope="dialog"][data-part="trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
     }
 
     #[test]
@@ -451,10 +594,32 @@ mod tests {
     fn trigger_and_close_trigger_declare_focus_visible_ring() {
         // イシュー #643 受け入れ条件: キーボード操作系属性（:focus-visible）
         // が recipe 経由で反映されることを固定する。
+        //
+        // イシュー #1692 で trigger 側は canonical ヘルパ
+        // （[`focus_ring_declarations`]）へ置換した（出力値は従来と同一）。
+        // close-trigger は兄弟イシュー #1693 の担当のため旧来の直書き形の
+        // ままであることを分けて固定する。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="dialog"][data-part="trigger"]:focus-visible {"#));
         assert!(css.contains(r#"[data-scope="dialog"][data-part="close-trigger"]:focus-visible {"#));
-        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
+        let trigger_focus_start = css
+            .find(r#"[data-scope="dialog"][data-part="trigger"]:focus-visible {"#)
+            .expect("trigger focus-visible rule must be present");
+        let trigger_rule_body = &css[trigger_focus_start..];
+        let trigger_rule_end = trigger_rule_body.find('}').expect("rule must be closed");
+        assert!(trigger_rule_body[..trigger_rule_end].contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+
+        let close_trigger_focus_start = css
+            .find(r#"[data-scope="dialog"][data-part="close-trigger"]:focus-visible {"#)
+            .expect("close-trigger focus-visible rule must be present");
+        let close_trigger_rule_body = &css[close_trigger_focus_start..];
+        let close_trigger_rule_end = close_trigger_rule_body
+            .find('}')
+            .expect("rule must be closed");
+        assert!(close_trigger_rule_body[..close_trigger_rule_end]
+            .contains("outline: 2px solid var(--fandhe-color-accent);"));
     }
 
     #[test]

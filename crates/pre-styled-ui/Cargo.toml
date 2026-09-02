@@ -720,6 +720,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 上記 #1517（breadcrumb、0.58.4 → 0.58.5）の版数が偶発的に衝突したため、
 # 双方の実体変更を統合した結果として 0.58.6 へさらに patch バンプする
 # （同一版数への偶発的衝突をそのまま採用しない）。
+# イシュー #1692: dialog の外枠パート（trigger/backdrop/positioner/content）
+# のスタイル調整。trigger のボタン化（枠・背景・角丸・padding・hover
+# surface・transition）、backdrop の `--fandhe-color-bg-overlay`/
+# `--fandhe-z-index-overlay` トークン化、positioner の
+# `--fandhe-z-index-modal` トークン化、content の `--fandhe-radius-lg`
+# トークン化 + `--fandhe-shadow-lg` 新規追加。既存セレクタ・公開 Rust API
+# シグネチャの削除/改名を伴わない宣言の追加・値変更のみのため patch バンプ
+# する（`docs/ci/style-refresh-version-bump-operation.md` 準拠）。
 # base（main）には既に #1518（carousel、PR #1792）が 0.58.6 としてマージ済み
 # であり、本 PR（#1519 clipboard）の base 取り込み後の版数がベースと同一の
 # ままでは clipboard.rs の CSS 実体変更（`trigger` の hover/フォーカスリング/
@@ -729,7 +737,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # PR #1793）。base 側で未使用の 0.58.7 へさらに patch バンプする。既存
 # セレクタ・公開 Rust API シグネチャの削除/改名を伴わないため引き続き
 # patch 相当。
-version = "0.58.7"
+# イシュー #1692 と #1519（clipboard、PR #1793）はそれぞれ独立に 0.58.7 へ
+# patch バンプしていたため、base 取り込み後に版数が偶発的に衝突した。双方の
+# 実体変更（dialog 外枠パートのスタイル調整・clipboard の CSS 実体変更）を
+# 統合した結果として 0.58.8 へさらに patch バンプする（同一版数への偶発的
+# 衝突をそのまま採用しない、既存の判断パターンに従う）。
+version = "0.58.8"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
