@@ -11,6 +11,11 @@
 //! `-content-max-width`/`-title-font-size`）を `var(..., <Md 既定値>)` で
 //! 参照する形へ変更した（フォールバック値は変更前の固定値と同一、headless
 //! 直接利用時の現行外観を維持する）。dialog は `color-palette` 軸を持たない。
+//!
+//! イシュー #1693 で `title`/`description`/`close-trigger`（内部パート）の
+//! スタイル調整と `backdrop`/`content` の開閉トランジションを追加した
+//! （詳細は `crates/pre-styled-ui/src/dialog.rs` モジュール冒頭 rustdoc
+//! 「内部パートのスタイル調整と開閉トランジション」節参照）。
 
 use fandhe_frontend_pre_styled_ui::dialog;
 
@@ -26,6 +31,12 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   background: rgba(0, 0, 0, 0.4);
 }
 
+[data-scope="dialog"][data-part="backdrop"] {
+  transition-property: opacity;
+  transition-duration: var(--fandhe-motion-duration-slow);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
 [data-scope="dialog"][data-part="positioner"] {
   position: fixed;
   inset: 0;
@@ -37,6 +48,7 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
 }
 
 [data-scope="dialog"][data-part="content"] {
+  position: relative;
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border-radius: 0.5rem;
@@ -45,20 +57,48 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   width: 100%;
 }
 
+[data-scope="dialog"][data-part="content"] {
+  transition-property: opacity, transform;
+  transition-duration: var(--fandhe-motion-duration-slow);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
 [data-scope="dialog"][data-part="title"] {
   font-size: var(--fandhe-dialog-title-font-size, var(--fandhe-font-font-size-lg));
   font-weight: var(--fandhe-font-font-weight-semibold);
+  line-height: var(--fandhe-font-line-height-tight);
   margin: 0 0 var(--fandhe-space-2) 0;
 }
 
 [data-scope="dialog"][data-part="description"] {
   color: var(--fandhe-color-fg-muted);
-  margin: 0;
+  line-height: var(--fandhe-font-line-height-normal);
+  margin: 0 0 var(--fandhe-space-4) 0;
 }
 
 [data-scope="dialog"][data-part="close-trigger"] {
+  position: absolute;
+  top: var(--fandhe-space-2);
+  inset-inline-end: var(--fandhe-space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--fandhe-radius-sm);
+  background: transparent;
+  padding: var(--fandhe-space-1);
   cursor: pointer;
   color: var(--fandhe-color-fg-muted);
+}
+
+[data-scope="dialog"][data-part="close-trigger"] {
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="dialog"][data-part="close-trigger"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="dialog"][data-part="root"].fd-dialog--size-xs {
@@ -100,10 +140,12 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
 }
 
 [data-scope="dialog"][data-part="content"][data-state="open"] {
+  opacity: 1;
   transform: scale(1);
 }
 
 [data-scope="dialog"][data-part="content"][data-state="closed"] {
+  opacity: 0;
   transform: scale(0.95);
 }
 
@@ -117,8 +159,14 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
 }
 
 [data-scope="dialog"][data-part="close-trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (hover: hover) {
+  [data-scope="dialog"][data-part="close-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 

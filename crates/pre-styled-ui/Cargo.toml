@@ -729,7 +729,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # PR #1793）。base 側で未使用の 0.58.7 へさらに patch バンプする。既存
 # セレクタ・公開 Rust API シグネチャの削除/改名を伴わないため引き続き
 # patch 相当。
-version = "0.58.7"
+# イシュー #1693（dialog の内部パート〔title/description/close-trigger〕の
+# スタイル調整と開閉トランジション、親 #1520）は `content` の
+# `position: relative`・`title`/`description` の行送り・`close-trigger` の
+# ゴーストボタン化（hover/フォーカスリングの canonical ヘルパ移行）・
+# `backdrop`/`content` の開閉トランジション（#1425 規約）を伴う CSS 実体
+# 変更のため、0.58.8 へ patch バンプする（既存セレクタ・公開 Rust API
+# シグネチャの削除/改名を伴わないため patch 相当、#1515〜#1519 と同じ判断）。
+version = "0.58.8"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

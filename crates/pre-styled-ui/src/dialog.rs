@@ -82,6 +82,48 @@
 //! 両パーツに `z-index` を設定し、常に最前面に来るようにする（menu/select の
 //! dropdown positioner（z-index: 10）より高い値にする）。
 //!
+//! # 内部パートのスタイル調整と開閉トランジション（イシュー #1693、親 #1520）
+//!
+//! 参照サイト基準の意匠調整として、`title`/`description`/`close-trigger`
+//! （内部パート）と `backdrop`/`content` の開閉トランジションを本イシューで
+//! 追加する。兄弟イシュー #1692 が担う `trigger`/`backdrop`/`positioner`/
+//! `content` の枠・影・サイズ（border/box-shadow/max-width 等）には触れない。
+//!
+//! - **`content` の `position: relative`**: 絶対配置する `close-trigger`
+//!   （後述）の配置基準。枠・影・サイズの変更ではないため #1692 側ではなく
+//!   本イシューで追加する（`content` base 宣言を両イシューが編集するため、
+//!   マージ順によっては手動 conflict 解消が必要になる点に注意）。
+//! - **`title`/`description` の行送り**: [`crate::recipe`] のタイポグラフィ
+//!   トークン（`--fandhe-font-line-height-tight`/`-normal`）を追加し、
+//!   `description` の下余白を広げて後続のアクション行（footer 相当）との
+//!   縦リズムを確保する。
+//! - **`close-trigger` を content 右上のゴーストボタン化**: `position:
+//!   absolute` で右上に固定し、hover 時のみ背景が付く（[`hover_bg_muted`] +
+//!   [`hover_surface_declarations`]）ghost ボタンの見た目にする。focus-visible
+//!   リングは [`focus_ring_declarations`]（イシュー #1424 共通トークン）へ
+//!   移行する（`trigger` 側のフォーカスリングは #1692 のスコープのため
+//!   本イシューでは変更しない）。
+//! - **開閉トランジション**: `backdrop`/`content` の base へ
+//!   [`transition_declarations`]（`MotionDuration::Slow`、モーダル等の
+//!   強調遷移向け 300ms 既定、イシュー #1425 規約）を追加し、`content` の
+//!   `data-state` 連動規則へ `opacity` を追加して fade + scale の複合遷移に
+//!   する。`prefers-reduced-motion` は `Theme::to_css` が duration トークンを
+//!   一括 `0ms` 化する共通経路で担保されるため、本モジュールでは
+//!   `@media (prefers-reduced-motion)` を書かない（#1425 規約）。
+//!   なお headless 層（`crates/headless-ui/src/dialog.rs`）は closed 時に
+//!   `positioner`/`backdrop`/`content` へ `hidden` 属性を即時付与する契約の
+//!   ため、closed 側の遷移は `display: none` により視覚上は省略される
+//!   （既知の制約。headless 側の契約変更は本イシューのスコープ外）。
+//! - **footer 相当のアクション配置**: headless anatomy に `footer` パートが
+//!   存在せず、[`crate::recipe::SlotRecipe`] は子孫セレクタ機構を持たない
+//!   （イシュー #708 で不採用確定）ため、専用 footer パートの CSS を
+//!   pre-styled 側だけで新設することはできない。本イシューでは
+//!   `description` の下余白確保までに留め、showcase デモ
+//!   （`crates/docs-site/src/showcase.rs::dialog_section`）でアクション行の
+//!   掲示例を示す。`dialog` への `footer` anatomy パート追加は headless-ui
+//!   の anatomy 変更を伴うため、別イシュー・ユーザー承認が必要な対象外事項
+//!   として記録する（`.claude/rules/out-of-scope-tracking.md` 対応）。
+//!
 //! # closed 時の `positioner` は必ず非表示化する（PR #575 Bugbot 指摘対応、High）
 //!
 //! headless 層（`crates/headless-ui/src/dialog.rs`）は dialog が closed の
@@ -99,7 +141,11 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, hover_bg_muted, hover_surface_declarations, transition_declarations,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
+};
 
 // headless 自由関数 `root`・状態機械 `Dialog` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。未スタイル・
@@ -143,6 +189,14 @@ fn recipe() -> SlotRecipe {
                 decl("background", "rgba(0, 0, 0, 0.4)"),
             ],
         )
+        // イシュー #1693: 開閉トランジション（モーダルの強調遷移向け
+        // `MotionDuration::Slow`、#1425 規約）。closed 側は headless 層が
+        // `hidden` 属性を即時付与するため視覚上は省略される（モジュール
+        // 冒頭 rustdoc「内部パートのスタイル調整と開閉トランジション」節参照）。
+        .base(
+            "backdrop",
+            transition_declarations("opacity", MotionDuration::Slow),
+        )
         .base(
             "positioner",
             vec![
@@ -158,6 +212,7 @@ fn recipe() -> SlotRecipe {
         .base(
             "content",
             vec![
+                decl("position", "relative"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border-radius", "0.5rem"),
@@ -169,6 +224,14 @@ fn recipe() -> SlotRecipe {
                 decl("width", "100%"),
             ],
         )
+        // イシュー #1693: 開閉トランジション（#1425 規約、モジュール冒頭
+        // rustdoc 参照）。`position: relative` は close-trigger の絶対配置
+        // 基準（枠・影・サイズではないため #1692 側ではなく本イシューで
+        // 追加、両イシューが `content` base を編集する点に注意）。
+        .base(
+            "content",
+            transition_declarations("opacity, transform", MotionDuration::Slow),
+        )
         .base(
             "title",
             vec![
@@ -177,6 +240,7 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-dialog-title-font-size, var(--fandhe-font-font-size-lg))",
                 ),
                 decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                decl("line-height", "var(--fandhe-font-line-height-tight)"),
                 decl("margin", "0 0 var(--fandhe-space-2) 0"),
             ],
         )
@@ -184,7 +248,8 @@ fn recipe() -> SlotRecipe {
             "description",
             vec![
                 decl("color", "var(--fandhe-color-fg-muted)"),
-                decl("margin", "0"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+                decl("margin", "0 0 var(--fandhe-space-4) 0"),
             ],
         )
         .base(
@@ -194,12 +259,35 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg)"),
             ],
         )
+        // イシュー #1693: content 右上のゴーストボタン化（参照サイト標準）。
+        // `position: absolute` は同イシューで追加した `content` の
+        // `position: relative` を基準とする。
         .base(
             "close-trigger",
             vec![
+                decl("position", "absolute"),
+                decl("top", "var(--fandhe-space-2)"),
+                decl("inset-inline-end", "var(--fandhe-space-2)"),
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("border", "none"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                decl("background", "transparent"),
+                decl("padding", "var(--fandhe-space-1)"),
                 decl("cursor", "pointer"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
+        )
+        .base("close-trigger", vec![hover_bg_muted()])
+        .base(
+            "close-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        .state(
+            "close-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         // イシュー #551 受け入れ条件: `backdrop`/`content` の開閉状態に応じた
         // 見た目の切り替え。
@@ -216,12 +304,12 @@ fn recipe() -> SlotRecipe {
         .state(
             "content",
             StateCondition::AttrEq("data-state", "open"),
-            vec![decl("transform", "scale(1)")],
+            vec![decl("opacity", "1"), decl("transform", "scale(1)")],
         )
         .state(
             "content",
             StateCondition::AttrEq("data-state", "closed"),
-            vec![decl("transform", "scale(0.95)")],
+            vec![decl("opacity", "0"), decl("transform", "scale(0.95)")],
         )
         // PR #575 Bugbot 指摘対応（High）: positioner の base 規則が
         // `display: flex` を宣言しており、UA 既定の `[hidden] { display: none }`
@@ -242,13 +330,13 @@ fn recipe() -> SlotRecipe {
                 decl("outline-offset", "2px"),
             ],
         )
+        // イシュー #1693: close-trigger の focus-visible をイシュー #1424
+        // 共通トークンへ移行する（trigger 側は #1692 のスコープのため
+        // リテラルのまま維持する）。
         .state(
             "close-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         // イシュー #729: `size` variant（root スコープの CSS custom property。
         // Md はフォールバック値と同一の現行外観を維持する）。
@@ -450,11 +538,78 @@ mod tests {
     #[test]
     fn trigger_and_close_trigger_declare_focus_visible_ring() {
         // イシュー #643 受け入れ条件: キーボード操作系属性（:focus-visible）
-        // が recipe 経由で反映されることを固定する。
+        // が recipe 経由で反映されることを固定する。イシュー #1693 で
+        // close-trigger 側は共通トークン（#1424）へ移行したため、
+        // trigger（#1692 のスコープのためリテラルのまま）と分けて検証する。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="dialog"][data-part="trigger"]:focus-visible {"#));
         assert!(css.contains(r#"[data-scope="dialog"][data-part="close-trigger"]:focus-visible {"#));
         assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+    }
+
+    #[test]
+    fn close_trigger_declares_hover_surface_inside_hover_media_query() {
+        // イシュー #1693: close-trigger の hover 規則が `@media (hover:
+        // hover)` 内に `:hover:not([data-disabled])` で出力されることを
+        // 固定する（#1425 規約、`SlotRecipe::css` の集約契約）。
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="dialog"][data-part="close-trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+    }
+
+    #[test]
+    fn backdrop_and_content_declare_transition_for_open_close() {
+        // イシュー #1693: 開閉トランジション（backdrop/content の base に
+        // transition-property/-duration/-timing-function が含まれること）。
+        let css = stylesheet();
+        assert!(css.contains("transition-property: opacity;"));
+        assert!(css.contains("transition-property: opacity, transform;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-slow);"));
+        assert!(css.contains("transition-timing-function: var(--fandhe-motion-easing-standard);"));
+    }
+
+    #[test]
+    fn content_open_and_closed_states_include_opacity() {
+        // イシュー #1693: content の data-state 連動規則に opacity が
+        // 含まれ、fade + scale の複合遷移になることを固定する。
+        let css = stylesheet();
+        let open_start = css
+            .find(r#"[data-scope="dialog"][data-part="content"][data-state="open"] {"#)
+            .expect("content open rule must be present");
+        let open_end = css[open_start..].find('}').unwrap() + open_start;
+        assert!(css[open_start..open_end].contains("opacity: 1;"));
+        assert!(css[open_start..open_end].contains("transform: scale(1);"));
+
+        let closed_start = css
+            .find(r#"[data-scope="dialog"][data-part="content"][data-state="closed"] {"#)
+            .expect("content closed rule must be present");
+        let closed_end = css[closed_start..].find('}').unwrap() + closed_start;
+        assert!(css[closed_start..closed_end].contains("opacity: 0;"));
+        assert!(css[closed_start..closed_end].contains("transform: scale(0.95);"));
+    }
+
+    #[test]
+    fn content_and_close_trigger_declare_positioning_pair() {
+        // イシュー #1693: close-trigger の絶対配置は content の
+        // `position: relative` を基準とする（対で出力されることを固定）。
+        let css = stylesheet();
+        let content_start = css
+            .find(r#"[data-scope="dialog"][data-part="content"] {"#)
+            .expect("content base rule must be present");
+        let content_end = css[content_start..].find('}').unwrap() + content_start;
+        assert!(css[content_start..content_end].contains("position: relative;"));
+
+        let close_trigger_start = css
+            .find(r#"[data-scope="dialog"][data-part="close-trigger"] {"#)
+            .expect("close-trigger base rule must be present");
+        let close_trigger_end = css[close_trigger_start..].find('}').unwrap() + close_trigger_start;
+        assert!(css[close_trigger_start..close_trigger_end].contains("position: absolute;"));
     }
 
     #[test]
