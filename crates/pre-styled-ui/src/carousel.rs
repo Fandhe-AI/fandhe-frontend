@@ -56,8 +56,11 @@
 //! chakra-ui / ark-ui の carousel と比較し、hover（trigger/indicator）・
 //! フォーカスリング・disabled 減光・トランジションを Phase 0 共通規約
 //! （`docs/design/pre-styled-ui-interaction-visual-language.md`）へ追随させた。
-//! 角丸は `9999px` リテラルから `var(--fandhe-radius-full)`（`docs/design/
-//! pre-styled-ui-scale-tokens.md`）へ置換済み。以下 2 点は意図的に参照サイト
+//! 角丸は `9999px` リテラルから `var(--fandhe-radius-full, 9999px)`
+//! （`docs/design/pre-styled-ui-scale-tokens.md`。codex-review 指摘 PR #1792,
+//! threadId: PRRT_kwDOTarxgc6eVF0S を受け、`--fandhe-radius-full` 未定義の
+//! 既存カスタムテーマでも pill 形状を保つフォールバック値 `9999px` を残す。
+//! `slider`/`switch`/`timeline` と同型）へ置換済み。以下 2 点は意図的に参照サイト
 //! へ合わせていない:
 //!
 //! - **スライド間の余白（chakra の slide spacing 相当）は不採用**:
@@ -130,7 +133,7 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "var(--fandhe-radius-full)"),
+                decl("border-radius", "var(--fandhe-radius-full, 9999px)"),
                 decl("cursor", "pointer"),
                 decl("width", "var(--fandhe-carousel-trigger-size, 2.5rem)"),
                 decl("height", "var(--fandhe-carousel-trigger-size, 2.5rem)"),
@@ -152,7 +155,7 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "var(--fandhe-radius-full)"),
+                decl("border-radius", "var(--fandhe-radius-full, 9999px)"),
                 decl("cursor", "pointer"),
                 decl("width", "var(--fandhe-carousel-trigger-size, 2.5rem)"),
                 decl("height", "var(--fandhe-carousel-trigger-size, 2.5rem)"),
@@ -207,7 +210,7 @@ fn recipe() -> SlotRecipe {
                 decl("display", "inline-block"),
                 decl("background", "var(--fandhe-color-bg-muted)"),
                 decl("border", "none"),
-                decl("border-radius", "var(--fandhe-radius-full)"),
+                decl("border-radius", "var(--fandhe-radius-full, 9999px)"),
                 decl("cursor", "pointer"),
                 decl("width", "var(--fandhe-carousel-indicator-size, 0.5rem)"),
                 decl("height", "var(--fandhe-carousel-indicator-size, 0.5rem)"),
@@ -544,13 +547,45 @@ mod tests {
     }
 
     #[test]
-    fn no_bare_radius_pixel_literal_remains() {
+    fn stylesheet_uses_radius_full_token_with_fallback_for_prev_next_indicator() {
         // イシュー #1518: `border-radius: 9999px` リテラルが
-        // `var(--fandhe-radius-full)`（イシュー #1423 トークン）へ全置換
-        // されたことを確認する。
+        // `var(--fandhe-radius-full, 9999px)`（イシュー #1423 トークン）へ
+        // 全置換されたことを確認する。フォールバックは codex-review 指摘
+        // （PR #1792, threadId: PRRT_kwDOTarxgc6eVF0S）を受け、`slider`/
+        // `switch`/`timeline` と同型の `var(--fandhe-radius-full, 9999px)`
+        // の形とし、`9999px` の生リテラル自体はフォールバック値としてのみ
+        // 残す（3 箇所: prev-trigger / next-trigger / indicator）。
         let css = stylesheet();
-        assert!(!css.contains("9999px"));
-        assert!(css.contains("border-radius: var(--fandhe-radius-full);"));
+        assert_eq!(
+            css.matches("border-radius: var(--fandhe-radius-full, 9999px);")
+                .count(),
+            3
+        );
+    }
+
+    #[test]
+    fn radius_full_fallback_keeps_pill_shape_on_theme_without_radius_full_token() {
+        // イシュー #1518 codex-review 指摘（PR #1792, threadId:
+        // PRRT_kwDOTarxgc6eVF0S）: `var(--fandhe-radius-full)` を
+        // フォールバックなしで参照すると、`--fandhe-radius-full` を定義
+        // しない `Theme::empty()` ベースの既存カスタムテーマでは宣言全体が
+        // computed-value time に無効化され、prev/next-trigger・indicator の
+        // 角丸が初期値の `0` に落ちる（本 PR が謳う「既存の計算結果を
+        // 維持するパッチバンプ」契約への違反）。`Theme::empty()` が
+        // `--fandhe-radius-full` を定義しないことを確認したうえで、
+        // `stylesheet()` の角丸宣言がフォールバック込みであることを固定し、
+        // 退行を防ぐ（`slider`/`timeline` の同型テストと対をなす）。
+        use crate::theme::Theme;
+
+        let empty_theme_css = Theme::empty().to_css();
+        assert!(!empty_theme_css.contains("--fandhe-radius-full"));
+
+        let css = stylesheet();
+        assert_eq!(
+            css.matches("border-radius: var(--fandhe-radius-full, 9999px);")
+                .count(),
+            3
+        );
     }
 
     #[test]

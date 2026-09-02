@@ -37,7 +37,7 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: var(--fandhe-radius-full);
+  border-radius: var(--fandhe-radius-full, 9999px);
   cursor: pointer;
   width: var(--fandhe-carousel-trigger-size, 2.5rem);
   height: var(--fandhe-carousel-trigger-size, 2.5rem);
@@ -54,7 +54,7 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: var(--fandhe-radius-full);
+  border-radius: var(--fandhe-radius-full, 9999px);
   cursor: pointer;
   width: var(--fandhe-carousel-trigger-size, 2.5rem);
   height: var(--fandhe-carousel-trigger-size, 2.5rem);
@@ -88,7 +88,7 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
   display: inline-block;
   background: var(--fandhe-color-bg-muted);
   border: none;
-  border-radius: var(--fandhe-radius-full);
+  border-radius: var(--fandhe-radius-full, 9999px);
   cursor: pointer;
   width: var(--fandhe-carousel-indicator-size, 0.5rem);
   height: var(--fandhe-carousel-indicator-size, 0.5rem);
