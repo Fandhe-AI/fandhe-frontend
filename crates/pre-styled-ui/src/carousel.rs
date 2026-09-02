@@ -50,10 +50,36 @@
 //! root slot のみに付与し、子孫 slot への伝搬は root スコープの CSS
 //! カスタムプロパティ（`--fandhe-carousel-*`）の通常の CSS 継承で行う
 //! （[`crate::slider`]/[`crate::segment_group`] と同型）。
+//!
+//! # 参考サイト基準への調整（イシュー #1518）と意図的非追随事項
+//!
+//! chakra-ui / ark-ui の carousel と比較し、hover（trigger/indicator）・
+//! フォーカスリング・disabled 減光・トランジションを Phase 0 共通規約
+//! （`docs/design/pre-styled-ui-interaction-visual-language.md`）へ追随させた。
+//! 角丸は `9999px` リテラルから `var(--fandhe-radius-full, 9999px)`
+//! （`docs/design/pre-styled-ui-scale-tokens.md`。codex-review 指摘 PR #1792,
+//! threadId: PRRT_kwDOTarxgc6eVF0S を受け、`--fandhe-radius-full` 未定義の
+//! 既存カスタムテーマでも pill 形状を保つフォールバック値 `9999px` を残す。
+//! `slider`/`switch`/`timeline` と同型）へ置換済み。以下 2 点は意図的に参照サイト
+//! へ合わせていない:
+//!
+//! - **スライド間の余白（chakra の slide spacing 相当）は不採用**:
+//!   `item-group` の位置契約が `translateX(calc(var(--fandhe-carousel-index,
+//!   0) * -100%))`（本節冒頭「transform ベースのスライド位置表現」参照）で
+//!   あり、item 間に gap を足すと index × -100% の決定的な位置計算が崩れる。
+//!   位置契約の変更は headless 層に波及するため本イシューのスコープ外。
+//! - **autoplay インジケータ等の anatomy 追加は不採用**: anatomy は
+//!   headless 層（8 パーツ）の責務であり、本イシューはスタイルのみを
+//!   対象とする（`docs/policy/intentional-non-adoption.md` §3.25 の
+//!   UI 部品責務境界と同じ判断軸）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
+};
 
 // headless 自由関数 `root`・状態機械 `Carousel` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。未スタイル・
@@ -107,11 +133,18 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "9999px"),
+                decl("border-radius", "var(--fandhe-radius-full, 9999px)"),
                 decl("cursor", "pointer"),
                 decl("width", "var(--fandhe-carousel-trigger-size, 2.5rem)"),
                 decl("height", "var(--fandhe-carousel-trigger-size, 2.5rem)"),
-            ],
+                hover_bg_muted(),
+            ]
+            .into_iter()
+            .chain(transition_declarations(
+                "background, border-color, color",
+                MotionDuration::Fast,
+            ))
+            .collect(),
         )
         .base(
             "next-trigger",
@@ -122,21 +155,39 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "9999px"),
+                decl("border-radius", "var(--fandhe-radius-full, 9999px)"),
                 decl("cursor", "pointer"),
                 decl("width", "var(--fandhe-carousel-trigger-size, 2.5rem)"),
                 decl("height", "var(--fandhe-carousel-trigger-size, 2.5rem)"),
-            ],
+                hover_bg_muted(),
+            ]
+            .into_iter()
+            .chain(transition_declarations(
+                "background, border-color, color",
+                MotionDuration::Fast,
+            ))
+            .collect(),
         )
         .base(
             "item-group",
             vec![
                 decl("display", "flex"),
                 decl("flex", "1"),
+                decl("transition-property", "transform"),
+                // 3 段フォールバック: (1) 利用者上書き
+                // `--fandhe-carousel-transition-duration`（本イシュー以前から
+                // の公開フック、破壊的変更を避けるため名前を維持）→
+                // (2) `--fandhe-motion-duration-normal`（Phase 0 canonical
+                // motion トークン、`prefers-reduced-motion: reduce` で
+                // `Theme::to_css` が 0ms へ一括無効化する経路に乗る）→
+                // (3) 旧既定値 `200ms`（トークン自体が未定義のカスタム
+                // テーマでも従来の見た目を保つ fail-closed 終端、
+                // [`focus_ring_declarations`] と同じ判断）。
                 decl(
-                    "transition",
-                    "transform var(--fandhe-carousel-transition-duration, 0.2s) ease",
+                    "transition-duration",
+                    "var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms))",
                 ),
+                decl("transition-timing-function", "var(--fandhe-motion-easing-standard)"),
                 decl(
                     "transform",
                     "translateX(calc(var(--fandhe-carousel-index, 0) * -100%))",
@@ -159,11 +210,19 @@ fn recipe() -> SlotRecipe {
                 decl("display", "inline-block"),
                 decl("background", "var(--fandhe-color-bg-muted)"),
                 decl("border", "none"),
-                decl("border-radius", "9999px"),
+                decl("border-radius", "var(--fandhe-radius-full, 9999px)"),
                 decl("cursor", "pointer"),
                 decl("width", "var(--fandhe-carousel-indicator-size, 0.5rem)"),
                 decl("height", "var(--fandhe-carousel-indicator-size, 0.5rem)"),
-            ],
+                // base の背景は `bg-muted` のため `hover_bg_muted()` では
+                // hover 時に視覚差が出ない。既存トークンスケールの次段
+                // `bg-emphasized` を直接指定する（#1448 の「直接指定を
+                // 許容する場合」の先例と同型の判断）。
+                decl("--fandhe-hover-bg", "var(--fandhe-color-bg-emphasized)"),
+            ]
+            .into_iter()
+            .chain(transition_declarations("background", MotionDuration::Fast))
+            .collect(),
         )
         // Carousel 固有: `item-group` の縦方向スライド（[`crate::segment_group`]
         // の indicator が `data-orientation` で translateX/Y を切り替えるのと
@@ -177,33 +236,44 @@ fn recipe() -> SlotRecipe {
                 "translateY(calc(var(--fandhe-carousel-index, 0) * -100%))",
             )],
         )
-        // 端に到達し `loop` 無効なため無効化された trigger の見た目（headless
-        // `data-disabled` 存在属性、[`crate::slider`] 等と同型の減光表現）。
+        // 端に到達し `loop` 無効なため無効化された trigger の見た目
+        // （headless `data-disabled` 存在属性）。canonical
+        // `disabled_declarations()`（イシュー #1425）へ統一し、他部品との
+        // 減光表現（`opacity: 0.5` + `cursor: not-allowed`）を揃える。
         .state(
             "prev-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.4"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
         )
         .state(
             "next-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.4"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
         )
+        // hover（イシュー #1425）: trigger は `cursor: pointer` を持つ
+        // インタラクティブ slot のため `hover_bg_muted()`（base）と対にした
+        // `hover_surface_declarations()` を 1 本ずつ登録する。
+        .state(
+            "prev-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "next-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        // フォーカスリング（イシュー #1424 canonical。carousel は
+        // `color-palette` 軸を持たない部品のため `FocusRingColor::Token`）。
         .state(
             "prev-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "next-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         // 現在の indicator を強調する（headless `data-current` 存在属性、
         // モジュール rustdoc「data-current とスタイルの連動」節参照）。
@@ -212,13 +282,18 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-current"),
             vec![decl("background", "var(--fandhe-color-accent)")],
         )
+        // hover（イシュー #1425）: 現在位置の indicator（`data-current`）は
+        // accent 背景を維持したいため、hover 対象から除外する
+        // （[`crate::combobox`] の `data-highlighted` 除外と同型の判断）。
+        .state(
+            "indicator",
+            StateCondition::HoverExceptAttr("data-current"),
+            hover_surface_declarations(),
+        )
         .state(
             "indicator",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         // `size` variant（root スコープの CSS custom property。Md はフォール
         // バック値と同一の現行外観を維持する）。`--fandhe-carousel-index`
@@ -421,7 +496,96 @@ mod tests {
         assert!(
             css.contains(r#"[data-scope="carousel"][data-part="next-trigger"][data-disabled] {"#)
         );
-        assert!(css.contains("opacity: 0.4;"));
+        // canonical disabled_declarations()（イシュー #1425）: opacity 0.5 +
+        // cursor: not-allowed へ統一済み（旧 0.4 から変更）。
+        assert!(css.contains("opacity: 0.5;"));
+        assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn triggers_and_indicator_use_canonical_focus_ring() {
+        // イシュー #1518: 手書き outline から `focus_ring_declarations`
+        // （イシュー #1424 canonical）へ移行。フォールバック連鎖付き
+        // `--fandhe-focus-ring-width` を含むことを確認する。
+        let css = stylesheet();
+        assert!(css.contains("outline: var(--fandhe-focus-ring-width, 2px) solid"));
+        assert_eq!(
+            css.matches("outline: var(--fandhe-focus-ring-width, 2px) solid")
+                .count(),
+            3,
+            "prev-trigger / next-trigger / indicator の 3 箇所で canonical focus ring を使う"
+        );
+    }
+
+    #[test]
+    fn hover_rules_are_scoped_to_hover_capable_media_query() {
+        // イシュー #1518: trigger 2 件 + indicator（`data-current` 除外）の
+        // hover 規則が `@media (hover: hover)` ブロック内に出力される
+        // （[`crate::recipe::StateCondition::Hover`]/`HoverExceptAttr` の
+        // 契約、タッチ端末の貼り付き hover を防ぐ）。
+        let css = stylesheet();
+        let media_start = css
+            .find("@media (hover: hover)")
+            .expect("hover ルールは @media (hover: hover) ブロックへ出力される");
+        let media_block = &css[media_start..];
+        assert!(media_block.contains(r#"[data-scope="carousel"][data-part="prev-trigger"]:hover"#));
+        assert!(media_block.contains(r#"[data-scope="carousel"][data-part="next-trigger"]:hover"#));
+        assert!(media_block.contains(
+            r#"[data-scope="carousel"][data-part="indicator"]:hover:not([data-disabled]):not([data-current])"#
+        ));
+    }
+
+    #[test]
+    fn item_group_transition_duration_has_layered_fallback() {
+        // イシュー #1518: 利用者上書きフック
+        // `--fandhe-carousel-transition-duration`（破壊的変更を避けるため
+        // 温存）→ motion トークン → 旧既定 200ms の 3 段フォールバック。
+        let css = stylesheet();
+        assert!(css.contains(
+            "transition-duration: var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms));"
+        ));
+    }
+
+    #[test]
+    fn stylesheet_uses_radius_full_token_with_fallback_for_prev_next_indicator() {
+        // イシュー #1518: `border-radius: 9999px` リテラルが
+        // `var(--fandhe-radius-full, 9999px)`（イシュー #1423 トークン）へ
+        // 全置換されたことを確認する。フォールバックは codex-review 指摘
+        // （PR #1792, threadId: PRRT_kwDOTarxgc6eVF0S）を受け、`slider`/
+        // `switch`/`timeline` と同型の `var(--fandhe-radius-full, 9999px)`
+        // の形とし、`9999px` の生リテラル自体はフォールバック値としてのみ
+        // 残す（3 箇所: prev-trigger / next-trigger / indicator）。
+        let css = stylesheet();
+        assert_eq!(
+            css.matches("border-radius: var(--fandhe-radius-full, 9999px);")
+                .count(),
+            3
+        );
+    }
+
+    #[test]
+    fn radius_full_fallback_keeps_pill_shape_on_theme_without_radius_full_token() {
+        // イシュー #1518 codex-review 指摘（PR #1792, threadId:
+        // PRRT_kwDOTarxgc6eVF0S）: `var(--fandhe-radius-full)` を
+        // フォールバックなしで参照すると、`--fandhe-radius-full` を定義
+        // しない `Theme::empty()` ベースの既存カスタムテーマでは宣言全体が
+        // computed-value time に無効化され、prev/next-trigger・indicator の
+        // 角丸が初期値の `0` に落ちる（本 PR が謳う「既存の計算結果を
+        // 維持するパッチバンプ」契約への違反）。`Theme::empty()` が
+        // `--fandhe-radius-full` を定義しないことを確認したうえで、
+        // `stylesheet()` の角丸宣言がフォールバック込みであることを固定し、
+        // 退行を防ぐ（`slider`/`timeline` の同型テストと対をなす）。
+        use crate::theme::Theme;
+
+        let empty_theme_css = Theme::empty().to_css();
+        assert!(!empty_theme_css.contains("--fandhe-radius-full"));
+
+        let css = stylesheet();
+        assert_eq!(
+            css.matches("border-radius: var(--fandhe-radius-full, 9999px);")
+                .count(),
+            3
+        );
     }
 
     #[test]
