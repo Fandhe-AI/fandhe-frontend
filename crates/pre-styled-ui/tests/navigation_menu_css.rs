@@ -124,3 +124,17 @@ fn stylesheet_uses_canonical_focus_ring_helper_on_trigger() {
         "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
     ));
 }
+
+#[test]
+fn stylesheet_tokenizes_content_border_radius_and_box_shadow() {
+    // イシュー #1701: content の生リテラル `border-radius: 0.375rem` /
+    // `box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15)` をそれぞれ
+    // `var(--fandhe-radius-md)` / `var(--fandhe-shadow-md)` へトークン化した
+    // （`src/navigation_menu.rs` モジュール doc「担当パートの是正
+    // （イシュー #1701）」節参照）。
+    let css = navigation_menu::stylesheet();
+    assert!(css.contains("border-radius: var(--fandhe-radius-md);"));
+    assert!(css.contains("box-shadow: var(--fandhe-shadow-md);"));
+    assert!(!css.contains("border-radius: 0.375rem;"));
+    assert!(!css.contains("box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);"));
+}

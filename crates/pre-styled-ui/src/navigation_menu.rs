@@ -97,6 +97,67 @@
 //!   過大であるため見送った。「active」は headless 層が実際に出す
 //!   `data-current`（アクティブリンク）で表現する。
 //!
+//! # 担当パートの是正（イシュー #1701、親 #1530 の 2/2 分割。内部パート
+//! `content` と `data-state` 開閉トランジションを担当。外枠パート
+//! （`list`/`item`/`trigger`/`link`）は兄弟 #1700（PR #1806）が完了済み）
+//!
+//! ## スコープ解釈の注記
+//!
+//! headless 層（`crates/headless-ui/src/navigation_menu.rs`）の anatomy は
+//! root/list/item/trigger/content/link の 6 パーツのみで、viewport /
+//! positioner / arrow / indicator は存在しない（イシュー #993 継承、
+//! モジュール冒頭 rustdoc「indicator パートは実装しない」節参照）。
+//! pre-styled-ui 単独では headless anatomy の再エクスポート + stylesheet
+//! のみの薄い委譲（規約 B-1）であるため単独でパート追加はできない。
+//! イシュータイトルの「viewport 等」は、[`crate::menu`] 2/3・
+//! [`crate::menubar`]（#1703）の「スコープ解釈の注記」先例に倣い、唯一の
+//! 内部・オーバーレイパートである `content` へ読み替える。
+//!
+//! ## 是正内容
+//!
+//! - **`content`**: `border-radius` の生リテラル（`0.375rem`）を
+//!   `var(--fandhe-radius-md)` へ、`box-shadow` の生リテラル
+//!   （`0 4px 6px rgba(0, 0, 0, 0.15)`）を `var(--fandhe-shadow-md)` へ
+//!   トークン化した（[`crate::menu`] の `content`・[`crate::menubar`] の
+//!   `content`/`sub-content`〔#1703〕と同型の是正）。ライトの影は
+//!   `0.15` → `0.1` へわずかに薄くなり、ダークは専用の影値
+//!   （`0 4px 6px rgba(0, 0, 0, 0.3)`）がトークン再定義で自動成立する
+//!   意匠変更（値意匠は同等の判断は #1703 と同型）。
+//!
+//! ## 意図的に合わせなかった点・開閉トランジション非対応
+//!
+//! - **開閉（entry/exit）トランジションは追加しない**: headless 層
+//!   （`crates/headless-ui/src/navigation_menu.rs`）の `content` は
+//!   closed 時に `hidden` 存在属性を同一フレームで即時付与・除去する
+//!   契約であり、遷移前フレームが描画されないため CSS トランジションは
+//!   開閉どちら向きも発火しない。dialog（PR #1795 codex-review P1
+//!   指摘）→ [`crate::menu`] 1/3（PR #1800）→ [`crate::menubar`]
+//!   内部パート（#1703）で確立した「意図的な非対応として rustdoc に
+//!   記録する」判断を継承する。`@starting-style` 等による真の実現は
+//!   recipe 基盤の横断設計変更（ユーザー承認事項）であり、本イシューでは
+//!   行わない。
+//! - **`prefers-reduced-motion` は新規対応不要**: 本イシューは新規
+//!   transition を追加していない（上記のとおり開閉トランジション自体を
+//!   追加しない）ため、`@media (prefers-reduced-motion: reduce)` の
+//!   個別対応は不要。兄弟 #1700 が trigger/link へ追加した transition は
+//!   すべて motion トークン（[`crate::recipe::transition_declarations`]）
+//!   経由であり、`Theme::to_css` の一括 `0ms` 上書きで既に自動成立して
+//!   いる。
+//! - **`content` の `position`/`top`/`left`/`z-index`/`min-width` は現状
+//!   維持**: `position: absolute; top: 100%; left: 0;` はモジュール冒頭
+//!   rustdoc「レイアウト」節（PR #1000 の縦ずれ回帰予防）の位置ジオメトリ
+//!   契約であり変更しない。`z-index: 10` はトークンが theme に無いため
+//!   現状維持（[`crate::menu`] 1/3・[`crate::menubar`]（#1703）と同判断）。
+//!   `min-width: 10rem` は navigation-menu が `--fandhe-reference-width`
+//!   契約（[`crate::menu`] の `content` が使う
+//!   `var(--fandhe-reference-width, 10rem)`）を持たないため、意匠を
+//!   変えない生値のまま維持する（[`crate::menubar`]（#1703）の
+//!   `content`/`sub-content` と同判断）。
+//! - **indicator / viewport / positioner / arrow パートは追加しない**:
+//!   上記「スコープ解釈の注記」のとおり headless anatomy に存在せず、
+//!   追加は headless 層の変更（ユーザー承認事項）を伴うため本イシューの
+//!   範囲外とする。
+//!
 //! # 本イシューのスコープ外
 //!
 //! headless 層（`crates/headless-ui/src/navigation_menu.rs`）のモジュール
@@ -186,8 +247,8 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
-                decl("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.15)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("box-shadow", "var(--fandhe-shadow-md)"),
                 decl("padding", "var(--fandhe-space-2)"),
                 decl("min-width", "10rem"),
             ],
