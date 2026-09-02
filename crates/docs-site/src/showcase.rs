@@ -2164,7 +2164,35 @@ fn drawer_section() -> Node {
                                     vec![],
                                     vec![text("画面端からスライドインする補助パネルです。")],
                                 ),
-                                drawer::close_trigger(vec![], vec![text("Close")]),
+                                // イシュー #1695: footer 相当のアクション配置例
+                                // （dialog #1693 と同型。headless anatomy に
+                                // 専用 footer パートが存在しないため、
+                                // description 直後に通常の行として掲示する。
+                                // `.showcase-row` は掲示用レイアウトのみを
+                                // 担い、製品 CSS には footer 規則を持ち込ま
+                                // ない）。
+                                div(
+                                    vec![("class", "showcase-row")],
+                                    vec![
+                                        button(
+                                            &ButtonProps {
+                                                variant: ButtonVariant::Outline,
+                                                ..ButtonProps::default()
+                                            },
+                                            vec![],
+                                            vec![text("Cancel")],
+                                        ),
+                                        button(&ButtonProps::default(), vec![], vec![text("Save")]),
+                                    ],
+                                ),
+                                // イシュー #1695: content 右上のゴーストボタン
+                                // 化に伴い視覚はアイコンボタン化（`×`）。
+                                // 支援技術向けラベルは `aria-label` で維持する
+                                // （dialog #1693 と同型）。
+                                drawer::close_trigger(
+                                    vec![("aria-label", "Close")],
+                                    vec![text("×")],
+                                ),
                             ],
                         )],
                     ),
@@ -2174,7 +2202,7 @@ fn drawer_section() -> Node {
     );
     section(
         "Drawer",
-        "headless-ui の Drawer（WAI-ARIA dialog パターンの変種、dialog の状態機械を再利用）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。placement=\"end\" を掲示しています。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています。",
+        "headless-ui の Drawer（WAI-ARIA dialog パターンの変種、dialog の状態機械を再利用）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。placement=\"end\" を掲示しています。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下にアクション行（footer 相当、掲示用レイアウトのみ）を配置しています。",
         vec![node],
     )
 }

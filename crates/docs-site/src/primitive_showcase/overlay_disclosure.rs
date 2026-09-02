@@ -193,7 +193,12 @@ pub(super) fn drawer_section() -> Node {
                         vec![
                             drawer::title(Some("drawer-title"), vec![], vec![text("Filters")]),
                             drawer::description(None, vec![], vec![text("Refine your search.")]),
-                            drawer::close_trigger(vec![], vec![text("Close")]),
+                            // codex-review 指摘（PR #1795）と同型（イシュー
+                            // #1695）: drawer の close-trigger はアイコン
+                            // 専用契約（0.6x〜、
+                            // `crates/pre-styled-ui/src/drawer.rs` rustdoc
+                            // 参照）。支援技術向けラベルは aria-label で維持する。
+                            drawer::close_trigger(vec![("aria-label", "Close")], vec![text("×")]),
                         ],
                     )],
                 ),

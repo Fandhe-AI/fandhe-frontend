@@ -36,6 +36,7 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
 }
 
 [data-scope="drawer"][data-part="content"] {
+  position: relative;
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   box-shadow: var(--fandhe-shadow-lg);
@@ -47,17 +48,38 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
 [data-scope="drawer"][data-part="title"] {
   font-size: var(--fandhe-font-font-size-lg);
   font-weight: var(--fandhe-font-font-weight-semibold);
+  line-height: var(--fandhe-font-line-height-tight);
   margin: 0 0 var(--fandhe-space-2) 0;
+  padding-inline-end: calc(var(--fandhe-space-8) + var(--fandhe-space-2));
 }
 
 [data-scope="drawer"][data-part="description"] {
   color: var(--fandhe-color-fg-muted);
-  margin: 0;
+  line-height: var(--fandhe-font-line-height-normal);
+  margin: 0 0 var(--fandhe-space-4) 0;
 }
 
 [data-scope="drawer"][data-part="close-trigger"] {
+  position: absolute;
+  inset-block-start: var(--fandhe-space-2);
+  inset-inline-end: var(--fandhe-space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--fandhe-space-8);
+  height: var(--fandhe-space-8);
+  overflow: hidden;
+  border: none;
+  border-radius: var(--fandhe-radius-sm);
+  background: transparent;
+  padding: var(--fandhe-space-1);
   cursor: pointer;
   color: var(--fandhe-color-fg-muted);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  transition-property: background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="drawer"][data-part="root"].fd-drawer--size-xs {
@@ -146,11 +168,15 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
 }
 
 [data-scope="drawer"][data-part="close-trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 @media (hover: hover) {
+  [data-scope="drawer"][data-part="close-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
   [data-scope="drawer"][data-part="trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
   }
