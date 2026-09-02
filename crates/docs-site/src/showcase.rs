@@ -1964,6 +1964,23 @@ fn tabs_section() -> Node {
                 )],
                 disabled: false,
             },
+            // イシュー #1542: 参考サイト基準の是正で追加した `[data-disabled]`
+            // スタイル（`opacity: 0.5`/`cursor: not-allowed`）を docs サイトの
+            // Demo で目視確認できるようにする（hover/focus-visible/vertical
+            // 対応も同 recipe 変更の対象だが、本 Demo は静的 SSR 掲示のため
+            // 追加パーツを持たない disabled のみを追加した）。
+            TabItem {
+                value: "archived",
+                trigger: vec![text("Archived")],
+                content: vec![el(
+                    "p",
+                    vec![],
+                    vec![text(
+                        "無効化されたタブ（data-disabled）は半透明表示になります。",
+                    )],
+                )],
+                disabled: true,
+            },
         ],
     );
     section(

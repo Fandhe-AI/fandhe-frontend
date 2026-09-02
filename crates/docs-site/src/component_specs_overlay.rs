@@ -665,6 +665,8 @@ pub const TABS: ComponentPageSpec = ComponentPageSpec {
         "root / list / trigger / content の 4 パーツに加え、選択タブの位置を示す装飾パーツ indicator（opt-in）を持つ 5 パーツ構成。",
         "ActivationMode（Automatic/Manual）と Orientation（Horizontal/Vertical）を data-activation-mode / data-orientation として出力する。",
         "size / color-palette variant で root にクラスを付与する。",
+        "data-orientation=\"vertical\" 時は list の下線を右罫線へ、trigger の下線を右側の強調線へ切り替えて縦並び表示する（イシュー #1542）。",
+        "hover（背景・文字色）・disabled（data-disabled、半透明表示）・focus-visible（trigger/content 双方）を視覚的に反映する（イシュー #1542）。",
     ],
     arguments: &[
         ArgRow {
