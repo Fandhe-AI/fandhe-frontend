@@ -114,10 +114,97 @@
 //!
 //! ## スコープ境界
 //!
-//! 本イシューは `root`/`trigger` のみを担当する。`positioner`/`content`/
-//! `item`/`item-group`/`separator`/`sub-trigger`/`sub-content` と開閉
-//! トランジションは兄弟イシュー #1703 の担当範囲であり、本イシューでは
-//! 一切変更しない（`menu` パーツの `position: relative` も維持）。
+//! 本イシューは `root`/`trigger` のみを担当した。残りの内部パート
+//! （`positioner`/`content`/`item`/`item-group`/`separator`/`sub-trigger`/
+//! `sub-content`）と開閉トランジションはイシュー #1703 が引き継いで完了
+//! させた（次節参照）。
+//!
+//! # イシュー #1703（内部パートの是正、親 #1528）
+//!
+//! 親イシュー #1528 の 2h 分割 2 本目。内部パート（`positioner`/`content`/
+//! `item`/`item-group`/`item-group-label`/`separator`/`sub-trigger`/
+//! `sub-content`）を Phase 0 共通基盤（[`crate::recipe`] の canonical
+//! ヘルパ・`--fandhe-*` トークン・motion トークン）へ揃え、hover /
+//! disabled / 状態遷移の視覚言語を [`crate::menu`]（PR #1800〜#1802）・
+//! 本モジュールの `trigger`（イシュー #1702）と同水準にした。是正内容:
+//!
+//! - `content`/`sub-content` の `border-radius` を生リテラル `0.375rem`
+//!   から `var(--fandhe-radius-md)`、`box-shadow` を生リテラル
+//!   `0 4px 6px rgba(0, 0, 0, 0.15)` から `var(--fandhe-shadow-md)` へ
+//!   トークン化（値意匠は同等、ダーク側はトークン再定義で自動成立。
+//!   [`crate::menu`] の `content`・select 2/2 と同型）。`content` の
+//!   `position: relative`（本モジュール「`content` パーツの
+//!   `position: relative`」節、PR #1000 の containing block 契約）は
+//!   先頭宣言のまま維持する（in-module テスト
+//!   `content_provides_containing_block_for_sub_content` が先頭一致で
+//!   固定しているため順序を崩さない）。
+//! - `item`/`sub-trigger` の `border-radius` を生リテラル `0.25rem` から
+//!   `var(--fandhe-radius-sm)` へトークン化。
+//! - `item` の base へ `display: flex` / `align-items: center` /
+//!   `gap: var(--fandhe-space-2)` を追加し、[`crate::menu`] の `item`
+//!   canonical 形へ整合させた。
+//! - `item`/`sub-trigger` の base へ [`crate::recipe::hover_bg_muted`]・
+//!   [`crate::recipe::transition_declarations`]`("background, color",
+//!   MotionDuration::Fast)` を追加した。
+//! - `item`/`sub-trigger` の disabled（直書き `opacity`/`cursor` 2 宣言）を
+//!   [`crate::recipe::disabled_declarations`] へ置換（値同一・外観不変）。
+//! - `item`/`sub-trigger` の hover を実適用した。`item` は
+//!   [`crate::recipe::StateCondition::HoverExceptAttr`]`("data-highlighted")`
+//!   （[`crate::menu`] の `item` と同型）、`sub-trigger` は
+//!   [`crate::recipe::StateCondition::HoverExceptAttrEq`]`("data-highlighted",
+//!   "data-state", "open")`（本モジュールの `trigger`〔イシュー #1702〕と
+//!   同型）を使う。素の `Hover`（specificity (0,4,0)）は
+//!   `[data-highlighted]`（(0,3,0)）より高く、highlight 中・open 中の
+//!   item/sub-trigger への hover が virtual focus の accent 背景・開いて
+//!   いるサブメニューの `accent-subtle` 背景を洗い流してしまうため。
+//!   state 登録順は `item` が highlighted → disabled → hover、
+//!   `sub-trigger` が open → highlighted → disabled → hover（本モジュール
+//!   の `trigger`/[`crate::menu`] の `trigger-item` と同じ「後に登録した
+//!   状態ほど後勝ちで上書きし、hover は他状態中は洗い流さない」規約）。
+//! - `item-group-label` の `font-size` を
+//!   `var(--fandhe-font-font-size-sm)` から `var(--fandhe-font-font-size-xs)`
+//!   へ変更し、[`crate::menu`]・select の `item-group-label` canonical 形
+//!   （fg-muted + xs + space-2/3 padding）へ整合させた。
+//! - `separator` の `border-top` の色を `var(--fandhe-color-border)` から
+//!   `var(--fandhe-color-border-muted)` へ変更し、[`crate::menu`] の
+//!   `separator` canonical 形へ整合させた。
+//!
+//! ## 意図的に合わせなかった点・開閉トランジション非対応
+//!
+//! - **開閉（entry/exit）トランジションは追加しない**: headless 層
+//!   （`crates/headless-ui/src/menubar.rs`）は `positioner`/`content`/
+//!   `sub-content` の closed 時に `hidden` 存在属性を同一フレームで
+//!   付与・除去する契約であり、opacity/transform への CSS トランジション
+//!   は遷移前フレームが描画されないため発火しない。dialog（PR #1795
+//!   codex-review P1 指摘）→ [`crate::menu`] 1/3（PR #1800）で確立した
+//!   「意図的な非対応として rustdoc に記録する」判断を継承する。本イシュー
+//!   で追加したトランジションはすべて発火が成立する状態変化（`item`/
+//!   `sub-trigger` の hover・highlight・open による background/color 遷移）
+//!   に限定した。`prefers-reduced-motion` の尊重は、追加した transition が
+//!   すべて motion トークン（[`crate::recipe::transition_declarations`]）
+//!   経由であることにより `Theme::to_css` の一括 `0ms` 上書きで自動成立
+//!   する。
+//! - **`positioner` は変更しない**: `position`/`top`/`left`/`margin-top` は
+//!   wasm positioning 契約（#663/#1182 で menubar は position.rs の scope
+//!   enum に登録済み）に紐づく位置ジオメトリであり、`z-index: 10` は
+//!   トークンが theme に無いため現状維持する（[`crate::menu`] 1/3 と
+//!   同判断）。
+//! - **`content`/`sub-content` の `min-width: 10rem` は生値のまま維持**:
+//!   Menubar が `--fandhe-reference-width` 契約（[`crate::menu`] の
+//!   `content` が使う `var(--fandhe-reference-width, 10rem)`）を持つか
+//!   未確認のため、意匠を変えないフォールバック値のみのトークン化に
+//!   留める。
+//! - **`item-group` は変更しない**: 構造コンテナのみで独自視覚を持たない
+//!   （[`crate::menu`] の `item-group`・`radio-item-group` と同判断）。
+//! - **「サブメニューの indicator」パートは追加しない**: headless
+//!   `menubar` の 11 anatomy パーツ（root/menu/trigger/positioner/content/
+//!   item/item-group/item-group-label/separator/sub-trigger/sub-content）
+//!   に `indicator` は存在しない。anatomy パート追加は headless 層の変更
+//!   （兄弟イシュー #1652 の領域・ユーザー承認事項）を伴うため本イシュー
+//!   では行わず、[`crate::menu`] 2/3・3/3 の「スコープ解釈の注記」先例に
+//!   倣い、`sub-trigger` の `justify-content: space-between`（既存、右端へ
+//!   示唆グリフ用の余白を確保するマークアップ側の責務）と `sub-trigger`
+//!   自身の open/highlight/hover 状態遷移の追加とで読み替える。
 //!
 //! # 本イシューのスコープ外
 //!
@@ -217,8 +304,8 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
-                decl("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.15)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("box-shadow", "var(--fandhe-shadow-md)"),
                 decl("padding", "var(--fandhe-space-2)"),
                 decl("min-width", "10rem"),
             ],
@@ -226,10 +313,21 @@ fn recipe() -> SlotRecipe {
         .base(
             "item",
             vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
                 decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
                 decl("cursor", "pointer"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結される
+        // （menu `item`〔#1526〕・select 2/2・combobox 2/2 と同型のパターン、
+        // イシュー #1703）。
+        .base(
+            "item",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         .base(
             "item-group",
@@ -239,7 +337,7 @@ fn recipe() -> SlotRecipe {
             "item-group-label",
             vec![
                 decl("color", "var(--fandhe-color-fg-muted)"),
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
                 decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
             ],
         )
@@ -247,7 +345,7 @@ fn recipe() -> SlotRecipe {
             "separator",
             vec![
                 decl("border", "0"),
-                decl("border-top", "1px solid var(--fandhe-color-border)"),
+                decl("border-top", "1px solid var(--fandhe-color-border-muted)"),
                 decl("margin", "var(--fandhe-space-2) 0"),
             ],
         )
@@ -259,8 +357,16 @@ fn recipe() -> SlotRecipe {
                 decl("justify-content", "space-between"),
                 decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
                 decl("cursor", "pointer"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結される
+        // （trigger〔本モジュール #1702〕・item〔本節上〕と同型のパターン、
+        // イシュー #1703）。
+        .base(
+            "sub-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         .base(
             "sub-content",
@@ -272,8 +378,8 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
-                decl("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.15)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("box-shadow", "var(--fandhe-shadow-md)"),
                 decl("padding", "var(--fandhe-space-2)"),
                 decl("min-width", "10rem"),
             ],
@@ -350,16 +456,40 @@ fn recipe() -> SlotRecipe {
         )
         // disabled でもフォーカス順序には残るため（headless 層の意図的な
         // 設計判断、`crates/headless-ui/src/menubar.rs` モジュール doc
-        // 「スコープ外」節参照）、視覚的にのみ操作不能を示す。
+        // 「スコープ外」節参照）、視覚的にのみ操作不能を示す。イシュー
+        // #1703: 直書き 2 宣言（`opacity: 0.5` + `cursor: not-allowed`）から
+        // [`crate::recipe::disabled_declarations`] へ置換（出力値同一・
+        // 外観不変、menu `item`〔#1526〕と同型）。
         .state(
             "item",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
         )
         .state(
             "sub-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
+        )
+        // イシュー #1703: item の hover 実適用。素の `Hover`
+        // （specificity (0,4,0)）は `[data-highlighted]`（(0,3,0)）より
+        // 高く、highlight 中の item への hover が virtual focus の accent
+        // 背景を洗い流してしまうため、highlighted を除外する
+        // `HoverExceptAttr`（menu `item`〔#1526〕・combobox 2/2 と同型）を
+        // 使う。
+        .state(
+            "item",
+            StateCondition::HoverExceptAttr("data-highlighted"),
+            hover_surface_declarations(),
+        )
+        // イシュー #1703: sub-trigger の hover 実適用。highlight 中・open
+        // 中（開いているサブメニューの `accent-subtle` 背景）の双方を
+        // hover が洗い流さないよう `HoverExceptAttrEq` で両方を除外する
+        // （trigger〔本モジュール #1702〕・PR #1803 Bugbot Medium severity
+        // 指摘「Hover washes out open trigger」と同型の判断）。
+        .state(
+            "sub-trigger",
+            StateCondition::HoverExceptAttrEq("data-highlighted", "data-state", "open"),
+            hover_surface_declarations(),
         )
         // trigger はキーボード操作時のみのフォーカスリング（イシュー
         // #1424 の canonical ヘルパへ置換。値は旧実装〔`2px solid

@@ -143,3 +143,115 @@ fn stylesheet_never_contains_style_breakout_sequences() {
     assert!(!css.contains('<'));
     assert!(!css.contains("</style"));
 }
+
+#[test]
+fn stylesheet_declares_item_hover_rule_excluding_highlighted() {
+    // イシュー #1703: item の hover 実適用。素の `Hover`（specificity
+    // (0,4,0)）は `[data-highlighted]`（(0,3,0)）より高く、highlight 中の
+    // item への hover が virtual focus の accent 背景を洗い流してしまう
+    // ため `HoverExceptAttr("data-highlighted")`（`crate::menu` の `item`
+    // と同型）を使う。
+    let css = menubar::stylesheet();
+    assert!(css.contains(
+        r#"[data-scope="menubar"][data-part="item"]:hover:not([data-disabled]):not([data-highlighted]) {"#
+    ));
+}
+
+#[test]
+fn stylesheet_declares_sub_trigger_hover_rule_excluding_highlighted_and_open() {
+    // イシュー #1703: sub-trigger の hover 実適用。highlight 中・open 中
+    // （開いているサブメニューの `accent-subtle` 背景）の双方を hover が
+    // 洗い流さないよう `HoverExceptAttrEq` を使う（本モジュール `trigger`
+    // 〔イシュー #1702〕と同型の判断）。
+    let css = menubar::stylesheet();
+    assert!(css.contains(
+        r#"[data-scope="menubar"][data-part="sub-trigger"]:hover:not([data-disabled]):not([data-highlighted]):not([data-state="open"]) {"#
+    ));
+}
+
+#[test]
+fn stylesheet_declares_item_and_sub_trigger_transitions() {
+    // イシュー #1703: item/sub-trigger の base へ
+    // `transition_declarations("background, color", MotionDuration::Fast)`
+    // を追加。`prefers-reduced-motion` の尊重はこのトークン経由の宣言に
+    // より `Theme::to_css` の一括無効化で自動成立する（モジュール doc
+    // 「イシュー #1703」節参照）。
+    let css = menubar::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"menubar\"][data-part=\"item\"] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-2);\n"
+    ));
+    assert!(css.contains(
+        "[data-scope=\"menubar\"][data-part=\"sub-trigger\"] {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n"
+    ));
+    // transition-property 宣言が trigger（#1702）・item・sub-trigger
+    // （#1703）の base ブロック内に計 3 回現れることを固定する。
+    assert_eq!(
+        css.matches("transition-property: background, color;")
+            .count(),
+        3,
+        "expected transition-property on trigger, item, and sub-trigger"
+    );
+}
+
+#[test]
+fn stylesheet_tokenizes_content_and_sub_content_radius_and_shadow() {
+    // イシュー #1703: content/sub-content の `border-radius`/`box-shadow`
+    // を生リテラルから `var(--fandhe-radius-md)`/`var(--fandhe-shadow-md)`
+    // へトークン化（値意匠は同等、`crate::menu` の `content`・select 2/2
+    // と同型）。
+    let css = menubar::stylesheet();
+    assert!(!css.contains("0.375rem"));
+    assert!(!css.contains("0 4px 6px rgba(0, 0, 0, 0.15)"));
+    // イシュー #1702 で `root` も同トークンへ揃え済みのため、
+    // root・content・sub-content の計 3 回が期待値になる。
+    assert_eq!(
+        css.matches("border-radius: var(--fandhe-radius-md);")
+            .count(),
+        3,
+        "expected radius-md on root, content, and sub-content"
+    );
+    assert_eq!(
+        css.matches("box-shadow: var(--fandhe-shadow-md);").count(),
+        2,
+        "expected shadow-md on both content and sub-content"
+    );
+}
+
+#[test]
+fn stylesheet_tokenizes_item_and_sub_trigger_radius() {
+    // イシュー #1703: item/sub-trigger の `border-radius` を生リテラル
+    // `0.25rem` から `var(--fandhe-radius-sm)` へトークン化。
+    let css = menubar::stylesheet();
+    assert!(!css.contains("0.25rem"));
+    // イシュー #1702 で `trigger` も同トークンへ揃え済みのため、
+    // trigger・item・sub-trigger の計 3 回が期待値になる。
+    assert_eq!(
+        css.matches("border-radius: var(--fandhe-radius-sm);")
+            .count(),
+        3,
+        "expected radius-sm on trigger, item, and sub-trigger"
+    );
+}
+
+#[test]
+fn stylesheet_declares_item_group_label_uses_xs_font_size() {
+    // イシュー #1703: `item-group-label` の `font-size` を
+    // `var(--fandhe-font-font-size-sm)` から
+    // `var(--fandhe-font-font-size-xs)` へ変更し、`crate::menu`・select の
+    // canonical 形へ整合させた。
+    let css = menubar::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"menubar\"][data-part=\"item-group-label\"] {\n  color: var(--fandhe-color-fg-muted);\n  font-size: var(--fandhe-font-font-size-xs);\n"
+    ));
+}
+
+#[test]
+fn stylesheet_declares_separator_uses_border_muted_token() {
+    // イシュー #1703: `separator` の `border-top` の色を
+    // `var(--fandhe-color-border)` から `var(--fandhe-color-border-muted)`
+    // へ変更し、`crate::menu` の `separator` canonical 形へ整合させた。
+    let css = menubar::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"menubar\"][data-part=\"separator\"] {\n  border: 0;\n  border-top: 1px solid var(--fandhe-color-border-muted);\n"
+    ));
+}
