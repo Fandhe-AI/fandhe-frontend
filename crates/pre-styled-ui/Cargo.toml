@@ -926,7 +926,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # 双方が同一バージョン 0.63.1 へ独立到達する偶発的衝突が生じたため、
 # これをそのまま採用せず 0.63.2 へさらに patch バンプする（同型の衝突
 # 回避は本ファイル内の既存記録〔#1539/#1541/#1679/#1681 等〕と同じ扱い）。
-version = "0.63.2"
+# イシュー #1545（toast のスタイル調整 2/2 — アクション・クローズ
+# トリガー・スタック時の配置と遷移）は `close-trigger` の公開契約を
+# フロー配置（`align-self: flex-end` のみ）から `root` 右上への
+# `position: absolute` ゴーストアイコンボタン化（固定正方 +
+# `overflow: hidden`）へ変更する。既存利用者がテキスト children を
+# 渡していた場合の描画が変わる観測可能な破壊的変更のため
+# `crate::dialog`（0.59.0）/`crate::drawer` と同型にマイナーバンプする
+# （0.63.2 → 0.64.0、0.x の破壊的変更はマイナーバンプの規約）。base
+# （main）側で feat/1542-tabs-style とのマージ衝突回避により 0.63.2 へ
+# 先着済みのため、本イシューはその上へマイナーバンプする（起点を
+# 0.63.1 から 0.63.2 へ読み替え）。
+version = "0.64.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

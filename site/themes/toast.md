@@ -13,4 +13,15 @@
 > `.pre-styled-showcase` スコープ）でページの流れの中へ収めています。実アプリケーション
 > での overlay 配置は pre-styled-ui の recipe CSS がそのまま担います。
 
+`close_trigger` はアイコン専用の契約です。固定正方（右上絶対配置）+
+`overflow: hidden` のため、テキストを渡しても切り詰められます。
+`close_trigger(vec![("aria-label", "Close")], vec![text("×")])` のように、
+1〜2 文字のグリフと `aria-label` の組み合わせで呼び出してください。
+
+`action_trigger` は outline 小ボタンとして表示され、hover / キーボード操作時の
+フォーカスリング / disabled 状態のスタイルを備えます:
+`action_trigger(vec![], vec![text("Update")])`。ネイティブ `<button disabled>`
+のみが disabled 状態を反映します（headless 層が `data-disabled` を発行しない
+ため）。
+
 関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

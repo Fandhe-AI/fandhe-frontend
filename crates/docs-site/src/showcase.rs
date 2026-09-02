@@ -4523,21 +4523,28 @@ fn toast_section() -> Node {
         entries
             .iter()
             .map(|(status, title, description)| {
-                toast::root(
-                    *status,
-                    vec![],
-                    vec![
-                        toast::title(vec![], vec![text(*title)]),
-                        toast::description(vec![], vec![text(*description)]),
-                        toast::close_trigger(vec![("aria-label", "Dismiss")], vec![text("×")]),
-                    ],
-                )
+                // イシュー #1545: 1 件目（Info）のみ action-trigger を含め、
+                // outline 小ボタンの見た目（hover/focus/disabled/transition）
+                // が Demo で確認できるようにする（Anatomy 表・`data-*` 属性表
+                // の機械導出元）。
+                let mut children = vec![
+                    toast::title(vec![], vec![text(*title)]),
+                    toast::description(vec![], vec![text(*description)]),
+                ];
+                if *status == ToastStatus::Info {
+                    children.push(toast::action_trigger(vec![], vec![text("Update")]));
+                }
+                children.push(toast::close_trigger(
+                    vec![("aria-label", "Dismiss")],
+                    vec![text("×")],
+                ));
+                toast::root(*status, vec![], children)
             })
             .collect(),
     );
     section(
         "Toast",
-        "headless-ui の Toast（`role=\"status\"` + `aria-live`（`error` のみ `assertive`）+ `aria-atomic=\"true\"`）に pre-styled-ui の placement（`group` slot）/status（`root` slot）variant CSS を適用した静的掲示です。複数通知の有界キュー管理・自動 dismiss のタイマー配線は wasm 層の後続イシューのスコープ外です。",
+        "headless-ui の Toast（`role=\"status\"` + `aria-live`（`error` のみ `assertive`）+ `aria-atomic=\"true\"`）に pre-styled-ui の placement（`group` slot）/status（`root` slot）/action-trigger・close-trigger（hover/focus/disabled）variant CSS を適用した静的掲示です。複数通知の有界キュー管理・自動 dismiss のタイマー配線は wasm 層の後続イシューのスコープ外です。",
         vec![group],
     )
 }

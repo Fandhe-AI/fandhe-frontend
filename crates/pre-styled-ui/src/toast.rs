@@ -86,16 +86,86 @@
 //! - `examples/headless-pre-styled-ui` showcase への追随は、本イシューによる
 //!   headless-ui/pre-styled-ui のバージョン公開後の別 PR で行う（`.claude/rules/ci.md`
 //!   の crates.io バージョン依存前提を参照。#677 の先行例と同じ運用）。
-//! - `action-trigger`/`close-trigger` のスタイル（hover/focus/disabled）・
-//!   `group` slot のスタック配置・enter/exit 遷移（`prefers-reduced-motion`
-//!   込み）は親 issue #1543 の 2/2（#1545）が担当する（本イシュー #1544
-//!   は 1/2 = `root` slot の枠・status 別配色のみ）。
 //! - `alert.rs` の配色を同じ 6 役割淡色面へ揃える是正は #1553（既存
 //!   open issue）で別途検討する。
+//! - JS 連動のスタック重ね表示（ark-ui の `--x`/`--y`/`--scale` 等）・
+//!   スワイプ dismiss・indicator slot は anatomy 変更・JS 前提のため
+//!   本イシュー（#1545）でも実装しない。
+//! - `fandhe-frontend-wasm-full` 側の dispatch 配線は変わらず別イシュー
+//!   のスコープ。
+//!
+//! # イシュー #1545（action-trigger/close-trigger のスタイル・スタック配置・enter 遷移）
+//!
+//! 親 issue #1543 の 2/2。1/2（#1544）が `root` slot の枠・status 別淡色面
+//! 配色を完了させたのに続き、本イシューは以下を実装する。
+//!
+//! - **`close-trigger` のアイコン専用契約への破壊的変更**: `crate::dialog`
+//!   （イシュー #1693/PR #1795）と同型で、フロー配置（`align-self: flex-end`
+//!   のみ）から `root` 右上への `position: absolute` ゴーストアイコンボタン
+//!   化へ変更する。`box-sizing: border-box` + 固定正方
+//!   （`--fandhe-space-8`）+ `overflow: hidden` により、誤ってテキスト
+//!   children を渡しても正方形の枠内で切り詰められる。これは 0.x の
+//!   破壊的変更（既存利用者がテキストを渡していた場合の描画が変わる）
+//!   のためマイナーバンプ（0.64.0）で公開する。呼び出し側は
+//!   `close_trigger(vec![("aria-label", "Close")], vec![text("×")])` の
+//!   ようにアイコン + `aria-label` の組み合わせで渡すこと。
+//! - **`action-trigger` の新規スタイル**: outline 小ボタン（`--fandhe-palette-muted`
+//!   をフォールバック付きで枠線に使う。1/2 が 6 役割淡色面を `root` へ
+//!   束ねたのは、この参照が同じ変数群から続けて行えるようにするため）。
+//! - **hover/focus/disabled/transition**: 両トリガーとも `crate::recipe`
+//!   の共通ビジュアル言語（イシュー #1425/#1424）ヘルパを使う。
+//!   - hover: `--fandhe-hover-bg: var(--fandhe-palette-muted, var(--fandhe-color-bg-muted))`
+//!     を base で定義し `hover_surface_declarations()` を `StateCondition::Hover`
+//!     へ登録（status 未付与の neutral root では `--fandhe-palette-muted`
+//!     未定義のため `--fandhe-color-bg-muted` へフォールバックする）。
+//!   - focus: `focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside)`
+//!     （toast は `ColorPalette` 軸を公開しないため `Token` を選ぶ）。
+//!   - disabled: `action-trigger` のみ（`close-trigger` は disabled 概念を
+//!     持たない、`crate::popover` と同判断）。headless
+//!     `fandhe_frontend_headless_ui::toast::action_trigger` はネイティブ
+//!     `<button disabled>` のみを発行し `data-disabled` は発行しない
+//!     （#1643 の判断領域）ため、`StateCondition::Attr("disabled")` が実効
+//!     経路であり、`StateCondition::Attr("data-disabled")` は語彙統一の
+//!     前進として登録するのみの無害な死んだ規則（`crate::steps` の
+//!     `prev-trigger`/`next-trigger` と同型パターン）。
+//!   - transition: 両トリガー base に `transition_declarations(..., MotionDuration::Fast)`。
+//!     `prefers-reduced-motion` は duration トークンが 0ms 化される
+//!     `Theme::to_css` の一括対応で自動充足する（per-recipe `@media` は
+//!     書かない方針、`docs/design/pre-styled-ui-interaction-visual-language.md`）。
+//! - **`group`/`root` のスタック配置**: `group` base に `box-sizing:
+//!   border-box`/`max-width: 100vw` を追加。`root` の `min-width: min(18rem,
+//!   100%)` を `width: 24rem` へ置換し、スタック内の全通知幅を
+//!   揃える（1/2 が「固定幅化は本イシューへ委ねる」と明記していた項目）。
+//!   `100%` 側の`min()`は撤去した（PR #1818 Bugbot 指摘: `group` が
+//!   `position: fixed` で shrink-to-fit の不定幅であるため `100%` は
+//!   循環参照で解決不能・無視される。狭幅ビューポートでの縮小は
+//!   `max-width: calc(100vw - var(--fandhe-space-8))` に委ねる）。
+//!   `root` へ `position: relative`（`close-trigger` の絶対配置基準）と
+//!   `padding-inline-end: var(--fandhe-space-10)`（`close-trigger` との
+//!   重なり回避）も追加する。キュー上限は `Toaster::new(max, …)` が担うため
+//!   `max-height`/`overflow` は意図的に付けない（合わせない点として明記）。
+//! - **enter 遷移**: `root` base に `@keyframes fd-toast-enter`
+//!   （opacity 0→1 + `translate` を `--fandhe-toast-enter-translate`
+//!   経由でスライドイン）を `animation` として追加する。`placement`
+//!   variant（`group` slot、`root` は継承で参照）が `top-*` 系は
+//!   `0 calc(-1 * var(--fandhe-space-2))`、`bottom-*` 系は
+//!   `0 var(--fandhe-space-2)` を定義する。headless root は `data-state` を
+//!   発行せず mount/unmount で即時出し入れされるため、`data-state` 条件なしの
+//!   base animation でも mount 時のスライドインは機能する。
+//! - **exit 遷移は実装しない（スコープ外）**: headless root は unmount 時に
+//!   DOM から即時除去され `data-state="closed"` のような遷移用の中間状態を
+//!   発行しない（`fandhe_frontend_headless_ui::toast` rustdoc 参照）。
+//!   `crate::dialog`（#1795）/`crate::drawer`（#1695）の codex-review 確定
+//!   判断「機能しない transition を謳わない」を継承し、headless 側が
+//!   `data-state` を発行する語彙拡張（#1643 の判断領域）を待つ。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{palette_scale_declarations, ColorPalette, SlotRecipe, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_surface_declarations,
+    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, MotionDuration, SlotRecipe, StateCondition, VariantValue,
+};
 
 // `Toaster` 状態機械・headless 自由関数 `group`/`root` はあえて再エクスポート
 // しない（本モジュール冒頭の rustdoc「選択的 re-export」節参照）。状態管理・
@@ -140,6 +210,23 @@ impl VariantValue for ToastStatus {
     }
 }
 
+/// `root` の mount 時スライドイン（イシュー #1545）に使う `@keyframes` 名
+/// リテラル。`decl()` が要求する `&'static str` は実行時 `format!` で組み
+/// 立てられないため、リテラルの単一情報源をマクロとして持ち、
+/// [`ENTER_KEYFRAMES_NAME`]（値としての参照・`format!` 用）と [`recipe`] の
+/// `animation` 宣言（`concat!` によるコンパイル時連結）の両方がこのマクロ
+/// 経由で同一文字列を得る（`crate::progress` の `spin_keyframes_name_lit!`
+/// と同型のパターン）。
+macro_rules! enter_keyframes_name_lit {
+    () => {
+        "fd-toast-enter"
+    };
+}
+
+/// [`enter_keyframes_name_lit`] を単一情報源として生成する `@keyframes` 名
+/// （[`stylesheet`] が追記する `@keyframes` ブロックの識別子として使う）。
+const ENTER_KEYFRAMES_NAME: &str = enter_keyframes_name_lit!();
+
 /// `status` に対応する [`ColorPalette`] から、`root` slot への宣言列を
 /// 組み立てる（イシュー #1544）。[`palette_scale_declarations`]（6 役割
 /// 束ね、イシュー #1678）を土台に、淡色面（tint）方式の 3 面宣言
@@ -178,6 +265,11 @@ fn recipe() -> SlotRecipe {
                 decl("gap", "var(--fandhe-space-2)"),
                 decl("padding", "var(--fandhe-space-4)"),
                 decl("pointer-events", "none"),
+                // イシュー #1545: root 側の box-sizing 化に合わせ、group も
+                // 明示する（複合スタック計測時の一貫性のため）。ビューポート
+                // 幅を超えて group 自身が広がらないよう上限を固定する。
+                decl("box-sizing", "border-box"),
+                decl("max-width", "100vw"),
             ],
         )
         .base(
@@ -186,23 +278,45 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
                 decl("gap", "var(--fandhe-space-1)"),
-                // border-box 化により、直後の min-width/max-width が
+                // border-box 化により、直後の width/max-width が
                 // border・padding を含めた外寸を基準に評価されるように
                 // する（codex-review P1 / Bugbot 指摘: content-box のままだと
                 // max-width が content box にのみ適用され、border・padding
                 // 分だけ実際の外寸が calc の想定より広がってしまう）。
                 decl("box-sizing", "border-box"),
-                // 狭幅ビューポート（利用可能幅 < 18rem）では min-width が
-                // max-width を上回って後者を無効化しないよう、利用可能幅を
-                // 上限とする（100% は group の content box 幅。group 自身も
-                // 左右 padding〔space-4 × 2〕を持つため、root の border-box
-                // 全体が group の content box 内に収まる）。
-                decl("min-width", "min(18rem, 100%)"),
+                // イシュー #1545: close-trigger（下記 base）の絶対配置基準。
+                // `crate::dialog`/`crate::drawer` の content と同型。
+                decl("position", "relative"),
+                // イシュー #1545: 1/2（#1544）が「固定幅化は group 側の
+                // スタック配置と密結合のため 2/2 へ委ねる」と明記していた
+                // 項目。スタック内の全通知幅を揃える（chakra sm = 24rem、
+                // Radix 390px 相当）。旧 `min-width: min(18rem, 100%)` は
+                // 通知ごとに幅が揺れていた。
+                //
+                // PR #1818 Bugbot 指摘（Medium）: `group`（`position: fixed`）
+                // は `placement` variant で top/bottom いずれか一方と
+                // left/right/inset-inline-* いずれか一方しか固定しないため、
+                // 生成される containing block の幅は shrink-to-fit（内容依存の
+                // 不定値）になる。不定な containing block に対する子要素側の
+                // パーセンテージ（`min(24rem, 100%)` の `100%` 部分）は
+                // 解決不能で無視される（CSS Sizing の仕様上、不定な利用可能
+                // スペースに対するパーセンテージは auto 相当として扱われる）
+                // ため、この `100%` は事実上効果を持たない。一方 `max-width`
+                // は `100vw` 基準（下記宣言）であり親要素の不定幅に依存せず
+                // 独立して機能するため、`width` 側は素の `24rem` に単純化し、
+                // 狭幅ビューポートでの縮小は既存の `max-width` にのみ委ねる
+                // （`min()` 自体を撤去し、循環参照になり得るパーセンテージを
+                // 持ち込まない）。
+                decl("width", "24rem"),
                 // 狭幅ビューポートで group の左右 padding（space-4 × 2 =
-                // space-8）分を残して収める。固定幅化は group 側の
-                // スタック配置と密結合のため 2/2（#1545）へ委ねる。
+                // space-8）分を残して収める。
                 decl("max-width", "calc(100vw - var(--fandhe-space-8))"),
                 decl("padding", "var(--fandhe-space-4)"),
+                // イシュー #1545: close-trigger（固定正方 --fandhe-space-8 +
+                // 絶対配置オフセット --fandhe-space-2）との重なりを避ける
+                // インライン終端側ガター（`crate::dialog` の title 側ガター
+                // と同型の考え方）。
+                decl("padding-inline-end", "var(--fandhe-space-10)"),
                 // 参照 3 サイト（chakra l2 / ark l2 / Radix 6px）とも md
                 // 相当のため段を変えない。
                 decl("border-radius", "var(--fandhe-radius-md)"),
@@ -217,6 +331,20 @@ fn recipe() -> SlotRecipe {
                 // neutral panel 既定。
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                // イシュー #1545: mount 時のスライドイン（enter 遷移。モジュール
+                // 冒頭 rustdoc「イシュー #1545」節「enter 遷移」参照）。
+                // `--fandhe-toast-enter-translate` は `placement` variant
+                // （group slot）が定義し root へ継承経由で伝わる。テーマ未
+                // 注入時（`--fandhe-motion-duration-normal`/
+                // `--fandhe-motion-easing-standard` 未定義）は `animation`
+                // 宣言全体が無効化され「動かないだけ」の fail-safe。
+                decl(
+                    "animation",
+                    concat!(
+                        enter_keyframes_name_lit!(),
+                        " var(--fandhe-motion-duration-normal) var(--fandhe-motion-easing-standard)"
+                    ),
+                ),
             ],
         )
         .base(
@@ -230,9 +358,77 @@ fn recipe() -> SlotRecipe {
             "description",
             vec![decl("font-size", "var(--fandhe-font-font-size-sm)")],
         )
+        // イシュー #1545: outline 小ボタン（`crate::button` の outline
+        // variant 相当を toast 専用に薄く再構成）。枠線は 1/2（#1544）が
+        // `root` へ束ねた 6 役割淡色面の `--fandhe-palette-muted` を
+        // フォールバック付きで参照し、status variant 未付与（neutral
+        // root）でも `--fandhe-color-border` へ確実にフォールバックする。
+        .base(
+            "action-trigger",
+            [
+                vec![
+                    decl("display", "inline-flex"),
+                    decl("align-items", "center"),
+                    decl("justify-content", "center"),
+                    decl("align-self", "flex-start"),
+                    decl("margin-block-start", "var(--fandhe-space-1)"),
+                    decl("box-sizing", "border-box"),
+                    decl("height", "var(--fandhe-space-8)"),
+                    decl("padding", "0 var(--fandhe-space-3)"),
+                    decl("font-family", "inherit"),
+                    decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                    decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                    decl("line-height", "var(--fandhe-font-line-height-tight)"),
+                    decl("color", "inherit"),
+                    decl("background", "transparent"),
+                    decl(
+                        "border",
+                        "1px solid var(--fandhe-palette-muted, var(--fandhe-color-border))",
+                    ),
+                    decl("border-radius", "var(--fandhe-radius-md)"),
+                    decl("cursor", "pointer"),
+                    decl(
+                        "--fandhe-hover-bg",
+                        "var(--fandhe-palette-muted, var(--fandhe-color-bg-muted))",
+                    ),
+                ],
+                transition_declarations("background, border-color", MotionDuration::Fast),
+            ]
+            .concat(),
+        )
+        // イシュー #1545: `crate::dialog`（#1693/#1795）と同型の絶対配置
+        // アイコン専用ゴーストボタン化（モジュール冒頭 rustdoc「イシュー
+        // #1545」節参照）。`box-sizing: border-box` + `width`/`height` の
+        // 実占有サイズ確定 + `overflow: hidden` により、誤ってテキスト
+        // children を渡しても正方形の枠内で切り詰められる。
         .base(
             "close-trigger",
-            vec![decl("cursor", "pointer"), decl("align-self", "flex-end")],
+            [
+                vec![
+                    decl("position", "absolute"),
+                    decl("inset-block-start", "var(--fandhe-space-2)"),
+                    decl("inset-inline-end", "var(--fandhe-space-2)"),
+                    decl("display", "inline-flex"),
+                    decl("align-items", "center"),
+                    decl("justify-content", "center"),
+                    decl("box-sizing", "border-box"),
+                    decl("width", "var(--fandhe-space-8)"),
+                    decl("height", "var(--fandhe-space-8)"),
+                    decl("overflow", "hidden"),
+                    decl("border", "none"),
+                    decl("border-radius", "var(--fandhe-radius-sm)"),
+                    decl("background", "transparent"),
+                    decl("padding", "var(--fandhe-space-1)"),
+                    decl("cursor", "pointer"),
+                    decl("color", "inherit"),
+                    decl(
+                        "--fandhe-hover-bg",
+                        "var(--fandhe-palette-muted, var(--fandhe-color-bg-muted))",
+                    ),
+                ],
+                transition_declarations("background", MotionDuration::Fast),
+            ]
+            .concat(),
         )
         .variant(
             ToastPlacement::TopStart,
@@ -249,6 +445,15 @@ fn recipe() -> SlotRecipe {
                 // は base の `column` のままで正しい。上から順に「新しい
                 // ほど下」で追加順と一致する）。
                 decl("flex-direction", "column-reverse"),
+                // イシュー #1545: enter 遷移のスライド方向（`root` base の
+                // `animation` が `translate: var(--fandhe-toast-enter-translate, ...)`
+                // として参照する。CSS カスタムプロパティの通常継承で
+                // group → root へ伝わる、モジュール冒頭 rustdoc 参照）。
+                // top 系は画面端（上端）から下向きへスライドインする。
+                decl(
+                    "--fandhe-toast-enter-translate",
+                    "0 calc(-1 * var(--fandhe-space-2))",
+                ),
             ],
         )
         .variant(
@@ -264,6 +469,10 @@ fn recipe() -> SlotRecipe {
                 decl("align-items", "center"),
                 // 上記 TopStart と同じ理由（最新 toast を上端に寄せる）。
                 decl("flex-direction", "column-reverse"),
+                decl(
+                    "--fandhe-toast-enter-translate",
+                    "0 calc(-1 * var(--fandhe-space-2))",
+                ),
             ],
         )
         .variant(
@@ -275,6 +484,10 @@ fn recipe() -> SlotRecipe {
                 decl("align-items", "flex-end"),
                 // 上記 TopStart と同じ理由（最新 toast を上端に寄せる）。
                 decl("flex-direction", "column-reverse"),
+                decl(
+                    "--fandhe-toast-enter-translate",
+                    "0 calc(-1 * var(--fandhe-space-2))",
+                ),
             ],
         )
         .variant(
@@ -284,6 +497,8 @@ fn recipe() -> SlotRecipe {
                 decl("bottom", "0"),
                 decl("inset-inline-start", "0"),
                 decl("align-items", "flex-start"),
+                // bottom 系は画面端（下端）から上向きへスライドインする。
+                decl("--fandhe-toast-enter-translate", "0 var(--fandhe-space-2)"),
             ],
         )
         .variant(
@@ -295,6 +510,7 @@ fn recipe() -> SlotRecipe {
                 decl("left", "50%"),
                 decl("transform", "translateX(-50%)"),
                 decl("align-items", "center"),
+                decl("--fandhe-toast-enter-translate", "0 var(--fandhe-space-2)"),
             ],
         )
         .variant(
@@ -304,6 +520,7 @@ fn recipe() -> SlotRecipe {
                 decl("bottom", "0"),
                 decl("inset-inline-end", "0"),
                 decl("align-items", "flex-end"),
+                decl("--fandhe-toast-enter-translate", "0 var(--fandhe-space-2)"),
             ],
         )
         .default_variant(ToastPlacement::BottomEnd)
@@ -328,13 +545,81 @@ fn recipe() -> SlotRecipe {
             status_declarations(ColorPalette::Danger),
         )
         .default_variant(ToastStatus::Info)
+        // イシュー #1545: action-trigger の disabled（headless
+        // `action_trigger` はネイティブ `disabled` のみ発行し `data-disabled`
+        // は発行しない、モジュール冒頭 rustdoc「イシュー #1545」節参照。
+        // `crate::steps` の `prev-trigger`/`next-trigger` と同型に両方
+        // 登録し、`data-disabled` 側は語彙統一の前進として無害に登録する）。
+        .state(
+            "action-trigger",
+            StateCondition::Attr("disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "action-trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // イシュー #1545: キーボード操作時のみのフォーカスリング
+        // （`ColorPalette` 軸を toast は公開しないため `Token` を選ぶ、
+        // `crate::dialog` の trigger/close-trigger と同じ選択）。
+        .state(
+            "action-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        .state(
+            "close-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // イシュー #1545: hover 時の背景（`--fandhe-hover-bg` は上記 base が
+        // 定義。`StateCondition::Hover` は自動的に `:not([data-disabled])`
+        // を伴うためタッチ端末の hover 貼り付き・disabled 要素での誤発火を
+        // 避ける）。
+        //
+        // `action-trigger` のみ `StateCondition::HoverExceptAttr("disabled")`
+        // を使う（PR #1818 codex-review P1 / Bugbot 指摘対応）: headless
+        // `action_trigger` はネイティブ `<button disabled>` のみを発行し
+        // `data-disabled` は発行しない（上記モジュール doc「disabled」節・
+        // 545 行目付近の disabled 登録と同じ前提）ため、`Hover` 単体が
+        // 伴う `:not([data-disabled])` だけでは `[disabled]` 要素を除外
+        // できず、disabled な action-trigger にポインタを重ねると hover
+        // 背景が変化してしまっていた。`HoverExceptAttr("disabled")` は
+        // `:hover:not([data-disabled]):not([disabled])` を生成し、直前で
+        // 登録した `disabled_declarations()`（`[disabled]`/`[data-disabled]`
+        // 両方）と矛盾なく disabled 状態の見た目を安定させる。
+        .state(
+            "action-trigger",
+            StateCondition::HoverExceptAttr("disabled"),
+            hover_surface_declarations(),
+        )
+        .state(
+            "close-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
 }
 
 /// この styled Toast が生成する静的 CSS 全量を返す（決定的。
 /// [`crate::switch::stylesheet`]/[`crate::avatar`] と同じ契約）。
+///
+/// recipe が生成する規則群に続けて、`root` base の `animation` 宣言が参照
+/// する `@keyframes`（[`ENTER_KEYFRAMES_NAME`]）を固定文字列として追記する
+/// （`crate::progress::stylesheet` と同型のパターン）。値はソースコード中の
+/// リテラルのみで構成され、外部入力は一切混入しない（静的リテラルのみを
+/// 連結する経路は `.claude/rules/coding-rust.md` の HTML/CSS 文字列直接
+/// 組み立て禁止規約の対象外、`crate::progress::stylesheet` と同じ根拠）。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out.push_str(&format!(
+        "@keyframes {ENTER_KEYFRAMES_NAME} {{\n  from {{\n    opacity: 0;\n    translate: var(--fandhe-toast-enter-translate, 0 var(--fandhe-space-2));\n  }}\n  to {{\n    opacity: 1;\n    translate: 0 0;\n  }}\n}}\n"
+    ));
+    out
 }
 
 /// styled group パーツを組み立てる。`placement` に応じたクラスを付与する
@@ -454,14 +739,16 @@ mod tests {
         assert!(css.contains("border-radius: var(--fandhe-radius-md);"));
         assert!(css.contains("padding: var(--fandhe-space-4);"));
         assert!(css.contains("max-width: calc(100vw - var(--fandhe-space-8));"));
-        // box-sizing: border-box 化と min-width の利用可能幅上限化
-        // （codex-review P1 / Bugbot 指摘、#1544）: border-box なしでは
-        // max-width が content box にのみ適用され border・padding 分だけ
-        // 外寸が広がる。min-width も 100% 上限がないと max-width より
-        // 優先され狭幅ビューポートで縮小されない。
+        // box-sizing: border-box 化（codex-review P1 / Bugbot 指摘、#1544）:
+        // border-box なしでは max-width が content box にのみ適用され
+        // border・padding 分だけ外寸が広がる。
         assert!(css.contains("box-sizing: border-box;"));
-        assert!(css.contains("min-width: min(18rem, 100%);"));
+        // イシュー #1545: width 固定化（旧 min-width の揺れを解消し、
+        // スタック内の全通知幅を揃える）。
+        assert!(css.contains("width: 24rem;"));
         assert!(css.contains("color: var(--fandhe-color-fg);"));
+        assert!(css.contains("position: relative;"));
+        assert!(css.contains("padding-inline-end: var(--fandhe-space-10);"));
     }
 
     #[test]
@@ -469,6 +756,109 @@ mod tests {
         let css = stylesheet();
         assert!(!css.contains('#'));
         assert!(!css.contains("rgb("));
+    }
+
+    // --- イシュー #1545: action-trigger/close-trigger/enter 遷移 ---
+
+    #[test]
+    fn stylesheet_declares_enter_keyframes_and_root_animation() {
+        let css = stylesheet();
+        assert!(css.contains(&format!("@keyframes {ENTER_KEYFRAMES_NAME} {{")));
+        assert!(css.contains(
+            "animation: fd-toast-enter var(--fandhe-motion-duration-normal) var(--fandhe-motion-easing-standard);"
+        ));
+        assert!(css.contains("opacity: 0;"));
+        assert!(css.contains("opacity: 1;"));
+        assert!(css
+            .contains("translate: var(--fandhe-toast-enter-translate, 0 var(--fandhe-space-2));"));
+        assert!(css.contains("translate: 0 0;"));
+    }
+
+    #[test]
+    fn triggers_have_hover_focus_ring_and_transition() {
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="toast"][data-part="close-trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="toast"][data-part="action-trigger"]:hover:not([data-disabled]):not([disabled]) {"#
+        ));
+        assert!(css.contains(r#"[data-scope="toast"][data-part="close-trigger"]:focus-visible {"#));
+        assert!(css.contains(r#"[data-scope="toast"][data-part="action-trigger"]:focus-visible {"#));
+        assert!(css.contains("outline: var(--fandhe-focus-ring-width, 2px)"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+    }
+
+    #[test]
+    fn close_trigger_is_absolutely_positioned_icon_button() {
+        let css = stylesheet();
+        let start = css
+            .find(r#"[data-scope="toast"][data-part="close-trigger"] {"#)
+            .expect("close-trigger base rule must be present");
+        let end = css[start..].find('}').unwrap() + start;
+        let rule = &css[start..end];
+        assert!(rule.contains("position: absolute;"));
+        assert!(rule.contains("inset-inline-end: var(--fandhe-space-2);"));
+        assert!(rule.contains("overflow: hidden;"));
+        assert!(rule.contains("width: var(--fandhe-space-8);"));
+        assert!(rule.contains("height: var(--fandhe-space-8);"));
+        assert!(!rule.contains("align-self: flex-end;"));
+    }
+
+    #[test]
+    fn action_trigger_disabled_rules_present() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="toast"][data-part="action-trigger"][disabled] {"#));
+        assert!(
+            css.contains(r#"[data-scope="toast"][data-part="action-trigger"][data-disabled] {"#)
+        );
+        assert!(css.contains("opacity: 0.5;"));
+        assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    // PR #1818 codex-review P1 / Bugbot 指摘（イシュー #1545）: disabled な
+    // action-trigger（headless がネイティブ `[disabled]` のみを発行する
+    // 経路）にポインタを重ねても hover 背景が変化しないことを固定する。
+    // `StateCondition::Hover` 単体が伴う `:not([data-disabled])` だけでは
+    // `[disabled]` を除外できないため、この回帰テストが再発を検知する。
+    #[test]
+    fn action_trigger_hover_excludes_native_disabled_attribute() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="toast"][data-part="action-trigger"]:hover:not([data-disabled]):not([disabled]) {"#
+        ));
+        assert!(!css.contains(
+            r#"[data-scope="toast"][data-part="action-trigger"]:hover:not([data-disabled]) {"#
+        ));
+    }
+
+    #[test]
+    fn placement_variants_define_enter_translate() {
+        let css = stylesheet();
+        for placement in ["top-start", "top", "top-end"] {
+            let needle = format!(".fd-toast--placement-{placement} {{");
+            let start = css
+                .find(&needle)
+                .unwrap_or_else(|| panic!("missing placement variant rule for {placement}: {css}"));
+            let end = css[start..].find('}').unwrap() + start;
+            assert!(
+                css[start..end].contains("calc(-1 *"),
+                "top-series placement={placement} must translate upward"
+            );
+        }
+        for placement in ["bottom-start", "bottom", "bottom-end"] {
+            let needle = format!(".fd-toast--placement-{placement} {{");
+            let start = css
+                .find(&needle)
+                .unwrap_or_else(|| panic!("missing placement variant rule for {placement}: {css}"));
+            let end = css[start..].find('}').unwrap() + start;
+            assert!(
+                css[start..end]
+                    .contains("--fandhe-toast-enter-translate: 0 var(--fandhe-space-2);"),
+                "bottom-series placement={placement} must translate from below"
+            );
+        }
     }
 
     #[test]
