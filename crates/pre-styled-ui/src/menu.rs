@@ -197,6 +197,71 @@
 //!   申し送っていたが、select 2/2・combobox 2/2 と同じく accent トークン
 //!   直による highlight を維持し palette 軸は追加しない（同型部品間の
 //!   一貫性優先。ダーク側はトークン再定義経由で自動成立する）。
+//!
+//! # 担当パートの是正（イシュー #1527、親 #1524 の 3/3 分割）
+//!
+//! **スコープ解釈の注記**: イシュータイトルの「option-item」は headless
+//! `menu` anatomy（`ANATOMY.part(...)` 一覧参照）に存在しないパート名
+//! である。2/3（#1526）が rustdoc に残した同型のスコープ解釈（「item-text
+//! / item-indicator は anatomy に存在しない」）に倣い、「option-item =
+//! checkbox-item / radio-item（ark-ui 旧世代の Option Item 呼称由来と
+//! みられる）」と読み替え、1/3・2/3 の rustdoc が申し送った分担
+//! （`checkbox_item`/`radio_item`/`trigger_item` 系 = 3/3）に従う。
+//!
+//! 本イシュー着手時点で `SLOTS` に `trigger-item`/`context-trigger`/
+//! `checkbox-item`/`radio-item-group`/`radio-item` の 5 パートが未登録
+//! （headless `ANATOMY.part(...)` には存在するが CSS が一切当たっていな
+//! い状態）だったため、以下のとおり是正した。
+//!
+//! - **`checkbox-item` / `radio-item`**: `item`（2/3 是正）と同型の
+//!   レイアウト（`display: flex` / `align-items: center` /
+//!   `gap: var(--fandhe-space-2)` / `border-radius: var(--fandhe-radius-sm)`
+//!   / [`crate::recipe::hover_bg_muted`] / transition）。padding は size
+//!   variant の root スコープ変数 `--fandhe-menu-item-padding` を `item`
+//!   と共有するため、variant 定義自体の追加は不要（size は自動適用され
+//!   る）。headless（`crates/headless-ui/src/menu.rs::checkbox_item` /
+//!   `radio_item`）が反映する `data-state="checked"` を select/listbox の
+//!   選択済み表示（`crate::select`/`crate::listbox` 参照）と同一強度の
+//!   `--fandhe-color-bg-muted` で表現し、highlight（accent 背景、`item`
+//!   と同型）より弱い視覚的重みにして区別する。state 登録順は
+//!   checked → highlighted → disabled → hover（同 specificity の後勝ちで
+//!   highlight が checked を上書きできる順序、2/3 の `item` と同型）。
+//! - **`trigger-item`**: menubar `sub-trigger`（`crate::menubar`）+ `item`
+//!   の合成。`justify-content: space-between` はサブメニュー示唆の子要素
+//!   を右端へ寄せる menubar 先例を踏襲。headless
+//!   （`crates/headless-ui/src/menu.rs::trigger_item`）が反映する
+//!   `data-state="open"`（サブメニュー側の開閉状態）を menubar
+//!   `sub-trigger` の open 表示（`--fandhe-color-accent-subtle`）と同型で
+//!   表現する。登録順は open → highlighted → disabled → hover（menubar と
+//!   同じく highlight が open を後勝ちで上書きする順序）。
+//! - **`context-trigger`**: 1/3（#1525）が是正した `trigger` と同型
+//!   （cursor / bg / fg / border / `border-radius: var(--fandhe-radius-md)`
+//!   / padding / hover / transition / open 時の border-color /
+//!   `:focus-visible` リング / hover）。**disabled 規則は登録しない**:
+//!   headless `context_trigger`（`crates/headless-ui/src/menu.rs`）は
+//!   disabled 引数を持たず `data-disabled` が決して付与されないため、
+//!   vacuous な規則を置かない。
+//! - **`radio-item-group`**: 規則なし（意図的な非対応）。`item-group`
+//!   （2/3 是正で「参照サイトでも構造コンテナのみで独自視覚なし」と判断
+//!   済み）と同じ判断を踏襲する。`role="group"` の構造コンテナであり
+//!   独自の視覚状態を持たない。
+//!
+//! **ネスト時のサブメニュー配置は静的 CSS で対応しない（意図的な非対応）**:
+//! menubar `sub-content`（`top: 0; left: 100%` の side 配置）と異なり、
+//! menu のサブメニューは親 `content` 内に子 Menu インスタンス由来の
+//! `trigger-item`/`positioner`/`content` を入れ子配置する構成であり、
+//! ネスト側も**同一の `data-part` 名**を持つ。理由は 3 点:
+//! (1) [`crate::recipe::SlotRecipe`] は子孫セレクタ機構を意図的に持たない
+//! （#708 確定、`crate::recipe::StateCondition::NthChildEven` rustdoc
+//! 参照）ため、同一 part 名のネスト深さによる区別が静的 CSS では表現でき
+//! ない。(2) 実行時配置は既存の `positioner[data-positioned]` 規則
+//! （wasm positioning 契約、#663/#588、本モジュール rustdoc 参照）が
+//! ネストした positioner にもそのまま適用されるため、ランタイムの
+//! サブメニュー配置は既存 CSS で成立する。(3) SSR 静的フォールバックでは
+//! 既存の `top: 100%; left: 0` が適用され表示は壊れない（fail-closed）。
+//! `content` への `position: relative` 追加（menubar PR #1000 型）も、
+//! arrow の配置基準（`--fandhe-arrow-x/y` の解決先）へ影響し得るため本
+//! イシューでは行わない。
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
@@ -241,6 +306,11 @@ const SLOTS: &[&str] = &[
     "item-group",
     "item-group-label",
     "separator",
+    "trigger-item",
+    "context-trigger",
+    "checkbox-item",
+    "radio-item-group",
+    "radio-item",
 ];
 
 /// この styled Menu の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
@@ -368,6 +438,93 @@ fn recipe() -> SlotRecipe {
                 decl("margin", "var(--fandhe-space-2) 0"),
             ],
         )
+        // イシュー #1527: checkbox-item / radio-item は `item` と同型の
+        // レイアウト（size variant の root スコープ変数 `--fandhe-menu-item-padding`
+        // を共有するため、variant 定義自体の追加は不要。モジュール rustdoc
+        // 「担当パートの是正（#1527）」節参照）。
+        .base(
+            "checkbox-item",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl(
+                    "padding",
+                    "var(--fandhe-menu-item-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
+                ),
+                decl("cursor", "pointer"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
+            ],
+        )
+        .base(
+            "checkbox-item",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        .base(
+            "radio-item",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl(
+                    "padding",
+                    "var(--fandhe-menu-item-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
+                ),
+                decl("cursor", "pointer"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
+            ],
+        )
+        .base(
+            "radio-item",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        // イシュー #1527: trigger-item は menubar `sub-trigger`（`crates/
+        // pre-styled-ui/src/menubar.rs`）と `item` の合成。サブメニュー示唆
+        // の子要素（インジケータ等）を右端へ寄せる `justify-content:
+        // space-between` を menubar 先例から踏襲する。
+        .base(
+            "trigger-item",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "space-between"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl(
+                    "padding",
+                    "var(--fandhe-menu-item-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
+                ),
+                decl("cursor", "pointer"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                hover_bg_muted(),
+            ],
+        )
+        .base(
+            "trigger-item",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        // イシュー #1527: context-trigger は `trigger` と同型（1/3 の
+        // `trigger` 是正を踏襲、モジュール rustdoc 参照）。
+        .base(
+            "context-trigger",
+            vec![
+                decl("cursor", "pointer"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl(
+                    "padding",
+                    "var(--fandhe-menu-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
+                ),
+                hover_bg_muted(),
+            ],
+        )
+        .base(
+            "context-trigger",
+            transition_declarations("border-color, background, color", MotionDuration::Fast),
+        )
         // イシュー #551 受け入れ条件: `trigger`/`content` の開閉状態に応じた見た目の切り替え。
         .state(
             "trigger",
@@ -464,6 +621,105 @@ fn recipe() -> SlotRecipe {
                     "translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0)",
                 ),
             ],
+        )
+        // イシュー #1527: checkbox-item / radio-item の checked 表示。select/
+        // listbox の選択済み表示（`--fandhe-color-bg-muted`）と同一強度にし、
+        // highlight（accent）より弱い視覚的重みにする（モジュール rustdoc
+        // 参照）。登録順は checked → highlighted → disabled → hover
+        // （同 specificity の後勝ちで highlight が checked を上書きできる
+        // 順序、2/3 の `item` と同型）。
+        .state(
+            "checkbox-item",
+            StateCondition::AttrEq("data-state", "checked"),
+            vec![decl("background", "var(--fandhe-color-bg-muted)")],
+        )
+        .state(
+            "checkbox-item",
+            StateCondition::Attr("data-highlighted"),
+            vec![
+                decl("background", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-color-accent-fg)"),
+            ],
+        )
+        .state(
+            "checkbox-item",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "checkbox-item",
+            StateCondition::HoverExceptAttr("data-highlighted"),
+            hover_surface_declarations(),
+        )
+        .state(
+            "radio-item",
+            StateCondition::AttrEq("data-state", "checked"),
+            vec![decl("background", "var(--fandhe-color-bg-muted)")],
+        )
+        .state(
+            "radio-item",
+            StateCondition::Attr("data-highlighted"),
+            vec![
+                decl("background", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-color-accent-fg)"),
+            ],
+        )
+        .state(
+            "radio-item",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "radio-item",
+            StateCondition::HoverExceptAttr("data-highlighted"),
+            hover_surface_declarations(),
+        )
+        // イシュー #1527: trigger-item のサブメニュー開閉表示。menubar
+        // `sub-trigger` 先例（`crates/pre-styled-ui/src/menubar.rs`）に倣い
+        // open 状態を accent-subtle 背景で示す。登録順は open → highlighted
+        // → disabled → hover（menubar と同じく highlight が open を後勝ちで
+        // 上書きする順序）。
+        .state(
+            "trigger-item",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("background", "var(--fandhe-color-accent-subtle)")],
+        )
+        .state(
+            "trigger-item",
+            StateCondition::Attr("data-highlighted"),
+            vec![
+                decl("background", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-color-accent-fg)"),
+            ],
+        )
+        .state(
+            "trigger-item",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "trigger-item",
+            StateCondition::HoverExceptAttr("data-highlighted"),
+            hover_surface_declarations(),
+        )
+        // イシュー #1527: context-trigger は `trigger` と同型の open/focus/
+        // hover 状態を持つが、headless 層が disabled 引数を持たず
+        // `data-disabled` が決して付かないため disabled 規則は登録しない
+        // （vacuous な規則を置かない判断、モジュール rustdoc 参照）。
+        .state(
+            "context-trigger",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("border-color", "var(--fandhe-color-accent)")],
+        )
+        .state(
+            "context-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        .state(
+            "context-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         // イシュー #729: `size` variant（root スコープの CSS custom property。
         // Md はフォールバック値と同一の現行外観を維持する）。`--fandhe-reference-width`/
