@@ -896,7 +896,21 @@ name = "fandhe-frontend-pre-styled-ui"
 # workspace クレートは存在しない（`crates/docs-site/Cargo.toml` は
 # `publish = false` のため path 依存のみ、§2 参照）ため、依存元追随は
 # 発生しない（`cargo run -p xtask -- check-dep-versions` で確認済み）。
-version = "0.62.0"
+# origin/main 側で #1537 が先に 0.61.10 へバンプ済みのため、本イシューは
+# 0.61.10 → 0.61.11 へバンプする（同一 patch バージョンの衝突回避）。
+# イシュー #1541（tab-nav のスタイルを参考サイト基準へ調整）は
+# `tab_nav::root` の第 1 引数へ `size: Size` を追加する公開 API シグネチャの
+# 破壊的変更のため minor バンプする（0.x の破壊的変更はマイナーバンプの
+# 規約、`.claude/rules/coding-rust.md`）。既存 CSS 変数名・クラス名・
+# セレクタの削除はなし（純追加 + `outline`/`padding` 直書きの canonical
+# ヘルパへの置換のみ）。
+# 上記 2 件（#1540 の steps 2/2、#1541 の tab-nav）はいずれも独立に
+# 0.62.0 へ到達しており、feat/1540-steps-style-2of2 と main のマージで
+# 同一バージョン番号への偶発的衝突が生じたため、これをそのまま採用せず
+# 0.63.0 へさらにマイナーバンプする（0.x の破壊的変更はマイナーバンプ
+# の規約、`.claude/rules/coding-rust.md`。同型の衝突回避は本ファイル内の
+# 既存記録〔#1539/#1679/#1681 等〕と同じ扱い）。
+version = "0.63.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

@@ -1029,6 +1029,7 @@ pub(crate) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
 /// `/components/` から移行）を使う。
 fn ex_tab_nav() -> Node {
     tab_nav::root(
+        Size::Md,
         "Section navigation",
         vec![],
         vec![
@@ -1043,9 +1044,15 @@ pub(crate) const TAB_NAV: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "role=\"tablist\"/role=\"tab\" を出力しない。素の nav/a の暗黙 ARIA ロール（navigation/link）のみを使うナビゲーションリンク集合（crates/pre-styled-ui/src/tab_nav.rs:1-20）",
         "現在ページは aria-current=\"page\" + data-current で示す（tab_nav.rs:198-209）",
-        "見た目は crate::tabs と共有の宣言列（shared_tab_list_declarations 等）から生成し、size/color-palette variant は非提供（tab_nav.rs:31-36, 63-66）",
+        "見た目は自前の宣言列から生成する（イシュー #1541 で crate::tabs との共有を解消）。size 軸（xs〜xl、既定 md）を持ち、color-palette 軸は非提供（tab_nav.rs 参照）",
     ],
     arguments: &[
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ（イシュー #1541 で追加、tab_nav.rs 参照）。",
+        },
         ArgRow {
             name: "label",
             kind: "&str",

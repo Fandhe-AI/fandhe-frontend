@@ -5795,6 +5795,7 @@ fn menubar_section() -> Node {
 /// `role` が現れないことでも間接的に確認できる。
 fn tab_nav_section() -> Node {
     let node = tab_nav::root(
+        Size::Md,
         "Section navigation",
         vec![],
         vec![
@@ -5805,7 +5806,7 @@ fn tab_nav_section() -> Node {
     );
     section(
         "Tab Nav",
-        "pre-styled-ui 単独定義の anatomy（data-scope=\"tab-nav\"）による静的掲示です。role=\"tablist\"/role=\"tab\" を出力せず、素の nav/a の暗黙 ARIA ロールのみを使います。Overview を現在ページ（aria-current=\"page\"）として掲示しています。",
+        "pre-styled-ui 単独定義の anatomy（data-scope=\"tab-nav\"）による静的掲示です。role=\"tablist\"/role=\"tab\" を出力せず、素の nav/a の暗黙 ARIA ロールのみを使います。Overview を現在ページ（aria-current=\"page\"）として掲示しています。size 軸（既定 md、イシュー #1541）・hover・フォーカスリングも備えます。",
         vec![node],
     )
 }
