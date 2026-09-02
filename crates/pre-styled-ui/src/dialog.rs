@@ -128,8 +128,11 @@
 //!   （`toast.rs`/`date_picker.rs` の z-index フォールバックと同型の判断）。
 //! - **positioner**: `z-index: 1001`（生値）を
 //!   `var(--fandhe-z-index-modal, 1001)`（イシュー #1423）へ置換した。
-//! - **content**: `border-radius: 0.5rem`（生値）を `var(--fandhe-radius-lg)`
-//!   （計算値は同じ 0.5rem、見た目不変のトークン化）へ置換し、
+//! - **content**: `border-radius: 0.5rem`（生値）を
+//!   `var(--fandhe-radius-lg, 0.5rem)`
+//!   （計算値は同じ 0.5rem、見た目不変のトークン化。フォールバックを残すのは
+//!   backdrop/positioner と同じ理由で `dialog::stylesheet()` 単独利用時に
+//!   角丸が失われる後方互換性破壊を避けるため）へ置換し、
 //!   `box-shadow: var(--fandhe-shadow-lg)` を新規追加した
 //!   （`docs/design/pre-styled-ui-scale-tokens.md` §3.2 が dialog/drawer
 //!   content へ割り当てる影。参照サイトはいずれも面パネルに影を持つが
@@ -224,7 +227,11 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 // 計算値は旧生値 0.5rem と同一（トークン化のみ、見た目不変）。
-                decl("border-radius", "var(--fandhe-radius-lg)"),
+                // フォールバックに旧生値を残す（`dialog::stylesheet()` の単独利用や
+                // `Theme::empty()` ベースのカスタムテーマでトークン未定義の場合に
+                // 宣言全体が無効化され角丸が失われる後方互換性破壊を防ぐため。
+                // 同一モジュール内の backdrop/positioner・toast のトークン化と揃える）。
+                decl("border-radius", "var(--fandhe-radius-lg, 0.5rem)"),
                 // `docs/design/pre-styled-ui-scale-tokens.md` §3.2:
                 // dialog/drawer content = lg。参照サイトが共通して持つ
                 // 面パネルの影が本モジュールに欠落していたため新規追加。
@@ -491,9 +498,11 @@ mod tests {
     fn content_declares_radius_lg_and_shadow_lg() {
         // イシュー #1692: content の角丸をトークン化（計算値は旧生値
         // 0.5rem と同一）し、`docs/design/pre-styled-ui-scale-tokens.md`
-        // §3.2 が割り当てる面パネルの影を新規追加する。
+        // §3.2 が割り当てる面パネルの影を新規追加する。フォールバックに
+        // 旧生値 0.5rem を残す（PR #1794 codex-review 指摘: 単独利用時の
+        // 後方互換性破壊防止）。
         let css = stylesheet();
-        assert!(css.contains("border-radius: var(--fandhe-radius-lg);"));
+        assert!(css.contains("border-radius: var(--fandhe-radius-lg, 0.5rem);"));
         assert!(css.contains("box-shadow: var(--fandhe-shadow-lg);"));
     }
 

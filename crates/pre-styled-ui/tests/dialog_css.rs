@@ -55,7 +55,7 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
 [data-scope="dialog"][data-part="content"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
-  border-radius: var(--fandhe-radius-lg);
+  border-radius: var(--fandhe-radius-lg, 0.5rem);
   box-shadow: var(--fandhe-shadow-lg);
   padding: var(--fandhe-dialog-content-padding, var(--fandhe-space-6));
   max-width: var(--fandhe-dialog-content-max-width, 32rem);
