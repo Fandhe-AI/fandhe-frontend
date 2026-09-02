@@ -211,26 +211,27 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "content",
-            vec![
-                decl("position", "relative"),
-                decl("background", "var(--fandhe-color-bg)"),
-                decl("color", "var(--fandhe-color-fg)"),
-                decl("border-radius", "0.5rem"),
-                decl(
-                    "padding",
-                    "var(--fandhe-dialog-content-padding, var(--fandhe-space-6))",
-                ),
-                decl("max-width", "var(--fandhe-dialog-content-max-width, 32rem)"),
-                decl("width", "100%"),
-            ],
-        )
-        // イシュー #1693: 開閉トランジション（#1425 規約、モジュール冒頭
-        // rustdoc 参照）。`position: relative` は close-trigger の絶対配置
-        // 基準（枠・影・サイズではないため #1692 側ではなく本イシューで
-        // 追加、両イシューが `content` base を編集する点に注意）。
-        .base(
-            "content",
-            transition_declarations("opacity, transform", MotionDuration::Slow),
+            [
+                vec![
+                    decl("position", "relative"),
+                    decl("background", "var(--fandhe-color-bg)"),
+                    decl("color", "var(--fandhe-color-fg)"),
+                    decl("border-radius", "0.5rem"),
+                    decl(
+                        "padding",
+                        "var(--fandhe-dialog-content-padding, var(--fandhe-space-6))",
+                    ),
+                    decl("max-width", "var(--fandhe-dialog-content-max-width, 32rem)"),
+                    decl("width", "100%"),
+                ],
+                // イシュー #1693: 開閉トランジション（#1425 規約、モジュール
+                // 冒頭 rustdoc 参照）。`position: relative`（上記）は
+                // close-trigger の絶対配置基準（枠・影・サイズではないため
+                // #1692 側ではなく本イシューで追加、両イシューが `content`
+                // base を編集する点に注意）。
+                transition_declarations("opacity, transform", MotionDuration::Slow),
+            ]
+            .concat(),
         )
         .base(
             "title",
@@ -242,6 +243,13 @@ fn recipe() -> SlotRecipe {
                 decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
                 decl("line-height", "var(--fandhe-font-line-height-tight)"),
                 decl("margin", "0 0 var(--fandhe-space-2) 0"),
+                // Medium 指摘（イシュー #1693 レビュー）: close-trigger を
+                // content 右上へ絶対配置で重ねているため、title 側に
+                // インライン終端方向のガター（close-trigger の想定占有幅
+                // 相当）を確保しないと、title が折り返す/長い場合に
+                // テキストと close-trigger が重なる。参照サイト実装
+                // （Radix 等）が header/title 側にガターを設ける慣行に倣う。
+                decl("padding-inline-end", "var(--fandhe-space-8)"),
             ],
         )
         .base(
@@ -261,28 +269,34 @@ fn recipe() -> SlotRecipe {
         )
         // イシュー #1693: content 右上のゴーストボタン化（参照サイト標準）。
         // `position: absolute` は同イシューで追加した `content` の
-        // `position: relative` を基準とする。
+        // `position: relative` を基準とする。位置指定は論理プロパティで
+        // 統一する（`inset-block-start`/`inset-inline-end`、一貫性のため
+        // 物理プロパティの `top` は使わない）。
         .base(
             "close-trigger",
-            vec![
-                decl("position", "absolute"),
-                decl("top", "var(--fandhe-space-2)"),
-                decl("inset-inline-end", "var(--fandhe-space-2)"),
-                decl("display", "inline-flex"),
-                decl("align-items", "center"),
-                decl("justify-content", "center"),
-                decl("border", "none"),
-                decl("border-radius", "var(--fandhe-radius-sm)"),
-                decl("background", "transparent"),
-                decl("padding", "var(--fandhe-space-1)"),
-                decl("cursor", "pointer"),
-                decl("color", "var(--fandhe-color-fg-muted)"),
-            ],
-        )
-        .base("close-trigger", vec![hover_bg_muted()])
-        .base(
-            "close-trigger",
-            transition_declarations("background, color", MotionDuration::Fast),
+            [
+                vec![
+                    decl("position", "absolute"),
+                    decl("inset-block-start", "var(--fandhe-space-2)"),
+                    decl("inset-inline-end", "var(--fandhe-space-2)"),
+                    decl("display", "inline-flex"),
+                    decl("align-items", "center"),
+                    decl("justify-content", "center"),
+                    decl("border", "none"),
+                    decl("border-radius", "var(--fandhe-radius-sm)"),
+                    decl("background", "transparent"),
+                    decl("padding", "var(--fandhe-space-1)"),
+                    decl("cursor", "pointer"),
+                    decl("color", "var(--fandhe-color-fg-muted)"),
+                ],
+                vec![hover_bg_muted()],
+                // `hover_surface_declarations()`（下記 state 登録）は
+                // `background` のみを変更し `color` を変える規則を持たない
+                // ため、到達しない宣言を避けて `background` のみ
+                // transition 対象にする。
+                transition_declarations("background", MotionDuration::Fast),
+            ]
+            .concat(),
         )
         .state(
             "close-trigger",

@@ -55,9 +55,6 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   padding: var(--fandhe-dialog-content-padding, var(--fandhe-space-6));
   max-width: var(--fandhe-dialog-content-max-width, 32rem);
   width: 100%;
-}
-
-[data-scope="dialog"][data-part="content"] {
   transition-property: opacity, transform;
   transition-duration: var(--fandhe-motion-duration-slow);
   transition-timing-function: var(--fandhe-motion-easing-standard);
@@ -68,6 +65,7 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   font-weight: var(--fandhe-font-font-weight-semibold);
   line-height: var(--fandhe-font-line-height-tight);
   margin: 0 0 var(--fandhe-space-2) 0;
+  padding-inline-end: var(--fandhe-space-8);
 }
 
 [data-scope="dialog"][data-part="description"] {
@@ -78,7 +76,7 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
 
 [data-scope="dialog"][data-part="close-trigger"] {
   position: absolute;
-  top: var(--fandhe-space-2);
+  inset-block-start: var(--fandhe-space-2);
   inset-inline-end: var(--fandhe-space-2);
   display: inline-flex;
   align-items: center;
@@ -89,14 +87,8 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   padding: var(--fandhe-space-1);
   cursor: pointer;
   color: var(--fandhe-color-fg-muted);
-}
-
-[data-scope="dialog"][data-part="close-trigger"] {
   --fandhe-hover-bg: var(--fandhe-color-bg-muted);
-}
-
-[data-scope="dialog"][data-part="close-trigger"] {
-  transition-property: background, color;
+  transition-property: background;
   transition-duration: var(--fandhe-motion-duration-fast);
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
