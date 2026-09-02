@@ -54,12 +54,13 @@
 //! # `size`/`palette` variant
 //!
 //! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
-//! `--fandhe-splitter-trigger-size` の root スコープ custom property
-//! （CSS の通常のプロパティ継承により `resize-trigger` へ伝わる）経由で
-//! トリガーの厚みを切り替える（[`crate::slider`] の
-//! `--fandhe-slider-track-height` と同型）。`palette`（[`ColorPalette`]）は
-//! 既存の [`crate::recipe::palette_declarations`]（chakra-ui virtual token
-//! 方式、#606）を `root` へ登録し、`resize-trigger` の強調色を
+//! `--fandhe-splitter-trigger-size`/`--fandhe-splitter-panel-padding`
+//! （イシュー #1537）の root スコープ custom property（CSS の通常の
+//! プロパティ継承により、それぞれ `resize-trigger`/`panel` へ伝わる）
+//! 経由で、トリガーの厚みと panel の余白を切り替える（[`crate::slider`]
+//! の `--fandhe-slider-track-height` と同型）。`palette`（[`ColorPalette`]）
+//! は既存の [`crate::recipe::palette_declarations`]（chakra-ui virtual
+//! token 方式、#606）を `root` へ登録し、`resize-trigger` の強調色を
 //! `var(--fandhe-palette, ...)` 経由で切り替える。
 //!
 //! # 縦方向（`data-orientation="vertical"`）レイアウト
@@ -140,6 +141,56 @@
 //!   （[`recipe`] 内 `resize-trigger-indicator` 規則のコメント参照）。
 //!   正方形（等方）のグリップに統一することで代替する。
 //!
+//! # イシュー #1537: root/panel のレイアウト・余白（親 #1535 の 2/2）
+//!
+//! 親イシュー #1535 のうち、`root`/`panel` パート（リサイズハンドルを除く
+//! 容器・パネル本体）を担当する。`resize-trigger`/`resize-trigger-indicator`
+//! パートは兄弟イシュー #1536（1/2、上記節）が担当済みであり、本節では
+//! 一切変更しない。
+//!
+//! 是正内容:
+//!
+//! - `root` base へ「1px 外枠 + 角丸 + 背景」を追加した（参照 3 サイト
+//!   〔chakra-ui/ark-ui/Radix〕共通の見た目。[`crate::card`] の Outline
+//!   variant と同型のトークン参照）。`overflow: hidden` は zag-js の
+//!   root inline style と同じで、角丸に沿って `resize-trigger` の細線端を
+//!   切り取る（`resize-trigger` の focus ring は #1536 で
+//!   `FocusRingOffset::Inset` にしてあるため切れない）。
+//! - `panel` base へ余白（`padding`）を追加した。既定値は `size`
+//!   （[`Size`]）が `root` へ登録する `--fandhe-splitter-panel-padding`
+//!   （`--fandhe-splitter-trigger-size` と同型の、root スコープ custom
+//!   property を継承で伝えるパターン）から取り、`var(--fandhe-space-3)`
+//!   （Md 既定）へフォールバックする。呼び出し側が `root` の `attrs` に
+//!   `("style", "--fandhe-splitter-panel-padding: 0")` を渡せば
+//!   全 panel の余白を無効化できる（`root` は [`drop_class_attr`] で
+//!   `class` のみ除去し `style` は通す）。
+//!
+//! 意図的に採らなかった変更（`.claude/rules/out-of-scope-tracking.md`
+//! 対応）:
+//!
+//! - **`root` への `min-height`/`height: 100%`**: chakra-ui は recipe では
+//!   なく利用側 props（`minH`）で高さを与えている。レイアウト容器が既定で
+//!   高さを強制すると、フル高レイアウト・入れ子 Splitter と衝突するため、
+//!   高さは利用側の責務のままとする（docs-site の Demo（`showcase.rs`）は
+//!   デモ用途として利用側から `style="min-height: ..."` を与える）。
+//! - **`root` の `gap`（ark-ui website recipe 形）・panel 個別の枠線**:
+//!   参照 3 サイトのスクリーンショットはいずれも「外枠 1 本 +
+//!   `resize-trigger` の細線」の構成であり、panel ごとの個別枠は
+//!   `resize-trigger` の細線と二重線になるため採らない。
+//! - **`panel` 内容の中央配置**（ark-ui recipe・chakra-ui `<Center>`）:
+//!   これは参照側のデモ用途の表現であり、実利用（エディタ・ツリー等）の
+//!   内容配置を勝手に決めるのは誤り。内容の配置は利用側の責務のまま
+//!   とする。
+//! - **`root[data-disabled]` への `cursor: not-allowed` 等の
+//!   disabled 装飾追加**: `root` はあくまで容器であり、無効化されるのは
+//!   リサイズ操作（`resize-trigger`）のみで panel 内容自体は操作可能な
+//!   ままである。#1536 codex-review 是正で確定した `opacity: 0.5` +
+//!   `--fandhe-splitter-root-disabled-hover-bg` の組（上記節参照）を
+//!   維持し、追加の disabled 表現は加えない。
+//! - **hover / transition / focus**（`root`/`panel`）: 両パートとも
+//!   非インタラクティブな slot であるため付けない（`resize-trigger` 側の
+//!   hover/transition/focus は #1536 で対応済み）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - headless 層と同じく pointer ドラッグ・キーボード操作の DOM 配線、
@@ -210,6 +261,21 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("align-items", "stretch"),
                 decl("width", "100%"),
+                // イシュー #1537: 参照 3 サイト（chakra-ui/ark-ui/Radix）
+                // 共通の「1px 外枠 + 角丸 + 背景」表現を追加する
+                // （`crate::card` の Outline variant と同型のトークン
+                // 参照）。`box-sizing: border-box` は `width: 100%` の
+                // 親要素へ border 込みではみ出さないようにするための
+                // 必須ペア（`crate::button` の同種コメント参照）。
+                decl("box-sizing", "border-box"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("background", "var(--fandhe-color-bg)"),
+                // zag-js の root inline style と同じ `overflow: hidden`。
+                // 角丸に沿って `resize-trigger` の細線端を切り取る
+                // （`resize-trigger` の focus ring は #1536 で
+                // `FocusRingOffset::Inset` にしてあるため切れない）。
+                decl("overflow", "hidden"),
             ],
         )
         .state(
@@ -269,6 +335,19 @@ fn recipe() -> SlotRecipe {
                 decl("flex-grow", "0"),
                 decl("flex-shrink", "1"),
                 decl("overflow", "hidden"),
+                // イシュー #1537: panel 内容が枠に密着しないよう余白を
+                // 追加する。`box-sizing: border-box` は `flex-basis`
+                // （パーセント）に padding が加算されて合計が 100% を
+                // 超えないようにするための必須ペア。既定値は `size`
+                // variant が `--fandhe-splitter-panel-padding` を
+                // root スコープへ登録し継承で伝える（下記
+                // `.variant(Size::.., "root", ...)` 参照。
+                // `--fandhe-splitter-trigger-size` と同型のパターン）。
+                decl("box-sizing", "border-box"),
+                decl(
+                    "padding",
+                    "var(--fandhe-splitter-panel-padding, var(--fandhe-space-3))",
+                ),
             ],
         )
         .base(
@@ -442,30 +521,53 @@ fn recipe() -> SlotRecipe {
         // イシュー #1681: Xs/Xl は Sm→Md→Lg の 0.125rem 刻みの等差進行を
         // 両端へ外挿（Xs は 0 に到達させず視認可能な最小値 0.0625rem に
         // クランプ）。
+        //
+        // イシュー #1537: 各段へ `--fandhe-splitter-panel-padding` も
+        // 併せて登録する（`--fandhe-splitter-trigger-size` と同じ
+        // 「root スコープ custom property を継承で伝える」パターン）。
+        // `panel` base（上記）はこの値を `var(..., var(--fandhe-space-3))`
+        // でフォールバック参照するため、`size` variant を経由しない
+        // 呼び出し（`root` の `attrs` で直接上書きする等）でも
+        // Md 相当の既定余白が保たれる。
         .variant(
             Size::Xs,
             "root",
-            vec![decl("--fandhe-splitter-trigger-size", "0.0625rem")],
+            vec![
+                decl("--fandhe-splitter-trigger-size", "0.0625rem"),
+                decl("--fandhe-splitter-panel-padding", "var(--fandhe-space-1)"),
+            ],
         )
         .variant(
             Size::Sm,
             "root",
-            vec![decl("--fandhe-splitter-trigger-size", "0.125rem")],
+            vec![
+                decl("--fandhe-splitter-trigger-size", "0.125rem"),
+                decl("--fandhe-splitter-panel-padding", "var(--fandhe-space-2)"),
+            ],
         )
         .variant(
             Size::Md,
             "root",
-            vec![decl("--fandhe-splitter-trigger-size", "0.25rem")],
+            vec![
+                decl("--fandhe-splitter-trigger-size", "0.25rem"),
+                decl("--fandhe-splitter-panel-padding", "var(--fandhe-space-3)"),
+            ],
         )
         .variant(
             Size::Lg,
             "root",
-            vec![decl("--fandhe-splitter-trigger-size", "0.375rem")],
+            vec![
+                decl("--fandhe-splitter-trigger-size", "0.375rem"),
+                decl("--fandhe-splitter-panel-padding", "var(--fandhe-space-4)"),
+            ],
         )
         .variant(
             Size::Xl,
             "root",
-            vec![decl("--fandhe-splitter-trigger-size", "0.5rem")],
+            vec![
+                decl("--fandhe-splitter-trigger-size", "0.5rem"),
+                decl("--fandhe-splitter-panel-padding", "var(--fandhe-space-5)"),
+            ],
         )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
@@ -709,6 +811,79 @@ mod tests {
         assert!(css.contains("--size-"));
         assert!(css.contains("--color-palette-"));
         assert!(css.contains("--fandhe-splitter-trigger-size"));
+    }
+
+    // イシュー #1537: `root` base に参照 3 サイト共通の外枠表現
+    // （1px border・角丸・背景・`box-sizing: border-box`・`overflow:
+    // hidden`）が追加されたことを固定する。
+    #[test]
+    fn root_base_has_frame_tokens() {
+        let css = stylesheet();
+        let root_base_start = css
+            .find(r#"[data-scope="splitter"][data-part="root"] {"#)
+            .expect("root base rule must exist");
+        let root_base_end = css[root_base_start..]
+            .find('}')
+            .map(|i| root_base_start + i)
+            .expect("base rule must be closed");
+        let block = &css[root_base_start..root_base_end];
+        assert!(block.contains("box-sizing: border-box;"));
+        assert!(block.contains("border: 1px solid var(--fandhe-color-border);"));
+        assert!(block.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(block.contains("background: var(--fandhe-color-bg);"));
+        assert!(block.contains("overflow: hidden;"));
+    }
+
+    // イシュー #1537: `panel` base に `--fandhe-splitter-panel-padding`
+    // （`--fandhe-space-3` フォールバック）経由の余白が追加され、既存の
+    // `flex-basis`（`--fandhe-splitter-size` 伝搬経路）が維持されている
+    // ことを固定する。
+    #[test]
+    fn panel_base_has_padding_via_size_custom_property() {
+        let css = stylesheet();
+        let panel_base_start = css
+            .find(r#"[data-scope="splitter"][data-part="panel"] {"#)
+            .expect("panel base rule must exist");
+        let panel_base_end = css[panel_base_start..]
+            .find('}')
+            .map(|i| panel_base_start + i)
+            .expect("base rule must be closed");
+        let block = &css[panel_base_start..panel_base_end];
+        assert!(block.contains("box-sizing: border-box;"));
+        assert!(
+            block.contains("padding: var(--fandhe-splitter-panel-padding, var(--fandhe-space-3));")
+        );
+        assert!(block.contains("flex-basis: var(--fandhe-splitter-size, auto);"));
+    }
+
+    // イシュー #1537: `size` variant の 5 段すべてが root スコープへ
+    // `--fandhe-splitter-panel-padding` を登録することを固定する
+    // （`--fandhe-splitter-trigger-size` と同型のパターンであることの
+    // 回帰検知）。
+    #[test]
+    fn size_variants_define_panel_padding() {
+        let css = stylesheet();
+        for class in [
+            "fd-splitter--size-xs",
+            "fd-splitter--size-sm",
+            "fd-splitter--size-md",
+            "fd-splitter--size-lg",
+            "fd-splitter--size-xl",
+        ] {
+            let selector = format!("[data-scope=\"splitter\"][data-part=\"root\"].{class} {{");
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("{class} root variant rule must exist"));
+            let end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or_else(|| panic!("{class} variant rule must be closed"));
+            let block = &css[start..end];
+            assert!(
+                block.contains("--fandhe-splitter-panel-padding:"),
+                "{class} must define --fandhe-splitter-panel-padding, got: {block}"
+            );
+        }
     }
 
     // --- root ---

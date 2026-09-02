@@ -4729,7 +4729,12 @@ fn splitter_section() -> Node {
         ColorPalette::Accent,
         &horizontal_state,
         false,
-        vec![],
+        // イシュー #1537: `root` は既定で高さを強制しない（利用側の責務、
+        // `splitter` モジュール rustdoc「意図的に採らなかった変更」節
+        // 参照）ため、Demo 用途としてここで明示の高さを与える
+        // （垂直デモの `height: 16rem;` と同じ位置づけ。参照サイト
+        // 〔chakra-ui〕が docs のデモで `minH` props を与えるのと同型）。
+        vec![("style", "min-height: 12rem;")],
         vec![
             splitter::panel(
                 &horizontal_state,

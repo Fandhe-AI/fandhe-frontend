@@ -12,6 +12,11 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
   display: flex;
   align-items: stretch;
   width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-md);
+  background: var(--fandhe-color-bg);
+  overflow: hidden;
 }
 
 [data-scope="splitter"][data-part="panel"] {
@@ -19,6 +24,8 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
   flex-grow: 0;
   flex-shrink: 1;
   overflow: hidden;
+  box-sizing: border-box;
+  padding: var(--fandhe-splitter-panel-padding, var(--fandhe-space-3));
 }
 
 [data-scope="splitter"][data-part="resize-trigger"] {
@@ -53,22 +60,27 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
 
 [data-scope="splitter"][data-part="root"].fd-splitter--size-xs {
   --fandhe-splitter-trigger-size: 0.0625rem;
+  --fandhe-splitter-panel-padding: var(--fandhe-space-1);
 }
 
 [data-scope="splitter"][data-part="root"].fd-splitter--size-sm {
   --fandhe-splitter-trigger-size: 0.125rem;
+  --fandhe-splitter-panel-padding: var(--fandhe-space-2);
 }
 
 [data-scope="splitter"][data-part="root"].fd-splitter--size-md {
   --fandhe-splitter-trigger-size: 0.25rem;
+  --fandhe-splitter-panel-padding: var(--fandhe-space-3);
 }
 
 [data-scope="splitter"][data-part="root"].fd-splitter--size-lg {
   --fandhe-splitter-trigger-size: 0.375rem;
+  --fandhe-splitter-panel-padding: var(--fandhe-space-4);
 }
 
 [data-scope="splitter"][data-part="root"].fd-splitter--size-xl {
   --fandhe-splitter-trigger-size: 0.5rem;
+  --fandhe-splitter-panel-padding: var(--fandhe-space-5);
 }
 
 [data-scope="splitter"][data-part="root"].fd-splitter--color-palette-accent {
