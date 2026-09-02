@@ -208,7 +208,10 @@ const TABS_GOLDEN_CSS: &str = r#"[data-scope="tabs"][data-part="list"] {
   margin-bottom: 0;
   border-inline-end: 2px solid transparent;
   margin-inline-end: -1px;
-  border-radius: var(--fandhe-radius-sm, 0.25rem) 0 0 var(--fandhe-radius-sm, 0.25rem);
+  border-start-start-radius: var(--fandhe-radius-sm, 0.25rem);
+  border-end-start-radius: var(--fandhe-radius-sm, 0.25rem);
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
 }
 
 [data-scope="tabs"][data-part="trigger"][data-state="active"][data-orientation="vertical"] {

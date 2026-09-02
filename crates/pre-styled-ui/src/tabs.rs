@@ -308,10 +308,16 @@ fn recipe() -> SlotRecipe {
                 decl("margin-bottom", "0"),
                 decl("border-inline-end", "2px solid transparent"),
                 decl("margin-inline-end", "-1px"),
-                decl(
-                    "border-radius",
-                    "var(--fandhe-radius-sm, 0.25rem) 0 0 var(--fandhe-radius-sm, 0.25rem)",
-                ),
+                // イシュー #1542 codex-review 指摘（P2）: 物理方向の
+                // `border-radius` 短縮記法（TL/TR/BR/BL）は RTL でも
+                // 左側が丸まったままになり、inline-start 側へ追随しない。
+                // `crate::toggle_group` と同型の論理プロパティ
+                // （`border-start-start-radius`/`border-end-start-radius`）
+                // へ置き換え、inline-end 側は明示的に角丸なしとする。
+                decl("border-start-start-radius", "var(--fandhe-radius-sm, 0.25rem)"),
+                decl("border-end-start-radius", "var(--fandhe-radius-sm, 0.25rem)"),
+                decl("border-start-end-radius", "0"),
+                decl("border-end-end-radius", "0"),
             ],
         )
         .state(
