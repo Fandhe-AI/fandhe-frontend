@@ -65,6 +65,60 @@
 //! ため `:focus-visible` は付けず、`data-highlighted` で表現する
 //! （[`crate::menu`] の `item` と同判断）。
 //!
+//! # イシュー #1702（root / trigger の外枠パート是正、親 #1528）
+//!
+//! 親イシュー #1528（menubar のスタイルを参考サイト基準へ調整）の 2h 分割
+//! 1 本目。トップレベルの外枠パート（`root`/`trigger`）のみを Phase 0
+//! 共通基盤（[`crate::recipe`] の canonical ヘルパ・`--fandhe-*` トークン）
+//! へ揃えた。是正内容:
+//!
+//! - `trigger` の `border-radius` を生リテラル `0.25rem` から
+//!   `var(--fandhe-radius-sm)` へトークン化（値同一・外観不変）。
+//! - `trigger` に [`crate::recipe::hover_bg_muted`]・
+//!   [`crate::recipe::StateCondition::HoverExceptAttrEq`]`("data-highlighted",
+//!   "data-state", "open")`・[`crate::recipe::hover_surface_declarations`]
+//!   で hover 背景を追加。`Hover`（無条件）ではなく `HoverExceptAttrEq` を
+//!   使う理由は、highlight 中・open 中のいずれでも hover の淡い背景が
+//!   accent / accent-subtle 背景を洗い流す回帰（highlight 分は
+//!   PR #1745 P1 指摘、open 分は PR #1803 Bugbot Medium severity 指摘
+//!   「Hover washes out open trigger」）を避けるため。`data-highlighted`
+//!   のみを除外する `HoverExceptAttr`（menu 3/3・PR #1802 `trigger-item`
+//!   と同型の判断）では、open だが highlighted ではない trigger への
+//!   hover が open の `accent-subtle` 背景を上書きしてしまうため、両方を
+//!   除外する複合 variant が必要だった。
+//! - `trigger` に `data-highlighted`（headless 層が roving tabindex の
+//!   ポインタ移動時に trigger へも出力する属性、`crates/headless-ui/
+//!   src/menubar.rs::trigger` 参照）の視覚反映を追加（`item`/`sub-trigger`
+//!   と同じ accent 配色）。登録順は open → highlighted → disabled → hover
+//!   （highlighted が open を後勝ちで上書きする、`trigger`/`trigger-item`
+//!   の既存規約と同順序）。
+//! - `trigger` の disabled（直書き 2 宣言）・focus-visible（直書き
+//!   `outline` 2 宣言）を [`crate::recipe::disabled_declarations`]・
+//!   [`crate::recipe::focus_ring_declarations`]`(FocusRingColor::Token,
+//!   FocusRingOffset::Outside)` へ置換（値同一・外観不変。`palette` 軸を
+//!   持たないため `Token` を選ぶ、menu 1/3 と同じ選択）。
+//! - `trigger` に [`crate::recipe::transition_declarations`]`("background,
+//!   color", MotionDuration::Fast)` を追加。
+//! - `root` の `border-bottom` 単独宣言を `border`（全辺）+
+//!   `border-radius: var(--fandhe-radius-md)` へ拡張し、Radix Primitives
+//!   Menubar の角丸パネル外観へ整合させた（[`crate::toolbar`] の
+//!   root〔full border + radius パネル〕とも同型）。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - **root の box-shadow は追加しない**: 参照サイトのデモは root に影を
+//!   持つが、本部品はアプリケーションバーという位置付け（[`crate::toolbar`]
+//!   と同型）を優先し、影は付けない意図的差分とする。
+//! - **`size`/`color-palette` variant 軸は導入しない**: 本モジュール冒頭
+//!   「`size`/`color-palette` variant 軸は提供しない」節の判断を維持する。
+//!
+//! ## スコープ境界
+//!
+//! 本イシューは `root`/`trigger` のみを担当する。`positioner`/`content`/
+//! `item`/`item-group`/`separator`/`sub-trigger`/`sub-content` と開閉
+//! トランジションは兄弟イシュー #1703 の担当範囲であり、本イシューでは
+//! 一切変更しない（`menu` パーツの `position: relative` も維持）。
+//!
 //! # 本イシューのスコープ外
 //!
 //! headless 層（`crates/headless-ui/src/menubar.rs`）のモジュール doc
@@ -73,7 +127,11 @@
 //! 実 DOM 移送・placement 計算・skip-disabled モード）。
 
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, SlotRecipe,
+    StateCondition,
+};
 
 // REEXPORT-GLOB-REVIEWED: 本モジュールが定義する pub 項目は stylesheet() の
 // みで styled パーツ関数を再定義しない（規約 B-1）。variant 軸も提供せず
@@ -117,7 +175,8 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("align-items", "center"),
                 decl("gap", "var(--fandhe-space-1)"),
-                decl("border-bottom", "1px solid var(--fandhe-color-border)"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("padding", "var(--fandhe-space-1)"),
             ],
@@ -132,9 +191,14 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("background", "transparent"),
                 decl("border", "none"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("padding", "var(--fandhe-space-1) var(--fandhe-space-3)"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         .base(
             "positioner",
@@ -221,20 +285,53 @@ fn recipe() -> SlotRecipe {
             StateCondition::AttrEq("data-orientation", "vertical"),
             vec![decl("flex-direction", "column")],
         )
-        // 開いている trigger / sub-trigger を視覚的に強調する。
+        // trigger は実フォーカスを受ける通常ボタン（headless 層の
+        // roving tabindex）であり、開閉・ポインタ highlight・disabled・
+        // hover・focus-visible の 5 状態を持つ。登録順は open →
+        // highlighted → disabled → hover（highlighted が open を後勝ちで
+        // 上書きし、hover は highlighted 中は洗い流さない）。menu 3/3
+        // （PR #1802）の `trigger-item` と同じ判断（本モジュール冒頭
+        // rustdoc「イシュー #1702」節参照）。
         .state(
             "trigger",
             StateCondition::AttrEq("data-state", "open"),
             vec![decl("background", "var(--fandhe-color-accent-subtle)")],
         )
         .state(
+            "trigger",
+            StateCondition::Attr("data-highlighted"),
+            vec![
+                decl("background", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-color-accent-fg)"),
+            ],
+        )
+        .state(
+            "trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // highlight 中・open 中の双方で hover の淡い背景が accent /
+        // accent-subtle 背景を洗い流さないよう `HoverExceptAttrEq` で
+        // 両方を除外する（`data-highlighted`・`[data-state="open"]` は
+        // specificity が等しく、`HoverExceptAttr("data-highlighted")`
+        // 単体では open のみの trigger への hover が open の
+        // `accent-subtle` 背景を上書きしてしまう。PR #1803 Bugbot Medium
+        // severity 指摘「Hover washes out open trigger」対応、本モジュール
+        // 冒頭 rustdoc「イシュー #1702」節参照）。
+        .state(
+            "trigger",
+            StateCondition::HoverExceptAttrEq("data-highlighted", "data-state", "open"),
+            hover_surface_declarations(),
+        )
+        // 開いている sub-trigger を視覚的に強調する（trigger と同じ配色）。
+        .state(
             "sub-trigger",
             StateCondition::AttrEq("data-state", "open"),
             vec![decl("background", "var(--fandhe-color-accent-subtle)")],
         )
-        // virtual focus の highlight 表示（trigger は実フォーカスを受ける
-        // ためこの規則の対象外、本モジュール冒頭 rustdoc「focus-visible
-        // リング」節参照）。
+        // virtual focus の highlight 表示（item/sub-trigger は実フォーカス
+        // を受けない、本モジュール冒頭 rustdoc「focus-visible リング」節
+        // 参照）。
         .state(
             "item",
             StateCondition::Attr("data-highlighted"),
@@ -255,11 +352,6 @@ fn recipe() -> SlotRecipe {
         // 設計判断、`crates/headless-ui/src/menubar.rs` モジュール doc
         // 「スコープ外」節参照）、視覚的にのみ操作不能を示す。
         .state(
-            "trigger",
-            StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
-        )
-        .state(
             "item",
             StateCondition::Attr("data-disabled"),
             vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
@@ -269,14 +361,14 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-disabled"),
             vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
         )
-        // trigger はキーボード操作時のみのフォーカスリング。
+        // trigger はキーボード操作時のみのフォーカスリング（イシュー
+        // #1424 の canonical ヘルパへ置換。値は旧実装〔`2px solid
+        // var(--fandhe-color-accent)`〕と同一で外観不変、本モジュール
+        // 冒頭 rustdoc「イシュー #1702」節参照）。
         .state(
             "trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
 }
 
@@ -347,6 +439,64 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="menubar"][data-part="trigger"]:focus-visible {"#));
         assert!(!css.contains(r#"[data-scope="menubar"][data-part="item"]:focus-visible {"#));
+    }
+
+    #[test]
+    fn trigger_focus_ring_uses_canonical_token_form() {
+        // イシュー #1702: 直書き `outline: 2px solid var(--fandhe-color-accent)`
+        // から `focus_ring_declarations(FocusRingColor::Token,
+        // FocusRingOffset::Outside)` へ置換した canonical トークン参照形
+        // （フォールバック連鎖込み）であることを固定する。
+        let css = stylesheet();
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+        assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+    }
+
+    #[test]
+    fn trigger_declares_highlighted_state() {
+        // イシュー #1702: headless 層が roving tabindex のポインタ移動時に
+        // trigger へも `data-highlighted` を出力する契約
+        // （`crates/headless-ui/src/menubar.rs::trigger` 参照）ため、
+        // item/sub-trigger と同じ accent 配色を trigger にも反映する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menubar"][data-part="trigger"][data-highlighted] {"#));
+    }
+
+    #[test]
+    fn trigger_declares_hover_rule_excluding_highlighted_and_open() {
+        // イシュー #1702: highlight 中・open 中のいずれでも hover の淡い
+        // 背景が accent / accent-subtle 背景を洗い流さないよう
+        // `HoverExceptAttrEq("data-highlighted", "data-state", "open")` を
+        // 使う（highlighted 分は PR #1745 P1 指摘、open 分は PR #1803
+        // Bugbot Medium severity 指摘「Hover washes out open trigger」の
+        // 回帰防止）。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="menubar"][data-part="trigger"]:hover:not([data-disabled]):not([data-highlighted]):not([data-state="open"]) {"#
+        ));
+    }
+
+    #[test]
+    fn trigger_has_transition_declarations() {
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"menubar\"][data-part=\"trigger\"] {\n  display: inline-flex;\n"
+        ));
+        assert!(css.contains("transition-property: background, color;"));
+    }
+
+    #[test]
+    fn root_has_border_and_radius() {
+        // イシュー #1702: `border-bottom` 単独から全辺 `border` +
+        // `border-radius: var(--fandhe-radius-md)` へ拡張（root shadow は
+        // 意図的に追加しない、本モジュール冒頭 rustdoc「意図的に合わせ
+        // なかった点」節参照）。
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"menubar\"][data-part=\"root\"] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n"
+        ));
     }
 
     #[test]

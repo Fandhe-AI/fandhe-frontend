@@ -5724,13 +5724,13 @@ fn menubar_section() -> Node {
             bar.menu(
                 1,
                 vec![],
-                vec![bar.trigger(1, false, false, None, vec![], vec![text("Edit")])],
+                vec![bar.trigger(1, false, true, None, vec![], vec![text("Edit")])],
             ),
         ],
     );
     section(
         "Menubar",
-        "headless-ui の Menubar（role=\"menubar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。File / Edit の 2 Menu を水平配置し、File Menu を開いた状態（open=Some(0)）で表示しています。Item Group（Recent）・Separator・SubTrigger/SubContent（Export → PDF）の入れ子構造も含みます。roving tabindex（focused=0）により先頭の File トリガーのみ tabindex=\"0\" です。",
+        "headless-ui の Menubar（role=\"menubar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。File / Edit の 2 Menu を水平配置し、File Menu を開いた状態（open=Some(0)）で表示しています。Item Group（Recent）・Separator・SubTrigger/SubContent（Export → PDF）の入れ子構造も含みます。roving tabindex（focused=0）により先頭の File トリガーのみ tabindex=\"0\" です。Edit トリガーは highlighted=true とし、trigger の data-highlighted 配色（イシュー #1702）も掲示します。",
         vec![node],
     )
 }

@@ -49,10 +49,64 @@ fn stylesheet_declares_open_state_selectors_for_trigger_and_sub_trigger() {
 }
 
 #[test]
-fn stylesheet_declares_highlighted_state_selectors_for_item_and_sub_trigger() {
+fn stylesheet_declares_highlighted_state_selectors_for_trigger_item_and_sub_trigger() {
+    // イシュー #1702: headless 層が roving tabindex のポインタ移動時に
+    // trigger へも `data-highlighted` を出力する契約
+    // （`crates/headless-ui/src/menubar.rs::trigger` 参照）ため、item/
+    // sub-trigger に加え trigger も検証する。
     let css = menubar::stylesheet();
+    assert!(css.contains(r#"[data-scope="menubar"][data-part="trigger"][data-highlighted]"#));
     assert!(css.contains(r#"[data-scope="menubar"][data-part="item"][data-highlighted]"#));
     assert!(css.contains(r#"[data-scope="menubar"][data-part="sub-trigger"][data-highlighted]"#));
+}
+
+#[test]
+fn stylesheet_declares_trigger_hover_rule_excluding_highlighted_and_open() {
+    // イシュー #1702: highlight 中・open 中のいずれでも hover の淡い背景が
+    // accent / accent-subtle 背景を洗い流さないよう
+    // `HoverExceptAttrEq("data-highlighted", "data-state", "open")` を使う
+    // （highlighted 分は PR #1745 P1 指摘・menu 3/3 `trigger-item` と同型の
+    // 回帰防止、open 分は PR #1803 Bugbot Medium severity 指摘「Hover
+    // washes out open trigger」の回帰防止）。`@media (hover: hover)` 配下へ
+    // 集約出力される契約（`crates/pre-styled-ui/src/recipe.rs` 参照）。
+    let css = menubar::stylesheet();
+    assert!(css.contains("@media (hover: hover)"));
+    assert!(css.contains(
+        r#"[data-scope="menubar"][data-part="trigger"]:hover:not([data-disabled]):not([data-highlighted]):not([data-state="open"]) {"#
+    ));
+}
+
+#[test]
+fn stylesheet_declares_trigger_focus_ring_in_canonical_token_form() {
+    // イシュー #1702: 直書き `outline: 2px solid var(--fandhe-color-accent)`
+    // から `focus_ring_declarations(FocusRingColor::Token,
+    // FocusRingOffset::Outside)`（イシュー #1424 canonical ヘルパ）へ
+    // 置換したトークン参照形（フォールバック連鎖込み）を固定する。
+    let css = menubar::stylesheet();
+    assert!(css.contains(
+        "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+    ));
+    assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px);"));
+}
+
+#[test]
+fn stylesheet_declares_root_border_and_radius() {
+    // イシュー #1702: `border-bottom` 単独から全辺 `border` +
+    // `border-radius: var(--fandhe-radius-md)` へ拡張（root shadow は
+    // 意図的に追加しない、`crates/pre-styled-ui/src/menubar.rs` モジュール
+    // doc「意図的に合わせなかった点」節参照）。
+    let css = menubar::stylesheet();
+    assert!(css.contains(
+        "[data-scope=\"menubar\"][data-part=\"root\"] {\n  display: flex;\n  align-items: center;\n  gap: var(--fandhe-space-1);\n  border: 1px solid var(--fandhe-color-border);\n  border-radius: var(--fandhe-radius-md);\n"
+    ));
+}
+
+#[test]
+fn stylesheet_declares_trigger_transition() {
+    let css = menubar::stylesheet();
+    assert!(css
+        .contains("[data-scope=\"menubar\"][data-part=\"trigger\"] {\n  display: inline-flex;\n"));
+    assert!(css.contains("transition-property: background, color;"));
 }
 
 #[test]

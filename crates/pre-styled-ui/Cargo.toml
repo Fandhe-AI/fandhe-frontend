@@ -793,7 +793,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # CSS 未着装だった `checkbox-item`/`radio-item`/`trigger-item`/
 # `context-trigger` への recipe() 宣言追加（`SLOTS` への 5 パート追加含む）
 # のみで、Rust API シグネチャ不変・既存セレクタ削除なし。
-version = "0.60.5"
+# イシュー #1702（menubar の外枠パート root/trigger のスタイル調整、親
+# #1528 の 2h 分割 1 本目）も同型の patch バンプ: recipe() への宣言追加・
+# トークン化のみで Rust API シグネチャ不変・既存セレクタ削除なし。
+# PR #1803 Bugbot 指摘対応（open な trigger への hover が accent-subtle
+# 背景を洗い流す回帰の修正）は `StateCondition`（公開・exhaustive enum）へ
+# `HoverExceptAttrEq` variant を追加する。既存 variant を網羅的に match
+# している利用者コードを non-exhaustive にする観測可能な破壊的変更のため、
+# 0.x の破壊的変更はマイナーバンプとする規約（.claude/rules/coding-rust.md）
+# に従い minor バンプする（codex-review P1 指摘・Bugbot 指摘、PR #1803）。
+version = "0.61.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
