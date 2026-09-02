@@ -5716,8 +5716,18 @@ fn menubar_section() -> Node {
                                     // 余白へマークアップ側の示唆グリフを
                                     // 置く読み替えで表現する（モジュール doc
                                     // 「イシュー #1703」節「意図的に合わせ
-                                    // なかった点」参照）。
-                                    vec![text("Export"), text("▸")],
+                                    // なかった点」参照）。隣接する 2 つの
+                                    // text() ノードのままだと 1 つの連続
+                                    // テキストランとして単一の匿名 flex
+                                    // item になり `justify-content:
+                                    // space-between` が効かないため
+                                    // （PR #1804 Bugbot 指摘）、ラベルと
+                                    // グリフをそれぞれ `span` で包んで
+                                    // 独立した flex item にする。
+                                    vec![
+                                        el("span", vec![], vec![text("Export")]),
+                                        el("span", vec![], vec![text("▸")]),
+                                    ],
                                 ),
                                 menubar::sub_content(
                                     export_submenu_state,
