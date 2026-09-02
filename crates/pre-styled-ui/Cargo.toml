@@ -828,7 +828,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # の適用に留まり新規 variant 追加なし。Rust API シグネチャ不変・既存
 # 6 セレクタ（root/list/item/trigger/content/link）削除なしのため patch
 # バンプする。
-version = "0.61.4"
+# イシュー #1701（navigation-menu の内部パート content〔viewport 等〕の
+# スタイル調整、親 #1530 の 2/2 分割）も同型の patch バンプ: content の
+# border-radius（生 0.375rem → `--fandhe-radius-md`）・box-shadow（生
+# rgba → `--fandhe-shadow-md`）をトークン化した CSS 宣言のみの意匠調整。
+# 既存 variant 追加・Rust API シグネチャ変更・既存セレクタ削除なしのため
+# patch バンプする。
+version = "0.61.5"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
