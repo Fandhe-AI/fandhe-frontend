@@ -134,8 +134,12 @@
 //!     書かない方針、`docs/design/pre-styled-ui-interaction-visual-language.md`）。
 //! - **`group`/`root` のスタック配置**: `group` base に `box-sizing:
 //!   border-box`/`max-width: 100vw` を追加。`root` の `min-width: min(18rem,
-//!   100%)` を `width: min(24rem, 100%)` へ置換し、スタック内の全通知幅を
+//!   100%)` を `width: 24rem` へ置換し、スタック内の全通知幅を
 //!   揃える（1/2 が「固定幅化は本イシューへ委ねる」と明記していた項目）。
+//!   `100%` 側の`min()`は撤去した（PR #1818 Bugbot 指摘: `group` が
+//!   `position: fixed` で shrink-to-fit の不定幅であるため `100%` は
+//!   循環参照で解決不能・無視される。狭幅ビューポートでの縮小は
+//!   `max-width: calc(100vw - var(--fandhe-space-8))` に委ねる）。
 //!   `root` へ `position: relative`（`close-trigger` の絶対配置基準）と
 //!   `padding-inline-end: var(--fandhe-space-10)`（`close-trigger` との
 //!   重なり回避）も追加する。キュー上限は `Toaster::new(max, …)` が担うため
@@ -288,7 +292,22 @@ fn recipe() -> SlotRecipe {
                 // 項目。スタック内の全通知幅を揃える（chakra sm = 24rem、
                 // Radix 390px 相当）。旧 `min-width: min(18rem, 100%)` は
                 // 通知ごとに幅が揺れていた。
-                decl("width", "min(24rem, 100%)"),
+                //
+                // PR #1818 Bugbot 指摘（Medium）: `group`（`position: fixed`）
+                // は `placement` variant で top/bottom いずれか一方と
+                // left/right/inset-inline-* いずれか一方しか固定しないため、
+                // 生成される containing block の幅は shrink-to-fit（内容依存の
+                // 不定値）になる。不定な containing block に対する子要素側の
+                // パーセンテージ（`min(24rem, 100%)` の `100%` 部分）は
+                // 解決不能で無視される（CSS Sizing の仕様上、不定な利用可能
+                // スペースに対するパーセンテージは auto 相当として扱われる）
+                // ため、この `100%` は事実上効果を持たない。一方 `max-width`
+                // は `100vw` 基準（下記宣言）であり親要素の不定幅に依存せず
+                // 独立して機能するため、`width` 側は素の `24rem` に単純化し、
+                // 狭幅ビューポートでの縮小は既存の `max-width` にのみ委ねる
+                // （`min()` 自体を撤去し、循環参照になり得るパーセンテージを
+                // 持ち込まない）。
+                decl("width", "24rem"),
                 // 狭幅ビューポートで group の左右 padding（space-4 × 2 =
                 // space-8）分を残して収める。
                 decl("max-width", "calc(100vw - var(--fandhe-space-8))"),
@@ -726,7 +745,7 @@ mod tests {
         assert!(css.contains("box-sizing: border-box;"));
         // イシュー #1545: width 固定化（旧 min-width の揺れを解消し、
         // スタック内の全通知幅を揃える）。
-        assert!(css.contains("width: min(24rem, 100%);"));
+        assert!(css.contains("width: 24rem;"));
         assert!(css.contains("color: var(--fandhe-color-fg);"));
         assert!(css.contains("position: relative;"));
         assert!(css.contains("padding-inline-end: var(--fandhe-space-10);"));

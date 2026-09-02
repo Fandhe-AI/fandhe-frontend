@@ -27,7 +27,7 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   gap: var(--fandhe-space-1);
   box-sizing: border-box;
   position: relative;
-  width: min(24rem, 100%);
+  width: 24rem;
   max-width: calc(100vw - var(--fandhe-space-8));
   padding: var(--fandhe-space-4);
   padding-inline-end: var(--fandhe-space-10);
