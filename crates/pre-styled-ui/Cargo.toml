@@ -875,6 +875,27 @@ name = "fandhe-frontend-pre-styled-ui"
 # 新規 custom property 参照（`--fandhe-steps-thickness`/`--fandhe-steps-
 # indicator-font-size`）・transition 追加に留まり、Rust 公開 API
 # シグネチャ・既存 CSS セレクタの削除/改名はないため patch で足りる。
+# origin/main 側で #1537 が先に 0.61.10 へバンプ済みのため、#1539 は
+# 0.61.10 → 0.61.11 へバンプ済み（同一 patch バージョンの衝突回避）。
+# イシュー #1540: steps のスタイル調整 (2/2) — content/trigger/prev-trigger/
+# next-trigger/orientation の recipe 是正（hover/disabled/focus/transition
+# 共通ヘルパへの置換・`--fandhe-steps-font-size` custom property 追加・縦向き
+# root レイアウト切替・レビュー対応の `body` グルーピングパーツ新設）を伴う
+# CSS 実体変更。当初は patch バンプ（0.61.12）としていたが、PR #1814
+# codex-review 指摘（同一指摘が 3 スレッド）により再判定した:
+# `body` グルーピングパーツは任意の追加 API に過ぎず、`root` 自体の縦向き
+# （`data-orientation="vertical"`）`flex-direction: row` 切替は
+# `body` を使わない既存呼び出し（`list`/`content`/`prev-trigger`/
+# `next-trigger` を `root` 直下へ並べる旧構成）のレイアウトを崩す
+# 契約破壊であり、`docs/ci/style-refresh-version-bump-operation.md` §3.3
+# 「利用者の上書き CSS・セレクタを壊す変更」（クラス名・セレクタの削除/
+# 改名だけでなく、既存構成の描画結果が壊れる変更を含む）に該当するため、
+# `.claude/rules/coding-rust.md`（0.x の破壊的変更はマイナーバンプ）に
+# 従い minor バンプへ訂正する（0.61.12 → 0.62.0）。
+# `fandhe-frontend-pre-styled-ui` に `version = "..."` 併記で依存する
+# workspace クレートは存在しない（`crates/docs-site/Cargo.toml` は
+# `publish = false` のため path 依存のみ、§2 参照）ため、依存元追随は
+# 発生しない（`cargo run -p xtask -- check-dep-versions` で確認済み）。
 # origin/main 側で #1537 が先に 0.61.10 へバンプ済みのため、本イシューは
 # 0.61.10 → 0.61.11 へバンプする（同一 patch バージョンの衝突回避）。
 # イシュー #1541（tab-nav のスタイルを参考サイト基準へ調整）は
@@ -883,7 +904,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 規約、`.claude/rules/coding-rust.md`）。既存 CSS 変数名・クラス名・
 # セレクタの削除はなし（純追加 + `outline`/`padding` 直書きの canonical
 # ヘルパへの置換のみ）。
-version = "0.62.0"
+# 上記 2 件（#1540 の steps 2/2、#1541 の tab-nav）はいずれも独立に
+# 0.62.0 へ到達しており、feat/1540-steps-style-2of2 と main のマージで
+# 同一バージョン番号への偶発的衝突が生じたため、これをそのまま採用せず
+# 0.63.0 へさらにマイナーバンプする（0.x の破壊的変更はマイナーバンプ
+# の規約、`.claude/rules/coding-rust.md`。同型の衝突回避は本ファイル内の
+# 既存記録〔#1539/#1679/#1681 等〕と同じ扱い）。
+version = "0.63.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
