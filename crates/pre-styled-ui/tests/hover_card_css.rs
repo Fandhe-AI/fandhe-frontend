@@ -1,9 +1,11 @@
-//! styled HoverCard（イシュー #759）の決定的 CSS 出力ゴールデンテスト。
+//! styled HoverCard（イシュー #759。イシュー #1523 で参照サイト基準へ調整）の
+//! 決定的 CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/pagination_css.rs`/`radio_group_css.rs` の
 //! golden fixture テストの前例に倣い、`stylesheet()` が返す CSS 全文を
-//! バイト単位で固定する。出力順（base → states）が崩れた場合や意図しない
-//! 宣言の追加・欠落があった場合に、この golden テストが即座に検知する。
+//! バイト単位で固定する。出力順（base → states → `@media (hover: hover)`
+//! 末尾集約）が崩れた場合や意図しない宣言の追加・欠落があった場合に、この
+//! golden テストが即座に検知する。
 
 use fandhe_frontend_pre_styled_ui::hover_card;
 
@@ -17,11 +19,17 @@ const HOVER_CARD_GOLDEN_CSS: &str = r#"[data-scope="hover-card"][data-part="root
   text-decoration: underline;
 }
 
+[data-scope="hover-card"][data-part="trigger"] {
+  transition-property: color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
 [data-scope="hover-card"][data-part="positioner"] {
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 10;
+  z-index: var(--fandhe-z-index-popover, 10);
   margin-top: var(--fandhe-space-1);
 }
 
@@ -29,19 +37,32 @@ const HOVER_CARD_GOLDEN_CSS: &str = r#"[data-scope="hover-card"][data-part="root
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+  border-radius: var(--fandhe-radius-lg, 0.5rem);
+  box-shadow: var(--fandhe-shadow-md, 0 4px 6px rgba(0, 0, 0, 0.15));
   padding: var(--fandhe-space-4);
   max-width: 20rem;
 }
 
+[data-scope="hover-card"][data-part="content"] {
+  transition-property: opacity, visibility;
+  transition-duration: var(--fandhe-motion-duration-normal);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
 [data-scope="hover-card"][data-part="content"][data-state="closed"] {
   visibility: hidden;
+  opacity: 0;
 }
 
 [data-scope="hover-card"][data-part="trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (hover: hover) {
+  [data-scope="hover-card"][data-part="trigger"]:hover:not([data-disabled]) {
+    color: var(--fandhe-color-accent-emphasized);
+  }
 }
 "#;
 
