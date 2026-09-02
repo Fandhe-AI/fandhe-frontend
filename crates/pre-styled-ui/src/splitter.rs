@@ -98,11 +98,23 @@
 //!   `FocusRingOffset::Inset` は `resize-trigger` が `overflow: hidden` な
 //!   `panel` の隣に配置されることを踏まえ、外側リングが視覚的に切れる
 //!   のを避けるために選ぶ。
-//! - `resize-trigger`/root 双方が重複適用していた disabled 時の
-//!   `opacity: 0.5` を root 側の 1 箇所へ一本化した（`resize-trigger`
-//!   側は `cursor: not-allowed` のみ残す）。
 //! - `resize-trigger-indicator`（それまで CSS 規則を持たなかった）へ、
 //!   参照 3 サイト共通の中央グリップ pill 表現の base 規則を新設した。
+//!   indicator は `flex-shrink: 0` の固定寸法（0.75rem 正方形）を持つ
+//!   ため、`resize-trigger` 側に `min-width: 0`/`min-height: 0` を
+//!   明示し、`flex: 0 0 var(--fandhe-splitter-trigger-size, ...)` が
+//!   指定するサイズバリアント太さが indicator の content-based 既定
+//!   最小サイズに押し上げられないようにした（Cursor Bugbot 指摘是正）。
+//! - `resize-trigger`/root 双方が重複適用していた disabled 時の
+//!   `opacity: 0.5` は、当初 root 側の 1 箇所へ一本化する変更を試みた
+//!   （`resize-trigger` 側は `cursor: not-allowed` のみ残す案）が、
+//!   [`fandhe_frontend_headless_ui::splitter`] の `root(disabled, ...)`
+//!   と `resize_trigger(disabled, ...)` は独立した公開引数であり
+//!   root が有効なまま個別 trigger のみを無効化できる構成が API
+//!   契約上成立するため、この一本化は個別無効化時の視覚表現を失う
+//!   回帰だった（codex-review 指摘により復元）。現状は root・
+//!   `resize-trigger` の双方に `opacity: 0.5` を独立に持たせ、どちらの
+//!   disabled 経路でも視覚後退が伝わるようにしている。
 //!
 //! 意図的に採らなかった変更（`.claude/rules/out-of-scope-tracking.md`
 //! 対応）:
@@ -217,6 +229,25 @@ fn recipe() -> SlotRecipe {
             "resize-trigger",
             vec![
                 decl("flex", "0 0 var(--fandhe-splitter-trigger-size, 0.25rem)"),
+                // Cursor Bugbot 指摘是正（イシュー #1536）: flex item の
+                // 既定 `min-width`/`min-height` は `auto`（content-based）
+                // であり、子の `resize-trigger-indicator`
+                // （`flex-shrink: 0` の 0.75rem 正方形）を内包すると、
+                // 主軸方向の自動最小サイズが `flex-basis`
+                // （`--fandhe-splitter-trigger-size` の Md 既定
+                // `0.25rem` = 4px）より大きいグリップ寸法（0.75rem）まで
+                // 押し上げられ、`flex: 0 0 <size>` を指定していても実際の
+                // 太さがサイズバリアントの意図より太くなる（例: Md で
+                // 意図した 0.25rem のガターが約 0.75rem まで広がる）。
+                // 主軸を明示的に `min-width: 0`/`min-height: 0` で
+                // 明け渡し、`flex-basis` 側の値がそのまま太さとして
+                // 効くようにする（indicator が中央からはみ出す表現には
+                // ならない。indicator 自体は `overflow` を制約しない
+                // ため視覚的に隣接パーツへ重なるのみで、細い
+                // `resize-trigger` に対して大きめのグリップを乗せる
+                // 意匠は本モジュール doc の意図どおり）。
+                decl("min-width", "0"),
+                decl("min-height", "0"),
                 // イシュー #1536: 常時 palette 塗り（旧 `box-shadow: inset 0
                 // 0 0 9999px var(--fandhe-palette, transparent)`）を廃し、
                 // 参照 3 サイト（chakra-ui/ark-ui/Radix）共通の「淡い
@@ -260,12 +291,19 @@ fn recipe() -> SlotRecipe {
         .state(
             "resize-trigger",
             StateCondition::Attr("data-disabled"),
-            // イシュー #1536: `opacity: 0.5` を除去（root の
-            // `[data-disabled]` 規則が既に全体へ適用済みのため、
-            // `resize-trigger` 側で重複させない。`crate::slider` の
-            // `thumb` disabled 規則と同型の判断）。掴めないことの表現
-            // として `cursor: not-allowed` のみ残す。
-            vec![decl("cursor", "not-allowed")],
+            // イシュー #1536 codex-review P1 是正: `root(disabled)` と
+            // `resize_trigger(disabled)` は headless 層
+            // （`fandhe_frontend_headless_ui::splitter`）上、独立した公開
+            // 引数であり、それぞれが独立に `data-disabled` を出力する。
+            // root が有効なまま特定の resize-trigger のみを無効化する
+            // 構成が API 契約上成立するため、「root 側の
+            // `[data-disabled]` 規則が既に全体へ適用済み」という前提で
+            // `opacity: 0.5` を除去すると、個別無効化時の視覚表現が
+            // `cursor: not-allowed` のみに後退する回帰になる（一度この
+            // 除去を行い、レビューで指摘されて復元した）。`opacity: 0.5`
+            // を維持し、root disabled とトリガー個別 disabled のどちらの
+            // 経路でも同じ視覚後退が伝わるようにする。
+            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
         )
         // イシュー #1536: hover の実適用は 1 本のみ（`--fandhe-hover-bg`
         // の間接参照経由。`crate::slider` の `thumb` と同型のパターン）。
@@ -561,10 +599,14 @@ mod tests {
         assert!(css.contains(r#"[data-scope="splitter"][data-part="resize-trigger-indicator"] {"#));
     }
 
-    // イシュー #1536: disabled 時の `opacity: 0.5` が root 側の 1 箇所へ
-    // 一本化され、`resize-trigger` 側から除去されたことを固定する。
+    // イシュー #1536 codex-review P1 是正: `root(disabled)` と
+    // `resize_trigger(disabled)` は独立した公開引数（headless 層が個別に
+    // `data-disabled` を出力する）であるため、root が有効なまま特定の
+    // resize-trigger のみを無効化する構成が成立する。`resize-trigger`
+    // 側の disabled 表現（`opacity: 0.5` + `cursor: not-allowed`）が
+    // root 側の規則に依存せず単独で機能することを固定する。
     #[test]
-    fn resize_trigger_disabled_no_longer_duplicates_opacity() {
+    fn resize_trigger_disabled_has_independent_visual_state() {
         let css = stylesheet();
         let trigger_disabled_start = css
             .find(r#"[data-scope="splitter"][data-part="resize-trigger"][data-disabled] {"#)
@@ -574,8 +616,27 @@ mod tests {
             .map(|i| trigger_disabled_start + i)
             .expect("disabled rule must be closed");
         let block = &css[trigger_disabled_start..trigger_disabled_end];
-        assert!(!block.contains("opacity"));
+        assert!(block.contains("opacity: 0.5;"));
         assert!(block.contains("cursor: not-allowed;"));
+    }
+
+    // Cursor Bugbot 指摘是正（イシュー #1536）: indicator（0.75rem 正方形・
+    // `flex-shrink: 0`）を内包しても `resize-trigger` の主軸太さが
+    // `flex-basis`（サイズバリアント）どおりに保たれることを、
+    // `min-width`/`min-height: 0` の明示で固定する。
+    #[test]
+    fn resize_trigger_base_yields_main_axis_to_flex_basis() {
+        let css = stylesheet();
+        let trigger_base_start = css
+            .find(r#"[data-scope="splitter"][data-part="resize-trigger"] {"#)
+            .expect("resize-trigger base rule must exist");
+        let trigger_base_end = css[trigger_base_start..]
+            .find('}')
+            .map(|i| trigger_base_start + i)
+            .expect("base rule must be closed");
+        let block = &css[trigger_base_start..trigger_base_end];
+        assert!(block.contains("min-width: 0;"));
+        assert!(block.contains("min-height: 0;"));
     }
 
     #[test]

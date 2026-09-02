@@ -23,6 +23,8 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
 
 [data-scope="splitter"][data-part="resize-trigger"] {
   flex: 0 0 var(--fandhe-splitter-trigger-size, 0.25rem);
+  min-width: 0;
+  min-height: 0;
   background: var(--fandhe-color-border);
   cursor: col-resize;
   display: flex;
@@ -136,6 +138,7 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
 }
 
 [data-scope="splitter"][data-part="resize-trigger"][data-disabled] {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
