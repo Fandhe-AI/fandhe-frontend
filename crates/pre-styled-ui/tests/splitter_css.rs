@@ -31,7 +31,7 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
   align-items: center;
   justify-content: center;
   border-radius: var(--fandhe-radius-full, 999px);
-  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
+  --fandhe-hover-bg: var(--fandhe-splitter-root-disabled-hover-bg, var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)));
 }
 
 [data-scope="splitter"][data-part="resize-trigger"] {
@@ -131,6 +131,7 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
 
 [data-scope="splitter"][data-part="root"][data-disabled] {
   opacity: 0.5;
+  --fandhe-splitter-root-disabled-hover-bg: transparent;
 }
 
 [data-scope="splitter"][data-part="resize-trigger"][data-orientation="vertical"] {
@@ -175,4 +176,45 @@ fn stylesheet_never_contains_style_breakout_sequences() {
 fn stylesheet_never_references_external_resources() {
     let css = splitter::stylesheet();
     assert!(!css.contains("url("));
+}
+
+// イシュー #1536 codex-review P1 是正: `root(disabled: true)` と
+// `resize_trigger(disabled: false)` を独立指定した構成（headless 層の
+// API 契約上成立する）でも、resize-trigger の hover 強調が抑止される
+// ことを固定する。`root` の `[data-disabled]` 規則が
+// `--fandhe-splitter-root-disabled-hover-bg: transparent` を定義し、
+// CSS の通常のプロパティ継承（子孫結合子を使わない、`SlotRecipe` の
+// 制約に沿う）で resize-trigger の `--fandhe-hover-bg` フォールバック
+// 連鎖の最優先値として効くことを検証する。
+#[test]
+fn root_disabled_rule_defines_hover_bg_override_for_resize_trigger_inheritance() {
+    let css = splitter::stylesheet();
+    let root_disabled_rule = css
+        .find(r#"[data-scope="splitter"][data-part="root"][data-disabled] {"#)
+        .expect("root disabled rule must exist");
+    let root_disabled_block_end = css[root_disabled_rule..]
+        .find('}')
+        .expect("root disabled rule must be closed");
+    let root_disabled_block =
+        &css[root_disabled_rule..root_disabled_rule + root_disabled_block_end];
+    assert!(
+        root_disabled_block.contains("--fandhe-splitter-root-disabled-hover-bg: transparent;"),
+        "root disabled rule must define the inherited hover-bg override: {root_disabled_block}"
+    );
+
+    let resize_trigger_base_rule = css
+        .find(r#"[data-scope="splitter"][data-part="resize-trigger"] {"#)
+        .expect("resize-trigger base rule must exist");
+    let resize_trigger_block_end = css[resize_trigger_base_rule..]
+        .find('}')
+        .expect("resize-trigger base rule must be closed");
+    let resize_trigger_block =
+        &css[resize_trigger_base_rule..resize_trigger_base_rule + resize_trigger_block_end];
+    assert!(
+        resize_trigger_block.contains(
+            "--fandhe-hover-bg: var(--fandhe-splitter-root-disabled-hover-bg, var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)));"
+        ),
+        "resize-trigger base rule must reference the root-disabled override as its \
+         highest-priority fallback: {resize_trigger_block}"
+    );
 }

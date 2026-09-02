@@ -88,8 +88,12 @@
 //!   `box-shadow: inset 0 0 0 9999px var(--fandhe-palette, transparent)`
 //!   から、参照 3 サイト（chakra-ui/ark-ui/Radix）共通の淡いニュートラル
 //!   細線（`background: var(--fandhe-color-border)`）へ変更した。強調表現
-//!   は hover 時の `--fandhe-hover-bg`（[`hover_bg_solid_with_fallback`]、
-//!   [`crate::slider`] の `thumb` と同型）へ移した。
+//!   は hover 時の `--fandhe-hover-bg`（[`crate::recipe::hover_bg_solid_with_fallback`]
+//!   のフォールバック連鎖を踏襲、[`crate::slider`] の `thumb` と同型）へ
+//!   移した。イシュー #1536 codex-review P1 是正（下記「意図的に採らな
+//!   かった変更」節手前の追記参照）で、root disabled 時のみ継承経由で
+//!   `transparent` へ切り替わる `--fandhe-splitter-root-disabled-hover-bg`
+//!   をフォールバック連鎖の最優先値として挿入するローカル定義へ変更した。
 //! - hover 状態（[`StateCondition::Hover`]）・[`transition_declarations`]
 //!   を新設した（親イシュー #1535 チェックリストの共通ビジュアル言語
 //!   軸）。
@@ -147,9 +151,9 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    focus_ring_declarations, hover_bg_solid_with_fallback, hover_surface_declarations,
-    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
-    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+    focus_ring_declarations, hover_surface_declarations, palette_scale_declarations,
+    transition_declarations, ColorPalette, FocusRingColor, FocusRingOffset, MotionDuration, Size,
+    SlotRecipe, StateCondition, VariantValue,
 };
 
 // `Splitter` 状態機械・headless 自由関数 `root`/`panel`/`resize_trigger` は
@@ -214,7 +218,32 @@ fn recipe() -> SlotRecipe {
         .state(
             "root",
             StateCondition::Attr("data-disabled"),
-            vec![decl("opacity", "0.5")],
+            // イシュー #1536 codex-review P1 是正: `root(disabled)` と
+            // `resize_trigger(disabled)` は headless 層の独立した公開引数
+            // であり（本ファイル冒頭 rustdoc「意図的に採らなかった変更」節
+            // 直前の記述参照）、root が disabled かつ個別
+            // `resize-trigger` を disabled 指定しない構成が API 契約上
+            // 成立する。この構成では `resize-trigger` 自身に
+            // `[data-disabled]` が付かないため、`StateCondition::Hover`
+            // が直列化する `:hover:not([data-disabled])`
+            // （`resize-trigger` 自身の属性のみを見るセレクタ、
+            // `SlotRecipe` が子孫結合子を持たない制約は本モジュール冒頭
+            // rustdoc 参照）だけでは検知できず、無効化された splitter の
+            // resize trigger に hover 強調が発火し操作可能に見えてしまう。
+            // `--fandhe-splitter-trigger-size`（同 rustdoc「`size`/
+            // `palette` variant」節）と同型の、CSS 通常のプロパティ継承
+            // （子孫結合子を使わない）で `root` から `resize-trigger` へ
+            // 伝える custom property を新設し、下記
+            // `--fandhe-hover-bg`（resize-trigger 自身の base 規則）の
+            // フォールバック連鎖の最優先値として参照させる。
+            // `resize-trigger` は本 custom property 自体を定義しないため
+            // （自身の base 規則が定義するのは `--fandhe-hover-bg` のみ）、
+            // root が disabled のときのみ継承経由でこの値が効き、hover
+            // 時の背景強調が `transparent` に抑止される。
+            vec![
+                decl("opacity", "0.5"),
+                decl("--fandhe-splitter-root-disabled-hover-bg", "transparent"),
+            ],
         )
         .base(
             "panel",
@@ -271,8 +300,20 @@ fn recipe() -> SlotRecipe {
                 // `crate::slider` の `thumb` と同型のパターン）。常時
                 // palette 塗りを廃した分、hover/drag 時のみ強調する
                 // solid 面（`--fandhe-palette-emphasized` フォールバック
-                // 付き）を選ぶ。
-                hover_bg_solid_with_fallback(),
+                // 付き）を選ぶ。共有ヘルパ [`hover_bg_solid_with_fallback`]
+                // をそのまま使わず、フォールバック連鎖の最優先値として
+                // `--fandhe-splitter-root-disabled-hover-bg`（`root` の
+                // disabled 規則が定義、上記 `root` `StateCondition::Attr
+                // ("data-disabled")` 規則のコメント参照）を挿入する。
+                // `resize-trigger` 自身はこの変数を定義しないため、root が
+                // disabled のときのみ CSS の通常のプロパティ継承で値が
+                // 伝わり hover 強調が `transparent` に抑止される（root が
+                // 有効なら未定義のまま次点の `--fandhe-palette-emphasized`
+                // フォールバックへ落ちる）。
+                decl(
+                    "--fandhe-hover-bg",
+                    "var(--fandhe-splitter-root-disabled-hover-bg, var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)))",
+                ),
             ],
         )
         .base(
