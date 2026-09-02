@@ -834,7 +834,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # rgba → `--fandhe-shadow-md`）をトークン化した CSS 宣言のみの意匠調整。
 # 既存 variant 追加・Rust API シグネチャ変更・既存セレクタ削除なしのため
 # patch バンプする。
-version = "0.61.5"
+# イシュー #1532（pagination の項目ボタン `item`/省略記号 `ellipsis` の
+# スタイル調整、親 #1531 の 1/2 分割）も同型の patch バンプ: recipe() への
+# 宣言追加・トークン化（hover/フォーカスリング/disabled/transition/色）の
+# みで、既存 `StateCondition` variant（`Hover`/`FocusVisible`/`Attr`）の
+# 適用に留まり新規 variant 追加なし。Rust API シグネチャ不変・既存セレクタ
+# 削除なしのため patch バンプする。
+version = "0.61.6"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
