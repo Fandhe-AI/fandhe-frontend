@@ -919,8 +919,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # クレート外部から到達不能なため公開 API 面には影響しない。base（main）が
 # #1540/#1541 の衝突回避で 0.63.0 へ先着済みのため、本イシューはその上へ
 # 0.63.0 → 0.63.1 へ patch バンプする（同一 patch バージョンの衝突回避）。
-version = "0.63.1"
-
+# イシュー #1544（toast のスタイル調整 1/2 — 枠・タイプ別配色）は
+# `toast::root` slot の CSS 値のみの変更（公開関数シグネチャ・型・
+# クラス名・data-* 属性は不変）のため独立に patch バンプ（0.63.0 →
+# 0.63.1）へ到達していた。feat/1542-tabs-style と main のマージにより、
+# 双方が同一バージョン 0.63.1 へ独立到達する偶発的衝突が生じたため、
+# これをそのまま採用せず 0.63.2 へさらに patch バンプする（同型の衝突
+# 回避は本ファイル内の既存記録〔#1539/#1541/#1679/#1681 等〕と同じ扱い）。
+version = "0.63.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
