@@ -58,12 +58,11 @@
 //!
 //! # `item`/`ellipsis` のスタイル是正（イシュー #1532、親 #1531 の 1/2 分割）
 //!
-//! 参考サイト（chakra-ui / Ark UI）基準へのスタイル是正 #1531 のうち、本
-//! モジュールでは **項目ボタン `item`（current / hover / focus / disabled
-//! の各状態）と省略記号 `ellipsis`** のみを担当する。前後トリガー
-//! （`prev-trigger`/`next-trigger`）と size バリアントは 2/2（#1533）の担当
-//! のため触れていない（`prev-trigger`/`next-trigger` の `data-disabled`/
-//! `FocusVisible` は本 PR 時点でも旧実装のまま）。
+//! 参考サイト（chakra-ui / Ark UI）基準へのスタイル是正 #1531 のうち、
+//! イシュー #1532 では **項目ボタン `item`（current / hover / focus /
+//! disabled の各状態）と省略記号 `ellipsis`** を担当した。前後トリガー
+//! （`prev-trigger`/`next-trigger`）と size バリアントは 2/2（#1533）で
+//! 是正済み（下記節参照）。
 //!
 //! - **hover**: `item` base へ [`hover_bg_muted`] を追加し `--fandhe-hover-bg`
 //!   を未選択面の色（`--fandhe-color-bg-muted`）へ定義、`data-selected` 規則
@@ -90,8 +89,47 @@
 //!   を優先する。
 //! - 影（box-shadow）は追加しない。枠線 + hover 背景色のみで状態表現する
 //!   既存方針を維持する（[`crate::toggle`] と同じ判断）。
-//! - size バリアント・`prev-trigger`/`next-trigger` の是正は 2/2（#1533）の
-//!   担当のため本 PR では変更しない。
+//!
+//! # `prev-trigger`/`next-trigger` のスタイル是正（イシュー #1533、親 #1531 の 2/2 分割）
+//!
+//! #1532 が手つかずのまま残した前後トリガーを、`item` と同じ 7 軸基準へ
+//! 是正した（先例: [`crate::carousel`] の `prev-trigger`/`next-trigger`
+//! パターン）。
+//!
+//! - **hover**: `item`（#1532）と同じ未選択面 hover 色。base へ
+//!   [`hover_bg_muted`] を追加し `data-disabled` 時を除いて
+//!   `.state(..., StateCondition::Hover, hover_surface_declarations())`
+//!   1 本を登録する（current ページ相当の状態はトリガーに存在しないため
+//!   `item` の emphasized 段上書きは不要）。
+//! - **focus**: 直書き `outline: 2px solid var(--fandhe-color-accent)` を
+//!   [`focus_ring_declarations`]（`FocusRingColor::Palette`、
+//!   `FocusRingOffset::Outside`）へ置換。`Palette` を選ぶ根拠は `item` と
+//!   同じ: pagination root は palette 軸クラスで `--fandhe-palette` を
+//!   定義するため、部品内のフォーカスリング色を統一する
+//!   （[`crate::carousel`] の `Token` は root に palette 軸を持たない点で
+//!   前提が異なる）。
+//! - **disabled**: 直書き `cursor: not-allowed` + `opacity: 0.5` を
+//!   [`disabled_declarations`] へ置換（値は同一、宣言順のみ変わる）。
+//! - **transition**: `item`（#1532）と同型の第 2 base ブロックとして
+//!   [`transition_declarations`]（`MotionDuration::Fast`）を追加する
+//!   （trigger だけ状態遷移が瞬時に切り替わる不整合の解消）。
+//! - **余白**: `padding-inline: var(--fandhe-space-2)` を追加する
+//!   （docs-site Demo の "Prev"/"Next" テキストラベル運用でテキストが
+//!   枠線に接する余白軸の欠落を解消。アイコン運用時は `min-width` により
+//!   概ね正方形が保たれるため見た目への影響は小さい）。
+//! - **size バリアント**: Xs〜Xl の 5 段（chakra の `xs/sm/md/lg/xl` 相当）
+//!   は #1681/#1714 で既に登録済み。トリガー・`ellipsis` への反映は
+//!   root スコープの custom property（`--fandhe-pagination-item-size`/
+//!   `-item-font-size`）の継承で既に成立しているため、本イシューでは
+//!   単体テストのカバレッジ拡充（Xs〜Xl 全段）のみ行い、`recipe()` への
+//!   追加変更は行わない。
+//!
+//! ## 意図的非対応
+//!
+//! - chakra のようなアイコン専用トリガー形状は強制しない。テキスト
+//!   ラベル・アイコンいずれの運用も呼び出し側の裁量とする（headless 層
+//!   `prev_trigger`/`next_trigger` は children を固定しない）。
+//! - variant 軸（solid/outline 等）は追加しない（`item` と同じ判断）。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -201,6 +239,11 @@ fn recipe() -> SlotRecipe {
                 decl("box-sizing", "border-box"),
                 decl("min-width", "var(--fandhe-pagination-item-size, 2rem)"),
                 decl("height", "var(--fandhe-pagination-item-size, 2rem)"),
+                // イシュー #1533: docs-site Demo の "Prev" テキストラベル
+                // 運用でテキストが枠線に接しないよう横 padding を追加する
+                // （アイコン運用時は `min-width` により概ね正方形が保たれる
+                // ため見た目への影響は小さい）。
+                decl("padding-inline", "var(--fandhe-space-2)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
@@ -211,7 +254,17 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl("text-decoration", "none"),
                 decl("cursor", "pointer"),
+                // イシュー #1533: item（#1532）と同じ未選択面 hover 色
+                // （`item` に hover が無かった旧実装との不整合を解消）。
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "prev-trigger",
+            // イシュー #1533: item は transition 済みなのにトリガーだけ状態
+            // 遷移が瞬時に切り替わる不整合を解消する（item と同型の第 2
+            // base ブロック）。
+            transition_declarations("background, border-color, color", MotionDuration::Fast),
         )
         .base(
             "next-trigger",
@@ -222,6 +275,7 @@ fn recipe() -> SlotRecipe {
                 decl("box-sizing", "border-box"),
                 decl("min-width", "var(--fandhe-pagination-item-size, 2rem)"),
                 decl("height", "var(--fandhe-pagination-item-size, 2rem)"),
+                decl("padding-inline", "var(--fandhe-space-2)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
@@ -232,7 +286,12 @@ fn recipe() -> SlotRecipe {
                 ),
                 decl("text-decoration", "none"),
                 decl("cursor", "pointer"),
+                hover_bg_muted(),
             ],
+        )
+        .base(
+            "next-trigger",
+            transition_declarations("background, border-color, color", MotionDuration::Fast),
         )
         // 現在ページ（`data-selected` 存在マーカー、headless 層
         // `crates/headless-ui/src/pagination.rs` 参照）の見た目。
@@ -273,12 +332,26 @@ fn recipe() -> SlotRecipe {
         .state(
             "prev-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            // イシュー #1533: `cursor`/`opacity` 直書きを共通ヘルパへ置換
+            // （item・#1532 と同じ置換、出力順のみ変わる）。
+            disabled_declarations(),
         )
         .state(
             "next-trigger",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            disabled_declarations(),
+        )
+        // イシュー #1533: item（#1532）と同型の hover 適用
+        // （`@media (hover: hover)` + `:not([data-disabled])` へ集約出力）。
+        .state(
+            "prev-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "next-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         // item/prev-trigger/next-trigger はネイティブ button/a 自身が実
         // フォーカスを受けるため、hidden-input パターンの
@@ -296,18 +369,18 @@ fn recipe() -> SlotRecipe {
         .state(
             "prev-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            // イシュー #1533: outline 直書きを共通フォーカスリングトークン
+            // 経由の canonical ヘルパへ置換。`FocusRingColor::Palette` を
+            // 選ぶ根拠は item（#1532）と同じ: pagination root は palette
+            // 軸クラスで `--fandhe-palette` を定義するため、部品内の
+            // フォーカスリング色を統一する（carousel の `Token` とは
+            // root に palette 軸を持たない点で前提が異なる）。
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         .state(
             "next-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         // イシュー #1681: Xs/Xl は item-size の Sm→Md→Lg 等差進行（0.5rem
         // 刻み）を両端へ外挿。font-size は Sm=Md=sm、Lg=md の段差を踏襲し、
@@ -507,6 +580,73 @@ mod tests {
         assert!(!css.contains("opacity: 0.6"));
     }
 
+    // イシュー #1533: prev-trigger/next-trigger の hover が item と同じ
+    // `@media (hover: hover)` + `--fandhe-hover-bg` 間接参照経由で出力
+    // されることを確認する。
+    #[test]
+    fn stylesheet_defines_trigger_hover_via_media_hover() {
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        for part in ["prev-trigger", "next-trigger"] {
+            let selector = format!(
+                r#"[data-scope="pagination"][data-part="{part}"]:hover:not([data-disabled]) {{"#
+            );
+            assert!(
+                css.contains(&selector),
+                "missing hover selector for {part}: {css}"
+            );
+        }
+    }
+
+    // イシュー #1533: prev-trigger/next-trigger の focus-visible が直書き
+    // outline ではなく共通フォーカスリングトークン経由になっていることを
+    // 確認する（item と同じトークン経由の検証パターン）。
+    #[test]
+    fn trigger_focus_ring_uses_common_tokens() {
+        let css = stylesheet();
+        for part in ["prev-trigger", "next-trigger"] {
+            let selector =
+                format!(r#"[data-scope="pagination"][data-part="{part}"]:focus-visible {{"#);
+            assert!(
+                css.contains(&selector),
+                "missing focus-visible selector for {part}: {css}"
+            );
+        }
+        assert!(css.contains("--fandhe-focus-ring-width"));
+        assert!(css.contains("--fandhe-color-focus-ring"));
+        assert!(!css.contains("outline: 2px solid var(--fandhe-color-accent)"));
+    }
+
+    // イシュー #1533: prev-trigger/next-trigger の transition がトークン化
+    // された longhand（`--fandhe-motion-duration-fast` 等）であることを
+    // 確認する（`transition: ... 0.15s` 直書き shorthand を使っていない）。
+    #[test]
+    fn trigger_transition_uses_tokenized_longhand() {
+        let css = stylesheet();
+        assert!(css.contains("--fandhe-motion-duration-fast"));
+        assert!(!css.contains("transition: background 0.15s"));
+        assert!(!css.contains("transition: background, border-color, color 0.15s"));
+    }
+
+    // イシュー #1533: prev-trigger/next-trigger に横 padding が追加され、
+    // テキストラベル運用時に枠線へ接しないことを確認する。
+    #[test]
+    fn trigger_has_inline_padding() {
+        let css = stylesheet();
+        for part in ["prev-trigger", "next-trigger"] {
+            let selector = format!(r#"[data-scope="pagination"][data-part="{part}"] {{"#);
+            let idx = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("missing base selector for {part}"));
+            let block_end = css[idx..].find('}').map(|i| idx + i).unwrap_or(css.len());
+            assert!(
+                css[idx..block_end].contains("padding-inline: var(--fandhe-space-2)"),
+                "missing padding-inline for {part}: {}",
+                &css[idx..block_end]
+            );
+        }
+    }
+
     // モジュール冒頭 rustdoc「複合部品の variant 統一方針」節が謳う「root の
     // --fandhe-pagination-item-font-size は item/prev-trigger/next-trigger
     // すべてに反映される」を base スタイルの実体で保証する回帰テスト
@@ -551,12 +691,16 @@ mod tests {
         assert!(html.contains("fd-pagination--color-palette-accent"));
     }
 
+    // イシュー #1533: Xs/Xl（#1681/#1714 で登録済み）を含む 5 段全網羅へ
+    // テストカバレッジを拡充する。
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-pagination--size-xs"),
             (Size::Sm, "fd-pagination--size-sm"),
             (Size::Md, "fd-pagination--size-md"),
             (Size::Lg, "fd-pagination--size-lg"),
+            (Size::Xl, "fd-pagination--size-xl"),
         ] {
             let html = render(&root(
                 size,

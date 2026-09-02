@@ -840,7 +840,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # みで、既存 `StateCondition` variant（`Hover`/`FocusVisible`/`Attr`）の
 # 適用に留まり新規 variant 追加なし。Rust API シグネチャ不変・既存セレクタ
 # 削除なしのため patch バンプする。
-version = "0.61.6"
+# イシュー #1533（pagination の前後トリガー `prev-trigger`/`next-trigger`
+# のスタイル調整、親 #1531 の 2/2 分割）も同型の patch バンプ: recipe() へ
+# の宣言追加・トークン化（hover/フォーカスリング/disabled/transition/横
+# padding）のみで、既存 `StateCondition` variant（`Hover`/`FocusVisible`/
+# `Attr`）の適用に留まり新規 variant 追加なし。size バリアント（Xs〜Xl）は
+# #1681/#1714 で既に登録済みのためテストカバレッジ拡充のみ。Rust API
+# シグネチャ不変・既存セレクタ削除なしのため patch バンプする。
+version = "0.61.7"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
