@@ -758,7 +758,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # `close-trigger` をアイコン専用契約へ変更（`crates/pre-styled-ui/src/
 # dialog.rs` rustdoc 参照）し、0.x の破壊的変更ルールに従い 0.59.0 へ
 # マイナーバンプする。
-version = "0.59.0"
+#
+# イシュー #1694: drawer の外枠パート（trigger/backdrop/positioner/content）
+# のスタイル調整。既存セレクタ・CSS 変数名の削除/改名を伴わない意匠調整のみ
+# のため patch バンプする（`docs/ci/style-refresh-version-bump-operation.md`
+# §3.1/§3.4a）。
+version = "0.59.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
