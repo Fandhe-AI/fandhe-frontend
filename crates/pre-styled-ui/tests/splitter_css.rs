@@ -131,7 +131,7 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
 
 [data-scope="splitter"][data-part="root"][data-disabled] {
   opacity: 0.5;
-  --fandhe-splitter-root-disabled-hover-bg: transparent;
+  --fandhe-splitter-root-disabled-hover-bg: var(--fandhe-color-border);
 }
 
 [data-scope="splitter"][data-part="resize-trigger"][data-orientation="vertical"] {
@@ -182,10 +182,15 @@ fn stylesheet_never_references_external_resources() {
 // `resize_trigger(disabled: false)` を独立指定した構成（headless 層の
 // API 契約上成立する）でも、resize-trigger の hover 強調が抑止される
 // ことを固定する。`root` の `[data-disabled]` 規則が
-// `--fandhe-splitter-root-disabled-hover-bg: transparent` を定義し、
-// CSS の通常のプロパティ継承（子孫結合子を使わない、`SlotRecipe` の
-// 制約に沿う）で resize-trigger の `--fandhe-hover-bg` フォールバック
-// 連鎖の最優先値として効くことを検証する。
+// `--fandhe-splitter-root-disabled-hover-bg: var(--fandhe-color-border)`
+// を定義し、CSS の通常のプロパティ継承（子孫結合子を使わない、
+// `SlotRecipe` の制約に沿う）で resize-trigger の `--fandhe-hover-bg`
+// フォールバック連鎖の最優先値として効くことを検証する。値を
+// `transparent` ではなく `var(--fandhe-color-border)`（resize-trigger の
+// base 規則と同じ細線色）にするのは、codex-review 再指摘（同一 Issue
+// 別ラウンド）是正: `transparent` だと hover 中に境界線そのものが
+// 消える視覚回帰になるため、強調色のみを抑止し境界線は見え続ける値へ
+// 変更した。
 #[test]
 fn root_disabled_rule_defines_hover_bg_override_for_resize_trigger_inheritance() {
     let css = splitter::stylesheet();
@@ -198,7 +203,8 @@ fn root_disabled_rule_defines_hover_bg_override_for_resize_trigger_inheritance()
     let root_disabled_block =
         &css[root_disabled_rule..root_disabled_rule + root_disabled_block_end];
     assert!(
-        root_disabled_block.contains("--fandhe-splitter-root-disabled-hover-bg: transparent;"),
+        root_disabled_block
+            .contains("--fandhe-splitter-root-disabled-hover-bg: var(--fandhe-color-border);"),
         "root disabled rule must define the inherited hover-bg override: {root_disabled_block}"
     );
 

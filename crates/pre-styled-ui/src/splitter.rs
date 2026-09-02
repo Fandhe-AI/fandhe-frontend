@@ -92,8 +92,10 @@
 //!   のフォールバック連鎖を踏襲、[`crate::slider`] の `thumb` と同型）へ
 //!   移した。イシュー #1536 codex-review P1 是正（下記「意図的に採らな
 //!   かった変更」節手前の追記参照）で、root disabled 時のみ継承経由で
-//!   `transparent` へ切り替わる `--fandhe-splitter-root-disabled-hover-bg`
-//!   をフォールバック連鎖の最優先値として挿入するローカル定義へ変更した。
+//!   `var(--fandhe-color-border)`（既定の細線色。境界線が hover 中に
+//!   消えないよう、強調色ではなく既定の非強調色へ戻す）へ切り替わる
+//!   `--fandhe-splitter-root-disabled-hover-bg` をフォールバック連鎖の
+//!   最優先値として挿入するローカル定義へ変更した。
 //! - hover 状態（[`StateCondition::Hover`]）・[`transition_declarations`]
 //!   を新設した（親イシュー #1535 チェックリストの共通ビジュアル言語
 //!   軸）。
@@ -239,10 +241,25 @@ fn recipe() -> SlotRecipe {
             // `resize-trigger` は本 custom property 自体を定義しないため
             // （自身の base 規則が定義するのは `--fandhe-hover-bg` のみ）、
             // root が disabled のときのみ継承経由でこの値が効き、hover
-            // 時の背景強調が `transparent` に抑止される。
+            // 時の背景強調が既定の非強調色（`--fandhe-color-border`）に
+            // 抑止される。
+            //
+            // イシュー #1536 codex-review 再指摘（同一 Issue 別ラウンド）:
+            // 当初この値を `transparent` にしていたが、root のみ disabled
+            // で `resize-trigger` 自身に `[data-disabled]` が付かない構成
+            // では、hover 中に `background` が `var(--fandhe-color-border)`
+            // （base 規則）から `transparent`（この override）へ置き換わり、
+            // リサイズ境界線自体が hover 中に見えなくなる視覚回帰を招いて
+            // いた。強調色を抑止したいだけであり細線自体を消す意図はない
+            // ため、`transparent` ではなく base 規則と同じ
+            // `var(--fandhe-color-border)` へフォールバックさせ、disabled
+            // 時の hover は「強調されないが境界線は見え続ける」状態にする。
             vec![
                 decl("opacity", "0.5"),
-                decl("--fandhe-splitter-root-disabled-hover-bg", "transparent"),
+                decl(
+                    "--fandhe-splitter-root-disabled-hover-bg",
+                    "var(--fandhe-color-border)",
+                ),
             ],
         )
         .base(
@@ -307,9 +324,15 @@ fn recipe() -> SlotRecipe {
                 // ("data-disabled")` 規則のコメント参照）を挿入する。
                 // `resize-trigger` 自身はこの変数を定義しないため、root が
                 // disabled のときのみ CSS の通常のプロパティ継承で値が
-                // 伝わり hover 強調が `transparent` に抑止される（root が
-                // 有効なら未定義のまま次点の `--fandhe-palette-emphasized`
-                // フォールバックへ落ちる）。
+                // 伝わり hover 強調が既定の非強調色
+                // （`var(--fandhe-color-border)`、細線自体の色と同じ）に
+                // 抑止される（root が有効なら未定義のまま次点の
+                // `--fandhe-palette-emphasized` フォールバックへ落ちる）。
+                // `transparent` ではなく `var(--fandhe-color-border)` を
+                // 選ぶ理由は上記 `root` `StateCondition::Attr
+                // ("data-disabled")` 規則のコメント（codex-review 再指摘）
+                // 参照: `transparent` だと hover 中に境界線そのものが
+                // 消える視覚回帰になる。
                 decl(
                     "--fandhe-hover-bg",
                     "var(--fandhe-splitter-root-disabled-hover-bg, var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)))",
