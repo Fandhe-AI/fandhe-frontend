@@ -211,7 +211,7 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
 }
 
 @media (hover: hover) {
-  [data-scope="toast"][data-part="action-trigger"]:hover:not([data-disabled]) {
+  [data-scope="toast"][data-part="action-trigger"]:hover:not([data-disabled]):not([disabled]) {
     background: var(--fandhe-hover-bg);
   }
 

@@ -558,9 +558,21 @@ fn recipe() -> SlotRecipe {
         // 定義。`StateCondition::Hover` は自動的に `:not([data-disabled])`
         // を伴うためタッチ端末の hover 貼り付き・disabled 要素での誤発火を
         // 避ける）。
+        //
+        // `action-trigger` のみ `StateCondition::HoverExceptAttr("disabled")`
+        // を使う（PR #1818 codex-review P1 / Bugbot 指摘対応）: headless
+        // `action_trigger` はネイティブ `<button disabled>` のみを発行し
+        // `data-disabled` は発行しない（上記モジュール doc「disabled」節・
+        // 545 行目付近の disabled 登録と同じ前提）ため、`Hover` 単体が
+        // 伴う `:not([data-disabled])` だけでは `[disabled]` 要素を除外
+        // できず、disabled な action-trigger にポインタを重ねると hover
+        // 背景が変化してしまっていた。`HoverExceptAttr("disabled")` は
+        // `:hover:not([data-disabled]):not([disabled])` を生成し、直前で
+        // 登録した `disabled_declarations()`（`[disabled]`/`[data-disabled]`
+        // 両方）と矛盾なく disabled 状態の見た目を安定させる。
         .state(
             "action-trigger",
-            StateCondition::Hover,
+            StateCondition::HoverExceptAttr("disabled"),
             hover_surface_declarations(),
         )
         .state(
@@ -751,7 +763,7 @@ mod tests {
             r#"[data-scope="toast"][data-part="close-trigger"]:hover:not([data-disabled]) {"#
         ));
         assert!(css.contains(
-            r#"[data-scope="toast"][data-part="action-trigger"]:hover:not([data-disabled]) {"#
+            r#"[data-scope="toast"][data-part="action-trigger"]:hover:not([data-disabled]):not([disabled]) {"#
         ));
         assert!(css.contains(r#"[data-scope="toast"][data-part="close-trigger"]:focus-visible {"#));
         assert!(css.contains(r#"[data-scope="toast"][data-part="action-trigger"]:focus-visible {"#));
@@ -784,6 +796,22 @@ mod tests {
         );
         assert!(css.contains("opacity: 0.5;"));
         assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    // PR #1818 codex-review P1 / Bugbot 指摘（イシュー #1545）: disabled な
+    // action-trigger（headless がネイティブ `[disabled]` のみを発行する
+    // 経路）にポインタを重ねても hover 背景が変化しないことを固定する。
+    // `StateCondition::Hover` 単体が伴う `:not([data-disabled])` だけでは
+    // `[disabled]` を除外できないため、この回帰テストが再発を検知する。
+    #[test]
+    fn action_trigger_hover_excludes_native_disabled_attribute() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="toast"][data-part="action-trigger"]:hover:not([data-disabled]):not([disabled]) {"#
+        ));
+        assert!(!css.contains(
+            r#"[data-scope="toast"][data-part="action-trigger"]:hover:not([data-disabled]) {"#
+        ));
     }
 
     #[test]
