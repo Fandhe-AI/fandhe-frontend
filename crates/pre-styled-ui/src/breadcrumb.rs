@@ -61,7 +61,9 @@
 //!   （`Token`: breadcrumb は palette 軸を持たない部品／`Outside`: `link`
 //!   の祖先に `overflow: hidden` を持つ slot がないため）を
 //!   `StateCondition::FocusVisible` に紐付けて追加した。リング形状のため
-//!   `link` base へ `border-radius: var(--fandhe-radius-sm)` も追加する。
+//!   `link` base へ `border-radius: var(--fandhe-radius-sm, 0.25rem)` も
+//!   追加する（フォールバック `0.25rem` の理由は次項の `gap` トークン化と
+//!   同じ、codex-review #1791 P1 指摘）。
 //! - **`link` の transition**: [`crate::recipe::transition_declarations`]
 //!   （`"color"`、`MotionDuration::Fast`）を base へ追加した。
 //! - **`list`/`item` の `gap` トークン化**: 生値 `0.375rem` を
@@ -69,7 +71,9 @@
 //!   フォールバック値を明示するのは、このトークンを定義しない
 //!   `Theme::empty()` 系カスタムテーマで `var()` が computed-value time
 //!   に無効となり余白が失われる後方互換性の問題を防ぐため
-//!   （codex-review #1791 P1 指摘）。
+//!   （codex-review #1791 P1 指摘）。同じ理由で `link` の
+//!   `border-radius`（`--fandhe-radius-sm`）にもフォールバック
+//!   `0.25rem`（現行値）を明示する。
 //!
 //! **意図的に追随しない差分**（根拠を記録し、再評価は
 //! `docs/policy/intentional-non-adoption.md` の評価軸に従う）:
@@ -191,7 +195,11 @@ fn recipe() -> SlotRecipe {
                 ),
                 // イシュー #1517: フォーカスリングの視認性向上（角丸なし
                 // だとリングが直角になり他部品と見た目が揃わない）。
-                decl("border-radius", "var(--fandhe-radius-sm)"),
+                // codex-review #1791 P1 指摘: `gap` と同じ理由でフォール
+                // バック `0.25rem`（`--fandhe-radius-sm` の現行値）を明示
+                // する（`Theme::empty()` 系カスタムテーマで computed-value
+                // time に無効となり角丸が失われるのを防ぐ）。
+                decl("border-radius", "var(--fandhe-radius-sm, 0.25rem)"),
             ],
         )
         // イシュー #1517: `link` の色 transition（`crate::recipe` 冒頭 doc

@@ -41,7 +41,7 @@ const BREADCRUMB_GOLDEN_CSS: &str = r#"[data-scope="breadcrumb"][data-part="list
 [data-scope="breadcrumb"][data-part="link"] {
   color: var(--fandhe-color-fg-muted);
   text-decoration: var(--fandhe-breadcrumb-link-text-decoration, none);
-  border-radius: var(--fandhe-radius-sm);
+  border-radius: var(--fandhe-radius-sm, 0.25rem);
 }
 
 [data-scope="breadcrumb"][data-part="link"] {
