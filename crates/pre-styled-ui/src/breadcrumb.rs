@@ -47,6 +47,49 @@
 //!   呼び出し側 `attrs` の `data-scope`/`data-part` 偽装除去（headless
 //!   anatomy の fail-closed 挙動）をそのまま継承する。
 //!
+//! # 参考サイト基準への調整（イシュー #1517）
+//!
+//! 参照サイト（主に chakra-ui Breadcrumb）との視覚比較を踏まえ、以下を
+//! 是正した（先行 #1515〔accordion〕と同型の作業、Phase 0（#1424/#1425）の
+//! canonical ヘルパを使用）:
+//!
+//! - **`link` の hover**: chakra の `fg.muted → fg` 色変化に相当する
+//!   `.state("link", StateCondition::Hover, ...)` を追加（`color` のみ、
+//!   面色は変えない。非対話 slot である `current-link`/`separator`/
+//!   `ellipsis` には付けない）。
+//! - **`link` のキーボードフォーカスリング**: [`crate::recipe::focus_ring_declarations`]
+//!   （`Token`: breadcrumb は palette 軸を持たない部品／`Outside`: `link`
+//!   の祖先に `overflow: hidden` を持つ slot がないため）を
+//!   `StateCondition::FocusVisible` に紐付けて追加した。リング形状のため
+//!   `link` base へ `border-radius: var(--fandhe-radius-sm, 0.25rem)` も
+//!   追加する（フォールバック `0.25rem` の理由は次項の `gap` トークン化と
+//!   同じ、codex-review #1791 P1 指摘）。
+//! - **`link` の transition**: [`crate::recipe::transition_declarations`]
+//!   （`"color"`、`MotionDuration::Fast`）を base へ追加した。
+//! - **`list`/`item` の `gap` トークン化**: 生値 `0.375rem` を
+//!   `var(--fandhe-space-1-5, 0.375rem)` へ置換（計算値は不変）。
+//!   フォールバック値を明示するのは、このトークンを定義しない
+//!   `Theme::empty()` 系カスタムテーマで `var()` が computed-value time
+//!   に無効となり余白が失われる後方互換性の問題を防ぐため
+//!   （codex-review #1791 P1 指摘）。同じ理由で `link` の
+//!   `border-radius`（`--fandhe-radius-sm`）にもフォールバック
+//!   `0.25rem`（現行値）を明示する。
+//!
+//! **意図的に追随しない差分**（根拠を記録し、再評価は
+//! `docs/policy/intentional-non-adoption.md` の評価軸に従う）:
+//!
+//! - **size 5 段の維持**: chakra は `sm`/`md`/`lg` の 3 段だが、本リポジトリ
+//!   は [`crate::recipe::Size`] 統一スケール（xs〜xl の 5 段）を他部品と
+//!   揃えて優先する。5→3 への縮小は公開 API の破壊的変更であり行わない。
+//! - **colorPalette 軸の不採用**: 本モジュール冒頭「2 軸の variant」節の
+//!   最小構成方針を継続する。
+//! - **disabled 状態なし**: headless breadcrumb（`crates/headless-ui/src/breadcrumb.rs`）
+//!   が `data-disabled` を出力しないため、[`crate::recipe::disabled_declarations`]
+//!   は追加しない（消費対象の `data-*` が存在しない）。
+//! - **`current-link`/`separator`/`ellipsis` への hover なし**: いずれも
+//!   非対話要素（`current-link` は `aria-current="page"` の非リンクテキスト、
+//!   `separator`/`ellipsis` は装飾）のため hover フィードバックは付けない。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
@@ -56,7 +99,10 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, transition_declarations, FocusRingColor, FocusRingOffset,
+    MotionDuration, SlotRecipe, StateCondition, VariantValue,
+};
 pub use fandhe_frontend_headless_ui::breadcrumb::{
     current_link, ellipsis, item, link, list, separator, BreadcrumbItem,
 };
@@ -109,7 +155,16 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("flex-wrap", "wrap"),
                 decl("align-items", "center"),
-                decl("gap", "0.375rem"),
+                // イシュー #1517: 生値からトークン参照へ（値は不変、
+                // `var(--fandhe-space-1-5)` = 0.375rem）。
+                // codex-review #1791 P1 指摘: フォールバックなしの
+                // `var()` は `--fandhe-space-1-5` を定義しない
+                // `Theme::empty()` 系カスタムテーマで computed-value
+                // time に無効となり余白が消える（gap の初期値
+                // `normal` へフォールバックし 0.375rem の余白が
+                // 失われる）ため、従来値 `0.375rem` を第 2 引数の
+                // フォールバックとして明示する（計算値は不変のまま）。
+                decl("gap", "var(--fandhe-space-1-5, 0.375rem)"),
                 decl("list-style", "none"),
                 decl("margin", "0"),
                 decl("padding", "0"),
@@ -124,7 +179,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
-                decl("gap", "0.375rem"),
+                // イシュー #1517: `list` と同じくトークン参照へ。
+                // codex-review #1791 P1 指摘: `list` と同じ理由で
+                // フォールバック `0.375rem` を明示する。
+                decl("gap", "var(--fandhe-space-1-5, 0.375rem)"),
             ],
         )
         .base(
@@ -135,7 +193,20 @@ fn recipe() -> SlotRecipe {
                     "text-decoration",
                     "var(--fandhe-breadcrumb-link-text-decoration, none)",
                 ),
+                // イシュー #1517: フォーカスリングの視認性向上（角丸なし
+                // だとリングが直角になり他部品と見た目が揃わない）。
+                // codex-review #1791 P1 指摘: `gap` と同じ理由でフォール
+                // バック `0.25rem`（`--fandhe-radius-sm` の現行値）を明示
+                // する（`Theme::empty()` 系カスタムテーマで computed-value
+                // time に無効となり角丸が失われるのを防ぐ）。
+                decl("border-radius", "var(--fandhe-radius-sm, 0.25rem)"),
             ],
+        )
+        // イシュー #1517: `link` の色 transition（`crate::recipe` 冒頭 doc
+        // 「transition」節の規約どおり base へ追加）。
+        .base(
+            "link",
+            transition_declarations("color", MotionDuration::Fast),
         )
         .base(
             "current-link",
@@ -159,6 +230,21 @@ fn recipe() -> SlotRecipe {
                 decl("align-items", "center"),
                 decl("color", "var(--fandhe-color-fg-subtle)"),
             ],
+        )
+        // イシュー #1517: chakra の link hover（`fg.muted` → `fg`）相当。
+        // `current-link`/`separator`/`ellipsis` は非対話要素のため付けない。
+        .state(
+            "link",
+            StateCondition::Hover,
+            vec![decl("color", "var(--fandhe-color-fg)")],
+        )
+        // イシュー #1517: キーボード操作時のみのフォーカスリング。
+        // `Token`: breadcrumb は palette 軸を持たない部品。`Outside`:
+        // `link` の祖先に `overflow: hidden` を持つ slot がないため。
+        .state(
+            "link",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .variant(
             crate::recipe::Size::Xs,
@@ -381,6 +467,25 @@ mod tests {
         assert!(a.contains("--variant-"));
         assert!(a.contains("--fandhe-breadcrumb-link-text-decoration"));
         assert!(a.contains("var(--fandhe-color-fg)"));
+    }
+
+    #[test]
+    fn stylesheet_contains_hover_focus_transition_and_gap_token() {
+        // イシュー #1517: hover（`@media (hover: hover)` 配下へ集約出力）・
+        // focus-visible（canonical フォーカスリング）・transition・
+        // `gap` のトークン化を検証する。
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css
+            .contains(r#"[data-scope="breadcrumb"][data-part="link"]:hover:not([data-disabled])"#));
+        assert!(css.contains(r#"[data-scope="breadcrumb"][data-part="link"]:focus-visible"#));
+        assert!(css.contains("--fandhe-focus-ring-width"));
+        assert!(css.contains("outline-offset: var(--fandhe-focus-ring-offset, 2px)"));
+        assert!(css.contains("transition-property: color;"));
+        // codex-review #1791 P1 指摘: `Theme::empty()` 系カスタムテーマの
+        // 後方互換のためフォールバック付き（`var(--fandhe-space-1-5, 0.375rem)`）
+        // であることを golden fixture として固定する。
+        assert!(css.contains("gap: var(--fandhe-space-1-5, 0.375rem);"));
     }
 
     #[test]
