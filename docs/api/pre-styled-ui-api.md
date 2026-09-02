@@ -466,7 +466,7 @@ CSS を追加提供する（設計方針は他 headless ラッパーと同じ、
 | editable | ✓ | – | フォーム操作部品のため color-palette は非提供 |
 | checkbox-card / radio-card | ✓ | ✓ | カード外観・選択強調・ドット色に反映（§4g 参照） |
 | pagination | ✓ | ✓ | 現在ページの強調色に反映。root scope の CSS custom property は `--fandhe-pagination-item-size`/`-item-font-size` |
-| steps | ✓ | ✓ | indicator の寸法・current/complete の強調色に反映。root scope の CSS custom property は `--fandhe-steps-indicator-size`/`-font-size`（イシュー #1540、後者は trigger/prev-trigger/next-trigger のラベル文字サイズ） |
+| steps | ✓ | ✓ | indicator の寸法・current/complete の強調色に反映。root scope の CSS custom property は `--fandhe-steps-indicator-size`（indicator の寸法）・`--fandhe-steps-indicator-font-size`（indicator 内ラベルの文字サイズ）・`--fandhe-steps-font-size`（イシュー #1540 で追加。trigger/prev-trigger/next-trigger のラベル文字サイズ）の 3 個 |
 | popover / tooltip | 提供しない | 提供しない | 配置・寸法が positioning 起因のため提供しない |
 | tree-view | 提供しない | 提供しない | popover/tooltip と同型の判断 |
 | json-tree-view | 提供しない | 提供しない | tree-view と同型の判断 |
