@@ -38,6 +38,78 @@
 //! する（[`crate::popover`] と同じ構造判断、dialog PR #575 の不具合を構造的
 //! に回避する）。
 //!
+//! # 参考サイト基準へのスタイル調整（イシュー #1522）
+//!
+//! chakra-ui FloatingPanel（MCP `get_component_example` で一次確認）を基準
+//! に、7 軸チェックリスト（角丸・影のトークン化・hover・フォーカス・
+//! stage-trigger/close-trigger のボタン化・maximized 時の全画面表示）の
+//! 不足を是正した。直近の同種先例は [`crate::action_bar`]（#1516/PR #1790。
+//! z-index 900 の同 tier・トリガーのボタン化・hover/focus-ring 導入まで
+//! 構成が酷似）と [`crate::dialog`]（#1692/PR #1794。トークン化のフォール
+//! バック方針）であり、両者のパターンを踏襲する。
+//!
+//! - **角丸・影のトークン化**: `content` の `border-radius` を
+//!   `var(--fandhe-radius-lg)`（面パネルカテゴリ = `lg`、
+//!   `docs/design/pre-styled-ui-scale-tokens.md` §3.1）、`box-shadow` を
+//!   `var(--fandhe-shadow-md)`（overlay dropdown 型 = `md`、同 §3.2。
+//!   [`crate::combobox`]/[`crate::select`]/[`crate::toast`]/
+//!   [`crate::date_picker`]/[`crate::action_bar`] と同じ影に統一しダーク値
+//!   切り替えも獲得）へそれぞれ変更した。`trigger` の `border-radius` も
+//!   `var(--fandhe-radius-md, 0.375rem)` へトークン化する（計算値不変、
+//!   [`crate::dialog`] #1692 のフォールバック方針: 単独 `stylesheet()`
+//!   利用時の後方互換維持）。
+//! - **trigger / stage-trigger / close-trigger の hover・トランジション**:
+//!   [`crate::recipe::hover_bg_muted`]/[`crate::recipe::
+//!   hover_surface_declarations`]（イシュー #1425 共通ビジュアル言語）を
+//!   `.state(_, StateCondition::Hover, ...)` として登録した。
+//!   stage-trigger/close-trigger は chakra-ui では `IconButton
+//!   variant="ghost" size="2xs"` として描かれる（MCP 確認済み）ため、面
+//!   （`padding`/`border-radius`/`display: inline-flex` による中央寄せ）
+//!   を追加してゴーストボタンの見た目に揃えた。
+//! - **フォーカスリングの canonical 化**: 3 trigger の手書き
+//!   `outline: 2px solid var(--fandhe-color-accent)` を
+//!   [`crate::recipe::focus_ring_declarations`]（イシュー #1424）へ移行
+//!   した。`palette` 軸を持たない部品のため
+//!   [`crate::recipe::FocusRingColor::Token`] を選ぶ。
+//! - **maximized 時の content 全画面拡張**: `positioner`
+//!   （`data-stage="maximized"`）は既に全面化していたが `content` が
+//!   追随せず全画面表示が視覚的に成立していなかったため、
+//!   `content[data-stage="maximized"]` へ `width: 100%; height: 100%` を
+//!   追加した。
+//!
+//! ## size / variant 軸を追加しない根拠
+//!
+//! chakra-ui FloatingPanel 自体が size/variant prop を持たない（MCP
+//! `get_component_example` で実例確認済み。`FloatingPanel.Trigger` は
+//! 呼び出し側が持ち込む `Button`/`IconButton` の size/variant に委ねる
+//! 設計）。本モジュールも同じ構成を踏襲し、`SlotRecipe::variant` 軸を
+//! 追加しない（`REEXPORT-GLOB-REVIEWED` 規約 B-2 とも整合）。
+//!
+//! ## disabled 視覚を付けない根拠
+//!
+//! headless `floating_panel`（`crates/headless-ui/src/floating_panel.rs`）
+//! の trigger は popover と異なり disabled 引数を持たず、`data-disabled`
+//! を一切発行しない（[`crate::action_bar`] #1516 の「disabled 視覚を付け
+//! ない根拠」と同型）。
+//!
+//! ## 開閉（data-state）トランジションを追加しない根拠
+//!
+//! closed 時は headless 層が `hidden` 存在属性を UA 既定
+//! `[hidden] { display: none }` 経由で同期的に切り替えるため、opacity 等の
+//! transition は視覚的に成立しない（[`crate::action_bar`] PR #1790
+//! codex-review P1 指摘と同一構造）。hover 側の transition は機能するため
+//! 上記のとおり追加する。`prefers-reduced-motion` は
+//! `transition_declarations` が参照する `--fandhe-motion-duration-*`
+//! トークンを `Theme::to_css` が一括 0ms 化する共通経路で自動充足する。
+//!
+//! ## z-index のトークン化を見送る根拠
+//!
+//! 現行の生値 `900` を維持する。スケールトークン文書は floating-panel/
+//! action-bar を `sticky`（1100）へ割り当てる方針だが、同 tier の
+//! action-bar が PR #1790 で生値 900 を維持しており、片方だけ 1100 へ動か
+//! すと tier 内の重なり順が非対称になるため本 PR では見送る（Issue 化は
+//! ユーザー承認事項のため提案に留める）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - ドラッグ移動・リサイズの実 DOM 配線: headless 層のドキュメント
@@ -48,9 +120,15 @@
 //!   スコープ外とする。
 //! - フォーカストラップ・Escape キー閉鎖・`lazyMount`・topmost 管理は
 //!   headless 層のスコープ外を継承する。
+//! - z-index のトークン化（`sticky` = 1100 への統一）: 上記「z-index の
+//!   トークン化を見送る根拠」参照。action-bar と揃えて再評価する場合は
+//!   両部品を同時に動かす必要があり、Issue 化を提案する。
 
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{
+    focus_ring_declarations, hover_bg_muted, hover_surface_declarations, transition_declarations,
+    FocusRingColor, FocusRingOffset, MotionDuration, SlotRecipe, StateCondition,
+};
 
 // REEXPORT-GLOB-REVIEWED: 本モジュールが定義する pub 項目は stylesheet() の
 // みで styled パーツ関数を再定義しない（規約 B-1）。variant 軸も提供せず
@@ -86,17 +164,22 @@ const SLOTS: &[&str] = &[
 /// [`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("floating-panel", SLOTS)
-        .base(
-            "trigger",
-            vec![
+        .base("trigger", {
+            let mut declarations = vec![
                 decl("cursor", "pointer"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
+                decl("border-radius", "var(--fandhe-radius-md, 0.375rem)"),
                 decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
-            ],
-        )
+                hover_bg_muted(),
+            ];
+            declarations.extend(transition_declarations(
+                "background, border-color",
+                MotionDuration::Fast,
+            ));
+            declarations
+        })
         .base(
             "positioner",
             vec![
@@ -118,8 +201,8 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
-                decl("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.15)"),
+                decl("border-radius", "var(--fandhe-radius-lg)"),
+                decl("box-shadow", "var(--fandhe-shadow-md)"),
                 decl("min-width", "16rem"),
             ],
         )
@@ -151,24 +234,38 @@ fn recipe() -> SlotRecipe {
                 decl("gap", "var(--fandhe-space-1)"),
             ],
         )
-        .base(
-            "stage-trigger",
-            vec![
+        .base("stage-trigger", {
+            let mut declarations = vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("padding", "var(--fandhe-space-1)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("cursor", "pointer"),
-                decl("background", "none"),
+                decl("background", "transparent"),
                 decl("border", "none"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
-            ],
-        )
-        .base(
-            "close-trigger",
-            vec![
+                hover_bg_muted(),
+            ];
+            declarations.extend(transition_declarations("background", MotionDuration::Fast));
+            declarations
+        })
+        .base("close-trigger", {
+            let mut declarations = vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("padding", "var(--fandhe-space-1)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("cursor", "pointer"),
-                decl("background", "none"),
+                decl("background", "transparent"),
                 decl("border", "none"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
-            ],
-        )
+                hover_bg_muted(),
+            ];
+            declarations.extend(transition_declarations("background", MotionDuration::Fast));
+            declarations
+        })
         .base("body", vec![decl("padding", "var(--fandhe-space-4)")])
         // `content` の開閉状態に応じた見た目の切り替え（`crate::popover` と同じ判断）。
         .state(
@@ -192,30 +289,48 @@ fn recipe() -> SlotRecipe {
             StateCondition::AttrEq("data-stage", "maximized"),
             vec![decl("transform", "none"), decl("inset", "0")],
         )
-        // キーボード操作時のみのフォーカスリング（[`crate::dialog`] と同じ判断）。
+        // maximized: positioner の全面化に content を追随させる（本イシュー
+        // #1522 で新規追加。上記モジュール doc「maximized 時の content
+        // 全画面拡張」節参照）。
+        .state(
+            "content",
+            StateCondition::AttrEq("data-stage", "maximized"),
+            vec![decl("width", "100%"), decl("height", "100%")],
+        )
+        // trigger/stage-trigger/close-trigger の hover（イシュー #1425
+        // 共通ビジュアル言語。`--fandhe-hover-bg` は上記 base の
+        // `hover_bg_muted()` が定義する）。
+        .state(
+            "trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "stage-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        .state(
+            "close-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        // キーボード操作時のみのフォーカスリング（イシュー #1424 canonical
+        // ヘルパへ移行。`palette` 軸を持たないため `FocusRingColor::Token`）。
         .state(
             "trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "stage-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .state(
             "close-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
 }
 
@@ -297,7 +412,58 @@ mod tests {
         assert!(css.contains(
             r#"[data-scope="floating-panel"][data-part="close-trigger"]:focus-visible {"#
         ));
-        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+    }
+
+    #[test]
+    fn trigger_stage_trigger_and_close_trigger_declare_hover_surface() {
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css.contains(
+            r#"[data-scope="floating-panel"][data-part="trigger"]:hover:not([data-disabled])"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="floating-panel"][data-part="stage-trigger"]:hover:not([data-disabled])"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="floating-panel"][data-part="close-trigger"]:hover:not([data-disabled])"#
+        ));
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+        assert!(css.contains("--fandhe-hover-bg: var(--fandhe-color-bg-muted);"));
+    }
+
+    #[test]
+    fn trigger_and_ghost_triggers_declare_transition() {
+        let css = stylesheet();
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+        assert!(css.contains("transition-property: background, border-color;"));
+        assert!(css.contains("transition-property: background;"));
+    }
+
+    #[test]
+    fn content_expands_to_full_viewport_when_maximized() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="floating-panel"][data-part="content"][data-stage="maximized"]"#
+        ));
+        let rule_start = css
+            .find(r#"[data-scope="floating-panel"][data-part="content"][data-stage="maximized"] {"#)
+            .expect("content[data-stage=maximized] rule must be present");
+        let rule_body = &css[rule_start..];
+        let rule_end = rule_body.find('}').expect("rule must be closed");
+        assert!(rule_body[..rule_end].contains("width: 100%;"));
+        assert!(rule_body[..rule_end].contains("height: 100%;"));
+    }
+
+    #[test]
+    fn content_and_trigger_use_scale_tokens_for_radius_and_shadow() {
+        let css = stylesheet();
+        assert!(css.contains("border-radius: var(--fandhe-radius-lg);"));
+        assert!(css.contains("box-shadow: var(--fandhe-shadow-md);"));
+        assert!(css.contains("border-radius: var(--fandhe-radius-md, 0.375rem);"));
+        assert!(css.contains("border-radius: var(--fandhe-radius-md);"));
     }
 
     #[test]
