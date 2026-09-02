@@ -910,7 +910,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.63.0 へさらにマイナーバンプする（0.x の破壊的変更はマイナーバンプ
 # の規約、`.claude/rules/coding-rust.md`。同型の衝突回避は本ファイル内の
 # 既存記録〔#1539/#1679/#1681 等〕と同じ扱い）。
-version = "0.63.0"
+# イシュー #1544（toast のスタイル調整 1/2 — 枠・タイプ別配色）は
+# `toast::root` slot の CSS 値のみの変更（公開関数シグネチャ・型・
+# クラス名・data-* 属性は不変）のため patch バンプとする（0.63.0 →
+# 0.63.1）。
+version = "0.63.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
