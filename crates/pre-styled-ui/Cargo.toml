@@ -694,7 +694,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # （main, イシュー #1515 の 0.58.3）を取り込んだ結果 version 番号が偶発的に
 # 一致していたが、本イシュー自体の実体変更が未反映だったため 0.58.4 へ
 # さらに patch バンプする（codex-review P1 指摘、PR #1790）。
-version = "0.58.4"
+# イシュー #1518: carousel のスタイルを参考サイト基準へ調整（hover/フォーカス
+# リング/disabled/トランジションの canonical 化、角丸のトークン化）。
+# 既存セレクタ・公開 Rust API シグネチャの削除/改名を伴わない宣言の追加・
+# 値変更のみのため patch バンプする（`docs/ci/style-refresh-version-bump-operation.md`
+# 準拠）。
+version = "0.58.5"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

@@ -10,6 +10,12 @@
 //! 参照）を参照する点、`data-orientation="vertical"` で `translateY` へ
 //! 切り替える点、`size` variant のみで `color-palette` 軸を持たない点は
 //! `crate::carousel` module doc を参照。
+//!
+//! イシュー #1518 で hover（trigger/indicator）・フォーカスリング・
+//! disabled 減光・トランジションを Phase 0 共通規約（イシュー #1424/#1425）
+//! へ追随させた際に、この golden も新しい `stylesheet()` 出力へ更新した
+//! （更新手順は `docs/internal/pre-styled-ui-golden-test-update-guide.md`
+//! 参照）。
 
 use fandhe_frontend_pre_styled_ui::carousel;
 
@@ -31,10 +37,14 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 9999px;
+  border-radius: var(--fandhe-radius-full);
   cursor: pointer;
   width: var(--fandhe-carousel-trigger-size, 2.5rem);
   height: var(--fandhe-carousel-trigger-size, 2.5rem);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  transition-property: background, border-color, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="carousel"][data-part="next-trigger"] {
@@ -44,16 +54,22 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 9999px;
+  border-radius: var(--fandhe-radius-full);
   cursor: pointer;
   width: var(--fandhe-carousel-trigger-size, 2.5rem);
   height: var(--fandhe-carousel-trigger-size, 2.5rem);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  transition-property: background, border-color, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="carousel"][data-part="item-group"] {
   display: flex;
   flex: 1;
-  transition: transform var(--fandhe-carousel-transition-duration, 0.2s) ease;
+  transition-property: transform;
+  transition-duration: var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms));
+  transition-timing-function: var(--fandhe-motion-easing-standard);
   transform: translateX(calc(var(--fandhe-carousel-index, 0) * -100%));
 }
 
@@ -72,10 +88,14 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
   display: inline-block;
   background: var(--fandhe-color-bg-muted);
   border: none;
-  border-radius: 9999px;
+  border-radius: var(--fandhe-radius-full);
   cursor: pointer;
   width: var(--fandhe-carousel-indicator-size, 0.5rem);
   height: var(--fandhe-carousel-indicator-size, 0.5rem);
+  --fandhe-hover-bg: var(--fandhe-color-bg-emphasized);
+  transition-property: background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="carousel"][data-part="root"].fd-carousel--size-xs {
@@ -108,23 +128,23 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
 }
 
 [data-scope="carousel"][data-part="prev-trigger"][data-disabled] {
-  opacity: 0.4;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 [data-scope="carousel"][data-part="next-trigger"][data-disabled] {
-  opacity: 0.4;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 [data-scope="carousel"][data-part="prev-trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="carousel"][data-part="next-trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="carousel"][data-part="indicator"][data-current] {
@@ -132,8 +152,22 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
 }
 
 [data-scope="carousel"][data-part="indicator"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (hover: hover) {
+  [data-scope="carousel"][data-part="prev-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="carousel"][data-part="next-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="carousel"][data-part="indicator"]:hover:not([data-disabled]):not([data-current]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
