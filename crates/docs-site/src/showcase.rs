@@ -5723,10 +5723,16 @@ fn menubar_section() -> Node {
                                     // space-between` が効かないため
                                     // （PR #1804 Bugbot 指摘）、ラベルと
                                     // グリフをそれぞれ `span` で包んで
-                                    // 独立した flex item にする。
+                                    // 独立した flex item にする。グリフ側の
+                                    // `span` には `aria-hidden="true"` を
+                                    // 付け、装飾用の示唆グリフが "Export"
+                                    // と一緒にアクセシブル名として読み上げ
+                                    // られないようにする（PR #1804
+                                    // codex-review 指摘、AGENTS.md「UI 部品
+                                    // の責務境界（アクセシビリティ）」）。
                                     vec![
                                         el("span", vec![], vec![text("Export")]),
-                                        el("span", vec![], vec![text("▸")]),
+                                        el("span", vec![("aria-hidden", "true")], vec![text("▸")]),
                                     ],
                                 ),
                                 menubar::sub_content(
