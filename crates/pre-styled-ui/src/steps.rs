@@ -90,11 +90,69 @@
 //!   Steps 追加は、未公開の新バージョンを参照できないため本イシューの
 //!   スコープ外とする（[`crate::rating_group`] 冒頭 rustdoc の先例どおり
 //!   crates.io 公開後に追随）。
+//!
+//! # イシュー #1540 での是正（コンテンツ・トリガー・orientation）
+//!
+//! 親 #1538（steps のスタイル調整）の 2/2 分割。`indicator`/`separator`
+//! （1/2、兄弟イシュー #1539）は本イシューでは一切変更しない。
+//!
+//! - **root**: `gap: var(--fandhe-space-4)` を追加（list/content/前後
+//!   ボタン枠の縦間隔）。縦向き（`data-orientation="vertical"`）で
+//!   `flex-direction: row` + `align-items: flex-start` へ切り替え、list を
+//!   左・content を右に並べる（chakra `_vertical: flexDirection row`
+//!   相当。`list`/`item` 側の既存縦向き切り替えとは独立した軸であり、
+//!   両方揃って初めて縦向きレイアウトになる）。
+//! - **size 軸**: `--fandhe-steps-indicator-size` に加え
+//!   `--fandhe-steps-font-size`（trigger/prev-trigger/next-trigger の
+//!   ラベル文字サイズ）を root スコープ custom property として追加した
+//!   （chakra `--steps-title-font-size` 相当。sm→sm/md→sm/lg→md、
+//!   xs→xs/xl→lg は #1681 と同じ考え方の外挿）。
+//! - **trigger**: hover（`hover_bg_muted()` + `hover_surface_declarations()`）・
+//!   focus（直書き `outline` を `focus_ring_declarations(Palette,
+//!   Outside)` へ置換）・`border-radius`・`font-weight`・transition を
+//!   追加。`padding: 0` は維持する（`separator` の
+//!   `margin-left: calc(indicator-size / 2 - 1px)` が trigger の内側余白
+//!   なしを前提に indicator 中心を計算しているため。左 padding を付けると
+//!   接続線の中心がずれる）。
+//! - **content/completed-content**: `color: var(--fandhe-color-fg)` と
+//!   `FocusVisible` の `focus_ring_declarations` を追加（chakra content の
+//!   `focusVisibleRing: outside` 相当。`tabindex` 付与時のみ効く無害な
+//!   規則）。開閉自体（`display: none`）に transition は付けない
+//!   （floating_panel/action_bar と同じ判断: `hidden` 相当の同期切替）。
+//! - **prev-trigger/next-trigger**: `--fandhe-size-control-*` の寸法
+//!   スケールへ載せ、hover/focus/transition を共通ヘルパへ揃えた。
+//!   `next-trigger` の文字色は `--fandhe-color-bg`（テーマ背景色、palette
+//!   と無関係）から `var(--fandhe-palette-fg, var(--fandhe-color-accent-fg))`
+//!   （塗り面用の `-fg` トークン）へ変更し、ダーク配色時のコントラストを
+//!   確保した。
+//!
+//! ## 意図的に対応しなかった項目
+//!
+//! - **`data-state` 別の trigger 文字色差**: chakra は complete/current/
+//!   incomplete で trigger のラベル文字色を変えないため、本イシューでも
+//!   追加しない。
+//! - **`variant`（solid/subtle）軸**: chakra の `solid`/`subtle` variant は
+//!   indicator の塗り分けであり、担当パート（trigger/content/
+//!   prev-trigger/next-trigger）には無関係のため追加しない。
+//!
+//! ## 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
+//!
+//! - `indicator`/`separator` の是正（兄弟イシュー #1539）。
+//! - headless 層が `prev_trigger`/`next_trigger` へ `data-disabled` を発行
+//!   する変更（イシュー #1665 の後続。本イシューでは `Attr("disabled")`
+//!   と `Attr("data-disabled")` の両方を登録済みだが、後者は headless 側
+//!   未発行のため現状は無害な死んだ規則）。
+//! - chakra の `Steps.Title`/`Steps.Description`/`Steps.Status`/
+//!   `Steps.Number` 相当の anatomy 追加（headless anatomy の変更であり
+//!   本イシューの責務外）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid_with_fallback,
+    hover_surface_declarations, palette_scale_declarations, transition_declarations, ColorPalette,
+    FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition,
+    VariantValue,
 };
 
 // `Steps` 状態機械はあえて再エクスポートしない（本モジュール冒頭の rustdoc
@@ -128,7 +186,28 @@ fn recipe() -> SlotRecipe {
     let mut recipe = SlotRecipe::new("steps", SLOTS)
         .base(
             "root",
-            vec![decl("display", "flex"), decl("flex-direction", "column")],
+            vec![
+                decl("display", "flex"),
+                decl("flex-direction", "column"),
+                // イシュー #1540: list / content / 呼び出し側の前後ボタン枠
+                // の間に縦の呼吸間隔を設ける（chakra root の `gap: 4` 相当。
+                // 従来は隣接パーツが密着していた）。
+                decl("gap", "var(--fandhe-space-4)"),
+            ],
+        )
+        // イシュー #1540: 縦向き（`data-orientation="vertical"`、headless
+        // 層 `Steps::root` が付与）では root 自体を行方向へ切り替え、list
+        // を左・content を右に並べる（chakra `_vertical: flexDirection
+        // row` 相当）。`list`/`item` 側の縦向き切り替え（本モジュール既存
+        // state）とは独立した軸であり、両方揃って初めて chakra 相当の
+        // 縦向きレイアウトになる。
+        .state(
+            "root",
+            StateCondition::AttrEq("data-orientation", "vertical"),
+            vec![
+                decl("flex-direction", "row"),
+                decl("align-items", "flex-start"),
+            ],
         )
         .base(
             "list",
@@ -214,22 +293,57 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
-                decl("gap", "var(--fandhe-space-2)"),
+                // イシュー #1540: chakra trigger の `gap: 3` へ合わせる
+                // （indicator とラベルの間隔。従来の `--fandhe-space-2` は
+                // やや詰まりすぎていた）。
+                decl("gap", "var(--fandhe-space-3)"),
                 decl("background", "none"),
                 decl("border", "none"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("cursor", "pointer"),
                 decl("font", "inherit"),
+                // イシュー #1540: size 軸（root の `--fandhe-steps-font-size`
+                // custom property、下記 size variant 参照）に連動させる。
+                // `--fandhe-steps-font-size` 未定義（root 側の variant が
+                // 適用されない孤立利用）でも `--fandhe-font-font-size-sm`
+                // へフォールバックし、無地の `font-size` 指定なしにならない
+                // ようにする。
+                decl(
+                    "font-size",
+                    "var(--fandhe-steps-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
                 decl("color", "inherit"),
+                // `padding: 0` を維持する（左 padding を付けると
+                // `separator` の `margin-left: calc(indicator-size / 2 -
+                // 1px)`〔indicator 中心に接続線を揃える計算〕が trigger の
+                // 内側余白ぶんずれるため。indicator は trigger の子であり
+                // 両者の左端は一致している前提で計算されている）。
                 decl("padding", "0"),
+                // start 寄せ（chakra title の `textAlign` 既定と同型。縦向き
+                // で trigger 幅が item 全幅に伸びた場合でもラベルを左詰めに
+                // 保つ）。
+                decl("text-align", "start"),
             ],
+        )
+        // イシュー #1540: hover/focus/transition の共通ビジュアル言語
+        // （#1425）へ揃える。第 2 base ブロックとして追加登録する（`base`
+        // は同一 slot への複数回呼び出しを許容し宣言を連結する契約、
+        // `SlotRecipe::base` rustdoc 参照）。
+        .base("trigger", vec![hover_bg_muted()])
+        .base(
+            "trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
+        )
+        .state(
+            "trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         .state(
             "trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         // indicator: 円形マーカー。既定（incomplete）は枠線のみの中抜き円。
         .base(
@@ -304,96 +418,223 @@ fn recipe() -> SlotRecipe {
                 "var(--fandhe-palette, var(--fandhe-color-accent))",
             )],
         )
-        .base("content", vec![])
+        // イシュー #1540: `color` はダーク配色時もトークン再定義経由で
+        // 追随させる（従来は宣言なしで暗黙に継承していた）。`display: none`
+        // による同期的な開閉（transition なし）は floating_panel/action_bar
+        // と同じ判断であり、`hidden` 相当の即時切替に transition を付けない
+        // （chakra `content` も `focusVisibleRing: outside` のみで開閉自体
+        // に transition を持たない）。
+        .base("content", vec![decl("color", "var(--fandhe-color-fg)")])
         .state(
             "content",
             StateCondition::AttrEq("data-state", "closed"),
             vec![decl("display", "none")],
         )
-        .base("completed-content", vec![])
+        .state(
+            "content",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
+        )
+        .base(
+            "completed-content",
+            vec![decl("color", "var(--fandhe-color-fg)")],
+        )
         .state(
             "completed-content",
             StateCondition::AttrEq("data-state", "closed"),
             vec![decl("display", "none")],
         )
+        .state(
+            "completed-content",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
+        )
         .base(
             "prev-trigger",
             vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("box-sizing", "border-box"),
+                // イシュー #1540: chakra `ButtonGroup size="sm"` 相当の
+                // 寸法スケールへ載せる（従来の `padding` 直書きは
+                // `--fandhe-size-control-*` トークンの外にあった）。
+                decl(
+                    "min-height",
+                    "var(--fandhe-size-control-height-sm, 2.25rem)",
+                ),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-size-control-padding-x-sm, 0.75rem)",
+                ),
                 decl("cursor", "pointer"),
                 decl("font", "inherit"),
-                decl("padding", "var(--fandhe-space-1) var(--fandhe-space-3)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-steps-font-size, var(--fandhe-font-font-size-sm))",
+                ),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
             ],
         )
-        .state(
+        .base("prev-trigger", vec![hover_bg_muted()])
+        .base(
             "prev-trigger",
-            StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            transition_declarations("background, border-color, color", MotionDuration::Fast),
         )
+        // イシュー #1540: headless `prev_trigger` はネイティブ `disabled`
+        // のみを発行し `data-disabled` は発行しない（本モジュール §3.5
+        // rustdoc・スコープ外節参照）。`Attr("disabled")` 規則は既存どおり
+        // 維持しつつ `disabled_declarations()`（共通ヘルパ、イシュー
+        // #1425）へ揃え、加えて `data-disabled` 側も語彙統一の前進として
+        // 登録しておく（headless 側が発行するまでは無害な死んだ規則）。
         .state(
             "prev-trigger",
             StateCondition::Attr("disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
+        )
+        .state(
+            "prev-trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "prev-trigger",
+            StateCondition::HoverExceptAttr("disabled"),
+            hover_surface_declarations(),
+        )
+        .state(
+            "prev-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         .base(
             "next-trigger",
             vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("box-sizing", "border-box"),
+                decl(
+                    "min-height",
+                    "var(--fandhe-size-control-height-sm, 2.25rem)",
+                ),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-size-control-padding-x-sm, 0.75rem)",
+                ),
                 decl("cursor", "pointer"),
                 decl("font", "inherit"),
-                decl("padding", "var(--fandhe-space-1) var(--fandhe-space-3)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-steps-font-size, var(--fandhe-font-font-size-sm))",
+                ),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-md)"),
                 decl(
                     "background",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
-                decl("color", "var(--fandhe-color-bg)"),
+                // イシュー #1540: 塗り面（solid 風）に対して `-fg` トークン
+                // （palette 塗り面用の前景色）を使う。従来の
+                // `--fandhe-color-bg`（テーマ背景色）は palette 側と独立の
+                // トークンで、ダーク配色時に意図通りのコントラストになる
+                // 保証がなかった。
+                decl(
+                    "color",
+                    "var(--fandhe-palette-fg, var(--fandhe-color-accent-fg))",
+                ),
             ],
         )
-        .state(
+        .base("next-trigger", vec![hover_bg_solid_with_fallback()])
+        .base(
             "next-trigger",
-            StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            transition_declarations("background, border-color, color", MotionDuration::Fast),
         )
         .state(
             "next-trigger",
             StateCondition::Attr("disabled"),
-            vec![decl("opacity", "0.5"), decl("cursor", "not-allowed")],
+            disabled_declarations(),
+        )
+        .state(
+            "next-trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "next-trigger",
+            StateCondition::HoverExceptAttr("disabled"),
+            hover_surface_declarations(),
+        )
+        .state(
+            "next-trigger",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         // イシュー #1681: Xs/Xl は Sm→Md→Lg の 0.5rem 刻み等差進行を外挿。
+        // イシュー #1540: 併せて `--fandhe-steps-font-size`（trigger/
+        // prev-trigger/next-trigger のラベル文字サイズ）を root スコープ
+        // custom property として登録する（`--fandhe-steps-indicator-size`
+        // と同じ、通常の CSS 継承で子パーツへ伝わる方式）。段の割り当ては
+        // chakra の `--steps-title-font-size`（sm→sm/md→sm/lg→md）を踏襲し、
+        // イシュー #1681 と同じ考え方で xs→xs・xl→lg を外挿する
+        // （`--fandhe-font-font-size-xl` トークンが存在しないため）。
         .variant(
             Size::Xs,
             "root",
-            vec![decl("--fandhe-steps-indicator-size", "1rem")],
+            vec![
+                decl("--fandhe-steps-indicator-size", "1rem"),
+                decl(
+                    "--fandhe-steps-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+            ],
         )
         .variant(
             Size::Sm,
             "root",
-            vec![decl("--fandhe-steps-indicator-size", "1.5rem")],
+            vec![
+                decl("--fandhe-steps-indicator-size", "1.5rem"),
+                decl(
+                    "--fandhe-steps-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+            ],
         )
         .variant(
             Size::Md,
             "root",
-            vec![decl("--fandhe-steps-indicator-size", "2rem")],
+            vec![
+                decl("--fandhe-steps-indicator-size", "2rem"),
+                decl(
+                    "--fandhe-steps-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+            ],
         )
         .variant(
             Size::Lg,
             "root",
-            vec![decl("--fandhe-steps-indicator-size", "2.5rem")],
+            vec![
+                decl("--fandhe-steps-indicator-size", "2.5rem"),
+                decl(
+                    "--fandhe-steps-font-size",
+                    "var(--fandhe-font-font-size-md)",
+                ),
+            ],
         )
         .variant(
             Size::Xl,
             "root",
-            vec![decl("--fandhe-steps-indicator-size", "3rem")],
+            vec![
+                decl("--fandhe-steps-indicator-size", "3rem"),
+                decl(
+                    "--fandhe-steps-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
+            ],
         )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Accent);
@@ -605,6 +846,65 @@ mod tests {
         assert!(css.contains("--size-"));
         assert!(css.contains("--color-palette-"));
         assert!(css.contains("--fandhe-steps-indicator-size"));
+    }
+
+    // --- イシュー #1540: root vertical / hover / disabled / focus-ring / size ---
+
+    #[test]
+    fn root_vertical_orientation_selector_present() {
+        let css = stylesheet();
+        assert!(css
+            .contains(r#"[data-scope="steps"][data-part="root"][data-orientation="vertical"] {"#));
+        assert!(css.contains("flex-direction: row;"));
+    }
+
+    #[test]
+    fn trigger_and_nav_triggers_have_hover_media_query_rules() {
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(css
+            .contains(r#"[data-scope="steps"][data-part="trigger"]:hover:not([data-disabled]) {"#));
+        assert!(css.contains(
+            r#"[data-scope="steps"][data-part="prev-trigger"]:hover:not([data-disabled]):not([disabled]) {"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="steps"][data-part="next-trigger"]:hover:not([data-disabled]):not([disabled]) {"#
+        ));
+    }
+
+    #[test]
+    fn nav_triggers_disabled_rules_cover_both_data_disabled_and_native_disabled() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="steps"][data-part="prev-trigger"][disabled] {"#));
+        assert!(css.contains(r#"[data-scope="steps"][data-part="prev-trigger"][data-disabled] {"#));
+        assert!(css.contains(r#"[data-scope="steps"][data-part="next-trigger"][disabled] {"#));
+        assert!(css.contains(r#"[data-scope="steps"][data-part="next-trigger"][data-disabled] {"#));
+    }
+
+    #[test]
+    fn focus_visible_rules_use_canonical_focus_ring_tokens() {
+        // 直書き `outline: 2px solid ...` から共通ヘルパ
+        // `focus_ring_declarations` へ全面置換済みであることを固定する
+        // （イシュー #1424 canonical ヘルパ経由の契約）。
+        let css = stylesheet();
+        assert!(css.contains("var(--fandhe-focus-ring-width, 2px)"));
+        assert!(css.contains("var(--fandhe-focus-ring-offset, 2px)"));
+        assert!(css.contains(r#"[data-scope="steps"][data-part="content"]:focus-visible {"#));
+        assert!(
+            css.contains(r#"[data-scope="steps"][data-part="completed-content"]:focus-visible {"#)
+        );
+    }
+
+    #[test]
+    fn steps_font_size_variant_registered_for_all_five_sizes() {
+        let css = stylesheet();
+        for suffix in ["xs", "sm", "md", "lg", "xl"] {
+            assert!(
+                css.contains(&format!("fd-steps--size-{suffix}")),
+                "size={suffix} のクラスセレクタが出力されていない"
+            );
+        }
+        assert!(css.contains("--fandhe-steps-font-size"));
     }
 
     // --- root ---

@@ -4573,8 +4573,15 @@ fn pagination_section() -> Node {
 /// 参照）。current な item の trigger のみ `aria-current="step"` を持つ
 /// （クリック挙動は wasm 層のスコープ外、モジュール冒頭「インタラクティブ
 /// 部品の扱い」節参照）。
-fn steps_section() -> Node {
-    let s = Steps::new(3, 1, Orientation::Horizontal);
+/// `Steps` の Demo 1 件を組み立てる（`orientation` により horizontal/
+/// vertical を切り替える内部ヘルパ、[`steps_section`] のみが呼ぶ）。
+///
+/// イシュー #1540: 従来は horizontal 固定の単一 Demo だったが、`root` の
+/// 縦向きレイアウト是正（`data-orientation="vertical"` で
+/// `flex-direction: row` へ切り替える recipe 追加）を部品ページで視覚確認
+/// できるよう、vertical Demo も並べて表示する。
+fn steps_demo(orientation: Orientation) -> Node {
+    let s = Steps::new(3, 1, orientation);
     let labels = ["Account", "Shipping", "Confirm"];
 
     let mut items = Vec::new();
@@ -4605,17 +4612,22 @@ fn steps_section() -> Node {
         ],
     );
 
-    let demo = steps::root(
+    steps::root(
         Size::Md,
         ColorPalette::Accent,
         &s,
         vec![],
         vec![list, content, nav],
-    );
+    )
+}
+
+fn steps_section() -> Node {
+    let horizontal = steps_demo(Orientation::Horizontal);
+    let vertical = steps_demo(Orientation::Vertical);
     section(
         "Steps",
-        "count（全 step 数）+ step（現在位置）を持つ headless Steps の静的掲示。item は complete/current/incomplete の 3 状態を持ち、current な item の trigger のみ aria-current=\"step\" を持ちます（クリック挙動は wasm 層のスコープ外）。",
-        vec![row(vec![demo])],
+        "count（全 step 数）+ step（現在位置）を持つ headless Steps の静的掲示。item は complete/current/incomplete の 3 状態を持ち、current な item の trigger のみ aria-current=\"step\" を持ちます（クリック挙動は wasm 層のスコープ外）。orientation（横向き/縦向き）は root の `data-orientation` 属性により list/content の並び方向が切り替わります。",
+        vec![row(vec![horizontal, vertical])],
     )
 }
 
