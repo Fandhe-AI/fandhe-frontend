@@ -17,15 +17,19 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
+  border-radius: var(--fandhe-radius-md, 0.375rem);
   padding: var(--fandhe-space-2) var(--fandhe-space-3);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  transition-property: background, border-color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="popover"][data-part="positioner"] {
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 10;
+  z-index: var(--fandhe-z-index-popover, 10);
   margin-top: var(--fandhe-space-1);
 }
 
@@ -33,8 +37,8 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+  border-radius: var(--fandhe-radius-lg, 0.5rem);
+  box-shadow: var(--fandhe-shadow-md, 0 4px 6px rgba(0, 0, 0, 0.15));
   padding: var(--fandhe-space-4);
   min-width: var(--fandhe-reference-width, auto);
 }
@@ -53,6 +57,14 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
 [data-scope="popover"][data-part="close-trigger"] {
   cursor: pointer;
   color: var(--fandhe-color-fg-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--fandhe-radius-sm);
+  padding: var(--fandhe-space-1);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  transition-property: background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="popover"][data-part="trigger"][data-state="open"] {
@@ -63,14 +75,29 @@ const POPOVER_GOLDEN_CSS: &str = r#"[data-scope="popover"][data-part="root"] {
   visibility: hidden;
 }
 
+[data-scope="popover"][data-part="trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 [data-scope="popover"][data-part="trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
 [data-scope="popover"][data-part="close-trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (hover: hover) {
+  [data-scope="popover"][data-part="trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="popover"][data-part="close-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
