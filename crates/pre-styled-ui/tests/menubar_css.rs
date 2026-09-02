@@ -61,16 +61,18 @@ fn stylesheet_declares_highlighted_state_selectors_for_trigger_item_and_sub_trig
 }
 
 #[test]
-fn stylesheet_declares_trigger_hover_rule_excluding_highlighted() {
-    // イシュー #1702: highlight 中は hover の淡い背景が accent 背景を
-    // 洗い流さないよう `HoverExceptAttr("data-highlighted")` を使う
-    // （PR #1745 P1 指摘・menu 3/3 `trigger-item` と同型の回帰防止）。
-    // `@media (hover: hover)` 配下へ集約出力される契約
-    // （`crates/pre-styled-ui/src/recipe.rs` 参照）。
+fn stylesheet_declares_trigger_hover_rule_excluding_highlighted_and_open() {
+    // イシュー #1702: highlight 中・open 中のいずれでも hover の淡い背景が
+    // accent / accent-subtle 背景を洗い流さないよう
+    // `HoverExceptAttrEq("data-highlighted", "data-state", "open")` を使う
+    // （highlighted 分は PR #1745 P1 指摘・menu 3/3 `trigger-item` と同型の
+    // 回帰防止、open 分は PR #1803 Bugbot Medium severity 指摘「Hover
+    // washes out open trigger」の回帰防止）。`@media (hover: hover)` 配下へ
+    // 集約出力される契約（`crates/pre-styled-ui/src/recipe.rs` 参照）。
     let css = menubar::stylesheet();
     assert!(css.contains("@media (hover: hover)"));
     assert!(css.contains(
-        r#"[data-scope="menubar"][data-part="trigger"]:hover:not([data-disabled]):not([data-highlighted]) {"#
+        r#"[data-scope="menubar"][data-part="trigger"]:hover:not([data-disabled]):not([data-highlighted]):not([data-state="open"]) {"#
     ));
 }
 

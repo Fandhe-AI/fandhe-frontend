@@ -75,12 +75,17 @@
 //! - `trigger` の `border-radius` を生リテラル `0.25rem` から
 //!   `var(--fandhe-radius-sm)` へトークン化（値同一・外観不変）。
 //! - `trigger` に [`crate::recipe::hover_bg_muted`]・
-//!   [`crate::recipe::StateCondition::HoverExceptAttr`]`("data-highlighted")`・
-//!   [`crate::recipe::hover_surface_declarations`] で hover 背景を追加。
-//!   `Hover`（無条件）ではなく `HoverExceptAttr` を使う理由は、highlight
-//!   中に hover の淡い背景が accent 背景を洗い流す回帰
-//!   （PR #1745 P1 指摘）を避けるため。menu 3/3（PR #1802）の
-//!   `trigger-item` と同型の判断。
+//!   [`crate::recipe::StateCondition::HoverExceptAttrEq`]`("data-highlighted",
+//!   "data-state", "open")`・[`crate::recipe::hover_surface_declarations`]
+//!   で hover 背景を追加。`Hover`（無条件）ではなく `HoverExceptAttrEq` を
+//!   使う理由は、highlight 中・open 中のいずれでも hover の淡い背景が
+//!   accent / accent-subtle 背景を洗い流す回帰（highlight 分は
+//!   PR #1745 P1 指摘、open 分は PR #1803 Bugbot Medium severity 指摘
+//!   「Hover washes out open trigger」）を避けるため。`data-highlighted`
+//!   のみを除外する `HoverExceptAttr`（menu 3/3・PR #1802 `trigger-item`
+//!   と同型の判断）では、open だが highlighted ではない trigger への
+//!   hover が open の `accent-subtle` 背景を上書きしてしまうため、両方を
+//!   除外する複合 variant が必要だった。
 //! - `trigger` に `data-highlighted`（headless 層が roving tabindex の
 //!   ポインタ移動時に trigger へも出力する属性、`crates/headless-ui/
 //!   src/menubar.rs::trigger` 参照）の視覚反映を追加（`item`/`sub-trigger`
@@ -305,12 +310,17 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-disabled"),
             disabled_declarations(),
         )
-        // highlight 中は hover の淡い背景で accent 背景を洗い流さない
-        // （`HoverExceptAttr`。menu 3/3 `trigger-item`・PR #1745 P1 指摘と
-        // 同型の回帰防止、本モジュール冒頭 rustdoc「イシュー #1702」節参照）。
+        // highlight 中・open 中の双方で hover の淡い背景が accent /
+        // accent-subtle 背景を洗い流さないよう `HoverExceptAttrEq` で
+        // 両方を除外する（`data-highlighted`・`[data-state="open"]` は
+        // specificity が等しく、`HoverExceptAttr("data-highlighted")`
+        // 単体では open のみの trigger への hover が open の
+        // `accent-subtle` 背景を上書きしてしまう。PR #1803 Bugbot Medium
+        // severity 指摘「Hover washes out open trigger」対応、本モジュール
+        // 冒頭 rustdoc「イシュー #1702」節参照）。
         .state(
             "trigger",
-            StateCondition::HoverExceptAttr("data-highlighted"),
+            StateCondition::HoverExceptAttrEq("data-highlighted", "data-state", "open"),
             hover_surface_declarations(),
         )
         // 開いている sub-trigger を視覚的に強調する（trigger と同じ配色）。
@@ -455,13 +465,16 @@ mod tests {
     }
 
     #[test]
-    fn trigger_declares_hover_rule_excluding_highlighted() {
-        // イシュー #1702: highlight 中は hover の淡い背景が accent 背景を
-        // 洗い流さないよう `HoverExceptAttr("data-highlighted")` を使う
-        // （PR #1745 P1 指摘・menu 3/3 `trigger-item` と同型の回帰防止）。
+    fn trigger_declares_hover_rule_excluding_highlighted_and_open() {
+        // イシュー #1702: highlight 中・open 中のいずれでも hover の淡い
+        // 背景が accent / accent-subtle 背景を洗い流さないよう
+        // `HoverExceptAttrEq("data-highlighted", "data-state", "open")` を
+        // 使う（highlighted 分は PR #1745 P1 指摘、open 分は PR #1803
+        // Bugbot Medium severity 指摘「Hover washes out open trigger」の
+        // 回帰防止）。
         let css = stylesheet();
         assert!(css.contains(
-            r#"[data-scope="menubar"][data-part="trigger"]:hover:not([data-disabled]):not([data-highlighted]) {"#
+            r#"[data-scope="menubar"][data-part="trigger"]:hover:not([data-disabled]):not([data-highlighted]):not([data-state="open"]) {"#
         ));
     }
 

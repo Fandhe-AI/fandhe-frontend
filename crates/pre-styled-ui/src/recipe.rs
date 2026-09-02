@@ -743,6 +743,25 @@ pub enum StateCondition {
     /// コントラストが崩れる）が最初の消費者。[`HoverExcept`] と同じく
     /// `:not()` によるマッチ除外のみで specificity は変更しない。
     HoverExceptAttr(&'static str),
+    /// `:hover:not([data-disabled]):not([<attr_name>]):not([<eq_name>="<eq_value>"])`
+    /// （[`HoverExceptAttr`] の存在属性除外と [`HoverExcept`] の値等価除外を
+    /// 1 つの hover 規則で両方適用する複合版。イシュー #1702 PR #1803
+    /// Bugbot Medium severity 指摘「Hover washes out open trigger」対応）。
+    ///
+    /// [`crate::menubar`] の `trigger` は highlight（`data-highlighted`、
+    /// specificity (0,3,0)）と open（`[data-state="open"]`、同じく
+    /// (0,3,0)）という specificity が等しい 2 状態を持つ。[`HoverExceptAttr`]
+    /// は highlighted のみを hover 対象から除外するため、open だが
+    /// highlighted ではない trigger（ポインタが乗っているだけで virtual
+    /// focus は別の trigger にある状態）に hover すると
+    /// `:hover:not([data-disabled]):not([data-highlighted])` (0,4,0) が
+    /// open の `accent-subtle` 背景を muted hover 背景で上書きしてしまう
+    /// （highlighted のみを除外しても open は除外されないため）。本
+    /// variant は両方を `:not()` で除外し、open な trigger・highlighted な
+    /// trigger のいずれも hover で洗い流されないようにする。[`HoverExcept`]・
+    /// [`HoverExceptAttr`] と同じく `:not()` によるマッチ除外のみで
+    /// specificity は変更しない。
+    HoverExceptAttrEq(&'static str, &'static str, &'static str),
 }
 
 /// slot 1 個・状態条件 1 個への宣言登録（内部表現、イシュー #643）。
@@ -1136,6 +1155,11 @@ impl SlotRecipe {
                     is_valid_identifier(name) && is_valid_identifier(value)
                 }
                 StateCondition::HoverExceptAttr(name) => is_valid_identifier(name),
+                StateCondition::HoverExceptAttrEq(attr_name, eq_name, eq_value) => {
+                    is_valid_identifier(attr_name)
+                        && is_valid_identifier(eq_name)
+                        && is_valid_identifier(eq_value)
+                }
             };
             if !condition_valid {
                 continue;
@@ -1182,6 +1206,16 @@ impl SlotRecipe {
                     // の対象に含める）。
                     selector.push_str(&format!(":hover:not([data-disabled]):not([{name}])"));
                 }
+                StateCondition::HoverExceptAttrEq(attr_name, eq_name, eq_value) => {
+                    // [`HoverExceptAttr`]（存在属性除外）と [`HoverExcept`]
+                    // （値等価除外）を 1 規則で両方適用する（`StateCondition::
+                    // HoverExceptAttrEq` rustdoc 参照）。同じく `@media
+                    // (hover: hover)` 配下へ集約出力される（下記 `matches!`
+                    // の対象に含める）。
+                    selector.push_str(&format!(
+                        ":hover:not([data-disabled]):not([{attr_name}]):not([{eq_name}=\"{eq_value}\"])"
+                    ));
+                }
             }
             // Hover/HoverExcept/HoverExceptAttr は states ループの通常出力先
             // ではなく専用バッファへ集約し、css() 末尾で `@media (hover:
@@ -1192,6 +1226,7 @@ impl SlotRecipe {
                 StateCondition::Hover
                     | StateCondition::HoverExcept(_, _)
                     | StateCondition::HoverExceptAttr(_)
+                    | StateCondition::HoverExceptAttrEq(_, _, _)
             ) {
                 &mut hover_css
             } else {
