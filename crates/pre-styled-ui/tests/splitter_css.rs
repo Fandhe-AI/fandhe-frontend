@@ -23,9 +23,32 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
 
 [data-scope="splitter"][data-part="resize-trigger"] {
   flex: 0 0 var(--fandhe-splitter-trigger-size, 0.25rem);
+  min-width: 0;
+  min-height: 0;
   background: var(--fandhe-color-border);
   cursor: col-resize;
-  box-shadow: inset 0 0 0 9999px var(--fandhe-palette, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--fandhe-radius-full, 999px);
+  --fandhe-hover-bg: var(--fandhe-splitter-root-disabled-hover-bg, var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)));
+}
+
+[data-scope="splitter"][data-part="resize-trigger"] {
+  transition-property: background, box-shadow;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
+}
+
+[data-scope="splitter"][data-part="resize-trigger-indicator"] {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+  background: var(--fandhe-color-bg);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-full, 999px);
+  box-shadow: var(--fandhe-shadow-sm);
+  pointer-events: none;
 }
 
 [data-scope="splitter"][data-part="root"].fd-splitter--size-xs {
@@ -108,6 +131,7 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
 
 [data-scope="splitter"][data-part="root"][data-disabled] {
   opacity: 0.5;
+  --fandhe-splitter-root-disabled-hover-bg: var(--fandhe-color-border);
 }
 
 [data-scope="splitter"][data-part="resize-trigger"][data-orientation="vertical"] {
@@ -115,13 +139,19 @@ const SPLITTER_GOLDEN_CSS: &str = r#"[data-scope="splitter"][data-part="root"] {
 }
 
 [data-scope="splitter"][data-part="resize-trigger"][data-disabled] {
-  cursor: not-allowed;
   opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="splitter"][data-part="resize-trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: -2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+}
+
+@media (hover: hover) {
+  [data-scope="splitter"][data-part="resize-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
@@ -146,4 +176,51 @@ fn stylesheet_never_contains_style_breakout_sequences() {
 fn stylesheet_never_references_external_resources() {
     let css = splitter::stylesheet();
     assert!(!css.contains("url("));
+}
+
+// イシュー #1536 codex-review P1 是正: `root(disabled: true)` と
+// `resize_trigger(disabled: false)` を独立指定した構成（headless 層の
+// API 契約上成立する）でも、resize-trigger の hover 強調が抑止される
+// ことを固定する。`root` の `[data-disabled]` 規則が
+// `--fandhe-splitter-root-disabled-hover-bg: var(--fandhe-color-border)`
+// を定義し、CSS の通常のプロパティ継承（子孫結合子を使わない、
+// `SlotRecipe` の制約に沿う）で resize-trigger の `--fandhe-hover-bg`
+// フォールバック連鎖の最優先値として効くことを検証する。値を
+// `transparent` ではなく `var(--fandhe-color-border)`（resize-trigger の
+// base 規則と同じ細線色）にするのは、codex-review 再指摘（同一 Issue
+// 別ラウンド）是正: `transparent` だと hover 中に境界線そのものが
+// 消える視覚回帰になるため、強調色のみを抑止し境界線は見え続ける値へ
+// 変更した。
+#[test]
+fn root_disabled_rule_defines_hover_bg_override_for_resize_trigger_inheritance() {
+    let css = splitter::stylesheet();
+    let root_disabled_rule = css
+        .find(r#"[data-scope="splitter"][data-part="root"][data-disabled] {"#)
+        .expect("root disabled rule must exist");
+    let root_disabled_block_end = css[root_disabled_rule..]
+        .find('}')
+        .expect("root disabled rule must be closed");
+    let root_disabled_block =
+        &css[root_disabled_rule..root_disabled_rule + root_disabled_block_end];
+    assert!(
+        root_disabled_block
+            .contains("--fandhe-splitter-root-disabled-hover-bg: var(--fandhe-color-border);"),
+        "root disabled rule must define the inherited hover-bg override: {root_disabled_block}"
+    );
+
+    let resize_trigger_base_rule = css
+        .find(r#"[data-scope="splitter"][data-part="resize-trigger"] {"#)
+        .expect("resize-trigger base rule must exist");
+    let resize_trigger_block_end = css[resize_trigger_base_rule..]
+        .find('}')
+        .expect("resize-trigger base rule must be closed");
+    let resize_trigger_block =
+        &css[resize_trigger_base_rule..resize_trigger_base_rule + resize_trigger_block_end];
+    assert!(
+        resize_trigger_block.contains(
+            "--fandhe-hover-bg: var(--fandhe-splitter-root-disabled-hover-bg, var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized)));"
+        ),
+        "resize-trigger base rule must reference the root-disabled override as its \
+         highest-priority fallback: {resize_trigger_block}"
+    );
 }
