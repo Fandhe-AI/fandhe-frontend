@@ -705,7 +705,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # `gap` トークン化）が版数に未反映だったため（codex-review P1 指摘・Cursor
 # Bugbot 指摘、PR #1791）、0.58.5 へさらに patch バンプする。既存セレクタ・
 # 公開 Rust API シグネチャの削除/改名を伴わないため引き続き patch 相当。
-version = "0.58.5"
+# イシュー #1519（clipboard のスタイルを参考サイト基準へ調整）は `trigger`
+# slot の hover/フォーカスリング/transition の canonical ヘルパ追加・
+# `label`/`trigger` のタイポグラフィ・`input`/`value-text` の `font-family`
+# トークン化・`input` 背景の白背景相当への変更を伴う CSS 実体変更のため、
+# 0.58.6 へ patch バンプする（既存セレクタ・公開 Rust API シグネチャの
+# 削除/改名を伴わないため patch 相当、#1515/#1516/#1517 と同じ判断）。
+version = "0.58.6"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
