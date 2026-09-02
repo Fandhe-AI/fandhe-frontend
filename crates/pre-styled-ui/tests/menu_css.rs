@@ -13,6 +13,12 @@
 //! 利用時の現行外観を維持する）。`--fandhe-reference-width`/`--fandhe-arrow-*`/
 //! `--fandhe-x`/`--fandhe-y`（wasm positioning 契約、#663/#588）は不変。
 //! menu は `color-palette` 軸を持たない。
+//!
+//! イシュー #1525（親 #1524 の 1/3 分割）で `trigger`/`content` の是正
+//! （radius/shadow のトークン化、`trigger` の hover/disabled/transition/
+//! focus-visible ヘルパ統一）を反映した golden 更新。詳細は
+//! `crates/pre-styled-ui/src/menu.rs` モジュール rustdoc「担当パートの
+//! 是正」節を参照。
 
 use fandhe_frontend_pre_styled_ui::menu;
 
@@ -25,8 +31,15 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
+  border-radius: var(--fandhe-radius-md);
   padding: var(--fandhe-menu-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+}
+
+[data-scope="menu"][data-part="trigger"] {
+  transition-property: border-color, background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="menu"][data-part="positioner"] {
@@ -41,8 +54,8 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   border: 1px solid var(--fandhe-color-border);
-  border-radius: 0.375rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+  border-radius: var(--fandhe-radius-md);
+  box-shadow: var(--fandhe-shadow-md);
   padding: var(--fandhe-menu-content-padding, var(--fandhe-space-2));
   min-width: var(--fandhe-reference-width, 10rem);
 }
@@ -125,8 +138,13 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
 }
 
 [data-scope="menu"][data-part="trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="menu"][data-part="trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="menu"][data-part="positioner"][data-positioned] {
@@ -135,6 +153,12 @@ const MENU_GOLDEN_CSS: &str = r#"[data-scope="menu"][data-part="root"] {
   left: 0;
   margin-top: 0;
   transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
+}
+
+@media (hover: hover) {
+  [data-scope="menu"][data-part="trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 

@@ -87,9 +87,69 @@
 //! containing block を提供する `position: relative` は共通の祖先である `root`
 //! に付与する（PR #575 Bugbot 指摘 1 対応、`trigger` への誤付与を修正）。
 
+//!
+//! # 担当パートの是正（イシュー #1525、親 #1524 の 1/3 分割。`trigger` /
+//! `positioner` / `content` / `arrow`（`arrow-tip` 含む）のみ担当）
+//!
+//! 親イシュー #1524 の 7 軸チェックリスト（サイズ / バリアント / 色 / 状態 /
+//! ダーク / フォーカス / 余白・角丸・影 + hover / disabled / トランジション）
+//! に対し、本イシューが担当するパートで実施した是正・意図的に合わせなかった
+//! 点を記録する（`item`/`item-group`/`item-group-label`/`separator`/
+//! `indicator` は 2/3（#1526）、`checkbox_item`/`radio_item`/
+//! `trigger_item`（サブメニュー）系は 3/3（#1527）の担当のため一切
+//! 触れていない）。
+//!
+//! - **`trigger`**: `border-radius` の生リテラル（`0.375rem`）を
+//!   `var(--fandhe-radius-md)` へトークン化（値は同一、外観不変。
+//!   select 1/2 #1774 と同じ判断）。[`crate::recipe::hover_bg_muted`] +
+//!   [`crate::recipe::StateCondition::Hover`] +
+//!   [`crate::recipe::hover_surface_declarations`] で hover 背景、
+//!   [`crate::recipe::disabled_declarations`] +
+//!   `StateCondition::Attr("data-disabled")` で
+//!   headless（`crates/headless-ui/src/menu.rs`）が `disabled` 属性と対で
+//!   付与する `data-disabled` の視覚反映、
+//!   [`crate::recipe::transition_declarations`] で `border-color,
+//!   background, color` の遷移を追加した。`:focus-visible` の直書き
+//!   outline 2 宣言は [`crate::recipe::focus_ring_declarations`]
+//!   （`FocusRingColor::Token`。menu は `ColorPalette` 軸を持たないため、
+//!   select 1/2・combobox 1/2・date-picker 1/3 と同じ選択）へ置換した。
+//!   `data-state="open"` の border-color 切り替えは実装済みのため維持した。
+//! - **`content`**: `border-radius`（生 `0.375rem` →
+//!   `var(--fandhe-radius-md)`）・`box-shadow`（生
+//!   `0 4px 6px rgba(0, 0, 0, 0.15)` → `var(--fandhe-shadow-md)`）を
+//!   トークン化した（select 2/2 #1775 と同型）。ダーク側の見た目差は
+//!   `Theme` 側のトークン再定義経由で自動成立するため個別対応は不要。
+//!   `data-state="closed"` の `visibility: hidden` 切り替えは実装済みの
+//!   ため維持した。
+//! - **content の開閉トランジションは追加しない（意図的な非対応）**:
+//!   headless 層（`crates/headless-ui/src/menu.rs`）は `positioner`/
+//!   `content` の closed 時に `hidden` 存在属性を同一フレームで即時
+//!   付与・除去する契約であり、遷移前フレームが描画されないため CSS
+//!   トランジションが発火しない。dialog（イシュー #1693/PR #1795
+//!   codex-review P1 指摘）で同じ理由により追加を取り下げた判断を継承
+//!   する。
+//! - **`positioner` の位置ジオメトリは変更しない**: `position`/`top`/
+//!   `left`/`margin-top`/`data-positioned` 切り替えと
+//!   `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`/
+//!   `--fandhe-reference-width` は wasm positioning 契約（イシュー
+//!   #663/#588）に紐づくため触れていない。`z-index: 10` もトークンが
+//!   theme に存在しないため現状維持。
+//! - **`arrow`/`arrow-tip` の座標・寸法は変更しない**: 位置ジオメトリと
+//!   同じ配置契約（イシュー #663）に紐づく幾何値（`0.5rem` 等）であり、
+//!   色（`background`/`border-color`）は既にトークン参照済みのため是正
+//!   対象がない。
+//! - **`size` variant 軸**: 既存の Xs〜Xl 5 段（イシュー #729/#1681）を
+//!   変更なしで維持。
+//! - **`color-palette`/variant 軸**: menu は元々これらの軸を持たない
+//!   （2/3 #1526 の item highlight 配色が対象領域になり得るため、本
+//!   イシューでは追加しない）。
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    transition_declarations, FocusRingColor, FocusRingOffset, MotionDuration, Size, SlotRecipe,
+    StateCondition, VariantValue,
+};
 
 // headless 自由関数 `root`・状態機械 `Menu` はあえて再エクスポートしない
 // （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。未スタイル・
@@ -140,12 +200,20 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl(
                     "padding",
                     "var(--fandhe-menu-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
                 ),
+                hover_bg_muted(),
             ],
+        )
+        // `base` は同一 slot への複数回登録が許され出力順で連結される
+        // （select 1/2 #1774・combobox 1/2・date-picker 1/3 と同型のパターン、
+        // イシュー #1525）。
+        .base(
+            "trigger",
+            transition_declarations("border-color, background, color", MotionDuration::Fast),
         )
         .base(
             "positioner",
@@ -163,8 +231,8 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "0.375rem"),
-                decl("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.15)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("box-shadow", "var(--fandhe-shadow-md)"),
                 decl(
                     "padding",
                     "var(--fandhe-menu-content-padding, var(--fandhe-space-2))",
@@ -244,14 +312,32 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-accent-fg)"),
             ],
         )
-        // イシュー #643: `trigger` はキーボード操作時のみのフォーカスリング。
+        // イシュー #643 → #1525 で canonical ヘルパへ置換: `trigger` は
+        // キーボード操作時のみのフォーカスリング。menu は palette 軸を
+        // 持たないため `FocusRingColor::Token`（select 1/2・combobox 1/2・
+        // date-picker 1/3 と同じ選択、モジュール rustdoc「担当パートの
+        // 是正」節参照）。
         .state(
             "trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
+        )
+        // イシュー #1525: headless `trigger`（`crates/headless-ui/src/
+        // menu.rs`）が `disabled` 属性と対で付与する `data-disabled` を
+        // 消費する（select 1/2・combobox 1/2 と同型）。
+        .state(
+            "trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
+        // イシュー #1525: trigger の hover 実適用（`--fandhe-hover-bg` の
+        // 間接参照経由。`@media (hover: hover)` + `:not([data-disabled])`
+        // は `Hover` 側が自動付与する、モジュール rustdoc「担当パートの
+        // 是正」節参照）。
+        .state(
+            "trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         // イシュー #663: wasm 層が `data-positioned` マーカーを付与したら
         // 確定座標（viewport 座標系の `position: fixed`）へ切り替える
@@ -507,11 +593,77 @@ mod tests {
     fn item_highlighted_attr_is_styled_and_trigger_has_focus_visible_ring() {
         // イシュー #643 受け入れ条件: virtual focus の highlight 表示
         // （`data-highlighted`）とキーボード操作系属性（`:focus-visible`）が
-        // recipe 経由で反映されることを固定する。
+        // recipe 経由で反映されることを固定する。イシュー #1525 で
+        // `trigger` の focus ring を canonical ヘルパ
+        // （[`crate::recipe::focus_ring_declarations`]）へ置換したため、
+        // 期待値をトークン参照形へ更新した（select 1/2 と同型）。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="menu"][data-part="item"][data-highlighted] {"#));
         assert!(css.contains(r#"[data-scope="menu"][data-part="trigger"]:focus-visible {"#));
-        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+    }
+
+    // --- イシュー #1525: trigger / content のスタイル調整 ---
+
+    #[test]
+    fn trigger_border_radius_uses_radius_md_token() {
+        // radius トークン化（外観不変、select 1/2 と同じ判断）。`item` 等
+        // （2/3・#1526 の担当）は本イシューの対象外のため生リテラルのまま
+        // 残り得る点に注意し、`trigger` ブロックのみを切り出して検証する。
+        let css = stylesheet();
+        let trigger_start = css
+            .find(r#"[data-scope="menu"][data-part="trigger"] {"#)
+            .expect("trigger base rule must exist");
+        let trigger_block_end = css[trigger_start..]
+            .find(
+                "}
+",
+            )
+            .map(|idx| trigger_start + idx)
+            .expect("trigger base rule must be closed");
+        let trigger_block = &css[trigger_start..trigger_block_end];
+        assert!(trigger_block.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(!trigger_block.contains("border-radius: 0.375rem;"));
+    }
+
+    #[test]
+    fn trigger_disabled_attr_is_styled() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menu"][data-part="trigger"][data-disabled] {"#));
+        assert!(css.contains("opacity: 0.5;"));
+        assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn trigger_hover_rule_is_scoped_to_hover_capable_devices_and_excludes_disabled() {
+        // `StateCondition::Hover` は `@media (hover: hover)` 配下へ集約され
+        // `:not([data-disabled])` を自動付与する（`crate::recipe` 契約、
+        // モジュール rustdoc「担当パートの是正」節参照）。
+        let css = stylesheet();
+        assert!(css.contains("@media (hover: hover)"));
+        assert!(
+            css.contains(r#"[data-scope="menu"][data-part="trigger"]:hover:not([data-disabled])"#)
+        );
+        assert!(css.contains("background: var(--fandhe-hover-bg);"));
+    }
+
+    #[test]
+    fn trigger_has_transition_declarations() {
+        let css = stylesheet();
+        assert!(css.contains("transition-property: border-color, background, color;"));
+    }
+
+    #[test]
+    fn content_border_radius_and_shadow_use_tokens() {
+        // イシュー #1525: `content` の生 `border-radius`/`box-shadow` を
+        // トークン化した（select 2/2 #1775 と同型）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menu"][data-part="content"] {"#));
+        assert!(css.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(css.contains("box-shadow: var(--fandhe-shadow-md);"));
+        assert!(!css.contains("box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);"));
     }
 
     #[test]
