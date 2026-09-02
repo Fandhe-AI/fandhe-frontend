@@ -50,11 +50,97 @@
 //! 切り替える。`base`/`state` 規則の `var()` にはいずれも Md サイズ・Accent
 //! パレット相当のフォールバック値を書き、styled `root`/`tabs` を経由しない
 //! headless 直接利用マークアップでも現行外観を維持する（fail-safe、
-//! `crate::lib` rustdoc「複合部品の variant 統一方針」節参照）。
+//! `crate::lib` rustdoc「複合部品の変体統一方針」節参照）。
+//!
+//! # 参考サイト基準への調整（イシュー #1542）
+//!
+//! 参照サイト（chakra-ui / Radix Themes / Radix Primitives / ark-ui）との
+//! 視覚比較（issue #1542 コメントに転記した 7 軸チェック）を踏まえ、以下を
+//! 是正した:
+//!
+//! - **サイズ**: [`recipe`] の `trigger` base へ `font-size:
+//!   var(--fandhe-tabs-font-size, var(--fandhe-font-font-size-sm))` を新設
+//!   し、`size` variant（Xs〜Xl）が `--fandhe-tabs-font-size` を段対応で
+//!   定義するようにした（`crate::pagination`/`crate::tab_nav` と同一の段
+//!   対応）。font-size が size に連動していなかった不足を解消する。
+//! - **hover**: `trigger` へ [`crate::recipe::StateCondition::Hover`] +
+//!   [`crate::recipe::hover_surface_declarations`] を追加した
+//!   （`--fandhe-hover-bg` は [`crate::recipe::hover_bg_muted`]）。
+//! - **disabled**: `trigger` へ `[data-disabled]`
+//!   （[`crate::recipe::StateCondition::Attr`]）+
+//!   [`crate::recipe::disabled_declarations`] を追加した。headless が
+//!   `disabled=""` と併せて出力する属性であり、従来スタイル未反映だった。
+//! - **フォーカスリング**: 直書き `outline: 2px solid
+//!   var(--fandhe-color-accent)` を
+//!   [`crate::recipe::focus_ring_declarations`]（`FocusRingColor::Palette`:
+//!   本部品は `color-palette` 軸を公開するため）へ canonical 化し、
+//!   `content`（`tabindex="0"` の tabpanel）にも同じリングを追加した
+//!   （従来 `content` にはリングがなかった）。
+//! - **トランジション**: `trigger` へ
+//!   [`crate::recipe::transition_declarations`]（`"color, background,
+//!   border-color"`、[`crate::recipe::MotionDuration::Fast`]）を追加した。
+//!   `prefers-reduced-motion` は [`crate::theme::Theme::to_css`] の
+//!   duration 一括 0ms 化で自動的に尊重される。
+//! - **余白・角丸**: `trigger` に上側のみの角丸（`border-radius:
+//!   var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0
+//!   0`）を追加し、hover 面が上側だけ丸くなる参照サイトの見た目に合わせた
+//!   （[`crate::tab_nav`] と同型）。また `margin-bottom: -1px` を追加し、
+//!   選択中 trigger の 2px 下線を `list` の 1px 罫線へ重ねる（重ねないと
+//!   3px に積み上がって見える不足の是正、chakra `line` variant の
+//!   `--indicator-offset-y: -1px` 相当）。
+//! - **`data-orientation="vertical"`**: headless が root/list/trigger/
+//!   content へ出力するが視覚差がなかったため、`root`/`list`/`trigger`/
+//!   `content` それぞれへ縦並び規則を追加した（下線 → 右罫線、行内 →
+//!   列方向の配置転換）。選択中 trigger の強調色は
+//!   [`crate::recipe::StateCondition::AttrEqAll`] で
+//!   `[data-state="active"][data-orientation="vertical"]` を条件化し、
+//!   縦並び時は右側の強調線へ切り替える。
+//! - **`inline-flex` 化**: `trigger` を `inline-flex` + `gap` へ変更し、
+//!   アイコン + ラベルの並びに対応した（chakra のアイコン付きタブ運用）。
+//!
+//! **意図的に合わせなかった点**（根拠を記録し、再評価は
+//! `docs/policy/intentional-non-adoption.md` の評価軸に従う）:
+//!
+//! - **variant 軸（chakra `line`/`subtle`/`enclosed`/`outline`/`plain`）は
+//!   追加しない**: [`tabs`] の公開シグネチャへ引数追加する破壊的変更に
+//!   なる。Radix Themes Tabs は variant を持たず参照軸間で語彙が収斂して
+//!   いない（`docs/design/pre-styled-ui-size-and-color-palette-axes.md`
+//!   §7 の Forms 家族判断と同じ根拠）。`size` × `color-palette` で参照
+//!   サイトの既定（line）表現は再現済み。
+//! - **`indicator` パーツの装飾は追加しない**: headless は
+//!   `--left`/`--top`/`--width`/`--height` を `0px` 固定で出力し、
+//!   wasm-full 側に実測して更新する配線がまだない
+//!   （`crates/headless-ui/src/tabs.rs` `INDICATOR_STYLE_INITIAL`
+//!   rustdoc）。CSS を足しても幅 0 で不可視の dead CSS になり、将来配線
+//!   された際には active trigger の下線と二重線になるため、配線実装時に
+//!   あわせて設計する。
+//! - **active 時の `font-weight` 変化（Radix Themes 方式）は採らない**:
+//!   ページ内切り替えで幅が揺れる。代わりに全 trigger を最初から
+//!   medium にする（chakra 方式、`trigger` base の `font-weight`）。
+//! - **`box-shadow` によるフォーカスリング / surface 表現は採らない**:
+//!   イシュー #1424 の `outline` 統一方針（`forced-colors` 対応）に従う。
+//! - **Radix の内側 `span` による hover 面**: anatomy を増やすため採らず、
+//!   `trigger` 全面へ上側角丸の hover 面を当てる（`tab_nav` と同型）。
+//! - **`transition` の対象に `transform`/`box-shadow` を含めない**:
+//!   変化させるプロパティがないため。
+//!
+//! # `shared_tab_*` ヘルパの廃止（イシュー #996 → #1542）
+//!
+//! かつて `tabs`（`list`/`trigger`パーツ）/`tab_nav`（`root`/`link` パーツ）
+//! が見た目の基底宣言を `pub(crate) fn shared_tab_{list,item,item_active}_
+//! declarations` として共有していた（イシュー #996）。`tab_nav` はイシュー
+//! #1541 で共有をやめ自前の宣言列を持つよう独立済みであり（`tab_nav.rs`
+//! 冒頭 rustdoc「参考サイト基準への調整（イシュー #1541）」節参照）、本
+//! イシュー時点で `shared_tab_*` を参照するモジュールは本モジュール自身
+//! のみだった（`git grep shared_tab` で確認済み）。本イシューで上記
+//! ビジュアル是正に伴い宣言列自体が `tabs` 固有の内容へ発展したため、
+//! 3 関数を [`recipe`] へインライン化して削除した。
 
-use crate::css::{decl, Declaration};
+use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_surface_declarations,
+    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
 };
 
 // headless 自由関数 `tabs`/`tabs_with_root_attrs` はあえて再エクスポートしない
@@ -73,62 +159,69 @@ pub use fandhe_frontend_headless_ui::data_attrs::Orientation;
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約）。
 const SLOTS: &[&str] = &["root", "list", "trigger", "content", "indicator"];
 
-/// `tabs`（`list` パーツ）/`tab_nav`（`root` パーツ）が共有する
-/// 「タブ列コンテナ」の基底宣言（イシュー #996）。
-///
-/// 両モジュールとも `data-scope` が異なる（`tabs`/`tab-nav`）ため
-/// [`crate::recipe::SlotRecipe`] のセレクタ文字列そのものは共有できないが、
-/// 見た目を担う宣言列は本関数として一元化し、片方の変更がもう片方へ
-/// サイレントに乖離しないようにする。`crates/pre-styled-ui/tests/tabs_css.rs`
-/// の `TABS_GOLDEN_CSS` はこのリファクタ後もバイト単位で不変であることが
-/// 絶対条件（`crates/pre-styled-ui/tests/tab_nav_css.rs` も同型の golden を
-/// 別 scope で持つ）。
-pub(crate) fn shared_tab_list_declarations() -> Vec<Declaration> {
-    vec![
-        decl("display", "flex"),
-        decl("gap", "var(--fandhe-space-2)"),
-        decl("border-bottom", "1px solid var(--fandhe-color-border)"),
-    ]
-}
-
-/// `tabs`（`trigger` パーツ）/`tab_nav`（`link` パーツ）が共有する基底宣言
-/// （イシュー #996）。`padding` は各部品固有の CSS custom property 名を含む
-/// 値を呼び出し側がリテラルで渡す（`tabs` は `--fandhe-tabs-trigger-padding`、
-/// `tab_nav` は `--fandhe-tab-nav-link-padding` を参照する別の値）。
-pub(crate) fn shared_tab_item_declarations(padding: &'static str) -> Vec<Declaration> {
-    vec![
-        decl("padding", padding),
-        decl("background", "transparent"),
-        decl("color", "var(--fandhe-color-fg-muted)"),
-        decl("border", "0"),
-        decl("border-bottom", "2px solid transparent"),
-        decl("cursor", "pointer"),
-    ]
-}
-
-/// 選択中（`tabs`: `data-state="active"` / `tab_nav`: `aria-current="page"`）
-/// の強調宣言（イシュー #996）。強調色は `color-palette` variant（`tabs` の
-/// みが対応、`tab_nav` は Accent 固定フォールバックを直接参照）が登録する
-/// `--fandhe-palette` 経由で切り替わる。
-pub(crate) fn shared_tab_item_active_declarations() -> Vec<Declaration> {
-    vec![
-        decl("color", "var(--fandhe-color-fg)"),
-        decl(
-            "border-bottom-color",
-            "var(--fandhe-palette, var(--fandhe-color-accent))",
-        ),
-    ]
-}
-
 /// この styled Tabs の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
+///
+/// イシュー #1542: 旧 `shared_tab_*` ヘルパ（モジュール冒頭 rustdoc「`shared_tab_*`
+/// ヘルパの廃止」節参照）をインライン化した上で、参考サイト基準の是正
+/// （hover・disabled・フォーカスリング canonical 化・トランジション・
+/// vertical 対応）を追加した。
 fn recipe() -> SlotRecipe {
     let mut recipe = SlotRecipe::new("tabs", SLOTS)
-        .base("list", shared_tab_list_declarations())
+        .base(
+            "list",
+            vec![
+                decl("display", "flex"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl("border-bottom", "1px solid var(--fandhe-color-border)"),
+            ],
+        )
         .base(
             "trigger",
-            shared_tab_item_declarations(
-                "var(--fandhe-tabs-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-4))",
-            ),
+            vec![
+                // イシュー #1542: アイコン + ラベルの並びに対応する
+                // （chakra のアイコン付きタブ運用）。
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl(
+                    "padding",
+                    "var(--fandhe-tabs-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-4))",
+                ),
+                // イシュー #1542: font-size が size variant に連動していな
+                // かった不足を是正（`crate::pagination`/`crate::tab_nav` と
+                // 同型）。
+                decl(
+                    "font-size",
+                    "var(--fandhe-tabs-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                // イシュー #1542: 選択切り替えで幅が揺れないよう、全 trigger
+                // を最初から medium にする（chakra 方式、モジュール冒頭
+                // rustdoc「意図的に合わせなかった点」節参照）。
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+                decl("white-space", "nowrap"),
+                decl("background", "transparent"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("border", "0"),
+                decl("border-bottom", "2px solid transparent"),
+                // イシュー #1542: 選択中 trigger の 2px 下線を `list` の 1px
+                // 罫線へ重ねる（重ねないと 3px に積み上がって見える不足の
+                // 是正、chakra `line` variant の `--indicator-offset-y: -1px`
+                // 相当）。
+                decl("margin-bottom", "-1px"),
+                // イシュー #1542: hover 面が上側だけ丸くなる参照サイトの
+                // 見た目に合わせる（`crate::tab_nav` と同型）。
+                decl(
+                    "border-radius",
+                    "var(--fandhe-radius-sm, 0.25rem) var(--fandhe-radius-sm, 0.25rem) 0 0",
+                ),
+                decl("cursor", "pointer"),
+                hover_bg_muted(),
+            ],
+        )
+        .base(
+            "trigger",
+            transition_declarations("color, background, border-color", MotionDuration::Fast),
         )
         .base(
             "content",
@@ -146,26 +239,112 @@ fn recipe() -> SlotRecipe {
         .state(
             "trigger",
             StateCondition::AttrEq("data-state", "active"),
-            shared_tab_item_active_declarations(),
+            vec![
+                decl("color", "var(--fandhe-color-fg)"),
+                decl(
+                    "border-bottom-color",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+            ],
         )
         .state(
             "content",
             StateCondition::AttrEq("data-state", "inactive"),
             vec![decl("display", "none")],
         )
+        // イシュー #1542: headless が `disabled=""` と併せて出力する
+        // `data-disabled` に視覚差がなかった不足を是正する。
+        .state(
+            "trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
+        )
         // イシュー #643: キーボード操作時のみのフォーカスリング。
+        // イシュー #1542: 直書き `outline` を canonical 化し
+        // （`FocusRingColor::Palette`: `color-palette` 軸を公開する部品の
+        // ため）、`content`（`tabindex="0"` の tabpanel）にも同じリングを
+        // 追加した（従来 `content` にはリングがなかった不足の是正）。
         .state(
             "trigger",
             StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
+        )
+        .state(
+            "content",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
+        )
+        // イシュー #1542: `data-orientation="vertical"`（headless が
+        // root/list/trigger/content へ出力するが視覚差がなかった不足）。
+        .state(
+            "root",
+            StateCondition::AttrEq("data-orientation", "vertical"),
+            vec![decl("display", "flex"), decl("align-items", "flex-start")],
+        )
+        .state(
+            "list",
+            StateCondition::AttrEq("data-orientation", "vertical"),
             vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
+                decl("flex-direction", "column"),
+                decl("border-bottom", "0"),
+                decl(
+                    "border-inline-end",
+                    "1px solid var(--fandhe-color-border)",
+                ),
             ],
         )
+        .state(
+            "trigger",
+            StateCondition::AttrEq("data-orientation", "vertical"),
+            vec![
+                decl("justify-content", "flex-start"),
+                decl("border-bottom", "0"),
+                decl("margin-bottom", "0"),
+                decl("border-inline-end", "2px solid transparent"),
+                decl("margin-inline-end", "-1px"),
+                decl(
+                    "border-radius",
+                    "var(--fandhe-radius-sm, 0.25rem) 0 0 var(--fandhe-radius-sm, 0.25rem)",
+                ),
+            ],
+        )
+        .state(
+            "trigger",
+            StateCondition::AttrEqAll(&[
+                ("data-state", "active"),
+                ("data-orientation", "vertical"),
+            ]),
+            vec![decl(
+                "border-inline-end-color",
+                "var(--fandhe-palette, var(--fandhe-color-accent))",
+            )],
+        )
+        .state(
+            "content",
+            StateCondition::AttrEq("data-orientation", "vertical"),
+            vec![
+                decl("flex", "1"),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-tabs-content-padding-inline, var(--fandhe-space-4))",
+                ),
+            ],
+        )
+        // イシュー #1542: hover 背景・文字色変化（参照 3 サイト共通）。
+        .state("trigger", StateCondition::Hover, {
+            let mut decls = hover_surface_declarations();
+            decls.push(decl("color", "var(--fandhe-color-fg)"));
+            decls
+        })
         // イシュー #729: `size` variant（root スコープの CSS custom property。
         // Md はフォールバック値と同一の現行外観を維持する）。
         // イシュー #1681: Xs は Sm(1,3)→Md(2,4)→Lg(3,5) の等差進行を 1 段
         // 外挿した (0-5, 2)（`space-0`は未定義のため最小刻み `space-0-5`）。
+        // イシュー #1542: `--fandhe-tabs-font-size`（`crate::pagination`/
+        // `crate::tab_nav` と同一の段対応）・`--fandhe-tabs-content-padding-
+        // inline`（vertical 時の content 横 padding。既存
+        // `--fandhe-tabs-content-padding` は `<block> 0` 形式で意味を変え
+        // られないため別変数を足した）を純追加した。
         .variant(
             Size::Xs,
             "root",
@@ -175,6 +354,11 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-space-0-5) var(--fandhe-space-2)",
                 ),
                 decl("--fandhe-tabs-content-padding", "var(--fandhe-space-2) 0"),
+                decl(
+                    "--fandhe-tabs-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+                decl("--fandhe-tabs-content-padding-inline", "var(--fandhe-space-2)"),
             ],
         )
         .variant(
@@ -186,6 +370,11 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-space-1) var(--fandhe-space-3)",
                 ),
                 decl("--fandhe-tabs-content-padding", "var(--fandhe-space-3) 0"),
+                decl(
+                    "--fandhe-tabs-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+                decl("--fandhe-tabs-content-padding-inline", "var(--fandhe-space-3)"),
             ],
         )
         .variant(
@@ -197,6 +386,11 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-space-2) var(--fandhe-space-4)",
                 ),
                 decl("--fandhe-tabs-content-padding", "var(--fandhe-space-4) 0"),
+                decl(
+                    "--fandhe-tabs-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+                decl("--fandhe-tabs-content-padding-inline", "var(--fandhe-space-4)"),
             ],
         )
         .variant(
@@ -208,6 +402,11 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-space-3) var(--fandhe-space-5)",
                 ),
                 decl("--fandhe-tabs-content-padding", "var(--fandhe-space-5) 0"),
+                decl(
+                    "--fandhe-tabs-font-size",
+                    "var(--fandhe-font-font-size-md)",
+                ),
+                decl("--fandhe-tabs-content-padding-inline", "var(--fandhe-space-5)"),
             ],
         )
         .variant(
@@ -219,6 +418,11 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-space-4) var(--fandhe-space-6)",
                 ),
                 decl("--fandhe-tabs-content-padding", "var(--fandhe-space-6) 0"),
+                decl(
+                    "--fandhe-tabs-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
+                decl("--fandhe-tabs-content-padding-inline", "var(--fandhe-space-6)"),
             ],
         )
         .default_variant(Size::Md)
@@ -376,9 +580,99 @@ mod tests {
     fn trigger_declares_focus_visible_ring() {
         // イシュー #643 受け入れ条件: キーボード操作系属性（:focus-visible）
         // が recipe 経由で反映されることを固定する。
+        // イシュー #1542: 直書き outline を `focus_ring_declarations`
+        // （`FocusRingColor::Palette`）へ canonical 化した。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]:focus-visible {"#));
-        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));"
+        ));
+    }
+
+    #[test]
+    fn content_declares_focus_visible_ring() {
+        // イシュー #1542: `content`（tabindex="0" の tabpanel）にもフォーカス
+        // リングを追加した（従来は `trigger` のみだった不足の是正）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="tabs"][data-part="content"]:focus-visible {"#));
+    }
+
+    #[test]
+    fn trigger_hover_rule_is_collected_under_single_media_hover_block() {
+        // イシュー #1542: hover 規則は `@media (hover: hover)` 配下へ集約
+        // 出力される（タッチ端末の貼り付き対策）。末尾に 1 つだけ出ること
+        // を固定する。
+        let css = stylesheet();
+        assert_eq!(css.matches("@media (hover: hover)").count(), 1);
+        assert!(css
+            .contains(r#"[data-scope="tabs"][data-part="trigger"]:hover:not([data-disabled]) {"#));
+        assert!(css.trim_end().ends_with('}'));
+    }
+
+    #[test]
+    fn disabled_trigger_declares_opacity_and_cursor() {
+        // イシュー #1542: headless が `disabled=""` と併せて出力する
+        // `data-disabled` に視覚差がなかった不足を是正する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"][data-disabled] {"#));
+        assert!(css.contains("opacity: 0.5;"));
+        assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn trigger_declares_transition_with_fast_duration() {
+        // イシュー #1542: hover/active の色・背景・境界変化にトランジションを
+        // 付ける（`prefers-reduced-motion` は `Theme::to_css` の duration 0ms
+        // 化で自動対応）。
+        let css = stylesheet();
+        assert!(css.contains("transition-property: color, background, border-color;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+    }
+
+    #[test]
+    fn size_variant_defines_font_size_custom_property() {
+        // イシュー #1542: font-size が size に連動していなかった不足を是正
+        // する。5 段すべてが `--fandhe-tabs-font-size` を定義すること。
+        let css = stylesheet();
+        assert_eq!(css.matches("--fandhe-tabs-font-size:").count(), 5);
+        assert!(css.contains("--fandhe-tabs-font-size: var(--fandhe-font-font-size-xs);"));
+        assert!(css.contains("--fandhe-tabs-font-size: var(--fandhe-font-font-size-sm);"));
+        assert!(css.contains("--fandhe-tabs-font-size: var(--fandhe-font-font-size-md);"));
+        assert!(css.contains("--fandhe-tabs-font-size: var(--fandhe-font-font-size-lg);"));
+    }
+
+    #[test]
+    fn vertical_orientation_rules_are_registered_for_all_slots() {
+        // イシュー #1542: `data-orientation="vertical"`（headless が
+        // root/list/trigger/content へ出力するが視覚差がなかった不足）。
+        let css = stylesheet();
+        assert!(
+            css.contains(r#"[data-scope="tabs"][data-part="root"][data-orientation="vertical"] {"#)
+        );
+        assert!(
+            css.contains(r#"[data-scope="tabs"][data-part="list"][data-orientation="vertical"] {"#)
+        );
+        assert!(css.contains(
+            r#"[data-scope="tabs"][data-part="trigger"][data-orientation="vertical"] {"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="tabs"][data-part="content"][data-orientation="vertical"] {"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="tabs"][data-part="trigger"][data-state="active"][data-orientation="vertical"] {"#
+        ));
+        assert!(css.contains(
+            "border-inline-end-color: var(--fandhe-palette, var(--fandhe-color-accent));"
+        ));
+    }
+
+    #[test]
+    fn stylesheet_contains_no_raw_color_literals() {
+        // イシュー #1542: 全ての色はトークン（`var(--fandhe-...)`）経由で
+        // 参照し、生の色リテラル（16進・rgb()）を混入させない。
+        let css = stylesheet();
+        assert!(!css.contains('#'));
+        assert!(!css.contains("rgb("));
     }
 
     // --- イシュー #729: size/color-palette variant ---

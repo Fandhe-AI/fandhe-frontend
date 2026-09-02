@@ -883,7 +883,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 規約、`.claude/rules/coding-rust.md`）。既存 CSS 変数名・クラス名・
 # セレクタの削除はなし（純追加 + `outline`/`padding` 直書きの canonical
 # ヘルパへの置換のみ）。
-version = "0.62.0"
+# イシュー #1542（tabs のスタイルを参考サイト基準へ調整）は `recipe()`
+# 宣言変更・新規 custom property（`--fandhe-tabs-font-size`/
+# `--fandhe-tabs-content-padding-inline`）・hover/disabled/transition/
+# vertical 規則の純追加と `outline` 直書きの canonical 化のみ。公開 API
+# シグネチャ・既存 CSS 変数名・クラス名・セレクタの削除/改名なしのため
+# patch とする。旧 `shared_tab_*`（`pub(crate)`、外部非公開）ヘルパの削除は
+# クレート外部から到達不能なため公開 API 面には影響しない。
+version = "0.62.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
