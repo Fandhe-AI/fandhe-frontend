@@ -714,7 +714,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 上記 #1517（breadcrumb、0.58.4 → 0.58.5）の版数が偶発的に衝突したため、
 # 双方の実体変更を統合した結果として 0.58.6 へさらに patch バンプする
 # （同一版数への偶発的衝突をそのまま採用しない）。
-version = "0.58.6"
+# イシュー #1692: dialog の外枠パート（trigger/backdrop/positioner/content）
+# のスタイル調整。trigger のボタン化（枠・背景・角丸・padding・hover
+# surface・transition）、backdrop の `--fandhe-color-bg-overlay`/
+# `--fandhe-z-index-overlay` トークン化、positioner の
+# `--fandhe-z-index-modal` トークン化、content の `--fandhe-radius-lg`
+# トークン化 + `--fandhe-shadow-lg` 新規追加。既存セレクタ・公開 Rust API
+# シグネチャの削除/改名を伴わない宣言の追加・値変更のみのため patch バンプ
+# する（`docs/ci/style-refresh-version-bump-operation.md` 準拠）。
+version = "0.58.7"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
