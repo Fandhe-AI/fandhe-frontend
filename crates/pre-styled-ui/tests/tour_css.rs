@@ -4,6 +4,13 @@
 //! 倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。出力順
 //! （base → variants → compound → states）が崩れた場合や意図しない宣言の
 //! 追加・欠落があった場合に、この golden テストが即座に検知する。
+//!
+//! イシュー #1551（親 #1549 の 2/2）: `content`/`title`/`description`/
+//! `progress-text`/`close-trigger`/`action-trigger` の是正
+//! （`crates/pre-styled-ui/src/tour.rs` モジュール冒頭 rustdoc「イシュー
+//! #1551」節参照）を反映して golden を更新した。末尾に
+//! `@media (hover: hover)` ブロック（close-trigger/action-trigger の
+//! hover 規則）が新設された。
 
 use fandhe_frontend_pre_styled_ui::tour;
 
@@ -53,47 +60,80 @@ const TOUR_GOLDEN_CSS: &str = r#"[data-scope="tour"][data-part="backdrop"] {
   position: relative;
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
-  border-radius: var(--fandhe-radius-md);
+  border: 1px solid var(--fandhe-color-border);
+  border-radius: var(--fandhe-radius-lg, 0.5rem);
   box-shadow: var(--fandhe-shadow-lg, 0 10px 30px rgba(0, 0, 0, 0.25));
-  padding: var(--fandhe-space-6);
-  max-width: 24rem;
+  box-sizing: border-box;
+  padding: var(--fandhe-tour-content-padding, var(--fandhe-space-6));
+  max-width: var(--fandhe-tour-content-max-width, 24rem);
 }
 
 [data-scope="tour"][data-part="title"] {
-  font-size: var(--fandhe-font-font-size-lg);
+  font-size: var(--fandhe-font-font-size-md);
   font-weight: var(--fandhe-font-font-weight-semibold);
+  line-height: var(--fandhe-font-line-height-tight);
   margin: 0 0 var(--fandhe-space-2) 0;
+  padding-inline-end: calc(var(--fandhe-space-8) + var(--fandhe-space-2));
 }
 
 [data-scope="tour"][data-part="description"] {
   color: var(--fandhe-color-fg-muted);
+  font-size: var(--fandhe-font-font-size-sm);
+  line-height: var(--fandhe-font-line-height-normal);
   margin: 0 0 var(--fandhe-space-4) 0;
 }
 
 [data-scope="tour"][data-part="progress-text"] {
   font-size: var(--fandhe-font-font-size-sm);
   color: var(--fandhe-color-fg-muted);
+  line-height: var(--fandhe-font-line-height-normal);
   margin: 0 0 var(--fandhe-space-4) 0;
 }
 
 [data-scope="tour"][data-part="close-trigger"] {
   position: absolute;
-  top: var(--fandhe-space-2);
-  right: var(--fandhe-space-2);
-  cursor: pointer;
-  background: none;
+  inset-block-start: var(--fandhe-space-2);
+  inset-inline-end: var(--fandhe-space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--fandhe-space-8);
+  height: var(--fandhe-space-8);
+  overflow: hidden;
   border: none;
+  border-radius: var(--fandhe-radius-sm);
+  background: transparent;
+  padding: var(--fandhe-space-1);
+  cursor: pointer;
   color: var(--fandhe-color-fg-muted);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  transition-property: background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="tour"][data-part="action-trigger"] {
-  cursor: pointer;
-  font: inherit;
-  padding: var(--fandhe-space-1) var(--fandhe-space-3);
-  border: 1px solid var(--fandhe-color-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: var(--fandhe-size-control-height-sm, 2.25rem);
+  padding: 0 var(--fandhe-size-control-padding-x-sm, 0.75rem);
+  font-family: inherit;
+  font-size: var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm));
+  font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-tight);
+  border: none;
   border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-palette, var(--fandhe-color-accent));
-  color: var(--fandhe-color-bg);
+  color: var(--fandhe-palette-fg, var(--fandhe-color-accent-fg));
+  cursor: pointer;
+  margin-inline-end: var(--fandhe-space-2);
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized, var(--fandhe-color-accent-emphasized));
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="tour"][data-part="root"].fd-tour--color-palette-accent {
@@ -233,13 +273,33 @@ const TOUR_GOLDEN_CSS: &str = r#"[data-scope="tour"][data-part="backdrop"] {
 }
 
 [data-scope="tour"][data-part="close-trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+[data-scope="tour"][data-part="action-trigger"][disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-scope="tour"][data-part="action-trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 [data-scope="tour"][data-part="action-trigger"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: 2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
+@media (hover: hover) {
+  [data-scope="tour"][data-part="close-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
+
+  [data-scope="tour"][data-part="action-trigger"]:hover:not([data-disabled]):not([disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 

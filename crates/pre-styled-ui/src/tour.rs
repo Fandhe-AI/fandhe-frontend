@@ -89,8 +89,10 @@
 //! # `focus-visible`（キーボードフォーカスリング）
 //!
 //! `close-trigger`/`action-trigger` はネイティブな `<button>` であるため、
-//! 通常の `:focus-visible` 疑似クラスを [`recipe`] へ直接登録する
-//! （[`crate::dialog`]/[`crate::steps`] と同型）。
+//! 通常の `:focus-visible` 疑似クラスへ
+//! [`crate::recipe::focus_ring_declarations`]（`FocusRingColor::Palette`、
+//! イシュー #1551 で生 `outline` 直書きから canonical ヘルパへ是正）を
+//! 登録する（[`crate::dialog`]/[`crate::steps`] と同型）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -189,11 +191,83 @@
 //!   スケール上の値でありそのまま維持する（オフセット + padding の二重
 //!   ガターは静的フォールバック時の安全域として意図的に残す。座標追従の
 //!   幾何は `fandhe-frontend-wasm-full` 後続の責務）。
+//!
+//! # イシュー #1551: コンテンツ（title / description / progress-text /
+//! close-trigger / action-trigger / content）のスタイル調整（親 #1549 の 2/2）
+//!
+//! 親イシュー #1549 のうち、`content`/`title`/`description`/
+//! `progress-text`/`close-trigger`/`action-trigger` パート（ツアーカード
+//! 本体）のみを担当する。`backdrop`/`spotlight`/`positioner`（オーバーレイ
+//! 3 パート）は兄弟イシュー #1550（1/2、PR #1821 でマージ済み）が既に
+//! 対応済みであり、本イシューでは触れない。`arrow`/`arrow-tip` は両分割
+//! イシューとも割り当てがなく、引き続き触れない。
+//!
+//! 是正内容:
+//!
+//! - `content` に overlay 系共通の輪郭
+//!   `border: 1px solid var(--fandhe-color-border)`（dialog/drawer/toast の
+//!   ダーク境界方針、`docs/design/pre-styled-ui-scale-tokens.md` §3.2）を
+//!   追加し、`border-radius` を `md` から面パネル段の `lg` へ（同文書 §3.1
+//!   の割り当て表）。`padding`/`max-width` を `crate::dialog` の
+//!   `--fandhe-dialog-content-padding`/`-content-max-width` と同型の
+//!   scope 付き上書き変数（`--fandhe-tour-content-padding`/
+//!   `-content-max-width`）へ差し替えた（既定値は旧リテラルを最内側
+//!   フォールバックへ維持）。
+//! - `title` の `font-size` を `lg` から `md` へ（dialog より小さい
+//!   コンパクトなカードという参考サイトの傾向）、`line-height` を明示し、
+//!   `close-trigger`（固定正方 + 絶対配置オフセット）との重なりを避ける
+//!   `padding-inline-end` ガターを追加した（dialog #1693 / PR #1795 再指摘
+//!   対応と同型）。
+//! - `description`/`progress-text` に `line-height` を追加し、
+//!   `description` の `font-size` を `sm` へ（コンパクトなカード本文）。
+//! - `close-trigger` を `crate::dialog`（#1693/#1795）/`crate::toast`
+//!   （#1545）と同型の絶対配置アイコン専用ゴーストボタンへ是正した
+//!   （固定正方 `--fandhe-space-8` + `overflow: hidden` + `hover`/
+//!   `transition` 追加）。呼び出し側は
+//!   `close_trigger(state, vec![("aria-label", "Close")], vec![text("×")])`
+//!   のように 1 グリフ + `aria-label` で渡す契約とする（アイコン専用化は
+//!   0.x の破壊的変更、minor バンプで公開する）。
+//! - `action-trigger` を solid palette 小ボタンへ是正した: 文字色を
+//!   `--fandhe-color-bg` から text-on-palette トークン
+//!   `--fandhe-palette-fg`（`accent-fg`×`accent`/`accent-emphasized` の
+//!   コントラストが `Theme` 側で担保済み）へ、solid 面のため
+//!   `border: none`（`crate::button` solid variant と同じ）へ変更し、
+//!   `hover`/`disabled`（`[disabled]`/`[data-disabled]` 両方に登録。
+//!   headless 層はネイティブ `disabled` のみ発行するため `data-disabled`
+//!   側は語彙統一のための無害な規則）/`transition`/
+//!   `focus_ring_declarations(FocusRingColor::Palette, ...)` を追加した。
+//! - `close-trigger`/`action-trigger` の生 `outline` 直書きを
+//!   [`crate::recipe::focus_ring_declarations`]（`FocusRingColor::Palette`）
+//!   へ置換した。
+//!
+//! 意図的に採らなかった変更（`.claude/rules/out-of-scope-tracking.md`
+//! 対応）:
+//!
+//! - **`size` variant**: ark-ui Tour に size prop はなく、overlay 系の
+//!   寸法は呼び出し側の CSS 変数上書きに委ねる既存方針（モジュール冒頭
+//!   「`palette` variant」節）を維持する。代わりに
+//!   `--fandhe-tour-content-padding`/`-content-max-width` の scope 付き
+//!   変数で上書き手段を提供した。
+//! - **`action-trigger` の variant 軸（prev/next の outline↔solid 切替
+//!   等）**: headless `Tour::action_trigger` は `data-action` を発行せず、
+//!   styled 側で variant を受けるには公開シグネチャ変更が必要。参照側でも
+//!   ボタン種別は呼び出し側が `asChild` 相当で決めるため、部品側の軸では
+//!   ないと判断した。
+//! - **`actions` コンテナパート**: ark-ui の `Tour.Actions` に相当する
+//!   anatomy が headless 層にない（headless 側イシュー #1666 の領域）。
+//!   `action-trigger` 自身の `margin-inline-end` で並置時の間隔のみ確保し、
+//!   右寄せ等のコンテナ配置は #1666 でパートが増えた後の追随とする。
+//! - **開閉トランジション**: headless 層は open/closed 切替と同一フレーム
+//!   で `hidden` を付与・除去する契約（#1550 と同じ根拠）のため追加しない。
+//! - **`close-trigger` の disabled 規則**: 閉じるボタンに disabled 概念を
+//!   持たせない（`crate::toast`/`crate::popover` と同じ判断）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    palette_scale_declarations, ColorPalette, SlotRecipe, StateCondition, VariantValue,
+    disabled_declarations, focus_ring_declarations, hover_bg_muted, hover_bg_solid_with_fallback,
+    hover_surface_declarations, palette_scale_declarations, transition_declarations, ColorPalette,
+    FocusRingColor, FocusRingOffset, MotionDuration, SlotRecipe, StateCondition, VariantValue,
 };
 
 // `Tour` 状態機械はあえて再エクスポートしない（本モジュール冒頭の rustdoc
@@ -458,13 +532,36 @@ fn recipe() -> SlotRecipe {
                 decl("position", "relative"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
-                decl("border-radius", "var(--fandhe-radius-md)"),
+                // イシュー #1551: overlay 系（dialog/drawer/toast）と同じ
+                // ダーク境界方針（`docs/design/pre-styled-ui-scale-tokens.md`
+                // §3.2）。tour の content だけこの輪郭が欠けていた。
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                // イシュー #1551: `md`（0.375rem）から面パネル段の `lg` へ
+                // （`docs/design/pre-styled-ui-scale-tokens.md` §3.1 の
+                // 割り当て表）。最内側リテラルは現行 `lg` 値を踏襲し、
+                // `Theme` 抜きの単独利用でも角丸が消えないようにする。
+                decl("border-radius", "var(--fandhe-radius-lg, 0.5rem)"),
                 decl(
                     "box-shadow",
                     "var(--fandhe-shadow-lg, 0 10px 30px rgba(0, 0, 0, 0.25))",
                 ),
-                decl("padding", "var(--fandhe-space-6)"),
-                decl("max-width", "24rem"),
+                // イシュー #1551: border 追加により実占有幅が
+                // border-box 化前提の値になるため、`dialog`/`toast` と同じく
+                // `box-sizing: border-box` を明示する（`max-width` が
+                // border・padding を含めた外寸として評価されるようにする）。
+                decl("box-sizing", "border-box"),
+                // イシュー #1551: `crate::dialog` の
+                // `--fandhe-dialog-content-padding`/`-content-max-width`
+                // と同型の scope 付き上書き変数を新設した（既定値は旧
+                // リテラルをそのまま最内側フォールバックへ）。
+                decl(
+                    "padding",
+                    "var(--fandhe-tour-content-padding, var(--fandhe-space-6))",
+                ),
+                decl(
+                    "max-width",
+                    "var(--fandhe-tour-content-max-width, 24rem)",
+                ),
             ],
         )
         .state(
@@ -475,15 +572,31 @@ fn recipe() -> SlotRecipe {
         .base(
             "title",
             vec![
-                decl("font-size", "var(--fandhe-font-font-size-lg)"),
+                // イシュー #1551: dialog より小さいコンパクトなカード
+                // （参考サイトのツアーカードは dialog より控えめなサイズ）
+                // のため `lg` → `md` へ引き下げる。
+                decl("font-size", "var(--fandhe-font-font-size-md)"),
                 decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                decl("line-height", "var(--fandhe-font-line-height-tight)"),
                 decl("margin", "0 0 var(--fandhe-space-2) 0"),
+                // イシュー #1551: `close-trigger`（固定正方 --fandhe-space-8
+                // + 絶対配置オフセット --fandhe-space-2）との重なりを避ける
+                // インライン終端側ガター（dialog #1693 / PR #1795 再指摘
+                // 対応と同型）。
+                decl(
+                    "padding-inline-end",
+                    "calc(var(--fandhe-space-8) + var(--fandhe-space-2))",
+                ),
             ],
         )
         .base(
             "description",
             vec![
                 decl("color", "var(--fandhe-color-fg-muted)"),
+                // イシュー #1551: コンパクトなカード本文（参考ツアーカード
+                // は dialog の description より小さい）。
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("margin", "0 0 var(--fandhe-space-4) 0"),
             ],
         )
@@ -492,51 +605,140 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-sm)"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
+                // イシュー #1551: 他パートと同じく `line-height` を明示する。
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("margin", "0 0 var(--fandhe-space-4) 0"),
             ],
         )
+        // イシュー #1551: `crate::dialog`（#1693/#1795）/`crate::toast`
+        // （#1545）と同型の絶対配置アイコン専用ゴーストボタン化
+        // （モジュール冒頭 rustdoc「イシュー #1551」節参照）。
+        // `box-sizing: border-box` + `width`/`height` の実占有サイズ確定 +
+        // `overflow: hidden` により、誤ってテキスト children を渡しても
+        // 正方形の枠内で切り詰められる。
         .base(
             "close-trigger",
-            vec![
-                decl("position", "absolute"),
-                decl("top", "var(--fandhe-space-2)"),
-                decl("right", "var(--fandhe-space-2)"),
-                decl("cursor", "pointer"),
-                decl("background", "none"),
-                decl("border", "none"),
-                decl("color", "var(--fandhe-color-fg-muted)"),
-            ],
+            [
+                vec![
+                    decl("position", "absolute"),
+                    decl("inset-block-start", "var(--fandhe-space-2)"),
+                    decl("inset-inline-end", "var(--fandhe-space-2)"),
+                    decl("display", "inline-flex"),
+                    decl("align-items", "center"),
+                    decl("justify-content", "center"),
+                    decl("box-sizing", "border-box"),
+                    decl("width", "var(--fandhe-space-8)"),
+                    decl("height", "var(--fandhe-space-8)"),
+                    decl("overflow", "hidden"),
+                    decl("border", "none"),
+                    decl("border-radius", "var(--fandhe-radius-sm)"),
+                    decl("background", "transparent"),
+                    decl("padding", "var(--fandhe-space-1)"),
+                    decl("cursor", "pointer"),
+                    decl("color", "var(--fandhe-color-fg-muted)"),
+                    hover_bg_muted(),
+                ],
+                transition_declarations("background", MotionDuration::Fast),
+            ]
+            .concat(),
         )
         .state(
             "close-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            // イシュー #1551: 生 `outline` 直書きから canonical ヘルパへ。
+            // `Palette` は tour が `ColorPalette` 軸を公開するため
+            // （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+            // 判定手順 2）。
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
+        .state(
+            "close-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        )
+        // イシュー #1551: solid palette 小ボタン（`crate::button` の solid
+        // variant + sm 段相当）。`--fandhe-size-control-*` はテーマ未適用
+        // 単独利用でも壊れないよう `--fandhe-font-font-size-sm` へ
+        // フォールバックする（`--fandhe-size-control-font-size-sm` 未定義
+        // 時）。
         .base(
             "action-trigger",
-            vec![
-                decl("cursor", "pointer"),
-                decl("font", "inherit"),
-                decl("padding", "var(--fandhe-space-1) var(--fandhe-space-3)"),
-                decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "var(--fandhe-radius-md)"),
-                decl(
-                    "background",
-                    "var(--fandhe-palette, var(--fandhe-color-accent))",
-                ),
-                decl("color", "var(--fandhe-color-bg)"),
-            ],
+            [
+                vec![
+                    decl("display", "inline-flex"),
+                    decl("align-items", "center"),
+                    decl("justify-content", "center"),
+                    decl("box-sizing", "border-box"),
+                    decl(
+                        "min-height",
+                        "var(--fandhe-size-control-height-sm, 2.25rem)",
+                    ),
+                    decl(
+                        "padding",
+                        "0 var(--fandhe-size-control-padding-x-sm, 0.75rem)",
+                    ),
+                    decl("font-family", "inherit"),
+                    decl(
+                        "font-size",
+                        "var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm))",
+                    ),
+                    decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                    decl("line-height", "var(--fandhe-font-line-height-tight)"),
+                    // solid 面は `border: none`（`crate::button` solid
+                    // variant と同じ。輪郭は背景色自体が担う）。
+                    decl("border", "none"),
+                    decl("border-radius", "var(--fandhe-radius-md)"),
+                    decl(
+                        "background",
+                        "var(--fandhe-palette, var(--fandhe-color-accent))",
+                    ),
+                    // イシュー #1551: `--fandhe-color-bg` から
+                    // text-on-palette トークンへ。`Theme` のコントラスト対
+                    // テストで `accent-fg`×`accent`/`accent-emphasized` の
+                    // 組が担保済みであり、ダーク時に `bg` 依存で文字色が
+                    // 崩れる懸念を解消する。
+                    decl(
+                        "color",
+                        "var(--fandhe-palette-fg, var(--fandhe-color-accent-fg))",
+                    ),
+                    decl("cursor", "pointer"),
+                    // イシュー #1551: `actions` コンテナパート（ark-ui
+                    // `Tour.Actions` 相当）が headless anatomy に存在しない
+                    // （#1666 の領域）ための暫定策。複数 `action-trigger` を
+                    // 並置したときの間隔のみをここで確保する。
+                    decl("margin-inline-end", "var(--fandhe-space-2)"),
+                    hover_bg_solid_with_fallback(),
+                ],
+                transition_declarations("background, color", MotionDuration::Fast),
+            ]
+            .concat(),
+        )
+        // イシュー #1551: headless `action_trigger` はネイティブ `disabled`
+        // を素通しするのみで `data-disabled` を発行しないが、`toast`/
+        // `steps` と同じ語彙統一のため両方に登録する（`data-disabled` 側は
+        // 現状無害な規則）。
+        .state(
+            "action-trigger",
+            StateCondition::Attr("disabled"),
+            disabled_declarations(),
+        )
+        .state(
+            "action-trigger",
+            StateCondition::Attr("data-disabled"),
+            disabled_declarations(),
         )
         .state(
             "action-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
+        )
+        // イシュー #1551: `[disabled]` 要素での hover 発火を除外する
+        // （dialog/toast の `HoverExceptAttr("disabled")` と同型、PR #1818
+        // codex-review P1 対応の踏襲）。
+        .state(
+            "action-trigger",
+            StateCondition::HoverExceptAttr("disabled"),
+            hover_surface_declarations(),
         )
         .default_variant(ColorPalette::Accent);
 
@@ -654,6 +856,15 @@ pub fn progress_text<'a>(
 
 /// styled close-trigger パーツ。実体は [`Tour::close_trigger`] へそのまま
 /// 委譲する。
+///
+/// # アイコン専用契約（イシュー #1551）
+///
+/// CSS は固定正方（`--fandhe-space-8`）+ `overflow: hidden` の絶対配置
+/// ゴーストボタンとして描画する（`crate::dialog`/`crate::toast` と同型）。
+/// 呼び出し側は `close_trigger(state, vec![("aria-label", "Close")],
+/// vec![text("×")])` のように 1 グリフ + `aria-label` を渡すこと。テキスト
+/// children を渡した場合でも `overflow: hidden` により正方形の枠内で
+/// 切り詰められるが、意図した見た目にはならない。
 #[must_use]
 pub fn close_trigger<'a>(
     state: &Tour,
@@ -665,6 +876,16 @@ pub fn close_trigger<'a>(
 
 /// styled action-trigger パーツ。実体は [`Tour::action_trigger`] へそのまま
 /// 委譲する。
+///
+/// # 並置・disabled の扱い（イシュー #1551）
+///
+/// 複数の `action_trigger` を並べる場合、`actions` コンテナパートが
+/// headless anatomy に存在しない（headless 側イシュー #1666 の領域）ため、
+/// 各ボタン自身が持つ `margin-inline-end` で間隔を確保する。`disabled` は
+/// headless 層がネイティブ `disabled` 属性をそのまま素通しするため、
+/// 呼び出し側が `attrs` へ `("disabled", "")` を渡すことで
+/// `[data-part="action-trigger"][disabled]` 規則（不透明度低下・
+/// `cursor: not-allowed`・hover 抑止）が実効する。
 #[must_use]
 pub fn action_trigger<'a>(
     state: &Tour,
@@ -884,6 +1105,97 @@ mod tests {
 
         let restored = Tour::from_hydration_attrs(&s.hydration_attrs()).unwrap();
         assert_eq!(restored, s);
+    }
+
+    // --- イシュー #1551: content/title/description/progress-text/
+    // close-trigger/action-trigger のスタイル調整 ---
+
+    /// `close-trigger` が固定正方（`--fandhe-space-8`）+ `overflow: hidden`
+    /// のアイコン専用ゴーストボタンとして描画されることを固定する
+    /// （`crate::dialog`/`crate::toast` と同型の契約）。
+    #[test]
+    fn close_trigger_is_icon_only_square() {
+        let css = stylesheet();
+        let selector = r#"[data-scope="tour"][data-part="close-trigger"] {"#;
+        let start = css.find(selector).expect("missing close-trigger base rule");
+        let body_start = start + selector.len();
+        let close = css[body_start..]
+            .find('}')
+            .expect("unterminated close-trigger rule body");
+        let body = &css[body_start..body_start + close];
+        assert!(body.contains("width: var(--fandhe-space-8);"), "{body}");
+        assert!(body.contains("height: var(--fandhe-space-8);"), "{body}");
+        assert!(body.contains("overflow: hidden;"), "{body}");
+        assert!(body.contains("box-sizing: border-box;"), "{body}");
+    }
+
+    /// `title` が `close-trigger` の実占有幅 + inset 分のガターを
+    /// `padding-inline-end` として確保していることを固定する（dialog #1693
+    /// / PR #1795 再指摘対応と同型）。
+    #[test]
+    fn title_reserves_gutter_for_close_trigger() {
+        let css = stylesheet();
+        assert!(css
+            .contains("padding-inline-end: calc(var(--fandhe-space-8) + var(--fandhe-space-2));"));
+    }
+
+    /// `close-trigger`/`action-trigger` の `:focus-visible` が canonical
+    /// ヘルパ（`FocusRingColor::Palette`）経由であり、生 `outline` 直書き
+    /// （旧実装）が残っていないことを固定する。
+    #[test]
+    fn triggers_use_canonical_focus_ring_tokens() {
+        let css = stylesheet();
+        let ring = "var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette,";
+        assert!(css.contains(ring), "{css}");
+        assert!(
+            !css.contains("outline: 2px solid var(--fandhe-color-accent)"),
+            "raw outline literal must not remain: {css}"
+        );
+    }
+
+    /// `action-trigger` に hover・disabled（`[disabled]`/`[data-disabled]`
+    /// 双方）・transition が揃っていることを固定する。
+    #[test]
+    fn action_trigger_has_hover_disabled_and_transition() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="tour"][data-part="action-trigger"][disabled] {"#));
+        assert!(css.contains(r#"[data-scope="tour"][data-part="action-trigger"][data-disabled] {"#));
+        assert!(css.contains(
+            r#"[data-scope="tour"][data-part="action-trigger"]:hover:not([data-disabled]):not([disabled]) {"#
+        ));
+        assert!(css.contains("transition-property: background, color;"));
+    }
+
+    /// `close-trigger` に hover・transition が揃っていることを固定する
+    /// （disabled 概念は持たせない、モジュール冒頭 rustdoc「意図的に採ら
+    /// なかった変更」節参照）。
+    #[test]
+    fn close_trigger_has_hover_and_transition() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="tour"][data-part="close-trigger"]:hover:not([data-disabled]) {"#
+        ));
+        assert!(css.contains("transition-property: background;"));
+    }
+
+    /// `content` が面パネル段のトークン（`radius-lg`・border・scope 付き
+    /// `padding`/`max-width` 上書き変数）を使うことを固定する。
+    #[test]
+    fn content_uses_panel_scale_tokens_and_scoped_overrides() {
+        let css = stylesheet();
+        assert!(css.contains("border-radius: var(--fandhe-radius-lg, 0.5rem);"));
+        assert!(css.contains("var(--fandhe-tour-content-padding, var(--fandhe-space-6))"));
+        assert!(css.contains("var(--fandhe-tour-content-max-width, 24rem)"));
+        assert!(css.contains("border: 1px solid var(--fandhe-color-border);"));
+    }
+
+    /// `action-trigger` の文字色が text-on-palette トークン
+    /// （`--fandhe-palette-fg`）経由であることを固定する（ダーク時に
+    /// `--fandhe-color-bg` 依存で文字色が崩れる旧実装の回帰防止）。
+    #[test]
+    fn action_trigger_text_color_follows_palette_fg() {
+        let css = stylesheet();
+        assert!(css.contains("color: var(--fandhe-palette-fg, var(--fandhe-color-accent-fg));"));
     }
 
     // --- エスケープ回帰 ---
