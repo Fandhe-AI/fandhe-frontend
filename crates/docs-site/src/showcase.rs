@@ -6239,7 +6239,10 @@ fn status_section() -> Node {
 /// EmptyState 節（イシュー #765）: indicator/title/description/actions の
 /// 構成例。`actions` 内は `button` を使い `href` を持たせない
 /// （`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality` の
-/// linkcheck 中立性を維持する）。
+/// linkcheck 中立性を維持する）。size 行（イシュー #1560）は Xs〜Xl の
+/// 各段で padding・gap・indicator/title/description の文字サイズが連動
+/// することを示すため、actions を持たない indicator/title/description の
+/// 3 段構成で並べる（Md の既定デモのみ actions を持たせる）。
 fn empty_state_section() -> Node {
     let node = empty_state::root(
         &EmptyStateProps::default(),
@@ -6266,10 +6269,37 @@ fn empty_state_section() -> Node {
             ],
         )],
     );
+    let sizes = [
+        (Size::Xs, "Xs"),
+        (Size::Sm, "Sm"),
+        (Size::Md, "Md"),
+        (Size::Lg, "Lg"),
+        (Size::Xl, "Xl"),
+    ];
+    let size_row = stack(
+        sizes
+            .iter()
+            .map(|(size, label)| {
+                let props = EmptyStateProps { size: *size };
+                empty_state::root(
+                    &props,
+                    vec![],
+                    vec![empty_state::content(
+                        vec![],
+                        vec![
+                            empty_state::indicator(vec![], vec![text("∅")]),
+                            empty_state::title(vec![], vec![text(format!("{label} size"))]),
+                            empty_state::description(vec![], vec![text("No results found.")]),
+                        ],
+                    )],
+                )
+            })
+            .collect(),
+    );
     section(
         "EmptyState",
-        "indicator / title / description / actions で構成する空状態レイアウト。colorPalette 軸は持たない中立コンテナです。",
-        vec![node],
+        "indicator / title / description / actions で構成する空状態レイアウト。colorPalette 軸は持たない中立コンテナです。size（xs〜xl）は root の padding・gap・indicator/title/description の文字サイズが連動します。",
+        vec![node, size_row],
     )
 }
 

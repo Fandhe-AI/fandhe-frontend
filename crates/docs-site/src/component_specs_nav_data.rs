@@ -417,15 +417,15 @@ fn ex_empty_state() -> Node {
 
 pub(crate) const EMPTY_STATE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "content/indicator/title/description/actions の 5 パーツで空状態の掲示を構造化する（crates/pre-styled-ui/src/empty_state.rs:139-165）",
-        "size variant（既定 Md）が root の padding を切り替える（empty_state.rs:111-112）",
-        "aria-* は付与しない（empty_state.rs:5）",
+        "content/indicator/title/description/actions の 5 パーツで空状態の掲示を構造化する（crates/pre-styled-ui/src/empty_state.rs の recipe 関数）",
+        "size variant（既定 Md）が root の `--fandhe-empty-state-*` custom property 経由で padding・gap・indicator/title/description の文字サイズを連動させる（empty_state.rs の recipe 関数、イシュー #1560）",
+        "aria-* は付与しない（empty_state.rs 冒頭 doc コメント）",
     ],
     arguments: &[ArgRow {
         name: "size",
         kind: "Size",
         default: "Md",
-        description: "root の padding を切り替えるサイズ（empty_state.rs:111-118）。",
+        description: "root の custom property（`--fandhe-empty-state-*`）経由で padding・gap・indicator/title/description の文字サイズを連動させるサイズ（empty_state.rs の recipe 関数、イシュー #1560）。",
     }],
     examples: &[ExampleEntry {
         title: "Basic",

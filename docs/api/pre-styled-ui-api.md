@@ -680,7 +680,10 @@ chakra-ui の `feedback/status.md`/`feedback/empty-state.md` 相当。状態機�
 - **`empty_state`**（scope `"empty-state"`、`root`/`content`/`indicator`/
   `title`/`description`/`actions` の 6 パーツ）: `crate::card` と同型の
   中立レイアウトコンテナであり `color-palette` 軸は提供しない。`size`
-  （root の padding）のみを持つ。`title`/`description` は `<div>`（見出し
+  は root の `--fandhe-empty-state-*` custom property 経由で padding・
+  `content` の gap・`indicator`/`title`/`description` の文字サイズを連動
+  させる（イシュー #1560、chakra-ui `EmptyState` の size スケールに整合）。
+  `title`/`description` は `<div>`（見出し
   要素 `<h1>`〜`<h6>` にしない）とし、埋め込み位置に応じて見出しレベルが
   変わり得る呼び出し文脈で固定レベルを強制しない（`crate::alert::title` と
   同型の判断）。`indicator` はアイコン等を children として受け取り、外部
