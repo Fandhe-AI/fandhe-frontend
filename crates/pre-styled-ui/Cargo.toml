@@ -937,7 +937,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # （main）側で feat/1542-tabs-style とのマージ衝突回避により 0.63.2 へ
 # 先着済みのため、本イシューはその上へマイナーバンプする（起点を
 # 0.63.1 から 0.63.2 へ読み替え）。
-version = "0.64.0"
+# イシュー #1546（toggle-tip のスタイルを参考サイト基準へ調整）は
+# `recipe()` 宣言変更（`trigger` の ghost ボタン化・`data-state="open"`/
+# `data-disabled`/hover/transition の新規状態規則・`positioner`/`content`
+# のトークン化）のみで、公開 API シグネチャ・既存 CSS 変数名・クラス名・
+# セレクタの削除/改名はないため patch とする（`version-bump-exempt` は
+# CSS 出力変更のため使用不可）。0.64.0 → 0.64.1 へ patch バンプする。
+version = "0.64.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
