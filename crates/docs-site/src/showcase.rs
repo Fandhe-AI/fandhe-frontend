@@ -7943,6 +7943,7 @@ fn tag_section() -> Node {
         (TagVariant::Solid, "Solid"),
         (TagVariant::Subtle, "Subtle"),
         (TagVariant::Outline, "Outline"),
+        (TagVariant::Surface, "Surface"),
     ];
     let variant_row = row(variants
         .iter()
@@ -7988,22 +7989,33 @@ fn tag_section() -> Node {
             )
         })
         .collect());
-    let closable = tag::root(
-        &TagProps::default(),
-        vec![],
-        vec![
-            tag::label(vec![], vec![text("Removable")]),
-            tag::close_trigger(
-                Some("remove_tag"),
-                vec![("aria-label", "Remove")],
-                vec![text("×")],
-            ),
-        ],
-    );
+    // イシュー #1573: close-trigger の hover/フォーカスリングを variant
+    // 4 種で並べて目視確認できるようにする（キーボードフォーカスは
+    // Tab キーで close-trigger まで移動して確認する）。
+    let closable_row = row(variants
+        .iter()
+        .map(|(variant, label)| {
+            tag::root(
+                &TagProps {
+                    variant: *variant,
+                    ..TagProps::default()
+                },
+                vec![],
+                vec![
+                    tag::label(vec![], vec![text(*label)]),
+                    tag::close_trigger(
+                        Some("remove_tag"),
+                        vec![("aria-label", "Remove")],
+                        vec![text("×")],
+                    ),
+                ],
+            )
+        })
+        .collect());
     section(
         "Tag",
         "ラベル・分類・除去可能なチップ表示。variant / size / colorPalette を組み合わせます。close-trigger は data-action 属性の出力のみを担い、実際のクリック処理は wasm 層のスコープです。",
-        vec![variant_row, size_row, palette_row, row(vec![closable])],
+        vec![variant_row, size_row, palette_row, closable_row],
     )
 }
 
