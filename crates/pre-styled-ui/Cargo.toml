@@ -967,7 +967,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # 揃え、0.64.3 → 0.65.0 へ minor バンプする（`version-bump-exempt` は
 # CSS 出力変更のため使用不可）。`--fandhe-tour-content-padding`/
 # `-content-max-width` の新設は純追加。
-version = "0.65.0"
+# イシュー #1547: toolbar の CSS 実体変更（hover/disabled/focus/transition
+# の共通ヘルパ化・角丸トークン化・on 状態の配色変更）。Rust API・セレクタ・
+# CSS 変数名の削除/改名なしのため patch バンプする。
+version = "0.65.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
