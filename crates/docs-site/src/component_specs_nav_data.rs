@@ -569,6 +569,7 @@ fn ex_skeleton() -> Node {
     skeleton::skeleton(
         &skeleton::SkeletonProps {
             variant: skeleton::SkeletonVariant::Circle,
+            ..Default::default()
         },
         vec![],
     )
@@ -576,16 +577,25 @@ fn ex_skeleton() -> Node {
 
 pub(crate) const SKELETON: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "SkeletonVariant（Text/Circle/Rect、crates/pre-styled-ui/src/skeleton.rs:82-208）で占位形状を切り替える",
-        "常に aria-hidden=\"true\" を固定付与する（skeleton.rs:9, 202）",
-        "呼び出し側が偽装した aria-hidden（大文字小文字問わず）も除去し常時 true へ一本化する（skeleton.rs:209-217, 262-266）",
+        "SkeletonVariant（Text/Circle/Rect、crates/pre-styled-ui/src/skeleton.rs:138-149）で占位形状を切り替える",
+        "SkeletonAnimation（Pulse/Shine/None、skeleton.rs:169-181、イシュー #1566）で第 2 軸のアニメーション種別を切り替える",
+        "常に aria-hidden=\"true\" を固定付与する（skeleton.rs:364-369）",
+        "呼び出し側が偽装した aria-hidden（大文字小文字問わず）も除去し常時 true へ一本化する（skeleton.rs:364-369、回帰テストは skeleton.rs:429-436）",
     ],
-    arguments: &[ArgRow {
-        name: "variant",
-        kind: "SkeletonVariant",
-        default: "Text",
-        description: "占位形状（skeleton.rs:82-208、#[default] は Text）。",
-    }],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "SkeletonVariant",
+            default: "Text",
+            description: "占位形状（skeleton.rs:138-149、#[default] は Text）。",
+        },
+        ArgRow {
+            name: "animation",
+            kind: "SkeletonAnimation",
+            default: "Pulse",
+            description: "アニメーション種別（skeleton.rs:169-181、#[default] は Pulse、イシュー #1566）。",
+        },
+    ],
     examples: &[ExampleEntry {
         title: "Circle",
         description: "アバター等の占位に使う Circle variant の例です。",
@@ -594,7 +604,7 @@ pub(crate) const SKELETON: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-hidden=\"true\"",
-        description: "常に固定付与される（呼び出し側の偽装値は除去、skeleton.rs:9, 202, 262-266）。",
+        description: "常に固定付与される（呼び出し側の偽装値は除去、skeleton.rs:364-369、回帰テストは skeleton.rs:429-436）。",
     }],
     demo: None,
 };

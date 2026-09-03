@@ -3,6 +3,46 @@
 //! 組み立てる。badge/spinner（イシュー #550）と同型の、headless 状態機械を
 //! 要しない静的部品（`docs/design/component-coverage-map.md` skeleton 行）。
 //!
+//! # 参照サイトとの差分（イシュー #1566）
+//!
+//! chakra-ui の `Skeleton`（`bg.emphasized` 既定・`pulse`/`shine`/`none` の
+//! 3 アニメーション種別）・Radix Themes の `Skeleton`（`gray-a3` 相当の
+//! 中間グレー）を基準に、以下の 2 点を是正した。
+//!
+//! - **背景色**: 旧 `--fandhe-color-bg-subtle`（#f7f7f7）はページ既定背景
+//!   （#ffffff）とほぼ同化し、占位要素として視認できなかった。
+//!   `--fandhe-color-bg-emphasized`（#e2e2e2/#2e2e2e、chakra `bg.emphasized`
+//!   / Radix gray 4-5 相当）へ変更した（`docs/design/color-token-system.md`）。
+//! - **アニメーション種別**: 形状 `variant`（text/circle/rect）とは独立した
+//!   第 2 軸 [`SkeletonAnimation`]（`pulse`（既定）/`shine`/`none`）を新設し、
+//!   chakra-ui の `variant` プロップ相当を表現した。
+//!
+//! 以下は参照サイトに存在する要素だが、意図的に合わせていない（理由付き）。
+//!
+//! - **size 軸なし**: chakra-ui も Skeleton 自体に size プロップを持たない
+//!   （`SkeletonCircle`/`SkeletonText` という別ヘルパが寸法を扱う）。本実装も
+//!   寸法は呼び出し側が CSS custom property のフォールバック値
+//!   （`--fandhe-skeleton-size`/`--fandhe-skeleton-height`）を上書きする前提を
+//!   維持する（既存判断、変更なし）。
+//! - **`loading` プロップなし**: chakra-ui は `loading={false}` で子コンテンツを
+//!   表示するラッパーとして使える。本部品は子ノードを取らず、読み込み完了時の
+//!   実コンテンツへの差し替えは呼び出し側の責務とする既存契約を維持する
+//!   （`docs/policy/intentional-non-adoption.md` §3.25 の UI 部品責務境界と整合）。
+//! - **colorPalette 軸なし**: 中立な占位要素のためステータス色を持たない
+//!   （既存判断、変更なし。下記「variant 軸のみを持つ理由」参照）。
+//! - **rect の角丸を `radius-md` のまま維持**: chakra-ui は全 variant 共通で
+//!   `borderRadius: l2`（`sm` 相当）だが、rect は画像・カードの占位という
+//!   意匠上の意図的差分として `radius-md` を維持する。
+//! - **アニメーション duration をモーショントークン化しない**: 既存の
+//!   モーショントークン（150〜300ms）のスケールは UI 操作フィードバック向けで、
+//!   1〜5 秒の周期的ループアニメーションとは用途が異なるためリテラル値の
+//!   まま維持する。
+//! - **コントラスト比要件の対象外**: skeleton root は常時 `aria-hidden="true"`
+//!   でテキスト・操作可能な UI を持たない装飾要素のため、WCAG 1.4.3/1.4.11
+//!   （コントラスト比）の対象外である。
+//! - **hover/focus/disabled は N/A**: 表示専用部品には付与しない
+//!   （`docs/design/pre-styled-ui-interaction-visual-language.md` §3）。
+//!
 //! # aria 出力方針（受け入れ条件 1）
 //!
 //! skeleton root は実コンテンツを一切持たない**装飾的な占位要素**であり、
@@ -29,6 +69,7 @@
 //!         skeleton(
 //!             &SkeletonProps {
 //!                 variant: SkeletonVariant::Circle,
+//!                 ..Default::default()
 //!             },
 //!             vec![],
 //!         ),
@@ -72,12 +113,27 @@ macro_rules! pulse_keyframes_name_lit {
     };
 }
 
-/// パルスアニメーションの `@keyframes` 名。`recipe()` の `animation` 宣言
-/// （値としてのみ参照）と [`css`] が追記する `@keyframes` ブロックの両方で
-/// 共有する識別子（[`pulse_keyframes_name_lit`] を単一情報源として生成）。
+/// シャインアニメーション（イシュー #1566、chakra-ui `variant: "shine"`
+/// 相当）の `@keyframes` 名リテラル。[`pulse_keyframes_name_lit`] と同型の
+/// 理由でマクロとして単一情報源化する。
+macro_rules! shine_keyframes_name_lit {
+    () => {
+        "fd-skeleton-shine"
+    };
+}
+
+/// パルスアニメーションの `@keyframes` 名。[`SkeletonAnimation::Pulse`]
+/// variant 規則（値としてのみ参照）と [`css`] が追記する `@keyframes`
+/// ブロックの両方で共有する識別子（[`pulse_keyframes_name_lit`] を単一
+/// 情報源として生成）。
 const PULSE_KEYFRAMES_NAME: &str = pulse_keyframes_name_lit!();
 
-/// Skeleton の見た目 variant。
+/// シャインアニメーションの `@keyframes` 名（イシュー #1566）。
+/// [`SkeletonAnimation::Shine`] variant 規則と [`css`] が追記する
+/// `@keyframes` ブロックの両方で共有する識別子。
+const SHINE_KEYFRAMES_NAME: &str = shine_keyframes_name_lit!();
+
+/// Skeleton の見た目 variant（形状軸）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SkeletonVariant {
     /// 1 行のテキストを模した占位要素（既定）。
@@ -103,30 +159,65 @@ impl VariantValue for SkeletonVariant {
     }
 }
 
+/// Skeleton のアニメーション種別（第 2 軸、イシュー #1566）。
+///
+/// chakra-ui の `Skeleton` `variant` プロップ（`pulse`/`shine`/`none`）に
+/// 対応する。いずれも [`css`] が追記する
+/// `@media (prefers-reduced-motion: reduce)` ブロックにより一括停止する
+/// （`None` は元からアニメーションを持たないため影響なし）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SkeletonAnimation {
+    /// 不透明度を周期的に変化させる既定のアニメーション
+    /// （chakra-ui `variant: "pulse"` 相当）。
+    #[default]
+    Pulse,
+    /// 背景グラデーションが流れるアニメーション
+    /// （chakra-ui `variant: "shine"` 相当）。
+    Shine,
+    /// アニメーションなし（chakra-ui `variant: "none"` 相当）。
+    None,
+}
+
+impl VariantValue for SkeletonAnimation {
+    fn axis(self) -> &'static str {
+        "animation"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Pulse => "pulse",
+            Self::Shine => "shine",
+            Self::None => "none",
+        }
+    }
+}
+
 /// [`skeleton`] の設定。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SkeletonProps {
     /// 見た目 variant（既定 `Text`）。
     pub variant: SkeletonVariant,
+    /// アニメーション種別（既定 `Pulse`、イシュー #1566）。
+    pub animation: SkeletonAnimation,
 }
 
 /// Skeleton の recipe（scope `"skeleton"`、slot `"root"` のみ）。
 ///
-/// 背景色・角丸はテーマトークンを参照する（[`crate::theme`]）。
-/// パルスアニメーションは [`PULSE_KEYFRAMES_NAME`] を参照する `animation`
-/// 宣言と、[`css`] が追記する `@keyframes`/`prefers-reduced-motion` ブロック
-/// の組み合わせで表現する（受け入れ条件 2）。
+/// 背景色（[`crate::theme`] の `bg-emphasized` トークン）・角丸はテーマ
+/// トークンを参照する。アニメーションは形状 `variant` とは独立した第 2 軸
+/// [`SkeletonAnimation`] の variant 規則として登録し（イシュー #1566）、
+/// [`css`] が追記する `@keyframes`/`prefers-reduced-motion` ブロックと
+/// 組み合わせて表現する（受け入れ条件 2）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("skeleton", &["root"])
         .base(
             "root",
             vec![
                 decl("display", "block"),
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl(
-                    "animation",
-                    concat!(pulse_keyframes_name_lit!(), " 1.5s ease-in-out infinite"),
-                ),
+                // イシュー #1566: 旧 `bg-subtle` はページ既定背景と同化し
+                // 占位要素として視認できなかったため `bg-emphasized` へ
+                // 変更（chakra-ui `bg.emphasized` / Radix gray 4-5 相当）。
+                decl("background", "var(--fandhe-color-bg-emphasized)"),
             ],
         )
         .variant(
@@ -145,6 +236,13 @@ fn recipe() -> SlotRecipe {
                 decl("width", "var(--fandhe-skeleton-size, 2.5rem)"),
                 decl("height", "var(--fandhe-skeleton-size, 2.5rem)"),
                 decl("border-radius", "var(--fandhe-radius-full)"),
+                // 参照サイト（chakra-ui Skeleton pulse スクショ）のように
+                // flex 行の中で circle variant が潰れないための予防的固定
+                // （イシュー #1566）。Text/Rect は `width: 100%` で伸縮に
+                // 依存するため flex-shrink:0 を base へ置くと兄弟要素を
+                // オーバーフローさせる（PR #1837 Bugbot 指摘）。circle 限定
+                // の固定サイズにのみ適用する。
+                decl("flex-shrink", "0"),
             ],
         )
         .variant(
@@ -157,18 +255,54 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(SkeletonVariant::Text)
+        .variant(
+            SkeletonAnimation::Pulse,
+            "root",
+            vec![decl(
+                "animation",
+                concat!(pulse_keyframes_name_lit!(), " 1.2s ease-in-out infinite"),
+            )],
+        )
+        .variant(
+            SkeletonAnimation::Shine,
+            "root",
+            vec![
+                decl(
+                    "background-image",
+                    concat!(
+                        "linear-gradient(270deg, ",
+                        "var(--fandhe-skeleton-shine-from, var(--fandhe-color-bg-muted)), ",
+                        "var(--fandhe-skeleton-shine-to, var(--fandhe-color-bg-emphasized)), ",
+                        "var(--fandhe-skeleton-shine-to, var(--fandhe-color-bg-emphasized)), ",
+                        "var(--fandhe-skeleton-shine-from, var(--fandhe-color-bg-muted)))"
+                    ),
+                ),
+                decl("background-size", "400% 100%"),
+                decl(
+                    "animation",
+                    concat!(shine_keyframes_name_lit!(), " 5s ease-in-out infinite"),
+                ),
+            ],
+        )
+        .variant(
+            SkeletonAnimation::None,
+            "root",
+            vec![decl("animation", "none")],
+        )
+        .default_variant(SkeletonAnimation::Pulse)
 }
 
 /// Skeleton の静的 CSS 全文。
 ///
 /// recipe が生成する規則群に続けて、`animation` 宣言が参照する
-/// `@keyframes` ブロック（[`PULSE_KEYFRAMES_NAME`]）と、
-/// `prefers-reduced-motion: reduce` 環境でアニメーションを停止する
-/// `@media` ブロック（受け入れ条件 2）を固定文字列として追記する。値は
-/// ソースコード中のリテラルのみで構成され、外部入力は一切混入しない
-/// （[`crate::spinner::css`] と同じ整理。`.claude/rules/coding-rust.md` の
-/// HTML/CSS 文字列直接組み立て禁止規約は実行時入力の文字列結合を禁じる
-/// 趣旨であり、本関数のように静的リテラルのみを連結する経路は対象外）。
+/// `@keyframes` ブロック（[`PULSE_KEYFRAMES_NAME`]・[`SHINE_KEYFRAMES_NAME`]、
+/// イシュー #1566 でシャイン用を追加）と、`prefers-reduced-motion: reduce`
+/// 環境でアニメーションを停止する `@media` ブロック（受け入れ条件 2）を
+/// 固定文字列として追記する。値はソースコード中のリテラルのみで構成され、
+/// 外部入力は一切混入しない（[`crate::spinner::css`] と同じ整理。
+/// `.claude/rules/coding-rust.md` の HTML/CSS 文字列直接組み立て禁止規約は
+/// 実行時入力の文字列結合を禁じる趣旨であり、本関数のように静的リテラルの
+/// みを連結する経路は対象外）。
 #[must_use]
 pub fn css() -> String {
     let mut out = recipe().css();
@@ -176,10 +310,22 @@ pub fn css() -> String {
         out.push('\n');
     }
     out.push_str(&format!(
-        "@keyframes {PULSE_KEYFRAMES_NAME} {{\n  0%, 100% {{\n    opacity: 1;\n  }}\n  50% {{\n    opacity: 0.4;\n  }}\n}}\n"
+        "@keyframes {PULSE_KEYFRAMES_NAME} {{\n  0%, 100% {{\n    opacity: 1;\n  }}\n  50% {{\n    opacity: 0.5;\n  }}\n}}\n"
+    ));
+    out.push_str(&format!(
+        "\n@keyframes {SHINE_KEYFRAMES_NAME} {{\n  from {{\n    background-position: 200% 0;\n  }}\n  to {{\n    background-position: -200% 0;\n  }}\n}}\n"
     ));
     out.push_str(
-        "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"skeleton\"][data-part=\"root\"] {\n    animation: none;\n  }\n}\n",
+        // イシュー #1566: `animation` 宣言を base から `Pulse`/`Shine`
+        // variant 規則へ移したため、この停止規則もそれらと同じセレクタを
+        // 列挙する必要がある。`.fd-skeleton--animation-pulse`/`--shine` は
+        // 詳細度 (0,3,0) を持ち、無印セレクタ（(0,2,0)）だけを停止対象に
+        // した場合は `@media` がカスケード上の詳細度を上げないため
+        // variant 側の `animation` 宣言に負けてしまう（メディアクエリは
+        // セレクタ詳細度を変えない）。3 セレクタを列挙することで variant
+        // 側と同じ詳細度に揃え、ソース順で最後に出力される本規則が
+        // 後勝ちで確実にアニメーションを止める。
+        "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"skeleton\"][data-part=\"root\"],\n  [data-scope=\"skeleton\"][data-part=\"root\"].fd-skeleton--animation-pulse,\n  [data-scope=\"skeleton\"][data-part=\"root\"].fd-skeleton--animation-shine {\n    animation: none;\n  }\n}\n",
     );
     out
 }
@@ -204,7 +350,10 @@ pub fn css() -> String {
 #[must_use]
 pub fn skeleton<'a>(props: &SkeletonProps, attrs: Vec<(&'a str, &'a str)>) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[("variant", props.variant.value())]);
+    let class = recipe.variant_classes(&[
+        ("variant", props.variant.value()),
+        ("animation", props.animation.value()),
+    ]);
     // `class` は `drop_class_attr` で除去し recipe 生成クラスへ一本化する。
     // `aria-hidden` も同様に呼び出し側の値（大文字小文字を無視）を除去する:
     // 常時 `aria-hidden="true"` を保証するという rustdoc 冒頭の契約
@@ -232,7 +381,7 @@ mod tests {
         let html = render(&node);
         assert_eq!(
             html,
-            r#"<div data-scope="skeleton" data-part="root" class="fd-skeleton--variant-text" aria-hidden="true"></div>"#
+            r#"<div data-scope="skeleton" data-part="root" class="fd-skeleton--variant-text fd-skeleton--animation-pulse" aria-hidden="true"></div>"#
         );
     }
 
@@ -243,20 +392,40 @@ mod tests {
             (SkeletonVariant::Circle, "fd-skeleton--variant-circle"),
             (SkeletonVariant::Rect, "fd-skeleton--variant-rect"),
         ] {
-            let props = SkeletonProps { variant };
+            let props = SkeletonProps {
+                variant,
+                ..Default::default()
+            };
             let html = render(&skeleton(&props, vec![]));
             assert!(
-                html.contains(&format!("class=\"{class}\"")),
+                html.contains(&format!("class=\"{class} fd-skeleton--animation-pulse\"")),
                 "variant={variant:?} -> {html}"
             );
             assert!(html.contains(r#"aria-hidden="true""#));
         }
     }
 
-    /// rustdoc 冒頭の契約（「呼び出し側がこれを外すオプションは設けない」）の
-    /// 回帰テスト: 呼び出し側が `aria-hidden` を偽装しても常に `"true"` を
-    /// 保つこと、かつ属性が重複出現しないこと（`checkbox::control` の
-    /// `control_drops_caller_supplied_aria_hidden_case_insensitively` と同型）。
+    /// イシュー #1566: 第 2 軸 `animation` の 3 値が期待クラスへ写ることを
+    /// 固定する（chakra-ui `variant: pulse|shine|none` 相当）。
+    #[test]
+    fn animation_enumeration_maps_to_expected_classes() {
+        for (animation, class) in [
+            (SkeletonAnimation::Pulse, "fd-skeleton--animation-pulse"),
+            (SkeletonAnimation::Shine, "fd-skeleton--animation-shine"),
+            (SkeletonAnimation::None, "fd-skeleton--animation-none"),
+        ] {
+            let props = SkeletonProps {
+                animation,
+                ..Default::default()
+            };
+            let html = render(&skeleton(&props, vec![]));
+            assert!(
+                html.contains(&format!("class=\"fd-skeleton--variant-text {class}\"")),
+                "animation={animation:?} -> {html}"
+            );
+        }
+    }
+
     #[test]
     fn caller_supplied_aria_hidden_is_dropped_case_insensitively() {
         for key in ["aria-hidden", "Aria-Hidden", "ARIA-HIDDEN"] {
@@ -299,10 +468,42 @@ mod tests {
     #[test]
     fn css_output_declares_pulse_animation_and_keyframes() {
         let out = css();
-        assert!(out.contains("animation: fd-skeleton-pulse 1.5s ease-in-out infinite;"));
+        assert!(out.contains("animation: fd-skeleton-pulse 1.2s ease-in-out infinite;"));
         assert!(out.contains("@keyframes fd-skeleton-pulse {"));
         assert!(out.contains("opacity: 1;"));
-        assert!(out.contains("opacity: 0.4;"));
+        assert!(out.contains("opacity: 0.5;"));
+    }
+
+    /// イシュー #1566: shine variant の宣言と `@keyframes` ブロックを固定する。
+    #[test]
+    fn shine_keyframes_present() {
+        let out = css();
+        assert!(out.contains("animation: fd-skeleton-shine 5s ease-in-out infinite;"));
+        assert!(out.contains("background-size: 400% 100%;"));
+        assert!(out.contains("@keyframes fd-skeleton-shine {"));
+        assert!(out.contains("background-position: 200% 0;"));
+        assert!(out.contains("background-position: -200% 0;"));
+    }
+
+    /// イシュー #1566: `none` variant が `animation: none;` を宣言することを
+    /// 固定する。
+    #[test]
+    fn none_variant_declares_animation_none() {
+        let out = css();
+        assert!(out.contains(
+            r#"[data-scope="skeleton"][data-part="root"].fd-skeleton--animation-none {"#
+        ));
+        assert!(out.contains("  animation: none;\n"));
+    }
+
+    /// イシュー #1566: 基底背景が `bg-emphasized` トークンを参照し、生の色
+    /// リテラル（`#`/`rgb(`）を含まないことを固定する。
+    #[test]
+    fn css_uses_bg_emphasized_token_and_no_raw_color_literal() {
+        let out = css();
+        assert!(out.contains("background: var(--fandhe-color-bg-emphasized);"));
+        assert!(!out.contains('#'));
+        assert!(!out.contains("rgb("));
     }
 
     /// 受け入れ条件 2: `prefers-reduced-motion: reduce` でアニメーションを
@@ -313,5 +514,26 @@ mod tests {
         assert!(out.contains("@media (prefers-reduced-motion: reduce) {"));
         assert!(out.contains(r#"[data-scope="skeleton"][data-part="root"] {"#));
         assert!(out.contains("animation: none;"));
+    }
+
+    /// イシュー #1566: `animation` 宣言を `Pulse`/`Shine` variant 規則
+    /// （詳細度 `(0,3,0)`）へ移した結果、reduced-motion の停止規則が無印
+    /// セレクタ（詳細度 `(0,2,0)`）のみだと `@media` が詳細度を上げない
+    /// ためカスケードで variant 側に負ける（アニメーションが止まらない）
+    /// 回帰を防ぐ。停止規則が `--animation-pulse`/`--animation-shine` を
+    /// 明示的に含むセレクタ列であることを固定する。
+    #[test]
+    fn reduced_motion_stop_selector_covers_pulse_and_shine_variant_classes() {
+        let out = css();
+        let media_start = out
+            .find("@media (prefers-reduced-motion: reduce) {")
+            .expect("reduced-motion media block must exist");
+        let media_block = &out[media_start..];
+        assert!(media_block.contains(
+            r#"[data-scope="skeleton"][data-part="root"].fd-skeleton--animation-pulse,"#
+        ));
+        assert!(media_block.contains(
+            r#"[data-scope="skeleton"][data-part="root"].fd-skeleton--animation-shine {"#
+        ));
     }
 }
