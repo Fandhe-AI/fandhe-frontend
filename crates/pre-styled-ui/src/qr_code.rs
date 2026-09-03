@@ -29,6 +29,59 @@
 //! 組み合わせを誘発しない設計判断。ark-ui QrCode も `colorPalette` は持たず
 //! `pixelColor`/`Overlay` のみを公開している）。
 //!
+//! # 参照サイトとの差分（イシュー #1565）
+//!
+//! chakra-ui v3 `theme/recipes/qr-code.js` / ark-ui（zag-js
+//! `qr-code.connect.mjs`）と視覚比較し、以下を是正した:
+//!
+//! - **`overlay` の中央固定化**: 是正前は `inset: 0; margin: auto` で
+//!   `frame` 全面を覆っていたため、背景色を敷くと QR モジュール全体を
+//!   隠す構造だった。chakra/zag 準拠で `position: absolute; top: 50%;
+//!   left: 50%; transform: translate(-50%, -50%)`（本クレート内の
+//!   `color_picker`/`image_cropper`/`menu` と同じ表記）による中央固定へ
+//!   変更し、サイズを `root` が定義する
+//!   `--fandhe-qr-code-overlay-size: calc(var(--fandhe-qr-code-size) / 3)`
+//!   （chakra の `--qr-code-overlay-size: calc(var(--qr-code-size) / 3)`
+//!   と同じ比率）に固定した。あわせて `padding: var(--fandhe-space-1)`・
+//!   `background: var(--fandhe-color-bg)`・
+//!   `border-radius: var(--fandhe-radius-xs)`（chakra `rounded: l1` =
+//!   `radii.xs`）を付与し、ロゴ等の overlay コンテンツの可読性を確保する。
+//! - **`size` 値の参照整列**: chakra の px 値（64/80/120/160/200px）を
+//!   rem 換算し、xs 4rem / sm 5rem / md 7.5rem / lg 10rem / xl 12.5rem へ
+//!   整列した（旧イシュー #1681 の非等差外挿値から変更）。
+//!
+//! 以下は意図的に参照サイトへ合わせなかった（理由を付す）:
+//!
+//! - **`fill: currentColor`（chakra）を採用しない**: 本モジュールは
+//!   `pattern` の `fill` を `var(--fandhe-color-fg)` に固定する。`color`
+//!   継承に委ねると祖先要素の任意の文字色を拾い得るため、コントラスト
+//!   低下（読み取り精度低下）を避ける安全側の判断を維持する。
+//! - **`frame` の明示 `background`**: chakra/zag は `frame` に背景を
+//!   持たないが、本モジュールは静粛帯（quiet zone）を含む QR 全体が
+//!   有色の親要素上でも明背景で走査されるよう `background:
+//!   var(--fandhe-color-bg)` を維持する。
+//! - **`2xs`/`2xl`/`full` サイズ段を追加しない**: 共通 `Size` enum 規約
+//!   （`docs/design/pre-styled-ui-size-and-color-palette-axes.md` §3.1）
+//!   に従い xs〜xl の 5 段のみを提供する。`full`（100%）相当が必要な
+//!   場合は呼び出し側が `style="--fandhe-qr-code-size: 100%"` で
+//!   custom property を上書きできる。
+//! - **hover / focus / disabled / transition を付与しない**:
+//!   headless 層（`crates/headless-ui/src/qr_code.rs`）は状態機械を
+//!   持たず `data-state`/`data-disabled` 等を出力しない表示専用部品
+//!   であり、`docs/design/pre-styled-ui-interaction-visual-language.md`
+//!   の hover 付与判定基準（インタラクティブ slot のみ）の対象外。
+//! - **`shape-rendering: crispEdges` を設定しない**: 参照 2 サイトとも
+//!   未設定であり、非整数スケール時にモジュール幅が不均一になる
+//!   リスクを避ける（参照と同じ判断）。
+//!
+//! # アクセシビリティ上の注記
+//!
+//! `overlay` の背景は `--fandhe-qr-code-size` の 1/3 四方（chakra と同じ
+//! 比率）を覆う。`ErrorCorrectionLevel::L`（7%）/`M`（15%）では中央
+//! 領域の欠損により読み取り不能になり得るため、`overlay` にロゴ等を
+//! 表示する場合は `ErrorCorrectionLevel::Q`（25%）/`H`（30%）の使用を
+//! 推奨する。
+//!
 //! # セキュリティ不変条件
 //!
 //! 本モジュールは headless 層の再エクスポートと静的 CSS 生成のみで構成され、
@@ -68,7 +121,15 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("position", "relative"),
-                decl("--fandhe-qr-code-size", "8rem"),
+                decl("--fandhe-qr-code-size", "7.5rem"),
+                // overlay（ロゴ等）の一辺サイズ。chakra-ui の
+                // `--qr-code-overlay-size: calc(var(--qr-code-size) / 3)`
+                // と同じ比率（イシュー #1565）。root スコープの custom
+                // property として定義し、通常の CSS 継承で overlay へ渡す。
+                decl(
+                    "--fandhe-qr-code-overlay-size",
+                    "calc(var(--fandhe-qr-code-size) / 3)",
+                ),
             ],
         )
         .base(
@@ -80,46 +141,59 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .base("pattern", vec![decl("fill", "var(--fandhe-color-fg)")])
-        // Overlay（ロゴ等）は中央配置し、frame より前面に重ねる。可視スタイル
-        // は最小限（配置のみ）とし、呼び出し側コンテンツの外観は呼び出し側
-        // の責務のままにする（headless 中立）。
+        // Overlay（ロゴ等）は frame 中央に固定サイズで重ねる
+        // （chakra-ui/zag-js 準拠、イシュー #1565）。是正前は `inset: 0`
+        // で frame 全面を覆っていたため、背景を敷くと QR モジュール全体を
+        // 隠してしまう構造だった。
         .base(
             "overlay",
             vec![
                 decl("position", "absolute"),
-                decl("inset", "0"),
+                decl("top", "50%"),
+                decl("left", "50%"),
+                decl("transform", "translate(-50%, -50%)"),
                 decl("display", "flex"),
                 decl("align-items", "center"),
                 decl("justify-content", "center"),
-                decl("margin", "auto"),
+                decl("width", "var(--fandhe-qr-code-overlay-size)"),
+                decl("height", "var(--fandhe-qr-code-overlay-size)"),
+                decl("padding", "var(--fandhe-space-1)"),
+                // padding を width/height 内側に収める（`border-box`）。
+                // `content-box`（既定）のままだと padding が加算され、
+                // 塗り面積が `--fandhe-qr-code-overlay-size` を超えて
+                // QR モジュールを想定以上に隠してしまう（Bugbot Medium
+                // 指摘、イシュー #1565）。
+                decl("box-sizing", "border-box"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("border-radius", "var(--fandhe-radius-xs)"),
             ],
         )
-        // イシュー #1681: Xs/Xl は Sm(6)→Md(8)→Lg(12) の非等差進行
-        // （差分 2→4 の倍加）を、両端それぞれ隣接差分を踏襲して外挿。
+        // イシュー #1565: chakra-ui の px 値（64/80/120/160/200px）を
+        // rem 換算して整列（旧イシュー #1681 の非等差外挿値から変更）。
         .variant(
             Size::Xs,
             "root",
-            vec![decl("--fandhe-qr-code-size", "5rem")],
+            vec![decl("--fandhe-qr-code-size", "4rem")],
         )
         .variant(
             Size::Sm,
             "root",
-            vec![decl("--fandhe-qr-code-size", "6rem")],
+            vec![decl("--fandhe-qr-code-size", "5rem")],
         )
         .variant(
             Size::Md,
             "root",
-            vec![decl("--fandhe-qr-code-size", "8rem")],
+            vec![decl("--fandhe-qr-code-size", "7.5rem")],
         )
         .variant(
             Size::Lg,
             "root",
-            vec![decl("--fandhe-qr-code-size", "12rem")],
+            vec![decl("--fandhe-qr-code-size", "10rem")],
         )
         .variant(
             Size::Xl,
             "root",
-            vec![decl("--fandhe-qr-code-size", "20rem")],
+            vec![decl("--fandhe-qr-code-size", "12.5rem")],
         )
         .default_variant(Size::Md)
 }
@@ -228,5 +302,48 @@ mod tests {
         let overlay_html = render(&overlay(vec![], vec![text("logo")]));
         assert!(overlay_html.contains(r#"data-part="overlay""#));
         assert!(overlay_html.contains("logo"));
+    }
+
+    // イシュー #1565: overlay が frame 全面を覆っていた構造の回帰防止。
+    // 中央固定・root の 1/3 枠・space/radius トークン経由の装飾を固定する。
+    #[test]
+    fn overlay_is_centered_and_sized_by_root_custom_property() {
+        let css = stylesheet();
+        assert!(css.contains("top: 50%;"));
+        assert!(css.contains("transform: translate(-50%, -50%);"));
+        assert!(css.contains("width: var(--fandhe-qr-code-overlay-size);"));
+        assert!(css.contains("background: var(--fandhe-color-bg);"));
+        assert!(css.contains("border-radius: var(--fandhe-radius-xs);"));
+        assert!(!css.contains("inset: 0;"));
+    }
+
+    #[test]
+    fn root_defines_overlay_size_as_third_of_qr_size() {
+        let css = stylesheet();
+        assert!(
+            css.contains("--fandhe-qr-code-overlay-size: calc(var(--fandhe-qr-code-size) / 3);")
+        );
+    }
+
+    // 前景/背景色はトークン経由のみで、生の色リテラル（16 進・rgb()）を
+    // 含まないことを固定する（モジュール doc「参照サイトとの差分」節参照）。
+    #[test]
+    fn stylesheet_has_no_raw_color_literals() {
+        let css = stylesheet();
+        assert!(!css.contains('#'));
+        assert!(!css.contains("rgb("));
+    }
+
+    // 本部品は headless 層が状態属性を出力しない表示専用部品であり、
+    // hover / focus / disabled のインタラクティブ装飾を持たない
+    // （モジュール doc「参照サイトとの差分」節参照）。headless が将来
+    // 状態属性を出力するようになった場合はこのテストが失敗し、
+    // 再評価のトリガーとなる。
+    #[test]
+    fn stylesheet_has_no_interaction_selectors() {
+        let css = stylesheet();
+        assert!(!css.contains(":hover"));
+        assert!(!css.contains(":focus"));
+        assert!(!css.contains("data-disabled"));
     }
 }

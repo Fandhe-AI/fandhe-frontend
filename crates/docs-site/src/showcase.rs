@@ -6590,7 +6590,8 @@ fn progress_section() -> Node {
     )
 }
 
-/// QrCode（イシュー #774）節: size（sm/md/lg）3 態・overlay（ロゴ想定の中央
+/// QrCode（イシュー #774。overlay 中央固定・size 参照整列はイシュー
+/// #1565）節: size（xs/sm/md/lg/xl）5 態・overlay（ロゴ想定の中央
 /// コンテンツ）付きの 1 態を掲示する。エンコード対象は固定の URL 文字列
 /// （`fandhe_frontend_pre_styled_ui::qr_code::encode` は外部依存ゼロの
 /// QR Model 2 byte モードエンコーダ、`crates/headless-ui/src/qr_code.rs`
@@ -6599,6 +6600,18 @@ fn qr_code_section() -> Node {
     let matrix = qr_code::encode(
         "https://fandhe-frontend.example/",
         qr_code::ErrorCorrectionLevel::M,
+    )
+    .expect("ショーケース固定 URL はバージョン 40 容量内に収まる");
+
+    // overlay 付きデモ専用の matrix（イシュー #1565、codex P1 是正）。
+    // overlay はロゴ等で QR モジュールの一部を隠す想定であり、誤り訂正
+    // レベル M（訂正能力 15%）のまま流用すると overlay 領域の欠損で
+    // 読み取り不能になり得る。Q（訂正能力 25%）以上を使う headless 側の
+    // 指針（`crates/headless-ui/src/qr_code.rs` doc 参照）に合わせ、
+    // overlay 用は別途 Q でエンコードした専用 matrix を使う。
+    let overlay_matrix = qr_code::encode(
+        "https://fandhe-frontend.example/",
+        qr_code::ErrorCorrectionLevel::Q,
     )
     .expect("ショーケース固定 URL はバージョン 40 容量内に収まる");
 
@@ -6633,12 +6646,12 @@ fn qr_code_section() -> Node {
         vec![],
         vec![
             qr_code::frame(
-                &matrix,
+                &overlay_matrix,
                 qr_code::DEFAULT_QUIET_ZONE,
                 Some("QR code linking to https://fandhe-frontend.example/"),
                 vec![],
                 vec![qr_code::pattern(
-                    &matrix,
+                    &overlay_matrix,
                     qr_code::DEFAULT_QUIET_ZONE,
                     vec![],
                 )],
@@ -6650,7 +6663,7 @@ fn qr_code_section() -> Node {
 
     section(
         "QrCode",
-        "外部依存ゼロの QR Model 2（ISO/IEC 18004）byte モードエンコーダによる QR コード表示。size（sm/md/lg）で --fandhe-qr-code-size を切り替えます。Overlay パーツはロゴ等の呼び出し側コンテンツを中央に重ねる用途です。",
+        "外部依存ゼロの QR Model 2（ISO/IEC 18004）byte モードエンコーダによる QR コード表示。size（xs/sm/md/lg/xl）で --fandhe-qr-code-size を切り替えます。Overlay パーツは frame 中央に固定サイズ（--fandhe-qr-code-size の 1/3）で重なり、背景・角丸付きでロゴ等の呼び出し側コンテンツの可読性を確保します。",
         vec![size_row, overlay_row],
     )
 }

@@ -1060,6 +1060,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # `SkeletonProps` へ `animation: SkeletonAnimation` フィールドを追加する
 # 破壊的変更（既存 struct literal 構築を壊す）のためマイナーバンプする
 # （0.x の破壊的変更はマイナーバンプの規約）。
+#
+# イシュー #1565: 上記 0.73.0 に対し、qr-code（Themes）overlay の CSS 是正
+# （`box-sizing: border-box` 追加。セレクタ・クラス名・公開 Rust API の
+# 削除/改名なし）のため patch バンプする。
 # イシュー #1557: card のスタイルを参考サイト基準（chakra-ui/Radix Themes
 # の Card）へ調整し、size 軸新設に伴い `root(CardVariant, …)` から
 # `root(&CardProps, …)` へ破壊的変更したため minor バンプする（0.x の
@@ -1067,8 +1071,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.70.0 へ到達していたが、main が独立に 0.73.0 へ到達済みだったため、
 # 本イシューとのマージにより双方の実体変更を統合した結果として 0.74.0 へ
 # さらにマイナーバンプする（同一版数への偶発的衝突をそのまま採用しない）。
-version = "0.74.0"
 
+# base 取り込み（イシュー #1557）: main 側は #1565 で 0.73.1 へ到達していたが、
+# 本ブランチは card::root のシグネチャ変更（破壊的）によりマイナーバンプ済みの
+# 0.74.0（> 0.73.1）へ到達しているため、偶発的な同一版数衝突ではなく単純な
+# 採用としてそのまま 0.74.0 を維持する。
+version = "0.74.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

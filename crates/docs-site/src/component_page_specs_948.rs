@@ -1376,14 +1376,49 @@ fn qr_code_example() -> Node {
             )],
         )
     };
-    row(vec![demo(Size::Sm), demo(Size::Md), demo(Size::Lg)])
+    row(vec![
+        demo(Size::Xs),
+        demo(Size::Sm),
+        demo(Size::Md),
+        demo(Size::Lg),
+        demo(Size::Xl),
+    ])
+}
+
+/// overlay 付き 1 態を掲示する例（イシュー #1565: overlay の中央固定・
+/// 背景・角丸を視覚確認するための追加例）。
+fn qr_code_overlay_example() -> Node {
+    let matrix = qr_code::encode(
+        "https://fandhe-frontend.example/",
+        qr_code::ErrorCorrectionLevel::Q,
+    )
+    .expect("固定 URL はバージョン 40 容量内に収まる");
+    let with_overlay = qr_code::root(
+        Size::Lg,
+        vec![],
+        vec![
+            qr_code::frame(
+                &matrix,
+                qr_code::DEFAULT_QUIET_ZONE,
+                Some("QR code linking to https://fandhe-frontend.example/"),
+                vec![],
+                vec![qr_code::pattern(
+                    &matrix,
+                    qr_code::DEFAULT_QUIET_ZONE,
+                    vec![],
+                )],
+            ),
+            qr_code::overlay(vec![], vec![text("FW")]),
+        ],
+    );
+    row(vec![with_overlay])
 }
 
 const QR_CODE_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "外部依存ゼロの QR Model 2（ISO/IEC 18004）byte モードエンコーダによる QR コード表示",
-        "size（sm/md/lg）で --fandhe-qr-code-size を切り替える",
-        "Overlay パーツはロゴ等の呼び出し側コンテンツを中央に重ねる用途",
+        "size（xs/sm/md/lg/xl）で --fandhe-qr-code-size を切り替える",
+        "Overlay パーツは frame 中央に --fandhe-qr-code-size の 1/3 幅で固定され、背景・角丸付きでロゴ等の呼び出し側コンテンツの可読性を確保する",
     ],
     arguments: &[
         ArgRow {
@@ -1399,11 +1434,18 @@ const QR_CODE_SPEC: ComponentPageSpec = ComponentPageSpec {
             description: "文字列を QR コード行列へエンコードする（headless-ui 側の純粋関数）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "size 3 段",
-        description: "同一 URL を sm/md/lg で表示します。",
-        render: qr_code_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "size 5 段",
+            description: "同一 URL を xs/sm/md/lg/xl で表示します。",
+            render: qr_code_example,
+        },
+        ExampleEntry {
+            title: "overlay 付き",
+            description: "ロゴ等を中央に重ねる場合の表示です。読み取り精度を確保するため error correction level は Q 以上を推奨します。",
+            render: qr_code_overlay_example,
+        },
+    ],
     keyboard: &[],
     aria: &[],
     demo: None,

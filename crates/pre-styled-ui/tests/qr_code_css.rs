@@ -11,7 +11,8 @@ use fandhe_frontend_pre_styled_ui::qr_code;
 const QR_CODE_GOLDEN_CSS: &str = r#"[data-scope="qr-code"][data-part="root"] {
   display: inline-flex;
   position: relative;
-  --fandhe-qr-code-size: 8rem;
+  --fandhe-qr-code-size: 7.5rem;
+  --fandhe-qr-code-overlay-size: calc(var(--fandhe-qr-code-size) / 3);
 }
 
 [data-scope="qr-code"][data-part="frame"] {
@@ -26,31 +27,38 @@ const QR_CODE_GOLDEN_CSS: &str = r#"[data-scope="qr-code"][data-part="root"] {
 
 [data-scope="qr-code"][data-part="overlay"] {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: auto;
+  width: var(--fandhe-qr-code-overlay-size);
+  height: var(--fandhe-qr-code-overlay-size);
+  padding: var(--fandhe-space-1);
+  box-sizing: border-box;
+  background: var(--fandhe-color-bg);
+  border-radius: var(--fandhe-radius-xs);
 }
 
 [data-scope="qr-code"][data-part="root"].fd-qr-code--size-xs {
-  --fandhe-qr-code-size: 5rem;
+  --fandhe-qr-code-size: 4rem;
 }
 
 [data-scope="qr-code"][data-part="root"].fd-qr-code--size-sm {
-  --fandhe-qr-code-size: 6rem;
+  --fandhe-qr-code-size: 5rem;
 }
 
 [data-scope="qr-code"][data-part="root"].fd-qr-code--size-md {
-  --fandhe-qr-code-size: 8rem;
+  --fandhe-qr-code-size: 7.5rem;
 }
 
 [data-scope="qr-code"][data-part="root"].fd-qr-code--size-lg {
-  --fandhe-qr-code-size: 12rem;
+  --fandhe-qr-code-size: 10rem;
 }
 
 [data-scope="qr-code"][data-part="root"].fd-qr-code--size-xl {
-  --fandhe-qr-code-size: 20rem;
+  --fandhe-qr-code-size: 12.5rem;
 }
 "#;
 
