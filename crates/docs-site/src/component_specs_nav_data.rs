@@ -1575,22 +1575,36 @@ fn ex_marquee() -> Node {
 
 pub(crate) const MARQUEE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "content パーツを内部で 2 回複製しシームレスループを実現する（crates/pre-styled-ui/src/marquee.rs:1296-1298）",
+        "content パーツを内部で 2 回複製しシームレスループを実現する（crates/pre-styled-ui/src/marquee.rs:472-480）",
         "root:hover/:focus-within で常時一時停止する CSS を持つ（marquee.rs テスト css_output_declares_hover_and_focus_within_pause）",
         "prefers-reduced-motion: reduce でアニメーションを停止する（marquee.rs テスト css_output_declares_reduced_motion_media_query）",
+        "イシュー #1582: content の animation を longhand へ分解し、--fandhe-marquee-delay / -loop-count を追加公開する（marquee.rs テスト css_output_declares_scroll_animation_and_keyframes）",
+        "イシュー #1582: edge: Fade で root に mask-image の両端フェードを適用する（marquee.rs テスト css_output_declares_edge_fade_mask_only_under_fade_variant）",
     ],
     arguments: &[
+        ArgRow {
+            name: "direction",
+            kind: "MarqueeDirection",
+            default: "Start",
+            description: "スクロール方向。End で逆方向スクロールする（marquee.rs:216-237）。",
+        },
+        ArgRow {
+            name: "edge",
+            kind: "MarqueeEdge",
+            default: "None",
+            description: "Fade で root に両端フェード（mask-image、--fandhe-marquee-edge-size 既定 20% で調整可）を適用する（marquee.rs、イシュー #1582）。",
+        },
         ArgRow {
             name: "decorative",
             kind: "bool",
             default: "false",
-            description: "true なら root へ aria-hidden=\"true\" を付与する（marquee.rs:184-191, 1341-1354）。",
+            description: "true なら root へ aria-hidden=\"true\" を付与する（marquee.rs:277, 442-449）。",
         },
         ArgRow {
             name: "label",
             kind: "Option<&str>",
             default: "None",
-            description: "decorative が false のときのみ有効な aria-label（marquee.rs:191, 1355-1357）。",
+            description: "decorative が false のときのみ有効な aria-label（marquee.rs:280, 450-451）。",
         },
     ],
     examples: &[ExampleEntry {
@@ -1601,7 +1615,7 @@ pub(crate) const MARQUEE: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-hidden=\"true\"（decorative=true の root と複製 content） / aria-label（非 decorative時の root）",
-        description: "decorative/label の組み合わせで root の意味論を切り替える（marquee.rs:1341-1357）。複製した 2 個目の content は常に aria-hidden=\"true\" + inert を持つ（marquee.rs:1360-1385）。",
+        description: "decorative/label の組み合わせで root の意味論を切り替える（marquee.rs:442-451）。複製した 2 個目の content は常に aria-hidden=\"true\" + inert を持つ（marquee.rs:472-480）。",
     }],
     demo: None,
 };

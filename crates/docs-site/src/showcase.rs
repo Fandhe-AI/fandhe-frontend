@@ -138,7 +138,7 @@ use fandhe_frontend_pre_styled_ui::link_overlay;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
-use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
+use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeEdge, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::menubar::{self, Menubar};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::nav_list;
@@ -7292,9 +7292,11 @@ fn timeline_section() -> Node {
 }
 
 /// Marquee 節（イシュー #831、`docs/policy/intentional-non-adoption.md` §3.24
-/// の再導入）: CSS のみ（JS ゼロ）の自動流動テキスト。`direction`（既定/`End`）
-/// の切り替え・装飾用途（`decorative: true`）・`--fandhe-marquee-duration`
-/// 上書きの掲示例を並べる。
+/// の再導入。イシュー #1582 でアニメーション周りのスタイル調整）: CSS のみ
+/// （JS ゼロ）の自動流動テキスト。`direction`（既定/`End`）の切り替え・
+/// 装飾用途（`decorative: true`）・`--fandhe-marquee-duration` 上書き・
+/// `edge: Fade` による両端フェード（`--fandhe-marquee-edge-size` 上書き例
+/// 込み）の掲示例を並べる。
 fn marquee_section() -> Node {
     let default_demo = marquee::marquee(
         &MarqueeProps::default(),
@@ -7328,10 +7330,23 @@ fn marquee_section() -> Node {
             vec![text("装飾用途（aria-hidden）+ 速度上書きの例です。")],
         )],
     );
+    let fade_demo = marquee::marquee(
+        &MarqueeProps {
+            edge: MarqueeEdge::Fade,
+            ..MarqueeProps::default()
+        },
+        vec![("style", "--fandhe-marquee-edge-size: 15%;")],
+        vec![marquee::item(
+            vec![],
+            vec![text(
+                "両端フェード（edge: Fade）+ フェード幅上書きの例です。",
+            )],
+        )],
+    );
     section(
         "Marquee",
-        "CSS のみ（JS ゼロ）の自動流動テキストです。direction（既定/end）でスクロール方向を切り替え、hover/focus-within で常時一時停止、prefers-reduced-motion: reduce 環境では停止します。decorative: true で装飾用途（aria-hidden）に、--fandhe-marquee-duration の上書きで速度を調整できます。",
-        vec![default_demo, end_demo, decorative_demo],
+        "CSS のみ（JS ゼロ）の自動流動テキストです。direction（既定/end）でスクロール方向を切り替え、hover/focus-within で常時一時停止、prefers-reduced-motion: reduce 環境では停止します。decorative: true で装飾用途（aria-hidden）に、--fandhe-marquee-duration / -delay / -loop-count / -gap / edge: Fade 時の --fandhe-marquee-edge-size の上書きで速度・間隔・両端フェードを調整できます。",
+        vec![default_demo, end_demo, decorative_demo, fade_demo],
     )
 }
 

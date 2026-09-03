@@ -32,8 +32,9 @@
 //!
 //! ark-ui の Marquee anatomy（`Root`/`Viewport`/`Content`/`Item`/`Edge`）を
 //! CSS のみで成立する最小 3 パーツへ縮約する: `Viewport` は `root` が兼ね、
-//! `Edge`（両端フェードのグラデーション）は呼び出し側 CSS（`mask-image` 等）
-//! で代替可能な純装飾のため提供しない。
+//! `Edge`（両端フェードのグラデーション）は新規 `data-part` を増やさず、
+//! `root` への [`MarqueeEdge`] variant（イシュー #1582）として提供する
+//! （下記「variant」節参照）。
 //!
 //! # シームレスループの実現方法
 //!
@@ -52,7 +53,7 @@
 //! `display: none` で完全に除去し、視覚的な二重表示も防ぐ（[`css`]
 //! 参照、同指摘）。
 //!
-//! # variant（`direction` のみ、root へのみクラス付与）
+//! # variant（`direction`・`edge`。いずれも root へのみクラス付与）
 //!
 //! [`MarqueeDirection`]（`Start`（既定）/`End`）は `root` パーツのみへ
 //! クラスを付与し、`content` への伝搬は CSS custom property
@@ -62,12 +63,39 @@
 //! 死んだ CSS を生んだ教訓、PR #812 修正コミット 54126cb を踏まえ、本
 //! モジュールは最初から custom property 経由で設計する）。
 //!
+//! [`MarqueeEdge`]（`None`（既定）/`Fade`、イシュー #1582）は `root` へ
+//! `mask-image` を宣言する（`None` 側も `mask-image: none` を明示登録し、
+//! [`crate::skeleton::SkeletonAnimation::None`] と同型に既定側の規則も
+//! golden へ出す）。`Fade` はアルファマスクの `linear-gradient` で両端を
+//! 透過させる（ark-ui `Edge` パーツ・chakra `--marquee-edge-color` 相当の
+//! 効果を、新規 anatomy パーツを増やさず表現する）。マスクの
+//! `black`/`transparent` は alpha を表すキーワードであり、[`crate::theme`]
+//! の配色トークン対象（`#rrggbb`/`rgb()` 等の生色）ではないため
+//! ダークモード再定義は不要（背景色に依存しない不変条件）。フェード幅は
+//! `--fandhe-marquee-edge-size`（既定 `20%`、chakra 既定値に合わせる）で
+//! 呼び出し側が上書きする契約。**`-webkit-mask-image` は出力しない**:
+//! [`crate::css::is_valid_identifier`] は先頭が ASCII 小文字であることを
+//! 要求するため `decl("-webkit-mask-image", ...)` は
+//! [`crate::recipe::SlotRecipe::css`]（[`crate::css::serialize_rule`] 経由）
+//! で無音のまま破棄される（fail-closed skip）。unprefixed `mask-image` は
+//! Safari 15.4+ / Chrome 120+ / Firefox 53+ で利用可能であり、対応範囲外の
+//! 古いブラウザではフェードが単に効かないだけで機能自体は壊れないため、
+//! prefixed 版の追加出力は行わない。
+//!
 //! `color-palette`/`size` 軸は提供しない（[`crate::skeleton`]/[`crate::card`]
 //! と同型の「中立・装飾部品」判断）。速度・間隔は CSS custom property の
-//! フォールバック（`--fandhe-marquee-duration, 20s` / `--fandhe-marquee-gap,
-//! 1rem`）として与え、呼び出し側が `style` 属性で上書きする契約とする。
-//! ark-ui の `speed`/`spacing`/`autoFill`/`loopCount` 相当は props へ持ち込ま
-//! ない（本イシューのスコープ外、下記節参照）。
+//! フォールバック（`--fandhe-marquee-duration, 20s` /
+//! `--fandhe-marquee-gap, var(--fandhe-space-4)`）として与え、呼び出し側が
+//! `style` 属性で上書きする契約とする。イシュー #1582 で `content` の
+//! `animation` shorthand を longhand へ分解し、chakra recipe 相当の
+//! `--fandhe-marquee-delay`（既定 `0s`）・`--fandhe-marquee-loop-count`
+//! （既定 `infinite`）を追加公開し、`animation-fill-mode: forwards` を
+//! 常時付与する（有限 loop 終了時に最終位置で停止させるため）。ark-ui の
+//! `speed`（px/s）相当は呼び出し側 JS によるコンテンツ幅計測が前提で
+//! CSS のみでは再現できないため、引き続き `--fandhe-marquee-duration`
+//! （秒指定）契約のまま意図的に非整合とする（#1582 で再評価し確定）。
+//! `autoFill`/`loopCount`（複製数の自動制御）は props へ持ち込まない
+//! （本イシューのスコープ外、下記節参照）。
 //!
 //! # a11y 契約: `decorative`/`label`
 //!
@@ -107,14 +135,44 @@
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - 縦方向スクロール（ark `side: top/bottom` 相当）。
-//! - 両端フェードの `Edge` パーツ（呼び出し側 CSS での代替を前提とする、
-//!   上記「anatomy」節参照）。
+//! - 縦方向スクロール（ark `side: top/bottom` 相当）。#1582 で再評価し、
+//!   `translateY` 用の第 2 `@keyframes`・`flex-direction: column`・呼び出し
+//!   側による root 高さ固定が必要で #1583（コンテンツ枠）と軸が交差する
+//!   ため、引き続き見送る。
 //! - `autoFill` の自動複製制御（`item` の複製数は呼び出し側の責務）。
 //! - `examples/headless-pre-styled-ui` への反映（crates.io 公開後の別イシュー、
 //!   [`crate::stat`]/[`crate::timeline`] と同じ判断）。
 //! - `docs/policy/intentional-non-adoption.md` §3.24 のもう 1 項目
 //!   chakra `Theme` コンポーネント（**非採用のまま変更しない**）。
+//!
+//! （両端フェードの `Edge` パーツ相当は #1582 で [`MarqueeEdge`] variant
+//! として実装済み。以前は「呼び出し側 CSS での代替を前提に非提供」として
+//! いたが、上記「variant」節の設計へ差し替えた）。
+//!
+//! # スタイル調整（イシュー #1582）
+//!
+//! 親イシュー #1581 の 7 軸チェックリストのうち、本 issue（1/2、アニメー
+//! ション担当）の担当範囲で「意図的に合わせなかった」判断・「軸を持たない」
+//! 判断を記録する（親の受け入れ条件対応。枠・padding・背景・reduced-motion
+//! は #1583（2/2）の担当のため未着手）。
+//!
+//! - **サイズ / colorPalette**: 中立・装飾部品のため軸を持たない（既存判断
+//!   の再確認、上記「variant」節参照）。
+//! - **色**: 新規に配色トークンを参照しない。[`MarqueeEdge::Fade`] の
+//!   `black`/`transparent` は alpha を表すキーワードであり配色トークンの
+//!   対象ではない。
+//! - **状態（`data-*`）**: headless 側の状態属性を持たない部品のまま不変
+//!   （`fandhe-frontend-headless-ui` 側に対応 primitive がない
+//!   pre-styled-ui 専用部品）。
+//! - **ダーク**: alpha マスクのため再定義不要（上記参照）。
+//! - **フォーカス**: `root` は非フォーカス要素のまま不変。
+//! - **hover**: `:hover` 一時停止は既存契約のまま不変。
+//! - **disabled**: 該当なし（無効化状態を持たない部品）。
+//! - **トランジション**: `animation-play-state` はアニメーション不可
+//!   プロパティのため `transition` を当てない（トランジションで滑らかに
+//!   一時停止させることはできない）。
+//! - **縦方向スクロール・px/s 速度指定**: 上記「variant」節・「スコープ外」
+//!   節のとおり、意図的に非整合のまま維持する。
 //!
 //! # セキュリティ不変条件
 //!
@@ -139,18 +197,18 @@ const SLOTS: &[&str] = &["root", "content", "item"];
 /// スクロールアニメーションの `@keyframes` 名リテラル。[`crate::skeleton`]
 /// の `pulse_keyframes_name_lit!` と同じ理由（`decl()` の値検証は
 /// `{`/`}`/`;` を拒否するため、キーフレーム本体は宣言として表現できず、
-/// `animation` 宣言の値とキーフレームブロック名の単一情報源をマクロとして
-/// 持つ必要がある）で同型のマクロを用意する。
+/// `animation-name` 宣言の値とキーフレームブロック名の単一情報源をマクロ
+/// として持つ必要がある）で同型のマクロを用意する。
 macro_rules! scroll_keyframes_name_lit {
     () => {
         "fd-marquee-scroll"
     };
 }
 
-/// スクロールアニメーションの `@keyframes` 名。`recipe()` の `animation`
-/// 宣言（値としてのみ参照）と [`css`] が追記する `@keyframes` ブロックの
-/// 両方で共有する識別子（[`scroll_keyframes_name_lit`] を単一情報源として
-/// 生成）。
+/// スクロールアニメーションの `@keyframes` 名。`recipe()` の
+/// `animation-name` 宣言（値としてのみ参照）と [`css`] が追記する
+/// `@keyframes` ブロックの両方で共有する識別子（[`scroll_keyframes_name_lit`]
+/// を単一情報源として生成）。
 const SCROLL_KEYFRAMES_NAME: &str = scroll_keyframes_name_lit!();
 
 /// Marquee のスクロール方向。
@@ -176,14 +234,44 @@ impl VariantValue for MarqueeDirection {
     }
 }
 
+/// Marquee 両端のフェードマスク variant（イシュー #1582）。
+///
+/// `root` へ `mask-image` を宣言する（モジュール doc「variant」節参照）。
+/// [`crate::skeleton::SkeletonAnimation::None`] と同型に、既定 `None` も
+/// `mask-image: none` を明示 variant として登録し、golden に両クラスを
+/// 出力する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MarqueeEdge {
+    /// フェードなし（既定）。
+    #[default]
+    None,
+    /// 両端をアルファマスクで透過させる。
+    Fade,
+}
+
+impl VariantValue for MarqueeEdge {
+    fn axis(self) -> &'static str {
+        "edge"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Fade => "fade",
+        }
+    }
+}
+
 /// [`marquee`] の設定。
 ///
 /// `Default` は各フィールドの `Default`（`direction: Start`・
-/// `decorative: false`・`label: None`）から自動導出する。
+/// `edge: None`・`decorative: false`・`label: None`）から自動導出する。
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MarqueeProps<'a> {
     /// スクロール方向（既定 `Start`）。
     pub direction: MarqueeDirection,
+    /// 両端フェードマスク（既定 `None`、イシュー #1582）。
+    pub edge: MarqueeEdge,
     /// `true` なら装飾扱いとし `root` へ `aria-hidden="true"` を付与する
     /// （既定 `false`）。
     pub decorative: bool,
@@ -203,7 +291,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("overflow", "hidden"),
-                decl("gap", "var(--fandhe-marquee-gap, 1rem)"),
+                decl("gap", "var(--fandhe-marquee-gap, var(--fandhe-space-4))"),
             ],
         )
         .base(
@@ -213,14 +301,21 @@ fn recipe() -> SlotRecipe {
                 decl("flex", "none"),
                 decl("align-items", "center"),
                 decl("min-width", "max-content"),
-                decl("gap", "var(--fandhe-marquee-gap, 1rem)"),
+                decl("gap", "var(--fandhe-marquee-gap, var(--fandhe-space-4))"),
+                // `animation` shorthand ではなく longhand へ分解する
+                // （イシュー #1582）。chakra recipe 相当の `delay`/
+                // `loop-count` を CSS custom property として公開し、
+                // `animation-fill-mode: forwards` で有限 loop 終了時に
+                // 最終位置で停止させる（モジュール doc「variant」節参照）。
+                decl("animation-name", scroll_keyframes_name_lit!()),
+                decl("animation-duration", "var(--fandhe-marquee-duration, 20s)"),
+                decl("animation-timing-function", "linear"),
                 decl(
-                    "animation",
-                    concat!(
-                        scroll_keyframes_name_lit!(),
-                        " var(--fandhe-marquee-duration, 20s) linear infinite"
-                    ),
+                    "animation-iteration-count",
+                    "var(--fandhe-marquee-loop-count, infinite)",
                 ),
+                decl("animation-delay", "var(--fandhe-marquee-delay, 0s)"),
+                decl("animation-fill-mode", "forwards"),
                 decl(
                     "animation-direction",
                     "var(--fandhe-marquee-direction, normal)",
@@ -239,6 +334,16 @@ fn recipe() -> SlotRecipe {
             vec![decl("--fandhe-marquee-direction", "reverse")],
         )
         .default_variant(MarqueeDirection::Start)
+        .variant(MarqueeEdge::None, "root", vec![decl("mask-image", "none")])
+        .variant(
+            MarqueeEdge::Fade,
+            "root",
+            vec![decl(
+                "mask-image",
+                "linear-gradient(to right, transparent, black var(--fandhe-marquee-edge-size, 20%), black calc(100% - var(--fandhe-marquee-edge-size, 20%)), transparent)",
+            )],
+        )
+        .default_variant(MarqueeEdge::None)
 }
 
 /// Marquee の静的 CSS 全文。
@@ -247,7 +352,7 @@ fn recipe() -> SlotRecipe {
 /// （[`crate::skeleton::css`] と同型。値はソースコード中のリテラルのみで
 /// 構成され、外部入力は一切混入しない）:
 ///
-/// 1. `animation` 宣言が参照する `@keyframes`（[`SCROLL_KEYFRAMES_NAME`]）。
+/// 1. `animation-name` 宣言が参照する `@keyframes`（[`SCROLL_KEYFRAMES_NAME`]）。
 /// 2. `root` への `:hover`/`:focus-within` で `content` のアニメーションを
 ///    一時停止する規則（子孫コンビネータのため recipe では表現できない、
 ///    モジュール doc「常時一時停止」節参照）。
@@ -265,11 +370,15 @@ pub fn css() -> String {
         out.push('\n');
     }
     out.push_str(&format!(
-        "@keyframes {SCROLL_KEYFRAMES_NAME} {{\n  from {{\n    transform: translateX(0);\n  }}\n  to {{\n    transform: translateX(calc(-100% - var(--fandhe-marquee-gap, 1rem)));\n  }}\n}}\n"
+        "@keyframes {SCROLL_KEYFRAMES_NAME} {{\n  from {{\n    transform: translateX(0);\n  }}\n  to {{\n    transform: translateX(calc(-100% - var(--fandhe-marquee-gap, var(--fandhe-space-4))));\n  }}\n}}\n"
     ));
     out.push_str(
         "\n[data-scope=\"marquee\"][data-part=\"root\"]:hover [data-part=\"content\"],\n[data-scope=\"marquee\"][data-part=\"root\"]:focus-within [data-part=\"content\"] {\n  animation-play-state: paused;\n}\n",
     );
+    // `animation: none`（shorthand）は上記 recipe が出す全 longhand（イシュー
+    // #1582 で追加した animation-delay/-iteration-count/-fill-mode 含む）を
+    // 一括でリセットするため、longhand 化後もこのブロックは変更不要（#1583
+    // の担当領域であり本 PR では触らない）。
     out.push_str(
         "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"marquee\"][data-part=\"content\"] {\n    animation: none;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"content\"][aria-hidden=\"true\"] {\n    display: none;\n  }\n}\n",
     );
@@ -310,7 +419,10 @@ pub fn marquee<'a>(
     children: Vec<Node>,
 ) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[("direction", props.direction.value())]);
+    let class = recipe.variant_classes(&[
+        ("direction", props.direction.value()),
+        ("edge", props.edge.value()),
+    ]);
     // `aria-hidden`/`aria-label` は呼び出し側の偽装を大文字小文字無視で除去し、
     // props 由来の値へ一本化する（`crate::skeleton::skeleton` と同型の
     // fail-closed 判断）。
@@ -548,14 +660,22 @@ mod tests {
     #[test]
     fn css_output_declares_scroll_animation_and_keyframes() {
         let out = css();
-        assert!(out.contains(
-            "animation: fd-marquee-scroll var(--fandhe-marquee-duration, 20s) linear infinite;"
-        ));
+        // イシュー #1582: `animation` shorthand を longhand へ分解し、
+        // `delay`/`loop-count` の custom property 公開・`fill-mode:
+        // forwards` を追加した（モジュール doc「variant」節参照）。
+        assert!(out.contains("animation-name: fd-marquee-scroll;"));
+        assert!(out.contains("animation-duration: var(--fandhe-marquee-duration, 20s);"));
+        assert!(out.contains("animation-timing-function: linear;"));
+        assert!(
+            out.contains("animation-iteration-count: var(--fandhe-marquee-loop-count, infinite);")
+        );
+        assert!(out.contains("animation-delay: var(--fandhe-marquee-delay, 0s);"));
+        assert!(out.contains("animation-fill-mode: forwards;"));
         assert!(out.contains("@keyframes fd-marquee-scroll {"));
         assert!(out.contains("transform: translateX(0);"));
-        assert!(
-            out.contains("transform: translateX(calc(-100% - var(--fandhe-marquee-gap, 1rem)));")
-        );
+        assert!(out.contains(
+            "transform: translateX(calc(-100% - var(--fandhe-marquee-gap, var(--fandhe-space-4))));"
+        ));
     }
 
     /// 受け入れ条件: `:hover`/`:focus-within` で常時一時停止する CSS を含む
@@ -588,5 +708,69 @@ mod tests {
         let out = css();
         assert!(out.contains("--fandhe-marquee-direction: normal;"));
         assert!(out.contains("--fandhe-marquee-direction: reverse;"));
+    }
+
+    /// 受け入れ条件（イシュー #1582）: 既定 `edge: None` は
+    /// `fd-marquee--edge-none` クラスを付与し、`fd-marquee--edge-fade` は
+    /// 付与しない（[`crate::skeleton::SkeletonAnimation::None`] と同型に
+    /// 既定側も明示 variant として golden へ出す設計、モジュール doc
+    /// 「variant」節参照）。
+    #[test]
+    fn default_props_render_edge_none_class() {
+        let html = render(&marquee(&MarqueeProps::default(), vec![], vec![]));
+        assert!(html.contains("fd-marquee--edge-none"));
+        assert!(!html.contains("fd-marquee--edge-fade"));
+    }
+
+    #[test]
+    fn edge_enumeration_maps_to_expected_classes() {
+        for (edge, class) in [
+            (MarqueeEdge::None, "fd-marquee--edge-none"),
+            (MarqueeEdge::Fade, "fd-marquee--edge-fade"),
+        ] {
+            let props = MarqueeProps {
+                edge,
+                ..MarqueeProps::default()
+            };
+            let html = render(&marquee(&props, vec![], vec![]));
+            assert!(html.contains(class), "edge={edge:?} -> {html}");
+        }
+    }
+
+    /// 受け入れ条件（イシュー #1582）: `mask-image` の gradient は
+    /// `fd-marquee--edge-fade` ブロック内にのみ出現し、`--fandhe-marquee-
+    /// edge-size` フォールバック `20%` を参照する。`-webkit-mask-image` は
+    /// [`crate::css::is_valid_identifier`] により無音で破棄されるため出力に
+    /// 含まれない（モジュール doc「variant」節参照）。
+    #[test]
+    fn css_output_declares_edge_fade_mask_only_under_fade_variant() {
+        let out = css();
+        let fade_block_start = out
+            .find(".fd-marquee--edge-fade {")
+            .expect("fade variant のブロックが存在する");
+        let fade_block = &out[fade_block_start..];
+        let fade_block_end = fade_block.find('}').map_or(fade_block.len(), |i| i + 1);
+        let fade_block = &fade_block[..fade_block_end];
+        assert!(fade_block.contains("mask-image: linear-gradient("));
+        assert!(fade_block.contains("var(--fandhe-marquee-edge-size, 20%)"));
+        assert!(!out.contains("-webkit-mask-image"));
+        assert!(out.contains(".fd-marquee--edge-none {"));
+        assert!(out.contains("mask-image: none;"));
+    }
+
+    /// 受け入れ条件（イシュー #1582）: gap のフォールバックが `1rem` の
+    /// 生リテラルではなく共通トークン `--fandhe-space-4` を参照する
+    /// （root/content の `gap` と `@keyframes` の `translateX` の 3 箇所、
+    /// モジュール doc「variant」節参照）。
+    #[test]
+    fn css_output_uses_space_token_for_gap_fallback() {
+        let out = css();
+        assert_eq!(
+            out.matches("var(--fandhe-marquee-gap, var(--fandhe-space-4))")
+                .count(),
+            3,
+            "root gap・content gap・keyframes translateX の 3 箇所で参照される: {out}"
+        );
+        assert!(!out.contains("gap, 1rem)"));
     }
 }

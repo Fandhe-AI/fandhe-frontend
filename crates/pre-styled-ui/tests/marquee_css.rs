@@ -2,18 +2,19 @@
 //! §3.24 の再導入）の決定的 CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/skeleton_css.rs` の golden fixture テストの
-//! 前例に倣い、`css()` が返す CSS 全文をバイト単位で固定する。`direction`
-//! variant ごとの規則・`@keyframes`・`:hover`/`:focus-within` の常時
-//! 一時停止規則・`@media (prefers-reduced-motion: reduce)` を含む全文の
-//! 出力順が崩れた場合や意図しない宣言の追加・欠落があった場合に、この
-//! golden テストが即座に検知する。
+//! 前例に倣い、`css()` が返す CSS 全文をバイト単位で固定する。`direction`/
+//! `edge`（イシュー #1582）variant ごとの規則・`@keyframes`・
+//! `:hover`/`:focus-within` の常時一時停止規則・
+//! `@media (prefers-reduced-motion: reduce)` を含む全文の出力順が崩れた
+//! 場合や意図しない宣言の追加・欠落があった場合に、この golden テストが
+//! 即座に検知する。
 
 use fandhe_frontend_pre_styled_ui::marquee;
 
 const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
   display: flex;
   overflow: hidden;
-  gap: var(--fandhe-marquee-gap, 1rem);
+  gap: var(--fandhe-marquee-gap, var(--fandhe-space-4));
 }
 
 [data-scope="marquee"][data-part="content"] {
@@ -21,8 +22,13 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
   flex: none;
   align-items: center;
   min-width: max-content;
-  gap: var(--fandhe-marquee-gap, 1rem);
-  animation: fd-marquee-scroll var(--fandhe-marquee-duration, 20s) linear infinite;
+  gap: var(--fandhe-marquee-gap, var(--fandhe-space-4));
+  animation-name: fd-marquee-scroll;
+  animation-duration: var(--fandhe-marquee-duration, 20s);
+  animation-timing-function: linear;
+  animation-iteration-count: var(--fandhe-marquee-loop-count, infinite);
+  animation-delay: var(--fandhe-marquee-delay, 0s);
+  animation-fill-mode: forwards;
   animation-direction: var(--fandhe-marquee-direction, normal);
 }
 
@@ -38,12 +44,20 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
   --fandhe-marquee-direction: reverse;
 }
 
+[data-scope="marquee"][data-part="root"].fd-marquee--edge-none {
+  mask-image: none;
+}
+
+[data-scope="marquee"][data-part="root"].fd-marquee--edge-fade {
+  mask-image: linear-gradient(to right, transparent, black var(--fandhe-marquee-edge-size, 20%), black calc(100% - var(--fandhe-marquee-edge-size, 20%)), transparent);
+}
+
 @keyframes fd-marquee-scroll {
   from {
     transform: translateX(0);
   }
   to {
-    transform: translateX(calc(-100% - var(--fandhe-marquee-gap, 1rem)));
+    transform: translateX(calc(-100% - var(--fandhe-marquee-gap, var(--fandhe-space-4))));
   }
 }
 
