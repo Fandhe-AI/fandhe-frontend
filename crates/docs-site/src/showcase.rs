@@ -1317,7 +1317,10 @@ fn badge_section() -> Node {
     )
 }
 
-/// Spinner 節: size バリエーション。
+/// Spinner 節: size・colorPalette バリエーション。
+///
+/// イシュー #1567: track 透明化・半周弧の意匠調整（`badge_section` と
+/// 同型のパレット行）を 6 palette で視覚確認できるようにする。
 fn spinner_section() -> Node {
     let sizes = [
         (Size::Xs, "Loading (xs)"),
@@ -1336,10 +1339,25 @@ fn spinner_section() -> Node {
             })
         })
         .collect());
+    // イシュー #1681/#1567: 共有 `palettes()`（5 値）はまだ Neutral を
+    // 含めない。この節限定で Neutral エントリを末尾へ連結する
+    // （`badge_section` と同型）。
+    let palette_row = row(palettes()
+        .iter()
+        .copied()
+        .chain([(ColorPalette::Neutral, "Neutral")])
+        .map(|(palette, label)| {
+            spinner(&SpinnerProps {
+                palette,
+                label,
+                ..SpinnerProps::default()
+            })
+        })
+        .collect());
     section(
         "Spinner",
         "読み込み中表示。role=\"status\" と aria-label でスクリーンリーダーへ状態を伝えます。",
-        vec![size_row],
+        vec![size_row, palette_row],
     )
 }
 

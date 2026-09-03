@@ -67,8 +67,10 @@
 //!     （`button.rs` モジュール doc 参照）。
 //!   - [`mod@badge`]: [`badge::badge`]（単一 recipe、`<span>`。`palette` variant
 //!     を持つ）。
-//!   - [`mod@spinner`]: [`spinner::spinner`]（単一 recipe、
-//!     `<span role="status">`。`palette` variant を持つ）。
+//!   - [`mod@spinner`]（イシュー #1567 で参考サイト基準へ調整）:
+//!     [`spinner::spinner`]（単一 recipe、`<span role="status">`。`palette`
+//!     variant を持つ。`prefers-reduced-motion: reduce` でのアニメーション
+//!     停止 CSS を持つ）。
 //!   - [`mod@alert`]: [`alert::root`] ほかパーツ関数群（slot recipe、
 //!     root/indicator/content/title/description の 5 パーツ、`role="alert"`。
 //!     `status`（[`alert::AlertStatus`]、内部で 6 役割の `--fandhe-palette-*`
