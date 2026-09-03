@@ -10,6 +10,44 @@
 //! 状態更新をライブ告知する用途ではなく、レンダリング時点の静的な状態表示
 //! であるため。ライブ告知が必要な呼び出し文脈では、呼び出し側が `attrs` へ
 //! `role`/`aria-live` を明示的に足す設計とする）。
+//!
+//! # イシュー #1569 の参照サイト比較（7 軸チェック）
+//!
+//! chakra-ui の Status（`get_component_props("status")` + 参照スクショ
+//! `docs/design/reference-screenshots/chakra-status-{1,2,3}.png`）と
+//! サイズ / バリアント / 色 / `data-*` 状態 / ダーク / フォーカス /
+//! 余白・角丸・影（加えて hover / disabled / transition）の 7 軸で比較した。
+//!
+//! **是正した点**:
+//! - root の `gap` を生値 `0.5rem` から共通トークン
+//!   `var(--fandhe-space-2)` へ切り替えた。
+//! - `--fandhe-status-dot-size` の size 段階値を部品ローカルの生値から
+//!   `var(--fandhe-space-*)` トークンへ切り替えた（4px 格子上の値が
+//!   `space-1`/`1-5`/`2`/`2-5`/`3` に一致するため。
+//!   `docs/design/pre-styled-ui-scale-tokens.md` §5.4 の棚卸しに沿う）。
+//! - indicator に `forced-color-adjust: none` を追加した。indicator の
+//!   背景色（`--fandhe-palette`）が唯一の状態表現であり、Windows 強制配色
+//!   モードで背景色が中和されるとドットの意味が失われるため。
+//!
+//! **意図的に合わせない点**:
+//! - size 段数: chakra は `sm | md | lg` の 3 段だが、当部品は共通 5 段語彙
+//!   （#1678）・Xs/Xl 外挿（#1681）に従い 5 段のまま。既定 `Md` は chakra
+//!   既定 `md` と一致する。
+//! - ドット径のスケーリング方式: chakra は `em` 相対（≈0.64em）で
+//!   font-size に追従するが、当部品は size ごとの段階値を採る。font-size
+//!   も size ごとに段階変化するため視覚比率は追従しつつ、4px 格子トークン
+//!   に載せられる利点を優先した。
+//! - 既定 `colorPalette`: chakra は `gray` だが、当部品は Alert/Badge/
+//!   Spinner/Status の palette 家族で共有する既定 `Accent` を維持する
+//!   （既定変更は利用者の既定出力を変える破壊的変更になるため）。
+//! - variant 軸: 参照 3 サイト（chakra-ui / Ark UI / Radix）のいずれも
+//!   Status に variant 軸を持たないため追加しない。
+//! - hover / disabled / focus ring / transition / `data-*` 状態: 本部品は
+//!   表示専用の静的部品でインタラクティブ slot・状態属性を持たないため
+//!   適用対象外（`docs/design/pre-styled-ui-interaction-visual-language.md`
+//!   §3、`pre-styled-ui-focus-ring-and-size-conventions.md` と同じ判断）。
+//! - ダーク: 全宣言がトークン参照のみ（生色リテラルなし）で
+//!   `write_dark_declarations` に自動追従するため追加対応なし。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -58,7 +96,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
-                decl("gap", "0.5rem"),
+                decl("gap", "var(--fandhe-space-2)"),
             ],
         )
         .base(
@@ -68,17 +106,20 @@ fn recipe() -> SlotRecipe {
                 decl("height", "var(--fandhe-status-dot-size, 0.5rem)"),
                 decl("border-radius", "var(--fandhe-radius-full)"),
                 decl("background", "var(--fandhe-palette)"),
+                decl("forced-color-adjust", "none"),
                 decl("flex-shrink", "0"),
             ],
         )
         // イシュー #1681: Xs は dot-size 0.125rem 刻みの等差進行を外挿。
         // font-size はトークン下限 xs を Sm と共有する。
+        // イシュー #1569: dot-size は 4px 格子上の値が既存の space トークンと
+        // 一致するため生値から `var(--fandhe-space-*)` へ切り替えた。
         .variant(
             Size::Xs,
             "root",
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-xs)"),
-                decl("--fandhe-status-dot-size", "0.25rem"),
+                decl("--fandhe-status-dot-size", "var(--fandhe-space-1)"),
             ],
         )
         .variant(
@@ -86,7 +127,7 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-xs)"),
-                decl("--fandhe-status-dot-size", "0.375rem"),
+                decl("--fandhe-status-dot-size", "var(--fandhe-space-1-5)"),
             ],
         )
         .variant(
@@ -94,7 +135,7 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-sm)"),
-                decl("--fandhe-status-dot-size", "0.5rem"),
+                decl("--fandhe-status-dot-size", "var(--fandhe-space-2)"),
             ],
         )
         .variant(
@@ -102,7 +143,7 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-md)"),
-                decl("--fandhe-status-dot-size", "0.625rem"),
+                decl("--fandhe-status-dot-size", "var(--fandhe-space-2-5)"),
             ],
         )
         .variant(
@@ -110,7 +151,7 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-lg)"),
-                decl("--fandhe-status-dot-size", "0.75rem"),
+                decl("--fandhe-status-dot-size", "var(--fandhe-space-3)"),
             ],
         )
         .default_variant(Size::Md)
@@ -292,7 +333,8 @@ mod tests {
     fn css_output_declares_dot_size_and_radius_tokens() {
         let out = css();
         assert!(out.contains("border-radius: var(--fandhe-radius-full);"));
-        assert!(out.contains("--fandhe-status-dot-size: 0.5rem;"));
+        assert!(out.contains("--fandhe-status-dot-size: var(--fandhe-space-2);"));
+        assert!(out.contains("forced-color-adjust: none;"));
         assert!(out.contains("--fandhe-palette: var(--fandhe-color-danger)"));
     }
 

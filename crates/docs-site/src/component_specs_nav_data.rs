@@ -707,16 +707,25 @@ fn ex_status() -> Node {
 
 pub(crate) const STATUS: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "colorPalette 軸（crates/pre-styled-ui/src/status.rs:77-81）でセマンティック色を選択する",
+        "colorPalette 軸（crates/pre-styled-ui/src/status.rs:70-74）でセマンティック色を選択する",
+        "size 軸（Xs〜Xl、status.rs:67-69）でドット径（--fandhe-status-dot-size）と文字サイズが連動する",
         "root/indicator の 2 パーツのみで構成する最小部品",
         "role=\"status\"（WAI-ARIA live region）は付与しない設計（status.rs:9-12、非同期の状態遷移がある場合は呼び出し側が明示的に足す）",
     ],
-    arguments: &[ArgRow {
-        name: "palette",
-        kind: "ColorPalette",
-        default: "Accent",
-        description: "colorPalette 軸（status.rs:77-90）。",
-    }],
+    arguments: &[
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ軸（status.rs:67-69）。ドット径と文字サイズが連動する。",
+        },
+        ArgRow {
+            name: "palette",
+            kind: "ColorPalette",
+            default: "Accent",
+            description: "colorPalette 軸（status.rs:70-74）。",
+        },
+    ],
     examples: &[ExampleEntry {
         title: "Success",
         description: "Success パレットで \"Online\" を表示する例です。",
