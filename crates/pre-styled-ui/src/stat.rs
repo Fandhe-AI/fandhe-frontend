@@ -78,9 +78,13 @@
 //! - **余白**: `root` に `margin: 0`（`<dl>` の UA 既定 `margin-block: 1em`
 //!   を打ち消す、[`crate::heading`] の marginless 方針と同型）、`label` を
 //!   `display: flex; gap: var(--fandhe-space-1)`、`help-text` を
-//!   `display: inline-flex; align-items: center`（indicator の垂直中央
-//!   揃え）、`up-indicator`/`down-indicator` に `flex-shrink: 0` と
-//!   `margin-inline-end: var(--fandhe-space-1)` を追加。
+//!   `display: inline-flex; align-items: center; gap: var(--fandhe-space-1)`
+//!   （indicator の垂直中央揃えと後続テキストとの間隔）、`up-indicator`/
+//!   `down-indicator` には `flex-shrink: 0` のみを付け margin は持たせない
+//!   （間隔は常に親側の `gap` が一括負担する。indicator 自身に
+//!   `margin-inline-end` を持たせると `value-text`/`label` の `gap` と
+//!   二重適用され過剰余白になるため、イシュー #1568 codex-review 指摘を
+//!   受けて是正した）。
 //!
 //! # letter-spacing リテラルと [`crate::heading`] との整合トレードオフ
 //!
@@ -213,6 +217,11 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
+                // indicator（up/down-indicator）と後続テキストの間隔を
+                // ここで一括負担する（indicator 自身に margin を持たせると
+                // value-text/label 側の gap と二重適用され過剰余白になる
+                // ため。イシュー #1568 codex-review 指摘）。
+                decl("gap", "var(--fandhe-space-1)"),
                 decl("font-size", "var(--fandhe-font-font-size-xs)"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
@@ -226,7 +235,9 @@ fn recipe() -> SlotRecipe {
                 decl("flex-shrink", "0"),
                 decl("width", "0.75em"),
                 decl("height", "0.75em"),
-                decl("margin-inline-end", "var(--fandhe-space-1)"),
+                // margin は持たない: 間隔は親（value-text/label の gap、
+                // help-text の gap）が一括負担する（イシュー #1568
+                // codex-review 指摘。二重適用による過剰余白の是正）。
                 decl("clip-path", "polygon(50% 0%, 100% 100%, 0% 100%)"),
                 decl("background", "var(--fandhe-color-success-emphasized)"),
             ],
@@ -239,7 +250,7 @@ fn recipe() -> SlotRecipe {
                 decl("flex-shrink", "0"),
                 decl("width", "0.75em"),
                 decl("height", "0.75em"),
-                decl("margin-inline-end", "var(--fandhe-space-1)"),
+                // margin は持たない（up-indicator と同じ理由）。
                 decl("clip-path", "polygon(0% 0%, 100% 0%, 50% 100%)"),
                 decl("background", "var(--fandhe-color-danger-emphasized)"),
             ],
@@ -553,14 +564,33 @@ mod tests {
         assert!(root_block[..block_end].contains("margin: 0;"));
     }
 
-    /// indicator の余白（`margin-inline-end`）と `flex-shrink: 0` を固定する
-    /// （イシュー #1568、help-text の垂直中央揃えと合わせて三角と数値の
-    /// 間隔を確保する）。
+    /// indicator は `flex-shrink: 0` のみを持ち、margin を持たないことを
+    /// 固定する（イシュー #1568 codex-review 指摘の是正。間隔は親（
+    /// value-text/label/help-text）の `gap` が一括負担するため、indicator
+    /// 自身に `margin-inline-end` を持たせると二重適用になる）。
     #[test]
-    fn indicators_have_inline_end_margin_and_no_shrink() {
+    fn indicators_have_no_shrink_and_no_margin() {
         let out = css();
-        assert!(out.contains("margin-inline-end: var(--fandhe-space-1);"));
         assert!(out.contains("flex-shrink: 0;"));
+        let up_block_start = out.find(r#"[data-part="up-indicator"] {"#).unwrap();
+        let up_block = &out[up_block_start..];
+        let up_block_end = up_block.find('}').unwrap();
+        assert!(!up_block[..up_block_end].contains("margin"));
+        let down_block_start = out.find(r#"[data-part="down-indicator"] {"#).unwrap();
+        let down_block = &out[down_block_start..];
+        let down_block_end = down_block.find('}').unwrap();
+        assert!(!down_block[..down_block_end].contains("margin"));
+    }
+
+    /// help-text が indicator との間隔を `gap` で一括負担することを固定する
+    /// （イシュー #1568 codex-review 指摘の是正）。
+    #[test]
+    fn help_text_has_gap_for_indicator_spacing() {
+        let out = css();
+        let block_start = out.find(r#"[data-part="help-text"] {"#).unwrap();
+        let block = &out[block_start..];
+        let block_end = block.find('}').unwrap();
+        assert!(block[..block_end].contains("gap: var(--fandhe-space-1);"));
     }
 
     /// help-text/value-unit の font-size が xs へ調整されたことを固定する

@@ -43,6 +43,7 @@ const STAT_GOLDEN_CSS: &str = r#"[data-scope="stat"][data-part="root"] {
 [data-scope="stat"][data-part="help-text"] {
   display: inline-flex;
   align-items: center;
+  gap: var(--fandhe-space-1);
   font-size: var(--fandhe-font-font-size-xs);
   color: var(--fandhe-color-fg-muted);
 }
@@ -52,7 +53,6 @@ const STAT_GOLDEN_CSS: &str = r#"[data-scope="stat"][data-part="root"] {
   flex-shrink: 0;
   width: 0.75em;
   height: 0.75em;
-  margin-inline-end: var(--fandhe-space-1);
   clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
   background: var(--fandhe-color-success-emphasized);
 }
@@ -62,7 +62,6 @@ const STAT_GOLDEN_CSS: &str = r#"[data-scope="stat"][data-part="root"] {
   flex-shrink: 0;
   width: 0.75em;
   height: 0.75em;
-  margin-inline-end: var(--fandhe-space-1);
   clip-path: polygon(0% 0%, 100% 0%, 50% 100%);
   background: var(--fandhe-color-danger-emphasized);
 }
