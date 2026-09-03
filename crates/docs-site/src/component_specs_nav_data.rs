@@ -116,8 +116,7 @@ pub(crate) const ALERT: ComponentPageSpec = ComponentPageSpec {
 
 fn ex_avatar() -> Node {
     avatar::root(
-        Size::Md,
-        avatar::AvatarShape::Circle,
+        &avatar::AvatarProps::default(),
         vec![],
         vec![avatar::fallback(
             avatar::ImageStatus::Error,
@@ -129,16 +128,38 @@ fn ex_avatar() -> Node {
 
 pub(crate) const AVATAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "AvatarShape（Circle/Rounded/Square、crates/pre-styled-ui/src/avatar.rs:98）で外形を切り替える",
-        "ImageStatus に連動して image/fallback パーツの表示・非表示を CSS の [data-state=\"hidden\"] で切り替える（avatar.rs:291-297）",
+        "AvatarShape（Circle/Rounded/Square、crates/pre-styled-ui/src/avatar.rs）で外形を切り替える",
+        "AvatarVariant（Subtle/Solid/Outline、イシュー #1554 で追加）で見た目バリアントを切り替える",
+        "ColorPalette（6 値、既定 Neutral、イシュー #1554 で追加）で colorPalette 軸を切り替える",
+        "ImageStatus に連動して image/fallback パーツの表示・非表示を CSS の [data-state=\"hidden\"] で切り替える",
         "image パーツは alt テキストを必須引数として要求する（avatar.rs 内 image 再エクスポート）",
     ],
-    arguments: &[ArgRow {
-        name: "shape",
-        kind: "AvatarShape",
-        default: "Circle",
-        description: "外形（avatar.rs:98-106、#[default] は Circle）。",
-    }],
+    arguments: &[
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ（avatar.rs の AvatarProps、#[default] は Md。イシュー #1554 で 24/32/40/48/56px へ是正）。",
+        },
+        ArgRow {
+            name: "shape",
+            kind: "AvatarShape",
+            default: "Circle",
+            description: "外形（avatar.rs の AvatarShape、#[default] は Circle）。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "AvatarVariant",
+            default: "Subtle",
+            description: "見た目バリアント（avatar.rs の AvatarVariant、#[default] は Subtle。イシュー #1554 で追加）。",
+        },
+        ArgRow {
+            name: "palette",
+            kind: "ColorPalette",
+            default: "Neutral",
+            description: "colorPalette 軸（avatar.rs の AvatarProps、#[default] は Neutral。イシュー #1554 で追加）。",
+        },
+    ],
     examples: &[ExampleEntry {
         title: "Fallback",
         description: "画像読み込み失敗（ImageStatus::Error）時のイニシャル表示例です。",

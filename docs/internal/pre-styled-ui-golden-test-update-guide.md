@@ -104,12 +104,12 @@ CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約�
 `xss_escape.rs` / `xss_escape_styled.rs` によるレンダリング・エスケープ検証
 のみが存在します。新設の要否は Phase 1 の各部品 issue の判断に委ねます。
 
-- `stylesheet()` を持つ 19 部品: action_bar / angle_slider / avatar /
+- `stylesheet()` を持つ 18 部品: action_bar / angle_slider /
   breadcrumb / calendar / clipboard / combobox / date_picker /
   json_tree_view / link / link_overlay / nav_list / scroll_area /
   segment_group / signature_pad / slider / toggle / toggle_group /
-  tree_view（`toolbar` はイシュー #1547 で golden 追加済みのため本リストから
-  除外）
+  tree_view（`toolbar` はイシュー #1547、`avatar` はイシュー #1554 で
+  golden 追加済みのため本リストから除外）
 - `css()` を持つ 3 部品: badge / card / spinner（`alert` はイシュー #1553 で
   golden 新設済みのため本リストから除外）
 - charts 内部パーツ 3 件（`css()` を持つが golden なし）: `charts::bar_chart` /
@@ -131,11 +131,12 @@ grep -l '\b<snake>::' crates/pre-styled-ui/tests/*.rs | xargs -n1 basename
   - `tooltip::` → `charts_parts_css.rs`（`charts::tooltip`）と
     `popover_tooltip_css.rs`（styled `tooltip`）の 2 件。どちらの `tooltip`
     かはヒット元ファイルの `use` 文で判別してください
-  - `avatar::` は golden ではなく `checkbox_card_css.rs` /
-    `data_attr_vocabulary.rs` / `hover_card_css.rs` / `radio_card_css.rs` /
-    `smoke.rs` / `xss_escape_styled.rs` にヒットします（golden 不在部品を
-    誤って golden ありと判断しないよう、ヒット先のファイル名が `_css.rs`
-    でも §3.3 記載の golden 不在部品でないか必ず確認してください）
+  - `avatar::` は `avatar_css.rs`（イシュー #1554 で追加した golden）に加え
+    `checkbox_card_css.rs` / `data_attr_vocabulary.rs` / `hover_card_css.rs` /
+    `radio_card_css.rs` / `smoke.rs` / `xss_escape_styled.rs` にもヒットし
+    ます（golden 不在部品を誤って golden ありと判断しないよう、ヒット先の
+    ファイル名が `_css.rs` でも §3.3 記載の golden 不在部品でないか必ず
+    確認してください）
 - `charts::` 配下の部品は `charts::<sub>::` で grep してください（例:
   `charts::axis::`）。単に `axis::` だけで grep すると無関係なヒットが
   混ざることがあります。

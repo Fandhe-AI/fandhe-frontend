@@ -381,15 +381,26 @@ let _style_node = sheet.style_element();
   つもりで `Avatar::root()` を呼びレイアウトが静かに崩れる事故を誘発する。
   `Avatar` による状態管理・hydration が必要な呼び出し側は
   `fandhe_frontend_headless_ui::avatar::Avatar` を直接 import すること。
-- **`root(size, shape, attrs, children) -> Node`**: styled root パーツ。
-  `size`（`Size::Sm`/`Md`/`Lg`、既定 `Md`）・`shape`（`AvatarShape::Circle`/
-  `Rounded`/`Square`、既定 `Circle`）の 2 軸 variant に応じたクラス
-  （`fd-avatar--size-<value>` / `fd-avatar--shape-<value>`）を付与する。
-  呼び出し側 `attrs` の `class` は除去してから合成するため `class` 属性は
-  常に単一。実体は `fandhe_frontend_headless_ui::avatar::root` へ委譲する
-  （呼び出し側 `data-scope`/`data-part` 偽装は headless 側で除去される）。
+- **`root(&AvatarProps, attrs, children) -> Node`**: styled root パーツ
+  （イシュー #1554 で `root(size, shape, attrs, children)` の位置引数
+  4 軸から Props 構造体へ破壊的変更。0.x の破壊的変更のためマイナー
+  バンプ）。`AvatarProps` の `size`（`Size::Xs`〜`Xl`、既定 `Md`）・
+  `shape`（`AvatarShape::Circle`/`Rounded`/`Square`、既定 `Circle`）・
+  `variant`（`AvatarVariant::Subtle`/`Solid`/`Outline`、既定 `Subtle`）・
+  `palette`（`ColorPalette` 6 値、既定 `Neutral`）の 4 軸 variant に応じた
+  クラス（`fd-avatar--size-<value>` / `fd-avatar--shape-<value>` /
+  `fd-avatar--variant-<value>` / `fd-avatar--color-palette-<value>`）を
+  付与する。呼び出し側 `attrs` の `class` は除去してから合成するため
+  `class` 属性は常に単一。実体は
+  `fandhe_frontend_headless_ui::avatar::root` へ委譲する（呼び出し側
+  `data-scope`/`data-part` 偽装は headless 側で除去される）。
 - **`AvatarShape`**: `recipe::VariantValue` 実装 enum（`Size` と並ぶ本
   クレート 2 例目の variant 軸）。
+- **`AvatarVariant`**（イシュー #1554 で新設）: `Subtle`（既定）/`Solid`/
+  `Outline` の 3 値。`BadgeVariant`/`KbdVariant` と同名の語彙。
+- **`AvatarProps`**（イシュー #1554 で新設）: `size`/`shape`/`variant`/
+  `palette` の 4 フィールドを持つ `root` の設定構造体（`KbdProps` と
+  同型）。`Default` は `Md`/`Circle`/`Subtle`/`Neutral`。
 - **`stylesheet() -> String`**: この styled Avatar の静的 CSS 全量を返す
   （決定的）。`image`/`fallback` の base 規則は `display` を宣言せず、
   headless 層が付与する `hidden` 存在属性（UA 既定 `[hidden] { display:
@@ -449,7 +460,7 @@ CSS を追加提供する（設計方針は他 headless ラッパーと同じ、
 | button/badge/spinner | ✓ | ✓ | button は icon-only 修飾 variant（`icon_button`/`close_button`）を追加。専用の `icon`/`close-button` 行は設けない: `data-scope="button"` を共有する variant 拡張であり別部品ではないため |
 | callout | ✓ | ✓ | 本文中の補足情報。alert と異なり live region ではない（イシュー #994） |
 | alert | ✓ | –（`status`） | `status`（Info/Success/Warning/Error/Neutral、内部で `ColorPalette` へ写像）に加え `variant`（Subtle/Surface/Solid/Outline、既定 Subtle）を持つ（イシュー #1553） |
-| avatar | ✓ | – (shape) | — |
+| avatar | ✓ | ✓（既定 Neutral） | variant（subtle/solid/outline）・shape の 2 軸も併せ持つ（イシュー #1554） |
 | switch | ✓ | ✓ | — |
 | radio-group | ✓ | ✓ | — |
 | checkbox | ✓ | ✓ | — |

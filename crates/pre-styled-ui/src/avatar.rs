@@ -1,4 +1,6 @@
-//! styled Avatar（headless ラッパー、イシュー #684、親 #680/#681）。
+//! styled Avatar（headless ラッパー、イシュー #684、親 #680/#681。
+//! イシュー #1554 で参照サイト基準（chakra-ui/Radix Themes）へスタイル
+//! 調整済み）。
 //!
 //! `fandhe_frontend_headless_ui::avatar`（イシュー #543/#569）の Root /
 //! Image / Fallback 3 anatomy パーツと [`Avatar`] 状態機械を薄く再利用し、
@@ -17,27 +19,69 @@
 //! 状態機械 [`fandhe_frontend_headless_ui::avatar::Avatar`] は**あえて**
 //! 再エクスポートしない（PR #695 Bugbot 指摘、イシュー #684）。`Avatar` は
 //! `.root(attrs, children)` という inherent メソッドを持つが、これは
-//! headless 自由関数 `root` へそのまま委譲するのみで `size`/`shape`
-//! variant クラスを一切付与しない（[`root`] とは別の、未スタイルの実体）。
-//! 本モジュールが `Avatar` を丸ごと再エクスポートすると、呼び出し側が
-//! （styled 層のつもりで）`avatar_instance.root(...)` を呼んでしまい、
-//! base 属性のスタイルは効くが `size`/`shape` が付与されずレイアウトが
-//! 静かに崩れる事故を誘発する（Rust の可視性機構では外部型の inherent
-//! メソッドだけを選択的に隠せないため、型自体を再エクスポートしないことが
-//! 唯一の fail-closed な対策）。`Avatar` による状態管理・hydration が
-//! 必要な呼び出し側は `fandhe_frontend_headless_ui::avatar::Avatar` を
-//! 直接 import し、実際の描画は本モジュールの styled [`root`]（および
-//! 再エクスポート済みの [`image`]/[`fallback`]、`status()` は
-//! `Avatar::status()` から取得）を組み合わせて構築すること。
+//! headless 自由関数 `root` へそのまま委譲するのみで variant クラスを
+//! 一切付与しない（[`root`] とは別の、未スタイルの実体）。本モジュールが
+//! `Avatar` を丸ごと再エクスポートすると、呼び出し側が（styled 層のつもりで）
+//! `avatar_instance.root(...)` を呼んでしまい、base 属性のスタイルは効くが
+//! variant クラスが付与されずレイアウトが静かに崩れる事故を誘発する
+//! （Rust の可視性機構では外部型の inherent メソッドだけを選択的に隠せない
+//! ため、型自体を再エクスポートしないことが唯一の fail-closed な対策）。
+//! `Avatar` による状態管理・hydration が必要な呼び出し側は
+//! `fandhe_frontend_headless_ui::avatar::Avatar` を直接 import し、実際の
+//! 描画は本モジュールの styled [`root`]（および再エクスポート済みの
+//! [`image`]/[`fallback`]、`status()` は `Avatar::status()` から取得）を
+//! 組み合わせて構築すること。
 //!
-//! # variant（size/shape）について
+//! # イシュー #1554 の参照サイト比較（7 軸チェック）
 //!
-//! Avatar は本クレート最初の styled 部品として、単一 recipe に 2 軸の
-//! variant（[`Size`]・[`AvatarShape`]）を持つ（chakra-ui Avatar の
-//! size/shape を最小構成へ縮約）。variant クラスは `root` パーツのみに
-//! 付与し、`image`/`fallback` はクラスを持たない
-//! （[`crate::card::root`] が variant クラスを root のみへ付与する判断と
-//! 同型）。
+//! chakra-ui（Avatar、`size`（`2xs`〜`2xl`）+ `variant`（`solid`(既定)/
+//! `subtle`/`outline`）+ `colorPalette` 連動、既定 `gray`）・Radix Themes
+//! （Avatar、`size`（1〜9）+ `variant`（`solid`(既定)/`soft`）+ `color`）と
+//! スクリーンショット（`docs/design/reference-screenshots/{chakra,radixt,radixp,ark}-avatar-*.png`）
+//! 比較した結果を記録する。
+//!
+//! - **サイズ**: chakra `xs/sm/md/lg/xl` = 24/32/40/48/56px、Radix
+//!   `size="1"`〜`"4"` = 24/32/40/48px の両者が一致する段へ是正した（旧実装は
+//!   #1681 の機械的外挿で Md = 48px と両参照サイトより 1 段大きかった）。
+//!   font-size は旧実装の「Size と同名トークン 1:1」から、イニシャルが円内に
+//!   収まる比率（chakra 実測 ≒ 35%）に合わせて「1 段下のトークン」へ変更した
+//!   （下限の [`crate::recipe::Size::Xs`] は下限トークン `font-size-xs` に
+//!   底打ちする）。共通 [`crate::recipe::Size`] enum の段数（5）は変更しない
+//!   （chakra `2xs`/`2xl`、Radix 5〜9・`highContrast` は共通語彙の範囲外の
+//!   細分化のため非採用。badge/tag/code/kbd 等、既存 styled 部品と同じ
+//!   判断軸）。
+//! - **バリアント**: [`AvatarVariant`]（`Subtle`(既定)/`Solid`/`Outline`）を
+//!   新設した（本リポジトリ既存語彙 `BadgeVariant`/`KbdVariant` と同名）。
+//!   Radix の `soft` は `Subtle` に読み替え、Radix `classic`/`solid` の
+//!   ハイコントラスト指定・chakra `plain` は最小サブセット方針（badge/code
+//!   と同じ判断）により見送る。既定を chakra/Radix の `solid` ではなく
+//!   `Subtle` にするのは、旧実装の灰色フラット外観からの見た目乖離を最小化
+//!   するため（[`ColorPalette::Neutral`] 既定と合わせ、変更なし呼び出しの
+//!   既存デモの見た目を保つ）。
+//! - **色**: [`ColorPalette`] 軸（6 値）を新設した。既定 palette は chakra
+//!   Avatar の既定 colorPalette（`gray`）に合わせ [`ColorPalette::Neutral`]
+//!   とする（kbd #1436・code #1717 と同じ判断）。
+//! - **状態（hover/disabled/transition）・フォーカスリング**: 適用しない
+//!   （意図的）。Avatar root は表示専用の `<div>` でインタラクティブ slot を
+//!   持たず、`docs/design/pre-styled-ui-interaction-visual-language.md`
+//!   （hover はインタラクティブ slot のみ）の適用対象に当たらない。参照
+//!   3 サイト（chakra/Radix Themes/ark-ui）のいずれも avatar 単体に
+//!   hover/focus-visible リングを持たない。image/fallback の表示切替は
+//!   `display: none` の即時切り替えでありアニメーション対象がないため
+//!   `transition_declarations` も付与しない。
+//! - **ダーク**: 全宣言を `--fandhe-*` トークン参照へ寄せた（旧実装の生色
+//!   リテラルは元々含まない）ため `write_dark_declarations` の一元機構に
+//!   自動追従する。
+//! - **余白・角丸・影・その他 base**: root base に `position: relative`
+//!   （chakra、将来の重ね表示バッジのアンカーとして）と `box-sizing:
+//!   border-box`（`Outline` variant の 1px 枠線を足してもサイズが変わらない
+//!   ように）を追加した。`image` base に `border-radius: inherit`（chakra、
+//!   image が root の角丸をはみ出さないように）を追加した。`fallback` base
+//!   の `font-weight` を `semibold` から `medium`（chakra/Radix Themes とも
+//!   `medium`）へ変更し、`text-transform: uppercase`（両参照サイト共通）を
+//!   追加した。角丸トークン（`--fandhe-radius-full`/`-lg`/`0`）は変更しない
+//!   （参照サイトと相当）。影は参照サイトも avatar に付与しないため追加
+//!   しない。
 //!
 //! # `image`/`fallback` の base 規則が `display` を宣言しない理由
 //!
@@ -67,20 +111,27 @@
 //! - styled `root` は headless [`fandhe_frontend_headless_ui::avatar::root`]
 //!   へ委譲するため、呼び出し側 `attrs` の `data-scope`/`data-part` 偽装除去
 //!   （headless anatomy の fail-closed 挙動）をそのまま継承する。
+//! - すべての配色宣言は `--fandhe-*` トークン参照経由（[`palette_scale_declarations`]
+//!   含む）で生成し、生の色リテラル（`#`/`rgb`/`hsl` 等）を一切埋め込まない。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `examples/headless-pre-styled-ui` の手書き avatar CSS 撤去・本モジュール
 //!   への切り替えは #680 配下の後続イシューのスコープ（既存トラッキング
-//!   あり）。
+//!   あり）。crates.io バージョン依存（0.40.0）のため本イシュー #1554 の
+//!   `root` シグネチャ破壊は同 example へ反映しない（公開後の別 PR）。
 //! - crates.io への公開・利用側依存追随は #686 のスコープ。
 //! - headless 共通型の再エクスポート整備は #685 のスコープ。
 //! - 画像 `load`/`error` イベントの wasm グルーは headless 層 doc 記載済みの
 //!   既存スコープ外を継承する。
+//! - `Avatar.Group`（重ね表示・attached）部品の新設可否は #1554 のスコープ外
+//!   （Issue 化候補として記録）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    palette_scale_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+};
 // `Avatar` 状態機械はあえて再エクスポートしない（本モジュール冒頭の rustdoc
 // 「`Avatar` 型を再エクスポートしない理由」参照）。状態管理・hydration が
 // 必要な呼び出し側は `fandhe_frontend_headless_ui::avatar::Avatar` を直接 import する。
@@ -119,18 +170,73 @@ impl VariantValue for AvatarShape {
     }
 }
 
+/// Avatar の見た目 variant（イシュー #1554 で新設。[`crate::badge::BadgeVariant`]/
+/// [`crate::kbd::KbdVariant`] と同名の 3 値。本モジュール冒頭 rustdoc
+/// 「イシュー #1554 の参照サイト比較」参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AvatarVariant {
+    /// 淡色背景（既定。旧実装の灰色フラット外観からの乖離を避ける）。
+    #[default]
+    Subtle,
+    /// 濃色背景 + コントラスト文字色。
+    Solid,
+    /// 背景なし + 枠線。
+    Outline,
+}
+
+impl VariantValue for AvatarVariant {
+    fn axis(self) -> &'static str {
+        "variant"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Subtle => "subtle",
+            Self::Solid => "solid",
+            Self::Outline => "outline",
+        }
+    }
+}
+
+/// [`root`] の設定（イシュー #1554 で `size`/`shape` の 2 引数から
+/// `variant`/`palette` を加えた 4 軸へ拡張し、可読性のため位置引数から
+/// Props 構造体へ移行した。[`crate::kbd::KbdProps`] と同型）。
+#[derive(Debug, Clone, Copy)]
+pub struct AvatarProps {
+    /// サイズ variant（既定 `Md`）。
+    pub size: Size,
+    /// 外形（既定 `Circle`）。
+    pub shape: AvatarShape,
+    /// 見た目 variant（既定 `Subtle`）。
+    pub variant: AvatarVariant,
+    /// colorPalette 軸（既定 `Neutral`。chakra Avatar の既定 colorPalette
+    /// `gray` に合わせる）。
+    pub palette: ColorPalette,
+}
+
+impl Default for AvatarProps {
+    fn default() -> Self {
+        AvatarProps {
+            size: Size::Md,
+            shape: AvatarShape::Circle,
+            variant: AvatarVariant::Subtle,
+            palette: ColorPalette::Neutral,
+        }
+    }
+}
+
 /// この styled Avatar の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`]
 /// のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
-    SlotRecipe::new("avatar", SLOTS)
+    let mut recipe = SlotRecipe::new("avatar", SLOTS)
         .base(
             "root",
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
                 decl("justify-content", "center"),
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-color-fg)"),
+                decl("position", "relative"),
+                decl("box-sizing", "border-box"),
                 decl("overflow", "hidden"),
                 decl("flex-shrink", "0"),
                 decl("user-select", "none"),
@@ -142,13 +248,15 @@ fn recipe() -> SlotRecipe {
                 decl("width", "100%"),
                 decl("height", "100%"),
                 decl("object-fit", "cover"),
+                decl("border-radius", "inherit"),
             ],
         )
         .base(
             "fallback",
             vec![
-                decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
                 decl("line-height", "1"),
+                decl("text-transform", "uppercase"),
             ],
         )
         // headless 層の `hidden` 存在属性（UA 既定 `[hidden] { display: none }`）
@@ -165,28 +273,39 @@ fn recipe() -> SlotRecipe {
             StateCondition::AttrEq("data-state", "hidden"),
             vec![decl("display", "none")],
         )
-        // イシュー #1681: Xs/Xl は Sm(2)→Md(3)→Lg(4) の 1rem 刻み等差進行を
-        // 両端へ外挿。font-size はトークン名を Size と同名の段へ 1:1 対応。
+        // イシュー #1554: chakra `xs/sm/md/lg/xl`（24/32/40/48/56px）と Radix
+        // Themes `size="1"`〜`"4"`（24/32/40/48px）が一致する段へ是正
+        // （旧 #1681 の機械的外挿は Md = 48px で両参照サイトより 1 段大きかった）。
+        // font-size は「1 段下のトークン」（chakra 実測のイニシャル/円比 ≒ 35%）。
         .variant(
-            crate::recipe::Size::Xs,
+            Size::Xs,
             "root",
             vec![
-                decl("width", "1rem"),
-                decl("height", "1rem"),
+                decl("width", "1.5rem"),
+                decl("height", "1.5rem"),
                 decl("font-size", "var(--fandhe-font-font-size-xs)"),
             ],
         )
         .variant(
-            crate::recipe::Size::Sm,
+            Size::Sm,
             "root",
             vec![
                 decl("width", "2rem"),
                 decl("height", "2rem"),
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+            ],
+        )
+        .variant(
+            Size::Md,
+            "root",
+            vec![
+                decl("width", "2.5rem"),
+                decl("height", "2.5rem"),
                 decl("font-size", "var(--fandhe-font-font-size-sm)"),
             ],
         )
         .variant(
-            crate::recipe::Size::Md,
+            Size::Lg,
             "root",
             vec![
                 decl("width", "3rem"),
@@ -195,24 +314,15 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .variant(
-            crate::recipe::Size::Lg,
+            Size::Xl,
             "root",
             vec![
-                decl("width", "4rem"),
-                decl("height", "4rem"),
+                decl("width", "3.5rem"),
+                decl("height", "3.5rem"),
                 decl("font-size", "var(--fandhe-font-font-size-lg)"),
             ],
         )
-        .variant(
-            crate::recipe::Size::Xl,
-            "root",
-            vec![
-                decl("width", "5rem"),
-                decl("height", "5rem"),
-                decl("font-size", "var(--fandhe-font-font-size-xl)"),
-            ],
-        )
-        .default_variant(crate::recipe::Size::Md)
+        .default_variant(Size::Md)
         .variant(
             AvatarShape::Circle,
             "root",
@@ -229,6 +339,48 @@ fn recipe() -> SlotRecipe {
             vec![decl("border-radius", "0")],
         )
         .default_variant(AvatarShape::Circle)
+        // イシュー #1554: variant/palette 軸を新設。Subtle は Neutral の
+        // `-subtle`（#f7f7f7 相当、白背景との区別がつかない）ではなく
+        // `-muted` を使う（chakra のスクショが示す灰色円と一致させるため）。
+        .variant(
+            AvatarVariant::Subtle,
+            "root",
+            vec![
+                decl("background", "var(--fandhe-palette-muted)"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
+            ],
+        )
+        .variant(
+            AvatarVariant::Solid,
+            "root",
+            vec![
+                decl("background", "var(--fandhe-palette)"),
+                decl("color", "var(--fandhe-palette-fg)"),
+            ],
+        )
+        .variant(
+            AvatarVariant::Outline,
+            "root",
+            vec![
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
+                decl("border", "1px solid var(--fandhe-palette-muted)"),
+            ],
+        )
+        .default_variant(AvatarVariant::Subtle)
+        .default_variant(ColorPalette::Neutral);
+
+    for palette in [
+        ColorPalette::Accent,
+        ColorPalette::Info,
+        ColorPalette::Success,
+        ColorPalette::Warning,
+        ColorPalette::Danger,
+        ColorPalette::Neutral,
+    ] {
+        recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
+    }
+    recipe
 }
 
 /// この styled Avatar が生成する静的 CSS 全量を返す（決定的。
@@ -238,30 +390,29 @@ pub fn stylesheet() -> String {
     recipe().css()
 }
 
-/// styled root パーツを組み立てる。`size`/`shape` に応じたクラスを付与する
-/// 唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去して
-/// から合成する）。実体は
+/// styled root パーツを組み立てる。`size`/`shape`/`variant`/`palette` に
+/// 応じたクラスを付与する唯一のパーツ（[`drop_class_attr`] により呼び出し側
+/// の `class` は除去してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::avatar::root`] へ委譲する。
 ///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape};
-/// use fandhe_frontend_pre_styled_ui::Size;
+/// use fandhe_frontend_pre_styled_ui::avatar::{root, AvatarProps};
 ///
-/// let node = avatar::root(Size::Md, AvatarShape::default(), vec![], vec![]);
+/// let node = root(&AvatarProps::default(), vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="avatar" data-part="root""#));
 /// ```
 #[must_use]
-pub fn root<'a>(
-    size: crate::recipe::Size,
-    shape: AvatarShape,
-    attrs: Vec<(&'a str, &'a str)>,
-    children: Vec<Node>,
-) -> Node {
+pub fn root<'a>(props: &AvatarProps, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[("size", size.value()), ("shape", shape.value())]);
+    let class = recipe.variant_classes(&[
+        ("size", props.size.value()),
+        ("shape", props.shape.value()),
+        ("variant", props.variant.value()),
+        ("color-palette", props.palette.value()),
+    ]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::avatar::root(merged, children)
@@ -277,12 +428,7 @@ mod tests {
 
     #[test]
     fn root_outputs_scope_and_part() {
-        let html = render(&root(
-            crate::recipe::Size::Md,
-            AvatarShape::Circle,
-            vec![],
-            vec![],
-        ));
+        let html = render(&root(&AvatarProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="avatar""#));
         assert!(html.contains(r#"data-part="root""#));
     }
@@ -292,8 +438,7 @@ mod tests {
         // headless anatomy の fail-closed 偽装除去（`Anatomy::part`）を
         // styled root 経由でも継承していることの回帰。
         let html = render(&root(
-            crate::recipe::Size::Md,
-            AvatarShape::Circle,
+            &AvatarProps::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
@@ -324,7 +469,7 @@ mod tests {
     #[test]
     fn image_and_fallback_base_rules_do_not_declare_display() {
         // `[hidden]`（詳細度 (0,1,0)）に対し `[data-scope][data-part]`
-        // （詳細度 (0,2,0)）が勝ってしまう回帰を防ぐ（本モジュール rustdoc
+        // （詳細度 (0,2,0)）が勝ってしまう回帰を防ぐ（本モジュール冒頭の rustdoc
         // 「`image`/`fallback` の base 規則が `display` を宣言しない理由」）。
         let css = stylesheet();
         let image_base_start = css
@@ -370,25 +515,28 @@ mod tests {
     // --- variant クラス ---
 
     #[test]
-    fn default_variant_is_md_and_circle() {
-        let html = render(&root(
-            crate::recipe::Size::Md,
-            AvatarShape::default(),
-            vec![],
-            vec![],
-        ));
+    fn default_variant_is_md_circle_subtle_neutral() {
+        let html = render(&root(&AvatarProps::default(), vec![], vec![]));
         assert!(html.contains("fd-avatar--size-md"));
         assert!(html.contains("fd-avatar--shape-circle"));
+        assert!(html.contains("fd-avatar--variant-subtle"));
+        assert!(html.contains("fd-avatar--color-palette-neutral"));
     }
 
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
-            (crate::recipe::Size::Sm, "fd-avatar--size-sm"),
-            (crate::recipe::Size::Md, "fd-avatar--size-md"),
-            (crate::recipe::Size::Lg, "fd-avatar--size-lg"),
+            (Size::Xs, "fd-avatar--size-xs"),
+            (Size::Sm, "fd-avatar--size-sm"),
+            (Size::Md, "fd-avatar--size-md"),
+            (Size::Lg, "fd-avatar--size-lg"),
+            (Size::Xl, "fd-avatar--size-xl"),
         ] {
-            let html = render(&root(size, AvatarShape::Circle, vec![], vec![]));
+            let props = AvatarProps {
+                size,
+                ..AvatarProps::default()
+            };
+            let html = render(&root(&props, vec![], vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");
         }
     }
@@ -400,16 +548,54 @@ mod tests {
             (AvatarShape::Rounded, "fd-avatar--shape-rounded"),
             (AvatarShape::Square, "fd-avatar--shape-square"),
         ] {
-            let html = render(&root(crate::recipe::Size::Md, shape, vec![], vec![]));
+            let props = AvatarProps {
+                shape,
+                ..AvatarProps::default()
+            };
+            let html = render(&root(&props, vec![], vec![]));
             assert!(html.contains(class), "shape={shape:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn variant_enumeration_maps_to_expected_classes() {
+        for (variant, class) in [
+            (AvatarVariant::Subtle, "fd-avatar--variant-subtle"),
+            (AvatarVariant::Solid, "fd-avatar--variant-solid"),
+            (AvatarVariant::Outline, "fd-avatar--variant-outline"),
+        ] {
+            let props = AvatarProps {
+                variant,
+                ..AvatarProps::default()
+            };
+            let html = render(&root(&props, vec![], vec![]));
+            assert!(html.contains(class), "variant={variant:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn palette_enumeration_maps_to_expected_classes() {
+        for (palette, class) in [
+            (ColorPalette::Accent, "fd-avatar--color-palette-accent"),
+            (ColorPalette::Info, "fd-avatar--color-palette-info"),
+            (ColorPalette::Success, "fd-avatar--color-palette-success"),
+            (ColorPalette::Warning, "fd-avatar--color-palette-warning"),
+            (ColorPalette::Danger, "fd-avatar--color-palette-danger"),
+            (ColorPalette::Neutral, "fd-avatar--color-palette-neutral"),
+        ] {
+            let props = AvatarProps {
+                palette,
+                ..AvatarProps::default()
+            };
+            let html = render(&root(&props, vec![], vec![]));
+            assert!(html.contains(class), "palette={palette:?} -> {html}");
         }
     }
 
     #[test]
     fn class_attr_is_single_and_caller_class_is_dropped() {
         let html = render(&root(
-            crate::recipe::Size::Md,
-            AvatarShape::Circle,
+            &AvatarProps::default(),
             vec![("class", "attacker-controlled")],
             vec![],
         ));
@@ -424,7 +610,17 @@ mod tests {
         assert_eq!(a, b);
         assert!(a.contains("--size-"));
         assert!(a.contains("--shape-"));
+        assert!(a.contains("--variant-"));
+        assert!(a.contains("--color-palette-"));
         assert!(a.contains("var(--fandhe-radius-full)"));
+    }
+
+    #[test]
+    fn stylesheet_contains_no_raw_color_literals() {
+        // イシュー #1554: 配色はすべて `--fandhe-*` トークン参照経由とし、
+        // 生の色リテラル（hex 等）を埋め込まない不変条件。
+        let css = stylesheet();
+        assert!(!css.contains('#'));
     }
 
     // --- エスケープ回帰 ---
@@ -432,8 +628,7 @@ mod tests {
     #[test]
     fn root_attrs_attribute_breakout_payload_is_escaped() {
         let html = render(&root(
-            crate::recipe::Size::Md,
-            AvatarShape::Circle,
+            &AvatarProps::default(),
             vec![("data-x", "\" onmouseover=\"alert(1)")],
             vec![],
         ));
