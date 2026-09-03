@@ -29,9 +29,12 @@
 //!   （文字）の 6 役割 palette（[`crate::recipe::palette_scale_declarations`]）
 //!   へ移行した（chakra `subtle` = `colorPalette.subtle` 背景 +
 //!   `colorPalette.fg` 文字、Radix `soft` = accent-3 背景 + accent-11 文字
-//!   に相当）。`Outline` の枠線を palette 非連動の `--fandhe-color-border`
-//!   から `--fandhe-palette-muted` へ移行した（code/kbd が Phase 1 で
-//!   既に済ませていた移行に追随）。新設 `Surface` は
+//!   に相当）。`Outline` は文字色を palette 非連動の `--fandhe-palette` から
+//!   `--fandhe-palette-fg-subtle` へ、枠線を palette 非連動の
+//!   `--fandhe-color-border` から `--fandhe-palette-muted` へそれぞれ
+//!   移行した（code/kbd が Phase 1 で既に済ませていた移行に追随。
+//!   `Outline` = `--fandhe-palette-fg-subtle` 文字 + `--fandhe-palette-muted`
+//!   枠線という配色パターンは code.rs/kbd.rs と一致する）。新設 `Surface` は
 //!   `--fandhe-palette-subtle` 背景 + `--fandhe-palette-fg-subtle` 文字 +
 //!   `--fandhe-palette-muted` 枠線。`Solid` は不変。既定 palette は
 //!   `Accent` を維持する（Radix Themes の accent 既定と一致し、badge は
