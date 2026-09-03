@@ -6990,13 +6990,28 @@ fn table_section() -> Node {
             ..TableProps::default()
         }),
     ]);
+    // イシュー #1572: size の全 5 段（Xs〜Xl）を実演する（padding が
+    // `--fandhe-space-*` トークン化されたことを Demo でも確認できるように
+    // する、`table.rs` モジュール doc「variant について」節参照）。
     let size_demo = stack(vec![
+        sample_table(TableProps {
+            size: Size::Xs,
+            ..TableProps::default()
+        }),
         sample_table(TableProps {
             size: Size::Sm,
             ..TableProps::default()
         }),
         sample_table(TableProps {
+            size: Size::Md,
+            ..TableProps::default()
+        }),
+        sample_table(TableProps {
             size: Size::Lg,
+            ..TableProps::default()
+        }),
+        sample_table(TableProps {
+            size: Size::Xl,
             ..TableProps::default()
         }),
     ]);
@@ -7004,19 +7019,55 @@ fn table_section() -> Node {
         striped: true,
         ..TableProps::default()
     })]);
-    // イシュー #1571: sticky_header variant のクラス出力デモ。ページスクロール
-    // 前提の sticky 挙動そのものを視覚実演するスクロール枠は兄弟イシュー
-    // #1572（2/2）のスコープのため、ここでは class 出力の確認までとする
-    // （`table.rs` モジュール doc「sticky ヘッダーの実装」節参照）。
-    let sticky_header_demo = stack(vec![sample_table(TableProps {
-        sticky_header: true,
-        ..TableProps::default()
-    })]);
+    // イシュー #1572: `scroll_area` + `sticky_header: true` を組み合わせた
+    // Demo。行数を増やしてスクロール枠内で見出し行が上端固定されることを
+    // 視覚的に確認できるようにする（`table.rs` モジュール doc「sticky
+    // ヘッダーの実装」節・「`scroll-area` パーツ」節参照）。Anatomy 表・
+    // `data-*` 属性表はこの Demo から機械導出されるため、`scroll-area` を
+    // 必ず含める。
+    let scroll_area_demo = stack(vec![table::scroll_area(
+        vec![("style", "--fandhe-table-scroll-max-height: 12rem")],
+        vec![table::root(
+            TableProps {
+                sticky_header: true,
+                ..TableProps::default()
+            },
+            vec![],
+            vec![
+                table::header(
+                    vec![],
+                    vec![table::row(
+                        vec![],
+                        vec![
+                            table::column_header(vec![], vec![text("Name")]),
+                            table::column_header(vec![], vec![text("Email")]),
+                            table::column_header(vec![], vec![text("Role")]),
+                        ],
+                    )],
+                ),
+                table::body(
+                    vec![],
+                    (1..=10)
+                        .map(|n| {
+                            table::row(
+                                vec![],
+                                vec![
+                                    table::cell(vec![], vec![text(format!("User {n}"))]),
+                                    table::cell(vec![], vec![text(format!("user{n}@example.com"))]),
+                                    table::cell(vec![], vec![text("Member")]),
+                                ],
+                            )
+                        })
+                        .collect(),
+                ),
+            ],
+        )],
+    )]);
 
     section(
         "Table",
-        "table/thead/tbody/tfoot/tr/th/td/caption の HTML 意味論を尊重した表組み。variant（line / outline）・size（sm / md / lg）・striped・sticky_header の 4 軸 variant を持ちます。",
-        vec![variant_demo, size_demo, striped_demo, sticky_header_demo],
+        "table/thead/tbody/tfoot/tr/th/td/caption の HTML 意味論を尊重した表組み。variant（line / outline）・size（xs 〜 xl）・striped・sticky_header の 4 軸 variant と、scroll_area（chakra Table.ScrollArea 相当のスクロール枠）を持ちます。",
+        vec![variant_demo, size_demo, striped_demo, scroll_area_demo],
     )
 }
 

@@ -1090,42 +1090,23 @@ name = "fandhe-frontend-pre-styled-ui"
 # `sticky_header` を追加した（完全リテラル `TableProps { .. }` を壊す 0.x
 # 破壊的変更）ため minor バンプする（`.claude/rules/coding-rust.md`）。
 #
-# イシュー #1569: status のスタイルを参考サイト基準へ調整（root の `gap` を
-# 共通トークン化、size 別 dot-size をトークン化）。セレクタ・クラス名・
-# 公開 Rust API の削除/改名なし・宣言の純追加のため patch バンプする
-# （main 側の spinner patch バンプ〔0.74.1〕と同一版数へ到達済みのため、
-# 偶発的な衝突ではなく単純な採用としてそのまま 0.74.1 を維持していた）。
+# base 取り込み（イシュー #1568）: main 側は #1568/#1567 の統合により
+# 0.74.2 へ到達していたが、本ブランチは #1571 のマイナーバンプにより
+# 0.75.0（> 0.74.2）へ到達しているため、偶発的な同一版数衝突ではなく
+# 単純な採用としてそのまま 0.75.0 を維持する。
 #
-# イシュー #1569 追補（codex-review 指摘の是正）: indicator の
-# `forced-color-adjust: none` は Windows 強制配色モードで利用者が選択した
-# パレットへのコントラスト調整を妨げるため削除し、`@media (forced-colors:
-# active)` 配下で `border: 1px solid CanvasText` を追加して背景色が
-# 中和されても円の形状を残す構成へ差し替えた。main の 0.74.1（spinner
-# patch）にはこの差し替えを含まないため、同一版数への偶発一致に頼らず
-# 0.74.2 へ明示的に patch バンプする（`docs/ci/
-# style-refresh-version-bump-operation.md` §3.3。セレクタ・クラス名・
-# 公開 Rust API の削除/改名なし）。
+# イシュー #1572: `pub fn scroll_area` の新設（公開 API の純追加）に伴い
+# マイナーバンプする（`docs/ci/style-refresh-version-bump-operation.md`
+# §3.1、`.claude/rules/coding-rust.md`）。
 #
-# base 取り込み（イシュー #1568）: 本ブランチ（status, #1569）は上記のとおり
-# merge base（0.74.0）から独立に 0.74.2 へ到達していたが、main も #1568
-# （stat）と #1567（spinner）の統合により独立に同一の 0.74.2 へパッチバンプ
-# 済みだった（本ブランチの 0.74.2 とは別内容の実体変更を含む偶発的な同一
-# 版数衝突）。両者の実体変更を統合した結果として 0.74.3 へさらにパッチ
-# バンプする（双方とも公開 API 破壊のない patch 相当の変更のため patch を
-# 維持する）。
-#
-# base 取り込み（イシュー #1571）: main 側は #1571（table）のマイナーバンプ
-# により 0.75.0（本ブランチの 0.74.3 より大きい）へ到達していたため、
-# 偶発的な同一版数衝突ではなく単純な採用としてそのまま 0.75.0 を維持する。
-#
-# イシュー #1569 追補 2（codex-review P2 指摘の是正）: status の indicator
-# へ `box-sizing: border-box` を追加し、強制配色モード（`@media
-# (forced-colors: active)`）の `border` が寸法の外側へ加算されて実寸が
-# `--fandhe-status-dot-size` より大きくなる不具合を修正した。CSS 出力を
-# 変える変更のため `version-bump-exempt` は使わず（`docs/ci/
-# style-refresh-version-bump-operation.md` §4 チェックリスト）、公開 API
-# 破壊のない patch 相当の変更として 0.75.1 へパッチバンプする。
-version = "0.75.1"
+# base 取り込み（イシュー #1569 追補 2）: main 側は #1569 追補 2
+# （status indicator の box-sizing 是正）の統合により 0.75.1（本ブランチの
+# 0.75.0 より大きい）へパッチバンプ済みだった。本ブランチの #1572 は
+# マイナーバンプ（0.76.0）であり main の 0.75.1 より大きいため、両者の
+# 実体変更を統合した結果としてそのまま 0.76.0 を維持する（semver 上
+# minor バンプが patch バンプを包含するため、0.75.1 への追随バンプは
+# 不要）。
+version = "0.76.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
