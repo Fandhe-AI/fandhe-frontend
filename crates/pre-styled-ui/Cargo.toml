@@ -970,7 +970,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1547: toolbar の CSS 実体変更（hover/disabled/focus/transition
 # の共通ヘルパ化・角丸トークン化・on 状態の配色変更）。Rust API・セレクタ・
 # CSS 変数名の削除/改名なしのため patch バンプする。
-version = "0.65.1"
+# イシュー #1553: alert のスタイルを参考サイト基準へ調整。`alert::root` の
+# シグネチャを `AlertStatus` 単独引数から `&AlertProps`（`status`/`variant`/
+# `size` の 3 軸）へ変更する破壊的変更のため minor バンプする
+# （0.65.1 → 0.66.0）。
+version = "0.66.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

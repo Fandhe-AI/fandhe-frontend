@@ -76,7 +76,7 @@ use fandhe_frontend_core::{
     a, blockquote, code, el, em, h1, h2, h3, h4, h5, h6, li, ol, p, pre, strong, table, tbody, td,
     text, th, thead, tr, ul, Node,
 };
-use fandhe_frontend_pre_styled_ui::{alert, AlertStatus};
+use fandhe_frontend_pre_styled_ui::{alert, AlertProps, AlertStatus};
 
 /// 引用・ネストリストの再帰的解釈における最大深さ。
 ///
@@ -811,8 +811,12 @@ fn admonition_node(kind: AdmonitionKind, body: Vec<Node>) -> Node {
     if !body.is_empty() {
         content_children.push(alert::description(vec![], body));
     }
-    alert::root(
+    let props = AlertProps {
         status,
+        ..AlertProps::default()
+    };
+    alert::root(
+        &props,
         vec![],
         vec![
             admonition_indicator(kind),

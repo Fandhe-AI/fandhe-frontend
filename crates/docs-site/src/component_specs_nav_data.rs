@@ -41,7 +41,7 @@ use fandhe_frontend_pre_styled_ui::{
     alert, avatar, badge, breadcrumb, callout, card, carousel, color_swatch, data_list,
     empty_state, icon, image, json_tree_view, marquee, pagination, progress, scroll_area,
     separator, skeleton, spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline,
-    tree_view, ColorPalette, Orientation, Size,
+    tree_view, AlertProps, ColorPalette, Orientation, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -50,11 +50,15 @@ use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, Ke
 // Data Display（本文明示 15 件）
 // ---------------------------------------------------------------------
 
-/// `crates/pre-styled-ui/src/alert.rs:153`（`root` が `role="alert"` を固定
-/// 付与）・同 `:24`（`AlertStatus` 4 バリアント）。
+/// `crates/pre-styled-ui/src/alert.rs`（`root` が `role="alert"` を固定
+/// 付与、`AlertStatus`/`AlertVariant`/`Size` の 3 軸、イシュー #1553）。
 fn ex_alert() -> Node {
+    let props = AlertProps {
+        status: alert::AlertStatus::Warning,
+        ..AlertProps::default()
+    };
     alert::root(
-        alert::AlertStatus::Warning,
+        &props,
         vec![],
         vec![
             alert::indicator(vec![], vec![]),
@@ -71,16 +75,32 @@ fn ex_alert() -> Node {
 
 pub(crate) const ALERT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "AlertStatus（Info/Success/Warning/Error、crates/pre-styled-ui/src/alert.rs:24-33）で 4 種の状態色を切り替える",
-        "root に WAI-ARIA live region の role=\"alert\" を状態に関わらず固定付与する（alert.rs:153, 4）",
-        "indicator/content/title/description の 4 パーツで見出し・本文を構造化できる（alert.rs:163-181）",
+        "AlertStatus（Info/Success/Warning/Error/Neutral、crates/pre-styled-ui/src/alert.rs）で 5 種の状態色を切り替える（イシュー #1553）",
+        "AlertVariant（Subtle/Surface/Solid/Outline、既定 Subtle）で見た目のトーンを切り替える（イシュー #1553）",
+        "size（Xs〜Xl、既定 Md）でパディング・フォントサイズ・indicator サイズを切り替える（イシュー #1553）",
+        "root に WAI-ARIA live region の role=\"alert\" を状態に関わらず固定付与する（alert.rs）",
+        "indicator/content/title/description の 4 パーツで見出し・本文を構造化できる（alert.rs）",
     ],
-    arguments: &[ArgRow {
-        name: "status",
-        kind: "AlertStatus",
-        default: "Info",
-        description: "見た目の状態色（alert.rs:24-33、#[default] は Info）。",
-    }],
+    arguments: &[
+        ArgRow {
+            name: "status",
+            kind: "AlertStatus",
+            default: "Info",
+            description: "見た目の状態色（alert.rs、#[default] は Info）。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "AlertVariant",
+            default: "Subtle",
+            description: "見た目のトーン（Subtle/Surface/Solid/Outline、イシュー #1553）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ（Xs〜Xl、イシュー #1553）。",
+        },
+    ],
     examples: &[ExampleEntry {
         title: "Warning",
         description: "Warning 状態の Alert を indicator + title/description で組み立てた例です。",
@@ -89,7 +109,7 @@ pub(crate) const ALERT: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "role=\"alert\"",
-        description: "WAI-ARIA live region。status の値に関わらず固定で付与される（alert.rs:4, 153）。",
+        description: "WAI-ARIA live region。status の値に関わらず固定で付与される（alert.rs）。",
     }],
     demo: None,
 };

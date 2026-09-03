@@ -59,7 +59,9 @@
 //! action-trigger/close-trigger の hover 配色が同じ `--fandhe-palette-*`
 //! 変数群から続けて参照できるようにするためで、`alert` とは
 //! `info`/`success`/`warning`/`error` の値語彙のみ対応させ、宣言の中身は
-//! 共有しない（`alert` 側の同型是正は #1553 で別途検討）。
+//! 共有しない（`alert` 側も #1553 で `palette_scale_declarations` へ
+//! 移行済みだが、`toast` とは別々に `SlotRecipe::variant` 登録するため実装は
+//! 独立している）。
 //!
 //! # RTL 対応（`placement` の `start`/`end`、Bugbot 指摘・PR #805 レビュー）
 //!
@@ -86,8 +88,6 @@
 //! - `examples/headless-pre-styled-ui` showcase への追随は、本イシューによる
 //!   headless-ui/pre-styled-ui のバージョン公開後の別 PR で行う（`.claude/rules/ci.md`
 //!   の crates.io バージョン依存前提を参照。#677 の先行例と同じ運用）。
-//! - `alert.rs` の配色を同じ 6 役割淡色面へ揃える是正は #1553（既存
-//!   open issue）で別途検討する。
 //! - JS 連動のスタック重ね表示（ark-ui の `--x`/`--y`/`--scale` 等）・
 //!   スワイプ dismiss・indicator slot は anatomy 変更・JS 前提のため
 //!   本イシュー（#1545）でも実装しない。

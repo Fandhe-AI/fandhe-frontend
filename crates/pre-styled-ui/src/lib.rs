@@ -71,8 +71,9 @@
 //!     `<span role="status">`。`palette` variant を持つ）。
 //!   - [`mod@alert`]: [`alert::root`] ほかパーツ関数群（slot recipe、
 //!     root/indicator/content/title/description の 5 パーツ、`role="alert"`。
-//!     公開 API は [`alert::AlertStatus`] のまま、内部で `status` を
-//!     `--fandhe-palette-*` へ束ねる）。
+//!     `status`（[`alert::AlertStatus`]、内部で 6 役割の `--fandhe-palette-*`
+//!     へ束ねる）/`variant`（[`alert::AlertVariant`]）/`size`
+//!     （[`recipe::Size`]）の 3 軸を持つ、イシュー #1553）。
 //!   - [`mod@callout`]（#994）: [`callout::root`] ほかパーツ関数群（slot
 //!     recipe、root/icon/text の 3 パーツ）。本文フロー中に置く補足情報の
 //!     ための静的部品であり、`alert` と異なり live region ではないため
@@ -751,7 +752,7 @@ pub mod tour;
 pub mod tree_view;
 pub mod visually_hidden;
 
-pub use alert::AlertStatus;
+pub use alert::{AlertProps, AlertStatus, AlertVariant};
 pub use badge::{badge, BadgeProps, BadgeVariant};
 pub use blockquote::BlockquoteVariant;
 pub use button::{button, close_button, icon_button, ButtonProps, ButtonVariant};
