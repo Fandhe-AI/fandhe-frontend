@@ -224,8 +224,8 @@ pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `crates/pre-styled-ui/src/callout.rs:34`（`CalloutVariant` 3 バリアント）・
-/// 同 `:186`（`root` が `role`/`aria-*` を一切付与しない）。
+/// `crates/pre-styled-ui/src/callout.rs:68`（`CalloutVariant` 3 バリアント）・
+/// 同 `:300`（`root` が `role`/`aria-*` を一切付与しない）。
 fn ex_callout() -> Node {
     let props = callout::CalloutProps {
         variant: callout::CalloutVariant::Surface,
@@ -236,19 +236,16 @@ fn ex_callout() -> Node {
         vec![],
         vec![
             callout::icon(vec![], vec![]),
-            callout::text(
-                props.size,
-                vec![],
-                vec![text("Heads up: this is supplementary info")],
-            ),
+            callout::text(vec![], vec![text("Heads up: this is supplementary info")]),
         ],
     )
 }
 
 pub(crate) const CALLOUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "CalloutVariant（Soft/Surface/Outline、crates/pre-styled-ui/src/callout.rs:34-42）で見た目を切り替える",
-        "colorPalette 軸（callout.rs:60-67）でセマンティック色を選択する",
+        "CalloutVariant（Soft/Surface/Outline、crates/pre-styled-ui/src/callout.rs:68-76）で見た目を切り替える",
+        "colorPalette 軸（callout.rs:94-101）でセマンティック色を選択する",
+        "size（xs〜xl、callout.rs:94-101）で padding / gap / 角丸 / 文字サイズが root の `--fandhe-callout-*` custom property を通じて連動する（イシュー #1556）",
         "root/icon/text の 3 パーツで補足情報を構造化できる（callout.rs 全文参照）",
         "alert と異なり role を一切付与しない静的な補足表示部品（callout.rs:1-18 module doc）",
     ],
@@ -257,19 +254,19 @@ pub(crate) const CALLOUT: ComponentPageSpec = ComponentPageSpec {
             name: "variant",
             kind: "CalloutVariant",
             default: "Soft",
-            description: "見た目（callout.rs:34-42、#[default] は Soft）。",
+            description: "見た目（callout.rs:68-76、#[default] は Soft）。",
         },
         ArgRow {
             name: "size",
             kind: "Size",
             default: "Md",
-            description: "サイズ（callout.rs:60-67）。",
+            description: "サイズ（callout.rs:94-101）。padding / gap / 角丸 / 文字サイズが連動する（root の `--fandhe-callout-*`、イシュー #1556）。",
         },
         ArgRow {
             name: "palette",
             kind: "ColorPalette",
             default: "Accent",
-            description: "colorPalette 軸（callout.rs:60-67）。",
+            description: "colorPalette 軸（callout.rs:94-101）。",
         },
     ],
     examples: &[ExampleEntry {

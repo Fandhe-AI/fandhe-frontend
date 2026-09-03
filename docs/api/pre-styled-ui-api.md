@@ -460,7 +460,7 @@ CSS を追加提供する（設計方針は他 headless ラッパーと同じ、
 | 部品 | size | color-palette | 備考 |
 |---|---|---|---|
 | button/badge/spinner | ✓ | ✓ | button は icon-only 修飾 variant（`icon_button`/`close_button`）を追加。専用の `icon`/`close-button` 行は設けない: `data-scope="button"` を共有する variant 拡張であり別部品ではないため |
-| callout | ✓ | ✓ | 本文中の補足情報。alert と異なり live region ではない（イシュー #994） |
+| callout | ✓ | ✓ | 本文中の補足情報。alert と異なり live region ではない（イシュー #994）。size は root の `--fandhe-callout-*` へ一本化し `text(attrs, children)` から `size` 引数を廃止した（破壊的変更、イシュー #1556） |
 | alert | ✓ | –（`status`） | `status`（Info/Success/Warning/Error/Neutral、内部で `ColorPalette` へ写像）に加え `variant`（Subtle/Surface/Solid/Outline、既定 Subtle）を持つ（イシュー #1553） |
 | avatar | ✓ | ✓（既定 Neutral） | variant（subtle/solid/outline）・shape の 2 軸も併せ持つ（イシュー #1554） |
 | switch | ✓ | ✓ | — |

@@ -1983,6 +1983,41 @@ mod tests {
         }
     }
 
+    /// `crate::callout` の `Outline` variant（イシュー #1556）が使う
+    /// `<palette>-fg-subtle` の組。Outline は背景が `transparent`
+    /// （実質ページ背景 `bg`）のため、`<p>-fg-subtle`/`bg` の組み合わせで
+    /// 本文相当の 4.5:1 契約を満たす必要がある（`BODY_TEXT_PAIRS` の
+    /// `<p>-fg-subtle`/`<p>-subtle`〔淡色背景上〕とは背景が異なるため
+    /// 別途固定する）。
+    const CALLOUT_OUTLINE_VARIANT_PAIRS: &[(&str, &str)] = &[
+        ("accent-fg-subtle", "bg"),
+        ("info-fg-subtle", "bg"),
+        ("success-fg-subtle", "bg"),
+        ("warning-fg-subtle", "bg"),
+        ("danger-fg-subtle", "bg"),
+        ("neutral-fg-subtle", "bg"),
+    ];
+
+    #[test]
+    fn callout_outline_variant_pairs_meet_wcag_4_5_to_1_in_light_and_dark() {
+        for (fg_name, bg_name) in CALLOUT_OUTLINE_VARIANT_PAIRS {
+            let (fg_light, fg_dark) = default_color(fg_name);
+            let (bg_light, bg_dark) = default_color(bg_name);
+
+            let light_ratio = contrast_ratio(fg_light, bg_light);
+            assert!(
+                light_ratio >= 4.5,
+                "light: {fg_name}/{bg_name} = {light_ratio:.3} (< 4.5:1)"
+            );
+
+            let dark_ratio = contrast_ratio(fg_dark, bg_dark);
+            assert!(
+                dark_ratio >= 4.5,
+                "dark: {fg_name}/{bg_name} = {dark_ratio:.3} (< 4.5:1)"
+            );
+        }
+    }
+
     // イシュー #1423: radius/shadow/spacing 拡充・z-index 新設のユニットテスト。
 
     #[test]

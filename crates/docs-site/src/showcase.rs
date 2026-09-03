@@ -1910,7 +1910,6 @@ fn callout_section() -> Node {
                     vec![
                         callout::icon(vec![], vec![text("i")]),
                         callout::text(
-                            props.size,
                             vec![],
                             vec![text(format!(
                                 "{label} variant の補足情報です（本文中の強調表示）。"
@@ -1939,7 +1938,33 @@ fn callout_section() -> Node {
                     vec![],
                     vec![
                         callout::icon(vec![], vec![text("i")]),
-                        callout::text(props.size, vec![], vec![text(label)]),
+                        callout::text(vec![], vec![text(label)]),
+                    ],
+                )
+            })
+            .collect(),
+    );
+    let sizes = [
+        (Size::Xs, "Xs"),
+        (Size::Sm, "Sm"),
+        (Size::Md, "Md"),
+        (Size::Lg, "Lg"),
+        (Size::Xl, "Xl"),
+    ];
+    let size_row = stack(
+        sizes
+            .iter()
+            .map(|(size, label)| {
+                let props = CalloutProps {
+                    size: *size,
+                    ..CalloutProps::default()
+                };
+                callout::root(
+                    &props,
+                    vec![],
+                    vec![
+                        callout::icon(vec![], vec![text("i")]),
+                        callout::text(vec![], vec![text(*label)]),
                     ],
                 )
             })
@@ -1947,8 +1972,8 @@ fn callout_section() -> Node {
     );
     section(
         "Callout",
-        "本文フロー中に置く補足情報。alert と異なり live region ではなく role を付与しません。variant（soft / surface / outline）と colorPalette を組み合わせます。",
-        vec![variant_row, palette_row],
+        "本文フロー中に置く補足情報。alert と異なり live region ではなく role を付与しません。variant（soft / surface / outline）・colorPalette・size（xs〜xl、padding / gap / 角丸 / 文字サイズが連動）を組み合わせます。",
+        vec![variant_row, palette_row, size_row],
     )
 }
 

@@ -1,83 +1,87 @@
-//! styled Callout（イシュー #994）の決定的 CSS 出力ゴールデンテスト。
+//! styled Callout（イシュー #994、イシュー #1556 で参考サイト基準へ調整）の
+//! 決定的 CSS 出力ゴールデンテスト。
 //!
-//! `crates/pre-styled-ui/tests/skip_nav_css.rs`/`tests/separator_css.rs` の
-//! golden fixture テストの前例に倣い、`callout::css()` が返す CSS 全文を
-//! バイト単位で固定する。加えて受け入れ条件（recipe / CSS 出力の契約検証）
-//! として、slot セレクタ・variant/size/color-palette クラス・テーマトークン
-//! 参照（ハードコード色を含まないこと）を個別に検証する。
+//! `crates/pre-styled-ui/tests/alert_css.rs` と同型の golden fixture
+//! テスト。イシュー #1556 で size 軸を `--fandhe-callout-*` custom
+//! property へ一本化し、variant の配色を palette 6 役割トークンへ移行した
+//! ため、出力全体をバイト単位で固定する（`callout.rs` モジュール冒頭
+//! rustdoc「参考サイト基準への調整」節参照）。
 
 use fandhe_frontend_pre_styled_ui::callout;
 
 const CALLOUT_GOLDEN_CSS: &str = r#"[data-scope="callout"][data-part="root"] {
   display: flex;
-  gap: 0.75rem;
-  border-radius: var(--fandhe-radius-md);
+  align-items: flex-start;
+  box-sizing: border-box;
+  gap: var(--fandhe-callout-gap, var(--fandhe-space-3));
+  padding: var(--fandhe-callout-padding, var(--fandhe-space-4));
+  border: 1px solid transparent;
+  border-radius: var(--fandhe-callout-radius, var(--fandhe-radius-lg));
+  font-size: var(--fandhe-callout-font-size, var(--fandhe-font-font-size-sm));
+  line-height: var(--fandhe-font-line-height-normal);
 }
 
 [data-scope="callout"][data-part="icon"] {
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
+  height: calc(1em * var(--fandhe-font-line-height-normal));
 }
 
 [data-scope="callout"][data-part="text"] {
   min-width: 0;
-  line-height: var(--fandhe-font-line-height-normal);
 }
 
 [data-scope="callout"][data-part="root"].fd-callout--size-xs {
-  padding: 0.25rem 0.5rem;
-}
-
-[data-scope="callout"][data-part="text"].fd-callout--size-xs {
-  font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-callout-padding: var(--fandhe-space-2);
+  --fandhe-callout-gap: var(--fandhe-space-2);
+  --fandhe-callout-radius: var(--fandhe-radius-sm);
+  --fandhe-callout-font-size: var(--fandhe-font-font-size-xs);
 }
 
 [data-scope="callout"][data-part="root"].fd-callout--size-sm {
-  padding: 0.5rem 0.75rem;
-}
-
-[data-scope="callout"][data-part="text"].fd-callout--size-sm {
-  font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-callout-padding: var(--fandhe-space-3);
+  --fandhe-callout-gap: var(--fandhe-space-2);
+  --fandhe-callout-radius: var(--fandhe-radius-md);
+  --fandhe-callout-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="callout"][data-part="root"].fd-callout--size-md {
-  padding: 0.75rem 1rem;
-}
-
-[data-scope="callout"][data-part="text"].fd-callout--size-md {
-  font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-callout-padding: var(--fandhe-space-4);
+  --fandhe-callout-gap: var(--fandhe-space-3);
+  --fandhe-callout-radius: var(--fandhe-radius-lg);
+  --fandhe-callout-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="callout"][data-part="root"].fd-callout--size-lg {
-  padding: 1rem 1.25rem;
-}
-
-[data-scope="callout"][data-part="text"].fd-callout--size-lg {
-  font-size: var(--fandhe-font-font-size-md);
+  --fandhe-callout-padding: var(--fandhe-space-5);
+  --fandhe-callout-gap: var(--fandhe-space-4);
+  --fandhe-callout-radius: var(--fandhe-radius-xl);
+  --fandhe-callout-font-size: var(--fandhe-font-font-size-md);
 }
 
 [data-scope="callout"][data-part="root"].fd-callout--size-xl {
-  padding: 1.25rem 1.5rem;
-}
-
-[data-scope="callout"][data-part="text"].fd-callout--size-xl {
-  font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-callout-padding: var(--fandhe-space-6);
+  --fandhe-callout-gap: var(--fandhe-space-4);
+  --fandhe-callout-radius: var(--fandhe-radius-2xl);
+  --fandhe-callout-font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="callout"][data-part="root"].fd-callout--variant-soft {
-  background: var(--fandhe-color-bg-subtle);
-  color: var(--fandhe-palette);
+  background: var(--fandhe-palette-subtle);
+  color: var(--fandhe-palette-fg-subtle);
 }
 
 [data-scope="callout"][data-part="root"].fd-callout--variant-surface {
-  background: var(--fandhe-color-bg-subtle);
-  color: var(--fandhe-palette);
-  border: 1px solid var(--fandhe-color-border);
+  background: var(--fandhe-palette-subtle);
+  color: var(--fandhe-palette-fg-subtle);
+  border-color: var(--fandhe-palette-muted);
 }
 
 [data-scope="callout"][data-part="root"].fd-callout--variant-outline {
   background: transparent;
-  color: var(--fandhe-palette);
-  border: 1px solid var(--fandhe-palette);
+  color: var(--fandhe-palette-fg-subtle);
+  border-color: var(--fandhe-palette-muted);
 }
 
 [data-scope="callout"][data-part="root"].fd-callout--color-palette-accent {
@@ -155,14 +159,17 @@ fn callout_css_declares_variant_and_size_and_palette_classes() {
         "fd-callout--variant-soft",
         "fd-callout--variant-surface",
         "fd-callout--variant-outline",
+        "fd-callout--size-xs",
         "fd-callout--size-sm",
         "fd-callout--size-md",
         "fd-callout--size-lg",
+        "fd-callout--size-xl",
         "fd-callout--color-palette-accent",
         "fd-callout--color-palette-info",
         "fd-callout--color-palette-success",
         "fd-callout--color-palette-warning",
         "fd-callout--color-palette-danger",
+        "fd-callout--color-palette-neutral",
     ] {
         assert!(css.contains(class), "missing class {class} in css: {css}");
     }
@@ -171,11 +178,24 @@ fn callout_css_declares_variant_and_size_and_palette_classes() {
 #[test]
 fn callout_css_references_theme_tokens_only() {
     let css = callout::css();
-    assert!(css.contains("var(--fandhe-palette)"));
-    assert!(css.contains("var(--fandhe-radius-md)"));
+    assert!(css.contains("var(--fandhe-palette-fg-subtle)"));
+    assert!(css.contains("var(--fandhe-space-4)"));
+    assert!(css.contains("var(--fandhe-radius-lg)"));
     // ハードコードされた生カラーリテラル（`#` 始まり）を含まないことを固定する
     // （イシュー #606 方針: 色宣言は必ずテーマトークン経由）。
     assert!(!css.contains('#'));
+    // イシュー #1556: padding の生 `rem` リテラルへ後退していないことを固定する
+    // （size 軸は `--fandhe-callout-padding` custom property 経由のみ）。
+    assert!(!css.contains("padding: 0."));
+}
+
+/// イシュー #1556: text slot はもはや size ごとのクラス宣言を持たない
+/// （font-size は root からの継承のみで決まる、`text()` の破壊的変更に
+/// 対応する CSS 側の契約）。
+#[test]
+fn callout_css_does_not_declare_size_classes_for_text_slot() {
+    let css = callout::css();
+    assert!(!css.contains(r#"[data-part="text"].fd-callout--size-"#));
 }
 
 #[test]
