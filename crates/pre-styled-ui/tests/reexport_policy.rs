@@ -247,7 +247,7 @@ fn glob_reexport_lines_have_reviewed_marker_comment() {
 
 /// 検査 3: glob モジュールの pub 項目許可リスト（規約 B-1 / 規約 C の近似検査）。
 ///
-/// glob 再エクスポートを維持する 13 モジュールがトップレベルで定義する
+/// glob 再エクスポートを維持する 12 モジュールがトップレベルで定義する
 /// `pub` 項目が `stylesheet`/`css` 以外に増えていないかを検知する。これは
 /// 「glob と同名ローカル定義による暗黙 shadowing」と「variant 型の後付け
 /// 追加（規約 B-2 逸脱）」の両方を捉える。

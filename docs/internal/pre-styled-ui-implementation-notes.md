@@ -493,7 +493,10 @@ fandhe_frontend_headless_ui::<mod>::*;`）・選択的個別・（styled 側の
 した。
 
 - **(a) glob 由来の名前を同名の明示 `pub use` が上書きする Rust の
-  shadowing**: 13 モジュールはいずれも `pub use
+  shadowing**: 上表 13 モジュール（#1062 時点の記録。`tree_view` はイシュー
+  #1578 で規約 A（選択的 re-export）へ移行済みだが、state 由来の型は移行後も
+  変わらず明示再エクスポートを維持しているため、本節の実態確認は現在も
+  13 モジュールぶん成立する）はいずれも `pub use
   fandhe_frontend_headless_ui::state::{OpenState, …}` 等を glob と併記する
   が、対応する headless モジュール側は `use crate::state::{…}`（非公開
   import）であり glob 経路に載らない。headless 側で `pub use` を持つのは

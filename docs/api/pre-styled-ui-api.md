@@ -181,8 +181,10 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 styled `root`（tabs のみ `tabs`）を各モジュールで新設しており、headless
 自由関数 `root`（tabs は `tabs`/`tabs_with_root_attrs`）との名前衝突を
 避けるため選択的 re-export とする（§4d 参照）。`popover`/`tooltip` を含め、
-styled パーツ関数を再定義しないモジュール 13 件は glob 再エクスポートを
-維持する（現況は `popover`/`tooltip` の 2 件に留まらない。一覧・維持条件は
+styled パーツ関数を再定義しないモジュール 12 件は glob 再エクスポートを
+維持する（`tree_view` はイシュー #1578 で `size` variant 導入に伴い選択的
+re-export（規約 A）へ移行したため本数から外れた。現況は `popover`/`tooltip`
+の 2 件に留まらない。一覧・維持条件は
 §3c 参照）。
 
 | pre-styled-ui モジュール | 再エクスポートする headless 型 | 由来 |
