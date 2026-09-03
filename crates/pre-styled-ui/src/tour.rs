@@ -71,10 +71,17 @@
 //! `fandhe-frontend-wasm-full` の後続イシューが担い、本モジュールは変数
 //! 未設定時のフォールバック矩形（画面中央付近の固定枠、角丸は
 //! `--fandhe-radius-sm` 相当）を提供するのみである。縁取り色は
-//! `var(--fandhe-palette, var(--fandhe-color-accent))` で `root` の
-//! color-palette variant（未選択時は accent）に連動し、暗幕マスクは
+//! `var(--fandhe-palette, var(--fandhe-color-accent, #3182ce))` で `root` の
+//! color-palette variant（未選択時は accent、accent トークン自体も未定義の
+//! 場合は `#3182ce` リテラルへ）に連動し、暗幕マスクは
 //! `var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.5))` を参照する
-//! （backdrop と同じトークン・フォールバック）。
+//! （backdrop と同じトークン・フォールバック）。縁取りと暗幕マスクは同一
+//! `box-shadow` 宣言内の 2 レイヤーであるため、`var()` の最内側フォール
+//! バックまでリテラルを持たせている: CSS の仕様上 `var()` が算出値時点で
+//! 無効になると宣言全体が無効化される（`--fandhe-palette`/
+//! `--fandhe-color-accent` のいずれも未定義な `Theme` 抜きのスタンド
+//! アロン利用時、リテラル省略だとレイヤーが 1 つでも解決不能だと暗幕
+//! マスクごと box-shadow 全体が消える）。
 //!
 //! # `focus-visible`（キーボードフォーカスリング）
 //!
@@ -128,9 +135,14 @@
 //!   （実装結果は同文書の注記へ反映済み）。
 //! - `spotlight` に、モジュール rustdoc「`spotlight` の CSS 変数契約」節が
 //!   既に約束していた palette 連動の縁取りを実装した（`box-shadow` を
-//!   2 層化: 縁取り `var(--fandhe-palette, var(--fandhe-color-accent))` +
+//!   2 層化: 縁取り
+//!   `var(--fandhe-palette, var(--fandhe-color-accent, #3182ce))` +
 //!   従来の暗幕マスク）。縁取り幅は新設の
-//!   `--fandhe-tour-spotlight-ring-width`（既定 2px）。
+//!   `--fandhe-tour-spotlight-ring-width`（既定 2px）。縁取り色の最内側
+//!   フォールバックにリテラル `#3182ce`（`Theme` の accent light 既定値）
+//!   を持たせているのは、同一宣言内で暗幕マスクと fate を共有するため
+//!   （どちらか一方の `var()` が算出値時点で無効になると `box-shadow`
+//!   宣言全体が無効化される、CSS 仕様の挙動）。
 //! - `spotlight` の `border-radius` を `--fandhe-radius-md`（0.375rem）から
 //!   Zag.js tour の `spotlightRadius` 既定（4px = `--fandhe-radius-sm`）へ
 //!   寄せ、矩形ごとに上書きできる `--fandhe-tour-spotlight-radius` を
@@ -270,7 +282,7 @@ fn recipe() -> SlotRecipe {
                 // bg-overlay` トークン化・フォールバックは旧生値維持）。
                 decl(
                     "box-shadow",
-                    "0 0 0 var(--fandhe-tour-spotlight-ring-width, 2px) var(--fandhe-palette, var(--fandhe-color-accent)), 0 0 0 max(100vw, 100vh) var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.5))",
+                    "0 0 0 var(--fandhe-tour-spotlight-ring-width, 2px) var(--fandhe-palette, var(--fandhe-color-accent, #3182ce)), 0 0 0 max(100vw, 100vh) var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.5))",
                 ),
                 decl("pointer-events", "none"),
             ],
@@ -758,13 +770,14 @@ mod tests {
 
     /// イシュー #1550: `spotlight` の縁取りがモジュール rustdoc「`spotlight`
     /// の CSS 変数契約」節どおり `--fandhe-palette`（未選択時
-    /// `--fandhe-color-accent` へフォールバック）に連動し、縁取り幅が
+    /// `--fandhe-color-accent`、さらに未定義ならリテラル `#3182ce` へ
+    /// フォールバック）に連動し、縁取り幅が
     /// `--fandhe-tour-spotlight-ring-width` で上書き可能であることを固定
     /// する。
     #[test]
     fn spotlight_ring_follows_palette_with_accent_fallback() {
         let css = stylesheet();
-        assert!(css.contains("var(--fandhe-palette, var(--fandhe-color-accent))"));
+        assert!(css.contains("var(--fandhe-palette, var(--fandhe-color-accent, #3182ce))"));
         assert!(css.contains("var(--fandhe-tour-spotlight-ring-width, 2px)"));
     }
 
