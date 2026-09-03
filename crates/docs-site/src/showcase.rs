@@ -7680,17 +7680,30 @@ fn color_swatch_section() -> Node {
         )
     })
     .collect());
-    let transparent_row = row(vec![color_swatch::color_swatch(
-        &ColorSwatchProps {
-            value: Color::from_rgba(Rgb::new(0x3b, 0x82, 0xf6), 0x80),
-            ..ColorSwatchProps::default()
-        },
-        vec![],
-        vec![],
-    )]);
+    // イシュー #1558: chakra-ui 参照スクショ 3（半透明 4 色）相当に拡充し、
+    // 淡色・低アルファ色でも #1558 で追加した inset リングの輪郭が
+    // 判別できることを確認できるようにする。
+    let transparent_row = row(vec![
+        Color::from_rgba(Rgb::new(0xff, 0x00, 0x00), 0x80),
+        Color::from_rgba(Rgb::new(0x00, 0x00, 0xff), 0xb3),
+        Color::from_rgba(Rgb::new(0x00, 0x80, 0x00), 0x66),
+        Color::from_rgba(Rgb::new(0xff, 0xc0, 0xcb), 0x99),
+    ]
+    .into_iter()
+    .map(|value| {
+        color_swatch::color_swatch(
+            &ColorSwatchProps {
+                value,
+                ..ColorSwatchProps::default()
+            },
+            vec![],
+            vec![],
+        )
+    })
+    .collect());
     section(
         "ColorSwatch",
-        "色見本の静的表示です。size / shape を組み合わせられます。アルファ付き色は下地のチェッカーボード模様で透過が視認できます。",
+        "色見本の静的表示です。size / shape を組み合わせられます。半透明色は下地のチェッカーボード模様で透過が、内側 1px の輪郭リングで淡色でも外形が視認できます。",
         vec![size_row, shape_row, transparent_row],
     )
 }

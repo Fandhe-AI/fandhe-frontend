@@ -8,35 +8,39 @@
 use fandhe_frontend_pre_styled_ui::color_swatch;
 
 const COLOR_SWATCH_GOLDEN_CSS: &str = r#"[data-scope="color-swatch"][data-part="root"] {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   vertical-align: middle;
   background-image: linear-gradient(var(--fd-swatch-color), var(--fd-swatch-color)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, var(--fandhe-color-bg) 0% 50%);
   background-size: 100% 100%, 8px 8px;
+  box-shadow: inset 0 0 0 1px var(--fandhe-color-border-muted);
 }
 
 [data-scope="color-swatch"][data-part="root"].fd-color-swatch--size-xs {
-  width: 0.5rem;
-  height: 0.5rem;
-}
-
-[data-scope="color-swatch"][data-part="root"].fd-color-swatch--size-sm {
   width: 1rem;
   height: 1rem;
 }
 
+[data-scope="color-swatch"][data-part="root"].fd-color-swatch--size-sm {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
 [data-scope="color-swatch"][data-part="root"].fd-color-swatch--size-md {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[data-scope="color-swatch"][data-part="root"].fd-color-swatch--size-lg {
   width: 1.5rem;
   height: 1.5rem;
 }
 
-[data-scope="color-swatch"][data-part="root"].fd-color-swatch--size-lg {
-  width: 2rem;
-  height: 2rem;
-}
-
 [data-scope="color-swatch"][data-part="root"].fd-color-swatch--size-xl {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
 [data-scope="color-swatch"][data-part="root"].fd-color-swatch--shape-square {
