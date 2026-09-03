@@ -14,6 +14,7 @@ const ALERT_GOLDEN_CSS: &str = r#"[data-scope="alert"][data-part="root"] {
   display: flex;
   align-items: flex-start;
   width: 100%;
+  box-sizing: border-box;
   position: relative;
   gap: var(--fandhe-alert-gap, var(--fandhe-space-3));
   padding: var(--fandhe-alert-padding, var(--fandhe-space-4));
@@ -101,7 +102,7 @@ const ALERT_GOLDEN_CSS: &str = r#"[data-scope="alert"][data-part="root"] {
 }
 
 [data-scope="alert"][data-part="root"].fd-alert--variant-solid {
-  background: var(--fandhe-palette);
+  background: var(--fandhe-palette-emphasized);
   color: var(--fandhe-palette-fg);
 }
 
