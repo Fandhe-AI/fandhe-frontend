@@ -7,10 +7,64 @@
 //! 保つため、コンビニ関数（全部入り `card(...)`）は提供せず、各パーツを
 //! 個別に呼び出して組み立てる契約とする（呼び出し例は各関数の rustdoc
 //! `# Examples` を参照）。
+//!
+//! # 参考サイト基準への調整（イシュー #1557）
+//!
+//! 参照 2 サイト（chakra-ui `Card`・Radix Themes `Card`）の共通仕様に
+//! 照らし、以下を是正した（[`crate::callout`]・[`crate::alert`] と同じ
+//! 判断軸、`docs/design/component-coverage-map.md` 参照）。
+//!
+//! - **size 軸を新設**（[`CardProps`]、5 段 `Size::Xs〜Xl`）。padding /
+//!   角丸 / title の font-size を root の `--fandhe-card-*` custom
+//!   property へ一本化し、header/body/footer/title へ連動させた
+//!   （chakra `--card-padding` 方式、[`crate::callout`] の
+//!   `--fandhe-callout-*` と同型）。
+//! - **`root(variant, …)` → `root(&CardProps, …)` の破壊的変更**:
+//!   size 軸追加に伴い [`crate::callout::root`] と同じ Props 構造体経由の
+//!   呼び出しへ揃えた。
+//! - **区切り線を廃止**: header の `border-bottom`/footer の `border-top`
+//!   は参照 2 サイトのいずれも持たず、padding のみで段を分ける（chakra
+//!   の header/body/footer 分割方式）。
+//! - **UA margin のリセット**: title（`<h3>`）・description（`<p>`）の
+//!   UA 既定 margin が上下の余分な空白を生んでいたため `margin: 0` を
+//!   明示した。header は `display: flex; flex-direction: column` +
+//!   `gap` で title/description の間隔を制御する（chakra header 方式）。
+//! - **Elevated の影を `shadow-sm` → `shadow-md`** へ是正（chakra
+//!   `elevated` = `shadow.md`）。
+//! - **`border: 1px solid transparent` を base へ**（[`crate::callout`]・
+//!   [`crate::alert`] と同じ是正: variant 切替でボックス高さが ±1px
+//!   ぶれないようにする）。
+//! - root に `position: relative` / `min-width: 0` /
+//!   `box-sizing: border-box` / `overflow-wrap: break-word` /
+//!   `color: var(--fandhe-color-fg)` を追加（chakra Card の共通宣言）。
+//!
+//! **意図的に合わせない点**（rustdoc に理由を残す、イシュー本文への
+//! 差分メモも参照）:
+//!
+//! - **Radix `ghost` variant**: 背景・枠線なしに加え負マージンで padding
+//!   を打ち消す Radix 固有の技法であり、chakra に対応物がない。装飾ゼロの
+//!   コンテナは素の `<div>` で足りるため追加しない。Radix `classic` ≈
+//!   Elevated、`surface` ≈ Outline として既存 3 値で網羅と判断する。
+//! - **colorPalette 軸**: イシュー #606 の判断（中立コンテナは palette を
+//!   持たない）を維持する。chakra Card も colorPalette を持たない。
+//! - **hover / `:focus-visible` / disabled / transition**: 表示専用部品
+//!   であり `docs/design/pre-styled-ui-interaction-visual-language.md`
+//!   §3 が card を hover 非対象と明記する。Radix の「リンク化した Card
+//!   の hover」は `link_overlay` 合成側の責務とする。
+//! - **`data-*` 状態**: headless 側部品を持たない pre-styled 単独
+//!   anatomy（`wrap_state.rs` バケット）のため対象なし。
+//! - **chakra `bg.panel`**: 本トークン体系に panel 段がないため
+//!   `--fandhe-color-bg` を継続する。Subtle は chakra `bg.muted` に
+//!   最も近い `--fandhe-color-bg-subtle` を継続する。
+//! - **Radix の size 連動角丸（radius-4/4/5/5/6）**: 完全追随ではなく
+//!   本トークンの段（md/lg/lg/xl/2xl）で近似する。
+//! - **Lg の padding**: chakra `lg` = `spacing.7`（1.75rem）は本トークン
+//!   に存在しないため隣接上位の `space-8`（2rem）へ外挿する（イシュー
+//!   #1681 の外挿規則）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, VariantValue};
+use crate::recipe::{Size, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -47,12 +101,44 @@ impl VariantValue for CardVariant {
     }
 }
 
+/// [`root`] の設定。
+///
+/// イシュー #1557: size 軸新設に伴い `root(CardVariant, …)` から
+/// `root(&CardProps, …)` へ破壊的変更した（[`crate::callout::CalloutProps`]
+/// と同型の Props 構造体経由）。
+#[derive(Debug, Clone, Copy)]
+pub struct CardProps {
+    /// 見た目 variant（既定 `Outline`）。
+    pub variant: CardVariant,
+    /// サイズ variant（既定 `Md`）。
+    pub size: Size,
+}
+
+impl Default for CardProps {
+    fn default() -> Self {
+        CardProps {
+            variant: CardVariant::Outline,
+            size: Size::Md,
+        }
+    }
+}
+
 /// Card の recipe（scope `"card"`、[`SLOTS`] の 6 パーツ）。
 ///
 /// 中立的なレイアウトコンテナであり、Button/Badge/Spinner/Alert と異なり
 /// colorPalette 軸は付与しない（イシュー #606。Card は特定のセマンティック
-/// 色を持つ意味論を持たず、`header`/`footer` の枠線色等は既存どおり
-/// `--fandhe-color-*` を直接参照する）。
+/// 色を持つ意味論を持たず、変更しない）。
+///
+/// axis 登録順を size → variant に固定する（[`crate::callout`] の recipe と
+/// 同型）。size 軸は [`SlotRecipe::size_variants`] を最初に呼ぶことで最初に
+/// 登録される axis になる（同メソッドは呼び出し末尾で必ず `Size::Md` を
+/// 既定へ戻すため、後続の `default_variant` 呼び出し順に依存せず size の
+/// 既定は常に `Md` になる）。
+///
+/// `border: 1px solid transparent` を base 側に置き、`Outline` variant は
+/// `border-color` のみを上書きする（variant 切替でボックス高さが ±1px
+/// ぶれないようにするため。[`crate::callout`]/[`crate::alert`] の是正と
+/// 同じ動機）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("card", SLOTS)
         .base(
@@ -60,44 +146,149 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
-                decl("border-radius", "var(--fandhe-radius-lg)"),
+                decl("position", "relative"),
+                decl("min-width", "0"),
+                decl("box-sizing", "border-box"),
+                decl("overflow-wrap", "break-word"),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("border", "1px solid transparent"),
+                decl(
+                    "border-radius",
+                    "var(--fandhe-card-radius, var(--fandhe-radius-lg))",
+                ),
             ],
         )
         .base(
             "header",
             vec![
-                decl("padding", "1rem"),
+                decl("display", "flex"),
+                decl("flex-direction", "column"),
+                decl("gap", "var(--fandhe-space-1-5)"),
                 decl(
-                    "border-bottom",
-                    "1px solid var(--fandhe-color-border-muted)",
+                    "padding-inline",
+                    "var(--fandhe-card-padding, var(--fandhe-space-4))",
+                ),
+                decl(
+                    "padding-block-start",
+                    "var(--fandhe-card-padding, var(--fandhe-space-4))",
                 ),
             ],
         )
-        .base("body", vec![decl("padding", "1rem")])
+        .base(
+            "body",
+            vec![
+                decl("display", "flex"),
+                decl("flex-direction", "column"),
+                decl("flex", "1"),
+                decl(
+                    "padding",
+                    "var(--fandhe-card-padding, var(--fandhe-space-4))",
+                ),
+            ],
+        )
         .base(
             "footer",
             vec![
-                decl("padding", "1rem"),
-                decl("border-top", "1px solid var(--fandhe-color-border-muted)"),
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl(
+                    "padding-inline",
+                    "var(--fandhe-card-padding, var(--fandhe-space-4))",
+                ),
+                decl(
+                    "padding-block-end",
+                    "var(--fandhe-card-padding, var(--fandhe-space-4))",
+                ),
             ],
         )
         .base(
             "title",
             vec![
-                decl("font-size", "var(--fandhe-font-font-size-lg)"),
+                decl("margin", "0"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-card-title-font-size, var(--fandhe-font-font-size-lg))",
+                ),
                 decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                decl("line-height", "var(--fandhe-font-line-height-tight)"),
             ],
         )
         .base(
             "description",
-            vec![decl("color", "var(--fandhe-color-fg-muted)")],
+            vec![
+                decl("margin", "0"),
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+            ],
+        )
+        .size_variants(
+            "root",
+            &[
+                (
+                    Size::Xs,
+                    vec![
+                        decl("--fandhe-card-padding", "var(--fandhe-space-3)"),
+                        decl("--fandhe-card-radius", "var(--fandhe-radius-md)"),
+                        decl(
+                            "--fandhe-card-title-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Sm,
+                    vec![
+                        decl("--fandhe-card-padding", "var(--fandhe-space-4)"),
+                        decl("--fandhe-card-radius", "var(--fandhe-radius-lg)"),
+                        decl(
+                            "--fandhe-card-title-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Md,
+                    vec![
+                        decl("--fandhe-card-padding", "var(--fandhe-space-6)"),
+                        decl("--fandhe-card-radius", "var(--fandhe-radius-lg)"),
+                        decl(
+                            "--fandhe-card-title-font-size",
+                            "var(--fandhe-font-font-size-lg)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Lg,
+                    vec![
+                        decl("--fandhe-card-padding", "var(--fandhe-space-8)"),
+                        decl("--fandhe-card-radius", "var(--fandhe-radius-xl)"),
+                        decl(
+                            "--fandhe-card-title-font-size",
+                            "var(--fandhe-font-font-size-xl)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Xl,
+                    vec![
+                        decl("--fandhe-card-padding", "var(--fandhe-space-10)"),
+                        decl("--fandhe-card-radius", "var(--fandhe-radius-2xl)"),
+                        decl(
+                            "--fandhe-card-title-font-size",
+                            "var(--fandhe-font-font-size-2xl)",
+                        ),
+                    ],
+                ),
+            ],
         )
         .variant(
             CardVariant::Elevated,
             "root",
             vec![
                 decl("background", "var(--fandhe-color-bg)"),
-                decl("box-shadow", "var(--fandhe-shadow-sm)"),
+                decl("box-shadow", "var(--fandhe-shadow-md)"),
             ],
         )
         .variant(
@@ -105,7 +296,7 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("background", "var(--fandhe-color-bg)"),
-                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-color", "var(--fandhe-color-border)"),
             ],
         )
         .variant(
@@ -122,23 +313,26 @@ pub fn css() -> String {
     recipe().css()
 }
 
-/// root パーツを組み立てる。`variant` に応じたクラスを付与する唯一のパーツ
-/// （`class_attr::drop_class_attr` により呼び出し側の `class` は除去してから
-/// 合成する）。
+/// root パーツを組み立てる。`variant`/`size` に応じたクラスを付与する唯一の
+/// パーツ（`class_attr::drop_class_attr` により呼び出し側の `class` は
+/// 除去してから合成する）。
 ///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
+/// use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 ///
-/// let node = card::root(CardVariant::default(), vec![], vec![]);
+/// let node = card::root(&CardProps::default(), vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="card" data-part="root""#));
 /// ```
 #[must_use]
-pub fn root<'a>(variant: CardVariant, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn root<'a>(props: &CardProps, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[("variant", variant.value())]);
+    let class = recipe.variant_classes(&[
+        ("size", props.size.value()),
+        ("variant", props.variant.value()),
+    ]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     ANATOMY.part("root", "div", merged, children)
@@ -181,8 +375,9 @@ mod tests {
     use fandhe_frontend_core::{render, text};
 
     #[test]
-    fn default_variant_is_outline() {
-        let html = render(&root(CardVariant::default(), vec![], vec![]));
+    fn default_props_render_outline_md() {
+        let html = render(&root(&CardProps::default(), vec![], vec![]));
+        assert!(html.contains("fd-card--size-md"));
         assert!(html.contains("fd-card--variant-outline"));
     }
 
@@ -193,10 +388,35 @@ mod tests {
             (CardVariant::Outline, "fd-card--variant-outline"),
             (CardVariant::Subtle, "fd-card--variant-subtle"),
         ] {
-            let html = render(&root(variant, vec![], vec![]));
+            let props = CardProps {
+                variant,
+                ..CardProps::default()
+            };
+            let html = render(&root(&props, vec![], vec![]));
             assert!(
-                html.contains(&format!("class=\"{class}\"")),
+                html.contains(&format!("class=\"fd-card--size-md {class}\"")),
                 "variant={variant:?} -> {html}"
+            );
+        }
+    }
+
+    #[test]
+    fn size_enumeration_maps_to_expected_classes() {
+        for (size, class) in [
+            (Size::Xs, "fd-card--size-xs"),
+            (Size::Sm, "fd-card--size-sm"),
+            (Size::Md, "fd-card--size-md"),
+            (Size::Lg, "fd-card--size-lg"),
+            (Size::Xl, "fd-card--size-xl"),
+        ] {
+            let props = CardProps {
+                size,
+                ..CardProps::default()
+            };
+            let html = render(&root(&props, vec![], vec![]));
+            assert!(
+                html.contains(&format!("class=\"{class} fd-card--variant-outline\"")),
+                "size={size:?} -> {html}"
             );
         }
     }
@@ -219,7 +439,10 @@ mod tests {
     #[test]
     fn composed_card_snapshot() {
         let node = root(
-            CardVariant::Elevated,
+            &CardProps {
+                variant: CardVariant::Elevated,
+                ..CardProps::default()
+            },
             vec![],
             vec![
                 header(vec![], vec![title(vec![], vec![text("Title")])]),
@@ -231,7 +454,7 @@ mod tests {
         assert_eq!(
             html,
             concat!(
-                r#"<div data-scope="card" data-part="root" class="fd-card--variant-elevated">"#,
+                r#"<div data-scope="card" data-part="root" class="fd-card--size-md fd-card--variant-elevated">"#,
                 r#"<div data-scope="card" data-part="header">"#,
                 r#"<h3 data-scope="card" data-part="title">Title</h3>"#,
                 r#"</div>"#,
@@ -245,7 +468,7 @@ mod tests {
     #[test]
     fn caller_class_attr_on_root_is_dropped_not_duplicated() {
         let html = render(&root(
-            CardVariant::default(),
+            &CardProps::default(),
             vec![("class", "attacker-controlled")],
             vec![],
         ));
@@ -260,12 +483,25 @@ mod tests {
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
     }
 
-    /// イシュー #606: recipe の静的 CSS に radii/shadow トークン参照が
-    /// 含まれることを固定する。
+    /// イシュー #1557: 参考サイト基準への調整で size 軸を
+    /// `--fandhe-card-*` custom property へ一本化したこと、影段が
+    /// `shadow-md` へ是正されたことを固定する。
     #[test]
-    fn css_output_declares_radius_and_shadow_tokens() {
+    fn css_output_declares_size_custom_properties_and_shadow_md_token() {
         let out = css();
-        assert!(out.contains("border-radius: var(--fandhe-radius-lg);"));
-        assert!(out.contains("box-shadow: var(--fandhe-shadow-sm);"));
+        assert!(out.contains("--fandhe-card-padding: var(--fandhe-space-6);"));
+        assert!(out.contains("--fandhe-card-radius: var(--fandhe-radius-lg);"));
+        assert!(out.contains("box-shadow: var(--fandhe-shadow-md);"));
+        assert!(!out.contains("var(--fandhe-shadow-sm)"));
+    }
+
+    /// イシュー #1557: header/footer の区切り線（`border-bottom`/
+    /// `border-top`）を廃止したことを固定する（padding のみで段を分ける
+    /// chakra 方式への移行）。
+    #[test]
+    fn css_output_does_not_declare_header_footer_border() {
+        let out = css();
+        assert!(!out.contains("border-bottom"));
+        assert!(!out.contains("border-top"));
     }
 }

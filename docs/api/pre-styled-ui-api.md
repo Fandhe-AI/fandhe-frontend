@@ -499,6 +499,7 @@ CSS を追加提供する（設計方針は他 headless ラッパーと同じ、
 | navigation-menu | 提供しない | 提供しない | トリガー起点のナビゲーションパネルであり寸法・強調色の variant 対象外（イシュー #993） |
 | tab-nav | ✓ | 提供しない | size 軸（xs〜xl、既定 md）を持つ（イシュー #1541）。palette は祖先の `--fandhe-palette` を継承する経路のみで軸としては非提供 |
 | checkbox-group | ✓ | ✓ | radio-group と同型（イシュー #997）。`item-control` の寸法・palette 塗りに反映 |
+| card | ✓ | 提供しない | 中立コンテナのため palette 非提供（イシュー #606）。size（xs〜xl、既定 md）は root の `--fandhe-card-*` へ一本化し padding/角丸/title の文字サイズへ連動する。size 軸新設に伴い `root(CardVariant, …)` から `root(&CardProps, …)` へ破壊的変更した（イシュー #1557） |
 
 tabs/accordion/dialog/menu/select の実装詳細:
 

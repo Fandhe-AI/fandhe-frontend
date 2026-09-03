@@ -80,7 +80,9 @@
 //!     `role` を一切付与しない（`callout.rs` モジュール doc 参照）。
 //!   - [`mod@card`]: [`card::root`] ほかパーツ関数群（slot recipe、
 //!     root/header/body/footer/title/description の 6 パーツ、装飾的コンテナ、
-//!     role 付与なし。中立コンテナのため colorPalette 軸は付与しない）。
+//!     role 付与なし。中立コンテナのため colorPalette 軸は付与しない。
+//!     `variant`（[`card::CardVariant`]）/`size`（[`recipe::Size`]）の
+//!     2 軸を [`card::CardProps`] へ束ねる、イシュー #1557）。
 //!   - [`mod@skeleton`]（#764）: [`skeleton::skeleton`]（単一 recipe、
 //!     `<div>`。ローディングプレースホルダー。`text`/`circle`/`rect` の
 //!     `variant`、常時 `aria-hidden="true"`、`prefers-reduced-motion: reduce`
@@ -757,7 +759,7 @@ pub use badge::{badge, BadgeProps, BadgeVariant};
 pub use blockquote::BlockquoteVariant;
 pub use button::{button, close_button, icon_button, ButtonProps, ButtonVariant};
 pub use callout::{CalloutProps, CalloutVariant};
-pub use card::CardVariant;
+pub use card::{CardProps, CardVariant};
 pub use code::code;
 pub use color_swatch::{color_swatch, ColorSwatchProps, SwatchShape};
 pub use css::{decl, Declaration};
