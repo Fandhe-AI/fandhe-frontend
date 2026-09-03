@@ -479,7 +479,7 @@ fandhe_frontend_headless_ui::<mod>::*;`）・選択的個別・（styled 側の
 | 4 | `floating_panel` | 充足 | 充足 | 充足 | 維持 |
 | 5 | `navigation_menu` | 充足 | 充足 | 充足 | 維持 |
 | 6 | `scroll_area` | 充足 | 充足（#825 で variant 非採用を明記） | 充足 | 維持 |
-| 7 | `tree_view` | 充足 | 充足 | 充足 | 維持 |
+| 7 | `tree_view` | 充足（イシュー #1578 以前） | 充足（イシュー #1578 以前） | 充足（イシュー #1578 以前） | イシュー #1578 で `size` variant を新設し規約 A（選択的 re-export）へ移行済み。本表は #1062 時点の記録として保持する |
 | 8 | `toggle_tip` | 充足 | 充足 | 充足 | 維持 |
 | 9 | `tooltip` | 充足 | 充足（#708 方針 3 で確定） | 充足 | 維持 |
 | 10 | `timer` | 充足 | 充足（モジュール rustdoc でスコープ外明記） | 充足 | 維持 |

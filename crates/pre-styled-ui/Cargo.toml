@@ -1152,7 +1152,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3 に従い
 # patch バンプする（CSS 出力変更のため §3.2 により
 # `version-bump-exempt:` は適用しない）。
-version = "0.77.2"
+#
+# イシュー #1578: tree-view のスタイル調整。root へのみクラスを付与する
+# `size` variant（Xs〜Xl、既定 Md）を新設した。これに伴い headless 自由関数
+# `root`（glob 再エクスポート経由で `tree_view::root(attrs, children)` の
+# 2 引数シグネチャとして到達可能だった）を選択的再エクスポートへ切り替え、
+# 同名の styled `root(Size, attrs, children)`（3 引数）へ置き換えた
+# （[`crate::accordion::root`] と同型）。既存呼び出し元のシグネチャを
+# 破壊する観測可能な破壊的変更（CSS 出力の是正も伴う）のため、0.x の
+# 破壊的変更はマイナーバンプする規約
+# （.claude/rules/coding-rust.md「公開済みクレートの実体変更時は semver
+# バンプ必須」）に従い 0.78.0 へマイナーバンプする。
+version = "0.78.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

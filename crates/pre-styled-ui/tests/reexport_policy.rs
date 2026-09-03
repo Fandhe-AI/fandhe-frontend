@@ -51,10 +51,6 @@ const GLOB_REEXPORT_MODULES: &[(&str, &str)] = &[
         "stylesheet() のみ・variant 軸なし・属性セレクタのみ",
     ),
     (
-        "tree_view",
-        "stylesheet() のみ・variant 軸なし・属性セレクタのみ",
-    ),
-    (
         "scroll_area",
         "stylesheet() のみ・#825 で variant 軸非採用確定・属性セレクタのみ",
     ),
