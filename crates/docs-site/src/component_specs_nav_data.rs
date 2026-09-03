@@ -323,6 +323,24 @@ fn ex_data_list() -> Node {
     data_list::root(
         data_list::DataListProps {
             orientation: data_list::DataListOrientation::Horizontal,
+            ..data_list::DataListProps::default()
+        },
+        vec![],
+        vec![data_list::item(
+            vec![],
+            vec![
+                data_list::item_label(vec![], vec![text("Name")]),
+                data_list::item_value(vec![], vec![text("Alice")]),
+            ],
+        )],
+    )
+}
+
+fn ex_data_list_bold() -> Node {
+    data_list::root(
+        data_list::DataListProps {
+            variant: data_list::DataListVariant::Bold,
+            ..data_list::DataListProps::default()
         },
         vec![],
         vec![data_list::item(
@@ -337,21 +355,44 @@ fn ex_data_list() -> Node {
 
 pub(crate) const DATA_LIST: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "DataListOrientation（Vertical/Horizontal、crates/pre-styled-ui/src/data_list.rs:70-107）でラベル・値の並びを切り替える",
-        "item/item-label/item-value の 3 パーツで dl/dt/dd 構造を組み立てる（data_list.rs:93-107, 189-201）",
-        "orientation の伝搬は root の CSS custom property 経由（通常の CSS 継承、data_list.rs モジュール doc）",
+        "DataListOrientation（Vertical/Horizontal、crates/pre-styled-ui/src/data_list.rs:106-113）でラベル・値の並びを切り替える",
+        "DataListVariant（Subtle/Bold、data_list.rs:129-136、イシュー #1559）でラベル・値の強調配色を切り替える",
+        "size（Size::Xs〜Xl、既定 Md、data_list.rs recipe() の size_variants）で gap・font-size を段階的に切り替える",
+        "item/item-label/item-value の 3 パーツで dl/dt/dd 構造を組み立てる",
+        "orientation/variant/size の伝搬は root の CSS custom property 経由（通常の CSS 継承、data_list.rs モジュール doc）",
     ],
-    arguments: &[ArgRow {
-        name: "orientation",
-        kind: "DataListOrientation",
-        default: "Vertical",
-        description: "並び方向（data_list.rs:70-107、#[default] は Vertical）。",
-    }],
-    examples: &[ExampleEntry {
-        title: "Horizontal",
-        description: "ラベル・値を横並び表示する Horizontal variant の例です。",
-        render: ex_data_list,
-    }],
+    arguments: &[
+        ArgRow {
+            name: "orientation",
+            kind: "DataListOrientation",
+            default: "Vertical",
+            description: "並び方向（#[default] は Vertical）。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "DataListVariant",
+            default: "Subtle",
+            description: "見た目 variant（イシュー #1559。#[default] は Subtle。ラベル muted・値 fg / Bold はラベル fg+medium 太字・値 muted）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ variant（イシュー #1559。Xs〜Xl の 5 段、既定 Md）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Horizontal",
+            description: "ラベル・値を横並び表示する Horizontal variant の例です。",
+            render: ex_data_list,
+        },
+        ExampleEntry {
+            title: "Bold",
+            description: "ラベルを強調表示する Bold variant の例です。",
+            render: ex_data_list_bold,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "(該当なし)",

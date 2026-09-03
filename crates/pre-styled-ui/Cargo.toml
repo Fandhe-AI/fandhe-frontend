@@ -1003,11 +1003,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # 到達済みだったため、本イシュー（#1556）とのマージにより双方の実体変更を
 # 統合した結果として 0.69.0 へさらにマイナーバンプする（0.x の破壊的変更は
 # マイナーバンプの規約。同一版数への偶発的衝突をそのまま採用しない）。
-# イシュー #1558: color-swatch の size 実寸を chakra-ui 同名段へ是正し、
-# inset box-shadow による輪郭リングを追加、base を inline-flex 中央寄せへ
-# 変更した。Rust API・クラス名・CSS 変数名は不変であり公開 API の破壊的
-# 変更を伴わない意匠調整のため patch バンプする。
-version = "0.69.1"
+# イシュー #1559: data_list のスタイルを参考サイト基準（chakra-ui
+# DataList・Radix Themes DataList）へ調整し、`DataListProps` へ
+# `variant`（`DataListVariant`）・`size`（`Size`）フィールドを追加した
+# （利用者の struct literal を壊しうる 0.x の破壊的変更、既定値のラベル/
+# 値文字サイズも変更したため minor バンプする。0.x の破壊的変更は
+# マイナーバンプの規約。merge base（0.69.0）から独立に 0.70.0 へ到達）。
+# 一方 main 側では #1558（color-swatch の意匠調整、patch バンプ）が
+# 独立に merge base（0.69.0）から 0.69.1 へ到達済みだったため、本イシュー
+# （#1559）とのマージでは双方の実体変更を包含する上位のバージョンである
+# 0.70.0（本イシューの minor バンプが #1558 の patch バンプを包含する）を
+# そのまま採用する。
+version = "0.70.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
