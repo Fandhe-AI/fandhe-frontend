@@ -1112,9 +1112,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # （既存バグの是正のみ）で、0.76.0 は crates.io 未公開のためこの修正は
 # 追加のバンプを要さずそのまま 0.76.0 に含める。
 #
-# イシュー #1573: `TagVariant` へ `Surface` を追加する公開 enum（`lib.rs` で
-# re-export）への variant 追加は利用者の網羅 `match` を壊す 0.x 破壊的変更
-# のため minor バンプする（#1448/#1555 と同型判断）。
+# イシュー #1575: timeline のスタイル調整 (1/2) — インジケータ・コネクタ
+# （親 #1574 の 7 軸チェックリストのうち connector/separator/indicator と
+# root の variant 規則を是正）。indicator/separator の base 宣言値変更・
+# `--fandhe-timeline-indicator-font-size` custom property 新設・
+# `[data-state="complete"/"current"]` 状態セレクタ新設を行うが、公開 Rust
+# API のシグネチャ・既存 CSS 変数名/クラス名/セレクタの削除・改名は伴わない
+# 意匠調整（`docs/ci/style-refresh-version-bump-operation.md` §3.1、
+# `.claude/rules/coding-rust.md`）のためパッチバンプ相当（0.76.1）。
+#
+# base 取り込み: main 側は #1573（`TagVariant::Surface` 追加による網羅
+# `match` 破壊、0.x 破壊的変更）の統合により 0.77.0（本ブランチの 0.76.1
+# より大きい）へマイナーバンプ済みだった。両者の実体変更を統合した結果
+# として、より大きい 0.77.0 をそのまま採用する（semver 上 minor バンプが
+# patch バンプを包含するため、0.76.1 への追随バンプは不要）。
 version = "0.77.0"
 
 edition = "2021"

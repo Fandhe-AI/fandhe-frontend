@@ -114,6 +114,7 @@ use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::ColorPicker;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::data_attrs::data_state;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::positioning::{
     Align, Placement, Side,
 };
@@ -7218,6 +7219,11 @@ fn stat_section() -> Node {
 /// Timeline 節: 状態機械不要の静的部品（イシュー #769）。`variant`/`size`/
 /// `color-palette` の 3 軸。
 fn timeline_section() -> Node {
+    // イシュー #1575: `data-state="complete"`/`"current"` は recipe 側では
+    // なく呼び出し側が付与する契約（`crate::timeline` rustdoc「`data-state`
+    // 契約」節参照）。3 item 構成（complete → current → 未着手）にして
+    // `indicator`/`separator` の状態別スタイルが Demo・`data-*` 属性表の
+    // 双方へ可視化されるようにする。
     let demo = timeline::root(
         TimelineVariant::Solid,
         Size::Md,
@@ -7230,8 +7236,8 @@ fn timeline_section() -> Node {
                     timeline::connector(
                         vec![],
                         vec![
-                            timeline::indicator(vec![], vec![]),
-                            timeline::separator(vec![], vec![]),
+                            timeline::indicator(vec![data_state("complete")], vec![]),
+                            timeline::separator(vec![data_state("complete")], vec![]),
                         ],
                     ),
                     timeline::content(
@@ -7239,6 +7245,25 @@ fn timeline_section() -> Node {
                         vec![
                             timeline::title(vec![], vec![text("プロジェクト開始")]),
                             timeline::description(vec![], vec![text("2026-01-01")]),
+                        ],
+                    ),
+                ],
+            ),
+            timeline::item(
+                vec![],
+                vec![
+                    timeline::connector(
+                        vec![],
+                        vec![
+                            timeline::indicator(vec![data_state("current")], vec![]),
+                            timeline::separator(vec![], vec![]),
+                        ],
+                    ),
+                    timeline::content(
+                        vec![],
+                        vec![
+                            timeline::title(vec![], vec![text("開発中")]),
+                            timeline::description(vec![], vec![text("2026-03-01")]),
                         ],
                     ),
                 ],
@@ -7259,7 +7284,7 @@ fn timeline_section() -> Node {
     );
     section(
         "Timeline",
-        "時系列に並ぶ出来事の一覧を connector（縦線）+ indicator（点）+ content で表示する静的部品です。variant（solid/subtle/outline/plain）で indicator の塗り方を切り替えます。",
+        "時系列に並ぶ出来事の一覧を connector（縦線）+ indicator（点）+ content で表示する静的部品です。variant（solid/subtle/outline/plain）で indicator の塗り方を切り替えます。呼び出し側が indicator/separator へ data-state=\"complete\"/\"current\" を付与すると、完了区間・現在位置のスタイルが適用されます。",
         vec![demo],
     )
 }

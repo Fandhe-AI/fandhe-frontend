@@ -27,12 +27,21 @@ const TIMELINE_GOLDEN_CSS: &str = r#"[data-scope="timeline"][data-part="root"] {
   display: flex;
   flex-direction: column;
   align-items: center;
+  row-gap: var(--fandhe-space-1);
 }
 
 [data-scope="timeline"][data-part="separator"] {
   flex: 1;
   width: var(--fandhe-timeline-separator-width, 2px);
-  background: var(--fandhe-palette, var(--fandhe-color-accent));
+  border-radius: var(--fandhe-radius-full, 9999px);
+  margin-bottom: var(--fandhe-space-1);
+  background: var(--fandhe-color-border);
+}
+
+[data-scope="timeline"][data-part="separator"] {
+  transition-property: background;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="timeline"][data-part="indicator"] {
@@ -43,9 +52,19 @@ const TIMELINE_GOLDEN_CSS: &str = r#"[data-scope="timeline"][data-part="root"] {
   width: var(--fandhe-timeline-indicator-size, 1.5rem);
   height: var(--fandhe-timeline-indicator-size, 1.5rem);
   border-radius: var(--fandhe-radius-full, 9999px);
-  background: var(--fandhe-timeline-indicator-bg, var(--fandhe-palette, var(--fandhe-color-accent)));
-  color: var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)));
-  border: var(--fandhe-timeline-indicator-border, none);
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg-muted);
+  border: var(--fandhe-timeline-separator-width, 2px) solid var(--fandhe-color-border);
+  flex-shrink: 0;
+  font-size: var(--fandhe-timeline-indicator-font-size, var(--fandhe-font-font-size-xs));
+  font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: 1;
+}
+
+[data-scope="timeline"][data-part="indicator"] {
+  transition-property: background, border-color, color, box-shadow;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="timeline"][data-part="content"] {
@@ -70,15 +89,15 @@ const TIMELINE_GOLDEN_CSS: &str = r#"[data-scope="timeline"][data-part="root"] {
 }
 
 [data-scope="timeline"][data-part="root"].fd-timeline--variant-subtle {
-  --fandhe-timeline-indicator-bg: var(--fandhe-color-bg-subtle);
-  --fandhe-timeline-indicator-fg: var(--fandhe-palette, var(--fandhe-color-accent));
+  --fandhe-timeline-indicator-bg: var(--fandhe-palette-subtle, var(--fandhe-color-accent-subtle));
+  --fandhe-timeline-indicator-fg: var(--fandhe-palette-fg-subtle, var(--fandhe-color-accent-fg-subtle));
   --fandhe-timeline-indicator-border: none;
 }
 
 [data-scope="timeline"][data-part="root"].fd-timeline--variant-outline {
   --fandhe-timeline-indicator-bg: var(--fandhe-color-bg);
   --fandhe-timeline-indicator-fg: var(--fandhe-palette, var(--fandhe-color-accent));
-  --fandhe-timeline-indicator-border: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
+  --fandhe-timeline-indicator-border: var(--fandhe-timeline-separator-width, 2px) solid var(--fandhe-palette-muted, var(--fandhe-color-accent-muted));
 }
 
 [data-scope="timeline"][data-part="root"].fd-timeline--variant-plain {
@@ -90,26 +109,31 @@ const TIMELINE_GOLDEN_CSS: &str = r#"[data-scope="timeline"][data-part="root"] {
 [data-scope="timeline"][data-part="root"].fd-timeline--size-xs {
   --fandhe-timeline-indicator-size: 0.75rem;
   --fandhe-timeline-separator-width: 1px;
+  --fandhe-timeline-indicator-font-size: var(--fandhe-font-font-size-xs);
 }
 
 [data-scope="timeline"][data-part="root"].fd-timeline--size-sm {
   --fandhe-timeline-indicator-size: 1.125rem;
   --fandhe-timeline-separator-width: 1.5px;
+  --fandhe-timeline-indicator-font-size: var(--fandhe-font-font-size-xs);
 }
 
 [data-scope="timeline"][data-part="root"].fd-timeline--size-md {
   --fandhe-timeline-indicator-size: 1.5rem;
   --fandhe-timeline-separator-width: 2px;
+  --fandhe-timeline-indicator-font-size: var(--fandhe-font-font-size-xs);
 }
 
 [data-scope="timeline"][data-part="root"].fd-timeline--size-lg {
   --fandhe-timeline-indicator-size: 1.875rem;
   --fandhe-timeline-separator-width: 2.5px;
+  --fandhe-timeline-indicator-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="timeline"][data-part="root"].fd-timeline--size-xl {
   --fandhe-timeline-indicator-size: 2.25rem;
   --fandhe-timeline-separator-width: 3px;
+  --fandhe-timeline-indicator-font-size: var(--fandhe-font-font-size-md);
 }
 
 [data-scope="timeline"][data-part="root"].fd-timeline--color-palette-accent {
@@ -164,6 +188,23 @@ const TIMELINE_GOLDEN_CSS: &str = r#"[data-scope="timeline"][data-part="root"] {
   --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
   --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
+}
+
+[data-scope="timeline"][data-part="separator"][data-state="complete"] {
+  background: var(--fandhe-palette, var(--fandhe-color-accent));
+}
+
+[data-scope="timeline"][data-part="indicator"][data-state="complete"] {
+  background: var(--fandhe-timeline-indicator-bg, var(--fandhe-palette, var(--fandhe-color-accent)));
+  color: var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)));
+  border: var(--fandhe-timeline-indicator-border, none);
+}
+
+[data-scope="timeline"][data-part="indicator"][data-state="current"] {
+  background: var(--fandhe-timeline-indicator-bg, var(--fandhe-palette, var(--fandhe-color-accent)));
+  color: var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)));
+  border: var(--fandhe-timeline-indicator-border, none);
+  box-shadow: 0 0 0 var(--fandhe-timeline-separator-width, 2px) var(--fandhe-palette-muted, var(--fandhe-color-accent-muted));
 }
 "#;
 
