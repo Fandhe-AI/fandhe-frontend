@@ -167,6 +167,44 @@ fn data_list_css_contains_orientation_custom_properties() {
     assert!(css.contains("--fandhe-data-list-item-flex-direction: row;"));
 }
 
+/// イシュー #1559: `variant`（subtle/bold）・`size`（xs〜xl）の 2 軸を
+/// 新設した。両軸のクラスセレクタが `css()` 出力に存在することを固定する
+/// （table の `variant`/`size` 網羅アサーションと同型）。
+#[test]
+fn data_list_css_contains_variant_and_size_selectors() {
+    let css = data_list::css();
+    for class in [
+        "fd-data-list--variant-subtle",
+        "fd-data-list--variant-bold",
+        "fd-data-list--size-xs",
+        "fd-data-list--size-sm",
+        "fd-data-list--size-md",
+        "fd-data-list--size-lg",
+        "fd-data-list--size-xl",
+    ] {
+        let selector = format!(r#"[data-scope="data-list"][data-part="root"].{class} {{"#);
+        assert!(
+            css.contains(&selector),
+            "missing selector: {selector}\n{css}"
+        );
+    }
+}
+
+/// Horizontal 時のラベル最小幅（chakra `minW="120px"` / Radix Themes
+/// `Label` の `minWidth: 120px` に一致、モジュール doc「参考サイト基準へ
+/// の調整」参照）・variant ごとのラベル太字・root/item-label/item-value が
+/// 共有する font-size custom property が出力へ含まれることを固定する。
+#[test]
+fn data_list_css_contains_label_min_width_and_font_tokens() {
+    let css = data_list::css();
+    assert!(css.contains("--fandhe-data-list-label-min-width: 7.5rem;"));
+    assert!(css
+        .contains("--fandhe-data-list-label-font-weight: var(--fandhe-font-font-weight-medium);"));
+    assert!(css.contains(
+        "font-size: var(--fandhe-data-list-font-size, var(--fandhe-font-font-size-sm));"
+    ));
+}
+
 #[test]
 fn data_list_css_never_contains_style_breakout_sequences() {
     let css = data_list::css();
@@ -179,6 +217,7 @@ fn data_list_recipe_selectors_match_actual_rendered_markup() {
     let html = render(&data_list::root(
         DataListProps {
             orientation: DataListOrientation::Horizontal,
+            ..DataListProps::default()
         },
         vec![],
         vec![],
