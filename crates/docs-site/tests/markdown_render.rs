@@ -318,7 +318,7 @@ fn admonition_note_renders_as_alert_with_title_and_description() {
     assert_eq!(
         render_all("> [!NOTE]\n> Something needs attention."),
         concat!(
-            r#"<div data-scope="alert" data-part="root" role="alert" class="fd-alert--status-info">"#,
+            r#"<div data-scope="alert" data-part="root" role="alert" class="fd-alert--status-info fd-alert--variant-subtle fd-alert--size-md">"#,
             r#"<span data-scope="alert" data-part="indicator" aria-hidden="true">"#,
             r#"<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" focusable="false">"#,
             r#"<circle cx="8" cy="8" r="6.5" stroke-width="1.5"></circle>"#,
@@ -338,11 +338,31 @@ fn admonition_note_renders_as_alert_with_title_and_description() {
 #[test]
 fn admonition_marker_variants_map_to_expected_status_and_title() {
     for (marker, expected_class, expected_title) in [
-        ("[!NOTE]", "fd-alert--status-info", "Note"),
-        ("[!TIP]", "fd-alert--status-success", "Tip"),
-        ("[!IMPORTANT]", "fd-alert--status-warning", "Important"),
-        ("[!WARNING]", "fd-alert--status-warning", "Warning"),
-        ("[!CAUTION]", "fd-alert--status-error", "Caution"),
+        (
+            "[!NOTE]",
+            "fd-alert--status-info fd-alert--variant-subtle fd-alert--size-md",
+            "Note",
+        ),
+        (
+            "[!TIP]",
+            "fd-alert--status-success fd-alert--variant-subtle fd-alert--size-md",
+            "Tip",
+        ),
+        (
+            "[!IMPORTANT]",
+            "fd-alert--status-warning fd-alert--variant-subtle fd-alert--size-md",
+            "Important",
+        ),
+        (
+            "[!WARNING]",
+            "fd-alert--status-warning fd-alert--variant-subtle fd-alert--size-md",
+            "Warning",
+        ),
+        (
+            "[!CAUTION]",
+            "fd-alert--status-error fd-alert--variant-subtle fd-alert--size-md",
+            "Caution",
+        ),
     ] {
         let output = render_all(&format!("> {marker}\n> body"));
         assert!(
@@ -364,7 +384,7 @@ fn admonition_without_body_omits_description() {
     assert_eq!(
         output,
         concat!(
-            r#"<div data-scope="alert" data-part="root" role="alert" class="fd-alert--status-info">"#,
+            r#"<div data-scope="alert" data-part="root" role="alert" class="fd-alert--status-info fd-alert--variant-subtle fd-alert--size-md">"#,
             r#"<span data-scope="alert" data-part="indicator" aria-hidden="true">"#,
             r#"<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" focusable="false">"#,
             r#"<circle cx="8" cy="8" r="6.5" stroke-width="1.5"></circle>"#,

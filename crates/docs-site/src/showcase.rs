@@ -180,9 +180,9 @@ use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
     accordion, alert, badge, callout, card, combobox, menu, popover, radio_group, select, switch,
-    toggle, toggle_tip, tooltip, AlertStatus, BadgeProps, BadgeVariant, CalloutProps,
-    CalloutVariant, CardVariant, ColorPalette, OpenState, Orientation, Size, StyleSheet,
-    StylesheetError, VariantValue,
+    toggle, toggle_tip, tooltip, AlertProps, AlertStatus, AlertVariant, BadgeProps, BadgeVariant,
+    CalloutProps, CalloutVariant, CardVariant, ColorPalette, OpenState, Orientation, Size,
+    StyleSheet, StylesheetError, VariantValue,
 };
 
 /// 索引ページ（凡例 + カテゴリ別リンク集）の `page.path`。`site/nav.toml`
@@ -1782,7 +1782,9 @@ fn highlight_section() -> Node {
     )
 }
 
-/// Alert 節: status（info / success / warning / error）ごとの表示。
+/// Alert 節: status（info / success / warning / error / neutral）・variant
+/// （subtle / surface / solid / outline）・size（xs〜xl）ごとの表示
+/// （イシュー #1553 で variant/size 軸を追加）。
 fn alert_section() -> Node {
     let statuses = [
         (
@@ -1801,13 +1803,18 @@ fn alert_section() -> Node {
             "Error",
             "リンク切れを検出したため書き出しを中止しました。",
         ),
+        (AlertStatus::Neutral, "Neutral", "中立な状態の通知です。"),
     ];
-    let demos = stack(
+    let status_row = stack(
         statuses
             .iter()
             .map(|(status, title, description)| {
+                let props = AlertProps {
+                    status: *status,
+                    ..AlertProps::default()
+                };
                 alert::root(
-                    *status,
+                    &props,
                     vec![],
                     vec![
                         alert::indicator(vec![], vec![text("!")]),
@@ -1823,10 +1830,61 @@ fn alert_section() -> Node {
             })
             .collect(),
     );
+    let variants = [
+        (AlertVariant::Subtle, "Subtle"),
+        (AlertVariant::Surface, "Surface"),
+        (AlertVariant::Solid, "Solid"),
+        (AlertVariant::Outline, "Outline"),
+    ];
+    let variant_row = stack(
+        variants
+            .iter()
+            .map(|(variant, label)| {
+                let props = AlertProps {
+                    variant: *variant,
+                    ..AlertProps::default()
+                };
+                alert::root(
+                    &props,
+                    vec![],
+                    vec![
+                        alert::indicator(vec![], vec![text("!")]),
+                        alert::content(vec![], vec![alert::title(vec![], vec![text(*label)])]),
+                    ],
+                )
+            })
+            .collect(),
+    );
+    let sizes = [
+        (Size::Xs, "Xs"),
+        (Size::Sm, "Sm"),
+        (Size::Md, "Md"),
+        (Size::Lg, "Lg"),
+        (Size::Xl, "Xl"),
+    ];
+    let size_row = stack(
+        sizes
+            .iter()
+            .map(|(size, label)| {
+                let props = AlertProps {
+                    size: *size,
+                    ..AlertProps::default()
+                };
+                alert::root(
+                    &props,
+                    vec![],
+                    vec![
+                        alert::indicator(vec![], vec![text("!")]),
+                        alert::content(vec![], vec![alert::title(vec![], vec![text(*label)])]),
+                    ],
+                )
+            })
+            .collect(),
+    );
     section(
         "Alert",
-        "status（info / success / warning / error）で色が切り替わる通知領域。root / indicator / content / title / description の slot 構成です。",
-        vec![demos],
+        "status（info / success / warning / error / neutral）・variant（subtle / surface / solid / outline）・size（xs〜xl）で見た目が切り替わる通知領域。root / indicator / content / title / description の slot 構成です。",
+        vec![status_row, variant_row, size_row],
     )
 }
 

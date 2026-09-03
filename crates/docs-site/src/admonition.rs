@@ -95,7 +95,7 @@ pub fn contains_admonition(node: &Node) -> bool {
 mod tests {
     use super::*;
     use fandhe_frontend_core::{div, p, text};
-    use fandhe_frontend_pre_styled_ui::AlertStatus;
+    use fandhe_frontend_pre_styled_ui::AlertProps;
 
     #[test]
     fn contains_admonition_detects_alert_scope_anywhere_in_tree() {
@@ -103,7 +103,7 @@ mod tests {
             vec![],
             vec![
                 p(vec![], vec![text("plain")]),
-                alert::root(AlertStatus::Info, vec![], vec![]),
+                alert::root(&AlertProps::default(), vec![], vec![]),
             ],
         );
         assert!(contains_admonition(&with_alert));
