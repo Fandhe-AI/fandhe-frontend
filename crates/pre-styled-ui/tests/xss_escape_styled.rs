@@ -33,7 +33,7 @@
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{el, escape_html, render, text};
-use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
+use fandhe_frontend_pre_styled_ui::alert::{self, AlertProps};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, close_button, icon_button, ButtonProps};
@@ -285,7 +285,7 @@ fn caller_attrs_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "card::root 呼び出し側 attrs コンテキスト");
 
         let html = render(&alert::root(
-            AlertStatus::default(),
+            &AlertProps::default(),
             vec![("data-testid", payload)],
             vec![],
         ));

@@ -248,8 +248,10 @@ pub fn palette_declarations(p: ColorPalette) -> Vec<Declaration> {
 /// `pagination` / `splitter` / `steps` / `tabs` / `tour`（Interactive）・
 /// `badge` / `callout` / `spinner` / `status` / `tag` / `timeline`
 /// （Data Display）が既にこちらへ移行済み（他の styled 部品は今後の
-/// Phase で順次移行する。`alert` は公開 `ColorPalette` variant を持たず
-/// 対象外）。
+/// Phase で順次移行する）。`alert` はイシュー #1553 で移行済み（`status`
+/// → [`ColorPalette`] 写像を内部で固定し、`ColorPalette` 軸自体は公開しない
+/// 設計を維持したまま `palette_scale_declarations` を使う、`crate::alert`
+/// 参照）。
 ///
 /// [`Declaration`] は `&'static str` のみを保持できる設計（`crate::css` の
 /// 型レベル不変条件、動的文字列混入経路を塞ぐ）のため、`format!` で値を

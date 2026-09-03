@@ -1948,6 +1948,41 @@ mod tests {
         }
     }
 
+    /// `crate::alert` の `Solid` variant（PR #1825 codex-review P1 是正）が
+    /// 使う `<status>-fg`/`<status>-emphasized` の組。Alert 本文は既定 Md で
+    /// `font-size-sm`（非大字）のため `LARGE_TEXT_UI_PAIRS`（3:1）ではなく
+    /// 本文相当の 4.5:1 契約を満たす必要がある。`accent`/`info` は同値
+    /// （`#2b6cb0`/`#63b3ed`）だが両トークン名を明示して回帰検知の対象を
+    /// 明確にする。
+    const ALERT_SOLID_VARIANT_PAIRS: &[(&str, &str)] = &[
+        ("accent-fg", "accent-emphasized"),
+        ("info-fg", "info-emphasized"),
+        ("success-fg", "success-emphasized"),
+        ("warning-fg", "warning-emphasized"),
+        ("danger-fg", "danger-emphasized"),
+        ("neutral-fg", "neutral-emphasized"),
+    ];
+
+    #[test]
+    fn alert_solid_variant_pairs_meet_wcag_4_5_to_1_in_light_and_dark() {
+        for (fg_name, bg_name) in ALERT_SOLID_VARIANT_PAIRS {
+            let (fg_light, fg_dark) = default_color(fg_name);
+            let (bg_light, bg_dark) = default_color(bg_name);
+
+            let light_ratio = contrast_ratio(fg_light, bg_light);
+            assert!(
+                light_ratio >= 4.5,
+                "light: {fg_name}/{bg_name} = {light_ratio:.3} (< 4.5:1)"
+            );
+
+            let dark_ratio = contrast_ratio(fg_dark, bg_dark);
+            assert!(
+                dark_ratio >= 4.5,
+                "dark: {fg_name}/{bg_name} = {dark_ratio:.3} (< 4.5:1)"
+            );
+        }
+    }
+
     // イシュー #1423: radius/shadow/spacing 拡充・z-index 新設のユニットテスト。
 
     #[test]

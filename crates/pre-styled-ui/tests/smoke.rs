@@ -11,7 +11,7 @@
 use fandhe_frontend_core::{el, render, text};
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::state::OpenState;
-use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
+use fandhe_frontend_pre_styled_ui::alert::{self, AlertProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::{
     accordion, dialog, menu, popover, select, switch, tabs, toggle_tip, tooltip,
@@ -287,7 +287,7 @@ fn card_title_and_description_xss_payload_is_escaped() {
 #[test]
 fn alert_title_and_description_xss_payload_is_escaped() {
     let node = alert::root(
-        AlertStatus::default(),
+        &AlertProps::default(),
         vec![],
         vec![alert::content(
             vec![],
