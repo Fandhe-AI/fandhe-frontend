@@ -116,6 +116,62 @@
 //! - `docs/policy/intentional-non-adoption.md` §3.24 のもう 1 項目
 //!   chakra `Theme` コンポーネント（**非採用のまま変更しない**）。
 //!
+//! # イシュー #1582: アニメーションのスタイル調整（親 #1581 の 1/2）
+//!
+//! 親イシュー #1581（marquee のスタイルを参考サイト基準へ調整）の
+//! 担当分割 1/2。担当範囲は速度・方向・`gap`・両端フェードの
+//! アニメーション関連のみとし、姉妹イシュー #1583（2/2、
+//! `prefers-reduced-motion` 対応・`item` の見た目・`root` の
+//! padding/border/background）が担当するパートには一切触れていない
+//! （同一ファイルの並行編集のため、上記「常時一時停止」節・
+//! `@media (prefers-reduced-motion: reduce)` ブロックは変更しない）。
+//!
+//! ## 是正内容
+//!
+//! - `gap` のフォールバックを `1rem` から `var(--fandhe-space-4)`
+//!   （chakra-ui `Marquee` の `spacing` 既定値 `1rem` と同値。テーマ
+//!   トークン経由に揃えることでダークモード等の一括調整に追随する）
+//!   へ変更した。`root`/`content`/`@keyframes` の 3 箇所すべてで同じ
+//!   フォールバック式に揃える必要がある（不一致だとシームレスループの
+//!   継ぎ目に隙間・重なりが出る）。
+//! - 両端フェード（ark-ui/chakra-ui の `Edge` パーツ相当）を `root` への
+//!   `mask-image`（`--fandhe-marquee-fade` の CSS custom property 契約、
+//!   既定 `0px` = 無効）として **opt-in** で追加した。既存の「`Edge` は
+//!   呼び出し側 CSS で代替」という判断自体は変更しないが、本イシューで
+//!   代替手段の 1 つとして `mask-image` を部品側にも用意する。既定値が
+//!   `0px` のため呼び出し側が明示的に上書きしない限り既存の見た目は
+//!   変わらない。`mask-image` は `root` 全体へ掛かるため、`root` に
+//!   枠線・背景（2/2 が追加する可能性がある）を持たせる場合はそれらの
+//!   端もフェードする点に注意（境界の責務が 2/2 側に波及する）。
+//!   `-webkit-mask-image` は追加しない（[`crate::css::is_valid_property`]
+//!   が先頭小文字英字または `--` で始まる名前のみ許容し `-webkit-` 接頭辞は
+//!   拒否するため、`decl()` に渡しても宣言が黙って落ちる。unprefixed
+//!   `mask-image` は現行ブラウザで baseline サポート済みであり、
+//!   未対応環境ではフェードなしへ graceful degradation する）。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - ark-ui/chakra-ui の `speed`（px/s 指定）は要素幅に依存し純 CSS
+//!   （custom property のみ）では表現できないため、本モジュールは
+//!   従来どおり `--fandhe-marquee-duration`（秒指定）の contract を
+//!   維持する。
+//! - `delay`/`loopCount`/`autoFill`/RTL 対応（`dir="rtl"` 環境で
+//!   `translateX(-100%)` 方向のシームレスループが崩れる）は本イシューの
+//!   スコープ外（上記「本イシューのスコープ外」節を参照。RTL 対応は
+//!   別イシュー化を提案する）。
+//! - `size`・`color-palette` 軸・状態（`data-*`）・フォーカスリング・
+//!   トランジションはいずれも本部品が元々持たない軸であり、参照サイトの
+//!   対応要素も装飾部品としての性質上該当なしと判断し、新設しない。
+//!
+//! ## `--fandhe-marquee-*` custom property 一覧（本イシュール時点）
+//!
+//! - `--fandhe-marquee-duration`（既定 `20s`）: 変更なし。
+//! - `--fandhe-marquee-direction`（`normal`/`reverse`）: 変更なし。
+//! - `--fandhe-marquee-gap`（既定 `var(--fandhe-space-4)`）: 本イシューで
+//!   フォールバックをテーマトークン経由へ変更。
+//! - `--fandhe-marquee-fade`（既定 `0px`）: 本イシューで新設。両端の
+//!   フェード幅（`mask-image` の `linear-gradient` 停止位置）を指定する。
+//!
 //! # セキュリティ不変条件
 //!
 //! 本モジュールは新規 anatomy 定義と静的 CSS 生成のみで構成され、
@@ -203,7 +259,15 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("overflow", "hidden"),
-                decl("gap", "var(--fandhe-marquee-gap, 1rem)"),
+                decl("gap", "var(--fandhe-marquee-gap, var(--fandhe-space-4))"),
+                // イシュー #1582: 両端フェード（ark-ui/chakra-ui の `Edge`
+                // パーツ相当）を opt-in で提供する。既定 `0px` のため
+                // 呼び出し側が明示的に上書きしない限り既存の見た目は
+                // 変わらない（モジュール doc「イシュー #1582」節参照）。
+                decl(
+                    "mask-image",
+                    "linear-gradient(to right, transparent, black var(--fandhe-marquee-fade, 0px), black calc(100% - var(--fandhe-marquee-fade, 0px)), transparent)",
+                ),
             ],
         )
         .base(
@@ -213,7 +277,7 @@ fn recipe() -> SlotRecipe {
                 decl("flex", "none"),
                 decl("align-items", "center"),
                 decl("min-width", "max-content"),
-                decl("gap", "var(--fandhe-marquee-gap, 1rem)"),
+                decl("gap", "var(--fandhe-marquee-gap, var(--fandhe-space-4))"),
                 decl(
                     "animation",
                     concat!(
@@ -258,6 +322,10 @@ fn recipe() -> SlotRecipe {
 ///    レイアウトへ残り、メッセージがビューポートより狭い場合に視認可能な
 ///    ユーザーへ内容が二重表示されてしまう不具合（Cursor Bugbot 指摘、
 ///    PR #864）への是正。
+///
+/// `root` の両端フェード（`mask-image`、イシュー #1582）は recipe の
+/// `base("root", ...)` 側の宣言として出力されるため、本関数が追記する
+/// 静的リテラルには含まれない（モジュール doc「イシュー #1582」節参照）。
 #[must_use]
 pub fn css() -> String {
     let mut out = recipe().css();
@@ -265,7 +333,7 @@ pub fn css() -> String {
         out.push('\n');
     }
     out.push_str(&format!(
-        "@keyframes {SCROLL_KEYFRAMES_NAME} {{\n  from {{\n    transform: translateX(0);\n  }}\n  to {{\n    transform: translateX(calc(-100% - var(--fandhe-marquee-gap, 1rem)));\n  }}\n}}\n"
+        "@keyframes {SCROLL_KEYFRAMES_NAME} {{\n  from {{\n    transform: translateX(0);\n  }}\n  to {{\n    transform: translateX(calc(-100% - var(--fandhe-marquee-gap, var(--fandhe-space-4))));\n  }}\n}}\n"
     ));
     out.push_str(
         "\n[data-scope=\"marquee\"][data-part=\"root\"]:hover [data-part=\"content\"],\n[data-scope=\"marquee\"][data-part=\"root\"]:focus-within [data-part=\"content\"] {\n  animation-play-state: paused;\n}\n",
@@ -553,9 +621,49 @@ mod tests {
         ));
         assert!(out.contains("@keyframes fd-marquee-scroll {"));
         assert!(out.contains("transform: translateX(0);"));
-        assert!(
-            out.contains("transform: translateX(calc(-100% - var(--fandhe-marquee-gap, 1rem)));")
+        assert!(out.contains(
+            "transform: translateX(calc(-100% - var(--fandhe-marquee-gap, var(--fandhe-space-4))));"
+        ));
+    }
+
+    /// 受け入れ条件（イシュー #1582）: `gap` フォールバックがテーマ
+    /// トークン（`--fandhe-space-4`）へ揃っていることを固定する。
+    /// `root`/`content`/`@keyframes` の 3 箇所すべてで同一式でなければ
+    /// シームレスループの継ぎ目に隙間・重なりが出るため、出現回数まで
+    /// 検証する（モジュール doc「イシュー #1582」節参照）。
+    #[test]
+    fn css_output_gap_fallback_is_theme_token_in_all_three_locations() {
+        let out = css();
+        let occurrences = out
+            .matches("var(--fandhe-marquee-gap, var(--fandhe-space-4))")
+            .count();
+        assert_eq!(
+            occurrences, 3,
+            "root/content/@keyframes の 3 箇所で一致するはず: {out}"
         );
+        assert!(!out.contains("--fandhe-marquee-gap, 1rem"));
+    }
+
+    /// 受け入れ条件（イシュー #1582）: 両端フェード（`Edge` 相当）を
+    /// `root` の `mask-image` として opt-in で提供することを固定する。
+    /// `decl()` は不正プロパティ名を黙って落とすため、この出力アサーション
+    /// のみが `mask-image` が実際に出力されていることを証明する。
+    #[test]
+    fn css_output_declares_root_mask_image_fade() {
+        let out = css();
+        assert!(out.contains("mask-image: linear-gradient("));
+        assert!(out.contains("--fandhe-marquee-fade, 0px"));
+    }
+
+    /// 受け入れ条件（イシュー #1582）: 新設した `mask-image` の値は
+    /// `transparent`/`black` キーワードのみで構成され、`#` 始まりの
+    /// 色リテラルを持ち込まないことを固定する（本モジュールは
+    /// 色トークン軸を持たない中立部品判断、モジュール doc「イシュー
+    /// #1582」節参照）。
+    #[test]
+    fn css_output_mask_image_uses_no_hex_color_literals() {
+        let out = css();
+        assert!(!out.contains('#'));
     }
 
     /// 受け入れ条件: `:hover`/`:focus-within` で常時一時停止する CSS を含む
