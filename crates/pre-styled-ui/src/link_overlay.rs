@@ -21,16 +21,54 @@
 //! の既定エスケープを必ず経由し、`raw_html()` の新規使用なし、`href` の URL
 //! スキーム検証は headless 層が担う）。
 //!
+//! # イシュー #1580 の参照サイト比較（7 軸チェック）
+//!
+//! 参照サイト（chakra-ui `LinkBox`/`LinkOverlay`。ark-ui / Radix Primitives /
+//! Radix Themes には対応する部品が存在しない、`docs/design/
+//! component-coverage-map.md` 参照）と 7 軸（サイズ / バリアント / 色 /
+//! 状態 `data-*` / ダーク / フォーカス / 余白・角丸・影）で比較した結果:
+//!
+//! - **サイズ / バリアント / 色 / 状態 `data-*`**: chakra の `LinkOverlay`
+//!   自身はいずれの軸も持たない（見た目はコンテナ `LinkBox` 側の責務）ため
+//!   本部品でも追加しない。
+//! - **フォーカス（是正）**: `overlay` に `:focus-visible` のリングが
+//!   未定義（UA 既定 outline 任せ）だったため是正する。本部品は
+//!   `ColorPalette` 軸を持たないため
+//!   [`crate::recipe::FocusRingColor::Token`] を使う（`docs/design/
+//!   pre-styled-ui-focus-ring-and-size-conventions.md` §6 手順 2）。
+//!   `overlay` は `root` 全面に `inset: 0` で展開されるため
+//!   [`crate::recipe::FocusRingOffset::Outside`] が chakra の LinkBox 外周
+//!   リングと一致する。
+//! - **余白・角丸・影**: `overlay` 自身は余白・影を持たないが、`card` 等の
+//!   角丸を持つ `root` と合成した際にフォーカスリングが角丸に沿うよう
+//!   `border-radius: inherit` を追加する。
+//! - **hover（意図的非採用）**: `overlay` は `z-index: 0` で通常フローの
+//!   子要素（見出し・本文）より**上**に positioned されるため、
+//!   `hover_surface_declarations` 相当の背景を敷くとカード内容を覆い隠す。
+//!   chakra の `LinkOverlay` 自身も hover 装飾を持たない。
+//! - **disabled（意図的非採用）**: `<a>` に disabled 概念がない（[`crate::link`]
+//!   と同じ判断）。
+//! - **transition（意図的非採用）**: 遷移する視覚属性を追加しないため不要。
+//! - **入れ子リンクの前面化（構造的に非採用）**: chakra は `LinkBox` 側で
+//!   `a[href]:not(overlay) { z-index: 1 }` の子孫セレクタ規則を持つが、
+//!   [`SlotRecipe`] は子孫セレクタに対応しない（イシュー #708 で確定済み）
+//!   ため表現できない。headless 層 rustdoc の「呼び出し側責務」記述を維持
+//!   する。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
 //!   イシュー側のスコープ。
 //! - `root` 内に `overlay` 以外の対話要素を配置する場合の z-index 調整は
 //!   呼び出し側の責務（headless 層 rustdoc 参照）。
+//! - 入れ子リンクの前面化（chakra `LinkBox` 相当）: `SlotRecipe` の子孫
+//!   セレクタ非対応により構造的に表現不可（上記 7 軸チェック参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::SlotRecipe;
+use crate::recipe::{
+    focus_ring_declarations, FocusRingColor, FocusRingOffset, SlotRecipe, StateCondition,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::link_overlay::overlay;
 
@@ -49,7 +87,18 @@ fn recipe() -> SlotRecipe {
                 decl("position", "absolute"),
                 decl("inset", "0"),
                 decl("z-index", "0"),
+                // card 等の角丸 root と合成した際にフォーカスリングが
+                // 角丸に沿うようにする（イシュー #1580）。
+                decl("border-radius", "inherit"),
+                decl("cursor", "pointer"),
             ],
+        )
+        // イシュー #1580: 本部品は ColorPalette 軸を持たないため Token /
+        // 外側リングを使う（モジュール冒頭 rustdoc 参照）。
+        .state(
+            "overlay",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
 }
 
@@ -116,6 +165,9 @@ mod tests {
         assert!(a.contains("position: relative"));
         assert!(a.contains("position: absolute"));
         assert!(a.contains("inset: 0"));
+        assert!(a.contains("border-radius: inherit"));
+        assert!(a.contains(":focus-visible"));
+        assert!(a.contains("outline"));
     }
 
     #[test]
