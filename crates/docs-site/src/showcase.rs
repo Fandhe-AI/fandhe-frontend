@@ -6524,6 +6524,18 @@ fn qr_code_section() -> Node {
     )
     .expect("ショーケース固定 URL はバージョン 40 容量内に収まる");
 
+    // overlay 付きデモ専用の matrix（イシュー #1565、codex P1 是正）。
+    // overlay はロゴ等で QR モジュールの一部を隠す想定であり、誤り訂正
+    // レベル M（訂正能力 15%）のまま流用すると overlay 領域の欠損で
+    // 読み取り不能になり得る。Q（訂正能力 25%）以上を使う headless 側の
+    // 指針（`crates/headless-ui/src/qr_code.rs` doc 参照）に合わせ、
+    // overlay 用は別途 Q でエンコードした専用 matrix を使う。
+    let overlay_matrix = qr_code::encode(
+        "https://fandhe-frontend.example/",
+        qr_code::ErrorCorrectionLevel::Q,
+    )
+    .expect("ショーケース固定 URL はバージョン 40 容量内に収まる");
+
     let demo = |size: Size| {
         qr_code::root(
             size,
@@ -6555,12 +6567,12 @@ fn qr_code_section() -> Node {
         vec![],
         vec![
             qr_code::frame(
-                &matrix,
+                &overlay_matrix,
                 qr_code::DEFAULT_QUIET_ZONE,
                 Some("QR code linking to https://fandhe-frontend.example/"),
                 vec![],
                 vec![qr_code::pattern(
-                    &matrix,
+                    &overlay_matrix,
                     qr_code::DEFAULT_QUIET_ZONE,
                     vec![],
                 )],

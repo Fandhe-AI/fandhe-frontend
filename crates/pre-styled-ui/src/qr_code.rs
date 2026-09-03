@@ -158,6 +158,12 @@ fn recipe() -> SlotRecipe {
                 decl("width", "var(--fandhe-qr-code-overlay-size)"),
                 decl("height", "var(--fandhe-qr-code-overlay-size)"),
                 decl("padding", "var(--fandhe-space-1)"),
+                // padding を width/height 内側に収める（`border-box`）。
+                // `content-box`（既定）のままだと padding が加算され、
+                // 塗り面積が `--fandhe-qr-code-overlay-size` を超えて
+                // QR モジュールを想定以上に隠してしまう（Bugbot Medium
+                // 指摘、イシュー #1565）。
+                decl("box-sizing", "border-box"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("border-radius", "var(--fandhe-radius-xs)"),
             ],

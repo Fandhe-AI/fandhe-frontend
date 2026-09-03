@@ -36,6 +36,7 @@ const QR_CODE_GOLDEN_CSS: &str = r#"[data-scope="qr-code"][data-part="root"] {
   width: var(--fandhe-qr-code-overlay-size);
   height: var(--fandhe-qr-code-overlay-size);
   padding: var(--fandhe-space-1);
+  box-sizing: border-box;
   background: var(--fandhe-color-bg);
   border-radius: var(--fandhe-radius-xs);
 }
