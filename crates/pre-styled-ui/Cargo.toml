@@ -1111,7 +1111,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # `table.rs` rustdoc 参照）: 公開 API・CSS 出力のセレクタ集合は不変
 # （既存バグの是正のみ）で、0.76.0 は crates.io 未公開のためこの修正は
 # 追加のバンプを要さずそのまま 0.76.0 に含める。
-version = "0.76.0"
+#
+# イシュー #1573: `TagVariant` へ `Surface` を追加する公開 enum（`lib.rs` で
+# re-export）への variant 追加は利用者の網羅 `match` を壊す 0.x 破壊的変更
+# のため minor バンプする（#1448/#1555 と同型判断）。
+version = "0.77.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

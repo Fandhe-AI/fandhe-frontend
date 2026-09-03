@@ -15,6 +15,9 @@ const TAG_GOLDEN_CSS: &str = r#"[data-scope="tag"][data-part="root"] {
   gap: var(--fandhe-space-1);
   border-radius: var(--fandhe-radius-sm);
   font-weight: var(--fandhe-font-font-weight-medium);
+  line-height: var(--fandhe-font-line-height-tight);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 [data-scope="tag"][data-part="label"] {
@@ -25,11 +28,23 @@ const TAG_GOLDEN_CSS: &str = r#"[data-scope="tag"][data-part="root"] {
 [data-scope="tag"][data-part="close-trigger"] {
   display: inline-flex;
   align-items: center;
-  border: none;
-  background: transparent;
-  cursor: pointer;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 1rem;
+  height: 1rem;
   padding: 0;
+  border: none;
+  border-radius: var(--fandhe-radius-sm);
+  background: transparent;
   color: inherit;
+  cursor: pointer;
+  line-height: 1;
+}
+
+[data-scope="tag"][data-part="close-trigger"] {
+  transition-property: background, color;
+  transition-duration: var(--fandhe-motion-duration-fast);
+  transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
 [data-scope="tag"][data-part="root"].fd-tag--size-xs {
@@ -60,17 +75,31 @@ const TAG_GOLDEN_CSS: &str = r#"[data-scope="tag"][data-part="root"] {
 [data-scope="tag"][data-part="root"].fd-tag--variant-solid {
   background: var(--fandhe-palette);
   color: var(--fandhe-palette-fg);
+  --fandhe-hover-bg: var(--fandhe-palette-emphasized);
+  --fandhe-tag-close-ring-color: var(--fandhe-palette-fg);
 }
 
 [data-scope="tag"][data-part="root"].fd-tag--variant-subtle {
-  background: var(--fandhe-color-bg-subtle);
-  color: var(--fandhe-palette);
+  background: var(--fandhe-palette-subtle);
+  color: var(--fandhe-palette-fg-subtle);
+  --fandhe-hover-bg: var(--fandhe-palette-muted);
+  --fandhe-tag-close-ring-color: var(--fandhe-palette);
 }
 
 [data-scope="tag"][data-part="root"].fd-tag--variant-outline {
   background: transparent;
-  color: var(--fandhe-palette);
-  border: 1px solid var(--fandhe-color-border);
+  color: var(--fandhe-palette-fg-subtle);
+  border: 1px solid var(--fandhe-palette-muted);
+  --fandhe-hover-bg: var(--fandhe-color-bg-muted);
+  --fandhe-tag-close-ring-color: var(--fandhe-palette);
+}
+
+[data-scope="tag"][data-part="root"].fd-tag--variant-surface {
+  background: var(--fandhe-palette-subtle);
+  color: var(--fandhe-palette-fg-subtle);
+  border: 1px solid var(--fandhe-palette-muted);
+  --fandhe-hover-bg: var(--fandhe-palette-muted);
+  --fandhe-tag-close-ring-color: var(--fandhe-palette);
 }
 
 [data-scope="tag"][data-part="root"].fd-tag--color-palette-accent {
@@ -125,6 +154,18 @@ const TAG_GOLDEN_CSS: &str = r#"[data-scope="tag"][data-part="root"] {
   --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
   --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
+}
+
+[data-scope="tag"][data-part="close-trigger"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-palette, var(--fandhe-color-focus-ring, var(--fandhe-color-accent)));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
+  outline-color: var(--fandhe-tag-close-ring-color);
+}
+
+@media (hover: hover) {
+  [data-scope="tag"][data-part="close-trigger"]:hover:not([data-disabled]) {
+    background: var(--fandhe-hover-bg);
+  }
 }
 "#;
 
