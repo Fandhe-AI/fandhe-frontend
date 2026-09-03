@@ -90,7 +90,7 @@ use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
-use fandhe_frontend_pre_styled_ui::card::{self, CardProps, CardVariant};
+use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::menu;
 use fandhe_frontend_pre_styled_ui::menubar;
@@ -854,10 +854,7 @@ fn badge_section() -> Node {
 /// 組み立てる契約（`crates/pre-styled-ui/src/card.rs` の rustdoc 参照）。
 fn card_section() -> Node {
     let node = card::root(
-        &CardProps {
-            variant: CardVariant::Elevated,
-            ..CardProps::default()
-        },
+        CardVariant::Elevated,
         vec![],
         vec![
             card::header(
