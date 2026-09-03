@@ -189,6 +189,12 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("align-items", "flex-start"),
                 decl("width", "100%"),
+                // codex-review P1 指摘（PR #1825）: `width: 100%` を
+                // `box-sizing: border-box` なしで指定すると content-box の
+                // ため padding/border 分が親幅に加算され、狭いコンテナで
+                // 横スクロール・はみ出しが発生する（`crate::button`/
+                // `crate::dialog` 等と同型の是正、イシュー #1787 系統）。
+                decl("box-sizing", "border-box"),
                 decl("position", "relative"),
                 decl("gap", "var(--fandhe-alert-gap, var(--fandhe-space-3))"),
                 decl(
@@ -259,7 +265,18 @@ fn recipe() -> SlotRecipe {
             AlertVariant::Solid,
             "root",
             vec![
-                decl("background", "var(--fandhe-palette)"),
+                // codex-review P1 指摘（PR #1825）: `--fandhe-palette`
+                // （素の status 色）+ `--fandhe-palette-fg` は
+                // `LARGE_TEXT_UI_PAIRS`（3:1 保証、`crate::theme` 参照）
+                // でのみ検証済みで、Alert 本文の既定サイズ（Md =
+                // font-size-sm）には 4.5:1 の本文コントラスト契約が必要
+                // なため満たさない。`--fandhe-palette-emphasized`
+                // （`Surface`/`Outline` の border-color で既に使用済みの
+                // 同一トークン）を背景に採用し、`-fg` との組を 4.5:1 以上へ
+                // 引き上げる（実測は `crate::theme` の
+                // `alert_solid_variant_pairs_meet_wcag_4_5_to_1_in_light_and_dark`
+                // が固定する）。
+                decl("background", "var(--fandhe-palette-emphasized)"),
                 decl("color", "var(--fandhe-palette-fg)"),
             ],
         )
