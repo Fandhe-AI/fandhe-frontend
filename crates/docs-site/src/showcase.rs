@@ -365,7 +365,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
-.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n  cursor: pointer;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n  border-radius: inherit;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin-top: 0;\n}\n\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
@@ -8762,6 +8762,7 @@ mod tests {
   position: absolute;
   inset: 0;
   z-index: 0;
+  cursor: pointer;
 }"#
         ));
         // Link Overlay のフォーカスリング（イシュー #1580）: `overlay` に
