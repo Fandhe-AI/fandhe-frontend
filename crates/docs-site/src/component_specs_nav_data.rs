@@ -491,10 +491,28 @@ pub(crate) const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
 
 fn ex_progress() -> Node {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::progress::ProgressProps;
     let p = Progress::new(0.0, 100.0, Some(65.0), Orientation::Horizontal);
     progress::root(
         &p,
-        Size::Md,
+        &ProgressProps::default(),
+        Some("65%"),
+        vec![],
+        vec![
+            p.label(vec![], vec![fandhe_frontend_core::text("Upload")]),
+            p.value_text(vec![], vec![fandhe_frontend_core::text("65%")]),
+            p.track(vec![], vec![progress::range(&p, vec![])]),
+        ],
+    )
+}
+
+fn ex_progress_circle() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::progress::ProgressProps;
+    let p = Progress::new(0.0, 100.0, Some(65.0), Orientation::Horizontal);
+    progress::root(
+        &p,
+        &ProgressProps::default(),
         Some("65%"),
         vec![],
         vec![p.circle(
@@ -509,33 +527,40 @@ fn ex_progress() -> Node {
 
 pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "circle/circle-track/circle-range は headless の inherent メソッドをそのまま呼ばせる契約（crates/pre-styled-ui/src/progress.rs テスト caller_headless_circle_parts_render_without_wrapper）",
-        "value が None（indeterminate）のとき [data-state=\"indeterminate\"] で回転アニメーションを付与する（progress.rs:55, 66-77）",
-        "size variant（progress.rs:243-249）で circle の大きさを切り替える",
+        "track/range（linear）と circle/circle-track/circle-range（circular）はいずれも headless の inherent メソッドをそのまま呼ばせる契約（crates/pre-styled-ui/src/progress.rs テスト caller_headless_track_and_circle_parts_render_without_wrapper）",
+        "value が None（indeterminate）のとき [data-state=\"indeterminate\"] でアニメーション（linear は横スライド・circular は回転）を付与し、prefers-reduced-motion: reduce で停止する",
+        "ProgressProps（size/variant/color-palette の 3 軸）を root へ付与する。styled range() が --fandhe-progress-percent を determinate 時のみ付与する",
     ],
     arguments: &[
         ArgRow {
-            name: "size",
-            kind: "Size",
-            default: "Md",
-            description: "circle のサイズ（progress.rs:243-249）。",
+            name: "props",
+            kind: "&ProgressProps",
+            default: "ProgressProps::default()",
+            description: "size（既定 Md）/variant（既定 Outline）/palette（既定 Accent）の 3 軸をまとめた設定（progress.rs）。",
         },
         ArgRow {
             name: "aria_valuetext",
             kind: "Option<&str>",
             default: "None",
-            description: "aria-valuetext へ渡す表示用テキスト（progress.rs:243-247, 245）。",
+            description: "aria-valuetext へ渡す表示用テキスト（progress.rs）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Determinate",
-        description: "value=65 の determinate circle progress の例です。",
-        render: ex_progress,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Determinate (linear)",
+            description: "value=65 の determinate linear progress（Track/Range）の例です。",
+            render: ex_progress,
+        },
+        ExampleEntry {
+            title: "Determinate (circular)",
+            description: "value=65 の determinate circular progress（SVG）の例です。",
+            render: ex_progress_circle,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-valuetext",
-        description: "呼び出し側が渡した aria_valuetext を root（headless progress.root への委譲）へ出力する（progress.rs:243-247, 245）。",
+        description: "呼び出し側が渡した aria_valuetext を root（headless progress.root への委譲）へ出力する（progress.rs）。",
     }],
     demo: None,
 };

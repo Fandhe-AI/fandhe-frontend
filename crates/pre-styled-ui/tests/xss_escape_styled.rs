@@ -2326,19 +2326,25 @@ fn separator_attrs_and_class_are_escaped_for_all_payloads() {
 fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads() {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
-    use fandhe_frontend_pre_styled_ui::progress;
+    use fandhe_frontend_pre_styled_ui::progress::{self, ProgressProps};
 
     let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
 
     for payload in payloads::all() {
         // styled root の aria_valuetext 引数経路。
-        let html = render(&progress::root(&p, Size::Md, Some(payload), vec![], vec![]));
+        let html = render(&progress::root(
+            &p,
+            &ProgressProps::default(),
+            Some(payload),
+            vec![],
+            vec![],
+        ));
         assert_payload_is_escaped(payload, &html, "progress::root aria_valuetext コンテキスト");
 
         // styled root の呼び出し側 attrs 経路。
         let html = render(&progress::root(
             &p,
-            Size::Md,
+            &ProgressProps::default(),
             None,
             vec![("data-testid", payload)],
             vec![],
@@ -2353,7 +2359,7 @@ fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads()
         // 出力されず、recipe 生成クラスへ完全に置き換わる）。
         let html = render(&progress::root(
             &p,
-            Size::Md,
+            &ProgressProps::default(),
             None,
             vec![("class", payload)],
             vec![],
@@ -2393,6 +2399,34 @@ fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads()
             payload,
             &html,
             "Progress::circle_range 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled range の呼び出し側 attrs 経路（percent style は headless
+        // `Progress::percent` 由来の有限 f64 のみで、payload を含まない）。
+        let html = render(&progress::range(&p, vec![("data-testid", payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "progress::range 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled range の呼び出し側 style 属性経路（drop_style_attr により
+        // 生ペイロードは出力されず、--fandhe-progress-percent へ完全に
+        // 置き換わる）。
+        let html = render(&progress::range(&p, vec![("style", payload)]));
+        assert!(
+            !html.contains(payload),
+            "progress::range の style 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("style=\"").count(),
+            1,
+            "progress::range の style 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("--fandhe-progress-percent: 40%"),
+            "progress::range で percent style が失われている: html={html}"
         );
     }
 }

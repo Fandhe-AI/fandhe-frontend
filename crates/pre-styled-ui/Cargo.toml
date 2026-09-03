@@ -1050,7 +1050,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 実体変更を統合した結果として 0.71.1 へさらにパッチバンプする
 # （0.x の破壊的変更はマイナーバンプの規約。main 側の 0.71.0 は本イシューの
 # 変更を包含しないため、そのまま採用せずさらにバンプする）。
-version = "0.71.1"
+# イシュー #1564: progress（Themes）を linear（Track/Range）+ circular の
+# 両対応へ拡張した。`root()` を `size: Size` 単独引数から `&ProgressProps`
+# （`size`/`variant`/`palette` の 3 軸）へ置き換える破壊的変更、および
+# `ProgressVariant`/`ProgressProps`/styled `range()` の新規公開 API 追加の
+# ためマイナーバンプする（0.x の破壊的変更はマイナーバンプの規約）。
+version = "0.72.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

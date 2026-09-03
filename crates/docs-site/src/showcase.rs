@@ -6358,12 +6358,31 @@ fn visually_hidden_section() -> Node {
 /// headless の inherent メソッドをそのまま呼ぶ。
 fn progress_section() -> Node {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
-    use fandhe_frontend_pre_styled_ui::progress;
+    use fandhe_frontend_pre_styled_ui::progress::{self, ProgressProps, ProgressVariant};
 
-    fn circle_demo(p: &Progress, size: Size, aria_valuetext: Option<&str>) -> Node {
+    fn linear_demo(
+        p: &Progress,
+        props: &ProgressProps,
+        label_text: &str,
+        value_text: &str,
+    ) -> Node {
         progress::root(
             p,
-            size,
+            props,
+            Some(value_text),
+            vec![("style", "max-width: 20rem;")],
+            vec![
+                p.label(vec![], vec![text(label_text)]),
+                p.value_text(vec![], vec![text(value_text)]),
+                p.track(vec![], vec![progress::range(p, vec![])]),
+            ],
+        )
+    }
+
+    fn circle_demo(p: &Progress, props: &ProgressProps, aria_valuetext: Option<&str>) -> Node {
+        progress::root(
+            p,
+            props,
             aria_valuetext,
             vec![],
             vec![p.circle(
@@ -6377,24 +6396,118 @@ fn progress_section() -> Node {
     }
 
     let determinate = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
-    let size_row = row(vec![
-        circle_demo(&determinate, Size::Xs, Some("40%")),
-        circle_demo(&determinate, Size::Sm, Some("40%")),
-        circle_demo(&determinate, Size::Md, Some("40%")),
-        circle_demo(&determinate, Size::Lg, Some("40%")),
-        circle_demo(&determinate, Size::Xl, Some("40%")),
+    let basic_row = row(vec![linear_demo(
+        &determinate,
+        &ProgressProps::default(),
+        "Upload",
+        "40%",
+    )]);
+
+    let size_row = stack(
+        vec![Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .into_iter()
+            .map(|size| {
+                let props = ProgressProps {
+                    size,
+                    ..ProgressProps::default()
+                };
+                linear_demo(&determinate, &props, size.value(), "40%")
+            })
+            .collect(),
+    );
+
+    let variant_row = row(vec![
+        linear_demo(
+            &determinate,
+            &ProgressProps {
+                variant: ProgressVariant::Outline,
+                ..ProgressProps::default()
+            },
+            "Outline",
+            "40%",
+        ),
+        linear_demo(
+            &determinate,
+            &ProgressProps {
+                variant: ProgressVariant::Subtle,
+                ..ProgressProps::default()
+            },
+            "Subtle",
+            "40%",
+        ),
     ]);
 
-    let complete = Progress::new(0.0, 100.0, Some(100.0), Orientation::Horizontal);
-    let complete_row = row(vec![circle_demo(&complete, Size::Md, Some("100%"))]);
+    let palette_row = stack(
+        [
+            ("Accent", ColorPalette::Accent),
+            ("Info", ColorPalette::Info),
+            ("Success", ColorPalette::Success),
+            ("Warning", ColorPalette::Warning),
+            ("Danger", ColorPalette::Danger),
+            ("Neutral", ColorPalette::Neutral),
+        ]
+        .into_iter()
+        .map(|(label_text, palette)| {
+            let props = ProgressProps {
+                palette,
+                ..ProgressProps::default()
+            };
+            linear_demo(&determinate, &props, label_text, "40%")
+        })
+        .collect(),
+    );
 
     let indeterminate = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
-    let indeterminate_row = row(vec![circle_demo(&indeterminate, Size::Md, None)]);
+    let indeterminate_row = row(vec![linear_demo(
+        &indeterminate,
+        &ProgressProps::default(),
+        "Loading",
+        "",
+    )]);
+
+    let complete = Progress::new(0.0, 100.0, Some(100.0), Orientation::Horizontal);
+    let complete_row = row(vec![linear_demo(
+        &complete,
+        &ProgressProps::default(),
+        "Complete",
+        "100%",
+    )]);
+
+    let vertical = Progress::new(0.0, 100.0, Some(65.0), Orientation::Vertical);
+    let vertical_row = row(vec![progress::root(
+        &vertical,
+        &ProgressProps::default(),
+        Some("65%"),
+        vec![("style", "height: 12rem;")],
+        vec![vertical.track(vec![], vec![progress::range(&vertical, vec![])])],
+    )]);
+
+    let circle_row = row(vec![
+        circle_demo(&determinate, &ProgressProps::default(), Some("40%")),
+        circle_demo(
+            &complete,
+            &ProgressProps {
+                size: Size::Sm,
+                ..ProgressProps::default()
+            },
+            Some("100%"),
+        ),
+        circle_demo(&indeterminate, &ProgressProps::default(), None),
+    ]);
 
     section(
         "Progress",
-        "Circular（SVG）表示の進捗インジケータ。size（sm/md/lg）で --fandhe-progress-size/--fandhe-progress-thickness を切り替えます。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動した回転アニメーションで表示します。",
-        vec![size_row, complete_row, indeterminate_row],
+        "Linear（Track/Range）と Circular（SVG）両対応の進捗インジケータ。size（xs〜xl）で --fandhe-progress-track-height/--fandhe-progress-size/--fandhe-progress-thickness を、variant（outline/subtle）で track の見た目を、color-palette（accent/info/success/warning/danger/neutral）で range の塗り色を切り替えます。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動したアニメーション（linear は横スライド、circular は回転）で表示し、prefers-reduced-motion: reduce では停止します。",
+        vec![
+            basic_row,
+            size_row,
+            variant_row,
+            palette_row,
+            indeterminate_row,
+            complete_row,
+            vertical_row,
+            circle_row,
+        ],
     )
 }
 

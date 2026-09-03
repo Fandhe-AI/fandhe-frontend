@@ -254,16 +254,16 @@
 //!   の 2 軸 variant を持つが、通常の複合部品と異なり各軸が別 slot へ付与される
 //!   ため [`recipe::SlotRecipe::variant_class`]（単一軸専用 API）をスロットごとに
 //!   個別に呼ぶ。詳細は [`mod@toast`] rustdoc 参照）。
-//! - headless ラッパー（Progress circular 対応、イシュー #763）:
+//! - headless ラッパー（Progress linear + circular 対応、イシュー #763/#1564）:
 //!   [`mod@progress`]。headless の値状態機械
-//!   [`fandhe_frontend_headless_ui::progress::Progress`] が既に持つ Circle/
-//!   CircleTrack/CircleRange（SVG）の inherent メソッドへ CSS のみを追加提供
-//!   する薄い委譲層で、新規状態機械は持たない。`size` variant のみを持ち
-//!   `color-palette` 軸は提供しない（`Progress` 型はあえて再エクスポートせず、
-//!   `size` variant クラス付与のため styled root のみを新設する。
-//!   [`mod@dialog`]/[`mod@switch`] と同型の判断）。linear（Track/Range）用の
-//!   styled ラッパーは対応表（`docs/design/component-coverage-map.md`）が
-//!   本イシューと切り分けたスコープ外。詳細は [`mod@progress`] rustdoc 参照。
+//!   [`fandhe_frontend_headless_ui::progress::Progress`] が既に持つ Track/
+//!   Range（linear）と Circle/CircleTrack/CircleRange（SVG、circular）の
+//!   inherent メソッドへ CSS のみを追加提供する薄い委譲層で、新規状態機械は
+//!   持たない。`size`/`variant`（`ProgressVariant`）/`color-palette` の 3 軸
+//!   を持つ（`Progress` 型はあえて再エクスポートせず、styled [`root`](progress::root)
+//!   と `--fandhe-progress-percent` を付与する styled [`range`](progress::range)
+//!   のみを新設する。[`mod@dialog`]/[`mod@switch`] と同型の判断）。詳細は
+//!   [`mod@progress`] rustdoc 参照。
 //! - headless ラッパー 3 種（イシュー #756、#716 追加候補・最優先候補の消化）:
 //!   [`mod@link`]（Link、`variant` の下線表示切り替え + `aria-current="page"`
 //!   状態装飾 + colorPalette/hover/focus-visible/transition〔イシュー #1437〕）、
