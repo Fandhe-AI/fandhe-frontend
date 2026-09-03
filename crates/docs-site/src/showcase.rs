@@ -351,7 +351,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"menubar\"][data-part=\"root\"] {\n  align-items: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n}\n\
 .pre-styled-showcase [data-scope=\"floating-panel\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
-.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2,\n.pre-styled-showcase [data-scope=\"tour\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
 .pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n  position: static;\n}\n\
@@ -4729,6 +4729,10 @@ fn tour_section() -> Node {
                             ),
                             tour::progress_text(&t, vec![], vec![text("Step 2 of 3")]),
                             tour::close_trigger(&t, vec![("aria-label", "Close")], vec![text("×")]),
+                            // イシュー #1551: action-trigger の並置間隔
+                            // （`margin-inline-end`）を実際に確認できる
+                            // よう、2 個並べる（Prev/Next）。
+                            tour::action_trigger(&t, vec![], vec![text("Prev")]),
                             tour::action_trigger(&t, vec![], vec![text("Next")]),
                         ],
                     ),
@@ -7953,6 +7957,11 @@ mod tests {
         assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="backdrop"]"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="spotlight"]"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="positioner"]"#));
+        // イシュー #1551: title（`h2`）に docs サイトの既定 `h2` スタイル
+        // （罫線・letter-spacing）が漏れないよう中和されていることを固定
+        // する（`docs/design/reference-screenshots/themes-tour.png` で
+        // 「設定」の上に罫線が出ていた回帰の是正）。
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"] h2"#));
         // Link Overlay（イシュー #1154、PR #1165 Bugbot 指摘「Link overlay
         // CSS collapses prev-next」の回帰防止）: `link_overlay::stylesheet()`
         // の無条件（`.pre-styled-showcase` スコープなし）出荷は
