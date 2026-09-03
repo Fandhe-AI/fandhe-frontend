@@ -129,7 +129,7 @@ visually-hidden 系の `-1px` はレイアウト外へ意図的に配置する�
 | `modal` | `1400` | dialog / drawer positioner、tour positioner | `1001`/`1101` |
 | `skip-nav` | `1500` | skip-nav | `1200` |
 | `toast` | `1600` | toast group | `var(..., 9999)` |
-| `tooltip` | `1700` | tooltip / tour spotlight | `1100`/`1101`/`1102` |
+| `tooltip` | `1700` | tooltip | `1100` |
 | `max` | `2147483647` | 緊急用 | — |
 
 順序は「dropdown < sticky < popover < overlay < modal < skip-nav < toast <
@@ -137,6 +137,16 @@ tooltip」を満たす。dialog と drawer は同段（`overlay`/`modal`）と�
 同時表示時の前後関係は DOM 順に委ねる（chakra も同段）。chakra の
 `banner`（1200）は fandhe に対応部品がないため見送った。`skip-nav` は
 [`TokenName`] 規則（`[a-z0-9][a-z0-9-]*`）に沿いケバブ表記とした。
+
+**実装結果の注記（イシュー #1550）**: tour の `backdrop`/`spotlight`/
+`positioner` トークン化にあたり、上表が予定していた「spotlight →
+`tooltip`（1700）」割り当てには従わなかった。spotlight は `box-shadow` で
+画面全体を暗くするマスク要素であり、`modal`（1400）の positioner/content
+より前面（`tooltip` 段）に置くと tour の content カード（および同段の
+dialog content）まで覆ってしまうため、backdrop と同じ `overlay` 段の
+`calc(var(--fandhe-z-index-overlay, 1100) + 1)` に固定した（backdrop <
+spotlight < positioner の順序を DOM 順に依存せず保証する）。positioner は
+上表どおり `modal` 段（`--fandhe-z-index-modal`）へ移行済み。
 
 Radix Themes 自体には `--z-index-*` 相当の公開トークン変数は確認できず
 （`docs/design/radix-themes-survey.md` の取得範囲では未確認）、本グループ
@@ -202,12 +212,14 @@ fallback 付き参照）を受けて `Theme::default()` 側に正式トークン
 | `10` | `combobox.rs:180`、`date_picker.rs:100`、`hover_card.rs:105`、`menu.rs:156`、`menubar.rs:145,207`、`navigation_menu.rs:112`、`popover.rs:115`、`select.rs:153` |
 | `900` | `action_bar.rs:91`、`floating_panel.rs:106` |
 | `1000`/`1001` | `dialog.rs:142,151`、`drawer.rs:103,112` |
-| `1100` | `tooltip.rs:98`、`toggle_tip.rs:102`、`tour.rs:130` |
-| `1101`/`1102` | `tour.rs:143,162` |
+| `1100` | `tooltip.rs:98`、`toggle_tip.rs:102` |
 | `1200` | `skip_nav.rs:86` |
 
 移行予定は §3.4 の表（`dropdown`/`sticky`/`popover`/`overlay`/`modal`/
-`skip-nav`/`tooltip`）を参照。
+`skip-nav`/`tooltip`）を参照。`tour.rs` の `1100`/`1101`/`1102`（旧生値）は
+イシュー #1550 でトークン化済み（backdrop/spotlight は
+`--fandhe-z-index-overlay`、positioner は `--fandhe-z-index-modal`。
+実装結果は §3.4 の注記を参照）のため、本表からは除外した。
 
 ### 5.2 box-shadow（`decl("box-shadow", "<生値>")`、`var(--fandhe-shadow-*)` を除く）
 

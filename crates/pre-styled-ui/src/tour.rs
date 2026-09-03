@@ -39,11 +39,17 @@
 //!
 //! `backdrop`/`spotlight`/`positioner` は `position: fixed; inset: 0`
 //! （`positioner` のみ実際には `data-side`/`data-align` 基準の静的フォール
-//! バック配置、後述）のビューポート全体オーバーレイであり、`z-index` を
-//! [`crate::dialog`] の値（backdrop 1000 / positioner 1001）よりさらに前面
-//! に固定する（Tour は Dialog の上に重ねて案内する用途を想定するため）。
-//! closed 時は headless 層が付与する `hidden` 存在属性を
-//! `[data-part="..."][hidden] { display: none }` の明示規則で確実に
+//! バック配置、後述）のビューポート全体オーバーレイである。`z-index` は
+//! イシュー #1550 で [`crate::dialog`]/[`crate::drawer`] と同じ
+//! `--fandhe-z-index-overlay`/`--fandhe-z-index-modal` トークンへ揃えた
+//! （backdrop/spotlight が `overlay` 段、positioner が `modal` 段。
+//! フォールバックは旧生値 backdrop/spotlight 1100/1101・positioner 1102 を
+//! 維持し、`tour::stylesheet()` 単独利用時の積み順は変えない）。旧 rustdoc
+//! が謳っていた「Tour を Dialog より常に前面に固定する」設計は撤回し、
+//! dialog/drawer と同段・DOM マウント順に委ねる方針へ改めた（意図的な設計
+//! 変更。理由は `docs/design/pre-styled-ui-scale-tokens.md` §3.4 の tour
+//! 実装結果注記を参照）。closed 時は headless 層が付与する `hidden` 存在
+//! 属性を `[data-part="..."][hidden] { display: none }` の明示規則で確実に
 //! 非表示化する（[`crate::dialog`] の `positioner[hidden]` 前例と同じ
 //! 詳細度対策）。
 //!
@@ -52,15 +58,33 @@
 //! 参照）であり、本モジュールは `data-side`/`data-align` に応じた
 //! `position: absolute` 相当の静的フォールバック配置のみを提供する
 //! （ADR §4.1、[`crate::popover`]/[`crate::menu`] の positioner と同型の
-//! 「実 DOM 計測なしでも崩れない初期表示」方針）。
+//! 「実 DOM 計測なしでも崩れない初期表示」方針）。狭幅ビューポートでの
+//! はみ出し対策として `max-width: 100vw; box-sizing: border-box` も
+//! イシュー #1550 で追加した（showcase の中和規則とは干渉しない）。
 //!
 //! # `spotlight` の CSS 変数契約
 //!
-//! `spotlight` は `--fandhe-tour-spotlight-x`/`-y`/`-width`/`-height` の
-//! 4 つの CSS custom property（既定値つき `var()`）で位置・寸法を表現する。
-//! 実測値の注入は `fandhe-frontend-wasm-full` の後続イシューが担い、本
-//! モジュールは変数未設定時のフォールバック矩形（画面中央付近の固定枠）を
-//! 提供するのみである。
+//! `spotlight` は位置・寸法を表す `--fandhe-tour-spotlight-x`/`-y`/`-width`/
+//! `-height` に加え、イシュー #1550 で角丸・縁取り幅の
+//! `--fandhe-tour-spotlight-radius`/`-ring-width` を追加した（計 6 つの CSS
+//! custom property、いずれも既定値つき `var()`）。実測値の注入は
+//! `fandhe-frontend-wasm-full` の後続イシューが担い、本モジュールは変数
+//! 未設定時のフォールバック矩形（画面中央付近の固定枠、角丸は
+//! `--fandhe-radius-sm` 相当、`Theme` 抜きの単独利用でも
+//! `var(--fandhe-tour-spotlight-radius, var(--fandhe-radius-sm, 0.25rem))`
+//! の最内側リテラルにより有効な `border-radius` を維持する）を提供する
+//! のみである。縁取り色は
+//! `var(--fandhe-palette, var(--fandhe-color-accent, #3182ce))` で `root` の
+//! color-palette variant（未選択時は accent、accent トークン自体も未定義の
+//! 場合は `#3182ce` リテラルへ）に連動し、暗幕マスクは
+//! `var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.5))` を参照する
+//! （backdrop と同じトークン・フォールバック）。縁取りと暗幕マスクは同一
+//! `box-shadow` 宣言内の 2 レイヤーであるため、`var()` の最内側フォール
+//! バックまでリテラルを持たせている: CSS の仕様上 `var()` が算出値時点で
+//! 無効になると宣言全体が無効化される（`--fandhe-palette`/
+//! `--fandhe-color-accent` のいずれも未定義な `Theme` 抜きのスタンド
+//! アロン利用時、リテラル省略だとレイヤーが 1 つでも解決不能だと暗幕
+//! マスクごと box-shadow 全体が消える）。
 //!
 //! # `focus-visible`（キーボードフォーカスリング）
 //!
@@ -86,6 +110,85 @@
 //! - `examples/headless-pre-styled-ui` への Tour 追加は、未公開の新
 //!   バージョンを参照できないため本イシューのスコープ外とする
 //!   （[`crate::steps`] 冒頭 rustdoc の先例どおり crates.io 公開後に追随）。
+//!
+//! # イシュー #1550: スポットライト・バックドロップ・ポジショナのスタイル
+//! 調整（親 #1549 の 1/2）
+//!
+//! 親イシュー #1549（tour のスタイルを参考サイト基準へ調整）のうち、
+//! `backdrop`/`spotlight`/`positioner` パート（オーバーレイ 3 パート）
+//! のみを担当する。`content`/`title`/`description`/`progress-text`/
+//! `close-trigger`/`action-trigger` パートは兄弟イシュー #1551（2/2）が
+//! 担当し、本イシューでは触れない。
+//!
+//! 是正内容:
+//!
+//! - `backdrop`/`spotlight` の暗幕色を生値 `rgba(0, 0, 0, 0.5)` から
+//!   `var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.5))` へ（dialog #1692 /
+//!   drawer #1694 と同型のトークン化。フォールバックは旧生値を維持し、
+//!   単独利用時の暗幕濃度は変えない）。
+//! - `backdrop`/`spotlight`/`positioner` の `z-index` を生値
+//!   （1100/1101/1102）から `--fandhe-z-index-overlay`/`--fandhe-z-index-modal`
+//!   トークンへ（backdrop・spotlight は `overlay` 段、spotlight は
+//!   `calc(var(--fandhe-z-index-overlay, 1100) + 1)` で backdrop の直後に
+//!   固定。positioner は `modal` 段）。`docs/design/pre-styled-ui-scale-tokens.md`
+//!   §3.4 が予定していた「spotlight → `tooltip`（1700）」割り当てには
+//!   従わない: spotlight は `box-shadow` マスクで画面全体を暗くする要素
+//!   であり、`modal`（1400）の positioner/content より前面に置くと tour の
+//!   content カード（および同段の dialog content）まで覆ってしまうため
+//!   （実装結果は同文書の注記へ反映済み）。
+//! - `spotlight` に、モジュール rustdoc「`spotlight` の CSS 変数契約」節が
+//!   既に約束していた palette 連動の縁取りを実装した（`box-shadow` を
+//!   2 層化: 縁取り
+//!   `var(--fandhe-palette, var(--fandhe-color-accent, #3182ce))` +
+//!   従来の暗幕マスク）。縁取り幅は新設の
+//!   `--fandhe-tour-spotlight-ring-width`（既定 2px）。縁取り色の最内側
+//!   フォールバックにリテラル `#3182ce`（`Theme` の accent light 既定値）
+//!   を持たせているのは、同一宣言内で暗幕マスクと fate を共有するため
+//!   （どちらか一方の `var()` が算出値時点で無効になると `box-shadow`
+//!   宣言全体が無効化される、CSS 仕様の挙動）。
+//! - `spotlight` の `border-radius` を `--fandhe-radius-md`（0.375rem）から
+//!   Zag.js tour の `spotlightRadius` 既定（4px = `--fandhe-radius-sm`）へ
+//!   寄せ、矩形ごとに上書きできる `--fandhe-tour-spotlight-radius` を
+//!   新設した（最内側にリテラル `0.25rem` フォールバックを持たせ、
+//!   `Theme` を適用しない単独利用でも `border-radius` 宣言が破棄されない
+//!   ようにした。codex-review 指摘、PR #1821）。
+//! - `positioner` に `box-sizing: border-box` と `max-width: 100vw` を
+//!   追加し、`content` の `max-width: 24rem` が 24rem 未満の狭幅ビュー
+//!   ポートで `translateX(-50%)` によりはみ出すのを防いだ。
+//!
+//! 意図的に採らなかった変更（`.claude/rules/out-of-scope-tracking.md`
+//! 対応）:
+//!
+//! - **サイズ・variant 軸**: オーバーレイ 3 パートは寸法・variant を
+//!   持たない（spotlight は CSS 変数、positioner は content 従属）。参考
+//!   サイトにも backdrop/spotlight/positioner の variant は存在しない
+//!   （ark-ui のステップ単位 `backdrop: boolean` は headless 層の関心）。
+//! - **状態（`data-state="open|closed"`）の追加規則・トランジション**:
+//!   headless 層は open/closed 切替と同一フレームで `hidden` を付与・
+//!   除去する契約（dialog #1795 codex-review P1 で確認済み）のため、
+//!   `opacity` 等の状態規則や [`transition_declarations`] を追加しても
+//!   視覚効果が発火せず「機能を謳うだけの CSS」になる。`[hidden] {
+//!   display: none }` の既存規則のみ維持する（`prefers-reduced-motion` は
+//!   テーマ側の duration トークン一括 0ms で担保済み、部品側で `@media`
+//!   は書かない規約）。
+//! - **hover / disabled / focus-visible**: 3 パートは非インタラクティブ
+//!   （spotlight は `pointer-events: none`、backdrop/positioner はフォーカス
+//!   不能）で該当なし。
+//! - **backdrop の真の切り抜き（target 領域を暗幕から除外）**: Zag.js は
+//!   JS 計測の `clip-path` を backdrop に注入する。本リポジトリでは実座標
+//!   注入が `fandhe-frontend-wasm-full` 後続の責務であり、CSS のみで実現
+//!   するには headless 層が backdrop に「target あり」を示す属性を出すか
+//!   [`SlotRecipe`] に `:has()`/兄弟セレクタ機構を加える設計変更が必要
+//!   なため、スコープ外として記録する。
+//! - **arrow / arrow-tip の `data-side` 連動**: `data-side` は positioner
+//!   のみが持ち [`SlotRecipe`] は子孫結合子を持たないため side 連動の
+//!   向き制御は組めない。#1550/#1551 のどちらにも明示割り当てがないため
+//!   本イシューでは触れない。
+//! - **positioner の `padding` 撤去**: 既存の `padding:
+//!   var(--fandhe-space-4)` と各辺オフセット `--fandhe-space-4` は共通
+//!   スケール上の値でありそのまま維持する（オフセット + padding の二重
+//!   ガターは静的フォールバック時の安全域として意図的に残す。座標追従の
+//!   幾何は `fandhe-frontend-wasm-full` 後続の責務）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -129,8 +232,17 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("position", "fixed"),
                 decl("inset", "0"),
-                decl("z-index", "1100"),
-                decl("background", "rgba(0, 0, 0, 0.5)"),
+                // イシュー #1550: `--fandhe-z-index-overlay`（dialog/drawer と
+                // 同型のトークン化）。フォールバックは旧生値 `1100` を維持し、
+                // `tour::stylesheet()` 単独利用（テーマ未適用）でも従来と同じ
+                // 積み順を保つ。
+                decl("z-index", "var(--fandhe-z-index-overlay, 1100)"),
+                // イシュー #1550: `--fandhe-color-bg-overlay`（dialog #1692 /
+                // drawer #1694 と同型のトークン化）。フォールバックは旧生値
+                // `rgba(0, 0, 0, 0.5)` を維持し、単独利用時の暗幕濃度を変え
+                // ない（`Theme::default()` 下では light 0.4 / dark 0.6 へ
+                // 追随し dialog/drawer と揃う）。
+                decl("background", "var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.5))"),
             ],
         )
         .state(
@@ -142,13 +254,47 @@ fn recipe() -> SlotRecipe {
             "spotlight",
             vec![
                 decl("position", "fixed"),
-                decl("z-index", "1101"),
+                // イシュー #1550: backdrop と同じ `--fandhe-z-index-overlay`
+                // を基点に `calc()` で +1 する。scale-tokens 文書 §3.4 は
+                // `tooltip`（1700）割り当てを予定していたが、spotlight は
+                // `box-shadow` で画面全体を暗くするマスク要素であり、
+                // `modal`（1400）の positioner/content より前面に置くと
+                // tour の content カード（および同段の dialog content）まで
+                // 覆ってしまうため採用しない。backdrop 同段 +1 に固定し、
+                // `calc()` で DOM 順に依存しない順序を保証する。
+                decl("z-index", "calc(var(--fandhe-z-index-overlay, 1100) + 1)"),
                 decl("top", "var(--fandhe-tour-spotlight-y, 40%)"),
                 decl("left", "var(--fandhe-tour-spotlight-x, 40%)"),
                 decl("width", "var(--fandhe-tour-spotlight-width, 20%)"),
                 decl("height", "var(--fandhe-tour-spotlight-height, 20%)"),
-                decl("border-radius", "var(--fandhe-radius-md)"),
-                decl("box-shadow", "0 0 0 max(100vw, 100vh) rgba(0, 0, 0, 0.5)"),
+                // イシュー #1550: Zag.js tour の `spotlightRadius` 既定
+                // （4px）へ寄せ、`--fandhe-tour-spotlight-radius` で矩形ごと
+                // 上書きできるようにする（`--fandhe-tour-spotlight-x/-y/
+                // -width/-height` と同じ「scope 付き・既定値つき `var()`」
+                // 契約）。最内側へリテラル `0.25rem`（`--fandhe-radius-sm`
+                // の現行値、`breadcrumb` の `link` border-radius と同型）
+                // をフォールバックとして追加した: `Theme` を適用せず
+                // `--fandhe-tour-spotlight-radius`/`--fandhe-radius-sm` の
+                // いずれも未定義なスタンドアロン利用時、CSS の仕様上
+                // `var()` は算出値時点で無効になり `border-radius` 宣言
+                // 全体が破棄される（codex-review 指摘、PR #1821）。
+                decl(
+                    "border-radius",
+                    "var(--fandhe-tour-spotlight-radius, var(--fandhe-radius-sm, 0.25rem))",
+                ),
+                // イシュー #1550: モジュール rustdoc「`spotlight` の CSS
+                // 変数契約」節が約束していた palette 連動の縁取りを実装する
+                // （先頭層が最前面）。`--fandhe-tour-spotlight-ring-width` は
+                // 上記と同じ scope 付き変数契約。`--fandhe-palette` は
+                // `root` の color-palette variant が定義し、未選択文脈では
+                // `--fandhe-color-accent` へフォールバックする
+                // （`angle_slider` の `FocusRingColor::Palette` と同じ連鎖
+                // 思想）。2 層目が従来どおりの暗幕マスク（`--fandhe-color-
+                // bg-overlay` トークン化・フォールバックは旧生値維持）。
+                decl(
+                    "box-shadow",
+                    "0 0 0 var(--fandhe-tour-spotlight-ring-width, 2px) var(--fandhe-palette, var(--fandhe-color-accent, #3182ce)), 0 0 0 max(100vw, 100vh) var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.5))",
+                ),
                 decl("pointer-events", "none"),
             ],
         )
@@ -161,12 +307,23 @@ fn recipe() -> SlotRecipe {
             "positioner",
             vec![
                 decl("position", "fixed"),
-                decl("z-index", "1102"),
+                // イシュー #1550: dialog/drawer と同じ `--fandhe-z-index-modal`
+                // へ揃える（同段・DOM 順に委ねる方針。旧 rustdoc「Tour を
+                // Dialog より前面に固定する」は撤回し、後述の rustdoc 節へ
+                // 意図的な設計変更として明記する）。フォールバックは旧生値
+                // `1102` を維持する。
+                decl("z-index", "var(--fandhe-z-index-modal, 1102)"),
                 decl("top", "50%"),
                 decl("left", "50%"),
                 decl("transform", "translate(-50%, -50%)"),
                 decl("display", "flex"),
                 decl("padding", "var(--fandhe-space-4)"),
+                // イシュー #1550: `content` の `max-width: 24rem` が 24rem
+                // 未満の狭幅ビューポートで `translateX(-50%)` によりはみ出す
+                // のを防ぐ（showcase の中和規則 `position: static; transform:
+                // none; z-index: auto` とは干渉しない）。
+                decl("box-sizing", "border-box"),
+                decl("max-width", "100vw"),
             ],
         )
         // 実座標追従前の静的フォールバック（`data-side`/`data-align` に
@@ -567,6 +724,84 @@ mod tests {
                 "missing hidden rule for {part}"
             );
         }
+    }
+
+    /// イシュー #1550: `backdrop`/`spotlight` の暗幕色が
+    /// `--fandhe-color-bg-overlay` トークン（フォールバックは旧生値
+    /// `rgba(0, 0, 0, 0.5)`）経由であり、各ブロック本文（セレクタ行から
+    /// 対応する閉じ `}` まで）にフォールバック以外の生 `rgba(` が残って
+    /// いないことを固定する（トークン化の取りこぼし・生値残置の回帰）。
+    #[test]
+    fn backdrop_and_spotlight_use_bg_overlay_token_with_legacy_fallback() {
+        let css = stylesheet();
+        let token = "var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.5))";
+        assert!(css.contains(token), "missing bg-overlay token: {css}");
+
+        for part in ["backdrop", "spotlight"] {
+            let selector = format!(r#"[data-scope="tour"][data-part="{part}"] {{"#);
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("missing base rule for {part}"));
+            let body_start = start + selector.len();
+            let close = css[body_start..]
+                .find('}')
+                .unwrap_or_else(|| panic!("unterminated rule body for {part}"));
+            let body = &css[body_start..body_start + close];
+            // フォールバック内の `rgba(` 以外に生の `rgba(` が残っていない
+            // ことを確認する（`token` を取り除いた残りに `rgba(` がないか
+            // で判定する）。
+            let stripped = body.replace(token, "");
+            assert!(
+                !stripped.contains("rgba("),
+                "{part} rule still has a raw rgba() outside the token fallback: {body}"
+            );
+        }
+    }
+
+    /// イシュー #1550: `backdrop` → `spotlight` → `positioner` の順に
+    /// `z-index` トークンが積み上がる（backdrop/spotlight は
+    /// `--fandhe-z-index-overlay` 系、positioner は `--fandhe-z-index-modal`）
+    /// ことと、CSS ソース中の出現順が積み順どおりであることを固定する。
+    #[test]
+    fn overlay_parts_use_z_index_tokens_and_keep_stacking_order() {
+        let css = stylesheet();
+        let backdrop_z = "z-index: var(--fandhe-z-index-overlay, 1100);";
+        let spotlight_z = "z-index: calc(var(--fandhe-z-index-overlay, 1100) + 1);";
+        let positioner_z = "z-index: var(--fandhe-z-index-modal, 1102);";
+
+        let backdrop_pos = css.find(backdrop_z).expect("missing backdrop z-index");
+        let spotlight_pos = css.find(spotlight_z).expect("missing spotlight z-index");
+        let positioner_pos = css.find(positioner_z).expect("missing positioner z-index");
+
+        assert!(
+            backdrop_pos < spotlight_pos && spotlight_pos < positioner_pos,
+            "expected backdrop < spotlight < positioner ordering in generated CSS"
+        );
+    }
+
+    /// イシュー #1550: `spotlight` の縁取りがモジュール rustdoc「`spotlight`
+    /// の CSS 変数契約」節どおり `--fandhe-palette`（未選択時
+    /// `--fandhe-color-accent`、さらに未定義ならリテラル `#3182ce` へ
+    /// フォールバック）に連動し、縁取り幅が
+    /// `--fandhe-tour-spotlight-ring-width` で上書き可能であることを固定
+    /// する。
+    #[test]
+    fn spotlight_ring_follows_palette_with_accent_fallback() {
+        let css = stylesheet();
+        assert!(css.contains("var(--fandhe-palette, var(--fandhe-color-accent, #3182ce))"));
+        assert!(css.contains("var(--fandhe-tour-spotlight-ring-width, 2px)"));
+    }
+
+    /// イシュー #1550: `spotlight` の角丸が Zag.js tour `spotlightRadius`
+    /// 既定（4px = `--fandhe-radius-sm`）へ寄り、矩形ごとに上書きできる
+    /// scope 付き変数 `--fandhe-tour-spotlight-radius` を持つことを固定
+    /// する。
+    #[test]
+    fn spotlight_radius_is_overridable_via_scoped_custom_property() {
+        let css = stylesheet();
+        assert!(
+            css.contains("var(--fandhe-tour-spotlight-radius, var(--fandhe-radius-sm, 0.25rem))")
+        );
     }
 
     /// イシュー #841 PR #870 Bugbot レビュー Medium severity 指摘

@@ -950,7 +950,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 公開 API シグネチャ・既存 CSS 変数名・クラス名・セレクタの削除/改名は
 # ないため patch とする（`version-bump-exempt` は CSS 出力変更のため
 # 使用不可）。0.64.1 → 0.64.2 へ patch バンプする。
-version = "0.64.2"
+# イシュー #1550（tour のスタイル調整 1/2 — スポットライト・バックドロップ・
+# ポジショナ）も同じ判断: `recipe()` 宣言変更（`backdrop`/`spotlight`/
+# `positioner` の z-index・暗幕色のトークン化、spotlight の palette 連動
+# 縁取り・角丸の新設 CSS 変数）のみで、公開 API シグネチャ・既存 CSS
+# 変数名・クラス名・セレクタの削除/改名はないため patch とする
+# （`version-bump-exempt` は CSS 出力変更のため使用不可）。新設した
+# `--fandhe-tour-spotlight-radius`/`-ring-width` は純追加であり既存変数の
+# 削除・改名を伴わない。0.64.2 → 0.64.3 へ patch バンプする。
+version = "0.64.3"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

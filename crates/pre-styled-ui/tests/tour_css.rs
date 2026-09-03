@@ -10,30 +10,32 @@ use fandhe_frontend_pre_styled_ui::tour;
 const TOUR_GOLDEN_CSS: &str = r#"[data-scope="tour"][data-part="backdrop"] {
   position: fixed;
   inset: 0;
-  z-index: 1100;
-  background: rgba(0, 0, 0, 0.5);
+  z-index: var(--fandhe-z-index-overlay, 1100);
+  background: var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.5));
 }
 
 [data-scope="tour"][data-part="spotlight"] {
   position: fixed;
-  z-index: 1101;
+  z-index: calc(var(--fandhe-z-index-overlay, 1100) + 1);
   top: var(--fandhe-tour-spotlight-y, 40%);
   left: var(--fandhe-tour-spotlight-x, 40%);
   width: var(--fandhe-tour-spotlight-width, 20%);
   height: var(--fandhe-tour-spotlight-height, 20%);
-  border-radius: var(--fandhe-radius-md);
-  box-shadow: 0 0 0 max(100vw, 100vh) rgba(0, 0, 0, 0.5);
+  border-radius: var(--fandhe-tour-spotlight-radius, var(--fandhe-radius-sm, 0.25rem));
+  box-shadow: 0 0 0 var(--fandhe-tour-spotlight-ring-width, 2px) var(--fandhe-palette, var(--fandhe-color-accent, #3182ce)), 0 0 0 max(100vw, 100vh) var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.5));
   pointer-events: none;
 }
 
 [data-scope="tour"][data-part="positioner"] {
   position: fixed;
-  z-index: 1102;
+  z-index: var(--fandhe-z-index-modal, 1102);
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   display: flex;
   padding: var(--fandhe-space-4);
+  box-sizing: border-box;
+  max-width: 100vw;
 }
 
 [data-scope="tour"][data-part="arrow"] {
