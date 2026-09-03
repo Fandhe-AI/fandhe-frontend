@@ -1042,8 +1042,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # フォント追加・key を medium・bool/null を semibold（+italic）・
 # object/array の要約表示を italic 化）。Rust API・セレクタ構造・
 # CSS 変数名の追加削除改名を伴わない CSS 宣言値のみの意匠変更のため
-# patch バンプする（`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
-version = "0.70.3"
+# patch バンプする（`docs/ci/style-refresh-version-bump-operation.md` §3.4a。
+# merge base（0.70.2）から独立に 0.70.3 へ到達）。
+# 一方 main 側では #1562（image の意匠調整、`ImageShape` 列挙型追加に伴う
+# 破壊的変更のためマイナーバンプ）が独立に merge base（0.70.2）から
+# 0.71.0 へ到達済みだったため、本イシュー（#1563）とのマージでは双方の
+# 実体変更を統合した結果として 0.71.1 へさらにパッチバンプする
+# （0.x の破壊的変更はマイナーバンプの規約。main 側の 0.71.0 は本イシューの
+# 変更を包含しないため、そのまま採用せずさらにバンプする）。
+version = "0.71.1"
+
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

@@ -85,13 +85,17 @@
 //! # ビルド時生成アセットの書き出し経路（[`fandhe_frontend_server::ssg::generate_assets`]、イシュー #1136）
 //!
 //! 上記の CSS 5 種（showcase / primitive_showcase / admonition / skip_nav /
-//! site_theme）・JS 1 種（`site.js`）・検索インデックス JSON 1 種は、いずれも
-//! [`ssg::generate_assets`] へまとめて渡し単一呼び出しで書き出す（かつては
-//! `StyleSheet::write_css_file` / 素の `fs::write` による直書きだった）。
+//! site_theme）・JS 1 種（`site.js`）・検索インデックス JSON 1 種・
+//! showcase ページが実在するときのみ書き出す SVG 1 種
+//! （[`showcase::image_demo_svg`]、イシュー #1562。Image 節 demo の
+//! `data:` URI が core の `is_safe_url` で拒否され `src` 属性ごと欠落する
+//! 不具合の是正）は、いずれも [`ssg::generate_assets`] へまとめて渡し
+//! 単一呼び出しで書き出す（かつては `StyleSheet::write_css_file` / 素の
+//! `fs::write` による直書きだった）。
 //! `generate_pages` と同型のパス検証（先頭 `/` 必須・`normalize_asset_path` の
 //! allowlist・重複拒否）を経由するため、ビルド時定数のパスとはいえ「検証を
 //! 経ずに `out_dir` 配下へ書き込む経路」を作らない。渡すのは無加工の
-//! CSS/JS/JSON 文字列のみで HTML ページは含めない（HTML は従来どおり
+//! CSS/JS/JSON/SVG 文字列のみで HTML ページは含めない（HTML は従来どおり
 //! `ssg::generate_pages` ＝ `render()` の既定エスケープ経由であり、この経路は
 //! REQ-1 の迂回経路ではない）。コピー静的アセット（[`copy_assets`]）との名前
 //! 衝突防止は引き続き [`RESERVED_ASSET_NAMES`]（[`list_regular_files`]）が
@@ -126,7 +130,8 @@ use crate::skip_nav;
 /// [`site_theme::STYLESHEET_REL_PATH`]/[`skip_nav::STYLESHEET_REL_PATH`]/
 /// [`showcase::STYLESHEET_REL_PATH`]/[`admonition::STYLESHEET_REL_PATH`]/
 /// [`primitive_showcase::STYLESHEET_REL_PATH`]/[`script::SCRIPT_REL_PATH`]/
-/// [`search_index::REL_PATH`] はいずれも `assets/<basename>` の形をしており、
+/// [`search_index::REL_PATH`]/[`showcase::IMAGE_DEMO_ASSET_REL_PATH`]
+/// （イシュー #1562）はいずれも `assets/<basename>` の形をしており、
 /// `site/assets/` 直下との名前衝突は basename の一致だけで判定できる。
 const RESERVED_ASSET_NAMES: &[&str] = &[
     "site.css",
@@ -136,6 +141,7 @@ const RESERVED_ASSET_NAMES: &[&str] = &[
     "admonition.css",
     "site.js",
     "search-index.json",
+    "image-demo.svg",
 ];
 
 /// [`build_site`] が成功時に返すビルド結果のサマリ。
@@ -466,6 +472,15 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             &nav.site.base_path,
             showcase::STYLESHEET_REL_PATH,
         ));
+        // Image 節（イシュー #1562）の demo アセット。`showcase_sheet` と
+        // 同条件（Themes 側の showcase ページが実在するときのみ）で登録・
+        // 書き出しする。`<img src>` は `linkcheck::check_links` の走査対象
+        // 外（`href` のみ走査）だが、`asset_hrefs` への登録自体は無害な
+        // 前方互換の一貫性維持（他アセットと同じ登録経路に揃える）。
+        asset_hrefs.push(layout::asset_href(
+            &nav.site.base_path,
+            showcase::IMAGE_DEMO_ASSET_REL_PATH,
+        ));
         Some(showcase::stylesheet()?)
     } else {
         None
@@ -576,6 +591,12 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         script::site_js().to_string(),
     ));
     generated_assets.push((format!("/{}", search_index::REL_PATH), search_index_json));
+    if has_showcase_page {
+        generated_assets.push((
+            format!("/{}", showcase::IMAGE_DEMO_ASSET_REL_PATH),
+            showcase::image_demo_svg(),
+        ));
+    }
 
     let mut generated_written = ssg::generate_assets(&generated_assets, out_dir)?;
     assets.append(&mut generated_written);
