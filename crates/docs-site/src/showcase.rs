@@ -2043,7 +2043,7 @@ fn card_section() -> Node {
             ..CardProps::default()
         };
         card::root(
-            &props,
+            props,
             vec![],
             vec![
                 card::header(
@@ -2100,7 +2100,7 @@ fn card_section() -> Node {
                     ..CardProps::default()
                 };
                 card::root(
-                    &props,
+                    props,
                     vec![],
                     vec![
                         card::header(vec![], vec![card::title(vec![], vec![text(*label)])]),

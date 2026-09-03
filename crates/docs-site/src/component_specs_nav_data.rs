@@ -288,7 +288,7 @@ fn ex_card() -> Node {
         ..card::CardProps::default()
     };
     card::root(
-        &props,
+        props,
         vec![],
         vec![
             card::header(vec![], vec![card::title(vec![], vec![text("Title")])]),

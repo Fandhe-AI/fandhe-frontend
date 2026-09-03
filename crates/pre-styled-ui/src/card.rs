@@ -19,9 +19,16 @@
 //!   property へ一本化し、header/body/footer/title へ連動させた
 //!   （chakra `--card-padding` 方式、[`crate::callout`] の
 //!   `--fandhe-callout-*` と同型）。
-//! - **`root(variant, …)` → `root(&CardProps, …)` の破壊的変更**:
-//!   size 軸追加に伴い [`crate::callout::root`] と同じ Props 構造体経由の
-//!   呼び出しへ揃えた。
+//! - **`root` を `impl Into<CardProps>` で後方互換に拡張**: size 軸追加に
+//!   伴い [`crate::callout::root`] と同じ Props 構造体経由の呼び出しへ
+//!   揃えつつ、`impl From<CardVariant> for CardProps` を用意して
+//!   `root(CardVariant::Elevated, …)` のような旧来の直渡しも従来どおり
+//!   有効なままにした（`examples/headless-pre-styled-ui`・
+//!   `crates/cli/embedded-examples/headless-pre-styled-ui` が crates.io
+//!   公開版へのバージョン依存で完結する正本サンプルであり破壊的変更を
+//!   追随できないため、イシュー #1557 PR #1828 のレビューで後方互換化に
+//!   是正した）。size を指定したい呼び出し側は `CardProps { variant, size }`
+//!   を渡す。
 //! - **区切り線を廃止**: header の `border-bottom`/footer の `border-top`
 //!   は参照 2 サイトのいずれも持たず、padding のみで段を分ける（chakra
 //!   の header/body/footer 分割方式）。
@@ -115,9 +122,11 @@ impl VariantValue for CardVariant {
 
 /// [`root`] の設定。
 ///
-/// イシュー #1557: size 軸新設に伴い `root(CardVariant, …)` から
-/// `root(&CardProps, …)` へ破壊的変更した（[`crate::callout::CalloutProps`]
-/// と同型の Props 構造体経由）。
+/// イシュー #1557: size 軸新設に伴い [`crate::callout::CalloutProps`] と
+/// 同型の Props 構造体経由の呼び出しへ揃えた。[`root`] は
+/// `impl Into<CardProps>` を受け取るため、`CardVariant` を直接渡す旧来の
+/// 呼び出し（`impl From<CardVariant> for CardProps` 経由、`size` は
+/// `Size::Md` 既定）も従来どおり有効である。
 #[derive(Debug, Clone, Copy)]
 pub struct CardProps {
     /// 見た目 variant（既定 `Outline`）。
@@ -130,6 +139,23 @@ impl Default for CardProps {
     fn default() -> Self {
         CardProps {
             variant: CardVariant::Outline,
+            size: Size::Md,
+        }
+    }
+}
+
+/// 旧 API `root(CardVariant, …)` との後方互換のための変換。
+///
+/// `variant` のみを指定し `size` は既定（`Size::Md`）とする。
+/// `examples/headless-pre-styled-ui`・
+/// `crates/cli/embedded-examples/headless-pre-styled-ui` が
+/// crates.io 公開版へのバージョン依存で完結する正本サンプルであるため、
+/// `card::root(CardVariant::Elevated, …)` のような旧来の直渡しを
+/// 破壊的変更なしに維持する（イシュー #1557 PR #1828 レビュー是正）。
+impl From<CardVariant> for CardProps {
+    fn from(variant: CardVariant) -> Self {
+        CardProps {
+            variant,
             size: Size::Md,
         }
     }
@@ -321,17 +347,31 @@ pub fn css() -> String {
 /// パーツ（`class_attr::drop_class_attr` により呼び出し側の `class` は
 /// 除去してから合成する）。
 ///
+/// `props` は `impl Into<CardProps>` を受け取る。`CardProps { .. }` を
+/// 直接渡せるほか、`impl From<CardVariant> for CardProps` により
+/// `CardVariant`（`Elevated`/`Outline`/`Subtle`）を直接渡す旧 API
+/// 互換の呼び出しも従来どおり有効である（`size` は `Size::Md` 既定）。
+///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
+/// use fandhe_frontend_pre_styled_ui::card::{self, CardProps, CardVariant};
 ///
-/// let node = card::root(&CardProps::default(), vec![], vec![]);
+/// let node = card::root(CardProps::default(), vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="card" data-part="root""#));
+///
+/// // 旧 API 互換: CardVariant を直接渡せる（size は Md 既定）。
+/// let node = card::root(CardVariant::Elevated, vec![], vec![]);
+/// assert!(render(&node).contains("fd-card--variant-elevated"));
 /// ```
 #[must_use]
-pub fn root<'a>(props: &CardProps, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn root<'a>(
+    props: impl Into<CardProps>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let props = props.into();
     let recipe = recipe();
     let class = recipe.variant_classes(&[
         ("size", props.size.value()),
@@ -380,7 +420,7 @@ mod tests {
 
     #[test]
     fn default_props_render_outline_md() {
-        let html = render(&root(&CardProps::default(), vec![], vec![]));
+        let html = render(&root(CardProps::default(), vec![], vec![]));
         assert!(html.contains("fd-card--size-md"));
         assert!(html.contains("fd-card--variant-outline"));
     }
@@ -396,7 +436,7 @@ mod tests {
                 variant,
                 ..CardProps::default()
             };
-            let html = render(&root(&props, vec![], vec![]));
+            let html = render(&root(props, vec![], vec![]));
             assert!(
                 html.contains(&format!("class=\"fd-card--size-md {class}\"")),
                 "variant={variant:?} -> {html}"
@@ -417,7 +457,7 @@ mod tests {
                 size,
                 ..CardProps::default()
             };
-            let html = render(&root(&props, vec![], vec![]));
+            let html = render(&root(props, vec![], vec![]));
             assert!(
                 html.contains(&format!("class=\"{class} fd-card--variant-outline\"")),
                 "size={size:?} -> {html}"
@@ -443,7 +483,7 @@ mod tests {
     #[test]
     fn composed_card_snapshot() {
         let node = root(
-            &CardProps {
+            CardProps {
                 variant: CardVariant::Elevated,
                 ..CardProps::default()
             },
@@ -472,7 +512,7 @@ mod tests {
     #[test]
     fn caller_class_attr_on_root_is_dropped_not_duplicated() {
         let html = render(&root(
-            &CardProps::default(),
+            CardProps::default(),
             vec![("class", "attacker-controlled")],
             vec![],
         ));
@@ -507,5 +547,26 @@ mod tests {
         let out = css();
         assert!(!out.contains("border-bottom"));
         assert!(!out.contains("border-top"));
+    }
+
+    /// イシュー #1557 PR #1828 レビュー是正: `root` を `impl Into<CardProps>`
+    /// で後方互換化したこと（`examples/headless-pre-styled-ui` 等の旧 API
+    /// 呼び出しを壊さないため）を固定する。`CardVariant` を直接渡す旧 API
+    /// 互換の呼び出しと `CardProps { variant, size }` を明示的に渡す呼び出し
+    /// （`size` を `Size::Md` 既定に揃えた場合）が同一出力になることを示す。
+    #[test]
+    fn root_accepts_card_variant_directly_and_matches_explicit_card_props() {
+        let via_variant = render(&root(CardVariant::Elevated, vec![], vec![]));
+        let via_props = render(&root(
+            CardProps {
+                variant: CardVariant::Elevated,
+                size: Size::Md,
+            },
+            vec![],
+            vec![],
+        ));
+        assert_eq!(via_variant, via_props);
+        assert!(via_variant.contains("fd-card--variant-elevated"));
+        assert!(via_variant.contains("fd-card--size-md"));
     }
 }

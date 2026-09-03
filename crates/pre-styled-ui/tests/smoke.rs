@@ -269,7 +269,7 @@ fn spinner_label_attribute_xss_payload_is_escaped() {
 #[test]
 fn card_title_and_description_xss_payload_is_escaped() {
     let node = card::root(
-        &CardProps::default(),
+        CardProps::default(),
         vec![],
         vec![
             card::title(vec![], vec![text("<script>alert(1)</script>")]),
