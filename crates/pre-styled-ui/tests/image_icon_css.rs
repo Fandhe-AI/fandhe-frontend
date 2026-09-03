@@ -12,6 +12,7 @@ use fandhe_frontend_pre_styled_ui::{icon, image};
 const IMAGE_GOLDEN_CSS: &str = r#"[data-scope="image"][data-part="root"] {
   display: block;
   max-width: 100%;
+  height: auto;
 }
 
 [data-scope="image"][data-part="root"].fd-image--fit-cover {
@@ -42,8 +43,28 @@ const IMAGE_GOLDEN_CSS: &str = r#"[data-scope="image"][data-part="root"] {
   aspect-ratio: 1 / 1;
 }
 
+[data-scope="image"][data-part="root"].fd-image--aspect-ratio-landscape {
+  aspect-ratio: 4 / 3;
+}
+
+[data-scope="image"][data-part="root"].fd-image--aspect-ratio-portrait {
+  aspect-ratio: 3 / 4;
+}
+
 [data-scope="image"][data-part="root"].fd-image--aspect-ratio-video {
   aspect-ratio: 16 / 9;
+}
+
+[data-scope="image"][data-part="root"].fd-image--shape-square {
+  border-radius: var(--fandhe-radius-none);
+}
+
+[data-scope="image"][data-part="root"].fd-image--shape-rounded {
+  border-radius: var(--fandhe-radius-md);
+}
+
+[data-scope="image"][data-part="root"].fd-image--shape-circle {
+  border-radius: var(--fandhe-radius-full);
 }
 "#;
 

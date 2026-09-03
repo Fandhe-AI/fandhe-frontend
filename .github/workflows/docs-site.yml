@@ -181,6 +181,12 @@ jobs:
         # primitives_nav.rs が、CSS の内容（`[data-scope=`/`[data-part=` 不在
         # 等）は crates/docs-site/tests/site_css_contract.rs が保持し、
         # ここでは二重管理しない。
+        #
+        # イシュー #1562: Image 節 demo の `src` が `data:` URI（core の
+        # `is_safe_url` が拒否）で属性ごと欠落していた不具合を、ビルド時
+        # 生成 SVG（`crate::showcase::image_demo_svg`）を相対パスで参照する
+        # 形へ是正した。生成先 `assets/image-demo.svg` の存在も fail-closed
+        # で確認する。
         run: |
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
@@ -195,6 +201,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/primitives/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/primitives/accordion/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/primitives-showcase.css"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/image-demo.svg"
 
       - name: Upload dist artifact
         # 汎用 artifact として dist を渡し、Pages 専用形式への変換以降は

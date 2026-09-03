@@ -1036,7 +1036,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 偶然同一バージョン番号（0.70.1）へ到達していたため、同一版数への偶発的
 # 衝突をそのまま採用せず、双方の実体変更を統合した結果として 0.70.2 へ
 # さらにパッチバンプする。
-version = "0.70.2"
+
+# イシュー #1562: image を参考サイト（chakra-ui）基準へ調整。`ImageShape`
+# 列挙型（新規公開型）を追加し、`ImageProps` に `pub shape: ImageShape`
+# フィールドを追加した（既存呼び出し側の構造体リテラル初期化が
+# `..ImageProps::new(...)` の残余更新記法を使わない限りソース非互換になる
+# 破壊的変更）ため 0.x のマイナーバンプとする。
+version = "0.71.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

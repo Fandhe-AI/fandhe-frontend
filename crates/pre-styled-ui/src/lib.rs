@@ -766,7 +766,7 @@ pub use empty_state::EmptyStateProps;
 pub use heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 pub use highlight::{highlight, HighlightProps};
 pub use icon::{icon, IconProps};
-pub use image::{image, AspectRatio, ImageFit, ImageProps};
+pub use image::{image, AspectRatio, ImageFit, ImageProps, ImageShape};
 pub use input::{input, InputProps, InputVariant};
 pub use kbd::{kbd, KbdProps, KbdVariant};
 pub use link::{LinkProps, LinkVariant};

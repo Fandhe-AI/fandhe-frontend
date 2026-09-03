@@ -61,7 +61,7 @@
 //! #942 の責務であり、本モジュールは器（レジストリと照会 API）のみを
 //! 提供する。
 
-use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_core::{div, el, render, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::avatar::{
@@ -127,7 +127,7 @@ use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps, HighlightVariant};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
-use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
+use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps, ImageShape};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::{kbd, KbdProps, KbdVariant};
@@ -6463,16 +6463,112 @@ fn qr_code_section() -> Node {
     )
 }
 
-/// Image 節（イシュー #770）の demo `src`。実画像を同梱せず、外部フェッチ・
-/// 404 を発生させないインライン SVG data URI を使う（相対パスではなく
-/// [`AVATAR_INLINE_SVG_SRC`] と同じくパーセントエンコード済み data URI と
-/// することで、実在しないファイルパスによる 404 を防ぐ。矩形プレースホル
-/// ダー柄のアイコン）。
-const IMAGE_DEMO_SRC: &str =
-    "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20fill%3D%27%234a90d9%27%2F%3E%3C%2Fsvg%3E";
+/// Image 節（イシュー #770）の demo アセット（イシュー #1562）の出力先
+/// （`out_dir` 起点の相対パス）。`crate::build::build_site` が
+/// [`image_demo_svg`] の内容をこのパスへ書き出す。
+///
+/// `data:` URI は `fandhe_frontend_core::url::is_safe_url`（許可スキームは
+/// http/https/mailto/tel と相対 URL のみ、REQ-1）が拒否し `src` 属性
+/// ごと出力から落ちる（core の URL 検証は一元化されており本クレート側で
+/// 迂回・複製しない）。旧実装が `data:image/svg+xml,...` を使っていたため
+/// Demo が「壊れた画像アイコン」表示になっていた不具合（#1562 で発覚）を、
+/// ビルド時生成の相対パスアセットへ切り替えることで是正する。
+pub(crate) const IMAGE_DEMO_ASSET_REL_PATH: &str = "assets/image-demo.svg";
 
-/// Image 節: `fit`（object-fit）× `aspect_ratio` の 2 軸。
+/// [`image_section`] から `/themes/image/` ページへ渡す `src`（ページ深さ
+/// 2 階層上、`/themes/<kebab>/` → `assets/` の相対パス）。ページの実際の
+/// 出力先が変わる場合はこの相対パス段数も追従が必要（現状は全部品ページが
+/// 同じ深さのため固定値で足りる）。
+pub(crate) const IMAGE_DEMO_SRC: &str = "../../assets/image-demo.svg";
+
+/// Image 節の demo 用プレースホルダー SVG（イシュー #1562）。ユーザー入力を
+/// 一切含まない固定図形のみを [`fandhe_frontend_core`] のノード木 API
+/// （`el`/`render`）で組み立てる（`format!` による SVG 文字列直組みは
+/// REQ-1 が禁じるパターンのため使わない）。cover/contain の差・
+/// landscape/portrait の縦横比の違いが視認できるよう、空・丘・太陽の単純な
+/// 図形を 16:10 の横長キャンバスへ描く。
+#[must_use]
+pub(crate) fn image_demo_svg() -> String {
+    let svg = el(
+        "svg",
+        vec![
+            ("xmlns", "http://www.w3.org/2000/svg"),
+            ("viewBox", "0 0 160 100"),
+            ("role", "img"),
+            ("aria-label", "Placeholder landscape illustration"),
+        ],
+        vec![
+            // 空。
+            el(
+                "rect",
+                vec![("width", "160"), ("height", "100"), ("fill", "#bfe3f7")],
+                vec![],
+            ),
+            // 太陽。
+            el(
+                "circle",
+                vec![
+                    ("cx", "128"),
+                    ("cy", "24"),
+                    ("r", "14"),
+                    ("fill", "#fbd35a"),
+                ],
+                vec![],
+            ),
+            // 丘。
+            el(
+                "path",
+                vec![
+                    ("d", "M0 68 Q40 40 80 68 T160 68 V100 H0 Z"),
+                    ("fill", "#4a9d5c"),
+                ],
+                vec![],
+            ),
+            // 手前の丘（奥行きを出す 2 層目）。
+            el(
+                "path",
+                vec![
+                    ("d", "M0 82 Q50 58 100 82 T160 78 V100 H0 Z"),
+                    ("fill", "#2f7d43"),
+                ],
+                vec![],
+            ),
+        ],
+    );
+    render(&svg)
+}
+
+/// Image 節: `fit`（object-fit）× `aspect_ratio` × `shape`（角丸）の 3 軸
+/// （イシュー #1562 で `shape` 追加・chakra-ui 公式デモ構成へ寄せた
+/// 4 行構成に再編。基本デモ・shape 3 種・fit 5 種・aspect-ratio 5 種）。
 fn image_section() -> Node {
+    let basic_row = row(vec![image(
+        &ImageProps {
+            shape: ImageShape::Rounded,
+            ..ImageProps::new(IMAGE_DEMO_SRC, "Basic rounded image")
+        },
+        vec![("style", "width: 12rem;")],
+    )]);
+
+    let shapes = [
+        (ImageShape::Square, "Square"),
+        (ImageShape::Rounded, "Rounded"),
+        (ImageShape::Circle, "Circle"),
+    ];
+    let shape_row = row(shapes
+        .iter()
+        .map(|(shape, label)| {
+            image(
+                &ImageProps {
+                    shape: *shape,
+                    aspect_ratio: AspectRatio::Square,
+                    ..ImageProps::new(IMAGE_DEMO_SRC, label)
+                },
+                vec![("style", "width: 6rem;")],
+            )
+        })
+        .collect());
+
     let fits = [
         (ImageFit::Cover, "Cover"),
         (ImageFit::Contain, "Contain"),
@@ -6499,6 +6595,8 @@ fn image_section() -> Node {
     let ratios = [
         (AspectRatio::Auto, "Auto"),
         (AspectRatio::Square, "Square"),
+        (AspectRatio::Landscape, "Landscape"),
+        (AspectRatio::Portrait, "Portrait"),
         (AspectRatio::Video, "Video"),
     ];
     let ratio_row = row(ratios
@@ -6519,8 +6617,8 @@ fn image_section() -> Node {
 
     section(
         "Image",
-        "写真等の静的コンテンツを表示する img の styled ラッパー。fit（object-fit）と aspect-ratio を型安全な props で切り替えます。状態機械は持たず、avatar の ImageStatus とは独立です。",
-        vec![fit_row, ratio_row],
+        "写真等の静的コンテンツを表示する img の styled ラッパー。fit（object-fit）・aspect-ratio・shape（角丸）を型安全な props で切り替えます。状態機械は持たず、avatar の ImageStatus とは独立です。",
+        vec![basic_row, shape_row, fit_row, ratio_row],
     )
 }
 
