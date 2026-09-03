@@ -975,7 +975,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # children)` へ変更する破壊的変更（`AvatarVariant`/`ColorPalette` 軸の
 # 追加に伴う Props 構造体化）のため minor バンプする（0.x の破壊的変更は
 # マイナーバンプの規約）。
-version = "0.66.0"
+# イシュー #1555: `BadgeVariant` へ `Surface` variant を追加する公開 enum
+# への variant 追加（利用者の網羅 `match` を壊す 0.x 破壊的変更）のため
+# minor バンプする（#1448 の `ButtonVariant::Surface` 追加時と同型判断）。
+version = "0.67.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

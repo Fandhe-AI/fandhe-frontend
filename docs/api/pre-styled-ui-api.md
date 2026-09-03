@@ -397,7 +397,9 @@ let _style_node = sheet.style_element();
 - **`AvatarShape`**: `recipe::VariantValue` 実装 enum（`Size` と並ぶ本
   クレート 2 例目の variant 軸）。
 - **`AvatarVariant`**（イシュー #1554 で新設）: `Subtle`（既定）/`Solid`/
-  `Outline` の 3 値。`BadgeVariant`/`KbdVariant` と同名の語彙。
+  `Outline` の 3 値。`BadgeVariant`/`KbdVariant` と同名の語彙
+  （`BadgeVariant` はイシュー #1555 で `Surface` を追加し `Solid`/
+  `Subtle`（既定）/`Outline`/`Surface` の 4 値）。
 - **`AvatarProps`**（イシュー #1554 で新設）: `size`/`shape`/`variant`/
   `palette` の 4 フィールドを持つ `root` の設定構造体（`KbdProps` と
   同型）。`Default` は `Md`/`Circle`/`Subtle`/`Neutral`。
