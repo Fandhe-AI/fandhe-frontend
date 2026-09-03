@@ -13,10 +13,11 @@ use fandhe_frontend_pre_styled_ui::{empty_state, status};
 const STATUS_GOLDEN_CSS: &str = r#"[data-scope="status"][data-part="root"] {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--fandhe-space-2, 0.5rem);
 }
 
 [data-scope="status"][data-part="indicator"] {
+  box-sizing: border-box;
   width: var(--fandhe-status-dot-size, 0.5rem);
   height: var(--fandhe-status-dot-size, 0.5rem);
   border-radius: var(--fandhe-radius-full);
@@ -26,27 +27,27 @@ const STATUS_GOLDEN_CSS: &str = r#"[data-scope="status"][data-part="root"] {
 
 [data-scope="status"][data-part="root"].fd-status--size-xs {
   font-size: var(--fandhe-font-font-size-xs);
-  --fandhe-status-dot-size: 0.25rem;
+  --fandhe-status-dot-size: var(--fandhe-space-1, 0.25rem);
 }
 
 [data-scope="status"][data-part="root"].fd-status--size-sm {
   font-size: var(--fandhe-font-font-size-xs);
-  --fandhe-status-dot-size: 0.375rem;
+  --fandhe-status-dot-size: var(--fandhe-space-1-5, 0.375rem);
 }
 
 [data-scope="status"][data-part="root"].fd-status--size-md {
   font-size: var(--fandhe-font-font-size-sm);
-  --fandhe-status-dot-size: 0.5rem;
+  --fandhe-status-dot-size: var(--fandhe-space-2, 0.5rem);
 }
 
 [data-scope="status"][data-part="root"].fd-status--size-lg {
   font-size: var(--fandhe-font-font-size-md);
-  --fandhe-status-dot-size: 0.625rem;
+  --fandhe-status-dot-size: var(--fandhe-space-2-5, 0.625rem);
 }
 
 [data-scope="status"][data-part="root"].fd-status--size-xl {
   font-size: var(--fandhe-font-font-size-lg);
-  --fandhe-status-dot-size: 0.75rem;
+  --fandhe-status-dot-size: var(--fandhe-space-3, 0.75rem);
 }
 
 [data-scope="status"][data-part="root"].fd-status--color-palette-accent {
@@ -101,6 +102,13 @@ const STATUS_GOLDEN_CSS: &str = r#"[data-scope="status"][data-part="root"] {
   --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
   --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
+}
+
+
+@media (forced-colors: active) {
+  [data-scope="status"][data-part="indicator"] {
+    border: 1px solid CanvasText;
+  }
 }
 "#;
 

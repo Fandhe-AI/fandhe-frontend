@@ -1098,6 +1098,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1572: `pub fn scroll_area` の新設（公開 API の純追加）に伴い
 # マイナーバンプする（`docs/ci/style-refresh-version-bump-operation.md`
 # §3.1、`.claude/rules/coding-rust.md`）。
+#
+# base 取り込み（イシュー #1569 追補 2）: main 側は #1569 追補 2
+# （status indicator の box-sizing 是正）の統合により 0.75.1（本ブランチの
+# 0.75.0 より大きい）へパッチバンプ済みだった。本ブランチの #1572 は
+# マイナーバンプ（0.76.0）であり main の 0.75.1 より大きいため、両者の
+# 実体変更を統合した結果としてそのまま 0.76.0 を維持する（semver 上
+# minor バンプが patch バンプを包含するため、0.75.1 への追随バンプは
+# 不要）。
 version = "0.76.0"
 
 edition = "2021"
