@@ -59,6 +59,15 @@
 //!   `border-radius: inherit` を追加した（`crate::avatar` の `image` が
 //!   同じ理由で持つ宣言と同型）。呼び出し側が `root` に角丸（`card` 等）
 //!   を与えた場合、フォーカスリングの `outline` がその角丸へ追従する。
+//!   **追補（Bugbot 指摘、PR #1853）**: CSS の `inherit` は宣言先要素の
+//!   直接の親の計算値を参照するため、`root` 自身が角丸を持たない
+//!   （既定 0）ままでは、角丸な祖先（`card::root` 等）にラップされていても
+//!   `root` の計算値が 0 のまま `overlay` へ継承されフォーカスリングが
+//!   角丸に追従しない。`root` base にも `border-radius: inherit` を追加し、
+//!   `root` の直接の親要素が持つ角丸を `root` → `overlay` の 2 段で
+//!   連鎖させた（`inherit` は 1 段先の直接の親要素の計算値しか参照
+//!   できないため、`root` と角丸要素の間にさらに角丸を持たない要素が
+//!   挟まる構成には届かない）。
 //!   padding・shadow は追加しない（本部品は構造のみを担う）。
 //! - **hover**: 意図的に付けない。`overlay` は
 //!   `position: absolute; z-index: 0` の位置指定要素であり、
@@ -89,7 +98,22 @@ const SLOTS: &[&str] = &["root", "overlay"];
 /// [`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("link-overlay", SLOTS)
-        .base("root", vec![decl("position", "relative")])
+        .base(
+            "root",
+            vec![
+                decl("position", "relative"),
+                // イシュー #1580 Bugbot 指摘: `overlay` の
+                // `border-radius: inherit` は CSS の継承規則上 `root` の
+                // 計算値を参照するため、`root` 自身が角丸を持たない
+                // （既定 0）ままでは、`root` の直接の親要素が角丸
+                // （`card::root` 等）を持っていてもフォーカスリングの
+                // `outline` が角丸へ追従しない。`root` にも `inherit` を
+                // 連鎖させ、直接の親要素が持つ角丸を `overlay` まで
+                // 伝播させる（`inherit` は 1 段先までしか参照できないため、
+                // さらに祖先を挟む構成には届かない）。
+                decl("border-radius", "inherit"),
+            ],
+        )
         .base(
             "overlay",
             vec![

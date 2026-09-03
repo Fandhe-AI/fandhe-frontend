@@ -327,6 +327,9 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   と `StateCondition::FocusVisible` 状態規則
 ///   （`focus_ring_declarations`）も、既存の位置決め規則と同じ理由で
 ///   `.pre-styled-showcase` スコープ付きの等価ルールとして個別に複製する。
+///   **追補（Bugbot 指摘、PR #1853）**: `root` base にも追加した
+///   `border-radius: inherit`（`overlay` へ角丸を連鎖させるための宣言）も
+///   同じ理由で対で複製する。
 ///   既存の無条件出荷禁止ガード
 ///   （`stylesheet_never_takes_up_link_overlay_stylesheet` テスト）は
 ///   スコープなしの overlay 位置決め規則本文（`position: absolute;`
@@ -378,6 +381,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  border-radius: inherit;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  border-radius: inherit;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin-top: 0;\n}\n\
@@ -8779,7 +8783,14 @@ mod tests {
         ));
         // Link Overlay の `border-radius: inherit` / `:focus-visible` リング
         // （イシュー #1580）: `link_overlay::recipe()` へ追加した新規宣言の
-        // scoped 複製が出荷されていることを固定する。
+        // scoped 複製が出荷されていることを固定する。`root` 側の
+        // `border-radius: inherit`（Bugbot 指摘の是正、PR #1853）も
+        // `overlay` と対で複製する。
+        assert!(css.contains(
+            r#".pre-styled-showcase [data-scope="link-overlay"][data-part="root"] {
+  border-radius: inherit;
+}"#
+        ));
         assert!(css.contains(
             r#".pre-styled-showcase [data-scope="link-overlay"][data-part="overlay"] {
   border-radius: inherit;

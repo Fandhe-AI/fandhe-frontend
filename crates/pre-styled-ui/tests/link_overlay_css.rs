@@ -13,6 +13,7 @@ use fandhe_frontend_pre_styled_ui::link_overlay;
 
 const LINK_OVERLAY_GOLDEN_CSS: &str = r#"[data-scope="link-overlay"][data-part="root"] {
   position: relative;
+  border-radius: inherit;
 }
 
 [data-scope="link-overlay"][data-part="overlay"] {
