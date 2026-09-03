@@ -21,7 +21,7 @@ const TOUR_GOLDEN_CSS: &str = r#"[data-scope="tour"][data-part="backdrop"] {
   left: var(--fandhe-tour-spotlight-x, 40%);
   width: var(--fandhe-tour-spotlight-width, 20%);
   height: var(--fandhe-tour-spotlight-height, 20%);
-  border-radius: var(--fandhe-tour-spotlight-radius, var(--fandhe-radius-sm));
+  border-radius: var(--fandhe-tour-spotlight-radius, var(--fandhe-radius-sm, 0.25rem));
   box-shadow: 0 0 0 var(--fandhe-tour-spotlight-ring-width, 2px) var(--fandhe-palette, var(--fandhe-color-accent, #3182ce)), 0 0 0 max(100vw, 100vh) var(--fandhe-color-bg-overlay, rgba(0, 0, 0, 0.5));
   pointer-events: none;
 }

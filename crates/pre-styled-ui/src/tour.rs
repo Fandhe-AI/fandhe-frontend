@@ -70,7 +70,10 @@
 //! custom property、いずれも既定値つき `var()`）。実測値の注入は
 //! `fandhe-frontend-wasm-full` の後続イシューが担い、本モジュールは変数
 //! 未設定時のフォールバック矩形（画面中央付近の固定枠、角丸は
-//! `--fandhe-radius-sm` 相当）を提供するのみである。縁取り色は
+//! `--fandhe-radius-sm` 相当、`Theme` 抜きの単独利用でも
+//! `var(--fandhe-tour-spotlight-radius, var(--fandhe-radius-sm, 0.25rem))`
+//! の最内側リテラルにより有効な `border-radius` を維持する）を提供する
+//! のみである。縁取り色は
 //! `var(--fandhe-palette, var(--fandhe-color-accent, #3182ce))` で `root` の
 //! color-palette variant（未選択時は accent、accent トークン自体も未定義の
 //! 場合は `#3182ce` リテラルへ）に連動し、暗幕マスクは
@@ -146,7 +149,9 @@
 //! - `spotlight` の `border-radius` を `--fandhe-radius-md`（0.375rem）から
 //!   Zag.js tour の `spotlightRadius` 既定（4px = `--fandhe-radius-sm`）へ
 //!   寄せ、矩形ごとに上書きできる `--fandhe-tour-spotlight-radius` を
-//!   新設した。
+//!   新設した（最内側にリテラル `0.25rem` フォールバックを持たせ、
+//!   `Theme` を適用しない単独利用でも `border-radius` 宣言が破棄されない
+//!   ようにした。codex-review 指摘、PR #1821）。
 //! - `positioner` に `box-sizing: border-box` と `max-width: 100vw` を
 //!   追加し、`content` の `max-width: 24rem` が 24rem 未満の狭幅ビュー
 //!   ポートで `translateX(-50%)` によりはみ出すのを防いだ。
@@ -266,10 +271,16 @@ fn recipe() -> SlotRecipe {
                 // （4px）へ寄せ、`--fandhe-tour-spotlight-radius` で矩形ごと
                 // 上書きできるようにする（`--fandhe-tour-spotlight-x/-y/
                 // -width/-height` と同じ「scope 付き・既定値つき `var()`」
-                // 契約）。
+                // 契約）。最内側へリテラル `0.25rem`（`--fandhe-radius-sm`
+                // の現行値、`breadcrumb` の `link` border-radius と同型）
+                // をフォールバックとして追加した: `Theme` を適用せず
+                // `--fandhe-tour-spotlight-radius`/`--fandhe-radius-sm` の
+                // いずれも未定義なスタンドアロン利用時、CSS の仕様上
+                // `var()` は算出値時点で無効になり `border-radius` 宣言
+                // 全体が破棄される（codex-review 指摘、PR #1821）。
                 decl(
                     "border-radius",
-                    "var(--fandhe-tour-spotlight-radius, var(--fandhe-radius-sm))",
+                    "var(--fandhe-tour-spotlight-radius, var(--fandhe-radius-sm, 0.25rem))",
                 ),
                 // イシュー #1550: モジュール rustdoc「`spotlight` の CSS
                 // 変数契約」節が約束していた palette 連動の縁取りを実装する
@@ -788,7 +799,9 @@ mod tests {
     #[test]
     fn spotlight_radius_is_overridable_via_scoped_custom_property() {
         let css = stylesheet();
-        assert!(css.contains("var(--fandhe-tour-spotlight-radius, var(--fandhe-radius-sm))"));
+        assert!(
+            css.contains("var(--fandhe-tour-spotlight-radius, var(--fandhe-radius-sm, 0.25rem))")
+        );
     }
 
     /// イシュー #841 PR #870 Bugbot レビュー Medium severity 指摘
