@@ -21,7 +21,6 @@ const STATUS_GOLDEN_CSS: &str = r#"[data-scope="status"][data-part="root"] {
   height: var(--fandhe-status-dot-size, 0.5rem);
   border-radius: var(--fandhe-radius-full);
   background: var(--fandhe-palette);
-  forced-color-adjust: none;
   flex-shrink: 0;
 }
 
@@ -102,6 +101,13 @@ const STATUS_GOLDEN_CSS: &str = r#"[data-scope="status"][data-part="root"] {
   --fandhe-palette-subtle: var(--fandhe-color-neutral-subtle);
   --fandhe-palette-muted: var(--fandhe-color-neutral-muted);
   --fandhe-palette-fg-subtle: var(--fandhe-color-neutral-fg-subtle);
+}
+
+
+@media (forced-colors: active) {
+  [data-scope="status"][data-part="indicator"] {
+    border: 1px solid CanvasText;
+  }
 }
 "#;
 

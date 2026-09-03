@@ -29,9 +29,13 @@
 //!   部分テーマや `Theme::empty()` と組み合わせて当該 space トークンが
 //!   未定義の場合でも、フォールバックなしの `var()` は computed-value time
 //!   に無効となり `width`/`height` が失われるため、後方互換性維持に必須）。
-//! - indicator に `forced-color-adjust: none` を追加した。indicator の
-//!   背景色（`--fandhe-palette`）が唯一の状態表現であり、Windows 強制配色
-//!   モードで背景色が中和されるとドットの意味が失われるため。
+//! - indicator は `forced-color-adjust` を明示せず既定 `auto` のまま保ち、
+//!   利用者が選択した Windows 強制配色パレット（`Canvas`/`CanvasText` 等）
+//!   を尊重する。`@media (forced-colors: active)` 配下で `border: 1px
+//!   solid CanvasText` を足し、`background-color` が forced-colors モードで
+//!   中和された際にも円の形状（境界線）が残るようにした（状態の意味は
+//!   隣接するラベルテキストが担うため、色による識別の再提供は不要。
+//!   イシュー #1569 codex-review 指摘への是正）。
 //!
 //! **意図的に合わせない点**:
 //! - size 段数: chakra は `sm | md | lg` の 3 段だが、当部品は共通 5 段語彙
@@ -110,7 +114,6 @@ fn recipe() -> SlotRecipe {
                 decl("height", "var(--fandhe-status-dot-size, 0.5rem)"),
                 decl("border-radius", "var(--fandhe-radius-full)"),
                 decl("background", "var(--fandhe-palette)"),
-                decl("forced-color-adjust", "none"),
                 decl("flex-shrink", "0"),
             ],
         )
@@ -181,9 +184,26 @@ fn recipe() -> SlotRecipe {
 }
 
 /// Status の静的 CSS 全文。
+///
+/// `indicator` は Windows 強制配色モードでは通常テーマの
+/// `--fandhe-palette` 背景色をそのまま出さず、利用者が選択した強制配色
+/// パレットへ委ねる（`forced-color-adjust` を明示せず既定 `auto` のまま
+/// 保つ）。ただし `background-color` が forced-colors モードで
+/// `Canvas`（透明相当）へ丸められると円が完全に消えてしまうため、
+/// `@media (forced-colors: active)` 配下で `border` を追加し、
+/// システム色 `CanvasText` による境界線で円の形状自体を保つ（状態の
+/// 意味づけはラベルテキストが担うため、色による識別を追加提供する必要は
+/// ない。イシュー #1569 codex-review 指摘）。
 #[must_use]
 pub fn css() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out.push_str(
+        "\n@media (forced-colors: active) {\n  [data-scope=\"status\"][data-part=\"indicator\"] {\n    border: 1px solid CanvasText;\n  }\n}\n",
+    );
+    out
 }
 
 /// root パーツ（`<span>`）を組み立てる。`size`/`palette` に応じたクラスを
@@ -344,8 +364,16 @@ mod tests {
         let out = css();
         assert!(out.contains("border-radius: var(--fandhe-radius-full);"));
         assert!(out.contains("--fandhe-status-dot-size: var(--fandhe-space-2, 0.5rem);"));
-        assert!(out.contains("forced-color-adjust: none;"));
+        assert!(!out.contains("forced-color-adjust"));
         assert!(out.contains("--fandhe-palette: var(--fandhe-color-danger)"));
+    }
+
+    #[test]
+    fn css_output_declares_forced_colors_border_for_indicator() {
+        let out = css();
+        assert!(out.contains("@media (forced-colors: active)"));
+        assert!(out.contains(r#"[data-scope="status"][data-part="indicator"]"#));
+        assert!(out.contains("border: 1px solid CanvasText;"));
     }
 
     #[test]

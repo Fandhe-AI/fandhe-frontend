@@ -1086,12 +1086,21 @@ name = "fandhe-frontend-pre-styled-ui"
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.3）。
 #
 # イシュー #1569: status のスタイルを参考サイト基準へ調整（root の `gap` を
-# 共通トークン化、size 別 dot-size をトークン化、indicator に
-# `forced-color-adjust: none` を追加）。セレクタ・クラス名・公開 Rust API の
-# 削除/改名なし・宣言の純追加のため patch バンプする（main 側の spinner
-# patch バンプ〔0.74.1〕と同一版数へ到達済みのため、偶発的な衝突ではなく
-# 単純な採用としてそのまま 0.74.1 を維持する）。
-version = "0.74.1"
+# 共通トークン化、size 別 dot-size をトークン化）。セレクタ・クラス名・
+# 公開 Rust API の削除/改名なし・宣言の純追加のため patch バンプする
+# （main 側の spinner patch バンプ〔0.74.1〕と同一版数へ到達済みのため、
+# 偶発的な衝突ではなく単純な採用としてそのまま 0.74.1 を維持していた）。
+#
+# イシュー #1569 追補（codex-review 指摘の是正）: indicator の
+# `forced-color-adjust: none` は Windows 強制配色モードで利用者が選択した
+# パレットへのコントラスト調整を妨げるため削除し、`@media (forced-colors:
+# active)` 配下で `border: 1px solid CanvasText` を追加して背景色が
+# 中和されても円の形状を残す構成へ差し替えた。main の 0.74.1（spinner
+# patch）にはこの差し替えを含まないため、同一版数への偶発一致に頼らず
+# 0.74.2 へ明示的に patch バンプする（`docs/ci/
+# style-refresh-version-bump-operation.md` §3.3。セレクタ・クラス名・
+# 公開 Rust API の削除/改名なし）。
+version = "0.74.2"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
