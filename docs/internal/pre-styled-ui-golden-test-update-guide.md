@@ -54,7 +54,8 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 
 ### 3.1 1 対 1 対応（規則: `<snake>_css.rs`）
 
-accordion / **alert（イシュー #1553 で golden 新設）** / callout / carousel /
+accordion / **alert（イシュー #1553 で golden 新設）** /
+**badge（イシュー #1555 で golden 新設）** / callout / carousel /
 checkbox / checkbox_card / checkbox_group /
 color_picker / color_swatch / date_input / dialog / **download_trigger（方式 b）** /
 drawer / editable / file_upload / floating_panel / highlight / hover_card /
@@ -110,8 +111,8 @@ CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約�
   segment_group / signature_pad / slider / toggle / toggle_group /
   tree_view（`toolbar` はイシュー #1547、`avatar` はイシュー #1554 で
   golden 追加済みのため本リストから除外）
-- `css()` を持つ 3 部品: badge / card / spinner（`alert` はイシュー #1553 で
-  golden 新設済みのため本リストから除外）
+- `css()` を持つ 2 部品: card / spinner（`alert` はイシュー #1553、`badge` は
+  イシュー #1555 でそれぞれ golden 新設済みのため本リストから除外）
 - charts 内部パーツ 3 件（`css()` を持つが golden なし）: `charts::bar_chart` /
   `charts::bar_list` / `charts::bar_segment`
 

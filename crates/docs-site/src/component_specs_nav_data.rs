@@ -186,28 +186,29 @@ fn ex_badge() -> Node {
 
 pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "BadgeVariant（Solid/Subtle/Outline、crates/pre-styled-ui/src/badge.rs:16-58）で塗り方を切り替える",
-        "colorPalette 軸（badge.rs:37）でセマンティック色を選択する",
-        "role/aria-* は付与しない最小サブセット（badge.rs:3）",
+        "BadgeVariant（Solid/Subtle/Outline/Surface、crates/pre-styled-ui/src/badge.rs。イシュー #1555 で Surface を追加）で塗り方を切り替える",
+        "colorPalette 軸（badge.rs の BadgeProps）でセマンティック色を選択する",
+        "Subtle/Outline/Surface は 6 役割 palette の淡色トークンを消費する（badge.rs、イシュー #1555）",
+        "role/aria-* は付与しない最小サブセット（badge.rs モジュール冒頭）",
     ],
     arguments: &[
         ArgRow {
             name: "variant",
             kind: "BadgeVariant",
             default: "Subtle",
-            description: "塗り方（badge.rs:52-57）。",
+            description: "塗り方（badge.rs の BadgeVariant、#[default] は Subtle。イシュー #1555 で Surface を追加）。",
         },
         ArgRow {
             name: "size",
             kind: "Size",
             default: "Md",
-            description: "サイズ（badge.rs:52-57）。",
+            description: "サイズ（badge.rs の BadgeProps）。",
         },
         ArgRow {
             name: "palette",
             kind: "ColorPalette",
             default: "Accent",
-            description: "colorPalette 軸（badge.rs:52-57）。",
+            description: "colorPalette 軸（badge.rs の BadgeProps）。",
         },
     ],
     examples: &[ExampleEntry {
@@ -218,7 +219,7 @@ pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "(該当なし)",
-        description: "chakra-ui v3 準拠の最小サブセットとして role/aria-* を付与しない（badge.rs:3）。",
+        description: "chakra-ui v3 準拠の最小サブセットとして role/aria-* を付与しない（badge.rs モジュール冒頭）。",
     }],
     demo: None,
 };
