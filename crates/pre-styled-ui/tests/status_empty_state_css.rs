@@ -13,7 +13,7 @@ use fandhe_frontend_pre_styled_ui::{empty_state, status};
 const STATUS_GOLDEN_CSS: &str = r#"[data-scope="status"][data-part="root"] {
   display: inline-flex;
   align-items: center;
-  gap: var(--fandhe-space-2);
+  gap: var(--fandhe-space-2, 0.5rem);
 }
 
 [data-scope="status"][data-part="indicator"] {
@@ -27,27 +27,27 @@ const STATUS_GOLDEN_CSS: &str = r#"[data-scope="status"][data-part="root"] {
 
 [data-scope="status"][data-part="root"].fd-status--size-xs {
   font-size: var(--fandhe-font-font-size-xs);
-  --fandhe-status-dot-size: var(--fandhe-space-1);
+  --fandhe-status-dot-size: var(--fandhe-space-1, 0.25rem);
 }
 
 [data-scope="status"][data-part="root"].fd-status--size-sm {
   font-size: var(--fandhe-font-font-size-xs);
-  --fandhe-status-dot-size: var(--fandhe-space-1-5);
+  --fandhe-status-dot-size: var(--fandhe-space-1-5, 0.375rem);
 }
 
 [data-scope="status"][data-part="root"].fd-status--size-md {
   font-size: var(--fandhe-font-font-size-sm);
-  --fandhe-status-dot-size: var(--fandhe-space-2);
+  --fandhe-status-dot-size: var(--fandhe-space-2, 0.5rem);
 }
 
 [data-scope="status"][data-part="root"].fd-status--size-lg {
   font-size: var(--fandhe-font-font-size-md);
-  --fandhe-status-dot-size: var(--fandhe-space-2-5);
+  --fandhe-status-dot-size: var(--fandhe-space-2-5, 0.625rem);
 }
 
 [data-scope="status"][data-part="root"].fd-status--size-xl {
   font-size: var(--fandhe-font-font-size-lg);
-  --fandhe-status-dot-size: var(--fandhe-space-3);
+  --fandhe-status-dot-size: var(--fandhe-space-3, 0.75rem);
 }
 
 [data-scope="status"][data-part="root"].fd-status--color-palette-accent {

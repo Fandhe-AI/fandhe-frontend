@@ -20,11 +20,15 @@
 //!
 //! **是正した点**:
 //! - root の `gap` を生値 `0.5rem` から共通トークン
-//!   `var(--fandhe-space-2)` へ切り替えた。
+//!   `var(--fandhe-space-2, 0.5rem)` へ切り替えた。
 //! - `--fandhe-status-dot-size` の size 段階値を部品ローカルの生値から
-//!   `var(--fandhe-space-*)` トークンへ切り替えた（4px 格子上の値が
+//!   `var(--fandhe-space-*, <従来の生値>)` トークンへ切り替えた（4px 格子上の値が
 //!   `space-1`/`1-5`/`2`/`2-5`/`3` に一致するため。
 //!   `docs/design/pre-styled-ui-scale-tokens.md` §5.4 の棚卸しに沿う）。
+//!   各参照にはフォールバック値を残す（`crate::breadcrumb` と同じパターン。
+//!   部分テーマや `Theme::empty()` と組み合わせて当該 space トークンが
+//!   未定義の場合でも、フォールバックなしの `var()` は computed-value time
+//!   に無効となり `width`/`height` が失われるため、後方互換性維持に必須）。
 //! - indicator に `forced-color-adjust: none` を追加した。indicator の
 //!   背景色（`--fandhe-palette`）が唯一の状態表現であり、Windows 強制配色
 //!   モードで背景色が中和されるとドットの意味が失われるため。
@@ -96,7 +100,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
-                decl("gap", "var(--fandhe-space-2)"),
+                decl("gap", "var(--fandhe-space-2, 0.5rem)"),
             ],
         )
         .base(
@@ -119,7 +123,7 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-xs)"),
-                decl("--fandhe-status-dot-size", "var(--fandhe-space-1)"),
+                decl("--fandhe-status-dot-size", "var(--fandhe-space-1, 0.25rem)"),
             ],
         )
         .variant(
@@ -127,7 +131,10 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-xs)"),
-                decl("--fandhe-status-dot-size", "var(--fandhe-space-1-5)"),
+                decl(
+                    "--fandhe-status-dot-size",
+                    "var(--fandhe-space-1-5, 0.375rem)",
+                ),
             ],
         )
         .variant(
@@ -135,7 +142,7 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-sm)"),
-                decl("--fandhe-status-dot-size", "var(--fandhe-space-2)"),
+                decl("--fandhe-status-dot-size", "var(--fandhe-space-2, 0.5rem)"),
             ],
         )
         .variant(
@@ -143,7 +150,10 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-md)"),
-                decl("--fandhe-status-dot-size", "var(--fandhe-space-2-5)"),
+                decl(
+                    "--fandhe-status-dot-size",
+                    "var(--fandhe-space-2-5, 0.625rem)",
+                ),
             ],
         )
         .variant(
@@ -151,7 +161,7 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-lg)"),
-                decl("--fandhe-status-dot-size", "var(--fandhe-space-3)"),
+                decl("--fandhe-status-dot-size", "var(--fandhe-space-3, 0.75rem)"),
             ],
         )
         .default_variant(Size::Md)
@@ -333,7 +343,7 @@ mod tests {
     fn css_output_declares_dot_size_and_radius_tokens() {
         let out = css();
         assert!(out.contains("border-radius: var(--fandhe-radius-full);"));
-        assert!(out.contains("--fandhe-status-dot-size: var(--fandhe-space-2);"));
+        assert!(out.contains("--fandhe-status-dot-size: var(--fandhe-space-2, 0.5rem);"));
         assert!(out.contains("forced-color-adjust: none;"));
         assert!(out.contains("--fandhe-palette: var(--fandhe-color-danger)"));
     }
