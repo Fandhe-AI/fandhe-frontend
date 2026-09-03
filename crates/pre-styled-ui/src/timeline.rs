@@ -83,7 +83,14 @@
 //!   `--fandhe-timeline-separator-width` トークンへ統一する。
 //! - **色**: `separator` の既定色を palette 非連動の `--fandhe-color-border`
 //!   （境界色）へ変更し、`data-state="complete"` のときのみ palette 色へ
-//!   切り替える（下記「`data-state` 契約」節参照）。
+//!   切り替える（下記「`data-state` 契約」節参照）。`indicator` も同様に
+//!   既定（`data-state` 未付与＝未着手）を `--fandhe-color-bg` 塗り +
+//!   `--fandhe-color-border` 枠 + `--fandhe-color-fg-muted` 文字の
+//!   ニュートラル表示へ変更し（PR #1846 codex-review P1 是正。旧実装は
+//!   既定から variant の塗りを使っており未着手と `complete` が同一表示
+//!   だった）、variant が供給する `--fandhe-timeline-indicator-bg`/
+//!   `-fg`/`-border` custom property は `data-state="complete"`/
+//!   `"current"` の追加規則でのみ消費するよう変更した。
 //! - **状態（`data-*`）**: `indicator`/`separator` それぞれへ
 //!   `data-state="complete"`/`"current"` に応じた追加宣言を [`SlotRecipe::state`]
 //!   で登録した。詳細は下記「`data-state` 契約」節参照。
@@ -296,15 +303,21 @@ fn recipe() -> SlotRecipe {
                 decl("width", "var(--fandhe-timeline-indicator-size, 1.5rem)"),
                 decl("height", "var(--fandhe-timeline-indicator-size, 1.5rem)"),
                 decl("border-radius", "var(--fandhe-radius-full, 9999px)"),
+                // PR #1846 codex-review P1 是正: 既定（`data-state` 未付与
+                // ＝未着手）は variant の塗りを使わずニュートラル表示
+                // （`bg` 塗り + 境界色枠 + 淡色文字）にする。variant が
+                // 供給する `--fandhe-timeline-indicator-bg`/`-fg`/`-border`
+                // custom property は下記 `complete`/`current` state
+                // （[`StateCondition::AttrEq`]）でのみ消費し、未着手と
+                // 完了済みが同一表示になっていた不整合を解消する
+                // （steps.rs の incomplete/current/complete 3 段階表現と
+                // 同型の設計）。
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
                 decl(
-                    "background",
-                    "var(--fandhe-timeline-indicator-bg, var(--fandhe-palette, var(--fandhe-color-accent)))",
+                    "border",
+                    "var(--fandhe-timeline-separator-width, 2px) solid var(--fandhe-color-border)",
                 ),
-                decl(
-                    "color",
-                    "var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)))",
-                ),
-                decl("border", "var(--fandhe-timeline-indicator-border, none)"),
                 // イシュー #1575: indicator の文字サイズ（root の size
                 // variant が段階付与、下記参照）。
                 decl(
@@ -326,17 +339,48 @@ fn recipe() -> SlotRecipe {
                 MotionDuration::Fast,
             ),
         )
+        // PR #1846 codex-review P1 是正: `complete` は variant が
+        // 供給する `--fandhe-timeline-indicator-bg`/`-fg`/`-border` を
+        // 適用し塗りつぶす（未着手のニュートラル表示との差別化。
+        // 呼び出し側が付与する `data-state` 契約はモジュール doc
+        // 「`data-state` 契約」節参照）。
+        .state(
+            "indicator",
+            StateCondition::AttrEq("data-state", "complete"),
+            vec![
+                decl(
+                    "background",
+                    "var(--fandhe-timeline-indicator-bg, var(--fandhe-palette, var(--fandhe-color-accent)))",
+                ),
+                decl(
+                    "color",
+                    "var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)))",
+                ),
+                decl("border", "var(--fandhe-timeline-indicator-border, none)"),
+            ],
+        )
         // イシュー #1575: 現在位置のハロー（palette-muted の box-shadow
-        // リング）。`complete` は variant の塗りをそのまま用いるため
-        // indicator 側の追加規則は設けない（呼び出し側が付与する
+        // リング）。`current` も `complete` と同じ塗りを適用したうえで
+        // リングを重ねる（未着手との差別化。呼び出し側が付与する
         // `data-state` 契約はモジュール doc「`data-state` 契約」節参照）。
         .state(
             "indicator",
             StateCondition::AttrEq("data-state", "current"),
-            vec![decl(
-                "box-shadow",
-                "0 0 0 var(--fandhe-timeline-separator-width, 2px) var(--fandhe-palette-muted, var(--fandhe-color-accent-muted))",
-            )],
+            vec![
+                decl(
+                    "background",
+                    "var(--fandhe-timeline-indicator-bg, var(--fandhe-palette, var(--fandhe-color-accent)))",
+                ),
+                decl(
+                    "color",
+                    "var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)))",
+                ),
+                decl("border", "var(--fandhe-timeline-indicator-border, none)"),
+                decl(
+                    "box-shadow",
+                    "0 0 0 var(--fandhe-timeline-separator-width, 2px) var(--fandhe-palette-muted, var(--fandhe-color-accent-muted))",
+                ),
+            ],
         )
         .base(
             "content",

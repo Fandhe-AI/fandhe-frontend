@@ -52,9 +52,9 @@ const TIMELINE_GOLDEN_CSS: &str = r#"[data-scope="timeline"][data-part="root"] {
   width: var(--fandhe-timeline-indicator-size, 1.5rem);
   height: var(--fandhe-timeline-indicator-size, 1.5rem);
   border-radius: var(--fandhe-radius-full, 9999px);
-  background: var(--fandhe-timeline-indicator-bg, var(--fandhe-palette, var(--fandhe-color-accent)));
-  color: var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)));
-  border: var(--fandhe-timeline-indicator-border, none);
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-color-fg-muted);
+  border: var(--fandhe-timeline-separator-width, 2px) solid var(--fandhe-color-border);
   flex-shrink: 0;
   font-size: var(--fandhe-timeline-indicator-font-size, var(--fandhe-font-font-size-xs));
   font-weight: var(--fandhe-font-font-weight-medium);
@@ -194,7 +194,16 @@ const TIMELINE_GOLDEN_CSS: &str = r#"[data-scope="timeline"][data-part="root"] {
   background: var(--fandhe-palette, var(--fandhe-color-accent));
 }
 
+[data-scope="timeline"][data-part="indicator"][data-state="complete"] {
+  background: var(--fandhe-timeline-indicator-bg, var(--fandhe-palette, var(--fandhe-color-accent)));
+  color: var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)));
+  border: var(--fandhe-timeline-indicator-border, none);
+}
+
 [data-scope="timeline"][data-part="indicator"][data-state="current"] {
+  background: var(--fandhe-timeline-indicator-bg, var(--fandhe-palette, var(--fandhe-color-accent)));
+  color: var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)));
+  border: var(--fandhe-timeline-indicator-border, none);
   box-shadow: 0 0 0 var(--fandhe-timeline-separator-width, 2px) var(--fandhe-palette-muted, var(--fandhe-color-accent-muted));
 }
 "#;
