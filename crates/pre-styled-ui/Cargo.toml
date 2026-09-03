@@ -1116,11 +1116,16 @@ name = "fandhe-frontend-pre-styled-ui"
 #
 # base 取り込み（イシュー #1571）: main 側は #1571（table）のマイナーバンプ
 # により 0.75.0（本ブランチの 0.74.3 より大きい）へ到達していたため、
-# 偶発的な同一版数衝突ではなく単純な採用としてそのまま 0.75.0 を維持する
-# （status 側の追加修正〔codex-review P2 是正、box-sizing: border-box〕は
-# 公開 API 破壊のない patch 相当のセレクタ内部変更のため、0.75.0 からの
-# さらなるバンプは不要）。
-version = "0.75.0"
+# 偶発的な同一版数衝突ではなく単純な採用としてそのまま 0.75.0 を維持する。
+#
+# イシュー #1569 追補 2（codex-review P2 指摘の是正）: status の indicator
+# へ `box-sizing: border-box` を追加し、強制配色モード（`@media
+# (forced-colors: active)`）の `border` が寸法の外側へ加算されて実寸が
+# `--fandhe-status-dot-size` より大きくなる不具合を修正した。CSS 出力を
+# 変える変更のため `version-bump-exempt` は使わず（`docs/ci/
+# style-refresh-version-bump-operation.md` §4 チェックリスト）、公開 API
+# 破壊のない patch 相当の変更として 0.75.1 へパッチバンプする。
+version = "0.75.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

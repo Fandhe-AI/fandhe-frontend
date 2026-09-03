@@ -110,6 +110,14 @@ fn recipe() -> SlotRecipe {
         .base(
             "indicator",
             vec![
+                // イシュー #1569 追補（codex-review 指摘の是正）: 強制配色
+                // モード（`@media (forced-colors: active)`）で足す
+                // `border: 1px solid CanvasText` は既定の `content-box` だと
+                // 寸法の外側に加算され、実寸が `--fandhe-status-dot-size`
+                // より縦横 2px 大きくなってしまう（Xs は 4px→6px）。
+                // `border-box` にして border を寸法の内側に含め、強制配色
+                // 時も通常時と同じ実寸を保つ。
+                decl("box-sizing", "border-box"),
                 decl("width", "var(--fandhe-status-dot-size, 0.5rem)"),
                 decl("height", "var(--fandhe-status-dot-size, 0.5rem)"),
                 decl("border-radius", "var(--fandhe-radius-full)"),
@@ -374,6 +382,15 @@ mod tests {
         assert!(out.contains("@media (forced-colors: active)"));
         assert!(out.contains(r#"[data-scope="status"][data-part="indicator"]"#));
         assert!(out.contains("border: 1px solid CanvasText;"));
+    }
+
+    #[test]
+    fn indicator_declares_border_box_so_forced_colors_border_does_not_enlarge_dot() {
+        // イシュー #1569 追補（codex-review 指摘の是正）: box-sizing:
+        // border-box が無いと強制配色モードの border が寸法の外側へ加算され
+        // 実寸が --fandhe-status-dot-size より大きくなる。
+        let out = css();
+        assert!(out.contains("box-sizing: border-box;"));
     }
 
     #[test]

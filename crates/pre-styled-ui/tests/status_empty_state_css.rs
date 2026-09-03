@@ -17,6 +17,7 @@ const STATUS_GOLDEN_CSS: &str = r#"[data-scope="status"][data-part="root"] {
 }
 
 [data-scope="status"][data-part="indicator"] {
+  box-sizing: border-box;
   width: var(--fandhe-status-dot-size, 0.5rem);
   height: var(--fandhe-status-dot-size, 0.5rem);
   border-radius: var(--fandhe-radius-full);
