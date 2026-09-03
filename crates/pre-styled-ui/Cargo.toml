@@ -1036,13 +1036,22 @@ name = "fandhe-frontend-pre-styled-ui"
 # 偶然同一バージョン番号（0.70.1）へ到達していたため、同一版数への偶発的
 # 衝突をそのまま採用せず、双方の実体変更を統合した結果として 0.70.2 へ
 # さらにパッチバンプする。
+# イシュー #1563: json_tree_view の key/value（`data-scope="json-tree-view"`）
+# の配色・フォントを ark-ui 基準へ調整した（`string`/`number`/`bool` を
+# コントラスト不足の旧トークンから `-fg-subtle` 系へ置換・monospace
+# フォント追加・key を medium・bool/null を semibold（+italic）・
+# object/array の要約表示を italic 化）。Rust API・セレクタ構造・
+# CSS 変数名の追加削除改名を伴わない CSS 宣言値のみの意匠変更のため
+# patch バンプする（`docs/ci/style-refresh-version-bump-operation.md` §3.4a。
+# merge base（0.70.2）から独立に 0.70.3 へ到達）。
+# 一方 main 側では #1562（image の意匠調整、`ImageShape` 列挙型追加に伴う
+# 破壊的変更のためマイナーバンプ）が独立に merge base（0.70.2）から
+# 0.71.0 へ到達済みだったため、本イシュー（#1563）とのマージでは双方の
+# 実体変更を統合した結果として 0.71.1 へさらにパッチバンプする
+# （0.x の破壊的変更はマイナーバンプの規約。main 側の 0.71.0 は本イシューの
+# 変更を包含しないため、そのまま採用せずさらにバンプする）。
+version = "0.71.1"
 
-# イシュー #1562: image を参考サイト（chakra-ui）基準へ調整。`ImageShape`
-# 列挙型（新規公開型）を追加し、`ImageProps` に `pub shape: ImageShape`
-# フィールドを追加した（既存呼び出し側の構造体リテラル初期化が
-# `..ImageProps::new(...)` の残余更新記法を使わない限りソース非互換になる
-# 破壊的変更）ため 0.x のマイナーバンプとする。
-version = "0.71.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
