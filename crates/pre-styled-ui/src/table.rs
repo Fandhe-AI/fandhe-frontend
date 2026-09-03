@@ -11,16 +11,19 @@
 //! 契約とする（[`crate::card`] と同じ判断、呼び出し例は各関数の rustdoc
 //! `# Examples` を参照）。
 //!
-//! # variant（`variant`/`size`/`striped`）について
+//! # variant（`variant`/`size`/`striped`/`sticky_header`）について
 //!
-//! [`crate::card`] と異なり 3 軸の variant を持つ（chakra-ui Table の
-//! `variant`/`size`/`interactive`/`stickyHeader` のうち `interactive`/
-//! `stickyHeader`・`showColumnBorder` はスコープ外、下記参照）:
+//! [`crate::card`] と異なり 4 軸の variant を持つ（chakra-ui Table の
+//! `variant`/`size`/`interactive`/`stickyHeader` のうち `interactive`・
+//! `showColumnBorder` はスコープ外、下記参照。`stickyHeader` はイシュー
+//! #1571 で実装した）:
 //!
 //! - [`TableVariant`]: `Line`（既定、行ごとの下線区切り）/ `Outline`
 //!   （外枠 + 角丸）。
 //! - `size`（[`crate::recipe::Size`]）: セルの padding・font-size を切り替える。
 //! - `striped`（`bool`）: 縞模様表示。有効時は本文行の背景色を交互に変える。
+//! - `sticky_header`（`bool`）: 有効時、`column-header`（`th`）を
+//!   `position: sticky; top: 0` にする（下記「sticky ヘッダーの実装」節参照）。
 //!
 //! クラスは `root` パーツのみへ付与する（複合部品の variant 統一方針、
 //! `crates/pre-styled-ui/src/lib.rs` §「複合部品の variant 統一方針」参照）。
@@ -45,6 +48,73 @@
 //! 以降も対象になりうるが、`column-header`（`th`）は base 規則で背景色を
 //! 明示するため視覚的な影響は小さい。
 //!
+//! # sticky ヘッダーの実装（イシュー #1571）
+//!
+//! `sticky_header` は `striped` と同型に常に `false`/`true` いずれかの
+//! クラスを `root` へ付与し（決定性維持）、root スコープへ
+//! `--fandhe-table-header-position`（`static`/`sticky`）・
+//! `--fandhe-table-sticky-offset`（常に `0`）の 2 custom property を設定する。
+//! `column-header`（`th`）base 規則がこれを
+//! `position: var(--fandhe-table-header-position, static); top:
+//! var(--fandhe-table-sticky-offset, 0)` として消費する。
+//!
+//! `thead`/`tr`（`header`/`row` slot）ではなく `column-header`（`th`）へ
+//! `position: sticky` を置く理由: 表セルへの sticky 指定はブラウザ横断で
+//! 最も安定した適用対象である。chakra-ui は `tr` を対象にするが、
+//! [`crate::recipe::SlotRecipe`] は子孫セレクタ機構を持たず（本モジュール doc
+//! 「variant について」節参照）、`row` slot へ base 規則を追加すること自体が
+//! PR #811 の不変条件（`separate` border モデル下で `tr` への border が
+//! 無視される、上記「striped の実装」節と同じ制約源）と衝突しないよう
+//! `column-header`/`cell` に閉じる既存方針を踏襲する。
+//!
+//! sticky 時も `column-header` の `background: var(--fandhe-color-bg)`
+//! （既存の base 規則）は維持する。これが無いと sticky 中の見出しの背後に
+//! スクロールしてきた本文行が透けて見えてしまう。
+//!
+//! `z-index` は `var(--fandhe-z-index-docked, 10)` を使う（[`crate::theme`]
+//! の z-index スケール、イシュー #1423）。同スケールの `sticky`（1100）は
+//! dropdown/popover 帯を越える値であり、単なる「スクロール内で自身の位置に
+//! 留まる」sticky ヘッダーには強すぎるため採用しない。
+//!
+//! **既知の制限**: [`TableVariant::Outline`] の `overflow: hidden`（`root`、
+//! 角丸クリップ目的、上記「Outline」variant 参照）は `root` 自身を
+//! スクロールコンテナ化しないため、ページスクロールに対する sticky は
+//! `Outline` でも機能する。ただし `root` 自身がスクロール可能なコンテナ
+//! （`overflow-y: auto` 等のスクロール枠）に包まれていない限り、
+//! `sticky_header` はページ全体のスクロールでのみ効果を持つ。
+//! スクロール枠との連携（chakra `ScrollArea` 相当）は兄弟イシュー #1572
+//! （2/2）のスコープとする。
+//!
+//! # 意図的に参照サイトへ合わせなかった点（イシュー #1571）
+//!
+//! - **ヘッダー文字の太さ**: chakra-ui は `medium`、Radix Themes Table は
+//!   `bold` を使う。本クレートは Table を chakra-ui 由来の部品として
+//!   `docs/design/component-coverage-map.md` に位置づけているため chakra 基準
+//!   （`medium`）を採用し、Radix の `bold` は採らない。
+//! - **striped の偶奇**: chakra-ui は奇数行（`odd`）に縞模様を付けるが、本
+//!   クレートは #767 導入時からの偶数行（`even`、
+//!   [`crate::recipe::StateCondition::NthChildEven`]）を維持する。視覚上の
+//!   優劣が無い選択であり、`odd` 化には新しい `StateCondition` バリアントの
+//!   追加が必要になる（既存 `even` を消費している呼び出し側との互換性を
+//!   崩さない判断）。
+//! - **行・セルの hover/transition**: chakra-ui `interactive` variant の
+//!   行ホバー装飾は非採用（下記「スコープ外」節参照）。行は `cursor:
+//!   pointer` を持たず `button`/`a` のような操作可能ロールでもないため、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md`
+//!   （インタラクション視覚言語）が定義する「インタラクティブ slot」に
+//!   該当しない。同じ理由でフォーカスリングも非該当（セルはフォーカス
+//!   対象にならない）。
+//! - **`data-selected` 等の状態属性**: chakra-ui は `row._selected` の
+//!   ような選択状態の消費側規則を持つが、本クレートは `row` slot に対応する
+//!   `data-*` の生産者を持たない静的部品であるため追加しない
+//!   （消費側規則だけを追加すると `data_attr_vocabulary.rs` が管理しない
+//!   暗黙契約を生む）。
+//! - **フッターの区切り線**: chakra-ui は `tfoot` に `border-top` を持つが、
+//!   `root` の `border-collapse: separate` モデル下では `tfoot`（`footer`
+//!   slot）への border 指定はブラウザに無視される（上記「cell」base の
+//!   PR #811 不変条件と同型）。body/footer の視覚的な区切りは body 最終行の
+//!   `cell` が持つ `border-bottom` に委ねる。
+//!
 //! # セキュリティ不変条件
 //!
 //! - セル値・列見出し・caption はすべて呼び出し側が渡す `children`
@@ -66,8 +136,12 @@
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - chakra-ui の `interactive`（クリック可能行のホバー装飾）・
-//!   `stickyHeader`・`showColumnBorder`・`ScrollArea` 連携・`ColumnGroup`
-//!   （`colgroup`/`col`）は本イシューのスコープ外（PR 本文に記録）。
+//!   `showColumnBorder`・`ScrollArea` 連携・`ColumnGroup`（`colgroup`/`col`）
+//!   は本イシューのスコープ外（PR 本文に記録）。`stickyHeader` はイシュー
+//!   #1571 で実装済み（上記「sticky ヘッダーの実装」節参照）。
+//! - `size`（[`crate::recipe::Size`]）の各段階の padding/font-size 実値・
+//!   [`TableVariant::Outline`] の `overflow: hidden` と `sticky_header` の
+//!   非両立解消（スクロール枠での対応）は兄弟イシュー #1572（2/2）のスコープ。
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
 //!   イシュー側のスコープ。
 
@@ -149,6 +223,39 @@ impl From<bool> for StripedVariant {
     }
 }
 
+/// sticky ヘッダー variant 値（内部専用、公開 API は `bool` のまま。
+/// [`crate::table` モジュール doc](self)「sticky ヘッダーの実装」節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StickyHeaderVariant {
+    /// 通常表示（既定）。
+    Off,
+    /// `column-header` を `position: sticky` にする。
+    On,
+}
+
+impl VariantValue for StickyHeaderVariant {
+    fn axis(self) -> &'static str {
+        "sticky-header"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Off => "false",
+            Self::On => "true",
+        }
+    }
+}
+
+impl From<bool> for StickyHeaderVariant {
+    fn from(b: bool) -> Self {
+        if b {
+            Self::On
+        } else {
+            Self::Off
+        }
+    }
+}
+
 /// Table の呼び出し側公開 props（`root` の引数）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableProps {
@@ -158,6 +265,10 @@ pub struct TableProps {
     pub size: Size,
     /// 縞模様表示の有無（既定 `false`）。
     pub striped: bool,
+    /// sticky ヘッダーの有無（既定 `false`）。有効時は `column-header`
+    /// （`th`）が `position: sticky; top: 0` になる（[`crate::table`
+    /// モジュール doc](self)「sticky ヘッダーの実装」節参照）。
+    pub sticky_header: bool,
 }
 
 impl Default for TableProps {
@@ -166,6 +277,7 @@ impl Default for TableProps {
             variant: TableVariant::default(),
             size: Size::Md,
             striped: false,
+            sticky_header: false,
         }
     }
 }
@@ -227,13 +339,38 @@ fn recipe() -> SlotRecipe {
                     "font-size",
                     "var(--fandhe-table-font-size, var(--fandhe-font-font-size-sm))",
                 ),
-                decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                // イシュー #1571: chakra-ui Table のヘッダー太さ（medium）へ
+                // 合わせる（semibold から変更。Radix Themes の bold は
+                // 不採用、モジュール doc「意図的に参照サイトへ合わせなかった
+                // 点」節参照）。
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                // イシュー #1571: 見出しテキストの色を明示する（chakra-ui /
+                // Radix Themes とも既定の `fg` トークンで統一しており、
+                // 従来は `color` を宣言せずブラウザ既定色に委ねていた）。
+                decl("color", "var(--fandhe-color-fg)"),
                 decl("text-align", "inherit"),
-                decl(
-                    "border-bottom",
-                    "2px solid var(--fandhe-color-border-muted)",
-                ),
+                // イシュー #1571: chakra-ui / Radix Themes とも 1px であり
+                // `2px` は参照サイトより太い（縦罫線がある表と誤認しやすい）。
+                // 行罫線に使う `border-muted` より一段強い `border` トークン
+                // でヘッダーを区切る。
+                decl("border-bottom", "1px solid var(--fandhe-color-border)"),
+                // sticky 中に背後の本文行が透けないよう不透明背景を維持する
+                // （sticky_header 有無に関わらず既存どおり必須）。
                 decl("background", "var(--fandhe-color-bg)"),
+                // イシュー #1571: 数値列の桁揃え（chakra-ui root の
+                // `tabular-nums` 相当。root ではなくリーフ側へ置く判断は
+                // モジュール doc 参照。size/variant 軸は #1572 の担当のため
+                // ここでは触らない）。
+                decl("font-variant-numeric", "tabular-nums"),
+                // イシュー #1571: sticky_header variant（root スコープ）が
+                // 設定する custom property を消費する。既定（Off）は
+                // `static`/`0` のため見た目に影響しない。
+                decl("position", "var(--fandhe-table-header-position, static)"),
+                decl("top", "var(--fandhe-table-sticky-offset, 0)"),
+                // dropdown/popover 帯（1000/1200）より下、通常のドキュメント
+                // フローより上の `docked` 段を使う（モジュール doc
+                // 「sticky ヘッダーの実装」節参照）。
+                decl("z-index", "var(--fandhe-z-index-docked, 10)"),
             ],
         )
         .base(
@@ -253,6 +390,21 @@ fn recipe() -> SlotRecipe {
                 // `column-header` スロット）へ持たせる（イシュー #767
                 // PR #811 Bugbot 指摘）。
                 decl("border-bottom", "var(--fandhe-table-row-border, none)"),
+                // イシュー #1571: column-header と同じ理由で数値列の桁揃え
+                // を追加する。
+                decl("font-variant-numeric", "tabular-nums"),
+            ],
+        )
+        .base(
+            "footer",
+            vec![
+                // イシュー #1571: chakra-ui `tfoot` の `font-weight: medium`
+                // 相当。border は付けない（`root` の `border-collapse:
+                // separate` モデル下では `tfoot`〔footer slot〕への border
+                // 指定はブラウザに無視される、上記 `cell` base の PR #811
+                // 不変条件と同型。body/footer の区切りは body 最終行の
+                // `cell` が持つ `border-bottom` に委ねる）。
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
             ],
         )
         .variant(
@@ -353,6 +505,26 @@ fn recipe() -> SlotRecipe {
             )],
         )
         .default_variant(StripedVariant::Off)
+        // イシュー #1571: sticky ヘッダー variant。既定 Off も明示的に登録
+        // する（striped と同じ決定性維持の判断、上記「sticky ヘッダーの
+        // 実装」節参照）。
+        .variant(
+            StickyHeaderVariant::Off,
+            "root",
+            vec![
+                decl("--fandhe-table-header-position", "static"),
+                decl("--fandhe-table-sticky-offset", "0"),
+            ],
+        )
+        .variant(
+            StickyHeaderVariant::On,
+            "root",
+            vec![
+                decl("--fandhe-table-header-position", "sticky"),
+                decl("--fandhe-table-sticky-offset", "0"),
+            ],
+        )
+        .default_variant(StickyHeaderVariant::Off)
         .state(
             "row",
             StateCondition::NthChildEven,
@@ -386,10 +558,12 @@ pub fn css() -> String {
 pub fn root<'a>(props: TableProps, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let recipe = recipe();
     let striped: StripedVariant = props.striped.into();
+    let sticky_header: StickyHeaderVariant = props.sticky_header.into();
     let class = recipe.variant_classes(&[
         ("variant", props.variant.value()),
         ("size", props.size.value()),
         ("striped", striped.value()),
+        ("sticky-header", sticky_header.value()),
     ]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
@@ -458,6 +632,7 @@ mod tests {
         assert!(html.contains("fd-table--variant-line"));
         assert!(html.contains("fd-table--size-md"));
         assert!(html.contains("fd-table--striped-false"));
+        assert!(html.contains("fd-table--sticky-header-false"));
     }
 
     #[test]
@@ -499,6 +674,16 @@ mod tests {
         };
         let html = render(&root(props, vec![], vec![]));
         assert!(html.contains("fd-table--striped-true"));
+    }
+
+    #[test]
+    fn sticky_header_true_maps_to_expected_class() {
+        let props = TableProps {
+            sticky_header: true,
+            ..TableProps::default()
+        };
+        let html = render(&root(props, vec![], vec![]));
+        assert!(html.contains("fd-table--sticky-header-true"));
     }
 
     #[test]
@@ -549,7 +734,7 @@ mod tests {
         assert_eq!(
             html,
             concat!(
-                r#"<table data-scope="table" data-part="root" class="fd-table--variant-line fd-table--size-md fd-table--striped-false">"#,
+                r#"<table data-scope="table" data-part="root" class="fd-table--variant-line fd-table--size-md fd-table--striped-false fd-table--sticky-header-false">"#,
                 r#"<caption data-scope="table" data-part="caption">Users</caption>"#,
                 r#"<thead data-scope="table" data-part="header">"#,
                 r#"<tr data-scope="table" data-part="row">"#,
@@ -600,6 +785,39 @@ mod tests {
         assert!(out.contains(":nth-child(even)"));
         assert!(out.contains("--fandhe-table-stripe-bg"));
         assert!(out.contains("--fandhe-table-cell-padding"));
+        assert!(out.contains("--fandhe-table-header-position"));
+        assert!(out.contains("position: var(--fandhe-table-header-position, static);"));
         assert!(!out.contains('<'));
+    }
+
+    /// イシュー #1571: `column-header` base 規則が chakra-ui / Radix Themes
+    /// 基準の 1px 罫線・medium 太さになっていることを固定する
+    /// （旧 2px semibold からの是正、上記モジュール doc「意図的に参照
+    /// サイトへ合わせなかった点」節参照）。
+    #[test]
+    fn column_header_uses_one_pixel_border_and_medium_weight() {
+        let out = css();
+        assert!(out.contains("border-bottom: 1px solid var(--fandhe-color-border);"));
+        assert!(out.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
+        assert!(!out.contains("2px solid var(--fandhe-color-border-muted)"));
+    }
+
+    /// イシュー #1571: `footer`（`tfoot`）base 規則が medium 太さのみを持ち、
+    /// border を持たないことを固定する（`separate` border モデル下では
+    /// `tfoot` への border 指定が無効なため、上記モジュール doc「sticky
+    /// ヘッダーの実装」節と対をなす PR #811 型の不変条件）。
+    #[test]
+    fn footer_has_medium_weight_and_no_border_rule() {
+        let out = css();
+        let footer_rule_start = out
+            .find(r#"[data-scope="table"][data-part="footer"] {"#)
+            .expect("footer base 規則が css() 出力に存在すること");
+        let footer_rule_end = out[footer_rule_start..]
+            .find('}')
+            .map(|offset| footer_rule_start + offset)
+            .expect("footer base 規則が `}` で閉じられていること");
+        let footer_rule = &out[footer_rule_start..footer_rule_end];
+        assert!(footer_rule.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
+        assert!(!footer_rule.contains("border"));
     }
 }

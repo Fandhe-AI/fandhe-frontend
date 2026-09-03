@@ -1083,7 +1083,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # シグネチャ不変・クラス名/セレクタ/`data-*` の削除改名なし・値変更と
 # custom property の純追加のみのため patch バンプ
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.3）。
-version = "0.74.1"
+# イシュー #1571: table のスタイル調整 (1/2)。`TableProps` へ pub フィールド
+# `sticky_header` を追加した（完全リテラル `TableProps { .. }` を壊す 0.x
+# 破壊的変更）ため minor バンプする（`.claude/rules/coding-rust.md`）。
+version = "0.75.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

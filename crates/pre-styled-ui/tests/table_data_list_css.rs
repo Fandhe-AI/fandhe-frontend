@@ -21,6 +21,8 @@
 //! 6. recipe が生成するセレクタが、実際に本クレートがレンダリングする
 //!    `data-scope`/`data-part` 属性と一致する（`recipe_css.rs` の
 //!    `base_selectors_match_actual_headless_markup` と同型の接続照合）。
+//! 7. `sticky_header`（イシュー #1571）の `false`/`true` クラスセレクタ・
+//!    custom property が出力に含まれる。
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
@@ -83,6 +85,7 @@ fn table_css_puts_row_border_on_cell_not_row() {
   padding: var(--fandhe-table-cell-padding, 0.75rem 1rem);
   font-size: var(--fandhe-table-font-size, var(--fandhe-font-font-size-sm));
   border-bottom: var(--fandhe-table-row-border, none);
+  font-variant-numeric: tabular-nums;
 }"#
         ),
         "cell base rule must set border-bottom via --fandhe-table-row-border\n{css}"
@@ -119,6 +122,65 @@ fn table_css_outline_variant_clips_descendants_to_border_radius() {
     );
 }
 
+/// イシュー #1571: `sticky_header` variant（`false`/`true` 両側）のクラス
+/// セレクタ・root スコープ custom property・`column-header` 側の消費規則が
+/// `css()` 出力に含まれることを固定する。
+#[test]
+fn table_css_contains_sticky_header_variants() {
+    let css = table::css();
+    assert!(
+        css.contains(r#"[data-scope="table"][data-part="root"].fd-table--sticky-header-false {"#)
+    );
+    assert!(
+        css.contains(r#"[data-scope="table"][data-part="root"].fd-table--sticky-header-true {"#)
+    );
+    assert!(css.contains("--fandhe-table-header-position: static;"));
+    assert!(css.contains("--fandhe-table-header-position: sticky;"));
+    assert!(css.contains("--fandhe-table-sticky-offset: 0;"));
+    assert!(css.contains("position: var(--fandhe-table-header-position, static);"));
+    assert!(css.contains("top: var(--fandhe-table-sticky-offset, 0);"));
+}
+
+/// イシュー #1571: `column-header`（`th`）base 規則が chakra-ui / Radix
+/// Themes 基準の 1px 罫線・medium 太さになっていることを固定する（旧 2px
+/// semibold からの是正）。
+#[test]
+fn table_css_column_header_uses_one_pixel_border_and_medium_weight() {
+    let css = table::css();
+    assert!(css.contains("border-bottom: 1px solid var(--fandhe-color-border);"));
+    assert!(!css.contains("2px solid var(--fandhe-color-border-muted)"));
+    let column_header_rule_start = css
+        .find(r#"[data-scope="table"][data-part="column-header"] {"#)
+        .expect("column-header base 規則が css() 出力に存在すること");
+    let column_header_rule_end = css[column_header_rule_start..]
+        .find('}')
+        .map(|offset| column_header_rule_start + offset)
+        .expect("column-header base 規則が `}` で閉じられていること");
+    let column_header_rule = &css[column_header_rule_start..column_header_rule_end];
+    assert!(column_header_rule.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
+    assert!(column_header_rule.contains("color: var(--fandhe-color-fg);"));
+    assert!(column_header_rule.contains("font-variant-numeric: tabular-nums;"));
+}
+
+/// イシュー #1571: `footer`（`tfoot`）base 規則が medium 太さのみを持ち、
+/// border を持たないことを固定する（`separate` border モデル下では
+/// `tfoot` への border 指定が無効なため、`cell` の PR #811 型不変条件と
+/// 対をなす）。
+#[test]
+fn table_css_footer_has_medium_weight_and_no_border() {
+    let css = table::css();
+    let footer_rule_start = css
+        .find(r#"[data-scope="table"][data-part="footer"] {"#)
+        .expect("footer base 規則が css() 出力に存在すること");
+    let footer_rule_end = css[footer_rule_start..]
+        .find('}')
+        .map(|offset| footer_rule_start + offset)
+        .expect("footer base 規則が `}` で閉じられていること");
+    let footer_rule = &css[footer_rule_start..footer_rule_end];
+    assert!(footer_rule.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
+    assert!(!footer_rule.contains("border"));
+}
+
 #[test]
 fn table_css_never_contains_style_breakout_sequences() {
     let css = table::css();
@@ -133,6 +195,7 @@ fn table_recipe_selectors_match_actual_rendered_markup() {
             variant: TableVariant::Outline,
             size: Size::Lg,
             striped: true,
+            sticky_header: true,
         },
         vec![],
         vec![],
@@ -141,6 +204,7 @@ fn table_recipe_selectors_match_actual_rendered_markup() {
     assert!(html.contains("fd-table--variant-outline"));
     assert!(html.contains("fd-table--size-lg"));
     assert!(html.contains("fd-table--striped-true"));
+    assert!(html.contains("fd-table--sticky-header-true"));
 
     let cell_html = render(&table::cell(vec![], vec![]));
     assert!(cell_html.starts_with(r#"<td data-scope="table" data-part="cell""#));

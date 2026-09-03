@@ -774,8 +774,9 @@ fn ex_table() -> Node {
 
 pub(crate) const TABLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "TableVariant（Line/Outline、crates/pre-styled-ui/src/table.rs:146-152）で外枠・区切り線を切り替える",
-        "striped（bool）で本文行の背景を交互に変える（table.rs:132-133, striped の実装節）",
+        "TableVariant（Line/Outline、crates/pre-styled-ui/src/table.rs:172-186）で外枠・区切り線を切り替える",
+        "striped（bool）で本文行の背景を交互に変える（table.rs「striped の実装」節）",
+        "sticky_header（bool、イシュー #1571）で column-header（th）を position: sticky にする（table.rs「sticky ヘッダーの実装」節）",
         "column_header は scope=\"col\" を関数側で固定し呼び出し側の偽装を除去する（table.rs セキュリティ不変条件節、COLUMN_HEADER_RESERVED）",
     ],
     arguments: &[
@@ -783,19 +784,25 @@ pub(crate) const TABLE: ComponentPageSpec = ComponentPageSpec {
             name: "variant",
             kind: "TableVariant",
             default: "Line",
-            description: "外枠・区切り線の見た目（table.rs:128-152）。",
+            description: "外枠・区切り線の見た目（table.rs「variant について」節）。",
         },
         ArgRow {
             name: "size",
             kind: "Size",
             default: "Md",
-            description: "セルの padding/font-size（table.rs:130-131）。",
+            description: "セルの padding/font-size（table.rs「variant について」節）。",
         },
         ArgRow {
             name: "striped",
             kind: "bool",
             default: "false",
-            description: "縞模様表示の有無（table.rs:132-143）。",
+            description: "縞模様表示の有無（table.rs「striped の実装」節）。",
+        },
+        ArgRow {
+            name: "sticky_header",
+            kind: "bool",
+            default: "false",
+            description: "column-header（th）を position: sticky にする（イシュー #1571、table.rs「sticky ヘッダーの実装」節）。",
         },
     ],
     examples: &[ExampleEntry {

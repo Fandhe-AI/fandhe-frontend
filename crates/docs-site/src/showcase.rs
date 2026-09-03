@@ -6980,11 +6980,19 @@ fn table_section() -> Node {
         striped: true,
         ..TableProps::default()
     })]);
+    // イシュー #1571: sticky_header variant のクラス出力デモ。ページスクロール
+    // 前提の sticky 挙動そのものを視覚実演するスクロール枠は兄弟イシュー
+    // #1572（2/2）のスコープのため、ここでは class 出力の確認までとする
+    // （`table.rs` モジュール doc「sticky ヘッダーの実装」節参照）。
+    let sticky_header_demo = stack(vec![sample_table(TableProps {
+        sticky_header: true,
+        ..TableProps::default()
+    })]);
 
     section(
         "Table",
-        "table/thead/tbody/tfoot/tr/th/td/caption の HTML 意味論を尊重した表組み。variant（line / outline）・size（sm / md / lg）・striped の 3 軸 variant を持ちます。",
-        vec![variant_demo, size_demo, striped_demo],
+        "table/thead/tbody/tfoot/tr/th/td/caption の HTML 意味論を尊重した表組み。variant（line / outline）・size（sm / md / lg）・striped・sticky_header の 4 軸 variant を持ちます。",
+        vec![variant_demo, size_demo, striped_demo, sticky_header_demo],
     )
 }
 
