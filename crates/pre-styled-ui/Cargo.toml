@@ -1124,6 +1124,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # 意匠調整のため、`docs/ci/style-refresh-version-bump-operation.md` §3.1/
 # §3.3 に従い patch バンプする（CSS 出力変更のため §3.2 により
 # `version-bump-exempt:` は適用しない）。
+# イシュー #1575: timeline のスタイル調整 (1/2) — インジケータ・コネクタ
+# （親 #1574 の 7 軸チェックリストのうち connector/separator/indicator と
+# root の variant 規則を是正）。indicator/separator の base 宣言値変更・
+# `--fandhe-timeline-indicator-font-size` custom property 新設・
+# `[data-state="complete"/"current"]` 状態セレクタ新設を行うが、公開 Rust
+# API のシグネチャ・既存 CSS 変数名/クラス名/セレクタの削除・改名は伴わない
+# 意匠調整（`docs/ci/style-refresh-version-bump-operation.md` §3.1、
+# `.claude/rules/coding-rust.md`）のためパッチバンプ相当（0.76.1）。
+#
+# base 取り込み（イシュー #1576）: main 側は #1573（マイナーバンプ）の
+# 統合後、#1575（本ブランチの (1/2)）が同一バージョン 0.77.0 のまま
+# マージ済みだった。本ブランチの #1576 はその 0.77.0 を起点に patch
+# バンプ（0.77.1）しており、0.77.0 より大きいためそのまま 0.77.1 を
+# 維持する（追加のバンプは不要）。
 version = "0.77.1"
 
 edition = "2021"
