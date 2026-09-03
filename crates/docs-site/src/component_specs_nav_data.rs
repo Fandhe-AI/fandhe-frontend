@@ -631,16 +631,32 @@ fn ex_spinner() -> Node {
 
 pub(crate) const SPINNER: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "role=\"status\" + aria-label（既定 \"Loading\"）でスクリーンリーダーへ読み込み中を伝える（crates/pre-styled-ui/src/spinner.rs:2, 137-138, 151-152）",
-        "spinner_decorative（別関数）は role/aria-label を持たず aria-hidden=\"true\" のみを付与する（spinner.rs:170-171）",
-        "colorPalette 軸でセマンティック色を選択する（spinner.rs 冒頭）",
+        "role=\"status\" + aria-label（既定 \"Loading\"）でスクリーンリーダーへ読み込み中を伝える（crates/pre-styled-ui/src/spinner.rs）",
+        "spinner_decorative（別関数）は role/aria-label を持たず aria-hidden=\"true\" のみを付与する（spinner.rs）",
+        "size・colorPalette の 2 軸でサイズとセマンティック色を選択する（spinner.rs 冒頭）",
+        "上・右 2 辺の弧で描画し、トラックは既定で透明（イシュー #1567、chakra-ui 基準）。--fandhe-spinner-track-color / --fandhe-spinner-thickness / --fandhe-spinner-duration の custom property で線色・線幅・回転速度を上書きできる",
+        "prefers-reduced-motion: reduce 環境では回転アニメーションを停止する（イシュー #1567）",
     ],
-    arguments: &[ArgRow {
-        name: "label",
-        kind: "&str",
-        default: "\"Loading\"",
-        description: "aria-label に渡すラベル文字列（spinner.rs:216-219, 227）。",
-    }],
+    arguments: &[
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ variant（spinner.rs）。chakra-ui 5 段基準（xs=0.75rem/sm=1rem/md=1.25rem/lg=2rem/xl=2.5rem、イシュー #1567）。",
+        },
+        ArgRow {
+            name: "palette",
+            kind: "ColorPalette",
+            default: "Accent",
+            description: "colorPalette 軸（spinner.rs、イシュー #606）。",
+        },
+        ArgRow {
+            name: "label",
+            kind: "&str",
+            default: "\"Loading\"",
+            description: "aria-label に渡すラベル文字列（spinner.rs）。",
+        },
+    ],
     examples: &[ExampleEntry {
         title: "Custom label",
         description: "aria-label をカスタマイズした Spinner の例です。",
@@ -649,7 +665,7 @@ pub(crate) const SPINNER: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "role=\"status\" + aria-label",
-        description: "読み込み中であることをスクリーンリーダーへ伝える（spinner.rs:2, 151-152）。",
+        description: "読み込み中であることをスクリーンリーダーへ伝える（spinner.rs）。",
     }],
     demo: None,
 };

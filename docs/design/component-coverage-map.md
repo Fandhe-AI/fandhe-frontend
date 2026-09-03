@@ -583,7 +583,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/feedback/progress.md` | Progress (linear) | Progress | — | — | `progress` | `progress` | 実装済み | headless+styled（root/range）実装済み。#1564 で linear（Track/Range）styled CSS・`ProgressVariant`/`ColorPalette` 軸を新設し pre-styled ラッパー未実装状態を解消 |
 | `.agents/skills/chakra-ui/references/components/feedback/alert.md` | — | Alert | — | — | — | `alert` | 実装済み | pre-styled 静的部品 実装済み |
-| `.agents/skills/chakra-ui/references/components/feedback/spinner.md` | — | Spinner | — | Spinner (`spinner`) | — | `spinner` | 実装済み | pre-styled 静的部品 実装済み |
+| `.agents/skills/chakra-ui/references/components/feedback/spinner.md` | — | Spinner | — | Spinner (`spinner`) | — | `spinner` | 実装済み | pre-styled 静的部品 実装済み。#1567 でスタイルを参考サイト基準へ調整（半円弧・トラック透明既定・size 5 段を chakra 一致・reduced-motion 停止） |
 | `.agents/skills/chakra-ui/references/components/feedback/toast.md` | Toast | Toast | — | — | `toast` | `toast` | 実装済み | headless+styled 実装済み（#760） |
 | `.agents/skills/chakra-ui/references/components/feedback/progress-circle.md` | Progress (circular) | ProgressCircle | — | — | `progress` | `progress` | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加） |
 | `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | Skeleton (`skeleton`) | — | `skeleton` | 実装済み | #764。pre-styled 静的部品 実装済み。#1566 でスタイルを参考サイト基準へ調整（`bg-emphasized` 背景・`animation` 軸追加） |
