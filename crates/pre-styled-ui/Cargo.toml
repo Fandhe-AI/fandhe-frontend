@@ -1059,7 +1059,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # `SkeletonProps` へ `animation: SkeletonAnimation` フィールドを追加する
 # 破壊的変更（既存 struct literal 構築を壊す）のためマイナーバンプする
 # （0.x の破壊的変更はマイナーバンプの規約）。
-version = "0.73.0"
+#
+# イシュー #1565: 上記 0.73.0 に対し、qr-code（Themes）overlay の CSS 是正
+# （`box-sizing: border-box` 追加。セレクタ・クラス名・公開 Rust API の
+# 削除/改名なし）のため patch バンプする。
+version = "0.73.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
