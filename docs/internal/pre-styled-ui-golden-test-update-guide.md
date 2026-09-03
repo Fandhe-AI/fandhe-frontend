@@ -66,7 +66,7 @@ pin_input / progress / qr_code / radio_card / radio_group / rating_group /
 select / separator / skeleton / skip_nav / **spinner（イシュー #1567 で
 golden 新設）** / splitter / stat / steps / switch /
 tab_nav / tags_input / timeline / timer / toast / toggle_tip / tour /
-visually_hidden
+**tree_view（イシュー #1578 で golden 新設）** / visually_hidden
 
 menubar / navigation_menu / download_trigger はファイル名こそ
 `<snake>_css.rs` の規則どおりですが、内容は §2.1 の方式 (b)（契約アサー
@@ -113,12 +113,12 @@ CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約�
 `xss_escape.rs` / `xss_escape_styled.rs` によるレンダリング・エスケープ検証
 のみが存在します。新設の要否は Phase 1 の各部品 issue の判断に委ねます。
 
-- `stylesheet()` を持つ 18 部品: action_bar / angle_slider /
+- `stylesheet()` を持つ 17 部品: action_bar / angle_slider /
   breadcrumb / calendar / clipboard / combobox / date_picker /
   json_tree_view / link / link_overlay / nav_list / scroll_area /
-  segment_group / signature_pad / slider / toggle / toggle_group /
-  tree_view（`toolbar` はイシュー #1547、`avatar` はイシュー #1554 で
-  golden 追加済みのため本リストから除外）
+  segment_group / signature_pad / slider / toggle / toggle_group
+  （`toolbar` はイシュー #1547、`avatar` はイシュー #1554、`tree_view` は
+  イシュー #1578 で golden 追加済みのため本リストから除外）
 - `css()` を持つ部品: なし（`alert` はイシュー #1553、`badge` は
   イシュー #1555、`callout` はイシュー #1556、`card` はイシュー #1557、
   `spinner` はイシュー #1567 でそれぞれ golden 新設済みのため本リストから

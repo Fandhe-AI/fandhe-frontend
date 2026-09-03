@@ -1152,7 +1152,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3 に従い
 # patch バンプする（CSS 出力変更のため §3.2 により
 # `version-bump-exempt:` は適用しない）。
-version = "0.77.2"
+# イシュー #1578（tree-view のスタイル調整）で `StateCondition` へ `Empty`
+# （`:empty`）を追加した。`StateCondition` は `#[non_exhaustive]` でない
+# 公開 exhaustive enum のため、新規 variant 追加は既存の網羅的 match が
+# コンパイルエラーになりうる 0.x の破壊的変更として扱う（イシュー #1803
+# の `HoverExceptAttrEq` 追加時と同型の判断）ため minor バンプする。
+version = "0.78.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

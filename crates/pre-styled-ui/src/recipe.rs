@@ -769,6 +769,20 @@ pub enum StateCondition {
     /// `:not()` 節に加えてさらに 1 個分（属性セレクタ 1 個分 = (0,1,0)）
     /// specificity が高くなり、素の [`Hover`] より高い specificity を持つ。
     HoverExceptAttrEq(&'static str, &'static str, &'static str),
+    /// `:empty` 擬似クラス（イシュー #1578）。
+    ///
+    /// [`crate::tree_view`] の `branch-indicator` は headless
+    /// [`fandhe_frontend_headless_ui::tree_view::TreeView::render_nodes`]
+    /// が常に空 `span`（`branch_indicator(state, vec![], vec![])`）として
+    /// 出力する一方、消費者が独自グリフを子として渡す経路（本モジュールの
+    /// 呼び出し元・単体テストの `text("+")` 等）も公開 API として存在する。
+    /// 子を持たない場合にのみ CSS でシェブロン（border 2 本の箱）を描き、
+    /// 消費者グリフとの二重表示を避けるための判別に `:empty` を使う。
+    /// [`Hover`]/[`LastChild`]/[`NthChildEven`]/[`HoverExceptAttrEq`] と
+    /// 同じ「消費者が現れた時点で追加する」前例に従う（本モジュール冒頭 doc
+    /// 参照）。識別子引数を持たないため [`is_valid_identifier`] の検証経路
+    /// を迂回しない。
+    Empty,
 }
 
 /// slot 1 個・状態条件 1 個への宣言登録（内部表現、イシュー #643）。
@@ -1033,6 +1047,8 @@ impl SlotRecipe {
     /// （`FocusWithin`、イシュー #683）・
     /// `[data-scope="<scope>"][data-part="<slot>"]:last-child`
     /// （`LastChild`、イシュー #752）・
+    /// `[data-scope="<scope>"][data-part="<slot>"]:empty`
+    /// （`Empty`、イシュー #1578）・
     /// `[data-scope="<scope>"][data-part="<slot>"]:hover:not([data-disabled])`
     /// （`Hover`、イシュー #847。イシュー #1425 でタッチ端末の hover
     /// 貼り付き対策として `@media (hover: hover) { ... }` 配下へまとめて
@@ -1167,6 +1183,7 @@ impl SlotRecipe {
                         && is_valid_identifier(eq_name)
                         && is_valid_identifier(eq_value)
                 }
+                StateCondition::Empty => true,
             };
             if !condition_valid {
                 continue;
@@ -1223,6 +1240,7 @@ impl SlotRecipe {
                         ":hover:not([data-disabled]):not([{attr_name}]):not([{eq_name}=\"{eq_value}\"])"
                     ));
                 }
+                StateCondition::Empty => selector.push_str(":empty"),
             }
             // Hover/HoverExcept/HoverExceptAttr は states ループの通常出力先
             // ではなく専用バッファへ集約し、css() 末尾で `@media (hover:
@@ -1335,5 +1353,23 @@ impl SlotRecipe {
             }
         }
         classes.join(" ")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_condition_serializes_to_empty_pseudo_class() {
+        // イシュー #1578: `StateCondition::Empty` が `:empty` 擬似クラスへ
+        // 正しくセレクタ化されることを固定する（[`crate::tree_view`] の
+        // `branch-indicator` が最初の消費者）。
+        let recipe = SlotRecipe::new("test-empty", &["item"])
+            .base("item", vec![decl("display", "block")])
+            .state("item", StateCondition::Empty, vec![decl("opacity", "0")]);
+        let css = recipe.css();
+        assert!(css.contains(r#"[data-scope="test-empty"][data-part="item"]:empty {"#));
+        assert!(css.contains("opacity: 0;"));
     }
 }
