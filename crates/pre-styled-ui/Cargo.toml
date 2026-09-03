@@ -1055,7 +1055,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # （`size`/`variant`/`palette` の 3 軸）へ置き換える破壊的変更、および
 # `ProgressVariant`/`ProgressProps`/styled `range()` の新規公開 API 追加の
 # ためマイナーバンプする（0.x の破壊的変更はマイナーバンプの規約）。
-version = "0.72.0"
+# イシュー #1565: qr-code（Themes）の overlay 中央固定・size 参照整列を
+# 伴う CSS 実体変更のため patch バンプ（セレクタ・クラス名・公開 Rust API
+# の削除/改名なし。`--fandhe-qr-code-overlay-size` は純追加）。
+version = "0.72.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
