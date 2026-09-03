@@ -214,10 +214,6 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("display", "block"),
-                // 参照サイト（chakra-ui Skeleton pulse スクショ）のように
-                // flex 行の中で circle variant が潰れないための予防的固定
-                // （イシュー #1566）。
-                decl("flex-shrink", "0"),
                 // イシュー #1566: 旧 `bg-subtle` はページ既定背景と同化し
                 // 占位要素として視認できなかったため `bg-emphasized` へ
                 // 変更（chakra-ui `bg.emphasized` / Radix gray 4-5 相当）。
@@ -240,6 +236,13 @@ fn recipe() -> SlotRecipe {
                 decl("width", "var(--fandhe-skeleton-size, 2.5rem)"),
                 decl("height", "var(--fandhe-skeleton-size, 2.5rem)"),
                 decl("border-radius", "var(--fandhe-radius-full)"),
+                // 参照サイト（chakra-ui Skeleton pulse スクショ）のように
+                // flex 行の中で circle variant が潰れないための予防的固定
+                // （イシュー #1566）。Text/Rect は `width: 100%` で伸縮に
+                // 依存するため flex-shrink:0 を base へ置くと兄弟要素を
+                // オーバーフローさせる（PR #1837 Bugbot 指摘）。circle 限定
+                // の固定サイズにのみ適用する。
+                decl("flex-shrink", "0"),
             ],
         )
         .variant(

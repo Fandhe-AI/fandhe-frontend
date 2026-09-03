@@ -12,7 +12,6 @@ use fandhe_frontend_pre_styled_ui::skeleton;
 
 const SKELETON_GOLDEN_CSS: &str = r#"[data-scope="skeleton"][data-part="root"] {
   display: block;
-  flex-shrink: 0;
   background: var(--fandhe-color-bg-emphasized);
 }
 
@@ -26,6 +25,7 @@ const SKELETON_GOLDEN_CSS: &str = r#"[data-scope="skeleton"][data-part="root"] {
   width: var(--fandhe-skeleton-size, 2.5rem);
   height: var(--fandhe-skeleton-size, 2.5rem);
   border-radius: var(--fandhe-radius-full);
+  flex-shrink: 0;
 }
 
 [data-scope="skeleton"][data-part="root"].fd-skeleton--variant-rect {
