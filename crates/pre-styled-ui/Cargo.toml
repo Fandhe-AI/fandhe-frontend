@@ -1094,7 +1094,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.74.2 へ到達していたが、本ブランチは #1571 のマイナーバンプにより
 # 0.75.0（> 0.74.2）へ到達しているため、偶発的な同一版数衝突ではなく
 # 単純な採用としてそのまま 0.75.0 を維持する。
-version = "0.75.0"
+#
+# イシュー #1572: `pub fn scroll_area` の新設（公開 API の純追加）に伴い
+# マイナーバンプする（`docs/ci/style-refresh-version-bump-operation.md`
+# §3.1、`.claude/rules/coding-rust.md`）。
+version = "0.76.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

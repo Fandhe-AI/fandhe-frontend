@@ -14,7 +14,9 @@
 //! 1. `css()` の呼び出しは決定的（複数回呼んでもバイト一致）。
 //! 2. striped の `:nth-child(even)` 状態規則・`--fandhe-table-stripe-bg`
 //!    custom property が出力に含まれる。
-//! 3. size 3 値（sm/md/lg）の custom property 切り替えクラスが出力に含まれる。
+//! 3. size 5 値（xs/sm/md/lg/xl）の custom property 切り替えクラスが出力に
+//!    含まれる（`--fandhe-space-*` トークン形、イシュー #1572 で
+//!    リテラル値から是正）。
 //! 4. `variant`（line/outline）のクラスセレクタが出力に含まれる。
 //! 5. `<` を一切含まない（`<style>` RAWTEXT 脱出防止、`StyleSheet::push_css`
 //!    が要求する不変条件と同型）。
@@ -47,9 +49,26 @@ fn table_css_contains_striped_state_rule_and_custom_property() {
 fn table_css_contains_size_custom_property_variants() {
     let css = table::css();
     for (class, padding) in [
-        ("fd-table--size-sm", "0.5rem 0.75rem"),
-        ("fd-table--size-md", "0.75rem 1rem"),
-        ("fd-table--size-lg", "1rem 1.25rem"),
+        (
+            "fd-table--size-xs",
+            "var(--fandhe-space-1) var(--fandhe-space-2)",
+        ),
+        (
+            "fd-table--size-sm",
+            "var(--fandhe-space-2) var(--fandhe-space-3)",
+        ),
+        (
+            "fd-table--size-md",
+            "var(--fandhe-space-3) var(--fandhe-space-4)",
+        ),
+        (
+            "fd-table--size-lg",
+            "var(--fandhe-space-4) var(--fandhe-space-5)",
+        ),
+        (
+            "fd-table--size-xl",
+            "var(--fandhe-space-5) var(--fandhe-space-6)",
+        ),
     ] {
         let selector = format!(r#"[data-scope="table"][data-part="root"].{class} {{"#);
         assert!(
@@ -82,7 +101,7 @@ fn table_css_puts_row_border_on_cell_not_row() {
     assert!(
         css.contains(
             r#"[data-scope="table"][data-part="cell"] {
-  padding: var(--fandhe-table-cell-padding, 0.75rem 1rem);
+  padding: var(--fandhe-table-cell-padding, var(--fandhe-space-3) var(--fandhe-space-4));
   font-size: var(--fandhe-table-font-size, var(--fandhe-font-font-size-sm));
   border-bottom: var(--fandhe-table-row-border, none);
   font-variant-numeric: tabular-nums;
@@ -224,6 +243,10 @@ fn table_recipe_selectors_match_actual_rendered_markup() {
 
     let row_html = render(&table::row(vec![], vec![]));
     assert!(row_html.starts_with(r#"<tr data-scope="table" data-part="row""#));
+
+    // イシュー #1572: scroll-area も同じ接続照合対象に含める。
+    let scroll_area_html = render(&table::scroll_area(vec![], vec![]));
+    assert!(scroll_area_html.starts_with(r#"<div data-scope="table" data-part="scroll-area""#));
 }
 
 #[test]
