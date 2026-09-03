@@ -141,9 +141,50 @@
 //! を必ず経由する、REQ-1）。呼び出し側が渡す `data-state` 値も同じ経路で
 //! エスケープされる（[`Anatomy::part`] → `render` の既定エスケープ）。
 //!
+//! # イシュー #1576: コンテンツのスタイル調整（親 #1574 の 2/2）
+//!
+//! 親イシュー #1574「timeline のスタイルを参考サイト基準へ調整」の後半。
+//! 担当範囲は `item` の列間隔・`content`/`title`/`description` の型階層と
+//! 余白のみで、`connector`/`separator`/`indicator` と root の `variant`
+//! （塗り方）規則は姉妹イシュー #1575 の担当のため変更していない。
+//! chakra-ui v3 の `timeline` slot recipe を基準に以下を是正した:
+//!
+//! - `item`: `gap` を `--fandhe-space-4`（1rem）へ拡大し indicator と
+//!   content の間隔を chakra 基準に合わせた。
+//! - `content`: `display: flex; flex-direction: column; gap: space-2;
+//!   min-width: 0` を追加し title/description を縦積みにした。
+//!   `padding-bottom` は `space-4` → `space-6`（1.5rem）へ拡大。
+//! - `title`: `display: flex; flex-wrap: wrap; align-items: center;
+//!   gap: space-1-5` を追加し、`font-weight` を `semibold` → `medium`へ、
+//!   `font-size`/`margin-top` を size 連動の custom property
+//!   （`--fandhe-timeline-title-font-size`/`--fandhe-timeline-title-margin-top`）
+//!   化した（値は root の size variant、下記 §7 参照）。
+//! - `description`: `font-size` を `sm` → `xs` へ縮小（size 非連動、chakra
+//!   同様）。
+//!
+//! 7 軸チェックリストの消化: サイズ（title の font-size/margin-top を Xs〜Xl
+//! 5 段の root custom property へ登録）・バリアント（content 側は variant
+//! 非依存のため追加なし）・色（新規宣言はすべて `--fandhe-*` トークン経由）・
+//! 状態（content 系パーツは `data-*` を持たず不変）・ダーク（`fg`/`fg-muted`
+//! トークン経由で成立、`BODY_TEXT_PAIRS` 検証済み）・フォーカス/hover/
+//! disabled/トランジション（`content`/`title`/`description` は非
+//! インタラクティブなため付与しない）・余白（`space-*` スケール段のみ）。
+//!
+//! 意図的に chakra-ui へ合わせなかった点:
+//!
+//! 1. 最終 item の `--timeline-content-gap: 0`（chakra `_last`）は採らない。
+//!    [`SlotRecipe`] に構造擬似クラス相当の variant はなく、本モジュール
+//!    doc の `showLastSeparator` 節と同じ判断で、`padding-bottom` は全 item
+//!    一様のまま維持し末尾余白の調整は呼び出し側責務とする。
+//! 2. `2xs` テキストスタイルは本リポジトリに存在しないため、chakra sm
+//!    （`textStyle: xs`）は本リポジトリの `xs` へ写像した。
+//! 3. title の `min-height: indicator-size` による自動中央寄せは採らず、
+//!    chakra 同様 margin-top 方式（description の押し下げ量を最小化）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - `xl` size（chakra-ui 準拠の最小サブセット外）。
+//! - `xl` size（chakra-ui 準拠の最小サブセット外、との記述は #1678/#1681
+//!   で `Size::Xl` 採用により現在は解消済み。history として残す）。
 //! - `showLastSeparator` の recipe 側自動制御（上記節参照、呼び出し側責務）。
 //! - 交互（alternating）レイアウト補助。
 //! - **横向き（horizontal）orientation**（イシュー #1575 で追加判断）:
@@ -240,7 +281,11 @@ fn recipe() -> SlotRecipe {
                     "grid-template-columns",
                     "var(--fandhe-timeline-indicator-size, 1.5rem) 1fr",
                 ),
-                decl("gap", "var(--fandhe-space-2)"),
+                // イシュー #1576: chakra-ui の `item`（`gap: 4` = 1rem）に
+                // 合わせ indicator と content の間隔を広げる。`display: grid` /
+                // `grid-template-columns` は #1575（connector/indicator 担当）
+                // の契約であり本イシューでは変更しない。
+                decl("gap", "var(--fandhe-space-4)"),
             ],
         )
         .base(
@@ -386,20 +431,48 @@ fn recipe() -> SlotRecipe {
             "content",
             vec![
                 decl("grid-column", "2"),
-                decl("padding-bottom", "var(--fandhe-space-4)"),
+                // イシュー #1576: chakra-ui の `content`（`display: flex;
+                // flex-direction: column; gap: 2; width: full`）に合わせ、
+                // title/description を縦積みにし均等な行間を持たせる。
+                // `min-width: 0` は grid の `1fr` トラック内でテキストが
+                // オーバーフローせず折り返す（chakra `width: full` 相当）。
+                decl("display", "flex"),
+                decl("flex-direction", "column"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl("min-width", "0"),
+                decl("padding-bottom", "var(--fandhe-space-6)"),
             ],
         )
         .base(
             "title",
             vec![
-                decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                // イシュー #1576: chakra-ui の `title`（`display: flex;
+                // flex-wrap: wrap; align-items: center; gap: 1.5;
+                // font-weight: medium`）に合わせる。font-size/margin-top は
+                // size variant ごとに custom property（既定値は Md 相当）で
+                // 段階付与する（下記 root size variant 参照）。
+                decl("display", "flex"),
+                decl("flex-wrap", "wrap"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-1-5)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-timeline-title-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl(
+                    "margin-top",
+                    "var(--fandhe-timeline-title-margin-top, 0)",
+                ),
                 decl("color", "var(--fandhe-color-fg)"),
             ],
         )
         .base(
             "description",
             vec![
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                // イシュー #1576: chakra-ui の `description`（`textStyle: xs`）
+                // に合わせ xs へ縮小（size 非連動、chakra 同様）。
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
         )
@@ -477,12 +550,26 @@ fn recipe() -> SlotRecipe {
         // `2xs` トークンがなく indicator 寸法が chakra より 1 段大きい
         // 配置であることを踏まえて Xs〜Xl の 5 段へ写像。モジュール doc
         // 「イシュー #1575」節参照）。
+        //
+        // イシュー #1576: title の font-size/margin-top を size ごとに
+        // custom property として追加（indicator 寸法は不変、#1575 担当）。
+        // chakra-ui の title.textStyle/mt に indicator との行高差分を
+        // 加味した本リポジトリのスケール段への丸め（計画書 §2 参照）:
+        // Xs/Sm は xs・margin-top 0（indicator が title 行高以上のため
+        // 余白不要）、Md は sm・margin-top 0（差が最小スケール段未満）、
+        // Lg は sm・margin-top space-1（差 4.5px 相当）、Xl は sm・
+        // margin-top space-2（差 7.5px 相当）。
         .variant(
             Size::Xs,
             "root",
             vec![
                 decl("--fandhe-timeline-indicator-size", "0.75rem"),
                 decl("--fandhe-timeline-separator-width", "1px"),
+                decl(
+                    "--fandhe-timeline-title-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+                decl("--fandhe-timeline-title-margin-top", "0"),
                 decl(
                     "--fandhe-timeline-indicator-font-size",
                     "var(--fandhe-font-font-size-xs)",
@@ -496,6 +583,11 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-timeline-indicator-size", "1.125rem"),
                 decl("--fandhe-timeline-separator-width", "1.5px"),
                 decl(
+                    "--fandhe-timeline-title-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
+                decl("--fandhe-timeline-title-margin-top", "0"),
+                decl(
                     "--fandhe-timeline-indicator-font-size",
                     "var(--fandhe-font-font-size-xs)",
                 ),
@@ -507,6 +599,11 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-timeline-indicator-size", "1.5rem"),
                 decl("--fandhe-timeline-separator-width", "2px"),
+                decl(
+                    "--fandhe-timeline-title-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+                decl("--fandhe-timeline-title-margin-top", "0"),
                 decl(
                     "--fandhe-timeline-indicator-font-size",
                     "var(--fandhe-font-font-size-xs)",
@@ -520,6 +617,11 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-timeline-indicator-size", "1.875rem"),
                 decl("--fandhe-timeline-separator-width", "2.5px"),
                 decl(
+                    "--fandhe-timeline-title-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+                decl("--fandhe-timeline-title-margin-top", "var(--fandhe-space-1)"),
+                decl(
                     "--fandhe-timeline-indicator-font-size",
                     "var(--fandhe-font-font-size-sm)",
                 ),
@@ -531,6 +633,11 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-timeline-indicator-size", "2.25rem"),
                 decl("--fandhe-timeline-separator-width", "3px"),
+                decl(
+                    "--fandhe-timeline-title-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+                decl("--fandhe-timeline-title-margin-top", "var(--fandhe-space-2)"),
                 decl(
                     "--fandhe-timeline-indicator-font-size",
                     "var(--fandhe-font-font-size-md)",
@@ -626,19 +733,22 @@ pub fn indicator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
     ANATOMY.part("indicator", "div", attrs, children)
 }
 
-/// content パーツ（`<div>`）を組み立てる。
+/// content パーツ（`<div>`）を組み立てる。[`title`]/[`description`] を
+/// 縦積み（column flex）で内包する型階層のコンテナ（イシュー #1576）。
 #[must_use]
 pub fn content<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("content", "div", attrs, children)
 }
 
-/// title パーツ（`<span>`）を組み立てる。
+/// title パーツ（`<span>`）を組み立てる。`content` 内で最上位の型階層
+/// （medium 太さ・size 連動の font-size）を担う（イシュー #1576）。
 #[must_use]
 pub fn title<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("title", "span", attrs, children)
 }
 
-/// description パーツ（`<span>`）を組み立てる。
+/// description パーツ（`<span>`）を組み立てる。`title` の下位に置く補足
+/// テキストで、size 非連動の `xs`・`fg-muted` 色を持つ（イシュー #1576）。
 #[must_use]
 pub fn description<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("description", "span", attrs, children)
@@ -878,6 +988,90 @@ mod tests {
         ));
     }
 
+    /// イシュー #1576: `content` が縦積み flex（title/description の型階層
+    /// を並べる column flex）で、`min-width: 0` によりオーバーフロー折り返し
+    /// を持つことを固定する。
+    #[test]
+    fn content_is_column_flex_with_gap_and_min_width() {
+        let out = css();
+        assert!(out.contains("display: flex;"));
+        assert!(out.contains("flex-direction: column;"));
+        assert!(out.contains("gap: var(--fandhe-space-2);"));
+        assert!(out.contains("min-width: 0;"));
+        assert!(out.contains("padding-bottom: var(--fandhe-space-6);"));
+    }
+
+    /// イシュー #1576: `item` の indicator/content 間隔が chakra-ui 基準の
+    /// `space-4`（1rem）へ拡大されていることを固定する。
+    #[test]
+    fn item_gap_uses_space_4() {
+        assert!(css().contains("gap: var(--fandhe-space-4);"));
+    }
+
+    /// イシュー #1576: `title` の base 宣言が root スコープの size 連動
+    /// custom property を `var()` で参照していることを固定する（値そのもの
+    /// は `root_size_variants_register_title_custom_properties_for_all_five_sizes`
+    /// で検証）。
+    #[test]
+    fn title_references_root_size_custom_properties() {
+        let out = css();
+        assert!(out.contains("font-size: var(--fandhe-timeline-title-font-size,"));
+        assert!(out.contains("margin-top: var(--fandhe-timeline-title-margin-top,"));
+    }
+
+    /// イシュー #1576: root の size variant（Xs〜Xl 5 段）が title 用
+    /// custom property を計画書 §2 の表どおりに登録することを固定する。
+    #[test]
+    fn root_size_variants_register_title_custom_properties_for_all_five_sizes() {
+        let out = css();
+        let expectations: &[(&str, &str, &str)] = &[
+            (
+                "fd-timeline--size-xs",
+                "--fandhe-timeline-title-font-size: var(--fandhe-font-font-size-xs);",
+                "--fandhe-timeline-title-margin-top: 0;",
+            ),
+            (
+                "fd-timeline--size-sm",
+                "--fandhe-timeline-title-font-size: var(--fandhe-font-font-size-xs);",
+                "--fandhe-timeline-title-margin-top: 0;",
+            ),
+            (
+                "fd-timeline--size-md",
+                "--fandhe-timeline-title-font-size: var(--fandhe-font-font-size-sm);",
+                "--fandhe-timeline-title-margin-top: 0;",
+            ),
+            (
+                "fd-timeline--size-lg",
+                "--fandhe-timeline-title-font-size: var(--fandhe-font-font-size-sm);",
+                "--fandhe-timeline-title-margin-top: var(--fandhe-space-1);",
+            ),
+            (
+                "fd-timeline--size-xl",
+                "--fandhe-timeline-title-font-size: var(--fandhe-font-font-size-sm);",
+                "--fandhe-timeline-title-margin-top: var(--fandhe-space-2);",
+            ),
+        ];
+        for (class, font_size_decl, margin_top_decl) in expectations {
+            let selector = format!(r#"[data-part="root"].{class}"#);
+            let start = out
+                .find(&selector)
+                .unwrap_or_else(|| panic!("selector {selector} not found in {out}"));
+            let block_end = out[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(out.len());
+            let block = &out[start..block_end];
+            assert!(
+                block.contains(font_size_decl),
+                "{class}: expected {font_size_decl} in {block}"
+            );
+            assert!(
+                block.contains(margin_top_decl),
+                "{class}: expected {margin_top_decl} in {block}"
+            );
+        }
+    }
+
     /// イシュー #1575: `separator` の既定は境界色（palette 非連動）で、
     /// `data-state="complete"` のときのみ palette 色へ切り替わることを
     /// 固定する（モジュール doc「イシュー #1575」節参照）。
@@ -941,6 +1135,47 @@ mod tests {
                 "expected indicator-font-size {value} in {out}"
             );
         }
+    }
+
+    /// イシュー #1576 / #769 同型回帰: `title`/`content`/`description` は
+    /// `class` を出力しないため、size セレクタは `root` を対象にしなければ
+    /// ならない（`[data-part="title"].fd-timeline--size-*` 等は実
+    /// レンダリング結果に一致しない死んだ CSS）。
+    #[test]
+    fn size_selector_targets_root_not_title() {
+        let out = css();
+        for part in ["title", "content", "description"] {
+            for size_class in [
+                "fd-timeline--size-xs",
+                "fd-timeline--size-sm",
+                "fd-timeline--size-md",
+                "fd-timeline--size-lg",
+                "fd-timeline--size-xl",
+            ] {
+                let dead_selector = format!(r#"[data-part="{part}"].{size_class}"#);
+                assert!(
+                    !out.contains(&dead_selector),
+                    "unexpected dead selector {dead_selector} in {out}"
+                );
+            }
+        }
+    }
+
+    /// イシュー #1576: description が xs・`fg-muted` であることを固定する。
+    #[test]
+    fn description_uses_xs_and_muted_fg() {
+        let out = css();
+        assert!(out.contains("font-size: var(--fandhe-font-font-size-xs);"));
+        assert!(out.contains("color: var(--fandhe-color-fg-muted);"));
+    }
+
+    /// イシュー #1576 意図的非採用 1（最終 item の `--timeline-content-gap:
+    /// 0` は採らない）の固定: 出力に構造擬似クラスが含まれないこと。
+    #[test]
+    fn css_output_has_no_structural_pseudo_classes() {
+        let out = css();
+        assert!(!out.contains(":last-child"));
+        assert!(!out.contains(":first-child"));
     }
 
     /// イシュー #1575: `data-state` に対する状態セレクタが `indicator`/
