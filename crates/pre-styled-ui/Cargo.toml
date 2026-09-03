@@ -978,16 +978,32 @@ name = "fandhe-frontend-pre-styled-ui"
 # `root(size, shape, attrs, children)` から `root(&AvatarProps, attrs,
 # children)` へ変更する破壊的変更（`AvatarVariant`/`ColorPalette` 軸の
 # 追加に伴う Props 構造体化）のため minor バンプする（0.x の破壊的変更は
-# マイナーバンプの規約）。base（main）側で #1554 が独立に 0.66.0 へ
+# マイナーバンプの規約）。
+# イシュー #1555: `BadgeVariant` へ `Surface` variant を追加する公開 enum
+# への variant 追加（利用者の網羅 `match` を壊す 0.x 破壊的変更）のため
+# minor バンプする（#1448 の `ButtonVariant::Surface` 追加時と同型判断。
+# 0.66.0 → 0.67.0）。
+# イシュー #1553: alert のスタイルを参考サイト基準へ調整。`alert::root` の
+# シグネチャを `AlertStatus` 単独引数から `&AlertProps`（`status`/`variant`/
+# `size` の 3 軸）へ変更する破壊的変更のため minor バンプする
+# （0.65.1 → 0.66.0）。base（main）側で #1554 が独立に 0.66.0 へ
 # 到達済みだったため、本イシュー（#1553）の変更を統合した結果として
-# 0.67.0 へさらにマイナーバンプする（0.x の破壊的変更はマイナーバンプの
+# 0.67.0 へさらにマイナーバンプした。上記 #1555（本ブランチ側）も
+# merge base（0.66.0）から独立に 0.67.0 へ到達していたため、main
+# （#1553 の 0.67.0）とのマージにより双方の実体変更を統合した結果として
+# 0.68.0 へさらにマイナーバンプする（0.x の破壊的変更はマイナーバンプの
 # 規約。同一版数への偶発的衝突をそのまま採用しない）。
 # イシュー #1556: callout のスタイルを参考サイト基準（Radix Themes
 # Callout）へ調整し、`text(size, attrs, children)` から `size` 引数を削除
 # する破壊的変更（root の `--fandhe-callout-font-size` custom property から
 # 継承する一本化）を加えたため minor バンプする（0.x の破壊的変更は
-# マイナーバンプの規約）。
-version = "0.68.0"
+# マイナーバンプの規約。merge base（0.67.0）から独立に 0.68.0 へ到達）。
+# 一方 main 側では #1826（badge のスタイルを参考サイト基準へ調整、#1555
+# の 0.67.0 到達分を含む）が独立に merge base（0.67.0）から 0.68.0 へ
+# 到達済みだったため、本イシュー（#1556）とのマージにより双方の実体変更を
+# 統合した結果として 0.69.0 へさらにマイナーバンプする（0.x の破壊的変更は
+# マイナーバンプの規約。同一版数への偶発的衝突をそのまま採用しない）。
+version = "0.69.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

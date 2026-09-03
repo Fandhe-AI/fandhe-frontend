@@ -1245,12 +1245,13 @@ fn download_trigger_section() -> Node {
     )
 }
 
-/// Badge 節: variant × palette。
+/// Badge 節: variant × palette × size。
 fn badge_section() -> Node {
     let variants = [
         (BadgeVariant::Solid, "Solid"),
         (BadgeVariant::Subtle, "Subtle"),
         (BadgeVariant::Outline, "Outline"),
+        (BadgeVariant::Surface, "Surface"),
     ];
     let variant_row = row(variants
         .iter()
@@ -1283,10 +1284,32 @@ fn badge_section() -> Node {
             )
         })
         .collect());
+    // イシュー #1555: size 5 段を目視確認できるようにする（spinner_section
+    // と同型）。
+    let sizes = [
+        (Size::Xs, "Xs"),
+        (Size::Sm, "Sm"),
+        (Size::Md, "Md"),
+        (Size::Lg, "Lg"),
+        (Size::Xl, "Xl"),
+    ];
+    let size_row = row(sizes
+        .iter()
+        .map(|(size, label)| {
+            badge::badge(
+                &BadgeProps {
+                    size: *size,
+                    ..BadgeProps::default()
+                },
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
     section(
         "Badge",
-        "ステータス表示向けの小型ラベル。variant と colorPalette を組み合わせます。",
-        vec![variant_row, palette_row],
+        "ステータス表示向けの小型ラベル。variant と colorPalette、size を組み合わせます。",
+        vec![variant_row, palette_row, size_row],
     )
 }
 
