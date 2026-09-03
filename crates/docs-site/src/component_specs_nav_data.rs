@@ -687,15 +687,15 @@ fn ex_stat() -> Node {
 
 pub(crate) const STAT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "label/value-text/value-unit/help-text/up-indicator/down-indicator の 6 パーツで指標表示を構造化する（crates/pre-styled-ui/src/stat.rs:223-260）",
-        "up-indicator/down-indicator は装飾用途のため aria-hidden=\"true\" を固定付与する（stat.rs:17, 247-260）",
-        "呼び出し側が aria-hidden を渡してもフレームワーク値の後に連結される（stat.rs:303-311）",
+        "label/value-text/value-unit/help-text/up-indicator/down-indicator の 6 パーツで指標表示を構造化する（crates/pre-styled-ui/src/stat.rs:314-362）",
+        "up-indicator/down-indicator は装飾用途のため aria-hidden=\"true\" を固定付与する（stat.rs:17, 348-362）",
+        "呼び出し側が aria-hidden を渡してもフレームワーク値の後に連結される（stat.rs:442-449）",
     ],
     arguments: &[ArgRow {
         name: "size",
         kind: "Size",
         default: "Md",
-        description: "root（dl）のサイズ（stat.rs:213-221）。",
+        description: "root（dl）のサイズ（xs〜xl、既定 md。chakra-ui の sm/md/lg は本実装の Sm/Md/Lg に対応、stat.rs:158-256）。",
     }],
     examples: &[ExampleEntry {
         title: "Revenue",
@@ -705,7 +705,7 @@ pub(crate) const STAT: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-hidden=\"true\"（up-indicator/down-indicator のみ）",
-        description: "装飾用途の増減インジケータに固定付与される（stat.rs:17, 247-260）。root/label/value-text 自体は固有の ARIA を出力しない。",
+        description: "装飾用途の増減インジケータに固定付与される（stat.rs:17, 348-362）。root/label/value-text 自体は固有の ARIA を出力しない。",
     }],
     demo: None,
 };
