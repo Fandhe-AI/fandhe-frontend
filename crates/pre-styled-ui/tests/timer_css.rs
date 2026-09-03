@@ -12,6 +12,7 @@ const TIMER_GOLDEN_CSS: &str = r#"[data-scope="timer"][data-part="root"] {
   flex-direction: column;
   align-items: center;
   gap: var(--fandhe-space-4);
+  --fandhe-timer-value-color: var(--fandhe-color-fg);
 }
 
 [data-scope="timer"][data-part="area"] {
@@ -63,14 +64,14 @@ const TIMER_GOLDEN_CSS: &str = r#"[data-scope="timer"][data-part="root"] {
   justify-content: center;
   gap: var(--fandhe-space-2);
   box-sizing: border-box;
-  min-height: var(--fandhe-size-control-height-sm);
-  padding: 0 var(--fandhe-size-control-padding-x-sm);
+  min-height: var(--fandhe-size-control-height-sm, 2.25rem);
+  padding: 0 var(--fandhe-size-control-padding-x-sm, 0.75rem);
   border: 1px solid var(--fandhe-color-border);
   border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   font-family: var(--fandhe-font-font-body);
-  font-size: var(--fandhe-size-control-font-size-sm);
+  font-size: var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm));
   font-weight: var(--fandhe-font-font-weight-medium);
   cursor: pointer;
   --fandhe-hover-bg: var(--fandhe-color-bg-muted);

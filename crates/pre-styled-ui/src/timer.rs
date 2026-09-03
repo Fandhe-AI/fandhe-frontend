@@ -44,10 +44,17 @@
 //! 追加しないと確定）ため、`root` の `completed` 状態を `item-value` の
 //! 色へ伝えるには custom property の間接参照を使う（[`crate::table`] の
 //! `--fandhe-table-stripe-bg`・[`crate::qr_code`]・[`crate::splitter`] と
-//! 同型）。`root[data-state="completed"]` が `--fandhe-timer-value-color` を
-//! 強調色へ再定義し、`item-value` の base 規則がこの変数をフォールバック
-//! 付きで参照する。旧実装は `item-value[data-state="completed"]` を
-//! 直接参照していたが、headless 側（`crates/headless-ui/src/timer.rs`）は
+//! 同型）。`root` の base 規則が `--fandhe-timer-value-color` を既定色
+//! （`var(--fandhe-color-fg)`）へ必ず初期化し、`root[data-state="completed"]`
+//! がこれを強調色へ上書きし、`item-value` の base 規則がこの変数を
+//! フォールバック付きで参照する（フォールバックは変数を一度も定義しない
+//! 利用者カスタムテーマ向けの保険であり、root 側の初期化とは独立に必要）。
+//! root base での初期化を欠くと、CSS custom property の継承により
+//! completed な Timer の内側へ idle/running な別 Timer をネストした際、
+//! 内側 root が変数をリセットせず item-value まで外側の accent 色を
+//! 引き継いでしまう（codex-review 指摘、本イシューで是正）。旧実装は
+//! `item-value[data-state="completed"]` を直接参照していたが、headless 側
+//! （`crates/headless-ui/src/timer.rs`）は
 //! `data-state` を root にしか出力しないため、この規則は描画された HTML に
 //! 一度もマッチしない欠陥だった（本イシューで是正）。
 //!
@@ -110,6 +117,14 @@ fn recipe() -> SlotRecipe {
                 decl("flex-direction", "column"),
                 decl("align-items", "center"),
                 decl("gap", "var(--fandhe-space-4)"),
+                // completed 以外の既定値を root ごとに必ず初期化する
+                // （CSS custom property はカスケード継承されるため、
+                // completed な Timer の内側へ idle/running な別 Timer を
+                // ネストすると、初期化しない限り外側 root の completed
+                // 上書きが継承されたまま残り、内側の item-value まで
+                // accent 色になってしまう。completed の `.state` 規則で
+                // のみこの値を上書きする）。
+                decl("--fandhe-timer-value-color", "var(--fandhe-color-fg)"),
             ],
         )
         .base(
@@ -182,14 +197,23 @@ fn recipe() -> SlotRecipe {
                 decl("justify-content", "center"),
                 decl("gap", "var(--fandhe-space-2)"),
                 decl("box-sizing", "border-box"),
-                decl("min-height", "var(--fandhe-size-control-height-sm)"),
-                decl("padding", "0 var(--fandhe-size-control-padding-x-sm)"),
+                decl(
+                    "min-height",
+                    "var(--fandhe-size-control-height-sm, 2.25rem)",
+                ),
+                decl(
+                    "padding",
+                    "0 var(--fandhe-size-control-padding-x-sm, 0.75rem)",
+                ),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("font-family", "var(--fandhe-font-font-body)"),
-                decl("font-size", "var(--fandhe-size-control-font-size-sm)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-size-control-font-size-sm, var(--fandhe-font-font-size-sm))",
+                ),
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
                 decl("cursor", "pointer"),
                 hover_bg_muted(),
@@ -271,6 +295,23 @@ mod tests {
         assert!(css.contains("--fandhe-timer-value-color: var(--fandhe-color-accent);"));
         // item-value の base 規則がフォールバック付きで同変数を参照する。
         assert!(css.contains("color: var(--fandhe-timer-value-color, var(--fandhe-color-fg));"));
+    }
+
+    #[test]
+    fn root_base_initializes_value_color_to_prevent_nested_completed_leak() {
+        let css = stylesheet();
+        // root の base 規則（completed 修飾なし）が既定色で初期化する。
+        // CSS custom property は継承されるため、これがないと completed な
+        // Timer の内側にネストした idle/running な別 Timer の item-value
+        // まで外側の accent 色を引き継いでしまう（codex-review P1 回帰）。
+        let root_base_start = css
+            .find(r#"[data-scope="timer"][data-part="root"] {"#)
+            .expect("root の base 規則が出力される");
+        let root_base_end = css[root_base_start..]
+            .find('}')
+            .expect("root の base 規則は閉じる");
+        let root_base_block = &css[root_base_start..root_base_start + root_base_end];
+        assert!(root_base_block.contains("--fandhe-timer-value-color: var(--fandhe-color-fg);"));
     }
 
     #[test]
