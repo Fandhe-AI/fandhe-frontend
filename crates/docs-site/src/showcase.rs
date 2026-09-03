@@ -6928,8 +6928,7 @@ fn icon_section() -> Node {
     )
 }
 
-/// Table 節: variant（line/outline）・size（xs〜xl）・striped・sticky_header
-/// の各軸とスクロール枠（`scroll_area`、イシュー #1572）。
+/// Table 節: variant（line/outline）・size（sm/md/lg）・striped の各軸。
 fn table_section() -> Node {
     fn sample_table(props: TableProps) -> Node {
         table::root(
@@ -6991,6 +6990,9 @@ fn table_section() -> Node {
             ..TableProps::default()
         }),
     ]);
+    // イシュー #1572: size の全 5 段（Xs〜Xl）を実演する（padding が
+    // `--fandhe-space-*` トークン化されたことを Demo でも確認できるように
+    // する、`table.rs` モジュール doc「variant について」節参照）。
     let size_demo = stack(vec![
         sample_table(TableProps {
             size: Size::Xs,
@@ -7017,25 +7019,19 @@ fn table_section() -> Node {
         striped: true,
         ..TableProps::default()
     })]);
-
-    // イシュー #1572: `scroll_area` でスクロール枠を作り `sticky_header` と
-    // 組み合わせる実演デモ（`table.rs` モジュール doc「スクロール枠の実装」
-    // 節参照）。行数の多いテーブルを有界の枠内に置き、実際にスクロールした
-    // 際に `column-header` が固定されることを目視確認できるようにする
-    // （1/2 のイシュー #1571 が残した class 出力確認のみのデモを置き換え）。
-    fn many_rows_table(props: TableProps) -> Node {
-        let names = [
-            ("Alice", "alice@example.com", "Admin"),
-            ("Bob", "bob@example.com", "Member"),
-            ("Carol", "carol@example.com", "Member"),
-            ("Dave", "dave@example.com", "Member"),
-            ("Erin", "erin@example.com", "Member"),
-            ("Frank", "frank@example.com", "Member"),
-            ("Grace", "grace@example.com", "Member"),
-            ("Heidi", "heidi@example.com", "Member"),
-        ];
-        table::root(
-            props,
+    // イシュー #1572: `scroll_area` + `sticky_header: true` を組み合わせた
+    // Demo。行数を増やしてスクロール枠内で見出し行が上端固定されることを
+    // 視覚的に確認できるようにする（`table.rs` モジュール doc「sticky
+    // ヘッダーの実装」節・「`scroll-area` パーツ」節参照）。Anatomy 表・
+    // `data-*` 属性表はこの Demo から機械導出されるため、`scroll-area` を
+    // 必ず含める。
+    let scroll_area_demo = stack(vec![table::scroll_area(
+        vec![("style", "--fandhe-table-scroll-max-height: 12rem")],
+        vec![table::root(
+            TableProps {
+                sticky_header: true,
+                ..TableProps::default()
+            },
             vec![],
             vec![
                 table::header(
@@ -7051,34 +7047,26 @@ fn table_section() -> Node {
                 ),
                 table::body(
                     vec![],
-                    names
-                        .into_iter()
-                        .map(|(name, email, role)| {
+                    (1..=10)
+                        .map(|n| {
                             table::row(
                                 vec![],
                                 vec![
-                                    table::cell(vec![], vec![text(name)]),
-                                    table::cell(vec![], vec![text(email)]),
-                                    table::cell(vec![], vec![text(role)]),
+                                    table::cell(vec![], vec![text(format!("User {n}"))]),
+                                    table::cell(vec![], vec![text(format!("user{n}@example.com"))]),
+                                    table::cell(vec![], vec![text("Member")]),
                                 ],
                             )
                         })
                         .collect(),
                 ),
             ],
-        )
-    }
-    let scroll_area_demo = stack(vec![table::scroll_area(
-        vec![("style", "max-height: 10rem;")],
-        vec![many_rows_table(TableProps {
-            sticky_header: true,
-            ..TableProps::default()
-        })],
+        )],
     )]);
 
     section(
         "Table",
-        "table/thead/tbody/tfoot/tr/th/td/caption/scroll-area の HTML 意味論を尊重した表組み。variant（line / outline）・size（xs〜xl）・striped・sticky_header の 4 軸 variant と、scroll_area によるスクロール枠を持ちます。",
+        "table/thead/tbody/tfoot/tr/th/td/caption の HTML 意味論を尊重した表組み。variant（line / outline）・size（xs 〜 xl）・striped・sticky_header の 4 軸 variant と、scroll_area（chakra Table.ScrollArea 相当のスクロール枠）を持ちます。",
         vec![variant_demo, size_demo, striped_demo, scroll_area_demo],
     )
 }

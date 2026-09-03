@@ -1,8 +1,8 @@
 //! styled Table（イシュー #767）: slot recipe 静的部品。root/header/body/
 //! footer/row/column-header/cell/caption/scroll-area の 9 パーツで
-//! `table`/`thead`/`tbody`/`tfoot`/`tr`/`th`/`td`/`caption`/`div`（scroll-area）
-//! の HTML 意味論をそのまま尊重する（chakra-ui `data-display/table` 相当。
-//! `scroll-area` はイシュー #1572 で追加、下記「スクロール枠の実装」節参照）。
+//! `table`/`thead`/`tbody`/`tfoot`/`tr`/`th`/`td`/`caption`/`div`
+//! （`scroll-area`、下記「`scroll-area` パーツ」節参照）の HTML 意味論を
+//! そのまま尊重する（chakra-ui `data-display/table` 相当）。
 //!
 //! [`crate::card`]・[`crate::alert`] と同型の「状態機械を持たない静的
 //! styled 部品」であり、`fandhe-frontend-headless-ui` 側に対応する anatomy は
@@ -20,17 +20,16 @@
 //! #1571 で実装した）:
 //!
 //! - [`TableVariant`]: `Line`（既定、行ごとの下線区切り）/ `Outline`
-//!   （外枠 + 角丸 + 内側の行罫線 + muted ヘッダー背景。イシュー #1572 で
-//!   chakra-ui `outline` / Radix Themes `surface` 基準へ是正、下記
-//!   「`Outline` の実装（イシュー #1572）」節参照）。
+//!   （外枠 + 角丸）。参照サイトとの対応は chakra-ui `line`≈`Line` /
+//!   `outline`≈`Outline`、Radix Themes Table `ghost`≈`Line` /
+//!   `surface`≈`Outline`（イシュー #1572 実測。両参照サイトとも 2 語彙のみで
+//!   本クレートの 2 variant に過不足がないため、新規 variant は追加しない）。
 //! - `size`（[`crate::recipe::Size`]）: セルの padding・font-size を切り替える
-//!   （`Xs`〜`Xl` の 5 段、イシュー #1572 で `--fandhe-space-*` トークン参照へ
-//!   置換。値そのものは #1571/#1681 から不変）。
+//!   （padding は `--fandhe-space-*` トークン、イシュー #1572 で
+//!   リテラル値からトークン化した。font-size 写像は #1681 のまま）。
 //! - `striped`（`bool`）: 縞模様表示。有効時は本文行の背景色を交互に変える。
 //! - `sticky_header`（`bool`）: 有効時、`column-header`（`th`）を
 //!   `position: sticky; top: 0` にする（下記「sticky ヘッダーの実装」節参照）。
-//!   有界のスクロール枠内で視覚的に固定させるには [`scroll_area`] と組み合わせる
-//!   （下記「スクロール枠の実装（イシュー #1572）」節参照）。
 //!
 //! クラスは `root` パーツのみへ付与する（複合部品の variant 統一方針、
 //! `crates/pre-styled-ui/src/lib.rs` §「複合部品の variant 統一方針」参照）。
@@ -92,9 +91,81 @@
 //! コンテナ（`overflow-y: auto` 等のスクロール枠）に包まれていない限り、
 //! `sticky_header` はページ全体のスクロールでのみ効果を持つ（これは
 //! `position: sticky` 自体の一般的な性質であり `Outline`/`Line` を問わない）。
-//! スクロール可能な枠と組み合わせて `sticky_header` を有界コンテナ内で
-//! 実演するには [`scroll_area`] を使う（下記「スクロール枠の実装
-//! （イシュー #1572）」節参照）。
+//! スクロール枠との連携（chakra `ScrollArea` 相当）は下記「`scroll-area`
+//! パーツ」節（イシュー #1572）を参照。
+//!
+//! # caption（イシュー #1572）
+//!
+//! chakra-ui Table の `Table.Caption`（`font-weight: medium`・`textStyle:
+//! xs`・既定 `captionSide: bottom`）を基準に是正した（Radix Themes
+//! Table は caption 相当を持たない）。`caption-side: bottom` は既存どおり
+//! 維持する（chakra 既定と一致し、`top` は参照側でも明示指定例のみ）。
+//! `text-align: inherit` を追加し、`<caption>` の UA 既定である中央揃えを
+//! 打ち消して `root` の `text-align: left`（`column-header` と同じ
+//! `inherit` パターン）に揃える。`caption-side`（top/bottom）の切り替え
+//! API は本イシューでは追加しない（下記「スコープ外」節参照）。
+//!
+//! # `Outline` variant の行罫線・ヘッダー背景の是正（イシュー #1572）
+//!
+//! イシュー #1571 実装時点の `Outline` は `--fandhe-table-row-border: none`
+//! （行罫線なし）・ヘッダー背景を `Line` と共通の `bg` としていたが、
+//! chakra-ui `outline`（行罫線維持・`bg.subtle` 相当のヘッダー背景）・
+//! Radix Themes `surface`（行罫線維持・panel 系のヘッダー背景）のいずれとも
+//! 一致しなかった。本イシューで `Outline` の行罫線を `Line` と同値
+//! （`1px solid var(--fandhe-color-border-muted)`）へ戻し、ヘッダー背景を
+//! `column-header` base が消費する `--fandhe-table-header-bg` custom
+//! property（`Line` は `var(--fandhe-color-bg)`、`Outline` は
+//! `var(--fandhe-color-bg-subtle)`）で variant ごとに切り替える。
+//!
+//! 行罫線を維持すると、`Outline` の外枠下端と body 最終行の `cell`
+//! `border-bottom` が二重線になる。これを避けるため `--fandhe-table-
+//! last-row-border` custom property（`Line` はリテラル `1px solid
+//! var(--fandhe-color-border-muted)`〔`--fandhe-table-row-border` と同値だが
+//! `var()` を介した循環参照を避けるためリテラルで独立させる〕、`Outline` は
+//! `none`）を新設し、`row` slot の [`crate::recipe::StateCondition::LastChild`]
+//! 規則が `--fandhe-table-row-border` をこの値で上書きする（`cell` の
+//! `border-bottom` は継承で消費、`SlotRecipe` が子孫セレクタを持たない
+//! 制約下での既存パターン、上記「variant について」節参照）。
+//!
+//! **トレードオフ**: `:last-child` は `thead`/`tbody`/`tfoot` 各行グループ
+//! 内で個別に数えるため、`Outline` + `footer`（`tfoot`）併用時は body 最終行
+//! （`tbody` の最終 `tr`）の罫線も消える。`Line` では `last-row-border` が
+//! 通常の `row-border` と同値のため影響がない。chakra-ui `outline` も
+//! 同じ挙動（最終行の border を 0 にする）であり、参照サイトへ揃える判断
+//! として記録する。
+//!
+//! # `scroll-area` パーツ（chakra `Table.ScrollArea` 相当、イシュー #1572）
+//!
+//! [`scroll_area`] は headless-ui に対応物を持たない pre-styled-ui 専用
+//! パーツで、[`crate::steps::body`]（PR #1814）と同型の判断（状態機械を
+//! 伴わないグルーピング div は headless 側に anatomy を新設せず
+//! pre-styled-ui 側で完結させる）を踏襲する。`crate::scroll_area`
+//! （headless ScrollArea ラッパー、`data-state` 等を持つ状態機械付き
+//! パーツ）は使わない。chakra `Table.ScrollArea` 自体が状態を持たない素の
+//! `overflow: auto` ボックスであり、本パーツも状態を持たないため
+//! （利用側が別途 `crate::scroll_area` で包む構成も引き続き可能）。
+//!
+//! `overflow: auto` によりスクロールコンテナ化する（`root` の `Outline`
+//! クリップが `overflow` ではなく `clip-path` を使う理由〔上記
+//! 「`Outline` の角丸クリップに `overflow` を使わない理由」節〕とは独立:
+//! `scroll-area` は `root` を包む外側の要素であり、`root` 自身の
+//! スクロール祖先化は起こさない）。高さは既定 `none`（無制限）で、利用側が
+//! `--fandhe-table-scroll-max-height` custom property を上書きして
+//! 与える（`Declaration::value` が `&'static str` のみのため props で数値を
+//! 直接受けられない、[`css::decl`](crate::css::decl) の制約）。
+//! `sticky_header` との関係: `scroll-area` が `root` にとって最も近い
+//! スクロール祖先となり、`column-header` の `position: sticky` がこの
+//! スクロールポート内で上端固定される。`border`/`border-radius` は
+//! `scroll-area` に付与しない（外枠は `Outline` variant の責務、chakra も
+//! 利用側 props に委ねる）。
+//!
+//! フォーカスリングは [`crate::recipe::FocusRingOffset::Inset`]
+//! （splitter/listbox/scroll-area 系の inset 規約、
+//! `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3）を
+//! `:focus-visible` へ適用する。`tabindex` は固定付与しない（スクロール枠を
+//! キーボード到達可能にするかは利用側の判断に委ねる。`tabindex="0"` +
+//! `aria-label` を渡した場合や、キーボードでスクロール可能な要素として
+//! ブラウザが自動的に focusable にする場合〔Chromium 等〕にリングが出る）。
 //!
 //! # `Outline` の角丸クリップに `overflow` を使わない理由（イシュー #1571
 //! codex-review P1 是正）
@@ -115,96 +186,6 @@
 //! 参照しないインライン `clip-path`」パターンをここでも踏襲し、
 //! 半径は `border-radius` 宣言と同じ `--fandhe-radius-lg` custom property
 //! を参照することで両宣言の齟齬を防ぐ。
-//!
-//! # `Outline` の実装（イシュー #1572）
-//!
-//! chakra-ui `outline` variant（Radix Themes `surface` に相当、下記
-//! 「意図的に参照サイトへ合わせなかった点」節参照）は「外枠 + 角丸」に加えて
-//! 「内側の行罫線」「muted なヘッダー背景」「最終行の罫線なし（外枠と
-//! 二重にしない）」「`tfoot` 上の区切り線」を持つ。[`crate::recipe::SlotRecipe`]
-//! は子孫セレクタを持たないため、これらは上記「variant について」節と同じ
-//! 「`root` スコープの custom property を葉 slot が消費する」パターンで
-//! 表現する:
-//!
-//! - `--fandhe-table-row-border`（既存）: `Line`/`Outline` とも
-//!   `1px solid var(--fandhe-color-border-muted)`（`Outline` はイシュー
-//!   #1572 で `none` から変更し、内側の行罫線を持たせた）。`cell` base が
-//!   `border-bottom` として消費する。
-//! - `--fandhe-table-last-row-border`（新設）: `Line` は
-//!   `1px solid var(--fandhe-color-border-muted)`（chakra line は最終行にも
-//!   罫線を引く）、`Outline` は `none`（外枠と二重の罫線にしない）。
-//!   [`css`] が `recipe().css()` の後段へ追記する子孫セレクタ規則
-//!   （PR #1844 codex-review P1 是正、[`css`] rustdoc 参照）が
-//!   `--fandhe-table-row-border` をこの値で上書きし、表全体で本当に
-//!   最後の行（`tfoot` があればその最終行、無ければ最後の `tbody` の
-//!   最終行）の `cell` へ継承させる。当初は `row` slot への
-//!   `[`crate::recipe::StateCondition::LastChild`]` state 規則
-//!   （`:last-child`）だったが、`:last-child` は「直接の親の中での
-//!   最後」を意味するため複数 `tbody` 構成では中間グループの最終行にも
-//!   誤って一致していた（codex-review 指摘）。`tr` 自体は `separate`
-//!   border モデル下で border を描画できないが（上記「variant について」
-//!   節参照）、custom property は通常どおり子孫の `td`/`th` へ継承される
-//!   ため、この経路で最終行の罫線だけを選択的に変えられる。
-//! - `--fandhe-table-header-border`（新設）: `Line`/`Outline` とも
-//!   `1px solid var(--fandhe-color-border)`（従来の固定値と同じ）。
-//!   `column-header` base が `border-bottom` として消費する。
-//! - `--fandhe-table-header-bg`（新設）: `Line` は
-//!   `var(--fandhe-color-bg)`（従来の固定値と同じ）、`Outline` は
-//!   `var(--fandhe-color-bg-muted)`（chakra `bg.muted` / Radix `gray-a2`
-//!   相当）。`column-header` base が `background` として消費する。トークンは
-//!   不透明な hex 値のため、sticky ヘッダー使用時に背後の本文行が透ける
-//!   ことはない（上記「sticky ヘッダーの実装」節の不変条件を維持）。
-//! - `--fandhe-table-footer-border`（新設）: `Line` は `none`
-//!   （従来どおり `tfoot` に区切り線を持たない）、`Outline` は
-//!   `1px solid var(--fandhe-color-border-muted)`（chakra outline の
-//!   `tfoot` `border-top` 相当）。[`css`] が追記する
-//!   `[data-part="footer"] [data-part="row"]:first-child` 限定規則が
-//!   `--fandhe-table-cell-border-top` custom property 経由で `cell` へ
-//!   伝え、`cell` base の `border-top` が消費する（`tfoot` 自体は border を
-//!   描画できないため、`tfoot` 配下の `td` へ委譲する構成。上記
-//!   `--fandhe-table-last-row-border` と対称的なパターン）。`:first-child`
-//!   限定は PR #1844 Cursor Bugbot Low severity 是正: `footer`（`tfoot`）
-//!   自身に custom property を設定すると複数行 `tfoot` の全行へ継承され、
-//!   各行の `cell` が同じ `border-top` を描いて区切り線が重複してしまう
-//!   ため、最初の行だけへ限定する（[`css`] rustdoc 参照）。
-//!
-//! `row` slot は [`crate::recipe::StateCondition::NthChildEven`]（striped）
-//! の 1 状態規則のみを持つ（最終行の罫線上書きは上述のとおり [`css`] の
-//! 手書き子孫セレクタ規則へ切り出し済み、PR #1844 是正）。
-//!
-//! Radix Themes との対応: `surface` ≒ `Outline`（外枠 + 角丸 + muted
-//! ヘッダー）、`ghost` ≒ `Line`（枠なし）。Radix の `--table-cell-min-height`
-//! （セル高さの下限固定）・chakra outline の `box-shadow` によるリング枠
-//! 表現は採らない（本クレートは `border` 宣言を一貫して使う、下記
-//! 「意図的に参照サイトへ合わせなかった点」節参照）。
-//!
-//! # スクロール枠の実装（イシュー #1572）
-//!
-//! [`scroll_area`] は chakra-ui `Table.ScrollArea`（素の `div` に
-//! `overflow-x: auto; max-width: 100%` を持たせたもの）相当の新設 9 番目の
-//! パーツ（`data-part="scroll-area"`）。`header`/`body` と同型の
-//! variant を持たない slot（`class` を付与せず呼び出し側 `attrs` を
-//! そのまま連結する）として実装し、[`crate::scroll_area`]（viewport が
-//! root の高さへ連動する headless anatomy）とは合成しない。
-//!
-//! base 規則は `display: block`・`overflow: auto`・`max-width: 100%`・
-//! `max-height: var(--fandhe-table-scroll-area-max-height, none)`・
-//! `scrollbar-width: thin`・`scrollbar-color:
-//! var(--fandhe-color-border) transparent`（[`crate::scroll_area`] の
-//! viewport 装飾と揃える）。既定では `max-height` を持たないため
-//! （`none`）、有界のスクロール枠として機能させるには呼び出し側が
-//! `style` 属性や `--fandhe-table-scroll-area-max-height` の上書きで
-//! `max-height` を与える必要がある（`position: sticky` は最も近い
-//! スクロール祖先の中でのみ効くため、`sticky_header` を視覚的に確認する
-//! にはこの有界化が必須）。枠線・角丸は付けない（`Outline` の `table` を
-//! 包むと二重枠になるため。必要なら呼び出し側の `attrs` で付与する）。
-//!
-//! `Outline` variant の角丸クリップ（`clip-path`、上記「`Outline` の角丸
-//! クリップに `overflow` を使わない理由」節参照）は `table` 自身の box に
-//! 対する視覚的なクリップであり、`scroll-area` の `overflow: auto` とは
-//! 独立した宣言のため、`scroll_area` で `table` を包んでも `sticky_header`
-//! は `scroll-area` を祖先スクロールコンテナとして機能し続ける（`table`
-//! 自身はスクロールコンテナ化しないため矛盾しない）。
 //!
 //! # 意図的に参照サイトへ合わせなかった点（イシュー #1571・#1572）
 //!
@@ -230,31 +211,22 @@
 //!   `data-*` の生産者を持たない静的部品であるため追加しない
 //!   （消費側規則だけを追加すると `data_attr_vocabulary.rs` が管理しない
 //!   暗黙契約を生む）。
-//! - **`Outline` フッターの区切り線を `tfoot` ではなく `td` へ持たせる
-//!   実装経路**: chakra-ui は `tfoot` に `border-top` を持つが、`root` の
-//!   `border-collapse: separate` モデル下では `tfoot`（`footer` slot）
-//!   への border 指定はブラウザに無視される（上記「cell」base の PR #811
-//!   不変条件と同型）。イシュー #1572 で `Outline` に区切り線そのものは
-//!   追加したが、`footer` → `cell` の custom property 委譲（上記
-//!   「`Outline` の実装」節参照）で表現し、`footer` slot 自体に `border`
-//!   宣言は持たせない。
-//! - **size 段階数（5）と Md の非対称 padding**: chakra-ui は
-//!   `sm`/`md`/`lg` の 3 段（px/py が独立、`md` は `0.75rem`/`0.75rem` の
-//!   対称）、Radix Themes は `1`/`2`/`3` の 3 段（各段とも全辺同一の
-//!   space token）。本クレートはイシュー #1678 の判断で `Xs`〜`Xl` の 5 段
-//!   を採用し、#1571/#1681 で決めた等差進行（縦方向より横方向を大きくする
-//!   非対称 padding、`Md` も `0.75rem 1rem` のまま）を崩さない。イシュー
-//!   #1572 は生値をトークン参照へ置換するのみで、段階数・値そのものは
-//!   変更しない。
-//! - **caption の上側配置**: chakra `captionSide="top"` 相当の型付き引数は
-//!   追加しない（[`caption`] のシグネチャ変更は 0.x の破壊的変更を伴う
-//!   ため、別イシューでの判断に委ねる。呼び出し側は `attrs` へ
-//!   `("style", "caption-side: top;")` を渡すことで実現できる）。
-//! - **`Outline` の枠表現**: Radix Themes `surface` はセル高さの下限を
-//!   `--table-cell-min-height` で固定し、chakra `outline` はリング状の
-//!   `box-shadow` で外枠を表現するケースがあるが、本クレートは #767 から
-//!   一貫して `border` 宣言を使う（他の styled 部品との実装パターン
-//!   統一を優先）。
+//! - **フッターの区切り線**: chakra-ui は `tfoot` に `border-top` を持つが、
+//!   `root` の `border-collapse: separate` モデル下では `tfoot`（`footer`
+//!   slot）への border 指定はブラウザに無視される（上記「cell」base の
+//!   PR #811 不変条件と同型）。body/footer の視覚的な区切りは body 最終行の
+//!   `cell` が持つ `border-bottom` に委ねる。
+//! - **size の段階数**: chakra-ui は 3 段（`sm`/`md`/`lg`）、Radix Themes は
+//!   3 段（`1`/`2`/`3`）だが、本クレートは他の pre-styled-ui 部品と共通の
+//!   `size`（[`crate::recipe::Size`]、Xs〜Xl の 5 段）を使う（`docs/design/
+//!   pre-styled-ui-size-and-color-palette-axes.md` §3.1 の共通 enum 規約。
+//!   イシュー #1681/#1714 で追加済み、本イシューでは padding のトークン化
+//!   のみを行った）。
+//! - **`Outline` の背景・影**: Radix Themes `surface` は panel 系の背景色・
+//!   微弱な inset shadow を持つが、本クレートの `Outline` は既存どおり
+//!   `border` + `border-radius`（+ 本イシューで追加した `--fandhe-table-
+//!   header-bg`）のみで、root 全体への背景・box-shadow は追加しない
+//!   （chakra `outline` が背景・影を持たないことを優先した判断）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -273,25 +245,26 @@
 //!   （[`checkbox_card`](crate::checkbox_card) の `drop_reserved` と同型の
 //!   fail-closed 判断。重複 `scope` 属性による無効な HTML・意味論の後勝ち
 //!   混乱を防ぐ）。
-//! - [`scroll_area`] は variant を持たないため recipe 生成クラスを持たず
-//!   （[`header`]/[`body`] と同型の契約）、呼び出し側 `attrs`（`class` を
-//!   含む）をそのまま [`Anatomy::part`] へ連結する。children はノード木
-//!   経由で受け取り、`render()` の既定エスケープを必ず経由する。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - chakra-ui の `interactive`（クリック可能行のホバー装飾）・
-//!   `showColumnBorder`・`ColumnGroup`（`colgroup`/`col`）は本クレートの
-//!   スコープ外（PR 本文に記録）。`stickyHeader` はイシュー #1571 で
-//!   実装済み（上記「sticky ヘッダーの実装」節参照）。`ScrollArea` 相当は
-//!   イシュー #1572 で [`scroll_area`] として実装済み（上記「スクロール枠
-//!   の実装」節参照）。
+//!   `showColumnBorder`・`ColumnGroup`（`colgroup`/`col`）は本イシュー
+//!   （#1572）のスコープ外（PR 本文に記録）。`stickyHeader` はイシュー
+//!   #1571・`ScrollArea` 連携（[`scroll_area`]）はイシュー #1572 で実装済み
+//!   （上記「sticky ヘッダーの実装」節・「`scroll-area` パーツ」節参照）。
+//! - `caption-side`（top/bottom）の切り替え API・[`scroll_area`] への
+//!   `border`/`border-radius` 付与オプションは、必要になった時点で純追加で
+//!   対応する（上記「caption」節・「`scroll-area` パーツ」節参照）。
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
 //!   イシュー側のスコープ。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, FocusRingColor, FocusRingOffset, Size, SlotRecipe, StateCondition,
+    VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -309,6 +282,9 @@ const SLOTS: &[&str] = &[
     "column-header",
     "cell",
     "caption",
+    // イシュー #1572: chakra `Table.ScrollArea` 相当のスクロール枠。
+    // 状態を持たない静的パーツで headless-ui に対応物はない
+    // （上記モジュール doc「`scroll-area` パーツ」節参照）。
     "scroll-area",
 ];
 
@@ -444,7 +420,7 @@ fn drop_reserved<'a>(
         .collect()
 }
 
-/// Table の recipe（scope `"table"`、[`SLOTS`] の 8 パーツ）。
+/// Table の recipe（scope `"table"`、[`SLOTS`] の 9 パーツ）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("table", SLOTS)
         .base(
@@ -471,14 +447,18 @@ fn recipe() -> SlotRecipe {
             "caption",
             vec![
                 decl("caption-side", "bottom"),
-                // イシュー #1572: chakra-ui Table の caption（`xs` +
-                // `medium`）へ合わせる（従来の `sm`・太さ未指定から是正）。
-                // padding は `--fandhe-space-3` トークンを使う（数値・
-                // 意匠は不変、生値からトークン参照への置換）。
+                // イシュー #1572: chakra-ui `Table.Caption`（`textStyle: xs`
+                // ・`font-weight: medium`）基準へ是正（旧 `font-size-sm`・
+                // font-weight 未指定から変更、モジュール doc「caption」節
+                // 参照）。
                 decl("padding", "var(--fandhe-space-3) 0"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
                 decl("font-size", "var(--fandhe-font-font-size-xs)"),
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                // `<caption>` の UA 既定（中央揃え）を打ち消し、`root` の
+                // `text-align: left` に揃える（`column-header` と同じ
+                // `inherit` パターン、モジュール doc「caption」節参照）。
+                decl("text-align", "inherit"),
             ],
         )
         .base(
@@ -505,27 +485,21 @@ fn recipe() -> SlotRecipe {
                 // イシュー #1571: chakra-ui / Radix Themes とも 1px であり
                 // `2px` は参照サイトより太い（縦罫線がある表と誤認しやすい）。
                 // 行罫線に使う `border-muted` より一段強い `border` トークン
-                // でヘッダーを区切る。イシュー #1572: `Line`/`Outline` とも
-                // 同じ 1px `border` トークンのため custom property 化しても
-                // 見た目は変わらないが、`Outline` の実装（上記モジュール
-                // doc「`Outline` の実装」節参照）と表現方式を揃える。
-                decl(
-                    "border-bottom",
-                    "var(--fandhe-table-header-border, 1px solid var(--fandhe-color-border))",
-                ),
+                // でヘッダーを区切る。
+                decl("border-bottom", "1px solid var(--fandhe-color-border)"),
                 // sticky 中に背後の本文行が透けないよう不透明背景を維持する
                 // （sticky_header 有無に関わらず既存どおり必須）。イシュー
-                // #1572: `Outline` variant は muted 背景（chakra `bg.muted`
-                // 相当）を使うため custom property 経由に変更（上記
-                // 「`Outline` の実装」節参照）。
+                // #1572: `--fandhe-table-header-bg`（variant スコープ）を
+                // 消費するよう変更（`Outline` のみ `bg-subtle`、モジュール
+                // doc「`Outline` variant の行罫線・ヘッダー背景の是正」節
+                // 参照）。フォールバックは従来どおり `bg`（不透明維持）。
                 decl(
                     "background",
                     "var(--fandhe-table-header-bg, var(--fandhe-color-bg))",
                 ),
                 // イシュー #1571: 数値列の桁揃え（chakra-ui root の
                 // `tabular-nums` 相当。root ではなくリーフ側へ置く判断は
-                // モジュール doc 参照。size/variant 軸は #1572 の担当のため
-                // ここでは触らない）。
+                // モジュール doc 参照）。
                 decl("font-variant-numeric", "tabular-nums"),
                 // イシュー #1571: sticky_header variant（root スコープ）が
                 // 設定する custom property を消費する。既定（Off）は
@@ -558,16 +532,6 @@ fn recipe() -> SlotRecipe {
                 // `column-header` スロット）へ持たせる（イシュー #767
                 // PR #811 Bugbot 指摘）。
                 decl("border-bottom", "var(--fandhe-table-row-border, none)"),
-                // イシュー #1572: `Outline` variant の `tfoot` 上罫線
-                // （chakra outline の `tfoot` `border-top` 相当）を
-                // `--fandhe-table-cell-border-top` custom property 経由で
-                // 受け取る（`tfoot` 自身は border を描画できないため、上記
-                // モジュール doc「`Outline` の実装」節参照）。値は
-                // [`css`] が追記する `[data-part="footer"]
-                // [data-part="row"]:first-child` 限定規則が設定する（PR
-                // #1844 是正、上記 `footer` base コメント参照）。`Line` は
-                // その規則の値も既定値 `none` のため影響なし。
-                decl("border-top", "var(--fandhe-table-cell-border-top, none)"),
                 // イシュー #1571: column-header と同じ理由で数値列の桁揃え
                 // を追加する。
                 decl("font-variant-numeric", "tabular-nums"),
@@ -577,18 +541,25 @@ fn recipe() -> SlotRecipe {
             "footer",
             vec![
                 // イシュー #1571: chakra-ui `tfoot` の `font-weight: medium`
-                // 相当。
+                // 相当。border は付けない（`root` の `border-collapse:
+                // separate` モデル下では `tfoot`〔footer slot〕への border
+                // 指定はブラウザに無視される、上記 `cell` base の PR #811
+                // 不変条件と同型。body/footer の区切りは body 最終行の
+                // `cell` が持つ `border-bottom` に委ねる）。
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
-                // イシュー #1572 PR #1844 codex-review/Bugbot 是正:
-                // `--fandhe-table-cell-border-top` の委譲は本 base ではなく
-                // [`css`] が追記する `[data-part="footer"]
-                // [data-part="row"]:first-child` 限定規則へ移した。`footer`
-                // 自身にここで設定すると custom property が `tfoot` 配下の
-                // 全 `row`（複数行 `tfoot`）へ継承され、各行の `cell` が
-                // 同じ `border-top` を描いて区切り線が重複してしまう
-                // （PR #1844 Cursor Bugbot Low severity 指摘）。`footer` の
-                // 最初の行だけに限定することで、tbody との境界線は 1 本
-                // だけ描かれる（下記 [`css`] 内コメント参照）。
+            ],
+        )
+        // イシュー #1572: chakra `Table.ScrollArea` 相当のスクロール枠
+        // （モジュール doc「`scroll-area` パーツ」節参照）。border/radius は
+        // 付与しない（外枠は `Outline` variant の責務）。
+        .base(
+            "scroll-area",
+            vec![
+                decl("overflow", "auto"),
+                decl("max-width", "100%"),
+                decl("max-height", "var(--fandhe-table-scroll-max-height, none)"),
+                decl("scrollbar-width", "thin"),
+                decl("scrollbar-color", "var(--fandhe-color-border) transparent"),
             ],
         )
         .variant(
@@ -599,44 +570,35 @@ fn recipe() -> SlotRecipe {
                     "--fandhe-table-row-border",
                     "1px solid var(--fandhe-color-border-muted)",
                 ),
-                // イシュー #1572: chakra line は最終行にも罫線を引く
-                // （`Outline` は外枠と二重にしないため `none`、下記参照）。
+                // イシュー #1572: `Outline` と対称に明示登録する
+                // （`column-header` background のフォールバック値と同値）。
+                decl("--fandhe-table-header-bg", "var(--fandhe-color-bg)"),
+                // `Line` は `row-border` と同値（`Outline` との非対称は
+                // モジュール doc「`Outline` variant の行罫線・ヘッダー背景
+                // の是正」節「トレードオフ」参照）。
                 decl(
                     "--fandhe-table-last-row-border",
                     "1px solid var(--fandhe-color-border-muted)",
                 ),
-                decl(
-                    "--fandhe-table-header-border",
-                    "1px solid var(--fandhe-color-border)",
-                ),
-                decl("--fandhe-table-header-bg", "var(--fandhe-color-bg)"),
-                decl("--fandhe-table-footer-border", "none"),
             ],
         )
         .variant(
             TableVariant::Outline,
             "root",
             vec![
-                // イシュー #1572: chakra-ui outline / Radix Themes surface
-                // 基準の是正（`none` から変更）。内側の行罫線を持たせる
-                // （上記モジュール doc「`Outline` の実装」節参照）。
+                // イシュー #1572: chakra-ui `outline` / Radix Themes
+                // `surface` とも行罫線を維持するため `Line` と同値へ是正
+                // （旧 `none`、モジュール doc「`Outline` variant の行罫線・
+                // ヘッダー背景の是正」節参照）。
                 decl(
                     "--fandhe-table-row-border",
                     "1px solid var(--fandhe-color-border-muted)",
                 ),
-                // 外枠と二重にしないため最終行の罫線は消す。
+                // イシュー #1572: chakra-ui `outline` の `bg.subtle` 相当。
+                decl("--fandhe-table-header-bg", "var(--fandhe-color-bg-subtle)"),
+                // イシュー #1572: `Outline` の外枠下端と body 最終行の
+                // `border-bottom` による二重線を避ける（同節参照）。
                 decl("--fandhe-table-last-row-border", "none"),
-                decl(
-                    "--fandhe-table-header-border",
-                    "1px solid var(--fandhe-color-border)",
-                ),
-                // chakra `bg.muted` / Radix `gray-a2` 相当。
-                decl("--fandhe-table-header-bg", "var(--fandhe-color-bg-muted)"),
-                // chakra outline の `tfoot` `border-top` 相当。
-                decl(
-                    "--fandhe-table-footer-border",
-                    "1px solid var(--fandhe-color-border-muted)",
-                ),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-lg)"),
                 // `column-header` の不透明背景・striped 偶数行の背景は
@@ -664,16 +626,16 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(TableVariant::Line)
-        // イシュー #1572: 生値リテラルから `--fandhe-space-*` トークン
-        // 参照へ置換（値そのものは #1571/#1681 から不変、`Md` が既定である
-        // 規約は `size_variants` が構造的に保証する。上記モジュール doc
-        // 「意図的に参照サイトへ合わせなかった点」節参照）。
+        // イシュー #1572: padding をリテラル値から `--fandhe-space-*`
+        // トークンへ置換（値は不変、モジュール doc「variant について」節
+        // 参照）。`SlotRecipe::size_variants` を使うことで既定 `Md` の
+        // 登録も一括で行う（`data_list.rs` と同型パターン）。
         .size_variants(
             "root",
             &[
-                // イシュー #1681: Xs は cell-padding 0.25rem 刻みの等差進行
-                // を外挿した (0.25rem, 0.5rem)。font-size はトークン下限
-                // xs をそのまま使う（Sm と同一。より小さいトークンが
+                // イシュー #1681: Xs は cell-padding 0.25rem 刻みの等差
+                // 進行を外挿した (space-1, space-2)。font-size はトークン
+                // 下限 xs をそのまま使う（Sm と同一。より小さいトークンが
                 // 存在しないため）。
                 (
                     Size::Xs,
@@ -784,89 +746,36 @@ fn recipe() -> SlotRecipe {
                 "var(--fandhe-table-stripe-bg, transparent)",
             )],
         )
-        // イシュー #1572 PR #1844 codex-review P1 是正: `Outline` variant
-        // で最終行の罫線を外枠と二重にしないための上書きは、かつて
-        // `[data-part="row"]:last-child` の無条件 state 規則だった。
-        // `:last-child` は「直接の親の中での最後」を意味し、複数 `tbody`
-        // 構成では各 `tbody`/`thead`/`tfoot` の最終行すべてに一致して
-        // しまうため、中間グループの末尾罫線まで消えてしまっていた
-        // （codex-review P1 指摘）。表全体で本当に最後の行（`tfoot` が
-        // あればその最終行、無ければ最後の `tbody` の最終行）だけへ限定
-        // する必要があり、[`crate::recipe::SlotRecipe`] は子孫セレクタ
-        // 機構を持たない（本モジュール冒頭 doc「colorPalette 軸」節前段の
-        // #708 方針）ため `state()` では表現できない。[`crate::marquee`]・
-        // [`crate::list`] が既に採る「[`css`] が `recipe().css()` の後段へ
-        // 手書きの子孫セレクタ規則を追記する」パターンを踏襲し、下記
-        // [`css`] へ切り出した（上記モジュール doc「`Outline` の実装」節
-        // 参照）。`Line` は `--fandhe-table-last-row-border` が通常の行罫線
-        // と同値のため見た目に影響しない。
-        .base(
+        // イシュー #1572: `Outline` + `footer` 併用時の二重線を避けるため、
+        // 最終行の `--fandhe-table-row-border` を variant スコープの
+        // `--fandhe-table-last-row-border` で上書きする（`cell` の
+        // `border-bottom` は継承で消費、モジュール doc「`Outline` variant
+        // の行罫線・ヘッダー背景の是正」節参照）。同一 slot の他の state
+        // 規則より後段に置く（`StateCondition::LastChild` は最後に評価
+        // される契約、`SlotRecipe::state` rustdoc 参照）。
+        .state(
+            "row",
+            StateCondition::LastChild,
+            vec![decl(
+                "--fandhe-table-row-border",
+                "var(--fandhe-table-last-row-border)",
+            )],
+        )
+        // イシュー #1572: `scroll-area` の `:focus-visible` リング
+        // （inset、splitter/listbox/scroll-area 系の規約。モジュール doc
+        // 「`scroll-area` パーツ」節参照）。`tabindex` は固定付与しない
+        // ため、利用側が focusable にした場合のみ現れる。
+        .state(
             "scroll-area",
-            vec![
-                decl("display", "block"),
-                decl("overflow", "auto"),
-                decl("max-width", "100%"),
-                // 既定は無制限（`none`）。有界のスクロール枠として機能
-                // させるには呼び出し側が `style` 属性または本 custom
-                // property の上書きで `max-height` を与える（上記モジュール
-                // doc「スクロール枠の実装」節参照）。
-                decl(
-                    "max-height",
-                    "var(--fandhe-table-scroll-area-max-height, none)",
-                ),
-                // [`crate::scroll_area`] の viewport 装飾と揃える。
-                decl("scrollbar-width", "thin"),
-                decl("scrollbar-color", "var(--fandhe-color-border) transparent"),
-            ],
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
         )
 }
 
 /// Table の静的 CSS 全文。
-///
-/// `recipe().css()` の後段へ、[`crate::recipe::SlotRecipe`] の `state()`
-/// （単一 slot への疑似クラス付与のみ）では表現できない子孫セレクタ規則を
-/// 手書きで追記する（[`crate::marquee`]・[`crate::list`] が既に採る
-/// パターン、上記モジュール doc「`Outline` の実装」節参照）。3 規則とも
-/// リテラル文字列のみで組み立て、呼び出し側の入力を一切埋め込まないため
-/// 既定エスケープ（REQ-1）の対象外（迂回経路ではない）。
-///
-/// - **`footer` 最初の行への `border-top` 委譲**（イシュー #1572 PR #1844
-///   Cursor Bugbot Low severity 是正）: `--fandhe-table-cell-border-top`
-///   を `[data-part="footer"] [data-part="row"]:first-child` へ限定して
-///   設定する。custom property は子孫へ継承されるため、`footer`（`tfoot`）
-///   自身へ設定すると複数行 `tfoot` の全行が同じ `border-top` を描いて
-///   しまう（上記 `footer` base コメント参照）。最初の行だけに限定する
-///   ことで tbody との境界線は 1 本だけになる。
-/// - **`footer` 最終行の `--fandhe-table-row-border` 上書き**: `tfoot` が
-///   存在する場合、表全体で本当に最後の行は `tfoot` の最終行であるため、
-///   `Outline` の「最終行罫線を外枠と二重にしない」規則（上記モジュール
-///   doc「`Outline` の実装」節参照）をここへ適用する。
-/// - **`tfoot` が無い場合の最後の `tbody` 最終行への同上書き**: `:last-
-///   of-type` で「同種要素の中で最後」の `tbody` へ限定し、
-///   `:has(~ [data-part="footer"])` で `tfoot` が後続しないことを確認する
-///   （PR #1844 codex-review P1 是正）。`tfoot` が後続する場合は上記
-///   規則が既に最終行を扱うため、ここでは除外して中間・境界グループの
-///   罫線を保持する。`:has()` は全モダンブラウザで既定サポート済みの
-///   標準機能であり、[`crate::list`] が同じパターンを既に採用している。
 #[must_use]
 pub fn css() -> String {
-    let mut out = recipe().css();
-    if !out.is_empty() {
-        out.push('\n');
-    }
-    out.push_str(
-        "[data-scope=\"table\"][data-part=\"footer\"] [data-scope=\"table\"][data-part=\"row\"]:first-child {\n  \
-         --fandhe-table-cell-border-top: var(--fandhe-table-footer-border, none);\n}\n",
-    );
-    out.push_str(
-        "\n[data-scope=\"table\"][data-part=\"footer\"] [data-scope=\"table\"][data-part=\"row\"]:last-child {\n  \
-         --fandhe-table-row-border: var(--fandhe-table-last-row-border, none);\n}\n",
-    );
-    out.push_str(
-        "\n[data-scope=\"table\"][data-part=\"body\"]:last-of-type:not(:has(~ [data-scope=\"table\"][data-part=\"footer\"])) [data-scope=\"table\"][data-part=\"row\"]:last-child {\n  \
-         --fandhe-table-row-border: var(--fandhe-table-last-row-border, none);\n}\n",
-    );
-    out
+    recipe().css()
 }
 
 /// root パーツ（`<table>`）を組み立てる。`variant`/`size`/`striped` に応じた
@@ -949,21 +858,21 @@ pub fn caption<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node 
     ANATOMY.part("caption", "caption", attrs, children)
 }
 
-/// scroll-area パーツ（`<div>`）を組み立てる。chakra-ui `Table.ScrollArea`
-/// 相当（イシュー #1572）。`header`/`body` と同型の variant を持たない
-/// slot として `class` は付与せず、呼び出し側 `attrs` をそのまま連結する
-/// （本モジュール doc「スクロール枠の実装」節参照）。`sticky_header` を
-/// 有界の枠内で視覚確認するには呼び出し側が `attrs` へ `max-height`
-/// （`style` 属性、または `--fandhe-table-scroll-area-max-height` の
-/// 上書き）を与える必要がある。
+/// scroll-area パーツ（`<div>`、chakra `Table.ScrollArea` 相当）を組み立てる。
+/// headless-ui に対応物を持たない pre-styled-ui 専用パーツで、状態を持たない
+/// （モジュール doc「`scroll-area` パーツ」節参照）。呼び出し側は `root`（と
+/// その `children`）を本関数の `children` として渡す契約とする。
 ///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::table;
+/// use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
 ///
-/// let node = table::scroll_area(vec![("style", "max-height: 10rem;")], vec![]);
+/// let node = table::scroll_area(
+///     vec![("style", "--fandhe-table-scroll-max-height: 12rem")],
+///     vec![table::root(TableProps::default(), vec![], vec![])],
+/// );
 /// assert!(render(&node).contains(r#"data-scope="table" data-part="scroll-area""#));
 /// ```
 #[must_use]
@@ -1003,11 +912,9 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
-            (Size::Xs, "fd-table--size-xs"),
             (Size::Sm, "fd-table--size-sm"),
             (Size::Md, "fd-table--size-md"),
             (Size::Lg, "fd-table--size-lg"),
-            (Size::Xl, "fd-table--size-xl"),
         ] {
             let props = TableProps {
                 size,
@@ -1132,27 +1039,20 @@ mod tests {
         let caption_html = render(&caption(vec![], vec![text("<script>alert(1)</script>")]));
         assert!(!caption_html.contains("<script>"));
 
-        // イシュー #1572: `scroll_area` の children も他パーツと同じく
-        // ノード木経由で既定エスケープを通ることを確認する。
-        let scroll_area_html = render(&scroll_area(
+        // イシュー #1572: scroll-area の children・attrs も同じ既定エスケープ
+        // 経路を通ることを固定する。
+        let scroll_area_children_html = render(&scroll_area(
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));
-        assert!(!scroll_area_html.contains("<script>"));
-        assert!(scroll_area_html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
-    }
+        assert!(!scroll_area_children_html.contains("<script>"));
+        assert!(scroll_area_children_html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
 
-    /// イシュー #1572: `scroll_area` は variant を持たないため `header`/
-    /// `body` と同型で `class` を含む呼び出し側 `attrs` をそのまま連結する
-    /// （本モジュール doc「セキュリティ不変条件」節参照）。
-    #[test]
-    fn scroll_area_passes_through_caller_attrs() {
-        let html = render(&scroll_area(
-            vec![("class", "caller-class"), ("style", "max-height: 10rem;")],
+        let scroll_area_attr_html = render(&scroll_area(
+            vec![("data-x", "\"><script>alert(1)</script>")],
             vec![],
         ));
-        assert!(html.contains(r#"class="caller-class""#));
-        assert!(html.contains(r#"style="max-height: 10rem;""#));
+        assert!(!scroll_area_attr_html.contains("<script>"));
     }
 
     #[test]
@@ -1163,37 +1063,27 @@ mod tests {
         assert!(out.contains("--fandhe-table-cell-padding"));
         assert!(out.contains("--fandhe-table-header-position"));
         assert!(out.contains("position: var(--fandhe-table-header-position, static);"));
-        // イシュー #1572: size 軸のトークン化・スクロール枠 slot の存在確認。
-        assert!(out.contains("--fandhe-space-3"));
-        assert!(out.contains(r#"[data-scope="table"][data-part="scroll-area"]"#));
         assert!(!out.contains('<'));
     }
 
-    /// イシュー #1571/#1572: `column-header` base 規則が chakra-ui / Radix
-    /// Themes 基準の 1px 罫線・medium 太さになっていることを固定する
+    /// イシュー #1571: `column-header` base 規則が chakra-ui / Radix Themes
+    /// 基準の 1px 罫線・medium 太さになっていることを固定する
     /// （旧 2px semibold からの是正、上記モジュール doc「意図的に参照
-    /// サイトへ合わせなかった点」節参照）。イシュー #1572 でリテラルから
-    /// custom property 経由（既定値は変わらず 1px）へ変更した。
+    /// サイトへ合わせなかった点」節参照）。
     #[test]
     fn column_header_uses_one_pixel_border_and_medium_weight() {
         let out = css();
-        assert!(out.contains(
-            "border-bottom: var(--fandhe-table-header-border, 1px solid var(--fandhe-color-border));"
-        ));
+        assert!(out.contains("border-bottom: 1px solid var(--fandhe-color-border);"));
         assert!(out.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
         assert!(!out.contains("2px solid var(--fandhe-color-border-muted)"));
     }
 
-    /// イシュー #1572: `footer`（`tfoot`）base 規則が medium 太さを持ち、
-    /// `border-*` 実プロパティ（描画される border 宣言）を持たないことを
-    /// 固定する（`separate` border モデル下では `tfoot` への border
-    /// 指定が無効なため、上記モジュール doc「`Outline` の実装」節と対を
-    /// なす PR #811 型の不変条件）。`--fandhe-table-cell-border-top` の
-    /// 委譲は PR #1844 是正で `footer` base から `css()` 追記の
-    /// `:first-child` 限定規則へ移したため、ここでは検証しない
-    /// （`footer_first_row_delegates_border_top_custom_property` 参照）。
+    /// イシュー #1571: `footer`（`tfoot`）base 規則が medium 太さのみを持ち、
+    /// border を持たないことを固定する（`separate` border モデル下では
+    /// `tfoot` への border 指定が無効なため、上記モジュール doc「sticky
+    /// ヘッダーの実装」節と対をなす PR #811 型の不変条件）。
     #[test]
-    fn footer_has_medium_weight_and_no_direct_border_declaration() {
+    fn footer_has_medium_weight_and_no_border_rule() {
         let out = css();
         let footer_rule_start = out
             .find(r#"[data-scope="table"][data-part="footer"] {"#)
@@ -1204,80 +1094,32 @@ mod tests {
             .expect("footer base 規則が `}` で閉じられていること");
         let footer_rule = &out[footer_rule_start..footer_rule_end];
         assert!(footer_rule.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
-        // 実際に描画される border-* プロパティ（`--fandhe-` custom
-        // property ではない実プロパティ行）は持たない。
-        assert!(!footer_rule.contains("\n  border-top:"));
-        assert!(!footer_rule.contains("\n  border-bottom:"));
-        assert!(!footer_rule.contains("\n  border:"));
+        assert!(!footer_rule.contains("border"));
     }
 
-    /// イシュー #1572 PR #1844 codex-review P1 是正: `footer` の最終行への
-    /// `--fandhe-table-row-border` 上書きが `tfoot` 内の `:last-child`
-    /// （複数行 `tfoot` でも最後の行のみ）へ限定されることを固定する
-    /// （`Outline` の最終行罫線抑止、上記モジュール doc「`Outline` の
-    /// 実装」節参照）。
+    /// イシュー #1572: size 軸の cell padding が `--fandhe-space-*`
+    /// トークンへ置換されていることを固定する（旧リテラル値からの是正、
+    /// モジュール doc「variant について」節参照）。5 段すべてを確認する。
     #[test]
-    fn footer_last_row_overrides_row_border_custom_property() {
+    fn table_css_contains_size_custom_property_variants() {
         let out = css();
-        assert!(out.contains(
-            r#"[data-scope="table"][data-part="footer"] [data-scope="table"][data-part="row"]:last-child {"#
-        ));
-        assert!(
-            out.contains("--fandhe-table-row-border: var(--fandhe-table-last-row-border, none);")
-        );
+        for padding in [
+            "var(--fandhe-space-1) var(--fandhe-space-2)",
+            "var(--fandhe-space-2) var(--fandhe-space-3)",
+            "var(--fandhe-space-3) var(--fandhe-space-4)",
+            "var(--fandhe-space-4) var(--fandhe-space-5)",
+            "var(--fandhe-space-5) var(--fandhe-space-6)",
+        ] {
+            let decl = format!("--fandhe-table-cell-padding: {padding};");
+            assert!(out.contains(&decl), "missing {decl} in {out}");
+        }
     }
 
-    /// イシュー #1572 PR #1844 codex-review P1 是正: `tfoot` を持たない
-    /// 表では、最後の `tbody`（`:last-of-type`）の最終行のみへ
-    /// `--fandhe-table-row-border` 上書きが限定されることを固定する
-    /// （複数 `tbody` の中間グループが誤って最終行扱いされない不変条件）。
+    /// イシュー #1572: caption base 規則が chakra-ui 基準（medium/xs/
+    /// `text-align: inherit`）へトークン化されていることを固定する
+    /// （モジュール doc「caption」節参照）。
     #[test]
-    fn last_tbody_without_footer_overrides_row_border_custom_property() {
-        let out = css();
-        assert!(out.contains(
-            r#"[data-scope="table"][data-part="body"]:last-of-type:not(:has(~ [data-scope="table"][data-part="footer"])) [data-scope="table"][data-part="row"]:last-child {"#
-        ));
-    }
-
-    /// イシュー #1572 PR #1844 Cursor Bugbot Low severity 是正: `footer`
-    /// の最初の行だけが `--fandhe-table-cell-border-top` を設定すること
-    /// を固定する（複数行 `tfoot` で境界線が全行に重複しない不変条件、
-    /// 上記モジュール doc「`Outline` の実装」節参照）。
-    #[test]
-    fn footer_first_row_delegates_border_top_custom_property() {
-        let out = css();
-        assert!(out.contains(
-            r#"[data-scope="table"][data-part="footer"] [data-scope="table"][data-part="row"]:first-child {"#
-        ));
-        assert!(out
-            .contains("--fandhe-table-cell-border-top: var(--fandhe-table-footer-border, none);"));
-    }
-
-    /// イシュー #1572: `cell` base が `border-top` として
-    /// `--fandhe-table-cell-border-top` を消費することを固定する
-    /// （`footer` からの委譲経路、上記モジュール doc「`Outline` の実装」
-    /// 節参照）。
-    #[test]
-    fn cell_consumes_border_top_custom_property() {
-        let out = css();
-        assert!(out.contains("border-top: var(--fandhe-table-cell-border-top, none);"));
-    }
-
-    /// イシュー #1572: `scroll-area` slot の base 規則（スクロール可能な
-    /// 枠、上記モジュール doc「スクロール枠の実装」節参照）を固定する。
-    #[test]
-    fn css_contains_scroll_area_slot() {
-        let out = css();
-        assert!(out.contains(r#"[data-scope="table"][data-part="scroll-area"] {"#));
-        assert!(out.contains("overflow: auto;"));
-        assert!(out.contains("max-height: var(--fandhe-table-scroll-area-max-height, none);"));
-    }
-
-    /// イシュー #1572: `caption` base 規則が chakra-ui 基準（`xs` +
-    /// `medium`）へ更新され、padding が `--fandhe-space-3` トークンを
-    /// 使うことを固定する。
-    #[test]
-    fn caption_uses_xs_medium_and_space_token() {
+    fn table_css_caption_uses_tokens_and_inherits_alignment() {
         let out = css();
         let caption_rule_start = out
             .find(r#"[data-scope="table"][data-part="caption"] {"#)
@@ -1287,31 +1129,102 @@ mod tests {
             .map(|offset| caption_rule_start + offset)
             .expect("caption base 規則が `}` で閉じられていること");
         let caption_rule = &out[caption_rule_start..caption_rule_end];
-        assert!(caption_rule.contains("font-size: var(--fandhe-font-font-size-xs);"));
         assert!(caption_rule.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
+        assert!(caption_rule.contains("font-size: var(--fandhe-font-font-size-xs);"));
         assert!(caption_rule.contains("padding: var(--fandhe-space-3) 0;"));
+        assert!(caption_rule.contains("text-align: inherit;"));
+        assert!(caption_rule.contains("caption-side: bottom;"));
+        assert!(!caption_rule.contains("0.75rem 0;"));
     }
 
-    /// イシュー #1572: `Outline` variant が内側の行罫線・muted ヘッダー
-    /// 背景・最終行罫線なし・footer 上罫線を root スコープの custom
-    /// property として登録することを固定する（上記モジュール doc
-    /// 「`Outline` の実装」節参照）。
+    /// イシュー #1572: `Outline` variant が行罫線を維持しヘッダー背景に
+    /// `bg-subtle` を使うこと、`Line` はヘッダー背景に `bg` を使うことを
+    /// 固定する（モジュール doc「`Outline` variant の行罫線・ヘッダー背景
+    /// の是正」節参照）。
     #[test]
-    fn outline_variant_declares_row_header_and_footer_custom_properties() {
+    fn table_css_outline_variant_keeps_row_border_and_subtle_header_bg() {
         let out = css();
         let outline_rule_start = out
-            .find(r#".fd-table--variant-outline {"#)
-            .expect("Outline variant 規則が css() 出力に存在すること");
+            .find(r#"[data-scope="table"][data-part="root"].fd-table--variant-outline {"#)
+            .expect("Outline root variant 規則が css() 出力に存在すること");
         let outline_rule_end = out[outline_rule_start..]
             .find('}')
             .map(|offset| outline_rule_start + offset)
-            .expect("Outline variant 規則が `}` で閉じられていること");
+            .expect("Outline root variant 規則が `}` で閉じられていること");
         let outline_rule = &out[outline_rule_start..outline_rule_end];
         assert!(outline_rule
             .contains("--fandhe-table-row-border: 1px solid var(--fandhe-color-border-muted);"));
+        assert!(outline_rule.contains("--fandhe-table-header-bg: var(--fandhe-color-bg-subtle);"));
         assert!(outline_rule.contains("--fandhe-table-last-row-border: none;"));
-        assert!(outline_rule.contains("--fandhe-table-header-bg: var(--fandhe-color-bg-muted);"));
-        assert!(outline_rule
-            .contains("--fandhe-table-footer-border: 1px solid var(--fandhe-color-border-muted);"));
+
+        let line_rule_start = out
+            .find(r#"[data-scope="table"][data-part="root"].fd-table--variant-line {"#)
+            .expect("Line root variant 規則が css() 出力に存在すること");
+        let line_rule_end = out[line_rule_start..]
+            .find('}')
+            .map(|offset| line_rule_start + offset)
+            .expect("Line root variant 規則が `}` で閉じられていること");
+        let line_rule = &out[line_rule_start..line_rule_end];
+        assert!(line_rule.contains("--fandhe-table-header-bg: var(--fandhe-color-bg);"));
+    }
+
+    /// イシュー #1572: `row` の最終要素で `--fandhe-table-row-border` が
+    /// `--fandhe-table-last-row-border` custom property の値で上書き
+    /// されることを固定する（モジュール doc「`Outline` variant の行罫線・
+    /// ヘッダー背景の是正」節参照）。`row` slot 自体に base 規則が無いこと
+    /// （下記 `table_css_puts_row_border_on_cell_not_row` 相当の既存前提）
+    /// とは両立する（`:last-child` 付きセレクタは base ではないため）。
+    #[test]
+    fn table_css_last_row_suppresses_border_via_custom_property() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="table"][data-part="row"]:last-child {"#));
+        let rule_start = out
+            .find(r#"[data-scope="table"][data-part="row"]:last-child {"#)
+            .expect("row:last-child 規則が css() 出力に存在すること");
+        let rule_end = out[rule_start..]
+            .find('}')
+            .map(|offset| rule_start + offset)
+            .expect("row:last-child 規則が `}` で閉じられていること");
+        let rule = &out[rule_start..rule_end];
+        assert!(rule.contains("--fandhe-table-row-border: var(--fandhe-table-last-row-border);"));
+    }
+
+    /// イシュー #1572: `scroll-area` が `overflow: auto` のスクロール
+    /// コンテナであり、`:focus-visible` に inset フォーカスリングを持つ
+    /// ことを固定する（モジュール doc「`scroll-area` パーツ」節参照）。
+    #[test]
+    fn table_css_scroll_area_is_scroll_container_with_inset_focus_ring() {
+        let out = css();
+        let base_rule_start = out
+            .find(r#"[data-scope="table"][data-part="scroll-area"] {"#)
+            .expect("scroll-area base 規則が css() 出力に存在すること");
+        let base_rule_end = out[base_rule_start..]
+            .find('}')
+            .map(|offset| base_rule_start + offset)
+            .expect("scroll-area base 規則が `}` で閉じられていること");
+        let base_rule = &out[base_rule_start..base_rule_end];
+        assert!(base_rule.contains("overflow: auto;"));
+        assert!(base_rule.contains("max-height: var(--fandhe-table-scroll-max-height, none);"));
+
+        let focus_rule_start = out
+            .find(r#"[data-scope="table"][data-part="scroll-area"]:focus-visible {"#)
+            .expect("scroll-area :focus-visible 規則が css() 出力に存在すること");
+        let focus_rule_end = out[focus_rule_start..]
+            .find('}')
+            .map(|offset| focus_rule_start + offset)
+            .expect("scroll-area :focus-visible 規則が `}` で閉じられていること");
+        let focus_rule = &out[focus_rule_start..focus_rule_end];
+        assert!(
+            focus_rule.contains("outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));")
+        );
+    }
+
+    /// イシュー #1572: `scroll_area` パーツが実際のレンダリング出力で
+    /// recipe が想定するセレクタ（`[data-scope="table"][data-part=
+    /// "scroll-area"]`）と一致することを固定する。
+    #[test]
+    fn table_recipe_selectors_match_actual_rendered_markup_scroll_area() {
+        let html = render(&scroll_area(vec![], vec![]));
+        assert!(html.starts_with(r#"<div data-scope="table" data-part="scroll-area""#));
     }
 }
