@@ -12,6 +12,7 @@ use fandhe_frontend_pre_styled_ui::{icon, image};
 const IMAGE_GOLDEN_CSS: &str = r#"[data-scope="image"][data-part="root"] {
   display: block;
   max-width: 100%;
+  height: auto;
 }
 
 [data-scope="image"][data-part="root"].fd-image--fit-cover {
@@ -42,8 +43,28 @@ const IMAGE_GOLDEN_CSS: &str = r#"[data-scope="image"][data-part="root"] {
   aspect-ratio: 1 / 1;
 }
 
+[data-scope="image"][data-part="root"].fd-image--aspect-ratio-landscape {
+  aspect-ratio: 4 / 3;
+}
+
+[data-scope="image"][data-part="root"].fd-image--aspect-ratio-portrait {
+  aspect-ratio: 3 / 4;
+}
+
 [data-scope="image"][data-part="root"].fd-image--aspect-ratio-video {
   aspect-ratio: 16 / 9;
+}
+
+[data-scope="image"][data-part="root"].fd-image--shape-square {
+  border-radius: var(--fandhe-radius-none);
+}
+
+[data-scope="image"][data-part="root"].fd-image--shape-rounded {
+  border-radius: var(--fandhe-radius-md);
+}
+
+[data-scope="image"][data-part="root"].fd-image--shape-circle {
+  border-radius: var(--fandhe-radius-full);
 }
 "#;
 
@@ -55,8 +76,8 @@ const ICON_GOLDEN_CSS: &str = r#"[data-scope="icon"][data-part="root"] {
 }
 
 [data-scope="icon"][data-part="root"].fd-icon--size-xs {
-  width: 0.5rem;
-  height: 0.5rem;
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
 [data-scope="icon"][data-part="root"].fd-icon--size-sm {
@@ -65,18 +86,18 @@ const ICON_GOLDEN_CSS: &str = r#"[data-scope="icon"][data-part="root"] {
 }
 
 [data-scope="icon"][data-part="root"].fd-icon--size-md {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[data-scope="icon"][data-part="root"].fd-icon--size-lg {
   width: 1.5rem;
   height: 1.5rem;
 }
 
-[data-scope="icon"][data-part="root"].fd-icon--size-lg {
-  width: 2rem;
-  height: 2rem;
-}
-
 [data-scope="icon"][data-part="root"].fd-icon--size-xl {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
 }
 "#;
 

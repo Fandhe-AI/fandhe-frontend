@@ -57,7 +57,8 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 accordion / **alert（イシュー #1553 で golden 新設）** /
 **badge（イシュー #1555 で golden 新設）** / callout / carousel /
 checkbox / checkbox_card / checkbox_group /
-color_picker / color_swatch / date_input / dialog / **download_trigger（方式 b）** /
+color_picker / color_swatch / **data_list（イシュー #1559 で golden 新設）** /
+date_input / dialog / **download_trigger（方式 b）** /
 drawer / editable / file_upload / floating_panel / highlight / hover_card /
 image_cropper / listbox / marquee / menu / **menubar（方式 b）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
@@ -97,6 +98,12 @@ CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約�
 の差分を実出力で貼り替える手順）は適用できません。更新時は該当アサー
 ション（`assert!(css.contains(...))`）を意図した変更に合わせて書き換えて
 ください。
+
+`data_list` はイシュー #1559 で §3.1 の `data_list_css.rs`（方式 (a)、
+`css()` 全文の golden）も新設したため、`table_data_list_css.rs`（方式 (b)）
+と併存します。`data_list` の CSS を変更する場合は両ファイルとも更新が
+必要です（`data_list_css.rs` は §5 の通常フローで `assert_eq!` を貼り替え、
+`table_data_list_css.rs` 側の data_list 分アサーションは個別に書き換える）。
 
 ### 3.3 golden 不在の部品
 

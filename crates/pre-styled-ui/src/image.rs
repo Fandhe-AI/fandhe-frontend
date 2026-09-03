@@ -24,6 +24,43 @@
 //! アクセシビリティ既定の判断）。中立的なコンテンツ表示部品のため
 //! colorPalette 軸は付与しない（[`crate::card`]・[`crate::skeleton`] と
 //! 同型の判断）。
+//!
+//! # イシュー #1562 の参照サイト比較
+//!
+//! chakra-ui `Image`（Radix Themes / Radix Primitives / ark-ui には Image
+//! 部品が存在しないため参照軸は chakra-ui のみ）と 7 軸で突合し、以下を
+//! 是正した:
+//!
+//! - **基本レイアウト**: chakra preflight の `img { display:block;
+//!   max-width:100%; height:auto }` に合わせ、base へ `height: auto` を
+//!   追加した（`max-width:100%` による横方向の縮小に追従して縦横比を保ち、
+//!   `aspect-ratio` variant の実効に必要な前提でもある）。
+//! - **バリアント**: 公式デモが角丸矩形・真円の 2 通りの角丸表現を持つ
+//!   ため、[`ImageShape`] 軸（`Square`/`Rounded`/`Circle`）を新設した。
+//!   [`crate::avatar::AvatarShape`]・[`crate::color_swatch::SwatchShape`] と
+//!   同じ語彙（chakra 側に対応 prop は無く、これらの既存部品との統一を
+//!   優先した独自命名）。角丸段はイシュー #1423 §3.1
+//!   （「操作部品 md / pill full / 角無し none」）に合わせ
+//!   `--fandhe-radius-none`/`-md`/`-full` トークンを使う。
+//! - **aspect-ratio**: 公式デモに `aspectRatio={4/3}` の例があり、
+//!   chakra テーマの aspect-ratio トークンは square/landscape(4:3)/
+//!   portrait(3:4)/wide(16:9) の 4 段であるため、[`AspectRatio`] に
+//!   `Landscape`(4:3)/`Portrait`(3:4) を追加した（`Video` は既存の
+//!   `wide` 相当として名称を維持）。
+//!
+//! 以下は参照サイトの構成を踏まえたうえで、意図的に合わせなかった:
+//!
+//! - **サイズ**: chakra `Image` は `size` prop を持たず、寸法は
+//!   `boxSize`/`w`/`h` という任意値の style prop（トークン化された段では
+//!   ない）で呼び出し側が決める。本部品も寸法軸を持たず、コンテンツの
+//!   実寸または呼び出し側の `attrs`（`style`/`width`/`height` 属性）に
+//!   委ねる。
+//! - **`align`（`object-position`）**: chakra の `align` prop 相当。
+//!   呼び出し側 `attrs` の `style` で表現可能なため軸を増設しない。
+//! - **色 / 状態 `data-*` / ダーク / フォーカス / hover・disabled・
+//!   transition**: `<img>` は色宣言・状態変化・フォーカスを持たない
+//!   静的コンテンツ表示のため、参照サイト側にも対応する挙動がない
+//!   （[`crate::card`]・[`crate::skeleton`] と同型の判断）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -69,7 +106,9 @@ impl VariantValue for ImageFit {
     }
 }
 
-/// `aspect-ratio` variant（chakra-ui `Image` の `aspectRatio` prop 相当）。
+/// `aspect-ratio` variant（chakra-ui `Image` の `aspectRatio` prop 相当。
+/// chakra テーマの aspect-ratio トークン square/landscape/portrait/wide の
+/// 4 段に対応する）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AspectRatio {
     /// 画像本来の比率をそのまま使う（既定）。
@@ -77,7 +116,11 @@ pub enum AspectRatio {
     Auto,
     /// 1:1（正方形）。
     Square,
-    /// 16:9（動画サムネイル等）。
+    /// 4:3（横長。chakra `landscape` 相当）。
+    Landscape,
+    /// 3:4（縦長。chakra `portrait` 相当）。
+    Portrait,
+    /// 16:9（動画サムネイル等。chakra `wide` 相当）。
     Video,
 }
 
@@ -90,7 +133,40 @@ impl VariantValue for AspectRatio {
         match self {
             Self::Auto => "auto",
             Self::Square => "square",
+            Self::Landscape => "landscape",
+            Self::Portrait => "portrait",
             Self::Video => "video",
+        }
+    }
+}
+
+/// 角丸 variant（chakra-ui 公式デモの角丸矩形・真円の 2 表現を吸収する）。
+/// [`crate::avatar::AvatarShape`]・[`crate::color_swatch::SwatchShape`] と
+/// 同じ語彙（chakra 側に対応する prop はなく、既存部品との統一を優先した
+/// 独自命名）。[`Self::Circle`] は正方形の画像（[`AspectRatio::Square`]）と
+/// 組み合わせて初めて真円になり、非正方形では pill 状になる（両軸は
+/// 直交する）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ImageShape {
+    /// 角丸なし（既定）。
+    #[default]
+    Square,
+    /// 中程度の角丸。
+    Rounded,
+    /// 完全な丸角（正方形画像と組み合わせると真円）。
+    Circle,
+}
+
+impl VariantValue for ImageShape {
+    fn axis(self) -> &'static str {
+        "shape"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Square => "square",
+            Self::Rounded => "rounded",
+            Self::Circle => "circle",
         }
     }
 }
@@ -104,7 +180,11 @@ fn recipe() -> SlotRecipe {
     SlotRecipe::new("image", &["root"])
         .base(
             "root",
-            vec![decl("display", "block"), decl("max-width", "100%")],
+            vec![
+                decl("display", "block"),
+                decl("max-width", "100%"),
+                decl("height", "auto"),
+            ],
         )
         .variant(ImageFit::Cover, "root", vec![decl("object-fit", "cover")])
         .variant(
@@ -130,12 +210,38 @@ fn recipe() -> SlotRecipe {
             vec![decl("aspect-ratio", "1 / 1")],
         )
         .variant(
+            AspectRatio::Landscape,
+            "root",
+            vec![decl("aspect-ratio", "4 / 3")],
+        )
+        .variant(
+            AspectRatio::Portrait,
+            "root",
+            vec![decl("aspect-ratio", "3 / 4")],
+        )
+        .variant(
             AspectRatio::Video,
             "root",
             vec![decl("aspect-ratio", "16 / 9")],
         )
+        .variant(
+            ImageShape::Square,
+            "root",
+            vec![decl("border-radius", "var(--fandhe-radius-none)")],
+        )
+        .variant(
+            ImageShape::Rounded,
+            "root",
+            vec![decl("border-radius", "var(--fandhe-radius-md)")],
+        )
+        .variant(
+            ImageShape::Circle,
+            "root",
+            vec![decl("border-radius", "var(--fandhe-radius-full)")],
+        )
         .default_variant(ImageFit::Cover)
         .default_variant(AspectRatio::Auto)
+        .default_variant(ImageShape::Square)
 }
 
 /// Image の静的 CSS 全文。
@@ -157,10 +263,13 @@ pub struct ImageProps<'a> {
     pub fit: ImageFit,
     /// `aspect-ratio` variant（既定 `Auto`）。
     pub aspect_ratio: AspectRatio,
+    /// 角丸 variant（既定 `Square`）。
+    pub shape: ImageShape,
 }
 
 impl<'a> ImageProps<'a> {
-    /// `src`/`alt` を指定し、variant は既定値（`Cover`/`Auto`）のまま組み立てる。
+    /// `src`/`alt` を指定し、variant は既定値（`Cover`/`Auto`/`Square`）の
+    /// まま組み立てる。
     #[must_use]
     pub fn new(src: &'a str, alt: &'a str) -> Self {
         ImageProps {
@@ -168,6 +277,7 @@ impl<'a> ImageProps<'a> {
             alt,
             fit: ImageFit::default(),
             aspect_ratio: AspectRatio::default(),
+            shape: ImageShape::default(),
         }
     }
 }
@@ -191,6 +301,7 @@ pub fn image<'a>(props: &ImageProps<'a>, attrs: Vec<(&'a str, &'a str)>) -> Node
     let class = recipe.variant_classes(&[
         ("fit", props.fit.value()),
         ("aspect-ratio", props.aspect_ratio.value()),
+        ("shape", props.shape.value()),
     ]);
     // `merged` の型を `Vec<(&'a str, &'a str)>` と明示しない（推論に任せる）:
     // ローカル変数 `class` の借用寿命は `'a` より短いため、明示すると
@@ -216,7 +327,7 @@ mod tests {
         let html = render(&node);
         assert_eq!(
             html,
-            r#"<img data-scope="image" data-part="root" class="fd-image--fit-cover fd-image--aspect-ratio-auto" src="/a.png" alt="alt text">"#
+            r#"<img data-scope="image" data-part="root" class="fd-image--fit-cover fd-image--aspect-ratio-auto fd-image--shape-square" src="/a.png" alt="alt text">"#
         );
     }
 
@@ -235,7 +346,9 @@ mod tests {
             };
             let html = render(&image(&props, vec![]));
             assert!(
-                html.contains(&format!("class=\"{class} fd-image--aspect-ratio-auto\"")),
+                html.contains(&format!(
+                    "class=\"{class} fd-image--aspect-ratio-auto fd-image--shape-square\""
+                )),
                 "fit={fit:?} -> {html}"
             );
         }
@@ -246,6 +359,8 @@ mod tests {
         for (ratio, class) in [
             (AspectRatio::Auto, "fd-image--aspect-ratio-auto"),
             (AspectRatio::Square, "fd-image--aspect-ratio-square"),
+            (AspectRatio::Landscape, "fd-image--aspect-ratio-landscape"),
+            (AspectRatio::Portrait, "fd-image--aspect-ratio-portrait"),
             (AspectRatio::Video, "fd-image--aspect-ratio-video"),
         ] {
             let props = ImageProps {
@@ -254,8 +369,31 @@ mod tests {
             };
             let html = render(&image(&props, vec![]));
             assert!(
-                html.contains(&format!("class=\"fd-image--fit-cover {class}\"")),
+                html.contains(&format!(
+                    "class=\"fd-image--fit-cover {class} fd-image--shape-square\""
+                )),
                 "aspect_ratio={ratio:?} -> {html}"
+            );
+        }
+    }
+
+    #[test]
+    fn shape_variants_map_to_expected_classes() {
+        for (shape, class) in [
+            (ImageShape::Square, "fd-image--shape-square"),
+            (ImageShape::Rounded, "fd-image--shape-rounded"),
+            (ImageShape::Circle, "fd-image--shape-circle"),
+        ] {
+            let props = ImageProps {
+                shape,
+                ..ImageProps::new("/a.png", "alt")
+            };
+            let html = render(&image(&props, vec![]));
+            assert!(
+                html.contains(&format!(
+                    "class=\"fd-image--fit-cover fd-image--aspect-ratio-auto {class}\""
+                )),
+                "shape={shape:?} -> {html}"
             );
         }
     }
@@ -266,7 +404,18 @@ mod tests {
         assert!(out.contains("object-fit: cover;"));
         assert!(out.contains("object-fit: none;"));
         assert!(out.contains("aspect-ratio: 1 / 1;"));
+        assert!(out.contains("aspect-ratio: 4 / 3;"));
+        assert!(out.contains("aspect-ratio: 3 / 4;"));
         assert!(out.contains("aspect-ratio: 16 / 9;"));
+        assert!(out.contains("height: auto;"));
+    }
+
+    #[test]
+    fn css_output_declares_shape_radius_tokens() {
+        let out = css();
+        assert!(out.contains("border-radius: var(--fandhe-radius-none);"));
+        assert!(out.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(out.contains("border-radius: var(--fandhe-radius-full);"));
     }
 
     #[test]

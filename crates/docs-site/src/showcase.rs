@@ -61,7 +61,7 @@
 //! #942 の責務であり、本モジュールは器（レジストリと照会 API）のみを
 //! 提供する。
 
-use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_core::{div, el, render, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::avatar::{
@@ -98,7 +98,9 @@ use fandhe_frontend_pre_styled_ui::color_picker;
 use fandhe_frontend_pre_styled_ui::color_swatch::{
     self, Color, ColorSwatchProps, Rgb, SwatchShape,
 };
-use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
+use fandhe_frontend_pre_styled_ui::data_list::{
+    self, DataListOrientation, DataListProps, DataListVariant,
+};
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment};
 use fandhe_frontend_pre_styled_ui::date_picker;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
@@ -125,7 +127,7 @@ use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps, HighlightVariant};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
-use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
+use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps, ImageShape};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::{kbd, KbdProps, KbdVariant};
@@ -153,7 +155,9 @@ use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemF
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
-use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
+use fandhe_frontend_pre_styled_ui::skeleton::{
+    skeleton, SkeletonAnimation, SkeletonProps, SkeletonVariant,
+};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
@@ -1339,7 +1343,9 @@ fn spinner_section() -> Node {
     )
 }
 
-/// Skeleton 節（イシュー #764）: variant（text/circle/rect）バリエーション。
+/// Skeleton 節（イシュー #764、イシュー #1566 で `animation` 軸の行と
+/// 複合デモ行を追加）: variant（text/circle/rect）× animation
+/// （pulse/shine/none）バリエーション。
 fn skeleton_section() -> Node {
     let variants = [
         (SkeletonVariant::Text, "width: 12rem;"),
@@ -1350,7 +1356,10 @@ fn skeleton_section() -> Node {
         .iter()
         .map(|(variant, style)| {
             skeleton(
-                &SkeletonProps { variant: *variant },
+                &SkeletonProps {
+                    variant: *variant,
+                    ..Default::default()
+                },
                 if style.is_empty() {
                     vec![]
                 } else {
@@ -1359,10 +1368,54 @@ fn skeleton_section() -> Node {
             )
         })
         .collect());
+    // イシュー #1566: 第 2 軸 `animation`（pulse/shine/none）を text
+    // variant 上で並べ、参照サイト（chakra-ui）の 3 種アニメーションの
+    // 見た目差を確認できるようにする。
+    let animations = [
+        SkeletonAnimation::Pulse,
+        SkeletonAnimation::Shine,
+        SkeletonAnimation::None,
+    ];
+    let animation_row = row(animations
+        .iter()
+        .map(|animation| {
+            skeleton(
+                &SkeletonProps {
+                    animation: *animation,
+                    ..Default::default()
+                },
+                vec![("style", "width: 12rem;")],
+            )
+        })
+        .collect());
+    // イシュー #1566: 参照スクショ（chakra-ui Skeleton pulse スクショ 1）の
+    // ように circle + text 2 本を横並びで組み合わせる複合デモ。
+    let composite_row = row(vec![div(
+        vec![("style", "display: flex; gap: 1rem; align-items: center;")],
+        vec![
+            skeleton(
+                &SkeletonProps {
+                    variant: SkeletonVariant::Circle,
+                    ..Default::default()
+                },
+                vec![("style", "--fandhe-skeleton-size: 3rem;")],
+            ),
+            div(
+                vec![(
+                    "style",
+                    "display: flex; flex-direction: column; gap: 0.5rem;",
+                )],
+                vec![
+                    skeleton(&SkeletonProps::default(), vec![("style", "width: 12rem;")]),
+                    skeleton(&SkeletonProps::default(), vec![("style", "width: 8rem;")]),
+                ],
+            ),
+        ],
+    )]);
     section(
         "Skeleton",
-        "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。prefers-reduced-motion: reduce ではパルスアニメーションを停止します。",
-        vec![variant_row],
+        "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。animation 軸（pulse/shine/none）でアニメーション種別を切り替えられ、prefers-reduced-motion: reduce ではいずれも停止します。",
+        vec![variant_row, animation_row, composite_row],
     )
 }
 
@@ -6265,7 +6318,10 @@ fn status_section() -> Node {
 /// EmptyState 節（イシュー #765）: indicator/title/description/actions の
 /// 構成例。`actions` 内は `button` を使い `href` を持たせない
 /// （`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality` の
-/// linkcheck 中立性を維持する）。
+/// linkcheck 中立性を維持する）。size 行（イシュー #1560）は Xs〜Xl の
+/// 各段で padding・gap・indicator/title/description の文字サイズが連動
+/// することを示すため、actions を持たない indicator/title/description の
+/// 3 段構成で並べる（Md の既定デモのみ actions を持たせる）。
 fn empty_state_section() -> Node {
     let node = empty_state::root(
         &EmptyStateProps::default(),
@@ -6292,10 +6348,37 @@ fn empty_state_section() -> Node {
             ],
         )],
     );
+    let sizes = [
+        (Size::Xs, "Xs"),
+        (Size::Sm, "Sm"),
+        (Size::Md, "Md"),
+        (Size::Lg, "Lg"),
+        (Size::Xl, "Xl"),
+    ];
+    let size_row = stack(
+        sizes
+            .iter()
+            .map(|(size, label)| {
+                let props = EmptyStateProps { size: *size };
+                empty_state::root(
+                    &props,
+                    vec![],
+                    vec![empty_state::content(
+                        vec![],
+                        vec![
+                            empty_state::indicator(vec![], vec![text("∅")]),
+                            empty_state::title(vec![], vec![text(format!("{label} size"))]),
+                            empty_state::description(vec![], vec![text("No results found.")]),
+                        ],
+                    )],
+                )
+            })
+            .collect(),
+    );
     section(
         "EmptyState",
-        "indicator / title / description / actions で構成する空状態レイアウト。colorPalette 軸は持たない中立コンテナです。",
-        vec![node],
+        "indicator / title / description / actions で構成する空状態レイアウト。colorPalette 軸は持たない中立コンテナです。size（xs〜xl）は root の padding・gap・indicator/title/description の文字サイズが連動します。",
+        vec![node, size_row],
     )
 }
 
@@ -6354,12 +6437,31 @@ fn visually_hidden_section() -> Node {
 /// headless の inherent メソッドをそのまま呼ぶ。
 fn progress_section() -> Node {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
-    use fandhe_frontend_pre_styled_ui::progress;
+    use fandhe_frontend_pre_styled_ui::progress::{self, ProgressProps, ProgressVariant};
 
-    fn circle_demo(p: &Progress, size: Size, aria_valuetext: Option<&str>) -> Node {
+    fn linear_demo(
+        p: &Progress,
+        props: &ProgressProps,
+        label_text: &str,
+        value_text: &str,
+    ) -> Node {
         progress::root(
             p,
-            size,
+            props,
+            Some(value_text),
+            vec![("style", "max-width: 20rem;")],
+            vec![
+                p.label(vec![], vec![text(label_text)]),
+                p.value_text(vec![], vec![text(value_text)]),
+                p.track(vec![], vec![progress::range(p, vec![])]),
+            ],
+        )
+    }
+
+    fn circle_demo(p: &Progress, props: &ProgressProps, aria_valuetext: Option<&str>) -> Node {
+        progress::root(
+            p,
+            props,
             aria_valuetext,
             vec![],
             vec![p.circle(
@@ -6373,24 +6475,118 @@ fn progress_section() -> Node {
     }
 
     let determinate = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
-    let size_row = row(vec![
-        circle_demo(&determinate, Size::Xs, Some("40%")),
-        circle_demo(&determinate, Size::Sm, Some("40%")),
-        circle_demo(&determinate, Size::Md, Some("40%")),
-        circle_demo(&determinate, Size::Lg, Some("40%")),
-        circle_demo(&determinate, Size::Xl, Some("40%")),
+    let basic_row = row(vec![linear_demo(
+        &determinate,
+        &ProgressProps::default(),
+        "Upload",
+        "40%",
+    )]);
+
+    let size_row = stack(
+        vec![Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+            .into_iter()
+            .map(|size| {
+                let props = ProgressProps {
+                    size,
+                    ..ProgressProps::default()
+                };
+                linear_demo(&determinate, &props, size.value(), "40%")
+            })
+            .collect(),
+    );
+
+    let variant_row = row(vec![
+        linear_demo(
+            &determinate,
+            &ProgressProps {
+                variant: ProgressVariant::Outline,
+                ..ProgressProps::default()
+            },
+            "Outline",
+            "40%",
+        ),
+        linear_demo(
+            &determinate,
+            &ProgressProps {
+                variant: ProgressVariant::Subtle,
+                ..ProgressProps::default()
+            },
+            "Subtle",
+            "40%",
+        ),
     ]);
 
-    let complete = Progress::new(0.0, 100.0, Some(100.0), Orientation::Horizontal);
-    let complete_row = row(vec![circle_demo(&complete, Size::Md, Some("100%"))]);
+    let palette_row = stack(
+        [
+            ("Accent", ColorPalette::Accent),
+            ("Info", ColorPalette::Info),
+            ("Success", ColorPalette::Success),
+            ("Warning", ColorPalette::Warning),
+            ("Danger", ColorPalette::Danger),
+            ("Neutral", ColorPalette::Neutral),
+        ]
+        .into_iter()
+        .map(|(label_text, palette)| {
+            let props = ProgressProps {
+                palette,
+                ..ProgressProps::default()
+            };
+            linear_demo(&determinate, &props, label_text, "40%")
+        })
+        .collect(),
+    );
 
     let indeterminate = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
-    let indeterminate_row = row(vec![circle_demo(&indeterminate, Size::Md, None)]);
+    let indeterminate_row = row(vec![linear_demo(
+        &indeterminate,
+        &ProgressProps::default(),
+        "Loading",
+        "",
+    )]);
+
+    let complete = Progress::new(0.0, 100.0, Some(100.0), Orientation::Horizontal);
+    let complete_row = row(vec![linear_demo(
+        &complete,
+        &ProgressProps::default(),
+        "Complete",
+        "100%",
+    )]);
+
+    let vertical = Progress::new(0.0, 100.0, Some(65.0), Orientation::Vertical);
+    let vertical_row = row(vec![progress::root(
+        &vertical,
+        &ProgressProps::default(),
+        Some("65%"),
+        vec![("style", "height: 12rem;")],
+        vec![vertical.track(vec![], vec![progress::range(&vertical, vec![])])],
+    )]);
+
+    let circle_row = row(vec![
+        circle_demo(&determinate, &ProgressProps::default(), Some("40%")),
+        circle_demo(
+            &complete,
+            &ProgressProps {
+                size: Size::Sm,
+                ..ProgressProps::default()
+            },
+            Some("100%"),
+        ),
+        circle_demo(&indeterminate, &ProgressProps::default(), None),
+    ]);
 
     section(
         "Progress",
-        "Circular（SVG）表示の進捗インジケータ。size（sm/md/lg）で --fandhe-progress-size/--fandhe-progress-thickness を切り替えます。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動した回転アニメーションで表示します。",
-        vec![size_row, complete_row, indeterminate_row],
+        "Linear（Track/Range）と Circular（SVG）両対応の進捗インジケータ。size（xs〜xl）で --fandhe-progress-track-height/--fandhe-progress-size/--fandhe-progress-thickness を、variant（outline/subtle）で track の見た目を、color-palette（accent/info/success/warning/danger/neutral）で range の塗り色を切り替えます。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動したアニメーション（linear は横スライド、circular は回転）で表示し、prefers-reduced-motion: reduce では停止します。",
+        vec![
+            basic_row,
+            size_row,
+            variant_row,
+            palette_row,
+            indeterminate_row,
+            complete_row,
+            vertical_row,
+            circle_row,
+        ],
     )
 }
 
@@ -6459,16 +6655,112 @@ fn qr_code_section() -> Node {
     )
 }
 
-/// Image 節（イシュー #770）の demo `src`。実画像を同梱せず、外部フェッチ・
-/// 404 を発生させないインライン SVG data URI を使う（相対パスではなく
-/// [`AVATAR_INLINE_SVG_SRC`] と同じくパーセントエンコード済み data URI と
-/// することで、実在しないファイルパスによる 404 を防ぐ。矩形プレースホル
-/// ダー柄のアイコン）。
-const IMAGE_DEMO_SRC: &str =
-    "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20fill%3D%27%234a90d9%27%2F%3E%3C%2Fsvg%3E";
+/// Image 節（イシュー #770）の demo アセット（イシュー #1562）の出力先
+/// （`out_dir` 起点の相対パス）。`crate::build::build_site` が
+/// [`image_demo_svg`] の内容をこのパスへ書き出す。
+///
+/// `data:` URI は `fandhe_frontend_core::url::is_safe_url`（許可スキームは
+/// http/https/mailto/tel と相対 URL のみ、REQ-1）が拒否し `src` 属性
+/// ごと出力から落ちる（core の URL 検証は一元化されており本クレート側で
+/// 迂回・複製しない）。旧実装が `data:image/svg+xml,...` を使っていたため
+/// Demo が「壊れた画像アイコン」表示になっていた不具合（#1562 で発覚）を、
+/// ビルド時生成の相対パスアセットへ切り替えることで是正する。
+pub(crate) const IMAGE_DEMO_ASSET_REL_PATH: &str = "assets/image-demo.svg";
 
-/// Image 節: `fit`（object-fit）× `aspect_ratio` の 2 軸。
+/// [`image_section`] から `/themes/image/` ページへ渡す `src`（ページ深さ
+/// 2 階層上、`/themes/<kebab>/` → `assets/` の相対パス）。ページの実際の
+/// 出力先が変わる場合はこの相対パス段数も追従が必要（現状は全部品ページが
+/// 同じ深さのため固定値で足りる）。
+pub(crate) const IMAGE_DEMO_SRC: &str = "../../assets/image-demo.svg";
+
+/// Image 節の demo 用プレースホルダー SVG（イシュー #1562）。ユーザー入力を
+/// 一切含まない固定図形のみを [`fandhe_frontend_core`] のノード木 API
+/// （`el`/`render`）で組み立てる（`format!` による SVG 文字列直組みは
+/// REQ-1 が禁じるパターンのため使わない）。cover/contain の差・
+/// landscape/portrait の縦横比の違いが視認できるよう、空・丘・太陽の単純な
+/// 図形を 16:10 の横長キャンバスへ描く。
+#[must_use]
+pub(crate) fn image_demo_svg() -> String {
+    let svg = el(
+        "svg",
+        vec![
+            ("xmlns", "http://www.w3.org/2000/svg"),
+            ("viewBox", "0 0 160 100"),
+            ("role", "img"),
+            ("aria-label", "Placeholder landscape illustration"),
+        ],
+        vec![
+            // 空。
+            el(
+                "rect",
+                vec![("width", "160"), ("height", "100"), ("fill", "#bfe3f7")],
+                vec![],
+            ),
+            // 太陽。
+            el(
+                "circle",
+                vec![
+                    ("cx", "128"),
+                    ("cy", "24"),
+                    ("r", "14"),
+                    ("fill", "#fbd35a"),
+                ],
+                vec![],
+            ),
+            // 丘。
+            el(
+                "path",
+                vec![
+                    ("d", "M0 68 Q40 40 80 68 T160 68 V100 H0 Z"),
+                    ("fill", "#4a9d5c"),
+                ],
+                vec![],
+            ),
+            // 手前の丘（奥行きを出す 2 層目）。
+            el(
+                "path",
+                vec![
+                    ("d", "M0 82 Q50 58 100 82 T160 78 V100 H0 Z"),
+                    ("fill", "#2f7d43"),
+                ],
+                vec![],
+            ),
+        ],
+    );
+    render(&svg)
+}
+
+/// Image 節: `fit`（object-fit）× `aspect_ratio` × `shape`（角丸）の 3 軸
+/// （イシュー #1562 で `shape` 追加・chakra-ui 公式デモ構成へ寄せた
+/// 4 行構成に再編。基本デモ・shape 3 種・fit 5 種・aspect-ratio 5 種）。
 fn image_section() -> Node {
+    let basic_row = row(vec![image(
+        &ImageProps {
+            shape: ImageShape::Rounded,
+            ..ImageProps::new(IMAGE_DEMO_SRC, "Basic rounded image")
+        },
+        vec![("style", "width: 12rem;")],
+    )]);
+
+    let shapes = [
+        (ImageShape::Square, "Square"),
+        (ImageShape::Rounded, "Rounded"),
+        (ImageShape::Circle, "Circle"),
+    ];
+    let shape_row = row(shapes
+        .iter()
+        .map(|(shape, label)| {
+            image(
+                &ImageProps {
+                    shape: *shape,
+                    aspect_ratio: AspectRatio::Square,
+                    ..ImageProps::new(IMAGE_DEMO_SRC, label)
+                },
+                vec![("style", "width: 6rem;")],
+            )
+        })
+        .collect());
+
     let fits = [
         (ImageFit::Cover, "Cover"),
         (ImageFit::Contain, "Contain"),
@@ -6495,6 +6787,8 @@ fn image_section() -> Node {
     let ratios = [
         (AspectRatio::Auto, "Auto"),
         (AspectRatio::Square, "Square"),
+        (AspectRatio::Landscape, "Landscape"),
+        (AspectRatio::Portrait, "Portrait"),
         (AspectRatio::Video, "Video"),
     ];
     let ratio_row = row(ratios
@@ -6515,8 +6809,8 @@ fn image_section() -> Node {
 
     section(
         "Image",
-        "写真等の静的コンテンツを表示する img の styled ラッパー。fit（object-fit）と aspect-ratio を型安全な props で切り替えます。状態機械は持たず、avatar の ImageStatus とは独立です。",
-        vec![fit_row, ratio_row],
+        "写真等の静的コンテンツを表示する img の styled ラッパー。fit（object-fit）・aspect-ratio・shape（角丸）を型安全な props で切り替えます。状態機械は持たず、avatar の ImageStatus とは独立です。",
+        vec![basic_row, shape_row, fit_row, ratio_row],
     )
 }
 
@@ -6549,10 +6843,35 @@ fn icon_section() -> Node {
         })
         .collect());
 
+    // イシュー #1561: color: currentColor 継承の視認確認用デモ。style
+    // 値は theme.rs 実在のトークン参照（var(...)）のみで、生の色リテラル・
+    // ユーザー入力は混ぜない（既存 showcase の style リテラル慣行と同型）。
+    let current_color_row = row(vec![
+        ("accent", "--fandhe-color-accent"),
+        ("danger", "--fandhe-color-danger"),
+        ("warning", "--fandhe-color-warning"),
+    ]
+    .into_iter()
+    .map(|(label, token)| {
+        el(
+            "span",
+            vec![("style", &format!("color: var({token});"))],
+            vec![icon(
+                &IconProps {
+                    label: Some(label),
+                    ..IconProps::default()
+                },
+                vec![],
+                vec![star_path()],
+            )],
+        )
+    })
+    .collect());
+
     section(
         "Icon",
-        "インライン SVG の寸法（size）・配色（color: currentColor 継承）を統一する svg ラッパー。SVG 本体（path 等）は呼び出し側がノード木 API で構築します。",
-        vec![size_row],
+        "インライン SVG の寸法（size は Xs〜Xl の 5 段、既定 Md、chakra-ui 同名段の実寸に整合。イシュー #1561）・配色（color: currentColor 継承）を統一する svg ラッパー。SVG 本体（path 等）は呼び出し側がノード木 API で構築します。",
+        vec![size_row, current_color_row],
     )
 }
 
@@ -6640,11 +6959,12 @@ fn table_section() -> Node {
     )
 }
 
-/// DataList 節: orientation（vertical/horizontal）の軸。
+/// DataList 節: orientation（vertical/horizontal）・variant（subtle/bold）・
+/// size（xs〜xl）の 3 軸（イシュー #1559 で variant/size を追加）。
 fn data_list_section() -> Node {
-    fn sample_data_list(orientation: DataListOrientation) -> Node {
+    fn sample_data_list(props: DataListProps) -> Node {
         data_list::root(
-            DataListProps { orientation },
+            props,
             vec![],
             vec![
                 data_list::item(
@@ -6665,14 +6985,56 @@ fn data_list_section() -> Node {
         )
     }
 
-    let demos = stack(vec![
-        sample_data_list(DataListOrientation::Vertical),
-        sample_data_list(DataListOrientation::Horizontal),
+    let orientation_demos = stack(vec![
+        sample_data_list(DataListProps {
+            orientation: DataListOrientation::Vertical,
+            ..DataListProps::default()
+        }),
+        sample_data_list(DataListProps {
+            orientation: DataListOrientation::Horizontal,
+            ..DataListProps::default()
+        }),
     ]);
+
+    let variants = [
+        (DataListVariant::Subtle, "Subtle"),
+        (DataListVariant::Bold, "Bold"),
+    ];
+    let variant_row = stack(
+        variants
+            .iter()
+            .map(|(variant, _label)| {
+                sample_data_list(DataListProps {
+                    variant: *variant,
+                    ..DataListProps::default()
+                })
+            })
+            .collect(),
+    );
+
+    let sizes = [
+        (Size::Xs, "Xs"),
+        (Size::Sm, "Sm"),
+        (Size::Md, "Md"),
+        (Size::Lg, "Lg"),
+        (Size::Xl, "Xl"),
+    ];
+    let size_row = stack(
+        sizes
+            .iter()
+            .map(|(size, _label)| {
+                sample_data_list(DataListProps {
+                    size: *size,
+                    ..DataListProps::default()
+                })
+            })
+            .collect(),
+    );
+
     section(
         "DataList",
-        "dl/dt/dd の定義リスト意味論を尊重したラベル・値の一覧表示。orientation（vertical / horizontal）の 1 軸 variant を持ちます。",
-        vec![demos],
+        "dl/dt/dd の定義リスト意味論を尊重したラベル・値の一覧表示。orientation（vertical / horizontal）・variant（subtle / bold）・size（xs〜xl）の 3 軸 variant を持ちます。",
+        vec![orientation_demos, variant_row, size_row],
     )
 }
 
@@ -7663,17 +8025,30 @@ fn color_swatch_section() -> Node {
         )
     })
     .collect());
-    let transparent_row = row(vec![color_swatch::color_swatch(
-        &ColorSwatchProps {
-            value: Color::from_rgba(Rgb::new(0x3b, 0x82, 0xf6), 0x80),
-            ..ColorSwatchProps::default()
-        },
-        vec![],
-        vec![],
-    )]);
+    // イシュー #1558: chakra-ui 参照スクショ 3（半透明 4 色）相当に拡充し、
+    // 淡色・低アルファ色でも #1558 で追加した inset リングの輪郭が
+    // 判別できることを確認できるようにする。
+    let transparent_row = row(vec![
+        Color::from_rgba(Rgb::new(0xff, 0x00, 0x00), 0x80),
+        Color::from_rgba(Rgb::new(0x00, 0x00, 0xff), 0xb3),
+        Color::from_rgba(Rgb::new(0x00, 0x80, 0x00), 0x66),
+        Color::from_rgba(Rgb::new(0xff, 0xc0, 0xcb), 0x99),
+    ]
+    .into_iter()
+    .map(|value| {
+        color_swatch::color_swatch(
+            &ColorSwatchProps {
+                value,
+                ..ColorSwatchProps::default()
+            },
+            vec![],
+            vec![],
+        )
+    })
+    .collect());
     section(
         "ColorSwatch",
-        "色見本の静的表示です。size / shape を組み合わせられます。アルファ付き色は下地のチェッカーボード模様で透過が視認できます。",
+        "色見本の静的表示です。size / shape を組み合わせられます。半透明色は下地のチェッカーボード模様で透過が、内側 1px の輪郭リングで淡色でも外形が視認できます。",
         vec![size_row, shape_row, transparent_row],
     )
 }

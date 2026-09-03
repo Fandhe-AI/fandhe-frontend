@@ -32,9 +32,58 @@
 //!
 //! [`fandhe_frontend_headless_ui::json_tree_view::JsonValue::kind`] が返す
 //! 6 種の `data-kind` 値へ [`StateCondition::AttrEq`] で反応し、既定 Theme の
-//! セマンティックトークンへマップする: `string` → success / `number` → info /
-//! `bool` → warning / `null` → fg-muted / `object`・`array`（ブランチ要約）→
-//! fg-muted / `key` → fg（既定文字色のまま、配色分岐なし）。
+//! セマンティックトークンへマップする: `string` → success-fg-subtle /
+//! `number` → info-fg-subtle / `bool` → warning-fg-subtle（+ semibold） /
+//! `null` → fg-muted（+ semibold + italic） / `object`・`array`
+//! （ブランチ要約、`data-kind` はコンテナ側の型を表す）→ italic のみ追加 /
+//! `key` → fg（既定文字色のまま、配色分岐なし。medium）。
+//!
+//! # 参考サイト基準への調整（イシュー #1563）
+//!
+//! 参照元は ark-ui（`chakra-ui/ark` リポジトリの
+//! `website/src/components/ui/primitives/json-tree-view.tsx` sva recipe /
+//! `.storybook/modules/json-tree-view.module.css`。chakra-ui・Radix には
+//! 対応部品が存在しない）。実測・是正した点:
+//!
+//! 1. **コントラスト不適合の是正**: 旧配色（`--fandhe-color-info`/`-warning`）は
+//!    `theme.rs` の `DEFAULT_COLORS` 実測でライトテーマ時 `info`/`bg` =
+//!    4.03:1・`warning`/`bg` = 3.64:1 となり、本文相当の 4.5:1 を満たさない
+//!    （`theme.rs` の契約テストにも「大字・UI 部品 3:1」ペアとしてのみ登録
+//!    されており、`font-size-sm` の地の文字色としては不適切）。`<palette>-fg-subtle`
+//!    （ark の `fg.<palette>` 相当のテキスト用トークン）はライト 9.4〜10.1:1・
+//!    ダーク 11.0〜13.3:1 を満たすため、`string`/`number`/`bool` の 3 色を
+//!    `success-fg-subtle`/`info-fg-subtle`/`warning-fg-subtle` へ置換した。
+//! 2. **monospace フォント**: 参照は `tree`/`key`/`value` 全体が `fontFamily: mono`。
+//!    `tree` 側のフォントは [`crate::tree_view`]（#1578）の所掌のため、本
+//!    モジュールは `key`/`value` の 2 パーツにのみ `font-family:
+//!    var(--fandhe-font-font-mono)` を追加した（JSON 表示固有の関心）。
+//! 3. **`key` の太さ**: 参照は `[data-kind="key"]` に `fontWeight: medium`。
+//!    `key` パーツに `font-weight: medium` を追加した。
+//! 4. **`bool`/`null` の強調**: 参照は `boolean` → `fontWeight: semibold`、
+//!    `null`/`undefined` → `fontWeight: semibold` + `fontStyle: italic`。
+//!    それぞれ追加した。
+//! 5. **`object`/`array`（折りたたみ時の要約表示）の斜体**: 参照の
+//!    `preview-text`（Object/Array 要約）→ `fontStyle: italic` に倣い、
+//!    `data-kind="object"`/`"array"` に `font-style: italic` を追加した
+//!    （色は既定の `fg-muted` を維持）。
+//!
+//! # 意図的非採用（参考サイト基準からの差分）
+//!
+//! - **`key` を緑色にしない**: 参照（Park UI 系デザイン）は `key` に
+//!   `fg.success` 相当の緑を使うが、`value` の `string` にも同系統の
+//!   `success-fg-subtle` を採用しているため、`key` まで緑にすると同一画面内
+//!   で意味の異なる 2 箇所が同色になり判読性を損なう。当リポジトリでは
+//!   `key` の既定文字色（fg）を維持する。
+//! - **colon（`:`）区切りの装飾**: anatomy（構造）に colon パーツが存在せず
+//!   （headless #1661 が anatomy 突合の対象）、CSS 生成コンテンツ（`::after`
+//!   等）での擬似的な追加は #1661 が将来 colon パーツを追加した際の二重表示
+//!   を招くため、本 PR では追加しない。
+//! - **`tree`/`branch-control`/`item` の hover・フォーカスリング・
+//!   トランジション・`font-size`**: [`crate::tree_view`] スコープ（別イシュー
+//!   #1578）の所掌であり、`json-tree-view` スコープには持ち込まない
+//!   （span への hover は行 hover と競合するため）。
+//! - **`size`/`color-palette` variant**: 上記のとおり不採用を維持する
+//!   （方針は変更なし）。
 
 use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
@@ -68,27 +117,72 @@ const SLOTS: &[&str] = &["key", "value"];
 /// `docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 A）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("json-tree-view", SLOTS)
-        .base("key", vec![decl("color", "var(--fandhe-color-fg)")])
-        .base("value", vec![decl("color", "var(--fandhe-color-fg-muted)")])
+        .base(
+            "key",
+            vec![
+                // イシュー #1563: 参照（ark-ui）の `[data-kind="key"]` は
+                // `fontWeight: medium`。色は緑にせず fg のまま維持する
+                // （モジュール doc「意図的非採用」節参照）。
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("font-family", "var(--fandhe-font-font-mono)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+            ],
+        )
+        .base(
+            "value",
+            vec![
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("font-family", "var(--fandhe-font-font-mono)"),
+            ],
+        )
         .state(
             "value",
             StateCondition::AttrEq("data-kind", "string"),
-            vec![decl("color", "var(--fandhe-color-success)")],
+            // イシュー #1563: 旧 `--fandhe-color-success`（ライト 4.54:1）から
+            // `-fg-subtle`（ライト 9.4〜10.1:1）へ変更しコントラストを底上げ。
+            vec![decl("color", "var(--fandhe-color-success-fg-subtle)")],
         )
         .state(
             "value",
             StateCondition::AttrEq("data-kind", "number"),
-            vec![decl("color", "var(--fandhe-color-info)")],
+            // イシュー #1563: 旧 `--fandhe-color-info` はライト 4.03:1 で
+            // 本文相当 4.5:1 未達だったため `-fg-subtle` へ置換。
+            vec![decl("color", "var(--fandhe-color-info-fg-subtle)")],
         )
         .state(
             "value",
             StateCondition::AttrEq("data-kind", "bool"),
-            vec![decl("color", "var(--fandhe-color-warning)")],
+            // イシュー #1563: 旧 `--fandhe-color-warning` はライト 3.64:1 で
+            // 本文相当 4.5:1 未達だったため `-fg-subtle` へ置換。参照の
+            // `boolean` → `fontWeight: semibold` も追加。
+            vec![
+                decl("color", "var(--fandhe-color-warning-fg-subtle)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+            ],
         )
         .state(
             "value",
             StateCondition::AttrEq("data-kind", "null"),
-            vec![decl("color", "var(--fandhe-color-fg-muted)")],
+            // イシュー #1563: 参照の `null`/`undefined` →
+            // `fontWeight: semibold` + `fontStyle: italic` に倣う。色は
+            // 既定の fg-muted を維持（null は「値が無い」ことを示す中立表現）。
+            vec![
+                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                decl("font-style", "italic"),
+            ],
+        )
+        .state(
+            "value",
+            StateCondition::AttrEq("data-kind", "object"),
+            // イシュー #1563: 参照の折りたたみ時要約（preview-text）→
+            // `fontStyle: italic` に倣う。色は fg-muted 継承のまま。
+            vec![decl("font-style", "italic")],
+        )
+        .state(
+            "value",
+            StateCondition::AttrEq("data-kind", "array"),
+            vec![decl("font-style", "italic")],
         )
 }
 
@@ -118,7 +212,7 @@ mod tests {
     #[test]
     fn stylesheet_declares_selector_per_kind() {
         let css = stylesheet();
-        for kind in ["string", "number", "bool", "null"] {
+        for kind in ["string", "number", "bool", "null", "object", "array"] {
             assert!(
                 css.contains(&format!(
                     r#"[data-scope="json-tree-view"][data-part="value"][data-kind="{kind}"]"#
@@ -138,11 +232,83 @@ mod tests {
     #[test]
     fn stylesheet_uses_theme_token_vars() {
         let css = stylesheet();
-        assert!(css.contains("var(--fandhe-color-success)"));
-        assert!(css.contains("var(--fandhe-color-info)"));
-        assert!(css.contains("var(--fandhe-color-warning)"));
+        assert!(css.contains("var(--fandhe-color-success-fg-subtle)"));
+        assert!(css.contains("var(--fandhe-color-info-fg-subtle)"));
+        assert!(css.contains("var(--fandhe-color-warning-fg-subtle)"));
         assert!(css.contains("var(--fandhe-color-fg-muted)"));
         assert!(css.contains("var(--fandhe-color-fg)"));
+        assert!(css.contains("var(--fandhe-font-font-mono)"));
+        assert!(css.contains("var(--fandhe-font-font-weight-medium)"));
+        assert!(css.contains("var(--fandhe-font-font-weight-semibold)"));
+    }
+
+    /// イシュー #1563: コントラスト是正のため旧トークン
+    /// （`--fandhe-color-success`/`-info`/`-warning`、ライトテーマで
+    /// 4.5:1 未達）を使わなくなったことを固定する回帰テスト。
+    #[test]
+    fn stylesheet_no_longer_uses_low_contrast_tokens() {
+        let css = stylesheet();
+        assert!(!css.contains("var(--fandhe-color-success)"));
+        assert!(!css.contains("var(--fandhe-color-info)"));
+        assert!(!css.contains("var(--fandhe-color-warning)"));
+    }
+
+    #[test]
+    fn key_and_value_use_mono_font_family() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="json-tree-view"][data-part="key"] {
+  color: var(--fandhe-color-fg);
+  font-family: var(--fandhe-font-font-mono);"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="json-tree-view"][data-part="value"] {
+  color: var(--fandhe-color-fg-muted);
+  font-family: var(--fandhe-font-font-mono);"#
+        ));
+    }
+
+    /// イシュー #1563: `bool` は semibold、`null` は semibold + italic を
+    /// 参照（ark-ui）基準で追加した宣言が出力に含まれることを固定する。
+    #[test]
+    fn bool_and_null_declare_weight_and_style() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="json-tree-view"][data-part="value"][data-kind="bool"] {
+  color: var(--fandhe-color-warning-fg-subtle);
+  font-weight: var(--fandhe-font-font-weight-semibold);
+}"#
+        ));
+        assert!(css.contains(
+            r#"[data-scope="json-tree-view"][data-part="value"][data-kind="null"] {
+  color: var(--fandhe-color-fg-muted);
+  font-weight: var(--fandhe-font-font-weight-semibold);
+  font-style: italic;
+}"#
+        ));
+    }
+
+    /// イシュー #1563: `object`/`array`（折りたたみ要約）は色を変えず
+    /// 斜体のみを追加する（参照の `preview-text` 相当）。
+    #[test]
+    fn object_and_array_declare_italic_only() {
+        let css = stylesheet();
+        for kind in ["object", "array"] {
+            assert!(css.contains(&format!(
+                r#"[data-scope="json-tree-view"][data-part="value"][data-kind="{kind}"] {{
+  font-style: italic;
+}}"#
+            )));
+        }
+    }
+
+    /// イシュー #1563: セマンティックトークン var() 経由以外の生の色
+    /// リテラル（16 進カラー・`rgb(`）を CSS 出力へ混入させない不変条件。
+    #[test]
+    fn stylesheet_has_no_raw_color_literals() {
+        let css = stylesheet();
+        assert!(!css.contains('#'));
+        assert!(!css.contains("rgb("));
     }
 
     #[test]

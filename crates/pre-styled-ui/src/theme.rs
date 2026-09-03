@@ -1926,6 +1926,22 @@ mod tests {
         ("danger", "bg"),
         ("neutral", "bg"),
         ("focus-ring", "bg"),
+        // イシュー #1564: `crate::progress` の linear range（`<p>` 塗り）が
+        // 各 track variant の上に乗る組。`Outline` は `bg-muted` トラック、
+        // `Subtle` は `<p>-subtle` トラック（progress.rs モジュール冒頭
+        // rustdoc「意図的に参考サイトへ合わせない点」参照）。
+        ("accent", "bg-muted"),
+        ("info", "bg-muted"),
+        ("success", "bg-muted"),
+        ("warning", "bg-muted"),
+        ("danger", "bg-muted"),
+        ("neutral", "bg-muted"),
+        ("accent", "accent-subtle"),
+        ("info", "info-subtle"),
+        ("success", "success-subtle"),
+        ("warning", "warning-subtle"),
+        ("danger", "danger-subtle"),
+        ("neutral", "neutral-subtle"),
     ];
 
     #[test]

@@ -336,6 +336,24 @@ fn ex_data_list() -> Node {
     data_list::root(
         data_list::DataListProps {
             orientation: data_list::DataListOrientation::Horizontal,
+            ..data_list::DataListProps::default()
+        },
+        vec![],
+        vec![data_list::item(
+            vec![],
+            vec![
+                data_list::item_label(vec![], vec![text("Name")]),
+                data_list::item_value(vec![], vec![text("Alice")]),
+            ],
+        )],
+    )
+}
+
+fn ex_data_list_bold() -> Node {
+    data_list::root(
+        data_list::DataListProps {
+            variant: data_list::DataListVariant::Bold,
+            ..data_list::DataListProps::default()
         },
         vec![],
         vec![data_list::item(
@@ -350,21 +368,44 @@ fn ex_data_list() -> Node {
 
 pub(crate) const DATA_LIST: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "DataListOrientation（Vertical/Horizontal、crates/pre-styled-ui/src/data_list.rs:70-107）でラベル・値の並びを切り替える",
-        "item/item-label/item-value の 3 パーツで dl/dt/dd 構造を組み立てる（data_list.rs:93-107, 189-201）",
-        "orientation の伝搬は root の CSS custom property 経由（通常の CSS 継承、data_list.rs モジュール doc）",
+        "DataListOrientation（Vertical/Horizontal、crates/pre-styled-ui/src/data_list.rs:106-113）でラベル・値の並びを切り替える",
+        "DataListVariant（Subtle/Bold、data_list.rs:129-136、イシュー #1559）でラベル・値の強調配色を切り替える",
+        "size（Size::Xs〜Xl、既定 Md、data_list.rs recipe() の size_variants）で gap・font-size を段階的に切り替える",
+        "item/item-label/item-value の 3 パーツで dl/dt/dd 構造を組み立てる",
+        "orientation/variant/size の伝搬は root の CSS custom property 経由（通常の CSS 継承、data_list.rs モジュール doc）",
     ],
-    arguments: &[ArgRow {
-        name: "orientation",
-        kind: "DataListOrientation",
-        default: "Vertical",
-        description: "並び方向（data_list.rs:70-107、#[default] は Vertical）。",
-    }],
-    examples: &[ExampleEntry {
-        title: "Horizontal",
-        description: "ラベル・値を横並び表示する Horizontal variant の例です。",
-        render: ex_data_list,
-    }],
+    arguments: &[
+        ArgRow {
+            name: "orientation",
+            kind: "DataListOrientation",
+            default: "Vertical",
+            description: "並び方向（#[default] は Vertical）。",
+        },
+        ArgRow {
+            name: "variant",
+            kind: "DataListVariant",
+            default: "Subtle",
+            description: "見た目 variant（イシュー #1559。#[default] は Subtle。ラベル muted・値 fg / Bold はラベル fg+medium 太字・値 muted）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ variant（イシュー #1559。Xs〜Xl の 5 段、既定 Md）。",
+        },
+    ],
+    examples: &[
+        ExampleEntry {
+            title: "Horizontal",
+            description: "ラベル・値を横並び表示する Horizontal variant の例です。",
+            render: ex_data_list,
+        },
+        ExampleEntry {
+            title: "Bold",
+            description: "ラベルを強調表示する Bold variant の例です。",
+            render: ex_data_list_bold,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "(該当なし)",
@@ -389,15 +430,15 @@ fn ex_empty_state() -> Node {
 
 pub(crate) const EMPTY_STATE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "content/indicator/title/description/actions の 5 パーツで空状態の掲示を構造化する（crates/pre-styled-ui/src/empty_state.rs:139-165）",
-        "size variant（既定 Md）が root の padding を切り替える（empty_state.rs:111-112）",
-        "aria-* は付与しない（empty_state.rs:5）",
+        "content/indicator/title/description/actions の 5 パーツで空状態の掲示を構造化する（crates/pre-styled-ui/src/empty_state.rs の recipe 関数）",
+        "size variant（既定 Md）が root の `--fandhe-empty-state-*` custom property 経由で padding・gap・indicator/title/description の文字サイズを連動させる（empty_state.rs の recipe 関数、イシュー #1560）",
+        "aria-* は付与しない（empty_state.rs 冒頭 doc コメント）",
     ],
     arguments: &[ArgRow {
         name: "size",
         kind: "Size",
         default: "Md",
-        description: "root の padding を切り替えるサイズ（empty_state.rs:111-118）。",
+        description: "root の custom property（`--fandhe-empty-state-*`）経由で padding・gap・indicator/title/description の文字サイズを連動させるサイズ（empty_state.rs の recipe 関数、イシュー #1560）。",
     }],
     examples: &[ExampleEntry {
         title: "Basic",
@@ -463,10 +504,28 @@ pub(crate) const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
 
 fn ex_progress() -> Node {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::progress::ProgressProps;
     let p = Progress::new(0.0, 100.0, Some(65.0), Orientation::Horizontal);
     progress::root(
         &p,
-        Size::Md,
+        &ProgressProps::default(),
+        Some("65%"),
+        vec![],
+        vec![
+            p.label(vec![], vec![fandhe_frontend_core::text("Upload")]),
+            p.value_text(vec![], vec![fandhe_frontend_core::text("65%")]),
+            p.track(vec![], vec![progress::range(&p, vec![])]),
+        ],
+    )
+}
+
+fn ex_progress_circle() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::progress::ProgressProps;
+    let p = Progress::new(0.0, 100.0, Some(65.0), Orientation::Horizontal);
+    progress::root(
+        &p,
+        &ProgressProps::default(),
         Some("65%"),
         vec![],
         vec![p.circle(
@@ -481,33 +540,40 @@ fn ex_progress() -> Node {
 
 pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "circle/circle-track/circle-range は headless の inherent メソッドをそのまま呼ばせる契約（crates/pre-styled-ui/src/progress.rs テスト caller_headless_circle_parts_render_without_wrapper）",
-        "value が None（indeterminate）のとき [data-state=\"indeterminate\"] で回転アニメーションを付与する（progress.rs:55, 66-77）",
-        "size variant（progress.rs:243-249）で circle の大きさを切り替える",
+        "track/range（linear）と circle/circle-track/circle-range（circular）はいずれも headless の inherent メソッドをそのまま呼ばせる契約（crates/pre-styled-ui/src/progress.rs テスト caller_headless_track_and_circle_parts_render_without_wrapper）",
+        "value が None（indeterminate）のとき [data-state=\"indeterminate\"] でアニメーション（linear は横スライド・circular は回転）を付与し、prefers-reduced-motion: reduce で停止する",
+        "ProgressProps（size/variant/color-palette の 3 軸）を root へ付与する。styled range() が --fandhe-progress-percent を determinate 時のみ付与する",
     ],
     arguments: &[
         ArgRow {
-            name: "size",
-            kind: "Size",
-            default: "Md",
-            description: "circle のサイズ（progress.rs:243-249）。",
+            name: "props",
+            kind: "&ProgressProps",
+            default: "ProgressProps::default()",
+            description: "size（既定 Md）/variant（既定 Outline）/palette（既定 Accent）の 3 軸をまとめた設定（progress.rs）。",
         },
         ArgRow {
             name: "aria_valuetext",
             kind: "Option<&str>",
             default: "None",
-            description: "aria-valuetext へ渡す表示用テキスト（progress.rs:243-247, 245）。",
+            description: "aria-valuetext へ渡す表示用テキスト（progress.rs）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Determinate",
-        description: "value=65 の determinate circle progress の例です。",
-        render: ex_progress,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Determinate (linear)",
+            description: "value=65 の determinate linear progress（Track/Range）の例です。",
+            render: ex_progress,
+        },
+        ExampleEntry {
+            title: "Determinate (circular)",
+            description: "value=65 の determinate circular progress（SVG）の例です。",
+            render: ex_progress_circle,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-valuetext",
-        description: "呼び出し側が渡した aria_valuetext を root（headless progress.root への委譲）へ出力する（progress.rs:243-247, 245）。",
+        description: "呼び出し側が渡した aria_valuetext を root（headless progress.root への委譲）へ出力する（progress.rs）。",
     }],
     demo: None,
 };
@@ -516,6 +582,7 @@ fn ex_skeleton() -> Node {
     skeleton::skeleton(
         &skeleton::SkeletonProps {
             variant: skeleton::SkeletonVariant::Circle,
+            ..Default::default()
         },
         vec![],
     )
@@ -523,16 +590,25 @@ fn ex_skeleton() -> Node {
 
 pub(crate) const SKELETON: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "SkeletonVariant（Text/Circle/Rect、crates/pre-styled-ui/src/skeleton.rs:82-208）で占位形状を切り替える",
-        "常に aria-hidden=\"true\" を固定付与する（skeleton.rs:9, 202）",
-        "呼び出し側が偽装した aria-hidden（大文字小文字問わず）も除去し常時 true へ一本化する（skeleton.rs:209-217, 262-266）",
+        "SkeletonVariant（Text/Circle/Rect、crates/pre-styled-ui/src/skeleton.rs:138-149）で占位形状を切り替える",
+        "SkeletonAnimation（Pulse/Shine/None、skeleton.rs:169-181、イシュー #1566）で第 2 軸のアニメーション種別を切り替える",
+        "常に aria-hidden=\"true\" を固定付与する（skeleton.rs:364-369）",
+        "呼び出し側が偽装した aria-hidden（大文字小文字問わず）も除去し常時 true へ一本化する（skeleton.rs:364-369、回帰テストは skeleton.rs:429-436）",
     ],
-    arguments: &[ArgRow {
-        name: "variant",
-        kind: "SkeletonVariant",
-        default: "Text",
-        description: "占位形状（skeleton.rs:82-208、#[default] は Text）。",
-    }],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "SkeletonVariant",
+            default: "Text",
+            description: "占位形状（skeleton.rs:138-149、#[default] は Text）。",
+        },
+        ArgRow {
+            name: "animation",
+            kind: "SkeletonAnimation",
+            default: "Pulse",
+            description: "アニメーション種別（skeleton.rs:169-181、#[default] は Pulse、イシュー #1566）。",
+        },
+    ],
     examples: &[ExampleEntry {
         title: "Circle",
         description: "アバター等の占位に使う Circle variant の例です。",
@@ -541,7 +617,7 @@ pub(crate) const SKELETON: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-hidden=\"true\"",
-        description: "常に固定付与される（呼び出し側の偽装値は除去、skeleton.rs:9, 202, 262-266）。",
+        description: "常に固定付与される（呼び出し側の偽装値は除去、skeleton.rs:364-369、回帰テストは skeleton.rs:429-436）。",
     }],
     demo: None,
 };
@@ -812,22 +888,29 @@ fn ex_color_swatch() -> Node {
 
 pub(crate) const COLOR_SWATCH: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "SwatchShape（Square/Circle/Rounded、crates/pre-styled-ui/src/color_swatch.rs:48-347）で外形を切り替える",
-        "検証済み Color 型のみを受け取り、--fd-swatch-color custom property 経由で色を出力する（color_swatch.rs:317-336 モジュール冒頭「色値は検証済み型経由のみ」）",
+        "SwatchShape（Square/Circle/Rounded）で外形を切り替える（color_swatch.rs `recipe` 節）",
+        "検証済み Color 型のみを受け取り、--fd-swatch-color custom property 経由で色を出力する（color_swatch.rs モジュール冒頭「色値は検証済み型経由のみ」節）",
         "呼び出し側の class/style/data-scope/data-part 偽装はすべて除去する（color_swatch.rs テスト caller_class_and_style_attrs_are_dropped_not_duplicated 等）",
+        "内側 1px の輪郭リング（box-shadow: inset）で淡色・低アルファ色でも外形が判別できる（イシュー #1558、color_swatch.rs モジュール冒頭「参照サイト比較」節）",
     ],
     arguments: &[
         ArgRow {
             name: "value",
             kind: "Color",
             default: "opaque black",
-            description: "表示する色（検証済み型のみ受け取る、color_swatch.rs:317-336）。",
+            description: "表示する色（検証済み型のみ受け取る、color_swatch.rs モジュール冒頭「色値は検証済み型経由のみ」節）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ（Xs〜Xl の 5 段、chakra-ui 同名段の実寸に整合。イシュー #1558）。",
         },
         ArgRow {
             name: "shape",
             kind: "SwatchShape",
             default: "Rounded",
-            description: "外形（color_swatch.rs:339-347）。",
+            description: "外形（color_swatch.rs `SwatchShape` 節）。",
         },
     ],
     examples: &[ExampleEntry {
@@ -856,22 +939,28 @@ fn ex_icon() -> Node {
 
 pub(crate) const ICON: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "label が Some のとき role=\"img\" + aria-label を付与し意味のあるアイコンとして扱う（crates/pre-styled-ui/src/icon.rs:592-596, 651-654）",
-        "label が None（既定）のとき装飾用途とみなし aria-hidden=\"true\" を付与する（icon.rs:594-596, 656）",
-        "fill=\"currentColor\" を固定付与し祖先の color プロパティで着色する（icon.rs:614-616）",
+        "label が Some のとき role=\"img\" + aria-label を付与し意味のあるアイコンとして扱う（icon.rs `icon` 節）",
+        "label が None（既定）のとき装飾用途とみなし aria-hidden=\"true\" を付与する（icon.rs `icon` 節）",
+        "fill=\"currentColor\" を固定付与し祖先の color プロパティで着色する（icon.rs `icon` 節）",
     ],
     arguments: &[
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ（Xs〜Xl の 5 段、chakra-ui 同名段の実寸に整合。イシュー #1561）。",
+        },
         ArgRow {
             name: "label",
             kind: "Option<&str>",
             default: "None",
-            description: "アクセシブルネーム（icon.rs:592-609）。",
+            description: "アクセシブルネーム（icon.rs `IconProps` 節）。",
         },
         ArgRow {
             name: "view_box",
             kind: "&str",
             default: "\"0 0 24 24\"",
-            description: "viewBox 属性値（icon.rs:597-607）。",
+            description: "viewBox 属性値（icon.rs `IconProps` 節）。",
         },
     ],
     examples: &[ExampleEntry {
@@ -882,7 +971,7 @@ pub(crate) const ICON: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "role=\"img\" + aria-label（label が Some の場合）/ aria-hidden=\"true\"（None の場合）",
-        description: "label の有無で意味のあるアイコンか装飾用途かを切り替える（icon.rs:592-596, 651-657）。",
+        description: "label の有無で意味のあるアイコンか装飾用途かを切り替える（icon.rs `icon` 節）。",
     }],
     demo: None,
 };
@@ -892,7 +981,8 @@ fn ex_image() -> Node {
         &image::ImageProps {
             fit: image::ImageFit::Contain,
             aspect_ratio: image::AspectRatio::Square,
-            ..image::ImageProps::new("/photo.png", "製品写真")
+            shape: image::ImageShape::Rounded,
+            ..image::ImageProps::new(crate::showcase::IMAGE_DEMO_SRC, "製品写真")
         },
         vec![],
     )
@@ -900,39 +990,53 @@ fn ex_image() -> Node {
 
 pub(crate) const IMAGE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "ImageFit（Cover/Contain/Fill/ScaleDown/NoFit、crates/pre-styled-ui/src/image.rs:39-73）で object-fit を切り替える",
-        "AspectRatio（Auto/Square/Video、image.rs:74-97）で aspect-ratio を切り替える",
-        "src は既定エスケープ + is_safe_url 検証を経由し危険なスキーム（javascript: 等）は出力自体を落とす（image.rs テスト dangerous_src_scheme_is_not_output_but_sibling_attrs_survive）",
+        "ImageFit（Cover/Contain/Fill/ScaleDown/NoFit、crates/pre-styled-ui/src/image.rs:76-107）で object-fit を切り替える",
+        "AspectRatio（Auto/Square/Landscape/Portrait/Video、image.rs:113-141）で aspect-ratio を切り替える（イシュー #1562 で Landscape(4:3)/Portrait(3:4) を追加）",
+        "ImageShape（Square/Rounded/Circle、image.rs:150-172）で角丸を切り替える（イシュー #1562 で新設。radius トークン `--fandhe-radius-none`/`-md`/`-full` 経由）",
+        "base に height: auto を持つ（image.rs、イシュー #1562）。max-width: 100% による縮小時に縦横比を保つ",
+        "src は既定エスケープ + is_safe_url 検証を経由し危険なスキーム（javascript: 等・data: 等）は出力自体を落とす（image.rs テスト dangerous_src_scheme_is_not_output_but_sibling_attrs_survive）",
     ],
     arguments: &[
         ArgRow {
             name: "src",
             kind: "&str",
             default: "(必須)",
-            description: "画像 URL（image.rs:786-788、is_safe_url 検証を経由）。",
+            description: "画像 URL（image.rs:258、is_safe_url 検証を経由）。",
         },
         ArgRow {
             name: "alt",
             kind: "&str",
             default: "(必須)",
-            description: "代替テキスト（image.rs:789-791、空文字列も明示的な選択として許容）。",
+            description: "代替テキスト（image.rs:261、空文字列も明示的な選択として許容）。",
         },
         ArgRow {
             name: "fit",
             kind: "ImageFit",
             default: "Cover",
-            description: "object-fit（image.rs:39-73, 792-793）。",
+            description: "object-fit（image.rs:76-107, 263）。",
+        },
+        ArgRow {
+            name: "aspect_ratio",
+            kind: "AspectRatio",
+            default: "Auto",
+            description: "aspect-ratio（image.rs:113-141, 265）。",
+        },
+        ArgRow {
+            name: "shape",
+            kind: "ImageShape",
+            default: "Square",
+            description: "角丸（image.rs:150-172, 267。イシュー #1562 で新設）。",
         },
     ],
     examples: &[ExampleEntry {
-        title: "Square contain",
-        description: "Contain fit + Square aspect ratio の例です。",
+        title: "Square contain, rounded",
+        description: "Contain fit + Square aspect ratio + Rounded shape の例です。",
         render: ex_image,
     }],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "alt（必須引数）",
-        description: "代替テキストを img 要素の alt として必ず出力する（image.rs:789-791）。role/aria-* 自体は固有の出力を持たない。",
+        description: "代替テキストを img 要素の alt として必ず出力する（image.rs:261）。role/aria-* 自体は固有の出力を持たない。",
     }],
     demo: None,
 };

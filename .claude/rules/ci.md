@@ -116,7 +116,11 @@
   `primitives/accordion/index.html`（#1021、代表 Primitives 部品ページ）/
   `assets/primitives-showcase.css`（イシュー #1022、`src/primitive_showcase/`
   が生成。#1021 が「本イシュー完了時点では CSS を持たない」として先送り
-  していた test -f を、Primitives 63 部品の Demo 供給に伴い追加した）である。
+  していた test -f を、Primitives 63 部品の Demo 供給に伴い追加した）/
+  `assets/image-demo.svg`（イシュー #1562、`showcase::image_demo_svg` が
+  生成。Image 節 demo の `src` が `data:` URI で core の `is_safe_url` に
+  拒否され属性ごと欠落していた不具合を、ビルド時生成 SVG の相対パス参照へ
+  切り替えて是正した）である。
   いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・

@@ -83,11 +83,12 @@
 //!     role 付与なし。中立コンテナのため colorPalette 軸は付与しない。
 //!     `variant`（[`card::CardVariant`]）/`size`（[`recipe::Size`]）の
 //!     2 軸を [`card::CardProps`] へ束ねる、イシュー #1557）。
-//!   - [`mod@skeleton`]（#764）: [`skeleton::skeleton`]（単一 recipe、
-//!     `<div>`。ローディングプレースホルダー。`text`/`circle`/`rect` の
-//!     `variant`、常時 `aria-hidden="true"`、`prefers-reduced-motion: reduce`
-//!     でのアニメーション停止 CSS を持つ。装飾的占位要素のため card と同じ
-//!     判断で colorPalette 軸を付与しない）。
+//!   - [`mod@skeleton`]（#764、イシュー #1566 で `animation` 軸追加）:
+//!     [`skeleton::skeleton`]（単一 recipe、`<div>`。ローディングプレース
+//!     ホルダー。`text`/`circle`/`rect` の `variant`、`pulse`/`shine`/`none`
+//!     の `animation`（第 2 軸）、常時 `aria-hidden="true"`、
+//!     `prefers-reduced-motion: reduce` でのアニメーション停止 CSS を持つ。
+//!     装飾的占位要素のため card と同じ判断で colorPalette 軸を付与しない）。
 //!   - [`mod@separator`]（#772）: [`separator::separator`]（単一 recipe、
 //!     `<hr>`。区切り線であり中立的な罫線のため colorPalette 軸を付与しない。
 //!     `orientation`（horizontal/vertical）・`variant`（solid/dashed）の
@@ -256,16 +257,16 @@
 //!   の 2 軸 variant を持つが、通常の複合部品と異なり各軸が別 slot へ付与される
 //!   ため [`recipe::SlotRecipe::variant_class`]（単一軸専用 API）をスロットごとに
 //!   個別に呼ぶ。詳細は [`mod@toast`] rustdoc 参照）。
-//! - headless ラッパー（Progress circular 対応、イシュー #763）:
+//! - headless ラッパー（Progress linear + circular 対応、イシュー #763/#1564）:
 //!   [`mod@progress`]。headless の値状態機械
-//!   [`fandhe_frontend_headless_ui::progress::Progress`] が既に持つ Circle/
-//!   CircleTrack/CircleRange（SVG）の inherent メソッドへ CSS のみを追加提供
-//!   する薄い委譲層で、新規状態機械は持たない。`size` variant のみを持ち
-//!   `color-palette` 軸は提供しない（`Progress` 型はあえて再エクスポートせず、
-//!   `size` variant クラス付与のため styled root のみを新設する。
-//!   [`mod@dialog`]/[`mod@switch`] と同型の判断）。linear（Track/Range）用の
-//!   styled ラッパーは対応表（`docs/design/component-coverage-map.md`）が
-//!   本イシューと切り分けたスコープ外。詳細は [`mod@progress`] rustdoc 参照。
+//!   [`fandhe_frontend_headless_ui::progress::Progress`] が既に持つ Track/
+//!   Range（linear）と Circle/CircleTrack/CircleRange（SVG、circular）の
+//!   inherent メソッドへ CSS のみを追加提供する薄い委譲層で、新規状態機械は
+//!   持たない。`size`/`variant`（`ProgressVariant`）/`color-palette` の 3 軸
+//!   を持つ（`Progress` 型はあえて再エクスポートせず、styled [`root`](progress::root)
+//!   と `--fandhe-progress-percent` を付与する styled [`range`](progress::range)
+//!   のみを新設する。[`mod@dialog`]/[`mod@switch`] と同型の判断）。詳細は
+//!   [`mod@progress`] rustdoc 参照。
 //! - headless ラッパー 3 種（イシュー #756、#716 追加候補・最優先候補の消化）:
 //!   [`mod@link`]（Link、`variant` の下線表示切り替え + `aria-current="page"`
 //!   状態装飾 + colorPalette/hover/focus-visible/transition〔イシュー #1437〕）、
@@ -768,7 +769,7 @@ pub use empty_state::EmptyStateProps;
 pub use heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 pub use highlight::{highlight, HighlightProps};
 pub use icon::{icon, IconProps};
-pub use image::{image, AspectRatio, ImageFit, ImageProps};
+pub use image::{image, AspectRatio, ImageFit, ImageProps, ImageShape};
 pub use input::{input, InputProps, InputVariant};
 pub use kbd::{kbd, KbdProps, KbdVariant};
 pub use link::{LinkProps, LinkVariant};
@@ -779,7 +780,7 @@ pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use quote::quote;
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
 pub use separator::{separator, SeparatorProps, SeparatorVariant};
-pub use skeleton::{skeleton, SkeletonProps, SkeletonVariant};
+pub use skeleton::{skeleton, SkeletonAnimation, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};
 pub use status::StatusProps;
 pub use strong::strong;

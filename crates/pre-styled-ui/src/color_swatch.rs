@@ -23,10 +23,72 @@
 //! # 最小サブセット方針（chakra-ui との差分）
 //!
 //! chakra-ui の ColorSwatch は `size` に `2xs`〜`2xl`/`full` の 8 段階を
-//! 持つが、本実装は既存共通軸 [`crate::recipe::Size`]（Sm/Md/Lg）の 3 段階
-//! に限定する（[`crate::tag::TagVariant`] が chakra `surface` を見送ったのと
-//! 同型の最小サブセット判断、スコープ外）。`shape` は chakra 同様
-//! `square`/`circle`/`rounded`（既定）の 3 値を提供する。
+//! 持つが、本実装は既存共通軸 [`crate::recipe::Size`]（Xs〜Xl の 5 段、
+//! #1681）に限定する（[`crate::tag::TagVariant`] が chakra `surface` を
+//! 見送ったのと同型の最小サブセット判断、スコープ外）。`shape` は chakra
+//! 同様 `square`/`circle`/`rounded`（既定）の 3 値を提供する。chakra は
+//! `variant`/`colorPalette` 軸を持たない（色は `value` そのもの）ため、
+//! 本実装もこれらの軸を持たない。
+//!
+//! # イシュー #1558 の参照サイト比較（7 軸チェック）
+//!
+//! chakra-ui（ColorSwatch、`size`（`2xs`〜`2xl`/`inherit`/`full`、既定
+//! `md`）+ `shape`（`square`/`circle`/`rounded`(既定)）、`variant`/
+//! `colorPalette` 軸なし）とスクリーンショット
+//! （`docs/design/reference-screenshots/chakra-color-swatch-{1,2,3}.png`・
+//! `themes-color-swatch.png`）を比較した結果を記録する。ark-ui / Radix
+//! Themes には対応部品がないため比較対象は chakra-ui のみ。
+//!
+//! - **サイズ**: [`crate::recipe::Size`] の Xs〜Xl の実寸を、#1681 時点の
+//!   等差外挿（Xs=8px/Sm=16px/Md=24px/Lg=32px/Xl=40px）から chakra の
+//!   同名段の実寸（xs=16px/sm=18px/md=20px/lg=24px/xl=28px）へ是正した
+//!   （avatar #1554 と同型の判断）。chakra の `2xs`/`2xl`/`inherit`/`full`
+//!   は共通語彙の 5 段に存在しないため採らない。
+//! - **バリアント**: chakra 同様 `variant`/`colorPalette` 軸を持たない
+//!   （色は [`ColorSwatchProps::value`] そのもので決まる）。増減なし。
+//! - **色**: チェッカーボードの 2 色目は chakra の `bg.emphasized` では
+//!   なく `--fandhe-color-border`（light `#d9d9d9`、chakra `#e2e2e2` と
+//!   ほぼ同値）を維持する（#838 PR #858 の Bugbot 指摘で確定した「
+//!   `--fandhe-color-bg` と常にコントラストが取れる固定トークン」の根拠を
+//!   優先し変更しない）。生の色リテラルは持ち込まない。
+//! - **状態（`data-*`）**: 増減なし。`data-scope`/`data-part` のみ
+//!   （[`ANATOMY`]）。
+//! - **ダーク**: 追加宣言（`--fandhe-color-border-muted` 参照の
+//!   `box-shadow`）はトークン参照のため `write_dark_declarations` へ
+//!   自動追従する。
+//! - **フォーカス**: 非適用（意図的）。表示専用でフォーカス不能な
+//!   `<span>` であり #1424 の適用対象外。
+//! - **余白・角丸・影**: base へ内側 1px の輪郭リング
+//!   `box-shadow: inset 0 0 0 1px var(--fandhe-color-border-muted)` を
+//!   追加した（chakra の `inset 0 0 0 1px rgba(0, 0, 0, 0.1)` 相当。白・
+//!   淡色・低アルファ色でも輪郭が判別できるようにするため。`border` では
+//!   なく `box-shadow: inset` にするのは、要素サイズを変えずに
+//!   `background-image` の色レイヤーの上に重なる描画順を得るため
+//!   （`docs/design/pre-styled-ui-scale-tokens.md` §5.2 の「リング・
+//!   ドット描画用途は影トークン化対象外」に該当する意図的な生値だが色は
+//!   トークン経由）。角丸 `--fandhe-radius-sm`（Rounded 既定）は chakra
+//!   `l1`（xs=2px 相当）より 1 段大きいが、参照スクショの見た目と一致し
+//!   badge/kbd と同じ密なインライン部品の段のため維持する。`box-sizing`
+//!   は `border` を使わないため不要（avatar の `border-box` 追加とは前提
+//!   が異なる）。
+//! - **レイアウト（余白・角丸・影に準ずる是正）**: base を
+//!   `display: inline-block` から `display: inline-flex` +
+//!   `align-items: center` + `justify-content: center` +
+//!   `flex-shrink: 0` へ変更した（chakra の `inline-flex` 中央寄せ +
+//!   `flex-shrink: 0` に整合）。`vertical-align: middle` は維持するため
+//!   インライン文中配置は変わらず、`children` を受け取る API（アイコン等
+//!   の重ね表示）が中央寄せされ flex 行で潰れなくなる。
+//! - **hover / disabled / transition**: 非適用（意図的）。
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md` §3 が
+//!   「表示専用には hover を付けない」と明記しており、disabled 概念・
+//!   遷移対象もない。
+//!
+//! ## スコープ外（変更しない点）
+//!
+//! チェッカーボードタイル `8px 8px` の生値のトークン化は
+//! [`crate::color_picker`] との横断事項であり本イシューでは対応しない
+//! （PR 本文の対象外に記載）。chakra `ColorSwatchMix`（複数色の分割表示）・
+//! `Group attached` 相当の連結レイアウトも見送る（最小サブセット方針）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -130,40 +192,63 @@ fn recipe() -> SlotRecipe {
         .base(
             "root",
             vec![
-                decl("display", "inline-block"),
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("flex-shrink", "0"),
                 decl("vertical-align", "middle"),
                 decl(
                     "background-image",
                     "linear-gradient(var(--fd-swatch-color), var(--fd-swatch-color)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, var(--fandhe-color-bg) 0% 50%)",
                 ),
                 decl("background-size", "100% 100%, 8px 8px"),
+                // イシュー #1558: 参照サイト（chakra-ui）は
+                // `inset 0 0 0 1px rgba(0, 0, 0, 0.1)` の内側 1px リングで
+                // 白・淡色・低アルファ色でも輪郭を判別できるようにしている。
+                // 生の `rgba()` は持ち込まず、light `#e6e6e6` / dark `#2a2a2a`
+                // のトークン `--fandhe-color-border-muted` を参照する（light
+                // 値は chakra の実効色とほぼ一致、ダークはトークン再定義経由
+                // で自動追従）。`box-shadow: inset` は要素サイズを変えずに
+                // `background-image` の色レイヤーの上に重なる描画順のため、
+                // `border` よりチェッカーボードとの整合が良い
+                // （`docs/design/pre-styled-ui-scale-tokens.md` §5.2 の
+                // 「リング・ドット描画用途は影トークン化対象外」に該当する
+                // 意図的な生値だが、色自体はトークン経由にする）。
+                decl(
+                    "box-shadow",
+                    "inset 0 0 0 1px var(--fandhe-color-border-muted)",
+                ),
             ],
         )
-        // イシュー #1681: Xs/Xl は Sm→Md→Lg の 0.5rem 刻み等差進行を外挿。
-        .variant(
-            Size::Xs,
+        // イシュー #1558: chakra-ui の同名 size 段（xs=16px/sm=18px/
+        // md=20px/lg=24px/xl=28px）の実寸へ是正した（#1681 時点は
+        // Sm→Md→Lg の 0.5rem 刻み等差外挿だった）。`SlotRecipe::size_variants`
+        // 経由にすることで既定 `Md` を構造的に保証する
+        // （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+        // §4）。chakra の `2xs`/`2xl`/`inherit`/`full` は共通語彙
+        // `recipe::Size`（5 段）に存在しないため採らない
+        // （モジュール冒頭「最小サブセット方針」参照）。
+        .size_variants(
             "root",
-            vec![decl("width", "0.5rem"), decl("height", "0.5rem")],
-        )
-        .variant(
-            Size::Sm,
-            "root",
-            vec![decl("width", "1rem"), decl("height", "1rem")],
-        )
-        .variant(
-            Size::Md,
-            "root",
-            vec![decl("width", "1.5rem"), decl("height", "1.5rem")],
-        )
-        .variant(
-            Size::Lg,
-            "root",
-            vec![decl("width", "2rem"), decl("height", "2rem")],
-        )
-        .variant(
-            Size::Xl,
-            "root",
-            vec![decl("width", "2.5rem"), decl("height", "2.5rem")],
+            &[
+                (Size::Xs, vec![decl("width", "1rem"), decl("height", "1rem")]),
+                (
+                    Size::Sm,
+                    vec![decl("width", "1.125rem"), decl("height", "1.125rem")],
+                ),
+                (
+                    Size::Md,
+                    vec![decl("width", "1.25rem"), decl("height", "1.25rem")],
+                ),
+                (
+                    Size::Lg,
+                    vec![decl("width", "1.5rem"), decl("height", "1.5rem")],
+                ),
+                (
+                    Size::Xl,
+                    vec![decl("width", "1.75rem"), decl("height", "1.75rem")],
+                ),
+            ],
         )
         .variant(
             SwatchShape::Square,
@@ -180,7 +265,6 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![decl("border-radius", "var(--fandhe-radius-sm)")],
         )
-        .default_variant(Size::Md)
         .default_variant(SwatchShape::Rounded)
 }
 
@@ -249,9 +333,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-color-swatch--size-xs"),
             (Size::Sm, "fd-color-swatch--size-sm"),
             (Size::Md, "fd-color-swatch--size-md"),
             (Size::Lg, "fd-color-swatch--size-lg"),
+            (Size::Xl, "fd-color-swatch--size-xl"),
         ] {
             let props = ColorSwatchProps {
                 value: opaque_blue(),
@@ -359,8 +445,46 @@ mod tests {
     #[test]
     fn css_output_declares_expected_size_and_shape_rules() {
         let out = css();
+        assert!(out.contains("width: 1rem;"));
+        assert!(out.contains("width: 1.125rem;"));
+        assert!(out.contains("width: 1.25rem;"));
         assert!(out.contains("width: 1.5rem;"));
+        assert!(out.contains("width: 1.75rem;"));
         assert!(out.contains("border-radius: 9999px;"));
         assert!(out.contains("border-radius: var(--fandhe-radius-sm);"));
+    }
+
+    #[test]
+    fn root_base_declares_inset_ring_via_border_muted_token() {
+        let out = css();
+        assert!(out.contains("box-shadow: inset 0 0 0 1px var(--fandhe-color-border-muted);"));
+    }
+
+    #[test]
+    fn root_base_is_inline_flex_centered_and_non_shrinking() {
+        let out = css();
+        assert!(out.contains("display: inline-flex;"));
+        assert!(out.contains("align-items: center;"));
+        assert!(out.contains("justify-content: center;"));
+        assert!(out.contains("flex-shrink: 0;"));
+        assert!(out.contains("vertical-align: middle;"));
+    }
+
+    #[test]
+    fn css_has_no_raw_color_literals() {
+        let out = css();
+        assert!(!out.contains('#'));
+        assert!(!out.contains("rgb("));
+        assert!(!out.contains("rgba("));
+    }
+
+    #[test]
+    fn size_md_is_default_variant() {
+        let props = ColorSwatchProps {
+            value: opaque_blue(),
+            ..ColorSwatchProps::default()
+        };
+        let html = render(&color_swatch(&props, vec![], vec![]));
+        assert!(html.contains("fd-color-swatch--size-md"));
     }
 }
