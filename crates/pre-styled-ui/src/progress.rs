@@ -443,10 +443,15 @@ fn recipe() -> SlotRecipe {
         .variant(
             ProgressVariant::Subtle,
             "root",
-            vec![decl(
-                "--fandhe-progress-track-bg",
-                "var(--fandhe-palette-subtle)",
-            )],
+            vec![
+                decl("--fandhe-progress-track-bg", "var(--fandhe-palette-subtle)"),
+                // イシュー #1564/PR #1835 codex-review P1・Bugbot 指摘: track
+                // の base 規則は `--fandhe-progress-track-shadow` 未定義時に
+                // Outline 相当の inset shadow（1px 枠線）へフォールバックする
+                // ため、Subtle 側で明示的に `none` を上書きしないと Outline
+                // 専用のはずの枠線が残ってしまう。
+                decl("--fandhe-progress-track-shadow", "none"),
+            ],
         )
         .default_variant(ProgressVariant::Outline)
         // イシュー #763: indeterminate 時のみ circle（svg コンテナ）全体を

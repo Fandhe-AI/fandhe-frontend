@@ -109,6 +109,7 @@ const PROGRESS_GOLDEN_CSS: &str = r#"[data-scope="progress"][data-part="root"] {
 
 [data-scope="progress"][data-part="root"].fd-progress--variant-subtle {
   --fandhe-progress-track-bg: var(--fandhe-palette-subtle);
+  --fandhe-progress-track-shadow: none;
 }
 
 [data-scope="progress"][data-part="root"].fd-progress--color-palette-accent {
@@ -308,6 +309,29 @@ fn variant_axis_declares_track_custom_properties_on_root_only() {
     assert!(
         !css.contains(r#"[data-scope="progress"][data-part="circle-track"].fd-progress--variant"#)
     );
+}
+
+#[test]
+fn subtle_variant_disables_outline_track_shadow() {
+    // イシュー #1564/PR #1835 codex-review P1・Cursor Bugbot 指摘の回帰:
+    // track の base 規則は `--fandhe-progress-track-shadow` 未定義時に
+    // Outline 相当の inset shadow（1px 枠線）へフォールバックする
+    // （`stylesheet_matches_golden_css_byte_for_byte` で固定済みの
+    // `box-shadow: var(--fandhe-progress-track-shadow, inset 0 0 0 1px
+    // var(--fandhe-color-border-muted));` 参照）。Subtle variant は
+    // 背景色（`--fandhe-progress-track-bg`）だけでなく、この枠線を
+    // 明示的に打ち消す `--fandhe-progress-track-shadow: none` も root へ
+    // 登録しなければ Outline 専用の枠線が残ってしまう。
+    let css = progress::stylesheet();
+    let subtle_variant_rule = css
+        .split("\n\n")
+        .find(|rule| {
+            rule.starts_with(
+                r#"[data-scope="progress"][data-part="root"].fd-progress--variant-subtle"#,
+            )
+        })
+        .expect("fd-progress--variant-subtle ルールが stylesheet に存在する");
+    assert!(subtle_variant_rule.contains("--fandhe-progress-track-shadow: none;"));
 }
 
 #[test]
