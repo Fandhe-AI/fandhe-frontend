@@ -799,22 +799,29 @@ fn ex_color_swatch() -> Node {
 
 pub(crate) const COLOR_SWATCH: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "SwatchShape（Square/Circle/Rounded、crates/pre-styled-ui/src/color_swatch.rs:48-347）で外形を切り替える",
-        "検証済み Color 型のみを受け取り、--fd-swatch-color custom property 経由で色を出力する（color_swatch.rs:317-336 モジュール冒頭「色値は検証済み型経由のみ」）",
+        "SwatchShape（Square/Circle/Rounded）で外形を切り替える（color_swatch.rs `recipe` 節）",
+        "検証済み Color 型のみを受け取り、--fd-swatch-color custom property 経由で色を出力する（color_swatch.rs モジュール冒頭「色値は検証済み型経由のみ」節）",
         "呼び出し側の class/style/data-scope/data-part 偽装はすべて除去する（color_swatch.rs テスト caller_class_and_style_attrs_are_dropped_not_duplicated 等）",
+        "内側 1px の輪郭リング（box-shadow: inset）で淡色・低アルファ色でも外形が判別できる（イシュー #1558、color_swatch.rs モジュール冒頭「参照サイト比較」節）",
     ],
     arguments: &[
         ArgRow {
             name: "value",
             kind: "Color",
             default: "opaque black",
-            description: "表示する色（検証済み型のみ受け取る、color_swatch.rs:317-336）。",
+            description: "表示する色（検証済み型のみ受け取る、color_swatch.rs モジュール冒頭「色値は検証済み型経由のみ」節）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ（Xs〜Xl の 5 段、chakra-ui 同名段の実寸に整合。イシュー #1558）。",
         },
         ArgRow {
             name: "shape",
             kind: "SwatchShape",
             default: "Rounded",
-            description: "外形（color_swatch.rs:339-347）。",
+            description: "外形（color_swatch.rs `SwatchShape` 節）。",
         },
     ],
     examples: &[ExampleEntry {
