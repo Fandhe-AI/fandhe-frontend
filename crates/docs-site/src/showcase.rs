@@ -6553,10 +6553,35 @@ fn icon_section() -> Node {
         })
         .collect());
 
+    // イシュー #1561: color: currentColor 継承の視認確認用デモ。style
+    // 値は theme.rs 実在のトークン参照（var(...)）のみで、生の色リテラル・
+    // ユーザー入力は混ぜない（既存 showcase の style リテラル慣行と同型）。
+    let current_color_row = row(vec![
+        ("accent", "--fandhe-color-accent"),
+        ("danger", "--fandhe-color-danger"),
+        ("warning", "--fandhe-color-warning"),
+    ]
+    .into_iter()
+    .map(|(label, token)| {
+        el(
+            "span",
+            vec![("style", &format!("color: var({token});"))],
+            vec![icon(
+                &IconProps {
+                    label: Some(label),
+                    ..IconProps::default()
+                },
+                vec![],
+                vec![star_path()],
+            )],
+        )
+    })
+    .collect());
+
     section(
         "Icon",
-        "インライン SVG の寸法（size）・配色（color: currentColor 継承）を統一する svg ラッパー。SVG 本体（path 等）は呼び出し側がノード木 API で構築します。",
-        vec![size_row],
+        "インライン SVG の寸法（size は Xs〜Xl の 5 段、既定 Md、chakra-ui 同名段の実寸に整合。イシュー #1561）・配色（color: currentColor 継承）を統一する svg ラッパー。SVG 本体（path 等）は呼び出し側がノード木 API で構築します。",
+        vec![size_row, current_color_row],
     )
 }
 

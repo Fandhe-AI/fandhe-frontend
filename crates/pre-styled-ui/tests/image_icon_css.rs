@@ -55,8 +55,8 @@ const ICON_GOLDEN_CSS: &str = r#"[data-scope="icon"][data-part="root"] {
 }
 
 [data-scope="icon"][data-part="root"].fd-icon--size-xs {
-  width: 0.5rem;
-  height: 0.5rem;
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
 [data-scope="icon"][data-part="root"].fd-icon--size-sm {
@@ -65,18 +65,18 @@ const ICON_GOLDEN_CSS: &str = r#"[data-scope="icon"][data-part="root"] {
 }
 
 [data-scope="icon"][data-part="root"].fd-icon--size-md {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+[data-scope="icon"][data-part="root"].fd-icon--size-lg {
   width: 1.5rem;
   height: 1.5rem;
 }
 
-[data-scope="icon"][data-part="root"].fd-icon--size-lg {
-  width: 2rem;
-  height: 2rem;
-}
-
 [data-scope="icon"][data-part="root"].fd-icon--size-xl {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
 }
 "#;
 

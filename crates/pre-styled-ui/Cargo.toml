@@ -1003,6 +1003,22 @@ name = "fandhe-frontend-pre-styled-ui"
 # 到達済みだったため、本イシュー（#1556）とのマージにより双方の実体変更を
 # 統合した結果として 0.69.0 へさらにマイナーバンプする（0.x の破壊的変更は
 # マイナーバンプの規約。同一版数への偶発的衝突をそのまま採用しない）。
+# イシュー #1559: data_list のスタイルを参考サイト基準（chakra-ui
+# DataList・Radix Themes DataList）へ調整し、`DataListProps` へ
+# `variant`（`DataListVariant`）・`size`（`Size`）フィールドを追加した
+# （利用者の struct literal を壊しうる 0.x の破壊的変更、既定値のラベル/
+# 値文字サイズも変更したため minor バンプする。0.x の破壊的変更は
+# マイナーバンプの規約。merge base（0.69.0）から独立に 0.70.0 へ到達）。
+# 一方 main 側では #1558（color-swatch の意匠調整、patch バンプ）が
+# 独立に merge base（0.69.0）から 0.69.1 へ到達済みだったため、本イシュー
+# （#1559）とのマージでは双方の実体変更を包含する上位のバージョンである
+# 0.70.0（本イシューの minor バンプが #1558 の patch バンプを包含する）を
+# そのまま採用する。
+# イシュー #1561: icon の size 実寸を #1681 時点の等差外挿から chakra-ui
+# `iconRecipe` 同名段の実寸へ是正した（color-swatch #1558 と同型の意匠
+# 調整）。Rust API シグネチャ・クラス名・CSS 変数名は不変（CSS 宣言値のみ
+# の変更）のため patch バンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
 # イシュー #1560: empty-state の size スケール（padding・content の gap・
 # indicator/title/description の文字サイズ）を chakra-ui EmptyState 基準へ
 # 連動させ、indicator の色を fg-muted から fg-subtle へ調整した。Rust API・
@@ -1013,8 +1029,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 独立に 0.70.0 へ到達済みだったため、双方の実体変更を包含する上位の
 # バージョンとして 0.70.1（main の 0.70.0 に本イシューの patch バンプを
 # さらに積む）を採用する。
-version = "0.70.1"
 
+# 本マージ（feat/1561-icon-style を base main へ追従）で、本ブランチ側
+# （#1561、icon の意匠調整、patch バンプで 0.70.1 到達）と main 側
+# （#1560、empty-state の意匠調整、patch バンプで独立に 0.70.1 到達）が
+# 偶然同一バージョン番号（0.70.1）へ到達していたため、同一版数への偶発的
+# 衝突をそのまま採用せず、双方の実体変更を統合した結果として 0.70.2 へ
+# さらにパッチバンプする。
+version = "0.70.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

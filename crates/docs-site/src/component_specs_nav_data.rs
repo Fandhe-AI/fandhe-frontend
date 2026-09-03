@@ -891,22 +891,28 @@ fn ex_icon() -> Node {
 
 pub(crate) const ICON: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "label が Some のとき role=\"img\" + aria-label を付与し意味のあるアイコンとして扱う（crates/pre-styled-ui/src/icon.rs:592-596, 651-654）",
-        "label が None（既定）のとき装飾用途とみなし aria-hidden=\"true\" を付与する（icon.rs:594-596, 656）",
-        "fill=\"currentColor\" を固定付与し祖先の color プロパティで着色する（icon.rs:614-616）",
+        "label が Some のとき role=\"img\" + aria-label を付与し意味のあるアイコンとして扱う（icon.rs `icon` 節）",
+        "label が None（既定）のとき装飾用途とみなし aria-hidden=\"true\" を付与する（icon.rs `icon` 節）",
+        "fill=\"currentColor\" を固定付与し祖先の color プロパティで着色する（icon.rs `icon` 節）",
     ],
     arguments: &[
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ（Xs〜Xl の 5 段、chakra-ui 同名段の実寸に整合。イシュー #1561）。",
+        },
         ArgRow {
             name: "label",
             kind: "Option<&str>",
             default: "None",
-            description: "アクセシブルネーム（icon.rs:592-609）。",
+            description: "アクセシブルネーム（icon.rs `IconProps` 節）。",
         },
         ArgRow {
             name: "view_box",
             kind: "&str",
             default: "\"0 0 24 24\"",
-            description: "viewBox 属性値（icon.rs:597-607）。",
+            description: "viewBox 属性値（icon.rs `IconProps` 節）。",
         },
     ],
     examples: &[ExampleEntry {
@@ -917,7 +923,7 @@ pub(crate) const ICON: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "role=\"img\" + aria-label（label が Some の場合）/ aria-hidden=\"true\"（None の場合）",
-        description: "label の有無で意味のあるアイコンか装飾用途かを切り替える（icon.rs:592-596, 651-657）。",
+        description: "label の有無で意味のあるアイコンか装飾用途かを切り替える（icon.rs `icon` 節）。",
     }],
     demo: None,
 };
