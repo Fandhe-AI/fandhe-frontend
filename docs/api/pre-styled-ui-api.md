@@ -78,8 +78,8 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `toggle` / `toggle_group`（実フォーカスをネイティブ `<button>` 自身が受けるため `data-focus-visible` 配線ではなく `FocusVisible` state condition で対応。`size`/`color-palette` 両軸提供） | [toggle](../../site/themes/toggle.md) / [toggle-group](../../site/themes/toggle-group.md) |
 | カード型選択 UI（styled バリエーション） | `checkbox_card` / `radio_card`（§4g 参照。headless-ui は変更なし、pre-styled 層で新規 anatomy `checkbox-card`/`radio-card` を定義。状態機械は headless `Checkbox`/`RadioGroup` を再利用） | [checkbox-card](../../site/themes/checkbox-card.md) / [radio-card](../../site/themes/radio-card.md) |
 | headless ラッパー | `combobox`（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） | [combobox](../../site/themes/combobox.md) |
-| headless ラッパー | `tree_view`（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。branch のインデントは CSS custom property（`--fandhe-tree-view-indent`）で表現し、DOM ネストにより深さ分が自然に累積する） | [tree-view](../../site/themes/tree-view.md) |
-| headless ラッパー（`tree_view` の派生） | `json_tree_view`（構造部は `tree_view` の既存 recipe をそのまま再利用し、JSON 固有の `key`/`value`（`data-scope="json-tree-view"`）2 パーツのみを追加する。`value` の `data-kind` へ型別配色（`string`/`number`/`bool`/`null` の 4 種、`object`/`array` は既定色のまま）を適用。`tree_view` と同型の判断で `size`/`color-palette` のいずれも非提供） | [json-tree-view](../../site/themes/json-tree-view.md) |
+| headless ラッパー | `tree_view`（イシュー #1578 で `root` へのみクラスを付与する `size` variant（xs〜xl、既定 md。行密度・文字サイズを切り替える）を新設。`color-palette` 軸は非提供（`popover`/`tooltip` と同型の判断）。branch のインデントは CSS custom property（`--fandhe-tree-view-indent`）で表現し、DOM ネストにより深さ分が自然に累積する（`size` では上書きしない）） | [tree-view](../../site/themes/tree-view.md) |
+| headless ラッパー（`tree_view` の派生） | `json_tree_view`（構造部は `tree_view` の既存 recipe をそのまま再利用するため `tree_view` の `size` variant を継承する。JSON 固有の `key`/`value`（`data-scope="json-tree-view"`）2 パーツのみを追加する。`value` の `data-kind` へ型別配色（`string`/`number`/`bool`/`null` の 4 種、`object`/`array` は既定色のまま）を適用。本モジュール固有の `size`/`color-palette` 軸は非提供） | [json-tree-view](../../site/themes/json-tree-view.md) |
 | headless ラッパー | `pagination`（`size`/`color-palette` 両軸提供） | [pagination](../../site/themes/pagination.md) |
 | headless ラッパー | `steps`（`size`/`color-palette` 両軸。`fandhe_frontend_headless_ui::steps` が自由関数を持たず全パーツが `Steps` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Steps` を受け取る点が他コンポーネントと異なる。PR #1814 codex-review 対応で追加した `body`（`data-scope="steps" data-part="body"`）のみ headless に対応物を持たない pre-styled-ui 専用のグルーピングパーツで、`state: &Steps` を取らずプレーンな `<div>` を直接構築する。縦向き（`Orientation::Vertical`）で `root` が `flex-direction: row` へ切り替わる際、`list` 以外を `body` でまとめて `root` 直下を `list`/`body` の 2 要素に保つ契約〔`steps::root` rustdoc 参照〕） | [steps](../../site/themes/steps.md) |
 | headless ラッパー | `breadcrumb`（状態機械なし。`size`/`BreadcrumbVariant`（`link` の下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への伝搬は root スコープ CSS custom property の継承で行う） | [breadcrumb](../../site/themes/breadcrumb.md) |
@@ -181,8 +181,10 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 styled `root`（tabs のみ `tabs`）を各モジュールで新設しており、headless
 自由関数 `root`（tabs は `tabs`/`tabs_with_root_attrs`）との名前衝突を
 避けるため選択的 re-export とする（§4d 参照）。`popover`/`tooltip` を含め、
-styled パーツ関数を再定義しないモジュール 13 件は glob 再エクスポートを
-維持する（現況は `popover`/`tooltip` の 2 件に留まらない。一覧・維持条件は
+styled パーツ関数を再定義しないモジュール 12 件は glob 再エクスポートを
+維持する（`tree_view` はイシュー #1578 で `size` variant 導入に伴い選択的
+re-export（規約 A）へ移行したため本数から外れた。現況は `popover`/`tooltip`
+の 2 件に留まらない。一覧・維持条件は
 §3c 参照）。
 
 | pre-styled-ui モジュール | 再エクスポートする headless 型 | 由来 |
@@ -195,7 +197,7 @@ styled パーツ関数を再定義しないモジュール 13 件は glob 再エ
 | `popover` | `OpenState` / `DisclosureAction` | `state` |
 | `tooltip` | `OpenState` / `DisclosureAction` | `state` |
 | `combobox` | `OpenState` | `state`（`select` と同型の選択的 re-export） |
-| `tree_view` | `OpenState` / `MultiSelectAction` / `SingleSelectAction` | `state`（`tooltip` と同型の glob re-export） |
+| `tree_view` | `OpenState` / `MultiSelectAction` / `SingleSelectAction` | `state`（イシュー #1578 で `size` variant 導入に伴い本体の再エクスポートは選択的（規約 A）へ移行したが、`state` 由来の型はこれまでどおり明示再エクスポートする） |
 | `toggle_tip` | `OpenState` / `DisclosureAction` | `state`（`tooltip` と同型の glob re-export） |
 
 `ActivationMode`/`TabItem`/`TabsProps`（tabs）・`DialogRole`/`ContentIds`
@@ -295,9 +297,11 @@ styled パーツ関数を再定義しないモジュール 13 件は glob 再エ
   `[data-scope]`/`[data-part]` 属性セレクタのみ」の 4 条件（マーカー
   コメント `REEXPORT-GLOB-REVIEWED:` を含む）を満たす場合のみ許可する。
   イシュー #1062 のレビューにより、現時点で `action_bar` / `popover` /
-  `hover_card` / `tooltip` / `toolbar` / `tree_view` / `scroll_area` /
+  `hover_card` / `tooltip` / `toolbar` / `scroll_area` /
   `toggle_tip` / `menubar` / `json_tree_view` / `floating_panel` / `timer` /
-  `navigation_menu` の 13 モジュールが条件を満たすと判定済み（レビュー来歴は
+  `navigation_menu` の 12 モジュールが条件を満たすと判定済み（`tree_view`
+  はイシュー #1578 で `size` variant を持つに至り規約 A（選択的）へ移行した
+  ため本一覧から外れた。レビュー来歴は
   `docs/internal/pre-styled-ui-implementation-notes.md` §3c 参照）。
 - glob 由来の名前をローカル定義・明示 `pub use` で上書きする暗黙
   shadowing は禁止する（規約 C）。同名を styled 側で提供したい場合は
@@ -482,8 +486,8 @@ CSS を追加提供する（設計方針は他 headless ラッパーと同じ、
 | pagination | ✓ | ✓ | 現在ページの強調色に反映。root scope の CSS custom property は `--fandhe-pagination-item-size`/`-item-font-size` |
 | steps | ✓ | ✓ | indicator の寸法・current/complete の強調色に反映。root scope の CSS custom property は `--fandhe-steps-indicator-size`（indicator の寸法）・`--fandhe-steps-indicator-font-size`（indicator 内ラベルの文字サイズ）・`--fandhe-steps-font-size`（イシュー #1540 で追加。trigger/prev-trigger/next-trigger のラベル文字サイズ）の 3 個 |
 | popover / tooltip | 提供しない | 提供しない | 配置・寸法が positioning 起因のため提供しない |
-| tree-view | 提供しない | 提供しない | popover/tooltip と同型の判断 |
-| json-tree-view | 提供しない | 提供しない | tree-view と同型の判断 |
+| tree-view | ✓ | 提供しない | イシュー #1578 で root のみへクラス付与する size variant（xs〜xl、既定 md）を新設。行密度・文字サイズに反映。color-palette は popover/tooltip と同型の判断で非提供 |
+| json-tree-view | tree-view の size を継承 | 提供しない | 構造部は tree-view の recipe を再利用するため tree-view の size variant をそのまま継承する（`key`/`value` 固有の size 軸は持たない） |
 | toggle-tip | 提供しない | 提供しない | popover/tooltip と同型の判断 |
 | breadcrumb | ✓ | – (`BreadcrumbVariant`: `link` の下線表示切り替え) | アクセント色による選択・チェック状態を示す部品ではないため color-palette は非提供 |
 | drawer | ✓ | – | dialog と同じく選択・チェック状態を示す部品ではないため color-palette は非提供。root scope の CSS custom property は `--fandhe-drawer-size`。placement（`start`/`end`/`top`/`bottom`）は variant 軸ではなく headless 層が出力する `data-placement` に連動する CSS で表現する |

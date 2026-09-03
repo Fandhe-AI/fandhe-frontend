@@ -469,6 +469,7 @@ fn ex_json_tree_view() -> Node {
     ]);
     let tree = json_tree_view::expanded_to_depth(&data, 1);
     tree_view::root(
+        Size::Md,
         vec![],
         vec![
             tree_view::label(vec![], vec![text("Package metadata")]),
@@ -931,6 +932,7 @@ fn ex_tree_view() -> Node {
         .with_children(vec![tree_view::TreeNode::new("src/lib.rs", "lib.rs")])];
     let children = view.render_nodes(&nodes);
     tree_view::root(
+        Size::Md,
         vec![],
         vec![
             tree_view::label(vec![], vec![text("Project files")]),
@@ -942,10 +944,17 @@ fn ex_tree_view() -> Node {
 pub(crate) const TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "role=\"tree\"/role=\"treeitem\" の WAI-ARIA Tree パターンを headless-ui が提供する（crates/pre-styled-ui/src/tree_view.rs:45）",
-        "branch-content の展開・折りたたみは [hidden] 属性と CSS の詳細度制御で表現する（tree_view.rs:173, 270-291）",
-        "disabled/selected 状態を data-disabled/data-selected で表現しフォーカス可視化と連動する（tree_view.rs:314-334）",
+        "branch-content の展開・折りたたみは [hidden] 属性と CSS の詳細度制御で表現する（tree_view.rs 参照）",
+        "disabled/selected 状態を data-disabled/data-selected で表現しフォーカス可視化と連動する（tree_view.rs 参照）",
+        "size（xs/sm/md/lg/xl、既定 md）が行密度・文字サイズを切り替える。root スコープの CSS custom property 経由で子孫パーツへ継承される（イシュー #1578）",
+        "hover 面・キーボードフォーカスリングを持つ（イシュー #1578。選択行の背景は hover で洗い流されない）",
     ],
-    arguments: &[],
+    arguments: &[ArgRow {
+        name: "size",
+        kind: "Size",
+        default: "Md",
+        description: "行密度・文字サイズを切り替える（tree_view.rs の root）。",
+    }],
     examples: &[ExampleEntry {
         title: "Expanded branch",
         description: "\"src\" ブランチを展開した状態で固定表示する例です。",

@@ -20,13 +20,16 @@
 //! 両方の `stylesheet()` を併用する必要がある（`docs-site` showcase の
 //! 呼び出し例を参照）。
 //!
-//! # `size`/`color-palette` variant を提供しない（[`crate::tree_view`] と同型の判断、
-//! `crate::lib` rustdoc「複合部品の variant 統一方針」§3 参照）
+//! # `size`/`color-palette` variant を提供しない
 //!
-//! JsonTreeView も [`crate::tree_view`] と同じくナビゲーション/コレクション
-//! 表示部品であり、寸法スケール（`size`）や選択状態のアクセント色
-//! （`color-palette`）を適用する明確な基準がないため、意図的に variant を
-//! 提供しない。
+//! [`crate::tree_view`] はイシュー #1578 で構造部（`tree`/`branch-control`/
+//! `item` 等）に `size` variant を持つに至ったが、その寸法（行密度・
+//! `tree`/`branch-control`/`item` の `font-size`）は root スコープの CSS
+//! custom property 経由で JsonTreeView が使う構造部にもそのまま継承される
+//! ため、本モジュールが独自の `size` 軸を持つ必要はない。`key`/`value`
+//! （本モジュール固有の 2 パーツ）自体に寸法スケールを適用する基準もない。
+//! `color-palette` は選択状態のアクセント色ではなく型別配色（下記節）が
+//! 責務を担うため、本モジュールでは意図的に持たない。
 //!
 //! # 型別配色（受け入れ条件）
 //!
@@ -79,8 +82,8 @@
 //!   等）での擬似的な追加は #1661 が将来 colon パーツを追加した際の二重表示
 //!   を招くため、本 PR では追加しない。
 //! - **`tree`/`branch-control`/`item` の hover・フォーカスリング・
-//!   トランジション・`font-size`**: [`crate::tree_view`] スコープ（別イシュー
-//!   #1578）の所掌であり、`json-tree-view` スコープには持ち込まない
+//!   トランジション・`font-size`**: [`crate::tree_view`] スコープの所掌であり
+//!   （イシュー #1578 で是正済み）、`json-tree-view` スコープには持ち込まない
 //!   （span への hover は行 hover と競合するため）。
 //! - **`size`/`color-palette` variant**: 上記のとおり不採用を維持する
 //!   （方針は変更なし）。

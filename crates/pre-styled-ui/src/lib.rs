@@ -203,12 +203,14 @@
 //!   `color-palette` variant を最初から持つ（`toggle_group` は root のみへ
 //!   クラスを付与する複合部品の統一方針に従う）。詳細は [`mod@toggle`]
 //!   rustdoc 参照。
-//! - headless ラッパー（#753）: [`mod@tree_view`]（TreeView、階層構造の展開・
-//!   折りたたみ・選択）。ナビゲーション/コレクション表示部品であり
-//!   [`mod@popover`]/[`mod@tooltip`] と同じ判断で `size`/`color-palette` の
-//!   いずれの variant も提供しない（[`mod@tree_view`] rustdoc 参照）。branch
-//!   のインデントは CSS custom property（`--fandhe-tree-view-indent`）で
-//!   表現し、DOM ネストにより深さ分が自然に累積する。
+//! - headless ラッパー（#753、参考サイト基準への調整・`size` variant 導入は
+//!   イシュー #1578）: [`mod@tree_view`]（TreeView、階層構造の展開・折りたたみ・
+//!   選択）。行密度・文字サイズを切り替える `size`（5 段、既定 `Md`）を
+//!   [`tree_view::root`] へのみクラス付与する（[`mod@accordion`] と同型）。
+//!   専用の `color-palette` 軸は提供しない（[`mod@tree_view`] rustdoc
+//!   「`size` variant」節参照）。branch のインデントは CSS custom property
+//!   （`--fandhe-tree-view-indent`）で表現し、DOM ネストにより深さ分が自然に
+//!   累積する（`size` では上書きしない）。
 //! - headless ラッパー（イシュー #755）: [`mod@breadcrumb`]（Breadcrumb、
 //!   `docs/api/headless-ui-api.md` §4b の追加候補消化。状態機械を持たない
 //!   静的意味論ナビ）。`size`/[`breadcrumb::BreadcrumbVariant`]（`link` の
@@ -622,10 +624,12 @@
 //!
 //! 上記 4 条件を現時点で満たし glob 形式を維持するモジュールは
 //! [`mod@action_bar`]・[`mod@popover`]・[`mod@hover_card`]・[`mod@tooltip`]・
-//! [`mod@toolbar`]・[`mod@tree_view`]・[`mod@scroll_area`]・
+//! [`mod@toolbar`]・[`mod@scroll_area`]・
 //! [`mod@toggle_tip`]・[`mod@menubar`]・[`mod@json_tree_view`]・
-//! [`mod@floating_panel`]・[`mod@timer`]・[`mod@navigation_menu`] の 13
-//! モジュールである（レビュー来歴・条件ごとの充足根拠は
+//! [`mod@floating_panel`]・[`mod@timer`]・[`mod@navigation_menu`] の 12
+//! モジュールである（[`mod@tree_view`] はイシュー #1578 で `size` variant を
+//! 持つ選択的再エクスポート（規約 A）へ移行し本一覧から外れた。レビュー来歴・
+//! 条件ごとの充足根拠は
 //! `docs/internal/pre-styled-ui-implementation-notes.md` §3c 参照）。
 //! `crates/pre-styled-ui/tests/reexport_policy.rs` がこの一覧との双方向一致を
 //! fail-closed に検証する。

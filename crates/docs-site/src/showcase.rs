@@ -2807,6 +2807,7 @@ fn tree_view_section() -> Node {
 
     let root_children = tree.render_nodes(&nodes);
     let node = tree_view::root(
+        Size::Md,
         vec![],
         vec![
             tree_view::label(vec![], vec![text("Project files")]),
@@ -2816,7 +2817,7 @@ fn tree_view_section() -> Node {
 
     section(
         "TreeView",
-        "headless-ui の TreeView（role=\"tree\"/role=\"treeitem\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。\"src\" ブランチを展開済み、\"src/lib.rs\" を選択中、\"README.md\" を disabled として固定表示しています。インデントは CSS custom property（--fandhe-tree-view-indent）で表現しています。",
+        "headless-ui の TreeView（role=\"tree\"/role=\"treeitem\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。\"src\" ブランチを展開済み、\"src/lib.rs\" を選択中、\"README.md\" を disabled として固定表示しています。インデントは CSS custom property（--fandhe-tree-view-indent）で表現しています。size（既定 md）は行密度・文字サイズを切り替えます。",
         vec![node],
     )
 }
@@ -2858,6 +2859,7 @@ fn json_tree_view_section() -> Node {
     // defaultExpandedDepth 相当（深さ 2 まで展開）で「開いた見た目」を固定掲示する。
     let tree = json_tree_view::expanded_to_depth(&data, 2);
     let node = tree_view::root(
+        Size::Md,
         vec![],
         vec![
             tree_view::label(vec![], vec![text("Package metadata")]),
