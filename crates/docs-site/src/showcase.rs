@@ -6306,6 +6306,30 @@ fn navigation_menu_section() -> Node {
 
 /// Status 節（イシュー #765）: colorPalette 軸ごとのドット + ラベル表示。
 fn status_section() -> Node {
+    // イシュー #1569: size 行を追加し、ドット径と文字サイズが Xs〜Xl で
+    // 連動することを示す（既存の Size Demo パターン、button 節の
+    // `(Size::Xs, "Extra Small")` に倣う）。palette は既定 Accent のまま。
+    let sizes = [
+        (Size::Xs, "Extra Small"),
+        (Size::Sm, "Small"),
+        (Size::Md, "Medium"),
+        (Size::Lg, "Large"),
+        (Size::Xl, "Extra Large"),
+    ];
+    let size_row = row(sizes
+        .iter()
+        .map(|(size, label)| {
+            status::root(
+                &StatusProps {
+                    size: *size,
+                    ..StatusProps::default()
+                },
+                vec![],
+                vec![status::indicator(vec![]), text(*label)],
+            )
+        })
+        .collect());
+
     // イシュー #1681: 共有 `palettes()`（5 値）はまだ Neutral を含めない
     // （#1680 適用完了まで宣言なしデモの公開を避ける）。この節限定で
     // Neutral エントリを末尾へ連結する。
@@ -6326,8 +6350,8 @@ fn status_section() -> Node {
         .collect());
     section(
         "Status",
-        "ドット（indicator）+ ラベルで状態を示す静的表示。colorPalette で色を切り替えます。",
-        vec![palette_row],
+        "ドット（indicator）+ ラベルで状態を示す静的表示。size でドット径と文字サイズが連動し、colorPalette で色を切り替えます。",
+        vec![size_row, palette_row],
     )
 }
 
