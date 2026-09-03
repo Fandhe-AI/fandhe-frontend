@@ -943,7 +943,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # のトークン化）のみで、公開 API シグネチャ・既存 CSS 変数名・クラス名・
 # セレクタの削除/改名はないため patch とする（`version-bump-exempt` は
 # CSS 出力変更のため使用不可）。0.64.0 → 0.64.1 へ patch バンプする。
-version = "0.64.1"
+# イシュー #1548（tooltip のスタイルを参考サイト基準へ調整）も同じ判断:
+# `recipe()` 宣言変更（`trigger` の枠線付きボタン化・`data-disabled`/
+# hover/focus-visible/transition の共通ビジュアル言語への載せ替え・
+# `positioner`/`content` のトークン化・`content` への影新設）のみで、
+# 公開 API シグネチャ・既存 CSS 変数名・クラス名・セレクタの削除/改名は
+# ないため patch とする（`version-bump-exempt` は CSS 出力変更のため
+# 使用不可）。0.64.1 → 0.64.2 へ patch バンプする。
+version = "0.64.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
