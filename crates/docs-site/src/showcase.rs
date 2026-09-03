@@ -155,7 +155,9 @@ use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemF
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
-use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
+use fandhe_frontend_pre_styled_ui::skeleton::{
+    skeleton, SkeletonAnimation, SkeletonProps, SkeletonVariant,
+};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
@@ -1341,7 +1343,9 @@ fn spinner_section() -> Node {
     )
 }
 
-/// Skeleton 節（イシュー #764）: variant（text/circle/rect）バリエーション。
+/// Skeleton 節（イシュー #764、イシュー #1566 で `animation` 軸の行と
+/// 複合デモ行を追加）: variant（text/circle/rect）× animation
+/// （pulse/shine/none）バリエーション。
 fn skeleton_section() -> Node {
     let variants = [
         (SkeletonVariant::Text, "width: 12rem;"),
@@ -1352,7 +1356,10 @@ fn skeleton_section() -> Node {
         .iter()
         .map(|(variant, style)| {
             skeleton(
-                &SkeletonProps { variant: *variant },
+                &SkeletonProps {
+                    variant: *variant,
+                    ..Default::default()
+                },
                 if style.is_empty() {
                     vec![]
                 } else {
@@ -1361,10 +1368,54 @@ fn skeleton_section() -> Node {
             )
         })
         .collect());
+    // イシュー #1566: 第 2 軸 `animation`（pulse/shine/none）を text
+    // variant 上で並べ、参照サイト（chakra-ui）の 3 種アニメーションの
+    // 見た目差を確認できるようにする。
+    let animations = [
+        SkeletonAnimation::Pulse,
+        SkeletonAnimation::Shine,
+        SkeletonAnimation::None,
+    ];
+    let animation_row = row(animations
+        .iter()
+        .map(|animation| {
+            skeleton(
+                &SkeletonProps {
+                    animation: *animation,
+                    ..Default::default()
+                },
+                vec![("style", "width: 12rem;")],
+            )
+        })
+        .collect());
+    // イシュー #1566: 参照スクショ（chakra-ui Skeleton pulse スクショ 1）の
+    // ように circle + text 2 本を横並びで組み合わせる複合デモ。
+    let composite_row = row(vec![div(
+        vec![("style", "display: flex; gap: 1rem; align-items: center;")],
+        vec![
+            skeleton(
+                &SkeletonProps {
+                    variant: SkeletonVariant::Circle,
+                    ..Default::default()
+                },
+                vec![("style", "--fandhe-skeleton-size: 3rem;")],
+            ),
+            div(
+                vec![(
+                    "style",
+                    "display: flex; flex-direction: column; gap: 0.5rem;",
+                )],
+                vec![
+                    skeleton(&SkeletonProps::default(), vec![("style", "width: 12rem;")]),
+                    skeleton(&SkeletonProps::default(), vec![("style", "width: 8rem;")]),
+                ],
+            ),
+        ],
+    )]);
     section(
         "Skeleton",
-        "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。prefers-reduced-motion: reduce ではパルスアニメーションを停止します。",
-        vec![variant_row],
+        "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。animation 軸（pulse/shine/none）でアニメーション種別を切り替えられ、prefers-reduced-motion: reduce ではいずれも停止します。",
+        vec![variant_row, animation_row, composite_row],
     )
 }
 

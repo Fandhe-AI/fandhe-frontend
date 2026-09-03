@@ -81,11 +81,12 @@
 //!   - [`mod@card`]: [`card::root`] ほかパーツ関数群（slot recipe、
 //!     root/header/body/footer/title/description の 6 パーツ、装飾的コンテナ、
 //!     role 付与なし。中立コンテナのため colorPalette 軸は付与しない）。
-//!   - [`mod@skeleton`]（#764）: [`skeleton::skeleton`]（単一 recipe、
-//!     `<div>`。ローディングプレースホルダー。`text`/`circle`/`rect` の
-//!     `variant`、常時 `aria-hidden="true"`、`prefers-reduced-motion: reduce`
-//!     でのアニメーション停止 CSS を持つ。装飾的占位要素のため card と同じ
-//!     判断で colorPalette 軸を付与しない）。
+//!   - [`mod@skeleton`]（#764、イシュー #1566 で `animation` 軸追加）:
+//!     [`skeleton::skeleton`]（単一 recipe、`<div>`。ローディングプレース
+//!     ホルダー。`text`/`circle`/`rect` の `variant`、`pulse`/`shine`/`none`
+//!     の `animation`（第 2 軸）、常時 `aria-hidden="true"`、
+//!     `prefers-reduced-motion: reduce` でのアニメーション停止 CSS を持つ。
+//!     装飾的占位要素のため card と同じ判断で colorPalette 軸を付与しない）。
 //!   - [`mod@separator`]（#772）: [`separator::separator`]（単一 recipe、
 //!     `<hr>`。区切り線であり中立的な罫線のため colorPalette 軸を付与しない。
 //!     `orientation`（horizontal/vertical）・`variant`（solid/dashed）の
@@ -777,7 +778,7 @@ pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use quote::quote;
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
 pub use separator::{separator, SeparatorProps, SeparatorVariant};
-pub use skeleton::{skeleton, SkeletonProps, SkeletonVariant};
+pub use skeleton::{skeleton, SkeletonAnimation, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};
 pub use status::StatusProps;
 pub use strong::strong;
