@@ -76,14 +76,37 @@
 //! dropdown/popover 帯を越える値であり、単なる「スクロール内で自身の位置に
 //! 留まる」sticky ヘッダーには強すぎるため採用しない。
 //!
-//! **既知の制限**: [`TableVariant::Outline`] の `overflow: hidden`（`root`、
-//! 角丸クリップ目的、上記「Outline」variant 参照）は `root` 自身を
-//! スクロールコンテナ化しないため、ページスクロールに対する sticky は
-//! `Outline` でも機能する。ただし `root` 自身がスクロール可能なコンテナ
-//! （`overflow-y: auto` 等のスクロール枠）に包まれていない限り、
-//! `sticky_header` はページ全体のスクロールでのみ効果を持つ。
+//! [`TableVariant::Outline`] の角丸クリップ（上記「Outline」variant 参照）は
+//! `overflow: hidden` ではなく `clip-path: inset(0 round
+//! var(--fandhe-radius-lg))` で行う（codex-review P1 是正、下記
+//! 「`Outline` の角丸クリップに `overflow` を使わない理由」節参照）ため、
+//! `root` 自身をスクロールコンテナ化せず `sticky_header` は `Outline`
+//! でもページスクロールへ追従する。ただし `root` 自身がスクロール可能な
+//! コンテナ（`overflow-y: auto` 等のスクロール枠）に包まれていない限り、
+//! `sticky_header` はページ全体のスクロールでのみ効果を持つ（これは
+//! `position: sticky` 自体の一般的な性質であり `Outline`/`Line` を問わない）。
 //! スクロール枠との連携（chakra `ScrollArea` 相当）は兄弟イシュー #1572
 //! （2/2）のスコープとする。
+//!
+//! # `Outline` の角丸クリップに `overflow` を使わない理由（イシュー #1571
+//! codex-review P1 是正）
+//!
+//! 当初 `Outline` variant の `root` は角丸クリップに `overflow: hidden` を
+//! 使っていた。しかし CSS 仕様上、`overflow` を `visible` 以外の値にする
+//! 要素は自動的に「スクロールコンテナ」となり、`position: sticky` の
+//! 子孫にとって最も近い祖先スクロールコンテナとして扱われる。`root`
+//! （`<table>`）自身はコンテンツに合わせて伸びるだけで実際にはスクロール
+//! しないため、`column-header` の sticky 位置決めがこの祖先の
+//! スクロールポート基準に固定されてしまい、ページをスクロールしても
+//! `column-header` が追従しない（`root` 自身がスクロール可能なコンテナに
+//! 包まれる構成でしか効かない）という契約違反を起こしていた。
+//!
+//! `clip-path` は `overflow` プロパティを変更せずに描画結果だけを
+//! クリップするため、上記のスクロールコンテナ化を引き起こさない。
+//! [`crate::rating_group`]/[`crate::stat`] が採用済みの「外部リソースを
+//! 参照しないインライン `clip-path`」パターンをここでも踏襲し、
+//! 半径は `border-radius` 宣言と同じ `--fandhe-radius-lg` custom property
+//! を参照することで両宣言の齟齬を防ぐ。
 //!
 //! # 意図的に参照サイトへ合わせなかった点（イシュー #1571）
 //!
@@ -140,8 +163,9 @@
 //!   は本イシューのスコープ外（PR 本文に記録）。`stickyHeader` はイシュー
 //!   #1571 で実装済み（上記「sticky ヘッダーの実装」節参照）。
 //! - `size`（[`crate::recipe::Size`]）の各段階の padding/font-size 実値・
-//!   [`TableVariant::Outline`] の `overflow: hidden` と `sticky_header` の
-//!   非両立解消（スクロール枠での対応）は兄弟イシュー #1572（2/2）のスコープ。
+//!   `root` 自身をスクロール可能なコンテナに包む `ScrollArea` 連携
+//!   （chakra `ScrollArea` 相当。`Outline`/`Line` を問わず必要になる、上記
+//!   「sticky ヘッダーの実装」節参照）は兄弟イシュー #1572（2/2）のスコープ。
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
 //!   イシュー側のスコープ。
 
@@ -425,10 +449,25 @@ fn recipe() -> SlotRecipe {
                 // `column-header` の不透明背景・striped 偶数行の背景は
                 // `root` の `border-radius` に追従してクリップされない
                 // （`border-collapse: separate` 下では子孫が親の角丸の
-                // 外側にはみ出して矩形の角のまま描画される）。`overflow:
-                // hidden` を `root` に付与し、子孫の描画を角丸内へ収める
-                // （イシュー #767 PR #811 Bugbot 指摘）。
-                decl("overflow", "hidden"),
+                // 外側にはみ出して矩形の角のまま描画される）。子孫の描画を
+                // 角丸内へ収める必要がある（イシュー #767 PR #811 Bugbot
+                // 指摘）。
+                //
+                // イシュー #1571 codex-review P1 是正: 当初 `overflow:
+                // hidden` を使っていたが、`overflow` を `visible` 以外に
+                // する宣言は CSS 仕様上その要素を `position: sticky` の
+                // 「最も近いスクロール祖先」に仕立ててしまい、`root`
+                // 自身はスクロールしない（コンテンツに追従して伸びるだけ）
+                // ため `sticky_header` がページスクロールに追従しなくなる
+                // （下記「sticky ヘッダーの実装」節参照）。`clip-path` は
+                // `overflow` を変更せずに視覚的なクリップだけを行うため
+                // スクロール祖先化を起こさず、`sticky_header` と共存できる
+                // （[`crate::rating_group`]/[`crate::stat`] が採用済みの
+                // 「外部リソースを参照しないインライン `clip-path`」
+                // パターンをここでも踏襲する）。半径は `border-radius` と
+                // 同じ custom property 値を参照し、両宣言が常に一致する
+                // ようにする。
+                decl("clip-path", "inset(0 round var(--fandhe-radius-lg))"),
             ],
         )
         .default_variant(TableVariant::Line)

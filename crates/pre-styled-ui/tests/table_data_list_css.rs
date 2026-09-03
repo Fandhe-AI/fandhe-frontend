@@ -95,11 +95,19 @@ fn table_css_puts_row_border_on_cell_not_row() {
     assert!(!css.contains(r#"[data-scope="table"][data-part="row"] {"#));
 }
 
-/// Outline variant は `border-radius` に加え `overflow: hidden` を
+/// Outline variant は `border-radius` に加え `clip-path` による角丸クリップを
 /// `root` に持たなければならない。`border-collapse: separate` では
 /// `column-header` の不透明背景・striped 偶数行の背景が `root` の角丸に
 /// 追従してクリップされず、矩形の角のまま描画される（イシュー #767
 /// PR #811 Bugbot 指摘: "Outline corners not clipped" の回帰防止）。
+///
+/// クリップ手段には `overflow: hidden` ではなく `clip-path` を使う
+/// （イシュー #1571 codex-review P1 是正: `overflow` を `visible` 以外に
+/// すると `root` が `position: sticky`（`sticky_header`）の最も近い
+/// スクロール祖先になってしまい、`root` 自身はスクロールしないため
+/// ページスクロールへ `sticky_header` が追従しなくなる契約違反を
+/// 起こしていた。`clip-path` は `overflow` を変更しないため
+/// スクロールコンテナ化を起こさず、`sticky_header` と共存できる）。
 #[test]
 fn table_css_outline_variant_clips_descendants_to_border_radius() {
     let css = table::css();
@@ -116,9 +124,14 @@ fn table_css_outline_variant_clips_descendants_to_border_radius() {
         "Outline variant の root 規則に border-radius が存在すること\n{outline_rule}"
     );
     assert!(
-        outline_rule.contains("overflow: hidden;"),
-        "Outline variant の root 規則に overflow: hidden がなく、\
+        outline_rule.contains("clip-path: inset(0 round var(--fandhe-radius-lg));"),
+        "Outline variant の root 規則に clip-path による角丸クリップがなく、\
          column-header/striped 偶数行の背景が角丸からはみ出す\n{outline_rule}"
+    );
+    assert!(
+        !outline_rule.contains("overflow:"),
+        "Outline variant の root 規則が overflow を宣言していないこと\
+         （sticky_header のスクロール祖先化を防ぐ不変条件）\n{outline_rule}"
     );
 }
 
