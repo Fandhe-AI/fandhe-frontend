@@ -61,6 +61,18 @@
 //! - **Lg の padding**: chakra `lg` = `spacing.7`（1.75rem）は本トークン
 //!   に存在しないため隣接上位の `space-8`（2rem）へ外挿する（イシュー
 //!   #1681 の外挿規則）。
+//! - **header/footer 隣接時の padding 重複を詰めない**（イシュー #1557
+//!   PR #1828 codex レビュー是正）: header/body/footer は各パーツが独立
+//!   して全方向 padding を持つ（`recipe()` 参照）。パーツを自由に組み合わせる
+//!   公開契約上、header 単独・footer 単独の Card でも欠落なく余白が付く
+//!   ことを優先した。`:has()`/隣接結合子で隣接辺のみ詰める案は
+//!   [`crate::recipe::SlotRecipe`] が `[data-scope][data-part]` 固定の
+//!   単一セレクタしか生成しない設計（子孫・兄弟セレクタ機構を持たない、
+//!   イシュー #708 で不採用確定）のため表現できず、`:last-child` 等の
+//!   単純な状態セレクタのみで詰めても `[header, footer]`（body なし）の
+//!   構成で境界が無 padding のまま残るため採らない。header/body/footer を
+//!   隣接させる場合に生じる二重の余白は #574 の初期実装からの挙動へ戻る
+//!   （chakra 実装も各パーツが独立して padding を持つ）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -165,11 +177,7 @@ fn recipe() -> SlotRecipe {
                 decl("flex-direction", "column"),
                 decl("gap", "var(--fandhe-space-1-5)"),
                 decl(
-                    "padding-inline",
-                    "var(--fandhe-card-padding, var(--fandhe-space-4))",
-                ),
-                decl(
-                    "padding-block-start",
+                    "padding",
                     "var(--fandhe-card-padding, var(--fandhe-space-4))",
                 ),
             ],
@@ -193,11 +201,7 @@ fn recipe() -> SlotRecipe {
                 decl("align-items", "center"),
                 decl("gap", "var(--fandhe-space-2)"),
                 decl(
-                    "padding-inline",
-                    "var(--fandhe-card-padding, var(--fandhe-space-4))",
-                ),
-                decl(
-                    "padding-block-end",
+                    "padding",
                     "var(--fandhe-card-padding, var(--fandhe-space-4))",
                 ),
             ],

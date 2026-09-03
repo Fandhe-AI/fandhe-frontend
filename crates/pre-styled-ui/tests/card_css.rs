@@ -25,8 +25,7 @@ const CARD_GOLDEN_CSS: &str = r#"[data-scope="card"][data-part="root"] {
   display: flex;
   flex-direction: column;
   gap: var(--fandhe-space-1-5);
-  padding-inline: var(--fandhe-card-padding, var(--fandhe-space-4));
-  padding-block-start: var(--fandhe-card-padding, var(--fandhe-space-4));
+  padding: var(--fandhe-card-padding, var(--fandhe-space-4));
 }
 
 [data-scope="card"][data-part="body"] {
@@ -40,8 +39,7 @@ const CARD_GOLDEN_CSS: &str = r#"[data-scope="card"][data-part="root"] {
   display: flex;
   align-items: center;
   gap: var(--fandhe-space-2);
-  padding-inline: var(--fandhe-card-padding, var(--fandhe-space-4));
-  padding-block-end: var(--fandhe-card-padding, var(--fandhe-space-4));
+  padding: var(--fandhe-card-padding, var(--fandhe-space-4));
 }
 
 [data-scope="card"][data-part="title"] {
