@@ -12,7 +12,7 @@ use fandhe_frontend_core::{el, render, text};
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertProps};
-use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
+use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::{
     accordion, dialog, menu, popover, select, switch, tabs, toggle_tip, tooltip,
 };
@@ -269,7 +269,7 @@ fn spinner_label_attribute_xss_payload_is_escaped() {
 #[test]
 fn card_title_and_description_xss_payload_is_escaped() {
     let node = card::root(
-        CardVariant::default(),
+        CardProps::default(),
         vec![],
         vec![
             card::title(vec![], vec![text("<script>alert(1)</script>")]),

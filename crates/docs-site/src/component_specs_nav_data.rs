@@ -283,8 +283,12 @@ pub(crate) const CALLOUT: ComponentPageSpec = ComponentPageSpec {
 };
 
 fn ex_card() -> Node {
+    let props = card::CardProps {
+        variant: card::CardVariant::Elevated,
+        ..card::CardProps::default()
+    };
     card::root(
-        card::CardVariant::Elevated,
+        props,
         vec![],
         vec![
             card::header(vec![], vec![card::title(vec![], vec![text("Title")])]),
@@ -296,16 +300,25 @@ fn ex_card() -> Node {
 
 pub(crate) const CARD: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "CardVariant（Elevated/Outline/Subtle、crates/pre-styled-ui/src/card.rs:26-71）で見た目を切り替える",
-        "header/body/footer/title/description の 6 パーツでレイアウトを構造化する（card.rs:150-181）",
+        "CardVariant（Elevated/Outline/Subtle、crates/pre-styled-ui/src/card.rs:80-106）で見た目を切り替える",
+        "size（xs〜xl、card.rs:142 以降）で padding / 角丸 / title の文字サイズが root の `--fandhe-card-*` custom property を通じて連動する（イシュー #1557）",
+        "header/body/footer/title/description の 6 パーツでレイアウトを構造化する（card.rs 全文参照）",
         "純粋なレイアウトコンテナのため role/aria-* は付与しない（card.rs:4）",
     ],
-    arguments: &[ArgRow {
-        name: "variant",
-        kind: "CardVariant",
-        default: "Outline",
-        description: "見た目（card.rs:26-71、#[default] は Outline）。",
-    }],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "CardVariant",
+            default: "Outline",
+            description: "見た目（card.rs:80-106、#[default] は Outline）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ（card.rs:142 以降）。padding / 角丸 / title の文字サイズが連動する（root の `--fandhe-card-*`、イシュー #1557）。",
+        },
+    ],
     examples: &[ExampleEntry {
         title: "Elevated card",
         description: "header/body/footer を組み合わせた Elevated variant の例です。",

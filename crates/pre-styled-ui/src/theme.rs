@@ -2034,6 +2034,31 @@ mod tests {
         }
     }
 
+    /// `crate::card` の `Subtle` variant（イシュー #1557）が使う description
+    /// パーツの `fg-muted`/`bg-subtle` の組。description は
+    /// `font-size-sm`（非大字）のため本文相当の 4.5:1 契約を満たす必要がある。
+    const CARD_SUBTLE_VARIANT_PAIRS: &[(&str, &str)] = &[("fg-muted", "bg-subtle")];
+
+    #[test]
+    fn card_subtle_variant_pairs_meet_wcag_4_5_to_1_in_light_and_dark() {
+        for (fg_name, bg_name) in CARD_SUBTLE_VARIANT_PAIRS {
+            let (fg_light, fg_dark) = default_color(fg_name);
+            let (bg_light, bg_dark) = default_color(bg_name);
+
+            let light_ratio = contrast_ratio(fg_light, bg_light);
+            assert!(
+                light_ratio >= 4.5,
+                "light: {fg_name}/{bg_name} = {light_ratio:.3} (< 4.5:1)"
+            );
+
+            let dark_ratio = contrast_ratio(fg_dark, bg_dark);
+            assert!(
+                dark_ratio >= 4.5,
+                "dark: {fg_name}/{bg_name} = {dark_ratio:.3} (< 4.5:1)"
+            );
+        }
+    }
+
     // イシュー #1423: radius/shadow/spacing 拡充・z-index 新設のユニットテスト。
 
     #[test]

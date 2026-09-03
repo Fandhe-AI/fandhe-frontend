@@ -118,8 +118,9 @@ CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約�
   segment_group / signature_pad / slider / toggle / toggle_group /
   tree_view（`toolbar` はイシュー #1547、`avatar` はイシュー #1554 で
   golden 追加済みのため本リストから除外）
-- `css()` を持つ 2 部品: card / spinner（`alert` はイシュー #1553、`badge` は
-  イシュー #1555 でそれぞれ golden 新設済みのため本リストから除外）
+- `css()` を持つ 1 部品: spinner（`alert` はイシュー #1553、`badge` は
+  イシュー #1555、`callout` はイシュー #1556、`card` はイシュー #1557 で
+  それぞれ golden 新設済みのため本リストから除外）
 - charts 内部パーツ 3 件（`css()` を持つが golden なし）: `charts::bar_chart` /
   `charts::bar_list` / `charts::bar_segment`
 

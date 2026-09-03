@@ -37,7 +37,7 @@ use fandhe_frontend_pre_styled_ui::alert::{self, AlertProps};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, close_button, icon_button, ButtonProps};
-use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
+use fandhe_frontend_pre_styled_ui::card::{self, CardProps};
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
 use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
 use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
@@ -278,7 +278,7 @@ fn caller_attrs_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "button 呼び出し側 attrs コンテキスト");
 
         let html = render(&card::root(
-            CardVariant::default(),
+            CardProps::default(),
             vec![("aria-label", payload)],
             vec![],
         ));
@@ -422,7 +422,7 @@ fn dangerous_url_schemes_in_caller_attrs_are_rejected() {
 
     for url in dangerous_urls {
         let html = render(&card::root(
-            CardVariant::default(),
+            CardProps::default(),
             vec![("href", url), ("data-testid", "safe-sibling")],
             vec![],
         ));
@@ -457,7 +457,7 @@ fn dangerous_url_schemes_in_caller_attrs_are_rejected() {
 fn safe_urls_in_caller_attrs_pass_through() {
     for url in ["/items/1", "https://example.com/a"] {
         let html = render(&card::root(
-            CardVariant::default(),
+            CardProps::default(),
             vec![("href", url)],
             vec![],
         ));

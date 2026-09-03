@@ -185,8 +185,8 @@ use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
     accordion, alert, badge, callout, card, combobox, menu, popover, radio_group, select, switch,
     toggle, toggle_tip, tooltip, AlertProps, AlertStatus, AlertVariant, BadgeProps, BadgeVariant,
-    CalloutProps, CalloutVariant, CardVariant, ColorPalette, OpenState, Orientation, Size,
-    StyleSheet, StylesheetError, VariantValue,
+    CalloutProps, CalloutVariant, CardProps, CardVariant, ColorPalette, OpenState, Orientation,
+    Size, StyleSheet, StylesheetError, VariantValue,
 };
 
 /// 索引ページ（凡例 + カテゴリ別リンク集）の `page.path`。`site/nav.toml`
@@ -2037,46 +2037,74 @@ fn card_section() -> Node {
         (CardVariant::Outline, "Outline"),
         (CardVariant::Subtle, "Subtle"),
     ];
+    let variant_demo = |variant: CardVariant, label: &str| {
+        let props = CardProps {
+            variant,
+            ..CardProps::default()
+        };
+        card::root(
+            props,
+            vec![],
+            vec![
+                card::header(
+                    vec![],
+                    vec![
+                        card::title(vec![], vec![text(label)]),
+                        card::description(vec![], vec![text("card variant のデモです。")]),
+                    ],
+                ),
+                card::body(
+                    vec![],
+                    vec![el(
+                        "p",
+                        vec![],
+                        vec![text(
+                            "header / body / footer / title / description の slot 構成を持つ汎用コンテナです。",
+                        )],
+                    )],
+                ),
+                card::footer(
+                    vec![],
+                    vec![button(
+                        &ButtonProps {
+                            variant: ButtonVariant::Outline,
+                            size: Size::Sm,
+                            ..ButtonProps::default()
+                        },
+                        vec![],
+                        vec![text("Action")],
+                    )],
+                ),
+            ],
+        )
+    };
     let demos = stack(
         variants
             .iter()
-            .map(|(variant, label)| {
+            .map(|(variant, label)| variant_demo(*variant, label))
+            .collect(),
+    );
+    let sizes = [
+        (Size::Xs, "Xs"),
+        (Size::Sm, "Sm"),
+        (Size::Md, "Md"),
+        (Size::Lg, "Lg"),
+        (Size::Xl, "Xl"),
+    ];
+    let size_row = stack(
+        sizes
+            .iter()
+            .map(|(size, label)| {
+                let props = CardProps {
+                    size: *size,
+                    ..CardProps::default()
+                };
                 card::root(
-                    *variant,
+                    props,
                     vec![],
                     vec![
-                        card::header(
-                            vec![],
-                            vec![
-                                card::title(vec![], vec![text(*label)]),
-                                card::description(
-                                    vec![],
-                                    vec![text("card variant のデモです。")],
-                                ),
-                            ],
-                        ),
-                        card::body(
-                            vec![],
-                            vec![el(
-                                "p",
-                                vec![],
-                                vec![text(
-                                    "header / body / footer / title / description の slot 構成を持つ汎用コンテナです。",
-                                )],
-                            )],
-                        ),
-                        card::footer(
-                            vec![],
-                            vec![button(
-                                &ButtonProps {
-                                    variant: ButtonVariant::Outline,
-                                    size: Size::Sm,
-                                    ..ButtonProps::default()
-                                },
-                                vec![],
-                                vec![text("Action")],
-                            )],
-                        ),
+                        card::header(vec![], vec![card::title(vec![], vec![text(*label)])]),
+                        card::body(vec![], vec![text("size デモです。")]),
                     ],
                 )
             })
@@ -2084,8 +2112,8 @@ fn card_section() -> Node {
     );
     section(
         "Card",
-        "variant（elevated / outline / subtle）を持つ装飾的コンテナ。",
-        vec![demos],
+        "variant（elevated / outline / subtle）・size（xs〜xl、padding / 角丸 / title の文字サイズが連動）を持つ装飾的コンテナ。",
+        vec![demos, size_row],
     )
 }
 
