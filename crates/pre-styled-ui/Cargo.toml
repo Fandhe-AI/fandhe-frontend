@@ -1106,6 +1106,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # 実体変更を統合した結果としてそのまま 0.76.0 を維持する（semver 上
 # minor バンプが patch バンプを包含するため、0.75.1 への追随バンプは
 # 不要）。
+#
+# PR #1844 codex-review/Bugbot 是正（複数 tbody/tfoot の罫線不整合修正、
+# `table.rs` rustdoc 参照）: 公開 API・CSS 出力のセレクタ集合は不変
+# （既存バグの是正のみ）で、0.76.0 は crates.io 未公開のためこの修正は
+# 追加のバンプを要さずそのまま 0.76.0 に含める。
 version = "0.76.0"
 
 edition = "2021"
