@@ -7,13 +7,18 @@
 //! 一時停止規則・`@media (prefers-reduced-motion: reduce)` を含む全文の
 //! 出力順が崩れた場合や意図しない宣言の追加・欠落があった場合に、この
 //! golden テストが即座に検知する。
+//!
+//! イシュー #1582 で `gap` のフォールバックを `var(--fandhe-space-4)`
+//! （テーマトークン経由）へ変更し、`root` へ両端フェード用の
+//! `mask-image`（`--fandhe-marquee-fade`、既定 `0px`）を追加した。
 
 use fandhe_frontend_pre_styled_ui::marquee;
 
 const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
   display: flex;
   overflow: hidden;
-  gap: var(--fandhe-marquee-gap, 1rem);
+  gap: var(--fandhe-marquee-gap, var(--fandhe-space-4));
+  mask-image: linear-gradient(to right, transparent, black var(--fandhe-marquee-fade, 0px), black calc(100% - var(--fandhe-marquee-fade, 0px)), transparent);
 }
 
 [data-scope="marquee"][data-part="content"] {
@@ -21,7 +26,7 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
   flex: none;
   align-items: center;
   min-width: max-content;
-  gap: var(--fandhe-marquee-gap, 1rem);
+  gap: var(--fandhe-marquee-gap, var(--fandhe-space-4));
   animation: fd-marquee-scroll var(--fandhe-marquee-duration, 20s) linear infinite;
   animation-direction: var(--fandhe-marquee-direction, normal);
 }
@@ -43,7 +48,7 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
     transform: translateX(0);
   }
   to {
-    transform: translateX(calc(-100% - var(--fandhe-marquee-gap, 1rem)));
+    transform: translateX(calc(-100% - var(--fandhe-marquee-gap, var(--fandhe-space-4))));
   }
 }
 

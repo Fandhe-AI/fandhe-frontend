@@ -1163,7 +1163,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # 破壊的変更はマイナーバンプする規約
 # （.claude/rules/coding-rust.md「公開済みクレートの実体変更時は semver
 # バンプ必須」）に従い 0.78.0 へマイナーバンプする。
-version = "0.78.0"
+#
+# イシュー #1582: marquee のスタイル調整 (1/2) — アニメーション（親 #1581）。
+# `gap` フォールバックを `1rem` からテーマトークン `var(--fandhe-space-4)`
+# へ変更し、両端フェード（`Edge` 相当）を root への `mask-image`
+# opt-in（`--fandhe-marquee-fade`、既定 `0px` = 無効）として新設した。
+# 公開 Rust API のシグネチャ変更・既存 CSS 変数名/クラス名/セレクタの
+# 削除・改名は伴わない意匠調整（CSS 出力変更のため
+# `docs/ci/style-refresh-version-bump-operation.md` §3.2 により
+# `version-bump-exempt:` は適用しない）のため、同 §3.1/§3.4a に従い
+# 0.78.1 へ patch バンプする。
+version = "0.78.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
