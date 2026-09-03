@@ -60,25 +60,106 @@
 //! [`crate::recipe::Size`]（Sm/Md/Lg）へ統一する方針であり、Timeline も
 //! この最小サブセットに従う。
 //!
+//! # イシュー #1575: インジケータ・コネクタのスタイル調整（親 #1574 の 1/2）
+//!
+//! 親イシュー #1574「timeline のスタイルを参考サイト基準へ調整」の 7 軸
+//! チェックリストのうち、`connector`/`separator`/`indicator` の 3 パーツと
+//! それらへ custom property を供給する `root` の variant 規則を対象に
+//! 是正した（`content`/`title`/`description`/`item` は姉妹イシュー #1576 の
+//! 担当範囲であり本イシューでは一切触れていない）。
+//!
+//! - **サイズ**: `--fandhe-timeline-indicator-size`/`--fandhe-timeline-
+//!   separator-width` の寸法段階・線幅の等差進行はイシュー #1681 決定を
+//!   優先し変更しない。indicator の文字サイズを表す
+//!   `--fandhe-timeline-indicator-font-size` custom property を新設し、
+//!   `root` の size variant へ段階付与した（chakra-ui の 2xs/xs/xs/sm を、
+//!   本リポジトリに `2xs` トークンがなく indicator 寸法が chakra より 1 段
+//!   大きい配置であることを踏まえて Xs〜Xl の 5 段へ写像）。
+//! - **バリアント**: Subtle の背景・文字色を `--fandhe-palette-subtle`/
+//!   `--fandhe-palette-fg-subtle`（`palette_scale_declarations` が定義する
+//!   コントラスト検証済みペア）へ、Outline の枠色を
+//!   `--fandhe-palette-muted` へ、参照サイト（chakra-ui `timeline`
+//!   recipe）に合わせて是正した。枠線の太さは size 連動の
+//!   `--fandhe-timeline-separator-width` トークンへ統一する。
+//! - **色**: `separator` の既定色を palette 非連動の `--fandhe-color-border`
+//!   （境界色）へ変更し、`data-state="complete"` のときのみ palette 色へ
+//!   切り替える（下記「`data-state` 契約」節参照）。
+//! - **状態（`data-*`）**: `indicator`/`separator` それぞれへ
+//!   `data-state="complete"`/`"current"` に応じた追加宣言を [`SlotRecipe::state`]
+//!   で登録した。詳細は下記「`data-state` 契約」節参照。
+//! - **余白**: `connector` へ `row-gap`、`separator` へ `margin-bottom` を
+//!   `--fandhe-space-1`（0.25rem）で付与し、indicator と線の間に gutter を
+//!   設けた（chakra-ui の `--timeline-gutter: 4px` 相当。chakra の
+//!   `outline: 2px solid bg` 方式は bg 以外の面に置くと可視リングになる
+//!   ため採らず、`row-gap`/`margin-bottom` による素直な空白表現とした）。
+//! - **トランジション**: [`crate::recipe::transition_declarations`]
+//!   （`MotionDuration::Fast`）を `indicator`（background/border-color/
+//!   color/box-shadow）・`separator`（background）へ追加した。
+//! - **フォーカス/hover/disabled**: 3 パーツとも非インタラクティブな
+//!   `<div>` のため付与しない（`docs/design/
+//!   pre-styled-ui-interaction-visual-language.md` の「インタラクティブ
+//!   slot のみ」規約）。
+//! - **ダーク**: 新規宣言もすべて `--fandhe-*` トークン経由（生の色
+//!   リテラルなし）。使用ペアは `theme.rs` の `BODY_TEXT_PAIRS`/
+//!   `LARGE_TEXT_UI_PAIRS` で検証済みのもののみ使用する。
+//!
+//! ## `data-state` 契約（呼び出し側が付与する構成責務）
+//!
+//! [`SlotRecipe`] は子孫セレクタ機構を持たない（`recipe.rs` 冒頭 doc、
+//! #708 で確定）ため、状態属性は `indicator`/`separator` 自身の要素に
+//! 載っている必要がある。本モジュールは新規 pub 型・関数を追加せず、
+//! 「最終 item の `separator` 省略は呼び出し側責務」（上記
+//! `showLastSeparator` 節）と同型の契約として、`data-state="complete"`/
+//! `"current"` は呼び出し側が
+//! [`fandhe_frontend_headless_ui::data_attrs::data_state`] 等で
+//! [`indicator`]/[`separator`] の `attrs` へ渡す構成責務とする
+//! （[`Anatomy::part`] は `data-scope`/`data-part` のみを予約キーとして
+//! 除去し、`data-state` は素通しする）。
+//!
+//! ```
+//! use fandhe_frontend_core::render;
+//! use fandhe_frontend_headless_ui::data_attrs::data_state;
+//! use fandhe_frontend_pre_styled_ui::timeline;
+//!
+//! let node = timeline::indicator(vec![data_state("complete")], vec![]);
+//! assert!(render(&node).contains(r#"data-state="complete""#));
+//! ```
+//!
 //! # セキュリティ不変条件
 //!
 //! 本モジュールは新規 anatomy 定義と静的 CSS 生成のみで構成され、
 //! `raw_html()` を使用しない。CSS 宣言値はすべてコンパイル時静的リテラル
 //! であり、動的値（children・呼び出し側 `attrs`）を CSS 値として流し込む
 //! 経路を持たない（動的値は `fandhe_frontend_core::render` の既定エスケープ
-//! を必ず経由する、REQ-1）。
+//! を必ず経由する、REQ-1）。呼び出し側が渡す `data-state` 値も同じ経路で
+//! エスケープされる（[`Anatomy::part`] → `render` の既定エスケープ）。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `xl` size（chakra-ui 準拠の最小サブセット外）。
 //! - `showLastSeparator` の recipe 側自動制御（上記節参照、呼び出し側責務）。
 //! - 交互（alternating）レイアウト補助。
+//! - **横向き（horizontal）orientation**（イシュー #1575 で追加判断）:
+//!   chakra-ui の `timeline` recipe は orientation 軸を持たず "a vertical
+//!   list component" と定義しており、ark-ui/Radix Themes/Radix Primitives
+//!   に Timeline 自体が存在しない（`docs/design/component-coverage-map.md`）
+//!   ため「合わせるべき参照」が存在しない。加えて横向き化は `item`
+//!   （`grid-template-columns`）と `content`（`grid-column: 2`、姉妹
+//!   イシュー #1576 の担当 slot）双方の書き換えと、`root()` への
+//!   orientation 引数追加という公開シグネチャ変更を要する。よって本
+//!   イシューでは実装しない。
+//! - 状態を型で渡す公開 API（例: `TimelineItemState` enum）の新設。
+//!   `data-state` は上記の通り呼び出し側が文字列で構成する契約とし、
+//!   型追加（minor バンプを伴う）は行わない。
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
 //!   行う（[`crate::stat`] と同じ判断）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{palette_scale_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
+use crate::recipe::{
+    palette_scale_declarations, transition_declarations, ColorPalette, MotionDuration, Size,
+    SlotRecipe, StateCondition, VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -162,6 +243,11 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
                 decl("align-items", "center"),
+                // イシュー #1575: indicator と separator の間の gutter
+                // （chakra-ui `--timeline-gutter: 4px` 相当。`outline: 2px
+                // solid bg` 方式は bg 以外の面に置くと可視リングになるため
+                // 採らず row-gap による素直な空白表現にした）。
+                decl("row-gap", "var(--fandhe-space-1)"),
             ],
         )
         .base(
@@ -169,11 +255,32 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("flex", "1"),
                 decl("width", "var(--fandhe-timeline-separator-width, 2px)"),
-                decl(
-                    "background",
-                    "var(--fandhe-palette, var(--fandhe-color-accent))",
-                ),
+                // イシュー #1575: 線端丸め（steps #1539 と同型のトークン
+                // 参照）。
+                decl("border-radius", "var(--fandhe-radius-full, 9999px)"),
+                // イシュー #1575: 次 item の indicator との gutter。
+                decl("margin-bottom", "var(--fandhe-space-1)"),
+                // イシュー #1575: 既定は境界色（chakra-ui `borderColor:
+                // border`）。旧実装は常に palette 色だったため、経過を
+                // 表さない区間まで accent 色が付いていた。
+                decl("background", "var(--fandhe-color-border)"),
             ],
+        )
+        .base(
+            "separator",
+            transition_declarations("background", MotionDuration::Fast),
+        )
+        // イシュー #1575: 完了区間のみ palette 色（chakra-ui は状態軸を
+        // 持たないが、本イシューの担当範囲「完了/現在の状態表現」として
+        // 追加。呼び出し側が付与する `data-state` 契約はモジュール doc
+        // 「`data-state` 契約」節参照）。
+        .state(
+            "separator",
+            StateCondition::AttrEq("data-state", "complete"),
+            vec![decl(
+                "background",
+                "var(--fandhe-palette, var(--fandhe-color-accent))",
+            )],
         )
         .base(
             "indicator",
@@ -198,7 +305,38 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)))",
                 ),
                 decl("border", "var(--fandhe-timeline-indicator-border, none)"),
+                // イシュー #1575: indicator の文字サイズ（root の size
+                // variant が段階付与、下記参照）。
+                decl(
+                    "flex-shrink",
+                    "0",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-timeline-indicator-font-size, var(--fandhe-font-font-size-xs))",
+                ),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "1"),
             ],
+        )
+        .base(
+            "indicator",
+            transition_declarations(
+                "background, border-color, color, box-shadow",
+                MotionDuration::Fast,
+            ),
+        )
+        // イシュー #1575: 現在位置のハロー（palette-muted の box-shadow
+        // リング）。`complete` は variant の塗りをそのまま用いるため
+        // indicator 側の追加規則は設けない（呼び出し側が付与する
+        // `data-state` 契約はモジュール doc「`data-state` 契約」節参照）。
+        .state(
+            "indicator",
+            StateCondition::AttrEq("data-state", "current"),
+            vec![decl(
+                "box-shadow",
+                "0 0 0 var(--fandhe-timeline-separator-width, 2px) var(--fandhe-palette-muted, var(--fandhe-color-accent-muted))",
+            )],
         )
         .base(
             "content",
@@ -240,10 +378,18 @@ fn recipe() -> SlotRecipe {
             TimelineVariant::Subtle,
             "root",
             vec![
-                decl("--fandhe-timeline-indicator-bg", "var(--fandhe-color-bg-subtle)"),
+                // イシュー #1575: 参照サイト（chakra-ui）は subtle を
+                // `colorPalette.muted` 塗りとしており、旧実装の
+                // `--fandhe-color-bg-subtle`（palette 非連動のニュートラル
+                // 背景）は乖離していた。`palette_scale_declarations` が
+                // 定義するコントラスト検証済みペアへ是正する。
+                decl(
+                    "--fandhe-timeline-indicator-bg",
+                    "var(--fandhe-palette-subtle, var(--fandhe-color-accent-subtle))",
+                ),
                 decl(
                     "--fandhe-timeline-indicator-fg",
-                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                    "var(--fandhe-palette-fg-subtle, var(--fandhe-color-accent-fg-subtle))",
                 ),
                 decl("--fandhe-timeline-indicator-border", "none"),
             ],
@@ -257,9 +403,14 @@ fn recipe() -> SlotRecipe {
                     "--fandhe-timeline-indicator-fg",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
+                // イシュー #1575: 参照サイトは `1px colorPalette.muted` 枠
+                // （旧実装は常時 palette 濃色の 2px 固定）。線幅は size
+                // 連動の separator-width トークンへ統一し、色は
+                // `--fandhe-palette-muted`（`palette_scale_declarations` が
+                // 定義）へ是正する。
                 decl(
                     "--fandhe-timeline-indicator-border",
-                    "2px solid var(--fandhe-palette, var(--fandhe-color-accent))",
+                    "var(--fandhe-timeline-separator-width, 2px) solid var(--fandhe-palette-muted, var(--fandhe-color-accent-muted))",
                 ),
             ],
         )
@@ -277,12 +428,21 @@ fn recipe() -> SlotRecipe {
         )
         // イシュー #1681: Xs/Xl は indicator-size 0.375rem 刻み・
         // separator-width 0.5px 刻みの Sm→Md→Lg 等差進行を外挿。
+        // イシュー #1575: `--fandhe-timeline-indicator-font-size` を新設し
+        // size 段階へ追加した（chakra-ui の 2xs/xs/xs/sm を、本リポジトリに
+        // `2xs` トークンがなく indicator 寸法が chakra より 1 段大きい
+        // 配置であることを踏まえて Xs〜Xl の 5 段へ写像。モジュール doc
+        // 「イシュー #1575」節参照）。
         .variant(
             Size::Xs,
             "root",
             vec![
                 decl("--fandhe-timeline-indicator-size", "0.75rem"),
                 decl("--fandhe-timeline-separator-width", "1px"),
+                decl(
+                    "--fandhe-timeline-indicator-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
             ],
         )
         .variant(
@@ -291,6 +451,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-timeline-indicator-size", "1.125rem"),
                 decl("--fandhe-timeline-separator-width", "1.5px"),
+                decl(
+                    "--fandhe-timeline-indicator-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
             ],
         )
         .variant(
@@ -299,6 +463,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-timeline-indicator-size", "1.5rem"),
                 decl("--fandhe-timeline-separator-width", "2px"),
+                decl(
+                    "--fandhe-timeline-indicator-font-size",
+                    "var(--fandhe-font-font-size-xs)",
+                ),
             ],
         )
         .variant(
@@ -307,6 +475,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-timeline-indicator-size", "1.875rem"),
                 decl("--fandhe-timeline-separator-width", "2.5px"),
+                decl(
+                    "--fandhe-timeline-indicator-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
             ],
         )
         .variant(
@@ -315,6 +487,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("--fandhe-timeline-indicator-size", "2.25rem"),
                 decl("--fandhe-timeline-separator-width", "3px"),
+                decl(
+                    "--fandhe-timeline-indicator-font-size",
+                    "var(--fandhe-font-font-size-md)",
+                ),
             ],
         )
         .default_variant(TimelineVariant::Solid)
@@ -639,16 +815,120 @@ mod tests {
     /// `indicator` の base 宣言が `variant` の custom property を `var()` で
     /// 参照していることを固定する（root スコープの継承経由で
     /// background/color/border が伝搬する契約、モジュール doc「variant 3 軸」
-    /// 参照）。
+    /// 参照）。イシュー #1575: Subtle/Outline の是正後の値へ更新した
+    /// （モジュール doc「イシュー #1575」節参照）。
     #[test]
     fn indicator_paint_references_variant_custom_properties() {
         let out = css();
         assert!(out.contains("background: var(--fandhe-timeline-indicator-bg,"));
         assert!(out.contains("color: var(--fandhe-timeline-indicator-fg,"));
         assert!(out.contains("border: var(--fandhe-timeline-indicator-border, none);"));
-        assert!(out.contains("--fandhe-timeline-indicator-bg: var(--fandhe-color-bg-subtle);"));
         assert!(out.contains(
-            "--fandhe-timeline-indicator-border: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));"
+            "--fandhe-timeline-indicator-bg: var(--fandhe-palette-subtle, var(--fandhe-color-accent-subtle));"
         ));
+        assert!(out.contains(
+            "--fandhe-timeline-indicator-fg: var(--fandhe-palette-fg-subtle, var(--fandhe-color-accent-fg-subtle));"
+        ));
+        assert!(out.contains(
+            "--fandhe-timeline-indicator-border: var(--fandhe-timeline-separator-width, 2px) solid var(--fandhe-palette-muted, var(--fandhe-color-accent-muted));"
+        ));
+    }
+
+    /// イシュー #1575: `separator` の既定は境界色（palette 非連動）で、
+    /// `data-state="complete"` のときのみ palette 色へ切り替わることを
+    /// 固定する（モジュール doc「イシュー #1575」節参照）。
+    #[test]
+    fn separator_defaults_to_border_color_and_complete_uses_palette() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="timeline"][data-part="separator"] {"#));
+        assert!(out.contains("background: var(--fandhe-color-border);"));
+        assert!(out.contains(
+            r#"[data-scope="timeline"][data-part="separator"][data-state="complete"] {"#
+        ));
+        assert!(out.contains("background: var(--fandhe-palette, var(--fandhe-color-accent));"));
+    }
+
+    /// イシュー #1575: `indicator` の `data-state="current"` が
+    /// `--fandhe-palette-muted` を用いたハロー（box-shadow）を描くことを
+    /// 固定する。
+    #[test]
+    fn indicator_current_state_draws_palette_halo() {
+        let out = css();
+        assert!(out
+            .contains(r#"[data-scope="timeline"][data-part="indicator"][data-state="current"] {"#));
+        assert!(out.contains(
+            "box-shadow: 0 0 0 var(--fandhe-timeline-separator-width, 2px) var(--fandhe-palette-muted, var(--fandhe-color-accent-muted));"
+        ));
+    }
+
+    /// イシュー #1575: `connector`/`separator` が `--fandhe-space-1` を
+    /// 使った gutter を持つことを固定する。
+    #[test]
+    fn connector_and_separator_define_gutter_with_space_token() {
+        let out = css();
+        assert!(out.contains("row-gap: var(--fandhe-space-1);"));
+        assert!(out.contains("margin-bottom: var(--fandhe-space-1);"));
+    }
+
+    /// イシュー #1575: `indicator`/`separator` がトランジション宣言
+    /// （`transition_declarations`）を持つことを固定する。
+    #[test]
+    fn indicator_and_separator_have_transition_with_motion_tokens() {
+        let out = css();
+        assert!(out.contains("transition-property: background, border-color, color, box-shadow;"));
+        assert!(out.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
+        // separator 側 transition-property（"background" のみ）が別途
+        // 存在すること。
+        assert!(out.matches("transition-property: background;").count() >= 1);
+    }
+
+    /// イシュー #1575: `root` の size variant 5 段すべてが
+    /// `--fandhe-timeline-indicator-font-size` を定義することを固定する。
+    #[test]
+    fn root_size_variants_define_indicator_font_size() {
+        let out = css();
+        for value in [
+            "var(--fandhe-font-font-size-xs)",
+            "var(--fandhe-font-font-size-sm)",
+            "var(--fandhe-font-font-size-md)",
+        ] {
+            assert!(
+                out.contains(&format!("--fandhe-timeline-indicator-font-size: {value};")),
+                "expected indicator-font-size {value} in {out}"
+            );
+        }
+    }
+
+    /// イシュー #1575: `data-state` に対する状態セレクタが `indicator`/
+    /// `separator` を正しく対象にしていることを固定する（`variant_selector_
+    /// targets_root_not_indicator` と同型の「セレクタが実レンダリング結果に
+    /// 一致するか」の回帰テスト）。
+    #[test]
+    fn state_selectors_target_indicator_and_separator_parts() {
+        let out = css();
+        assert!(
+            out.contains(r#"[data-scope="timeline"][data-part="indicator"][data-state="current"]"#)
+        );
+        assert!(out
+            .contains(r#"[data-scope="timeline"][data-part="separator"][data-state="complete"]"#));
+    }
+
+    /// イシュー #1575: 呼び出し側が `indicator`/`separator` へ渡す
+    /// `data-state` 属性がレンダリング結果へそのまま残ること（`Anatomy::
+    /// part` が `data-scope`/`data-part` 以外の呼び出し側 attrs を素通し
+    /// する契約）と、値が既定エスケープを経由することを固定する
+    /// （モジュール doc「`data-state` 契約」節参照、REQ-1）。
+    #[test]
+    fn caller_data_state_attr_passes_through_on_indicator_and_separator() {
+        let html = render(&indicator(vec![("data-state", "complete")], vec![]));
+        assert!(html.contains(r#"data-state="complete""#));
+
+        let html = render(&separator(vec![("data-state", "current")], vec![]));
+        assert!(html.contains(r#"data-state="current""#));
+
+        // 既定エスケープ経路の確認: 属性値中の `"` はエスケープされる。
+        let html = render(&indicator(vec![("data-state", "a\"b")], vec![]));
+        assert!(!html.contains(r#"data-state="a"b""#));
+        assert!(html.contains("a&quot;b"));
     }
 }

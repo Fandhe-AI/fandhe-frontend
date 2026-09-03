@@ -1152,22 +1152,23 @@ fn ex_timeline() -> Node {
 
 pub(crate) const TIMELINE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "TimelineVariant（Solid/Subtle/Outline/Plain、crates/pre-styled-ui/src/timeline.rs:103-427）で indicator の塗り方を切り替える",
-        "item/connector/separator/indicator/content/title/description の 7 パーツで年表を構造化する（timeline.rs:1006-1049）",
-        "最終 item は separator を組み込まないことで非表示にする契約（showLastSeparator 相当は実装しない、timeline.rs:1019-1021）",
+        "TimelineVariant（Solid/Subtle/Outline/Plain、crates/pre-styled-ui/src/timeline.rs:184-209）で indicator の塗り方を切り替える",
+        "item/connector/separator/indicator/content/title/description の 7 パーツで年表を構造化する（timeline.rs:560-602）",
+        "最終 item は separator を組み込まないことで非表示にする契約（showLastSeparator 相当は実装しない、timeline.rs:48-55）",
+        "呼び出し側が indicator/separator へ data-state=\"complete\"/\"current\" を付与すると完了区間・現在位置のスタイルが適用される（recipe 側は子孫セレクタを持たないため、値は呼び出し側の構成責務。イシュー #1575、timeline.rs:107-118）",
     ],
     arguments: &[
         ArgRow {
             name: "variant",
             kind: "TimelineVariant",
             default: "Solid",
-            description: "indicator の塗り方（timeline.rs:103-427）。",
+            description: "indicator の塗り方（timeline.rs:184-209）。",
         },
         ArgRow {
             name: "palette",
             kind: "ColorPalette",
             default: "Accent",
-            description: "colorPalette 軸（timeline.rs:988-1000）。",
+            description: "colorPalette 軸（timeline.rs:216-498）。",
         },
     ],
     examples: &[ExampleEntry {

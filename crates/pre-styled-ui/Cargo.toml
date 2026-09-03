@@ -1111,7 +1111,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # `table.rs` rustdoc 参照）: 公開 API・CSS 出力のセレクタ集合は不変
 # （既存バグの是正のみ）で、0.76.0 は crates.io 未公開のためこの修正は
 # 追加のバンプを要さずそのまま 0.76.0 に含める。
-version = "0.76.0"
+#
+# イシュー #1575: timeline のスタイル調整 (1/2) — インジケータ・コネクタ
+# （親 #1574 の 7 軸チェックリストのうち connector/separator/indicator と
+# root の variant 規則を是正）。indicator/separator の base 宣言値変更・
+# `--fandhe-timeline-indicator-font-size` custom property 新設・
+# `[data-state="complete"/"current"]` 状態セレクタ新設を行うが、公開 Rust
+# API のシグネチャ・既存 CSS 変数名/クラス名/セレクタの削除・改名は伴わない
+# 意匠調整（`docs/ci/style-refresh-version-bump-operation.md` §3.1、
+# `.claude/rules/coding-rust.md`）のためパッチバンプする。
+version = "0.76.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
