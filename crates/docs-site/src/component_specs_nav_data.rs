@@ -883,16 +883,33 @@ fn ex_tag() -> Node {
 
 pub(crate) const TAG: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "TagVariant（Solid/Subtle/Outline、crates/pre-styled-ui/src/tag.rs:34-58）で塗り方を切り替える",
-        "close_trigger（<button type=\"button\">）で削除可能な Tag を構成できる（tag.rs:238-262）",
-        "close_trigger 自体は children/aria-label を持たないため呼び出し側が視覚内容とアクセシブルネームを渡す責務を持つ（tag.rs:231）",
+        "TagVariant（Solid/Subtle/Outline/Surface、crates/pre-styled-ui/src/tag.rs。イシュー #1573 で Surface を追加）で塗り方を切り替える",
+        "colorPalette 軸（tag.rs の TagProps）でセマンティック色を選択する",
+        "Subtle/Outline/Surface は 6 役割 palette の淡色トークンを消費する（tag.rs、イシュー #1573）",
+        "close_trigger（<button type=\"button\">）で削除可能な Tag を構成できる（tag.rs）",
+        "close_trigger は hover 面・キーボードフォーカスリングを持つ（イシュー #1573。Solid variant ではリング色を --fandhe-palette-fg へ切り替え、背景との同化を避ける）",
+        "close_trigger 自体は children/aria-label を持たないため呼び出し側が視覚内容とアクセシブルネームを渡す責務を持つ（tag.rs）",
     ],
-    arguments: &[ArgRow {
-        name: "variant",
-        kind: "TagVariant",
-        default: "Subtle",
-        description: "塗り方（tag.rs:70-82）。",
-    }],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "TagVariant",
+            default: "Subtle",
+            description: "塗り方（tag.rs の TagVariant、#[default] は Subtle。イシュー #1573 で Surface を追加）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ（tag.rs の TagProps）。",
+        },
+        ArgRow {
+            name: "palette",
+            kind: "ColorPalette",
+            default: "Accent",
+            description: "colorPalette 軸（tag.rs の TagProps）。",
+        },
+    ],
     examples: &[ExampleEntry {
         title: "Removable",
         description: "close_trigger を付与した削除可能な Tag の例です。",
@@ -901,7 +918,7 @@ pub(crate) const TAG: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "(呼び出し側責務)",
-        description: "close_trigger の aria-label・視覚内容（×等）は呼び出し側が渡す責務であり、本部品自体は固有の ARIA を固定出力しない（tag.rs:231）。",
+        description: "close_trigger の aria-label・視覚内容（×等）は呼び出し側が渡す責務であり、本部品自体は固有の ARIA を固定出力しない（tag.rs）。",
     }],
     demo: None,
 };

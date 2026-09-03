@@ -284,7 +284,10 @@
 //! - 状態機械を要しない単純 styled 部品 3 種（イシュー #768）: [`mod@tag`]
 //!   （Tag、`variant`/`size`/`color-palette` の 3 軸 variant を持つ
 //!   root/label/close-trigger の 3 パーツ。close-trigger は状態機械を持たず
-//!   `data-action` 属性の出力のみを担う。[`crate::badge`] と同型の判断） /
+//!   `data-action` 属性の出力のみを担う。[`crate::badge`] と同型の判断。
+//!   イシュー #1573 で `Surface` variant 追加・6 役割 palette 移行・
+//!   close-trigger の hover/フォーカスリング/transition を含め参照サイト
+//!   基準へ調整済み） /
 //!   [`mod@kbd`]（Kbd、`variant`/`size`/`color-palette` の 3 軸 variant を
 //!   持つ単一 slot。イシュー #1436 で参照サイト基準へ調整済み） /
 //!   [`mod@code`]（Code、インライン `<code>`。`variant`/`size`/

@@ -1,11 +1,69 @@
-//! Tag（イシュー #768）: slot recipe styled 部品。ラベル・分類・除去可能な
+//! Tag（イシュー #768。イシュー #1573 で参照サイト基準（chakra-ui）へ
+//! スタイル調整済み）: slot recipe styled 部品。ラベル・分類・除去可能な
 //! チップ表示のための root/label/close-trigger の 3 パーツで構成する。
 //!
-//! [`crate::badge`]（#550/#606）と同型の「pre-styled 層で anatomy を直接
-//! 宣言する単純 styled 部品」として実装する。chakra-ui v3 の Tag anatomy
-//! （Root/Label/StartElement/EndElement/CloseTrigger）のうち StartElement/
-//! EndElement は専用パーツを設けない。children に任意 [`Node`] を並べれば
-//! 同等の表現ができるため（スコープ外、イシュー #768 計画 §9 参照）。
+//! [`crate::badge`]（#550/#606/#1555）と同型の「pre-styled 層で anatomy を
+//! 直接宣言する単純 styled 部品」として実装する。chakra-ui v3 の Tag
+//! anatomy（Root/Label/StartElement/EndElement/CloseTrigger）のうち
+//! StartElement/EndElement は専用パーツを設けない。children に任意
+//! [`Node`] を並べれば同等の表現ができるため（スコープ外、イシュー #768
+//! 計画 §9 参照）。
+//!
+//! # イシュー #1573 の参照サイト比較（7 軸チェック）
+//!
+//! chakra-ui（Tag、`variant`（`subtle`/`solid`/`outline`/`surface`(既定)）+
+//! `size`（`sm`〜`xl`）+ `colorPalette`、既定 `gray`）と
+//! スクリーンショット（`docs/design/reference-screenshots/chakra-tag-*.png`）
+//! を比較した結果を記録する。
+//!
+//! - **サイズ**: 共通 [`crate::recipe::Size`] の 5 段（Xs〜Xl、#1681 の
+//!   進行則）を維持する（badge/kbd/code と同じ判断。padding の生値の
+//!   トークン化は横断課題として据え置き）。
+//! - **バリアント**: [`TagVariant`] へ `Surface` を追加し 4 値へ拡張した
+//!   （[`crate::badge::BadgeVariant::Surface`]/
+//!   [`crate::button::ButtonVariant::Surface`] と同名）。既定は `Subtle`
+//!   を維持する（chakra 既定 `surface` へは意図的に合わせない。badge と
+//!   揃える判断）。
+//! - **色**: `Subtle`/`Outline` を旧 3 役割配色（中立色 + `--fandhe-palette`）
+//!   から [`crate::recipe::palette_scale_declarations`] 経由の 6 役割
+//!   palette へ移行した（badge #1555 と同一パターン）。新設 `Surface` は
+//!   `Subtle` の塗り + `Outline` の枠線。既定 palette は `Accent` を維持
+//!   する（chakra 既定 `gray` へは合わせない。badge と同じ理由: ステータス
+//!   表示系は中立色既定を採らない）。
+//! - **状態（`data-*`）**: 増減なし。disabled 概念は本 API に無く headless
+//!   も `data-disabled` を出さないため非適用（[`crate::tab_nav`]（#1541）
+//!   と同型の判断）。
+//! - **ダーク**: 追加宣言はすべてトークン参照のため
+//!   `write_dark_declarations` へ自動追従する。
+//! - **フォーカス**: close-trigger へ canonical フォーカスリング
+//!   （[`crate::recipe::focus_ring_declarations`]）を追加した。ただし
+//!   `Solid` variant では背景 = `--fandhe-palette` のため、リング色を
+//!   そのまま `--fandhe-palette` にすると背景と同化して見えなくなる。
+//!   `--fandhe-tag-close-ring-color`（variant ごとに `Solid` は
+//!   `--fandhe-palette-fg`、他は `--fandhe-palette` を定義）という
+//!   custom property 間接参照（[`crate::recipe::hover_bg_solid`] 等と
+//!   同じ既存パターン）で `outline-color` のみを上書きし、全 variant で
+//!   可視なリングを保つ。オフセットは `Inset`（root の垂直
+//!   padding〔Md で 2px〕より外側リング〔幅 2px + オフセット 2px〕が
+//!   大きく root 外へはみ出すため）。root（`<span>`）は非フォーカス対象
+//!   のため付けない。
+//! - **余白・角丸・影**: base へ `line-height`/`white-space: nowrap`/
+//!   `font-variant-numeric: tabular-nums` を追加した（badge #1555 と同型）。
+//!   close-trigger は tags_input `item-delete-trigger`（#1699）と同型の
+//!   固定 `1rem` 正方アイコンボタン化（`border-radius: var(--fandhe-radius-sm)`）。
+//!   影は付けない。chakra の `user-select: none` はテキスト選択を妨げるため
+//!   採らない。
+//! - **hover / transition**: close-trigger は `cursor: pointer` を持つ
+//!   インタラクティブ slot のため、[`crate::recipe::hover_bg_muted`]/
+//!   [`crate::recipe::hover_surface_declarations`]/
+//!   [`crate::recipe::transition_declarations`]（#1425 規約）を追加した。
+//!   root は表示専用のため付けない。
+//!
+//! **意図的に合わせない点**: chakra `plain` variant（最小サブセット方針、
+//! badge/code/kbd で見送り済み）・既定 variant `surface`/既定 palette
+//! `gray`（badge と揃える）・`user-select: none`・StartElement/EndElement
+//! 専用パーツ（上記参照）・`label` の `lineClamp: 1`（`white-space: nowrap`
+//! を root で担う）。
 //!
 //! # close-trigger と dispatch 契約
 //!
@@ -31,7 +89,11 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{palette_scale_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, hover_bg_muted, hover_bg_solid, hover_surface_declarations,
+    palette_scale_declarations, transition_declarations, ColorPalette, FocusRingColor,
+    FocusRingOffset, MotionDuration, Size, SlotRecipe, StateCondition, VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -39,8 +101,9 @@ use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 /// 既存の `"tags-input"`（[`crate::tags_input`]）と衝突しない。
 const ANATOMY: Anatomy = anatomy("tag");
 
-/// Tag の見た目 variant（[`crate::badge::BadgeVariant`] と同型の 3 値。
-/// chakra-ui の `surface` は最小サブセット方針により見送り）。
+/// Tag の見た目 variant（[`crate::badge::BadgeVariant`] と同型の 4 値。
+/// chakra-ui の `plain` は最小サブセット方針により見送り、イシュー #1573 で
+/// `Surface` を追加した）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TagVariant {
     /// 塗りつぶし。
@@ -50,6 +113,9 @@ pub enum TagVariant {
     Subtle,
     /// 輪郭のみ。
     Outline,
+    /// 淡色背景 + 輪郭（イシュー #1573。[`crate::badge::BadgeVariant::Surface`]/
+    /// [`crate::button::ButtonVariant::Surface`] と同名）。
+    Surface,
 }
 
 impl VariantValue for TagVariant {
@@ -62,6 +128,7 @@ impl VariantValue for TagVariant {
             Self::Solid => "solid",
             Self::Subtle => "subtle",
             Self::Outline => "outline",
+            Self::Surface => "surface",
         }
     }
 }
@@ -106,6 +173,9 @@ fn recipe() -> SlotRecipe {
                 decl("gap", "var(--fandhe-space-1)"),
                 decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("line-height", "var(--fandhe-font-line-height-tight)"),
+                decl("white-space", "nowrap"),
+                decl("font-variant-numeric", "tabular-nums"),
             ],
         )
         .base(
@@ -120,12 +190,28 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
-                decl("border", "none"),
-                decl("background", "transparent"),
-                decl("cursor", "pointer"),
+                decl("justify-content", "center"),
+                decl("box-sizing", "border-box"),
+                decl("width", "1rem"),
+                decl("height", "1rem"),
                 decl("padding", "0"),
+                decl("border", "none"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                decl("background", "transparent"),
                 decl("color", "inherit"),
+                decl("cursor", "pointer"),
+                decl("line-height", "1"),
             ],
+        )
+        // `cursor: pointer` を持つインタラクティブ slot のため transition を
+        // 付与する（#1425 規約。tags_input `item-delete-trigger` #1699 と
+        // 同型）。`--fandhe-hover-bg` は close-trigger base に置かない
+        // （variant 別の値が root 側の variant 規則で定義され、custom
+        // property の継承で close-trigger（root の子孫）に届く設計。
+        // close-trigger 自身に固定値を書くと継承値を上書きしてしまう）。
+        .base(
+            "close-trigger",
+            transition_declarations("background, color", MotionDuration::Fast),
         )
         // イシュー #1681: badge の recipe（`crate::badge::recipe`）と同一
         // 進行則（Xs は垂直 2 倍刻み・水平 0.125rem 刻みの外挿、Xl は水平
@@ -176,14 +262,22 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("background", "var(--fandhe-palette)"),
                 decl("color", "var(--fandhe-palette-fg)"),
+                hover_bg_solid(),
+                decl("--fandhe-tag-close-ring-color", "var(--fandhe-palette-fg)"),
             ],
         )
         .variant(
             TagVariant::Subtle,
             "root",
             vec![
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-palette)"),
+                decl("background", "var(--fandhe-palette-subtle)"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
+                // #1448 の tint 面規則: 淡色背景の hover は 1 段濃い
+                // `--fandhe-palette-muted` を使う（`hover_bg_solid`/
+                // `hover_bg_muted` のいずれでもない palette 連動値のため
+                // 直接 decl する）。
+                decl("--fandhe-hover-bg", "var(--fandhe-palette-muted)"),
+                decl("--fandhe-tag-close-ring-color", "var(--fandhe-palette)"),
             ],
         )
         .variant(
@@ -191,8 +285,21 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("background", "transparent"),
-                decl("color", "var(--fandhe-palette)"),
-                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
+                decl("border", "1px solid var(--fandhe-palette-muted)"),
+                hover_bg_muted(),
+                decl("--fandhe-tag-close-ring-color", "var(--fandhe-palette)"),
+            ],
+        )
+        .variant(
+            TagVariant::Surface,
+            "root",
+            vec![
+                decl("background", "var(--fandhe-palette-subtle)"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
+                decl("border", "1px solid var(--fandhe-palette-muted)"),
+                decl("--fandhe-hover-bg", "var(--fandhe-palette-muted)"),
+                decl("--fandhe-tag-close-ring-color", "var(--fandhe-palette)"),
             ],
         )
         .default_variant(Size::Md)
@@ -209,6 +316,29 @@ fn recipe() -> SlotRecipe {
     ] {
         recipe = recipe.variant(palette, "root", palette_scale_declarations(palette));
     }
+
+    // close-trigger のフォーカスリング（イシュー #1573）: canonical 2 宣言
+    // （`outline`/`outline-offset`）に続けて `outline-color` のみを
+    // variant 別 custom property（`--fandhe-tag-close-ring-color`、上記
+    // variant 規則参照）で上書きする。`Solid` 面ではリング色を
+    // `--fandhe-palette` のままにすると背景と同化して消えるための対策
+    // （モジュール rustdoc「フォーカス」節参照）。`Inset` はリング
+    // （幅 2px + オフセット 2px）が root の垂直 padding（Md で 2px）より
+    // 大きく root 外へはみ出すのを避けるため。
+    let mut close_trigger_focus_ring =
+        focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Inset);
+    close_trigger_focus_ring.push(decl("outline-color", "var(--fandhe-tag-close-ring-color)"));
+    recipe = recipe
+        .state(
+            "close-trigger",
+            StateCondition::FocusVisible,
+            close_trigger_focus_ring,
+        )
+        .state(
+            "close-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
+        );
     recipe
 }
 
@@ -300,6 +430,7 @@ mod tests {
             (TagVariant::Solid, "fd-tag--variant-solid"),
             (TagVariant::Subtle, "fd-tag--variant-subtle"),
             (TagVariant::Outline, "fd-tag--variant-outline"),
+            (TagVariant::Surface, "fd-tag--variant-surface"),
         ] {
             let props = TagProps {
                 variant,
@@ -397,5 +528,34 @@ mod tests {
     fn css_output_declares_radius_token() {
         let out = css();
         assert!(out.contains("border-radius: var(--fandhe-radius-sm);"));
+    }
+
+    /// イシュー #1573: close-trigger のキーボードフォーカスリングが
+    /// `:focus-visible` セレクタで出力され、`outline-color` を variant 別
+    /// custom property 経由で上書きすることを固定する。
+    #[test]
+    fn css_output_declares_close_trigger_focus_ring() {
+        let out = css();
+        assert!(out.contains(r#"[data-scope="tag"][data-part="close-trigger"]:focus-visible {"#));
+        assert!(out.contains("outline-color: var(--fandhe-tag-close-ring-color);"));
+    }
+
+    /// イシュー #1573: `Solid` variant は close-trigger のリング色を
+    /// `--fandhe-palette-fg`（背景と同化しない文字色）で上書きすることを
+    /// 固定する。
+    #[test]
+    fn css_output_solid_variant_declares_close_trigger_ring_color() {
+        let out = css();
+        assert!(out.contains("--fandhe-tag-close-ring-color: var(--fandhe-palette-fg);"));
+    }
+
+    /// イシュー #1573: close-trigger の hover 規則が
+    /// `@media (hover: hover)` 配下に出力されることを固定する。
+    #[test]
+    fn css_output_declares_close_trigger_hover() {
+        let out = css();
+        assert!(out.contains(
+            r#"[data-scope="tag"][data-part="close-trigger"]:hover:not([data-disabled]) {"#
+        ));
     }
 }

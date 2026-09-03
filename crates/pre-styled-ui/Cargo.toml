@@ -1119,8 +1119,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # `[data-state="complete"/"current"]` 状態セレクタ新設を行うが、公開 Rust
 # API のシグネチャ・既存 CSS 変数名/クラス名/セレクタの削除・改名は伴わない
 # 意匠調整（`docs/ci/style-refresh-version-bump-operation.md` §3.1、
-# `.claude/rules/coding-rust.md`）のためパッチバンプする。
-version = "0.76.1"
+# `.claude/rules/coding-rust.md`）のためパッチバンプ相当（0.76.1）。
+#
+# base 取り込み: main 側は #1573（`TagVariant::Surface` 追加による網羅
+# `match` 破壊、0.x 破壊的変更）の統合により 0.77.0（本ブランチの 0.76.1
+# より大きい）へマイナーバンプ済みだった。両者の実体変更を統合した結果
+# として、より大きい 0.77.0 をそのまま採用する（semver 上 minor バンプが
+# patch バンプを包含するため、0.76.1 への追随バンプは不要）。
+version = "0.77.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
