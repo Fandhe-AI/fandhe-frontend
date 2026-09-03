@@ -132,13 +132,19 @@
 //!   `border-bottom` として消費する。
 //! - `--fandhe-table-last-row-border`（新設）: `Line` は
 //!   `1px solid var(--fandhe-color-border-muted)`（chakra line は最終行にも
-//!   罫線を引く）、`Outline` は `none`（外枠と二重の罫線にしない）。`row`
-//!   slot の [`crate::recipe::StateCondition::LastChild`] 規則が
-//!   `--fandhe-table-row-border` をこの値で上書きし、最終行の `cell` へ
-//!   継承させる。`tr` 自体は `separate` border モデル下で border を描画
-//!   できないが（上記「variant について」節参照）、custom property は
-//!   通常どおり子孫の `td`/`th` へ継承されるため、この経路で最終行の
-//!   罫線だけを選択的に変えられる。
+//!   罫線を引く）、`Outline` は `none`（外枠と二重の罫線にしない）。
+//!   [`css`] が `recipe().css()` の後段へ追記する子孫セレクタ規則
+//!   （PR #1844 codex-review P1 是正、[`css`] rustdoc 参照）が
+//!   `--fandhe-table-row-border` をこの値で上書きし、表全体で本当に
+//!   最後の行（`tfoot` があればその最終行、無ければ最後の `tbody` の
+//!   最終行）の `cell` へ継承させる。当初は `row` slot への
+//!   `[`crate::recipe::StateCondition::LastChild`]` state 規則
+//!   （`:last-child`）だったが、`:last-child` は「直接の親の中での
+//!   最後」を意味するため複数 `tbody` 構成では中間グループの最終行にも
+//!   誤って一致していた（codex-review 指摘）。`tr` 自体は `separate`
+//!   border モデル下で border を描画できないが（上記「variant について」
+//!   節参照）、custom property は通常どおり子孫の `td`/`th` へ継承される
+//!   ため、この経路で最終行の罫線だけを選択的に変えられる。
 //! - `--fandhe-table-header-border`（新設）: `Line`/`Outline` とも
 //!   `1px solid var(--fandhe-color-border)`（従来の固定値と同じ）。
 //!   `column-header` base が `border-bottom` として消費する。
@@ -151,17 +157,20 @@
 //! - `--fandhe-table-footer-border`（新設）: `Line` は `none`
 //!   （従来どおり `tfoot` に区切り線を持たない）、`Outline` は
 //!   `1px solid var(--fandhe-color-border-muted)`（chakra outline の
-//!   `tfoot` `border-top` 相当）。`footer` base が
+//!   `tfoot` `border-top` 相当）。[`css`] が追記する
+//!   `[data-part="footer"] [data-part="row"]:first-child` 限定規則が
 //!   `--fandhe-table-cell-border-top` custom property 経由で `cell` へ
 //!   伝え、`cell` base の `border-top` が消費する（`tfoot` 自体は border を
-//!   描画できないため、`tfoot` 配下の `td` へ委譲する構成。`row` の
-//!   `LastChild` 規則と対称的なパターン）。
+//!   描画できないため、`tfoot` 配下の `td` へ委譲する構成。上記
+//!   `--fandhe-table-last-row-border` と対称的なパターン）。`:first-child`
+//!   限定は PR #1844 Cursor Bugbot Low severity 是正: `footer`（`tfoot`）
+//!   自身に custom property を設定すると複数行 `tfoot` の全行へ継承され、
+//!   各行の `cell` が同じ `border-top` を描いて区切り線が重複してしまう
+//!   ため、最初の行だけへ限定する（[`css`] rustdoc 参照）。
 //!
-//! `row` slot が [`crate::recipe::StateCondition::NthChildEven`]（striped）
-//! と [`crate::recipe::StateCondition::LastChild`] の 2 状態規則を持つ
-//! 初のケースだが、両者は直交するセレクタ（`:nth-child(even)` と
-//! `:last-child`）であり、`LastChild` 規則は `background` に触れず
-//! `--fandhe-table-row-border` のみを上書きするため干渉しない。
+//! `row` slot は [`crate::recipe::StateCondition::NthChildEven`]（striped）
+//! の 1 状態規則のみを持つ（最終行の罫線上書きは上述のとおり [`css`] の
+//! 手書き子孫セレクタ規則へ切り出し済み、PR #1844 是正）。
 //!
 //! Radix Themes との対応: `surface` ≒ `Outline`（外枠 + 角丸 + muted
 //! ヘッダー）、`ghost` ≒ `Line`（枠なし）。Radix の `--table-cell-min-height`
@@ -550,11 +559,14 @@ fn recipe() -> SlotRecipe {
                 // PR #811 Bugbot 指摘）。
                 decl("border-bottom", "var(--fandhe-table-row-border, none)"),
                 // イシュー #1572: `Outline` variant の `tfoot` 上罫線
-                // （chakra outline の `tfoot` `border-top` 相当）を `footer`
-                // slot からの委譲で受け取る（`tfoot` 自身は border を描画
-                // できないため、上記モジュール doc「`Outline` の実装」節
-                // 参照）。`Line` は `footer` が custom property を設定しない
-                // ため既定値 `none` のまま影響なし。
+                // （chakra outline の `tfoot` `border-top` 相当）を
+                // `--fandhe-table-cell-border-top` custom property 経由で
+                // 受け取る（`tfoot` 自身は border を描画できないため、上記
+                // モジュール doc「`Outline` の実装」節参照）。値は
+                // [`css`] が追記する `[data-part="footer"]
+                // [data-part="row"]:first-child` 限定規則が設定する（PR
+                // #1844 是正、上記 `footer` base コメント参照）。`Line` は
+                // その規則の値も既定値 `none` のため影響なし。
                 decl("border-top", "var(--fandhe-table-cell-border-top, none)"),
                 // イシュー #1571: column-header と同じ理由で数値列の桁揃え
                 // を追加する。
@@ -567,17 +579,16 @@ fn recipe() -> SlotRecipe {
                 // イシュー #1571: chakra-ui `tfoot` の `font-weight: medium`
                 // 相当。
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
-                // イシュー #1572: `tfoot`（`footer` slot）自身は
-                // `border-collapse: separate` モデル下で border を描画
-                // できないため（上記 `cell` base の PR #811 不変条件と
-                // 同型）、`--fandhe-table-cell-border-top` custom property
-                // を設定して配下の `cell`（`td`）へ委譲する（`Line`/
-                // `Outline` の variant 宣言が値を上書きする、モジュール doc
-                // 「`Outline` の実装」節参照）。
-                decl(
-                    "--fandhe-table-cell-border-top",
-                    "var(--fandhe-table-footer-border, none)",
-                ),
+                // イシュー #1572 PR #1844 codex-review/Bugbot 是正:
+                // `--fandhe-table-cell-border-top` の委譲は本 base ではなく
+                // [`css`] が追記する `[data-part="footer"]
+                // [data-part="row"]:first-child` 限定規則へ移した。`footer`
+                // 自身にここで設定すると custom property が `tfoot` 配下の
+                // 全 `row`（複数行 `tfoot`）へ継承され、各行の `cell` が
+                // 同じ `border-top` を描いて区切り線が重複してしまう
+                // （PR #1844 Cursor Bugbot Low severity 指摘）。`footer` の
+                // 最初の行だけに限定することで、tbody との境界線は 1 本
+                // だけ描かれる（下記 [`css`] 内コメント参照）。
             ],
         )
         .variant(
@@ -773,18 +784,22 @@ fn recipe() -> SlotRecipe {
                 "var(--fandhe-table-stripe-bg, transparent)",
             )],
         )
-        // イシュー #1572: `Outline` variant で最終行の罫線を外枠と二重に
-        // しないための上書き（上記モジュール doc「`Outline` の実装」節
+        // イシュー #1572 PR #1844 codex-review P1 是正: `Outline` variant
+        // で最終行の罫線を外枠と二重にしないための上書きは、かつて
+        // `[data-part="row"]:last-child` の無条件 state 規則だった。
+        // `:last-child` は「直接の親の中での最後」を意味し、複数 `tbody`
+        // 構成では各 `tbody`/`thead`/`tfoot` の最終行すべてに一致して
+        // しまうため、中間グループの末尾罫線まで消えてしまっていた
+        // （codex-review P1 指摘）。表全体で本当に最後の行（`tfoot` が
+        // あればその最終行、無ければ最後の `tbody` の最終行）だけへ限定
+        // する必要があり、[`crate::recipe::SlotRecipe`] は子孫セレクタ
+        // 機構を持たない（本モジュール冒頭 doc「colorPalette 軸」節前段の
+        // #708 方針）ため `state()` では表現できない。[`crate::marquee`]・
+        // [`crate::list`] が既に採る「[`css`] が `recipe().css()` の後段へ
+        // 手書きの子孫セレクタ規則を追記する」パターンを踏襲し、下記
+        // [`css`] へ切り出した（上記モジュール doc「`Outline` の実装」節
         // 参照）。`Line` は `--fandhe-table-last-row-border` が通常の行罫線
         // と同値のため見た目に影響しない。
-        .state(
-            "row",
-            StateCondition::LastChild,
-            vec![decl(
-                "--fandhe-table-row-border",
-                "var(--fandhe-table-last-row-border, none)",
-            )],
-        )
         .base(
             "scroll-area",
             vec![
@@ -807,9 +822,51 @@ fn recipe() -> SlotRecipe {
 }
 
 /// Table の静的 CSS 全文。
+///
+/// `recipe().css()` の後段へ、[`crate::recipe::SlotRecipe`] の `state()`
+/// （単一 slot への疑似クラス付与のみ）では表現できない子孫セレクタ規則を
+/// 手書きで追記する（[`crate::marquee`]・[`crate::list`] が既に採る
+/// パターン、上記モジュール doc「`Outline` の実装」節参照）。3 規則とも
+/// リテラル文字列のみで組み立て、呼び出し側の入力を一切埋め込まないため
+/// 既定エスケープ（REQ-1）の対象外（迂回経路ではない）。
+///
+/// - **`footer` 最初の行への `border-top` 委譲**（イシュー #1572 PR #1844
+///   Cursor Bugbot Low severity 是正）: `--fandhe-table-cell-border-top`
+///   を `[data-part="footer"] [data-part="row"]:first-child` へ限定して
+///   設定する。custom property は子孫へ継承されるため、`footer`（`tfoot`）
+///   自身へ設定すると複数行 `tfoot` の全行が同じ `border-top` を描いて
+///   しまう（上記 `footer` base コメント参照）。最初の行だけに限定する
+///   ことで tbody との境界線は 1 本だけになる。
+/// - **`footer` 最終行の `--fandhe-table-row-border` 上書き**: `tfoot` が
+///   存在する場合、表全体で本当に最後の行は `tfoot` の最終行であるため、
+///   `Outline` の「最終行罫線を外枠と二重にしない」規則（上記モジュール
+///   doc「`Outline` の実装」節参照）をここへ適用する。
+/// - **`tfoot` が無い場合の最後の `tbody` 最終行への同上書き**: `:last-
+///   of-type` で「同種要素の中で最後」の `tbody` へ限定し、
+///   `:has(~ [data-part="footer"])` で `tfoot` が後続しないことを確認する
+///   （PR #1844 codex-review P1 是正）。`tfoot` が後続する場合は上記
+///   規則が既に最終行を扱うため、ここでは除外して中間・境界グループの
+///   罫線を保持する。`:has()` は全モダンブラウザで既定サポート済みの
+///   標準機能であり、[`crate::list`] が同じパターンを既に採用している。
 #[must_use]
 pub fn css() -> String {
-    recipe().css()
+    let mut out = recipe().css();
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out.push_str(
+        "[data-scope=\"table\"][data-part=\"footer\"] [data-scope=\"table\"][data-part=\"row\"]:first-child {\n  \
+         --fandhe-table-cell-border-top: var(--fandhe-table-footer-border, none);\n}\n",
+    );
+    out.push_str(
+        "\n[data-scope=\"table\"][data-part=\"footer\"] [data-scope=\"table\"][data-part=\"row\"]:last-child {\n  \
+         --fandhe-table-row-border: var(--fandhe-table-last-row-border, none);\n}\n",
+    );
+    out.push_str(
+        "\n[data-scope=\"table\"][data-part=\"body\"]:last-of-type:not(:has(~ [data-scope=\"table\"][data-part=\"footer\"])) [data-scope=\"table\"][data-part=\"row\"]:last-child {\n  \
+         --fandhe-table-row-border: var(--fandhe-table-last-row-border, none);\n}\n",
+    );
+    out
 }
 
 /// root パーツ（`<table>`）を組み立てる。`variant`/`size`/`striped` に応じた
@@ -1127,14 +1184,16 @@ mod tests {
         assert!(!out.contains("2px solid var(--fandhe-color-border-muted)"));
     }
 
-    /// イシュー #1572: `footer`（`tfoot`）base 規則が medium 太さに加えて
-    /// `cell` へ委譲する `--fandhe-table-cell-border-top` custom property を
-    /// 持ち、`border-*` 実プロパティ（描画される border 宣言）自体は
-    /// 依然として持たないことを固定する（`separate` border モデル下では
-    /// `tfoot` への border 指定が無効なため、上記モジュール doc「`Outline`
-    /// の実装」節と対をなす PR #811 型の不変条件）。
+    /// イシュー #1572: `footer`（`tfoot`）base 規則が medium 太さを持ち、
+    /// `border-*` 実プロパティ（描画される border 宣言）を持たないことを
+    /// 固定する（`separate` border モデル下では `tfoot` への border
+    /// 指定が無効なため、上記モジュール doc「`Outline` の実装」節と対を
+    /// なす PR #811 型の不変条件）。`--fandhe-table-cell-border-top` の
+    /// 委譲は PR #1844 是正で `footer` base から `css()` 追記の
+    /// `:first-child` 限定規則へ移したため、ここでは検証しない
+    /// （`footer_first_row_delegates_border_top_custom_property` 参照）。
     #[test]
-    fn footer_has_medium_weight_and_delegates_border_via_custom_property() {
+    fn footer_has_medium_weight_and_no_direct_border_declaration() {
         let out = css();
         let footer_rule_start = out
             .find(r#"[data-scope="table"][data-part="footer"] {"#)
@@ -1145,8 +1204,6 @@ mod tests {
             .expect("footer base 規則が `}` で閉じられていること");
         let footer_rule = &out[footer_rule_start..footer_rule_end];
         assert!(footer_rule.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
-        assert!(footer_rule
-            .contains("--fandhe-table-cell-border-top: var(--fandhe-table-footer-border, none);"));
         // 実際に描画される border-* プロパティ（`--fandhe-` custom
         // property ではない実プロパティ行）は持たない。
         assert!(!footer_rule.contains("\n  border-top:"));
@@ -1154,17 +1211,46 @@ mod tests {
         assert!(!footer_rule.contains("\n  border:"));
     }
 
-    /// イシュー #1572: `row` slot の `:last-child` 状態規則が
-    /// `--fandhe-table-row-border` を `--fandhe-table-last-row-border` で
-    /// 上書きすることを固定する（`Outline` の最終行罫線抑止、上記
-    /// モジュール doc「`Outline` の実装」節参照）。
+    /// イシュー #1572 PR #1844 codex-review P1 是正: `footer` の最終行への
+    /// `--fandhe-table-row-border` 上書きが `tfoot` 内の `:last-child`
+    /// （複数行 `tfoot` でも最後の行のみ）へ限定されることを固定する
+    /// （`Outline` の最終行罫線抑止、上記モジュール doc「`Outline` の
+    /// 実装」節参照）。
     #[test]
-    fn row_last_child_overrides_row_border_custom_property() {
+    fn footer_last_row_overrides_row_border_custom_property() {
         let out = css();
-        assert!(out.contains(r#"[data-scope="table"][data-part="row"]:last-child {"#));
+        assert!(out.contains(
+            r#"[data-scope="table"][data-part="footer"] [data-scope="table"][data-part="row"]:last-child {"#
+        ));
         assert!(
             out.contains("--fandhe-table-row-border: var(--fandhe-table-last-row-border, none);")
         );
+    }
+
+    /// イシュー #1572 PR #1844 codex-review P1 是正: `tfoot` を持たない
+    /// 表では、最後の `tbody`（`:last-of-type`）の最終行のみへ
+    /// `--fandhe-table-row-border` 上書きが限定されることを固定する
+    /// （複数 `tbody` の中間グループが誤って最終行扱いされない不変条件）。
+    #[test]
+    fn last_tbody_without_footer_overrides_row_border_custom_property() {
+        let out = css();
+        assert!(out.contains(
+            r#"[data-scope="table"][data-part="body"]:last-of-type:not(:has(~ [data-scope="table"][data-part="footer"])) [data-scope="table"][data-part="row"]:last-child {"#
+        ));
+    }
+
+    /// イシュー #1572 PR #1844 Cursor Bugbot Low severity 是正: `footer`
+    /// の最初の行だけが `--fandhe-table-cell-border-top` を設定すること
+    /// を固定する（複数行 `tfoot` で境界線が全行に重複しない不変条件、
+    /// 上記モジュール doc「`Outline` の実装」節参照）。
+    #[test]
+    fn footer_first_row_delegates_border_top_custom_property() {
+        let out = css();
+        assert!(out.contains(
+            r#"[data-scope="table"][data-part="footer"] [data-scope="table"][data-part="row"]:first-child {"#
+        ));
+        assert!(out
+            .contains("--fandhe-table-cell-border-top: var(--fandhe-table-footer-border, none);"));
     }
 
     /// イシュー #1572: `cell` base が `border-top` として

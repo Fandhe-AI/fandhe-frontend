@@ -206,15 +206,15 @@ fn table_css_column_header_uses_one_pixel_border_and_medium_weight() {
     assert!(column_header_rule.contains("font-variant-numeric: tabular-nums;"));
 }
 
-/// イシュー #1572: `footer`（`tfoot`）base 規則が medium 太さに加えて
-/// `cell` へ委譲する `--fandhe-table-cell-border-top` custom property を
-/// 持つが、実際に描画される `border-*` プロパティ自体は依然として
-/// 持たないことを固定する（`separate` border モデル下では `tfoot` への
-/// border 指定が無効なため、`cell` の PR #811 型不変条件と対をなす。
-/// `Outline` の `tfoot` 上罫線は `footer` → `cell` の custom property
-/// 委譲で表現する、上記モジュール doc「`Outline` の実装」節参照）。
+/// イシュー #1572: `footer`（`tfoot`）base 規則が medium 太さを持ち、
+/// 実際に描画される `border-*` プロパティ自体は持たないことを固定する
+/// （`separate` border モデル下では `tfoot` への border 指定が無効な
+/// ため、`cell` の PR #811 型不変条件と対をなす）。`--fandhe-table-cell-
+/// border-top` の委譲は PR #1844 是正で `footer` base から `css()` 追記の
+/// `:first-child` 限定規則へ移した（複数行 `tfoot` での区切り線重複
+/// バグ是正、`table_css_footer_first_row_delegates_border_top` 参照）。
 #[test]
-fn table_css_footer_has_medium_weight_and_delegates_border_via_custom_property() {
+fn table_css_footer_has_medium_weight_and_no_direct_border_declaration() {
     let css = table::css();
     let footer_rule_start = css
         .find(r#"[data-scope="table"][data-part="footer"] {"#)
@@ -225,11 +225,23 @@ fn table_css_footer_has_medium_weight_and_delegates_border_via_custom_property()
         .expect("footer base 規則が `}` で閉じられていること");
     let footer_rule = &css[footer_rule_start..footer_rule_end];
     assert!(footer_rule.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
-    assert!(footer_rule
-        .contains("--fandhe-table-cell-border-top: var(--fandhe-table-footer-border, none);"));
     assert!(!footer_rule.contains("\n  border-top:"));
     assert!(!footer_rule.contains("\n  border-bottom:"));
     assert!(!footer_rule.contains("\n  border:"));
+}
+
+/// イシュー #1572 PR #1844 Cursor Bugbot Low severity 是正: `footer` の
+/// 最初の行だけが `--fandhe-table-cell-border-top` を設定することを
+/// 固定する（複数行 `tfoot` で境界線が全行に重複しない不変条件）。
+#[test]
+fn table_css_footer_first_row_delegates_border_top() {
+    let css = table::css();
+    assert!(css.contains(
+        r#"[data-scope="table"][data-part="footer"] [data-scope="table"][data-part="row"]:first-child {"#
+    ));
+    assert!(
+        css.contains("--fandhe-table-cell-border-top: var(--fandhe-table-footer-border, none);")
+    );
 }
 
 /// イシュー #1572: `Outline` variant の root スコープ custom property が
@@ -285,13 +297,20 @@ fn table_css_line_variant_keeps_last_row_border_and_no_footer_border() {
     assert!(line_rule.contains("--fandhe-table-footer-border: none;"));
 }
 
-/// イシュー #1572: `row` slot の `:last-child` 状態規則が
+/// イシュー #1572 PR #1844 codex-review P1 是正: 表全体で本当に最後の行
+/// （`tfoot` があればその最終行、無ければ最後の `tbody` の最終行）だけが
 /// `--fandhe-table-row-border` を `--fandhe-table-last-row-border` で
-/// 上書きすることを固定する。
+/// 上書きすることを固定する。複数 `tbody`/`tfoot` の中間グループの
+/// 最終行が誤って一致しないことを合わせて検証する。
 #[test]
 fn table_css_row_last_child_overrides_row_border() {
     let css = table::css();
-    assert!(css.contains(r#"[data-scope="table"][data-part="row"]:last-child {"#));
+    assert!(css.contains(
+        r#"[data-scope="table"][data-part="footer"] [data-scope="table"][data-part="row"]:last-child {"#
+    ));
+    assert!(css.contains(
+        r#"[data-scope="table"][data-part="body"]:last-of-type:not(:has(~ [data-scope="table"][data-part="footer"])) [data-scope="table"][data-part="row"]:last-child {"#
+    ));
     assert!(css.contains("--fandhe-table-row-border: var(--fandhe-table-last-row-border, none);"));
 }
 
