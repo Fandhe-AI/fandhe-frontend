@@ -103,11 +103,12 @@ CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約�
 `xss_escape.rs` / `xss_escape_styled.rs` によるレンダリング・エスケープ検証
 のみが存在します。新設の要否は Phase 1 の各部品 issue の判断に委ねます。
 
-- `stylesheet()` を持つ 20 部品: action_bar / angle_slider / avatar /
+- `stylesheet()` を持つ 19 部品: action_bar / angle_slider / avatar /
   breadcrumb / calendar / clipboard / combobox / date_picker /
   json_tree_view / link / link_overlay / nav_list / scroll_area /
-  segment_group / signature_pad / slider / toggle / toggle_group / toolbar /
-  tree_view
+  segment_group / signature_pad / slider / toggle / toggle_group /
+  tree_view（`toolbar` はイシュー #1547 で golden 追加済みのため本リストから
+  除外）
 - `css()` を持つ 4 部品: alert / badge / card / spinner
 - charts 内部パーツ 3 件（`css()` を持つが golden なし）: `charts::bar_chart` /
   `charts::bar_list` / `charts::bar_segment`
