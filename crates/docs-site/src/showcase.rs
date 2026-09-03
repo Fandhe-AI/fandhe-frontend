@@ -7328,10 +7328,26 @@ fn marquee_section() -> Node {
             vec![text("装飾用途（aria-hidden）+ 速度上書きの例です。")],
         )],
     );
+    // イシュー #1582: 両端フェード（`mask-image`）の opt-in デモ。
+    // 参照サイト（ark-ui/chakra-ui）に `Edge` 幅の既定値記載がないため、
+    // テキストティッカーで数文字分のフェードが視認できる `--fandhe-space-12`
+    // を採用した。`--fandhe-marquee-gap` の上書きも併記し、両 custom
+    // property が独立して調整可能なことを示す。
+    let fade_demo = marquee::marquee(
+        &MarqueeProps::default(),
+        vec![(
+            "style",
+            "--fandhe-marquee-fade: var(--fandhe-space-12); --fandhe-marquee-gap: var(--fandhe-space-8);",
+        )],
+        vec![marquee::item(
+            vec![],
+            vec![text("両端フェード（--fandhe-marquee-fade）の例です。")],
+        )],
+    );
     section(
         "Marquee",
-        "CSS のみ（JS ゼロ）の自動流動テキストです。direction（既定/end）でスクロール方向を切り替え、hover/focus-within で常時一時停止、prefers-reduced-motion: reduce 環境では停止します。decorative: true で装飾用途（aria-hidden）に、--fandhe-marquee-duration の上書きで速度を調整できます。",
-        vec![default_demo, end_demo, decorative_demo],
+        "CSS のみ（JS ゼロ）の自動流動テキストです。direction（既定/end）でスクロール方向を切り替え、hover/focus-within で常時一時停止、prefers-reduced-motion: reduce 環境では停止します。decorative: true で装飾用途（aria-hidden）に、--fandhe-marquee-duration の上書きで速度を、--fandhe-marquee-gap の上書きで間隔を調整できます。--fandhe-marquee-fade（既定 0px）を上書きすると両端がフェードします。",
+        vec![default_demo, end_demo, decorative_demo, fade_demo],
     )
 }
 
