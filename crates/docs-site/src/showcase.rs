@@ -64,7 +64,9 @@
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
-use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
+use fandhe_frontend_pre_styled_ui::avatar::{
+    self, AvatarProps, AvatarShape, AvatarVariant, ImageStatus,
+};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::button::{
@@ -3113,8 +3115,9 @@ const AVATAR_EMPTY_IMAGE_SRC: &str = "data:,";
 const AVATAR_INLINE_SVG_SRC: &str =
     "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Ccircle%20cx%3D%2732%27%20cy%3D%2732%27%20r%3D%2732%27%20fill%3D%27%234a90d9%27%2F%3E%3C%2Fsvg%3E";
 
-/// Avatar 節: size（Sm/Md/Lg、いずれも `ImageStatus::Error` でフォールバック
-/// 表示）と shape（Circle/Rounded/Square）の 2 軸。
+/// Avatar 節: size（Xs〜Xl）・shape（Circle/Rounded/Square）・variant
+/// （Subtle/Solid/Outline）・colorPalette（6 値）の 4 軸（イシュー #1554 で
+/// variant/palette 軸を追加）。
 ///
 /// `image` パーツの `src` は外部フェッチ・404 を発生させないダミー値
 /// （[`AVATAR_EMPTY_IMAGE_SRC`]/[`AVATAR_INLINE_SVG_SRC`]）を使う
@@ -3131,9 +3134,12 @@ fn avatar_section() -> Node {
     ]
     .into_iter()
     .map(|(size, initials)| {
-        avatar::root(
+        let props = AvatarProps {
             size,
-            AvatarShape::default(),
+            ..AvatarProps::default()
+        };
+        avatar::root(
+            &props,
             vec![],
             vec![
                 avatar::image(
@@ -3155,9 +3161,12 @@ fn avatar_section() -> Node {
     ]
     .into_iter()
     .map(|shape| {
-        avatar::root(
-            Size::Md,
+        let props = AvatarProps {
             shape,
+            ..AvatarProps::default()
+        };
+        avatar::root(
+            &props,
             vec![],
             vec![
                 avatar::image(
@@ -3172,10 +3181,68 @@ fn avatar_section() -> Node {
     })
     .collect());
 
+    let variant_row = row(vec![
+        AvatarVariant::Subtle,
+        AvatarVariant::Solid,
+        AvatarVariant::Outline,
+    ]
+    .into_iter()
+    .map(|variant| {
+        let props = AvatarProps {
+            variant,
+            ..AvatarProps::default()
+        };
+        avatar::root(
+            &props,
+            vec![],
+            vec![
+                avatar::image(
+                    ImageStatus::Error,
+                    AVATAR_EMPTY_IMAGE_SRC,
+                    "Fandhe Team",
+                    vec![],
+                ),
+                avatar::fallback(ImageStatus::Error, vec![], vec![text("FT")]),
+            ],
+        )
+    })
+    .collect());
+
+    let palette_row = row(vec![
+        ColorPalette::Accent,
+        ColorPalette::Info,
+        ColorPalette::Success,
+        ColorPalette::Warning,
+        ColorPalette::Danger,
+        ColorPalette::Neutral,
+    ]
+    .into_iter()
+    .map(|palette| {
+        let props = AvatarProps {
+            variant: AvatarVariant::Solid,
+            palette,
+            ..AvatarProps::default()
+        };
+        avatar::root(
+            &props,
+            vec![],
+            vec![
+                avatar::image(
+                    ImageStatus::Error,
+                    AVATAR_EMPTY_IMAGE_SRC,
+                    "Fandhe Team",
+                    vec![],
+                ),
+                avatar::fallback(ImageStatus::Error, vec![], vec![text("FT")]),
+            ],
+        )
+    })
+    .collect());
+
     section(
         "Avatar",
-        "size（Sm/Md/Lg）・shape（Circle/Rounded/Square）の 2 軸を持つユーザー画像表示。画像読み込み状態（ImageStatus）を固定し、Error 時はイニシャルのフォールバック表示、Loaded 時は画像表示を掲示します。",
-        vec![size_row, shape_row],
+        "size（Xs〜Xl）・shape（Circle/Rounded/Square）・variant（Subtle/Solid/Outline）・colorPalette（6 値）の 4 軸を持つユーザー画像表示。画像読み込み状態（ImageStatus）を固定し、Error 時はイニシャルのフォールバック表示、Loaded 時は画像表示を掲示します。",
+        vec![size_row, shape_row, variant_row, palette_row],
     )
 }
 
