@@ -1079,7 +1079,9 @@ name = "fandhe-frontend-pre-styled-ui"
 # `impl Into<CardProps>` の後方互換な公開 API 純追加）によりマイナーバンプ
 # 済みの 0.74.0（> 0.73.1）へ到達しているため、偶発的な同一版数衝突ではなく
 # 単純な採用としてそのまま 0.74.0 を維持する。
-#
+
+# イシュー #1568: stat のスタイル調整（size 進行の是正・indicator 余白・
+# typography 微調整）。公開 API 破壊はないため patch バンプ。
 # イシュー #1567: spinner のスタイルを参考サイト基準へ調整。Rust API
 # シグネチャ不変・クラス名/セレクタ/`data-*` の削除改名なし・値変更と
 # custom property の純追加のみのため patch バンプ
@@ -1100,7 +1102,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.74.2 へ明示的に patch バンプする（`docs/ci/
 # style-refresh-version-bump-operation.md` §3.3。セレクタ・クラス名・
 # 公開 Rust API の削除/改名なし）。
-version = "0.74.2"
+#
+# base 取り込み（イシュー #1568）: 本ブランチ（status, #1569）は上記のとおり
+# merge base（0.74.0）から独立に 0.74.2 へ到達していたが、main も #1568
+# （stat）と #1567（spinner）の統合により独立に同一の 0.74.2 へパッチバンプ
+# 済みだった（本ブランチの 0.74.2 とは別内容の実体変更を含む偶発的な同一
+# 版数衝突）。両者の実体変更を統合した結果として 0.74.3 へさらにパッチ
+# バンプする（双方とも公開 API 破壊のない patch 相当の変更のため patch を
+# 維持する）。
+version = "0.74.3"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
