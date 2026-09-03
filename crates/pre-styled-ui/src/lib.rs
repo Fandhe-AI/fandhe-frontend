@@ -332,8 +332,8 @@
 //!   同じ「variant 軸を持たない slot recipe」パターン（[`mod@em`] と同型）。
 //! - 状態機械を持たない静的表示部品 2 種（イシュー #767）:
 //!   [`mod@table`]（Table、`table`/`thead`/`tbody`/`tfoot`/`tr`/`th`/`td`/
-//!   `caption` の 8 パーツ。`variant`（`Line`/`Outline`）・`size`・`striped`
-//!   の 3 軸 variant。striped は新設の
+//!   `caption` の 8 パーツ。`variant`（`Line`/`Outline`）・`size`・`striped`・
+//!   `sticky_header`（イシュー #1571）の 4 軸 variant。striped は新設の
 //!   [`recipe::StateCondition::NthChildEven`] で表現する）/
 //!   [`mod@data_list`]（DataList、`dl`/`item`/`dt`/`dd` の 4 パーツ。
 //!   `orientation`（`Vertical`/`Horizontal`）の 1 軸 variant のみ）。
