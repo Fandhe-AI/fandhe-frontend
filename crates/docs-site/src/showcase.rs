@@ -6904,7 +6904,8 @@ fn icon_section() -> Node {
     )
 }
 
-/// Table 節: variant（line/outline）・size（sm/md/lg）・striped の各軸。
+/// Table 節: variant（line/outline）・size（xs〜xl）・striped・sticky_header
+/// の各軸とスクロール枠（`scroll_area`、イシュー #1572）。
 fn table_section() -> Node {
     fn sample_table(props: TableProps) -> Node {
         table::root(
@@ -6968,11 +6969,23 @@ fn table_section() -> Node {
     ]);
     let size_demo = stack(vec![
         sample_table(TableProps {
+            size: Size::Xs,
+            ..TableProps::default()
+        }),
+        sample_table(TableProps {
             size: Size::Sm,
             ..TableProps::default()
         }),
         sample_table(TableProps {
+            size: Size::Md,
+            ..TableProps::default()
+        }),
+        sample_table(TableProps {
             size: Size::Lg,
+            ..TableProps::default()
+        }),
+        sample_table(TableProps {
+            size: Size::Xl,
             ..TableProps::default()
         }),
     ]);
@@ -6980,19 +6993,69 @@ fn table_section() -> Node {
         striped: true,
         ..TableProps::default()
     })]);
-    // イシュー #1571: sticky_header variant のクラス出力デモ。ページスクロール
-    // 前提の sticky 挙動そのものを視覚実演するスクロール枠は兄弟イシュー
-    // #1572（2/2）のスコープのため、ここでは class 出力の確認までとする
-    // （`table.rs` モジュール doc「sticky ヘッダーの実装」節参照）。
-    let sticky_header_demo = stack(vec![sample_table(TableProps {
-        sticky_header: true,
-        ..TableProps::default()
-    })]);
+
+    // イシュー #1572: `scroll_area` でスクロール枠を作り `sticky_header` と
+    // 組み合わせる実演デモ（`table.rs` モジュール doc「スクロール枠の実装」
+    // 節参照）。行数の多いテーブルを有界の枠内に置き、実際にスクロールした
+    // 際に `column-header` が固定されることを目視確認できるようにする
+    // （1/2 のイシュー #1571 が残した class 出力確認のみのデモを置き換え）。
+    fn many_rows_table(props: TableProps) -> Node {
+        let names = [
+            ("Alice", "alice@example.com", "Admin"),
+            ("Bob", "bob@example.com", "Member"),
+            ("Carol", "carol@example.com", "Member"),
+            ("Dave", "dave@example.com", "Member"),
+            ("Erin", "erin@example.com", "Member"),
+            ("Frank", "frank@example.com", "Member"),
+            ("Grace", "grace@example.com", "Member"),
+            ("Heidi", "heidi@example.com", "Member"),
+        ];
+        table::root(
+            props,
+            vec![],
+            vec![
+                table::header(
+                    vec![],
+                    vec![table::row(
+                        vec![],
+                        vec![
+                            table::column_header(vec![], vec![text("Name")]),
+                            table::column_header(vec![], vec![text("Email")]),
+                            table::column_header(vec![], vec![text("Role")]),
+                        ],
+                    )],
+                ),
+                table::body(
+                    vec![],
+                    names
+                        .into_iter()
+                        .map(|(name, email, role)| {
+                            table::row(
+                                vec![],
+                                vec![
+                                    table::cell(vec![], vec![text(name)]),
+                                    table::cell(vec![], vec![text(email)]),
+                                    table::cell(vec![], vec![text(role)]),
+                                ],
+                            )
+                        })
+                        .collect(),
+                ),
+            ],
+        )
+    }
+    let scroll_area_demo = stack(vec![table::scroll_area(
+        vec![("style", "max-height: 10rem;")],
+        vec![many_rows_table(TableProps {
+            sticky_header: true,
+            ..TableProps::default()
+        })],
+    )]);
 
     section(
         "Table",
-        "table/thead/tbody/tfoot/tr/th/td/caption の HTML 意味論を尊重した表組み。variant（line / outline）・size（sm / md / lg）・striped・sticky_header の 4 軸 variant を持ちます。",
-        vec![variant_demo, size_demo, striped_demo, sticky_header_demo],
+        "table/thead/tbody/tfoot/tr/th/td/caption/scroll-area の HTML 意味論を尊重した表組み。variant（line / outline）・size（xs〜xl）・striped・sticky_header の 4 軸 variant と、scroll_area によるスクロール枠を持ちます。",
+        vec![variant_demo, size_demo, striped_demo, scroll_area_demo],
     )
 }
 

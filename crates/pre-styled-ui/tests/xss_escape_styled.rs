@@ -3072,6 +3072,20 @@ fn table_styled_root_and_parts_are_escaped_for_all_payloads() {
              payload={payload:?}, html={html}"
         );
         assert!(html.contains(r#"scope="col""#));
+
+        // イシュー #1572: scroll_area の呼び出し側 attrs 経路（header/body と
+        // 同型で class を含む attrs をそのまま連結するため、既定エスケープが
+        // 貫通することを固定する）。
+        let html = render(&table::scroll_area(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "table::scroll_area 呼び出し側 attrs コンテキスト",
+        );
+
+        // scroll_area の children 経路。
+        let html = render(&table::scroll_area(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "table::scroll_area children コンテキスト");
     }
 }
 

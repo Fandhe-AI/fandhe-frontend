@@ -46,10 +46,30 @@ fn table_css_contains_striped_state_rule_and_custom_property() {
 #[test]
 fn table_css_contains_size_custom_property_variants() {
     let css = table::css();
+    // イシュー #1572: 生値リテラルから `--fandhe-space-*` トークン参照へ
+    // 置換した（値そのものは #1571/#1681 から不変）。Xs/Xl を含む 5 段全体を
+    // 固定する。
     for (class, padding) in [
-        ("fd-table--size-sm", "0.5rem 0.75rem"),
-        ("fd-table--size-md", "0.75rem 1rem"),
-        ("fd-table--size-lg", "1rem 1.25rem"),
+        (
+            "fd-table--size-xs",
+            "var(--fandhe-space-1) var(--fandhe-space-2)",
+        ),
+        (
+            "fd-table--size-sm",
+            "var(--fandhe-space-2) var(--fandhe-space-3)",
+        ),
+        (
+            "fd-table--size-md",
+            "var(--fandhe-space-3) var(--fandhe-space-4)",
+        ),
+        (
+            "fd-table--size-lg",
+            "var(--fandhe-space-4) var(--fandhe-space-5)",
+        ),
+        (
+            "fd-table--size-xl",
+            "var(--fandhe-space-5) var(--fandhe-space-6)",
+        ),
     ] {
         let selector = format!(r#"[data-scope="table"][data-part="root"].{class} {{"#);
         assert!(
@@ -82,9 +102,10 @@ fn table_css_puts_row_border_on_cell_not_row() {
     assert!(
         css.contains(
             r#"[data-scope="table"][data-part="cell"] {
-  padding: var(--fandhe-table-cell-padding, 0.75rem 1rem);
+  padding: var(--fandhe-table-cell-padding, var(--fandhe-space-3) var(--fandhe-space-4));
   font-size: var(--fandhe-table-font-size, var(--fandhe-font-font-size-sm));
   border-bottom: var(--fandhe-table-row-border, none);
+  border-top: var(--fandhe-table-cell-border-top, none);
   font-variant-numeric: tabular-nums;
 }"#
         ),
@@ -92,6 +113,9 @@ fn table_css_puts_row_border_on_cell_not_row() {
     );
     // `row`（`tr`）の base 規則自体が出力されないこと（`separate` モデルでは
     // 無効なため、ここに書いても意味がない不変条件を CSS 出力レベルで固定する）。
+    // ただし `row` の `:last-child` 状態規則（イシュー #1572）はこの
+    // アサーションの対象外（`[data-part="row"] {` に完全一致せず
+    // `[data-part="row"]:last-child {` のため文字列一致しない）。
     assert!(!css.contains(r#"[data-scope="table"][data-part="row"] {"#));
 }
 
@@ -160,7 +184,14 @@ fn table_css_contains_sticky_header_variants() {
 #[test]
 fn table_css_column_header_uses_one_pixel_border_and_medium_weight() {
     let css = table::css();
-    assert!(css.contains("border-bottom: 1px solid var(--fandhe-color-border);"));
+    // イシュー #1572: リテラルから `--fandhe-table-header-border`/
+    // `--fandhe-table-header-bg` custom property 経由（既定値は 1px 罫線・
+    // 通常背景のまま）へ変更した（`Outline` の実装、上記モジュール doc
+    // 「`Outline` の実装」節参照）。
+    assert!(css.contains(
+        "border-bottom: var(--fandhe-table-header-border, 1px solid var(--fandhe-color-border));"
+    ));
+    assert!(css.contains("background: var(--fandhe-table-header-bg, var(--fandhe-color-bg));"));
     assert!(!css.contains("2px solid var(--fandhe-color-border-muted)"));
     let column_header_rule_start = css
         .find(r#"[data-scope="table"][data-part="column-header"] {"#)
@@ -175,12 +206,15 @@ fn table_css_column_header_uses_one_pixel_border_and_medium_weight() {
     assert!(column_header_rule.contains("font-variant-numeric: tabular-nums;"));
 }
 
-/// イシュー #1571: `footer`（`tfoot`）base 規則が medium 太さのみを持ち、
-/// border を持たないことを固定する（`separate` border モデル下では
-/// `tfoot` への border 指定が無効なため、`cell` の PR #811 型不変条件と
-/// 対をなす）。
+/// イシュー #1572: `footer`（`tfoot`）base 規則が medium 太さに加えて
+/// `cell` へ委譲する `--fandhe-table-cell-border-top` custom property を
+/// 持つが、実際に描画される `border-*` プロパティ自体は依然として
+/// 持たないことを固定する（`separate` border モデル下では `tfoot` への
+/// border 指定が無効なため、`cell` の PR #811 型不変条件と対をなす。
+/// `Outline` の `tfoot` 上罫線は `footer` → `cell` の custom property
+/// 委譲で表現する、上記モジュール doc「`Outline` の実装」節参照）。
 #[test]
-fn table_css_footer_has_medium_weight_and_no_border() {
+fn table_css_footer_has_medium_weight_and_delegates_border_via_custom_property() {
     let css = table::css();
     let footer_rule_start = css
         .find(r#"[data-scope="table"][data-part="footer"] {"#)
@@ -191,7 +225,112 @@ fn table_css_footer_has_medium_weight_and_no_border() {
         .expect("footer base 規則が `}` で閉じられていること");
     let footer_rule = &css[footer_rule_start..footer_rule_end];
     assert!(footer_rule.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
-    assert!(!footer_rule.contains("border"));
+    assert!(footer_rule
+        .contains("--fandhe-table-cell-border-top: var(--fandhe-table-footer-border, none);"));
+    assert!(!footer_rule.contains("\n  border-top:"));
+    assert!(!footer_rule.contains("\n  border-bottom:"));
+    assert!(!footer_rule.contains("\n  border:"));
+}
+
+/// イシュー #1572: `Outline` variant の root スコープ custom property が
+/// 内側行罫線・最終行罫線なし・muted ヘッダー背景・footer 上罫線を宣言する
+/// ことを固定する（`Line` と対比した意匠是正、上記モジュール doc
+/// 「`Outline` の実装」節参照）。
+#[test]
+fn table_css_outline_variant_declares_row_header_and_footer_custom_properties() {
+    let css = table::css();
+    let outline_rule_start = css
+        .find(r#"[data-scope="table"][data-part="root"].fd-table--variant-outline {"#)
+        .expect("Outline variant の root 規則が css() 出力に存在すること");
+    let outline_rule_end = css[outline_rule_start..]
+        .find('}')
+        .map(|offset| outline_rule_start + offset)
+        .expect("Outline variant の root 規則が `}` で閉じられていること");
+    let outline_rule = &css[outline_rule_start..outline_rule_end];
+    assert!(
+        outline_rule
+            .contains("--fandhe-table-row-border: 1px solid var(--fandhe-color-border-muted);"),
+        "Outline は内側の行罫線を持つ（chakra outline / Radix surface 相当）\n{outline_rule}"
+    );
+    assert!(
+        outline_rule.contains("--fandhe-table-last-row-border: none;"),
+        "Outline は最終行の罫線を外枠と二重にしない\n{outline_rule}"
+    );
+    assert!(
+        outline_rule.contains("--fandhe-table-header-bg: var(--fandhe-color-bg-muted);"),
+        "Outline はヘッダー背景に muted トークンを使う（chakra bg.muted 相当）\n{outline_rule}"
+    );
+    assert!(
+        outline_rule
+            .contains("--fandhe-table-footer-border: 1px solid var(--fandhe-color-border-muted);"),
+        "Outline は tfoot 上罫線を持つ（chakra outline の tfoot border-top 相当）\n{outline_rule}"
+    );
+}
+
+/// イシュー #1572: Line variant は最終行にも罫線を維持し（chakra line）、
+/// footer には区切り線を持たないことを固定する（`Outline` との対比）。
+#[test]
+fn table_css_line_variant_keeps_last_row_border_and_no_footer_border() {
+    let css = table::css();
+    let line_rule_start = css
+        .find(r#"[data-scope="table"][data-part="root"].fd-table--variant-line {"#)
+        .expect("Line variant の root 規則が css() 出力に存在すること");
+    let line_rule_end = css[line_rule_start..]
+        .find('}')
+        .map(|offset| line_rule_start + offset)
+        .expect("Line variant の root 規則が `}` で閉じられていること");
+    let line_rule = &css[line_rule_start..line_rule_end];
+    assert!(line_rule
+        .contains("--fandhe-table-last-row-border: 1px solid var(--fandhe-color-border-muted);"));
+    assert!(line_rule.contains("--fandhe-table-footer-border: none;"));
+}
+
+/// イシュー #1572: `row` slot の `:last-child` 状態規則が
+/// `--fandhe-table-row-border` を `--fandhe-table-last-row-border` で
+/// 上書きすることを固定する。
+#[test]
+fn table_css_row_last_child_overrides_row_border() {
+    let css = table::css();
+    assert!(css.contains(r#"[data-scope="table"][data-part="row"]:last-child {"#));
+    assert!(css.contains("--fandhe-table-row-border: var(--fandhe-table-last-row-border, none);"));
+}
+
+/// イシュー #1572: `cell` base が `border-top` として
+/// `--fandhe-table-cell-border-top` を消費することを固定する（`footer` →
+/// `cell` の委譲経路）。
+#[test]
+fn table_css_cell_consumes_border_top_custom_property() {
+    let css = table::css();
+    assert!(css.contains("border-top: var(--fandhe-table-cell-border-top, none);"));
+}
+
+/// イシュー #1572: `scroll-area` slot（chakra `Table.ScrollArea` 相当）の
+/// base 規則を固定する（上記モジュール doc「スクロール枠の実装」節参照）。
+#[test]
+fn table_css_contains_scroll_area_slot() {
+    let css = table::css();
+    assert!(css.contains(r#"[data-scope="table"][data-part="scroll-area"] {"#));
+    assert!(css.contains("overflow: auto;"));
+    assert!(css.contains("max-height: var(--fandhe-table-scroll-area-max-height, none);"));
+    assert!(css.contains("scrollbar-width: thin;"));
+}
+
+/// イシュー #1572: `caption` base 規則が chakra-ui 基準（`xs` + `medium`）へ
+/// 更新され、padding が `--fandhe-space-3` トークンを使うことを固定する。
+#[test]
+fn table_css_caption_uses_xs_medium_and_space_token() {
+    let css = table::css();
+    let caption_rule_start = css
+        .find(r#"[data-scope="table"][data-part="caption"] {"#)
+        .expect("caption base 規則が css() 出力に存在すること");
+    let caption_rule_end = css[caption_rule_start..]
+        .find('}')
+        .map(|offset| caption_rule_start + offset)
+        .expect("caption base 規則が `}` で閉じられていること");
+    let caption_rule = &css[caption_rule_start..caption_rule_end];
+    assert!(caption_rule.contains("padding: var(--fandhe-space-3) 0;"));
+    assert!(caption_rule.contains("font-size: var(--fandhe-font-font-size-xs);"));
+    assert!(caption_rule.contains("font-weight: var(--fandhe-font-font-weight-medium);"));
 }
 
 #[test]
@@ -224,6 +363,10 @@ fn table_recipe_selectors_match_actual_rendered_markup() {
 
     let row_html = render(&table::row(vec![], vec![]));
     assert!(row_html.starts_with(r#"<tr data-scope="table" data-part="row""#));
+
+    // イシュー #1572: `scroll_area`（chakra `Table.ScrollArea` 相当）。
+    let scroll_area_html = render(&table::scroll_area(vec![], vec![]));
+    assert!(scroll_area_html.starts_with(r#"<div data-scope="table" data-part="scroll-area""#));
 }
 
 #[test]

@@ -772,11 +772,48 @@ fn ex_table() -> Node {
     )
 }
 
+/// イシュー #1572: `scroll_area`（chakra `Table.ScrollArea` 相当）で
+/// `sticky_header` を有界の枠内に実演する例（`table.rs`「スクロール枠の
+/// 実装」節参照）。
+fn ex_table_scroll_area() -> Node {
+    table::scroll_area(
+        vec![("style", "max-height: 8rem;")],
+        vec![table::root(
+            table::TableProps {
+                sticky_header: true,
+                ..table::TableProps::default()
+            },
+            vec![],
+            vec![
+                table::header(
+                    vec![],
+                    vec![table::row(
+                        vec![],
+                        vec![table::column_header(vec![], vec![text("Name")])],
+                    )],
+                ),
+                table::body(
+                    vec![],
+                    vec![
+                        table::row(vec![], vec![table::cell(vec![], vec![text("Alice")])]),
+                        table::row(vec![], vec![table::cell(vec![], vec![text("Bob")])]),
+                        table::row(vec![], vec![table::cell(vec![], vec![text("Carol")])]),
+                        table::row(vec![], vec![table::cell(vec![], vec![text("Dave")])]),
+                        table::row(vec![], vec![table::cell(vec![], vec![text("Erin")])]),
+                    ],
+                ),
+            ],
+        )],
+    )
+}
+
 pub(crate) const TABLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "TableVariant（Line/Outline、crates/pre-styled-ui/src/table.rs:172-186）で外枠・区切り線を切り替える",
+        "Outline は内側の行罫線・muted なヘッダー背景・最終行罫線なし・tfoot 上罫線を持つ（イシュー #1572、table.rs「Outline の実装」節）",
         "striped（bool）で本文行の背景を交互に変える（table.rs「striped の実装」節）",
         "sticky_header（bool、イシュー #1571）で column-header（th）を position: sticky にする（table.rs「sticky ヘッダーの実装」節）",
+        "scroll_area（div、イシュー #1572）でスクロール枠を作り sticky_header と組み合わせられる（table.rs「スクロール枠の実装」節）",
         "column_header は scope=\"col\" を関数側で固定し呼び出し側の偽装を除去する（table.rs セキュリティ不変条件節、COLUMN_HEADER_RESERVED）",
     ],
     arguments: &[
@@ -790,7 +827,7 @@ pub(crate) const TABLE: ComponentPageSpec = ComponentPageSpec {
             name: "size",
             kind: "Size",
             default: "Md",
-            description: "セルの padding/font-size（table.rs「variant について」節）。",
+            description: "セルの padding/font-size（Xs〜Xl の 5 段、table.rs「variant について」節）。",
         },
         ArgRow {
             name: "striped",
@@ -805,11 +842,18 @@ pub(crate) const TABLE: ComponentPageSpec = ComponentPageSpec {
             description: "column-header（th）を position: sticky にする（イシュー #1571、table.rs「sticky ヘッダーの実装」節）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Striped",
-        description: "striped=true・header/body を組み合わせた例です。",
-        render: ex_table,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Striped",
+            description: "striped=true・header/body を組み合わせた例です。",
+            render: ex_table,
+        },
+        ExampleEntry {
+            title: "Scroll area",
+            description: "scroll_area（max-height 指定）で sticky_header を有界の枠内に実演する例です。",
+            render: ex_table_scroll_area,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "scope=\"col\"（column-header）",

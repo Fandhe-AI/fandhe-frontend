@@ -1094,7 +1094,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.74.2 へ到達していたが、本ブランチは #1571 のマイナーバンプにより
 # 0.75.0（> 0.74.2）へ到達しているため、偶発的な同一版数衝突ではなく
 # 単純な採用としてそのまま 0.75.0 を維持する。
-version = "0.75.0"
+#
+# イシュー #1572: table のスタイル調整 (2/2)。追加 API は `pub fn
+# scroll_area` のみ（純追加）・`TableProps` は不変・CSS 変数名/クラス名/
+# セレクタの削除改名なし（`Outline` での値変更は意匠調整）のため patch
+# バンプする（`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+version = "0.75.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
