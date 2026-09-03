@@ -16,6 +16,40 @@
 //!
 //! `icon` パーツは装飾要素であり、固有の `role`/`aria-*` は付与しない
 //! （`alert::indicator` と同型）。
+//!
+//! # 参考サイト基準への調整（イシュー #1556）
+//!
+//! 参照軸のうち Radix Themes `Callout` のみが直接対応する部品である
+//! （chakra-ui は `Alert` のみで Callout を持たず、Radix Primitives /
+//! ark-ui には存在しない）。同部品の視覚基準に照らし、[`crate::alert`]
+//! （イシュー #1553）と同じ設計判断で以下を是正・追加した。
+//!
+//! - **色**: 生の中立色（`--fandhe-color-bg-subtle`）+ 素の `--fandhe-palette`
+//!   だった Soft/Surface の配色を、[`crate::recipe::palette_scale_declarations`]
+//!   経由の 6 役割トークン（`--fandhe-palette-subtle`/`-fg-subtle`/`-muted`）へ
+//!   移行した。本文サイズ（Md = `font-size-sm`）で 4.5:1 の WCAG コントラスト
+//!   を満たすため（素の palette 色は満たさない、`crate::theme` 参照）。
+//! - **サイズ**: padding・gap・角丸・font-size を root の
+//!   `--fandhe-callout-*` custom property へ一本化し、5 段（Xs〜Xl）すべてで
+//!   連動させた（従来は padding が生リテラルで角丸が固定、`text` slot 側の
+//!   font-size と root の `size` を呼び出し側が揃える必要があった）。
+//! - **`text()` の破壊的変更**: 上記一本化に伴い `text()` から `size`
+//!   引数を削除した（root の `font-size` を継承するだけで揃うため、
+//!   「root と text に同じ size を渡す」という旧設計の footgun を解消）。
+//! - **余白・角丸**: `0.75rem 1rem` 等の生値をトークン
+//!   （`--fandhe-space-*`/`--fandhe-radius-*`）化した。
+//! - **アイコン整列**: icon の高さを行高に揃え、1 行目の中央に配置する
+//!   （`height: calc(1em * line-height)`）。
+//! - **意図的に追随しない点**:
+//!   - hover / disabled / transition / `:focus-visible`: 表示専用・
+//!     非フォーカス要素であり、参照サイトも状態遷移を持たない
+//!     （`docs/design/pre-styled-ui-interaction-visual-language.md` §3）。
+//!   - `data-*` 状態: headless 側部品を持たない（`wrap_state.rs` バケット
+//!     「pre-styled only」）。
+//!   - Radix `highContrast`: トークン体系にない軸のため見送り。
+//!   - Radix の grid レイアウト（複数 Text の縦積み）: anatomy が text
+//!     1 パーツのため flex のまま。
+//!   - 影: Radix Callout は影を持たない。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -82,72 +116,138 @@ impl Default for CalloutProps {
 /// の recipe と同型）。[`SlotRecipe::variant_classes`] は axis の登録順で
 /// クラスを連結するため、この順序が既定出力
 /// `"fd-callout--size-md fd-callout--variant-soft fd-callout--color-palette-accent"`
-/// を決定する。
+/// を決定する。size 軸は [`SlotRecipe::size_variants`] を最初に呼ぶことで
+/// 最初に登録される axis になる（同メソッドは呼び出し末尾で必ず
+/// `Size::Md` を既定へ戻すため、後続の `default_variant` 呼び出し順に
+/// 依存せず size の既定は常に `Md` になる）。
+///
+/// `border: 1px solid transparent` を base 側に置き、`Surface`/`Outline`
+/// variant は `border-color` のみを上書きする（variant 切替でボックス高さが
+/// ±1px ぶれないようにするため。[`crate::alert`] の是正と同じ動機）。
 fn recipe() -> SlotRecipe {
     let mut recipe = SlotRecipe::new("callout", SLOTS)
         .base(
             "root",
             vec![
                 decl("display", "flex"),
-                decl("gap", "0.75rem"),
-                decl("border-radius", "var(--fandhe-radius-md)"),
-            ],
-        )
-        .base("icon", vec![decl("flex-shrink", "0")])
-        .base(
-            "text",
-            vec![
-                decl("min-width", "0"),
+                decl("align-items", "flex-start"),
+                decl("box-sizing", "border-box"),
+                decl("gap", "var(--fandhe-callout-gap, var(--fandhe-space-3))"),
+                decl(
+                    "padding",
+                    "var(--fandhe-callout-padding, var(--fandhe-space-4))",
+                ),
+                decl("border", "1px solid transparent"),
+                decl(
+                    "border-radius",
+                    "var(--fandhe-callout-radius, var(--fandhe-radius-lg))",
+                ),
+                decl(
+                    "font-size",
+                    "var(--fandhe-callout-font-size, var(--fandhe-font-font-size-sm))",
+                ),
                 decl("line-height", "var(--fandhe-font-line-height-normal)"),
             ],
         )
-        // イシュー #1681: Xs は padding 0.25rem 刻みの等差進行を外挿。
-        // font-size はトークン下限 xs を Sm と共有する。
-        .variant(Size::Xs, "root", vec![decl("padding", "0.25rem 0.5rem")])
-        .variant(
-            Size::Xs,
-            "text",
-            vec![decl("font-size", "var(--fandhe-font-font-size-xs)")],
+        .base(
+            "icon",
+            vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("flex-shrink", "0"),
+                decl(
+                    "height",
+                    "calc(1em * var(--fandhe-font-line-height-normal))",
+                ),
+            ],
         )
-        .variant(Size::Sm, "root", vec![decl("padding", "0.5rem 0.75rem")])
-        .variant(
-            Size::Sm,
-            "text",
-            vec![decl("font-size", "var(--fandhe-font-font-size-xs)")],
-        )
-        .variant(Size::Md, "root", vec![decl("padding", "0.75rem 1rem")])
-        .variant(
-            Size::Md,
-            "text",
-            vec![decl("font-size", "var(--fandhe-font-font-size-sm)")],
-        )
-        .variant(Size::Lg, "root", vec![decl("padding", "1rem 1.25rem")])
-        .variant(
-            Size::Lg,
-            "text",
-            vec![decl("font-size", "var(--fandhe-font-font-size-md)")],
-        )
-        .variant(Size::Xl, "root", vec![decl("padding", "1.25rem 1.5rem")])
-        .variant(
-            Size::Xl,
-            "text",
-            vec![decl("font-size", "var(--fandhe-font-font-size-lg)")],
+        .base("text", vec![decl("min-width", "0")])
+        // イシュー #1556: padding・gap・角丸・font-size を root の
+        // `--fandhe-callout-*` custom property へ一本化。Sm/Md が
+        // font-size を共有するのは Radix Themes size 1/2 がともに
+        // `font-size-2`（14px）であることに忠実な意図的判断（alert は
+        // chakra 基準で Sm = xs だが、callout は Radix Themes のみを
+        // 参照するため揃えない）。
+        .size_variants(
+            "root",
+            &[
+                (
+                    Size::Xs,
+                    vec![
+                        decl("--fandhe-callout-padding", "var(--fandhe-space-2)"),
+                        decl("--fandhe-callout-gap", "var(--fandhe-space-2)"),
+                        decl("--fandhe-callout-radius", "var(--fandhe-radius-sm)"),
+                        decl(
+                            "--fandhe-callout-font-size",
+                            "var(--fandhe-font-font-size-xs)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Sm,
+                    vec![
+                        decl("--fandhe-callout-padding", "var(--fandhe-space-3)"),
+                        decl("--fandhe-callout-gap", "var(--fandhe-space-2)"),
+                        decl("--fandhe-callout-radius", "var(--fandhe-radius-md)"),
+                        decl(
+                            "--fandhe-callout-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Md,
+                    vec![
+                        decl("--fandhe-callout-padding", "var(--fandhe-space-4)"),
+                        decl("--fandhe-callout-gap", "var(--fandhe-space-3)"),
+                        decl("--fandhe-callout-radius", "var(--fandhe-radius-lg)"),
+                        decl(
+                            "--fandhe-callout-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Lg,
+                    vec![
+                        decl("--fandhe-callout-padding", "var(--fandhe-space-5)"),
+                        decl("--fandhe-callout-gap", "var(--fandhe-space-4)"),
+                        decl("--fandhe-callout-radius", "var(--fandhe-radius-xl)"),
+                        decl(
+                            "--fandhe-callout-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                    ],
+                ),
+                (
+                    Size::Xl,
+                    vec![
+                        decl("--fandhe-callout-padding", "var(--fandhe-space-6)"),
+                        decl("--fandhe-callout-gap", "var(--fandhe-space-4)"),
+                        decl("--fandhe-callout-radius", "var(--fandhe-radius-2xl)"),
+                        decl(
+                            "--fandhe-callout-font-size",
+                            "var(--fandhe-font-font-size-lg)",
+                        ),
+                    ],
+                ),
+            ],
         )
         .variant(
             CalloutVariant::Soft,
             "root",
             vec![
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-palette)"),
+                decl("background", "var(--fandhe-palette-subtle)"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
             ],
         )
         .variant(
             CalloutVariant::Surface,
             "root",
             vec![
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-palette)"),
-                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("background", "var(--fandhe-palette-subtle)"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
+                decl("border-color", "var(--fandhe-palette-muted)"),
             ],
         )
         .variant(
@@ -155,11 +255,10 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("background", "transparent"),
-                decl("color", "var(--fandhe-palette)"),
-                decl("border", "1px solid var(--fandhe-palette)"),
+                decl("color", "var(--fandhe-palette-fg-subtle)"),
+                decl("border-color", "var(--fandhe-palette-muted)"),
             ],
         )
-        .default_variant(Size::Md)
         .default_variant(CalloutVariant::Soft)
         .default_variant(ColorPalette::Accent);
 
@@ -219,18 +318,13 @@ pub fn icon<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 
 /// text パーツ（`<div>`。補足情報の本文）を組み立てる。
 ///
-/// `size` は [`root`] に渡したものと同じ値を渡す（[`recipe`] が
-/// `text` slot 用に登録するフォントサイズ variant は
-/// `[data-scope="callout"][data-part="text"].fd-callout--size-*` という
-/// text 要素自身へのクラス付与を前提とした複合セレクタのため、`root` に
-/// クラスを付けるだけでは text 要素のフォントサイズは変化しない。
-/// 呼び出し側が両者へ同じ `size` を渡すことで整合を保つ）。
+/// イシュー #1556: font-size は [`root`] の `--fandhe-callout-font-size`
+/// custom property から継承するのみで決まるため、本関数は `size` 引数を
+/// 取らない（旧設計は `root` と `text` へ同じ `size` を渡す必要があり、
+/// 揃え漏れで文字サイズが崩れる footgun があった）。
 #[must_use]
-pub fn text<'a>(size: Size, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let class = recipe().variant_class(size);
-    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
-    merged.extend(drop_class_attr(attrs));
-    ANATOMY.part("text", "div", merged, children)
+pub fn text<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("text", "div", attrs, children)
 }
 
 #[cfg(test)]
@@ -272,9 +366,11 @@ mod tests {
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-callout--size-xs"),
             (Size::Sm, "fd-callout--size-sm"),
             (Size::Md, "fd-callout--size-md"),
             (Size::Lg, "fd-callout--size-lg"),
+            (Size::Xl, "fd-callout--size-xl"),
         ] {
             let props = CalloutProps {
                 size,
@@ -318,23 +414,8 @@ mod tests {
     fn parts_use_expected_tags_and_data_part() {
         assert!(render(&icon(vec![], vec![]))
             .starts_with(r#"<span data-scope="callout" data-part="icon""#));
-        assert!(render(&text(Size::Md, vec![], vec![]))
+        assert!(render(&text(vec![], vec![]))
             .starts_with(r#"<div data-scope="callout" data-part="text""#));
-    }
-
-    #[test]
-    fn text_size_variant_maps_to_expected_class() {
-        for (size, class) in [
-            (Size::Sm, "fd-callout--size-sm"),
-            (Size::Md, "fd-callout--size-md"),
-            (Size::Lg, "fd-callout--size-lg"),
-        ] {
-            let html = render(&text(size, vec![], vec![]));
-            assert!(
-                html.contains(&format!(r#"class="{class}""#)),
-                "size={size:?} -> {html}"
-            );
-        }
     }
 
     #[test]
@@ -345,7 +426,6 @@ mod tests {
             vec![
                 icon(vec![], vec![]),
                 text(
-                    Size::Md,
                     vec![],
                     vec![text_node("Heads up: this is supplementary info")],
                 ),
@@ -357,7 +437,7 @@ mod tests {
             concat!(
                 r#"<div data-scope="callout" data-part="root" class="fd-callout--size-md fd-callout--variant-soft fd-callout--color-palette-accent">"#,
                 r#"<span data-scope="callout" data-part="icon"></span>"#,
-                r#"<div data-scope="callout" data-part="text" class="fd-callout--size-md">Heads up: this is supplementary info</div>"#,
+                r#"<div data-scope="callout" data-part="text">Heads up: this is supplementary info</div>"#,
                 r#"</div>"#,
             )
         );
@@ -376,11 +456,7 @@ mod tests {
 
     #[test]
     fn xss_payload_in_text_children_is_escaped() {
-        let html = render(&text(
-            Size::Md,
-            vec![],
-            vec![text_node("<script>alert(1)</script>")],
-        ));
+        let html = render(&text(vec![], vec![text_node("<script>alert(1)</script>")]));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
     }
@@ -398,7 +474,21 @@ mod tests {
         let html = render(&icon(vec![("data-testid", payload)], vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
 
-        let html = render(&text(Size::Md, vec![("data-testid", payload)], vec![]));
+        let html = render(&text(vec![("data-testid", payload)], vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
+    }
+
+    /// イシュー #1556: 参考サイト基準への調整で palette 6 役割トークンへ
+    /// 移行したことを固定する（生の `--fandhe-color-bg-subtle`/
+    /// `--fandhe-palette` 単体参照へ後退しないこと）。
+    #[test]
+    fn css_output_declares_palette_role_tokens_and_size_custom_properties() {
+        let out = css();
+        assert!(out.contains("background: var(--fandhe-palette-subtle);"));
+        assert!(out.contains("color: var(--fandhe-palette-fg-subtle);"));
+        assert!(out.contains("border-color: var(--fandhe-palette-muted);"));
+        assert!(out.contains("--fandhe-callout-padding: var(--fandhe-space-2);"));
+        assert!(out.contains("--fandhe-callout-radius: var(--fandhe-radius-2xl);"));
+        assert!(!out.contains("--fandhe-color-bg-subtle"));
     }
 }

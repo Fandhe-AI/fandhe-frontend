@@ -982,7 +982,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 到達済みだったため、本イシュー（#1553）の変更を統合した結果として
 # 0.67.0 へさらにマイナーバンプする（0.x の破壊的変更はマイナーバンプの
 # 規約。同一版数への偶発的衝突をそのまま採用しない）。
-version = "0.67.0"
+# イシュー #1556: callout のスタイルを参考サイト基準（Radix Themes
+# Callout）へ調整し、`text(size, attrs, children)` から `size` 引数を削除
+# する破壊的変更（root の `--fandhe-callout-font-size` custom property から
+# 継承する一本化）を加えたため minor バンプする（0.x の破壊的変更は
+# マイナーバンプの規約）。
+version = "0.68.0"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
