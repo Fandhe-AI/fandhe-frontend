@@ -37,6 +37,8 @@ const PROGRESS_GOLDEN_CSS: &str = r#"[data-scope="progress"][data-part="root"] {
   width: 100%;
   height: var(--fandhe-progress-track-height, 0.625rem);
   border-radius: var(--fandhe-radius-full, 999px);
+  background: var(--fandhe-progress-track-bg, var(--fandhe-color-bg-muted));
+  box-shadow: var(--fandhe-progress-track-shadow, inset 0 0 0 1px var(--fandhe-color-border-muted));
 }
 
 [data-scope="progress"][data-part="range"] {
@@ -100,13 +102,13 @@ const PROGRESS_GOLDEN_CSS: &str = r#"[data-scope="progress"][data-part="root"] {
   --fandhe-progress-track-height: 1rem;
 }
 
-[data-scope="progress"][data-part="track"].fd-progress--variant-outline {
-  background: var(--fandhe-color-bg-muted);
-  box-shadow: inset 0 0 0 1px var(--fandhe-color-border-muted);
+[data-scope="progress"][data-part="root"].fd-progress--variant-outline {
+  --fandhe-progress-track-bg: var(--fandhe-color-bg-muted);
+  --fandhe-progress-track-shadow: inset 0 0 0 1px var(--fandhe-color-border-muted);
 }
 
-[data-scope="progress"][data-part="track"].fd-progress--variant-subtle {
-  background: var(--fandhe-palette-subtle);
+[data-scope="progress"][data-part="root"].fd-progress--variant-subtle {
+  --fandhe-progress-track-bg: var(--fandhe-palette-subtle);
 }
 
 [data-scope="progress"][data-part="root"].fd-progress--color-palette-accent {
@@ -283,14 +285,26 @@ fn size_variant_declares_all_five_sizes_on_root() {
 }
 
 #[test]
-fn variant_axis_declares_outline_and_subtle_on_track_only() {
+fn variant_axis_declares_track_custom_properties_on_root_only() {
+    // PR #1835 Cursor Bugbot 指摘（High）の回帰: headless track は variant
+    // クラスを一切受け取らないため `[data-part="track"].fd-progress--variant-*`
+    // というセレクタは構造的に一致しない。修正後は root セレクタへ
+    // `--fandhe-progress-track-bg`/`--fandhe-progress-track-shadow` を
+    // custom property として登録し、track の base 規則（既に別テストで
+    // 固定済み）が継承経由で参照する。
     let css = progress::stylesheet();
     assert!(
-        css.contains(r#"[data-scope="progress"][data-part="track"].fd-progress--variant-outline"#)
+        css.contains(r#"[data-scope="progress"][data-part="root"].fd-progress--variant-outline"#)
     );
     assert!(
-        css.contains(r#"[data-scope="progress"][data-part="track"].fd-progress--variant-subtle"#)
+        css.contains(r#"[data-scope="progress"][data-part="root"].fd-progress--variant-subtle"#)
     );
+    assert!(css.contains("--fandhe-progress-track-bg: var(--fandhe-color-bg-muted);"));
+    assert!(css.contains(
+        "--fandhe-progress-track-shadow: inset 0 0 0 1px var(--fandhe-color-border-muted);"
+    ));
+    assert!(css.contains("--fandhe-progress-track-bg: var(--fandhe-palette-subtle);"));
+    assert!(!css.contains(r#"[data-scope="progress"][data-part="track"].fd-progress--variant"#));
     assert!(
         !css.contains(r#"[data-scope="progress"][data-part="circle-track"].fd-progress--variant"#)
     );

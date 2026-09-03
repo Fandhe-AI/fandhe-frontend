@@ -53,9 +53,18 @@
 //! [`ProgressVariant`]（`Outline`/`Subtle`）は track 背景の見た目を切り替える
 //! （chakra `outline`/`subtle`、Radix Themes `surface`/`soft` 相当。命名は
 //! 本リポジトリ既存語彙（`ButtonVariant`/`BadgeVariant`）に合わせ、Radix 名
-//! （`classic`/`soft`）は持ち込まない）。[`ColorPalette`] は root へ
+//! （`classic`/`soft`）は持ち込まない）。track は headless の inherent
+//! メソッドを直接呼ぶため（本節冒頭・`Progress` 再エクスポート節参照）
+//! variant クラスをそもそも受け取れない。そのため `--fandhe-progress-size`
+//! 等と同じ「root へ `--fandhe-progress-track-bg`/`--fandhe-progress-track-shadow`
+//! を custom property として登録し、track の base 規則が
+//! `var(..., <Outline 相当のフォールバック>)` で継承経由に参照する」方式
+//! を採る（PR #1835 Cursor Bugbot 指摘: `[data-part="track"].fd-...` という
+//! 「track 自身にクラスが付く」前提のセレクタは構造的に一致しないため、
+//! 当初の実装はこの規則が常に死んでいた）。[`ColorPalette`] は root へ
 //! `palette_scale_declarations` を登録し、range/circle-range の塗り色を
-//! 切り替える。
+//! 切り替える（同じ custom property 継承パターン、`crate::switch` の
+//! `palette` variant と同型）。
 //!
 //! # indeterminate アニメーション（styled 層が可視表現を担う契約）
 //!
@@ -292,6 +301,18 @@ fn recipe() -> SlotRecipe {
                 decl("width", "100%"),
                 decl("height", "var(--fandhe-progress-track-height, 0.625rem)"),
                 decl("border-radius", "var(--fandhe-radius-full, 999px)"),
+                // イシュー #1564/PR #1835 Bugbot 指摘: ProgressVariant
+                // （Outline/Subtle）は root の custom property 経由で
+                // 継承される（root variant 登録側のコメント参照）。
+                // フォールバックは Outline 相当（`default_variant`）。
+                decl(
+                    "background",
+                    "var(--fandhe-progress-track-bg, var(--fandhe-color-bg-muted))",
+                ),
+                decl(
+                    "box-shadow",
+                    "var(--fandhe-progress-track-shadow, inset 0 0 0 1px var(--fandhe-color-border-muted))",
+                ),
             ],
         )
         .base("range", {
@@ -395,23 +416,37 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .default_variant(Size::Md)
-        // イシュー #1564: track の見た目 variant（モジュール冒頭 rustdoc
-        // 「意図的に参考サイトへ合わせない点」参照。circle-track は対象外）。
+        // イシュー #1564/PR #1835 Bugbot 指摘: track の見た目 variant
+        // （モジュール冒頭 rustdoc「意図的に参考サイトへ合わせない点」
+        // 参照。circle-track は対象外）。[`root`] は `class` を root 要素
+        // にしか付与しない（`track`/`circle` 等は headless の inherent
+        // メソッドを直接呼ぶため、そもそもクラスを受け取れない）。
+        // `.variant(_, "track", ...)` は `[data-part="track"].fd-...` と
+        // いう「track 自身にクラスが付いている」前提のセレクタを生成する
+        // ため実際には一切マッチせず、Outline/Subtle の見た目が常に死んで
+        // いた（headless track が variant クラスを受け取らない構造的な
+        // 不一致）。`--fandhe-progress-track-height`（直上）・
+        // `--fandhe-palette`（`crate::switch` の `palette` variant）と同じ
+        // 「root へ custom property を登録し、子孫 track の base 規則が
+        // `var(..., <既定値>)` で継承経由に参照する」方式へ統一する。
         .variant(
             ProgressVariant::Outline,
-            "track",
+            "root",
             vec![
-                decl("background", "var(--fandhe-color-bg-muted)"),
+                decl("--fandhe-progress-track-bg", "var(--fandhe-color-bg-muted)"),
                 decl(
-                    "box-shadow",
+                    "--fandhe-progress-track-shadow",
                     "inset 0 0 0 1px var(--fandhe-color-border-muted)",
                 ),
             ],
         )
         .variant(
             ProgressVariant::Subtle,
-            "track",
-            vec![decl("background", "var(--fandhe-palette-subtle)")],
+            "root",
+            vec![decl(
+                "--fandhe-progress-track-bg",
+                "var(--fandhe-palette-subtle)",
+            )],
         )
         .default_variant(ProgressVariant::Outline)
         // イシュー #763: indeterminate 時のみ circle（svg コンテナ）全体を
@@ -661,6 +696,62 @@ mod tests {
         assert!(css.contains("--size: var(--fandhe-progress-size, 3rem);"));
         assert!(css.contains("--fandhe-progress-size: 3rem;"));
         assert!(css.contains("--fandhe-progress-track-height: 0.625rem;"));
+        // headless track の base フォールバックが Outline（既定 variant）
+        // 相当の見た目と一致することを固定する（`root` を経由しない直接
+        // 利用でも Outline 相当の見た目を維持する fail-safe、モジュール
+        // 冒頭 rustdoc「fail-safe」節参照）。
+        assert!(css.contains(
+            "background: var(--fandhe-progress-track-bg, var(--fandhe-color-bg-muted));"
+        ));
+        assert!(css.contains(
+            "box-shadow: var(--fandhe-progress-track-shadow, inset 0 0 0 1px var(--fandhe-color-border-muted));"
+        ));
+    }
+
+    #[test]
+    fn progress_variant_registers_track_custom_properties_on_root_selector() {
+        // PR #1835 Cursor Bugbot 指摘（High）の回帰テスト:
+        // `.variant(ProgressVariant::*, "track", ...)` は headless track が
+        // variant クラスを一切受け取らないため常にマッチせず死んでいた。
+        // 修正後は root セレクタへ custom property を登録し、track の base
+        // 規則が継承経由で参照する（`crate::switch` の `palette` variant と
+        // 同型）。root セレクタで custom property が変わることと、track の
+        // 静的セレクタ自体は variant ごとに増えない（1 本のみ）ことの両方を
+        // 固定する。
+        let css = stylesheet();
+        assert!(
+            css.contains(
+                r#"[data-scope="progress"][data-part="root"].fd-progress--variant-outline {"#
+            ),
+            "css={css}"
+        );
+        assert!(
+            css.contains("--fandhe-progress-track-bg: var(--fandhe-color-bg-muted);"),
+            "css={css}"
+        );
+        assert!(
+            css.contains(
+                "--fandhe-progress-track-shadow: inset 0 0 0 1px var(--fandhe-color-border-muted);"
+            ),
+            "css={css}"
+        );
+        assert!(
+            css.contains(
+                r#"[data-scope="progress"][data-part="root"].fd-progress--variant-subtle {"#
+            ),
+            "css={css}"
+        );
+        assert!(
+            css.contains("--fandhe-progress-track-bg: var(--fandhe-palette-subtle);"),
+            "css={css}"
+        );
+        // track slot は variant クラスを一切持たないセレクタが 1 本だけ
+        // （base 規則のみ）: `[data-part="track"].fd-progress--variant-*`
+        // は生成されない。
+        assert!(
+            !css.contains(r#"[data-part="track"].fd-progress--variant"#),
+            "css={css}"
+        );
     }
 
     #[test]
