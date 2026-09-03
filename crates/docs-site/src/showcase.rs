@@ -1317,10 +1317,8 @@ fn badge_section() -> Node {
     )
 }
 
-/// Spinner 節: size・colorPalette バリエーション。
-///
-/// イシュー #1567: track 透明化・半周弧の意匠調整（`badge_section` と
-/// 同型のパレット行）を 6 palette で視覚確認できるようにする。
+/// Spinner 節（イシュー #1567 で palette 行を追加）: size・colorPalette
+/// バリエーション。
 fn spinner_section() -> Node {
     let sizes = [
         (Size::Xs, "Loading (xs)"),
@@ -1339,9 +1337,9 @@ fn spinner_section() -> Node {
             })
         })
         .collect());
-    // イシュー #1681/#1567: 共有 `palettes()`（5 値）はまだ Neutral を
-    // 含めない。この節限定で Neutral エントリを末尾へ連結する
-    // （`badge_section` と同型）。
+    // イシュー #1567: chakra-ui docs の色グリッド相当。トラック透明既定・
+    // 上右 2 辺の弧が palette ごとに区別できることを目視確認できるように
+    // する（badge_section の palette_row と同型に Neutral を末尾連結）。
     let palette_row = row(palettes()
         .iter()
         .copied()
@@ -1356,7 +1354,7 @@ fn spinner_section() -> Node {
         .collect());
     section(
         "Spinner",
-        "読み込み中表示。role=\"status\" と aria-label でスクリーンリーダーへ状態を伝えます。",
+        "読み込み中表示。role=\"status\" と aria-label でスクリーンリーダーへ状態を伝えます。トラックは既定で透明（上右 2 辺のみ弧を描画）で、OS の prefers-reduced-motion 設定時は回転を停止します。",
         vec![size_row, palette_row],
     )
 }

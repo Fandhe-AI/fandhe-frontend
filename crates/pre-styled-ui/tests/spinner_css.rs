@@ -1,46 +1,53 @@
 //! styled Spinner（イシュー #550、イシュー #1567 で参考サイト基準へ調整）の
 //! 決定的 CSS 出力ゴールデンテスト。
 //!
-//! `crates/pre-styled-ui/tests/skeleton_css.rs` の golden fixture テストの
-//! 前例に倣い、`css()` が返す CSS 全文をバイト単位で固定する。base（track
-//! 透明化・半周弧・`--fandhe-spinner-size` 経由の寸法）→ size 5 段
-//! （xs/sm/md/lg/xl）→ colorPalette 6 段 → `@keyframes` →
-//! `@media (prefers-reduced-motion: reduce)` の出力順が崩れた場合や
-//! 意図しない宣言の追加・欠落があった場合に、この golden テストが即座に
-//! 検知する（`spinner.rs` モジュール doc「参照サイトとの差分（イシュー
-//! #1567）」節参照）。
+//! `crates/pre-styled-ui/tests/alert_css.rs` と同型の golden fixture
+//! テスト（方式 (a) バイト一致）。イシュー #1567 は Rust API シグネチャを
+//! 変更せず既存の `size`/`color-palette` 2 軸の CSS 出力値のみを是正した
+//! ため、`spinner.rs` モジュール冒頭 rustdoc「参照サイトとの差分」節を
+//! 正として、出力全体をバイト単位で固定する。
 
 use fandhe_frontend_pre_styled_ui::spinner;
 
 const SPINNER_GOLDEN_CSS: &str = r#"[data-scope="spinner"][data-part="root"] {
   display: inline-block;
+  box-sizing: border-box;
+  flex-shrink: 0;
   border-radius: var(--fandhe-radius-full);
-  border: 2px solid var(--fandhe-spinner-track-color, transparent);
+  border-width: var(--fandhe-spinner-thickness, 2px);
+  border-style: solid;
+  border-color: var(--fandhe-spinner-track-color, transparent);
   border-top-color: var(--fandhe-palette);
   border-inline-end-color: var(--fandhe-palette);
-  width: var(--fandhe-spinner-size, 1.25rem);
-  height: var(--fandhe-spinner-size, 1.25rem);
-  animation: fd-spinner-spin 0.6s linear infinite;
+  animation-name: fd-spinner-spin;
+  animation-duration: var(--fandhe-spinner-duration, 0.6s);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
 }
 
 [data-scope="spinner"][data-part="root"].fd-spinner--size-xs {
-  --fandhe-spinner-size: 0.75rem;
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
 [data-scope="spinner"][data-part="root"].fd-spinner--size-sm {
-  --fandhe-spinner-size: 1rem;
+  width: 1rem;
+  height: 1rem;
 }
 
 [data-scope="spinner"][data-part="root"].fd-spinner--size-md {
-  --fandhe-spinner-size: 1.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 [data-scope="spinner"][data-part="root"].fd-spinner--size-lg {
-  --fandhe-spinner-size: 2rem;
+  width: 2rem;
+  height: 2rem;
 }
 
 [data-scope="spinner"][data-part="root"].fd-spinner--size-xl {
-  --fandhe-spinner-size: 2.5rem;
+  width: 2.5rem;
+  height: 2.5rem;
 }
 
 [data-scope="spinner"][data-part="root"].fd-spinner--color-palette-accent {
@@ -114,22 +121,43 @@ const SPINNER_GOLDEN_CSS: &str = r#"[data-scope="spinner"][data-part="root"] {
 "#;
 
 #[test]
-fn spinner_css_matches_golden_fixture_byte_for_byte() {
+fn spinner_css_matches_golden_fixture() {
     assert_eq!(spinner::css(), SPINNER_GOLDEN_CSS);
 }
 
-/// 決定性: 呼び出しごとに完全一致すること（`crate` 冒頭の不変条件 2）。
 #[test]
-fn spinner_css_output_is_deterministic() {
+fn css_is_byte_identical_across_calls() {
     assert_eq!(spinner::css(), spinner::css());
 }
 
-/// `css()` は静的リテラルのみの連結であり、`<style>` タグからの
-/// エスケープ（style breakout）を構造的に許さないことを固定する
-/// （`crates/pre-styled-ui/tests/breadcrumb_css.rs` 準拠）。
 #[test]
-fn spinner_css_never_contains_style_breakout_sequences() {
+fn css_never_contains_style_breakout_sequences() {
     let css = spinner::css();
     assert!(!css.contains("</style"));
     assert!(!css.contains('<'));
+}
+
+/// size/color-palette の全クラスセレクタが CSS 中に存在することを固定する
+/// （golden 全文一致に加え、軸ごとの網羅性を意図が読み取れる形で明示する）。
+#[test]
+fn css_declares_all_size_and_palette_selectors() {
+    let css = spinner::css();
+    for class in [
+        "fd-spinner--size-xs",
+        "fd-spinner--size-sm",
+        "fd-spinner--size-md",
+        "fd-spinner--size-lg",
+        "fd-spinner--size-xl",
+        "fd-spinner--color-palette-accent",
+        "fd-spinner--color-palette-info",
+        "fd-spinner--color-palette-success",
+        "fd-spinner--color-palette-warning",
+        "fd-spinner--color-palette-danger",
+        "fd-spinner--color-palette-neutral",
+    ] {
+        assert!(
+            css.contains(&format!(".{class} {{")),
+            "class={class} が css() に含まれない: {css}"
+        );
+    }
 }
