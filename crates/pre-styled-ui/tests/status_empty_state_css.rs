@@ -108,54 +108,91 @@ const EMPTY_STATE_GOLDEN_CSS: &str = r#"[data-scope="empty-state"][data-part="ro
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--fandhe-empty-state-padding, var(--fandhe-space-12) var(--fandhe-space-8));
 }
 
 [data-scope="empty-state"][data-part="content"] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--fandhe-space-2, 0.5rem);
+  justify-content: center;
+  gap: var(--fandhe-empty-state-gap, var(--fandhe-space-2));
   text-align: center;
 }
 
 [data-scope="empty-state"][data-part="indicator"] {
-  font-size: 2rem;
-  color: var(--fandhe-color-fg-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: var(--fandhe-empty-state-indicator-size, var(--fandhe-font-font-size-4xl));
+  color: var(--fandhe-color-fg-subtle);
+  margin-bottom: var(--fandhe-empty-state-section-gap, var(--fandhe-space-4));
 }
 
 [data-scope="empty-state"][data-part="title"] {
   font-weight: var(--fandhe-font-font-weight-semibold);
+  font-size: var(--fandhe-empty-state-title-size, var(--fandhe-font-font-size-lg));
 }
 
 [data-scope="empty-state"][data-part="description"] {
   color: var(--fandhe-color-fg-muted);
-  font-size: var(--fandhe-font-font-size-sm);
+  font-size: var(--fandhe-empty-state-description-size, var(--fandhe-font-font-size-sm));
 }
 
 [data-scope="empty-state"][data-part="actions"] {
   display: flex;
-  gap: var(--fandhe-space-2, 0.5rem);
-  margin-top: var(--fandhe-space-2, 0.5rem);
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fandhe-space-2);
+  margin-top: var(--fandhe-empty-state-section-gap, var(--fandhe-space-4));
 }
 
 [data-scope="empty-state"][data-part="root"].fd-empty-state--size-xs {
-  padding: 1rem;
+  --fandhe-empty-state-padding: var(--fandhe-space-4) var(--fandhe-space-3);
+  --fandhe-empty-state-gap: var(--fandhe-space-1);
+  --fandhe-empty-state-section-gap: var(--fandhe-space-2);
+  --fandhe-empty-state-indicator-size: var(--fandhe-font-font-size-xl);
+  --fandhe-empty-state-title-size: var(--fandhe-font-font-size-sm);
+  --fandhe-empty-state-description-size: var(--fandhe-font-font-size-xs);
 }
 
 [data-scope="empty-state"][data-part="root"].fd-empty-state--size-sm {
-  padding: 2rem;
+  --fandhe-empty-state-padding: var(--fandhe-space-6) var(--fandhe-space-4);
+  --fandhe-empty-state-gap: var(--fandhe-space-1-5);
+  --fandhe-empty-state-section-gap: var(--fandhe-space-2-5);
+  --fandhe-empty-state-indicator-size: var(--fandhe-font-font-size-2xl);
+  --fandhe-empty-state-title-size: var(--fandhe-font-font-size-md);
+  --fandhe-empty-state-description-size: var(--fandhe-font-font-size-xs);
 }
 
 [data-scope="empty-state"][data-part="root"].fd-empty-state--size-md {
-  padding: 3rem;
+  --fandhe-empty-state-padding: var(--fandhe-space-12) var(--fandhe-space-8);
+  --fandhe-empty-state-gap: var(--fandhe-space-2);
+  --fandhe-empty-state-section-gap: var(--fandhe-space-4);
+  --fandhe-empty-state-indicator-size: var(--fandhe-font-font-size-4xl);
+  --fandhe-empty-state-title-size: var(--fandhe-font-font-size-lg);
+  --fandhe-empty-state-description-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="empty-state"][data-part="root"].fd-empty-state--size-lg {
-  padding: 4rem;
+  --fandhe-empty-state-padding: var(--fandhe-space-16) var(--fandhe-space-12);
+  --fandhe-empty-state-gap: var(--fandhe-space-3);
+  --fandhe-empty-state-section-gap: var(--fandhe-space-5);
+  --fandhe-empty-state-indicator-size: 3.75rem;
+  --fandhe-empty-state-title-size: var(--fandhe-font-font-size-xl);
+  --fandhe-empty-state-description-size: var(--fandhe-font-font-size-md);
 }
 
 [data-scope="empty-state"][data-part="root"].fd-empty-state--size-xl {
-  padding: 5rem;
+  --fandhe-empty-state-padding: var(--fandhe-space-20) var(--fandhe-space-16);
+  --fandhe-empty-state-gap: var(--fandhe-space-4);
+  --fandhe-empty-state-section-gap: var(--fandhe-space-6);
+  --fandhe-empty-state-indicator-size: 4.5rem;
+  --fandhe-empty-state-title-size: var(--fandhe-font-font-size-2xl);
+  --fandhe-empty-state-description-size: var(--fandhe-font-font-size-lg);
 }
 "#;
 

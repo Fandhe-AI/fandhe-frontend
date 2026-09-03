@@ -1019,7 +1019,24 @@ name = "fandhe-frontend-pre-styled-ui"
 # 調整）。Rust API シグネチャ・クラス名・CSS 変数名は不変（CSS 宣言値のみ
 # の変更）のため patch バンプする
 # （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
-version = "0.70.1"
+# イシュー #1560: empty-state の size スケール（padding・content の gap・
+# indicator/title/description の文字サイズ）を chakra-ui EmptyState 基準へ
+# 連動させ、indicator の色を fg-muted から fg-subtle へ調整した。Rust API・
+# スロット名・クラス名は不変（`--fandhe-empty-state-*` custom property の
+# 純追加 + 既存宣言値の変更）であり公開 API の破壊的変更を伴わない意匠調整
+# のため patch バンプする。merge base（0.69.2、本ブランチの HEAD）に対し
+# main 側は #1558（color-swatch、patch）・#1559（data_list、minor）を経て
+# 独立に 0.70.0 へ到達済みだったため、双方の実体変更を包含する上位の
+# バージョンとして 0.70.1（main の 0.70.0 に本イシューの patch バンプを
+# さらに積む）を採用する。
+
+# 本マージ（feat/1561-icon-style を base main へ追従）で、本ブランチ側
+# （#1561、icon の意匠調整、patch バンプで 0.70.1 到達）と main 側
+# （#1560、empty-state の意匠調整、patch バンプで独立に 0.70.1 到達）が
+# 偶然同一バージョン番号（0.70.1）へ到達していたため、同一版数への偶発的
+# 衝突をそのまま採用せず、双方の実体変更を統合した結果として 0.70.2 へ
+# さらにパッチバンプする。
+version = "0.70.2"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"
