@@ -60,7 +60,8 @@ checkbox / checkbox_card / checkbox_group /
 color_picker / color_swatch / **data_list（イシュー #1559 で golden 新設）** /
 date_input / dialog / **download_trigger（方式 b）** /
 drawer / editable / file_upload / floating_panel / highlight / hover_card /
-image_cropper / listbox / marquee / menu / **menubar（方式 b）** /
+image_cropper / **link_overlay（イシュー #1580 で golden 新設）** /
+listbox / marquee / menu / **menubar（方式 b）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
 pin_input / progress / qr_code / radio_card / radio_group / rating_group /
 select / separator / skeleton / skip_nav / **spinner（イシュー #1567 で
@@ -113,12 +114,13 @@ CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約�
 `xss_escape.rs` / `xss_escape_styled.rs` によるレンダリング・エスケープ検証
 のみが存在します。新設の要否は Phase 1 の各部品 issue の判断に委ねます。
 
-- `stylesheet()` を持つ 17 部品: action_bar / angle_slider /
+- `stylesheet()` を持つ 16 部品: action_bar / angle_slider /
   breadcrumb / calendar / clipboard / combobox / date_picker /
-  json_tree_view / link / link_overlay / nav_list / scroll_area /
+  json_tree_view / link / nav_list / scroll_area /
   segment_group / signature_pad / slider / toggle / toggle_group
   （`toolbar` はイシュー #1547、`avatar` はイシュー #1554、`tree_view` は
-  イシュー #1578 で golden 追加済みのため本リストから除外）
+  イシュー #1578、`link_overlay` はイシュー #1580 で golden 追加済みの
+  ため本リストから除外）
 - `css()` を持つ部品: なし（`alert` はイシュー #1553、`badge` は
   イシュー #1555、`callout` はイシュー #1556、`card` はイシュー #1557、
   `spinner` はイシュー #1567 でそれぞれ golden 新設済みのため本リストから

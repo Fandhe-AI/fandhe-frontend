@@ -320,6 +320,18 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   は `.docs-content h3` のまま活かす最小リセットを
 ///   `.pre-styled-showcase [data-scope="link-overlay"][data-part="root"] h3`
 ///   （詳細度 (0,3,1)）で適用する。
+/// - Link Overlay の `border-radius: inherit` / `:focus-visible` リング
+///   （イシュー #1580）: `link_overlay::stylesheet()` を無条件出荷しない
+///   （下記コメント参照）ため、`crates/pre-styled-ui/src/link_overlay.rs`
+///   の `recipe()` へ新規追加した `overlay` base の `border-radius: inherit`
+///   と `StateCondition::FocusVisible` 状態規則
+///   （`focus_ring_declarations`）も、既存の位置決め規則と同じ理由で
+///   `.pre-styled-showcase` スコープ付きの等価ルールとして個別に複製する。
+///   既存の無条件出荷禁止ガード
+///   （`stylesheet_never_takes_up_link_overlay_stylesheet` テスト）は
+///   スコープなしの overlay 位置決め規則本文（`position: absolute;`
+///   から始まる行）の不在のみを検査するため、新規宣言を同じ本文へ混ぜず
+///   別ブロックとして追加すれば当該ガードは影響を受けない。
 /// - Nav List の `heading`（`h2`）見出しリセット（イシュー #1154、Bugbot
 ///   指摘）: `heading` パーツ自体が `data-scope="nav-list"
 ///   data-part="heading"` を持つため、dialog/drawer/popover の `h2` と同じ
@@ -366,6 +378,8 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  border-radius: inherit;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin-top: 0;\n}\n\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"link\"][data-part=\"root\"]:hover {\n  text-decoration: var(--fandhe-link-text-decoration, none);\n}\n\
@@ -1000,7 +1014,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     // を含む全ページへ配信されるため、無条件出荷すると同じ回帰
     // （prev/next ナビが高さ 0 に潰れる）が起きる。デモの見た目に必要な
     // 等価ルールは [`SHOWCASE_LAYOUT_CSS`] 側で `.pre-styled-showcase`
-    // スコープ付きとして個別に持つ（下記）。
+    // スコープ付きとして個別に持つ（下記）。イシュー #1580 で `recipe()`
+    // へ追加した `border-radius: inherit` / `:focus-visible` リングも
+    // 同じ理由で scoped 複製する。
     sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
     // Clipboard（イシュー #1155）: showcase.rs の COMPONENT_PAGES には未登録
     // だが、`crate::component_specs::interactive_utilities::demo_clipboard`
@@ -8759,6 +8775,20 @@ mod tests {
   position: absolute;
   inset: 0;
   z-index: 0;
+}"#
+        ));
+        // Link Overlay の `border-radius: inherit` / `:focus-visible` リング
+        // （イシュー #1580）: `link_overlay::recipe()` へ追加した新規宣言の
+        // scoped 複製が出荷されていることを固定する。
+        assert!(css.contains(
+            r#".pre-styled-showcase [data-scope="link-overlay"][data-part="overlay"] {
+  border-radius: inherit;
+}"#
+        ));
+        assert!(css.contains(
+            r#".pre-styled-showcase [data-scope="link-overlay"][data-part="overlay"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }"#
         ));
         // Link Overlay の素の h3（イシュー #1154、PR #1165 Bugbot 指摘 2 回目

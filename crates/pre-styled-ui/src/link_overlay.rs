@@ -27,10 +27,57 @@
 //!   イシュー側のスコープ。
 //! - `root` 内に `overlay` 以外の対話要素を配置する場合の z-index 調整は
 //!   呼び出し側の責務（headless 層 rustdoc 参照）。
+//!
+//! # 参照サイト比較（イシュー #1580、7 軸チェック）
+//!
+//! 参照軸は chakra-ui のみ（`docs/design/component-coverage-map.md` の該当行は
+//! ark-ui / Radix が「—」であり、本モジュールが薄く再利用する headless 層
+//! （`crates/headless-ui/src/link_overlay.rs`）の rustdoc も「ark-ui には
+//! 対応する headless 実体がない」と明記している）。chakra の `LinkBox` /
+//! `LinkOverlay` recipe は構造のみ（`position: relative` と `::before` に
+//! よる全面拡張、`cursor: inherit`）で、参照スクショに見える枠線・角丸・
+//! 余白付きカードはラッパー側（`Box` の `borderWidth`/`p`/`rounded` や
+//! `Card`）の props に由来し、`LinkOverlay` 自身の意匠ではない。
+//!
+//! - **サイズ / バリアント / 色**: 追加しない。chakra `LinkOverlay` に
+//!   size / variant / colorPalette 軸が存在しないため。`root` にも色・
+//!   カード意匠を付けない（付けると `link_overlay::root` と
+//!   `card::root` を合成する呼び出し側で二重枠線になり、`root` は
+//!   位置決めコンテキストのみという既存契約が壊れる）。
+//! - **`data-*` 状態**: 変更なし（headless 層が状態属性を出さない）。
+//! - **ダーク**: 個別対応不要。フォーカスリングは
+//!   `--fandhe-color-focus-ring` 系トークン経由で `Theme::to_css` の
+//!   一元機構に自動追従する。
+//! - **フォーカス（是正）**: `overlay` に `StateCondition::FocusVisible`
+//!   の状態規則として [`crate::recipe::focus_ring_declarations`] を追加した。
+//!   `FocusRingColor::Token`: 本部品は palette 軸を持たないため
+//!   （`crate::nav_list` と同判断）。`FocusRingOffset::Outside`: `root` に
+//!   `overflow: hidden` を持つ祖先 slot がなく、`overlay` は
+//!   `inset: 0` で `root` 全面へ展開されるためリングがカード全体を囲む
+//!   （chakra で `LinkOverlay` にキーボードフォーカスした際の見え方と同等）。
+//! - **余白・角丸・影（是正）**: `overlay` base に
+//!   `border-radius: inherit` を追加した（`crate::avatar` の `image` が
+//!   同じ理由で持つ宣言と同型）。呼び出し側が `root` に角丸（`card` 等）
+//!   を与えた場合、フォーカスリングの `outline` がその角丸へ追従する。
+//!   padding・shadow は追加しない（本部品は構造のみを担う）。
+//! - **hover**: 意図的に付けない。`overlay` は
+//!   `position: absolute; z-index: 0` の位置指定要素であり、
+//!   `hover_surface_declarations()`（`background: ...`）を当てると
+//!   カード本文（見出し・説明文）より上に塗り潰しが描かれて読めなくなる。
+//!   chakra `LinkBox`/`LinkOverlay` 自体も hover 意匠を持たない（hover は
+//!   ラッパー側の責務）。`root` は
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md` §3 の
+//!   「hover はインタラクティブ slot のみ」に該当しない。
+//! - **disabled**: 該当なし（headless 層がリンクに `data-disabled` を
+//!   出さない）。
+//! - **transition**: 付けない（アニメーション対象となる hover 背景等の
+//!   プロパティを持たないため）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::SlotRecipe;
+use crate::recipe::{
+    focus_ring_declarations, FocusRingColor, FocusRingOffset, SlotRecipe, StateCondition,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::link_overlay::overlay;
 
@@ -49,7 +96,20 @@ fn recipe() -> SlotRecipe {
                 decl("position", "absolute"),
                 decl("inset", "0"),
                 decl("z-index", "0"),
+                // イシュー #1580: 呼び出し側が `root` に角丸（`card` 等）を
+                // 与えた場合、フォーカスリングの `outline` がその角丸へ
+                // 追従するようにする（`crate::avatar` の `image` と同型）。
+                decl("border-radius", "inherit"),
             ],
+        )
+        // イシュー #1580: キーボード操作時のみのフォーカスリング。
+        // `Token`: link-overlay は palette 軸を持たない部品。`Outside`:
+        // `overlay` の祖先（`root`）に `overflow: hidden` を持つ slot が
+        // ないため。
+        .state(
+            "overlay",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
 }
 
@@ -116,6 +176,9 @@ mod tests {
         assert!(a.contains("position: relative"));
         assert!(a.contains("position: absolute"));
         assert!(a.contains("inset: 0"));
+        assert!(a.contains("border-radius: inherit"));
+        assert!(a.contains(":focus-visible"));
+        assert!(a.contains("outline"));
     }
 
     #[test]
