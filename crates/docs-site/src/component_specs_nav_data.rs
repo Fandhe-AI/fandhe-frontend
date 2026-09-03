@@ -933,7 +933,8 @@ fn ex_image() -> Node {
         &image::ImageProps {
             fit: image::ImageFit::Contain,
             aspect_ratio: image::AspectRatio::Square,
-            ..image::ImageProps::new("/photo.png", "製品写真")
+            shape: image::ImageShape::Rounded,
+            ..image::ImageProps::new(crate::showcase::IMAGE_DEMO_SRC, "製品写真")
         },
         vec![],
     )
@@ -941,39 +942,53 @@ fn ex_image() -> Node {
 
 pub(crate) const IMAGE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "ImageFit（Cover/Contain/Fill/ScaleDown/NoFit、crates/pre-styled-ui/src/image.rs:39-73）で object-fit を切り替える",
-        "AspectRatio（Auto/Square/Video、image.rs:74-97）で aspect-ratio を切り替える",
-        "src は既定エスケープ + is_safe_url 検証を経由し危険なスキーム（javascript: 等）は出力自体を落とす（image.rs テスト dangerous_src_scheme_is_not_output_but_sibling_attrs_survive）",
+        "ImageFit（Cover/Contain/Fill/ScaleDown/NoFit、crates/pre-styled-ui/src/image.rs:76-107）で object-fit を切り替える",
+        "AspectRatio（Auto/Square/Landscape/Portrait/Video、image.rs:113-141）で aspect-ratio を切り替える（イシュー #1562 で Landscape(4:3)/Portrait(3:4) を追加）",
+        "ImageShape（Square/Rounded/Circle、image.rs:150-172）で角丸を切り替える（イシュー #1562 で新設。radius トークン `--fandhe-radius-none`/`-md`/`-full` 経由）",
+        "base に height: auto を持つ（image.rs、イシュー #1562）。max-width: 100% による縮小時に縦横比を保つ",
+        "src は既定エスケープ + is_safe_url 検証を経由し危険なスキーム（javascript: 等・data: 等）は出力自体を落とす（image.rs テスト dangerous_src_scheme_is_not_output_but_sibling_attrs_survive）",
     ],
     arguments: &[
         ArgRow {
             name: "src",
             kind: "&str",
             default: "(必須)",
-            description: "画像 URL（image.rs:786-788、is_safe_url 検証を経由）。",
+            description: "画像 URL（image.rs:258、is_safe_url 検証を経由）。",
         },
         ArgRow {
             name: "alt",
             kind: "&str",
             default: "(必須)",
-            description: "代替テキスト（image.rs:789-791、空文字列も明示的な選択として許容）。",
+            description: "代替テキスト（image.rs:261、空文字列も明示的な選択として許容）。",
         },
         ArgRow {
             name: "fit",
             kind: "ImageFit",
             default: "Cover",
-            description: "object-fit（image.rs:39-73, 792-793）。",
+            description: "object-fit（image.rs:76-107, 263）。",
+        },
+        ArgRow {
+            name: "aspect_ratio",
+            kind: "AspectRatio",
+            default: "Auto",
+            description: "aspect-ratio（image.rs:113-141, 265）。",
+        },
+        ArgRow {
+            name: "shape",
+            kind: "ImageShape",
+            default: "Square",
+            description: "角丸（image.rs:150-172, 267。イシュー #1562 で新設）。",
         },
     ],
     examples: &[ExampleEntry {
-        title: "Square contain",
-        description: "Contain fit + Square aspect ratio の例です。",
+        title: "Square contain, rounded",
+        description: "Contain fit + Square aspect ratio + Rounded shape の例です。",
         render: ex_image,
     }],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "alt（必須引数）",
-        description: "代替テキストを img 要素の alt として必ず出力する（image.rs:789-791）。role/aria-* 自体は固有の出力を持たない。",
+        description: "代替テキストを img 要素の alt として必ず出力する（image.rs:261）。role/aria-* 自体は固有の出力を持たない。",
     }],
     demo: None,
 };
