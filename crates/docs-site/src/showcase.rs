@@ -7082,10 +7082,37 @@ fn stat_section() -> Node {
             ],
         ),
     ]);
+    // size の段差を視覚確認できるよう Sm/Md/Lg を並べる（イシュー #1568）。
+    let size_demo = row(vec![
+        stat::root(
+            Size::Sm,
+            vec![],
+            vec![
+                stat::label(vec![], vec![text("Sm")]),
+                stat::value_text(vec![], vec![text("1,234")]),
+            ],
+        ),
+        stat::root(
+            Size::Md,
+            vec![],
+            vec![
+                stat::label(vec![], vec![text("Md")]),
+                stat::value_text(vec![], vec![text("1,234")]),
+            ],
+        ),
+        stat::root(
+            Size::Lg,
+            vec![],
+            vec![
+                stat::label(vec![], vec![text("Lg")]),
+                stat::value_text(vec![], vec![text("1,234")]),
+            ],
+        ),
+    ]);
     section(
         "Stat",
-        "数値指標 1 件をラベル・値・補助テキスト・増減方向インジケーターの組で表示する静的部品です。size（sm/md/lg）で value-text のフォントサイズを切り替えます。",
-        vec![demo],
+        "数値指標 1 件をラベル・値・補助テキスト・増減方向インジケーターの組で表示する静的部品です。size（xs〜xl、既定 md。chakra-ui の sm/md/lg は本実装の Sm/Md/Lg に対応）で value-text のフォントサイズを切り替えます。",
+        vec![demo, size_demo],
     )
 }
 

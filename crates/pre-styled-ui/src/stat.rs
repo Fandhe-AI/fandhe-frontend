@@ -60,6 +60,64 @@
 //! 経路を持たない（動的値は `fandhe_frontend_core::render` の既定エスケープ
 //! を必ず経由する、REQ-1）。
 //!
+//! # 参考サイト基準への調整（イシュー #1568）
+//!
+//! chakra-ui v3 の Stat slot recipe（`packages/react/src/theme/recipes/
+//! stat.ts`）と比較し、以下を是正した:
+//!
+//! - **size**: `Sm` の value-text font-size を `lg` から `xl` へ改め、
+//!   `Xs`=`lg`→`Sm`=`xl`→`Md`=`2xl`→`Lg`=`3xl`→`Xl`=`4xl` の等差 1 段進行に
+//!   した（旧`Xs`=`xs`は label の `sm` より値が小さくなる逆転だったため）。
+//! - **タイポグラフィ細部**: `value-text` に `line-height:
+//!   var(--fandhe-font-line-height-tight)` と `letter-spacing: -0.025em`
+//!   （chakra recipe の `letterSpacing: tight` 実測値）を追加。`value-unit`/
+//!   `help-text` の font-size を `sm` から `xs` へ改め、`value-unit` に
+//!   `font-weight: normal` / `letter-spacing: normal`（chakra の
+//!   `letterSpacing: initial` 相当、親 `value-text` の semibold/tight を
+//!   打ち消す）を追加。
+//! - **余白**: `root` に `margin: 0`（`<dl>` の UA 既定 `margin-block: 1em`
+//!   を打ち消す、[`crate::heading`] の marginless 方針と同型）、`label` を
+//!   `display: flex; gap: var(--fandhe-space-1)`、`help-text` を
+//!   `display: inline-flex; align-items: center`（indicator の垂直中央
+//!   揃え）、`up-indicator`/`down-indicator` に `flex-shrink: 0` と
+//!   `margin-inline-end: var(--fandhe-space-1)` を追加。
+//!
+//! # letter-spacing リテラルと [`crate::heading`] との整合トレードオフ
+//!
+//! [`crate::heading`] は `letter-spacing` 用トークンが未提供のため実測不能
+//! を理由に `-0.01em` 据え置きだが、本件は chakra recipe ソースで
+//! `letterSpacing: tight`（`-0.025em`）の値が直接確認できたため、その値を
+//! 採用する（両部品で異なる値になる非一貫性を許容する。トークン化は
+//! 「本イシューのスコープ外」節参照）。
+//!
+//! # 意図的に合わせない点
+//!
+//! - **variant / colorPalette**: chakra recipe も `size` のみで
+//!   `colorPalette` は既定 gray のまま意味のある色差を持たない。Card
+//!   （[`crate::card`]）と同型の中立部品判断を継続する。
+//! - **`data-type="up"/"down"` の非導入**: chakra は indicator に
+//!   `data-type` を付与するが、本実装は既に `up-indicator`/
+//!   `down-indicator` の別パーツで方向を表現済みであり、`data-type` を
+//!   追加しても視覚差が生まれず `tests/data_attr_vocabulary.rs` の語彙
+//!   拡張コストのみが増える。
+//! - **hover / focus / disabled / transition の非適用**:
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md` §3 が
+//!   Stat を表示専用（hover 非対象）と明記し、フォーカスリング規約
+//!   （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §3）
+//!   もフォーカス対象部品限定のため非適用（[`crate::card`]/
+//!   [`crate::empty_state`] の rustdoc と同型の判断）。
+//! - **indicator の色**: chakra は `fg.success`/`fg.error`（テキスト色）を
+//!   使うが、本テーマの `success-fg`/`danger-fg` は solid 面上の白文字
+//!   （`#ffffff`）であり `fg.success` の類似物ではないため、塗り三角には
+//!   `--fandhe-color-success-emphasized`/`--fandhe-color-danger-emphasized`
+//!   （背景として塗れる面トークン）を引き続き使う。
+//! - **indicator 形状**: chakra は 1em の svg 矢印だが、塗り三角（0.75em）
+//!   は線画矢印より視覚重量が大きいため、1em へ拡大せず既存の 0.75em を
+//!   維持する。
+//! - **`space-1.5` 相当の余白トークン**: chakra の `label` は
+//!   `gap: 1.5`（0.375rem 相当）だが本テーマにその段のトークンが存在しない
+//!   ため、最近傍の `var(--fandhe-space-1)` で代替する。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `StatGroup`（複数 Stat の横並びレイアウト補助）は未提供。
@@ -67,6 +125,9 @@
 //!   children は呼び出し側が組み立て済みの文字列を渡す契約）。
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
 //!   行う（[`crate::checkbox_card`] の先例と同じ判断）。
+//! - `letter-spacing` トークンの新設は横断課題（[`crate::heading`]/
+//!   [`crate::angle_slider`] を含む）であり、3 部品目以降の要求が揃った
+//!   時点で別イシューとして提案する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -102,11 +163,17 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
                 decl("gap", "var(--fandhe-space-1)"),
+                // `<dl>` の UA 既定 `margin-block: 1em` を打ち消す
+                // （`crate::heading` の marginless 方針と同型）。
+                decl("margin", "0"),
             ],
         )
         .base(
             "label",
             vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-1)"),
                 decl("font-size", "var(--fandhe-font-font-size-sm)"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
@@ -122,21 +189,31 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-stat-value-font-size, var(--fandhe-font-font-size-2xl))",
                 ),
                 decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                // chakra recipe の `letterSpacing: tight`/行間実測値
+                // （モジュール doc「letter-spacing リテラルと heading との
+                // 整合トレードオフ」参照）。
+                decl("line-height", "var(--fandhe-font-line-height-tight)"),
+                decl("letter-spacing", "-0.025em"),
                 decl("margin", "0"),
             ],
         )
         .base(
             "value-unit",
             vec![
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                // chakra `letterSpacing: initial`/`fontWeight: initial` 相当
+                // （親 value-text の semibold/tight を打ち消す）。
+                decl("font-weight", "var(--fandhe-font-font-weight-normal)"),
+                decl("letter-spacing", "normal"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
         )
         .base(
             "help-text",
             vec![
-                decl("display", "block"),
-                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
         )
@@ -146,8 +223,10 @@ fn recipe() -> SlotRecipe {
             "up-indicator",
             vec![
                 decl("display", "inline-block"),
+                decl("flex-shrink", "0"),
                 decl("width", "0.75em"),
                 decl("height", "0.75em"),
+                decl("margin-inline-end", "var(--fandhe-space-1)"),
                 decl("clip-path", "polygon(50% 0%, 100% 100%, 0% 100%)"),
                 decl("background", "var(--fandhe-color-success-emphasized)"),
             ],
@@ -157,56 +236,58 @@ fn recipe() -> SlotRecipe {
             "down-indicator",
             vec![
                 decl("display", "inline-block"),
+                decl("flex-shrink", "0"),
                 decl("width", "0.75em"),
                 decl("height", "0.75em"),
+                decl("margin-inline-end", "var(--fandhe-space-1)"),
                 decl("clip-path", "polygon(0% 0%, 100% 0%, 50% 100%)"),
                 decl("background", "var(--fandhe-color-danger-emphasized)"),
             ],
         )
-        // イシュー #1681: Xs/Xl は Sm(lg)→Md(2xl)→Lg(3xl) の非等差進行
-        // （+2 段→+1 段と縮小）を両端へ外挿した Xs=xs（3 段分の跳躍）・
-        // Xl=4xl（1 段分の跳躍を継続）。
-        .variant(
-            Size::Xs,
+        // イシュー #1568: chakra recipe（sm=xl/md=2xl/lg=3xl）に合わせ、
+        // Xs=lg→Sm=xl→Md=2xl→Lg=3xl→Xl=4xl の等差 1 段進行にした（旧 Xs=xs
+        // は label の sm より値が小さくなる逆転だったため是正、イシュー
+        // #1681 の非等差外挿は本イシューで解消）。
+        .size_variants(
             "root",
-            vec![decl(
-                "--fandhe-stat-value-font-size",
-                "var(--fandhe-font-font-size-xs)",
-            )],
+            &[
+                (
+                    Size::Xs,
+                    vec![decl(
+                        "--fandhe-stat-value-font-size",
+                        "var(--fandhe-font-font-size-lg)",
+                    )],
+                ),
+                (
+                    Size::Sm,
+                    vec![decl(
+                        "--fandhe-stat-value-font-size",
+                        "var(--fandhe-font-font-size-xl)",
+                    )],
+                ),
+                (
+                    Size::Md,
+                    vec![decl(
+                        "--fandhe-stat-value-font-size",
+                        "var(--fandhe-font-font-size-2xl)",
+                    )],
+                ),
+                (
+                    Size::Lg,
+                    vec![decl(
+                        "--fandhe-stat-value-font-size",
+                        "var(--fandhe-font-font-size-3xl)",
+                    )],
+                ),
+                (
+                    Size::Xl,
+                    vec![decl(
+                        "--fandhe-stat-value-font-size",
+                        "var(--fandhe-font-font-size-4xl)",
+                    )],
+                ),
+            ],
         )
-        .variant(
-            Size::Sm,
-            "root",
-            vec![decl(
-                "--fandhe-stat-value-font-size",
-                "var(--fandhe-font-font-size-lg)",
-            )],
-        )
-        .variant(
-            Size::Md,
-            "root",
-            vec![decl(
-                "--fandhe-stat-value-font-size",
-                "var(--fandhe-font-font-size-2xl)",
-            )],
-        )
-        .variant(
-            Size::Lg,
-            "root",
-            vec![decl(
-                "--fandhe-stat-value-font-size",
-                "var(--fandhe-font-font-size-3xl)",
-            )],
-        )
-        .variant(
-            Size::Xl,
-            "root",
-            vec![decl(
-                "--fandhe-stat-value-font-size",
-                "var(--fandhe-font-font-size-4xl)",
-            )],
-        )
-        .default_variant(Size::Md)
 }
 
 /// Stat の静的 CSS 全文。
@@ -453,7 +534,70 @@ mod tests {
         assert!(out.contains(
             "font-size: var(--fandhe-stat-value-font-size, var(--fandhe-font-font-size-2xl))"
         ));
+        // イシュー #1568: Xs=lg→Sm=xl→Md=2xl→Lg=3xl→Xl=4xl の等差 1 段進行。
         assert!(out.contains("--fandhe-stat-value-font-size: var(--fandhe-font-font-size-lg)"));
+        assert!(out.contains("--fandhe-stat-value-font-size: var(--fandhe-font-font-size-xl)"));
         assert!(out.contains("--fandhe-stat-value-font-size: var(--fandhe-font-font-size-3xl)"));
+        assert!(out.contains("--fandhe-stat-value-font-size: var(--fandhe-font-font-size-4xl)"));
+    }
+
+    /// root の UA 既定 `<dl>` margin を打ち消す `margin: 0` 宣言を固定する
+    /// （イシュー #1568）。
+    #[test]
+    fn root_margin_is_reset() {
+        let out = css();
+        assert!(out.contains(r#"[data-part="root"] {"#));
+        let root_block_start = out.find(r#"[data-part="root"] {"#).unwrap();
+        let root_block = &out[root_block_start..];
+        let block_end = root_block.find('}').unwrap();
+        assert!(root_block[..block_end].contains("margin: 0;"));
+    }
+
+    /// indicator の余白（`margin-inline-end`）と `flex-shrink: 0` を固定する
+    /// （イシュー #1568、help-text の垂直中央揃えと合わせて三角と数値の
+    /// 間隔を確保する）。
+    #[test]
+    fn indicators_have_inline_end_margin_and_no_shrink() {
+        let out = css();
+        assert!(out.contains("margin-inline-end: var(--fandhe-space-1);"));
+        assert!(out.contains("flex-shrink: 0;"));
+    }
+
+    /// help-text/value-unit の font-size が xs へ調整されたことを固定する
+    /// （イシュー #1568、chakra recipe の textStyle xs に合わせる）。
+    #[test]
+    fn help_text_and_value_unit_use_xs_font_size() {
+        let out = css();
+        assert!(out.contains(r#"[data-part="help-text"] {"#));
+        assert!(out.contains(r#"[data-part="value-unit"] {"#));
+        assert!(out.contains("font-size: var(--fandhe-font-font-size-xs);"));
+    }
+
+    /// value-text の line-height/letter-spacing 調整を固定する
+    /// （イシュー #1568）。
+    #[test]
+    fn value_text_has_tight_line_height_and_letter_spacing() {
+        let out = css();
+        assert!(out.contains("line-height: var(--fandhe-font-line-height-tight);"));
+        assert!(out.contains("letter-spacing: -0.025em;"));
+    }
+
+    /// value-unit が親 value-text の semibold/tight letter-spacing を
+    /// 打ち消すことを固定する（イシュー #1568、chakra `letterSpacing:
+    /// initial`/`fontWeight: initial` 相当）。
+    #[test]
+    fn value_unit_resets_weight_and_letter_spacing() {
+        let out = css();
+        assert!(out.contains("font-weight: var(--fandhe-font-font-weight-normal);"));
+        assert!(out.contains("letter-spacing: normal;"));
+    }
+
+    /// CSS 宣言値がすべてトークン経由の静的リテラルであり、生の色 hex
+    /// リテラル（`#`）を持たないことを固定する（モジュール doc「セキュリティ
+    /// 不変条件」参照。indicator は `--fandhe-color-*` トークン経由）。
+    #[test]
+    fn css_output_contains_no_raw_hex_color_literals() {
+        let out = css();
+        assert!(!out.contains('#'));
     }
 }

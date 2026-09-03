@@ -11,9 +11,13 @@ const STAT_GOLDEN_CSS: &str = r#"[data-scope="stat"][data-part="root"] {
   display: flex;
   flex-direction: column;
   gap: var(--fandhe-space-1);
+  margin: 0;
 }
 
 [data-scope="stat"][data-part="label"] {
+  display: flex;
+  align-items: center;
+  gap: var(--fandhe-space-1);
   font-size: var(--fandhe-font-font-size-sm);
   color: var(--fandhe-color-fg-muted);
 }
@@ -24,42 +28,51 @@ const STAT_GOLDEN_CSS: &str = r#"[data-scope="stat"][data-part="root"] {
   gap: var(--fandhe-space-1);
   font-size: var(--fandhe-stat-value-font-size, var(--fandhe-font-font-size-2xl));
   font-weight: var(--fandhe-font-font-weight-semibold);
+  line-height: var(--fandhe-font-line-height-tight);
+  letter-spacing: -0.025em;
   margin: 0;
 }
 
 [data-scope="stat"][data-part="value-unit"] {
-  font-size: var(--fandhe-font-font-size-sm);
+  font-size: var(--fandhe-font-font-size-xs);
+  font-weight: var(--fandhe-font-font-weight-normal);
+  letter-spacing: normal;
   color: var(--fandhe-color-fg-muted);
 }
 
 [data-scope="stat"][data-part="help-text"] {
-  display: block;
-  font-size: var(--fandhe-font-font-size-sm);
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--fandhe-font-font-size-xs);
   color: var(--fandhe-color-fg-muted);
 }
 
 [data-scope="stat"][data-part="up-indicator"] {
   display: inline-block;
+  flex-shrink: 0;
   width: 0.75em;
   height: 0.75em;
+  margin-inline-end: var(--fandhe-space-1);
   clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
   background: var(--fandhe-color-success-emphasized);
 }
 
 [data-scope="stat"][data-part="down-indicator"] {
   display: inline-block;
+  flex-shrink: 0;
   width: 0.75em;
   height: 0.75em;
+  margin-inline-end: var(--fandhe-space-1);
   clip-path: polygon(0% 0%, 100% 0%, 50% 100%);
   background: var(--fandhe-color-danger-emphasized);
 }
 
 [data-scope="stat"][data-part="root"].fd-stat--size-xs {
-  --fandhe-stat-value-font-size: var(--fandhe-font-font-size-xs);
+  --fandhe-stat-value-font-size: var(--fandhe-font-font-size-lg);
 }
 
 [data-scope="stat"][data-part="root"].fd-stat--size-sm {
-  --fandhe-stat-value-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-stat-value-font-size: var(--fandhe-font-font-size-xl);
 }
 
 [data-scope="stat"][data-part="root"].fd-stat--size-md {
