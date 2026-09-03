@@ -360,14 +360,30 @@ fn recipe() -> SlotRecipe {
         // 子を持たない branch-indicator にのみシェブロンの箱を描く
         // （`:empty`、イシュー #1578 §2.2 新設 `StateCondition::Empty`）。
         // footprint は base の `--fandhe-tree-view-icon-size`（既定 1rem）と
-        // 一致させる（0.5rem の箱 + margin 0.25rem×2 = 1rem）。
+        // 一致させる（icon-size/2 の箱 + margin icon-size/4×2 = icon-size）。
+        // Cursor Bugbot 指摘（PR #1850, Low）: 以前は `--fandhe-space-2`/
+        // `--fandhe-space-1` を直値でハードコードしており、
+        // `--fandhe-tree-view-icon-size` を変更した消費者側で
+        // `branch-indent-guide`（icon-size/2 の位置に描画）とのセンター
+        // 整列が崩れていた。`calc(icon-size / 2)`/`calc(icon-size / 4)` で
+        // icon-size に追随する式へ是正した（既定値時の実効値は従来と同じ
+        // 0.5rem/0.25rem）。
         .state(
             "branch-indicator",
             StateCondition::Empty,
             vec![
-                decl("width", "var(--fandhe-space-2)"),
-                decl("height", "var(--fandhe-space-2)"),
-                decl("margin", "var(--fandhe-space-1)"),
+                decl(
+                    "width",
+                    "calc(var(--fandhe-tree-view-icon-size, var(--fandhe-space-4)) / 2)",
+                ),
+                decl(
+                    "height",
+                    "calc(var(--fandhe-tree-view-icon-size, var(--fandhe-space-4)) / 2)",
+                ),
+                decl(
+                    "margin",
+                    "calc(var(--fandhe-tree-view-icon-size, var(--fandhe-space-4)) / 4)",
+                ),
                 decl("border-inline-end", "2px solid currentColor"),
                 decl("border-block-end", "2px solid currentColor"),
                 decl("--fandhe-tree-view-indicator-base-angle", "-45deg"),

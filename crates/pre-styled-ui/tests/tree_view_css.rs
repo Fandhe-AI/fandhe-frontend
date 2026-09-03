@@ -127,9 +127,9 @@ const TREE_VIEW_GOLDEN_CSS: &str = r#"[data-scope="tree-view"][data-part="root"]
 }
 
 [data-scope="tree-view"][data-part="branch-indicator"]:empty {
-  width: var(--fandhe-space-2);
-  height: var(--fandhe-space-2);
-  margin: var(--fandhe-space-1);
+  width: calc(var(--fandhe-tree-view-icon-size, var(--fandhe-space-4)) / 2);
+  height: calc(var(--fandhe-tree-view-icon-size, var(--fandhe-space-4)) / 2);
+  margin: calc(var(--fandhe-tree-view-icon-size, var(--fandhe-space-4)) / 4);
   border-inline-end: 2px solid currentColor;
   border-block-end: 2px solid currentColor;
   --fandhe-tree-view-indicator-base-angle: -45deg;
