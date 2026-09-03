@@ -579,8 +579,8 @@ pub(crate) const SKELETON: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "SkeletonVariant（Text/Circle/Rect、crates/pre-styled-ui/src/skeleton.rs:138-149）で占位形状を切り替える",
         "SkeletonAnimation（Pulse/Shine/None、skeleton.rs:169-181、イシュー #1566）で第 2 軸のアニメーション種別を切り替える",
-        "常に aria-hidden=\"true\" を固定付与する（skeleton.rs:46, 336）",
-        "呼び出し側が偽装した aria-hidden（大文字小文字問わず）も除去し常時 true へ一本化する（skeleton.rs:347-355, 411-424）",
+        "常に aria-hidden=\"true\" を固定付与する（skeleton.rs:364-369）",
+        "呼び出し側が偽装した aria-hidden（大文字小文字問わず）も除去し常時 true へ一本化する（skeleton.rs:364-369、回帰テストは skeleton.rs:429-436）",
     ],
     arguments: &[
         ArgRow {
@@ -604,7 +604,7 @@ pub(crate) const SKELETON: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "aria-hidden=\"true\"",
-        description: "常に固定付与される（呼び出し側の偽装値は除去、skeleton.rs:46, 336, 347-355）。",
+        description: "常に固定付与される（呼び出し側の偽装値は除去、skeleton.rs:364-369、回帰テストは skeleton.rs:429-436）。",
     }],
     demo: None,
 };
