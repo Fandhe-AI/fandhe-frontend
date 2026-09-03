@@ -7,28 +7,74 @@
 //! 委譲の根拠・スコープ外事項は [`crate::clipboard`] の rustdoc と同じ方針に
 //! 従う（構造上最も近い先行例、変種なしの最小スコープ判断）。
 //!
+//! # 参考サイト基準への調整（イシュー #1577）
+//!
+//! Timer を持つ参考サイトは ark-ui のみ（chakra-ui / Radix Primitives /
+//! Radix Themes には相当コンポーネントが無い）。`docs/design/
+//! reference-screenshots/ark-timer-{1,2,3}.png` との比較により、以下を
+//! 是正した:
+//!
+//! - `root` を中央揃え縦積みにし、`area`/`item` 間の余白をトークン化
+//!   （旧実装は左寄せ・`control` の `margin-top` のみで余白を確保していた）。
+//! - `item-value`/`item-label`/`separator` の生値（`1.5rem`/`600`/`1.2`
+//!   等）をトークン参照へ置換した。
+//! - `item-label` の `text-transform: uppercase` を廃止した（ark-ui は
+//!   小文字のまま表示する）。
+//! - `separator` の `align-self` を `flex-start`（値の行）へ揃えた（旧実装は
+//!   `center` で値とラベルの中間に沈んでいた）。
+//! - `action-trigger` を枠線・角丸・余白を持つ outline ボタン相当へ変更し、
+//!   hover・transition を追加した（UA 既定の素の `<button>` のままだった
+//!   最大の差分）。
+//! - `action-trigger` の `:focus-visible` を [`crate::recipe::
+//!   focus_ring_declarations`] の canonical 形へ統一した（手書き
+//!   `outline: 2px solid ...` を廃止）。
+//!
 //! # セグメント表示のレイアウト
 //!
 //! `area` を横並び flex コンテナとし、`item` はセグメント値 + ラベルを縦積みで
 //! 中央揃えする。`item-value` は `font-variant-numeric: tabular-nums` で
 //! 桁の増減時の横幅ガタつき（レイアウトシフト）を防ぐ（時計表示の一般的な
-//! ベストプラクティス）。`separator` は縦積みされた `item` 群の間に挟まる
-//! 想定のため、`item` 自身の縦中央と揃うよう `align-self: center` を与える。
+//! ベストプラクティス）。`separator` は横並びの `area` 内で `item` 群の間に
+//! 挟まる想定のため、値の行（`item-value` の基準線）に揃うよう
+//! `align-self: flex-start` を与える。
 //!
-//! # `data-state` に応じた見た目の切り替え
+//! # `data-state` に応じた見た目の切り替え（root 経由の間接参照）
 //!
-//! `root` の `completed` 状態を控えめな強調色に切り替える
-//! （[`crate::progress`]/[`crate::steps`] 等の完了表現と同じ判断）。
+//! [`SlotRecipe`] は子孫セレクタ機構を持たない（`recipe.rs` 参照、#708 で
+//! 追加しないと確定）ため、`root` の `completed` 状態を `item-value` の
+//! 色へ伝えるには custom property の間接参照を使う（[`crate::table`] の
+//! `--fandhe-table-stripe-bg`・[`crate::qr_code`]・[`crate::splitter`] と
+//! 同型）。`root[data-state="completed"]` が `--fandhe-timer-value-color` を
+//! 強調色へ再定義し、`item-value` の base 規則がこの変数をフォールバック
+//! 付きで参照する。旧実装は `item-value[data-state="completed"]` を
+//! 直接参照していたが、headless 側（`crates/headless-ui/src/timer.rs`）は
+//! `data-state` を root にしか出力しないため、この規則は描画された HTML に
+//! 一度もマッチしない欠陥だった（本イシューで是正）。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - variant（size 等）ごとのクラス切り替えは他の styled 部品と同じく
-//!   スコープ外とする。
+//! - **size（variant）軸**: 唯一の参照元 ark-ui は unstyled で size prop を
+//!   持たない。glob 再エクスポート規約（B-2、`REEXPORT-GLOB-REVIEWED`
+//!   コメント参照）を維持し、本イシューでは追加しない。size 導入には
+//!   styled `root` の新設が必要で、headless 自由関数 `root` /
+//!   `Timer::root` の双方と衝突する公開 API 変更（minor バンプ・選択的
+//!   re-export 化を伴う）になるため、必要になった時点で別イシューとして
+//!   起票する（`docs/design/
+//!   pre-styled-ui-focus-ring-and-size-conventions.md` §4 が timer を
+//!   個別 issue で確定するとしている (b) 候補に分類）。
+//! - **disabled 視覚**: headless `action_trigger`（`crates/headless-ui/
+//!   src/timer.rs`）が `data-disabled` を出力せず、
+//!   `fandhe-frontend-wasm-full` 側も付け外ししないため、CSS 側だけでは
+//!   表現できない（[`crate::clipboard`] と同型のギャップ）。headless 側の
+//!   属性追加は別途 Issue 提案とする。
 //! - `setInterval` による実 tick 駆動・`navigator` 系 API 利用は
 //!   `fandhe-frontend-wasm-full`（`headless_timer` モジュール）のスコープ。
 
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{
+    focus_ring_declarations, hover_bg_muted, hover_surface_declarations, transition_declarations,
+    FocusRingColor, FocusRingOffset, MotionDuration, SlotRecipe, StateCondition,
+};
 
 // REEXPORT-GLOB-REVIEWED: 本モジュールが定義する pub 項目は stylesheet() の
 // みで styled パーツ関数を再定義しない（規約 B-1）。上記「本イシューの
@@ -62,6 +108,8 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("flex-direction", "column"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-4)"),
             ],
         )
         .base(
@@ -69,8 +117,8 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("flex-direction", "row"),
-                decl("align-items", "center"),
-                decl("gap", "var(--fandhe-space-2)"),
+                decl("align-items", "flex-start"),
+                decl("gap", "var(--fandhe-space-4)"),
             ],
         )
         .base(
@@ -79,31 +127,37 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
                 decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-1)"),
             ],
         )
         .base(
             "item-value",
             vec![
                 decl("font-variant-numeric", "tabular-nums"),
-                decl("font-size", "1.5rem"),
-                decl("font-weight", "600"),
-                decl("line-height", "1.2"),
-                decl("color", "var(--fandhe-color-fg)"),
+                decl("font-size", "var(--fandhe-font-font-size-2xl)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                decl("line-height", "var(--fandhe-font-line-height-tight)"),
+                decl(
+                    "color",
+                    "var(--fandhe-timer-value-color, var(--fandhe-color-fg))",
+                ),
             ],
         )
         .base(
             "item-label",
             vec![
-                decl("font-size", "0.75rem"),
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
-                decl("text-transform", "uppercase"),
             ],
         )
         .base(
             "separator",
             vec![
-                decl("font-size", "1.5rem"),
-                decl("align-self", "center"),
+                decl("font-size", "var(--fandhe-font-font-size-2xl)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+                decl("line-height", "var(--fandhe-font-line-height-tight)"),
+                decl("align-self", "flex-start"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
         )
@@ -112,26 +166,65 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("flex-direction", "row"),
+                decl("align-items", "center"),
                 decl("gap", "var(--fandhe-space-2)"),
-                decl("margin-top", "var(--fandhe-space-2)"),
             ],
         )
-        // 完了時は item-value を強調色へ切り替える（[`crate::progress`] 等の
-        // 完了表現と同じ判断、モジュール doc 参照）。
+        // outline ボタン相当（[`crate::button`] の `recipe_with_scope` は
+        // class ベースの size/variant セレクタを出し glob 規約 B-2/B-3 に
+        // 反するため使わず、宣言を直接並べる。モジュール doc「参考サイト
+        // 基準への調整」節参照）。
+        .base(
+            "action-trigger",
+            vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl("box-sizing", "border-box"),
+                decl("min-height", "var(--fandhe-size-control-height-sm)"),
+                decl("padding", "0 var(--fandhe-size-control-padding-x-sm)"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("font-family", "var(--fandhe-font-font-body)"),
+                decl("font-size", "var(--fandhe-size-control-font-size-sm)"),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("cursor", "pointer"),
+                hover_bg_muted(),
+            ]
+            .into_iter()
+            .chain(transition_declarations(
+                "background, border-color, color",
+                MotionDuration::Fast,
+            ))
+            .collect(),
+        )
+        // 完了時は item-value を強調色へ切り替える（root 経由の間接参照、
+        // モジュール doc「`data-state` に応じた見た目の切り替え」節参照。
+        // [`crate::progress`] 等の完了表現と同じ判断）。
         .state(
-            "item-value",
+            "root",
             StateCondition::AttrEq("data-state", "completed"),
-            vec![decl("color", "var(--fandhe-color-accent)")],
+            vec![decl(
+                "--fandhe-timer-value-color",
+                "var(--fandhe-color-accent)",
+            )],
+        )
+        .state(
+            "action-trigger",
+            StateCondition::Hover,
+            hover_surface_declarations(),
         )
         // キーボード操作時のみのフォーカスリング（[`crate::clipboard`]/
-        // [`crate::tooltip`] 等の既存 trigger 系と同じ判断）。
+        // [`crate::tooltip`] 等の既存 trigger 系と同じ判断、イシュー #1424
+        // canonical 形。palette 軸を持たず root は `overflow: hidden` を
+        // 持たないため `FocusRingColor::Token` + `FocusRingOffset::Outside`）。
         .state(
             "action-trigger",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
 }
 
@@ -170,17 +263,54 @@ mod tests {
     }
 
     #[test]
-    fn completed_state_switches_item_value_to_accent_color() {
+    fn completed_state_switches_root_custom_property_consumed_by_item_value() {
         let css = stylesheet();
-        assert!(
-            css.contains(r#"[data-scope="timer"][data-part="item-value"][data-state="completed"]"#)
-        );
+        // root の completed 状態が変数を定義する（headless 側は data-state
+        // を root にしか出さないため、root へのマッチが必須）。
+        assert!(css.contains(r#"[data-scope="timer"][data-part="root"][data-state="completed"] {"#));
+        assert!(css.contains("--fandhe-timer-value-color: var(--fandhe-color-accent);"));
+        // item-value の base 規則がフォールバック付きで同変数を参照する。
+        assert!(css.contains("color: var(--fandhe-timer-value-color, var(--fandhe-color-fg));"));
+    }
+
+    #[test]
+    fn item_label_is_not_uppercased() {
+        let css = stylesheet();
+        assert!(!css.contains("text-transform"));
+    }
+
+    #[test]
+    fn action_trigger_declares_hover_inside_hover_media_query() {
+        let css = stylesheet();
+        let media_start = css
+            .find("@media (hover: hover)")
+            .expect("hover 宣言は @media (hover: hover) へ集約される");
+        let hover_block = &css[media_start..];
+        assert!(hover_block.contains(r#"[data-scope="timer"][data-part="action-trigger"]:hover"#));
+        assert!(hover_block.contains("background: var(--fandhe-hover-bg);"));
+    }
+
+    #[test]
+    fn action_trigger_uses_transition_tokens() {
+        let css = stylesheet();
+        assert!(css.contains("transition-property: background, border-color, color;"));
+        assert!(css.contains("transition-duration: var(--fandhe-motion-duration-fast);"));
     }
 
     #[test]
     fn action_trigger_declares_focus_visible_ring() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="timer"][data-part="action-trigger"]:focus-visible {"#));
+        assert!(css.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+    }
+
+    #[test]
+    fn stylesheet_has_no_raw_color_literals() {
+        let css = stylesheet();
+        assert!(!css.contains('#'));
+        assert!(!css.contains("rgb("));
     }
 
     #[test]

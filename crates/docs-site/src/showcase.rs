@@ -7546,7 +7546,7 @@ fn timer_section() -> Node {
     dispatch(&mut t, "timer:tick", "35000");
 
     let (_, _, minutes, seconds) = t.display_segments();
-    let node = t.root(
+    let running_node = t.root(
         vec![],
         vec![
             timer::area(
@@ -7588,10 +7588,63 @@ fn timer_section() -> Node {
             ),
         ],
     );
+
+    // completed 状態のデモ行（イシュー #1577）: root の `data-state="completed"`
+    // が action-trigger の outline ボタン・item-value の強調色切り替え（root
+    // 経由の custom property 間接参照、`timer.rs` モジュール doc 参照）を
+    // 実際に描画で確認できるようにする。5 秒カウントダウンを最後まで進める。
+    let mut completed = Timer::countdown(5_000, 1_000);
+    dispatch(&mut completed, "timer:start", "");
+    dispatch(&mut completed, "timer:tick", "5000");
+    let (_, _, completed_minutes, completed_seconds) = completed.display_segments();
+    let completed_node = completed.root(
+        vec![],
+        vec![
+            timer::area(
+                vec![],
+                vec![
+                    timer::item(
+                        TimerUnit::Minutes,
+                        vec![],
+                        vec![
+                            timer::item_value(
+                                TimerUnit::Minutes,
+                                vec![],
+                                vec![text(timer::format_segment(completed_minutes))],
+                            ),
+                            timer::item_label(TimerUnit::Minutes, vec![], vec![text("Min")]),
+                        ],
+                    ),
+                    timer::separator(vec![], vec![text(":")]),
+                    timer::item(
+                        TimerUnit::Seconds,
+                        vec![],
+                        vec![
+                            timer::item_value(
+                                TimerUnit::Seconds,
+                                vec![],
+                                vec![text(timer::format_segment(completed_seconds))],
+                            ),
+                            timer::item_label(TimerUnit::Seconds, vec![], vec![text("Sec")]),
+                        ],
+                    ),
+                ],
+            ),
+            timer::control(
+                vec![],
+                vec![timer::action_trigger(
+                    TimerControl::Reset,
+                    vec![],
+                    vec![text("Reset")],
+                )],
+            ),
+        ],
+    );
+
     section(
         "Timer",
-        "headless-ui の Timer（tick 注入型・idle/running/paused/completed の決定的状態機械）に pre-styled-ui のセグメント表示（分:秒）CSS を適用した静的掲示です。90 秒のカウントダウンを開始して 35 秒経過した running 状態を固定表示しています。実 tick 駆動（setInterval）は fandhe-frontend-wasm-full::headless_timer のスコープです。",
-        vec![node],
+        "headless-ui の Timer（tick 注入型・idle/running/paused/completed の決定的状態機械）に pre-styled-ui のセグメント表示（分:秒）CSS を適用した静的掲示です。action-trigger は枠線付きの outline ボタン相当（hover・キーボードフォーカスリング付き）。1 行目は 90 秒のカウントダウンを開始して 35 秒経過した running 状態、2 行目は 5 秒のカウントダウンを最後まで進めた completed 状態（値が強調色に切り替わる）を固定表示しています。実 tick 駆動（setInterval）は fandhe-frontend-wasm-full::headless_timer のスコープです。",
+        vec![running_node, completed_node],
     )
 }
 
