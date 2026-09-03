@@ -98,7 +98,9 @@ use fandhe_frontend_pre_styled_ui::color_picker;
 use fandhe_frontend_pre_styled_ui::color_swatch::{
     self, Color, ColorSwatchProps, Rgb, SwatchShape,
 };
-use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
+use fandhe_frontend_pre_styled_ui::data_list::{
+    self, DataListOrientation, DataListProps, DataListVariant,
+};
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment};
 use fandhe_frontend_pre_styled_ui::date_picker;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
@@ -6642,11 +6644,12 @@ fn table_section() -> Node {
     )
 }
 
-/// DataList 節: orientation（vertical/horizontal）の軸。
+/// DataList 節: orientation（vertical/horizontal）・variant（subtle/bold）・
+/// size（xs〜xl）の 3 軸（イシュー #1559 で variant/size を追加）。
 fn data_list_section() -> Node {
-    fn sample_data_list(orientation: DataListOrientation) -> Node {
+    fn sample_data_list(props: DataListProps) -> Node {
         data_list::root(
-            DataListProps { orientation },
+            props,
             vec![],
             vec![
                 data_list::item(
@@ -6667,14 +6670,56 @@ fn data_list_section() -> Node {
         )
     }
 
-    let demos = stack(vec![
-        sample_data_list(DataListOrientation::Vertical),
-        sample_data_list(DataListOrientation::Horizontal),
+    let orientation_demos = stack(vec![
+        sample_data_list(DataListProps {
+            orientation: DataListOrientation::Vertical,
+            ..DataListProps::default()
+        }),
+        sample_data_list(DataListProps {
+            orientation: DataListOrientation::Horizontal,
+            ..DataListProps::default()
+        }),
     ]);
+
+    let variants = [
+        (DataListVariant::Subtle, "Subtle"),
+        (DataListVariant::Bold, "Bold"),
+    ];
+    let variant_row = stack(
+        variants
+            .iter()
+            .map(|(variant, _label)| {
+                sample_data_list(DataListProps {
+                    variant: *variant,
+                    ..DataListProps::default()
+                })
+            })
+            .collect(),
+    );
+
+    let sizes = [
+        (Size::Xs, "Xs"),
+        (Size::Sm, "Sm"),
+        (Size::Md, "Md"),
+        (Size::Lg, "Lg"),
+        (Size::Xl, "Xl"),
+    ];
+    let size_row = stack(
+        sizes
+            .iter()
+            .map(|(size, _label)| {
+                sample_data_list(DataListProps {
+                    size: *size,
+                    ..DataListProps::default()
+                })
+            })
+            .collect(),
+    );
+
     section(
         "DataList",
-        "dl/dt/dd の定義リスト意味論を尊重したラベル・値の一覧表示。orientation（vertical / horizontal）の 1 軸 variant を持ちます。",
-        vec![demos],
+        "dl/dt/dd の定義リスト意味論を尊重したラベル・値の一覧表示。orientation（vertical / horizontal）・variant（subtle / bold）・size（xs〜xl）の 3 軸 variant を持ちます。",
+        vec![orientation_demos, variant_row, size_row],
     )
 }
 
