@@ -1138,7 +1138,21 @@ name = "fandhe-frontend-pre-styled-ui"
 # マージ済みだった。本ブランチの #1576 はその 0.77.0 を起点に patch
 # バンプ（0.77.1）しており、0.77.0 より大きいためそのまま 0.77.1 を
 # 維持する（追加のバンプは不要）。
-version = "0.77.1"
+#
+# イシュー #1577: timer のスタイル調整。値/ラベル/separator のタイポ
+# トークン化・`--fandhe-timer-value-font-size`/`--fandhe-timer-value-color`
+# custom property 新設・separator の位置是正・action-trigger の outline
+# 風ボタン化（hover/focus-visible/disabled/transition）・
+# `root[data-state]` → custom property 間接参照への是正（一度もマッチしない
+# dead CSS だった旧 `item-value[data-state="completed"]` 規則の撤去）を
+# 行うが、公開 Rust API のシグネチャ・既存 CSS 変数名/クラス名/セレクタの
+# 削除・改名は伴わない意匠調整（`item-value[data-state="completed"]`
+# 規則の削除は一度もマッチしない dead CSS の撤去であり利用者の上書き CSS
+# を壊さない）のため
+# `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3 に従い
+# patch バンプする（CSS 出力変更のため §3.2 により
+# `version-bump-exempt:` は適用しない）。
+version = "0.77.2"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

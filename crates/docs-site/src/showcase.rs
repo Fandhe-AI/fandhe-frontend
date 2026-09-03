@@ -176,7 +176,7 @@ use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSi
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
-use fandhe_frontend_pre_styled_ui::timer::{self, Timer, TimerControl, TimerUnit};
+use fandhe_frontend_pre_styled_ui::timer::{self, Timer, TimerControl, TimerPhase, TimerUnit};
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::toggle_group;
 use fandhe_frontend_pre_styled_ui::toolbar::{self, Toolbar};
@@ -7539,14 +7539,35 @@ fn date_picker_section() -> Node {
 fn timer_section() -> Node {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
 
-    // 90 秒カウントダウン、1 秒 tick。35 秒経過（残り 55 秒）まで進めた状態を
-    // 固定掲示する。
-    let mut t = Timer::countdown(90_000, 1_000);
-    dispatch(&mut t, "timer:start", "");
-    dispatch(&mut t, "timer:tick", "35000");
+    // 90 秒カウントダウン、1 秒 tick。35 秒経過（残り 55 秒）まで進めた
+    // running 状態を固定掲示する。
+    let mut running = Timer::countdown(90_000, 1_000);
+    dispatch(&mut running, "timer:start", "");
+    dispatch(&mut running, "timer:tick", "35000");
+    let running_node = timer_display_node(&running, "Min", "Sec");
 
+    // 5 秒カウントダウンを 5000ms tick で completed まで進めた状態を並べ、
+    // イシュー #1577 で是正した root[data-state="completed"] →
+    // --fandhe-timer-value-color の値色切り替え（accent）が視覚確認できる
+    // ようにする。
+    let mut completed = Timer::countdown(5_000, 1_000);
+    dispatch(&mut completed, "timer:start", "");
+    dispatch(&mut completed, "timer:tick", "5000");
+    debug_assert_eq!(completed.phase(), TimerPhase::Completed);
+    let completed_node = timer_display_node(&completed, "Min", "Sec");
+
+    section(
+        "Timer",
+        "headless-ui の Timer（tick 注入型・idle/running/paused/completed の決定的状態機械）に pre-styled-ui のセグメント表示（分:秒）CSS を適用した静的掲示です。左は 90 秒のカウントダウンを開始して 35 秒経過した running 状態、右は 5 秒のカウントダウンが completed に達した状態（root の data-state に応じて item-value の色が accent へ切り替わる）を固定表示しています。実 tick 駆動（setInterval）は fandhe-frontend-wasm-full::headless_timer のスコープです。",
+        vec![row(vec![running_node, completed_node])],
+    )
+}
+
+/// [`timer_section`] が running / completed の 2 状態で共有する表示ツリー
+/// 組み立てヘルパ（分:秒セグメント + control）。
+fn timer_display_node(t: &Timer, minutes_label: &str, seconds_label: &str) -> Node {
     let (_, _, minutes, seconds) = t.display_segments();
-    let node = t.root(
+    t.root(
         vec![],
         vec![
             timer::area(
@@ -7561,7 +7582,11 @@ fn timer_section() -> Node {
                                 vec![],
                                 vec![text(timer::format_segment(minutes))],
                             ),
-                            timer::item_label(TimerUnit::Minutes, vec![], vec![text("Min")]),
+                            timer::item_label(
+                                TimerUnit::Minutes,
+                                vec![],
+                                vec![text(minutes_label)],
+                            ),
                         ],
                     ),
                     timer::separator(vec![], vec![text(":")]),
@@ -7574,7 +7599,11 @@ fn timer_section() -> Node {
                                 vec![],
                                 vec![text(timer::format_segment(seconds))],
                             ),
-                            timer::item_label(TimerUnit::Seconds, vec![], vec![text("Sec")]),
+                            timer::item_label(
+                                TimerUnit::Seconds,
+                                vec![],
+                                vec![text(seconds_label)],
+                            ),
                         ],
                     ),
                 ],
@@ -7587,11 +7616,6 @@ fn timer_section() -> Node {
                 ],
             ),
         ],
-    );
-    section(
-        "Timer",
-        "headless-ui の Timer（tick 注入型・idle/running/paused/completed の決定的状態機械）に pre-styled-ui のセグメント表示（分:秒）CSS を適用した静的掲示です。90 秒のカウントダウンを開始して 35 秒経過した running 状態を固定表示しています。実 tick 駆動（setInterval）は fandhe-frontend-wasm-full::headless_timer のスコープです。",
-        vec![node],
     )
 }
 

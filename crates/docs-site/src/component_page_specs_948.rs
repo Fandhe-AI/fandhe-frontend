@@ -1505,6 +1505,7 @@ const TIMER_SPEC: ComponentPageSpec = ComponentPageSpec {
         "tick 注入型・idle/running/paused/completed の決定的状態機械（fandhe-frontend-interactive の dispatch 経由）",
         "countdown（カウントダウン）と count_up（カウントアップ）の 2 モードを持つ",
         "実 tick 駆動（setInterval）は fandhe-frontend-wasm-full 側のスコープ（本ページは SSR 静的掲示）",
+        "root の data-state（completed / paused）に応じた item-value の色切り替え・action-trigger の hover / focus ring",
     ],
     arguments: &[
         ArgRow { name: "Timer::countdown", kind: "fn(start_ms, interval_ms) -> Timer", default: "", description: "カウントダウン型 Timer を構築する。" },
