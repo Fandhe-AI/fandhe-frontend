@@ -86,7 +86,7 @@
 
 use fandhe_frontend_core::{el, render, text, Node};
 use fandhe_frontend_pre_styled_ui::accordion;
-use fandhe_frontend_pre_styled_ui::alert::{self, AlertProps, AlertStatus};
+use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
@@ -903,10 +903,7 @@ fn card_section() -> Node {
 fn alert_section() -> Node {
     let make = |status: AlertStatus, title_text: &str, description_text: &str| {
         alert::root(
-            &AlertProps {
-                status,
-                ..AlertProps::default()
-            },
+            status,
             vec![],
             vec![
                 alert::indicator(vec![], vec![text("!")]),
