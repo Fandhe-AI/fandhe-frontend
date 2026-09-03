@@ -1014,7 +1014,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # （#1559）とのマージでは双方の実体変更を包含する上位のバージョンである
 # 0.70.0（本イシューの minor バンプが #1558 の patch バンプを包含する）を
 # そのまま採用する。
-version = "0.70.0"
+# イシュー #1561: icon の size 実寸を #1681 時点の等差外挿から chakra-ui
+# `iconRecipe` 同名段の実寸へ是正した（color-swatch #1558 と同型の意匠
+# 調整）。Rust API シグネチャ・クラス名・CSS 変数名は不変（CSS 宣言値のみ
+# の変更）のため patch バンプする
+# （`docs/ci/style-refresh-version-bump-operation.md` §3.4a）。
+version = "0.70.1"
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
 license = "MIT OR Apache-2.0"

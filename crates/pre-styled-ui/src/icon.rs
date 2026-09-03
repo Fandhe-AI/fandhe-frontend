@@ -17,6 +17,52 @@
 //! [`crate::spinner`]・[`crate::badge`] のようにアイコン自身が状態/意味を
 //! 持つ palette 軸を必要としない。将来個別のアクセント色が必要になれば
 //! 非破壊的に追加できる）。
+//!
+//! # イシュー #1561 の参照サイト比較（7 軸チェック）
+//!
+//! chakra-ui（`Icon`、`iconRecipe` の `size` 軸: xs=3=0.75rem/
+//! sm=4=1rem/md=5=1.25rem/lg=6=1.5rem/xl=7=1.75rem/2xl=8=2rem、既定
+//! `inherit`。`variant`/`colorPalette` 軸なし。ark-ui / Radix Themes /
+//! Radix Primitives には対応部品がない。Radix `AccessibleIcon` は #1066 で
+//! 代替検証済みの別論点）とスクリーンショット
+//! （`docs/design/reference-screenshots/chakra-icon-{1,2,3}.png`・
+//! `themes-icon.png`）を比較した結果を記録する。
+//!
+//! - **サイズ**: [`crate::recipe::Size`] の Xs〜Xl の実寸を、#1681 時点の
+//!   等差外挿（Xs=0.5rem/Sm=1rem/Md=1.5rem/Lg=2rem/Xl=2.5rem）から chakra
+//!   の同名段の実寸（Xs=0.75rem/Sm=1rem/Md=1.25rem/Lg=1.5rem/Xl=1.75rem）
+//!   へ是正した（color-swatch #1558 と同型の判断）。`SlotRecipe::size_variants`
+//!   経由にすることで既定 `Md` を構造的に保証する
+//!   （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+//!   §4）。chakra の `2xl`（2rem）は共通語彙 `recipe::Size`（5 段）に
+//!   存在しないため採らない。chakra の既定 `inherit`（寸法宣言なしで
+//!   祖先フォントサイズへ追従）は「size 軸を持つ styled 部品は既定が
+//!   必ず `md`」という規約（同文書 §4）と衝突するため意図的に合わせず、
+//!   既定 `Md`（1.25rem 固定）を維持する。
+//! - **バリアント**: chakra `Icon` は `variant` 軸を持たない。増減なし。
+//! - **色**: `color: currentColor` 継承のみ（変更なし）。chakra の
+//!   `colorPalette`/`color` は recipe 外のスタイル prop であり、本部品も
+//!   palette 軸は非提供のまま（既存の設計判断を維持）。生の色リテラルは
+//!   持ち込まない。
+//! - **状態（`data-*`）**: 増減なし。`data-scope`/`data-part` のみ。
+//! - **ダーク**: 非適用（意図的）。`currentColor` 継承のため祖先の
+//!   文字色トークン再定義に自動追従し、部品固有の色宣言を持たない。
+//! - **フォーカス**: 非適用（意図的）。`focusable="false"` の
+//!   非インタラクティブ `<svg>` であり #1424 の適用対象外。
+//! - **余白・角丸・影**: 変更なし。参照にも無い。chakra base の
+//!   `line-height: 1em` は、本実装の root が常に `<svg>`（インライン
+//!   内容を持たない）であるため line box に影響せず、追加を見送る。
+//! - **hover / disabled / transition**: 非適用（意図的）。
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md` §3 が
+//!   「表示専用には hover を付けない」と明記しており、disabled 概念・
+//!   遷移対象もない。
+//!
+//! ## スコープ外（変更しない点）
+//!
+//! [`crate::spinner`] の size 実寸（現在 icon と同じ旧等差外挿）は #1567
+//! が担当し、本イシューでは触らない。chakra `2xl`/`inherit` 段の追加は
+//! 共通語彙 `recipe::Size` の拡張論点であり本イシュー外（親 #1420 配下で
+//! 別途提案）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -29,8 +75,10 @@ const ANATOMY: Anatomy = anatomy("icon");
 
 /// Icon の recipe（scope `"icon"`、slot `"root"` のみ）。
 ///
-/// `Size` 軸の寸法は [`crate::spinner`] の `size` variant と同じスケール
-/// （1rem/1.5rem/2rem）を採用し、styled 部品間で寸法感覚を揃える。
+/// `Size` 軸の寸法は chakra-ui `iconRecipe` の同名段の実寸（イシュー
+/// #1561）に整合させる。#1681 時点の等差外挿（0.5rem 刻み）から
+/// chakra 同名段（xs=0.75rem/sm=1rem/md=1.25rem/lg=1.5rem/xl=1.75rem）へ
+/// 是正済み。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("icon", &["root"])
         .base(
@@ -42,33 +90,40 @@ fn recipe() -> SlotRecipe {
                 decl("vertical-align", "middle"),
             ],
         )
-        // イシュー #1681: Xs/Xl は Sm→Md→Lg の 0.5rem 刻み等差進行を外挿。
-        .variant(
-            Size::Xs,
+        // イシュー #1561: #1681 時点の 0.5rem 刻み等差外挿
+        // （Xs=0.5rem/Sm=1rem/Md=1.5rem/Lg=2rem/Xl=2.5rem）から chakra-ui
+        // `iconRecipe` の同名段の実寸へ是正。`SlotRecipe::size_variants`
+        // 経由にすることで既定 `Md` を構造的に保証する
+        // （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+        // §4）。chakra の `2xl`（2rem）/`inherit`（既定・寸法宣言なし）は
+        // 共通語彙 `recipe::Size`（5 段）・§4 の「既定は必ず `md`」規約と
+        // 衝突するため採らない（モジュール冒頭「イシュー #1561 の参照
+        // サイト比較」参照）。
+        .size_variants(
             "root",
-            vec![decl("width", "0.5rem"), decl("height", "0.5rem")],
+            &[
+                (
+                    Size::Xs,
+                    vec![decl("width", "0.75rem"), decl("height", "0.75rem")],
+                ),
+                (
+                    Size::Sm,
+                    vec![decl("width", "1rem"), decl("height", "1rem")],
+                ),
+                (
+                    Size::Md,
+                    vec![decl("width", "1.25rem"), decl("height", "1.25rem")],
+                ),
+                (
+                    Size::Lg,
+                    vec![decl("width", "1.5rem"), decl("height", "1.5rem")],
+                ),
+                (
+                    Size::Xl,
+                    vec![decl("width", "1.75rem"), decl("height", "1.75rem")],
+                ),
+            ],
         )
-        .variant(
-            Size::Sm,
-            "root",
-            vec![decl("width", "1rem"), decl("height", "1rem")],
-        )
-        .variant(
-            Size::Md,
-            "root",
-            vec![decl("width", "1.5rem"), decl("height", "1.5rem")],
-        )
-        .variant(
-            Size::Lg,
-            "root",
-            vec![decl("width", "2rem"), decl("height", "2rem")],
-        )
-        .variant(
-            Size::Xl,
-            "root",
-            vec![decl("width", "2.5rem"), decl("height", "2.5rem")],
-        )
-        .default_variant(Size::Md)
 }
 
 /// Icon の静的 CSS 全文。
@@ -170,9 +225,11 @@ mod tests {
     #[test]
     fn size_variants_map_to_expected_classes() {
         for (size, class) in [
+            (Size::Xs, "fd-icon--size-xs"),
             (Size::Sm, "fd-icon--size-sm"),
             (Size::Md, "fd-icon--size-md"),
             (Size::Lg, "fd-icon--size-lg"),
+            (Size::Xl, "fd-icon--size-xl"),
         ] {
             let props = IconProps {
                 size,
@@ -184,6 +241,32 @@ mod tests {
                 "size={size:?} -> {html}"
             );
         }
+    }
+
+    #[test]
+    fn size_md_is_default_variant() {
+        // イシュー #1561: `size_variants` 経由でも既定が `Md`
+        // （1.25rem）のまま保たれることを固定する（前掲 rustdoc の
+        // 「既定は必ず `md`」規約の裏付け）。
+        let html_default = render(&icon(&IconProps::default(), vec![], vec![]));
+        let props_md = IconProps {
+            size: Size::Md,
+            ..IconProps::default()
+        };
+        let html_md = render(&icon(&props_md, vec![], vec![]));
+        assert_eq!(html_default, html_md);
+        assert!(html_default.contains(r#"class="fd-icon--size-md""#));
+    }
+
+    #[test]
+    fn css_has_no_raw_color_literals() {
+        // イシュー #1561: 色は `currentColor` 継承のみで、生の色リテラル
+        // （16 進数・`rgb(`/`rgba(`）を持ち込まないことを固定する
+        // （モジュール冒頭「イシュー #1561 の参照サイト比較」の「色」節）。
+        let css = css();
+        assert!(!css.contains('#'));
+        assert!(!css.contains("rgb("));
+        assert!(!css.contains("rgba("));
     }
 
     #[test]
@@ -257,10 +340,15 @@ mod tests {
 
     #[test]
     fn css_output_declares_size_and_currentcolor() {
+        // イシュー #1561: chakra-ui `iconRecipe` 同名段の実寸へ是正済み
+        // （0.75rem/1rem/1.25rem/1.5rem/1.75rem）。
         let out = css();
         assert!(out.contains("color: currentColor;"));
+        assert!(out.contains("width: 0.75rem;"));
         assert!(out.contains("width: 1rem;"));
-        assert!(out.contains("width: 2rem;"));
+        assert!(out.contains("width: 1.25rem;"));
+        assert!(out.contains("width: 1.5rem;"));
+        assert!(out.contains("width: 1.75rem;"));
     }
 
     #[test]
