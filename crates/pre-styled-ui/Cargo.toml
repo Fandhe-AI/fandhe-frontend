@@ -1213,18 +1213,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # コンフリクトの解決手順（並列 PR 間）」に従い、main の現在値 0.78.2 の
 # patch を +1 した 0.78.3 へバンプする。
 #
-# マージ時の追記（2 回目、#1583 と main の再マージ）: 本ブランチ（#1583、上記により
-# 0.78.3 へ到達）と main（#1580/#1853 の統合により独立に 0.78.3 へ到達済み）が
-# 同一版数へ偶発的に衝突した。
-# `docs/ci/style-refresh-version-bump-operation.md` §5「version 行コンフリクト
-# の解決手順（並列 PR 間）」の機械的解決手順（自分（本コミットで取り込む
-# #1583 側）が patch バンプのため、main の現在値 0.78.3 の patch を +1 した
-# 値を採用する）に従い 0.78.4 へさらに patch バンプする。
-#
-# イシュー #1586: skip-nav（Themes）のスタイルを参考サイト基準へ調整した。
-# Rust API 不変・CSS セレクタ/CSS 変数名の削除なしの意匠調整のため
-# patch バンプ（`docs/ci/style-refresh-version-bump-operation.md` §5）。
-version = "0.78.5"
+# マージ時の追記（3 回目、main の再マージ）: main（#1580/#1583/#1585/#1853 等の
+# 統合）は独立に 0.79.0 へ到達済みだった。本ブランチ（#1586）は
+# skip-nav（Themes）のスタイルを参考サイト基準へ調整したのみで、Rust API
+# 不変・CSS セレクタ/CSS 変数名の削除なしの意匠調整のため patch バンプ
+# （`docs/ci/style-refresh-version-bump-operation.md` §5「version 行
+# コンフリクトの解決手順（並列 PR 間）」に従い、main の現在値 0.79.0 の
+# patch を +1 した 0.79.1 へバンプする。
+version = "0.79.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
