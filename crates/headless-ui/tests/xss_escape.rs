@@ -304,12 +304,15 @@ fn slider_name_label_and_valuetext_are_escaped_for_all_payloads() {
     }
 }
 
-/// (1)/(2)/(3) ImageCropper（イシュー #844）: `image` の `src`/`alt`（属性値
+/// (1)/(2)/(3) ImageCropper（イシュー #844、シグネチャはイシュー #1610 で
+/// `ImageCropperProps` 追加に追随）: `image` の `src`/`alt`（属性値
 /// 経路）・`selection` の children（テキスト経路）・`root`/`handle` の
 /// 呼び出し側 `attrs`（属性値経路）へ全ペイロードを注入し、エスケープが
 /// 貫通することを固定する。
 #[test]
 fn image_cropper_src_alt_children_and_attrs_are_escaped_for_all_payloads() {
+    let props = image_cropper::ImageCropperProps::default();
+    let state = image_cropper::ImageCropper::default();
     for payload in payloads::all() {
         // `image_cropper::image` は `<img>` タグ自体を出力するため、
         // 実タグ出現の有無を見る `assert_payload_is_escaped` の共通チェック
@@ -330,7 +333,7 @@ fn image_cropper_src_alt_children_and_attrs_are_escaped_for_all_payloads() {
              が出力にそのまま残っている: payload={payload:?}, html={html}"
         );
 
-        let selection_node = image_cropper::selection(vec![], vec![text(payload)]);
+        let selection_node = image_cropper::selection(&state, &props, vec![], vec![text(payload)]);
         let html = render(&selection_node);
         assert_payload_is_escaped(
             payload,
@@ -338,7 +341,7 @@ fn image_cropper_src_alt_children_and_attrs_are_escaped_for_all_payloads() {
             "image_cropper::selection のテキストコンテキスト",
         );
 
-        let root_node = image_cropper::root(vec![("data-testid", payload)], vec![]);
+        let root_node = image_cropper::root(&props, vec![("data-testid", payload)], vec![]);
         let html = render(&root_node);
         assert_payload_is_escaped(
             payload,
@@ -348,6 +351,7 @@ fn image_cropper_src_alt_children_and_attrs_are_escaped_for_all_payloads() {
 
         let handle_node = image_cropper::handle(
             image_cropper::HandlePosition::Se,
+            &props,
             vec![("data-testid", payload)],
         );
         let html = render(&handle_node);
@@ -459,8 +463,9 @@ fn password_input_id_and_label_text_are_escaped_for_all_payloads() {
 /// の 3 経路のみを扱う。
 #[test]
 fn pin_input_hidden_input_and_input_value_are_escaped_for_all_payloads() {
-    use fandhe_frontend_headless_ui::pin_input::PinInputKind;
+    use fandhe_frontend_headless_ui::pin_input::{PinInputKind, PinInputProps};
 
+    let props = PinInputProps::default();
     for payload in payloads::all() {
         let hidden_node = pin_input::hidden_input(payload, payload, false, vec![]);
         let html = render(&hidden_node);
@@ -477,14 +482,14 @@ fn pin_input_hidden_input_and_input_value_are_escaped_for_all_payloads() {
             PinInputKind::Alphanumeric,
             false,
             false,
-            false,
+            &props,
             false,
             vec![],
         );
         let html = render(&input_node);
         assert_payload_is_escaped(payload, &html, "pin_input::input の value コンテキスト");
 
-        let attrs_node = pin_input::root(false, false, vec![("data-testid", payload)], vec![]);
+        let attrs_node = pin_input::root(false, &props, vec![("data-testid", payload)], vec![]);
         let html = render(&attrs_node);
         assert_payload_is_escaped(
             payload,
@@ -611,8 +616,14 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
 /// 固定する（`tags_input` 分と同型の網羅方針）。
 #[test]
 fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
+    let props = file_upload::FileUploadProps::default();
     for payload in payloads::all() {
-        let item_name_node = file_upload::item_name(vec![], vec![text(payload)]);
+        let item_name_node = file_upload::item_name(
+            file_upload::ItemType::Accepted,
+            &props,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&item_name_node);
         assert_payload_is_escaped(
             payload,
@@ -620,7 +631,12 @@ fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
             "file_upload::item_name の children コンテキスト",
         );
 
-        let item_size_text_node = file_upload::item_size_text_node(vec![], vec![text(payload)]);
+        let item_size_text_node = file_upload::item_size_text_node(
+            file_upload::ItemType::Accepted,
+            &props,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&item_size_text_node);
         assert_payload_is_escaped(
             payload,
@@ -628,7 +644,13 @@ fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
             "file_upload::item_size_text_node の children コンテキスト",
         );
 
-        let delete_trigger_node = file_upload::item_delete_trigger(payload, false, vec![], vec![]);
+        let delete_trigger_node = file_upload::item_delete_trigger(
+            payload,
+            file_upload::ItemType::Accepted,
+            &props,
+            vec![],
+            vec![],
+        );
         let html = render(&delete_trigger_node);
         assert_payload_is_escaped(
             payload,
@@ -636,7 +658,7 @@ fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
             "file_upload::item_delete_trigger の aria-label コンテキスト",
         );
 
-        let hidden_input_node = file_upload::hidden_input(payload, false, false, vec![]);
+        let hidden_input_node = file_upload::hidden_input(payload, false, &props, vec![]);
         let html = render(&hidden_input_node);
         assert_payload_is_escaped(
             payload,
@@ -644,7 +666,7 @@ fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
             "file_upload::hidden_input の accept 属性コンテキスト",
         );
 
-        let attrs_node = file_upload::root(false, vec![("data-testid", payload)], vec![]);
+        let attrs_node = file_upload::root(&props, false, vec![("data-testid", payload)], vec![]);
         let html = render(&attrs_node);
         assert_payload_is_escaped(
             payload,
@@ -1111,9 +1133,12 @@ fn qr_code_root_attrs_and_overlay_children_are_escaped_for_all_payloads() {
 /// エスケープが貫通することを固定する。
 #[test]
 fn listbox_item_text_value_id_and_hydration_paths_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::listbox::ListboxProps;
+    let props = ListboxProps::default();
     for payload in payloads::all() {
         let item_node = listbox::item(
             OpenState::Open,
+            &props,
             false,
             false,
             payload,
@@ -1128,7 +1153,15 @@ fn listbox_item_text_value_id_and_hydration_paths_are_escaped_for_all_payloads()
             "listbox::item の data-value/id コンテキスト",
         );
 
-        let item_text_node = listbox::item_text(Some(payload), vec![], vec![text(payload)]);
+        let item_text_node = listbox::item_text(
+            OpenState::Open,
+            &listbox::ListboxProps::default(),
+            false,
+            false,
+            Some(payload),
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&item_text_node);
         assert_payload_is_escaped(
             payload,
@@ -1138,6 +1171,7 @@ fn listbox_item_text_value_id_and_hydration_paths_are_escaped_for_all_payloads()
 
         let content_node = listbox::content(
             false,
+            &props,
             Some(payload),
             Some(payload),
             Some(payload),
@@ -1151,7 +1185,7 @@ fn listbox_item_text_value_id_and_hydration_paths_are_escaped_for_all_payloads()
             "listbox::content の id/labelledby/activedescendant コンテキスト",
         );
 
-        let value_text_node = listbox::value_text(false, vec![], vec![text(payload)]);
+        let value_text_node = listbox::value_text(false, &props, vec![], vec![text(payload)]);
         let html = render(&value_text_node);
         assert_payload_is_escaped(
             payload,

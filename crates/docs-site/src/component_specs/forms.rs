@@ -53,7 +53,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
 };
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
 use fandhe_frontend_pre_styled_ui::image_cropper;
-use fandhe_frontend_pre_styled_ui::image_cropper::HandlePosition;
+use fandhe_frontend_pre_styled_ui::image_cropper::{HandlePosition, ImageCropperProps};
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
@@ -448,7 +448,7 @@ const EDITABLE: ComponentPageSpec = ComponentPageSpec {
 const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "headless-ui の `file_upload::root` へ委譲し、`size` variant クラスのみを付与する。",
-        "`disabled` の単一状態フラグを直接引数で受け取る。",
+        "`FileUploadProps`（disabled/readonly/invalid/required）と `dragging`（`data-dragging` の DOM ローカル状態）を引数で受け取り、headless 層へそのまま委譲する（イシュー #1609 の headless 側破壊的変更への追随）。",
         "`item` の `data-invalid` は headless 層が出力しないため（旧 `checkbox_group` の判断。#1603 で checkbox_group 側は headless 出力へ移行済み）、利用者が `item` の `attrs` へ `(\"data-invalid\", \"\")` を直接付与することで border-color を danger 色化できる。",
         "`item` は border と border-color の transition（`data-invalid` 用）を持つ。`item-delete-trigger` は hover（`@media (hover: hover)`）を持つが、`item` が既に opacity 0.5 で dim 済みのため disabled は `cursor: not-allowed` のみに留め、opacity の三重適用（root × item × item-delete-trigger）を避ける。",
     ],
@@ -460,10 +460,16 @@ const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
             description: "サイズ variant。",
         },
         ArgRow {
-            name: "disabled",
+            name: "props",
+            kind: "&FileUploadProps",
+            default: "",
+            description: "disabled/readonly/invalid/required の状態束（headless 層へそのまま委譲）。",
+        },
+        ArgRow {
+            name: "dragging",
             kind: "bool",
             default: "false",
-            description: "無効化状態。",
+            description: "root の `data-dragging`（wasm-full 側が DOM ローカルにトグルする想定）。",
         },
         ArgRow {
             name: "attrs",
@@ -1487,6 +1493,7 @@ fn demo_image_cropper() -> Node {
     // 視覚確認できないため、本イシュー（#1480）担当パートの視覚確認用に
     // 非全域の選択状態を作る。
     let state = ImageCropper::new(200, 120, 40, 24, 120, 72, None, 1);
+    let props = ImageCropperProps::default();
     let handles = [
         HandlePosition::N,
         HandlePosition::S,
@@ -1498,7 +1505,7 @@ fn demo_image_cropper() -> Node {
         HandlePosition::Sw,
     ]
     .into_iter()
-    .map(|position| image_cropper::handle(position, vec![]))
+    .map(|position| image_cropper::handle(position, &props, vec![]))
     .collect::<Vec<_>>();
 
     demo_section(
@@ -1507,17 +1514,20 @@ fn demo_image_cropper() -> Node {
         image_cropper::root(
             Size::Md,
             &state,
+            &props,
             vec![],
             vec![image_cropper::viewport(
+                &props,
                 vec![],
                 vec![
                     image_cropper::image(IMAGE_CROPPER_DEMO_IMAGE_SRC, "", vec![]),
                     image_cropper::selection(
                         &state,
+                        &props,
                         vec![],
                         handles
                             .into_iter()
-                            .chain(std::iter::once(image_cropper::grid(vec![])))
+                            .chain(std::iter::once(image_cropper::grid(None, &props, vec![])))
                             .collect(),
                     ),
                 ],
@@ -1531,6 +1541,10 @@ fn demo_image_cropper() -> Node {
 /// ダミー値 `"1"` を入れて `data-complete` の枠色を視覚確認できるように
 /// する。
 fn pin_input_cells(count: usize, complete: bool, disabled: bool) -> Vec<Node> {
+    let props = pin_input::PinInputProps {
+        disabled,
+        ..Default::default()
+    };
     (0..count)
         .map(|i| {
             let value = if complete { "1" } else { "" };
@@ -1541,7 +1555,7 @@ fn pin_input_cells(count: usize, complete: bool, disabled: bool) -> Vec<Node> {
                 pin_input::PinInputKind::Numeric,
                 false,
                 false,
-                disabled,
+                &props,
                 complete,
                 vec![],
             )
@@ -1556,13 +1570,17 @@ fn demo_pin_input() -> Node {
     // （イシュー #1489。従来は children 空の root のみで視覚確認できな
     // かった）。
     let build = |size: Size, complete: bool, disabled: bool| {
+        let props = pin_input::PinInputProps {
+            disabled,
+            ..Default::default()
+        };
         pin_input::root(
             size,
             complete,
             disabled,
             vec![],
             vec![
-                pin_input::label(complete, vec![], vec![text("PIN code")]),
+                pin_input::label(complete, &props, vec![], vec![text("PIN code")]),
                 pin_input::control(vec![], pin_input_cells(4, complete, disabled)),
             ],
         )

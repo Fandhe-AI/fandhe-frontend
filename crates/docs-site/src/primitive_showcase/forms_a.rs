@@ -21,7 +21,7 @@ use hui::editable::{
 use hui::field::{self, FieldProps};
 use hui::fieldset::{self, FieldsetProps};
 use hui::file_upload;
-use hui::image_cropper::{self, HandlePosition};
+use hui::image_cropper::{self, GridAxis, HandlePosition, ImageCropper, ImageCropperProps};
 use hui::listbox;
 use hui::{angle_slider, checkbox, OpenState};
 
@@ -1087,123 +1087,417 @@ pub(super) fn fieldset_section() -> Node {
     demo_page("Fieldset", body)
 }
 
-pub(super) fn file_upload_section() -> Node {
-    let body = vec![file_upload::root(
-        false,
+/// [`file_upload::FileUploadProps`] を状態別に組み立てる非公開ヘルパ
+/// （既定/disabled/readonly+invalid+required の 3 状態を Demo が並べる、
+/// イシュー #1609 参照突合）。
+fn file_upload_props(
+    disabled: bool,
+    readonly: bool,
+    invalid: bool,
+    required: bool,
+) -> file_upload::FileUploadProps {
+    file_upload::FileUploadProps {
+        disabled,
+        readonly,
+        invalid,
+        required,
+    }
+}
+
+/// 1 個の受理済み/拒否済みファイル `item` を組み立てる非公開ヘルパ。
+fn file_upload_item(
+    name: &'static str,
+    size_bytes: u64,
+    item_type: file_upload::ItemType,
+    props: &file_upload::FileUploadProps,
+) -> Node {
+    file_upload::item(
+        item_type,
+        props,
         vec![],
         vec![
-            file_upload::label(vec![], vec![text("Attachments")]),
-            file_upload::dropzone(
-                false,
-                false,
-                vec![("aria-label", "Drop files here")],
+            file_upload::item_name(item_type, props, vec![], vec![text(name)]),
+            file_upload::item_size_text_node(
+                item_type,
+                props,
+                vec![],
+                vec![text(file_upload::item_size_text(size_bytes))],
+            ),
+            file_upload::item_delete_trigger(name, item_type, props, vec![], vec![text("Remove")]),
+        ],
+    )
+}
+
+/// 1 セット分（root > label + dropzone(trigger + hidden-input) +
+/// item-group(accepted) + item-group(rejected) + clear-trigger）を組み立てる
+/// 非公開ヘルパ。11 anatomy パーツ全てを毎回含める。
+fn file_upload_instance(
+    caption: &'static str,
+    props: file_upload::FileUploadProps,
+    dragging: bool,
+    has_items: bool,
+) -> Node {
+    let accepted_items = if has_items {
+        vec![file_upload_item(
+            "photo.png",
+            204_800,
+            file_upload::ItemType::Accepted,
+            &props,
+        )]
+    } else {
+        vec![]
+    };
+    let rejected_items = if has_items {
+        vec![file_upload_item(
+            "malware.exe",
+            10_240,
+            file_upload::ItemType::Rejected,
+            &props,
+        )]
+    } else {
+        vec![]
+    };
+    fandhe_frontend_core::el(
+        "div",
+        vec![],
+        vec![
+            fandhe_frontend_core::el("p", vec![], vec![text(caption)]),
+            file_upload::root(
+                &props,
+                dragging,
+                vec![],
                 vec![
-                    text("Drag files here or"),
-                    file_upload::trigger(false, vec![], vec![text("Browse")]),
-                    file_upload::hidden_input("image/*", true, false, vec![]),
+                    file_upload::label(&props, vec![], vec![text("Attachments")]),
+                    file_upload::dropzone(
+                        &props,
+                        dragging,
+                        vec![],
+                        vec![
+                            text("Drag files here or"),
+                            file_upload::trigger(&props, vec![], vec![text("Browse")]),
+                            file_upload::hidden_input("image/*", true, &props, vec![]),
+                        ],
+                    ),
+                    file_upload::item_group(
+                        file_upload::ItemType::Accepted,
+                        &props,
+                        vec![],
+                        accepted_items,
+                    ),
+                    file_upload::item_group(
+                        file_upload::ItemType::Rejected,
+                        &props,
+                        vec![],
+                        rejected_items,
+                    ),
+                    file_upload::clear_trigger(&props, !has_items, vec![], vec![text("Clear all")]),
                 ],
             ),
-            file_upload::item_group(
-                vec![],
-                vec![file_upload::item(
-                    false,
-                    vec![],
-                    vec![
-                        file_upload::item_name(vec![], vec![text("photo.png")]),
-                        file_upload::item_size_text_node(
-                            vec![],
-                            vec![text(file_upload::item_size_text(204_800))],
-                        ),
-                        file_upload::item_delete_trigger(
-                            "photo.png",
-                            false,
-                            vec![],
-                            vec![text("Remove")],
-                        ),
-                    ],
-                )],
-            ),
-            file_upload::clear_trigger(false, vec![], vec![text("Clear all")]),
         ],
-    )];
+    )
+}
+
+pub(super) fn file_upload_section() -> Node {
+    let body = vec![
+        file_upload_instance(
+            "Default（受理済み + 拒否済みファイル各 1 件）",
+            file_upload_props(false, false, false, false),
+            false,
+            true,
+        ),
+        file_upload_instance(
+            "Disabled",
+            file_upload_props(true, false, false, false),
+            false,
+            false,
+        ),
+        file_upload_instance(
+            "Readonly + Invalid + Required",
+            file_upload_props(false, true, true, true),
+            false,
+            false,
+        ),
+        file_upload_instance(
+            "Dragging（data-dragging）",
+            file_upload_props(false, false, false, false),
+            true,
+            false,
+        ),
+    ];
     demo_page("File Upload", body)
 }
 
+/// イシュー #1610（参照実装突合）: `ImageCropperProps`（`data-disabled`/
+/// `data-dragging`）・`GridAxis`（`data-axis`）を含む `data-*` 表を機械
+/// 導出するため、既定 props（8 方位 handle + 横軸/縦軸 grid）と
+/// disabled + dragging props（`grid(None, ..)`）の 2 インスタンスを並べる
+/// （`angle_slider_section` の既定/readonly・invalid 2 インスタンス構成と
+/// 同型）。
 pub(super) fn image_cropper_section() -> Node {
-    let body = vec![image_cropper::root(
-        vec![],
-        vec![
-            image_cropper::viewport(
-                vec![],
-                vec![image_cropper::image(
-                    "https://example.com/sample.jpg",
-                    "Sample photo to crop",
+    let state = ImageCropper::default();
+    let default_props = ImageCropperProps::default();
+    let body = vec![
+        image_cropper::root(
+            &default_props,
+            vec![],
+            vec![
+                image_cropper::viewport(
+                    &default_props,
                     vec![],
-                )],
-            ),
-            image_cropper::selection(
-                vec![],
-                vec![
-                    image_cropper::handle(HandlePosition::N, vec![]),
-                    image_cropper::handle(HandlePosition::S, vec![]),
-                    image_cropper::handle(HandlePosition::E, vec![]),
-                    image_cropper::handle(HandlePosition::W, vec![]),
-                ],
-            ),
-            image_cropper::grid(vec![]),
-        ],
-    )];
+                    vec![image_cropper::image(
+                        "https://example.com/sample.jpg",
+                        "Sample photo to crop",
+                        vec![],
+                    )],
+                ),
+                image_cropper::selection(
+                    &state,
+                    &default_props,
+                    vec![],
+                    vec![
+                        image_cropper::handle(HandlePosition::N, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::S, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::E, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::W, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::Ne, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::Nw, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::Se, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::Sw, &default_props, vec![]),
+                    ],
+                ),
+                image_cropper::grid(Some(GridAxis::Horizontal), &default_props, vec![]),
+                image_cropper::grid(Some(GridAxis::Vertical), &default_props, vec![]),
+            ],
+        ),
+        image_cropper::root(
+            &ImageCropperProps {
+                disabled: true,
+                dragging: true,
+            },
+            vec![],
+            vec![
+                image_cropper::viewport(
+                    &ImageCropperProps {
+                        disabled: true,
+                        dragging: true,
+                    },
+                    vec![],
+                    vec![image_cropper::image(
+                        "https://example.com/sample.jpg",
+                        "Sample photo to crop",
+                        vec![],
+                    )],
+                ),
+                image_cropper::selection(
+                    &state,
+                    &ImageCropperProps {
+                        disabled: true,
+                        dragging: true,
+                    },
+                    vec![],
+                    vec![image_cropper::handle(
+                        HandlePosition::Se,
+                        &ImageCropperProps {
+                            disabled: true,
+                            dragging: true,
+                        },
+                        vec![],
+                    )],
+                ),
+                image_cropper::grid(
+                    None,
+                    &ImageCropperProps {
+                        disabled: true,
+                        dragging: true,
+                    },
+                    vec![],
+                ),
+            ],
+        ),
+    ];
     demo_page("Image Cropper", body)
 }
 
 pub(super) fn listbox_section() -> Node {
+    // single モード（イシュー #1611 参照突合前と同一の見た目）。
+    let single_props = hui::listbox::ListboxProps::default();
     let selection_state = OpenState::Open;
-    let body = vec![listbox::root(
+    let single = listbox::root(
         selection_state,
-        false,
+        &single_props,
         vec![],
         vec![
-            listbox::label(Some("lb-label"), vec![], vec![text("Fruit")]),
+            listbox::label(&single_props, Some("lb-label"), vec![], vec![text("Fruit")]),
             listbox::content(
                 false,
+                &single_props,
                 Some("lb-content"),
                 Some("lb-label"),
                 Some("lb-item-0"),
                 vec![],
                 vec![listbox::item_group(
+                    &single_props,
                     None,
                     vec![],
                     vec![
                         listbox::item_group_label(None, vec![], vec![text("Common")]),
                         listbox::item(
                             OpenState::Open,
+                            &single_props,
                             false,
                             true,
                             "apple",
                             Some("lb-item-0"),
                             vec![],
                             vec![
-                                listbox::item_text(None, vec![], vec![text("Apple")]),
+                                listbox::item_text(
+                                    OpenState::Open,
+                                    &single_props,
+                                    false,
+                                    true,
+                                    None,
+                                    vec![],
+                                    vec![text("Apple")],
+                                ),
                                 listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
                             ],
                         ),
                         listbox::item(
                             OpenState::Closed,
+                            &single_props,
                             false,
                             false,
                             "banana",
                             None,
                             vec![],
                             vec![
-                                listbox::item_text(None, vec![], vec![text("Banana")]),
+                                listbox::item_text(
+                                    OpenState::Closed,
+                                    &single_props,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Banana")],
+                                ),
+                                listbox::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                        // item-level disabled（イシュー #1611 参照突合: root disabled=false
+                        // + item disabled=true が data-orientation/data-selected と並んで
+                        // Anatomy/data-* 表へ機械的に露出することを示す）。
+                        listbox::item(
+                            OpenState::Closed,
+                            &single_props,
+                            true,
+                            false,
+                            "cherry",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(
+                                    OpenState::Closed,
+                                    &single_props,
+                                    true,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Cherry (disabled)")],
+                                ),
                                 listbox::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
                             ],
                         ),
                     ],
                 )],
             ),
-            listbox::value_text(false, vec![], vec![text("Apple")]),
+            listbox::value_text(false, &single_props, vec![], vec![text("Apple")]),
         ],
-    )];
-    demo_page("Listbox", body)
+    );
+
+    // multiple + horizontal + root disabled モード（イシュー #1611 参照突合:
+    // root disabled が item へ伝播すること・data-orientation="horizontal" が
+    // root/content/item-group/item へ出力されることを Demo 経由で
+    // Anatomy/data-* 表へ機械的に露出させる）。
+    let multi_props = hui::listbox::ListboxProps {
+        disabled: true,
+        orientation: hui::Orientation::Horizontal,
+    };
+    let multiple = listbox::root(
+        OpenState::Open,
+        &multi_props,
+        vec![],
+        vec![
+            listbox::label(
+                &multi_props,
+                Some("lb-multi-label"),
+                vec![],
+                vec![text("Toppings")],
+            ),
+            listbox::content(
+                true,
+                &multi_props,
+                Some("lb-multi-content"),
+                Some("lb-multi-label"),
+                None,
+                vec![],
+                vec![listbox::item_group(
+                    &multi_props,
+                    Some("lb-multi-group-label"),
+                    vec![],
+                    vec![
+                        listbox::item_group_label(
+                            Some("lb-multi-group-label"),
+                            vec![],
+                            vec![text("Cheese")],
+                        ),
+                        listbox::item(
+                            OpenState::Open,
+                            &multi_props,
+                            false,
+                            false,
+                            "cheddar",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(
+                                    OpenState::Open,
+                                    &multi_props,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Cheddar")],
+                                ),
+                                listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                        listbox::item(
+                            OpenState::Open,
+                            &multi_props,
+                            false,
+                            false,
+                            "mozzarella",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(
+                                    OpenState::Open,
+                                    &multi_props,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Mozzarella")],
+                                ),
+                                listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+            listbox::value_text(false, &multi_props, vec![], vec![text("2 selected")]),
+        ],
+    );
+
+    demo_page("Listbox", vec![single, multiple])
 }

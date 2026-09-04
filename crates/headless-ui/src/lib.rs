@@ -221,6 +221,10 @@
 //!   [`mod@progress`] と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//!   [`pin_input::PinInputProps`]（disabled/readonly/invalid/required）・
+//!   `data-index`/`data-filled`・dispatch `"delete"`/`"prev"`/`"next"`の
+//!   追加、`"backspace"` 挙動の是正は ark-ui/Radix 参照突合（イシュー
+//!   #1615）による。
 //! - [`mod@editable`]: Root / Label / Area / Input / Preview / Control /
 //!   EditTrigger / SubmitTrigger / CancelTrigger の 9 anatomy パーツと、
 //!   `preview`/`edit` の 2 モードを持つ [`editable::Editable`] 状態機械
@@ -268,7 +272,10 @@
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。実 `File` API
 //!   接触は `fandhe-frontend-wasm-full` 側に隔離する（[`mod@file_upload`]
-//!   モジュール doc 参照）。
+//!   モジュール doc 参照）。disabled/readonly/invalid/required の状態束は
+//!   [`file_upload::FileUploadProps`] が担い、item 系パーツの受理/拒否種別は
+//!   [`file_upload::ItemType`] 固定語彙が `data-type` として表す
+//!   （参照突合、イシュー #1609）。
 //! - [`mod@steps`]: Root / List / Item / Trigger / Indicator / Separator /
 //!   Content / CompletedContent / PrevTrigger / NextTrigger の 10 anatomy
 //!   パーツと、`count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ
@@ -637,6 +644,11 @@ pub mod file_upload;
 pub mod floating_panel;
 pub mod format;
 pub mod hover_card;
+// イシュー #1610: 参照実装（ark-ui/zag.js）との突合で `ImageCropperProps`
+// （`data-disabled`/`data-dragging`）・キーボード操作の受け口が selection
+// （`role="slider"` の 2D slider 意味論）へ移った変更・`action_for_key`
+// （キー → アクションの純粋関数）を追加した。詳細は `image_cropper`
+// モジュール doc「参照突合」節参照。
 pub mod image_cropper;
 pub mod json_tree_view;
 pub mod link;
@@ -747,7 +759,7 @@ pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};
 pub use password_input::{
     PasswordAutocomplete, PasswordInput, PasswordInputAction, PasswordInputProps,
 };
-pub use pin_input::{PinInput, PinInputAction, PinInputKind};
+pub use pin_input::{PinInput, PinInputAction, PinInputKind, PinInputProps};
 pub use positioning::{
     compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,
     Placement, PositioningConfig, Rect, ResolvedPosition, Side, Size,

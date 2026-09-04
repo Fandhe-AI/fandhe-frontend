@@ -1,4 +1,4 @@
-//! FileUpload（イシュー #840）の統合テスト。
+//! FileUpload（イシュー #840、参照突合はイシュー #1609）の統合テスト。
 //!
 //! `crates/headless-ui/src/file_upload.rs` の inline unit tests がパーツ単体の
 //! 属性出力・状態機械の遷移を固定するのに対し、本ファイルは「root >
@@ -9,7 +9,8 @@
 
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::file_upload::{
-    self, FileRejectionReason, FileUpload, FileUploadAction, FileUploadItem,
+    self, FileRejectionReason, FileUpload, FileUploadAction, FileUploadItem, FileUploadProps,
+    ItemType,
 };
 use fandhe_frontend_interactive::{dispatch, render_for_hydration, Component, Hydrate};
 
@@ -25,6 +26,7 @@ fn full_assembly_wires_root_label_dropzone_item_group_and_clear_trigger() {
         2048,
         "image/png",
     )]));
+    let props = FileUploadProps::default();
 
     let items: Vec<_> = f
         .accepted()
@@ -32,30 +34,52 @@ fn full_assembly_wires_root_label_dropzone_item_group_and_clear_trigger() {
         .map(|item| {
             let size_text = file_upload::item_size_text(item.size_bytes);
             file_upload::item(
-                false,
+                ItemType::Accepted,
+                &props,
                 vec![],
                 vec![
-                    file_upload::item_name(vec![], vec![text(&item.name)]),
-                    file_upload::item_size_text_node(vec![], vec![text(&size_text)]),
-                    file_upload::item_delete_trigger(&item.name, false, vec![], vec![]),
+                    file_upload::item_name(
+                        ItemType::Accepted,
+                        &props,
+                        vec![],
+                        vec![text(&item.name)],
+                    ),
+                    file_upload::item_size_text_node(
+                        ItemType::Accepted,
+                        &props,
+                        vec![],
+                        vec![text(&size_text)],
+                    ),
+                    file_upload::item_delete_trigger(
+                        &item.name,
+                        ItemType::Accepted,
+                        &props,
+                        vec![],
+                        vec![],
+                    ),
                 ],
             )
         })
         .collect();
 
-    let label = f.label(vec![], vec![text("Files")]);
+    let label = f.label(&props, vec![], vec![text("Files")]);
     let dropzone = f.dropzone(
-        false,
+        &props,
         false,
         vec![],
         vec![
-            f.trigger(false, vec![], vec![text("Browse")]),
-            f.hidden_input(true, false, vec![]),
+            f.trigger(&props, vec![], vec![text("Browse")]),
+            f.hidden_input(true, &props, vec![]),
         ],
     );
-    let item_group = file_upload::item_group(vec![], items);
-    let clear = file_upload::clear_trigger(false, vec![], vec![text("Clear")]);
-    let root = f.root(false, vec![], vec![label, dropzone, item_group, clear]);
+    let item_group = file_upload::item_group(ItemType::Accepted, &props, vec![], items);
+    let clear = f.clear_trigger(&props, vec![], vec![text("Clear")]);
+    let root = f.root(
+        &props,
+        false,
+        vec![],
+        vec![label, dropzone, item_group, clear],
+    );
 
     let html = render(&root);
     assert!(html.contains(r#"data-scope="file-upload""#));
@@ -63,16 +87,21 @@ fn full_assembly_wires_root_label_dropzone_item_group_and_clear_trigger() {
     assert!(html.contains(r#"data-part="label""#));
     assert!(html.contains(r#"data-part="dropzone""#));
     assert!(html.contains(r#"role="button""#));
+    assert!(html.contains(r#"aria-label="dropzone""#));
     assert!(html.contains(r#"data-part="trigger""#));
     assert!(html.contains(r#"data-part="hidden-input""#));
     assert!(html.contains(r#"type="file""#));
+    assert!(html.contains(r#"tabindex="-1""#));
+    assert!(html.contains(r#"aria-hidden="true""#));
     assert!(html.contains(r#"accept="image/*""#));
     assert!(html.contains(r#"data-part="item-group""#));
     assert!(html.contains(r#"data-part="item""#));
+    assert!(html.contains(r#"data-type="accepted""#));
     assert!(html.contains(r#"data-part="item-name""#));
     assert!(html.contains(r#"data-part="item-size-text""#));
     assert!(html.contains(r#"data-part="item-delete-trigger""#));
     assert!(html.contains(r#"data-part="clear-trigger""#));
+    // 受理済みファイルが 1 件あるため clear-trigger は hidden ではない。
     assert!(html.contains("photo.png"));
     assert!(html.contains("2.0 KB"));
 }
@@ -169,7 +198,118 @@ fn public_api_item_name_with_script_payload_is_escaped_on_render() {
         "text/plain",
     )]));
     let name = &f.accepted()[0].name;
-    let html = render(&file_upload::item_name(vec![], vec![text(name)]));
+    let props = FileUploadProps::default();
+    let html = render(&file_upload::item_name(
+        ItemType::Accepted,
+        &props,
+        vec![],
+        vec![text(name)],
+    ));
     assert!(!html.contains("<script>alert(1)</script>"));
     assert!(html.contains("&lt;script&gt;"));
+}
+
+// --- 参照突合契約（イシュー #1609） ---
+
+#[test]
+fn readonly_and_invalid_and_required_propagate_across_public_api() {
+    let props = FileUploadProps {
+        readonly: true,
+        invalid: true,
+        required: true,
+        ..Default::default()
+    };
+
+    let root_html = render(&file_upload::root(&props, false, vec![], vec![]));
+    assert!(root_html.contains(r#"data-readonly="""#));
+    assert!(root_html.contains(r#"data-invalid="""#));
+
+    let label_html = render(&file_upload::label(&props, vec![], vec![]));
+    assert!(label_html.contains(r#"data-required="""#));
+    assert!(label_html.contains(r#"data-readonly="""#));
+
+    let dropzone_html = render(&file_upload::dropzone(&props, false, vec![], vec![]));
+    assert!(dropzone_html.contains(r#"tabindex="-1""#));
+    assert!(dropzone_html.contains(r#"aria-disabled="true""#));
+
+    let trigger_html = render(&file_upload::trigger(&props, vec![], vec![]));
+    assert!(trigger_html.contains(r#"disabled="""#));
+
+    let hidden_input_html = render(&file_upload::hidden_input("", false, &props, vec![]));
+    assert!(hidden_input_html.contains(r#"required="""#));
+    assert!(hidden_input_html.contains(r#"disabled="""#));
+    assert!(hidden_input_html.contains(r#"data-readonly="""#));
+}
+
+/// イシュー #1609 codex-review P1 是正の回帰テスト: readonly 状態は
+/// item-group/item/item-name/item-size-text-node と hidden-input へも
+/// `data-readonly` として伝播しなければならない（公開契約「各パーツへ
+/// `data-readonly` を付与する」、モジュール doc「参照突合」節参照）。
+/// 併せて、呼び出し側が同名キーを `attrs` 経由で注入しても
+/// fail-closed に上書きされる（予約キー化）ことも固定する。
+#[test]
+fn readonly_propagates_to_item_parts_and_hidden_input_and_is_fail_closed_reserved() {
+    let props = FileUploadProps {
+        readonly: true,
+        ..Default::default()
+    };
+
+    let item_group_html = render(&file_upload::item_group(
+        ItemType::Accepted,
+        &props,
+        vec![("data-readonly", "spoofed")],
+        vec![],
+    ));
+    assert_eq!(item_group_html.matches("data-readonly").count(), 1);
+    assert!(item_group_html.contains(r#"data-readonly="""#));
+
+    let item_html = render(&file_upload::item(
+        ItemType::Accepted,
+        &props,
+        vec![],
+        vec![],
+    ));
+    assert!(item_html.contains(r#"data-readonly="""#));
+
+    let item_name_html = render(&file_upload::item_name(
+        ItemType::Accepted,
+        &props,
+        vec![],
+        vec![text("report.pdf")],
+    ));
+    assert!(item_name_html.contains(r#"data-readonly="""#));
+
+    let item_size_text_html = render(&file_upload::item_size_text_node(
+        ItemType::Accepted,
+        &props,
+        vec![],
+        vec![text("1 KB")],
+    ));
+    assert!(item_size_text_html.contains(r#"data-readonly="""#));
+
+    let hidden_input_html = render(&file_upload::hidden_input(
+        "",
+        false,
+        &props,
+        vec![("data-readonly", "spoofed")],
+    ));
+    assert_eq!(hidden_input_html.matches("data-readonly").count(), 1);
+    assert!(hidden_input_html.contains(r#"data-readonly="""#));
+}
+
+#[test]
+fn rejected_item_group_outputs_data_type_rejected() {
+    let props = FileUploadProps::default();
+    let html = render(&file_upload::item_group(
+        ItemType::Rejected,
+        &props,
+        vec![],
+        vec![file_upload::item(
+            ItemType::Rejected,
+            &props,
+            vec![],
+            vec![],
+        )],
+    ));
+    assert!(html.contains(r#"data-type="rejected""#));
 }

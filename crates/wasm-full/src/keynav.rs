@@ -6187,11 +6187,14 @@ mod wiring {
     /// keydown ターゲット兼実 DOM フォーカス保持者であるため trigger の解決・
     /// closed/open 分岐が不要な分薄い。
     ///
-    /// - `data-orientation`/`data-loop-focus` は `listbox::content()`/
-    ///   `listbox::root()` のいずれも出力しない**呼び出し側オプトイン**
-    ///   属性（headless-ui の SSR 出力契約）であり、欠落時は
-    ///   `Orientation::Vertical`（既定・APG Listbox 準拠）/ 非循環
-    ///   （[`menu_loop_focus_from_attr`] と loopFocus 既定を共有）へ
+    /// - `data-orientation` はイシュー #1611（`ListboxProps` 新設）以降
+    ///   `listbox::content()`/`listbox::root()` が常時出力する（従来は
+    ///   呼び出し側オプトイン属性だった）。属性が欠落した DOM（旧マーク
+    ///   アップ・手書き HTML 等）に対しても引き続き `Orientation::Vertical`
+    ///   （既定・APG Listbox 準拠）へ決定的にフォールバックする。
+    ///   `data-loop-focus` は引き続き `listbox::content()`/`listbox::root()`
+    ///   のいずれも出力しない呼び出し側オプトイン属性であり、欠落時は
+    ///   非循環（[`menu_loop_focus_from_attr`] と loopFocus 既定を共有）へ
     ///   決定的にフォールバックする。
     /// - Arrow/Home/End: [`listbox_next_index`] で次の highlight 対象を求め、
     ///   `Some` のときのみ `prevent_default` + typeahead バッファリセット +

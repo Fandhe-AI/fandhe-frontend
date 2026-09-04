@@ -447,9 +447,9 @@ pub fn action_for_part(part: &PartRef) -> Option<ActionRef> {
 ///
 /// **同 scope ネストへの対応（PR #1879 codex-review P1 再指摘の是正）**:
 /// 当初の実装は「`parts` 列全体から同じ `data-scope` を持つ readonly part
-/// を探す」判定だったため、readonly な Combobox の内部に（構造的にはあり
-/// 得ないが `data-scope` の値としては同じ `"combobox"` を名乗る）readonly
-/// でない Combobox をネストすると、内側の `trigger`/`item`/`clear-trigger`
+/// を探す」判定だったため、readonly な Combobox の内部に（`data-scope` の
+/// 値としては同じ `"combobox"` を名乗る）readonly でない Combobox を
+/// ネストすると、内側の `trigger`/`item`/`clear-trigger`
 /// まで誤って `None` にしてしまっていた（外側の readonly が scope 名の
 /// 一致だけを根拠に内側インスタンスへ越境して伝播する fail-closed の
 /// 過剰適用）。[`instance_is_readonly`] は探索範囲を「クリックされた part
