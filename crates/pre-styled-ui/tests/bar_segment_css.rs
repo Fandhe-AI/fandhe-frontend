@@ -20,7 +20,7 @@ use fandhe_frontend_pre_styled_ui::charts::bar_segment;
 const BAR_SEGMENT_GOLDEN_CSS: &str = r#"[data-scope="bar-segment"][data-part="root"] {
   display: flex;
   flex-direction: column;
-  gap: var(--fandhe-space-3);
+  gap: var(--fandhe-space-3, 0.75rem);
   width: 100%;
 }
 
@@ -42,20 +42,20 @@ const BAR_SEGMENT_GOLDEN_CSS: &str = r#"[data-scope="bar-segment"][data-part="ro
 [data-scope="bar-segment"][data-part="legend"] {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--fandhe-space-3) var(--fandhe-space-4);
+  gap: var(--fandhe-space-3, 0.75rem) var(--fandhe-space-4, 1rem);
 }
 
 [data-scope="bar-segment"][data-part="legend-item"] {
   display: inline-flex;
   align-items: center;
-  gap: var(--fandhe-space-2);
+  gap: var(--fandhe-space-2, 0.5rem);
   font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="bar-segment"][data-part="legend-marker"] {
   width: 0.75rem;
   height: 0.75rem;
-  border-radius: var(--fandhe-radius-full);
+  border-radius: var(--fandhe-radius-full, 9999px);
   flex-shrink: 0;
 }
 

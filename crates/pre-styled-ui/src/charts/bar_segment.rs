@@ -87,8 +87,11 @@
 //!   先例と同型）で最終セグメントのみ `box-shadow: none` に戻す。
 //! - **凡例のマーカー寸法・間隔**: 同 crate の [`super::legend`] と
 //!   数値が不一致だったため揃えた: `legend-marker` は `0.625rem` →
-//!   `0.75rem`、`legend-item` の `gap` は `0.375rem` → `var(--fandhe-space-2)`
-//!   （`0.5rem`）。同一 crate 内の凡例表現で寸法が異なる不整合を解消する。
+//!   `0.75rem`、`legend-item` の `gap` は `0.375rem` →
+//!   `var(--fandhe-space-2, 0.5rem)`。同一 crate 内の凡例表現で寸法が異なる
+//!   不整合を解消する。トークン置換箇所はすべて `Theme::empty()`/`css()`
+//!   単体利用（テーマ CSS 未注入）時のフォールバック値を付す
+//!   （`switch.rs`/`splitter.rs`/`timeline.rs` 等の先例と同型）。
 //!
 //! ## 意図的に合わせなかった点
 //!
@@ -144,7 +147,7 @@ fn recipe() -> SlotRecipe {
                 decl("flex-direction", "column"),
                 // イシュー #1592: 生リテラル 0.75rem を `--fandhe-space-3`
                 // （等価値）へ統一。
-                decl("gap", "var(--fandhe-space-3)"),
+                decl("gap", "var(--fandhe-space-3, 0.75rem)"),
                 decl("width", "100%"),
             ],
         )
@@ -199,7 +202,10 @@ fn recipe() -> SlotRecipe {
                 decl("flex-wrap", "wrap"),
                 // イシュー #1592: 生リテラル 0.75rem/1rem を
                 // `--fandhe-space-3`/`--fandhe-space-4`（等価値）へ統一。
-                decl("gap", "var(--fandhe-space-3) var(--fandhe-space-4)"),
+                decl(
+                    "gap",
+                    "var(--fandhe-space-3, 0.75rem) var(--fandhe-space-4, 1rem)",
+                ),
             ],
         )
         .base(
@@ -210,7 +216,7 @@ fn recipe() -> SlotRecipe {
                 // イシュー #1592: 0.375rem → `--fandhe-space-2`（0.5rem）。
                 // 同 crate の [`super::legend`] の `item` gap と揃える
                 // （値変更を伴う是正、rustdoc「是正した点」参照）。
-                decl("gap", "var(--fandhe-space-2)"),
+                decl("gap", "var(--fandhe-space-2, 0.5rem)"),
                 decl("font-size", "var(--fandhe-font-font-size-sm)"),
             ],
         )
@@ -222,7 +228,7 @@ fn recipe() -> SlotRecipe {
                 // 余白/角丸/影のトークン区分外のため生リテラルのまま）。
                 decl("width", "0.75rem"),
                 decl("height", "0.75rem"),
-                decl("border-radius", "var(--fandhe-radius-full)"),
+                decl("border-radius", "var(--fandhe-radius-full, 9999px)"),
                 decl("flex-shrink", "0"),
             ],
         )
@@ -491,12 +497,12 @@ mod tests {
         assert!(!a.contains('<'));
         assert!(a.contains(r#"[data-scope="bar-segment"]"#));
         // イシュー #1592: 是正した宣言が実際に出力されていることを固定する。
-        assert!(a.contains("var(--fandhe-space-3)"));
+        assert!(a.contains("var(--fandhe-space-3, 0.75rem)"));
         assert!(a.contains("var(--fandhe-bar-segment-bar-height, 0.75rem)"));
         assert!(a.contains("var(--fandhe-color-bg-muted)"));
         assert!(a.contains("inset -1px 0 0 var(--fandhe-color-bg)"));
         assert!(a.contains(":last-child"));
-        assert!(a.contains("var(--fandhe-radius-full)"));
-        assert!(a.contains("var(--fandhe-space-2)"));
+        assert!(a.contains("var(--fandhe-radius-full, 9999px)"));
+        assert!(a.contains("var(--fandhe-space-2, 0.5rem)"));
     }
 }
