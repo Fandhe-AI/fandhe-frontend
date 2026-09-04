@@ -156,16 +156,6 @@ const KNOWN_UNCOVERED: &[(&str, &str, &str)] = &[
         "単一グループのデモ構成のため item_group_label（グループ見出し）を省略",
     ),
     (
-        "field",
-        "select",
-        "select コントロール変種は同一 scope 内の input と役割が重複するため未使用",
-    ),
-    (
-        "field",
-        "textarea",
-        "textarea コントロール変種は同一 scope 内の input と役割が重複するため未使用",
-    ),
-    (
         "progress",
         "circle",
         "circular variant（circle/circle-track/circle-range）は linear variant と役割が重複するため未使用",
