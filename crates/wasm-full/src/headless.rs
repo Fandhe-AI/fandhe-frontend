@@ -41,11 +41,16 @@
 //!   要素でも `disabled` なら全体を `None` とする（fail-closed、イシュー
 //!   #580 PR #611 Bugbot 指摘の修正）。
 //! - `data-readonly` も `None`（fail-closed）とするが、`disabled` と異なり
-//!   **`data-scope` が一致する part 群の範囲内でのみ** 伝播する。readonly
-//!   はそのコンポーネントの値変更だけを抑止する契約であり、無関係な
-//!   祖先コンポーネントの readonly が別 scope の子孫コンポーネントまで
-//!   不活性化してはならない（[`PartRef::readonly`]/[`action_from_parts`]
-//!   参照、PR #1879 codex-review 指摘の是正）。
+//!   **同一インスタンス（クリック位置から最も近い同 `data-scope` の
+//!   `root` までの範囲）内でのみ** 伝播する。readonly はそのコンポーネント
+//!   の値変更だけを抑止する契約であり、無関係な祖先コンポーネントの
+//!   readonly が別 scope の子孫コンポーネントまで不活性化してはならない。
+//!   さらに、`data-scope` の値（例: `"combobox"`）が一致するだけの
+//!   **別インスタンス**（同 scope ネスト）が内側に存在する場合も、外側
+//!   インスタンスの readonly が内側インスタンスへ越境して伝播してはなら
+//!   ない（[`PartRef::readonly`]/[`action_from_parts`] 内
+//!   `instance_is_readonly` 参照、PR #1879 codex-review P1 指摘・再指摘の
+//!   是正）。
 //! - 未知アクション名は `fandhe_frontend_interactive::dispatch`/
 //!   `Component::decode_action` 側の既存契約（不変条件 4）により no-op と
 //!   なる（本モジュールの fail-closed と合わせた二重の安全網）。
@@ -354,14 +359,18 @@ pub struct PartRef {
     /// `ComboboxProps::readonly` を追加したのに `trigger`/`item`/
     /// `clear-trigger` クリックが `data-readonly` を確認していなかった
     /// ため、readonly でも選択値を変更できてしまっていた）。`disabled`
-    /// とは異なり **同一 `scope` 内でのみ** 伝播する
+    /// とは異なり **同一インスタンス（クリック位置から最も近い同
+    /// `data-scope` の `root` までの範囲）内でのみ** 伝播する
     /// （[`action_from_parts`] 参照）。readonly はそのコンポーネントの
     /// 値変更だけを抑止する契約であり、`disabled` のように scope を
     /// またいで祖先から子孫コンポーネント全体を不活性化してはならない
     /// （readonly な checkbox-group/color-picker/rating-group/
     /// signature-pad 等の内部にネストされた別コンポーネント（Dialog/
     /// Select 等）の trigger/item まで操作不能になる回帰の是正、
-    /// PR #1879 codex-review 指摘）。
+    /// PR #1879 codex-review P1 指摘）。加えて、`data-scope` の値が
+    /// 一致するだけの**別インスタンス**（同 scope ネスト）へも越境して
+    /// 伝播してはならない（最も近い同 scope `root` で探索を打ち切る、
+    /// PR #1879 codex-review P1 再指摘の是正）。
     pub readonly: bool,
 }
 
@@ -427,27 +436,40 @@ pub fn action_for_part(part: &PartRef) -> Option<ActionRef> {
 /// 事態のみを防ぐ（`stop_propagation` の呼び出し箇所は
 /// [`wire_headless_events`] 参照）。
 ///
-/// `readonly` は `disabled` と異なり **scope 限定** で伝播する（PR #1879
-/// codex-review 指摘の是正）: readonly はそのコンポーネント（`data-scope`
-/// が一致する part 群）の値変更だけを抑止する契約であり、無関係な祖先
-/// コンポーネントの readonly が別 scope の子孫コンポーネント（例:
-/// readonly な `checkbox-group`/`color-picker`/`rating-group`/
+/// `readonly` は `disabled` と異なり **同一インスタンス限定** で伝播する
+/// （PR #1879 codex-review P1 指摘の是正）: readonly はそのコンポーネント
+/// （`data-scope` が一致する 1 つの part 群、すなわちクリック位置から
+/// 最も近い同 scope の `root` までの範囲）の値変更だけを抑止する契約であり、
+/// 無関係な祖先コンポーネントの readonly が別 scope の子孫コンポーネント
+/// （例: readonly な `checkbox-group`/`color-picker`/`rating-group`/
 /// `signature-pad` の内部にネストされた `Dialog`/`Select` 等）の
-/// `trigger`/`item` まで操作不能にしてはならない。列全体を見て `None` に
-/// 倒すのは `disabled` のみとし、`readonly` は「解決しようとしている
-/// part と同じ `scope` を持つ readonly part が列内にあるか」を
-/// part ごとに判定し、該当すればその part の解決だけをスキップして
-/// 列挙を継続する（`content` 境界による打ち切りは従来どおり）。
+/// `trigger`/`item` まで操作不能にしてはならない。
+///
+/// **同 scope ネストへの対応（PR #1879 codex-review P1 再指摘の是正）**:
+/// 当初の実装は「`parts` 列全体から同じ `data-scope` を持つ readonly part
+/// を探す」判定だったため、readonly な Combobox の内部に（構造的にはあり
+/// 得ないが `data-scope` の値としては同じ `"combobox"` を名乗る）readonly
+/// でない Combobox をネストすると、内側の `trigger`/`item`/`clear-trigger`
+/// まで誤って `None` にしてしまっていた（外側の readonly が scope 名の
+/// 一致だけを根拠に内側インスタンスへ越境して伝播する fail-closed の
+/// 過剰適用）。[`instance_is_readonly`] は探索範囲を「クリックされた part
+/// 自身から祖先方向（`parts[i..]`）」に限定し、かつ同じ `scope` の
+/// `part == "root"` に到達した時点で探索を打ち切る（root 自身の readonly
+/// はそこで判定に含めてから打ち切る）。これにより、同一インスタンス
+/// （最も近い同 scope root まで）の外側にある readonly は探索範囲外となり、
+/// 内側インスタンスの判定へ影響しない。
+///
+/// 列全体を見て `None` に倒すのは `disabled` のみとし、`readonly` は
+/// part ごとに [`instance_is_readonly`] で同一インスタンス内判定を行い、
+/// 該当すればその part の解決だけをスキップして列挙を継続する（`content`
+/// 境界による打ち切りは従来どおり）。
 #[must_use]
 pub fn action_from_parts(parts: &[PartRef]) -> Option<ActionRef> {
     if parts.iter().any(|part| part.disabled) {
         return None;
     }
-    for part in parts {
-        let scope_is_readonly = parts
-            .iter()
-            .any(|candidate| candidate.readonly && candidate.scope == part.scope);
-        if !scope_is_readonly {
+    for (i, part) in parts.iter().enumerate() {
+        if !instance_is_readonly(parts, i) {
             if let Some(action) = action_for_part(part) {
                 return Some(action);
             }
@@ -457,6 +479,37 @@ pub fn action_from_parts(parts: &[PartRef]) -> Option<ActionRef> {
         }
     }
     None
+}
+
+/// `parts[index]` が属する「同一インスタンス」（`parts[index]` 自身から
+/// 祖先方向へ辿って最初に現れる同 `scope` の `root` までの範囲、`root` を
+/// 含む）の中に readonly な part があるかどうかを判定する。
+///
+/// 子孫側（`parts[..index]`、より内側の part）は一切見ない
+/// （[`action_from_parts`] の呼び出しは内側優先の列順であり、既に処理
+/// 済みの内側 part の readonly が外側の判定へ混入することはない設計）。
+/// 探索は `parts[index..]` を祖先方向へ順に進み、`scope` が一致しない
+/// part はインスタンス境界の外（無関係な別コンポーネント）としてスキップ
+/// する。`scope` が一致する part が見つかった時点で、その part が
+/// `readonly` なら直ちに `true` を返し、そうでなくとも `part == "root"`
+/// であれば「このインスタンスの境界に到達した」としてそこで探索を打ち切る
+/// （それより外側の同名 scope は**別インスタンス**である可能性があるため
+/// 見ない。PR #1879 codex-review P1 再指摘の是正、[`action_from_parts`]
+/// 参照）。
+fn instance_is_readonly(parts: &[PartRef], index: usize) -> bool {
+    let scope = parts[index].scope.as_str();
+    for candidate in &parts[index..] {
+        if candidate.scope != scope {
+            continue;
+        }
+        if candidate.readonly {
+            return true;
+        }
+        if candidate.part == "root" {
+            break;
+        }
+    }
+    false
 }
 
 // ---------------------------------------------------------------------
@@ -864,6 +917,61 @@ mod tests {
             part_readonly("combobox", "root", None, true),
         ];
         assert_eq!(action_from_parts(&parts), None);
+    }
+
+    /// PR #1879 codex-review P1 再指摘の回帰: 外側の Combobox インスタンス
+    /// が readonly でも、その内部にネストした（`data-scope` の値としては
+    /// 同じ `"combobox"` を名乗る）**別インスタンス**が readonly でなければ、
+    /// 内側インスタンスの `trigger` は解決できる（外側 readonly が内側
+    /// インスタンスへ越境して伝播しない）。旧実装（`parts` 列全体から同じ
+    /// `scope` の readonly part を探す判定）はこのケースを誤って `None`
+    /// にしていた。
+    #[test]
+    fn action_from_parts_readonly_combobox_does_not_block_nested_non_readonly_combobox_trigger() {
+        let parts = vec![
+            // クリックされたのは内側インスタンスの trigger。
+            part("combobox", "trigger", None, false),
+            part("combobox", "content", None, false),
+            // 内側インスタンスの root（readonly ではない）でこのインス
+            // タンスの探索は打ち切られる。
+            part("combobox", "root", None, false),
+            // 外側インスタンス（readonly）はここより外側にあり、内側の
+            // 判定には影響しない。
+            part_readonly("combobox", "content", None, true),
+            part_readonly("combobox", "root", None, true),
+        ];
+        let action_ref = action_from_parts(&parts).unwrap();
+        assert_eq!(action_ref.action, "toggle");
+    }
+
+    /// 上記の対照ケース（PR #1879 codex-review P1 再指摘）: 内側の
+    /// Combobox インスタンス自身が readonly の場合、そのクリックは
+    /// （最も近い同 scope root が readonly のため）引き続き `None` になる。
+    /// 一方、内側インスタンスの外側にある別の（readonly ではない）
+    /// Combobox の `trigger` クリックは、内側インスタンスの readonly の
+    /// 影響を受けず解決できる。
+    #[test]
+    fn action_from_parts_readonly_nested_combobox_blocks_only_its_own_instance() {
+        // ケース 1: 内側インスタンス自身の trigger クリック → readonly な
+        // 内側 root により None。
+        let inner_click = vec![
+            part("combobox", "trigger", None, false),
+            part("combobox", "content", None, false),
+            part_readonly("combobox", "root", None, true),
+            part("combobox", "content", None, false),
+            part("combobox", "root", None, false),
+        ];
+        assert_eq!(action_from_parts(&inner_click), None);
+
+        // ケース 2: 内側インスタンス（readonly）の外側にある trigger の
+        // クリック（内側インスタンスを子孫に含まない、無関係な兄弟）。
+        let outer_click = vec![
+            part("combobox", "trigger", None, false),
+            part("combobox", "content", None, false),
+            part("combobox", "root", None, false),
+        ];
+        let action_ref = action_from_parts(&outer_click).unwrap();
+        assert_eq!(action_ref.action, "toggle");
     }
 
     #[test]
