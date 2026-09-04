@@ -91,7 +91,13 @@
 //!   ネイティブ `<input type="radio">` に `readonly` 属性は無効なため
 //!   [`item_hidden_input`] へも反映しない。表示契約としての
 //!   `data-readonly` は [`item`]/[`item_control`]/[`item_text`] のみへ
-//!   出力する）。
+//!   出力する）。ネイティブ `readonly` 属性が効かないため選択変更の抑止
+//!   自体は本クレート（SSR/headless）の管轄外であり、`fandhe-frontend-
+//!   wasm-full` の `keynav` 配線（`handle_radio_keydown` の click/Space/
+//!   矢印/Home/End 抑止と click イベントの `preventDefault`）が
+//!   `item-hidden-input` の祖先 `item` が持つ `data-readonly` を見て
+//!   実効化する（イシュー #1616 P1 是正。JS 無効時はネイティブ input の
+//!   `readonly` 非対応制約により選択変更を防げない既知の限界が残る）。
 //! - Home/End は ark/Radix の Keyboard 表に無いが、APG のオプション挙動
 //!   として `fandhe-frontend-wasm-full` の `keynav`（`radio_next_index`）が
 //!   拡張として実装済み。

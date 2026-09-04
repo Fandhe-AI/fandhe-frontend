@@ -747,6 +747,20 @@ fn click_event() -> Event {
     Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail")
 }
 
+/// `cancelable: true` を付けた合成 `click` イベント（イシュー #1616
+/// readonly RadioGroup 回帰テスト用）。ネイティブ `<input type="radio">` の
+/// activation（checked 確定）は「click イベントが未キャンセルなら
+/// post-click activation steps を実行」という契約のため、`preventDefault`
+/// の効果（checked を確定させない）を検証するには `cancelable: true` が
+/// 必須（既定 `click_event()` は非 cancelable で Tabs/Tree の trigger 判定
+/// にのみ使うため、activation 検証用に別関数として分離する）。
+fn cancelable_click_event() -> Event {
+    let init = EventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail")
+}
+
 fn html_element(element: &Element) -> HtmlElement {
     element
         .clone()
@@ -1893,6 +1907,113 @@ fn radio_group_native_change_event_syncs_data_state_across_group() {
     assert_eq!(
         item_b.get_attribute("data-state").as_deref(),
         Some("checked")
+    );
+}
+
+/// readonly（イシュー #1616 P1 是正）: フォーカス中の項目の祖先 `item` に
+/// `data-readonly` があると、矢印キーは prevent_default こそされる
+/// （ネイティブ radio グループ化の既定移動抑止は readonly でも継続する）が、
+/// フォーカス移動・選択変更のいずれも起きない（`crates/headless-ui/src/
+/// radio_group.rs::item_hidden_input` は readonly をネイティブ input へ
+/// 反映できないため、この JS 側の抑止が実効化の唯一の経路）。
+#[wasm_bindgen_test]
+fn radio_group_readonly_arrow_key_does_not_move_focus_or_change_selection() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly1",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_a = document
+        .get_element_by_id("kn-radio-readonly1-input-a")
+        .unwrap();
+    // `item_hidden_input` 自身は data-readonly を持たない契約
+    // （モジュール doc 参照）のため、祖先 `item` へ付与する。
+    let item_a = input_a.parent_element().unwrap();
+    item_a.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&input_a).focus().unwrap();
+
+    let not_default_prevented = input_a
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(
+        !not_default_prevented,
+        "readonly でもネイティブ radio グループ化の既定移動は抑止されるべき"
+    );
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-radio-readonly1-input-a".to_string()),
+        "readonly では矢印キーでフォーカスが移動してはならない"
+    );
+    assert!(
+        input_a
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly では選択（checked）が変わってはならない"
+    );
+}
+
+/// readonly（イシュー #1616 P1 是正）: readonly 項目のネイティブ
+/// `<input type="radio">` へ click（マウスクリック・フォーカス中 Space
+/// 決定が合成する activation と同型）が届いても選択が変わらない。ネイティブ
+/// radio の「pre-click activation → click イベント dispatch → 未キャンセル
+/// なら post-click activation で checked 確定」という活性化手順を利用し、
+/// `wire_keynav` の click リスナーが `preventDefault` で確定を打ち消すことを
+/// 検証する。
+#[wasm_bindgen_test]
+fn radio_group_readonly_click_does_not_change_selection() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly2",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_a = document
+        .get_element_by_id("kn-radio-readonly2-input-a")
+        .unwrap();
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly2-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !input_b.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        prevented,
+        "readonly 項目への click は preventDefault で打ち消されるべき"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly 項目は click しても checked にならない"
+    );
+    assert!(
+        input_a
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly 項目への click で既存の選択が失われてはならない"
+    );
+    assert_eq!(
+        input_b.get_attribute("data-state").as_deref(),
+        Some("unchecked"),
+        "readonly 項目への click 後も data-state は unchecked のまま"
     );
 }
 

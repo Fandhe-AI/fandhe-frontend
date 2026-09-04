@@ -4450,6 +4450,17 @@ mod wiring {
             .collect()
     }
 
+    /// RadioGroup のネイティブ `<input type="radio">` 1 個が readonly かどうか
+    /// を判定する（イシュー #1616 P1 是正）。`crates/headless-ui/src/
+    /// radio_group.rs` の契約どおり `item-hidden-input` 自身は
+    /// `data-readonly` を持たず、祖先の `item`（[`RADIO_GROUP_ITEM_SELECTOR`]）
+    /// が反映するため、`closest` で `item` まで遡って判定する（`item` が
+    /// 見つからない構成は安全側 no-op で `false` とする）。
+    fn item_readonly(input: &Element) -> bool {
+        closest(input, RADIO_GROUP_ITEM_SELECTOR)
+            .is_some_and(|item| item.has_attribute("data-readonly"))
+    }
+
     /// `elements` 中で `target` と同一の要素のインデックスを探す
     /// （`Element::is_same_node` 相当を `Node::contains`/`==` ではなく
     /// `is_same_node` で判定し、テキストノード等の混入を避ける）。
@@ -6110,6 +6121,17 @@ mod wiring {
             event.prevent_default();
         }
 
+        // readonly（イシュー #1616 P1 是正）: ネイティブ radio グループの
+        // 既定動作は上記 prevent_default で既に抑止済みだが、readonly では
+        // 選択値そのものを変更させない契約（`RadioGroupProps::readonly` の
+        // モジュール doc 参照）のため、フォーカス移動・`radio_next_index`
+        // 委譲を含め一切の状態変更を行わず no-op で終える（ネイティブ radio
+        // は「フォーカス移動」と「選択変更」が不可分なため、選択を変えない
+        // 以上フォーカスも動かさない）。
+        if item_readonly(input) {
+            return;
+        }
+
         let Some(next_index) = radio_next_index(current, &key, orientation, modifiers, &disabled)
         else {
             return;
@@ -6937,6 +6959,24 @@ mod wiring {
             };
             if !click_root.contains(Some(&target_element)) {
                 return;
+            }
+            // RadioGroup readonly（イシュー #1616 P1 是正）: ネイティブ
+            // `<input type="radio">` の click は「pre-click activation
+            // steps（checked を仮更新）→ click イベント dispatch → 未
+            // キャンセルなら post-click activation steps（checked を確定 +
+            // change 発火）」の順で処理されるため、この bubble フェーズ
+            // リスナーで `preventDefault` すれば checked の確定を打ち消せる
+            // （マウスクリックだけでなく、フォーカス中の Space キー押下が
+            // 合成する click にも同じ活性化手順が適用されるため両方を
+            // 一度に抑止できる）。`item-hidden-input` 自身は
+            // `data-readonly` を持たない契約（[`item_readonly`] doc 参照）
+            // のため、`closest` で祖先の `item-hidden-input` まで遡ってから
+            // 判定する。
+            if let Some(radio_input) = closest(&target_element, RADIO_GROUP_INPUT_SELECTOR) {
+                if click_root.contains(Some(&radio_input)) && item_readonly(&radio_input) {
+                    event.prevent_default();
+                    return;
+                }
             }
             let Ok(Some(matched)) = target_element.closest(TABS_TRIGGER_SELECTOR) else {
                 return;
