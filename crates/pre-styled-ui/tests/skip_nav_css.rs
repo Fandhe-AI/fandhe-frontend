@@ -44,6 +44,7 @@ const SKIP_NAV_GOLDEN_CSS: &str = r#"[data-scope="skip-nav"][data-part="link"] {
   overflow: visible;
   clip: auto;
   white-space: normal;
+  overflow-wrap: anywhere;
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   font-size: var(--fandhe-font-font-size-sm);

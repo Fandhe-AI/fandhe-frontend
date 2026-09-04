@@ -125,6 +125,11 @@ fn recipe() -> SlotRecipe {
         decl("overflow", "visible"),
         decl("clip", "auto"),
         decl("white-space", "normal"),
+        // base（`clip_declarations()` 共有、イシュー #1587）の
+        // `overflow-wrap: normal` は継承プロパティのため focus 時にも残り、
+        // 空白のない長い文言・URL が固定配置リンクからはみ出し得る。
+        // 表示復元時は `anywhere` で任意位置の折り返しを許可する。
+        decl("overflow-wrap", "anywhere"),
         decl("background", "var(--fandhe-color-bg)"),
         decl("color", "var(--fandhe-color-fg)"),
         decl("font-size", "var(--fandhe-font-font-size-sm)"),
