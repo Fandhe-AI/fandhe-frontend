@@ -1509,8 +1509,7 @@ fn editable_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         let html = render(&editable::root(
             Size::Md,
             EditMode::Preview,
-            false,
-            false,
+            EditableInputFlags::default(),
             Default::default(),
             Default::default(),
             vec![("data-testid", payload)],
@@ -1527,8 +1526,7 @@ fn editable_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         let html = render(&editable::root(
             Size::Md,
             EditMode::Preview,
-            false,
-            false,
+            EditableInputFlags::default(),
             Default::default(),
             Default::default(),
             vec![("class", payload)],
@@ -1550,7 +1548,13 @@ fn editable_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした label の children 経路。
-        let html = editable::label(EditMode::Preview, false, None, vec![], vec![text(payload)]);
+        let html = editable::label(
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            None,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&html);
         assert_payload_is_escaped(payload, &html, "editable::label children コンテキスト");
 
@@ -1568,6 +1572,7 @@ fn editable_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした preview の children 経路。
         let html = render(&editable::preview(
             EditMode::Preview,
+            EditableInputFlags::default(),
             false,
             vec![],
             vec![text(payload)],

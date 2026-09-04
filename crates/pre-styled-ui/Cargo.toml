@@ -1434,7 +1434,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # が `disabled: bool` から `&CheckboxGroupProps` へシグネチャ変更）に伴い、
 # 本クレートの再エクスポート署名も追随したため 0.x のマイナーバンプとする
 # （`.claude/rules/coding-rust.md` 破壊的変更規定）。
-version = "0.82.0"
+# イシュー #1606（editable の参照突合）: headless-ui 側の破壊的変更
+# （`editable::{root, label, area, preview}` が `disabled: bool, readonly:
+# bool` から `flags: EditableInputFlags` へシグネチャ変更）に伴い、本
+# クレートの `editable::root`（styled ラッパー）も同様に追随したため 0.x
+# のマイナーバンプとする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
+version = "0.83.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1449,7 +1454,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.31.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.32.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
