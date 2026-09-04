@@ -1155,6 +1155,7 @@ fn listbox_item_text_value_id_and_hydration_paths_are_escaped_for_all_payloads()
 
         let item_text_node = listbox::item_text(
             OpenState::Open,
+            &listbox::ListboxProps::default(),
             false,
             false,
             Some(payload),

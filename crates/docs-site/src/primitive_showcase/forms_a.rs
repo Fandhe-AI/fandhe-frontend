@@ -1187,6 +1187,7 @@ pub(super) fn listbox_section() -> Node {
                             vec![
                                 listbox::item_text(
                                     OpenState::Open,
+                                    &single_props,
                                     false,
                                     true,
                                     None,
@@ -1207,6 +1208,7 @@ pub(super) fn listbox_section() -> Node {
                             vec![
                                 listbox::item_text(
                                     OpenState::Closed,
+                                    &single_props,
                                     false,
                                     false,
                                     None,
@@ -1230,6 +1232,7 @@ pub(super) fn listbox_section() -> Node {
                             vec![
                                 listbox::item_text(
                                     OpenState::Closed,
+                                    &single_props,
                                     true,
                                     false,
                                     None,
@@ -1293,7 +1296,8 @@ pub(super) fn listbox_section() -> Node {
                             vec![
                                 listbox::item_text(
                                     OpenState::Open,
-                                    true,
+                                    &multi_props,
+                                    false,
                                     false,
                                     None,
                                     vec![],
@@ -1313,7 +1317,8 @@ pub(super) fn listbox_section() -> Node {
                             vec![
                                 listbox::item_text(
                                     OpenState::Open,
-                                    true,
+                                    &multi_props,
+                                    false,
                                     false,
                                     None,
                                     vec![],

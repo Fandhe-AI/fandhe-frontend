@@ -23,6 +23,7 @@ fn full_assembly_wires_aria_labelledby_and_all_parts_appear() {
         listbox::item_group_label(Some("listbox-group-label-1"), vec![], vec![text("Citrus")]);
     let item_text = listbox::item_text(
         OpenState::Open,
+        &props,
         false,
         false,
         Some("listbox-item-text-1"),
@@ -270,6 +271,7 @@ fn dynamic_values_across_all_parts_are_escaped() {
     );
     let item_text = listbox::item_text(
         OpenState::Open,
+        &props,
         false,
         false,
         Some(payload),

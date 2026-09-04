@@ -428,11 +428,18 @@ pub fn item<'a>(
 /// として出力する（イシュー #1611 参照突合。`crate::pre_styled_ui` の
 /// `SlotRecipe::state` は自パーツ属性しか条件にできないため、従来は
 /// item-text を選択/highlight 状態で装飾できなかった問題を是正する）。
-/// `disabled` は呼び出し側が [`item`] へ渡した有効 disabled
-/// （`props.disabled || disabled`）をそのまま渡す想定。
+///
+/// 有効な disabled は [`item`] と同じ `props.disabled || disabled`
+/// （zag の `getItemState` と同じ「root disabled が子 item へ伝播する」
+/// 契約）を本関数の内部で計算する。`item` 呼び出し側が有効値を
+/// 再計算して渡す必要はなく、`props.disabled=true` かつ item-level
+/// `disabled=false` でも親 [`item`] と同じ状態を反映する（PR #1888
+/// codex-review 指摘: 従来は `disabled` を素通ししていたため
+/// `props.disabled` が伝播せず契約が破れていた）。
 #[must_use]
 pub fn item_text<'a>(
     selected_state: OpenState,
+    props: &ListboxProps,
     disabled: bool,
     highlighted: bool,
     id: Option<&'a str>,
@@ -440,8 +447,9 @@ pub fn item_text<'a>(
     children: Vec<Node>,
 ) -> Node {
     let attrs = drop_reserved(attrs, ITEM_TEXT_RESERVED);
+    let effective_disabled = props.disabled || disabled;
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(selected_state.as_data_state())];
-    merged.extend(data_disabled(disabled));
+    merged.extend(data_disabled(effective_disabled));
     merged.extend(data_highlighted(highlighted));
     if let Some(id) = id {
         merged.push(("id", id));
@@ -587,10 +595,15 @@ impl Listbox {
     }
 
     /// [`item_text`] へ項目 `value` の現在の選択状態を注入する利便メソッド。
+    /// `props` は [`Self::item`] へ渡したものと同じ [`ListboxProps`] を
+    /// 渡す想定（有効 disabled の計算は [`item_text`] 内部が担う、PR #1888
+    /// codex-review 指摘参照）。
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn item_text<'a>(
         &self,
         value: &str,
+        props: &ListboxProps,
         disabled: bool,
         highlighted: bool,
         id: Option<&'a str>,
@@ -599,6 +612,7 @@ impl Listbox {
     ) -> Node {
         item_text(
             self.item_state(value),
+            props,
             disabled,
             highlighted,
             id,
@@ -746,10 +760,15 @@ impl MultiListbox {
     }
 
     /// [`item_text`] へ項目 `value` の現在の選択状態を注入する利便メソッド。
+    /// `props` は [`Self::item`] へ渡したものと同じ [`ListboxProps`] を
+    /// 渡す想定（有効 disabled の計算は [`item_text`] 内部が担う、PR #1888
+    /// codex-review 指摘参照）。
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn item_text<'a>(
         &self,
         value: &str,
+        props: &ListboxProps,
         disabled: bool,
         highlighted: bool,
         id: Option<&'a str>,
@@ -758,6 +777,7 @@ impl MultiListbox {
     ) -> Node {
         item_text(
             self.item_state(value),
+            props,
             disabled,
             highlighted,
             id,
@@ -1142,6 +1162,7 @@ mod tests {
     fn item_text_id_some_outputs_id_and_three_state_attrs() {
         let html = render(&item_text(
             OpenState::Open,
+            &ListboxProps::default(),
             false,
             true,
             Some("item-text-1"),
@@ -1155,6 +1176,7 @@ mod tests {
 
         let html_disabled = render(&item_text(
             OpenState::Closed,
+            &ListboxProps::default(),
             true,
             false,
             None,
@@ -1164,6 +1186,27 @@ mod tests {
         assert!(html_disabled.contains(r#"data-state="closed""#));
         assert!(html_disabled.contains(r#"data-disabled="""#));
         assert!(!html_disabled.contains("data-highlighted"));
+    }
+
+    #[test]
+    fn item_text_reflects_root_disabled_propagation() {
+        // PR #1888 codex-review 指摘の回帰: props.disabled=true かつ
+        // item-level disabled=false でも item_text は有効 disabled
+        // （props.disabled || disabled）を反映しなければならない。
+        let root_disabled = ListboxProps {
+            disabled: true,
+            ..ListboxProps::default()
+        };
+        let html = render(&item_text(
+            OpenState::Open,
+            &root_disabled,
+            false,
+            false,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
@@ -1263,7 +1306,8 @@ mod tests {
             render(&l.item("banana", &props, false, false, None, vec![], vec![]));
         assert!(unselected_item_html.contains(r#"aria-selected="false""#));
 
-        let item_text_html = render(&l.item_text("apple", false, false, None, vec![], vec![]));
+        let item_text_html =
+            render(&l.item_text("apple", &props, false, false, None, vec![], vec![]));
         assert!(item_text_html.contains(r#"data-state="open""#));
 
         let indicator_html = render(&l.item_indicator("apple", vec![], vec![]));

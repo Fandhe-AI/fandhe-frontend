@@ -1445,6 +1445,7 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした item_text の id/children 経路。
         let html = render(&listbox::item_text(
             OpenState::Open,
+            &props,
             false,
             false,
             Some(payload),

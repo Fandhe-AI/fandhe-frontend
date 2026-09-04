@@ -1966,6 +1966,7 @@ fn ex_listbox() -> Node {
                         vec![],
                         vec![listbox::item_text(
                             OpenState::Open,
+                            &props,
                             false,
                             false,
                             None,
@@ -1983,6 +1984,7 @@ fn ex_listbox() -> Node {
                         vec![],
                         vec![listbox::item_text(
                             OpenState::Closed,
+                            &props,
                             false,
                             false,
                             None,
@@ -2046,6 +2048,7 @@ fn ex_listbox_custom_css() -> Node {
                 vec![],
                 vec![listbox::item_text(
                     OpenState::Open,
+                    &props,
                     false,
                     false,
                     None,
@@ -2103,10 +2106,10 @@ const LISTBOX: ComponentPageSpec = ComponentPageSpec {
             description: "role=\"option\" を持つ選択肢 1 個の状態。有効 disabled は props.disabled || disabled。value は data-value として既定エスケープ経由で出力される（listbox.rs:385-421）。",
         },
         ArgRow {
-            name: "item_text(selected_state, disabled, highlighted, id)",
-            kind: "OpenState, bool, bool, Option<&str>",
+            name: "item_text(selected_state, props, disabled, highlighted, id)",
+            kind: "OpenState, &ListboxProps, bool, bool, Option<&str>",
             default: "",
-            description: "item の先頭 3 引数と同型の 3 状態属性。disabled は item へ渡した有効 disabled をそのまま渡す想定（listbox.rs:431-457）。",
+            description: "item の先頭 3 引数と同型の 3 状態属性。有効 disabled は item と同じ props.disabled || disabled を内部で計算する（listbox.rs:431-462）。",
         },
         ArgRow {
             name: "attrs / children",

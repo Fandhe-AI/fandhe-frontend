@@ -2659,6 +2659,7 @@ fn listbox_section() -> Node {
                         vec![
                             listbox::item_text(
                                 OpenState::Open,
+                                &props,
                                 false,
                                 false,
                                 None,
@@ -2679,6 +2680,7 @@ fn listbox_section() -> Node {
                         vec![
                             listbox::item_text(
                                 OpenState::Closed,
+                                &props,
                                 true,
                                 false,
                                 None,
@@ -2733,6 +2735,7 @@ fn listbox_section() -> Node {
                             vec![
                                 listbox::item_text(
                                     OpenState::Open,
+                                    &props,
                                     false,
                                     false,
                                     None,
@@ -2753,6 +2756,7 @@ fn listbox_section() -> Node {
                             vec![
                                 listbox::item_text(
                                     OpenState::Open,
+                                    &props,
                                     false,
                                     false,
                                     None,
