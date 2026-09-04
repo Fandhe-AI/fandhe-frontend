@@ -92,9 +92,59 @@
 //!   dispatch 契約のみを提供する。
 //! - **autoResize**（`area`/`input` の自動幅調整）: 同じく wasm-full 側の
 //!   後続責務。
+//!
+//! # キーボード操作（ark-ui Keyboard Support 表との突合、イシュー #1606）
+//!
+//! | キー | 対象 | 挙動 |
+//! |---|---|---|
+//! | <kbd>Enter</kbd> | [`input`]（`edit` 中） | `dispatch("submit")` に対応。[`EditableSubmitMode::Enter`]/[`EditableSubmitMode::Both`] のときのみ確定して `preview` へ戻る想定（`Blur`/`None` では Enter は確定しない、DOM 配線は wasm-full 側の後続責務） |
+//! | <kbd>Escape</kbd> | [`input`]（`edit` 中） | `dispatch("cancel")` に対応。`activation_mode`/`submit_mode` に関わらず常に取消可能 |
+//! | <kbd>Tab</kbd> | [`preview`] | `EditableActivationMode::Focus` 時、[`preview`] の `tabindex="0"`（`!disabled && !readonly` のときのみ付与、下記「参照突合」節参照）によりキーボードで到達できる |
+//! | <kbd>Space</kbd>/<kbd>Enter</kbd> | 各 trigger（`button`） | ネイティブ `button` の標準操作（`edit_trigger`/`submit_trigger`/`cancel_trigger`） |
+//!
+//! 実際のキー配線（keydown イベントハンドラの設置）は本モジュールのスコープ外
+//! （上記「スコープ外」節参照）であり、本節は `dispatch` 契約とキーの対応関係
+//! のみを固定する。
+//!
+//! # 参照突合（イシュー #1606、ark-ui との `data-*`/ARIA 差分是正）
+//!
+//! ark-ui の Editable Data Attributes 表・Keyboard Support 表と突合し、以下を
+//! 追加した:
+//!
+//! - [`label`]/[`area`]/[`preview`]/[`input`] へ `data-invalid`（[`EditableInputFlags::invalid`]
+//!   経由）、[`label`] へ `data-required` を追加（ark-ui の label が
+//!   `data-invalid`/`data-required` を持つため）
+//! - [`area`] へ `data-disabled` を追加（ark-ui の area が持つため）
+//! - [`preview`] へ `data-disabled`/`data-readonly`/`data-invalid`、
+//!   `aria-disabled="true"`（disabled 時のみ）、`aria-invalid="true"`
+//!   （invalid 時のみ）、`tabindex="0"`（`!disabled && !readonly` のときのみ、
+//!   Zag `isInteractive` と同義）を追加（Tab キーで preview に到達できない
+//!   問題の是正）
+//! - [`input`] へ `data-invalid`・`aria-invalid="true"`（invalid 時のみ）を
+//!   追加
+//! - [`EditableActivationMode::Click`]/[`EditableActivationMode::None`]、
+//!   [`EditableSubmitMode::None`] を追加（ark-ui の語彙を網羅）
+//!
+//! 一方、以下は意図的に合わせない（差分メモ）:
+//!
+//! - **`data-focus`**（area/label）: 実行時のフォーカス状態であり SSR 静的
+//!   マークアップで表現できない（[`crate::checkbox`] の判断と同型）。CSS の
+//!   `:focus-within` で代替可能
+//! - **`data-autoresize`**（input/preview）と `autoResize` prop: レイアウト
+//!   計測関心のため `docs/policy/intentional-non-adoption.md` §3.25 規則 2
+//!   により headless 層へ持ち込まない
+//! - **`aria-readonly`**（preview）: ARIA のグローバル属性ではなく、role を
+//!   持たない `span` への付与は ARIA in HTML 上不正になるため付与しない
+//!   （`aria-disabled`/`aria-invalid` はグローバル属性のため付与する）
+//! - **`aria-label`**（input/preview/各 trigger の翻訳文言）: 利用者が
+//!   `attrs` 経由で渡す方針（他部品と同じ）
+//! - [`root`] への `data-state`（全パーツ共通）・`data-disabled`/
+//!   `data-readonly` は fandhe 拡張として維持するが、ark にない
+//!   `data-invalid`/`data-required` までは root に増やさない
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::data_attrs::{data_disabled, data_readonly, data_required};
+use crate::aria::{aria_disabled, aria_invalid};
+use crate::data_attrs::{data_disabled, data_invalid, data_readonly, data_required};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
@@ -139,6 +189,11 @@ pub enum EditableActivationMode {
     Focus,
     /// `preview` のダブルクリックで編集を開始する。
     DblClick,
+    /// `preview` のクリックで編集を開始する（イシュー #1606、ark-ui 突合）。
+    Click,
+    /// `edit_trigger`・`dispatch("edit")` からのみ編集を開始する（`preview`
+    /// への直接インタラクションでは開始しない、イシュー #1606、ark-ui 突合）。
+    None,
 }
 
 impl EditableActivationMode {
@@ -148,6 +203,8 @@ impl EditableActivationMode {
         match self {
             Self::Focus => "focus",
             Self::DblClick => "dblclick",
+            Self::Click => "click",
+            Self::None => "none",
         }
     }
 }
@@ -165,6 +222,9 @@ pub enum EditableSubmitMode {
     /// Enter・blur のどちらでも確定する（既定）。
     #[default]
     Both,
+    /// Enter・blur のいずれでも確定しない（`submit_trigger`・
+    /// `dispatch("submit")` からのみ確定する、イシュー #1606、ark-ui 突合）。
+    None,
 }
 
 impl EditableSubmitMode {
@@ -175,16 +235,19 @@ impl EditableSubmitMode {
             Self::Enter => "enter",
             Self::Blur => "blur",
             Self::Both => "both",
+            Self::None => "none",
         }
     }
 }
 
-/// Root パーツ（`div`）。
+/// Root パーツ（`div`）。`flags.required`/`flags.invalid` は root へは
+/// 反映しない（ark-ui の root は `data-invalid`/`data-required` を持たず、
+/// fandhe 拡張の対象を `data-disabled`/`data-readonly` のみに留める、
+/// モジュール doc「参照突合」節参照）。
 #[must_use]
 pub fn root<'a>(
     mode: EditMode,
-    disabled: bool,
-    readonly: bool,
+    flags: EditableInputFlags,
     activation_mode: EditableActivationMode,
     submit_mode: EditableSubmitMode,
     attrs: Vec<(&'a str, &'a str)>,
@@ -195,18 +258,21 @@ pub fn root<'a>(
         ("data-activation-mode", activation_mode.as_str()),
         ("data-submit-mode", submit_mode.as_str()),
     ];
-    merged.extend(data_disabled(disabled));
-    merged.extend(data_readonly(readonly));
+    merged.extend(data_disabled(flags.disabled));
+    merged.extend(data_readonly(flags.readonly));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
 
 /// Label パーツ（`label`）。`input_id` を与えると `for` 属性で [`input`]
 /// と関連付ける（省略時は呼び出し側が `attrs` 経由で配線する）。
+/// `flags.invalid`/`flags.required` は ark-ui の Data Attributes 表に合わせ
+/// `data-invalid`/`data-required` として出力する（モジュール doc「参照突合」
+/// 節参照）。
 #[must_use]
 pub fn label<'a>(
     mode: EditMode,
-    disabled: bool,
+    flags: EditableInputFlags,
     input_id: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
@@ -215,7 +281,9 @@ pub fn label<'a>(
     if let Some(id) = input_id {
         merged.push(("for", id));
     }
-    merged.extend(data_disabled(disabled));
+    merged.extend(data_disabled(flags.disabled));
+    merged.extend(data_invalid(flags.invalid));
+    merged.extend(data_required(flags.required));
     merged.extend(attrs);
     ANATOMY.part("label", "label", merged, children)
 }
@@ -223,22 +291,28 @@ pub fn label<'a>(
 /// Area パーツ（`div`）。[`input`]/[`preview`] のラッパー。
 /// `placeholder_shown` は現在の表示テキスト（モードに応じて `value`/`draft`）
 /// が空のときに呼び出し側が `true` を渡す（[`Editable::area`] 参照）。
+/// `flags.disabled` は ark-ui の Data Attributes 表に合わせ `data-disabled`
+/// として出力する（モジュール doc「参照突合」節参照。`readonly`/`required`/
+/// `invalid` は ark-ui の area に存在しないため出力しない）。
 #[must_use]
 pub fn area<'a>(
     mode: EditMode,
+    flags: EditableInputFlags,
     placeholder_shown: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![("data-state", mode.as_str())];
     merged.extend(data_placeholder_shown(placeholder_shown));
+    merged.extend(data_disabled(flags.disabled));
     merged.extend(attrs);
     ANATOMY.part("area", "div", merged, children)
 }
 
-/// [`input`]/[`Editable::input`] が受け取る disabled/readonly/required
+/// [`input`]/[`Editable::input`] が受け取る disabled/readonly/required/invalid
 /// フラグ束（[`crate::number_input::NumberInputFlags`] と同型、clippy
-/// `too_many_arguments` 回避）。
+/// `too_many_arguments` 回避）。[`root`]/[`label`]/[`area`]/[`preview`] へも
+/// 共通で渡す（イシュー #1606、ark-ui 突合で `invalid` を追加）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EditableInputFlags {
     /// ネイティブ `disabled`・`data-disabled` を付与するかどうか。
@@ -247,6 +321,9 @@ pub struct EditableInputFlags {
     pub readonly: bool,
     /// ネイティブ `required`・`data-required` を付与するかどうか。
     pub required: bool,
+    /// `data-invalid`・`aria-invalid="true"`（[`input`]/[`preview`] のみ）を
+    /// 付与するかどうか（イシュー #1606、ark-ui 突合）。
+    pub invalid: bool,
 }
 
 /// [`input`]/[`Editable::input`] が受け取る `id`/`placeholder`/`max_length`
@@ -304,18 +381,30 @@ pub fn input<'a>(
     if matches!(mode, EditMode::Preview) {
         merged.push(("hidden", ""));
     }
+    if flags.invalid {
+        merged.push(aria_invalid(true));
+    }
     merged.extend(data_disabled(flags.disabled));
     merged.extend(data_readonly(flags.readonly));
     merged.extend(data_required(flags.required));
+    merged.extend(data_invalid(flags.invalid));
     merged.extend(attrs);
     ANATOMY.part("input", "input", merged, Vec::new())
 }
 
 /// Preview パーツ（`span`）。`edit` モード時は `hidden` を付与する。
 /// `placeholder_shown` は [`area`] と同じ契約（呼び出し側が空判定を渡す）。
+/// ark-ui の Data Attributes 表に合わせ `data-disabled`/`data-readonly`/
+/// `data-invalid`・`aria-disabled="true"`（disabled 時のみ）・
+/// `aria-invalid="true"`（invalid 時のみ）・`tabindex="0"`
+/// （`!disabled && !readonly` のときのみ、Zag `isInteractive` と同義）を
+/// 出力する（イシュー #1606、モジュール doc「参照突合」節参照。
+/// `aria-readonly` は role なし `span` への付与が ARIA in HTML 上不正なため
+/// 出力しない）。
 #[must_use]
 pub fn preview<'a>(
     mode: EditMode,
+    flags: EditableInputFlags,
     placeholder_shown: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
@@ -325,6 +414,19 @@ pub fn preview<'a>(
     if matches!(mode, EditMode::Edit) {
         merged.push(("hidden", ""));
     }
+    let interactive = !flags.disabled && !flags.readonly;
+    if interactive {
+        merged.push(("tabindex", "0"));
+    }
+    if flags.disabled {
+        merged.push(aria_disabled(true));
+    }
+    if flags.invalid {
+        merged.push(aria_invalid(true));
+    }
+    merged.extend(data_disabled(flags.disabled));
+    merged.extend(data_readonly(flags.readonly));
+    merged.extend(data_invalid(flags.invalid));
     merged.extend(attrs);
     ANATOMY.part("preview", "span", merged, children)
 }
@@ -532,8 +634,7 @@ impl Editable {
     #[must_use]
     pub fn root<'a>(
         &self,
-        disabled: bool,
-        readonly: bool,
+        flags: EditableInputFlags,
         activation_mode: EditableActivationMode,
         submit_mode: EditableSubmitMode,
         attrs: Vec<(&'a str, &'a str)>,
@@ -541,8 +642,7 @@ impl Editable {
     ) -> Node {
         root(
             self.mode,
-            disabled,
-            readonly,
+            flags,
             activation_mode,
             submit_mode,
             attrs,
@@ -554,18 +654,23 @@ impl Editable {
     #[must_use]
     pub fn label<'a>(
         &self,
-        disabled: bool,
+        flags: EditableInputFlags,
         input_id: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        label(self.mode, disabled, input_id, attrs, children)
+        label(self.mode, flags, input_id, attrs, children)
     }
 
     /// [`area`] へ現在の状態・空判定を注入する利便メソッド。
     #[must_use]
-    pub fn area<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        area(self.mode, self.is_empty(), attrs, children)
+    pub fn area<'a>(
+        &self,
+        flags: EditableInputFlags,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        area(self.mode, flags, self.is_empty(), attrs, children)
     }
 
     /// [`input`] へ現在の値・最大文字数を注入する利便メソッド。
@@ -595,8 +700,13 @@ impl Editable {
 
     /// [`preview`] へ現在の状態・空判定を注入する利便メソッド。
     #[must_use]
-    pub fn preview<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        preview(self.mode, self.is_empty(), attrs, children)
+    pub fn preview<'a>(
+        &self,
+        flags: EditableInputFlags,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        preview(self.mode, flags, self.is_empty(), attrs, children)
     }
 
     /// [`control`] へ現在の状態を注入する利便メソッド。
@@ -686,8 +796,7 @@ impl Component for Editable {
     /// としての利用は想定しない。
     fn view(&self) -> Node {
         self.root(
-            false,
-            false,
+            EditableInputFlags::default(),
             EditableActivationMode::default(),
             EditableSubmitMode::default(),
             Vec::new(),
@@ -834,8 +943,7 @@ mod tests {
     fn root_outputs_scope_part_state_and_activation_submit_mode() {
         let html = render(&root(
             EditMode::Preview,
-            false,
-            false,
+            EditableInputFlags::default(),
             EditableActivationMode::Focus,
             EditableSubmitMode::Both,
             vec![],
@@ -854,8 +962,11 @@ mod tests {
     fn root_disabled_readonly_true_adds_data_attrs() {
         let html = render(&root(
             EditMode::Preview,
-            true,
-            true,
+            EditableInputFlags {
+                disabled: true,
+                readonly: true,
+                ..Default::default()
+            },
             EditableActivationMode::default(),
             EditableSubmitMode::default(),
             vec![],
@@ -866,10 +977,31 @@ mod tests {
     }
 
     #[test]
+    fn root_does_not_output_data_invalid_or_data_required() {
+        // モジュール doc「参照突合」節: ark-ui の root は data-invalid/
+        // data-required を持たないため、flags.invalid/required を渡しても
+        // root 自体には出力しない（fandhe 拡張は disabled/readonly のみ）。
+        let html = render(&root(
+            EditMode::Preview,
+            EditableInputFlags {
+                invalid: true,
+                required: true,
+                ..Default::default()
+            },
+            EditableActivationMode::default(),
+            EditableSubmitMode::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-required"));
+    }
+
+    #[test]
     fn label_outputs_for_when_input_id_given() {
         let html = render(&label(
             EditMode::Preview,
-            false,
+            EditableInputFlags::default(),
             Some("name-field"),
             vec![],
             vec![text("Name")],
@@ -882,17 +1014,92 @@ mod tests {
 
     #[test]
     fn label_omits_for_when_input_id_none() {
-        let html = render(&label(EditMode::Preview, false, None, vec![], vec![]));
+        let html = render(&label(
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("for="));
     }
 
     #[test]
+    fn label_outputs_data_invalid_and_data_required_when_flags_true() {
+        let html = render(&label(
+            EditMode::Preview,
+            EditableInputFlags {
+                invalid: true,
+                required: true,
+                ..Default::default()
+            },
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-required="""#));
+    }
+
+    #[test]
+    fn label_omits_data_invalid_and_data_required_when_flags_false() {
+        let html = render(&label(
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-required"));
+    }
+
+    #[test]
     fn area_reflects_placeholder_shown() {
-        let html = render(&area(EditMode::Preview, true, vec![], vec![]));
+        let html = render(&area(
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            true,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-placeholder-shown="""#));
 
-        let html = render(&area(EditMode::Preview, false, vec![], vec![]));
+        let html = render(&area(
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("data-placeholder-shown"));
+    }
+
+    #[test]
+    fn area_outputs_data_disabled_when_flag_true() {
+        let html = render(&area(
+            EditMode::Preview,
+            EditableInputFlags {
+                disabled: true,
+                ..Default::default()
+            },
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn area_omits_data_disabled_when_flag_false() {
+        let html = render(&area(
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("data-disabled"));
     }
 
     #[test]
@@ -951,6 +1158,7 @@ mod tests {
                 disabled: true,
                 readonly: true,
                 required: true,
+                invalid: false,
             },
             vec![],
         ));
@@ -960,15 +1168,201 @@ mod tests {
         assert!(html.contains(r#"data-disabled="""#));
         assert!(html.contains(r#"data-readonly="""#));
         assert!(html.contains(r#"data-required="""#));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("aria-invalid"));
+    }
+
+    #[test]
+    fn input_invalid_true_adds_data_invalid_and_aria_invalid_true() {
+        let html = render(&input(
+            EditMode::Edit,
+            "name",
+            "",
+            EditableInputProps::default(),
+            EditableInputFlags {
+                invalid: true,
+                ..Default::default()
+            },
+            vec![],
+        ));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"aria-invalid="true""#));
+    }
+
+    #[test]
+    fn input_invalid_false_omits_data_invalid_and_aria_invalid() {
+        let html = render(&input(
+            EditMode::Edit,
+            "name",
+            "",
+            EditableInputProps::default(),
+            EditableInputFlags::default(),
+            vec![],
+        ));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("aria-invalid"));
     }
 
     #[test]
     fn preview_is_hidden_in_edit_and_visible_in_preview() {
-        let preview_html = render(&preview(EditMode::Preview, false, vec![], vec![]));
+        let preview_html = render(&preview(
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(!preview_html.contains("hidden"));
 
-        let edit_html = render(&preview(EditMode::Edit, false, vec![], vec![]));
+        let edit_html = render(&preview(
+            EditMode::Edit,
+            EditableInputFlags::default(),
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(edit_html.contains(r#"hidden="""#));
+    }
+
+    #[test]
+    fn preview_tabindex_zero_only_when_interactive() {
+        // interactive = !disabled && !readonly（Zag isInteractive と同義）。
+        let interactive_html = render(&preview(
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(interactive_html.contains(r#"tabindex="0""#));
+
+        let disabled_html = render(&preview(
+            EditMode::Preview,
+            EditableInputFlags {
+                disabled: true,
+                ..Default::default()
+            },
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!disabled_html.contains("tabindex"));
+
+        let readonly_html = render(&preview(
+            EditMode::Preview,
+            EditableInputFlags {
+                readonly: true,
+                ..Default::default()
+            },
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!readonly_html.contains("tabindex"));
+    }
+
+    #[test]
+    fn preview_disabled_true_adds_data_disabled_and_aria_disabled_true() {
+        let html = render(&preview(
+            EditMode::Preview,
+            EditableInputFlags {
+                disabled: true,
+                ..Default::default()
+            },
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
+    }
+
+    #[test]
+    fn preview_readonly_true_adds_data_readonly_without_aria_readonly() {
+        let html = render(&preview(
+            EditMode::Preview,
+            EditableInputFlags {
+                readonly: true,
+                ..Default::default()
+            },
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-readonly="""#));
+        // ARIA in HTML 上不正なため aria-readonly は role なし span へ付与しない
+        // （モジュール doc「参照突合」節参照）。
+        assert!(!html.contains("aria-readonly"));
+    }
+
+    #[test]
+    fn preview_invalid_true_adds_data_invalid_and_aria_invalid_true() {
+        let html = render(&preview(
+            EditMode::Preview,
+            EditableInputFlags {
+                invalid: true,
+                ..Default::default()
+            },
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"aria-invalid="true""#));
+    }
+
+    #[test]
+    fn preview_all_flags_false_omits_disabled_readonly_invalid_and_aria() {
+        let html = render(&preview(
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-readonly"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("aria-disabled"));
+        assert!(!html.contains("aria-invalid"));
+    }
+
+    #[test]
+    fn no_part_outputs_data_focus_data_autoresize_data_motion_or_aria_readonly() {
+        // モジュール doc「参照突合」節の意図的差分（data-focus/data-autoresize
+        // は SSR 静的マークアップで表現できないため不採用、aria-readonly は
+        // role なし span への付与が ARIA in HTML 上不正なため不採用）の
+        // 否定的回帰。
+        let flags = EditableInputFlags {
+            disabled: true,
+            readonly: true,
+            required: true,
+            invalid: true,
+        };
+        let html = render(&root(
+            EditMode::Preview,
+            flags,
+            EditableActivationMode::default(),
+            EditableSubmitMode::default(),
+            vec![],
+            vec![
+                label(EditMode::Preview, flags, Some("x"), vec![], vec![]),
+                area(EditMode::Preview, flags, false, vec![], vec![]),
+                input(
+                    EditMode::Edit,
+                    "name",
+                    "",
+                    EditableInputProps::default(),
+                    flags,
+                    vec![],
+                ),
+                preview(EditMode::Preview, flags, false, vec![], vec![]),
+            ],
+        ));
+        assert!(!html.contains("data-focus"));
+        assert!(!html.contains("data-autoresize"));
+        assert!(!html.contains("data-motion"));
+        assert!(!html.contains("aria-readonly"));
     }
 
     #[test]
@@ -1013,8 +1407,7 @@ mod tests {
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&root(
             EditMode::Preview,
-            false,
-            false,
+            EditableInputFlags::default(),
             EditableActivationMode::default(),
             EditableSubmitMode::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
@@ -1312,8 +1705,7 @@ mod tests {
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
             EditMode::Preview,
-            false,
-            false,
+            EditableInputFlags::default(),
             EditableActivationMode::default(),
             EditableSubmitMode::default(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
@@ -1326,6 +1718,7 @@ mod tests {
     fn children_text_is_escaped_on_render() {
         let html = render(&preview(
             EditMode::Preview,
+            EditableInputFlags::default(),
             false,
             vec![],
             vec![text("<script>alert(1)</script>")],
@@ -1341,7 +1734,7 @@ mod tests {
         // ような値そのものの拒否は行わない。render() の既定エスケープが
         // 貫通することのみを固定する。
         let e = Editable::new("<script>alert(1)</script>", None);
-        let html = render(&e.preview(vec![], vec![text(e.value())]));
+        let html = render(&e.preview(EditableInputFlags::default(), vec![], vec![text(e.value())]));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }

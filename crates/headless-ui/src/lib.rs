@@ -230,7 +230,11 @@
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。activationMode/
 //!   submitMode の実挙動・autoResize は本イシューのスコープ外
-//!   （[`editable`] モジュール doc 参照）。
+//!   （[`editable`] モジュール doc 参照）。イシュー #1606 で ark-ui との
+//!   参照突合を行い、`label`/`area`/`preview`/`input` へ
+//!   [`editable::EditableInputFlags::invalid`]/`required` 由来の
+//!   `data-invalid`/`data-required` を、`preview` へ `tabindex`/`aria-*` を
+//!   追加した（詳細は [`editable`] モジュール doc「参照突合」節参照）。
 //! - [`mod@combobox`]: Root / Label / Control / Input / Trigger /
 //!   ClearTrigger / Positioner / Content / ItemGroup / ItemGroupLabel /
 //!   Item / ItemText / ItemIndicator / LiveRegion の 14 anatomy パーツと、
