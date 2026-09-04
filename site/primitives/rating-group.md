@@ -6,19 +6,21 @@
 
 `RatingGroupProps`（`disabled`/`readonly`/`required`）は次のように各パーツへ反映されます。`label` は `data-disabled`/`data-required` を、`control` は `data-disabled`/`data-readonly` に加えて `disabled`/`readonly` が真のときのみ `aria-disabled="true"`/`aria-readonly="true"` を付与します。`item` には roving `tabindex`（確定選択中の星、未評価なら 1 番目の星が `"0"`、それ以外は `"-1"`、`disabled` のときは属性自体を省略）が付きます。hidden-input の `required` は `type="hidden"` に効果がないため付与しません。
 
-**キーボード操作**
+**キーボード操作（未実装・将来の想定契約）**
 
-| キー | 対象 | 効果 |
+`item` は roving `tabindex`（`"0"`/`"-1"`）を出力しフォーカス可能ですが、以下のキー操作は現時点で `keydown` イベントハンドラの DOM 配線（`fandhe-frontend-wasm-full`）が存在せず、**未実装です**。本部品（`fandhe-frontend-headless-ui`）は SSR 静的マークアップと dispatch 契約（`RatingGroupAction`）のみを提供し、下表は DOM 配線が実装された場合に想定される対応表です。
+
+| キー | 対象 | 想定される効果（未実装） |
 |---|---|---|
-| ArrowRight | Item | 次の星へ roving フォーカスを移し値を 1 つ増やします（dispatch: `"set"`）。 |
-| ArrowLeft | Item | 前の星へ roving フォーカスを移し値を 1 つ減らします（dispatch: `"set"`）。 |
-| Enter | Item | フォーカス中の星番号を確定値として設定します（dispatch: `"set"`）。 |
+| ArrowRight | Item | 次の星へ roving フォーカスを移し値を 1 つ増やす（dispatch: `"set"`）。 |
+| ArrowLeft | Item | 前の星へ roving フォーカスを移し値を 1 つ減らす（dispatch: `"set"`）。 |
+| Enter | Item | フォーカス中の星番号を確定値として設定する（dispatch: `"set"`）。 |
 
-ポインタ・キーボード操作の実際の DOM 配線（`keydown` イベントハンドラ、`fandhe-frontend-wasm-full`）は本部品のスコープ外です。本部品は SSR 静的マークアップと dispatch 契約のみを提供します。
+ポインタ・キーボード操作の実際の DOM 配線は `fandhe-frontend-wasm-full` の後続責務であり、本部品のスコープ外です。
 
 **参考サイトとの差分**
 
-ark-ui Rating Group と突合し、上記のキーボード操作・`data-*`/`aria-*` 語彙へ揃えました。一方、以下は意図的に合わせていません。
+ark-ui Rating Group と突合し、`data-*`/`aria-*` 語彙・想定キーボード操作契約（DOM 配線は未実装）へ揃えました。一方、以下は意図的に合わせていません。
 
 - `data-half`（`allow_half`、0.5 刻み評価）は状態機械・CSS が別設計のため未提供です（#742 以来の継続）。
 - `aria-setsize`/`aria-posinset`（item）は全 item が DOM 上の兄弟要素として連続配置されるため、支援技術が自動算出できます。
