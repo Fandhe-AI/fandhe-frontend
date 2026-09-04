@@ -1247,7 +1247,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # の解決手順（並列 PR 間）」の機械的解決手順（自分（本コミットで取り込む
 # #1583 側）が patch バンプのため、main の現在値 0.78.3 の patch を +1 した
 # 値を採用する）に従い 0.78.4 へさらに patch バンプする。
-version = "0.78.4"
+#
+# PR #1858 codex-review P1 再指摘への追記: scroll_area の thumb 既定色
+# `border-emphasized` が WCAG 非テキストコントラスト基準 3:1 未達
+# （light 約 2.0:1、dark 約 2.5:1）で、かつ `StateCondition::Hover` の
+# みが強調色へ再定義しキーボードフォーカス時（`FocusVisible`）には
+# 到達していなかった不整合を是正した。既定色を `fg-subtle`（3:1 以上）
+# へ変更し、`FocusVisible` 状態にも同じ強調色再定義を追加した観測可能な
+# CSS 出力変更（`docs/ci/style-refresh-version-bump-operation.md` §3.2
+# により `version-bump-exempt:` は適用しない）のため、同 §3.1/§3.4a に
+# 従い 0.78.5 へ patch バンプする。
+version = "0.78.5"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
