@@ -46,11 +46,15 @@ pub const STYLESHEET_REL_PATH: &str = "assets/skip-nav.css";
 
 /// SkipNav が参照する CSS 全量を組み立てる。
 ///
-/// 内訳: テーマトークン（`Theme::default`、SkipNav の focus 時表示規則が
-/// 参照する `--fandhe-color-bg`/`--fandhe-color-fg`/`--fandhe-radius-md`
-/// 等を定義する）→ `skip_nav::stylesheet()`（clip 手法 + `:focus-visible`
-/// 表示規則）の順で決定的に連結する（[`crate::admonition::stylesheet`] と
-/// 同型の組み立て順）。
+/// 内訳: テーマトークン（`Theme::default`、SkipNav が参照する
+/// `--fandhe-color-bg`/`-fg`/`-bg-muted`/`--fandhe-radius-md`/
+/// `--fandhe-space-6`/`-2-5`/`--fandhe-z-index-skip-nav`/
+/// `--fandhe-focus-ring-*`/`--fandhe-font-font-*`/`--fandhe-motion-*`
+/// 等を定義する。イシュー #1586 でタイポグラフィ・focus ring・z-index・
+/// hover・transition の各トークンを追加参照するよう改修した）→
+/// `skip_nav::stylesheet()`（clip 手法 + `:focus-visible` 表示規則）の順で
+/// 決定的に連結する（[`crate::admonition::stylesheet`] と同型の組み立て
+/// 順）。
 ///
 /// # Errors
 ///
