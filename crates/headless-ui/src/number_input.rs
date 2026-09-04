@@ -255,12 +255,16 @@ pub fn label<'a>(
 
 /// Control パーツ（`div`）。[`input`] とトリガーのラッパー。
 ///
-/// `role="group"`（呼び出し側 `attrs` に同名キーがあれば省略、
-/// [`has_caller_attr`] 参照）と、`disabled`/`invalid` に応じた
-/// `aria-disabled`/`aria-invalid` を追加する（イシュー #1613。この 2 属性は
-/// WAI-ARIA のグローバル状態・プロパティであり `group` ロールで明示的に
-/// 禁止されていない。zag.js の number-input machine が control 相当の
-/// コンテナへ同様に出力する慣行にも倣う）。
+/// `role="group"`・`aria-disabled`・`aria-invalid`（呼び出し側 `attrs` に
+/// 同名キーがあれば [`has_caller_attr`] で dedup し省略、他パーツの既定
+/// 属性と同じ規約）は、`disabled`/`invalid` に応じて追加する
+/// （イシュー #1613。この 2 属性は WAI-ARIA のグローバル状態・プロパティで
+/// あり `group` ロールで明示的に禁止されていない。zag.js の number-input
+/// machine が control 相当のコンテナへ同様に出力する慣行にも倣う）。
+/// PR #1881 レビュー指摘: 呼び出し側 `attrs` に同名の `aria-disabled`/
+/// `aria-invalid` が含まれる場合、dedup なしでは重複出力
+/// （例: `aria-disabled="true" aria-disabled="false"`）が起き得たため、
+/// 他の既定属性と同じ dedup 規約へ統一した。
 #[must_use]
 pub fn control<'a>(
     flags: NumberInputFlags,
@@ -271,10 +275,10 @@ pub fn control<'a>(
     if !has_caller_attr(&attrs, "role") {
         merged.push(("role", "group"));
     }
-    if flags.disabled {
+    if flags.disabled && !has_caller_attr(&attrs, "aria-disabled") {
         merged.push(("aria-disabled", "true"));
     }
-    if flags.invalid {
+    if flags.invalid && !has_caller_attr(&attrs, "aria-invalid") {
         merged.push(aria_invalid(true));
     }
     merged.extend(data_disabled(flags.disabled));
@@ -977,6 +981,30 @@ mod tests {
         assert_eq!(html.matches("role=").count(), 1);
         assert!(html.contains(r#"role="presentation""#));
         assert!(!html.contains(r#"role="group""#));
+    }
+
+    #[test]
+    fn control_caller_aria_disabled_and_aria_invalid_dedup_default() {
+        // PR #1881 レビュー指摘の回帰テスト: `flags.disabled`/`flags.invalid`
+        // が true のとき、既定の `aria-disabled`/`aria-invalid` を追加した
+        // 後に呼び出し側 `attrs` を無条件連結すると、`attrs` に同名属性が
+        // あった場合に `aria-disabled="true" aria-disabled="false"` のような
+        // 重複・無効な HTML が出力されていた。呼び出し側指定を正として
+        // 既定側を省略する（他の既定属性と同じ dedup 規約）。
+        let html = render(&control(
+            NumberInputFlags {
+                disabled: true,
+                invalid: true,
+                readonly: false,
+                required: false,
+            },
+            vec![("aria-disabled", "false"), ("aria-invalid", "false")],
+            vec![],
+        ));
+        assert_eq!(html.matches("aria-disabled=").count(), 1);
+        assert_eq!(html.matches("aria-invalid=").count(), 1);
+        assert!(html.contains(r#"aria-disabled="false""#));
+        assert!(html.contains(r#"aria-invalid="false""#));
     }
 
     #[test]
