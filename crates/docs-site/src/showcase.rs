@@ -7906,19 +7906,39 @@ fn bar_list_section() -> Node {
 }
 
 /// LineChart 節（イシュー #848、親 #845）: `charts` 基盤（#846）の消費者。
-/// 3 カテゴリ 1 系列の折れ線を掲示する。
+// イシュー #1595: 系列色の識別性（内部整合の評価軸）を Demo で視覚
+// 確認できるよう、2 系列（visits/signups）+ size（Xs〜Xl）行へ拡張する
+// （先例: area_chart_section #1589）。
 fn line_chart_section() -> Node {
     let data = ChartData::new(
         vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
-        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+        vec![
+            Series::new("visits", vec![10.0, 30.0, 20.0]),
+            Series::new("signups", vec![4.0, 12.0, 8.0]),
+        ],
     )
     .expect("showcase 固定データは常に有効");
     let node = line_chart::line_chart(&LineChartProps::new(&data, "monthly visits"), vec![])
         .expect("showcase 固定データは常に有効");
+
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .into_iter()
+        .map(|size| {
+            line_chart::line_chart(
+                &LineChartProps {
+                    size,
+                    ..LineChartProps::new(&data, "monthly visits")
+                },
+                vec![],
+            )
+            .expect("showcase 固定データは常に有効")
+        })
+        .collect());
+
     section(
         "LineChart",
-        "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャートです。軸・グリッド・凡例・ツールチップは別イシュー（#847）のスコープです。",
-        vec![node],
+        "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャートです。複数系列（chart-1〜6 の固定ローテーション色）と size（Xs〜Xl）の段階を掲示します。軸・グリッド・凡例・ツールチップは別イシュー（#847）のスコープです。",
+        vec![node, size_row],
     )
 }
 
