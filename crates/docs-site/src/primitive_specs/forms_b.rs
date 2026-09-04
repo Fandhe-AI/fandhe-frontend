@@ -84,7 +84,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::data_attrs::Orientation;
 use hui::number_input::{self, NumberInputFlags};
 use hui::password_input::{self, PasswordAutocomplete, PasswordInputProps};
-use hui::pin_input::{self, PinInputKind};
+use hui::pin_input::{self, PinInputKind, PinInputProps};
 use hui::radio_group;
 use hui::rating_group::{self, RatingItemFlags};
 use hui::segment_group;
@@ -213,35 +213,56 @@ const PASSWORD_INPUT: ComponentPageSpec = ComponentPageSpec {
 };
 
 /// 一次情報: `crates/headless-ui/src/pin_input.rs`
-/// （モジュール doc 1-63、`root`/`label`/`control` 141-172、
-/// `input` 174-229、`hidden_input` 231-251、`PinInputKind` 80-139）。
+/// （モジュール doc・`PinInputProps`/`state_attrs`・`root`/`label`/
+/// `control`・`input`・`hidden_input`・`PinInputKind`・`PinInputAction`。
+/// ark-ui 公式 Data Attributes / Keyboard Support 表・Radix
+/// `one-time-password-field` との参照突合はイシュー #1615）。
 const PIN_INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Label / Control / Input（桁ごと）/ HiddenInput の 5 anatomy パーツと、桁ごとの値・フォーカス位置・complete 判定を担う独自状態機械を提供する。",
-        "`data-complete` は全桁充足時のみの存在属性として本モジュールが一元管理する（パーツ間で語彙を分裂させない）。",
-        "各桁 `input` は `aria-label`（例: `\"PIN digit 1 of 6\"`）を必ず付与し、スクリーンリーダー利用者が桁位置を把握できるようにする。`kind`（`Numeric`/`Alphanumeric`/`Alphabetic`）が文字種検証と `inputmode` の両方を決める。",
+        "`PinInputProps`（disabled/readonly/invalid/required）が root/label/input の状態束を一元管理する（イシュー #1615 で新設）。`data-complete` は全桁充足時のみの存在属性として本モジュールが独自に一元管理する。",
+        "各桁 `input` は `aria-label`（例: `\"PIN digit 1 of 6\"`）・`data-index`（桁インデックス）・`data-filled`（値が非空のときのみ）を必ず付与し、スクリーンリーダー利用者・CSS の双方が桁位置・入力状態を把握できるようにする。`kind`（`Numeric`/`Alphanumeric`/`Alphabetic`）が文字種検証と `inputmode` の両方を決める。",
+        "キーボード操作は ark-ui Keyboard Support 表に合わせ、Backspace は「現在桁を消去し前の桁へ移動」、Delete は「現在桁のみ消去（フォーカス移動なし）」、ArrowLeft/ArrowRight は隣接桁へのフォーカス移動として区別される（dispatch: `\"backspace\"`/`\"delete\"`/`\"prev\"`/`\"next\"`、イシュー #1615）。",
         "秘密値の SSR プレフィルは非推奨（`hidden_input` の連結値・各桁 `value` は HTML ソースに平文で現れるため、実際の OTP を初期値として埋め込む用途には使わないこと）。",
     ],
     arguments: &[
         ArgRow { name: "root/label(complete)", kind: "bool", default: "", description: "`data-complete` 存在属性を反映する。" },
-        ArgRow { name: "root(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
-        ArgRow { name: "input(index)", kind: "usize", default: "", description: "0-origin の桁インデックス（`aria-label` の桁位置表示に使う）。" },
+        ArgRow { name: "root/label/input(props)", kind: "&PinInputProps", default: "", description: "disabled/readonly/invalid/required の状態束。root/label/input へ `data-disabled`/`data-invalid`/`data-readonly` を、label にのみ `data-required` を追加で付与する（イシュー #1615）。" },
+        ArgRow { name: "input(index)", kind: "usize", default: "", description: "0-origin の桁インデックス（`aria-label`/`data-index` に使う）。" },
         ArgRow { name: "input(count)", kind: "usize", default: "", description: "全桁数（`aria-label` の分母に使う）。" },
-        ArgRow { name: "input(value)", kind: "&str", default: "", description: "当該桁の値（空文字列 = 未入力、1 文字 = 入力済み）。" },
+        ArgRow { name: "input(value)", kind: "&str", default: "", description: "当該桁の値（空文字列 = 未入力、1 文字 = 入力済み。`data-filled` の判定にも使う）。" },
         ArgRow { name: "input(kind)", kind: "PinInputKind", default: "PinInputKind::Numeric", description: "文字種別。`inputmode` 属性と文字検証の両方を決める。" },
         ArgRow { name: "input(mask)", kind: "bool", default: "", description: "`true` で `type=\"password\"`（表示マスク）、`false` で `type=\"text\"`。" },
         ArgRow { name: "input(otp)", kind: "bool", default: "", description: "`true` のとき `autocomplete=\"one-time-code\"`（WebOTP/SMS 自動入力連携）を付与する。" },
         ArgRow { name: "hidden_input(name)", kind: "&str", default: "", description: "フォーム送信名。各桁 `input` は `name` を持たないため、実送信値はこのパーツのみが担う。" },
         ArgRow { name: "hidden_input(value)", kind: "&str", default: "", description: "全桁の連結値。" },
     ],
-    examples: &[ExampleEntry {
-        title: "Alphanumeric, unmasked",
-        description: "`PinInputKind::Alphanumeric` + `mask: false` の招待コード用途。`Numeric` 既定と異なり `inputmode` 属性は出力されない。",
-        render: ex_pin_input_alphanumeric,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Alphanumeric, unmasked",
+            description: "`PinInputKind::Alphanumeric` + `mask: false` の招待コード用途。`Numeric` 既定と異なり `inputmode` 属性は出力されない。",
+            render: ex_pin_input_alphanumeric,
+        },
+        ExampleEntry {
+            title: "Custom CSS (invalid state)",
+            description: "headless-ui はスタイルレスのため、`data-invalid`/`data-filled`/`data-complete` セレクタを使った自前 CSS の最小例を示す。",
+            render: ex_pin_input_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow { key: "0-9 / a-z / A-Z（kind 適合文字）", description: "現在のフォーカス桁（未設定なら先頭の空き桁）へ入力し、次桁が存在すればそこへ前進する（dispatch: `\"input\"`）。種別不適合文字は no-op（fail-closed）。" },
+        KeyRow { key: "ArrowLeft", description: "前の桁へフォーカスを移す（dispatch: `\"prev\"`、先頭桁なら留まる）。" },
+        KeyRow { key: "ArrowRight", description: "次の桁へフォーカスを移す（dispatch: `\"next\"`、最終桁なら留まる）。" },
+        KeyRow { key: "Backspace", description: "現在桁を消去し、前の桁へフォーカスを移す（dispatch: `\"backspace\"`、先頭桁なら消去のみで留まる。ark-ui Keyboard Support 表準拠、イシュー #1615 で是正）。" },
+        KeyRow { key: "Delete", description: "現在桁のみを消去する（dispatch: `\"delete\"`、フォーカスは移動しない）。" },
+        KeyRow { key: "Control+V / Cmd+V", description: "クリップボードの文字列を先頭桁から一括入力する（dispatch: `\"paste\"`）。全文字が `kind` に適合する場合のみ受理し、1 文字でも不適合なら部分適用せず一切拒否する。" },
+        KeyRow { key: "（実 DOM 配線）", description: "上記キー入力から dispatch への実配線（`keydown`/`paste` イベントの実 DOM ハンドラ）は `fandhe-frontend-wasm-full` 側の責務であり、本クレートのスコープ外（モジュール doc「スコープ外」節参照）。" },
+    ],
     aria: &[
         AriaRow { attribute: "aria-label (input)", description: "`\"PIN digit {index+1} of {count}\"` を各桁ごとに動的生成する（`render()` の既定エスケープを経由するため注入経路にはならない）。" },
+        AriaRow { attribute: "aria-invalid (input)", description: "`props.invalid` が `true` のときのみ `\"true\"` を出力する（valid のときは属性自体を省略する、イシュー #1615）。" },
+        AriaRow { attribute: "data-index (input)", description: "0-origin の桁インデックス（ark-ui/Radix 双方が持つ語彙、イシュー #1615）。" },
+        AriaRow { attribute: "data-filled (input)", description: "当該桁の値が非空のときのみの存在属性（イシュー #1615）。" },
         AriaRow { attribute: "data-complete", description: "全桁充足時のみの存在属性。`root`/`label`/`input` が共有する。" },
     ],
     demo: None,
@@ -715,12 +736,13 @@ fn ex_password_input_custom_css() -> Node {
 }
 
 fn ex_pin_input_alphanumeric() -> Node {
+    let props = PinInputProps::default();
     let body = vec![pin_input::root(
         false,
-        false,
+        &props,
         vec![],
         vec![
-            pin_input::label(false, vec![], vec![text("Invite code")]),
+            pin_input::label(false, &props, vec![], vec![text("Invite code")]),
             pin_input::control(
                 vec![],
                 vec![
@@ -731,7 +753,7 @@ fn ex_pin_input_alphanumeric() -> Node {
                         PinInputKind::Alphanumeric,
                         false,
                         false,
-                        false,
+                        &props,
                         false,
                         vec![],
                     ),
@@ -742,7 +764,7 @@ fn ex_pin_input_alphanumeric() -> Node {
                         PinInputKind::Alphanumeric,
                         false,
                         false,
-                        false,
+                        &props,
                         false,
                         vec![],
                     ),
@@ -753,7 +775,7 @@ fn ex_pin_input_alphanumeric() -> Node {
                         PinInputKind::Alphanumeric,
                         false,
                         false,
-                        false,
+                        &props,
                         false,
                         vec![],
                     ),
@@ -764,7 +786,7 @@ fn ex_pin_input_alphanumeric() -> Node {
                         PinInputKind::Alphanumeric,
                         false,
                         false,
-                        false,
+                        &props,
                         false,
                         vec![],
                     ),
@@ -774,6 +796,77 @@ fn ex_pin_input_alphanumeric() -> Node {
         ],
     )];
     div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// 利用者が自前 CSS で `pin-input` を装飾する最小例のスニペット
+/// （`[data-scope]`/`[data-part]`/`data-*` 状態属性セレクタ）。
+/// `assets/primitives-showcase.css` には一切追加しない（`[data-scope=`/
+/// `[data-part=` 不在契約、`tests/site_css_contract.rs` 参照）。テキストは
+/// `text()` 経由（既定エスケープ）で `pre`/`code` に出力するのみで、CSS を
+/// 実行・適用する経路は持たない（イシュー #1615）。
+const PIN_INPUT_CUSTOM_CSS_SNIPPET: &str = r#"[data-scope="pin-input"][data-part="input"] {
+  width: 2.5rem;
+  height: 2.5rem;
+  text-align: center;
+  border: 1px solid #ccc;
+}
+
+[data-scope="pin-input"][data-part="input"][data-filled] {
+  border-color: #0a7;
+}
+
+[data-scope="pin-input"][data-part="input"][data-invalid] {
+  border-color: #d33;
+}
+
+[data-scope="pin-input"][data-part="root"][data-complete] [data-part="input"] {
+  border-color: #06c;
+}
+
+[data-scope="pin-input"][data-part="input"]:focus-visible {
+  outline: 2px solid #06c;
+  outline-offset: 2px;
+}"#;
+
+fn ex_pin_input_custom_css() -> Node {
+    let props = PinInputProps {
+        invalid: true,
+        ..Default::default()
+    };
+    let inputs: Vec<Node> = ["1", "2", "", ""]
+        .iter()
+        .enumerate()
+        .map(|(i, value)| {
+            pin_input::input(
+                i,
+                4,
+                value,
+                PinInputKind::Numeric,
+                false,
+                true,
+                &props,
+                false,
+                vec![],
+            )
+        })
+        .collect();
+    let demo = pin_input::root(
+        false,
+        &props,
+        vec![],
+        vec![
+            pin_input::label(false, &props, vec![], vec![text("One-time code")]),
+            pin_input::control(vec![], inputs),
+        ],
+    );
+    let snippet = pre(
+        vec![],
+        vec![code(vec![], vec![text(PIN_INPUT_CUSTOM_CSS_SNIPPET)])],
+    );
+    wrap_password_example(
+        "headless-ui はスタイルレスです。data-scope/data-part/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
+        vec![demo, snippet],
+    )
 }
 
 fn ex_radio_group_vertical_disabled() -> Node {
