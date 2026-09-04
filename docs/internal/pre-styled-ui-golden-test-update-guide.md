@@ -60,7 +60,8 @@ checkbox / checkbox_card / checkbox_group /
 color_picker / color_swatch / **data_list（イシュー #1559 で golden 新設）** /
 date_input / dialog / **download_trigger（方式 b）** /
 drawer / editable / file_upload / floating_panel / highlight / hover_card /
-image_cropper / listbox / marquee / menu / **menubar（方式 b）** /
+image_cropper / **link_overlay（イシュー #1580 で golden 新設）** /
+listbox / marquee / menu / **menubar（方式 b）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
 pin_input / progress / qr_code / radio_card / radio_group / rating_group /
 select / separator / skeleton / skip_nav / **spinner（イシュー #1567 で
