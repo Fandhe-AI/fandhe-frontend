@@ -28,7 +28,7 @@ use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::file_upload::{
     clear_trigger, dropzone, hidden_input, item, item_delete_trigger, item_group, item_name,
     item_size_text, item_size_text_node, label, root, trigger, FileUpload, FileUploadAction,
-    FileUploadProps, ItemType,
+    FileUploadItem, FileUploadProps, ItemType,
 };
 use fandhe_frontend_interactive::Component;
 use fandhe_frontend_wasm_full::headless_file_upload::wire_file_upload_component;
@@ -708,5 +708,57 @@ fn hidden_input_required_attribute_syncs_with_accepted_files() {
     assert!(
         input_after_remove.required(),
         "native required must be restored once the accepted list becomes empty again"
+    );
+}
+
+/// イシュー #1609 codex-review/Bugbot 指摘の回帰テスト:
+/// `wire_file_upload_component` 配線前の [`sync_hidden_input_required`]
+/// 呼び出しは状態更新コールバック経由（ユーザー操作でイベントが発火した後）
+/// にしか実行されておらず、SSR hydration や `component.accepted()` が
+/// 最初から非空の状態でマウントされた場合、状態変更が一度も起きないまま
+/// hidden input の `required` 属性が残り続けていた（ファイルは受理済みなのに
+/// ネイティブ constraint validation がフォーム送信を阻止する不具合）。
+/// 是正後は配線直後に現在の状態で一度同期され、初期 DOM の時点で
+/// `required` が既に外れていることを固定する。
+#[wasm_bindgen_test]
+fn hidden_input_required_attribute_syncs_at_mount_time_with_nonempty_state() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "file-upload-required-mount-sync-test");
+    let _guard = RemoveOnDrop(container.clone());
+
+    // hydration 相当: マウント前から `accepted` が非空の状態を用意する。
+    let mut initial = FileUpload::default();
+    initial.update(FileUploadAction::AddFiles(vec![FileUploadItem::new(
+        "a.txt",
+        1,
+        "text/plain",
+    )]));
+    assert_eq!(initial.accepted().len(), 1);
+
+    let state = std::rc::Rc::new(std::cell::RefCell::new(initial));
+    // SSR が `required` 属性を伴って描画したであろう初期 DOM を再現する
+    // （このヘルパ自体は状態を見ずに `required: true` を機械的に出力する
+    // ため、hidden input は依然として `required` を持つ）。
+    container.set_inner_html(&render_file_upload_mixed(&state.borrow(), true));
+    let input = hidden_input_element(&container);
+    assert!(
+        input.required(),
+        "SSR markup renders native required regardless of accepted state"
+    );
+
+    let update_container = container.clone();
+    wire_file_upload_component(container.clone(), state.clone(), move |s, _el| {
+        update_container.set_inner_html(&render_file_upload_mixed(s, true));
+    })
+    .expect("wire_file_upload_component must not fail");
+
+    // 配線直後（状態変更イベントは一切発火していない）に required が
+    // 既に除去されていることを固定する。
+    let input_after_wire = hidden_input_element(&container);
+    assert!(
+        !input_after_wire.required(),
+        "native required must be synced to the mounted (non-empty) state immediately at wiring \
+         time, otherwise a hydrated form with an already-accepted file cannot be submitted \
+         until the user triggers an unrelated state update"
     );
 }

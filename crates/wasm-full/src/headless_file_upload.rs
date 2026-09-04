@@ -340,7 +340,20 @@ mod wiring {
 
         wire_click(&root, component.clone(), on_update.clone())?;
         wire_change(&root, component.clone(), on_update.clone())?;
-        wire_drag_and_drop(&root, component, on_update)?;
+        wire_drag_and_drop(&root, component.clone(), on_update)?;
+
+        // イシュー #1609 codex-review/Bugbot 指摘の是正: 上記の
+        // `sync_hidden_input_required` 呼び出しはいずれも状態更新
+        // コールバック経由（＝ユーザー操作でイベントが発火した後）にしか
+        // 実行されない。SSR hydration や `component.accepted()` が最初から
+        // 非空の状態でマウントされた場合、状態変更が一度も起きないまま
+        // hidden input には `required` 属性が残り続け、ファイルは受理済み
+        // なのにネイティブ constraint validation がフォーム送信を阻止して
+        // しまう。配線直後に現在の `component` 状態で一度だけ同期し、
+        // 初期 DOM と状態を一致させる。
+        if let Ok(state) = component.try_borrow() {
+            sync_hidden_input_required(&root, &state, required_intent);
+        }
 
         Ok(())
     }
