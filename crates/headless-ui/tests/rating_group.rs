@@ -1,14 +1,18 @@
 //! RatingGroup（`fandhe_frontend_headless_ui::rating_group`）の統合テスト
-//! （イシュー #742）。
+//! （イシュー #742、参考サイト（ark-ui Rating Group）突合はイシュー #1617）。
 //!
 //! フル anatomy の `render()` 出力固定・data-*/ARIA 属性の検証・dispatch/
 //! hydration 統合（[`fandhe_frontend_headless_ui::RatingGroup`]）・XSS 回帰
 //! （`crates/headless-ui/tests/radio_group.rs` と同型の攻撃ペイロード）・
 //! `Anatomy::part` の fail-closed 挙動（呼び出し側 `data-scope`/`data-part`
 //! 偽装除去）が RatingGroup パーツ経由でも維持されることを固定する。
+//!
+//! イシュー #1617 で追加した参考サイト突合契約（5 パーツの `data-part`
+//! 集合固定・`data-*`/ARIA の出力有無・roving `tabindex`・pointer/focus 系
+//! `data-*` の非出力）は本ファイル下部の専用セクションで検証する。
 
 use fandhe_frontend_core::{render, text, Node};
-use fandhe_frontend_headless_ui::rating_group::{self, RatingItemFlags};
+use fandhe_frontend_headless_ui::rating_group::{self, RatingGroupProps, RatingItemFlags};
 use fandhe_frontend_headless_ui::RatingGroup;
 use fandhe_frontend_interactive::{
     dispatch, render_for_hydration, Component, Hydrate, HydrateError,
@@ -18,13 +22,14 @@ const ATTR_BREAK_PAYLOAD: &str = "\" onmouseover=\"alert(1)";
 
 #[test]
 fn full_anatomy_renders_expected_html() {
+    let props = RatingGroupProps::default();
     let node = rating_group::root(
-        false,
-        false,
+        &props,
         vec![],
         vec![
-            rating_group::label(Some("rating-label"), vec![], vec![text("Rate")]),
+            rating_group::label(&props, Some("rating-label"), vec![], vec![text("Rate")]),
             rating_group::control(
+                &props,
                 Some("rating-label"),
                 vec![],
                 vec![
@@ -51,7 +56,7 @@ fn full_anatomy_renders_expected_html() {
                     ),
                 ],
             ),
-            rating_group::hidden_input(Some("rating"), "2", false, vec![]),
+            rating_group::hidden_input(&props, Some("rating"), "2", vec![]),
         ],
     );
 
@@ -61,8 +66,8 @@ fn full_anatomy_renders_expected_html() {
         r#"<div data-scope="rating-group" data-part="root">"#,
         r#"<span data-scope="rating-group" data-part="label" id="rating-label">Rate</span>"#,
         r#"<div data-scope="rating-group" data-part="control" role="radiogroup" aria-labelledby="rating-label">"#,
-        r#"<span data-scope="rating-group" data-part="item" data-value="1" role="radio" aria-checked="false" aria-label="1 star" data-highlighted=""></span>"#,
-        r#"<span data-scope="rating-group" data-part="item" data-value="2" role="radio" aria-checked="true" aria-label="2 stars" data-checked="" data-highlighted=""></span>"#,
+        r#"<span data-scope="rating-group" data-part="item" data-value="1" role="radio" aria-checked="false" aria-label="1 star" tabindex="-1" data-highlighted=""></span>"#,
+        r#"<span data-scope="rating-group" data-part="item" data-value="2" role="radio" aria-checked="true" aria-label="2 stars" tabindex="-1" data-checked="" data-highlighted=""></span>"#,
         r#"</div>"#,
         r#"<input data-scope="rating-group" data-part="hidden-input" type="hidden" value="2" name="rating">"#,
         r#"</div>"#,
@@ -73,7 +78,12 @@ fn full_anatomy_renders_expected_html() {
 
 #[test]
 fn disabled_and_readonly_root_emit_presence_attrs() {
-    let node = rating_group::root(true, true, vec![], vec![]);
+    let props = RatingGroupProps {
+        disabled: true,
+        readonly: true,
+        required: false,
+    };
+    let node = rating_group::root(&props, vec![], vec![]);
     let html = render(&node);
     assert!(html.contains(r#"data-disabled=""#));
     assert!(html.contains(r#"data-readonly=""#));
@@ -100,8 +110,9 @@ fn item_data_value_payload_is_escaped_on_render() {
 
 #[test]
 fn name_and_value_are_escaped_on_render() {
+    let props = RatingGroupProps::default();
     let node =
-        rating_group::hidden_input(Some(ATTR_BREAK_PAYLOAD), ATTR_BREAK_PAYLOAD, false, vec![]);
+        rating_group::hidden_input(&props, Some(ATTR_BREAK_PAYLOAD), ATTR_BREAK_PAYLOAD, vec![]);
     let html = render(&node);
 
     assert!(
@@ -114,7 +125,8 @@ fn name_and_value_are_escaped_on_render() {
 #[test]
 fn label_text_is_escaped_on_render() {
     let payload = "<script>alert(1)</script>";
-    let node = rating_group::label(None, vec![], vec![text(payload)]);
+    let props = RatingGroupProps::default();
+    let node = rating_group::label(&props, None, vec![], vec![text(payload)]);
     let html = render(&node);
 
     assert!(!html.contains("<script>"));
@@ -123,7 +135,8 @@ fn label_text_is_escaped_on_render() {
 
 #[test]
 fn labelledby_id_is_escaped_on_render() {
-    let node = rating_group::control(Some(ATTR_BREAK_PAYLOAD), vec![], vec![]);
+    let props = RatingGroupProps::default();
+    let node = rating_group::control(&props, Some(ATTR_BREAK_PAYLOAD), vec![], vec![]);
     let html = render(&node);
 
     assert!(!html.contains("onmouseover=\"alert(1)"));
@@ -132,9 +145,9 @@ fn labelledby_id_is_escaped_on_render() {
 
 #[test]
 fn caller_attrs_cannot_spoof_data_scope_or_part_via_root() {
+    let props = RatingGroupProps::default();
     let node = rating_group::root(
-        false,
-        false,
+        &props,
         vec![("data-scope", "attacker"), ("data-part", "attacker")],
         vec![],
     );
@@ -210,4 +223,230 @@ fn rating_group_view_root_is_element() {
         RatingGroup::default().view(),
         Node::Element { .. }
     ));
+}
+
+// ============================================================================
+// 参考サイト突合契約（イシュー #1617、ark-ui Rating Group 基準）
+// ============================================================================
+
+/// 5 パーツの `data-scope="rating-group"`/`data-part` 集合が ark-ui の
+/// anatomy（Root/Label/Control/Item/HiddenInput）と一致することを固定する
+/// （`crates/headless-ui/tests/checkbox.rs::reference_anatomy_part_names_match_ark_ui`
+/// と同型）。
+#[test]
+fn reference_anatomy_part_names_match_ark_ui() {
+    let props = RatingGroupProps::default();
+    let parts: [(&str, String); 5] = [
+        ("root", render(&rating_group::root(&props, vec![], vec![]))),
+        (
+            "label",
+            render(&rating_group::label(&props, None, vec![], vec![])),
+        ),
+        (
+            "control",
+            render(&rating_group::control(&props, None, vec![], vec![])),
+        ),
+        (
+            "item",
+            render(&rating_group::item(
+                1,
+                RatingItemFlags::default(),
+                "1 star",
+                vec![],
+                vec![],
+            )),
+        ),
+        (
+            "hidden-input",
+            render(&rating_group::hidden_input(&props, None, "", vec![])),
+        ),
+    ];
+    for (part, html) in &parts {
+        assert!(
+            html.contains(r#"data-scope="rating-group""#),
+            "{part} が data-scope=\"rating-group\" を持たない: {html}"
+        );
+        assert!(
+            html.contains(&format!(r#"data-part="{part}""#)),
+            "{part} が期待する data-part を持たない: {html}"
+        );
+    }
+}
+
+/// `label` の `data-disabled`/`data-required` が `RatingGroupProps` の
+/// 真偽に応じて出力・省略されることを固定する（ark-ui `Label` 突合）。
+#[test]
+fn label_reflects_disabled_and_required_from_props() {
+    let enabled = RatingGroupProps::default();
+    let html = render(&rating_group::label(&enabled, None, vec![], vec![]));
+    assert!(!html.contains("data-disabled"));
+    assert!(!html.contains("data-required"));
+
+    let disabled_required = RatingGroupProps {
+        disabled: true,
+        readonly: false,
+        required: true,
+    };
+    let html = render(&rating_group::label(
+        &disabled_required,
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains(r#"data-disabled=""#));
+    assert!(html.contains(r#"data-required=""#));
+}
+
+/// `control` の `data-disabled`/`data-readonly` と、真のときのみ出力される
+/// `aria-disabled="true"`/`aria-readonly="true"` を固定する（ark-ui
+/// `Control` 突合）。`false` のときはいずれの ARIA 属性も出力しない。
+#[test]
+fn control_reflects_disabled_and_readonly_from_props() {
+    let enabled = RatingGroupProps::default();
+    let html = render(&rating_group::control(&enabled, None, vec![], vec![]));
+    assert!(!html.contains("data-disabled"));
+    assert!(!html.contains("data-readonly"));
+    assert!(!html.contains("aria-disabled"));
+    assert!(!html.contains("aria-readonly"));
+
+    let disabled_readonly = RatingGroupProps {
+        disabled: true,
+        readonly: true,
+        required: false,
+    };
+    let html = render(&rating_group::control(
+        &disabled_readonly,
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains(r#"data-disabled=""#));
+    assert!(html.contains(r#"data-readonly=""#));
+    assert!(html.contains(r#"aria-disabled="true""#));
+    assert!(html.contains(r#"aria-readonly="true""#));
+}
+
+/// `item` の roving `tabindex` 契約: `disabled` なら省略、`focusable` なら
+/// `"0"`、それ以外は `"-1"`（イシュー #1617 是正: 是正前は
+/// `span[role="radio"]` がキーボード到達不能だった）。
+#[test]
+fn item_tabindex_follows_focusable_disabled_contract() {
+    let focusable = render(&rating_group::item(
+        1,
+        RatingItemFlags {
+            focusable: true,
+            ..RatingItemFlags::default()
+        },
+        "1 star",
+        vec![],
+        vec![],
+    ));
+    assert!(focusable.contains(r#"tabindex="0""#));
+
+    let not_focusable = render(&rating_group::item(
+        2,
+        RatingItemFlags::default(),
+        "2 stars",
+        vec![],
+        vec![],
+    ));
+    assert!(not_focusable.contains(r#"tabindex="-1""#));
+
+    let disabled = render(&rating_group::item(
+        3,
+        RatingItemFlags {
+            disabled: true,
+            focusable: true,
+            ..RatingItemFlags::default()
+        },
+        "3 stars",
+        vec![],
+        vec![],
+    ));
+    assert!(
+        !disabled.contains("tabindex"),
+        "disabled な item は tabindex を一切出力しない契約: {disabled}"
+    );
+}
+
+/// [`RatingGroup::item`] の利便メソッドが「確定選択中の星、未評価なら
+/// 1 番目の星」を `focusable`（roving tabindex の tab stop）として算出する
+/// ことを固定する（ark-ui/zag.js 実装に合わせた算出、イシュー #1617）。
+#[test]
+fn rating_group_convenience_item_computes_focusable_tab_stop() {
+    let unrated = RatingGroup::new(5, None, false);
+    let item1 = render(&unrated.item(1, false, "1 star", vec![], vec![]));
+    assert!(item1.contains(r#"tabindex="0""#));
+    let item2 = render(&unrated.item(2, false, "2 stars", vec![], vec![]));
+    assert!(item2.contains(r#"tabindex="-1""#));
+
+    let rated = RatingGroup::new(5, Some(3), false);
+    let item3 = render(&rated.item(3, false, "3 stars", vec![], vec![]));
+    assert!(item3.contains(r#"tabindex="0""#));
+    let item1 = render(&rated.item(1, false, "1 star", vec![], vec![]));
+    assert!(item1.contains(r#"tabindex="-1""#));
+}
+
+/// pointer/focus 系 `data-*`（`data-hover`/`data-active`/`data-focus`/
+/// `data-focus-visible`/`data-motion`）・`data-half`（`allow_half` 未提供）・
+/// `aria-setsize`/`aria-posinset`/`aria-roledescription`/`aria-orientation`
+/// のいずれも出力しないことを固定する（モジュール doc「意図的に参考サイト
+/// と合わせなかった事項」節の回帰）。
+#[test]
+fn no_pointer_focus_or_unadopted_reference_attrs_are_emitted() {
+    let props = RatingGroupProps {
+        disabled: true,
+        readonly: true,
+        required: true,
+    };
+    let mut html = String::new();
+    html.push_str(&render(&rating_group::root(&props, vec![], vec![])));
+    html.push_str(&render(&rating_group::label(
+        &props,
+        Some("l"),
+        vec![],
+        vec![],
+    )));
+    html.push_str(&render(&rating_group::control(
+        &props,
+        Some("l"),
+        vec![],
+        vec![],
+    )));
+    html.push_str(&render(&rating_group::item(
+        1,
+        RatingItemFlags {
+            checked: true,
+            highlighted: true,
+            disabled: true,
+            readonly: true,
+            focusable: true,
+        },
+        "1 star",
+        vec![],
+        vec![],
+    )));
+    html.push_str(&render(&rating_group::hidden_input(
+        &props,
+        Some("n"),
+        "1",
+        vec![],
+    )));
+
+    for forbidden in [
+        "data-hover",
+        "data-active",
+        "data-focus",
+        "data-motion",
+        "data-half",
+        "aria-setsize",
+        "aria-posinset",
+        "aria-roledescription",
+        "aria-orientation",
+    ] {
+        assert!(
+            !html.contains(forbidden),
+            "{forbidden} は意図的に非採用のはずが出力されている: {html}"
+        );
+    }
 }

@@ -74,29 +74,102 @@
 //!   提供する。
 //! - **Field（#538）との `aria-describedby`/`data-invalid` 連携**: #538 の
 //!   スコープ。
+//!
+//! # 参考サイト突合（イシュー #1617）
+//!
+//! ark-ui Rating Group（`.claude/skills/ark-ui/references/components/form/rating-group.md`）
+//! を基準に anatomy・`data-*`・ARIA・キーボード操作を突合し、以下を是正した。
+//!
+//! - [`RatingGroupProps`] を新設し、`root`/`label`/`control`/`hidden_input`
+//!   が共有する `disabled`/`readonly`/`required` 状態束を一元化した
+//!   （[`crate::checkbox::CheckboxProps`] と同型の設計判断）。
+//! - [`label`] に `data-disabled`/`data-required`、[`control`] に
+//!   `data-disabled`/`data-readonly` + 真のときのみの `aria-disabled="true"`/
+//!   `aria-readonly="true"` を追加した（ark-ui 準拠）。
+//! - [`RatingItemFlags::focusable`] を新設し、[`item`] に roving
+//!   `tabindex`（`disabled` なら省略、`focusable` なら `"0"`、それ以外は
+//!   `"-1"`）を追加した。是正前は `span[role="radio"]` がキーボード
+//!   到達不能だった（ARIA 適合性の欠陥）。
+//!
+//! ## キーボード操作（ark-ui 準拠、DOM 配線は wasm-full の後続責務）
+//!
+//! | キー | 動作 |
+//! |---|---|
+//! | `ArrowRight` | 次の星へ roving フォーカスを移し値を 1 つ増やす（dispatch: `"set"`）。 |
+//! | `ArrowLeft` | 前の星へ roving フォーカスを移し値を 1 つ減らす（dispatch: `"set"`）。 |
+//! | `Enter` | フォーカス中の星番号を確定値として設定する（dispatch: `"set"`）。 |
+//!
+//! 上記キー入力から dispatch への実 DOM 配線（`keydown` イベントハンドラ）は
+//! `fandhe-frontend-wasm-full`（`keynav.rs`/`headless.rs`）の後続責務であり、
+//! 本クレートのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応、
+//! Issue 起票を別途提案する）。
+//!
+//! ## 意図的に参考サイトと合わせなかった事項
+//!
+//! - **`data-half`（`allow_half`）**: #742 以来の out-of-scope 継続。
+//! - **`aria-setsize`/`aria-posinset`（item）**: 全 item が DOM 上の兄弟
+//!   要素として連続配置されるため、支援技術が自動算出できる。
+//! - **`aria-roledescription="rating"`（item）**: `role="radio"` +
+//!   `aria-label` で十分であり、スクリーンリーダーごとの読み上げ差の懸念を
+//!   避けた。
+//! - **`aria-orientation="horizontal"`（control）**: 固定値かつ軸を持たない
+//!   ため `data-orientation` も含めて不採用。
+//! - **hidden-input の `required`**: `type="hidden"` はブラウザの
+//!   constraint validation の対象外であり `required` を付与しても無効。
+//!   `data-required` は [`label`] のみに付与する。
+//! - **`data-hover`/`data-active`/`data-focus`（pointer/focus 系）**:
+//!   SSR 静的出力の関心外（[`crate::checkbox`] #1602 と同じ判断）。
+//! - **`data-focus-visible`**: item 自身が実フォーカスを受けるため CSS
+//!   `:focus-visible` で足り、`hidden_input` 経由の checkbox/radio_group
+//!   とは構成が異なる。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
-    aria_checked, aria_label as aria_label_attr, aria_labelledby, role, AriaChecked,
+    aria_checked, aria_disabled, aria_label as aria_label_attr, aria_labelledby, aria_readonly,
+    role, AriaChecked,
 };
-use crate::data_attrs::{data_checked, data_disabled, data_highlighted, data_readonly};
+use crate::data_attrs::{
+    data_checked, data_disabled, data_highlighted, data_readonly, data_required,
+};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
 /// RatingGroup の anatomy（`data-scope="rating-group"` 固定）。
 const ANATOMY: Anatomy = anatomy("rating-group");
 
+/// Root / Label / Control / HiddenInput が共有する状態束（ark-ui Root props
+/// の `disabled`/`readOnly`/`required` に対応、イシュー #1617。
+/// `crate::checkbox::CheckboxProps` と同型の設計判断）。
+///
+/// `Default` は全 `bool` フィールドが `false`（disabled でも readonly でも
+/// required でもない、SSR の既定初期描画に対応する既定値）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RatingGroupProps {
+    /// 無効化状態。`true` で `data-disabled`（root/label/control）・
+    /// `disabled` 存在属性（hidden_input）・真のときのみの
+    /// `aria-disabled="true"`（control）を付与する。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で `data-readonly`（root/control）・
+    /// 真のときのみの `aria-readonly="true"`（control）を付与する
+    /// （ネイティブ `readonly` 属性は `hidden_input` に意味を持たないため
+    /// 付与しない）。
+    pub readonly: bool,
+    /// 必須入力状態。`true` で `data-required`（label のみ）を付与する。
+    /// hidden-input の `required` は `type="hidden"` では無効なため付与しない
+    /// （モジュール doc「意図的に参考サイトと合わせなかった事項」参照）。
+    pub required: bool,
+}
+
 /// Root パーツ（`div`）。RatingGroup 全体のラップ要素。
 #[must_use]
 pub fn root<'a>(
-    disabled: bool,
-    readonly: bool,
+    props: &RatingGroupProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    merged.extend(data_disabled(disabled));
-    merged.extend(data_readonly(readonly));
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
@@ -105,9 +178,20 @@ pub fn root<'a>(
 /// [`control`] の `labelled_by` と対で使う `id` 属性を出力する（`<label>`
 /// ではなく `<span>` を採用する理由は [`crate::radio_group::label`] と同じ:
 /// グループ見出しには labelable な単一コントロール専用要素は不適）。
+///
+/// `props.disabled`/`props.required` を `data-disabled`/`data-required`
+/// として反映する（ark-ui `Label` の `data-disabled`/`data-required` に
+/// 突合、イシュー #1617）。
 #[must_use]
-pub fn label<'a>(id: Option<&'a str>, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn label<'a>(
+    props: &RatingGroupProps,
+    id: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_required(props.required));
     if let Some(id) = id {
         merged.push(("id", id));
     }
@@ -120,8 +204,15 @@ pub fn label<'a>(id: Option<&'a str>, attrs: Vec<(&'a str, &'a str)>, children: 
 /// `labelled_by` が `Some` のときのみ `aria-labelledby` を付与する（[`label`]
 /// パーツの `id` と対で使う想定。名前なしの関連付けを作らないため `None`
 /// のときは属性ごと出力しない、[`crate::radio_group::root`] と同型）。
+///
+/// `props.disabled`/`props.readonly` を `data-disabled`/`data-readonly` へ
+/// 反映し、真のときのみ `aria-disabled="true"`/`aria-readonly="true"` を
+/// 追加する（ark-ui `Control` に突合、イシュー #1617。`aria_disabled`/
+/// `aria_readonly` の呼び出し慣行は `crates/headless-ui/src/angle_slider.rs`/
+/// `tree_view.rs` と同型で、`false` のときは属性自体を出力しない）。
 #[must_use]
 pub fn control<'a>(
+    props: &RatingGroupProps,
     labelled_by: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
@@ -130,12 +221,20 @@ pub fn control<'a>(
     if let Some(id) = labelled_by {
         merged.push(aria_labelledby(id));
     }
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
+    if props.disabled {
+        merged.push(aria_disabled(true));
+    }
+    if props.readonly {
+        merged.push(aria_readonly(true));
+    }
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
 }
 
 /// [`item`]/[`RatingGroup::item`] が受け取る checked/highlighted/disabled/
-/// readonly フラグ束。4 個の独立した `bool` 引数のままだと clippy
+/// readonly/focusable フラグ束。独立した `bool` 引数のままだと clippy
 /// `too_many_arguments`（既定閾値 7）を超えるため、
 /// [`crate::number_input::NumberInputFlags`] と同型の薄い構造体としてまとめる。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -150,6 +249,15 @@ pub struct RatingItemFlags {
     pub disabled: bool,
     /// `data-readonly` を付与するかどうか。
     pub readonly: bool,
+    /// roving `tabindex`（`"0"`）の対象かどうか（イシュー #1617）。
+    /// `disabled` のときはこのフラグに関わらず `tabindex` 自体を省略する
+    /// （ネイティブ disabled 要素と同じくキーボードフォーカスから除外）。
+    /// `disabled == false` のとき、`focusable == true` なら `"0"`、
+    /// `false` なら `"-1"` を出力する（roving tabindex パターン。
+    /// [`RatingGroup::item`] は「確定選択中の星、未評価なら 1 番目の星」を
+    /// tab stop とする、ark-ui/zag.js の rating-group 実装に合わせた算出を
+    /// 行う）。
+    pub focusable: bool,
 }
 
 /// Item パーツ（`span`、`role="radio"` + `aria-checked`）。星 1 個を表す。
@@ -158,6 +266,11 @@ pub struct RatingItemFlags {
 /// `render()` の既定エスケープを必ず経由する。REQ-1）。`aria_label` は
 /// 呼び出し側が必須で与える国際化可能なラベル（例: `"1 star"`）で、
 /// フレームワーク側でハードコード生成しない。
+///
+/// `tabindex`（roving focus、イシュー #1617）: `flags.disabled` のときは
+/// 省略、それ以外は `flags.focusable` に応じて `"0"`/`"-1"` を出力する
+/// （是正前は `span[role="radio"]` がキーボード到達不能だった、
+/// モジュール doc「参考サイト突合」節参照）。
 #[must_use]
 pub fn item<'a>(
     index: u32,
@@ -176,6 +289,9 @@ pub fn item<'a>(
         }),
         aria_label_attr(aria_label),
     ];
+    if !flags.disabled {
+        merged.push(("tabindex", if flags.focusable { "0" } else { "-1" }));
+    }
     merged.extend(data_disabled(flags.disabled));
     merged.extend(data_readonly(flags.readonly));
     merged.extend(data_checked(flags.checked));
@@ -196,21 +312,24 @@ pub fn item<'a>(
 /// 「呼び出し文脈」節参照）。`name` は `Option<&str>`（省略時は呼び出し側が
 /// `attrs` 経由で配線する）。`value_text` は動的値だが
 /// [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
+///
+/// `props.required` は付与しない（`type="hidden"` では無効、モジュール doc
+/// 「意図的に参考サイトと合わせなかった事項」参照）。
 #[must_use]
 pub fn hidden_input<'a>(
+    props: &RatingGroupProps,
     name: Option<&'a str>,
     value_text: &'a str,
-    disabled: bool,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "hidden"), ("value", value_text)];
     if let Some(name) = name {
         merged.push(("name", name));
     }
-    if disabled {
+    if props.disabled {
         merged.push(("disabled", ""));
     }
-    merged.extend(data_disabled(disabled));
+    merged.extend(data_disabled(props.disabled));
     merged.extend(attrs);
     ANATOMY.part("hidden-input", "input", merged, Vec::new())
 }
@@ -344,6 +463,17 @@ impl RatingGroup {
         self.value.map(|v| v.to_string()).unwrap_or_default()
     }
 
+    /// 星番号 `index` が roving `tabindex` の tab stop（`focusable`）かどうか。
+    /// 「確定選択中の星、未評価なら 1 番目の星」を tab stop とする
+    /// （ark-ui/zag.js の rating-group 実装に合わせた算出、イシュー #1617）。
+    #[must_use]
+    fn is_focusable(&self, index: u32) -> bool {
+        match self.value {
+            Some(v) => index == v,
+            None => index == 1,
+        }
+    }
+
     /// [`item`] へ星番号 `index` の現在状態を注入する利便メソッド。
     #[must_use]
     pub fn item<'a>(
@@ -361,6 +491,7 @@ impl RatingGroup {
                 highlighted: self.is_highlighted(index),
                 disabled,
                 readonly: self.readonly,
+                focusable: self.is_focusable(index),
             },
             aria_label,
             attrs,
@@ -377,7 +508,12 @@ impl RatingGroup {
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
         let value_s = self.value_text();
-        hidden_input(name, value_s.as_str(), disabled, attrs)
+        let props = RatingGroupProps {
+            disabled,
+            readonly: self.readonly,
+            required: false,
+        };
+        hidden_input(&props, name, value_s.as_str(), attrs)
     }
 }
 
@@ -416,7 +552,12 @@ impl Component for RatingGroup {
     /// 共通契約（hydration ルート）のみを表す最小正準ビュー（[`root`]、
     /// children 空。[`crate::radio_group::RadioGroup::view`] と同じ位置付け）。
     fn view(&self) -> Node {
-        root(false, self.readonly, Vec::new(), Vec::new())
+        let props = RatingGroupProps {
+            disabled: false,
+            readonly: self.readonly,
+            required: false,
+        };
+        root(&props, Vec::new(), Vec::new())
     }
 
     /// `"set"`/`"hover"`: payload を `u32` パースし失敗時 `None`（fail-closed、
@@ -531,7 +672,7 @@ mod tests {
 
     #[test]
     fn root_outputs_scope_and_part() {
-        let html = render(&root(false, false, vec![], vec![]));
+        let html = render(&root(&RatingGroupProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="rating-group""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("data-disabled"));
@@ -540,7 +681,12 @@ mod tests {
 
     #[test]
     fn root_disabled_and_readonly_add_presence_attrs() {
-        let html = render(&root(true, true, vec![], vec![]));
+        let props = RatingGroupProps {
+            disabled: true,
+            readonly: true,
+            required: false,
+        };
+        let html = render(&root(&props, vec![], vec![]));
         assert!(html.contains(r#"data-disabled="""#));
         assert!(html.contains(r#"data-readonly="""#));
     }
@@ -548,6 +694,7 @@ mod tests {
     #[test]
     fn label_id_some_outputs_id_and_children() {
         let html = render(&label(
+            &RatingGroupProps::default(),
             Some("rating-label"),
             vec![],
             vec![text("Rate this")],
@@ -560,23 +707,56 @@ mod tests {
 
     #[test]
     fn label_id_none_omits_id() {
-        let html = render(&label(None, vec![], vec![]));
+        let html = render(&label(&RatingGroupProps::default(), None, vec![], vec![]));
         assert!(!html.contains(" id="));
     }
 
     #[test]
+    fn label_reflects_disabled_and_required() {
+        let props = RatingGroupProps {
+            disabled: true,
+            readonly: false,
+            required: true,
+        };
+        let html = render(&label(&props, None, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-required="""#));
+    }
+
+    #[test]
     fn control_outputs_radiogroup_role() {
-        let html = render(&control(None, vec![], vec![]));
+        let html = render(&control(&RatingGroupProps::default(), None, vec![], vec![]));
         assert!(html.contains(r#"data-scope="rating-group""#));
         assert!(html.contains(r#"data-part="control""#));
         assert!(html.contains(r#"role="radiogroup""#));
         assert!(!html.contains("aria-labelledby"));
+        assert!(!html.contains("aria-disabled"));
+        assert!(!html.contains("aria-readonly"));
     }
 
     #[test]
     fn control_labelled_by_some_outputs_aria_labelledby() {
-        let html = render(&control(Some("rating-label"), vec![], vec![]));
+        let html = render(&control(
+            &RatingGroupProps::default(),
+            Some("rating-label"),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"aria-labelledby="rating-label""#));
+    }
+
+    #[test]
+    fn control_reflects_disabled_and_readonly_with_true_only_aria() {
+        let props = RatingGroupProps {
+            disabled: true,
+            readonly: true,
+            required: false,
+        };
+        let html = render(&control(&props, None, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert!(html.contains(r#"aria-readonly="true""#));
     }
 
     #[test]
@@ -588,6 +768,7 @@ mod tests {
                 highlighted: true,
                 disabled: false,
                 readonly: false,
+                focusable: false,
             },
             "3 stars",
             vec![],
@@ -603,6 +784,7 @@ mod tests {
         assert!(html.contains(r#"data-highlighted="""#));
         assert!(!html.contains("data-disabled"));
         assert!(!html.contains("data-readonly"));
+        assert!(html.contains(r#"tabindex="-1""#));
     }
 
     #[test]
@@ -614,6 +796,7 @@ mod tests {
                 highlighted: false,
                 disabled: true,
                 readonly: true,
+                focusable: false,
             },
             "2 stars",
             vec![],
@@ -624,11 +807,35 @@ mod tests {
         assert!(!html.contains("data-highlighted"));
         assert!(html.contains(r#"data-disabled="""#));
         assert!(html.contains(r#"data-readonly="""#));
+        assert!(
+            !html.contains("tabindex"),
+            "disabled な item は tabindex を出力しない: {html}"
+        );
+    }
+
+    #[test]
+    fn item_focusable_outputs_tabindex_zero() {
+        let html = render(&item(
+            1,
+            RatingItemFlags {
+                focusable: true,
+                ..RatingItemFlags::default()
+            },
+            "1 star",
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"tabindex="0""#));
     }
 
     #[test]
     fn hidden_input_carries_type_hidden_and_value() {
-        let html = render(&hidden_input(Some("rating"), "4", false, vec![]));
+        let html = render(&hidden_input(
+            &RatingGroupProps::default(),
+            Some("rating"),
+            "4",
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="rating-group""#));
         assert!(html.contains(r#"data-part="hidden-input""#));
         assert!(html.contains(r#"type="hidden""#));
@@ -639,15 +846,40 @@ mod tests {
 
     #[test]
     fn hidden_input_disabled_true_adds_presence_attrs() {
-        let html = render(&hidden_input(None, "", true, vec![]));
+        let props = RatingGroupProps {
+            disabled: true,
+            readonly: false,
+            required: false,
+        };
+        let html = render(&hidden_input(&props, None, "", vec![]));
         assert!(html.contains(r#"disabled="""#));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn hidden_input_name_none_omits_name_attribute() {
-        let html = render(&hidden_input(None, "1", false, vec![]));
+        let html = render(&hidden_input(
+            &RatingGroupProps::default(),
+            None,
+            "1",
+            vec![],
+        ));
         assert!(!html.contains("name="));
+    }
+
+    #[test]
+    fn hidden_input_required_prop_does_not_add_required_attribute() {
+        // `type="hidden"` はブラウザの constraint validation の対象外であり
+        // `required` を付与しても無効なため、`RatingGroupProps::required` は
+        // hidden_input へ反映しない契約（モジュール doc「意図的に参考サイト
+        // と合わせなかった事項」参照）。
+        let props = RatingGroupProps {
+            disabled: false,
+            readonly: false,
+            required: true,
+        };
+        let html = render(&hidden_input(&props, None, "1", vec![]));
+        assert!(!html.contains("required"));
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---
@@ -670,13 +902,14 @@ mod tests {
 
     #[test]
     fn full_assembly_with_label_control_items_and_hidden_input() {
+        let props = RatingGroupProps::default();
         let node = root(
-            false,
-            false,
+            &props,
             vec![],
             vec![
-                label(Some("rating-label"), vec![], vec![text("Rate")]),
+                label(&props, Some("rating-label"), vec![], vec![text("Rate")]),
                 control(
+                    &props,
                     Some("rating-label"),
                     vec![],
                     vec![
@@ -713,7 +946,7 @@ mod tests {
                         ),
                     ],
                 ),
-                hidden_input(Some("rating"), "3", false, vec![]),
+                hidden_input(&props, Some("rating"), "3", vec![]),
             ],
         );
         assert_eq!(
@@ -722,9 +955,9 @@ mod tests {
                 r#"<div data-scope="rating-group" data-part="root">"#,
                 r#"<span data-scope="rating-group" data-part="label" id="rating-label">Rate</span>"#,
                 r#"<div data-scope="rating-group" data-part="control" role="radiogroup" aria-labelledby="rating-label">"#,
-                r#"<span data-scope="rating-group" data-part="item" data-value="1" role="radio" aria-checked="false" aria-label="1 star" data-highlighted=""></span>"#,
-                r#"<span data-scope="rating-group" data-part="item" data-value="2" role="radio" aria-checked="false" aria-label="2 stars" data-highlighted=""></span>"#,
-                r#"<span data-scope="rating-group" data-part="item" data-value="3" role="radio" aria-checked="true" aria-label="3 stars" data-checked="" data-highlighted=""></span>"#,
+                r#"<span data-scope="rating-group" data-part="item" data-value="1" role="radio" aria-checked="false" aria-label="1 star" tabindex="-1" data-highlighted=""></span>"#,
+                r#"<span data-scope="rating-group" data-part="item" data-value="2" role="radio" aria-checked="false" aria-label="2 stars" tabindex="-1" data-highlighted=""></span>"#,
+                r#"<span data-scope="rating-group" data-part="item" data-value="3" role="radio" aria-checked="true" aria-label="3 stars" tabindex="-1" data-checked="" data-highlighted=""></span>"#,
                 r#"</div>"#,
                 r#"<input data-scope="rating-group" data-part="hidden-input" type="hidden" value="3" name="rating">"#,
                 r#"</div>"#,
@@ -1018,14 +1251,24 @@ mod tests {
 
     #[test]
     fn control_labelled_by_payload_is_escaped_on_render() {
-        let html = render(&control(Some(ATTR_BREAK_PAYLOAD), vec![], vec![]));
+        let html = render(&control(
+            &RatingGroupProps::default(),
+            Some(ATTR_BREAK_PAYLOAD),
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
 
     #[test]
     fn label_id_payload_is_escaped_on_render() {
-        let html = render(&label(Some(ATTR_BREAK_PAYLOAD), vec![], vec![]));
+        let html = render(&label(
+            &RatingGroupProps::default(),
+            Some(ATTR_BREAK_PAYLOAD),
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
@@ -1046,9 +1289,9 @@ mod tests {
     #[test]
     fn hidden_input_name_and_value_payload_is_escaped_on_render() {
         let html = render(&hidden_input(
+            &RatingGroupProps::default(),
             Some(ATTR_BREAK_PAYLOAD),
             ATTR_BREAK_PAYLOAD,
-            false,
             vec![],
         ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
@@ -1058,8 +1301,7 @@ mod tests {
     #[test]
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
-            false,
-            false,
+            &RatingGroupProps::default(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
             vec![],
         ));
@@ -1069,6 +1311,7 @@ mod tests {
     #[test]
     fn children_text_is_escaped_on_render() {
         let html = render(&label(
+            &RatingGroupProps::default(),
             None,
             vec![],
             vec![text("<script>alert(1)</script>")],

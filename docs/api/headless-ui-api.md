@@ -58,7 +58,7 @@
 | [Slider](../../site/themes/slider.md) | `slider` | Root/Label/Control/Track/Range/Thumb/HiddenInput/ValueText | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。`value` は常に `min` 起点で `step` 単位へスナップしてから `[min, max]` へ clamp する。`thumb` が `role="slider"` + `aria-valuemin/max/now`/`aria-orientation` を担う） |
 | [PinInput](../../site/themes/pin-input.md) | `pin_input` | Root/Label/Control/Input/HiddenInput | 独自実装（固定桁数の文字配列 + フォーカス位置、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。イシュー #1615 で ark-ui/Radix 参照突合、§6-10 参照） |
 | [TagsInput](../../site/themes/tags-input.md) | `tags_input` | Root/Label/Control/Input/Item/ItemPreview/ItemText/ItemInput/ItemDeleteTrigger/ClearTrigger/HiddenInput/LiveRegion | 独自実装（可変長タグ文字列リスト + 編集中インデックス、`SingleSelect`/`MultiSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`control` は `role="listbox"`、`item-preview` は `role="option"`。`live_region` はタグ数変化の通知用 live region、`aria-live="polite"` 固定・テキスト更新は wasm-full の後続責務、イシュー #1069） |
-| [RatingGroup](../../site/themes/rating-group.md) | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装） |
+| [RatingGroup](../../site/themes/rating-group.md) | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装。イシュー #1617 で ark-ui 参照突合、§6-11 参照） |
 | [Editable](../../site/themes/editable.md) | `editable` | Root/Label/Area/Input/Preview/Control/EditTrigger/SubmitTrigger/CancelTrigger | 独自実装（`"preview"`/`"edit"` の 2 モードが `Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`mode == Preview` のとき常に `draft == value` を保つ不変条件を持つ。イシュー #1606 で参照突合（`EditableInputFlags` 共有・`data-invalid`/`data-required`・preview `tabindex`/`aria-*`・activation/submit `none` 追加。`data-focus`/`data-autoresize`/DOM 配線は見送り）） |
 | [Toggle](../../site/themes/toggle.md) | `toggle` | Root/Indicator | `state::Checkable`（`data-state` 語彙は `"on"`/`"off"`。`checked_data_state` ではなく `state::pressed_data_state` で変換し、Switch の `"checked"`/`"unchecked"` と分離する） |
 | [ToggleGroup（single モード）](../../site/themes/toggle-group.md) | `toggle_group` | Root/Item | `state::SingleSelect`（dispatch は `"toggle"` のみ受理、常時 deselectable） |
@@ -519,6 +519,19 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
    `std::time::SystemTime::now()` 等の現在時刻 API・環境変数・グローバル
    状態を一切参照しない決定的純関数であり、`base`/`target` 等の時刻は
    必ず呼び出し側が明示的に渡す（§4e.1 参照）。
+11. イシュー #1617（ark-ui Rating Group 参照突合）で `rating_group` へ
+   `RatingGroupProps`（disabled/readonly/required）を新設し、`root`/
+   `label`/`control`/`hidden_input` のシグネチャを `&RatingGroupProps`
+   受けへ統一した。`label` の `data-disabled`/`data-required`、`control`
+   の `data-disabled`/`data-readonly` + 真のときのみの
+   `aria-disabled="true"`/`aria-readonly="true"` を追加し、
+   `RatingItemFlags::focusable` により `item` へ roving `tabindex`
+   （`disabled` は省略、`focusable` なら `"0"`、それ以外は `"-1"`）を
+   追加した（是正前は `span[role="radio"]` がキーボード到達不能だった）。
+   `data-half`（`allow_half`）・`aria-setsize`/`aria-posinset`・
+   `aria-roledescription`・`aria-orientation` は意図的に非採用のまま
+   維持する（`crates/headless-ui/src/rating_group.rs` モジュール doc
+   「参考サイト突合」節参照）。
 
 ## 7. 関連ドキュメント
 

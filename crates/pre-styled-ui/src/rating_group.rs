@@ -128,7 +128,8 @@ use crate::recipe::{
 // として再定義する）。
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::rating_group::{
-    control, hidden_input, item, label, RatingGroup, RatingGroupAction, RatingItemFlags,
+    control, hidden_input, item, label, RatingGroup, RatingGroupAction, RatingGroupProps,
+    RatingItemFlags,
 };
 
 /// headless `rating_group` anatomy の `data-part` 一覧（`crates/headless-ui/src/rating_group.rs`
@@ -331,15 +332,20 @@ pub fn stylesheet() -> String {
 /// use fandhe_frontend_pre_styled_ui::rating_group;
 /// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 ///
-/// let node = rating_group::root(Size::Md, ColorPalette::Accent, false, false, vec![], vec![]);
+/// let node = rating_group::root(
+///     Size::Md,
+///     ColorPalette::Accent,
+///     &rating_group::RatingGroupProps::default(),
+///     vec![],
+///     vec![],
+/// );
 /// assert!(render(&node).contains(r#"data-scope="rating-group" data-part="root""#));
 /// ```
 #[must_use]
 pub fn root<'a>(
     size: Size,
     palette: ColorPalette,
-    disabled: bool,
-    readonly: bool,
+    props: &RatingGroupProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -348,7 +354,7 @@ pub fn root<'a>(
         recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::rating_group::root(disabled, readonly, merged, children)
+    fandhe_frontend_headless_ui::rating_group::root(props, merged, children)
 }
 
 #[cfg(test)]
@@ -454,8 +460,7 @@ mod tests {
         let html = render(&root(
             Size::Md,
             ColorPalette::Accent,
-            false,
-            false,
+            &RatingGroupProps::default(),
             vec![],
             vec![],
         ));
@@ -468,8 +473,7 @@ mod tests {
         let html = render(&root(
             Size::Md,
             ColorPalette::Accent,
-            false,
-            false,
+            &RatingGroupProps::default(),
             vec![],
             vec![],
         ));
@@ -489,8 +493,7 @@ mod tests {
             let html = render(&root(
                 size,
                 ColorPalette::Accent,
-                false,
-                false,
+                &RatingGroupProps::default(),
                 vec![],
                 vec![],
             ));
@@ -552,7 +555,13 @@ mod tests {
                 "fd-rating-group--color-palette-neutral",
             ),
         ] {
-            let html = render(&root(Size::Md, palette, false, false, vec![], vec![]));
+            let html = render(&root(
+                Size::Md,
+                palette,
+                &RatingGroupProps::default(),
+                vec![],
+                vec![],
+            ));
             assert!(html.contains(class), "palette={palette:?} -> {html}");
         }
     }
@@ -562,8 +571,7 @@ mod tests {
         let html = render(&root(
             Size::Md,
             ColorPalette::Accent,
-            false,
-            false,
+            &RatingGroupProps::default(),
             vec![("class", "attacker-controlled")],
             vec![],
         ));
@@ -576,8 +584,7 @@ mod tests {
         let html = render(&root(
             Size::Md,
             ColorPalette::Accent,
-            false,
-            false,
+            &RatingGroupProps::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
@@ -588,11 +595,15 @@ mod tests {
 
     #[test]
     fn root_disabled_and_readonly_reflected() {
+        let props = RatingGroupProps {
+            disabled: true,
+            readonly: true,
+            required: false,
+        };
         let html = render(&root(
             Size::Md,
             ColorPalette::Accent,
-            true,
-            true,
+            &props,
             vec![],
             vec![],
         ));
@@ -621,7 +632,12 @@ mod tests {
     #[test]
     fn xss_payload_in_label_children_is_escaped_by_render() {
         let payload = "\"><img src=x onerror=alert(1)>";
-        let html = render(&label(None, vec![], vec![text(payload)]));
+        let html = render(&label(
+            &RatingGroupProps::default(),
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
         assert!(!html.contains("<img"));
         assert!(html.contains("&lt;img"));
     }

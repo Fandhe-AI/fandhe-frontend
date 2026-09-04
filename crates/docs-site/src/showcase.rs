@@ -152,7 +152,9 @@ use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::quote::quote;
 use fandhe_frontend_pre_styled_ui::radio_card;
-use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
+use fandhe_frontend_pre_styled_ui::rating_group::{
+    self, RatingGroup, RatingGroupProps, RatingItemFlags,
+};
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
@@ -4283,8 +4285,14 @@ fn rating_group_section() -> Node {
                  disabled: bool,
                  readonly: bool| {
         let g = RatingGroup::new(5, value, readonly);
+        let props = RatingGroupProps {
+            disabled,
+            readonly,
+            required: false,
+        };
         let label_id = format!("{id_prefix}-label");
         let mut children = vec![rating_group::label(
+            &props,
             Some(label_id.as_str()),
             vec![],
             vec![text("Rate this product")],
@@ -4293,6 +4301,14 @@ fn rating_group_section() -> Node {
             .map(|i| {
                 let checked = g.is_checked(i);
                 let highlighted = g.is_highlighted(i);
+                // 「確定選択中の星、未評価なら 1 番目の星」を roving
+                // tabindex の tab stop（focusable）とする
+                // （`RatingGroup::item` 利便メソッドの算出と同じ規則、
+                // `crates/headless-ui/src/rating_group.rs` 参照）。
+                let focusable = match value {
+                    Some(v) => i == v,
+                    None => i == 1,
+                };
                 rating_group::item(
                     i,
                     RatingItemFlags {
@@ -4300,6 +4316,7 @@ fn rating_group_section() -> Node {
                         highlighted,
                         disabled,
                         readonly,
+                        focusable,
                     },
                     &format!("{i} star{}", if i == 1 { "" } else { "s" }),
                     vec![],
@@ -4308,24 +4325,18 @@ fn rating_group_section() -> Node {
             })
             .collect();
         children.push(rating_group::control(
+            &props,
             Some(label_id.as_str()),
             vec![],
             items,
         ));
         children.push(rating_group::hidden_input(
+            &props,
             Some("rating"),
             g.value_text().as_str(),
-            disabled,
             vec![],
         ));
-        rating_group::root(
-            size,
-            ColorPalette::Accent,
-            disabled,
-            readonly,
-            vec![],
-            children,
-        )
+        rating_group::root(size, ColorPalette::Accent, &props, vec![], children)
     };
 
     let selected = build("showcase-rating-selected", Size::Md, Some(3), false, false);
