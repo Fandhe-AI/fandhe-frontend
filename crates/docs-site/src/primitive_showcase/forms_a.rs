@@ -21,7 +21,7 @@ use hui::editable::{
 use hui::field::{self, FieldProps};
 use hui::fieldset::{self, FieldsetProps};
 use hui::file_upload;
-use hui::image_cropper::{self, HandlePosition};
+use hui::image_cropper::{self, GridAxis, HandlePosition, ImageCropper, ImageCropperProps};
 use hui::listbox;
 use hui::{angle_slider, checkbox, OpenState};
 
@@ -1062,30 +1062,94 @@ pub(super) fn file_upload_section() -> Node {
     demo_page("File Upload", body)
 }
 
+/// イシュー #1610（参照実装突合）: `ImageCropperProps`（`data-disabled`/
+/// `data-dragging`）・`GridAxis`（`data-axis`）を含む `data-*` 表を機械
+/// 導出するため、既定 props（8 方位 handle + 横軸/縦軸 grid）と
+/// disabled + dragging props（`grid(None, ..)`）の 2 インスタンスを並べる
+/// （`angle_slider_section` の既定/readonly・invalid 2 インスタンス構成と
+/// 同型）。
 pub(super) fn image_cropper_section() -> Node {
-    let body = vec![image_cropper::root(
-        vec![],
-        vec![
-            image_cropper::viewport(
-                vec![],
-                vec![image_cropper::image(
-                    "https://example.com/sample.jpg",
-                    "Sample photo to crop",
+    let state = ImageCropper::default();
+    let default_props = ImageCropperProps::default();
+    let body = vec![
+        image_cropper::root(
+            &default_props,
+            vec![],
+            vec![
+                image_cropper::viewport(
+                    &default_props,
                     vec![],
-                )],
-            ),
-            image_cropper::selection(
-                vec![],
-                vec![
-                    image_cropper::handle(HandlePosition::N, vec![]),
-                    image_cropper::handle(HandlePosition::S, vec![]),
-                    image_cropper::handle(HandlePosition::E, vec![]),
-                    image_cropper::handle(HandlePosition::W, vec![]),
-                ],
-            ),
-            image_cropper::grid(vec![]),
-        ],
-    )];
+                    vec![image_cropper::image(
+                        "https://example.com/sample.jpg",
+                        "Sample photo to crop",
+                        vec![],
+                    )],
+                ),
+                image_cropper::selection(
+                    &state,
+                    &default_props,
+                    vec![],
+                    vec![
+                        image_cropper::handle(HandlePosition::N, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::S, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::E, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::W, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::Ne, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::Nw, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::Se, &default_props, vec![]),
+                        image_cropper::handle(HandlePosition::Sw, &default_props, vec![]),
+                    ],
+                ),
+                image_cropper::grid(Some(GridAxis::Horizontal), &default_props, vec![]),
+                image_cropper::grid(Some(GridAxis::Vertical), &default_props, vec![]),
+            ],
+        ),
+        image_cropper::root(
+            &ImageCropperProps {
+                disabled: true,
+                dragging: true,
+            },
+            vec![],
+            vec![
+                image_cropper::viewport(
+                    &ImageCropperProps {
+                        disabled: true,
+                        dragging: true,
+                    },
+                    vec![],
+                    vec![image_cropper::image(
+                        "https://example.com/sample.jpg",
+                        "Sample photo to crop",
+                        vec![],
+                    )],
+                ),
+                image_cropper::selection(
+                    &state,
+                    &ImageCropperProps {
+                        disabled: true,
+                        dragging: true,
+                    },
+                    vec![],
+                    vec![image_cropper::handle(
+                        HandlePosition::Se,
+                        &ImageCropperProps {
+                            disabled: true,
+                            dragging: true,
+                        },
+                        vec![],
+                    )],
+                ),
+                image_cropper::grid(
+                    None,
+                    &ImageCropperProps {
+                        disabled: true,
+                        dragging: true,
+                    },
+                    vec![],
+                ),
+            ],
+        ),
+    ];
     demo_page("Image Cropper", body)
 }
 
