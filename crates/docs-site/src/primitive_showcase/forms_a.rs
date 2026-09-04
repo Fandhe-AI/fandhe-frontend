@@ -746,22 +746,179 @@ pub(super) fn field_section() -> Node {
     demo_page("Field", body)
 }
 
+/// 4 パーツ（root/legend/helper-text/error-text）を basic/disabled/invalid
+/// の 3 インスタンスへ描き分ける（イシュー #1608、参照突合の一環）。参照
+/// スクリーンショット（ark-fieldset-1〜3・chakra-fieldset-1〜3）に倣い、
+/// 各インスタンスは内包 [`field::root`]（`fs_props.merge_field_props` で
+/// 合成した [`FieldProps`]）を 1〜2 件含めることで `data-disabled`/
+/// `data-invalid`（`data-*` 表の機械導出元）を Demo 木へ露出させる。内包
+/// Field により Demo 木に `data-scope="field"` が混在するが、
+/// `component_page.rs` の scope 解決は最外側・初出の `data-scope`
+/// （fieldset root）を採用し、Anatomy・`data-*` 走査は scope 一致で
+/// フィルタするため Field 側のパートは漏れない（確認済み）。
 pub(super) fn fieldset_section() -> Node {
-    let props = FieldsetProps {
-        id: "fieldset-shipping",
+    let basic_props = FieldsetProps {
+        id: "fieldset-contact",
         disabled: false,
         invalid: false,
         has_helper_text: true,
     };
-    let body = vec![fieldset::root(
-        &props,
-        vec![],
-        vec![
-            fieldset::legend(&props, vec![], vec![text("Shipping address")]),
-            fieldset::helper_text(&props, vec![], vec![text("Used for delivery only.")]),
-            fieldset::error_text(&props, vec![], vec![text("Address is required.")]),
-        ],
-    )];
+    let disabled_props = FieldsetProps {
+        id: "fieldset-shipping-disabled",
+        disabled: true,
+        invalid: false,
+        has_helper_text: false,
+    };
+    let invalid_props = FieldsetProps {
+        id: "fieldset-shipping-invalid",
+        disabled: false,
+        invalid: true,
+        has_helper_text: false,
+    };
+
+    let basic_name_field = basic_props.merge_field_props(FieldProps {
+        id: "field-contact-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    });
+    let basic_email_field = basic_props.merge_field_props(FieldProps {
+        id: "field-contact-email",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    });
+    let disabled_name_field = disabled_props.merge_field_props(FieldProps {
+        id: "field-shipping-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    });
+    let disabled_address_field = disabled_props.merge_field_props(FieldProps {
+        id: "field-shipping-address",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    });
+    let invalid_name_field = invalid_props.merge_field_props(FieldProps {
+        id: "field-shipping-invalid-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    });
+
+    let body = vec![
+        // basic: legend + helper_text + 内包 Field 2 件（error_text は
+        // 非 invalid のため hidden）。
+        fieldset::root(
+            &basic_props,
+            vec![],
+            vec![
+                fieldset::legend(&basic_props, vec![], vec![text("Contact details")]),
+                fieldset::helper_text(
+                    &basic_props,
+                    vec![],
+                    vec![text("Please provide your contact details below.")],
+                ),
+                field_instance(
+                    &basic_name_field,
+                    field::input(
+                        &basic_name_field,
+                        vec![("type", "text"), ("name", "contact-name"), ("value", "")],
+                    ),
+                    "Name",
+                    None,
+                    None,
+                ),
+                field_instance(
+                    &basic_email_field,
+                    field::input(
+                        &basic_email_field,
+                        vec![("type", "email"), ("name", "contact-email"), ("value", "")],
+                    ),
+                    "Email",
+                    None,
+                    None,
+                ),
+                fieldset::error_text(&basic_props, vec![], vec![text("Some fields are invalid.")]),
+            ],
+        ),
+        // disabled: legend + 内包 Field 2 件（merge_field_props の OR 伝播で
+        // Field 側にも data-disabled/disabled が出る）。
+        fieldset::root(
+            &disabled_props,
+            vec![],
+            vec![
+                fieldset::legend(&disabled_props, vec![], vec![text("Shipping details")]),
+                field_instance(
+                    &disabled_name_field,
+                    field::input(
+                        &disabled_name_field,
+                        vec![("type", "text"), ("name", "shipping-name"), ("value", "")],
+                    ),
+                    "Name",
+                    None,
+                    None,
+                ),
+                field_instance(
+                    &disabled_address_field,
+                    field::input(
+                        &disabled_address_field,
+                        vec![
+                            ("type", "text"),
+                            ("name", "shipping-address"),
+                            ("value", ""),
+                        ],
+                    ),
+                    "Address",
+                    None,
+                    None,
+                ),
+            ],
+        ),
+        // invalid: legend + 内包 Field 1 件 + error_text（表示状態）。
+        fieldset::root(
+            &invalid_props,
+            vec![],
+            vec![
+                fieldset::legend(&invalid_props, vec![], vec![text("Shipping details")]),
+                field_instance(
+                    &invalid_name_field,
+                    field::input(
+                        &invalid_name_field,
+                        vec![
+                            ("type", "text"),
+                            ("name", "shipping-invalid-name"),
+                            ("value", ""),
+                        ],
+                    ),
+                    "Name",
+                    None,
+                    None,
+                ),
+                fieldset::error_text(
+                    &invalid_props,
+                    vec![],
+                    vec![text("Some fields are invalid. Please check them.")],
+                ),
+            ],
+        ),
+    ];
     demo_page("Fieldset", body)
 }
 
