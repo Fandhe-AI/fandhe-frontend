@@ -47,6 +47,64 @@
 //! として `chart` と並べて配置することで代替可能であり、本 API は
 //! `root` の子ノードを [`chart`] 単体に固定しない設計とする（下記
 //! [`donut_chart`] 実装参照）。
+//!
+//! # 参考サイト基準への調整（イシュー #1594）
+//!
+//! 親 Phase #1588「Themes / Charts のスタイル調整」の子。参照 4 サイト
+//! （chakra-ui / Ark UI / Radix Primitives / Radix Themes）にチャート部品が
+//! 存在しないため、評価軸は**内部整合のみ**（`--fandhe-*` トークン適用・
+//! ダーク時の可読性・系列色の識別性・データラベルのコントラスト）に限定する。
+//!
+//! | 軸 | 結論 |
+//! |---|---|
+//! | サイズ | 現状維持（Xs〜Xl は #1681 で整備済み） |
+//! | バリアント / colorPalette | 非採用（参照軸なし。系列色は `chart-1〜6` 固定ローテーション） |
+//! | 色 | 現状維持（全宣言がトークン経由。`label` の `font-size: 6px` は viewBox ユーザー単位のため静的リテラルのまま） |
+//! | 状態 `data-*` | 非該当（headless 由来の `data-*` を持たない pre-styled-only 部品） |
+//! | ダークモード | ラベルのコントラストはハローで是正（下記）。系列パレット自体の見直しはスコープ外 |
+//! | フォーカス | 非該当（`svg` は `role="img"` でフォーカス不可） |
+//! | 余白・角丸・影 | 非該当（環状 SVG 描画のみ） |
+//! | hover / disabled / トランジション | 非採用（表示専用部品、状態遷移なし） |
+//! | 内部整合（実欠陥） | **是正**（下記「是正した点」） |
+//!
+//! ## 是正した点
+//!
+//! - `label` slot に `dominant-baseline: central` を追加し、ラベルを
+//!   環帯の中心へ垂直方向にセンタリングした。従来は `text-anchor: middle`
+//!   のみでベースライン調整が無く、`inner_ratio` が大きい薄いリング
+//!   （例: Demo の `0.85`）でラベルが環帯上端側へ寄り、外側へはみ出して
+//!   ページ背景側へ掛かっていた
+//! - `label` slot へ背景色ハロー（`paint-order: stroke` /
+//!   `stroke: var(--fandhe-color-bg)` / `stroke-width: 1` /
+//!   `stroke-linejoin: round`）を追加した。dark モードでは `fill: var(--fandhe-color-fg)`
+//!   が系列色の dark 値（`chart-1`/`chart-2` 等）に対して WCAG 4.5:1 を
+//!   大きく下回り（`theme.rs` の light/dark トークン値からの概算）、light
+//!   モードでも一部系列色で 4.5:1 未満だったため、系列色・ページ背景の
+//!   どちらの上でも可読なハローで是正した（先例:
+//!   [`crate::area_chart`] `point` / `charts::tooltip` `datum`）。
+//!   `paint-order: stroke` によりストロークを塗りの下へ回すため文字形は
+//!   太らない
+//! - `segment` slot に `stroke-linejoin: round` を追加し、角度が極端に
+//!   小さいセグメントの鋭角コーナーでセパレータ（`stroke: var(--fandhe-color-bg)`）
+//!   が miter で突出し隣接セグメントへ食い込む見え方を抑えた（先例:
+//!   [`crate::signature_pad`] / [`crate::area_chart`] `series-line`）
+//!
+//! 上記 3 点は [`crate::pie_chart`] にも同型に当てはまるが、本 PR は
+//! donut に閉じ、pie 側は兄弟イシュー #1596 に委ねる。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - `chart` slot への `overflow: visible` は、外径 45 + ストローク半幅
+//!   0.5 が viewBox（100×100）内に収まるため不要（[`crate::area_chart`]
+//!   とは条件が異なる）
+//! - `segment` slot への `vector-effect: non-scaling-stroke` は、兄弟部品
+//!   [`crate::pie_chart`] と線幅の見え方が乖離するため見送る
+//!   （[`crate::area_chart`] と同じ判断）
+//! - `Xs`（4rem）+ `show_labels` 時、`font-size: 6px` は実寸約 3.8px で
+//!   判読が難しくなるが、ラベル表示は呼び出し側の選択であり本 PR では
+//!   制約しない
+//! - `label` の `font-weight` 引き上げ・`pointer-events: none` の付与は、
+//!   効果が限定的で pie-chart（#1596）との整合を崩すため見送る
 
 use crate::charts::pie::{
     annulus_full_ring_path, annulus_sector_path, segment_angles, PieChartError,
@@ -124,6 +182,9 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("stroke", "var(--fandhe-color-bg)"),
                 decl("stroke-width", "1"),
+                // イシュー #1594: 鋭角セグメントでの背景色セパレータの
+                // miter 突出（隣接セグメントへの食い込み）を抑止する。
+                decl("stroke-linejoin", "round"),
             ],
         )
         .base(
@@ -132,6 +193,19 @@ fn recipe() -> SlotRecipe {
                 decl("fill", "var(--fandhe-color-fg)"),
                 decl("font-size", "6px"),
                 decl("text-anchor", "middle"),
+                // イシュー #1594: ラベルを環帯の中心へ垂直センタリングする
+                // （`text-anchor` のみでは水平方向しか揃わず、薄いリングで
+                // 文字が環帯からはみ出していた）。
+                decl("dominant-baseline", "central"),
+                // イシュー #1594: 背景色ハローで系列色・ページ背景どちらの
+                // 上でも可読性を確保する（dark モードで `fg` が系列色の
+                // dark 値に対し WCAG 4.5:1 を大きく下回るための是正）。
+                // `paint-order: stroke` でストロークを塗りの下へ回し、
+                // 文字形が太って見えるのを防ぐ。
+                decl("paint-order", "stroke"),
+                decl("stroke", "var(--fandhe-color-bg)"),
+                decl("stroke-width", "1"),
+                decl("stroke-linejoin", "round"),
             ],
         )
         // イシュー #1681: Xs/Xl は Sm→Md→Lg の 6rem 刻み等差進行を外挿。
@@ -452,5 +526,17 @@ mod tests {
         assert_eq!(a, b);
         assert!(a.contains(r#"[data-scope="donut-chart"][data-part="chart"]"#));
         assert!(!a.contains("color-palette"));
+    }
+
+    #[test]
+    fn recipe_includes_issue_1594_corrections() {
+        // イシュー #1594: ラベルの垂直センタリング・背景色ハロー・
+        // セパレータ線の miter 突出抑止が実出力に現れることを固定する
+        // （黙って除外されていないことの確認、実装計画 §5-4）。
+        let a = css();
+        assert!(a.contains(r#"[data-scope="donut-chart"][data-part="label"]"#));
+        assert!(a.contains("dominant-baseline: central"));
+        assert!(a.contains("paint-order: stroke"));
+        assert!(a.contains("stroke-linejoin: round"));
     }
 }
