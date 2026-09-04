@@ -210,9 +210,15 @@
 //! - サイズ: 参照サイトに size スケールなし → N/A。
 //! - バリアント: 参照サイトに variant なし → N/A（枠は custom property
 //!   opt-in のみ提供）。
-//! - `data-*` 状態・フォーカス・hover/disabled/トランジション:
-//!   フォーカス可能要素・インタラクティブ slot を持たない静的部品のため
-//!   すべて N/A（`:hover`/`:focus-within` の一時停止のみ、1/2 から不変）。
+//! - `data-*` 状態・hover/disabled/トランジション: フォーカス可能要素は
+//!   `root`（下記参照）のみで `data-*` 状態・disabled・トランジションを
+//!   持たない静的部品のため N/A（`:hover`/`:focus-within` の一時停止のみ、
+//!   1/2 から不変）。
+//! - フォーカス: `decorative: false`（既定）の `root` へ `tabindex="0"` と
+//!   `:focus-visible` のフォーカスリング（`crate::scroll_area` の
+//!   `viewport` と同型）を固定付与する（PR #1856 codex-review P1 是正、
+//!   下記「既知の制限」節を参照）。`decorative: true` の場合は `root`
+//!   自身が `aria-hidden` になるため付与しない（後述）。
 //!
 //! ## 既知の制限
 //!
@@ -222,11 +228,17 @@
 //!   解決可能だが、anatomy 変更（`SLOTS`・DOM 構造・`wrap_state.rs` への
 //!   波及、破壊的変更）を伴うため本イシューでは採らない。後続イシュー化を
 //!   提案する（`.claude/rules/out-of-scope-tracking.md`）。
-//! - **reduced-motion 時のキーボードスクロール到達性**: `root` へ
-//!   `tabindex` を付与しない（HTML 出力が変わり、`role` のない focusable
-//!   `div` になる）。Chrome 130+ 等の一部ブラウザはスクロール領域を既定で
-//!   キーボードフォーカス可能にするが、全ブラウザでの到達性は担保しない
-//!   （既知のトレードオフ）。
+//! - **reduced-motion 時のキーボードスクロール到達性**: PR #1856
+//!   codex-review P1 指摘により是正済み。`decorative: false`（既定）の
+//!   `root` は `tabindex="0"` を常時（reduced-motion 判定に関わらず）
+//!   固定付与する。CSS メディアクエリの真偽に応じて HTML 属性を静的生成側で
+//!   出し分ける手段がないための選択であり、`prefers-reduced-motion` が
+//!   `no-preference` の環境でも `root` はフォーカス可能になる（副次的に
+//!   既存の `:focus-within` によるアニメーション一時停止もキーボードから
+//!   到達可能になる、WCAG 2.2.2）。`decorative: true` の場合は `root`
+//!   自身に `aria-hidden` を付与するため `tabindex` を付与しない
+//!   （aria-hidden な要素自身をフォーカス可能にする既知のアンチパターンを
+//!   避ける。装飾用途はそもそも支援技術・キーボード操作の対象外）。
 //!
 //! ## `--fandhe-marquee-*` custom property 一覧への追加（本イシュー）
 //!
@@ -247,7 +259,7 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, VariantValue};
+use crate::recipe::{SlotRecipe, StateCondition, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, aria_hidden, aria_label, Anatomy};
 
@@ -396,6 +408,19 @@ fn recipe() -> SlotRecipe {
             vec![decl("--fandhe-marquee-direction", "reverse")],
         )
         .default_variant(MarqueeDirection::Start)
+        // PR #1856 codex-review P1 是正: `prefers-reduced-motion: reduce`
+        // 時に横スクロール化する `root`（[`css`] 3. 項）への唯一の到達手段が
+        // マウス操作のみだった（`tabindex` 未付与のため、`marquee` 関数側で
+        // 付与する `tabindex="0"` を対象にキーボード操作時のみのフォーカス
+        // リングを付ける、`crate::scroll_area` の `viewport` と同型の判断）。
+        .state(
+            "root",
+            StateCondition::FocusVisible,
+            vec![
+                decl("outline", "2px solid var(--fandhe-color-accent)"),
+                decl("outline-offset", "-2px"),
+            ],
+        )
 }
 
 /// Marquee の静的 CSS 全文。
@@ -481,16 +506,43 @@ pub fn marquee<'a>(
 ) -> Node {
     let recipe = recipe();
     let class = recipe.variant_classes(&[("direction", props.direction.value())]);
-    // `aria-hidden`/`aria-label` は呼び出し側の偽装を大文字小文字無視で除去し、
-    // props 由来の値へ一本化する（`crate::skeleton::skeleton` と同型の
-    // fail-closed 判断）。
+    // `aria-hidden`/`aria-label`/`tabindex` は呼び出し側の偽装を大文字小文字
+    // 無視で除去し、`props`・本関数由来の値へ一本化する
+    // （`crate::skeleton::skeleton` と同型の fail-closed 判断）。`tabindex`
+    // は PR #1856 是正で本関数が固定付与するようになったため、呼び出し側の
+    // 重複指定（属性の二重出力）を防ぐ目的で追加した。
     let attrs: Vec<(&str, &str)> = drop_class_attr(attrs)
         .into_iter()
         .filter(|(k, _)| {
-            !k.eq_ignore_ascii_case("aria-hidden") && !k.eq_ignore_ascii_case("aria-label")
+            !k.eq_ignore_ascii_case("aria-hidden")
+                && !k.eq_ignore_ascii_case("aria-label")
+                && !k.eq_ignore_ascii_case("tabindex")
         })
         .collect();
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    // PR #1856 codex-review P1 是正: `prefers-reduced-motion: reduce` 時に
+    // `root` が横スクロール領域になる（[`css`] 3. 項）が、`tabindex` が
+    // 無いとキーボード操作のみのユーザーがブラウザ既定の挙動に依存せずには
+    // その領域へフォーカスできず、画面外の内容へ到達できなかった
+    // （モジュール doc「イシュー #1583」節「既知の制限」を撤回・是正）。
+    // `crate::scroll_area` の `viewport` と同じく `tabindex="0"` を固定
+    // 付与する（reduced-motion でない環境でも常に付与する。CSS メディア
+    // クエリの真偽に応じて HTML 属性を出し分ける手段はサーバー側静的
+    // 生成では持てないため、常時フォーカス可能にすることで両条件を
+    // カバーする。副次的に、既存の `:focus-within` によるアニメーション
+    // 一時停止（モジュール doc「常時一時停止」節、WCAG 2.2.2）も
+    // マウスに加えキーボードから到達可能になる）。
+    //
+    // `decorative: true` の場合は付与しない: `root` 自身に `aria-hidden`
+    // を付与するモードであり（直下の分岐）、`aria-hidden` な要素自身を
+    // フォーカス可能にすると支援技術がフォーカス位置を見失う既知の
+    // アンチパターン（axe-core `aria-hidden-focus` 相当）になるため。
+    // 装飾用途はそもそも支援技術・キーボード操作の対象から除外される
+    // 設計であり、フォーカス到達性は不要（モジュール doc「シームレス
+    // ループ」節の `inert` 方針と同じ判断軸）。
+    if !props.decorative {
+        merged.push(("tabindex", "0"));
+    }
     if props.decorative {
         // `aria-hidden` を root へ付与すると ARIA の仕様上サブツリー全体
         // （可視の主コピーを含む）が支援技術からは存在しないものとして
@@ -670,6 +722,68 @@ mod tests {
             ));
             assert!(!html.contains("attacker"), "html={html}");
         }
+    }
+
+    /// 受け入れ条件（PR #1856 codex-review P1 是正）: `decorative: false`
+    /// （既定）の `root` は `reduced-motion` の判定に関わらず常に
+    /// `tabindex="0"` を持つ（キーボード操作のみのユーザーが
+    /// `prefers-reduced-motion: reduce` 時の横スクロール領域へブラウザの
+    /// 既定挙動に依存せず到達できることの固定）。
+    #[test]
+    fn non_decorative_root_has_tabindex_zero_for_keyboard_reduced_motion_access() {
+        let html = render(&marquee(&MarqueeProps::default(), vec![], vec![]));
+        assert!(html.contains(r#"data-scope="marquee" data-part="root""#));
+        assert!(
+            html.contains(r#"tabindex="0""#),
+            "非 decorative の root はキーボード到達性のため tabindex=\"0\" を持つ必要がある: html={html}"
+        );
+    }
+
+    /// 受け入れ条件（PR #1856 codex-review P1 是正）: `decorative: true` は
+    /// `root` 自身が `aria-hidden` になるため `tabindex` を付与しない
+    /// （aria-hidden な要素自身をフォーカス可能にするアンチパターンの回避）。
+    #[test]
+    fn decorative_root_has_no_tabindex() {
+        let props = MarqueeProps {
+            decorative: true,
+            ..MarqueeProps::default()
+        };
+        let html = render(&marquee(&props, vec![], vec![]));
+        assert!(!html.contains("tabindex"), "html={html}");
+    }
+
+    /// 受け入れ条件（PR #1856 codex-review P1 是正）: 呼び出し側が偽装した
+    /// `tabindex` は大文字小文字を無視して除去され、本関数が固定付与する
+    /// 値のみが出力される（属性の二重出力を防ぐ）。
+    #[test]
+    fn caller_supplied_tabindex_is_dropped_case_insensitively() {
+        for key in ["tabindex", "Tabindex", "TABINDEX"] {
+            let html = render(&marquee(
+                &MarqueeProps::default(),
+                vec![(key, "-1")],
+                vec![],
+            ));
+            assert_eq!(
+                html.matches("tabindex").count(),
+                1,
+                "tabindex は 1 回のみ出力されるべき: html={html}"
+            );
+            assert!(!html.contains(r#"tabindex="-1""#), "html={html}");
+            assert!(html.contains(r#"tabindex="0""#), "html={html}");
+        }
+    }
+
+    /// 受け入れ条件（PR #1856 codex-review P1 是正）: `root` の
+    /// `:focus-visible` にフォーカスリング宣言（`crate::scroll_area` の
+    /// `viewport` と同型）が生成される。
+    #[test]
+    fn css_output_declares_root_focus_visible_ring() {
+        let out = css();
+        assert!(
+            out.contains("[data-scope=\"marquee\"][data-part=\"root\"]:focus-visible"),
+            "css={out}"
+        );
+        assert!(out.contains("outline: 2px solid var(--fandhe-color-accent);"));
     }
 
     #[test]

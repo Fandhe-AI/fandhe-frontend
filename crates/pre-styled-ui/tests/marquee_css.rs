@@ -18,6 +18,11 @@
 //! `@media (prefers-reduced-motion: reduce)` の挙動を「アニメーション停止
 //! のみ」から「停止 + `root` の横スクロール化 + 両端フェード無効化 +
 //! 複製非表示」へ拡張した。
+//!
+//! PR #1856 codex-review P1 是正で、`decorative: false`（既定）の `root`
+//! が固定付与する `tabindex="0"`（`crates/pre-styled-ui/src/marquee.rs`
+//! 参照。reduced-motion 時の横スクロール領域へのキーボード到達性の
+//! 是正）に対応する `:focus-visible` フォーカスリング宣言を追加した。
 
 use fandhe_frontend_pre_styled_ui::marquee;
 
@@ -59,6 +64,11 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
 
 [data-scope="marquee"][data-part="root"].fd-marquee--direction-end {
   --fandhe-marquee-direction: reverse;
+}
+
+[data-scope="marquee"][data-part="root"]:focus-visible {
+  outline: 2px solid var(--fandhe-color-accent);
+  outline-offset: -2px;
 }
 
 @keyframes fd-marquee-scroll {
