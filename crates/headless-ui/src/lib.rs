@@ -696,7 +696,7 @@ pub use fandhe_frontend_interactive;
 
 pub use action_bar::ActionBar;
 pub use anatomy::{anatomy, Anatomy};
-pub use angle_slider::{AngleSlider, AngleSliderAction};
+pub use angle_slider::{AngleSlider, AngleSliderAction, AngleSliderProps};
 pub use aria::{
     aria_activedescendant, aria_atomic, aria_autocomplete, aria_checked, aria_controls,
     aria_current, aria_describedby, aria_disabled, aria_expanded, aria_haspopup, aria_hidden,

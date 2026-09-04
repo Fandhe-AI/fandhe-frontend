@@ -17,7 +17,7 @@ name = "fandhe-frontend-headless-ui"
 # 到達していた main とのマージにより、双方の実体変更を統合した結果として
 # 0.28.8 へさらに patch バンプする（同一版数への偶発的衝突をそのまま
 # 採用しない）。
-version = "0.28.8"
+version = "0.29.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

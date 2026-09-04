@@ -3,8 +3,9 @@
 //!
 //! ark-ui の AngleSlider
 //! （`.claude/skills/ark-ui/references/components/form/angle-slider.md`）を
-//! 参考に、Root / Label / Control / Thumb / ValueText / HiddenInput の
-//! 6 anatomy パーツと、[`fandhe_frontend_interactive::Component`]/
+//! 参考に、Root / Label / Control / Thumb / MarkerGroup / Marker /
+//! ValueText / HiddenInput の 8 anatomy パーツと、
+//! [`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] を直接実装する整数角度状態機械
 //! [`AngleSlider`] を提供する。
 //!
@@ -28,15 +29,60 @@
 //! `docs/policy/intentional-non-adoption.md` §3.22 の再導入記録、および
 //! イシュー #842 の PR 本文を参照。
 //!
+//! # 参照突合（イシュー #1601、ark-ui/zag.js `angle-slider` machine との対比）
+//!
+//! 一次情報は ark-ui docs（Angle Slider ページ）と zag.js
+//! `packages/machines/angle-slider/src/*.ts`（main、2026-09-04 取得）。
+//! 差分の是正・意図的な非追随は以下のとおり（詳細は PR 本文の差分表を
+//! 参照）:
+//!
+//! - **是正**: `data-invalid`/`data-readonly`（[`AngleSliderProps`]）を
+//!   root/label/control/thumb へ追加。control に `role="presentation"`
+//!   固定。MarkerGroup/Marker パーツ（[`marker_group`]/[`marker`]）を追加。
+//!   Home/End の状態機械 dispatch 契約（[`AngleSliderAction::SetToMin`]/
+//!   [`SetToMax`](AngleSliderAction::SetToMax)、`"home"`/`"end"`）を追加。
+//!   readonly な祖先も操作不可とするガードは `fandhe-frontend-wasm-full`
+//!   側の責務（`crates/wasm-full/src/angle_slider.rs`
+//!   `has_noninteractive_ancestor`）で是正済み。
+//!   **ただし** `fandhe-frontend-wasm-full` の DOM keydown 配線への
+//!   Home/End 追加は、REQ-11（WASM バンドルサイズ 200KB gzip 上限、
+//!   `docs/spec/04-requirements.md`）予算逼迫（main 時点で残り 38 B しか
+//!   なく、Home/End 2 分岐の追加だけで実測 +139 B を要した）を理由に本
+//!   イシューでは見送った（`crates/wasm-full/src/angle_slider.rs` モジュール
+//!   冒頭 doc「キーボード操作」節参照。PR 本文でフォローアップ Issue 化を
+//!   提案）。ヘッドレス層の dispatch 契約自体は完成しているため、アプリ側
+//!   が独自にキーボード配線する用途や、将来 REQ-11 予算の見直し後に
+//!   `fandhe-frontend-wasm-full` へ追加する場合の受け皿として機能する。
+//! - **意図的に追随しない**（理由付き）:
+//!   - ラップアラウンド契約（`0..=359` を円環として扱う）は #842 で確定した
+//!     本コンポーネントの契約であり、zag（`snapValueToStep` で `0..=359`
+//!     clamp・ラップしない）へは合わせない。
+//!   - ArrowUp/ArrowDown の向き（本実装は WAI-ARIA APG slider パターンに
+//!     従い Up = 増加を維持。zag main も `getEventKey` は左右のみ RTL 反転
+//!     し上下は反転しないため実質的な差はない）。
+//!   - `"end"` の着地値は zag のようにスナップなしで `359` を設定するの
+//!     ではなく、step グリッド整列契約（[`snap_angle_to_step`] と同じ
+//!     「必ずグリッドへ整列する」不変条件）を優先し「`359` 以下で最大の
+//!     step 倍数」を採用する（`step=1` なら zag と同じく `359`）。
+//!   - Shift+Arrow の ×10 step は本イシューでは未実装（PR 本文でスコープ外
+//!     Issue 化を提案）。
+//!   - Root の `--value`/`--angle`、Thumb/Marker の `rotate`/`--marker-value`
+//!     等の装飾用 CSS カスタムプロパティは
+//!     `docs/policy/intentional-non-adoption.md` §3.25 規則 2（装飾・
+//!     レイアウト計測は headless へ持ち込まない）に従い、
+//!     `fandhe-frontend-pre-styled-ui` 側（`--fandhe-angle`）の責務のまま
+//!     とする。
+//!
 //! # 呼び出し文脈
 //!
 //! SSR は [`AngleSlider::new`] で値を正規化してから各パーツメソッド
 //! （[`AngleSlider::root`]/[`AngleSlider::label`]/[`AngleSlider::control`]/
 //! [`AngleSlider::thumb`]/[`AngleSlider::hidden_input`]/
-//! [`AngleSlider::value_text`]）を呼んで組み立てる。CSR/hydration は
-//! [`AngleSlider`] を経由し、dispatch（`"set"`/`"increment"`/`"decrement"`）
-//! で状態遷移する。`fandhe-frontend-pre-styled-ui` が本モジュールを呼んで
-//! スタイル済み AngleSlider を組み立てる想定である。
+//! [`AngleSlider::value_text`]/[`AngleSlider::marker`]）を呼んで組み立てる。
+//! CSR/hydration は [`AngleSlider`] を経由し、dispatch
+//! （`"set"`/`"increment"`/`"decrement"`/`"home"`/`"end"`）で状態遷移する。
+//! `fandhe-frontend-pre-styled-ui` が本モジュールを呼んでスタイル済み
+//! AngleSlider を組み立てる想定である。
 //!
 //! # 決定的な角度正規化・step 丸め（受け入れ条件）
 //!
@@ -56,6 +102,12 @@
 //!   `0` 度からの decrement のいずれも符号付き剰余を経由せず単純な非負整数
 //!   演算のみでラップアラウンドする（浮動小数点を一切用いない、モジュール
 //!   doc「決定性」節参照）。
+//! - `"home"`（[`AngleSliderAction::SetToMin`]）は常に `0` 度へ設定する。
+//! - `"end"`（[`AngleSliderAction::SetToMax`]）は `0` 起点の `step` グリッド
+//!   上で `360` 未満の最大の倍数へ設定する（`step=1` なら `359`）。zag が
+//!   スナップなしで固定値 `359` を設定するのとは異なり（モジュール冒頭
+//!   「参照突合」節参照）、本コンポーネントの「値は常に step グリッド上に
+//!   ある」不変条件を優先する。
 //!
 //! # セキュリティ不変条件
 //!
@@ -67,32 +119,38 @@
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - 数値属性値（`aria-valuemin`/`aria-valuemax`/`aria-valuenow`/
-//!   `aria-valuetext`/hidden-input `value`）はサーバー側で正規化済みの
-//!   `u16` の文字列表現（[`fmt_angle`]）のみを出力する。任意の呼び出し側
-//!   文字列をこれらの数値スロットへ直接通す経路は持たない（fail-closed
-//!   正規化は [`AngleSlider::new`] が一元的に担う）。
+//!   `aria-valuetext`/hidden-input `value`/marker `data-value`）はサーバー側
+//!   で正規化済みの `u16` の文字列表現（[`fmt_angle`]）のみを出力する。
+//!   任意の呼び出し側文字列をこれらの数値スロットへ直接通す経路は持たない
+//!   （fail-closed 正規化は [`AngleSlider::new`] が一元的に担う）。
+//! - marker の `data-state` は `"under-value"`/`"over-value"`/`"at-value"` の
+//!   3 値リテラルのみを出力し、任意文字列を受け付けない。
 //! - dispatch `"set"` の payload はクライアント由来の信頼できない入力として
 //!   扱い、厳密な `u16` パース + `0..=360` 範囲検証で fail-closed（不正値・
 //!   非整数・負数・361 以上・空文字は no-op）。受理後は `360` を `0` へ
-//!   丸めたうえで [`normalize_angle`] を経由する。
+//!   丸めたうえで [`normalize_angle`] を経由する。`"home"`/`"end"` は payload
+//!   を使用しない（状態機械内で固定計算するため注入経路がない）。
 //! - hydration 属性（`data-hydrate-value`/`-step`）はクライアント側で
 //!   改ざんされうる入力として扱う。[`AngleSlider`] の
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は panic せず
 //!   [`HydrateError`] を返す（パース不能・`0..=359` 範囲外の value・
 //!   `1..=359` 範囲外の step をすべて拒否する、[`crate::progress::Progress`]
 //!   と同型の fail-closed 契約）。
+//! - 呼び出し側 `attrs` による `data-scope`/`data-part`/状態系 `data-*`
+//!   属性の上書きは [`Anatomy::part`] と [`drop_reserved`] が fail-closed に
+//!   破棄する（フレームワークが付与する状態表現が常に優先される）。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - **MarkerGroup/Marker パーツ**: [`crate::slider::Slider`]（#741）の
-//!   先例に従い初期実装スコープ外。
 //! - **ポインタ座標 → 角度変換・DOM 配線**: `fandhe-frontend-wasm-full`
 //!   側の責務（モジュール冒頭「非採用の再導入」節参照）。本モジュールは
 //!   SSR 静的マークアップと dispatch 契約のみを提供する。
+//! - **Shift+Arrow ×10 step**: PR 本文でスコープ外 Issue 化を提案（zag 相当
+//!   の広域ステップ操作。本イシューでは未実装）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::aria_disabled;
-use crate::data_attrs::data_disabled;
+use crate::data_attrs::{data_disabled, data_invalid, data_readonly};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
@@ -128,6 +186,13 @@ fn normalize_step(step: u16) -> u16 {
 /// `value`/`step` を fail-closed に正規化する（[`AngleSlider::new`] が呼ぶ）。
 fn normalize(value: u16, step: u16) -> (u16, u16) {
     (normalize_angle(u32::from(value)), normalize_step(step))
+}
+
+/// `0` 起点の `step` グリッド上で `360` 未満の最大の倍数を返す
+/// （`"end"`/[`AngleSliderAction::SetToMax`] が使う。`step=1` なら `359`）。
+fn max_step_grid_point(step: u16) -> u16 {
+    let step_u32 = u32::from(step);
+    (((ANGLE_MODULUS - 1) / step_u32) * step_u32) as u16
 }
 
 /// `value` を `0` 起点の `step` グリッドへ最近傍スナップしてから
@@ -183,11 +248,67 @@ fn snap_angle_to_step(value: u16, step: u16) -> u16 {
     normalize_angle(snapped as u32)
 }
 
+/// [`AngleSliderProps`] が全パーツへ一律付与する属性キー一覧。呼び出し側
+/// `attrs` にこれらと同名キーが含まれていても fail-closed で除去する対象
+/// （[`crate::checkbox`] の `STATE_RESERVED` と同型のパターン）。
+const STATE_RESERVED: &[&str] = &["data-disabled", "data-invalid", "data-readonly"];
+
+/// [`control`] が固定付与するキー一覧（[`STATE_RESERVED`] に `role` を
+/// 加えたもの）。[`control`] の呼び出し側 `attrs` から一度の走査で除去する
+/// ために使う（`drop_reserved` の 2 回呼び出しを避けるコードサイズ最適化）。
+const CONTROL_RESERVED: &[&str] = &["data-disabled", "data-invalid", "data-readonly", "role"];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::checkbox::drop_reserved`] と同型の重複実装。モジュール
+/// 間の相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// AngleSlider の disabled/readonly/invalid 状態束。root/label/control/thumb
+/// の全パーツへ [`data_disabled`]/[`data_readonly`]/[`data_invalid`] を
+/// 一律付与するために使う（[`crate::checkbox::CheckboxProps`] と同型の
+/// パターン）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AngleSliderProps {
+    /// 無効化状態。`true` で `data-disabled` を各パーツへ付与し、[`thumb`]
+    /// を `tabindex="-1"` + `aria-disabled="true"` にする。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で `data-readonly` を各パーツへ付与する。
+    /// disabled と異なり [`thumb`] のフォーカス可能性は変えない
+    /// （`tabindex="0"` のまま）。操作自体の抑止は
+    /// `fandhe-frontend-wasm-full` 側の no-op ガードが担う（モジュール冒頭
+    /// 「参照突合」節参照）。
+    pub readonly: bool,
+    /// 入力検証エラー状態。`true` で `data-invalid` を各パーツへ付与する。
+    pub invalid: bool,
+}
+
+/// [`AngleSliderProps`] から root/label/control/thumb 共通の状態属性列を
+/// 組み立てる非公開ヘルパ。
+fn state_attrs(props: &AngleSliderProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs: Vec<(&'static str, &'static str)> = Vec::new();
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_invalid(props.invalid));
+    attrs.extend(data_readonly(props.readonly));
+    attrs
+}
+
 /// Root パーツ（`div`）。
 #[must_use]
-pub fn root<'a>(disabled: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    merged.extend(data_disabled(disabled));
+pub fn root<'a>(
+    props: &AngleSliderProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(props);
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
@@ -196,33 +317,53 @@ pub fn root<'a>(disabled: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<No
 /// `aria-labelledby` を `attrs` 経由で [`thumb`] へ配線する
 /// （[`crate::slider::label`] と同型の判断）。
 #[must_use]
-pub fn label<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("label", "span", attrs, children)
+pub fn label<'a>(
+    props: &AngleSliderProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("label", "span", merged, children)
 }
 
-/// Control パーツ（`div`）。[`thumb`] のポインタ操作コンテナ
-/// （実配線は `fandhe-frontend-wasm-full` 側の責務）。
+/// Control パーツ（`div role="presentation"`）。[`thumb`] のポインタ操作
+/// コンテナ（実配線は `fandhe-frontend-wasm-full` 側の責務）。
+/// `role="presentation"` は ark-ui/zag.js の Control 実装に合わせた固定値
+/// で、アクセシビリティ上の意味は [`thumb`] の `role="slider"` が単独で
+/// 担う（二重の意味論を避ける）。
 #[must_use]
-pub fn control<'a>(disabled: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    merged.extend(data_disabled(disabled));
+pub fn control<'a>(
+    props: &AngleSliderProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, CONTROL_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.push(("role", "presentation"));
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
 }
 
 /// Thumb パーツ（`div role="slider"`）。WAI-ARIA `slider` パターンに従い
 /// `aria-valuemin="0"`/`aria-valuemax="360"`/`aria-valuenow`/
-/// `aria-valuetext="{value}deg"` を常に出力する。`disabled` が `true` の
-/// とき `tabindex="-1"` + `aria-disabled` の対を出力し、`false` のとき
-/// `tabindex="0"`（[`crate::slider::thumb`] と同型）。
+/// `aria-valuetext="{value}deg"` を常に出力する。`props.disabled` が
+/// `true` のとき `tabindex="-1"` + `aria-disabled` の対を出力し、
+/// それ以外（`readonly` を含む）のとき `tabindex="0"`
+/// （[`crate::slider::thumb`] と同型。readonly でもフォーカス可能に保つのは
+/// zag の `interactive` 判定〔`!(disabled || readOnly)` は pointerdown/
+/// keydown の no-op 判定のみに使い、`tabIndex` 自体は disabled のみで
+/// 決まる〕に合わせた判断）。
 #[must_use]
 pub fn thumb<'a>(
     now: &'a str,
     value_text: &'a str,
-    disabled: bool,
+    props: &AngleSliderProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("role", "slider"),
         ("aria-valuemin", "0"),
@@ -230,13 +371,13 @@ pub fn thumb<'a>(
         ("aria-valuenow", now),
         ("aria-valuetext", value_text),
     ];
-    if disabled {
+    if props.disabled {
         merged.push(("tabindex", "-1"));
         merged.push(aria_disabled(true));
     } else {
         merged.push(("tabindex", "0"));
     }
-    merged.extend(data_disabled(disabled));
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("thumb", "div", merged, children)
 }
@@ -267,6 +408,49 @@ pub fn value_text<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> No
     ANATOMY.part("value-text", "span", attrs, children)
 }
 
+/// MarkerGroup パーツ（`div`）。[`marker`] を並べるコンテナ（ark-ui の
+/// MarkerGroup 相当。装飾・位置計算は `fandhe-frontend-pre-styled-ui` 側の
+/// 責務であり、本関数は anatomy のみを提供する）。
+#[must_use]
+pub fn marker_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("marker-group", "div", attrs, children)
+}
+
+/// [`marker_group`] が全マーカーへ一律付与するキー一覧（呼び出し側 `attrs`
+/// からの偽装を fail-closed で除外する対象）。
+const MARKER_RESERVED: &[&str] = &["data-value", "data-state", "data-disabled"];
+
+/// Marker パーツ（`div`）。目盛り 1 点を表す。`value` は `0..=359` へ
+/// 正規化してから `data-value` に出力し、`current`（[`AngleSlider`] の
+/// 現在角度）との大小関係で `data-state` を
+/// `"under-value"`/`"over-value"`/`"at-value"` の 3 値リテラルへ固定する
+/// （ark-ui Marker の `data-state` と同じ語彙）。
+#[must_use]
+pub fn marker<'a>(
+    value: u16,
+    current: u16,
+    disabled: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, MARKER_RESERVED);
+    let normalized_value = normalize_angle(u32::from(value));
+    let normalized_current = normalize_angle(u32::from(current));
+    let value_s = fmt_angle(normalized_value);
+    let state: &'static str = if normalized_value < normalized_current {
+        "under-value"
+    } else if normalized_value > normalized_current {
+        "over-value"
+    } else {
+        "at-value"
+    };
+    let mut merged: Vec<(&str, &str)> =
+        vec![("data-value", value_s.as_str()), ("data-state", state)];
+    merged.extend(data_disabled(disabled));
+    merged.extend(attrs);
+    ANATOMY.part("marker", "div", merged, children)
+}
+
 /// AngleSlider のアクション（WASM 境界の文字列 dispatch と
 /// [`AngleSlider::decode_action`] で接続する）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -278,6 +462,11 @@ pub enum AngleSliderAction {
     /// `step` 分だけ反時計回りに減少する
     /// （[`Increment`](Self::Increment) と対称）。
     Decrement,
+    /// 最小値（`0` 度）へ設定する（`"home"` キー相当）。
+    SetToMin,
+    /// `0` 起点の step グリッド上で `360` 未満の最大値へ設定する
+    /// （`"end"` キー相当。モジュール冒頭「決定的な角度正規化」節参照）。
+    SetToMax,
 }
 
 /// AngleSlider の値状態機械（単一角度、ark-ui 準拠）。
@@ -325,28 +514,33 @@ impl AngleSlider {
     #[must_use]
     pub fn root<'a>(
         &self,
-        disabled: bool,
+        props: &AngleSliderProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        root(disabled, attrs, children)
+        root(props, attrs, children)
     }
 
-    /// [`label`] へ委譲する利便メソッド（状態を持たない装飾用パーツ）。
+    /// [`label`] へ委譲する利便メソッド。
     #[must_use]
-    pub fn label<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        label(attrs, children)
+    pub fn label<'a>(
+        &self,
+        props: &AngleSliderProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        label(props, attrs, children)
     }
 
     /// [`control`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn control<'a>(
         &self,
-        disabled: bool,
+        props: &AngleSliderProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        control(disabled, attrs, children)
+        control(props, attrs, children)
     }
 
     /// [`thumb`] へ現在の角度を注入する利便メソッド。`aria-valuetext` は
@@ -355,13 +549,13 @@ impl AngleSlider {
     #[must_use]
     pub fn thumb<'a>(
         &self,
-        disabled: bool,
+        props: &AngleSliderProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
         let now_s = fmt_angle(self.value);
         let text_s = format!("{}deg", self.value);
-        thumb(now_s.as_str(), text_s.as_str(), disabled, attrs, children)
+        thumb(now_s.as_str(), text_s.as_str(), props, attrs, children)
     }
 
     /// [`hidden_input`] へ現在の値を注入する利便メソッド。
@@ -381,6 +575,19 @@ impl AngleSlider {
     #[must_use]
     pub fn value_text<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         value_text(attrs, children)
+    }
+
+    /// [`marker`] へ現在角度（`current`）を注入する利便メソッド。`value` は
+    /// マーカー自身の目盛り角度。
+    #[must_use]
+    pub fn marker<'a>(
+        &self,
+        value: u16,
+        disabled: bool,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        marker(value, self.value, disabled, attrs, children)
     }
 }
 
@@ -403,19 +610,26 @@ impl Component for AngleSlider {
                 self.value =
                     normalize_angle(u32::from(self.value) + ANGLE_MODULUS - u32::from(self.step));
             }
+            AngleSliderAction::SetToMin => {
+                self.value = 0;
+            }
+            AngleSliderAction::SetToMax => {
+                self.value = max_step_grid_point(self.step);
+            }
         }
     }
 
     /// 共通契約（hydration ルート）のみを表す最小正準ビュー（root >
     /// control > thumb）。公開 UI としての利用は想定しない。
     fn view(&self) -> Node {
+        let props = AngleSliderProps::default();
         self.root(
-            false,
+            &props,
             Vec::new(),
             vec![self.control(
-                false,
+                &props,
                 Vec::new(),
-                vec![self.thumb(false, Vec::new(), Vec::new())],
+                vec![self.thumb(&props, Vec::new(), Vec::new())],
             )],
         )
     }
@@ -423,7 +637,7 @@ impl Component for AngleSlider {
     /// `"set"`: payload を `str::parse::<u16>()` でパースし、`0..=360` の
     /// 範囲外・パース不能な場合は `None`（fail-closed、dispatch は no-op）。
     /// `360` は受理するが [`Self::update`] 内で `0` へ正規化する。
-    /// `"increment"`/`"decrement"`: payload 不使用。
+    /// `"increment"`/`"decrement"`/`"home"`/`"end"`: payload 不使用。
     fn decode_action(name: &str, payload: &str) -> Option<AngleSliderAction> {
         match name {
             "set" => payload
@@ -433,6 +647,8 @@ impl Component for AngleSlider {
                 .map(AngleSliderAction::Set),
             "increment" => Some(AngleSliderAction::Increment),
             "decrement" => Some(AngleSliderAction::Decrement),
+            "home" => Some(AngleSliderAction::SetToMin),
+            "end" => Some(AngleSliderAction::SetToMax),
             _ => None,
         }
     }
@@ -501,31 +717,66 @@ mod tests {
     use fandhe_frontend_core::{render, text};
     use fandhe_frontend_interactive::{dispatch, render_for_hydration};
 
-    // --- 各パーツの data-scope/data-part/data-disabled 出力 ---
+    // --- 各パーツの data-scope/data-part/state 属性出力 ---
 
     #[test]
     fn root_outputs_scope_and_part() {
-        let html = render(&root(false, vec![], vec![]));
+        let html = render(&root(&AngleSliderProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="angle-slider""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-readonly"));
     }
 
     #[test]
     fn root_disabled_true_adds_data_disabled() {
-        let html = render(&root(true, vec![], vec![]));
+        let props = AngleSliderProps {
+            disabled: true,
+            ..Default::default()
+        };
+        let html = render(&root(&props, vec![], vec![]));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
-    fn control_outputs_scope_and_part() {
-        let html = render(&control(false, vec![], vec![]));
+    fn root_readonly_and_invalid_add_data_attrs() {
+        let props = AngleSliderProps {
+            readonly: true,
+            invalid: true,
+            ..Default::default()
+        };
+        let html = render(&root(&props, vec![], vec![]));
+        assert!(html.contains(r#"data-readonly="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn control_outputs_scope_part_and_role_presentation() {
+        let html = render(&control(&AngleSliderProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-part="control""#));
+        assert!(html.contains(r#"role="presentation""#));
+    }
+
+    #[test]
+    fn control_role_cannot_be_overridden_by_caller() {
+        let html = render(&control(
+            &AngleSliderProps::default(),
+            vec![("role", "button")],
+            vec![],
+        ));
+        assert!(html.contains(r#"role="presentation""#));
+        assert!(!html.contains(r#"role="button""#));
     }
 
     #[test]
     fn label_outputs_scope_and_part() {
-        let html = render(&label(vec![], vec![text("Angle")]));
+        let html = render(&label(
+            &AngleSliderProps::default(),
+            vec![],
+            vec![text("Angle")],
+        ));
         assert!(html.contains(r#"data-scope="angle-slider""#));
         assert!(html.contains(r#"data-part="label""#));
         assert!(html.contains("Angle"));
@@ -540,7 +791,13 @@ mod tests {
 
     #[test]
     fn thumb_outputs_role_aria_and_tabindex() {
-        let html = render(&thumb("40", "40deg", false, vec![], vec![]));
+        let html = render(&thumb(
+            "40",
+            "40deg",
+            &AngleSliderProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="angle-slider""#));
         assert!(html.contains(r#"data-part="thumb""#));
         assert!(html.contains(r#"role="slider""#));
@@ -554,10 +811,28 @@ mod tests {
 
     #[test]
     fn thumb_disabled_true_sets_tabindex_negative_one_and_aria_disabled() {
-        let html = render(&thumb("40", "40deg", true, vec![], vec![]));
+        let props = AngleSliderProps {
+            disabled: true,
+            ..Default::default()
+        };
+        let html = render(&thumb("40", "40deg", &props, vec![], vec![]));
         assert!(html.contains(r#"tabindex="-1""#));
         assert!(html.contains(r#"aria-disabled="true""#));
         assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn thumb_readonly_true_keeps_tabindex_zero() {
+        // readonly は disabled と異なりフォーカス可能性を変えない
+        // （モジュール冒頭「参照突合」節、zag `interactive` 判定との対応）。
+        let props = AngleSliderProps {
+            readonly: true,
+            ..Default::default()
+        };
+        let html = render(&thumb("40", "40deg", &props, vec![], vec![]));
+        assert!(html.contains(r#"tabindex="0""#));
+        assert!(!html.contains("aria-disabled"));
+        assert!(html.contains(r#"data-readonly="""#));
     }
 
     #[test]
@@ -577,18 +852,87 @@ mod tests {
         assert!(html.contains(r#"disabled="""#));
     }
 
+    // --- MarkerGroup / Marker ---
+
+    #[test]
+    fn marker_group_outputs_scope_and_part() {
+        let html = render(&marker_group(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="angle-slider""#));
+        assert!(html.contains(r#"data-part="marker-group""#));
+    }
+
+    #[test]
+    fn marker_outputs_scope_part_value_and_state() {
+        let html = render(&marker(90, 135, false, vec![], vec![]));
+        assert!(html.contains(r#"data-scope="angle-slider""#));
+        assert!(html.contains(r#"data-part="marker""#));
+        assert!(html.contains(r#"data-value="90""#));
+        assert!(html.contains(r#"data-state="under-value""#));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn marker_data_state_over_value_when_greater_than_current() {
+        let html = render(&marker(180, 135, false, vec![], vec![]));
+        assert!(html.contains(r#"data-state="over-value""#));
+    }
+
+    #[test]
+    fn marker_data_state_at_value_when_equal_to_current() {
+        let html = render(&marker(135, 135, false, vec![], vec![]));
+        assert!(html.contains(r#"data-state="at-value""#));
+    }
+
+    #[test]
+    fn marker_value_is_normalized_modulo_360() {
+        let html = render(&marker(360, 0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-value="0""#));
+        assert!(html.contains(r#"data-state="at-value""#));
+    }
+
+    #[test]
+    fn marker_disabled_true_adds_data_disabled() {
+        let html = render(&marker(90, 135, true, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn marker_caller_supplied_value_and_state_are_dropped() {
+        let html = render(&marker(
+            90,
+            135,
+            false,
+            vec![("data-value", "999"), ("data-state", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-value="90""#));
+        assert!(html.contains(r#"data-state="under-value""#));
+        assert!(!html.contains("999"));
+        assert!(!html.contains("attacker"));
+    }
+
     // --- Anatomy::part fail-closed 回帰 ---
 
     #[test]
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&root(
-            false,
+            &AngleSliderProps::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
         assert!(html.contains(r#"data-scope="angle-slider""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn caller_supplied_state_attrs_are_dropped() {
+        let html = render(&root(
+            &AngleSliderProps::default(),
+            vec![("data-disabled", "fake"), ("data-invalid", "fake")],
+            vec![],
+        ));
+        assert!(!html.contains("fake"));
     }
 
     // --- 正規化（fail-closed） ---
@@ -738,6 +1082,48 @@ mod tests {
         assert_eq!(s.angle_deg(), 5);
     }
 
+    // --- dispatch: Home / End ---
+
+    #[test]
+    fn dispatch_home_sets_to_zero() {
+        let mut s = AngleSlider::new(180, 10);
+        assert!(dispatch(&mut s, "home", ""));
+        assert_eq!(s.angle_deg(), 0);
+    }
+
+    #[test]
+    fn dispatch_end_sets_to_max_step_grid_point() {
+        let mut s = AngleSlider::new(0, 1);
+        assert!(dispatch(&mut s, "end", ""));
+        assert_eq!(s.angle_deg(), 359);
+    }
+
+    #[test]
+    fn dispatch_end_respects_step_grid_for_non_divisor_step() {
+        let mut s = AngleSlider::new(0, 25);
+        assert!(dispatch(&mut s, "end", ""));
+        // floor(359 / 25) * 25 = 350
+        assert_eq!(s.angle_deg(), 350);
+    }
+
+    #[test]
+    fn dispatch_end_then_increment_stays_on_step_grid() {
+        let mut s = AngleSlider::new(0, 10);
+        assert!(dispatch(&mut s, "end", ""));
+        assert_eq!(s.angle_deg(), 350);
+        assert!(dispatch(&mut s, "increment", ""));
+        assert_eq!(s.angle_deg(), 0);
+    }
+
+    #[test]
+    fn dispatch_home_and_end_ignore_payload() {
+        let mut s = AngleSlider::new(180, 1);
+        assert!(dispatch(&mut s, "home", "任意 payload"));
+        assert_eq!(s.angle_deg(), 0);
+        assert!(dispatch(&mut s, "end", "任意 payload"));
+        assert_eq!(s.angle_deg(), 359);
+    }
+
     // --- SSR 状態なし初期描画 ---
 
     #[test]
@@ -816,7 +1202,7 @@ mod tests {
     #[test]
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
-            false,
+            &AngleSliderProps::default(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
             vec![],
         ));
@@ -825,7 +1211,11 @@ mod tests {
 
     #[test]
     fn children_text_is_escaped_on_render() {
-        let html = render(&label(vec![], vec![text("<script>alert(1)</script>")]));
+        let html = render(&label(
+            &AngleSliderProps::default(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }

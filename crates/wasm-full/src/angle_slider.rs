@@ -3,11 +3,14 @@
 //! 親トラッキング #520）。
 //!
 //! `crates/headless-ui/src/angle_slider.rs` は Root/Label/Control/Thumb/
-//! ValueText/HiddenInput の 6 anatomy パーツと整数角度状態機械
-//! （`"set"`/`"increment"`/`"decrement"` dispatch）を提供する一方、実際に
-//! ポインタ座標を角度へ変換する処理・DOM イベント配線は同モジュール冒頭
-//! rustdoc「スコープ外」節が明記するとおり本クレート（wasm 層）の後続
-//! 責務とされていた。本モジュールがその変換・配線を実装する。
+//! MarkerGroup/Marker/ValueText/HiddenInput の 8 anatomy パーツと整数角度
+//! 状態機械（`"set"`/`"increment"`/`"decrement"`/`"home"`/`"end"` dispatch。
+//! Home/End はイシュー #1601 で追加）を提供する一方、実際にポインタ座標を
+//! 角度へ変換する処理・DOM イベント配線は同モジュール冒頭 rustdoc
+//! 「スコープ外」節が明記するとおり本クレート（wasm 層）の後続責務と
+//! されていた。本モジュールがその変換・配線を実装する（ただし Home/End
+//! の keydown 配線は REQ-11 予算逼迫のため未対応、下記「キーボード操作」
+//! 節参照）。
 //!
 //! # 「非採用の再導入」の中核: 座標 → 角度変換の隔離
 //!
@@ -45,7 +48,8 @@
 //! （`crate::lib::Runtime::wire_angle_slider` 参照）。`events`/`keynav`/
 //! `headless_clipboard` と同じ「マウント時 1 回」契約を維持する。
 //!
-//! # キーボード操作
+//! # キーボード操作（イシュー #1601 で参照突合。Home/End は headless 側の
+//! dispatch API までで DOM keydown 配線は未対応）
 //!
 //! Thumb（`role="slider"`、`tabindex` でフォーカス可能）上の keydown を
 //! 独立に配線する。ArrowUp/ArrowRight は `"increment"`、ArrowDown/
@@ -55,15 +59,35 @@
 //! `crate::keynav` の `MAPPING_TABLE`/next-index 系関数へは統合せず、本
 //! モジュール内で完結させる）。
 //!
+//! [`fandhe_frontend_headless_ui::angle_slider::AngleSlider`] は
+//! イシュー #1601 で `"home"`/`"end"` dispatch（`AngleSliderAction::SetToMin`/
+//! `SetToMax`）を状態機械レベルで受理するようになったが、本モジュールの
+//! `action_for_key`/keydown 配線は **意図的に** Home/End キーを追加しない
+//! （zag.js 相当の挙動だが本イシューでは見送り）。理由は REQ-11
+//! （WASM バンドルサイズ 200KB gzip 上限）の予算逼迫: main 時点で既に
+//! 199,962/200,000 B（余裕 38 B）しかなく、`action_for_key` へ Home/End
+//! の 2 分岐を追加するだけで実測 +139 B（`docs/spec/04-requirements.md`
+//! REQ-11）を要し、単独では収まらない。ヘッドレス層の dispatch 契約は
+//! アプリ側が独自にキーボード配線する場合や、将来 REQ-11 予算の見直し後に
+//! 本モジュールへ追加する場合の受け皿として維持する。Shift+Arrow の ×10
+//! step も同様に本イシューでは未実装（いずれも PR 本文でスコープ外 Issue
+//! 化を提案）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - dispatch payload（`"set"` の角度整数文字列）は
 //!   [`fandhe_frontend_headless_ui::angle_slider::AngleSlider::decode_action`]
 //!   が改めて `u16`・`0..=360` 範囲で厳密検証する（本モジュールはあくまで
 //!   payload 文字列を組み立てるのみで、検証は headless 層の既存契約に
-//!   委ねる、多層防御）。
-//! - `data-disabled` を持つ Control/Thumb（祖先方向を含む）上の pointerdown/
-//!   keydown は no-op（`crate::headless.rs` の fail-closed 契約と同型）。
+//!   委ねる、多層防御）。`"home"`/`"end"` は payload を持たない。
+//! - `data-disabled` **または** `data-readonly` を持つ Control/Thumb（祖先
+//!   方向を含む）上の pointerdown/keydown は no-op
+//!   （[`has_noninteractive_ancestor`]、`crate::headless.rs` の fail-closed
+//!   契約と同型。イシュー #1601 で `data-readonly`
+//!   〔[`fandhe_frontend_headless_ui::angle_slider::AngleSliderProps::readonly`]〕
+//!   出力を追加したのに合わせ、readonly でも操作を抑止しないと
+//!   「読み取り専用の見た目なのに編集できる」矛盾になるため拡張した。zag の
+//!   `interactive = !(disabled || readOnly)` 判定と同型）。
 //! - DOM 反映は `set_attribute`/`get_attribute`/`get_bounding_client_rect`
 //!   のみで行い、HTML 文字列を一切組み立てない（REQ-1）。属性名はすべて
 //!   `&'static str` リテラル。
@@ -89,6 +113,10 @@ pub const ACTION_SET: &str = "set";
 pub const ACTION_INCREMENT: &str = "increment";
 /// dispatch アクション名 `"decrement"`。
 pub const ACTION_DECREMENT: &str = "decrement";
+// `"home"`/`"end"`（`AngleSliderAction::SetToMin`/`SetToMax`）はヘッドレス層の
+// dispatch 契約としては存在するが、本モジュールの `action_for_key`/keydown
+// 配線からは意図的に呼ばれない（モジュール冒頭 doc「キーボード操作」節、
+// REQ-11 予算逼迫の理由を参照）。専用の定数は持たない。
 
 /// 「中心からのオフセット座標」`(dx, dy)` を `0..=359` の整数角度（度）へ
 /// 変換する純粋関数（`web-sys` 非依存、native `cargo test` で決定的に
@@ -132,8 +160,11 @@ pub fn is_angle_slider_control_or_thumb(scope: Option<&str>, part: Option<&str>)
 /// キー名から dispatch すべきアクション名を判定する純粋関数（DOM 非依存）。
 ///
 /// ArrowUp/ArrowRight は時計回り増加（[`ACTION_INCREMENT`]）、ArrowDown/
-/// ArrowLeft は反時計回り減少（[`ACTION_DECREMENT`]）。それ以外のキーは
-/// `None`（no-op、fail-closed）。
+/// ArrowLeft は反時計回り減少（[`ACTION_DECREMENT`]）。Home/End は
+/// ヘッドレス層の dispatch 契約（`"home"`/`"end"`）としては存在するが、
+/// 本関数からは意図的に対応しない（モジュール冒頭 doc「キーボード操作」
+/// 節、REQ-11 予算逼迫の理由を参照）。それ以外のキーは `None`
+/// （no-op、fail-closed）。
 #[must_use]
 pub fn action_for_key(key: &str) -> Option<&'static str> {
     match key {
@@ -186,13 +217,16 @@ mod wiring {
         None
     }
 
-    /// `start` から `root` まで祖先方向を辿り、`data-disabled` を持つ要素が
-    /// 1 つでもあれば `true` を返す（disabled な祖先を含めて no-op とする
-    /// fail-closed 判定。`crate::headless.rs` の祖先 disabled 対策と同型）。
-    fn has_disabled_ancestor(root: &Element, start: &Element) -> bool {
+    /// `start` から `root` まで祖先方向を辿り、`data-disabled` **または**
+    /// `data-readonly` を持つ要素が 1 つでもあれば `true` を返す（disabled/
+    /// readonly な祖先を含めて no-op とする fail-closed 判定。
+    /// `crate::headless.rs` の祖先 disabled 対策、および zag の
+    /// `interactive = !(disabled || readOnly)` 判定と同型。イシュー #1601
+    /// で `data-readonly` も見るよう拡張した旧 `has_disabled_ancestor`）。
+    fn has_noninteractive_ancestor(root: &Element, start: &Element) -> bool {
         let mut current = Some(start.clone());
         while let Some(element) = current {
-            if element.has_attribute("data-disabled") {
+            if element.has_attribute("data-disabled") || element.has_attribute("data-readonly") {
                 return true;
             }
             if !root.contains(Some(&element)) || element == *root {
@@ -303,7 +337,7 @@ mod wiring {
         let Some(control) = resolve_control(root, target_element) else {
             return;
         };
-        if has_disabled_ancestor(root, &control) {
+        if has_noninteractive_ancestor(root, &control) {
             return;
         }
 
@@ -341,7 +375,7 @@ mod wiring {
             // （キャプチャ前の hover 移動等）。誤反応を避け no-op とする。
             return;
         }
-        if has_disabled_ancestor(root, &control) {
+        if has_noninteractive_ancestor(root, &control) {
             return;
         }
 
@@ -355,7 +389,9 @@ mod wiring {
 
     /// keydown: Thumb 上の ArrowUp/ArrowRight/ArrowDown/ArrowLeft のみ反応
     /// する（[`action_for_key`]、モジュール冒頭 doc「キーボード操作」節
-    /// 参照）。
+    /// 参照）。Home/End は REQ-11 の gzip 予算逼迫により意図的に未配線
+    /// （`home_and_end_keys_are_intentionally_not_wired_pending_req11_budget`
+    /// テスト参照）。
     fn handle_keydown(
         root: &Element,
         event: &Event,
@@ -376,7 +412,7 @@ mod wiring {
         if scope.as_deref() != Some(ANGLE_SLIDER_SCOPE) || part.as_deref() != Some(THUMB_PART) {
             return;
         }
-        if has_disabled_ancestor(root, target_element) {
+        if has_noninteractive_ancestor(root, target_element) {
             return;
         }
 
@@ -536,6 +572,16 @@ mod tests {
     }
 
     #[test]
+    fn home_and_end_keys_are_intentionally_not_wired_pending_req11_budget() {
+        // モジュール冒頭 doc「キーボード操作」節参照: ヘッドレス層は
+        // "home"/"end" dispatch を受理するが、本関数（DOM keydown 配線の
+        // 判定）は REQ-11（WASM バンドルサイズ）予算逼迫のため意図的に
+        // 対応しない。
+        assert_eq!(action_for_key("Home"), None);
+        assert_eq!(action_for_key("End"), None);
+    }
+
+    #[test]
     fn unknown_key_is_none() {
         assert_eq!(action_for_key("Enter"), None);
         assert_eq!(action_for_key("a"), None);
@@ -547,18 +593,28 @@ mod tests {
 
     #[test]
     fn headless_ui_control_output_matches_module_literals() {
-        use fandhe_frontend_headless_ui::angle_slider::control;
+        use fandhe_frontend_headless_ui::angle_slider::{control, AngleSliderProps};
 
-        let html = fandhe_frontend_core::render(&control(false, Vec::new(), Vec::new()));
+        let html = fandhe_frontend_core::render(&control(
+            &AngleSliderProps::default(),
+            Vec::new(),
+            Vec::new(),
+        ));
         assert!(html.contains(&format!(r#"data-scope="{ANGLE_SLIDER_SCOPE}""#)));
         assert!(html.contains(&format!(r#"data-part="{CONTROL_PART}""#)));
     }
 
     #[test]
     fn headless_ui_thumb_output_matches_module_literals() {
-        use fandhe_frontend_headless_ui::angle_slider::thumb;
+        use fandhe_frontend_headless_ui::angle_slider::{thumb, AngleSliderProps};
 
-        let html = fandhe_frontend_core::render(&thumb("0", "0deg", false, Vec::new(), Vec::new()));
+        let html = fandhe_frontend_core::render(&thumb(
+            "0",
+            "0deg",
+            &AngleSliderProps::default(),
+            Vec::new(),
+            Vec::new(),
+        ));
         assert!(html.contains(&format!(r#"data-scope="{ANGLE_SLIDER_SCOPE}""#)));
         assert!(html.contains(&format!(r#"data-part="{THUMB_PART}""#)));
     }
@@ -572,6 +628,18 @@ mod tests {
         assert!(<AngleSlider as Component>::decode_action(ACTION_INCREMENT, "").is_some());
         assert!(<AngleSlider as Component>::decode_action(ACTION_DECREMENT, "").is_some());
         assert!(<AngleSlider as Component>::decode_action("no_such_action", "").is_none());
+    }
+
+    #[test]
+    fn decode_action_accepts_home_end_at_headless_layer_though_unwired_here() {
+        // ヘッドレス層の dispatch 契約自体は "home"/"end" を受理する
+        // （本モジュールの keydown 配線が対応しないのとは独立、モジュール
+        // 冒頭 doc「キーボード操作」節参照）。
+        use fandhe_frontend_headless_ui::angle_slider::AngleSlider;
+        use fandhe_frontend_interactive::Component;
+
+        assert!(<AngleSlider as Component>::decode_action("home", "").is_some());
+        assert!(<AngleSlider as Component>::decode_action("end", "").is_some());
     }
 
     // --- roundtrip: action 名 → dispatch → AngleSlider::angle_deg ---

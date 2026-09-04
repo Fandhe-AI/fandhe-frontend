@@ -90,6 +90,7 @@
 
 use fandhe_frontend_core::{code, div, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
+use hui::angle_slider::AngleSliderProps;
 use hui::checkbox::{CheckboxProps, CheckedState};
 use hui::checkbox_group;
 use hui::color_picker;
@@ -140,42 +141,62 @@ fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
 // Angle Slider
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/angle_slider.rs:187-266`（root/label/
-/// control/thumb/hidden_input/value_text の各パーツ関数）。
+/// 一次情報: `crates/headless-ui/src/angle_slider.rs:274-451`（root/label/
+/// control/thumb/hidden_input/value_text/marker_group/marker の各パーツ
+/// 関数、`AngleSliderProps`）。イシュー #1601 で参照突合し、readonly/
+/// invalid・marker_group/marker・role="presentation" を追加した。
 fn ex_angle_slider() -> Node {
+    let props = AngleSliderProps {
+        readonly: true,
+        invalid: true,
+        ..Default::default()
+    };
     let body = vec![angle_slider::root(
-        false,
+        &props,
         vec![],
         vec![
-            angle_slider::label(vec![], vec![text("Wind direction")]),
+            angle_slider::label(&props, vec![], vec![text("Wind direction")]),
             angle_slider::control(
-                false,
+                &props,
                 vec![],
-                vec![angle_slider::thumb("270", "270deg", false, vec![], vec![])],
+                vec![
+                    angle_slider::thumb("270", "270deg", &props, vec![], vec![]),
+                    angle_slider::marker_group(
+                        vec![],
+                        vec![
+                            angle_slider::marker(180, 270, false, vec![], vec![]),
+                            angle_slider::marker(270, 270, false, vec![], vec![]),
+                            angle_slider::marker(315, 270, false, vec![], vec![]),
+                        ],
+                    ),
+                ],
             ),
             angle_slider::hidden_input("wind-direction", "270", false, vec![]),
             angle_slider::value_text(vec![], vec![text("270°")]),
         ],
     )];
     wrap_example(
-        "root/control/thumb/hidden_input/value_text を組み立てた 270 度の例です。",
+        "readonly かつ invalid な 270 度の風向を、marker_group/marker（180/270/315 度の目盛り）付きで組み立てた例です。",
         body,
     )
 }
 
 const ANGLE_SLIDER: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/label/control/thumb/hidden_input/value_text の 6 anatomy パーツで構成し、角度値は常に 0..=359 の整数へ正規化される（angle_slider.rs:44-45）。",
-        "thumb は WAI-ARIA slider パターンに従い role=\"slider\"/aria-valuemin=\"0\"/aria-valuemax=\"360\"/aria-valuenow/aria-valuetext を常時出力する（angle_slider.rs:213-215, 219-238）。",
-        "disabled が true のとき thumb は tabindex=\"-1\" + aria-disabled、false のとき tabindex=\"0\" を出力する（angle_slider.rs:216-218, 234-238）。",
-        "hidden_input（<input type=\"hidden\">）はフォーム送信専用であり、意味論（role=\"slider\"）は thumb 側が担う（angle_slider.rs:245-248）。",
+        "root/label/control/thumb/marker_group/marker/hidden_input/value_text の 8 anatomy パーツで構成し、角度値は常に 0..=359 の整数へ正規化される（angle_slider.rs:170-177）。",
+        "AngleSliderProps（disabled/readonly/invalid）を root/label/control/thumb で共有し、data-disabled/data-readonly/data-invalid を一律付与する（angle_slider.rs:274-291）。",
+        "control は role=\"presentation\" を固定出力する（angle_slider.rs:331-346）。",
+        "thumb は WAI-ARIA slider パターンに従い role=\"slider\"/aria-valuemin=\"0\"/aria-valuemax=\"360\"/aria-valuenow/aria-valuetext を常時出力する。props.disabled が true のとき tabindex=\"-1\" + aria-disabled、それ以外（readonly を含む）は tabindex=\"0\"（angle_slider.rs:349-382）。",
+        "marker は value（目盛り角度）と現在角度の大小から data-state を under-value/over-value/at-value の 3 値へ固定する（angle_slider.rs:423-451）。",
+        "hidden_input（<input type=\"hidden\">）はフォーム送信専用であり、意味論（role=\"slider\"）は thumb 側が担う（angle_slider.rs:386-401）。",
+        "\"home\"/\"end\" dispatch（AngleSliderAction::SetToMin/SetToMax）で最小値（0 度）/step グリッド上の最大値へ設定する状態機械契約を持つ（angle_slider.rs:613-617, 650-651）。fandhe-frontend-wasm-full の DOM keydown 配線は REQ-11（WASM バンドルサイズ）予算逼迫のため本イシューでは未対応（Arrow キーのみ配線済み、下記 Keyboard 節参照）。",
     ],
     arguments: &[
         ArgRow {
-            name: "root(disabled) / control(disabled)",
-            kind: "bool",
-            default: "false",
-            description: "各パーツへ data-disabled を反映するかどうか（同じ引数のため 1 行に集約）。",
+            name: "root/label/control/thumb(props)",
+            kind: "&AngleSliderProps",
+            default: "&AngleSliderProps::default()",
+            description: "disabled/readonly/invalid の状態束。4 パーツ共通のため代表 1 行に集約（angle_slider.rs:274-291）。",
         },
         ArgRow {
             name: "thumb(now)",
@@ -190,10 +211,10 @@ const ANGLE_SLIDER: ComponentPageSpec = ComponentPageSpec {
             description: "\"{value}deg\" 形式の文字列。aria-valuetext へ出力される。",
         },
         ArgRow {
-            name: "thumb(disabled)",
-            kind: "bool",
-            default: "false",
-            description: "true のとき tabindex=\"-1\" + aria-disabled、false のとき tabindex=\"0\"。",
+            name: "marker(value, current, disabled)",
+            kind: "u16, u16, bool",
+            default: "",
+            description: "目盛り角度・現在角度・無効化。data-value/data-state（under-value/over-value/at-value）へ反映される（angle_slider.rs:423-451）。",
         },
         ArgRow {
             name: "hidden_input(name, value)",
@@ -209,27 +230,40 @@ const ANGLE_SLIDER: ComponentPageSpec = ComponentPageSpec {
         },
     ],
     examples: &[ExampleEntry {
-        title: "Basic",
-        description: "270 度の風向を表す Angle Slider の組み立て例です。",
+        title: "Readonly + Invalid",
+        description: "readonly かつ invalid な 270 度の風向を marker_group/marker 付きで組み立てた例です。",
         render: ex_angle_slider,
     }],
-    keyboard: &[],
+    keyboard: &[
+        KeyRow {
+            key: "ArrowUp / ArrowRight",
+            description: "step 分だけ時計回りに増加する（fandhe-frontend-wasm-full の action_for_key で配線済み）。",
+        },
+        KeyRow {
+            key: "ArrowDown / ArrowLeft",
+            description: "step 分だけ反時計回りに減少する（同上）。",
+        },
+    ],
     aria: &[
         AriaRow {
+            attribute: "role=\"presentation\"",
+            description: "control パーツに固定付与する。意味論は thumb の role=\"slider\" が単独で担う（angle_slider.rs:331-346）。",
+        },
+        AriaRow {
             attribute: "role=\"slider\"",
-            description: "thumb パーツに固定付与する（angle_slider.rs:227）。",
+            description: "thumb パーツに固定付与する。",
         },
         AriaRow {
             attribute: "aria-valuemin / aria-valuemax",
-            description: "thumb パーツへ常に \"0\"/\"360\" を固定出力する（angle_slider.rs:228-229）。",
+            description: "thumb パーツへ常に \"0\"/\"360\" を固定出力する。",
         },
         AriaRow {
             attribute: "aria-valuenow / aria-valuetext",
-            description: "呼び出し側が渡す現在値・整形済みテキストをそのまま出力する（angle_slider.rs:230-231）。",
+            description: "呼び出し側が渡す現在値・整形済みテキストをそのまま出力する。",
         },
         AriaRow {
             attribute: "aria-disabled",
-            description: "disabled が true のとき tabindex=\"-1\" と対で thumb へ付与する（angle_slider.rs:234-236）。",
+            description: "props.disabled が true のとき tabindex=\"-1\" と対で thumb へ付与する（readonly のみでは付与しない）。",
         },
     ],
     demo: None,
