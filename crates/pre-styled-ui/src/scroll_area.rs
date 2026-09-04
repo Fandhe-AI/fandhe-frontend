@@ -65,9 +65,12 @@
 //!   （`StateCondition::Hover`、`@media (hover: hover)` 配下）**および**
 //!   キーボードフォーカス時（`StateCondition::FocusVisible`）の双方で
 //!   `--fandhe-scroll-area-thumb-bg` を `--fandhe-scroll-area-thumb-hover-bg`
-//!   （既定 `var(--fandhe-color-fg)`）へ再定義する（PR #1858 codex-review
-//!   P1 指摘対応: 従来は `Hover` のみの再定義でキーボード操作時に強調へ
-//!   到達しなかった）。hover-reveal（既定で thumb を隠し hover 時のみ
+//!   （既定 `var(--fandhe-color-fg, var(--fandhe-color-fg-subtle,
+//!   var(--fandhe-color-border-emphasized, var(--fandhe-color-border))))`。
+//!   `fg` 未定義時も既定値と同じ `fg-subtle` → `border-emphasized` →
+//!   `border` の連鎖へフォールバックする、PR #1858 codex-review P1
+//!   再指摘対応）へ再定義する（P1 指摘対応: 従来は `Hover` のみの再定義で
+//!   キーボード操作時に強調へ到達しなかった）。hover-reveal（既定で thumb を隠し hover 時のみ
 //!   出現させる chakra `variant="hover"` の既定相当）は採用しない。
 //!   タッチ端末は `hover: hover` に一致せずこの再定義が発火しないため、
 //!   hover-reveal を既定にすると thumb が恒久的に不可視になり発見性を
@@ -241,7 +244,7 @@ fn recipe() -> SlotRecipe {
                 // の強調色を揃って変更できる）。
                 decls.push(decl(
                     "--fandhe-scroll-area-thumb-bg",
-                    "var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg))",
+                    "var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg, var(--fandhe-color-fg-subtle, var(--fandhe-color-border-emphasized, var(--fandhe-color-border)))))",
                 ));
                 decls
             },
@@ -252,12 +255,21 @@ fn recipe() -> SlotRecipe {
         // `fg-subtle`（3:1 以上）へ変更されたことに伴い、hover/focus 側の
         // 強調色も `fg-subtle` から一段濃い `fg` へ変更した（PR #1858
         // codex-review P1 是正）。
+        //
+        // PR #1858 codex-review P1 再指摘への追記: `fg` までしかフォール
+        // バックしない場合、`Theme::empty()` ベースのカスタムテーマで
+        // `--fandhe-color-fg` が未定義だと hover/focus 時に thumb が
+        // invalid value（不可視）になり得た。通常時（`--fandhe-scroll-
+        // area-thumb-bg` の既定値、上記 `root` 側の定義）と同じ
+        // `fg-subtle` → `border-emphasized` → `border` のフォールバック
+        // 連鎖を `fg` の後段に追加し、`fg` 未定義でも通常時と同等の
+        // 視認性まで確実にフォールバックするようにした。
         .state(
             "viewport",
             StateCondition::Hover,
             vec![decl(
                 "--fandhe-scroll-area-thumb-bg",
-                "var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg))",
+                "var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg, var(--fandhe-color-fg-subtle, var(--fandhe-color-border-emphasized, var(--fandhe-color-border)))))",
             )],
         )
 }
@@ -437,7 +449,7 @@ mod tests {
         let block = &css[block_start..block_start + block_end];
         assert!(
             block.contains(
-                "--fandhe-scroll-area-thumb-bg: var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg));"
+                "--fandhe-scroll-area-thumb-bg: var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg, var(--fandhe-color-fg-subtle, var(--fandhe-color-border-emphasized, var(--fandhe-color-border)))));"
             ),
             ":focus-visible ブロックに thumb-bg 強調宣言が含まれていません: {block}"
         );
@@ -454,7 +466,7 @@ mod tests {
             r#"[data-scope="scroll-area"][data-part="viewport"]:hover:not([data-disabled]) {"#
         ));
         assert!(css.contains(
-            "--fandhe-scroll-area-thumb-bg: var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg));"
+            "--fandhe-scroll-area-thumb-bg: var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg, var(--fandhe-color-fg-subtle, var(--fandhe-color-border-emphasized, var(--fandhe-color-border)))));"
         ));
     }
 

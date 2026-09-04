@@ -43,12 +43,12 @@ const SCROLL_AREA_GOLDEN_CSS: &str = r#"[data-scope="scroll-area"][data-part="ro
 [data-scope="scroll-area"][data-part="viewport"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
-  --fandhe-scroll-area-thumb-bg: var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg));
+  --fandhe-scroll-area-thumb-bg: var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg, var(--fandhe-color-fg-subtle, var(--fandhe-color-border-emphasized, var(--fandhe-color-border)))));
 }
 
 @media (hover: hover) {
   [data-scope="scroll-area"][data-part="viewport"]:hover:not([data-disabled]) {
-    --fandhe-scroll-area-thumb-bg: var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg));
+    --fandhe-scroll-area-thumb-bg: var(--fandhe-scroll-area-thumb-hover-bg, var(--fandhe-color-fg, var(--fandhe-color-fg-subtle, var(--fandhe-color-border-emphasized, var(--fandhe-color-border)))));
   }
 }
 [data-scope="scroll-area"][data-part="viewport"]::-webkit-scrollbar {
