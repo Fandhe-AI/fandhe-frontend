@@ -259,7 +259,10 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition, VariantValue};
+use crate::recipe::{
+    focus_ring_declarations, FocusRingColor, FocusRingOffset, SlotRecipe, StateCondition,
+    VariantValue,
+};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, aria_hidden, aria_label, Anatomy};
 
@@ -413,13 +416,17 @@ fn recipe() -> SlotRecipe {
         // マウス操作のみだった（`tabindex` 未付与のため、`marquee` 関数側で
         // 付与する `tabindex="0"` を対象にキーボード操作時のみのフォーカス
         // リングを付ける、`crate::scroll_area` の `viewport` と同型の判断）。
+        // PR #1856 Bugbot 指摘対応: `outline`/`outline-offset` の直書きでは
+        // `--fandhe-color-focus-ring`/`--fandhe-focus-ring-offset` を上書き
+        // するテーマで marquee だけ乖離するため、canonical ヘルパ
+        // （`recipe::focus_ring_declarations`）へ置換する。marquee は
+        // `ColorPalette` 軸を公開しないため `FocusRingColor::Token`、リングを
+        // 要素内側に描く既存の見た目（`-2px`）を保つため `FocusRingOffset::Inset`
+        // を選ぶ（`crate::scroll_area` の `viewport` と同型の判断）。
         .state(
             "root",
             StateCondition::FocusVisible,
-            vec![
-                decl("outline", "2px solid var(--fandhe-color-accent)"),
-                decl("outline-offset", "-2px"),
-            ],
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Inset),
         )
 }
 
@@ -783,7 +790,10 @@ mod tests {
             out.contains("[data-scope=\"marquee\"][data-part=\"root\"]:focus-visible"),
             "css={out}"
         );
-        assert!(out.contains("outline: 2px solid var(--fandhe-color-accent);"));
+        assert!(out.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+        assert!(out.contains("outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));"));
     }
 
     #[test]

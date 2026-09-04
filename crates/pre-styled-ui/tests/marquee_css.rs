@@ -23,6 +23,13 @@
 //! が固定付与する `tabindex="0"`（`crates/pre-styled-ui/src/marquee.rs`
 //! 参照。reduced-motion 時の横スクロール領域へのキーボード到達性の
 //! 是正）に対応する `:focus-visible` フォーカスリング宣言を追加した。
+//!
+//! PR #1856 Bugbot 指摘対応で、上記フォーカスリング宣言を `outline`/
+//! `outline-offset` の直書きから canonical ヘルパ
+//! （`crate::recipe::focus_ring_declarations(FocusRingColor::Token,
+//! FocusRingOffset::Inset)`）へ置換した（テーマの
+//! `--fandhe-color-focus-ring`/`--fandhe-focus-ring-offset` 上書きに追随
+//! させるため）。
 
 use fandhe_frontend_pre_styled_ui::marquee;
 
@@ -67,8 +74,8 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
 }
 
 [data-scope="marquee"][data-part="root"]:focus-visible {
-  outline: 2px solid var(--fandhe-color-accent);
-  outline-offset: -2px;
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: calc(-1 * var(--fandhe-focus-ring-offset, 2px));
 }
 
 @keyframes fd-marquee-scroll {
