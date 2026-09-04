@@ -183,6 +183,7 @@ const ROOT_RESERVED: &[&str] = &["data-state", "data-orientation", "data-disable
 /// [`content`] が固定付与するキー一覧。
 const CONTENT_RESERVED: &[&str] = &[
     "data-orientation",
+    "data-disabled",
     "role",
     "tabindex",
     "aria-multiselectable",
@@ -276,7 +277,10 @@ pub fn label<'a>(
 /// [`ListboxProps::orientation`] を `data-orientation` へ反映する
 /// （`fandhe-frontend-wasm-full` の keynav が ArrowLeft/ArrowRight を受理
 /// するかどうかの判定に使う呼び出し側オプトインだった属性を、イシュー
-/// #1611 で常時出力へ変更した）。
+/// #1611 で常時出力へ変更した）。[`ListboxProps::disabled`] を
+/// `data-disabled` へ反映する（[`root_state_attrs`] 経由。root/label/
+/// content/item-group/item/value-text へ一律付与する契約、モジュール
+/// doc §セキュリティ不変条件参照）。
 #[must_use]
 pub fn content<'a>(
     multiple: bool,
@@ -288,11 +292,9 @@ pub fn content<'a>(
     children: Vec<Node>,
 ) -> Node {
     let attrs = drop_reserved(attrs, CONTENT_RESERVED);
-    let mut merged: Vec<(&'a str, &'a str)> = vec![
-        data_orientation(props.orientation),
-        role("listbox"),
-        ("tabindex", "0"),
-    ];
+    let mut merged: Vec<(&'a str, &'a str)> = root_state_attrs(props);
+    merged.push(role("listbox"));
+    merged.push(("tabindex", "0"));
     if multiple {
         merged.push(aria_multiselectable(true));
     }
@@ -941,6 +943,44 @@ mod tests {
         assert!(html.contains(r#"id="listbox-content-1""#));
         assert!(html.contains(r#"aria-labelledby="listbox-label-1""#));
         assert!(html.contains(r#"aria-activedescendant="listbox-item-2""#));
+    }
+
+    #[test]
+    fn content_reflects_disabled_from_props() {
+        let props = ListboxProps {
+            disabled: true,
+            ..ListboxProps::default()
+        };
+        let html = render(&content(false, &props, None, None, None, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn content_omits_data_disabled_when_not_disabled() {
+        let html = render(&content(
+            false,
+            &ListboxProps::default(),
+            None,
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn content_drops_caller_supplied_data_disabled() {
+        let html = render(&content(
+            false,
+            &ListboxProps::default(),
+            None,
+            None,
+            None,
+            vec![("data-disabled", "attacker"), ("DATA-DISABLED", "attacker")],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
     }
 
     #[test]
