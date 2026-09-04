@@ -1961,6 +1961,81 @@ fn radio_group_readonly_arrow_key_does_not_move_focus_or_change_selection() {
     );
 }
 
+/// readonly（イシュー #1616 P1 是正・codex-review 追加指摘、PR #1886
+/// レビュー）: フォーカス中の項目自体は readonly ではなくても、矢印キーの
+/// 遷移先候補が readonly な場合はその項目へフォーカス・選択を移してはなら
+/// ない（`radio_next_index` は disabled と同じ skip 対象として readonly も
+/// 扱い、次の非 readonly 項目まで読み飛ばす）。3 項目中央 b が readonly の
+/// 構成で、a から ArrowRight すると b を飛ばして c へ移動することを検証
+/// する。
+#[wasm_bindgen_test]
+fn radio_group_arrow_key_skips_readonly_destination_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly4",
+        &[
+            ("a", "A", true, false),
+            ("b", "B", false, false),
+            ("c", "C", false, false),
+        ],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_a = document
+        .get_element_by_id("kn-radio-readonly4-input-a")
+        .unwrap();
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly4-input-b")
+        .unwrap();
+    let input_c = document
+        .get_element_by_id("kn-radio-readonly4-input-c")
+        .unwrap();
+    // `item_hidden_input` 自身は data-readonly を持たない契約
+    // （モジュール doc 参照）のため、祖先 `item` へ付与する。
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&input_a).focus().unwrap();
+
+    input_a
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-radio-readonly4-input-c".to_string()),
+        "readonly な遷移先候補（b）は読み飛ばされ、非 readonly の次項目（c）\
+         へフォーカスが移動すべき"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "読み飛ばされた readonly 項目（b）が選択されてはならない"
+    );
+    assert!(
+        input_c
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "遷移先（c）が新たに選択されているべき"
+    );
+    assert!(
+        !input_a
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "元の選択（a）は解除されているべき"
+    );
+}
+
 /// readonly（イシュー #1616 P1 是正）: readonly 項目のネイティブ
 /// `<input type="radio">` へ click（マウスクリック・フォーカス中 Space
 /// 決定が合成する activation と同型）が届いても選択が変わらない。ネイティブ

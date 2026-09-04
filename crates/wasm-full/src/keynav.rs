@@ -6100,7 +6100,20 @@ mod wiring {
         let Some(current) = index_of(&inputs, input) else {
             return;
         };
+        // readonly（イシュー #1616 P1 是正・codex-review 追加指摘）:
+        // フォーカス移動先の選定（`radio_next_index`）自体は disabled と
+        // 同じ「skip 対象」の枠組みで readonly も除外する。current 項目が
+        // readonly の場合を含め起点は変えず 1 歩以上進めてから判定するため
+        // （[`step_non_disabled`] 参照）、「現在 focus 中の項目が readonly」
+        // 「遷移先候補が readonly」のどちらのケースも同一の skip 配列で
+        // 一貫して弾ける（片方だけを検査すると、通常項目から矢印キーで
+        // readonly 項目へ移動・選択できてしまう非対称が生じるため）。
         let disabled = disabled_flags(&inputs);
+        let skip: Vec<bool> = inputs
+            .iter()
+            .zip(disabled.iter())
+            .map(|(el, &d)| d || item_readonly(el))
+            .collect();
         let orientation = Orientation::from_attr_optional(
             group_root.get_attribute("data-orientation").as_deref(),
         );
@@ -6121,18 +6134,7 @@ mod wiring {
             event.prevent_default();
         }
 
-        // readonly（イシュー #1616 P1 是正）: ネイティブ radio グループの
-        // 既定動作は上記 prevent_default で既に抑止済みだが、readonly では
-        // 選択値そのものを変更させない契約（`RadioGroupProps::readonly` の
-        // モジュール doc 参照）のため、フォーカス移動・`radio_next_index`
-        // 委譲を含め一切の状態変更を行わず no-op で終える（ネイティブ radio
-        // は「フォーカス移動」と「選択変更」が不可分なため、選択を変えない
-        // 以上フォーカスも動かさない）。
-        if item_readonly(input) {
-            return;
-        }
-
-        let Some(next_index) = radio_next_index(current, &key, orientation, modifiers, &disabled)
+        let Some(next_index) = radio_next_index(current, &key, orientation, modifiers, &skip)
         else {
             return;
         };
