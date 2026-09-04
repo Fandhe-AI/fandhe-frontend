@@ -1938,17 +1938,19 @@ const IMAGE_CROPPER: ComponentPageSpec = ComponentPageSpec {
 // Listbox
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/listbox.rs:88-260`（root/content/item
+/// 一次情報: `crates/headless-ui/src/listbox.rs:233-500`（root/content/item
 /// の各パーツ関数）。
 fn ex_listbox() -> Node {
+    let props = hui::listbox::ListboxProps::default();
     let body = vec![listbox::root(
         OpenState::Open,
-        false,
+        &props,
         vec![],
         vec![
-            listbox::label(Some("lb2-label"), vec![], vec![text("Country")]),
+            listbox::label(&props, Some("lb2-label"), vec![], vec![text("Country")]),
             listbox::content(
                 true,
+                &props,
                 Some("lb2-content"),
                 Some("lb2-label"),
                 None,
@@ -1956,21 +1958,33 @@ fn ex_listbox() -> Node {
                 vec![
                     listbox::item(
                         OpenState::Open,
+                        &props,
                         false,
                         false,
                         "jp",
                         None,
                         vec![],
-                        vec![listbox::item_text(None, vec![], vec![text("Japan")])],
+                        vec![listbox::item_text(
+                            OpenState::Open,
+                            false,
+                            false,
+                            None,
+                            vec![],
+                            vec![text("Japan")],
+                        )],
                     ),
                     listbox::item(
                         OpenState::Closed,
+                        &props,
                         false,
                         false,
                         "us",
                         None,
                         vec![],
                         vec![listbox::item_text(
+                            OpenState::Closed,
+                            false,
+                            false,
                             None,
                             vec![],
                             vec![text("United States")],
@@ -1986,31 +2000,113 @@ fn ex_listbox() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1611、[`COLOR_PICKER_CUSTOM_CSS_SNIPPET`]/
+/// `ex_color_picker_custom_css`〔#1604〕と同型のパターン）。CSS は
+/// テキストノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const LISTBOX_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"listbox\"][data-part=\"item\"][data-selected] {\n  \
+  background: #dbeafe;\n\
+}\n\
+[data-scope=\"listbox\"][data-part=\"item\"][data-highlighted] {\n  \
+  outline: 2px solid #2563eb;\n\
+}\n\
+[data-scope=\"listbox\"][data-part=\"item\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"listbox\"][data-part=\"content\"][data-orientation=\"horizontal\"] {\n  \
+  flex-direction: row;\n\
+}\n\
+[data-scope=\"listbox\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n";
+
+fn ex_listbox_custom_css() -> Node {
+    let props = hui::listbox::ListboxProps::default();
+    let markup = listbox::root(
+        OpenState::Open,
+        &props,
+        vec![],
+        vec![listbox::content(
+            false,
+            &props,
+            None,
+            None,
+            None,
+            vec![("aria-label", "Fruit")],
+            vec![listbox::item(
+                OpenState::Open,
+                &props,
+                false,
+                false,
+                "apple",
+                None,
+                vec![],
+                vec![listbox::item_text(
+                    OpenState::Open,
+                    false,
+                    false,
+                    None,
+                    vec![],
+                    vec![text("Apple")],
+                )],
+            )],
+        )],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-selected / data-orientation / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(LISTBOX_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 const LISTBOX: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "root/label/content/item_group/item_group_label/item/item_text/item_indicator/value_text の anatomy を持ち、content 自身がフォーカスを受ける常時展開のリストである（crate::combobox/select のようなポップオーバー型とは異なる、listbox.rs:1-9, 64）。",
-        "content は role=\"listbox\" + tabindex=\"0\" を固定付与し、multiple のとき aria-multiselectable=\"true\" を付与する（single モードでは省略、listbox.rs:117-146）。",
-        "item は role=\"option\" + aria-selected を固定付与し、disabled のとき aria-disabled=\"true\" と data-disabled を対で付与する（div[role=\"option\"] はネイティブ disabled を持たないため、listbox.rs:191-233）。",
-        "activedescendant が Some のとき content へ aria-activedescendant を付与し、現在ハイライト中の item の id と対応させる（listbox.rs:121-127）。",
+        "ListboxProps（disabled/orientation）を root/label/content/item_group/item/value_text へ一律付与する（参照突合、イシュー #1611、listbox.rs:147-177）。root の disabled は item の有効 disabled（props.disabled || item 個別の disabled）へ伝播する（listbox.rs:385-421）。",
+        "content は role=\"listbox\" + tabindex=\"0\" を固定付与し、multiple のとき aria-multiselectable=\"true\" を付与する（single モードでは省略、listbox.rs:281-317）。",
+        "item は role=\"option\" + aria-selected + data-state（\"open\"/\"closed\"）を固定付与し、選択時のみ data-selected 存在属性を追加する。disabled のとき aria-disabled=\"true\" と data-disabled を対で付与する（div[role=\"option\"] はネイティブ disabled を持たないため、listbox.rs:385-421）。",
+        "item_text は selected_state/disabled/highlighted の 3 状態を data-state/data-disabled/data-highlighted として出力する（item の先頭 3 引数と同型、listbox.rs:431-457）。",
+        "item_group_label は role=\"presentation\" を、item_indicator は aria-hidden=\"true\" を固定付与する（参照突合、イシュー #1611、listbox.rs:347-384, 458-483）。",
+        "activedescendant が Some のとき content へ aria-activedescendant を付与し、現在ハイライト中の item の id と対応させる（listbox.rs:281-317）。",
     ],
     arguments: &[
         ArgRow {
-            name: "root(selection_state, disabled)",
-            kind: "OpenState, bool",
-            default: "",
-            description: "選択有無・無効化を data-* へ反映する（listbox.rs:88-99）。",
+            name: "ListboxProps { disabled, orientation }",
+            kind: "bool, Orientation",
+            default: "disabled=false, orientation=Vertical",
+            description: "root/content/item_group/item へ data-orientation を、root/label/content/item_group/item/value_text へ data-disabled 系を一律付与する（listbox.rs:147-177）。",
         },
         ArgRow {
-            name: "content(multiple, id, labelledby, activedescendant)",
-            kind: "bool, Option<&str>, Option<&str>, Option<&str>",
+            name: "root(selection_state, props)",
+            kind: "OpenState, &ListboxProps",
             default: "",
-            description: "aria-multiselectable/aria-labelledby/aria-activedescendant の各付与条件（listbox.rs:127-146）。",
+            description: "選択有無を data-state へ、props を data-orientation/data-disabled へ反映する（listbox.rs:233-247）。",
         },
         ArgRow {
-            name: "item(selected_state, disabled, highlighted, value, id)",
-            kind: "OpenState, bool, bool, &str, Option<&str>",
+            name: "content(multiple, props, id, labelledby, activedescendant)",
+            kind: "bool, &ListboxProps, Option<&str>, Option<&str>, Option<&str>",
             default: "",
-            description: "role=\"option\" を持つ選択肢 1 個の状態。value は data-value として既定エスケープ経由で出力される（listbox.rs:207-233）。",
+            description: "aria-multiselectable/aria-labelledby/aria-activedescendant の各付与条件（listbox.rs:281-317）。",
+        },
+        ArgRow {
+            name: "item(selected_state, props, disabled, highlighted, value, id)",
+            kind: "OpenState, &ListboxProps, bool, bool, &str, Option<&str>",
+            default: "",
+            description: "role=\"option\" を持つ選択肢 1 個の状態。有効 disabled は props.disabled || disabled。value は data-value として既定エスケープ経由で出力される（listbox.rs:385-421）。",
+        },
+        ArgRow {
+            name: "item_text(selected_state, disabled, highlighted, id)",
+            kind: "OpenState, bool, bool, Option<&str>",
+            default: "",
+            description: "item の先頭 3 引数と同型の 3 状態属性。disabled は item へ渡した有効 disabled をそのまま渡す想定（listbox.rs:431-457）。",
         },
         ArgRow {
             name: "attrs / children",
@@ -2019,28 +2115,68 @@ const LISTBOX: ComponentPageSpec = ComponentPageSpec {
             description: "各パーツ共通の追加属性・子ノード（代表 1 行に集約）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Multiple selection",
-        description: "aria-multiselectable=\"true\" の Listbox の組み立て例です。",
-        render: ex_listbox,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Multiple selection",
+            description: "aria-multiselectable=\"true\" の Listbox の組み立て例です。",
+            render: ex_listbox,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui 自体はスタイルを持たないため、data-* 属性セレクタで見た目を組み立てる最小例です。",
+            render: ex_listbox_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "ArrowDown / ArrowUp",
+            description: "content にフォーカス時: 次/前の item へ highlight を移動する（既定・非循環。fandhe-frontend-wasm-full の keynav::handle_listbox_keydown で配線済み、イシュー #1070）。",
+        },
+        KeyRow {
+            key: "ArrowRight / ArrowLeft",
+            description: "content の data-orientation=\"horizontal\" のときのみ、次/前の item へ highlight を移動する（fandhe-frontend-wasm-full の keynav で配線済み）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "content にフォーカス時: 先頭/末尾の非 disabled item へ highlight を移動する（fandhe-frontend-wasm-full の keynav で配線済み）。",
+        },
+        KeyRow {
+            key: "文字キー",
+            description: "typeahead。連続入力したキーに前方一致する非 disabled item へ highlight を移動する（fandhe-frontend-wasm-full の keynav で配線済み）。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "typeahead バッファ非活性時、highlight 中の非 disabled item へ click を合成する（fandhe-frontend-wasm-full の keynav で配線済み）。ただし選択状態を書き換える dispatch（\"select\"/\"toggle\"）へは未接続（headless.rs::MAPPING_TABLE に listbox 行が無いため、スコープ外・別イシュー化を提案）。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "typeahead バッファのリセットのみを行う（prevent_default せず選択解除も行わない。ダイアログ内 Listbox が親の Escape 閉鎖を奪わないための意図的な非対称、listbox.rs module doc 参照）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role=\"listbox\"",
-            description: "content パーツへ固定付与する（listbox.rs:135）。",
+            description: "content パーツへ固定付与する（listbox.rs:281-317）。",
         },
         AriaRow {
             attribute: "aria-multiselectable",
-            description: "multiple が true のときのみ \"true\" を付与する（listbox.rs:137-139）。",
+            description: "multiple が true のときのみ \"true\" を付与する（listbox.rs:281-317）。",
         },
         AriaRow {
             attribute: "aria-labelledby",
-            description: "content の labelledby が Some のときのみ付与する（listbox.rs:143-145）。",
+            description: "content の labelledby が Some のときのみ付与する（listbox.rs:281-317）。",
         },
         AriaRow {
             attribute: "role=\"option\" / aria-selected / aria-disabled",
-            description: "item パーツへ固定付与する（aria-disabled は disabled が true のときのみ、listbox.rs:217-227）。",
+            description: "item パーツへ固定付与する（aria-disabled は有効 disabled が true のときのみ、listbox.rs:385-421）。",
+        },
+        AriaRow {
+            attribute: "role=\"presentation\"",
+            description: "item_group_label パーツへ固定付与する（zag の ItemGroupLabel anatomy に合わせる、listbox.rs:347-384）。",
+        },
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "item_indicator パーツへ固定付与する（item 自身の aria-selected が選択状態を既に伝達するため、支援技術の二重読み上げを防ぐ、listbox.rs:458-483）。",
         },
     ],
     demo: None,

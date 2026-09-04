@@ -1133,9 +1133,12 @@ fn qr_code_root_attrs_and_overlay_children_are_escaped_for_all_payloads() {
 /// エスケープが貫通することを固定する。
 #[test]
 fn listbox_item_text_value_id_and_hydration_paths_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::listbox::ListboxProps;
+    let props = ListboxProps::default();
     for payload in payloads::all() {
         let item_node = listbox::item(
             OpenState::Open,
+            &props,
             false,
             false,
             payload,
@@ -1150,7 +1153,14 @@ fn listbox_item_text_value_id_and_hydration_paths_are_escaped_for_all_payloads()
             "listbox::item の data-value/id コンテキスト",
         );
 
-        let item_text_node = listbox::item_text(Some(payload), vec![], vec![text(payload)]);
+        let item_text_node = listbox::item_text(
+            OpenState::Open,
+            false,
+            false,
+            Some(payload),
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&item_text_node);
         assert_payload_is_escaped(
             payload,
@@ -1160,6 +1170,7 @@ fn listbox_item_text_value_id_and_hydration_paths_are_escaped_for_all_payloads()
 
         let content_node = listbox::content(
             false,
+            &props,
             Some(payload),
             Some(payload),
             Some(payload),
@@ -1173,7 +1184,7 @@ fn listbox_item_text_value_id_and_hydration_paths_are_escaped_for_all_payloads()
             "listbox::content の id/labelledby/activedescendant コンテキスト",
         );
 
-        let value_text_node = listbox::value_text(false, vec![], vec![text(payload)]);
+        let value_text_node = listbox::value_text(false, &props, vec![], vec![text(payload)]);
         let html = render(&value_text_node);
         assert_payload_is_escaped(
             payload,

@@ -1154,53 +1154,180 @@ pub(super) fn image_cropper_section() -> Node {
 }
 
 pub(super) fn listbox_section() -> Node {
+    // single モード（イシュー #1611 参照突合前と同一の見た目）。
+    let single_props = hui::listbox::ListboxProps::default();
     let selection_state = OpenState::Open;
-    let body = vec![listbox::root(
+    let single = listbox::root(
         selection_state,
-        false,
+        &single_props,
         vec![],
         vec![
-            listbox::label(Some("lb-label"), vec![], vec![text("Fruit")]),
+            listbox::label(&single_props, Some("lb-label"), vec![], vec![text("Fruit")]),
             listbox::content(
                 false,
+                &single_props,
                 Some("lb-content"),
                 Some("lb-label"),
                 Some("lb-item-0"),
                 vec![],
                 vec![listbox::item_group(
+                    &single_props,
                     None,
                     vec![],
                     vec![
                         listbox::item_group_label(None, vec![], vec![text("Common")]),
                         listbox::item(
                             OpenState::Open,
+                            &single_props,
                             false,
                             true,
                             "apple",
                             Some("lb-item-0"),
                             vec![],
                             vec![
-                                listbox::item_text(None, vec![], vec![text("Apple")]),
+                                listbox::item_text(
+                                    OpenState::Open,
+                                    false,
+                                    true,
+                                    None,
+                                    vec![],
+                                    vec![text("Apple")],
+                                ),
                                 listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
                             ],
                         ),
                         listbox::item(
                             OpenState::Closed,
+                            &single_props,
                             false,
                             false,
                             "banana",
                             None,
                             vec![],
                             vec![
-                                listbox::item_text(None, vec![], vec![text("Banana")]),
+                                listbox::item_text(
+                                    OpenState::Closed,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Banana")],
+                                ),
+                                listbox::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                        // item-level disabled（イシュー #1611 参照突合: root disabled=false
+                        // + item disabled=true が data-orientation/data-selected と並んで
+                        // Anatomy/data-* 表へ機械的に露出することを示す）。
+                        listbox::item(
+                            OpenState::Closed,
+                            &single_props,
+                            true,
+                            false,
+                            "cherry",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(
+                                    OpenState::Closed,
+                                    true,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Cherry (disabled)")],
+                                ),
                                 listbox::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
                             ],
                         ),
                     ],
                 )],
             ),
-            listbox::value_text(false, vec![], vec![text("Apple")]),
+            listbox::value_text(false, &single_props, vec![], vec![text("Apple")]),
         ],
-    )];
-    demo_page("Listbox", body)
+    );
+
+    // multiple + horizontal + root disabled モード（イシュー #1611 参照突合:
+    // root disabled が item へ伝播すること・data-orientation="horizontal" が
+    // root/content/item-group/item へ出力されることを Demo 経由で
+    // Anatomy/data-* 表へ機械的に露出させる）。
+    let multi_props = hui::listbox::ListboxProps {
+        disabled: true,
+        orientation: hui::Orientation::Horizontal,
+    };
+    let multiple = listbox::root(
+        OpenState::Open,
+        &multi_props,
+        vec![],
+        vec![
+            listbox::label(
+                &multi_props,
+                Some("lb-multi-label"),
+                vec![],
+                vec![text("Toppings")],
+            ),
+            listbox::content(
+                true,
+                &multi_props,
+                Some("lb-multi-content"),
+                Some("lb-multi-label"),
+                None,
+                vec![],
+                vec![listbox::item_group(
+                    &multi_props,
+                    Some("lb-multi-group-label"),
+                    vec![],
+                    vec![
+                        listbox::item_group_label(
+                            Some("lb-multi-group-label"),
+                            vec![],
+                            vec![text("Cheese")],
+                        ),
+                        listbox::item(
+                            OpenState::Open,
+                            &multi_props,
+                            false,
+                            false,
+                            "cheddar",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(
+                                    OpenState::Open,
+                                    true,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Cheddar")],
+                                ),
+                                listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                        listbox::item(
+                            OpenState::Open,
+                            &multi_props,
+                            false,
+                            false,
+                            "mozzarella",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(
+                                    OpenState::Open,
+                                    true,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Mozzarella")],
+                                ),
+                                listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+            listbox::value_text(false, &multi_props, vec![], vec![text("2 selected")]),
+        ],
+    );
+
+    demo_page("Listbox", vec![single, multiple])
 }

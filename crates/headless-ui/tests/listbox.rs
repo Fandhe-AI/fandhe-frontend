@@ -9,20 +9,30 @@
 //! 同型の観点）。
 
 use fandhe_frontend_core::{render, text};
-use fandhe_frontend_headless_ui::listbox::{self, Listbox, MultiListbox};
+use fandhe_frontend_headless_ui::data_attrs::Orientation;
+use fandhe_frontend_headless_ui::listbox::{self, Listbox, ListboxProps, MultiListbox};
 use fandhe_frontend_headless_ui::OpenState;
 use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate, HydrateError};
 
 #[test]
 fn full_assembly_wires_aria_labelledby_and_all_parts_appear() {
-    let label = listbox::label(Some("listbox-label-1"), vec![], vec![text("Fruit")]);
+    let props = ListboxProps::default();
+    let label = listbox::label(&props, Some("listbox-label-1"), vec![], vec![text("Fruit")]);
 
     let item_group_label =
         listbox::item_group_label(Some("listbox-group-label-1"), vec![], vec![text("Citrus")]);
-    let item_text = listbox::item_text(Some("listbox-item-text-1"), vec![], vec![text("Orange")]);
+    let item_text = listbox::item_text(
+        OpenState::Open,
+        false,
+        false,
+        Some("listbox-item-text-1"),
+        vec![],
+        vec![text("Orange")],
+    );
     let item_indicator = listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]);
     let item = listbox::item(
         OpenState::Open,
+        &props,
         false,
         false,
         "orange",
@@ -31,22 +41,24 @@ fn full_assembly_wires_aria_labelledby_and_all_parts_appear() {
         vec![item_text, item_indicator],
     );
     let item_group = listbox::item_group(
+        &props,
         Some("listbox-group-label-1"),
         vec![],
         vec![item_group_label, item],
     );
     let content = listbox::content(
         false,
+        &props,
         Some("listbox-content-1"),
         Some("listbox-label-1"),
         Some("listbox-item-1"),
         vec![],
         vec![item_group],
     );
-    let value_text = listbox::value_text(false, vec![], vec![text("Orange")]);
+    let value_text = listbox::value_text(false, &props, vec![], vec![text("Orange")]);
     let root = listbox::root(
         OpenState::Open,
-        false,
+        &props,
         vec![],
         vec![label, content, value_text],
     );
@@ -90,7 +102,15 @@ fn full_assembly_wires_aria_labelledby_and_all_parts_appear() {
 
 #[test]
 fn content_multiple_true_outputs_aria_multiselectable_true() {
-    let content = listbox::content(true, None, None, None, vec![], vec![]);
+    let content = listbox::content(
+        true,
+        &ListboxProps::default(),
+        None,
+        None,
+        None,
+        vec![],
+        vec![],
+    );
     let html = render(&content);
     assert!(html.contains(r#"aria-multiselectable="true""#));
 }
@@ -99,6 +119,7 @@ fn content_multiple_true_outputs_aria_multiselectable_true() {
 fn item_disabled_pairs_aria_disabled_with_data_disabled() {
     let item = listbox::item(
         OpenState::Closed,
+        &ListboxProps::default(),
         true,
         false,
         "banana",
@@ -111,19 +132,48 @@ fn item_disabled_pairs_aria_disabled_with_data_disabled() {
     assert!(html.contains(r#"data-disabled="""#));
 }
 
+#[test]
+fn root_disabled_propagates_to_item_and_orientation_reflects_content_and_item() {
+    // 参照突合（イシュー #1611）: root disabled が item へ伝播し、
+    // orientation が content/item の双方へ反映されることをクレート外部
+    // から固定する。
+    let props = ListboxProps {
+        disabled: true,
+        orientation: Orientation::Horizontal,
+    };
+    let content = listbox::content(false, &props, None, None, None, vec![], vec![]);
+    assert!(render(&content).contains(r#"data-orientation="horizontal""#));
+
+    let item = listbox::item(
+        OpenState::Closed,
+        &props,
+        false,
+        false,
+        "banana",
+        None,
+        vec![],
+        vec![],
+    );
+    let html = render(&item);
+    assert!(html.contains(r#"aria-disabled="true""#));
+    assert!(html.contains(r#"data-disabled="""#));
+    assert!(html.contains(r#"data-orientation="horizontal""#));
+}
+
 // --- Listbox（single モード）: dispatch/hydration 統合 ---
 
 #[test]
 fn listbox_dispatch_select_updates_selection_and_renders_selected_item() {
     let mut l = Listbox::default();
+    let props = ListboxProps::default();
     assert!(dispatch(&mut l, "select", "apple"));
     assert_eq!(l.selected(), Some("apple"));
 
-    let html = render(&l.item("apple", false, false, None, vec![], vec![]));
+    let html = render(&l.item("apple", &props, false, false, None, vec![], vec![]));
     assert!(html.contains(r#"aria-selected="true""#));
     assert!(html.contains(r#"data-state="open""#));
 
-    let other_html = render(&l.item("banana", false, false, None, vec![], vec![]));
+    let other_html = render(&l.item("banana", &props, false, false, None, vec![], vec![]));
     assert!(other_html.contains(r#"aria-selected="false""#));
 }
 
@@ -157,12 +207,13 @@ fn multi_listbox_dispatch_select_allows_multiple_simultaneous_selections() {
     assert!(dispatch(&mut m, "select", "banana"));
     assert_eq!(m.selected(), &["apple".to_string(), "banana".to_string()]);
 
-    let content = listbox::content(true, None, None, None, vec![], vec![]);
+    let props = ListboxProps::default();
+    let content = listbox::content(true, &props, None, None, None, vec![], vec![]);
     assert!(render(&content).contains(r#"aria-multiselectable="true""#));
 
-    let apple_html = render(&m.item("apple", false, false, None, vec![], vec![]));
+    let apple_html = render(&m.item("apple", &props, false, false, None, vec![], vec![]));
     assert!(apple_html.contains(r#"aria-selected="true""#));
-    let banana_html = render(&m.item("banana", false, false, None, vec![], vec![]));
+    let banana_html = render(&m.item("banana", &props, false, false, None, vec![], vec![]));
     assert!(banana_html.contains(r#"aria-selected="true""#));
 }
 
@@ -193,20 +244,23 @@ fn multi_listbox_hydration_tampered_duplicate_value_list_is_rejected() {
 #[test]
 fn dynamic_values_across_all_parts_are_escaped() {
     let payload = "\"><script>alert(1)</script>";
+    let props = ListboxProps::default();
 
-    let label = listbox::label(Some(payload), vec![], vec![text(payload)]);
+    let label = listbox::label(&props, Some(payload), vec![], vec![text(payload)]);
     let content = listbox::content(
         false,
+        &props,
         Some(payload),
         Some(payload),
         Some(payload),
         vec![],
         vec![],
     );
-    let item_group = listbox::item_group(Some(payload), vec![], vec![]);
+    let item_group = listbox::item_group(&props, Some(payload), vec![], vec![]);
     let item_group_label = listbox::item_group_label(Some(payload), vec![], vec![text(payload)]);
     let item = listbox::item(
         OpenState::Open,
+        &props,
         false,
         false,
         payload,
@@ -214,8 +268,15 @@ fn dynamic_values_across_all_parts_are_escaped() {
         vec![],
         vec![],
     );
-    let item_text = listbox::item_text(Some(payload), vec![], vec![text(payload)]);
-    let value_text = listbox::value_text(false, vec![], vec![text(payload)]);
+    let item_text = listbox::item_text(
+        OpenState::Open,
+        false,
+        false,
+        Some(payload),
+        vec![],
+        vec![text(payload)],
+    );
+    let value_text = listbox::value_text(false, &props, vec![], vec![text(payload)]);
 
     for node in [
         label,
@@ -338,8 +399,9 @@ fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
 /// `labelledby` 経由の命名（実在参照）が `Ok(())` になることを固定する。
 #[test]
 fn verify_listbox_has_accessible_name_ok_via_labelledby() {
-    let label = listbox::label(Some("lb-label"), vec![], vec![text("Fruit")]);
-    let content = listbox::content(false, None, Some("lb-label"), None, vec![], vec![]);
+    let props = ListboxProps::default();
+    let label = listbox::label(&props, Some("lb-label"), vec![], vec![text("Fruit")]);
+    let content = listbox::content(false, &props, None, Some("lb-label"), None, vec![], vec![]);
     let html = render(&fandhe_frontend_core::el(
         "div",
         vec![],
@@ -355,6 +417,7 @@ fn verify_listbox_has_accessible_name_ok_via_labelledby() {
 fn verify_listbox_has_accessible_name_ok_via_aria_label_attrs() {
     let content = listbox::content(
         false,
+        &ListboxProps::default(),
         None,
         None,
         None,
@@ -370,7 +433,15 @@ fn verify_listbox_has_accessible_name_ok_via_aria_label_attrs() {
 /// する（opt-in 欠落の検知力の証明）。
 #[test]
 fn verify_listbox_has_accessible_name_detects_missing_naming() {
-    let content = listbox::content(false, None, None, None, vec![], vec![]);
+    let content = listbox::content(
+        false,
+        &ListboxProps::default(),
+        None,
+        None,
+        None,
+        vec![],
+        vec![],
+    );
     let html = render(&content);
 
     let result = verify_listbox_has_accessible_name(&html);
@@ -382,7 +453,15 @@ fn verify_listbox_has_accessible_name_detects_missing_naming() {
 /// ときに検知されることを固定する（dangling IDREF）。
 #[test]
 fn verify_listbox_has_accessible_name_detects_dangling_labelledby_without_fallback() {
-    let content = listbox::content(false, None, Some("no-such-id"), None, vec![], vec![]);
+    let content = listbox::content(
+        false,
+        &ListboxProps::default(),
+        None,
+        Some("no-such-id"),
+        None,
+        vec![],
+        vec![],
+    );
     let html = render(&content);
 
     let result = verify_listbox_has_accessible_name(&html);
