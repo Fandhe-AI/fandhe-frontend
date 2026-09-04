@@ -7,7 +7,7 @@
 //! `crate::primitive_showcase::mod::demo_page` が返す
 //! `div > section > [h2, p, div.primitives-demo-frame]` へ組み込まれる。
 
-use fandhe_frontend_core::{text, Node};
+use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::angle_slider::AngleSliderProps;
 use hui::checkbox::{CheckboxProps, CheckedState};
@@ -560,36 +560,189 @@ pub(super) fn editable_section() -> Node {
     demo_page("Editable", body)
 }
 
+/// `field_section` の 1 インスタンス分を組み立てる非公開ヘルパ（イシュー
+/// #1607、`checkbox_instance` と同型）。`control` は呼び出し側が
+/// `field::input`/`field::textarea`/`field::select` のいずれかを組み立てて
+/// 渡す（「1 Field = 1 コントロール」契約、`field.rs` モジュール doc 参照）。
+/// `helper`/`error` は `Some` のときのみ対応パーツを描画し、`props.
+/// has_helper_text` は実際に `helper_text` パーツを描画するインスタンスの
+/// みで `true` にする呼び出し側契約を守る。
+fn field_instance(
+    props: &FieldProps<'_>,
+    control: Node,
+    label_text: &'static str,
+    helper: Option<&'static str>,
+    error: Option<&'static str>,
+) -> Node {
+    let mut children = vec![field::label(
+        props,
+        vec![],
+        vec![
+            text(label_text),
+            field::required_indicator(props, vec![], vec![text("*")]),
+        ],
+    )];
+    children.push(control);
+    if let Some(helper) = helper {
+        children.push(field::helper_text(props, vec![], vec![text(helper)]));
+    }
+    if let Some(error) = error {
+        children.push(field::error_text(props, vec![], vec![text(error)]));
+    }
+    field::root(props, vec![], children)
+}
+
+/// 8 パーツ（root/label/input/textarea/select/helper-text/error-text/
+/// required-indicator）を 7 インスタンスへ描き分ける（イシュー #1607、
+/// 参照突合の一環）。既定（helper 併用）/invalid（error_text 併用で
+/// `aria-describedby` の 2 id 合成を観測）/disabled/readonly/required（helper
+/// なし）/textarea（`autoresize` で `data-autoresize` を露出）/select の
+/// 順に並べ、textarea・select を Demo に含めることで
+/// `crates/docs-site/tests/primitive_showcase.rs::KNOWN_UNCOVERED` の
+/// `("field","select",…)`/`("field","textarea",…)` 免除を不要にする。
 pub(super) fn field_section() -> Node {
-    let props = FieldProps {
+    let default_props = FieldProps {
         id: "field-email",
         ids: Default::default(),
         disabled: false,
-        invalid: true,
-        required: true,
+        invalid: false,
+        required: false,
         readonly: false,
         has_helper_text: true,
     };
-    let body = vec![field::root(
-        &props,
-        vec![],
-        vec![
-            field::label(
-                &props,
-                vec![],
-                vec![
-                    text("Email"),
-                    field::required_indicator(&props, vec![], vec![text("*")]),
-                ],
-            ),
+    let invalid_props = FieldProps {
+        id: "field-username",
+        ids: Default::default(),
+        disabled: false,
+        invalid: true,
+        required: false,
+        readonly: false,
+        has_helper_text: true,
+    };
+    let disabled_props = FieldProps {
+        id: "field-plan",
+        ids: Default::default(),
+        disabled: true,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let readonly_props = FieldProps {
+        id: "field-account-id",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: true,
+        has_helper_text: false,
+    };
+    let required_props = FieldProps {
+        id: "field-full-name",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: true,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let textarea_props = FieldProps {
+        id: "field-bio",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: true,
+    };
+    let select_props = FieldProps {
+        id: "field-country",
+        ids: Default::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+
+    let body = vec![
+        field_instance(
+            &default_props,
             field::input(
-                &props,
+                &default_props,
                 vec![("type", "email"), ("name", "email"), ("value", "")],
             ),
-            field::helper_text(&props, vec![], vec![text("Work email preferred.")]),
-            field::error_text(&props, vec![], vec![text("Enter a valid email address.")]),
-        ],
-    )];
+            "Email",
+            Some("Work email preferred."),
+            None,
+        ),
+        field_instance(
+            &invalid_props,
+            field::input(
+                &invalid_props,
+                vec![("type", "text"), ("name", "username"), ("value", "")],
+            ),
+            "Username",
+            Some("Letters, numbers and underscores only."),
+            Some("This username is already taken."),
+        ),
+        field_instance(
+            &disabled_props,
+            field::input(
+                &disabled_props,
+                vec![("type", "text"), ("name", "plan"), ("value", "Free")],
+            ),
+            "Plan",
+            None,
+            None,
+        ),
+        field_instance(
+            &readonly_props,
+            field::input(
+                &readonly_props,
+                vec![
+                    ("type", "text"),
+                    ("name", "account-id"),
+                    ("value", "acct_example123"),
+                ],
+            ),
+            "Account ID",
+            None,
+            None,
+        ),
+        field_instance(
+            &required_props,
+            field::input(
+                &required_props,
+                vec![("type", "text"), ("name", "full-name"), ("value", "")],
+            ),
+            "Full name",
+            None,
+            None,
+        ),
+        field_instance(
+            &textarea_props,
+            field::textarea(&textarea_props, true, vec![("name", "bio")], vec![text("")]),
+            "Bio",
+            Some("Autoresizes as you type."),
+            None,
+        ),
+        field_instance(
+            &select_props,
+            field::select(
+                &select_props,
+                vec![("name", "country")],
+                vec![
+                    el("option", vec![("value", "jp")], vec![text("Japan")]),
+                    el("option", vec![("value", "us")], vec![text("United States")]),
+                    el("option", vec![("value", "other")], vec![text("Other")]),
+                ],
+            ),
+            "Country",
+            None,
+            None,
+        ),
+    ];
     demo_page("Field", body)
 }
 

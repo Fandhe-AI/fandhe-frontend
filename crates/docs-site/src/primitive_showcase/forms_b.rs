@@ -241,36 +241,102 @@ pub(super) fn number_input_section() -> Node {
     )
 }
 
-pub(super) fn password_input_section() -> Node {
-    let props = PasswordInputProps {
-        id: "pw",
-        disabled: false,
-        invalid: false,
-        required: true,
-        autocomplete: PasswordAutocomplete::CurrentPassword,
-    };
-    let body = vec![password_input::root(
-        false,
-        &props,
+/// `password_input_section` の 1 インスタンス分を組み立てる非公開ヘルパ。
+/// `visible`/`props` の組み合わせで `data-state`/`data-readonly` 等の
+/// `Observed Values` を描き分ける（`forms_a::checkbox_instance` と同型の
+/// パターン、イシュー #1614）。
+fn password_input_instance(
+    visible: bool,
+    props: &PasswordInputProps<'_>,
+    label_text: &str,
+) -> Node {
+    password_input::root(
+        visible,
+        props,
         vec![],
         vec![
-            password_input::label(&props, vec![], vec![text("Password")]),
+            password_input::label(props, vec![], vec![text(label_text)]),
             password_input::control(
-                false,
-                &props,
+                visible,
+                props,
                 vec![],
                 vec![
-                    password_input::input(false, &props, vec![]),
+                    password_input::input(visible, props, vec![]),
                     password_input::visibility_trigger(
-                        false,
-                        &props,
-                        vec![("aria-label", "Show password")],
-                        vec![password_input::indicator(false, vec![], vec![text("👁")])],
+                        visible,
+                        props,
+                        vec![(
+                            "aria-label",
+                            if visible {
+                                "Hide password"
+                            } else {
+                                "Show password"
+                            },
+                        )],
+                        vec![password_input::indicator(
+                            visible,
+                            props,
+                            vec![],
+                            vec![text("👁")],
+                        )],
                     ),
                 ],
             ),
         ],
-    )];
+    )
+}
+
+/// `data-state`（visible/hidden）と `data-disabled`/`data-invalid`/
+/// `data-required`/`data-readonly` を描き分けた 5 インスタンスを並べる
+/// （イシュー #1614、参照突合の一環）。
+pub(super) fn password_input_section() -> Node {
+    let hidden = PasswordInputProps {
+        id: "pw-hidden",
+        disabled: false,
+        readonly: false,
+        invalid: false,
+        required: false,
+        autocomplete: PasswordAutocomplete::CurrentPassword,
+    };
+    let visible = PasswordInputProps {
+        id: "pw-visible",
+        disabled: false,
+        readonly: false,
+        invalid: false,
+        required: false,
+        autocomplete: PasswordAutocomplete::CurrentPassword,
+    };
+    let disabled = PasswordInputProps {
+        id: "pw-disabled",
+        disabled: true,
+        readonly: false,
+        invalid: false,
+        required: false,
+        autocomplete: PasswordAutocomplete::CurrentPassword,
+    };
+    let invalid_required = PasswordInputProps {
+        id: "pw-invalid",
+        disabled: false,
+        readonly: false,
+        invalid: true,
+        required: true,
+        autocomplete: PasswordAutocomplete::NewPassword,
+    };
+    let readonly = PasswordInputProps {
+        id: "pw-readonly",
+        disabled: false,
+        readonly: true,
+        invalid: false,
+        required: false,
+        autocomplete: PasswordAutocomplete::CurrentPassword,
+    };
+    let body = vec![
+        password_input_instance(false, &hidden, "Password"),
+        password_input_instance(true, &visible, "Password (visible)"),
+        password_input_instance(false, &disabled, "Password (disabled)"),
+        password_input_instance(false, &invalid_required, "New password"),
+        password_input_instance(false, &readonly, "Password (read-only)"),
+    ];
     demo_page("Password Input", body)
 }
 

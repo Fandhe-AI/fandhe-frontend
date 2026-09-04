@@ -503,6 +503,7 @@ pub fn stylesheet() -> String {
 /// let props = PasswordInputProps {
 ///     id: "login-password",
 ///     disabled: false,
+///     readonly: false,
 ///     invalid: false,
 ///     required: false,
 ///     autocomplete: PasswordAutocomplete::CurrentPassword,
@@ -538,6 +539,7 @@ mod tests {
         PasswordInputProps {
             id,
             disabled: false,
+            readonly: false,
             invalid: false,
             required: false,
             autocomplete: PasswordAutocomplete::CurrentPassword,

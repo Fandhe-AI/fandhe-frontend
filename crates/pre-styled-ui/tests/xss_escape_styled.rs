@@ -820,6 +820,7 @@ fn password_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads(
         let field_props = PasswordInputProps {
             id: "pw",
             disabled: false,
+            readonly: false,
             invalid: false,
             required: false,
             autocomplete: PasswordAutocomplete::CurrentPassword,
@@ -882,6 +883,7 @@ fn password_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads(
         let id_props = PasswordInputProps {
             id: payload,
             disabled: false,
+            readonly: false,
             invalid: false,
             required: false,
             autocomplete: PasswordAutocomplete::CurrentPassword,
