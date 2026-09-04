@@ -47,7 +47,7 @@
 | [Tooltip](../../site/themes/tooltip.md) | `tooltip` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` |
 | [Dialog](../../site/themes/dialog.md) | `dialog` | Root/Trigger/Backdrop/Positioner/Content/Title/Description/CloseTrigger | `state::Disclosure` |
 | [Popover](../../site/themes/popover.md) | `popover` | Root/Trigger/Anchor/Positioner/Arrow/ArrowTip/Content/Title/Description/CloseTrigger/Indicator | `state::Disclosure` |
-| [RadioGroup](../../site/themes/radio-group.md) | `radio_group` | Root/Label/Item/ItemControl/ItemText/ItemHiddenInput | `state::SingleSelect` |
+| [RadioGroup](../../site/themes/radio-group.md) | `radio_group` | Root/Label/Item/ItemControl/ItemText/ItemHiddenInput | `state::SingleSelect`。`RadioGroupProps`（disabled/readonly/invalid/required）を root/label へ `data-disabled`/`data-invalid`/`data-required` として、item 系 3 パーツへ `data-disabled`/`data-readonly`/`data-invalid` として反映する（パート別の反映属性は ark-ui の Data Attributes 表準拠、`data-readonly` は root へ出力しない）。root は `disabled`/`readonly`/`required` に応じ `aria-disabled`/`aria-readonly`/`aria-required`（true 時のみ）も付与する。`item_control` は `aria-hidden="true"` を常時付与し、`item_hidden_input` は `required`（`props.required`）/`aria-invalid="true"`（`props.invalid`）を出力する（イシュー #1616） |
 | [Switch](../../site/themes/switch.md) | `switch` | Root/Control/Thumb/Label/HiddenInput | 独自実装（`"checked"`/`"unchecked"` 語彙が `Disclosure` と異なるため `Component`/`Hydrate` を直接実装） |
 | Field | `field` | Root/Label/Input/Textarea/Select/HelperText/ErrorText/RequiredIndicator | なし（`invalid`/`disabled`/`required`/`readonly` は SSR 静的な props） |
 | [Menu](../../site/themes/menu.md) | `menu` | Root/Trigger/Indicator/Positioner/Content/Arrow/ArrowTip/Item/ItemGroup/ItemGroupLabel/Separator | `state::Disclosure` |

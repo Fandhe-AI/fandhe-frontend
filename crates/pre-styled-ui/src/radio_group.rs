@@ -89,10 +89,12 @@
 //! - **`data-readonly` は視覚化しない**: 参照 4 サイトのいずれも readonly
 //!   状態に radio 固有の視覚差を付けないため、`data-invalid`（下記）とは
 //!   異なり CSS 規則を追加しない。
-//! - **`data-invalid` は装飾のみの先行実装**: headless `radio_group` は
-//!   現状 `data-invalid` を出力しないため、呼び出し側が属性を明示的に
-//!   付与した場合のみ発火する（headless 側出力対応は Field #538 連携の
-//!   既存の追跡対象、`crate::checkbox`/`crate::radio_card` と同型の判断）。
+//! - **`data-invalid` は headless `radio_group` が `RadioGroupProps.invalid`
+//!   から出力する**（イシュー #1616 の ark-ui / Radix Primitives 参照突合で
+//!   `item`/`item_control`/`item_text`/`root`/`label` へ反映するよう是正
+//!   済み。styled 本モジュールの CSS 規則は headless の出力属性へそのまま
+//!   反応する。Field（#538）との `aria-describedby` 連携は引き続き別途の
+//!   追跡対象、`crate::checkbox`/`crate::radio_card` と同型の判断）。
 //! - **`hover_bg_solid_with_fallback` は `crate::recipe` の既存共通ヘルパを
 //!   そのまま再利用する**（イシュー #1741 で checkbox 系から共通化済みの
 //!   ものを流用するのみで、本モジュール専用のローカル複製は作らない）。
@@ -211,8 +213,8 @@ use crate::recipe::{
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::radio_group::{
-    item, item_control, item_hidden_input, item_text, label, RadioGroup, DATA_STATE_CHECKED,
-    DATA_STATE_UNCHECKED,
+    item, item_control, item_hidden_input, item_text, label, RadioGroup, RadioGroupProps,
+    DATA_STATE_CHECKED, DATA_STATE_UNCHECKED,
 };
 
 /// headless `radio_group` anatomy の `data-part` 一覧（`crates/headless-ui/src/radio_group.rs`
@@ -404,11 +406,11 @@ fn recipe() -> SlotRecipe {
         )
         // `data-invalid`（`crate::input`/`checkbox` と同型の視覚言語）を
         // `item-control` slot へ反映する。headless `radio_group`
-        // （`crates/headless-ui/src/radio_group.rs`）は現状 `data-invalid`
-        // を出力しないため、本規則は呼び出し側が属性を明示的に付与した
-        // 場合のみ発火する装飾専用の先行実装であり、headless 側の出力
-        // 対応（Field #538 連携）は別途の追跡対象とする
-        // （`checkbox`/`radio-card` 1/2 と同型の判断）。
+        // （`crates/headless-ui/src/radio_group.rs`）はイシュー #1616 で
+        // `RadioGroupProps.invalid` から `data-invalid` を出力するよう
+        // 是正済みであり、本規則はその出力へそのまま反応する（Field #538
+        // との `aria-describedby` 連携は別途の追跡対象、`checkbox`/
+        // `radio-card` と同型の判断）。
         .state(
             "item-control",
             StateCondition::Attr("data-invalid"),
@@ -638,8 +640,17 @@ pub fn root<'a>(
         recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::radio_group::root(
+    // headless root は #1616 で `RadioGroupProps` 引数へ拡張された
+    // （disabled/readonly/invalid/required）。本 styled root の公開
+    // シグネチャは disabled bool のまま維持し、内部で他フラグを既定値
+    // （false）とした `RadioGroupProps` を組み立てて委譲する（invalid/
+    // readonly 拡張は out-of-scope、モジュール冒頭 rustdoc 参照）。
+    let props = RadioGroupProps {
         disabled,
+        ..RadioGroupProps::default()
+    };
+    fandhe_frontend_headless_ui::radio_group::root(
+        &props,
         orientation,
         labelled_by,
         merged,
@@ -1091,7 +1102,13 @@ mod tests {
         // REQ-1 回帰: `data-value`（動的値）へ与えた XSS ペイロードが
         // `render()` の既定エスケープを経由することを固定する。
         let payload = "\"><script>alert(1)</script>";
-        let html = render(&item(false, false, payload, vec![], vec![text(payload)]));
+        let html = render(&item(
+            false,
+            &RadioGroupProps::default(),
+            payload,
+            vec![],
+            vec![text(payload)],
+        ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
@@ -1099,7 +1116,12 @@ mod tests {
     #[test]
     fn xss_payload_in_item_text_children_is_escaped_by_render() {
         let payload = "\"><img src=x onerror=alert(1)>";
-        let html = render(&item_text(false, false, vec![], vec![text(payload)]));
+        let html = render(&item_text(
+            false,
+            &RadioGroupProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
         assert!(!html.contains("<img"));
         assert!(html.contains("&lt;img"));
     }
@@ -1117,7 +1139,7 @@ mod tests {
         assert!(dispatch(&mut g, "select", "red"));
         assert_eq!(g.value(), Some("red"));
 
-        let ssr_html = render(&g.item_control("red", false, vec![]));
+        let ssr_html = render(&g.item_control("red", &RadioGroupProps::default(), vec![]));
         assert!(ssr_html.contains(r#"data-state="checked""#));
 
         let hydrate_html = render(&render_for_hydration(&g));

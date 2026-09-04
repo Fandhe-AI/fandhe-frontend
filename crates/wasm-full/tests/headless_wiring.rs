@@ -175,7 +175,13 @@ fn menu_trigger_item_click_toggles_submenu_open_closed() {
 
 #[test]
 fn radio_group_item_click_selects_value() {
-    let html = render(&radio_group::item(false, false, "red", vec![], vec![]));
+    let html = render(&radio_group::item(
+        false,
+        &radio_group::RadioGroupProps::default(),
+        "red",
+        vec![],
+        vec![],
+    ));
     assert_scope_part_present(&html, "radio-group", "item");
 
     let action_ref = action_for_part(&part("radio-group", "item", Some("red"), false)).unwrap();

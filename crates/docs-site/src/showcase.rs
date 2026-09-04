@@ -3247,27 +3247,36 @@ fn radio_group_section() -> Node {
         ("plan-pro", "Pro", false, false),
         ("plan-enterprise", "Enterprise", false, true),
     ];
+    // イシュー #1616: headless `radio_group` のパーツ関数は
+    // `RadioGroupProps` 引数へ拡張された。本節は disabled 以外を既定値
+    // （false）としたまま従来の見た目を維持する。
+    let item_props = |disabled: bool| radio_group::RadioGroupProps {
+        disabled,
+        ..radio_group::RadioGroupProps::default()
+    };
     let mut children = vec![radio_group::label(
+        &item_props(false),
         Some(label_id),
         vec![],
         vec![text("Plan")],
     )];
     children.extend(items.iter().map(|(value, label, checked, disabled)| {
+        let props = item_props(*disabled);
         radio_group::item(
             *checked,
-            *disabled,
+            &props,
             value,
             vec![],
             vec![
                 radio_group::item_hidden_input(
                     *checked,
-                    *disabled,
+                    &props,
                     Some("showcase-radio"),
                     value,
                     vec![],
                 ),
-                radio_group::item_control(*checked, *disabled, vec![]),
-                radio_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                radio_group::item_control(*checked, &props, vec![]),
+                radio_group::item_text(*checked, &props, vec![], vec![text(*label)]),
             ],
         )
     }));
@@ -3287,26 +3296,28 @@ fn radio_group_section() -> Node {
     // #1460 の `horizontal_demo` と同型）。項目・状態は縦積みデモと同一。
     let horizontal_label_id = "showcase-radio-horizontal-label";
     let mut horizontal_children = vec![radio_group::label(
+        &item_props(false),
         Some(horizontal_label_id),
         vec![],
         vec![text("Plan (horizontal)")],
     )];
     horizontal_children.extend(items.iter().map(|(value, label, checked, disabled)| {
+        let props = item_props(*disabled);
         radio_group::item(
             *checked,
-            *disabled,
+            &props,
             value,
             vec![],
             vec![
                 radio_group::item_hidden_input(
                     *checked,
-                    *disabled,
+                    &props,
                     Some("showcase-radio-horizontal"),
                     value,
                     vec![],
                 ),
-                radio_group::item_control(*checked, *disabled, vec![]),
-                radio_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                radio_group::item_control(*checked, &props, vec![]),
+                radio_group::item_text(*checked, &props, vec![], vec![text(*label)]),
             ],
         )
     }));
@@ -3329,27 +3340,29 @@ fn radio_group_section() -> Node {
         .map(|size| {
             let size_label_id = format!("showcase-radio-size-{}-label", size.value());
             let mut size_children = vec![radio_group::label(
+                &item_props(false),
                 Some(&size_label_id),
                 vec![],
                 vec![text(size.value())],
             )];
             size_children.extend(items.iter().map(|(value, label, checked, disabled)| {
                 let name = format!("showcase-radio-size-{}", size.value());
+                let props = item_props(*disabled);
                 radio_group::item(
                     *checked,
-                    *disabled,
+                    &props,
                     value,
                     vec![],
                     vec![
                         radio_group::item_hidden_input(
                             *checked,
-                            *disabled,
+                            &props,
                             Some(&name),
                             value,
                             vec![],
                         ),
-                        radio_group::item_control(*checked, *disabled, vec![]),
-                        radio_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                        radio_group::item_control(*checked, &props, vec![]),
+                        radio_group::item_text(*checked, &props, vec![], vec![text(*label)]),
                     ],
                 )
             }));

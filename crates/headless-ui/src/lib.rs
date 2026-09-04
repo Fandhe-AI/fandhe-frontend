@@ -119,7 +119,9 @@
 //!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
 //!   dispatch は `"select"` のみを受理する（WAI-ARIA radio パターンに選択解除
 //!   ジェスチャは存在しないため、型付き API の `Deselect` のみプログラム的な
-//!   選択解除を許す）。
+//!   選択解除を許す）。[`radio_group::RadioGroupProps`]（`disabled`/
+//!   `readonly`/`invalid`/`required`）が各パーツの `data-*`/ARIA 属性を
+//!   決定する（イシュー #1616 の ark-ui / Radix Primitives 参照突合で新設）。
 //! - [`mod@segment_group`]: Root / Indicator / Item / ItemText / ItemControl /
 //!   ItemHiddenInput の 6 anatomy パーツと、状態機械・dispatch・hydration の
 //!   すべてを [`radio_group::RadioGroup`] へ全委譲する
@@ -758,7 +760,7 @@ pub use positioning::{
 };
 pub use progress::{Progress, ProgressAction};
 pub use qr_code::{ErrorCorrectionLevel, QrEncodeError, QrMatrix};
-pub use radio_group::RadioGroup;
+pub use radio_group::{RadioGroup, RadioGroupProps};
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
 pub use segment_group::SegmentGroup;
 pub use signature_pad::{Point, SignaturePad, SignaturePadAction, Stroke, StrokeError};
