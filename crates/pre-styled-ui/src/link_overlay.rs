@@ -63,6 +63,16 @@
 //!   呼び出し側の責務（headless 層 rustdoc 参照）。
 //! - 入れ子リンクの前面化（chakra `LinkBox` 相当）: `SlotRecipe` の子孫
 //!   セレクタ非対応により構造的に表現不可（上記 7 軸チェック参照）。
+//! - **追補（Bugbot 指摘、PR #1853。並行 PR #1852 とのマージで統合）**: 上記
+//!   「余白・角丸・影」の `overlay` への `border-radius: inherit` は CSS の
+//!   継承規則上 `root` の計算値を参照するため、`root` 自身が角丸を持たない
+//!   （既定 0）ままでは、角丸な祖先（`card::root` 等）にラップされていても
+//!   `root` の計算値が 0 のまま `overlay` へ継承されフォーカスリングが
+//!   角丸に追従しない。`root` base にも `border-radius: inherit` を追加し、
+//!   `root` の直接の親要素が持つ角丸を `root` → `overlay` の 2 段で
+//!   連鎖させた（`inherit` は 1 段先の直接の親要素の計算値しか参照
+//!   できないため、`root` と角丸要素の間にさらに角丸を持たない要素が
+//!   挟まる構成には届かない）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -80,21 +90,43 @@ const SLOTS: &[&str] = &["root", "overlay"];
 /// [`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("link-overlay", SLOTS)
-        .base("root", vec![decl("position", "relative")])
+        .base(
+            "root",
+            vec![
+                decl("position", "relative"),
+                // イシュー #1580 Bugbot 指摘: `overlay` の
+                // `border-radius: inherit` は CSS の継承規則上 `root` の
+                // 計算値を参照するため、`root` 自身が角丸を持たない
+                // （既定 0）ままでは、`root` の直接の親要素が角丸
+                // （`card::root` 等）を持っていてもフォーカスリングの
+                // `outline` が角丸へ追従しない。`root` にも `inherit` を
+                // 連鎖させ、直接の親要素が持つ角丸を `overlay` まで
+                // 伝播させる（`inherit` は 1 段先までしか参照できないため、
+                // さらに祖先を挟む構成には届かない）。
+                decl("border-radius", "inherit"),
+            ],
+        )
         .base(
             "overlay",
             vec![
                 decl("position", "absolute"),
                 decl("inset", "0"),
                 decl("z-index", "0"),
-                // card 等の角丸 root と合成した際にフォーカスリングが
-                // 角丸に沿うようにする（イシュー #1580）。
+                // イシュー #1580: 呼び出し側が `root` に角丸（`card` 等）を
+                // 与えた場合、フォーカスリングの `outline` がその角丸へ
+                // 追従するようにする（`crate::avatar` の `image` と同型）。
                 decl("border-radius", "inherit"),
+                // イシュー #1580（並行 PR #1852 とのマージで統合）: chakra
+                // の `LinkOverlay` は `cursor: inherit` だが、本部品は
+                // `overlay` 自身が唯一のクリック対象であるため
+                // `cursor: pointer` を明示する。
                 decl("cursor", "pointer"),
             ],
         )
-        // イシュー #1580: 本部品は ColorPalette 軸を持たないため Token /
-        // 外側リングを使う（モジュール冒頭 rustdoc 参照）。
+        // イシュー #1580: キーボード操作時のみのフォーカスリング。
+        // `Token`: link-overlay は palette 軸を持たない部品。`Outside`:
+        // `overlay` の祖先（`root`）に `overflow: hidden` を持つ slot が
+        // ないため。
         .state(
             "overlay",
             StateCondition::FocusVisible,

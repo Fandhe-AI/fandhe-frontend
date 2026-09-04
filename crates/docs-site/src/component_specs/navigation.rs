@@ -159,9 +159,10 @@ fn link_overlay_example() -> Node {
 const LINK_OVERLAY: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "root（div、位置決めコンテキスト）/ overlay（a、カード全面へ拡張されるリンク）の 2 anatomy パーツ構成（crates/headless-ui/src/link_overlay.rs:16-19, 70-83）",
-        "::before 疑似要素を使わず overlay 自身を position: absolute; inset: 0 で root 全面へ展開する（recipe が疑似要素セレクタを表現できないため。crates/pre-styled-ui/src/link_overlay.rs:14-22, 56-64）",
+        "::before 疑似要素を使わず overlay 自身を position: absolute; inset: 0 で root 全面へ展開する（recipe が疑似要素セレクタを表現できないため。crates/pre-styled-ui/src/link_overlay.rs:14-22, 88-112）",
         "root の高さは overlay 以外の子ノード（見出し・画像等の通常フロー要素）が確立する契約（crates/headless-ui/src/link_overlay.rs:22-30）",
         "href の URL スキーム検証は link と同じく core の render() が担う（crates/headless-ui/src/link_overlay.rs:55-58）",
+        "overlay の :focus-visible に共通フォーカスリングトークン経由のリングを付与し、border-radius: inherit で root の角丸に追従する（イシュー #1580、参考サイト chakra-ui LinkOverlay へのキーボードフォーカス比較。crates/pre-styled-ui/src/link_overlay.rs:88-112）",
     ],
     arguments: &[
         ArgRow {
