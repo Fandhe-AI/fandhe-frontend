@@ -55,6 +55,23 @@
 //! [`indicator`] は装飾専用のため `aria-hidden="true"` を固定付与し、
 //! 支援技術の重複読み上げを防ぐ（trigger の `aria-pressed` が意味論を担う）。
 //!
+//! ## 参考サイトとの意図的な差分（イシュー #1614 で参照突合）
+//!
+//! ark-ui / zag（`password-input.connect.ts`）は表示切替トリガーへ
+//! `aria-expanded`（表示中で `true`）+ `tabIndex: -1`（tab 順序から除外し
+//! ポインタ操作専用にする）を採用する。本モジュールは意図的にこれへ追随
+//! しない:
+//!
+//! - **`aria-pressed` を維持する**: 表示切替はトグルボタンパターン
+//!   （WAI-ARIA APG）であり、[`input`] はトリガーが開閉する別領域ではない
+//!   （`aria-expanded` が要求する「展開/折り畳み対象領域」の意味論に
+//!   合致しない）。上層の `fandhe-frontend-pre-styled-ui`（`crates/pre-styled-ui`）
+//!   や docs 原稿も `aria-pressed` 前提で成立しており、後方互換上も変更しない。
+//! - **`tabindex` を付与せず tab 順序に残す**: キーボード操作のみの
+//!   利用者が表示切替できないと安全側に反する。Radix Primitives の
+//!   `Password Toggle Field` は「キーボード操作時はトリガーへフォーカス
+//!   維持」と記載しており、tab 順序に残す判断はこちらと整合する。
+//!
 //! # 1 PasswordInput = 1 Input の id 導出
 //!
 //! [`PasswordInputProps::id`] から [`input`] の id を `"{id}-input"` として
@@ -67,15 +84,33 @@
 //! - クライアント側の click → dispatch 配線（wasm-full）。
 //! - crates.io への新バージョン公開・`examples/headless-pre-styled-ui` への
 //!   PasswordInput 追加（#608/#609 と同じ後続分離）。
-//! - ark-ui の `ignorePasswordManagers` 相当（`data-1p-ignore` 等の静的属性）
-//!   は本イシューでは見送り、需要が判明したら別途 Issue 化する。
+//! - ark-ui / zag の `ignorePasswordManagers` 相当（`data-1p-ignore`/
+//!   `data-lpignore`/`data-bwignore`/`data-form-type`/`data-protonpass-ignore`
+//!   の静的属性）は本イシュー（#1614）でも見送る。`data-*` 状態語彙ではなく
+//!   機能プロップ（bool オプトイン）であり、需要が判明したら別途 Issue 化する。
+//! - Radix `Password Toggle Field` が挙動として記載する「ポインタ操作時は
+//!   input へフォーカス復帰」「フォーム送信後に visibility を hidden へ
+//!   リセット」、および zag の `onPointerDown` 配線はいずれも DOM
+//!   イベント配線であり `fandhe-frontend-wasm-full` 側の責務（本モジュールは
+//!   SSR 静的出力に閉じる）。
+//!
+//! # 参照突合の出典（イシュー #1614）
+//!
+//! ark-ui docs（Data Attributes 表）・zag
+//! `packages/machines/password-input/src/password-input.connect.ts`
+//! （`getRootProps`/`getLabelProps`/`getInputProps`/
+//! `getVisibilityTriggerProps`/`getIndicatorProps`/`getControlProps`）・
+//! Radix Primitives `Password Toggle Field` docs の 3 点を一次資料として
+//! anatomy・`data-*`・キーボード操作・ARIA 属性を突合した。差分と意図的な
+//! 非追随判断は本節および「トリガーのアクセシビリティ表現」節に記す。
 //!
 //! # セキュリティ不変条件（共通部分）
 //!
-//! - 属性名（`data-*`/`aria-*`/`type`/`autocomplete`/`disabled`/`required`）
-//!   はすべて `&'static str` リテラルで固定しており、動的値が属性名スロット
-//!   へ混入する経路はない（[`crate::anatomy`]/[`crate::aria`]/
-//!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
+//! - 属性名（`data-*`/`aria-*`/`type`/`autocomplete`/`disabled`/`required`/
+//!   `readonly`/`autocapitalize`/`spellcheck`）はすべて `&'static str`
+//!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない
+//!   （[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存不変
+//!   条件をそのまま継承する）。
 //! - 動的値（`id`/呼び出し側 `attrs`/`children`）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
@@ -83,10 +118,14 @@
 //!   `"text"` の 2 値のみを決定的に導出し、呼び出し側文字列を通さない。
 //! - [`crate::anatomy::Anatomy::part`] の `data-scope`/`data-part` 偽装除去
 //!   （fail-closed）を継承し回帰テストで固定する。
+//! - [`input`] は `autocapitalize="off"`/`spellcheck="false"` を固定付与
+//!   する（ark-ui/zag 準拠）。表示中のパスワード文字列がブラウザの
+//!   リモートスペルチェック・自動大文字化サービスへ送られる経路を減らす
+//!   （`value` 自体を扱わない不変条件の上に重ねる補強）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_controls, aria_hidden, aria_invalid, aria_pressed};
-use crate::data_attrs::{data_disabled, data_invalid, data_required, data_state};
+use crate::data_attrs::{data_disabled, data_invalid, data_readonly, data_required, data_state};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
@@ -110,7 +149,12 @@ fn drop_reserved<'a>(
 }
 
 /// `root`/`control` パーツが固定する `data-*` 状態属性キー。
-const STATE_RESERVED: &[&str] = &["data-state", "data-invalid", "data-disabled"];
+const STATE_RESERVED: &[&str] = &[
+    "data-state",
+    "data-invalid",
+    "data-disabled",
+    "data-readonly",
+];
 
 /// [`input`] パーツが固定する属性キー。
 ///
@@ -119,6 +163,11 @@ const STATE_RESERVED: &[&str] = &["data-state", "data-invalid", "data-disabled"]
 /// （表示切替の型安全な導出を迂回する値）を混入されても、本モジュールの
 /// セキュリティ不変条件「パスワード値を出力に含めない」「`type` は
 /// `visible` から決定的に導出する」を破れないようにする。
+///
+/// **`readonly`/`data-readonly`/`data-state`/`autocapitalize`/`spellcheck`
+/// を含む**（イシュー #1614、参考サイト突合による追加）: いずれも
+/// `visible`/`props.readonly` から決定的に導出する固定語彙のため、呼び出し
+/// 側 `attrs` による上書き・重複を防ぐ。
 const INPUT_RESERVED: &[&str] = &[
     "type",
     "value",
@@ -126,10 +175,15 @@ const INPUT_RESERVED: &[&str] = &[
     "autocomplete",
     "disabled",
     "required",
+    "readonly",
     "aria-invalid",
     "data-invalid",
     "data-disabled",
     "data-required",
+    "data-readonly",
+    "data-state",
+    "autocapitalize",
+    "spellcheck",
 ];
 
 /// [`visibility_trigger`] パーツが固定する属性キー。
@@ -140,13 +194,26 @@ const VISIBILITY_TRIGGER_RESERVED: &[&str] = &[
     "data-state",
     "disabled",
     "data-disabled",
+    "data-readonly",
 ];
 
 /// [`indicator`] パーツが固定する属性キー。
-const INDICATOR_RESERVED: &[&str] = &["data-state", "aria-hidden"];
+const INDICATOR_RESERVED: &[&str] = &[
+    "data-state",
+    "aria-hidden",
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+];
 
 /// [`label`] パーツが固定する属性キー。
-const LABEL_RESERVED: &[&str] = &["for"];
+const LABEL_RESERVED: &[&str] = &[
+    "for",
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-required",
+];
 
 /// `data-state`/`data-hydrate-visible` 属性値 "visible"。
 const DATA_STATE_VISIBLE: &str = "visible";
@@ -211,6 +278,15 @@ pub struct PasswordInputProps<'a> {
     /// フィールド全体の無効化。`true` のとき [`input`]/[`visibility_trigger`]
     /// にネイティブ `disabled` 存在属性・`data-disabled` を付与する。
     pub disabled: bool,
+    /// 読み取り専用状態。`true` で [`input`] にネイティブ `readonly` 存在
+    /// 属性を、6 パーツ全てに `data-readonly` を付与する（ark-ui/zag
+    /// `getRootProps`〜`getIndicatorProps` の `data-readonly` 分布と同型、
+    /// イシュー #1614）。`disabled` と異なり [`visibility_trigger`] へは
+    /// ネイティブ `disabled` を付与しない（zag `getVisibilityTriggerProps`
+    /// のネイティブ `disabled` は `disabled` プロパティのみに従い `readOnly`
+    /// を合成しない。表示切替は値を変更しない操作のため、readonly でも
+    /// キーボード操作での表示確認を封じない安全側の判断）。
+    pub readonly: bool,
     /// 入力値が不正であることを示す。`true` のとき [`root`]/[`control`]/
     /// [`input`] に `data-invalid` を、[`input`] に `aria-invalid="true"` を
     /// 付与する。
@@ -242,11 +318,17 @@ pub fn root(
     let mut merged: Vec<(&str, &str)> = vec![data_state(visible_data_state(visible))];
     merged.extend(data_invalid(props.invalid));
     merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
 
 /// Label パーツ（`label`）。[`input`] と同じ派生 id へ `for` で関連付ける。
+///
+/// ark-ui/zag `getLabelProps` に合わせ、`disabled`/`invalid`/`readonly`/
+/// `required` の 4 状態をすべて `data-*` として反映する（イシュー #1614。
+/// [`input`]/[`root`]/[`control`] とは異なり `required` は label にのみ
+/// 付与する ark-ui の分布に追随する）。
 #[must_use]
 pub fn label(
     props: &PasswordInputProps<'_>,
@@ -256,6 +338,10 @@ pub fn label(
     let attrs = drop_reserved(attrs, LABEL_RESERVED);
     let input_id = control_input_id(props.id);
     let mut merged: Vec<(&str, &str)> = vec![("for", input_id.as_str())];
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_invalid(props.invalid));
+    merged.extend(data_readonly(props.readonly));
+    merged.extend(data_required(props.required));
     merged.extend(attrs);
     ANATOMY.part("label", "label", merged, children)
 }
@@ -272,6 +358,7 @@ pub fn control(
     let mut merged: Vec<(&str, &str)> = vec![data_state(visible_data_state(visible))];
     merged.extend(data_invalid(props.invalid));
     merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
 }
@@ -281,6 +368,11 @@ pub fn control(
 ///
 /// **`value` 引数を持たない**（本モジュールのセキュリティ不変条件、モジュール
 /// doc 参照）。パスワード値の表示・保持・出力は一切行わない。
+///
+/// ark-ui/zag `getInputProps` に合わせ `data-state`（[`root`]/[`control`]
+/// と同じ visible/hidden 語彙）・`readonly` ネイティブ属性・
+/// `autocapitalize="off"`・`spellcheck="false"` を固定付与する
+/// （イシュー #1614）。
 #[must_use]
 pub fn input(visible: bool, props: &PasswordInputProps<'_>, attrs: Vec<(&str, &str)>) -> Node {
     let attrs = drop_reserved(attrs, INPUT_RESERVED);
@@ -290,9 +382,15 @@ pub fn input(visible: bool, props: &PasswordInputProps<'_>, attrs: Vec<(&str, &s
         ("type", ty),
         ("id", input_id.as_str()),
         ("autocomplete", props.autocomplete.as_str()),
+        data_state(visible_data_state(visible)),
+        ("autocapitalize", "off"),
+        ("spellcheck", "false"),
     ];
     if props.disabled {
         merged.push(("disabled", ""));
+    }
+    if props.readonly {
+        merged.push(("readonly", ""));
     }
     if props.required {
         merged.push(("required", ""));
@@ -303,6 +401,7 @@ pub fn input(visible: bool, props: &PasswordInputProps<'_>, attrs: Vec<(&str, &s
     merged.extend(data_invalid(props.invalid));
     merged.extend(data_disabled(props.disabled));
     merged.extend(data_required(props.required));
+    merged.extend(data_readonly(props.readonly));
     merged.extend(attrs);
     ANATOMY.part("input", "input", merged, Vec::new())
 }
@@ -328,6 +427,10 @@ pub fn visibility_trigger(
         data_state(visible_data_state(visible)),
     ];
     merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
+    // ネイティブ disabled は `disabled` プロパティのみに従う（zag
+    // `getVisibilityTriggerProps` と同型。`readonly` を合成しない。表示切替は
+    // 値を変更しない操作のため readonly でも封じない、モジュール doc参照）。
     if props.disabled {
         merged.push(("disabled", ""));
     }
@@ -337,11 +440,23 @@ pub fn visibility_trigger(
 
 /// Indicator パーツ（`span`）。装飾専用のため `aria-hidden="true"` を固定
 /// 付与する（[`visibility_trigger`] の `aria-pressed` が意味論を担う）。
+///
+/// ark-ui/zag `getIndicatorProps` に合わせ `disabled`/`invalid`/`readonly`
+/// の 3 状態を `data-*` として反映する（イシュー #1614。他パーツと対称に
+/// [`PasswordInputProps`] を受け取るようシグネチャを変更した）。
 #[must_use]
-pub fn indicator(visible: bool, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
+pub fn indicator(
+    visible: bool,
+    props: &PasswordInputProps<'_>,
+    attrs: Vec<(&str, &str)>,
+    children: Vec<Node>,
+) -> Node {
     let attrs = drop_reserved(attrs, INDICATOR_RESERVED);
     let mut merged: Vec<(&str, &str)> =
         vec![data_state(visible_data_state(visible)), aria_hidden(true)];
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_invalid(props.invalid));
+    merged.extend(data_readonly(props.readonly));
     merged.extend(attrs);
     ANATOMY.part("indicator", "span", merged, children)
 }
@@ -439,8 +554,13 @@ impl PasswordInput {
 
     /// [`indicator`] へ現在の状態を注入する利便メソッド。
     #[must_use]
-    pub fn indicator(&self, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
-        indicator(self.visible, attrs, children)
+    pub fn indicator(
+        &self,
+        props: &PasswordInputProps<'_>,
+        attrs: Vec<(&str, &str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        indicator(self.visible, props, attrs, children)
     }
 }
 
@@ -463,6 +583,7 @@ impl Component for PasswordInput {
         let props = PasswordInputProps {
             id: "password-input",
             disabled: false,
+            readonly: false,
             invalid: false,
             required: false,
             autocomplete: PasswordAutocomplete::CurrentPassword,
@@ -525,6 +646,7 @@ mod tests {
         PasswordInputProps {
             id,
             disabled: false,
+            readonly: false,
             invalid: false,
             required: false,
             autocomplete: PasswordAutocomplete::CurrentPassword,
@@ -562,6 +684,16 @@ mod tests {
     }
 
     #[test]
+    fn root_and_control_reflect_readonly() {
+        let mut props = default_props("pw");
+        props.readonly = true;
+        let root_html = render(&root(false, &props, vec![], vec![]));
+        assert!(root_html.contains(r#"data-readonly=""#));
+        let control_html = render(&control(false, &props, vec![], vec![]));
+        assert!(control_html.contains(r#"data-readonly=""#));
+    }
+
+    #[test]
     fn label_outputs_for_matching_input_id() {
         let props = default_props("pw");
         let html = render(&label(&props, vec![], vec![text("Password")]));
@@ -569,6 +701,37 @@ mod tests {
         assert!(html.contains(r#"data-part="label""#));
         assert!(html.contains(r#"for="pw-input""#));
         assert!(html.contains("Password"));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-readonly"));
+        assert!(!html.contains("data-required"));
+    }
+
+    #[test]
+    fn label_reflects_disabled_invalid_readonly_required() {
+        let mut props = default_props("pw");
+        props.disabled = true;
+        props.invalid = true;
+        props.readonly = true;
+        props.required = true;
+        let html = render(&label(&props, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled=""#));
+        assert!(html.contains(r#"data-invalid=""#));
+        assert!(html.contains(r#"data-readonly=""#));
+        assert!(html.contains(r#"data-required=""#));
+    }
+
+    #[test]
+    fn label_drops_caller_supplied_state_attrs() {
+        // 呼び出し側 attrs による data-disabled 等の偽装除去（fail-closed）。
+        let props = default_props("pw");
+        let html = render(&label(
+            &props,
+            vec![("data-disabled", ""), ("data-required", "")],
+            vec![],
+        ));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-required"));
     }
 
     #[test]
@@ -590,6 +753,53 @@ mod tests {
 
         let visible_html = render(&input(true, &props, vec![]));
         assert!(visible_html.contains(r#"type="text""#));
+    }
+
+    #[test]
+    fn input_outputs_data_state_and_hardening_attrs() {
+        // ark-ui/zag getInputProps 準拠: data-state（root/control と同語彙）・
+        // autocapitalize="off"・spellcheck="false" を固定付与する（#1614）。
+        let props = default_props("pw");
+        let hidden_html = render(&input(false, &props, vec![]));
+        assert!(hidden_html.contains(r#"data-state="hidden""#));
+        assert!(hidden_html.contains(r#"autocapitalize="off""#));
+        assert!(hidden_html.contains(r#"spellcheck="false""#));
+
+        let visible_html = render(&input(true, &props, vec![]));
+        assert!(visible_html.contains(r#"data-state="visible""#));
+    }
+
+    #[test]
+    fn input_readonly_adds_native_attr_and_data_readonly() {
+        let mut props = default_props("pw");
+        props.readonly = true;
+        let html = render(&input(false, &props, vec![]));
+        assert!(html.contains(r#"readonly=""#));
+        assert!(html.contains(r#"data-readonly=""#));
+    }
+
+    #[test]
+    fn input_drops_caller_supplied_readonly_and_hardening_attrs() {
+        // 呼び出し側 attrs による readonly/data-state/autocapitalize/
+        // spellcheck の上書き・重複を防ぐ（fail-closed）。
+        let props = default_props("pw");
+        let html = render(&input(
+            false,
+            &props,
+            vec![
+                ("readonly", ""),
+                ("data-readonly", ""),
+                ("data-state", "attacker"),
+                ("autocapitalize", "on"),
+                ("spellcheck", "true"),
+                ("READONLY", ""),
+            ],
+        ));
+        assert!(!html.contains(r#"readonly=""#));
+        assert!(!html.contains("data-readonly"));
+        assert!(html.contains(r#"data-state="hidden""#));
+        assert!(html.contains(r#"autocapitalize="off""#));
+        assert!(html.contains(r#"spellcheck="false""#));
     }
 
     #[test]
@@ -696,12 +906,49 @@ mod tests {
     }
 
     #[test]
+    fn visibility_trigger_readonly_adds_data_attr_but_not_native_disabled() {
+        // zag getVisibilityTriggerProps 準拠: ネイティブ disabled は disabled
+        // プロパティのみに従い readOnly を合成しない（表示切替は値を変更
+        // しない操作のため readonly でも封じない、モジュール doc 参照）。
+        let mut props = default_props("pw");
+        props.readonly = true;
+        let html = render(&visibility_trigger(false, &props, vec![], vec![]));
+        assert!(html.contains(r#"data-readonly=""#));
+        assert!(!html.contains(r#"disabled=""#));
+    }
+
+    #[test]
+    fn visibility_trigger_has_no_tabindex_attribute() {
+        // モジュール doc「トリガーのアクセシビリティ表現」節の意図的差分:
+        // zag の tabIndex=-1 に追随せず tab 順序に残す（イシュー #1614）。
+        let props = default_props("pw");
+        let html = render(&visibility_trigger(false, &props, vec![], vec![]));
+        assert!(!html.contains("tabindex"));
+    }
+
+    #[test]
     fn indicator_outputs_scope_part_state_and_aria_hidden() {
-        let html = render(&indicator(true, vec![], vec![]));
+        let props = default_props("pw");
+        let html = render(&indicator(true, &props, vec![], vec![]));
         assert!(html.contains(r#"data-scope="password-input""#));
         assert!(html.contains(r#"data-part="indicator""#));
         assert!(html.contains(r#"data-state="visible""#));
         assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-readonly"));
+    }
+
+    #[test]
+    fn indicator_reflects_disabled_invalid_readonly() {
+        let mut props = default_props("pw");
+        props.disabled = true;
+        props.invalid = true;
+        props.readonly = true;
+        let html = render(&indicator(true, &props, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled=""#));
+        assert!(html.contains(r#"data-invalid=""#));
+        assert!(html.contains(r#"data-readonly=""#));
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側 attrs の data-scope/data-part 偽装除去） ---
@@ -739,7 +986,7 @@ mod tests {
         assert!(render(&p.input(&props, vec![])).contains(r#"type="text""#));
         assert!(render(&p.visibility_trigger(&props, vec![], vec![]))
             .contains(r#"aria-pressed="true""#));
-        assert!(render(&p.indicator(vec![], vec![])).contains(r#"data-state="visible""#));
+        assert!(render(&p.indicator(&props, vec![], vec![])).contains(r#"data-state="visible""#));
     }
 
     #[test]
@@ -824,8 +1071,10 @@ mod tests {
 
     #[test]
     fn children_text_is_escaped_on_render() {
+        let props = default_props("pw");
         let html = render(&indicator(
             true,
+            &props,
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));
