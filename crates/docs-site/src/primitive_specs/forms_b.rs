@@ -336,11 +336,14 @@ const RATING_GROUP: ComponentPageSpec = ComponentPageSpec {
         description: "`RatingGroupProps { readonly: true, .. }` + `RatingItemFlags { readonly: true, .. }` の他ユーザー平均評価表示例。",
         render: ex_rating_group_readonly,
     }],
-    keyboard: &[
-        KeyRow { key: "ArrowRight", description: "次の星へ roving フォーカスを移し値を 1 つ増やす（dispatch: \"set\"）。DOM 配線は wasm-full の後続責務（イシュー #1617）。" },
-        KeyRow { key: "ArrowLeft", description: "前の星へ roving フォーカスを移し値を 1 つ減らす（dispatch: \"set\"）。DOM 配線は wasm-full の後続責務。" },
-        KeyRow { key: "Enter", description: "フォーカス中の星番号を確定値として設定する（dispatch: \"set\"）。DOM 配線は wasm-full の後続責務。" },
-    ],
+    // `item` は roving tabindex（フォーカス移動先）を持つが `role="radio"` の
+    // 非ネイティブ要素であり、JS 状態機械前提のキー操作（ArrowLeft/
+    // ArrowRight/Enter 等）は wasm-full 側の DOM 配線が未実装
+    // （`crates/headless-ui/src/rating_group.rs` 「## キーボード操作（現状の
+    // 対応範囲）」参照）。本ファイル冒頭の「`keyboard` を原則空にする理由」
+    // の例外リストに rating_group は含まれないため、「対応済み」の案内を
+    // 出さず空のままとする（イシュー #1617 codex-review 指摘）。
+    keyboard: &[],
     aria: &[
         AriaRow { attribute: "role=\"radiogroup\" (control)", description: "固定付与。" },
         AriaRow { attribute: "aria-disabled / aria-readonly (control)", description: "`RatingGroupProps` が真のときのみ `\"true\"` を出力する（イシュー #1617）。" },

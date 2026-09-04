@@ -97,18 +97,20 @@
 //!   繰り下げ、全星 disabled なら `None`）を実装した。[`RatingGroup::item`]
 //!   の `focusable_index` 引数として渡す。
 //!
-//! ## キーボード操作（ark-ui 準拠、DOM 配線は wasm-full の後続責務）
+//! ## キーボード操作（現状の対応範囲）
 //!
-//! | キー | 動作 |
-//! |---|---|
-//! | `ArrowRight` | 次の星へ roving フォーカスを移し値を 1 つ増やす（dispatch: `"set"`）。 |
-//! | `ArrowLeft` | 前の星へ roving フォーカスを移し値を 1 つ減らす（dispatch: `"set"`）。 |
-//! | `Enter` | フォーカス中の星番号を確定値として設定する（dispatch: `"set"`）。 |
-//!
-//! 上記キー入力から dispatch への実 DOM 配線（`keydown` イベントハンドラ）は
-//! `fandhe-frontend-wasm-full`（`keynav.rs`/`headless.rs`）の後続責務であり、
-//! 本クレートのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応、
-//! Issue 起票を別途提案する）。
+//! [`item`] は roving `tabindex`（`"0"`/`"-1"`、[`RatingGroup::focusable_index`]
+//! が算出する 1 個のみ `"0"`）により Tab 移動でグループへ到達できる。ただし
+//! 本クレートは SSR 静的マークアップと dispatch 契約（[`RatingGroupAction`]/
+//! [`RatingGroup::decode_action`]）のみを提供し、`ArrowLeft`/`ArrowRight`/
+//! `Enter`/`Space` 等のキー入力を実際に検知してフォーカス移動・値変更へ
+//! つなげる `keydown` イベントハンドラの DOM 配線は持たない（ark-ui が示す
+//! キー操作の対応表をこの場で「実装済みの契約」として案内しない。他
+//! `data-*`/ARIA 節と異なり、キー入力の実挙動は静的 HTML だけでは検証
+//! できないため）。DOM 配線は `fandhe-frontend-wasm-full`（`keynav.rs`/
+//! `headless.rs`）の後続責務であり、本クレートのスコープ外
+//! （`.claude/rules/out-of-scope-tracking.md` 対応、Issue 起票を別途提案する。
+//! イシュー #1617 codex-review 指摘）。
 //!
 //! ## 意図的に参考サイトと合わせなかった事項
 //!
