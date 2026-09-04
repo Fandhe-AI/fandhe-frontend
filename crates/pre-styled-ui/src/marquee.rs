@@ -103,7 +103,15 @@
 //!
 //! [`css`] は `@media (prefers-reduced-motion: reduce)` 環境で `content` の
 //! アニメーションを停止する規則を追記する（[`crate::skeleton::css`] と
-//! 同型）。
+//! 同型）。イシュー #1583 でこのブロックを拡張し、単なる停止に留まらず
+//! 「静止状態で内容を読める」ところまでを対応の完成形とした（詳細は
+//! 下記「イシュー #1583」節参照）。**`--fandhe-marquee-duration` は
+//! `Theme::to_css` が一括で `0ms` 化する `--fandhe-motion-duration-*`
+//! 系トークンではない**ため、この `@media` ブロックが marquee の
+//! アニメーションを止める唯一の経路である
+//! （`docs/design/pre-styled-ui-interaction-visual-language.md` §6 が
+//! marquee を「duration では表現できない副作用を持つため個別 `@media` を
+//! 維持する」例外として明示的に認めている）。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -124,7 +132,8 @@
 //! `prefers-reduced-motion` 対応・`item` の見た目・`root` の
 //! padding/border/background）が担当するパートには一切触れていない
 //! （同一ファイルの並行編集のため、上記「常時一時停止」節・
-//! `@media (prefers-reduced-motion: reduce)` ブロックは変更しない）。
+//! `@media (prefers-reduced-motion: reduce)` ブロックは変更しない。
+//! #1583 で実施済み、下記「イシュー #1583」節参照）。
 //!
 //! ## 是正内容
 //!
@@ -171,6 +180,81 @@
 //!   フォールバックをテーマトークン経由へ変更。
 //! - `--fandhe-marquee-fade`（既定 `0px`）: 本イシューで新設。両端の
 //!   フェード幅（`mask-image` の `linear-gradient` 停止位置）を指定する。
+//!
+//! # イシュー #1583: reduced-motion 対応とコンテンツ枠（親 #1581 の 2/2）
+//!
+//! 親イシュー #1581 の担当分割 2/2。#1582（1/2）が担当したアニメーション
+//! （速度・方向・`gap`・両端フェード）の宣言は再変更しない。
+//!
+//! ## 是正内容（`prefers-reduced-motion: reduce`）
+//!
+//! 是正前は `content` の `animation: none` と複製 2 個目の `display: none`
+//! のみだった。これだけでは可視の主コピーが `min-width: max-content` の
+//! まま `overflow: hidden` の `root` 内に残り、ビューポートより長い
+//! ティッカーは**末尾が切れて読めない**（WCAG 1.4.10 リフロー・2.2.2 の
+//! 趣旨に反する）。加えて #1582 で `root` に入った opt-in の
+//! `mask-image` フェードは、静止時にも両端を隠したままになる。
+//!
+//! これを是正するため、`@media` ブロックへ次を追記した:
+//!
+//! - `content` を `min-width: 0; flex: 1 1 auto; flex-wrap: wrap;` に
+//!   切り替え、静止時は折り返して全文を表示する。
+//! - `item` を `flex: 0 1 auto; min-width: 0;` に切り替え、**1 item だけの
+//!   長文ティッカー**（docs サイト既定デモがこの形）でも item 自体が
+//!   `root` 幅まで縮んでテキストが折り返せるようにする（`flex-wrap` は
+//!   item 間の折り返ししか作らないため、item 側の `flex: none` を
+//!   `@media` 内で上書きしないと単一 item は clip されたままになる）。
+//! - `root` へ `mask-image: none;` を追記し、静止時は両端フェードを
+//!   解除する（フェードは動いているコンテンツの出入りを滑らかに見せる
+//!   演出であり、静止した文章の先頭・末尾を隠すだけになるため）。
+//!   `--fandhe-marquee-fade` の opt-in 契約自体（動作時の挙動）は
+//!   変更しない。
+//!
+//! 新規則はすべて base と同じ詳細度（`[data-scope][data-part]`、
+//! 0,2,0）でソース順末尾に出るため `!important` なしで確実に後勝ちする。
+//! 不採用案: `root { overflow-x: auto }`（横スクロールバーが出るうえ
+//! `mask-image` と干渉し、キーボード利用者にスクロール操作を強いる）。
+//!
+//! ## コンテンツ枠（`root` の padding フック）
+//!
+//! `root` の base 宣言へ `position: relative`・`box-sizing: border-box`・
+//! `padding: var(--fandhe-marquee-padding, 0)` を追加した。
+//! `--fandhe-marquee-padding` は既定 `0` のため、追加前の見た目は変わらない
+//! ([`crate::card`] の `--fandhe-card-padding` と同型の custom property
+//! hook）。`position: relative` は chakra-ui `root` slot recipe と同じで、
+//! 利用者が絶対配置のラベル等を `root` 基準で置けるようにするための
+//! 土台のみで、視覚的な変化はない。
+//!
+//! `item` の base 宣言（`flex: none` のみ）は変更しない。chakra-ui
+//! `marquee` slot recipe / ark-ui とも `item` に既定スタイルを持たず、
+//! `display: flex` 等を足すとインライン混在コンテンツ（テキスト +
+//! `<a>`/`<strong>`）の空白が匿名 flex item 化で潰れる利用者可視の変更に
+//! なるため見送る。同じ理由で `white-space: nowrap` も付けない
+//! （上記の折り返し表示と矛盾するため）。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - `root` の `width: 100%`（chakra-ui は持つが、flex/grid の子として
+//!   置かれた既存利用箇所のレイアウトを変える可能性があるため見送り。
+//!   ブロック要素の既定幅で同等）。
+//! - `root` の `border`/`background`/`border-radius`/`color`:
+//!   chakra-ui `root` recipe にも既定値がなく、参考スクリーンショットの
+//!   枠はデモ側の装飾（`Card` コンポーネント等）。[`crate::skeleton`] と
+//!   同型の「中立・装飾部品」判断で色軸を持ち込まない。必要なら利用者が
+//!   `attrs` の `style` または外側のラッパで付与する（`root` に枠・背景を
+//!   付けた場合、`mask-image` はその端もフェードする点は #1582 の
+//!   rustdoc の注意書きのまま維持する）。
+//! - `item` の枠・padding・flex 配置・`white-space`: 参照 2 サイトとも
+//!   item を無装飾で提供しているため合わせる（上記）。
+//! - `size`・`color-palette`・状態 `data-*`・ダークモード・フォーカス
+//!   リング・hover（`:hover`/`:focus-within` の一時停止は既存維持）・
+//!   disabled・トランジション（本節の `@media` 是正で対応済み）:
+//!   本部品はインタラクティブ slot を持たない表示専用部品のためいずれも
+//!   該当なし（#1582 と同じ結論、7 軸チェックリストの消化として記録する）。
+//!
+//! ## 新規 custom property
+//!
+//! - `--fandhe-marquee-padding`（既定 `0`）: `root` の内側余白フック。
 //!
 //! # セキュリティ不変条件
 //!
@@ -268,6 +352,16 @@ fn recipe() -> SlotRecipe {
                     "mask-image",
                     "linear-gradient(to right, transparent, black var(--fandhe-marquee-fade, 0px), black calc(100% - var(--fandhe-marquee-fade, 0px)), transparent)",
                 ),
+                // イシュー #1583: コンテンツ枠。`position: relative` は
+                // 利用者が絶対配置要素を root 基準で置ける土台
+                // （chakra-ui root slot recipe と同型）。`padding` は
+                // `--fandhe-marquee-padding`（既定 `0`）の custom
+                // property hook（[`crate::card`] の `--fandhe-card-padding`
+                // と同型）で、既定値のため既存の見た目は変わらない
+                // （モジュール doc「イシュー #1583」節参照）。
+                decl("position", "relative"),
+                decl("box-sizing", "border-box"),
+                decl("padding", "var(--fandhe-marquee-padding, 0)"),
             ],
         )
         .base(
@@ -315,17 +409,24 @@ fn recipe() -> SlotRecipe {
 /// 2. `root` への `:hover`/`:focus-within` で `content` のアニメーションを
 ///    一時停止する規則（子孫コンビネータのため recipe では表現できない、
 ///    モジュール doc「常時一時停止」節参照）。
-/// 3. `prefers-reduced-motion: reduce` 環境でアニメーションを停止する
-///    `@media` ブロック（受け入れ条件）。同ブロック内でシームレスループ用に
-///    複製した 2 個目の `content`（`aria-hidden="true"`）へ `display: none`
-///    も追加する。アニメーション停止のみでは複製 2 本がそのまま flex
-///    レイアウトへ残り、メッセージがビューポートより狭い場合に視認可能な
-///    ユーザーへ内容が二重表示されてしまう不具合（Cursor Bugbot 指摘、
-///    PR #864）への是正。
+/// 3. `prefers-reduced-motion: reduce` 環境で (a) アニメーションを停止し、
+///    (b) 複製 2 個目の `content`（`aria-hidden="true"`）を `display: none`
+///    で除去し、(c) 可視の主コピーを折り返して全文が読めるようにし、
+///    (d) 両端フェードを解除する `@media` ブロック（イシュー #1583 で
+///    (c)/(d) を追加。(a)/(b) は #831 由来。詳細はモジュール doc
+///    「イシュー #1583」節参照）。(a)/(b) がなければ複製 2 本がそのまま
+///    flex レイアウトへ残り、メッセージがビューポートより狭い場合に
+///    視認可能なユーザーへ内容が二重表示されてしまう（Cursor Bugbot 指摘、
+///    PR #864）。(c)/(d) がなければ、アニメーション停止後も可視コピーが
+///    `min-width: max-content` のまま `overflow: hidden` の `root` 内に
+///    残って末尾が切れ、かつ両端フェードが静止した文章の先頭・末尾を
+///    隠したままになる（WCAG 1.4.10・2.2.2 の趣旨に反する）。
 ///
-/// `root` の両端フェード（`mask-image`、イシュー #1582）は recipe の
+/// `root` の両端フェード（`mask-image`、イシュー #1582）・コンテンツ枠
+/// （`position`/`box-sizing`/`padding`、イシュー #1583）は recipe の
 /// `base("root", ...)` 側の宣言として出力されるため、本関数が追記する
-/// 静的リテラルには含まれない（モジュール doc「イシュー #1582」節参照）。
+/// 静的リテラルには含まれない（モジュール doc「イシュー #1582」「イシュー
+/// #1583」節参照）。
 #[must_use]
 pub fn css() -> String {
     let mut out = recipe().css();
@@ -339,7 +440,7 @@ pub fn css() -> String {
         "\n[data-scope=\"marquee\"][data-part=\"root\"]:hover [data-part=\"content\"],\n[data-scope=\"marquee\"][data-part=\"root\"]:focus-within [data-part=\"content\"] {\n  animation-play-state: paused;\n}\n",
     );
     out.push_str(
-        "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"marquee\"][data-part=\"content\"] {\n    animation: none;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"content\"][aria-hidden=\"true\"] {\n    display: none;\n  }\n}\n",
+        "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"marquee\"][data-part=\"content\"] {\n    animation: none;\n    min-width: 0;\n    flex: 1 1 auto;\n    flex-wrap: wrap;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"content\"][aria-hidden=\"true\"] {\n    display: none;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"item\"] {\n    flex: 0 1 auto;\n    min-width: 0;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"root\"] {\n    mask-image: none;\n  }\n}\n",
     );
     out
 }
@@ -681,14 +782,79 @@ mod tests {
         assert!(out.contains("animation-play-state: paused;"));
     }
 
-    /// 受け入れ条件: `prefers-reduced-motion: reduce` でアニメーションを
-    /// 停止する CSS を含むことを固定する。
+    /// 受け入れ条件（イシュー #1583）: `prefers-reduced-motion: reduce` で
+    /// (1) アニメーションを停止し、(2) 複製 2 個目の `content` を除去し、
+    /// (3) 可視の主コピーを折り返して全文表示し、(4) 両端フェードを
+    /// 解除することを固定する（モジュール doc「イシュー #1583」節参照）。
     #[test]
     fn css_output_declares_reduced_motion_media_query() {
         let out = css();
         assert!(out.contains("@media (prefers-reduced-motion: reduce) {"));
         assert!(out.contains(r#"[data-scope="marquee"][data-part="content"] {"#));
         assert!(out.contains("animation: none;"));
+        // (2) 二重表示防止（#831 由来、変更なし）。
+        assert!(
+            out.contains(r#"[data-scope="marquee"][data-part="content"][aria-hidden="true"] {"#)
+        );
+        assert!(out.contains("display: none;"));
+        // (3) 静止時に折り返して全文表示する（イシュー #1583 で追加）。
+        assert!(out.contains("flex-wrap: wrap;"));
+        assert!(out.contains("flex: 0 1 auto;"));
+        // (4) 静止時は両端フェードを解除する（イシュー #1583 で追加）。
+        assert!(out.contains(r#"[data-scope="marquee"][data-part="root"] {"#));
+        assert!(out.contains("mask-image: none;"));
+    }
+
+    /// 受け入れ条件（イシュー #1583）: `root` の内側余白フック
+    /// `--fandhe-marquee-padding`（既定 `0`）と、その土台となる
+    /// `position: relative` が recipe の `root` base として出力される
+    /// ことを固定する（モジュール doc「イシュー #1583」節参照）。
+    #[test]
+    fn css_output_declares_root_padding_hook() {
+        let out = css();
+        assert!(out.contains("padding: var(--fandhe-marquee-padding, 0);"));
+        assert!(out.contains("position: relative;"));
+    }
+
+    /// 受け入れ条件（イシュー #1583）: `@media (prefers-reduced-motion:
+    /// reduce)` ブロック内の `item` 規則（`flex: 0 1 auto;`）が、`item`
+    /// base の `flex: none;` より後方（ソース順で後勝ち）に出力される
+    /// ことを固定する。単一 item ティッカーが静止時に折り返して読める
+    /// ためには、この `@media` 規則が base を確実に上書きする必要がある
+    /// （モジュール doc「イシュー #1583」節参照）。
+    #[test]
+    fn css_output_reduced_motion_item_rule_overrides_flex_none() {
+        let out = css();
+        let base_item_pos = out
+            .find("flex: none;")
+            .expect("item base の flex: none; が存在する");
+        let media_item_pos = out
+            .find(r#"[data-scope="marquee"][data-part="item"] {"#)
+            .expect("@media 内の item 規則が存在する");
+        assert!(
+            media_item_pos > base_item_pos,
+            "@media 内の item 規則は base より後方に出力される必要がある: {out}"
+        );
+    }
+
+    /// 受け入れ条件（イシュー #1583）: `@media (prefers-reduced-motion:
+    /// reduce)` ブロックが `root` の `mask-image`（`linear-gradient(...)`、
+    /// イシュー #1582）base 宣言より後方に出力されることを固定する。
+    /// ソース順で後勝ちすることが `mask-image: none;` による静止時の
+    /// フェード解除が確実に効くための前提。
+    #[test]
+    fn css_output_reduced_motion_block_is_last_and_overrides_base() {
+        let out = css();
+        let base_mask_pos = out
+            .find("mask-image: linear-gradient(")
+            .expect("root base の mask-image (linear-gradient) が存在する");
+        let media_block_pos = out
+            .find("@media (prefers-reduced-motion: reduce) {")
+            .expect("@media ブロックが存在する");
+        assert!(
+            media_block_pos > base_mask_pos,
+            "@media ブロックは root base の mask-image より後方に出力される必要がある: {out}"
+        );
     }
 
     #[test]
