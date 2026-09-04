@@ -740,6 +740,7 @@ fn charts_overview_example() -> Node {
     use fandhe_frontend_pre_styled_ui::charts::grid::{self, GridProps};
     use fandhe_frontend_pre_styled_ui::charts::legend::{self, LegendProps};
     use fandhe_frontend_pre_styled_ui::charts::scale::LinearScale;
+    use fandhe_frontend_pre_styled_ui::charts::series_color_var;
     use fandhe_frontend_pre_styled_ui::charts::svg::{svg_root, ViewBox};
     use fandhe_frontend_pre_styled_ui::charts::tooltip;
 
@@ -775,11 +776,22 @@ fn charts_overview_example() -> Node {
         .expect("categories は非空・range は有限"),
     ];
     let band = (plot_right - plot_left) / data.categories().len() as f64;
+    // イシュー #1593: `fill` を未指定のまま渡すと SVG の UA 既定色（黒）で
+    // 描画され、ダーク背景の docs-site では不可視になるため、系列 1 の色
+    // トークンを明示的に渡す（`charts::tooltip` モジュール doc の契約:
+    // 呼び出し側は `fill` 等の見た目属性のみを渡す）。
+    let color = series_color_var(0);
     for (i, &v) in data.series()[0].values.iter().enumerate() {
         let cx = plot_left + (i as f64 + 0.5) * band;
         let cy = y_scale.scale(v);
         let label = tooltip::datum_label(&data.categories()[i], &data.series()[0].name, v);
-        children.push(tooltip::datum(cx, cy, 3.0, &label, vec![]));
+        children.push(tooltip::datum(
+            cx,
+            cy,
+            3.0,
+            &label,
+            vec![("fill", color.as_str())],
+        ));
     }
     let view_box = ViewBox::new(0.0, 0.0, 200.0, 120.0).expect("固定寸法は正の有限値");
     let chart = svg_root(&view_box, vec![("aria-label", "monthly visits")], children);
@@ -796,7 +808,7 @@ const CHARTS_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "外部依存ゼロの SVG ノード木生成ヘルパー群（軸・グリッド・凡例・ツールチップ）",
         "charts::axis / charts::grid / charts::legend / charts::tooltip の 4 サブモジュールで構成する",
-        "マウス追従型のツールチップは持たず、ブラウザネイティブの <title> + aria-label によるホバー詳細表示のみ（JS 不要）",
+        "マウス追従型のツールチップは持たず、ブラウザネイティブの <title> + aria-label によるホバー詳細表示のみ（JS 不要。hover 時は前景色ストロークで強調）",
         "系列の各データ点は charts::series_color_var(index) の固定色循環で着色する",
     ],
     arguments: &[
