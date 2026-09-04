@@ -96,14 +96,17 @@
 //! disabled 表現は既存の `root` の `[data-disabled]`（`opacity: 0.5`）が
 //! テキストへも波及済みのため `data-*` 属性の追加はしない。ラベルの
 //! 配置・順序（anatomy 構造）は headless 層の責務でありここでは扱わない。
-//! # マーカー（目盛り）は CSS-only 表現（anatomy 非追加、イシュー #1445）
+//! # マーカー（目盛り）は CSS-only 表現（anatomy 非追加、イシュー #1445。
+//! 追記: イシュー #1601 で headless 側に marker-group/marker パーツが追加
+//! されたが、Themes 側では引き続き意図的にスタイル対象外とする）
 //!
-//! ark-ui の Angle Slider は外周の目盛りリングと中心点を持つが、headless
-//! `angle-slider` anatomy（`crates/headless-ui/src/angle_slider.rs`）に
-//! MarkerGroup/Marker パーツは存在しない（意図的スコープ外、headless
-//! モジュール doc に明記済み）。本イシューの対象ファイルは本モジュール
-//! （`crates/pre-styled-ui/src/angle_slider.rs`）のみであり headless 側の
-//! anatomy を増やす変更は範囲外のため、目盛り・中心点は新しい DOM 要素を
+//! ark-ui の Angle Slider は外周の目盛りリングと中心点を持つ。headless
+//! `angle-slider` anatomy（`crates/headless-ui/src/angle_slider.rs`）は
+//! イシュー #1601（参照突合）で `marker_group`/`marker` パーツを追加した
+//! が、本モジュール（Themes 層）は [`SLOTS`] に加えず、[`stylesheet`] も
+//! `[data-part="marker-group"]`/`[data-part="marker"]` セレクタを持たない
+//! （目盛りは下記の `control` `background` 多層グラデーションで既に
+//! 再現済みのため、二重表現を避ける）。目盛り・中心点は新しい DOM 要素を
 //! 追加せず [`recipe`] の `control` `background` に多層グラデーション
 //! （`radial-gradient` の中心点 + 内側を面色で覆う `radial-gradient` +
 //! `repeating-conic-gradient` の目盛りリング + 面色）を静的リテラルとして
@@ -131,8 +134,10 @@
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - headless 層と同じく MarkerGroup/Marker・pointer ドラッグ/キーボード
-//!   操作の DOM 配線はスコープ外
+//! - MarkerGroup/Marker を Themes 側でスタイルすること（headless には
+//!   イシュー #1601 で追加済みだが、上記「マーカーは CSS-only 表現」節の
+//!   とおり本モジュールでは意図的に対象外のまま）。pointer ドラッグ/
+//!   キーボード操作の DOM 配線はスコープ外
 //!   （`fandhe_frontend_headless_ui::angle_slider` モジュール doc 参照）。
 //! - トラック・サム・マーカー（状態表現・フォーカスリング）は並行する
 //!   分割 1/2（イシュー #1445）の担当であり、本モジュールの型階層是正
@@ -156,10 +161,10 @@ use crate::recipe::{
 // エクスポートしない（本モジュール冒頭の rustdoc「選択的 re-export」節
 // 参照）。状態管理・hydration が必要な呼び出し側は
 // `fandhe_frontend_headless_ui::angle_slider::AngleSlider` を直接 import する。
-use fandhe_frontend_headless_ui::angle_slider::AngleSlider;
 pub use fandhe_frontend_headless_ui::angle_slider::{
     control, hidden_input, label, value_text, AngleSliderAction,
 };
+use fandhe_frontend_headless_ui::angle_slider::{AngleSlider, AngleSliderProps};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
 /// headless `angle-slider` anatomy の `data-part` 一覧
@@ -472,7 +477,11 @@ pub fn root<'a>(
         recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    state.root(disabled, merged, children)
+    let props = AngleSliderProps {
+        disabled,
+        ..Default::default()
+    };
+    state.root(&props, merged, children)
 }
 
 /// styled thumb パーツを組み立てる。`--fandhe-angle` を含む `style` を
@@ -489,7 +498,11 @@ pub fn thumb_styled<'a>(
     let style = angle_style(state.angle_deg());
     let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
     merged.extend(drop_style_attr(attrs));
-    state.thumb(disabled, merged, Vec::new())
+    let props = AngleSliderProps {
+        disabled,
+        ..Default::default()
+    };
+    state.thumb(&props, merged, Vec::new())
 }
 
 #[cfg(test)]
@@ -741,7 +754,11 @@ mod tests {
 
     #[test]
     fn reexported_label_children_are_escaped_on_render() {
-        let html = render(&label(vec![], vec![text("<script>alert(1)</script>")]));
+        let html = render(&label(
+            &AngleSliderProps::default(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }

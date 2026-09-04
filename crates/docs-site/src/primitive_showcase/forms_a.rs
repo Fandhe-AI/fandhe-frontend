@@ -9,6 +9,7 @@
 
 use fandhe_frontend_core::{text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
+use hui::angle_slider::AngleSliderProps;
 use hui::checkbox::CheckboxProps;
 use hui::checkbox_group;
 use hui::color_picker::{self, Channel};
@@ -26,22 +27,70 @@ use hui::{angle_slider, checkbox, OpenState};
 
 use super::demo_page;
 
+/// Angle Slider の Demo（イシュー #1601 参照突合）。
+///
+/// 主インスタンス（135°）は MarkerGroup/Marker を含み、90/135/180 の 3 目盛り
+/// で `data-state` の 3 値（`under-value`/`at-value`/`over-value`）すべてを
+/// 露出する。第 2 インスタンス（45°）は `readonly`/`invalid` を root/label/
+/// control/thumb へ反映し、それらの `data-*` 表出を Demo 上で確認できる
+/// ようにする（`crate::primitive_showcase` モジュール doc の「パート網羅」
+/// 規約対応）。
 pub(super) fn angle_slider_section() -> Node {
+    let primary_props = AngleSliderProps::default();
+    let readonly_invalid_props = AngleSliderProps {
+        readonly: true,
+        invalid: true,
+        ..Default::default()
+    };
     let body = vec![angle_slider::root(
-        false,
+        &primary_props,
         vec![],
         vec![
-            angle_slider::label(vec![], vec![text("Direction")]),
+            angle_slider::label(&primary_props, vec![], vec![text("Direction")]),
             angle_slider::control(
-                false,
+                &primary_props,
                 vec![],
-                vec![angle_slider::thumb("135", "135deg", false, vec![], vec![])],
+                vec![
+                    angle_slider::thumb("135", "135deg", &primary_props, vec![], vec![]),
+                    angle_slider::marker_group(
+                        vec![],
+                        vec![
+                            angle_slider::marker(90, 135, false, vec![], vec![]),
+                            angle_slider::marker(135, 135, false, vec![], vec![]),
+                            angle_slider::marker(180, 135, false, vec![], vec![]),
+                        ],
+                    ),
+                ],
             ),
             angle_slider::hidden_input("direction", "135", false, vec![]),
             angle_slider::value_text(vec![], vec![text("135°")]),
         ],
     )];
-    demo_page("Angle Slider", body)
+    let readonly_body = vec![angle_slider::root(
+        &readonly_invalid_props,
+        vec![],
+        vec![
+            angle_slider::label(
+                &readonly_invalid_props,
+                vec![],
+                vec![text("Direction (readonly, invalid)")],
+            ),
+            angle_slider::control(
+                &readonly_invalid_props,
+                vec![],
+                vec![angle_slider::thumb(
+                    "45",
+                    "45deg",
+                    &readonly_invalid_props,
+                    vec![],
+                    vec![],
+                )],
+            ),
+            angle_slider::hidden_input("direction-readonly", "45", false, vec![]),
+            angle_slider::value_text(vec![], vec![text("45°")]),
+        ],
+    )];
+    demo_page("Angle Slider", [body, readonly_body].concat())
 }
 
 pub(super) fn checkbox_section() -> Node {

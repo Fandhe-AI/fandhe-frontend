@@ -48,7 +48,9 @@
 
 use fandhe_frontend_core::{el, p, text, Node};
 use fandhe_frontend_pre_styled_ui::angle_slider;
-use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::AngleSlider;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
+    AngleSlider, AngleSliderProps,
+};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
 use fandhe_frontend_pre_styled_ui::image_cropper;
 use fandhe_frontend_pre_styled_ui::image_cropper::HandlePosition;
@@ -1458,9 +1460,13 @@ fn demo_angle_slider() -> Node {
             // `aria-labelledby` へ同じ値を渡さない限りアクセシブルネームが
             // 関連付けられない（イシュー #1446 codex-review 指摘）。
             vec![
-                angle_slider::label(vec![("id", "angle-slider-demo-label")], vec![text("Rotation")]),
+                angle_slider::label(
+                    &AngleSliderProps::default(),
+                    vec![("id", "angle-slider-demo-label")],
+                    vec![text("Rotation")],
+                ),
                 angle_slider::control(
-                    false,
+                    &AngleSliderProps::default(),
                     vec![],
                     vec![angle_slider::thumb_styled(
                         &state,
