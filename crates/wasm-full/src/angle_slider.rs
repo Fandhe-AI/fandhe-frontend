@@ -387,9 +387,11 @@ mod wiring {
         );
     }
 
-    /// keydown: Thumb 上の ArrowUp/ArrowRight/ArrowDown/ArrowLeft/Home/End
-    /// のみ反応する（[`action_for_key`]、モジュール冒頭 doc「キーボード
-    /// 操作」節参照）。
+    /// keydown: Thumb 上の ArrowUp/ArrowRight/ArrowDown/ArrowLeft のみ反応
+    /// する（[`action_for_key`]、モジュール冒頭 doc「キーボード操作」節
+    /// 参照）。Home/End は REQ-11 の gzip 予算逼迫により意図的に未配線
+    /// （`home_and_end_keys_are_intentionally_not_wired_pending_req11_budget`
+    /// テスト参照）。
     fn handle_keydown(
         root: &Element,
         event: &Event,
