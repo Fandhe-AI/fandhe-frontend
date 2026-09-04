@@ -1577,8 +1577,9 @@ pub(crate) const MARQUEE: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "content パーツを内部で 2 回複製しシームレスループを実現する（crates/pre-styled-ui/src/marquee.rs:1296-1298）",
         "root:hover/:focus-within で常時一時停止する CSS を持つ（marquee.rs テスト css_output_declares_hover_and_focus_within_pause）",
-        "prefers-reduced-motion: reduce でアニメーションを停止する（marquee.rs テスト css_output_declares_reduced_motion_media_query）",
+        "prefers-reduced-motion: reduce で (1) アニメーションを停止し、(2) 複製 content を除去し、(3) 可視コピーを折り返して全文表示し、(4) 両端フェードを解除する（イシュー #1583、marquee.rs テスト css_output_declares_reduced_motion_media_query）",
         "両端フェードは root の mask-image（--fandhe-marquee-fade、既定 0px = 無効）で opt-in 提供する（イシュー #1582、marquee.rs テスト css_output_declares_root_mask_image_fade）",
+        "root の内側余白は --fandhe-marquee-padding（既定 0）の custom property hook で opt-in 提供する（イシュー #1583、marquee.rs テスト css_output_declares_root_padding_hook）",
     ],
     arguments: &[
         ArgRow {
