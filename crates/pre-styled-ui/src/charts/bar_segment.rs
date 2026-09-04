@@ -50,12 +50,72 @@
 //! # 本イシューのスコープ外
 //!
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途。
+//!
+//! # 参考サイト基準への調整（イシュー #1592）
+//!
+//! 親 Phase #1588「Themes / Charts のスタイル調整」の子。参照 4 サイト
+//! （chakra-ui / Ark UI / Radix Primitives / Radix Themes）に対応部品が
+//! 存在しないため、評価軸は**内部整合のみ**（`--fandhe-*` トークン適用・
+//! ダーク時の可読性・系列色パレットの識別性・データラベルのコントラスト）
+//! に限定する（[`crate::area_chart`] イシュー #1589 と同じ判断）。
+//!
+//! | 軸 | 結論 |
+//! |---|---|
+//! | サイズ | 非該当（size バリアントを持たない。参照軸なし） |
+//! | バリアント / colorPalette | 非採用（参照軸なし。配色はカテゴリ index で `chart-1`〜`chart-6` 循環） |
+//! | 色 | 是正 1 点（下記「`bar` の track 背景」）。他は全宣言がトークン経由で現状維持 |
+//! | 状態 `data-*` | 非該当（pre-styled-only、headless 由来の `data-*` を持たない） |
+//! | ダークモード | 現状維持（`chart-N`・`fg`・`fg-muted`・`bg-muted` はいずれも dark 値定義済み。凡例テキストのコントラストは light `fg-muted #4a4a4a`/`bg #ffffff` ≈ 8.9:1、dark `#cccccc`/`#111111` ≈ 11.8:1 で本文 4.5:1 を満たす） |
+//! | フォーカス | 非該当（表示専用、フォーカス可能要素なし） |
+//! | 余白・角丸・影 | 是正（生リテラルを `--fandhe-space-*`/`--fandhe-radius-*` スケールへ統一。影は不使用のまま） |
+//! | hover / disabled / トランジション | 非採用（表示専用部品、状態遷移なし） |
+//! | 内部整合（実欠陥） | 是正 3 点（下記） |
+//!
+//! ## 是正した点
+//!
+//! - **`bar` の track 背景**: `background: var(--fandhe-color-bg-muted)` を
+//!   追加した。丸め剰余（[`super::data::value_percent`] の百分率丸め）で
+//!   各セグメント幅の合計が 100% にわずかに満たない場合にページ背景が
+//!   透けて見えるのを防ぎ、[`super::bar_list`]/`progress` の track 面
+//!   （いずれも `bg-muted` 背景）と整合させる。
+//! - **セグメント間の区切り線**: `segment` に
+//!   `box-shadow: inset -1px 0 0 var(--fandhe-color-bg)` を追加し、隣接
+//!   カテゴリの色境界を明確にした（幅そのものは変えないため比率の真正性
+//!   は崩さない）。ただし最終セグメントの右端は `bar` の `overflow: hidden`
+//!   と `border-radius` により直線で切れるため、区切り線を残すと 1px の
+//!   欠けに見える。[`crate::recipe::StateCondition::LastChild`]（`steps.rs`
+//!   先例と同型）で最終セグメントのみ `box-shadow: none` に戻す。
+//! - **凡例のマーカー寸法・間隔**: 同 crate の [`super::legend`] と
+//!   数値が不一致だったため揃えた: `legend-marker` は `0.625rem` →
+//!   `0.75rem`、`legend-item` の `gap` は `0.375rem` → `var(--fandhe-space-2)`
+//!   （`0.5rem`）。同一 crate 内の凡例表現で寸法が異なる不整合を解消する。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - chakra `barSize` 既定 `2.5rem` への追随はしない。値・ラベルをセグメント
+//!   内に描画しない本部品では現行の細いバーで足り、`bar` の高さは
+//!   `var(--fandhe-bar-segment-bar-height, 0.75rem)` で利用者が上書き
+//!   可能にするに留める（[`super::bar_list`]/`progress` の
+//!   `--fandhe-bar-list-track-height`/`--fandhe-progress-track-height`
+//!   先例と同型）。
+//! - 極小セグメントの最小幅は設けない（比率の真正性を崩さないため。
+//!   [`super::bar_list`] イシュー #1591 と同じ判断）。
+//! - `segment` へ `border-radius: inherit` は付けない。[`super::bar_list`]
+//!   と異なりセグメントは隙間なく隣接充填するため、付けると内側の境界が
+//!   丸まり隙間状に見えてしまう（`bar` の `overflow: hidden` で外側の端は
+//!   既に丸く切れている）。
+//! - `bar` の角丸段（`radius-sm`）は維持する（[`super::bar_list`] イシュー
+//!   #1591 が「bar-segment と揃えるため radius-sm 維持」とした判断を
+//!   踏襲し、本部品側から変えない）。
+//! - chakra の `Value`/`Label`（セグメント直上直下の描画）・`Reference`・
+//!   `Tooltip` に相当する anatomy 追加は行わない（`data-part` 契約の拡張は
+//!   本イシューの内部整合スコープ外）。
 
 use super::data::{self, ChartData};
 use super::svg::fmt_coord;
 use super::{series_color_var, ChartError};
 use crate::css::decl;
-use crate::recipe::SlotRecipe;
+use crate::recipe::{SlotRecipe, StateCondition};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -82,7 +142,9 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
-                decl("gap", "0.75rem"),
+                // イシュー #1592: 生リテラル 0.75rem を `--fandhe-space-3`
+                // （等価値）へ統一。
+                decl("gap", "var(--fandhe-space-3)"),
                 decl("width", "100%"),
             ],
         )
@@ -91,8 +153,18 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("width", "100%"),
-                decl("height", "0.75rem"),
+                // イシュー #1592: 呼び出し側からの高さ上書きを可能にする
+                // （[`super::bar_list`] の
+                // `--fandhe-bar-list-track-height`/progress の
+                // `--fandhe-progress-track-height` と同型。フォールバックは
+                // 従来の生リテラル値を維持）。
+                decl("height", "var(--fandhe-bar-segment-bar-height, 0.75rem)"),
                 decl("border-radius", "var(--fandhe-radius-sm)"),
+                // イシュー #1592: track 背景を追加。百分率丸め
+                // （[`super::data::value_percent`]）でセグメント幅の合計が
+                // 100% にわずかに満たない場合にページ背景が透けて見えるのを
+                // 防ぐ（[`super::bar_list`]/progress の track 面と同じ役割）。
+                decl("background", "var(--fandhe-color-bg-muted)"),
                 decl("overflow", "hidden"),
             ],
         )
@@ -101,14 +173,33 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("height", "100%"),
                 decl("width", "var(--fandhe-bar-segment-percent, 0%)"),
+                // イシュー #1592: 隣接セグメント間に 1px の区切り線を入れて
+                // 色境界を明確にする（幅は変えないため比率の真正性は保つ）。
+                decl("box-shadow", "inset -1px 0 0 var(--fandhe-color-bg)"),
             ],
+        )
+        // イシュー #1592: 最終セグメントは右端が `bar` の
+        // `overflow: hidden` + `border-radius` で直線に切れるため、上記
+        // 区切り線を残すと 1px の欠けに見える。states は base とは独立に
+        // 常に base 群の後段で出力される（[`SlotRecipe::css`] 契約）ため
+        // 登録位置自体は問わないが、同一 slot（`segment`）への他の state
+        // 規則より後に登録する契約（`steps.rs` 先例参照）は維持する
+        // （現状 `segment` への state はこの 1 件のみのため実害はないが、
+        // 将来追加される他の `segment` state に対して打ち消しが後勝ちで
+        // 効くようにする）。
+        .state(
+            "segment",
+            StateCondition::LastChild,
+            vec![decl("box-shadow", "none")],
         )
         .base(
             "legend",
             vec![
                 decl("display", "flex"),
                 decl("flex-wrap", "wrap"),
-                decl("gap", "0.75rem 1rem"),
+                // イシュー #1592: 生リテラル 0.75rem/1rem を
+                // `--fandhe-space-3`/`--fandhe-space-4`（等価値）へ統一。
+                decl("gap", "var(--fandhe-space-3) var(--fandhe-space-4)"),
             ],
         )
         .base(
@@ -116,16 +207,22 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
-                decl("gap", "0.375rem"),
+                // イシュー #1592: 0.375rem → `--fandhe-space-2`（0.5rem）。
+                // 同 crate の [`super::legend`] の `item` gap と揃える
+                // （値変更を伴う是正、rustdoc「是正した点」参照）。
+                decl("gap", "var(--fandhe-space-2)"),
                 decl("font-size", "var(--fandhe-font-font-size-sm)"),
             ],
         )
         .base(
             "legend-marker",
             vec![
-                decl("width", "0.625rem"),
-                decl("height", "0.625rem"),
-                decl("border-radius", "9999px"),
+                // イシュー #1592: 0.625rem → 0.75rem。同 crate の
+                // [`super::legend`] の `marker` と同寸に揃える（寸法は
+                // 余白/角丸/影のトークン区分外のため生リテラルのまま）。
+                decl("width", "0.75rem"),
+                decl("height", "0.75rem"),
+                decl("border-radius", "var(--fandhe-radius-full)"),
                 decl("flex-shrink", "0"),
             ],
         )
@@ -393,5 +490,13 @@ mod tests {
         assert_eq!(a, b);
         assert!(!a.contains('<'));
         assert!(a.contains(r#"[data-scope="bar-segment"]"#));
+        // イシュー #1592: 是正した宣言が実際に出力されていることを固定する。
+        assert!(a.contains("var(--fandhe-space-3)"));
+        assert!(a.contains("var(--fandhe-bar-segment-bar-height, 0.75rem)"));
+        assert!(a.contains("var(--fandhe-color-bg-muted)"));
+        assert!(a.contains("inset -1px 0 0 var(--fandhe-color-bg)"));
+        assert!(a.contains(":last-child"));
+        assert!(a.contains("var(--fandhe-radius-full)"));
+        assert!(a.contains("var(--fandhe-space-2)"));
     }
 }

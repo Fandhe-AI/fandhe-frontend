@@ -55,7 +55,9 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 ### 3.1 1 対 1 対応（規則: `<snake>_css.rs`）
 
 accordion / **alert（イシュー #1553 で golden 新設）** /
-**badge（イシュー #1555 で golden 新設）** / callout / carousel /
+**badge（イシュー #1555 で golden 新設）** /
+**bar_segment（イシュー #1592 で golden 新設。`charts::bar_segment`）** /
+callout / carousel /
 checkbox / checkbox_card / checkbox_group /
 color_picker / color_swatch / **data_list（イシュー #1559 で golden 新設）** /
 date_input / dialog / **download_trigger（方式 b）** /
@@ -126,8 +128,9 @@ CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約�
   イシュー #1555、`callout` はイシュー #1556、`card` はイシュー #1557、
   `spinner` はイシュー #1567 でそれぞれ golden 新設済みのため本リストから
   除外）
-- charts 内部パーツ 3 件（`css()` を持つが golden なし）: `charts::bar_chart` /
-  `charts::bar_list` / `charts::bar_segment`
+- charts 内部パーツ 2 件（`css()` を持つが golden なし）: `charts::bar_chart` /
+  `charts::bar_list`（`charts::bar_segment` はイシュー #1592 で golden 新設済み
+  のため本リストから除外）
 
 `charts::pie` はジオメトリ計算のみを行う機構モジュール（`Node` を生成せず
 `css()`/`stylesheet()` を持たない）であり、部品としての golden 対象外です
