@@ -1380,8 +1380,9 @@ fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
 /// テキスト経路へ全ペイロードを注入し、エスケープが貫通することを固定する。
 #[test]
 fn color_picker_attrs_valuetext_and_children_are_escaped_for_all_payloads() {
+    let props = color_picker::ColorPickerProps::default();
     for payload in payloads::all() {
-        let html = render(&color_picker::channel_input(payload, false, vec![]));
+        let html = render(&color_picker::channel_input(payload, &props, vec![]));
         assert_payload_is_escaped(
             payload,
             &html,
@@ -1391,7 +1392,7 @@ fn color_picker_attrs_valuetext_and_children_are_escaped_for_all_payloads() {
         let html = render(&color_picker::hidden_input(
             payload,
             "#ffffff",
-            false,
+            &props,
             vec![],
         ));
         assert_payload_is_escaped(
@@ -1400,14 +1401,14 @@ fn color_picker_attrs_valuetext_and_children_are_escaped_for_all_payloads() {
             "color_picker::hidden_input の name 属性値コンテキスト",
         );
 
-        let html = render(&color_picker::area_thumb(payload, false, vec![], vec![]));
+        let html = render(&color_picker::area_thumb(payload, &props, vec![], vec![]));
         assert_payload_is_escaped(
             payload,
             &html,
             "color_picker::area_thumb の aria-valuetext 属性値コンテキスト",
         );
 
-        let html = render(&color_picker::label(vec![], vec![text(payload)]));
+        let html = render(&color_picker::label(&props, vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "color_picker::label のテキストコンテキスト");
     }
 }

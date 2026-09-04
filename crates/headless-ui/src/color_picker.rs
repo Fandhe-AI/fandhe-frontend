@@ -18,15 +18,67 @@
 //! CSS は `fandhe-frontend-pre-styled-ui::color_picker`（styled 層）が組み立て、
 //! 本モジュールは状態機械と anatomy のみを提供する純粋関数の集合である。
 //!
+//! # 参照突合（イシュー #1604、ark-ui/zag.js `color-picker` machine との対比）
+//!
+//! 一次情報は ark-ui docs（Color Picker ページ、Data Attributes / Keyboard
+//! 表）と zag.js `packages/machines/color-picker/src/*.ts`（main、2026-09-04
+//! 取得）。差分の是正・意図的な非追随は以下のとおり（詳細は PR 本文の差分表を
+//! 参照）:
+//!
+//! - **是正**: [`ColorPickerProps`]（`disabled`/`readonly`/`invalid`/
+//!   `required`）を新設し、root/label/control/trigger/area/area-background/
+//!   area-thumb/channel-input へ `data-disabled`/`data-readonly`/
+//!   `data-invalid` を一律付与、label にのみ `data-required` を付与する
+//!   （[`crate::angle_slider::AngleSliderProps`] と同型のパターン）。control
+//!   に `data-state` を追加（trigger/content と揃える）。[`Channel::as_str`]
+//!   固定語彙による `data-channel`（channel-slider/track/thumb + 固定
+//!   リテラル `"hex"` の channel-input）、[`crate::data_attrs::Orientation`]
+//!   引数による `data-orientation`（channel-slider/track/thumb。thumb には
+//!   `aria-orientation` も付与）を追加。`channel_input` に `readonly`
+//!   ネイティブ属性と `aria-invalid="true"`（invalid のときのみ）を追加。
+//!   キーボード操作の絶対値指定（`"set_channel"`）に加え、相対増減
+//!   [`ColorPickerAction::IncrementChannel`]/
+//!   [`ColorPickerAction::DecrementChannel`]（dispatch `"increment"`/
+//!   `"decrement"`、payload は [`Channel`] の固定語彙、step 1、
+//!   `0..=Channel::max()` へ clamp・ラップしない）を追加した。
+//! - **意図的に追随しない**（理由付き）:
+//!   - `hue-slider`/`saturation-slider`/`value-slider`/`alpha-slider` という
+//!     [`Channel::parts`] のパート名体系は、ark-ui の `channel-slider` +
+//!     `data-channel` 構成とは異なるが、本イシューでは改名しない
+//!     （`fandhe-frontend-pre-styled-ui` の `SLOTS`・golden CSS
+//!     テスト・`crates/docs-site` の `DYNAMIC_PART_NAMES` を破壊し、closed
+//!     の Themes イシュー #1462〜#1465 へ波及する破壊的変更のため）。改名は
+//!     PR 本文でフォローアップ Issue 化を提案する。
+//!   - `ValueSwatch` パート（ark の `swatch` パート + `data-value` と同一
+//!     設計）は追加しない。`fandhe-frontend-pre-styled-ui` の trigger
+//!     プレビュー（`--fandhe-color-picker-preview`）で代替済みであり、
+//!     `SwatchGroup` 系（下記スコープ外）と同時に設計すべき判断のため。
+//!   - `data-focus`/`data-placement`/`data-side`/`data-nested`/
+//!     `data-has-nested` は JS ランタイムの相互作用属性・レイアウト計測
+//!     属性であり、`docs/policy/intentional-non-adoption.md` §3.25 規則 2
+//!     （装飾・レイアウト計測は headless へ持ち込まない）に従い非採用
+//!     （[`crate::checkbox`]/[`crate::popover`] と同型の判断）。
+//! - **スコープ外**（`.claude/rules/out-of-scope-tracking.md` 対応、PR
+//!   本文でフォローアップ Issue 化を提案）:
+//!   - `EyeDropperTrigger`/`SwatchGroup`/`SwatchTrigger`/`Swatch`/
+//!     `SwatchIndicator`/`TransparencyGrid`/`FormatSelect`/`FormatTrigger`/
+//!     `View`/`ChannelSliderLabel`/`ChannelSliderValueText`（既存のスコープ外
+//!     宣言を継承、下記「anatomy 最小サブセット方針」節参照）。
+//!   - `fandhe-frontend-wasm-full` の DOM 配線（pointer ドラッグ・
+//!     Arrow/Home/End/Esc keydown・Esc 時の trigger フォーカス復帰）。
+//!     REQ-11（WASM バンドルサイズ 200KB gzip 上限）予算逼迫のため、
+//!     ヘッドレス層の dispatch 契約のみを本イシューで完成させる。
+//!   - Shift+Arrow / PageUp / PageDown の ×10 step。
+//!
 //! # 呼び出し文脈
 //!
 //! SSR は本モジュールの自由関数（純粋関数で完結）を直接呼ぶか、
 //! [`ColorPicker`] の利便メソッドを呼んで組み立てる。CSR/hydration は
 //! [`ColorPicker`]（[`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] 実装）を経由し、dispatch
-//! （`"open"`/`"close"`/`"toggle"`/`"set_hex"`/`"set_channel"`）で状態遷移
-//! する。`fandhe-frontend-pre-styled-ui` が本モジュールを呼んでスタイル済み
-//! ColorPicker を組み立てる想定である。
+//! （`"open"`/`"close"`/`"toggle"`/`"set_hex"`/`"set_channel"`/
+//! `"increment"`/`"decrement"`）で状態遷移する。`fandhe-frontend-pre-styled-ui`
+//! が本モジュールを呼んでスタイル済み ColorPicker を組み立てる想定である。
 //!
 //! # 内部表現（HSV を canonical とする理由）
 //!
@@ -50,6 +102,10 @@
 //!   [`Channel`] の固定語彙 `hue`/`saturation`/`value`/`alpha` のみ、`value`
 //!   は厳密な `u16` パース + [`Channel::max`] の範囲検証）。不正値はすべて
 //!   fail-closed に no-op。
+//! - `"increment"`/`"decrement"`: payload は [`Channel`] の固定語彙のみ
+//!   （[`Channel::from_str`]）。未知語彙・空文字は fail-closed に no-op。
+//!   受理後は該当チャンネルの現在値を ±1 し、`0..=Channel::max()` へ
+//!   clamp する（境界ではラップせず no-op と同じ結果になる）。
 //!
 //! # anatomy 最小サブセット方針（スコープ外、
 //! `.claude/rules/out-of-scope-tracking.md` 対応）
@@ -79,12 +135,16 @@
 //! - HEX 値スロット（[`ColorPicker::hex`] の出力）へ到達するのは
 //!   [`crate::color::Color::to_hex_string`] の出力（常に `#` +
 //!   `[0-9a-f]` に閉じる）のみである。
-//! - dispatch payload（`"set_hex"`/`"set_channel"`）はクライアント由来の
-//!   不信頼入力として扱い、[`crate::color::Color::parse_hex`]/固定語彙 +
-//!   厳密整数パース + 範囲検証で fail-closed（不正値は no-op）。
-//!   [`Component::update`] 単体を直接呼んだ場合（`decode_action` を経由
-//!   しない経路）でも同じ範囲検証を再度行う（多層防御、[`crate::slider`]
-//!   の `SliderAction::SetValue` と同型の判断）。
+//! - `data-channel` の値は [`Channel::as_str`] の固定語彙、または
+//!   `channel_input` の固定リテラル `"hex"` のみであり、任意の呼び出し側
+//!   文字列を通す経路はない。
+//! - dispatch payload（`"set_hex"`/`"set_channel"`/`"increment"`/
+//!   `"decrement"`）はクライアント由来の不信頼入力として扱い、
+//!   [`crate::color::Color::parse_hex`]/固定語彙 + 厳密整数パース + 範囲
+//!   検証で fail-closed（不正値は no-op）。[`Component::update`] 単体を
+//!   直接呼んだ場合（`decode_action` を経由しない経路）でも同じ範囲検証を
+//!   再度行う（多層防御、[`crate::slider`] の `SliderAction::SetValue` と
+//!   同型の判断）。
 //! - hydration 属性（`data-hydrate-h`/`-s`/`-v`/`-a` および
 //!   [`crate::state::Disclosure`] の `data-hydrate-state`）はクライアント側で
 //!   改ざんされうる入力として扱う。[`ColorPicker`] の
@@ -92,11 +152,21 @@
 //!   `HydrateError` を返す（パース不能・範囲外の `h`/`s`/`v`/`a` をすべて
 //!   拒否する）。復元値も [`crate::color::Hsv::new`] の fail-closed
 //!   コンストラクタを経由する（多層防御）。
+//! - 呼び出し側 `attrs` による `data-scope`/`data-part`/状態系 `data-*`
+//!   属性の上書きは [`Anatomy::part`] と [`drop_reserved`] が fail-closed に
+//!   破棄する（フレームワークが付与する状態表現が常に優先される、
+//!   [`crate::angle_slider`] と同型のパターン）。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_disabled, aria_expanded, aria_haspopup, aria_label, role, AriaPopup};
+use crate::aria::{
+    aria_disabled, aria_expanded, aria_haspopup, aria_invalid, aria_label, aria_orientation, role,
+    AriaPopup,
+};
 use crate::color::{Color, Hsv};
-use crate::data_attrs::{data_disabled, data_state};
+use crate::data_attrs::{
+    data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
+    Orientation,
+};
 use crate::state::{Disclosure, DisclosureAction, OpenState};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
@@ -118,8 +188,8 @@ fn percent_of(value: u32, max: u32) -> u8 {
 
 /// チャンネル別スライダーが操作する軸（HEX 入力を除く 4 チャンネル）。
 ///
-/// `Component::decode_action` の `"set_channel"` payload
-/// （`"<channel>:<value>"`）の `<channel>` 部分と 1:1 対応する固定語彙。
+/// `Component::decode_action` の `"set_channel"`/`"increment"`/
+/// `"decrement"` payload の `<channel>` 部分と 1:1 対応する固定語彙。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Channel {
     /// 色相（`0..=359` 度）。
@@ -147,7 +217,7 @@ impl Channel {
     }
 
     /// dispatch payload の `<channel>` 語彙（`"hue"`/`"saturation"`/
-    /// `"value"`/`"alpha"`）。
+    /// `"value"`/`"alpha"`）。`data-channel` の出力値としても使う固定語彙。
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -181,7 +251,8 @@ impl Channel {
     }
 
     /// この軸の anatomy `data-part` 名（`(container, track, thumb)`、
-    /// ark-ui 準拠の kebab-case）。
+    /// ark-ui 準拠の kebab-case）。パート名体系そのものの改名は本イシュー
+    /// （#1604）のスコープ外（モジュール冒頭「参照突合」節参照）。
     #[must_use]
     const fn parts(self) -> (&'static str, &'static str, &'static str) {
         match self {
@@ -197,24 +268,150 @@ impl Channel {
     }
 }
 
-/// Root パーツ（`div`）。開閉状態を `data-*` へ反映する。
+/// ColorPicker の disabled/readonly/invalid/required 状態束。
+/// root/label/control/trigger/area/area-background/area-thumb/channel-input
+/// の全パーツへ [`data_disabled`]/[`data_invalid`]/[`data_readonly`] を
+/// 一律付与し、label にのみ [`data_required`] を追加で付与するために使う
+/// （[`crate::angle_slider::AngleSliderProps`] と同型のパターン）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ColorPickerProps {
+    /// 無効化状態。`true` で `data-disabled` を各パーツへ付与する。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で `data-readonly` を各パーツへ付与する。
+    /// disabled と異なり [`area_thumb`]/[`channel_slider_thumb`] の
+    /// フォーカス可能性は変えない（`tabindex="0"` のまま）。操作自体の
+    /// 抑止は `fandhe-frontend-wasm-full` 側の責務（モジュール冒頭
+    /// 「スコープ外」節参照）。
+    pub readonly: bool,
+    /// 入力検証エラー状態。`true` で `data-invalid` を各パーツへ、
+    /// [`channel_input`] には追加で `aria-invalid="true"` を付与する。
+    pub invalid: bool,
+    /// 入力必須状態。`true` で [`label`] に `data-required` を付与する
+    /// （`<input type="hidden">` である [`hidden_input`] は制約検証対象外の
+    /// ため `required` ネイティブ属性は付けない）。
+    pub required: bool,
+}
+
+/// [`ColorPickerProps`] から root/label/control/trigger/area/
+/// area-background/area-thumb/channel-input 共通の状態属性列を組み立てる
+/// 非公開ヘルパ（disabled/invalid/readonly の 3 属性、[`Channel`] の
+/// channel-slider-thumb/value-text は `data-disabled` のみを個別に使う）。
+fn state_attrs(props: &ColorPickerProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs: Vec<(&'static str, &'static str)> = Vec::new();
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_invalid(props.invalid));
+    attrs.extend(data_readonly(props.readonly));
+    attrs
+}
+
+/// [`ColorPickerProps`] が全パーツへ一律付与する属性キー一覧。呼び出し側
+/// `attrs` にこれらと同名キーが含まれていても fail-closed で除去する対象
+/// （[`crate::angle_slider::STATE_RESERVED`] と同型のパターン）。
+const STATE_RESERVED: &[&str] = &["data-disabled", "data-invalid", "data-readonly"];
+
+/// [`root`] が固定付与するキー一覧（[`STATE_RESERVED`] に `data-state` を
+/// 加えたもの）。
+const ROOT_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-state",
+];
+
+/// [`label`] が固定付与するキー一覧（[`STATE_RESERVED`] に `data-required`
+/// を加えたもの）。
+const LABEL_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-required",
+];
+
+/// [`control`]/[`trigger`] が固定付与するキー一覧（[`STATE_RESERVED`] に
+/// `data-state` を加えたもの、[`ROOT_RESERVED`] と同じ集合だが意味的に
+/// 別名を与える）。
+const STATEFUL_CONTAINER_RESERVED: &[&str] = ROOT_RESERVED;
+
+/// [`channel_slider`]/[`channel_slider_track`] が固定付与するキー一覧。
+const CHANNEL_SLIDER_RESERVED: &[&str] = &["data-channel", "data-orientation"];
+
+/// [`channel_slider_thumb`] が固定付与するキー一覧（`data-disabled` のみの
+/// 状態属性 + [`CHANNEL_SLIDER_RESERVED`]）。
+const CHANNEL_SLIDER_THUMB_RESERVED: &[&str] =
+    &["data-disabled", "data-channel", "data-orientation"];
+
+/// [`channel_input`] が固定付与するキー一覧（[`STATE_RESERVED`] に
+/// `data-channel` を加えたもの）。
+const CHANNEL_INPUT_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-channel",
+];
+
+/// [`value_text`] が固定付与するキー一覧（`data-disabled` のみ）。
+const VALUE_TEXT_RESERVED: &[&str] = &["data-disabled"];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::angle_slider::drop_reserved`]/
+/// [`crate::checkbox::drop_reserved`] と同型の重複実装。モジュール間の
+/// 相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// Root パーツ（`div`）。開閉状態と [`ColorPickerProps`] の状態束を
+/// `data-*` へ反映する。
 #[must_use]
-pub fn root<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn root<'a>(
+    state: OpenState,
+    props: &ColorPickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
 
-/// Label パーツ（`span`）。装飾用パーツ（[`crate::slider::label`] と同型）。
+/// Label パーツ（`span`）。装飾用パーツ（[`crate::slider::label`] と同型）に
+/// [`ColorPickerProps`] の状態束 + `data-required` を付与する。
 #[must_use]
-pub fn label<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("label", "span", attrs, children)
+pub fn label<'a>(
+    props: &ColorPickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, LABEL_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(data_required(props.required));
+    merged.extend(attrs);
+    ANATOMY.part("label", "span", merged, children)
 }
 
 /// Control パーツ（`div`）。トリガー・ポジショナーのコンテナ。
+/// `data-state`（trigger/content と揃える）+ [`ColorPickerProps`] の状態束を
+/// 付与する。
 #[must_use]
-pub fn control<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("control", "div", attrs, children)
+pub fn control<'a>(
+    state: OpenState,
+    props: &ColorPickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATEFUL_CONTAINER_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(state_attrs(props));
+    merged.extend(attrs);
+    ANATOMY.part("control", "div", merged, children)
 }
 
 /// Trigger パーツ（`button`）。
@@ -222,15 +419,18 @@ pub fn control<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node 
 /// フォーム内配置時の意図しない submit を防ぐため `type="button"` を固定で
 /// 付与する（[`crate::popover::trigger`] と同型の判断）。
 /// `aria-haspopup="dialog"` を固定付与し、`controls` が `Some` のとき
-/// `aria-controls` で [`content`] と関連付ける。
+/// `aria-controls` で [`content`] と関連付ける。[`ColorPickerProps`] の
+/// 状態束を付与し、`props.disabled` のときのみ `disabled` ネイティブ属性を
+/// 追加する。
 #[must_use]
 pub fn trigger<'a>(
     state: OpenState,
-    disabled: bool,
+    props: &ColorPickerProps,
     controls: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATEFUL_CONTAINER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("type", "button"),
         aria_haspopup(AriaPopup::Dialog),
@@ -240,8 +440,8 @@ pub fn trigger<'a>(
     if let Some(id) = controls {
         merged.push(("aria-controls", id));
     }
-    merged.extend(data_disabled(disabled));
-    if disabled {
+    merged.extend(state_attrs(props));
+    if props.disabled {
         merged.push(("disabled", ""));
     }
     merged.extend(attrs);
@@ -286,82 +486,120 @@ pub fn content<'a>(
 }
 
 /// Area パーツ（`div`）。彩度・明度を表す 2 次元カラー領域のコンテナ。
+/// [`ColorPickerProps`] の状態束を付与する。
 #[must_use]
-pub fn area<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("area", "div", attrs, children)
+pub fn area<'a>(
+    props: &ColorPickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("area", "div", merged, children)
 }
 
 /// AreaBackground パーツ（`div`）。CSS グラデーションの表示専用レイヤー
 /// （見た目は `fandhe-frontend-pre-styled-ui::color_picker` が組み立てる。
-/// 本関数は anatomy 属性のみを付与する装飾用パーツ、モジュール冒頭
-/// 「canvas 非依存」参照）。
+/// 本関数は anatomy と [`ColorPickerProps`] の状態束のみを付与する装飾用
+/// パーツ、モジュール冒頭「canvas 非依存」参照）。
 #[must_use]
-pub fn area_background<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("area-background", "div", attrs, children)
+pub fn area_background<'a>(
+    props: &ColorPickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("area-background", "div", merged, children)
 }
 
 /// AreaThumb パーツ（`div role="slider"`）。彩度・明度の 2 次元位置を表す
 /// thumb。`aria-valuetext` に現在色の HEX 正規形を渡す（2 次元スライダーは
 /// WAI-ARIA に単一パターンが存在しないため、`aria-label` + `aria-valuetext`
 /// で現在値を音声表現する構成、`crate::slider::thumb` の 1 次元パターンとは
-/// 意図的に異なる）。
+/// 意図的に異なる）。[`ColorPickerProps`] の状態束を付与する。
 #[must_use]
 pub fn area_thumb<'a>(
     hex: &'a str,
-    disabled: bool,
+    props: &ColorPickerProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![role("slider"), aria_label("Color"), ("aria-valuetext", hex)];
-    if disabled {
+    if props.disabled {
         merged.push(("tabindex", "-1"));
         merged.push(aria_disabled(true));
     } else {
         merged.push(("tabindex", "0"));
     }
-    merged.extend(data_disabled(disabled));
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("area-thumb", "div", merged, children)
 }
 
 /// ChannelSlider コンテナパーツ（`div`）。`channel` に応じた
 /// `data-part`（例: `"hue-slider"`）を出力する（[`Channel::parts`] 参照）。
+/// [`Channel::as_str`] 固定語彙による `data-channel` と、`orientation` に
+/// よる `data-orientation` を付与する。
 #[must_use]
 pub fn channel_slider<'a>(
     channel: Channel,
+    orientation: Orientation,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, CHANNEL_SLIDER_RESERVED);
     let (part, _, _) = channel.parts();
-    ANATOMY.part(part, "div", attrs, children)
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        ("data-channel", channel.as_str()),
+        data_orientation(orientation),
+    ];
+    merged.extend(attrs);
+    ANATOMY.part(part, "div", merged, children)
 }
 
-/// ChannelSlider の Track パーツ（`div`）。
+/// ChannelSlider の Track パーツ（`div`）。`data-channel`/`data-orientation`
+/// を付与する。
 #[must_use]
 pub fn channel_slider_track<'a>(
     channel: Channel,
+    orientation: Orientation,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, CHANNEL_SLIDER_RESERVED);
     let (_, part, _) = channel.parts();
-    ANATOMY.part(part, "div", attrs, children)
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        ("data-channel", channel.as_str()),
+        data_orientation(orientation),
+    ];
+    merged.extend(attrs);
+    ANATOMY.part(part, "div", merged, children)
 }
 
 /// ChannelSlider の Thumb パーツ（`div role="slider"`）。WAI-ARIA `slider`
-/// パターンに従い `aria-valuemin`/`aria-valuemax`/`aria-valuenow` を常に
-/// 出力する（[`crate::slider::thumb`] と同型）。
+/// パターンに従い `aria-valuemin`/`aria-valuemax`/`aria-valuenow`/
+/// `aria-orientation` を常に出力する（[`crate::slider::thumb`] と同型）。
+/// `data-channel`/`data-orientation` と `data-disabled`（[`ColorPickerProps`]
+/// のうち `disabled` のみ、ark-ui の data-readonly/invalid 付与先には
+/// channel-slider-thumb は含まれない）を付与する。
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn channel_slider_thumb<'a>(
     channel: Channel,
+    orientation: Orientation,
     min: &'a str,
     max: &'a str,
     now: &'a str,
-    disabled: bool,
+    props: &ColorPickerProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, CHANNEL_SLIDER_THUMB_RESERVED);
     let (_, _, part) = channel.parts();
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         role("slider"),
@@ -369,49 +607,81 @@ pub fn channel_slider_thumb<'a>(
         ("aria-valuemax", max),
         ("aria-valuenow", now),
         aria_label(channel.label()),
+        aria_orientation(orientation),
     ];
-    if disabled {
+    if props.disabled {
         merged.push(("tabindex", "-1"));
         merged.push(aria_disabled(true));
     } else {
         merged.push(("tabindex", "0"));
     }
-    merged.extend(data_disabled(disabled));
+    merged.extend(data_disabled(props.disabled));
+    merged.push(("data-channel", channel.as_str()));
+    merged.push(data_orientation(orientation));
     merged.extend(attrs);
     ANATOMY.part(part, "div", merged, children)
 }
 
 /// ChannelInput パーツ（`input type="text"`）。HEX 文字列の直接入力欄。
+/// `data-channel="hex"`（固定リテラル、[`Channel`] 列挙は拡張しない）と
+/// [`ColorPickerProps`] の状態束を付与する。`props.readonly` のとき
+/// `readonly` ネイティブ属性を、`props.invalid` のとき
+/// `aria-invalid="true"` を追加する（valid のときは `aria-invalid` 自体を
+/// 省略する、[`crate::field`] と同型の判断）。
 #[must_use]
-pub fn channel_input<'a>(value: &'a str, disabled: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "text"), ("value", value)];
-    if disabled {
+pub fn channel_input<'a>(
+    value: &'a str,
+    props: &ColorPickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+) -> Node {
+    let attrs = drop_reserved(attrs, CHANNEL_INPUT_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![("type", "text"), ("value", value), ("data-channel", "hex")];
+    if props.disabled {
         merged.push(("disabled", ""));
     }
-    merged.extend(data_disabled(disabled));
+    if props.readonly {
+        merged.push(("readonly", ""));
+    }
+    if props.invalid {
+        merged.push(aria_invalid(true));
+    }
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("channel-input", "input", merged, Vec::new())
 }
 
 /// ValueText パーツ（`span`）。表示テキストは `children`（呼び出し側が整形
-/// する、[`crate::slider::value_text`] と同型）。
+/// する、[`crate::slider::value_text`] と同型）。ark-ui の value-text は
+/// disabled のみを状態属性として持つため、[`ColorPickerProps`] のうち
+/// `disabled` のみを付与する。
 #[must_use]
-pub fn value_text<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("value-text", "span", attrs, children)
+pub fn value_text<'a>(
+    props: &ColorPickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, VALUE_TEXT_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(attrs);
+    ANATOMY.part("value-text", "span", merged, children)
 }
 
 /// HiddenInput パーツ（`input type="hidden"`）。フォーム送信専用、値は常に
-/// HEX 正規形（[`ColorPicker::hex`]）。
+/// HEX 正規形（[`ColorPicker::hex`]）。`props.disabled` のときのみ
+/// `disabled` ネイティブ属性を付与する（`required` は付けない、
+/// [`ColorPickerProps::required`] のドキュメント参照）。
 #[must_use]
 pub fn hidden_input<'a>(
     name: &'a str,
     value: &'a str,
-    disabled: bool,
+    props: &ColorPickerProps,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![("type", "hidden"), ("name", name), ("value", value)];
-    if disabled {
+    if props.disabled {
         merged.push(("disabled", ""));
     }
     merged.extend(attrs);
@@ -432,6 +702,11 @@ pub enum ColorPickerAction {
     SetHex(Color),
     /// 単一チャンネルの値を設定する（[`Channel::max`] の範囲検証済み）。
     SetChannel(Channel, u16),
+    /// 単一チャンネルの値を 1 だけ増加する（[`Channel::max`] へ clamp、
+    /// ラップしない）。
+    IncrementChannel(Channel),
+    /// 単一チャンネルの値を 1 だけ減少する（`0` へ clamp、ラップしない）。
+    DecrementChannel(Channel),
 }
 
 /// ColorPicker の値状態機械（HSV + アルファ + 開閉状態）。
@@ -553,34 +828,76 @@ impl ColorPicker {
         }
     }
 
+    /// 指定チャンネルへ値を設定する内部ヘルパ（[`Component::update`] の
+    /// `SetChannel`/`IncrementChannel`/`DecrementChannel` 共通処理。呼び出し
+    /// 元が事前に `0..=Channel::max()` へ収まる値を渡す契約。[`Hsv::new`]
+    /// の fail-closed コンストラクタを経由する多層防御）。
+    fn set_channel_value(&mut self, channel: Channel, value: u16) {
+        match channel {
+            Channel::Hue => {
+                if let Ok(next) = Hsv::new(value, self.hsv.s(), self.hsv.v()) {
+                    self.hsv = next;
+                }
+            }
+            Channel::Saturation => {
+                if let Ok(next) = Hsv::new(self.hsv.h(), value as u8, self.hsv.v()) {
+                    self.hsv = next;
+                }
+            }
+            Channel::Value => {
+                if let Ok(next) = Hsv::new(self.hsv.h(), self.hsv.s(), value as u8) {
+                    self.hsv = next;
+                }
+            }
+            Channel::Alpha => {
+                self.alpha = value as u8;
+            }
+        }
+    }
+
     /// [`root`] へ現在の状態を注入する利便メソッド。
     #[must_use]
-    pub fn root<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        root(self.state(), attrs, children)
+    pub fn root<'a>(
+        &self,
+        props: &ColorPickerProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        root(self.state(), props, attrs, children)
     }
 
     /// [`label`] へ委譲する利便メソッド（状態を持たない装飾用パーツ）。
     #[must_use]
-    pub fn label<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        label(attrs, children)
+    pub fn label<'a>(
+        &self,
+        props: &ColorPickerProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        label(props, attrs, children)
     }
 
-    /// [`control`] へ委譲する利便メソッド。
+    /// [`control`] へ現在の状態を注入する利便メソッド。
     #[must_use]
-    pub fn control<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        control(attrs, children)
+    pub fn control<'a>(
+        &self,
+        props: &ColorPickerProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        control(self.state(), props, attrs, children)
     }
 
     /// [`trigger`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn trigger<'a>(
         &self,
-        disabled: bool,
+        props: &ColorPickerProps,
         controls: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        trigger(self.state(), disabled, controls, attrs, children)
+        trigger(self.state(), props, controls, attrs, children)
     }
 
     /// [`positioner`] へ現在の状態を注入する利便メソッド。
@@ -602,26 +919,36 @@ impl ColorPicker {
 
     /// [`area`] へ委譲する利便メソッド。
     #[must_use]
-    pub fn area<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        area(attrs, children)
+    pub fn area<'a>(
+        &self,
+        props: &ColorPickerProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        area(props, attrs, children)
     }
 
     /// [`area_background`] へ委譲する利便メソッド。
     #[must_use]
-    pub fn area_background<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        area_background(attrs, children)
+    pub fn area_background<'a>(
+        &self,
+        props: &ColorPickerProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        area_background(props, attrs, children)
     }
 
     /// [`area_thumb`] へ現在の HEX を注入する利便メソッド。
     #[must_use]
     pub fn area_thumb<'a>(
         &self,
-        disabled: bool,
+        props: &ColorPickerProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
         let hex = self.hex();
-        area_thumb(hex.as_str(), disabled, attrs, children)
+        area_thumb(hex.as_str(), props, attrs, children)
     }
 
     /// [`channel_slider`] へ委譲する利便メソッド。
@@ -629,10 +956,11 @@ impl ColorPicker {
     pub fn channel_slider<'a>(
         &self,
         channel: Channel,
+        orientation: Orientation,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        channel_slider(channel, attrs, children)
+        channel_slider(channel, orientation, attrs, children)
     }
 
     /// [`channel_slider_track`] へ委譲する利便メソッド。
@@ -640,10 +968,11 @@ impl ColorPicker {
     pub fn channel_slider_track<'a>(
         &self,
         channel: Channel,
+        orientation: Orientation,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        channel_slider_track(channel, attrs, children)
+        channel_slider_track(channel, orientation, attrs, children)
     }
 
     /// [`channel_slider_thumb`] へ現在値を注入する利便メソッド。
@@ -651,7 +980,8 @@ impl ColorPicker {
     pub fn channel_slider_thumb<'a>(
         &self,
         channel: Channel,
-        disabled: bool,
+        orientation: Orientation,
+        props: &ColorPickerProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
@@ -660,10 +990,11 @@ impl ColorPicker {
         let now_s = self.channel_value(channel).to_string();
         channel_slider_thumb(
             channel,
+            orientation,
             min_s.as_str(),
             max_s.as_str(),
             now_s.as_str(),
-            disabled,
+            props,
             attrs,
             children,
         )
@@ -671,16 +1002,25 @@ impl ColorPicker {
 
     /// [`channel_input`] へ現在の HEX を注入する利便メソッド。
     #[must_use]
-    pub fn channel_input<'a>(&self, disabled: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
+    pub fn channel_input<'a>(
+        &self,
+        props: &ColorPickerProps,
+        attrs: Vec<(&'a str, &'a str)>,
+    ) -> Node {
         let hex = self.hex();
-        channel_input(hex.as_str(), disabled, attrs)
+        channel_input(hex.as_str(), props, attrs)
     }
 
     /// [`value_text`] へ委譲する利便メソッド（表示テキストは `children` で
     /// 呼び出し側が整形する）。
     #[must_use]
-    pub fn value_text<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        value_text(attrs, children)
+    pub fn value_text<'a>(
+        &self,
+        props: &ColorPickerProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        value_text(props, attrs, children)
     }
 
     /// [`hidden_input`] へ現在の HEX を注入する利便メソッド。
@@ -688,11 +1028,11 @@ impl ColorPicker {
     pub fn hidden_input<'a>(
         &self,
         name: &'a str,
-        disabled: bool,
+        props: &ColorPickerProps,
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
         let hex = self.hex();
-        hidden_input(name, hex.as_str(), disabled, attrs)
+        hidden_input(name, hex.as_str(), props, attrs)
     }
 }
 
@@ -704,6 +1044,8 @@ impl Component for ColorPicker {
     /// 既に検証済みだが、`update()` を直接呼ぶ経路（`decode_action` を
     /// 経由しない）でも同じ不変条件を維持する多層防御
     /// （[`crate::slider::Slider`] の `SliderAction::SetValue` と同型）。
+    /// `IncrementChannel`/`DecrementChannel` は現在値 ±1 を
+    /// `0..=Channel::max()` へ clamp する（境界では変化なし、ラップしない）。
     fn update(&mut self, action: ColorPickerAction) {
         match action {
             ColorPickerAction::Open => self.disclosure.update(DisclosureAction::Open),
@@ -717,26 +1059,18 @@ impl Component for ColorPicker {
                 if value > channel.max() {
                     return;
                 }
-                match channel {
-                    Channel::Hue => {
-                        if let Ok(next) = Hsv::new(value, self.hsv.s(), self.hsv.v()) {
-                            self.hsv = next;
-                        }
-                    }
-                    Channel::Saturation => {
-                        if let Ok(next) = Hsv::new(self.hsv.h(), value as u8, self.hsv.v()) {
-                            self.hsv = next;
-                        }
-                    }
-                    Channel::Value => {
-                        if let Ok(next) = Hsv::new(self.hsv.h(), self.hsv.s(), value as u8) {
-                            self.hsv = next;
-                        }
-                    }
-                    Channel::Alpha => {
-                        self.alpha = value as u8;
-                    }
-                }
+                self.set_channel_value(channel, value);
+            }
+            ColorPickerAction::IncrementChannel(channel) => {
+                let next = self
+                    .channel_value(channel)
+                    .saturating_add(1)
+                    .min(channel.max());
+                self.set_channel_value(channel, next);
+            }
+            ColorPickerAction::DecrementChannel(channel) => {
+                let next = self.channel_value(channel).saturating_sub(1);
+                self.set_channel_value(channel, next);
             }
         }
     }
@@ -746,10 +1080,12 @@ impl Component for ColorPicker {
     /// 利用は想定しない（[`crate::popover::Popover::view`] と同型）。
     fn view(&self) -> Node {
         let state = self.state();
+        let props = ColorPickerProps::default();
         self.root(
+            &props,
             Vec::new(),
             vec![
-                trigger(state, false, None, Vec::new(), Vec::new()),
+                trigger(state, &props, None, Vec::new(), Vec::new()),
                 positioner(
                     state,
                     Vec::new(),
@@ -763,6 +1099,8 @@ impl Component for ColorPicker {
     /// [`Color::parse_hex`] で検証し、`Err` は `None`（no-op）。
     /// `"set_channel"`: payload `"<channel>:<value>"` を固定語彙 + 厳密
     /// `u16` パース + [`Channel::max`] 範囲検証し、いずれかに失敗すれば
+    /// `None`（no-op）。`"increment"`/`"decrement"`: payload を
+    /// [`Channel::from_str`] の固定語彙のみで解釈し、未知語彙・空文字は
     /// `None`（no-op）。
     fn decode_action(name: &str, payload: &str) -> Option<ColorPickerAction> {
         match name {
@@ -781,6 +1119,8 @@ impl Component for ColorPicker {
                 }
                 Some(ColorPickerAction::SetChannel(channel, value))
             }
+            "increment" => Channel::from_str(payload).map(ColorPickerAction::IncrementChannel),
+            "decrement" => Channel::from_str(payload).map(ColorPickerAction::DecrementChannel),
             _ => None,
         }
     }
@@ -878,25 +1218,100 @@ mod tests {
         ColorPicker::new(Hsv::new(0, 100, 100).unwrap(), 255)
     }
 
+    fn none() -> ColorPickerProps {
+        ColorPickerProps::default()
+    }
+
+    fn all_states() -> ColorPickerProps {
+        ColorPickerProps {
+            disabled: true,
+            readonly: true,
+            invalid: true,
+            required: true,
+        }
+    }
+
     // --- 各パーツの data-scope/data-part/aria 出力 ---
 
     #[test]
     fn root_outputs_scope_part_and_state() {
-        let html = render(&root(OpenState::Closed, vec![], vec![]));
+        let html = render(&root(OpenState::Closed, &none(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="color-picker""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(html.contains(r#"data-state="closed""#));
     }
 
     #[test]
+    fn root_label_control_trigger_area_area_background_area_thumb_channel_input_share_state_attrs()
+    {
+        let props = all_states();
+        let root_html = render(&root(OpenState::Closed, &props, vec![], vec![]));
+        let label_html = render(&label(&props, vec![], vec![]));
+        let control_html = render(&control(OpenState::Closed, &props, vec![], vec![]));
+        let trigger_html = render(&trigger(OpenState::Closed, &props, None, vec![], vec![]));
+        let area_html = render(&area(&props, vec![], vec![]));
+        let area_bg_html = render(&area_background(&props, vec![], vec![]));
+        let area_thumb_html = render(&area_thumb("#000000", &props, vec![], vec![]));
+        let channel_input_html = render(&channel_input("#000000", &props, vec![]));
+
+        for html in [
+            &root_html,
+            &label_html,
+            &control_html,
+            &trigger_html,
+            &area_html,
+            &area_bg_html,
+            &area_thumb_html,
+            &channel_input_html,
+        ] {
+            assert!(html.contains(r#"data-disabled="""#), "{html}");
+            assert!(html.contains(r#"data-invalid="""#), "{html}");
+            assert!(html.contains(r#"data-readonly="""#), "{html}");
+        }
+
+        // label のみ data-required を持つ。
+        assert!(label_html.contains(r#"data-required="""#));
+        assert!(!root_html.contains("data-required"));
+        assert!(!control_html.contains("data-required"));
+    }
+
+    #[test]
+    fn state_attrs_are_absent_when_props_are_all_false() {
+        let html = render(&root(OpenState::Closed, &none(), vec![], vec![]));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-readonly"));
+    }
+
+    #[test]
     fn trigger_has_type_button_haspopup_dialog_and_aria_expanded() {
-        let html = render(&trigger(OpenState::Closed, false, None, vec![], vec![]));
+        let html = render(&trigger(OpenState::Closed, &none(), None, vec![], vec![]));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"aria-haspopup="dialog""#));
         assert!(html.contains(r#"aria-expanded="false""#));
 
-        let html_open = render(&trigger(OpenState::Open, false, None, vec![], vec![]));
+        let html_open = render(&trigger(OpenState::Open, &none(), None, vec![], vec![]));
         assert!(html_open.contains(r#"aria-expanded="true""#));
+    }
+
+    #[test]
+    fn trigger_disabled_adds_native_disabled_attr() {
+        let html = render(&trigger(
+            OpenState::Closed,
+            &all_states(),
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"disabled="""#));
+    }
+
+    #[test]
+    fn control_outputs_data_state() {
+        let html = render(&control(OpenState::Open, &none(), vec![], vec![]));
+        assert!(html.contains(r#"data-state="open""#));
+        let closed = render(&control(OpenState::Closed, &none(), vec![], vec![]));
+        assert!(closed.contains(r#"data-state="closed""#));
     }
 
     #[test]
@@ -916,7 +1331,7 @@ mod tests {
 
     #[test]
     fn area_thumb_has_role_slider_and_aria_valuetext() {
-        let html = render(&area_thumb("#ff0000", false, vec![], vec![]));
+        let html = render(&area_thumb("#ff0000", &none(), vec![], vec![]));
         assert!(html.contains(r#"role="slider""#));
         assert!(html.contains(r##"aria-valuetext="#ff0000""##));
         assert!(html.contains(r#"aria-label="Color""#));
@@ -925,33 +1340,69 @@ mod tests {
 
     #[test]
     fn area_thumb_disabled_sets_tabindex_negative_one() {
-        let html = render(&area_thumb("#ff0000", true, vec![], vec![]));
+        let props = ColorPickerProps {
+            disabled: true,
+            ..none()
+        };
+        let html = render(&area_thumb("#ff0000", &props, vec![], vec![]));
         assert!(html.contains(r#"tabindex="-1""#));
         assert!(html.contains(r#"aria-disabled="true""#));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
-    fn channel_slider_parts_use_expected_kebab_case_names() {
+    fn area_thumb_readonly_keeps_tabindex_zero() {
+        let props = ColorPickerProps {
+            readonly: true,
+            ..none()
+        };
+        let html = render(&area_thumb("#ff0000", &props, vec![], vec![]));
+        assert!(html.contains(r#"tabindex="0""#));
+        assert!(html.contains(r#"data-readonly="""#));
+    }
+
+    #[test]
+    fn channel_slider_parts_use_expected_kebab_case_names_and_data_channel() {
         for (channel, expected) in [
             (Channel::Hue, "hue-slider"),
             (Channel::Saturation, "saturation-slider"),
             (Channel::Value, "value-slider"),
             (Channel::Alpha, "alpha-slider"),
         ] {
-            let html = render(&channel_slider(channel, vec![], vec![]));
+            let html = render(&channel_slider(
+                channel,
+                Orientation::Horizontal,
+                vec![],
+                vec![],
+            ));
             assert!(html.contains(&format!(r#"data-part="{expected}""#)));
+            assert!(html.contains(&format!(r#"data-channel="{}""#, channel.as_str())));
+            assert!(html.contains(r#"data-orientation="horizontal""#));
         }
+    }
+
+    #[test]
+    fn channel_slider_track_outputs_data_channel_and_orientation() {
+        let html = render(&channel_slider_track(
+            Channel::Alpha,
+            Orientation::Vertical,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-part="alpha-slider-track""#));
+        assert!(html.contains(r#"data-channel="alpha""#));
+        assert!(html.contains(r#"data-orientation="vertical""#));
     }
 
     #[test]
     fn channel_slider_thumb_outputs_role_and_aria_value_triplet() {
         let html = render(&channel_slider_thumb(
             Channel::Hue,
+            Orientation::Horizontal,
             "0",
             "359",
             "120",
-            false,
+            &none(),
             vec![],
             vec![],
         ));
@@ -960,23 +1411,83 @@ mod tests {
         assert!(html.contains(r#"aria-valuemax="359""#));
         assert!(html.contains(r#"aria-valuenow="120""#));
         assert!(html.contains(r#"aria-label="Hue""#));
+        assert!(html.contains(r#"aria-orientation="horizontal""#));
+        assert!(html.contains(r#"data-channel="hue""#));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
         assert!(html.contains(r#"data-part="hue-slider-thumb""#));
     }
 
     #[test]
-    fn channel_input_outputs_type_text_and_value() {
-        let html = render(&channel_input("#3b82f6", false, vec![]));
+    fn channel_slider_thumb_only_outputs_data_disabled_not_readonly_or_invalid() {
+        let html = render(&channel_slider_thumb(
+            Channel::Hue,
+            Orientation::Horizontal,
+            "0",
+            "359",
+            "120",
+            &all_states(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(!html.contains("data-readonly"));
+        assert!(!html.contains("data-invalid"));
+    }
+
+    #[test]
+    fn channel_input_outputs_type_text_value_and_data_channel_hex() {
+        let html = render(&channel_input("#3b82f6", &none(), vec![]));
         assert!(html.contains(r#"type="text""#));
         assert!(html.contains(r##"value="#3b82f6""##));
+        assert!(html.contains(r#"data-channel="hex""#));
         assert!(html.contains(r#"data-part="channel-input""#));
     }
 
     #[test]
+    fn channel_input_readonly_adds_native_readonly_attr() {
+        let props = ColorPickerProps {
+            readonly: true,
+            ..none()
+        };
+        let html = render(&channel_input("#3b82f6", &props, vec![]));
+        assert!(html.contains(r#"readonly="""#));
+    }
+
+    #[test]
+    fn channel_input_invalid_adds_aria_invalid_true_and_valid_omits_it() {
+        let invalid_props = ColorPickerProps {
+            invalid: true,
+            ..none()
+        };
+        let html = render(&channel_input("#3b82f6", &invalid_props, vec![]));
+        assert!(html.contains(r#"aria-invalid="true""#));
+
+        let valid_html = render(&channel_input("#3b82f6", &none(), vec![]));
+        assert!(!valid_html.contains("aria-invalid"));
+    }
+
+    #[test]
+    fn value_text_only_outputs_data_disabled() {
+        let html = render(&value_text(&all_states(), vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(!html.contains("data-readonly"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-required"));
+    }
+
+    #[test]
     fn hidden_input_outputs_type_name_value() {
-        let html = render(&hidden_input("color", "#3b82f6", false, vec![]));
+        let html = render(&hidden_input("color", "#3b82f6", &none(), vec![]));
         assert!(html.contains(r#"type="hidden""#));
         assert!(html.contains(r#"name="color""#));
         assert!(html.contains(r##"value="#3b82f6""##));
+    }
+
+    #[test]
+    fn hidden_input_disabled_adds_native_disabled_attr_but_no_required() {
+        let html = render(&hidden_input("color", "#3b82f6", &all_states(), vec![]));
+        assert!(html.contains(r#"disabled="""#));
+        assert!(!html.contains("required"));
     }
 
     // --- Anatomy::part fail-closed 回帰 ---
@@ -985,12 +1496,47 @@ mod tests {
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&root(
             OpenState::Closed,
+            &none(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
         assert!(html.contains(r#"data-scope="color-picker""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn caller_supplied_state_attrs_are_dropped_and_framework_value_wins() {
+        let html = render(&root(
+            OpenState::Closed,
+            &none(),
+            vec![
+                ("data-disabled", "attacker"),
+                ("data-invalid", "attacker"),
+                ("data-readonly", "attacker"),
+                ("data-state", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
+        assert!(html.contains(r#"data-state="closed""#));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn caller_supplied_data_channel_and_orientation_are_dropped() {
+        let html = render(&channel_slider(
+            Channel::Hue,
+            Orientation::Horizontal,
+            vec![
+                ("data-channel", "attacker"),
+                ("data-orientation", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
+        assert!(html.contains(r#"data-channel="hue""#));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
     }
 
     // --- 導出 getter の決定性 ---
@@ -1116,6 +1662,68 @@ mod tests {
         assert_eq!(cp, ColorPicker::default());
     }
 
+    // --- dispatch: increment/decrement ---
+
+    #[test]
+    fn dispatch_increment_and_decrement_adjust_each_axis_by_one() {
+        let mut cp = ColorPicker::new(Hsv::new(10, 10, 10).unwrap(), 10);
+        assert!(dispatch(&mut cp, "increment", "hue"));
+        assert_eq!(cp.hsv().h(), 11);
+        assert!(dispatch(&mut cp, "decrement", "hue"));
+        assert_eq!(cp.hsv().h(), 10);
+
+        assert!(dispatch(&mut cp, "increment", "saturation"));
+        assert_eq!(cp.hsv().s(), 11);
+        assert!(dispatch(&mut cp, "decrement", "saturation"));
+        assert_eq!(cp.hsv().s(), 10);
+
+        assert!(dispatch(&mut cp, "increment", "value"));
+        assert_eq!(cp.hsv().v(), 11);
+        assert!(dispatch(&mut cp, "decrement", "value"));
+        assert_eq!(cp.hsv().v(), 10);
+
+        assert!(dispatch(&mut cp, "increment", "alpha"));
+        assert_eq!(cp.alpha_value(), 11);
+        assert!(dispatch(&mut cp, "decrement", "alpha"));
+        assert_eq!(cp.alpha_value(), 10);
+    }
+
+    #[test]
+    fn dispatch_increment_clamps_at_channel_max_without_wrapping() {
+        let mut cp = ColorPicker::new(Hsv::new(359, 100, 100).unwrap(), 255);
+        assert!(dispatch(&mut cp, "increment", "hue"));
+        assert_eq!(cp.hsv().h(), 359);
+        assert!(dispatch(&mut cp, "increment", "saturation"));
+        assert_eq!(cp.hsv().s(), 100);
+        assert!(dispatch(&mut cp, "increment", "value"));
+        assert_eq!(cp.hsv().v(), 100);
+        assert!(dispatch(&mut cp, "increment", "alpha"));
+        assert_eq!(cp.alpha_value(), 255);
+    }
+
+    #[test]
+    fn dispatch_decrement_clamps_at_zero_without_wrapping() {
+        let mut cp = ColorPicker::new(Hsv::new(0, 0, 0).unwrap(), 0);
+        assert!(dispatch(&mut cp, "decrement", "hue"));
+        assert_eq!(cp.hsv().h(), 0);
+        assert!(dispatch(&mut cp, "decrement", "saturation"));
+        assert_eq!(cp.hsv().s(), 0);
+        assert!(dispatch(&mut cp, "decrement", "value"));
+        assert_eq!(cp.hsv().v(), 0);
+        assert!(dispatch(&mut cp, "decrement", "alpha"));
+        assert_eq!(cp.alpha_value(), 0);
+    }
+
+    #[test]
+    fn dispatch_increment_decrement_rejects_unknown_or_empty_payload() {
+        let mut cp = ColorPicker::default();
+        for bogus in ["", "brightness", "hue:1", " hue", "HUE"] {
+            assert!(!dispatch(&mut cp, "increment", bogus));
+            assert!(!dispatch(&mut cp, "decrement", bogus));
+        }
+        assert_eq!(cp, ColorPicker::default());
+    }
+
     #[test]
     fn dispatch_ignores_unknown_action() {
         let mut cp = ColorPicker::default();
@@ -1130,6 +1738,18 @@ mod tests {
         let mut cp = ColorPicker::default();
         Component::update(&mut cp, ColorPickerAction::SetChannel(Channel::Hue, 999));
         assert_eq!(cp.hsv().h(), 0);
+    }
+
+    /// [`Component::update`] を直接呼んでも（`decode_action` を経由しない
+    /// 経路）`IncrementChannel`/`DecrementChannel` が境界を超えない
+    /// （多層防御の回帰）。
+    #[test]
+    fn update_increment_decrement_clamp_directly() {
+        let mut cp = ColorPicker::new(Hsv::new(359, 0, 0).unwrap(), 0);
+        Component::update(&mut cp, ColorPickerAction::IncrementChannel(Channel::Hue));
+        assert_eq!(cp.hsv().h(), 359);
+        Component::update(&mut cp, ColorPickerAction::DecrementChannel(Channel::Alpha));
+        assert_eq!(cp.alpha_value(), 0);
     }
 
     // --- SSR 状態なし初期描画 ---
@@ -1209,6 +1829,7 @@ mod tests {
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
             OpenState::Closed,
+            &none(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
             vec![],
         ));
@@ -1218,28 +1839,37 @@ mod tests {
 
     #[test]
     fn channel_input_value_payload_is_escaped_on_render() {
-        let html = render(&channel_input(ATTR_BREAK_PAYLOAD, false, vec![]));
+        let html = render(&channel_input(ATTR_BREAK_PAYLOAD, &none(), vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
 
     #[test]
     fn hidden_input_name_payload_is_escaped_on_render() {
-        let html = render(&hidden_input(ATTR_BREAK_PAYLOAD, "#ffffff", false, vec![]));
+        let html = render(&hidden_input(
+            ATTR_BREAK_PAYLOAD,
+            "#ffffff",
+            &none(),
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
 
     #[test]
     fn area_thumb_valuetext_payload_is_escaped_on_render() {
-        let html = render(&area_thumb(ATTR_BREAK_PAYLOAD, false, vec![], vec![]));
+        let html = render(&area_thumb(ATTR_BREAK_PAYLOAD, &none(), vec![], vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
 
     #[test]
     fn children_text_is_escaped_on_render() {
-        let html = render(&label(vec![], vec![text("<script>alert(1)</script>")]));
+        let html = render(&label(
+            &none(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }

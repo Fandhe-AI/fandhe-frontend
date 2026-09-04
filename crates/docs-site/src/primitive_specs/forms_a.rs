@@ -650,16 +650,20 @@ const CHECKBOX_GROUP: ComponentPageSpec = ComponentPageSpec {
 /// content/area_thumb/channel_slider_thumb の各パーツ関数）。
 fn ex_color_picker() -> Node {
     let state = OpenState::Closed;
+    let props = color_picker::ColorPickerProps::default();
     let body = vec![color_picker::root(
         state,
+        &props,
         vec![],
         vec![
-            color_picker::label(vec![], vec![text("Accent color")]),
+            color_picker::label(&props, vec![], vec![text("Accent color")]),
             color_picker::control(
+                state,
+                &props,
                 vec![],
                 vec![color_picker::trigger(
                     state,
-                    false,
+                    &props,
                     Some("cp-content-2"),
                     vec![],
                     vec![text("#22c55e")],
@@ -672,7 +676,11 @@ fn ex_color_picker() -> Node {
                     state,
                     Some("cp-content-2"),
                     vec![],
-                    vec![color_picker::value_text(vec![], vec![text("#22c55e")])],
+                    vec![color_picker::value_text(
+                        &props,
+                        vec![],
+                        vec![text("#22c55e")],
+                    )],
                 )],
             ),
         ],
@@ -683,67 +691,181 @@ fn ex_color_picker() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1604、[`CHECKBOX_CUSTOM_CSS_SNIPPET`]/
+/// `ex_checkbox_custom_css`〔#1602〕と同型のパターン）。CSS は
+/// テキストノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const COLOR_PICKER_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"color-picker\"][data-part=\"area\"] {\n  \
+  position: relative;\n  width: 100%;\n  aspect-ratio: 4 / 3;\n\
+}\n\
+[data-scope=\"color-picker\"][data-part=\"area-thumb\"] {\n  \
+  position: absolute;\n  left: var(--fandhe-color-picker-x, 0%);\n  \
+  top: var(--fandhe-color-picker-y, 0%);\n\
+}\n\
+[data-scope=\"color-picker\"][data-part=\"hue-slider-track\"] {\n  \
+  background: linear-gradient(to right, red, yellow, lime, cyan, blue, magenta, red);\n\
+}\n\
+[data-scope=\"color-picker\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"color-picker\"][data-part=\"channel-input\"][data-invalid] {\n  \
+  outline: 2px solid crimson;\n\
+}\n\
+[data-scope=\"color-picker\"][data-part=\"trigger\"][data-state=\"open\"] {\n  \
+  outline: 2px solid #333;\n\
+}\n";
+
+fn ex_color_picker_custom_css() -> Node {
+    let state = OpenState::Closed;
+    let props = color_picker::ColorPickerProps::default();
+    let markup = color_picker::root(
+        state,
+        &props,
+        vec![],
+        vec![
+            color_picker::label(&props, vec![], vec![text("Accent color")]),
+            color_picker::control(
+                state,
+                &props,
+                vec![],
+                vec![color_picker::trigger(
+                    state,
+                    &props,
+                    None,
+                    vec![],
+                    vec![text("#22c55e")],
+                )],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-disabled / data-invalid 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(COLOR_PICKER_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 const COLOR_PICKER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "root/label/control/trigger/positioner/content/area/area_background/area_thumb/channel_slider(+track/+thumb)/channel_input/value_text/hidden_input の anatomy を持ち、Disclosure（開閉）+ HSV + アルファの値状態機械と組み合わせる（color_picker.rs:1-9）。",
-        "trigger は type=\"button\" + aria-haspopup=\"dialog\" を固定付与し、controls が Some のとき aria-controls で content と関連付ける（color_picker.rs:219-247）。",
-        "content（role=\"dialog\"）・area_thumb/channel_slider_thumb（role=\"slider\"）が WAI-ARIA の該当パターンへ従う（color_picker.rs:268-277, 303-330, 351-372）。",
+        "ColorPickerProps（disabled/readonly/invalid/required）を root/label/control/trigger/area/area_background/area_thumb/channel_input へ一律付与し、label のみ data-required を追加する（イシュー #1604 参照突合、color_picker.rs:277-291）。",
+        "trigger は type=\"button\" + aria-haspopup=\"dialog\" を固定付与し、controls が Some のとき aria-controls で content と関連付ける（color_picker.rs:426-452）。",
+        "content（role=\"dialog\"）・area_thumb/channel_slider_thumb（role=\"slider\"）が WAI-ARIA の該当パターンへ従う（color_picker.rs:470-489, 524-547, 592-628）。",
+        "channel_slider(+track/+thumb) は Channel::as_str() 固定語彙による data-channel と、Orientation 引数による data-orientation（thumb には aria-orientation も）を出力する（color_picker.rs:549-628）。",
+        "channel_input は data-channel=\"hex\" 固定リテラルを出力し、readonly ネイティブ属性・aria-invalid（invalid のときのみ）を追加する（color_picker.rs:632-657）。",
+        "increment/decrement dispatch（Channel 固定語彙 payload）は現在値を ±1 し 0..=Channel::max() へ clamp する（ラップしない、color_picker.rs:1049-1103）。",
         "色領域・スライダーの見た目は CSS グラデーションと決定的な導出 getter のみで表現し、canvas/web-sys へ一切依存しない（color_picker.rs:11-18）。",
     ],
     arguments: &[
         ArgRow {
-            name: "root(state) / trigger(state) / content(state)",
+            name: "root(state) / control(state) / trigger(state) / content(state)",
             kind: "OpenState",
             default: "OpenState::Closed",
             description: "開閉状態。data-state・aria-expanded・positioner の hidden 出力の判定に使われる（同じ型のため代表 1 行に集約）。",
         },
         ArgRow {
+            name: "root/label/control/trigger/area/area_background/area_thumb/channel_input(props)",
+            kind: "&ColorPickerProps",
+            default: "&ColorPickerProps::default()",
+            description: "disabled/readonly/invalid を一律付与する（label のみ追加で required→data-required）。",
+        },
+        ArgRow {
             name: "trigger(controls)",
             kind: "Option<&str>",
             default: "None",
-            description: "Some のとき aria-controls で content と関連付ける（color_picker.rs:241-243）。",
+            description: "Some のとき aria-controls で content と関連付ける（color_picker.rs:439-441）。",
         },
         ArgRow {
             name: "area_thumb(hex)",
             kind: "&str",
             default: "",
-            description: "2 次元 slider（role=\"slider\"）の aria-valuetext。現在色の HEX 正規形（color_picker.rs:303-316）。",
+            description: "2 次元 slider（role=\"slider\"）の aria-valuetext。現在色の HEX 正規形（color_picker.rs:524-537）。",
+        },
+        ArgRow {
+            name: "channel_slider/channel_slider_track/channel_slider_thumb(channel, orientation)",
+            kind: "Channel, Orientation",
+            default: "",
+            description: "data-channel（固定語彙）と data-orientation（thumb には aria-orientation も）を出力する（color_picker.rs:549-628）。",
         },
         ArgRow {
             name: "channel_slider_thumb(min, max, now)",
             kind: "&str, &str, &str",
             default: "",
-            description: "WAI-ARIA slider パターンの aria-valuemin/aria-valuemax/aria-valuenow（color_picker.rs:356-372）。",
+            description: "WAI-ARIA slider パターンの aria-valuemin/aria-valuemax/aria-valuenow（color_picker.rs:592-628）。",
         },
         ArgRow {
-            name: "hidden_input(name, value, disabled)",
-            kind: "&str, &str, bool",
+            name: "hidden_input(name, value, props)",
+            kind: "&str, &str, &ColorPickerProps",
             default: "",
-            description: "フォーム送信用の実体（type=\"hidden\"、color_picker.rs:406 以降）。",
+            description: "フォーム送信用の実体（type=\"hidden\"、props.disabled のときのみ disabled 属性、required は付けない、color_picker.rs:676-691）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Closed trigger",
-        description: "aria-expanded=\"false\" の閉じた Color Picker trigger/content の例です。",
-        render: ex_color_picker,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Closed trigger",
+            description: "aria-expanded=\"false\" の閉じた Color Picker trigger/content の例です。",
+            render: ex_color_picker,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui 自体はスタイルを持たないため、data-* 属性セレクタで見た目を組み立てる最小例です。",
+            render: ex_color_picker_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Enter",
+            description: "trigger にフォーカス時: popover を開く（dispatch \"open\"）。channel_input にフォーカス時: HEX 文字列を確定する（dispatch \"set_hex\"）。",
+        },
+        KeyRow {
+            key: "Esc",
+            description: "content が開いているとき popover を閉じる（dispatch \"close\"）。trigger へのフォーカス復帰は呼び出し側の DOM 配線が担う（スコープ外、モジュール doc「参照突合」節参照）。",
+        },
+        KeyRow {
+            key: "ArrowLeft / ArrowRight",
+            description: "channel_slider_thumb にフォーカス時: 該当チャンネルを 1 減らす/増やす（dispatch \"decrement\"/\"increment\"、0..=Channel::max() へ clamp、ラップしない）。",
+        },
+        KeyRow {
+            key: "ArrowUp / ArrowDown",
+            description: "area_thumb にフォーカス時: 彩度・明度をそれぞれ 1 単位変化させる（dispatch \"set_channel\" で表現）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "channel_slider_thumb にフォーカス時: 最小値・最大値へ設定する（dispatch \"set_channel\" の 0/最大値ペイロードで表現、専用 dispatch は追加しない）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-haspopup=\"dialog\"",
-            description: "trigger パーツへ固定付与する（color_picker.rs:236）。",
+            description: "trigger パーツへ固定付与する（color_picker.rs:435）。",
         },
         AriaRow {
             attribute: "aria-expanded",
-            description: "trigger の開閉状態（state.is_open()）を反映する（color_picker.rs:237）。",
+            description: "trigger の開閉状態（state.is_open()）を反映する（color_picker.rs:436）。",
         },
         AriaRow {
             attribute: "role=\"dialog\"",
-            description: "content パーツへ固定付与する（color_picker.rs:277）。",
+            description: "content パーツへ固定付与する（color_picker.rs:478）。",
         },
         AriaRow {
             attribute: "role=\"slider\" / aria-valuetext",
-            description: "area_thumb・channel_slider_thumb の両方が role=\"slider\" を固定付与する（area_thumb は aria-label=\"Color\" + aria-valuetext のみ、channel_slider_thumb は aria-valuemin/max/now も付与、color_picker.rs:303-330, 351-372）。",
+            description: "area_thumb・channel_slider_thumb の両方が role=\"slider\" を固定付与する（area_thumb は aria-label=\"Color\" + aria-valuetext のみ、channel_slider_thumb は aria-valuemin/max/now + aria-orientation も付与、color_picker.rs:524-547, 592-628）。",
+        },
+        AriaRow {
+            attribute: "aria-invalid=\"true\"",
+            description: "channel_input が props.invalid のときのみ付与する（valid のときは属性自体を省略、color_picker.rs:632-657）。",
+        },
+        AriaRow {
+            attribute: "aria-disabled=\"true\"",
+            description: "area_thumb・channel_slider_thumb が props.disabled のとき tabindex=\"-1\" と対で付与する（color_picker.rs:524-547, 592-628）。",
         },
     ],
     demo: None,

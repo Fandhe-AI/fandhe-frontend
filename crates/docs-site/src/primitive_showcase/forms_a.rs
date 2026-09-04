@@ -12,7 +12,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::angle_slider::AngleSliderProps;
 use hui::checkbox::{CheckboxProps, CheckedState};
 use hui::checkbox_group;
-use hui::color_picker::{self, Channel};
+use hui::color_picker::{self, Channel, ColorPickerProps};
 use hui::combobox;
 use hui::editable::{
     self, EditMode, EditableActivationMode, EditableInputFlags, EditableInputProps,
@@ -244,16 +244,20 @@ pub(super) fn checkbox_group_section() -> Node {
 
 pub(super) fn color_picker_section() -> Node {
     let state = OpenState::Open;
+    let none = ColorPickerProps::default();
     let body = vec![color_picker::root(
         state,
+        &none,
         vec![],
         vec![
-            color_picker::label(vec![], vec![text("Color")]),
+            color_picker::label(&none, vec![], vec![text("Color")]),
             color_picker::control(
+                state,
+                &none,
                 vec![],
                 vec![color_picker::trigger(
                     state,
-                    false,
+                    &none,
                     Some("cp-content"),
                     vec![],
                     vec![text("#3366ff")],
@@ -268,38 +272,89 @@ pub(super) fn color_picker_section() -> Node {
                     vec![],
                     vec![
                         color_picker::area(
+                            &none,
                             vec![],
                             vec![
-                                color_picker::area_background(vec![], vec![]),
-                                color_picker::area_thumb("#3366ff", false, vec![], vec![]),
+                                color_picker::area_background(&none, vec![], vec![]),
+                                color_picker::area_thumb("#3366ff", &none, vec![], vec![]),
                             ],
                         ),
                         color_picker::channel_slider(
                             Channel::Hue,
+                            hui::Orientation::Horizontal,
                             vec![],
                             vec![color_picker::channel_slider_track(
                                 Channel::Hue,
+                                hui::Orientation::Horizontal,
                                 vec![],
                                 vec![color_picker::channel_slider_thumb(
                                     Channel::Hue,
+                                    hui::Orientation::Horizontal,
                                     "0",
                                     "359",
                                     "220",
-                                    false,
+                                    &none,
                                     vec![],
                                     vec![],
                                 )],
                             )],
                         ),
-                        color_picker::channel_input("#3366ff", false, vec![]),
-                        color_picker::value_text(vec![], vec![text("#3366ff")]),
-                        color_picker::hidden_input("color", "#3366ff", false, vec![]),
+                        color_picker::channel_input("#3366ff", &none, vec![]),
+                        color_picker::value_text(&none, vec![], vec![text("#3366ff")]),
+                        color_picker::hidden_input("color", "#3366ff", &none, vec![]),
                     ],
                 )],
             ),
         ],
     )];
-    demo_page("Color Picker", body)
+
+    // イシュー #1604: readonly/invalid/required を一律付与した閉状態を
+    // 第 2 インスタンスとして追加し、`data-readonly`/`data-invalid`/
+    // `data-required`（label のみ）と control の `data-state="closed"` を
+    // Demo 上に露出する（`id` は `cp-content-ro` として上の
+    // `cp-content`・`ex_color_picker` の `cp-content-2` と衝突させない）。
+    let closed = OpenState::Closed;
+    let ro = ColorPickerProps {
+        readonly: true,
+        invalid: true,
+        required: true,
+        ..ColorPickerProps::default()
+    };
+    let readonly_body = vec![color_picker::root(
+        closed,
+        &ro,
+        vec![],
+        vec![
+            color_picker::label(&ro, vec![], vec![text("Color (readonly/invalid)")]),
+            color_picker::control(
+                closed,
+                &ro,
+                vec![],
+                vec![color_picker::trigger(
+                    closed,
+                    &ro,
+                    Some("cp-content-ro"),
+                    vec![],
+                    vec![text("#3366ff")],
+                )],
+            ),
+            color_picker::positioner(
+                closed,
+                vec![],
+                vec![color_picker::content(
+                    closed,
+                    Some("cp-content-ro"),
+                    vec![],
+                    vec![
+                        color_picker::channel_input("#3366ff", &ro, vec![]),
+                        color_picker::hidden_input("color-ro", "#3366ff", &ro, vec![]),
+                    ],
+                )],
+            ),
+        ],
+    )];
+
+    demo_page("Color Picker", [body, readonly_body].concat())
 }
 
 pub(super) fn combobox_section() -> Node {
