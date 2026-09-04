@@ -40,6 +40,60 @@
 //! - ソート（呼び出し側が [`super::data::ChartData::sort_by_series`] を
 //!   事前に呼ぶ想定。本モジュールは並び順を変更しない）。
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途。
+//!
+//! # 参考サイト基準への調整（イシュー #1591）
+//!
+//! 親 Phase #1588「Themes / Charts のスタイル調整」の子。[`crate::area_chart`]
+//! （#1589）と同じ理由（参照 4 サイトにチャート部品が存在しない）で、評価軸は
+//! **内部整合のみ**（`--fandhe-*` トークン適用・ダーク時の可読性・系列色の
+//! 識別性・ラベルのコントラスト）に限定する。
+//!
+//! | 軸 | 結論 |
+//! |---|---|
+//! | サイズ | 非該当（size variant を持たない） |
+//! | バリアント / colorPalette | 非採用（参照軸なし。系列色は `chart-1` 固定） |
+//! | 色 | **是正**（下記「トラック背景のコントラスト不足」） |
+//! | 状態 `data-*` | 非該当（headless 由来の `data-*` を持たない pre-styled-only 部品） |
+//! | ダークモード | 是正（`bg-muted` 変更により light/dark 双方で改善） |
+//! | フォーカス | 非該当（表示専用、フォーカス可能要素を持たない） |
+//! | 余白・角丸・影 | **是正**（下記「余白スケール未統一」「バー右端の角丸欠落」） |
+//! | hover / disabled / トランジション | 非採用（表示専用部品、状態遷移なし） |
+//! | 内部整合（実欠陥） | **是正**（下記 3 点） |
+//!
+//! ## 是正した点
+//!
+//! - `root` の `gap` を生リテラル `0.5rem` から `var(--fandhe-space-2)`
+//!   （#1423 の余白スケール）へ統一した（値は等価）
+//! - `item` の `gap` をラベル行 → トラックの行間 `var(--fandhe-space-1-5)`
+//!   とラベル/値の列間 `var(--fandhe-space-3)` の 2 値へ分離し、行間を
+//!   締めた締まった見た目にした
+//! - `track` の背景を `--fandhe-color-bg-subtle`（light `#f7f7f7` /
+//!   dark `#1a1a1a`）から `--fandhe-color-bg-muted`（light `#eeeeee` /
+//!   dark `#242424`）へ変更し、ページ背景 `--fandhe-color-bg` との差が
+//!   ほぼ無く空トラックが視認しづらい欠陥（ダーク時に特に顕著）を是正した
+//! - `track` の `height` を `var(--fandhe-bar-list-track-height, 0.5rem)`
+//!   へ部品ローカル変数化した（[`crate::progress`] の
+//!   `--fandhe-progress-track-height` 先例、利用者による上書きを可能にする
+//!   純追加）
+//! - `bar` に `border-radius: inherit` を追加し、`track` の
+//!   `overflow: hidden` + 角丸により左端のみ丸く右端が角のまま欠ける
+//!   欠陥を是正した（[`crate::progress`] の `range` slot と同じ是正）
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - hover / disabled / focus / transition の視覚言語（表示専用部品で
+//!   インタラクティブ要素・状態遷移を持たない、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md` §3
+//!   「表示専用には付けない」）
+//! - size / variant / colorPalette 軸の新設（参照軸なし、系列色は
+//!   `chart-1` 固定のまま）
+//! - 極小値のバー最小幅（値 0 のとき幅 0 という自明な対応を崩さないため、
+//!   モジュール doc「fail-closed」節参照）
+//! - chakra-ui BarList 準拠のラベル重ね描き等 anatomy 変更（`data-part`
+//!   契約の破壊になる minor 相当の変更のため、本 issue の内部整合のみ
+//!   というスコープ外）
+//! - `track` の `border-radius` の `radius-full` 化（[`crate::charts::bar_segment`]
+//!   と角丸段を揃えるため現状の `radius-sm` を維持）
 
 use super::data::{self, ChartData};
 use super::svg::fmt_coord;
@@ -63,7 +117,13 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
-                decl("gap", "0.5rem"),
+                // イシュー #1591: 生リテラルから余白スケール（#1423）へ統一。
+                // 値自体は等価（0.5rem）。`Theme::empty()` から必要トークン
+                // のみ構築する既存利用者・`css()` 単独利用者ではテーマ CSS
+                // が注入されず未定義のままになり得るため、旧値をフォール
+                // バックとして残す（codex-review #1864 P1 指摘、
+                // theme.rs の `DEFAULT_Z_INDICES` 節と同型の対処）。
+                decl("gap", "var(--fandhe-space-2, 0.5rem)"),
                 decl("width", "100%"),
             ],
         )
@@ -73,7 +133,16 @@ fn recipe() -> SlotRecipe {
                 decl("display", "grid"),
                 decl("grid-template-columns", "minmax(0, 1fr) auto"),
                 decl("align-items", "center"),
-                decl("gap", "0.75rem"),
+                // イシュー #1591: ラベル/値の列間（0.75rem）は据え置きつつ、
+                // ラベル行 → トラックの行間（0.375rem）を締めて締まった見た目に
+                // する（row column の 2 値 shorthand、1 つのリテラルのまま）。
+                // `Theme::empty()`/`css()` 単独利用時にテーマ CSS 未注入でも
+                // 余白が消えないよう旧値をフォールバックとして残す
+                // （codex-review #1864 P1 指摘）。
+                decl(
+                    "gap",
+                    "var(--fandhe-space-1-5, 0.375rem) var(--fandhe-space-3, 0.75rem)",
+                ),
             ],
         )
         .base(
@@ -90,10 +159,16 @@ fn recipe() -> SlotRecipe {
             "track",
             vec![
                 decl("grid-column", "1 / -1"),
-                decl("background", "var(--fandhe-color-bg-subtle)"),
+                // イシュー #1591: `bg-subtle` はページ背景 `bg` との差が
+                // ほぼ無く（ダーク時に特に顕著）、空トラックが視認しづらい
+                // 欠陥を是正するため `bg-muted` へ変更した。
+                decl("background", "var(--fandhe-color-bg-muted)"),
                 decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("overflow", "hidden"),
-                decl("height", "0.5rem"),
+                // イシュー #1591: `progress.rs` の
+                // `--fandhe-progress-track-height` 先例に倣い、利用者が
+                // 上書きできる部品ローカル変数化（フォールバックは従来値）。
+                decl("height", "var(--fandhe-bar-list-track-height, 0.5rem)"),
             ],
         )
         .base(
@@ -102,6 +177,11 @@ fn recipe() -> SlotRecipe {
                 decl("height", "100%"),
                 decl("width", "var(--fandhe-bar-list-percent, 0%)"),
                 decl("background", "var(--fandhe-color-chart-1)"),
+                // イシュー #1591: `track` の `overflow: hidden` +
+                // `border-radius` により、`bar` に丸みが無いと左端のみ
+                // 丸く右端が角のまま欠けて見える（`progress.rs` の `range`
+                // slot と同じ是正）。
+                decl("border-radius", "inherit"),
             ],
         )
         .base(
@@ -307,5 +387,11 @@ mod tests {
         assert_eq!(a, b);
         assert!(!a.contains('<'));
         assert!(a.contains(r#"[data-scope="bar-list"]"#));
+        // イシュー #1591: 参考サイト基準への調整で追加した宣言を固定する。
+        assert!(a.contains("var(--fandhe-space-2, 0.5rem)"));
+        assert!(a.contains("var(--fandhe-space-1-5, 0.375rem) var(--fandhe-space-3, 0.75rem)"));
+        assert!(a.contains("var(--fandhe-color-bg-muted)"));
+        assert!(a.contains("var(--fandhe-bar-list-track-height, 0.5rem)"));
+        assert!(a.contains("border-radius: inherit"));
     }
 }

@@ -17,11 +17,19 @@ const LINE_CHART_GOLDEN_CSS: &str = r#"[data-scope="line-chart"][data-part="root
   display: block;
   width: 100%;
   height: var(--fandhe-line-chart-height, auto);
+  overflow: visible;
 }
 
 [data-scope="line-chart"][data-part="series-line"] {
   fill: none;
   stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+[data-scope="line-chart"][data-part="point"] {
+  stroke: var(--fandhe-color-bg);
+  stroke-width: 1;
 }
 
 [data-scope="line-chart"][data-part="root"].fd-line-chart--size-xs {
@@ -54,6 +62,7 @@ const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root
   display: block;
   width: 100%;
   height: var(--fandhe-area-chart-height, auto);
+  overflow: visible;
 }
 
 [data-scope="area-chart"][data-part="series-area"] {
@@ -64,6 +73,13 @@ const AREA_CHART_GOLDEN_CSS: &str = r#"[data-scope="area-chart"][data-part="root
 [data-scope="area-chart"][data-part="series-line"] {
   fill: none;
   stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+[data-scope="area-chart"][data-part="point"] {
+  stroke: var(--fandhe-color-bg);
+  stroke-width: 1;
 }
 
 [data-scope="area-chart"][data-part="root"].fd-area-chart--size-xs {
@@ -96,6 +112,7 @@ const SPARKLINE_GOLDEN_CSS: &str = r#"[data-scope="sparkline"][data-part="root"]
   display: block;
   width: auto;
   height: var(--fandhe-sparkline-height, auto);
+  overflow: visible;
 }
 
 [data-scope="sparkline"][data-part="series-area"] {
@@ -106,6 +123,13 @@ const SPARKLINE_GOLDEN_CSS: &str = r#"[data-scope="sparkline"][data-part="root"]
 [data-scope="sparkline"][data-part="series-line"] {
   fill: none;
   stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+[data-scope="sparkline"][data-part="point"] {
+  stroke: var(--fandhe-color-bg);
+  stroke-width: 1;
 }
 
 [data-scope="sparkline"][data-part="root"].fd-sparkline--size-xs {

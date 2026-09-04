@@ -58,6 +58,51 @@
 //!   #847 以降。
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
 //!   行う（[`crate::qr_code`] の先例と同じ判断）。
+//!
+//! # 参考サイト基準への調整（イシュー #1595）
+//!
+//! 親 Phase #1588「Themes / Charts のスタイル調整」の子。参照 4 サイト
+//! （chakra-ui / Ark UI / Radix Primitives / Radix Themes）にチャート部品が
+//! 存在しないため、評価軸は**内部整合のみ**（`--fandhe-*` トークン適用・
+//! ダーク時の可読性・系列色の識別性・ラベルのコントラスト）に限定する
+//! （兄弟部品 [`crate::area_chart`]（#1589）と同じ判断）。
+//!
+//! | 軸 | 結論 |
+//! |---|---|
+//! | サイズ | 現状維持（Xs〜Xl は #1681 で整備済み） |
+//! | バリアント / colorPalette | 非採用（参照軸なし。系列色は `chart-1〜6` 固定ローテーション） |
+//! | 色 | 現状維持（全宣言がトークン経由。生の色リテラルなし） |
+//! | 状態 `data-*` | 非該当（headless 由来の `data-*` を持たない pre-styled-only 部品） |
+//! | ダークモード | 追加規則なし（系列色・`--fandhe-color-bg` は dark 値定義済み） |
+//! | フォーカス | 非該当（`svg` は `role="img"` でフォーカス不可） |
+//! | 余白・角丸・影 | 非該当（線のみの SVG 描画） |
+//! | hover / disabled / トランジション | 非採用（表示専用部品、状態遷移なし） |
+//! | 内部整合（実欠陥） | **是正**（下記「是正した点」） |
+//!
+//! ## 是正した点
+//!
+//! - `plot` slot に `overflow: visible` を追加し、domain の max/min に接する
+//!   折れ線が UA 既定 `overflow: hidden` で viewBox 上下端において
+//!   `stroke-width: 2` の半分をクリップされる欠陥を、ジオメトリを変えず
+//!   CSS のみで是正した（先例: [`crate::area_chart`] #1589）
+//! - `series-line` slot に `stroke-linejoin: round` / `stroke-linecap: round`
+//!   を追加し、折れ線の鋭角部での miter 突出を抑えた
+//!   （先例: [`crate::signature_pad`] / [`crate::progress`] / [`crate::area_chart`]）
+//! - `point` slot（`n == 1` 時の点マーカー）に背景色のハロー
+//!   （`stroke: var(--fandhe-color-bg)`）を追加し、背景・隣接系列色との
+//!   識別性を高めた
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - `series-line` への `vector-effect: non-scaling-stroke` は、#1863（area-chart）
+//!   が「必要なら #1593 で横断的に」と先送りしたが #1593 は非採用のまま完了
+//!   したため、area-chart / sparkline との線幅の見え方の整合を保つべく
+//!   本 PR でも非採用とする
+//! - `view_box_from_dims` / `category_x`（[`crate::area_chart`]/[`crate::sparkline`]
+//!   と共有するヘルパ）へのパディング追加は #1599（sparkline）と競合する
+//!   ため見送った
+//! - `theme.rs` への opacity 等トークン新設は、消費者が chart 系のみで
+//!   契約テストへ波及するため見送った
 
 use crate::charts::data::ChartData;
 use crate::charts::scale::LinearScale;
@@ -162,11 +207,35 @@ fn recipe() -> SlotRecipe {
                 decl("display", "block"),
                 decl("width", "100%"),
                 decl("height", "var(--fandhe-line-chart-height, auto)"),
+                // イシュー #1595: SVG 非ルート要素は UA 既定で `overflow: hidden`
+                // となるため、domain の max/min に接する折れ線
+                // （`stroke-width: 2`）が viewBox 上下端で半分クリップされる。
+                // ジオメトリ（`view_box_from_dims`/`category_x`）は変えず、
+                // CSS のみで表示上のクリップを解除する（先例: area_chart #1589）。
+                decl("overflow", "visible"),
             ],
         )
         .base(
             "series-line",
-            vec![decl("fill", "none"), decl("stroke-width", "2")],
+            vec![
+                decl("fill", "none"),
+                decl("stroke-width", "2"),
+                // イシュー #1595: 先例 signature_pad / progress / area_chart。
+                // 折れ線の鋭角部での miter 突出を抑え、端点の見た目を整える。
+                decl("stroke-linejoin", "round"),
+                decl("stroke-linecap", "round"),
+            ],
+        )
+        .base(
+            "point",
+            // イシュー #1595: `n == 1` 時の点マーカーに背景色のハローを
+            // 付け、背景・隣接系列色との識別性を高める。
+            // `--fandhe-color-bg` はダーク時の値へトークン経由で自動追随
+            // する（`theme.rs` の DEFAULT_COLORS 選定根拠を参照）。
+            vec![
+                decl("stroke", "var(--fandhe-color-bg)"),
+                decl("stroke-width", "1"),
+            ],
         )
         // イシュー #1681: `crate::area_chart::recipe` と同一の高さ値・
         // 導出根拠（差分 54→70 の拡大則を外挿）を共有する。
@@ -438,7 +507,12 @@ mod tests {
         let b = stylesheet();
         assert_eq!(a, b);
         assert!(a.contains(r#"[data-scope="line-chart"][data-part="plot"]"#));
+        assert!(a.contains("overflow: visible"));
         assert!(a.contains(r#"[data-scope="line-chart"][data-part="series-line"]"#));
+        assert!(a.contains("stroke-linejoin: round"));
+        assert!(a.contains("stroke-linecap: round"));
+        assert!(a.contains(r#"[data-scope="line-chart"][data-part="point"]"#));
+        assert!(a.contains("stroke: var(--fandhe-color-bg)"));
     }
 
     #[test]

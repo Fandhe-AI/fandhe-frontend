@@ -58,6 +58,76 @@
 //! （`docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 B、
 //! [`super::radar_chart`] と共通）。現在の recipe に CSS 消費者はなく、
 //! 利用者側 CSS/JS が任意でフックするための識別子に留まる。
+//!
+//! # 参考サイト基準への調整（イシュー #1598）
+//!
+//! 親 Phase #1588「Themes / Charts のスタイル調整」の子。参照 4 サイト
+//! （chakra-ui / Ark UI / Radix Primitives / Radix Themes）に散布図部品が
+//! 存在しないため、評価軸は**内部整合のみ**（`--fandhe-*` トークン適用・
+//! ダーク時の可読性・系列色の識別性・データラベルのコントラスト）に
+//! 限定する。
+//!
+//! | 軸 | 結論 |
+//! |---|---|
+//! | サイズ | 非該当（`ScatterChartProps { width, height, point_radius }`
+//!   は viewBox の px 相当長で `Size` variant 軸ではない。新設は 0.x
+//!   破壊的変更＝minor バンプ対象で「内部整合のみ」の評価軸を超えるため
+//!   非採用、[`super::radar_chart`] と同じ判断） |
+//! | バリアント / colorPalette | 非採用（参照軸なし。系列色は
+//!   [`series_color_var`] による `chart-1〜6` 固定ローテーション、インライン
+//!   `fill`） |
+//! | 色 | 現状維持（全宣言がトークン経由。生の色リテラルなし） |
+//! | 状態 `data-*` | 非該当（headless-ui 由来の `data-*` を持たない
+//!   pre-styled-only 部品。`data-series` は CSS 消費者を持たない識別子の
+//!   ままとし増減しない） |
+//! | ダークモード | 現状維持（点のハロー `--fandhe-color-bg`・系列色
+//!   `chart-1〜6` は dark 値定義済み） |
+//! | フォーカス | 非該当（[`super::svg::svg_root`] が `role="img"` を付与し
+//!   フォーカス不可） |
+//! | 余白・角丸・影 | 非該当（点マーカーの SVG 描画のみ） |
+//! | hover / disabled / トランジション | 非採用（表示専用部品、
+//!   `role="img"` 配下の `<circle>` はインタラクティブ slot ではない、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md` §3。
+//!   インタラクティブな対応物は `charts::tooltip::datum`（#1866 で
+//!   hover + transition 適用済み）） |
+//! | 内部整合（実欠陥） | **是正**（下記「是正した点」） |
+//!
+//! ## 是正した点
+//!
+//! - `point` の `stroke-width` を `1px` から `1`（単位なし）へ表記統一
+//!   した。他のチャート系 `decl("stroke-width", ...)`（axis / grid /
+//!   tooltip / pie / donut / line / area / radar / sparkline）はすべて
+//!   単位なし（SVG ユーザー単位）表記であり、`1px` を使うのは scatter の
+//!   `point` のみだった。SVG では `1px` は 1 ユーザー単位として解釈される
+//!   ため描画結果に変化はなく、値は不変（#1593 legend の表記統一と同型）
+//! - `root` に `overflow: visible` を追加した。`root()` は range を
+//!   `point_radius`（`r`）だけ内側へ縮めて円本体が viewBox 内に収まる
+//!   ことを保証しているが、ハロー（`stroke-width` の半幅 0.5 ユーザー
+//!   単位）は円本体の外側に描かれるため、domain 両端の点（`cx == r`
+//!   相当）ではハローの外側 0.5 が viewBox 外へ出る。HTML 内の `<svg>` は
+//!   UA 既定 `svg:not(:root) { overflow: hidden }` のためこの部分が
+//!   クリップされていた。円本体（`fill`）は欠けないが、card 等の非
+//!   `bg` 面ではリング外縁が平らに欠けて見える。兄弟部品 line
+//!   （[`crate::line_chart`]、#1595）/ area（[`crate::area_chart`]、
+//!   #1589）の `plot` も同じ理由で `overflow: visible` を採っており、
+//!   ジオメトリ（`root()` の inset・座標）を変えずに CSS のみで整合を
+//!   取った
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - `Size` variant 軸の新設（上表「サイズ」行）
+//! - `point` への hover / transition（表示専用、`charts::tooltip::datum`
+//!   が担う）
+//! - `point` の `fill-opacity` 低減（重なり表現）: 兄弟 line / area の
+//!   `point` は不透明であり、重なり識別はハローが担う。chakra/recharts
+//!   既定も不透明
+//! - `point` への `vector-effect: non-scaling-stroke`（兄弟部品との線幅の
+//!   見え方乖離回避、#1593/#1595/#1596/#1597 と同じ判断）
+//! - 系列パレット `chart-1〜6` の dark 近接見直し（#1866/#1867/#1870 と
+//!   同じくスコープ外）
+//! - `data-series` への CSS 消費者追加（系列別スタイルは利用者側フックと
+//!   して残す、#1063 の設計）
+//!
 
 use super::data::flat_domain_pad;
 use super::scale::LinearScale;
@@ -219,18 +289,30 @@ impl Default for ScatterChartProps {
 ///
 /// 色は点ごとに [`series_color_var`] のインライン `fill` 属性で決まるため、
 /// recipe は寸法系・視認性向上の最小宣言のみを持つ（[`crate::charts::bar_chart`]
-/// と同型の「variant を持たない静的部品」判断）。
+/// と同型の「variant を持たない静的部品」判断）。`root` の
+/// `overflow: visible` と `point` の `stroke-width` 表記統一は
+/// イシュー #1598 の是正（モジュール doc「参考サイト基準への調整」節参照）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("scatter-chart", SLOTS)
         .base(
             "root",
-            vec![decl("display", "block"), decl("max-width", "100%")],
+            vec![
+                decl("display", "block"),
+                decl("max-width", "100%"),
+                // 点のハロー（`point` の `stroke-width`）半幅がドメイン端の
+                // 点で viewBox 外へはみ出すのを UA 既定 `overflow: hidden`
+                // でクリップさせない（円本体は欠けない。イシュー #1598、
+                // line/area の `plot` と同型）。
+                decl("overflow", "visible"),
+            ],
         )
         .base(
             "point",
             vec![
                 decl("stroke", "var(--fandhe-color-bg)"),
-                decl("stroke-width", "1px"),
+                // 他のチャート系 slot と同じ単位なし（SVG ユーザー単位）
+                // 表記へ統一（イシュー #1598、値は不変）。
+                decl("stroke-width", "1"),
             ],
         )
 }
@@ -539,5 +621,16 @@ mod tests {
         let css = css();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    /// イシュー #1598 の是正 2 点（モジュール doc「参考サイト基準への調整」
+    /// 節参照）を固定する。`stroke-width: 1;`（セミコロン込み）で判定し、
+    /// `stroke-width: 1px;` 形との誤一致を避ける。
+    #[test]
+    fn recipe_includes_issue_1598_corrections() {
+        let css = css();
+        assert!(css.contains("overflow: visible"));
+        assert!(css.contains("stroke-width: 1;"));
+        assert!(!css.contains("stroke-width: 1px"));
     }
 }

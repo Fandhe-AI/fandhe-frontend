@@ -37,6 +37,52 @@
 //! 積み上げ（`stackId`）・曲線補間・軸/グリッド/凡例/ツールチップは #847
 //! 以降。`examples/headless-pre-styled-ui` への追随は crates.io 公開後
 //! （[`crate::line_chart`] と同じ判断）。
+//!
+//! # 参考サイト基準への調整（イシュー #1589）
+//!
+//! 親 Phase #1588「Themes / Charts のスタイル調整」の子。参照 4 サイト
+//! （chakra-ui / Ark UI / Radix Primitives / Radix Themes）にチャート部品が
+//! 存在しないため、評価軸は**内部整合のみ**（`--fandhe-*` トークン適用・
+//! ダーク時の可読性・系列色の識別性・ラベルのコントラスト）に限定する。
+//!
+//! | 軸 | 結論 |
+//! |---|---|
+//! | サイズ | 現状維持（Xs〜Xl は #1681 で整備済み） |
+//! | バリアント / colorPalette | 非採用（参照軸なし。系列色は `chart-1〜6` 固定ローテーション） |
+//! | 色 | 現状維持（全宣言がトークン経由。`fill-opacity: 0.2` はトークン不在のため静的リテラルのまま） |
+//! | 状態 `data-*` | 非該当（headless 由来の `data-*` を持たない pre-styled-only 部品） |
+//! | ダークモード | 追加規則なし（系列色は dark 値定義済み） |
+//! | フォーカス | 非該当（`svg` は `role="img"` でフォーカス不可） |
+//! | 余白・角丸・影 | 非該当（面・線のみの SVG 描画） |
+//! | hover / disabled / トランジション | 非採用（表示専用部品、状態遷移なし） |
+//! | 内部整合（実欠陥） | **是正**（下記「viewBox 端でのストローク切れ」） |
+//!
+//! ## 是正した点
+//!
+//! - `plot` slot に `overflow: visible` を追加し、系列の折れ線が viewBox
+//!   上下端（domain の max/min）に接するときに UA 既定 `overflow: hidden`
+//!   で `stroke-width: 2` の半分がクリップされる欠陥を、ジオメトリを
+//!   変えず CSS のみで是正した
+//! - `series-line` slot に `stroke-linejoin: round` / `stroke-linecap: round`
+//!   を追加し、折れ線の鋭角部での miter 突出を抑えた（先例:
+//!   [`crate::signature_pad`] / [`crate::progress`]）
+//! - `point` slot（`n == 1` 時の点マーカー）に背景色のハロー
+//!   （`stroke: var(--fandhe-color-bg)`）を追加し、面と同色の系列色でも
+//!   輪郭を識別できるようにした
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - `series-line` への `vector-effect: non-scaling-stroke`（Xl で viewBox
+//!   が約 2 倍に拡大されると線幅も約 4px 相当になる）は、兄弟部品
+//!   [`crate::line_chart`] / `sparkline` と線幅の見え方が乖離するため
+//!   本 PR では採らない。必要になれば #1593（charts 共通）で横断的に扱う
+//! - `view_box_from_dims` / `category_x` へのパディング追加（ジオメトリ
+//!   側の是正）は、[`crate::line_chart`] / `sparkline` と共有するヘルパの
+//!   ため他 issue と競合する。CSS 側の `overflow: visible` で足りるため
+//!   見送った
+//! - `fill-opacity: 0.2` のトークン化（opacity トークン新設）は、消費者が
+//!   chart 系のみで `theme.rs` 変更が docs-site 側の契約テストへ波及する
+//!   ため見送った
 
 use crate::charts::data::ChartData;
 use crate::charts::scale::LinearScale;
@@ -111,6 +157,12 @@ fn recipe() -> SlotRecipe {
                 decl("display", "block"),
                 decl("width", "100%"),
                 decl("height", "var(--fandhe-area-chart-height, auto)"),
+                // イシュー #1589: SVG 非ルート要素は UA 既定で `overflow: hidden`
+                // となるため、domain の max/min に接する折れ線
+                // （`stroke-width: 2`）が viewBox 上下端で半分クリップされる。
+                // ジオメトリ（`view_box_from_dims`/`category_x`）は変えず、
+                // CSS のみで表示上のクリップを解除する。
+                decl("overflow", "visible"),
             ],
         )
         .base(
@@ -120,7 +172,25 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "series-line",
-            vec![decl("fill", "none"), decl("stroke-width", "2")],
+            vec![
+                decl("fill", "none"),
+                decl("stroke-width", "2"),
+                // イシュー #1589: 先例 signature_pad / progress。折れ線の
+                // 鋭角部での miter 突出を抑え、端点の見た目を整える。
+                decl("stroke-linejoin", "round"),
+                decl("stroke-linecap", "round"),
+            ],
+        )
+        .base(
+            "point",
+            // イシュー #1589: `n == 1` 時の点マーカーに背景色のハローを
+            // 付け、面と同色の系列色でも輪郭を識別できるようにする。
+            // `--fandhe-color-bg` はダーク時の値へトークン経由で自動追随
+            // する（`theme.rs` の DEFAULT_COLORS 選定根拠を参照）。
+            vec![
+                decl("stroke", "var(--fandhe-color-bg)"),
+                decl("stroke-width", "1"),
+            ],
         )
         // イシュー #1681: Xs/Xl は Sm(96)→Md(150)→Lg(220) の非等差進行
         // （差分 54→70、差分自体が 16 ずつ拡大）を両端へ同じ増分則で外挿
@@ -428,6 +498,13 @@ mod tests {
         assert_eq!(a, b);
         assert!(a.contains(r#"[data-scope="area-chart"][data-part="series-area"]"#));
         assert!(a.contains("fill-opacity: 0.2"));
+        assert!(a.contains(r#"[data-scope="area-chart"][data-part="plot"]"#));
+        assert!(a.contains("overflow: visible"));
+        assert!(a.contains(r#"[data-scope="area-chart"][data-part="series-line"]"#));
+        assert!(a.contains("stroke-linejoin: round"));
+        assert!(a.contains("stroke-linecap: round"));
+        assert!(a.contains(r#"[data-scope="area-chart"][data-part="point"]"#));
+        assert!(a.contains("stroke: var(--fandhe-color-bg)"));
     }
 
     #[test]

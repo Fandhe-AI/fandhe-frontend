@@ -149,6 +149,15 @@ impl std::error::Error for ChartError {}
 /// ため `expect` で確定させる（構築時に必ず成功することがコードから自明で
 /// あり、`unwrap()`/`panic!` 回避規約の例外条件を満たす、`theme.rs` の
 /// `Theme::default()` と同型の判断）。
+///
+/// # 観察記録（イシュー #1593、charts 共通 4 パーツのスタイル調整）
+///
+/// dark モードで `chart-1`（`#63b3ed`）と `chart-6`（`#76e4f7`）がやや近接
+/// して見えるが、`theme.rs` の 6 色パレット自体の見直しは本イシューの
+/// スコープ外とした。`theme.rs` の変更は
+/// `crates/docs-site/tests/site_css_contract.rs` 等の契約テストへ波及し、
+/// charts 以外の他部品にも影響するため（先例の PR #1863/#1864 も同じ判断で
+/// `theme.rs` を不変としている）。
 #[must_use]
 pub fn series_color_var(index: usize) -> String {
     const SLOT_COUNT: usize = 6;
