@@ -3946,15 +3946,17 @@ fn color_picker_style_dedup_attrs_and_reexported_parts_are_escaped_for_all_paylo
             "color_picker::root 呼び出し側 attrs コンテキスト",
         );
 
+        let cp_props = color_picker::ColorPickerProps::default();
+
         // (3) 再エクスポート label の children テキスト経路。
-        let html = render(&color_picker::label(vec![], vec![text(payload)]));
+        let html = render(&color_picker::label(&cp_props, vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "color_picker::label children コンテキスト");
 
         // (3) 再エクスポート hidden_input の name/value 属性値経路。
         let html = render(&color_picker::hidden_input(
             payload,
             "#ffffff",
-            false,
+            &cp_props,
             vec![],
         ));
         assert_payload_is_escaped(
@@ -3964,7 +3966,7 @@ fn color_picker_style_dedup_attrs_and_reexported_parts_are_escaped_for_all_paylo
         );
 
         // (3) 再エクスポート channel_input の value 属性値経路。
-        let html = render(&color_picker::channel_input(payload, false, vec![]));
+        let html = render(&color_picker::channel_input(payload, &cp_props, vec![]));
         assert_payload_is_escaped(
             payload,
             &html,

@@ -8468,9 +8468,12 @@ fn color_swatch_section() -> Node {
 /// （`fandhe_frontend_pre_styled_ui::color_picker` モジュール doc「canvas
 /// 非依存」参照）。
 fn color_picker_section() -> Node {
-    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::Channel;
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::{
+        Channel, ColorPickerProps,
+    };
 
     let state = ColorPicker::from_color(Color::from_rgba(Rgb::new(0x3b, 0x82, 0xf6), 0xcc));
+    let none = ColorPickerProps::default();
     // イシュー #1463: 閉状態の trigger（通常 / disabled）を Demo へ追加する。
     // 開状態の `content`（既存の `demo` 行）は positioner が `hidden` を
     // 出さない疑似的な「常に開いている」表示のため、trigger 自体は元々
@@ -8479,11 +8482,13 @@ fn color_picker_section() -> Node {
         &state,
         vec![],
         vec![
-            color_picker::label(vec![], vec![text("Color")]),
+            color_picker::label(&none, vec![], vec![text("Color")]),
             color_picker::control(
+                OpenState::Closed,
+                &none,
                 vec![],
                 vec![
-                    color_picker::channel_input(state.hex().as_str(), false, vec![]),
+                    color_picker::channel_input(state.hex().as_str(), &none, vec![]),
                     color_picker::trigger(&state, false, None, vec![], vec![]),
                 ],
             ),
@@ -8493,19 +8498,48 @@ fn color_picker_section() -> Node {
         &state,
         vec![],
         vec![
-            color_picker::label(vec![], vec![text("Color (disabled)")]),
+            color_picker::label(&none, vec![], vec![text("Color (disabled)")]),
             color_picker::control(
+                OpenState::Closed,
+                &none,
                 vec![],
                 vec![
-                    color_picker::channel_input(state.hex().as_str(), true, vec![]),
+                    color_picker::channel_input(state.hex().as_str(), &none, vec![]),
                     color_picker::trigger(&state, true, None, vec![], vec![]),
+                ],
+            ),
+        ],
+    )]);
+    // イシュー #1604: readonly/invalid/required を一律付与した閉状態を
+    // 追加し、`data-readonly`/`data-invalid`/`data-required`（label のみ）と
+    // control の `data-state="closed"` を Demo 上に露出する（#1602 の
+    // 複数インスタンス先例と同型。`id` を `cp-content-ro` として第 3 の
+    // demo・`ex_color_picker` の `cp-content-2`・自前 CSS 例と衝突させない）。
+    let ro_props = ColorPickerProps {
+        readonly: true,
+        invalid: true,
+        required: true,
+        ..ColorPickerProps::default()
+    };
+    let closed_readonly_invalid_required = row(vec![color_picker::root(
+        &state,
+        vec![],
+        vec![
+            color_picker::label(&ro_props, vec![], vec![text("Color (readonly/invalid)")]),
+            color_picker::control(
+                OpenState::Closed,
+                &ro_props,
+                vec![],
+                vec![
+                    color_picker::channel_input(state.hex().as_str(), &ro_props, vec![]),
+                    color_picker::hidden_input("color-ro", state.hex().as_str(), &ro_props, vec![]),
                 ],
             ),
         ],
     )]);
     let demo = row(vec![color_picker::content(
         state.state(),
-        None,
+        Some("cp-content"),
         vec![],
         vec![
             color_picker::area(
@@ -8541,18 +8575,20 @@ fn color_picker_section() -> Node {
                 ],
             ),
             color_picker::control(
+                state.state(),
+                &none,
                 vec![],
                 vec![
-                    color_picker::channel_input(state.hex().as_str(), false, vec![]),
-                    color_picker::value_text(vec![], vec![text(state.hex())]),
+                    color_picker::channel_input(state.hex().as_str(), &none, vec![]),
+                    color_picker::value_text(&none, vec![], vec![text(state.hex())]),
                 ],
             ),
         ],
     )]);
     section(
         "ColorPicker",
-        "HSV 色相環 + アルファ選択の静的表示です（canvas 非依存、CSS グラデーション + 検証済み割合のみで構成）。ポインタ操作の実配線は wasm 層の後続対応です。閉状態の trigger（通常 / disabled）と、開状態の content を並べています。",
-        vec![closed, closed_disabled, demo],
+        "HSV 色相環 + アルファ選択の静的表示です（canvas 非依存、CSS グラデーション + 検証済み割合のみで構成）。ポインタ操作の実配線は wasm 層の後続対応です。閉状態の trigger（通常 / disabled / readonly・invalid・required）と、開状態の content（hue/alpha スライダーに data-channel/data-orientation 付き）を並べています。",
+        vec![closed, closed_disabled, closed_readonly_invalid_required, demo],
     )
 }
 

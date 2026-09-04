@@ -236,8 +236,9 @@ use fandhe_frontend_headless_ui::color::{Color, Hsv};
 use fandhe_frontend_headless_ui::color_picker::ColorPicker;
 pub use fandhe_frontend_headless_ui::color_picker::{
     channel_input, content, control, hidden_input, label, positioner, value_text, Channel,
-    ColorPickerAction,
+    ColorPickerAction, ColorPickerProps,
 };
+use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
 /// headless `color_picker` anatomy のうち本モジュールが CSS を提供する
@@ -709,7 +710,7 @@ pub fn css() -> String {
 /// `state.root(...)` 経由の薄いラッパーとして定義する）。
 #[must_use]
 pub fn root<'a>(state: &ColorPicker, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    state.root(attrs, children)
+    state.root(&ColorPickerProps::default(), attrs, children)
 }
 
 /// styled trigger パーツを組み立てる。`--fandhe-color-picker-preview`
@@ -727,13 +728,17 @@ pub fn trigger<'a>(
     let preview = format!("--fandhe-color-picker-preview: {}", state.hex());
     let mut merged: Vec<(&str, &str)> = vec![("style", preview.as_str())];
     merged.extend(drop_style_attr(attrs));
-    state.trigger(disabled, controls, merged, children)
+    let props = ColorPickerProps {
+        disabled,
+        ..ColorPickerProps::default()
+    };
+    state.trigger(&props, controls, merged, children)
 }
 
 /// styled area パーツを組み立てる（variant を持たない単純委譲）。
 #[must_use]
 pub fn area<'a>(state: &ColorPicker, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    state.area(attrs, children)
+    state.area(&ColorPickerProps::default(), attrs, children)
 }
 
 /// styled area-background パーツを組み立てる。
@@ -749,7 +754,7 @@ pub fn area_background<'a>(
     let style = format!("--fandhe-color-picker-hue-color: {hue_hex}");
     let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
     merged.extend(drop_style_attr(attrs));
-    state.area_background(merged, children)
+    state.area_background(&ColorPickerProps::default(), merged, children)
 }
 
 /// styled area-thumb パーツを組み立てる。`--fandhe-color-picker-x`/`-y`
@@ -768,7 +773,11 @@ pub fn area_thumb<'a>(
     );
     let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
     merged.extend(drop_style_attr(attrs));
-    state.area_thumb(disabled, merged, children)
+    let props = ColorPickerProps {
+        disabled,
+        ..ColorPickerProps::default()
+    };
+    state.area_thumb(&props, merged, children)
 }
 
 /// styled channel-slider コンテナパーツを組み立てる（variant を持たない
@@ -780,7 +789,7 @@ pub fn channel_slider<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    state.channel_slider(channel, attrs, children)
+    state.channel_slider(channel, Orientation::Horizontal, attrs, children)
 }
 
 /// styled channel-slider-track パーツを組み立てる。`channel ==
@@ -802,9 +811,9 @@ pub fn channel_slider_track<'a>(
             let style = format!("--fandhe-color-picker-alpha-color: {hex}");
             let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
             merged.extend(drop_style_attr(attrs));
-            state.channel_slider_track(channel, merged, children)
+            state.channel_slider_track(channel, Orientation::Horizontal, merged, children)
         }
-        _ => state.channel_slider_track(channel, attrs, children),
+        _ => state.channel_slider_track(channel, Orientation::Horizontal, attrs, children),
     }
 }
 
@@ -832,7 +841,11 @@ pub fn channel_slider_thumb<'a>(
     let style = format!("--fandhe-color-picker-thumb-percent: {percent}%");
     let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
     merged.extend(drop_style_attr(attrs));
-    state.channel_slider_thumb(channel, disabled, merged, children)
+    let props = ColorPickerProps {
+        disabled,
+        ..ColorPickerProps::default()
+    };
+    state.channel_slider_thumb(channel, Orientation::Horizontal, &props, merged, children)
 }
 
 #[cfg(test)]
@@ -1238,7 +1251,12 @@ mod tests {
 
     #[test]
     fn reexported_label_children_are_escaped_on_render() {
-        let html = render(&label(vec![], vec![text("<script>alert(1)</script>")]));
+        let props = ColorPickerProps::default();
+        let html = render(&label(
+            &props,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
@@ -1246,7 +1264,8 @@ mod tests {
     #[test]
     fn reexported_hidden_input_name_payload_is_escaped_on_render() {
         const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
-        let html = render(&hidden_input(PAYLOAD, "#ffffff", false, vec![]));
+        let props = ColorPickerProps::default();
+        let html = render(&hidden_input(PAYLOAD, "#ffffff", &props, vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
