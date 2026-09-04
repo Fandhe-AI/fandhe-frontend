@@ -1,11 +1,48 @@
-//! NumberInput（数値入力）headless コンポーネント（イシュー #738、親 #736）。
+//! NumberInput（数値入力）headless コンポーネント（イシュー #738、親 #736。
+//! 参考サイト突合はイシュー #1613）。
 //!
 //! ark-ui の NumberInput
 //!（`.claude/skills/ark-ui/references/components/form/number-input.md`）を
 //! 参考に、Root / Label / Control / Input / IncrementTrigger /
-//! DecrementTrigger の 6 anatomy パーツと、[`fandhe_frontend_interactive::Component`]/
+//! DecrementTrigger / ValueText の 7 anatomy パーツと、
+//! [`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] を直接実装する値状態機械
 //! [`NumberInput`] を提供する。
+//!
+//! # 参考サイト突合（イシュー #1613）
+//!
+//! ark-ui/zag.js の `number-input` machine と突合し、以下を是正した:
+//!
+//! - **ValueText パーツ追加**（[`value_text`]/[`NumberInput::value_text`]）。
+//!   参照は 8 パーツ（root/label/control/input/increment-trigger/
+//!   decrement-trigger/scrubber/value-text）だが、本モジュールは Scrubber
+//!   を採らない（下記「スコープ外」節参照）ため 7 パーツとなる。
+//! - **root/control/value-text に `data-readonly`**、**label に
+//!   `data-required`**（zag と同じく label のみ）を追加。`input` は既存で
+//!   すでに両方を持つ。
+//! - **`control` に `role="group"`**、`disabled` 時 `aria-disabled="true"`、
+//!   `invalid` 時 `aria-invalid="true"` を追加（`aria-disabled`/
+//!   `aria-invalid` は WAI-ARIA のグローバル状態・プロパティであり `group`
+//!   ロールで明示的に禁止されていない。zag.js の number-input machine も
+//!   control 相当のコンテナへこれらを出力する慣行に倣う）。
+//! - **`input` に `autocomplete="off"`/`autocorrect="off"`/
+//!   `spellcheck="false"`/`aria-roledescription="numberfield"`** を追加。
+//! - **`"home"`/`"end"` dispatch**（[`NumberInputAction::SetToMin`]/
+//!   [`SetToMax`](NumberInputAction::SetToMax)）を追加（[`crate::slider::Slider`]/
+//!   [`crate::angle_slider::AngleSlider`] と同型の Home/End キー相当）。
+//!
+//! 非追随（意図的に合わせなかった差分）:
+//!
+//! - **`data-focus`/`data-scrubbing`**: インタラクション状態（transient な
+//!   フォーカス・ドラッグ操作）であり、[`crate::checkbox`] の
+//!   hover/active/focus 非追随と同じ判断で headless 層には持ち込まない。
+//! - **`pattern`/`aria-valuetext`**: zag の formatter（`Intl.NumberFormat`）に
+//!   結合した値であり、数値整形は UI コンポーネント層の責務外
+//!   （`.claude/rules/coding-rust.md` §3.23/§3.25）。`pattern` は負値・
+//!   指数表記を `str::parse::<f64>` が受理する本実装の契約と衝突するため
+//!   採らない。
+//! - **修飾キー（Shift/Alt/Ctrl+Arrow）による step 倍率**: 状態機械へ
+//!   倍率 API を追加しない（下記「スコープ外」節参照）。
 //!
 //! # `data-state` を持たない理由
 //!
@@ -21,10 +58,11 @@
 //! SSR は [`NumberInput::new`] で値を正規化してから各パーツメソッド
 //! （[`NumberInput::root`]/[`NumberInput::label`]/[`NumberInput::control`]/
 //! [`NumberInput::input`]/[`NumberInput::increment_trigger`]/
-//! [`NumberInput::decrement_trigger`]）を呼んで組み立てる。CSR/hydration は
-//! [`NumberInput`] を経由し、dispatch（`"increment"`/`"decrement"`/`"set"`/
-//! `"clear"`）で状態遷移する。`fandhe-frontend-pre-styled-ui` が本モジュールを
-//! 呼んでスタイル済み NumberInput を組み立てる想定である。
+//! [`NumberInput::decrement_trigger`]/[`NumberInput::value_text`]）を呼んで
+//! 組み立てる。CSR/hydration は [`NumberInput`] を経由し、dispatch
+//! （`"increment"`/`"decrement"`/`"set"`/`"clear"`/`"home"`/`"end"`）で状態
+//! 遷移する。`fandhe-frontend-pre-styled-ui` が本モジュールを呼んでスタイル済み
+//! NumberInput を組み立てる想定である。
 //!
 //! # 決定的な数値整形・パース（受け入れ条件）
 //!
@@ -46,7 +84,8 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - 属性名（`data-*`/`aria-*`/`type`/`role`/`inputmode`/`tabindex`）は
+//! - 属性名（`data-*`/`aria-*`/`type`/`role`/`inputmode`/`tabindex`/
+//!   `autocomplete`/`autocorrect`/`spellcheck`）は
 //!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロットへ
 //!   混入する経路はない（[`crate::anatomy`]/[`crate::aria`]/
 //!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
@@ -72,16 +111,25 @@
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - **Scrubber パーツ**: Pointer Lock API 前提（Safari 無効）のため初期実装
-//!   スコープ外とする。
-//! - **キーボード操作（ArrowUp/Down・Home/End・PageUp/Down）の DOM 配線**:
-//!   他コンポーネント同様、クライアントランタイム（`fandhe-frontend-wasm-full`）
-//!   側の後続責務とする。本モジュールは SSR 静的マークアップと dispatch
-//!   契約のみを提供する。
+//!   スコープ外とする（イシュー #1613 参照突合でも非追随を継続。
+//!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2「参照元が
+//!   primitives 層へ持ち込んでいる装飾・アニメーション・レイアウト計測の
+//!   関心は headless-ui へ持ち込まない」に該当するポインタ計測の関心
+//!   であるため）。
+//! - **キーボード操作（ArrowUp/Down・Home/End・PageUp/Down・修飾キーによる
+//!   step 倍率）の DOM 配線**: 他コンポーネント同様、クライアントランタイム
+//!   （`fandhe-frontend-wasm-full`）側の後続責務とする。本モジュールは SSR
+//!   静的マークアップと dispatch 契約（`"increment"`/`"decrement"`/`"set"`/
+//!   `"clear"`/`"home"`/`"end"`）のみを提供する。`fandhe-frontend-wasm-full`
+//!   には本コンポーネントの keydown 配線自体が存在せず（REQ-11 予算の制約）、
+//!   イシュー #1613 でも新設しない。修飾キー（Shift/Alt/Ctrl+Arrow）による
+//!   step 倍率も状態機械側の API を増やさない（`"increment"`/`"decrement"`
+//!   は常に固定 [`Self::step`] 分のみ）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::aria_invalid;
-use crate::data_attrs::{data_disabled, data_invalid};
-use fandhe_frontend_core::Node;
+use crate::data_attrs::{data_disabled, data_invalid, data_readonly, data_required};
+use fandhe_frontend_core::{text, Node};
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
 /// NumberInput の anatomy（`data-scope="number-input"`）。
@@ -147,27 +195,49 @@ fn normalize(min: f64, max: f64, step: f64, value: Option<f64>) -> (f64, f64, f6
     (min, max, step, value)
 }
 
-/// Root パーツ（`div`）。
+/// [`root`]/[`label`]/[`control`]/[`input`]/[`value_text`] が受け取る
+/// disabled/readonly/required/invalid フラグ束。4 個の独立した `bool`
+/// 引数のままだと clippy `too_many_arguments`（既定閾値 7）を超えるため、
+/// [`crate::checkbox::CheckboxFlags`] と同型の薄い構造体としてまとめる
+/// （イシュー #1613 で `input` 専用から全パーツ共通の型へ拡張）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct NumberInputFlags {
+    /// ネイティブ `disabled`・`data-disabled` を付与するかどうか。
+    pub disabled: bool,
+    /// ネイティブ `readonly`・`data-readonly` を付与するかどうか。
+    pub readonly: bool,
+    /// ネイティブ `required`・`data-required` を付与するかどうか
+    /// （[`label`] のみ、zag.js の number-input machine に倣う。他パーツは
+    /// `required` を出力しない）。
+    pub required: bool,
+    /// `aria-invalid="true"`・`data-invalid` を付与するかどうか。
+    pub invalid: bool,
+}
+
+/// Root パーツ（`div`）。`data-disabled`/`data-invalid`/`data-readonly` を
+/// [`NumberInputFlags`] から反映する（`required` は [`label`] のみ、
+/// zag.js の number-input machine に倣う）。
 #[must_use]
 pub fn root<'a>(
-    disabled: bool,
-    invalid: bool,
+    flags: NumberInputFlags,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    merged.extend(data_disabled(disabled));
-    merged.extend(data_invalid(invalid));
+    merged.extend(data_disabled(flags.disabled));
+    merged.extend(data_invalid(flags.invalid));
+    merged.extend(data_readonly(flags.readonly));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
 
 /// Label パーツ（`label`）。`input_id` を与えると `for` 属性で
 /// [`input`] と関連付ける（省略時は呼び出し側が `attrs` 経由で配線する）。
+/// `data-required` は 7 パーツ中 [`label`] のみが持つ（zag.js の
+/// number-input machine に倣う、モジュール doc「参考サイト突合」節参照）。
 #[must_use]
 pub fn label<'a>(
-    disabled: bool,
-    invalid: bool,
+    flags: NumberInputFlags,
     input_id: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
@@ -176,41 +246,43 @@ pub fn label<'a>(
     if let Some(id) = input_id {
         merged.push(("for", id));
     }
-    merged.extend(data_disabled(disabled));
-    merged.extend(data_invalid(invalid));
+    merged.extend(data_disabled(flags.disabled));
+    merged.extend(data_invalid(flags.invalid));
+    merged.extend(data_readonly(flags.readonly));
+    merged.extend(data_required(flags.required));
     merged.extend(attrs);
     ANATOMY.part("label", "label", merged, children)
 }
 
 /// Control パーツ（`div`）。[`input`] とトリガーのラッパー。
+///
+/// `role="group"`（呼び出し側 `attrs` に同名キーがあれば省略、
+/// [`has_caller_attr`] 参照）と、`disabled`/`invalid` に応じた
+/// `aria-disabled`/`aria-invalid` を追加する（イシュー #1613。この 2 属性は
+/// WAI-ARIA のグローバル状態・プロパティであり `group` ロールで明示的に
+/// 禁止されていない。zag.js の number-input machine が control 相当の
+/// コンテナへ同様に出力する慣行にも倣う）。
 #[must_use]
 pub fn control<'a>(
-    disabled: bool,
-    invalid: bool,
+    flags: NumberInputFlags,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    merged.extend(data_disabled(disabled));
-    merged.extend(data_invalid(invalid));
+    if !has_caller_attr(&attrs, "role") {
+        merged.push(("role", "group"));
+    }
+    if flags.disabled {
+        merged.push(("aria-disabled", "true"));
+    }
+    if flags.invalid {
+        merged.push(aria_invalid(true));
+    }
+    merged.extend(data_disabled(flags.disabled));
+    merged.extend(data_invalid(flags.invalid));
+    merged.extend(data_readonly(flags.readonly));
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
-}
-
-/// [`input`]/[`NumberInput::input`] が受け取る disabled/readonly/required/
-/// invalid フラグ束。4 個の独立した `bool` 引数のままだと
-/// clippy `too_many_arguments`（既定閾値 7）を超えるため、
-/// [`crate::checkbox::CheckboxFlags`] と同型の薄い構造体としてまとめる。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct NumberInputFlags {
-    /// ネイティブ `disabled`・`data-disabled` を付与するかどうか。
-    pub disabled: bool,
-    /// ネイティブ `readonly`・`data-readonly` を付与するかどうか。
-    pub readonly: bool,
-    /// ネイティブ `required`・`data-required` を付与するかどうか。
-    pub required: bool,
-    /// `aria-invalid="true"`・`data-invalid` を付与するかどうか。
-    pub invalid: bool,
 }
 
 /// Input パーツ（`input type="text" role="spinbutton"`）。
@@ -220,6 +292,12 @@ pub struct NumberInputFlags {
 /// が [`fmt_num`] で整形済みの文字列を渡す想定）が `Some` のときのみ出力する。
 /// `inputmode="decimal"` はモバイル IME に数値キーパッドを示唆するヒントで
 /// あり、実際の入力検証はクライアント側（wasm-full 層）の責務。
+///
+/// `autocomplete="off"`（呼び出し側 `attrs` に同名キーがあれば省略）・
+/// `autocorrect="off"`・`spellcheck="false"`・
+/// `aria-roledescription="numberfield"` はイシュー #1613 で ark-ui/zag.js の
+/// number-input machine と突合して追加した（ブラウザ・IME 由来の自動補完・
+/// 自動修正・スペルチェック候補が数値入力へ誤って介入するのを防ぐ）。
 #[must_use]
 pub fn input<'a>(
     name: &'a str,
@@ -234,10 +312,16 @@ pub fn input<'a>(
         ("type", "text"),
         ("inputmode", "decimal"),
         ("role", "spinbutton"),
+        ("aria-roledescription", "numberfield"),
+        ("autocorrect", "off"),
+        ("spellcheck", "false"),
         ("name", name),
         ("aria-valuemin", min),
         ("aria-valuemax", max),
     ];
+    if !has_caller_attr(&attrs, "autocomplete") {
+        merged.push(("autocomplete", "off"));
+    }
     if let Some(id) = id {
         merged.push(("id", id));
     }
@@ -259,23 +343,42 @@ pub fn input<'a>(
     }
     merged.extend(data_disabled(flags.disabled));
     merged.extend(data_invalid(flags.invalid));
-    merged.extend(crate::data_attrs::data_required(flags.required));
-    merged.extend(crate::data_attrs::data_readonly(flags.readonly));
+    merged.extend(data_required(flags.required));
+    merged.extend(data_readonly(flags.readonly));
     merged.extend(attrs);
     ANATOMY.part("input", "input", merged, Vec::new())
 }
 
-/// `attrs` に `aria-label`（大文字小文字を無視）が含まれるかどうかを判定する。
+/// ValueText パーツ（`span`、イシュー #1613 で新設）。表示テキストは
+/// `children`（呼び出し側が整形する。[`crate::slider::value_text`]/
+/// [`crate::progress::Progress::value_text`] と同型）。`data-required` は
+/// 出力しない（[`label`] のみが持つ、モジュール doc「参考サイト突合」節
+/// 参照）。
+#[must_use]
+pub fn value_text<'a>(
+    flags: NumberInputFlags,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    merged.extend(data_disabled(flags.disabled));
+    merged.extend(data_invalid(flags.invalid));
+    merged.extend(data_readonly(flags.readonly));
+    merged.extend(attrs);
+    ANATOMY.part("value-text", "span", merged, children)
+}
+
+/// `attrs` に `key`（大文字小文字を無視）が含まれるかどうかを判定する。
 ///
-/// [`increment_trigger`]/[`decrement_trigger`] が既定の `aria-label`
-/// （呼び出し側が上書き可能、モジュール doc 参照）を、呼び出し側の指定と
-/// 重複させないために使う（[`crate::progress`] の `drop_style_attr` と
+/// [`control`] の既定 `role`・[`input`] の既定 `autocomplete`・
+/// [`increment_trigger`]/[`decrement_trigger`] の既定 `aria-label`
+/// （いずれも呼び出し側が上書き可能、モジュール doc 参照）を、呼び出し側の
+/// 指定と重複させないために使う（[`crate::progress`] の `drop_style_attr` と
 /// 同型の dedup 判断、fail-closed。重複属性による無効な HTML 出力・後勝ちの
-/// 非決定的な描画を防ぐ）。
-fn has_caller_aria_label(attrs: &[(&str, &str)]) -> bool {
-    attrs
-        .iter()
-        .any(|(k, _)| k.eq_ignore_ascii_case("aria-label"))
+/// 非決定的な描画を防ぐ。イシュー #1613 で `has_caller_aria_label` から
+/// 汎用化）。
+fn has_caller_attr(attrs: &[(&str, &str)], key: &str) -> bool {
+    attrs.iter().any(|(k, _)| k.eq_ignore_ascii_case(key))
 }
 
 /// IncrementTrigger パーツ（`button type="button"`）。
@@ -296,7 +399,7 @@ pub fn increment_trigger<'a>(
     if let Some(id) = input_id {
         merged.push(("aria-controls", id));
     }
-    if !has_caller_aria_label(&attrs) {
+    if !has_caller_attr(&attrs, "aria-label") {
         merged.push(("aria-label", "increment"));
     }
     if disabled {
@@ -320,7 +423,7 @@ pub fn decrement_trigger<'a>(
     if let Some(id) = input_id {
         merged.push(("aria-controls", id));
     }
-    if !has_caller_aria_label(&attrs) {
+    if !has_caller_attr(&attrs, "aria-label") {
         merged.push(("aria-label", "decrement"));
     }
     if disabled {
@@ -344,6 +447,12 @@ pub enum NumberInputAction {
     Set(f64),
     /// 値を未入力状態（`None`）にする。
     Clear,
+    /// 値を `min` に設定する（Home キー相当、イシュー #1613。
+    /// [`crate::slider::SliderAction::SetToMin`] と同型）。
+    SetToMin,
+    /// 値を `max` に設定する（End キー相当、イシュー #1613。
+    /// [`crate::slider::SliderAction::SetToMax`] と同型）。
+    SetToMax,
 }
 
 /// NumberInput の値状態機械（ark-ui 準拠）。
@@ -415,8 +524,13 @@ impl NumberInput {
     }
 
     /// 現在値の整形済み文字列（未入力のときは空文字列）。
+    ///
+    /// イシュー #1613 で [`Self::value_text`]（[`value_text`] パーツへ
+    /// 委譲する `Node` 返却の利便メソッド）を新設したため、名前衝突回避で
+    /// `value_text()` から改称した（唯一の呼び出し元
+    /// `crates/headless-ui/tests/number_input.rs` も追随済み）。
     #[must_use]
-    pub fn value_text(&self) -> String {
+    pub fn formatted_value(&self) -> String {
         self.value.map(fmt_num).unwrap_or_default()
     }
 
@@ -453,37 +567,41 @@ impl NumberInput {
     #[must_use]
     pub fn root<'a>(
         &self,
-        disabled: bool,
-        invalid: bool,
+        flags: NumberInputFlags,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        root(disabled, invalid, attrs, children)
+        root(flags, attrs, children)
     }
 
     /// [`label`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn label<'a>(
         &self,
-        disabled: bool,
-        invalid: bool,
+        flags: NumberInputFlags,
         input_id: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        label(disabled, invalid, input_id, attrs, children)
+        label(flags, input_id, attrs, children)
     }
 
     /// [`control`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn control<'a>(
         &self,
-        disabled: bool,
-        invalid: bool,
+        flags: NumberInputFlags,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        control(disabled, invalid, attrs, children)
+        control(flags, attrs, children)
+    }
+
+    /// [`value_text`] へ現在値の整形済み文字列（[`Self::formatted_value`]）を
+    /// テキストノードとして注入する利便メソッド（イシュー #1613）。
+    #[must_use]
+    pub fn value_text<'a>(&self, flags: NumberInputFlags, attrs: Vec<(&'a str, &'a str)>) -> Node {
+        value_text(flags, attrs, vec![text(self.formatted_value())])
     }
 
     /// [`input`] へ現在の値・範囲を注入する利便メソッド。
@@ -563,6 +681,12 @@ impl Component for NumberInput {
             NumberInputAction::Clear => {
                 self.value = None;
             }
+            NumberInputAction::SetToMin => {
+                self.value = Some(self.min);
+            }
+            NumberInputAction::SetToMax => {
+                self.value = Some(self.max);
+            }
         }
     }
 
@@ -571,16 +695,18 @@ impl Component for NumberInput {
     /// と同型の判断）。公開 UI としての利用は想定しない。
     fn view(&self) -> Node {
         self.root(
-            false,
-            false,
+            NumberInputFlags::default(),
             Vec::new(),
-            vec![self.control(false, false, Vec::new(), Vec::new())],
+            vec![self.control(NumberInputFlags::default(), Vec::new(), Vec::new())],
         )
     }
 
-    /// `"increment"`/`"decrement"`: payload 不使用。`"set"`: payload を
-    /// `str::parse::<f64>()` でパースし、非有限またはパース不能な場合は
-    /// `None`（fail-closed、dispatch は no-op）。`"clear"`: payload 不使用。
+    /// `"increment"`/`"decrement"`/`"home"`/`"end"`: payload 不使用。`"set"`:
+    /// payload を `str::parse::<f64>()` でパースし、非有限またはパース不能な
+    /// 場合は `None`（fail-closed、dispatch は no-op）。`"clear"`: payload
+    /// 不使用。`"home"`/`"end"`（イシュー #1613）は
+    /// [`crate::slider::Slider::decode_action`]/
+    /// [`crate::angle_slider::AngleSlider::decode_action`] と同型のキー名。
     fn decode_action(name: &str, payload: &str) -> Option<NumberInputAction> {
         match name {
             "increment" => Some(NumberInputAction::Increment),
@@ -591,6 +717,8 @@ impl Component for NumberInput {
                 .filter(|v| v.is_finite())
                 .map(NumberInputAction::Set),
             "clear" => Some(NumberInputAction::Clear),
+            "home" => Some(NumberInputAction::SetToMin),
+            "end" => Some(NumberInputAction::SetToMax),
             _ => None,
         }
     }
@@ -725,25 +853,38 @@ mod tests {
 
     #[test]
     fn root_outputs_scope_and_part() {
-        let html = render(&root(false, false, vec![], vec![]));
+        let html = render(&root(NumberInputFlags::default(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="number-input""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("data-disabled"));
         assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-readonly"));
     }
 
     #[test]
-    fn root_disabled_invalid_true_adds_data_attrs() {
-        let html = render(&root(true, true, vec![], vec![]));
+    fn root_disabled_invalid_readonly_true_adds_data_attrs() {
+        let html = render(&root(
+            NumberInputFlags {
+                disabled: true,
+                invalid: true,
+                readonly: true,
+                required: true,
+            },
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-disabled="""#));
         assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+        // `data-required` は label のみが出す（イシュー #1613、モジュール doc
+        // 「参考サイト突合」節参照）。
+        assert!(!html.contains("data-required"));
     }
 
     #[test]
     fn label_outputs_for_when_input_id_given() {
         let html = render(&label(
-            false,
-            false,
+            NumberInputFlags::default(),
             Some("qty"),
             vec![],
             vec![text("Quantity")],
@@ -756,15 +897,63 @@ mod tests {
 
     #[test]
     fn label_omits_for_when_input_id_none() {
-        let html = render(&label(false, false, None, vec![], vec![]));
+        let html = render(&label(NumberInputFlags::default(), None, vec![], vec![]));
         assert!(!html.contains("for="));
     }
 
     #[test]
+    fn label_required_true_adds_data_required() {
+        let html = render(&label(
+            NumberInputFlags {
+                required: true,
+                ..NumberInputFlags::default()
+            },
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-required="""#));
+    }
+
+    #[test]
     fn control_outputs_scope_and_part() {
-        let html = render(&control(false, false, vec![], vec![]));
+        let html = render(&control(NumberInputFlags::default(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="number-input""#));
         assert!(html.contains(r#"data-part="control""#));
+        assert!(html.contains(r#"role="group""#));
+        assert!(!html.contains("aria-disabled"));
+        assert!(!html.contains("aria-invalid"));
+    }
+
+    #[test]
+    fn control_disabled_invalid_true_adds_aria_and_data_attrs() {
+        let html = render(&control(
+            NumberInputFlags {
+                disabled: true,
+                invalid: true,
+                readonly: true,
+                required: false,
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert!(html.contains(r#"aria-invalid="true""#));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+    }
+
+    #[test]
+    fn control_caller_role_overrides_default() {
+        let html = render(&control(
+            NumberInputFlags::default(),
+            vec![("role", "presentation")],
+            vec![],
+        ));
+        assert_eq!(html.matches("role=").count(), 1);
+        assert!(html.contains(r#"role="presentation""#));
+        assert!(!html.contains(r#"role="group""#));
     }
 
     #[test]
@@ -788,6 +977,28 @@ mod tests {
         assert!(html.contains(r#"aria-valuemax="100""#));
         assert!(!html.contains("aria-valuenow"));
         assert!(!html.contains(r#"value="#));
+        // イシュー #1613: ブラウザ/IME の自動補完・自動修正・スペル
+        // チェックの誤介入を防ぐ既定属性。
+        assert!(html.contains(r#"autocomplete="off""#));
+        assert!(html.contains(r#"autocorrect="off""#));
+        assert!(html.contains(r#"spellcheck="false""#));
+        assert!(html.contains(r#"aria-roledescription="numberfield""#));
+    }
+
+    #[test]
+    fn input_caller_autocomplete_overrides_default() {
+        let html = render(&input(
+            "qty",
+            None,
+            None,
+            "0",
+            "100",
+            NumberInputFlags::default(),
+            vec![("autocomplete", "on")],
+        ));
+        assert_eq!(html.matches("autocomplete=").count(), 1);
+        assert!(html.contains(r#"autocomplete="on""#));
+        assert!(!html.contains(r#"autocomplete="off""#));
     }
 
     #[test]
@@ -887,13 +1098,45 @@ mod tests {
         assert!(html.contains(r#"aria-label="decrement""#));
     }
 
+    // --- ValueText パーツ（イシュー #1613） ---
+
+    #[test]
+    fn value_text_outputs_scope_and_part() {
+        let html = render(&value_text(
+            NumberInputFlags::default(),
+            vec![],
+            vec![text("40")],
+        ));
+        assert!(html.contains(r#"data-scope="number-input""#));
+        assert!(html.contains(r#"data-part="value-text""#));
+        assert!(html.contains("40"));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn value_text_flags_add_data_attrs_but_not_required() {
+        let html = render(&value_text(
+            NumberInputFlags {
+                disabled: true,
+                invalid: true,
+                readonly: true,
+                required: true,
+            },
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+        assert!(!html.contains("data-required"));
+    }
+
     // --- Anatomy::part fail-closed 回帰 ---
 
     #[test]
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&root(
-            false,
-            false,
+            NumberInputFlags::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
@@ -1050,6 +1293,44 @@ mod tests {
         assert_eq!(n.value(), None);
     }
 
+    // --- "home"/"end" dispatch（イシュー #1613） ---
+
+    #[test]
+    fn dispatch_home_sets_value_to_min() {
+        let mut n = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+        assert!(dispatch(&mut n, "home", ""));
+        assert_eq!(n.value(), Some(0.0));
+    }
+
+    #[test]
+    fn dispatch_end_sets_value_to_max() {
+        let mut n = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+        assert!(dispatch(&mut n, "end", ""));
+        assert_eq!(n.value(), Some(10.0));
+    }
+
+    #[test]
+    fn dispatch_home_and_end_from_none_value() {
+        let mut n = NumberInput::new(None, 0.0, 10.0, 1.0);
+        assert!(dispatch(&mut n, "home", ""));
+        assert_eq!(n.value(), Some(0.0));
+
+        let mut n = NumberInput::new(None, 0.0, 10.0, 1.0);
+        assert!(dispatch(&mut n, "end", ""));
+        assert_eq!(n.value(), Some(10.0));
+    }
+
+    #[test]
+    fn dispatch_home_and_end_when_min_equals_max() {
+        // 退化構成（`min == max`、コンストラクタが受理する）でも "home"/"end"
+        // は一貫して成立する。
+        let mut n = NumberInput::new(Some(5.0), 5.0, 5.0, 1.0);
+        assert!(dispatch(&mut n, "home", ""));
+        assert_eq!(n.value(), Some(5.0));
+        assert!(dispatch(&mut n, "end", ""));
+        assert_eq!(n.value(), Some(5.0));
+    }
+
     /// イシュー #544 PR #570 レビュー指摘と同型の回帰: `decode_action` を
     /// 経由せず `NumberInputAction::Set` を直接構築して `update()` を呼んでも、
     /// 非有限値が `value` へ混入しない（「有限値または `None`」不変条件を
@@ -1195,8 +1476,7 @@ mod tests {
     #[test]
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
-            false,
-            false,
+            NumberInputFlags::default(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
             vec![],
         ));
@@ -1206,9 +1486,21 @@ mod tests {
     #[test]
     fn children_text_is_escaped_on_render() {
         let html = render(&label(
-            false,
-            false,
+            NumberInputFlags::default(),
             None,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    /// [`value_text`] の children も既定エスケープを経由する（イシュー #1613
+    /// で新設したパーツの XSS 回帰）。
+    #[test]
+    fn value_text_children_payload_is_escaped_on_render() {
+        let html = render(&value_text(
+            NumberInputFlags::default(),
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));

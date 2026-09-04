@@ -202,12 +202,13 @@
 //!   固定 `style` で描画し、状態機械・hydration フォーマットへの追加は
 //!   ない（詳細は [`progress`] モジュール doc の circular 節を参照）。
 //! - [`mod@number_input`]: Root / Label / Control / Input / IncrementTrigger /
-//!   DecrementTrigger の 6 anatomy パーツと、数値 `value`（`min`..=`max`、
-//!   または未入力を表す `None`）を持つ [`number_input::NumberInput`] 値状態
-//!   機械（#738、親 #736）。[`mod@progress`] と同じく `data-state` を持たず、
-//!   [`fandhe_frontend_interactive::Component`]/
+//!   DecrementTrigger / ValueText の 7 anatomy パーツ（#738、親 #736。
+//!   ValueText はイシュー #1613 の参考サイト突合で追加）と、数値 `value`
+//!   （`min`..=`max`、または未入力を表す `None`）を持つ
+//!   [`number_input::NumberInput`] 値状態機械。[`mod@progress`] と同じく
+//!   `data-state` を持たず、[`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。ark-ui の
-//!   Scrubber パーツ・キーボード操作の DOM 配線は本イシューのスコープ外
+//!   Scrubber パーツ・キーボード操作の DOM 配線は引き続きスコープ外
 //!   （[`number_input`] モジュール doc 参照）。
 //! - [`mod@rating_group`]: Root / Label / Control / Item / HiddenInput の 5
 //!   anatomy パーツと、`1..=count` の数値評価値（未評価は `None`）+ hover

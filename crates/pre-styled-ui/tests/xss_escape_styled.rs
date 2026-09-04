@@ -778,8 +778,7 @@ fn number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
 
         // 選択的再エクスポートした label の children 経路。
         let html = render(&number_input::label(
-            false,
-            false,
+            NumberInputFlags::default(),
             None,
             vec![],
             vec![text(payload)],
@@ -797,6 +796,19 @@ fn number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "number_input::input name コンテキスト");
+
+        // 選択的再エクスポートした value_text の children 経路
+        // （イシュー #1613 で headless 層に新設したパーツ）。
+        let html = render(&number_input::value_text(
+            NumberInputFlags::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "number_input::value_text children コンテキスト",
+        );
     }
 }
 

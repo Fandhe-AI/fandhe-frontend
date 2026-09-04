@@ -214,9 +214,27 @@ fn number_input_name_and_label_children_are_escaped_for_all_payloads() {
             "number_input::input の name 属性値コンテキスト",
         );
 
-        let label_node = number_input::label(false, false, None, vec![], vec![text(payload)]);
+        let label_node = number_input::label(
+            number_input::NumberInputFlags::default(),
+            None,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&label_node);
         assert_payload_is_escaped(payload, &html, "number_input::label のテキストコンテキスト");
+
+        // ValueText パーツ（イシュー #1613）: children のテキスト経路。
+        let value_text_node = number_input::value_text(
+            number_input::NumberInputFlags::default(),
+            vec![],
+            vec![text(payload)],
+        );
+        let html = render(&value_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "number_input::value_text のテキストコンテキスト",
+        );
     }
 }
 

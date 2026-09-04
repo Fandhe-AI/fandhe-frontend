@@ -3746,15 +3746,13 @@ fn number_input_section() -> Node {
         vec![],
         vec![
             number_input::label(
-                false,
-                false,
+                NumberInputFlags::default(),
                 Some("showcase-number-input-mid"),
                 vec![],
                 vec![text("Quantity")],
             ),
             number_input::control(
-                false,
-                false,
+                NumberInputFlags::default(),
                 vec![],
                 vec![
                     number_input::input(
@@ -3789,15 +3787,13 @@ fn number_input_section() -> Node {
         vec![],
         vec![
             number_input::label(
-                false,
-                false,
+                NumberInputFlags::default(),
                 Some("showcase-number-input-min"),
                 vec![],
                 vec![text("At min")],
             ),
             number_input::control(
-                false,
-                false,
+                NumberInputFlags::default(),
                 vec![],
                 vec![
                     number_input::input(
@@ -3834,15 +3830,19 @@ fn number_input_section() -> Node {
         vec![],
         vec![
             number_input::label(
-                true,
-                false,
+                NumberInputFlags {
+                    disabled: true,
+                    ..NumberInputFlags::default()
+                },
                 Some("showcase-number-input-disabled"),
                 vec![],
                 vec![text("Disabled")],
             ),
             number_input::control(
-                true,
-                false,
+                NumberInputFlags {
+                    disabled: true,
+                    ..NumberInputFlags::default()
+                },
                 vec![],
                 vec![
                     number_input::input(
@@ -3886,15 +3886,13 @@ fn number_input_section() -> Node {
         vec![],
         vec![
             number_input::label(
-                false,
-                false,
+                NumberInputFlags::default(),
                 Some("showcase-number-input-readonly"),
                 vec![],
                 vec![text("Readonly")],
             ),
             number_input::control(
-                false,
-                false,
+                NumberInputFlags::default(),
                 vec![],
                 vec![
                     number_input::input(
