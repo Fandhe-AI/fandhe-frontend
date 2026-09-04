@@ -19,7 +19,10 @@
 //! ゼロ値末尾セグメントによる `:last-child` 誤判定）を受けて
 //! `box-shadow`/`:last-child` から論理方向プロパティ
 //! （`border-inline-end`）+ `data-fandhe-bar-segment-end` 存在属性へ
-//! 是正済み（同モジュール rustdoc 参照）。
+//! 是正済み（同モジュール rustdoc 参照）。加えて codex-review/Cursor
+//! Bugbot の再指摘（値 0 の segment も border-inline-end 分の外形幅
+//! 〔1px〕を持ち、先頭・中間では後続の正値 segment を圧迫する）を受け、
+//! `data-fandhe-bar-segment-empty` 存在属性による打ち消しを追加した。
 
 use fandhe_frontend_pre_styled_ui::charts::bar_segment;
 
@@ -76,6 +79,10 @@ const BAR_SEGMENT_GOLDEN_CSS: &str = r#"[data-scope="bar-segment"][data-part="ro
 }
 
 [data-scope="bar-segment"][data-part="segment"][data-fandhe-bar-segment-end] {
+  border-inline-end: none;
+}
+
+[data-scope="bar-segment"][data-part="segment"][data-fandhe-bar-segment-empty] {
   border-inline-end: none;
 }
 "#;

@@ -66,8 +66,10 @@
 //! | 色 | 是正 1 点（下記「`bar` の track 背景」）。他は全宣言がトークン経由で現状維持 |
 //! | 状態 `data-*` | headless 由来の `data-*` は持たない。モジュール専有の
 //!   `data-fandhe-bar-segment-end`（最後の正値 segment、区切り線の内部
-//!   打ち消し用、下記「是正した点」参照）を新設した（codex-review 指摘、
-//!   イシュー #1592） |
+//!   打ち消し用）・`data-fandhe-bar-segment-empty`（値 0 の segment、同じく
+//!   区切り線の内部打ち消し用）の 2 種を新設した（下記「是正した点」参照。
+//!   前者は codex-review 指摘、後者は codex-review/Cursor Bugbot 再指摘、
+//!   いずれもイシュー #1592） |
 //! | ダークモード | 現状維持（`chart-N`・`fg`・`fg-muted`・`bg-muted` はいずれも dark 値定義済み。凡例テキストのコントラストは light `fg-muted #4a4a4a`/`bg #ffffff` ≈ 8.9:1、dark `#cccccc`/`#111111` ≈ 11.8:1 で本文 4.5:1 を満たす） |
 //! | フォーカス | 非該当（表示専用、フォーカス可能要素なし） |
 //! | 余白・角丸・影 | 是正（生リテラルを `--fandhe-space-*`/`--fandhe-radius-*` スケールへ統一。影は不使用のまま） |
@@ -98,13 +100,20 @@
 //!   先例と同型）を用いていたが、`root()` は値 0 のカテゴリも幅 0% の
 //!   segment を生成するため末尾が 0 値だと DOM 上の `:last-child` が
 //!   不可視要素に奪われ、実際の右端（可視の最後の正値セグメント）に
-//!   欠けが残る欠陥があり、同じ codex-review 指摘で是正した。値 0 の
-//!   segment（幅 0%）自体にも `border-inline-end` は変わらず出力される
-//!   （`box-sizing: border-box` の要素は自身の border 幅より小さくは
-//!   ならないため 1px 分は描画される）が、実害はない: 末尾の 0 値
-//!   segment は `bar` の `overflow: hidden` でクリップされる x=100% 位置に
-//!   あり、先頭・中間の 0 値 segment は後続の兄弟要素に描画順で
-//!   上書きされるため、いずれも視覚的に現れない。
+//!   欠けが残る欠陥があり、同じ codex-review 指摘で是正した。
+//!
+//!   **追加是正（codex-review/Cursor Bugbot 再指摘）**: 当初「値 0 の
+//!   segment（幅 0%）にも border-inline-end は出力されるが実害はない」と
+//!   記していたが誤りだった。`box-sizing: border-box` の要素は自身の
+//!   border 幅より小さくはならないため、幅 0% の segment も 1px の外形幅を
+//!   持つ。この 1px は flex row 内で他の兄弟の描画順に関係なくレイアウト
+//!   幅を消費するため、先頭・中間の 0 値 segment では後続の正値 segment を
+//!   1px 分圧迫し、末尾の 0 値 segment では `bar` の右端（RTL では左端）に
+//!   1px の隙間を生む。いずれも「比率の真正性を崩さない」（本 doc「意図的
+//!   に合わせなかった点」節）契約に反する。位置に関わらず value <= 0.0 の
+//!   すべての segment に `data-fandhe-bar-segment-empty`（本モジュール専有
+//!   の存在属性）を付与し、`data-fandhe-bar-segment-end` と同じ
+//!   `border-inline-end: none` で打ち消す（`segment()` 参照）。
 //! - **凡例のマーカー寸法・間隔**: 同 crate の [`super::legend`] と
 //!   数値が不一致だったため揃えた: `legend-marker` は `0.625rem` →
 //!   `0.75rem`、`legend-item` の `gap` は `0.375rem` →
@@ -226,6 +235,19 @@ fn recipe() -> SlotRecipe {
         .state(
             "segment",
             StateCondition::Attr("data-fandhe-bar-segment-end"),
+            vec![decl("border-inline-end", "none")],
+        )
+        // イシュー #1592 追加是正（codex-review/Cursor Bugbot 指摘）:
+        // 値 0 の segment は `border-inline-end` +
+        // `box-sizing: border-box` により幅 0% でも 1px の外形幅を持ち、
+        // 先頭・中間に現れると後続の正値 segment を 1px 分縮小させ
+        // 100% 積み上げの比率真正性を崩す（末尾でのみ無害、というモジュール
+        // doc の従来記述は誤りだった）。`data-fandhe-bar-segment-empty`
+        // （本モジュール専有の存在属性、`segment()` が value <= 0 の
+        // すべての segment に付与）で border-inline-end を無条件に打ち消す。
+        .state(
+            "segment",
+            StateCondition::Attr("data-fandhe-bar-segment-empty"),
             vec![decl("border-inline-end", "none")],
         )
         .base(
@@ -372,6 +394,12 @@ fn segment(idx: usize, value: f64, series: &data::Series, is_last_visible: bool)
         // 先例と同型の空値存在属性）。
         attrs.push(("data-fandhe-bar-segment-end", ""));
     }
+    if value <= 0.0 {
+        // イシュー #1592 追加是正（codex-review/Cursor Bugbot 指摘）:
+        // 値 0 の segment が border-inline-end 分の外形幅（1px）を持たない
+        // よう、位置（先頭・中間・末尾）に関わらず打ち消し属性を付ける。
+        attrs.push(("data-fandhe-bar-segment-empty", ""));
+    }
     ANATOMY.part("segment", "div", attrs, vec![])
 }
 
@@ -477,6 +505,51 @@ mod tests {
             "segment[1]: {}",
             segment_divs[1]
         );
+    }
+
+    #[test]
+    fn root_marks_leading_and_middle_zero_segments_as_empty() {
+        // イシュー #1592 追加是正の回帰テスト（codex-review/Cursor Bugbot
+        // 再指摘）: 先頭・中間に 0 値カテゴリがあるとき、それぞれの
+        // segment に `data-fandhe-bar-segment-empty` が付き、区切り線
+        // （border-inline-end）が内部で打ち消されることを固定する。
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new("s", vec![0.0, 0.0, 100.0])],
+        )
+        .unwrap();
+        let html = render(&root(&data, "s").unwrap());
+        let segment_divs: Vec<&str> = html
+            .split("<div data-scope=\"bar-segment\" data-part=\"segment\"")
+            .skip(1)
+            .collect();
+        assert_eq!(segment_divs.len(), 3, "html: {html}");
+        // 先頭（index 0、0%）: empty 属性あり、end 属性なし。
+        assert!(
+            segment_divs[0].contains("--fandhe-bar-segment-percent: 0%")
+                && segment_divs[0].contains("data-fandhe-bar-segment-empty")
+                && !segment_divs[0].contains("data-fandhe-bar-segment-end"),
+            "segment[0]: {}",
+            segment_divs[0]
+        );
+        // 中間（index 1、0%）: 同様に empty 属性あり、end 属性なし。
+        assert!(
+            segment_divs[1].contains("--fandhe-bar-segment-percent: 0%")
+                && segment_divs[1].contains("data-fandhe-bar-segment-empty")
+                && !segment_divs[1].contains("data-fandhe-bar-segment-end"),
+            "segment[1]: {}",
+            segment_divs[1]
+        );
+        // 末尾（index 2、100%、最後の正値）: end 属性あり、empty 属性なし。
+        assert!(
+            segment_divs[2].contains("--fandhe-bar-segment-percent: 100%")
+                && segment_divs[2].contains("data-fandhe-bar-segment-end")
+                && !segment_divs[2].contains("data-fandhe-bar-segment-empty"),
+            "segment[2]: {}",
+            segment_divs[2]
+        );
+        assert_eq!(html.matches("data-fandhe-bar-segment-empty").count(), 2);
+        assert_eq!(html.matches("data-fandhe-bar-segment-end").count(), 1);
     }
 
     #[test]
@@ -594,6 +667,7 @@ mod tests {
         // 可視セグメント」判定（data 属性）を固定する。
         assert!(a.contains("border-inline-end: 1px solid var(--fandhe-color-bg)"));
         assert!(a.contains(r#"[data-fandhe-bar-segment-end]"#));
+        assert!(a.contains(r#"[data-fandhe-bar-segment-empty]"#));
         assert!(a.contains("border-inline-end: none"));
         assert!(a.contains("var(--fandhe-radius-full, 9999px)"));
         assert!(a.contains("var(--fandhe-space-2, 0.5rem)"));
