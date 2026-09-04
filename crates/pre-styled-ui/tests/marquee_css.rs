@@ -27,7 +27,7 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
   gap: var(--fandhe-marquee-gap, var(--fandhe-space-4));
   position: relative;
   box-sizing: border-box;
-  padding-block: var(--fandhe-marquee-padding-y, var(--fandhe-space-2));
+  padding-block: var(--fandhe-marquee-padding-y, 0);
   color: var(--fandhe-color-fg);
   background: var(--fandhe-marquee-bg, transparent);
   border: var(--fandhe-marquee-border, none);

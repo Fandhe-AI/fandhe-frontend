@@ -191,8 +191,9 @@
 //!   保ったまま最小のレイアウト変更で成立させる選択（`scroll_area.rs` の
 //!   viewport と同じトークン組で `scrollbar-width`/`scrollbar-color` を
 //!   与える）。
-//! - `root` に既定の枠（`padding-block`）と opt-in の見た目
-//!   （`background`/`border`/`border-radius`）を追加した。`padding-inline`
+//! - `root` に opt-in の枠（`padding-block`/`background`/`border`/
+//!   `border-radius`、いずれも custom property 未指定時は中立値で
+//!   既存の見た目を変えない）を追加した。`padding-inline`
 //!   は付けない（`overflow: hidden` のクリップは padding box 境界のため、
 //!   横方向の padding は横マーキーでは視覚上無意味）。`border` は
 //!   `var(--fandhe-marquee-border, none)` のように値全体を custom property
@@ -229,8 +230,8 @@
 //!
 //! ## `--fandhe-marquee-*` custom property 一覧への追加（本イシュー）
 //!
-//! - `--fandhe-marquee-padding-y`（既定 `var(--fandhe-space-2)`）: `root`
-//!   の上下 padding。
+//! - `--fandhe-marquee-padding-y`（既定 `0`。opt-in で
+//!   `var(--fandhe-space-2)` 等を指定する想定）: `root` の上下 padding。
 //! - `--fandhe-marquee-bg`（既定 `transparent`）: `root` の背景。
 //! - `--fandhe-marquee-border`（既定 `none`）: `root` の枠線（値全体を
 //!   custom property 化）。
@@ -333,7 +334,7 @@ fn recipe() -> SlotRecipe {
                 decl("box-sizing", "border-box"),
                 decl(
                     "padding-block",
-                    "var(--fandhe-marquee-padding-y, var(--fandhe-space-2))",
+                    "var(--fandhe-marquee-padding-y, 0)",
                 ),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("background", "var(--fandhe-marquee-bg, transparent)"),
@@ -825,9 +826,7 @@ mod tests {
     #[test]
     fn css_output_root_frame_uses_theme_tokens_with_neutral_fallbacks() {
         let out = css();
-        assert!(
-            out.contains("padding-block: var(--fandhe-marquee-padding-y, var(--fandhe-space-2));")
-        );
+        assert!(out.contains("padding-block: var(--fandhe-marquee-padding-y, 0);"));
         assert!(out.contains("color: var(--fandhe-color-fg);"));
         assert!(out.contains("background: var(--fandhe-marquee-bg, transparent);"));
         assert!(out.contains("border: var(--fandhe-marquee-border, none);"));

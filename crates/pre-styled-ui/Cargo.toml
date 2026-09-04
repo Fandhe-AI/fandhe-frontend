@@ -1190,6 +1190,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 公開 Rust API のシグネチャ変更を伴わない CSS 出力変更のみのため、
 # `version-bump-exempt:` は適用せず 0.78.2 へ patch バンプする。
 #
+# PR #1856 codex-review P1 是正: `--fandhe-marquee-padding-y` のフォール
+# バックが `var(--fandhe-space-2)` になっており、opt-in の枠が既定で
+# 上下 padding を強制していた（「既定は中立値・opt-in」という公開説明と
+# 矛盾）。フォールバックを中立値 `0` へ修正した。version は未公開の
+# 0.78.2 内の是正のためこの修正単独でのバンプは行わない。
+#
 # マージ時の追記: #1580（HEAD）と #1582（main）はいずれも merge base
 # 0.78.0 から独立に 0.78.1 へ patch バンプしていた。version 行の
 # コンフリクトのため `docs/ci/style-refresh-version-bump-operation.md`
