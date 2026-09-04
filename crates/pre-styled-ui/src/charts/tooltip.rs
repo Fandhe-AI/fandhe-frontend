@@ -14,19 +14,69 @@
 //!    JS 不要）
 //! 2. `aria-label` 属性（スクリーンリーダー向け、`<title>` と同一文字列）
 //! 3. [`crate::recipe::StateCondition::Hover`] による `:hover` 時の視覚的
-//!    強調（`stroke`/`stroke-width` 変更、CSS のみ。SVG の既定 `stroke` は
-//!    `none` のため `stroke-width` 単独では効果がなく、明示的な `stroke`
-//!    色の指定を必須とする。イシュー #1425 で当該規則は
+//!    強調（`stroke`/`stroke-width` 変更、CSS のみ。base で背景色ハロー
+//!    （`stroke: var(--fandhe-color-bg)`）を敷いてから hover で前景色
+//!    （`--fandhe-color-fg`）へ切り替える方式とし、SVG の既定 `stroke: none`
+//!    に依存しない。イシュー #1425 で当該規則は
 //!    `@media (hover: hover)` 内・セレクタ末尾 `:not([data-disabled])` 付き
 //!    で出力される形へ変更された。タッチ端末での hover 貼り付き回避と
 //!    disabled 規則との勝敗を記述順に依存させないための共通対策であり、
-//!    本モジュールのコード自体は無変更）
+//!    本モジュールのコード自体は無変更。ただし #1593 で base に背景色ハローと transition を追加している）
 //!
 //! を組み合わせて埋め込み、JS なしで「ホバーで詳細が分かる」体験を実現する。
+//!
+//! `stroke`/`stroke-width` は本モジュールの CSS が専有する。呼び出し側
+//! （[`datum`]）は `fill` 等の見た目属性のみを渡す契約とし、CSS 側で
+//! `fill` を宣言しない（SVG ではプレゼンテーション属性より CSS の
+//! `fill`/`stroke` が優先されるため、CSS で `fill` を書くと呼び出し側の
+//! 系列色指定が潰れる）。
+//!
+//! # 参考サイト基準への調整（イシュー #1593）
+//!
+//! 参照 4 サイト（ark-ui / chakra-ui / Radix Primitives / Radix Themes）に
+//! 対応部品が無いため、評価軸は内部整合のみとした。
+//!
+//! | 観点 | 判定 |
+//! |---|---|
+//! | サイズ / バリアント / colorPalette | 非該当（表示専用・参照軸なし） |
+//! | 色 | 是正（hover ストローク色を `--fandhe-color-accent-emphasized` から `--fandhe-color-fg` へ） |
+//! | 状態・`data-*` | 変更なし |
+//! | ダーク | 是正（`accent-emphasized` の dark 値 `#63b3ed` が `chart-1` の dark 値と同一で hover 強調が消える問題を解消） |
+//! | フォーカス | 非該当（`tabindex` 付与は anatomy 変更のため別判断） |
+//! | 余白・角丸・影 | 非該当 |
+//! | hover / disabled / transition | 是正（`transition_declarations` 未導入だったため追加） |
+//! | 内部整合 | 是正（隣接・重なった異系列データ点の識別のため base に背景色ハローを追加） |
+//!
+//! ## 是正した点
+//!
+//! - **hover ストローク色**: `--fandhe-color-accent-emphasized` は dark で
+//!   `#63b3ed` を返し、6 系列パレットの `chart-1`（dark `#63b3ed`）と
+//!   完全一致するため、ダークテーマで系列 1 のデータ点は hover 強調が
+//!   視覚的に消えていた。`--fandhe-color-fg` は light/dark とも背景との
+//!   コントラスト比が高く（約 15:1）、6 系列色のいずれとも一致しない
+//!   ため採用した（`--fandhe-color-focus-ring`（focus-ring 色トークン）は dark で同じ `#63b3ed`
+//!   衝突を起こすため候補から外した）。
+//! - **transition**: hover 状態遷移を持つ唯一のインタラクティブ slot
+//!   だったが `transition_declarations` が未導入だった
+//!   （`docs/design/pre-styled-ui-interaction-visual-language.md` §5）。
+//!   `prefers-reduced-motion: reduce` は [`crate::theme::Theme::to_css`]
+//!   の `--fandhe-motion-duration-*: 0ms` 一括上書きで自動対応するため、
+//!   本モジュールに `@media` を追加する必要はない。
+//! - **背景色ハロー**: 隣接・重なった異系列のデータ点の輪郭を識別できる
+//!   よう、base に `stroke: var(--fandhe-color-bg)` / `stroke-width: 1`
+//!   を追加した（[`crate::area_chart`] の `point` slot と同型）。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - 6 系列パレット（`chart-1`〜`chart-6`、[`crate::theme`]）自体の見直し
+//!   は本イシューのスコープ外とした（`theme.rs` の変更は docs-site の
+//!   契約テストへ波及し他部品にも影響するため）。
+//! - `vector-effect: non-scaling-stroke` 等のスケーリング対策はスコープ
+//!   外とした（兄弟部品との線幅の見え方の乖離を避けるため）。
 
 use super::svg::fmt_coord;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{transition_declarations, MotionDuration, SlotRecipe, StateCondition};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 
 /// 本モジュールの anatomy scope（[`super::axis`]/[`super::grid`] と共有）。
@@ -43,16 +93,23 @@ const DATUM_RESERVED: &[&str] = &["data-scope", "data-part", "cx", "cy", "r", "a
 /// Tooltip（データ点強調表示）の recipe（scope `"chart"`、[`SLOTS`] の
 /// 1 パーツ）。
 fn recipe() -> SlotRecipe {
-    SlotRecipe::new(SCOPE, SLOTS)
-        .base("datum", vec![decl("cursor", "default")])
-        .state(
-            "datum",
-            StateCondition::Hover,
-            vec![
-                decl("stroke", "var(--fandhe-color-accent-emphasized)"),
-                decl("stroke-width", "2"),
-            ],
-        )
+    let mut base = vec![
+        decl("cursor", "default"),
+        decl("stroke", "var(--fandhe-color-bg)"),
+        decl("stroke-width", "1"),
+    ];
+    base.extend(transition_declarations(
+        "stroke, stroke-width",
+        MotionDuration::Fast,
+    ));
+    SlotRecipe::new(SCOPE, SLOTS).base("datum", base).state(
+        "datum",
+        StateCondition::Hover,
+        vec![
+            decl("stroke", "var(--fandhe-color-fg)"),
+            decl("stroke-width", "2"),
+        ],
+    )
 }
 
 /// Tooltip の静的 CSS 全文。
@@ -172,6 +229,9 @@ mod tests {
     fn css_output_declares_hover_state_and_is_closed_charset() {
         let out = css();
         assert!(out.contains(":hover"));
+        assert!(out.contains("stroke: var(--fandhe-color-fg)"));
+        assert!(out.contains("stroke: var(--fandhe-color-bg)"));
+        assert!(out.contains("transition-duration: var(--fandhe-motion-duration-fast)"));
         assert!(!out.contains('<'));
     }
 }

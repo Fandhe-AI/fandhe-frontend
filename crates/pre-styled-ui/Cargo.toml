@@ -1339,7 +1339,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # コントラスト是正・bar の border-radius 追加）による CSS 出力の実体変更
 # のため patch バンプする。Rust API・data-* セレクタ・CSS 変数名の削除
 # 改名は伴わない。
-version = "0.79.5"
+# イシュー #1593: charts（axis::tick-line/tick-label・legend::marker・
+# tooltip::datum）のスタイル調整による CSS 出力の実体変更のため patch
+# バンプする。Rust API・data-* セレクタ・CSS 変数名の削除・改名は伴わない。
+version = "0.79.6"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

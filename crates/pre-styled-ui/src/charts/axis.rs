@@ -84,6 +84,15 @@ const LABEL_GAP: f64 = 10.0;
 /// `axis-line`/`tick-line`/`tick-label` と grid の `grid`/`grid-line`）が
 /// 互いに素であるため CSS セレクタは衝突しない
 /// （`SlotRecipe` は scope の一意性を要求しない、`crate::recipe` 冒頭 doc 参照）。
+///
+/// # 参考サイト基準への調整（イシュー #1593）
+///
+/// 参照 4 サイトに対応部品が無いため内部整合のみを評価軸とした。
+/// `tick-line` のストローク色を `axis-line` と同じ `--fandhe-color-border`
+/// へ統一し（従来は `border-muted` で軸線より薄く、同じ軸の一部としての
+/// 一貫性を欠いていた）、`tick-label` に `font-variant-numeric: tabular-nums`
+/// を追加した（数値目盛の桁幅を揃える。クレート内先例多数、
+/// 例: `crate::bar_list::value`）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new(SCOPE, SLOTS)
         .base(
@@ -96,7 +105,10 @@ fn recipe() -> SlotRecipe {
         .base(
             "tick-line",
             vec![
-                decl("stroke", "var(--fandhe-color-border-muted)"),
+                // イシュー #1593: axis-line と同じ濃さの --fandhe-color-border
+                // へ統一（従来の border-muted は dark で背景とのコントラストが
+                // 乏しく、同じ軸の一部である axis-line と濃度が不揃いだった）。
+                decl("stroke", "var(--fandhe-color-border)"),
                 decl("stroke-width", "1"),
             ],
         )
@@ -106,6 +118,9 @@ fn recipe() -> SlotRecipe {
                 decl("fill", "var(--fandhe-color-fg-muted)"),
                 decl("font-size", "var(--fandhe-font-font-size-xs)"),
                 decl("font-family", "var(--fandhe-font-font-body)"),
+                // イシュー #1593: 数値目盛の桁幅を揃え、隣接する目盛ラベル間で
+                // 数字の位置が横方向にぶれないようにする。
+                decl("font-variant-numeric", "tabular-nums"),
             ],
         )
 }

@@ -34,6 +34,12 @@ pub struct LegendProps {
 }
 
 /// Legend の recipe（scope `"chart-legend"`、[`SLOTS`] の 5 パーツ）。
+///
+/// # 参考サイト基準への調整（イシュー #1593）
+///
+/// `marker` の寸法をリテラル `0.75rem` からスケールトークン
+/// `--fandhe-space-3`（同値）へ置換した。参照 4 サイトに対応部品が無いため
+/// 内部整合のみを評価軸とした。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new(SCOPE, SLOTS)
         .base(
@@ -69,8 +75,10 @@ fn recipe() -> SlotRecipe {
             "marker",
             vec![
                 decl("display", "inline-block"),
-                decl("width", "0.75rem"),
-                decl("height", "0.75rem"),
+                // イシュー #1593: リテラル 0.75rem をスケールトークン
+                // --fandhe-space-3（同値）へ置換。値は不変。
+                decl("width", "var(--fandhe-space-3)"),
+                decl("height", "var(--fandhe-space-3)"),
                 decl("border-radius", "var(--fandhe-radius-full)"),
                 decl("flex-shrink", "0"),
             ],
