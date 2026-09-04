@@ -645,7 +645,7 @@ fn password_input_demo_node(props: &PasswordInputProps<'_>, label_text: &str) ->
 
 fn ex_password_input_invalid() -> Node {
     let props = PasswordInputProps {
-        id: "pw-invalid",
+        id: "pw-invalid-example",
         disabled: false,
         readonly: false,
         invalid: true,
