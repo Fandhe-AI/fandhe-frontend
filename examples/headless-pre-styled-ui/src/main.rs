@@ -1003,17 +1003,24 @@ fn radio_group_section() -> Node {
         ("ssg", "SSG", false),
         ("csr", "CSR", false),
     ];
+    let radio_group_props = radio_group::RadioGroupProps::default();
     let mut items = Vec::new();
     for (value, label_text, checked) in options {
         items.push(radio_group::item(
             checked,
-            false,
+            &radio_group_props,
             value,
             vec![],
             vec![
-                radio_group::item_hidden_input(checked, false, Some("render-mode"), value, vec![]),
-                radio_group::item_control(checked, false, vec![]),
-                radio_group::item_text(checked, false, vec![], vec![text(label_text)]),
+                radio_group::item_hidden_input(
+                    checked,
+                    &radio_group_props,
+                    Some("render-mode"),
+                    value,
+                    vec![],
+                ),
+                radio_group::item_control(checked, &radio_group_props, vec![]),
+                radio_group::item_text(checked, &radio_group_props, vec![], vec![text(label_text)]),
             ],
         ));
     }
@@ -1025,6 +1032,7 @@ fn radio_group_section() -> Node {
         Some("render-mode-label"),
         vec![],
         std::iter::once(radio_group::label(
+            &radio_group_props,
             Some("render-mode-label"),
             vec![],
             vec![text("Render mode")],
