@@ -94,7 +94,7 @@ use hui::angle_slider::AngleSliderProps;
 use hui::checkbox::{CheckboxProps, CheckedState};
 use hui::checkbox_group;
 use hui::color_picker;
-use hui::combobox;
+use hui::combobox::{self, ComboboxProps};
 use hui::editable::{
     self, EditMode, EditableActivationMode, EditableInputFlags, EditableInputProps,
     EditableSubmitMode,
@@ -879,11 +879,14 @@ const COLOR_PICKER: ComponentPageSpec = ComponentPageSpec {
 /// trigger/content/item の各パーツ関数、`filter_options`）。
 fn ex_combobox() -> Node {
     let state = OpenState::Closed;
+    let props = ComboboxProps::default();
     let body = vec![combobox::root(
         state,
+        &props,
         vec![],
         vec![
             combobox::label(
+                &props,
                 Some("cb2-label"),
                 Some("cb2-input"),
                 vec![],
@@ -891,18 +894,19 @@ fn ex_combobox() -> Node {
             ),
             combobox::control(
                 state,
+                &props,
                 vec![],
                 vec![
                     combobox::input(
                         state,
                         "",
-                        false,
+                        &props,
                         None,
                         None,
                         None,
                         vec![("id", "cb2-input")],
                     ),
-                    combobox::trigger(state, false, None, vec![], vec![text("▾")]),
+                    combobox::trigger(state, &props, None, vec![], vec![text("▾")]),
                 ],
             ),
         ],
@@ -913,9 +917,58 @@ fn ex_combobox() -> Node {
     )
 }
 
+/// `ComboboxProps` の `data-*` 状態を利用者スタイルで消費する自前 CSS 例
+/// （イシュー #1605 参照突合。[`ex_checkbox_custom_css`] と同型。CSS は
+/// `pre`/`code` のテキストノードとして既定エスケープ経由で出力するのみで、
+/// `primitives-showcase.css` へは一切追加しない）。closed 状態（`content` を
+/// 描画しない）で組み、`combobox_aria_association` 契約の対象外にする。
+const COMBOBOX_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"combobox\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"combobox\"][data-part=\"input\"][data-invalid] {\n  \
+  border-color: red;\n\
+}\n\
+[data-scope=\"combobox\"][data-part=\"item\"][data-highlighted] {\n  \
+  background: #eef;\n\
+}\n\
+[data-scope=\"combobox\"][data-part=\"item\"][data-state=\"open\"] {\n  \
+  font-weight: bold;\n\
+}\n\
+[data-scope=\"combobox\"][data-part=\"positioner\"][hidden] {\n  \
+  display: none;\n\
+}\n";
+
+fn ex_combobox_custom_css() -> Node {
+    let state = OpenState::Closed;
+    let props = ComboboxProps::default();
+    let markup = combobox::root(
+        state,
+        &props,
+        vec![],
+        vec![combobox::control(
+            state,
+            &props,
+            vec![],
+            vec![
+                combobox::input(state, "", &props, None, None, None, vec![]),
+                combobox::trigger(state, &props, None, vec![], vec![text("▾")]),
+            ],
+        )],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-invalid / data-highlighted 属性セレクタで自前 CSS を当てる最小例です（本 Demo には適用されません）。",
+        vec![
+            markup,
+            pre(vec![], vec![code(vec![], vec![text(COMBOBOX_CUSTOM_CSS_SNIPPET)])]),
+        ],
+    )
+}
+
 const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/label/control/input/trigger/clear_trigger/positioner/content/item_group/item/item_text/item_indicator/live_region の anatomy を持ち、フォーカスを保持する input（role=\"combobox\"）側に aria-activedescendant を配線する（crate::select と異なる配線先、combobox.rs:59-65）。",
+        "root/label/control/input/trigger/clear_trigger/positioner/content/item_group/item_group_label/item/item_text/item_indicator/live_region の 14 anatomy パーツを持ち、フォーカスを保持する input（role=\"combobox\"）側に aria-activedescendant を配線する（crate::select と異なる配線先、combobox.rs:59-65）。",
+        "ComboboxProps（disabled/readonly/invalid/required）を root/label/control/input/trigger/clear_trigger へ一律付与し、data-required は label にのみ、input は対応するネイティブ disabled/readonly/required 存在属性 + invalid 時のみ aria-invalid=\"true\" を追加する（イシュー #1605 参照突合。ark-ui の data-focus/data-placement/data-empty、item/item-indicator の data-state=\"checked\"/\"unchecked\" 語彙は crate::select/crate::listbox とのクレート横断整合を優先し意図的に追随しない）。",
         "input は role=\"combobox\" + aria-autocomplete=\"list\" を固定付与し、controls/activedescendant が Some のときのみ aria-controls/aria-activedescendant を付与する（combobox.rs:152-205）。",
         "trigger は type=\"button\" + aria-haspopup=\"listbox\" を固定付与する（combobox.rs:205-238）。",
         "候補データの絞り込みは filter_options（純粋関数）が提供するが、候補データ自体の取得・供給は利用者側の責務である（combobox.rs:398、`docs/policy/intentional-non-adoption.md` §3.25）。",
@@ -929,16 +982,22 @@ const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
             description: "開閉状態。data-state・aria-expanded の判定に使われる（同じ型のため代表 1 行に集約）。",
         },
         ArgRow {
-            name: "input(value, disabled, controls, activedescendant, autocomplete)",
-            kind: "&str, bool, Option<&str>, Option<&str>, Option<&str>",
-            default: "",
-            description: "現在の入力文字列・無効化・content の id・ハイライト中 item の id・関連フォームフィールド名（combobox.rs:167-205）。",
+            name: "root(props) / label(props) / control(props) / input(props) / trigger(props) / clear_trigger(props)",
+            kind: "&ComboboxProps",
+            default: "&ComboboxProps::default()",
+            description: "disabled/readonly/invalid/required の状態束（代表 1 行に集約、イシュー #1605）。",
         },
         ArgRow {
-            name: "item(state, disabled, selected, value, id)",
+            name: "input(value, controls, activedescendant, name)",
+            kind: "&str, Option<&str>, Option<&str>, Option<&str>",
+            default: "",
+            description: "現在の入力文字列・content の id・ハイライト中 item の id・関連フォームフィールド名（combobox.rs、イシュー #1605 で disabled: bool を props へ置換）。",
+        },
+        ArgRow {
+            name: "item(state, disabled, highlighted, value, id)",
             kind: "OpenState, bool, bool, &str, Option<&str>",
             default: "",
-            description: "role=\"option\" を持つ選択肢 1 個の状態。value は data-value として既定エスケープ経由で出力される（combobox.rs:333-361）。",
+            description: "role=\"option\" を持つ選択肢 1 個の選択状態・無効化・ハイライト中かどうか。value は data-value として既定エスケープ経由で出力される（combobox.rs:333-361）。",
         },
         ArgRow {
             name: "live_region(children)",
@@ -957,8 +1016,42 @@ const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
         title: "Closed input + trigger",
         description: "aria-expanded=\"false\"/aria-autocomplete=\"list\" を持つ閉じた状態の例です。",
         render: ex_combobox,
+    }, ExampleEntry {
+        title: "利用者スタイルの当て方",
+        description: "data-scope / data-part / data-state / data-invalid / data-highlighted 属性セレクタで自前 CSS を当てる最小例です。",
+        render: ex_combobox_custom_css,
     }],
-    keyboard: &[],
+    // `fandhe-frontend-wasm-full` の `keynav::combobox_key_action`
+    // （イシュー #1071、`crates/wasm-full/src/keynav.rs` 判定表が一次情報）
+    // が実配線する keydown 判定を掲載する。ArrowLeft/ArrowRight/Tab・
+    // printable 文字は入力欄のネイティブ既定動作（キャレット移動・
+    // フィルタ入力・タブ移動）を奪わないため claim しない。
+    keyboard: &[
+        KeyRow {
+            key: "ArrowDown",
+            description: "closed: 先頭の非 disabled 候補を highlight して開く。open: 次の候補へ highlight を移動する（keynav.rs combobox_key_action）。",
+        },
+        KeyRow {
+            key: "ArrowUp",
+            description: "closed: 末尾の非 disabled 候補を highlight して開く。open: 前の候補へ highlight を移動する（keynav.rs combobox_key_action）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "closed: no-op（キャレット移動という input のネイティブ既定動作を奪わない）。open: 先頭/末尾の非 disabled 候補へ highlight を移動する。",
+        },
+        KeyRow {
+            key: "Enter",
+            description: "closed: no-op（フォーム submit 等のネイティブ既定動作を奪わない）。open: highlight 中候補を確定選択する。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "closed: no-op（fail-closed。claim すると誤って open してしまうため）。open: highlight をクリアして閉じる。",
+        },
+        KeyRow {
+            key: "Tab / ArrowLeft / ArrowRight / printable 文字",
+            description: "claim しない（Tab はフォーカス移動、ArrowLeft/ArrowRight はキャレット移動、printable 文字はフィルタ入力というネイティブ input の既定動作をそのまま許容する）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role=\"combobox\" / aria-autocomplete=\"list\"",
@@ -971,6 +1064,10 @@ const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-activedescendant",
             description: "input パーツ側へ配線する（crate::select と異なり本モジュールは input 側、combobox.rs:59-65, 156）。",
+        },
+        AriaRow {
+            attribute: "aria-invalid=\"true\"",
+            description: "input パーツが props.invalid のときのみ付与する（valid のときは属性自体を省略、イシュー #1605）。",
         },
         AriaRow {
             attribute: "role=\"listbox\" / role=\"option\"",

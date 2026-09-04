@@ -10,7 +10,7 @@
 //! と同じ粒度）。
 
 use fandhe_frontend_core::{render, text};
-use fandhe_frontend_headless_ui::combobox::{self, Combobox};
+use fandhe_frontend_headless_ui::combobox::{self, Combobox, ComboboxProps};
 use fandhe_frontend_headless_ui::OpenState;
 use fandhe_frontend_interactive::{
     dispatch, render_for_hydration, Component, Hydrate, HydrateError,
@@ -18,7 +18,9 @@ use fandhe_frontend_interactive::{
 
 #[test]
 fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
+    let props = ComboboxProps::default();
     let label = combobox::label(
+        &props,
         Some("combobox-label-1"),
         Some("combobox-input-1"),
         vec![],
@@ -28,7 +30,7 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
     let input = combobox::input(
         OpenState::Open,
         "vu",
-        false,
+        &props,
         Some("combobox-content-1"),
         Some("item-vue"),
         Some("framework"),
@@ -36,13 +38,18 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
     );
     let trigger = combobox::trigger(
         OpenState::Open,
-        false,
+        &props,
         Some("combobox-content-1"),
         vec![],
         vec![],
     );
-    let clear_trigger = combobox::clear_trigger(vec![("aria-label", "Clear")], vec![]);
-    let control = combobox::control(OpenState::Open, vec![], vec![input, trigger, clear_trigger]);
+    let clear_trigger = combobox::clear_trigger(&props, vec![("aria-label", "Clear")], vec![]);
+    let control = combobox::control(
+        OpenState::Open,
+        &props,
+        vec![],
+        vec![input, trigger, clear_trigger],
+    );
 
     let item_text = combobox::item_text(Some("item-text-vue"), vec![], vec![text("Vue")]);
     let item_indicator = combobox::item_indicator(OpenState::Open, vec![], vec![text("✓")]);
@@ -68,7 +75,12 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
     );
     let positioner = combobox::positioner(OpenState::Open, vec![], vec![content]);
 
-    let root = combobox::root(OpenState::Open, vec![], vec![label, control, positioner]);
+    let root = combobox::root(
+        OpenState::Open,
+        &props,
+        vec![],
+        vec![label, control, positioner],
+    );
 
     let html = render(&root);
 
@@ -150,9 +162,10 @@ fn dispatch_open_close_toggle_flip_data_state_across_parts() {
 
     assert!(dispatch(&mut c, "open", ""));
     assert!(c.is_open());
-    assert!(render(&c.root(vec![], vec![])).contains(r#"data-state="open""#));
-    assert!(render(&c.input(false, None, None, None, vec![])).contains(r#"aria-expanded="true""#));
-    assert!(render(&c.trigger(false, None, vec![], vec![])).contains(r#"aria-expanded="true""#));
+    let props = ComboboxProps::default();
+    assert!(render(&c.root(&props, vec![], vec![])).contains(r#"data-state="open""#));
+    assert!(render(&c.input(&props, None, None, None, vec![])).contains(r#"aria-expanded="true""#));
+    assert!(render(&c.trigger(&props, None, vec![], vec![])).contains(r#"aria-expanded="true""#));
     assert!(render(&c.positioner(vec![], vec![])).contains(r#"data-state="open""#));
     assert!(!render(&c.content(None, None, vec![], vec![])).contains("hidden"));
 
@@ -309,10 +322,11 @@ const ATTR_BREAK_PAYLOAD: &str = "\" onmouseover=\"alert(1)";
 
 #[test]
 fn controls_labelledby_value_and_activedescendant_payloads_are_escaped_end_to_end() {
+    let props = ComboboxProps::default();
     let input = combobox::input(
         OpenState::Closed,
         ATTR_BREAK_PAYLOAD,
-        false,
+        &props,
         Some(ATTR_BREAK_PAYLOAD),
         Some(ATTR_BREAK_PAYLOAD),
         Some(ATTR_BREAK_PAYLOAD),
@@ -320,7 +334,7 @@ fn controls_labelledby_value_and_activedescendant_payloads_are_escaped_end_to_en
     );
     let trigger = combobox::trigger(
         OpenState::Closed,
-        false,
+        &props,
         Some(ATTR_BREAK_PAYLOAD),
         vec![],
         vec![],
@@ -343,6 +357,7 @@ fn controls_labelledby_value_and_activedescendant_payloads_are_escaped_end_to_en
     );
     let html = render(&combobox::root(
         OpenState::Closed,
+        &props,
         vec![],
         vec![input, trigger, item, content],
     ));
@@ -381,6 +396,7 @@ fn dispatch_select_payload_is_escaped_end_to_end() {
 fn caller_attrs_payload_is_escaped_end_to_end() {
     let html = render(&combobox::root(
         OpenState::Closed,
+        &ComboboxProps::default(),
         vec![("data-testid", ATTR_BREAK_PAYLOAD)],
         vec![],
     ));
@@ -641,7 +657,7 @@ fn verify_combobox_aria_association_ok_for_compliant_full_assembly() {
     let input = combobox::input(
         OpenState::Open,
         "vu",
-        false,
+        &ComboboxProps::default(),
         Some("combobox-content-1"),
         Some("item-vue"),
         None,
@@ -663,7 +679,12 @@ fn verify_combobox_aria_association_ok_for_compliant_full_assembly() {
         vec![],
         vec![item],
     );
-    let root = combobox::root(OpenState::Open, vec![], vec![input, content]);
+    let root = combobox::root(
+        OpenState::Open,
+        &ComboboxProps::default(),
+        vec![],
+        vec![input, content],
+    );
     let html = render(&root);
 
     assert_eq!(verify_combobox_aria_association(&html), Ok(()));
@@ -674,8 +695,21 @@ fn verify_combobox_aria_association_ok_for_compliant_full_assembly() {
 /// の Examples 原稿と同型の構成、イシュー #1067 計画 §2 実測）。
 #[test]
 fn verify_combobox_aria_association_ok_for_closed_without_content() {
-    let input = combobox::input(OpenState::Closed, "", false, None, None, None, vec![]);
-    let root = combobox::root(OpenState::Closed, vec![], vec![input]);
+    let input = combobox::input(
+        OpenState::Closed,
+        "",
+        &ComboboxProps::default(),
+        None,
+        None,
+        None,
+        vec![],
+    );
+    let root = combobox::root(
+        OpenState::Closed,
+        &ComboboxProps::default(),
+        vec![],
+        vec![input],
+    );
     let html = render(&root);
 
     assert_eq!(verify_combobox_aria_association(&html), Ok(()));
@@ -685,9 +719,22 @@ fn verify_combobox_aria_association_ok_for_closed_without_content() {
 /// （opt-in 欠落の検知力の証明）。
 #[test]
 fn verify_combobox_aria_association_detects_missing_controls_when_expanded() {
-    let input = combobox::input(OpenState::Open, "vu", false, None, None, None, vec![]);
+    let input = combobox::input(
+        OpenState::Open,
+        "vu",
+        &ComboboxProps::default(),
+        None,
+        None,
+        None,
+        vec![],
+    );
     let content = combobox::content(OpenState::Open, Some("cb-content"), None, vec![], vec![]);
-    let root = combobox::root(OpenState::Open, vec![], vec![input, content]);
+    let root = combobox::root(
+        OpenState::Open,
+        &ComboboxProps::default(),
+        vec![],
+        vec![input, content],
+    );
     let html = render(&root);
 
     let result = verify_combobox_aria_association(&html);
@@ -702,7 +749,7 @@ fn verify_combobox_aria_association_detects_missing_activedescendant_when_highli
     let input = combobox::input(
         OpenState::Open,
         "vu",
-        false,
+        &ComboboxProps::default(),
         Some("cb-content"),
         None,
         None,
@@ -724,7 +771,12 @@ fn verify_combobox_aria_association_detects_missing_activedescendant_when_highli
         vec![],
         vec![item],
     );
-    let root = combobox::root(OpenState::Open, vec![], vec![input, content]);
+    let root = combobox::root(
+        OpenState::Open,
+        &ComboboxProps::default(),
+        vec![],
+        vec![input, content],
+    );
     let html = render(&root);
 
     let result = verify_combobox_aria_association(&html);
@@ -739,7 +791,7 @@ fn verify_combobox_aria_association_detects_highlighted_item_without_id() {
     let input = combobox::input(
         OpenState::Open,
         "vu",
-        false,
+        &ComboboxProps::default(),
         Some("cb-content"),
         None,
         None,
@@ -753,7 +805,12 @@ fn verify_combobox_aria_association_detects_highlighted_item_without_id() {
         vec![],
         vec![item],
     );
-    let root = combobox::root(OpenState::Open, vec![], vec![input, content]);
+    let root = combobox::root(
+        OpenState::Open,
+        &ComboboxProps::default(),
+        vec![],
+        vec![input, content],
+    );
     let html = render(&root);
 
     let result = verify_combobox_aria_association(&html);
@@ -768,14 +825,19 @@ fn verify_combobox_aria_association_detects_dangling_activedescendant() {
     let input = combobox::input(
         OpenState::Open,
         "vu",
-        false,
+        &ComboboxProps::default(),
         Some("cb-content"),
         Some("no-such-id"),
         None,
         vec![],
     );
     let content = combobox::content(OpenState::Open, Some("cb-content"), None, vec![], vec![]);
-    let root = combobox::root(OpenState::Open, vec![], vec![input, content]);
+    let root = combobox::root(
+        OpenState::Open,
+        &ComboboxProps::default(),
+        vec![],
+        vec![input, content],
+    );
     let html = render(&root);
 
     let result = verify_combobox_aria_association(&html);
@@ -790,15 +852,26 @@ fn verify_combobox_aria_association_detects_controls_target_without_listbox_role
     let input = combobox::input(
         OpenState::Open,
         "vu",
-        false,
+        &ComboboxProps::default(),
         Some("not-a-listbox"),
         None,
         None,
         vec![],
     );
     // `role="listbox"` を持たない、無関係な div へ id を付与する。
-    let decoy = combobox::label(Some("not-a-listbox"), None, vec![], vec![]);
-    let root = combobox::root(OpenState::Open, vec![], vec![input, decoy]);
+    let decoy = combobox::label(
+        &ComboboxProps::default(),
+        Some("not-a-listbox"),
+        None,
+        vec![],
+        vec![],
+    );
+    let root = combobox::root(
+        OpenState::Open,
+        &ComboboxProps::default(),
+        vec![],
+        vec![input, decoy],
+    );
     let html = render(&root);
 
     let result = verify_combobox_aria_association(&html);
@@ -816,9 +889,9 @@ fn verify_combobox_aria_association_detects_missing_controls_via_state_machine_c
     let mut c = Combobox::default();
     assert!(dispatch(&mut c, "open", ""));
 
-    let input = c.input(false, None, None, None, vec![]);
+    let input = c.input(&ComboboxProps::default(), None, None, None, vec![]);
     let content = c.content(Some("cb-content"), None, vec![], vec![]);
-    let root = c.root(vec![], vec![input, content]);
+    let root = c.root(&ComboboxProps::default(), vec![], vec![input, content]);
     let html = render(&root);
 
     let result = verify_combobox_aria_association(&html);
