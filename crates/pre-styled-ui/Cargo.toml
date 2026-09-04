@@ -1170,6 +1170,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 追加という CSS 出力の純追加（既存宣言は不変）のため
 # `docs/ci/style-refresh-version-bump-operation.md` §3.3 に従い
 # 0.78.1 へ patch バンプする。
+#
+# base 取り込み（イシュー #1582）: main 側は #1582（marquee のスタイル調整
+# (1/2) — アニメーション。`gap` フォールバックのテーマトークン化・両端
+# フェードの `mask-image` opt-in 新設。公開 Rust API のシグネチャ変更・
+# 既存 CSS 変数名/クラス名/セレクタの削除・改名は伴わない意匠調整）の
+# 統合により、本ブランチの #1580 と同じ 0.78.1（patch バンプ）へ独立に
+# 到達済みだった。両者の実体変更を統合した結果としてそのまま 0.78.1 を
+# 維持する（同一バージョンへの偶発的衝突ではなく、いずれも 0.78.0 からの
+# patch バンプが一致したもの。`docs/ci/style-refresh-version-bump-operation.md`
+# §3.1/§3.4a）。
 version = "0.78.1"
 
 edition = "2021"
