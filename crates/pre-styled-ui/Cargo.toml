@@ -1257,7 +1257,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # CSS 出力変更（`docs/ci/style-refresh-version-bump-operation.md` §3.2
 # により `version-bump-exempt:` は適用しない）のため、同 §3.1/§3.4a に
 # 従い 0.78.5 へ patch バンプする。
-version = "0.78.5"
+#
+# マージ時の追記（3 回目、PR #1858 修正時の main 再マージ）: main（#1585 の
+# SeparatorVariant::Dotted 追加、公開 enum への破壊的変更）は独立に
+# 0.79.0 へ到達済みだった。本ブランチ（#1584/PR #1858）は codex-review
+# P1 再指摘への追加修正（hover/focus 時の thumb-bg フォールバック連鎖を
+# 通常時と揃える）による観測可能な CSS 出力変更のみで破壊的変更を伴わない
+# ため、`docs/ci/style-refresh-version-bump-operation.md` §5「version 行
+# コンフリクトの解決手順（並列 PR 間）」（patch バンプは main の現在値の
+# patch を +1 する）に従い、main の現在値 0.79.0 の patch を +1 した
+# 0.79.1 へバンプする。
+version = "0.79.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
