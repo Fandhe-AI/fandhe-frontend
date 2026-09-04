@@ -44,7 +44,8 @@
 //!   保証する。[`trigger`]/[`item_delete_trigger`]/[`clear_trigger`]/
 //!   [`hidden_input`] は readonly でもネイティブ `disabled` を付与する
 //!   （zag `disabled: disabled || readOnly` と同値）。[`hidden_input`] には
-//!   `tabindex="-1"`・`aria-hidden="true"`・`required`（`props.required`）を
+//!   `tabindex="-1"`・`aria-hidden="true"`・`aria-required`（`props.required`。
+//!   ネイティブ `required` ではない。理由は [`hidden_input`] rustdoc 参照）を
 //!   追加する。item-group/item/item-name/item-size-text/
 //!   item-delete-trigger には [`ItemType`] 固定語彙による `data-type`
 //!   （`"accepted"`/`"rejected"`）を付与する。[`clear_trigger`] は
@@ -85,7 +86,9 @@
 //! `update(FileUploadAction::AddFiles(items))`）のみで受理する
 //! （[`crate::radio_group::RadioGroup`] の型付き `Deselect` 限定の先例と同型。
 //! クライアント文字列へファイルメタデータを載せない）。文字列 dispatch は
-//! `"remove"`（インデックス指定）/`"clear"` の単純アクションのみ受理する。
+//! `"remove"`（`accepted` インデックス指定）/`"remove-rejected"`（`rejected`
+//! インデックス指定、イシュー #1609 codex-review 再指摘）/`"clear"` の
+//! 単純アクションのみ受理する。
 //!
 //! # スコープ外（イシュー #840 本文が明示、`out-of-scope-tracking.md` に従い
 //! Issue 化を提案する）
@@ -98,7 +101,7 @@
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`name`/`value`/`disabled`/
-//!   `accept`/`multiple`/`tabindex`/`required`）はすべて `&'static str`
+//!   `accept`/`multiple`/`tabindex`）はすべて `&'static str`
 //!   リテラルで固定しており、動的値が属性名スロットへ混入する経路はない。
 //!   [`ItemType::as_str`] が返す `data-type` の値語彙（`"accepted"`/
 //!   `"rejected"`）・[`dropzone`] の既定 `aria-label="dropzone"` も同様に
@@ -123,7 +126,7 @@
 //!   （[`crate::tags_input::TagsInput`] の `editing` と同じ判断）。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_disabled, aria_hidden, aria_label};
+use crate::aria::{aria_disabled, aria_hidden, aria_label, aria_required};
 use crate::data_attrs::{data_disabled, data_dragging, data_invalid, data_readonly, data_required};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{codec, Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
@@ -245,12 +248,13 @@ const HIDDEN_INPUT_RESERVED: &[&str] = &[
     "type",
     "tabindex",
     "aria-hidden",
+    "aria-required",
     "accept",
     "multiple",
-    "required",
     "disabled",
     "data-disabled",
     "data-readonly",
+    "data-required",
 ];
 
 /// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
@@ -633,9 +637,19 @@ pub fn clear_trigger<'a>(
 /// ターゲット）。`accept`/`multiple` はネイティブ属性として反映し、視覚的には
 /// 非表示にする想定（呼び出し側が `attrs` でスタイルクラス等を与える）。
 /// `tabindex="-1"` + `aria-hidden="true"`（zag と同値、フォーカス・
-/// スクリーンリーダー走査の対象外にする）・`required`（`props.required`）を
-/// 付与し、readonly でもネイティブ `disabled` を付与する。`data-readonly` も
-/// [`FileUploadProps`] から伝播する。
+/// スクリーンリーダー走査の対象外にする）を付与し、readonly でもネイティブ
+/// `disabled` を付与する。`data-readonly` も [`FileUploadProps`] から伝播する。
+///
+/// **`required` はネイティブ `required` 属性ではなく `aria-required` +
+/// `data-required`（[`aria_required`]/[`data_required`]）として表現する
+/// （codex-review 再指摘、イシュー #1609）。本パーツは実 `FileList` を
+/// 保持しない設計（`wasm-full` の配線層が `change` 直後に値をクリアする）
+/// であり、ネイティブ `required` を付けると受理済みファイルが存在しても
+/// ネイティブフォーム送信が constraint validation により常にブロックされて
+/// しまう。UI コンポーネント層はバリデーション・送信処理を内包しない
+/// （`.claude/rules/coding-rust.md` §UI 部品の責務境界）ため、要求有無を
+/// `aria-required`/`data-required` で提示するに留め、実際の必須検証は
+/// [`FileUpload::accepted`] を読んだ呼び出し側アプリケーションコードに委ねる。
 #[must_use]
 pub fn hidden_input<'a>(
     accept: &'a str,
@@ -644,22 +658,24 @@ pub fn hidden_input<'a>(
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
     let attrs = drop_reserved(attrs, HIDDEN_INPUT_RESERVED);
-    let mut merged: Vec<(&'a str, &'a str)> =
-        vec![("type", "file"), ("tabindex", "-1"), aria_hidden(true)];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        ("type", "file"),
+        ("tabindex", "-1"),
+        aria_hidden(true),
+        aria_required(props.required),
+    ];
     if !accept.is_empty() {
         merged.push(("accept", accept));
     }
     if multiple {
         merged.push(("multiple", ""));
     }
-    if props.required {
-        merged.push(("required", ""));
-    }
     if props.disabled || props.readonly {
         merged.push(("disabled", ""));
     }
     merged.extend(data_disabled(props.disabled));
     merged.extend(data_readonly(props.readonly));
+    merged.extend(data_required(props.required));
     merged.extend(attrs);
     ANATOMY.part("hidden-input", "input", merged, Vec::new())
 }
@@ -667,7 +683,8 @@ pub fn hidden_input<'a>(
 /// [`FileUpload`] に対する型付きアクション（WASM 境界からの接続は
 /// [`fandhe_frontend_interactive::Component::update`] を型付きで直接呼ぶ
 /// （[`FileUploadAction::AddFiles`]）か、文字列 dispatch
-/// （[`FileUpload::decode_action`]、`"remove"`/`"clear"` のみ）を経由する）。
+/// （[`FileUpload::decode_action`]、`"remove"`/`"remove-rejected"`/`"clear"`
+/// のみ）を経由する）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FileUploadAction {
     /// 新規ファイル群を検証したうえで追加する（型付き API 限定、モジュール
@@ -676,6 +693,13 @@ pub enum FileUploadAction {
     AddFiles(Vec<FileUploadItem>),
     /// 指定インデックスの受理済みファイルを削除する（範囲外は no-op）。
     Remove(usize),
+    /// 指定インデックスの拒否済みファイル（`rejected` 一覧）を削除する
+    /// （範囲外は no-op、イシュー #1609 codex-review 再指摘）。[`item_delete_trigger`]
+    /// は `ItemType::Rejected` にも削除ボタンを提供するため、`accepted` 専用の
+    /// [`Self::Remove`] とは別に `rejected` を対象とするインデックス操作を
+    /// 用意する（`rejected` は ephemeral な UI 状態であり削除しても
+    /// hydration/`AddFiles` 契約は変わらない）。
+    RemoveRejected(usize),
     /// 受理済み・拒否済みの全ファイルをクリアする。
     Clear,
 }
@@ -893,6 +917,11 @@ impl Component for FileUpload {
                     self.accepted.remove(idx);
                 }
             }
+            FileUploadAction::RemoveRejected(idx) => {
+                if idx < self.rejected.len() {
+                    self.rejected.remove(idx);
+                }
+            }
             FileUploadAction::Clear => {
                 self.accepted.clear();
                 self.rejected.clear();
@@ -975,6 +1004,10 @@ impl Component for FileUpload {
     fn decode_action(name: &str, payload: &str) -> Option<FileUploadAction> {
         match name {
             "remove" => payload.parse::<usize>().ok().map(FileUploadAction::Remove),
+            "remove-rejected" => payload
+                .parse::<usize>()
+                .ok()
+                .map(FileUploadAction::RemoveRejected),
             "clear" => Some(FileUploadAction::Clear),
             _ => None,
         }
@@ -1407,7 +1440,8 @@ mod tests {
         assert!(html.contains(r#"aria-hidden="true""#));
         assert!(html.contains(r#"accept="image/*,.pdf""#));
         assert!(html.contains(r#"multiple="""#));
-        assert!(!html.contains("required"));
+        assert!(html.contains(r#"aria-required="false""#));
+        assert!(!html.contains(r#"required="""#));
     }
 
     #[test]
@@ -1416,14 +1450,20 @@ mod tests {
         assert!(!html.contains("accept"));
     }
 
+    /// 手順 2 の是正対象（codex-review 再指摘、イシュー #1609）: `required: true`
+    /// でもネイティブ `required` 属性は出力しない（実 `FileList` を保持しない
+    /// 設計と衝突し、ネイティブフォーム送信を常にブロックしてしまうため）。
+    /// 表現は `aria-required`/`data-required` に限定する。
     #[test]
-    fn hidden_input_required_true_outputs_required_attr() {
+    fn hidden_input_required_true_outputs_aria_and_data_required_not_native() {
         let props = FileUploadProps {
             required: true,
             ..Default::default()
         };
         let html = render(&hidden_input("", false, &props, vec![]));
-        assert!(html.contains(r#"required="""#));
+        assert!(html.contains(r#"aria-required="true""#));
+        assert!(html.contains(r#"data-required="""#));
+        assert!(!html.contains(r#" required="""#));
     }
 
     #[test]
@@ -1648,6 +1688,31 @@ mod tests {
         f.update(FileUploadAction::AddFiles(vec![item_of("a", 1, "")]));
         assert!(dispatch(&mut f, "remove", "5"));
         assert_eq!(f.len(), 1);
+    }
+
+    /// codex-review 再指摘（イシュー #1609）の回帰テスト:
+    /// `"remove-rejected"` 文字列 dispatch が `rejected` 一覧を対象に
+    /// インデックス削除する（`accepted` 専用の `"remove"` とは独立）。
+    #[test]
+    fn remove_rejected_action_removes_by_index() {
+        let mut f = FileUpload::new(String::new(), None, Some(0), None);
+        f.update(FileUploadAction::AddFiles(vec![
+            item_of("a", 1, ""),
+            item_of("b", 1, ""),
+        ]));
+        assert_eq!(f.rejected().len(), 2);
+        assert!(dispatch(&mut f, "remove-rejected", "0"));
+        assert_eq!(f.rejected().len(), 1);
+        assert_eq!(f.rejected()[0].0.name, "b");
+    }
+
+    #[test]
+    fn remove_rejected_action_out_of_range_is_no_op() {
+        let mut f = FileUpload::new(String::new(), None, Some(0), None);
+        f.update(FileUploadAction::AddFiles(vec![item_of("a", 1, "")]));
+        assert_eq!(f.rejected().len(), 1);
+        assert!(dispatch(&mut f, "remove-rejected", "5"));
+        assert_eq!(f.rejected().len(), 1);
     }
 
     #[test]

@@ -68,26 +68,48 @@ const CLEAR_TRIGGER_PART: &str = "clear-trigger";
 /// HiddenInput パーツの `data-part` 属性値。
 const HIDDEN_INPUT_PART: &str = "hidden-input";
 
-/// dispatch アクション名 "remove"（`FileUpload::decode_action` と一致）。
+/// Item 系パーツの `data-type` 属性値のうち「受理済み」を表す固定リテラル
+/// （`fandhe_frontend_headless_ui::file_upload::ItemType::Accepted::as_str()`
+/// と同値）。[`click_action_for_target`]/[`wiring::compute_item_index`] が
+/// `accepted`/`rejected` を区別するインデックス走査・dispatch 先アクション
+/// 名の選択に使う（イシュー #1609 Cursor Bugbot 指摘の是正）。
+const ACCEPTED_ITEM_TYPE: &str = "accepted";
+/// Item 系パーツの `data-type` 属性値のうち「拒否済み」を表す固定リテラル
+/// （`ItemType::Rejected::as_str()` と同値）。[`ACCEPTED_ITEM_TYPE`] 参照。
+const REJECTED_ITEM_TYPE: &str = "rejected";
+
+/// dispatch アクション名 "remove"（`FileUpload::decode_action` と一致。
+/// `accepted` 一覧のインデックス削除）。
 const ACTION_REMOVE: &str = "remove";
+/// dispatch アクション名 "remove-rejected"（`FileUpload::decode_action` と
+/// 一致。`rejected` 一覧のインデックス削除、イシュー #1609 codex-review
+/// 再指摘: `ItemType::Rejected` にも [`item_delete_trigger`] ボタンが
+/// 提供されるが、`accepted` 専用の `"remove"` では常に no-op になっていた）。
+const ACTION_REMOVE_REJECTED: &str = "remove-rejected";
 /// dispatch アクション名 "clear"（`FileUpload::decode_action` と一致）。
 const ACTION_CLEAR: &str = "clear";
 
-/// クリックイベントのターゲット属性・（削除操作の場合の）item インデックスから
-/// 文字列 dispatch すべきアクションを判定する（DOM 非依存の純粋関数、native
-/// `cargo test` で検証可能）。
+/// クリックイベントのターゲット属性・（削除操作の場合の）item インデックス・
+/// item の種別（`data-type`、`accepted`/`rejected`）から文字列 dispatch
+/// すべきアクションを判定する（DOM 非依存の純粋関数、native `cargo test` で
+/// 検証可能）。
 ///
 /// `scope` が一致しない場合は常に `None`（fail-closed、改ざんされた
 /// `data-*` を持つ無関係要素上のイベントを dispatch へ流さない）。
-/// `ClearTrigger` は `("clear", "")` を、`ItemDeleteTrigger` は
-/// `item_index` が `Some` の場合のみ `("remove", "<index>")` を返す
-/// （`item_index` が `None` の場合はインデックスを特定できなかったことを
-/// 意味し、誤ったインデックスで削除しないよう no-op とする）。
+/// `ClearTrigger` は `("clear", "")` を返す。`ItemDeleteTrigger` は
+/// `item_index` が `Some` の場合に限り、`item_type` が
+/// [`ACCEPTED_ITEM_TYPE`] なら `("remove", "<index>")`、
+/// [`REJECTED_ITEM_TYPE`] なら `("remove-rejected", "<index>")` を返す
+/// （`item_index` が `None`、または `item_type` がどちらの既知語彙とも
+/// 一致しない場合はインデックス・削除先の一覧を特定できなかったことを
+/// 意味し、誤った一覧・インデックスで削除しないよう no-op とする、
+/// イシュー #1609 codex-review 再指摘の是正）。
 #[must_use]
 pub fn click_action_for_target(
     scope: Option<&str>,
     part: Option<&str>,
     item_index: Option<usize>,
+    item_type: Option<&str>,
 ) -> Option<crate::events::ActionRef> {
     if scope != Some(FILE_UPLOAD_SCOPE) {
         return None;
@@ -97,10 +119,18 @@ pub fn click_action_for_target(
             action: ACTION_CLEAR.to_string(),
             payload: String::new(),
         }),
-        Some(ITEM_DELETE_TRIGGER_PART) => item_index.map(|idx| crate::events::ActionRef {
-            action: ACTION_REMOVE.to_string(),
-            payload: idx.to_string(),
-        }),
+        Some(ITEM_DELETE_TRIGGER_PART) => {
+            let idx = item_index?;
+            let action = match item_type {
+                Some(t) if t == ACCEPTED_ITEM_TYPE => ACTION_REMOVE,
+                Some(t) if t == REJECTED_ITEM_TYPE => ACTION_REMOVE_REJECTED,
+                _ => return None,
+            };
+            Some(crate::events::ActionRef {
+                action: action.to_string(),
+                payload: idx.to_string(),
+            })
+        }
         _ => None,
     }
 }
@@ -189,13 +219,6 @@ mod wiring {
         DataTransfer, DragEvent, Element, Event, FileList, HtmlElement, HtmlInputElement,
     };
 
-    /// Item 系パーツの `data-type` 属性値のうち「受理済み」を表す固定リテラル
-    /// （`fandhe_frontend_headless_ui::file_upload::ItemType::Accepted::as_str()`
-    /// と同値。`FileUploadAction::Remove` が `accepted` 一覧のみを対象とする
-    /// ことに対応し、[`compute_item_index`] の走査を `data-type="accepted"` の
-    /// item 要素に限定するために使う、イシュー #1609 Cursor Bugbot 指摘の是正）。
-    const ACCEPTED_ITEM_TYPE: &str = "accepted";
-
     /// `FileList`（`input.files()`/`DataTransfer::files()` の戻り値）の
     /// 各 `File` から name/size/type のみを読み取り、内容は一切読まない
     /// （`FileReader` 不使用、モジュール冒頭 rustdoc「他クレート・他モジュール
@@ -223,20 +246,25 @@ mod wiring {
     }
 
     /// `root` 配下で `item_el` と
-    /// `[data-scope="file-upload"][data-part="item"][data-type="accepted"]`
-    /// が一致する要素の出現順インデックスを求める。
-    /// [`fandhe_frontend_headless_ui::file_upload::FileUploadAction::Remove`]
-    /// は `accepted` 一覧（`data-type="accepted"`）のみをインデックス対象と
-    /// するため、選択条件も `data-type="accepted"` に限定する
-    /// （イシュー #1609 Cursor Bugbot 指摘の是正: `data-type` を区別せず
-    /// 数えると、accepted/rejected を同一 root に描画するデモ構成で
-    /// rejected item の削除操作が誤った accepted ファイルを削除しうる、
-    /// または no-op になる）。`query_selector_all` の失敗時・`item_el` が
+    /// `[data-scope="file-upload"][data-part="item"][data-type="<item_type>"]`
+    /// が一致する要素の出現順インデックスを求める。`item_type` は呼び出し側
+    /// （[`wire_click`]）が `item_el` 自身の `data-type` 属性から読み取った
+    /// 値（`accepted`/`rejected`）をそのまま渡す。
+    /// [`fandhe_frontend_headless_ui::file_upload::FileUploadAction::Remove`]/
+    /// [`fandhe_frontend_headless_ui::file_upload::FileUploadAction::RemoveRejected`]
+    /// はそれぞれ `accepted`/`rejected` 一覧のみを対象とするため、選択条件も
+    /// `item_type` に限定する（イシュー #1609 Cursor Bugbot 指摘の是正:
+    /// `data-type` を区別せず数えると、accepted/rejected を同一 root に
+    /// 描画するデモ構成で rejected item の削除操作が誤った accepted
+    /// ファイルを削除しうる、または no-op になる。さらに codex-review
+    /// 再指摘: `item_type` を固定で `accepted` にすると rejected item の
+    /// 削除ボタンが常に no-op になっていたため、呼び出し側の実測値を
+    /// 受け取る形へ一般化した）。`query_selector_all` の失敗時・`item_el` が
     /// 見つからない場合は `None`（fail-closed、誤ったインデックスで
     /// 削除しない）。
-    fn compute_item_index(root: &Element, item_el: &Element) -> Option<usize> {
+    fn compute_item_index(root: &Element, item_el: &Element, item_type: &str) -> Option<usize> {
         let selector = format!(
-            "[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{}\"][data-type=\"{ACCEPTED_ITEM_TYPE}\"]",
+            "[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{}\"][data-type=\"{item_type}\"]",
             item_part()
         );
         let Ok(list) = root.query_selector_all(&selector) else {
@@ -422,23 +450,37 @@ mod wiring {
                 return;
             }
 
-            let item_index = if part.as_deref() == Some(ITEM_DELETE_TRIGGER_PART) {
+            // ItemDeleteTrigger の場合のみ、祖先の Item パーツ要素を特定して
+            // その `data-type`（`accepted`/`rejected`）とインデックスを読み取る
+            // （イシュー #1609 codex-review 再指摘の是正: `item_type` を
+            // `compute_item_index` の選択条件・`click_action_for_target` の
+            // dispatch 先アクション選択の双方へ実測値として渡すことで、
+            // rejected item の削除ボタンが常に no-op になる不具合を解消する）。
+            let (item_index, item_type) = if part.as_deref() == Some(ITEM_DELETE_TRIGGER_PART) {
                 let selector = format!(
                     "[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{}\"]",
                     item_part()
                 );
-                element
-                    .closest(&selector)
-                    .ok()
-                    .flatten()
-                    .and_then(|item_el| compute_item_index(&click_root, &item_el))
+                match element.closest(&selector).ok().flatten() {
+                    Some(item_el) => {
+                        let item_type = item_el.get_attribute("data-type");
+                        let idx = item_type
+                            .as_deref()
+                            .and_then(|t| compute_item_index(&click_root, &item_el, t));
+                        (idx, item_type)
+                    }
+                    None => (None, None),
+                }
             } else {
-                None
+                (None, None)
             };
 
-            let Some(action_ref) =
-                click_action_for_target(scope.as_deref(), part.as_deref(), item_index)
-            else {
+            let Some(action_ref) = click_action_for_target(
+                scope.as_deref(),
+                part.as_deref(),
+                item_index,
+                item_type.as_deref(),
+            ) else {
                 return;
             };
             dispatch_and_update(
@@ -627,24 +669,72 @@ mod tests {
     #[test]
     fn clear_trigger_click_dispatches_clear() {
         let action_ref =
-            click_action_for_target(Some("file-upload"), Some("clear-trigger"), None).unwrap();
+            click_action_for_target(Some("file-upload"), Some("clear-trigger"), None, None)
+                .unwrap();
         assert_eq!(action_ref.action, "clear");
         assert_eq!(action_ref.payload, "");
     }
 
     #[test]
-    fn item_delete_trigger_click_dispatches_remove_with_index() {
-        let action_ref =
-            click_action_for_target(Some("file-upload"), Some("item-delete-trigger"), Some(2))
-                .unwrap();
+    fn item_delete_trigger_click_dispatches_remove_with_index_for_accepted_item() {
+        let action_ref = click_action_for_target(
+            Some("file-upload"),
+            Some("item-delete-trigger"),
+            Some(2),
+            Some("accepted"),
+        )
+        .unwrap();
         assert_eq!(action_ref.action, "remove");
         assert_eq!(action_ref.payload, "2");
+    }
+
+    /// codex-review 再指摘（イシュー #1609）の回帰テスト:
+    /// `ItemType::Rejected` の削除ボタンは `"remove-rejected"` を dispatch
+    /// する（`"remove"` 固定だと常に no-op になっていた）。
+    #[test]
+    fn item_delete_trigger_click_dispatches_remove_rejected_with_index_for_rejected_item() {
+        let action_ref = click_action_for_target(
+            Some("file-upload"),
+            Some("item-delete-trigger"),
+            Some(1),
+            Some("rejected"),
+        )
+        .unwrap();
+        assert_eq!(action_ref.action, "remove-rejected");
+        assert_eq!(action_ref.payload, "1");
     }
 
     #[test]
     fn item_delete_trigger_click_without_index_is_ignored() {
         assert_eq!(
-            click_action_for_target(Some("file-upload"), Some("item-delete-trigger"), None),
+            click_action_for_target(
+                Some("file-upload"),
+                Some("item-delete-trigger"),
+                None,
+                Some("accepted"),
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn item_delete_trigger_click_with_unknown_item_type_is_ignored() {
+        assert_eq!(
+            click_action_for_target(
+                Some("file-upload"),
+                Some("item-delete-trigger"),
+                Some(0),
+                None,
+            ),
+            None
+        );
+        assert_eq!(
+            click_action_for_target(
+                Some("file-upload"),
+                Some("item-delete-trigger"),
+                Some(0),
+                Some("bogus"),
+            ),
             None
         );
     }
@@ -652,7 +742,7 @@ mod tests {
     #[test]
     fn mismatched_scope_is_ignored() {
         assert_eq!(
-            click_action_for_target(Some("attacker"), Some("clear-trigger"), None),
+            click_action_for_target(Some("attacker"), Some("clear-trigger"), None, None),
             None
         );
     }
@@ -660,7 +750,7 @@ mod tests {
     #[test]
     fn unrelated_part_is_ignored() {
         assert_eq!(
-            click_action_for_target(Some("file-upload"), Some("root"), None),
+            click_action_for_target(Some("file-upload"), Some("root"), None, None),
             None
         );
     }
@@ -747,6 +837,7 @@ mod tests {
     #[test]
     fn decode_action_accepts_remove_and_clear() {
         assert!(<FileUpload as Component>::decode_action("remove", "0").is_some());
+        assert!(<FileUpload as Component>::decode_action("remove-rejected", "0").is_some());
         assert!(<FileUpload as Component>::decode_action("clear", "").is_some());
         assert!(<FileUpload as Component>::decode_action("add-files", "x").is_none());
     }
@@ -760,7 +851,8 @@ mod tests {
             "a", 1, "",
         )]));
         let action_ref =
-            click_action_for_target(Some("file-upload"), Some("clear-trigger"), None).unwrap();
+            click_action_for_target(Some("file-upload"), Some("clear-trigger"), None, None)
+                .unwrap();
         assert!(dispatch(&mut f, &action_ref.action, &action_ref.payload));
         assert!(f.is_empty());
     }
@@ -772,11 +864,43 @@ mod tests {
             FileUploadItem::new("a", 1, ""),
             FileUploadItem::new("b", 1, ""),
         ]));
-        let action_ref =
-            click_action_for_target(Some("file-upload"), Some("item-delete-trigger"), Some(0))
-                .unwrap();
+        let action_ref = click_action_for_target(
+            Some("file-upload"),
+            Some("item-delete-trigger"),
+            Some(0),
+            Some("accepted"),
+        )
+        .unwrap();
         assert!(dispatch(&mut f, &action_ref.action, &action_ref.payload));
         assert_eq!(f.accepted()[0].name, "b");
+    }
+
+    /// codex-review 再指摘（イシュー #1609）の回帰テスト: rejected item の
+    /// 削除ボタンクリックが実際に `rejected` 一覧からその要素を除去する
+    /// （`compute_item_index`/`click_action_for_target` の `item_type` 実測
+    /// 経路の統合確認、DOM 非依存）。
+    #[test]
+    fn remove_rejected_click_roundtrip_removes_indexed_rejected_file() {
+        // `max_file_size: Some(0)` により、サイズ > 0 の任意のファイルが
+        // `FileTooLarge` で確実に拒否される（`accept` 無指定では拒否理由が
+        // 得られないため、決定的に拒否させる設定を明示する）。
+        let mut f = FileUpload::new(String::new(), None, Some(0), None);
+        f.update(FileUploadAction::AddFiles(vec![FileUploadItem::new(
+            "a.exe",
+            1,
+            "application/x-msdownload",
+        )]));
+        assert_eq!(f.rejected().len(), 1);
+        let action_ref = click_action_for_target(
+            Some("file-upload"),
+            Some("item-delete-trigger"),
+            Some(0),
+            Some("rejected"),
+        )
+        .unwrap();
+        assert_eq!(action_ref.action, "remove-rejected");
+        assert!(dispatch(&mut f, &action_ref.action, &action_ref.payload));
+        assert!(f.rejected().is_empty());
     }
 
     // --- XSS 回帰: 実ファイル名にスクリプト断片があっても、AddFiles →

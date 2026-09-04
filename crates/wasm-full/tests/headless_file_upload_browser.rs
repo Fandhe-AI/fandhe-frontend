@@ -554,17 +554,22 @@ fn render_file_upload_mixed(state: &FileUpload, required: bool) -> String {
     render(&node)
 }
 
-/// イシュー #1609 Cursor Bugbot 指摘（Medium）の回帰テスト:
+/// イシュー #1609 Cursor Bugbot 指摘（Medium）・codex-review 再指摘（P1）の
+/// 回帰テスト:
 /// `compute_item_index` が `data-part="item"` を `data-type` 区別せず
 /// 数えていたため、rejected item（accepted より DOM 出現順で先）の
 /// `item-delete-trigger` をクリックすると誤って accepted ファイルが
-/// 削除され得た。是正後は rejected item の削除トリガーが
-/// `data-type="accepted"` の item のみを対象にインデックスを求めるため、
-/// rejected item のクリックでは accepted 一覧が変化しないこと、かつ
-/// accepted item のクリックでは正しい（accepted 内での出現順）
-/// インデックスが削除されることを固定する。
+/// 削除され得た（Cursor Bugbot 指摘）。さらにその是正の初期実装
+/// （`compute_item_index` を `data-type="accepted"` へ固定）は、逆に
+/// rejected item の削除ボタンを恒常的な no-op にしてしまっていた
+/// （codex-review 再指摘）。最終是正は `item_type` を実測して
+/// `"remove"`（accepted）/`"remove-rejected"`（rejected）を使い分ける
+/// ため、rejected item のクリックでは accepted 一覧が変化せず
+/// `rejected` 一覧からその要素が正しく除去されること、かつ accepted
+/// item のクリックでは正しい（accepted 内での出現順）インデックスが
+/// 削除されることを固定する。
 #[wasm_bindgen_test]
-fn item_delete_trigger_click_indexes_accepted_items_only() {
+fn item_delete_trigger_click_indexes_accepted_and_rejected_items_independently() {
     let document = web_sys::window().unwrap().document().unwrap();
     let container = create_container(&document, "file-upload-mixed-remove-test");
     let _guard = RemoveOnDrop(container.clone());
@@ -591,9 +596,11 @@ fn item_delete_trigger_click_indexes_accepted_items_only() {
     })
     .expect("wire_file_upload_component must not fail");
 
-    // rejected item（DOM 出現順で先頭）の削除トリガーをクリックしても
-    // accepted 一覧は変化しない（no-op、誤った accepted ファイル削除を
-    // 起こさない）。
+    // rejected item（DOM 出現順で先頭）の削除トリガーをクリックすると、
+    // accepted 一覧は変化せず（誤った accepted ファイル削除を起こさない）、
+    // かつ `rejected` 一覧からその要素が正しく除去される
+    // （codex-review 再指摘の是正確認: 以前は `"remove"` 固定 dispatch の
+    // ため常に no-op だった）。
     let rejected_delete_el = container
         .query_selector(
             "[data-scope='file-upload'][data-part='item-delete-trigger'][data-type='rejected']",
@@ -608,6 +615,11 @@ fn item_delete_trigger_click_indexes_accepted_items_only() {
         .expect("dispatch_event must not fail");
 
     assert_eq!(state.borrow().accepted().len(), 2);
+    assert!(
+        state.borrow().rejected().is_empty(),
+        "clicking the rejected item's delete trigger must remove it from the rejected list \
+         (codex-review P1 regression: previously always a no-op)"
+    );
     assert!(state
         .borrow()
         .accepted()
@@ -648,19 +660,25 @@ fn item_delete_trigger_click_indexes_accepted_items_only() {
         .iter()
         .any(|f| f.name == "remove-me.txt"));
 }
-/// イシュー #1609 codex-review 再指摘（P1）の回帰テスト:
-/// `wire_file_upload_component` はネイティブ `required` 属性を状態に応じて
-/// 一切変更しない（過去に実装していた `sync_hidden_input_required`、
-/// PR #1885 588fd4f/d9e846f、は「`accepted()` が非空ならネイティブ
-/// `required` を除去する」同期を行っていたが、`change` ハンドラは
-/// 処理直後に必ず `input.set_value("")` で hidden-input の実 `FileList`
-/// を破棄するため、required 除去後もネイティブフォーム送信には実ファイルが
-/// 一切含まれず、意図しない検証バイパスになっていた）。是正後は
-/// `AddFiles` で `accepted()` が非空になっても、また非空状態でマウント
-/// （SSR hydration 相当）しても、hidden-input の `required` 属性が
-/// `props.required` から出力されたまま変化しないことを固定する。
+/// イシュー #1609 codex-review 再指摘（P1、2 回目）の回帰テスト:
+/// [`hidden_input`] はネイティブ `required` 属性を一切出力しない
+/// （過去に実装していた `sync_hidden_input_required`、PR #1885
+/// 588fd4f/d9e846f、は「`accepted()` が非空ならネイティブ `required` を
+/// 除去する」同期を行っていたが、`change` ハンドラは処理直後に必ず
+/// `input.set_value("")` で hidden-input の実 `FileList` を破棄するため、
+/// required 除去後もネイティブフォーム送信には実ファイルが一切含まれず、
+/// 意図しない検証バイパスになっていた。続く是正〔2b5fbc1〕は同期処理を
+/// 撤去しネイティブ `required` を常時出力する形にしたが、これは
+/// 「required 指定時、正常にファイルを選択してもネイティブ `<form>`
+/// 送信が常にブロックされる」別の P1 を生んだ。最終是正は
+/// `crates/headless-ui/src/file_upload.rs::hidden_input` 側でネイティブ
+/// `required` 自体を出力しない設計へ変更し、`aria-required`/
+/// `data-required` のみで要求有無を提示する）。`wire_file_upload_component`
+/// は状態変化（`AddFiles`/`Remove`/マウント時点）のいずれでも
+/// `input.required()`（ネイティブ DOM プロパティ）が常に `false`
+/// のままであることを固定する。
 #[wasm_bindgen_test]
-fn hidden_input_required_attribute_is_never_toggled_by_state() {
+fn hidden_input_never_carries_native_required_attribute() {
     let document = web_sys::window().unwrap().document().unwrap();
     let container = create_container(&document, "file-upload-required-static-test");
     let _guard = RemoveOnDrop(container.clone());
@@ -678,9 +696,17 @@ fn hidden_input_required_attribute_is_never_toggled_by_state() {
     container.set_inner_html(&render_file_upload_mixed(&state.borrow(), true));
     let input = hidden_input_element(&container);
     assert!(
-        input.required(),
-        "SSR markup renders native required regardless of accepted state"
+        !input.required(),
+        "SSR markup must never render native required, regardless of props.required or \
+         accepted state (would block native <form> submission even with accepted files, \
+         since the hidden-input never retains a real FileList)"
     );
+    assert_eq!(
+        input.get_attribute("aria-required").as_deref(),
+        Some("true"),
+        "aria-required must reflect props.required instead of native required"
+    );
+    assert!(input.has_attribute("data-required"));
 
     let update_container = container.clone();
     wire_file_upload_component(container.clone(), state.clone(), move |s, _el| {
@@ -688,36 +714,29 @@ fn hidden_input_required_attribute_is_never_toggled_by_state() {
     })
     .expect("wire_file_upload_component must not fail");
 
-    // 配線直後（状態変更イベントは一切発火していない）でも required は
-    // 変更されない。
+    // 配線直後（状態変更イベントは一切発火していない）でも native
+    // required は出力されない。
     let input_after_wire = hidden_input_element(&container);
-    assert!(
-        input_after_wire.required(),
-        "native required must stay exactly as authored at wiring time; the wiring layer must \
-         not synthesize/remove it from component state"
-    );
+    assert!(!input_after_wire.required());
 
     // さらにファイルを追加して `accepted()` を非空のまま増やしても
-    // required は除去されない（旧 P1 バグの再発防止）。
+    // native required は出力されない。
     let input = hidden_input_element(&container);
     let file = make_file("b.txt", 1, "text/plain");
     dispatch_change_with_files(&input, &[file]);
     assert_eq!(state.borrow().accepted().len(), 2);
     let input_after_add = hidden_input_element(&container);
-    assert!(
-        input_after_add.required(),
-        "adding files must not cause native required to be removed; the hidden-input value is \
-         always cleared after change, so removing required would let a native form submit \
-         with no real file attached (codex-review P1)"
-    );
+    assert!(!input_after_add.required());
 
-    // 受理済みファイルを 1 件ずつ削除して空に戻しても required は
-    // 変化しない（元々変更していないため、当然ながら維持される）。
+    // 受理済みファイルを 1 件ずつ削除して空に戻しても native required は
+    // 出力されない（元々出力していないため、当然ながら維持される）。
     let init = EventInit::new();
     init.set_bubbles(true);
     for _ in 0..2 {
         let delete_el = container
-            .query_selector("[data-scope='file-upload'][data-part='item-delete-trigger']")
+            .query_selector(
+                "[data-scope='file-upload'][data-part='item-delete-trigger'][data-type='accepted']",
+            )
             .expect("query_selector must not fail");
         if let Some(delete_el) = delete_el {
             let event =
@@ -729,8 +748,5 @@ fn hidden_input_required_attribute_is_never_toggled_by_state() {
     }
     assert!(state.borrow().accepted().is_empty());
     let input_after_remove = hidden_input_element(&container);
-    assert!(
-        input_after_remove.required(),
-        "native required must remain present after clearing accepted files"
-    );
+    assert!(!input_after_remove.required());
 }

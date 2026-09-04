@@ -130,6 +130,22 @@ pub fn aria_invalid(invalid: bool) -> (&'static str, &'static str) {
     ("aria-invalid", bool_str(invalid))
 }
 
+/// `aria-required` 属性（FileUpload の HiddenInput 用、イシュー #1609）。
+///
+/// ネイティブ `required` 属性はブラウザの constraint validation を発火させ、
+/// フォーム送信を阻止する。[`crate::file_upload::hidden_input`] は実
+/// `FileList` を保持しない設計（`fandhe-frontend-wasm-full` の配線層が
+/// `change` 直後に値をクリアする）のため、ネイティブ `required` を使うと
+/// 受理済みファイルが存在してもネイティブ送信が常にブロックされてしまう
+/// （UI コンポーネント層はバリデーション・送信処理を内包しない、
+/// `.claude/rules/coding-rust.md` §UI 部品の責務境界）。[`aria_invalid`] と
+/// 同じく WAI-ARIA 仕様上 `"true"`/`"false"` の明示 2 値を取るため、
+/// `Option` にせず常に属性を返す。
+#[must_use]
+pub fn aria_required(required: bool) -> (&'static str, &'static str) {
+    ("aria-required", bool_str(required))
+}
+
 /// `aria-checked` 属性（Checkbox 用、tri-state 対応）。
 #[must_use]
 pub fn aria_checked(state: AriaChecked) -> (&'static str, &'static str) {

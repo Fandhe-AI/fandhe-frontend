@@ -1614,7 +1614,7 @@ fn ex_file_upload_readonly_invalid_required() -> Node {
         ],
     )];
     wrap_example(
-        "readonly + invalid + required を同時に指定した例です。label に data-required、dropzone/trigger/hidden_input に tabindex=\"-1\"/aria-disabled/ネイティブ disabled/required が反映されます。",
+        "readonly + invalid + required を同時に指定した例です。label に data-required、dropzone/trigger/hidden_input に tabindex=\"-1\"/aria-disabled/ネイティブ disabled、hidden_input に aria-required/data-required が反映されます（ネイティブ required は出力しません、イシュー #1609）。",
         body,
     )
 }
@@ -1689,7 +1689,7 @@ const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
         "root/label/dropzone/trigger/item_group/item/item_name/item_size_text_node/item_delete_trigger/clear_trigger/hidden_input の 11 anatomy パーツで構成する（file_upload.rs:1-9）。",
         "FileUploadProps（disabled/readonly/invalid/required）を各パーツへ一律付与する。dropzone は disabled または readonly のとき tabindex=\"-1\" + aria-disabled=\"true\"、それ以外は tabindex=\"0\" にする。呼び出し側 attrs に aria-label/aria-labelledby が無ければ既定 aria-label=\"dropzone\" を付与する（参照突合、イシュー #1609）。",
         "trigger/item_delete_trigger/clear_trigger/hidden_input は readonly でもネイティブ disabled を付与する（zag disabled: disabled || readOnly と同値）。",
-        "hidden_input には tabindex=\"-1\"・aria-hidden=\"true\"・required（props.required）を付与する。clear_trigger は hidden 引数（受理済みファイル 0 件を表す）で hidden 属性を出力する（イシュー #1609）。",
+        "hidden_input には tabindex=\"-1\"・aria-hidden=\"true\"・aria-required/data-required（props.required。ネイティブ required は出力しない。理由: 実 FileList を保持しない設計とネイティブ constraint validation が衝突するため）を付与する。clear_trigger は hidden 引数（受理済みファイル 0 件を表す）で hidden 属性を出力する（イシュー #1609）。",
         "item_group/item/item_name/item_size_text_node/item_delete_trigger には ItemType（Accepted/Rejected）固定語彙による data-type を付与する。item への data-invalid は参照側（zag/ark）も出さないため付与しない（呼び出し側 attrs 経由でのみ有効化できる）。",
         "本モジュールはファイルメタデータ（name/size_bytes/mime_type）のみを保持し、File オブジェクト自体・実アップロード処理は持たない（file_upload.rs:20-27）。",
     ],
@@ -1787,8 +1787,8 @@ const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
             description: "hidden_input パーツへ固定付与する（フォーカス・スクリーンリーダー走査の対象外にする）。",
         },
         AriaRow {
-            attribute: "required",
-            description: "hidden_input パーツへ props.required のとき付与する。",
+            attribute: "aria-required",
+            description: "hidden_input パーツへ props.required の値をそのまま反映する（true/false の明示 2 値、ネイティブ required は出力しない）。",
         },
     ],
     demo: None,
