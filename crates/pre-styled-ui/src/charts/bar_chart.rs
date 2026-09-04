@@ -43,10 +43,48 @@
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - 軸線・グリッド・凡例・ツールチップ（#847）。
-//! - ホバーインタラクション・アニメーション（JS ランタイム前提のため
-//!   `docs/policy/intentional-non-adoption.md` の意図的非採用方針に従う）。
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
 //!   行う（`qr_code`/`rating_group` の先例と同じ判断）。
+//!
+//! ## イシュー #1590（参考サイト基準へのスタイル調整、内部整合軸）でのスコープ外判断
+//!
+//! 参照 4 サイト（chakra-ui / Radix Themes / Radix Primitives / ark-ui）には
+//! チャート部品が存在しないため、評価軸は内部整合（トークン経由の配色・
+//! ダークモード可読性・系列色の識別性）のみに限定される。この軸に基づき
+//! 以下は意図的に是正しない:
+//!
+//! - **hover / transition**: `bar`/`category-label` は表示専用 slot
+//!   （`role="img"` の SVG 内 `<rect>`/`<text>`。`cursor: pointer` も
+//!   `<button>`/`<a>`/interactive role も持たない）であり、
+//!   `docs/design/pre-styled-ui-interaction-visual-language.md` §3 の
+//!   「hover 付与の判定基準: インタラクティブ slot のみ」に該当しない
+//!   （`docs/policy/intentional-non-adoption.md` の JS ランタイム前提論では
+//!   なく、この判定基準に基づく判断へ更新した）。[`super::tooltip`] の
+//!   `datum` が hover を持つのは子 `<title>` によるネイティブツールチップ
+//!   表示と組み合わせるための例外であり、本モジュールの棒は `<title>` を
+//!   持たない（`<title>` 追加はマークアップ変更であり本イシューの CSS
+//!   調整の範囲外）。transition が無いため `prefers-reduced-motion` も
+//!   対象外。
+//! - **focus**: フォーカス可能要素が存在しない（`svg` は `tabindex` を
+//!   持たない）。
+//! - **disabled**: `data-disabled` を出力する経路が無い（静的部品）。
+//! - **size 軸**: 姉妹の line/area/pie/donut/sparkline は `plot` slot の
+//!   固定高さを `Size` で切り替えるが、本モジュールは `plot` slot を
+//!   持たず高さは [`BarChartProps`]（`width`/`height`）の viewBox
+//!   アスペクト比で決まる。size 追加には全 `pub` フィールドを持つ
+//!   [`BarChartProps`] へのフィールド追加（フルリテラル構築を前提とする
+//!   単体テストを壊す 0.x 破壊的変更）が必要であり、参照サイト由来の
+//!   variant/size 網羅性を評価しない本イシューでは見送る（親 #1588 への
+//!   スコープ外報告候補）。
+//! - **角丸（`rx`）**: chakra-ui BarChart（recharts）の既定は角丸なしで
+//!   あり、SVG `rx` の CSS プロパティ化はブラウザ差があるため内部整合軸の
+//!   範囲を超える。
+//! - **幾何（バンド余白・ラベル位置定数）**: Rust 側の定数であり、変更す
+//!   るとレンダリング結果と手計算ジオメトリテストが変わる。CSS 調整の
+//!   範囲外。
+//! - **系列色トークン（`chart-1`〜`chart-6`）**: light/dark 両方が
+//!   `theme.rs` に定義済み（`docs/design/color-token-system.md`）であり
+//!   変更しない。
 
 use super::data::ChartData;
 use super::scale::LinearScale;
@@ -122,6 +160,28 @@ impl Default for BarChartProps {
 /// 「前景/背景は固定トークン・variant は寸法のみ」判断と同型ではなく、本
 /// 部品は variant 自体を持たない静的部品。[`crate::table`] の
 /// 「状態機械を持たない静的 styled 部品」に分類される）。
+///
+/// # 不変条件（イシュー #1590）
+///
+/// - **`bar` の base に `fill` を書かない**: 棒の色は [`root`] が各棒へ
+///   `fill="var(--fandhe-color-chart-N)"`（[`series_color_var`]）を
+///   presentation 属性として直接付与しており、著者スタイルシートの `fill`
+///   宣言は presentation 属性より優先度が低い（SVG のスタイル解決順位）
+///   ため無効ではあるが、仮に `fill` を 1 本でも書くと将来 presentation
+///   属性側を外すリファクタで全系列が同色に潰れる回帰を招く。この不変条件は
+///   `bar_rule_has_stroke_but_never_fill`（下記テスト）が機械固定する。
+/// - `bar` の `stroke`/`stroke-width` は隣接する系列棒の境界を明示する
+///   （[`super::scatter_chart`] の `point`・[`super::pie_chart`] の slice と
+///   同型。棒が密着しているとライト/ダーク両テーマで境界が判別しづらい
+///   内部整合上の不足だった、イシュー #1590）。色は背景トークン
+///   `--fandhe-color-bg` を使うため、ダーク時もテーマ再定義経由で自動的に
+///   背景色へ追随する。
+/// - `stroke-width` の値は単位なし `"1"` を採用する（[`super::axis`]・
+///   [`super::grid`] と同じ多数派表記。[`super::scatter_chart`] の `"1px"`
+///   は少数派表記であり本部品では踏襲しない）。
+/// - `category-label` の `font-family` は [`super::axis`] の `tick-label`
+///   と同じ書体トークン `--fandhe-font-font-body` を使う（同じ SVG 内
+///   テキストで書体指定の有無が食い違っていた内部整合上の不足の是正）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("bar-chart", SLOTS)
         .base(
@@ -129,9 +189,17 @@ fn recipe() -> SlotRecipe {
             vec![decl("display", "block"), decl("max-width", "100%")],
         )
         .base(
+            "bar",
+            vec![
+                decl("stroke", "var(--fandhe-color-bg)"),
+                decl("stroke-width", "1"),
+            ],
+        )
+        .base(
             "category-label",
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("font-family", "var(--fandhe-font-font-body)"),
                 decl("fill", "var(--fandhe-color-fg-muted)"),
             ],
         )
@@ -485,5 +553,57 @@ mod tests {
         assert_eq!(a, b);
         assert!(!a.contains('<'));
         assert!(a.contains(r#"[data-scope="bar-chart"]"#));
+    }
+
+    /// `[data-scope="bar-chart"][data-part="bar"]` 規則のみを切り出す。
+    ///
+    /// [`recipe`] doc の不変条件（`bar` は `fill` を持たない）をブロック
+    /// 単位で検査するため、`css()` 全体を対象にすると `category-label` の
+    /// `fill` 宣言に誤検知してしまう問題を避ける。
+    fn bar_rule_block(css: &str) -> &str {
+        let selector = r#"[data-scope="bar-chart"][data-part="bar"] {"#;
+        let start = css
+            .find(selector)
+            .expect("bar rule block must be present in css()");
+        let rest = &css[start..];
+        let end = rest.find("}\n").expect("bar rule block must be closed");
+        &rest[..end]
+    }
+
+    #[test]
+    fn bar_rule_has_stroke_but_never_fill() {
+        // イシュー #1590: bar の色は root() が presentation 属性
+        // fill="var(--fandhe-color-chart-N)" で系列ごとに与える。recipe()
+        // 側に fill を書くと将来 presentation 属性を外すリファクタで全系列が
+        // 同色に潰れる回帰を招くため、CSS 側に fill が無いことを固定する。
+        let out = css();
+        let block = bar_rule_block(&out);
+        assert!(block.contains("stroke: var(--fandhe-color-bg);"));
+        assert!(block.contains("stroke-width: 1;"));
+        assert!(!block.contains("fill:"));
+    }
+
+    #[test]
+    fn category_label_uses_body_font_token() {
+        // super::axis の tick-label と同じ書体トークンで整合させる
+        // （イシュー #1590）。
+        assert!(css().contains("font-family: var(--fandhe-font-font-body);"));
+    }
+
+    #[test]
+    fn css_has_no_raw_color_literals() {
+        let out = css();
+        assert!(!out.contains('#'));
+        assert!(!out.contains("rgb("));
+    }
+
+    #[test]
+    fn css_has_no_hover_or_transition_rules() {
+        // bar/category-label は表示専用 slot（モジュール doc「イシュー
+        // #1590 でのスコープ外判断」参照）。将来 <title> 付与等で hover を
+        // 導入する場合はこのテストを意図的に更新すること。
+        let out = css();
+        assert!(!out.contains(":hover"));
+        assert!(!out.contains("transition-"));
     }
 }
