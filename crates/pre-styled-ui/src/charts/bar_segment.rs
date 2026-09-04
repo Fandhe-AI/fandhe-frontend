@@ -64,12 +64,13 @@
 //! | サイズ | 非該当（size バリアントを持たない。参照軸なし） |
 //! | バリアント / colorPalette | 非採用（参照軸なし。配色はカテゴリ index で `chart-1`〜`chart-6` 循環） |
 //! | 色 | 是正 1 点（下記「`bar` の track 背景」）。他は全宣言がトークン経由で現状維持 |
-//! | 状態 `data-*` | headless 由来の `data-*` は持たない。モジュール専有の
-//!   `data-fandhe-bar-segment-end`（最後の正値 segment、区切り線の内部
-//!   打ち消し用）・`data-fandhe-bar-segment-empty`（値 0 の segment、同じく
-//!   区切り線の内部打ち消し用）の 2 種を新設した（下記「是正した点」参照。
-//!   前者は codex-review 指摘、後者は codex-review/Cursor Bugbot 再指摘、
-//!   いずれもイシュー #1592） |
+//! | 状態 `data-*` | headless 由来の `data-*` は持たない。区切り線の
+//!   要否は DOM 構造（`segment-divider` 子要素の有無）で表現するため、
+//!   打ち消し用の専有 `data-*` は持たない（下記「是正した点」参照。
+//!   当初 codex-review 指摘・codex-review/Cursor Bugbot 再指摘を受けて
+//!   `data-fandhe-bar-segment-end`/`data-fandhe-bar-segment-empty` の
+//!   2 種を新設していたが、後続の codex-review P1 再指摘（PR #1865）を
+//!   受けた是正で構造的手法へ置き換え、両属性は廃止した） |
 //! | ダークモード | 現状維持（`chart-N`・`fg`・`fg-muted`・`bg-muted` はいずれも dark 値定義済み。凡例テキストのコントラストは light `fg-muted #4a4a4a`/`bg #ffffff` ≈ 8.9:1、dark `#cccccc`/`#111111` ≈ 11.8:1 で本文 4.5:1 を満たす） |
 //! | フォーカス | 非該当（表示専用、フォーカス可能要素なし） |
 //! | 余白・角丸・影 | 是正（生リテラルを `--fandhe-space-*`/`--fandhe-radius-*` スケールへ統一。影は不使用のまま） |
@@ -83,37 +84,41 @@
 //!   各セグメント幅の合計が 100% にわずかに満たない場合にページ背景が
 //!   透けて見えるのを防ぎ、[`super::bar_list`]/`progress` の track 面
 //!   （いずれも `bg-muted` 背景）と整合させる。
-//! - **セグメント間の区切り線**: `segment` に
-//!   `border-inline-end: 1px solid var(--fandhe-color-bg)`（+
-//!   `box-sizing: border-box`）を追加し、隣接カテゴリの色境界を明確にした
-//!   （論理方向プロパティのため `direction: rtl` 継承時も物理辺が自動で
-//!   反転し、`box-sizing: border-box` により border 追加後も比率どおりの
-//!   外形幅を保つ。当初 `box-shadow: inset -1px 0 0 ...`
-//!   〔物理右辺固定〕を用いていたが RTL で打ち消し対象が逆転する欠陥が
-//!   あり、codex-review 指摘（イシュー #1592）を受けて是正した）。
-//!   最後の可視（正値）セグメントの右端（RTL では左端）は `bar` の
-//!   `overflow: hidden` と `border-radius` により直線で切れるため、区切り
-//!   線を残すと 1px の欠けに見える。`root()` が系列中「最後の正値」の
-//!   index を算出して [`crate::recipe::StateCondition::Attr`]
-//!   （`data-fandhe-bar-segment-end` 存在属性、本モジュール専有）で
-//!   打ち消す。当初 `StateCondition::LastChild`（`:last-child`、`steps.rs`
-//!   先例と同型）を用いていたが、`root()` は値 0 のカテゴリも幅 0% の
-//!   segment を生成するため末尾が 0 値だと DOM 上の `:last-child` が
-//!   不可視要素に奪われ、実際の右端（可視の最後の正値セグメント）に
-//!   欠けが残る欠陥があり、同じ codex-review 指摘で是正した。
+//! - **セグメント間の区切り線**: 隣接カテゴリの色境界を明確にするため、
+//!   `segment` の子要素として `position: absolute` の
+//!   [`segment-divider`]（`inset-block: 0`・`inset-inline-end: 0`・
+//!   `width: 1px`・`background: var(--fandhe-color-bg)`）を条件付きで
+//!   描画する（`segment()` 参照。区切り線を要素の境界線ではなく通常
+//!   フローに参加しない絶対配置要素で表現するため、`segment` 自身の
+//!   `width`〔合計に対する比率〕には一切影響しない）。
 //!
-//!   **追加是正（codex-review/Cursor Bugbot 再指摘）**: 当初「値 0 の
-//!   segment（幅 0%）にも border-inline-end は出力されるが実害はない」と
-//!   記していたが誤りだった。`box-sizing: border-box` の要素は自身の
-//!   border 幅より小さくはならないため、幅 0% の segment も 1px の外形幅を
-//!   持つ。この 1px は flex row 内で他の兄弟の描画順に関係なくレイアウト
-//!   幅を消費するため、先頭・中間の 0 値 segment では後続の正値 segment を
-//!   1px 分圧迫し、末尾の 0 値 segment では `bar` の右端（RTL では左端）に
-//!   1px の隙間を生む。いずれも「比率の真正性を崩さない」（本 doc「意図的
-//!   に合わせなかった点」節）契約に反する。位置に関わらず value <= 0.0 の
-//!   すべての segment に `data-fandhe-bar-segment-empty`（本モジュール専有
-//!   の存在属性）を付与し、`data-fandhe-bar-segment-end` と同じ
-//!   `border-inline-end: none` で打ち消す（`segment()` 参照）。
+//!   この形に落ち着くまでに 2 段階の是正を経ている。
+//!   (1) 当初 `box-shadow: inset -1px 0 0 ...`〔物理右辺固定〕を用いて
+//!   いたが、`direction: rtl` 継承時に打ち消し対象が逆転する欠陥があり、
+//!   `border-inline-end`（論理方向プロパティ）+
+//!   `box-sizing: border-box` へ置き換えた。合わせて「最後の可視（正値）
+//!   segment の右端（RTL では左端）は `bar` の `overflow: hidden` +
+//!   `border-radius` で直線に切れるため区切り線を残すと 1px の欠けに
+//!   見える」問題も、DOM 順の `:last-child`（値 0 の末尾カテゴリで対象が
+//!   不可視要素に奪われる欠陥があった）から `root()` が算出する「系列中
+//!   最後の正値」index 基準の判定へ是正した（以上 codex-review 指摘、
+//!   イシュー #1592）。
+//!   (2) 続けて「値 0 の segment（幅 0%）にも border-inline-end は
+//!   出力されるが実害はない」としていたが誤りで、`box-sizing: border-box`
+//!   の要素は自身の border 幅より外形幅を小さくできないため、幅 0% の
+//!   segment も border ぶん 1px の外形幅を持ち、先頭・中間の 0 値 segment
+//!   が後続の正値 segment を圧迫していた（codex-review/Cursor Bugbot
+//!   再指摘）。
+//!   (3) さらに、border-box の「border 幅より小さくならない」制約は
+//!   値 0 の segment に限らず、1px 未満の**極小な正値** segment
+//!   （例: 100px 幅で 0.1%）にも及ぶことが後続の codex-review P1 再指摘
+//!   （PR #1865）で判明した。値の正負で border-inline-end を出し分ける
+//!   属性方式では原理的に塞げないため（border/box-sizing という box
+//!   model 自体の制約であり、CSS 宣言の組み合わせでは回避できない）、
+//!   区切り線を通常フローに参加しない絶対配置の子要素へ置き換える現在の
+//!   形に是正した。フローに参加しないため `segment` の外形幅は常に
+//!   `width` の指定値どおりになり、極小な正値・値 0 のいずれでも比率の
+//!   真正性を崩さない。
 //! - **凡例のマーカー寸法・間隔**: 同 crate の [`super::legend`] と
 //!   数値が不一致だったため揃えた: `legend-marker` は `0.625rem` →
 //!   `0.75rem`、`legend-item` の `gap` は `0.375rem` →
@@ -147,7 +152,7 @@ use super::data::{self, ChartData};
 use super::svg::fmt_coord;
 use super::{series_color_var, ChartError};
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::SlotRecipe;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -159,6 +164,7 @@ const SLOTS: &[&str] = &[
     "root",
     "bar",
     "segment",
+    "segment-divider",
     "legend",
     "legend-item",
     "legend-marker",
@@ -205,50 +211,41 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("height", "100%"),
                 decl("width", "var(--fandhe-bar-segment-percent, 0%)"),
-                // イシュー #1592 P1 是正（codex-review 指摘）:
-                // `box-shadow: inset -1px 0 0 ...` は物理右辺固定のため
-                // `direction: rtl` 継承時（flex row の先頭が右端になる）に
-                // 区切り線の位置が意図と逆転する欠陥があった。
-                // `border-inline-end`（論理方向プロパティ、UA が
-                // `direction`/`writing-mode` に応じて物理辺へ自動解決する）
-                // へ置き換えて RTL 非依存にする。`box-sizing: border-box`
-                // と組み合わせることで border 追加後も `width`（合計に対する
-                // 比率）で確保した外形幅は変わらず、100% 積み上げの比率
-                // 真正性を崩さない（[`super::bar_list`]/[`crate::card`] 等の
-                // border-box 先例と同型）。
-                decl("box-sizing", "border-box"),
-                decl("border-inline-end", "1px solid var(--fandhe-color-bg)"),
+                // イシュー #1592 P1 再是正（codex-review 指摘、PR #1865）:
+                // 区切り線をレイアウト幅を消費する境界線
+                // （`border-inline-end` + `box-sizing: border-box`）で
+                // 表現すると、`box-sizing: border-box` の要素は自身の
+                // border 幅より外形幅を小さくできないため、1px 未満の
+                // 極小な正値 segment（例: 100px 幅で 0.1%）でも border
+                // ぶんの 1px へ強制的に拡大され、後続 segment を圧迫して
+                // 100% 積み上げの比率真正性を崩す欠陥があった
+                // （`data-fandhe-bar-segment-empty` は値 0 の segment しか
+                // 救えず、極小の正値 segment は対象外だった）。区切り線を
+                // `segment` 自身の境界線ではなく、`position: absolute` で
+                // フローから外した子要素 [`segment-divider`] による描画へ
+                // 置き換える。絶対配置要素は通常フローの幅計算に一切
+                // 参加しないため、`segment` の実描画幅が 1px 未満でも
+                // `width`（合計に対する比率）で確保した値をそのまま外形幅
+                // として保てる。基準点を持つため `position: relative` を
+                // 付ける。
+                decl("position", "relative"),
             ],
         )
-        // イシュー #1592 P1 是正（codex-review 指摘）: 従来の
-        // `StateCondition::LastChild`（`:last-child`）は DOM 上の最終
-        // `segment` を対象にしていたが、`root()` は値 0 のカテゴリも幅 0%
-        // の segment として生成するため、末尾カテゴリが 0 値の場合
-        // （例: `[100, 0]`）は不可視の 2 番目が `:last-child` になり、
-        // 実際にバー右端（RTL では左端）を占める最後の可視（正値）
-        // segment には区切り線が残って 1px の欠けが生じていた。
-        // `root()` が系列中「最後の正値」segment の index を算出し
-        // [`segment`] へ渡して `data-fandhe-bar-segment-end` 属性
-        // （本モジュール専有の pre-styled-only 状態表現、headless 由来では
-        // ない）を付与する方式へ変更し、DOM 順・ゼロ幅要素の有無に
-        // 依存しない判定にした。
-        .state(
-            "segment",
-            StateCondition::Attr("data-fandhe-bar-segment-end"),
-            vec![decl("border-inline-end", "none")],
-        )
-        // イシュー #1592 追加是正（codex-review/Cursor Bugbot 指摘）:
-        // 値 0 の segment は `border-inline-end` +
-        // `box-sizing: border-box` により幅 0% でも 1px の外形幅を持ち、
-        // 先頭・中間に現れると後続の正値 segment を 1px 分縮小させ
-        // 100% 積み上げの比率真正性を崩す（末尾でのみ無害、というモジュール
-        // doc の従来記述は誤りだった）。`data-fandhe-bar-segment-empty`
-        // （本モジュール専有の存在属性、`segment()` が value <= 0 の
-        // すべての segment に付与）で border-inline-end を無条件に打ち消す。
-        .state(
-            "segment",
-            StateCondition::Attr("data-fandhe-bar-segment-empty"),
-            vec![decl("border-inline-end", "none")],
+        .base(
+            "segment-divider",
+            vec![
+                // イシュー #1592 P1 再是正: `inset-inline-end`（論理方向
+                // プロパティ）で `direction: rtl` 継承時も物理辺を自動
+                // 反転させ、以前の `border-inline-end` と同じ RTL 非依存を
+                // 維持する。`position: absolute` のため `segment` の外形幅
+                // には一切影響しない（極小 segment でも幅を拡大しない）。
+                decl("position", "absolute"),
+                decl("inset-block", "0"),
+                decl("inset-inline-end", "0"),
+                decl("width", "1px"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("pointer-events", "none"),
+            ],
         )
         .base(
             "legend",
@@ -386,21 +383,26 @@ fn segment(idx: usize, value: f64, series: &data::Series, is_last_visible: bool)
         "--fandhe-bar-segment-percent: {}%; background: {color}",
         fmt_coord(percent)
     );
-    let mut attrs: Vec<(&str, &str)> = vec![("style", style.as_str())];
-    if is_last_visible {
-        // イシュー #1592 P1 是正: `recipe()` の
-        // `StateCondition::Attr("data-fandhe-bar-segment-end")` が拾う
-        // 存在属性（`timer.rs`/`calendar.rs` 等の `("data-disabled", "")`
-        // 先例と同型の空値存在属性）。
-        attrs.push(("data-fandhe-bar-segment-end", ""));
-    }
-    if value <= 0.0 {
-        // イシュー #1592 追加是正（codex-review/Cursor Bugbot 指摘）:
-        // 値 0 の segment が border-inline-end 分の外形幅（1px）を持たない
-        // よう、位置（先頭・中間・末尾）に関わらず打ち消し属性を付ける。
-        attrs.push(("data-fandhe-bar-segment-empty", ""));
-    }
-    ANATOMY.part("segment", "div", attrs, vec![])
+    // イシュー #1592 P1 再是正（codex-review 指摘、PR #1865）: 区切り線を
+    // `segment` 自身の border ではなく、フローに参加しない
+    // `position: absolute` の子要素 [`segment-divider`]（`recipe()`
+    // 参照）で表現する。値が正でも 0 でも `segment` の外形幅は常に
+    // `width`（合計に対する比率）のみで決まり、区切り線の有無に左右
+    // されない。区切り線が要らないケース（値 0＝隣接カテゴリとの境界を
+    // 引く意味がない・最後の可視〔正値〕segment＝`bar` の丸角と重なって
+    // 1px の欠けに見える、モジュール doc「セグメント間の区切り線」節参照）
+    // では子要素自体を生成しない。
+    let children = if value > 0.0 && !is_last_visible {
+        vec![ANATOMY.part(
+            "segment-divider",
+            "span",
+            vec![("aria-hidden", "true")],
+            vec![],
+        )]
+    } else {
+        vec![]
+    };
+    ANATOMY.part("segment", "div", vec![("style", style.as_str())], children)
 }
 
 /// 凡例（[`legend`] モジュール doc 参照）を組み立てる（内部ヘルパ）。
@@ -473,21 +475,22 @@ mod tests {
     }
 
     #[test]
-    fn root_marks_last_positive_segment_when_tail_is_zero() {
-        // イシュー #1592 P1 是正の回帰テスト（codex-review 指摘）:
-        // 末尾カテゴリが 0 値（`[100, 0]`）のとき、`data-fandhe-bar-segment-end`
-        // は DOM 上の最終 segment（不可視・幅 0%、2 番目）ではなく、実際に
-        // バー右端を占める最後の正値 segment（1 番目、index 0）へ付く。
+    fn root_omits_divider_on_last_positive_segment_when_tail_is_zero() {
+        // イシュー #1592 P1 再是正の回帰テスト（codex-review 指摘、
+        // PR #1865）: 末尾カテゴリが 0 値（`[100, 0]`）のとき、区切り線
+        // （`segment-divider` 子要素）は DOM 上の最終 segment（不可視・
+        // 幅 0%、2 番目）ではなく、実際にバー右端を占める最後の正値
+        // segment（1 番目、index 0）を基準に「出さない」判定が行われる
+        // （＝どちらの segment にも `segment-divider` は現れない）。
         let data = ChartData::new(
             vec!["a".to_string(), "b".to_string()],
             vec![Series::new("s", vec![100.0, 0.0])],
         )
         .unwrap();
         let html = render(&root(&data, "s").unwrap());
-        assert_eq!(html.matches("data-fandhe-bar-segment-end").count(), 1);
-        // segment 単位の div を分割し、100% 幅の segment（1 番目）にのみ
-        // 属性が付いていて、0% 幅の segment（2 番目）には付いていないことを
-        // 直接確認する。
+        assert_eq!(html.matches("data-part=\"segment-divider\"").count(), 0);
+        // segment 単位の div を分割し、いずれの segment にも divider 子要素
+        // が含まれないことを直接確認する。
         let segment_divs: Vec<&str> = html
             .split("<div data-scope=\"bar-segment\" data-part=\"segment\"")
             .skip(1)
@@ -495,24 +498,26 @@ mod tests {
         assert_eq!(segment_divs.len(), 2, "html: {html}");
         assert!(
             segment_divs[0].contains("--fandhe-bar-segment-percent: 100%")
-                && segment_divs[0].contains("data-fandhe-bar-segment-end"),
+                && !segment_divs[0].contains("segment-divider"),
             "segment[0]: {}",
             segment_divs[0]
         );
         assert!(
             segment_divs[1].contains("--fandhe-bar-segment-percent: 0%")
-                && !segment_divs[1].contains("data-fandhe-bar-segment-end"),
+                && !segment_divs[1].contains("segment-divider"),
             "segment[1]: {}",
             segment_divs[1]
         );
     }
 
     #[test]
-    fn root_marks_leading_and_middle_zero_segments_as_empty() {
-        // イシュー #1592 追加是正の回帰テスト（codex-review/Cursor Bugbot
-        // 再指摘）: 先頭・中間に 0 値カテゴリがあるとき、それぞれの
-        // segment に `data-fandhe-bar-segment-empty` が付き、区切り線
-        // （border-inline-end）が内部で打ち消されることを固定する。
+    fn root_omits_divider_on_zero_value_segments_regardless_of_position() {
+        // イシュー #1592 追加是正 + P1 再是正の回帰テスト（codex-review/
+        // Cursor Bugbot 再指摘、PR #1865）: 先頭・中間に 0 値カテゴリが
+        // あるとき、それぞれの segment には区切り線（`segment-divider`
+        // 子要素）が生成されない（値 0 の segment は隣接カテゴリとの境界を
+        // 引く意味がないため）。末尾の最後の正値 segment にも同様に
+        // divider は生成されない（`bar` の丸角との重なりを避けるため）。
         let data = ChartData::new(
             vec!["a".to_string(), "b".to_string(), "c".to_string()],
             vec![Series::new("s", vec![0.0, 0.0, 100.0])],
@@ -524,32 +529,67 @@ mod tests {
             .skip(1)
             .collect();
         assert_eq!(segment_divs.len(), 3, "html: {html}");
-        // 先頭（index 0、0%）: empty 属性あり、end 属性なし。
+        // 先頭（index 0、0%）: divider なし。
         assert!(
             segment_divs[0].contains("--fandhe-bar-segment-percent: 0%")
-                && segment_divs[0].contains("data-fandhe-bar-segment-empty")
-                && !segment_divs[0].contains("data-fandhe-bar-segment-end"),
+                && !segment_divs[0].contains("segment-divider"),
             "segment[0]: {}",
             segment_divs[0]
         );
-        // 中間（index 1、0%）: 同様に empty 属性あり、end 属性なし。
+        // 中間（index 1、0%）: 同様に divider なし。
         assert!(
             segment_divs[1].contains("--fandhe-bar-segment-percent: 0%")
-                && segment_divs[1].contains("data-fandhe-bar-segment-empty")
-                && !segment_divs[1].contains("data-fandhe-bar-segment-end"),
+                && !segment_divs[1].contains("segment-divider"),
             "segment[1]: {}",
             segment_divs[1]
         );
-        // 末尾（index 2、100%、最後の正値）: end 属性あり、empty 属性なし。
+        // 末尾（index 2、100%、最後の正値）: divider なし。
         assert!(
             segment_divs[2].contains("--fandhe-bar-segment-percent: 100%")
-                && segment_divs[2].contains("data-fandhe-bar-segment-end")
-                && !segment_divs[2].contains("data-fandhe-bar-segment-empty"),
+                && !segment_divs[2].contains("segment-divider"),
             "segment[2]: {}",
             segment_divs[2]
         );
-        assert_eq!(html.matches("data-fandhe-bar-segment-empty").count(), 2);
-        assert_eq!(html.matches("data-fandhe-bar-segment-end").count(), 1);
+        assert_eq!(html.matches("data-part=\"segment-divider\"").count(), 0);
+    }
+
+    #[test]
+    fn root_renders_divider_between_non_final_positive_segments() {
+        // イシュー #1592 P1 再是正の回帰テスト（codex-review 指摘、
+        // PR #1865）: 極小な正値 segment（100 分の 1 未満に丸められる値）
+        // を含む複数正値カテゴリでは、最後の正値以外の各 segment に
+        // `segment-divider` 子要素が 1 件ずつ生成される。区切り線は
+        // `position: absolute` の子要素でありレイアウト幅を消費しない
+        // ため、極小 segment でも `width`（比率）を拡大しない
+        // （`recipe()` の `segment-divider` base 規則参照）。
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new("s", vec![0.1, 0.1, 99.8])],
+        )
+        .unwrap();
+        let html = render(&root(&data, "s").unwrap());
+        // 最後の正値（index 2）を除く 2 件（index 0, 1）に divider が付く。
+        assert_eq!(html.matches("data-part=\"segment-divider\"").count(), 2);
+        let segment_divs: Vec<&str> = html
+            .split("<div data-scope=\"bar-segment\" data-part=\"segment\"")
+            .skip(1)
+            .collect();
+        assert_eq!(segment_divs.len(), 3, "html: {html}");
+        assert!(
+            segment_divs[0].contains("segment-divider"),
+            "{}",
+            segment_divs[0]
+        );
+        assert!(
+            segment_divs[1].contains("segment-divider"),
+            "{}",
+            segment_divs[1]
+        );
+        assert!(
+            !segment_divs[2].contains("segment-divider"),
+            "{}",
+            segment_divs[2]
+        );
     }
 
     #[test]
@@ -662,13 +702,19 @@ mod tests {
         assert!(a.contains("var(--fandhe-space-3, 0.75rem)"));
         assert!(a.contains("var(--fandhe-bar-segment-bar-height, 0.75rem)"));
         assert!(a.contains("var(--fandhe-color-bg-muted)"));
-        // イシュー #1592 P1 是正（codex-review 指摘）: RTL 非依存の区切り線
-        // （論理方向プロパティ）とゼロ値末尾セグメントを跨いだ「最後の
-        // 可視セグメント」判定（data 属性）を固定する。
-        assert!(a.contains("border-inline-end: 1px solid var(--fandhe-color-bg)"));
-        assert!(a.contains(r#"[data-fandhe-bar-segment-end]"#));
-        assert!(a.contains(r#"[data-fandhe-bar-segment-empty]"#));
-        assert!(a.contains("border-inline-end: none"));
+        // イシュー #1592 P1 再是正（codex-review 指摘、PR #1865）:
+        // 区切り線を `segment` 自身の border ではなく、フローに参加しない
+        // 絶対配置の `segment-divider` slot で表現していることを固定する
+        // （border-inline-end 方式は極小な正値 segment で box-sizing:
+        // border-box の最小幅制約に抵触するため撤回済み）。
+        assert!(a.contains(r#"[data-scope="bar-segment"][data-part="segment"] {"#));
+        assert!(a.contains("position: relative;"));
+        assert!(a.contains(r#"[data-scope="bar-segment"][data-part="segment-divider"] {"#));
+        assert!(a.contains("position: absolute;"));
+        assert!(a.contains("inset-block: 0;"));
+        assert!(a.contains("inset-inline-end: 0;"));
+        assert!(!a.contains("border-inline-end"));
+        assert!(!a.contains("data-fandhe-bar-segment"));
         assert!(a.contains("var(--fandhe-radius-full, 9999px)"));
         assert!(a.contains("var(--fandhe-space-2, 0.5rem)"));
     }
