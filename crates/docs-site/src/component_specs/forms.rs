@@ -1537,6 +1537,10 @@ fn demo_image_cropper() -> Node {
 /// ダミー値 `"1"` を入れて `data-complete` の枠色を視覚確認できるように
 /// する。
 fn pin_input_cells(count: usize, complete: bool, disabled: bool) -> Vec<Node> {
+    let props = pin_input::PinInputProps {
+        disabled,
+        ..Default::default()
+    };
     (0..count)
         .map(|i| {
             let value = if complete { "1" } else { "" };
@@ -1547,7 +1551,7 @@ fn pin_input_cells(count: usize, complete: bool, disabled: bool) -> Vec<Node> {
                 pin_input::PinInputKind::Numeric,
                 false,
                 false,
-                disabled,
+                &props,
                 complete,
                 vec![],
             )
@@ -1562,13 +1566,17 @@ fn demo_pin_input() -> Node {
     // （イシュー #1489。従来は children 空の root のみで視覚確認できな
     // かった）。
     let build = |size: Size, complete: bool, disabled: bool| {
+        let props = pin_input::PinInputProps {
+            disabled,
+            ..Default::default()
+        };
         pin_input::root(
             size,
             complete,
             disabled,
             vec![],
             vec![
-                pin_input::label(complete, vec![], vec![text("PIN code")]),
+                pin_input::label(complete, &props, vec![], vec![text("PIN code")]),
                 pin_input::control(vec![], pin_input_cells(4, complete, disabled)),
             ],
         )

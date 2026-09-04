@@ -96,21 +96,34 @@
 //!     しない**。date-input #1469・combobox #1467・checkbox #1454 と
 //!     同一の判断軸（Forms 家族横断の軸語彙判断のため本イシュー単独では
 //!     先行しない）。
-//!   - **`data-invalid`/`data-readonly` 軸は追加しない**。headless
-//!     （`crates/headless-ui/src/pin_input.rs`）が出す `data-*` は
-//!     `data-complete`/`data-disabled` の 2 種のみで、anatomy 変更を
-//!     要するため本イシューのスコープ外とする（下記「スコープ外」節）。
 //!   - **色・ダーク（トークン参照のみ）は元々参照サイト水準に達していた
 //!     ため変更しない**。focus-ring 色は canonical 形移行によりダーク
 //!     追従トークンへ自動的に載る。
 //!
+//! # headless 層の `data-invalid`/`data-readonly`/`data-required` 対応
+//! （イシュー #1615 追記）
+//!
+//! headless 層（`crates/headless-ui/src/pin_input.rs`）が ark-ui/Radix 参照
+//! 突合（イシュー #1615）により [`fandhe_frontend_headless_ui::pin_input::PinInputProps`]
+//! （disabled/readonly/invalid/required）を新設し、`data-invalid`/
+//! `data-readonly`（root/label/input）・`data-required`（label）・
+//! `aria-invalid`/ネイティブ `readonly`（input）を出力するようになった。
+//! 本モジュールの styled [`root`] 公開シグネチャは非破壊のまま
+//! （`size`/`complete`/`disabled` のみ）維持し、内部で
+//! `PinInputProps { disabled, ..Default::default() }` を組み立てて headless
+//! `root` へ委譲する（#1876 checkbox-group の非破壊化パターンと同型）。
+//! styled 層で invalid/readonly を受け取る API 拡張・対応する CSS
+//! （`[data-invalid]`/`[data-readonly]` 選択子）の追加は本イシューの
+//! スコープ外とする（下記「スコープ外」節）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - `data-invalid`/`data-readonly` 軸の追加は headless 層の anatomy 変更
-//!   （`crates/headless-ui/src/pin_input.rs`）を要するため本イシュー単独の
-//!   スコープ外とする。必要なら別 Issue として起票を提案する。
 //! - variant 軸（chakra `outline`/`subtle`/`flushed` 相当）の追加は
 //!   上記「スタイル調整」節のとおり本イシューのスコープ外とする。
+//! - styled [`root`] へ invalid/readonly を受け取る引数を追加し、対応する
+//!   CSS（`[data-invalid]`/`[data-readonly]` 選択子）を実装することは
+//!   イシュー #1615 のスコープ外とする（headless 層の対応のみが本イシュー
+//!   の対象）。必要なら別 Issue として起票を提案する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -126,7 +139,7 @@ use crate::recipe::{
 // `fandhe_frontend_headless_ui::pin_input::PinInput` を直接 import する。
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::pin_input::{
-    control, hidden_input, input, label, PinInputAction, PinInputKind,
+    control, hidden_input, input, label, PinInputAction, PinInputKind, PinInputProps,
 };
 
 /// headless `pin_input` anatomy の `data-part` 一覧
@@ -326,7 +339,14 @@ pub fn root<'a>(
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::pin_input::root(complete, disabled, merged, children)
+    // 公開シグネチャは `disabled: bool` のまま非破壊で維持し、内部で
+    // headless の `PinInputProps` を組み立てて委譲する（イシュー #1615
+    // 追記、モジュール rustdoc 参照）。
+    let props = PinInputProps {
+        disabled,
+        ..Default::default()
+    };
+    fandhe_frontend_headless_ui::pin_input::root(complete, &props, merged, children)
 }
 
 #[cfg(test)]
@@ -529,6 +549,7 @@ mod tests {
     fn reexported_label_children_are_escaped_on_render() {
         let html = render(&label(
             false,
+            &PinInputProps::default(),
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));
@@ -554,7 +575,7 @@ mod tests {
         let mut p = PinInput::new(4, PinInputKind::Numeric);
         assert!(!p.is_complete());
 
-        let ssr_html = render(&p.root(false, vec![], vec![]));
+        let ssr_html = render(&p.root(&PinInputProps::default(), vec![], vec![]));
         assert!(!ssr_html.contains("data-complete"));
 
         assert!(dispatch(&mut p, "paste", "1234"));

@@ -23,9 +23,43 @@
 //! （[`PinInput::root`]/[`PinInput::label`]/[`PinInput::control`]/
 //! [`PinInput::input`]/[`PinInput::hidden_input`]）を呼んで組み立てる。
 //! CSR/hydration は [`PinInput`] を経由し、dispatch
-//! （`"input"`/`"backspace"`/`"focus"`/`"paste"`/`"clear"`）で状態遷移する。
+//! （`"input"`/`"backspace"`/`"delete"`/`"prev"`/`"next"`/`"focus"`/
+//! `"paste"`/`"clear"`）で状態遷移する。
 //! `fandhe-frontend-pre-styled-ui`（#739〜）が本モジュールを呼んでスタイル済み
 //! PinInput を組み立てる想定である。
+//!
+//! # 参照突合（イシュー #1615）
+//!
+//! ark-ui 公式 Data Attributes / Keyboard Support 表・Radix
+//! `one-time-password-field` と突合し、以下を是正した:
+//!
+//! - [`PinInputProps`]（`disabled`/`readonly`/`invalid`/`required`）を新設
+//!   し、root/label/input の `data-invalid`/`data-readonly`（root/label/
+//!   input）・`data-required`（label のみ）・`aria-invalid`/ネイティブ
+//!   `readonly`（input のみ）を追加した（旧実装は `data-disabled` のみ）。
+//! - [`input`] に `data-index`（桁インデックス）・`data-filled`（値が非空）
+//!   を追加した（ark-ui 公式 Data Attributes 表）。
+//! - [`PinInputAction::Backspace`] を「現在桁を消去し前の桁へ移動」へ是正
+//!   した（旧実装は「現在桁が入力済みなら消去して留まる」で ark-ui の
+//!   Delete と区別が付かなかった）。[`PinInputAction::Delete`]（現在桁のみ
+//!   消去、フォーカス移動なし）・[`PinInputAction::Prev`]/
+//!   [`PinInputAction::Next`]（ArrowLeft/ArrowRight）を新設した。
+//!
+//! 意図的に合わせなかった点（`docs/policy/intentional-non-adoption.md`
+//! §3.25 規則 2: 装飾・レイアウト計測を headless へ持ち込まない）:
+//!
+//! - Radix `data-orientation`（既定 `vertical`）はレイアウト関心のため不採用。
+//! - Radix `role="group"`（root）は ark-ui 主参照のため付与しない（呼び出し
+//!   側が `attrs` で追加可能）。
+//! - zag connect のみの Home/End・同一キー再入力での前進
+//!   （`INPUT.ADVANCE`）・`Enter` 自動送信（`autoSubmit`）・
+//!   `blurOnComplete`/`selectOnFocus`/`sanitizeValue`/`pattern` は
+//!   クライアント DOM 配線・アプリロジックの関心（下記スコープ外節）。
+//! - `inputmode`（`otp || numeric` → 強制 `numeric`）・
+//!   `autocomplete="off"` の明示・`enterkeyhint`/`autocapitalize` は native
+//!   ヒントであり、既存の最小主義判断を維持する。
+//! - `aria-label` の文言差（`"PIN digit N of M"` vs ark-ui 既定の
+//!   `"pin code N of M"`）は意味論同一のため変更しない。
 //!
 //! # スコープ外（イシュー #739 本文が明示）
 //!
@@ -41,11 +75,15 @@
 //!   動的値が属性名スロットへ混入する経路はない（[`crate::anatomy`]/
 //!   [`crate::aria`]/[`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（各桁 `value`/`name`/呼び出し側 `attrs`/children テキスト/
-//!   `format!` で組み立てる `aria-label`）は [`fandhe_frontend_core::render`]
-//!   の既定エスケープを必ず経由する。`raw_html()` は使用せず、HTML 文字列を
-//!   直接組み立てない。
-//! - `data-complete` は本モジュールが一元管理する存在属性であり、パーツ間で
-//!   語彙を分裂させない（[`data_complete`] のみが値を決める）。
+//!   `format!` で組み立てる `aria-label`/`data-index`）は
+//!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
+//!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
+//! - `data-complete`/`data-filled` は本モジュールが一元管理する存在属性で
+//!   あり、パーツ間で語彙を分裂させない（[`data_complete`]/[`data_filled`]
+//!   のみが値を決める）。
+//! - **呼び出し側 `attrs` によるフレームワーク固定キーの偽装は
+//!   [`drop_reserved`] が fail-closed に除外する**（`data-invalid`/
+//!   `aria-invalid`/`data-index` 等をなりすまし付与できない）。
 //! - **未知 dispatch・種別不適合文字・部分適合しかしない paste は no-op**
 //!   （fail-closed。状態機械の不変条件「各桁は空文字列または `kind` に
 //!   適合する 1 文字のみ」を破る入力を一切適用しない）。
@@ -63,7 +101,8 @@
 //!   OTP をサーバー側で初期値としてプレフィルする用途には使わないこと。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::data_attrs::data_disabled;
+use crate::aria::aria_invalid;
+use crate::data_attrs::{data_disabled, data_invalid, data_readonly, data_required};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{codec, Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
@@ -75,6 +114,94 @@ const ANATOMY: Anatomy = anatomy("pin-input");
 /// PinInput 固有の語彙であるため、ここに閉じて一元管理する。
 fn data_complete(complete: bool) -> Option<(&'static str, &'static str)> {
     complete.then_some(("data-complete", ""))
+}
+
+/// `data-filled` 存在属性。当該桁の値が非空のときのみ出力する
+/// （ark-ui 公式 Data Attributes 表の input パート、イシュー #1615）。
+/// PinInput 固有の語彙であるため、ここに閉じて一元管理する。
+fn data_filled(filled: bool) -> Option<(&'static str, &'static str)> {
+    filled.then_some(("data-filled", ""))
+}
+
+/// PinInput の disabled/invalid/readonly/required 状態束（ark-ui 公式
+/// Data Attributes 表との突合、イシュー #1615）。root/label/input の
+/// 全パーツへ [`data_disabled`]/[`data_invalid`]/[`data_readonly`] を
+/// 一律付与し、[`label`] にのみ [`data_required`] を追加で付与するために
+/// 使う（[`crate::color_picker::ColorPickerProps`] と同型のパターン）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PinInputProps {
+    /// 無効化状態。`true` で `data-disabled` を各パーツへ付与し、
+    /// [`input`]/[`hidden_input`] にはネイティブ `disabled` も付与する。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で `data-readonly` を各パーツへ、
+    /// [`input`] にはネイティブ `readonly` を付与する
+    /// （`type="hidden"` の [`hidden_input`] には効果がないため付けない、
+    /// [`crate::color_picker::hidden_input`] と同じ判断）。
+    pub readonly: bool,
+    /// 入力検証エラー状態。`true` で `data-invalid` を各パーツへ、
+    /// [`input`] には追加で `aria-invalid="true"` を付与する（valid のとき
+    /// は `aria-invalid` 属性自体を省略する、[`crate::field`] と同型）。
+    pub invalid: bool,
+    /// 入力必須状態。`true` で [`label`] に `data-required` を付与する
+    /// （`type="hidden"` の [`hidden_input`] は制約検証対象外のため
+    /// `required` ネイティブ属性は付けない）。
+    pub required: bool,
+}
+
+/// [`PinInputProps`] から root/label/input 共通の状態属性列を組み立てる
+/// 非公開ヘルパ（disabled/invalid/readonly の 3 属性）。
+fn state_attrs(props: &PinInputProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs: Vec<(&'static str, &'static str)> = Vec::new();
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_invalid(props.invalid));
+    attrs.extend(data_readonly(props.readonly));
+    attrs
+}
+
+/// [`root`] が固定付与するキー一覧（[`PinInputProps`] の状態束
+/// `data-disabled`/`data-invalid`/`data-readonly` に `data-complete` を
+/// 加えたもの、[`crate::color_picker::ROOT_RESERVED`] と同型のパターン）。
+const ROOT_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-complete",
+];
+
+/// [`label`] が固定付与するキー一覧（[`ROOT_RESERVED`] に `data-required`
+/// を加えたもの）。
+const LABEL_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-required",
+    "data-complete",
+];
+
+/// [`input`] が固定付与するキー一覧（[`ROOT_RESERVED`] に `data-index`/
+/// `data-filled`/`aria-invalid` を加えたもの）。
+const INPUT_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-complete",
+    "data-index",
+    "data-filled",
+    "aria-invalid",
+];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::color_picker::drop_reserved`]/
+/// [`crate::checkbox::drop_reserved`] と同型の重複実装。モジュール間の
+/// 相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
 }
 
 /// PinInput が受け付ける文字種別。`inputmode` 属性値・文字検証の両方を決める。
@@ -138,28 +265,41 @@ impl PinInputKind {
     }
 }
 
-/// Root パーツ（`div`）。`data-complete`/`data-disabled` を反映する。
+/// Root パーツ（`div`）。`data-complete` と [`PinInputProps`] の状態束
+/// （`data-disabled`/`data-invalid`/`data-readonly`、ark-ui 公式 Data
+/// Attributes 表との突合、イシュー #1615）を反映する。
 #[must_use]
 pub fn root<'a>(
     complete: bool,
-    disabled: bool,
+    props: &PinInputProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
     merged.extend(data_complete(complete));
-    merged.extend(data_disabled(disabled));
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
 
 /// Label パーツ（`label`）。意味論的なラベル関連付けは呼び出し側が
 /// `attrs` 経由で `for`/`id`（または labelledby）を配線する（装飾用パーツ、
-/// [`crate::progress::Progress::label`] と同じ最小主義）。
+/// [`crate::progress::Progress::label`] と同じ最小主義）。`data-complete` と
+/// [`PinInputProps`] の状態束に加え、`data-required` を付与する
+/// （ark-ui 公式 Data Attributes 表との突合、イシュー #1615）。
 #[must_use]
-pub fn label<'a>(complete: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn label<'a>(
+    complete: bool,
+    props: &PinInputProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, LABEL_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
     merged.extend(data_complete(complete));
+    merged.extend(state_attrs(props));
+    merged.extend(data_required(props.required));
     merged.extend(attrs);
     ANATOMY.part("label", "label", merged, children)
 }
@@ -184,6 +324,13 @@ pub fn control<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node 
 ///   を表す文字列（例 `"PIN digit 1 of 6"`）を必ず付与し、スクリーン
 ///   リーダー利用者が桁位置を把握できるようにする（動的値だが `render()`
 ///   の既定エスケープを経由するため注入経路にはならない）。
+/// - [`PinInputProps`] の状態束（`data-disabled`/`data-invalid`/
+///   `data-readonly`）に加え、`data-index`（`index` の文字列化、ark-ui/
+///   Radix 双方が持つ語彙）・`data-filled`（`value` が非空のときのみ）を
+///   付与する。`props.readonly` のときネイティブ `readonly` を、
+///   `props.invalid` のときのみ `aria-invalid="true"` を付与する（valid の
+///   ときは属性自体を省略する、[`crate::field`] と同型。ark-ui 公式 Data
+///   Attributes 表・Radix OTP Field との突合、イシュー #1615）。
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn input<'a>(
@@ -193,14 +340,16 @@ pub fn input<'a>(
     kind: PinInputKind,
     mask: bool,
     otp: bool,
-    disabled: bool,
+    props: &PinInputProps,
     complete: bool,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
-    // aria-label は呼び出し時にのみ必要な一時 String であり、el() が
-    // 即座に owned String へコピーするため関数スコープを超えて借用が
-    // 残ることはない（`crates/core/src/lib.rs::el` 参照）。
+    let attrs = drop_reserved(attrs, INPUT_RESERVED);
+    // aria-label/data-index は呼び出し時にのみ必要な一時 String であり、
+    // el() が即座に owned String へコピーするため関数スコープを超えて
+    // 借用が残ることはない（`crates/core/src/lib.rs::el` 参照）。
     let aria_label = format!("PIN digit {} of {}", index + 1, count);
+    let index_str = index.to_string();
     let input_type = if mask { "password" } else { "text" };
 
     let mut merged: Vec<(&str, &str)> = vec![
@@ -209,6 +358,7 @@ pub fn input<'a>(
         ("maxlength", "1"),
         ("placeholder", "○"),
         ("aria-label", aria_label.as_str()),
+        ("data-index", index_str.as_str()),
     ];
     if let Some(mode) = kind.inputmode() {
         merged.push(("inputmode", mode));
@@ -216,14 +366,21 @@ pub fn input<'a>(
     if otp {
         merged.push(("autocomplete", "one-time-code"));
     }
-    if disabled {
+    if props.disabled {
         // ネイティブ disabled 属性（switch/checkbox/radio_group/field と
         // 同様、フォーカス・編集・フォーム送信を実際に無効化するのは
         // data-disabled ではなくこちら）。
         merged.push(("disabled", ""));
     }
+    if props.readonly {
+        merged.push(("readonly", ""));
+    }
+    if props.invalid {
+        merged.push(aria_invalid(true));
+    }
     merged.extend(data_complete(complete));
-    merged.extend(data_disabled(disabled));
+    merged.extend(data_filled(!value.is_empty()));
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("input", "input", merged, Vec::new())
 }
@@ -256,8 +413,19 @@ pub fn hidden_input<'a>(
 pub enum PinInputAction {
     /// 1 文字を現在のフォーカス位置（未設定なら先頭の空き桁）へ入力する。
     Input(char),
-    /// 現在桁（空なら前桁）を消去する。
+    /// 現在桁を消去し、前の桁へフォーカスを移す（ark-ui Keyboard Support
+    /// 表の Backspace 挙動、イシュー #1615 で「消去して留まる」から是正）。
     Backspace,
+    /// 現在桁のみを消去する（フォーカスは移動しない、ark-ui の Delete
+    /// 挙動。Backspace を ark に揃えたことで両者が区別される、イシュー
+    /// #1615）。
+    Delete,
+    /// 前の桁へフォーカスを移す（ArrowLeft、ark-ui Keyboard Support 表、
+    /// イシュー #1615。carousel/toolbar/menubar/steps と同じ命名規約）。
+    Prev,
+    /// 次の桁へフォーカスを移す（ArrowRight、ark-ui Keyboard Support 表、
+    /// イシュー #1615）。
+    Next,
     /// 指定した桁インデックスへフォーカスを移す。
     Focus(usize),
     /// 先頭から一括で文字列を充填する（全文字が種別に適合する場合のみ）。
@@ -352,17 +520,22 @@ impl PinInput {
     #[must_use]
     pub fn root<'a>(
         &self,
-        disabled: bool,
+        props: &PinInputProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        root(self.is_complete(), disabled, attrs, children)
+        root(self.is_complete(), props, attrs, children)
     }
 
     /// [`label`] へ現在の状態を注入する利便メソッド。
     #[must_use]
-    pub fn label<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        label(self.is_complete(), attrs, children)
+    pub fn label<'a>(
+        &self,
+        props: &PinInputProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        label(self.is_complete(), props, attrs, children)
     }
 
     /// [`control`] へ委譲する利便メソッド（状態を持たないため素通し）。
@@ -378,7 +551,7 @@ impl PinInput {
         index: usize,
         mask: bool,
         otp: bool,
-        disabled: bool,
+        props: &PinInputProps,
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
         input(
@@ -388,7 +561,7 @@ impl PinInput {
             self.kind,
             mask,
             otp,
-            disabled,
+            props,
             self.is_complete(),
             attrs,
         )
@@ -430,19 +603,51 @@ impl Component for PinInput {
                 self.focused = Some(if next < self.values.len() { next } else { idx });
             }
             PinInputAction::Backspace => {
+                // ark-ui Keyboard Support 表: 現在桁を消去し、前の桁へ
+                // フォーカスを移す（先頭桁なら留まる）。旧実装は「消去して
+                // 留まる」だったが、これは Delete の挙動であり Backspace と
+                // 区別が付かなかったため是正した（イシュー #1615）。
                 let idx = self
                     .focused
                     .unwrap_or_else(|| self.values.len().saturating_sub(1));
                 if idx >= self.values.len() {
                     return;
                 }
-                if self.values[idx].is_empty() && idx > 0 {
-                    self.values[idx - 1].clear();
-                    self.focused = Some(idx - 1);
-                } else {
-                    self.values[idx].clear();
-                    self.focused = Some(idx);
+                self.values[idx].clear();
+                self.focused = Some(idx.saturating_sub(1));
+            }
+            PinInputAction::Delete => {
+                // ark-ui Keyboard Support 表: 現在桁のみを消去し、フォーカス
+                // は移動しない（未設定なら先頭の空き桁、無ければ最終桁を
+                // 対象にする防御的フォールバック、イシュー #1615）。
+                let idx = self
+                    .focused
+                    .or_else(|| self.first_empty_index())
+                    .unwrap_or_else(|| self.values.len().saturating_sub(1));
+                if idx >= self.values.len() {
+                    return;
                 }
+                self.values[idx].clear();
+            }
+            PinInputAction::Prev => {
+                // ArrowLeft: 前の桁へフォーカスを移す（範囲外は no-op、
+                // イシュー #1615）。
+                let idx = self.focused.unwrap_or(0);
+                if idx > 0 && idx <= self.values.len() {
+                    self.focused = Some(idx - 1);
+                } else if self.focused.is_none() && !self.values.is_empty() {
+                    self.focused = Some(0);
+                }
+            }
+            PinInputAction::Next => {
+                // ArrowRight: 次の桁へフォーカスを移す（`min(idx+1,
+                // count-1)`、範囲外は no-op、イシュー #1615）。
+                if self.values.is_empty() {
+                    return;
+                }
+                let idx = self.focused.unwrap_or(0);
+                let last = self.values.len() - 1;
+                self.focused = Some(if idx < last { idx + 1 } else { last });
             }
             PinInputAction::Focus(idx) => {
                 // 範囲外は no-op（フォーカス位置の不変条件「常に有効な桁を
@@ -497,10 +702,11 @@ impl Component for PinInput {
     /// を要する `name` は含めない）。公開 UI としての利用は想定しない
     /// （実際の UI 構築は各パーツメソッドを呼び出し側が組み合わせる）。
     fn view(&self) -> Node {
+        let props = PinInputProps::default();
         let inputs: Vec<Node> = (0..self.count())
-            .map(|i| self.input(i, false, false, false, Vec::new()))
+            .map(|i| self.input(i, false, false, &props, Vec::new()))
             .collect();
-        self.root(false, Vec::new(), vec![self.control(Vec::new(), inputs)])
+        self.root(&props, Vec::new(), vec![self.control(Vec::new(), inputs)])
     }
 
     fn decode_action(name: &str, payload: &str) -> Option<PinInputAction> {
@@ -515,6 +721,9 @@ impl Component for PinInput {
                 Some(PinInputAction::Input(c))
             }
             "backspace" => Some(PinInputAction::Backspace),
+            "delete" => Some(PinInputAction::Delete),
+            "prev" => Some(PinInputAction::Prev),
+            "next" => Some(PinInputAction::Next),
             "focus" => payload.parse::<usize>().ok().map(PinInputAction::Focus),
             "paste" => Some(PinInputAction::Paste(payload.to_string())),
             "clear" => Some(PinInputAction::Clear),
@@ -613,36 +822,76 @@ mod tests {
     use fandhe_frontend_core::{render, text};
     use fandhe_frontend_interactive::{dispatch, render_for_hydration};
 
-    // --- 各パーツの data-scope/data-part/data-complete/data-disabled 出力 ---
+    // --- 各パーツの data-scope/data-part/data-complete/状態束出力 ---
 
     #[test]
     fn root_outputs_scope_part_and_no_state_when_incomplete() {
-        let html = render(&root(false, false, vec![], vec![]));
+        let html = render(&root(false, &PinInputProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="pin-input""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("data-complete"));
         assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-readonly"));
     }
 
     #[test]
     fn root_complete_true_outputs_data_complete() {
-        let html = render(&root(true, false, vec![], vec![]));
+        let html = render(&root(true, &PinInputProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-complete="""#));
     }
 
     #[test]
-    fn root_disabled_true_outputs_data_disabled() {
-        let html = render(&root(false, true, vec![], vec![]));
+    fn root_props_output_disabled_invalid_readonly() {
+        let props = PinInputProps {
+            disabled: true,
+            invalid: true,
+            readonly: true,
+            required: false,
+        };
+        let html = render(&root(false, &props, vec![], vec![]));
         assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
     }
 
     #[test]
     fn label_outputs_scope_part_and_complete_state() {
-        let html = render(&label(true, vec![], vec![text("Enter code")]));
+        let html = render(&label(
+            true,
+            &PinInputProps::default(),
+            vec![],
+            vec![text("Enter code")],
+        ));
         assert!(html.contains(r#"data-scope="pin-input""#));
         assert!(html.contains(r#"data-part="label""#));
         assert!(html.contains(r#"data-complete="""#));
         assert!(html.contains("Enter code"));
+    }
+
+    #[test]
+    fn label_required_true_outputs_data_required() {
+        let props = PinInputProps {
+            required: true,
+            ..Default::default()
+        };
+        let html = render(&label(false, &props, vec![], vec![]));
+        assert!(html.contains(r#"data-required="""#));
+    }
+
+    #[test]
+    fn label_props_output_disabled_invalid_readonly() {
+        let props = PinInputProps {
+            disabled: true,
+            invalid: true,
+            readonly: true,
+            required: false,
+        };
+        let html = render(&label(false, &props, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+        assert!(!html.contains("data-required"));
     }
 
     #[test]
@@ -661,7 +910,7 @@ mod tests {
             PinInputKind::Numeric,
             false,
             false,
-            false,
+            &PinInputProps::default(),
             false,
             vec![],
         ));
@@ -673,11 +922,30 @@ mod tests {
         assert!(html.contains(r#"placeholder="○""#));
         assert!(html.contains(r#"aria-label="PIN digit 1 of 6""#));
         assert!(html.contains(r#"inputmode="numeric""#));
+        assert!(html.contains(r#"data-index="0""#));
+        assert!(html.contains(r#"data-filled="""#));
         assert!(!html.contains("autocomplete"));
+        assert!(!html.contains("aria-invalid"));
     }
 
     #[test]
-    fn input_last_digit_aria_label_uses_count() {
+    fn input_empty_value_does_not_output_data_filled() {
+        let html = render(&input(
+            0,
+            4,
+            "",
+            PinInputKind::Numeric,
+            false,
+            false,
+            &PinInputProps::default(),
+            false,
+            vec![],
+        ));
+        assert!(!html.contains("data-filled"));
+    }
+
+    #[test]
+    fn input_last_digit_aria_label_and_data_index_use_index() {
         let html = render(&input(
             5,
             6,
@@ -685,11 +953,12 @@ mod tests {
             PinInputKind::Numeric,
             false,
             false,
-            false,
+            &PinInputProps::default(),
             false,
             vec![],
         ));
         assert!(html.contains(r#"aria-label="PIN digit 6 of 6""#));
+        assert!(html.contains(r#"data-index="5""#));
     }
 
     #[test]
@@ -701,7 +970,7 @@ mod tests {
             PinInputKind::Numeric,
             true,
             false,
-            false,
+            &PinInputProps::default(),
             false,
             vec![],
         ));
@@ -717,7 +986,7 @@ mod tests {
             PinInputKind::Numeric,
             false,
             true,
-            false,
+            &PinInputProps::default(),
             false,
             vec![],
         ));
@@ -727,13 +996,27 @@ mod tests {
     #[test]
     fn input_alphanumeric_and_alphabetic_kinds_omit_inputmode() {
         for kind in [PinInputKind::Alphanumeric, PinInputKind::Alphabetic] {
-            let html = render(&input(0, 4, "", kind, false, false, false, false, vec![]));
+            let html = render(&input(
+                0,
+                4,
+                "",
+                kind,
+                false,
+                false,
+                &PinInputProps::default(),
+                false,
+                vec![],
+            ));
             assert!(!html.contains("inputmode"), "kind={kind:?} -> {html}");
         }
     }
 
     #[test]
     fn input_disabled_and_complete_flags_output_data_attrs() {
+        let props = PinInputProps {
+            disabled: true,
+            ..Default::default()
+        };
         let html = render(&input(
             0,
             4,
@@ -741,7 +1024,7 @@ mod tests {
             PinInputKind::Numeric,
             false,
             false,
-            true,
+            &props,
             true,
             vec![],
         ));
@@ -761,11 +1044,69 @@ mod tests {
             PinInputKind::Numeric,
             false,
             false,
-            false,
+            &PinInputProps::default(),
             false,
             vec![],
         ));
         assert!(!html.contains("disabled"));
+    }
+
+    #[test]
+    fn input_readonly_true_outputs_native_readonly_and_data_readonly() {
+        let props = PinInputProps {
+            readonly: true,
+            ..Default::default()
+        };
+        let html = render(&input(
+            0,
+            4,
+            "1",
+            PinInputKind::Numeric,
+            false,
+            false,
+            &props,
+            false,
+            vec![],
+        ));
+        assert!(html.contains(r#"readonly="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+    }
+
+    #[test]
+    fn input_invalid_true_outputs_aria_invalid_true_and_data_invalid() {
+        let props = PinInputProps {
+            invalid: true,
+            ..Default::default()
+        };
+        let html = render(&input(
+            0,
+            4,
+            "1",
+            PinInputKind::Numeric,
+            false,
+            false,
+            &props,
+            false,
+            vec![],
+        ));
+        assert!(html.contains(r#"aria-invalid="true""#));
+        assert!(html.contains(r#"data-invalid="""#));
+    }
+
+    #[test]
+    fn input_invalid_false_omits_aria_invalid_attribute() {
+        let html = render(&input(
+            0,
+            4,
+            "1",
+            PinInputKind::Numeric,
+            false,
+            false,
+            &PinInputProps::default(),
+            false,
+            vec![],
+        ));
+        assert!(!html.contains("aria-invalid"));
     }
 
     #[test]
@@ -788,19 +1129,54 @@ mod tests {
         assert!(html.contains(r#"disabled="""#));
     }
 
-    // --- Anatomy::part fail-closed 回帰 ---
+    // --- Anatomy::part / drop_reserved fail-closed 回帰 ---
 
     #[test]
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&root(
             false,
-            false,
+            &PinInputProps::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
         assert!(html.contains(r#"data-scope="pin-input""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn caller_supplied_state_attrs_cannot_impersonate_props_on_root() {
+        // 呼び出し側 attrs が data-invalid="" を偽装しても、実際の props が
+        // invalid: false ならフレームワーク側の非出力が優先される
+        // （drop_reserved による除外、イシュー #1615。`aria-invalid` は
+        // root の予約キーではない ── root 自体は `aria-invalid` を出力する
+        // パーツではないため偽装対象にならない）。
+        let html = render(&root(
+            false,
+            &PinInputProps::default(),
+            vec![("data-invalid", "")],
+            vec![],
+        ));
+        assert!(!html.contains("data-invalid"));
+    }
+
+    #[test]
+    fn caller_supplied_data_index_on_input_cannot_impersonate_real_index() {
+        let html = render(&input(
+            3,
+            6,
+            "",
+            PinInputKind::Numeric,
+            false,
+            false,
+            &PinInputProps::default(),
+            false,
+            vec![("data-index", "999"), ("data-filled", "")],
+        ));
+        assert!(html.contains(r#"data-index="3""#));
+        assert!(!html.contains(r#"data-index="999""#));
+        // value が空なので data-filled は本来出ない（偽装除去の確認）。
+        assert!(!html.contains("data-filled"));
     }
 
     // --- PinInputKind ---
@@ -893,25 +1269,81 @@ mod tests {
     }
 
     #[test]
-    fn backspace_clears_current_digit_when_non_empty() {
+    fn backspace_clears_current_digit_and_moves_to_previous_digit() {
+        // ark-ui Keyboard Support 表の Backspace: 現在桁を消去し前の桁へ
+        // 移動する（イシュー #1615 で「消去して留まる」から是正）。
         let mut p = PinInput::new(3, PinInputKind::Numeric);
         dispatch(&mut p, "input", "1");
         dispatch(&mut p, "input", "2");
         dispatch(&mut p, "focus", "1");
         assert!(dispatch(&mut p, "backspace", ""));
         assert_eq!(p.digit(1), "");
+        assert_eq!(p.focused_index(), Some(0));
+    }
+
+    #[test]
+    fn backspace_at_first_digit_clears_and_stays() {
+        let mut p = PinInput::new(3, PinInputKind::Numeric);
+        dispatch(&mut p, "input", "1");
+        dispatch(&mut p, "focus", "0");
+        assert!(dispatch(&mut p, "backspace", ""));
+        assert_eq!(p.digit(0), "");
+        assert_eq!(p.focused_index(), Some(0));
+    }
+
+    #[test]
+    fn backspace_without_focus_defaults_to_last_digit() {
+        // 未フォーカス状態（例: SSR 直後）での Backspace は最終桁を対象に
+        // する（[`PinInput::update`] のフォールバック経路）。
+        let mut p = PinInput::new(3, PinInputKind::Numeric);
+        p.values[2] = "3".to_string();
+        assert!(dispatch(&mut p, "backspace", ""));
+        assert_eq!(p.digit(2), "");
         assert_eq!(p.focused_index(), Some(1));
     }
 
     #[test]
-    fn backspace_on_empty_digit_moves_to_previous_and_clears_it() {
+    fn delete_action_clears_current_digit_without_moving_focus() {
         let mut p = PinInput::new(3, PinInputKind::Numeric);
         dispatch(&mut p, "input", "1");
         dispatch(&mut p, "input", "2");
-        // focused は現在 2（3 桁目, 空）。
-        assert!(dispatch(&mut p, "backspace", ""));
-        assert_eq!(p.digit(1), "");
+        dispatch(&mut p, "focus", "0");
+        assert!(dispatch(&mut p, "delete", ""));
+        assert_eq!(p.digit(0), "");
+        assert_eq!(p.focused_index(), Some(0));
+        assert_eq!(p.digit(1), "2");
+    }
+
+    #[test]
+    fn delete_action_without_focus_targets_first_empty_digit() {
+        let mut p = PinInput::new(3, PinInputKind::Numeric);
+        p.values[0] = "1".to_string();
+        assert!(dispatch(&mut p, "delete", ""));
+        assert_eq!(p.digit(0), "1");
+        assert_eq!(p.focused_index(), None);
+    }
+
+    #[test]
+    fn prev_action_moves_focus_left_and_stops_at_zero() {
+        let mut p = PinInput::new(3, PinInputKind::Numeric);
+        dispatch(&mut p, "focus", "2");
+        assert!(dispatch(&mut p, "prev", ""));
         assert_eq!(p.focused_index(), Some(1));
+        assert!(dispatch(&mut p, "prev", ""));
+        assert_eq!(p.focused_index(), Some(0));
+        assert!(dispatch(&mut p, "prev", ""));
+        assert_eq!(p.focused_index(), Some(0));
+    }
+
+    #[test]
+    fn next_action_moves_focus_right_and_stops_at_last() {
+        let mut p = PinInput::new(3, PinInputKind::Numeric);
+        assert!(dispatch(&mut p, "next", ""));
+        assert_eq!(p.focused_index(), Some(1));
+        assert!(dispatch(&mut p, "next", ""));
+        assert_eq!(p.focused_index(), Some(2));
+        assert!(dispatch(&mut p, "next", ""));
+        assert_eq!(p.focused_index(), Some(2));
     }
 
     #[test]
@@ -1121,7 +1553,7 @@ mod tests {
             PinInputKind::Alphanumeric,
             false,
             false,
-            false,
+            &PinInputProps::default(),
             false,
             vec![],
         ));
@@ -1133,7 +1565,7 @@ mod tests {
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
             false,
-            false,
+            &PinInputProps::default(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
             vec![],
         ));
@@ -1144,6 +1576,7 @@ mod tests {
     fn children_text_is_escaped_on_render() {
         let html = render(&label(
             true,
+            &PinInputProps::default(),
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));

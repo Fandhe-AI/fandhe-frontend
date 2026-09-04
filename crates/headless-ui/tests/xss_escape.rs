@@ -459,8 +459,9 @@ fn password_input_id_and_label_text_are_escaped_for_all_payloads() {
 /// の 3 経路のみを扱う。
 #[test]
 fn pin_input_hidden_input_and_input_value_are_escaped_for_all_payloads() {
-    use fandhe_frontend_headless_ui::pin_input::PinInputKind;
+    use fandhe_frontend_headless_ui::pin_input::{PinInputKind, PinInputProps};
 
+    let props = PinInputProps::default();
     for payload in payloads::all() {
         let hidden_node = pin_input::hidden_input(payload, payload, false, vec![]);
         let html = render(&hidden_node);
@@ -477,14 +478,14 @@ fn pin_input_hidden_input_and_input_value_are_escaped_for_all_payloads() {
             PinInputKind::Alphanumeric,
             false,
             false,
-            false,
+            &props,
             false,
             vec![],
         );
         let html = render(&input_node);
         assert_payload_is_escaped(payload, &html, "pin_input::input の value コンテキスト");
 
-        let attrs_node = pin_input::root(false, false, vec![("data-testid", payload)], vec![]);
+        let attrs_node = pin_input::root(false, &props, vec![("data-testid", payload)], vec![]);
         let html = render(&attrs_node);
         assert_payload_is_escaped(
             payload,
