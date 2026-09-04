@@ -6100,14 +6100,34 @@ mod wiring {
         let Some(current) = index_of(&inputs, input) else {
             return;
         };
-        // readonly（イシュー #1616 P1 是正・codex-review 追加指摘）:
-        // フォーカス移動先の選定（`radio_next_index`）自体は disabled と
-        // 同じ「skip 対象」の枠組みで readonly も除外する。current 項目が
-        // readonly の場合を含め起点は変えず 1 歩以上進めてから判定するため
-        // （[`step_non_disabled`] 参照）、「現在 focus 中の項目が readonly」
-        // 「遷移先候補が readonly」のどちらのケースも同一の skip 配列で
-        // 一貫して弾ける（片方だけを検査すると、通常項目から矢印キーで
-        // readonly 項目へ移動・選択できてしまう非対称が生じるため）。
+        // readonly（イシュー #1616 P1 是正・codex-review 追加指摘、PR #1886
+        // レビューの Bugbot 指摘で再修正）:
+        // フォーカス移動先の選定（`radio_next_index`）は disabled と同じ
+        // 「skip 対象」の枠組みで readonly も除外し、非 readonly の次項目
+        // まで読み飛ばす（[`step_non_disabled`] 参照）。ただし
+        // `step_non_disabled` は起点（`current`）自身の skip 判定を行わず
+        // 必ず 1 歩以上進めてから判定するため、**現在フォーカス中の項目が
+        // readonly の場合**はこの skip 配列だけでは「一切移動させない」を
+        // 表現できない（readonly 項目から見て次の非 readonly 項目が存在
+        // すれば、そこへ移動できてしまう）。ネイティブ radio は「フォーカス
+        // 移動」と「選択変更」が不可分なため、選択を変えない以上フォーカス
+        // も動かさない契約（`RadioGroupProps::readonly` のモジュール doc
+        // 参照）を守るには、current が readonly の場合を別途 early return
+        // で弾く必要がある。
+        if item_readonly(input) {
+            // 既定動作（ネイティブ radio グループのフォーカス移動）の抑止
+            // だけは行い、フォーカス・選択は一切変更しない。
+            let key = event.key();
+            let modifiers = modifiers_of(event);
+            let is_handled_key = matches!(
+                key.as_str(),
+                "Home" | "End" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown"
+            );
+            if !modifiers.any() && is_handled_key {
+                event.prevent_default();
+            }
+            return;
+        }
         let disabled = disabled_flags(&inputs);
         let skip: Vec<bool> = inputs
             .iter()
