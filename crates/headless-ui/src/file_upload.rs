@@ -232,7 +232,7 @@ const DROPZONE_RESERVED: &[&str] = &[
 const TRIGGER_RESERVED: &[&str] = STATE_RESERVED;
 
 /// item-group/item/item-name/item-size-text が固定付与するキー一覧。
-const ITEM_RESERVED: &[&str] = &["data-disabled", "data-type"];
+const ITEM_RESERVED: &[&str] = &["data-disabled", "data-readonly", "data-type"];
 
 /// [`item_delete_trigger`] が固定付与するキー一覧。
 const ITEM_DELETE_TRIGGER_RESERVED: &[&str] = &["data-disabled", "data-readonly", "data-type"];
@@ -250,6 +250,7 @@ const HIDDEN_INPUT_RESERVED: &[&str] = &[
     "required",
     "disabled",
     "data-disabled",
+    "data-readonly",
 ];
 
 /// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
@@ -496,6 +497,8 @@ pub fn trigger<'a>(
 /// ItemGroup パーツ（`ul`）。受理済み・拒否済み [`item`] 群のコンテナ。
 /// `item_type` は配下の [`item`] 群が共通して持つ [`ItemType`]（呼び出し側が
 /// 受理済み一覧・拒否済み一覧を別々の `item_group` で描画する構成を前提とする）。
+/// [`FileUploadProps`] の `disabled`/`readonly` を `data-disabled`/
+/// `data-readonly` として伝播する。
 #[must_use]
 pub fn item_group<'a>(
     item_type: ItemType,
@@ -506,6 +509,7 @@ pub fn item_group<'a>(
     let attrs = drop_reserved(attrs, ITEM_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
     merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
     merged.push(("data-type", item_type.as_str()));
     merged.extend(attrs);
     ANATOMY.part("item-group", "ul", merged, children)
@@ -513,7 +517,8 @@ pub fn item_group<'a>(
 
 /// Item パーツ（`li`）。ファイル 1 個分のコンテナ（[`item_name`]/
 /// [`item_size_text_node`]/[`item_delete_trigger`] を子に持つ）。
-/// [`ItemType`] による `data-type` を付与する。
+/// [`ItemType`] による `data-type` を付与し、[`FileUploadProps`] の
+/// `disabled`/`readonly` を `data-disabled`/`data-readonly` として伝播する。
 #[must_use]
 pub fn item<'a>(
     item_type: ItemType,
@@ -524,6 +529,7 @@ pub fn item<'a>(
     let attrs = drop_reserved(attrs, ITEM_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
     merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
     merged.push(("data-type", item_type.as_str()));
     merged.extend(attrs);
     ANATOMY.part("item", "li", merged, children)
@@ -532,7 +538,8 @@ pub fn item<'a>(
 /// ItemName パーツ（`div`）。ファイル名を表示するテキストノードのコンテナ。
 /// ファイル名は children として渡され `render()` の既定エスケープを経由する
 /// （REQ-1 の重点対象、モジュール doc「セキュリティ不変条件」参照）。
-/// [`ItemType`] による `data-type` を付与する。
+/// [`ItemType`] による `data-type` を付与し、[`FileUploadProps`] の
+/// `disabled`/`readonly` を `data-disabled`/`data-readonly` として伝播する。
 #[must_use]
 pub fn item_name<'a>(
     item_type: ItemType,
@@ -543,6 +550,7 @@ pub fn item_name<'a>(
     let attrs = drop_reserved(attrs, ITEM_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
     merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
     merged.push(("data-type", item_type.as_str()));
     merged.extend(attrs);
     ANATOMY.part("item-name", "div", merged, children)
@@ -550,7 +558,8 @@ pub fn item_name<'a>(
 
 /// ItemSizeText パーツ（`div`）。[`item_size_text`] が生成した表示用文字列を
 /// 描画するテキストノードのコンテナ。[`ItemType`] による `data-type` を
-/// 付与する。
+/// 付与し、[`FileUploadProps`] の `disabled`/`readonly` を
+/// `data-disabled`/`data-readonly` として伝播する。
 #[must_use]
 pub fn item_size_text_node<'a>(
     item_type: ItemType,
@@ -561,6 +570,7 @@ pub fn item_size_text_node<'a>(
     let attrs = drop_reserved(attrs, ITEM_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
     merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
     merged.push(("data-type", item_type.as_str()));
     merged.extend(attrs);
     ANATOMY.part("item-size-text", "div", merged, children)
@@ -624,7 +634,8 @@ pub fn clear_trigger<'a>(
 /// 非表示にする想定（呼び出し側が `attrs` でスタイルクラス等を与える）。
 /// `tabindex="-1"` + `aria-hidden="true"`（zag と同値、フォーカス・
 /// スクリーンリーダー走査の対象外にする）・`required`（`props.required`）を
-/// 付与し、readonly でもネイティブ `disabled` を付与する。
+/// 付与し、readonly でもネイティブ `disabled` を付与する。`data-readonly` も
+/// [`FileUploadProps`] から伝播する。
 #[must_use]
 pub fn hidden_input<'a>(
     accept: &'a str,
@@ -648,6 +659,7 @@ pub fn hidden_input<'a>(
         merged.push(("disabled", ""));
     }
     merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
     merged.extend(attrs);
     ANATOMY.part("hidden-input", "input", merged, Vec::new())
 }

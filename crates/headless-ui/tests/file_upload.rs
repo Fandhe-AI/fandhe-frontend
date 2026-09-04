@@ -238,6 +238,63 @@ fn readonly_and_invalid_and_required_propagate_across_public_api() {
     let hidden_input_html = render(&file_upload::hidden_input("", false, &props, vec![]));
     assert!(hidden_input_html.contains(r#"required="""#));
     assert!(hidden_input_html.contains(r#"disabled="""#));
+    assert!(hidden_input_html.contains(r#"data-readonly="""#));
+}
+
+/// イシュー #1609 codex-review P1 是正の回帰テスト: readonly 状態は
+/// item-group/item/item-name/item-size-text-node と hidden-input へも
+/// `data-readonly` として伝播しなければならない（公開契約「各パーツへ
+/// `data-readonly` を付与する」、モジュール doc「参照突合」節参照）。
+/// 併せて、呼び出し側が同名キーを `attrs` 経由で注入しても
+/// fail-closed に上書きされる（予約キー化）ことも固定する。
+#[test]
+fn readonly_propagates_to_item_parts_and_hidden_input_and_is_fail_closed_reserved() {
+    let props = FileUploadProps {
+        readonly: true,
+        ..Default::default()
+    };
+
+    let item_group_html = render(&file_upload::item_group(
+        ItemType::Accepted,
+        &props,
+        vec![("data-readonly", "spoofed")],
+        vec![],
+    ));
+    assert_eq!(item_group_html.matches("data-readonly").count(), 1);
+    assert!(item_group_html.contains(r#"data-readonly="""#));
+
+    let item_html = render(&file_upload::item(
+        ItemType::Accepted,
+        &props,
+        vec![],
+        vec![],
+    ));
+    assert!(item_html.contains(r#"data-readonly="""#));
+
+    let item_name_html = render(&file_upload::item_name(
+        ItemType::Accepted,
+        &props,
+        vec![],
+        vec![text("report.pdf")],
+    ));
+    assert!(item_name_html.contains(r#"data-readonly="""#));
+
+    let item_size_text_html = render(&file_upload::item_size_text_node(
+        ItemType::Accepted,
+        &props,
+        vec![],
+        vec![text("1 KB")],
+    ));
+    assert!(item_size_text_html.contains(r#"data-readonly="""#));
+
+    let hidden_input_html = render(&file_upload::hidden_input(
+        "",
+        false,
+        &props,
+        vec![("data-readonly", "spoofed")],
+    ));
+    assert_eq!(hidden_input_html.matches("data-readonly").count(), 1);
+    assert!(hidden_input_html.contains(r#"data-readonly="""#));
 }
 
 #[test]

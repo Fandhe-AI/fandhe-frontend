@@ -189,6 +189,13 @@ mod wiring {
         DataTransfer, DragEvent, Element, Event, FileList, HtmlElement, HtmlInputElement,
     };
 
+    /// Item 系パーツの `data-type` 属性値のうち「受理済み」を表す固定リテラル
+    /// （`fandhe_frontend_headless_ui::file_upload::ItemType::Accepted::as_str()`
+    /// と同値。`FileUploadAction::Remove` が `accepted` 一覧のみを対象とする
+    /// ことに対応し、[`compute_item_index`] の走査を `data-type="accepted"` の
+    /// item 要素に限定するために使う、イシュー #1609 Cursor Bugbot 指摘の是正）。
+    const ACCEPTED_ITEM_TYPE: &str = "accepted";
+
     /// `FileList`（`input.files()`/`DataTransfer::files()` の戻り値）の
     /// 各 `File` から name/size/type のみを読み取り、内容は一切読まない
     /// （`FileReader` 不使用、モジュール冒頭 rustdoc「他クレート・他モジュール
@@ -215,13 +222,21 @@ mod wiring {
         files_from_metadata(names, sizes, mimes)
     }
 
-    /// `root` 配下で `item_el` と `[data-scope="file-upload"][data-part="item"]`
-    /// が一致する要素の出現順インデックスを求める。`query_selector_all` の
-    /// 失敗時・`item_el` が見つからない場合は `None`（fail-closed、誤った
-    /// インデックスで削除しない）。
+    /// `root` 配下で `item_el` と
+    /// `[data-scope="file-upload"][data-part="item"][data-type="accepted"]`
+    /// が一致する要素の出現順インデックスを求める。
+    /// [`fandhe_frontend_headless_ui::file_upload::FileUploadAction::Remove`]
+    /// は `accepted` 一覧（`data-type="accepted"`）のみをインデックス対象と
+    /// するため、選択条件も `data-type="accepted"` に限定する
+    /// （イシュー #1609 Cursor Bugbot 指摘の是正: `data-type` を区別せず
+    /// 数えると、accepted/rejected を同一 root に描画するデモ構成で
+    /// rejected item の削除操作が誤った accepted ファイルを削除しうる、
+    /// または no-op になる）。`query_selector_all` の失敗時・`item_el` が
+    /// 見つからない場合は `None`（fail-closed、誤ったインデックスで
+    /// 削除しない）。
     fn compute_item_index(root: &Element, item_el: &Element) -> Option<usize> {
         let selector = format!(
-            "[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{}\"]",
+            "[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{}\"][data-type=\"{ACCEPTED_ITEM_TYPE}\"]",
             item_part()
         );
         let Ok(list) = root.query_selector_all(&selector) else {
@@ -301,9 +316,25 @@ mod wiring {
         component: std::rc::Rc<std::cell::RefCell<FileUpload>>,
         mut on_update: impl FnMut(&FileUpload, &Element) + 'static,
     ) -> Result<(), JsValue> {
+        // イシュー #1609 Cursor Bugbot 指摘の是正: `hidden_input` が
+        // `props.required` のときネイティブ `required` を出力するが、
+        // `wire_change` は同一ファイルの再選択を可能にするため
+        // `change` のたびに `input.set_value("")` でネイティブ値を
+        // 空にする（`required` 属性自体は残ったまま）。ネイティブの
+        // required 制約検証は「value が空か」だけを見るため、
+        // `FileUpload` 状態にファイルが入っていてもフォーム送信が
+        // ブロックされうる。配線時点（初回マウント/ハイドレーション後、
+        // 状態変更が一切起きていない時点）の hidden-input 要素が
+        // `required` 属性を持つかどうかを一度だけ記録し（呼び出し側の
+        // 意図＝`props.required` の値をここから逆算する）、以降は
+        // 状態更新のたびに [`sync_hidden_input_required`] が
+        // `accepted` が非空の間だけネイティブ `required` を除去する
+        // （空に戻れば再付与し、未入力のままの送信は引き続き阻止する）。
+        let required_intent = hidden_input_required_intent(&root);
         let on_update = std::rc::Rc::new(std::cell::RefCell::new(
             move |state: &FileUpload, el: &Element| {
                 on_update(state, el);
+                sync_hidden_input_required(el, state, required_intent);
             },
         ));
 
@@ -312,6 +343,41 @@ mod wiring {
         wire_drag_and_drop(&root, component, on_update)?;
 
         Ok(())
+    }
+
+    /// [`wire_file_upload_component`] 配線時点での hidden-input パーツの
+    /// ネイティブ `required` 属性の有無を読み取る（呼び出し側が
+    /// `FileUploadProps.required` を渡したかどうかの唯一の観測手段。
+    /// 見つからない場合は `false` に倒す＝fail-closed で誤って
+    /// required を強制しない）。
+    fn hidden_input_required_intent(root: &Element) -> bool {
+        let selector =
+            format!("[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{HIDDEN_INPUT_PART}\"]");
+        root.query_selector(&selector)
+            .ok()
+            .flatten()
+            .is_some_and(|el| el.has_attribute("required"))
+    }
+
+    /// 状態更新のたびに hidden-input パーツのネイティブ `required` 属性を
+    /// `state.accepted()` の非空判定に同期させる（`required_intent` が
+    /// `false`＝呼び出し側がそもそも required を意図していない場合は
+    /// 何もしない）。`root` 探索は `el`（`on_update` コールバックへ渡る
+    /// マウントルート）配下に限定する。
+    fn sync_hidden_input_required(root: &Element, state: &FileUpload, required_intent: bool) {
+        if !required_intent {
+            return;
+        }
+        let selector =
+            format!("[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{HIDDEN_INPUT_PART}\"]");
+        let Ok(Some(el)) = root.query_selector(&selector) else {
+            return;
+        };
+        if state.accepted().is_empty() {
+            let _ = set_dom_attribute(&el, "required", "");
+        } else {
+            let _ = el.remove_attribute("required");
+        }
     }
 
     fn dispatch_and_update(
