@@ -1165,7 +1165,7 @@ fn donut_chart_example() -> Node {
         vec![Series::new("revenue", vec![400.0, 300.0, 300.0, 200.0])],
     )
     .expect("固定サンプルは常に有効な ChartData を構築できる");
-    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
         .into_iter()
         .map(|size| {
             donut_chart(
@@ -1197,6 +1197,8 @@ const DONUT_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
         "外部依存ゼロの SVG ノード木生成によるドーナツグラフ",
         "inner_ratio（既定 0.6）で内径を調整できる",
         "show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画する",
+        "size（Xs〜Xl）で寸法を切り替える",
+        "ラベルは背景色ハロー + 環帯中心配置で系列色・ダーク時も可読",
     ],
     arguments: &[
         ArgRow {
@@ -1220,7 +1222,7 @@ const DONUT_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     ],
     examples: &[ExampleEntry {
         title: "size と内径調整",
-        description: "size 3 段と、内径を細くした薄いリング（inner_ratio=0.85）の掲示です。",
+        description: "size 5 段と、内径を細くした薄いリング（inner_ratio=0.85）の掲示です。",
         render: donut_chart_example,
     }],
     keyboard: &[],

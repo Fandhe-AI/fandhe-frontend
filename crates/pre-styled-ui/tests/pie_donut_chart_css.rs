@@ -63,12 +63,18 @@ const DONUT_CHART_GOLDEN_CSS: &str = r#"[data-scope="donut-chart"][data-part="ro
 [data-scope="donut-chart"][data-part="segment"] {
   stroke: var(--fandhe-color-bg);
   stroke-width: 1;
+  stroke-linejoin: round;
 }
 
 [data-scope="donut-chart"][data-part="label"] {
   fill: var(--fandhe-color-fg);
   font-size: 6px;
   text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: var(--fandhe-color-bg);
+  stroke-width: 1;
+  stroke-linejoin: round;
 }
 
 [data-scope="donut-chart"][data-part="root"].fd-donut-chart--size-xs {
