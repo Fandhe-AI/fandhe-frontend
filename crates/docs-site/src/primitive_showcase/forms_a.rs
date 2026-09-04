@@ -10,7 +10,7 @@
 use fandhe_frontend_core::{text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::angle_slider::AngleSliderProps;
-use hui::checkbox::CheckboxProps;
+use hui::checkbox::{CheckboxProps, CheckedState};
 use hui::checkbox_group;
 use hui::color_picker::{self, Channel};
 use hui::combobox;
@@ -93,24 +93,67 @@ pub(super) fn angle_slider_section() -> Node {
     demo_page("Angle Slider", [body, readonly_body].concat())
 }
 
-pub(super) fn checkbox_section() -> Node {
-    let props = CheckboxProps {
-        checked: hui::checkbox::CheckedState::Checked,
-        ..Default::default()
-    };
-    let body = vec![checkbox::root(
-        &props,
+/// `checkbox_section` の 1 インスタンス分を組み立てる非公開ヘルパ。
+/// `name` はフォーム送信名（インスタンス間で一意な無害なダミー値）、
+/// `label_text` は表示ラベル。ark-ui の Checkbox anatomy（root/control/
+/// indicator/label/hidden-input の 5 パーツ）をそのまま踏襲する。
+fn checkbox_instance(props: &CheckboxProps, name: &'static str, label_text: &'static str) -> Node {
+    checkbox::root(
+        props,
         vec![],
         vec![
             checkbox::control(
-                &props,
+                props,
                 vec![],
-                vec![checkbox::indicator(&props, vec![], vec![text("✓")])],
+                vec![checkbox::indicator(props, vec![], vec![text("✓")])],
             ),
-            checkbox::label(&props, vec![], vec![text("Accept newsletter")]),
-            checkbox::hidden_input(&props, "newsletter", "on", vec![]),
+            checkbox::label(props, vec![], vec![text(label_text)]),
+            checkbox::hidden_input(props, name, "on", vec![]),
         ],
-    )];
+    )
+}
+
+/// `data-state`（checked/unchecked/indeterminate の 3 値）と
+/// `data-disabled`/`data-invalid`/`data-required`/`data-readonly` を
+/// 描き分けた 6 インスタンスを並べる（イシュー #1602、参照突合の一環。
+/// `Observed Values` を充実させるデモ執筆規約 5 の範囲内）。
+pub(super) fn checkbox_section() -> Node {
+    let checked = CheckboxProps {
+        checked: CheckedState::Checked,
+        ..Default::default()
+    };
+    let unchecked = CheckboxProps {
+        checked: CheckedState::Unchecked,
+        ..Default::default()
+    };
+    let indeterminate = CheckboxProps {
+        checked: CheckedState::Indeterminate,
+        ..Default::default()
+    };
+    let disabled_checked = CheckboxProps {
+        checked: CheckedState::Checked,
+        disabled: true,
+        ..Default::default()
+    };
+    let invalid_required_unchecked = CheckboxProps {
+        checked: CheckedState::Unchecked,
+        invalid: true,
+        required: true,
+        ..Default::default()
+    };
+    let readonly_checked = CheckboxProps {
+        checked: CheckedState::Checked,
+        readonly: true,
+        ..Default::default()
+    };
+    let body = vec![
+        checkbox_instance(&checked, "newsletter", "Accept newsletter"),
+        checkbox_instance(&unchecked, "updates", "Receive updates"),
+        checkbox_instance(&indeterminate, "select-all", "Select all"),
+        checkbox_instance(&disabled_checked, "archived", "Archived (disabled)"),
+        checkbox_instance(&invalid_required_unchecked, "terms", "Accept terms"),
+        checkbox_instance(&readonly_checked, "locked", "Locked (read-only)"),
+    ];
     demo_page("Checkbox", body)
 }
 
