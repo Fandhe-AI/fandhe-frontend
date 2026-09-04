@@ -424,11 +424,14 @@ const CHECKBOX: ComponentPageSpec = ComponentPageSpec {
 // Checkbox Group
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/checkbox_group.rs:141-260`（root/item/
-/// item_control/item_indicator/item_text の各パーツ関数）。
+/// 一次情報: `crates/headless-ui/src/checkbox_group.rs`（root/item/
+/// item_control/item_indicator/item_text の各パーツ関数、`CheckboxGroupProps`）。
+/// イシュー #1603 で `disabled: bool` 引数が `&CheckboxGroupProps` へ署名
+/// 変更されたため追随した。
 fn ex_checkbox_group() -> Node {
+    let props = hui::checkbox_group::CheckboxGroupProps::default();
     let body = vec![checkbox_group::root(
-        false,
+        &props,
         Some(hui::Orientation::Vertical),
         Some("cg-label"),
         vec![],
@@ -436,22 +439,22 @@ fn ex_checkbox_group() -> Node {
             checkbox_group::label(Some("cg-label"), vec![], vec![text("Toppings")]),
             checkbox_group::item(
                 true,
-                false,
+                &props,
                 "cheese",
                 vec![],
                 vec![
                     checkbox_group::item_control(
                         true,
-                        false,
+                        &props,
                         vec![],
                         vec![checkbox_group::item_indicator(
                             true,
-                            false,
+                            &props,
                             vec![],
                             vec![text("✓")],
                         )],
                     ),
-                    checkbox_group::item_text(true, false, vec![], vec![text("Cheese")]),
+                    checkbox_group::item_text(true, &props, vec![], vec![text("Cheese")]),
                 ],
             ),
         ],
@@ -462,37 +465,132 @@ fn ex_checkbox_group() -> Node {
     )
 }
 
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/`data-state`/`data-invalid`/`data-disabled`/
+/// `data-orientation` 属性セレクタで見た目を組み立てる例を示す（イシュー
+/// #1603、`ex_checkbox_custom_css`〔#1602〕と同型のパターン）。CSS は
+/// テキストノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは追加しない。
+const CHECKBOX_GROUP_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"checkbox-group\"][data-part=\"item-control\"] {\n  \
+  width: 1rem;\n  height: 1rem;\n  border: 1px solid #888;\n  border-radius: 4px;\n\
+}\n\
+[data-scope=\"checkbox-group\"][data-part=\"item-control\"][data-state=\"checked\"] {\n  \
+  background: #2563eb;\n  border-color: #2563eb;\n\
+}\n\
+[data-scope=\"checkbox-group\"][data-part=\"item-control\"][data-invalid] {\n  \
+  border-color: #dc2626;\n\
+}\n\
+[data-scope=\"checkbox-group\"][data-part=\"item-control\"][data-focus-visible] {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n\
+[data-scope=\"checkbox-group\"][data-part=\"item\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"checkbox-group\"][data-part=\"root\"][data-orientation=\"horizontal\"] {\n  \
+  flex-direction: row;\n  gap: 1rem;\n\
+}\n";
+
+fn ex_checkbox_group_custom_css() -> Node {
+    let props = hui::checkbox_group::CheckboxGroupProps {
+        disabled: false,
+        readonly: false,
+        invalid: true,
+    };
+    let markup = checkbox_group::root(
+        &props,
+        Some(hui::Orientation::Horizontal),
+        Some("cg-css-label"),
+        vec![],
+        vec![
+            checkbox_group::label(Some("cg-css-label"), vec![], vec![text("Toppings")]),
+            checkbox_group::item(
+                false,
+                &props,
+                "olives",
+                vec![],
+                vec![
+                    checkbox::hidden_input(
+                        &CheckboxProps {
+                            checked: CheckedState::Unchecked,
+                            invalid: true,
+                            ..Default::default()
+                        },
+                        "toppings",
+                        "olives",
+                        vec![],
+                    ),
+                    checkbox_group::item_control(
+                        false,
+                        &props,
+                        vec![],
+                        vec![checkbox_group::item_indicator(
+                            false,
+                            &props,
+                            vec![],
+                            vec![text("✓")],
+                        )],
+                    ),
+                    checkbox_group::item_text(false, &props, vec![], vec![text("Olives")]),
+                ],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-invalid / data-disabled / data-orientation 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(
+                    vec![],
+                    vec![text(CHECKBOX_GROUP_CUSTOM_CSS_SNIPPET)],
+                )],
+            ),
+        ],
+    )
+}
+
 const CHECKBOX_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root（div、role=\"group\"）/label/item（label）/item_control/item_indicator/item_text の 6 パーツで「0 個以上の項目が同時選択される」複数選択を表現する（checkbox_group.rs:1-6, 36-45）。",
-        "labelled_by が Some のときのみ aria-labelledby を付与し、名前なし関連付けを作らない（checkbox_group.rs:135-137, 152-153）。",
-        "orientation が Some のときのみ data-orientation/aria-orientation を付与する（checkbox_group.rs:138-139, 149）。",
-        "ネイティブ入力は crate::checkbox::hidden_input を item（<label>）配下へ入れ子にして再利用し、item_control 自体には role=\"checkbox\"/aria-checked を付与しない（二重読み上げ防止、checkbox_group.rs:11-16, 203-206）。",
+        "root（div、role=\"group\"）/label/item（label）/item_control/item_indicator/item_text の 6 パーツで「0 個以上の項目が同時選択される」複数選択を表現する（checkbox_group.rs:1-7, 36-56）。",
+        "CheckboxGroupProps（disabled/readonly/invalid）を root と item 系 4 パーツ全てへ一律注入し、data-disabled/data-readonly/data-invalid を出力する（ark-ui Checkbox.Group props 相当、イシュー #1603）。",
+        "labelled_by が Some のときのみ aria-labelledby を付与し、名前なし関連付けを作らない（checkbox_group.rs:236-238）。",
+        "orientation が Some のときのみ data-orientation を付与する。role=\"group\" は WAI-ARIA 1.2 の aria-orientation Used in Roles に含まれないため、aria-orientation は付与しない（イシュー #1603 是正、radio_group〔role=\"radiogroup\"〕とは異なる）。",
+        "ネイティブ入力は crate::checkbox::hidden_input を item（<label>）配下へ入れ子にして再利用し、item_control 自体には role=\"checkbox\"/aria-checked を付与しない（二重読み上げ防止、checkbox_group.rs:11-16, 297-311）。CheckboxGroup::item_hidden_input は root の invalid/readonly もネイティブ <input> の aria-invalid/data-readonly へ OR 伝播する（イシュー #1603）。",
+        "ark-ui が付与する data-hover/data-active/data-focus は出力しない（DOM ローカルな pointer/focus 操作状態のため、SSR 静的出力の関心外）。Radix Themes の RovingFocus（矢印キーによる項目間移動）は採用しない（ネイティブ input は各項目が独立した Tab ストップであり、checkbox-group 用の roving tabindex パターンは WAI-ARIA APG に無い）。",
     ],
     arguments: &[
+        ArgRow {
+            name: "root(props)",
+            kind: "&CheckboxGroupProps",
+            default: "",
+            description: "disabled/readonly/invalid の 3 フラグ。true のフィールドのみ data-disabled/data-readonly/data-invalid として出力される（checkbox_group.rs、イシュー #1603）。",
+        },
         ArgRow {
             name: "root(orientation)",
             kind: "Option<Orientation>",
             default: "None",
-            description: "Some のときのみ data-orientation/aria-orientation を付与する（checkbox_group.rs:138-139）。",
+            description: "Some のときのみ data-orientation を付与する（aria-orientation は付与しない、checkbox_group.rs:233-235）。",
         },
         ArgRow {
             name: "root(labelled_by)",
             kind: "Option<&str>",
             default: "None",
-            description: "Some のときのみ aria-labelledby を付与する（label パーツの id と対で使う、checkbox_group.rs:135-137）。",
+            description: "Some のときのみ aria-labelledby を付与する（label パーツの id と対で使う、checkbox_group.rs:236-238）。",
         },
         ArgRow {
-            name: "item(checked, disabled, value)",
-            kind: "bool, bool, &str",
+            name: "item(checked, props, value)",
+            kind: "bool, &CheckboxGroupProps, &str",
             default: "",
-            description: "選択肢 1 個の状態と送信値。value は data-value として動的値のまま出力され既定エスケープを経由する（checkbox_group.rs:174-181）。",
+            description: "選択肢 1 個の状態と送信値。value は data-value として動的値のまま出力され既定エスケープを経由する（checkbox_group.rs:266-284）。",
         },
         ArgRow {
-            name: "item_control(checked, disabled)",
-            kind: "bool, bool",
+            name: "item_control(checked, props)",
+            kind: "bool, &CheckboxGroupProps",
             default: "",
-            description: "視覚的なチェックボックス外枠。item_indicator を子として渡す契約（styled recipe の中央揃えに効くため、checkbox_group.rs:200-222）。",
+            description: "視覚的なチェックボックス外枠。item_indicator を子として渡す契約（styled recipe の中央揃えに効くため、checkbox_group.rs:297-311）。",
         },
         ArgRow {
             name: "attrs / children",
@@ -501,27 +599,44 @@ const CHECKBOX_GROUP: ComponentPageSpec = ComponentPageSpec {
             description: "各パーツ共通の追加属性・子ノード（代表 1 行に集約）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Vertical orientation",
-        description: "aria-labelledby・data-orientation=\"vertical\" を付与した例です。",
-        render: ex_checkbox_group,
-    }],
-    keyboard: &[KeyRow {
-        key: "Space",
-        description: "item（<label>）配下の checkbox::hidden_input（<input type=\"checkbox\">）が実体を担うため、ブラウザ標準のクリック委譲・トグル操作が働く（checkbox_group.rs:11-16, 170-176）。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Vertical orientation",
+            description: "aria-labelledby・data-orientation=\"vertical\" を付与した例です。",
+            render: ex_checkbox_group,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "自前 CSS の最小例です（data-invalid・水平 orientation 付き）。",
+            render: ex_checkbox_group_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "各項目のネイティブ <input type=\"checkbox\">（item 配下の checkbox::hidden_input）がブラウザ標準の Tab ストップとして機能する。項目間移動に矢印キーは使わない（Radix Themes の RovingFocus は不採用、ark-ui も Space のみ）。",
+        },
+        KeyRow {
+            key: "Space",
+            description: "item（<label>）配下の checkbox::hidden_input（<input type=\"checkbox\">）が実体を担うため、ブラウザ標準のクリック委譲・トグル操作が働く（checkbox_group.rs:11-16, 266-284）。",
+        },
+        KeyRow {
+            key: "Enter",
+            description: "ネイティブ <input type=\"checkbox\"> は Enter でトグルしない（ブラウザ標準の挙動、フォーム送信のみに関与する）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role=\"group\"",
-            description: "root パーツへ固定付与する（checkbox_group.rs:148）。",
+            description: "root パーツへ固定付与する（checkbox_group.rs:232）。",
         },
         AriaRow {
             attribute: "aria-labelledby",
-            description: "root の labelled_by が Some のときのみ付与する（checkbox_group.rs:152-153）。",
+            description: "root の labelled_by が Some のときのみ付与する（checkbox_group.rs:236-238）。",
         },
         AriaRow {
-            attribute: "aria-orientation",
-            description: "root の orientation が Some のときのみ付与する（checkbox_group.rs:149）。",
+            attribute: "（aria-orientation は付与しない）",
+            description: "WAI-ARIA 1.2 の aria-orientation Used in Roles に role=\"group\" は含まれない（scrollbar/select/separator/slider/tablist/toolbar とその継承先のみ対象）。data-orientation は CSS セレクタが依存するため引き続き出力する（イシュー #1603 是正）。",
         },
     ],
     demo: None,

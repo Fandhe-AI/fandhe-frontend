@@ -17,7 +17,12 @@ name = "fandhe-frontend-headless-ui"
 # 到達していた main とのマージにより、双方の実体変更を統合した結果として
 # 0.28.8 へさらに patch バンプする（同一版数への偶発的衝突をそのまま
 # 採用しない）。
-version = "0.29.0"
+# イシュー #1603（checkbox-group の参照突合）: `CheckboxGroupProps`
+# （disabled/readonly/invalid）の導入に伴い `checkbox_group::{root, item,
+# item_control, item_indicator, item_text}` が `disabled: bool` から
+# `&CheckboxGroupProps` へシグネチャ変更（破壊的変更）したため 0.x の
+# マイナーバンプとする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
+version = "0.30.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
