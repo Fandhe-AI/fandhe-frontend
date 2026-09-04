@@ -56,7 +56,7 @@
 //! （`tests/primitive_specs_1026.rs::forms_c_examples_do_not_call_pre_styled_ui_component_fns`
 //! が機械確認する）。
 
-use fandhe_frontend_core::{text, Node};
+use fandhe_frontend_core::{code, div, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::calendar;
 use hui::clipboard;
@@ -93,9 +93,25 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
 // Calendar — 一次情報: crates/headless-ui/src/calendar.rs:1-431
 // ---------------------------------------------------------------------
 
+/// Examples 用の枠組み（`crate::primitive_specs::forms_a::wrap_example` と
+/// 同型。forms_a 側は私有関数のためモジュール間で共有せず、同じ
+/// `primitives-demo-frame`/`primitives-demo-note` class のみでここへも
+/// 複製する）。
+fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
+    div(
+        vec![],
+        vec![
+            p(vec![("class", "primitives-demo-note")], vec![text(note)]),
+            div(vec![("class", "primitives-demo-frame")], body),
+        ],
+    )
+}
+
 /// Calendar の Examples: 範囲下限に到達した前月移動トリガーと、範囲外の
 /// 日付（`day_trigger` の `disabled`）を示す（Demo は選択済みの単一日付の
-/// みを描画するため、range 制約の表示状態を補完する）。
+/// みを描画するため、range 制約の表示状態を補完する）。`prev_trigger`/
+/// `next_trigger` はアクセシブル名を既定で持たないため、呼び出し側の
+/// `attrs` で `aria-label` を渡す責務を示す例も兼ねる（#1625 突合結果）。
 fn calendar_disabled_range_example() -> Node {
     let day = match PlainDate::new(2026, 7, 1) {
         Ok(d) => d,
@@ -104,8 +120,12 @@ fn calendar_disabled_range_example() -> Node {
     calendar::root(
         vec![],
         vec![
-            calendar::prev_trigger(true, vec![], vec![text("‹")]),
-            calendar::next_trigger(false, vec![], vec![text("›")]),
+            calendar::prev_trigger(
+                true,
+                vec![("aria-label", "Previous month")],
+                vec![text("‹")],
+            ),
+            calendar::next_trigger(false, vec![("aria-label", "Next month")], vec![text("›")]),
             calendar::table(
                 None,
                 vec![],
@@ -134,6 +154,80 @@ fn calendar_disabled_range_example() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1625、`CHECKBOX_CUSTOM_CSS_SNIPPET`
+/// 〔`primitive_specs/forms_a.rs`〕と同型のパターン）。CSS はテキストノード
+/// （[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const CALENDAR_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"calendar\"][data-part=\"table\"] {\n  \
+  border-collapse: collapse;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"day-trigger\"] {\n  \
+  width: 2rem;\n  height: 2rem;\n  border: none;\n  border-radius: 4px;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"day-trigger\"][data-selected] {\n  \
+  background: #2563eb;\n  color: #fff;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"day-trigger\"][data-today] {\n  \
+  font-weight: bold;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"day-trigger\"][data-outside-month] {\n  \
+  color: #9ca3af;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"day-trigger\"][data-disabled] {\n  \
+  opacity: 0.4;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"prev-trigger\"]:focus-visible,\n\
+[data-scope=\"calendar\"][data-part=\"next-trigger\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n";
+
+fn ex_calendar_custom_css() -> Node {
+    let day = match PlainDate::new(2026, 7, 25) {
+        Ok(d) => d,
+        Err(_) => return calendar::root(vec![], vec![]),
+    };
+    let markup = calendar::root(
+        vec![],
+        vec![calendar::table(
+            None,
+            vec![],
+            vec![calendar::table_body(
+                vec![],
+                vec![calendar::table_row(
+                    vec![],
+                    vec![calendar::table_cell(
+                        true,
+                        vec![],
+                        vec![calendar::day_trigger(
+                            day,
+                            true,
+                            true,
+                            false,
+                            false,
+                            None,
+                            vec![],
+                            vec![text("25")],
+                        )],
+                    )],
+                )],
+            )],
+        )],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-selected / data-today / data-outside-month / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(CALENDAR_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 const CALENDAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root/Heading/PrevTrigger/NextTrigger/Table/TableHeader/TableRow/TableHeadCell/TableBody/TableCell/DayTrigger の 11 anatomy パーツを提供し、月表示・単一日付選択・min/max 範囲制約を持つ状態機械 `Calendar` を組み合わせる。",
@@ -141,6 +235,9 @@ const CALENDAR: ComponentPageSpec = ComponentPageSpec {
         "`table` に `role=\"grid\"`、`table_row` に `role=\"row\"`、`table_head_cell` に `role=\"columnheader\"`、`table_cell` に `role=\"gridcell\"` + `aria-selected` を付与し、WAI-ARIA APG の grid パターンに従う。",
         "`day_trigger` は選択日に `data-selected`、今日に `data-today` + `aria-current=\"date\"`、表示月外の日付に `data-outside-month`、min/max 範囲外の日付に `data-disabled` + ネイティブ `disabled` + `aria-disabled` を出力する。",
         "範囲選択（range mode）・複数月表示・年/月ビュー切替は本コンポーネントのスコープ外（単一日付の選択のみを扱う）。",
+        "ark-ui/zag の `data-focus`/`data-view`/`data-weekend`/`data-unavailable`/range 系属性は出力しない（DOM ローカル状態・ビュー概念なし・locale 依存・range mode スコープ外のため。#1625 参考サイト突合結果）。",
+        "パート名 `table-header`（`<thead>`）/`table-head-cell`（`<th>`）は ark-ui（`table-head`/`table-header`）とはパート名の対応が入れ替わっている（本実装は要素の役割をそのまま表す命名）。",
+        "キーボード操作（矢印キー等での日付移動）は `fandhe-frontend-wasm-full` の keynav 配線（#1074/#1161）が担う。本コンポーネント（SSR 単体）はネイティブ `<button>` の Tab / Enter / Space のみを提供する。",
     ],
     arguments: &[
         ArgRow {
@@ -180,11 +277,18 @@ const CALENDAR: ComponentPageSpec = ComponentPageSpec {
             description: "週の開始曜日。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "範囲外の日付・前月移動の無効化",
-        description: "`day_trigger` の `disabled` と `prev_trigger` の `disabled` を `true` にすると、min/max 範囲外であることを示す `data-disabled`・ネイティブ `disabled`・`aria-disabled` が出力されます。",
-        render: calendar_disabled_range_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "範囲外の日付・前月移動の無効化",
+            description: "`day_trigger` の `disabled` と `prev_trigger` の `disabled` を `true` にすると、min/max 範囲外であることを示す `data-disabled`・ネイティブ `disabled`・`aria-disabled` が出力されます。",
+            render: calendar_disabled_range_example,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui 自体はスタイルを持たないため、`data-scope`/`data-part`/`data-selected`/`data-today`/`data-outside-month`/`data-disabled` 属性セレクタで見た目を組み立てる最小例です。",
+            render: ex_calendar_custom_css,
+        },
+    ],
     keyboard: &[
         KeyRow {
             key: "Tab",
@@ -192,7 +296,23 @@ const CALENDAR: ComponentPageSpec = ComponentPageSpec {
         },
         KeyRow {
             key: "Space / Enter",
-            description: "フォーカス中の `prev_trigger`/`next_trigger`/`day_trigger` をブラウザ既定動作で押下する。",
+            description: "フォーカス中の `prev_trigger`/`next_trigger`/`day_trigger` をブラウザ既定動作で押下する（`day_trigger` は `fandhe-frontend-wasm-full` の keynav 配線で選択・`prev_trigger`/`next_trigger` は月移動をディスパッチする）。",
+        },
+        KeyRow {
+            key: "ArrowLeft / ArrowRight",
+            description: "`fandhe-frontend-wasm-full` の keynav 配線（#1074/#1161）が担う。フォーカス中の日付を ±1 日移動する（`data-disabled` のセルはスキップ、行末で次行へ、非循環）。",
+        },
+        KeyRow {
+            key: "ArrowUp / ArrowDown",
+            description: "同キーnav 配線が担う。フォーカス中の日付を ±7 日（1 週間）移動する。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "同 keynav 配線が担う。フォーカス中の行の先頭・末尾の非 disabled セルへ移動する（zag の実装に合わせた挙動。ark-ui サイトの「月初/月末」という文言とは異なる）。",
+        },
+        KeyRow {
+            key: "PageUp / PageDown",
+            description: "同 keynav 配線が担う。`prev_trigger`/`next_trigger` への click 合成で月移動する（trigger が `disabled` のときは no-op）。",
         },
     ],
     aria: &[
@@ -215,6 +335,10 @@ const CALENDAR: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-labelledby",
             description: "`table` の `labelledby` が `Some` のとき、`heading` の `id` と対で関連付ける。",
+        },
+        AriaRow {
+            attribute: "aria-label",
+            description: "`day_trigger` は ISO 8601 表記（例: `\"2026-07-25\"`）を固定付与する。`prev_trigger`/`next_trigger` は既定値を持たないため、アイコンのみを子に置く場合はアクセシブル名を呼び出し側が `attrs` で渡す（例: `(\"aria-label\", \"Previous month\")`）。",
         },
     ],
     demo: None,

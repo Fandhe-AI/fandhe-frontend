@@ -4,8 +4,9 @@
 use fandhe_frontend_core::{text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::calendar;
+use hui::calendar::Calendar;
 use hui::clipboard;
-use hui::date::PlainDate;
+use hui::date::{PlainDate, Weekday};
 use hui::date_input::{self, DateSegment, DateSegmentFlags};
 use hui::date_picker;
 use hui::download_trigger;
@@ -18,50 +19,57 @@ use hui::OpenState;
 
 use super::demo_page;
 
+/// Calendar Demo（イシュー #1625 参考サイト突合で拡充）。
+///
+/// `Calendar::new` + [`calendar::table_body_from_grid`] で実際の 2026 年 7 月
+/// グリッドを描画する（従来の 1 セル手組みから拡充）。today = selected =
+/// 2026-07-25（`data-selected`/`data-today` の同時付与）、min = 2026-07-05 /
+/// max = 2026-07-28（月内前後に `data-disabled` を、月境界に
+/// `data-outside-month` をそれぞれ現出させる）を静的に固定し、`data-*` 属性
+/// 表の Observed Values を 1 Demo で網羅する（執筆規約 5「静的初期状態のみ」
+/// の範囲内）。`prev-trigger`/`next-trigger` は min/max がともに 7 月内に
+/// 収まるため常に範囲端到達（`data-disabled`）状態になる — 無効化されて
+/// いない状態は API Reference の Examples 側で別途示す。
 pub(super) fn calendar_section() -> Node {
-    let today = PlainDate::new(2026, 7, 25);
-    let body = match today {
-        Ok(today) => vec![calendar::root(
-            vec![],
-            vec![
-                calendar::heading(Some("cal-heading"), vec![], vec![text("July 2026")]),
-                calendar::prev_trigger(false, vec![], vec![text("‹")]),
-                calendar::next_trigger(false, vec![], vec![text("›")]),
-                calendar::table(
-                    Some("cal-heading"),
-                    vec![],
-                    vec![
-                        calendar::table_header(
-                            vec![],
-                            vec![calendar::table_row(
+    let fixture = (|| -> Result<Calendar, hui::date::DateError> {
+        let today = PlainDate::new(2026, 7, 25)?;
+        Calendar::new(
+            2026,
+            7,
+            today,
+            Some(today),
+            Some(PlainDate::new(2026, 7, 5)?),
+            Some(PlainDate::new(2026, 7, 28)?),
+            Weekday::Sunday,
+        )
+    })();
+    let body = match fixture {
+        Ok(cal) => {
+            let weekday_labels = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+            let head_cells = weekday_labels
+                .into_iter()
+                .map(|label| calendar::table_head_cell(vec![], vec![text(label)]))
+                .collect();
+            vec![calendar::root(
+                vec![],
+                vec![
+                    calendar::heading(Some("cal-heading"), vec![], vec![text("July 2026")]),
+                    cal.prev_trigger(vec![("aria-label", "Previous month")], vec![text("‹")]),
+                    cal.next_trigger(vec![("aria-label", "Next month")], vec![text("›")]),
+                    calendar::table(
+                        Some("cal-heading"),
+                        vec![],
+                        vec![
+                            calendar::table_header(
                                 vec![],
-                                vec![calendar::table_head_cell(vec![], vec![text("Su")])],
-                            )],
-                        ),
-                        calendar::table_body(
-                            vec![],
-                            vec![calendar::table_row(
-                                vec![],
-                                vec![calendar::table_cell(
-                                    true,
-                                    vec![],
-                                    vec![calendar::day_trigger(
-                                        today,
-                                        true,
-                                        true,
-                                        false,
-                                        false,
-                                        Some("cal-day-25"),
-                                        vec![],
-                                        vec![text("25")],
-                                    )],
-                                )],
-                            )],
-                        ),
-                    ],
-                ),
-            ],
-        )],
+                                vec![calendar::table_row(vec![], head_cells)],
+                            ),
+                            cal.table_body_from_grid(vec![]),
+                        ],
+                    ),
+                ],
+            )]
+        }
         Err(_) => vec![],
     };
     demo_page("Calendar", body)

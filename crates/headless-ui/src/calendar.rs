@@ -48,8 +48,16 @@
 //! # out-of-scope（本イシュー #835 のスコープ外）
 //!
 //! - キーボードナビゲーション（矢印キーでの gridcell フォーカス移動・
-//!   roving tabindex）の実 DOM 配線: wasm 配線イシューのスコープ。
-//! - 範囲選択（range mode）・複数月表示（multi-month）・年/月ビュー切替。
+//!   roving tabindex）の実 DOM 配線は #1074/#1161 で
+//!   `crates/wasm-full/src/keynav.rs` §Calendar に配線済み（ArrowLeft/
+//!   ArrowRight/ArrowUp/ArrowDown は日単位移動、Home/End は行内の先頭/末尾
+//!   セルへ、PageUp/PageDown は [`prev_trigger`]/[`next_trigger`] への
+//!   click 合成で月移動、Enter/Space はネイティブ `button` のクリックに
+//!   委譲）。本モジュール自体は SSR 静的出力のみを担い、実 DOM イベント
+//!   配線は持たない（#1625 で参考サイト突合時に検証・rustdoc 更新）。
+//! - 範囲選択（range mode）・複数月表示（multi-month）・年/月ビュー切替
+//!   （ark-ui の `view`/`view-control`/`view-trigger`/`range-text`
+//!   anatomy 相当）は本イシューでも意図的に見送っている（#1625 突合結果）。
 //! - [`crate::date_picker::DatePicker`] との連携以外の DateInput（セグメント
 //!   式入力）との配線: 別イシューのスコープ。
 
@@ -92,6 +100,13 @@ pub fn heading<'a>(
 /// `true`（範囲下限に到達）のときネイティブ `disabled` + `aria-disabled` +
 /// `data-disabled` を付与する。フォーム内配置時の意図しない submit を
 /// 防ぐため `type="button"` を固定で付与する。
+///
+/// ark-ui/zag はアクセシブル名（`aria-label`、"Previous month" 等）を既定で
+/// 付与するが、本実装は英語文言を既定値として埋め込まない（i18n の関心・
+/// 呼び出し側属性との重複を避けるため）。アイコンのみを `children` に置く
+/// 場合、アクセシブル名は呼び出し側が `attrs` で
+/// `("aria-label", "Previous month")` のように明示的に渡す責務を持つ
+/// （#1625 で参考サイト突合時に確認）。
 #[must_use]
 pub fn prev_trigger<'a>(
     disabled: bool,
@@ -109,7 +124,8 @@ pub fn prev_trigger<'a>(
 }
 
 /// NextTrigger パーツ（`button`）。[`prev_trigger`] と対称（範囲上限到達時に
-/// 無効化）。
+/// 無効化）。アクセシブル名の扱いも [`prev_trigger`] と同様、呼び出し側が
+/// `attrs` で明示的に渡す責務を持つ（本実装は既定値を埋め込まない）。
 #[must_use]
 pub fn next_trigger<'a>(
     disabled: bool,
@@ -143,8 +159,12 @@ pub fn table<'a>(
     ANATOMY.part("table", "table", merged, children)
 }
 
-/// TableHeader パーツ（`thead`）。`data-part="table-header"`（ark-ui 準拠の
-/// kebab-case）。
+/// TableHeader パーツ（`thead`）。`data-part="table-header"`。
+///
+/// ark-ui の anatomy とはパート名の対応が入れ替わっている点に注意
+/// （ark-ui は thead を `table-head`、th を `table-header` と呼ぶ）。本実装
+/// は要素の役割をそのまま表す命名を採用しており、ark-ui の語彙をそのまま
+/// 踏襲したものではない（#1625 で参考サイト突合時に確認・rustdoc 訂正）。
 #[must_use]
 pub fn table_header<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("table-header", "thead", attrs, children)
@@ -159,9 +179,12 @@ pub fn table_row<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
     ANATOMY.part("table-row", "tr", merged, children)
 }
 
-/// TableHeadCell パーツ（`th`）。`data-part="table-head-cell"`（ark-ui 準拠の
-/// kebab-case）。`role="columnheader"` を固定付与する。曜日ラベル自体は
-/// 呼び出し側が `children` で渡す（i18n 対応・既定エスケープ経由）。
+/// TableHeadCell パーツ（`th`）。`data-part="table-head-cell"`。
+///
+/// ark-ui の anatomy とはパート名の対応が入れ替わっている（[`table_header`]
+/// の rustdoc 参照。ark-ui は th を `table-header` と呼ぶ）。`role`
+/// `"columnheader"` を固定付与する。曜日ラベル自体は呼び出し側が `children`
+/// で渡す（i18n 対応・既定エスケープ経由）。
 #[must_use]
 pub fn table_head_cell<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![role("columnheader")];
