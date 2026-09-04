@@ -159,10 +159,10 @@ const NUMBER_INPUT: ComponentPageSpec = ComponentPageSpec {
     ],
     keyboard: &[
         KeyRow { key: "ArrowUp", description: "`step` 分だけ増加する（`\"increment\"` dispatch）。DOM 配線はクライアントランタイム（`fandhe-frontend-wasm-full`）側の後続責務であり、本モジュールは dispatch 契約のみを提供する。" },
-        KeyRow { key: "ArrowDown", description: "`step` 分だけ減少する（`\"decrement\"` dispatch）。" },
-        KeyRow { key: "Home", description: "値を `min` に設定する（`\"home\"` dispatch、イシュー #1613）。" },
-        KeyRow { key: "End", description: "値を `max` に設定する（`\"end\"` dispatch、イシュー #1613）。" },
-        KeyRow { key: "Enter", description: "入力中の値を確定する（`\"set\"` dispatch）。" },
+        KeyRow { key: "ArrowDown", description: "`step` 分だけ減少する（`\"decrement\"` dispatch）。DOM 配線はクライアントランタイム（`fandhe-frontend-wasm-full`）側の後続責務であり、本モジュールは dispatch 契約のみを提供する。" },
+        KeyRow { key: "Home", description: "値を `min` に設定する（`\"home\"` dispatch、イシュー #1613）。DOM 配線はクライアントランタイム（`fandhe-frontend-wasm-full`）側の後続責務であり、本モジュールは dispatch 契約のみを提供する。" },
+        KeyRow { key: "End", description: "値を `max` に設定する（`\"end\"` dispatch、イシュー #1613）。DOM 配線はクライアントランタイム（`fandhe-frontend-wasm-full`）側の後続責務であり、本モジュールは dispatch 契約のみを提供する。" },
+        KeyRow { key: "Enter", description: "入力中の値を確定する（`\"set\"` dispatch）。DOM 配線はクライアントランタイム（`fandhe-frontend-wasm-full`）側の後続責務であり、本モジュールは dispatch 契約のみを提供する。" },
     ],
     aria: &[
         AriaRow { attribute: "role=\"spinbutton\" (input)", description: "WAI-ARIA spinbutton パターン。ネイティブ `<input type=\"number\">` ではなく `type=\"text\"` を使うため、上下キーによる native な増減は成立しない（増減はクライアントランタイムの配線責務、モジュール doc「out-of-scope」参照）。" },

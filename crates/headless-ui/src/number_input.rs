@@ -248,7 +248,6 @@ pub fn label<'a>(
     }
     merged.extend(data_disabled(flags.disabled));
     merged.extend(data_invalid(flags.invalid));
-    merged.extend(data_readonly(flags.readonly));
     merged.extend(data_required(flags.required));
     merged.extend(attrs);
     ANATOMY.part("label", "label", merged, children)
@@ -293,11 +292,12 @@ pub fn control<'a>(
 /// `inputmode="decimal"` はモバイル IME に数値キーパッドを示唆するヒントで
 /// あり、実際の入力検証はクライアント側（wasm-full 層）の責務。
 ///
-/// `autocomplete="off"`（呼び出し側 `attrs` に同名キーがあれば省略）・
-/// `autocorrect="off"`・`spellcheck="false"`・
-/// `aria-roledescription="numberfield"` はイシュー #1613 で ark-ui/zag.js の
-/// number-input machine と突合して追加した（ブラウザ・IME 由来の自動補完・
-/// 自動修正・スペルチェック候補が数値入力へ誤って介入するのを防ぐ）。
+/// `autocomplete="off"`・`autocorrect="off"`・`spellcheck="false"`・
+/// `aria-roledescription="numberfield"`（いずれも呼び出し側 `attrs` に同名
+/// キーがあれば [`has_caller_attr`] で dedup し省略）はイシュー #1613 で
+/// ark-ui/zag.js の number-input machine と突合して追加した（ブラウザ・IME
+/// 由来の自動補完・自動修正・スペルチェック候補が数値入力へ誤って介入する
+/// のを防ぐ）。
 #[must_use]
 pub fn input<'a>(
     name: &'a str,
@@ -312,13 +312,19 @@ pub fn input<'a>(
         ("type", "text"),
         ("inputmode", "decimal"),
         ("role", "spinbutton"),
-        ("aria-roledescription", "numberfield"),
-        ("autocorrect", "off"),
-        ("spellcheck", "false"),
         ("name", name),
         ("aria-valuemin", min),
         ("aria-valuemax", max),
     ];
+    if !has_caller_attr(&attrs, "aria-roledescription") {
+        merged.push(("aria-roledescription", "numberfield"));
+    }
+    if !has_caller_attr(&attrs, "autocorrect") {
+        merged.push(("autocorrect", "off"));
+    }
+    if !has_caller_attr(&attrs, "spellcheck") {
+        merged.push(("spellcheck", "false"));
+    }
     if !has_caller_attr(&attrs, "autocomplete") {
         merged.push(("autocomplete", "off"));
     }
@@ -370,7 +376,8 @@ pub fn value_text<'a>(
 
 /// `attrs` に `key`（大文字小文字を無視）が含まれるかどうかを判定する。
 ///
-/// [`control`] の既定 `role`・[`input`] の既定 `autocomplete`・
+/// [`control`] の既定 `role`・[`input`] の既定 `autocomplete`/`autocorrect`/
+/// `spellcheck`/`aria-roledescription`・
 /// [`increment_trigger`]/[`decrement_trigger`] の既定 `aria-label`
 /// （いずれも呼び出し側が上書き可能、モジュール doc 参照）を、呼び出し側の
 /// 指定と重複させないために使う（[`crate::progress`] の `drop_style_attr` と
@@ -916,6 +923,22 @@ mod tests {
     }
 
     #[test]
+    fn label_readonly_true_does_not_add_data_readonly() {
+        // `data-readonly` は root/control/value-text のみが持ち label は持たない
+        // （モジュール doc「参考サイト突合」節・イシュー #1613 レビュー是正）。
+        let html = render(&label(
+            NumberInputFlags {
+                readonly: true,
+                ..NumberInputFlags::default()
+            },
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("data-readonly"));
+    }
+
+    #[test]
     fn control_outputs_scope_and_part() {
         let html = render(&control(NumberInputFlags::default(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="number-input""#));
@@ -999,6 +1022,56 @@ mod tests {
         assert_eq!(html.matches("autocomplete=").count(), 1);
         assert!(html.contains(r#"autocomplete="on""#));
         assert!(!html.contains(r#"autocomplete="off""#));
+    }
+
+    #[test]
+    fn input_caller_autocorrect_overrides_default() {
+        // `has_caller_attr` による dedup（イシュー #1613 レビュー是正）:
+        // 重複属性による無効な HTML 出力を防ぐ不変条件を autocorrect にも適用する。
+        let html = render(&input(
+            "qty",
+            None,
+            None,
+            "0",
+            "100",
+            NumberInputFlags::default(),
+            vec![("autocorrect", "on")],
+        ));
+        assert_eq!(html.matches("autocorrect=").count(), 1);
+        assert!(html.contains(r#"autocorrect="on""#));
+        assert!(!html.contains(r#"autocorrect="off""#));
+    }
+
+    #[test]
+    fn input_caller_spellcheck_overrides_default() {
+        let html = render(&input(
+            "qty",
+            None,
+            None,
+            "0",
+            "100",
+            NumberInputFlags::default(),
+            vec![("spellcheck", "true")],
+        ));
+        assert_eq!(html.matches("spellcheck=").count(), 1);
+        assert!(html.contains(r#"spellcheck="true""#));
+        assert!(!html.contains(r#"spellcheck="false""#));
+    }
+
+    #[test]
+    fn input_caller_aria_roledescription_overrides_default() {
+        let html = render(&input(
+            "qty",
+            None,
+            None,
+            "0",
+            "100",
+            NumberInputFlags::default(),
+            vec![("aria-roledescription", "quantity")],
+        ));
+        assert_eq!(html.matches("aria-roledescription=").count(), 1);
+        assert!(html.contains(r#"aria-roledescription="quantity""#));
+        assert!(!html.contains(r#"aria-roledescription="numberfield""#));
     }
 
     #[test]
