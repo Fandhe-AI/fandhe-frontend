@@ -24,6 +24,7 @@ const SKIP_NAV_GOLDEN_CSS: &str = r#"[data-scope="skip-nav"][data-part="link"] {
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
+  overflow-wrap: normal;
   border-width: 0;
   --fandhe-hover-bg: var(--fandhe-color-bg-muted);
 }
@@ -43,6 +44,7 @@ const SKIP_NAV_GOLDEN_CSS: &str = r#"[data-scope="skip-nav"][data-part="link"] {
   overflow: visible;
   clip: auto;
   white-space: normal;
+  overflow-wrap: anywhere;
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   font-size: var(--fandhe-font-font-size-sm);

@@ -17,6 +17,7 @@ const VISUALLY_HIDDEN_GOLDEN_CSS: &str = r#"[data-scope="visually-hidden"][data-
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
+  overflow-wrap: normal;
   border-width: 0;
 }
 "#;

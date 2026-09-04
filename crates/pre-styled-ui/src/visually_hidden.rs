@@ -19,6 +19,28 @@
 //! 宣言としても再利用する（同じ clip 手法の単一情報源、モジュール冒頭
 //! rustdoc 参照）。
 //!
+//! ## `overflow-wrap: normal`（イシュー #1587、参考サイト基準との一致）
+//!
+//! Radix Primitives `VisuallyHidden`・Radix Themes（同実装の再エクスポート）・
+//! ark-ui / zag-js の `visuallyHiddenStyle` はいずれも `white-space: nowrap`
+//! に加えて `word-wrap: normal`（`overflow-wrap` の別名。本クレートでは
+//! [`crate::card`] の `overflow-wrap: break-word` と表記を揃えるため標準名
+//! `overflow-wrap` を使う）を宣言する。この部品はそれを欠いていたため追加
+//! した。実害の根拠: [`crate::card::root`] は `overflow-wrap: break-word` を
+//! 宣言しており、Card 内に置かれた VisuallyHidden はこれを継承する。1px
+//! 四方に縮小された箱の中で `break-word` が有効なままだと、支援技術によっては
+//! 単語が 1 文字ずつ改行されているものとして扱われ、読み上げが単語単位で
+//! なく文字単位に分断されるおそれがある。`white-space: nowrap` だけでは
+//! `break-word` の継承を打ち消せないため、`overflow-wrap: normal` を併記して
+//! 祖先からの継承を明示的に遮断する。
+//!
+//! 意図的に参照実装へ合わせない点:
+//! - chakra-ui の `border: 0` に対し `border-width: 0` を維持する（視覚的に
+//!   等価な最小宣言。`border-style`/`border-color` まで上書きする必要はない）。
+//! - `clip-path: inset(50%)` は Radix Primitives / Radix Themes / ark-ui の
+//!   いずれにも存在しないため追加しない（`clip` は CSS Masking 仕様上
+//!   非推奨だが主要ブラウザで動作し、参照実装も `clip` のみを使う）。
+//!
 //! # variant 軸を持たない理由
 //!
 //! VisuallyHidden は見た目のバリエーションを持たない単一の振る舞い
@@ -62,6 +84,7 @@ pub(crate) fn clip_declarations() -> Vec<Declaration> {
         decl("overflow", "hidden"),
         decl("clip", "rect(0, 0, 0, 0)"),
         decl("white-space", "nowrap"),
+        decl("overflow-wrap", "normal"),
         decl("border-width", "0"),
     ]
 }
@@ -147,6 +170,7 @@ mod tests {
         assert!(a.contains(r#"[data-scope="visually-hidden"][data-part="root"]"#));
         assert!(a.contains("clip: rect(0, 0, 0, 0);"));
         assert!(a.contains("overflow: hidden;"));
+        assert!(a.contains("overflow-wrap: normal;"));
     }
 
     #[test]
