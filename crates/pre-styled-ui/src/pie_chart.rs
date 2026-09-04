@@ -66,6 +66,67 @@
 //!   中央テキスト（呼び出し側 children での代替は本 API のスコープ外）。
 //! - `examples/headless-pre-styled-ui` への反映は crates.io 公開後に別途
 //!   （[`crate::qr_code`]/[`crate::rating_group`] の先例と同じ判断）。
+//!
+//! # 参考サイト基準への調整（イシュー #1596）
+//!
+//! 親 Phase #1588「Themes / Charts のスタイル調整」の子。参照 4 サイト
+//! （chakra-ui / Ark UI / Radix Primitives / Radix Themes）にチャート部品が
+//! 存在しないため、評価軸は**内部整合のみ**（`--fandhe-*` トークン適用・
+//! ダーク時の可読性・系列色の識別性・データラベルのコントラスト）に限定する。
+//!
+//! | 軸 | 結論 |
+//! |---|---|
+//! | サイズ | 現状維持（Xs〜Xl は #1681 で整備済み） |
+//! | バリアント / colorPalette | 非採用（参照軸なし。系列色は `chart-1〜6` 固定ローテーション） |
+//! | 色 | 現状維持（全宣言がトークン経由。`label` の `font-size: 6px` は viewBox ユーザー単位のため静的リテラルのまま） |
+//! | 状態 `data-*` | 非該当（headless 由来の `data-*` を持たない pre-styled-only 部品） |
+//! | ダークモード | ラベルのコントラストはハローで是正（下記）。系列パレット自体の見直しはスコープ外 |
+//! | フォーカス | 非該当（`svg` は `role="img"` でフォーカス不可） |
+//! | 余白・角丸・影 | 非該当（扇形 SVG 描画のみ） |
+//! | hover / disabled / トランジション | 非採用（表示専用部品、状態遷移なし） |
+//! | 内部整合（実欠陥） | **是正**（下記「是正した点」） |
+//!
+//! ## 是正した点
+//!
+//! - `label` slot に `dominant-baseline: central` を追加し、ラベルを
+//!   扇形中心へ垂直方向にセンタリングした。従来は `text-anchor: middle`
+//!   のみでベースライン調整が無く、狭い扇形ほど文字がベースライン基準で
+//!   上側へ浮き扇形外へはみ出していた
+//! - `label` slot へ背景色ハロー（`paint-order: stroke` /
+//!   `stroke: var(--fandhe-color-bg)` / `stroke-width: 1` /
+//!   `stroke-linejoin: round`）を追加した。dark モードでは `fill: var(--fandhe-color-fg)`
+//!   が系列色の dark 値（`chart-1`/`chart-2` 等）に対して WCAG 4.5:1 を
+//!   大きく下回り（`theme.rs` の light/dark トークン値からの概算）、light
+//!   モードでも一部系列色で 4.5:1 未満だったため、系列色・ページ背景の
+//!   どちらの上でも可読なハローで是正した（先例:
+//!   [`crate::donut_chart`]（#1594）/ [`crate::area_chart`] `point` /
+//!   `charts::tooltip` `datum`）。`paint-order: stroke` によりストローク
+//!   を塗りの下へ回すため文字形は太らない
+//! - `segment` slot に `stroke-linejoin: round` を追加した。各扇形 path は
+//!   `M 中心 L 外周始点 A 外周弧 Z`（[`crate::charts::pie::sector_path`]）
+//!   で閉じるため、**全セグメントが中心点を鋭角の共有頂点として持つ**。
+//!   既定の miter では背景色ストローク（`stroke: var(--fandhe-color-bg)`）
+//!   が中心から隣接セグメント側へ突き出し、描画順（後勝ち）に依存して
+//!   背景色のスパイクが見えていた（単一全周セグメントの `<circle>` 分岐
+//!   には結合部が無く無害）。donut（内周・外周の 4 頂点）より pie の方が
+//!   中心 1 点に全セグメントが集まる分、症状が顕著だった
+//!
+//! 上記 3 点は兄弟部品 [`crate::donut_chart`]（#1594）で先行是正済みであり、
+//! 本イシューはその引き継ぎとして pie 側に同型の是正を適用する。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - `chart` slot への `overflow: visible` は、外径 45 + ストローク半幅
+//!   0.5 が viewBox（100×100）内に収まるため不要
+//! - `segment` slot への `vector-effect: non-scaling-stroke` は、兄弟部品
+//!   [`crate::donut_chart`] と線幅の見え方が乖離するため見送る
+//! - `Xs`（4rem）+ `show_labels` 時、`font-size: 6px` は実寸約 3.8px で
+//!   判読が難しくなるが、ラベル表示は呼び出し側の選択であり本 PR では
+//!   制約しない
+//! - `label` の `font-weight` 引き上げ・`pointer-events: none` の付与は、
+//!   効果が限定的で donut-chart（#1594）との整合を崩すため見送る
+//! - `label` の `font-size` トークン化・系列パレット見直し等、上記 3 点を
+//!   超える変更は双子部品（donut-chart）との整合を崩すため本 PR に含めない
 
 use crate::charts::pie::{sector_path, segment_angles, PieChartError};
 use crate::charts::svg::{circle, svg_root, svg_text, ViewBox};
@@ -140,6 +201,11 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("stroke", "var(--fandhe-color-bg)"),
                 decl("stroke-width", "1"),
+                // イシュー #1596: 全セグメントが中心点を鋭角の共有頂点として
+                // 持つため（`sector_path` が `M 中心 L 外周始点 A 外周弧 Z`
+                // で閉じる）、既定の miter だと背景色セパレータが中心から
+                // 隣接セグメント側へ突出して見える（donut #1594 と同型）。
+                decl("stroke-linejoin", "round"),
             ],
         )
         .base(
@@ -148,6 +214,19 @@ fn recipe() -> SlotRecipe {
                 decl("fill", "var(--fandhe-color-fg)"),
                 decl("font-size", "6px"),
                 decl("text-anchor", "middle"),
+                // イシュー #1596: ラベルを扇形中心へ垂直センタリングする
+                // （`text-anchor` のみでは水平方向しか揃わず、狭い扇形で
+                // 文字がベースライン基準で上側へ浮き扇形外へはみ出していた）。
+                decl("dominant-baseline", "central"),
+                // イシュー #1596: 背景色ハローで系列色・ページ背景どちらの
+                // 上でも可読性を確保する（dark モードで `fg` が系列色の
+                // dark 値に対し WCAG 4.5:1 を大きく下回るための是正、
+                // donut #1594 と同型）。`paint-order: stroke` でストロークを
+                // 塗りの下へ回し、文字形が太って見えるのを防ぐ。
+                decl("paint-order", "stroke"),
+                decl("stroke", "var(--fandhe-color-bg)"),
+                decl("stroke-width", "1"),
+                decl("stroke-linejoin", "round"),
             ],
         )
         // イシュー #1681: `crate::donut_chart::recipe` と同一の 6rem 刻み
@@ -448,5 +527,18 @@ mod tests {
         assert_eq!(a, b);
         assert!(a.contains(r#"[data-scope="pie-chart"][data-part="chart"]"#));
         assert!(!a.contains("color-palette"));
+    }
+
+    #[test]
+    fn recipe_includes_issue_1596_corrections() {
+        // イシュー #1596: ラベルの垂直センタリング・背景色ハロー・
+        // セパレータ線の miter 突出抑止が実出力に現れることを固定する
+        // （黙って除外されていないことの確認、donut #1594 の
+        // `recipe_includes_issue_1594_corrections` と同型）。
+        let a = css();
+        assert!(a.contains(r#"[data-scope="pie-chart"][data-part="label"]"#));
+        assert!(a.contains("dominant-baseline: central"));
+        assert!(a.contains("paint-order: stroke"));
+        assert!(a.contains("stroke-linejoin: round"));
     }
 }

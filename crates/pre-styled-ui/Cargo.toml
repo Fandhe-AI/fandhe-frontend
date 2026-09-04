@@ -1374,7 +1374,35 @@ name = "fandhe-frontend-pre-styled-ui"
 # 衝突をそのまま採用しない」原則に従い、両者の変更を統合した結果として
 # main の現在値 0.79.7 とこのブランチの 0.79.8 のいずれよりも大きい
 # 0.79.9 へさらに patch バンプする。
-version = "0.79.9"
+# （このバンプ履歴コメント末尾の中間値。実際の version フィールドは末尾の 0.79.13 のみ）
+# version = "0.79.9"
+# イシュー #1595: line-chart のスタイル調整（`plot` の overflow: visible、
+# `series-line` の stroke-linejoin/linecap、`point` slot 新設）による CSS
+# 出力の実体変更のため patch バンプする。Rust API・data-* セレクタ・CSS
+# 変数名の削除・改名は伴わない（先例: area-chart #1589）。
+# イシュー #1596: pie-chart のスタイル調整（`label` の
+# dominant-baseline/背景色ハロー・`segment` の stroke-linejoin）による
+# CSS 出力の実体変更のため patch バンプする。公開関数シグネチャ・
+# variant 語彙・data-* は不変。
+# イシュー #1597: radar-chart のスタイル調整（`series` の
+# stroke-width/stroke-linejoin・`axis-label` の font-family）による CSS
+# 出力の実体変更のため patch バンプする。Rust API・data-*・CSS 変数名は
+# 不変。
+# イシュー #1598: scatter-chart のスタイル調整（root の overflow・point の
+# stroke-width 表記統一）による CSS 出力の実体変更のため patch バンプ
+# する。Rust API・data-*・CSS 変数名は不変。
+# イシュー #1599: sparkline のスタイル調整（`plot` の overflow: visible、
+# `series-line` の stroke-linejoin/linecap、`point` slot 新設）による CSS
+# 出力の実体変更のため patch バンプする。Rust API・data-*・CSS 変数名の
+# 削除・改名なし（先例: #1589/#1595）。
+# （このバンプ履歴コメント末尾の中間値。実際の version フィールドは末尾の 0.79.13 のみ）
+# version = "0.79.12"
+# マージ（PR #1865, main 取り込み）: 本ブランチ（#1592 P1 是正含む、0.79.9）と
+# main（#1595〜#1599 line/pie/radar/scatter/sparkline のスタイル調整、0.79.12）は
+# 独立の patch バンプ連鎖で分岐しており、双方に別々の観測可能な CSS 出力変更を
+# 含むため、同 §5 の「同一版数への偶発的衝突をそのまま採用しない」原則に従い、
+# main の現在値 0.79.12 の patch を +1 した 0.79.13 へバンプする。
+version = "0.79.13"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

@@ -1010,6 +1010,7 @@ const LINE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
         "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャート",
         "系列色は charts::series_color_var(index) の固定色循環（color-palette 軸は非提供）",
         "積み上げ・曲線補間は非対応（charts 共通 API 側の別イシュー）",
+        "size（Xs〜Xl）で表示高さを切り替える",
     ],
     arguments: LINE_CHART_ARGUMENTS,
     examples: &[ExampleEntry {
@@ -1065,6 +1066,7 @@ const SPARKLINE_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "軸・ラベルなしの縮小チャート。単一系列専用（&[f64]）で複数系列は LineChart/AreaChart を使う",
         "既定 viewBox は 112×48（chakra w={28} h={12} トークン相当）",
+        "size（Xs〜Xl）で表示高さを切り替える",
     ],
     arguments: &[
         ArgRow { name: "values", kind: "&[f64]", default: "（必須）", description: "描画する単一系列の値列。" },
@@ -1092,7 +1094,7 @@ fn pie_chart_example() -> Node {
         vec![Series::new("revenue", vec![400.0, 300.0, 300.0, 200.0])],
     )
     .expect("固定サンプルは常に有効な ChartData を構築できる");
-    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
         .into_iter()
         .map(|size| {
             pie_chart(
@@ -1121,8 +1123,9 @@ fn pie_chart_example() -> Node {
 const PIE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "外部依存ゼロの SVG ノード木生成による円グラフ",
-        "size（sm/md/lg）で --fandhe-pie-chart-size を切り替える",
+        "size（Xs〜Xl）で --fandhe-pie-chart-size を切り替える",
         "show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画する",
+        "ラベルは背景色ハロー + 扇形中心配置で系列色・ダーク時も可読",
     ],
     arguments: &[
         ArgRow {
@@ -1146,7 +1149,7 @@ const PIE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     ],
     examples: &[ExampleEntry {
         title: "size とラベル表示",
-        description: "size 3 段とラベル表示ありの掲示です。",
+        description: "size 5 段とラベル表示ありの掲示です。",
         render: pie_chart_example,
     }],
     keyboard: &[],
@@ -1253,6 +1256,7 @@ fn scatter_chart_example() -> Node {
 const SCATTER_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "散布図専用の ScatterData（系列ごとの (x, y) 座標列）+ LinearScale（x/y 双方）+ SVG ノード木生成ヘルパーのみで組み立てる外部依存ゼロの散布図",
+        "点マーカーは背景色ハロー付きで、viewBox 端でもハローが欠けないよう root は overflow: visible（イシュー #1598）",
         "軸線・グリッド・凡例・ツールチップは charts（共通 API）側の別部品",
     ],
     arguments: &[
@@ -1299,6 +1303,7 @@ const RADAR_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "ChartData（カテゴリ = 軸、系列 = ポリゴン）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる外部依存ゼロのレーダーチャート",
         "頂点角度は θ_i = -π/2 + i・2π/n（12 時方向開始・時計回り）の決定的な式で算出する",
+        "系列ポリゴンの輪郭は stroke-width 2 / round join で line-chart・area-chart と統一（イシュー #1597）",
         "凡例・ツールチップは charts（共通 API）側の別部品",
     ],
     arguments: &[ArgRow {

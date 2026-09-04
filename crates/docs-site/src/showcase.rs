@@ -7906,19 +7906,39 @@ fn bar_list_section() -> Node {
 }
 
 /// LineChart 節（イシュー #848、親 #845）: `charts` 基盤（#846）の消費者。
-/// 3 カテゴリ 1 系列の折れ線を掲示する。
+// イシュー #1595: 系列色の識別性（内部整合の評価軸）を Demo で視覚
+// 確認できるよう、2 系列（visits/signups）+ size（Xs〜Xl）行へ拡張する
+// （先例: area_chart_section #1589）。
 fn line_chart_section() -> Node {
     let data = ChartData::new(
         vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
-        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+        vec![
+            Series::new("visits", vec![10.0, 30.0, 20.0]),
+            Series::new("signups", vec![4.0, 12.0, 8.0]),
+        ],
     )
     .expect("showcase 固定データは常に有効");
     let node = line_chart::line_chart(&LineChartProps::new(&data, "monthly visits"), vec![])
         .expect("showcase 固定データは常に有効");
+
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .into_iter()
+        .map(|size| {
+            line_chart::line_chart(
+                &LineChartProps {
+                    size,
+                    ..LineChartProps::new(&data, "monthly visits")
+                },
+                vec![],
+            )
+            .expect("showcase 固定データは常に有効")
+        })
+        .collect());
+
     section(
         "LineChart",
-        "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャートです。軸・グリッド・凡例・ツールチップは別イシュー（#847）のスコープです。",
-        vec![node],
+        "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャートです。複数系列（chart-1〜6 の固定ローテーション色）と size（Xs〜Xl）の段階を掲示します。軸・グリッド・凡例・ツールチップは別イシュー（#847）のスコープです。",
+        vec![node, size_row],
     )
 }
 
@@ -7974,19 +7994,35 @@ fn area_chart_section() -> Node {
 }
 
 /// Sparkline 節（イシュー #848、親 #845）: 軸・ラベルなしの縮小チャート。
-/// 単一の `&[f64]` から直接描画する。
+/// 単一の `&[f64]` から直接描画する。イシュー #1599 で size（Xs〜Xl）の
+/// 並列 Demo 行を追加し、`--fandhe-sparkline-height` の段階を掲示する。
 fn sparkline_section() -> Node {
     let values = [10.0, 30.0, 20.0, 40.0];
     let node = sparkline::sparkline(&SparklineProps::new(&values, "weekly trend"), vec![])
         .expect("showcase 固定データは常に有効");
+
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .into_iter()
+        .map(|size| {
+            sparkline::sparkline(
+                &SparklineProps {
+                    size,
+                    ..SparklineProps::new(&values, "weekly trend")
+                },
+                vec![],
+            )
+            .expect("showcase 固定データは常に有効")
+        })
+        .collect());
+
     section(
         "Sparkline",
-        "ラベル・軸なしの小さな面 + 線チャートです。単一系列専用（`&[f64]`）で、複数系列は LineChart/AreaChart を使います。",
-        vec![node],
+        "ラベル・軸なしの小さな面 + 線チャートです。単一系列専用（`&[f64]`）で、複数系列は LineChart/AreaChart を使います。size（Xs〜Xl）で --fandhe-sparkline-height を切り替える段階を掲示します。",
+        vec![node, size_row],
     )
 }
 
-/// PieChart 節（イシュー #850）: `size`（sm/md/lg）と `show_labels` の掲示。
+/// PieChart 節（イシュー #850）: `size`（Xs〜Xl）と `show_labels` の掲示。
 fn pie_chart_section() -> Node {
     let data = ChartData::new(
         vec![
@@ -8027,7 +8063,7 @@ fn pie_chart_section() -> Node {
 
     section(
         "PieChart",
-        "外部依存ゼロの SVG ノード木生成による円グラフ（イシュー #850）。size（sm/md/lg）で --fandhe-pie-chart-size を切り替えます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
+        "外部依存ゼロの SVG ノード木生成による円グラフ（イシュー #850）。size（Xs〜Xl）で --fandhe-pie-chart-size を切り替えます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
         vec![size_row, labels_row],
     )
 }
