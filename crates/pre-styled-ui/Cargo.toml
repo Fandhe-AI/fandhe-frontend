@@ -1361,7 +1361,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1598: scatter-chart のスタイル調整（root の overflow・point の
 # stroke-width 表記統一）による CSS 出力の実体変更のため patch バンプ
 # する。Rust API・data-*・CSS 変数名は不変。
-version = "0.79.11"
+# イシュー #1599: sparkline のスタイル調整（`plot` の overflow: visible、
+# `series-line` の stroke-linejoin/linecap、`point` slot 新設）による CSS
+# 出力の実体変更のため patch バンプする。Rust API・data-*・CSS 変数名の
+# 削除・改名なし（先例: #1589/#1595）。
+version = "0.79.12"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

@@ -7994,15 +7994,31 @@ fn area_chart_section() -> Node {
 }
 
 /// Sparkline 節（イシュー #848、親 #845）: 軸・ラベルなしの縮小チャート。
-/// 単一の `&[f64]` から直接描画する。
+/// 単一の `&[f64]` から直接描画する。イシュー #1599 で size（Xs〜Xl）の
+/// 並列 Demo 行を追加し、`--fandhe-sparkline-height` の段階を掲示する。
 fn sparkline_section() -> Node {
     let values = [10.0, 30.0, 20.0, 40.0];
     let node = sparkline::sparkline(&SparklineProps::new(&values, "weekly trend"), vec![])
         .expect("showcase 固定データは常に有効");
+
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .into_iter()
+        .map(|size| {
+            sparkline::sparkline(
+                &SparklineProps {
+                    size,
+                    ..SparklineProps::new(&values, "weekly trend")
+                },
+                vec![],
+            )
+            .expect("showcase 固定データは常に有効")
+        })
+        .collect());
+
     section(
         "Sparkline",
-        "ラベル・軸なしの小さな面 + 線チャートです。単一系列専用（`&[f64]`）で、複数系列は LineChart/AreaChart を使います。",
-        vec![node],
+        "ラベル・軸なしの小さな面 + 線チャートです。単一系列専用（`&[f64]`）で、複数系列は LineChart/AreaChart を使います。size（Xs〜Xl）で --fandhe-sparkline-height を切り替える段階を掲示します。",
+        vec![node, size_row],
     )
 }
 
