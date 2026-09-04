@@ -169,7 +169,7 @@ const NUMBER_INPUT: ComponentPageSpec = ComponentPageSpec {
         AriaRow { attribute: "aria-roledescription=\"numberfield\" (input)", description: "常時出力する（イシュー #1613）。" },
         AriaRow { attribute: "aria-valuemin / aria-valuemax (input)", description: "正規化済みの `min`/`max` を常時出力する。" },
         AriaRow { attribute: "aria-valuenow (input)", description: "現在値が確定している（`value` が `Some`）ときのみ出力する。" },
-        AriaRow { attribute: "role=\"group\" (control)", description: "呼び出し側 `attrs` に同名キーがなければ常時出力する（イシュー #1613）。" },
+        AriaRow { attribute: "role=\"group\" (control)", description: "呼び出し側 `attrs` の `role` 指定にかかわらず常時固定出力する（`CONTROL_RESERVED` により呼び出し側の同名キーは常に除去される、イシュー #1613）。" },
         AriaRow { attribute: "aria-disabled / aria-invalid (control)", description: "`disabled`/`invalid` が `true` のときのみ出力する（イシュー #1613）。" },
     ],
     demo: None,
