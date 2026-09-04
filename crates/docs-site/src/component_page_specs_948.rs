@@ -1066,6 +1066,7 @@ const SPARKLINE_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "軸・ラベルなしの縮小チャート。単一系列専用（&[f64]）で複数系列は LineChart/AreaChart を使う",
         "既定 viewBox は 112×48（chakra w={28} h={12} トークン相当）",
+        "size（Xs〜Xl）で表示高さを切り替える",
     ],
     arguments: &[
         ArgRow { name: "values", kind: "&[f64]", default: "（必須）", description: "描画する単一系列の値列。" },

@@ -30,6 +30,65 @@
 //! なしの縮小表示という定義上のスコープ、chakra 本家も単一系列専用）。
 //! `examples/headless-pre-styled-ui` への追随は crates.io 公開後
 //! （[`crate::line_chart`] と同じ判断）。
+//!
+//! # 参考サイト基準への調整（イシュー #1599）
+//!
+//! 親 Phase #1588「Themes / Charts のスタイル調整」の子。参照 4 サイト
+//! （chakra-ui / Ark UI / Radix Primitives / Radix Themes）に Sparkline
+//! 相当のチャート部品が存在しないため、評価軸は**内部整合のみ**
+//! （`--fandhe-*` トークン適用・ダーク時の可読性・系列色の識別性・
+//! コントラスト）に限定する（兄弟部品 [`crate::area_chart`]（#1589）/
+//! [`crate::line_chart`]（#1595）と同じ判断）。
+//!
+//! | 軸 | 結論 |
+//! |---|---|
+//! | サイズ | 現状維持（Xs〜Xl は #1681 で整備済み） |
+//! | バリアント / colorPalette | 非採用（参照軸なし。系列色は `chart-1` 固定） |
+//! | 色 | 現状維持（全宣言がトークン経由。生の色リテラルなし） |
+//! | 状態 `data-*` | 非該当（headless 由来の `data-*` を持たない pre-styled-only 部品） |
+//! | ダークモード | 追加規則なし（`chart-1`・`--fandhe-color-bg` は dark 値定義済み） |
+//! | フォーカス | 非該当（`svg` は `role="img"` でフォーカス不可） |
+//! | 余白・角丸・影 | 非該当（面・線のみの SVG 描画） |
+//! | hover / disabled / トランジション | 非採用（表示専用部品、状態遷移なし） |
+//! | 内部整合（実欠陥） | **是正**（下記「是正した点」） |
+//!
+//! ## 是正した点
+//!
+//! - `plot` slot に `overflow: visible` を追加し、domain の max/min に接する
+//!   折れ線が UA 既定 `overflow: hidden` で viewBox 上下端において
+//!   `stroke-width: 1.5` の半分をクリップされる欠陥を、ジオメトリを変えず
+//!   CSS のみで是正した（sparkline は高さが最小 16px（Xs）と小さく、この
+//!   欠陥が相対的に最も目立つ。先例: [`crate::area_chart`] #1589 /
+//!   [`crate::line_chart`] #1595）
+//! - `series-line` slot に `stroke-linejoin: round` / `stroke-linecap: round`
+//!   を追加し、折れ線の鋭角部での miter 突出を抑えた（先例: 上記 2 部品）
+//! - `point` slot（`n == 1` 時の点マーカー）に背景色のハロー
+//!   （`stroke: var(--fandhe-color-bg)`）を追加した。`n == 1` では
+//!   `series-area` は描かれず circle 単体になるため「面と同色」の問題では
+//!   なく、単独マーカーがページ背景・隣接インライン内容に対して輪郭を
+//!   持たない点と、兄弟部品（背景色ハロー付与済み）との `point` 規則の
+//!   整合が目的
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - `series-line` への `vector-effect: non-scaling-stroke` は、sparkline が
+//!   viewBox 高さ 48 を 16px（Xs）へ縮小すると `stroke-width: 1.5` が
+//!   約 0.5px 相当になり、5 部品中で最もこのトレードオフが大きい。それでも
+//!   area-chart / line-chart（#1593 が非採用のまま完了）との線幅の見え方の
+//!   整合を優先し非採用とする
+//! - `overflow: visible` × `display: inline-block` root: `plot` が
+//!   `width: auto`（viewBox のアスペクト比から算出）であるため、ストローク
+//!   がレイアウトボックス外へ stroke 幅の半分 × size 比率分（Xs で約 0.25px、
+//!   Md で約 0.75px、Xl で約 1.25px）はみ出しインライン隣接要素に重なり
+//!   得る。実害はないが明記しておく
+//! - root への `vertical-align` 追加は検討したが不採用。`plot` が
+//!   `display: block` のため inline-block の baseline は下端に一致しており、
+//!   既存利用者のインラインレイアウトを変えない
+//! - `view_box_from_dims` / `category_x`（[`crate::line_chart`] と共有する
+//!   ヘルパ）へのパディング追加は CSS の `overflow: visible` で足りるため
+//!   不要（#1595 が本 issue に譲った論点をここで「不要」として閉じる）
+//! - `fill-opacity` のトークン化は `theme.rs` 変更が docs-site 契約テストへ
+//!   波及するため見送った（兄弟部品と同じ判断）
 
 use crate::charts::data::{ChartData, Series};
 use crate::charts::scale::LinearScale;
@@ -106,6 +165,13 @@ fn recipe() -> SlotRecipe {
                 decl("display", "block"),
                 decl("width", "auto"),
                 decl("height", "var(--fandhe-sparkline-height, auto)"),
+                // イシュー #1599: SVG 非ルート要素は UA 既定で `overflow: hidden`
+                // となるため、domain の max/min に接する折れ線
+                // （`stroke-width: 1.5`）が viewBox 上下端で半分クリップされる。
+                // ジオメトリ（`view_box_from_dims`/`category_x`）は変えず、
+                // CSS のみで表示上のクリップを解除する
+                // （先例: area_chart #1589 / line_chart #1595）。
+                decl("overflow", "visible"),
             ],
         )
         .base(
@@ -114,7 +180,26 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "series-line",
-            vec![decl("fill", "none"), decl("stroke-width", "1.5")],
+            vec![
+                decl("fill", "none"),
+                decl("stroke-width", "1.5"),
+                // イシュー #1599: 先例 line_chart #1595 / area_chart #1589。
+                // 折れ線の鋭角部での miter 突出を抑え、端点の見た目を整える。
+                decl("stroke-linejoin", "round"),
+                decl("stroke-linecap", "round"),
+            ],
+        )
+        .base(
+            "point",
+            // イシュー #1599: `n == 1` 時は `series-area` が描かれず circle
+            // 単体になるため、ページ背景・隣接インライン内容に対する輪郭を
+            // 背景色のハローで付与し、兄弟部品（line_chart/area_chart）との
+            // `point` 規則の整合を保つ。`--fandhe-color-bg` はダーク時の値へ
+            // トークン経由で自動追随する。
+            vec![
+                decl("stroke", "var(--fandhe-color-bg)"),
+                decl("stroke-width", "1"),
+            ],
         )
         // イシュー #1681: Xs/Xl は Sm→Md→Lg の 16px 刻み等差進行を外挿。
         .variant(
@@ -405,6 +490,13 @@ mod tests {
         let b = stylesheet();
         assert_eq!(a, b);
         assert!(a.contains(r#"[data-scope="sparkline"][data-part="series-area"]"#));
+        assert!(a.contains(r#"[data-scope="sparkline"][data-part="plot"]"#));
+        assert!(a.contains("overflow: visible"));
+        assert!(a.contains(r#"[data-scope="sparkline"][data-part="series-line"]"#));
+        assert!(a.contains("stroke-linejoin: round"));
+        assert!(a.contains("stroke-linecap: round"));
+        assert!(a.contains(r#"[data-scope="sparkline"][data-part="point"]"#));
+        assert!(a.contains("stroke: var(--fandhe-color-bg)"));
     }
 
     #[test]
