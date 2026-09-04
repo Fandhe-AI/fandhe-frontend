@@ -91,8 +91,8 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{
-    focus_ring_declarations, hover_surface_declarations, FocusRingColor, FocusRingOffset,
-    SlotRecipe, StateCondition,
+    focus_ring_declarations, hover_bg_muted, hover_surface_declarations, FocusRingColor,
+    FocusRingOffset, SlotRecipe, StateCondition,
 };
 use crate::visually_hidden::clip_declarations;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
@@ -109,7 +109,7 @@ fn recipe() -> SlotRecipe {
     // 参照用 custom property をここへ同居させる（`.base` を 2 回呼ぶと
     // 規則ブロックが分裂するため、1 つの Vec にまとめて渡す）。
     let mut link_base = clip_declarations();
-    link_base.push(decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)"));
+    link_base.push(hover_bg_muted());
 
     // フォーカス時に視覚的に復元する宣言列（座標・面・文字スタイル）。
     // 末尾にフォーカスリングの canonical 宣言（`outline` +
