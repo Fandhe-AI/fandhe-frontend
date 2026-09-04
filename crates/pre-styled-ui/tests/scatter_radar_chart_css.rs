@@ -37,10 +37,13 @@ const RADAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="radar-chart"][data-part="ro
 [data-scope="radar-chart"][data-part="axis-label"] {
   font-size: var(--fandhe-font-font-size-xs);
   fill: var(--fandhe-color-fg-muted);
+  font-family: var(--fandhe-font-font-body);
 }
 
 [data-scope="radar-chart"][data-part="series"] {
   fill-opacity: 0.2;
+  stroke-width: 2;
+  stroke-linejoin: round;
 }
 "#;
 

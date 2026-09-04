@@ -60,6 +60,70 @@
 //! である（`docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 B、
 //! [`super::scatter_chart`] と共通）。現在の recipe に CSS 消費者はなく、
 //! 利用者側 CSS/JS が任意でフックするための識別子に留まる。
+//!
+//! # 参考サイト基準への調整（イシュー #1597）
+//!
+//! 親 Phase #1588「Themes / Charts のスタイル調整」の子。参照 4 サイト
+//! （chakra-ui / Ark UI / Radix Primitives / Radix Themes）にレーダー
+//! チャート部品が存在しないため、評価軸は**内部整合のみ**（`--fandhe-*`
+//! トークン適用・ダーク時の軸/グリッドの可読性・系列色の識別性・ラベルの
+//! コントラスト）に限定する。
+//!
+//! | 軸 | 結論 |
+//! |---|---|
+//! | サイズ | 非該当（`RadarChartProps::size` は viewBox 一辺の px 相当長で
+//!   `Size` variant 軸ではない。新設は 0.x 破壊的変更＝minor バンプ対象で
+//!   「内部整合のみ」の評価軸を超えるため非採用） |
+//! | バリアント / colorPalette | 非採用（参照軸なし。系列色は `chart-1〜6`
+//!   固定ローテーション） |
+//! | 色 | 現状維持（全宣言がトークン経由） |
+//! | 状態 `data-*` | 非該当（headless 由来の `data-*` を持たない
+//!   pre-styled-only 部品） |
+//! | ダークモード | 系列ポリゴンの輪郭を太く・丸めて識別性を上げた（下記
+//!   「是正した点」）。系列パレット自体の見直しはスコープ外 |
+//! | フォーカス | 非該当（`svg` は `role="img"` でフォーカス不可） |
+//! | 余白・角丸・影 | 非該当（ポリゴン SVG 描画のみ） |
+//! | hover / disabled / トランジション | 非採用（表示専用部品、状態遷移なし） |
+//! | 内部整合（実欠陥） | **是正**（下記「是正した点」） |
+//!
+//! ## 是正した点
+//!
+//! - `series` slot に `stroke-width: 2` / `stroke-linejoin: round` を
+//!   追加した。兄弟部品 [`crate::line_chart`]（#1595）/
+//!   [`crate::area_chart`]（#1589）の `series-line` は `stroke-width: 2` +
+//!   `stroke-linejoin: round` を持つが、radar の `series`
+//!   （[`polygon_d`] が生成する閉多角形）は UA 既定の `stroke-width: 1` /
+//!   `stroke-linejoin: miter` のままで、`fill-opacity: 0.2` の薄い塗りに
+//!   対し輪郭が系列識別の主要素であるにもかかわらず兄弟部品より細く、
+//!   鋭角頂点（値の谷）で miter が尖って突出していた。輪郭幅・結合方式を
+//!   兄弟部品と揃えて系列の識別性を上げた
+//! - `axis-label` slot に `font-family: var(--fandhe-font-font-body)` を
+//!   追加した。[`super::axis`] の `tick-label` は同トークンを明示するが、
+//!   radar の軸ラベルは書体指定が欠けていた（SVG テキストは祖先から
+//!   `font-family` を継承するため描画欠陥ではないが、`charts::axis` の
+//!   軸ラベルとのトークン整合を取った）
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - `grid`/`spoke` の `stroke: var(--fandhe-color-border)` は維持した。
+//!   `charts::grid` の `grid-line`（#1866 で `border-muted` を意図的に
+//!   維持）と異なり、レーダーの同心多角形は目盛ラベルを持たない値スケール
+//!   そのもの（軸線 + 目盛の役割）であり `charts::axis` の
+//!   `axis-line`/`tick-line`（#1593 で `border` へ統一）と同格と判断した。
+//!   `border-muted` 化すると dark モードで環が背景に沈み値スケールが
+//!   読めなくなる
+//! - `series` の `fill-opacity: 0.2` は維持した（area-chart と同じ
+//!   chakra/recharts 既定準拠）
+//! - `root` への `overflow: visible` は不要（ポリゴン最大半径は
+//!   `plot_radius` 以下、`AXIS_LABEL_MARGIN` 60 単位の余白があるため
+//!   `stroke-width: 2` でも viewBox 内に収まる）
+//! - `axis-label` へのハロー（`paint-order: stroke`）は不要（プロット外側
+//!   のページ背景上に配置され、`fg-muted` は light/dark とも WCAG 4.5:1 を
+//!   十分に上回るコントラストを持つ）
+//! - `series` への `vector-effect: non-scaling-stroke` は非採用（兄弟部品
+//!   との線幅の見え方乖離回避、#1593/#1595/#1596 と同じ判断）
+//! - 系列パレット（`chart-1〜6`）の dark 近接見直しはスコープ外（#1866/#1867
+//!   と同じ判断）
 
 use std::f64::consts::PI;
 
@@ -156,7 +220,9 @@ fn polygon_d(cx: f64, cy: f64, r: f64, n: usize) -> String {
 /// `series` パーツの塗りは半透明固定（`fill-opacity: 0.2`）とし、動的な
 /// 透過度を CSS 値へ流し込む経路は作らない（色自体はインライン `fill`
 /// 属性、[`crate::charts::bar_chart`] と同型の「variant を持たない静的
-/// 部品」判断）。
+/// 部品」判断）。輪郭（`stroke-width`/`stroke-linejoin`）は兄弟部品
+/// （`line_chart`/`area_chart` の `series-line`）と揃えた静的値であり
+/// 系列ごとに変化しない（モジュール doc「参考サイト基準への調整」節参照）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("radar-chart", SLOTS)
         .base(
@@ -176,9 +242,25 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("font-size", "var(--fandhe-font-font-size-xs)"),
                 decl("fill", "var(--fandhe-color-fg-muted)"),
+                // イシュー #1597: charts::axis の tick-label と同じトークンで
+                // 軸ラベルの書体指定を統一する（SVG テキストは祖先から
+                // font-family を継承するため描画欠陥の修正ではなく、charts
+                // 共通軸ラベルとのトークン整合）。
+                decl("font-family", "var(--fandhe-font-font-body)"),
             ],
         )
-        .base("series", vec![decl("fill-opacity", "0.2")])
+        .base(
+            "series",
+            vec![
+                decl("fill-opacity", "0.2"),
+                // イシュー #1597: 兄弟部品 line-chart（#1595）/area-chart
+                // （#1589）の series-line と輪郭幅・結合方式を揃え、薄い
+                // 塗り（fill-opacity 0.2）に対する系列識別の主要素である
+                // 輪郭を太く・鋭角頂点での miter 突出を防ぐ。
+                decl("stroke-width", "2"),
+                decl("stroke-linejoin", "round"),
+            ],
+        )
 }
 
 /// この RadarChart が生成する静的 CSS 全量を返す（決定的）。
@@ -583,5 +665,16 @@ mod tests {
         let css = css();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    #[test]
+    fn recipe_includes_issue_1597_corrections() {
+        // イシュー #1597: series の輪郭（兄弟部品との整合）・axis-label の
+        // font-family（charts::axis とのトークン整合）が実出力に含まれる
+        // ことを確認する（モジュール doc「参考サイト基準への調整」節参照）。
+        let css = css();
+        assert!(css.contains("stroke-width: 2"));
+        assert!(css.contains("stroke-linejoin: round"));
+        assert!(css.contains("font-family: var(--fandhe-font-font-body)"));
     }
 }
