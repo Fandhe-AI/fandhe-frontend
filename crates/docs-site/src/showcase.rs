@@ -5488,25 +5488,29 @@ fn checkbox_group_section() -> Node {
             disabled: *disabled,
             ..CheckboxProps::default()
         };
+        let item_props = checkbox_group::CheckboxGroupProps {
+            disabled: *disabled,
+            ..checkbox_group::CheckboxGroupProps::default()
+        };
         checkbox_group::item(
             *checked,
-            *disabled,
+            &item_props,
             value,
             vec![],
             vec![
                 checkbox::hidden_input(&props, "showcase-checkbox-group", value, vec![]),
                 checkbox_group::item_control(
                     *checked,
-                    *disabled,
+                    &item_props,
                     vec![],
                     vec![checkbox_group::item_indicator(
                         *checked,
-                        *disabled,
+                        &item_props,
                         vec![],
                         vec![],
                     )],
                 ),
-                checkbox_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                checkbox_group::item_text(*checked, &item_props, vec![], vec![text(*label)]),
             ],
         )
     }));
@@ -5539,25 +5543,29 @@ fn checkbox_group_section() -> Node {
             disabled: *disabled,
             ..CheckboxProps::default()
         };
+        let item_props = checkbox_group::CheckboxGroupProps {
+            disabled: *disabled,
+            ..checkbox_group::CheckboxGroupProps::default()
+        };
         checkbox_group::item(
             *checked,
-            *disabled,
+            &item_props,
             value,
             vec![],
             vec![
                 checkbox::hidden_input(&props, "showcase-checkbox-group-horizontal", value, vec![]),
                 checkbox_group::item_control(
                     *checked,
-                    *disabled,
+                    &item_props,
                     vec![],
                     vec![checkbox_group::item_indicator(
                         *checked,
-                        *disabled,
+                        &item_props,
                         vec![],
                         vec![],
                     )],
                 ),
-                checkbox_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                checkbox_group::item_text(*checked, &item_props, vec![], vec![text(*label)]),
             ],
         )
     }));
@@ -5571,12 +5579,16 @@ fn checkbox_group_section() -> Node {
         horizontal_children,
     );
 
-    // イシュー #1460: `data-invalid` は headless 層が出力しないため（`root`
-    // の `attrs` へ利用者が直接付与する経路のみ）、その付与例をデモとして
-    // 示す。CSS 側は `root[data-invalid]` から `item-control` の
-    // border-color へ custom property 経由で伝播するのみで、headless 層に
-    // `invalid` フラグを追加するものではない（#1603 の射程、`checkbox_group.rs`
-    // rustdoc「本イシューのスコープ外」節参照）。
+    // イシュー #1460: `data-invalid` の付与例をデモとして示す（CSS 側は
+    // `root[data-invalid]` から `item-control` の border-color へ custom
+    // property 経由で伝播する）。この styled `root`（`checkbox_group::root`）
+    // は `disabled: bool` 単体の署名のため、ここでは従来どおり `attrs` へ
+    // 直接 `("data-invalid", "")` を渡す。headless 層は #1603 で
+    // `CheckboxGroupProps` 経由の `data-invalid` 出力に対応済みだが、それは
+    // `CheckboxGroup` 状態機械（`CheckboxGroupStyledRoot::styled_root`）
+    // 経由の入口であり、本デモは styled `root` 関数の直接呼び出しのため
+    // 対象外（`crates/pre-styled-ui/src/checkbox_group.rs` モジュール doc
+    // 参照）。
     let invalid_label_id = "showcase-checkbox-group-invalid-label";
     let mut invalid_children = vec![checkbox_group::label(
         Some(invalid_label_id),
@@ -5593,25 +5605,29 @@ fn checkbox_group_section() -> Node {
             disabled: *disabled,
             ..CheckboxProps::default()
         };
+        let item_props = checkbox_group::CheckboxGroupProps {
+            disabled: *disabled,
+            ..checkbox_group::CheckboxGroupProps::default()
+        };
         checkbox_group::item(
             *checked,
-            *disabled,
+            &item_props,
             value,
             vec![],
             vec![
                 checkbox::hidden_input(&props, "showcase-checkbox-group-invalid", value, vec![]),
                 checkbox_group::item_control(
                     *checked,
-                    *disabled,
+                    &item_props,
                     vec![],
                     vec![checkbox_group::item_indicator(
                         *checked,
-                        *disabled,
+                        &item_props,
                         vec![],
                         vec![],
                     )],
                 ),
-                checkbox_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                checkbox_group::item_text(*checked, &item_props, vec![], vec![text(*label)]),
             ],
         )
     }));
@@ -5648,26 +5664,35 @@ fn checkbox_group_section() -> Node {
                     disabled: *disabled,
                     ..CheckboxProps::default()
                 };
+                let item_props = checkbox_group::CheckboxGroupProps {
+                    disabled: *disabled,
+                    ..checkbox_group::CheckboxGroupProps::default()
+                };
                 let name = format!("showcase-checkbox-group-size-{}", size.value());
                 checkbox_group::item(
                     *checked,
-                    *disabled,
+                    &item_props,
                     value,
                     vec![],
                     vec![
                         checkbox::hidden_input(&props, &name, value, vec![]),
                         checkbox_group::item_control(
                             *checked,
-                            *disabled,
+                            &item_props,
                             vec![],
                             vec![checkbox_group::item_indicator(
                                 *checked,
-                                *disabled,
+                                &item_props,
                                 vec![],
                                 vec![],
                             )],
                         ),
-                        checkbox_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                        checkbox_group::item_text(
+                            *checked,
+                            &item_props,
+                            vec![],
+                            vec![text(*label)],
+                        ),
                     ],
                 )
             }));

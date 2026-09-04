@@ -26,24 +26,25 @@ const ATTR_BREAKOUT_PAYLOAD: &str = "\"><img src=x onerror=alert(1)>";
 /// 動的値）と children テキストの両方へペイロードを注入する。
 fn synthetic_checkbox_group_demo(payload: &str) -> fandhe_frontend_core::Node {
     use hui::checkbox_group;
+    let props = checkbox_group::CheckboxGroupProps::default();
     checkbox_group::root(
-        false,
+        &props,
         None,
         None,
         vec![],
         vec![checkbox_group::item(
             true,
-            false,
+            &props,
             payload,
             vec![],
             vec![
                 checkbox_group::item_control(
                     true,
-                    false,
+                    &props,
                     vec![],
-                    vec![checkbox_group::item_indicator(true, false, vec![], vec![])],
+                    vec![checkbox_group::item_indicator(true, &props, vec![], vec![])],
                 ),
-                checkbox_group::item_text(true, false, vec![], vec![text(payload)]),
+                checkbox_group::item_text(true, &props, vec![], vec![text(payload)]),
             ],
         )],
     )

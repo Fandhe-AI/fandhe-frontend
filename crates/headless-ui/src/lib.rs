@@ -425,7 +425,10 @@
 //!   の再利用で賄う。クライアント由来の文字列 dispatch は `"select"`/
 //!   `"deselect"`/`"toggle"` の 3 語彙を受理する（WAI-ARIA checkbox パターン
 //!   には選択解除ジェスチャが実在するため、[`radio_group::RadioGroup`] が
-//!   `"select"` のみに絞るのとは意図的に異なる）。
+//!   `"select"` のみに絞るのとは意図的に異なる）。root/item 系パーツ共通の
+//!   disabled/readonly/invalid 状態束は [`checkbox_group::CheckboxGroupProps`]
+//!   が担う（イシュー #1603、参照突合で ark-ui `Checkbox.Group` props 相当を
+//!   追加）。
 //! - [`mod@positioning`]: anchor positioning の位置計算純粋関数モジュール
 //!   （[`positioning::compute_position`]、イシュー #590、親 #588、正の規範
 //!   文書は `docs/design/anchor-positioning-design.md`）。12 placement 語彙
@@ -709,7 +712,7 @@ pub use breadcrumb::{breadcrumb, BreadcrumbItem};
 pub use calendar::{Calendar, CalendarAction};
 pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
-pub use checkbox_group::CheckboxGroup;
+pub use checkbox_group::{CheckboxGroup, CheckboxGroupProps};
 pub use clipboard::{Clipboard, ClipboardAction};
 pub use color::{Color, ColorError, Hsl, Hsv, Rgb};
 pub use combobox::{Combobox, ComboboxAction};

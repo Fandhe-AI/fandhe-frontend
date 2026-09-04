@@ -157,57 +157,89 @@ pub(super) fn checkbox_section() -> Node {
     demo_page("Checkbox", body)
 }
 
-pub(super) fn checkbox_group_section() -> Node {
-    let body = vec![checkbox_group::root(
-        false,
-        None,
-        None,
+/// [`checkbox_group::item`]/[`checkbox_group::item_control`]/
+/// [`checkbox_group::item_indicator`]/[`checkbox_group::item_text`] を
+/// まとめて組み立てる非公開ヘルパ（イシュー #1603、`checkbox_group_section`
+/// のみが呼ぶ）。デモ執筆規約 1（`checkbox::hidden_input` は Demo に含めない）
+/// を維持したまま、2 グループ構成への拡張で生じる重複を避ける。
+fn checkbox_group_item(
+    checked: bool,
+    props: &checkbox_group::CheckboxGroupProps,
+    value: &str,
+    label: &str,
+) -> Node {
+    checkbox_group::item(
+        checked,
+        props,
+        value,
         vec![],
         vec![
-            checkbox_group::label(None, vec![], vec![text("Fruits")]),
-            checkbox_group::item(
-                true,
-                false,
-                "apple",
+            checkbox_group::item_control(
+                checked,
+                props,
                 vec![],
-                vec![
-                    checkbox_group::item_control(
-                        true,
-                        false,
-                        vec![],
-                        vec![checkbox_group::item_indicator(
-                            true,
-                            false,
-                            vec![],
-                            vec![text("✓")],
-                        )],
-                    ),
-                    checkbox_group::item_text(true, false, vec![], vec![text("Apple")]),
-                ],
+                vec![checkbox_group::item_indicator(
+                    checked,
+                    props,
+                    vec![],
+                    vec![text("✓")],
+                )],
             ),
-            checkbox_group::item(
-                false,
-                false,
-                "banana",
-                vec![],
-                vec![
-                    checkbox_group::item_control(
-                        false,
-                        false,
-                        vec![],
-                        vec![checkbox_group::item_indicator(
-                            false,
-                            false,
-                            vec![],
-                            vec![text("✓")],
-                        )],
-                    ),
-                    checkbox_group::item_text(false, false, vec![], vec![text("Banana")]),
-                ],
-            ),
+            checkbox_group::item_text(checked, props, vec![], vec![text(label)]),
         ],
-    )];
-    demo_page("Checkbox Group", body)
+    )
+}
+
+pub(super) fn checkbox_group_section() -> Node {
+    // グループ 1: 縦積み・aria-labelledby 付き・checked/unchecked/disabled
+    // の 3 項目（Radix Themes デモの 3 項目構成に合わせる、イシュー #1603）。
+    let default_props = checkbox_group::CheckboxGroupProps::default();
+    let disabled_item_props = checkbox_group::CheckboxGroupProps {
+        disabled: true,
+        ..Default::default()
+    };
+    let group1 = checkbox_group::root(
+        &default_props,
+        Some(hui::Orientation::Vertical),
+        Some("primitives-checkbox-group-fruits-label"),
+        vec![],
+        vec![
+            checkbox_group::label(
+                Some("primitives-checkbox-group-fruits-label"),
+                vec![],
+                vec![text("Fruits")],
+            ),
+            checkbox_group_item(true, &default_props, "apple", "Apple"),
+            checkbox_group_item(false, &default_props, "banana", "Banana"),
+            checkbox_group_item(false, &disabled_item_props, "cherry", "Cherry (disabled)"),
+        ],
+    );
+
+    // グループ 2: invalid + readonly + 横並びで data-invalid/data-readonly/
+    // data-orientation="horizontal" を Observed Values に出す（イシュー
+    // #1603 D4）。
+    let invalid_readonly_props = checkbox_group::CheckboxGroupProps {
+        disabled: false,
+        readonly: true,
+        invalid: true,
+    };
+    let group2 = checkbox_group::root(
+        &invalid_readonly_props,
+        Some(hui::Orientation::Horizontal),
+        Some("primitives-checkbox-group-veggies-label"),
+        vec![],
+        vec![
+            checkbox_group::label(
+                Some("primitives-checkbox-group-veggies-label"),
+                vec![],
+                vec![text("Vegetables")],
+            ),
+            checkbox_group_item(true, &invalid_readonly_props, "carrot", "Carrot"),
+            checkbox_group_item(false, &invalid_readonly_props, "potato", "Potato"),
+        ],
+    );
+
+    demo_page("Checkbox Group", vec![group1, group2])
 }
 
 pub(super) fn color_picker_section() -> Node {

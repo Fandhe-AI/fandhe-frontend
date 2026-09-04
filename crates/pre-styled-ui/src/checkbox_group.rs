@@ -180,17 +180,18 @@
 //!   `flex`（`align-items: stretch` 既定）で `<label>` が行幅いっぱいに
 //!   伸び、クリック領域が余白まで広がっていた。Radix Themes item の
 //!   `width: fit-content` に合わせる。
-//! - **`root` の `data-invalid`（headless 未出力、`attrs` 経由でのみ付与
-//!   可能）を `item-control` の border-color へ伝播**: `crate::checkbox`
-//!   （#1734）・`crate::checkbox_card`（#1736）と同じ Forms 家族の視覚言語
-//!   （border-color のみ danger 色化）に統一する。chakra の `_invalid` が
-//!   `colorPalette` ごと red へ反転する挙動は Forms 家族横断で判断すべき
-//!   （`checkbox` 1/2 の variant 軸非採用判断と同じ理由）ため踏襲しない。
-//!   headless 層（`crates/headless-ui/src/checkbox_group.rs`）は `root`/
-//!   `item`/`item-control` のいずれにも `data-invalid` を出力しない
-//!   （Field 連携は #1603 の射程、本モジュール doc「本イシューのスコープ外」
-//!   節参照）ため、本 CSS は**参照のみ**を追加する。利用者は `root` の
-//!   `attrs` へ `(\"data-invalid\", \"\")` を直接渡すことで有効化できる。
+//! - **`root` の `data-invalid` を `item-control` の border-color へ伝播**:
+//!   `crate::checkbox`（#1734）・`crate::checkbox_card`（#1736）と同じ
+//!   Forms 家族の視覚言語（border-color のみ danger 色化）に統一する。
+//!   chakra の `_invalid` が `colorPalette` ごと red へ反転する挙動は
+//!   Forms 家族横断で判断すべき（`checkbox` 1/2 の variant 軸非採用判断と
+//!   同じ理由）ため踏襲しない。headless 層
+//!   （`crates/headless-ui/src/checkbox_group.rs`）は
+//!   [`fandhe_frontend_headless_ui::checkbox_group::CheckboxGroupProps`]
+//!   経由で `root`/`item`/`item-control`/`item-indicator`/`item-text` へ
+//!   `data-invalid` を一律出力する（イシュー #1603 で解消。それまでは
+//!   `attrs` 経由の手動付与のみが有効だった）。`attrs` 経由の直接付与
+//!   （`root` の `attrs` へ `(\"data-invalid\", \"\")`）も引き続き有効。
 //! - **`root` の `data-disabled` から `item`/`item-control` への CSS 伝播は
 //!   行わない（イシュー #1460 codex-review P1 / Cursor Bugbot 再指摘を受けた
 //!   方針転換）**: 一度は `--fandhe-checkbox-group-item-opacity`/
@@ -262,11 +263,11 @@
 //! として使う構成）をそのまま継承する。加えて #1460/#1741 の過程で判明した
 //! 残存スコープ外事項:
 //!
-//! - headless 側での `data-invalid` 出力（`root`/`item`/`item-control` への
-//!   `invalid` フラグ追加）は #1603 の射程
 //! - size variant 値・label/item-text 型階層は 2/2（#1461）が担当
 //!
-//! （イシュー #1741 で解消済みの旧スコープ外事項: `hover_bg_solid_with_fallback`
+//! （イシュー #1603 で解消済みの旧スコープ外事項: headless 側での
+//! `data-invalid`/`data-readonly` 出力〔[`CheckboxGroupProps`] 導入〕。
+//! イシュー #1741 で解消済みの旧スコープ外事項: `hover_bg_solid_with_fallback`
 //! の共通化・`item-control` focus-visible 写像・variant 軸横断判断の文書化・
 //! `root` disabled の一貫伝播。詳細は上記「スタイル調整」節参照）
 
@@ -283,8 +284,8 @@ use crate::recipe::{
 // の rustdoc「選択的 re-export」節参照、`root` は本モジュールで styled 版
 // として再定義する）。
 pub use fandhe_frontend_headless_ui::checkbox_group::{
-    item, item_control, item_indicator, item_text, label, CheckboxGroup, DATA_STATE_CHECKED,
-    DATA_STATE_UNCHECKED,
+    item, item_control, item_indicator, item_text, label, CheckboxGroup, CheckboxGroupProps,
+    DATA_STATE_CHECKED, DATA_STATE_UNCHECKED,
 };
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
@@ -347,11 +348,11 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-checkbox-group-label-basis", "100%"),
             ],
         )
-        // `data-invalid`（headless 未出力、`attrs` 経由でのみ付与可能。
-        // モジュール doc 参照）を item-control の border-color へ伝播する
-        // custom property のみを定義する（子孫セレクタを持たない
-        // `SlotRecipe` の制約下で `--fandhe-table-stripe-bg` と同型の間接
-        // 参照パターン）。
+        // `data-invalid`（headless 層が CheckboxGroupProps 経由で出力する。
+        // イシュー #1603、`attrs` 経由の直接付与も引き続き有効。モジュール
+        // doc 参照）を item-control の border-color へ伝播する custom
+        // property のみを定義する（子孫セレクタを持たない `SlotRecipe` の
+        // 制約下で `--fandhe-table-stripe-bg` と同型の間接参照パターン）。
         .state(
             "root",
             StateCondition::Attr("data-invalid"),
@@ -498,10 +499,10 @@ fn recipe() -> SlotRecipe {
                 hover_bg_solid_with_fallback(),
             ],
         )
-        // `data-invalid`（headless 未出力、`attrs` 経由でのみ付与可能。
-        // モジュール doc 参照）の item-control 直接規則。checked 規則より
-        // 後方に登録し、同一詳細度の出力順で invalid を優先させる
-        // （`checkbox.rs` と同型）。
+        // `data-invalid`（headless 層が CheckboxGroupProps 経由で出力する。
+        // イシュー #1603、`attrs` 経由の直接付与も引き続き有効。モジュール
+        // doc 参照）の item-control 直接規則。checked 規則より後方に登録し、
+        // 同一詳細度の出力順で invalid を優先させる（`checkbox.rs` と同型）。
         .state(
             "item-control",
             StateCondition::Attr("data-invalid"),
@@ -699,13 +700,44 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    styled_root_with_props(
+        size,
+        palette,
+        &CheckboxGroupProps {
+            disabled,
+            ..Default::default()
+        },
+        orientation,
+        labelled_by,
+        attrs,
+        children,
+    )
+}
+
+/// [`root`]/[`CheckboxGroupStyledRoot::styled_root`] が共有する非公開実体。
+/// `size`/`palette` に応じたクラス付与（[`drop_class_attr`] により呼び出し
+/// 側の `class` は除去してから合成）に続けて
+/// [`fandhe_frontend_headless_ui::checkbox_group::root`] へ全 [`CheckboxGroupProps`]
+/// を委譲する（イシュー #1603: `styled_root` 経由では invalid/readonly も
+/// `data-invalid`/`data-readonly` として CSS へ到達する。公開 `root` は
+/// 破壊的変更を避けるため `disabled: bool` 単体の署名を維持し、内部で
+/// [`CheckboxGroupProps::default`] の invalid/readonly=false と合成する）。
+fn styled_root_with_props<'a>(
+    size: Size,
+    palette: ColorPalette,
+    props: &CheckboxGroupProps,
+    orientation: Option<Orientation>,
+    labelled_by: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let recipe = recipe();
     let class =
         recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::checkbox_group::root(
-        disabled,
+        props,
         orientation,
         labelled_by,
         merged,
@@ -714,12 +746,13 @@ pub fn root<'a>(
 }
 
 /// [`CheckboxGroup`] 状態機械経由で styled root パーツを組み立てるための
-/// 拡張トレイト（モジュール doc「選択的 re-export」節参照）。`disabled` を
-/// `self.is_disabled()` から自動注入し、本モジュールの [`root`] 関数
-/// （styled 版）へ委譲する状態機械経由の入口を提供する。
+/// 拡張トレイト（モジュール doc「選択的 re-export」節参照）。`self.props()`
+/// （disabled/readonly/invalid 全体、イシュー #1603 で `self.is_disabled()`
+/// 単体から拡張）を自動注入し、[`styled_root_with_props`] へ委譲する状態
+/// 機械経由の入口を提供する。
 pub trait CheckboxGroupStyledRoot {
-    /// styled root パーツを組み立てる（[`root`] 関数と同じ実体。disabled
-    /// は `self.is_disabled()` から自動注入する）。
+    /// styled root パーツを組み立てる（[`root`] 関数と同じ実体だが、
+    /// `self.props()` 全体（disabled/readonly/invalid）を自動注入する）。
     #[must_use]
     fn styled_root<'a>(
         &self,
@@ -742,10 +775,10 @@ impl CheckboxGroupStyledRoot for CheckboxGroup {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        root(
+        styled_root_with_props(
             size,
             palette,
-            self.is_disabled(),
+            &self.props(),
             orientation,
             labelled_by,
             attrs,
@@ -832,9 +865,10 @@ mod tests {
 
     #[test]
     fn root_invalid_defines_control_border_color_custom_property() {
-        // headless 層は `data-invalid` を出力しないため（モジュール doc
-        // 参照）、`attrs` 経由で付与されたときのみ有効になる参照のみを
-        // 固定する。
+        // イシュー #1603 以降、headless 層が CheckboxGroupProps 経由で
+        // `data-invalid` を出力するため、CSS 側の選択子・custom property
+        // 参照が変わらないことを固定する（`attrs` 経由の直接付与でも同じ
+        // 選択子が有効、モジュール doc 参照）。
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="checkbox-group"][data-part="root"][data-invalid]"#));
         assert!(css
@@ -1393,7 +1427,13 @@ mod tests {
     #[test]
     fn xss_payload_in_item_value_is_escaped_by_render() {
         let payload = "\"><script>alert(1)</script>";
-        let html = render(&item(false, false, payload, vec![], vec![text(payload)]));
+        let html = render(&item(
+            false,
+            &CheckboxGroupProps::default(),
+            payload,
+            vec![],
+            vec![text(payload)],
+        ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
@@ -1401,7 +1441,12 @@ mod tests {
     #[test]
     fn xss_payload_in_item_text_children_is_escaped_by_render() {
         let payload = "\"><img src=x onerror=alert(1)>";
-        let html = render(&item_text(false, false, vec![], vec![text(payload)]));
+        let html = render(&item_text(
+            false,
+            &CheckboxGroupProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
         assert!(!html.contains("<img"));
         assert!(html.contains("&lt;img"));
     }
@@ -1416,7 +1461,8 @@ mod tests {
         assert!(dispatch(&mut g, "select", "red"));
         assert!(g.is_checked("red"));
 
-        let ssr_html = render(&g.item_control("red", false, vec![], vec![]));
+        let ssr_html =
+            render(&g.item_control("red", CheckboxGroupProps::default(), vec![], vec![]));
         assert!(ssr_html.contains(r#"data-state="checked""#));
 
         let hydrate_html = render(&render_for_hydration(&g));
@@ -1428,10 +1474,11 @@ mod tests {
 
     #[test]
     fn item_indicator_hidden_state_semantics_preserved_through_reexport() {
-        let unchecked = render(&item_indicator(false, false, vec![], vec![]));
+        let props = CheckboxGroupProps::default();
+        let unchecked = render(&item_indicator(false, &props, vec![], vec![]));
         assert!(unchecked.contains(r#"hidden="""#));
 
-        let checked = render(&item_indicator(true, false, vec![], vec![]));
+        let checked = render(&item_indicator(true, &props, vec![], vec![]));
         assert!(!checked.contains(r#"hidden="""#));
     }
 
