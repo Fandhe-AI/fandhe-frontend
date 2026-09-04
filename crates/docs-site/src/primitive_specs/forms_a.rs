@@ -102,7 +102,7 @@ use hui::editable::{
 use hui::field::{self, FieldProps};
 use hui::fieldset::{self, FieldsetProps};
 use hui::file_upload;
-use hui::image_cropper::{self, HandlePosition};
+use hui::image_cropper::{self, HandlePosition, ImageCropper, ImageCropperProps};
 use hui::listbox;
 use hui::{angle_slider, checkbox, OpenState};
 
@@ -1798,13 +1798,19 @@ const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
 // Image Cropper
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/image_cropper.rs:438-490`（root/handle
-/// の各パーツ関数）。
+/// 一次情報: `crates/headless-ui/src/image_cropper.rs`（root/viewport/
+/// selection/handle の各パーツ関数、イシュー #1610 で参照実装〔ark-ui/
+/// zag.js `image-cropper` machine〕へ突合済み。行番号は変動しうるため
+/// モジュール doc「参照突合」節を正とする）。
 fn ex_image_cropper() -> Node {
+    let props = ImageCropperProps::default();
+    let state = ImageCropper::default();
     let body = vec![image_cropper::root(
+        &props,
         vec![],
         vec![
             image_cropper::viewport(
+                &props,
                 vec![],
                 vec![image_cropper::image(
                     "https://example.com/portrait.jpg",
@@ -1813,28 +1819,40 @@ fn ex_image_cropper() -> Node {
                 )],
             ),
             image_cropper::selection(
+                &state,
+                &props,
                 vec![],
                 vec![
-                    image_cropper::handle(HandlePosition::Ne, vec![]),
-                    image_cropper::handle(HandlePosition::Sw, vec![]),
+                    image_cropper::handle(HandlePosition::Ne, &props, vec![]),
+                    image_cropper::handle(HandlePosition::Sw, &props, vec![]),
                 ],
             ),
         ],
     )];
     wrap_example(
-        "role=\"group\" の root と方位別 aria-label を持つ 2 個の handle の組み立て例です。",
+        "role=\"group\" の root と、role=\"slider\" で focusable な selection に NE/SW\
+         の 2 個の handle（role=\"presentation\" + aria-hidden）を組み込む例です。",
         body,
     )
 }
 
 const IMAGE_CROPPER: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/viewport/image/selection/handle/grid の anatomy を持ち、矩形の crop 範囲（x/y/width/height）を値として保持する（image_cropper.rs:1-9）。",
-        "root は role=\"group\" + aria-roledescription=\"image cropper\" を固定付与する（image_cropper.rs:116-117, 438-449）。",
-        "handle は focusable（tabindex=\"0\"）+ 方位別の静的 aria-label（例: \"Resize from bottom right\"）を出力する（image_cropper.rs:117-119, 214, 475-488）。",
-        "canvas による実際のピクセル切り出し（画像処理）は本モジュールのスコープ外であり、crop 矩形の値を返すのみである（image_cropper.rs:30-31, 140-144）。",
+        "root/viewport/image/selection/handle/grid の anatomy を持ち、矩形の crop 範囲（x/y/width/height）を値として保持する。",
+        "root は role=\"group\" + aria-roledescription=\"image cropper\" を固定付与する。ImageCropperProps に応じて root/viewport/selection/handle へ data-disabled、root/selection/grid へ data-dragging を出力する（イシュー #1610、参照実装〔ark-ui/zag.js〕突合）。",
+        "キーボード操作の受け口は handle ではなく selection（focusable な role=\"slider\" + aria-roledescription=\"2d slider\"）へ集約される。aria-valuemin/aria-valuemax/aria-valuenow/aria-valuetext は crop 矩形の現在値から決定的に導出される（イシュー #1610）。",
+        "handle は role=\"presentation\" + aria-hidden=\"true\"（非 focusable）。data-position（旧 data-handle-position から改名）で 8 方位を表す（イシュー #1610）。",
+        "grid は aria-hidden=\"true\"。GridAxis（Horizontal/Vertical）を渡すと data-axis を出力する（省略時は単一コンテナ、イシュー #1610）。",
+        "action_for_key(key, modifiers) はキーボード操作の対応表（Arrow = 移動、Alt+Arrow = SE ハンドル基準のリサイズ、Shift/Ctrl(Cmd) で step 拡大）を純粋関数として提供する。DOM への keydown 配線は wasm-full 側の後続責務のまま（イシュー #1610）。",
+        "canvas による実際のピクセル切り出し（画像処理）は本モジュールのスコープ外であり、crop 矩形の値を返すのみである。",
     ],
     arguments: &[
+        ArgRow {
+            name: "props",
+            kind: "&ImageCropperProps",
+            default: "ImageCropperProps::default()",
+            description: "disabled/dragging の状態束。root/viewport/selection/handle/grid 共通で受け取る（イシュー #1610）。",
+        },
         ArgRow {
             name: "image(src, alt)",
             kind: "&str, &str",
@@ -1842,10 +1860,28 @@ const IMAGE_CROPPER: ComponentPageSpec = ComponentPageSpec {
             description: "対象画像の src/alt。既定エスケープを経由して出力される。",
         },
         ArgRow {
-            name: "handle(position)",
-            kind: "HandlePosition",
+            name: "selection(state, props)",
+            kind: "&ImageCropper, &ImageCropperProps",
             default: "",
-            description: "方位（N/S/E/W/NE/NW/SE/SW）。方位別の静的 aria-label を出力する（image_cropper.rs:214, 475-488）。",
+            description: "crop 矩形の現在値（state）から aria-valuemax/aria-valuenow/aria-valuetext を決定的に導出する（イシュー #1610）。",
+        },
+        ArgRow {
+            name: "handle(position, props)",
+            kind: "HandlePosition, &ImageCropperProps",
+            default: "",
+            description: "方位（N/S/E/W/NE/NW/SE/SW）。data-position を出力する（旧 data-handle-position から改名）。",
+        },
+        ArgRow {
+            name: "grid(axis, props)",
+            kind: "Option<GridAxis>, &ImageCropperProps",
+            default: "None",
+            description: "Some のときのみ data-axis（\"horizontal\"/\"vertical\"）を出力する（イシュー #1610）。",
+        },
+        ArgRow {
+            name: "action_for_key(key, modifiers)",
+            kind: "&str, KeyModifiers",
+            default: "",
+            description: "KeyboardEvent.key 相当の文字列を ImageCropperAction へ写す純粋関数。未知キー・zoom キーは None（イシュー #1610）。",
         },
         ArgRow {
             name: "attrs / children",
@@ -1859,18 +1895,40 @@ const IMAGE_CROPPER: ComponentPageSpec = ComponentPageSpec {
         description: "NE/SW の 2 ハンドルのみを持つ選択枠の組み立て例です。",
         render: ex_image_cropper,
     }],
-    keyboard: &[KeyRow {
-        key: "Tab",
-        description: "handle パーツは tabindex=\"0\" で focusable である（実際のキーボード nudge の DOM 配線は wasm-full 側の後続責務、image_cropper.rs:475-479, 140-148）。",
-    }],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "selection パーツへフォーカスが移動する（disabled でなければ tabindex=\"0\"）。キーボード操作の受け口が handle から selection へ移った（イシュー #1610）。",
+        },
+        KeyRow {
+            key: "ArrowLeft / ArrowRight / ArrowUp / ArrowDown",
+            description: "action_for_key が crop 矩形を Move（既定 step=1）。Shift 押下で step=10、Ctrl/Cmd 押下で step=50。DOM keydown 配線は wasm-full 側の後続責務のまま（イシュー #1610）。",
+        },
+        KeyRow {
+            key: "Alt+Arrow",
+            description: "action_for_key が SE ハンドル基準の Resize を返す（イシュー #1610）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role=\"group\" / aria-roledescription",
-            description: "root パーツへ \"image cropper\" を固定付与する（image_cropper.rs:444-449）。",
+            description: "root パーツへ \"image cropper\" を固定付与する。",
         },
         AriaRow {
-            attribute: "aria-label",
-            description: "handle パーツへ方位別の静的文字列（例: \"Resize from bottom right\"）を固定付与する（image_cropper.rs:214, 481-483）。",
+            attribute: "role=\"presentation\"",
+            description: "viewport パーツへ固定付与する（イシュー #1610）。",
+        },
+        AriaRow {
+            attribute: "role=\"slider\" / aria-roledescription / aria-valuemin / aria-valuemax / aria-valuenow / aria-valuetext",
+            description: "selection パーツへ付与する 2D slider 意味論。aria-valuetext は \"x {x}, y {y}, width {width}, height {height}\" の決定的な英語テンプレート（イシュー #1610）。",
+        },
+        AriaRow {
+            attribute: "role=\"presentation\" / aria-hidden=\"true\"",
+            description: "handle パーツへ固定付与する（非 focusable。旧実装の方位別 aria-label は既定では出力しない、イシュー #1610）。",
+        },
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "grid パーツへ固定付与する（装飾用、イシュー #1610）。",
         },
     ],
     demo: None,

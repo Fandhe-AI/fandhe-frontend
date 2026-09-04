@@ -644,6 +644,11 @@ pub mod file_upload;
 pub mod floating_panel;
 pub mod format;
 pub mod hover_card;
+// イシュー #1610: 参照実装（ark-ui/zag.js）との突合で `ImageCropperProps`
+// （`data-disabled`/`data-dragging`）・キーボード操作の受け口が selection
+// （`role="slider"` の 2D slider 意味論）へ移った変更・`action_for_key`
+// （キー → アクションの純粋関数）を追加した。詳細は `image_cropper`
+// モジュール doc「参照突合」節参照。
 pub mod image_cropper;
 pub mod json_tree_view;
 pub mod link;
