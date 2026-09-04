@@ -76,6 +76,9 @@ fn recipe() -> SlotRecipe {
                 decl("overflow", "visible"),
                 decl("clip", "auto"),
                 decl("white-space", "normal"),
+                // `overflow-wrap` は base（clip_declarations 由来）で
+                // `normal` を明示しているが、その値自体が CSS 初期値と
+                // 同一のため、ここで打ち消す宣言は不要（イシュー #1587）。
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border-radius", "var(--fandhe-radius-md)"),

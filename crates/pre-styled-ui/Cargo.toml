@@ -1220,8 +1220,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # マイナーバンプとする規約と `docs/ci/style-refresh-version-bump-operation.md`
 # §5「version 行コンフリクトの解決手順（並列 PR 間）」（minor バンプは main
 # の現在値の minor を +1 し patch を 0 に戻す）に従い、main の現在値
-# 0.78.4 の minor を +1 した 0.79.0 へバンプする。
-version = "0.79.0"
+# 0.78.4 の minor を +1 した 0.79.0 へバンプした。
+# イシュー #1587（visually-hidden のスタイルを参考サイト基準へ調整）は
+# `overflow-wrap: normal` 宣言の追加という CSS 出力変更のみで、Rust API
+# シグネチャ・セレクタは不変のため patch バンプとし、main の現在値
+# 0.79.0 の patch を +1 した 0.79.1 へバンプする。
+version = "0.79.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
