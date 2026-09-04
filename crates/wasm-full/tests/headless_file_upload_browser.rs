@@ -28,6 +28,7 @@ use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::file_upload::{
     clear_trigger, dropzone, hidden_input, item, item_delete_trigger, item_group, item_name,
     item_size_text, item_size_text_node, label, root, trigger, FileUpload, FileUploadAction,
+    FileUploadItem, FileUploadProps, ItemType,
 };
 use fandhe_frontend_interactive::Component;
 use fandhe_frontend_wasm_full::headless_file_upload::wire_file_upload_component;
@@ -70,38 +71,47 @@ impl Drop for RemoveOnDrop {
 /// [`FileUpload`] 状態から SSR 出力契約と同型のマークアップを組み立てる
 /// （headless パーツ関数を直接呼ぶ、`mount_avatar` と同型の判断）。
 fn render_file_upload(state: &FileUpload) -> String {
+    let props = FileUploadProps::default();
     let items: Vec<_> = state
         .accepted()
         .iter()
         .map(|f| {
             let size = item_size_text(f.size_bytes);
             item(
-                false,
+                ItemType::Accepted,
+                &props,
                 vec![],
                 vec![
-                    item_name(vec![], vec![text(&f.name)]),
-                    item_size_text_node(vec![], vec![text(&size)]),
-                    item_delete_trigger(&f.name, false, vec![], vec![text("x")]),
+                    item_name(ItemType::Accepted, &props, vec![], vec![text(&f.name)]),
+                    item_size_text_node(ItemType::Accepted, &props, vec![], vec![text(&size)]),
+                    item_delete_trigger(
+                        &f.name,
+                        ItemType::Accepted,
+                        &props,
+                        vec![],
+                        vec![text("x")],
+                    ),
                 ],
             )
         })
         .collect();
     let node = root(
+        &props,
         false,
         vec![],
         vec![
-            label(vec![], vec![text("Files")]),
+            label(&props, vec![], vec![text("Files")]),
             dropzone(
-                false,
+                &props,
                 false,
                 vec![],
                 vec![
-                    trigger(false, vec![], vec![text("Browse")]),
-                    hidden_input(state.accept(), true, false, vec![]),
+                    trigger(&props, vec![], vec![text("Browse")]),
+                    hidden_input(state.accept(), true, &props, vec![]),
                 ],
             ),
-            item_group(vec![], items),
-            clear_trigger(false, vec![], vec![text("Clear")]),
+            item_group(ItemType::Accepted, &props, vec![], items),
+            clear_trigger(&props, state.is_empty(), vec![], vec![text("Clear")]),
         ],
     );
     render(&node)
@@ -312,22 +322,59 @@ fn clear_trigger_click_clears_all_files() {
 /// 無効化状態（`disabled: true`）で Root/Dropzone を組み立てたマークアップ
 /// （`render_file_upload` と異なり disabled 反映が必要なため専用のヘルパ）。
 fn render_disabled_file_upload(state: &FileUpload) -> String {
+    let props = FileUploadProps {
+        disabled: true,
+        ..Default::default()
+    };
     let node = root(
-        true,
+        &props,
+        false,
         vec![],
         vec![
-            label(vec![], vec![text("Files")]),
+            label(&props, vec![], vec![text("Files")]),
             dropzone(
-                true,
+                &props,
                 false,
                 vec![],
                 vec![
-                    trigger(true, vec![], vec![text("Browse")]),
-                    hidden_input(state.accept(), true, true, vec![]),
+                    trigger(&props, vec![], vec![text("Browse")]),
+                    hidden_input(state.accept(), true, &props, vec![]),
                 ],
             ),
-            item_group(vec![], vec![]),
-            clear_trigger(true, vec![], vec![text("Clear")]),
+            item_group(ItemType::Accepted, &props, vec![], vec![]),
+            clear_trigger(&props, true, vec![], vec![text("Clear")]),
+        ],
+    );
+    render(&node)
+}
+
+/// 読み取り専用状態（`readonly: true`）で Root/Dropzone を組み立てた
+/// マークアップ（イシュー #1609 参照突合。zag `readOnly` は新規ファイルの
+/// 追加操作のみを抑止するため、`render_disabled_file_upload` と異なり
+/// hidden-input はネイティブ `disabled`、既存ファイルの削除操作
+/// （`item-delete-trigger`）は生成しない本テストでは検証対象外）。
+fn render_readonly_file_upload(state: &FileUpload) -> String {
+    let props = FileUploadProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let node = root(
+        &props,
+        false,
+        vec![],
+        vec![
+            label(&props, vec![], vec![text("Files")]),
+            dropzone(
+                &props,
+                false,
+                vec![],
+                vec![
+                    trigger(&props, vec![], vec![text("Browse")]),
+                    hidden_input(state.accept(), true, &props, vec![]),
+                ],
+            ),
+            item_group(ItemType::Accepted, &props, vec![], vec![]),
+            clear_trigger(&props, true, vec![], vec![text("Clear")]),
         ],
     );
     render(&node)
@@ -389,4 +436,317 @@ fn disabled_dropzone_drop_event_does_not_add_files() {
 
     assert!(state.borrow().is_empty());
     assert!(!container.inner_html().contains("dropped.pdf"));
+}
+
+/// 読み取り専用状態（`data-readonly` が Root/Dropzone に付与されている）の
+/// dropzone へ `drop` イベントを発火してもファイルが追加されないこと
+/// （イシュー #1609 参照突合: zag `readOnly` は新規ファイルの追加操作を
+/// 抑止する。`disabled_dropzone_drop_event_does_not_add_files` と同型の
+/// 回帰テスト、`wire_drag_and_drop` のガード条件拡張の確認）。
+#[wasm_bindgen_test]
+fn readonly_dropzone_drop_event_does_not_add_files() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "file-upload-readonly-drop-test");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let state = std::rc::Rc::new(std::cell::RefCell::new(FileUpload::new(
+        "", None, None, None,
+    )));
+    container.set_inner_html(&render_readonly_file_upload(&state.borrow()));
+
+    let update_container = container.clone();
+    wire_file_upload_component(container.clone(), state.clone(), move |s, _el| {
+        update_container.set_inner_html(&render_readonly_file_upload(s));
+    })
+    .expect("wire_file_upload_component must not fail");
+
+    let dropzone_el = container
+        .query_selector("[data-scope='file-upload'][data-part='dropzone']")
+        .expect("query_selector must not fail")
+        .expect("dropzone part must exist");
+    // 読み取り専用状態を明示的に固定する（headless-ui 側の
+    // `dropzone(&FileUploadProps { readonly: true, .. }, ...)` が
+    // `data-readonly` を反映することへの依存を、テスト側でも直接確認する）。
+    assert!(dropzone_el.has_attribute("data-readonly"));
+
+    let file = make_file("dropped.pdf", 100, "application/pdf");
+    dispatch_drop_with_files(&dropzone_el, &[file]);
+
+    assert!(state.borrow().is_empty());
+    assert!(!container.inner_html().contains("dropped.pdf"));
+}
+
+/// [`render_file_upload`] と異なり、rejected [`item_group`] を accepted
+/// より先（DOM 出現順で先頭）に描画したマークアップを組み立てる。イシュー
+/// #1609 Cursor Bugbot 指摘（`compute_item_index` が `data-type` を区別せず
+/// 数えていた）の回帰テストが、accepted/rejected 混在時の出現順ズレを
+/// 確実に再現するための専用ヘルパ。`required` を渡せるようにし、required
+/// 属性のネイティブ同期の回帰テストにも流用する。
+fn render_file_upload_mixed(state: &FileUpload, required: bool) -> String {
+    let props = FileUploadProps {
+        required,
+        ..Default::default()
+    };
+    let accepted_items: Vec<_> = state
+        .accepted()
+        .iter()
+        .map(|f| {
+            item(
+                ItemType::Accepted,
+                &props,
+                vec![],
+                vec![
+                    item_name(ItemType::Accepted, &props, vec![], vec![text(&f.name)]),
+                    item_delete_trigger(
+                        &f.name,
+                        ItemType::Accepted,
+                        &props,
+                        vec![],
+                        vec![text("x")],
+                    ),
+                ],
+            )
+        })
+        .collect();
+    let rejected_items: Vec<_> = state
+        .rejected()
+        .iter()
+        .map(|(f, _reason)| {
+            item(
+                ItemType::Rejected,
+                &props,
+                vec![],
+                vec![
+                    item_name(ItemType::Rejected, &props, vec![], vec![text(&f.name)]),
+                    item_delete_trigger(
+                        &f.name,
+                        ItemType::Rejected,
+                        &props,
+                        vec![],
+                        vec![text("x")],
+                    ),
+                ],
+            )
+        })
+        .collect();
+    let node = root(
+        &props,
+        false,
+        vec![],
+        vec![
+            label(&props, vec![], vec![text("Files")]),
+            dropzone(
+                &props,
+                false,
+                vec![],
+                vec![
+                    trigger(&props, vec![], vec![text("Browse")]),
+                    hidden_input(state.accept(), true, &props, vec![]),
+                ],
+            ),
+            // rejected を accepted より先に描画する（出現順インデックスの
+            // ズレが最も顕在化する構成）。
+            item_group(ItemType::Rejected, &props, vec![], rejected_items),
+            item_group(ItemType::Accepted, &props, vec![], accepted_items),
+            clear_trigger(&props, state.is_empty(), vec![], vec![text("Clear")]),
+        ],
+    );
+    render(&node)
+}
+
+/// イシュー #1609 Cursor Bugbot 指摘（Medium）・codex-review 再指摘（P1）の
+/// 回帰テスト:
+/// `compute_item_index` が `data-part="item"` を `data-type` 区別せず
+/// 数えていたため、rejected item（accepted より DOM 出現順で先）の
+/// `item-delete-trigger` をクリックすると誤って accepted ファイルが
+/// 削除され得た（Cursor Bugbot 指摘）。さらにその是正の初期実装
+/// （`compute_item_index` を `data-type="accepted"` へ固定）は、逆に
+/// rejected item の削除ボタンを恒常的な no-op にしてしまっていた
+/// （codex-review 再指摘）。最終是正は `item_type` を実測して
+/// `"remove"`（accepted）/`"remove-rejected"`（rejected）を使い分ける
+/// ため、rejected item のクリックでは accepted 一覧が変化せず
+/// `rejected` 一覧からその要素が正しく除去されること、かつ accepted
+/// item のクリックでは正しい（accepted 内での出現順）インデックスが
+/// 削除されることを固定する。
+#[wasm_bindgen_test]
+fn item_delete_trigger_click_indexes_accepted_and_rejected_items_independently() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "file-upload-mixed-remove-test");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let mut with_rejection = FileUpload::new("text/plain", None, None, None);
+    with_rejection.update(FileUploadAction::AddFiles(vec![
+        fandhe_frontend_headless_ui::file_upload::FileUploadItem::new("keep.txt", 1, "text/plain"),
+        fandhe_frontend_headless_ui::file_upload::FileUploadItem::new(
+            "remove-me.txt",
+            1,
+            "text/plain",
+        ),
+        fandhe_frontend_headless_ui::file_upload::FileUploadItem::new("bad.png", 1, "image/png"),
+    ]));
+    assert_eq!(with_rejection.accepted().len(), 2);
+    assert_eq!(with_rejection.rejected().len(), 1);
+
+    let state = std::rc::Rc::new(std::cell::RefCell::new(with_rejection));
+    container.set_inner_html(&render_file_upload_mixed(&state.borrow(), false));
+
+    let update_container = container.clone();
+    wire_file_upload_component(container.clone(), state.clone(), move |s, _el| {
+        update_container.set_inner_html(&render_file_upload_mixed(s, false));
+    })
+    .expect("wire_file_upload_component must not fail");
+
+    // rejected item（DOM 出現順で先頭）の削除トリガーをクリックすると、
+    // accepted 一覧は変化せず（誤った accepted ファイル削除を起こさない）、
+    // かつ `rejected` 一覧からその要素が正しく除去される
+    // （codex-review 再指摘の是正確認: 以前は `"remove"` 固定 dispatch の
+    // ため常に no-op だった）。
+    let rejected_delete_el = container
+        .query_selector(
+            "[data-scope='file-upload'][data-part='item-delete-trigger'][data-type='rejected']",
+        )
+        .expect("query_selector must not fail")
+        .expect("rejected item-delete-trigger must exist");
+    let init = EventInit::new();
+    init.set_bubbles(true);
+    let event = Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail");
+    rejected_delete_el
+        .dispatch_event(&event)
+        .expect("dispatch_event must not fail");
+
+    assert_eq!(state.borrow().accepted().len(), 2);
+    assert!(
+        state.borrow().rejected().is_empty(),
+        "clicking the rejected item's delete trigger must remove it from the rejected list \
+         (codex-review P1 regression: previously always a no-op)"
+    );
+    assert!(state
+        .borrow()
+        .accepted()
+        .iter()
+        .any(|f| f.name == "keep.txt"));
+    assert!(state
+        .borrow()
+        .accepted()
+        .iter()
+        .any(|f| f.name == "remove-me.txt"));
+
+    // accepted item（"remove-me.txt"、accepted 内での出現順インデックス
+    // 1）の削除トリガーをクリックすると、正しくそのファイルのみが消える。
+    let accepted_delete_selector =
+        "[data-scope='file-upload'][data-part='item-delete-trigger'][data-type='accepted']";
+    let accepted_delete_els = container
+        .query_selector_all(accepted_delete_selector)
+        .expect("query_selector_all must not fail");
+    assert_eq!(accepted_delete_els.length(), 2);
+    let target = accepted_delete_els
+        .get(1)
+        .expect("second accepted item-delete-trigger must exist");
+    let target_el: Element = target.dyn_into().expect("must be an Element");
+    let event2 = Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail");
+    target_el
+        .dispatch_event(&event2)
+        .expect("dispatch_event must not fail");
+
+    assert_eq!(state.borrow().accepted().len(), 1);
+    assert!(state
+        .borrow()
+        .accepted()
+        .iter()
+        .any(|f| f.name == "keep.txt"));
+    assert!(!state
+        .borrow()
+        .accepted()
+        .iter()
+        .any(|f| f.name == "remove-me.txt"));
+}
+/// イシュー #1609 codex-review 再指摘（P1、2 回目）の回帰テスト:
+/// [`hidden_input`] はネイティブ `required` 属性を一切出力しない
+/// （過去に実装していた `sync_hidden_input_required`、PR #1885
+/// 588fd4f/d9e846f、は「`accepted()` が非空ならネイティブ `required` を
+/// 除去する」同期を行っていたが、`change` ハンドラは処理直後に必ず
+/// `input.set_value("")` で hidden-input の実 `FileList` を破棄するため、
+/// required 除去後もネイティブフォーム送信には実ファイルが一切含まれず、
+/// 意図しない検証バイパスになっていた。続く是正〔2b5fbc1〕は同期処理を
+/// 撤去しネイティブ `required` を常時出力する形にしたが、これは
+/// 「required 指定時、正常にファイルを選択してもネイティブ `<form>`
+/// 送信が常にブロックされる」別の P1 を生んだ。最終是正は
+/// `crates/headless-ui/src/file_upload.rs::hidden_input` 側でネイティブ
+/// `required` 自体を出力しない設計へ変更し、`aria-required`/
+/// `data-required` のみで要求有無を提示する）。`wire_file_upload_component`
+/// は状態変化（`AddFiles`/`Remove`/マウント時点）のいずれでも
+/// `input.required()`（ネイティブ DOM プロパティ）が常に `false`
+/// のままであることを固定する。
+#[wasm_bindgen_test]
+fn hidden_input_never_carries_native_required_attribute() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "file-upload-required-static-test");
+    let _guard = RemoveOnDrop(container.clone());
+
+    // hydration 相当: マウント前から `accepted` が非空の状態を用意する。
+    let mut initial = FileUpload::default();
+    initial.update(FileUploadAction::AddFiles(vec![FileUploadItem::new(
+        "a.txt",
+        1,
+        "text/plain",
+    )]));
+    assert_eq!(initial.accepted().len(), 1);
+
+    let state = std::rc::Rc::new(std::cell::RefCell::new(initial));
+    container.set_inner_html(&render_file_upload_mixed(&state.borrow(), true));
+    let input = hidden_input_element(&container);
+    assert!(
+        !input.required(),
+        "SSR markup must never render native required, regardless of props.required or \
+         accepted state (would block native <form> submission even with accepted files, \
+         since the hidden-input never retains a real FileList)"
+    );
+    assert_eq!(
+        input.get_attribute("aria-required").as_deref(),
+        Some("true"),
+        "aria-required must reflect props.required instead of native required"
+    );
+    assert!(input.has_attribute("data-required"));
+
+    let update_container = container.clone();
+    wire_file_upload_component(container.clone(), state.clone(), move |s, _el| {
+        update_container.set_inner_html(&render_file_upload_mixed(s, true));
+    })
+    .expect("wire_file_upload_component must not fail");
+
+    // 配線直後（状態変更イベントは一切発火していない）でも native
+    // required は出力されない。
+    let input_after_wire = hidden_input_element(&container);
+    assert!(!input_after_wire.required());
+
+    // さらにファイルを追加して `accepted()` を非空のまま増やしても
+    // native required は出力されない。
+    let input = hidden_input_element(&container);
+    let file = make_file("b.txt", 1, "text/plain");
+    dispatch_change_with_files(&input, &[file]);
+    assert_eq!(state.borrow().accepted().len(), 2);
+    let input_after_add = hidden_input_element(&container);
+    assert!(!input_after_add.required());
+
+    // 受理済みファイルを 1 件ずつ削除して空に戻しても native required は
+    // 出力されない（元々出力していないため、当然ながら維持される）。
+    let init = EventInit::new();
+    init.set_bubbles(true);
+    for _ in 0..2 {
+        let delete_el = container
+            .query_selector(
+                "[data-scope='file-upload'][data-part='item-delete-trigger'][data-type='accepted']",
+            )
+            .expect("query_selector must not fail");
+        if let Some(delete_el) = delete_el {
+            let event =
+                Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail");
+            delete_el
+                .dispatch_event(&event)
+                .expect("dispatch_event must not fail");
+        }
+    }
+    assert!(state.borrow().accepted().is_empty());
+    let input_after_remove = hidden_input_element(&container);
+    assert!(!input_after_remove.required());
 }

@@ -150,7 +150,7 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::file_upload::{
     clear_trigger, dropzone, hidden_input, item, item_delete_trigger, item_group, item_name,
     item_size_text, item_size_text_node, label, trigger, FileRejectionReason, FileUploadAction,
-    FileUploadItem,
+    FileUploadItem, FileUploadProps, ItemType,
 };
 
 /// headless `file_upload` anatomy の `data-part` 一覧
@@ -474,22 +474,24 @@ pub fn stylesheet() -> String {
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
 /// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::file_upload::root`] へ
-/// 委譲する。
+/// 委譲する。`props`/`dragging` は headless 側の署名変更（イシュー #1609、
+/// `FileUploadProps`/`data-dragging` 導入）にそのまま追随する。
 ///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::file_upload;
+/// use fandhe_frontend_pre_styled_ui::file_upload::{self, FileUploadProps};
 /// use fandhe_frontend_pre_styled_ui::Size;
 ///
-/// let node = file_upload::root(Size::Md, false, vec![], vec![]);
+/// let node = file_upload::root(Size::Md, &FileUploadProps::default(), false, vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="file-upload" data-part="root""#));
 /// ```
 #[must_use]
 pub fn root<'a>(
     size: Size,
-    disabled: bool,
+    props: &FileUploadProps,
+    dragging: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -497,7 +499,7 @@ pub fn root<'a>(
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::file_upload::root(disabled, merged, children)
+    fandhe_frontend_headless_ui::file_upload::root(props, dragging, merged, children)
 }
 
 #[cfg(test)]
@@ -620,16 +622,20 @@ mod tests {
 
     // --- variant クラス ---
 
+    fn enabled_props() -> FileUploadProps {
+        FileUploadProps::default()
+    }
+
     #[test]
     fn root_outputs_scope_and_part() {
-        let html = render(&root(Size::Md, false, vec![], vec![]));
+        let html = render(&root(Size::Md, &enabled_props(), false, vec![], vec![]));
         assert!(html.contains(r#"data-scope="file-upload""#));
         assert!(html.contains(r#"data-part="root""#));
     }
 
     #[test]
     fn default_variant_is_md() {
-        let html = render(&root(Size::Md, false, vec![], vec![]));
+        let html = render(&root(Size::Md, &enabled_props(), false, vec![], vec![]));
         assert!(html.contains("fd-file-upload--size-md"));
     }
 
@@ -642,7 +648,7 @@ mod tests {
             (Size::Lg, "fd-file-upload--size-lg"),
             (Size::Xl, "fd-file-upload--size-xl"),
         ] {
-            let html = render(&root(size, false, vec![], vec![]));
+            let html = render(&root(size, &enabled_props(), false, vec![], vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");
         }
     }
@@ -651,6 +657,7 @@ mod tests {
     fn class_attr_is_single_and_caller_class_is_dropped() {
         let html = render(&root(
             Size::Md,
+            &enabled_props(),
             false,
             vec![("class", "attacker-controlled")],
             vec![],
@@ -670,6 +677,7 @@ mod tests {
     fn caller_data_scope_and_part_spoofing_is_dropped() {
         let html = render(&root(
             Size::Md,
+            &enabled_props(),
             false,
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
@@ -681,7 +689,11 @@ mod tests {
 
     #[test]
     fn root_reflects_disabled_prop() {
-        let html = render(&root(Size::Md, true, vec![], vec![]));
+        let props = FileUploadProps {
+            disabled: true,
+            ..Default::default()
+        };
+        let html = render(&root(Size::Md, &props, false, vec![], vec![]));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
@@ -691,6 +703,7 @@ mod tests {
     fn root_attrs_attribute_breakout_payload_is_escaped() {
         let html = render(&root(
             Size::Md,
+            &enabled_props(),
             false,
             vec![("data-x", "\" onmouseover=\"alert(1)")],
             vec![],
@@ -701,14 +714,23 @@ mod tests {
 
     #[test]
     fn reexported_label_children_are_escaped_on_render() {
-        let html = render(&label(vec![], vec![text("<script>alert(1)</script>")]));
+        let html = render(&label(
+            &enabled_props(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
 
     #[test]
     fn reexported_item_name_tag_payload_is_escaped_on_render() {
-        let html = render(&item_name(vec![], vec![text("<script>alert(1)</script>")]));
+        let html = render(&item_name(
+            ItemType::Accepted,
+            &enabled_props(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
@@ -716,7 +738,13 @@ mod tests {
     #[test]
     fn reexported_item_delete_trigger_aria_label_payload_is_escaped_on_render() {
         const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
-        let html = render(&item_delete_trigger(PAYLOAD, false, vec![], vec![]));
+        let html = render(&item_delete_trigger(
+            PAYLOAD,
+            ItemType::Accepted,
+            &enabled_props(),
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
@@ -724,7 +752,7 @@ mod tests {
     #[test]
     fn reexported_hidden_input_accept_payload_is_escaped_on_render() {
         const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
-        let html = render(&hidden_input(PAYLOAD, false, false, vec![]));
+        let html = render(&hidden_input(PAYLOAD, false, &enabled_props(), vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
@@ -740,7 +768,7 @@ mod tests {
         let mut f = FileUpload::new("image/*", Some(5), None, None);
         assert!(f.is_empty());
 
-        let ssr_html = render(&f.root(false, vec![], vec![]));
+        let ssr_html = render(&f.root(&enabled_props(), false, vec![], vec![]));
         assert!(!ssr_html.contains("data-hydrate-"));
 
         f.update(FileUploadAction::AddFiles(vec![FileUploadItem::new(
