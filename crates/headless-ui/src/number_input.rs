@@ -253,32 +253,53 @@ pub fn label<'a>(
     ANATOMY.part("label", "label", merged, children)
 }
 
+/// [`control`] が状態から決定する属性キー一覧。呼び出し側 `attrs` に
+/// これらと同名キーが含まれていても [`drop_control_reserved_attrs`] で
+/// fail-closed に除去する（[`crate::checkbox`] の `STATE_RESERVED`/
+/// `drop_reserved` と同型の防御）。
+///
+/// PR #1881 レビュー指摘（イシュー #1613）: dedup（呼び出し側指定があれば
+/// 状態側を省略）方式では、呼び出し側が `aria-disabled="false"`/
+/// `aria-invalid="false"` を渡すと `flags.disabled`/`flags.invalid` が
+/// `true` でも状態由来の正しい値が呼び出し側の値で上書きされ、
+/// `data-disabled` や実際の `disabled` input とアクセシビリティツリーの
+/// 状態が矛盾し得た（`.claude/rules/coding-rust.md` 「UI 部品の責務境界」
+/// が要求するアクセシビリティ責務違反）。呼び出し側が任意の値を注入できない
+/// よう、常に `attrs` から該当キーを除去したうえで状態から強制決定する
+/// 方式へ改めた。
+const CONTROL_RESERVED: &[&str] = &["role", "aria-disabled", "aria-invalid"];
+
+/// 呼び出し側 `attrs` から [`CONTROL_RESERVED`] のキー（ASCII 大文字小文字
+/// 無視）を除外する。[`control`] 専用の fail-closed フィルタ
+/// （[`crate::checkbox::drop_reserved`] と同型）。
+fn drop_control_reserved_attrs<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !CONTROL_RESERVED.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
 /// Control パーツ（`div`）。[`input`] とトリガーのラッパー。
 ///
-/// `role="group"`・`aria-disabled`・`aria-invalid`（呼び出し側 `attrs` に
-/// 同名キーがあれば [`has_caller_attr`] で dedup し省略、他パーツの既定
-/// 属性と同じ規約）は、`disabled`/`invalid` に応じて追加する
-/// （イシュー #1613。この 2 属性は WAI-ARIA のグローバル状態・プロパティで
-/// あり `group` ロールで明示的に禁止されていない。zag.js の number-input
-/// machine が control 相当のコンテナへ同様に出力する慣行にも倣う）。
-/// PR #1881 レビュー指摘: 呼び出し側 `attrs` に同名の `aria-disabled`/
-/// `aria-invalid` が含まれる場合、dedup なしでは重複出力
-/// （例: `aria-disabled="true" aria-disabled="false"`）が起き得たため、
-/// 他の既定属性と同じ dedup 規約へ統一した。
+/// `role="group"` は常に固定付与し、`aria-disabled`/`aria-invalid` は
+/// `disabled`/`invalid` の状態から強制決定する（イシュー #1613。この 2
+/// 属性は WAI-ARIA のグローバル状態・プロパティであり `group` ロールで
+/// 明示的に禁止されていない。zag.js の number-input machine が control
+/// 相当のコンテナへ同様に出力する慣行にも倣う）。呼び出し側 `attrs` に
+/// 同名キーが含まれていても [`drop_control_reserved_attrs`] で常に除去し、
+/// 状態由来の値のみが出力される（[`CONTROL_RESERVED`] の doc 参照）。
 #[must_use]
 pub fn control<'a>(
     flags: NumberInputFlags,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    if !has_caller_attr(&attrs, "role") {
-        merged.push(("role", "group"));
-    }
-    if flags.disabled && !has_caller_attr(&attrs, "aria-disabled") {
+    let attrs = drop_control_reserved_attrs(attrs);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![("role", "group")];
+    if flags.disabled {
         merged.push(("aria-disabled", "true"));
     }
-    if flags.invalid && !has_caller_attr(&attrs, "aria-invalid") {
+    if flags.invalid {
         merged.push(aria_invalid(true));
     }
     merged.extend(data_disabled(flags.disabled));
@@ -972,25 +993,30 @@ mod tests {
     }
 
     #[test]
-    fn control_caller_role_overrides_default() {
+    fn control_caller_role_does_not_override_default() {
+        // PR #1881 レビュー指摘の回帰テスト（イシュー #1613）: `role="group"`
+        // は状態非依存の固定値であり、呼び出し側 `attrs` の同名キーで
+        // 置き換え不能でなければならない（[`CONTROL_RESERVED`] doc 参照）。
         let html = render(&control(
             NumberInputFlags::default(),
             vec![("role", "presentation")],
             vec![],
         ));
         assert_eq!(html.matches("role=").count(), 1);
-        assert!(html.contains(r#"role="presentation""#));
-        assert!(!html.contains(r#"role="group""#));
+        assert!(html.contains(r#"role="group""#));
+        assert!(!html.contains(r#"role="presentation""#));
     }
 
     #[test]
-    fn control_caller_aria_disabled_and_aria_invalid_dedup_default() {
-        // PR #1881 レビュー指摘の回帰テスト: `flags.disabled`/`flags.invalid`
-        // が true のとき、既定の `aria-disabled`/`aria-invalid` を追加した
-        // 後に呼び出し側 `attrs` を無条件連結すると、`attrs` に同名属性が
-        // あった場合に `aria-disabled="true" aria-disabled="false"` のような
-        // 重複・無効な HTML が出力されていた。呼び出し側指定を正として
-        // 既定側を省略する（他の既定属性と同じ dedup 規約）。
+    fn control_caller_aria_disabled_and_aria_invalid_do_not_override_state() {
+        // PR #1881 レビュー指摘の回帰テスト（イシュー #1613）:
+        // `flags.disabled`/`flags.invalid` が true のとき、呼び出し側
+        // `attrs` に `aria-disabled="false"`/`aria-invalid="false"` が
+        // 渡されても状態由来の正しい値（`"true"`）が優先されなければ
+        // ならない（`data-disabled` や実際の disabled input とアクセシ
+        // ビリティツリーの状態を一致させるため。呼び出し側が任意の値を
+        // 注入できると `.claude/rules/coding-rust.md` 「UI 部品の責務境界」
+        // が要求するアクセシビリティ責務を満たせない）。
         let html = render(&control(
             NumberInputFlags {
                 disabled: true,
@@ -1003,8 +1029,23 @@ mod tests {
         ));
         assert_eq!(html.matches("aria-disabled=").count(), 1);
         assert_eq!(html.matches("aria-invalid=").count(), 1);
-        assert!(html.contains(r#"aria-disabled="false""#));
-        assert!(html.contains(r#"aria-invalid="false""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert!(html.contains(r#"aria-invalid="true""#));
+    }
+
+    #[test]
+    fn control_caller_aria_disabled_and_aria_invalid_do_not_leak_when_false() {
+        // 状態が false のときは、呼び出し側が `aria-disabled`/`aria-invalid`
+        // を渡しても出力されない（[`CONTROL_RESERVED`] による除去は
+        // 呼び出し側の値そのものを常に破棄するため、偽の "true" 注入も
+        // 防がれる）。
+        let html = render(&control(
+            NumberInputFlags::default(),
+            vec![("aria-disabled", "true"), ("aria-invalid", "true")],
+            vec![],
+        ));
+        assert!(!html.contains("aria-disabled"));
+        assert!(!html.contains("aria-invalid"));
     }
 
     #[test]
