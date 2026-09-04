@@ -15,7 +15,7 @@
 //! 更新手順は上記ガイド §5 を参照（`#[ignore]` 追加・`contains` への
 //! 緩和は禁止、`.claude/rules/coding-rust.md` 「テスト」節）。
 //!
-//! `segment` の区切り線は 2 段階の是正を経ている（同モジュール rustdoc
+//! `segment` の区切り線は 3 段階の是正を経ている（同モジュール rustdoc
 //! 参照）。(1) codex-review の P1 指摘（RTL 時の物理右辺固定・ゼロ値末尾
 //! セグメントによる `:last-child` 誤判定）を受けて `box-shadow`/
 //! `:last-child` から論理方向プロパティ（`border-inline-end`）+
@@ -28,7 +28,13 @@
 //! 崩す）を受け、区切り線を境界線ではなく通常フローに参加しない絶対配置の
 //! `segment-divider` slot（`segment` の子要素、値 0・最後の可視〔正値〕
 //! segment では生成しない）で表現する方式へ置き換えた。上記 2 種の
-//! 存在属性は廃止済み。
+//! 存在属性は廃止済み。(3) しかし絶対配置化は `segment` 自身の外形幅
+//! （比率）は守ったが `segment-divider` の描画自体はクリップされない
+//! ままだったため、1px 未満の極小な正値 segment では区切り線が隣接領域へ
+//! 張り出し隣接カテゴリの色を上書きする欠陥が残っていた（後続の
+//! codex-review P1 再指摘、PR #1865）。`segment` へ `overflow: hidden` を
+//! 追加し、`segment-divider` の描画を `segment` 自身の実描画幅の内側へ
+//! クリップする形に是正した。
 
 use fandhe_frontend_pre_styled_ui::charts::bar_segment;
 
@@ -52,6 +58,7 @@ const BAR_SEGMENT_GOLDEN_CSS: &str = r#"[data-scope="bar-segment"][data-part="ro
   height: 100%;
   width: var(--fandhe-bar-segment-percent, 0%);
   position: relative;
+  overflow: hidden;
 }
 
 [data-scope="bar-segment"][data-part="segment-divider"] {

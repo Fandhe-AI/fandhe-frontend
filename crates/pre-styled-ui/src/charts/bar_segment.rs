@@ -119,6 +119,17 @@
 //!   形に是正した。フローに参加しないため `segment` の外形幅は常に
 //!   `width` の指定値どおりになり、極小な正値・値 0 のいずれでも比率の
 //!   真正性を崩さない。
+//!   (4) しかし (3) は `segment` 自身の**外形幅**（レイアウト上の比率）は
+//!   守ったが、`segment-divider` 自体の**描画**はクリップされないまま
+//!   だったため、1px 未満の極小な正値 segment（例: 100px 幅で 0.1%＝
+//!   0.1px 幅）では `inset-inline-end: 0` + 固定 `width: 1px` の区切り線が
+//!   隣接領域へ約 0.9px 張り出して隣接カテゴリの色を上書きし、表示比率の
+//!   真正性を崩していた（後続の codex-review P1 再指摘、PR #1865）。
+//!   `segment` へ `overflow: hidden` を追加し、`segment-divider` の描画を
+//!   `segment` 自身の実描画幅の内側へ強制的にクリップする形に是正した
+//!   （区切り線を描画しない案ではなく、極小 segment では可視部分が縮む
+//!   だけでカテゴリ色を侵食しない案を採用。`bar` 自身も同じ
+//!   `overflow: hidden` パターンを既に用いており実装の一貫性がある）。
 //! - **凡例のマーカー寸法・間隔**: 同 crate の [`super::legend`] と
 //!   数値が不一致だったため揃えた: `legend-marker` は `0.625rem` →
 //!   `0.75rem`、`legend-item` の `gap` は `0.375rem` →
@@ -229,6 +240,19 @@ fn recipe() -> SlotRecipe {
                 // として保てる。基準点を持つため `position: relative` を
                 // 付ける。
                 decl("position", "relative"),
+                // イシュー #1592 P1 再々是正（codex-review 指摘、PR #1865
+                // 再指摘）: 上記の絶対配置化で `segment` 自身の外形幅（＝
+                // 比率）は守られたが、`segment-divider` は
+                // `inset-inline-end: 0` + 固定 `width: 1px` のまま
+                // `segment` の描画領域でクリップされずに残っていたため、
+                // 1px 未満の極小な正値 segment（例: 100px バー中 0.1%＝
+                // 0.1px 幅）では区切り線自体が隣接領域へ最大 0.9px
+                // 張り出し、隣接カテゴリの色を上書きして表示比率の真正性を
+                // 崩していた。`overflow: hidden` を追加し、
+                // `segment-divider` の描画を `segment` 自身の実描画幅の
+                // 内側へ強制的にクリップする（極小 segment では区切り線の
+                // 可視部分が縮むだけで、隣接色を侵食しなくなる）。
+                decl("overflow", "hidden"),
             ],
         )
         .base(

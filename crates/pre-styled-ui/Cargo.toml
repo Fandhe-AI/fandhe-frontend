@@ -1361,7 +1361,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # main が到達済みの 0.79.6 の patch をさらに +1 した 0.79.7 へバンプする。
 # Rust API シグネチャ（`segment`/`legend` は非公開のままで変更なし）の
 # 破壊的変更は伴わない。
-version = "0.79.7"
+# イシュー #1592 P1 再々是正（codex-review 指摘、PR #1865 再指摘）:
+# `bar-segment` の `segment` slot へ `overflow: hidden` を追加した CSS 出力の
+# 実体変更（区切り線 `segment-divider` の描画を極小な正値 segment 内へ
+# クリップし、隣接カテゴリ色への張り出しを防ぐ）のため 0.79.8 へさらに
+# patch バンプする。Rust API シグネチャの破壊的変更は伴わない。
+version = "0.79.8"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
