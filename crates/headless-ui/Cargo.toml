@@ -31,30 +31,28 @@ name = "fandhe-frontend-headless-ui"
 # （破壊的変更）。`EditableActivationMode::{Click, None}`・
 # `EditableSubmitMode::None` の variant 追加も含む。0.x のマイナーバンプ
 # とする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
-# イシュー #1609（file-upload の参照突合）: `FileUploadProps`
-# （disabled/readonly/invalid/required）・`ItemType`（accepted/rejected 固定
-# 語彙）の新設に伴い `file_upload::{root, label, dropzone, trigger,
-# item_group, item, item_name, item_size_text_node, item_delete_trigger,
-# clear_trigger, hidden_input}` のシグネチャを変更（破壊的変更）。0.x の
-# マイナーバンプとする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
-# イシュー #1615（pin-input の参照突合）: `PinInputProps`
-# （disabled/readonly/invalid/required）の導入に伴い `pin_input::{root,
-# label, input}` のシグネチャ変更（`root`/`label` は `PinInputProps` 引数を
-# 新設、`input` は `disabled: bool` を `&PinInputProps` へ置換）に加え、
-# `PinInputAction::{Delete, Prev, Next}` の新設・`Backspace` の挙動是正を
-# 行ったため 0.x のマイナーバンプとする（`.claude/rules/coding-rust.md`
-# 破壊的変更規定）。
-# base main 取り込み時のマージ注記: #1609 と #1615 が独立に 0.33.0 から
-# 0.34.0 へ patch/minor バンプしていたため衝突を避け 0.35.0 とする。
-# イシュー #1610: image_cropper の anatomy/data-*/ARIA/キーボード対応表を
-# 参考実装へ突合。パーツ関数（root/viewport/selection/handle/grid）の
-# シグネチャ変更（`ImageCropperProps` 追加・`data-handle-position` →
-# `data-position` 改名・selection が focusable な role="slider" へ変更）を
-# 伴う破壊的変更のため 0.x のマイナーバンプとする。
-# イシュー #1611: listbox の参考実装（zag.js Listbox）へ突合。`ListboxProps`
-# 新設に伴う root/label/content/item_group/item/value_text の破壊的シグネ
-# チャ変更・`item_text` の破壊的シグネチャ変更のため 0.x のマイナーバンプ。
-version = "0.37.0"
+# イシュー #1605（combobox の参照突合）: `ComboboxProps` へ `readonly`
+# フィールドを追加し、`combobox::{root, control, input, trigger,
+# clear_trigger}` のシグネチャを変更（破壊的変更）。マイナーバンプで
+# 0.32.0 へ到達していたが、イシュー #1606（editable）が独立に同じ
+# 0.32.0 へ到達していたブランチとのマージにより、双方の実体変更を
+# 統合した結果として 0.33.0 へさらにマイナーバンプしていた。この後、
+# main 側でイシュー #1614（password-input の参照突合、PR #1880）が
+# 独立に別内容で同じ 0.33.0 へ到達していたため、本 PR（#1605 combobox）
+# ブランチへの base 取り込みマージで再び同一版数への偶発的衝突が生じた。
+# 双方の実体変更（combobox の readonly 対応・password-input の readonly/
+# indicator 対応）を統合した結果として 0.34.0 へさらにマイナーバンプした
+# （上記 #1481/#1605 の precedent と同じ扱い）。
+# イシュー #1609（file-upload）〜 #1611（listbox）: main 側で独立に
+# 0.34.0 から 0.37.0 まで複数のマイナーバンプが積み上がっていた
+# （`FileUploadProps`/`PinInputProps`/`ImageCropperProps`/`ListboxProps`
+# 各新設に伴う破壊的シグネチャ変更）。本 PR（#1605 combobox）ブランチへの
+# 2 回目の base 取り込みマージにより、双方の実体変更（combobox の
+# readonly 対応・file-upload/pin-input/image-cropper/listbox の各参照
+# 突合）を統合した結果として main 現在値 0.37.0 からさらにマイナーバンプし
+# 0.38.0 とする（同一版数への偶発的衝突をそのまま採用しない、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。
+version = "0.38.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

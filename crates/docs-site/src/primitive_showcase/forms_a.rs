@@ -13,7 +13,7 @@ use hui::angle_slider::AngleSliderProps;
 use hui::checkbox::{CheckboxProps, CheckedState};
 use hui::checkbox_group;
 use hui::color_picker::{self, Channel, ColorPickerProps};
-use hui::combobox;
+use hui::combobox::{self, ComboboxProps};
 use hui::editable::{
     self, EditMode, EditableActivationMode, EditableInputFlags, EditableInputProps,
     EditableSubmitMode,
@@ -357,13 +357,21 @@ pub(super) fn color_picker_section() -> Node {
     demo_page("Color Picker", [body, readonly_body].concat())
 }
 
-pub(super) fn combobox_section() -> Node {
+/// open インスタンス（第 1、`props` は valid 既定）を組み立てる内部ヘルパ
+/// （イシュー #1605 参照突合。`item_group_label` を追加しグループ見出し
+/// パートを露出する。`combobox_aria_association` 契約（`content` を描画する
+/// インスタンスは `aria-controls`/`aria-activedescendant` を配線する必要が
+/// ある、`crates/docs-site/tests/combobox_aria_association.rs`）に従う）。
+fn combobox_open_instance() -> Node {
     let state = OpenState::Open;
-    let body = vec![combobox::root(
+    let props = ComboboxProps::default();
+    combobox::root(
         state,
+        &props,
         vec![],
         vec![
             combobox::label(
+                &props,
                 Some("cb-label"),
                 Some("cb-input"),
                 vec![],
@@ -371,19 +379,20 @@ pub(super) fn combobox_section() -> Node {
             ),
             combobox::control(
                 state,
+                &props,
                 vec![],
                 vec![
                     combobox::input(
                         state,
                         "Ap",
-                        false,
+                        &props,
                         Some("cb-content"),
                         Some("cb-item-0"),
                         Some("fruit"),
                         vec![("id", "cb-input")],
                     ),
-                    combobox::trigger(state, false, Some("cb-content"), vec![], vec![text("▾")]),
-                    combobox::clear_trigger(vec![], vec![text("×")]),
+                    combobox::trigger(state, &props, Some("cb-content"), vec![], vec![text("▾")]),
+                    combobox::clear_trigger(&props, vec![], vec![text("×")]),
                 ],
             ),
             combobox::positioner(
@@ -395,24 +404,35 @@ pub(super) fn combobox_section() -> Node {
                     Some("cb-label"),
                     vec![],
                     vec![combobox::item_group(
-                        None,
+                        Some("cb-item-group-label"),
                         vec![],
-                        vec![combobox::item(
-                            OpenState::Open,
-                            false,
-                            true,
-                            "apple",
-                            Some("cb-item-0"),
-                            vec![],
-                            vec![
-                                combobox::item_text(
-                                    Some("cb-item-0-text"),
-                                    vec![],
-                                    vec![text("Apple")],
-                                ),
-                                combobox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
-                            ],
-                        )],
+                        vec![
+                            combobox::item_group_label(
+                                Some("cb-item-group-label"),
+                                vec![],
+                                vec![text("Fruits")],
+                            ),
+                            combobox::item(
+                                OpenState::Open,
+                                false,
+                                true,
+                                "apple",
+                                Some("cb-item-0"),
+                                vec![],
+                                vec![
+                                    combobox::item_text(
+                                        Some("cb-item-0-text"),
+                                        vec![],
+                                        vec![text("Apple")],
+                                    ),
+                                    combobox::item_indicator(
+                                        OpenState::Open,
+                                        vec![],
+                                        vec![text("✓")],
+                                    ),
+                                ],
+                            ),
+                        ],
                     )],
                 )],
             ),
@@ -420,7 +440,152 @@ pub(super) fn combobox_section() -> Node {
             // の許容子ロールに反しないための配置制約、モジュール doc参照）。
             combobox::live_region(vec![], vec![text("1 result available")]),
         ],
-    )];
+    )
+}
+
+/// closed + `disabled` インスタンス（第 2）を組み立てる内部ヘルパ
+/// （イシュー #1605 参照突合。closed のため `content` を描画せず
+/// `combobox_aria_association` 契約の対象外にする）。
+fn combobox_disabled_instance() -> Node {
+    let state = OpenState::Closed;
+    let props = ComboboxProps {
+        disabled: true,
+        ..ComboboxProps::default()
+    };
+    combobox::root(
+        state,
+        &props,
+        vec![],
+        vec![
+            combobox::label(
+                &props,
+                None,
+                Some("cb-input-disabled"),
+                vec![],
+                vec![text("Fruit (disabled)")],
+            ),
+            combobox::control(
+                state,
+                &props,
+                vec![],
+                vec![
+                    combobox::input(
+                        state,
+                        "",
+                        &props,
+                        None,
+                        None,
+                        None,
+                        vec![("id", "cb-input-disabled")],
+                    ),
+                    combobox::trigger(state, &props, None, vec![], vec![text("▾")]),
+                    combobox::clear_trigger(&props, vec![], vec![text("×")]),
+                ],
+            ),
+        ],
+    )
+}
+
+/// closed + `invalid` + `required` インスタンス（第 3）を組み立てる内部
+/// ヘルパ（イシュー #1605 参照突合。`aria-invalid`/`data-required`（label
+/// のみ）の露出を確認する）。
+fn combobox_invalid_required_instance() -> Node {
+    let state = OpenState::Closed;
+    let props = ComboboxProps {
+        invalid: true,
+        required: true,
+        ..ComboboxProps::default()
+    };
+    combobox::root(
+        state,
+        &props,
+        vec![],
+        vec![
+            combobox::label(
+                &props,
+                None,
+                Some("cb-input-invalid"),
+                vec![],
+                vec![text("Fruit (invalid, required)")],
+            ),
+            combobox::control(
+                state,
+                &props,
+                vec![],
+                vec![
+                    combobox::input(
+                        state,
+                        "",
+                        &props,
+                        None,
+                        None,
+                        None,
+                        vec![("id", "cb-input-invalid")],
+                    ),
+                    combobox::trigger(state, &props, None, vec![], vec![text("▾")]),
+                ],
+            ),
+        ],
+    )
+}
+
+/// closed + `readonly` インスタンス（第 4）を組み立てる内部ヘルパ
+/// （イシュー #1605 参照突合。`readonly` は disabled と異なりネイティブ
+/// `disabled` を持たないため trigger/clear-trigger のネイティブ disabled は
+/// 付与されない点を Demo 上で確認できるようにする）。
+fn combobox_readonly_instance() -> Node {
+    let state = OpenState::Closed;
+    let props = ComboboxProps {
+        readonly: true,
+        ..ComboboxProps::default()
+    };
+    combobox::root(
+        state,
+        &props,
+        vec![],
+        vec![
+            combobox::label(
+                &props,
+                None,
+                Some("cb-input-readonly"),
+                vec![],
+                vec![text("Fruit (readonly)")],
+            ),
+            combobox::control(
+                state,
+                &props,
+                vec![],
+                vec![
+                    combobox::input(
+                        state,
+                        "Apple",
+                        &props,
+                        None,
+                        None,
+                        None,
+                        vec![("id", "cb-input-readonly")],
+                    ),
+                    combobox::trigger(state, &props, None, vec![], vec![text("▾")]),
+                    combobox::clear_trigger(&props, vec![], vec![text("×")]),
+                ],
+            ),
+        ],
+    )
+}
+
+/// Combobox の Demo（イシュー #1605 参照突合、`ComboboxProps` 導入に伴い
+/// 4 インスタンス化）。open（既定、`item_group_label` を含む）・
+/// closed+disabled・closed+invalid+required・closed+readonly の 4 状態を
+/// 1 ページ上に並べ、`data-disabled`/`data-readonly`/`data-invalid`/
+/// `data-required` の機械導出（`component_page.rs::collect_data_attrs_from_tree`）
+/// を成立させる。
+pub(super) fn combobox_section() -> Node {
+    let body = vec![
+        combobox_open_instance(),
+        combobox_disabled_instance(),
+        combobox_invalid_required_instance(),
+        combobox_readonly_instance(),
+    ];
     demo_page("Combobox", body)
 }
 

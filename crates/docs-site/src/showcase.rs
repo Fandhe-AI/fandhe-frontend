@@ -2826,12 +2826,15 @@ fn combobox_section() -> Node {
         })
         .collect();
 
+    let combobox_props = combobox::ComboboxProps::default();
     let node = combobox::root(
         Size::Md,
         OpenState::Open,
+        &combobox_props,
         vec![],
         vec![
             combobox::label(
+                &combobox_props,
                 Some("showcase-combobox-label"),
                 Some("showcase-combobox-input"),
                 vec![],
@@ -2839,12 +2842,13 @@ fn combobox_section() -> Node {
             ),
             combobox::control(
                 OpenState::Open,
+                &combobox_props,
                 vec![],
                 vec![
                     combobox::input(
                         OpenState::Open,
                         query,
-                        false,
+                        &combobox_props,
                         Some("showcase-combobox-content"),
                         // "svelte" item が highlight 中のため、その id を
                         // `aria-activedescendant` として参照する（R3 契約、
@@ -2855,7 +2859,7 @@ fn combobox_section() -> Node {
                     ),
                     combobox::trigger(
                         OpenState::Open,
-                        false,
+                        &combobox_props,
                         Some("showcase-combobox-content"),
                         vec![],
                         vec![text("▾")],
