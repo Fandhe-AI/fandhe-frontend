@@ -273,7 +273,7 @@ pub(super) fn radio_group_section() -> Node {
 
 pub(super) fn rating_group_section() -> Node {
     let props = RatingGroupProps::default();
-    let mk = |index: u32, checked: bool, highlighted: bool, focusable: bool| {
+    let mk = |index: u32, checked: bool, highlighted: bool| {
         rating_group::item(
             index,
             RatingItemFlags {
@@ -281,7 +281,6 @@ pub(super) fn rating_group_section() -> Node {
                 highlighted,
                 disabled: false,
                 readonly: false,
-                focusable,
             },
             &format!("{index} star"),
             vec![],
@@ -297,11 +296,7 @@ pub(super) fn rating_group_section() -> Node {
                 &props,
                 None,
                 vec![],
-                vec![
-                    mk(1, false, true, false),
-                    mk(2, true, true, true),
-                    mk(3, false, false, false),
-                ],
+                vec![mk(1, false, true), mk(2, true, true), mk(3, false, false)],
             ),
             rating_group::hidden_input(&props, Some("rating"), "2", vec![]),
         ],

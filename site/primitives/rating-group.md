@@ -4,23 +4,17 @@
 
 `/themes/` 側の `RatingGroup`（Chakra ライクな variant/size を持つスタイル層）と異なり、CSS を一切持ちません。
 
-`RatingGroupProps`（`disabled`/`readonly`/`required`）は次のように各パーツへ反映されます。`label` は `data-disabled`/`data-required` を、`control` は `data-disabled`/`data-readonly` に加えて `disabled`/`readonly` が真のときのみ `aria-disabled="true"`/`aria-readonly="true"` を付与します。`item` には roving `tabindex`（確定選択中の星、未評価なら 1 番目の星が `"0"`、それ以外は `"-1"`、`disabled` のときは属性自体を省略）が付きます。hidden-input の `required` は `type="hidden"` に効果がないため付与しません。
+`RatingGroupProps`（`disabled`/`readonly`/`required`）は次のように各パーツへ反映されます。`label` は `data-disabled`/`data-required` を、`control` は `data-disabled`/`data-readonly`/`aria-required` に加えて `disabled`/`readonly`/`required` が真のときのみ `aria-disabled="true"`/`aria-readonly="true"`/`aria-required="true"` を付与します。hidden-input の `required` は `type="hidden"` に効果がないため付与しません。
 
-**キーボード操作（未実装・将来の想定契約）**
+**キーボード操作（未実装）**
 
-`item` は roving `tabindex`（`"0"`/`"-1"`）を出力しフォーカス可能ですが、以下のキー操作は現時点で `keydown` イベントハンドラの DOM 配線（`fandhe-frontend-wasm-full`）が存在せず、**未実装です**。本部品（`fandhe-frontend-headless-ui`）は SSR 静的マークアップと dispatch 契約（`RatingGroupAction`）のみを提供し、下表は DOM 配線が実装された場合に想定される対応表です。
-
-| キー | 対象 | 想定される効果（未実装） |
-|---|---|---|
-| ArrowRight | Item | 次の星へ roving フォーカスを移し値を 1 つ増やす（dispatch: `"set"`）。 |
-| ArrowLeft | Item | 前の星へ roving フォーカスを移し値を 1 つ減らす（dispatch: `"set"`）。 |
-| Enter | Item | フォーカス中の星番号を確定値として設定する（dispatch: `"set"`）。 |
+`item` は `tabindex` を出力しません（タブ順序に入りません）。ark-ui Rating Group は Arrow キーによる星間移動 + Enter による確定選択を仕様として持ちますが、本部品（`fandhe-frontend-headless-ui`）はクリック・ポインタ hover・キー入力を実際に検知する DOM イベントハンドラの配線（`fandhe-frontend-wasm-full`）を一切持たず、SSR 静的マークアップと dispatch 契約（`RatingGroupAction`）のみを提供します。DOM 配線の実装と同時に `tabindex` を公開する方針です（配線が無い状態でタブ順序に入れると「到達できるが無反応」になるため、当初案の roving `tabindex` 先行公開は撤回しました）。
 
 ポインタ・キーボード操作の実際の DOM 配線は `fandhe-frontend-wasm-full` の後続責務であり、本部品のスコープ外です。
 
 **参考サイトとの差分**
 
-ark-ui Rating Group と突合し、`data-*`/`aria-*` 語彙・想定キーボード操作契約（DOM 配線は未実装）へ揃えました。一方、以下は意図的に合わせていません。
+ark-ui Rating Group と突合し、`data-*`/`aria-*` 語彙へ揃えました（キーボード操作の DOM 配線は上記のとおり未着手のため対象外）。一方、以下は意図的に合わせていません。
 
 - `data-half`（`allow_half`、0.5 刻み評価）は状態機械・CSS が別設計のため未提供です（#742 以来の継続）。
 - `aria-setsize`/`aria-posinset`（item）は全 item が DOM 上の兄弟要素として連続配置されるため、支援技術が自動算出できます。

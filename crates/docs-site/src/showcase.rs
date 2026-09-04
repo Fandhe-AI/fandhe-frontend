@@ -4297,14 +4297,11 @@ fn rating_group_section() -> Node {
             vec![],
             vec![text("Rate this product")],
         )];
-        // roving tabindex の tab stop は `RatingGroup::focusable_index` が
-        // 算出する（イシュー #1617 レビュー是正: 個別 disabled の tab stop
-        // 候補で代替なしにグループ全体が到達不能になる再発を防ぐ
-        // フォールバックを含む、`crates/headless-ui/src/rating_group.rs`
-        // 参照）。本ショーケースは全 item 一律で `disabled` を渡すため
-        // フォールバックは発火しないが、算出ロジックの重複を避けるため
-        // ここでも同じ API を呼ぶ。
-        let focusable_index = g.focusable_index(|_| disabled);
+        // `item` は tabindex を出力しない（イシュー #1617 codex-review 指摘の
+        // 是正: 対応する DOM 配線〔`fandhe-frontend-wasm-full`〕が無いまま
+        // roving tabindex のみを公開すると「フォーカスは受けるが操作不能」な
+        // WAI-ARIA radio パターン違反になるため撤回した、
+        // `crates/headless-ui/src/rating_group.rs` モジュール doc参照）。
         let items: Vec<Node> = (1..=g.count())
             .map(|i| {
                 let checked = g.is_checked(i);
@@ -4316,7 +4313,6 @@ fn rating_group_section() -> Node {
                         highlighted,
                         disabled,
                         readonly,
-                        focusable: focusable_index == Some(i),
                     },
                     &format!("{i} star{}", if i == 1 { "" } else { "s" }),
                     vec![],

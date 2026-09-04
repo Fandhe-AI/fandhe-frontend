@@ -315,8 +315,8 @@ const RATING_GROUP: ComponentPageSpec = ComponentPageSpec {
         "`role=\"radiogroup\"` + `item` の `role=\"radio\"`/`aria-checked` で WAI-ARIA radio パターンを表現するが、ネイティブ `<input type=\"radio\">` の組ではなく単一の `hidden_input`（`type=\"hidden\"`）でフォーム送信値を送る。",
         "`hover`（ポインタが指している星）は transient な CSR 挙動のため SSR 静的マークアップには現れず、hydration でも直列化しない（常に `None` から開始）。",
         "`readonly` が `true` のとき値の変更操作は no-op になる（他ユーザーの平均評価等、表示専用の評価を安全に描画する用途）。",
-        "`RatingGroupProps`（disabled/readonly/required）が root/label/control/hidden_input の状態束を一元管理する（イシュー #1617）。`label` は `data-disabled`/`data-required`、`control` は `data-disabled`/`data-readonly` + 真のときのみの `aria-disabled=\"true\"`/`aria-readonly=\"true\"` を反映する。",
-        "`item` は roving `tabindex`（`RatingItemFlags::focusable`）を持つ（イシュー #1617 是正: 是正前は `span[role=\"radio\"]` がキーボード到達不能だった）。`disabled` のときは省略、`focusable` なら `\"0\"`、それ以外は `\"-1\"`。",
+        "`RatingGroupProps`（disabled/readonly/required）が root/label/control/hidden_input の状態束を一元管理する（イシュー #1617）。`label` は `data-disabled`/`data-required`、`control` は `data-disabled`/`data-readonly`/`aria-required` + 真のときのみの `aria-disabled=\"true\"`/`aria-readonly=\"true\"`/`aria-required=\"true\"` を反映する。",
+        "`item` は `tabindex` を出力しない。対応する DOM 配線（クリック・hover・キーボード。`fandhe-frontend-wasm-full`）が未実装のため、roving `tabindex` のみを先行公開すると「フォーカスは受けるが操作不能」な WAI-ARIA radio パターン違反になる（イシュー #1617 codex-review 指摘を受け、DOM 配線の実装と同時に tabindex を公開する方針とした）。",
     ],
     arguments: &[
         ArgRow { name: "root/label/control/hidden_input(props)", kind: "&RatingGroupProps", default: "", description: "disabled/readonly/required の状態束（イシュー #1617）。" },
@@ -326,7 +326,6 @@ const RATING_GROUP: ComponentPageSpec = ComponentPageSpec {
         ArgRow { name: "item(flags).checked", kind: "bool", default: "RatingItemFlags::default()", description: "確定選択中（`index == value`）かどうか。`aria-checked`/`data-checked` へ反映する。" },
         ArgRow { name: "item(flags).highlighted", kind: "bool", default: "", description: "塗り表示対象（`index <= display_value`）かどうか。`data-highlighted` へ反映する（確定選択とは独立の軸）。" },
         ArgRow { name: "item(flags).readonly", kind: "bool", default: "", description: "`data-readonly` を反映する。" },
-        ArgRow { name: "item(flags).focusable", kind: "bool", default: "", description: "roving `tabindex` の tab stop かどうか（`\"0\"`/`\"-1\"`、イシュー #1617）。`disabled` のときは `tabindex` 自体を省略する。" },
         ArgRow { name: "item(aria_label)", kind: "&str", default: "", description: "呼び出し側が必須で与える国際化可能なラベル（例: `\"1 star\"`）。フレームワーク側でハードコード生成しない。" },
         ArgRow { name: "hidden_input(name)", kind: "Option<&str>", default: "", description: "`Some` のとき `name` 属性を出力する。" },
         ArgRow { name: "hidden_input(value_text)", kind: "&str", default: "", description: "フォーム送信用の現在値 1 個（星群ではなく単一値）。" },
@@ -336,20 +335,18 @@ const RATING_GROUP: ComponentPageSpec = ComponentPageSpec {
         description: "`RatingGroupProps { readonly: true, .. }` + `RatingItemFlags { readonly: true, .. }` の他ユーザー平均評価表示例。",
         render: ex_rating_group_readonly,
     }],
-    // `item` は roving tabindex（フォーカス移動先）を持つが `role="radio"` の
-    // 非ネイティブ要素であり、JS 状態機械前提のキー操作（ArrowLeft/
-    // ArrowRight/Enter 等）は wasm-full 側の DOM 配線が未実装
-    // （`crates/headless-ui/src/rating_group.rs` 「## キーボード操作（現状の
-    // 対応範囲）」参照）。本ファイル冒頭の「`keyboard` を原則空にする理由」
-    // の例外リストに rating_group は含まれないため、「対応済み」の案内を
-    // 出さず空のままとする（イシュー #1617 codex-review 指摘）。
+    // `item` は tabindex を出力せず（上記 features 参照）タブ順序に入らない。
+    // クリック・hover・キーボード操作の DOM 配線は wasm-full 側に一切存在
+    // しない（`crates/headless-ui/src/rating_group.rs` 「## キーボード操作
+    // （現状の対応範囲）」参照）。本ファイル冒頭の「`keyboard` を原則空に
+    // する理由」の例外リストに rating_group は含まれないため、「対応済み」
+    // の案内を出さず空のままとする（イシュー #1617 codex-review 指摘）。
     keyboard: &[],
     aria: &[
         AriaRow { attribute: "role=\"radiogroup\" (control)", description: "固定付与。" },
-        AriaRow { attribute: "aria-disabled / aria-readonly (control)", description: "`RatingGroupProps` が真のときのみ `\"true\"` を出力する（イシュー #1617）。" },
+        AriaRow { attribute: "aria-disabled / aria-readonly / aria-required (control)", description: "`RatingGroupProps` が真のときのみ `\"true\"` を出力する（イシュー #1617）。" },
         AriaRow { attribute: "role=\"radio\" / aria-checked (item)", description: "`item` 自身が `span[role=\"radio\"]`（ネイティブ input の組ではない）。`aria-checked` は `flags.checked` を反映する。" },
         AriaRow { attribute: "aria-label (item)", description: "呼び出し側が必須で与える（例: `\"1 star\"`）。" },
-        AriaRow { attribute: "tabindex (item)", description: "roving tabindex（イシュー #1617）。`disabled` は省略、`focusable` なら `\"0\"`、それ以外は `\"-1\"`。" },
     ],
     demo: None,
 };
@@ -939,7 +936,7 @@ fn ex_rating_group_readonly() -> Node {
         readonly: true,
         required: false,
     };
-    let mk = |index: u32, checked: bool, highlighted: bool, focusable: bool| {
+    let mk = |index: u32, checked: bool, highlighted: bool| {
         rating_group::item(
             index,
             RatingItemFlags {
@@ -947,7 +944,6 @@ fn ex_rating_group_readonly() -> Node {
                 highlighted,
                 disabled: false,
                 readonly: true,
-                focusable,
             },
             &format!("{index} star"),
             vec![],
@@ -964,11 +960,11 @@ fn ex_rating_group_readonly() -> Node {
                 None,
                 vec![],
                 vec![
-                    mk(1, false, true, false),
-                    mk(2, false, true, false),
-                    mk(3, false, true, false),
-                    mk(4, true, true, true),
-                    mk(5, false, false, false),
+                    mk(1, false, true),
+                    mk(2, false, true),
+                    mk(3, false, true),
+                    mk(4, true, true),
+                    mk(5, false, false),
                 ],
             ),
             rating_group::hidden_input(&props, Some("avg-rating"), "4", vec![]),

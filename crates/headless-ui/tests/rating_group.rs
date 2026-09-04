@@ -8,8 +8,9 @@
 //! 偽装除去）が RatingGroup パーツ経由でも維持されることを固定する。
 //!
 //! イシュー #1617 で追加した参考サイト突合契約（5 パーツの `data-part`
-//! 集合固定・`data-*`/ARIA の出力有無・roving `tabindex`・pointer/focus 系
-//! `data-*` の非出力）は本ファイル下部の専用セクションで検証する。
+//! 集合固定・`data-*`/ARIA の出力有無・`item` が `tabindex` を一切出力
+//! しない契約・pointer/focus 系 `data-*` の非出力）は本ファイル下部の
+//! 専用セクションで検証する。
 
 use fandhe_frontend_core::{render, text, Node};
 use fandhe_frontend_headless_ui::rating_group::{self, RatingGroupProps, RatingItemFlags};
@@ -66,8 +67,8 @@ fn full_anatomy_renders_expected_html() {
         r#"<div data-scope="rating-group" data-part="root">"#,
         r#"<span data-scope="rating-group" data-part="label" id="rating-label">Rate</span>"#,
         r#"<div data-scope="rating-group" data-part="control" role="radiogroup" aria-labelledby="rating-label">"#,
-        r#"<span data-scope="rating-group" data-part="item" data-value="1" role="radio" aria-checked="false" aria-label="1 star" tabindex="-1" data-highlighted=""></span>"#,
-        r#"<span data-scope="rating-group" data-part="item" data-value="2" role="radio" aria-checked="true" aria-label="2 stars" tabindex="-1" data-checked="" data-highlighted=""></span>"#,
+        r#"<span data-scope="rating-group" data-part="item" data-value="1" role="radio" aria-checked="false" aria-label="1 star" data-highlighted=""></span>"#,
+        r#"<span data-scope="rating-group" data-part="item" data-value="2" role="radio" aria-checked="true" aria-label="2 stars" data-checked="" data-highlighted=""></span>"#,
         r#"</div>"#,
         r#"<input data-scope="rating-group" data-part="hidden-input" type="hidden" value="2" name="rating">"#,
         r#"</div>"#,
@@ -181,11 +182,10 @@ fn rating_group_convenience_methods_reflect_dispatch_state() {
     let mut g = RatingGroup::new(5, None, false);
     dispatch(&mut g, "set", "3");
 
-    let tab_stop = g.focusable_index(|_| false);
-    let item3 = render(&g.item(3, false, tab_stop, "3 stars", vec![], vec![]));
+    let item3 = render(&g.item(3, false, "3 stars", vec![], vec![]));
     assert!(item3.contains(r#"data-checked=""#));
 
-    let item5 = render(&g.item(5, false, tab_stop, "5 stars", vec![], vec![]));
+    let item5 = render(&g.item(5, false, "5 stars", vec![], vec![]));
     assert!(!item5.contains("data-checked"));
 
     let hidden = render(&g.hidden_input(Some("rating"), false, vec![]));
@@ -327,93 +327,58 @@ fn control_reflects_disabled_and_readonly_from_props() {
     assert!(html.contains(r#"aria-readonly="true""#));
 }
 
-/// `item` の roving `tabindex` 契約: `disabled` なら省略、`focusable` なら
-/// `"0"`、それ以外は `"-1"`（イシュー #1617 是正: 是正前は
-/// `span[role="radio"]` がキーボード到達不能だった）。
+/// `control` の `aria-required="true"`（`RatingGroupProps::required` が
+/// 真のときのみ）を固定する（イシュー #1617 codex-review 指摘の是正:
+/// 是正前は `required` が `control` へ何も反映せず、支援技術へ必須状態が
+/// 伝わらなかった）。
 #[test]
-fn item_tabindex_follows_focusable_disabled_contract() {
-    let focusable = render(&rating_group::item(
+fn control_reflects_required_from_props() {
+    let required = RatingGroupProps {
+        disabled: false,
+        readonly: false,
+        required: true,
+    };
+    let html = render(&rating_group::control(&required, None, vec![], vec![]));
+    assert!(html.contains(r#"aria-required="true""#));
+
+    let not_required = RatingGroupProps::default();
+    let html = render(&rating_group::control(&not_required, None, vec![], vec![]));
+    assert!(!html.contains("aria-required"));
+}
+
+/// `item` は `tabindex` を一切出力しない契約（イシュー #1617 codex-review
+/// 指摘の是正: 対応する DOM 配線（`fandhe-frontend-wasm-full`）が無いまま
+/// roving `tabindex` のみを公開すると「フォーカスは受けるが操作不能」な
+/// WAI-ARIA radio パターン違反になるため、`item`/[`RatingGroup::item`] は
+/// tabindex 公開を撤回した）。
+#[test]
+fn item_never_outputs_tabindex() {
+    let plain = render(&rating_group::item(
         1,
-        RatingItemFlags {
-            focusable: true,
-            ..RatingItemFlags::default()
-        },
+        RatingItemFlags::default(),
         "1 star",
         vec![],
         vec![],
     ));
-    assert!(focusable.contains(r#"tabindex="0""#));
+    assert!(!plain.contains("tabindex"));
 
-    let not_focusable = render(&rating_group::item(
+    let disabled = render(&rating_group::item(
         2,
-        RatingItemFlags::default(),
+        RatingItemFlags {
+            disabled: true,
+            ..RatingItemFlags::default()
+        },
         "2 stars",
         vec![],
         vec![],
     ));
-    assert!(not_focusable.contains(r#"tabindex="-1""#));
+    assert!(!disabled.contains("tabindex"));
 
-    let disabled = render(&rating_group::item(
-        3,
-        RatingItemFlags {
-            disabled: true,
-            focusable: true,
-            ..RatingItemFlags::default()
-        },
-        "3 stars",
-        vec![],
-        vec![],
-    ));
+    let g = RatingGroup::new(5, Some(3), false);
+    let item3 = render(&g.item(3, false, "3 stars", vec![], vec![]));
     assert!(
-        !disabled.contains("tabindex"),
-        "disabled な item は tabindex を一切出力しない契約: {disabled}"
-    );
-}
-
-/// [`RatingGroup::item`] の利便メソッドが `focusable_index` 引数
-/// （[`RatingGroup::focusable_index`] の算出結果）を tab stop として反映
-/// することを固定する（ark-ui/zag.js 実装に合わせた算出、イシュー #1617）。
-#[test]
-fn rating_group_convenience_item_computes_focusable_tab_stop() {
-    let unrated = RatingGroup::new(5, None, false);
-    let unrated_tab_stop = unrated.focusable_index(|_| false);
-    let item1 = render(&unrated.item(1, false, unrated_tab_stop, "1 star", vec![], vec![]));
-    assert!(item1.contains(r#"tabindex="0""#));
-    let item2 = render(&unrated.item(2, false, unrated_tab_stop, "2 stars", vec![], vec![]));
-    assert!(item2.contains(r#"tabindex="-1""#));
-
-    let rated = RatingGroup::new(5, Some(3), false);
-    let rated_tab_stop = rated.focusable_index(|_| false);
-    let item3 = render(&rated.item(3, false, rated_tab_stop, "3 stars", vec![], vec![]));
-    assert!(item3.contains(r#"tabindex="0""#));
-    let item1 = render(&rated.item(1, false, rated_tab_stop, "1 star", vec![], vec![]));
-    assert!(item1.contains(r#"tabindex="-1""#));
-}
-
-/// [`RatingGroup::focusable_index`] が個別 disabled の tab stop 候補に
-/// 対して代替（最小の非 disabled 星）へフォールバックすることを固定する
-/// （レビュー指摘の再発防止、イシュー #1617）。
-#[test]
-fn rating_group_focusable_index_falls_back_when_natural_candidate_disabled() {
-    let unrated = RatingGroup::new(5, None, false);
-    let tab_stop = unrated.focusable_index(|i| i == 1);
-    assert_eq!(tab_stop, Some(2));
-    let item1 = render(&unrated.item(1, true, tab_stop, "1 star", vec![], vec![]));
-    assert!(
-        !item1.contains("tabindex"),
-        "disabled な item は tabindex を出力しない: {item1}"
-    );
-    let item2 = render(&unrated.item(2, false, tab_stop, "2 stars", vec![], vec![]));
-    assert!(item2.contains(r#"tabindex="0""#));
-
-    let rated = RatingGroup::new(5, Some(3), false);
-    let rated_tab_stop = rated.focusable_index(|i| i == 3);
-    assert_eq!(rated_tab_stop, Some(1));
-
-    let all_disabled_tab_stop = rated.focusable_index(|_| true);
-    assert_eq!(
-        all_disabled_tab_stop, None,
-        "全星 disabled のときは tab stop なし"
+        !item3.contains("tabindex"),
+        "RatingGroup::item 利便メソッドも tabindex を出力しない: {item3}"
     );
 }
 
@@ -450,7 +415,6 @@ fn no_pointer_focus_or_unadopted_reference_attrs_are_emitted() {
             highlighted: true,
             disabled: true,
             readonly: true,
-            focusable: true,
         },
         "1 star",
         vec![],

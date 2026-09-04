@@ -47,8 +47,13 @@ name = "fandhe-frontend-headless-ui"
 # base main 取り込み時のマージ注記: #1609 と #1615 が独立に 0.33.0 から
 # 0.34.0 へ patch/minor バンプしていたため衝突を避け 0.35.0 とする。
 # イシュー #1617: RatingGroupProps 新設・root/label/control/hidden_input の
-# シグネチャ変更・RatingItemFlags::focusable 追加（破壊的変更）に伴い
-# 0.36.0 へマイナーバンプする。
+# シグネチャ変更・control への aria-required 追加に伴い 0.36.0 へ
+# マイナーバンプする（破壊的変更）。当初の修正案は roving tabindex を
+# RatingItemFlags::focusable として追加していたが、対応する DOM 配線
+# （fandhe-frontend-wasm-full）が伴わずキーボード操作不能な状態のまま
+# 公開してしまう codex-review 指摘を受け、本イシュー内で撤回した
+# （`crates/headless-ui/src/rating_group.rs` モジュール doc「キーボード
+# 操作」節参照）。
 # イシュー #1610: image_cropper の anatomy/data-*/ARIA/キーボード対応表を
 # 参考実装へ突合。パーツ関数（root/viewport/selection/handle/grid）の
 # シグネチャ変更（`ImageCropperProps` 追加・`data-handle-position` →

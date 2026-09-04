@@ -85,32 +85,31 @@
 //!   （[`crate::checkbox::CheckboxProps`] と同型の設計判断）。
 //! - [`label`] に `data-disabled`/`data-required`、[`control`] に
 //!   `data-disabled`/`data-readonly` + 真のときのみの `aria-disabled="true"`/
-//!   `aria-readonly="true"` を追加した（ark-ui 準拠）。
-//! - [`RatingItemFlags::focusable`] を新設し、[`item`] に roving
-//!   `tabindex`（`disabled` なら省略、`focusable` なら `"0"`、それ以外は
-//!   `"-1"`）を追加した。是正前は `span[role="radio"]` がキーボード
-//!   到達不能だった（ARIA 適合性の欠陥）。
-//! - [`RatingGroup::focusable_index`] を新設し、tab stop の自然な候補
-//!   （確定選択中の星、未評価なら 1 番目）が呼び出し側から個別 `disabled`
-//!   として渡された場合に、代替なしにグループ全体がキーボード到達不能に
-//!   なる再発（レビュー指摘）を防ぐフォールバック（最小の非 disabled 星へ
-//!   繰り下げ、全星 disabled なら `None`）を実装した。[`RatingGroup::item`]
-//!   の `focusable_index` 引数として渡す。
+//!   `aria-readonly="true"`/`aria-required="true"` を追加した（ark-ui 準拠。
+//!   `aria-required` はイシュー #1617 codex-review 指摘の是正で追加）。
 //!
 //! ## キーボード操作（現状の対応範囲）
 //!
-//! [`item`] は roving `tabindex`（`"0"`/`"-1"`、[`RatingGroup::focusable_index`]
-//! が算出する 1 個のみ `"0"`）により Tab 移動でグループへ到達できる。ただし
-//! 本クレートは SSR 静的マークアップと dispatch 契約（[`RatingGroupAction`]/
-//! [`RatingGroup::decode_action`]）のみを提供し、`ArrowLeft`/`ArrowRight`/
-//! `Enter`/`Space` 等のキー入力を実際に検知してフォーカス移動・値変更へ
-//! つなげる `keydown` イベントハンドラの DOM 配線は持たない（ark-ui が示す
-//! キー操作の対応表をこの場で「実装済みの契約」として案内しない。他
-//! `data-*`/ARIA 節と異なり、キー入力の実挙動は静的 HTML だけでは検証
-//! できないため）。DOM 配線は `fandhe-frontend-wasm-full`（`keynav.rs`/
-//! `headless.rs`）の後続責務であり、本クレートのスコープ外
-//! （`.claude/rules/out-of-scope-tracking.md` 対応、Issue 起票を別途提案する。
-//! イシュー #1617 codex-review 指摘）。
+//! [`item`] は `tabindex` を出力しない（タブ順序に入らない）。ark-ui は
+//! Arrow キーによる星間移動 + Enter による確定選択を仕様として持つが、
+//! 本クレートは SSR 静的マークアップと dispatch 契約
+//! （[`RatingGroupAction`]/[`RatingGroup::decode_action`]）のみを提供し、
+//! クリック・ポインタ hover・キー入力を実際に検知してフォーカス移動・値
+//! 変更へつなげる DOM イベントハンドラの配線を一切持たない（モジュール
+//! doc「out-of-scope」節「hover / クリック / キーボードナビゲーションの
+//! DOM 配線」参照。`fandhe-frontend-wasm-full` 未着手、イシュー #742 以来の
+//! 既知のギャップ）。
+//!
+//! イシュー #1617 の当初修正は roving `tabindex`（`"0"`/`"-1"`）のみを
+//! [`item`] へ追加し Tab 到達を可能にしたが、上記のとおり配線が伴わない
+//! ため「フォーカスは受けるが Arrow/Space/Enter のいずれも操作不能」な
+//! WAI-ARIA radio パターン違反になっていた（codex-review 指摘）。DOM 配線
+//! （click/hover/keydown）の実装と同時に `tabindex` を公開する方針とし、
+//! 本 PR では `tabindex` の公開を取り下げた（配線が無い状態でタブ順序に
+//! 入れると「到達できるが無反応」になり、そもそもタブ順序に入らない方が
+//! 実害が小さいため）。DOM 配線一式は `fandhe-frontend-wasm-full` の後続
+//! Issue として別途起票する（`.claude/rules/out-of-scope-tracking.md`
+//! 対応）。
 //!
 //! ## 意図的に参考サイトと合わせなかった事項
 //!
@@ -134,7 +133,7 @@
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
     aria_checked, aria_disabled, aria_label as aria_label_attr, aria_labelledby, aria_readonly,
-    role, AriaChecked,
+    aria_required, role, AriaChecked,
 };
 use crate::data_attrs::{
     data_checked, data_disabled, data_highlighted, data_readonly, data_required,
@@ -162,8 +161,10 @@ pub struct RatingGroupProps {
     /// （ネイティブ `readonly` 属性は `hidden_input` に意味を持たないため
     /// 付与しない）。
     pub readonly: bool,
-    /// 必須入力状態。`true` で `data-required`（label のみ）を付与する。
-    /// hidden-input の `required` は `type="hidden"` では無効なため付与しない
+    /// 必須入力状態。`true` で `data-required`（label）・
+    /// `aria-required="true"`（control、支援技術へ必須状態を伝える。
+    /// イシュー #1617 codex-review 指摘）を付与する。hidden-input の
+    /// `required` は `type="hidden"` では無効なため付与しない
     /// （モジュール doc「意図的に参考サイトと合わせなかった事項」参照）。
     pub required: bool,
 }
@@ -214,10 +215,12 @@ pub fn label<'a>(
 /// のときは属性ごと出力しない、[`crate::radio_group::root`] と同型）。
 ///
 /// `props.disabled`/`props.readonly` を `data-disabled`/`data-readonly` へ
-/// 反映し、真のときのみ `aria-disabled="true"`/`aria-readonly="true"` を
-/// 追加する（ark-ui `Control` に突合、イシュー #1617。`aria_disabled`/
-/// `aria_readonly` の呼び出し慣行は `crates/headless-ui/src/angle_slider.rs`/
-/// `tree_view.rs` と同型で、`false` のときは属性自体を出力しない）。
+/// 反映し、真のときのみ `aria-disabled="true"`/`aria-readonly="true"`/
+/// `aria-required="true"`（`props.required`、支援技術へ必須状態を伝える。
+/// イシュー #1617 codex-review 指摘の是正）を追加する（ark-ui `Control` に
+/// 突合。`aria_disabled`/`aria_readonly`/`aria_required` の呼び出し慣行は
+/// `crates/headless-ui/src/angle_slider.rs`/`tree_view.rs` と同型で、
+/// `false` のときは属性自体を出力しない）。
 #[must_use]
 pub fn control<'a>(
     props: &RatingGroupProps,
@@ -237,12 +240,15 @@ pub fn control<'a>(
     if props.readonly {
         merged.push(aria_readonly(true));
     }
+    if props.required {
+        merged.push(aria_required(true));
+    }
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
 }
 
 /// [`item`]/[`RatingGroup::item`] が受け取る checked/highlighted/disabled/
-/// readonly/focusable フラグ束。独立した `bool` 引数のままだと clippy
+/// readonly フラグ束。独立した `bool` 引数のままだと clippy
 /// `too_many_arguments`（既定閾値 7）を超えるため、
 /// [`crate::number_input::NumberInputFlags`] と同型の薄い構造体としてまとめる。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -257,16 +263,6 @@ pub struct RatingItemFlags {
     pub disabled: bool,
     /// `data-readonly` を付与するかどうか。
     pub readonly: bool,
-    /// roving `tabindex`（`"0"`）の対象かどうか（イシュー #1617）。
-    /// `disabled` のときはこのフラグに関わらず `tabindex` 自体を省略する
-    /// （ネイティブ disabled 要素と同じくキーボードフォーカスから除外）。
-    /// `disabled == false` のとき、`focusable == true` なら `"0"`、
-    /// `false` なら `"-1"` を出力する（roving tabindex パターン。
-    /// tab stop の算出は [`RatingGroup::focusable_index`] を参照。
-    /// 「確定選択中の星、未評価なら 1 番目の星」を素朴な既定候補とするが、
-    /// その候補が個別 `disabled` の場合は最小の非 disabled 星へ
-    /// フォールバックする（レビュー指摘、イシュー #1617）。
-    pub focusable: bool,
 }
 
 /// Item パーツ（`span`、`role="radio"` + `aria-checked`）。星 1 個を表す。
@@ -276,10 +272,13 @@ pub struct RatingItemFlags {
 /// 呼び出し側が必須で与える国際化可能なラベル（例: `"1 star"`）で、
 /// フレームワーク側でハードコード生成しない。
 ///
-/// `tabindex`（roving focus、イシュー #1617）: `flags.disabled` のときは
-/// 省略、それ以外は `flags.focusable` に応じて `"0"`/`"-1"` を出力する
-/// （是正前は `span[role="radio"]` がキーボード到達不能だった、
-/// モジュール doc「参考サイト突合」節参照）。
+/// `tabindex` は出力しない（イシュー #1617 codex-review 指摘の是正:
+/// 是正前は roving `tabindex` のみを公開し Tab 到達可能にしていたが、
+/// Arrow/Space/Enter の keydown DOM 配線が伴わず「フォーカスは受けるが
+/// 操作不能」な WAI-ARIA radio パターン違反になっていた。DOM 配線
+/// 〔`fandhe-frontend-wasm-full`〕の実装と同時に tabindex を公開する
+/// 方針とし、配線が無い間は `item` をタブ順から外したままにする。
+/// モジュール doc「キーボード操作」節参照）。
 #[must_use]
 pub fn item<'a>(
     index: u32,
@@ -298,9 +297,6 @@ pub fn item<'a>(
         }),
         aria_label_attr(aria_label),
     ];
-    if !flags.disabled {
-        merged.push(("tabindex", if flags.focusable { "0" } else { "-1" }));
-    }
     merged.extend(data_disabled(flags.disabled));
     merged.extend(data_readonly(flags.readonly));
     merged.extend(data_checked(flags.checked));
@@ -472,46 +468,16 @@ impl RatingGroup {
         self.value.map(|v| v.to_string()).unwrap_or_default()
     }
 
-    /// roving `tabindex` の tab stop（`focusable == true` にする唯一の
-    /// 星番号）を算出する（イシュー #1617 レビュー是正）。
-    ///
-    /// 「確定選択中の星、未評価なら 1 番目の星」を素朴な既定候補とするが、
-    /// `is_disabled` がその候補について `true` を返す場合（呼び出し側が
-    /// 星ごとに個別 `disabled` を渡す構成、[`item`]/[`Self::item`] の
-    /// `disabled` 引数はグループ全体の disabled 状態と独立した呼び出し側
-    /// 管理のパラメータであるため、公開 API の正当な使用範囲内で起こり
-    /// うる）、`1..=count` のうち非 disabled な最小番号へフォールバック
-    /// する。全星が disabled のときは `None`（tab stop なし、キーボードで
-    /// 到達不能でよい正しい挙動）を返す。
-    ///
-    /// 呼び出し側は星の集合を描画する前に一度だけ本メソッドを呼び、
-    /// 返り値を各 [`item`] 呼び出しへ渡す（[`Self::item`] 利便メソッドの
-    /// `focusable_index` 引数、または自由関数 [`item`] の
-    /// `RatingItemFlags::focusable` を `focusable_index(index) == Some(this_index)`
-    /// として組み立てる）。
-    #[must_use]
-    pub fn focusable_index(&self, is_disabled: impl Fn(u32) -> bool) -> Option<u32> {
-        let natural = self.value.unwrap_or(1);
-        if !is_disabled(natural) {
-            return Some(natural);
-        }
-        (1..=self.count).find(|i| !is_disabled(*i))
-    }
-
     /// [`item`] へ星番号 `index` の現在状態を注入する利便メソッド。
     ///
-    /// `focusable_index` は [`Self::focusable_index`] が算出した tab stop
-    /// （星の集合全体について一度だけ計算し、各呼び出しへ同じ値を渡す。
-    /// イシュー #1617 レビュー是正: 本メソッドの旧実装は `index` 単体の
-    /// 「確定選択中／1 番目」判定のみで tab stop を決めており、その候補が
-    /// 個別 `disabled` のとき代替なしにグループ全体がキーボード到達不能に
-    /// なる欠陥があった）。
+    /// `tabindex` は出力しない（[`item`] rustdoc 参照。DOM 配線
+    /// 〔`fandhe-frontend-wasm-full`〕が伴わない roving tabindex 公開は
+    /// イシュー #1617 codex-review 指摘により是正済み）。
     #[must_use]
     pub fn item<'a>(
         &self,
         index: u32,
         disabled: bool,
-        focusable_index: Option<u32>,
         aria_label: &'a str,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
@@ -523,7 +489,6 @@ impl RatingGroup {
                 highlighted: self.is_highlighted(index),
                 disabled,
                 readonly: self.readonly,
-                focusable: focusable_index == Some(index),
             },
             aria_label,
             attrs,
@@ -789,6 +754,26 @@ mod tests {
         assert!(html.contains(r#"data-readonly="""#));
         assert!(html.contains(r#"aria-disabled="true""#));
         assert!(html.contains(r#"aria-readonly="true""#));
+        assert!(!html.contains("aria-required"));
+    }
+
+    #[test]
+    fn control_reflects_required_with_true_only_aria_required() {
+        let props = RatingGroupProps {
+            disabled: false,
+            readonly: false,
+            required: true,
+        };
+        let html = render(&control(&props, None, vec![], vec![]));
+        assert!(html.contains(r#"aria-required="true""#));
+        assert!(!html.contains("aria-disabled"));
+        assert!(!html.contains("aria-readonly"));
+    }
+
+    #[test]
+    fn control_required_false_omits_aria_required() {
+        let html = render(&control(&RatingGroupProps::default(), None, vec![], vec![]));
+        assert!(!html.contains("aria-required"));
     }
 
     #[test]
@@ -800,7 +785,6 @@ mod tests {
                 highlighted: true,
                 disabled: false,
                 readonly: false,
-                focusable: false,
             },
             "3 stars",
             vec![],
@@ -816,7 +800,10 @@ mod tests {
         assert!(html.contains(r#"data-highlighted="""#));
         assert!(!html.contains("data-disabled"));
         assert!(!html.contains("data-readonly"));
-        assert!(html.contains(r#"tabindex="-1""#));
+        assert!(
+            !html.contains("tabindex"),
+            "item は tabindex を出力しない契約（イシュー #1617 是正）: {html}"
+        );
     }
 
     #[test]
@@ -828,7 +815,6 @@ mod tests {
                 highlighted: false,
                 disabled: true,
                 readonly: true,
-                focusable: false,
             },
             "2 stars",
             vec![],
@@ -841,79 +827,8 @@ mod tests {
         assert!(html.contains(r#"data-readonly="""#));
         assert!(
             !html.contains("tabindex"),
-            "disabled な item は tabindex を出力しない: {html}"
+            "item は tabindex を出力しない契約: {html}"
         );
-    }
-
-    #[test]
-    fn item_focusable_outputs_tabindex_zero() {
-        let html = render(&item(
-            1,
-            RatingItemFlags {
-                focusable: true,
-                ..RatingItemFlags::default()
-            },
-            "1 star",
-            vec![],
-            vec![],
-        ));
-        assert!(html.contains(r#"tabindex="0""#));
-    }
-
-    // --- focusable_index: 個別 disabled の tab stop フォールバック
-    // （イシュー #1617 レビュー是正） ---
-
-    #[test]
-    fn focusable_index_unevaluated_no_disabled_returns_first_star() {
-        let g = RatingGroup::new(5, None, false);
-        assert_eq!(g.focusable_index(|_| false), Some(1));
-    }
-
-    #[test]
-    fn focusable_index_checked_no_disabled_returns_checked_star() {
-        let g = RatingGroup::new(5, Some(3), false);
-        assert_eq!(g.focusable_index(|_| false), Some(3));
-    }
-
-    #[test]
-    fn focusable_index_falls_back_when_natural_candidate_disabled() {
-        // 未評価（自然な候補は 1 番目）で 1 番目のみ disabled ならば、
-        // 最小の非 disabled 星（2）へフォールバックする。
-        let g = RatingGroup::new(5, None, false);
-        assert_eq!(g.focusable_index(|i| i == 1), Some(2));
-    }
-
-    #[test]
-    fn focusable_index_falls_back_when_checked_star_disabled() {
-        // 確定選択中の星（3）が個別 disabled ならば、最小の非 disabled 星
-        // （1）へフォールバックする。
-        let g = RatingGroup::new(5, Some(3), false);
-        assert_eq!(g.focusable_index(|i| i == 3), Some(1));
-    }
-
-    #[test]
-    fn focusable_index_all_disabled_returns_none() {
-        // 全星が disabled のときは tab stop なし（キーボード到達不能で
-        // 正しい挙動。ネイティブ disabled 要素と同じ）。
-        let g = RatingGroup::new(5, Some(3), false);
-        assert_eq!(g.focusable_index(|_| true), None);
-    }
-
-    #[test]
-    fn item_focusable_index_reflects_focusable_index_result() {
-        let mut g = RatingGroup::new(5, None, false);
-        dispatch(&mut g, "set", "1"); // 1 番目を確定選択かつ disabled にする想定
-        let tab_stop = g.focusable_index(|i| i == 1);
-        assert_eq!(tab_stop, Some(2));
-
-        let item1 = render(&g.item(1, true, tab_stop, "1 star", vec![], vec![]));
-        assert!(
-            !item1.contains("tabindex"),
-            "disabled な item は tabindex を出力しない: {item1}"
-        );
-
-        let item2 = render(&g.item(2, false, tab_stop, "2 stars", vec![], vec![]));
-        assert!(item2.contains(r#"tabindex="0""#));
     }
 
     #[test]
@@ -1043,9 +958,9 @@ mod tests {
                 r#"<div data-scope="rating-group" data-part="root">"#,
                 r#"<span data-scope="rating-group" data-part="label" id="rating-label">Rate</span>"#,
                 r#"<div data-scope="rating-group" data-part="control" role="radiogroup" aria-labelledby="rating-label">"#,
-                r#"<span data-scope="rating-group" data-part="item" data-value="1" role="radio" aria-checked="false" aria-label="1 star" tabindex="-1" data-highlighted=""></span>"#,
-                r#"<span data-scope="rating-group" data-part="item" data-value="2" role="radio" aria-checked="false" aria-label="2 stars" tabindex="-1" data-highlighted=""></span>"#,
-                r#"<span data-scope="rating-group" data-part="item" data-value="3" role="radio" aria-checked="true" aria-label="3 stars" tabindex="-1" data-checked="" data-highlighted=""></span>"#,
+                r#"<span data-scope="rating-group" data-part="item" data-value="1" role="radio" aria-checked="false" aria-label="1 star" data-highlighted=""></span>"#,
+                r#"<span data-scope="rating-group" data-part="item" data-value="2" role="radio" aria-checked="false" aria-label="2 stars" data-highlighted=""></span>"#,
+                r#"<span data-scope="rating-group" data-part="item" data-value="3" role="radio" aria-checked="true" aria-label="3 stars" data-checked="" data-highlighted=""></span>"#,
                 r#"</div>"#,
                 r#"<input data-scope="rating-group" data-part="hidden-input" type="hidden" value="3" name="rating">"#,
                 r#"</div>"#,
@@ -1205,12 +1120,11 @@ mod tests {
         let mut g = RatingGroup::new(5, None, false);
         dispatch(&mut g, "set", "3");
 
-        let tab_stop = g.focusable_index(|_| false);
-        let item3 = render(&g.item(3, false, tab_stop, "3 stars", vec![], vec![]));
+        let item3 = render(&g.item(3, false, "3 stars", vec![], vec![]));
         assert!(item3.contains(r#"data-checked="""#));
         assert!(item3.contains(r#"data-highlighted="""#));
 
-        let item4 = render(&g.item(4, false, tab_stop, "4 stars", vec![], vec![]));
+        let item4 = render(&g.item(4, false, "4 stars", vec![], vec![]));
         assert!(!item4.contains("data-checked"));
         assert!(!item4.contains("data-highlighted"));
 

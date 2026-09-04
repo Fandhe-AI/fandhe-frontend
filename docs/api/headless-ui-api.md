@@ -523,14 +523,17 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
    `RatingGroupProps`（disabled/readonly/required）を新設し、`root`/
    `label`/`control`/`hidden_input` のシグネチャを `&RatingGroupProps`
    受けへ統一した。`label` の `data-disabled`/`data-required`、`control`
-   の `data-disabled`/`data-readonly` + 真のときのみの
-   `aria-disabled="true"`/`aria-readonly="true"` を追加し、
-   `RatingItemFlags::focusable` により `item` へ roving `tabindex`
-   （`disabled` は省略、`focusable` なら `"0"`、それ以外は `"-1"`）を
-   追加した（是正前は `span[role="radio"]` がキーボード到達不能だった）。
-   `data-half`（`allow_half`）・`aria-setsize`/`aria-posinset`・
-   `aria-roledescription`・`aria-orientation` は意図的に非採用のまま
-   維持する（`crates/headless-ui/src/rating_group.rs` モジュール doc
+   の `data-disabled`/`data-readonly`/`aria-required` + 真のときのみの
+   `aria-disabled="true"`/`aria-readonly="true"`/`aria-required="true"`
+   を追加した。当初案は `RatingItemFlags::focusable` により `item` へ
+   roving `tabindex` を追加していたが、対応する DOM 配線
+   （`fandhe-frontend-wasm-full`）が無いまま「フォーカスは受けるが
+   Arrow/Space/Enter のいずれも操作不能」な状態で公開してしまう
+   codex-review 指摘を受け、本イシュー内で撤回した（`item` は
+   `tabindex` を一切出力しない）。`data-half`（`allow_half`）・
+   `aria-setsize`/`aria-posinset`・`aria-roledescription`・
+   `aria-orientation` は意図的に非採用のまま維持する
+   （`crates/headless-ui/src/rating_group.rs` モジュール doc
    「参考サイト突合」節参照）。
 
 ## 7. 関連ドキュメント
