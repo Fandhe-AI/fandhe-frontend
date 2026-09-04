@@ -1332,6 +1332,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # どちらも 0.79.2 に到達していたが、別々の観測可能な CSS 出力変更を含む
 # ため、同 §5 の「同一版数への偶発的衝突をそのまま採用しない」原則に
 # 従い、main の現在値 0.79.2 の patch を +1 した 0.79.3 へさらにバンプする。
+# イシュー #1590（bar-chart のスタイルを参考サイト基準へ調整）は `bar`
+# スロットへの `stroke`/`stroke-width` 追加と `category-label` への
+# `font-family` トークン追加という CSS 出力変更のみで、Rust API シグネ
+# チャ・セレクタは不変のため patch バンプとし、main の現在値 0.79.3 の
+# patch を +1 した 0.79.4 へバンプした。
 # イシュー #1589: area-chart のスタイル調整（`plot` の overflow: visible、
 # `series-line` の stroke-linejoin/linecap、`point` slot 新設）による CSS
 # 出力の実体変更のため patch バンプする。
@@ -1395,14 +1400,32 @@ name = "fandhe-frontend-pre-styled-ui"
 # `series-line` の stroke-linejoin/linecap、`point` slot 新設）による CSS
 # 出力の実体変更のため patch バンプする。Rust API・data-*・CSS 変数名の
 # 削除・改名なし（先例: #1589/#1595）。
-# （このバンプ履歴コメント末尾の中間値。実際の version フィールドは末尾の 0.79.13 のみ）
+# マージ時の追記（イシュー #1590、本マージ）: 本ブランチ（#1590、bar-chart
+# のスタイル調整）は merge base から独立に 0.79.4 へ到達していたが、main
+# は #1589/#1591/#1593〜#1599（area-chart / bar-list / charts 共通部品 /
+# donut-chart / line-chart / pie-chart / radar-chart / scatter-chart /
+# sparkline のスタイル調整）を経て独立に 0.79.12 へ到達していた。両者は
+# 別々の観測可能な CSS 出力変更を含むため、`docs/ci/style-refresh-
+# version-bump-operation.md` §5「同一版数への偶発的衝突をそのまま採用
+# しない」原則に従い、main の現在値 0.79.12 の patch を +1 した 0.79.13
+# へさらにバンプする。
+# （このバンプ履歴コメント末尾の中間値。実際の version フィールドは末尾の 0.79.14 のみ）
 # version = "0.79.12"
 # マージ（PR #1865, main 取り込み）: 本ブランチ（#1592 P1 是正含む、0.79.9）と
 # main（#1595〜#1599 line/pie/radar/scatter/sparkline のスタイル調整、0.79.12）は
 # 独立の patch バンプ連鎖で分岐しており、双方に別々の観測可能な CSS 出力変更を
-# 含むため、同 §5 の「同一版数への偶発的衝突をそのまま採用しない」原則に従い、
+# 含むため、同 §5の「同一版数への偶発的衝突をそのまま採用しない」原則に従い、
 # main の現在値 0.79.12 の patch を +1 した 0.79.13 へバンプする。
-version = "0.79.13"
+# （このバンプ履歴コメント末尾の中間値。実際の version フィールドは末尾の 0.79.14 のみ）
+# version = "0.79.13"
+# 再マージ（PR #1873, main 取り込み。イシュー #1590 レビュー是正対応）:
+# 本ブランチは codex P2/Bugbot 指摘の是正（rustdoc 訂正 + root の
+# overflow: visible 追加、CSS 出力の実体変更）で独立に 0.79.13 へ到達して
+# いたが、main は #1865（bar-segment のスタイル調整）を経て独立に同じ
+# 0.79.13 へ到達していた。両者は別々の観測可能な CSS 出力変更を含むため、
+# 同 §5「同一版数への偶発的衝突をそのまま採用しない」原則に従い、main の
+# 現在値 0.79.13 の patch を +1 した 0.79.14 へバンプする。
+version = "0.79.14"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
