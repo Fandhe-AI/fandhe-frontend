@@ -11,6 +11,13 @@
 //! イシュー #1582 で `gap` のフォールバックを `var(--fandhe-space-4)`
 //! （テーマトークン経由）へ変更し、`root` へ両端フェード用の
 //! `mask-image`（`--fandhe-marquee-fade`、既定 `0px`）を追加した。
+//!
+//! イシュー #1583 で `root` の枠（`padding-block`・`color`・`background`・
+//! `border`・`border-radius`）と `item` の見た目（`inline-flex`・
+//! `align-items`・`gap`・`white-space: nowrap`）を追加し、
+//! `@media (prefers-reduced-motion: reduce)` の挙動を「アニメーション停止
+//! のみ」から「停止 + `root` の横スクロール化 + 両端フェード無効化 +
+//! 複製非表示」へ拡張した。
 
 use fandhe_frontend_pre_styled_ui::marquee;
 
@@ -18,6 +25,13 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
   display: flex;
   overflow: hidden;
   gap: var(--fandhe-marquee-gap, var(--fandhe-space-4));
+  position: relative;
+  box-sizing: border-box;
+  padding-block: var(--fandhe-marquee-padding-y, var(--fandhe-space-2));
+  color: var(--fandhe-color-fg);
+  background: var(--fandhe-marquee-bg, transparent);
+  border: var(--fandhe-marquee-border, none);
+  border-radius: var(--fandhe-marquee-radius, 0);
   mask-image: linear-gradient(to right, transparent, black var(--fandhe-marquee-fade, 0px), black calc(100% - var(--fandhe-marquee-fade, 0px)), transparent);
 }
 
@@ -33,6 +47,10 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
 
 [data-scope="marquee"][data-part="item"] {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fandhe-space-2);
+  white-space: nowrap;
 }
 
 [data-scope="marquee"][data-part="root"].fd-marquee--direction-start {
@@ -58,6 +76,13 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  [data-scope="marquee"][data-part="root"] {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--fandhe-color-border) transparent;
+    mask-image: none;
+  }
+
   [data-scope="marquee"][data-part="content"] {
     animation: none;
   }

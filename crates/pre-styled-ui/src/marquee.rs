@@ -124,7 +124,8 @@
 //! `prefers-reduced-motion` 対応・`item` の見た目・`root` の
 //! padding/border/background）が担当するパートには一切触れていない
 //! （同一ファイルの並行編集のため、上記「常時一時停止」節・
-//! `@media (prefers-reduced-motion: reduce)` ブロックは変更しない）。
+//! `@media (prefers-reduced-motion: reduce)` ブロックは変更しない。
+//! これらは下記「イシュー #1583」節が引き継いで変更する）。
 //!
 //! ## 是正内容
 //!
@@ -171,6 +172,69 @@
 //!   フォールバックをテーマトークン経由へ変更。
 //! - `--fandhe-marquee-fade`（既定 `0px`）: 本イシューで新設。両端の
 //!   フェード幅（`mask-image` の `linear-gradient` 停止位置）を指定する。
+//!
+//! # イシュー #1583: reduced-motion 対応とコンテンツ枠（親 #1581 の 2/2）
+//!
+//! 親イシュー #1581 の担当分割 2/2。担当範囲は `prefers-reduced-motion`
+//! 対応・`item` の見た目・`root` の padding/border/background のみとし、
+//! 姉妹イシュー #1582（1/2、速度・方向・`gap`・両端フェード）が変更した
+//! 箇所には触れていない。
+//!
+//! ## 是正内容
+//!
+//! - `prefers-reduced-motion: reduce` 時の挙動を「アニメーション停止のみ」
+//!   から「停止 + `root` の横スクロール化 + フェード無効化 + 複製非表示」
+//!   へ拡張した（[`css`] 3. 項参照）。従来のまま `overflow: hidden` を
+//!   維持して停止するだけでは、ビューポート幅を超える内容が切れて
+//!   読めなくなる問題があった（WCAG 2.2.2 の趣旨「止めた上で内容へ到達
+//!   可能」）。横スクロール化は折り返しではなくテロップの横並び意味論を
+//!   保ったまま最小のレイアウト変更で成立させる選択（`scroll_area.rs` の
+//!   viewport と同じトークン組で `scrollbar-width`/`scrollbar-color` を
+//!   与える）。
+//! - `root` に既定の枠（`padding-block`）と opt-in の見た目
+//!   （`background`/`border`/`border-radius`）を追加した。`padding-inline`
+//!   は付けない（`overflow: hidden` のクリップは padding box 境界のため、
+//!   横方向の padding は横マーキーでは視覚上無意味）。`border` は
+//!   `var(--fandhe-marquee-border, none)` のように値全体を custom property
+//!   にする方式を採る（`1px solid transparent` 方式だと未使用時も高さが
+//!   増える）。`color: var(--fandhe-color-fg)` を付与し、ダーク時の
+//!   可読性をトークン経由で担保する（[`crate::card`] と同型）。
+//! - `item` を `inline-flex` + `align-items: center` + 内部 `gap` +
+//!   `white-space: nowrap` にした（chakra-ui `Marquee.Item` の
+//!   アイコン・テキスト横並び用法に倣う）。既定 `padding` は付けない
+//!   （`content` の `gap` と二重になるため）。
+//!
+//! ## 意図的に合わせなかった点（7 軸チェックリスト消化結果）
+//!
+//! - サイズ: 参照サイトに size スケールなし → N/A。
+//! - バリアント: 参照サイトに variant なし → N/A（枠は custom property
+//!   opt-in のみ提供）。
+//! - `data-*` 状態・フォーカス・hover/disabled/トランジション:
+//!   フォーカス可能要素・インタラクティブ slot を持たない静的部品のため
+//!   すべて N/A（`:hover`/`:focus-within` の一時停止のみ、1/2 から不変）。
+//!
+//! ## 既知の制限
+//!
+//! - **フェードと枠の併用制限**: `mask-image`（イシュー #1582）は `root`
+//!   全体へ掛かるため、opt-in の `background`/`border` と併用すると枠の
+//!   左右端もフェードする。ark anatomy 準拠の `viewport` パーツ新設で
+//!   解決可能だが、anatomy 変更（`SLOTS`・DOM 構造・`wrap_state.rs` への
+//!   波及、破壊的変更）を伴うため本イシューでは採らない。後続イシュー化を
+//!   提案する（`.claude/rules/out-of-scope-tracking.md`）。
+//! - **reduced-motion 時のキーボードスクロール到達性**: `root` へ
+//!   `tabindex` を付与しない（HTML 出力が変わり、`role` のない focusable
+//!   `div` になる）。Chrome 130+ 等の一部ブラウザはスクロール領域を既定で
+//!   キーボードフォーカス可能にするが、全ブラウザでの到達性は担保しない
+//!   （既知のトレードオフ）。
+//!
+//! ## `--fandhe-marquee-*` custom property 一覧への追加（本イシュー）
+//!
+//! - `--fandhe-marquee-padding-y`（既定 `var(--fandhe-space-2)`）: `root`
+//!   の上下 padding。
+//! - `--fandhe-marquee-bg`（既定 `transparent`）: `root` の背景。
+//! - `--fandhe-marquee-border`（既定 `none`）: `root` の枠線（値全体を
+//!   custom property 化）。
+//! - `--fandhe-marquee-radius`（既定 `0`）: `root` の角丸。
 //!
 //! # セキュリティ不変条件
 //!
@@ -260,6 +324,21 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("overflow", "hidden"),
                 decl("gap", "var(--fandhe-marquee-gap, var(--fandhe-space-4))"),
+                // イシュー #1583: root の枠（padding-block・色・背景・
+                // border・radius）。padding-inline は付けない（`overflow:
+                // hidden` のクリップは padding box 境界のため、横方向の
+                // padding は横マーキーでは視覚上無意味、モジュール doc
+                // 「イシュー #1583」節参照）。
+                decl("position", "relative"),
+                decl("box-sizing", "border-box"),
+                decl(
+                    "padding-block",
+                    "var(--fandhe-marquee-padding-y, var(--fandhe-space-2))",
+                ),
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("background", "var(--fandhe-marquee-bg, transparent)"),
+                decl("border", "var(--fandhe-marquee-border, none)"),
+                decl("border-radius", "var(--fandhe-marquee-radius, 0)"),
                 // イシュー #1582: 両端フェード（ark-ui/chakra-ui の `Edge`
                 // パーツ相当）を opt-in で提供する。既定 `0px` のため
                 // 呼び出し側が明示的に上書きしない限り既存の見た目は
@@ -291,7 +370,20 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
-        .base("item", vec![decl("flex", "none")])
+        .base(
+            "item",
+            vec![
+                decl("flex", "none"),
+                // イシュー #1583: item をインラインフレックス化し、
+                // 内部コンテンツ（アイコン・テキスト等）を中央揃え・
+                // 折り返しなしで並べる（chakra-ui `Marquee.Item` の
+                // 用法に倣う、モジュール doc「イシュー #1583」節参照）。
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl("white-space", "nowrap"),
+            ],
+        )
         .variant(
             MarqueeDirection::Start,
             "root",
@@ -315,17 +407,26 @@ fn recipe() -> SlotRecipe {
 /// 2. `root` への `:hover`/`:focus-within` で `content` のアニメーションを
 ///    一時停止する規則（子孫コンビネータのため recipe では表現できない、
 ///    モジュール doc「常時一時停止」節参照）。
-/// 3. `prefers-reduced-motion: reduce` 環境でアニメーションを停止する
-///    `@media` ブロック（受け入れ条件）。同ブロック内でシームレスループ用に
-///    複製した 2 個目の `content`（`aria-hidden="true"`）へ `display: none`
-///    も追加する。アニメーション停止のみでは複製 2 本がそのまま flex
-///    レイアウトへ残り、メッセージがビューポートより狭い場合に視認可能な
-///    ユーザーへ内容が二重表示されてしまう不具合（Cursor Bugbot 指摘、
-///    PR #864）への是正。
+/// 3. `prefers-reduced-motion: reduce` 環境で `content` のアニメーションを
+///    停止し、`root` を横スクロール可能にした上でフェードを無効化する
+///    `@media` ブロック（受け入れ条件、イシュー #1583 で拡張）。`root` へ
+///    `overflow-x: auto` を付与するのは、単純な停止だけではビューポート幅を
+///    超える内容が `overflow: hidden` のまま切れて読めなくなるため（WCAG
+///    2.2.2 の趣旨「止めた上で内容へ到達可能」、モジュール doc「イシュー
+///    #1583」節参照）。同時に `mask-image: none` で両端フェード
+///    （イシュー #1582）を無効化する。静止・スクロール可能な内容に対して
+///    フェードが残ると末尾の item とスクロールバー端が視覚的に隠れるため。
+///    加えて、シームレスループ用に複製した 2 個目の `content`
+///    （`aria-hidden="true"`）へ `display: none` も追加する。アニメーション
+///    停止のみでは複製 2 本がそのまま横スクロール領域に残り、スクロール幅が
+///    2 倍になってしまう不具合（Cursor Bugbot 指摘、PR #864 の指摘を
+///    横スクロール化後も踏襲）への是正。
 ///
-/// `root` の両端フェード（`mask-image`、イシュー #1582）は recipe の
-/// `base("root", ...)` 側の宣言として出力されるため、本関数が追記する
-/// 静的リテラルには含まれない（モジュール doc「イシュー #1582」節参照）。
+/// `root` の両端フェード（`mask-image`、イシュー #1582）・枠
+/// （`padding-block`/`background`/`border`/`border-radius`、イシュー
+/// #1583）は recipe の `base("root", ...)` 側の宣言として出力されるため、
+/// 本関数が追記する静的リテラルには含まれない（モジュール doc
+/// 「イシュー #1582」「イシュー #1583」節参照）。
 #[must_use]
 pub fn css() -> String {
     let mut out = recipe().css();
@@ -339,7 +440,7 @@ pub fn css() -> String {
         "\n[data-scope=\"marquee\"][data-part=\"root\"]:hover [data-part=\"content\"],\n[data-scope=\"marquee\"][data-part=\"root\"]:focus-within [data-part=\"content\"] {\n  animation-play-state: paused;\n}\n",
     );
     out.push_str(
-        "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"marquee\"][data-part=\"content\"] {\n    animation: none;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"content\"][aria-hidden=\"true\"] {\n    display: none;\n  }\n}\n",
+        "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"marquee\"][data-part=\"root\"] {\n    overflow-x: auto;\n    scrollbar-width: thin;\n    scrollbar-color: var(--fandhe-color-border) transparent;\n    mask-image: none;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"content\"] {\n    animation: none;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"content\"][aria-hidden=\"true\"] {\n    display: none;\n  }\n}\n",
     );
     out
 }
@@ -696,5 +797,69 @@ mod tests {
         let out = css();
         assert!(out.contains("--fandhe-marquee-direction: normal;"));
         assert!(out.contains("--fandhe-marquee-direction: reverse;"));
+    }
+
+    /// 受け入れ条件（イシュー #1583）: `prefers-reduced-motion: reduce`
+    /// 環境で `root` を横スクロール可能にし、両端フェード（イシュー #1582）
+    /// を無効化することを固定する。複製 2 個目の `content` 非表示
+    /// （`display: none;`）が引き続き維持されていることも合わせて固定する
+    /// （モジュール doc「イシュー #1583」節参照）。
+    #[test]
+    fn css_output_reduced_motion_makes_root_scrollable_and_disables_fade() {
+        let out = css();
+        let media_start = out
+            .find("@media (prefers-reduced-motion: reduce) {")
+            .expect("reduced-motion media query must exist");
+        let media = &out[media_start..];
+        assert!(media.contains(r#"[data-scope="marquee"][data-part="root"] {"#));
+        assert!(media.contains("overflow-x: auto;"));
+        assert!(media.contains("scrollbar-width: thin;"));
+        assert!(media.contains("scrollbar-color: var(--fandhe-color-border) transparent;"));
+        assert!(media.contains("mask-image: none;"));
+        assert!(media.contains("display: none;"));
+    }
+
+    /// 受け入れ条件（イシュー #1583）: `root` の枠（padding-block・色・
+    /// 背景・border・radius）がすべてテーマトークン既定のフォールバック
+    /// 付き custom property として出力されることを固定する。
+    #[test]
+    fn css_output_root_frame_uses_theme_tokens_with_neutral_fallbacks() {
+        let out = css();
+        assert!(
+            out.contains("padding-block: var(--fandhe-marquee-padding-y, var(--fandhe-space-2));")
+        );
+        assert!(out.contains("color: var(--fandhe-color-fg);"));
+        assert!(out.contains("background: var(--fandhe-marquee-bg, transparent);"));
+        assert!(out.contains("border: var(--fandhe-marquee-border, none);"));
+        assert!(out.contains("border-radius: var(--fandhe-marquee-radius, 0);"));
+    }
+
+    /// 受け入れ条件（イシュー #1583）: `item` がインラインフレックスで
+    /// 折り返しなし・内部 `gap` を持つことを固定する。
+    #[test]
+    fn css_output_item_is_inline_flex_and_nowrap() {
+        let out = css();
+        let item_start = out
+            .find(r#"[data-scope="marquee"][data-part="item"] {"#)
+            .expect("item rule must exist");
+        let item_block = &out[item_start..];
+        let item_end = item_block.find('}').expect("item rule must be closed");
+        let item_block = &item_block[..item_end];
+        assert!(item_block.contains("display: inline-flex;"));
+        assert!(item_block.contains("align-items: center;"));
+        assert!(item_block.contains("gap: var(--fandhe-space-2);"));
+        assert!(item_block.contains("white-space: nowrap;"));
+    }
+
+    /// 受け入れ条件（イシュー #1583）: 新設した枠・reduced-motion 宣言も
+    /// 含め、CSS 全文に `#` 色リテラル・`rgb(` 色リテラルのいずれも
+    /// 含まれないことを固定する（本モジュールは色トークン軸を持たない
+    /// 中立部品判断、既存 `css_output_mask_image_uses_no_hex_color_literals`
+    /// の拡張）。
+    #[test]
+    fn css_output_uses_no_hex_or_rgb_color_literals() {
+        let out = css();
+        assert!(!out.contains('#'));
+        assert!(!out.contains("rgb("));
     }
 }

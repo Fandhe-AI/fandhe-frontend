@@ -7344,10 +7344,32 @@ fn marquee_section() -> Node {
             vec![text("両端フェード（--fandhe-marquee-fade）の例です。")],
         )],
     );
+    // イシュー #1583: root の枠（背景・枠線・角丸・上下 padding）を
+    // custom property で opt-in するデモ。値はすべて静的リテラル
+    // （既存デモと同型、外部入力の混入なし）。
+    let framed_demo = marquee::marquee(
+        &MarqueeProps::default(),
+        vec![(
+            "style",
+            "--fandhe-marquee-bg: var(--fandhe-color-bg-subtle); --fandhe-marquee-border: 1px solid var(--fandhe-color-border); --fandhe-marquee-radius: var(--fandhe-radius-md); --fandhe-marquee-padding-y: var(--fandhe-space-3);",
+        )],
+        vec![marquee::item(
+            vec![],
+            vec![text(
+                "枠付き（bg / border / radius を custom property で opt-in）の例です。",
+            )],
+        )],
+    );
     section(
         "Marquee",
-        "CSS のみ（JS ゼロ）の自動流動テキストです。direction（既定/end）でスクロール方向を切り替え、hover/focus-within で常時一時停止、prefers-reduced-motion: reduce 環境では停止します。decorative: true で装飾用途（aria-hidden）に、--fandhe-marquee-duration の上書きで速度を、--fandhe-marquee-gap の上書きで間隔を調整できます。--fandhe-marquee-fade（既定 0px）を上書きすると両端がフェードします。",
-        vec![default_demo, end_demo, decorative_demo, fade_demo],
+        "CSS のみ（JS ゼロ）の自動流動テキストです。direction（既定/end）でスクロール方向を切り替え、hover/focus-within で常時一時停止、prefers-reduced-motion: reduce 環境では停止し root を横スクロール可能にした上で両端フェードを無効化します。decorative: true で装飾用途（aria-hidden）に、--fandhe-marquee-duration の上書きで速度を、--fandhe-marquee-gap の上書きで間隔を調整できます。--fandhe-marquee-fade（既定 0px）を上書きすると両端がフェードします。--fandhe-marquee-padding-y / -bg / -border / -radius を上書きすると root に枠を付けられます。",
+        vec![
+            default_demo,
+            end_demo,
+            decorative_demo,
+            fade_demo,
+            framed_demo,
+        ],
     )
 }
 
