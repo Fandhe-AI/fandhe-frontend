@@ -28,6 +28,7 @@ use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::file_upload::{
     clear_trigger, dropzone, hidden_input, item, item_delete_trigger, item_group, item_name,
     item_size_text, item_size_text_node, label, root, trigger, FileUpload, FileUploadAction,
+    FileUploadProps, ItemType,
 };
 use fandhe_frontend_interactive::Component;
 use fandhe_frontend_wasm_full::headless_file_upload::wire_file_upload_component;
@@ -70,38 +71,47 @@ impl Drop for RemoveOnDrop {
 /// [`FileUpload`] 状態から SSR 出力契約と同型のマークアップを組み立てる
 /// （headless パーツ関数を直接呼ぶ、`mount_avatar` と同型の判断）。
 fn render_file_upload(state: &FileUpload) -> String {
+    let props = FileUploadProps::default();
     let items: Vec<_> = state
         .accepted()
         .iter()
         .map(|f| {
             let size = item_size_text(f.size_bytes);
             item(
-                false,
+                ItemType::Accepted,
+                &props,
                 vec![],
                 vec![
-                    item_name(vec![], vec![text(&f.name)]),
-                    item_size_text_node(vec![], vec![text(&size)]),
-                    item_delete_trigger(&f.name, false, vec![], vec![text("x")]),
+                    item_name(ItemType::Accepted, &props, vec![], vec![text(&f.name)]),
+                    item_size_text_node(ItemType::Accepted, &props, vec![], vec![text(&size)]),
+                    item_delete_trigger(
+                        &f.name,
+                        ItemType::Accepted,
+                        &props,
+                        vec![],
+                        vec![text("x")],
+                    ),
                 ],
             )
         })
         .collect();
     let node = root(
+        &props,
         false,
         vec![],
         vec![
-            label(vec![], vec![text("Files")]),
+            label(&props, vec![], vec![text("Files")]),
             dropzone(
-                false,
+                &props,
                 false,
                 vec![],
                 vec![
-                    trigger(false, vec![], vec![text("Browse")]),
-                    hidden_input(state.accept(), true, false, vec![]),
+                    trigger(&props, vec![], vec![text("Browse")]),
+                    hidden_input(state.accept(), true, &props, vec![]),
                 ],
             ),
-            item_group(vec![], items),
-            clear_trigger(false, vec![], vec![text("Clear")]),
+            item_group(ItemType::Accepted, &props, vec![], items),
+            clear_trigger(&props, state.is_empty(), vec![], vec![text("Clear")]),
         ],
     );
     render(&node)
@@ -312,22 +322,59 @@ fn clear_trigger_click_clears_all_files() {
 /// 無効化状態（`disabled: true`）で Root/Dropzone を組み立てたマークアップ
 /// （`render_file_upload` と異なり disabled 反映が必要なため専用のヘルパ）。
 fn render_disabled_file_upload(state: &FileUpload) -> String {
+    let props = FileUploadProps {
+        disabled: true,
+        ..Default::default()
+    };
     let node = root(
-        true,
+        &props,
+        false,
         vec![],
         vec![
-            label(vec![], vec![text("Files")]),
+            label(&props, vec![], vec![text("Files")]),
             dropzone(
-                true,
+                &props,
                 false,
                 vec![],
                 vec![
-                    trigger(true, vec![], vec![text("Browse")]),
-                    hidden_input(state.accept(), true, true, vec![]),
+                    trigger(&props, vec![], vec![text("Browse")]),
+                    hidden_input(state.accept(), true, &props, vec![]),
                 ],
             ),
-            item_group(vec![], vec![]),
-            clear_trigger(true, vec![], vec![text("Clear")]),
+            item_group(ItemType::Accepted, &props, vec![], vec![]),
+            clear_trigger(&props, true, vec![], vec![text("Clear")]),
+        ],
+    );
+    render(&node)
+}
+
+/// 読み取り専用状態（`readonly: true`）で Root/Dropzone を組み立てた
+/// マークアップ（イシュー #1609 参照突合。zag `readOnly` は新規ファイルの
+/// 追加操作のみを抑止するため、`render_disabled_file_upload` と異なり
+/// hidden-input はネイティブ `disabled`、既存ファイルの削除操作
+/// （`item-delete-trigger`）は生成しない本テストでは検証対象外）。
+fn render_readonly_file_upload(state: &FileUpload) -> String {
+    let props = FileUploadProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let node = root(
+        &props,
+        false,
+        vec![],
+        vec![
+            label(&props, vec![], vec![text("Files")]),
+            dropzone(
+                &props,
+                false,
+                vec![],
+                vec![
+                    trigger(&props, vec![], vec![text("Browse")]),
+                    hidden_input(state.accept(), true, &props, vec![]),
+                ],
+            ),
+            item_group(ItemType::Accepted, &props, vec![], vec![]),
+            clear_trigger(&props, true, vec![], vec![text("Clear")]),
         ],
     );
     render(&node)
@@ -383,6 +430,44 @@ fn disabled_dropzone_drop_event_does_not_add_files() {
     // 無効化状態を明示的に固定する（headless-ui 側の `dropzone(true, ...)` が
     // `data-disabled` を反映することへの依存を、テスト側でも直接確認する）。
     assert!(dropzone_el.has_attribute("data-disabled"));
+
+    let file = make_file("dropped.pdf", 100, "application/pdf");
+    dispatch_drop_with_files(&dropzone_el, &[file]);
+
+    assert!(state.borrow().is_empty());
+    assert!(!container.inner_html().contains("dropped.pdf"));
+}
+
+/// 読み取り専用状態（`data-readonly` が Root/Dropzone に付与されている）の
+/// dropzone へ `drop` イベントを発火してもファイルが追加されないこと
+/// （イシュー #1609 参照突合: zag `readOnly` は新規ファイルの追加操作を
+/// 抑止する。`disabled_dropzone_drop_event_does_not_add_files` と同型の
+/// 回帰テスト、`wire_drag_and_drop` のガード条件拡張の確認）。
+#[wasm_bindgen_test]
+fn readonly_dropzone_drop_event_does_not_add_files() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "file-upload-readonly-drop-test");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let state = std::rc::Rc::new(std::cell::RefCell::new(FileUpload::new(
+        "", None, None, None,
+    )));
+    container.set_inner_html(&render_readonly_file_upload(&state.borrow()));
+
+    let update_container = container.clone();
+    wire_file_upload_component(container.clone(), state.clone(), move |s, _el| {
+        update_container.set_inner_html(&render_readonly_file_upload(s));
+    })
+    .expect("wire_file_upload_component must not fail");
+
+    let dropzone_el = container
+        .query_selector("[data-scope='file-upload'][data-part='dropzone']")
+        .expect("query_selector must not fail")
+        .expect("dropzone part must exist");
+    // 読み取り専用状態を明示的に固定する（headless-ui 側の
+    // `dropzone(&FileUploadProps { readonly: true, .. }, ...)` が
+    // `data-readonly` を反映することへの依存を、テスト側でも直接確認する）。
+    assert!(dropzone_el.has_attribute("data-readonly"));
 
     let file = make_file("dropped.pdf", 100, "application/pdf");
     dispatch_drop_with_files(&dropzone_el, &[file]);

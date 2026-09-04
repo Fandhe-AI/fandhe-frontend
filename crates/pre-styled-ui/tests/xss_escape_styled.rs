@@ -1263,10 +1263,12 @@ fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
 /// エスケープ（REQ-1）が貫通することを固定する（`tags_input` 分と同型）。
 #[test]
 fn file_upload_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    let props = file_upload::FileUploadProps::default();
     for payload in payloads::all() {
         // styled root の呼び出し側 attrs 経路。
         let html = render(&file_upload::root(
             Size::Md,
+            &props,
             false,
             vec![("data-testid", payload)],
             vec![],
@@ -1281,6 +1283,7 @@ fn file_upload_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 出力されず、recipe 生成クラスへ完全に置き換わる）。
         let html = render(&file_upload::root(
             Size::Md,
+            &props,
             false,
             vec![("class", payload)],
             vec![],
@@ -1301,12 +1304,17 @@ fn file_upload_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした label の children 経路。
-        let html = render(&file_upload::label(vec![], vec![text(payload)]));
+        let html = render(&file_upload::label(&props, vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "file_upload::label children コンテキスト");
 
         // 選択的再エクスポートした item_name の children 経路（ファイル名
         // そのもの、REQ-1 の重点対象）。
-        let html = render(&file_upload::item_name(vec![], vec![text(payload)]));
+        let html = render(&file_upload::item_name(
+            file_upload::ItemType::Accepted,
+            &props,
+            vec![],
+            vec![text(payload)],
+        ));
         assert_payload_is_escaped(
             payload,
             &html,
@@ -1316,7 +1324,8 @@ fn file_upload_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした item_delete_trigger の aria-label コンテキスト。
         let html = render(&file_upload::item_delete_trigger(
             payload,
-            false,
+            file_upload::ItemType::Accepted,
+            &props,
             vec![],
             vec![],
         ));
@@ -1327,7 +1336,7 @@ fn file_upload_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした hidden_input の accept 属性コンテキスト。
-        let html = render(&file_upload::hidden_input(payload, false, false, vec![]));
+        let html = render(&file_upload::hidden_input(payload, false, &props, vec![]));
         assert_payload_is_escaped(
             payload,
             &html,

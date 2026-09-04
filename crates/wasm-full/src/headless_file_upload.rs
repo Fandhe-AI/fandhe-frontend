@@ -480,8 +480,8 @@ mod wiring {
                 // `<button>`/`<input>` と異なり `disabled` を付与しても
                 // ブラウザは drag/drop を自動抑止しない。無効化状態
                 // （`fandhe_frontend_headless_ui::file_upload::root`/
-                // `dropzone` がいずれも `disabled` から反映する
-                // `data-disabled`、`crates/headless-ui/src/file_upload.rs`
+                // `dropzone` がいずれも `FileUploadProps.disabled` から反映
+                // する `data-disabled`、`crates/headless-ui/src/file_upload.rs`
                 // 参照）を明示チェックし、無効化時はドラッグ&ドロップ操作を
                 // すべて無視する（PR #868 Cursor Bugbot 指摘: 無効化した
                 // dropzone でもドロップでファイルが追加できてしまう不具合の
@@ -490,11 +490,24 @@ mod wiring {
                 // 方向）に `data-disabled` が付与されている場合のいずれかで
                 // 無効化とみなす（`root`/`dropzone` のどちらから disabled が
                 // 伝播していても取りこぼさないための fail-closed 判定）。
-                if drag_root.has_attribute("data-disabled") {
+                //
+                // イシュー #1609（参照突合）: `FileUploadProps.readonly` も
+                // 同様に `data-readonly` として root/dropzone へ反映される
+                // ようになった。zag の `readOnly` は新規ファイルの追加操作を
+                // 抑止する（disabled と同じ「追加できない」意味論だが、
+                // 既存ファイルの削除ボタン等は disabled にしない）ため、
+                // ドラッグ&ドロップによる追加も同じ判定に含める
+                // （headless 側の `dropzone` は disabled と readonly を
+                // 区別せず同じ `tabindex="-1"`/`aria-disabled` を出す設計と
+                // 対応、モジュール doc「参照突合」節参照）。
+                if drag_root.has_attribute("data-disabled")
+                    || drag_root.has_attribute("data-readonly")
+                {
                     return;
                 }
                 let disabled_dropzone_selector = format!(
-                    "[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{DROPZONE_PART}\"][data-disabled]"
+                    "[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{DROPZONE_PART}\"][data-disabled], \
+                     [data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{DROPZONE_PART}\"][data-readonly]"
                 );
                 if element
                     .closest(&disabled_dropzone_selector)
@@ -723,7 +736,7 @@ mod tests {
     #[test]
     fn add_files_with_script_payload_name_then_render_escapes() {
         use fandhe_frontend_core::{render, text};
-        use fandhe_frontend_headless_ui::file_upload::item_name;
+        use fandhe_frontend_headless_ui::file_upload::{item_name, FileUploadProps, ItemType};
 
         let items = files_from_metadata(
             vec!["<script>alert(1)</script>".to_string()],
@@ -732,8 +745,23 @@ mod tests {
         );
         let mut f = FileUpload::default();
         f.update(FileUploadAction::AddFiles(items));
-        let html = render(&item_name(vec![], vec![text(&f.accepted()[0].name)]));
+        let props = FileUploadProps::default();
+        let html = render(&item_name(
+            ItemType::Accepted,
+            &props,
+            vec![],
+            vec![text(&f.accepted()[0].name)],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
+
+    // --- readonly 時のドロップ無視（イシュー #1609） ---
+    //
+    // ブラウザ実インタラクション（DragEvent 発火）は
+    // `tests/headless_file_upload_browser.rs` の
+    // `#[cfg(target_arch = "wasm32")]` テストが担う（disabled 版の先例と
+    // 同型）。本モジュールは native 側のロジック（`wire_drag_and_drop` の
+    // ガード条件が `data-readonly` を含むこと）をコンパイルレベルで
+    // 固定するのみであり、実際の DOM 操作は browser テストが検証する。
 }

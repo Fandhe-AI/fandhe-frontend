@@ -922,45 +922,143 @@ pub(super) fn fieldset_section() -> Node {
     demo_page("Fieldset", body)
 }
 
-pub(super) fn file_upload_section() -> Node {
-    let body = vec![file_upload::root(
-        false,
+/// [`file_upload::FileUploadProps`] を状態別に組み立てる非公開ヘルパ
+/// （既定/disabled/readonly+invalid+required の 3 状態を Demo が並べる、
+/// イシュー #1609 参照突合）。
+fn file_upload_props(
+    disabled: bool,
+    readonly: bool,
+    invalid: bool,
+    required: bool,
+) -> file_upload::FileUploadProps {
+    file_upload::FileUploadProps {
+        disabled,
+        readonly,
+        invalid,
+        required,
+    }
+}
+
+/// 1 個の受理済み/拒否済みファイル `item` を組み立てる非公開ヘルパ。
+fn file_upload_item(
+    name: &'static str,
+    size_bytes: u64,
+    item_type: file_upload::ItemType,
+    props: &file_upload::FileUploadProps,
+) -> Node {
+    file_upload::item(
+        item_type,
+        props,
         vec![],
         vec![
-            file_upload::label(vec![], vec![text("Attachments")]),
-            file_upload::dropzone(
-                false,
-                false,
-                vec![("aria-label", "Drop files here")],
+            file_upload::item_name(item_type, props, vec![], vec![text(name)]),
+            file_upload::item_size_text_node(
+                item_type,
+                props,
+                vec![],
+                vec![text(file_upload::item_size_text(size_bytes))],
+            ),
+            file_upload::item_delete_trigger(name, item_type, props, vec![], vec![text("Remove")]),
+        ],
+    )
+}
+
+/// 1 セット分（root > label + dropzone(trigger + hidden-input) +
+/// item-group(accepted) + item-group(rejected) + clear-trigger）を組み立てる
+/// 非公開ヘルパ。11 anatomy パーツ全てを毎回含める。
+fn file_upload_instance(
+    caption: &'static str,
+    props: file_upload::FileUploadProps,
+    dragging: bool,
+    has_items: bool,
+) -> Node {
+    let accepted_items = if has_items {
+        vec![file_upload_item(
+            "photo.png",
+            204_800,
+            file_upload::ItemType::Accepted,
+            &props,
+        )]
+    } else {
+        vec![]
+    };
+    let rejected_items = if has_items {
+        vec![file_upload_item(
+            "malware.exe",
+            10_240,
+            file_upload::ItemType::Rejected,
+            &props,
+        )]
+    } else {
+        vec![]
+    };
+    fandhe_frontend_core::el(
+        "div",
+        vec![],
+        vec![
+            fandhe_frontend_core::el("p", vec![], vec![text(caption)]),
+            file_upload::root(
+                &props,
+                dragging,
+                vec![],
                 vec![
-                    text("Drag files here or"),
-                    file_upload::trigger(false, vec![], vec![text("Browse")]),
-                    file_upload::hidden_input("image/*", true, false, vec![]),
+                    file_upload::label(&props, vec![], vec![text("Attachments")]),
+                    file_upload::dropzone(
+                        &props,
+                        dragging,
+                        vec![],
+                        vec![
+                            text("Drag files here or"),
+                            file_upload::trigger(&props, vec![], vec![text("Browse")]),
+                            file_upload::hidden_input("image/*", true, &props, vec![]),
+                        ],
+                    ),
+                    file_upload::item_group(
+                        file_upload::ItemType::Accepted,
+                        &props,
+                        vec![],
+                        accepted_items,
+                    ),
+                    file_upload::item_group(
+                        file_upload::ItemType::Rejected,
+                        &props,
+                        vec![],
+                        rejected_items,
+                    ),
+                    file_upload::clear_trigger(&props, !has_items, vec![], vec![text("Clear all")]),
                 ],
             ),
-            file_upload::item_group(
-                vec![],
-                vec![file_upload::item(
-                    false,
-                    vec![],
-                    vec![
-                        file_upload::item_name(vec![], vec![text("photo.png")]),
-                        file_upload::item_size_text_node(
-                            vec![],
-                            vec![text(file_upload::item_size_text(204_800))],
-                        ),
-                        file_upload::item_delete_trigger(
-                            "photo.png",
-                            false,
-                            vec![],
-                            vec![text("Remove")],
-                        ),
-                    ],
-                )],
-            ),
-            file_upload::clear_trigger(false, vec![], vec![text("Clear all")]),
         ],
-    )];
+    )
+}
+
+pub(super) fn file_upload_section() -> Node {
+    let body = vec![
+        file_upload_instance(
+            "Default（受理済み + 拒否済みファイル各 1 件）",
+            file_upload_props(false, false, false, false),
+            false,
+            true,
+        ),
+        file_upload_instance(
+            "Disabled",
+            file_upload_props(true, false, false, false),
+            false,
+            false,
+        ),
+        file_upload_instance(
+            "Readonly + Invalid + Required",
+            file_upload_props(false, true, true, true),
+            false,
+            false,
+        ),
+        file_upload_instance(
+            "Dragging（data-dragging）",
+            file_upload_props(false, false, false, false),
+            true,
+            false,
+        ),
+    ];
     demo_page("File Upload", body)
 }
 

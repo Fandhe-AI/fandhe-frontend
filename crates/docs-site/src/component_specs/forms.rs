@@ -448,7 +448,7 @@ const EDITABLE: ComponentPageSpec = ComponentPageSpec {
 const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "headless-ui の `file_upload::root` へ委譲し、`size` variant クラスのみを付与する。",
-        "`disabled` の単一状態フラグを直接引数で受け取る。",
+        "`FileUploadProps`（disabled/readonly/invalid/required）と `dragging`（`data-dragging` の DOM ローカル状態）を引数で受け取り、headless 層へそのまま委譲する（イシュー #1609 の headless 側破壊的変更への追随）。",
         "`item` の `data-invalid` は headless 層が出力しないため（旧 `checkbox_group` の判断。#1603 で checkbox_group 側は headless 出力へ移行済み）、利用者が `item` の `attrs` へ `(\"data-invalid\", \"\")` を直接付与することで border-color を danger 色化できる。",
         "`item` は border と border-color の transition（`data-invalid` 用）を持つ。`item-delete-trigger` は hover（`@media (hover: hover)`）を持つが、`item` が既に opacity 0.5 で dim 済みのため disabled は `cursor: not-allowed` のみに留め、opacity の三重適用（root × item × item-delete-trigger）を避ける。",
     ],
@@ -460,10 +460,16 @@ const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
             description: "サイズ variant。",
         },
         ArgRow {
-            name: "disabled",
+            name: "props",
+            kind: "&FileUploadProps",
+            default: "",
+            description: "disabled/readonly/invalid/required の状態束（headless 層へそのまま委譲）。",
+        },
+        ArgRow {
+            name: "dragging",
             kind: "bool",
             default: "false",
-            description: "無効化状態。",
+            description: "root の `data-dragging`（wasm-full 側が DOM ローカルにトグルする想定）。",
         },
         ArgRow {
             name: "attrs",

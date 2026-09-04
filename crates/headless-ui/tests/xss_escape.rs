@@ -611,8 +611,14 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
 /// 固定する（`tags_input` 分と同型の網羅方針）。
 #[test]
 fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
+    let props = file_upload::FileUploadProps::default();
     for payload in payloads::all() {
-        let item_name_node = file_upload::item_name(vec![], vec![text(payload)]);
+        let item_name_node = file_upload::item_name(
+            file_upload::ItemType::Accepted,
+            &props,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&item_name_node);
         assert_payload_is_escaped(
             payload,
@@ -620,7 +626,12 @@ fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
             "file_upload::item_name の children コンテキスト",
         );
 
-        let item_size_text_node = file_upload::item_size_text_node(vec![], vec![text(payload)]);
+        let item_size_text_node = file_upload::item_size_text_node(
+            file_upload::ItemType::Accepted,
+            &props,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&item_size_text_node);
         assert_payload_is_escaped(
             payload,
@@ -628,7 +639,13 @@ fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
             "file_upload::item_size_text_node の children コンテキスト",
         );
 
-        let delete_trigger_node = file_upload::item_delete_trigger(payload, false, vec![], vec![]);
+        let delete_trigger_node = file_upload::item_delete_trigger(
+            payload,
+            file_upload::ItemType::Accepted,
+            &props,
+            vec![],
+            vec![],
+        );
         let html = render(&delete_trigger_node);
         assert_payload_is_escaped(
             payload,
@@ -636,7 +653,7 @@ fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
             "file_upload::item_delete_trigger の aria-label コンテキスト",
         );
 
-        let hidden_input_node = file_upload::hidden_input(payload, false, false, vec![]);
+        let hidden_input_node = file_upload::hidden_input(payload, false, &props, vec![]);
         let html = render(&hidden_input_node);
         assert_payload_is_escaped(
             payload,
@@ -644,7 +661,7 @@ fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
             "file_upload::hidden_input の accept 属性コンテキスト",
         );
 
-        let attrs_node = file_upload::root(false, vec![("data-testid", payload)], vec![]);
+        let attrs_node = file_upload::root(&props, false, vec![("data-testid", payload)], vec![]);
         let html = render(&attrs_node);
         assert_payload_is_escaped(
             payload,

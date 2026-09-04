@@ -268,7 +268,10 @@
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。実 `File` API
 //!   接触は `fandhe-frontend-wasm-full` 側に隔離する（[`mod@file_upload`]
-//!   モジュール doc 参照）。
+//!   モジュール doc 参照）。disabled/readonly/invalid/required の状態束は
+//!   [`file_upload::FileUploadProps`] が担い、item 系パーツの受理/拒否種別は
+//!   [`file_upload::ItemType`] 固定語彙が `data-type` として表す
+//!   （参照突合、イシュー #1609）。
 //! - [`mod@steps`]: Root / List / Item / Trigger / Indicator / Separator /
 //!   Content / CompletedContent / PrevTrigger / NextTrigger の 10 anatomy
 //!   パーツと、`count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ
