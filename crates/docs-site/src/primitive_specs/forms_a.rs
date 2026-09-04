@@ -1431,12 +1431,65 @@ fn ex_fieldset() -> Node {
     )
 }
 
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/`data-disabled`/`data-invalid` 属性セレクタで
+/// 見た目を組み立てる例を示す（イシュー #1608、`FIELD_CUSTOM_CSS_SNIPPET`
+/// と同型）。CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープを
+/// 経由し、`crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは追加
+/// しない。
+const FIELDSET_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"fieldset\"][data-part=\"root\"] {\n  \
+  border: 1px solid #888;\n  border-radius: 4px;\n  padding: 0.75rem;\n\
+}\n\
+[data-scope=\"fieldset\"][data-part=\"legend\"] {\n  \
+  font-weight: 600;\n  padding: 0 0.25rem;\n\
+}\n\
+[data-scope=\"fieldset\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"fieldset\"][data-part=\"root\"][data-invalid] {\n  \
+  border-color: #dc2626;\n\
+}\n\
+[data-scope=\"fieldset\"][data-part=\"error-text\"] {\n  \
+  color: #dc2626;\n  font-size: 0.875rem;\n\
+}\n";
+
+fn ex_fieldset_custom_css() -> Node {
+    let props = FieldsetProps {
+        id: "fs3-billing-custom-css",
+        disabled: false,
+        invalid: true,
+        has_helper_text: false,
+    };
+    let markup = fieldset::root(
+        &props,
+        vec![],
+        vec![
+            fieldset::legend(&props, vec![], vec![text("Billing address")]),
+            fieldset::error_text(&props, vec![], vec![text("Billing address is required.")]),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-disabled / data-invalid 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(FIELDSET_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 const FIELDSET: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root（<fieldset>）/legend（<legend>）/helper_text/error_text の 4 パーツで複数の crate::field をグループ化する（fieldset.rs:1-9）。",
+        "root（<fieldset>）/legend（<legend>）/helper_text/error_text の 4 パーツで複数の crate::field をグループ化する（ark-ui Fieldset と一致、fieldset.rs:1-9）。",
         "root の disabled はネイティブ <fieldset disabled> として出力し、HTML 仕様により内側の全コントロールが自動的に無効化される（fieldset.rs:8-9, 148-167）。",
+        "disabled/invalid の 2 種の data-* 存在属性を 4 パーツすべてへ一貫して付与する。data-state/data-orientation/data-motion 等の局所操作状態・レイアウト計測の関心は出力しない（chakra-ui の Fieldset.Content はレイアウト用ラッパーであり styled 層の関心、`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。",
         "aria-describedby は invalid のとき error id、has_helper_text のとき helper id を空白区切りで合成する（field.rs と同型の合成則、fieldset.rs:123-146）。",
         "invalid はグループ全体のみに反映され、個別 Field の aria-invalid へは伝播しない（誤ったコントロール単位のエラー通知を避けるための意図的な判断、fieldset.rs:69-72）。",
+        "ark-ui の Root id 自動付与（fieldset::<id>）は採らず、呼び出し側が attrs で任意付与できる。has_helper_text は ark-ui の MutationObserver による動的検知を静的フラグへ写像したものであり、呼び出し側は実際に helper_text パーツを描画するかどうかと整合させる契約を持つ（field.rs と同型）。バリデーションの実行自体は利用者側の通常の Rust コードが担う（`docs/policy/intentional-non-adoption.md` §3.25 規則 1、Radix Form は不採用）。",
     ],
     arguments: &[
         ArgRow {
@@ -1470,12 +1523,22 @@ const FIELDSET: ComponentPageSpec = ComponentPageSpec {
             description: "Fieldset の disabled を内包する FieldProps へ OR 伝播する（invalid は伝播しない、fieldset.rs:106-121）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Invalid group",
-        description: "invalid な Fieldset と error_text の組み立て例です。",
-        render: ex_fieldset,
+    examples: &[
+        ExampleEntry {
+            title: "Invalid group",
+            description: "invalid な Fieldset と error_text の組み立て例です。",
+            render: ex_fieldset,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope / data-part / data-disabled / data-invalid 属性セレクタで見た目を組み立てる最小例です。",
+            render: ex_fieldset_custom_css,
+        },
+    ],
+    keyboard: &[KeyRow {
+        key: "Tab",
+        description: "fieldset 自体は独自のキー操作を持たない（参照サイトの ark-ui / chakra-ui も同様）。内包コントロール間の移動はネイティブの Tab 順に従い、<fieldset disabled> のとき内側のコントロールは HTML 仕様により tab 順から外れる（fieldset.rs::root）。",
     }],
-    keyboard: &[],
     aria: &[
         AriaRow {
             attribute: "aria-describedby",
@@ -1484,6 +1547,10 @@ const FIELDSET: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-live=\"polite\"",
             description: "error_text パーツへ固定付与する（fieldset.rs:195-198）。",
+        },
+        AriaRow {
+            attribute: "<fieldset> + <legend>（ネイティブ命名）",
+            description: "legend を root 内の先頭に置くことで HTML 仕様がグループのアクセシブルネームを構成し、追加の aria-labelledby / role を付与しない（ark-ui と一致、fieldset.rs モジュール doc「legend 連携」節）。",
         },
     ],
     demo: None,
