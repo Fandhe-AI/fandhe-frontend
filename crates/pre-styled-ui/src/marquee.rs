@@ -204,6 +204,12 @@
 //!   `root` 幅まで縮んでテキストが折り返せるようにする（`flex-wrap` は
 //!   item 間の折り返ししか作らないため、item 側の `flex: none` を
 //!   `@media` 内で上書きしないと単一 item は clip されたままになる）。
+//!   さらに `overflow-wrap: anywhere;`（互換フォールバックの
+//!   `word-break: break-word;`）を同じ `item` 規則へ追加した（PR #1857
+//!   codex-review P1 指摘）。`flex-wrap`/`min-width: 0` は空白区切りの
+//!   通常文には折り返し機会を作るが、URL・識別子等の**空白を含まない
+//!   長文**には改行機会がなく、`root` の `overflow: hidden` により
+//!   静止時にも末尾がクリップされたままだったため。
 //! - `root` へ `mask-image: none;` を追記し、静止時は両端フェードを
 //!   解除する（フェードは動いているコンテンツの出入りを滑らかに見せる
 //!   演出であり、静止した文章の先頭・末尾を隠すだけになるため）。
@@ -440,7 +446,7 @@ pub fn css() -> String {
         "\n[data-scope=\"marquee\"][data-part=\"root\"]:hover [data-part=\"content\"],\n[data-scope=\"marquee\"][data-part=\"root\"]:focus-within [data-part=\"content\"] {\n  animation-play-state: paused;\n}\n",
     );
     out.push_str(
-        "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"marquee\"][data-part=\"content\"] {\n    animation: none;\n    min-width: 0;\n    flex: 1 1 auto;\n    flex-wrap: wrap;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"content\"][aria-hidden=\"true\"] {\n    display: none;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"item\"] {\n    flex: 0 1 auto;\n    min-width: 0;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"root\"] {\n    mask-image: none;\n  }\n}\n",
+        "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"marquee\"][data-part=\"content\"] {\n    animation: none;\n    min-width: 0;\n    flex: 1 1 auto;\n    flex-wrap: wrap;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"content\"][aria-hidden=\"true\"] {\n    display: none;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"item\"] {\n    flex: 0 1 auto;\n    min-width: 0;\n    overflow-wrap: anywhere;\n    word-break: break-word;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"root\"] {\n    mask-image: none;\n  }\n}\n",
     );
     out
 }
@@ -854,6 +860,42 @@ mod tests {
         assert!(
             media_block_pos > base_mask_pos,
             "@media ブロックは root base の mask-image より後方に出力される必要がある: {out}"
+        );
+    }
+
+    /// 受け入れ条件（イシュー #1857 codex-review P1 指摘）: `@media
+    /// (prefers-reduced-motion: reduce)` ブロック内の `item` 規則が
+    /// `overflow-wrap: anywhere`（および互換フォールバックの
+    /// `word-break: break-word`）を宣言することを固定する。
+    ///
+    /// `flex-wrap: wrap`/`min-width: 0` は空白を含む通常の文章では折り返し
+    /// 機会を作るが、URL・識別子等の空白を含まない長文には改行機会が
+    /// 生まれない。`root` の `overflow: hidden`（イシュー #1582）が維持
+    /// されたままだと、そのような内容は静止時にも末尾がクリップされ
+    /// 「折り返して全文表示する」契約（`css_output_declares_reduced_motion_media_query`
+    /// の (3)）を満たせない。
+    #[test]
+    fn css_output_reduced_motion_item_rule_wraps_unbreakable_long_text() {
+        let out = css();
+        let media_block_pos = out
+            .find("@media (prefers-reduced-motion: reduce) {")
+            .expect("@media ブロックが存在する");
+        let item_rule_pos = out[media_block_pos..]
+            .find(r#"[data-scope="marquee"][data-part="item"] {"#)
+            .map(|offset| media_block_pos + offset)
+            .expect("@media 内の item 規則が存在する");
+        let item_rule_end = out[item_rule_pos..]
+            .find('}')
+            .map(|offset| item_rule_pos + offset)
+            .expect("item 規則の閉じ括弧が存在する");
+        let item_rule_body = &out[item_rule_pos..item_rule_end];
+        assert!(
+            item_rule_body.contains("overflow-wrap: anywhere;"),
+            "item 規則に overflow-wrap: anywhere; が必要: {item_rule_body}"
+        );
+        assert!(
+            item_rule_body.contains("word-break: break-word;"),
+            "item 規則に word-break: break-word; の互換フォールバックが必要: {item_rule_body}"
         );
     }
 
