@@ -95,6 +95,7 @@ menubar / navigation_menu / download_trigger はファイル名こそ
 | `charts_css.rs` | line_chart / area_chart / sparkline |
 | `charts_parts_css.rs` | charts 内部パーツ: `charts::axis` / `charts::grid` / `charts::legend` / `charts::tooltip` |
 | `scatter_radar_chart_css.rs` | `charts::scatter_chart` / `charts::radar_chart` |
+| `bar_list_css.rs` | `charts::bar_list`（イシュー #1591 で新設） |
 | `tabs_css.rs` | tabs（`recipe_css.rs` は recipe 機構自体の golden であり tabs はその一実例として参照するのみ） |
 
 `table_data_list_css.rs` は他のグルーピングファイル（`assert_eq!` による
@@ -128,9 +129,9 @@ CSS 全文の golden、方式 (a)）と異なり、§2.1 の方式 (b)（契約�
   イシュー #1555、`callout` はイシュー #1556、`card` はイシュー #1557、
   `spinner` はイシュー #1567 でそれぞれ golden 新設済みのため本リストから
   除外）
-- charts 内部パーツ 2 件（`css()` を持つが golden なし）: `charts::bar_chart` /
-  `charts::bar_list`（`charts::bar_segment` はイシュー #1592 で golden 新設済み
-  のため本リストから除外）
+- charts 内部パーツ 1 件（`css()` を持つが golden なし）: `charts::bar_chart`
+  （`charts::bar_list` はイシュー #1591、`charts::bar_segment` はイシュー #1592
+  でそれぞれ golden 新設済みのため本リストから除外）
 
 `charts::pie` はジオメトリ計算のみを行う機構モジュール（`Node` を生成せず
 `css()`/`stylesheet()` を持たない）であり、部品としての golden 対象外です
