@@ -3743,6 +3743,7 @@ fn number_input_section() -> Node {
         Size::Md,
         false,
         false,
+        false,
         vec![],
         vec![
             number_input::label(
@@ -3782,6 +3783,7 @@ fn number_input_section() -> Node {
     );
     let at_min = number_input::root(
         Size::Md,
+        false,
         false,
         false,
         vec![],
@@ -3826,6 +3828,7 @@ fn number_input_section() -> Node {
     let disabled = number_input::root(
         Size::Md,
         true,
+        false,
         false,
         vec![],
         vec![
@@ -3883,6 +3886,7 @@ fn number_input_section() -> Node {
         Size::Md,
         false,
         false,
+        true,
         vec![],
         vec![
             number_input::label(
@@ -3892,7 +3896,10 @@ fn number_input_section() -> Node {
                 vec![text("Readonly")],
             ),
             number_input::control(
-                NumberInputFlags::default(),
+                NumberInputFlags {
+                    readonly: true,
+                    ..NumberInputFlags::default()
+                },
                 vec![],
                 vec![
                     number_input::input(

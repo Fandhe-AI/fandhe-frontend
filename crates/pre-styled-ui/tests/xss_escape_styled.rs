@@ -743,6 +743,7 @@ fn number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
             Size::Md,
             false,
             false,
+            false,
             vec![("data-testid", payload)],
             vec![],
         ));
@@ -756,6 +757,7 @@ fn number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
         // 出力されず、recipe 生成クラスへ完全に置き換わる）。
         let html = render(&number_input::root(
             Size::Md,
+            false,
             false,
             false,
             vec![("class", payload)],

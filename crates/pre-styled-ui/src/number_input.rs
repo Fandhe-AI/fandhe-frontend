@@ -567,7 +567,7 @@ pub fn stylesheet() -> String {
 /// use fandhe_frontend_pre_styled_ui::number_input;
 /// use fandhe_frontend_pre_styled_ui::Size;
 ///
-/// let node = number_input::root(Size::Md, false, false, vec![], vec![]);
+/// let node = number_input::root(Size::Md, false, false, false, vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="number-input" data-part="root""#));
 /// ```
 #[must_use]
@@ -575,6 +575,7 @@ pub fn root<'a>(
     size: Size,
     disabled: bool,
     invalid: bool,
+    readonly: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -582,14 +583,19 @@ pub fn root<'a>(
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    // 公開シグネチャ（`disabled`/`invalid` の 2 bool）はイシュー #1613 でも
-    // 据え置く（Themes 層 API の破壊的変更は本イシューのスコープ外、
-    // モジュール doc「参考サイト基準への調整」節と同じ判断軸）。内部で
-    // headless 層の `NumberInputFlags`（`readonly`/`required` は既定 false）
-    // へ写像する。
+    // `readonly` はイシュー #1613 PR #1881 レビュー指摘で追加した第 4 引数
+    // （headless 層 `NumberInputFlags` が同イシューで `readonly` を持つ
+    // ようになったのに対し、styled `root` が `disabled`/`invalid` の 2 bool
+    // しか受け取らず `readonly: false` に固定していたため、型付き API で
+    // readonly な NumberInput を組み立てても `root`/`control` の
+    // `data-readonly` へ状態を伝播できなかった契約不一致の是正）。
+    // `required` は headless 層でも [`label`] のみが持つ（root/control は
+    // 元々 `required` を出力しない契約、モジュール doc「参考サイト基準への
+    // 調整」節参照）ため、styled `root` の引数には追加しない。
     let flags = NumberInputFlags {
         disabled,
         invalid,
+        readonly,
         ..NumberInputFlags::default()
     };
     fandhe_frontend_headless_ui::number_input::root(flags, merged, children)
@@ -656,15 +662,32 @@ mod tests {
 
     #[test]
     fn root_outputs_scope_and_part() {
-        let html = render(&root(Size::Md, false, false, vec![], vec![]));
+        let html = render(&root(Size::Md, false, false, false, vec![], vec![]));
         assert!(html.contains(r#"data-scope="number-input""#));
         assert!(html.contains(r#"data-part="root""#));
     }
 
     #[test]
     fn default_variant_is_md() {
-        let html = render(&root(Size::Md, false, false, vec![], vec![]));
+        let html = render(&root(Size::Md, false, false, false, vec![], vec![]));
         assert!(html.contains("fd-number-input--size-md"));
+    }
+
+    #[test]
+    fn root_readonly_true_propagates_data_readonly() {
+        // PR #1881 レビュー指摘の回帰テスト: styled `root` が `readonly` 引数
+        // を受け取らず内部で `NumberInputFlags.readonly` を常に `false` に
+        // 固定していたため、型付き API で readonly な NumberInput を組み
+        // 立てても `root` の `data-readonly` に状態を伝播できなかった
+        // （headless 層 `NumberInputFlags` の契約との不一致）。
+        let html = render(&root(Size::Md, false, false, true, vec![], vec![]));
+        assert!(html.contains("data-readonly"));
+    }
+
+    #[test]
+    fn root_readonly_false_omits_data_readonly() {
+        let html = render(&root(Size::Md, false, false, false, vec![], vec![]));
+        assert!(!html.contains("data-readonly"));
     }
 
     #[test]
@@ -676,7 +699,7 @@ mod tests {
             (Size::Lg, "fd-number-input--size-lg"),
             (Size::Xl, "fd-number-input--size-xl"),
         ] {
-            let html = render(&root(size, false, false, vec![], vec![]));
+            let html = render(&root(size, false, false, false, vec![], vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");
         }
     }
@@ -685,6 +708,7 @@ mod tests {
     fn class_attr_is_single_and_caller_class_is_dropped() {
         let html = render(&root(
             Size::Md,
+            false,
             false,
             false,
             vec![("class", "attacker-controlled")],
@@ -842,6 +866,7 @@ mod tests {
             Size::Md,
             false,
             false,
+            false,
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
@@ -856,6 +881,7 @@ mod tests {
     fn root_attrs_attribute_breakout_payload_is_escaped() {
         let html = render(&root(
             Size::Md,
+            false,
             false,
             false,
             vec![("data-x", "\" onmouseover=\"alert(1)")],
