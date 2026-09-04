@@ -7939,17 +7939,37 @@ fn bar_segment_section() -> Node {
 /// AreaChart 節（イシュー #848、親 #845）: 折れ線 + domain 下端へ閉じた
 /// 塗りつぶし面を重ねて描く。
 fn area_chart_section() -> Node {
+    // イシュー #1589: 系列色の識別性（内部整合の評価軸）を Demo で視覚
+    // 確認できるよう、2 系列（visits/signups）へ拡張する。
     let data = ChartData::new(
         vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
-        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+        vec![
+            Series::new("visits", vec![10.0, 30.0, 20.0]),
+            Series::new("signups", vec![4.0, 12.0, 8.0]),
+        ],
     )
     .expect("showcase 固定データは常に有効");
     let node = area_chart::area_chart(&AreaChartProps::new(&data, "monthly visits"), vec![])
         .expect("showcase 固定データは常に有効");
+
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .into_iter()
+        .map(|size| {
+            area_chart::area_chart(
+                &AreaChartProps {
+                    size,
+                    ..AreaChartProps::new(&data, "monthly visits")
+                },
+                vec![],
+            )
+            .expect("showcase 固定データは常に有効")
+        })
+        .collect());
+
     section(
         "AreaChart",
-        "系列ごとに折れ線 + 塗りつぶし面を重ねて描く自己完結チャートです。積み上げ・曲線補間は別イシュー（#847 以降）のスコープです。",
-        vec![node],
+        "系列ごとに折れ線 + 塗りつぶし面を重ねて描く自己完結チャートです。複数系列（chart-1〜6 の固定ローテーション色）と size（Xs〜Xl）の段階を掲示します。積み上げ・曲線補間は別イシュー（#847 以降）のスコープです。",
+        vec![node, size_row],
     )
 }
 

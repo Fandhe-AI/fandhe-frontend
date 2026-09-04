@@ -1027,6 +1027,7 @@ const AREA_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "系列ごとに折れ線 + domain 下端へ閉じた塗りつぶし面を重ねて描く自己完結チャート",
         "積み上げ・曲線補間は charts 共通 API 側の別イシュー",
+        "size（Xs〜Xl）で表示高さを切り替える",
     ],
     arguments: LINE_CHART_ARGUMENTS,
     examples: &[ExampleEntry {
