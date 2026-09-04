@@ -11,6 +11,20 @@
 //! イシュー #1582 で `gap` のフォールバックを `var(--fandhe-space-4)`
 //! （テーマトークン経由）へ変更し、`root` へ両端フェード用の
 //! `mask-image`（`--fandhe-marquee-fade`、既定 `0px`）を追加した。
+//!
+//! イシュー #1583 で `root` base へコンテンツ枠（`position: relative`・
+//! `box-sizing: border-box`・`padding: var(--fandhe-marquee-padding, 0)`）
+//! を追加し、`@media (prefers-reduced-motion: reduce)` ブロックを
+//! 拡張した（静止時に折り返して全文表示・両端フェード解除。
+//! `crates/pre-styled-ui/src/marquee.rs` モジュール doc「イシュー #1583」
+//! 節参照）。
+//!
+//! PR #1857（イシュー #1583）codex-review P1 指摘を受け、`@media
+//! (prefers-reduced-motion: reduce)` ブロック内の `item` 規則へ
+//! `overflow-wrap: anywhere`・`word-break: break-word`（互換
+//! フォールバック）を追加した。`flex-wrap: wrap`/`min-width: 0` だけでは
+//! 空白を含まない長文（URL・識別子等）に改行機会が生まれず、`root` の
+//! `overflow: hidden` により静止時にも末尾がクリップされる問題への対処。
 
 use fandhe_frontend_pre_styled_ui::marquee;
 
@@ -19,6 +33,9 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
   overflow: hidden;
   gap: var(--fandhe-marquee-gap, var(--fandhe-space-4));
   mask-image: linear-gradient(to right, transparent, black var(--fandhe-marquee-fade, 0px), black calc(100% - var(--fandhe-marquee-fade, 0px)), transparent);
+  position: relative;
+  box-sizing: border-box;
+  padding: var(--fandhe-marquee-padding, 0);
 }
 
 [data-scope="marquee"][data-part="content"] {
@@ -60,10 +77,24 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
 @media (prefers-reduced-motion: reduce) {
   [data-scope="marquee"][data-part="content"] {
     animation: none;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
   }
 
   [data-scope="marquee"][data-part="content"][aria-hidden="true"] {
     display: none;
+  }
+
+  [data-scope="marquee"][data-part="item"] {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  [data-scope="marquee"][data-part="root"] {
+    mask-image: none;
   }
 }
 "#;

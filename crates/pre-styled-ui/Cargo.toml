@@ -1198,6 +1198,25 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §3.2 により
 # `version-bump-exempt:` は適用しない）に伴い、同 §3.1/§3.4a に従い
 # main の現在値 0.78.2 の patch を +1 した 0.78.3 へバンプする。
+# イシュー #1583: marquee のスタイル調整 (2/2) — reduced-motion 対応と
+# コンテンツ枠（親 #1581）。`@media (prefers-reduced-motion: reduce)` を
+# 拡張し、静止時に折り返して全文表示・両端フェード解除するよう是正した。
+# `root` base へ `--fandhe-marquee-padding`（既定 `0`）の custom
+# property hook（`position`/`box-sizing`/`padding`）を追加した。
+# 公開 Rust API のシグネチャ変更・既存 CSS 変数名/クラス名/セレクタの
+# 削除・改名は伴わない意匠調整（CSS 出力変更のため
+# `docs/ci/style-refresh-version-bump-operation.md` §3.2 により
+# `version-bump-exempt:` は適用しない）のため、同 §3.1/§3.4a に従い
+# 0.78.2 へ patch バンプする（本ブランチ側の到達値）。
+#
+# マージ時の追記: 本ブランチ（#1583、0.78.2 へ patch バンプ）と main
+# （#1580/#1582 のマージにより独立に 0.78.2 へ到達済み）が同一版数へ
+# 偶発的に衝突した。`docs/ci/style-refresh-version-bump-operation.md`
+# §5「version 行コンフリクトの解決手順（並列 PR 間）」の機械的解決手順
+# （自分（本コミットで取り込む #1583 側）が patch バンプのため、main の
+# 現在値 0.78.2 の patch を +1 した値を採用する）に従い 0.78.3 へさらに
+# patch バンプする。
+#
 # 並行 PR（#1852、本 PR #1580/#1853 と同一イシューの重複実装）は既に
 # main へマージ済みで、main 側は #1580（`cursor: pointer` 追加を含む）と
 # #1582（marquee のスタイル調整 (1/2)）の統合により独立に 0.78.2 へ到達
@@ -1221,6 +1240,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.78.3 のまま統合すると並行 PR とのマージ統合後に同一バージョンで
 # 異なる成果物を公開してしまう。`docs/ci/style-refresh-version-bump-
 # operation.md` の semver 規律に従い 0.78.4 へ patch バンプする。
+# マージ時の追記（2 回目、#1583 と main の再マージ）: 本ブランチ（#1583、上記により
+# 0.78.3 へ到達）と main（#1580/#1853 の統合により独立に 0.78.3 へ到達済み）が
+# 同一版数へ偶発的に衝突した。
+# `docs/ci/style-refresh-version-bump-operation.md` §5「version 行コンフリクト
+# の解決手順（並列 PR 間）」の機械的解決手順（自分（本コミットで取り込む
+# #1583 側）が patch バンプのため、main の現在値 0.78.3 の patch を +1 した
+# 値を採用する）に従い 0.78.4 へさらに patch バンプする。
 version = "0.78.4"
 
 edition = "2021"

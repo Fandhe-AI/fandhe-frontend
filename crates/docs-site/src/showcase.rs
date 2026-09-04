@@ -7364,10 +7364,30 @@ fn marquee_section() -> Node {
             vec![text("両端フェード（--fandhe-marquee-fade）の例です。")],
         )],
     );
+    // イシュー #1583: root の内側余白フック（`--fandhe-marquee-padding`、
+    // 既定 0）の opt-in デモ。視覚確認のため `--fandhe-space-4` を上書きし、
+    // padding が実際に効いていることを示す。
+    let padding_demo = marquee::marquee(
+        &MarqueeProps::default(),
+        vec![(
+            "style",
+            "--fandhe-marquee-padding: var(--fandhe-space-4); border: 1px dashed var(--fandhe-color-border);",
+        )],
+        vec![marquee::item(
+            vec![],
+            vec![text("内側余白（--fandhe-marquee-padding）の例です。")],
+        )],
+    );
     section(
         "Marquee",
-        "CSS のみ（JS ゼロ）の自動流動テキストです。direction（既定/end）でスクロール方向を切り替え、hover/focus-within で常時一時停止、prefers-reduced-motion: reduce 環境では停止します。decorative: true で装飾用途（aria-hidden）に、--fandhe-marquee-duration の上書きで速度を、--fandhe-marquee-gap の上書きで間隔を調整できます。--fandhe-marquee-fade（既定 0px）を上書きすると両端がフェードします。",
-        vec![default_demo, end_demo, decorative_demo, fade_demo],
+        "CSS のみ（JS ゼロ）の自動流動テキストです。direction（既定/end）でスクロール方向を切り替え、hover/focus-within で常時一時停止、prefers-reduced-motion: reduce 環境では停止して折り返し全文表示・両端フェード解除します。decorative: true で装飾用途（aria-hidden）に、--fandhe-marquee-duration の上書きで速度を、--fandhe-marquee-gap の上書きで間隔を調整できます。--fandhe-marquee-fade（既定 0px）を上書きすると両端がフェードし、--fandhe-marquee-padding（既定 0）を上書きすると root の内側余白が付きます。",
+        vec![
+            default_demo,
+            end_demo,
+            decorative_demo,
+            fade_demo,
+            padding_demo,
+        ],
     )
 }
 
