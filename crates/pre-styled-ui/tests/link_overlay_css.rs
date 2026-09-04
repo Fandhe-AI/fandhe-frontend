@@ -8,6 +8,11 @@
 //! テストが即座に検知する。
 //! `docs/internal/pre-styled-ui-golden-test-update-guide.md` §3.3 が
 //! 新規追加の必要性を指摘していた「golden 不在」の 1 件を埋める。
+//!
+//! 並行 PR #1852 とのマージ（イシュー #1580）で `root` への
+//! `border-radius: inherit`（Bugbot 指摘の是正）と `overlay` への
+//! `cursor: pointer` の双方が統合されたため、golden fixture もその両方を
+//! 反映する。
 
 use fandhe_frontend_pre_styled_ui::link_overlay;
 
@@ -21,6 +26,7 @@ const LINK_OVERLAY_GOLDEN_CSS: &str = r#"[data-scope="link-overlay"][data-part="
   inset: 0;
   z-index: 0;
   border-radius: inherit;
+  cursor: pointer;
 }
 
 [data-scope="link-overlay"][data-part="overlay"]:focus-visible {

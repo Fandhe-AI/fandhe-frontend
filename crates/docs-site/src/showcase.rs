@@ -380,9 +380,8 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
-.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n  border-radius: inherit;\n  cursor: pointer;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  border-radius: inherit;\n}\n\
-.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  border-radius: inherit;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin-top: 0;\n}\n\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
@@ -1019,8 +1018,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     // （prev/next ナビが高さ 0 に潰れる）が起きる。デモの見た目に必要な
     // 等価ルールは [`SHOWCASE_LAYOUT_CSS`] 側で `.pre-styled-showcase`
     // スコープ付きとして個別に持つ（下記）。イシュー #1580 で `recipe()`
-    // へ追加した `border-radius: inherit` / `:focus-visible` リングも
-    // 同じ理由で scoped 複製する。
+    // へ追加した `border-radius: inherit`（root/overlay 双方）・
+    // `cursor: pointer`・`:focus-visible` リングも同じ理由で scoped
+    // 複製する（並行 PR #1852 とのマージで統合した内容を反映）。
     sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
     // Clipboard（イシュー #1155）: showcase.rs の COMPONENT_PAGES には未登録
     // だが、`crate::component_specs::interactive_utilities::demo_clipboard`
@@ -8795,20 +8795,22 @@ mod tests {
   position: absolute;
   inset: 0;
   z-index: 0;
+  border-radius: inherit;
+  cursor: pointer;
 }"#
         ));
-        // Link Overlay の `border-radius: inherit` / `:focus-visible` リング
-        // （イシュー #1580）: `link_overlay::recipe()` へ追加した新規宣言の
-        // scoped 複製が出荷されていることを固定する。`root` 側の
-        // `border-radius: inherit`（Bugbot 指摘の是正、PR #1853）も
-        // `overlay` と対で複製する。
+        // Link Overlay の `border-radius: inherit`（root 側、Bugbot 指摘の
+        // 是正、PR #1853）/ `:focus-visible` リング（イシュー #1580）:
+        // `link_overlay::recipe()` へ追加した新規宣言の scoped 複製が
+        // 出荷されていることを固定する。`link_overlay::stylesheet()` 本体
+        // と同じ理由（上記コメント）で無条件出荷せず
+        // `.pre-styled-showcase` スコープ付きミラーとして個別に持つ契約
+        // を固定する。
+        assert!(
+            !css.contains("\n[data-scope=\"link-overlay\"][data-part=\"overlay\"]:focus-visible {")
+        );
         assert!(css.contains(
             r#".pre-styled-showcase [data-scope="link-overlay"][data-part="root"] {
-  border-radius: inherit;
-}"#
-        ));
-        assert!(css.contains(
-            r#".pre-styled-showcase [data-scope="link-overlay"][data-part="overlay"] {
   border-radius: inherit;
 }"#
         ));

@@ -21,46 +21,51 @@
 //! の既定エスケープを必ず経由し、`raw_html()` の新規使用なし、`href` の URL
 //! スキーム検証は headless 層が担う）。
 //!
+//! # イシュー #1580 の参照サイト比較（7 軸チェック）
+//!
+//! 参照サイト（chakra-ui `LinkBox`/`LinkOverlay`。ark-ui / Radix Primitives /
+//! Radix Themes には対応する部品が存在しない、`docs/design/
+//! component-coverage-map.md` 参照）と 7 軸（サイズ / バリアント / 色 /
+//! 状態 `data-*` / ダーク / フォーカス / 余白・角丸・影）で比較した結果:
+//!
+//! - **サイズ / バリアント / 色 / 状態 `data-*`**: chakra の `LinkOverlay`
+//!   自身はいずれの軸も持たない（見た目はコンテナ `LinkBox` 側の責務）ため
+//!   本部品でも追加しない。
+//! - **フォーカス（是正）**: `overlay` に `:focus-visible` のリングが
+//!   未定義（UA 既定 outline 任せ）だったため是正する。本部品は
+//!   `ColorPalette` 軸を持たないため
+//!   [`crate::recipe::FocusRingColor::Token`] を使う（`docs/design/
+//!   pre-styled-ui-focus-ring-and-size-conventions.md` §6 手順 2）。
+//!   `overlay` は `root` 全面に `inset: 0` で展開されるため
+//!   [`crate::recipe::FocusRingOffset::Outside`] が chakra の LinkBox 外周
+//!   リングと一致する。
+//! - **余白・角丸・影**: `overlay` 自身は余白・影を持たないが、`card` 等の
+//!   角丸を持つ `root` と合成した際にフォーカスリングが角丸に沿うよう
+//!   `border-radius: inherit` を追加する。
+//! - **hover（意図的非採用）**: `overlay` は `z-index: 0` で通常フローの
+//!   子要素（見出し・本文）より**上**に positioned されるため、
+//!   `hover_surface_declarations` 相当の背景を敷くとカード内容を覆い隠す。
+//!   chakra の `LinkOverlay` 自身も hover 装飾を持たない。
+//! - **disabled（意図的非採用）**: `<a>` に disabled 概念がない（[`crate::link`]
+//!   と同じ判断）。
+//! - **transition（意図的非採用）**: 遷移する視覚属性を追加しないため不要。
+//! - **入れ子リンクの前面化（構造的に非採用）**: chakra は `LinkBox` 側で
+//!   `a[href]:not(overlay) { z-index: 1 }` の子孫セレクタ規則を持つが、
+//!   [`SlotRecipe`] は子孫セレクタに対応しない（イシュー #708 で確定済み）
+//!   ため表現できない。headless 層 rustdoc の「呼び出し側責務」記述を維持
+//!   する。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
 //!   イシュー側のスコープ。
 //! - `root` 内に `overlay` 以外の対話要素を配置する場合の z-index 調整は
 //!   呼び出し側の責務（headless 層 rustdoc 参照）。
-//!
-//! # 参照サイト比較（イシュー #1580、7 軸チェック）
-//!
-//! 参照軸は chakra-ui のみ（`docs/design/component-coverage-map.md` の該当行は
-//! ark-ui / Radix が「—」であり、本モジュールが薄く再利用する headless 層
-//! （`crates/headless-ui/src/link_overlay.rs`）の rustdoc も「ark-ui には
-//! 対応する headless 実体がない」と明記している）。chakra の `LinkBox` /
-//! `LinkOverlay` recipe は構造のみ（`position: relative` と `::before` に
-//! よる全面拡張、`cursor: inherit`）で、参照スクショに見える枠線・角丸・
-//! 余白付きカードはラッパー側（`Box` の `borderWidth`/`p`/`rounded` や
-//! `Card`）の props に由来し、`LinkOverlay` 自身の意匠ではない。
-//!
-//! - **サイズ / バリアント / 色**: 追加しない。chakra `LinkOverlay` に
-//!   size / variant / colorPalette 軸が存在しないため。`root` にも色・
-//!   カード意匠を付けない（付けると `link_overlay::root` と
-//!   `card::root` を合成する呼び出し側で二重枠線になり、`root` は
-//!   位置決めコンテキストのみという既存契約が壊れる）。
-//! - **`data-*` 状態**: 変更なし（headless 層が状態属性を出さない）。
-//! - **ダーク**: 個別対応不要。フォーカスリングは
-//!   `--fandhe-color-focus-ring` 系トークン経由で `Theme::to_css` の
-//!   一元機構に自動追従する。
-//! - **フォーカス（是正）**: `overlay` に `StateCondition::FocusVisible`
-//!   の状態規則として [`crate::recipe::focus_ring_declarations`] を追加した。
-//!   `FocusRingColor::Token`: 本部品は palette 軸を持たないため
-//!   （`crate::nav_list` と同判断）。`FocusRingOffset::Outside`: `root` に
-//!   `overflow: hidden` を持つ祖先 slot がなく、`overlay` は
-//!   `inset: 0` で `root` 全面へ展開されるためリングがカード全体を囲む
-//!   （chakra で `LinkOverlay` にキーボードフォーカスした際の見え方と同等）。
-//! - **余白・角丸・影（是正）**: `overlay` base に
-//!   `border-radius: inherit` を追加した（`crate::avatar` の `image` が
-//!   同じ理由で持つ宣言と同型）。呼び出し側が `root` に角丸（`card` 等）
-//!   を与えた場合、フォーカスリングの `outline` がその角丸へ追従する。
-//!   **追補（Bugbot 指摘、PR #1853）**: CSS の `inherit` は宣言先要素の
-//!   直接の親の計算値を参照するため、`root` 自身が角丸を持たない
+//! - 入れ子リンクの前面化（chakra `LinkBox` 相当）: `SlotRecipe` の子孫
+//!   セレクタ非対応により構造的に表現不可（上記 7 軸チェック参照）。
+//! - **追補（Bugbot 指摘、PR #1853。並行 PR #1852 とのマージで統合）**: 上記
+//!   「余白・角丸・影」の `overlay` への `border-radius: inherit` は CSS の
+//!   継承規則上 `root` の計算値を参照するため、`root` 自身が角丸を持たない
 //!   （既定 0）ままでは、角丸な祖先（`card::root` 等）にラップされていても
 //!   `root` の計算値が 0 のまま `overlay` へ継承されフォーカスリングが
 //!   角丸に追従しない。`root` base にも `border-radius: inherit` を追加し、
@@ -68,19 +73,6 @@
 //!   連鎖させた（`inherit` は 1 段先の直接の親要素の計算値しか参照
 //!   できないため、`root` と角丸要素の間にさらに角丸を持たない要素が
 //!   挟まる構成には届かない）。
-//!   padding・shadow は追加しない（本部品は構造のみを担う）。
-//! - **hover**: 意図的に付けない。`overlay` は
-//!   `position: absolute; z-index: 0` の位置指定要素であり、
-//!   `hover_surface_declarations()`（`background: ...`）を当てると
-//!   カード本文（見出し・説明文）より上に塗り潰しが描かれて読めなくなる。
-//!   chakra `LinkBox`/`LinkOverlay` 自体も hover 意匠を持たない（hover は
-//!   ラッパー側の責務）。`root` は
-//!   `docs/design/pre-styled-ui-interaction-visual-language.md` §3 の
-//!   「hover はインタラクティブ slot のみ」に該当しない。
-//! - **disabled**: 該当なし（headless 層がリンクに `data-disabled` を
-//!   出さない）。
-//! - **transition**: 付けない（アニメーション対象となる hover 背景等の
-//!   プロパティを持たないため）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -124,6 +116,11 @@ fn recipe() -> SlotRecipe {
                 // 与えた場合、フォーカスリングの `outline` がその角丸へ
                 // 追従するようにする（`crate::avatar` の `image` と同型）。
                 decl("border-radius", "inherit"),
+                // イシュー #1580（並行 PR #1852 とのマージで統合）: chakra
+                // の `LinkOverlay` は `cursor: inherit` だが、本部品は
+                // `overlay` 自身が唯一のクリック対象であるため
+                // `cursor: pointer` を明示する。
+                decl("cursor", "pointer"),
             ],
         )
         // イシュー #1580: キーボード操作時のみのフォーカスリング。
