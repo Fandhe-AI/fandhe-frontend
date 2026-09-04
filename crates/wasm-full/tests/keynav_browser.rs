@@ -98,6 +98,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_headless_ui::tree_view::{TreeNode, TreeView};
+use fandhe_frontend_wasm_full::events::{wire_events, ActionRef};
 use fandhe_frontend_wasm_full::headless::wire_headless_component;
 use fandhe_frontend_wasm_full::keynav::{wire_keynav, TYPEAHEAD_TIMEOUT_MS};
 use std::cell::RefCell;
@@ -2009,6 +2010,94 @@ fn radio_group_readonly_click_does_not_change_selection() {
             .unwrap()
             .checked(),
         "readonly 項目への click で既存の選択が失われてはならない"
+    );
+    assert_eq!(
+        input_b.get_attribute("data-state").as_deref(),
+        Some("unchecked"),
+        "readonly 項目への click 後も data-state は unchecked のまま"
+    );
+}
+
+/// readonly（イシュー #1616 P1 是正・codex-review 再指摘、PR #1886 レビュー
+/// 対応）: `events::wire_events` と `wire_keynav` を製品実装（`Self::wire`、
+/// `wasm-full/src/lib.rs`）と同じ順序（`wire_events` → `wire_keynav`、同一
+/// root）で配線したとき、readonly item への click が `wire_events` の
+/// `data-action` 委譲（headless dispatch）へ一切到達しないことを検証する。
+///
+/// 旧実装（bubble フェーズの `wire_keynav` 側リスナーのみで readonly を
+/// 判定）には 2 つの不備があった: (1) 同一 root 上の bubble リスナーは
+/// 登録順に発火するため、先に登録される `wire_events` 側が readonly 判定
+/// より前に `data-action` へ委譲してしまう。(2) click イベントの target は
+/// 常にネイティブ input とは限らない（`item`〔`<label>`〕配下の
+/// `item-control`/`item-text` であることが多い）ため、
+/// `closest(target, RADIO_GROUP_INPUT_SELECTOR)`（祖先方向のみ）では
+/// input を発見できず readonly 判定自体が不発になる。本テストは
+/// `item-control` を click target にすることで (2) を、`wire_events` を
+/// 先に配線することで (1) を同時に再現する。是正後は capture フェーズの
+/// `click_capture_closure`（[`item_readonly`] を `target_element` へ直接
+/// 適用）が `stop_propagation` で `wire_events` 側 bubble リスナーへ到達
+/// する前に伝播を断つ。
+#[wasm_bindgen_test]
+fn radio_group_readonly_click_on_item_control_blocks_wire_events_action() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly3",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly3-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+    // アプリ層（`fandhe_frontend_interactive::Component::decode_action`
+    // 契約）が item へ付与しうる `data-action`/`data-payload` を模す
+    // （headless-ui 自体はこれらを出力しない、`crates/headless-ui/src/
+    // radio_group.rs` 参照。`events::wire_events` の委譲経路を実際に
+    // 起動させるための前提セットアップ）。
+    item_b.set_attribute("data-action", "select").unwrap();
+    item_b.set_attribute("data-payload", "b").unwrap();
+
+    let item_control_b = item_b
+        .query_selector("[data-part=\"item-control\"]")
+        .unwrap()
+        .expect("item-control must exist");
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(root.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+    // 実プロダクト（`Self::wire`、`wasm-full/src/lib.rs`）と同じ順序
+    // （`wire_events` → `wire_keynav`）で同一 root へ配線する。
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !item_control_b
+        .dispatch_event(&cancelable_click_event())
+        .unwrap();
+    assert!(
+        prevented,
+        "readonly item への click（item-control ターゲット）は \
+         preventDefault で打ち消されるべき"
+    );
+    assert!(
+        actions.borrow().is_empty(),
+        "readonly item への click は wire_events の data-action 委譲へ \
+         到達してはならない（codex-review 指摘の再現）"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly 項目は click しても checked にならない"
     );
     assert_eq!(
         input_b.get_attribute("data-state").as_deref(),

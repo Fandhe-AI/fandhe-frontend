@@ -6907,6 +6907,35 @@ mod wiring {
                 *capture_pending.borrow_mut() = None;
                 return;
             }
+            // RadioGroup readonly（イシュー #1616 P1 是正・Bugbot/codex-review
+            // 再指摘）: この capture リスナーは `root` へ登録された他の全
+            // click リスナー（`events::wire_events` の bubble リスナーを
+            // 含む。`Self::wire`〔`lib.rs`〕は `wire_events` → `wire_keynav`
+            // の順で同一 `root` へ登録するため、bubble フェーズだけでは
+            // `wire_events` 側が先に走り headless dispatch で選択状態を
+            // 確定させてしまう）より必ず先に発火する。ここで readonly を
+            // 検出したら `stop_propagation` で以降の capture 継続・target
+            // 到達・bubble 巻き戻しを丸ごと断ち切り、`prevent_default` で
+            // ネイティブ `<input type="radio">` の checked 確定（pre-click
+            // activation steps）も抑止する。
+            //
+            // 判定には [`item_readonly`] を `target_element` へ直接適用する
+            // （旧実装は bubble 側で `RADIO_GROUP_INPUT_SELECTOR` へ
+            // `closest` する形だったが、`item`（`<label>`）クリックの
+            // 最初の click イベントでは `target_element` がネイティブ
+            // input の**祖先**ではなく label 自身や `item-control`/
+            // `item-text` であり、`closest` は祖先方向にしか遡らないため
+            // input を発見できず防御が不発になっていた。`item_readonly` は
+            // 内部で [`RADIO_GROUP_ITEM_SELECTOR`] へ `closest` するため、
+            // `Element::closest` が自分自身も候補に含む DOM 仕様により
+            // label クリック・input への合成 click のどちらでも item 祖先
+            // （またはそれ自身）を一貫して検出できる）。
+            if item_readonly(&target_element) {
+                event.stop_propagation();
+                event.prevent_default();
+                *capture_pending.borrow_mut() = None;
+                return;
+            }
             *capture_pending.borrow_mut() =
                 tree_click_restore_target(&capture_root, &target_element);
         });
@@ -6960,23 +6989,25 @@ mod wiring {
             if !click_root.contains(Some(&target_element)) {
                 return;
             }
-            // RadioGroup readonly（イシュー #1616 P1 是正）: ネイティブ
-            // `<input type="radio">` の click は「pre-click activation
-            // steps（checked を仮更新）→ click イベント dispatch → 未
-            // キャンセルなら post-click activation steps（checked を確定 +
-            // change 発火）」の順で処理されるため、この bubble フェーズ
-            // リスナーで `preventDefault` すれば checked の確定を打ち消せる
-            // （マウスクリックだけでなく、フォーカス中の Space キー押下が
-            // 合成する click にも同じ活性化手順が適用されるため両方を
-            // 一度に抑止できる）。`item-hidden-input` 自身は
-            // `data-readonly` を持たない契約（[`item_readonly`] doc 参照）
-            // のため、`closest` で祖先の `item-hidden-input` まで遡ってから
-            // 判定する。
-            if let Some(radio_input) = closest(&target_element, RADIO_GROUP_INPUT_SELECTOR) {
-                if click_root.contains(Some(&radio_input)) && item_readonly(&radio_input) {
-                    event.prevent_default();
-                    return;
-                }
+            // RadioGroup readonly（イシュー #1616 P1 是正、defense-in-depth）:
+            // 本来の防御は上記 capture フェーズリスナー（`click_capture_closure`）
+            // が `stop_propagation` で担う（`events::wire_events` の bubble
+            // リスナーより必ず先に発火し、readonly 検出時は本リスナーへ到達
+            // する前に伝播を断つ）。ここでの再チェックは、万一 capture 側の
+            // `stop_propagation` が効かない経路（将来の実装変更・他コードの
+            // `stopImmediatePropagation` 誤用等）があっても、ネイティブ
+            // `<input type="radio">` の checked 確定（pre-click activation
+            // steps → click dispatch → 未キャンセルなら post-click activation
+            // steps）だけは `preventDefault` で必ず打ち消す最終防衛線として
+            // 残す。判定は capture 側と同じ [`item_readonly`] を
+            // `target_element` へ直接適用する（`item`〔`<label>`〕クリックの
+            // 最初の click イベントでは `target_element` がネイティブ input
+            // の祖先ではなく label 自身や item-control/item-text であり、
+            // `RADIO_GROUP_INPUT_SELECTOR` への `closest`〔祖先方向のみ〕では
+            // 発見できない旧実装の不備を踏襲しない）。
+            if item_readonly(&target_element) {
+                event.prevent_default();
+                return;
             }
             let Ok(Some(matched)) = target_element.closest(TABS_TRIGGER_SELECTOR) else {
                 return;
