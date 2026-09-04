@@ -61,6 +61,9 @@ name = "fandhe-frontend-headless-ui"
 # 伴う破壊的変更のため 0.x のマイナーバンプとする。
 # base main 取り込み時のマージ注記: #1617 と #1610 が独立に 0.35.0 から
 # 0.36.0 へマイナーバンプしていたため衝突を避け 0.37.0 とする。
+# イシュー #1611: listbox の参考実装（zag.js Listbox）へ突合。`ListboxProps`
+# 新設に伴う root/label/content/item_group/item/value_text の破壊的シグネ
+# チャ変更・`item_text` の破壊的シグネチャ変更のため 0.x のマイナーバンプ。
 version = "0.37.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"

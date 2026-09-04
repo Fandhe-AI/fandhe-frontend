@@ -1363,12 +1363,13 @@ fn file_upload_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
 
 #[test]
 fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    let props = listbox::ListboxProps::default();
     for payload in payloads::all() {
         // styled root の呼び出し側 attrs 経路。
         let html = render(&listbox::root(
             Size::Md,
             OpenState::Closed,
-            false,
+            &props,
             vec![("data-testid", payload)],
             vec![],
         ));
@@ -1383,7 +1384,7 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         let html = render(&listbox::root(
             Size::Md,
             OpenState::Closed,
-            false,
+            &props,
             vec![("class", payload)],
             vec![],
         ));
@@ -1403,12 +1404,18 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした label の id/children 経路。
-        let html = render(&listbox::label(Some(payload), vec![], vec![text(payload)]));
+        let html = render(&listbox::label(
+            &props,
+            Some(payload),
+            vec![],
+            vec![text(payload)],
+        ));
         assert_payload_is_escaped(payload, &html, "listbox::label id/children コンテキスト");
 
         // 選択的再エクスポートした content の id/labelledby/activedescendant 経路。
         let html = render(&listbox::content(
             false,
+            &props,
             Some(payload),
             Some(payload),
             Some(payload),
@@ -1425,6 +1432,7 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // REQ-1 の重点対象）。
         let html = render(&listbox::item(
             OpenState::Open,
+            &props,
             false,
             false,
             payload,
@@ -1436,6 +1444,10 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
 
         // 選択的再エクスポートした item_text の id/children 経路。
         let html = render(&listbox::item_text(
+            OpenState::Open,
+            &props,
+            false,
+            false,
             Some(payload),
             vec![],
             vec![text(payload)],
@@ -1447,7 +1459,12 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした value_text の children 経路。
-        let html = render(&listbox::value_text(false, vec![], vec![text(payload)]));
+        let html = render(&listbox::value_text(
+            false,
+            &props,
+            vec![],
+            vec![text(payload)],
+        ));
         assert_payload_is_escaped(payload, &html, "listbox::value_text children コンテキスト");
     }
 }

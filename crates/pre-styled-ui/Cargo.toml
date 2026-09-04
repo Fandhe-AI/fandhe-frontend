@@ -1466,6 +1466,12 @@ version = "0.88.0"
 # `image_cropper::root`/`selection`（styled ラッパー）も同様に追随した
 # ため 0.x のマイナーバンプとする（`.claude/rules/coding-rust.md` 破壊的
 # 変更規定）。
+# イシュー #1611（listbox の参照突合）: headless-ui 側の破壊的変更
+# （`ListboxProps` 新設に伴う `listbox::{root, label, content, item_group,
+# item, value_text}` シグネチャ変更・`item_text` の破壊的シグネチャ変更）
+# に伴い、本クレートの `listbox::root`（styled ラッパー）も同様に
+# `&ListboxProps` を転送する形へ追随したため 0.x のマイナーバンプとする
+# （`.claude/rules/coding-rust.md` 破壊的変更規定）。
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

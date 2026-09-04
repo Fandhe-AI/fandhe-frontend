@@ -40,6 +40,10 @@ name = "fandhe-frontend-wasm-full"
 # 参照しないため内部変更なしの patch バンプ。
 # base main 取り込み時のマージ注記: #1617 と #1610 が独立に 0.7.20 へ
 # 到達していたため衝突を避け 0.7.21 とする。
+# イシュー #1611: headless-ui 依存の version 要求を 0.37.0 へ追随。
+# `keynav.rs::handle_listbox_keydown` の doc コメントを `data-orientation`
+# 常時出力（従来は呼び出し側オプトイン）へ追随更新したのみで、キー配線の
+# 実体（`listbox_next_index` 等）は不変のため patch バンプ。
 version = "0.7.21"
 # base main 取り込み時のマージ注記: #1609 と #1615 が独立に 0.7.18 へ
 # 到達していたため衝突を避け 0.7.19 とする。
