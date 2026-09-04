@@ -2627,19 +2627,22 @@ fn select_section() -> Node {
 /// positioner を持たず、`content` が常に表示される（責務境界の詳細は
 /// `fandhe_frontend_headless_ui::listbox` module doc 参照）。
 fn listbox_section() -> Node {
+    let props = listbox::ListboxProps::default();
     let single = listbox::root(
         Size::Md,
         OpenState::Open,
-        false,
+        &props,
         vec![],
         vec![
             listbox::label(
+                &props,
                 Some("showcase-listbox-single-label"),
                 vec![],
                 vec![text("Fruit")],
             ),
             listbox::content(
                 false,
+                &props,
                 Some("showcase-listbox-single-content"),
                 Some("showcase-listbox-single-label"),
                 None,
@@ -2647,25 +2650,43 @@ fn listbox_section() -> Node {
                 vec![
                     listbox::item(
                         OpenState::Open,
+                        &props,
                         false,
                         false,
                         "apple",
                         None,
                         vec![],
                         vec![
-                            listbox::item_text(None, vec![], vec![text("Apple")]),
+                            listbox::item_text(
+                                OpenState::Open,
+                                &props,
+                                false,
+                                false,
+                                None,
+                                vec![],
+                                vec![text("Apple")],
+                            ),
                             listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
                         ],
                     ),
                     listbox::item(
                         OpenState::Closed,
+                        &props,
                         true,
                         false,
                         "banana",
                         None,
                         vec![],
                         vec![
-                            listbox::item_text(None, vec![], vec![text("Banana (disabled)")]),
+                            listbox::item_text(
+                                OpenState::Closed,
+                                &props,
+                                true,
+                                false,
+                                None,
+                                vec![],
+                                vec![text("Banana (disabled)")],
+                            ),
                             listbox::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
                         ],
                     ),
@@ -2677,21 +2698,24 @@ fn listbox_section() -> Node {
     let multiple = listbox::root(
         Size::Md,
         OpenState::Open,
-        false,
+        &props,
         vec![],
         vec![
             listbox::label(
+                &props,
                 Some("showcase-listbox-multi-label"),
                 vec![],
                 vec![text("Toppings")],
             ),
             listbox::content(
                 true,
+                &props,
                 Some("showcase-listbox-multi-content"),
                 Some("showcase-listbox-multi-label"),
                 None,
                 vec![],
                 vec![listbox::item_group(
+                    &props,
                     Some("showcase-listbox-multi-group-label"),
                     vec![],
                     vec![
@@ -2702,25 +2726,43 @@ fn listbox_section() -> Node {
                         ),
                         listbox::item(
                             OpenState::Open,
+                            &props,
                             false,
                             false,
                             "cheddar",
                             None,
                             vec![],
                             vec![
-                                listbox::item_text(None, vec![], vec![text("Cheddar")]),
+                                listbox::item_text(
+                                    OpenState::Open,
+                                    &props,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Cheddar")],
+                                ),
                                 listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
                             ],
                         ),
                         listbox::item(
                             OpenState::Open,
+                            &props,
                             false,
                             false,
                             "mozzarella",
                             None,
                             vec![],
                             vec![
-                                listbox::item_text(None, vec![], vec![text("Mozzarella")]),
+                                listbox::item_text(
+                                    OpenState::Open,
+                                    &props,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Mozzarella")],
+                                ),
                                 listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
                             ],
                         ),

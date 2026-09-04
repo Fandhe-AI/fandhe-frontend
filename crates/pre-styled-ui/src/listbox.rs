@@ -1,10 +1,10 @@
 //! styled Listbox（headless ラッパー、イシュー #750、親 #520/#546/#748）。
 //!
-//! `fandhe_frontend_headless_ui::listbox`（イシュー #750）の Label / Content /
-//! ItemGroup / ItemGroupLabel / Item / ItemText / ItemIndicator / ValueText
-//! 8 anatomy パーツをそのまま再エクスポートし、[`stylesheet`] で既定 CSS を
-//! 追加提供する。薄い委譲の根拠・スコープ外事項は [`crate::select`] の
-//! rustdoc と同じ方針に従う。
+//! `fandhe_frontend_headless_ui::listbox`（イシュー #750/#1611）の Label /
+//! Content / ItemGroup / ItemGroupLabel / Item / ItemText / ItemIndicator /
+//! ValueText 8 anatomy パーツと [`ListboxProps`] をそのまま再エクスポート
+//! し、[`stylesheet`] で既定 CSS を追加提供する。薄い委譲の根拠・スコープ
+//! 外事項は [`crate::select`] の rustdoc と同じ方針に従う。
 //!
 //! # [`crate::select`] との責務境界
 //!
@@ -122,6 +122,7 @@ use crate::recipe::{
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::listbox::{
     content, item, item_group, item_group_label, item_indicator, item_text, label, value_text,
+    ListboxProps,
 };
 // `root`/`item`/`item_indicator` 等の状態引数はいずれも headless
 // `state`/`OpenState` 由来で上記選択的再エクスポートでは到達しない。呼び出し
@@ -382,21 +383,32 @@ pub fn stylesheet() -> String {
 /// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::listbox::root`] へ委譲する。
 ///
+/// `props`（[`ListboxProps`]）は headless 側へそのまま転送し、`root` 自身
+/// および子パーツ（`content`/`item` 等、いずれも headless から選択的
+/// 再エクスポート済み）へ `&ListboxProps` を明示的に渡すのは呼び出し側の
+/// 責務である（イシュー #1611 是正: 従来は `disabled: bool` のみを
+/// 受け取っていたが、`ListboxProps` 新設に伴い headless
+/// `listbox::root`/`content`/`item` 等すべてが `&ListboxProps` を受け取る
+/// 形へ統一したため、styled root もそれに合わせて `&ListboxProps` を
+/// 受け取る形へ統一する。[`crate::color_picker::root`] の
+/// `&ColorPickerProps` 転送と同型のパターン）。
+///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::listbox::{self, OpenState};
+/// use fandhe_frontend_pre_styled_ui::listbox::{self, ListboxProps, OpenState};
 /// use fandhe_frontend_pre_styled_ui::Size;
 ///
-/// let node = listbox::root(Size::Md, OpenState::Closed, false, vec![], vec![]);
+/// let props = ListboxProps::default();
+/// let node = listbox::root(Size::Md, OpenState::Closed, &props, vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="listbox" data-part="root""#));
 /// ```
 #[must_use]
 pub fn root<'a>(
     size: Size,
     selection_state: OpenState,
-    disabled: bool,
+    props: &ListboxProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -404,7 +416,7 @@ pub fn root<'a>(
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::listbox::root(selection_state, disabled, merged, children)
+    fandhe_frontend_headless_ui::listbox::root(selection_state, props, merged, children)
 }
 
 #[cfg(test)]
@@ -430,7 +442,13 @@ mod tests {
 
     #[test]
     fn reexported_root_renders_with_headless_anatomy_attrs() {
-        let html = render(&root(Size::Md, OpenState::Closed, false, vec![], vec![]));
+        let html = render(&root(
+            Size::Md,
+            OpenState::Closed,
+            &ListboxProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="listbox""#));
         assert!(html.contains(r#"data-part="root""#));
     }
@@ -441,7 +459,7 @@ mod tests {
             let html = render(&root(
                 size,
                 OpenState::Closed,
-                false,
+                &ListboxProps::default(),
                 vec![("class", "attacker")],
                 vec![],
             ));
@@ -533,7 +551,7 @@ mod tests {
         use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate};
 
         let mut l = Listbox::default();
-        let ssr_html = render(&l.root(false, vec![], vec![]));
+        let ssr_html = render(&l.root(&ListboxProps::default(), vec![], vec![]));
         assert!(ssr_html.contains(r#"data-state="closed""#));
 
         assert!(dispatch(&mut l, "select", "apple"));
