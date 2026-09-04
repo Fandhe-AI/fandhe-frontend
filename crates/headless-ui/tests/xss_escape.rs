@@ -418,6 +418,7 @@ fn password_input_id_and_label_text_are_escaped_for_all_payloads() {
         let field_props = PasswordInputProps {
             id: payload,
             disabled: false,
+            readonly: false,
             invalid: false,
             required: false,
             autocomplete: PasswordAutocomplete::CurrentPassword,
@@ -433,6 +434,7 @@ fn password_input_id_and_label_text_are_escaped_for_all_payloads() {
         let default_props = PasswordInputProps {
             id: "pw",
             disabled: false,
+            readonly: false,
             invalid: false,
             required: false,
             autocomplete: PasswordAutocomplete::CurrentPassword,

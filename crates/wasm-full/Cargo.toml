@@ -18,6 +18,12 @@ name = "fandhe-frontend-wasm-full"
 # --fix`）を 0.30.0 へ追随。本クレートの src/ は checkbox_group の関数を
 # 参照しない（`focus_visible.rs` は文字列 "checkbox-group" のみ使用）ため
 # 内部変更なしの patch バンプ（Cargo.toml 変更に伴う semver バンプ規約）。
+# イシュー #1614: headless-ui 依存の version 要求を 0.33.0 へ追随。本クレート
+# の src/ は password_input の関数を参照しないため内部変更なしの patch
+# バンプ。
+# イシュー #1614（PR #1880 codex-review/Bugbot 指摘是正）: headless-ui 依存の
+# version 要求を 0.33.0 へ追随した際に本クレート自身の version をバンプし
+# 忘れていたため追加で patch バンプする。src/ 側の変更は引き続きなし。
 # イシュー #1606: headless-ui 依存の version 要求（`check-dep-versions
 # --fix`）を 0.32.0 へ追随。本クレートの src/ は editable の関数を参照
 # しないため内部変更なしの patch バンプ（Cargo.toml 変更に伴う semver
@@ -37,7 +43,16 @@ name = "fandhe-frontend-wasm-full"
 # が選択値を変更できてしまっていた抜け穴を塞いだ。`PartRef` の公開
 # フィールド `disabled` は既存のまま（シグネチャ変更なし、意味の拡張の
 # み）で新規公開 API も追加していないため非破壊的な patch バンプ。
-version = "0.7.18"
+# イシュー #1614（base 取り込みマージ）: main 側で password-input の参照
+# 突合（PR #1880）が独立に headless-ui 依存の version 要求を 0.33.0 へ
+# 追随して本クレートを 0.7.17 へ patch バンプしていた（本クレートの src/
+# は password_input の関数も参照しないため内部変更なしの patch バンプ）。
+# 本ブランチ側で独立に到達していた 0.7.18 との base 取り込みマージにより
+# 同一ファイルの patch バンプが競合したため、双方を統合したうえで
+# headless-ui 依存の version 要求を 0.34.0（#1605/#1614 統合バンプ）へ
+# さらに追随させる patch バンプとして 0.7.19 へ進める（本クレートの src/
+# は引き続き変更なし。同一版数への偶発的衝突をそのまま採用しない）。
+version = "0.7.19"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -209,7 +224,7 @@ categories = ["wasm", "web-programming"]
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.2.6" }
 fandhe-frontend-core = { path = "../core", version = "0.4.3" }
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.33.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.34.0" }
 fandhe-frontend-interactive = { path = "../interactive", version = "0.2.7" }
 # `default-features = false`: 本クレート独自の `wasm_bindgen` エクスポート
 # （`entry.rs` の `hydrate`/`mount`）と `fandhe-frontend-wasm-client` の REQ-6 デモ用

@@ -496,6 +496,12 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
    `Debug`/`Hydrate` の出力・エラーメッセージ・ログのいずれにも現れる余地
    がない設計であり、`crates/headless-ui/src/password_input.rs` の
    inline test `input_never_outputs_value_attribute` が回帰を固定する。
+   イシュー #1614（ark-ui/zag/Radix 参照突合）で `PasswordInputProps.readonly`
+   （`input` にネイティブ `readonly` + 6 パーツ全てに `data-readonly`。
+   `visibility_trigger` へはネイティブ `disabled` を合成しない）を追加し、
+   `input` に `data-state`・`autocapitalize="off"`・`spellcheck="false"` を
+   固定付与した。`aria-pressed`（zag の `aria-expanded` に非追随）・
+   `tabindex` 非付与（tab 順序に残す）は意図的な差分として維持する。
 9. `format` モジュールはテキスト値を返す純関数であり、出力は呼び出し側が
    必ず `fandhe_frontend_core::text()` ノード → 上記 2 の既定エスケープを
    経由してから描画する（本モジュール自体は HTML を組み立てない）。

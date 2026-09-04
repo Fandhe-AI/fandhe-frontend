@@ -22,6 +22,9 @@ name = "fandhe-frontend-headless-ui"
 # item_control, item_indicator, item_text}` が `disabled: bool` から
 # `&CheckboxGroupProps` へシグネチャ変更（破壊的変更）したため 0.x の
 # マイナーバンプとする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
+# イシュー #1614（password-input の参照突合）: `PasswordInputProps` への
+# `readonly` フィールド追加・`indicator(visible, props, attrs, children)`
+# シグネチャ変更（破壊的変更）に伴い 0.x のマイナーバンプとする。
 # イシュー #1606（editable の参照突合）: `EditableInputFlags` へ `invalid`
 # フィールドを追加し、`editable::{root, label, area, preview}` のシグネチャを
 # `disabled: bool, readonly: bool` から `flags: EditableInputFlags` へ変更
@@ -33,9 +36,14 @@ name = "fandhe-frontend-headless-ui"
 # clear_trigger}` のシグネチャを変更（破壊的変更）。マイナーバンプで
 # 0.32.0 へ到達していたが、イシュー #1606（editable）が独立に同じ
 # 0.32.0 へ到達していたブランチとのマージにより、双方の実体変更を
-# 統合した結果として 0.33.0 へさらにマイナーバンプする（同一版数への
-# 偶発的衝突をそのまま採用しない、上記 #1481 の precedent と同じ扱い）。
-version = "0.33.0"
+# 統合した結果として 0.33.0 へさらにマイナーバンプしていた。この後、
+# main 側でイシュー #1614（password-input の参照突合、PR #1880）が
+# 独立に別内容で同じ 0.33.0 へ到達していたため、本 PR（#1605 combobox）
+# ブランチへの base 取り込みマージで再び同一版数への偶発的衝突が生じた。
+# 双方の実体変更（combobox の readonly 対応・password-input の readonly/
+# indicator 対応）を統合した結果として 0.34.0 へさらにマイナーバンプする
+# （上記 #1481/#1605 の precedent と同じ扱い）。
+version = "0.34.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

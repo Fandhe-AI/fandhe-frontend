@@ -3956,6 +3956,7 @@ fn password_input_section() -> Node {
             let props = PasswordInputProps {
                 id,
                 disabled: *disabled,
+                readonly: false,
                 invalid: *invalid,
                 required: false,
                 autocomplete: PasswordAutocomplete::CurrentPassword,
