@@ -379,14 +379,34 @@ pub fn root(data: &ChartData, series_name: &str) -> Result<Node, ChartError> {
     // `rposition` が `None` を返す経路を [`ChartError::ZeroTotal`] で
     // fail-closed に扱う。正値寄与が 1 件も無い＝比率が定義できないという
     // 意味論はモジュール doc「fail-closed」節の `ZeroTotal` 契約と一致する）。
-    let Some(last_positive_idx) = series.values.iter().rposition(|&v| v > 0.0) else {
+    let Some(_last_positive_idx) = series.values.iter().rposition(|&v| v > 0.0) else {
         return Err(ChartError::ZeroTotal);
     };
+    // Cursor Bugbot 再指摘（PR #1865、L381-L384/L418-L419）是正: 上記
+    // `_last_positive_idx`（生の値が正である最後の index）を divider
+    // 抑制の基準にすると、`value_percent` を [`fmt_coord`] で 2 桁丸め
+    // した結果が `"0%"`（総和に対する寄与が極小な末尾セグメント）に
+    // なるケースで、実際に `bar` の右端・丸角を占める直前の可視
+    // segment へ誤って `segment-divider` が付き 1px の背景色の欠けが
+    // 見える。「最後の可視 segment」は生の値ではなく、実際にレンダリング
+    // される幅文字列（`fmt_coord(value_percent(..))`）が `"0"` でないかで
+    // 判定する（レイアウト上の可視幅こそが `bar` の丸角と重なるかどうかを
+    // 決めるため）。全 segment の丸め後幅が `"0"` になる病的ケース（総和は
+    // 非 0 だが個々の比率が丸め精度未満、カテゴリ数が極端に多い場合等）は
+    // `rposition` が `None` を返すが、この場合はどの segment も視覚上
+    // `bar` の右端を占めないため、一致し得ない番兵値（`usize::MAX`）へ
+    // フォールバックし `is_last_visible` を常に `false` にする（安全側。
+    // 余分な divider が付くだけで欠けは生じない、無害なフォールバック）。
+    let last_visible_idx = series
+        .values
+        .iter()
+        .rposition(|&v| fmt_coord(data::value_percent(series, v)) != "0")
+        .unwrap_or(usize::MAX);
     let segments: Vec<Node> = categories
         .iter()
         .zip(series.values.iter())
         .enumerate()
-        .map(|(idx, (_category, &value))| segment(idx, value, series, idx == last_positive_idx))
+        .map(|(idx, (_category, &value))| segment(idx, value, series, idx == last_visible_idx))
         .collect();
     let bar = ANATOMY.part("bar", "div", vec![], segments);
 
@@ -613,6 +633,45 @@ mod tests {
             !segment_divs[2].contains("segment-divider"),
             "{}",
             segment_divs[2]
+        );
+    }
+
+    #[test]
+    fn root_omits_divider_on_visible_segment_before_tiny_positive_tail() {
+        // Cursor Bugbot 指摘の回帰テスト（PR #1865）: 末尾カテゴリが
+        // 「生の値としては正だが `value_percent` を `fmt_coord` で 2 桁
+        // 丸めた結果が `0%` になる極小値」（`[99.9999, 0.0001]`）のとき、
+        // 直前（index 0、実質 100% 幅で `bar` の右端・丸角を占める）の
+        // segment には divider が付かない。旧実装（生の値が正である最後の
+        // index を基準に判定）だと index 1（`0.0001 > 0.0`）が
+        // 「最後の正値」扱いになり、index 0 が誤って divider 付きになる
+        // （`bar` の丸角に 1px の背景色の欠けが生じる）バグの再発防止。
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("s", vec![99.9999, 0.0001])],
+        )
+        .unwrap();
+        let html = render(&root(&data, "s").unwrap());
+        let segment_divs: Vec<&str> = html
+            .split("<div data-scope=\"bar-segment\" data-part=\"segment\"")
+            .skip(1)
+            .collect();
+        assert_eq!(segment_divs.len(), 2, "html: {html}");
+        // index 0: 実質 100% 幅（`bar` の右端）を占める最後の可視 segment
+        // であり divider は付かない。
+        assert!(
+            !segment_divs[0].contains("segment-divider"),
+            "segment[0]: {}",
+            segment_divs[0]
+        );
+        // index 1: 幅 0% に丸められる（生の値は正だが不可視）ため、
+        // divider が付いても付かなくても画面上の見え方に影響しないが、
+        // 現行実装は「値が正である限り divider 子要素を生成する」規約
+        // （`segment()` の `value > 0.0 && !is_last_visible` 条件）を保つ。
+        assert!(
+            segment_divs[1].contains("segment-divider"),
+            "segment[1]: {}",
+            segment_divs[1]
         );
     }
 
