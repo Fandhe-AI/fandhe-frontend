@@ -1348,14 +1348,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # 連鎖で偶然どちらも 0.79.5 に到達していたが、別々の観測可能な CSS 出力
 # 変更を含むため、main の現在値 0.79.5 の patch を +1 した 0.79.6 へ
 # さらにバンプする。
+# イシュー #1593: charts（axis::tick-line/tick-label・legend::marker・
+# tooltip::datum）のスタイル調整による CSS 出力の実体変更のため patch
+# バンプする。Rust API・data-* セレクタ・CSS 変数名の削除・改名は伴わない
+# （main で先行マージ、0.79.6）。
 # イシュー #1592 codex-review P1 是正（PR #1865）: `segment` の区切り線を
 # `box-shadow: inset -1px 0 0 ...`（物理右辺固定）から
 # `border-inline-end`（論理方向プロパティ）+ `box-sizing: border-box` へ、
 # 「最終セグメント打ち消し」判定を `:last-child` から
 # `data-fandhe-bar-segment-end` 存在属性（`root()` が算出する「最後の
-# 正値」segment へ付与）へ、それぞれ置き換えた CSS 出力の実体変更のため
-# patch バンプする。Rust API シグネチャ（`segment`/`legend` は非公開の
-# ままで変更なし）の破壊的変更は伴わない。
+# 正値」segment へ付与）へ、それぞれ置き換えた CSS 出力の実体変更のため、
+# main が到達済みの 0.79.6 の patch をさらに +1 した 0.79.7 へバンプする。
+# Rust API シグネチャ（`segment`/`legend` は非公開のままで変更なし）の
+# 破壊的変更は伴わない。
 version = "0.79.7"
 
 edition = "2021"

@@ -63,6 +63,16 @@ impl Default for GridProps {
 }
 
 /// CartesianGrid の recipe（scope `"chart"`、[`SLOTS`] の 2 パーツ）。
+///
+/// # 参考サイト基準への調整（イシュー #1593）
+///
+/// 参照 4 サイトに対応部品が無いため内部整合のみを評価軸とし、本モジュールは
+/// CSS 変更なしと判定した。`grid-line` は「プロット内の補助線」として
+/// [`super::axis`] の `axis-line`/`tick-line`（#1593 で `--fandhe-color-border`
+/// へ統一）より控えめな `--fandhe-color-border-muted` を意図的に維持する
+/// （軸線と同じ濃さにすると補助線がデータ系列と競合して見づらくなるため）。
+/// `stroke-dasharray: 3 3` はジオメトリ値でありトークン軸を持たないため
+/// トークン化しない。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new(SCOPE, SLOTS)
         .base(

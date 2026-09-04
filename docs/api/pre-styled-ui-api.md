@@ -748,7 +748,9 @@ chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
   `label`。
 - `grid` の線種は `GridLines`（`Solid`(既定)/`Dashed`）の 1 軸 variant。
 - `tooltip` の hover 強調は `crate::recipe::StateCondition::Hover`
-  （`:hover` 擬似クラス）を使う唯一の消費者。
+  （`:hover` 擬似クラス）を使う唯一の消費者。base で背景色ハロー
+  （`--fandhe-color-bg`）を敷き、hover で前景色（`--fandhe-color-fg`）へ
+  切り替える方式（イシュー #1593）。
 
 ### SSR ツールチップ方式（JS 不使用）
 
