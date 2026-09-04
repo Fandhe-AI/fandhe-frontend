@@ -22,7 +22,10 @@ name = "fandhe-frontend-headless-ui"
 # item_control, item_indicator, item_text}` が `disabled: bool` から
 # `&CheckboxGroupProps` へシグネチャ変更（破壊的変更）したため 0.x の
 # マイナーバンプとする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
-version = "0.31.0"
+# イシュー #1614（password-input の参照突合）: `PasswordInputProps` への
+# `readonly` フィールド追加・`indicator(visible, props, attrs, children)`
+# シグネチャ変更（破壊的変更）に伴い 0.x のマイナーバンプとする。
+version = "0.32.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

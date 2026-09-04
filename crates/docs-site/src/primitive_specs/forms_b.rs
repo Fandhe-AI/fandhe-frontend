@@ -79,7 +79,7 @@
 //! `&'static str` リテラルであり、`component_page.rs` 側が [`text`] 経由
 //! （既定エスケープ）でのみ出力する。
 
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{code, div, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::data_attrs::Orientation;
 use hui::number_input::{self, NumberInputFlags};
@@ -153,35 +153,59 @@ const NUMBER_INPUT: ComponentPageSpec = ComponentPageSpec {
 };
 
 /// 一次情報: `crates/headless-ui/src/password_input.rs`
-/// （モジュール doc 1-85、`root`/`label`/`control` 233-277、
-/// `input` 279-308、`visibility_trigger`/`indicator` 310-347、
-/// `PasswordInputProps` 204-223）。
+/// （モジュール doc 1-120、`root`/`label`/`control` 拡張版、
+/// `input`（`readonly`/`data-state`/`autocapitalize`/`spellcheck` 追加）、
+/// `visibility_trigger`/`indicator`、`PasswordInputProps`（`readonly` 追加）。
+/// イシュー #1614 で ark-ui docs（Data Attributes 表）・zag
+/// `password-input.connect.ts`・Radix `Password Toggle Field` docs と突合し、
+/// `readonly` 対応とパーツ別 `data-*` 分布の是正を行った（差分表は PR 本文
+/// 参照）。
 const PASSWORD_INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Label / Control / Input / VisibilityTrigger / Indicator の 6 anatomy パーツを提供する。表示切替（`visible`）状態機械のみを持ち、パスワード値そのものは一切保持しない（`input` は `value` 引数自体を持たない）。",
-        "`input` は `visible` の bool から `type=\"password\"`/`type=\"text\"` を決定的に導出する（呼び出し側文字列を type スロットへ通す経路がない）。",
-        "`visibility_trigger` は `button type=\"button\"` + `aria-pressed`（トグルボタンパターン）+ `aria-controls` で意味論を担う。`aria-label` は呼び出し側が付与する（国際化はアプリ側の責務）。",
-        "`PasswordInputProps` から `input` の id（`\"{id}-input\"`）を決定的に導出し、`label`/`visibility_trigger` へも同じ値を一貫伝播する。",
+        "`input` は `visible` の bool から `type=\"password\"`/`type=\"text\"` を決定的に導出する（呼び出し側文字列を type スロットへ通す経路がない）。`data-state`（`root`/`control` と同じ visible/hidden 語彙）・`autocapitalize=\"off\"`・`spellcheck=\"false\"` も固定付与する（ark-ui/zag 準拠、イシュー #1614）。",
+        "`readonly`（`PasswordInputProps`）で `input` にネイティブ `readonly` を、6 パーツ全てに `data-readonly` を付与する。`visibility_trigger` へはネイティブ `disabled` を合成しない（表示切替は値を変更しない操作のため、readonly でもキーボード操作での表示確認を封じない）。",
+        "パーツ別 `data-*` 分布は ark-ui/zag に合わせる: `root`/`control`/`indicator` は `disabled`/`invalid`/`readonly`、`label` は `disabled`/`invalid`/`readonly`/`required`、`input` は `disabled`/`invalid`/`readonly`/`required`（`required` は当方の superset。`root`/`control` の `data-state` も同様に superset として維持し、後方互換を壊さない）。",
+        "`visibility_trigger` は `button type=\"button\"` + `aria-pressed`（トグルボタンパターン）+ `aria-controls` で意味論を担う。`aria-label` は呼び出し側が付与する（国際化はアプリ側の責務）。zag は `aria-expanded`/`tabIndex: -1` を採用するが、本コンポーネントは意図的に追随しない（`aria-pressed` は input が展開/折り畳み対象領域でないため、tab 順序は Radix の「キーボード操作時はトリガーへフォーカス維持」と整合させ tabindex を付与しない。詳細はモジュール doc「参考サイトとの意図的な差分」節参照）。",
+        "`PasswordInputProps` から `input` の id（`\"{id}-input\"`）を決定的に導出し、`label`/`visibility_trigger` へも同じ値を一貫伝播する。`name` 属性が必要な場合は `input` の `attrs` へ呼び出し側が付与する（reserved キーではない）。",
         "`Default` は Hidden（パスワードを隠す方が安全側の既定）。hydration 属性 `data-hydrate-visible` は fail-closed（未知値を `HydrateError` で拒否）。",
+        "ark-ui/zag の `ignorePasswordManagers` 相当（`data-1p-ignore` 等のパスワードマネージャ連携抑止属性）は本コンポーネントでは提供しない（機能プロップでありデータ属性の状態語彙ではないため、イシュー #1614 でも見送り）。",
     ],
     arguments: &[
-        ArgRow { name: "root/control/input/visibility_trigger(visible)", kind: "bool", default: "", description: "表示中かどうか（`data-state`/`type`/`aria-pressed` を決める）。" },
+        ArgRow { name: "root/control/input/visibility_trigger/indicator(visible)", kind: "bool", default: "", description: "表示中かどうか（`data-state`/`type`/`aria-pressed` を決める）。" },
         ArgRow { name: "PasswordInputProps.id", kind: "&str", default: "", description: "ベース id。`input` の id（`\"{id}-input\"`）の導出元。" },
         ArgRow { name: "PasswordInputProps.disabled", kind: "bool", default: "", description: "`input`/`visibility_trigger` にネイティブ `disabled` + `data-disabled` を付与する。" },
-        ArgRow { name: "PasswordInputProps.invalid", kind: "bool", default: "", description: "`root`/`control`/`input` に `data-invalid` を、`input` に `aria-invalid=\"true\"` を付与する。" },
-        ArgRow { name: "PasswordInputProps.required", kind: "bool", default: "", description: "`input` にネイティブ `required` + `data-required` を付与する。" },
+        ArgRow { name: "PasswordInputProps.readonly", kind: "bool", default: "", description: "`input` にネイティブ `readonly` + `data-readonly` を、6 パーツ全てに `data-readonly` を付与する。`visibility_trigger` にはネイティブ `disabled` を合成しない。" },
+        ArgRow { name: "PasswordInputProps.invalid", kind: "bool", default: "", description: "`root`/`control`/`input`/`label`/`indicator` に `data-invalid` を、`input` に `aria-invalid=\"true\"` を付与する。" },
+        ArgRow { name: "PasswordInputProps.required", kind: "bool", default: "", description: "`label`/`input` にネイティブ `required`（`input` のみ）+ `data-required` を付与する。" },
         ArgRow { name: "PasswordInputProps.autocomplete", kind: "PasswordAutocomplete", default: "", description: "`CurrentPassword`（`autocomplete=\"current-password\"`）または `NewPassword`（`\"new-password\"`）。" },
-        ArgRow { name: "indicator(visible)", kind: "bool", default: "", description: "装飾専用パーツの状態反映（`aria-hidden=\"true\"` 固定、意味論は `visibility_trigger` が担う）。" },
+        ArgRow { name: "indicator(props)", kind: "&PasswordInputProps", default: "", description: "`disabled`/`invalid`/`readonly` の状態反映（`aria-hidden=\"true\"` 固定、意味論は `visibility_trigger` が担う）。" },
     ],
-    examples: &[ExampleEntry {
-        title: "Invalid + new-password",
-        description: "登録フォーム向けに `autocomplete=\"new-password\"` を指定し、`invalid` を立てた状態。`aria-invalid=\"true\"` が `input` に付与される。",
-        render: ex_password_input_invalid,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Invalid + new-password",
+            description: "登録フォーム向けに `autocomplete=\"new-password\"` を指定し、`invalid`/`required` を立てた状態。`aria-invalid=\"true\"` が `input` に付与される。",
+            render: ex_password_input_invalid,
+        },
+        ExampleEntry {
+            title: "Read-only",
+            description: "`readonly: true` の状態。`input` にネイティブ `readonly` が、6 パーツ全てに `data-readonly` が付く。表示切替トリガーはキーボード操作のまま無効化されない。",
+            render: ex_password_input_readonly,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "headless-ui はスタイルレスであるため、`[data-scope]`/`[data-part]`/`[data-state]`/`data-*` 状態属性セレクタを利用者が自前 CSS で装飾する最小例です。",
+            render: ex_password_input_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow { key: "Enter / Space", description: "`visibility_trigger` はネイティブ `<button type=\"button\">` のため、フォーカス時の Enter/Space によるクリック相当の発火はブラウザ標準操作として成立する。クリックから表示切替への dispatch 配線（`\"toggle\"`）は `fandhe-frontend-wasm-full` 側の責務。" },
+        KeyRow { key: "Tab", description: "`input` → `visibility_trigger` の順にフォーカスが移動する。トリガーには `tabindex` を付与しないため tab 順序から除外されない（モジュール doc「参考サイトとの意図的な差分」節参照）。" },
+    ],
     aria: &[
         AriaRow { attribute: "aria-pressed (visibility_trigger)", description: "トグルボタンパターン。表示中（`visible == true`）で `\"true\"`。" },
         AriaRow { attribute: "aria-controls (visibility_trigger)", description: "`input` の id を指す。" },
+        AriaRow { attribute: "aria-label (visibility_trigger)", description: "呼び出し側が `attrs` へ付与する（固定文言は持たない）。推奨文言は表示中 `\"Hide password\"`、非表示中 `\"Show password\"`（ark-ui/zag の既定翻訳に準拠）。" },
         AriaRow { attribute: "aria-invalid (input)", description: "`invalid` が `true` のときのみ `\"true\"` を出力する。" },
         AriaRow { attribute: "aria-hidden (indicator)", description: "常に `\"true\"`（装飾専用、意味論は `visibility_trigger` の `aria-pressed` が担うため重複読み上げを防ぐ）。" },
     ],
@@ -575,37 +599,119 @@ fn ex_number_input_disabled() -> Node {
     div(vec![("class", "primitives-demo-frame")], body)
 }
 
-fn ex_password_input_invalid() -> Node {
-    let props = PasswordInputProps {
-        id: "pw-invalid",
-        disabled: false,
-        invalid: true,
-        required: true,
-        autocomplete: PasswordAutocomplete::NewPassword,
-    };
-    let body = vec![password_input::root(
-        false,
-        &props,
+/// Examples 用の枠組み。`primitive_showcase::forms_b` のデモ本体と同じ
+/// `primitives-demo-frame`/`primitives-demo-note` class のみを使い、
+/// `h2`/`h3` は出さない（`forms_a::wrap_example` は private のためこの
+/// ファイルへ同型のヘルパを複製する、判断根拠は同ファイル参照）。
+fn wrap_password_example(note: &'static str, body: Vec<Node>) -> Node {
+    div(
         vec![],
         vec![
-            password_input::label(&props, vec![], vec![text("New password")]),
+            p(vec![("class", "primitives-demo-note")], vec![text(note)]),
+            div(vec![("class", "primitives-demo-frame")], body),
+        ],
+    )
+}
+
+fn password_input_demo_node(props: &PasswordInputProps<'_>, label_text: &str) -> Node {
+    password_input::root(
+        false,
+        props,
+        vec![],
+        vec![
+            password_input::label(props, vec![], vec![text(label_text)]),
             password_input::control(
                 false,
-                &props,
+                props,
                 vec![],
                 vec![
-                    password_input::input(false, &props, vec![]),
+                    password_input::input(false, props, vec![]),
                     password_input::visibility_trigger(
                         false,
-                        &props,
+                        props,
                         vec![("aria-label", "Show password")],
-                        vec![password_input::indicator(false, vec![], vec![text("👁")])],
+                        vec![password_input::indicator(
+                            false,
+                            props,
+                            vec![],
+                            vec![text("👁")],
+                        )],
                     ),
                 ],
             ),
         ],
-    )];
+    )
+}
+
+fn ex_password_input_invalid() -> Node {
+    let props = PasswordInputProps {
+        id: "pw-invalid",
+        disabled: false,
+        readonly: false,
+        invalid: true,
+        required: true,
+        autocomplete: PasswordAutocomplete::NewPassword,
+    };
+    let body = vec![password_input_demo_node(&props, "New password")];
     div(vec![("class", "primitives-demo-frame")], body)
+}
+
+fn ex_password_input_readonly() -> Node {
+    let props = PasswordInputProps {
+        id: "pw-readonly-example",
+        disabled: false,
+        readonly: true,
+        invalid: false,
+        required: false,
+        autocomplete: PasswordAutocomplete::CurrentPassword,
+    };
+    let body = vec![password_input_demo_node(&props, "Password")];
+    div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// 利用者が自前 CSS で `password-input` を装飾する最小例のスニペット
+/// （`[data-scope]`/`[data-part]`/`[data-state]`/`data-*` 状態属性セレクタ）。
+/// `assets/primitives-showcase.css` には一切追加しない（`[data-scope=`/
+/// `[data-part=` 不在契約、`tests/site_css_contract.rs` 参照）。テキストは
+/// `text()` 経由（既定エスケープ）で `pre`/`code` に出力するのみで、CSS を
+/// 実行・適用する経路は持たない。
+const PASSWORD_INPUT_CUSTOM_CSS_SNIPPET: &str = r#"[data-scope="password-input"][data-part="control"] {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #ccc;
+}
+
+[data-scope="password-input"][data-part="visibility-trigger"][data-state="visible"] {
+  color: #0a7;
+}
+
+[data-scope="password-input"][data-part="input"][data-invalid] {
+  border-color: #d33;
+}
+
+[data-scope="password-input"][data-part="root"][data-disabled],
+[data-scope="password-input"] [data-readonly] {
+  opacity: 0.6;
+}"#;
+
+fn ex_password_input_custom_css() -> Node {
+    let props = PasswordInputProps {
+        id: "pw-custom-css",
+        disabled: false,
+        readonly: false,
+        invalid: false,
+        required: false,
+        autocomplete: PasswordAutocomplete::CurrentPassword,
+    };
+    let demo = password_input_demo_node(&props, "Password");
+    let snippet = pre(
+        vec![],
+        vec![code(vec![], vec![text(PASSWORD_INPUT_CUSTOM_CSS_SNIPPET)])],
+    );
+    wrap_password_example(
+        "headless-ui はスタイルレスです。data-scope/data-part/data-state/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
+        vec![demo, snippet],
+    )
 }
 
 fn ex_pin_input_alphanumeric() -> Node {
