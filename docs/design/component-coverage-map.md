@@ -352,7 +352,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/ark-ui/references/components/form/radio-group.md` | RadioGroup | Radio | Radio Group (`radio-group`) | Radio Group (`radio-group`) | `radio_group` | `radio_group` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/form/switch.md` | Switch | Switch | Switch (`switch`) | Switch (`switch`) | `switch` | `switch` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/form/number-input.md` | NumberInput | NumberInput | — | — | `number_input` | `number_input` | 実装済み | headless+styled 実装済み（#738、PR #785。#1613 参照突合済み: ValueText 追加、Scrubber 非採用） |
-| `.agents/skills/ark-ui/references/components/form/pin-input.md` | PinInput | PinInput | One-Time Password Field (`one-time-password-field`) | — | `pin_input` | `pin_input` | 実装済み | headless+styled 実装済み（#739、PR #784） |
+| `.agents/skills/ark-ui/references/components/form/pin-input.md` | PinInput | PinInput | One-Time Password Field (`one-time-password-field`) | — | `pin_input` | `pin_input` | 実装済み | headless+styled 実装済み（#739、PR #784。#1615 で ark-ui/Radix と突合し是正） |
 | `.agents/skills/ark-ui/references/components/form/password-input.md` | PasswordInput | PasswordInput | Password Toggle Field (`password-toggle-field`) | — | `password_input` | `password_input` | 実装済み | headless+styled 実装済み（#740。#1614 で参照突合: readonly・パーツ別 data-*・autocapitalize/spellcheck 追加、aria-pressed/tab 順序は意図的差分） |
 | `.agents/skills/ark-ui/references/components/form/slider.md` | Slider | Slider | Slider (`slider`) | Slider (`slider`) | `slider` | `slider` | 実装済み | headless+styled 実装済み（#741） |
 | `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | — | — | `rating_group` | `rating_group` | 実装済み | headless+styled 実装済み（#742） |
@@ -603,7 +603,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/chakra-ui/references/components/forms/textarea.md` | — | Textarea | — | Text Area (`text-area`) | — | `textarea` | 実装済み | pre-styled 静的部品として実装済み（#737） |
 | `.agents/skills/chakra-ui/references/components/forms/native-select.md` | — | NativeSelect | — | — | — | `native_select` | 実装済み | pre-styled 静的部品として実装済み（#737） |
 | `.agents/skills/chakra-ui/references/components/forms/number-input.md` | NumberInput | NumberInput | — | — | `number_input` | `number_input` | 実装済み | headless+styled 実装済み（#738、PR #785。#1613 参照突合済み: ValueText 追加、Scrubber 非採用） |
-| `.agents/skills/chakra-ui/references/components/forms/pin-input.md` | PinInput | PinInput | — | — | `pin_input` | `pin_input` | 実装済み | headless+styled 実装済み（#739、PR #784） |
+| `.agents/skills/chakra-ui/references/components/forms/pin-input.md` | PinInput | PinInput | — | — | `pin_input` | `pin_input` | 実装済み | headless+styled 実装済み（#739、PR #784。#1615 で ark-ui/Radix と突合し是正） |
 | `.agents/skills/chakra-ui/references/components/forms/password-input.md` | PasswordInput | PasswordInput | — | — | `password_input` | `password_input` | 実装済み | headless+styled 実装済み（#740。#1614 で参照突合: readonly・パーツ別 data-*・autocapitalize/spellcheck 追加、aria-pressed/tab 順序は意図的差分） |
 | `.agents/skills/chakra-ui/references/components/forms/slider.md` | Slider | Slider | — | — | `slider` | `slider` | 実装済み | headless+styled 実装済み（#741） |
 | `.agents/skills/chakra-ui/references/components/forms/rating.md` | RatingGroup | Rating | — | — | `rating_group` | `rating_group` | 実装済み | headless+styled 実装済み（#742） |

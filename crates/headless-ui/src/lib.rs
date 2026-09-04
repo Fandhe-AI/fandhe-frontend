@@ -222,6 +222,10 @@
 //!   [`mod@progress`] と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//!   [`pin_input::PinInputProps`]（disabled/readonly/invalid/required）・
+//!   `data-index`/`data-filled`・dispatch `"delete"`/`"prev"`/`"next"`の
+//!   追加、`"backspace"` 挙動の是正は ark-ui/Radix 参照突合（イシュー
+//!   #1615）による。
 //! - [`mod@editable`]: Root / Label / Area / Input / Preview / Control /
 //!   EditTrigger / SubmitTrigger / CancelTrigger の 9 anatomy パーツと、
 //!   `preview`/`edit` の 2 モードを持つ [`editable::Editable`] 状態機械
@@ -748,7 +752,7 @@ pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};
 pub use password_input::{
     PasswordAutocomplete, PasswordInput, PasswordInputAction, PasswordInputProps,
 };
-pub use pin_input::{PinInput, PinInputAction, PinInputKind};
+pub use pin_input::{PinInput, PinInputAction, PinInputKind, PinInputProps};
 pub use positioning::{
     compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,
     Placement, PositioningConfig, Rect, ResolvedPosition, Side, Size,

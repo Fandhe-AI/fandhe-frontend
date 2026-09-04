@@ -75,7 +75,7 @@ use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
 use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
-use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
+use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind, PinInputProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::quote::quote;
 use fandhe_frontend_pre_styled_ui::radio_card;
@@ -1155,7 +1155,12 @@ fn pin_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした label の children 経路。
-        let html = render(&pin_input::label(false, vec![], vec![text(payload)]));
+        let html = render(&pin_input::label(
+            false,
+            &PinInputProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
         assert_payload_is_escaped(payload, &html, "pin_input::label children コンテキスト");
 
         // 選択的再エクスポートした input の value 経路。
@@ -1166,7 +1171,7 @@ fn pin_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             PinInputKind::Alphanumeric,
             false,
             false,
-            false,
+            &PinInputProps::default(),
             false,
             vec![],
         ));

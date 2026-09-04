@@ -31,7 +31,6 @@ name = "fandhe-frontend-headless-ui"
 # （破壊的変更）。`EditableActivationMode::{Click, None}`・
 # `EditableSubmitMode::None` の variant 追加も含む。0.x のマイナーバンプ
 # とする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
-
 # base ブランチ取り込み（PR #1613, push フェーズ, 2026-09-05）: 本ブランチの
 # number-input マイナーバンプ（0.31.0 -> 0.32.0）と main の editable マイナー
 # バンプ（0.31.0 -> 0.32.0）が同一版数へ偶発的に衝突したため、上記コメント
@@ -45,7 +44,20 @@ name = "fandhe-frontend-headless-ui"
 # password-input readonly 対応は共に観測可能な公開 API 変更であり、同一版数
 # への偶発的衝突が再発したため、同じ「同一版数への偶発的衝突をそのまま採用
 # しない」原則に従い 0.34.0 へさらにマイナーバンプする。
-version = "0.34.0"
+# イシュー #1615（pin-input の参照突合）: `PinInputProps`
+# （disabled/readonly/invalid/required）の導入に伴い `pin_input::{root,
+# label, input}` のシグネチャ変更（`root`/`label` は `PinInputProps` 引数を
+# 新設、`input` は `disabled: bool` を `&PinInputProps` へ置換）に加え、
+# `PinInputAction::{Delete, Prev, Next}` の新設・`Backspace` の挙動是正を
+# 行ったため 0.x のマイナーバンプとする（`.claude/rules/coding-rust.md`
+# 破壊的変更規定）。
+# base ブランチ再取り込み（PR #1613, push フェーズ 3 回目, 2026-09-05）: 上記
+# 0.34.0 到達後、main は #1615（pin-input の参照突合）で独立に同じ 0.34.0 へ
+# 到達していた。本ブランチの number-input/password-input 統合分と main の
+# pin-input 破壊的変更は共に観測可能な公開 API 変更であり、同一版数への
+# 偶発的衝突が再発したため、同じ「同一版数への偶発的衝突をそのまま採用しない」
+# 原則に従い 0.35.0 へさらにマイナーバンプする。
+version = "0.35.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

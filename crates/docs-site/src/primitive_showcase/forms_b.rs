@@ -6,7 +6,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::data_attrs::Orientation;
 use hui::number_input::{self, NumberInputFlags};
 use hui::password_input::{self, PasswordAutocomplete, PasswordInputProps};
-use hui::pin_input::{self, PinInputKind};
+use hui::pin_input::{self, PinInputKind, PinInputProps};
 use hui::radio_group;
 use hui::rating_group::{self, RatingItemFlags};
 use hui::segment_group;
@@ -340,65 +340,74 @@ pub(super) fn password_input_section() -> Node {
     demo_page("Password Input", body)
 }
 
-pub(super) fn pin_input_section() -> Node {
-    let body = vec![pin_input::root(
-        false,
-        false,
+/// `values`（各桁の値、空文字列 = 未入力）・`otp`・`props` から 1 個の
+/// PinInput インスタンス（root > label + control(input×N) + hidden_input）
+/// を組み立てる内部ヘルパ（[`pin_input_section`] のみが呼ぶ）。
+/// [`password_input_instance`] と同型のパターン。
+fn pin_input_instance(values: &[&str], otp: bool, props: &PinInputProps, label_text: &str) -> Node {
+    let count = values.len();
+    let complete = values.iter().all(|v| !v.is_empty());
+    let inputs: Vec<Node> = values
+        .iter()
+        .enumerate()
+        .map(|(i, value)| {
+            pin_input::input(
+                i,
+                count,
+                value,
+                PinInputKind::Numeric,
+                false,
+                otp,
+                props,
+                complete,
+                vec![],
+            )
+        })
+        .collect();
+    pin_input::root(
+        complete,
+        props,
         vec![],
         vec![
-            pin_input::label(false, vec![], vec![text("One-time code")]),
-            pin_input::control(
-                vec![],
-                vec![
-                    pin_input::input(
-                        0,
-                        4,
-                        "1",
-                        PinInputKind::Numeric,
-                        false,
-                        true,
-                        false,
-                        false,
-                        vec![],
-                    ),
-                    pin_input::input(
-                        1,
-                        4,
-                        "2",
-                        PinInputKind::Numeric,
-                        false,
-                        true,
-                        false,
-                        false,
-                        vec![],
-                    ),
-                    pin_input::input(
-                        2,
-                        4,
-                        "",
-                        PinInputKind::Numeric,
-                        false,
-                        true,
-                        false,
-                        false,
-                        vec![],
-                    ),
-                    pin_input::input(
-                        3,
-                        4,
-                        "",
-                        PinInputKind::Numeric,
-                        false,
-                        true,
-                        false,
-                        false,
-                        vec![],
-                    ),
-                ],
-            ),
-            pin_input::hidden_input("otp", "12", false, vec![]),
+            pin_input::label(complete, props, vec![], vec![text(label_text)]),
+            pin_input::control(vec![], inputs),
+            pin_input::hidden_input("otp", &values.concat(), props.disabled, vec![]),
         ],
-    )];
+    )
+}
+
+pub(super) fn pin_input_section() -> Node {
+    // ark-ui 公式 Data Attributes 表の全語彙（data-complete/data-disabled/
+    // data-invalid/data-readonly/data-required/data-index/data-filled）と
+    // aria-invalid/native readonly が Anatomy/data-* 表へ機械導出されるよう、
+    // 既定・complete・disabled・invalid+required・readonly の 5 状態を並べる
+    // （イシュー #1615）。
+    let default_props = PinInputProps::default();
+    let disabled_props = PinInputProps {
+        disabled: true,
+        ..Default::default()
+    };
+    let invalid_required_props = PinInputProps {
+        invalid: true,
+        required: true,
+        ..Default::default()
+    };
+    let readonly_props = PinInputProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let body = vec![
+        pin_input_instance(&["1", "2", "", ""], true, &default_props, "One-time code"),
+        pin_input_instance(&["1", "2", "3", "4"], true, &default_props, "Complete"),
+        pin_input_instance(&["", "", "", ""], true, &disabled_props, "Disabled"),
+        pin_input_instance(
+            &["", "", "", ""],
+            true,
+            &invalid_required_props,
+            "Invalid + required",
+        ),
+        pin_input_instance(&["1", "2", "", ""], true, &readonly_props, "Read-only"),
+    ];
     demo_page("Pin Input", body)
 }
 

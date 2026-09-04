@@ -56,7 +56,7 @@
 | [NumberInput](../../site/themes/number-input.md) | `number_input` | Root/Label/Control/Input/IncrementTrigger/DecrementTrigger/ValueText | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。数値整形・パースはロケール非依存で決定的、`step` 演算は小数桁への丸めで浮動小数点ドリフトを防ぐ。ValueText・`data-readonly`/`data-required`・`"home"`/`"end"` dispatch はイシュー #1613 で追加） |
 | [PasswordInput](../../site/themes/password-input.md) | `password_input` | Root/Label/Control/Input/VisibilityTrigger/Indicator | 独自実装（`"visible"`/`"hidden"` 語彙が `Checkable` と異なるため `Component`/`Hydrate` を直接実装、`PasswordInput`）。パスワード値そのものは一切扱わない（§6 参照） |
 | [Slider](../../site/themes/slider.md) | `slider` | Root/Label/Control/Track/Range/Thumb/HiddenInput/ValueText | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。`value` は常に `min` 起点で `step` 単位へスナップしてから `[min, max]` へ clamp する。`thumb` が `role="slider"` + `aria-valuemin/max/now`/`aria-orientation` を担う） |
-| [PinInput](../../site/themes/pin-input.md) | `pin_input` | Root/Label/Control/Input/HiddenInput | 独自実装（固定桁数の文字配列 + フォーカス位置、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装） |
+| [PinInput](../../site/themes/pin-input.md) | `pin_input` | Root/Label/Control/Input/HiddenInput | 独自実装（固定桁数の文字配列 + フォーカス位置、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。イシュー #1615 で ark-ui/Radix 参照突合、§6-10 参照） |
 | [TagsInput](../../site/themes/tags-input.md) | `tags_input` | Root/Label/Control/Input/Item/ItemPreview/ItemText/ItemInput/ItemDeleteTrigger/ClearTrigger/HiddenInput/LiveRegion | 独自実装（可変長タグ文字列リスト + 編集中インデックス、`SingleSelect`/`MultiSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`control` は `role="listbox"`、`item-preview` は `role="option"`。`live_region` はタグ数変化の通知用 live region、`aria-live="polite"` 固定・テキスト更新は wasm-full の後続責務、イシュー #1069） |
 | [RatingGroup](../../site/themes/rating-group.md) | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装） |
 | [Editable](../../site/themes/editable.md) | `editable` | Root/Label/Area/Input/Preview/Control/EditTrigger/SubmitTrigger/CancelTrigger | 独自実装（`"preview"`/`"edit"` の 2 モードが `Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`mode == Preview` のとき常に `draft == value` を保つ不変条件を持つ。イシュー #1606 で参照突合（`EditableInputFlags` 共有・`data-invalid`/`data-required`・preview `tabindex`/`aria-*`・activation/submit `none` 追加。`data-focus`/`data-autoresize`/DOM 配線は見送り）） |
@@ -502,7 +502,18 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
    `input` に `data-state`・`autocapitalize="off"`・`spellcheck="false"` を
    固定付与した。`aria-pressed`（zag の `aria-expanded` に非追随）・
    `tabindex` 非付与（tab 順序に残す）は意図的な差分として維持する。
-9. `format` モジュールはテキスト値を返す純関数であり、出力は呼び出し側が
+9. イシュー #1615（ark-ui 公式 Data Attributes / Keyboard Support 表・Radix
+   `one-time-password-field` 参照突合）で `pin_input` へ `PinInputProps`
+   （disabled/readonly/invalid/required）を新設し、`root`/`label`/`input`
+   の `data-invalid`/`data-readonly`（`label` にのみ追加で `data-required`）・
+   `input` の `aria-invalid`/ネイティブ `readonly`・`data-index`
+   （0-origin 桁インデックス）/`data-filled`（値が非空のときのみ）を追加
+   した。`PinInputAction::Backspace` は「現在桁を消去し前の桁へ移動」へ
+   是正し（旧実装は「消去して留まる」で ark-ui の Delete と区別が付かな
+   かった）、`PinInputAction::Delete`（現在桁のみ消去、フォーカス移動な
+   し）・`PinInputAction::Prev`/`PinInputAction::Next`（ArrowLeft/
+   ArrowRight）を新設した（dispatch 語彙: `"delete"`/`"prev"`/`"next"`）。
+10. `format` モジュールはテキスト値を返す純関数であり、出力は呼び出し側が
    必ず `fandhe_frontend_core::text()` ノード → 上記 2 の既定エスケープを
    経由してから描画する（本モジュール自体は HTML を組み立てない）。
    `std::time::SystemTime::now()` 等の現在時刻 API・環境変数・グローバル
