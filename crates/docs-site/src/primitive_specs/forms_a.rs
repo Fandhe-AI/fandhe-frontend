@@ -1370,12 +1370,69 @@ fn ex_field() -> Node {
     )
 }
 
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/`data-invalid`/`data-disabled`/`data-required`
+/// 属性セレクタで見た目を組み立てる例を示す（イシュー #1607）。CSS は
+/// テキストノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const FIELD_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"field\"][data-part=\"input\"] {\n  \
+  border: 1px solid #888;\n  border-radius: 4px;\n  padding: 0.375rem 0.5rem;\n\
+}\n\
+[data-scope=\"field\"][data-part=\"input\"][data-invalid] {\n  \
+  border-color: #dc2626;\n\
+}\n\
+[data-scope=\"field\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"field\"][data-part=\"error-text\"] {\n  \
+  color: #dc2626;\n  font-size: 0.875rem;\n\
+}\n\
+[data-scope=\"field\"][data-part=\"label\"][data-required]::after {\n  \
+  content: \" *\";\n  color: #dc2626;\n\
+}\n";
+
+fn ex_field_custom_css() -> Node {
+    let props = FieldProps {
+        id: "f3-username-custom-css",
+        ids: Default::default(),
+        disabled: false,
+        invalid: true,
+        required: true,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let markup = field::root(
+        &props,
+        vec![],
+        vec![
+            field::label(&props, vec![], vec![text("Username")]),
+            field::input(
+                &props,
+                vec![("type", "text"), ("name", "username"), ("value", "")],
+            ),
+            field::error_text(&props, vec![], vec![text("Username is required.")]),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-invalid / data-disabled / data-required 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(vec![], vec![code(vec![], vec![text(FIELD_CUSTOM_CSS_SNIPPET)])]),
+        ],
+    )
+}
+
 const FIELD: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/label/input/textarea/select/helper_text/error_text/required_indicator の anatomy を持ち、1 個のコントロールへ label・helper_text・error_text を一貫して結び付ける（field.rs:1-10, 54）。",
+        "root/label/input/textarea/select/helper_text/error_text/required_indicator の 8 パーツ anatomy を持ち、1 個のコントロールへ label・helper_text・error_text を一貫して結び付ける（ark-ui Field と一致。field.rs:1-10, 54）。",
+        "disabled/invalid/required/readonly の 4 種の data-* 存在属性を 8 パーツすべてへ一貫して付与する（zag.js Field の dataAttrs 規約と一致、field.rs::state_data_attrs）。data-state/data-orientation/data-motion 等の局所操作状態・レイアウト計測の関心は出力しない（chakra-ui の orientation バリアントは styled 層の関心として Themes 側の検討事項、`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。Radix Form.Field の data-valid も Form 自体の不採用（同 §3.25 規則 1）に伴い導入しない。",
         "aria-describedby は invalid のとき error id を先頭に、has_helper_text のとき helper id を続けて空白区切りで決定的に合成する（field.rs:249-258, 305-311）。",
         "invalid のとき input/textarea/select へ aria-invalid=\"true\" を付与し、error_text を表示状態にする（field.rs:118-119）。",
         "select はネイティブ readonly を出力しない（HTML 仕様上 <select readonly> が無効なため、data-readonly は他コントロール同様に出力する、field.rs:60-63）。バリデーションの実行自体は利用者側の通常の Rust コードが担い、本モジュールはその結果（invalid/エラーメッセージ）を構造・ARIA へ反映するのみである（`docs/policy/intentional-non-adoption.md` §3.25）。",
+        "error_text/required_indicator は非該当状態で hidden 存在属性を付与する fail-closed 描画とする（ark-ui の条件描画を SSR で静的に写像したもの、field.rs::error_text/required_indicator）。has_helper_text は zag.js の MutationObserver による動的検知を静的フラグへ写像したものであり、呼び出し側は実際に helper_text パーツを描画するかどうかと整合させる契約を持つ。",
     ],
     arguments: &[
         ArgRow {
@@ -1403,14 +1460,21 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
             description: "同一の aria-describedby/aria-invalid 合成則に従う 3 種のコントロールパーツ（field.rs:311-374）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Required + helper text",
-        description: "required_indicator・helper_text・error_text を併用した例です。",
-        render: ex_field,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Required + helper text",
+            description: "required_indicator・helper_text・error_text を併用した例です。",
+            render: ex_field,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope / data-part / data-invalid / data-disabled / data-required 属性セレクタで見た目を組み立てる最小例です。",
+            render: ex_field_custom_css,
+        },
+    ],
     keyboard: &[KeyRow {
-        key: "Tab / 文字入力",
-        description: "input/textarea/select がいずれもネイティブ要素であるため、ブラウザ標準のフォーカス移動・入力操作が働く（field.rs:311-374）。",
+        key: "Tab / 文字入力 / (select) ↑↓ Space Enter",
+        description: "input/textarea/select がいずれもネイティブ要素であるため、ブラウザ標準のフォーカス移動・入力操作が働く（field.rs:311-374）。select は ↑/↓/Space/Enter によるネイティブの開閉・選択が働く。参照サイト（ark-ui / chakra-ui）の Field も独自のキー操作を持たない。",
     }],
     aria: &[
         AriaRow {
@@ -1428,6 +1492,10 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-hidden=\"true\"",
             description: "required_indicator パーツへ固定付与する（装飾目的の印のため、field.rs:399-402）。",
+        },
+        AriaRow {
+            attribute: "label[for] / control id",
+            description: "label の for と input/textarea/select の id は同一 props から決定的に対応する（ids 上書き時も一貫して伝播する、field.rs::control_id/label_id）。",
         },
     ],
     demo: None,

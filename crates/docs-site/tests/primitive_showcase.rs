@@ -151,16 +151,6 @@ const KNOWN_UNCOVERED: &[(&str, &str, &str)] = &[
         "3 項目のみのデモ構成のため折り畳み表現（ellipsis）を使用しない",
     ),
     (
-        "field",
-        "select",
-        "select コントロール変種は同一 scope 内の input と役割が重複するため未使用",
-    ),
-    (
-        "field",
-        "textarea",
-        "textarea コントロール変種は同一 scope 内の input と役割が重複するため未使用",
-    ),
-    (
         "progress",
         "circle",
         "circular variant（circle/circle-track/circle-range）は linear variant と役割が重複するため未使用",
