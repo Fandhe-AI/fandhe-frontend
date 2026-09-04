@@ -118,8 +118,12 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
                 // イシュー #1591: 生リテラルから余白スケール（#1423）へ統一。
-                // 値自体は等価（0.5rem）。
-                decl("gap", "var(--fandhe-space-2)"),
+                // 値自体は等価（0.5rem）。`Theme::empty()` から必要トークン
+                // のみ構築する既存利用者・`css()` 単独利用者ではテーマ CSS
+                // が注入されず未定義のままになり得るため、旧値をフォール
+                // バックとして残す（codex-review #1864 P1 指摘、
+                // theme.rs の `DEFAULT_Z_INDICES` 節と同型の対処）。
+                decl("gap", "var(--fandhe-space-2, 0.5rem)"),
                 decl("width", "100%"),
             ],
         )
@@ -132,7 +136,13 @@ fn recipe() -> SlotRecipe {
                 // イシュー #1591: ラベル/値の列間（0.75rem）は据え置きつつ、
                 // ラベル行 → トラックの行間（0.375rem）を締めて締まった見た目に
                 // する（row column の 2 値 shorthand、1 つのリテラルのまま）。
-                decl("gap", "var(--fandhe-space-1-5) var(--fandhe-space-3)"),
+                // `Theme::empty()`/`css()` 単独利用時にテーマ CSS 未注入でも
+                // 余白が消えないよう旧値をフォールバックとして残す
+                // （codex-review #1864 P1 指摘）。
+                decl(
+                    "gap",
+                    "var(--fandhe-space-1-5, 0.375rem) var(--fandhe-space-3, 0.75rem)",
+                ),
             ],
         )
         .base(
@@ -378,8 +388,8 @@ mod tests {
         assert!(!a.contains('<'));
         assert!(a.contains(r#"[data-scope="bar-list"]"#));
         // イシュー #1591: 参考サイト基準への調整で追加した宣言を固定する。
-        assert!(a.contains("var(--fandhe-space-2)"));
-        assert!(a.contains("var(--fandhe-space-1-5) var(--fandhe-space-3)"));
+        assert!(a.contains("var(--fandhe-space-2, 0.5rem)"));
+        assert!(a.contains("var(--fandhe-space-1-5, 0.375rem) var(--fandhe-space-3, 0.75rem)"));
         assert!(a.contains("var(--fandhe-color-bg-muted)"));
         assert!(a.contains("var(--fandhe-bar-list-track-height, 0.5rem)"));
         assert!(a.contains("border-radius: inherit"));

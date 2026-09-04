@@ -17,7 +17,7 @@ use fandhe_frontend_pre_styled_ui::charts::bar_list;
 const BAR_LIST_GOLDEN_CSS: &str = r#"[data-scope="bar-list"][data-part="root"] {
   display: flex;
   flex-direction: column;
-  gap: var(--fandhe-space-2);
+  gap: var(--fandhe-space-2, 0.5rem);
   width: 100%;
 }
 
@@ -25,7 +25,7 @@ const BAR_LIST_GOLDEN_CSS: &str = r#"[data-scope="bar-list"][data-part="root"] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--fandhe-space-1-5) var(--fandhe-space-3);
+  gap: var(--fandhe-space-1-5, 0.375rem) var(--fandhe-space-3, 0.75rem);
 }
 
 [data-scope="bar-list"][data-part="label"] {
