@@ -607,6 +607,16 @@ pub fn stylesheet() -> String {
 /// してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::radio_group::root`] へ委譲する。
 ///
+/// 公開シグネチャは互換性のため `disabled: bool` 単体のまま維持し、内部で
+/// 他フラグ（readonly/invalid/required）を既定値（false）とした
+/// [`RadioGroupProps`] を組み立てて [`root_with_props`] へ委譲する。
+/// readonly/invalid/required も反映したい場合は [`root_with_props`] を使う
+/// こと（イシュー #1616 codex-review 指摘: 本関数は disabled 以外を常に
+/// 既定値へ戻してしまい、子パーツ側は `RadioGroupProps` 対応済みなのに
+/// root の `aria-readonly`/`aria-required`/`data-invalid`/`data-required`
+/// だけが出力できずグループ全体でアクセシビリティ契約が不整合になる問題の
+/// 是正）。
+///
 /// # Examples
 ///
 /// ```
@@ -635,22 +645,70 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let props = RadioGroupProps {
+        disabled,
+        ..RadioGroupProps::default()
+    };
+    root_with_props(
+        size,
+        palette,
+        &props,
+        orientation,
+        labelled_by,
+        attrs,
+        children,
+    )
+}
+
+/// styled root パーツを、全 [`RadioGroupProps`]（disabled/readonly/invalid/
+/// required）を反映して組み立てる（イシュー #1616 codex-review 指摘の是正）。
+/// [`root`] と実体を共有するが、readonly/invalid/required を既定値へ落とさず
+/// 呼び出し側の `props` をそのまま headless
+/// [`fandhe_frontend_headless_ui::radio_group::root`] へ渡す。子パーツ
+/// （[`item`]/[`item_control`]/[`item_text`]/[`item_hidden_input`]）へ渡す
+/// `props` と同一の値をここへも渡すことで、group 全体（root/label/item 系）
+/// の `data-readonly`/`data-invalid`/`data-required`/`aria-*` が一貫する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::radio_group;
+/// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+/// use fandhe_frontend_headless_ui::radio_group::RadioGroupProps;
+///
+/// let props = RadioGroupProps {
+///     readonly: true,
+///     ..RadioGroupProps::default()
+/// };
+/// let node = radio_group::root_with_props(
+///     Size::Md,
+///     ColorPalette::Accent,
+///     &props,
+///     None,
+///     None,
+///     vec![],
+///     vec![],
+/// );
+/// assert!(render(&node).contains(r#"aria-readonly="true""#));
+/// ```
+#[must_use]
+pub fn root_with_props<'a>(
+    size: Size,
+    palette: ColorPalette,
+    props: &RadioGroupProps,
+    orientation: Option<Orientation>,
+    labelled_by: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let recipe = recipe();
     let class =
         recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    // headless root は #1616 で `RadioGroupProps` 引数へ拡張された
-    // （disabled/readonly/invalid/required）。本 styled root の公開
-    // シグネチャは disabled bool のまま維持し、内部で他フラグを既定値
-    // （false）とした `RadioGroupProps` を組み立てて委譲する（invalid/
-    // readonly 拡張は out-of-scope、モジュール冒頭 rustdoc 参照）。
-    let props = RadioGroupProps {
-        disabled,
-        ..RadioGroupProps::default()
-    };
     fandhe_frontend_headless_ui::radio_group::root(
-        &props,
+        props,
         orientation,
         labelled_by,
         merged,
