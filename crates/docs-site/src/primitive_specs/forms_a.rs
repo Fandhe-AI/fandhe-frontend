@@ -141,7 +141,7 @@ fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
 // Angle Slider
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/angle_slider.rs:290-449`（root/label/
+/// 一次情報: `crates/headless-ui/src/angle_slider.rs:274-451`（root/label/
 /// control/thumb/hidden_input/value_text/marker_group/marker の各パーツ
 /// 関数、`AngleSliderProps`）。イシュー #1601 で参照突合し、readonly/
 /// invalid・marker_group/marker・role="presentation" を追加した。
@@ -183,20 +183,20 @@ fn ex_angle_slider() -> Node {
 
 const ANGLE_SLIDER: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/label/control/thumb/marker_group/marker/hidden_input/value_text の 8 anatomy パーツで構成し、角度値は常に 0..=359 の整数へ正規化される（angle_slider.rs:129-130）。",
-        "AngleSliderProps（disabled/readonly/invalid）を root/label/control/thumb で共有し、data-disabled/data-readonly/data-invalid を一律付与する（angle_slider.rs:269-283）。",
-        "control は role=\"presentation\" を固定出力する（angle_slider.rs:327-341）。",
-        "thumb は WAI-ARIA slider パターンに従い role=\"slider\"/aria-valuemin=\"0\"/aria-valuemax=\"360\"/aria-valuenow/aria-valuetext を常時出力する。props.disabled が true のとき tabindex=\"-1\" + aria-disabled、それ以外（readonly を含む）は tabindex=\"0\"（angle_slider.rs:349-373）。",
-        "marker は value（目盛り角度）と現在角度の大小から data-state を under-value/over-value/at-value の 3 値へ固定する（angle_slider.rs:419-442）。",
-        "hidden_input（<input type=\"hidden\">）はフォーム送信専用であり、意味論（role=\"slider\"）は thumb 側が担う（angle_slider.rs:379-395）。",
-        "\"home\"/\"end\" dispatch（AngleSliderAction::SetToMin/SetToMax）で最小値（0 度）/step グリッド上の最大値へ設定する状態機械契約を持つ（angle_slider.rs:603-609, 640-641）。fandhe-frontend-wasm-full の DOM keydown 配線は REQ-11（WASM バンドルサイズ）予算逼迫のため本イシューでは未対応（Arrow キーのみ配線済み、下記 Keyboard 節参照）。",
+        "root/label/control/thumb/marker_group/marker/hidden_input/value_text の 8 anatomy パーツで構成し、角度値は常に 0..=359 の整数へ正規化される（angle_slider.rs:170-177）。",
+        "AngleSliderProps（disabled/readonly/invalid）を root/label/control/thumb で共有し、data-disabled/data-readonly/data-invalid を一律付与する（angle_slider.rs:274-291）。",
+        "control は role=\"presentation\" を固定出力する（angle_slider.rs:331-346）。",
+        "thumb は WAI-ARIA slider パターンに従い role=\"slider\"/aria-valuemin=\"0\"/aria-valuemax=\"360\"/aria-valuenow/aria-valuetext を常時出力する。props.disabled が true のとき tabindex=\"-1\" + aria-disabled、それ以外（readonly を含む）は tabindex=\"0\"（angle_slider.rs:349-382）。",
+        "marker は value（目盛り角度）と現在角度の大小から data-state を under-value/over-value/at-value の 3 値へ固定する（angle_slider.rs:423-451）。",
+        "hidden_input（<input type=\"hidden\">）はフォーム送信専用であり、意味論（role=\"slider\"）は thumb 側が担う（angle_slider.rs:386-401）。",
+        "\"home\"/\"end\" dispatch（AngleSliderAction::SetToMin/SetToMax）で最小値（0 度）/step グリッド上の最大値へ設定する状態機械契約を持つ（angle_slider.rs:613-617, 650-651）。fandhe-frontend-wasm-full の DOM keydown 配線は REQ-11（WASM バンドルサイズ）予算逼迫のため本イシューでは未対応（Arrow キーのみ配線済み、下記 Keyboard 節参照）。",
     ],
     arguments: &[
         ArgRow {
             name: "root/label/control/thumb(props)",
             kind: "&AngleSliderProps",
             default: "&AngleSliderProps::default()",
-            description: "disabled/readonly/invalid の状態束。4 パーツ共通のため代表 1 行に集約（angle_slider.rs:269-283）。",
+            description: "disabled/readonly/invalid の状態束。4 パーツ共通のため代表 1 行に集約（angle_slider.rs:274-291）。",
         },
         ArgRow {
             name: "thumb(now)",
@@ -214,7 +214,7 @@ const ANGLE_SLIDER: ComponentPageSpec = ComponentPageSpec {
             name: "marker(value, current, disabled)",
             kind: "u16, u16, bool",
             default: "",
-            description: "目盛り角度・現在角度・無効化。data-value/data-state（under-value/over-value/at-value）へ反映される（angle_slider.rs:419-442）。",
+            description: "目盛り角度・現在角度・無効化。data-value/data-state（under-value/over-value/at-value）へ反映される（angle_slider.rs:423-451）。",
         },
         ArgRow {
             name: "hidden_input(name, value)",
@@ -247,7 +247,7 @@ const ANGLE_SLIDER: ComponentPageSpec = ComponentPageSpec {
     aria: &[
         AriaRow {
             attribute: "role=\"presentation\"",
-            description: "control パーツに固定付与する。意味論は thumb の role=\"slider\" が単独で担う（angle_slider.rs:327-341）。",
+            description: "control パーツに固定付与する。意味論は thumb の role=\"slider\" が単独で担う（angle_slider.rs:331-346）。",
         },
         AriaRow {
             attribute: "role=\"slider\"",
