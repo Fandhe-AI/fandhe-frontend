@@ -20,11 +20,56 @@
 //! `link` の base 宣言は [`crate::visually_hidden::clip_declarations`]
 //! （clip 手法）をそのまま再利用し（[`crate::visually_hidden`] モジュール
 //! doc 参照）、`StateCondition::FocusVisible` の宣言で `position: fixed` +
-//! 座標 + 背景 + `z-index` を上書きして視覚的に復元する。
+//! 座標 + 背景 + `z-index` + 文字スタイルを上書きして視覚的に復元し、
+//! [`crate::recipe::focus_ring_declarations`]（`outline` + `outline-offset`
+//! の canonical 形、`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+//! §3）でフォーカスリングを描く。`box-shadow` によるリング表現は
+//! `forced-colors: active` で消えるため使わない。
 //!
 //! `content`（スキップ先ターゲット）は実コンテンツを持たず、`tabindex="-1"`
 //! でプログラム的フォーカスを受け取るだけの要素のため、既定のフォーカス
-//! リングを消す `outline: none` のみを base として登録する。
+//! リングを消す `outline: none` のみを base として登録する（同設計文書 §3
+//! 表の skip-nav 例外。プログラム的フォーカスのみを受け取る不可視要素に
+//! リングを描く意味がないため）。
+//!
+//! # 参照サイト（chakra-ui SkipNav）との差分と意図的非採用（イシュー #1586）
+//!
+//! 107 部品スタイル調整（親 #1420）の 1 件として、以下の是正・非採用判断を
+//! 行った:
+//!
+//! - **是正**: 未定義トークン `--fandhe-space-md`/`--fandhe-space-sm`
+//!   （[`crate::theme`] の `DEFAULT_SPACES` に存在せず、フォールバック値
+//!   でしか動作していなかった）を実在する `--fandhe-space-6`/
+//!   `--fandhe-space-4` へ差し替え、`z-index` の生リテラル `1200`（popover
+//!   段と同値で dialog/drawer に隠れていた）を正式トークン
+//!   `--fandhe-z-index-skip-nav`（[`crate::theme`] の `DEFAULT_Z_INDICES`
+//!   で `1500` と定義済み）へ差し替えた。フォーカスリングは `box-shadow`
+//!   から前述の canonical `outline` 形へ、文字は無指定（ブラウザ既定の
+//!   下線付き `<a>`）から `font-size: sm` + `font-weight: semibold` +
+//!   下線なしへ、面には `--fandhe-shadow-md` の elevation を追加した。
+//! - **hover を追加**: `docs/design/pre-styled-ui-interaction-visual-language.md`
+//!   の共通ビジュアル言語に従い、`<a>` を担う `link` slot へ
+//!   `hover_surface_declarations()` を追加した。参照サイトに hover 実装は
+//!   ないが、本リポジトリの共通言語（インタラクティブ slot は hover 対象）
+//!   を優先する。`Hover` は `@media (hover: hover)` 配下へ集約されるため
+//!   タッチ端末では発火せず、非表示時（clip 済み 1px 要素）は物理的に
+//!   hover し得ないため無害。
+//! - **size / variant / ColorPalette 軸を持たない**: 参照サイトも 1 種類の
+//!   表示のみで、`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+//!   §4 の保有判定 (d)「構造・可視性のみの Utilities は size を持たない」
+//!   に該当する。palette 軸もないため [`crate::recipe::FocusRingColor::Token`]
+//!   を使う。
+//! - **transition は不採用**: 表示切替が `clip`/`position` の可視性トグル
+//!   であり、`background` だけを遷移させると過渡的に未塗装の背景の上へ
+//!   文字が乗り本文と重なって可読性を損なう。参照サイトにも transition は
+//!   ない。
+//! - **角丸は `--fandhe-radius-md` を維持**: chakra 参照の `l2`（0.25rem 相当）
+//!   との差 0.125rem は、本テーマの button/card 系が `md` に収斂している
+//!   整合を優先し意図的に合わせない。
+//! - **背景トークンは `--fandhe-color-bg` を維持**: chakra 参照の
+//!   `bg.panel` 相当の専用パネル背景トークンは本テーマに未定義であり、
+//!   `bg`（light/dark 双方でコントラスト契約済み）で代替する。専用トークン
+//!   新設の是非は別途の評価事項とする。
 //!
 //! # セキュリティ不変条件
 //!
@@ -45,7 +90,10 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{
+    focus_ring_declarations, hover_surface_declarations, FocusRingColor, FocusRingOffset,
+    SlotRecipe, StateCondition,
+};
 use crate::visually_hidden::clip_declarations;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::skip_nav::DEFAULT_ID;
@@ -57,35 +105,45 @@ const SLOTS: &[&str] = &["link", "content"];
 /// この styled SkipNav の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`]
 /// のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
+    // `link` の非表示時 base 宣言（clip 手法）に加え、hover 時背景の間接
+    // 参照用 custom property をここへ同居させる（`.base` を 2 回呼ぶと
+    // 規則ブロックが分裂するため、1 つの Vec にまとめて渡す）。
+    let mut link_base = clip_declarations();
+    link_base.push(decl("--fandhe-hover-bg", "var(--fandhe-color-bg-muted)"));
+
+    // フォーカス時に視覚的に復元する宣言列（座標・面・文字スタイル）。
+    // 末尾にフォーカスリングの canonical 宣言（`outline` +
+    // `outline-offset`）を追加する。
+    let mut link_focus_visible = vec![
+        decl("position", "fixed"),
+        decl("top", "var(--fandhe-space-6, 1.5rem)"),
+        decl("left", "var(--fandhe-space-6, 1.5rem)"),
+        decl("width", "auto"),
+        decl("height", "auto"),
+        decl("padding", "var(--fandhe-space-4, 1rem)"),
+        decl("margin", "0"),
+        decl("overflow", "visible"),
+        decl("clip", "auto"),
+        decl("white-space", "normal"),
+        decl("background", "var(--fandhe-color-bg)"),
+        decl("color", "var(--fandhe-color-fg)"),
+        decl("font-size", "var(--fandhe-font-font-size-sm)"),
+        decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+        decl("line-height", "var(--fandhe-font-line-height-normal)"),
+        decl("text-decoration", "none"),
+        decl("border-radius", "var(--fandhe-radius-md)"),
+        decl("box-shadow", "var(--fandhe-shadow-md)"),
+        decl("z-index", "var(--fandhe-z-index-skip-nav, 1500)"),
+    ];
+    link_focus_visible.extend(focus_ring_declarations(
+        FocusRingColor::Token,
+        FocusRingOffset::Outside,
+    ));
+
     SlotRecipe::new("skip-nav", SLOTS)
-        .base("link", clip_declarations())
-        .state(
-            "link",
-            StateCondition::FocusVisible,
-            vec![
-                decl("position", "fixed"),
-                decl("top", "var(--fandhe-space-md, 1rem)"),
-                decl("left", "var(--fandhe-space-md, 1rem)"),
-                decl("width", "auto"),
-                decl("height", "auto"),
-                decl(
-                    "padding",
-                    "var(--fandhe-space-sm, 0.5rem) var(--fandhe-space-md, 1rem)",
-                ),
-                decl("margin", "0"),
-                decl("overflow", "visible"),
-                decl("clip", "auto"),
-                decl("white-space", "normal"),
-                decl("background", "var(--fandhe-color-bg)"),
-                decl("color", "var(--fandhe-color-fg)"),
-                decl("border-radius", "var(--fandhe-radius-md)"),
-                decl(
-                    "box-shadow",
-                    "0 0 0 2px var(--fandhe-color-accent, var(--fandhe-color-fg))",
-                ),
-                decl("z-index", "1200"),
-            ],
-        )
+        .base("link", link_base)
+        .state("link", StateCondition::FocusVisible, link_focus_visible)
+        .state("link", StateCondition::Hover, hover_surface_declarations())
         .base("content", vec![decl("outline", "none")])
 }
 
@@ -174,6 +232,15 @@ mod tests {
         assert!(a.contains(r#"[data-scope="skip-nav"][data-part="link"]:focus-visible"#));
         assert!(a.contains("position: fixed;"));
         assert!(a.contains("clip: rect(0, 0, 0, 0);"));
+        // フォーカスリングは canonical `outline` 形（イシュー #1586）。
+        assert!(a.contains(
+            "outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));"
+        ));
+        assert!(!a.contains("box-shadow: 0 0 0 2px"));
+        // z-index は正式トークン化済み（`crate::theme::DEFAULT_Z_INDICES`）。
+        assert!(a.contains("z-index: var(--fandhe-z-index-skip-nav, 1500);"));
+        // hover は `@media (hover: hover)` 配下へ集約される（共通言語）。
+        assert!(a.contains("@media (hover: hover)"));
     }
 
     #[test]

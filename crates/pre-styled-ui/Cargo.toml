@@ -1220,7 +1220,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # の解決手順（並列 PR 間）」の機械的解決手順（自分（本コミットで取り込む
 # #1583 側）が patch バンプのため、main の現在値 0.78.3 の patch を +1 した
 # 値を採用する）に従い 0.78.4 へさらに patch バンプする。
-version = "0.78.4"
+#
+# イシュー #1586: skip-nav のスタイルを参考サイト基準（chakra-ui SkipNav）へ
+# 調整。未定義トークン `--fandhe-space-md`/`--fandhe-space-sm` を実在する
+# `--fandhe-space-6`/`--fandhe-space-4` へ、`z-index` の生リテラル `1200` を
+# 正式トークン `--fandhe-z-index-skip-nav`（`1500`）へ差し替え、フォーカス
+# リングを `box-shadow` から canonical `outline` 形へ、文字スタイル
+# （sm/semibold/下線なし）・elevation shadow（`--fandhe-shadow-md`）・hover
+# を追加した。公開 Rust API のシグネチャ変更・既存 CSS 変数名/クラス名/
+# セレクタの削除・改名は伴わない意匠調整（CSS 出力変更のため
+# `docs/ci/style-refresh-version-bump-operation.md` §3.2 により
+# `version-bump-exempt:` は適用しない）のため、同 §3.1/§3.4a に従い
+# 0.78.5 へ patch バンプする。
+version = "0.78.5"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
