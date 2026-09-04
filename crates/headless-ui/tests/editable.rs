@@ -21,7 +21,12 @@ fn full_assembly_wires_root_label_area_input_preview_and_triggers() {
     let e = Editable::new("Ada", Some(20));
     let mode = e.mode();
 
-    let label = e.label(false, Some("name-input"), vec![], vec![text("Name")]);
+    let label = e.label(
+        EditableInputFlags::default(),
+        Some("name-input"),
+        vec![],
+        vec![text("Name")],
+    );
     let input = e.input(
         "name",
         Some("name-input"),
@@ -29,15 +34,14 @@ fn full_assembly_wires_root_label_area_input_preview_and_triggers() {
         EditableInputFlags::default(),
         vec![],
     );
-    let preview = e.preview(vec![], vec![text(e.value())]);
-    let area = e.area(vec![], vec![input, preview]);
+    let preview = e.preview(EditableInputFlags::default(), vec![], vec![text(e.value())]);
+    let area = e.area(EditableInputFlags::default(), vec![], vec![input, preview]);
     let edit_trigger = e.edit_trigger(false, vec![], vec![text("Edit")]);
     let submit_trigger = e.submit_trigger(false, vec![], vec![text("Save")]);
     let cancel_trigger = e.cancel_trigger(false, vec![], vec![text("Cancel")]);
     let control = e.control(vec![], vec![edit_trigger, submit_trigger, cancel_trigger]);
     let root = e.root(
-        false,
-        false,
+        EditableInputFlags::default(),
         EditableActivationMode::Focus,
         EditableSubmitMode::Both,
         vec![],
@@ -153,8 +157,7 @@ fn name_and_value_payloads_are_escaped_end_to_end() {
     );
     let html = render(&editable::root(
         EditMode::Edit,
-        false,
-        false,
+        EditableInputFlags::default(),
         EditableActivationMode::default(),
         EditableSubmitMode::default(),
         vec![],
@@ -169,12 +172,46 @@ fn name_and_value_payloads_are_escaped_end_to_end() {
 fn caller_attrs_payload_is_escaped_end_to_end() {
     let html = render(&editable::root(
         EditMode::Preview,
-        false,
-        false,
+        EditableInputFlags::default(),
         EditableActivationMode::default(),
         EditableSubmitMode::default(),
         vec![("data-testid", ATTR_BREAK_PAYLOAD)],
         vec![],
     ));
     assert!(!html.contains("onmouseover=\"alert(1)"));
+}
+
+// --- キーボード契約回帰（イシュー #1606）: Enter/Escape 相当の dispatch ---
+
+#[test]
+fn dispatch_submit_is_enter_key_equivalent_and_transitions_edit_to_preview() {
+    // ark-ui Keyboard Support 表の Enter（edit 中の input）: 確定して edit を
+    // 抜ける。DOM の keydown 配線は wasm-full 側の後続責務（モジュール doc
+    // 「スコープ外」節参照）だが、dispatch("submit") がその契約の SSR/状態
+    // 機械側の対応点であることを固定する。
+    let mut e = Editable::new("Ada", None);
+    assert!(dispatch(&mut e, "edit", ""));
+    assert!(dispatch(&mut e, "set", "Grace"));
+    assert!(dispatch(&mut e, "submit", ""));
+    assert!(!e.is_editing());
+    assert_eq!(e.value(), "Grace");
+}
+
+#[test]
+fn dispatch_cancel_is_escape_key_equivalent_and_discards_draft() {
+    // ark-ui Keyboard Support 表の Escape（edit 中の input）: 取り消して edit
+    // を抜ける。dispatch("cancel") がその対応点であることを固定する。
+    let mut e = Editable::new("Ada", None);
+    assert!(dispatch(&mut e, "edit", ""));
+    assert!(dispatch(&mut e, "set", "Grace"));
+    assert!(dispatch(&mut e, "cancel", ""));
+    assert!(!e.is_editing());
+    assert_eq!(e.value(), "Ada");
+}
+
+#[test]
+fn editable_activation_and_submit_mode_new_variants_as_str() {
+    assert_eq!(EditableActivationMode::Click.as_str(), "click");
+    assert_eq!(EditableActivationMode::None.as_str(), "none");
+    assert_eq!(EditableSubmitMode::None.as_str(), "none");
 }

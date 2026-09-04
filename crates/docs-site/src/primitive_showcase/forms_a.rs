@@ -589,39 +589,55 @@ pub(super) fn combobox_section() -> Node {
     demo_page("Combobox", body)
 }
 
-pub(super) fn editable_section() -> Node {
-    let mode = EditMode::Preview;
-    let body = vec![editable::root(
+/// `editable_section` の 1 インスタンス分を組み立てる非公開ヘルパ
+/// （イシュー #1606、参照突合の一環）。`id_prefix` は `label`/`input` の
+/// `id`/`for` 関連付けと `name` をインスタンス間で一意化するために使う。
+/// `flags` はそのまま root/label/area/preview/input の全パーツへ共通で渡し
+/// （headless-ui 側の共有契約、`crates/headless-ui/src/editable.rs` module
+/// doc「参照突合」節参照）、`placeholder_shown` が `true` のときは
+/// `value`/`preview` テキストを空にして `data-placeholder-shown` の表出を
+/// Demo 上で確認できるようにする。
+fn editable_instance(
+    id_prefix: &'static str,
+    mode: EditMode,
+    flags: EditableInputFlags,
+    label_text: &'static str,
+    value: &'static str,
+    placeholder_shown: bool,
+) -> Node {
+    let input_id = format!("editable-{id_prefix}-input");
+    let name = format!("editable-{id_prefix}-name");
+    editable::root(
         mode,
-        false,
-        false,
+        flags,
         EditableActivationMode::Focus,
         EditableSubmitMode::Both,
         vec![],
         vec![
             editable::label(
                 mode,
-                false,
-                Some("editable-input"),
+                flags,
+                Some(input_id.as_str()),
                 vec![],
-                vec![text("Display name")],
+                vec![text(label_text)],
             ),
             editable::area(
                 mode,
-                false,
+                flags,
+                placeholder_shown,
                 vec![],
                 vec![
-                    editable::preview(mode, false, vec![], vec![text("Ada Lovelace")]),
+                    editable::preview(mode, flags, placeholder_shown, vec![], vec![text(value)]),
                     editable::input(
                         mode,
-                        "display-name",
-                        "Ada Lovelace",
+                        name.as_str(),
+                        value,
                         EditableInputProps {
-                            id: Some("editable-input"),
-                            placeholder: None,
+                            id: Some(input_id.as_str()),
+                            placeholder: Some("Enter a value"),
                             max_length: None,
                         },
-                        EditableInputFlags::default(),
+                        flags,
                         vec![],
                     ),
                 ],
@@ -630,13 +646,82 @@ pub(super) fn editable_section() -> Node {
                 mode,
                 vec![],
                 vec![
-                    editable::edit_trigger(mode, false, vec![], vec![text("Edit")]),
-                    editable::submit_trigger(mode, false, vec![], vec![text("Save")]),
-                    editable::cancel_trigger(mode, false, vec![], vec![text("Cancel")]),
+                    editable::edit_trigger(mode, flags.disabled, vec![], vec![text("Edit")]),
+                    editable::submit_trigger(mode, flags.disabled, vec![], vec![text("Save")]),
+                    editable::cancel_trigger(mode, flags.disabled, vec![], vec![text("Cancel")]),
                 ],
             ),
         ],
-    )];
+    )
+}
+
+/// preview/edit/disabled/readonly/invalid+required/空値（placeholder）の
+/// 6 インスタンスを並べ、9 anatomy パーツすべてと `data-invalid`/
+/// `data-required`/`data-disabled`/`data-readonly`/`data-placeholder-shown`
+/// の表出を Demo 上で確認できるようにする（イシュー #1606、参照突合の
+/// 一環。`crate::primitive_showcase` モジュール doc の「パート網羅」規約
+/// 対応）。
+pub(super) fn editable_section() -> Node {
+    let body = vec![
+        editable_instance(
+            "preview",
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            "Display name",
+            "Ada Lovelace",
+            false,
+        ),
+        editable_instance(
+            "edit",
+            EditMode::Edit,
+            EditableInputFlags::default(),
+            "Display name (editing)",
+            "Grace Hopper",
+            false,
+        ),
+        editable_instance(
+            "disabled",
+            EditMode::Preview,
+            EditableInputFlags {
+                disabled: true,
+                ..EditableInputFlags::default()
+            },
+            "Display name (disabled)",
+            "Locked value",
+            false,
+        ),
+        editable_instance(
+            "readonly",
+            EditMode::Preview,
+            EditableInputFlags {
+                readonly: true,
+                ..EditableInputFlags::default()
+            },
+            "Display name (readonly)",
+            "Read-only value",
+            false,
+        ),
+        editable_instance(
+            "invalid",
+            EditMode::Edit,
+            EditableInputFlags {
+                invalid: true,
+                required: true,
+                ..EditableInputFlags::default()
+            },
+            "Display name (invalid, required)",
+            "",
+            false,
+        ),
+        editable_instance(
+            "empty",
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            "Display name (empty)",
+            "",
+            true,
+        ),
+    ];
     demo_page("Editable", body)
 }
 

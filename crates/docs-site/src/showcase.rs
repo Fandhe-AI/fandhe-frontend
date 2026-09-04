@@ -4424,21 +4424,21 @@ fn editable_section() -> Node {
     let preview_mode = editable::root(
         Size::Md,
         EditMode::Preview,
-        false,
-        false,
+        EditableInputFlags::default(),
         Default::default(),
         Default::default(),
         vec![],
         vec![
             editable::label(
                 EditMode::Preview,
-                false,
+                EditableInputFlags::default(),
                 Some("showcase-editable-preview"),
                 vec![],
                 vec![text("Name")],
             ),
             editable::area(
                 EditMode::Preview,
+                EditableInputFlags::default(),
                 false,
                 vec![],
                 vec![
@@ -4453,7 +4453,13 @@ fn editable_section() -> Node {
                         EditableInputFlags::default(),
                         vec![],
                     ),
-                    editable::preview(EditMode::Preview, false, vec![], vec![text("Ada Lovelace")]),
+                    editable::preview(
+                        EditMode::Preview,
+                        EditableInputFlags::default(),
+                        false,
+                        vec![],
+                        vec![text("Ada Lovelace")],
+                    ),
                 ],
             ),
             editable::control(
@@ -4472,21 +4478,21 @@ fn editable_section() -> Node {
     let editing = editable::root(
         Size::Md,
         EditMode::Edit,
-        false,
-        false,
+        EditableInputFlags::default(),
         Default::default(),
         Default::default(),
         vec![],
         vec![
             editable::label(
                 EditMode::Edit,
-                false,
+                EditableInputFlags::default(),
                 Some("showcase-editable-editing"),
                 vec![],
                 vec![text("Name")],
             ),
             editable::area(
                 EditMode::Edit,
+                EditableInputFlags::default(),
                 false,
                 vec![],
                 vec![
@@ -4501,7 +4507,13 @@ fn editable_section() -> Node {
                         EditableInputFlags::default(),
                         vec![],
                     ),
-                    editable::preview(EditMode::Edit, false, vec![], vec![text("Grace Hopper")]),
+                    editable::preview(
+                        EditMode::Edit,
+                        EditableInputFlags::default(),
+                        false,
+                        vec![],
+                        vec![text("Grace Hopper")],
+                    ),
                 ],
             ),
             editable::control(
@@ -4515,24 +4527,28 @@ fn editable_section() -> Node {
         ],
     );
 
+    let disabled_flags = EditableInputFlags {
+        disabled: true,
+        ..EditableInputFlags::default()
+    };
     let disabled = editable::root(
         Size::Md,
         EditMode::Preview,
-        true,
-        false,
+        disabled_flags,
         Default::default(),
         Default::default(),
         vec![],
         vec![
             editable::label(
                 EditMode::Preview,
-                true,
+                disabled_flags,
                 Some("showcase-editable-disabled"),
                 vec![],
                 vec![text("Disabled")],
             ),
             editable::area(
                 EditMode::Preview,
+                disabled_flags,
                 false,
                 vec![],
                 vec![
@@ -4544,13 +4560,16 @@ fn editable_section() -> Node {
                             id: Some("showcase-editable-disabled"),
                             ..EditableInputProps::default()
                         },
-                        EditableInputFlags {
-                            disabled: true,
-                            ..EditableInputFlags::default()
-                        },
+                        disabled_flags,
                         vec![],
                     ),
-                    editable::preview(EditMode::Preview, false, vec![], vec![text("Locked value")]),
+                    editable::preview(
+                        EditMode::Preview,
+                        disabled_flags,
+                        false,
+                        vec![],
+                        vec![text("Locked value")],
+                    ),
                 ],
             ),
             editable::control(

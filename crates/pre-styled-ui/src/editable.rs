@@ -556,8 +556,7 @@ pub fn stylesheet() -> String {
 /// let node = editable::root(
 ///     Size::Md,
 ///     editable::EditMode::Preview,
-///     false,
-///     false,
+///     editable::EditableInputFlags::default(),
 ///     editable::EditableActivationMode::default(),
 ///     editable::EditableSubmitMode::default(),
 ///     vec![],
@@ -566,12 +565,10 @@ pub fn stylesheet() -> String {
 /// assert!(render(&node).contains(r#"data-scope="editable" data-part="root""#));
 /// ```
 #[must_use]
-#[allow(clippy::too_many_arguments)]
 pub fn root<'a>(
     size: Size,
     mode: EditMode,
-    disabled: bool,
-    readonly: bool,
+    flags: EditableInputFlags,
     activation_mode: EditableActivationMode,
     submit_mode: EditableSubmitMode,
     attrs: Vec<(&'a str, &'a str)>,
@@ -583,8 +580,7 @@ pub fn root<'a>(
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::editable::root(
         mode,
-        disabled,
-        readonly,
+        flags,
         activation_mode,
         submit_mode,
         merged,
@@ -756,8 +752,7 @@ mod tests {
         let html = render(&root(
             Size::Md,
             EditMode::Preview,
-            false,
-            false,
+            EditableInputFlags::default(),
             EditableActivationMode::default(),
             EditableSubmitMode::default(),
             vec![],
@@ -772,8 +767,7 @@ mod tests {
         let html = render(&root(
             Size::Md,
             EditMode::Preview,
-            false,
-            false,
+            EditableInputFlags::default(),
             EditableActivationMode::default(),
             EditableSubmitMode::default(),
             vec![],
@@ -794,8 +788,7 @@ mod tests {
             let html = render(&root(
                 size,
                 EditMode::Preview,
-                false,
-                false,
+                EditableInputFlags::default(),
                 EditableActivationMode::default(),
                 EditableSubmitMode::default(),
                 vec![],
@@ -810,8 +803,7 @@ mod tests {
         let html = render(&root(
             Size::Md,
             EditMode::Preview,
-            false,
-            false,
+            EditableInputFlags::default(),
             EditableActivationMode::default(),
             EditableSubmitMode::default(),
             vec![("class", "attacker-controlled")],
@@ -833,8 +825,7 @@ mod tests {
         let html = render(&root(
             Size::Md,
             EditMode::Preview,
-            false,
-            false,
+            EditableInputFlags::default(),
             EditableActivationMode::default(),
             EditableSubmitMode::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
@@ -852,8 +843,7 @@ mod tests {
         let html = render(&root(
             Size::Md,
             EditMode::Preview,
-            false,
-            false,
+            EditableInputFlags::default(),
             EditableActivationMode::default(),
             EditableSubmitMode::default(),
             vec![("data-x", "\" onmouseover=\"alert(1)")],
@@ -867,7 +857,7 @@ mod tests {
     fn reexported_label_children_are_escaped_on_render() {
         let html = render(&label(
             EditMode::Preview,
-            false,
+            EditableInputFlags::default(),
             None,
             vec![],
             vec![text("<script>alert(1)</script>")],
