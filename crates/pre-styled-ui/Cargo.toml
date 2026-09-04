@@ -1332,6 +1332,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # どちらも 0.79.2 に到達していたが、別々の観測可能な CSS 出力変更を含む
 # ため、同 §5 の「同一版数への偶発的衝突をそのまま採用しない」原則に
 # 従い、main の現在値 0.79.2 の patch を +1 した 0.79.3 へさらにバンプする。
+# イシュー #1590（bar-chart のスタイルを参考サイト基準へ調整）は `bar`
+# スロットへの `stroke`/`stroke-width` 追加と `category-label` への
+# `font-family` トークン追加という CSS 出力変更のみで、Rust API シグネ
+# チャ・セレクタは不変のため patch バンプとし、main の現在値 0.79.3 の
+# patch を +1 した 0.79.4 へバンプした。
 version = "0.79.4"
 
 edition = "2021"

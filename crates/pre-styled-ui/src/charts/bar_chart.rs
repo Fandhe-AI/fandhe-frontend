@@ -171,7 +171,7 @@ impl Default for BarChartProps {
 ///   属性側を外すリファクタで全系列が同色に潰れる回帰を招く。この不変条件は
 ///   `bar_rule_has_stroke_but_never_fill`（下記テスト）が機械固定する。
 /// - `bar` の `stroke`/`stroke-width` は隣接する系列棒の境界を明示する
-///   （[`super::scatter_chart`] の `point`・[`super::pie_chart`] の slice と
+///   （[`super::scatter_chart`] の `point`・[`super::pie`] の slice と
 ///   同型。棒が密着しているとライト/ダーク両テーマで境界が判別しづらい
 ///   内部整合上の不足だった、イシュー #1590）。色は背景トークン
 ///   `--fandhe-color-bg` を使うため、ダーク時もテーマ再定義経由で自動的に
