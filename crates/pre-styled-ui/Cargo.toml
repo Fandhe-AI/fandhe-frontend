@@ -1164,14 +1164,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # （.claude/rules/coding-rust.md「公開済みクレートの実体変更時は semver
 # バンプ必須」）に従い 0.78.0 へマイナーバンプする。
 #
-# イシュー #1580: link-overlay のスタイル調整。`overlay` へ
-# `:focus-visible` の共通フォーカスリング（`FocusRingColor::Token` +
-# `FocusRingOffset::Outside`）と `border-radius: inherit` / `cursor:
-# pointer` を追加した。セレクタ・クラス名・CSS 変数名の削除/改名なし、
-# Rust API シグネチャ不変の純追加のみのため
-# `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3 に従い
-# patch バンプする（CSS 出力変更のため §3.2 により
-# `version-bump-exempt:` は適用しない）。
+# イシュー #1580: link-overlay のスタイルを参考サイト基準（chakra-ui）へ
+# 調整。`overlay` base への `border-radius: inherit` / `cursor: pointer`
+# 追加、`root` base への `border-radius: inherit` 追加（Bugbot 指摘の
+# 是正、フォーカスリングを 2 段の `inherit` 連鎖で角丸祖先へ追従させる）、
+# `StateCondition::FocusVisible` 状態規則（`focus_ring_declarations`）の
+# 追加という CSS 出力の純追加（既存宣言は不変）のため
+# `docs/ci/style-refresh-version-bump-operation.md` §3.3 に従い patch
+# バンプする（CSS 出力変更のため §3.2 により `version-bump-exempt:` は
+# 適用しない）。
 #
 # イシュー #1582: marquee のスタイル調整 (1/2) — アニメーション（親 #1581）。
 # `gap` フォールバックを `1rem` からテーマトークン `var(--fandhe-space-4)`
@@ -1203,7 +1204,23 @@ name = "fandhe-frontend-pre-styled-ui"
 # 手順（自分（本コミットで取り込む #1582 側）が patch バンプのため、
 # main の現在値 0.78.1 の patch を +1 した値を採用する）に従い
 # 0.78.2 へ patch バンプする。
-version = "0.78.2"
+# 並行 PR（#1852、本 PR #1580/#1853 と同一イシューの重複実装）は既に
+# main へマージ済みで、main 側は #1580（`cursor: pointer` 追加を含む）と
+# #1582（marquee のスタイル調整 (1/2)）の統合により独立に 0.78.2 へ到達
+# していた（`root` の `border-radius: inherit` 是正は含まない）。本コミット
+# はその main を取り込んだうえで #1852 に含まれていなかった `root` の
+# `border-radius: inherit` 是正を追加で統合する実体変更を持つため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5「version 行
+# コンフリクトの解決手順（並列 PR 間）」に従い、main の現在値 0.78.2 の
+# patch を +1 した 0.78.3 へバンプする。
+# マージ時の追記（PR #1856）: 本コミットは #1583（marquee 2/2、HEAD）と
+# main の #1580 是正取り込み（0.78.3、上記コメント参照）を統合する。両者は
+# merge base から独立に patch バンプしており、本マージ自体は #1583 の
+# reduced-motion 対応（キーボードフォーカス対応の追加修正含む）という
+# 実体変更を main の 0.78.3 の上にさらに載せるため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の機械的解決手順に
+# 従い main の現在値 0.78.3 の patch を +1 した 0.78.4 へバンプする。
+version = "0.78.4"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
