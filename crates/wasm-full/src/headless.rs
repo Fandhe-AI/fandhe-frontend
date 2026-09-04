@@ -335,9 +335,17 @@ pub struct PartRef {
     /// `data-value` 属性値（存在する場合）。改ざんされうるクライアント
     /// 入力としてそのまま保持し、HTML/セレクタとして解釈しない。
     pub value: Option<String>,
-    /// この part 要素（または祖先の part 要素）に `data-disabled` 属性が
-    /// 付与されているかどうか。`true` の場合は [`action_for_part`] が
-    /// fail-closed で `None` を返す。
+    /// この part 要素（または祖先の part 要素）に `data-disabled` **または**
+    /// `data-readonly` 属性が付与されているかどうか。`true` の場合は
+    /// [`action_for_part`] が fail-closed で `None` を返す
+    /// （`crate::angle_slider::wiring::has_noninteractive_ancestor` と同じ
+    /// zag.js の `interactive = !(disabled || readOnly)` 判定に合わせた
+    /// 拡張、イシュー #1605 codex-review P1 是正: `ComboboxProps::readonly`
+    /// を追加したのに `trigger`/`item`/`clear-trigger` クリックが
+    /// `data-readonly` を確認していなかったため、readonly でも選択値を
+    /// 変更できてしまっていた）。フィールド名は既存の `disabled` を維持し、
+    /// 意味を disabled/readonly の合成へ拡張する（呼び出し側 API の破壊的
+    /// 変更を避ける）。
     pub disabled: bool,
 }
 
@@ -436,7 +444,11 @@ mod wiring {
         let scope = element.get_attribute("data-scope")?;
         let part = element.get_attribute("data-part")?;
         let value = element.get_attribute("data-value");
-        let disabled = element.has_attribute("data-disabled");
+        // `data-readonly`（イシュー #1605 参照突合で `combobox` に追加）も
+        // `data-disabled` と同じく fail-closed 対象とする（`PartRef::disabled`
+        // doc 参照）。
+        let disabled =
+            element.has_attribute("data-disabled") || element.has_attribute("data-readonly");
         Some(PartRef {
             scope,
             part,
@@ -697,6 +709,78 @@ mod tests {
             action_for_part(&part("accordion", "item-trigger", Some("panel-1"), true)),
             None
         );
+    }
+
+    // --- Combobox（イシュー #1071/#1605）: trigger/item/clear-trigger ---
+
+    #[test]
+    fn combobox_trigger_maps_to_toggle() {
+        let action_ref = action_for_part(&part("combobox", "trigger", None, false)).unwrap();
+        assert_eq!(action_ref.action, "toggle");
+        assert_eq!(action_ref.payload, "");
+    }
+
+    #[test]
+    fn combobox_item_with_value_maps_to_select_with_payload() {
+        let action_ref = action_for_part(&part("combobox", "item", Some("opt-1"), false)).unwrap();
+        assert_eq!(action_ref.action, "select");
+        assert_eq!(action_ref.payload, "opt-1");
+    }
+
+    #[test]
+    fn combobox_clear_trigger_maps_to_clear() {
+        let action_ref = action_for_part(&part("combobox", "clear-trigger", None, false)).unwrap();
+        assert_eq!(action_ref.action, "clear");
+        assert_eq!(action_ref.payload, "");
+    }
+
+    /// イシュー #1605 codex-review P1 是正の回帰: `ComboboxProps::readonly`
+    /// が `true` のとき `combobox::trigger`/`item`/`clear-trigger` の
+    /// クリックはいずれも fail-closed で `None`（`PartRef::disabled` が
+    /// `data-readonly` も見るようになった、`to_part_ref`（配線層）参照）。
+    /// ここでは配線層から独立した純粋層 `action_for_part`/
+    /// `action_from_parts` の契約として、`PartRef::disabled = true`
+    /// （readonly な要素・祖先を検出した結果を表す）を渡した場合に
+    /// `None` になることを固定する。
+    #[test]
+    fn combobox_trigger_readonly_is_none() {
+        assert_eq!(
+            action_for_part(&part("combobox", "trigger", None, true)),
+            None
+        );
+    }
+
+    #[test]
+    fn combobox_item_readonly_is_none() {
+        assert_eq!(
+            action_for_part(&part("combobox", "item", Some("opt-1"), true)),
+            None
+        );
+    }
+
+    #[test]
+    fn combobox_clear_trigger_readonly_is_none() {
+        assert_eq!(
+            action_for_part(&part("combobox", "clear-trigger", None, true)),
+            None
+        );
+    }
+
+    #[test]
+    fn action_from_parts_is_none_when_ancestor_root_is_readonly_combobox() {
+        // combobox の root（祖先）が readonly、内側の item 自体は enabled。
+        // `ComboboxProps::readonly` は root/control/input/trigger/
+        // clear-trigger の全パーツへ `data-readonly` を一律付与するため
+        // （`crates/headless-ui/src/combobox.rs::state_attrs`）、item
+        // クリックの祖先列探索で root の readonly を拾って全体を None に
+        // する fail-closed 契約を固定する（accordion の disabled 祖先回帰
+        // と同型）。
+        let parts = vec![
+            part("combobox", "item", Some("opt-1"), false),
+            part("combobox", "content", None, false),
+            part("combobox", "root", None, true),
+        ];
+        assert_eq!(action_from_parts(&parts), None);
     }
 
     #[test]

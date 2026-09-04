@@ -29,7 +29,15 @@ name = "fandhe-frontend-wasm-full"
 # 衝突し 0.33.0 へ統合されたことに伴う追随であり、実体変更なしの patch
 # バンプで 0.7.16 から 0.7.17 へさらに進める（同一版数への偶発的衝突を
 # そのまま採用しない）。
-version = "0.7.17"
+# イシュー #1605 codex-review P1 是正: `ComboboxProps::readonly` が
+# `true` のとき `combobox` の `trigger`/`item`/`clear-trigger` クリック
+# （`headless::PartRef::disabled` が `data-readonly` も fail-closed 対象に
+# する拡張）・Arrow/Enter 等のキーボード操作（`keynav::wiring::handle_combobox_input_keydown`
+# が `is_combobox_readonly` で `input` の `data-readonly` を確認する追加）
+# が選択値を変更できてしまっていた抜け穴を塞いだ。`PartRef` の公開
+# フィールド `disabled` は既存のまま（シグネチャ変更なし、意味の拡張の
+# み）で新規公開 API も追加していないため非破壊的な patch バンプ。
+version = "0.7.18"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
