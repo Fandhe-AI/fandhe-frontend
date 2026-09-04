@@ -4297,18 +4297,18 @@ fn rating_group_section() -> Node {
             vec![],
             vec![text("Rate this product")],
         )];
+        // roving tabindex の tab stop は `RatingGroup::focusable_index` が
+        // 算出する（イシュー #1617 レビュー是正: 個別 disabled の tab stop
+        // 候補で代替なしにグループ全体が到達不能になる再発を防ぐ
+        // フォールバックを含む、`crates/headless-ui/src/rating_group.rs`
+        // 参照）。本ショーケースは全 item 一律で `disabled` を渡すため
+        // フォールバックは発火しないが、算出ロジックの重複を避けるため
+        // ここでも同じ API を呼ぶ。
+        let focusable_index = g.focusable_index(|_| disabled);
         let items: Vec<Node> = (1..=g.count())
             .map(|i| {
                 let checked = g.is_checked(i);
                 let highlighted = g.is_highlighted(i);
-                // 「確定選択中の星、未評価なら 1 番目の星」を roving
-                // tabindex の tab stop（focusable）とする
-                // （`RatingGroup::item` 利便メソッドの算出と同じ規則、
-                // `crates/headless-ui/src/rating_group.rs` 参照）。
-                let focusable = match value {
-                    Some(v) => i == v,
-                    None => i == 1,
-                };
                 rating_group::item(
                     i,
                     RatingItemFlags {
@@ -4316,7 +4316,7 @@ fn rating_group_section() -> Node {
                         highlighted,
                         disabled,
                         readonly,
-                        focusable,
+                        focusable: focusable_index == Some(i),
                     },
                     &format!("{i} star{}", if i == 1 { "" } else { "s" }),
                     vec![],

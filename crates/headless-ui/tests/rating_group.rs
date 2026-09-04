@@ -181,10 +181,11 @@ fn rating_group_convenience_methods_reflect_dispatch_state() {
     let mut g = RatingGroup::new(5, None, false);
     dispatch(&mut g, "set", "3");
 
-    let item3 = render(&g.item(3, false, "3 stars", vec![], vec![]));
+    let tab_stop = g.focusable_index(|_| false);
+    let item3 = render(&g.item(3, false, tab_stop, "3 stars", vec![], vec![]));
     assert!(item3.contains(r#"data-checked=""#));
 
-    let item5 = render(&g.item(5, false, "5 stars", vec![], vec![]));
+    let item5 = render(&g.item(5, false, tab_stop, "5 stars", vec![], vec![]));
     assert!(!item5.contains("data-checked"));
 
     let hidden = render(&g.hidden_input(Some("rating"), false, vec![]));
@@ -369,22 +370,51 @@ fn item_tabindex_follows_focusable_disabled_contract() {
     );
 }
 
-/// [`RatingGroup::item`] の利便メソッドが「確定選択中の星、未評価なら
-/// 1 番目の星」を `focusable`（roving tabindex の tab stop）として算出する
-/// ことを固定する（ark-ui/zag.js 実装に合わせた算出、イシュー #1617）。
+/// [`RatingGroup::item`] の利便メソッドが `focusable_index` 引数
+/// （[`RatingGroup::focusable_index`] の算出結果）を tab stop として反映
+/// することを固定する（ark-ui/zag.js 実装に合わせた算出、イシュー #1617）。
 #[test]
 fn rating_group_convenience_item_computes_focusable_tab_stop() {
     let unrated = RatingGroup::new(5, None, false);
-    let item1 = render(&unrated.item(1, false, "1 star", vec![], vec![]));
+    let unrated_tab_stop = unrated.focusable_index(|_| false);
+    let item1 = render(&unrated.item(1, false, unrated_tab_stop, "1 star", vec![], vec![]));
     assert!(item1.contains(r#"tabindex="0""#));
-    let item2 = render(&unrated.item(2, false, "2 stars", vec![], vec![]));
+    let item2 = render(&unrated.item(2, false, unrated_tab_stop, "2 stars", vec![], vec![]));
     assert!(item2.contains(r#"tabindex="-1""#));
 
     let rated = RatingGroup::new(5, Some(3), false);
-    let item3 = render(&rated.item(3, false, "3 stars", vec![], vec![]));
+    let rated_tab_stop = rated.focusable_index(|_| false);
+    let item3 = render(&rated.item(3, false, rated_tab_stop, "3 stars", vec![], vec![]));
     assert!(item3.contains(r#"tabindex="0""#));
-    let item1 = render(&rated.item(1, false, "1 star", vec![], vec![]));
+    let item1 = render(&rated.item(1, false, rated_tab_stop, "1 star", vec![], vec![]));
     assert!(item1.contains(r#"tabindex="-1""#));
+}
+
+/// [`RatingGroup::focusable_index`] が個別 disabled の tab stop 候補に
+/// 対して代替（最小の非 disabled 星）へフォールバックすることを固定する
+/// （レビュー指摘の再発防止、イシュー #1617）。
+#[test]
+fn rating_group_focusable_index_falls_back_when_natural_candidate_disabled() {
+    let unrated = RatingGroup::new(5, None, false);
+    let tab_stop = unrated.focusable_index(|i| i == 1);
+    assert_eq!(tab_stop, Some(2));
+    let item1 = render(&unrated.item(1, true, tab_stop, "1 star", vec![], vec![]));
+    assert!(
+        !item1.contains("tabindex"),
+        "disabled な item は tabindex を出力しない: {item1}"
+    );
+    let item2 = render(&unrated.item(2, false, tab_stop, "2 stars", vec![], vec![]));
+    assert!(item2.contains(r#"tabindex="0""#));
+
+    let rated = RatingGroup::new(5, Some(3), false);
+    let rated_tab_stop = rated.focusable_index(|i| i == 3);
+    assert_eq!(rated_tab_stop, Some(1));
+
+    let all_disabled_tab_stop = rated.focusable_index(|_| true);
+    assert_eq!(
+        all_disabled_tab_stop, None,
+        "全星 disabled のときは tab stop なし"
+    );
 }
 
 /// pointer/focus 系 `data-*`（`data-hover`/`data-active`/`data-focus`/

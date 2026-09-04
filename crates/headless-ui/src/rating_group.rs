@@ -90,6 +90,12 @@
 //!   `tabindex`（`disabled` なら省略、`focusable` なら `"0"`、それ以外は
 //!   `"-1"`）を追加した。是正前は `span[role="radio"]` がキーボード
 //!   到達不能だった（ARIA 適合性の欠陥）。
+//! - [`RatingGroup::focusable_index`] を新設し、tab stop の自然な候補
+//!   （確定選択中の星、未評価なら 1 番目）が呼び出し側から個別 `disabled`
+//!   として渡された場合に、代替なしにグループ全体がキーボード到達不能に
+//!   なる再発（レビュー指摘）を防ぐフォールバック（最小の非 disabled 星へ
+//!   繰り下げ、全星 disabled なら `None`）を実装した。[`RatingGroup::item`]
+//!   の `focusable_index` 引数として渡す。
 //!
 //! ## キーボード操作（ark-ui 準拠、DOM 配線は wasm-full の後続責務）
 //!
@@ -254,9 +260,10 @@ pub struct RatingItemFlags {
     /// （ネイティブ disabled 要素と同じくキーボードフォーカスから除外）。
     /// `disabled == false` のとき、`focusable == true` なら `"0"`、
     /// `false` なら `"-1"` を出力する（roving tabindex パターン。
-    /// [`RatingGroup::item`] は「確定選択中の星、未評価なら 1 番目の星」を
-    /// tab stop とする、ark-ui/zag.js の rating-group 実装に合わせた算出を
-    /// 行う）。
+    /// tab stop の算出は [`RatingGroup::focusable_index`] を参照。
+    /// 「確定選択中の星、未評価なら 1 番目の星」を素朴な既定候補とするが、
+    /// その候補が個別 `disabled` の場合は最小の非 disabled 星へ
+    /// フォールバックする（レビュー指摘、イシュー #1617）。
     pub focusable: bool,
 }
 
@@ -463,23 +470,46 @@ impl RatingGroup {
         self.value.map(|v| v.to_string()).unwrap_or_default()
     }
 
-    /// 星番号 `index` が roving `tabindex` の tab stop（`focusable`）かどうか。
-    /// 「確定選択中の星、未評価なら 1 番目の星」を tab stop とする
-    /// （ark-ui/zag.js の rating-group 実装に合わせた算出、イシュー #1617）。
+    /// roving `tabindex` の tab stop（`focusable == true` にする唯一の
+    /// 星番号）を算出する（イシュー #1617 レビュー是正）。
+    ///
+    /// 「確定選択中の星、未評価なら 1 番目の星」を素朴な既定候補とするが、
+    /// `is_disabled` がその候補について `true` を返す場合（呼び出し側が
+    /// 星ごとに個別 `disabled` を渡す構成、[`item`]/[`Self::item`] の
+    /// `disabled` 引数はグループ全体の disabled 状態と独立した呼び出し側
+    /// 管理のパラメータであるため、公開 API の正当な使用範囲内で起こり
+    /// うる）、`1..=count` のうち非 disabled な最小番号へフォールバック
+    /// する。全星が disabled のときは `None`（tab stop なし、キーボードで
+    /// 到達不能でよい正しい挙動）を返す。
+    ///
+    /// 呼び出し側は星の集合を描画する前に一度だけ本メソッドを呼び、
+    /// 返り値を各 [`item`] 呼び出しへ渡す（[`Self::item`] 利便メソッドの
+    /// `focusable_index` 引数、または自由関数 [`item`] の
+    /// `RatingItemFlags::focusable` を `focusable_index(index) == Some(this_index)`
+    /// として組み立てる）。
     #[must_use]
-    fn is_focusable(&self, index: u32) -> bool {
-        match self.value {
-            Some(v) => index == v,
-            None => index == 1,
+    pub fn focusable_index(&self, is_disabled: impl Fn(u32) -> bool) -> Option<u32> {
+        let natural = self.value.unwrap_or(1);
+        if !is_disabled(natural) {
+            return Some(natural);
         }
+        (1..=self.count).find(|i| !is_disabled(*i))
     }
 
     /// [`item`] へ星番号 `index` の現在状態を注入する利便メソッド。
+    ///
+    /// `focusable_index` は [`Self::focusable_index`] が算出した tab stop
+    /// （星の集合全体について一度だけ計算し、各呼び出しへ同じ値を渡す。
+    /// イシュー #1617 レビュー是正: 本メソッドの旧実装は `index` 単体の
+    /// 「確定選択中／1 番目」判定のみで tab stop を決めており、その候補が
+    /// 個別 `disabled` のとき代替なしにグループ全体がキーボード到達不能に
+    /// なる欠陥があった）。
     #[must_use]
     pub fn item<'a>(
         &self,
         index: u32,
         disabled: bool,
+        focusable_index: Option<u32>,
         aria_label: &'a str,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
@@ -491,7 +521,7 @@ impl RatingGroup {
                 highlighted: self.is_highlighted(index),
                 disabled,
                 readonly: self.readonly,
-                focusable: self.is_focusable(index),
+                focusable: focusable_index == Some(index),
             },
             aria_label,
             attrs,
@@ -828,6 +858,62 @@ mod tests {
         assert!(html.contains(r#"tabindex="0""#));
     }
 
+    // --- focusable_index: 個別 disabled の tab stop フォールバック
+    // （イシュー #1617 レビュー是正） ---
+
+    #[test]
+    fn focusable_index_unevaluated_no_disabled_returns_first_star() {
+        let g = RatingGroup::new(5, None, false);
+        assert_eq!(g.focusable_index(|_| false), Some(1));
+    }
+
+    #[test]
+    fn focusable_index_checked_no_disabled_returns_checked_star() {
+        let g = RatingGroup::new(5, Some(3), false);
+        assert_eq!(g.focusable_index(|_| false), Some(3));
+    }
+
+    #[test]
+    fn focusable_index_falls_back_when_natural_candidate_disabled() {
+        // 未評価（自然な候補は 1 番目）で 1 番目のみ disabled ならば、
+        // 最小の非 disabled 星（2）へフォールバックする。
+        let g = RatingGroup::new(5, None, false);
+        assert_eq!(g.focusable_index(|i| i == 1), Some(2));
+    }
+
+    #[test]
+    fn focusable_index_falls_back_when_checked_star_disabled() {
+        // 確定選択中の星（3）が個別 disabled ならば、最小の非 disabled 星
+        // （1）へフォールバックする。
+        let g = RatingGroup::new(5, Some(3), false);
+        assert_eq!(g.focusable_index(|i| i == 3), Some(1));
+    }
+
+    #[test]
+    fn focusable_index_all_disabled_returns_none() {
+        // 全星が disabled のときは tab stop なし（キーボード到達不能で
+        // 正しい挙動。ネイティブ disabled 要素と同じ）。
+        let g = RatingGroup::new(5, Some(3), false);
+        assert_eq!(g.focusable_index(|_| true), None);
+    }
+
+    #[test]
+    fn item_focusable_index_reflects_focusable_index_result() {
+        let mut g = RatingGroup::new(5, None, false);
+        dispatch(&mut g, "set", "1"); // 1 番目を確定選択かつ disabled にする想定
+        let tab_stop = g.focusable_index(|i| i == 1);
+        assert_eq!(tab_stop, Some(2));
+
+        let item1 = render(&g.item(1, true, tab_stop, "1 star", vec![], vec![]));
+        assert!(
+            !item1.contains("tabindex"),
+            "disabled な item は tabindex を出力しない: {item1}"
+        );
+
+        let item2 = render(&g.item(2, false, tab_stop, "2 stars", vec![], vec![]));
+        assert!(item2.contains(r#"tabindex="0""#));
+    }
+
     #[test]
     fn hidden_input_carries_type_hidden_and_value() {
         let html = render(&hidden_input(
@@ -1117,11 +1203,12 @@ mod tests {
         let mut g = RatingGroup::new(5, None, false);
         dispatch(&mut g, "set", "3");
 
-        let item3 = render(&g.item(3, false, "3 stars", vec![], vec![]));
+        let tab_stop = g.focusable_index(|_| false);
+        let item3 = render(&g.item(3, false, tab_stop, "3 stars", vec![], vec![]));
         assert!(item3.contains(r#"data-checked="""#));
         assert!(item3.contains(r#"data-highlighted="""#));
 
-        let item4 = render(&g.item(4, false, "4 stars", vec![], vec![]));
+        let item4 = render(&g.item(4, false, tab_stop, "4 stars", vec![], vec![]));
         assert!(!item4.contains("data-checked"));
         assert!(!item4.contains("data-highlighted"));
 

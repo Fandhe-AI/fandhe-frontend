@@ -655,7 +655,8 @@ mod tests {
         assert!(dispatch(&mut g, "set", "4"));
         assert_eq!(g.value(), Some(4));
 
-        let ssr_html = render(&g.item(4, false, "4 stars", vec![], vec![]));
+        let tab_stop = g.focusable_index(|_| false);
+        let ssr_html = render(&g.item(4, false, tab_stop, "4 stars", vec![], vec![]));
         assert!(ssr_html.contains(r#"data-checked="""#));
 
         let hydrate_html = render(&render_for_hydration(&g));
