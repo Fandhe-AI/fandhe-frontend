@@ -305,12 +305,15 @@ fn slider_name_label_and_valuetext_are_escaped_for_all_payloads() {
     }
 }
 
-/// (1)/(2)/(3) ImageCropper（イシュー #844）: `image` の `src`/`alt`（属性値
+/// (1)/(2)/(3) ImageCropper（イシュー #844、シグネチャはイシュー #1610 で
+/// `ImageCropperProps` 追加に追随）: `image` の `src`/`alt`（属性値
 /// 経路）・`selection` の children（テキスト経路）・`root`/`handle` の
 /// 呼び出し側 `attrs`（属性値経路）へ全ペイロードを注入し、エスケープが
 /// 貫通することを固定する。
 #[test]
 fn image_cropper_src_alt_children_and_attrs_are_escaped_for_all_payloads() {
+    let props = image_cropper::ImageCropperProps::default();
+    let state = image_cropper::ImageCropper::default();
     for payload in payloads::all() {
         // `image_cropper::image` は `<img>` タグ自体を出力するため、
         // 実タグ出現の有無を見る `assert_payload_is_escaped` の共通チェック
@@ -331,7 +334,7 @@ fn image_cropper_src_alt_children_and_attrs_are_escaped_for_all_payloads() {
              が出力にそのまま残っている: payload={payload:?}, html={html}"
         );
 
-        let selection_node = image_cropper::selection(vec![], vec![text(payload)]);
+        let selection_node = image_cropper::selection(&state, &props, vec![], vec![text(payload)]);
         let html = render(&selection_node);
         assert_payload_is_escaped(
             payload,
@@ -339,7 +342,7 @@ fn image_cropper_src_alt_children_and_attrs_are_escaped_for_all_payloads() {
             "image_cropper::selection のテキストコンテキスト",
         );
 
-        let root_node = image_cropper::root(vec![("data-testid", payload)], vec![]);
+        let root_node = image_cropper::root(&props, vec![("data-testid", payload)], vec![]);
         let html = render(&root_node);
         assert_payload_is_escaped(
             payload,
@@ -349,6 +352,7 @@ fn image_cropper_src_alt_children_and_attrs_are_escaped_for_all_payloads() {
 
         let handle_node = image_cropper::handle(
             image_cropper::HandlePosition::Se,
+            &props,
             vec![("data-testid", payload)],
         );
         let html = render(&handle_node);

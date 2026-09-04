@@ -53,7 +53,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
 };
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
 use fandhe_frontend_pre_styled_ui::image_cropper;
-use fandhe_frontend_pre_styled_ui::image_cropper::HandlePosition;
+use fandhe_frontend_pre_styled_ui::image_cropper::{HandlePosition, ImageCropperProps};
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
@@ -1493,6 +1493,7 @@ fn demo_image_cropper() -> Node {
     // 視覚確認できないため、本イシュー（#1480）担当パートの視覚確認用に
     // 非全域の選択状態を作る。
     let state = ImageCropper::new(200, 120, 40, 24, 120, 72, None, 1);
+    let props = ImageCropperProps::default();
     let handles = [
         HandlePosition::N,
         HandlePosition::S,
@@ -1504,7 +1505,7 @@ fn demo_image_cropper() -> Node {
         HandlePosition::Sw,
     ]
     .into_iter()
-    .map(|position| image_cropper::handle(position, vec![]))
+    .map(|position| image_cropper::handle(position, &props, vec![]))
     .collect::<Vec<_>>();
 
     demo_section(
@@ -1513,17 +1514,20 @@ fn demo_image_cropper() -> Node {
         image_cropper::root(
             Size::Md,
             &state,
+            &props,
             vec![],
             vec![image_cropper::viewport(
+                &props,
                 vec![],
                 vec![
                     image_cropper::image(IMAGE_CROPPER_DEMO_IMAGE_SRC, "", vec![]),
                     image_cropper::selection(
                         &state,
+                        &props,
                         vec![],
                         handles
                             .into_iter()
-                            .chain(std::iter::once(image_cropper::grid(vec![])))
+                            .chain(std::iter::once(image_cropper::grid(None, &props, vec![])))
                             .collect(),
                     ),
                 ],
