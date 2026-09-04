@@ -165,11 +165,14 @@ impl Default for BarChartProps {
 ///
 /// - **`bar` の base に `fill` を書かない**: 棒の色は [`root`] が各棒へ
 ///   `fill="var(--fandhe-color-chart-N)"`（[`series_color_var`]）を
-///   presentation 属性として直接付与しており、著者スタイルシートの `fill`
-///   宣言は presentation 属性より優先度が低い（SVG のスタイル解決順位）
-///   ため無効ではあるが、仮に `fill` を 1 本でも書くと将来 presentation
-///   属性側を外すリファクタで全系列が同色に潰れる回帰を招く。この不変条件は
-///   `bar_rule_has_stroke_but_never_fill`（下記テスト）が機械固定する。
+///   presentation 属性として直接付与している。SVG の presentation 属性は
+///   author origin の specificity 0 として扱われるため、`[data-scope=
+///   "bar-chart"][data-part="bar"]` セレクタを持つ CSS 宣言のほうが優先
+///   され、presentation 属性の系列色を上書きしてしまう。つまり recipe に
+///   `fill` を 1 本でも書くと **現時点で既に** 全系列が同色に潰れる
+///   （将来 presentation 属性側を外すリファクタを待たずに壊れる）。この
+///   不変条件は `bar_rule_has_stroke_but_never_fill`（下記テスト）が機械
+///   固定する。
 /// - `bar` の `stroke`/`stroke-width` は隣接する系列棒の境界を明示する
 ///   （[`super::scatter_chart`] の `point`・[`super::pie`] の slice と
 ///   同型。棒が密着しているとライト/ダーク両テーマで境界が判別しづらい
@@ -179,6 +182,14 @@ impl Default for BarChartProps {
 /// - `stroke-width` の値は単位なし `"1"` を採用する（[`super::axis`]・
 ///   [`super::grid`] と同じ多数派表記。[`super::scatter_chart`] の `"1px"`
 ///   は少数派表記であり本部品では踏襲しない）。
+/// - **`root` に `overflow: visible` を付与する**: `bar` の
+///   `stroke-width: 1` は rect の外側へ 0.5 ユーザー単位はみ出して
+///   描かれる。最大値の縦棒は `y == 0`、横棒の baseline は `x == 0` に
+///   接するため、このはみ出しが viewBox の外側へ出て UA 既定
+///   `svg:not(:root) { overflow: hidden }` にクリップされる（stroke の
+///   一辺が欠けて見える）。兄弟部品 scatter（[`super::scatter_chart`]、
+///   #1598）/ line・area の `root`/`plot` と同じ理由・同じ対処であり、
+///   ジオメトリ（`bar()` の座標）を変えずに CSS のみで整合を取る。
 /// - `category-label` の `font-family` は [`super::axis`] の `tick-label`
 ///   と同じ書体トークン `--fandhe-font-font-body` を使う（同じ SVG 内
 ///   テキストで書体指定の有無が食い違っていた内部整合上の不足の是正）。
@@ -186,7 +197,15 @@ fn recipe() -> SlotRecipe {
     SlotRecipe::new("bar-chart", SLOTS)
         .base(
             "root",
-            vec![decl("display", "block"), decl("max-width", "100%")],
+            vec![
+                decl("display", "block"),
+                decl("max-width", "100%"),
+                // bar の stroke（1 ユーザー単位）が rect 外側へ 0.5 単位
+                // はみ出し、最大値の棒で viewBox の外に出るのを UA 既定
+                // overflow: hidden でクリップさせない（イシュー #1590、
+                // scatter/line/area の root/plot と同型）。
+                decl("overflow", "visible"),
+            ],
         )
         .base(
             "bar",
@@ -573,9 +592,11 @@ mod tests {
     #[test]
     fn bar_rule_has_stroke_but_never_fill() {
         // イシュー #1590: bar の色は root() が presentation 属性
-        // fill="var(--fandhe-color-chart-N)" で系列ごとに与える。recipe()
-        // 側に fill を書くと将来 presentation 属性を外すリファクタで全系列が
-        // 同色に潰れる回帰を招くため、CSS 側に fill が無いことを固定する。
+        // fill="var(--fandhe-color-chart-N)" で系列ごとに与える。SVG の
+        // presentation 属性は author origin の specificity 0 のため、
+        // recipe() 側に fill を書くと CSS 宣言が presentation 属性より
+        // 優先され現時点で全系列が同色に潰れる。CSS 側に fill が無いことを
+        // 固定する。
         let out = css();
         let block = bar_rule_block(&out);
         assert!(block.contains("stroke: var(--fandhe-color-bg);"));

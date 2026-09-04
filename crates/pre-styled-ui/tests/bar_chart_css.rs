@@ -18,6 +18,7 @@ use fandhe_frontend_pre_styled_ui::charts::bar_chart;
 const BAR_CHART_GOLDEN_CSS: &str = r#"[data-scope="bar-chart"][data-part="root"] {
   display: block;
   max-width: 100%;
+  overflow: visible;
 }
 
 [data-scope="bar-chart"][data-part="bar"] {
