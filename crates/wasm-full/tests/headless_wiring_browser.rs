@@ -300,13 +300,15 @@ fn select_full_cycle_open_select_and_clear_in_real_dom() {
 /// イシュー #1605 codex-review P1 是正の回帰: `ComboboxProps::readonly` が
 /// `true` のとき、`trigger`（listbox 開閉トグル）・`item`（選択確定）・
 /// `clear-trigger`（クリア）のいずれのクリックも実 DOM で no-op であること
-/// を証明する（`crate::headless::PartRef::disabled` が `data-readonly` も
-/// fail-closed 対象にした拡張の統合テスト、`select_full_cycle_open_select_and_clear_in_real_dom`
-/// の readonly 版）。`ComboboxProps`（`crates/headless-ui/src/combobox.rs::state_attrs`）
-/// は root/control/input/trigger/clear-trigger の全パーツへ `data-readonly`
-/// を一律付与するため、item クリックは祖先である root の readonly を
-/// 拾って no-op になる（`data-readonly` を持たない item 自身の
-/// クリックでも祖先探索で拾われることを検証する）。
+/// を証明する（`crate::headless::PartRef::readonly` が `data-readonly` を
+/// 独立フィールドとして fail-closed 対象にした拡張の統合テスト、
+/// `select_full_cycle_open_select_and_clear_in_real_dom` の readonly 版）。
+/// `ComboboxProps`（`crates/headless-ui/src/combobox.rs::state_attrs`）は
+/// root/control/input/trigger/clear-trigger の全パーツへ `data-readonly`
+/// を一律付与するため、item クリックは祖先である root の readonly
+/// （同一 `data-scope="combobox"` 内での伝播、`crate::headless::
+/// action_from_parts` 参照）を拾って no-op になる（`data-readonly` を
+/// 持たない item 自身のクリックでも祖先探索で拾われることを検証する）。
 #[wasm_bindgen_test]
 fn combobox_readonly_trigger_item_and_clear_trigger_clicks_are_noop_in_real_dom() {
     let window = web_sys::window().expect("window must exist");

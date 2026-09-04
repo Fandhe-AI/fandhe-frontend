@@ -279,8 +279,10 @@
 //!   End をすべて claim せず既定動作もキャンセルしない（`crate::angle_slider`
 //!   の `data-disabled`/`data-readonly` 判定と同型。readonly でも
 //!   trigger/clear-trigger クリック・item クリックで選択値を変更できて
-//!   しまう抜け穴は `crate::headless::PartRef::disabled` が `data-readonly`
-//!   も見るよう拡張したことで別途塞いでいる）。
+//!   しまう抜け穴は `crate::headless::PartRef::readonly`
+//!   （`data-readonly` を独立フィールドとして保持し、同一 `data-scope`
+//!   内でのみ伝播する契約、`crate::headless::action_from_parts` 参照）が
+//!   別途塞いでいる）。
 //! - **`aria-activedescendant` は input 側へ書く**（`crates/headless-ui/src/combobox.rs`
 //!   の「input 側に配線する」契約、Menu/Select の content 側配線とは逆）。
 //!   [`wiring::set_highlight_on_host`]/[`wiring::clear_highlight_on_host`]

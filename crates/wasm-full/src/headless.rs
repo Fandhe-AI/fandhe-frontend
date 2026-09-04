@@ -40,6 +40,12 @@
 //!   `find_map`（内側優先）で先に成立してしまわないよう、列内のいずれか 1
 //!   要素でも `disabled` なら全体を `None` とする（fail-closed、イシュー
 //!   #580 PR #611 Bugbot 指摘の修正）。
+//! - `data-readonly` も `None`（fail-closed）とするが、`disabled` と異なり
+//!   **`data-scope` が一致する part 群の範囲内でのみ** 伝播する。readonly
+//!   はそのコンポーネントの値変更だけを抑止する契約であり、無関係な
+//!   祖先コンポーネントの readonly が別 scope の子孫コンポーネントまで
+//!   不活性化してはならない（[`PartRef::readonly`]/[`action_from_parts`]
+//!   参照、PR #1879 codex-review 指摘の是正）。
 //! - 未知アクション名は `fandhe_frontend_interactive::dispatch`/
 //!   `Component::decode_action` 側の既存契約（不変条件 4）により no-op と
 //!   なる（本モジュールの fail-closed と合わせた二重の安全網）。
@@ -335,25 +341,37 @@ pub struct PartRef {
     /// `data-value` 属性値（存在する場合）。改ざんされうるクライアント
     /// 入力としてそのまま保持し、HTML/セレクタとして解釈しない。
     pub value: Option<String>,
-    /// この part 要素（または祖先の part 要素）に `data-disabled` **または**
-    /// `data-readonly` 属性が付与されているかどうか。`true` の場合は
-    /// [`action_for_part`] が fail-closed で `None` を返す
-    /// （`crate::angle_slider::wiring::has_noninteractive_ancestor` と同じ
-    /// zag.js の `interactive = !(disabled || readOnly)` 判定に合わせた
-    /// 拡張、イシュー #1605 codex-review P1 是正: `ComboboxProps::readonly`
-    /// を追加したのに `trigger`/`item`/`clear-trigger` クリックが
-    /// `data-readonly` を確認していなかったため、readonly でも選択値を
-    /// 変更できてしまっていた）。フィールド名は既存の `disabled` を維持し、
-    /// 意味を disabled/readonly の合成へ拡張する（呼び出し側 API の破壊的
-    /// 変更を避ける）。
+    /// この part 要素（または祖先の part 要素）に `data-disabled` 属性が
+    /// 付与されているかどうか。`true` の場合は [`action_for_part`] が
+    /// fail-closed で `None` を返す。[`action_from_parts`] は列内の
+    /// いずれか 1 要素でも `disabled` なら列全体（＝クリックされたコン
+    /// ポーネント全体）を `None` とする（scope をまたいで伝播してよい:
+    /// `data-disabled` は要素・コンポーネント丸ごとを不活性化する強い
+    /// 契約のため）。
     pub disabled: bool,
+    /// この part 要素（または祖先の part 要素）に `data-readonly` 属性が
+    /// 付与されているかどうか（イシュー #1605 codex-review P1 是正:
+    /// `ComboboxProps::readonly` を追加したのに `trigger`/`item`/
+    /// `clear-trigger` クリックが `data-readonly` を確認していなかった
+    /// ため、readonly でも選択値を変更できてしまっていた）。`disabled`
+    /// とは異なり **同一 `scope` 内でのみ** 伝播する
+    /// （[`action_from_parts`] 参照）。readonly はそのコンポーネントの
+    /// 値変更だけを抑止する契約であり、`disabled` のように scope を
+    /// またいで祖先から子孫コンポーネント全体を不活性化してはならない
+    /// （readonly な checkbox-group/color-picker/rating-group/
+    /// signature-pad 等の内部にネストされた別コンポーネント（Dialog/
+    /// Select 等）の trigger/item まで操作不能になる回帰の是正、
+    /// PR #1879 codex-review 指摘）。
+    pub readonly: bool,
 }
 
 /// (scope, part) の 1 段判定。マッピング表にない組・`data-value` 欠落・
-/// `disabled` はいずれも `None`（fail-closed、受け入れ条件 3）。
+/// `disabled`/`readonly` はいずれも `None`（fail-closed、受け入れ条件 3）。
+/// `part` 自身が `readonly` の場合は無条件で `None`（scope をまたいだ
+/// 伝播判定は [`action_from_parts`] の責務、本関数は 1 part 単体の判定）。
 #[must_use]
 pub fn action_for_part(part: &PartRef) -> Option<ActionRef> {
-    if part.disabled {
+    if part.disabled || part.readonly {
         return None;
     }
     let row = MAPPING_TABLE
@@ -408,14 +426,31 @@ pub fn action_for_part(part: &PartRef) -> Option<ActionRef> {
 /// 側で `stop_propagation` されアイテム自身のクリック処理が握り潰される）
 /// 事態のみを防ぐ（`stop_propagation` の呼び出し箇所は
 /// [`wire_headless_events`] 参照）。
+///
+/// `readonly` は `disabled` と異なり **scope 限定** で伝播する（PR #1879
+/// codex-review 指摘の是正）: readonly はそのコンポーネント（`data-scope`
+/// が一致する part 群）の値変更だけを抑止する契約であり、無関係な祖先
+/// コンポーネントの readonly が別 scope の子孫コンポーネント（例:
+/// readonly な `checkbox-group`/`color-picker`/`rating-group`/
+/// `signature-pad` の内部にネストされた `Dialog`/`Select` 等）の
+/// `trigger`/`item` まで操作不能にしてはならない。列全体を見て `None` に
+/// 倒すのは `disabled` のみとし、`readonly` は「解決しようとしている
+/// part と同じ `scope` を持つ readonly part が列内にあるか」を
+/// part ごとに判定し、該当すればその part の解決だけをスキップして
+/// 列挙を継続する（`content` 境界による打ち切りは従来どおり）。
 #[must_use]
 pub fn action_from_parts(parts: &[PartRef]) -> Option<ActionRef> {
     if parts.iter().any(|part| part.disabled) {
         return None;
     }
     for part in parts {
-        if let Some(action) = action_for_part(part) {
-            return Some(action);
+        let scope_is_readonly = parts
+            .iter()
+            .any(|candidate| candidate.readonly && candidate.scope == part.scope);
+        if !scope_is_readonly {
+            if let Some(action) = action_for_part(part) {
+                return Some(action);
+            }
         }
         if part.part == "content" {
             return None;
@@ -444,16 +479,20 @@ mod wiring {
         let scope = element.get_attribute("data-scope")?;
         let part = element.get_attribute("data-part")?;
         let value = element.get_attribute("data-value");
-        // `data-readonly`（イシュー #1605 参照突合で `combobox` に追加）も
-        // `data-disabled` と同じく fail-closed 対象とする（`PartRef::disabled`
-        // doc 参照）。
-        let disabled =
-            element.has_attribute("data-disabled") || element.has_attribute("data-readonly");
+        let disabled = element.has_attribute("data-disabled");
+        // `data-readonly`（イシュー #1605 参照突合で `combobox` に追加）は
+        // `disabled` へ折り畳まず独立フィールドで保持する（`PartRef::readonly`
+        // doc 参照）。`disabled` と一律に畳み込むと `action_from_parts` の
+        // 列全体 `None` 判定が scope をまたいで伝播し、readonly な
+        // コンポーネント内にネストした無関係な別コンポーネントまで
+        // 操作不能にする回帰を生む（PR #1879 codex-review 指摘）。
+        let readonly = element.has_attribute("data-readonly");
         Some(PartRef {
             scope,
             part,
             value,
             disabled,
+            readonly,
         })
     }
 
@@ -618,6 +657,20 @@ mod tests {
             part: part.to_string(),
             value: value.map(str::to_string),
             disabled,
+            readonly: false,
+        }
+    }
+
+    /// [`part`] の readonly 版（`data-readonly` を独立フィールドとして
+    /// 保持するようになった `PartRef::readonly` 用、イシュー #1605/
+    /// PR #1879 codex-review 是正）。
+    fn part_readonly(scope: &str, part: &str, value: Option<&str>, readonly: bool) -> PartRef {
+        PartRef {
+            scope: scope.to_string(),
+            part: part.to_string(),
+            value: value.map(str::to_string),
+            disabled: false,
+            readonly,
         }
     }
 
@@ -736,16 +789,15 @@ mod tests {
 
     /// イシュー #1605 codex-review P1 是正の回帰: `ComboboxProps::readonly`
     /// が `true` のとき `combobox::trigger`/`item`/`clear-trigger` の
-    /// クリックはいずれも fail-closed で `None`（`PartRef::disabled` が
-    /// `data-readonly` も見るようになった、`to_part_ref`（配線層）参照）。
-    /// ここでは配線層から独立した純粋層 `action_for_part`/
-    /// `action_from_parts` の契約として、`PartRef::disabled = true`
-    /// （readonly な要素・祖先を検出した結果を表す）を渡した場合に
-    /// `None` になることを固定する。
+    /// クリックはいずれも fail-closed で `None`（`PartRef::readonly` を
+    /// 独立フィールドとして確認する、`to_part_ref`（配線層）参照）。ここ
+    /// では配線層から独立した純粋層 `action_for_part`/`action_from_parts`
+    /// の契約として、`PartRef::readonly = true` を渡した part 自身の
+    /// 解決が `None` になることを固定する。
     #[test]
     fn combobox_trigger_readonly_is_none() {
         assert_eq!(
-            action_for_part(&part("combobox", "trigger", None, true)),
+            action_for_part(&part_readonly("combobox", "trigger", None, true)),
             None
         );
     }
@@ -753,7 +805,7 @@ mod tests {
     #[test]
     fn combobox_item_readonly_is_none() {
         assert_eq!(
-            action_for_part(&part("combobox", "item", Some("opt-1"), true)),
+            action_for_part(&part_readonly("combobox", "item", Some("opt-1"), true)),
             None
         );
     }
@@ -761,7 +813,7 @@ mod tests {
     #[test]
     fn combobox_clear_trigger_readonly_is_none() {
         assert_eq!(
-            action_for_part(&part("combobox", "clear-trigger", None, true)),
+            action_for_part(&part_readonly("combobox", "clear-trigger", None, true)),
             None
         );
     }
@@ -772,13 +824,44 @@ mod tests {
         // `ComboboxProps::readonly` は root/control/input/trigger/
         // clear-trigger の全パーツへ `data-readonly` を一律付与するため
         // （`crates/headless-ui/src/combobox.rs::state_attrs`）、item
-        // クリックの祖先列探索で root の readonly を拾って全体を None に
-        // する fail-closed 契約を固定する（accordion の disabled 祖先回帰
-        // と同型）。
+        // クリックの祖先列探索で root の readonly（同一 scope
+        // "combobox"）を拾って item の解決をスキップし、全体を None に
+        // する契約を固定する。
         let parts = vec![
             part("combobox", "item", Some("opt-1"), false),
             part("combobox", "content", None, false),
-            part("combobox", "root", None, true),
+            part_readonly("combobox", "root", None, true),
+        ];
+        assert_eq!(action_from_parts(&parts), None);
+    }
+
+    /// PR #1879 codex-review P1 指摘の回帰: readonly な `combobox`
+    /// コンポーネントの内部にネストした**別 scope**（例: `dialog`）の
+    /// `trigger` は、readonly が `data-scope` をまたいで伝播せず解決
+    /// できる。旧実装（`data-readonly` を `disabled` へ一律折り畳み、
+    /// `action_from_parts` が列内のいずれか 1 要素でも disabled/readonly
+    /// なら全体を `None` とする実装）では、無関係な祖先コンポーネント
+    /// （readonly な combobox）の readonly により内側の Dialog trigger
+    /// まで操作不能になっていた。
+    #[test]
+    fn action_from_parts_readonly_combobox_does_not_block_nested_other_scope_dialog_trigger() {
+        let parts = vec![
+            part("dialog", "trigger", None, false),
+            part_readonly("combobox", "content", None, true),
+            part_readonly("combobox", "root", None, true),
+        ];
+        let action_ref = action_from_parts(&parts).unwrap();
+        assert_eq!(action_ref.action, "toggle");
+    }
+
+    /// 上記の対照ケース: readonly combobox item 自身のクリックは
+    /// （scope が一致するため）引き続き `None`（fail-closed）となる。
+    #[test]
+    fn action_from_parts_readonly_combobox_still_blocks_own_scope_item() {
+        let parts = vec![
+            part("combobox", "item", Some("opt-1"), false),
+            part_readonly("combobox", "content", None, true),
+            part_readonly("combobox", "root", None, true),
         ];
         assert_eq!(action_from_parts(&parts), None);
     }

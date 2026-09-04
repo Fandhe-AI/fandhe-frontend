@@ -37,6 +37,7 @@ fn part(scope: &str, part: &str, value: Option<&str>, disabled: bool) -> PartRef
         part: part.to_string(),
         value: value.map(str::to_string),
         disabled,
+        readonly: false,
     }
 }
 
