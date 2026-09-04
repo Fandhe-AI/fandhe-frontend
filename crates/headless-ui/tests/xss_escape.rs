@@ -511,19 +511,29 @@ fn editable_name_value_label_and_preview_are_escaped_for_all_payloads() {
         let html = render(&input_node);
         assert_payload_is_escaped(payload, &html, "editable::input の name/value コンテキスト");
 
-        let label_node =
-            editable::label(EditMode::Preview, false, None, vec![], vec![text(payload)]);
+        let label_node = editable::label(
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            None,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&label_node);
         assert_payload_is_escaped(payload, &html, "editable::label のテキストコンテキスト");
 
-        let preview_node = editable::preview(EditMode::Preview, false, vec![], vec![text(payload)]);
+        let preview_node = editable::preview(
+            EditMode::Preview,
+            EditableInputFlags::default(),
+            false,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&preview_node);
         assert_payload_is_escaped(payload, &html, "editable::preview のテキストコンテキスト");
 
         let attrs_node = editable::root(
             EditMode::Preview,
-            false,
-            false,
+            EditableInputFlags::default(),
             Default::default(),
             Default::default(),
             vec![("data-testid", payload)],
