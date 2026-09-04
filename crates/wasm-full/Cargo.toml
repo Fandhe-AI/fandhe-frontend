@@ -50,9 +50,13 @@ name = "fandhe-frontend-wasm-full"
 # 本ブランチ側で独立に到達していた 0.7.18 との base 取り込みマージにより
 # 同一ファイルの patch バンプが競合したため、双方を統合したうえで
 # headless-ui 依存の version 要求を 0.34.0（#1605/#1614 統合バンプ）へ
-# さらに追随させる patch バンプとして 0.7.19 へ進める（本クレートの src/
-# は引き続き変更なし。同一版数への偶発的衝突をそのまま採用しない）。
-version = "0.7.19"
+# さらに追随させる patch バンプとして 0.7.19 へ進めていたが、PR #1879
+# codex-review P1 指摘（イシュー #1605）を受けて是正: `headless.rs` の公開
+# 構造体 `PartRef` へ必須フィールド `readonly` を追加したのは既存の構造体
+# リテラルをコンパイル不能にする破壊的変更であり、「新規公開 API なし」の
+# 上記記述は誤りだった。`.claude/rules/coding-rust.md` の semver バンプ
+# 規律（0.x の破壊的変更はマイナーバンプ）に従い 0.8.0 へ minor バンプする。
+version = "0.8.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
