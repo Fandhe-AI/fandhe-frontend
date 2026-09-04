@@ -1213,9 +1213,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # いずれも merge base 0.78.2 から独立に 0.78.3 へ patch バンプして
 # いたため、`docs/ci/style-refresh-version-bump-operation.md` §5
 # 「version 行コンフリクトの解決手順（並列 PR 間）」に従い、両者が
-# 同一の到達値 0.78.3 であることを確認したうえでそのまま維持する
-# （実体変更の統合により追加の patch バンプは不要）。
-version = "0.78.3"
+# 同一の到達値 0.78.3 であることを確認したうえでそのまま維持していた。
+#
+# PR #1858 codex-review P1 指摘への追記: base（HEAD^1）で公開クレートは
+# 既に 0.78.3 であり、本 PR は scroll_area の thumb 色既定宣言位置
+# （`viewport` → `root`）を是正して観測可能な CSS 出力を変更したため、
+# 0.78.3 のまま統合すると並行 PR とのマージ統合後に同一バージョンで
+# 異なる成果物を公開してしまう。`docs/ci/style-refresh-version-bump-
+# operation.md` の semver 規律に従い 0.78.4 へ patch バンプする。
+version = "0.78.4"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

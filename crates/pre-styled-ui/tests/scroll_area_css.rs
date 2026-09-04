@@ -13,13 +13,13 @@ use fandhe_frontend_pre_styled_ui::scroll_area;
 const SCROLL_AREA_GOLDEN_CSS: &str = r#"[data-scope="scroll-area"][data-part="root"] {
   position: relative;
   overflow: hidden;
+  --fandhe-scroll-area-thumb-bg: var(--fandhe-color-border-emphasized, var(--fandhe-color-border));
 }
 
 [data-scope="scroll-area"][data-part="viewport"] {
   height: 100%;
   width: 100%;
   overflow: auto;
-  --fandhe-scroll-area-thumb-bg: var(--fandhe-color-border-emphasized, var(--fandhe-color-border));
   scrollbar-width: thin;
   scrollbar-color: var(--fandhe-scroll-area-thumb-bg) transparent;
 }

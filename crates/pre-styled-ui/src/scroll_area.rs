@@ -167,7 +167,29 @@ fn recipe() -> SlotRecipe {
     SlotRecipe::new("scroll-area", SLOTS)
         .base(
             "root",
-            vec![decl("position", "relative"), decl("overflow", "hidden")],
+            vec![
+                decl("position", "relative"),
+                decl("overflow", "hidden"),
+                // 既定 thumb 色（イシュー #1584）。`border-emphasized`
+                // 未定義な `Theme::empty()` ベースのカスタムテーマでも
+                // `border` へフォールバックし、スクロールバーの視認性が
+                // 失われない。custom property は inherit されるため
+                // `root` で宣言することで、`viewport`（`root` の子孫要素）
+                // へ継承される。`viewport` 側では通常時の値を再宣言しない
+                // ことで、利用側が `root` のインライン style で
+                // `--fandhe-scroll-area-thumb-bg` を上書きした場合に
+                // その値が `viewport` 側の宣言に上書きされず有効になる
+                // （`root` へ `transparent` を指定して hover-reveal を
+                // 再現する使用例〔`showcase.rs` 参照〕が機能するための
+                // 前提）。`::-webkit-scrollbar-thumb`（stylesheet() 側）も
+                // この同じ custom property を参照することで、利用側が
+                // 1 箇所の上書きで両ブラウザ系統の thumb 色を揃って
+                // 変更できる。
+                decl(
+                    "--fandhe-scroll-area-thumb-bg",
+                    "var(--fandhe-color-border-emphasized, var(--fandhe-color-border))",
+                ),
+            ],
         )
         .base(
             "viewport",
@@ -175,17 +197,6 @@ fn recipe() -> SlotRecipe {
                 decl("height", "100%"),
                 decl("width", "100%"),
                 decl("overflow", "auto"),
-                // 既定 thumb 色（イシュー #1584）。`border-emphasized`
-                // 未定義な `Theme::empty()` ベースのカスタムテーマでも
-                // `border` へフォールバックし、スクロールバーの視認性が
-                // 失われない。`::-webkit-scrollbar-thumb`（stylesheet()
-                // 側）もこの同じ custom property を参照することで、
-                // 利用側が 1 箇所の上書きで両ブラウザ系統の thumb 色を
-                // 揃って変更できる。
-                decl(
-                    "--fandhe-scroll-area-thumb-bg",
-                    "var(--fandhe-color-border-emphasized, var(--fandhe-color-border))",
-                ),
                 decl("scrollbar-width", "thin"),
                 decl(
                     "scrollbar-color",
@@ -292,8 +303,13 @@ mod tests {
     #[test]
     fn root_provides_containing_block_and_clips_overflow() {
         let css = stylesheet();
+        // イシュー #1584 PR #1858 codex-review 指摘: 既定 thumb 色は
+        // `viewport` ではなく `root` の base 宣言に含まれる（custom
+        // property の inherit を利用側の `root` インライン style 上書きで
+        // 妨げないため）。よって `root` のブロックはこの 3 行のみで
+        // クローズしない（続けて thumb-bg 宣言がある）ことを確認する。
         assert!(css.contains(
-            "[data-scope=\"scroll-area\"][data-part=\"root\"] {\n  position: relative;\n  overflow: hidden;\n}\n"
+            "[data-scope=\"scroll-area\"][data-part=\"root\"] {\n  position: relative;\n  overflow: hidden;\n  --fandhe-scroll-area-thumb-bg: var(--fandhe-color-border-emphasized, var(--fandhe-color-border));\n}\n"
         ));
     }
 
@@ -334,10 +350,38 @@ mod tests {
     }
 
     #[test]
-    fn viewport_thumb_bg_custom_property_has_theme_fallback() {
+    fn viewport_base_block_does_not_redeclare_thumb_bg_default() {
+        // イシュー #1584 PR #1858 codex-review 指摘（Bugbot 同一箇所指摘）
+        // の回帰テスト: `viewport` の通常時（`:hover` を含まない）base
+        // 宣言が `--fandhe-scroll-area-thumb-bg` を再宣言すると、custom
+        // property は最も詳細度の高い宣言が勝つため `root` のインライン
+        // style での上書き（`showcase.rs` の hover-reveal 例が案内する
+        // `--fandhe-scroll-area-thumb-bg: transparent`）が `viewport` 側の
+        // 宣言に打ち消され機能しなくなる。よって `viewport` の base 宣言
+        // ブロック本文には `--fandhe-scroll-area-thumb-bg` を含めない
+        // （`:hover` 状態での再定義〔強調表示〕は許容し続ける）。
+        let css = stylesheet();
+        let viewport_base_start = css
+            .find("[data-scope=\"scroll-area\"][data-part=\"viewport\"] {\n")
+            .expect("viewport base ブロックが見つかりません");
+        let viewport_base_end = css[viewport_base_start..]
+            .find("\n}\n")
+            .expect("viewport base ブロックの終端が見つかりません");
+        let viewport_base_block =
+            &css[viewport_base_start..viewport_base_start + viewport_base_end];
+        assert!(
+            !viewport_base_block.contains("--fandhe-scroll-area-thumb-bg:"),
+            "viewport の通常時 base 宣言が thumb-bg 既定値を再宣言しています: {viewport_base_block}"
+        );
+    }
+
+    #[test]
+    fn root_thumb_bg_custom_property_has_theme_fallback() {
+        // イシュー #1584 PR #1858 codex-review 指摘: 既定 thumb 色は
+        // `root` の base 宣言（`viewport` ではない）。
         let css = stylesheet();
         assert!(css.contains(
-            "--fandhe-scroll-area-thumb-bg: var(--fandhe-color-border-emphasized, var(--fandhe-color-border));"
+            "[data-scope=\"scroll-area\"][data-part=\"root\"] {\n  position: relative;\n  overflow: hidden;\n  --fandhe-scroll-area-thumb-bg: var(--fandhe-color-border-emphasized, var(--fandhe-color-border));\n}\n"
         ));
     }
 
