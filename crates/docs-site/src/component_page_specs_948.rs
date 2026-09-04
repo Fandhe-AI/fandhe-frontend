@@ -1301,6 +1301,7 @@ const RADAR_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "ChartData（カテゴリ = 軸、系列 = ポリゴン）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる外部依存ゼロのレーダーチャート",
         "頂点角度は θ_i = -π/2 + i・2π/n（12 時方向開始・時計回り）の決定的な式で算出する",
+        "系列ポリゴンの輪郭は stroke-width 2 / round join で line-chart・area-chart と統一（イシュー #1597）",
         "凡例・ツールチップは charts（共通 API）側の別部品",
     ],
     arguments: &[ArgRow {
