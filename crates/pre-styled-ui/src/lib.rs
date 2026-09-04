@@ -89,11 +89,13 @@
 //!     の `animation`（第 2 軸）、常時 `aria-hidden="true"`、
 //!     `prefers-reduced-motion: reduce` でのアニメーション停止 CSS を持つ。
 //!     装飾的占位要素のため card と同じ判断で colorPalette 軸を付与しない）。
-//!   - [`mod@separator`]（#772）: [`separator::separator`]（単一 recipe、
-//!     `<hr>`。区切り線であり中立的な罫線のため colorPalette 軸を付与しない。
-//!     `orientation`（horizontal/vertical）・`variant`（solid/dashed）の
-//!     2 軸を持ち、`role="separator"`・`aria-orientation`・
-//!     `data-orientation` を常時出力する）。
+//!   - [`mod@separator`]（#772、variant 拡充と太さの custom property 化は
+//!     #1585）: [`separator::separator`]（単一 recipe、`<hr>`。区切り線で
+//!     あり中立的な罫線のため colorPalette 軸を付与しない。
+//!     `orientation`（horizontal/vertical）・`variant`（solid/dashed/dotted）
+//!     の 2 軸を持ち、`role="separator"`・`aria-orientation`・
+//!     `data-orientation` を常時出力する。罫線の太さは
+//!     `--fandhe-separator-thickness`（既定 `1px`）の上書きで変更する）。
 //!   - [`mod@visually_hidden`]（#776）: [`visually_hidden::root`]（単一
 //!     recipe、`<span>`。variant 軸を持たず clip 手法の CSS のみを持つ。
 //!     `aria-hidden` を一切出力しない）。

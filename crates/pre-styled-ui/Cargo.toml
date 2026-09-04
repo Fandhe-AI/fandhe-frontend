@@ -1183,7 +1183,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §5「version 行
 # コンフリクトの解決手順（並列 PR 間）」に従い、main の現在値 0.78.2 の
 # patch を +1 した 0.78.3 へバンプする。
-version = "0.78.3"
+# イシュー #1585: separator に `SeparatorVariant::Dotted`（公開 enum への
+# variant 追加、利用者の網羅 `match` を壊し得る破壊的変更）を追加したため、
+# 0.x の破壊的変更はマイナーバンプとする規約に従い 0.79.0 へバンプする。
+version = "0.79.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
