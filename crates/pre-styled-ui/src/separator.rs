@@ -27,8 +27,47 @@
 //! 区切り線は中立的な罫線でありステータス色を持たない
 //! （[`crate::card`]/[`crate::skeleton`] が「中立コンテナ／装飾的占位要素の
 //! ため colorPalette 軸を付与しない」とした判断と同じ整理）。太さは
-//! `variant`（`solid`/`dashed`）と `orientation`（`horizontal`/`vertical`）の
-//! 直交する 2 軸のみを受け入れ条件どおりに提供する。
+//! `variant`（`solid`/`dashed`/`dotted`）と `orientation`
+//! （`horizontal`/`vertical`）の直交する 2 軸のみを受け入れ条件どおりに
+//! 提供する。
+//!
+//! # 参照サイトとの差分（イシュー #1585）
+//!
+//! chakra-ui Separator（`variant`: solid/dashed/dotted、既定 solid）・
+//! Radix Themes Separator（1px 固定の面区切り、`size` は長さ軸）・
+//! Radix Primitives Separator（無スタイル、`role`/`aria-orientation` のみ）
+//! と比較し、以下を是正した:
+//!
+//! - **是正**: [`SeparatorVariant`] に `Dotted` を追加した（chakra-ui の
+//!   `variant="dotted"` 相当。既存 `Solid`/`Dashed` と同列の `border-style`
+//!   語彙）
+//! - **是正**: 罫線の太さを `1px` リテラル固定から
+//!   `var(--fandhe-separator-thickness, 1px)`（scope 接頭辞付き custom
+//!   property、フォールバック `1px`）へ切り出した。chakra-ui の `xs`〜`lg`
+//!   太さバリアントに相当する可変性を、既存の `--fandhe-separator-height`
+//!   と同型の上書き契約で提供する
+//! - **是正しない（`size` 軸）**: `size` という命名は参照 2 サイトで意味が
+//!   食い違う（chakra-ui は「太さ」、Radix Themes は「長さ」）ため、
+//!   どちらかを `size` と呼ぶと他方の意味論と矛盾する。加えて
+//!   `docs/design/pre-styled-ui-focus-ring-and-size-conventions.md` §4 の
+//!   保有判定基準 (d) は Separator を size 軸を持たない Utilities に
+//!   分類済み（Phase 0 決定）。既定の太さ `1px` は chakra-ui 既定 `sm` と
+//!   一致しており「既に合っている」項目である
+//! - **是正しない（`colorPalette` 軸）**: Radix Themes の `color` プロップ
+//!   相当の colorPalette 軸は非採用。中立な罫線であり
+//!   card/skeleton と同じ判断（本モジュール既存の整理を維持）
+//! - **是正しない（ダーク・コントラスト）**: `border` トークンの dark 値
+//!   再定義で成立済み。装飾的な非テキスト罫線であり、WCAG 1.4.3
+//!   （テキストコントラスト）・1.4.11（非テキストコントラスト、
+//!   装飾目的の要素は対象外）のいずれの対象にもならない
+//! - **是正しない（hover / focus / disabled / transition）**: `<hr
+//!   role="separator">` は tabindex を持たずフォーカス不能、かつ状態を
+//!   持たない表示専用部品であるため、いずれも N/A
+//!   （`docs/design/pre-styled-ui-interaction-visual-language.md` §3
+//!   「インタラクティブ slot のみ」の対象外）
+//! - **是正しない（`display: block` の追加）**: chakra-ui base は
+//!   `display: block` を持つが `<hr>` の UA 既定と同一で視覚差が無いため、
+//!   golden テストの不要な差分増加を避けて追加しない
 //!
 //! `orientation` の型は headless 層の
 //! [`fandhe_frontend_headless_ui::data_attrs::Orientation`] をそのまま
@@ -77,6 +116,8 @@ pub enum SeparatorVariant {
     Solid,
     /// 破線。
     Dashed,
+    /// 点線（chakra-ui `variant="dotted"` 相当、イシュー #1585）。
+    Dotted,
 }
 
 impl VariantValue for SeparatorVariant {
@@ -88,6 +129,7 @@ impl VariantValue for SeparatorVariant {
         match self {
             Self::Solid => "solid",
             Self::Dashed => "dashed",
+            Self::Dotted => "dotted",
         }
     }
 }
@@ -148,13 +190,25 @@ fn recipe() -> SlotRecipe {
         .variant(
             OrientationAxis(Orientation::Horizontal),
             "root",
-            vec![decl("border-top-width", "1px"), decl("width", "100%")],
+            vec![
+                // 太さは custom property 化（イシュー #1585）。chakra-ui の
+                // `xs`〜`lg` 太さバリアント相当の可変性を、呼び出し側による
+                // `--fandhe-separator-thickness` 上書きで提供する
+                // （`docs/design/pre-styled-ui-focus-ring-and-size-conventions.md`
+                // §4 (d) により size 軸としては追加しない、モジュール冒頭
+                // rustdoc 参照）。既定 `1px` は chakra-ui 既定 `sm` と一致。
+                decl("border-top-width", "var(--fandhe-separator-thickness, 1px)"),
+                decl("width", "100%"),
+            ],
         )
         .variant(
             OrientationAxis(Orientation::Vertical),
             "root",
             vec![
-                decl("border-inline-start-width", "1px"),
+                decl(
+                    "border-inline-start-width",
+                    "var(--fandhe-separator-thickness, 1px)",
+                ),
                 decl("align-self", "stretch"),
                 decl("height", "var(--fandhe-separator-height, auto)"),
             ],
@@ -169,6 +223,11 @@ fn recipe() -> SlotRecipe {
             SeparatorVariant::Dashed,
             "root",
             vec![decl("border-style", "dashed")],
+        )
+        .variant(
+            SeparatorVariant::Dotted,
+            "root",
+            vec![decl("border-style", "dotted")],
         )
         .default_variant(SeparatorVariant::Solid)
 }
@@ -278,6 +337,7 @@ mod tests {
         for (variant, class_fragment) in [
             (SeparatorVariant::Solid, "fd-separator--variant-solid"),
             (SeparatorVariant::Dashed, "fd-separator--variant-dashed"),
+            (SeparatorVariant::Dotted, "fd-separator--variant-dotted"),
         ] {
             let props = SeparatorProps {
                 variant,
@@ -353,9 +413,10 @@ mod tests {
     #[test]
     fn css_output_declares_orientation_and_variant_rules() {
         let out = css();
-        assert!(out.contains("border-top-width: 1px;"));
-        assert!(out.contains("border-inline-start-width: 1px;"));
+        assert!(out.contains("border-top-width: var(--fandhe-separator-thickness, 1px);"));
+        assert!(out.contains("border-inline-start-width: var(--fandhe-separator-thickness, 1px);"));
         assert!(out.contains("border-style: solid;"));
         assert!(out.contains("border-style: dashed;"));
+        assert!(out.contains("border-style: dotted;"));
     }
 }

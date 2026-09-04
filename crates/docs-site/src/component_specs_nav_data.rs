@@ -1657,21 +1657,22 @@ fn ex_separator() -> Node {
 pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "orientation が role=\"separator\"（固定） + aria-orientation + data-orientation + variant クラスの 3 箇所へ連動する（crates/pre-styled-ui/src/separator.rs:10, 17）",
-        "SeparatorVariant（Solid/Dashed、separator.rs:74-84）で罫線種別を切り替える",
-        "role/aria-orientation/data-orientation は呼び出し側の偽装を除去し常にフレームワーク値へ一本化する（separator.rs:213-217、skeleton の aria-hidden 除去と同型）",
+        "SeparatorVariant（Solid/Dashed/Dotted、separator.rs:113-121。Dotted はイシュー #1585 で追加）で罫線種別を切り替える",
+        "罫線の太さは --fandhe-separator-thickness（既定 1px の custom property、イシュー #1585）の上書きで変更する。size 軸は Phase 0 規約（docs/design/pre-styled-ui-focus-ring-and-size-conventions.md §4 (d)）により非提供（separator.rs:24-31）",
+        "role/aria-orientation/data-orientation は呼び出し側の偽装を除去し常にフレームワーク値へ一本化する（separator.rs:270-277、skeleton の aria-hidden 除去と同型）",
     ],
     arguments: &[
         ArgRow {
             name: "orientation",
             kind: "Orientation",
             default: "Horizontal",
-            description: "向き（separator.rs:114-124）。",
+            description: "向き（separator.rs:156-161）。",
         },
         ArgRow {
             name: "variant",
             kind: "SeparatorVariant",
             default: "Solid",
-            description: "罫線種別（separator.rs:74-84, 122-124）。",
+            description: "罫線種別（solid/dashed/dotted、separator.rs:113-121, 159-161）。",
         },
     ],
     examples: &[ExampleEntry {

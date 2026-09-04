@@ -1755,10 +1755,13 @@ fn list_section() -> Node {
     )
 }
 
-/// Separator 節（イシュー #772）: `orientation`（horizontal/vertical）・
-/// `variant`（solid/dashed）の 2 軸。vertical は自身では高さを決定できない
-/// （`--fandhe-separator-height` フォールバック）ため、`style` で高さを
-/// 明示して並べる（`crates/pre-styled-ui/src/separator.rs` rustdoc 参照）。
+/// Separator 節（イシュー #772、`dotted` variant と太さの custom property
+/// 化はイシュー #1585）: `orientation`（horizontal/vertical）・
+/// `variant`（solid/dashed/dotted）の 2 軸。vertical は自身では高さを決定
+/// できない（`--fandhe-separator-height` フォールバック）ため、`style` で
+/// 高さを明示して並べる。太さは `--fandhe-separator-thickness`（既定
+/// `1px`）の上書きで変更できることを 2px/3px の実演行で示す
+/// （`crates/pre-styled-ui/src/separator.rs` rustdoc 参照）。
 fn separator_section() -> Node {
     let horizontal_row = row(vec![
         separator(
@@ -1775,18 +1778,57 @@ fn separator_section() -> Node {
             },
             vec![("style", "width: 12rem;")],
         ),
+        separator(
+            &SeparatorProps {
+                orientation: Orientation::Horizontal,
+                variant: SeparatorVariant::Dotted,
+            },
+            vec![("style", "width: 12rem;")],
+        ),
     ]);
-    let vertical_row = row(vec![separator(
-        &SeparatorProps {
-            orientation: Orientation::Vertical,
-            variant: SeparatorVariant::Solid,
-        },
-        vec![("style", "height: 3rem;")],
-    )]);
+    let thickness_row = row(vec![
+        separator(
+            &SeparatorProps {
+                orientation: Orientation::Horizontal,
+                variant: SeparatorVariant::Solid,
+            },
+            vec![("style", "width: 12rem; --fandhe-separator-thickness: 2px;")],
+        ),
+        separator(
+            &SeparatorProps {
+                orientation: Orientation::Horizontal,
+                variant: SeparatorVariant::Solid,
+            },
+            vec![("style", "width: 12rem; --fandhe-separator-thickness: 3px;")],
+        ),
+    ]);
+    let vertical_row = row(vec![
+        separator(
+            &SeparatorProps {
+                orientation: Orientation::Vertical,
+                variant: SeparatorVariant::Solid,
+            },
+            vec![("style", "height: 3rem;")],
+        ),
+        separator(
+            &SeparatorProps {
+                orientation: Orientation::Vertical,
+                variant: SeparatorVariant::Dashed,
+            },
+            vec![("style", "height: 3rem;")],
+        ),
+        separator(
+            &SeparatorProps {
+                orientation: Orientation::Vertical,
+                variant: SeparatorVariant::Dotted,
+            },
+            vec![("style", "height: 3rem;")],
+        ),
+    ]);
     section(
         "Separator",
-        "区切り線。role=\"separator\" と aria-orientation/data-orientation を常時出力します。orientation（horizontal/vertical）と variant（solid/dashed）の 2 軸を持ちます。",
-        vec![horizontal_row, vertical_row],
+        "区切り線。role=\"separator\" と aria-orientation/data-orientation を常時出力します。orientation（horizontal/vertical）と variant（solid/dashed/dotted）の 2 軸を持ち、太さは --fandhe-separator-thickness（既定 1px）の上書きで変更します。",
+        vec![horizontal_row, thickness_row, vertical_row],
     )
 }
 
