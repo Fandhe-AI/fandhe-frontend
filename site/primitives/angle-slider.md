@@ -10,9 +10,9 @@ Root / Label / Control / Thumb / MarkerGroup / Marker / HiddenInput / ValueText 
 
 関連 API: [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)
 
-## 自前 CSS の最小例
+**自前 CSS の最小例**
 
-Themes 版を使わず本部品を直接使う場合、`[data-scope="angle-slider"][data-part="..."]` セレクタでスタイルを当てます。以下は circular な control とサムの回転、状態セレクタの最小例です。
+Themes 版を使わず本部品を直接使う場合、`[data-scope="angle-slider"][data-part="..."]` セレクタでスタイルを当てます。以下は circular な control とサムの回転、状態セレクタの最小例です。headless 層は回転角を CSS カスタムプロパティとして自動出力しないため、呼び出し側が `thumb` の `attrs` へ `("style", "--fandhe-angle: 135deg")` のように現在角度を渡す必要があります（`fandhe-frontend-pre-styled-ui` の `thumb_styled` はこれを内部で一元的に組み立てます）。
 
 ```css
 [data-scope="angle-slider"][data-part="control"] {
@@ -31,6 +31,9 @@ Themes 版を使わず本部品を直接使う場合、`[data-scope="angle-slide
   height: 0.75rem;
   border-radius: 50%;
   background: #333;
+  /* --fandhe-angle は呼び出し側が thumb の attrs 経由で style 属性に
+     設定する（例: ("style", "--fandhe-angle: 135deg")）。未設定時は
+     0deg にフォールバックする。 */
   transform: rotate(var(--fandhe-angle, 0deg));
   transform-origin: 0 2rem;
 }

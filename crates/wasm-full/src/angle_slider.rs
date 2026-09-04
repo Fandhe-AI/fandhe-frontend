@@ -3,11 +3,14 @@
 //! 親トラッキング #520）。
 //!
 //! `crates/headless-ui/src/angle_slider.rs` は Root/Label/Control/Thumb/
-//! ValueText/HiddenInput の 6 anatomy パーツと整数角度状態機械
-//! （`"set"`/`"increment"`/`"decrement"` dispatch）を提供する一方、実際に
-//! ポインタ座標を角度へ変換する処理・DOM イベント配線は同モジュール冒頭
-//! rustdoc「スコープ外」節が明記するとおり本クレート（wasm 層）の後続
-//! 責務とされていた。本モジュールがその変換・配線を実装する。
+//! MarkerGroup/Marker/ValueText/HiddenInput の 8 anatomy パーツと整数角度
+//! 状態機械（`"set"`/`"increment"`/`"decrement"`/`"home"`/`"end"` dispatch。
+//! Home/End はイシュー #1601 で追加）を提供する一方、実際にポインタ座標を
+//! 角度へ変換する処理・DOM イベント配線は同モジュール冒頭 rustdoc
+//! 「スコープ外」節が明記するとおり本クレート（wasm 層）の後続責務と
+//! されていた。本モジュールがその変換・配線を実装する（ただし Home/End
+//! の keydown 配線は REQ-11 予算逼迫のため未対応、下記「キーボード操作」
+//! 節参照）。
 //!
 //! # 「非採用の再導入」の中核: 座標 → 角度変換の隔離
 //!
