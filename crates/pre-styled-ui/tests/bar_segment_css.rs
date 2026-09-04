@@ -1,0 +1,118 @@
+//! styled `charts::bar_segment`（イシュー #849・親 Phase #845、イシュー
+//! #1592 で参考サイト基準へ調整）の決定的 CSS 出力ゴールデンテスト。
+//!
+//! `crates/pre-styled-ui/tests/scroll_area_css.rs` と同型の golden fixture
+//! テスト（`docs/internal/pre-styled-ui-golden-test-update-guide.md` §2.1
+//! 方式 (a) バイト一致）。`charts::bar_segment` は #1592 まで
+//! golden 不在（同ガイド §3.3「charts 内部パーツ」）だったため本ファイルで
+//! 新設する。共有ファイル `charts_parts_css.rs`（`charts::axis`/`grid`/
+//! `legend`/`tooltip` 用）へは追記せず、`bar_chart`/`bar_list` と同様に
+//! 部品単位の独立ファイルとする（並列進行中の兄弟イシュー #1590/#1591 の
+//! golden 新設との共有ファイル競合を避けるため）。
+//!
+//! `crate::charts::bar_segment` モジュール冒頭 rustdoc「参考サイト基準への
+//! 調整（イシュー #1592）」節を正として、出力全体をバイト単位で固定する。
+//! 更新手順は上記ガイド §5 を参照（`#[ignore]` 追加・`contains` への
+//! 緩和は禁止、`.claude/rules/coding-rust.md` 「テスト」節）。
+//!
+//! `segment` の区切り線は 3 段階の是正を経ている（同モジュール rustdoc
+//! 参照）。(1) codex-review の P1 指摘（RTL 時の物理右辺固定・ゼロ値末尾
+//! セグメントによる `:last-child` 誤判定）を受けて `box-shadow`/
+//! `:last-child` から論理方向プロパティ（`border-inline-end`）+
+//! `data-fandhe-bar-segment-end` 存在属性へ、続けて codex-review/Cursor
+//! Bugbot の再指摘（値 0 の segment も border-inline-end 分の外形幅
+//! 〔1px〕を持つ）を受けて `data-fandhe-bar-segment-empty` 存在属性による
+//! 打ち消しを追加していた。(2) さらに後続の codex-review P1 再指摘
+//! （PR #1865。極小な正値 segment も `box-sizing: border-box` の
+//! 「border 幅より外形幅を小さくできない」制約に抵触し、比率の真正性を
+//! 崩す）を受け、区切り線を境界線ではなく通常フローに参加しない絶対配置の
+//! `segment-divider` slot（`segment` の子要素、値 0・最後の可視〔正値〕
+//! segment では生成しない）で表現する方式へ置き換えた。上記 2 種の
+//! 存在属性は廃止済み。(3) しかし絶対配置化は `segment` 自身の外形幅
+//! （比率）は守ったが `segment-divider` の描画自体はクリップされない
+//! ままだったため、1px 未満の極小な正値 segment では区切り線が隣接領域へ
+//! 張り出し隣接カテゴリの色を上書きする欠陥が残っていた（後続の
+//! codex-review P1 再指摘、PR #1865）。`segment` へ `overflow: hidden` を
+//! 追加し、`segment-divider` の描画を `segment` 自身の実描画幅の内側へ
+//! クリップする形に是正した。
+
+use fandhe_frontend_pre_styled_ui::charts::bar_segment;
+
+const BAR_SEGMENT_GOLDEN_CSS: &str = r#"[data-scope="bar-segment"][data-part="root"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fandhe-space-3, 0.75rem);
+  width: 100%;
+}
+
+[data-scope="bar-segment"][data-part="bar"] {
+  display: flex;
+  width: 100%;
+  height: var(--fandhe-bar-segment-bar-height, 0.75rem);
+  border-radius: var(--fandhe-radius-sm);
+  background: var(--fandhe-color-bg-muted);
+  overflow: hidden;
+}
+
+[data-scope="bar-segment"][data-part="segment"] {
+  height: 100%;
+  width: var(--fandhe-bar-segment-percent, 0%);
+  position: relative;
+  overflow: hidden;
+}
+
+[data-scope="bar-segment"][data-part="segment-divider"] {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 1px;
+  background: var(--fandhe-color-bg);
+  pointer-events: none;
+}
+
+[data-scope="bar-segment"][data-part="legend"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fandhe-space-3, 0.75rem) var(--fandhe-space-4, 1rem);
+}
+
+[data-scope="bar-segment"][data-part="legend-item"] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fandhe-space-2, 0.5rem);
+  font-size: var(--fandhe-font-font-size-sm);
+}
+
+[data-scope="bar-segment"][data-part="legend-marker"] {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--fandhe-radius-full, 9999px);
+  flex-shrink: 0;
+}
+
+[data-scope="bar-segment"][data-part="legend-label"] {
+  color: var(--fandhe-color-fg);
+}
+
+[data-scope="bar-segment"][data-part="legend-value"] {
+  color: var(--fandhe-color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+"#;
+
+#[test]
+fn bar_segment_css_matches_golden_fixture() {
+    assert_eq!(bar_segment::css(), BAR_SEGMENT_GOLDEN_CSS);
+}
+
+#[test]
+fn css_is_byte_identical_across_calls() {
+    assert_eq!(bar_segment::css(), bar_segment::css());
+}
+
+#[test]
+fn css_never_contains_style_breakout_sequences() {
+    let css = bar_segment::css();
+    assert!(!css.contains("</style"));
+    assert!(!css.contains('<'));
+}
