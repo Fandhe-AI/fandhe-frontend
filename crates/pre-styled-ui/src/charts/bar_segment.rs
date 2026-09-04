@@ -64,7 +64,10 @@
 //! | サイズ | 非該当（size バリアントを持たない。参照軸なし） |
 //! | バリアント / colorPalette | 非採用（参照軸なし。配色はカテゴリ index で `chart-1`〜`chart-6` 循環） |
 //! | 色 | 是正 1 点（下記「`bar` の track 背景」）。他は全宣言がトークン経由で現状維持 |
-//! | 状態 `data-*` | 非該当（pre-styled-only、headless 由来の `data-*` を持たない） |
+//! | 状態 `data-*` | headless 由来の `data-*` は持たない。モジュール専有の
+//!   `data-fandhe-bar-segment-end`（最後の正値 segment、区切り線の内部
+//!   打ち消し用、下記「是正した点」参照）を新設した（codex-review 指摘、
+//!   イシュー #1592） |
 //! | ダークモード | 現状維持（`chart-N`・`fg`・`fg-muted`・`bg-muted` はいずれも dark 値定義済み。凡例テキストのコントラストは light `fg-muted #4a4a4a`/`bg #ffffff` ≈ 8.9:1、dark `#cccccc`/`#111111` ≈ 11.8:1 で本文 4.5:1 を満たす） |
 //! | フォーカス | 非該当（表示専用、フォーカス可能要素なし） |
 //! | 余白・角丸・影 | 是正（生リテラルを `--fandhe-space-*`/`--fandhe-radius-*` スケールへ統一。影は不使用のまま） |
@@ -79,12 +82,29 @@
 //!   透けて見えるのを防ぎ、[`super::bar_list`]/`progress` の track 面
 //!   （いずれも `bg-muted` 背景）と整合させる。
 //! - **セグメント間の区切り線**: `segment` に
-//!   `box-shadow: inset -1px 0 0 var(--fandhe-color-bg)` を追加し、隣接
-//!   カテゴリの色境界を明確にした（幅そのものは変えないため比率の真正性
-//!   は崩さない）。ただし最終セグメントの右端は `bar` の `overflow: hidden`
-//!   と `border-radius` により直線で切れるため、区切り線を残すと 1px の
-//!   欠けに見える。[`crate::recipe::StateCondition::LastChild`]（`steps.rs`
-//!   先例と同型）で最終セグメントのみ `box-shadow: none` に戻す。
+//!   `border-inline-end: 1px solid var(--fandhe-color-bg)`（+
+//!   `box-sizing: border-box`）を追加し、隣接カテゴリの色境界を明確にした
+//!   （論理方向プロパティのため `direction: rtl` 継承時も物理辺が自動で
+//!   反転し、`box-sizing: border-box` により border 追加後も比率どおりの
+//!   外形幅を保つ。当初 `box-shadow: inset -1px 0 0 ...`
+//!   〔物理右辺固定〕を用いていたが RTL で打ち消し対象が逆転する欠陥が
+//!   あり、codex-review 指摘（イシュー #1592）を受けて是正した）。
+//!   最後の可視（正値）セグメントの右端（RTL では左端）は `bar` の
+//!   `overflow: hidden` と `border-radius` により直線で切れるため、区切り
+//!   線を残すと 1px の欠けに見える。`root()` が系列中「最後の正値」の
+//!   index を算出して [`crate::recipe::StateCondition::Attr`]
+//!   （`data-fandhe-bar-segment-end` 存在属性、本モジュール専有）で
+//!   打ち消す。当初 `StateCondition::LastChild`（`:last-child`、`steps.rs`
+//!   先例と同型）を用いていたが、`root()` は値 0 のカテゴリも幅 0% の
+//!   segment を生成するため末尾が 0 値だと DOM 上の `:last-child` が
+//!   不可視要素に奪われ、実際の右端（可視の最後の正値セグメント）に
+//!   欠けが残る欠陥があり、同じ codex-review 指摘で是正した。値 0 の
+//!   segment（幅 0%）自体にも `border-inline-end` は変わらず出力される
+//!   （`box-sizing: border-box` の要素は自身の border 幅より小さくは
+//!   ならないため 1px 分は描画される）が、実害はない: 末尾の 0 値
+//!   segment は `bar` の `overflow: hidden` でクリップされる x=100% 位置に
+//!   あり、先頭・中間の 0 値 segment は後続の兄弟要素に描画順で
+//!   上書きされるため、いずれも視覚的に現れない。
 //! - **凡例のマーカー寸法・間隔**: 同 crate の [`super::legend`] と
 //!   数値が不一致だったため揃えた: `legend-marker` は `0.625rem` →
 //!   `0.75rem`、`legend-item` の `gap` は `0.375rem` →
@@ -176,24 +196,37 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("height", "100%"),
                 decl("width", "var(--fandhe-bar-segment-percent, 0%)"),
-                // イシュー #1592: 隣接セグメント間に 1px の区切り線を入れて
-                // 色境界を明確にする（幅は変えないため比率の真正性は保つ）。
-                decl("box-shadow", "inset -1px 0 0 var(--fandhe-color-bg)"),
+                // イシュー #1592 P1 是正（codex-review 指摘）:
+                // `box-shadow: inset -1px 0 0 ...` は物理右辺固定のため
+                // `direction: rtl` 継承時（flex row の先頭が右端になる）に
+                // 区切り線の位置が意図と逆転する欠陥があった。
+                // `border-inline-end`（論理方向プロパティ、UA が
+                // `direction`/`writing-mode` に応じて物理辺へ自動解決する）
+                // へ置き換えて RTL 非依存にする。`box-sizing: border-box`
+                // と組み合わせることで border 追加後も `width`（合計に対する
+                // 比率）で確保した外形幅は変わらず、100% 積み上げの比率
+                // 真正性を崩さない（[`super::bar_list`]/[`crate::card`] 等の
+                // border-box 先例と同型）。
+                decl("box-sizing", "border-box"),
+                decl("border-inline-end", "1px solid var(--fandhe-color-bg)"),
             ],
         )
-        // イシュー #1592: 最終セグメントは右端が `bar` の
-        // `overflow: hidden` + `border-radius` で直線に切れるため、上記
-        // 区切り線を残すと 1px の欠けに見える。states は base とは独立に
-        // 常に base 群の後段で出力される（[`SlotRecipe::css`] 契約）ため
-        // 登録位置自体は問わないが、同一 slot（`segment`）への他の state
-        // 規則より後に登録する契約（`steps.rs` 先例参照）は維持する
-        // （現状 `segment` への state はこの 1 件のみのため実害はないが、
-        // 将来追加される他の `segment` state に対して打ち消しが後勝ちで
-        // 効くようにする）。
+        // イシュー #1592 P1 是正（codex-review 指摘）: 従来の
+        // `StateCondition::LastChild`（`:last-child`）は DOM 上の最終
+        // `segment` を対象にしていたが、`root()` は値 0 のカテゴリも幅 0%
+        // の segment として生成するため、末尾カテゴリが 0 値の場合
+        // （例: `[100, 0]`）は不可視の 2 番目が `:last-child` になり、
+        // 実際にバー右端（RTL では左端）を占める最後の可視（正値）
+        // segment には区切り線が残って 1px の欠けが生じていた。
+        // `root()` が系列中「最後の正値」segment の index を算出し
+        // [`segment`] へ渡して `data-fandhe-bar-segment-end` 属性
+        // （本モジュール専有の pre-styled-only 状態表現、headless 由来では
+        // ない）を付与する方式へ変更し、DOM 順・ゼロ幅要素の有無に
+        // 依存しない判定にした。
         .state(
             "segment",
-            StateCondition::LastChild,
-            vec![decl("box-shadow", "none")],
+            StateCondition::Attr("data-fandhe-bar-segment-end"),
+            vec![decl("border-inline-end", "none")],
         )
         .base(
             "legend",
@@ -293,11 +326,24 @@ pub fn root(data: &ChartData, series_name: &str) -> Result<Node, ChartError> {
     }
 
     let categories = data.categories();
+    // イシュー #1592 P1 是正（codex-review 指摘）: 「最後の可視（正値）
+    // segment」を DOM 順（`:last-child`）ではなく値そのものから求める。
+    // `series.values.iter().any(|&v| v < 0.0)` を上で既に拒否しているが、
+    // `data::total(series) == 0.0` は非有限値（NaN 等）が混在すると
+    // `false` を返し得るため正値の存在を無条件には保証しない
+    // （`.claude/rules/coding-rust.md` 「ライブラリコードでの `unwrap()`/
+    // `expect()`/`panic!` を避ける」に従い `expect()` は使わず、
+    // `rposition` が `None` を返す経路を [`ChartError::ZeroTotal`] で
+    // fail-closed に扱う。正値寄与が 1 件も無い＝比率が定義できないという
+    // 意味論はモジュール doc「fail-closed」節の `ZeroTotal` 契約と一致する）。
+    let Some(last_positive_idx) = series.values.iter().rposition(|&v| v > 0.0) else {
+        return Err(ChartError::ZeroTotal);
+    };
     let segments: Vec<Node> = categories
         .iter()
         .zip(series.values.iter())
         .enumerate()
-        .map(|(idx, (_category, &value))| segment(idx, value, series))
+        .map(|(idx, (_category, &value))| segment(idx, value, series, idx == last_positive_idx))
         .collect();
     let bar = ANATOMY.part("bar", "div", vec![], segments);
 
@@ -311,14 +357,22 @@ pub fn root(data: &ChartData, series_name: &str) -> Result<Node, ChartError> {
 /// `background` はベアな HTML 属性としては存在しないため（ブラウザは無視し
 /// `<div>` は無色描画のままになる、PR #877 レビュー指摘）、legend マーカー
 /// （[`legend`] 内）と同様に `style` 属性値の一部として埋め込む。
-fn segment(idx: usize, value: f64, series: &data::Series) -> Node {
+fn segment(idx: usize, value: f64, series: &data::Series, is_last_visible: bool) -> Node {
     let percent = data::value_percent(series, value);
     let color = series_color_var(idx);
     let style = format!(
         "--fandhe-bar-segment-percent: {}%; background: {color}",
         fmt_coord(percent)
     );
-    ANATOMY.part("segment", "div", vec![("style", style.as_str())], vec![])
+    let mut attrs: Vec<(&str, &str)> = vec![("style", style.as_str())];
+    if is_last_visible {
+        // イシュー #1592 P1 是正: `recipe()` の
+        // `StateCondition::Attr("data-fandhe-bar-segment-end")` が拾う
+        // 存在属性（`timer.rs`/`calendar.rs` 等の `("data-disabled", "")`
+        // 先例と同型の空値存在属性）。
+        attrs.push(("data-fandhe-bar-segment-end", ""));
+    }
+    ANATOMY.part("segment", "div", attrs, vec![])
 }
 
 /// 凡例（[`legend`] モジュール doc 参照）を組み立てる（内部ヘルパ）。
@@ -388,6 +442,41 @@ mod tests {
         let data =
             ChartData::new(vec!["a".to_string()], vec![Series::new("s", vec![-1.0])]).unwrap();
         assert_eq!(root(&data, "s").unwrap_err(), ChartError::NegativeValue);
+    }
+
+    #[test]
+    fn root_marks_last_positive_segment_when_tail_is_zero() {
+        // イシュー #1592 P1 是正の回帰テスト（codex-review 指摘）:
+        // 末尾カテゴリが 0 値（`[100, 0]`）のとき、`data-fandhe-bar-segment-end`
+        // は DOM 上の最終 segment（不可視・幅 0%、2 番目）ではなく、実際に
+        // バー右端を占める最後の正値 segment（1 番目、index 0）へ付く。
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("s", vec![100.0, 0.0])],
+        )
+        .unwrap();
+        let html = render(&root(&data, "s").unwrap());
+        assert_eq!(html.matches("data-fandhe-bar-segment-end").count(), 1);
+        // segment 単位の div を分割し、100% 幅の segment（1 番目）にのみ
+        // 属性が付いていて、0% 幅の segment（2 番目）には付いていないことを
+        // 直接確認する。
+        let segment_divs: Vec<&str> = html
+            .split("<div data-scope=\"bar-segment\" data-part=\"segment\"")
+            .skip(1)
+            .collect();
+        assert_eq!(segment_divs.len(), 2, "html: {html}");
+        assert!(
+            segment_divs[0].contains("--fandhe-bar-segment-percent: 100%")
+                && segment_divs[0].contains("data-fandhe-bar-segment-end"),
+            "segment[0]: {}",
+            segment_divs[0]
+        );
+        assert!(
+            segment_divs[1].contains("--fandhe-bar-segment-percent: 0%")
+                && !segment_divs[1].contains("data-fandhe-bar-segment-end"),
+            "segment[1]: {}",
+            segment_divs[1]
+        );
     }
 
     #[test]
@@ -500,8 +589,12 @@ mod tests {
         assert!(a.contains("var(--fandhe-space-3, 0.75rem)"));
         assert!(a.contains("var(--fandhe-bar-segment-bar-height, 0.75rem)"));
         assert!(a.contains("var(--fandhe-color-bg-muted)"));
-        assert!(a.contains("inset -1px 0 0 var(--fandhe-color-bg)"));
-        assert!(a.contains(":last-child"));
+        // イシュー #1592 P1 是正（codex-review 指摘）: RTL 非依存の区切り線
+        // （論理方向プロパティ）とゼロ値末尾セグメントを跨いだ「最後の
+        // 可視セグメント」判定（data 属性）を固定する。
+        assert!(a.contains("border-inline-end: 1px solid var(--fandhe-color-bg)"));
+        assert!(a.contains(r#"[data-fandhe-bar-segment-end]"#));
+        assert!(a.contains("border-inline-end: none"));
         assert!(a.contains("var(--fandhe-radius-full, 9999px)"));
         assert!(a.contains("var(--fandhe-space-2, 0.5rem)"));
     }

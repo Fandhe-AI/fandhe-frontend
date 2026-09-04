@@ -14,6 +14,12 @@
 //! 調整（イシュー #1592）」節を正として、出力全体をバイト単位で固定する。
 //! 更新手順は上記ガイド §5 を参照（`#[ignore]` 追加・`contains` への
 //! 緩和は禁止、`.claude/rules/coding-rust.md` 「テスト」節）。
+//!
+//! `segment` の区切り線は codex-review の P1 指摘（RTL 時の物理右辺固定・
+//! ゼロ値末尾セグメントによる `:last-child` 誤判定）を受けて
+//! `box-shadow`/`:last-child` から論理方向プロパティ
+//! （`border-inline-end`）+ `data-fandhe-bar-segment-end` 存在属性へ
+//! 是正済み（同モジュール rustdoc 参照）。
 
 use fandhe_frontend_pre_styled_ui::charts::bar_segment;
 
@@ -36,7 +42,8 @@ const BAR_SEGMENT_GOLDEN_CSS: &str = r#"[data-scope="bar-segment"][data-part="ro
 [data-scope="bar-segment"][data-part="segment"] {
   height: 100%;
   width: var(--fandhe-bar-segment-percent, 0%);
-  box-shadow: inset -1px 0 0 var(--fandhe-color-bg);
+  box-sizing: border-box;
+  border-inline-end: 1px solid var(--fandhe-color-bg);
 }
 
 [data-scope="bar-segment"][data-part="legend"] {
@@ -68,8 +75,8 @@ const BAR_SEGMENT_GOLDEN_CSS: &str = r#"[data-scope="bar-segment"][data-part="ro
   font-variant-numeric: tabular-nums;
 }
 
-[data-scope="bar-segment"][data-part="segment"]:last-child {
-  box-shadow: none;
+[data-scope="bar-segment"][data-part="segment"][data-fandhe-bar-segment-end] {
+  border-inline-end: none;
 }
 "#;
 
