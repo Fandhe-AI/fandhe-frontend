@@ -1545,6 +1545,7 @@ const TIMER_SPEC: ComponentPageSpec = ComponentPageSpec {
 
 fn color_picker_example() -> Node {
     let state = ColorPicker::from_color(Color::from_rgba(Rgb::new(0x3b, 0x82, 0xf6), 0xcc));
+    let none = color_picker::ColorPickerProps::default();
     row(vec![color_picker::content(
         state.state(),
         None,
@@ -1552,10 +1553,11 @@ fn color_picker_example() -> Node {
         vec![
             color_picker::area(
                 &state,
+                &none,
                 vec![],
                 vec![
-                    color_picker::area_background(&state, vec![], vec![]),
-                    color_picker::area_thumb(&state, false, vec![], vec![]),
+                    color_picker::area_background(&state, &none, vec![], vec![]),
+                    color_picker::area_thumb(&state, &none, vec![], vec![]),
                 ],
             ),
             color_picker::channel_slider(
@@ -1564,7 +1566,7 @@ fn color_picker_example() -> Node {
                 vec![],
                 vec![
                     color_picker::channel_slider_track(Channel::Hue, &state, vec![], vec![]),
-                    color_picker::channel_slider_thumb(Channel::Hue, &state, false, vec![], vec![]),
+                    color_picker::channel_slider_thumb(Channel::Hue, &state, &none, vec![], vec![]),
                 ],
             ),
         ],

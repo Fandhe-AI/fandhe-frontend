@@ -708,19 +708,35 @@ pub fn css() -> String {
 /// （モジュール冒頭「本イシューのスコープ外」参照。将来 `size` variant を
 /// 追加する余地を残すため、headless 自由関数への直接依存ではなく
 /// `state.root(...)` 経由の薄いラッパーとして定義する）。
+///
+/// `props` を呼び出し側から受け取り [`ColorPicker::root`] へそのまま渡す
+/// （イシュー #1604 是正: 従来は内部で `ColorPickerProps::default()` を
+/// 常に生成しており、通常 API では `readonly`/`invalid`/`required` を
+/// 部品全体へ一律伝播できなかった。[`trigger`]/[`area`]/
+/// [`area_background`]/[`area_thumb`]/[`channel_slider_thumb`] も同様に
+/// `&ColorPickerProps` を受け取る形へ統一する）。
 #[must_use]
-pub fn root<'a>(state: &ColorPicker, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    state.root(&ColorPickerProps::default(), attrs, children)
+pub fn root<'a>(
+    state: &ColorPicker,
+    props: &ColorPickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    state.root(props, attrs, children)
 }
 
 /// styled trigger パーツを組み立てる。`--fandhe-color-picker-preview`
 /// （現在色の HEX、アルファ込み）を含む `style` を付与する唯一のパーツ
 /// （[`drop_style_attr`] により呼び出し側の `style` は除去してから合成
 /// する）。
+///
+/// `props` を呼び出し側から受け取り [`ColorPicker::trigger`] へそのまま
+/// 渡す（[`root`] の rustdoc「イシュー #1604 是正」参照。従来の
+/// `disabled: bool` 単独引数を置き換える）。
 #[must_use]
 pub fn trigger<'a>(
     state: &ColorPicker,
-    disabled: bool,
+    props: &ColorPickerProps,
     controls: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
@@ -728,25 +744,33 @@ pub fn trigger<'a>(
     let preview = format!("--fandhe-color-picker-preview: {}", state.hex());
     let mut merged: Vec<(&str, &str)> = vec![("style", preview.as_str())];
     merged.extend(drop_style_attr(attrs));
-    let props = ColorPickerProps {
-        disabled,
-        ..ColorPickerProps::default()
-    };
-    state.trigger(&props, controls, merged, children)
+    state.trigger(props, controls, merged, children)
 }
 
 /// styled area パーツを組み立てる（variant を持たない単純委譲）。
+///
+/// `props` を呼び出し側から受け取り [`ColorPicker::area`] へそのまま渡す
+/// （[`root`] の rustdoc「イシュー #1604 是正」参照）。
 #[must_use]
-pub fn area<'a>(state: &ColorPicker, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    state.area(&ColorPickerProps::default(), attrs, children)
+pub fn area<'a>(
+    state: &ColorPicker,
+    props: &ColorPickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    state.area(props, attrs, children)
 }
 
 /// styled area-background パーツを組み立てる。
 /// `--fandhe-color-picker-hue-color` を含む `style` を付与する唯一の
 /// パーツ（[`drop_style_attr`] で dedup、[`hue_swatch_hex`] 参照）。
+///
+/// `props` を呼び出し側から受け取り [`ColorPicker::area_background`] へ
+/// そのまま渡す（[`root`] の rustdoc「イシュー #1604 是正」参照）。
 #[must_use]
 pub fn area_background<'a>(
     state: &ColorPicker,
+    props: &ColorPickerProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -754,15 +778,19 @@ pub fn area_background<'a>(
     let style = format!("--fandhe-color-picker-hue-color: {hue_hex}");
     let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
     merged.extend(drop_style_attr(attrs));
-    state.area_background(&ColorPickerProps::default(), merged, children)
+    state.area_background(props, merged, children)
 }
 
 /// styled area-thumb パーツを組み立てる。`--fandhe-color-picker-x`/`-y`
 /// を含む `style` を付与する唯一のパーツ（[`drop_style_attr`] で dedup）。
+///
+/// `props` を呼び出し側から受け取り [`ColorPicker::area_thumb`] へそのまま
+/// 渡す（[`root`] の rustdoc「イシュー #1604 是正」参照。従来の
+/// `disabled: bool` 単独引数を置き換える）。
 #[must_use]
 pub fn area_thumb<'a>(
     state: &ColorPicker,
-    disabled: bool,
+    props: &ColorPickerProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -773,11 +801,7 @@ pub fn area_thumb<'a>(
     );
     let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
     merged.extend(drop_style_attr(attrs));
-    let props = ColorPickerProps {
-        disabled,
-        ..ColorPickerProps::default()
-    };
-    state.area_thumb(&props, merged, children)
+    state.area_thumb(props, merged, children)
 }
 
 /// styled channel-slider コンテナパーツを組み立てる（variant を持たない
@@ -824,11 +848,15 @@ pub fn channel_slider_track<'a>(
 /// [`ColorPicker::area_x_percent`]/`100 - area_y_percent` のいずれかを
 /// 使う（[`Channel::Saturation`]/[`Channel::Value`] は 2 次元 [`area`] が
 /// 主要 UI だが、単軸スライダーとして呼ばれた場合の位置整合も保つ）。
+///
+/// `props` を呼び出し側から受け取り [`ColorPicker::channel_slider_thumb`]
+/// へそのまま渡す（[`root`] の rustdoc「イシュー #1604 是正」参照。従来の
+/// `disabled: bool` 単独引数を置き換える）。
 #[must_use]
 pub fn channel_slider_thumb<'a>(
     channel: Channel,
     state: &ColorPicker,
-    disabled: bool,
+    props: &ColorPickerProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -841,11 +869,7 @@ pub fn channel_slider_thumb<'a>(
     let style = format!("--fandhe-color-picker-thumb-percent: {percent}%");
     let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
     merged.extend(drop_style_attr(attrs));
-    let props = ColorPickerProps {
-        disabled,
-        ..ColorPickerProps::default()
-    };
-    state.channel_slider_thumb(channel, Orientation::Horizontal, &props, merged, children)
+    state.channel_slider_thumb(channel, Orientation::Horizontal, props, merged, children)
 }
 
 #[cfg(test)]
@@ -1033,7 +1057,8 @@ mod tests {
     #[test]
     fn root_outputs_scope_and_part() {
         let cp = ColorPicker::default();
-        let html = render(&root(&cp, vec![], vec![]));
+        let props = ColorPickerProps::default();
+        let html = render(&root(&cp, &props, vec![], vec![]));
         assert!(html.contains(r#"data-scope="color-picker""#));
         assert!(html.contains(r#"data-part="root""#));
     }
@@ -1045,16 +1070,18 @@ mod tests {
         // ドリフトの影響を受けない値を選ぶ（`crates/headless-ui/src/
         // color_picker.rs` の `dispatch_set_hex_updates_color` と同じ配慮）。
         let cp = ColorPicker::from_color(Color::from_rgb(Rgb::new(0xff, 0x00, 0x00)));
-        let html = render(&trigger(&cp, false, None, vec![], vec![]));
+        let props = ColorPickerProps::default();
+        let html = render(&trigger(&cp, &props, None, vec![], vec![]));
         assert!(html.contains(r#"style="--fandhe-color-picker-preview: #ff0000""#));
     }
 
     #[test]
     fn trigger_caller_style_attr_is_dropped_not_duplicated() {
         let cp = opaque_blue();
+        let props = ColorPickerProps::default();
         let html = render(&trigger(
             &cp,
-            false,
+            &props,
             None,
             vec![("style", "attacker: 1")],
             vec![],
@@ -1161,7 +1188,8 @@ mod tests {
     #[test]
     fn area_background_outputs_hue_color_style() {
         let cp = ColorPicker::new(Hsv::new(120, 50, 50).unwrap(), 255);
-        let html = render(&area_background(&cp, vec![], vec![]));
+        let props = ColorPickerProps::default();
+        let html = render(&area_background(&cp, &props, vec![], vec![]));
         // h=120 は緑相当（純色 #00ff00）。
         assert!(html.contains(r#"style="--fandhe-color-picker-hue-color: #00ff00""#));
     }
@@ -1169,7 +1197,8 @@ mod tests {
     #[test]
     fn area_thumb_outputs_x_and_y_style() {
         let cp = ColorPicker::new(Hsv::new(0, 40, 70).unwrap(), 255);
-        let html = render(&area_thumb(&cp, false, vec![], vec![]));
+        let props = ColorPickerProps::default();
+        let html = render(&area_thumb(&cp, &props, vec![], vec![]));
         assert!(
             html.contains(r#"style="--fandhe-color-picker-x: 40%; --fandhe-color-picker-y: 30%""#)
         );
@@ -1178,9 +1207,10 @@ mod tests {
     #[test]
     fn area_thumb_caller_style_attr_is_dropped_not_duplicated() {
         let cp = ColorPicker::default();
+        let props = ColorPickerProps::default();
         let html = render(&area_thumb(
             &cp,
-            false,
+            &props,
             vec![("style", "attacker: 1")],
             vec![],
         ));
@@ -1214,10 +1244,11 @@ mod tests {
     #[test]
     fn channel_slider_thumb_outputs_percent_style_per_channel() {
         let cp = ColorPicker::new(Hsv::new(180, 40, 70).unwrap(), 128);
+        let props = ColorPickerProps::default();
         let hue_html = render(&channel_slider_thumb(
             Channel::Hue,
             &cp,
-            false,
+            &props,
             vec![],
             vec![],
         ));
@@ -1226,7 +1257,7 @@ mod tests {
         let alpha_html = render(&channel_slider_thumb(
             Channel::Alpha,
             &cp,
-            false,
+            &props,
             vec![],
             vec![],
         ));
@@ -1236,10 +1267,11 @@ mod tests {
     #[test]
     fn channel_slider_thumb_caller_style_attr_is_dropped_not_duplicated() {
         let cp = ColorPicker::default();
+        let props = ColorPickerProps::default();
         let html = render(&channel_slider_thumb(
             Channel::Hue,
             &cp,
-            false,
+            &props,
             vec![("style", "attacker: 1")],
             vec![],
         ));
@@ -1273,8 +1305,10 @@ mod tests {
     #[test]
     fn root_attrs_attribute_breakout_payload_is_escaped() {
         let cp = ColorPicker::default();
+        let props = ColorPickerProps::default();
         let html = render(&root(
             &cp,
+            &props,
             vec![("data-x", "\" onmouseover=\"alert(1)")],
             vec![],
         ));
@@ -1290,7 +1324,8 @@ mod tests {
         use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate};
 
         let mut cp = ColorPicker::default();
-        let ssr_html = render(&root(&cp, vec![], vec![]));
+        let props = ColorPickerProps::default();
+        let ssr_html = render(&root(&cp, &props, vec![], vec![]));
         assert!(!ssr_html.contains("data-hydrate-"));
 
         assert!(dispatch(&mut cp, "set_hex", "#3b82f6"));

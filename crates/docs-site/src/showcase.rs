@@ -8480,6 +8480,7 @@ fn color_picker_section() -> Node {
     // 一度も描画されていなかった（親イシュー #1462 の指摘事項）。
     let closed = row(vec![color_picker::root(
         &state,
+        &none,
         vec![],
         vec![
             color_picker::label(&none, vec![], vec![text("Color")]),
@@ -8489,23 +8490,31 @@ fn color_picker_section() -> Node {
                 vec![],
                 vec![
                     color_picker::channel_input(state.hex().as_str(), &none, vec![]),
-                    color_picker::trigger(&state, false, None, vec![], vec![]),
+                    color_picker::trigger(&state, &none, None, vec![], vec![]),
                 ],
             ),
         ],
     )]);
+    // イシュー #1604 是正: `disabled` を label/control/channel_input/
+    // trigger を含む同一インスタンスの全対象パーツへ渡す（codex-review
+    // 指摘 disabled デモの channel_input が既定値のままだった回帰の是正）。
+    let disabled_props = ColorPickerProps {
+        disabled: true,
+        ..ColorPickerProps::default()
+    };
     let closed_disabled = row(vec![color_picker::root(
         &state,
+        &disabled_props,
         vec![],
         vec![
-            color_picker::label(&none, vec![], vec![text("Color (disabled)")]),
+            color_picker::label(&disabled_props, vec![], vec![text("Color (disabled)")]),
             color_picker::control(
                 OpenState::Closed,
-                &none,
+                &disabled_props,
                 vec![],
                 vec![
-                    color_picker::channel_input(state.hex().as_str(), &none, vec![]),
-                    color_picker::trigger(&state, true, None, vec![], vec![]),
+                    color_picker::channel_input(state.hex().as_str(), &disabled_props, vec![]),
+                    color_picker::trigger(&state, &disabled_props, None, vec![], vec![]),
                 ],
             ),
         ],
@@ -8523,6 +8532,7 @@ fn color_picker_section() -> Node {
     };
     let closed_readonly_invalid_required = row(vec![color_picker::root(
         &state,
+        &ro_props,
         vec![],
         vec![
             color_picker::label(&ro_props, vec![], vec![text("Color (readonly/invalid)")]),
@@ -8544,10 +8554,11 @@ fn color_picker_section() -> Node {
         vec![
             color_picker::area(
                 &state,
+                &none,
                 vec![],
                 vec![
-                    color_picker::area_background(&state, vec![], vec![]),
-                    color_picker::area_thumb(&state, false, vec![], vec![]),
+                    color_picker::area_background(&state, &none, vec![], vec![]),
+                    color_picker::area_thumb(&state, &none, vec![], vec![]),
                 ],
             ),
             color_picker::channel_slider(
@@ -8556,7 +8567,7 @@ fn color_picker_section() -> Node {
                 vec![],
                 vec![
                     color_picker::channel_slider_track(Channel::Hue, &state, vec![], vec![]),
-                    color_picker::channel_slider_thumb(Channel::Hue, &state, false, vec![], vec![]),
+                    color_picker::channel_slider_thumb(Channel::Hue, &state, &none, vec![], vec![]),
                 ],
             ),
             color_picker::channel_slider(
@@ -8568,7 +8579,7 @@ fn color_picker_section() -> Node {
                     color_picker::channel_slider_thumb(
                         Channel::Alpha,
                         &state,
-                        false,
+                        &none,
                         vec![],
                         vec![],
                     ),
