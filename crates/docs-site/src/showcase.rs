@@ -365,7 +365,8 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] {\n  position: relative;\n}\n\
-.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  position: absolute;\n  inset: 0;\n  z-index: 0;\n  cursor: pointer;\n}\n\
+.pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"overlay\"]:focus-visible {\n  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));\n  outline-offset: var(--fandhe-focus-ring-offset, 2px);\n  border-radius: inherit;\n}\n\
 .pre-styled-showcase [data-scope=\"link-overlay\"][data-part=\"root\"] h3 {\n  margin-top: 0;\n}\n\
 .pre-styled-showcase [data-scope=\"nav-list\"][data-part=\"heading\"] {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"link\"][data-part=\"root\"]:hover {\n  text-decoration: var(--fandhe-link-text-decoration, none);\n}\n\
@@ -1000,7 +1001,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     // を含む全ページへ配信されるため、無条件出荷すると同じ回帰
     // （prev/next ナビが高さ 0 に潰れる）が起きる。デモの見た目に必要な
     // 等価ルールは [`SHOWCASE_LAYOUT_CSS`] 側で `.pre-styled-showcase`
-    // スコープ付きとして個別に持つ（下記）。
+    // スコープ付きとして個別に持つ（下記）。イシュー #1580 で追加した
+    // `:focus-visible` フォーカスリングも同様に scope 付きミラーで持つ
+    // （同じ無条件出荷禁止の理由に従う）。
     sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
     // Clipboard（イシュー #1155）: showcase.rs の COMPONENT_PAGES には未登録
     // だが、`crate::component_specs::interactive_utilities::demo_clipboard`
@@ -8775,6 +8778,22 @@ mod tests {
   position: absolute;
   inset: 0;
   z-index: 0;
+  cursor: pointer;
+}"#
+        ));
+        // Link Overlay のフォーカスリング（イシュー #1580）: `overlay` に
+        // `:focus-visible` の共通フォーカスリングを追加した際、
+        // `link_overlay::stylesheet()` 本体と同じ理由（上記コメント）で
+        // 無条件出荷せず `.pre-styled-showcase` スコープ付きミラーとして
+        // 個別に持つ契約を固定する。
+        assert!(
+            !css.contains("\n[data-scope=\"link-overlay\"][data-part=\"overlay\"]:focus-visible {")
+        );
+        assert!(css.contains(
+            r#".pre-styled-showcase [data-scope="link-overlay"][data-part="overlay"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+  border-radius: inherit;
 }"#
         ));
         // Link Overlay の素の h3（イシュー #1154、PR #1165 Bugbot 指摘 2 回目
