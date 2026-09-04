@@ -1346,7 +1346,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # dominant-baseline/背景色ハロー・`segment` の stroke-linejoin）による
 # CSS 出力の実体変更のため patch バンプする。公開関数シグネチャ・
 # variant 語彙・data-* は不変。
-version = "0.79.7"
+# イシュー #1595: line-chart のスタイル調整（`plot` の overflow: visible、
+# `series-line` の stroke-linejoin/linecap、`point` slot 新設）による CSS
+# 出力の実体変更のため patch バンプする。Rust API・data-* セレクタ・CSS
+# 変数名の削除・改名は伴わない（先例: area-chart #1589）。
+version = "0.79.8"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

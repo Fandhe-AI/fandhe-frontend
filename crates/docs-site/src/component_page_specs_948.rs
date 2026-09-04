@@ -1010,6 +1010,7 @@ const LINE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
         "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャート",
         "系列色は charts::series_color_var(index) の固定色循環（color-palette 軸は非提供）",
         "積み上げ・曲線補間は非対応（charts 共通 API 側の別イシュー）",
+        "size（Xs〜Xl）で表示高さを切り替える",
     ],
     arguments: LINE_CHART_ARGUMENTS,
     examples: &[ExampleEntry {
