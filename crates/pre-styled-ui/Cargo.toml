@@ -1350,8 +1350,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # さらにバンプする。
 # イシュー #1593: charts（axis::tick-line/tick-label・legend::marker・
 # tooltip::datum）のスタイル調整による CSS 出力の実体変更のため patch
-# バンプする。Rust API・data-* セレクタ・CSS 変数名の削除・改名は伴わない
-# （main で先行マージ、0.79.6）。
+# イシュー #1594: donut-chart のスタイル調整（`label` の
+# dominant-baseline/背景色ハロー・`segment` の stroke-linejoin）による
+# CSS 出力の実体変更のため patch バンプする。公開関数シグネチャ・
+# variant 語彙・data-* は不変。
 # イシュー #1592 codex-review P1 是正（PR #1865）: `segment` の区切り線を
 # `box-shadow: inset -1px 0 0 ...`（物理右辺固定）から
 # `border-inline-end`（論理方向プロパティ）+ `box-sizing: border-box` へ、
@@ -1366,7 +1368,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # 実体変更（区切り線 `segment-divider` の描画を極小な正値 segment 内へ
 # クリップし、隣接カテゴリ色への張り出しを防ぐ）のため 0.79.8 へさらに
 # patch バンプする。Rust API シグネチャの破壊的変更は伴わない。
-version = "0.79.8"
+# 上記（#1592 の 2 件の P1 是正、0.79.8）と main（#1594 donut-chart、0.79.7）は
+# 独立の patch バンプ連鎖で偶然どちらも共通祖先 0.79.6 から分岐し、
+# 別々の観測可能な CSS 出力変更を含むため、同 §5 の「同一版数への偶発的
+# 衝突をそのまま採用しない」原則に従い、両者の変更を統合した結果として
+# main の現在値 0.79.7 とこのブランチの 0.79.8 のいずれよりも大きい
+# 0.79.9 へさらに patch バンプする。
+version = "0.79.9"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
