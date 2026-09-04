@@ -1625,8 +1625,12 @@ fn ex_scroll_area() -> Node {
 
 pub(crate) const SCROLL_AREA: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "headless 層は anatomy（data-scope/data-part）と tabindex=\"0\" のみを提供し、CSS overflow が実際のスクロール可能性を担う（crates/pre-styled-ui/src/scroll_area.rs:11）",
-        "::-webkit-scrollbar 系規則でカスタムスクロールバーの見た目を表現する（scroll_area.rs:124-134）",
+        "headless 層は anatomy（data-scope/data-part）と tabindex=\"0\" のみを提供し、CSS overflow が実際のスクロール可能性を担う",
+        "::-webkit-scrollbar 系規則でカスタムスクロールバーの見た目を表現する",
+        "thumb 色は custom property --fandhe-scroll-area-thumb-bg（既定 border-emphasized トークン）で一元化されており、root へ再定義するだけで scrollbar-color と ::-webkit-scrollbar-thumb 双方の色を揃って変更できる（イシュー #1584）",
+        "viewport の hover 時に thumb 色を --fandhe-scroll-area-thumb-hover-bg（既定 fg-subtle）へ強調する（常時表示 + hover 強調。タッチ端末でも thumb が不可視にならないよう hover-reveal は既定にしない、イシュー #1584）",
+        "フォーカスリングは focus_ring_declarations（Token/Inset）による canonical 表現で、root の overflow: hidden 内に収まるよう内側描画にしている（イシュー #1584）",
+        "variant（chakra の hover/always・Radix Themes の size/type 相当）は提供しない。custom property の上書きで同等の見た目を利用側から再現できる",
         "JS によるスクロール位置追従は対象外（showcase.rs の scroll_area_section 記述と同方針）",
     ],
     arguments: &[],
@@ -1638,7 +1642,7 @@ pub(crate) const SCROLL_AREA: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "tabindex=\"0\"（viewport）",
-        description: "キーボードフォーカス可能にするのみで、固有の role/aria-* は出力しない（scroll_area.rs:11, 69）。",
+        description: "キーボードフォーカス可能にするのみで、固有の role/aria-* は出力しない。",
     }],
     demo: None,
 };

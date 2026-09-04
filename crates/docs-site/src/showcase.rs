@@ -7359,9 +7359,11 @@ fn marquee_section() -> Node {
 /// JS によるスクロール位置追従は本イシューのスコープ外（`crate::scroll_area`
 /// rustdoc 参照）のため、固定高の viewport と長文 content のみを掲示する。
 fn scroll_area_section() -> Node {
-    let items: Vec<Node> = (1..=20)
-        .map(|i| el("p", vec![], vec![text(format!("スクロール可能な行 {i}"))]))
-        .collect();
+    let items = || -> Vec<Node> {
+        (1..=20)
+            .map(|i| el("p", vec![], vec![text(format!("スクロール可能な行 {i}"))]))
+            .collect()
+    };
     let demo = scroll_area::root(
         vec![(
             "style",
@@ -7369,13 +7371,37 @@ fn scroll_area_section() -> Node {
         )],
         vec![scroll_area::viewport(
             vec![],
-            vec![scroll_area::content(vec![], items)],
+            vec![scroll_area::content(vec![], items())],
+        )],
+    );
+    // 2 例目: root へ --fandhe-scroll-area-thumb-bg: transparent を指定し、
+    // chakra-ui の variant="hover"（既定は常時非表示、hover 時のみ出現）
+    // 相当の見た目を custom property 上書きだけで再現するデモ（イシュー
+    // #1584。variant 軸自体は新設しない判断の根拠を実演する）。
+    let hover_reveal_demo = scroll_area::root(
+        vec![(
+            "style",
+            "height: 8rem; width: 16rem; border: 1px solid var(--fandhe-color-border); --fandhe-scroll-area-thumb-bg: transparent;",
+        )],
+        vec![scroll_area::viewport(
+            vec![],
+            vec![scroll_area::content(vec![], items())],
         )],
     );
     section(
         "ScrollArea",
-        "CSS overflow を主体としたスクロール領域です。カスタムスクロールバーの見た目は scrollbar-width/scrollbar-color と ::-webkit-scrollbar 系規則で表現します（JS によるスクロール位置追従は対象外）。",
-        vec![demo],
+        "CSS overflow を主体としたスクロール領域です。カスタムスクロールバーの見た目は scrollbar-width/scrollbar-color と ::-webkit-scrollbar 系規則で表現し、thumb 色は custom property --fandhe-scroll-area-thumb-bg で一元化しています（hover 時は --fandhe-scroll-area-thumb-hover-bg へ強調。JS によるスクロール位置追従は対象外）。",
+        vec![
+            demo,
+            el(
+                "p",
+                vec![],
+                vec![text(
+                    "--fandhe-scroll-area-thumb-bg: transparent を指定すると、chakra-ui の variant=\"hover\" 相当（既定は非表示、hover 時のみ出現）を再現できます。",
+                )],
+            ),
+            hover_reveal_demo,
+        ],
     )
 }
 
