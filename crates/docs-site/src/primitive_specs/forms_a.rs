@@ -88,7 +88,7 @@
 //! ノード木 API（[`fandhe_frontend_core::el`]/[`fandhe_frontend_core::text`]
 //! と headless-ui のパート関数）のみで組み立てる。
 
-use fandhe_frontend_core::{div, p, text, Node};
+use fandhe_frontend_core::{code, div, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::checkbox::{CheckboxProps, CheckedState};
 use hui::checkbox_group;
@@ -267,12 +267,65 @@ fn ex_checkbox() -> Node {
     )
 }
 
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/`data-state`/`data-focus-visible`/`data-disabled`
+/// 属性セレクタで見た目を組み立てる例を示す（イシュー #1602）。CSS は
+/// テキストノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const CHECKBOX_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"checkbox\"][data-part=\"control\"] {\n  \
+  width: 1.25rem;\n  height: 1.25rem;\n  border: 1px solid #888;\n  border-radius: 4px;\n\
+}\n\
+[data-scope=\"checkbox\"][data-part=\"control\"][data-state=\"checked\"] {\n  \
+  background: #2563eb;\n  border-color: #2563eb;\n\
+}\n\
+[data-scope=\"checkbox\"][data-part=\"control\"][data-state=\"indeterminate\"] {\n  \
+  background: #6b7280;\n  border-color: #6b7280;\n\
+}\n\
+[data-scope=\"checkbox\"][data-part=\"control\"][data-focus-visible] {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n\
+[data-scope=\"checkbox\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n";
+
+fn ex_checkbox_custom_css() -> Node {
+    let props = CheckboxProps {
+        checked: CheckedState::Checked,
+        ..Default::default()
+    };
+    let markup = checkbox::root(
+        &props,
+        vec![],
+        vec![
+            checkbox::control(
+                &props,
+                vec![],
+                vec![checkbox::indicator(&props, vec![], vec![text("✓")])],
+            ),
+            checkbox::label(&props, vec![], vec![text("Accept newsletter")]),
+            checkbox::hidden_input(&props, "newsletter", "on", vec![]),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-focus-visible / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(vec![], vec![code(vec![], vec![text(CHECKBOX_CUSTOM_CSS_SNIPPET)])]),
+        ],
+    )
+}
+
 const CHECKBOX: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "root（<label>）/control（<div aria-hidden=\"true\">）/indicator/label/hidden_input（<input type=\"checkbox\">）の 5 パーツで構成し、視覚的表現（control）とアクセシビリティ実体（hidden_input）を分離する（checkbox.rs:9-14, 230-232）。",
         "CheckedState（Unchecked/Checked/Indeterminate）の 3 値が aria-checked/data-state 双方の唯一の情報源であり、偽装・不整合な値を型で塞ぐ（checkbox.rs:82-85）。",
         "indicator は CheckedState::Unchecked のとき hidden 存在属性を出力する（checkbox.rs:251-260）。",
         "hidden_input は CheckboxProps の disabled/invalid/required を受け取り、aria-invalid・ネイティブ存在属性へ反映する（checkbox.rs:139-153, 305-330）。",
+        "root/control は data-focus-visible を出力できる（実フォーカスを受けるのは visually-hidden な hidden_input のため、switch と同型の hidden-input パターン）。wasm-full の focus 配線が hidden-input の focus を境界 root へ写像する（checkbox.rs:45-53、crates/wasm-full/src/focus_visible.rs:51）。",
+        "ark-ui が付与する data-hover/data-active/data-focus は出力しない（DOM ローカルな pointer/focus 操作状態のため、SSR 静的出力の関心外。CSS 擬似クラスまたは wasm-full 配線側で表現する設計判断、data_attrs.rs の data_focus_visible/data_highlighted と同型の契約）。",
     ],
     arguments: &[
         ArgRow {
@@ -300,14 +353,21 @@ const CHECKBOX: ComponentPageSpec = ComponentPageSpec {
             description: "各パーツ共通の追加属性・子ノード（代表 1 行に集約）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Invalid + Required",
-        description: "props.invalid/props.required を立てた未チェック状態の例です。",
-        render: ex_checkbox,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Invalid + Required",
+            description: "props.invalid/props.required を立てた未チェック状態の例です。",
+            render: ex_checkbox,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope / data-part / data-state / data-focus-visible / data-disabled 属性セレクタで見た目を組み立てる最小例です。",
+            render: ex_checkbox_custom_css,
+        },
+    ],
     keyboard: &[KeyRow {
         key: "Space",
-        description: "hidden_input が実際に <input type=\"checkbox\"> を出力するため、ブラウザ標準のチェックボックストグル操作が働く（checkbox.rs:14-15, 305-330）。",
+        description: "hidden_input が実際に <input type=\"checkbox\"> を出力するため、ブラウザ標準のチェックボックストグル操作が働く（checkbox.rs:14-15, 305-330）。Enter ではトグルしない（WAI-ARIA Checkbox パターン・ネイティブ input の標準挙動に準拠、Radix Primitives も同じ理由で Enter を無効化する）。",
     }],
     aria: &[
         AriaRow {
