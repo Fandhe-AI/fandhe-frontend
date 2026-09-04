@@ -21,12 +21,18 @@ const PIE_CHART_GOLDEN_CSS: &str = r#"[data-scope="pie-chart"][data-part="root"]
 [data-scope="pie-chart"][data-part="segment"] {
   stroke: var(--fandhe-color-bg);
   stroke-width: 1;
+  stroke-linejoin: round;
 }
 
 [data-scope="pie-chart"][data-part="label"] {
   fill: var(--fandhe-color-fg);
   font-size: 6px;
   text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: var(--fandhe-color-bg);
+  stroke-width: 1;
+  stroke-linejoin: round;
 }
 
 [data-scope="pie-chart"][data-part="root"].fd-pie-chart--size-xs {

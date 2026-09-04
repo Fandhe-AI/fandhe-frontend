@@ -1093,7 +1093,7 @@ fn pie_chart_example() -> Node {
         vec![Series::new("revenue", vec![400.0, 300.0, 300.0, 200.0])],
     )
     .expect("固定サンプルは常に有効な ChartData を構築できる");
-    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+    let size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
         .into_iter()
         .map(|size| {
             pie_chart(
@@ -1122,8 +1122,9 @@ fn pie_chart_example() -> Node {
 const PIE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "外部依存ゼロの SVG ノード木生成による円グラフ",
-        "size（sm/md/lg）で --fandhe-pie-chart-size を切り替える",
+        "size（Xs〜Xl）で --fandhe-pie-chart-size を切り替える",
         "show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画する",
+        "ラベルは背景色ハロー + 扇形中心配置で系列色・ダーク時も可読",
     ],
     arguments: &[
         ArgRow {
@@ -1147,7 +1148,7 @@ const PIE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     ],
     examples: &[ExampleEntry {
         title: "size とラベル表示",
-        description: "size 3 段とラベル表示ありの掲示です。",
+        description: "size 5 段とラベル表示ありの掲示です。",
         render: pie_chart_example,
     }],
     keyboard: &[],

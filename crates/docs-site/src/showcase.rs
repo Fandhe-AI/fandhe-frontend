@@ -8006,7 +8006,7 @@ fn sparkline_section() -> Node {
     )
 }
 
-/// PieChart 節（イシュー #850）: `size`（sm/md/lg）と `show_labels` の掲示。
+/// PieChart 節（イシュー #850）: `size`（Xs〜Xl）と `show_labels` の掲示。
 fn pie_chart_section() -> Node {
     let data = ChartData::new(
         vec![
@@ -8047,7 +8047,7 @@ fn pie_chart_section() -> Node {
 
     section(
         "PieChart",
-        "外部依存ゼロの SVG ノード木生成による円グラフ（イシュー #850）。size（sm/md/lg）で --fandhe-pie-chart-size を切り替えます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
+        "外部依存ゼロの SVG ノード木生成による円グラフ（イシュー #850）。size（Xs〜Xl）で --fandhe-pie-chart-size を切り替えます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
         vec![size_row, labels_row],
     )
 }
