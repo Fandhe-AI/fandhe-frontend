@@ -31,6 +31,12 @@ name = "fandhe-frontend-headless-ui"
 # （破壊的変更）。`EditableActivationMode::{Click, None}`・
 # `EditableSubmitMode::None` の variant 追加も含む。0.x のマイナーバンプ
 # とする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
+# イシュー #1609（file-upload の参照突合）: `FileUploadProps`
+# （disabled/readonly/invalid/required）・`ItemType`（accepted/rejected 固定
+# 語彙）の新設に伴い `file_upload::{root, label, dropzone, trigger,
+# item_group, item, item_name, item_size_text_node, item_delete_trigger,
+# clear_trigger, hidden_input}` のシグネチャを変更（破壊的変更）。0.x の
+# マイナーバンプとする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
 # イシュー #1615（pin-input の参照突合）: `PinInputProps`
 # （disabled/readonly/invalid/required）の導入に伴い `pin_input::{root,
 # label, input}` のシグネチャ変更（`root`/`label` は `PinInputProps` 引数を
@@ -38,7 +44,9 @@ name = "fandhe-frontend-headless-ui"
 # `PinInputAction::{Delete, Prev, Next}` の新設・`Backspace` の挙動是正を
 # 行ったため 0.x のマイナーバンプとする（`.claude/rules/coding-rust.md`
 # 破壊的変更規定）。
-version = "0.34.0"
+# base main 取り込み時のマージ注記: #1609 と #1615 が独立に 0.33.0 から
+# 0.34.0 へ patch/minor バンプしていたため衝突を避け 0.35.0 とする。
+version = "0.35.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

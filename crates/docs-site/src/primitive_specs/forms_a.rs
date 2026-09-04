@@ -1560,22 +1560,24 @@ const FIELDSET: ComponentPageSpec = ComponentPageSpec {
 // File Upload
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/file_upload.rs:226-388`（root/dropzone/
-/// item_delete_trigger/hidden_input の各パーツ関数）。
+/// 一次情報: `crates/headless-ui/src/file_upload.rs`（root/dropzone/
+/// item_delete_trigger/hidden_input の各パーツ関数、参照突合はイシュー #1609）。
 fn ex_file_upload() -> Node {
+    let props = file_upload::FileUploadProps::default();
     let body = vec![file_upload::root(
+        &props,
         false,
         vec![],
         vec![
-            file_upload::label(vec![], vec![text("Resume")]),
+            file_upload::label(&props, vec![], vec![text("Resume")]),
             file_upload::dropzone(
-                false,
+                &props,
                 false,
                 vec![("aria-label", "Drop your resume here")],
                 vec![
                     text("Drag & drop or"),
-                    file_upload::trigger(false, vec![], vec![text("Choose file")]),
-                    file_upload::hidden_input("application/pdf", false, false, vec![]),
+                    file_upload::trigger(&props, vec![], vec![text("Choose file")]),
+                    file_upload::hidden_input("application/pdf", false, &props, vec![]),
                 ],
             ),
         ],
@@ -1586,37 +1588,147 @@ fn ex_file_upload() -> Node {
     )
 }
 
+/// readonly + invalid + required の状態束を実演する例（イシュー #1609）。
+fn ex_file_upload_readonly_invalid_required() -> Node {
+    let props = file_upload::FileUploadProps {
+        disabled: false,
+        readonly: true,
+        invalid: true,
+        required: true,
+    };
+    let body = vec![file_upload::root(
+        &props,
+        false,
+        vec![],
+        vec![
+            file_upload::label(&props, vec![], vec![text("Resume")]),
+            file_upload::dropzone(
+                &props,
+                false,
+                vec![],
+                vec![
+                    file_upload::trigger(&props, vec![], vec![text("Choose file")]),
+                    file_upload::hidden_input("application/pdf", false, &props, vec![]),
+                ],
+            ),
+        ],
+    )];
+    wrap_example(
+        "readonly + invalid + required を同時に指定した例です。label に data-required、dropzone/trigger/hidden_input に tabindex=\"-1\"/aria-disabled/ネイティブ disabled、hidden_input に aria-required/data-required が反映されます（ネイティブ required は出力しません、イシュー #1609）。",
+        body,
+    )
+}
+
+/// 検証で拒否されたファイルを `ItemType::Rejected` で描画する例
+/// （イシュー #1609、`data-type=\"rejected\"`）。
+fn ex_file_upload_rejected_files() -> Node {
+    let props = file_upload::FileUploadProps::default();
+    let body = vec![file_upload::item_group(
+        file_upload::ItemType::Rejected,
+        &props,
+        vec![],
+        vec![file_upload::item(
+            file_upload::ItemType::Rejected,
+            &props,
+            vec![],
+            vec![
+                file_upload::item_name(
+                    file_upload::ItemType::Rejected,
+                    &props,
+                    vec![],
+                    vec![text("malware.exe")],
+                ),
+                file_upload::item_delete_trigger(
+                    "malware.exe",
+                    file_upload::ItemType::Rejected,
+                    &props,
+                    vec![],
+                    vec![text("\u{00d7}")],
+                ),
+            ],
+        )],
+    )];
+    wrap_example(
+        "accept 検証で拒否されたファイルを ItemType::Rejected で描画する例です。item_group/item/item_name/item_delete_trigger のいずれも data-type=\"rejected\" を出力します。",
+        body,
+    )
+}
+
+/// 利用者が自前 CSS を当てる最小例（headless-ui 単独利用、pre-styled-ui
+/// 非依存。`[data-part]` セレクタで自由にスタイルできることを示す）。
+const FILE_UPLOAD_CUSTOM_CSS_SNIPPET: &str = r#"[data-scope="file-upload"][data-part="dropzone"][data-dragging] {
+  border-color: dodgerblue;
+}
+[data-scope="file-upload"][data-part="trigger"][data-disabled] {
+  cursor: not-allowed;
+}
+[data-scope="file-upload"][data-part="item"][data-type="rejected"] {
+  color: crimson;
+}
+[data-scope="file-upload"][data-part="label"][data-required]::after {
+  content: " *";
+}"#;
+
+fn ex_file_upload_custom_css() -> Node {
+    wrap_example(
+        "headless-ui 単独利用時（pre-styled-ui 非依存）に、利用者が data-part/data-* セレクタで自前 CSS を当てる最小例です。",
+        vec![fandhe_frontend_core::el(
+            "pre",
+            vec![],
+            vec![fandhe_frontend_core::el(
+                "code",
+                vec![],
+                vec![text(FILE_UPLOAD_CUSTOM_CSS_SNIPPET)],
+            )],
+        )],
+    )
+}
+
 const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "root/label/dropzone/trigger/item_group/item/item_name/item_size_text_node/item_delete_trigger/clear_trigger/hidden_input の 11 anatomy パーツで構成する（file_upload.rs:1-9）。",
-        "dropzone は role=\"button\" + tabindex=\"0\" でフォーカス可能にし、呼び出し側が attrs 経由で aria-label を与える（file_upload.rs:240-246）。",
-        "item_delete_trigger の aria-label は「Delete {name}」を動的に組み立てるが、既定エスケープを経由するため注入経路にはならない（file_upload.rs:304-308）。",
+        "FileUploadProps（disabled/readonly/invalid/required）を各パーツへ一律付与する。dropzone は disabled または readonly のとき tabindex=\"-1\" + aria-disabled=\"true\"、それ以外は tabindex=\"0\" にする。呼び出し側 attrs に aria-label/aria-labelledby が無ければ既定 aria-label=\"dropzone\" を付与する（参照突合、イシュー #1609）。",
+        "trigger/item_delete_trigger/clear_trigger/hidden_input は readonly でもネイティブ disabled を付与する（zag disabled: disabled || readOnly と同値）。",
+        "hidden_input には tabindex=\"-1\"・aria-hidden=\"true\"・aria-required/data-required（props.required。ネイティブ required は出力しない。理由: 実 FileList を保持しない設計とネイティブ constraint validation が衝突するため）を付与する。clear_trigger は hidden 引数（受理済みファイル 0 件を表す）で hidden 属性を出力する（イシュー #1609）。",
+        "item_group/item/item_name/item_size_text_node/item_delete_trigger には ItemType（Accepted/Rejected）固定語彙による data-type を付与する。item への data-invalid は参照側（zag/ark）も出さないため付与しない（呼び出し側 attrs 経由でのみ有効化できる）。",
         "本モジュールはファイルメタデータ（name/size_bytes/mime_type）のみを保持し、File オブジェクト自体・実アップロード処理は持たない（file_upload.rs:20-27）。",
     ],
     arguments: &[
         ArgRow {
-            name: "root(disabled)",
-            kind: "bool",
-            default: "false",
-            description: "root へ data-disabled を反映するかどうか。",
-        },
-        ArgRow {
-            name: "dropzone(disabled, dragging)",
-            kind: "bool, bool",
-            default: "false",
-            description: "role=\"button\"/tabindex=\"0\" 固定。dragging は data-dragging（wasm-full 側が DOM ローカルにトグルする想定、file_upload.rs:240-256）。",
-        },
-        ArgRow {
-            name: "item_delete_trigger(name, disabled)",
-            kind: "&str, bool",
+            name: "root(props, dragging)",
+            kind: "&FileUploadProps, bool",
             default: "",
-            description: "aria-label=\"Delete {name}\" を動的に組み立てる（file_upload.rs:304-318）。",
+            description: "data-disabled/data-invalid/data-readonly/data-dragging を反映する。",
         },
         ArgRow {
-            name: "hidden_input(accept, multiple, disabled)",
-            kind: "&str, bool, bool",
+            name: "label(props)",
+            kind: "&FileUploadProps",
             default: "",
-            description: "<input type=\"file\">。accept/multiple はネイティブ属性として反映される（file_upload.rs:340-363）。",
+            description: "data-required（props.required）を含む状態束を反映する。",
+        },
+        ArgRow {
+            name: "dropzone(props, dragging)",
+            kind: "&FileUploadProps, bool",
+            default: "",
+            description: "role=\"button\" 固定。disabled/readonly で tabindex=\"-1\" + aria-disabled=\"true\"、既定 aria-label=\"dropzone\"（呼び出し側指定を優先）。",
+        },
+        ArgRow {
+            name: "trigger(props) / clear_trigger(props, hidden) / hidden_input(accept, multiple, props)",
+            kind: "&FileUploadProps 他",
+            default: "",
+            description: "readonly でもネイティブ disabled。clear_trigger の hidden は受理済み 0 件で true（FileUpload::clear_trigger が is_empty() から導出）。",
+        },
+        ArgRow {
+            name: "item_group(item_type, props) / item(item_type, props) / item_name(item_type, props) / item_size_text_node(item_type, props)",
+            kind: "ItemType, &FileUploadProps",
+            default: "",
+            description: "data-type（\"accepted\"/\"rejected\"）を付与する。",
+        },
+        ArgRow {
+            name: "item_delete_trigger(name, item_type, props)",
+            kind: "&str, ItemType, &FileUploadProps",
+            default: "",
+            description: "aria-label=\"Delete {name}\" を動的に組み立てる（既定エスケープ経由）。",
         },
         ArgRow {
             name: "attrs / children",
@@ -1625,23 +1737,58 @@ const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
             description: "各パーツ共通の追加属性・子ノード（代表 1 行に集約）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Single file dropzone",
-        description: "PDF のみを受け付ける単一ファイル選択の例です。",
-        render: ex_file_upload,
-    }],
-    keyboard: &[KeyRow {
-        key: "Space / Enter",
-        description: "dropzone は role=\"button\" + tabindex=\"0\" のためフォーカス可能で、trigger/item_delete_trigger/clear_trigger はいずれも <button> であるため、ブラウザ標準の活性化操作が働く（file_upload.rs:240-262, 308-326）。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Single file dropzone",
+            description: "PDF のみを受け付ける単一ファイル選択の例です。",
+            render: ex_file_upload,
+        },
+        ExampleEntry {
+            title: "Readonly / invalid / required",
+            description: "readonly + invalid + required を同時に指定した例です。",
+            render: ex_file_upload_readonly_invalid_required,
+        },
+        ExampleEntry {
+            title: "Rejected files",
+            description: "検証で拒否されたファイルを ItemType::Rejected で描画する例です。",
+            render: ex_file_upload_rejected_files,
+        },
+        ExampleEntry {
+            title: "Custom CSS (headless-ui only)",
+            description: "pre-styled-ui 非依存で自前 CSS を当てる最小例です。",
+            render: ex_file_upload_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Space / Enter（trigger / item_delete_trigger / clear_trigger）",
+            description: "いずれもネイティブ <button> であるため、ブラウザ標準の活性化操作が働く（file_upload.rs 参照）。",
+        },
+        KeyRow {
+            key: "Space / Enter（dropzone）",
+            description: "参照実装（zag）ではこのキー操作でファイル選択ダイアログを起動する。本モジュールは role=\"button\" + tabindex=\"0\"（disabled/readonly 時は tabindex=\"-1\"）の SSR マークアップのみを提供し、fandhe-frontend-wasm-full 側の keydown 配線は未実装（スコープ外、フォローアップ Issue 提案）。キーボード専用利用者は trigger（ネイティブ button）で操作できるため a11y 上のブロッカーではない。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role=\"button\"",
-            description: "dropzone パーツへ固定付与する（file_upload.rs:252）。",
+            description: "dropzone パーツへ固定付与する。",
         },
         AriaRow {
             attribute: "aria-label",
-            description: "item_delete_trigger パーツへ「Delete {name}」を動的に組み立てて付与する（file_upload.rs:304-318）。",
+            description: "dropzone パーツへ既定値 \"dropzone\"（呼び出し側指定が無いときのみ）、item_delete_trigger パーツへ「Delete {name}」を動的に組み立てて付与する。",
+        },
+        AriaRow {
+            attribute: "aria-disabled=\"true\"",
+            description: "dropzone パーツへ disabled または readonly のときに付与する。",
+        },
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "hidden_input パーツへ固定付与する（フォーカス・スクリーンリーダー走査の対象外にする）。",
+        },
+        AriaRow {
+            attribute: "aria-required",
+            description: "hidden_input パーツへ props.required の値をそのまま反映する（true/false の明示 2 値、ネイティブ required は出力しない）。",
         },
     ],
     demo: None,
