@@ -1255,6 +1255,7 @@ fn scatter_chart_example() -> Node {
 const SCATTER_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "散布図専用の ScatterData（系列ごとの (x, y) 座標列）+ LinearScale（x/y 双方）+ SVG ノード木生成ヘルパーのみで組み立てる外部依存ゼロの散布図",
+        "点マーカーは背景色ハロー付きで、viewBox 端でもハローが欠けないよう root は overflow: visible（イシュー #1598）",
         "軸線・グリッド・凡例・ツールチップは charts（共通 API）側の別部品",
     ],
     arguments: &[

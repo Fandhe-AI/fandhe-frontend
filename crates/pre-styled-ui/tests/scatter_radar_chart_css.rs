@@ -6,17 +6,21 @@
 //! （受け入れ条件「golden CSS」）。出力順（base の登録順）が崩れた場合や
 //! 意図しない宣言の追加・欠落があった場合に、この golden テストが即座に
 //! 検知する。
+//!
+//! `SCATTER_CHART_GOLDEN_CSS` はイシュー #1598（`root` の
+//! `overflow: visible` 追加・`point` の `stroke-width` 表記統一）で更新済み。
 
 use fandhe_frontend_pre_styled_ui::charts::{radar_chart, scatter_chart};
 
 const SCATTER_CHART_GOLDEN_CSS: &str = r#"[data-scope="scatter-chart"][data-part="root"] {
   display: block;
   max-width: 100%;
+  overflow: visible;
 }
 
 [data-scope="scatter-chart"][data-part="point"] {
   stroke: var(--fandhe-color-bg);
-  stroke-width: 1px;
+  stroke-width: 1;
 }
 "#;
 
