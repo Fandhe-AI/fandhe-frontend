@@ -1164,6 +1164,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # （.claude/rules/coding-rust.md「公開済みクレートの実体変更時は semver
 # バンプ必須」）に従い 0.78.0 へマイナーバンプする。
 #
+# イシュー #1580: link-overlay のスタイル調整。`overlay` へ
+# `:focus-visible` の共通フォーカスリング（`FocusRingColor::Token` +
+# `FocusRingOffset::Outside`）と `border-radius: inherit` / `cursor:
+# pointer` を追加した。セレクタ・クラス名・CSS 変数名の削除/改名なし、
+# Rust API シグネチャ不変の純追加のみのため
+# `docs/ci/style-refresh-version-bump-operation.md` §3.1/§3.3 に従い
+# patch バンプする（CSS 出力変更のため §3.2 により
+# `version-bump-exempt:` は適用しない）。
+#
 # イシュー #1582: marquee のスタイル調整 (1/2) — アニメーション（親 #1581）。
 # `gap` フォールバックを `1rem` からテーマトークン `var(--fandhe-space-4)`
 # へ変更し、両端フェード（`Edge` 相当）を root への `mask-image`
@@ -1180,6 +1189,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # フォールバック）と item のインラインフレックス化を新設した。同じく
 # 公開 Rust API のシグネチャ変更を伴わない CSS 出力変更のみのため、
 # `version-bump-exempt:` は適用せず 0.78.2 へ patch バンプする。
+#
+# マージ時の追記: #1580（HEAD）と #1582（main）はいずれも merge base
+# 0.78.0 から独立に 0.78.1 へ patch バンプしていた。version 行の
+# コンフリクトのため `docs/ci/style-refresh-version-bump-operation.md`
+# §5「version 行コンフリクトの解決手順（並列 PR 間）」の機械的解決
+# 手順（自分（本コミットで取り込む #1582 側）が patch バンプのため、
+# main の現在値 0.78.1 の patch を +1 した値を採用する）に従い
+# 0.78.2 へ patch バンプする。
 version = "0.78.2"
 
 edition = "2021"
