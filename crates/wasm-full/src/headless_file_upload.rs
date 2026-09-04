@@ -308,89 +308,52 @@ mod wiring {
     ///   `DataTransfer::files()` から [`FileUploadAction::AddFiles`]
     ///   （型付き dispatch）。
     ///
+    /// # ネイティブ `required` を状態同期しない（イシュー #1609
+    /// codex-review 指摘の是正、`.claude/rules/coding-rust.md` §UI 部品の
+    /// 責務境界）
+    ///
+    /// 本モジュールはネイティブ `<input type="file">` の `File` オブジェクト
+    /// を一切保持しない設計（モジュール冒頭 rustdoc「他クレート・他モジュール
+    /// との契約」節・`crates/headless-ui/src/file_upload.rs` 冒頭「保留解除」
+    /// 節参照）であり、`wire_change` は処理直後に必ず
+    /// `input.set_value("")` で hidden-input の実 `FileList` を破棄する
+    /// （同一ファイルの再選択を可能にするため）。したがって hidden-input の
+    /// 値は常に空であり、ネイティブ constraint validation（`required`）が
+    /// 真に「実ファイルが送信対象に含まれているか」を検証できることはない。
+    ///
+    /// 過去に [`FileUpload`] 状態の `accepted()` が非空の間だけネイティブ
+    /// `required` を除去する同期処理（`sync_hidden_input_required`、
+    /// PR #1885 588fd4f/d9e846f）を実装したが、これは「ファイルが受理済み」
+    /// に見せかけて `required` を外すだけで、hidden-input には実データが
+    /// 一切残っていないためネイティブフォーム送信は実ファイルを含まないまま
+    /// 通過してしまう（codex-review 再指摘、P1）。`File` オブジェクトを
+    /// 保持しない設計を維持したままこの矛盾を解消する唯一の道は「ネイティブ
+    /// `required` を状態に応じて操作しない」であるため、本関数は
+    /// hidden-input の `required` 属性を [`fandhe_frontend_headless_ui::file_upload::hidden_input`]
+    /// が `props.required` から出力したまま一切変更しない。結果として
+    /// `required: true` の FileUpload はネイティブ `<form>` 送信を常に
+    /// ブロックする（fail-closed。実ファイルが送信されない誤通過より安全）。
+    /// ネイティブ multipart 送信でファイルを扱いたい呼び出し側は
+    /// `FileUpload::accepted()` を読んでアプリケーション側で送信・検証する
+    /// （`.claude/rules/coding-rust.md` の「UI コンポーネント層はバリデー
+    /// ション・送信処理を内包しない」規約どおり、本層は anatomy・
+    /// アクセシビリティ・表示状態〔`data-*`〕までを責務とする）。
+    ///
     /// # Errors
     ///
     /// `add_event_listener_with_callback` の失敗を伝播する。
     pub fn wire_file_upload_component(
         root: Element,
         component: std::rc::Rc<std::cell::RefCell<FileUpload>>,
-        mut on_update: impl FnMut(&FileUpload, &Element) + 'static,
+        on_update: impl FnMut(&FileUpload, &Element) + 'static,
     ) -> Result<(), JsValue> {
-        // イシュー #1609 Cursor Bugbot 指摘の是正: `hidden_input` が
-        // `props.required` のときネイティブ `required` を出力するが、
-        // `wire_change` は同一ファイルの再選択を可能にするため
-        // `change` のたびに `input.set_value("")` でネイティブ値を
-        // 空にする（`required` 属性自体は残ったまま）。ネイティブの
-        // required 制約検証は「value が空か」だけを見るため、
-        // `FileUpload` 状態にファイルが入っていてもフォーム送信が
-        // ブロックされうる。配線時点（初回マウント/ハイドレーション後、
-        // 状態変更が一切起きていない時点）の hidden-input 要素が
-        // `required` 属性を持つかどうかを一度だけ記録し（呼び出し側の
-        // 意図＝`props.required` の値をここから逆算する）、以降は
-        // 状態更新のたびに [`sync_hidden_input_required`] が
-        // `accepted` が非空の間だけネイティブ `required` を除去する
-        // （空に戻れば再付与し、未入力のままの送信は引き続き阻止する）。
-        let required_intent = hidden_input_required_intent(&root);
-        let on_update = std::rc::Rc::new(std::cell::RefCell::new(
-            move |state: &FileUpload, el: &Element| {
-                on_update(state, el);
-                sync_hidden_input_required(el, state, required_intent);
-            },
-        ));
+        let on_update = std::rc::Rc::new(std::cell::RefCell::new(on_update));
 
         wire_click(&root, component.clone(), on_update.clone())?;
         wire_change(&root, component.clone(), on_update.clone())?;
         wire_drag_and_drop(&root, component.clone(), on_update)?;
 
-        // イシュー #1609 codex-review/Bugbot 指摘の是正: 上記の
-        // `sync_hidden_input_required` 呼び出しはいずれも状態更新
-        // コールバック経由（＝ユーザー操作でイベントが発火した後）にしか
-        // 実行されない。SSR hydration や `component.accepted()` が最初から
-        // 非空の状態でマウントされた場合、状態変更が一度も起きないまま
-        // hidden input には `required` 属性が残り続け、ファイルは受理済み
-        // なのにネイティブ constraint validation がフォーム送信を阻止して
-        // しまう。配線直後に現在の `component` 状態で一度だけ同期し、
-        // 初期 DOM と状態を一致させる。
-        if let Ok(state) = component.try_borrow() {
-            sync_hidden_input_required(&root, &state, required_intent);
-        }
-
         Ok(())
-    }
-
-    /// [`wire_file_upload_component`] 配線時点での hidden-input パーツの
-    /// ネイティブ `required` 属性の有無を読み取る（呼び出し側が
-    /// `FileUploadProps.required` を渡したかどうかの唯一の観測手段。
-    /// 見つからない場合は `false` に倒す＝fail-closed で誤って
-    /// required を強制しない）。
-    fn hidden_input_required_intent(root: &Element) -> bool {
-        let selector =
-            format!("[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{HIDDEN_INPUT_PART}\"]");
-        root.query_selector(&selector)
-            .ok()
-            .flatten()
-            .is_some_and(|el| el.has_attribute("required"))
-    }
-
-    /// 状態更新のたびに hidden-input パーツのネイティブ `required` 属性を
-    /// `state.accepted()` の非空判定に同期させる（`required_intent` が
-    /// `false`＝呼び出し側がそもそも required を意図していない場合は
-    /// 何もしない）。`root` 探索は `el`（`on_update` コールバックへ渡る
-    /// マウントルート）配下に限定する。
-    fn sync_hidden_input_required(root: &Element, state: &FileUpload, required_intent: bool) {
-        if !required_intent {
-            return;
-        }
-        let selector =
-            format!("[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{HIDDEN_INPUT_PART}\"]");
-        let Ok(Some(el)) = root.query_selector(&selector) else {
-            return;
-        };
-        if state.accepted().is_empty() {
-            let _ = set_dom_attribute(&el, "required", "");
-        } else {
-            let _ = el.remove_attribute("required");
-        }
     }
 
     fn dispatch_and_update(
@@ -570,15 +533,24 @@ mod wiring {
                 // 無効化とみなす（`root`/`dropzone` のどちらから disabled が
                 // 伝播していても取りこぼさないための fail-closed 判定）。
                 //
-                // イシュー #1609（参照突合）: `FileUploadProps.readonly` も
-                // 同様に `data-readonly` として root/dropzone へ反映される
-                // ようになった。zag の `readOnly` は新規ファイルの追加操作を
-                // 抑止する（disabled と同じ「追加できない」意味論だが、
-                // 既存ファイルの削除ボタン等は disabled にしない）ため、
-                // ドラッグ&ドロップによる追加も同じ判定に含める
-                // （headless 側の `dropzone` は disabled と readonly を
-                // 区別せず同じ `tabindex="-1"`/`aria-disabled` を出す設計と
-                // 対応、モジュール doc「参照突合」節参照）。
+                // イシュー #1609（参照突合、PR #1885 codex-review 指摘の
+                // 是正: 旧コメントは「既存ファイルの削除ボタン等は disabled
+                // にしない」としていたが、実装（下記）と矛盾していたため
+                // 訂正した）: `FileUploadProps.readonly` も同様に
+                // `data-readonly` として root/dropzone へ反映されるように
+                // なった。zag の `readOnly` は新規ファイルの追加操作を
+                // 抑止する意味論であり、ドラッグ&ドロップによる追加もこの
+                // 判定に含める（headless 側の `dropzone` は disabled と
+                // readonly を区別せず同じ `tabindex="-1"`/`aria-disabled`
+                // を出す設計と対応、モジュール doc「参照突合」節参照）。
+                // 一方 `item_delete_trigger`/`clear_trigger`（既存ファイルの
+                // 削除操作）は zag `disabled: disabled || readOnly` と同値の
+                // 判断で readonly のときもネイティブ `disabled` を付与する
+                // （`crates/headless-ui/src/file_upload.rs` の
+                // `item_delete_trigger`/`clear_trigger` 参照）。すなわち
+                // readonly 時は新規追加・既存削除のいずれもブロックされる
+                // （zag/ark の参照実装と同じ挙動、追加のみ許可し削除は許可
+                // する設計ではない）。
                 if drag_root.has_attribute("data-disabled")
                     || drag_root.has_attribute("data-readonly")
                 {

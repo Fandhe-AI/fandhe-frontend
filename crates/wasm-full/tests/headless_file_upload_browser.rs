@@ -648,82 +648,21 @@ fn item_delete_trigger_click_indexes_accepted_items_only() {
         .iter()
         .any(|f| f.name == "remove-me.txt"));
 }
-
-/// イシュー #1609 Cursor Bugbot 指摘（High）の回帰テスト: `hidden_input` が
-/// `required: true` のときネイティブ `required` を出力するが、`change`
-/// ハンドラは同一ファイルの再選択を可能にするため毎回 `input.set_value("")`
-/// で値を空にする。ネイティブ制約検証は value の空/非空のみを見るため、
-/// `FileUpload` 状態にファイルが入っていてもフォーム送信が阻害され得た。
-/// 是正後は状態更新のたびに hidden-input の `required` 属性が
-/// `accepted` の非空/空に同期されることを固定する。
+/// イシュー #1609 codex-review 再指摘（P1）の回帰テスト:
+/// `wire_file_upload_component` はネイティブ `required` 属性を状態に応じて
+/// 一切変更しない（過去に実装していた `sync_hidden_input_required`、
+/// PR #1885 588fd4f/d9e846f、は「`accepted()` が非空ならネイティブ
+/// `required` を除去する」同期を行っていたが、`change` ハンドラは
+/// 処理直後に必ず `input.set_value("")` で hidden-input の実 `FileList`
+/// を破棄するため、required 除去後もネイティブフォーム送信には実ファイルが
+/// 一切含まれず、意図しない検証バイパスになっていた）。是正後は
+/// `AddFiles` で `accepted()` が非空になっても、また非空状態でマウント
+/// （SSR hydration 相当）しても、hidden-input の `required` 属性が
+/// `props.required` から出力されたまま変化しないことを固定する。
 #[wasm_bindgen_test]
-fn hidden_input_required_attribute_syncs_with_accepted_files() {
+fn hidden_input_required_attribute_is_never_toggled_by_state() {
     let document = web_sys::window().unwrap().document().unwrap();
-    let container = create_container(&document, "file-upload-required-sync-test");
-    let _guard = RemoveOnDrop(container.clone());
-
-    let state = std::rc::Rc::new(std::cell::RefCell::new(FileUpload::default()));
-    container.set_inner_html(&render_file_upload_mixed(&state.borrow(), true));
-
-    let input = hidden_input_element(&container);
-    assert!(
-        input.required(),
-        "required prop must render as a native required attribute initially"
-    );
-
-    let update_container = container.clone();
-    wire_file_upload_component(container.clone(), state.clone(), move |s, _el| {
-        update_container.set_inner_html(&render_file_upload_mixed(s, true));
-    })
-    .expect("wire_file_upload_component must not fail");
-
-    let input = hidden_input_element(&container);
-    let file = make_file("a.txt", 1, "text/plain");
-    dispatch_change_with_files(&input, &[file]);
-
-    assert_eq!(state.borrow().accepted().len(), 1);
-    let input_after_add = hidden_input_element(&container);
-    assert!(
-        !input_after_add.required(),
-        "native required must be removed once FileUpload state holds an accepted file, \
-         otherwise native constraint validation sees the cleared input value and blocks \
-         form submission despite the state holding a file"
-    );
-
-    // 残る 1 件を削除して空に戻すと、ネイティブ required が復元される
-    // （未入力のままの送信は引き続き阻止する）。
-    let delete_el = container
-        .query_selector("[data-scope='file-upload'][data-part='item-delete-trigger']")
-        .expect("query_selector must not fail")
-        .expect("item-delete-trigger part must exist");
-    let init = EventInit::new();
-    init.set_bubbles(true);
-    let event = Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail");
-    delete_el
-        .dispatch_event(&event)
-        .expect("dispatch_event must not fail");
-
-    assert!(state.borrow().accepted().is_empty());
-    let input_after_remove = hidden_input_element(&container);
-    assert!(
-        input_after_remove.required(),
-        "native required must be restored once the accepted list becomes empty again"
-    );
-}
-
-/// イシュー #1609 codex-review/Bugbot 指摘の回帰テスト:
-/// `wire_file_upload_component` 配線前の [`sync_hidden_input_required`]
-/// 呼び出しは状態更新コールバック経由（ユーザー操作でイベントが発火した後）
-/// にしか実行されておらず、SSR hydration や `component.accepted()` が
-/// 最初から非空の状態でマウントされた場合、状態変更が一度も起きないまま
-/// hidden input の `required` 属性が残り続けていた（ファイルは受理済みなのに
-/// ネイティブ constraint validation がフォーム送信を阻止する不具合）。
-/// 是正後は配線直後に現在の状態で一度同期され、初期 DOM の時点で
-/// `required` が既に外れていることを固定する。
-#[wasm_bindgen_test]
-fn hidden_input_required_attribute_syncs_at_mount_time_with_nonempty_state() {
-    let document = web_sys::window().unwrap().document().unwrap();
-    let container = create_container(&document, "file-upload-required-mount-sync-test");
+    let container = create_container(&document, "file-upload-required-static-test");
     let _guard = RemoveOnDrop(container.clone());
 
     // hydration 相当: マウント前から `accepted` が非空の状態を用意する。
@@ -736,9 +675,6 @@ fn hidden_input_required_attribute_syncs_at_mount_time_with_nonempty_state() {
     assert_eq!(initial.accepted().len(), 1);
 
     let state = std::rc::Rc::new(std::cell::RefCell::new(initial));
-    // SSR が `required` 属性を伴って描画したであろう初期 DOM を再現する
-    // （このヘルパ自体は状態を見ずに `required: true` を機械的に出力する
-    // ため、hidden input は依然として `required` を持つ）。
     container.set_inner_html(&render_file_upload_mixed(&state.borrow(), true));
     let input = hidden_input_element(&container);
     assert!(
@@ -752,13 +688,49 @@ fn hidden_input_required_attribute_syncs_at_mount_time_with_nonempty_state() {
     })
     .expect("wire_file_upload_component must not fail");
 
-    // 配線直後（状態変更イベントは一切発火していない）に required が
-    // 既に除去されていることを固定する。
+    // 配線直後（状態変更イベントは一切発火していない）でも required は
+    // 変更されない。
     let input_after_wire = hidden_input_element(&container);
     assert!(
-        !input_after_wire.required(),
-        "native required must be synced to the mounted (non-empty) state immediately at wiring \
-         time, otherwise a hydrated form with an already-accepted file cannot be submitted \
-         until the user triggers an unrelated state update"
+        input_after_wire.required(),
+        "native required must stay exactly as authored at wiring time; the wiring layer must \
+         not synthesize/remove it from component state"
+    );
+
+    // さらにファイルを追加して `accepted()` を非空のまま増やしても
+    // required は除去されない（旧 P1 バグの再発防止）。
+    let input = hidden_input_element(&container);
+    let file = make_file("b.txt", 1, "text/plain");
+    dispatch_change_with_files(&input, &[file]);
+    assert_eq!(state.borrow().accepted().len(), 2);
+    let input_after_add = hidden_input_element(&container);
+    assert!(
+        input_after_add.required(),
+        "adding files must not cause native required to be removed; the hidden-input value is \
+         always cleared after change, so removing required would let a native form submit \
+         with no real file attached (codex-review P1)"
+    );
+
+    // 受理済みファイルを 1 件ずつ削除して空に戻しても required は
+    // 変化しない（元々変更していないため、当然ながら維持される）。
+    let init = EventInit::new();
+    init.set_bubbles(true);
+    for _ in 0..2 {
+        let delete_el = container
+            .query_selector("[data-scope='file-upload'][data-part='item-delete-trigger']")
+            .expect("query_selector must not fail");
+        if let Some(delete_el) = delete_el {
+            let event =
+                Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail");
+            delete_el
+                .dispatch_event(&event)
+                .expect("dispatch_event must not fail");
+        }
+    }
+    assert!(state.borrow().accepted().is_empty());
+    let input_after_remove = hidden_input_element(&container);
+    assert!(
+        input_after_remove.required(),
+        "native required must remain present after clearing accepted files"
     );
 }
