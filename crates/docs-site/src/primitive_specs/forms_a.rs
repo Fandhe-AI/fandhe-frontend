@@ -988,31 +988,37 @@ const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
 // Editable
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/editable.rs:184-410`（root/input/
+/// 一次情報: `crates/headless-ui/src/editable.rs:184-513`（root/input/
 /// edit_trigger/submit_trigger/cancel_trigger の各パーツ関数）。
 fn ex_editable() -> Node {
     let mode = EditMode::Edit;
     let body = vec![editable::root(
         mode,
-        false,
-        false,
+        EditableInputFlags::default(),
         EditableActivationMode::Focus,
         EditableSubmitMode::Both,
         vec![],
         vec![
             editable::label(
                 mode,
-                false,
+                EditableInputFlags::default(),
                 Some("ed2-input"),
                 vec![],
                 vec![text("Nickname")],
             ),
             editable::area(
                 mode,
+                EditableInputFlags::default(),
                 false,
                 vec![],
                 vec![
-                    editable::preview(mode, false, vec![], vec![text("grace")]),
+                    editable::preview(
+                        mode,
+                        EditableInputFlags::default(),
+                        false,
+                        vec![],
+                        vec![text("grace")],
+                    ),
                     editable::input(
                         mode,
                         "nickname",
@@ -1043,31 +1049,121 @@ fn ex_editable() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1606、[`CHECKBOX_CUSTOM_CSS_SNIPPET`] と
+/// 同型）。`preview`/`input`/`root` の `data-*` セレクタで見た目を組み立てる
+/// 例を示す。CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープを
+/// 経由し、`primitives-showcase.css` へは追加しない。
+const EDITABLE_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"editable\"][data-part=\"preview\"] {\n  \
+  cursor: text;\n  border-bottom: 1px dashed transparent;\n\
+}\n\
+[data-scope=\"editable\"][data-part=\"preview\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n\
+[data-scope=\"editable\"][data-part=\"preview\"][data-placeholder-shown] {\n  \
+  color: #9ca3af;\n  font-style: italic;\n\
+}\n\
+[data-scope=\"editable\"][data-part=\"input\"][data-invalid] {\n  \
+  border-color: #dc2626;\n\
+}\n\
+[data-scope=\"editable\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n";
+
+fn ex_editable_custom_css() -> Node {
+    let mode = EditMode::Preview;
+    let markup = editable::root(
+        mode,
+        EditableInputFlags::default(),
+        EditableActivationMode::default(),
+        EditableSubmitMode::default(),
+        vec![],
+        vec![
+            editable::area(
+                mode,
+                EditableInputFlags::default(),
+                false,
+                vec![],
+                vec![editable::preview(
+                    mode,
+                    EditableInputFlags::default(),
+                    false,
+                    vec![],
+                    vec![text("Ada Lovelace")],
+                )],
+            ),
+            editable::control(
+                mode,
+                vec![],
+                vec![editable::edit_trigger(
+                    mode,
+                    false,
+                    vec![],
+                    vec![text("Edit")],
+                )],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-invalid / data-disabled / data-placeholder-shown 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(vec![], vec![code(vec![], vec![text(EDITABLE_CUSTOM_CSS_SNIPPET)])]),
+        ],
+    )
+}
+
 const EDITABLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/label/area/input/preview/control/edit_trigger/submit_trigger/cancel_trigger の anatomy を持ち、EditMode（Preview/Edit）で表示専用と編集可能を切り替える（editable.rs:96-135）。",
-        "input（<input type=\"text\">）は preview モード時に hidden、preview（<span>）は edit モード時に hidden を出力する（全パーツを DOM に掲載し hidden で切り替える方針、editable.rs:270-322）。",
-        "edit_trigger/submit_trigger/cancel_trigger はいずれも <button type=\"button\"> で、表示は現在モードに応じて hidden 切り替えされる（editable.rs:343-410）。",
-        "activationMode/submitMode の実際の DOM 配線（focus/dblclick 起動・Enter/Escape/blur）は wasm-full 側の後続責務であり、本モジュールは data-activation-mode/data-submit-mode という SSR 静的ヒントのみを提供する（editable.rs:86-95）。",
+        "root/label/area/input/preview/control/edit_trigger/submit_trigger/cancel_trigger の anatomy を持ち、EditMode（Preview/Edit）で表示専用と編集可能を切り替える（editable.rs:163-180）。",
+        "input（<input type=\"text\">）は preview モード時に hidden、preview（<span>）は edit モード時に hidden を出力する（全パーツを DOM に掲載し hidden で切り替える方針、editable.rs:349-463）。",
+        "edit_trigger/submit_trigger/cancel_trigger はいずれも <button type=\"button\"> で、表示は現在モードに応じて hidden 切り替えされる（editable.rs:445-513）。",
+        "activationMode/submitMode の実際の DOM 配線（focus/dblclick 起動・Enter/Escape/blur）は wasm-full 側の後続責務であり、本モジュールは data-activation-mode/data-submit-mode という SSR 静的ヒントのみを提供する（editable.rs module doc「スコープ外」節）。",
+        "イシュー #1606 で ark-ui との参照突合を行い、EditableInputFlags（disabled/readonly/required/invalid）を root/label/area/preview/input へ共通で渡す設計へ揃え、label へ data-invalid/data-required、area へ data-disabled、preview へ data-disabled/data-readonly/data-invalid・aria-disabled/aria-invalid（該当時のみ）・tabindex=\"0\"（!disabled && !readonly のときのみ）を追加した。activationMode に Click/None、submitMode に None を追加した。",
+        "data-focus（area/label）・data-autoresize（input/preview）・aria-readonly（preview）は意図的に出力しない（data-focus は SSR 静的マークアップで表現できない実行時フォーカス状態、data-autoresize はレイアウト計測関心のため headless 層の対象外、aria-readonly は role なし span への付与が ARIA in HTML 上不正なため）。",
     ],
     arguments: &[
         ArgRow {
-            name: "root(mode, disabled, readonly, activation_mode, submit_mode)",
-            kind: "EditMode, bool, bool, EditableActivationMode, EditableSubmitMode",
+            name: "root(mode, flags, activation_mode, submit_mode)",
+            kind: "EditMode, EditableInputFlags, EditableActivationMode, EditableSubmitMode",
             default: "",
-            description: "現在モード・無効化・読み取り専用と、起動・確定方式の SSR 静的ヒント（editable.rs:184-201）。",
+            description: "現在モードと、起動・確定方式の SSR 静的ヒント。flags のうち disabled/readonly のみ root へ反映する（editable.rs:248-269）。",
+        },
+        ArgRow {
+            name: "label(mode, flags, input_id)",
+            kind: "EditMode, EditableInputFlags, Option<&str>",
+            default: "",
+            description: "input との for/id 関連付け。flags の disabled/invalid/required を data-disabled/data-invalid/data-required へ反映する（editable.rs:273-296）。",
+        },
+        ArgRow {
+            name: "area(mode, flags, placeholder_shown)",
+            kind: "EditMode, EditableInputFlags, bool",
+            default: "",
+            description: "input/preview のラッパー。flags の disabled を data-disabled へ反映する（editable.rs:298-315）。",
+        },
+        ArgRow {
+            name: "preview(mode, flags, placeholder_shown)",
+            kind: "EditMode, EditableInputFlags, bool",
+            default: "",
+            description: "flags の disabled/readonly/invalid を data-* へ、disabled/invalid を aria-disabled/aria-invalid（該当時のみ）へ反映し、!disabled && !readonly のとき tabindex=\"0\" を付与する（editable.rs:405-441）。",
         },
         ArgRow {
             name: "input(mode, name, value, props, flags)",
             kind: "EditMode, &str, &str, EditableInputProps, EditableInputFlags",
             default: "",
-            description: "<input type=\"text\"> の name/value と id/placeholder/maxlength・disabled/readonly/required（editable.rs:265-317）。",
+            description: "<input type=\"text\"> の name/value と id/placeholder/maxlength・disabled/readonly/required・invalid（invalid 時のみ aria-invalid=\"true\" を追加、editable.rs:349-403）。",
+        },
+        ArgRow {
+            name: "EditableInputFlags { disabled, readonly, required, invalid }",
+            kind: "bool ×4",
+            default: "false ×4",
+            description: "root/label/area/preview/input へ共通で渡すフラグ束。反映先パーツはパートごとに異なる（上記各行参照、editable.rs:317-346）。",
         },
         ArgRow {
             name: "edit_trigger(mode, disabled) / submit_trigger(mode, disabled) / cancel_trigger(mode, disabled)",
             kind: "EditMode, bool",
             default: "",
-            description: "各トリガー（<button type=\"button\">）の表示モード切り替えと無効化（editable.rs:343-410、同型の 3 関数のため 1 行に集約）。",
+            description: "各トリガー（<button type=\"button\">）の表示モード切り替えと無効化（editable.rs:445-513、同型の 3 関数のため 1 行に集約）。",
         },
         ArgRow {
             name: "attrs / children",
@@ -1076,16 +1172,62 @@ const EDITABLE: ComponentPageSpec = ComponentPageSpec {
             description: "各パーツ共通の追加属性・子ノード（代表 1 行に集約）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Edit mode",
-        description: "maxlength 付きの edit モード（submit/cancel トリガー表示）の例です。",
-        render: ex_editable,
-    }],
-    keyboard: &[KeyRow {
-        key: "Tab / 文字入力",
-        description: "input パーツが実際に <input type=\"text\"> を出力するため、ブラウザ標準のテキスト編集・フォーカス移動が働く（editable.rs:272）。edit_trigger/submit_trigger/cancel_trigger は <button type=\"button\"> のためネイティブの Space/Enter による活性化が働く（editable.rs:343-410）。",
-    }],
-    aria: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Edit mode",
+            description: "maxlength 付きの edit モード（submit/cancel トリガー表示）の例です。",
+            render: ex_editable,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-* 属性セレクタで見た目を組み立てる最小例です。",
+            render: ex_editable_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Enter（edit 中の input）",
+            description: "dispatch(\"submit\") に対応する。submit_mode が Enter/Both のときのみ確定して preview へ戻る想定（DOM 配線は wasm-full 側の後続責務、editable.rs module doc「キーボード操作」節参照）。",
+        },
+        KeyRow {
+            key: "Escape（edit 中の input）",
+            description: "dispatch(\"cancel\") に対応する。activation_mode/submit_mode に関わらず常に取消可能（editable.rs module doc「キーボード操作」節参照）。",
+        },
+        KeyRow {
+            key: "Tab（preview、activation_mode=\"focus\"）",
+            description: "preview が tabindex=\"0\"（!disabled && !readonly のときのみ付与）を持つため、キーボードで到達できる（editable.rs:405-441）。",
+        },
+        KeyRow {
+            key: "Space / Enter（各 trigger）",
+            description: "edit_trigger/submit_trigger/cancel_trigger は <button type=\"button\"> のためネイティブの Space/Enter による活性化が働く（editable.rs:445-513）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "aria-invalid=\"true\"（input・preview）",
+            description: "flags.invalid が true のときのみ付与する（false 時は属性自体を省略、editable.rs:349-403, 405-441）。",
+        },
+        AriaRow {
+            attribute: "aria-disabled=\"true\"（preview）",
+            description: "flags.disabled が true のときのみ付与する（input は代わりにネイティブ disabled 属性を使う、editable.rs:405-441）。",
+        },
+        AriaRow {
+            attribute: "for / id（label ↔ input）",
+            description: "label(mode, flags, input_id) の input_id と input(..., props) の props.id を同じ文字列にして関連付ける。",
+        },
+        AriaRow {
+            attribute: "tabindex=\"0\"（preview）",
+            description: "!disabled && !readonly のときのみ付与する（Zag isInteractive と同義、editable.rs:405-441）。",
+        },
+        AriaRow {
+            attribute: "hidden（input・preview・edit_trigger・submit_trigger・cancel_trigger）",
+            description: "現在モードに応じて排他表示する存在属性（preview モードで input が hidden、edit モードで preview が hidden、等）。",
+        },
+        AriaRow {
+            attribute: "aria-label 等の翻訳文言",
+            description: "利用者が attrs 経由で渡す方針（headless-ui は文言を持たない）。",
+        },
+    ],
     demo: None,
 };
 

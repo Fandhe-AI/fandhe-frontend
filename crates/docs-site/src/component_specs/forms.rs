@@ -409,16 +409,10 @@ const EDITABLE: ComponentPageSpec = ComponentPageSpec {
             description: "プレビュー/編集の表示モード。",
         },
         ArgRow {
-            name: "disabled",
-            kind: "bool",
-            default: "false",
-            description: "無効化状態。",
-        },
-        ArgRow {
-            name: "readonly",
-            kind: "bool",
-            default: "false",
-            description: "読み取り専用状態。",
+            name: "flags",
+            kind: "EditableInputFlags",
+            default: "EditableInputFlags::default()",
+            description: "disabled/readonly/required/invalid のフラグ束。root へは disabled/readonly のみ反映する。",
         },
         ArgRow {
             name: "activation_mode",

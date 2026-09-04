@@ -1437,6 +1437,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1614（password-input の参照突合）: headless-ui 側の破壊的変更
 # （`PasswordInputProps` への `readonly` 追加・`indicator` シグネチャ変更）を
 # 再エクスポートしているため 0.x のマイナーバンプとする。
+# イシュー #1606（editable の参照突合）: headless-ui 側の破壊的変更
+# （`editable::{root, label, area, preview}` が `disabled: bool, readonly:
+# bool` から `flags: EditableInputFlags` へシグネチャ変更）に伴い、本
+# クレートの `editable::root`（styled ラッパー）も同様に追随したため 0.x
+# のマイナーバンプとする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
 version = "0.83.0"
 
 edition = "2021"

@@ -21,6 +21,10 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #1614: headless-ui 依存の version 要求を 0.32.0 へ追随。本クレート
 # の src/ は password_input の関数を参照しないため内部変更なしの patch
 # バンプ。
+# イシュー #1606: headless-ui 依存の version 要求（`check-dep-versions
+# --fix`）を 0.32.0 へ追随。本クレートの src/ は editable の関数を参照
+# しないため内部変更なしの patch バンプ（Cargo.toml 変更に伴う semver
+# バンプ規約）。
 version = "0.7.16"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
