@@ -1335,7 +1335,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1589: area-chart のスタイル調整（`plot` の overflow: visible、
 # `series-line` の stroke-linejoin/linecap、`point` slot 新設）による CSS
 # 出力の実体変更のため patch バンプする。
-version = "0.79.4"
+# イシュー #1591: bar-list のスタイル調整（余白スケール統一・track 背景の
+# コントラスト是正・bar の border-radius 追加）による CSS 出力の実体変更
+# のため patch バンプする。Rust API・data-* セレクタ・CSS 変数名の削除
+# 改名は伴わない。
+version = "0.79.5"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
