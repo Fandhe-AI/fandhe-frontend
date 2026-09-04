@@ -1358,7 +1358,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # stroke-width/stroke-linejoin・`axis-label` の font-family）による CSS
 # 出力の実体変更のため patch バンプする。Rust API・data-*・CSS 変数名は
 # 不変。
-version = "0.79.10"
+# イシュー #1598: scatter-chart のスタイル調整（root の overflow・point の
+# stroke-width 表記統一）による CSS 出力の実体変更のため patch バンプ
+# する。Rust API・data-*・CSS 変数名は不変。
+version = "0.79.11"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
