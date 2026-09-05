@@ -1442,6 +1442,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # bool` から `flags: EditableInputFlags` へシグネチャ変更）に伴い、本
 # クレートの `editable::root`（styled ラッパー）も同様に追随したため 0.x
 # のマイナーバンプとする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
+# イシュー #1605（combobox の参照突合）: headless-ui 側の破壊的変更
+# （`combobox::{root, control, input, trigger, clear_trigger}` へ
+# `ComboboxProps.readonly` 追加に伴うシグネチャ変更）に伴い、本クレートの
+# 再エクスポート署名も追随したためマイナーバンプで 0.83.0 へ到達していたが、
+# イシュー #1606（editable）が独立に同じ 0.83.0 へ到達していたブランチとの
+# マージにより、双方の実体変更を統合した結果として 0.84.0 へさらにマイナー
+# バンプしていた。この後、main 側でイシュー #1614（password-input の参照
+# 突合、PR #1880）が独立に別内容で同じ 0.84.0 へ到達していたため、本 PR
+# （#1605 combobox）ブランチへの base 取り込みマージで再び同一版数への
+# 偶発的衝突が生じた。headless-ui 側の依存先バンプ（0.33.0 → 0.34.0）へ
+# の追随も含め、双方の実体変更を統合した結果として 0.85.0 へさらにマイナー
+# バンプした（同一版数への偶発的衝突をそのまま採用しない）。
 # イシュー #1609（file-upload の参照突合）: headless-ui 側の破壊的変更
 # （`FileUploadProps`/`ItemType` 新設に伴う `file_upload::*` シグネチャ
 # 変更）に伴い、本クレートの `file_upload::root`（styled ラッパー）も
@@ -1455,11 +1467,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # （`RatingGroupProps` 新設に伴う `rating_group::root`（styled ラッパー）
 # シグネチャ変更）に追随したため 0.x のマイナーバンプとする
 # （`.claude/rules/coding-rust.md` 破壊的変更規定）。
-# base main 取り込み時のマージ注記: #1617 と #1610 が独立に 0.86.0 から
-# 0.87.0 へマイナーバンプしていたため衝突を避け 0.88.0 とする。
-version = "0.88.0"
-# base main 取り込み時のマージ注記: #1609 と #1615 が独立に 0.85.0 へ
-# 到達していたため衝突を避け 0.86.0 とする。
+# base main 取り込み時のマージ注記: 本ブランチは #1617（rating-group）に
+# より独立に 0.88.0 へマイナーバンプしていたが、main 側は #1610/#1611/#1605
+# 等の統合により独立に 0.89.0 へ到達していたため衝突を避け、rating-group の
+# 破壊的変更分を反映して 0.90.0 とする（同一版数への偶発的衝突をそのまま
+# 採用しない、`docs/ci/style-refresh-version-bump-operation.md` §5）。
 # イシュー #1610（image-cropper の参照突合）: headless-ui 側の破壊的変更
 # （`ImageCropperProps` 新設に伴う `image_cropper::{root, viewport,
 # selection, handle, grid}` シグネチャ変更）に伴い、本クレートの
@@ -1472,6 +1484,15 @@ version = "0.88.0"
 # に伴い、本クレートの `listbox::root`（styled ラッパー）も同様に
 # `&ListboxProps` を転送する形へ追随したため 0.x のマイナーバンプとする
 # （`.claude/rules/coding-rust.md` 破壊的変更規定）。
+# base main 再取り込み時のマージ注記（PR #1879）: 上記 #1609〜#1611 が
+# main 側で独立に 0.85.0 から 0.88.0 まで積み上がっていた。本 PR
+# （#1605 combobox）ブランチへの base 取り込みマージにより、本ブランチの
+# combobox styled ラッパー変更（`combobox::root` が `&ComboboxProps` を
+# 追加引数として受け取るシグネチャ変更、headless-ui 0.38.0 依存追随を含む）
+# と main 側の実体変更を統合した結果として main 現在値 0.88.0 から
+# さらにマイナーバンプし 0.89.0 とする（同一版数への偶発的衝突をそのまま
+# 採用しない、`docs/ci/style-refresh-version-bump-operation.md` §5）。
+version = "0.90.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1486,7 +1507,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.37.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.39.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

@@ -64,7 +64,33 @@ name = "fandhe-frontend-headless-ui"
 # イシュー #1611: listbox の参考実装（zag.js Listbox）へ突合。`ListboxProps`
 # 新設に伴う root/label/content/item_group/item/value_text の破壊的シグネ
 # チャ変更・`item_text` の破壊的シグネチャ変更のため 0.x のマイナーバンプ。
-version = "0.37.0"
+# イシュー #1605（combobox の参照突合）: `ComboboxProps` へ `readonly`
+# フィールドを追加し、`combobox::{root, control, input, trigger,
+# clear_trigger}` のシグネチャを変更（破壊的変更）。マイナーバンプで
+# 0.32.0 へ到達していたが、イシュー #1606（editable）が独立に同じ
+# 0.32.0 へ到達していたブランチとのマージにより、双方の実体変更を
+# 統合した結果として 0.33.0 へさらにマイナーバンプしていた。この後、
+# main 側でイシュー #1614（password-input の参照突合、PR #1880）が
+# 独立に別内容で同じ 0.33.0 へ到達していたため、本 PR（#1605 combobox）
+# ブランチへの base 取り込みマージで再び同一版数への偶発的衝突が生じた。
+# 双方の実体変更（combobox の readonly 対応・password-input の readonly/
+# indicator 対応）を統合した結果として 0.34.0 へさらにマイナーバンプした
+# （上記 #1481/#1605 の precedent と同じ扱い）。
+# イシュー #1609（file-upload）〜 #1611（listbox）: main 側で独立に
+# 0.34.0 から 0.37.0 まで複数のマイナーバンプが積み上がっていた
+# （`FileUploadProps`/`PinInputProps`/`ImageCropperProps`/`ListboxProps`
+# 各新設に伴う破壊的シグネチャ変更）。本 PR（#1605 combobox）ブランチへの
+# 2 回目の base 取り込みマージにより、双方の実体変更（combobox の
+# readonly 対応・file-upload/pin-input/image-cropper/listbox の各参照
+# 突合）を統合した結果として main 現在値 0.37.0 からさらにマイナーバンプし
+# 0.38.0 とする（同一版数への偶発的衝突をそのまま採用しない、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。
+# base main 取り込み時のマージ注記: #1617（rating-group）は本ブランチ側で
+# 0.37.0 へ到達済みだったが、main 側は #1605〜#1611 の統合により独立に
+# 0.38.0 へ到達していたため衝突を避け、rating-group の破壊的変更
+# （RatingGroupProps 新設等）分を反映して 0.39.0 とする（同一版数への
+# 偶発的衝突をそのまま採用しない、`docs/ci/style-refresh-version-bump-operation.md` §5）。
+version = "0.39.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

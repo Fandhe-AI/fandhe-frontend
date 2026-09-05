@@ -270,6 +270,19 @@
 //!   （[`combobox_key_action`] doc 参照）。
 //! - **Enter は open のときのみ** claim する。closed の Enter を奪うと
 //!   フォーム内 Combobox の既定 submit 挙動を壊すため no-op のままにする。
+//! - **`data-readonly` は fail-closed で no-op**（イシュー #1605
+//!   codex-review P1 是正）: `ComboboxProps::readonly`
+//!   （`crates/headless-ui/src/combobox.rs`）が root/control/input/trigger/
+//!   clear-trigger の全パーツへ一律付与する `data-readonly` を
+//!   [`wiring::is_combobox_readonly`] が `input` 自身から確認し、readonly
+//!   のときは `handle_combobox_input_keydown` の Arrow/Enter/Escape/Home/
+//!   End をすべて claim せず既定動作もキャンセルしない（`crate::angle_slider`
+//!   の `data-disabled`/`data-readonly` 判定と同型。readonly でも
+//!   trigger/clear-trigger クリック・item クリックで選択値を変更できて
+//!   しまう抜け穴は `crate::headless::PartRef::readonly`
+//!   （`data-readonly` を独立フィールドとして保持し、同一 `data-scope`
+//!   内でのみ伝播する契約、`crate::headless::action_from_parts` 参照）が
+//!   別途塞いでいる）。
 //! - **`aria-activedescendant` は input 側へ書く**（`crates/headless-ui/src/combobox.rs`
 //!   の「input 側に配線する」契約、Menu/Select の content 側配線とは逆）。
 //!   [`wiring::set_highlight_on_host`]/[`wiring::clear_highlight_on_host`]
@@ -5879,6 +5892,24 @@ mod wiring {
         }
     }
 
+    /// `input` に `data-readonly` が付与されているかどうかを返す（イシュー
+    /// #1605 codex-review P1 是正: `ComboboxProps::readonly` を追加したのに
+    /// `handle_combobox_input_keydown` が `data-readonly` を確認しておらず、
+    /// readonly でも Arrow/Enter で listbox の開閉・選択・クリアが実行
+    /// できてしまっていた）。`ComboboxProps`
+    /// （`crates/headless-ui/src/combobox.rs::state_attrs`）は
+    /// root/control/input/trigger/clear-trigger の全パーツへ
+    /// `data-readonly` を一律付与する契約のため、実 DOM フォーカスを保持
+    /// する `input` 自身の属性判定のみで足りる（`crate::angle_slider` の
+    /// 祖先探索付き `has_noninteractive_ancestor` と異なり、Combobox は
+    /// キーボード操作の起点が常に `input` 自身であり、祖先方向の別要素へ
+    /// フォーカスが移ることがない設計のため。REQ-11 bundle size 予算の
+    /// 都合で不要な祖先探索コードは持たない、zag.js の
+    /// `interactive = !(disabled || readOnly)` 判定と同じ帰結）。
+    fn is_combobox_readonly(input: &Element) -> bool {
+        input.has_attribute("data-readonly")
+    }
+
     /// Combobox の `input`（`role="combobox"`）上の keydown を処理する
     /// （イシュー #1071、モジュール doc §Combobox 参照）。
     ///
@@ -5888,6 +5919,11 @@ mod wiring {
     /// 封じ込め検査・click 合成・highlight 反映のみを担う。
     fn handle_combobox_input_keydown(root: &Element, input: &Element, event: &KeyboardEvent) {
         if !root.contains(Some(input)) {
+            return;
+        }
+        // readonly は fail-closed で no-op（[`is_combobox_readonly`] doc
+        // 参照、イシュー #1605 codex-review P1 是正）。
+        if is_combobox_readonly(input) {
             return;
         }
         let Some(content) = resolve_menu_select_content(input, &COMBOBOX_SCOPE) else {

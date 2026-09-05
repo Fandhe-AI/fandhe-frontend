@@ -151,11 +151,6 @@ const KNOWN_UNCOVERED: &[(&str, &str, &str)] = &[
         "3 項目のみのデモ構成のため折り畳み表現（ellipsis）を使用しない",
     ),
     (
-        "combobox",
-        "item-group-label",
-        "単一グループのデモ構成のため item_group_label（グループ見出し）を省略",
-    ),
-    (
         "progress",
         "circle",
         "circular variant（circle/circle-track/circle-range）は linear variant と役割が重複するため未使用",
