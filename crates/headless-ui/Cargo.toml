@@ -327,7 +327,12 @@ name = "fandhe-frontend-headless-ui"
 # `role`/`aria-hidden`）のなりすまし除去（`drop_reserved`、`crate::checkbox`
 # と同型）を追加した。既存呼び出しのシグネチャは不変・出力の追加なりすまし
 # 防止のみの非破壊的変更のため、patch バンプで 0.53.1 とする。
-version = "0.53.1"
+# イシュー #1650（link-overlay の参照突合）: `link_overlay::overlay` の
+# 呼び出し側 `attrs` からの `href` なりすまし除去（`drop_reserved`、
+# `crate::breadcrumb`/`crate::link` の同型是正と同じ形）を追加した。
+# 既存呼び出しのシグネチャは不変・出力の追加なりすまし防止のみの
+# 非破壊的変更のため、patch バンプで 0.53.2 とする。
+version = "0.53.2"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

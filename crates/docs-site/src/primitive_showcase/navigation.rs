@@ -6,7 +6,7 @@
 //! `sub_content` は本デモでは未網羅とし、
 //! `tests/primitive_showcase.rs::KNOWN_UNCOVERED` に登録する。
 
-use fandhe_frontend_core::{div, p, text, Node};
+use fandhe_frontend_core::{div, el, p, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::action_bar;
 use hui::breadcrumb;
@@ -142,15 +142,43 @@ pub(super) fn link_section() -> Node {
     demo_page("Link", body)
 }
 
+/// 参考サイト（chakra-ui `LinkBox`/`LinkOverlay`。ark-ui の対応ページは
+/// 404 で実在せず、Radix Primitives/Radix Themes にも対応部品なし）の
+/// 典型構成（タイトル位置に置いた `overlay` + 説明文 + 内側の通常リンク）
+/// を再現する（イシュー #1650）。`overlay` はタイトル相当の `strong` に
+/// 包んで DOM 上の視覚的な見出し位置を示し、`root` 内の内側リンクは
+/// 別 scope（`link::root`）ではなく素の `a`（執筆規約 1「他 scope を
+/// 内包しない」）で表す。href はすべて `example.com`（RFC 2606）で内部
+/// リンク切れ検証を避ける（`crate::linkcheck` 対象外）。
 pub(super) fn link_overlay_section() -> Node {
     let body = vec![link_overlay::root(
         vec![],
         vec![
-            text("Card body content"),
-            link_overlay::overlay(
-                "https://example.com/article",
+            p(
                 vec![],
-                vec![text("Read article")],
+                vec![el(
+                    "strong",
+                    vec![],
+                    vec![link_overlay::overlay(
+                        "https://example.com/articles/getting-started",
+                        vec![],
+                        vec![text("Getting started")],
+                    )],
+                )],
+            ),
+            p(
+                vec![],
+                vec![text(
+                    "A short summary of the article shown as normal flow content.",
+                )],
+            ),
+            p(
+                vec![],
+                vec![el(
+                    "a",
+                    vec![("href", "https://example.com/authors/jane")],
+                    vec![text("By Jane")],
+                )],
             ),
         ],
     )];
