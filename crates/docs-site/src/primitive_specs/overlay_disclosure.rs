@@ -180,20 +180,6 @@ fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
 // Accordion（/primitives/accordion/）
 // ---------------------------------------------------------------------
 
-/// Examples 用の枠組み。[`crate::primitive_showcase`] のデモ本体と同じ
-/// `primitives-demo-frame`/`primitives-demo-note` class のみを使い、
-/// `h2`/`h3` は出さない（`forms_a`/`forms_b`/`forms_c_date_status` と同型の
-/// 重複実装。モジュール間の相互依存を避けるため個別に定義する）。
-fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
-    div(
-        vec![],
-        vec![
-            fandhe_frontend_core::p(vec![("class", "primitives-demo-note")], vec![text(note)]),
-            div(vec![("class", "primitives-demo-frame")], body),
-        ],
-    )
-}
-
 /// 一次情報: `crates/headless-ui/src/accordion.rs:1-24`（モジュール doc、
 /// single/multiple 2 状態機械・dispatch 契約）、`:130-150`
 /// （`AccordionProps`、イシュー #1636 で新設）、`:170-330`（`root`/`item`/
