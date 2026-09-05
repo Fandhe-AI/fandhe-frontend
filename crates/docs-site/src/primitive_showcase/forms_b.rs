@@ -13,7 +13,7 @@ use hui::segment_group;
 use hui::select;
 use hui::signature_pad::{self, Point, SignaturePad, Stroke};
 use hui::slider;
-use hui::switch;
+use hui::switch::{self, SwitchProps};
 use hui::tags_input;
 use hui::OpenState;
 
@@ -897,22 +897,64 @@ pub(super) fn slider_section() -> Node {
     demo_page("Slider", body)
 }
 
-pub(super) fn switch_section() -> Node {
-    let body = vec![switch::root(
-        true,
-        false,
+/// `switch_section` の 1 インスタンス分を組み立てる非公開ヘルパ
+/// （`checkbox_instance`〔forms_a.rs〕と同型、イシュー #1622）。`name` は
+/// フォーム送信名（インスタンス間で一意な無害なダミー値）、`label_text` は
+/// 表示ラベル。
+fn switch_instance(
+    checked: bool,
+    props: &SwitchProps,
+    name: &'static str,
+    label_text: &'static str,
+) -> Node {
+    switch::root(
+        checked,
+        props,
         vec![],
         vec![
+            switch::hidden_input(name, "on", checked, props, vec![]),
             switch::control(
-                true,
-                false,
+                checked,
+                props,
                 vec![],
-                vec![switch::thumb(true, vec![], vec![])],
+                vec![switch::thumb(checked, props, vec![], vec![])],
             ),
-            switch::label(true, vec![], vec![text("Notifications")]),
-            switch::hidden_input("notifications", "on", true, false, false, vec![]),
+            switch::label(checked, props, vec![], vec![text(label_text)]),
         ],
-    )];
+    )
+}
+
+/// `data-state`（checked/unchecked の 2 値）と
+/// `data-disabled`/`data-invalid`/`data-required`/`data-readonly` を
+/// 描き分けた 5 インスタンスを並べる（イシュー #1622、参照突合の一環。
+/// `checkbox_section`〔forms_a.rs〕と同型のデモ構成）。
+pub(super) fn switch_section() -> Node {
+    let plain = SwitchProps::default();
+    let disabled_checked = SwitchProps {
+        disabled: true,
+        ..SwitchProps::default()
+    };
+    let invalid_required_unchecked = SwitchProps {
+        invalid: true,
+        required: true,
+        ..SwitchProps::default()
+    };
+    let readonly_checked = SwitchProps {
+        readonly: true,
+        ..SwitchProps::default()
+    };
+    let body = vec![
+        switch_instance(true, &plain, "notifications", "Notifications"),
+        switch_instance(false, &plain, "wifi", "Wi-Fi"),
+        switch_instance(
+            true,
+            &disabled_checked,
+            "airplane-mode",
+            "Airplane mode (disabled)",
+        ),
+        switch_instance(false, &invalid_required_unchecked, "terms", "Accept terms"),
+        switch_instance(true, &readonly_checked, "locked", "Locked (read-only)"),
+    ];
     demo_page("Switch", body)
 }
 

@@ -47,6 +47,43 @@
 //! は変更しない（呼び出し側が `attrs` 引数へ `data_focus_visible(true)` を
 //! 合成すれば静的掲示にも使える）。
 //!
+//! # 参考サイトとの意図的な差分（イシュー #1622）
+//!
+//! ark-ui / Radix Primitives の Switch と本実装の anatomy・`data-*`・
+//! キーボード操作を突合した結果、以下は**意図的に**参考サイトへ合わせない
+//! （`docs/policy/intentional-non-adoption.md` §3.25 規則 2 の一般化）。
+//!
+//! - **`data-hover`/`data-active`/`data-focus`**: ark-ui は Root/Control/
+//!   Thumb/Label の全パーツへポインタ・フォーカスの DOM ローカル状態を
+//!   `data-*` として出力するが、本実装はこれらを出力しない
+//!   （`crates/headless-ui/src/checkbox.rs` #1602/#1874、
+//!   `crates/headless-ui/src/radio_group.rs` #1886 と同じ判断軸）。CSS
+//!   擬似クラス（`:hover`/`:active`/`:focus`）または `data-focus-visible`
+//!   （wasm-full 配線）で代替する。
+//! - **Enter キーでのトグル**: ark-ui / Radix はネイティブ実装（Radix は
+//!   `button role="switch"`、ark-ui も内部でキー配線）で Space に加え
+//!   Enter でもトグルするが、本実装は native
+//!   `<input type="checkbox" role="switch">` をそのまま使うため Enter では
+//!   反応しない（ブラウザ既定のチェックボックス操作）。WAI-ARIA APG の
+//!   Switch パターンでは Enter は Optional 扱いであり、wasm-full 側での
+//!   keydown 配線は別 issue 候補（本 issue のスコープ外）。
+//! - **`readonly` 時の native トグル抑止**: `data-readonly` は表示用の
+//!   状態掲示にとどまり、native checkbox のクリック・Space 操作を止める
+//!   配線（`fandhe-frontend-wasm-full` の change 抑止）は持たない
+//!   （`checkbox` も同じ未配線状態であり、統一的な後続対応が望ましい）。
+//! - **Radix の `button role="switch"` パターン不採用**: 本実装は ark-ui /
+//!   WAI-ARIA APG の「Switch Example Using HTML Checkbox Input」パターン
+//!   （native checkbox + `role="switch"`）を採用しており、Radix 流の
+//!   `<button>` ベース実装へは寄せない（native checked 状態が
+//!   `aria-checked` へ自動マップされる利点を維持するため）。
+//!
+//! 一方、[`hidden_input`] へも他の 4 パーツと同じ `data-state`/
+//! `data-disabled`/`data-invalid`/`data-required`/`data-readonly` を出力する
+//! （ark-ui の HiddenInput は `data-state` を持たないが、`checkbox` の
+//! `hidden_input` が同じ 5 属性を出力する契約に合わせる。値の真実源は
+//! ネイティブ `checked`/`disabled`/`required` 属性であり、`data-*` は
+//! CSS セレクタ用の補助掲示のため二重管理にはならない）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`role`/`name`/`checked`/`disabled`/
@@ -69,10 +106,18 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は [`crate::state::Checkable`]
 //!   へ全委譲することで、panic せず `HydrateError` を返す既存保証をそのまま
 //!   継承する。
+//! - フレームワークが固定する属性（`data-scope`/`data-part`/`data-state`/
+//!   `data-disabled`/`data-invalid`/`data-required`/`data-readonly`/
+//!   `aria-hidden`/`type`/`role`/`checked`/`aria-checked`/`aria-invalid`/
+//!   `name`/`value`/`disabled`/`required`）は呼び出し側 `attrs` に同名キー
+//!   （ASCII 大文字小文字無視）が含まれていても fail-closed で除去し、
+//!   フレームワーク値を優先する（`crates/headless-ui/src/checkbox.rs` の
+//!   `STATE_RESERVED`/`drop_reserved` と同型の防御。イシュー #1622 で
+//!   Switch にも導入した）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::aria_hidden;
-use crate::data_attrs::{data_disabled, data_required, data_state};
+use crate::data_attrs::{data_disabled, data_invalid, data_readonly, data_required, data_state};
 use crate::state::{checked_data_state, Checkable};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
@@ -80,20 +125,82 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 /// Switch の anatomy（`data-scope="switch"`）。
 const ANATOMY: Anatomy = anatomy("switch");
 
+/// SSR 初期描画に必要な Switch の宣言的状態フラグ束
+/// （[`crate::checkbox::CheckboxProps`] と同型。`checked` は含まない —
+/// checked は各パーツ関数の第 1 引数として独立に受け取る既存様式を
+/// [`Switch`] 昇格前から維持するため）。
+///
+/// イシュー #1622 で ark-ui / Radix Primitives との突合により新設した
+/// （是正: `invalid`/`readonly` の追加、`disabled`/`required` の全パーツ
+/// 反映への拡張）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SwitchProps {
+    /// 無効化状態。`true` で全パーツへ `data-disabled` を、
+    /// [`hidden_input`] へは native `disabled` も付与する。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で全パーツへ `data-readonly` を付与する
+    /// （native `readonly` 属性はチェックボックス/スイッチに意味を持たない
+    /// ため付与しない。`crate::checkbox::CheckboxProps::readonly` と同じ
+    /// 判断）。native トグル操作自体を抑止する配線は持たない
+    /// （モジュール冒頭「参考サイトとの意図的な差分」節参照）。
+    pub readonly: bool,
+    /// 入力検証エラー状態。`true` で全パーツへ `data-invalid` を、
+    /// [`hidden_input`] へは `aria-invalid="true"` も付与する。
+    pub invalid: bool,
+    /// 必須入力状態。`true` で全パーツへ `data-required` を、
+    /// [`hidden_input`] へは native `required` も付与する。
+    pub required: bool,
+}
+
+/// 全パーツ共通の `data-state`/`data-disabled`/`data-invalid`/`data-required`/
+/// `data-readonly` 属性列を組み立てる非公開ヘルパ
+/// （`crate::checkbox::state_attrs` と同型）。
+fn state_attrs(checked: bool, props: &SwitchProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs: Vec<(&'static str, &'static str)> =
+        vec![data_state(checked_data_state(checked))];
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_invalid(props.invalid));
+    attrs.extend(data_required(props.required));
+    attrs.extend(data_readonly(props.readonly));
+    attrs
+}
+
+/// [`state_attrs`] が全パーツへ一律付与する属性キー一覧。呼び出し側 `attrs`
+/// にこれらと同名キーが含まれていても fail-closed で除去する対象
+/// （`crate::checkbox::STATE_RESERVED` と同型）。
+const STATE_RESERVED: &[&str] = &[
+    "data-state",
+    "data-disabled",
+    "data-invalid",
+    "data-required",
+    "data-readonly",
+];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（`crate::checkbox::drop_reserved` と同型）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
 /// Root パーツ（`label`）。
 ///
 /// 内包する [`hidden_input`] との暗黙のラベル関連付けを成立させるため
 /// `<label>` 要素を使う（`for`/`id` の配線が不要になる。ark-ui と同じ方針）。
-/// checked/disabled 状態を `data-*` へ反映する。
 #[must_use]
 pub fn root<'a>(
     checked: bool,
-    disabled: bool,
+    props: &SwitchProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(checked_data_state(checked))];
-    merged.extend(data_disabled(disabled));
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(checked, props);
     merged.extend(attrs);
     ANATOMY.part("root", "label", merged, children)
 }
@@ -106,22 +213,27 @@ pub fn root<'a>(
 #[must_use]
 pub fn control<'a>(
     checked: bool,
-    disabled: bool,
+    props: &SwitchProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> =
-        vec![data_state(checked_data_state(checked)), aria_hidden(true)];
-    merged.extend(data_disabled(disabled));
+    let attrs = drop_reserved(drop_reserved(attrs, STATE_RESERVED), &["aria-hidden"]);
+    let mut merged = state_attrs(checked, props);
+    merged.push(aria_hidden(true));
     merged.extend(attrs);
     ANATOMY.part("control", "span", merged, children)
 }
 
-/// Thumb パーツ（`span`）。checked 状態のみを `data-state` へ反映する
-/// 最小主義な装飾用パーツ（[`crate::collapsible::indicator`] と同じ最小主義）。
+/// Thumb パーツ（`span`）。装飾用パーツ。
 #[must_use]
-pub fn thumb<'a>(checked: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(checked_data_state(checked))];
+pub fn thumb<'a>(
+    checked: bool,
+    props: &SwitchProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(checked, props);
     merged.extend(attrs);
     ANATOMY.part("thumb", "span", merged, children)
 }
@@ -129,11 +241,32 @@ pub fn thumb<'a>(checked: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<No
 /// Label パーツ（`span`）。ラベルテキストを表示する装飾用パーツ
 /// （意味論的なラベル関連付けは [`root`] の `<label>` 要素が担う）。
 #[must_use]
-pub fn label<'a>(checked: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(checked_data_state(checked))];
+pub fn label<'a>(
+    checked: bool,
+    props: &SwitchProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(checked, props);
     merged.extend(attrs);
     ANATOMY.part("label", "span", merged, children)
 }
+
+/// フレームワークが `hidden_input` に固定する属性キー一覧
+/// （呼び出し側 `attrs` からの偽装を fail-closed で除外する対象。
+/// `crate::checkbox::HIDDEN_INPUT_RESERVED` と同型）。
+const HIDDEN_INPUT_RESERVED: &[&str] = &[
+    "type",
+    "role",
+    "checked",
+    "aria-checked",
+    "aria-invalid",
+    "name",
+    "value",
+    "disabled",
+    "required",
+];
 
 /// HiddenInput パーツ（`input type="checkbox" role="switch"`）。
 ///
@@ -142,29 +275,32 @@ pub fn label<'a>(checked: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<No
 /// を担う（`aria-checked` は自動マップされるため明示付与しない）。
 /// `checked`/`disabled`/`required` は存在属性として `true` のときのみ
 /// 出力する（ark-ui 流の boolean 属性規約、[`crate::data_attrs`] と同型）。
+/// `props.invalid` のとき `aria-invalid="true"` を付与する
+/// （`crate::checkbox::hidden_input` と同型。イシュー #1622 で追加）。
 #[must_use]
 pub fn hidden_input<'a>(
     name: &'a str,
     value: &'a str,
     checked: bool,
-    disabled: bool,
-    required: bool,
+    props: &SwitchProps,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![
-        ("type", "checkbox"),
-        ("role", "switch"),
-        ("name", name),
-        ("value", value),
-    ];
+    let attrs = drop_reserved(drop_reserved(attrs, STATE_RESERVED), HIDDEN_INPUT_RESERVED);
+    let mut merged = state_attrs(checked, props);
+    merged.push(("type", "checkbox"));
+    merged.push(("role", "switch"));
+    merged.push(("name", name));
+    merged.push(("value", value));
     if checked {
         merged.push(("checked", ""));
     }
-    if disabled {
+    if props.invalid {
+        merged.push(("aria-invalid", "true"));
+    }
+    if props.disabled {
         merged.push(("disabled", ""));
     }
-    merged.extend(data_required(required));
-    if required {
+    if props.required {
         merged.push(("required", ""));
     }
     merged.extend(attrs);
@@ -225,34 +361,44 @@ impl Switch {
     #[must_use]
     pub fn root<'a>(
         &self,
-        disabled: bool,
+        props: &SwitchProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        root(self.checkable.is_checked(), disabled, attrs, children)
+        root(self.checkable.is_checked(), props, attrs, children)
     }
 
     /// [`control`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn control<'a>(
         &self,
-        disabled: bool,
+        props: &SwitchProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        control(self.checkable.is_checked(), disabled, attrs, children)
+        control(self.checkable.is_checked(), props, attrs, children)
     }
 
     /// [`thumb`] へ現在の状態を注入する利便メソッド。
     #[must_use]
-    pub fn thumb<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        thumb(self.checkable.is_checked(), attrs, children)
+    pub fn thumb<'a>(
+        &self,
+        props: &SwitchProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        thumb(self.checkable.is_checked(), props, attrs, children)
     }
 
     /// [`label`] へ現在の状態を注入する利便メソッド。
     #[must_use]
-    pub fn label<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        label(self.checkable.is_checked(), attrs, children)
+    pub fn label<'a>(
+        &self,
+        props: &SwitchProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        label(self.checkable.is_checked(), props, attrs, children)
     }
 
     /// [`hidden_input`] へ現在の状態を注入する利便メソッド。
@@ -261,18 +407,10 @@ impl Switch {
         &self,
         name: &'a str,
         value: &'a str,
-        disabled: bool,
-        required: bool,
+        props: &SwitchProps,
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
-        hidden_input(
-            name,
-            value,
-            self.checkable.is_checked(),
-            disabled,
-            required,
-            attrs,
-        )
+        hidden_input(name, value, self.checkable.is_checked(), props, attrs)
     }
 }
 
@@ -288,14 +426,20 @@ impl Component for Switch {
     /// [`hidden_input`] は含めない）。公開 UI としての利用は想定しない
     /// （実際の UI 構築は §パーツ関数群を呼び出し側が組み合わせる）。
     fn view(&self) -> Node {
+        let props = SwitchProps::default();
         self.root(
-            false,
+            &props,
             Vec::new(),
             vec![control(
                 self.checkable.is_checked(),
-                false,
+                &props,
                 Vec::new(),
-                vec![thumb(self.checkable.is_checked(), Vec::new(), Vec::new())],
+                vec![thumb(
+                    self.checkable.is_checked(),
+                    &props,
+                    Vec::new(),
+                    Vec::new(),
+                )],
             )],
         )
     }
@@ -323,11 +467,31 @@ mod tests {
     use fandhe_frontend_core::{render, text};
     use fandhe_frontend_interactive::{dispatch, render_for_hydration};
 
+    fn plain() -> SwitchProps {
+        SwitchProps::default()
+    }
+
+    fn disabled() -> SwitchProps {
+        SwitchProps {
+            disabled: true,
+            ..SwitchProps::default()
+        }
+    }
+
+    fn invalid_required_readonly() -> SwitchProps {
+        SwitchProps {
+            invalid: true,
+            required: true,
+            readonly: true,
+            ..SwitchProps::default()
+        }
+    }
+
     // --- 各パーツの data-scope/data-part/data-state 出力 ---
 
     #[test]
     fn root_outputs_scope_part_and_state() {
-        let html = render(&root(false, false, vec![], vec![]));
+        let html = render(&root(false, &plain(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="switch""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(html.contains(r#"data-state="unchecked""#));
@@ -337,19 +501,19 @@ mod tests {
 
     #[test]
     fn root_checked_true_outputs_checked_state() {
-        let html = render(&root(true, false, vec![], vec![]));
+        let html = render(&root(true, &plain(), vec![], vec![]));
         assert!(html.contains(r#"data-state="checked""#));
     }
 
     #[test]
     fn root_disabled_true_adds_data_disabled() {
-        let html = render(&root(true, true, vec![], vec![]));
+        let html = render(&root(true, &disabled(), vec![], vec![]));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn control_outputs_scope_part_state_and_aria_hidden() {
-        let html = render(&control(true, false, vec![], vec![]));
+        let html = render(&control(true, &plain(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="switch""#));
         assert!(html.contains(r#"data-part="control""#));
         assert!(html.contains(r#"data-state="checked""#));
@@ -360,13 +524,13 @@ mod tests {
 
     #[test]
     fn control_disabled_true_adds_data_disabled() {
-        let html = render(&control(false, true, vec![], vec![]));
+        let html = render(&control(false, &disabled(), vec![], vec![]));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn thumb_outputs_scope_part_and_state_only() {
-        let html = render(&thumb(true, vec![], vec![]));
+        let html = render(&thumb(true, &plain(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="switch""#));
         assert!(html.contains(r#"data-part="thumb""#));
         assert!(html.contains(r#"data-state="checked""#));
@@ -374,7 +538,7 @@ mod tests {
 
     #[test]
     fn label_outputs_scope_part_and_state() {
-        let html = render(&label(false, vec![], vec![text("Airplane mode")]));
+        let html = render(&label(false, &plain(), vec![], vec![text("Airplane mode")]));
         assert!(html.contains(r#"data-scope="switch""#));
         assert!(html.contains(r#"data-part="label""#));
         assert!(html.contains(r#"data-state="unchecked""#));
@@ -383,7 +547,7 @@ mod tests {
 
     #[test]
     fn hidden_input_outputs_type_role_name_value() {
-        let html = render(&hidden_input("wifi", "on", false, false, false, vec![]));
+        let html = render(&hidden_input("wifi", "on", false, &plain(), vec![]));
         assert!(html.contains(r#"data-scope="switch""#));
         assert!(html.contains(r#"data-part="hidden-input""#));
         assert!(html.contains("<input"));
@@ -391,14 +555,17 @@ mod tests {
         assert!(html.contains(r#"role="switch""#));
         assert!(html.contains(r#"name="wifi""#));
         assert!(html.contains(r#"value="on""#));
-        assert!(!html.contains("checked"));
+        assert!(html.contains(r#"data-state="unchecked""#));
+        assert!(!html.contains(r#"checked="""#));
         assert!(!html.contains("disabled"));
         assert!(!html.contains("required"));
     }
 
     #[test]
     fn hidden_input_checked_disabled_required_are_present_attrs() {
-        let html = render(&hidden_input("wifi", "on", true, true, true, vec![]));
+        let mut props = disabled();
+        props.required = true;
+        let html = render(&hidden_input("wifi", "on", true, &props, vec![]));
         assert!(html.contains(r#"checked="""#));
         assert!(html.contains(r#"disabled="""#));
         assert!(html.contains(r#"required="""#));
@@ -407,11 +574,84 @@ mod tests {
 
     #[test]
     fn hidden_input_omits_boolean_attrs_when_false() {
-        let html = render(&hidden_input("wifi", "on", false, false, false, vec![]));
+        let html = render(&hidden_input("wifi", "on", false, &plain(), vec![]));
         assert!(!html.contains(r#"checked="""#));
         assert!(!html.contains(r#"disabled="""#));
         assert!(!html.contains(r#"required="""#));
         assert!(!html.contains("data-required"));
+    }
+
+    #[test]
+    fn hidden_input_invalid_true_adds_aria_invalid() {
+        let mut props = plain();
+        props.invalid = true;
+        let html = render(&hidden_input("wifi", "on", false, &props, vec![]));
+        assert!(html.contains(r#"aria-invalid="true""#));
+        assert!(html.contains(r#"data-invalid="""#));
+    }
+
+    #[test]
+    fn hidden_input_valid_omits_aria_invalid() {
+        let html = render(&hidden_input("wifi", "on", false, &plain(), vec![]));
+        assert!(!html.contains("aria-invalid"));
+    }
+
+    // --- イシュー #1622: SwitchProps の全パーツ反映 ---
+
+    #[test]
+    fn root_reflects_invalid_readonly_required() {
+        let html = render(&root(false, &invalid_required_readonly(), vec![], vec![]));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+        assert!(html.contains(r#"data-required="""#));
+    }
+
+    #[test]
+    fn control_reflects_invalid_readonly_required() {
+        let html = render(&control(
+            false,
+            &invalid_required_readonly(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+        assert!(html.contains(r#"data-required="""#));
+    }
+
+    #[test]
+    fn thumb_reflects_disabled_invalid_readonly_required() {
+        let mut props = invalid_required_readonly();
+        props.disabled = true;
+        let html = render(&thumb(false, &props, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+        assert!(html.contains(r#"data-required="""#));
+    }
+
+    #[test]
+    fn label_reflects_disabled_invalid_readonly_required() {
+        let mut props = invalid_required_readonly();
+        props.disabled = true;
+        let html = render(&label(false, &props, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+        assert!(html.contains(r#"data-required="""#));
+    }
+
+    #[test]
+    fn hidden_input_reflects_readonly_as_data_attr_without_native_readonly() {
+        let html = render(&hidden_input(
+            "wifi",
+            "on",
+            false,
+            &invalid_required_readonly(),
+            vec![],
+        ));
+        assert!(html.contains(r#"data-readonly="""#));
+        assert!(!html.contains(r#" readonly"#));
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側 attrs の data-scope/data-part 偽装除去） ---
@@ -420,13 +660,80 @@ mod tests {
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&root(
             false,
-            false,
+            &plain(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
         assert!(html.contains(r#"data-scope="switch""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    // --- イシュー #1622: 予約キー除去（呼び出し側 attrs による状態偽装の防止） ---
+
+    #[test]
+    fn reserved_state_keys_in_caller_attrs_are_dropped_on_root() {
+        let html = render(&root(
+            false,
+            &plain(),
+            vec![
+                ("data-state", "checked"),
+                ("DATA-DISABLED", ""),
+                ("data-invalid", ""),
+                ("data-required", ""),
+                ("data-readonly", ""),
+            ],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-state="unchecked""#));
+        assert_eq!(html.matches("data-state").count(), 1);
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-required"));
+        assert!(!html.contains("data-readonly"));
+    }
+
+    #[test]
+    fn reserved_keys_in_caller_attrs_are_dropped_on_hidden_input() {
+        let html = render(&hidden_input(
+            "wifi",
+            "on",
+            false,
+            &plain(),
+            vec![
+                ("type", "text"),
+                ("ROLE", "textbox"),
+                ("checked", "checked"),
+                ("aria-checked", "true"),
+                ("aria-invalid", "true"),
+                ("name", "attacker"),
+                ("value", "attacker"),
+                ("disabled", ""),
+                ("required", ""),
+            ],
+        ));
+        assert!(html.contains(r#"type="checkbox""#));
+        assert!(html.contains(r#"role="switch""#));
+        assert!(html.contains(r#"name="wifi""#));
+        assert!(html.contains(r#"value="on""#));
+        assert!(!html.contains("aria-checked"));
+        assert!(!html.contains("aria-invalid"));
+        assert!(!html.contains("checked=\"checked\""));
+        assert!(!html.contains("attacker"));
+        assert!(!html.contains(r#"disabled="""#));
+        assert!(!html.contains(r#"required="""#));
+    }
+
+    #[test]
+    fn control_aria_hidden_cannot_be_overridden_by_caller() {
+        let html = render(&control(
+            false,
+            &plain(),
+            vec![("aria-hidden", "false")],
+            vec![],
+        ));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert_eq!(html.matches("aria-hidden").count(), 1);
     }
 
     // --- Switch: dispatch 統合 ---
@@ -439,16 +746,15 @@ mod tests {
     #[test]
     fn switch_dispatch_toggle_changes_data_state() {
         let mut s = Switch::default();
-        assert!(render(&s.root(false, vec![], vec![])).contains(r#"data-state="unchecked""#));
+        let props = SwitchProps::default();
+        assert!(render(&s.root(&props, vec![], vec![])).contains(r#"data-state="unchecked""#));
 
         assert!(dispatch(&mut s, "toggle", ""));
-        assert!(render(&s.root(false, vec![], vec![])).contains(r#"data-state="checked""#));
-        assert!(render(&s.control(false, vec![], vec![])).contains(r#"data-state="checked""#));
-        assert!(render(&s.thumb(vec![], vec![])).contains(r#"data-state="checked""#));
-        assert!(render(&s.label(vec![], vec![])).contains(r#"data-state="checked""#));
-        assert!(
-            render(&s.hidden_input("wifi", "on", false, false, vec![])).contains(r#"checked="""#)
-        );
+        assert!(render(&s.root(&props, vec![], vec![])).contains(r#"data-state="checked""#));
+        assert!(render(&s.control(&props, vec![], vec![])).contains(r#"data-state="checked""#));
+        assert!(render(&s.thumb(&props, vec![], vec![])).contains(r#"data-state="checked""#));
+        assert!(render(&s.label(&props, vec![], vec![])).contains(r#"data-state="checked""#));
+        assert!(render(&s.hidden_input("wifi", "on", &props, vec![])).contains(r#"checked="""#));
     }
 
     #[test]
@@ -516,8 +822,7 @@ mod tests {
             ATTR_BREAK_PAYLOAD,
             ATTR_BREAK_PAYLOAD,
             false,
-            false,
-            false,
+            &plain(),
             vec![],
         ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
@@ -528,7 +833,7 @@ mod tests {
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
             false,
-            false,
+            &plain(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
             vec![],
         ));
@@ -539,6 +844,7 @@ mod tests {
     fn children_text_is_escaped_on_render() {
         let html = render(&label(
             true,
+            &plain(),
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));

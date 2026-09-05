@@ -210,7 +210,9 @@ use crate::recipe::{
 // hydration が必要な呼び出し側は `fandhe_frontend_headless_ui::switch::Switch`
 // を直接 import する。
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
-pub use fandhe_frontend_headless_ui::switch::{control, hidden_input, label, thumb, SwitchAction};
+pub use fandhe_frontend_headless_ui::switch::{
+    control, hidden_input, label, thumb, SwitchAction, SwitchProps,
+};
 
 /// headless `switch` anatomy の `data-part` 一覧（`crates/headless-ui/src/switch.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約。ずれると [`stylesheet`] が
@@ -512,10 +514,17 @@ pub fn stylesheet() -> String {
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::switch::{self, SwitchAction as _};
+/// use fandhe_frontend_pre_styled_ui::switch::{self, SwitchAction as _, SwitchProps};
 /// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 ///
-/// let node = switch::root(Size::Md, ColorPalette::Accent, false, false, vec![], vec![]);
+/// let node = switch::root(
+///     Size::Md,
+///     ColorPalette::Accent,
+///     false,
+///     &SwitchProps::default(),
+///     vec![],
+///     vec![],
+/// );
 /// assert!(render(&node).contains(r#"data-scope="switch" data-part="root""#));
 /// ```
 #[must_use]
@@ -523,7 +532,7 @@ pub fn root<'a>(
     size: Size,
     palette: ColorPalette,
     checked: bool,
-    disabled: bool,
+    props: &SwitchProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -532,7 +541,7 @@ pub fn root<'a>(
         recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::switch::root(checked, disabled, merged, children)
+    fandhe_frontend_headless_ui::switch::root(checked, props, merged, children)
 }
 
 #[cfg(test)]
@@ -662,7 +671,7 @@ mod tests {
             Size::Md,
             ColorPalette::Accent,
             false,
-            false,
+            &SwitchProps::default(),
             vec![],
             vec![],
         ));
@@ -676,7 +685,7 @@ mod tests {
             Size::Md,
             ColorPalette::Accent,
             false,
-            false,
+            &SwitchProps::default(),
             vec![],
             vec![],
         ));
@@ -697,7 +706,7 @@ mod tests {
                 size,
                 ColorPalette::Accent,
                 false,
-                false,
+                &SwitchProps::default(),
                 vec![],
                 vec![],
             ));
@@ -715,7 +724,14 @@ mod tests {
             (ColorPalette::Danger, "fd-switch--color-palette-danger"),
             (ColorPalette::Neutral, "fd-switch--color-palette-neutral"),
         ] {
-            let html = render(&root(Size::Md, palette, false, false, vec![], vec![]));
+            let html = render(&root(
+                Size::Md,
+                palette,
+                false,
+                &SwitchProps::default(),
+                vec![],
+                vec![],
+            ));
             assert!(html.contains(class), "palette={palette:?} -> {html}");
         }
     }
@@ -726,7 +742,7 @@ mod tests {
             Size::Md,
             ColorPalette::Accent,
             false,
-            false,
+            &SwitchProps::default(),
             vec![("class", "attacker-controlled")],
             vec![],
         ));
@@ -844,7 +860,7 @@ mod tests {
             Size::Md,
             ColorPalette::Accent,
             false,
-            false,
+            &SwitchProps::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
@@ -861,7 +877,7 @@ mod tests {
             Size::Md,
             ColorPalette::Accent,
             false,
-            false,
+            &SwitchProps::default(),
             vec![("data-x", "\" onmouseover=\"alert(1)")],
             vec![],
         ));
@@ -875,6 +891,7 @@ mod tests {
         // 効くことを固定する（headless ラッパー第 1・2 弾と同じ回帰）。
         let html = render(&label(
             false,
+            &SwitchProps::default(),
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));
@@ -885,7 +902,13 @@ mod tests {
     #[test]
     fn reexported_hidden_input_name_value_payload_is_escaped_on_render() {
         const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
-        let html = render(&hidden_input(PAYLOAD, PAYLOAD, false, false, false, vec![]));
+        let html = render(&hidden_input(
+            PAYLOAD,
+            PAYLOAD,
+            false,
+            &SwitchProps::default(),
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
@@ -900,7 +923,7 @@ mod tests {
         let mut s = Switch::default();
         assert!(!s.is_checked());
 
-        let ssr_html = render(&s.root(false, vec![], vec![]));
+        let ssr_html = render(&s.root(&SwitchProps::default(), vec![], vec![]));
         assert!(ssr_html.contains(r#"data-state="unchecked""#));
 
         assert!(dispatch(&mut s, "toggle", ""));
