@@ -111,11 +111,70 @@
 //! しない）。受理した値にも [`ImageCropper::new`] 相当の正規化を再適用する
 //! （多層防御、[`crate::slider::Slider`] と同型）。
 //!
+//! # 参照突合（イシュー #1610、ark-ui/zag.js `image-cropper` machine との対比）
+//!
+//! 一次情報は ark-ui docs（Image Cropper ページ）と zag.js
+//! `packages/machines/image-cropper/src/*.ts`（`connect.ts`/`machine.ts`、
+//! main、2026-09-05 取得。Radix Primitives に同等部品は無い）。差分の是正・
+//! 意図的な非追随は以下のとおり（詳細は PR 本文の差分表を参照）:
+//!
+//! - **是正（WAI-ARIA モデルの入れ替え）**: 参照実装はキーボード操作の
+//!   受け口を **[`selection`]**（focusable な `role="slider"` +
+//!   `aria-roledescription="2d slider"` + `aria-valuemin`/`aria-valuemax`/
+//!   `aria-valuenow`/`aria-valuetext`）へ集約し、[`handle`] は
+//!   `role="presentation"` + `aria-hidden="true"`（非 focusable）とする。
+//!   本モジュールも同じモデルへ入れ替えた（旧実装は handle 側が
+//!   focusable + 方位別 `aria-label` を持っていた。
+//!   [`HandlePosition::aria_label`] は公開 API として残すが handle からは
+//!   出力しない）。[`viewport`] は `role="presentation"`、[`grid`] は
+//!   `aria-hidden="true"` を新設。
+//! - **是正（`data-*` 語彙）**: `data-handle-position` → **`data-position`**
+//!   へ改名（参照実装の `data-position` 語彙と一致させる。値は
+//!   [`HandlePosition::as_str`] のまま不変）。[`ImageCropperProps`] を新設
+//!   し `data-disabled`（root/viewport/selection/handle）・`data-dragging`
+//!   （root/selection/grid、SSR 静的表現。[`crate::data_attrs::data_dragging`]
+//!   と同じ契約で状態機械のフィールドにはしない）・[`GridAxis`] 経由の
+//!   `data-axis`（grid）を追加。
+//! - **是正（キーボード対応表）**: [`action_for_key`] を追加し、Arrow =
+//!   crop 移動（nudge）・Alt+Arrow = `se` ハンドル基準のリサイズ・
+//!   Shift/Ctrl(Cmd) で step 拡大（[`NUDGE_STEP`]/[`NUDGE_STEP_SHIFT`]/
+//!   [`NUDGE_STEP_CTRL`]）という参照実装の対応表を純粋関数として固定した。
+//!   **ただし** DOM への keydown 配線（`fandhe-frontend-wasm-full`）は
+//!   本コンポーネントに存在せず（本モジュール「スコープ外」節参照）、本
+//!   イシューでも追加しない。`action_for_key` はその受け皿として機能し、
+//!   結果の [`ImageCropperAction`] は既存の [`Component::update`] 正規化
+//!   （境界クランプ・アスペクト比・`min_size`）をそのまま経由する。
+//! - **意図的に追随しない**（理由付き）:
+//!   - `+`/`-`/`=`/`_`（zoom）は非対応（[`action_for_key`] は `None`）。
+//!     zoom は本モジュール「スコープ外」節のまま。
+//!   - `data-shape`/`data-fixed`/`data-panning`/`data-pinch` は
+//!     cropShape circle・fixedCropArea（画像パン）・ピンチズームという
+//!     スコープ外機能に紐づく語彙のため追加しない。
+//!   - image の `data-ready`/`data-flip-*`、selection の `data-measured`
+//!     は画像ロード完了・反転・レイアウト計測というクライアント側の計測/
+//!     装飾関心であり、`docs/policy/intentional-non-adoption.md` §3.25
+//!     規則 2（装飾・レイアウト計測は headless へ持ち込まない）に従い
+//!     追加しない。
+//!   - root の `aria-live`/`aria-description`/`aria-busy`/`aria-controls`
+//!     は、ロード状態と id 配管を持たない SSR 静的マークアップでは決定的
+//!     に出せないため追加しない。矩形状態の読み上げは selection の
+//!     `aria-valuetext` で担保する。
+//!   - image の `aria-hidden="true"` + `alt=""` へは合わせない。`alt`
+//!     必須（[`crate::avatar::image`] と同じ a11y 方針）を維持する。
+//!   - CSS カスタムプロパティ（`--crop-*` 等）の headless 出力は §3.25
+//!     規則 2 により追加しない（`fandhe-frontend-pre-styled-ui` の
+//!     `--fandhe-image-cropper-*` の責務のまま）。
+//!
 //! # ARIA
 //!
 //! [`root`] は `role="group"` + `aria-roledescription="image cropper"`。
-//! [`handle`] は focusable（`tabindex="0"`）+ 方位別の静的 `aria-label`
-//! （[`HandlePosition::aria_label`]）を持つ。
+//! [`viewport`] は `role="presentation"`。[`selection`] は focusable
+//! （`disabled` でなければ `tabindex="0"`）な `role="slider"` +
+//! `aria-roledescription="2d slider"` + `aria-valuemin`/`aria-valuemax`/
+//! `aria-valuenow`/`aria-valuetext`（[`selection`] 参照）。[`handle`] は
+//! `role="presentation"` + `aria-hidden="true"`（非 focusable。方位別
+//! `aria-label` は既定では出力しない、[`HandlePosition::aria_label`]
+//! 参照）。[`grid`] は `aria-hidden="true"`。
 //!
 //! # セキュリティ不変条件
 //!
@@ -145,19 +204,24 @@
 //! - **pointer ドラッグ・キーボード nudge の DOM 配線**: 他コンポーネント
 //!   同様、クライアントランタイム（`fandhe-frontend-wasm-full`）側の
 //!   後続責務とする。本モジュールは SSR 静的マークアップと dispatch 契約
-//!   のみを提供する。
+//!   のみを提供する。イシュー #1610 で追加した [`action_for_key`] は
+//!   `KeyboardEvent.key` 相当の文字列を [`ImageCropperAction`] へ写す
+//!   純粋関数の受け皿のみを提供し、実際の DOM keydown 配線は本項の後続
+//!   責務のまま変わらない。
 //! - **zoom / rotation / flip / cropShape circle**（ark-ui のオプション群）。
 
 use crate::anatomy::{anatomy, Anatomy};
+use crate::data_attrs::{data_disabled, data_dragging};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
 /// ImageCropper の anatomy（`data-scope="image-cropper"`）。
 const ANATOMY: Anatomy = anatomy("image-cropper");
 
-/// [`handle`] の 8 方位。`data-handle-position` の属性値・resize
-/// アンカー規則（モジュール doc「resize のアンカー規則」参照）の両方の
-/// 元になる、本モジュールで唯一の方位表現。
+/// [`handle`] の 8 方位。`data-position`（イシュー #1610 で
+/// `data-handle-position` から改名）の属性値・resize アンカー規則
+/// （モジュール doc「resize のアンカー規則」参照）の両方の元になる、
+/// 本モジュールで唯一の方位表現。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HandlePosition {
     /// 北（上辺中央）。
@@ -179,7 +243,8 @@ pub enum HandlePosition {
 }
 
 impl HandlePosition {
-    /// `data-handle-position` 属性値文字列。
+    /// `data-position` 属性値文字列（イシュー #1610 で
+    /// `data-handle-position` から改名）。
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -211,7 +276,11 @@ impl HandlePosition {
         }
     }
 
-    /// [`handle`] の静的 `aria-label`（方位別、`&'static str` 固定）。
+    /// 方位別の静的 `aria-label`（`&'static str` 固定）。イシュー #1610 で
+    /// [`handle`] は `role="presentation"` + `aria-hidden="true"`
+    /// （非 focusable）へ変わったため、[`handle`] 自体は既定でこの値を
+    /// 出力しない（モジュール doc「参照突合」節参照）。利用者がツール
+    /// チップ等の別要素へ使う用途向けに公開 API として残す。
     #[must_use]
     pub const fn aria_label(self) -> &'static str {
         match self {
@@ -239,6 +308,100 @@ impl HandlePosition {
             Self::Se,
             Self::Sw,
         ]
+    }
+}
+
+/// root/viewport/selection/handle 共通の状態束（[`crate::angle_slider::AngleSliderProps`]
+/// と同型の判断。イシュー #1610 で参照実装（`data-disabled`/`data-dragging`）に
+/// 突合するため新設）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ImageCropperProps {
+    /// `true` で `data-disabled` を root/viewport/selection/handle へ付与し、
+    /// [`selection`] を `tabindex="-1"` + `aria-disabled="true"` にする。
+    pub disabled: bool,
+    /// `true` で `data-dragging` を root/selection/grid へ付与する（SSR
+    /// 静的表現。[`crate::data_attrs::data_dragging`] と同じ契約で状態機械の
+    /// フィールドにはしない）。
+    pub dragging: bool,
+}
+
+/// [`grid`] の軸（zag `getGridProps(axis)` 相当。anatomy レベルの語彙で
+/// あり、`None` は現行どおり単一コンテナを表す）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GridAxis {
+    /// 横方向のグリッド線。
+    Horizontal,
+    /// 縦方向のグリッド線。
+    Vertical,
+}
+
+impl GridAxis {
+    /// `data-axis` 属性値文字列。
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Horizontal => "horizontal",
+            Self::Vertical => "vertical",
+        }
+    }
+}
+
+/// キーボード nudge の既定 step（zag 既定値 `nudgeStep`）。
+pub const NUDGE_STEP: i32 = 1;
+/// Shift 押下時の nudge step（zag 既定値 `nudgeStepShift`）。
+pub const NUDGE_STEP_SHIFT: i32 = 10;
+/// Ctrl/Cmd 押下時の nudge step（zag 既定値 `nudgeStepCtrl`）。
+pub const NUDGE_STEP_CTRL: i32 = 50;
+
+/// [`action_for_key`] へ渡すキー修飾状態（`KeyboardEvent` の
+/// `altKey`/`shiftKey`/`ctrlKey || metaKey` 相当）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct KeyModifiers {
+    /// Alt キー押下（`true` で Move ではなく `Se` ハンドル基準の Resize）。
+    pub alt: bool,
+    /// Shift キー押下（[`NUDGE_STEP_SHIFT`] を採用）。
+    pub shift: bool,
+    /// Ctrl または Cmd（Meta）キー押下（[`NUDGE_STEP_CTRL`] を採用、
+    /// `shift` より優先）。
+    pub ctrl_or_meta: bool,
+}
+
+/// `KeyboardEvent.key` 相当のクライアント由来・非信頼文字列を
+/// [`ImageCropperAction`] へ写す純粋関数（モジュール doc「参照突合
+/// （イシュー #1610）」節参照）。DOM への配線は行わない（呼び出し側 —
+/// 将来の `fandhe-frontend-wasm-full` 配線が想定される — の責務）。
+///
+/// 対応表（zag `connect.ts`/`machine.ts` 準拠）: `ArrowLeft`/`ArrowRight`/
+/// `ArrowUp`/`ArrowDown` は [`ImageCropperAction::Move`]（`alt` 押下時は
+/// [`ImageCropperAction::Resize`]、`handle` は常に [`HandlePosition::Se`]）。
+/// step は `ctrl_or_meta` なら [`NUDGE_STEP_CTRL`]、そうでなく `shift` なら
+/// [`NUDGE_STEP_SHIFT`]、それ以外は [`NUDGE_STEP`]。zoom キー
+/// （`+`/`=`/`-`/`_`）を含む未知キーは `None`（fail-closed。zoom はスコープ
+/// 外、モジュール doc「スコープ外」節参照）。
+#[must_use]
+pub fn action_for_key(key: &str, modifiers: KeyModifiers) -> Option<ImageCropperAction> {
+    let step = if modifiers.ctrl_or_meta {
+        NUDGE_STEP_CTRL
+    } else if modifiers.shift {
+        NUDGE_STEP_SHIFT
+    } else {
+        NUDGE_STEP
+    };
+    let (dx, dy) = match key {
+        "ArrowLeft" => (-step, 0),
+        "ArrowRight" => (step, 0),
+        "ArrowUp" => (0, -step),
+        "ArrowDown" => (0, step),
+        _ => return None,
+    };
+    if modifiers.alt {
+        Some(ImageCropperAction::Resize {
+            handle: HandlePosition::Se,
+            dx,
+            dy,
+        })
+    } else {
+        Some(ImageCropperAction::Move { dx, dy })
     }
 }
 
@@ -438,19 +601,36 @@ fn normalize(
 /// Root パーツ（`div`）。`role="group"` + `aria-roledescription` で
 /// WAI-ARIA の一般的なグルーピングパターンに従う（ImageCropper 専用の
 /// APG パターンは存在しないため、chakra-ui 実装に倣い group ロールを使う）。
+/// [`ImageCropperProps`] に応じて `data-disabled`/`data-dragging` を
+/// 付与する（イシュー #1610、モジュール doc「参照突合」節参照）。
 #[must_use]
-pub fn root<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn root<'a>(
+    props: &ImageCropperProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![("role", "group"), ("aria-roledescription", "image cropper")];
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_dragging(props.dragging));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
 
 /// Viewport パーツ（`div`）。画像・selection・grid を包含するクリップ
 /// コンテナ（styled 層が `overflow: hidden` を付与する想定）。
+/// `role="presentation"`（装飾用コンテナ、イシュー #1610 参照実装突合）+
+/// [`ImageCropperProps`] に応じた `data-disabled` を出力する。
 #[must_use]
-pub fn viewport<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("viewport", "div", attrs, children)
+pub fn viewport<'a>(
+    props: &ImageCropperProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![("role", "presentation")];
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(attrs);
+    ANATOMY.part("viewport", "div", merged, children)
 }
 
 /// Image パーツ（`img`）。`src`/`alt` を必須引数とする（[`crate::avatar::image`]
@@ -480,33 +660,102 @@ pub fn image<'a>(src: &'a str, alt: &'a str, attrs: Vec<(&'a str, &'a str)>) -> 
     ANATOMY.part("image", "img", merged, Vec::new())
 }
 
-/// Selection パーツ（`div`）。crop 矩形の視覚的な枠。位置・寸法は
-/// 呼び出し側/styled 層が [`ImageCropper::x_percent`] 等から `style` を
-/// 組み立てて `attrs` 経由で渡す（headless 中立、[`crate::slider::range`]
-/// と同型の判断。本関数自体は `style` を持たない）。
+/// Selection パーツ（`div`）。crop 矩形の視覚的な枠であり、イシュー #1610
+/// で参照実装（zag/ark-ui）の WAI-ARIA モデルへ突合し、キーボード操作の
+/// 受け口となる focusable な `role="slider"`（`aria-roledescription="2d
+/// slider"`）へ変わった（モジュール doc「参照突合」節参照。旧実装は
+/// [`handle`] が focusable だった）。位置・寸法は呼び出し側/styled 層が
+/// [`ImageCropper::x_percent`] 等から `style` を組み立てて `attrs` 経由で
+/// 渡す（headless 中立、本関数自体は `style` を持たない）。
+///
+/// `aria-valuemax`/`aria-valuenow`/`aria-valuetext` は `state`
+/// （[`ImageCropper::new`] で正規化済み）の `x`/`y`/`width`/`height` から
+/// 決定的な整数文字列として導出する（呼び出し側文字列を数値スロットへ
+/// 直接通す経路は持たない、モジュール doc「セキュリティ不変条件」参照）。
+/// `props.disabled` が `true` のとき `tabindex="-1"` + `aria-disabled` の
+/// 対を出力し、`false` のとき `tabindex="0"`。
 #[must_use]
-pub fn selection<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("selection", "div", attrs, children)
+pub fn selection<'a>(
+    state: &ImageCropper,
+    props: &ImageCropperProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let valuemax = fmt_u32(state.image_width.saturating_sub(state.width));
+    let valuenow = fmt_u32(state.x);
+    let valuetext = format!(
+        "x {}, y {}, width {}, height {}",
+        state.x, state.y, state.width, state.height
+    );
+    // `merged` はローカルで計算した `valuemax`/`valuenow`/`valuetext`
+    // （関数本体スコープの寿命）と呼び出し側 `attrs`（`'a`、より長命）を
+    // 混在させるため、関数シグネチャの `'a` に固定せず型推論に委ねる
+    // （`'a` は呼び出し側が選ぶ全称量化パラメータであり、関数内ローカル値を
+    // それへ束縛することはできない。`ANATOMY.part` 呼び出し側で改めて
+    // 短命な変性を効かせるため、ここでは無名の推論寿命を使う）。
+    let mut merged: Vec<(&str, &str)> = vec![
+        ("role", "slider"),
+        ("aria-roledescription", "2d slider"),
+        ("aria-label", "Crop selection"),
+        ("aria-valuemin", "0"),
+        ("aria-valuemax", valuemax.as_str()),
+        ("aria-valuenow", valuenow.as_str()),
+        ("aria-valuetext", valuetext.as_str()),
+    ];
+    if props.disabled {
+        merged.push(("tabindex", "-1"));
+        merged.push(("aria-disabled", "true"));
+    } else {
+        merged.push(("tabindex", "0"));
+    }
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_dragging(props.dragging));
+    merged.extend(attrs);
+    ANATOMY.part("selection", "div", merged, children)
 }
 
-/// Handle パーツ（`div`）。8 方位のリサイズハンドル。`data-handle-position`・
-/// focusable（`tabindex="0"`）・方位別 `aria-label` を出力する。
+/// Handle パーツ（`div`）。8 方位のリサイズハンドル。イシュー #1610 で
+/// 参照実装（zag/ark-ui）の WAI-ARIA モデルへ突合し、`role="presentation"`
+/// と `aria-hidden="true"`（非 focusable。キーボード操作の受け口は
+/// [`selection`] へ移った、モジュール doc「参照突合」節参照）へ変わった。
+/// `data-position`（旧 `data-handle-position` から改名。値は
+/// [`HandlePosition::as_str`] のまま不変）と、[`ImageCropperProps`] に応じた
+/// `data-disabled` を出力する。
 #[must_use]
-pub fn handle<'a>(position: HandlePosition, attrs: Vec<(&'a str, &'a str)>) -> Node {
+pub fn handle<'a>(
+    position: HandlePosition,
+    props: &ImageCropperProps,
+    attrs: Vec<(&'a str, &'a str)>,
+) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![
-        ("data-handle-position", position.as_str()),
-        ("tabindex", "0"),
-        ("aria-label", position.aria_label()),
+        ("data-position", position.as_str()),
+        ("role", "presentation"),
+        ("aria-hidden", "true"),
     ];
+    merged.extend(data_disabled(props.disabled));
     merged.extend(attrs);
     ANATOMY.part("handle", "div", merged, Vec::new())
 }
 
 /// Grid パーツ（`div`）。3 分割ガイド線の装飾用コンテナ（styled 層が
 /// `linear-gradient` 等で描画する。headless 層は anatomy のみ）。
+/// `aria-hidden="true"`（装飾用、イシュー #1610 参照実装突合）+ `axis` が
+/// `Some` のときのみ [`GridAxis::as_str`] を `data-axis` として出力（zag
+/// `getGridProps(axis)` 相当。`None` は単一コンテナを表す）+
+/// [`ImageCropperProps`] に応じた `data-dragging` を出力する。
 #[must_use]
-pub fn grid<'a>(attrs: Vec<(&'a str, &'a str)>) -> Node {
-    ANATOMY.part("grid", "div", attrs, Vec::new())
+pub fn grid<'a>(
+    axis: Option<GridAxis>,
+    props: &ImageCropperProps,
+    attrs: Vec<(&'a str, &'a str)>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![("aria-hidden", "true")];
+    if let Some(axis) = axis {
+        merged.push(("data-axis", axis.as_str()));
+    }
+    merged.extend(data_dragging(props.dragging));
+    merged.extend(attrs);
+    ANATOMY.part("grid", "div", merged, Vec::new())
 }
 
 /// ImageCropper のアクション（WASM 境界の文字列 dispatch と
@@ -713,16 +962,26 @@ impl ImageCropper {
         f64::from(self.height) / f64::from(self.image_height) * 100.0
     }
 
-    /// [`root`] へ委譲する利便メソッド（状態を持たない装飾用パーツ）。
+    /// [`root`] へ委譲する利便メソッド。
     #[must_use]
-    pub fn root<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        root(attrs, children)
+    pub fn root<'a>(
+        &self,
+        props: &ImageCropperProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        root(props, attrs, children)
     }
 
     /// [`viewport`] へ委譲する利便メソッド。
     #[must_use]
-    pub fn viewport<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        viewport(attrs, children)
+    pub fn viewport<'a>(
+        &self,
+        props: &ImageCropperProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        viewport(props, attrs, children)
     }
 
     /// [`image`] へ委譲する利便メソッド。
@@ -731,22 +990,37 @@ impl ImageCropper {
         image(src, alt, attrs)
     }
 
-    /// [`selection`] へ委譲する利便メソッド。
+    /// [`selection`] へ委譲する利便メソッド（`self` を state として渡す）。
     #[must_use]
-    pub fn selection<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        selection(attrs, children)
+    pub fn selection<'a>(
+        &self,
+        props: &ImageCropperProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        selection(self, props, attrs, children)
     }
 
     /// [`handle`] へ委譲する利便メソッド。
     #[must_use]
-    pub fn handle<'a>(&self, position: HandlePosition, attrs: Vec<(&'a str, &'a str)>) -> Node {
-        handle(position, attrs)
+    pub fn handle<'a>(
+        &self,
+        position: HandlePosition,
+        props: &ImageCropperProps,
+        attrs: Vec<(&'a str, &'a str)>,
+    ) -> Node {
+        handle(position, props, attrs)
     }
 
     /// [`grid`] へ委譲する利便メソッド。
     #[must_use]
-    pub fn grid<'a>(&self, attrs: Vec<(&'a str, &'a str)>) -> Node {
-        grid(attrs)
+    pub fn grid<'a>(
+        &self,
+        axis: Option<GridAxis>,
+        props: &ImageCropperProps,
+        attrs: Vec<(&'a str, &'a str)>,
+    ) -> Node {
+        grid(axis, props, attrs)
     }
 
     /// 現在のフィールド一式を [`normalize`] へ通して再正規化した新しい
@@ -825,15 +1099,19 @@ impl Component for ImageCropper {
     /// viewport > (image, selection > handle)）。公開 UI としての利用は
     /// 想定しない。
     fn view(&self) -> Node {
+        let props = ImageCropperProps::default();
         self.root(
+            &props,
             Vec::new(),
             vec![self.viewport(
+                &props,
                 Vec::new(),
                 vec![
                     self.image("", "", Vec::new()),
                     self.selection(
+                        &props,
                         Vec::new(),
-                        vec![self.handle(HandlePosition::Se, Vec::new())],
+                        vec![self.handle(HandlePosition::Se, &props, Vec::new())],
                     ),
                 ],
             )],
@@ -1205,7 +1483,8 @@ mod tests {
 
     #[test]
     fn root_outputs_scope_part_role_and_roledescription() {
-        let html = render(&root(vec![], vec![]));
+        let props = ImageCropperProps::default();
+        let html = render(&root(&props, vec![], vec![]));
         assert!(html.contains(r#"data-scope="image-cropper""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(html.contains(r#"role="group""#));
@@ -1213,9 +1492,37 @@ mod tests {
     }
 
     #[test]
-    fn viewport_outputs_scope_and_part() {
-        let html = render(&viewport(vec![], vec![]));
+    fn root_outputs_data_disabled_and_data_dragging_only_when_true() {
+        let props = ImageCropperProps {
+            disabled: true,
+            dragging: true,
+        };
+        let html = render(&root(&props, vec![], vec![]));
+        assert!(html.contains("data-disabled"));
+        assert!(html.contains("data-dragging"));
+
+        let default_html = render(&root(&ImageCropperProps::default(), vec![], vec![]));
+        assert!(!default_html.contains("data-disabled"));
+        assert!(!default_html.contains("data-dragging"));
+    }
+
+    #[test]
+    fn viewport_outputs_scope_part_and_presentation_role() {
+        let props = ImageCropperProps::default();
+        let html = render(&viewport(&props, vec![], vec![]));
         assert!(html.contains(r#"data-part="viewport""#));
+        assert!(html.contains(r#"role="presentation""#));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn viewport_outputs_data_disabled_when_true() {
+        let props = ImageCropperProps {
+            disabled: true,
+            dragging: false,
+        };
+        let html = render(&viewport(&props, vec![], vec![]));
+        assert!(html.contains("data-disabled"));
     }
 
     #[test]
@@ -1246,19 +1553,70 @@ mod tests {
     }
 
     #[test]
-    fn selection_outputs_scope_and_part() {
-        let html = render(&selection(vec![], vec![text("x")]));
+    fn selection_outputs_scope_part_slider_role_and_valuetext() {
+        let c = ImageCropper::new(200, 100, 20, 10, 50, 30, None, 1);
+        let props = ImageCropperProps::default();
+        let html = render(&selection(&c, &props, vec![], vec![text("x")]));
         assert!(html.contains(r#"data-part="selection""#));
         assert!(html.contains('x'));
+        assert!(html.contains(r#"role="slider""#));
+        assert!(html.contains(r#"aria-roledescription="2d slider""#));
+        assert!(html.contains(r#"aria-label="Crop selection""#));
+        assert!(html.contains(r#"aria-valuemin="0""#));
+        assert!(html.contains(r#"aria-valuemax="150""#)); // image_width(200) - width(50)
+        assert!(html.contains(r#"aria-valuenow="20""#)); // x
+        assert!(html.contains(r#"aria-valuetext="x 20, y 10, width 50, height 30""#));
+        assert!(html.contains(r#"tabindex="0""#));
+        assert!(!html.contains("aria-disabled"));
     }
 
     #[test]
-    fn handle_outputs_position_tabindex_and_aria_label() {
-        let html = render(&handle(HandlePosition::Se, vec![]));
+    fn selection_disabled_sets_tabindex_negative_one_and_aria_disabled() {
+        let c = ImageCropper::default();
+        let props = ImageCropperProps {
+            disabled: true,
+            dragging: false,
+        };
+        let html = render(&selection(&c, &props, vec![], vec![]));
+        assert!(html.contains(r#"tabindex="-1""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert!(html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn selection_outputs_data_dragging_when_true() {
+        let c = ImageCropper::default();
+        let props = ImageCropperProps {
+            disabled: false,
+            dragging: true,
+        };
+        let html = render(&selection(&c, &props, vec![], vec![]));
+        assert!(html.contains("data-dragging"));
+    }
+
+    #[test]
+    fn handle_outputs_position_and_is_non_focusable_presentation() {
+        let props = ImageCropperProps::default();
+        let html = render(&handle(HandlePosition::Se, &props, vec![]));
         assert!(html.contains(r#"data-part="handle""#));
-        assert!(html.contains(r#"data-handle-position="se""#));
-        assert!(html.contains(r#"tabindex="0""#));
-        assert!(html.contains(r#"aria-label="Resize from bottom right""#));
+        assert!(html.contains(r#"data-position="se""#));
+        assert!(!html.contains("data-handle-position"));
+        assert!(html.contains(r#"role="presentation""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        // イシュー #1610: キーボード操作の受け口が selection へ移ったため、
+        // handle は focusable ではなくなった（tabindex/aria-label を出力しない）。
+        assert!(!html.contains("tabindex"));
+        assert!(!html.contains("aria-label"));
+    }
+
+    #[test]
+    fn handle_outputs_data_disabled_when_true() {
+        let props = ImageCropperProps {
+            disabled: true,
+            dragging: false,
+        };
+        let html = render(&handle(HandlePosition::N, &props, vec![]));
+        assert!(html.contains("data-disabled"));
     }
 
     #[test]
@@ -1270,20 +1628,152 @@ mod tests {
     }
 
     #[test]
-    fn grid_outputs_scope_and_part() {
-        let html = render(&grid(vec![]));
+    fn grid_outputs_scope_part_and_aria_hidden() {
+        let props = ImageCropperProps::default();
+        let html = render(&grid(None, &props, vec![]));
         assert!(html.contains(r#"data-part="grid""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains("data-axis"));
+    }
+
+    #[test]
+    fn grid_outputs_data_axis_only_when_some() {
+        let props = ImageCropperProps::default();
+        let horizontal = render(&grid(Some(GridAxis::Horizontal), &props, vec![]));
+        assert!(horizontal.contains(r#"data-axis="horizontal""#));
+        let vertical = render(&grid(Some(GridAxis::Vertical), &props, vec![]));
+        assert!(vertical.contains(r#"data-axis="vertical""#));
+    }
+
+    #[test]
+    fn grid_outputs_data_dragging_when_true() {
+        let props = ImageCropperProps {
+            disabled: false,
+            dragging: true,
+        };
+        let html = render(&grid(None, &props, vec![]));
+        assert!(html.contains("data-dragging"));
     }
 
     #[test]
     fn caller_supplied_scope_and_part_are_dropped() {
+        let props = ImageCropperProps::default();
         let html = render(&root(
+            &props,
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
         assert!(html.contains(r#"data-scope="image-cropper""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    // --- action_for_key（キーボード → アクション対応表） ---
+
+    #[test]
+    fn action_for_key_arrows_without_modifiers_move_by_nudge_step() {
+        let m = KeyModifiers::default();
+        assert_eq!(
+            action_for_key("ArrowLeft", m),
+            Some(ImageCropperAction::Move {
+                dx: -NUDGE_STEP,
+                dy: 0
+            })
+        );
+        assert_eq!(
+            action_for_key("ArrowRight", m),
+            Some(ImageCropperAction::Move {
+                dx: NUDGE_STEP,
+                dy: 0
+            })
+        );
+        assert_eq!(
+            action_for_key("ArrowUp", m),
+            Some(ImageCropperAction::Move {
+                dx: 0,
+                dy: -NUDGE_STEP
+            })
+        );
+        assert_eq!(
+            action_for_key("ArrowDown", m),
+            Some(ImageCropperAction::Move {
+                dx: 0,
+                dy: NUDGE_STEP
+            })
+        );
+    }
+
+    #[test]
+    fn action_for_key_shift_uses_nudge_step_shift() {
+        let m = KeyModifiers {
+            shift: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            action_for_key("ArrowRight", m),
+            Some(ImageCropperAction::Move {
+                dx: NUDGE_STEP_SHIFT,
+                dy: 0
+            })
+        );
+    }
+
+    #[test]
+    fn action_for_key_ctrl_or_meta_uses_nudge_step_ctrl_and_wins_over_shift() {
+        let m = KeyModifiers {
+            shift: true,
+            ctrl_or_meta: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            action_for_key("ArrowRight", m),
+            Some(ImageCropperAction::Move {
+                dx: NUDGE_STEP_CTRL,
+                dy: 0
+            })
+        );
+    }
+
+    #[test]
+    fn action_for_key_alt_resizes_from_se_handle() {
+        let m = KeyModifiers {
+            alt: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            action_for_key("ArrowRight", m),
+            Some(ImageCropperAction::Resize {
+                handle: HandlePosition::Se,
+                dx: NUDGE_STEP,
+                dy: 0
+            })
+        );
+        assert_eq!(
+            action_for_key("ArrowDown", m),
+            Some(ImageCropperAction::Resize {
+                handle: HandlePosition::Se,
+                dx: 0,
+                dy: NUDGE_STEP
+            })
+        );
+    }
+
+    #[test]
+    fn action_for_key_rejects_zoom_and_unknown_keys() {
+        let m = KeyModifiers::default();
+        for key in ["+", "=", "-", "_", "Enter", "Tab", " ", ""] {
+            assert_eq!(action_for_key(key, m), None, "key={key:?}");
+        }
+    }
+
+    #[test]
+    fn action_for_key_result_flows_through_update_normalization() {
+        // action_for_key の結果は既存の Component::update 正規化（境界
+        // クランプ）をそのまま経由する（モジュール doc「参照突合」節参照）。
+        let mut c = ImageCropper::new(100, 100, 0, 0, 20, 20, None, 1);
+        let action = action_for_key("ArrowLeft", KeyModifiers::default()).unwrap();
+        c.update(action);
+        assert_eq!((c.x(), c.y()), (0, 0)); // 境界クランプで 0 未満にならない
     }
 
     // --- 正規化（fail-closed） ---
@@ -1826,21 +2316,35 @@ mod tests {
 
     #[test]
     fn caller_attrs_payload_is_escaped_on_render() {
-        let html = render(&root(vec![("data-testid", ATTR_BREAK_PAYLOAD)], vec![]));
+        let props = ImageCropperProps::default();
+        let html = render(&root(
+            &props,
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
     }
 
     #[test]
     fn children_text_is_escaped_on_render() {
-        let html = render(&selection(vec![], vec![text("<script>alert(1)</script>")]));
+        let c = ImageCropper::default();
+        let props = ImageCropperProps::default();
+        let html = render(&selection(
+            &c,
+            &props,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
 
     #[test]
     fn handle_caller_attrs_payload_is_escaped_on_render() {
+        let props = ImageCropperProps::default();
         let html = render(&handle(
             HandlePosition::N,
+            &props,
             vec![("data-x", ATTR_BREAK_PAYLOAD)],
         ));
         assert!(!html.contains("onmouseover=\"alert(1)"));

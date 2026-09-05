@@ -10,6 +10,11 @@
 //! `image` パートへ角丸・背景・操作性宣言を追加したため、この golden
 //! 期待値も同一 PR 内で更新した（`crates/pre-styled-ui/src/image_cropper.rs`
 //! モジュール冒頭 rustdoc「イシュー #1481」節参照）。
+//!
+//! イシュー #1610（headless-ui 側の参照実装突合）で `data-handle-position`
+//! → `data-position` のセレクタ改名、フォーカスリングの `handle` →
+//! `selection` への移設（キーボード操作の受け口が selection へ移った
+//! ことに伴う）を反映した。
 
 use fandhe_frontend_pre_styled_ui::image_cropper;
 
@@ -95,55 +100,55 @@ const IMAGE_CROPPER_GOLDEN_CSS: &str = r#"[data-scope="image-cropper"][data-part
   --fandhe-image-cropper-handle-size: 1.15rem;
 }
 
-[data-scope="image-cropper"][data-part="handle"][data-handle-position="n"] {
+[data-scope="image-cropper"][data-part="handle"][data-position="n"] {
   top: 0;
   left: 50%;
   cursor: ns-resize;
 }
 
-[data-scope="image-cropper"][data-part="handle"][data-handle-position="s"] {
+[data-scope="image-cropper"][data-part="handle"][data-position="s"] {
   top: 100%;
   left: 50%;
   cursor: ns-resize;
 }
 
-[data-scope="image-cropper"][data-part="handle"][data-handle-position="e"] {
+[data-scope="image-cropper"][data-part="handle"][data-position="e"] {
   top: 50%;
   left: 100%;
   cursor: ew-resize;
 }
 
-[data-scope="image-cropper"][data-part="handle"][data-handle-position="w"] {
+[data-scope="image-cropper"][data-part="handle"][data-position="w"] {
   top: 50%;
   left: 0;
   cursor: ew-resize;
 }
 
-[data-scope="image-cropper"][data-part="handle"][data-handle-position="ne"] {
+[data-scope="image-cropper"][data-part="handle"][data-position="ne"] {
   top: 0;
   left: 100%;
   cursor: nesw-resize;
 }
 
-[data-scope="image-cropper"][data-part="handle"][data-handle-position="nw"] {
+[data-scope="image-cropper"][data-part="handle"][data-position="nw"] {
   top: 0;
   left: 0;
   cursor: nwse-resize;
 }
 
-[data-scope="image-cropper"][data-part="handle"][data-handle-position="se"] {
+[data-scope="image-cropper"][data-part="handle"][data-position="se"] {
   top: 100%;
   left: 100%;
   cursor: nwse-resize;
 }
 
-[data-scope="image-cropper"][data-part="handle"][data-handle-position="sw"] {
+[data-scope="image-cropper"][data-part="handle"][data-position="sw"] {
   top: 100%;
   left: 0;
   cursor: nesw-resize;
 }
 
-[data-scope="image-cropper"][data-part="handle"]:focus-visible {
+[data-scope="image-cropper"][data-part="selection"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }

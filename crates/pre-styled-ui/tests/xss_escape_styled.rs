@@ -946,14 +946,18 @@ fn slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
     }
 }
 
-/// (9) ImageCropper 経路（イシュー #844）: styled `root` の呼び出し側
+/// (9) ImageCropper 経路（イシュー #844。シグネチャはイシュー #1610 で
+/// `ImageCropperProps` 追加に追随）: styled `root` の呼び出し側
 /// `attrs`・`class`、および headless-ui から選択的再エクスポートした
 /// `image` の `src`/`alt`・`grid`（`attrs` 経路）の各所で既定エスケープ
 /// （REQ-1）が貫通することを固定する（slider 経路と同粒度）。
 #[test]
 fn image_cropper_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
-    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::{
+        ImageCropper, ImageCropperProps,
+    };
 
+    let props = ImageCropperProps::default();
     for payload in payloads::all() {
         let c = ImageCropper::default();
 
@@ -961,6 +965,7 @@ fn image_cropper_styled_root_and_reexported_parts_are_escaped_for_all_payloads()
         let html = render(&image_cropper::root(
             Size::Md,
             &c,
+            &props,
             vec![("data-testid", payload)],
             vec![],
         ));
@@ -975,6 +980,7 @@ fn image_cropper_styled_root_and_reexported_parts_are_escaped_for_all_payloads()
         let html = render(&image_cropper::root(
             Size::Md,
             &c,
+            &props,
             vec![("class", payload)],
             vec![],
         ));
@@ -1010,8 +1016,13 @@ fn image_cropper_styled_root_and_reexported_parts_are_escaped_for_all_payloads()
              そのまま残っている: payload={payload:?}, html={html}"
         );
 
-        // 選択的再エクスポートした grid の attrs 経路。
-        let html = render(&image_cropper::grid(vec![("data-testid", payload)]));
+        // 選択的再エクスポートした grid の attrs 経路（イシュー #1610 で
+        // `axis`/`props` 引数が増えた）。
+        let html = render(&image_cropper::grid(
+            None,
+            &props,
+            vec![("data-testid", payload)],
+        ));
         assert_payload_is_escaped(payload, &html, "image_cropper::grid attrs コンテキスト");
     }
 }
@@ -1352,12 +1363,13 @@ fn file_upload_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
 
 #[test]
 fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    let props = listbox::ListboxProps::default();
     for payload in payloads::all() {
         // styled root の呼び出し側 attrs 経路。
         let html = render(&listbox::root(
             Size::Md,
             OpenState::Closed,
-            false,
+            &props,
             vec![("data-testid", payload)],
             vec![],
         ));
@@ -1372,7 +1384,7 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         let html = render(&listbox::root(
             Size::Md,
             OpenState::Closed,
-            false,
+            &props,
             vec![("class", payload)],
             vec![],
         ));
@@ -1392,12 +1404,18 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした label の id/children 経路。
-        let html = render(&listbox::label(Some(payload), vec![], vec![text(payload)]));
+        let html = render(&listbox::label(
+            &props,
+            Some(payload),
+            vec![],
+            vec![text(payload)],
+        ));
         assert_payload_is_escaped(payload, &html, "listbox::label id/children コンテキスト");
 
         // 選択的再エクスポートした content の id/labelledby/activedescendant 経路。
         let html = render(&listbox::content(
             false,
+            &props,
             Some(payload),
             Some(payload),
             Some(payload),
@@ -1414,6 +1432,7 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // REQ-1 の重点対象）。
         let html = render(&listbox::item(
             OpenState::Open,
+            &props,
             false,
             false,
             payload,
@@ -1425,6 +1444,10 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
 
         // 選択的再エクスポートした item_text の id/children 経路。
         let html = render(&listbox::item_text(
+            OpenState::Open,
+            &props,
+            false,
+            false,
             Some(payload),
             vec![],
             vec![text(payload)],
@@ -1436,7 +1459,12 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした value_text の children 経路。
-        let html = render(&listbox::value_text(false, vec![], vec![text(payload)]));
+        let html = render(&listbox::value_text(
+            false,
+            &props,
+            vec![],
+            vec![text(payload)],
+        ));
         assert_payload_is_escaped(payload, &html, "listbox::value_text children コンテキスト");
     }
 }

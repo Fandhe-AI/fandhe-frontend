@@ -17,6 +17,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_headless_ui::collapsible::Collapsible;
+use fandhe_frontend_headless_ui::combobox::{Combobox, ComboboxProps};
 use fandhe_frontend_headless_ui::select::Select;
 use fandhe_frontend_headless_ui::state::SingleSelect;
 use fandhe_frontend_headless_ui::{
@@ -295,6 +296,110 @@ fn select_full_cycle_open_select_and_clear_in_real_dom() {
         .expect("clear-trigger element must exist");
     dispatch_click(&clear_el);
     assert_eq!(component.borrow().selected(), None);
+}
+
+/// イシュー #1605 codex-review P1 是正の回帰: `ComboboxProps::readonly` が
+/// `true` のとき、`trigger`（listbox 開閉トグル）・`item`（選択確定）・
+/// `clear-trigger`（クリア）のいずれのクリックも実 DOM で no-op であること
+/// を証明する（`crate::headless::PartRef::readonly` が `data-readonly` を
+/// 独立フィールドとして fail-closed 対象にした拡張の統合テスト、
+/// `select_full_cycle_open_select_and_clear_in_real_dom` の readonly 版）。
+/// `ComboboxProps`（`crates/headless-ui/src/combobox.rs::state_attrs`）は
+/// root/control/input/trigger/clear-trigger の全パーツへ `data-readonly`
+/// を一律付与するため、item クリックは祖先である root の readonly
+/// （同一 `data-scope="combobox"` 内での伝播、`crate::headless::
+/// action_from_parts` 参照）を拾って no-op になる（`data-readonly` を
+/// 持たない item 自身のクリックでも祖先探索で拾われることを検証する）。
+#[wasm_bindgen_test]
+fn combobox_readonly_trigger_item_and_clear_trigger_clicks_are_noop_in_real_dom() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-combobox-readonly-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let props = ComboboxProps {
+        readonly: true,
+        ..ComboboxProps::default()
+    };
+    let open_state = fandhe_frontend_headless_ui::state::OpenState::Closed;
+    let html = fandhe_frontend_core::render(&fandhe_frontend_headless_ui::combobox::root(
+        open_state,
+        &props,
+        vec![],
+        vec![
+            fandhe_frontend_headless_ui::combobox::trigger(
+                open_state,
+                &props,
+                None,
+                vec![],
+                vec![fandhe_frontend_core::text("Open")],
+            ),
+            fandhe_frontend_headless_ui::combobox::clear_trigger(
+                &props,
+                vec![],
+                vec![fandhe_frontend_core::text("Clear")],
+            ),
+            fandhe_frontend_headless_ui::combobox::content(
+                open_state,
+                None,
+                None,
+                vec![],
+                vec![fandhe_frontend_headless_ui::combobox::item(
+                    open_state,
+                    false,
+                    false,
+                    "opt-1",
+                    None,
+                    vec![],
+                    vec![],
+                )],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("combobox root must exist");
+    assert!(
+        root.has_attribute("data-readonly"),
+        "readonly な ComboboxProps は root に data-readonly を出力するはず"
+    );
+
+    let component = Rc::new(RefCell::new(Combobox::default()));
+    wire_headless_component(root.clone(), component.clone(), |_state, _root| {})
+        .expect("wire_headless_component must not fail");
+
+    let trigger_el = root
+        .query_selector(r#"[data-part="trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("trigger element must exist");
+    dispatch_click(&trigger_el);
+    assert!(
+        !component.borrow().is_open(),
+        "readonly な combobox の trigger クリックは no-op であること"
+    );
+
+    let opt1 = root
+        .query_selector(r#"[data-value="opt-1"]"#)
+        .expect("query_selector must not fail")
+        .expect("opt-1 item element must exist");
+    dispatch_click(&opt1);
+    assert_eq!(
+        component.borrow().selected(),
+        None,
+        "readonly な combobox の item クリックは選択値を変更しないこと"
+    );
+
+    let clear_el = root
+        .query_selector(r#"[data-part="clear-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("clear-trigger element must exist");
+    dispatch_click(&clear_el);
+    assert_eq!(
+        component.borrow().selected(),
+        None,
+        "readonly な combobox の clear-trigger クリックも no-op であること"
+    );
 }
 
 // --- 受け入れ条件 3: fail-closed（未知アクション・改ざん data-* 入力で panic せず no-op） ---

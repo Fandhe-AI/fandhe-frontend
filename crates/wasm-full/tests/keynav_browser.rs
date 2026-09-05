@@ -4550,6 +4550,59 @@ fn combobox_closed_arrow_down_opens_via_synthesized_click_and_sets_initial_highl
     assert!(content.get_attribute("aria-activedescendant").is_none());
 }
 
+/// イシュー #1605 codex-review P1 是正の回帰: `data-readonly`
+/// （`ComboboxProps::readonly` が root/control/input/trigger/
+/// clear-trigger の全パーツへ一律付与する属性、
+/// `crates/headless-ui/src/combobox.rs::state_attrs`）が付いた combobox
+/// では、closed の input 上で ArrowDown を押しても listbox を開かない
+/// （`handle_combobox_input_keydown` の
+/// [`is_combobox_readonly`](wiring::is_combobox_readonly) 判定、
+/// モジュール doc §Combobox「`data-readonly` は fail-closed で no-op」節
+/// 参照）。open/Enter/Escape/Home/End のいずれも claim しないため、
+/// `prevent_default` されず（キャレット移動等ブラウザの既定動作を奪わ
+/// ない）、`hidden` 状態も変化しない。
+///
+/// `is_combobox_readonly` は `input` 自身の `data-readonly` のみを見る
+/// （祖先探索をしない）契約のため、本テストのフィクスチャも production
+/// 出力（`state_attrs` が input へも `data-readonly` を付与する）に
+/// 合わせて `input`（および `root`/`trigger`）へ `data-readonly` を
+/// 設定する（Cursor Bugbot 指摘: root にしか付与していないと
+/// `is_combobox_readonly` が `false` を返し、テストが検査対象と異なる
+/// 経路〔実装のフォールバック不在〕を偶然すり抜けてしまう）。
+#[wasm_bindgen_test]
+fn combobox_readonly_closed_arrow_down_is_noop_and_does_not_open() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, input, trigger, content) = build_combobox_dom(
+        &document,
+        "kn-cb-readonly1",
+        &[("a", "A", false), ("b", "B", false)],
+        false,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    root.set_attribute("data-readonly", "").unwrap();
+    input.set_attribute("data-readonly", "").unwrap();
+    trigger.set_attribute("data-readonly", "").unwrap();
+    wire_combobox_toggle_listener(&trigger, &input, &content);
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&input).focus().unwrap();
+
+    let not_default_prevented = input.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(
+        not_default_prevented,
+        "readonly では prevent_default されない（fail-closed no-op）"
+    );
+    assert!(
+        content.has_attribute("hidden"),
+        "readonly では ArrowDown で open しないこと"
+    );
+    assert_eq!(
+        input.get_attribute("aria-expanded").as_deref(),
+        Some("false")
+    );
+}
+
 /// 検証 2（実装計画 §5.3-2）: closed の input 上で ArrowUp → open + 末尾の
 /// 非 disabled item が初期 highlight。
 #[wasm_bindgen_test]

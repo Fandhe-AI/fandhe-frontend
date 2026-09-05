@@ -185,7 +185,7 @@ use crate::recipe::{
 // `fandhe_frontend_headless_ui::combobox` を直接 import する。
 pub use fandhe_frontend_headless_ui::combobox::{
     clear_trigger, content, control, filter_options, input, item, item_group, item_group_label,
-    item_indicator, item_text, label, positioner, trigger,
+    item_indicator, item_text, label, positioner, trigger, ComboboxProps,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 // `control`/`input`/`trigger` 等の `state` 引数はいずれも `state` モジュール
@@ -576,20 +576,31 @@ pub fn stylesheet() -> String {
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::combobox::root`] へ
 /// 委譲する。
 ///
+/// `props` を呼び出し側から受け取りそのまま透過する（イシュー #1605
+/// 参照突合。[`crate::color_picker::root`] と同じ理由で、`disabled`/
+/// `readonly`/`invalid`/`required` を部品全体へ一律伝播できるようにする）。
+///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::combobox::{self, OpenState};
+/// use fandhe_frontend_pre_styled_ui::combobox::{self, ComboboxProps, OpenState};
 /// use fandhe_frontend_pre_styled_ui::Size;
 ///
-/// let node = combobox::root(Size::Md, OpenState::Open, vec![], vec![]);
+/// let node = combobox::root(
+///     Size::Md,
+///     OpenState::Open,
+///     &ComboboxProps::default(),
+///     vec![],
+///     vec![],
+/// );
 /// assert!(render(&node).contains(r#"data-scope="combobox" data-part="root""#));
 /// ```
 #[must_use]
 pub fn root<'a>(
     size: Size,
     state: OpenState,
+    props: &ComboboxProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -597,7 +608,7 @@ pub fn root<'a>(
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::combobox::root(state, merged, children)
+    fandhe_frontend_headless_ui::combobox::root(state, props, merged, children)
 }
 
 #[cfg(test)]
@@ -633,7 +644,13 @@ mod tests {
 
     #[test]
     fn reexported_root_renders_with_headless_anatomy_attrs() {
-        let html = render(&root(Size::Md, OpenState::Closed, vec![], vec![]));
+        let html = render(&root(
+            Size::Md,
+            OpenState::Closed,
+            &ComboboxProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="combobox""#));
         assert!(html.contains(r#"data-part="root""#));
     }
@@ -646,6 +663,7 @@ mod tests {
             let html = render(&root(
                 size,
                 OpenState::Closed,
+                &ComboboxProps::default(),
                 vec![("class", "attacker")],
                 vec![],
             ));
@@ -688,7 +706,11 @@ mod tests {
         let mut c = Combobox::default();
         assert_eq!(c.open_state(), OpenState::Closed);
 
-        let ssr_html = render(&c.root(vec![], vec![]));
+        let ssr_html = render(&c.root(
+            &fandhe_frontend_headless_ui::combobox::ComboboxProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(ssr_html.contains(r#"data-state="closed""#));
 
         assert!(dispatch(&mut c, "input", "vu"));
