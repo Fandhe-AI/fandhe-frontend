@@ -176,27 +176,28 @@ fn radio_group_item_click_selects_value_in_real_dom() {
     let container = create_container(&document, "headless-radio-group-root");
     let _cleanup = RemoveOnDrop(container.clone());
 
+    let props = radio_group::RadioGroupProps::default();
     let html = fandhe_frontend_core::render(&radio_group::root(
-        false,
+        &props,
         None,
         None,
         vec![],
         vec![
             radio_group::item(
                 false,
-                false,
+                &props,
                 "red",
                 vec![],
                 vec![radio_group::item_text(
                     false,
-                    false,
+                    &props,
                     vec![],
                     vec![fandhe_frontend_core::text("Red")],
                 )],
             ),
             radio_group::item(
                 false,
-                false,
+                &props,
                 "blue",
                 vec![],
                 vec![fandhe_frontend_core::text("Blue")],
@@ -613,8 +614,13 @@ fn radio_group_item_data_value_xss_payload_click_does_not_produce_script_element
     let _cleanup = RemoveOnDrop(container.clone());
 
     let payload = "\"><script>alert(1)</script>";
-    let html =
-        fandhe_frontend_core::render(&radio_group::item(false, false, payload, vec![], vec![]));
+    let html = fandhe_frontend_core::render(&radio_group::item(
+        false,
+        &radio_group::RadioGroupProps::default(),
+        payload,
+        vec![],
+        vec![],
+    ));
     container.set_inner_html(&html);
     assert!(
         container

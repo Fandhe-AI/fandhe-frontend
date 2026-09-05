@@ -411,38 +411,146 @@ pub(super) fn pin_input_section() -> Node {
     demo_page("Pin Input", body)
 }
 
-pub(super) fn radio_group_section() -> Node {
-    let body = vec![radio_group::root(
-        false,
-        None,
-        None,
+/// `label_text`/`label_id`/`name`/`props`/`orientation`/`items`（各項目は
+/// `(value, text, checked, item_disabled)`）から 1 個の RadioGroup
+/// インスタンス（root > label + item(item_control + item_text +
+/// item_hidden_input)×N）を組み立てる内部ヘルパ（[`radio_group_section`]
+/// のみが呼ぶ）。[`pin_input_instance`] と同型のパターン。項目単位で
+/// disabled を上書きしたい場合は `item_disabled` を `true` にした
+/// `RadioGroupProps` コピーを各パーツへ渡す（イシュー #1616）。
+fn radio_group_instance(
+    label_text: &str,
+    label_id: &str,
+    name: &str,
+    props: &radio_group::RadioGroupProps,
+    orientation: Option<Orientation>,
+    items: &[(&str, &str, bool, bool)],
+) -> Node {
+    let item_nodes: Vec<Node> = items
+        .iter()
+        .map(|(value, text_label, checked, item_disabled)| {
+            let item_props = radio_group::RadioGroupProps {
+                disabled: props.disabled || *item_disabled,
+                ..*props
+            };
+            radio_group::item(
+                *checked,
+                &item_props,
+                value,
+                vec![],
+                vec![
+                    radio_group::item_control(*checked, &item_props, vec![]),
+                    radio_group::item_text(*checked, &item_props, vec![], vec![text(*text_label)]),
+                    radio_group::item_hidden_input(
+                        *checked,
+                        &item_props,
+                        Some(name),
+                        value,
+                        vec![],
+                    ),
+                ],
+            )
+        })
+        .collect();
+    let mut children = vec![radio_group::label(
+        props,
+        Some(label_id),
         vec![],
-        vec![
-            radio_group::label(None, vec![], vec![text("Plan")]),
-            radio_group::item(
-                true,
-                false,
-                "monthly",
-                vec![],
-                vec![
-                    radio_group::item_control(true, false, vec![]),
-                    radio_group::item_text(true, false, vec![], vec![text("Monthly")]),
-                    radio_group::item_hidden_input(true, false, Some("plan"), "monthly", vec![]),
-                ],
-            ),
-            radio_group::item(
-                false,
-                false,
-                "yearly",
-                vec![],
-                vec![
-                    radio_group::item_control(false, false, vec![]),
-                    radio_group::item_text(false, false, vec![], vec![text("Yearly")]),
-                    radio_group::item_hidden_input(false, false, Some("plan"), "yearly", vec![]),
-                ],
-            ),
-        ],
+        vec![text(label_text)],
     )];
+    children.extend(item_nodes);
+    radio_group::root(props, orientation, Some(label_id), vec![], children)
+}
+
+pub(super) fn radio_group_section() -> Node {
+    // ark-ui / Radix Primitives の Data Attributes・Keyboard 表の全語彙
+    // （data-disabled/data-invalid/data-readonly/data-required/
+    // aria-required/aria-readonly/aria-disabled/aria-hidden/aria-invalid/
+    // data-orientation）が Anatomy/data-* 表へ機械導出されるよう、既定
+    // （縦）・horizontal・disabled item・disabled group・invalid+required・
+    // readonly の 6 状態を並べる（イシュー #1616）。
+    let default_props = radio_group::RadioGroupProps::default();
+    let disabled_props = radio_group::RadioGroupProps {
+        disabled: true,
+        ..Default::default()
+    };
+    let invalid_required_props = radio_group::RadioGroupProps {
+        invalid: true,
+        required: true,
+        ..Default::default()
+    };
+    let readonly_props = radio_group::RadioGroupProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let body = vec![
+        radio_group_instance(
+            "Plan",
+            "rg-plan-label",
+            "plan",
+            &default_props,
+            None,
+            &[
+                ("monthly", "Monthly", true, false),
+                ("yearly", "Yearly", false, false),
+            ],
+        ),
+        radio_group_instance(
+            "Plan (horizontal)",
+            "rg-plan-horizontal-label",
+            "plan-horizontal",
+            &default_props,
+            Some(Orientation::Horizontal),
+            &[
+                ("monthly", "Monthly", true, false),
+                ("yearly", "Yearly", false, false),
+            ],
+        ),
+        radio_group_instance(
+            "Plan (item disabled)",
+            "rg-plan-item-disabled-label",
+            "plan-item-disabled",
+            &default_props,
+            None,
+            &[
+                ("monthly", "Monthly", true, false),
+                ("yearly", "Yearly", false, true),
+            ],
+        ),
+        radio_group_instance(
+            "Plan (group disabled)",
+            "rg-plan-disabled-label",
+            "plan-disabled",
+            &disabled_props,
+            None,
+            &[
+                ("monthly", "Monthly", true, false),
+                ("yearly", "Yearly", false, false),
+            ],
+        ),
+        radio_group_instance(
+            "Plan (invalid + required)",
+            "rg-plan-invalid-label",
+            "plan-invalid",
+            &invalid_required_props,
+            None,
+            &[
+                ("monthly", "Monthly", false, false),
+                ("yearly", "Yearly", false, false),
+            ],
+        ),
+        radio_group_instance(
+            "Plan (read-only)",
+            "rg-plan-readonly-label",
+            "plan-readonly",
+            &readonly_props,
+            None,
+            &[
+                ("monthly", "Monthly", true, false),
+                ("yearly", "Yearly", false, false),
+            ],
+        ),
+    ];
     demo_page("Radio Group", body)
 }
 

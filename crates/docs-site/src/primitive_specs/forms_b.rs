@@ -293,38 +293,76 @@ const PIN_INPUT: ComponentPageSpec = ComponentPageSpec {
 };
 
 /// 一次情報: `crates/headless-ui/src/radio_group.rs`
-/// （モジュール doc 1-111、`root`/`label` 132-172、
-/// `item`/`item_control`/`item_text` 174-228、`item_hidden_input` 230-260）。
+/// （モジュール doc 1-186、`RadioGroupProps` 188-219、`root`/`label` 293-338、
+/// `item`/`item_control`/`item_text` 340-402、`item_hidden_input` 424-462。
+/// イシュー #1616 で ark-ui（zag `radio-group.connect.ts`）/ Radix
+/// Primitives と突合済み）。
 const RADIO_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Label / Item / ItemControl / ItemText / ItemHiddenInput の 6 anatomy パーツと、「高々 1 項目が選択される」状態機械（`crate::state::SingleSelect` 埋め込み）を提供する。",
-        "`item_hidden_input` が生成するネイティブ `<input type=\"radio\">` がチェック状態・フォーム送信・グループ内排他選択を担うため、`item_control` には `role=\"radio\"`/`aria-checked` を重複付与しない（二重読み上げ防止）。",
+        "`item_hidden_input` が生成するネイティブ `<input type=\"radio\">` がチェック状態・フォーム送信・グループ内排他選択を担うため、`item_control` には `role=\"radio\"`/`aria-checked` を重複付与せず、代わりに `aria-hidden=\"true\"` を常時付与する（二重読み上げ防止、イシュー #1616）。",
         "`item` は `<label>` 要素であり、内包する `item_hidden_input` へのクリック委譲が JS なしで機能する。",
         "`data-state` 値語彙（`\"checked\"`/`\"unchecked\"`）は Checkbox / Switch と共有する共通機械由来であり、本モジュール独自の値を作らない。",
+        "`RadioGroupProps`（disabled/readonly/invalid/required）が各パーツの `data-*`/ARIA 属性を決定する。パート別の反映属性は ark-ui の Data Attributes 表に従いパートごとに異なる（下記 arguments 参照、イシュー #1616）。",
     ],
     arguments: &[
-        ArgRow { name: "root(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
+        ArgRow { name: "root/label(props).disabled", kind: "bool", default: "false", description: "`data-disabled`（root/label）と `aria-disabled=\"true\"`（root、true 時のみ）を反映する。" },
+        ArgRow { name: "root/label(props).invalid", kind: "bool", default: "false", description: "`data-invalid`（root/label）を反映する。" },
+        ArgRow { name: "root/label(props).required", kind: "bool", default: "false", description: "`data-required`（root/label）と `aria-required=\"true\"`（root、true 時のみ）を反映する。" },
+        ArgRow { name: "root(props).readonly", kind: "bool", default: "false", description: "`aria-readonly=\"true\"`（root、true 時のみ）のみを反映する。ark-ui の Root Data Attributes 表に `data-readonly` は無い。" },
         ArgRow { name: "root(orientation)", kind: "Option<Orientation>", default: "", description: "`Some` のときのみ `data-orientation`/`aria-orientation` を付与する。" },
         ArgRow { name: "root(labelled_by)", kind: "Option<&str>", default: "", description: "`Some` のときのみ `aria-labelledby` を付与する（`label(id)` と対で使う）。" },
         ArgRow { name: "label(id)", kind: "Option<&str>", default: "", description: "`root(labelled_by)` の参照先 id。" },
+        ArgRow { name: "item/item_control/item_text(props).disabled/readonly/invalid", kind: "bool", default: "false", description: "`data-disabled`/`data-readonly`/`data-invalid` を反映する（`data-required` は item 系パーツに無い）。" },
         ArgRow { name: "item/item_control/item_text/item_hidden_input(checked)", kind: "bool", default: "", description: "`data-state` の checked/unchecked を決める。" },
-        ArgRow { name: "item/item_control/item_text/item_hidden_input(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
         ArgRow { name: "item(value)", kind: "&str", default: "", description: "選択肢の値。`data-value` として動的値のまま出力する（クリック → dispatch payload の源）。" },
+        ArgRow { name: "item_hidden_input(props).disabled/required", kind: "bool", default: "false", description: "ネイティブ `disabled`/`required` 属性（true 時のみ）を反映する。`readonly` はネイティブ `<input type=\"radio\">` に無効な属性のため反映しない。" },
+        ArgRow { name: "item_hidden_input(props).invalid", kind: "bool", default: "false", description: "`aria-invalid=\"true\"`（true 時のみ）を反映する。" },
         ArgRow { name: "item_hidden_input(name)", kind: "Option<&str>", default: "", description: "`Some` のとき `name` 属性を出力する（グループ内排他選択の同一 name グループ）。" },
         ArgRow { name: "item_hidden_input(value)", kind: "&str", default: "", description: "ネイティブ `value` 属性。" },
     ],
-    examples: &[ExampleEntry {
-        title: "Vertical, with disabled item",
-        description: "`orientation: Some(Orientation::Vertical)` + 2 番目の項目を `disabled` にした例。",
-        render: ex_radio_group_vertical_disabled,
-    }],
-    keyboard: &[KeyRow {
-        key: "ArrowUp / ArrowDown / ArrowLeft / ArrowRight",
-        description: "`item_hidden_input` はネイティブ `<input type=\"radio\">` であり、同一 `name` グループ内の矢印キー移動・選択はブラウザ標準操作として成立する（JS 配線不要）。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Vertical, with disabled item",
+            description: "`orientation: Some(Orientation::Vertical)` + 2 番目の項目を `disabled` にした例。",
+            render: ex_radio_group_vertical_disabled,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "自前 CSS を data-scope/data-part/data-* セレクタで当てる最小例。",
+            render: ex_radio_group_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "グループへフォーカスを移す（選択済み項目があればその項目、無ければ先頭項目）。ネイティブ radio group のロービングタブインデックスに従う。",
+        },
+        KeyRow {
+            key: "Space",
+            description: "フォーカス中の未選択項目を選択する。",
+        },
+        KeyRow {
+            key: "ArrowDown / ArrowRight",
+            description: "次の項目へ移動し選択する（循環）。",
+        },
+        KeyRow {
+            key: "ArrowUp / ArrowLeft",
+            description: "前の項目へ移動し選択する（循環）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "先頭/末尾の項目へ移動し選択する。ark-ui / Radix Primitives の Keyboard 表には無いが、WAI-ARIA APG のオプション挙動として `fandhe-frontend-wasm-full` の `keynav`（`radio_next_index`）が拡張として実装する。",
+        },
+    ],
     aria: &[
         AriaRow { attribute: "role=\"radiogroup\" (root)", description: "固定付与。" },
+        AriaRow { attribute: "aria-required / aria-readonly / aria-disabled (root)", description: "対応する `RadioGroupProps` フィールドが `true` のときのみ付与する（`radiogroup` ロールの Supported States、イシュー #1616）。" },
+        AriaRow { attribute: "aria-hidden=\"true\" (item-control)", description: "意味論を持たない装飾パーツであることを明示するため常時付与する（イシュー #1616）。" },
         AriaRow { attribute: "role=\"radio\" / aria-checked", description: "`item_control` へは明示付与しない。意味論は `item_hidden_input` のネイティブ `<input type=\"radio\">` が担う（二重読み上げ防止）。" },
+        AriaRow { attribute: "aria-invalid (item-hidden-input)", description: "`props.invalid` が `true` のときのみ `\"true\"` を出力する（valid のときは属性自体を省略する、イシュー #1616）。" },
+        AriaRow { attribute: "required (item-hidden-input)", description: "`props.required` が `true` のときのみネイティブ存在属性として出力する（イシュー #1616）。" },
+        AriaRow { attribute: "実 DOM 配線", description: "`fandhe-frontend-wasm-full` の `keynav`（`radio_next_index`、orientation で軸制限・循環）が矢印キー/Home/End を配線するが、JS なしでも同一 `name` のネイティブ radio としてブラウザ標準操作（Tab/Space/矢印キー）が成立する。" },
     ],
     demo: None,
 };
@@ -1038,24 +1076,29 @@ fn ex_pin_input_custom_css() -> Node {
 }
 
 fn ex_radio_group_vertical_disabled() -> Node {
+    let group_props = radio_group::RadioGroupProps::default();
+    let item_disabled_props = radio_group::RadioGroupProps {
+        disabled: true,
+        ..group_props
+    };
     let body = vec![radio_group::root(
-        false,
+        &group_props,
         Some(Orientation::Vertical),
         None,
         vec![],
         vec![
-            radio_group::label(None, vec![], vec![text("Delivery")]),
+            radio_group::label(&group_props, None, vec![], vec![text("Delivery")]),
             radio_group::item(
                 true,
-                false,
+                &group_props,
                 "standard",
                 vec![],
                 vec![
-                    radio_group::item_control(true, false, vec![]),
-                    radio_group::item_text(true, false, vec![], vec![text("Standard")]),
+                    radio_group::item_control(true, &group_props, vec![]),
+                    radio_group::item_text(true, &group_props, vec![], vec![text("Standard")]),
                     radio_group::item_hidden_input(
                         true,
-                        false,
+                        &group_props,
                         Some("delivery"),
                         "standard",
                         vec![],
@@ -1064,20 +1107,20 @@ fn ex_radio_group_vertical_disabled() -> Node {
             ),
             radio_group::item(
                 false,
-                true,
+                &item_disabled_props,
                 "same-day",
                 vec![],
                 vec![
-                    radio_group::item_control(false, true, vec![]),
+                    radio_group::item_control(false, &item_disabled_props, vec![]),
                     radio_group::item_text(
                         false,
-                        true,
+                        &item_disabled_props,
                         vec![],
                         vec![text("Same day (unavailable)")],
                     ),
                     radio_group::item_hidden_input(
                         false,
-                        true,
+                        &item_disabled_props,
                         Some("delivery"),
                         "same-day",
                         vec![],
@@ -1087,6 +1130,92 @@ fn ex_radio_group_vertical_disabled() -> Node {
         ],
     )];
     div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// 利用者が自前 CSS で `radio-group` を装飾する最小例のスニペット
+/// （`[data-scope]`/`[data-part]`/`data-*` 状態属性セレクタ）。
+/// `assets/primitives-showcase.css` には一切追加しない（`[data-scope=`/
+/// `[data-part=` 不在契約、`tests/site_css_contract.rs` 参照）。テキストは
+/// `text()` 経由（既定エスケープ）で `pre`/`code` に出力するのみで、CSS を
+/// 実行・適用する経路は持たない（イシュー #1616）。
+const RADIO_GROUP_CUSTOM_CSS_SNIPPET: &str = r#"[data-scope="radio-group"][data-part="item-control"] {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 1px solid #ccc;
+}
+
+[data-scope="radio-group"][data-part="item-control"][data-state="checked"] {
+  box-shadow: inset 0 0 0 3px #06c;
+}
+
+[data-scope="radio-group"][data-part="item-control"][data-disabled] {
+  opacity: 0.5;
+}
+
+[data-scope="radio-group"][data-part="item-control"][data-invalid] {
+  border-color: #d33;
+}
+
+[data-scope="radio-group"][data-part="item"]:focus-within {
+  outline: 2px solid #06c;
+  outline-offset: 2px;
+}
+
+[data-scope="radio-group"][data-part="root"][data-orientation="horizontal"] {
+  display: flex;
+  gap: 1rem;
+}"#;
+
+/// Custom CSS 例のネイティブ `<input type="radio">` グループ名。
+/// 同一ページの Demo 節（`crates/docs-site/src/primitive_showcase/
+/// forms_b.rs::radio_group_section` が出力する "Plan" グループ）も
+/// `name="plan"` を使っており、同一 DOM 上に同名グループの radio が
+/// 複数存在するとブラウザがネイティブ排他選択（同じ `name` を 1 グループ
+/// として扱う）を跨いで干渉してしまう（codex-review P1 指摘、PR #1886）。
+/// 本例は Demo 節と独立した固有名を使う。
+const RADIO_GROUP_CUSTOM_CSS_EXAMPLE_NAME: &str = "plan-custom-css";
+
+fn ex_radio_group_custom_css() -> Node {
+    let props = radio_group::RadioGroupProps {
+        invalid: true,
+        ..Default::default()
+    };
+    let demo = radio_group::root(
+        &props,
+        None,
+        None,
+        vec![],
+        vec![
+            radio_group::label(&props, None, vec![], vec![text("Plan")]),
+            radio_group::item(
+                false,
+                &props,
+                "monthly",
+                vec![],
+                vec![
+                    radio_group::item_control(false, &props, vec![]),
+                    radio_group::item_text(false, &props, vec![], vec![text("Monthly")]),
+                    radio_group::item_hidden_input(
+                        false,
+                        &props,
+                        Some(RADIO_GROUP_CUSTOM_CSS_EXAMPLE_NAME),
+                        "monthly",
+                        vec![],
+                    ),
+                ],
+            ),
+        ],
+    );
+    let snippet = pre(
+        vec![],
+        vec![code(vec![], vec![text(RADIO_GROUP_CUSTOM_CSS_SNIPPET)])],
+    );
+    wrap_password_example(
+        "headless-ui はスタイルレスです。data-scope/data-part/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
+        vec![demo, snippet],
+    )
 }
 
 fn ex_rating_group_readonly() -> Node {
