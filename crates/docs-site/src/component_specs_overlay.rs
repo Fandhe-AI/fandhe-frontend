@@ -124,7 +124,7 @@ pub const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
         "複数選択操作バー（chakra-ui ActionBar 相当。実体は Ark Popover の再利用）。Root / Positioner / Content / SelectionTrigger / Separator / CloseTrigger の 6 anatomy パーツを持つ。",
         "開閉は Disclosure を埋め込んだ状態機械 ActionBar が管理する。選択件数から open を自動導出する糖衣 API は持たず、「選択操作 → 開閉状態の決定」は呼び出し側の責務とする。",
         "content に role=\"dialog\"（非モーダル）と aria-label（選択件数などの読み上げ用ラベル、呼び出し側が指定）を固定付与する。参照基準に合わせイシュー #1647 で role=\"toolbar\" から是正済み（**破壊的変更**）。開状態のみ data-expanded を、常時 tabindex=\"-1\" を付与する。",
-        "close-trigger は呼び出し側が aria-label を指定しなければ既定値 \"close\" を出力する。",
+        "close-trigger は呼び出し側が aria-label を指定せず、かつ children が空（可視テキストを持たないボタン）のときに限り既定値 \"close\" を出力する。",
     ],
     arguments: &[ArgRow {
         name: "state",

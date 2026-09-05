@@ -334,7 +334,8 @@
 //!   イシュー #1647 で `"toolbar"` から是正済み） + `aria-label` +
 //!   開状態のみの `data-expanded` + `tabindex="-1"`、`separator` は
 //!   `role="separator"` + `aria-orientation="vertical"` を出力する。
-//!   `close-trigger` は呼び出し側が `aria-label` を指定しなければ既定値
+//!   `close-trigger` は呼び出し側が `aria-label` を指定せず、かつ
+//!   `children` が空（可視テキストを持たないボタン）のときに限り既定値
 //!   `"close"` を出力する。選択件数から `open` を導出する
 //!   糖衣 API は持たず、開閉は呼び出し側が dispatch（`"open"`/`"close"`/
 //!   `"toggle"`）で制御する（[`action_bar`] モジュール doc §選択件数から

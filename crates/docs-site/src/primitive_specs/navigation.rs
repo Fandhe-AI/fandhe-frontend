@@ -202,7 +202,7 @@ pub(super) const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
         "開閉は Disclosure を埋め込んだ状態機械 ActionBar が管理する。選択件数から open を自動導出する糖衣 API は持たず、「選択操作 → 開閉状態の決定」は呼び出し側の責務とする（action_bar.rs「選択件数から open を導出する糖衣 API は持たない」節）。",
         "content に role=\"dialog\"（非モーダル、aria-modal は付与しない）と aria-label（読み上げ用ラベル、呼び出し側が指定する必須引数）を固定付与する。参照基準（zag.js popover の content）に合わせイシュー #1647 で role=\"toolbar\"（roving tabindex を伴わない不完全な適用だった）から是正した（**破壊的変更**、content 関数）。",
         "content は開状態のときのみ data-expanded 存在属性を出力し、tabindex=\"-1\" を固定付与する（chakra autoFocus: false に対応。開時にフォーカスを自動移動しない。呼び出し側 attrs に tabindex があれば出力しない、content 関数）。",
-        "close-trigger は呼び出し側 attrs に aria-label が無ければ既定値 \"close\"（zag.js popover の translations.closeTrigger 既定値、CLOSE_TRIGGER_ARIA_LABEL）を出力する（close_trigger 関数）。",
+        "close-trigger は呼び出し側 attrs に aria-label が無く、かつ children が空（可視テキストを持たないボタン）のときに限り既定値 \"close\"（zag.js popover の translations.closeTrigger 既定値、CLOSE_TRIGGER_ARIA_LABEL）を出力する（close_trigger 関数。children に可視テキストがあれば既定 aria-label は付与しない）。",
         "closed のとき positioner/content の双方に hidden 存在属性を付与し、SSR/no-JS でも閉状態を表現する（positioner/content 関数）。",
         "参照基準に存在する data-placement/data-side（placement variant）は本実装のスコープ外（`docs/policy/intentional-non-adoption.md` §3.25 規則 2、装飾・レイアウト計測は headless-ui へ持ち込まない）。外側クリックでの閉鎖（closeOnInteractOutside）は既定 false のまま opt-in 属性を持たない（選択操作のチェックボックス等が ActionBar の外側に存在するため、誤閉鎖を防ぐ安全側の判断）。",
     ],
@@ -229,7 +229,7 @@ pub(super) const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
             name: "close_trigger(attrs)",
             kind: "Vec<(&str, &str)>",
             default: "",
-            description: "aria-label 未指定時は既定値 \"close\" を出力する（CLOSE_TRIGGER_ARIA_LABEL）。呼び出し側が指定すれば上書きされる。",
+            description: "aria-label 未指定かつ children が空のときのみ既定値 \"close\" を出力する（CLOSE_TRIGGER_ARIA_LABEL）。呼び出し側が aria-label を指定するか children に可視テキストを渡せば上書き・不出力になる。",
         },
     ],
     examples: &[
@@ -265,7 +265,7 @@ pub(super) const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
         },
         AriaRow {
             attribute: "aria-label=\"close\"",
-            description: "close-trigger の既定値。呼び出し側 attrs に aria-label があれば上書きされる。",
+            description: "close-trigger の既定値。呼び出し側 attrs に aria-label が無く、かつ children が空（可視テキストを持たない）のときに限り出力される。呼び出し側が aria-label を指定するか children に可視テキストを渡せば出力されない。",
         },
         AriaRow {
             attribute: "role=\"separator\" / aria-orientation=\"vertical\"",
