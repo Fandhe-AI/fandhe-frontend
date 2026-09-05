@@ -47,7 +47,16 @@ const DYNAMIC_PART_NAMES: &[(&str, &[&str])] = &[
             "alpha-slider-thumb",
         ],
     ),
-    ("pagination", &["prev-trigger", "next-trigger", "item"]),
+    (
+        "pagination",
+        &[
+            "prev-trigger",
+            "next-trigger",
+            "item",
+            "first-trigger",
+            "last-trigger",
+        ],
+    ),
 ];
 
 /// headless-ui ソース `crates/headless-ui/src/<module>.rs` 中の

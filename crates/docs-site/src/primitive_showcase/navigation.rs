@@ -737,25 +737,34 @@ pub(super) fn navigation_menu_section() -> Node {
     demo_page("Navigation Menu", body)
 }
 
+/// 7 anatomy パーツ（Root/Item/Ellipsis/PrevTrigger/NextTrigger/
+/// FirstTrigger/LastTrigger）全てを Demo へ描画する（イシュー #1655、
+/// ark-ui との参照突合で first/last trigger を追加）。先頭ページ（page=1）を
+/// current とし first/prev を disabled、`1 2 3 … 500` 相当のページ列、末尾
+/// item 1 件を `ItemMode::Link` にして `href` を実演する（next/last は有効）。
 pub(super) fn pagination_section() -> Node {
     let body = vec![pagination::root(
         "Pagination",
         vec![],
         vec![
-            pagination::prev_trigger(ItemMode::Button, false, vec![], vec![text("Prev")]),
-            pagination::item(ItemMode::Button, false, false, vec![], vec![text("1")]),
-            pagination::item(ItemMode::Button, true, false, vec![], vec![text("2")]),
+            pagination::first_trigger(ItemMode::Button, true, vec![], vec![text("First")]),
+            pagination::prev_trigger(ItemMode::Button, true, vec![], vec![text("Prev")]),
+            pagination::item(ItemMode::Button, 1, true, false, vec![], vec![text("1")]),
+            pagination::item(ItemMode::Button, 2, false, false, vec![], vec![text("2")]),
+            pagination::item(ItemMode::Button, 3, false, false, vec![], vec![text("3")]),
             pagination::ellipsis(vec![], vec![text("…")]),
             pagination::item(
                 ItemMode::Link {
-                    href: "https://example.com/?page=9",
+                    href: "https://example.com/?page=500",
                 },
+                500,
                 false,
                 false,
                 vec![],
-                vec![text("9")],
+                vec![text("500")],
             ),
             pagination::next_trigger(ItemMode::Button, false, vec![], vec![text("Next")]),
+            pagination::last_trigger(ItemMode::Button, false, vec![], vec![text("Last")]),
         ],
     )];
     demo_page("Pagination", body)

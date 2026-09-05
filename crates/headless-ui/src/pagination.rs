@@ -2,13 +2,57 @@
 //! `docs/api/headless-ui-api.md` §4b.3 の保留を解除。先行判断は #716）。
 //!
 //! ark-ui の Pagination
-//! （`.claude/skills/ark-ui/references/components/navigation/pagination.md`
-//! 相当）を参考に、Root / Item / Ellipsis / PrevTrigger / NextTrigger の 5
-//! anatomy パーツと、`fandhe_frontend_interactive::Component`/
+//! （`.claude/skills/ark-ui/references/components/collections/pagination.md`
+//! 相当）を参考に、Root / Item / Ellipsis / PrevTrigger / NextTrigger /
+//! FirstTrigger / LastTrigger の 7 anatomy パーツと、
+//! `fandhe_frontend_interactive::Component`/
 //! `fandhe_frontend_interactive::Hydrate` を直接実装する値状態機械
 //! [`Pagination`] を提供する。中核は [`page_range`] — 総件数・ページサイズ・
 //! 現在ページ・sibling/boundary 件数から、省略記号（[`PageEntry::Ellipsis`]）
 //! を含むページ列を決定的に導出する純粋関数である。
+//!
+//! # 参考サイトとの突合（イシュー #1655）
+//!
+//! ark-ui の Pagination API Reference には本モジュール初期実装（#751）が
+//! 「スコープ外」としていた [`first_trigger`]/[`last_trigger`] パーツと、
+//! [`item`] の `data-index`（ページ番号を表す存在マーカーではなく実値）が
+//! 存在するため、本イシューで追加した。是正した点・意図的に合わせなかった
+//! 点は以下のとおり。
+//!
+//! 是正した点:
+//!
+//! - [`first_trigger`]/[`last_trigger`] パーツを新設（ark の Root Data
+//!   Attributes 表・Anatomy に準拠。[`Pagination::can_prev`]/
+//!   [`Pagination::can_next`] と連動する `disabled`/`aria-disabled`/
+//!   `data-disabled`）。
+//! - [`item`] へ `data-index`（ページ番号の 10 進数文字列）を追加（ark の
+//!   Item Data Attributes 表に準拠）。
+//! - [`PaginationAction::First`]/[`PaginationAction::Last`] を追加し
+//!   `"first"`/`"last"` dispatch で `page` を `1`/`total_pages` へ直接遷移
+//!   できるようにした（ark の `goToFirstPage`/`goToLastPage` 相当）。
+//! - 呼び出し側 `attrs` によるフレームワーク固定キー（`data-selected`/
+//!   `data-index`/`aria-current`/`href`/`type`/`disabled`/`aria-disabled`/
+//!   `data-disabled`）の偽装を [`drop_reserved`](crate::radio_group::drop_reserved)
+//!   で fail-closed に除去する防御を追加（`crate::menu` 等と同型）。
+//!
+//! 意図的に合わせなかった点:
+//!
+//! - **キーボード操作**: ark-ui の Pagination も roving tabindex 等の独自
+//!   キーボード操作を持たず、ネイティブ `<button>`/`<a>` の Tab / Shift+Tab
+//!   （フォーカス移動）・Enter / Space（`Button` モードのみ、`Link` モードは
+//!   Enter でページ遷移）に委ねる契約のため、本モジュールも新規実装しない
+//!   （原稿 `keyboard` 節にネイティブ操作として明記する）。
+//! - **`aria-label`（"page N" 相当のローカライズ文字列）**: ark の
+//!   `translations.itemLabel` はローカライズ機構前提のため、[`item`]/
+//!   トリガー系パーツでは `aria-label` を予約キーに含めない（呼び出し側が
+//!   `attrs` 経由で明示的に供給する契約のまま維持する）。
+//! - **chakra-ui の `PageText`/`Items`**: 件数レンジ文字列（"1–10 of 50"）の
+//!   数値整形はアプリケーションロジックであり
+//!   `docs/policy/intentional-non-adoption.md` §3.23 の判断軸により UI
+//!   コンポーネント層の責務外（不採用）。
+//! - **`fandhe-frontend-wasm-full` のクリック配線**: `"goto"`/`"next"`/
+//!   `"prev"`/`"first"`/`"last"` を DOM イベントへ接続する処理は別クレート
+//!   責務のためスコープ外のまま（差分メモに記載、後続 Issue 化を提案）。
 //!
 //! # `data-state` を持たない理由
 //!
@@ -22,10 +66,11 @@
 //!
 //! SSR は [`Pagination::new`] で値を正規化してから
 //! [`Pagination::page_range`] が返す [`PageEntry`] 列を走査し、各パーツ関数
-//! （[`root`]/[`item`]/[`ellipsis`]/[`prev_trigger`]/[`next_trigger`]）を呼んで
-//! 組み立てる。CSR/hydration は [`Pagination`] を経由し、dispatch
-//! （`"goto"`/`"next"`/`"prev"`）で状態遷移する。`fandhe-frontend-pre-styled-ui`
-//! が本モジュールを呼んでスタイル済み Pagination を組み立てる想定である。
+//! （[`root`]/[`item`]/[`ellipsis`]/[`prev_trigger`]/[`next_trigger`]/
+//! [`first_trigger`]/[`last_trigger`]）を呼んで組み立てる。CSR/hydration は
+//! [`Pagination`] を経由し、dispatch（`"goto"`/`"next"`/`"prev"`/`"first"`/
+//! `"last"`）で状態遷移する。`fandhe-frontend-pre-styled-ui` が本モジュールを
+//! 呼んでスタイル済み Pagination を組み立てる想定である。
 //!
 //! # ページ列生成の決定性・計算量（受け入れ条件）
 //!
@@ -60,22 +105,53 @@
 //!   返す（パース不能・`page_size == 0`・`page` が `[1, total_pages]` の
 //!   範囲外をすべて拒否する。[`crate::number_input::NumberInput`] と同型の
 //!   fail-closed 契約）。
+//! - 呼び出し側 `attrs` からの固定キー偽装（`data-scope`/`data-part`/
+//!   `data-selected`/`data-index`/`aria-current`/`href`/`type`/`disabled`/
+//!   `aria-disabled`/`data-disabled`/`aria-hidden`）は各パーツが
+//!   [`drop_reserved`](crate::radio_group::drop_reserved) で ASCII 大文字小文字
+//!   無視の完全一致により fail-closed に除去する（イシュー #1655）。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - **wasm 層のクリック配線**: `fandhe-frontend-wasm-full` の DOM イベント
 //!   接続は本イシューのスコープ外（他コンポーネント同様、後続責務）。
-//! - **FirstTrigger/LastTrigger パーツ・キーボードナビゲーション**: ark-ui の
-//!   完全な操作性再現は初期実装のスコープ外とする。
+//! - **キーボードナビゲーション**: ark-ui も roving tabindex 等の独自実装を
+//!   持たないため、ネイティブ `<button>`/`<a>` の既定操作に委ねる（上記
+//!   「参考サイトとの突合」節参照）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_current, aria_disabled, aria_hidden, AriaCurrent};
 use crate::data_attrs::data_disabled;
+use crate::radio_group::drop_reserved;
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
 /// Pagination の anatomy（`data-scope="pagination"`）。
 const ANATOMY: Anatomy = anatomy("pagination");
+
+/// [`root`] が予約する固定キー（呼び出し側 `attrs` からの偽装を防ぐ、
+/// [`drop_reserved`] 参照）。`data-scope`/`data-part` は `Anatomy::part` が
+/// 別途フィルタするためここには含めない。
+const ROOT_RESERVED: &[&str] = &["aria-label"];
+
+/// [`item`] が予約する固定キー。
+const ITEM_RESERVED: &[&str] = &[
+    "type",
+    "href",
+    "aria-current",
+    "data-selected",
+    "data-index",
+    "disabled",
+    "aria-disabled",
+    "data-disabled",
+];
+
+/// [`ellipsis`] が予約する固定キー。
+const ELLIPSIS_RESERVED: &[&str] = &["aria-hidden"];
+
+/// [`prev_trigger`]/[`next_trigger`]/[`first_trigger`]/[`last_trigger`] が
+/// 予約する固定キー（[`trigger_part`] 共通実装から適用する）。
+const TRIGGER_RESERVED: &[&str] = &["type", "href", "disabled", "aria-disabled", "data-disabled"];
 
 /// ページ列 1 要素（実ページ番号、または省略記号）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -208,24 +284,32 @@ pub enum ItemMode<'a> {
 #[must_use]
 pub fn root<'a>(aria_label: &'a str, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![("aria-label", aria_label)];
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, ROOT_RESERVED));
     ANATOMY.part("root", "nav", merged, children)
 }
 
-/// Item パーツ（ページ番号 1 件）。`current` が `true` のとき
-/// `aria-current="page"` + `data-selected`（存在マーカー、ark-ui 準拠）を
-/// 付与する。`disabled` は `Button` モードのみネイティブ `disabled` を出力し
-/// （`Link` に `disabled` 属性は無効な HTML のため）、両モードとも
-/// `aria-disabled`/`data-disabled` は共通で出力する。
+/// Item パーツ（ページ番号 1 件）。`page` はページ番号（`data-index` として
+/// 10 進数文字列で出力、ark-ui の Item Data Attributes 表準拠。イシュー
+/// #1655 で追加。`data-selected`（真偽の存在マーカー）とは異なり実値を持つ
+/// 属性）。`current` が `true` のとき `aria-current="page"` + `data-selected`
+/// （存在マーカー、ark-ui 準拠）を付与する。`disabled` は `Button` モードの
+/// みネイティブ `disabled` を出力し（`Link` に `disabled` 属性は無効な HTML
+/// のため）、両モードとも `aria-disabled`/`data-disabled` は共通で出力する。
 #[must_use]
 pub fn item<'a>(
     mode: ItemMode<'a>,
+    page: u64,
     current: bool,
     disabled: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    // `page_index` は本関数ローカルの `String` であり、呼び出し側の
+    // ライフタイム `'a` より短命なため、`merged` は明示的に `'a` を固定
+    // せずローカルなライフタイムで組み立てる（`Anatomy::part` はライフタイム
+    // 汎用のため受理できる。`Node` は構築後に属性を所有し `'a` を保持しない）。
+    let page_index = page.to_string();
+    let mut merged: Vec<(&str, &str)> = Vec::new();
     let tag = match mode {
         ItemMode::Button => {
             merged.push(("type", "button"));
@@ -236,6 +320,7 @@ pub fn item<'a>(
             "a"
         }
     };
+    merged.push(("data-index", page_index.as_str()));
     if current {
         merged.push(aria_current(AriaCurrent::Page));
         merged.push(("data-selected", ""));
@@ -247,7 +332,7 @@ pub fn item<'a>(
         merged.push(aria_disabled(true));
     }
     merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, ITEM_RESERVED));
     ANATOMY.part(tag_part_name(tag), tag, merged, children)
 }
 
@@ -264,7 +349,7 @@ fn tag_part_name(_tag: &str) -> &'static str {
 #[must_use]
 pub fn ellipsis<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![aria_hidden(true)];
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, ELLIPSIS_RESERVED));
     ANATOMY.part("ellipsis", "span", merged, children)
 }
 
@@ -291,7 +376,32 @@ pub fn next_trigger<'a>(
     trigger_part("next-trigger", mode, disabled, attrs, children)
 }
 
-/// [`prev_trigger`]/[`next_trigger`] の共通実装。
+/// FirstTrigger パーツ（先頭ページへ移動、ark-ui の Anatomy/Data Attributes
+/// 表に準拠して新設。イシュー #1655）。[`prev_trigger`] と同じ契約。
+#[must_use]
+pub fn first_trigger<'a>(
+    mode: ItemMode<'a>,
+    disabled: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    trigger_part("first-trigger", mode, disabled, attrs, children)
+}
+
+/// LastTrigger パーツ（末尾ページへ移動、[`first_trigger`] と対を成す。
+/// イシュー #1655）。[`prev_trigger`] と同じ契約。
+#[must_use]
+pub fn last_trigger<'a>(
+    mode: ItemMode<'a>,
+    disabled: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    trigger_part("last-trigger", mode, disabled, attrs, children)
+}
+
+/// [`prev_trigger`]/[`next_trigger`]/[`first_trigger`]/[`last_trigger`] の
+/// 共通実装。
 fn trigger_part<'a>(
     part: &'static str,
     mode: ItemMode<'a>,
@@ -317,7 +427,7 @@ fn trigger_part<'a>(
         merged.push(aria_disabled(true));
     }
     merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, TRIGGER_RESERVED));
     ANATOMY.part(part, tag, merged, children)
 }
 
@@ -331,6 +441,11 @@ pub enum PaginationAction {
     Next,
     /// 前のページへ（先頭では no-op と同じ clamp）。
     Prev,
+    /// 先頭ページ（`1`）へ移動する（[`first_trigger`] 用、イシュー #1655）。
+    First,
+    /// 末尾ページ（`total_pages`）へ移動する（[`last_trigger`] 用、
+    /// イシュー #1655）。
+    Last,
 }
 
 /// Pagination の値状態機械（ark-ui 準拠）。
@@ -469,7 +584,7 @@ impl Pagination {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item(mode, page == self.page, disabled, attrs, children)
+        item(mode, page, page == self.page, disabled, attrs, children)
     }
 
     /// [`prev_trigger`] へ現在の境界到達状態を注入する利便メソッド。
@@ -493,6 +608,30 @@ impl Pagination {
     ) -> Node {
         next_trigger(mode, !self.can_next(), attrs, children)
     }
+
+    /// [`first_trigger`] へ現在の境界到達状態（先頭ページかどうか）を注入する
+    /// 利便メソッド（イシュー #1655）。
+    #[must_use]
+    pub fn first_trigger<'a>(
+        &self,
+        mode: ItemMode<'a>,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        first_trigger(mode, !self.can_prev(), attrs, children)
+    }
+
+    /// [`last_trigger`] へ現在の境界到達状態（末尾ページかどうか）を注入する
+    /// 利便メソッド（イシュー #1655）。
+    #[must_use]
+    pub fn last_trigger<'a>(
+        &self,
+        mode: ItemMode<'a>,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        last_trigger(mode, !self.can_next(), attrs, children)
+    }
 }
 
 impl Component for Pagination {
@@ -510,6 +649,12 @@ impl Component for Pagination {
             PaginationAction::Prev => {
                 self.page = self.page.saturating_sub(1).max(1);
             }
+            PaginationAction::First => {
+                self.page = 1;
+            }
+            PaginationAction::Last => {
+                self.page = total_pages;
+            }
         }
     }
 
@@ -521,14 +666,16 @@ impl Component for Pagination {
         self.root("pagination", Vec::new(), Vec::new())
     }
 
-    /// `"next"`/`"prev"`: payload 不使用。`"goto"`: payload を
-    /// `str::parse::<u64>()` でパースし（10 進数のみ、負数・小数・空文字は
-    /// 拒否）、失敗時は `None`（fail-closed、dispatch は no-op）。
+    /// `"next"`/`"prev"`/`"first"`/`"last"`: payload 不使用。`"goto"`:
+    /// payload を `str::parse::<u64>()` でパースし（10 進数のみ、負数・小数・
+    /// 空文字は拒否）、失敗時は `None`（fail-closed、dispatch は no-op）。
     fn decode_action(name: &str, payload: &str) -> Option<PaginationAction> {
         match name {
             "goto" => payload.parse::<u64>().ok().map(PaginationAction::Goto),
             "next" => Some(PaginationAction::Next),
             "prev" => Some(PaginationAction::Prev),
+            "first" => Some(PaginationAction::First),
+            "last" => Some(PaginationAction::Last),
             _ => None,
         }
     }
@@ -740,6 +887,7 @@ mod tests {
     fn item_current_has_aria_current_and_data_selected_exactly_once() {
         let html = render(&item(
             ItemMode::Button,
+            3,
             true,
             false,
             vec![],
@@ -754,6 +902,7 @@ mod tests {
     fn item_not_current_has_no_aria_current() {
         let html = render(&item(
             ItemMode::Button,
+            3,
             false,
             false,
             vec![],
@@ -767,6 +916,7 @@ mod tests {
     fn item_link_mode_outputs_href() {
         let html = render(&item(
             ItemMode::Link { href: "/page/2" },
+            2,
             false,
             false,
             vec![],
@@ -778,7 +928,7 @@ mod tests {
 
     #[test]
     fn item_button_disabled_outputs_native_disabled() {
-        let html = render(&item(ItemMode::Button, false, true, vec![], vec![]));
+        let html = render(&item(ItemMode::Button, 1, false, true, vec![], vec![]));
         assert!(html.contains(r#"disabled="""#));
         assert!(html.contains(r#"aria-disabled="true""#));
         assert!(html.contains(r#"data-disabled="""#));
@@ -788,6 +938,7 @@ mod tests {
     fn item_link_disabled_does_not_output_native_disabled_attr() {
         let html = render(&item(
             ItemMode::Link { href: "/x" },
+            1,
             false,
             true,
             vec![],
@@ -795,6 +946,12 @@ mod tests {
         ));
         assert!(!html.contains(" disabled"));
         assert!(html.contains(r#"aria-disabled="true""#));
+    }
+
+    #[test]
+    fn item_outputs_data_index_matching_page_number() {
+        let html = render(&item(ItemMode::Button, 7, false, false, vec![], vec![]));
+        assert!(html.contains(r#"data-index="7""#));
     }
 
     #[test]
@@ -818,6 +975,51 @@ mod tests {
         assert!(html.contains(r#"disabled="""#));
     }
 
+    #[test]
+    fn first_trigger_disabled_at_start() {
+        let p = Pagination::new(50, 10, 1, 1, 1);
+        let html = render(&p.first_trigger(ItemMode::Button, vec![], vec![]));
+        assert!(html.contains(r#"data-part="first-trigger""#));
+        assert!(html.contains(r#"disabled="""#));
+
+        let p = Pagination::new(50, 10, 1, 1, 3);
+        let html = render(&p.first_trigger(ItemMode::Button, vec![], vec![]));
+        assert!(!html.contains("disabled"));
+    }
+
+    #[test]
+    fn last_trigger_disabled_at_end() {
+        let p = Pagination::new(50, 10, 1, 1, 5);
+        let html = render(&p.last_trigger(ItemMode::Button, vec![], vec![]));
+        assert!(html.contains(r#"data-part="last-trigger""#));
+        assert!(html.contains(r#"disabled="""#));
+
+        let p = Pagination::new(50, 10, 1, 1, 3);
+        let html = render(&p.last_trigger(ItemMode::Button, vec![], vec![]));
+        assert!(!html.contains("disabled"));
+    }
+
+    #[test]
+    fn dispatch_first_and_last_jump_to_bounds() {
+        let mut p = Pagination::new(50, 10, 1, 1, 3);
+        assert!(dispatch(&mut p, "last", ""));
+        assert_eq!(p.page(), 5);
+        assert!(dispatch(&mut p, "first", ""));
+        assert_eq!(p.page(), 1);
+    }
+
+    #[test]
+    fn decode_action_first_and_last() {
+        assert_eq!(
+            Pagination::decode_action("first", ""),
+            Some(PaginationAction::First)
+        );
+        assert_eq!(
+            Pagination::decode_action("last", ""),
+            Some(PaginationAction::Last)
+        );
+    }
+
     // --- Anatomy::part fail-closed 回帰 ---
 
     #[test]
@@ -830,6 +1032,89 @@ mod tests {
         assert!(html.contains(r#"data-scope="pagination""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    // --- 予約キー除去（drop_reserved）fail-closed 回帰、イシュー #1655 ---
+
+    #[test]
+    fn caller_reserved_attrs_on_item_are_dropped() {
+        let html = render(&item(
+            ItemMode::Button,
+            3,
+            false,
+            false,
+            vec![
+                ("aria-current", "attacker"),
+                ("data-selected", "attacker"),
+                ("data-index", "999"),
+                ("disabled", "attacker"),
+                ("aria-disabled", "attacker"),
+                ("data-disabled", "attacker"),
+                ("type", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
+        assert!(html.contains(r#"data-index="3""#));
+        assert!(!html.contains(r#"data-index="999""#));
+        assert!(html.contains(r#"type="button""#));
+        assert!(!html.contains("aria-current"));
+        assert!(!html.contains("data-selected"));
+        assert!(!html.contains("disabled"));
+    }
+
+    #[test]
+    fn caller_reserved_attrs_on_link_item_href_is_dropped() {
+        let html = render(&item(
+            ItemMode::Link { href: "/real" },
+            3,
+            false,
+            false,
+            vec![("href", "https://attacker.example")],
+            vec![],
+        ));
+        assert!(html.contains(r#"href="/real""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn caller_reserved_attrs_on_trigger_are_dropped() {
+        let html = render(&prev_trigger(
+            ItemMode::Button,
+            true,
+            vec![
+                ("disabled", "attacker"),
+                ("aria-disabled", "attacker"),
+                ("data-disabled", "attacker"),
+                ("type", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
+        assert!(html.contains(r#"type="button""#));
+    }
+
+    #[test]
+    fn caller_reserved_attrs_on_ellipsis_are_dropped() {
+        let html = render(&ellipsis(vec![("aria-hidden", "false")], vec![]));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains(r#"aria-hidden="false""#));
+    }
+
+    #[test]
+    fn item_aria_label_from_attrs_is_kept() {
+        // `aria-label`（zag の `translations.itemLabel` 相当）は予約キーに
+        // 含めない契約（モジュール doc「意図的に合わせなかった点」参照）。
+        // 呼び出し側が明示的にローカライズ文字列を供給できることを固定する。
+        let html = render(&item(
+            ItemMode::Button,
+            3,
+            false,
+            false,
+            vec![("aria-label", "page 3")],
+            vec![],
+        ));
+        assert!(html.contains(r#"aria-label="page 3""#));
     }
 
     // --- 正規化（fail-closed） ---
@@ -990,6 +1275,7 @@ mod tests {
             ItemMode::Link {
                 href: ATTR_BREAK_PAYLOAD,
             },
+            1,
             false,
             false,
             vec![],
@@ -1012,6 +1298,7 @@ mod tests {
     fn children_text_is_escaped_on_render() {
         let html = render(&item(
             ItemMode::Button,
+            1,
             false,
             false,
             vec![],

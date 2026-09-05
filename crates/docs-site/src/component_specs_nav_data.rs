@@ -1405,6 +1405,7 @@ fn ex_pagination() -> Node {
         vec![],
         vec![pagination::item(
             pagination::ItemMode::Button,
+            1,
             true,
             false,
             vec![],
