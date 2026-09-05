@@ -23,12 +23,25 @@
 //! # transform ベースのスライド位置表現（`--fandhe-carousel-index`）
 //!
 //! headless `Carousel::item_group`（`crates/headless-ui/src/carousel.rs`）が
-//! `style="--fandhe-carousel-index: <index>;"` を出力する契約に対応し、
-//! `item-group` slot の recipe が
+//! `style="--fandhe-carousel-index: <index>;"` を出力する契約に対応する。
+//! 横方向は `item-group` slot の recipe が
 //! `transform: translateX(calc(var(--fandhe-carousel-index, 0) * -100%))`
-//! （`data-orientation="vertical"` のときは `translateY`）を宣言する。
+//! を宣言してトラック自身を動かす。縦方向は `item-group` を確定高さ
+//! （`--fandhe-carousel-height` トークン、既定 20rem）+ `overflow: hidden`
+//! を持つ**静止したクリッパー**とし（`transform` は `none` で横方向の
+//! 宣言を打ち消す）、代わりに **`item`** slot（headless `Carousel::item`/
+//! `item` 自由関数も `item-group` と同じ `--fandhe-carousel-index` を継承
+//! できる属性契約を持つ）へ
+//! `transform: translateY(calc(var(--fandhe-carousel-index, 0) * -100%))`
+//! を宣言する。`item` は `flex: 0 0 100%` で `item-group` と同じ高さを持つ
+//! ため、全 `item` へ同じ量の `translateY` を適用するとスタック全体が一律に
+//! ずれ、`item-group` 自体を動かすのと幾何学的に等価になる。クリップ領域
+//! （`item-group`）と移動対象（`item`）を別要素に分離することで、クリップ
+//! 領域自体が移動対象と一緒にずれてしまう不具合（PR #1925 codex-review/
+//! Cursor Bugbot 指摘）を避ける（`recipe()` の `item-group`/`item` の
+//! `data-orientation="vertical"` state 実装コメント参照）。
 //! [`crate::recipe::SlotRecipe`] は子孫セレクタを持たないため、縦横の切替は
-//! `item-group` 自身の `[data-orientation]` 属性条件で行う
+//! いずれも各 slot 自身の `[data-orientation]` 属性条件で行う
 //! （[`crate::segment_group`] の indicator が `--fandhe-segment-group-index`/
 //! `-count` を同じ理由で `data-orientation` 条件化しているのと同型）。
 //! `var()` には明示フォールバック値 `0` を書き（headless 直接利用・
@@ -230,26 +243,33 @@ fn recipe() -> SlotRecipe {
         // 節参照）。
         //
         // codex-review 指摘 PR #1925 是正（P1 2 件・Cursor Bugbot 指摘、共通の
-        // 欠陥系統）: 横方向は `item-group` の主軸（幅）が `root`（クリッパー、
-        // 幅はコンテナ由来で確定）に対して `flex: 0 0 100%` の item 群が並ぶ
-        // ことで内容側に確定するのではなく、`root` 自身の**幅**（ブロック
-        // レイアウトで確定）を超えて `item-group` が横へはみ出す分を `root`
-        // の `overflow: hidden` が clip する構造になっている（`root` の
-        // **高さ**は子要素（`item-group` + 兄弟の `control`）の合計に自動追随
-        // するブロックレイアウトの既定動作のため、`control` は `item-group`
-        // の下に自然に並び隠れない）。縦方向は主軸が高さのため対称の構造に
-        // ならず、`root` 側に確定高さを与えると `root` 自身の高さが固定され
-        // てしまい、その下の `control`（`item-group` の兄弟、通常のブロック
-        // フローで `item-group` の直後に配置される）が `root` の
-        // `overflow: hidden` で隠れてしまう（`crates/docs-site/src/
-        // primitive_specs/data_display_utilities.rs` の自前 CSS 例で実際に
-        // 再現した不具合と同型）。そこで **`item-group` 自身**に確定高さ
-        // （`--fandhe-carousel-height` トークン、既定 20rem）と
-        // `overflow: hidden` を持たせ、`item` の `flex: 0 0 100%`（主軸=高さ
-        // 100%）を `item-group` 自身の高さで解決させたうえで、はみ出す
-        // スタック分は `item-group` 自身がクリップする（`root` はサイズを
-        // 変えず高さ auto のままなので、`control` は従来どおり `item-group`
-        // の下に隠れず表示される）。
+        // 欠陥系統）: 横方向は `root`（クリッパー、`overflow: hidden` を持つが
+        // 自身は移動しない）と `item-group`（トラック、`translateX` で移動する
+        // が自身はクリップしない）が別要素に分離されているため正しく動く。
+        // 縦方向は当初この分離を守れず、**`item-group` 自身**に確定高さ・
+        // `overflow: hidden`・`translateY` の 3 つを同時に持たせていた
+        // （`root` 側に確定高さを与えると兄弟パーツ `control` が `root` の
+        // `overflow: hidden` で隠れるため）。しかしクリップ領域と移動対象が
+        // 同一要素だと、`item-group` を動かすたびクリップ座標系ごと移動して
+        // しまい、index=1 以降で次のスライドがクリップ領域の外（＝表示領域外）
+        // に出てしまう（`crates/docs-site/src/primitive_specs/
+        // data_display_utilities.rs` の自前 CSS 例で実際に再現した不具合と
+        // 同型）。
+        //
+        // 是正: `item-group` は確定高さ（`--fandhe-carousel-height` トークン、
+        // 既定 20rem）と `overflow: hidden` を持つ**静止したクリッパー**に
+        // 徹し、`transform` は `none` で打ち消す（`item-group` の base 規則が
+        // 横方向の `translateX` を宣言しているため、明示的に打ち消さないと
+        // 縦方向でも横スライドが残ってしまう）。移動対象は
+        // `item`（`data-orientation="vertical"`、headless
+        // `Carousel::item`/`item` 自由関数が `item-group` と同じ属性を出力
+        // する契約、`crates/headless-ui/src/carousel.rs` 参照）側へ移す:
+        // 各 `item` は `flex: 0 0 100%` により `item-group` の高さと同じ高さ
+        // を持つため、全 `item` へ同じ `translateY(calc(index * -100%))`
+        // （＝自身の高さの `index` 倍）を適用すると、スタックした `item` 群
+        // 全体が一律にずれ、`item-group` を丸ごと動かすのと幾何学的に等価な
+        // 結果になる（積み上げられた要素を同じ量だけ動かせば全体を動かすのと
+        // 同じであることを利用し、クリップ領域は動かさずに済む）。
         .state(
             "item-group",
             StateCondition::AttrEq("data-orientation", "vertical"),
@@ -257,6 +277,26 @@ fn recipe() -> SlotRecipe {
                 decl("flex-direction", "column"),
                 decl("height", "var(--fandhe-carousel-height, 20rem)"),
                 decl("overflow", "hidden"),
+                // base の横方向 `translateX` を打ち消す（`item-group` 自身は
+                // 縦方向では静止したクリッパーであり移動しない）。
+                decl("transform", "none"),
+            ],
+        )
+        // 縦方向のスライド移動は `item` 自身が担う（上記コメント参照）。
+        // `item-group` の `transition-property: transform`/duration/
+        // timing-function は移動要素が変わったことに合わせ、`item` 側にも
+        // 同じ 3 段フォールバックのトランジションを与える（横方向のみ滑らか
+        // に動き縦方向だけ瞬間切り替えになる非対称を避ける）。
+        .state(
+            "item",
+            StateCondition::AttrEq("data-orientation", "vertical"),
+            vec![
+                decl("transition-property", "transform"),
+                decl(
+                    "transition-duration",
+                    "var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms))",
+                ),
+                decl("transition-timing-function", "var(--fandhe-motion-easing-standard)"),
                 decl(
                     "transform",
                     "translateY(calc(var(--fandhe-carousel-index, 0) * -100%))",
@@ -479,13 +519,31 @@ mod tests {
     }
 
     #[test]
-    fn item_group_switches_to_translate_y_when_vertical() {
+    fn item_group_becomes_static_clipper_when_vertical() {
+        // codex-review/Cursor Bugbot 指摘（PR #1925）是正: 縦方向の
+        // `item-group` はクリップ領域として静止し、横方向の `translateX`
+        // を `none` で打ち消す（自身は移動しない）。
         let css = stylesheet();
         assert!(css.contains(
             "[data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"] {\n  \
              flex-direction: column;\n  \
              height: var(--fandhe-carousel-height, 20rem);\n  \
              overflow: hidden;\n  \
+             transform: none;\n\
+             }\n"
+        ));
+    }
+
+    #[test]
+    fn item_carries_translate_y_when_vertical() {
+        // 移動対象は `item-group` ではなく `item` 側（本モジュール rustdoc
+        // 「transform ベースのスライド位置表現」節参照）。
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"carousel\"][data-part=\"item\"][data-orientation=\"vertical\"] {\n  \
+             transition-property: transform;\n  \
+             transition-duration: var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms));\n  \
+             transition-timing-function: var(--fandhe-motion-easing-standard);\n  \
              transform: translateY(calc(var(--fandhe-carousel-index, 0) * -100%));\n\
              }\n"
         ));

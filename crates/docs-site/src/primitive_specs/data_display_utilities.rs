@@ -337,6 +337,24 @@ fn ex_carousel_vertical_loop() -> Node {
 /// （`crates/pre-styled-ui/src/carousel.rs` の `recipe()` における
 /// 同型の是正と同じ判断、モジュール rustdoc「transform ベースのスライド
 /// 位置表現」節参照）。
+///
+/// PR #1925 codex-review 指摘 是正（3 回目・P1 1 件 + Cursor Bugbot 指摘）:
+/// 上記（2 回目）の是正は `item-group` 自身に固定高さ・`overflow: hidden`・
+/// `translateY` の 3 つを同時に持たせてしまい、クリップ領域（固定高さ +
+/// `overflow: hidden` を持つ静止した表示領域）と移動対象（`translateY` で
+/// 動くトラック）が同一要素になっていた。この状態で `item-group` を
+/// 動かすとクリップ座標系ごと一緒に移動してしまい、index=1 以降で次の
+/// スライドがクリップ領域の外（表示領域外）に出てしまう不具合があった。
+/// `item-group[data-orientation="vertical"]` は固定高さ・
+/// `overflow: hidden` を保持したまま `transform: none`（`item-group` 既定
+/// の横方向 `translateX` を打ち消す）で**静止した表示領域**に徹し、
+/// 代わりに `item[data-orientation="vertical"]` へ `translateY` を移す
+/// （`item` は `flex: 0 0 100%` で `item-group` と同じ高さを持つため、
+/// 全 `item` へ同じ量の `translateY` を適用すると `item-group` 自体を
+/// 動かすのと幾何学的に等価になる。`crates/pre-styled-ui/src/carousel.rs`
+/// の `recipe()` における同型の是正と同じ判断）。control を表示領域の外
+/// （`item-group` の後続の通常フロー）に置く構造自体は既に満たしている
+/// ため変更しない。
 const CAROUSEL_CUSTOM_CSS_SNIPPET: &str = "\
 [data-scope=\"carousel\"][data-part=\"root\"] {\n  \
   overflow: hidden;\n  width: 100%;\n\
@@ -353,6 +371,10 @@ const CAROUSEL_CUSTOM_CSS_SNIPPET: &str = "\
   flex-direction: column;\n  \
   height: 12rem;\n  \
   overflow: hidden;\n  \
+  transform: none;\n\
+}\n\
+[data-scope=\"carousel\"][data-part=\"item\"][data-orientation=\"vertical\"] {\n  \
+  transition: transform 0.2s;\n  \
   transform: translateY(calc(var(--fandhe-carousel-index) * -100%));\n\
 }\n\
 [data-scope=\"carousel\"][data-part=\"indicator\"][data-current] {\n  \

@@ -29,6 +29,21 @@
 //! 兄弟パーツ `control` が `root` の `overflow: hidden` で隠れてしまうため、
 //! `root` の高さは子要素合計に追随する auto のまま変更しない。
 //! `crate::carousel` の該当 `.state()` rustdoc 参照）。
+//!
+//! PR #1925 codex-review 指摘 是正（3 回目・P1 1 件 + Cursor Bugbot 指摘）:
+//! 上記（2 回目）の是正は `item-group` 自身に確定高さ・`overflow: hidden`・
+//! `translateY` の 3 つを同時に持たせてしまい、クリップ領域と移動対象が
+//! 同一要素になっていたため、`item-group` を動かすとクリップ座標系ごと
+//! 移動して index=1 以降で次のスライドが表示されない不具合があった。
+//! `item-group[data-orientation="vertical"]` は確定高さ・
+//! `overflow: hidden` を保持したまま `transform: none`（base の横方向
+//! `translateX` を打ち消す）で**静止したクリッパー**に徹し、代わりに
+//! `item[data-orientation="vertical"]` へ `translateY` とトランジションを
+//! 移した（`item` は `flex: 0 0 100%` で `item-group` と同じ高さを持つため、
+//! 全 `item` へ同じ量の `translateY` を適用すると `item-group` 自体を
+//! 動かすのと幾何学的に等価になる。`crate::carousel` module doc
+//! 「transform ベースのスライド位置表現」節・`recipe()` の該当 `.state()`
+//! rustdoc 参照）。
 
 use fandhe_frontend_pre_styled_ui::carousel;
 
@@ -140,6 +155,13 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
   flex-direction: column;
   height: var(--fandhe-carousel-height, 20rem);
   overflow: hidden;
+  transform: none;
+}
+
+[data-scope="carousel"][data-part="item"][data-orientation="vertical"] {
+  transition-property: transform;
+  transition-duration: var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms));
+  transition-timing-function: var(--fandhe-motion-easing-standard);
   transform: translateY(calc(var(--fandhe-carousel-index, 0) * -100%));
 }
 
