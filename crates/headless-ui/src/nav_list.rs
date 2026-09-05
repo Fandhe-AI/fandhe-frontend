@@ -65,6 +65,49 @@
 //! なく**ディスクロージャの有無**である。単なるリンク集は本モジュールを、
 //! 開閉するナビゲーションパネルが必要な場合は
 //! [`mod@crate::navigation_menu`] を使う。
+//!
+//! # 参考サイト突合（イシュー #1653）
+//!
+//! `docs/design/component-coverage-map.md:837` のとおり、本部品は ark-ui /
+//! Radix Primitives / Radix Themes に 1:1 対応物を持たない fandhe 独自部品
+//! （#756）。イシューが指す chakra-ui `List`
+//! （`.agents/skills/chakra-ui/references/components/typography/list.md`）は
+//! `variant`/`align`/`colorPalette`/`asChild`/`List.Indicator` を持つ**汎用の
+//! marker 付きリスト**であり、Anatomy 図・Keyboard Interactions 表・独自
+//! ARIA を持たない。chakra `List` の本リポジトリでの真の対応物は Themes 層
+//! [`fandhe-frontend-pre-styled-ui` の `list`](https://docs.rs/fandhe-frontend-pre-styled-ui)
+//! （#771）であり、本モジュールは「`nav` ランドマーク + 見出し + リンク
+//! リスト」という文書ナビの意味論を持つ別部品として区別する。突合の結論:
+//!
+//! - **anatomy**: 参照側に 1:1 の Anatomy 図なし。chakra `List.Root`/
+//!   `List.Item` は本モジュールの [`list`]/[`item`] に相当し、[`root`]
+//!   （`nav`）/[`heading`]（`h2`）/[`link`]（`a`、`aria-current`/`data-current`
+//!   語彙）は文書ナビ固有の superset。**増減なし**。
+//! - **`data-*`**: 参照側は状態 `data-*` を持たない。`data-current` は
+//!   [`mod@crate::link`]/[`mod@crate::breadcrumb`] と共有する本リポジトリ
+//!   独自語彙であり、削除は `fandhe-frontend-pre-styled-ui` の golden CSS
+//!   セレクタへ波及する破壊的変更のため意図的に維持する。**増減なし**。
+//! - **WAI-ARIA**: 上記「`role` を一切付与しない」節・`aria-label` 必須化の
+//!   とおり。参照側も独自 ARIA を持たず暗黙ロール依存の点で一致する。
+//! - **キーボード**: 参照側に表なし。ネイティブ `a[href]` の Tab /
+//!   Shift+Tab によるフォーカス移動と Enter による起動のみ（Space は `<a>`
+//!   を起動しない）。矢印キーでの roving は上記「スコープ外」節のとおり
+//!   文書ナビパターン外であり意図的に非提供のまま。
+//! - **是正**: [`crate::breadcrumb`]/[`crate::link_overlay`] と同型の予約
+//!   キーなりすまし除去（[`drop_reserved`]）を追加した（従来
+//!   [`fandhe_frontend_core::el`] が属性の重複除去をしないため、呼び出し側
+//!   `attrs` 経由で `aria-label`/`href`/`aria-current`/`data-current` を
+//!   重複出力・なりすまし可能だった）。
+//! - **意図的に合わせなかった差分**: chakra `List.Indicator`（装飾マーカー。
+//!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2 により headless
+//!   へ持ち込まず Themes 層の責務とする）/ `as="ol"`（文書ナビは順序なし
+//!   リストとして `ul` 固定）/ `variant`・`align`・`colorPalette`・
+//!   `unstyled`（装飾軸、Themes 責務）/ `asChild`（Slot 相当の再導入は同
+//!   §3.25 の再評価トリガーに従属）/ `heading` の見出しレベル可変化（API
+//!   拡張のため本イシューでは非対応、別 issue 化候補）。
+//!
+//! anatomy / `data-*` / ARIA の増減はゼロのため、Themes 側 #1529（closed）
+//! への追加通知は不要と判断した。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_current, aria_label, AriaCurrent};
@@ -74,11 +117,37 @@ use fandhe_frontend_core::Node;
 /// NavList の anatomy（`data-scope="nav-list"`）。
 const ANATOMY: Anatomy = anatomy("nav-list");
 
+/// [`root`] が固定付与する予約キー（イシュー #1653、`crate::breadcrumb` と
+/// 同型）。
+const ROOT_RESERVED: &[&str] = &["aria-label"];
+
+/// [`link`] が固定付与する予約キー。`aria-current`/`data-current` は
+/// `current` の真偽に関わらず無条件に除去する（`current=false` の呼び出し
+/// へ呼び出し側が `aria-current`/`data-current` を渡すのが、まさに防ぎたい
+/// 現在ページなりすましのため）。
+const LINK_RESERVED: &[&str] = &["href", "aria-current", "data-current"];
+
+/// 呼び出し側 `attrs` から予約キー（本モジュールが固定付与する属性名）を
+/// 除去する（ASCII 大文字小文字無視の完全一致）。`fandhe_frontend_core::el`
+/// は属性の重複除去をしないため、これを経由しない呼び出しは同名属性の
+/// 重複出力・状態属性のなりすましを許してしまう（`crate::breadcrumb::drop_reserved`
+/// と同型、イシュー #1653）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
 /// `root` パーツ（`nav`）。`label` は `aria-label` として付与し必須引数
 /// （本モジュール冒頭の rustdoc「`root` の `aria-label` を必須引数にする
 /// 理由」参照）。
 #[must_use]
 pub fn root<'a>(label: &'a str, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![aria_label(label)];
     merged.extend(attrs);
     ANATOMY.part("root", "nav", merged, children)
@@ -112,6 +181,7 @@ pub fn link<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, LINK_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![("href", href)];
     if current {
         merged.push(aria_current(AriaCurrent::Page));
@@ -219,5 +289,49 @@ mod tests {
     fn root_label_is_escaped() {
         let html = render(&root("\"><script>alert(1)</script>", vec![], vec![]));
         assert!(!html.contains("<script>"));
+    }
+
+    #[test]
+    fn root_aria_label_spoofing_is_dropped() {
+        // 呼び出し側 `attrs` に `aria-label` を紛れ込ませても、本モジュール
+        // が固定付与する値のみが出力される（イシュー #1653）。
+        let html = render(&root(
+            "Documentation",
+            vec![("aria-label", "attacker")],
+            vec![],
+        ));
+        assert_eq!(html.matches("aria-label").count(), 1);
+        assert!(html.contains(r#"aria-label="Documentation""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn link_href_spoofing_is_dropped() {
+        // `attrs` 経由の `href` なりすましは無視され、第一引数の `href` の
+        // みが出力される（重複属性・URL 差し替えの防止、イシュー #1653）。
+        let html = render(&link(
+            "/docs/intro",
+            false,
+            vec![("href", "javascript:alert(1)")],
+            vec![],
+        ));
+        assert_eq!(html.matches("href=").count(), 1);
+        assert!(html.contains(r#"href="/docs/intro""#));
+        assert!(!html.contains("javascript:"));
+    }
+
+    #[test]
+    fn link_aria_current_and_data_current_spoofing_is_dropped_even_when_not_current() {
+        // `current=false` でも `attrs` 経由の `aria-current`/`data-current`
+        // なりすましは除去される（現在ページなりすましの防止、イシュー
+        // #1653）。
+        let html = render(&link(
+            "/docs/intro",
+            false,
+            vec![("aria-current", "page"), ("data-current", "")],
+            vec![],
+        ));
+        assert!(!html.contains("aria-current"));
+        assert!(!html.contains("data-current"));
     }
 }

@@ -1824,7 +1824,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # style-refresh-version-bump-operation.md` §5）に反していた）。両者の変更
 # （main 側の headless-ui 0.57.0 依存追随 + 本ブランチの `collapsible` 新設）
 # の和集合として、さらにマイナーバンプで 0.110.0 とする。
-version = "0.110.0"
+# base 再取り込み（イシュー #1653, 2026-09-06）: main 側は本コミット到達後、
+# 独立に依存先 headless-ui を 0.57.0 → 0.57.1（patch、自身の破壊的変更なし）
+# へ追随させ 0.109.1 へ到達していた。本ブランチはこの時点で既に headless-ui
+# 0.57.0 依存 + `collapsible` 新設を統合した 0.110.0 に到達済みのため、
+# main のこの追随分は本ブランチの 0.110.0 に対する patch 差分（依存先を
+# 0.57.1 へ追随するのみで、他に実体変更なし）として吸収し 0.110.1 とする。
+version = "0.110.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1839,7 +1845,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.57.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.57.1" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
