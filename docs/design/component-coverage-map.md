@@ -99,7 +99,7 @@ grep -E '^pub mod ' crates/headless-ui/src/lib.rs \
 # => 59
 grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
   | grep -vE '^pub mod (css|recipe|stylesheet|theme);$' | wc -l
-# => 94
+# => 95
 grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
 # => 13
 ```
@@ -115,10 +115,11 @@ grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
   segment_group / select / signature_pad / skip_nav / slider / splitter /
   steps / switch / tabs / tags_input / timer / toast / toggle /
   toggle_group / toggle_tip / tooltip / tour / tree_view / visually_hidden
-- pre-styled-ui **94**:
+- pre-styled-ui **95**:
   accordion / action_bar / alert / angle_slider / area_chart / avatar /
   badge / blockquote / breadcrumb / button / calendar / card / carousel /
-  charts / checkbox / checkbox_card / clipboard / code / color_picker /
+  charts / checkbox / checkbox_card / clipboard / code / collapsible /
+  color_picker /
   color_swatch / combobox / data_list / date_input / date_picker / dialog /
   donut_chart / download_trigger / drawer / editable / em / empty_state /
   file_upload / floating_panel / heading / highlight / hover_card / icon /
@@ -322,7 +323,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | Accordion (`accordion`) | — | `accordion` | `accordion` | 実装済み | headless+styled 実装済み。#1636 で参照突合済み（`data-orientation` 全パーツ・item-trigger の `aria-disabled`・item-indicator の `aria-hidden`・item-indicator/item-content の `data-disabled` を追加。Radix `Header` パーツ・`data-focus`・`--height`/`--width` は意図的に非採用） |
-| `.agents/skills/ark-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | Collapsible (`collapsible`) | — | `collapsible` | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用） |
+| `.agents/skills/ark-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | Collapsible (`collapsible`) | — | `collapsible` | `collapsible` | 実装済み | headless+styled 実装済み（#1682 recipe / #1683 Themes ページ）。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用） |
 | `.agents/skills/ark-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | Tabs (`tabs`) | Tabs (`tabs`) | `tabs` | `tabs` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/disclosure/toggle.md` | Toggle | — | Toggle (`toggle`) | — | `toggle` | `toggle` | 実装済み | headless+styled 実装済み（#746、PR #791） |
 | `.agents/skills/ark-ui/references/components/disclosure/toggle-group.md` | ToggleGroup | — | Toggle Group (`toggle-group`) | — | `toggle_group` | `toggle_group` | 実装済み | headless+styled 実装済み（#746、PR #791）。#1630 で参照突合: item に data-orientation・root disabled 伝播・roving tabindex opt-in・attrs 偽装除去を追加、data-focus / orientation 既定値常時出力 / deselectable=false は意図的差分 |
@@ -570,7 +571,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | — | — | `accordion` | `accordion` | 実装済み | headless+styled 実装済み（#1636 で ark-ui/Radix 参照突合済み、詳細は上記 ark-ui 行参照） |
-| `.agents/skills/chakra-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | — | — | `collapsible` | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用） |
+| `.agents/skills/chakra-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | — | — | `collapsible` | `collapsible` | 実装済み | headless+styled 実装済み（#1682 recipe / #1683 Themes ページ）。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用） |
 | `.agents/skills/chakra-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | — | — | `tabs` | `tabs` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | `pagination` | `pagination` | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/disclosure/steps.md` | Steps | Steps | — | — | `steps` | `steps` | 実装済み | headless+styled 実装済み（#752、#716 保留の解除） |
@@ -1103,7 +1104,8 @@ grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l  
 （ページ数期待値）が担い、**本書は件数を二重管理しない**。
 
 **注意**: headless-ui のみ実装済みで pre-styled-ui ラッパー未実装の部品
-（`collapsible` / `field` / `fieldset` / `progress`(linear) 等）は
+（`field` / `fieldset` / `progress`(linear) 等。`collapsible` はイシュー
+#1682/#1683 でラッパー実装済み）は
 `/primitives/` にのみ掲載され `/themes/` には現れない。逆に pre-styled-ui
 独自部品（`marquee` 等）は `/themes/` にのみ現れる。掲載先は層ごとに
 独立であり、本書の「実装済み」区分と 1:1 ではない。

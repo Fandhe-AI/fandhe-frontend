@@ -517,8 +517,10 @@ fn scope_resolution_buckets_match_expected_counts() {
     // checkbox-group が data-scope="checkbox-group" と一致）が加わり
     // 93 -> 94、イシュー #1154 で Link / Link Overlay / Nav List の 3 部品
     // （いずれも path 由来の kebab link/link-overlay/nav-list が
-    // data-scope とそのまま一致する）が加わり 94 -> 97 へ増える。
-    assert_eq!(bucket1_path_match, 97);
+    // data-scope とそのまま一致する）が加わり 94 -> 97、イシュー #1683 で
+    // Collapsible（path 由来の kebab collapsible が data-scope="collapsible"
+    // と一致）が加わり 97 -> 98 へ増える。
+    assert_eq!(bucket1_path_match, 98);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }
@@ -631,6 +633,7 @@ fn overlay_disclosure_pages_include_all_required_sections() {
     const PATHS: &[&str] = &[
         "/themes/accordion/",
         "/themes/action-bar/",
+        "/themes/collapsible/",
         "/themes/dialog/",
         "/themes/drawer/",
         "/themes/floating-panel/",

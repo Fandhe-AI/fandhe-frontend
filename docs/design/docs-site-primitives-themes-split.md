@@ -63,14 +63,15 @@ crate 名と結び付けられるようにするためである。
 | Primitives 索引 | `/primitives/` | 1 |
 | Primitives 部品 | `/primitives/<kebab>/` | 63 |
 | Themes 索引 | `/themes/` | 1 |
-| Themes 部品 | `/themes/<kebab>/` | 107(`/components/<kebab>/` から移転) |
-| 旧 URL(移転案内) | `/components/<kebab>/` ほか | 109 |
+| Themes 部品 | `/themes/<kebab>/` | 108(`/components/<kebab>/` から移転。イシュー #1683 で 107→108) |
+| 旧 URL(移転案内) | `/components/<kebab>/` ほか | 110 |
 
 `<kebab>` は mod 名の `_` → `-` 置換で機械導出する
 (`docs-site-component-pages.md` §4 の規約をそのまま継承。`nav::validate_page_path`
 のセグメント allowlist から導かれた選択であり緩和ではない)。
 
-109 件の内訳は「107 実在部品ページ + 1 実在索引(`/components/pre-styled-ui/`)
+110 件の内訳は「108 実在部品ページ(イシュー #1683 で追加した
+`/components/collapsible/` を含む) + 1 実在索引(`/components/pre-styled-ui/`)
 + 1 未提供 URL(`/components/`)への予防的移転案内」である。`/components/` は
 **現在ページとして存在しない URL**(`site/nav.toml` に該当 `path` なし)だが、
 将来の誤アクセス・外部からの推測アクセスに備えて移転案内対象へ含める。
@@ -134,7 +135,7 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 | `site/nav.toml` | リダイレクトは nav に登録しない(そもそも別供給元)。サイドバー・ヘッダー・目次に現れない |
 | `search-index.json`(`src/search_index.rs`) | Nav ページのみを索引するため自動的に含まれない。既存の決定性・エスケープ・サイズ上限テストは弱めない |
 | `linkcheck`(`src/linkcheck.rs`) | `to` が実在 Nav ページであることは検証する。`from` はサイト内リンクの解決先として扱わない。加えて肯定形の規約: **サイト内リンクは 1 本たりとも `from`(旧 URL)を指してはならない**(#1017 は全リポジトリ内リンクを canonical `/themes/<kebab>/` へ張り替える。旧 URL を linkcheck の allowlist へ足して解決するのは禁止。移転案内は外部トラフィック・ブックマーク専用) |
-| `site_nav.rs` のページ数期待値 | 本体ページ数へ含めない。リダイレクト件数は別の期待値として fail-closed に固定する(#1018 完了時点で 109) |
+| `site_nav.rs` のページ数期待値 | 本体ページ数へ含めない。リダイレクト件数は別の期待値として fail-closed に固定する(#1018 完了時点で 109、#1683 で 110) |
 
 ### ビルド時 fail-closed 検証(#1016 の必須要件)
 
@@ -208,15 +209,15 @@ GitHub Pages に静的リダイレクト機能は無い。旧 URL を維持す�
 grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 63
 # 総数 73(= 63 + 基盤 9 + lib.rs)
 ls crates/headless-ui/src/*.rs | wc -l                                            # => 73
-# Themes 部品ページ 107 件
-ls site/components/*.md | wc -l                                                   # => 107
+# Themes 部品ページ 108 件（イシュー #1017 で site/components/ から site/themes/ へ移行済み）
+ls site/themes/*.md | wc -l                                                       # => 108
 ```
 
 ## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
 
 §6 は headless-ui ソース ↔ Primitives 台帳の**レイヤー内**ドリフト検知
 (`tests/primitives_catalog.rs`)の規約である。本節は Primitives(63 部品)
-と Themes(107 部品)の**層をまたぐラップ状態**(どの Themes ページが
+と Themes(108 部品)の**層をまたぐラップ状態**(どの Themes ページが
 どの headless 部品をラップしているか)の判別規約であり、対応する契約
 テストは `crates/docs-site/tests/wrap_state.rs`(イシュー #1064)。
 
@@ -238,11 +239,11 @@ rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc �
 足すだけでカテゴリが変わる壊れやすい契約を避けるため、コード実体(`pub use`
 や関数呼び出し)を伴う参照のみを「ラップ済み」と呼ぶ。
 
-### Themes 107 部品の 4 バケット分割
+### Themes 108 部品の 4 バケット分割
 
 | バケット | 件数 | 定義 |
 |---|---|---|
-| WRAPPED_SAME_NAME | 60 | 同名の Primitives 部品が存在し、かつ同名 headless モジュールへコード委譲している |
+| WRAPPED_SAME_NAME | 61 | 同名の Primitives 部品が存在し、かつ同名 headless モジュールへコード委譲している |
 | WRAPPED_CROSS_NAME | 5 | 同名 Primitives 部品は無いが、別名の headless 部品へコード委譲している |
 | DOC_REFERENCE_ONLY | 3 | headless 部品への参照が rustdoc のみ(コード委譲なし) |
 | PRE_STYLED_ONLY | 39 | headless 部品への参照がコード・rustdoc いずれにも無い |
@@ -266,8 +267,9 @@ rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc �
 ### Primitives 側の未ラップ判定
 
 `crates/pre-styled-ui/src/**/*.rs` 全体のコード行から、どこからも参照され
-ていない headless 部品モジュールを求めると `collapsible` / `fieldset` の
-2 件(`HEADLESS_UNWRAPPED`)。`field` は Themes ページを持たないが
+ていない headless 部品モジュールを求めると `fieldset` の 1 件
+(`HEADLESS_UNWRAPPED`。`collapsible` はイシュー #1682 でコード委譲済みに
+なったため本台帳から外れた)。`field` は Themes ページを持たないが
 (`PRIMITIVES_WITHOUT_THEMES_PAGE` に載る)、`input` / `textarea` /
 `native_select` の 3 モジュールが別名でコード委譲している(未ラップでは
 ない)。2 つの台帳(ページレベルの `PRIMITIVES_WITHOUT_THEMES_PAGE` と、
@@ -280,7 +282,7 @@ rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc �
 
 ### モジュール解決(`crates/pre-styled-ui/src/`)
 
-Themes ページ 107 件すべてが `crates/pre-styled-ui/src/` 配下のちょうど
+Themes ページ 108 件すべてが `crates/pre-styled-ui/src/` 配下のちょうど
 1 つのソースへ解決する。解決順は (1) `charts` ページの特例
 (`src/charts/mod.rs`)、(2) トップレベル `src/<mod>.rs`、(3) `src/charts/<mod>.rs`。
 トップレベルと `charts/` のステムが衝突する既知の 1 件(`tooltip`。トップ
@@ -297,12 +299,12 @@ panic する。§6 の弱体化ではなく別レイヤー向けの規約であ�
 ### 再実測手順
 
 ```bash
-# Themes 部品ページ 107 件
-grep -oE 'source = "site/themes/[a-z0-9-]+\.md"' site/nav.toml | wc -l          # => 107
+# Themes 部品ページ 108 件
+grep -oE 'source = "site/themes/[a-z0-9-]+\.md"' site/nav.toml | wc -l          # => 108
 # Primitives 部品 63 件
 grep -c 'path: "/primitives/' crates/docs-site/src/primitives_catalog.rs        # => 63
-# pre-styled ソース総数 121(トップレベル 107 + charts/ 14)
-ls crates/pre-styled-ui/src/*.rs | wc -l                                        # => 107
+# pre-styled ソース総数 122(トップレベル 108 + charts/ 14)
+ls crates/pre-styled-ui/src/*.rs | wc -l                                        # => 108
 ls crates/pre-styled-ui/src/charts/*.rs | wc -l                                 # => 14
 ```
 

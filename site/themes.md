@@ -103,6 +103,7 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 - [Breadcrumb](./themes/breadcrumb.md)
 - [Carousel](./themes/carousel.md)
 - [Clipboard](./themes/clipboard.md)
+- [Collapsible](./themes/collapsible.md)
 - [Dialog](./themes/dialog.md)
 - [Drawer](./themes/drawer.md)
 - [Floating Panel](./themes/floating-panel.md)

@@ -1,11 +1,11 @@
 //! イシュー #1064: Primitives（`fandhe-frontend-headless-ui`、63 部品）と
-//! Themes（`fandhe-frontend-pre-styled-ui`、107 部品）の**層をまたぐラップ状態**
+//! Themes（`fandhe-frontend-pre-styled-ui`、108 部品）の**層をまたぐラップ状態**
 //! を機械可視化する契約テスト。
 //!
 //! # 背景・既存テストとの分担
 //!
 //! `tests/primitives_catalog.rs` は headless-ui ソース ↔ 台帳のドリフトを
-//! レイヤー内で検知するのみで、「Themes 107 部品のどれが headless をラップし、
+//! レイヤー内で検知するのみで、「Themes 108 部品のどれが headless をラップし、
 //! どれが独自実装か」という層をまたぐ対応関係は検証しない
 //! （`primitives_titles_match_themes_page_titles_where_both_exist` は同名
 //! ページが両方に存在する場合の title 一致のみを見る）。本ファイルはその
@@ -14,9 +14,9 @@
 //! をすり抜けるのを防ぐ。判別規約は
 //! `docs/design/docs-site-primitives-themes-split.md` §6a を参照。
 //!
-//! # 4 バケット分割（Themes 107 部品）
+//! # 4 バケット分割（Themes 108 部品）
 //!
-//! - [`WRAPPED_SAME_NAME`]（60）: 同名の Primitives 部品が存在し、かつ同名
+//! - [`WRAPPED_SAME_NAME`]（61）: 同名の Primitives 部品が存在し、かつ同名
 //!   headless モジュールへコード委譲している
 //! - [`WRAPPED_CROSS_NAME`]（5）: 同名 Primitives 部品は無いが、別名の
 //!   headless 部品へコード委譲している
@@ -419,7 +419,7 @@ fn resolve_page<'a>(scan: &'a PreStyledScan, page_kebab: &str) -> &'a FileScan {
 // ---------------------------------------------------------------------
 
 /// バケット A: 同名 Primitives 部品が存在し、同名 headless モジュールへ
-/// コード委譲している Themes ページ（kebab、ソート済み、60 件）。
+/// コード委譲している Themes ページ（kebab、ソート済み、61 件）。
 const WRAPPED_SAME_NAME: &[&str] = &[
     "accordion",
     "action-bar",
@@ -431,6 +431,7 @@ const WRAPPED_SAME_NAME: &[&str] = &[
     "checkbox",
     "checkbox-group",
     "clipboard",
+    "collapsible",
     "color-picker",
     "combobox",
     "date-input",
@@ -556,32 +557,14 @@ const PRE_STYLED_ONLY: &[&str] = &[
 
 /// §3.4（受け入れ条件 3）: pre-styled-ui のどこからもコード委譲されていない
 /// headless 部品（module 名、1 件）。
-///
-/// イシュー #1682 の暫定状態: `collapsible` は
-/// `crates/pre-styled-ui/src/collapsible.rs`（glob 再エクスポート）で
-/// コード委譲済みになったため本台帳から外れた。ただし Themes ページは
-/// まだ無いため `NON_PAGE_TOP_LEVEL`/`PRIMITIVES_WITHOUT_THEMES_PAGE` 側では
-/// 引き続き「ページ未登録」として扱う（#1683 で Themes ページ登録後に確定）。
 const HEADLESS_UNWRAPPED: &[&str] = &["fieldset"];
 
 /// `field`（Themes ページを持たない headless 部品）を別名でラップしている
 /// pre-styled モジュール名（3 件）。
 const FIELD_CROSS_WRAPPERS: &[&str] = &["input", "native_select", "textarea"];
 
-/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（7 件）。
-///
-/// イシュー #1682 の暫定状態: `collapsible` は本 PR で新設した
-/// `crates/pre-styled-ui/src/collapsible.rs` を指す暫定エントリ。Themes
-/// ページ登録（#1683）完了後にこの一覧から外れる。
-const NON_PAGE_TOP_LEVEL: &[&str] = &[
-    "class_attr",
-    "collapsible",
-    "css",
-    "lib",
-    "recipe",
-    "stylesheet",
-    "theme",
-];
+/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（6 件）。
+const NON_PAGE_TOP_LEVEL: &[&str] = &["class_attr", "css", "lib", "recipe", "stylesheet", "theme"];
 
 /// §3.6: `charts/` のうち Themes ページに対応しないモジュール（8 件。
 /// `mod` は charts 索引ページとして別枠で扱うため含まない。`tooltip` は
@@ -598,7 +581,7 @@ fn primitive_module_names() -> BTreeSet<&'static str> {
 // テスト本体
 // ---------------------------------------------------------------------
 
-/// §3.5: nav 登録済み Themes ページ 107 件すべてが `resolve_page` で panic
+/// §3.5: nav 登録済み Themes ページ 108 件すべてが `resolve_page` で panic
 /// せず解決できること。
 #[test]
 fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
@@ -606,7 +589,7 @@ fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
     let pages = themes_page_kebabs();
     assert_eq!(
         pages.len(),
-        107,
+        108,
         "site/nav.toml の Themes ページ数が想定と異なります"
     );
 
@@ -639,9 +622,9 @@ fn top_level_and_charts_module_name_collisions_are_declared() {
     );
 }
 
-/// §3.3: Themes 107 部品を 4 バケットへ分割し、宣言済み台帳と双方向に
+/// §3.3: Themes 108 部品を 4 バケットへ分割し、宣言済み台帳と双方向に
 /// 一致すること。合計が nav 由来のページ数と一致することも検証する
-/// （107 をハードコードしない）。
+/// （108 をハードコードしない）。
 #[test]
 fn wrap_state_partition_matches_the_declared_ledger() {
     let scan = scan_pre_styled_src(&pre_styled_ui_src_dir());
@@ -878,15 +861,11 @@ fn unwrapped_ledger_is_consistent_with_primitives_without_themes_page() {
     );
 
     let diff: BTreeSet<&str> = without_page.difference(&unwrapped).copied().collect();
-    // イシュー #1682 の暫定状態: `collapsible` は本 PR でコード委譲済みに
-    // なったため HEADLESS_UNWRAPPED から外れたが、Themes ページ未登録のため
-    // PRIMITIVES_WITHOUT_THEMES_PAGE には残る（#1683 で除去予定）。
-    let expected_diff: BTreeSet<&str> = ["collapsible", "field"].into_iter().collect();
+    let expected_diff: BTreeSet<&str> = ["field"].into_iter().collect();
     assert_eq!(
         diff, expected_diff,
         "PRIMITIVES_WITHOUT_THEMES_PAGE ∖ HEADLESS_UNWRAPPED は \
-         {{\"collapsible\", \"field\"}} のみであるはずです（`collapsible` は \
-         イシュー #1682 の暫定状態、`field` は別名ラップ済みのため \
+         {{\"field\"}} のみであるはずです（`field` は別名ラップ済みのため \
          HEADLESS_UNWRAPPED には含めない）"
     );
 

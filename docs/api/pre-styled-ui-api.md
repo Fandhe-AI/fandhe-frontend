@@ -11,7 +11,8 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 106 の公開モジュール + `charts` サブモジュール群を持つ
+本クレートは 107 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+の実測。`collapsible` はイシュー #1682/#1683 で追加）+ `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
@@ -95,6 +96,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `toast`（`placement`（`group` slot）/`status`（`root` slot、`ColorPalette` 6 役割束ね〔`palette_scale_declarations`〕による淡色面配色。イシュー #1544）の 2 軸 variant を持つが、各軸が別 slot へ付与されるため `variant_class`（単一軸専用 API）をスロットごとに個別に呼ぶ。`Toaster` 状態機械は再エクスポートしない。#1545: action-trigger/close-trigger の hover/focus/disabled・`root` の mount 時 enter 遷移（`@keyframes fd-toast-enter`）・`group`/`root` のスタック配置固定幅化を追加。`close-trigger` はアイコン専用契約への破壊的変更（0.64.0）。タイマー自動 dismiss・`ActionTrigger` の動作配線は wasm-full 後続のスコープ外） | [toast](../../site/themes/toast.md) |
 | headless ラッパー | `hover_card`（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） | [hover-card](../../site/themes/hover-card.md) |
 | headless ラッパー | `toggle_tip`（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） | [toggle-tip](../../site/themes/toggle-tip.md) |
+| headless ラッパー | `collapsible`（glob 再エクスポート。参照 3 サイト（chakra-ui/Ark UI/Radix Primitives）のいずれも `size`/`variant`/`color-palette` を持たないため variant 軸は非提供。開閉時の高さアニメーションは JS 計測の関心のため非採用。イシュー #1682/#1683） | [collapsible](../../site/themes/collapsible.md) |
 | headless ラッパー | `progress`（イシュー #1564。headless の値状態機械 `Progress` が持つ Track/Range（linear）と Circle/CircleTrack/CircleRange（SVG、circular）の両方へ CSS を追加提供。`Progress` 型はあえて再エクスポートせず、`ProgressProps`（`size`/`variant`/`color-palette` の 3 軸）を付与する styled `root` と、determinate 時のみ `--fandhe-progress-percent` を付与する styled `range` の 2 つを新設する。track/circle 系は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時のアニメーション（linear は横スライド・circular は回転）は `[data-part="..."][data-state="indeterminate"]` セレクタ + `@keyframes` で提供し、`prefers-reduced-motion: reduce` で停止する） | [progress](../../site/themes/progress.md) |
 | 単純 styled 部品（静的） | `tag` / `kbd` / `code`（`tag` は `variant`（Solid/Subtle（既定）/Outline/Surface の 4 値、イシュー #1573 で Surface を追加）/`size`/`color-palette` の 3 軸 variant を持つ root/label/close-trigger の 3 パーツ。`badge` と同型の判断。close-trigger は状態機械を持たず `data-action` 属性の出力のみを担う。`kbd`/`code` は variant 軸を持たない単一 slot） | [tag](../../site/themes/tag.md) / [kbd](../../site/themes/kbd.md) / [code](../../site/themes/code.md) |
 | 状態機械を要しない静的部品 | `status` / `empty_state`（§4h 参照。`status` は `size`/`color-palette` の 2 軸、`empty_state` は `card` と同型の中立コンテナで `color-palette` 軸は非提供） | [status](../../site/themes/status.md) / [empty-state](../../site/themes/empty-state.md) |

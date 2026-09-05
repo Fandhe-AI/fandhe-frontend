@@ -139,6 +139,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Checkbox Card | `checkbox_card` | Forms | `/themes/checkbox-card/` | `site/themes/checkbox-card.md` | `checkbox_card_section()` |
 | Clipboard | `clipboard` | Interactive | `/themes/clipboard/` | `site/themes/clipboard.md` | （なし・`component_specs::interactive_utilities` の Demo フォールバック、#1155） |
 | Code | `code` | Typography | `/themes/code/` | `site/themes/code.md` | `code_section()` |
+| Collapsible | `collapsible` | Interactive | `/themes/collapsible/` | `site/themes/collapsible.md` | `collapsible_section()`（#1683 で新設） |
 | Color Picker | `color_picker` | Forms | `/themes/color-picker/` | `site/themes/color-picker.md` | `color_picker_section()` |
 | Color Swatch | `color_swatch` | Data Display | `/themes/color-swatch/` | `site/themes/color-swatch.md` | `color_swatch_section()` |
 | Combobox | `combobox` | Forms | `/themes/combobox/` | `site/themes/combobox.md` | `combobox_section()` |
@@ -272,9 +273,9 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
   `radio_card` `radio_group` `rating_group` `segment_group` `select`
   `signature_pad` `slider` `switch` `tags_input` `textarea` `toggle`
   `toggle_group`
-- **Interactive (20)**: `accordion` `action_bar` `breadcrumb` `carousel`
-  `clipboard` `dialog` `drawer` `floating_panel` `hover_card` `menu`
-  `nav_list` `pagination` `popover` `splitter` `steps` `tabs` `toast`
+- **Interactive (21)**: `accordion` `action_bar` `breadcrumb` `carousel`
+  `clipboard` `collapsible` `dialog` `drawer` `floating_panel` `hover_card`
+  `menu` `nav_list` `pagination` `popover` `splitter` `steps` `tabs` `toast`
   `toggle_tip` `tooltip` `tour`
 - **Data Display (21)**: `alert` `avatar` `badge` `card` `color_swatch`
   `data_list` `empty_state` `icon` `image` `json_tree_view` `progress`

@@ -10,12 +10,13 @@
 //! `data-*` 属性表・CSS 変数表（いずれも機械導出）と合成して 6 節ページを
 //! 組み立てる）。
 //!
-//! 対象は accordion・action-bar・dialog・drawer・floating-panel・
+//! 対象は accordion・action-bar・collapsible・dialog・drawer・floating-panel・
 //! hover-card・menu・menubar・navigation-menu・popover・tabs・toast・
-//! toggle-tip・toolbar・tooltip・tour の 16 部品（トリガー起点の
+//! toggle-tip・toolbar・tooltip・tour の 17 部品（トリガー起点の
 //! オーバーレイ、または項目開閉のディスクロージャ系。toolbar はイシュー
-//! #991、menubar はイシュー #992、navigation-menu はイシュー #993 で追加、
-//! いずれも `showcase.rs` の Demo 登録込み）。`toggle`/`toggle-group`
+//! #991、menubar はイシュー #992、navigation-menu はイシュー #993、
+//! collapsible はイシュー #1683 で追加、いずれも `showcase.rs` の Demo
+//! 登録込み）。`toggle`/`toggle-group`
 //! はショーケース CSS 未登録により Demo を持たないため（`crates/docs-site/src/showcase.rs`
 //! を変更しないという #946 時点の受け入れ条件 4 の制約。#991/#992 の
 //! Phase 8 には同制約は適用されない）、本モジュールには含めず
@@ -107,6 +108,50 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "role=\"region\"",
             description: "item-content に付与。labelled_by が Some のとき aria-labelledby とセットで付与される。",
+        },
+    ],
+    demo: None,
+};
+
+/// `/themes/collapsible/`（Interactive カテゴリ）。
+///
+/// 一次情報: `crates/pre-styled-ui/src/collapsible.rs`（モジュール doc・
+/// `stylesheet()` の 7 軸チェック節）と `crates/headless-ui/src/collapsible.rs`
+/// （`root`/`trigger`/`indicator`/`content` シグネチャ・`aria-expanded`/
+/// `aria-controls` の実出力テスト）。イシュー #1682/#1683。
+pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "単一の開閉パネル。Root / Trigger / Indicator / Content の 4 anatomy パーツを持つ。",
+        "data-state（open/closed）を trigger の文字色強調・indicator の回転として視覚に反映する。",
+        "data-disabled を 4 パート全てへ反映する（trigger のみネイティブ disabled 存在属性も伴う）。",
+        "size/variant/colorPalette は提供しない（参照 3 サイト chakra-ui/Ark UI/Radix Primitives のいずれも Collapsible に持たないため）。",
+        "closed のとき content は headless 層が付与する hidden 存在属性のみで隠れる（base では display を宣言せず、UA 既定の [hidden] { display: none } を上書きしない）。",
+        "開閉時の高さアニメーション（Radix の collapsedHeight 相当）はコンテンツ高さの実測が前提となる JS 計測の関心のため、意図的に非採用とする。JS ゼロ SSG（クライアント側 JavaScript を読み込まない構成）での挙動は「JS ゼロ SSG での利用ガイド」（/guides/no-js-ssg/）を参照。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "state",
+            kind: "OpenState",
+            default: "",
+            description: "開閉状態（Open/Closed）。root/trigger/indicator/content の data-state へ反映される。",
+        },
+        ArgRow {
+            name: "disabled",
+            kind: "bool",
+            default: "false",
+            description: "無効状態。4 パート全ての data-disabled へ反映し、trigger にはネイティブ disabled 存在属性も付与する。",
+        },
+    ],
+    examples: &[],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "aria-expanded",
+            description: "trigger に付与。開閉状態を表す。",
+        },
+        AriaRow {
+            attribute: "aria-controls",
+            description: "trigger に付与。controls が Some のとき content の id を指す。",
         },
     ],
     demo: None,
