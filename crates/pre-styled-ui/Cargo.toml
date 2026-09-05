@@ -1456,6 +1456,64 @@ name = "fandhe-frontend-pre-styled-ui"
 # （`PinInputProps` 新設に伴う `pin_input::{root, label, input}` シグネチャ
 # 変更）を再エクスポートしているため 0.x のマイナーバンプとする（styled
 # `root` 公開シグネチャ自体は非破壊のまま維持、モジュール rustdoc 参照）。
+# イシュー #1616（radio-group の参照突合）: headless-ui 側の破壊的変更
+# （`RadioGroupProps` 新設に伴う `radio_group::{item, item_control,
+# item_text, item_hidden_input, label}` シグネチャ変更）を再エクスポート
+# しているため 0.x のマイナーバンプとする（styled `root` 公開シグネチャ
+# 自体は非破壊のまま維持、モジュール rustdoc 参照）。
+# base main 取り込み時のマージ注記: #1609 と #1615 が独立に 0.85.0 へ
+# 到達していたため衝突を避け 0.86.0 とした main に対し、本ブランチ
+# （#1616）も merge-base（0.85.0）から独立に 0.86.0 へマイナーバンプして
+# いたため、双方の実体変更を統合した結果として 0.87.0 へさらにマイナー
+# バンプする（headless-ui 0.36.0 への version 要求追随を含む）。
+# イシュー #1617（rating-group の参照突合、main 側）: headless-ui 側の
+# 破壊的変更（`RatingGroupProps` 新設に伴う `rating_group::root`（styled
+# ラッパー）シグネチャ変更）に追随したため 0.x のマイナーバンプとする
+# （`.claude/rules/coding-rust.md` 破壊的変更規定）。
+# base main 取り込み時のマージ注記（main 側）: main 側ブランチは
+# #1617（rating-group）により独立に 0.88.0 へマイナーバンプしていたが、
+# main 本体は #1610/#1611/#1605 等の統合により独立に 0.89.0 へ到達して
+# いたため衝突を避け、rating-group の破壊的変更分を反映して main は
+# 0.90.0 となっていた。
+# イシュー #1610（image-cropper の参照突合）: headless-ui 側の破壊的変更
+# （`ImageCropperProps` 新設に伴う `image_cropper::{root, viewport,
+# selection, handle, grid}` シグネチャ変更）に伴い、本クレートの
+# `image_cropper::root`/`selection`（styled ラッパー）も同様に追随した
+# ため 0.x のマイナーバンプとする（`.claude/rules/coding-rust.md` 破壊的
+# 変更規定）。
+# イシュー #1611（listbox の参照突合）: headless-ui 側の破壊的変更
+# （`ListboxProps` 新設に伴う `listbox::{root, label, content, item_group,
+# item, value_text}` シグネチャ変更・`item_text` の破壊的シグネチャ変更）
+# に伴い、本クレートの `listbox::root`（styled ラッパー）も同様に
+# `&ListboxProps` を転送する形へ追随したため 0.x のマイナーバンプとする
+# （`.claude/rules/coding-rust.md` 破壊的変更規定）。
+# base main 再取り込み時のマージ注記（PR #1879）: 上記 #1609〜#1611 が
+# main 側で独立に 0.85.0 から 0.88.0 まで積み上がっていた。本 PR
+# （#1605 combobox）ブランチへの base 取り込みマージにより、本ブランチの
+# combobox styled ラッパー変更（`combobox::root` が `&ComboboxProps` を
+# 追加引数として受け取るシグネチャ変更、headless-ui 0.38.0 依存追随を含む）
+# と main 側の実体変更を統合した結果として main 現在値 0.88.0 から
+# さらにマイナーバンプし 0.89.0 とする（同一版数への偶発的衝突をそのまま
+# 採用しない、`docs/ci/style-refresh-version-bump-operation.md` §5）。
+# base main 再取り込み時のマージ注記: 上記 #1616（radio-group）は
+# merge-base 0.85.0 から独立に 0.87.0 へマイナーバンプしていたが、
+# main は #1610（image-cropper）〜 #1605（combobox の再取り込み、
+# PR #1879）の統合を経て 0.89.0 まで積み上がっていた。本マージで
+# 双方の実体変更（radio-group styled ラッパーの再エクスポート追随・
+# headless-ui 0.39.0 への version 要求追随を含む・main 側の一連の参照
+# 突合）を統合した結果として main 現在値 0.89.0 からさらにマイナー
+# バンプし 0.90.0 とする（同一版数への偶発的衝突をそのまま採用しない、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。
+# PR #1889（rating-group）マージ後の再取り込みマージ注記: 本ブランチは
+# `radio_group::root_with_props` 公開 API 追加（後述、headless-ui の
+# `RadioGroupProps` を透過的に受け取る styled ラッパー）を独立に加えて
+# おり、headless-ui 0.40.0（radio-group/rating-group 双方の破壊的変更を
+# 統合した再バンプ）への version 要求追随も必要になった。main は
+# PR #1889 のマージにより独立に同じ 0.90.0 へ到達しており、別々の実体
+# 変更が同一版数へ偶発的に衝突していた（main が同じ値であることも衝突に
+# 該当する、`docs/ci/style-refresh-version-bump-operation.md` §5）。双方の
+# 実体変更（`root_with_props` の公開 API 追加・headless-ui 0.40.0 追随）
+# を反映し、main 現在値 0.90.0 からさらにマイナーバンプし 0.91.0 とする。
 # base ブランチ再取り込み（PR #1613, push フェーズ 3 回目, 2026-09-05）: 上記
 # 0.85.0 到達後、main は #1615（pin-input の参照突合）で独立に同じ 0.85.0 へ
 # 到達していた。headless-ui 側の版数衝突（0.34.0 -> 0.35.0、同ファイル参照）
@@ -1480,10 +1538,23 @@ name = "fandhe-frontend-pre-styled-ui"
 # 同じ「同一版数への偶発的衝突をそのまま採用しない」原則
 # （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.91.0 へ
 # さらにマイナーバンプする。
+# base ブランチ再取り込み（PR #1886, radio-group, 2026-09-05）: main（#1881
+# number-input）が独立に 0.91.0 へ到達しており、本ブランチの `root_with_props`
+# 公開 API 追加 + headless-ui 0.41.0 依存追随とは別内容のため、同じ
+# 「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.92.0 へ
+# さらにマイナーバンプする。
 # イシュー #1627（date-picker の参照突合）: styled `root` が
 # `&DatePickerProps` を追加引数として透過するようになった破壊的シグネチャ
 # 変更（マイナーバンプ）+ headless-ui 依存を 0.41.0 へ追随。
-version = "0.92.0"
+# base ブランチ再取り込み（PR #1892, date-picker, 2026-09-05）: main（#1892
+# date-picker）が独立に本ブランチと同じ 0.92.0 へ到達していた（上記
+# date-picker の破壊的変更 + headless-ui 依存追随）。radio-group（本ブランチ,
+# #1616）の `root_with_props` 公開 API 追加とは別内容のため、同じ
+# 「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.93.0 へ
+# さらにマイナーバンプする（headless-ui 依存も 0.42.0 へ追随）。
+version = "0.93.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1498,7 +1569,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.41.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.42.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
