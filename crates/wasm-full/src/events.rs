@@ -179,19 +179,25 @@ pub enum InteractiveBoundaryClass {
     /// スキップして一律に抑止すると、`<a href>` のようなネイティブ要素の
     /// クリックまで祖先パーツの選択操作として抑止してしまう）。
     Html,
-    /// (B) ARIA ロール・`tabindex`・`[contenteditable]`（`"false"` を除く）・
-    /// holder と異なる `data-scope` を持つ要素とその子孫（別コンポーネント
-    /// の境界）。HTML 上は非 interactive content のため label の
-    /// activation behavior 自体は止まらず、呼び出し側が `preventDefault`
-    /// で明示的に阻止する必要がある。ただし要素自身のイベントハンドラへ
-    /// イベントを届ける必要があるため `stop_propagation` は行っては
-    /// ならない（codex-review 指摘: capture フェーズで `stop_propagation`
-    /// すると、`role="checkbox"` 等の子要素自身の click ハンドラへイベント
-    /// が到達できなくなる）。
+    /// (B) ARIA ロール（[`ARIA_INTERACTIVE_ROLES`]）・`tabindex`・
+    /// `[contenteditable]`（`"false"` を除く）を持つ要素とその子孫
+    /// （別コンポーネントの独自ウィジェット境界）。HTML 上は非
+    /// interactive content のため label の activation behavior 自体は
+    /// 止まらず、呼び出し側が `preventDefault` で明示的に阻止する必要が
+    /// ある。ただし要素自身のイベントハンドラへイベントを届ける必要が
+    /// あるため `stop_propagation` は行ってはならない（codex-review
+    /// 指摘: capture フェーズで `stop_propagation` すると、
+    /// `role="checkbox"` 等の子要素自身の click ハンドラへイベントが
+    /// 到達できなくなる）。**`data-scope` が異なることだけを理由には
+    /// 境界としない**（イシュー #1616 codex-review P1 再指摘: 装飾用の
+    /// 別 scope 子孫、例えば `pre-styled-ui::button::close_button` 内の
+    /// `data-scope="icon"` の `<svg>` は対話ロール・`tabindex`・
+    /// `contenteditable` のいずれも持たないため `Ordinary` のまま）。
     Aria,
-    /// (C) 上記以外（パーツ自身・装飾用の子孫等）。選択操作・
-    /// `data-action` 解決の一部として扱ってよく、呼び出し側は
-    /// `preventDefault`/`stop_propagation` の双方で抑止してよい。
+    /// (C) 上記以外（パーツ自身・装飾用の子孫・対話性を持たない別
+    /// `data-scope` の子孫等）。選択操作・`data-action` 解決の一部として
+    /// 扱ってよく、呼び出し側は `preventDefault`/`stop_propagation` の
+    /// 双方で抑止してよい。
     Ordinary,
 }
 
@@ -240,13 +246,17 @@ const ARIA_INTERACTIVE_ROLES: &[&str] = &[
 /// - `contenteditable`: `contenteditable` 属性値（無ければ `None`）。
 ///   `"false"`（大文字小文字を問わない）は「編集不可」を意味し無指定と
 ///   同義に扱う（HTML 仕様の contenteditable 属性値契約）。
-/// - `element_scope`: 対象要素自身の `data-scope` 属性値（無ければ
-///   `None`）。
-/// - `holder_scope`: 比較対象となる「保持者」（RadioGroup の `item`、
-///   または `wire_events` が解決した `data-action` 要素）自身の
-///   `data-scope` 属性値（無ければ `None`）。`element_scope` が
-///   `holder_scope` と異なる場合のみ「別コンポーネントの境界」として
-///   (B) に分類する（同じ scope 内のパーツ間移動は境界とみなさない）。
+/// - `element_scope` / `holder_scope`: 対象要素・保持者それぞれの
+///   `data-scope` 属性値（無ければ `None`）。**単独では境界条件に
+///   ならない**（イシュー #1616 codex-review P1 再指摘の是正: 別
+///   `data-scope` であること自体を無条件に境界とすると、
+///   `pre-styled-ui::button::close_button` 内の装飾用アイコン
+///   （`data-scope="icon"` の `<svg>`）のような、対話性を持たない
+///   装飾パーツまで境界化してしまい `data-action` の dispatch を
+///   止めてしまう）。現状この 2 引数は分類結果を左右しないが、将来
+///   「同一 scope 内のみ通過を許す」等の scope 依存判定を追加する
+///   余地を残すため呼び出し側の契約（`classify_interactive_boundary`
+///   1 箇所に判定を集約する設計）ごと維持する。
 #[must_use]
 pub fn classify_interactive_boundary(
     tag_name: &str,
@@ -254,8 +264,8 @@ pub fn classify_interactive_boundary(
     role: Option<&str>,
     has_tabindex_attr: bool,
     contenteditable: Option<&str>,
-    element_scope: Option<&str>,
-    holder_scope: Option<&str>,
+    _element_scope: Option<&str>,
+    _holder_scope: Option<&str>,
 ) -> InteractiveBoundaryClass {
     let tag_lower = tag_name.to_ascii_lowercase();
     if tag_lower == "a" && has_href {
@@ -272,11 +282,6 @@ pub fn classify_interactive_boundary(
     }
     if contenteditable.is_some_and(|v| !v.eq_ignore_ascii_case("false")) {
         return InteractiveBoundaryClass::Aria;
-    }
-    if let Some(scope) = element_scope {
-        if Some(scope) != holder_scope {
-            return InteractiveBoundaryClass::Aria;
-        }
     }
     InteractiveBoundaryClass::Ordinary
 }
@@ -346,7 +351,13 @@ mod wiring {
     ///
     /// `holder` 自身に到達する前に境界要素へ遭遇した場合は `true`
     /// （呼び出し側は dispatch を行わない）。境界に遭遇せず `holder` へ
-    /// 到達できた場合は `false`。
+    /// 到達できた場合は `false`。境界判定は
+    /// [`classify_interactive_boundary`] に委譲しており、`data-scope` が
+    /// `holder` と異なることだけを理由には境界としない（イシュー #1616
+    /// codex-review P1 再指摘の是正: `pre-styled-ui::button::close_button`
+    /// のような `data-action` 付き要素が、装飾用の別 `data-scope` 子孫
+    /// （`data-scope="icon"` の `<svg>` 等）を内包していても、その子孫を
+    /// クリックしたときに dispatch が止まってはならない）。
     ///
     /// # 例外: holder 自身が持つ labelable control
     ///
@@ -397,42 +408,48 @@ mod wiring {
         false
     }
 
-    /// `holder`（`closest("[data-action]")` で解決した要素）が属する
-    /// 「同一インスタンス」に readonly な headless-ui パーツが無いかを
-    /// DOM 上で判定する（イシュー #1616 codex-review P1 再指摘の是正）。
+    /// `holder`（`closest("[data-action]")` で解決した要素）自身が
+    /// readonly な headless-ui インスタンスの「選択操作パーツ」であるか
+    /// どうかを DOM 上で判定する（イシュー #1616 codex-review P1
+    /// 再指摘の是正）。
     ///
     /// `crates/wasm-full/src/headless.rs::instance_is_readonly` と同じ
-    /// 判定方針を DOM 直接走査で再現する: `holder` から祖先方向へ（`holder`
-    /// 自身を含む）最初に `data-scope` を持つ要素を探し、そこから同じ
-    /// `data-scope` の要素だけを見ながら `data-readonly` の有無を確認し、
-    /// `data-part="root"` に到達したら（それも確認したうえで）打ち切る。
-    /// 異なる `data-scope` の要素は無関係な別コンポーネントとしてスキップ
-    /// して継続する（`root` を越えて別インスタンスの readonly が越境
-    /// 伝播しないようにする、PR #1879 codex-review P1 再指摘と同じ設計）。
+    /// 判定方針を DOM 直接走査で再現するが、**探索の起点は `holder` 自身に
+    /// 限定し、`holder` に `data-scope` が無い場合は祖先を遡って探しに
+    /// 行かない**（イシュー #1616 codex-review P1 再指摘: readonly item
+    /// 内に独立した `button[data-action="show_help"]` を置くと、
+    /// `closest("[data-action]")` は `button` 自身を `holder` として解決
+    /// する。ここで祖先方向へ `data-scope` を探しに行ってしまうと、無関係の
+    /// `button` が祖先 `item` の readonly を継承してしまい、`show_help` の
+    /// ような独立した子操作まで抑止してしまう。`button` はそのコンポーネント
+    /// 自身の選択操作パーツではないため、readonly 判定の対象外とする）。
     ///
-    /// `holder` 自身・祖先のどこにも `data-scope` が無い場合（headless-ui
-    /// の anatomy と無関係な素の `data-action` 要素）は `false`
-    /// （readonly 判定の対象外、既存の非 headless-ui アプリの `data-action`
-    /// 経路を変えない）。`click_root` は探索範囲を配線対象の root 内へ
-    /// 限定する（`root` より外側の祖先まで走査しない）。
+    /// 判定手順:
+    /// 1. `holder` 自身が `data-readonly` を持てば直ちに `true`。
+    /// 2. `holder` 自身に `data-scope` が無ければ `false`（headless-ui の
+    ///    anatomy と無関係な独立要素、または既存の非 headless-ui アプリの
+    ///    `data-action` 経路。readonly 判定の対象外）。
+    /// 3. `holder` に `data-scope` があれば、`holder` 自身を起点に祖先方向へ
+    ///    同じ `data-scope` の要素だけを見ながら `data-readonly` の有無を
+    ///    確認し、`data-part="root"` に到達したら打ち切る（異なる
+    ///    `data-scope` の要素は無関係な別コンポーネントとしてスキップして
+    ///    継続し、`root` を越えて別インスタンスの readonly が越境伝播しない
+    ///    ようにする、PR #1879 codex-review P1 再指摘と同じ設計）。これは
+    ///    `holder` がコンポーネント自身の選択操作パーツ（例:
+    ///    `[data-scope="radio-group"][data-part="item"]`）である場合に、
+    ///    同一インスタンスの readonly を正しく反映するための経路である。
+    ///
+    /// `click_root` は探索範囲を配線対象の root 内へ限定する（`root` より
+    /// 外側の祖先まで走査しない）。
     fn holder_instance_is_readonly(holder: &Element, click_root: &Element) -> bool {
-        let mut probe = Some(holder.clone());
-        let mut start: Option<(Element, String)> = None;
-        while let Some(el) = probe {
-            if let Some(scope) = el.get_attribute("data-scope") {
-                start = Some((el, scope));
-                break;
-            }
-            if el.is_same_node(Some(click_root)) {
-                break;
-            }
-            probe = el.parent_element();
+        if holder.has_attribute("data-readonly") {
+            return true;
         }
-        let Some((start_el, scope)) = start else {
+        let Some(scope) = holder.get_attribute("data-scope") else {
             return false;
         };
 
-        let mut current = Some(start_el);
+        let mut current = Some(holder.clone());
         while let Some(el) = current {
             if el.get_attribute("data-scope").as_deref() == Some(scope.as_str()) {
                 if el.has_attribute("data-readonly") {
@@ -926,7 +943,12 @@ mod tests {
     }
 
     #[test]
-    fn classify_foreign_data_scope_is_aria() {
+    fn classify_foreign_data_scope_alone_is_not_boundary() {
+        // イシュー #1616 codex-review P1 再指摘: 別 `data-scope` である
+        // ことだけを理由に境界化すると、対話性のない別コンポーネントの
+        // 装飾パーツ（例: 別 scope の `<div>`）まで境界にしてしまう。
+        // ARIA ロール・`tabindex`・`contenteditable` のいずれも無ければ
+        // `Ordinary` のままであるべき。
         assert_eq!(
             classify_interactive_boundary(
                 "div",
@@ -937,7 +959,7 @@ mod tests {
                 Some("combobox"),
                 Some("radio-group")
             ),
-            InteractiveBoundaryClass::Aria
+            InteractiveBoundaryClass::Ordinary
         );
     }
 
@@ -954,6 +976,67 @@ mod tests {
                 Some("radio-group")
             ),
             InteractiveBoundaryClass::Ordinary
+        );
+    }
+
+    #[test]
+    fn classify_decorative_icon_scope_in_close_button_is_ordinary() {
+        // `pre-styled-ui::button::close_button`（`data-action` 付き）内の
+        // 装飾用アイコン（`data-scope="icon"` の `<svg>`）は、別 `data-scope`
+        // であっても対話ロール・`tabindex`・`contenteditable` を持たない
+        // ため境界にならず、クリックが `data-action` へ dispatch される
+        // （イシュー #1616 codex-review P1 再指摘の回帰固定）。
+        assert_eq!(
+            classify_interactive_boundary(
+                "svg",
+                false,
+                None,
+                false,
+                None,
+                Some("icon"),
+                Some("button")
+            ),
+            InteractiveBoundaryClass::Ordinary
+        );
+    }
+
+    #[test]
+    fn classify_non_interactive_role_in_foreign_scope_is_ordinary() {
+        // `role="dialog"` は対話ウィジェットロールではない
+        // （[`ARIA_INTERACTIVE_ROLES`] 非該当）ため、別 `data-scope` と
+        // 組み合わさっても `Ordinary` のままとする（対話ロール一覧に
+        // よってのみ境界を判定する）。
+        assert_eq!(
+            classify_interactive_boundary(
+                "div",
+                false,
+                Some("dialog"),
+                false,
+                None,
+                Some("dialog"),
+                Some("radio-group")
+            ),
+            InteractiveBoundaryClass::Ordinary
+        );
+    }
+
+    #[test]
+    fn classify_interactive_role_in_foreign_scope_is_still_aria() {
+        // 別 `data-scope` であっても、対話ウィジェットロール
+        // （`role="checkbox"` 等）自体は引き続き (B) Aria に分類される
+        // （scope の異同はもはや判定に寄与しないが、ロール単体の判定は
+        // 維持されることの確認）。
+        assert_eq!(
+            classify_interactive_boundary(
+                "span",
+                false,
+                Some("checkbox"),
+                false,
+                None,
+                Some("checkbox"),
+                Some("radio-group")
+            ),
+            InteractiveBoundaryClass::Aria
         );
     }
 

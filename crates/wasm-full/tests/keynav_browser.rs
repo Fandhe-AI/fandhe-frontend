@@ -8198,3 +8198,190 @@ fn splitter_keyboard_navigation_with_attacker_controlled_attrs_does_not_inject_s
     assert_eq!(document.title(), original_title);
     assert_eq!(recorded.0.borrow().len(), 3);
 }
+
+/// イシュー #1616 PR #1886 codex-review P1 再指摘の回帰（是正 1）:
+/// `data-action` 付きの `pre-styled-ui::button::close_button`（`<button
+/// data-scope="button" data-part="root">` に装飾用アイコン `<svg
+/// data-scope="icon" data-part="root">` を内包する構成、
+/// `crates/pre-styled-ui/src/button.rs::close_button` の markup 契約）内の
+/// アイコン `<svg>` をクリックしても `data-action` が dispatch される
+/// ことを検証する。
+///
+/// 是正前の `classify_interactive_boundary` は「holder と異なる
+/// `data-scope` を持つ」ことだけで境界（`Aria`）と判定していたため、
+/// 装飾用の別 scope 子孫（対話ロール・`tabindex`・`contenteditable` の
+/// いずれも持たない `<svg data-scope="icon">`）までクリック伝播境界に
+/// してしまい、`close_button` のアイコン部分をクリックしても
+/// `foreign_action_boundary_between` が dispatch を止めていた。
+#[wasm_bindgen_test]
+fn close_button_icon_svg_click_still_dispatches_data_action() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = document.create_element("div").unwrap();
+    container.set_id("kn-close-button-icon");
+    document.body().unwrap().append_child(&container).unwrap();
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let button = document.create_element("button").unwrap();
+    button.set_attribute("data-scope", "button").unwrap();
+    button.set_attribute("data-part", "root").unwrap();
+    button.set_attribute("data-action", "close").unwrap();
+    button.set_attribute("type", "button").unwrap();
+
+    let icon = document.create_element("svg").unwrap();
+    icon.set_attribute("data-scope", "icon").unwrap();
+    icon.set_attribute("data-part", "root").unwrap();
+    icon.set_attribute("aria-hidden", "true").unwrap();
+    let path = document.create_element("path").unwrap();
+    icon.append_child(&path).unwrap();
+    button.append_child(&icon).unwrap();
+    container.append_child(&button).unwrap();
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(container.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+
+    // クリック target をアイコン `<svg>` 自身にする（`<button>` ではなく
+    // その装飾用子孫、Bugbot/codex-review 再指摘の再現条件）。
+    icon.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(
+        actions.borrow().as_slice(),
+        [ActionRef {
+            action: "close".to_string(),
+            payload: String::new(),
+        }],
+        "close_button 内の装飾用アイコン（data-scope=\"icon\"）をクリック \
+         しても data-action=\"close\" が dispatch されるべき"
+    );
+}
+
+/// イシュー #1616 PR #1886 codex-review P1 再指摘の回帰（是正 2）:
+/// readonly な RadioGroup item 内に独立した `<button
+/// data-action="show_help">` を置いても、`show_help` は readonly の
+/// 影響を受けず dispatch される。
+///
+/// 是正前の `holder_instance_is_readonly` は `holder`（この場合 `button`
+/// 自身、`closest("[data-action]")` が `button` を解決する）に
+/// `data-scope` が無い場合に祖先方向へ遡って最初の `data-scope` 要素
+/// （祖先 `item`）を探しに行っていたため、`item` の readonly を無関係の
+/// `button` へ継承してしまい `show_help` まで抑止していた。
+#[wasm_bindgen_test]
+fn readonly_radio_group_item_independent_button_action_still_dispatches() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-show-help",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-show-help-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_text_b = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text must exist");
+    let help_button = document.create_element("button").unwrap();
+    help_button.set_attribute("type", "button").unwrap();
+    help_button
+        .set_attribute("data-action", "show_help")
+        .unwrap();
+    help_button.set_attribute("data-payload", "b").unwrap();
+    item_text_b.append_child(&help_button).unwrap();
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(root.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    help_button
+        .dispatch_event(&cancelable_click_event())
+        .unwrap();
+
+    assert_eq!(
+        actions.borrow().as_slice(),
+        [ActionRef {
+            action: "show_help".to_string(),
+            payload: "b".to_string(),
+        }],
+        "readonly item 内の独立した button[data-action=\"show_help\"] は \
+         readonly の影響を受けず dispatch されるべき"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "show_help ボタンのクリックは RadioGroup の選択状態を変えては \
+         ならない"
+    );
+}
+
+/// イシュー #1616 PR #1886 codex-review P1 再指摘の回帰（是正 3）:
+/// readonly item 内の `<a href>`（HTML interactive content）の中に
+/// `<span role="button">`（ARIA 独自ウィジェット）が入れ子になっている
+/// 場合でも、クリックは `preventDefault` されない（HTML を最優先で
+/// 採用する、`keynav::resolve_readonly_boundary` の代表境界決定）。
+///
+/// 是正前の実装は「`target` に最も近い最初の非 `Ordinary` 境界で確定し
+/// 以降を上書きしない」ため、内側の `role="button"`（`Aria`）が先に
+/// 確定してしまい、外側の `<a href>` のネイティブ遷移まで
+/// `preventDefault` で止めてしまっていた。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_nested_aria_inside_anchor_link_is_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-nested-aria-in-html",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-nested-aria-in-html-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_text_b = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text must exist");
+    let link = document.create_element("a").unwrap();
+    link.set_attribute("href", "https://example.invalid/")
+        .unwrap();
+    let nested_widget = document.create_element("span").unwrap();
+    nested_widget.set_attribute("role", "button").unwrap();
+    nested_widget.set_text_content(Some("詳細"));
+    link.append_child(&nested_widget).unwrap();
+    item_text_b.append_child(&link).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !nested_widget
+        .dispatch_event(&cancelable_click_event())
+        .unwrap();
+    assert!(
+        !prevented,
+        "readonly item 内で <a href> に入れ子になった role=\"button\" \
+         へのクリックは、経路上の HTML interactive content（<a href>）が \
+         優先されるため preventDefault されてはならない"
+    );
+}
