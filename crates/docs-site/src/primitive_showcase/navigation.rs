@@ -4,8 +4,10 @@
 //! `menu` はイシュー #1651（参照突合）で 18 anatomy パーツすべてを描画する
 //! よう拡充した（`checkbox_item`/`radio_item_group`/`radio_item`/
 //! `trigger_item`/`context_trigger`/`item_text`/`item_indicator` を含む）。
-//! `menubar` は項目数が多いため、`sub_trigger`/`sub_content` は本デモでは
-//! 未網羅とし、`tests/primitive_showcase.rs::KNOWN_UNCOVERED` に登録する。
+//! `menubar` はイシュー #1652（参照突合）で 18 anatomy パーツすべてを
+//! 描画するよう拡充した（`arrow`/`arrow_tip`/`item_text`/`item_indicator`/
+//! `checkbox_item`/`radio_item_group`/`radio_item`/`sub_trigger`/
+//! `sub_content` を含む）。
 
 use fandhe_frontend_core::{div, el, p, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
@@ -395,48 +397,204 @@ pub(super) fn menu_section() -> Node {
 
 pub(super) fn menubar_section() -> Node {
     let orientation = Orientation::Horizontal;
-    let state = OpenState::Open;
+    let open = OpenState::Open;
+    let closed = OpenState::Closed;
+
+    // Menu 0「File」（open、全機能）: root/menu/trigger/positioner/content/
+    // arrow/arrow-tip/item/item-group/item-group-label/separator/
+    // checkbox-item/radio-item-group/radio-item/item-text/item-indicator/
+    // sub-trigger/sub-content を 1 本のメニューへ集約する。
+    let file_menu = menubar::menu(
+        open,
+        vec![],
+        vec![
+            menubar::trigger(
+                true,
+                open,
+                false,
+                false,
+                0,
+                Some("mb-file-content"),
+                vec![("id", "mb-file-trigger")],
+                vec![text("File")],
+            ),
+            menubar::positioner(
+                open,
+                vec![],
+                vec![menubar::content(
+                    open,
+                    Some("mb-file-content"),
+                    Some("mb-file-trigger"),
+                    vec![],
+                    vec![
+                        menubar::arrow(vec![], vec![menubar::arrow_tip(vec![], vec![])]),
+                        menubar::item_group(
+                            Some("mb-file-group-label"),
+                            vec![],
+                            vec![
+                                menubar::item_group_label(
+                                    Some("mb-file-group-label"),
+                                    vec![],
+                                    vec![text("File")],
+                                ),
+                                menubar::item("new", false, true, vec![], vec![text("New")]),
+                                menubar::item("close", true, false, vec![], vec![text("Close")]),
+                            ],
+                        ),
+                        menubar::separator(vec![], vec![]),
+                        menubar::checkbox_item(
+                            true,
+                            "word-wrap",
+                            false,
+                            false,
+                            vec![],
+                            vec![
+                                menubar::item_indicator(true, vec![], vec![text("✓")]),
+                                menubar::item_text(false, false, vec![], vec![text("Word Wrap")]),
+                            ],
+                        ),
+                        menubar::checkbox_item(
+                            false,
+                            "minimap",
+                            false,
+                            false,
+                            vec![],
+                            vec![
+                                menubar::item_indicator(false, vec![], vec![text("✓")]),
+                                menubar::item_text(false, false, vec![], vec![text("Minimap")]),
+                            ],
+                        ),
+                        menubar::separator(vec![], vec![]),
+                        menubar::radio_item_group(
+                            Some("mb-file-radio-label"),
+                            vec![],
+                            vec![
+                                menubar::item_group_label(
+                                    Some("mb-file-radio-label"),
+                                    vec![],
+                                    vec![text("Layout")],
+                                ),
+                                menubar::radio_item(
+                                    true,
+                                    "grid",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menubar::item_indicator(true, vec![], vec![text("●")]),
+                                        menubar::item_text(
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Grid")],
+                                        ),
+                                    ],
+                                ),
+                                menubar::radio_item(
+                                    false,
+                                    "list",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menubar::item_indicator(false, vec![], vec![text("●")]),
+                                        menubar::item_text(
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("List")],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        menubar::separator(vec![], vec![]),
+                        menubar::sub_trigger(
+                            open,
+                            false,
+                            false,
+                            Some("mb-sub-content"),
+                            vec![],
+                            vec![text("Export")],
+                        ),
+                        menubar::positioner(
+                            open,
+                            vec![],
+                            vec![menubar::sub_content(
+                                open,
+                                Some("mb-sub-content"),
+                                None,
+                                vec![],
+                                vec![
+                                    menubar::item("pdf", false, false, vec![], vec![text("PDF")]),
+                                    menubar::item("png", false, false, vec![], vec![text("PNG")]),
+                                ],
+                            )],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    );
+
+    // Menu 1「Edit」（closed）: `hidden`/`data-state="closed"` を機械導出
+    // 表へ載せる。
+    let edit_menu = menubar::menu(
+        closed,
+        vec![],
+        vec![
+            menubar::trigger(
+                false,
+                closed,
+                false,
+                false,
+                1,
+                Some("mb-edit-content"),
+                vec![],
+                vec![text("Edit")],
+            ),
+            menubar::positioner(
+                closed,
+                vec![],
+                vec![menubar::content(
+                    closed,
+                    Some("mb-edit-content"),
+                    None,
+                    vec![],
+                    vec![menubar::item(
+                        "undo",
+                        false,
+                        false,
+                        vec![],
+                        vec![text("Undo")],
+                    )],
+                )],
+            ),
+        ],
+    );
+
+    // Menu 2「Help」（closed + disabled）: `aria-disabled`/`data-disabled`
+    // を機械導出表へ載せる。
+    let help_menu = menubar::menu(
+        closed,
+        vec![],
+        vec![menubar::trigger(
+            false,
+            closed,
+            true,
+            false,
+            2,
+            None,
+            vec![],
+            vec![text("Help")],
+        )],
+    );
+
     let body = vec![menubar::root(
         orientation,
         "Main menu",
         vec![],
-        vec![menubar::menu(
-            state,
-            vec![],
-            vec![
-                menubar::trigger(
-                    true,
-                    state,
-                    false,
-                    false,
-                    0,
-                    Some("mb-content"),
-                    vec![],
-                    vec![text("File")],
-                ),
-                menubar::positioner(
-                    state,
-                    vec![],
-                    vec![menubar::content(
-                        state,
-                        Some("mb-content"),
-                        None,
-                        vec![],
-                        vec![
-                            menubar::item_group(
-                                None,
-                                vec![],
-                                vec![
-                                    menubar::item_group_label(None, vec![], vec![text("File")]),
-                                    menubar::item("new", false, false, vec![], vec![text("New")]),
-                                ],
-                            ),
-                            menubar::separator(vec![], vec![]),
-                        ],
-                    )],
-                ),
-            ],
-        )],
+        vec![file_menu, edit_menu, help_menu],
     )];
     demo_page("Menubar", body)
 }
