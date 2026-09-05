@@ -123,8 +123,9 @@
 //!   - disabled: `action-trigger` のみ（`close-trigger` は disabled 概念を
 //!     持たない、`crate::popover` と同判断）。headless
 //!     `fandhe_frontend_headless_ui::toast::action_trigger` はネイティブ
-//!     `<button disabled>` のみを発行し `data-disabled` は発行しない
-//!     （#1643 の判断領域）ため、`StateCondition::Attr("disabled")` が実効
+//!     `<button disabled>` のみを発行し `data-disabled` は発行しないことが
+//!     #1643 の参照突合（Zag.js `getActionTriggerProps`）で確定した（今後も
+//!     発行しない）ため、`StateCondition::Attr("disabled")` が実効
 //!     経路であり、`StateCondition::Attr("data-disabled")` は語彙統一の
 //!     前進として登録するのみの無害な死んだ規則（`crate::steps` の
 //!     `prev-trigger`/`next-trigger` と同型パターン）。
@@ -149,15 +150,19 @@
 //!   経由でスライドイン）を `animation` として追加する。`placement`
 //!   variant（`group` slot、`root` は継承で参照）が `top-*` 系は
 //!   `0 calc(-1 * var(--fandhe-space-2))`、`bottom-*` 系は
-//!   `0 var(--fandhe-space-2)` を定義する。headless root は `data-state` を
-//!   発行せず mount/unmount で即時出し入れされるため、`data-state` 条件なしの
+//!   `0 var(--fandhe-space-2)` を定義する。headless root は `data-state="open"`
+//!   を固定発行する（#1643 で確定。`"closed"` は発行しない）。mount 時に
+//!   常に `data-state="open"` で描画されるため、`data-state` 条件なしの
 //!   base animation でも mount 時のスライドインは機能する。
 //! - **exit 遷移は実装しない（スコープ外）**: headless root は unmount 時に
-//!   DOM から即時除去され `data-state="closed"` のような遷移用の中間状態を
-//!   発行しない（`fandhe_frontend_headless_ui::toast` rustdoc 参照）。
-//!   `crate::dialog`（#1795）/`crate::drawer`（#1695）の codex-review 確定
-//!   判断「機能しない transition を謳わない」を継承し、headless 側が
-//!   `data-state` を発行する語彙拡張（#1643 の判断領域）を待つ。
+//!   DOM から即時除去され、`data-state="closed"` のような遷移用の中間状態は
+//!   発行しない（`data-state` は `"open"` 固定、`fandhe_frontend_headless_ui::toast`
+//!   rustdoc「参照突合」節参照）。`crate::dialog`（#1795）/`crate::drawer`
+//!   （#1695）の codex-review 確定判断「機能しない transition を謳わない」を
+//!   継承し、headless 側が `data-state="closed"`（exit 遷移用）を発行する
+//!   語彙拡張は `fandhe-frontend-wasm-full` の dismiss 配線（タイマー・退出
+//!   アニメーション）実装後の課題として引き続き保留する（#1643 で判断領域を
+//!   確定済み、拡張自体はスコープ外のまま）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

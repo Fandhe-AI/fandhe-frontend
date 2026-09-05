@@ -21,19 +21,38 @@ use hui::OpenState;
 use super::demo_page;
 
 pub(super) fn avatar_section() -> Node {
-    let status = ImageStatus::Loaded;
-    let body = vec![avatar::root(
+    // Loaded インスタンス: 実在アセット（`crate::showcase::IMAGE_DEMO_SRC`）を
+    // 使い、壊れた画像アイコンを表示しない（イシュー #1659 で是正、
+    // 旧実装は解決できない `https://example.com/avatar.png` を描画していた）。
+    let loaded = ImageStatus::Loaded;
+    let loaded_avatar = avatar::root(
         vec![],
         vec![
             avatar::image(
-                status,
-                "https://example.com/avatar.png",
+                loaded,
+                crate::showcase::IMAGE_DEMO_SRC,
                 "Ada Lovelace",
                 vec![],
             ),
-            avatar::fallback(status, vec![], vec![text("AL")]),
+            avatar::fallback(loaded, vec![], vec![text("AL")]),
         ],
-    )];
+    );
+    // Error インスタンス: 参照サイト（Radix Primitives 等）と同様、画像が
+    // 読み込めない場合のフォールバック表示（イニシャル）を Demo 上で示す。
+    let error = ImageStatus::Error;
+    let error_avatar = avatar::root(
+        vec![],
+        vec![
+            avatar::image(
+                error,
+                "https://example.com/missing-avatar.png",
+                "Priya Das",
+                vec![],
+            ),
+            avatar::fallback(error, vec![], vec![text("PD")]),
+        ],
+    );
+    let body = vec![loaded_avatar, error_avatar];
     demo_page("Avatar", body)
 }
 

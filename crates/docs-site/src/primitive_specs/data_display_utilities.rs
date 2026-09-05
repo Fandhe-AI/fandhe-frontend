@@ -73,7 +73,7 @@
 //! 層）は一切呼ばない（受け入れ条件 3）。ダミー文字列は無害なもの
 //! （`example.com` 等の予約ドメイン、架空の名前）に限る。
 
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{code, div, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::avatar::{self, ImageStatus};
 use hui::carousel;
@@ -92,14 +92,28 @@ use hui::OpenState;
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
 
+/// Examples 用の枠組み（`primitive_specs/forms_a.rs::wrap_example` /
+/// `primitive_specs/forms_c_date_status.rs::wrap_example` と同型。
+/// [`crate::primitive_showcase`] のデモ本体と同じ `primitives-demo-frame`/
+/// `primitives-demo-note` class のみを使い、`h2`/`h3` は出さない）。
+fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
+    div(
+        vec![],
+        vec![
+            p(vec![("class", "primitives-demo-note")], vec![text(note)]),
+            div(vec![("class", "primitives-demo-frame")], body),
+        ],
+    )
+}
+
 // ---------------------------------------------------------------------
 // Avatar（/primitives/avatar/）
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/avatar.rs:1-79`（モジュール doc、
-/// `data-state` 語彙・ARIA について・スコープ外）、`:152-207`（`root`/
-/// `image`/`fallback` シグネチャ）、`:228-243`（`Avatar::new`）。
-/// 非テスト行で `role`/`aria-` の出力は 0 件。
+/// 一次情報: `crates/headless-ui/src/avatar.rs:1-120`（モジュール doc、
+/// `data-state` 語彙・ARIA について・スコープ外・参考サイトとの突合）、
+/// `:193-248`（`root`/`image`/`fallback` シグネチャ）、`:262-282`
+/// （`Avatar::new`）。非テスト行で `role`/`aria-` の出力は 0 件。
 fn ex_avatar_error_fallback() -> Node {
     let status = ImageStatus::Error;
     avatar::root(
@@ -116,47 +130,123 @@ fn ex_avatar_error_fallback() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1659、`CALENDAR_CUSTOM_CSS_SNIPPET`
+/// 〔`primitive_specs/forms_c_date_status.rs`〕と同型のパターン）。CSS は
+/// テキストノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const AVATAR_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"avatar\"][data-part=\"root\"] {\n  \
+  display: inline-block;\n  width: 3rem;\n  height: 3rem;\n  border-radius: 50%;\n  overflow: hidden;\n\
+}\n\
+[data-scope=\"avatar\"][data-part=\"image\"] {\n  \
+  width: 100%;\n  height: 100%;\n  object-fit: cover;\n\
+}\n\
+[data-scope=\"avatar\"][data-part=\"fallback\"] {\n  \
+  display: flex;\n  align-items: center;\n  justify-content: center;\n  \
+  width: 100%;\n  height: 100%;\n  background: #e5e7eb;\n\
+}\n\
+[data-scope=\"avatar\"][data-part=\"image\"][data-state=\"hidden\"],\n\
+[data-scope=\"avatar\"][data-part=\"fallback\"][data-state=\"hidden\"] {\n  \
+  display: none;\n\
+}\n";
+
+/// Radix Primitives の `delayMs`（フォールバック表示遅延）を非採用とした
+/// 代わりに、利用者が自前 CSS でどう円形アバターを組み立てるかを示す例
+/// （イシュー #1659 差分メモ参照）。`Loaded`（実在アセット）と `Error`
+/// （イニシャルフォールバック）の 2 インスタンスを並べ、
+/// `data-state="hidden"` の多層防御（属性セレクタ + `hidden` 存在属性）を
+/// 実演する。
+fn ex_avatar_custom_css() -> Node {
+    let loaded = ImageStatus::Loaded;
+    let loaded_avatar = avatar::root(
+        vec![],
+        vec![
+            avatar::image(
+                loaded,
+                crate::showcase::IMAGE_DEMO_SRC,
+                "Naledi Khumalo",
+                vec![],
+            ),
+            avatar::fallback(loaded, vec![], vec![text("NK")]),
+        ],
+    );
+    let error = ImageStatus::Error;
+    let error_avatar = avatar::root(
+        vec![],
+        vec![
+            avatar::image(
+                error,
+                "https://example.com/missing-avatar.png",
+                "Priya Das",
+                vec![],
+            ),
+            avatar::fallback(error, vec![], vec![text("PD")]),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            loaded_avatar,
+            error_avatar,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(AVATAR_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 pub const AVATAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "画像読み込みステータス 3 値（ImageStatus::Loading/Loaded/Error）を管理する状態機械 Avatar を提供する（avatar.rs:94-141）。",
-        "Root / Image / Fallback の 3 anatomy パーツで構成し、Loaded のときのみ image を表示、それ以外は fallback を表示する安全側の既定（avatar.rs:132-141,152-207）。",
+        "画像読み込みステータス 3 値（ImageStatus::Loading/Loaded/Error）を管理する状態機械 Avatar を提供する（avatar.rs:135-182）。",
+        "Root / Image / Fallback の 3 anatomy パーツで構成し、Loaded のときのみ image を表示、それ以外は fallback を表示する安全側の既定（avatar.rs:173-182,193-248）。",
         "image パーツは alt テキストを必須引数として要求することが実質的なアクセシビリティ担保であり、専用の role/aria-* は付与しない（avatar.rs:37-43）。",
+        "ark-ui/Zag.js・Radix Primitives・Radix Themes・chakra-ui の 4 参照サイトと突合済み（イシュー #1659）。anatomy/data-*/ARIA は一致し是正なし。Radix の delayMs（表示遅延）・各パーツへの dir/id・イニシャル自動導出は意図的に非採用（avatar.rs:81-120）。",
     ],
     arguments: &[
         ArgRow {
             name: "image: src",
             kind: "&str",
             default: "",
-            description: "画像 URL（avatar.rs:170-188、必須）。",
+            description: "画像 URL（avatar.rs:211-229、必須）。",
         },
         ArgRow {
             name: "image: alt",
             kind: "&str",
             default: "",
-            description: "代替テキスト（avatar.rs:170-188、必須。実質的なアクセシビリティ担保）。",
+            description: "代替テキスト（avatar.rs:211-229、必須。実質的なアクセシビリティ担保）。",
         },
         ArgRow {
             name: "image/fallback: status",
             kind: "ImageStatus",
             default: "ImageStatus::Loading",
-            description: "画像読み込みステータス。Loaded のときのみ image が可視（avatar.rs:99-107,132-141）。",
+            description: "画像読み込みステータス。Loaded のときのみ image が可視（avatar.rs:140-148,173-182）。",
         },
         ArgRow {
             name: "Avatar::new: initial",
             kind: "ImageStatus",
             default: "ImageStatus::Loading",
-            description: "状態機械の初期ステータス（avatar.rs:238-243）。",
+            description: "状態機械の初期ステータス（avatar.rs:262-282）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Error fallback",
-        description: "画像読み込み失敗（ImageStatus::Error）時のイニシャル表示例です。",
-        render: ex_avatar_error_fallback,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Error fallback",
+            description: "画像読み込み失敗（ImageStatus::Error）時のイニシャル表示例です。",
+            render: ex_avatar_error_fallback,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/data-state 属性セレクタで円形アバターのスタイルを当てる例です。",
+            render: ex_avatar_custom_css,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "(該当なし)",
-        description: "root/image/fallback は固有の role/aria-* を出力しない（avatar.rs 全文の非テスト行で role/aria- grep 0 件）。image パーツの alt テキストのみが代替情報を提供する。",
+        description: "root/image/fallback は固有の role/aria-* を出力しない（avatar.rs 全文の非テスト行で role/aria- grep 0 件）。image パーツの alt テキストのみが代替情報を提供する。参照 4 サイト（ark-ui/Zag.js・Radix Primitives・Radix Themes・chakra-ui）とも role/aria-* を付与しない点で一致する（イシュー #1659 突合）。",
     }],
     demo: None,
 };
