@@ -239,19 +239,26 @@ fn select_full_cycle_open_select_and_clear_in_real_dom() {
     let _cleanup = RemoveOnDrop(container.clone());
 
     let open_state = fandhe_frontend_headless_ui::state::OpenState::Closed;
+    let select_props = select::SelectProps::default();
     let html = fandhe_frontend_core::render(&select::root(
         open_state,
+        &select_props,
         vec![],
         vec![
             select::trigger(
                 open_state,
+                &select_props,
                 false,
                 None,
                 None,
                 vec![],
                 vec![fandhe_frontend_core::text("Open")],
             ),
-            select::clear_trigger(vec![], vec![fandhe_frontend_core::text("Clear")]),
+            select::clear_trigger(
+                &select_props,
+                vec![],
+                vec![fandhe_frontend_core::text("Clear")],
+            ),
             select::content(
                 open_state,
                 None,
@@ -259,8 +266,26 @@ fn select_full_cycle_open_select_and_clear_in_real_dom() {
                 None,
                 vec![],
                 vec![
-                    select::item(open_state, false, false, "opt-1", None, vec![], vec![]),
-                    select::item(open_state, false, false, "opt-2", None, vec![], vec![]),
+                    select::item(
+                        open_state,
+                        &select_props,
+                        false,
+                        false,
+                        "opt-1",
+                        None,
+                        vec![],
+                        vec![],
+                    ),
+                    select::item(
+                        open_state,
+                        &select_props,
+                        false,
+                        false,
+                        "opt-2",
+                        None,
+                        vec![],
+                        vec![],
+                    ),
                 ],
             ),
         ],
@@ -530,10 +555,12 @@ fn nested_select_inside_dialog_click_does_not_cross_dispatch_to_outer_dialog() {
             ),
             select::root(
                 select_open,
+                &select::SelectProps::default(),
                 vec![],
                 vec![
                     select::trigger(
                         select_open,
+                        &select::SelectProps::default(),
                         false,
                         None,
                         None,
@@ -548,6 +575,7 @@ fn nested_select_inside_dialog_click_does_not_cross_dispatch_to_outer_dialog() {
                         vec![],
                         vec![select::item(
                             select_open,
+                            &select::SelectProps::default(),
                             false,
                             false,
                             "opt-1",
@@ -664,17 +692,23 @@ const SELECT_PLACEHOLDER: &str = "Select a framework";
 /// item-text 付き item を 2 個）。
 fn build_select_with_value_text_html(items: &[(&str, &str)]) -> String {
     let open_state = fandhe_frontend_headless_ui::state::OpenState::Closed;
+    let select_props = select::SelectProps::default();
     let item_nodes = items
         .iter()
         .map(|(value, label)| {
             select::item(
                 open_state,
+                &select_props,
                 false,
                 false,
                 value,
                 None,
                 vec![],
                 vec![select::item_text(
+                    open_state,
+                    &select_props,
+                    false,
+                    false,
                     None,
                     vec![],
                     vec![fandhe_frontend_core::text(*label)],
@@ -685,14 +719,17 @@ fn build_select_with_value_text_html(items: &[(&str, &str)]) -> String {
 
     fandhe_frontend_core::render(&select::root(
         open_state,
+        &select_props,
         vec![],
         vec![
             select::control(
                 open_state,
+                &select_props,
                 vec![],
                 vec![
                     select::trigger(
                         open_state,
+                        &select_props,
                         false,
                         None,
                         None,
@@ -701,10 +738,15 @@ fn build_select_with_value_text_html(items: &[(&str, &str)]) -> String {
                     ),
                     select::value_text(
                         true,
+                        &select_props,
                         vec![],
                         vec![fandhe_frontend_core::text(SELECT_PLACEHOLDER)],
                     ),
-                    select::clear_trigger(vec![], vec![fandhe_frontend_core::text("Clear")]),
+                    select::clear_trigger(
+                        &select_props,
+                        vec![],
+                        vec![fandhe_frontend_core::text("Clear")],
+                    ),
                 ],
             ),
             select::positioner(
@@ -773,6 +815,100 @@ fn select_item_click_updates_value_text_label() {
     assert!(value_text_el.has_attribute("data-bind-text"));
 }
 
+/// Bugbot 指摘（イシュー #1619）: `sync_select_value_text` は value-text/
+/// trigger のみを更新し、item 自身の `aria-selected`/`data-selected` は
+/// SSR 初期状態のまま取り残されていた。`crate::keynav` の初期 highlight
+/// 判定（`selected_flags`、`aria-selected="true"` を読む）はこの属性を
+/// 直接参照するため、選択変更後に再オープンすると古い選択項目が
+/// ハイライトされ、続く Enter で以前の値へ巻き戻る可能性があった。
+#[wasm_bindgen_test]
+fn select_item_click_updates_item_aria_selected_and_data_selected() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-select-item-selected-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let html = build_select_with_value_text_html(&[("vue", "Vue"), ("react", "React")]);
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("select root must exist");
+
+    let component = Rc::new(RefCell::new(Select::default()));
+    wire_select_value_text(
+        root.clone(),
+        component.clone(),
+        SELECT_PLACEHOLDER.to_string(),
+    )
+    .expect("wire_select_value_text must not fail");
+
+    let item_vue = root
+        .query_selector(r#"[data-value="vue"]"#)
+        .expect("query_selector must not fail")
+        .expect("vue item element must exist");
+    let item_react = root
+        .query_selector(r#"[data-value="react"]"#)
+        .expect("query_selector must not fail")
+        .expect("react item element must exist");
+
+    // 初期状態（未選択）: いずれの item も aria-selected="false"、
+    // data-selected 無し（build_select_with_value_text_html は
+    // `OpenState::Closed` で生成する、モジュール冒頭 doc 参照）。
+    assert_eq!(
+        item_vue.get_attribute("aria-selected").as_deref(),
+        Some("false")
+    );
+    assert!(!item_vue.has_attribute("data-selected"));
+
+    dispatch_click(&item_vue);
+    assert_eq!(component.borrow().selected(), Some("vue"));
+    assert_eq!(
+        item_vue.get_attribute("aria-selected").as_deref(),
+        Some("true"),
+        "選択された item は aria-selected=\"true\" へ更新されること"
+    );
+    assert!(
+        item_vue.has_attribute("data-selected"),
+        "選択された item は data-selected 存在属性を持つこと"
+    );
+    assert_eq!(
+        item_react.get_attribute("aria-selected").as_deref(),
+        Some("false"),
+        "非選択の item は aria-selected=\"false\" のままであること"
+    );
+    assert!(!item_react.has_attribute("data-selected"));
+
+    // 選択を "react" へ切り替えると、"vue" 側の aria-selected/data-selected
+    // が正しく非選択へ戻ること（前回選択の残留がないこと）。
+    dispatch_click(&item_react);
+    assert_eq!(component.borrow().selected(), Some("react"));
+    assert_eq!(
+        item_vue.get_attribute("aria-selected").as_deref(),
+        Some("false"),
+        "選択が別項目へ移ったら旧選択 item は aria-selected=\"false\" へ戻ること"
+    );
+    assert!(!item_vue.has_attribute("data-selected"));
+    assert_eq!(
+        item_react.get_attribute("aria-selected").as_deref(),
+        Some("true")
+    );
+    assert!(item_react.has_attribute("data-selected"));
+
+    // clear-trigger による deselect 後は全 item が非選択へ戻ること。
+    let clear_el = root
+        .query_selector(r#"[data-part="clear-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("clear-trigger element must exist");
+    dispatch_click(&clear_el);
+    assert_eq!(component.borrow().selected(), None);
+    assert_eq!(
+        item_react.get_attribute("aria-selected").as_deref(),
+        Some("false"),
+        "deselect 後は全 item が非選択へ戻ること"
+    );
+    assert!(!item_react.has_attribute("data-selected"));
+}
+
 #[wasm_bindgen_test]
 fn select_clear_trigger_restores_placeholder_value_text() {
     let window = web_sys::window().expect("window must exist");
@@ -821,6 +957,69 @@ fn select_clear_trigger_restores_placeholder_value_text() {
     assert!(
         value_text_el.has_attribute("data-placeholder-shown"),
         "deselect 後は data-placeholder-shown が再付与されること"
+    );
+}
+
+/// codex-review P1 是正（イシュー #1619）: `sync_select_value_text` は
+/// value-text だけでなく trigger の `data-placeholder-shown` も select/
+/// deselect のたびに同じ判定で同期する（`crates/headless-ui/src/
+/// select.rs::trigger` の `placeholder_shown` 引数と同じ語彙、ark-ui/Radix
+/// 準拠）。従来は trigger 側が SSR 初期状態のまま取り残され、選択確定後も
+/// プレースホルダー用 CSS が誤適用され続けていた。
+#[wasm_bindgen_test]
+fn select_item_click_updates_trigger_placeholder_shown() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-select-trigger-placeholder-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let html = build_select_with_value_text_html(&[("vue", "Vue"), ("react", "React")]);
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("select root must exist");
+
+    let trigger_el = root
+        .query_selector(r#"[data-part="trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("trigger element must exist");
+    // SSR 初期状態（未選択）を模した状態から開始する（本テストのマークアップ
+    // 生成ヘルパーは trigger の `placeholder_shown` 引数を固定で `false`
+    // 渡しているため、ここで明示的に未選択状態の表現を再現する）。
+    trigger_el
+        .set_attribute("data-placeholder-shown", "")
+        .unwrap();
+
+    let component = Rc::new(RefCell::new(Select::default()));
+    wire_select_value_text(
+        root.clone(),
+        component.clone(),
+        SELECT_PLACEHOLDER.to_string(),
+    )
+    .expect("wire_select_value_text must not fail");
+
+    let item_react = root
+        .query_selector(r#"[data-value="react"]"#)
+        .expect("query_selector must not fail")
+        .expect("react item element must exist");
+    dispatch_click(&item_react);
+
+    assert_eq!(component.borrow().selected(), Some("react"));
+    assert!(
+        !trigger_el.has_attribute("data-placeholder-shown"),
+        "選択が確定したら trigger の data-placeholder-shown も除去されること"
+    );
+
+    let clear_el = root
+        .query_selector(r#"[data-part="clear-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("clear-trigger element must exist");
+    dispatch_click(&clear_el);
+
+    assert_eq!(component.borrow().selected(), None);
+    assert!(
+        trigger_el.has_attribute("data-placeholder-shown"),
+        "deselect 後は trigger にも data-placeholder-shown が再付与されること"
     );
 }
 

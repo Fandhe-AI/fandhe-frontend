@@ -678,15 +678,19 @@ fn mount_open_select_with_decoy_arrow(
     let trigger_id = format!("{id_prefix}-trigger");
     let positioner_id = format!("{id_prefix}-positioner");
     let decoy_arrow_id = format!("{id_prefix}-decoy-arrow");
+    let select_props = select::SelectProps::default();
     let html = render(&select::root(
         OpenState::Open,
+        &select_props,
         vec![],
         vec![
             select::control(
                 OpenState::Open,
+                &select_props,
                 vec![],
                 vec![select::trigger(
                     OpenState::Open,
+                    &select_props,
                     false,
                     None,
                     None,
@@ -714,12 +718,21 @@ fn mount_open_select_with_decoy_arrow(
                         vec![],
                         vec![select::item(
                             OpenState::Closed,
+                            &select_props,
                             false,
                             false,
                             "option-1",
                             None,
                             vec![],
-                            vec![select::item_text(None, vec![], vec![text("Option 1")])],
+                            vec![select::item_text(
+                                OpenState::Closed,
+                                &select_props,
+                                false,
+                                false,
+                                None,
+                                vec![],
+                                vec![text("Option 1")],
+                            )],
                         )],
                     ),
                     // headless-ui の select モジュールは arrow パーツを
@@ -1134,13 +1147,16 @@ fn reposition_now_does_not_weaken_default_escaping_for_menu_select_and_tooltip_c
             ),
             select::root(
                 OpenState::Open,
+                &select::SelectProps::default(),
                 vec![],
                 vec![
                     select::control(
                         OpenState::Open,
+                        &select::SelectProps::default(),
                         vec![],
                         vec![select::trigger(
                             OpenState::Open,
+                            &select::SelectProps::default(),
                             false,
                             None,
                             None,
@@ -1159,12 +1175,21 @@ fn reposition_now_does_not_weaken_default_escaping_for_menu_select_and_tooltip_c
                             vec![],
                             vec![select::item(
                                 OpenState::Closed,
+                                &select::SelectProps::default(),
                                 false,
                                 false,
                                 "option-1",
                                 None,
                                 vec![],
-                                vec![select::item_text(None, vec![], vec![text(img_payload)])],
+                                vec![select::item_text(
+                                    OpenState::Closed,
+                                    &select::SelectProps::default(),
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text(img_payload)],
+                                )],
                             )],
                         )],
                     ),

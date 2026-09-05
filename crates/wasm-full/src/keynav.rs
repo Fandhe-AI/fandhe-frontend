@@ -409,6 +409,21 @@
 //! トリガー間移動（[`wiring::move_menubar_focus`]、open-follows-focus）を
 //! 行う。Menu/Select の既存呼び出し側は戻り値を無視するため挙動は不変。
 //!
+//! ## readonly ガード・Select の初期 highlight 是正（イシュー #1619 参照突合）
+//!
+//! [`wiring::handle_menu_or_select_trigger_keydown`] の入口で trigger の
+//! `data-readonly` を確認し、readonly なら開閉・選択いずれの keydown も
+//! no-op にする（combobox #1605 の codex-review P1 是正〔readonly 中の
+//! キー操作抜け穴〕と同型。click 経路は `headless.rs::action_for_part` の
+//! `PartRef::readonly` が既に scope 汎用で fail-closed 化している）。加えて
+//! [`wiring::ScopeSelectors::prefer_selected_item`]（Select scope のみ
+//! `true`）が立っているとき、open 直後の初期 highlight は
+//! [`initial_highlight_index`] を使い、選択済み項目（非 disabled）を
+//! 先頭/末尾より優先する（ark-ui/Radix の `getInitialFocusItem` 相当）。
+//! 選択済み項目が disabled・そもそも未選択の場合は従来どおり
+//! [`first_non_disabled`]/[`last_non_disabled`] へフォールバックする。Menu
+//! scope は選択概念が無いため本節の対象外（従来どおり先頭/末尾開始）。
+//!
 //! ## loop 既定値
 //!
 //! `data-loop-focus` は [`menu_loop_focus_from_attr`]（`"true"` のときのみ
@@ -796,6 +811,48 @@ pub(crate) fn first_non_disabled(disabled: &[bool]) -> Option<usize> {
 /// `pub(crate)` の理由は [`first_non_disabled`] 参照。
 pub(crate) fn last_non_disabled(disabled: &[bool]) -> Option<usize> {
     disabled.iter().rposition(|&d| !d)
+}
+
+/// Select を開いた直後の初期 highlight インデックスを決める純粋関数
+/// （イシュー #1619 参照突合）。ark-ui/Radix は Space/Enter で開いたとき
+/// 既存の選択済み項目へ highlight を合わせる（`getInitialFocusItem`
+/// 相当）。`selected` 中の非 disabled な項目を優先し、無ければ
+/// [`first_non_disabled`]/[`last_non_disabled`]（`from_end`）へフォール
+/// バックする（選択済み項目が disabled・そもそも選択なしの場合の安全側
+/// 動作）。`selected`/`disabled` は同じ項目集合に対する同じ長さの列である
+/// ことを呼び出し側が保証する（長さ不一致時は該当インデックスを対象外
+/// 扱いにする fail-closed）。
+///
+/// `pub(crate)`: 配線層（[`wiring::handle_menu_or_select_trigger_keydown`]）
+/// の `select` scope（[`wiring::ScopeSelectors::prefer_selected_item`]）が
+/// open 直後のフォールバック計算に使う。Menu scope は選択概念が無いため
+/// 呼ばない（従来どおり [`first_non_disabled`]/[`last_non_disabled`] を
+/// 直接使う）。
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub(crate) fn initial_highlight_index(
+    selected: &[bool],
+    disabled: &[bool],
+    from_end: bool,
+) -> Option<usize> {
+    // `from_end` のときは末尾から探す（ArrowUp で開いた場合の対称性）。
+    let selected_idx = if from_end {
+        selected
+            .iter()
+            .zip(disabled.iter())
+            .rposition(|(&sel, &dis)| sel && !dis)
+    } else {
+        selected
+            .iter()
+            .zip(disabled.iter())
+            .position(|(&sel, &dis)| sel && !dis)
+    };
+    selected_idx.or_else(|| {
+        if from_end {
+            last_non_disabled(disabled)
+        } else {
+            first_non_disabled(disabled)
+        }
+    })
 }
 
 /// キーボード修飾キー（Ctrl/Alt/Meta）が押されている場合は本モジュールの
@@ -2079,6 +2136,60 @@ mod tests {
         );
         assert_eq!(first_non_disabled(&empty), None);
         assert_eq!(last_non_disabled(&empty), None);
+    }
+
+    // --- initial_highlight_index（イシュー #1619 参照突合: Select の open
+    // 直後、選択済み項目を非 disabled 項目に優先する） ---
+
+    #[test]
+    fn initial_highlight_index_prefers_selected_non_disabled_item() {
+        let selected = [false, true, false];
+        let disabled = [false, false, false];
+        assert_eq!(
+            initial_highlight_index(&selected, &disabled, false),
+            Some(1)
+        );
+        assert_eq!(initial_highlight_index(&selected, &disabled, true), Some(1));
+    }
+
+    #[test]
+    fn initial_highlight_index_falls_back_when_selected_item_is_disabled() {
+        let selected = [false, true, false];
+        let disabled = [false, true, false];
+        // 選択済み項目（index 1）が disabled のため、先頭/末尾の非 disabled
+        // 項目へフォールバックする（zag の getInitialFocusItem に相当する
+        // 安全側動作）。
+        assert_eq!(
+            initial_highlight_index(&selected, &disabled, false),
+            Some(0)
+        );
+        assert_eq!(initial_highlight_index(&selected, &disabled, true), Some(2));
+    }
+
+    #[test]
+    fn initial_highlight_index_falls_back_when_nothing_selected() {
+        let selected = [false, false, false];
+        let disabled = [false, false, false];
+        assert_eq!(
+            initial_highlight_index(&selected, &disabled, false),
+            Some(0)
+        );
+        assert_eq!(initial_highlight_index(&selected, &disabled, true), Some(2));
+    }
+
+    #[test]
+    fn initial_highlight_index_all_disabled_returns_none() {
+        let selected = [true, false, false];
+        let disabled = [true, true, true];
+        assert_eq!(initial_highlight_index(&selected, &disabled, false), None);
+        assert_eq!(initial_highlight_index(&selected, &disabled, true), None);
+    }
+
+    #[test]
+    fn initial_highlight_index_empty_returns_none() {
+        let selected: [bool; 0] = [];
+        let disabled: [bool; 0] = [];
+        assert_eq!(initial_highlight_index(&selected, &disabled, false), None);
     }
 
     #[test]
@@ -3932,13 +4043,13 @@ mod wiring {
 
     use super::{
         accordion_next_index, calendar_next_index, combobox_key_action, first_non_disabled,
-        highlight_next_index, is_typeahead_key, last_non_disabled, listbox_next_index,
-        loop_focus_from_attr, menu_loop_focus_from_attr, navigation_menu_link_next_index,
-        navigation_menu_trigger_key_action, radio_next_index, submenu_nav, tabs_next_index,
-        toggle_group_next_index, tree_key_action, tree_visible_flags, typeahead_next_index,
-        typeahead_push, ComboboxKeyAction, Modifiers, NavigationMenuKeyAction, Orientation,
-        RadioGroupReadonlyClickOutcome, SubmenuNav, TreeItemMeta, TreeKeyAction, MAX_SUBMENU_DEPTH,
-        TYPEAHEAD_TIMEOUT_MS,
+        highlight_next_index, initial_highlight_index, is_typeahead_key, last_non_disabled,
+        listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr,
+        navigation_menu_link_next_index, navigation_menu_trigger_key_action, radio_next_index,
+        submenu_nav, tabs_next_index, toggle_group_next_index, tree_key_action, tree_visible_flags,
+        typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers,
+        NavigationMenuKeyAction, Orientation, RadioGroupReadonlyClickOutcome, SubmenuNav,
+        TreeItemMeta, TreeKeyAction, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -4062,6 +4173,12 @@ mod wiring {
         /// 探索範囲。menu/select: `[data-part="root"]` / menubar:
         /// [`MENUBAR_MENU_SELECTOR`]）。
         content_owner: &'static str,
+        /// 初期 highlight で選択済み項目（`aria-selected="true"`）を
+        /// 非 disabled 項目に優先するか（イシュー #1619 参照突合）。
+        /// Select scope のみ `true`。Menu には選択概念が無いため常に
+        /// `false`（[`handle_menu_or_select_trigger_keydown`] の初期
+        /// highlight 節参照）。
+        prefer_selected_item: bool,
     }
 
     /// Menu スコープのセレクタ束（既存挙動そのまま）。
@@ -4071,6 +4188,7 @@ mod wiring {
         item: MENU_ITEM_SELECTOR,
         trigger_item: TRIGGER_ITEM_SELECTOR,
         content_owner: "[data-part=\"root\"]",
+        prefer_selected_item: false,
     };
 
     /// Select スコープのセレクタ束（既存挙動そのまま。Select には
@@ -4083,6 +4201,7 @@ mod wiring {
         item: SELECT_ITEM_SELECTOR,
         trigger_item: TRIGGER_ITEM_SELECTOR,
         content_owner: "[data-part=\"root\"]",
+        prefer_selected_item: true,
     };
 
     /// Menubar スコープのセレクタ束（イシュー #1073）。
@@ -4092,6 +4211,7 @@ mod wiring {
         item: MENUBAR_ITEM_SELECTOR,
         trigger_item: MENUBAR_SUB_TRIGGER_SELECTOR,
         content_owner: MENUBAR_MENU_SELECTOR,
+        prefer_selected_item: false,
     };
 
     /// Combobox スコープのセレクタ束（イシュー #1071 の実装を
@@ -4109,6 +4229,7 @@ mod wiring {
         item: COMBOBOX_ITEM_SELECTOR,
         trigger_item: TRIGGER_ITEM_SELECTOR,
         content_owner: "[data-part=\"root\"]",
+        prefer_selected_item: false,
     };
 
     /// [`handle_menu_or_select_trigger_keydown`] の戻り値（イシュー #1073）。
@@ -4173,6 +4294,7 @@ mod wiring {
         item: LISTBOX_ITEM_SELECTOR,
         trigger_item: LISTBOX_ITEM_SELECTOR,
         content_owner: LISTBOX_CONTENT_SELECTOR,
+        prefer_selected_item: false,
     };
 
     /// `[data-scope="tree-view"][data-part="tree"]` セレクタ（イシュー
@@ -4638,6 +4760,26 @@ mod wiring {
             .iter()
             .map(|el| el.has_attribute("disabled") || el.has_attribute("data-disabled"))
             .collect()
+    }
+
+    /// 各要素の選択状態（`aria-selected="true"`）を列挙する（イシュー
+    /// #1619 参照突合。Select の初期 highlight を選択済み項目優先にする
+    /// ための入力。Menu の item は `aria-selected` を持たないため常に
+    /// `false` の列になり、`ScopeSelectors::prefer_selected_item == false`
+    /// の scope では呼ばれないことと合わせて安全側）。
+    fn selected_flags(elements: &[Element]) -> Vec<bool> {
+        elements
+            .iter()
+            .map(|el| el.get_attribute("aria-selected").as_deref() == Some("true"))
+            .collect()
+    }
+
+    /// trigger が読み取り専用（`data-readonly`）かどうかを判定する
+    /// （イシュー #1619 参照突合。combobox #1605 の codex-review P1
+    /// 是正〔readonly 中のキー操作抜け穴〕と同型。readonly な Select/Menu
+    /// は開閉・選択のいずれの keydown も no-op にする）。
+    fn trigger_is_readonly(trigger: &Element) -> bool {
+        trigger.has_attribute("data-readonly")
     }
 
     /// RadioGroup のネイティブ `<input type="radio">` 1 個が readonly かどうか
@@ -5186,8 +5328,10 @@ mod wiring {
         for (i, item) in items.iter().enumerate() {
             if i == next_index {
                 set_dom_attribute(item, "data-highlighted", "");
+                sync_item_text_highlighted(item, true);
             } else {
                 let _ = item.remove_attribute("data-highlighted");
+                sync_item_text_highlighted(item, false);
             }
         }
         match items
@@ -5198,6 +5342,49 @@ mod wiring {
             None => {
                 let _ = activedescendant_host.remove_attribute("aria-activedescendant");
             }
+        }
+    }
+
+    /// `item` の直下 `[data-part="item-text"]` 子（Select の item-text、
+    /// `crates/headless-ui/src/select.rs` の [`item_text`](
+    /// crate::select::item_text) 参照）が存在する場合のみ、`item` 自身と
+    /// 同じ `data-highlighted` 状態を同期する（codex-review P1 是正、
+    /// イシュー #1619）。`item` に `data-highlighted` を付け外しする
+    /// [`set_highlight_on_host`]/[`clear_highlight_on_host`] が親 item の
+    /// 属性しか更新せず、子 item-text 側の表示契約（`data-highlighted` を
+    /// 参照する CSS）が SSR 初期状態のまま追随しない不整合を防ぐ。
+    /// item-text を持たない構成（Menu item 等）では no-op。
+    ///
+    /// `item.query_selector` を直接使うと、`item` がネストした別 item・別
+    /// インスタンス（例: item 内に別 Select が入れ子になった構成）を子孫に
+    /// 含み、かつ `item` 自身が item-text を持たない場合、内側の別 item の
+    /// item-text を誤って掴んで更新してしまう（codex-review/Cursor Bugbot
+    /// 再指摘、イシュー #1619。`crates/wasm-full/src/headless_select.rs::
+    /// own_scope_child` と同型の「最も近い item 祖先が自身と一致する」
+    /// 判定）。見つかった item-text の最も近い `[data-part="item"]` 祖先が
+    /// `item` 自身と一致するものだけへ絞り込む。
+    fn sync_item_text_highlighted(item: &Element, highlighted: bool) {
+        let Ok(node_list) = item.query_selector_all("[data-part=\"item-text\"]") else {
+            return;
+        };
+        for i in 0..node_list.length() {
+            let Some(node) = node_list.get(i) else {
+                continue;
+            };
+            let Ok(item_text) = wasm_bindgen::JsCast::dyn_into::<Element>(node) else {
+                continue;
+            };
+            let owns = closest(&item_text, "[data-part=\"item\"]")
+                .is_some_and(|nearest| nearest.is_same_node(Some(item)));
+            if !owns {
+                continue;
+            }
+            if highlighted {
+                set_dom_attribute(&item_text, "data-highlighted", "");
+            } else {
+                let _ = item_text.remove_attribute("data-highlighted");
+            }
+            break;
         }
     }
 
@@ -5269,6 +5456,7 @@ mod wiring {
     fn clear_highlight_on_host(items: &[Element], activedescendant_host: &Element) {
         for item in items {
             let _ = item.remove_attribute("data-highlighted");
+            sync_item_text_highlighted(item, false);
         }
         let _ = activedescendant_host.remove_attribute("aria-activedescendant");
     }
@@ -5597,14 +5785,62 @@ mod wiring {
         typeahead: &mut TypeaheadState,
         extra_open_key: Option<&str>,
     ) -> KeyOutcome {
+        // readonly な trigger は開閉・選択いずれの keydown も no-op にする
+        // （イシュー #1619 参照突合。combobox #1605 の codex-review P1 是正
+        // 〔readonly 中のキー操作抜け穴〕と同型。click 経路は
+        // `headless.rs::action_for_part` の `PartRef::readonly` が既に
+        // scope 汎用で fail-closed 化しているため、keydown 側もここで塞ぐ）。
+        // 状態遷移は no-op にする一方、ネイティブ既定動作（ページスクロール）
+        // まで漏らしてはならない（Bugbot 指摘 "Readonly select keys still
+        // scroll"、イシュー #1619）。
+        //
+        // ただし non-readonly 時の本関数の実挙動は「常に `prevent_default`
+        // する」キーと「open のときのみ `prevent_default` する」キーが
+        // 混在する（下記 open 分岐・closed 分岐参照）。ArrowDown/ArrowUp/
+        // Space は closed・open いずれでも本関数が消費する（closed では
+        // `should_open` 分岐で click 前に、open では下記の Arrow/Home/End
+        // 腕で）ため readonly でも常に `prevent_default` してよい。一方
+        // Home/End は **closed のときは non-readonly でも未処理**（`should_open`
+        // 判定に含まれず、ページ既定動作＝ページ先頭/末尾スクロールへ委譲
+        // する契約）であり、open のときのみ本関数が消費する。readonly
+        // 化により closed 時の Home/End まで一律 `prevent_default` すると、
+        // non-readonly の closed trigger では効くページレベル Home/End が
+        // readonly では効かなくなってしまう（Bugbot 指摘 "Readonly Home
+        // and End still captured"、イシュー #1619）。そのため Home/End は
+        // `is_open`（readonly でも `resolve_menu_select_content` は静的
+        // 属性の読み取りのみで副作用が無いため、通常経路と同じ判定式を
+        // ここでも独立に評価してよい）を条件に加える。Enter は元々
+        // ページスクロールを起こさないため対象外（no-op のまま）。
+        // 修飾キー（Ctrl/Alt/Meta）判定は readonly 分岐より前に行う
+        // （codex-review P1 是正、イシュー #1619）。readonly 分岐が本判定
+        // より前にあると、Ctrl+ArrowDown/Alt+Space・Ctrl+Home/End のような
+        // ブラウザ既定のショートカット（単語移動・ページ内既定操作等）まで
+        // readonly という理由だけで一律 `prevent_default` してしまい、
+        // non-readonly なら通っていたはずの既定動作を阻害する。readonly・
+        // non-readonly のどちらの分岐も修飾キー付き操作には関与しない
+        // （`KeyOutcome::Handled` を返すだけで prevent_default しない）
+        // という結果は同じだが、判定の位置を揃えることで両分岐の意味論を
+        // 一致させる。
+        let modifiers = modifiers_of(event);
+        if modifiers.any() {
+            return KeyOutcome::Handled;
+        }
+        if trigger_is_readonly(trigger) {
+            let key = event.key();
+            let is_open = resolve_menu_select_content(trigger, scope).is_some_and(|content| {
+                root.contains(Some(&content)) && !content.has_attribute("hidden")
+            });
+            let should_prevent = matches!(key.as_str(), "ArrowDown" | "ArrowUp" | " ")
+                || (is_open && matches!(key.as_str(), "Home" | "End"));
+            if should_prevent {
+                event.prevent_default();
+            }
+            return KeyOutcome::Handled;
+        }
         let Some(content) = resolve_menu_select_content(trigger, scope) else {
             return KeyOutcome::Handled;
         };
         if !root.contains(Some(&content)) {
-            return KeyOutcome::Handled;
-        }
-        let modifiers = modifiers_of(event);
-        if modifiers.any() {
             return KeyOutcome::Handled;
         }
         let key = event.key();
@@ -5677,7 +5913,14 @@ mod wiring {
                             scope,
                         );
                         let disabled = disabled_flags(&items);
-                        let initial = if initial_from_end {
+                        // Select scope に限り、選択済み項目（非 disabled）を
+                        // 初期 highlight に優先する（ark-ui/Radix 準拠、
+                        // イシュー #1619 参照突合。Menu は選択概念が無いため
+                        // 従来どおり先頭/末尾から開始する）。
+                        let initial = if scope.prefer_selected_item {
+                            let selected = selected_flags(&items);
+                            initial_highlight_index(&selected, &disabled, initial_from_end)
+                        } else if initial_from_end {
                             last_non_disabled(&disabled)
                         } else {
                             first_non_disabled(&disabled)

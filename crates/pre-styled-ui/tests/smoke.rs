@@ -81,7 +81,15 @@ mod wrapper_escape_and_stylesheet_safety {
 
     #[test]
     fn select_item_text_children_are_escaped() {
-        let html = render(&select::item_text(None, vec![], vec![text(XSS_PAYLOAD)]));
+        let html = render(&select::item_text(
+            select::OpenState::Closed,
+            &select::SelectProps::default(),
+            false,
+            false,
+            None,
+            vec![],
+            vec![text(XSS_PAYLOAD)],
+        ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
         assert!(html.contains(r#"data-scope="select""#));

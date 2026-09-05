@@ -490,16 +490,20 @@ const SEGMENT_GROUP: ComponentPageSpec = ComponentPageSpec {
 /// `hidden_select` 406-457）。
 const SELECT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Label / Control / Trigger / ValueText / ClearTrigger / Indicator / Positioner / Content / ItemGroup / ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect の 15 anatomy パーツを提供する。",
+        "Root / Label / Control / Trigger / ValueText / ClearTrigger / Indicator / Positioner / Content / ItemGroup / ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect の 15 anatomy パーツを提供する（ark-ui と完全一致、イシュー #1619 参照突合で追加・削除なし）。",
         "listbox の開閉（`Disclosure`）+ 選択値（`SingleSelect`、高々 1 個）を合成した状態機械を持つ。`data-state` 値語彙は `crate::state::OpenState` の `\"open\"`/`\"closed\"` に一元化し、選択有無の表現にも同じ語彙を再利用する（ark-ui の `checked`/`unchecked` は不採用）。",
-        "`hidden_select` はフォーム統合専用のネイティブ `<select>` であり `aria-hidden=\"true\"` + `tabindex=\"-1\"` を固定付与して視覚 UI（`trigger`/`content`）との二重露出を防ぐ。未選択時は非表示 placeholder option を自動挿入し、ブラウザの「先頭 option 自動選択」による誤送信を防ぐ。",
+        "`SelectProps`（`disabled`/`readonly`/`invalid`/`required`）を root/label/control/trigger/value-text/clear-trigger/indicator/item-group へ一律付与する（イシュー #1619。`label` にのみ `data-required` を追加）。呼び出し側 `attrs` に同名キーが混入していても fail-closed で除去する。",
+        "`trigger` は `data-placeholder-shown` を持つ（ark-ui/Radix 双方が trigger に持つ属性）。`item` は root disabled の伝播（`props.disabled || disabled`）と、選択時のみ付与する `data-selected` を持つ。`item_text` は `item` と同じ 3 状態属性（`data-state`/`data-disabled`/`data-highlighted`）を持つ。",
+        "`hidden_select` はフォーム統合専用のネイティブ `<select>` であり `aria-hidden=\"true\"` + `tabindex=\"-1\"` を固定付与して視覚 UI（`trigger`/`content`）との二重露出を防ぐ。未選択時は非表示 placeholder option を自動挿入し、ブラウザの「先頭 option 自動選択」による誤送信を防ぐ。`props.required` はネイティブ `required` へ反映する（`readonly` は `<select readonly>` が無効な HTML のため非採用）。",
         "位置決め（`positioner` の `style`/`data-side`/`data-align`）は `crate::positioning`（#590）が算出した値を呼び出し側が渡す。Select は arrow を持たない。",
         "highlight 移動・typeahead・キーボードナビゲーション自体は CSR 挙動層のスコープであり、本モジュールは `item(highlighted)`/`content(activedescendant)` の SSR 静的表現のみを提供する。",
+        "意図的に非追随: `data-state` の `checked`/`unchecked` 化・Radix 固有の Portal/Viewport/ScrollButton（レイアウト計測の関心、headless 層へ持ち込まない）・Arrow（Select は arrow を持たない）・`data-focus`（DOM ローカル focus）・`data-placement`/`data-side`（`crate::positioning` 経由で既に提供）。",
     ],
     arguments: &[
-        ArgRow { name: "root/control/trigger/indicator/positioner/content/item/item_indicator(state)", kind: "OpenState", default: "OpenState::Closed", description: "開閉（または選択有無）状態。`data-state` へ反映する。" },
+        ArgRow { name: "root/control/trigger/indicator/positioner/content/item/item_text/item_indicator(state)", kind: "OpenState", default: "OpenState::Closed", description: "開閉（または選択有無）状態。`data-state` へ反映する。" },
+        ArgRow { name: "root/label/control/trigger/value_text/clear_trigger/indicator/item_group(props)", kind: "&SelectProps", default: "&SelectProps::default()", description: "`disabled`/`readonly`/`invalid`/`required` の状態束（イシュー #1619）。" },
         ArgRow { name: "label/item_group_label(id)", kind: "Option<&str>", default: "", description: "`Some` のとき `id` 属性を出力し、対応する `labelledby`/`labelled_by` 引数の関連付け先になる。" },
-        ArgRow { name: "trigger(disabled)", kind: "bool", default: "", description: "ネイティブ `disabled` + `data-disabled` を反映する。" },
+        ArgRow { name: "trigger(placeholder_shown)", kind: "bool", default: "", description: "`true` のとき `data-placeholder-shown` を付与する（未選択時のプレースホルダー表示、イシュー #1619）。" },
         ArgRow { name: "trigger(controls)", kind: "Option<&str>", default: "", description: "`Some` のとき `aria-controls` で `content` の id と関連付ける。" },
         ArgRow { name: "trigger(labelledby)", kind: "Option<&str>", default: "", description: "`Some` のとき `aria-labelledby` で `label` と関連付ける。" },
         ArgRow { name: "value_text(placeholder_shown)", kind: "bool", default: "", description: "`true` のとき `data-placeholder-shown` 存在属性を付与する（未選択時のプレースホルダー表示）。" },
@@ -507,25 +511,46 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
         ArgRow { name: "content(labelledby)", kind: "Option<&str>", default: "", description: "`Some` のとき `aria-labelledby` を付与する。" },
         ArgRow { name: "content(activedescendant)", kind: "Option<&str>", default: "", description: "`Some` のとき `aria-activedescendant` を付与する（現在ハイライト中の `item` の id を指す。移動自体は CSR 挙動層の責務）。" },
         ArgRow { name: "item_group(labelledby)", kind: "Option<&str>", default: "", description: "`Some` のときのみ `role=\"group\"` + `aria-labelledby` を対で付与する（名前なし group を作らない）。" },
-        ArgRow { name: "item(disabled)", kind: "bool", default: "", description: "`true` のとき `aria-disabled=\"true\"` + `data-disabled` を対で付与する（`div[role=\"option\"]` はネイティブ `disabled` を持たない）。" },
+        ArgRow { name: "item(disabled)", kind: "bool", default: "", description: "`props.disabled || disabled`（root disabled 伝播）が `true` のとき `aria-disabled=\"true\"` + `data-disabled` を対で付与する（`div[role=\"option\"]` はネイティブ `disabled` を持たない）。" },
         ArgRow { name: "item(highlighted)", kind: "bool", default: "", description: "`data-highlighted` へ反映する（キーボードナビゲーション等によるフォーカス位置の SSR 静的表現）。" },
-        ArgRow { name: "item(value)", kind: "&str", default: "", description: "選択肢の値。`data-value` として動的値のまま出力する。" },
+        ArgRow { name: "item(value)", kind: "&str", default: "", description: "選択肢の値。`data-value` として動的値のまま出力する。選択中は `data-selected` も付与する（イシュー #1619）。" },
         ArgRow { name: "item(id)", kind: "Option<&str>", default: "", description: "`Some` のとき、`content(activedescendant)` の参照先識別子になる。" },
+        ArgRow { name: "item_text(selected_state, props, disabled, highlighted)", kind: "OpenState, &SelectProps, bool, bool", default: "", description: "`item` の先頭 4 引数と同型。`data-state`/`data-disabled`（root disabled 伝播込み）/`data-highlighted` の 3 状態属性を出力する（イシュー #1619）。" },
         ArgRow { name: "hidden_select(selected)", kind: "Option<&str>", default: "", description: "現在選択中の値。`None` のとき非表示 placeholder option を先頭へ自動挿入する。" },
         ArgRow { name: "hidden_select(name)", kind: "Option<&str>", default: "", description: "`Some` のとき `name` 属性を出力する。" },
+        ArgRow { name: "hidden_select(props)", kind: "&SelectProps", default: "", description: "`props.disabled`/`props.required` をそれぞれネイティブ `disabled`/`required` 存在属性へ反映する（イシュー #1619）。" },
         ArgRow { name: "hidden_select(options)", kind: "Vec<(&str, &str)>", default: "", description: "`(value, label)` の列。各要素を `<option>` として組み立てる。" },
     ],
-    examples: &[ExampleEntry {
-        title: "Disabled trigger, unselected",
-        description: "`trigger(disabled: true)` + `hidden_select(selected: None)` の未選択・無効化状態。非表示 placeholder option が自動挿入される。",
-        render: ex_select_disabled_unselected,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Disabled trigger, unselected",
+            description: "`SelectProps { disabled: true, .. }` + `hidden_select(selected: None)` の未選択・無効化状態。非表示 placeholder option が自動挿入される。",
+            render: ex_select_disabled_unselected,
+        },
+        ExampleEntry {
+            title: "利用者スタイルの当て方",
+            description: "`[data-scope=\"select\"][data-part=\"trigger\"][data-state=\"open\"]`・`[data-part=\"item\"][data-highlighted]`・`[data-invalid]`・`[data-readonly]`・`[data-placeholder-shown]` を用いた自前 CSS の最小例。headless-ui 自体はスタイルを持たない。",
+            render: ex_select_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow { key: "Space / Enter (closed)", description: "listbox を開く。選択済み項目（`aria-selected=\"true\"` の非 disabled 項目）があれば初期 highlight をそこへ合わせ、無ければ先頭（Enter/Space）/末尾（ArrowUp）の非 disabled 項目へフォールバックする（ark-ui/Radix 準拠、イシュー #1619。実装は `fandhe-frontend-wasm-full` の `keynav.rs::handle_menu_or_select_trigger_keydown`/`initial_highlight_index`）。" },
+        KeyRow { key: "ArrowDown / ArrowUp (closed)", description: "listbox を開く（初期 highlight の規則は Space/Enter と同じ）。" },
+        KeyRow { key: "ArrowDown / ArrowUp (open)", description: "highlight を次/前の非 disabled 項目へ移動する。`data-loop-focus=\"true\"` オプトイン時のみ端で循環する。" },
+        KeyRow { key: "Space / Enter (open)", description: "highlight 中の項目を選択し、listbox を閉じる（`closeOnSelect` 既定 `true`）。" },
+        KeyRow { key: "Home / End (open)", description: "先頭/末尾の非 disabled 項目へ highlight を移動する（WAI-ARIA APG 拡張）。" },
+        KeyRow { key: "A–Z（typeahead）", description: "先頭一致する項目へ highlight を移動する（350ms バッファ）。" },
+        KeyRow { key: "Escape", description: "listbox を閉じる。" },
+        KeyRow { key: "readonly（`data-readonly`）", description: "trigger の keydown（開閉・選択いずれも）を no-op にする（combobox の readonly 是正と同型、イシュー #1619）。click 経路も同様に no-op。" },
+    ],
     aria: &[
         AriaRow { attribute: "aria-haspopup=\"listbox\" (trigger)", description: "固定付与。" },
         AriaRow { attribute: "aria-expanded (trigger)", description: "`state.is_open()` を反映する。" },
         AriaRow { attribute: "role=\"listbox\" (content)", description: "固定付与。`aria-activedescendant` の配線先（`trigger` は素の `button` のため付与しない）。" },
         AriaRow { attribute: "role=\"option\" / aria-selected (item)", description: "固定付与 + `selected_state.is_open()` を反映する。" },
+        AriaRow { attribute: "role=\"presentation\" (item_group_label)", description: "zag の ItemGroupLabel anatomy に合わせて固定付与する（イシュー #1619）。" },
+        AriaRow { attribute: "aria-hidden=\"true\" (item_indicator)", description: "装飾アイコンであり `item` 自身の `aria-selected` が選択状態を伝達するため、支援技術の二重読み上げを防ぐ（イシュー #1619）。" },
+        AriaRow { attribute: "aria-disabled (item)", description: "`props.disabled || disabled`（root disabled 伝播）が `true` のとき付与する（イシュー #1619）。" },
         AriaRow { attribute: "aria-hidden=\"true\" / tabindex=\"-1\" (hidden_select)", description: "視覚 UI（`trigger`/`content`）との二重露出・二重フォーカスを防ぐため固定付与する。" },
     ],
     demo: None,
@@ -1511,27 +1536,39 @@ fn ex_segment_group_custom_css() -> Node {
 
 fn ex_select_disabled_unselected() -> Node {
     let state = OpenState::Closed;
+    let props = select::SelectProps {
+        disabled: true,
+        ..select::SelectProps::default()
+    };
     let body = vec![select::root(
         state,
+        &props,
         vec![],
         vec![
-            select::label(Some("sel2-label"), vec![], vec![text("Country")]),
+            select::label(&props, Some("sel2-label"), vec![], vec![text("Country")]),
             select::control(
                 state,
+                &props,
                 vec![],
                 vec![
                     select::trigger(
                         state,
+                        &props,
                         true,
                         Some("sel2-content"),
                         Some("sel2-label"),
                         vec![],
                         vec![
-                            select::value_text(true, vec![], vec![text("Select a country")]),
-                            select::indicator(state, vec![], vec![text("▾")]),
+                            select::value_text(
+                                true,
+                                &props,
+                                vec![],
+                                vec![text("Select a country")],
+                            ),
+                            select::indicator(state, &props, vec![], vec![text("▾")]),
                         ],
                     ),
-                    select::clear_trigger(vec![], vec![text("×")]),
+                    select::clear_trigger(&props, vec![], vec![text("×")]),
                 ],
             ),
             select::positioner(
@@ -1544,17 +1581,27 @@ fn ex_select_disabled_unselected() -> Node {
                     None,
                     vec![],
                     vec![select::item_group(
+                        &props,
                         None,
                         vec![],
                         vec![select::item(
                             OpenState::Closed,
+                            &props,
                             false,
                             false,
                             "jp",
                             None,
                             vec![],
                             vec![
-                                select::item_text(None, vec![], vec![text("Japan")]),
+                                select::item_text(
+                                    OpenState::Closed,
+                                    &props,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Japan")],
+                                ),
                                 select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
                             ],
                         )],
@@ -1564,13 +1611,67 @@ fn ex_select_disabled_unselected() -> Node {
             select::hidden_select(
                 None,
                 Some("country"),
-                true,
+                &props,
                 vec![],
                 vec![("jp", "Japan"), ("us", "United States")],
             ),
         ],
     )];
     div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// 利用者スタイルの当て方の最小例（イシュー #1619 参照突合。Demo には
+/// 適用しない、`SELECT_CUSTOM_CSS_SNIPPET` と対で使う静的コード例）。
+/// `[data-scope="select"][data-part="trigger"][data-state="open"]`・
+/// `[data-part="item"][data-highlighted]`・`[data-invalid]`・
+/// `[data-readonly]`・`[data-placeholder-shown]` の各セレクタで
+/// スタイルを当てられることを示す。
+const SELECT_CUSTOM_CSS_SNIPPET: &str = r#"[data-scope="select"][data-part="trigger"] {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+[data-scope="select"][data-part="trigger"][data-state="open"] {
+  border-color: #6366f1;
+}
+[data-scope="select"][data-part="trigger"][data-placeholder-shown] {
+  color: #6b7280;
+}
+[data-scope="select"][data-part="trigger"][data-invalid] {
+  border-color: #dc2626;
+}
+[data-scope="select"][data-part="trigger"][data-readonly] {
+  background: #f3f4f6;
+  cursor: default;
+}
+[data-scope="select"][data-part="item"][data-highlighted] {
+  background: #eef2ff;
+}
+"#;
+
+fn ex_select_custom_css() -> Node {
+    let props = select::SelectProps::default();
+    let markup = select::trigger(
+        OpenState::Closed,
+        &props,
+        true,
+        None,
+        None,
+        vec![],
+        vec![select::value_text(
+            true,
+            &props,
+            vec![],
+            vec![text("Select a country")],
+        )],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-invalid / data-readonly / data-placeholder-shown / data-highlighted 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(vec![], vec![code(vec![], vec![text(SELECT_CUSTOM_CSS_SNIPPET)])]),
+        ],
+    )
 }
 
 fn ex_signature_pad_empty_disabled() -> Node {

@@ -150,6 +150,7 @@ fn select_state_reexport_is_usable_via_pre_styled_ui_path_alone() {
     let html = render(&select::root(
         Size::Md,
         SelectOpenState::Open,
+        &select::SelectProps::default(),
         vec![],
         vec![el("span", vec![], vec![text("body")])],
     ));

@@ -299,7 +299,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/collections/menu.md` | Menu | Menu | Dropdown Menu (`dropdown-menu`) | Dropdown Menu (`dropdown-menu`) | `menu` | `menu` | 実装済み | headless+styled 実装済み |
-| `.agents/skills/ark-ui/references/components/collections/select.md` | Select | Select | Select (`select`) | Select (`select`) | `select` | `select` | 実装済み | headless+styled 実装済み |
+| `.agents/skills/ark-ui/references/components/collections/select.md` | Select | Select | Select (`select`) | Select (`select`) | `select` | `select` | 実装済み | headless+styled 実装済み。#1619 で参照突合（`SelectProps` 共有 disabled/readonly/invalid/required の一律付与、trigger の data-placeholder-shown、item の root disabled 伝播と data-selected、item-text 3 状態属性、item-group-label の role="presentation"、item-indicator の aria-hidden。data-state="checked"/"unchecked" 語彙は combobox/listbox とのクレート横断整合を優先し非追随） |
 | `.agents/skills/ark-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | `combobox` | `combobox` | 実装済み | headless+styled 実装済み（#749、PR #793）。#1605 で参照突合（`ComboboxProps` 共有 disabled/readonly/invalid/required の一律付与、item の data-state="checked"/"unchecked" 語彙は select/listbox とのクレート横断整合を優先し非追随） |
 | `.agents/skills/ark-ui/references/components/collections/listbox.md` | Listbox | Listbox | — | — | `listbox` | `listbox` | 実装済み | headless+styled 実装済み（#750。#1611 で参照突合: ListboxProps 共有・data-selected/data-orientation・item-text 状態属性を是正。Input/Empty パーツ・extended mode・select-all・data-empty/data-layout は見送り） |
 | `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | — | — | `pagination` | `pagination` | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除） |
@@ -524,7 +524,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/collections/select.md` | Select | Select | — | — | `select` | `select` | 実装済み | headless+styled 実装済み |
+| `.agents/skills/chakra-ui/references/components/collections/select.md` | Select | Select | — | — | `select` | `select` | 実装済み | headless+styled 実装済み。#1619 で参照突合（`SelectProps` 共有 disabled/readonly/invalid/required の一律付与、trigger の data-placeholder-shown、item の root disabled 伝播と data-selected、item-text 3 状態属性、item-group-label の role="presentation"、item-indicator の aria-hidden。data-state="checked"/"unchecked" 語彙は combobox/listbox とのクレート横断整合を優先し非追随） |
 | `.agents/skills/chakra-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | `combobox` | `combobox` | 実装済み | headless+styled 実装済み（#749、PR #793）。#1605 で参照突合（`ComboboxProps` 共有 disabled/readonly/invalid/required の一律付与、item の data-state="checked"/"unchecked" 語彙は select/listbox とのクレート横断整合を優先し非追随） |
 | `.agents/skills/chakra-ui/references/components/collections/listbox.md` | Listbox | Listbox | — | — | `listbox` | `listbox` | 実装済み | headless+styled 実装済み（#750。#1611 で参照突合: ListboxProps 共有・data-selected/data-orientation・item-text 状態属性を是正。Input/Empty パーツ・extended mode・select-all・data-empty/data-layout は見送り） |
 | `.agents/skills/chakra-ui/references/components/collections/tree-view.md` | TreeView | TreeView | — | — | `tree_view` | `tree_view` | 実装済み | headless+styled 実装済み |
