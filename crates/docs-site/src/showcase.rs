@@ -4464,88 +4464,173 @@ fn rating_group_section() -> Node {
 /// property の 1 点のみで伝搬する
 /// （`fandhe_frontend_pre_styled_ui::slider` のモジュール doc 参照）。
 fn slider_section() -> Node {
+    let mid_props = slider::SliderProps::default();
     let mid_state = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
     let mid = slider::root(
         Size::Md,
         ColorPalette::Accent,
         &mid_state,
-        false,
+        &mid_props,
         vec![],
         vec![
-            slider::label(vec![], vec![text("Volume")]),
+            slider::label(&mid_props, vec![], vec![text("Volume")]),
             slider::control(
                 Orientation::Horizontal,
-                false,
+                &mid_props,
                 vec![],
                 vec![
                     slider::track(
                         Orientation::Horizontal,
-                        false,
+                        &mid_props,
                         vec![],
-                        vec![slider::range(&mid_state, false, vec![])],
+                        vec![slider::range(&mid_state, &mid_props, vec![])],
                     ),
-                    slider::thumb_styled(&mid_state, Some("40 percent"), false, vec![]),
+                    slider::thumb_styled(&mid_state, Some("40 percent"), &mid_props, vec![]),
                 ],
             ),
             slider::hidden_input("volume", "40", false, vec![]),
         ],
     );
 
+    let at_max_props = slider::SliderProps::default();
     let at_max_state = Slider::new(0.0, 100.0, 1.0, 100.0, Orientation::Horizontal);
     let at_max = slider::root(
         Size::Md,
         ColorPalette::Accent,
         &at_max_state,
-        false,
+        &at_max_props,
         vec![],
         vec![
-            slider::label(vec![], vec![text("At max")]),
+            slider::label(&at_max_props, vec![], vec![text("At max")]),
             slider::control(
                 Orientation::Horizontal,
-                false,
+                &at_max_props,
                 vec![],
                 vec![
                     slider::track(
                         Orientation::Horizontal,
-                        false,
+                        &at_max_props,
                         vec![],
-                        vec![slider::range(&at_max_state, false, vec![])],
+                        vec![slider::range(&at_max_state, &at_max_props, vec![])],
                     ),
-                    slider::thumb_styled(&at_max_state, Some("100 percent"), false, vec![]),
+                    slider::thumb_styled(&at_max_state, Some("100 percent"), &at_max_props, vec![]),
                 ],
             ),
             slider::hidden_input("volume-max", "100", false, vec![]),
         ],
     );
 
+    let disabled_props = slider::SliderProps {
+        disabled: true,
+        ..Default::default()
+    };
     let disabled_state = Slider::new(0.0, 100.0, 1.0, 25.0, Orientation::Horizontal);
     let disabled = slider::root(
         Size::Md,
         ColorPalette::Accent,
         &disabled_state,
-        true,
+        &disabled_props,
         vec![],
         vec![
-            slider::label(vec![], vec![text("Disabled")]),
+            slider::label(&disabled_props, vec![], vec![text("Disabled")]),
             slider::control(
                 Orientation::Horizontal,
-                true,
+                &disabled_props,
                 vec![],
                 vec![
                     slider::track(
                         Orientation::Horizontal,
-                        true,
+                        &disabled_props,
                         vec![],
-                        vec![slider::range(&disabled_state, true, vec![])],
+                        vec![slider::range(&disabled_state, &disabled_props, vec![])],
                     ),
-                    slider::thumb_styled(&disabled_state, Some("25 percent"), true, vec![]),
+                    slider::thumb_styled(
+                        &disabled_state,
+                        Some("25 percent"),
+                        &disabled_props,
+                        vec![],
+                    ),
                 ],
             ),
             slider::hidden_input("volume-disabled", "25", true, vec![]),
         ],
     );
 
-    let demo_row = row(vec![mid, at_max, disabled]);
+    // readonly/invalid（イシュー #1621: SliderProps 新設に伴い docs サイト
+    // Demo でも headless-ui の状態語彙をひととおり見せる）。
+    let readonly_props = slider::SliderProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let readonly_state = Slider::new(0.0, 100.0, 1.0, 60.0, Orientation::Horizontal);
+    let readonly = slider::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &readonly_state,
+        &readonly_props,
+        vec![],
+        vec![
+            slider::label(&readonly_props, vec![], vec![text("Readonly")]),
+            slider::control(
+                Orientation::Horizontal,
+                &readonly_props,
+                vec![],
+                vec![
+                    slider::track(
+                        Orientation::Horizontal,
+                        &readonly_props,
+                        vec![],
+                        vec![slider::range(&readonly_state, &readonly_props, vec![])],
+                    ),
+                    slider::thumb_styled(
+                        &readonly_state,
+                        Some("60 percent"),
+                        &readonly_props,
+                        vec![],
+                    ),
+                ],
+            ),
+            slider::hidden_input("volume-readonly", "60", false, vec![]),
+        ],
+    );
+
+    let invalid_props = slider::SliderProps {
+        invalid: true,
+        ..Default::default()
+    };
+    let invalid_state = Slider::new(0.0, 100.0, 1.0, 15.0, Orientation::Horizontal);
+    let invalid = slider::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &invalid_state,
+        &invalid_props,
+        vec![],
+        vec![
+            slider::label(&invalid_props, vec![], vec![text("Invalid")]),
+            slider::control(
+                Orientation::Horizontal,
+                &invalid_props,
+                vec![],
+                vec![
+                    slider::track(
+                        Orientation::Horizontal,
+                        &invalid_props,
+                        vec![],
+                        vec![slider::range(&invalid_state, &invalid_props, vec![])],
+                    ),
+                    slider::thumb_styled(
+                        &invalid_state,
+                        Some("15 percent"),
+                        &invalid_props,
+                        vec![],
+                    ),
+                ],
+            ),
+            slider::hidden_input("volume-invalid", "15", false, vec![]),
+        ],
+    );
+
+    let demo_row = row(vec![mid, at_max, disabled, readonly, invalid]);
     section(
         "Slider",
         "min/max/step でクランプされる連続値スライダー。塗りつぶし・つまみの位置は --fandhe-slider-percent の 1 点で伝搬します。",
@@ -8013,8 +8098,18 @@ fn timer_display_node(t: &Timer, minutes_label: &str, seconds_label: &str) -> No
             timer::control(
                 vec![],
                 vec![
-                    timer::action_trigger(TimerControl::Pause, vec![], vec![text("Pause")]),
-                    timer::action_trigger(TimerControl::Reset, vec![], vec![text("Reset")]),
+                    // running/paused では `hidden` になり、completed では
+                    // Idle と同じ可視性（Start/Restart のみ表示）になる
+                    // （`TimerControl::is_hidden_in`）。Pause/Reset のみを
+                    // 並べていた旧版は completed 側のデモ（右）で操作
+                    // コントロールが一切表示されない欠落があったため、
+                    // `crates/docs-site/src/primitive_specs/forms_c_date_status.rs`
+                    // の completed 例と同じ 4 種を揃える（Bugbot 指摘、
+                    // イシュー #1632）。
+                    t.action_trigger(TimerControl::Start, vec![], vec![text("Start")]),
+                    t.action_trigger(TimerControl::Pause, vec![], vec![text("Pause")]),
+                    t.action_trigger(TimerControl::Reset, vec![], vec![text("Reset")]),
+                    t.action_trigger(TimerControl::Restart, vec![], vec![text("Restart")]),
                 ],
             ),
         ],

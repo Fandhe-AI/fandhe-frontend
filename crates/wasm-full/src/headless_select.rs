@@ -198,14 +198,19 @@ mod wiring {
     /// 再指摘、イシュー #1619）。このため以下の優先順で解決する:
     ///
     /// 1. `root` 自身が [`ROOT_SELECTOR`] に一致すればそれをそのまま返す。
-    /// 2. 一致しない場合、`root.closest(ROOT_SELECTOR)` で祖先方向
-    ///    （`root` が anatomy root より内側の要素だった場合）を探す。
-    /// 3. それも見つからない場合、`root.query_selector(ROOT_SELECTOR)` で
-    ///    子孫方向（`root` が anatomy root を包む外側コンテナだった場合）を
-    ///    探す。祖先探索の `closest` は子孫を辿れないため、この段が無いと
-    ///    外側コンテナ渡しのケースで境界が永遠に見つからない
-    ///    （[`own_scope_elements`] が全 item を除外し続ける fail-close に
-    ///    陥っていた）。
+    /// 2. 一致しない場合、`root` 配下（descendant）に [`ROOT_SELECTOR`]
+    ///    一致要素があるかを先に調べる（`root` が anatomy root を包む
+    ///    外側コンテナ/ラッパーだった場合）。複数一致する場合は「直接の
+    ///    子孫で最も浅いもの」を選ぶ（[`shallowest_descendant_root`]
+    ///    参照）。これを祖先探索より**先に**行う理由: 「外側 Select root >
+    ///    ラッパー > 内側 Select root」のようにラッパー自身が別インスタンス
+    ///    の root 配下にネストする構成で、`closest` を先に試すと `root`
+    ///    （＝ラッパー）が外側 root の子孫であるために外側 root を誤って
+    ///    返してしまい、内側 root を包むラッパー渡しのケースで同期が
+    ///    停止する回帰があった（codex-review P1 再指摘、イシュー #1619）。
+    /// 3. 配下に一致要素が無い場合のみ、`root.closest(ROOT_SELECTOR)` で
+    ///    祖先方向（`root` が anatomy root より内側の要素だった場合）を
+    ///    探す。
     /// 4. いずれも見つからなければ `root` 自身へ fail-closed に
     ///    フォールバックする（境界を特定できない場合でも panic せず、後続の
     ///    フィルタが全件を除外する安全側の縮退に留める）。
@@ -213,13 +218,47 @@ mod wiring {
         if root.matches(ROOT_SELECTOR).unwrap_or(false) {
             return root.clone();
         }
+        if let Some(descendant) = shallowest_descendant_root(root) {
+            return descendant;
+        }
         if let Ok(Some(ancestor)) = root.closest(ROOT_SELECTOR) {
             return ancestor;
         }
-        if let Ok(Some(descendant)) = root.query_selector(ROOT_SELECTOR) {
-            return descendant;
-        }
         root.clone()
+    }
+
+    /// `root` 配下（自身を除く子孫）から [`ROOT_SELECTOR`] に一致する要素を
+    /// 探し、複数あれば「直接の子孫で最も浅いもの」を返す（[`instance_boundary`]
+    /// 参照）。
+    ///
+    /// 「最も浅い」の判定は、各候補について「`root` から見て自分より手前
+    /// （浅い側）に別の候補が祖先として存在しないか」で行う: 候補要素の
+    /// 親から `closest(ROOT_SELECTOR)` を辿った結果が `root` の配下
+    /// （`root.contains(..)`）に留まる場合、その祖先側の候補の方がより
+    /// 浅いためこの候補は除外し、`root` の外（または祖先方向に他候補が無い）
+    /// まで抜けた候補のみを「最も浅い」ものとして採用する。DOM 順で最初に
+    /// 見つかったものを返す（決定的な順序）。
+    fn shallowest_descendant_root(root: &Element) -> Option<Element> {
+        let node_list = root.query_selector_all(ROOT_SELECTOR).ok()?;
+        for i in 0..node_list.length() {
+            let Some(node) = node_list.get(i) else {
+                continue;
+            };
+            let Ok(element) = wasm_bindgen::JsCast::dyn_into::<Element>(node) else {
+                continue;
+            };
+            let is_shallowest = match element.parent_element() {
+                None => true,
+                Some(parent) => match parent.closest(ROOT_SELECTOR) {
+                    Ok(Some(ancestor_match)) => !root.contains(Some(&ancestor_match)),
+                    _ => true,
+                },
+            };
+            if is_shallowest {
+                return Some(element);
+            }
+        }
+        None
     }
 
     /// `root` 配下から `selector` に一致する要素を収集し、各要素の最も近い

@@ -122,9 +122,48 @@
 //! `--size`/`--thickness` は `orientation` と異なり値状態機械が保持する
 //! フィールドではなく、呼び出し側が CSS で静的に決めるレイアウト選択
 //! であるため、hydration ラウンドトリップの対象にしない。
+//!
+//! # 参考サイト突合（イシュー #1633）
+//!
+//! ark-ui/Zag.js `progress.connect.ts`・Radix Primitives `Progress`・
+//! Radix Themes `Progress`・chakra-ui `Progress` の 4 参照サイトと突合した。
+//!
+//! ## 是正した点
+//!
+//! - [`Progress::label`] に `data-orientation` を追加した（Zag.js の
+//!   `getLabelProps` に合わせる。以前は `data-state` のみで欠落していた）。
+//! - [`Progress::value_text`] に `aria-live="polite"` を無条件付与した
+//!   （Zag.js の `getValueTextProps` に合わせる。数値更新を支援技術へ
+//!   非割り込みで通知する契約）。
+//!
+//! ## 意図的に合わせなかった点
+//!
+//! - **`role="progressbar"` の配置**: Zag.js は Track に置くが、本実装は
+//!   Radix Primitives と同じく Root に置く（既存の
+//!   `fandhe-frontend-pre-styled-ui` `progress::root`・wasm-full 側の
+//!   契約を壊さないため、既存設計を維持）。
+//! - **Root の `--percent` style**: Zag.js は Root に CSS 変数を直接
+//!   埋め込むが、本実装は headless 中立を保ち、[`Progress::percent`]
+//!   経由で styled 層/呼び出し側が組み立てる既存契約のまま変更しない。
+//! - **Range への `data-value`/`data-max`**: Radix の `Indicator` はこれらを
+//!   複製するが、一次参照である ark-ui の `range` は保持せず、本実装も
+//!   Root を単一情報源として複製しない。
+//! - **Circular（`circle`/`circle-track`/`circle-range`）への
+//!   `data-orientation`**: circular に方向の概念はなく、意図的に付与
+//!   しない（#600 で既に記録済み、変更なし）。
+//! - **Zag.js `Progress.View` パーツ相当の状態別コンテンツ切替**: 本実装の
+//!   anatomy に対応パーツを持たない。呼び出し側が [`Progress::data_state`]
+//!   で分岐すれば足り、`hidden` 制御は wasm 配線を要するため見送った
+//!   （導入する場合は別イシューとして起票を検討する）。
+//!
+//! ## キーボード操作
+//!
+//! 参照 4 サイトともキーボード操作表を持たない（`progressbar` は
+//! 非インタラクティブなロールであり、フォーカス・キー入力を受け付けない）。
+//! 本実装も同様にキーボード操作を持たない（`keyboard: &[]`）。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::role;
+use crate::aria::{aria_live, role, AriaLive};
 use crate::data_attrs::{data_orientation, data_state, Orientation};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
@@ -327,18 +366,35 @@ impl Progress {
 
     /// Label パーツ（`span`）。装飾用パーツ（意味論的なラベル関連付けは
     /// 呼び出し側が `id`/`aria-labelledby` を `attrs` 経由で配線する）。
+    ///
+    /// `data-orientation` は ark-ui/Zag.js の `getLabelProps` に合わせて
+    /// 付与する（イシュー #1633 是正。Track/Range と同じ語彙・値を使う）。
+    /// 呼び出し側 `attrs` が同名キーを渡してもフレームワーク側の値を優先
+    /// する（[`drop_reserved`] による dedup、`crate::timer::AREA_RESERVED`
+    /// と同型のなりすまし防止）。
     #[must_use]
     pub fn label<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(self.data_state())];
+        let attrs = drop_reserved(attrs, LABEL_RESERVED);
+        let mut merged: Vec<(&'a str, &'a str)> = vec![
+            data_state(self.data_state()),
+            data_orientation(self.orientation),
+        ];
         merged.extend(attrs);
         ANATOMY.part("label", "span", merged, children)
     }
 
     /// ValueText パーツ（`span`）。表示テキストは `children`（呼び出し側が
     /// 整形する。`formatOptions`/`locale` 相当の整形機能は持たない）。
+    ///
+    /// `aria-live="polite"` を無条件付与する（ark-ui/Zag.js の
+    /// `getValueTextProps` に合わせる、イシュー #1633 是正）。数値の更新を
+    /// 支援技術へ非割り込みで通知する契約であり、呼び出し側は上書きできない
+    /// （[`drop_reserved`] による dedup）。
     #[must_use]
     pub fn value_text<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(self.data_state())];
+        let attrs = drop_reserved(attrs, VALUE_TEXT_RESERVED);
+        let mut merged: Vec<(&'a str, &'a str)> =
+            vec![data_state(self.data_state()), aria_live(AriaLive::Polite)];
         merged.extend(attrs);
         ANATOMY.part("value-text", "span", merged, children)
     }
@@ -436,6 +492,26 @@ fn drop_style_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)
     attrs
         .into_iter()
         .filter(|(k, _)| !k.eq_ignore_ascii_case("style"))
+        .collect()
+}
+
+/// [`Progress::label`] が固定付与するキー一覧（呼び出し側 `attrs` による
+/// なりすまし除外、イシュー #1633 是正）。
+const LABEL_RESERVED: &[&str] = &["data-orientation"];
+
+/// [`Progress::value_text`] が固定付与するキー一覧（同上、イシュー #1633 是正）。
+const VALUE_TEXT_RESERVED: &[&str] = &["aria-live"];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（`crate::timer::drop_reserved`・`crate::date_input::drop_reserved`
+/// と同型の重複実装。モジュール間の相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
         .collect()
 }
 
@@ -677,6 +753,15 @@ mod tests {
         assert!(html.contains("Upload progress"));
     }
 
+    /// イシュー #1633 是正: Zag.js `getLabelProps` に合わせ
+    /// `data-orientation` を付与する。
+    #[test]
+    fn label_outputs_orientation() {
+        let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Vertical);
+        let html = render(&p.label(vec![], vec![]));
+        assert!(html.contains(r#"data-orientation="vertical""#));
+    }
+
     #[test]
     fn value_text_outputs_scope_part_and_state() {
         let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
@@ -685,6 +770,57 @@ mod tests {
         assert!(html.contains(r#"data-part="value-text""#));
         assert!(html.contains(r#"data-state="loading""#));
         assert!(html.contains("40%"));
+    }
+
+    /// イシュー #1633 是正: Zag.js `getValueTextProps` に合わせ
+    /// `aria-live="polite"` を無条件付与する。
+    #[test]
+    fn value_text_outputs_aria_live_polite() {
+        let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+        let html = render(&p.value_text(vec![], vec![]));
+        assert!(html.contains(r#"aria-live="polite""#));
+    }
+
+    /// 呼び出し側 `attrs` が `data-orientation`/`aria-live` を渡しても
+    /// フレームワーク側の値で上書きされる（なりすまし防止、イシュー #1633）。
+    #[test]
+    fn label_and_value_text_caller_reserved_attrs_are_dropped() {
+        let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Vertical);
+
+        let label_html = render(&p.label(vec![("data-orientation", "spoofed")], vec![]));
+        assert!(label_html.contains(r#"data-orientation="vertical""#));
+        assert!(!label_html.contains("spoofed"));
+
+        let value_text_html = render(&p.value_text(vec![("aria-live", "assertive")], vec![]));
+        assert!(value_text_html.contains(r#"aria-live="polite""#));
+        assert!(!value_text_html.contains("assertive"));
+    }
+
+    /// 意図的に非採用とした属性群が出力に現れないことを固定する
+    /// （イシュー #1633 突合の記録。モジュール doc の該当節を参照）。
+    #[test]
+    fn intentionally_omitted_attributes_are_absent() {
+        let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+
+        // Root は headless 中立のため --percent style を持たない。
+        let root_html = render(&p.root(None, vec![], vec![]));
+        assert!(!root_html.contains("--percent"));
+
+        // Track/Range に role は付与しない（Zag.js との意図的な差分）。
+        let track_html = render(&p.track(vec![], vec![]));
+        assert!(!track_html.contains("role"));
+        let range_html = render(&p.range(vec![], vec![]));
+        assert!(!range_html.contains("role"));
+        // Range に data-value/data-max を複製しない（Root を単一情報源とする）。
+        assert!(!range_html.contains("data-value"));
+        assert!(!range_html.contains("data-max"));
+
+        // Circular 系に data-orientation を付与しない。
+        let circle_html = render(&p.circle(vec![], vec![]));
+        assert!(!circle_html.contains("data-orientation"));
+
+        // Zag.js Progress.View 相当のパーツは実装しない。
+        assert!(!root_html.contains(r#"data-part="view""#));
     }
 
     #[test]

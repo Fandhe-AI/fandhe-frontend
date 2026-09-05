@@ -1614,7 +1614,52 @@ name = "fandhe-frontend-pre-styled-ui"
 # のため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則（`docs/ci/
 # style-refresh-version-bump-operation.md` §5）に従い main 現在値 0.97.0 から
 # headless-ui 0.47.0 依存追随とあわせて 0.98.0 へさらにマイナーバンプする。
-version = "0.98.0"
+# 上記 2 ブランチが独立に同一版数 0.95.0 へ到達したため（同一版数への
+# 偶発的衝突をそのまま採用しない原則、`docs/ci/style-refresh-version-bump-operation.md`
+# §5）、headless-ui 0.45.0 依存追随とあわせてマイナーバンプで 0.96.0 とする。
+# イシュー #1620: 当初は headless-ui 0.47.0 依存追随（自身の実体変更なし）
+# として patch バンプ（0.97.1）としていたが、codex-review P1 是正
+# （PR #1902）により誤りと判明した: 本クレートは headless-ui の
+# `signature_pad::label`/`guide` を公開再エクスポートしており、headless-ui
+# 側の `disabled: bool` 引数追加（破壊的変更）は再エクスポート先の公開 API
+# にも波及する（2 引数呼び出しがコンパイル不能になる）。
+# `.claude/rules/coding-rust.md` の破壊的変更規定に従いマイナーバンプへ
+# 訂正し、headless-ui 0.47.0 依存追随とあわせて 0.97.0 から 0.98.0 とする。
+# イシュー #1632: headless-ui 0.47.0 依存追随（timer action_trigger/area の
+# 破壊的変更再エクスポート波及）+ action-trigger[hidden] CSS 追加のため
+# 0.97.0 から 0.98.0 へマイナーバンプする。
+# イシュー #1621: headless-ui 0.48.0 依存追随（slider の `SliderProps` 新設に
+# 伴う root/label/control/track/range/thumb_styled シグネチャ変更の再
+# エクスポート波及）のため 0.98.0 から 0.99.0 へマイナーバンプする。
+# base ブランチ再取り込み（PR #1902, signature-pad, 2026-09-05）: 上記 2
+# ブランチ（#1620 signature-pad・#1632 timer）が独立に同一版数 0.98.0 へ
+# 到達したため（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）、headless-ui
+# 0.48.0 依存追随とあわせてマイナーバンプで 0.99.0 とする。
+# イシュー #1633: base 取り込み後の headless-ui 0.48.1 依存追随（progress
+# label/value_text への非破壊的な属性追加、pre-styled-ui 自身の src は
+# 無変更）のため patch バンプで 0.99.0 から 0.99.1 とする。
+# イシュー #1634: headless-ui 0.49.0 依存追随。styled qr_code::frame は
+# headless qr_code::frame へ引数をそのまま委譲しており、role="img" 付与
+# 条件の変更（aria_label = None で role/aria-label とも付与しなくなった）が
+# 公開出力へ波及する（`toggle::indicator` 再エクスポート先変更、イシュー
+# #1629 と同型）。マイナーバンプで 0.100.0 とする。
+# 上記 2 ブランチ（本 #1621 slider・base 取り込み分）が独立に同一版数
+# 0.99.0 へ到達したため（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）、headless-ui
+# 0.49.0 依存追随とあわせてマイナーバンプで 0.100.0 とする。
+# base 再取り込み（PR #1904, 2026-09-05）: base 側で独立に到達していた
+# 0.99.1（イシュー #1633: headless-ui 0.48.1 依存追随の patch バンプ）は
+# 本ブランチのマイナーバンプ 0.100.0 に包含されるため、0.100.0 をそのまま
+# 維持する（headless-ui 側も 0.49.0 を維持しているため依存整合は保たれる）。
+# base 再取り込み（イシュー #1619, 2026-09-05）: main 側が独立に 0.100.0 へ
+# 到達していた（別部品の破壊的変更 + headless-ui 0.49.0 依存追随の一連の
+# バンプ）。本ブランチ（#1619 select）の SelectProps 新設に伴う破壊的変更
+# とは別内容のため、同じ「同一版数への偶発的衝突をそのまま採用しない」
+# 原則（`docs/ci/style-refresh-version-bump-operation.md` §5）に従い main
+# 現在値 0.100.0 から headless-ui 0.50.0 依存追随とあわせて 0.101.0 へ
+# さらにマイナーバンプする。
+version = "0.101.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1629,7 +1674,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.47.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.50.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

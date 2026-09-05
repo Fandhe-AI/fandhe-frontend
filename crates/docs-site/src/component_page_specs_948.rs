@@ -1512,8 +1512,8 @@ fn timer_example() -> Node {
             timer::control(
                 vec![],
                 vec![
-                    timer::action_trigger(TimerControl::Pause, vec![], vec![text("Pause")]),
-                    timer::action_trigger(TimerControl::Reset, vec![], vec![text("Reset")]),
+                    t.action_trigger(TimerControl::Pause, vec![], vec![text("Pause")]),
+                    t.action_trigger(TimerControl::Reset, vec![], vec![text("Reset")]),
                 ],
             ),
         ],

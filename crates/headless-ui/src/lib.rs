@@ -588,7 +588,11 @@
 //!   外部から明示的に注入する決定的状態機械であり、`std::time`/`Instant`
 //!   等の時計 API に一切依存しない（[`mod@timer`] モジュール doc 参照）。
 //!   実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full` の
-//!   `headless_timer` モジュールの責務。
+//!   `headless_timer` モジュールの責務。イシュー #1632 で zag.js
+//!   `timer.connect.ts` と突合し、`area` の `role="timer"`/`aria-atomic`/
+//!   `aria-label`・`separator` の `aria-hidden`・`action_trigger` の
+//!   `phase` 引数による `hidden` 導出（`TimerControl` は 5 値、`Restart`
+//!   を意図的に追加）を是正した。
 //! - [`mod@format`]: byte / number / time / relative-time の Format 系
 //!   ユーティリティ（イシュー #853、親 Phase 5 #852）。ark-ui `format-byte`/
 //!   `format-number`/`format-time`/`format-relative-time` 相当を、JS の
@@ -795,7 +799,7 @@ pub use radio_group::{RadioGroup, RadioGroupProps};
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingGroupProps, RatingItemFlags};
 pub use segment_group::{SegmentGroup, SegmentGroupProps};
 pub use signature_pad::{Point, SignaturePad, SignaturePadAction, Stroke, StrokeError};
-pub use slider::{Slider, SliderAction};
+pub use slider::{Slider, SliderAction, SliderProps};
 pub use splitter::{PanelSpec, Splitter, SplitterAction};
 pub use state::{
     Checkable, CheckableAction, Disclosure, DisclosureAction, MultiSelect, MultiSelectAction,

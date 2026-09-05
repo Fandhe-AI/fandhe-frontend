@@ -921,7 +921,7 @@ fn slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             Size::Md,
             ColorPalette::Accent,
             &s,
-            false,
+            &slider::SliderProps::default(),
             vec![("data-testid", payload)],
             vec![],
         ));
@@ -933,7 +933,7 @@ fn slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             Size::Md,
             ColorPalette::Accent,
             &s,
-            false,
+            &slider::SliderProps::default(),
             vec![("class", payload)],
             vec![],
         ));
@@ -953,7 +953,11 @@ fn slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした label の children 経路。
-        let html = render(&slider::label(vec![], vec![text(payload)]));
+        let html = render(&slider::label(
+            &slider::SliderProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
         assert_payload_is_escaped(payload, &html, "slider::label children コンテキスト");
 
         // 選択的再エクスポートした hidden_input の name 経路。
@@ -3643,6 +3647,7 @@ fn timer_styled_children_and_attrs_are_escaped_for_all_payloads() {
 
         let html = render(&timer::action_trigger(
             TimerControl::Start,
+            TimerPhase::Idle,
             vec![],
             vec![text(payload)],
         ));
@@ -3805,7 +3810,7 @@ fn signature_pad_styled_root_and_reexported_parts_are_escaped_for_all_payloads()
         );
 
         // 選択的再エクスポートした label の children 経路。
-        let html = render(&signature_pad::label(vec![], vec![text(payload)]));
+        let html = render(&signature_pad::label(false, vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "signature_pad::label children コンテキスト");
 
         // 選択的再エクスポートした hidden_input の name/value 経路。

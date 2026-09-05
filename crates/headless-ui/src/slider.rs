@@ -13,17 +13,52 @@
 //! [`crate::progress::Progress`]/[`crate::switch::Switch`] の `data-state`
 //! （"loading"/"checked" 等）に相当する離散的な状態区分を Slider は持たない
 //! （[`crate::number_input::NumberInput`] と同じ判断: 値は連続量であり、
-//! 区分らしい区分を持たない）。`disabled` は描画時引数（状態機械のフィールド
-//! にしない、[`crate::switch::Switch`]/[`crate::number_input::NumberInput`]
-//! と同型）として各パーツ関数へ渡す。
+//! 区分らしい区分を持たない）。disabled/readonly/invalid は
+//! [`SliderProps`]（描画時引数、状態機械のフィールドにしない
+//! [`crate::angle_slider::AngleSliderProps`] と同型）として各パーツ関数へ
+//! 渡す。
+//!
+//! # 参照突合（イシュー #1621、ark-ui/zag.js `slider` machine との対比）
+//!
+//! 一次情報は ark-ui docs（Slider ページ）と zag.js
+//! `packages/machines/slider/src/*.ts`、Radix Primitives Slider（一次記録
+//! `docs/design/radix-primitives-inventory.md`。姉妹部品 angle-slider の
+//! 参照突合はイシュー #1601/PR #1875）。差分の是正・意図的な非追随は以下の
+//! とおり（詳細は PR 本文の差分表を参照）:
+//!
+//! - **是正**: [`SliderProps`] を新設し `data-invalid`/`data-readonly` を
+//!   root/label/control/track/range/thumb へ追加（`disabled` の描画時引数を
+//!   `SliderProps` へ統合、破壊的変更）。MarkerGroup/Marker パーツ
+//!   （[`marker_group`]/[`marker`]）を、姉妹部品 angle-slider（#1601）と
+//!   同型のパリティで追加した（PR #1875 本文が「Slider 側にパリティ
+//!   ギャップが生じた」と明記していた受け皿）。`SliderAction::IncrementLarge`/
+//!   `DecrementLarge`（`"increment_large"`/`"decrement_large"`、zag の
+//!   PageUp/PageDown・Shift+Arrow 相当の広域ステップ）を状態機械 dispatch
+//!   契約として追加した。
+//! - **意図的に追随しない**（理由付き）:
+//!   - `data-focus`/`data-dragging`（zag 各パーツの実行時一時状態）:
+//!     pointer ドラッグ配線がスコープ外のため出力元が存在しない
+//!     （モジュール冒頭「スコープ外」節参照）。
+//!   - DraggingIndicator パーツ（ark-ui 新版）: 同上の理由でスコープ外。
+//!   - Root/Control/Thumb/Range の装飾用 CSS 変数
+//!     （`--slider-range-start/end` 等）:
+//!     `docs/policy/intentional-non-adoption.md` §3.25 規則 2（装飾・
+//!     レイアウト計測は headless へ持ち込まない）に従い
+//!     `fandhe-frontend-pre-styled-ui` の `--fandhe-slider-percent` が担う。
+//!   - 複数 thumb（range slider、`data-index`）: #741 以来のスコープを維持。
+//!   - `fandhe-frontend-wasm-full` の DOM keydown 配線（Arrow/Home/End/
+//!     PageUp/PageDown）: 本イシューでは見送り、状態機械 dispatch 契約の
+//!     完成のみに留めた（angle-slider #1601 と同型の判断。REQ-11 バンドル
+//!     サイズ予算の逼迫が理由。PR 本文でフォローアップ Issue 化を提案）。
 //!
 //! # 呼び出し文脈
 //!
 //! SSR は [`Slider::new`] で値を正規化してから各パーツメソッド
 //! （[`Slider::root`]/[`Slider::label`]/[`Slider::control`]/[`Slider::track`]/
 //! [`Slider::range`]/[`Slider::thumb`]/[`Slider::hidden_input`]/
-//! [`Slider::value_text`]）を呼んで組み立てる。CSR/hydration は [`Slider`]
-//! を経由し、dispatch（`"set"`/`"increment"`/`"decrement"`/`"home"`/`"end"`）
+//! [`Slider::value_text`]/[`Slider::marker`]）を呼んで組み立てる。CSR/
+//! hydration は [`Slider`] を経由し、dispatch（`"set"`/`"increment"`/
+//! `"decrement"`/`"increment_large"`/`"decrement_large"`/`"home"`/`"end"`）
 //! で状態遷移する。`fandhe-frontend-pre-styled-ui` が本モジュールを呼んで
 //! スタイル済み Slider を組み立てる想定である。
 //!
@@ -75,16 +110,18 @@
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - **range slider（複数 thumb）**・**Marker/MarkerGroup**: 単一値スライダー
-//!   のみを初期実装スコープとする。
-//! - **pointer ドラッグ・キーボード操作（Arrow/Home/End/PageUp/Down）の DOM
-//!   配線**: 他コンポーネント同様、クライアントランタイム
-//!   （`fandhe-frontend-wasm-full`）側の後続責務とする。本モジュールは SSR
-//!   静的マークアップと dispatch 契約のみを提供する。
+//! - **range slider（複数 thumb）**: 単一値スライダーのみを引き続きスコープ
+//!   とする（#741 以来のスコープを維持、モジュール冒頭「参照突合」節参照）。
+//! - **pointer ドラッグ・DOM keydown 配線**: 他コンポーネント同様、
+//!   クライアントランタイム（`fandhe-frontend-wasm-full`）側の後続責務と
+//!   する。本モジュールは SSR 静的マークアップと dispatch 契約のみを提供
+//!   する（モジュール冒頭「参照突合」節参照）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_disabled, aria_orientation};
-use crate::data_attrs::{data_disabled, data_orientation, Orientation};
+use crate::data_attrs::{
+    data_disabled, data_invalid, data_orientation, data_readonly, Orientation,
+};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
@@ -176,39 +213,92 @@ fn normalize(min: f64, max: f64, step: f64, value: f64) -> (f64, f64, f64, f64) 
     (min, max, step, value)
 }
 
+/// [`SliderProps`] が全パーツへ一律付与する属性キー一覧。呼び出し側 `attrs`
+/// にこれらと同名キーが含まれていても fail-closed で除去する対象
+/// （[`crate::angle_slider::STATE_RESERVED`] と同型のパターン）。
+const STATE_RESERVED: &[&str] = &["data-disabled", "data-invalid", "data-readonly"];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::angle_slider::drop_reserved`] と同型の重複実装。
+/// モジュール間の相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// Slider の disabled/readonly/invalid 状態束。root/label/control/track/
+/// range/thumb の全パーツへ [`data_disabled`]/[`data_invalid`]/
+/// [`data_readonly`] を一律付与するために使う
+/// （[`crate::angle_slider::AngleSliderProps`] と同型のパターン。破壊的
+/// 変更: 従来の `disabled: bool` 引数を本 struct へ統合した）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SliderProps {
+    /// 無効化状態。`true` で `data-disabled` を各パーツへ付与し、[`thumb`]
+    /// を `tabindex="-1"` + `aria-disabled="true"` にする。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で `data-readonly` を各パーツへ付与する。
+    /// disabled と異なり [`thumb`] のフォーカス可能性は変えない
+    /// （`tabindex="0"` のまま）。操作自体の抑止は
+    /// `fandhe-frontend-wasm-full` 側の no-op ガードが担う想定
+    /// （[`crate::angle_slider`] と同型の判断）。
+    pub readonly: bool,
+    /// 入力検証エラー状態。`true` で `data-invalid` を各パーツへ付与する。
+    pub invalid: bool,
+}
+
+/// [`SliderProps`] から root/label/control/track/range/thumb 共通の状態
+/// 属性列を組み立てる非公開ヘルパ。
+fn state_attrs(props: &SliderProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs: Vec<(&'static str, &'static str)> = Vec::new();
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_invalid(props.invalid));
+    attrs.extend(data_readonly(props.readonly));
+    attrs
+}
+
 /// Root パーツ（`div`）。
 #[must_use]
 pub fn root<'a>(
     orientation: Orientation,
-    disabled: bool,
+    props: &SliderProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_orientation(orientation)];
-    merged.extend(data_disabled(disabled));
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
 
-/// Label パーツ（`span`）。装飾用パーツ（意味論的な関連付けは呼び出し側が
-/// `id`/`aria-labelledby` を `attrs` 経由で [`thumb`] へ配線する。[`thumb`]
+/// Label パーツ（`span`）。意味論的な関連付けは呼び出し側が `id`/
+/// `aria-labelledby` を `attrs` 経由で [`thumb`] へ配線する（[`thumb`]
 /// は `div[role="slider"]` であり HTML `<label for>` の対象になれないため、
 /// [`crate::progress::Progress::label`] と同じく `<span>` タグを使う）。
 #[must_use]
-pub fn label<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("label", "span", attrs, children)
+pub fn label<'a>(props: &SliderProps, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("label", "span", merged, children)
 }
 
 /// Control パーツ（`div`）。[`track`]/[`thumb`] のポインタ操作コンテナ。
 #[must_use]
 pub fn control<'a>(
     orientation: Orientation,
-    disabled: bool,
+    props: &SliderProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_orientation(orientation)];
-    merged.extend(data_disabled(disabled));
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
 }
@@ -217,12 +307,13 @@ pub fn control<'a>(
 #[must_use]
 pub fn track<'a>(
     orientation: Orientation,
-    disabled: bool,
+    props: &SliderProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_orientation(orientation)];
-    merged.extend(data_disabled(disabled));
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("track", "div", merged, children)
 }
@@ -233,12 +324,13 @@ pub fn track<'a>(
 #[must_use]
 pub fn range<'a>(
     orientation: Orientation,
-    disabled: bool,
+    props: &SliderProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_orientation(orientation)];
-    merged.extend(data_disabled(disabled));
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("range", "div", merged, children)
 }
@@ -246,9 +338,10 @@ pub fn range<'a>(
 /// Thumb パーツ（`div role="slider"`）。WAI-ARIA `slider` パターンに従い
 /// `aria-valuemin`/`aria-valuemax`/`aria-valuenow`/`aria-orientation` を
 /// 常に出力する。`aria_valuetext` が `Some` のときのみ `aria-valuetext` を
-/// 追加する。`disabled` が `true` のとき `tabindex="-1"` + `aria-disabled`
-/// の対を出力し、`false` のとき `tabindex="0"`（キーボードフォーカス対象、
-/// 実際の操作配線はスコープ外・モジュール doc 参照）。
+/// 追加する。`props.disabled` が `true` のとき `tabindex="-1"` +
+/// `aria-disabled` の対を出力し、それ以外（`readonly` を含む）のとき
+/// `tabindex="0"`（[`crate::angle_slider::thumb`] と同型。readonly でも
+/// フォーカス可能に保つのは zag の `interactive` 判定に合わせた判断）。
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn thumb<'a>(
@@ -257,10 +350,11 @@ pub fn thumb<'a>(
     max: &'a str,
     now: &'a str,
     aria_valuetext: Option<&'a str>,
-    disabled: bool,
+    props: &SliderProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("role", "slider"),
         ("aria-valuemin", min),
@@ -271,14 +365,14 @@ pub fn thumb<'a>(
     if let Some(text) = aria_valuetext {
         merged.push(("aria-valuetext", text));
     }
-    if disabled {
+    if props.disabled {
         merged.push(("tabindex", "-1"));
         merged.push(aria_disabled(true));
     } else {
         merged.push(("tabindex", "0"));
     }
     merged.push(data_orientation(orientation));
-    merged.extend(data_disabled(disabled));
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("thumb", "div", merged, children)
 }
@@ -309,6 +403,70 @@ pub fn value_text<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> No
     ANATOMY.part("value-text", "span", attrs, children)
 }
 
+/// MarkerGroup パーツ（`div`）。[`marker`] を並べるコンテナ（ark-ui の
+/// MarkerGroup 相当、[`crate::angle_slider::marker_group`] と同型。装飾・
+/// 位置計算は `fandhe-frontend-pre-styled-ui` 側の責務であり、本関数は
+/// anatomy のみを提供する）。
+#[must_use]
+pub fn marker_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("marker-group", "div", attrs, children)
+}
+
+/// [`marker`] が全マーカーへ一律付与するキー一覧（呼び出し側 `attrs` からの
+/// 偽装を fail-closed で除外する対象）。
+const MARKER_RESERVED: &[&str] = &["data-value", "data-state", "data-disabled"];
+
+/// Marker パーツ（`div`）。目盛り 1 点を表す。`min`/`max`/`value`/`current`
+/// は [`normalize`] と同じ方針で fail-closed に正規化してから使う
+/// （`min`/`max` が非有限または `min >= max` なら既定 `(0.0, 100.0)` へ、
+/// `value`/`current` が非有限なら `min` へフォールバックする。呼び出し側の
+/// 不正な入力で `f64::clamp` が panic するのを防ぐ、イシュー #1621 PR #1904
+/// レビュー指摘）。`value` は正規化後の `[min, max]` へ clamp してから
+/// `data-value` に出力し、正規化後の `current`（[`Slider`] の現在値）との
+/// 大小関係で `data-state` を `"under-value"`/`"over-value"`/`"at-value"`
+/// の 3 値リテラルへ固定する（ark-ui Marker の `data-state` と同じ語彙、
+/// [`crate::angle_slider::marker`] と同型）。
+#[must_use]
+pub fn marker<'a>(
+    value: f64,
+    current: f64,
+    min: f64,
+    max: f64,
+    disabled: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, MARKER_RESERVED);
+    let (min, max) = if min.is_finite() && max.is_finite() && min < max {
+        (min, max)
+    } else {
+        (0.0, 100.0)
+    };
+    let normalized_value = if value.is_finite() {
+        value.clamp(min, max)
+    } else {
+        min
+    };
+    let normalized_current = if current.is_finite() {
+        current.clamp(min, max)
+    } else {
+        min
+    };
+    let value_s = fmt_num(normalized_value);
+    let state: &'static str = if normalized_value < normalized_current {
+        "under-value"
+    } else if normalized_value > normalized_current {
+        "over-value"
+    } else {
+        "at-value"
+    };
+    let mut merged: Vec<(&str, &str)> =
+        vec![("data-value", value_s.as_str()), ("data-state", state)];
+    merged.extend(data_disabled(disabled));
+    merged.extend(attrs);
+    ANATOMY.part("marker", "div", merged, children)
+}
+
 /// Slider のアクション（WASM 境界の文字列 dispatch と
 /// [`Slider::decode_action`] で接続する）。
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -320,11 +478,22 @@ pub enum SliderAction {
     Increment,
     /// `step` 分だけ減少する（[`Increment`](Self::Increment) と対称）。
     Decrement,
+    /// `step * `[`LARGE_STEP_MULTIPLIER`] 分だけ増加する（PageUp/
+    /// Shift+ArrowUp 相当、zag の広域ステップと同型）。
+    IncrementLarge,
+    /// `step * `[`LARGE_STEP_MULTIPLIER`] 分だけ減少する
+    /// （[`IncrementLarge`](Self::IncrementLarge) と対称）。
+    DecrementLarge,
     /// 値を `min` に設定する（Home キー相当）。
     SetToMin,
     /// 値を `max` に設定する（End キー相当）。
     SetToMax,
 }
+
+/// [`SliderAction::IncrementLarge`]/[`SliderAction::DecrementLarge`] が
+/// `step` に掛ける倍率（zag.js `slider` machine の PageUp/PageDown・
+/// Shift+Arrow 相当の広域ステップと同じ倍率）。
+const LARGE_STEP_MULTIPLIER: f64 = 10.0;
 
 /// Slider の値状態機械（単一値、ark-ui 準拠）。
 ///
@@ -413,50 +582,55 @@ impl Slider {
     #[must_use]
     pub fn root<'a>(
         &self,
-        disabled: bool,
+        props: &SliderProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        root(self.orientation, disabled, attrs, children)
+        root(self.orientation, props, attrs, children)
     }
 
-    /// [`label`] へ委譲する利便メソッド（状態を持たない装飾用パーツ）。
+    /// [`label`] へ委譲する利便メソッド。
     #[must_use]
-    pub fn label<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        label(attrs, children)
+    pub fn label<'a>(
+        &self,
+        props: &SliderProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        label(props, attrs, children)
     }
 
     /// [`control`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn control<'a>(
         &self,
-        disabled: bool,
+        props: &SliderProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        control(self.orientation, disabled, attrs, children)
+        control(self.orientation, props, attrs, children)
     }
 
     /// [`track`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn track<'a>(
         &self,
-        disabled: bool,
+        props: &SliderProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        track(self.orientation, disabled, attrs, children)
+        track(self.orientation, props, attrs, children)
     }
 
     /// [`range`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn range<'a>(
         &self,
-        disabled: bool,
+        props: &SliderProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        range(self.orientation, disabled, attrs, children)
+        range(self.orientation, props, attrs, children)
     }
 
     /// [`thumb`] へ現在の値・範囲を注入する利便メソッド。
@@ -464,7 +638,7 @@ impl Slider {
     pub fn thumb<'a>(
         &self,
         aria_valuetext: Option<&'a str>,
-        disabled: bool,
+        props: &SliderProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
@@ -477,7 +651,7 @@ impl Slider {
             max_s.as_str(),
             now_s.as_str(),
             aria_valuetext,
-            disabled,
+            props,
             attrs,
             children,
         )
@@ -500,6 +674,27 @@ impl Slider {
     #[must_use]
     pub fn value_text<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         value_text(attrs, children)
+    }
+
+    /// [`marker_group`] へ委譲する利便メソッド（状態を持たないコンテナ）。
+    #[must_use]
+    pub fn marker_group<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        marker_group(attrs, children)
+    }
+
+    /// [`marker`] へ現在値（`current`）・範囲（`min`/`max`）を注入する利便
+    /// メソッド。`value` はマーカー自身の目盛り値。
+    #[must_use]
+    pub fn marker<'a>(
+        &self,
+        value: f64,
+        disabled: bool,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        marker(
+            value, self.value, self.min, self.max, disabled, attrs, children,
+        )
     }
 }
 
@@ -533,6 +728,20 @@ impl Component for Slider {
                 let next = round_to_step_precision(self.value - self.step, self.step);
                 self.value = snap_to_step_and_clamp(next, self.min, self.max, self.step);
             }
+            SliderAction::IncrementLarge => {
+                let next = round_to_step_precision(
+                    self.value + self.step * LARGE_STEP_MULTIPLIER,
+                    self.step,
+                );
+                self.value = snap_to_step_and_clamp(next, self.min, self.max, self.step);
+            }
+            SliderAction::DecrementLarge => {
+                let next = round_to_step_precision(
+                    self.value - self.step * LARGE_STEP_MULTIPLIER,
+                    self.step,
+                );
+                self.value = snap_to_step_and_clamp(next, self.min, self.max, self.step);
+            }
             SliderAction::SetToMin => {
                 self.value = self.min;
             }
@@ -545,19 +754,20 @@ impl Component for Slider {
     /// 共通契約（hydration ルート）のみを表す最小正準ビュー（root >
     /// control > (track > range, thumb)）。公開 UI としての利用は想定しない。
     fn view(&self) -> Node {
+        let props = SliderProps::default();
         self.root(
-            false,
+            &props,
             Vec::new(),
             vec![self.control(
-                false,
+                &props,
                 Vec::new(),
                 vec![
                     self.track(
-                        false,
+                        &props,
                         Vec::new(),
-                        vec![self.range(false, Vec::new(), Vec::new())],
+                        vec![self.range(&props, Vec::new(), Vec::new())],
                     ),
-                    self.thumb(None, false, Vec::new(), Vec::new()),
+                    self.thumb(None, &props, Vec::new(), Vec::new()),
                 ],
             )],
         )
@@ -565,7 +775,8 @@ impl Component for Slider {
 
     /// `"set"`: payload を `str::parse::<f64>()` でパースし、非有限または
     /// パース不能な場合は `None`（fail-closed、dispatch は no-op）。
-    /// `"increment"`/`"decrement"`/`"home"`/`"end"`: payload 不使用。
+    /// `"increment"`/`"decrement"`/`"increment_large"`/`"decrement_large"`/
+    /// `"home"`/`"end"`: payload 不使用。
     fn decode_action(name: &str, payload: &str) -> Option<SliderAction> {
         match name {
             "set" => payload
@@ -575,6 +786,8 @@ impl Component for Slider {
                 .map(SliderAction::SetValue),
             "increment" => Some(SliderAction::Increment),
             "decrement" => Some(SliderAction::Decrement),
+            "increment_large" => Some(SliderAction::IncrementLarge),
+            "decrement_large" => Some(SliderAction::DecrementLarge),
             "home" => Some(SliderAction::SetToMin),
             "end" => Some(SliderAction::SetToMax),
             _ => None,
@@ -719,7 +932,12 @@ mod tests {
 
     #[test]
     fn root_outputs_scope_part_orientation() {
-        let html = render(&root(Orientation::Horizontal, false, vec![], vec![]));
+        let html = render(&root(
+            Orientation::Horizontal,
+            &SliderProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="slider""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(html.contains(r#"data-orientation="horizontal""#));
@@ -728,34 +946,61 @@ mod tests {
 
     #[test]
     fn root_disabled_true_adds_data_disabled() {
-        let html = render(&root(Orientation::Horizontal, true, vec![], vec![]));
+        let html = render(&root(
+            Orientation::Horizontal,
+            &SliderProps {
+                disabled: true,
+                ..Default::default()
+            },
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn control_outputs_scope_part_orientation() {
-        let html = render(&control(Orientation::Vertical, false, vec![], vec![]));
+        let html = render(&control(
+            Orientation::Vertical,
+            &SliderProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-part="control""#));
         assert!(html.contains(r#"data-orientation="vertical""#));
     }
 
     #[test]
     fn track_outputs_scope_part_orientation() {
-        let html = render(&track(Orientation::Horizontal, false, vec![], vec![]));
+        let html = render(&track(
+            Orientation::Horizontal,
+            &SliderProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-part="track""#));
         assert!(html.contains(r#"data-orientation="horizontal""#));
     }
 
     #[test]
     fn range_outputs_scope_part_and_no_width_style() {
-        let html = render(&range(Orientation::Horizontal, false, vec![], vec![]));
+        let html = render(&range(
+            Orientation::Horizontal,
+            &SliderProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-part="range""#));
         assert!(!html.contains("style"));
     }
 
     #[test]
     fn label_outputs_scope_and_part() {
-        let html = render(&label(vec![], vec![text("Volume")]));
+        let html = render(&label(
+            &SliderProps::default(),
+            vec![],
+            vec![text("Volume")],
+        ));
         assert!(html.contains(r#"data-scope="slider""#));
         assert!(html.contains(r#"data-part="label""#));
         assert!(html.contains("Volume"));
@@ -776,7 +1021,7 @@ mod tests {
             "100",
             "40",
             None,
-            false,
+            &SliderProps::default(),
             vec![],
             vec![],
         ));
@@ -799,7 +1044,7 @@ mod tests {
             "100",
             "40",
             None,
-            false,
+            &SliderProps::default(),
             vec![],
             vec![],
         ));
@@ -811,7 +1056,7 @@ mod tests {
             "100",
             "40",
             Some("40 percent"),
-            false,
+            &SliderProps::default(),
             vec![],
             vec![],
         ));
@@ -826,7 +1071,10 @@ mod tests {
             "100",
             "40",
             None,
-            true,
+            &SliderProps {
+                disabled: true,
+                ..Default::default()
+            },
             vec![],
             vec![],
         ));
@@ -858,13 +1106,160 @@ mod tests {
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&root(
             Orientation::Horizontal,
-            false,
+            &SliderProps::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
         assert!(html.contains(r#"data-scope="slider""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn caller_supplied_state_attrs_are_dropped() {
+        let html = render(&root(
+            Orientation::Horizontal,
+            &SliderProps::default(),
+            vec![("data-disabled", "fake"), ("data-invalid", "fake")],
+            vec![],
+        ));
+        assert!(!html.contains("fake"));
+    }
+
+    // --- MarkerGroup / Marker ---
+
+    #[test]
+    fn marker_group_outputs_scope_and_part() {
+        let html = render(&marker_group(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="slider""#));
+        assert!(html.contains(r#"data-part="marker-group""#));
+    }
+
+    #[test]
+    fn marker_outputs_scope_part_value_and_state() {
+        let html = render(&marker(20.0, 50.0, 0.0, 100.0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-scope="slider""#));
+        assert!(html.contains(r#"data-part="marker""#));
+        assert!(html.contains(r#"data-value="20""#));
+        assert!(html.contains(r#"data-state="under-value""#));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn marker_data_state_over_value_when_greater_than_current() {
+        let html = render(&marker(80.0, 50.0, 0.0, 100.0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-state="over-value""#));
+    }
+
+    #[test]
+    fn marker_data_state_at_value_when_equal_to_current() {
+        let html = render(&marker(50.0, 50.0, 0.0, 100.0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-state="at-value""#));
+    }
+
+    #[test]
+    fn marker_value_is_clamped_to_range() {
+        let html = render(&marker(200.0, 50.0, 0.0, 100.0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-value="100""#));
+    }
+
+    #[test]
+    fn marker_disabled_true_adds_data_disabled() {
+        let html = render(&marker(20.0, 50.0, 0.0, 100.0, true, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn marker_caller_supplied_value_and_state_are_dropped() {
+        let html = render(&marker(
+            20.0,
+            50.0,
+            0.0,
+            100.0,
+            false,
+            vec![("data-value", "999"), ("data-state", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-value="20""#));
+        assert!(html.contains(r#"data-state="under-value""#));
+        assert!(!html.contains("999"));
+        assert!(!html.contains("attacker"));
+    }
+
+    // --- marker の fail-closed 正規化（イシュー #1621 PR #1904 レビュー指摘） ---
+
+    #[test]
+    fn marker_min_greater_than_max_does_not_panic_and_falls_back_to_default_range() {
+        // min > max は `f64::clamp` に直接渡すと panic するため、
+        // `normalize` と同じ既定 (0.0, 100.0) へフォールバックすることを
+        // 確認する（panic しないこと自体がこのテストの主眼）。
+        let html = render(&marker(20.0, 50.0, 100.0, 0.0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-value="20""#));
+    }
+
+    #[test]
+    fn marker_nan_min_max_does_not_panic_and_falls_back_to_default_range() {
+        let html = render(&marker(
+            20.0,
+            50.0,
+            f64::NAN,
+            f64::NAN,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-value="20""#));
+    }
+
+    #[test]
+    fn marker_nan_value_does_not_panic_and_falls_back_to_min() {
+        let html = render(&marker(f64::NAN, 50.0, 0.0, 100.0, false, vec![], vec![]));
+        // value が非有限のときは min (0.0) へフォールバックし、"NaN" を
+        // 出力しない。current (50.0) より小さいため under-value。
+        assert!(html.contains(r#"data-value="0""#));
+        assert!(!html.contains("NaN"));
+        assert!(html.contains(r#"data-state="under-value""#));
+    }
+
+    #[test]
+    fn marker_nan_current_does_not_panic_and_state_stays_consistent_with_clamped_value() {
+        // current が非有限のときは min へフォールバックする。value (20.0) は
+        // clamp 後の current (0.0) より大きいため over-value になり、
+        // clamp 前の生の current (NaN) に対する比較結果と矛盾しない。
+        let html = render(&marker(20.0, f64::NAN, 0.0, 100.0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-value="20""#));
+        assert!(!html.contains("NaN"));
+        assert!(html.contains(r#"data-state="over-value""#));
+    }
+
+    // --- IncrementLarge / DecrementLarge ---
+
+    #[test]
+    fn dispatch_increment_large_steps_by_step_times_ten() {
+        let mut s = Slider::new(0.0, 100.0, 1.0, 20.0, Orientation::Horizontal);
+        assert!(dispatch(&mut s, "increment_large", ""));
+        assert_eq!(s.value(), 30.0);
+    }
+
+    #[test]
+    fn dispatch_decrement_large_steps_by_step_times_ten() {
+        let mut s = Slider::new(0.0, 100.0, 1.0, 50.0, Orientation::Horizontal);
+        assert!(dispatch(&mut s, "decrement_large", ""));
+        assert_eq!(s.value(), 40.0);
+    }
+
+    #[test]
+    fn dispatch_increment_large_clamps_at_max() {
+        let mut s = Slider::new(0.0, 100.0, 1.0, 95.0, Orientation::Horizontal);
+        assert!(dispatch(&mut s, "increment_large", ""));
+        assert_eq!(s.value(), 100.0);
+    }
+
+    #[test]
+    fn dispatch_decrement_large_clamps_at_min() {
+        let mut s = Slider::new(0.0, 100.0, 1.0, 5.0, Orientation::Horizontal);
+        assert!(dispatch(&mut s, "decrement_large", ""));
+        assert_eq!(s.value(), 0.0);
     }
 
     // --- 正規化（fail-closed） ---
@@ -1200,7 +1595,7 @@ mod tests {
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
             Orientation::Horizontal,
-            false,
+            &SliderProps::default(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
             vec![],
         ));
@@ -1209,7 +1604,11 @@ mod tests {
 
     #[test]
     fn children_text_is_escaped_on_render() {
-        let html = render(&label(vec![], vec![text("<script>alert(1)</script>")]));
+        let html = render(&label(
+            &SliderProps::default(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
@@ -1222,7 +1621,7 @@ mod tests {
             "100",
             "40",
             Some(ATTR_BREAK_PAYLOAD),
-            false,
+            &SliderProps::default(),
             vec![],
             vec![],
         ));

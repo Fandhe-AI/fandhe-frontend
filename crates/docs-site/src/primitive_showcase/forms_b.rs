@@ -11,7 +11,7 @@ use hui::radio_group;
 use hui::rating_group::{self, RatingGroupProps, RatingItemFlags};
 use hui::segment_group;
 use hui::select;
-use hui::signature_pad::{self, Point, Stroke};
+use hui::signature_pad::{self, Point, SignaturePad, Stroke};
 use hui::slider;
 use hui::switch;
 use hui::tags_input;
@@ -895,54 +895,148 @@ pub(super) fn select_section() -> Node {
 }
 
 pub(super) fn signature_pad_section() -> Node {
+    // 参照突合（イシュー #1620）: 是正した data-*/ARIA（label の
+    // data-disabled・guide の data-disabled・control の
+    // role="application"/aria-roledescription/tabindex/aria-disabled）が
+    // すべて Anatomy/data-* 表へ機械導出されるよう、既定（ストロークあり）・
+    // 空・disabled・read-only の 4 状態を並べる（`name` は各インスタンスで
+    // 一意）。
     let stroke = Stroke::new(vec![
         Point::new(4.0, 40.0),
         Point::new(40.0, 8.0),
         Point::new(80.0, 40.0),
-    ]);
-    let paths: Vec<Node> = match stroke {
-        Ok(stroke) => vec![signature_pad::segment_path(&stroke, vec![])],
-        Err(_) => vec![],
-    };
-    let body = vec![signature_pad::root(
+    ])
+    .expect("固定座標列は Stroke::new の不変条件（非空・有限値）を満たす");
+    let stroke_value = signature_pad::stroke_path_d(&stroke);
+
+    // 既定（ストローク 1 本）。
+    let default_paths = vec![signature_pad::segment_path(&stroke, vec![])];
+    let default_instance = signature_pad::root(
         false,
         false,
         vec![],
         vec![
-            signature_pad::label(vec![], vec![text("Signature")]),
+            signature_pad::label(false, vec![], vec![text("Signature")]),
             signature_pad::control(
                 false,
-                vec![],
+                vec![("aria-label", "Signature pad")],
                 vec![
-                    signature_pad::guide(vec![], vec![]),
-                    signature_pad::segment(160, 60, Some("Signature preview"), vec![], paths),
+                    signature_pad::guide(false, vec![], vec![]),
+                    signature_pad::segment(
+                        160,
+                        60,
+                        Some("Signature preview"),
+                        vec![],
+                        default_paths,
+                    ),
                 ],
             ),
             signature_pad::clear_trigger(false, vec![], vec![text("Clear")]),
-            signature_pad::hidden_input("signature", "M4,40 L40,8 L80,40", false, vec![]),
+            signature_pad::hidden_input("signature", &stroke_value, false, vec![]),
         ],
-    )];
+    );
+
+    // 空（ストロークなし）。ark-ui の空状態相当。
+    let empty_instance = signature_pad::root(
+        false,
+        true,
+        vec![],
+        vec![
+            signature_pad::label(false, vec![], vec![text("Signature (empty)")]),
+            signature_pad::control(
+                false,
+                vec![("aria-label", "Signature pad (empty)")],
+                vec![
+                    signature_pad::guide(false, vec![], vec![]),
+                    signature_pad::segment(160, 60, Some("Signature preview"), vec![], vec![]),
+                ],
+            ),
+            signature_pad::clear_trigger(true, vec![], vec![text("Clear")]),
+            signature_pad::hidden_input("signature-empty", "", false, vec![]),
+        ],
+    );
+
+    // disabled（root/label/control/guide/clear-trigger/hidden-input 全部で
+    // data-disabled・aria-disabled を観測させる）。
+    let disabled_paths = vec![signature_pad::segment_path(&stroke, vec![])];
+    let disabled_instance = signature_pad::root(
+        true,
+        false,
+        vec![],
+        vec![
+            signature_pad::label(true, vec![], vec![text("Signature (disabled)")]),
+            signature_pad::control(
+                true,
+                vec![("aria-label", "Signature pad (disabled)")],
+                vec![
+                    signature_pad::guide(true, vec![], vec![]),
+                    signature_pad::segment(
+                        160,
+                        60,
+                        Some("Signature preview"),
+                        vec![],
+                        disabled_paths,
+                    ),
+                ],
+            ),
+            signature_pad::clear_trigger(true, vec![], vec![text("Clear")]),
+            signature_pad::hidden_input("signature-disabled", &stroke_value, true, vec![]),
+        ],
+    );
+
+    // read-only（`data-readonly` は SignaturePad::control メソッド経由での
+    // み付与されるため struct メソッドを使う）。
+    let read_only_pad = SignaturePad::new(vec![stroke], false, true);
+    let read_only_instance = read_only_pad.root(
+        vec![],
+        vec![
+            read_only_pad.label(vec![], vec![text("Signature (read-only)")]),
+            read_only_pad.control(
+                vec![("aria-label", "Signature pad (read-only)")],
+                vec![
+                    read_only_pad.guide(vec![], vec![]),
+                    read_only_pad.segment(
+                        160,
+                        60,
+                        Some("Signature preview"),
+                        vec![],
+                        read_only_pad.segment_paths(),
+                    ),
+                ],
+            ),
+            read_only_pad.clear_trigger(vec![], vec![text("Clear")]),
+            read_only_pad.hidden_input("signature-readonly", vec![]),
+        ],
+    );
+
+    let body = vec![
+        default_instance,
+        empty_instance,
+        disabled_instance,
+        read_only_instance,
+    ];
     demo_page("Signature Pad", body)
 }
 
 pub(super) fn slider_section() -> Node {
     let orientation = Orientation::Horizontal;
+    let props = slider::SliderProps::default();
     let body = vec![slider::root(
         orientation,
-        false,
+        &props,
         vec![],
         vec![
-            slider::label(vec![], vec![text("Volume")]),
+            slider::label(&props, vec![], vec![text("Volume")]),
             slider::control(
                 orientation,
-                false,
+                &props,
                 vec![],
                 vec![
                     slider::track(
                         orientation,
-                        false,
+                        &props,
                         vec![],
-                        vec![slider::range(orientation, false, vec![], vec![])],
+                        vec![slider::range(orientation, &props, vec![], vec![])],
                     ),
                     slider::thumb(
                         orientation,
@@ -950,9 +1044,19 @@ pub(super) fn slider_section() -> Node {
                         "100",
                         "40",
                         Some("40%"),
-                        false,
+                        &props,
                         vec![],
                         vec![],
+                    ),
+                    // MarkerGroup/Marker（イシュー #1621: ark-ui/zag.js との
+                    // 参照突合で追加した anatomy パーツ）。
+                    slider::marker_group(
+                        vec![],
+                        vec![
+                            slider::marker(0.0, 40.0, 0.0, 100.0, false, vec![], vec![]),
+                            slider::marker(50.0, 40.0, 0.0, 100.0, false, vec![], vec![]),
+                            slider::marker(100.0, 40.0, 0.0, 100.0, false, vec![], vec![]),
+                        ],
                     ),
                 ],
             ),
