@@ -186,10 +186,10 @@ use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
-    accordion, alert, badge, callout, card, combobox, menu, popover, radio_group, select, switch,
-    toggle, toggle_tip, tooltip, AlertProps, AlertStatus, AlertVariant, BadgeProps, BadgeVariant,
-    CalloutProps, CalloutVariant, CardProps, CardVariant, ColorPalette, OpenState, Orientation,
-    Size, StyleSheet, StylesheetError, VariantValue,
+    accordion, alert, badge, callout, card, collapsible, combobox, menu, popover, radio_group,
+    select, switch, toggle, toggle_tip, tooltip, AlertProps, AlertStatus, AlertVariant, BadgeProps,
+    BadgeVariant, CalloutProps, CalloutVariant, CardProps, CardVariant, ColorPalette, OpenState,
+    Orientation, Size, StyleSheet, StylesheetError, VariantValue,
 };
 
 /// 索引ページ（凡例 + カテゴリ別リンク集）の `page.path`。`site/nav.toml`
@@ -495,6 +495,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
     ComponentPage {
         path: "/themes/accordion/",
         render: accordion_section,
+    },
+    ComponentPage {
+        path: "/themes/collapsible/",
+        render: collapsible_section,
     },
     ComponentPage {
         path: "/themes/dialog/",
@@ -862,7 +866,7 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/download_trigger/badge/spinner/alert/
-/// callout/card/tabs/accordion/dialog/drawer/menu/select/combobox/popover/tooltip/
+/// callout/card/tabs/accordion/collapsible/dialog/drawer/menu/select/combobox/popover/tooltip/
 /// hover_card/toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/
 /// radio_card/input/textarea/native_select/number_input/tags_input/
 /// rating_group/slider/segment_group/toggle/toggle_group/pagination/
@@ -907,6 +911,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::card::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tabs::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::accordion::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::collapsible::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::dialog::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::drawer::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menu::stylesheet())?;
@@ -2317,6 +2322,72 @@ fn accordion_section() -> Node {
         "Accordion",
         "開閉状態（data-state=\"open\" / \"closed\"）に応じてスタイルが切り替わる開閉パネルの静的掲示です。",
         vec![accordion::root(Size::Md, &accordion_props, vec![], children)],
+    )
+}
+
+/// Collapsible 節: open + closed/disabled の 2 インスタンス構成。
+///
+/// 2 インスタンスにすることで Anatomy・`data-*` 属性表へ
+/// `data-state: closed, open` と 4 パート全ての `data-disabled` を機械
+/// 導出させる（`crate::primitive_showcase::overlay_disclosure::collapsible_section`
+/// と同じ判断、イシュー #1637/#1683）。
+fn collapsible_section() -> Node {
+    let open_state = OpenState::Open;
+    let open_instance = collapsible::root(
+        open_state,
+        false,
+        vec![],
+        vec![
+            collapsible::trigger(
+                open_state,
+                false,
+                Some("showcase-collapsible-content"),
+                vec![],
+                vec![
+                    text("Show details"),
+                    collapsible::indicator(open_state, false, vec![], vec![text("▾")]),
+                ],
+            ),
+            collapsible::content(
+                open_state,
+                false,
+                Some("showcase-collapsible-content"),
+                vec![],
+                vec![text("Hidden details revealed here.")],
+            ),
+        ],
+    );
+
+    let closed_state = OpenState::Closed;
+    let disabled_instance = collapsible::root(
+        closed_state,
+        true,
+        vec![],
+        vec![
+            collapsible::trigger(
+                closed_state,
+                true,
+                Some("showcase-collapsible-content-disabled"),
+                vec![],
+                vec![
+                    text("Show details (disabled)"),
+                    collapsible::indicator(closed_state, true, vec![], vec![text("▾")]),
+                ],
+            ),
+            collapsible::content(
+                closed_state,
+                true,
+                Some("showcase-collapsible-content-disabled"),
+                vec![],
+                vec![text("Hidden details revealed here.")],
+            ),
+        ],
+    );
+
+    section(
+        "Collapsible",
+        "ルート・トリガー・インジケータ・パネルの 4 パーツで開閉状態（data-state=\"open\" / \"closed\"）と disabled を視覚に反映する静的掲示です。",
+        vec![open_instance, disabled_instance],
     )
 }
 
@@ -9125,7 +9196,8 @@ mod tests {
         // イシュー #997 で Checkbox Group を追加し 97 → 98 件になった。
         // イシュー #1154 で Link / Link Overlay / Nav List を追加し
         // 98 → 101 件になった。
-        assert_eq!(paths.len(), 101, "COMPONENT_PAGES should have 101 entries");
+        // イシュー #1683 で Collapsible を追加し 101 → 102 件になった。
+        assert_eq!(paths.len(), 102, "COMPONENT_PAGES should have 102 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
@@ -9203,6 +9275,7 @@ mod tests {
             "card",
             "tabs",
             "accordion",
+            "collapsible",
             "dialog",
             "drawer",
             "menu",
@@ -9359,6 +9432,7 @@ mod tests {
         assert!(css.contains(".fd-badge--variant-subtle"));
         assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
         assert!(css.contains(r#"[data-scope="accordion"]"#));
+        assert!(css.contains(r#"[data-scope="collapsible"][data-part="trigger"]"#));
         assert!(css.contains(r#"[data-scope="dialog"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="drawer"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="menu"][data-part="content"]"#));

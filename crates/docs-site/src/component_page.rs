@@ -293,13 +293,17 @@ const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
     // ---- イシュー #947 ここまで ----
 ];
 
-/// イシュー #946（Overlay / Disclosure 系、13 件）の
+/// イシュー #946（Overlay / Disclosure 系、17 件）の
 /// `path -> ComponentPageSpec` テーブル。実体は
 /// [`crate::component_specs_overlay`] の個別定数を参照する。
 const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
     (
         "/themes/accordion/",
         crate::component_specs_overlay::ACCORDION,
+    ),
+    (
+        "/themes/collapsible/",
+        crate::component_specs_overlay::COLLAPSIBLE,
     ),
     (
         "/themes/action-bar/",
