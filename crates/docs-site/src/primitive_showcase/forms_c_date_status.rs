@@ -350,17 +350,107 @@ pub(super) fn toggle_section() -> Node {
     demo_page("Toggle", body)
 }
 
+/// ToggleGroup の Demo（イシュー #1630 参考サイト突合で拡充）: 横並び 3
+/// item（center 押下）+ 縦並び 3 item（`data-orientation="vertical"` を
+/// root/item 双方へ現出）+ disabled グループ 2 item（`ToggleGroupProps.disabled`
+/// による root→item 伝播を現出）。`data-*` 属性表（item の
+/// `data-orientation`/`data-disabled`）はこの Demo から機械導出されるため、
+/// 3 グループすべてを含める必要がある（執筆規約参照）。
 pub(super) fn toggle_group_section() -> Node {
-    let body = vec![toggle_group::root(
-        false,
-        None,
+    let horizontal_props = toggle_group::ToggleGroupProps::default();
+    let horizontal = toggle_group::root(
+        &horizontal_props,
         None,
         vec![],
         vec![
-            toggle_group::item(true, false, "bold", vec![], vec![text("B")]),
-            toggle_group::item(false, false, "italic", vec![], vec![text("I")]),
+            toggle_group::item(
+                &horizontal_props,
+                false,
+                false,
+                false,
+                "bold",
+                vec![],
+                vec![text("B")],
+            ),
+            toggle_group::item(
+                &horizontal_props,
+                true,
+                false,
+                false,
+                "italic",
+                vec![],
+                vec![text("I")],
+            ),
         ],
-    )];
+    );
+    let vertical_props = toggle_group::ToggleGroupProps {
+        orientation: Some(hui::data_attrs::Orientation::Vertical),
+        ..toggle_group::ToggleGroupProps::default()
+    };
+    let vertical = toggle_group::root(
+        &vertical_props,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(
+                &vertical_props,
+                false,
+                false,
+                false,
+                "left",
+                vec![],
+                vec![text("Left")],
+            ),
+            toggle_group::item(
+                &vertical_props,
+                true,
+                false,
+                false,
+                "center",
+                vec![],
+                vec![text("Center")],
+            ),
+            toggle_group::item(
+                &vertical_props,
+                false,
+                false,
+                false,
+                "right",
+                vec![],
+                vec![text("Right")],
+            ),
+        ],
+    );
+    let disabled_props = toggle_group::ToggleGroupProps {
+        disabled: true,
+        ..toggle_group::ToggleGroupProps::default()
+    };
+    let disabled = toggle_group::root(
+        &disabled_props,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(
+                &disabled_props,
+                false,
+                false,
+                false,
+                "top",
+                vec![],
+                vec![text("Top")],
+            ),
+            toggle_group::item(
+                &disabled_props,
+                false,
+                false,
+                false,
+                "bottom",
+                vec![],
+                vec![text("Bottom")],
+            ),
+        ],
+    );
+    let body = vec![horizontal, vertical, disabled];
     demo_page("Toggle Group", body)
 }
 

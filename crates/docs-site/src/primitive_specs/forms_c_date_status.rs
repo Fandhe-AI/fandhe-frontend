@@ -1204,23 +1204,151 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
 };
 
 // ---------------------------------------------------------------------
-// ToggleGroup — 一次情報: crates/headless-ui/src/toggle_group.rs:1-260 付近
+// ToggleGroup — 一次情報: crates/headless-ui/src/toggle_group.rs
+// （イシュー #1630 参照突合で `ToggleGroupProps` 導入・item への
+// `data-orientation` 追加・roving tabindex opt-in を追加）
 // ---------------------------------------------------------------------
 
 /// ToggleGroup の Examples: 縦方向（`Orientation::Vertical`）+
 /// `aria-labelledby` 変種を示す（Demo は orientation/labelled_by 省略の
-/// 変種のみを描画する）。
+/// 変種のみを描画する）。root/item 双方に同一 `props` を渡すことで
+/// `data-orientation` が一貫する（`crate::primitive_showcase::forms_c_date_status`
+/// の Demo と同じ執筆規約）。
 fn toggle_group_vertical_labelled_example() -> Node {
+    let props = toggle_group::ToggleGroupProps {
+        orientation: Some(Orientation::Vertical),
+        ..toggle_group::ToggleGroupProps::default()
+    };
     toggle_group::root(
-        false,
-        Some(Orientation::Vertical),
+        &props,
         Some("tg-vertical-label"),
         vec![],
         vec![
-            toggle_group::item(false, false, "left", vec![], vec![text("Left")]),
-            toggle_group::item(true, false, "center", vec![], vec![text("Center")]),
-            toggle_group::item(false, false, "right", vec![], vec![text("Right")]),
+            toggle_group::item(
+                &props,
+                false,
+                false,
+                false,
+                "left",
+                vec![],
+                vec![text("Left")],
+            ),
+            toggle_group::item(
+                &props,
+                true,
+                false,
+                false,
+                "center",
+                vec![],
+                vec![text("Center")],
+            ),
+            toggle_group::item(
+                &props,
+                false,
+                false,
+                false,
+                "right",
+                vec![],
+                vec![text("Right")],
+            ),
         ],
+    )
+}
+
+/// 自前 CSS の最小例で使うスニペット（イシュー #1630、`TOGGLE_CUSTOM_CSS_SNIPPET`
+/// と同型）。item の on 状態・disabled・root の縦方向を属性セレクタで拾う。
+const TOGGLE_GROUP_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"toggle-group\"][data-part=\"item\"][data-state=\"on\"] {\n  \
+  background: #2563eb;\n  color: #fff;\n\
+}\n\
+[data-scope=\"toggle-group\"][data-part=\"item\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"toggle-group\"][data-part=\"root\"][data-orientation=\"vertical\"] {\n  \
+  flex-direction: column;\n\
+}\n";
+
+/// ToggleGroup の Examples: 利用者が `data-scope`/`data-part`/`data-state`/
+/// `data-orientation`/`data-disabled` 属性セレクタで自前 CSS を当てる最小例
+/// （イシュー #1630、`toggle_custom_css_example` と同型）。
+fn toggle_group_custom_css_example() -> Node {
+    let props = toggle_group::ToggleGroupProps::default();
+    let markup = toggle_group::root(
+        &props,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(&props, true, false, false, "bold", vec![], vec![text("B")]),
+            toggle_group::item(
+                &props,
+                false,
+                false,
+                false,
+                "italic",
+                vec![],
+                vec![text("I")],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-orientation / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(TOGGLE_GROUP_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
+/// ToggleGroup の Examples: `roving_focus = true`（opt-in）で SSR 側から
+/// roving tabindex（`tabindex=\"0\"`/`\"-1\"`）を出力する例（イシュー #1630）。
+/// 既定は `false`（`ToggleGroupProps::default()`）であり、この例は明示的に
+/// 有効化した場合の静的マークアップのみを示す（JS なしでは矢印キーによる
+/// フォーカス移動自体は起きないため、`center` 以外は Tab 順から外れた
+/// 単一タブストップの静的状態になる点に注意）。
+fn toggle_group_roving_focus_example() -> Node {
+    let props = toggle_group::ToggleGroupProps {
+        roving_focus: true,
+        ..toggle_group::ToggleGroupProps::default()
+    };
+    wrap_example(
+        "roving_focus = true を渡すと、focused (第 3 引数) に応じて item が tabindex=\"0\"/\"-1\" を出力します（既定は false）。矢印キーでの実際のフォーカス移動は fandhe-frontend-wasm-full の keynav が担うため、JS なしのこの静的例では center 以外はタブ順から外れたままです。",
+        vec![toggle_group::root(
+            &props,
+            None,
+            vec![],
+            vec![
+                toggle_group::item(
+                    &props,
+                    false,
+                    false,
+                    false,
+                    "left",
+                    vec![],
+                    vec![text("Left")],
+                ),
+                toggle_group::item(
+                    &props,
+                    true,
+                    true,
+                    false,
+                    "center",
+                    vec![],
+                    vec![text("Center")],
+                ),
+                toggle_group::item(
+                    &props,
+                    false,
+                    false,
+                    false,
+                    "right",
+                    vec![],
+                    vec![text("Right")],
+                ),
+            ],
+        )],
     )
 }
 
@@ -1228,22 +1356,18 @@ const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root（`<div role=\"group\">`）/Item（`<button type=\"button\">`）の 2 anatomy パーツと、「高々 1 項目が押下される」状態機械 `ToggleGroup`（single モード、常時 deselectable）を提供する。",
         "各 `item` は単体の `crate::toggle::root` と同じ `aria-pressed`/`data-state`（on/off）語彙を持つ（ToggleGroup の各項目は独立した Toggle の集合という ark-ui の位置付け）。",
-        "`orientation` が `Some` のときのみ `data-orientation` を付与する。`role=\"group\"` は WAI-ARIA 上 `aria-orientation` を許可されていないため `aria-orientation` は付与しない。",
+        "`root`/`item` は共通の `ToggleGroupProps`（`disabled`/`orientation`/`roving_focus`）を受け取る。`orientation` が `Some` のときのみ両パーツへ `data-orientation` を付与する（イシュー #1630 で item にも追加。`role=\"group\"` は WAI-ARIA 上 `aria-orientation` を許可されていないため `aria-orientation` は付与しない）。",
+        "`props.disabled` は `root` の `data-disabled` に加えて全 `item` へも伝播する（`item` 個別の `disabled` との論理和。ark-ui/Radix の Root disabled が全 item を無効化する契約に合わせた、イシュー #1630 の是正）。",
         "`labelled_by` が `Some` のときのみ `aria-labelledby` を付与する（名前なしの関連付けを作らない方針）。",
-        "roving focus（矢印キーによるフォーカス移動）はクライアントランタイム側の責務であり、本コンポーネントのスコープ外。",
+        "`ToggleGroupProps::roving_focus`（既定 `false`）を `true` にすると、`item` の `focused` 引数に応じて `tabindex=\"0\"`/`\"-1\"`（roving tabindex）を SSR 側から出力できる（イシュー #1630 opt-in。既定 `false` は no-JS でも全 item が Tab で到達可能なままにするため）。矢印キーによる実際のフォーカス移動 DOM 配線は `fandhe-frontend-wasm-full` の keynav が担い、本コンポーネント自体のスコープ外（下記 Keyboard 節参照）。",
+        "呼び出し側 `attrs` からの `tabindex`/`data-value`/`aria-pressed`/`data-orientation` 等の偽装は fail-closed に除去する（イシュー #1630）。",
     ],
     arguments: &[
         ArgRow {
-            name: "disabled",
-            kind: "bool",
-            default: "false",
-            description: "root 全体の無効化状態。",
-        },
-        ArgRow {
-            name: "orientation",
-            kind: "Option<Orientation>",
-            default: "None",
-            description: "`Some` のときのみ `data-orientation` を付与する。",
+            name: "props",
+            kind: "&ToggleGroupProps",
+            default: "&ToggleGroupProps::default()",
+            description: "`disabled`/`orientation`/`roving_focus` の 3 フィールドを持つグループ状態束。`root`/`item` の双方が参照する（イシュー #1630）。",
         },
         ArgRow {
             name: "labelled_by",
@@ -1252,10 +1376,22 @@ const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
             description: "`Some` のときのみ `aria-labelledby` を付与する。",
         },
         ArgRow {
-            name: "pressed / disabled (item)",
+            name: "pressed (item)",
             kind: "bool",
             default: "false",
-            description: "各 `item` の押下・無効化状態。`data-state`（on/off）・`aria-pressed`・`data-pressed` へ反映する。",
+            description: "各 `item` の押下状態。`data-state`（on/off）・`aria-pressed`・`data-pressed` へ反映する。",
+        },
+        ArgRow {
+            name: "focused (item)",
+            kind: "bool",
+            default: "false",
+            description: "`props.roving_focus` が `true` のときのみ `tabindex=\"0\"`/`\"-1\"` へ反映する（`false` のときは無視され `tabindex` を出力しない）。",
+        },
+        ArgRow {
+            name: "disabled (item)",
+            kind: "bool",
+            default: "false",
+            description: "各 `item` 個別の無効化状態。`props.disabled` との論理和が実効値になる。",
         },
         ArgRow {
             name: "value (item)",
@@ -1264,15 +1400,45 @@ const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
             description: "`data-value` としてそのまま出力する項目値（既定エスケープ経由）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "縦方向 + ラベル関連付け",
-        description: "`orientation` に `Some(Orientation::Vertical)`、`labelled_by` に `Some(\"...\")` を渡すと `data-orientation=\"vertical\"` と `aria-labelledby` が付与されます。",
-        render: toggle_group_vertical_labelled_example,
-    }],
-    keyboard: &[KeyRow {
-        key: "Tab / Space / Enter",
-        description: "各 `item` はネイティブ `<button type=\"button\">` であり、フォーカス・押下操作はブラウザ既定動作で成立する。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "縦方向 + ラベル関連付け",
+            description: "`props.orientation` に `Some(Orientation::Vertical)`、`labelled_by` に `Some(\"...\")` を渡すと `data-orientation=\"vertical\"`（root/item 双方）と `aria-labelledby` が付与されます。",
+            render: toggle_group_vertical_labelled_example,
+        },
+        ExampleEntry {
+            title: "roving tabindex（opt-in）",
+            description: "`ToggleGroupProps::roving_focus = true` と `item` の `focused` 引数で、SSR 側から roving tabindex の初期状態を出力する例です。",
+            render: toggle_group_roving_focus_example,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui はスタイルレスであるため、root/item の data-* 属性セレクタで見た目を組み立てます。",
+            render: toggle_group_custom_css_example,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "`roving_focus = false`（既定）のときは全 item がネイティブなタブ順で到達可能。`roving_focus = true` のときは `focused` な 1 item のみが Tab ストップになる（roving tabindex、矢印キー押下後は `fandhe-frontend-wasm-full` の keynav が押下位置へ収束させる）。",
+        },
+        KeyRow {
+            key: "Space / Enter",
+            description: "各 `item` はネイティブ `<button type=\"button\">` であり、押下操作はブラウザ既定動作で成立する（`MAPPING_TABLE` の `toggle-group`/`item` → `\"toggle\"` 行が dispatch へ接続する）。",
+        },
+        KeyRow {
+            key: "ArrowLeft / ArrowRight",
+            description: "水平方向（`data-orientation` が `None`/`\"horizontal\"`）のフォーカス移動。`fandhe-frontend-wasm-full` の `keynav::toggle_group_next_index`（`radio_next_index` 共有）が実装し、常時循環・disabled item をスキップする。",
+        },
+        KeyRow {
+            key: "ArrowUp / ArrowDown",
+            description: "垂直方向（`data-orientation` が `\"vertical\"`）のフォーカス移動。`data-orientation` が欠落（`None`）のときは水平・垂直いずれの矢印キーも受理する（両軸受理、モジュール doc「意図的に合わせなかった点」参照）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "先頭/末尾の非 disabled item へフォーカス移動する（orientation 非依存、`keynav::toggle_group_next_index` 実装）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role",
