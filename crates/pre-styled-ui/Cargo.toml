@@ -1718,7 +1718,57 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更なし）。0.x の破壊的変更はマイナーバンプとする規約
 # （.claude/rules/coding-rust.md）に従い、main 側で独立に到達していた
 # 0.106.1 に対しマイナーバンプで 0.107.0 とする。
-version = "0.107.0"
+# イシュー #1642（popover の参照突合）: headless-ui 0.53.1 依存追随
+# （popover::content への tabindex="-1" 固定付与、非破壊的変更）。
+# patch バンプとして 0.105.0 から 0.105.1 とする。
+# base 再取り込み（本 #1642 マージ）: main 側で独立に到達していた変更は
+# イシュー #1648（breadcrumb の参照突合。依存先 headless-ui 0.53.0 → 0.53.1
+# への追随のみ、本クレート自体の実体変更なし）であり、本ブランチの
+# 0.105.1（headless-ui 0.53.1 依存追随）と同一版数へ独立到達していたため
+# 衝突する（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。加えて headless-ui
+# 自体を 0.53.1 → 0.53.2 へさらに patch バンプした（`crates/headless-ui/
+# Cargo.toml` 冒頭コメント参照）ため、依存追随としてさらに patch バンプで
+# 0.105.2 とする。
+# codex-review 指摘（PR #1915, イシュー #1642）の是正で headless-ui を
+# 0.53.2 → 0.54.0 へマイナーバンプしたため、依存先 version 要求追随のみで
+# patch バンプで 0.105.3 とする（本クレート自体の実体変更なし）。
+# codex-review 再指摘（PR #1915, イシュー #1642。Cursor Bugbot も同一問題を
+# 指摘）: `crates/pre-styled-ui/src/popover.rs` は headless-ui の
+# `popover::*` を glob 再公開しており、headless-ui 0.54.0 の破壊的変更
+# （`drop_tabindex_attr` による `tabindex="0"` 明示指定の `-1` への強制
+# 上書き）は pre-styled-ui 経由の利用者（styled `content` へ
+# `tabindex="0"` を渡していたケース）にも同じ挙動変化（Tab で到達不能）
+# として及ぶ。上記 0.105.3 は「本クレート自体の実体変更なし」の前提で
+# patch バンプにとどめたが、再公開経由の破壊的変更伝播を見落としていた
+# ため誤りであり、0.x の破壊的変更はマイナーバンプとする規約
+# （.claude/rules/coding-rust.md）に従いマイナーバンプへ是正し 0.106.0
+# とする（本クレート自体の実体変更は引き続きなし。依存先 headless-ui の
+# 破壊的変更が再公開経由で透過する事実のみを根拠とする）。
+# base 再取り込み（本 #1650 マージ）: main 側で独立に到達していた変更は
+# イシュー #1648（breadcrumb の参照突合。依存先 headless-ui 0.53.0 → 0.53.1
+# への追随のみ、本クレート自体の実体変更なし）であり、既に上記 0.105.3/
+# 0.106.0 の系譜に和集合済み。本ブランチはさらにイシュー #1650
+# （link-overlay の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# 0.54.0 → 0.54.1（`link_overlay::overlay` の呼び出し側 attrs からの `href`
+# なりすまし除去、非破壊的追加。`crate::link_overlay` は headless-ui の
+# `link_overlay::overlay` を再公開するが本追加自体は既存呼び出しの
+# シグネチャ不変・出力属性追加のみ）への追随のみ（本クレート自体の実体
+# 変更なし）。0.106.0 から patch バンプで 0.106.1 とする。
+# イシュー #1651（menu の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# 0.54.1 → 0.54.2（`item_text`/`item_indicator` の 2 パーツ追加・呼び出し側
+# attrs の予約キー除去、いずれも非破壊的追加）への追随のみ（本クレート
+# 自体の実体変更なし。`crates/pre-styled-ui/src/menu.rs` の `SLOTS` 同期・
+# CSS 付与・再エクスポート追加は Themes 側の後続対応として #1524/#1526 へ
+# 申し送り済み）。0.106.1 から patch バンプで 0.106.2 とする。
+# base 再取り込み（イシュー #1643, 2026-09-06）: main 側で独立に到達して
+# いた 0.106.2（イシュー #1651: headless-ui 0.54.2 依存追随、本クレート
+# 自体の実体変更なし）は本ブランチの 0.107.0（headless-ui 0.55.0 依存
+# 追随に伴うマイナーバンプ）に未反映のため、依存先を headless-ui
+# 0.55.1（base 再取り込みで解決した最終版、`crates/headless-ui/
+# Cargo.toml` 参照）へ追随させる patch バンプとして 0.107.1 とする
+# （本クレート自体の実体変更なし）。
+version = "0.107.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1733,7 +1783,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.55.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.55.1" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

@@ -4,9 +4,11 @@
 //! ark-ui の Menu
 //!（`.claude/skills/ark-ui/references/components/collections/menu.md`）を
 //! 参考に、Root / Trigger / Indicator / Positioner / Content / Arrow /
-//! ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem /
-//! ContextTrigger / CheckboxItem / RadioItemGroup / RadioItem の 16 anatomy
-//! パーツと、Phase 1（#524）の [`crate::state::Disclosure`] を埋め込んだ
+//! ArrowTip / Item / ItemText / ItemIndicator / ItemGroup / ItemGroupLabel /
+//! Separator / TriggerItem / ContextTrigger / CheckboxItem / RadioItemGroup /
+//! RadioItem の 18 anatomy パーツ（ItemText/ItemIndicator はイシュー #1651
+//! で参考サイト〔ark-ui/Radix Primitives/chakra-ui〕と突合し追加）と、
+//! Phase 1（#524）の [`crate::state::Disclosure`] を埋め込んだ
 //! 開閉状態機械 [`Menu`] を提供する。**構造上最も近い先行例は
 //! [`crate::popover::Popover`]**（trigger 起点のオーバーレイ + `Disclosure`
 //! 埋め込み）であり、本モジュールはそのパターンに完全準拠する。
@@ -25,9 +27,10 @@
 //!
 //! SSR は本モジュールの自由関数（[`root`]/[`trigger`]/[`indicator`]/
 //! [`positioner`]/[`content`]/[`arrow`]/[`arrow_tip`]/[`item`]/
-//! [`item_group`]/[`item_group_label`]/[`separator`]/[`trigger_item`]/
-//! [`context_trigger`]/[`checkbox_item`]/[`radio_item_group`]/[`radio_item`]、
-//! 純粋関数で完結）を直接呼んで組み立てる。
+//! [`item_text`]/[`item_indicator`]/[`item_group`]/[`item_group_label`]/
+//! [`separator`]/[`trigger_item`]/[`context_trigger`]/[`checkbox_item`]/
+//! [`radio_item_group`]/[`radio_item`]、純粋関数で完結）を直接呼んで
+//! 組み立てる。
 //! サブメニューは「親 `Menu` インスタンスの `content` 内に子 `Menu`
 //! インスタンス由来の `trigger_item`/`positioner`/`content` を入れ子で配置
 //! する」ことで表現する（親子は別インスタンスであり、`aria-haspopup`
@@ -71,9 +74,10 @@
 //!   checked トグル・ホバー/矢印キーでのサブメニュー展開・フォーカス管理・
 //!   `closeOnSelect`）: 本イシュー（#597/#598）は SSR マークアップ（anatomy
 //!   表現）のみを対象とし、配線は wasm ランタイム側の将来イシュー（#580/
-//!   PR #611・#626 系列）のスコープ。
-//! - ark-ui `Menu.ItemIndicator`/`Menu.ItemText` 相当パーツ: 本イシュー
-//!   （#597）の受け入れ条件外。
+//!   PR #611・#626 系列）のスコープ。checkbox-item/radio-item への
+//!   Enter/Space（click 合成による checked トグル dispatch）は
+//!   `fandhe-frontend-wasm-full` の `headless::MAPPING_TABLE` に行が無く
+//!   イシュー #1651 時点でも未実装（別 Issue 化を検討する対象外事項）。
 //! - `loopFocus`/`typeahead`/`closeOnSelect`/キーボード操作・portal・
 //!   `lazyMount`: wasm クライアントランタイム側の将来イシューのスコープ
 //!   （Popover/Tooltip と共通の判断）。
@@ -82,13 +86,43 @@
 //! 出力）は本イシュー（#540）時点ではスコープ外だったが、イシュー #590
 //! （親 #588）で [`crate::positioning`] として実装済みである。詳細は
 //! [`positioner`] の doc を参照。
+//!
+//! # 参考サイトとの意図的な差分（イシュー #1651 で参照突合）
+//!
+//! ark-ui Menu・Radix Primitives Dropdown Menu・chakra-ui Menu と突合し、
+//! 以下を是正・確認した。
+//!
+//! - **是正**: [`item_text`]/[`item_indicator`] の 2 パーツを新設した
+//!   （3 参照サイトすべて、または一部に存在する ItemText/ItemIndicator 相当。
+//!   16 → 18 パーツ）。呼び出し側 `attrs` からの固定属性の偽装を防ぐため、
+//!   各パーツ関数の呼び出し側 `attrs` に含まれる予約キー（[`root`]の
+//!   `data-state` 等）を [`crate::radio_group::drop_reserved`] で除去する
+//!   ようにした（`id`/`aria-labelledby`/`aria-controls` 等 `Option` 引数
+//!   経由の正規キーは除去対象に含まない）。
+//! - **意図的に非採用**: Radix `Portal`（DOM 配置、クライアント関心）;
+//!   zag `data-placement`・Radix content の `data-side`/`data-align`
+//!   （本リポジトリでは [`positioner`] へ `attrs` 経由で渡す既存設計）;
+//!   Radix の `data-orientation`（content/item）; zag content の
+//!   `tabindex="0"` + item への実 DOM フォーカス移動（本リポジトリは
+//!   trigger にフォーカスを留め `aria-activedescendant` + `data-highlighted`
+//!   で仮想フォーカスを表現する #583 の設計）; chakra `ItemCommand`
+//!   （ショートカット表示、Themes 層の装飾関心）;
+//!   `asChild`（`.claude/rules/coding-rust.md` の意図的非採用方針の保留
+//!   継続）; ark-ui の `closeOnSelect`/`lazyMount`/portal（クライアント
+//!   配置・実行時関心）。
+//! - **キーボード差分**: Escape 後の「trigger へのフォーカス復帰」は、
+//!   本実装がそもそも trigger からフォーカスを離さない設計のため構造的に
+//!   充足する; `Tab` は無配線（zag は Tab で閉じるが本実装は閉じない）。
+//! - 実配線は `fandhe-frontend-wasm-full` の `keynav` モジュールが担う
+//!   （本クレートは SSR マークアップと状態機械のみ）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
-    aria_checked, aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_labelledby,
-    aria_orientation, role, AriaChecked, AriaPopup,
+    aria_checked, aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_hidden,
+    aria_labelledby, aria_orientation, role, AriaChecked, AriaPopup,
 };
 use crate::data_attrs::{data_disabled, data_highlighted, data_state, Orientation};
+use crate::radio_group::drop_reserved;
 use crate::state::{
     checked_data_state, Checkable, CheckableAction, Disclosure, DisclosureAction, OpenState,
     SingleSelect, SingleSelectAction,
@@ -99,9 +133,74 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 /// Menu の anatomy（`data-scope="menu"`）。
 const ANATOMY: Anatomy = anatomy("menu");
 
+/// [`root`] が固定付与するキー一覧（呼び出し側 `attrs` からの偽装防止、
+/// イシュー #1651）。
+const ROOT_RESERVED: &[&str] = &["data-state"];
+/// [`trigger`] が固定付与するキー一覧。
+const TRIGGER_RESERVED: &[&str] = &[
+    "type",
+    "aria-haspopup",
+    "aria-expanded",
+    "data-state",
+    "data-disabled",
+    "disabled",
+];
+/// [`indicator`] が固定付与するキー一覧。
+const INDICATOR_RESERVED: &[&str] = &["data-state"];
+/// [`positioner`] が固定付与するキー一覧。`data-side`/`data-align`/`style`
+/// は `fandhe-frontend-wasm-full` の `position` モジュールが `attrs` 経由で
+/// 渡す正規経路のため除去対象に含めない。
+const POSITIONER_RESERVED: &[&str] = &["data-state", "hidden"];
+/// [`content`] が固定付与するキー一覧。`data-loop-focus`/
+/// `data-close-on-escape`/`data-close-on-interact-outside`/
+/// `aria-activedescendant` は keynav/overlay が `attrs` 経由で受ける契約の
+/// ため除去対象に含めない。
+const CONTENT_RESERVED: &[&str] = &["role", "data-state", "hidden"];
+/// [`item`] が固定付与するキー一覧。
+const ITEM_RESERVED: &[&str] = &[
+    "role",
+    "data-value",
+    "aria-disabled",
+    "data-disabled",
+    "data-highlighted",
+];
+/// [`trigger_item`] が固定付与するキー一覧（[`item`] と異なり `data-value`
+/// を持たず `aria-haspopup`/`aria-expanded`/`data-state` を持つ）。
+const TRIGGER_ITEM_RESERVED: &[&str] = &[
+    "role",
+    "aria-haspopup",
+    "aria-expanded",
+    "data-state",
+    "aria-disabled",
+    "data-disabled",
+    "data-highlighted",
+];
+/// [`context_trigger`] が固定付与するキー一覧。
+const CONTEXT_TRIGGER_RESERVED: &[&str] = &["type", "data-state"];
+/// [`checkbox_item`]/[`radio_item`] が固定付与するキー一覧（[`item`] +
+/// `aria-checked`/`data-state`）。
+const CHECKABLE_ITEM_RESERVED: &[&str] = &[
+    "role",
+    "data-value",
+    "aria-checked",
+    "data-state",
+    "aria-disabled",
+    "data-disabled",
+    "data-highlighted",
+];
+/// [`item_group`]/[`radio_item_group`] が固定付与するキー一覧。
+const ITEM_GROUP_RESERVED: &[&str] = &["role"];
+/// [`separator`] が固定付与するキー一覧。
+const SEPARATOR_RESERVED: &[&str] = &["role", "aria-orientation"];
+/// [`item_text`] が固定付与するキー一覧。
+const ITEM_TEXT_RESERVED: &[&str] = &["data-disabled", "data-highlighted"];
+/// [`item_indicator`] が固定付与するキー一覧。
+const ITEM_INDICATOR_RESERVED: &[&str] = &["aria-hidden", "data-state", "hidden"];
+
 /// Root パーツ（`div`）。開閉状態を `data-*` へ反映する。
 #[must_use]
 pub fn root<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
@@ -122,6 +221,7 @@ pub fn trigger<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, TRIGGER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("type", "button"),
         aria_haspopup(AriaPopup::Menu),
@@ -148,6 +248,7 @@ pub fn indicator<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, INDICATOR_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
     merged.extend(attrs);
     ANATOMY.part("indicator", "span", merged, children)
@@ -172,6 +273,7 @@ pub fn positioner<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, POSITIONER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
     if !state.is_open() {
         merged.push(("hidden", ""));
@@ -194,6 +296,7 @@ pub fn content<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, CONTENT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![role("menu"), data_state(state.as_data_state())];
     if let Some(id) = id {
         merged.push(("id", id));
@@ -240,6 +343,7 @@ pub fn item<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![role("menuitem"), ("data-value", value)];
     if disabled {
         merged.push(aria_disabled(true));
@@ -248,6 +352,61 @@ pub fn item<'a>(
     merged.extend(data_highlighted(highlighted));
     merged.extend(attrs);
     ANATOMY.part("item", "div", merged, children)
+}
+
+/// ItemText パーツ（`span`）。`data-part="item-text"`（ark-ui 準拠の
+/// kebab-case、イシュー #1651 で参考サイト〔ark-ui/chakra-ui〕と突合し追加）。
+///
+/// [`item`]/[`checkbox_item`]/[`radio_item`] のラベルテキストを明示的に
+/// 包む装飾用パーツ（`crate::select::item_text`/`crate::listbox::item_text`
+/// と同型）。checked 状態は持たない（plain [`item`] でも使うため、checked
+/// 状態は [`item_indicator`] 側の責務とする）。`disabled`/`highlighted` は
+/// 親 [`item`] 系パーツの状態を装飾用に複製する（`data-disabled`/
+/// `data-highlighted` として出力）。`fandhe-frontend-wasm-full` の
+/// `keynav::wiring::item_label` が typeahead ラベルとして本パーツの子
+/// テキストを優先して読む契約（呼び出し側は [`item_indicator`] の記号を
+/// 本パーツの内側に入れず兄弟として並べること）。
+#[must_use]
+pub fn item_text<'a>(
+    disabled: bool,
+    highlighted: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_TEXT_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    merged.extend(data_disabled(disabled));
+    merged.extend(data_highlighted(highlighted));
+    merged.extend(attrs);
+    ANATOMY.part("item-text", "span", merged, children)
+}
+
+/// ItemIndicator パーツ（`span`）。`data-part="item-indicator"`（ark-ui 準拠の
+/// kebab-case、イシュー #1651 で参考サイト〔ark-ui/Radix Primitives/
+/// chakra-ui〕と突合し追加）。
+///
+/// [`checkbox_item`]/[`radio_item`] の checked 状態を `data-state`（
+/// [`checked_data_state`] 経由、Switch/RadioGroup と共有する値語彙）へ
+/// 反映し、unchecked のとき `hidden` 存在属性を付与する（チェックマーク等の
+/// アイコンを unchecked 時に隠す用途、`crate::select::item_indicator`/
+/// `crate::listbox::item_indicator` と同型）。`aria-hidden="true"` を固定
+/// 付与する（装飾アイコンであり親 [`checkbox_item`]/[`radio_item`] 自身の
+/// `aria-checked` が checked 状態を既に伝達するため、支援技術の二重読み上げ
+/// を防ぐ）。
+#[must_use]
+pub fn item_indicator<'a>(
+    checked: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_INDICATOR_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![aria_hidden(true), data_state(checked_data_state(checked))];
+    if !checked {
+        merged.push(("hidden", ""));
+    }
+    merged.extend(attrs);
+    ANATOMY.part("item-indicator", "span", merged, children)
 }
 
 /// ItemGroup パーツ（`div`）。関連する [`item`] 群をまとめるコンテナ。
@@ -261,6 +420,7 @@ pub fn item_group<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_GROUP_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![role("group")];
     if let Some(labelledby) = labelledby {
         merged.push(aria_labelledby(labelledby));
@@ -294,6 +454,7 @@ pub fn item_group_label<'a>(
 /// `aria-orientation` の値語彙を共用する既存不変条件を継承）を固定付与する。
 #[must_use]
 pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, SEPARATOR_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![role("separator"), aria_orientation(Orientation::Horizontal)];
     merged.extend(attrs);
@@ -320,6 +481,7 @@ pub fn trigger_item<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, TRIGGER_ITEM_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         role("menuitem"),
         aria_haspopup(AriaPopup::Menu),
@@ -356,6 +518,7 @@ pub fn context_trigger<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, CONTEXT_TRIGGER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![("type", "button"), data_state(state.as_data_state())];
     merged.extend(attrs);
@@ -382,6 +545,7 @@ pub fn checkbox_item<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, CHECKABLE_ITEM_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         role("menuitemcheckbox"),
         aria_checked(if checked {
@@ -414,6 +578,7 @@ pub fn radio_item_group<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_GROUP_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![role("group")];
     if let Some(labelledby) = labelledby {
         merged.push(aria_labelledby(labelledby));
@@ -438,6 +603,7 @@ pub fn radio_item<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, CHECKABLE_ITEM_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         role("menuitemradio"),
         aria_checked(if checked {
@@ -1814,5 +1980,137 @@ mod tests {
         )];
         let err = MenuCheckboxItem::from_hydration_attrs(&attrs).unwrap_err();
         assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    // --- ItemText / ItemIndicator（イシュー #1651）---
+
+    #[test]
+    fn item_text_outputs_kebab_case_part_and_state_flags() {
+        let html = render(&item_text(true, true, vec![], vec![text("Rename")]));
+        assert!(html.contains(r#"data-scope="menu""#));
+        assert!(html.contains(r#"data-part="item-text""#));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-highlighted="""#));
+        assert!(html.contains("Rename"));
+
+        let plain = render(&item_text(false, false, vec![], vec![]));
+        assert!(!plain.contains("data-disabled"));
+        assert!(!plain.contains("data-highlighted"));
+    }
+
+    #[test]
+    fn item_indicator_checked_true_false_outputs_state_hidden_and_aria_hidden() {
+        let checked = render(&item_indicator(true, vec![], vec![text("✓")]));
+        assert!(checked.contains(r#"data-scope="menu""#));
+        assert!(checked.contains(r#"data-part="item-indicator""#));
+        assert!(checked.contains(r#"data-state="checked""#));
+        assert!(checked.contains(r#"aria-hidden="true""#));
+        assert!(!checked.contains(r#" hidden"#));
+
+        let unchecked = render(&item_indicator(false, vec![], vec![]));
+        assert!(unchecked.contains(r#"data-state="unchecked""#));
+        assert!(unchecked.contains(r#"hidden="""#));
+    }
+
+    #[test]
+    fn item_text_and_item_indicator_children_and_attrs_payload_are_escaped_on_render() {
+        let text_html = render(&item_text(
+            false,
+            false,
+            vec![("data-x", "\"><script>alert(1)</script>")],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!text_html.contains("<script>alert(1)</script>"));
+        assert!(text_html.contains("&lt;script&gt;"));
+
+        let indicator_html = render(&item_indicator(
+            true,
+            vec![("data-x", "\"><script>alert(1)</script>")],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!indicator_html.contains("<script>alert(1)</script>"));
+        assert!(indicator_html.contains("&lt;script&gt;"));
+    }
+
+    // --- 呼び出し側 attrs の予約キー除去（イシュー #1651）---
+
+    #[test]
+    fn caller_attrs_cannot_spoof_state_across_parts() {
+        let trigger_html = render(&trigger(
+            OpenState::Closed,
+            false,
+            None,
+            vec![
+                ("aria-expanded", "true"),
+                ("data-state", "open"),
+                ("type", "submit"),
+                ("disabled", "spoofed"),
+            ],
+            vec![],
+        ));
+        assert_eq!(trigger_html.matches("data-state").count(), 1);
+        assert_eq!(trigger_html.matches("aria-expanded").count(), 1);
+        assert!(trigger_html.contains(r#"data-state="closed""#));
+        assert!(trigger_html.contains(r#"aria-expanded="false""#));
+        assert!(trigger_html.contains(r#"type="button""#));
+        assert!(!trigger_html.contains("disabled"));
+
+        let content_html = render(&content(
+            OpenState::Open,
+            None,
+            None,
+            vec![("role", "presentation"), ("hidden", "spoofed")],
+            vec![],
+        ));
+        assert_eq!(content_html.matches("role").count(), 1);
+        assert!(content_html.contains(r#"role="menu""#));
+        assert!(!content_html.contains("hidden"));
+
+        let item_html = render(&item(
+            "v",
+            false,
+            false,
+            vec![("role", "presentation"), ("data-value", "attacker")],
+            vec![],
+        ));
+        assert_eq!(item_html.matches("role").count(), 1);
+        assert_eq!(item_html.matches("data-value").count(), 1);
+        assert!(item_html.contains(r#"data-value="v""#));
+
+        let checkbox_html = render(&checkbox_item(
+            true,
+            "v",
+            false,
+            false,
+            vec![("aria-checked", "false"), ("data-state", "unchecked")],
+            vec![],
+        ));
+        assert_eq!(checkbox_html.matches("aria-checked").count(), 1);
+        assert!(checkbox_html.contains(r#"aria-checked="true""#));
+        assert!(checkbox_html.contains(r#"data-state="checked""#));
+
+        let indicator_html = render(&item_indicator(
+            false,
+            vec![("aria-hidden", "false"), ("data-state", "checked")],
+            vec![],
+        ));
+        assert_eq!(indicator_html.matches("aria-hidden").count(), 1);
+        assert!(indicator_html.contains(r#"aria-hidden="true""#));
+        assert!(indicator_html.contains(r#"data-state="unchecked""#));
+    }
+
+    #[test]
+    fn content_keeps_caller_id_via_attrs() {
+        // `id`/`aria-labelledby`/`aria-controls` は `Option` 引数経由の正規
+        // キーであり、`drop_reserved` の除去対象に含めない（呼び出し側が
+        // `attrs` 経由で渡す既存パターンを壊さない不変条件）。
+        let html = render(&content(
+            OpenState::Open,
+            None,
+            None,
+            vec![("id", "x")],
+            vec![],
+        ));
+        assert!(html.contains(r#"id="x""#));
     }
 }
