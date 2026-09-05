@@ -709,20 +709,18 @@ const LINK_OVERLAY_CUSTOM_CSS_SNIPPET: &str = "\
 }\n";
 
 fn ex_link_overlay_custom_css() -> Node {
+    // overlay は自前 CSS 例の CSS で position: absolute; inset: 0; となり
+    // 通常フローから外れるため、可視タイトルを overlay の子ノードへ渡すと
+    // root の高さを確立できない（module doc「全面拡張の実装方針」契約）。
+    // ex_link_overlay と同様に、可視タイトルは通常フローの
+    // 見出しとして別描画し、overlay へは aria-label のみでアクセシブル
+    // ネームを与える（codex-review 指摘、イシュー #1650）。
     let markup = link_overlay::root(
         vec![],
         vec![
             p(
                 vec![],
-                vec![el(
-                    "strong",
-                    vec![],
-                    vec![link_overlay::overlay(
-                        "https://example.com/articles/custom-css-example",
-                        vec![],
-                        vec![text("Custom CSS example")],
-                    )],
-                )],
+                vec![el("strong", vec![], vec![text("Custom CSS example")])],
             ),
             p(
                 vec![],
@@ -731,6 +729,11 @@ fn ex_link_overlay_custom_css() -> Node {
                     vec![("href", "https://example.com/authors/jane")],
                     vec![text("By Jane")],
                 )],
+            ),
+            link_overlay::overlay(
+                "https://example.com/articles/custom-css-example",
+                vec![("aria-label", "Custom CSS example")],
+                vec![],
             ),
         ],
     );
