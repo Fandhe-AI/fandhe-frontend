@@ -1,6 +1,6 @@
 # Tags Input
 
-`fandhe-frontend-headless-ui` の `tags_input` mod が提供するタグ配列入力の unstyled 部品です。Root / Label / Control / Input / Item / ItemPreview / ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput / LiveRegion の 11 anatomy パーツを持ち、タグ文字列の可変長リスト + 重複拒否 + 上限 + 編集中/キーボード強調インデックスを表現する値状態機械を備えます。重複・カンマ含有・空文字列のタグはすべての入口で拒否されます。LiveRegion はタグ数の変化を `aria-live="polite"` で支援技術へ通知します（テキスト更新の実配線は wasm-full の後続責務）。
+`fandhe-frontend-headless-ui` の `tags_input` mod が提供するタグ配列入力の unstyled 部品です。Root / Label / Control / Input / Item / ItemPreview / ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput / LiveRegion の 12 anatomy パーツを持ち、タグ文字列の可変長リスト + 重複拒否 + 上限 + 編集中/キーボード強調インデックスを表現する値状態機械を備えます。重複・カンマ含有・空文字列のタグはすべての入口で拒否されます。LiveRegion はタグ数の変化を `aria-live="polite"` で支援技術へ通知します（テキスト更新の実配線は wasm-full の後続責務）。
 
 `/themes/` 側の `TagsInput`（Chakra ライクな variant/size を持つスタイル層）と異なり、CSS を一切持ちません。
 
@@ -16,7 +16,6 @@
 | Delete | Control | 強調中のタグを削除します（dispatch: `"delete-highlighted"`）。 |
 | Enter | Control/ItemPreview | 強調中なら編集開始（`"edit-start"`）、入力欄にフォーカスがあれば入力中の値を追加（`"add"`）します。振り分けはクライアント側の責務です。 |
 | Escape | Control | 強調を解除します（dispatch: `"highlight-clear"`）、または編集中なら編集を破棄します（`"edit-cancel"`）。 |
-| Ctrl+V / Cmd+V | Input | クリップボードの文字列を delimiter で分割して一括追加します（`addOnPaste`）。 |
 
 **上記キーの実際の DOM 配線（`keydown`/`paste` イベントハンドラ、`fandhe-frontend-wasm-full`）は本部品のスコープ外です。本部品は SSR 静的マークアップと dispatch 契約のみを提供し、キー入力を検出して自動的に dispatch する配線は未実装です。**
 

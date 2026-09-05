@@ -260,7 +260,7 @@
 //!   + `aria-live="polite"` + `aria-atomic="true"` 固定、イシュー #1069）。
 //! - [`mod@tags_input`]: Root / Label / Control / Input / Item / ItemPreview /
 //!   ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput /
-//!   LiveRegion の 11 anatomy パーツと、可変長タグ文字列リスト + 編集中/
+//!   LiveRegion の 12 anatomy パーツと、可変長タグ文字列リスト + 編集中/
 //!   強調中インデックスを持つ [`tags_input::TagsInput`] 状態機械（#744、親
 //!   #736/#726。参照突合はイシュー #1623）。[`mod@pin_input`]/
 //!   [`mod@number_input`] と同じく [`state`] の既存語彙に収まらないため、

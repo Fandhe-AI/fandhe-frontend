@@ -672,7 +672,7 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
 /// バリアント）。
 const TAGS_INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Label / Control / Input / Item / ItemPreview / ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput / LiveRegion の 11 anatomy パーツと、タグ文字列の可変長リスト + 重複拒否 + 上限 + 編集中/キーボード強調インデックスを持つ値状態機械を提供する。",
+        "Root / Label / Control / Input / Item / ItemPreview / ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput / LiveRegion の 12 anatomy パーツと、タグ文字列の可変長リスト + 重複拒否 + 上限 + 編集中/キーボード強調インデックスを持つ値状態機械を提供する。",
         "不変条件「重複タグなし・`len() <= max`・カンマを含まない・空文字列を含まない」を破る入力は dispatch・hydration・コンストラクタのすべての入口で一貫して拒否する（カンマ・空文字列はフォーム送信値のカンマ結合時に曖昧さを生むため、Cursor Bugbot 指摘を踏まえ全入口で禁止）。",
         "`TagsInputProps`（disabled/readonly/invalid/required）が root/label/control/input/clear_trigger/hidden_input の `data-*` を一元管理する。`control`/`item_preview` は `role` を持たない（イシュー #1623 で zag/ark 準拠へ是正、旧実装の `role=\"listbox\"`/`role=\"option\"` は撤去。アクセシブルネームは `label` の `for` 関連付けが担う）。",
         "`TagItem`（value/disabled/editing/highlighted）が item 系 5 パーツ共通の状態束。`item`/`item_preview` に `data-value`（タグ文字列）を出力する。",

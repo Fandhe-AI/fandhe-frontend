@@ -4,7 +4,7 @@
 //!（`.claude/skills/ark-ui/references/components/form/tags-input.md`）を
 //! 参考に、Root / Label / Control / Input / Item / ItemPreview / ItemText /
 //! ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput / LiveRegion
-//! の 11 anatomy パーツと、[`fandhe_frontend_interactive::Component`]/
+//! の 12 anatomy パーツと、[`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] を直接実装する値状態機械
 //! [`TagsInput`] を提供する。
 //!
@@ -496,8 +496,13 @@ pub fn input<'a>(
     if props.readonly {
         merged.push(("readonly", ""));
     }
-    merged.extend(state_attrs(props));
-    merged.extend(data_invalid(at_max));
+    // data_invalid は `props.invalid || at_max` を一度だけ反映する
+    // （`state_attrs(props)` の `data-invalid` と重複出力しないため、
+    // ここでは state_attrs を使わず disabled/readonly/invalid を個別に
+    // 組み立てる）。
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
+    merged.extend(data_invalid(props.invalid || at_max));
     if at_max || props.invalid {
         merged.push(("aria-invalid", "true"));
     }
@@ -1371,6 +1376,18 @@ mod tests {
         let html = render(&input(&TagsInputProps::default(), "", true, vec![]));
         assert!(html.contains(r#"data-invalid="""#));
         assert!(html.contains(r#"aria-invalid="true""#));
+    }
+
+    #[test]
+    fn input_props_invalid_and_at_max_does_not_duplicate_data_invalid() {
+        // props.invalid と at_max が両方 true でも data-invalid は 1 回だけ
+        // 出力する（state_attrs 経由と at_max 経由の二重出力回帰防止）。
+        let props = TagsInputProps {
+            invalid: true,
+            ..Default::default()
+        };
+        let html = render(&input(&props, "", true, vec![]));
+        assert_eq!(html.matches("data-invalid").count(), 1);
     }
 
     #[test]
