@@ -1025,7 +1025,7 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
     ],
     keyboard: &[KeyRow {
         key: "Tab / Space / Enter",
-        description: "`root` はネイティブ `<button type=\"button\">` であり、Tab でフォーカスを移動し、Space / Enter で押下状態を反転する（ブラウザ既定動作、Radix Primitives の Toggle と同義。`disabled` のときはフォーカス対象から除外される）。",
+        description: "`root` はネイティブ `<button type=\"button\">` であり、Tab でフォーカスを移動する。Space / Enter はブラウザ既定動作として `click` イベントを発火するが、`aria-pressed`/`data-state`/`data-pressed` の反転はブラウザが自動では行わない（`root` は `pressed` 引数に基づく静的属性を出力するのみで、単体 Toggle 向けの `click` → 状態更新の dispatch 配線は `fandhe-frontend-wasm-full` に未登録、上記 Features 参照）。呼び出し側で `click` イベントと `pressed` の状態更新を接続する実装が別途必要（`disabled` のときはフォーカス対象から除外される）。",
     }],
     aria: &[AriaRow {
         attribute: "aria-pressed",
