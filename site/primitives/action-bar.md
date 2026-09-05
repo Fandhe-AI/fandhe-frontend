@@ -15,7 +15,7 @@
 
 ark-ui・Radix Primitives のいずれにも ActionBar 相当のコンポーネントは存在しません。参照できるのは chakra-ui の ActionBar のみで、その実体は独自の状態機械を持たず Ark Popover（zag.js `popover.connect`）をそのまま再利用しています。このため本部品の属性仕様は zag.js popover の content/close-trigger の出力を基準にしています。
 
-- **是正した点**: `content` の `role` を `"toolbar"`（矢印キーでの roving tabindex を伴わない不完全な適用でした）から `"dialog"`（非モーダル、`aria-modal` は付与しません）へ変更しました。あわせて開状態のときのみ `data-expanded` を付与し、`tabindex="-1"` を固定で付与するようにしました（呼び出し側が `tabindex` を指定していれば出力しません）。`close-trigger` は呼び出し側が `aria-label` を指定しなければ既定値 `"close"`（zag.js popover の `translations.closeTrigger` 既定値と同じ）を出力します。
+- **是正した点**: `content` の `role` を `"toolbar"`（矢印キーでの roving tabindex を伴わない不完全な適用でした）から `"dialog"`（非モーダル、`aria-modal` は付与しません）へ変更しました。あわせて開状態のときのみ `data-expanded` を付与し、`tabindex="-1"` を固定で付与するようにしました（呼び出し側が `tabindex` を指定していれば出力しません）。`close-trigger` は呼び出し側が `aria-label` を指定しておらず、かつ children が空（可視テキストを持たないアイコンのみボタン）のときに限り既定値 `"close"`（zag.js popover の `translations.closeTrigger` 既定値と同じ）を出力します。children に可視テキストがある場合は既定 `aria-label` を出力しません（WCAG 2.5.3 Label in Name 対策）。
 - **意図的に合わせていない点**: `root`（hydration のルート要素として DOM を持つ必要があるため、DOM を描画しない参考サイトの `Root` とは異なります）・`positioner`（`hidden` 存在属性を pre-styled-ui が利用するため付与しており、参考サイトは素の `div` です）・`separator`（`role="separator"` + `aria-orientation="vertical"` をアクセシビリティ上の superset として維持しており、参考サイトは素の `div` です）。`data-placement`/`data-side`（配置バリエーション）はスタイル層（`fandhe-frontend-pre-styled-ui`）の責務としてスコープ外のままです（`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。外側クリックでの閉鎖（`closeOnInteractOutside`）も既定で無効のまま opt-in 属性を持ちません — 選択操作用のチェックボックス等は ActionBar の外側（一覧側）に存在するため、外側クリックでの誤閉鎖を防ぐ安全側の判断です。
 
 関連 API: [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

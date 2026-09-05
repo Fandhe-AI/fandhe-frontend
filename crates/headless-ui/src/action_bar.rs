@@ -49,9 +49,12 @@
 //!   を付与し、`tabindex="-1"`（chakra `autoFocus: false` に対応。開時に
 //!   フォーカスを自動移動しない）を固定で付与する（呼び出し側 `attrs` に
 //!   `tabindex` があれば出力しない）。[`close_trigger`] は呼び出し側
-//!   `attrs` に `aria-label` が無ければ既定値 `"close"`
+//!   `attrs` に `aria-label` が無く、かつ `children` が空（可視テキストを
+//!   持たない）のときに限り既定値 `"close"`
 //!   （[`CLOSE_TRIGGER_ARIA_LABEL`]、zag.js popover の `translations.closeTrigger`
-//!   既定値に合わせた固定英語リテラル）を付与する。
+//!   既定値に合わせた固定英語リテラル）を付与する。`children` に可視
+//!   テキストがある場合は既定 `aria-label` を付与しない（WCAG 2.5.3
+//!   Label in Name 違反防止、Cursor Bugbot 指摘、PR #1909）。
 //! - **意図的に合わせない差分**: [`root`]（hydration ルートとして DOM を持つ
 //!   必要があるため、Ark Popover の DOM を描画しない `Root` と異なる）・
 //!   [`positioner`]（`hidden` 存在属性を pre-styled-ui が利用するため付与、
@@ -189,13 +192,19 @@ fn has_caller_attr(attrs: &[(&str, &str)], key: &str) -> bool {
 
 /// CloseTrigger パーツ（`button`）。ラベルテキスト（children）は呼び出し側
 /// が `children` で付与する。`aria-label` は呼び出し側 `attrs` に指定が
-/// なければ既定値 [`CLOSE_TRIGGER_ARIA_LABEL`] を付与する。
+/// なく、かつ `children` が空（アイコンのみ等の可視テキストを持たない
+/// ボタン）のときに限り既定値 [`CLOSE_TRIGGER_ARIA_LABEL`] を付与する。
+/// `children` に可視テキスト（例: "Done"）がある場合は既定 `aria-label`
+/// を付与しない: `aria-label` はアクセシブルネームを完全に上書きするため、
+/// 可視テキストがあるにもかかわらず固定の `"close"` を付与すると
+/// 支援技術は可視テキストを読み上げず、WCAG 2.5.3 Label in Name 違反と
+/// なる（Cursor Bugbot 指摘、PR #1909）。
 ///
 /// [`selection_trigger`] と同じく `type="button"` を固定で付与する。
 #[must_use]
 pub fn close_trigger<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
-    if !has_caller_attr(&attrs, "aria-label") {
+    if children.is_empty() && !has_caller_attr(&attrs, "aria-label") {
         merged.push(("aria-label", CLOSE_TRIGGER_ARIA_LABEL));
     }
     merged.extend(attrs);
@@ -409,6 +418,28 @@ mod tests {
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"data-part="close-trigger""#));
         assert!(html.contains("Close"));
+    }
+
+    #[test]
+    fn close_trigger_visible_children_do_not_get_default_aria_label() {
+        // WCAG 2.5.3 Label in Name 回帰: children に可視テキストがある場合、
+        // 固定の既定 aria-label="close" を付与すると支援技術がその可視
+        // テキストを読み上げず矛盾する（Cursor Bugbot 指摘、PR #1909）。
+        let html = render(&close_trigger(vec![], vec![text("Done")]));
+        assert!(!html.contains(r#"aria-label="close""#));
+        assert!(html.contains("Done"));
+    }
+
+    #[test]
+    fn close_trigger_visible_children_with_caller_aria_label_is_kept() {
+        // 可視テキストがあっても呼び出し側が明示的に aria-label を渡した
+        // 場合はそれを尊重する（呼び出し側の意図的な上書きまで禁止しない）。
+        let html = render(&close_trigger(
+            vec![("aria-label", "Dismiss banner")],
+            vec![text("Done")],
+        ));
+        assert!(html.contains(r#"aria-label="Dismiss banner""#));
+        assert!(html.contains("Done"));
     }
 
     #[test]
