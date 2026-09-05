@@ -1675,7 +1675,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §5・coding-rust.md
 # 「0.x の破壊的変更はマイナーバンプ」に従いマイナーバンプで 0.103.0 とする
 # （codex-review 指摘、PR #1908）。
-version = "0.103.0"
+# イシュー #1639: headless-ui 0.51.1 依存追随（drawer::content への
+# tabindex="-1" 追加。`crates/pre-styled-ui/src/drawer.rs` の SLOTS
+# 構成・呼び出しシグネチャは不変で、headless-ui 全体を再エクスポートする
+# lib.rs 経由の間接的な出力属性増加のみ）。非破壊的追加のため patch
+# バンプで 0.103.1 とする。
+version = "0.103.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1690,7 +1695,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.51.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.51.1" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

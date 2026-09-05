@@ -52,6 +52,8 @@ fn drawer_parts_output_expected_data_attrs_via_public_api() {
     assert!(content_html.contains(r#"aria-labelledby="dw1-title""#));
     assert!(content_html.contains(r#"aria-describedby="dw1-desc""#));
     assert!(content_html.contains(r#"data-placement="end""#));
+    // zag drawer.connect.ts/WAI-ARIA dialog パターンの前提（イシュー #1639）。
+    assert!(content_html.contains(r#"tabindex="-1""#));
 }
 
 #[test]

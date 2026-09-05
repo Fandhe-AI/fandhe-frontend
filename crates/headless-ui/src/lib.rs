@@ -108,7 +108,8 @@
 //!   を持つが、開閉状態機械は新設せず [`dialog::Dialog`] へ全委譲する
 //!   （[`segment_group::SegmentGroup`] が [`radio_group::RadioGroup`] へ
 //!   全委譲するのと同型のパターン）。固有に持つのは画面端の方向を表す
-//!   [`drawer::DrawerPlacement`]（`data-placement`）のみ（#758）。
+//!   [`drawer::DrawerPlacement`]（`data-placement`）のみ（#758）。`content`
+//!   は `tabindex="-1"` 固定（イシュー #1639、参考サイト突合）。
 //! - [`mod@download_trigger`]: `root`（`a[download]`）1 anatomy パーツ
 //!   （イシュー #828）。ark-ui/chakra-ui の DownloadTrigger（JS の `Blob`
 //!   生成前提）を `a[download]` 属性による宣言的トリガーとして静的部品化
