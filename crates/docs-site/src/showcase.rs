@@ -2276,6 +2276,7 @@ fn accordion_section() -> Node {
             OpenState::Closed,
         ),
     ];
+    let accordion_props = accordion::AccordionProps::default();
     let mut children = Vec::new();
     for (value, question, answer, state) in items {
         let trigger_id = format!("{value}-trigger");
@@ -2283,6 +2284,7 @@ fn accordion_section() -> Node {
         children.push(accordion::item(
             state,
             false,
+            &accordion_props,
             vec![],
             vec![
                 el(
@@ -2291,6 +2293,7 @@ fn accordion_section() -> Node {
                     vec![accordion::item_trigger(
                         state,
                         false,
+                        &accordion_props,
                         value,
                         Some(trigger_id.as_str()),
                         Some(content_id.as_str()),
@@ -2300,6 +2303,8 @@ fn accordion_section() -> Node {
                 ),
                 accordion::item_content(
                     state,
+                    false,
+                    &accordion_props,
                     Some(content_id.as_str()),
                     Some(trigger_id.as_str()),
                     vec![],
@@ -2311,7 +2316,7 @@ fn accordion_section() -> Node {
     section(
         "Accordion",
         "開閉状態（data-state=\"open\" / \"closed\"）に応じてスタイルが切り替わる開閉パネルの静的掲示です。",
-        vec![accordion::root(Size::Md, vec![], children)],
+        vec![accordion::root(Size::Md, &accordion_props, vec![], children)],
     )
 }
 

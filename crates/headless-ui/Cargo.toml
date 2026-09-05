@@ -285,6 +285,11 @@ name = "fandhe-frontend-headless-ui"
 # 0.48.1（イシュー #1633: progress の label/value_text への非破壊的な属性
 # 追加、patch バンプ）は本ブランチのマイナーバンプ 0.49.0 に包含されるため、
 # 0.49.0 をそのまま維持する（patch バンプへの後退はしない）。
+# イシュー #1636（accordion の参照突合）: `AccordionProps`（orientation/
+# disabled）を新設し、`root`/`item`/`item_trigger`/`item_indicator`/
+# `item_content` の 5 自由関数と `Accordion`/`MultiAccordion` の利便メソッド
+# 8 件のシグネチャへ破壊的に追加した。0.x の破壊的変更のためマイナーバンプ
+# で 0.50.0 とする。
 # base 再取り込み（イシュー #1619, 2026-09-05）: main 側が独立に 0.49.0 へ
 # 到達していた（別部品の非破壊的変更を含む一連のバンプ）。本ブランチ
 # （#1619 select）の SelectProps 新設に伴う破壊的変更とは別内容のため、
@@ -385,7 +390,21 @@ name = "fandhe-frontend-headless-ui"
 # `CarouselAction` へ `First`/`Last` variant も追加（exhaustive match
 # 利用者に対し同じく破壊的）。0.x の破壊的変更はマイナーバンプする規約に
 # 従い 0.55.1 から 0.56.0 へマイナーバンプする。
-version = "0.56.0"
+# base 再取り込み（イシュー #1636 マージ, 2026-09-06）: 本ブランチ（#1636
+# accordion）は `AccordionProps`（orientation/disabled）を新設し、`root`/
+# `item`/`item_trigger`/`item_indicator`/`item_content` の 5 自由関数と
+# `Accordion`/`MultiAccordion` の利便メソッド 8 件のシグネチャへ破壊的に
+# 追加した（0.x の破壊的変更のためマイナーバンプ）。main 側は上記の一連の
+# 変更（action_bar〜toast）を経て独立に 0.55.1 へ到達しており、本ブランチの
+# 到達点（accordion 破壊的変更を含むマイナーバンプ系譜）と偶発的に同一版数
+# 0.55.1 へ衝突する（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。両者の破壊的変更の
+# 和集合として、さらにマイナーバンプで 0.56.0 とする。
+# 本 worktree（#1660 carousel）と origin/main（#1636 accordion）の双方が
+# 独立に 0.55.1 から 0.56.0 へマイナーバンプしており、再度の偶発的同一
+# 版数衝突となる。両者はいずれも破壊的変更のため、和集合としてさらに
+# マイナーバンプし 0.57.0 とする。
+version = "0.57.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
