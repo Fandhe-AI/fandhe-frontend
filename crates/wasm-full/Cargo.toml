@@ -321,7 +321,19 @@ name = "fandhe-frontend-wasm-full"
 # style-refresh-version-bump-operation.md` §5）。headless-ui 0.55.1（本
 # マージで確定、`crates/headless-ui/Cargo.toml` 冒頭コメント参照）への
 # 依存追随とあわせて patch バンプで 0.12.3 とする。
-version = "0.12.3"
+#
+# codex-review 是正（PR #1921, イシュー #1636, 2026-09-06）: `position.rs` が
+# `fandhe_frontend_headless_ui::{Placement, Measurement, Rect, Size}` を
+# `resolve_position` の引数・戻り値型として再エクスポートしており、これらは
+# wasm-full の公開 API 面の一部である。headless-ui 0.54 系 → 0.55.1 の更新で
+# これら型の公開フィールドが変わったため、headless-ui 0.54 系を前提に
+# wasm-full を利用する既存アプリが wasm-full だけを更新すると型不一致で
+# コンパイル不能になる。上記コメント群は「wasm-full 自身の src は無変更」を
+# 根拠に patch バンプとしてきたが、依存先の公開型再エクスポートによる
+# 破壊的変更はその判断軸に含まれていなかったため是正し、minor バンプで
+# 0.13.0 とする（`.claude/rules/coding-rust.md` の 0.x 破壊的変更＝マイナー
+# バンプ規定）。
+version = "0.13.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
