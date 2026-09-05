@@ -575,6 +575,16 @@ mod wiring {
         if fandhe_frontend_interactive::dispatch(&mut timer, action, "") {
             let _ = write_timer(root, &before, &timer);
         }
+        // `timer:restart` は `elapsed_ms` を 0 へ巻き戻すが、`running` 継続時
+        // （restart 前から `pending` が張られている経路）は `sync_interval` の
+        // 「`pending` 既存なら早期 return」により `last_tick_ms` が更新され
+        // ないままになる（レビュー指摘）。次回 tick の delta 計算
+        // （`handle_tick` の `now - last_tick_ms`）が restart 前の経過時間を
+        // 含んでしまい、カウントダウンが早期完了する不整合が生じるため、
+        // `sync_interval` を呼ぶ前にここで明示的に現在時刻へ揃える。
+        if action == "timer:restart" {
+            *last_tick_ms.borrow_mut() = Some(js_sys::Date::now());
+        }
         notify_action(action, "", on_action);
         sync_interval(root, window, on_action, pending, last_tick_ms);
     }
