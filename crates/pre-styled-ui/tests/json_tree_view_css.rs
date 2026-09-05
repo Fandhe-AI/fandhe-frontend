@@ -7,9 +7,11 @@
 //!
 //! イシュー #1563（参考サイト基準への調整）で新規追加した。追加・置換内容
 //! （型別配色の `-fg-subtle` トークン化・monospace フォント・key の medium・
-//! bool/null の太さと斜体・object/array の斜体）は
+//! boolean/null の太さと斜体・object/array の斜体）は
 //! `crates/pre-styled-ui/src/json_tree_view.rs` モジュール doc「参考サイト
-//! 基準への調整（イシュー #1563）」節に記録する。
+//! 基準への調整（イシュー #1563）」節に記録する。`data-kind="bool"` →
+//! `"boolean"` はイシュー #1661（headless-ui 側 `JsonValue::kind()` の
+//! 語彙統一に追随した破壊的変更）。
 
 use fandhe_frontend_pre_styled_ui::json_tree_view;
 
@@ -32,7 +34,7 @@ const JSON_TREE_VIEW_GOLDEN_CSS: &str = r#"[data-scope="json-tree-view"][data-pa
   color: var(--fandhe-color-info-fg-subtle);
 }
 
-[data-scope="json-tree-view"][data-part="value"][data-kind="bool"] {
+[data-scope="json-tree-view"][data-part="value"][data-kind="boolean"] {
   color: var(--fandhe-color-warning-fg-subtle);
   font-weight: var(--fandhe-font-font-weight-semibold);
 }

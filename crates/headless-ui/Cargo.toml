@@ -435,12 +435,24 @@ name = "fandhe-frontend-headless-ui"
 # `item`/`content` のシグネチャ変更（`props`/`value` 引数追加）・
 # `item_indicator` パーツ新設を伴う破壊的変更のためマイナーバンプで
 # 0.58.0 とする。
+# イシュー #1661（json-tree-view の参照突合）: `colon` パーツ新設・
+# `key`/`colon`/`value` を `branch-text`/`item-text` の内側へ入れ子にする
+# 構造変更・`JsonValue::kind()` の `data-kind` 語彙を `"bool"` から
+# `"boolean"` へ変更する破壊的変更のためマイナーバンプで 0.59.0 とする。
 # イシュー #1655（pagination の参照突合）: `pagination::item` へ `page: u64`
 # 引数を追加するシグネチャ変更（`data-index` 出力のため）・
 # `PaginationAction::First`/`Last` variant 追加を伴う破壊的変更のため
 # マイナーバンプで 0.59.0 とする（`first_trigger`/`last_trigger` の新設は
 # 非破壊的な追加）。
-version = "0.59.0"
+# base 再取り込み（イシュー #1661, 2026-09-06, 2 回目）: main 側は本ブランチ
+# とは独立に pagination（#1655）の破壊的変更を経て 0.59.0 へ到達しており、
+# 本ブランチも json-tree-view（#1661）の破壊的変更により独立に同じ 0.59.0
+# へ到達していた。両者は異なる実体変更（colon 入れ子構造・data-kind 語彙
+# 変更 と pagination::item シグネチャ変更）を伴い偶発的に同一版数へ衝突
+# している（同一版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
+# style-refresh-version-bump-operation.md` §5）。両者の破壊的変更の和集合
+# として、さらにマイナーバンプで 0.60.0 とする。
+version = "0.60.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
