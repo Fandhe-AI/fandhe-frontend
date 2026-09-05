@@ -6,7 +6,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::calendar;
 use hui::clipboard;
 use hui::date::PlainDate;
-use hui::date_input::{self, DateSegment, DateSegmentFlags};
+use hui::date_input::{DateInput, DateSegment};
 use hui::date_picker;
 use hui::download_trigger;
 use hui::progress::Progress;
@@ -67,46 +67,108 @@ pub(super) fn calendar_section() -> Node {
     demo_page("Calendar", body)
 }
 
-pub(super) fn date_input_section() -> Node {
-    let flags = DateSegmentFlags::default();
-    let body = vec![date_input::root(
-        false,
-        false,
+/// DateInput の Demo（Anatomy・`data-*` 属性表の機械導出元）を 5 状態
+/// （入力済み・focused / 未入力 / disabled / readonly / invalid）分
+/// 用意する（イシュー #1626）。各インスタンスは `id_prefix` で id を
+/// 一意にし、`label` の id を `segment_group` へ `aria-labelledby` として
+/// 配線する例を含める。フォーカス状態は状態機械 [`DateInput`] を
+/// `"focus"` dispatch してから描画することで作る（headless 側の
+/// `DateInputProps::focused` は状態機械が導出する契約であり、パーツ関数へ
+/// 直接 `true` を渡す用途を想定していないため）。
+fn date_input_instance(
+    id_prefix: &str,
+    label_text: &str,
+    mut state: DateInput,
+    disabled: bool,
+    readonly: bool,
+    focus_year: bool,
+) -> Node {
+    if focus_year {
+        hui::fandhe_frontend_interactive::dispatch(&mut state, "focus", "year");
+    }
+    let label_id = format!("{id_prefix}-label");
+    let group_id = format!("{id_prefix}-group");
+    state.root(
+        disabled,
+        readonly,
         vec![],
         vec![
-            date_input::label(false, false, Some("di-year"), vec![], vec![text("Date")]),
-            date_input::control(
-                false,
-                false,
-                vec![],
-                vec![date_input::segment_group(
-                    false,
-                    false,
-                    vec![],
-                    vec![
-                        date_input::segment(
-                            DateSegment::Year,
-                            Some("2026"),
-                            "0",
-                            "9999",
-                            flags,
-                            vec![("id", "di-year")],
-                        ),
-                        date_input::segment(
-                            DateSegment::Month,
-                            Some("07"),
-                            "1",
-                            "12",
-                            flags,
-                            vec![],
-                        ),
-                        date_input::segment(DateSegment::Day, None, "1", "31", flags, vec![]),
-                    ],
-                )],
+            state.label(
+                disabled,
+                readonly,
+                None,
+                vec![("id", label_id.as_str())],
+                vec![text(label_text)],
             ),
-            date_input::hidden_input("date", "2026-07-25", false, vec![]),
+            state.control(
+                disabled,
+                readonly,
+                vec![],
+                vec![
+                    state.segment_group(
+                        disabled,
+                        readonly,
+                        vec![
+                            ("id", group_id.as_str()),
+                            ("aria-labelledby", label_id.as_str()),
+                        ],
+                        vec![
+                            state.segment(DateSegment::Year, disabled, readonly, vec![]),
+                            state.segment(DateSegment::Month, disabled, readonly, vec![]),
+                            state.segment(DateSegment::Day, disabled, readonly, vec![]),
+                        ],
+                    ),
+                    state.hidden_input(&format!("{id_prefix}-value"), disabled, vec![]),
+                ],
+            ),
         ],
-    )];
+    )
+}
+
+pub(super) fn date_input_section() -> Node {
+    let body = vec![
+        date_input_instance(
+            "di-filled",
+            "Date (filled, focused)",
+            DateInput::new(Some(2026), Some(7), Some(22), None, None),
+            false,
+            false,
+            true,
+        ),
+        date_input_instance(
+            "di-empty",
+            "Date (empty)",
+            DateInput::default(),
+            false,
+            false,
+            false,
+        ),
+        date_input_instance(
+            "di-disabled",
+            "Date (disabled)",
+            DateInput::new(Some(2026), Some(1), Some(1), None, None),
+            true,
+            false,
+            false,
+        ),
+        date_input_instance(
+            "di-readonly",
+            "Date (readonly)",
+            DateInput::new(Some(2026), Some(7), Some(22), None, None),
+            false,
+            true,
+            false,
+        ),
+        date_input_instance(
+            "di-invalid",
+            "Date (invalid, Feb 30)",
+            // 2024-02-30 は実在しない日付。DateInput::is_invalid() が true になる。
+            DateInput::new(Some(2024), Some(2), Some(30), None, None),
+            false,
+            false,
+            false,
+        ),
+    ];
     demo_page("Date Input", body)
 }
 

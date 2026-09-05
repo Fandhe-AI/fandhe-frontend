@@ -31,6 +31,36 @@ name = "fandhe-frontend-headless-ui"
 # （破壊的変更）。`EditableActivationMode::{Click, None}`・
 # `EditableSubmitMode::None` の variant 追加も含む。0.x のマイナーバンプ
 # とする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
+# イシュー #1605（combobox の参照突合）: `ComboboxProps` へ `readonly`
+# フィールドを追加し、`combobox::{root, control, input, trigger,
+# clear_trigger}` のシグネチャを変更（破壊的変更）。マイナーバンプで
+# 0.32.0 へ到達していたが、イシュー #1606（editable）が独立に同じ
+# 0.32.0 へ到達していたブランチとのマージにより、双方の実体変更を
+# 統合した結果として 0.33.0 へさらにマイナーバンプしていた。この後、
+# main 側でイシュー #1614（password-input の参照突合、PR #1880）が
+# 独立に別内容で同じ 0.33.0 へ到達していたため、本 PR（#1605 combobox）
+# ブランチへの base 取り込みマージで再び同一版数への偶発的衝突が生じた。
+# 双方の実体変更（combobox の readonly 対応・password-input の readonly/
+# indicator 対応）を統合した結果として 0.34.0 へさらにマイナーバンプした
+# （上記 #1481/#1605 の precedent と同じ扱い）。
+# イシュー #1609（file-upload）〜 #1611（listbox）: main 側で独立に
+# 0.34.0 から 0.37.0 まで複数のマイナーバンプが積み上がっていた
+# （`FileUploadProps`/`PinInputProps`/`ImageCropperProps`/`ListboxProps`
+# 各新設に伴う破壊的シグネチャ変更）。本 PR（#1605 combobox）ブランチへの
+# 2 回目の base 取り込みマージにより、双方の実体変更（combobox の
+# readonly 対応・file-upload/pin-input/image-cropper/listbox の各参照
+# 突合）を統合した結果として main 現在値 0.37.0 からさらにマイナーバンプし
+# 0.38.0 とする（同一版数への偶発的衝突をそのまま採用しない、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。
+# イシュー #1626: date-input を ark-ui（zag.js `date-input` machine）の
+# Data Attributes 表・キーボード操作・WAI-ARIA と突合し、`DateSegmentFlags`
+# を全パーツ共通の `DateInputProps` へ置換（root/label/control/
+# segment_group/segment のシグネチャ変更）・`data-placeholder` を
+# `data-placeholder-shown` へ改名・`DateInputAction` へ
+# `PageIncrement`/`PageDecrement`/`Home`/`End`/`Prev`/`Next`/`Backspace`/
+# `Blur` を追加・`Increment`/`Decrement` を境界 clamp から wrap-around へ
+# 変更した観測可能な破壊的変更のため 0.39.0 へマイナーバンプする（この
+# 時点の値。main 側の独立進行との統合結果は後続コメント参照）。
 # base ブランチ取り込み（PR #1613, push フェーズ, 2026-09-05）: 本ブランチの
 # number-input マイナーバンプ（0.31.0 -> 0.32.0）と main の editable マイナー
 # バンプ（0.31.0 -> 0.32.0）が同一版数へ偶発的に衝突したため、上記コメント
@@ -159,13 +189,35 @@ name = "fandhe-frontend-headless-ui"
 # イシュー #1627（date-picker の参照突合）: `DatePickerProps` 新設に伴う
 # root/label/control/input/trigger/clear_trigger の破壊的シグネチャ変更
 # （マイナーバンプ）。
+# base ブランチ再取り込み（イシュー #1626 レビュー是正, 2026-09-05）: 上記
+# 0.41.0（date-picker、#1627）到達後、本ブランチ（#1626 date-input）の
+# レビュー是正コミット（`step_wrapping` が構造的に無効な日付（例:
+# 2024-02-30）を保持したセグメントからの increment/decrement で剰余演算が
+# 破綻していた不具合の修正、公開シグネチャ変更なし）を統合するため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（main 現在値
+# を基点に、自分の変更が patch バンプなら patch を +1）に従い main 現在値
+# 0.41.0 から 0.41.1 へ patch バンプする。
+# codex-review P1 是正（PR #1893, イシュー #1626, 2026-09-05）: 上記
+# 0.41.1 到達判断は誤りだった。本ブランチ（#1626 date-input）は PR 全体で
+# `DateSegmentFlags` の削除・`date_input` 公開関数のシグネチャ変更・
+# `data-placeholder`（recipe セレクタ／属性名）の `data-placeholder-shown`
+# への改名を含んでおり、これらはいずれも破壊的変更（`.claude/rules/
+# coding-rust.md` 破壊的変更規定）である。patch バンプでは不十分なため、
+# main 現在値 0.41.0 を基点にマイナーバンプし 0.42.0 とする。
 # base ブランチ再取り込み（PR #1892, date-picker, 2026-09-05）: main（#1892
 # date-picker）が独立に本ブランチと同じ 0.41.0 へ到達していた（上記
 # date-picker の破壊的変更）。radio-group（本ブランチ, #1616）とは別内容の
 # ため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
 # （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.42.0 へ
 # さらにマイナーバンプする。
-version = "0.42.0"
+# base ブランチ再取り込み（PR #1886 マージ, イシュー #1626, 2026-09-05）: main
+# （#1886 radio-group）が独立に 0.42.0 へ到達しており、本ブランチ
+# （#1626 date-input、上記 codex-review P1 是正で 0.42.0 到達）とは別内容の
+# ため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い、本ブランチの
+# 破壊的変更（`DateSegmentFlags` 削除・`date_input` シグネチャ変更・
+# `data-placeholder-shown` への改名）を理由にマイナーバンプで 0.43.0 とする。
+version = "0.43.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

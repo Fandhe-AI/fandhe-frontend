@@ -13,18 +13,29 @@
 //! （[`crate::number_input::root`] と同型）を本モジュールで再定義する。
 //! headless 自由関数 `root` と名前衝突するため、`pub use ...::*` ではなく
 //! 必要な識別子（[`label`]/[`control`]/[`segment_group`]/[`segment`]/
-//! [`hidden_input`]/[`DateInputAction`]/[`DateSegment`]/[`DateSegmentFlags`]）
-//! のみを選択的に再エクスポートする。
+//! [`hidden_input`]/[`DateInputAction`]/[`DateSegment`]/[`DateInputProps`]）
+//! のみを選択的に再エクスポートする（イシュー #1626 で headless 側が
+//! `DateSegmentFlags` を全パーツ共通の `DateInputProps` へ置換したため
+//! 追随した）。
 //!
 //! 状態機械 [`fandhe_frontend_headless_ui::date_input::DateInput`] は
 //! **あえて**再エクスポートしない（[`crate::number_input`] の `NumberInput`
-//! 非再エクスポートと同じ理由）。`DateInput` は `.root(disabled, attrs,
-//! children)` という inherent メソッドを持つが、これは headless 自由関数
-//! `root` へそのまま委譲するのみで `size` variant クラスを一切付与しない
-//! 未スタイルの実体である。状態管理・hydration が必要な呼び出し側は
+//! 非再エクスポートと同じ理由）。`DateInput` は `.root(disabled, readonly,
+//! attrs, children)` という inherent メソッドを持つが、これは headless
+//! 自由関数 `root` へそのまま委譲するのみで `size` variant クラスを一切
+//! 付与しない未スタイルの実体である。状態管理・hydration が必要な呼び出し側は
 //! `fandhe_frontend_headless_ui::date_input::DateInput` を直接 import し、
 //! 実際の描画は本モジュールの styled [`root`]（および再エクスポート済みの
 //! パーツ関数）を組み合わせて構築すること。
+//!
+//! # styled `root` が露出しない `readonly`/`focused`（イシュー #1626）
+//!
+//! headless 側の `DateInputProps` は `readonly`/`focused` を追加したが、
+//! styled [`root`] のシグネチャは `(size, disabled, invalid, attrs,
+//! children)` のまま維持する（#1884 の styled root 維持方針を踏襲）。
+//! `readonly`/`focused` を styled `root` へ露出する拡張・対応する
+//! `[data-readonly]`/`[data-focus]`（root スコープ）の CSS 追加は本イシューの
+//! スコープ外とする（「本イシューのスコープ外」節参照）。
 //!
 //! # `size` variant（イシュー #708 方針の踏襲）
 //!
@@ -113,6 +124,8 @@
 //!   スコープ外とする（9c0e4f6 の先例どおり crates.io 公開後に追随）。
 //! - variant 軸（chakra `outline`/`subtle`/`flushed` 相当）の追加は
 //!   上記「スタイル調整」節のとおり本イシューのスコープ外とする。
+//! - styled `root` への `readonly`/`focused` 引数露出（イシュー #1626、
+//!   上記「styled `root` が露出しない `readonly`/`focused`」節参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -127,8 +140,8 @@ use crate::recipe::{
 // hydration が必要な呼び出し側は
 // `fandhe_frontend_headless_ui::date_input::DateInput` を直接 import する。
 pub use fandhe_frontend_headless_ui::date_input::{
-    control, hidden_input, label, segment, segment_group, DateInputAction, DateSegment,
-    DateSegmentFlags,
+    control, hidden_input, label, segment, segment_group, DateInputAction, DateInputProps,
+    DateSegment,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
@@ -223,7 +236,9 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "segment",
-            StateCondition::Attr("data-placeholder"),
+            // イシュー #1626: headless 側が ark-ui Data Attributes 表の語彙
+            // （`data-placeholder-shown`）へ改名したため追随（見た目は不変）。
+            StateCondition::Attr("data-placeholder-shown"),
             vec![decl("color", "var(--fandhe-color-fg-muted)")],
         )
         .state(
@@ -349,7 +364,12 @@ pub fn root<'a>(
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::date_input::root(disabled, invalid, merged, children)
+    let props = fandhe_frontend_headless_ui::date_input::DateInputProps {
+        disabled,
+        invalid,
+        ..fandhe_frontend_headless_ui::date_input::DateInputProps::default()
+    };
+    fandhe_frontend_headless_ui::date_input::root(props, merged, children)
 }
 
 #[cfg(test)]
@@ -379,9 +399,9 @@ mod tests {
         assert!(
             css.contains(r#"[data-scope="date-input"][data-part="segment-group"][data-invalid] {"#)
         );
-        assert!(
-            css.contains(r#"[data-scope="date-input"][data-part="segment"][data-placeholder] {"#)
-        );
+        assert!(css.contains(
+            r#"[data-scope="date-input"][data-part="segment"][data-placeholder-shown] {"#
+        ));
     }
 
     #[test]
@@ -531,8 +551,7 @@ mod tests {
     #[test]
     fn reexported_label_children_are_escaped_on_render() {
         let html = render(&label(
-            false,
-            false,
+            DateInputProps::default(),
             None,
             vec![],
             vec![text("<script>alert(1)</script>")],
@@ -559,7 +578,7 @@ mod tests {
         let mut d = DateInput::new(Some(2026), Some(7), Some(22), None, None);
         assert_eq!(d.year(), Some(2026));
 
-        let ssr_html = render(&d.control(false, vec![], vec![]));
+        let ssr_html = render(&d.control(false, false, vec![], vec![]));
         assert!(ssr_html.contains(r#"data-part="control""#));
 
         assert!(dispatch(&mut d, "clear", ""));
