@@ -291,6 +291,9 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #1622: headless-ui 0.49.0 依存追随（switch::SwitchProps 新設。
 # switch の focus_visible 写像は data-part 不変のため wasm-full 自身の src
 # は無変更）のため patch バンプで 0.10.7 から 0.10.8 とする。
+# イシュー #1634: headless-ui 0.49.0 依存追随（qr_code の DOM 配線を
+# wasm-full は持たず、依存バージョン要求の更新のみ）のため patch バンプで
+# 0.10.7 から 0.10.8 とする。
 version = "0.10.8"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
