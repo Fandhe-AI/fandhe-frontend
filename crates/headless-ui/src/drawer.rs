@@ -113,6 +113,19 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 /// drawer を CSS セレクタで独立にスタイルできるようにするための分離）。
 const ANATOMY: Anatomy = anatomy("drawer");
 
+/// 呼び出し側 `attrs` から `tabindex`（大文字小文字を無視）を除去する
+/// （[`crate::dialog::drop_tabindex_attr`] と同型のパターン。クレート API
+/// 表面を増やさないため再利用せずここへ複製する）。[`content`] が
+/// `tabindex="-1"` を固定付与する前に呼ぶことで、呼び出し側が渡した
+/// `tabindex` との重複出力（SSR は両方出力して先勝ち、wasm-client の
+/// `set_attribute` は後勝ちになる描画経路間の不一致）を防ぐ。
+fn drop_tabindex_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("tabindex"))
+        .collect()
+}
+
 /// Drawer がどの画面端から出現するか（`data-placement` の固定語彙、chakra-ui
 /// の `placement` prop 相当）。任意文字列は受け付けない。
 ///
@@ -257,7 +270,10 @@ pub fn positioner<'a>(
 /// `focus_trap` 配線対象外**（モジュール冒頭「スコープ外」節参照）のため、
 /// dialog のような「wasm-full 側の動的付与と SSR 出力の一致」根拠は
 /// 成立しない。本関数の付与は SSR/静的属性としての正当性のみに基づく
-/// （イシュー #1639）。
+/// （イシュー #1639）。呼び出し側 `attrs` に `tabindex` が含まれる場合は
+/// [`drop_tabindex_attr`] で事前に除去してから固定値を合成するため、
+/// 出力に重複した `tabindex` 属性は生じない（[`crate::dialog::content`]
+/// と同一の対策）。
 #[must_use]
 pub fn content<'a>(
     state: OpenState,
@@ -286,7 +302,7 @@ pub fn content<'a>(
     if !state.is_open() {
         merged.push(("hidden", ""));
     }
-    merged.extend(attrs);
+    merged.extend(drop_tabindex_attr(attrs));
     ANATOMY.part("content", "div", merged, children)
 }
 
@@ -708,6 +724,27 @@ mod tests {
             vec![],
         ));
         assert!(open.contains(r#"tabindex="-1""#));
+    }
+
+    #[test]
+    fn content_drops_caller_tabindex_to_keep_fixed_minus_one() {
+        // 呼び出し側 attrs に tabindex（大文字小文字違い含む）を渡しても
+        // 固定の `tabindex="-1"` のみが 1 つだけ出力される（PR #1911
+        // codex-review/Cursor Bugbot 指摘: 除去しないと SSR は重複属性を
+        // 出力し、wasm-client の set_attribute は後勝ちで呼び出し側の値が
+        // 有効になり描画経路間で結果が食い違う。crate::dialog::content と
+        // 同一の対策、イシュー #1639）。
+        let rendered = render(&content(
+            OpenState::Open,
+            DrawerPlacement::End,
+            true,
+            ContentIds::default(),
+            vec![("TabIndex", "0")],
+            vec![],
+        ));
+        assert_eq!(rendered.matches("tabindex").count(), 1);
+        assert!(rendered.contains(r#"tabindex="-1""#));
+        assert!(!rendered.contains(r#"tabindex="0""#));
     }
 
     #[test]
