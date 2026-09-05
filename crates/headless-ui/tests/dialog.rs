@@ -43,6 +43,7 @@ fn dialog_parts_output_expected_data_attrs_via_public_api() {
     assert!(content_html.contains(r#"id="d1""#));
     assert!(content_html.contains(r#"aria-labelledby="d1-title""#));
     assert!(content_html.contains(r#"aria-describedby="d1-desc""#));
+    assert!(content_html.contains(r#"tabindex="-1""#));
 }
 
 #[test]
