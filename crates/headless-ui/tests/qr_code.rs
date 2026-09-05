@@ -113,6 +113,7 @@ fn anatomy_parts_render_expected_data_scope_and_part() {
         vec![],
     ));
     assert!(frame_html.contains(r#"data-scope="qr-code" data-part="frame""#));
+    assert!(frame_html.contains(r#"xmlns="http://www.w3.org/2000/svg""#));
     assert!(frame_html.starts_with("<svg"));
 
     let pattern_html = render(&qr_code::pattern(
@@ -137,8 +138,10 @@ fn frame_aria_label_is_omitted_when_not_provided() {
         vec![],
         vec![],
     ));
+    // イシュー #1634 是正: aria_label 未指定時は role="img" も付与しない
+    // （WAI-ARIA 1.2 img ロールの Accessible Name Required 要件に合わせる）。
     assert!(!html.contains("aria-label"));
-    assert!(html.contains(r#"role="img""#));
+    assert!(!html.contains("role="));
 }
 
 #[test]
@@ -152,6 +155,8 @@ fn frame_aria_label_is_included_when_provided() {
         vec![],
     ));
     assert!(html.contains(r#"aria-label="QR code for example.com""#));
+    assert!(html.contains(r#"role="img""#));
+    assert!(html.contains(r#"xmlns="http://www.w3.org/2000/svg""#));
 }
 
 #[test]

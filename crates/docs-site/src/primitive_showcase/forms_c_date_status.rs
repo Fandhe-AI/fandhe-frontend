@@ -556,20 +556,25 @@ pub(super) fn progress_section() -> Node {
 }
 
 pub(super) fn qr_code_section() -> Node {
+    // Overlay は Root の子（Frame の兄弟）が正しい配置（ark-ui "With Overlay"
+    // 例、Zag.js `qr-code.connect.ts` 準拠）。`div`（Overlay）を `svg`
+    // （Frame）の子に入れるのは SVG 名前空間規則上不正で、ブラウザは
+    // `<div>` 開始タグの時点で SVG 外へ暗黙脱出するため描画 DOM が
+    // Anatomy 表と一致しなくなる（イシュー #1634 是正、旧実装のバグ）。
     let matrix = qr_code::encode("https://example.com", qr_code::ErrorCorrectionLevel::L);
     let body = match matrix {
         Ok(matrix) => vec![qr_code::root(
             vec![],
-            vec![qr_code::frame(
-                &matrix,
-                2,
-                Some("QR code for https://example.com"),
-                vec![],
-                vec![
-                    qr_code::pattern(&matrix, 2, vec![]),
-                    qr_code::overlay(vec![], vec![]),
-                ],
-            )],
+            vec![
+                qr_code::frame(
+                    &matrix,
+                    2,
+                    Some("QR code for https://example.com"),
+                    vec![],
+                    vec![qr_code::pattern(&matrix, 2, vec![])],
+                ),
+                qr_code::overlay(vec![], vec![text("FW")]),
+            ],
         )],
         Err(_) => vec![],
     };

@@ -338,7 +338,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/ark-ui/references/components/display/progress-linear.md` | Progress (linear) | Progress | Progress (`progress`) | Progress (`progress`) | `progress` | `progress` | 実装済み | headless+styled（root/range）実装済み。#1564 で linear（Track/Range）styled CSS・`ProgressVariant`/`ColorPalette` 軸を新設し pre-styled ラッパー未実装状態を解消。#1633 で参照突合済み（label の data-orientation・value_text の aria-live を是正） |
 | `.agents/skills/ark-ui/references/components/display/progress-circular.md` | Progress (circular) | ProgressCircle | — | — | `progress` | `progress` | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加） |
 | `.agents/skills/ark-ui/references/components/display/clipboard.md` | Clipboard | Clipboard | — | — | `clipboard` | `clipboard` | 実装済み | headless+styled+wasm 配線 実装済み（#773、PR #816） |
-| `.agents/skills/ark-ui/references/components/display/qr-code.md` | QrCode | QrCode | — | — | `qr_code` | `qr_code` | 実装済み | headless+styled 実装済み（#774） |
+| `.agents/skills/ark-ui/references/components/display/qr-code.md` | QrCode | QrCode | — | — | `qr_code` | `qr_code` | 実装済み | headless+styled 実装済み（#774）。#1634 で参照突合済み（frame の xmlns・role 条件付与を是正） |
 | `.agents/skills/ark-ui/references/components/display/marquee.md` | Marquee | Marquee | — | — | — | `marquee` | 実装済み（再導入） | #831 で `docs/policy/intentional-non-adoption.md` §3.24 の再評価トリガー 1（CSS のみ・`prefers-reduced-motion` 対応の決定的設計案）を充足し再導入（CSS のみ・JS ゼロ）。headless-ui は変更なし、pre-styled-ui 層のみで新規 anatomy を定義 |
 | `.agents/skills/ark-ui/references/components/display/README.md` | README | — | — | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
@@ -555,7 +555,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/chakra-ui/references/components/data-display/image.md` | — | Image | — | — | — | `image` | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。fit（object-fit）/aspect-ratio の 2 軸 variant、alt 必須引数 |
 | `.agents/skills/chakra-ui/references/components/data-display/icon.md` | — | Icon | — | — | — | `icon` | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。size variant のみ、SVG 本体は呼び出し側がノード木 API で構築 |
 | `.agents/skills/chakra-ui/references/components/data-display/clipboard.md` | Clipboard | Clipboard | — | — | `clipboard` | `clipboard` | 実装済み | headless+styled+wasm 配線 実装済み（#773、PR #816） |
-| `.agents/skills/chakra-ui/references/components/data-display/qr-code.md` | QrCode | QrCode | — | — | `qr_code` | `qr_code` | 実装済み | headless+styled 実装済み（#774） |
+| `.agents/skills/chakra-ui/references/components/data-display/qr-code.md` | QrCode | QrCode | — | — | `qr_code` | `qr_code` | 実装済み | headless+styled 実装済み（#774）。#1634 で参照突合済み（frame の xmlns・role 条件付与を是正） |
 | `.agents/skills/chakra-ui/references/components/data-display/marquee.md` | Marquee | Marquee | — | — | — | `marquee` | 実装済み（再導入） | #831 で `docs/policy/intentional-non-adoption.md` §3.24 の再評価トリガー 1（CSS のみ・`prefers-reduced-motion` 対応の決定的設計案）を充足し再導入（CSS のみ・JS ゼロ）。headless-ui は変更なし、pre-styled-ui 層のみで新規 anatomy を定義 |
 
 #### `.agents/skills/chakra-ui/references/components/date-time/`
