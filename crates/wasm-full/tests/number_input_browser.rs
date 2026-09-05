@@ -82,6 +82,20 @@ fn keydown_event_with_ctrl(key: &str) -> Event {
         .expect("KeyboardEvent must cast to Event")
 }
 
+/// IME 変換中（`isComposing: true`）の合成 `keydown` イベント
+/// （PR #1881 codex-review P1 是正その 3 の回帰テスト用）。
+fn keydown_event_composing(key: &str) -> Event {
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key(key);
+    init.set_is_composing(true);
+    KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        .expect("KeyboardEvent::new must not fail")
+        .dyn_into::<Event>()
+        .expect("KeyboardEvent must cast to Event")
+}
+
 /// NumberInput の Root > Control > Input を組み立て、`container` へ差し込む。
 /// `root` 要素（`data-scope="number-input" data-part="root"`）と
 /// `input` 要素（`data-part="input"`）を返す。
@@ -513,4 +527,73 @@ fn value_clamps_at_max_and_min_boundaries() {
     // 既に max（10）にいる状態で ArrowUp を押しても 10 のまま（clamp）。
     input.dispatch_event(&keydown_event("ArrowUp")).unwrap();
     assert_eq!(component.borrow().value(), Some(10.0));
+}
+
+#[wasm_bindgen_test]
+fn composing_arrow_up_is_ignored_and_default_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let (root, input) = build_number_input_dom(
+        &document,
+        "ni-composing-arrow-up",
+        &number_input,
+        NumberInputFlags::default(),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    // IME 変換中の候補選択を模し、変換中文字列としてパース不能な値を
+    // 入力欄に置く（変換中に increment が実行されればパース失敗により
+    // 状態値がそのまま上書きされてしまう、codex-review P1 是正その 3）。
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+    html_input.set_value("こんにちは");
+
+    let default_not_prevented = input
+        .dispatch_event(&keydown_event_composing("ArrowUp"))
+        .unwrap();
+    assert!(
+        default_not_prevented,
+        "IME 変換中の ArrowUp は claim されず prevent_default() が呼ばれないこと"
+    );
+    assert_eq!(
+        component.borrow().value(),
+        Some(5.0),
+        "IME 変換中は increment が実行されず値が変わらないこと"
+    );
+}
+
+#[wasm_bindgen_test]
+fn composing_enter_is_ignored_and_default_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let (root, input) = build_number_input_dom(
+        &document,
+        "ni-composing-enter",
+        &number_input,
+        NumberInputFlags::default(),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+    html_input.set_value("8");
+
+    // IME 確定用の Enter（変換候補確定）を模す。confirm 用 Enter は
+    // NumberInput の "set" 確定ではないため claim されてはならない。
+    let default_not_prevented = input
+        .dispatch_event(&keydown_event_composing("Enter"))
+        .unwrap();
+    assert!(
+        default_not_prevented,
+        "IME 確定用の Enter は claim されず prevent_default() が呼ばれないこと"
+    );
+    assert_eq!(
+        component.borrow().value(),
+        Some(5.0),
+        "IME 変換中の Enter は set/clear のいずれも実行されず値が変わらないこと"
+    );
 }

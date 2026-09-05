@@ -93,6 +93,12 @@
 //!   すべて `&'static str` リテラル。
 //! - 新規 `unsafe` コードは追加しない（`web-sys`/`js-sys` の safe API のみ
 //!   使用）。
+//! - IME 変換中（`KeyboardEvent::is_composing()` が `true`、または互換
+//!   シグナル `key_code() == 229`）の keydown は
+//!   [`wiring::handle_keydown`] が早期 return で除外し、`prevent_default()`
+//!   も `on_action` dispatch も一切行わない（PR #1881 codex-review P1
+//!   是正その 3。変換中の候補選択キーで数値が意図せず上書きされることを
+//!   防ぐ）。
 
 use crate::keynav::Modifiers;
 
@@ -256,6 +262,20 @@ mod wiring {
             return;
         };
         if !root.contains(Some(target_element)) {
+            return;
+        }
+
+        // PR #1881 codex-review P1 是正その 3: IME 変換中（`isComposing`）の
+        // keydown は候補選択の ArrowUp/ArrowDown・変換確定の Enter を意味し、
+        // NumberInput の増減/確定操作ではない。ここで除外しないと、変換中
+        // 文字列が `decode_action` のパースに失敗しても increment/decrement
+        // 自体は実行され、変換中に利用者が意図しない数値へ上書きされる
+        // （`on_action` を一切呼ばず、`prevent_default()` も行わない。
+        // ブラウザの IME 標準動作をそのまま素通しする）。
+        // `key_code() == 229` は IME 変換中に一部ブラウザが送る互換シグナル
+        // （`is_composing()` が未実装/false でも 229 は立つ実装がある）で
+        // あり、両方を fail-closed に見て除外する。
+        if keyboard_event.is_composing() || keyboard_event.key_code() == 229 {
             return;
         }
 
