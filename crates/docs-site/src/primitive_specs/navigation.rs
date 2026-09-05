@@ -1573,25 +1573,99 @@ fn ex_nav_list() -> Node {
     )])
 }
 
+/// 自前 CSS の最小例（イシュー #1653、`ex_checkbox_custom_css`〔#1602〕と
+/// 同型のパターン）。CSS はテキストノード（[`pre`]/[`code`]）として既定
+/// エスケープを経由し、`crate::primitive_showcase` の専用スタイルシート
+/// （`[data-scope=`/`[data-part=` を持たない契約、`tests/site_css_contract.rs`）
+/// へは追加しない。
+const NAV_LIST_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"nav-list\"][data-part=\"list\"] {\n  \
+  list-style: none;\n  margin: 0;\n  padding: 0;\n\
+}\n\
+[data-scope=\"nav-list\"][data-part=\"link\"] {\n  \
+  color: #2563eb;\n  text-decoration: none;\n\
+}\n\
+[data-scope=\"nav-list\"][data-part=\"link\"]:hover {\n  \
+  text-decoration: underline;\n\
+}\n\
+[data-scope=\"nav-list\"][data-part=\"link\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n\
+[data-scope=\"nav-list\"][data-part=\"link\"][aria-current=\"page\"] {\n  \
+  font-weight: 700;\n\
+}\n";
+
+fn ex_nav_list_custom_css() -> Node {
+    let markup = nav_list::root(
+        "API Reference",
+        vec![],
+        vec![nav_list::list(
+            vec![],
+            vec![
+                nav_list::item(
+                    vec![],
+                    vec![nav_list::link(
+                        "https://example.com/api/core/",
+                        true,
+                        vec![],
+                        vec![text("core")],
+                    )],
+                ),
+                nav_list::item(
+                    vec![],
+                    vec![nav_list::link(
+                        "https://example.com/api/server/",
+                        false,
+                        vec![],
+                        vec![text("server")],
+                    )],
+                ),
+            ],
+        )],
+    );
+    example_wrap(vec![
+        markup,
+        pre(
+            vec![],
+            vec![code(vec![], vec![text(NAV_LIST_CUSTOM_CSS_SNIPPET)])],
+        ),
+    ])
+}
+
 /// `/primitives/nav-list/`。
 ///
 /// 一次情報: `crates/headless-ui/src/nav_list.rs:1-67`（モジュール doc
-/// 「role を一切付与しない」`:16-30` 節）、`:81-121`（`root`/`heading`/
-/// `list`/`item`/`link` シグネチャ）、`:64-67`（`navigation_menu` との
-/// 使い分け節）、`:136`/`:143`/`:148`（role 非出力の実出力テスト）。
+/// 「role を一切付与しない」`:16-30` 節、「参考サイト突合」`:68-104` 節）、
+/// `:130-170`（`root`/`heading`/`list`/`item`/`link` シグネチャ・
+/// `drop_reserved`）、`:64-67`（`navigation_menu` との使い分け節）、
+/// ユニットテスト（role 非出力・予約キーなりすまし除去の実出力検証）。
+/// 参照突合（イシュー #1653）: `docs/design/component-coverage-map.md:837`
+/// （ark-ui / Radix Primitives / Radix Themes に 1:1 対応物なし）、
+/// `.agents/skills/chakra-ui/references/components/typography/list.md`
+/// （chakra `List` は汎用 marker リストであり Anatomy 図・Keyboard 表を
+/// 持たない）。
 pub(super) const NAV_LIST: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "文書ナビ向け Link リスト。root（nav）/ heading（h2）/ list（ul）/ item（li）/ link（a）の 5 anatomy パーツを持つ（nav_list.rs モジュール doc）。",
         "5 パーツいずれも role 属性を一切付与しない。素の nav/h2/ul/li/a の暗黙 ARIA ロールをそのまま使うことが、menu ロールへの誤読を避ける本部品の存在理由そのものである（module doc「role を一切付与しない」節）。",
         "root の aria-label（label 引数）は必須引数であり、複数 nav ランドマークが存在する文書でスクリーンリーダー利用者がランドマーク間を区別できるようにする。",
         "navigation_menu との使い分けの軸は role の有無ではなくディスクロージャの有無（本部品は状態機械を持たない静的なリンク集、navigation_menu は Trigger/Content で開閉するパネル）。",
+        "参考サイト突合（イシュー #1653）: ark-ui / Radix Primitives / Radix Themes に 1:1 対応物なし。chakra-ui List（汎用 marker リスト、真の対応物は Themes 層 list #771）とは意味論が異なる別部品と判断し、anatomy / data-* / ARIA の増減は行っていない（module doc「参考サイト突合」節）。",
+        "List.Indicator（装飾マーカー）・as=\"ol\"・variant/align/colorPalette 等の装飾軸・asChild は意図的に非採用（装飾・レイアウト計測は headless へ持ち込まず Themes 層の責務とする、intentional-non-adoption.md §3.25 規則 2）。",
+        "予約キーなりすまし除去（drop_reserved）: 呼び出し側 attrs による root の aria-label、link の href/aria-current/data-current のなりすましを除去する（イシュー #1653、breadcrumb/link-overlay と同型）。",
     ],
     arguments: &[
         ArgRow {
             name: "root(label)",
             kind: "&str",
             default: "",
-            description: "root（nav）へ付与する aria-label（必須引数）。",
+            description: "root（nav）へ付与する aria-label（必須引数）。attrs 経由の aria-label なりすましは除去される。",
+        },
+        ArgRow {
+            name: "link(href)",
+            kind: "&str",
+            default: "",
+            description: "href 属性。attrs 経由の href/aria-current/data-current なりすましは除去される。危険な URL スキームは属性ごと拒否される。",
         },
         ArgRow {
             name: "link(current)",
@@ -1600,12 +1674,28 @@ pub(super) const NAV_LIST: ComponentPageSpec = ComponentPageSpec {
             description: "true のとき aria-current=\"page\"+data-current を付与する（role は付与しない）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "heading を省いたフラットなリンクリスト",
-        description: "heading パーツを使わず、見出しなしのリンクリストのみで構成した例です。",
-        render: ex_nav_list,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "heading を省いたフラットなリンクリスト",
+            description: "heading パーツを使わず、見出しなしのリンクリストのみで構成した例です。",
+            render: ex_nav_list,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope / data-part / aria-current 属性セレクタで見た目を組み立てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: ex_nav_list_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "ネイティブ a[href] のフォーカス移動（無配線、ブラウザ既定に委ねる）。矢印キーでの項目間移動は WAI-ARIA の文書ナビパターンに存在しないため提供しない（module doc「スコープ外」節）。",
+        },
+        KeyRow {
+            key: "Enter",
+            description: "フォーカス中の a[href] を起動する（ネイティブ挙動。Space は a を起動しない）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-label",
@@ -1614,6 +1704,10 @@ pub(super) const NAV_LIST: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-current=\"page\"",
             description: "link に付与（current が true のときのみ）。role は付与しない。",
+        },
+        AriaRow {
+            attribute: "（role 非付与）",
+            description: "全パーツで role を一切付与しない。危険 URL 拒否で href を失った a は暗黙 link ロールも同時に失う。",
         },
     ],
     demo: None,

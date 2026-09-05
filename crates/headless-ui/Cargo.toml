@@ -439,7 +439,10 @@ name = "fandhe-frontend-headless-ui"
 # 版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
 # style-refresh-version-bump-operation.md` §5）、両者の破壊的変更の和集合
 # として、さらにマイナーバンプで 0.57.0 とする。
-version = "0.57.0"
+# イシュー #1653（nav-list の参照突合）: `root`/`link` へ予約キーなりすまし
+# 除去（`drop_reserved`）を追加した非破壊的な変更のため patch バンプで
+# 0.57.1 とする。
+version = "0.57.1"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
