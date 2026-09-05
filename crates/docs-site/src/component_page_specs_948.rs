@@ -1850,6 +1850,11 @@ const DATE_PICKER_SPEC: ComponentPageSpec = ComponentPageSpec {
 
 fn date_input_example() -> Node {
     let build = |id_prefix: &str, state: &DateInput, size: Size, disabled: bool| {
+        let props = date_input::DateInputProps {
+            disabled,
+            invalid: state.is_invalid(),
+            ..date_input::DateInputProps::default()
+        };
         date_input::root(
             size,
             disabled,
@@ -1857,20 +1862,17 @@ fn date_input_example() -> Node {
             vec![],
             vec![
                 date_input::label(
-                    disabled,
-                    state.is_invalid(),
+                    props,
                     Some(&format!("{id_prefix}-year")),
                     vec![],
                     vec![text("Date")],
                 ),
                 date_input::control(
-                    disabled,
-                    state.is_invalid(),
+                    props,
                     vec![],
                     vec![
                         date_input::segment_group(
-                            disabled,
-                            state.is_invalid(),
+                            props,
                             vec![],
                             vec![
                                 state.segment(DateSegment::Year, disabled, false, vec![]),
