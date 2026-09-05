@@ -182,6 +182,7 @@ pointer ドラッグ配線はスコープ外）を経て 98 の公開モジュ�
 | headless ラッパー（非採用の再導入） | `signature_pad` | #843 |
 | headless ラッパー（非採用の再導入、先例は AngleSlider #842） | `image_cropper` | #844 |
 | headless 由来ユーティリティ（本クレートに固有モジュールなし） | `format` / `Locale`（#853/#854） | クレートルート再エクスポート `pub use fandhe_frontend_headless_ui;` 経由 |
+| headless ラッパー（glob 再エクスポート） | `collapsible` | #1682（親 #1670） |
 
 `examples/headless-pre-styled-ui`（#552/#678/#698/#704）は本クレート
 v0.4.0 へ統合済みである。旧来 headless-ui のセレクタへ手書きで当てていた
@@ -465,7 +466,7 @@ fandhe_frontend_headless_ui::<mod>::*;`）・選択的個別・（styled 側の
 未スタイル適用漏れと同型の事故）を抑えるため、判定規約を
 `crates/pre-styled-ui/src/lib.rs` へ明文化した（規約 A〜D、§3c 参照）。
 
-### glob 13 箇所のレビュー結果（結論: 全件「維持」）
+### glob 14 箇所のレビュー結果（結論: 全件「維持」。#14 はイシュー #1682 で新設）
 
 判定基準は規約 B の 4 条件。是正内容は「規約への追認 + マーカーコメント
 （`REEXPORT-GLOB-REVIEWED:`）追記 + 記録」であり、選択的 re-export への
@@ -486,6 +487,7 @@ fandhe_frontend_headless_ui::<mod>::*;`）・選択的個別・（styled 側の
 | 11 | `json_tree_view` | 充足 | 充足 | 充足 | 維持 |
 | 12 | `toolbar` | 充足 | 充足 | 充足 | 維持 |
 | 13 | `menubar` | 充足 | 充足 | 充足 | 維持 |
+| 14 | `collapsible` | 充足 | 充足 | 充足 | 新設（#1682） |
 
 ### 「意図的 shadowing」の実態確認
 

@@ -1803,6 +1803,8 @@ name = "fandhe-frontend-pre-styled-ui"
 # style-refresh-version-bump-operation.md` §5）。両者の破壊的変更の和集合
 # として、さらにマイナーバンプで 0.108.0 とする（headless-ui 0.56.0 への
 # 依存追随を含む）。
+# イシュー #1682: `collapsible` モジュール新設（公開 API の純追加、参照 3
+# サイト共通の基本部品）のため minor バンプする。
 # base 再取り込み（イシュー #1652, 2026-09-06）: main 側は本ブランチとは独立に
 # accordion（#1636）の破壊的変更を経て headless-ui 0.56.0 依存追随を含む
 # 0.108.0 へ到達しており、本ブランチも menubar 経由の headless-ui
@@ -1820,7 +1822,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 追随。navigation_menu モジュールは glob 再エクスポートのため、headless
 # 側のシグネチャ変更がそのまま公開 API の破壊的変更として伝播する。
 # マイナーバンプで 0.110.0 とする。
-version = "0.110.0"
+# base 再取り込み（イシュー #1654, 2026-09-06）: main 側は本ブランチとは独立に
+# `collapsible` モジュール新設と依存先 headless-ui 0.57.1 への patch 追随を
+# 経て 0.110.1 へ到達していた。本ブランチは上記のとおり独立に依存先を
+# 0.58.0（navigation_menu の破壊的変更）へ追随させ 0.110.0 に到達しており、
+# 両者が異なる実体変更を伴い偶発的に近接した版数へ到達している（同一版数
+# 衝突をそのまま採用しない原則、`docs/ci/style-refresh-version-bump-operation.md`
+# §5 と同型の判断）。main の到達点（0.110.1）を土台に、本ブランチの
+# headless-ui 0.58.0 依存追随（破壊的変更）を反映してさらにマイナーバンプ
+# し 0.111.0 とする。
+version = "0.111.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

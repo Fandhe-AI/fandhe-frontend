@@ -628,7 +628,8 @@
 //! [`mod@action_bar`]・[`mod@popover`]・[`mod@hover_card`]・[`mod@tooltip`]・
 //! [`mod@toolbar`]・[`mod@scroll_area`]・
 //! [`mod@toggle_tip`]・[`mod@menubar`]・[`mod@json_tree_view`]・
-//! [`mod@floating_panel`]・[`mod@timer`]・[`mod@navigation_menu`] の 12
+//! [`mod@floating_panel`]・[`mod@timer`]・[`mod@navigation_menu`]・
+//! [`mod@collapsible`] の 13
 //! モジュールである（[`mod@tree_view`] はイシュー #1578 で `size` variant を
 //! 持つ選択的再エクスポート（規約 A）へ移行し本一覧から外れた。レビュー来歴・
 //! 条件ごとの充足根拠は
@@ -678,6 +679,7 @@ pub mod checkbox_group;
 mod class_attr;
 pub mod clipboard;
 pub mod code;
+pub mod collapsible;
 pub mod color_picker;
 pub mod color_swatch;
 pub mod combobox;
