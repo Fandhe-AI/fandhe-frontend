@@ -5354,13 +5354,37 @@ mod wiring {
     /// 属性しか更新せず、子 item-text 側の表示契約（`data-highlighted` を
     /// 参照する CSS）が SSR 初期状態のまま追随しない不整合を防ぐ。
     /// item-text を持たない構成（Menu item 等）では no-op。
+    ///
+    /// `item.query_selector` を直接使うと、`item` がネストした別 item・別
+    /// インスタンス（例: item 内に別 Select が入れ子になった構成）を子孫に
+    /// 含み、かつ `item` 自身が item-text を持たない場合、内側の別 item の
+    /// item-text を誤って掴んで更新してしまう（codex-review/Cursor Bugbot
+    /// 再指摘、イシュー #1619。`crates/wasm-full/src/headless_select.rs::
+    /// own_scope_child` と同型の「最も近い item 祖先が自身と一致する」
+    /// 判定）。見つかった item-text の最も近い `[data-part="item"]` 祖先が
+    /// `item` 自身と一致するものだけへ絞り込む。
     fn sync_item_text_highlighted(item: &Element, highlighted: bool) {
-        if let Ok(Some(item_text)) = item.query_selector("[data-part=\"item-text\"]") {
+        let Ok(node_list) = item.query_selector_all("[data-part=\"item-text\"]") else {
+            return;
+        };
+        for i in 0..node_list.length() {
+            let Some(node) = node_list.get(i) else {
+                continue;
+            };
+            let Ok(item_text) = wasm_bindgen::JsCast::dyn_into::<Element>(node) else {
+                continue;
+            };
+            let owns = closest(&item_text, "[data-part=\"item\"]")
+                .is_some_and(|nearest| nearest.is_same_node(Some(item)));
+            if !owns {
+                continue;
+            }
             if highlighted {
                 set_dom_attribute(&item_text, "data-highlighted", "");
             } else {
                 let _ = item_text.remove_attribute("data-highlighted");
             }
+            break;
         }
     }
 

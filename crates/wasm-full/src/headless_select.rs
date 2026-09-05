@@ -176,13 +176,14 @@ mod wiring {
     /// せず `textContent` 読み出しのみで完結する（REQ-1 に関連する不変
     /// 条件。書き込み側も `set_inner_html` を使わないことと対称）。
     /// `data-value` が欠落している item は `None`（fail-closed、呼び出し元
-    /// が収集時にスキップする）。
+    /// が収集時にスキップする）。item-text の探索は [`own_scope_child`]
+    /// 経由で item 自身にスコープする（`item.query_selector` を直接使うと
+    /// item がネストした別 item/別インスタンスの item-text を子孫に含む
+    /// 構成で誤って取得してしまう、codex-review/Cursor Bugbot 再指摘、
+    /// イシュー #1619）。
     fn item_value_and_label(item: &Element) -> Option<(String, String)> {
         let value = item.get_attribute("data-value")?;
-        let label = item
-            .query_selector(ITEM_TEXT_SELECTOR)
-            .ok()
-            .flatten()
+        let label = own_scope_child(item, ITEM_TEXT_SELECTOR)
             .map(|el| el.text_content().unwrap_or_default())
             .unwrap_or_else(|| item.text_content().unwrap_or_default());
         Some((value, label))
@@ -190,34 +191,58 @@ mod wiring {
 
     /// `root` 自身が属する Select インスタンスの境界要素を求める。
     ///
-    /// `root` 自身が [`ROOT_SELECTOR`] に一致すればそれをそのまま返し、
-    /// 一致しない場合（呼び出し元が anatomy root より広い要素を渡した場合）
-    /// は `root.closest(ROOT_SELECTOR)` で最も近い祖先を探し、それも
-    /// 見つからなければ `root` 自身へ fail-closed にフォールバックする
-    /// （境界を特定できない場合でも panic せず、後続のフィルタが
-    /// `root.query_selector_all` の結果全件を素通しする従来動作へ縮退する
-    /// だけで安全側）。
+    /// 呼び出し元（[`wire_select_value_text`] 経由の
+    /// [`crate::headless::wire_headless_component`]）が渡す `root` は
+    /// 「anatomy root そのもの」とは限らず、それを内側に包む外側コンテナ
+    /// （マウント先の任意の親要素）であり得る（codex-review/Cursor Bugbot
+    /// 再指摘、イシュー #1619）。このため以下の優先順で解決する:
+    ///
+    /// 1. `root` 自身が [`ROOT_SELECTOR`] に一致すればそれをそのまま返す。
+    /// 2. 一致しない場合、`root.closest(ROOT_SELECTOR)` で祖先方向
+    ///    （`root` が anatomy root より内側の要素だった場合）を探す。
+    /// 3. それも見つからない場合、`root.query_selector(ROOT_SELECTOR)` で
+    ///    子孫方向（`root` が anatomy root を包む外側コンテナだった場合）を
+    ///    探す。祖先探索の `closest` は子孫を辿れないため、この段が無いと
+    ///    外側コンテナ渡しのケースで境界が永遠に見つからない
+    ///    （[`own_scope_elements`] が全 item を除外し続ける fail-close に
+    ///    陥っていた）。
+    /// 4. いずれも見つからなければ `root` 自身へ fail-closed に
+    ///    フォールバックする（境界を特定できない場合でも panic せず、後続の
+    ///    フィルタが全件を除外する安全側の縮退に留める）。
     fn instance_boundary(root: &Element) -> Element {
         if root.matches(ROOT_SELECTOR).unwrap_or(false) {
             return root.clone();
         }
-        root.closest(ROOT_SELECTOR)
-            .ok()
-            .flatten()
-            .unwrap_or_else(|| root.clone())
+        if let Ok(Some(ancestor)) = root.closest(ROOT_SELECTOR) {
+            return ancestor;
+        }
+        if let Ok(Some(descendant)) = root.query_selector(ROOT_SELECTOR) {
+            return descendant;
+        }
+        root.clone()
     }
 
     /// `root` 配下から `selector` に一致する要素を収集し、各要素の最も近い
-    /// [`ROOT_SELECTOR`] 祖先が `boundary`（[`instance_boundary`] で求めた
-    /// このインスタンス自身の境界）と一致するものだけへ絞り込む。
+    /// `boundary_selector` 祖先が `boundary`（[`instance_boundary`] で求めた
+    /// このインスタンス自身の境界、または item スコープ判定なら item 自身）
+    /// と一致するものだけへ絞り込む。
     ///
-    /// ネストした別 Select インスタンスの item が `root.query_selector_all`
-    /// の結果へ混入し、そのインスタンスの選択反映が別インスタンスの item
-    /// まで書き換えてしまうのを防ぐ（codex-review P1 是正、イシュー #1619。
+    /// ネストした別インスタンス（別 Select の item、または item 内に混入した
+    /// 別 item の子パーツ）が `root.query_selector_all` の結果へ混入し、
+    /// このインスタンス・この item の反映が別インスタンス・別 item まで
+    /// 書き換えてしまうのを防ぐ（codex-review P1 是正、イシュー #1619。
     /// `crate::keynav::filter_own_scope_items` と同型の「最近傍祖先の同一性
     /// 判定」パターン）。`closest` 自体が失敗する要素（detached 等）は
-    /// fail-closed に除外する。
-    fn own_scope_elements(root: &Element, boundary: &Element, selector: &str) -> Vec<Element> {
+    /// fail-closed に除外する。`boundary_selector` は呼び出し元が
+    /// [`ROOT_SELECTOR`]（Select インスタンス境界、item 収集用）または
+    /// [`ITEM_SELECTOR`]（item 境界、item-text/item-indicator 収集用）を
+    /// 渡す。
+    fn own_scope_elements(
+        root: &Element,
+        boundary: &Element,
+        boundary_selector: &str,
+        selector: &str,
+    ) -> Vec<Element> {
         let Ok(node_list) = root.query_selector_all(selector) else {
             return Vec::new();
         };
@@ -230,7 +255,7 @@ mod wiring {
                 continue;
             };
             let owns = element
-                .closest(ROOT_SELECTOR)
+                .closest(boundary_selector)
                 .ok()
                 .flatten()
                 .is_some_and(|nearest| nearest.is_same_node(Some(boundary)));
@@ -241,12 +266,31 @@ mod wiring {
         out
     }
 
+    /// `item` 直下（item スコープ内）にのみ属する `selector` 一致要素を
+    /// 出現順で 1 件求める。
+    ///
+    /// `item.query_selector(selector)` を直接呼ぶと、`selector`
+    /// （[`ITEM_TEXT_SELECTOR`]/[`ITEM_INDICATOR_SELECTOR`]）が
+    /// `data-part` のみで絞り込む（`data-scope="select"` を含まない）ため、
+    /// `item` の子孫にネストした別インスタンス・別 item（外側 item が自身の
+    /// item-text/item-indicator を省略する構成）が存在すると、内側の
+    /// item-text/item-indicator を誤って掴んでしまう（codex-review/Cursor
+    /// Bugbot 再指摘、イシュー #1619）。[`own_scope_elements`] を
+    /// `boundary_selector = ITEM_SELECTOR`・`boundary = item` で呼び、
+    /// 「最も近い [`ITEM_SELECTOR`] 祖先が `item` 自身と一致する」要素のみへ
+    /// 絞り込んでから先頭を返す。
+    fn own_scope_child(item: &Element, selector: &str) -> Option<Element> {
+        own_scope_elements(item, item, ITEM_SELECTOR, selector)
+            .into_iter()
+            .next()
+    }
+
     /// `root` 配下の Select item を出現順に収集し、`(value, label)` 列を
     /// 構築する。ネストした別 Select インスタンスの item は含めない
     /// （[`own_scope_elements`] 参照）。
     fn collect_items(root: &Element) -> Vec<(String, String)> {
         let boundary = instance_boundary(root);
-        own_scope_elements(root, &boundary, ITEM_SELECTOR)
+        own_scope_elements(root, &boundary, ROOT_SELECTOR, ITEM_SELECTOR)
             .iter()
             .filter_map(item_value_and_label)
             .collect()
@@ -265,7 +309,7 @@ mod wiring {
     /// 整合した結果を返せることを保証する。
     fn sync_item_selected_attrs(root: &Element, selected: Option<&str>) {
         let boundary = instance_boundary(root);
-        for element in own_scope_elements(root, &boundary, ITEM_SELECTOR) {
+        for element in own_scope_elements(root, &boundary, ROOT_SELECTOR, ITEM_SELECTOR) {
             let is_selected = element
                 .get_attribute("data-value")
                 .is_some_and(|value| Some(value.as_str()) == selected);
@@ -287,15 +331,20 @@ mod wiring {
             // `data-state`（`"open"`＝選択/`"closed"`＝非選択）として出力する
             // SSR 契約を持つが、従来はクライアント側の選択変更後にこれらの
             // 子パーツへ反映されず SSR 初期値のまま取り残されていた。
+            // 探索は [`own_scope_child`] で item 自身へスコープする
+            // （`element.query_selector` を直接使うと、ネスト構成で外側 item
+            // が自身の item-text/item-indicator を省略している場合に内側の
+            // 別 item/別インスタンスの子パーツを誤って掴んでしまう、
+            // codex-review/Cursor Bugbot 再指摘、イシュー #1619）。
             let data_state = if is_selected {
                 fandhe_frontend_headless_ui::DATA_STATE_OPEN
             } else {
                 fandhe_frontend_headless_ui::DATA_STATE_CLOSED
             };
-            if let Ok(Some(item_text)) = element.query_selector(ITEM_TEXT_SELECTOR) {
+            if let Some(item_text) = own_scope_child(&element, ITEM_TEXT_SELECTOR) {
                 let _ = set_dom_attribute(&item_text, "data-state", data_state);
             }
-            if let Ok(Some(indicator)) = element.query_selector(ITEM_INDICATOR_SELECTOR) {
+            if let Some(indicator) = own_scope_child(&element, ITEM_INDICATOR_SELECTOR) {
                 let _ = set_dom_attribute(&indicator, "data-state", data_state);
                 if is_selected {
                     let _ = indicator.remove_attribute("hidden");
