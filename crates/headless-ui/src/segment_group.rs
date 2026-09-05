@@ -36,7 +36,11 @@
 //! （`radio_group` と同型）。[`item`] は `<label>` を採用し、内包する
 //! [`item_hidden_input`] とのクリック委譲が JS なしで成立する。
 //! [`item_control`] には `role="radio"`/`aria-checked` を重複付与しない
-//! （二重読み上げ防止、`radio_group::item_control` と同じ最小主義）。
+//! （二重読み上げ防止、`radio_group::item_control` と同じ最小主義）。加えて
+//! イシュー #1618 の参照突合で [`item_control`] へ常時 `aria-hidden="true"`
+//! を付与するよう是正した（`radio_group::item_control` と同型、ark-ui の
+//! ItemControl 同様、意味論を持たない装飾パーツを支援技術から明示的に
+//! 隠す）。
 //!
 //! # Indicator の位置表現（SSR 決定的、JS 計測なし）
 //!
@@ -58,6 +62,62 @@
 //! `transform: translateX(calc(100% * var(--fandhe-segment-group-index)))`
 //! （vertical では translateY）を導出する想定。
 //!
+//! # 参照突合（イシュー #1618）
+//!
+//! ark-ui 公式ページ（Segment Group）の API 節・Data Attributes 表と突合し、
+//! 以下を是正した:
+//!
+//! - [`SegmentGroupProps`]（`disabled`/`readonly`/`invalid`/`required`）を
+//!   新設。[`root`] へ `data-disabled`/`data-invalid`/`data-required` を、
+//!   [`indicator`] へ `data-disabled` を、[`item`]/[`item_control`]/
+//!   [`item_text`] へ `data-disabled`/`data-readonly`/`data-invalid` を
+//!   反映する（`radio_group::RadioGroupProps` と同じパート別反映契約。
+//!   `radio_group` module doc「参照突合」節参照）。
+//! - [`root`] へ `aria-required`/`aria-readonly`/`aria-disabled`（`true` の
+//!   ときのみ）を追加（`radiogroup` ロールの Supported States、
+//!   `radio_group::root` と同型）。
+//! - [`item_control`] へ `aria-hidden="true"` を常時付与（上記「ネイティブ
+//!   semantics」節参照）。
+//! - [`item_hidden_input`] へ `required`（`props.required`）/
+//!   `aria-invalid="true"`（`props.invalid`）を追加。
+//! - 呼び出し側 `attrs` による `data-state`/`type`/`checked`/`aria-hidden`
+//!   等の偽装・重複を [`crate::radio_group`] の `drop_reserved`（`pub(crate)`
+//!   へ昇格し本モジュールから再利用、重複定義を避ける）で fail-closed に
+//!   除去する防御を追加。
+//!
+//! 意図的に合わせなかった点（差分メモ、Issue コメントへ転記）:
+//!
+//! - ark の API 節には `Label`（`data-orientation`/`data-disabled`/
+//!   `data-invalid`/`data-required`）が載るが、Anatomy 図（コードスニペット）
+//!   には存在しない。`pre-styled-ui` の `SLOTS` 固定リストと Themes CSS への
+//!   波及を避けるため本イシューでは採用を見送る（外部ラベルの関連付けは
+//!   [`root`] の `labelled_by` で成立させる。採用する場合は別イシュー）。
+//! - [`indicator`] の `data-state`/`style`（CSS 変数 2 種、SSR 決定的）は
+//!   本フレームワーク固有として維持する（`pre-styled-ui` が
+//!   `indicator[data-state="unchecked"]` セレクタで依存。ark の CSR 計測に
+//!   よる追従は持ち込まない、`docs/policy/intentional-non-adoption.md`
+//!   §3.25 規則 2）。
+//! - `data-orientation` は [`root`]/[`indicator`] のみへ付与し、子パーツへ
+//!   伝播しない（`radio_group` と同判断）。`data-active`/`data-hover`/
+//!   `data-focus` は SSR 静的出力に持たせない。
+//! - `data-readonly` は [`root`] へ出力しない（ark の Root 表に無い）。
+//!   ネイティブ `<input type="radio">` に `readonly` 属性は無効なため
+//!   [`item_hidden_input`] へも反映しない。**`fandhe-frontend-wasm-full` には
+//!   segment-group の配線が一切無い**（`(scope, part) = ("segment-group",
+//!   "item") -> "select"` の写像・矢印キー配線・`focus_visible` 配線のいずれ
+//!   も未着手、#743 の out-of-scope を継承）ため、`radio_group` が持つ
+//!   `keynav` による `data-readonly` の click/キー抑止の実効化は
+//!   segment-group には**当てはまらない**（`radio_group` と異なる点）。
+//!   `data-readonly`/`aria-readonly` は SSR 語彙であり、CSR での選択変更
+//!   抑止は wasm-full 配線が無いため未提供（別イシューでの追跡を提案する）。
+//! - キーボード操作は ark の Radio パターン（Tab / Space / ArrowDown・
+//!   ArrowRight / ArrowUp・ArrowLeft）をネイティブ `<input type="radio">`
+//!   （同一 `name` グループ）のブラウザ標準操作に委ねる範囲のみ。Home/End
+//!   の APG 拡張は記述しない（`radio_group` の `keynav` 拡張は wasm-full
+//!   配線が無いため segment-group には及ばない）。
+//! - Radix Themes の Segmented Control は styled 部品のため視覚参考に留め、
+//!   ARIA / キーボードの一次情報は ark-ui を採用する。
+//!
 //! # セキュリティ不変条件
 //!
 //! 各パーツ関数は属性 Vec を組み立てて [`crate::anatomy::Anatomy::part`]
@@ -67,25 +127,37 @@
 //! dispatch payload/hydration 属性）は [`fandhe_frontend_core::render`] の
 //! 既定エスケープを必ず経由する（REQ-1）。本モジュールは `raw_html()` を
 //! 使用しない。[`indicator`] の `style` 属性値は `usize` の整形のみで
-//! 合成し、CSS インジェクション経路を作らない。
+//! 合成し、CSS インジェクション経路を作らない。呼び出し側 `attrs` からの
+//! `data-state`/`data-disabled`/`data-invalid`/`data-readonly`/
+//! `data-required`/`data-value`/`role`/`aria-*`（root 固定分）/`type`/
+//! `checked`/`disabled`/`required`/`aria-hidden`/`style`（indicator）の
+//! 偽装・重複は [`crate::radio_group`] の `drop_reserved` で ASCII
+//! 大文字小文字無視に fail-closed に除去する（イシュー #1618。
+//! `Anatomy::part` の `data-scope`/`data-part` フィルタと二層防御）。
 //!
-//! # out-of-scope（本イシュー #743 のスコープ外）
+//! # out-of-scope（本イシュー #743 のスコープ外。#1618 で再確認済み）
 //!
 //! - **`fandhe-frontend-wasm-full` の CSR 配線**: `(scope, part) =
 //!   ("segment-group", "item") -> "select"` の静的マッピング表追加・
-//!   focus_visible 配線・dispatch 後の indicator CSS 変数の動的更新は未着手
-//!   （別イシューでの追跡を提案する）。
+//!   focus_visible 配線・dispatch 後の indicator CSS 変数の動的更新・
+//!   `data-readonly` の click/キー抑止の実効化は未着手（別イシューでの
+//!   追跡を提案する）。
 //! - **矢印キーによる roving tabindex**: SSR 静的マークアップに寄与しない
 //!   CSR 挙動層のため未提供（`radio_group` と同じ判断）。
-//! - **chakra-ui 拡張の `Label`/`Items` sub-parts**: ark-ui anatomy に存在
-//!   しないため採用しない（外部ラベル関連付けは [`root`] の `labelled_by`
-//!   で成立させる）。
-//! - **`readOnly`・`xs` サイズ**: styled 層（pre-styled-ui）のスコープ外。
+//! - **chakra-ui 拡張の `Label`/`Items` sub-parts**: 上記「参照突合」節
+//!   参照。
+//! - **`readOnly`・`xs` サイズ、styled `root` の readonly/invalid/required
+//!   引数拡張**: styled 層（pre-styled-ui）のスコープ外。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_hidden, aria_labelledby, aria_orientation, role};
-use crate::data_attrs::{data_disabled, data_orientation, data_state, Orientation};
-use crate::radio_group::RadioGroup;
+use crate::data_attrs::{
+    data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
+    Orientation,
+};
+use crate::radio_group::{
+    drop_reserved, RadioGroup, HIDDEN_INPUT_RESERVED, ROOT_RESERVED, STATE_RESERVED,
+};
 use crate::state::checked_data_state;
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
@@ -100,17 +172,76 @@ pub use crate::state::DATA_STATE_UNCHECKED;
 /// SegmentGroup の anatomy（`data-scope="segment-group"` 固定）。
 const ANATOMY: Anatomy = anatomy("segment-group");
 
+/// SegmentGroup 全体へ宣言的に反映する状態束（イシュー #1618 で新設）。
+///
+/// `Default` は全 `false`（SSR 状態なし初期描画に対応する既定値）。
+/// [`crate::radio_group::RadioGroupProps`] と同じパート別反映契約:
+/// `disabled`/`invalid`/`required` は [`root`] へ `data-disabled`/
+/// `data-invalid`/`data-required` として、`disabled` は [`indicator`] へも
+/// `data-disabled` として反映する。[`item`]/[`item_control`]/[`item_text`]
+/// へは `data-disabled`/`data-readonly`/`data-invalid` を反映する。
+/// `readonly` はネイティブ `<input type="radio">` に `readonly` 属性が
+/// 効かないため [`item_hidden_input`] へは反映せず、表示契約
+/// （`data-readonly`）と [`root`] の `aria-readonly` のみで表現する
+/// （モジュール doc「参照突合」節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SegmentGroupProps {
+    /// 無効化状態。`true` で `data-disabled`/`aria-disabled="true"`/
+    /// `disabled`（ネイティブ input）相当の属性を反映する。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で `data-readonly`（item 系パーツ）/
+    /// `aria-readonly="true"`（root）を反映する。ネイティブ input への
+    /// `readonly` 属性反映は行わない（構造体 doc・モジュール doc
+    /// 「参照突合」節参照）。
+    pub readonly: bool,
+    /// 入力検証エラー状態。`true` で `data-invalid`（root/item 系）/
+    /// `aria-invalid="true"`（hidden input）を反映する。
+    pub invalid: bool,
+    /// 必須入力状態。`true` で `data-required`（root）/
+    /// `aria-required="true"`（root）/ `required`（hidden input）を反映する。
+    pub required: bool,
+}
+
+/// [`root`] へ共通の `data-disabled`/`data-invalid`/`data-required` 属性列を
+/// 組み立てる非公開ヘルパ（ark-ui の Root Data Attributes 表に
+/// `data-readonly` が無いため、[`item_state_attrs`] とは異なる属性集合。
+/// `radio_group::group_state_attrs` と同型）。
+fn group_state_attrs(props: &SegmentGroupProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs = Vec::new();
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_invalid(props.invalid));
+    attrs.extend(data_required(props.required));
+    attrs
+}
+
+/// [`item`]/[`item_control`]/[`item_text`] へ共通の `data-state`/
+/// `data-disabled`/`data-readonly`/`data-invalid` 属性列を組み立てる非公開
+/// ヘルパ（ark-ui の Item/ItemControl/ItemText Data Attributes 表に
+/// `data-required` が無いため、[`group_state_attrs`] とは異なる属性集合。
+/// `radio_group::item_state_attrs` と同型）。
+fn item_state_attrs(checked: bool, props: &SegmentGroupProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs = vec![data_state(checked_data_state(checked))];
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_readonly(props.readonly));
+    attrs.extend(data_invalid(props.invalid));
+    attrs
+}
+
 /// Root パーツ（`div`、`role="radiogroup"`）。`radio_group::root` と同型の
 /// 引数・出力契約（`labelled_by`/`orientation` はいずれも `Some` のときのみ
-/// 対応する属性を出力する）。
+/// 対応する属性を出力する）。`props.required`/`props.readonly`/
+/// `props.disabled` が `true` のときのみ、対応する `aria-required`/
+/// `aria-readonly`/`aria-disabled="true"`（`radiogroup` ロールの Supported
+/// States、イシュー #1618）を付与する。
 #[must_use]
 pub fn root<'a>(
-    disabled: bool,
+    props: &SegmentGroupProps,
     orientation: Option<Orientation>,
     labelled_by: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(drop_reserved(attrs, STATE_RESERVED), ROOT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![role("radiogroup")];
     if let Some(orientation) = orientation {
         merged.push(aria_orientation(orientation));
@@ -119,7 +250,16 @@ pub fn root<'a>(
     if let Some(id) = labelled_by {
         merged.push(aria_labelledby(id));
     }
-    merged.extend(data_disabled(disabled));
+    if props.required {
+        merged.push(("aria-required", "true"));
+    }
+    if props.readonly {
+        merged.push(("aria-readonly", "true"));
+    }
+    if props.disabled {
+        merged.push(("aria-disabled", "true"));
+    }
+    merged.extend(group_state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
@@ -136,13 +276,20 @@ pub fn root<'a>(
 /// `orientation` が `Some` のときは `data-orientation` も出力し、styled 層が
 /// 縦横で `translateX`/`translateY` を切り替えられるようにする（`SlotRecipe`
 /// は子孫セレクタを持たないため、`root` ではなく `indicator` 自身の属性で
-/// 条件化する必要がある）。
+/// 条件化する必要がある）。`props.disabled` が `true` のときのみ
+/// `data-disabled` を付与する（ark-ui の Indicator Data Attributes 表準拠、
+/// イシュー #1618）。
 #[must_use]
 pub fn indicator<'a>(
     position: Option<(usize, usize)>,
+    props: &SegmentGroupProps,
     orientation: Option<Orientation>,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
+    let attrs = drop_reserved(
+        drop_reserved(attrs, STATE_RESERVED),
+        &["aria-hidden", "style"],
+    );
     let style: Option<String> = position.map(|(index, count)| {
         format!("--fandhe-segment-group-index: {index}; --fandhe-segment-group-count: {count};")
     });
@@ -156,6 +303,7 @@ pub fn indicator<'a>(
         aria_hidden(true),
         data_state(checked_data_state(position.is_some())),
     ];
+    merged.extend(data_disabled(props.disabled));
     if let Some(orientation) = orientation {
         merged.push(data_orientation(orientation));
     }
@@ -168,19 +316,19 @@ pub fn indicator<'a>(
 
 /// Item パーツ（`label`）。選択肢 1 個のラップ要素。[`crate::radio_group::item`]
 /// と同型（ネイティブ `<label>` によりクリック委譲が JS なしで機能する）。
+/// `props` から `data-disabled`/`data-readonly`/`data-invalid` を反映する
+/// （イシュー #1618）。
 #[must_use]
 pub fn item<'a>(
     checked: bool,
-    disabled: bool,
+    props: &SegmentGroupProps,
     value: &'a str,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![
-        data_state(checked_data_state(checked)),
-        ("data-value", value),
-    ];
-    merged.extend(data_disabled(disabled));
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = item_state_attrs(checked, props);
+    merged.push(("data-value", value));
     merged.extend(attrs);
     ANATOMY.part("item", "label", merged, children)
 }
@@ -188,25 +336,35 @@ pub fn item<'a>(
 /// ItemControl パーツ（`span`、視覚的な選択枠）。チェック状態のセマンティクス
 /// は [`item_hidden_input`] のネイティブ `<input type="radio">` が担うため
 /// `role="radio"`/`aria-checked` を付与しない（`radio_group::item_control`
-/// と同じ二重読み上げ防止の最小主義）。
+/// と同じ二重読み上げ防止の最小主義）。加えて意味論を持たない装飾パーツで
+/// あることを明示するため `aria-hidden="true"` を常時付与する（イシュー
+/// #1618、ark-ui の ItemControl 準拠）。`props` から `data-disabled`/
+/// `data-readonly`/`data-invalid` を反映する。
 #[must_use]
-pub fn item_control<'a>(checked: bool, disabled: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(checked_data_state(checked))];
-    merged.extend(data_disabled(disabled));
+pub fn item_control<'a>(
+    checked: bool,
+    props: &SegmentGroupProps,
+    attrs: Vec<(&'a str, &'a str)>,
+) -> Node {
+    let attrs = drop_reserved(drop_reserved(attrs, STATE_RESERVED), &["aria-hidden"]);
+    let mut merged: Vec<(&'a str, &'a str)> = item_state_attrs(checked, props);
+    merged.push(aria_hidden(true));
     merged.extend(attrs);
     ANATOMY.part("item-control", "span", merged, vec![])
 }
 
-/// ItemText パーツ（`span`）。選択肢のラベルテキスト。
+/// ItemText パーツ（`span`）。選択肢のラベルテキスト。`props` から
+/// `data-disabled`/`data-readonly`/`data-invalid` を反映する（イシュー
+/// #1618）。
 #[must_use]
 pub fn item_text<'a>(
     checked: bool,
-    disabled: bool,
+    props: &SegmentGroupProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(checked_data_state(checked))];
-    merged.extend(data_disabled(disabled));
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = item_state_attrs(checked, props);
     merged.extend(attrs);
     ANATOMY.part("item-text", "span", merged, children)
 }
@@ -216,14 +374,20 @@ pub fn item_text<'a>(
 /// 選択をブラウザのネイティブ semantics に委ねる（`radio_group::item_hidden_input`
 /// と同型）。`type="radio"` はリテラル固定。`name`/`value` は動的値だが
 /// [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
+/// `checked`/`props.disabled`/`props.required` は true のときのみ存在属性
+/// として出力する（ark-ui 流の存在属性規約）。`props.invalid` のときのみ
+/// `aria-invalid="true"` を出力する（イシュー #1618。`props.readonly` は
+/// ネイティブ `readonly` 属性がラジオに無効なため反映しない、モジュール
+/// doc「参照突合」節参照）。
 #[must_use]
 pub fn item_hidden_input<'a>(
     checked: bool,
-    disabled: bool,
+    props: &SegmentGroupProps,
     name: Option<&'a str>,
     value: &'a str,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
+    let attrs = drop_reserved(drop_reserved(attrs, STATE_RESERVED), HIDDEN_INPUT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("type", "radio"),
         ("value", value),
@@ -235,8 +399,14 @@ pub fn item_hidden_input<'a>(
     if checked {
         merged.push(("checked", ""));
     }
-    if disabled {
+    if props.disabled {
         merged.push(("disabled", ""));
+    }
+    if props.required {
+        merged.push(("required", ""));
+    }
+    if props.invalid {
+        merged.push(("aria-invalid", "true"));
     }
     merged.extend(attrs);
     ANATOMY.part("item-hidden-input", "input", merged, vec![])
@@ -281,11 +451,11 @@ impl SegmentGroup {
     pub fn item<'a>(
         &self,
         value: &'a str,
-        disabled: bool,
+        props: &SegmentGroupProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item(self.is_checked(value), disabled, value, attrs, children)
+        item(self.is_checked(value), props, value, attrs, children)
     }
 
     /// [`item_control`] へ項目 `value` の現在状態を注入する利便メソッド。
@@ -293,10 +463,10 @@ impl SegmentGroup {
     pub fn item_control<'a>(
         &self,
         value: &str,
-        disabled: bool,
+        props: &SegmentGroupProps,
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
-        item_control(self.is_checked(value), disabled, attrs)
+        item_control(self.is_checked(value), props, attrs)
     }
 
     /// [`item_text`] へ項目 `value` の現在状態を注入する利便メソッド。
@@ -304,11 +474,11 @@ impl SegmentGroup {
     pub fn item_text<'a>(
         &self,
         value: &str,
-        disabled: bool,
+        props: &SegmentGroupProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item_text(self.is_checked(value), disabled, attrs, children)
+        item_text(self.is_checked(value), props, attrs, children)
     }
 
     /// [`item_hidden_input`] へ項目 `value` の現在状態を注入する利便メソッド。
@@ -316,11 +486,11 @@ impl SegmentGroup {
     pub fn item_hidden_input<'a>(
         &self,
         value: &'a str,
-        disabled: bool,
+        props: &SegmentGroupProps,
         name: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
-        item_hidden_input(self.is_checked(value), disabled, name, value, attrs)
+        item_hidden_input(self.is_checked(value), props, name, value, attrs)
     }
 
     /// [`indicator`] へ `values` から解決した現在の選択位置を注入する利便
@@ -329,10 +499,11 @@ impl SegmentGroup {
     pub fn indicator<'a>(
         &self,
         values: &[&str],
+        props: &SegmentGroupProps,
         orientation: Option<Orientation>,
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
-        indicator(self.indicator_position(values), orientation, attrs)
+        indicator(self.indicator_position(values), props, orientation, attrs)
     }
 }
 
@@ -347,7 +518,13 @@ impl Component for SegmentGroup {
     /// 共通契約（hydration ルート）のみを表す最小正準ビュー（[`root`]、
     /// children 空。[`RadioGroup::view`] と同じ位置付け）。
     fn view(&self) -> Node {
-        root(false, None, None, Vec::new(), Vec::new())
+        root(
+            &SegmentGroupProps::default(),
+            None,
+            None,
+            Vec::new(),
+            Vec::new(),
+        )
     }
 
     /// [`RadioGroup::decode_action`] へ全委譲（`"select"` のみ受理する
@@ -379,7 +556,13 @@ mod tests {
 
     #[test]
     fn root_outputs_radiogroup_role() {
-        let html = render(&root(false, None, None, vec![], vec![]));
+        let html = render(&root(
+            &SegmentGroupProps::default(),
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="segment-group""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(html.contains(r#"role="radiogroup""#));
@@ -388,21 +571,49 @@ mod tests {
     }
 
     #[test]
-    fn root_disabled_true_adds_data_disabled() {
-        let html = render(&root(true, None, None, vec![], vec![]));
+    fn root_disabled_true_adds_data_disabled_and_aria_disabled() {
+        let props = SegmentGroupProps {
+            disabled: true,
+            ..Default::default()
+        };
+        let html = render(&root(&props, None, None, vec![], vec![]));
         assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
+    }
+
+    #[test]
+    fn root_reflects_invalid_and_required_and_readonly() {
+        let props = SegmentGroupProps {
+            invalid: true,
+            required: true,
+            readonly: true,
+            ..Default::default()
+        };
+        let html = render(&root(&props, None, None, vec![], vec![]));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-required="""#));
+        assert!(html.contains(r#"aria-required="true""#));
+        assert!(html.contains(r#"aria-readonly="true""#));
+        // ark の Root Data Attributes 表に data-readonly は無い
+        assert!(!html.contains("data-readonly"));
     }
 
     #[test]
     fn root_labelled_by_some_outputs_aria_labelledby() {
-        let html = render(&root(false, None, Some("group-label"), vec![], vec![]));
+        let html = render(&root(
+            &SegmentGroupProps::default(),
+            None,
+            Some("group-label"),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"aria-labelledby="group-label""#));
     }
 
     #[test]
     fn root_orientation_some_outputs_data_and_aria_orientation() {
         let html = render(&root(
-            false,
+            &SegmentGroupProps::default(),
             Some(Orientation::Vertical),
             None,
             vec![],
@@ -413,8 +624,30 @@ mod tests {
     }
 
     #[test]
+    fn caller_attrs_cannot_spoof_root_state_or_aria() {
+        let html = render(&root(
+            &SegmentGroupProps::default(),
+            None,
+            None,
+            vec![
+                ("data-disabled", "attacker"),
+                ("aria-disabled", "attacker"),
+                ("role", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
+        assert!(html.contains(r#"role="radiogroup""#));
+    }
+
+    #[test]
     fn indicator_some_position_outputs_state_and_css_vars() {
-        let html = render(&indicator(Some((1, 3)), None, vec![]));
+        let html = render(&indicator(
+            Some((1, 3)),
+            &SegmentGroupProps::default(),
+            None,
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="segment-group""#));
         assert!(html.contains(r#"data-part="indicator""#));
         assert!(html.contains(r#"aria-hidden="true""#));
@@ -425,7 +658,12 @@ mod tests {
 
     #[test]
     fn indicator_none_position_omits_style_and_is_unchecked() {
-        let html = render(&indicator(None, None, vec![]));
+        let html = render(&indicator(
+            None,
+            &SegmentGroupProps::default(),
+            None,
+            vec![],
+        ));
         assert!(html.contains(r#"data-state="unchecked""#));
         assert!(!html.contains("style="));
         assert!(!html.contains("--fandhe-segment-group-index"));
@@ -435,6 +673,7 @@ mod tests {
     fn indicator_orientation_some_outputs_data_orientation() {
         let html = render(&indicator(
             Some((0, 2)),
+            &SegmentGroupProps::default(),
             Some(Orientation::Vertical),
             vec![],
         ));
@@ -442,38 +681,137 @@ mod tests {
     }
 
     #[test]
+    fn indicator_reflects_disabled_and_keeps_state_and_style() {
+        let props = SegmentGroupProps {
+            disabled: true,
+            ..Default::default()
+        };
+        let html = render(&indicator(Some((0, 2)), &props, None, vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-state="checked""#));
+        assert!(html.contains("--fandhe-segment-group-index: 0;"));
+    }
+
+    #[test]
+    fn caller_attrs_cannot_spoof_indicator_style_or_aria_hidden() {
+        let html = render(&indicator(
+            Some((0, 2)),
+            &SegmentGroupProps::default(),
+            None,
+            vec![("style", "attacker"), ("aria-hidden", "false")],
+        ));
+        assert!(!html.contains("attacker"));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(html.contains("--fandhe-segment-group-index: 0;"));
+    }
+
+    #[test]
     fn item_reflects_checked_state_and_disabled() {
-        let checked = render(&item(true, false, "list", vec![], vec![]));
+        let checked = render(&item(
+            true,
+            &SegmentGroupProps::default(),
+            "list",
+            vec![],
+            vec![],
+        ));
         assert!(checked.contains(r#"data-state="checked""#));
         assert!(checked.contains(r#"data-value="list""#));
         assert!(!checked.contains("data-disabled"));
 
-        let unchecked_disabled = render(&item(false, true, "grid", vec![], vec![]));
+        let disabled_props = SegmentGroupProps {
+            disabled: true,
+            ..Default::default()
+        };
+        let unchecked_disabled = render(&item(false, &disabled_props, "grid", vec![], vec![]));
         assert!(unchecked_disabled.contains(r#"data-state="unchecked""#));
         assert!(unchecked_disabled.contains(r#"data-disabled="""#));
     }
 
     #[test]
-    fn item_control_carries_state_without_radio_role() {
-        let html = render(&item_control(true, false, vec![]));
+    fn item_parts_reflect_readonly_and_invalid() {
+        let props = SegmentGroupProps {
+            readonly: true,
+            invalid: true,
+            ..Default::default()
+        };
+        let item_html = render(&item(false, &props, "list", vec![], vec![]));
+        assert!(item_html.contains(r#"data-readonly="""#));
+        assert!(item_html.contains(r#"data-invalid="""#));
+
+        let control_html = render(&item_control(false, &props, vec![]));
+        assert!(control_html.contains(r#"data-readonly="""#));
+        assert!(control_html.contains(r#"data-invalid="""#));
+
+        let text_html = render(&item_text(false, &props, vec![], vec![text("List")]));
+        assert!(text_html.contains(r#"data-readonly="""#));
+        assert!(text_html.contains(r#"data-invalid="""#));
+
+        // item 系パーツは data-required を持たない（ark 表に無い）
+        assert!(!item_html.contains("data-required"));
+    }
+
+    #[test]
+    fn item_control_is_always_aria_hidden_without_radio_role() {
+        let html = render(&item_control(true, &SegmentGroupProps::default(), vec![]));
         assert!(html.contains(r#"data-part="item-control""#));
         assert!(html.contains(r#"data-state="checked""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
         assert!(!html.contains("role=\"radio\""));
         assert!(!html.contains("aria-checked"));
     }
 
     #[test]
     fn item_text_carries_state_and_children() {
-        let html = render(&item_text(false, false, vec![], vec![text("List")]));
+        let html = render(&item_text(
+            false,
+            &SegmentGroupProps::default(),
+            vec![],
+            vec![text("List")],
+        ));
         assert!(html.contains(r#"data-state="unchecked""#));
         assert!(html.contains("List"));
     }
 
     #[test]
+    fn hidden_input_outputs_required_and_aria_invalid_only_when_set() {
+        let props = SegmentGroupProps {
+            required: true,
+            invalid: true,
+            readonly: true,
+            ..Default::default()
+        };
+        let html = render(&item_hidden_input(
+            false,
+            &props,
+            Some("view"),
+            "list",
+            vec![],
+        ));
+        assert!(html.contains(r#"required="""#));
+        assert!(html.contains(r#"aria-invalid="true""#));
+        // readonly はネイティブ radio に反映しない
+        assert!(!html.contains("readonly"));
+
+        let default_html = render(&item_hidden_input(
+            false,
+            &SegmentGroupProps::default(),
+            Some("view"),
+            "grid",
+            vec![],
+        ));
+        assert!(!default_html.contains("required"));
+        assert!(!default_html.contains("aria-invalid"));
+    }
+
+    #[test]
     fn item_hidden_input_is_native_radio_with_presence_attrs() {
+        let disabled_props = SegmentGroupProps {
+            disabled: true,
+            ..Default::default()
+        };
         let checked = render(&item_hidden_input(
             true,
-            false,
+            &SegmentGroupProps::default(),
             Some("view"),
             "list",
             vec![],
@@ -485,7 +823,7 @@ mod tests {
 
         let unchecked_disabled = render(&item_hidden_input(
             false,
-            true,
+            &disabled_props,
             Some("view"),
             "grid",
             vec![],
@@ -494,13 +832,47 @@ mod tests {
         assert!(unchecked_disabled.contains(r#"disabled="""#));
     }
 
+    #[test]
+    fn no_part_outputs_pointer_or_focus_interaction_attrs() {
+        let node = root(
+            &SegmentGroupProps::default(),
+            None,
+            None,
+            vec![],
+            vec![
+                indicator(Some((0, 1)), &SegmentGroupProps::default(), None, vec![]),
+                item(
+                    true,
+                    &SegmentGroupProps::default(),
+                    "list",
+                    vec![],
+                    vec![
+                        item_hidden_input(
+                            true,
+                            &SegmentGroupProps::default(),
+                            Some("view"),
+                            "list",
+                            vec![],
+                        ),
+                        item_control(true, &SegmentGroupProps::default(), vec![]),
+                        item_text(true, &SegmentGroupProps::default(), vec![], vec![]),
+                    ],
+                ),
+            ],
+        );
+        let html = render(&node);
+        assert!(!html.contains("data-active"));
+        assert!(!html.contains("data-hover"));
+        assert!(!html.contains("data-focus"));
+    }
+
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---
 
     #[test]
     fn caller_attrs_cannot_override_anatomy_scope_and_part() {
         let html = render(&item(
             true,
-            false,
+            &SegmentGroupProps::default(),
             "list",
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
@@ -510,37 +882,62 @@ mod tests {
         assert!(!html.contains("attacker"));
     }
 
+    #[test]
+    fn caller_attrs_cannot_spoof_state_or_native_attrs() {
+        let html = render(&item_hidden_input(
+            false,
+            &SegmentGroupProps::default(),
+            Some("view"),
+            "list",
+            vec![
+                ("data-state", "checked"),
+                ("type", "text"),
+                ("checked", "checked"),
+                ("disabled", "disabled"),
+                ("required", "required"),
+                ("aria-invalid", "true"),
+            ],
+        ));
+        assert!(html.contains(r#"data-state="unchecked""#));
+        assert!(html.contains(r#"type="radio""#));
+        assert!(!html.contains(r#"checked="checked""#));
+        assert!(!html.contains("disabled"));
+        assert!(!html.contains("required"));
+        assert!(!html.contains("aria-invalid"));
+    }
+
     // --- root > indicator + item(item_control + item_text + item_hidden_input) の組み立て ---
 
     #[test]
     fn full_assembly_root_with_indicator_and_two_items() {
+        let props = SegmentGroupProps::default();
         let node = root(
-            false,
+            &props,
             None,
             None,
             vec![],
             vec![
-                indicator(Some((0, 2)), None, vec![]),
+                indicator(Some((0, 2)), &props, None, vec![]),
                 item(
                     true,
-                    false,
+                    &props,
                     "list",
                     vec![],
                     vec![
-                        item_hidden_input(true, false, Some("view"), "list", vec![]),
-                        item_control(true, false, vec![]),
-                        item_text(true, false, vec![], vec![text("List")]),
+                        item_hidden_input(true, &props, Some("view"), "list", vec![]),
+                        item_control(true, &props, vec![]),
+                        item_text(true, &props, vec![], vec![text("List")]),
                     ],
                 ),
                 item(
                     false,
-                    false,
+                    &props,
                     "grid",
                     vec![],
                     vec![
-                        item_hidden_input(false, false, Some("view"), "grid", vec![]),
-                        item_control(false, false, vec![]),
-                        item_text(false, false, vec![], vec![text("Grid")]),
+                        item_hidden_input(false, &props, Some("view"), "grid", vec![]),
+                        item_control(false, &props, vec![]),
+                        item_text(false, &props, vec![], vec![text("Grid")]),
                     ],
                 ),
             ],
@@ -552,17 +949,56 @@ mod tests {
                 r#"<span data-scope="segment-group" data-part="indicator" aria-hidden="true" data-state="checked" style="--fandhe-segment-group-index: 0; --fandhe-segment-group-count: 2;"></span>"#,
                 r#"<label data-scope="segment-group" data-part="item" data-state="checked" data-value="list">"#,
                 r#"<input data-scope="segment-group" data-part="item-hidden-input" type="radio" value="list" data-state="checked" name="view" checked="">"#,
-                r#"<span data-scope="segment-group" data-part="item-control" data-state="checked"></span>"#,
+                r#"<span data-scope="segment-group" data-part="item-control" data-state="checked" aria-hidden="true"></span>"#,
                 r#"<span data-scope="segment-group" data-part="item-text" data-state="checked">List</span>"#,
                 r#"</label>"#,
                 r#"<label data-scope="segment-group" data-part="item" data-state="unchecked" data-value="grid">"#,
                 r#"<input data-scope="segment-group" data-part="item-hidden-input" type="radio" value="grid" data-state="unchecked" name="view">"#,
-                r#"<span data-scope="segment-group" data-part="item-control" data-state="unchecked"></span>"#,
+                r#"<span data-scope="segment-group" data-part="item-control" data-state="unchecked" aria-hidden="true"></span>"#,
                 r#"<span data-scope="segment-group" data-part="item-text" data-state="unchecked">Grid</span>"#,
                 r#"</label>"#,
                 r#"</div>"#,
             )
         );
+    }
+
+    #[test]
+    fn reference_anatomy_part_names_match_ark_ui() {
+        let props = SegmentGroupProps::default();
+        let node = root(
+            &props,
+            None,
+            None,
+            vec![],
+            vec![
+                indicator(None, &props, None, vec![]),
+                item(
+                    false,
+                    &props,
+                    "list",
+                    vec![],
+                    vec![
+                        item_hidden_input(false, &props, Some("view"), "list", vec![]),
+                        item_control(false, &props, vec![]),
+                        item_text(false, &props, vec![], vec![]),
+                    ],
+                ),
+            ],
+        );
+        let html = render(&node);
+        for part in [
+            "root",
+            "indicator",
+            "item",
+            "item-hidden-input",
+            "item-control",
+            "item-text",
+        ] {
+            assert!(
+                html.contains(&format!(r#"data-part="{part}""#)),
+                "missing part: {part}"
+            );
+        }
     }
 
     // --- SegmentGroup: dispatch 統合（radio_group への委譲） ---
@@ -607,14 +1043,15 @@ mod tests {
     fn segment_group_convenience_methods_reflect_state() {
         let mut g = SegmentGroup::default();
         dispatch(&mut g, "select", "list");
+        let props = SegmentGroupProps::default();
 
-        let item_list = render(&g.item("list", false, vec![], vec![]));
+        let item_list = render(&g.item("list", &props, vec![], vec![]));
         assert!(item_list.contains(r#"data-state="checked""#));
 
-        let item_grid = render(&g.item("grid", false, vec![], vec![]));
+        let item_grid = render(&g.item("grid", &props, vec![], vec![]));
         assert!(item_grid.contains(r#"data-state="unchecked""#));
 
-        let input_list = render(&g.item_hidden_input("list", false, Some("view"), vec![]));
+        let input_list = render(&g.item_hidden_input("list", &props, Some("view"), vec![]));
         assert!(input_list.contains(r#"checked="""#));
     }
 
@@ -635,7 +1072,12 @@ mod tests {
         let mut g = SegmentGroup::default();
         dispatch(&mut g, "select", "grid");
 
-        let html = render(&g.indicator(&["list", "grid"], None, vec![]));
+        let html = render(&g.indicator(
+            &["list", "grid"],
+            &SegmentGroupProps::default(),
+            None,
+            vec![],
+        ));
         assert!(html.contains("--fandhe-segment-group-index: 1;"));
         assert!(html.contains("--fandhe-segment-group-count: 2;"));
     }
@@ -682,7 +1124,13 @@ mod tests {
 
     #[test]
     fn root_labelled_by_payload_is_escaped_on_render() {
-        let html = render(&root(false, None, Some(ATTR_BREAK_PAYLOAD), vec![], vec![]));
+        let html = render(&root(
+            &SegmentGroupProps::default(),
+            None,
+            Some(ATTR_BREAK_PAYLOAD),
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
@@ -691,7 +1139,7 @@ mod tests {
     fn item_hidden_input_name_and_value_payload_is_escaped_on_render() {
         let html = render(&item_hidden_input(
             false,
-            false,
+            &SegmentGroupProps::default(),
             Some(ATTR_BREAK_PAYLOAD),
             ATTR_BREAK_PAYLOAD,
             vec![],
@@ -703,7 +1151,7 @@ mod tests {
     #[test]
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
-            false,
+            &SegmentGroupProps::default(),
             None,
             None,
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
@@ -716,10 +1164,40 @@ mod tests {
     fn children_text_is_escaped_on_render() {
         let html = render(&item_text(
             false,
-            false,
+            &SegmentGroupProps::default(),
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn props_payload_is_escaped_via_root_and_item() {
+        // props 自体は動的文字列を持たないが、props 反映と同時に渡す
+        // 呼び出し側 attrs / children のエスケープが崩れないことを確認する
+        // （data_attrs 系ヘルパの追加が既存の既定エスケープ経路へ影響しない
+        // ことの回帰）。
+        let props = SegmentGroupProps {
+            disabled: true,
+            invalid: true,
+            required: true,
+            readonly: true,
+        };
+        let html = render(&root(
+            &props,
+            None,
+            None,
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![item(
+                false,
+                &props,
+                ATTR_BREAK_PAYLOAD,
+                vec![],
+                vec![text("<script>alert(1)</script>")],
+            )],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }

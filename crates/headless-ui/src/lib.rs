@@ -130,7 +130,10 @@
 //!   新設しない。固有に持つのは segment 用 anatomy と、選択項目の
 //!   `(index, count)` から CSS カスタムプロパティ 2 種を導出する
 //!   [`segment_group::indicator`] の SSR 決定的な位置表現のみ（詳細は
-//!   [`mod@segment_group`] module doc 参照）。
+//!   [`mod@segment_group`] module doc 参照）。[`segment_group::SegmentGroupProps`]
+//!   （`disabled`/`readonly`/`invalid`/`required`）が各パーツの `data-*`/
+//!   ARIA 属性を決定する（イシュー #1618 の ark-ui 参照突合で新設、
+//!   [`radio_group::RadioGroupProps`] と同じパート別反映契約）。
 //! - [`popover`]: Root / Trigger / Anchor / Positioner / Arrow / ArrowTip /
 //!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
@@ -779,7 +782,7 @@ pub use progress::{Progress, ProgressAction};
 pub use qr_code::{ErrorCorrectionLevel, QrEncodeError, QrMatrix};
 pub use radio_group::{RadioGroup, RadioGroupProps};
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingGroupProps, RatingItemFlags};
-pub use segment_group::SegmentGroup;
+pub use segment_group::{SegmentGroup, SegmentGroupProps};
 pub use signature_pad::{Point, SignaturePad, SignaturePadAction, Stroke, StrokeError};
 pub use slider::{Slider, SliderAction};
 pub use splitter::{PanelSpec, Splitter, SplitterAction};
