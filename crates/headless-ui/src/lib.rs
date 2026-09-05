@@ -559,9 +559,17 @@
 //!   検証する fail-closed 契約（[`date_input::DateInput::value`]）を持つ。
 //!   `date_input::segment_group` は [`mod@segment_group`]（segmented control）
 //!   とは無関係の別 anatomy スコープ（[`mod@date_input`] モジュール doc
-//!   参照）。granularity（時分秒）・range 選択・locale 依存整形・キーボード
-//!   操作の DOM 配線は本イシューのスコープ外（[`date_input`] モジュール doc
-//!   §スコープ外参照）。
+//!   参照）。granularity（時分秒）・range 選択・locale 依存整形は本イシューの
+//!   スコープ外（[`date_input`] モジュール doc §スコープ外参照）。イシュー
+//!   #1626 で ark-ui（zag.js `date-input` machine）の Data Attributes 表・
+//!   キーボード操作・WAI-ARIA と突合し、`DateInputProps`（旧
+//!   `DateSegmentFlags` を全パーツ共通の 4 フィールド版へ置換）・
+//!   `data-type`/`data-value`/`data-editable`/`data-placeholder-shown`
+//!   （旧 `data-placeholder`）・`data-focus`（control/segment-group）・
+//!   `role="group"`（segment-group）・wrap-around な Increment/Decrement・
+//!   PageUp/PageDown・Home/End・矢印キーによるセグメント間フォーカス移動・
+//!   Backspace を是正・追加した（キーボード操作の実 DOM 配線は引き続き
+//!   `fandhe-frontend-wasm-full` 側のスコープ外）。
 //! - [`mod@timer`]: Root / Area / Item / ItemValue / ItemLabel / Separator /
 //!   Control / ActionTrigger の 8 anatomy パーツと、idle/running/paused/
 //!   completed の 4 値状態機械 [`timer::Timer`]（イシュー #836、
@@ -743,7 +751,7 @@ pub use data_attrs::{
     data_incomplete, data_invalid, data_orientation, data_pressed, data_readonly, data_required,
     data_state, Orientation,
 };
-pub use date_input::{DateInput, DateInputAction, DateSegment, DateSegmentFlags};
+pub use date_input::{DateInput, DateInputAction, DateInputProps, DateSegment};
 pub use date_picker::{DatePicker, DatePickerAction};
 pub use dialog::Dialog;
 pub use drawer::{Drawer, DrawerPlacement};

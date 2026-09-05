@@ -1,5 +1,7 @@
 //! DateInput（年・月・日セグメント入力）headless コンポーネント
-//! （イシュー #834、親トラッキング #832）。
+//! （イシュー #834、親トラッキング #832。イシュー #1626 で ark-ui
+//! （zag.js `date-input` machine）の Data Attributes 表・キーボード操作・
+//! WAI-ARIA と突合し、`data-*` 語彙・dispatch 語彙を是正した）。
 //!
 //! ark-ui の DateInput 相当を、Root / Label / Control / SegmentGroup /
 //! Segment / HiddenInput の 6 anatomy パーツと、セグメントごとの値・
@@ -32,9 +34,11 @@
 //! メソッド（[`DateInput::root`]/[`DateInput::label`]/[`DateInput::control`]/
 //! [`DateInput::segment_group`]/[`DateInput::segment`]/[`DateInput::hidden_input`]）
 //! を呼んで組み立てる。CSR/hydration は [`DateInput`] を経由し、dispatch
-//! （`"increment"`/`"decrement"`/`"focus"`/`"set-segment"`/`"set"`/`"clear"`）
-//! で状態遷移する。`fandhe-frontend-pre-styled-ui` が本モジュールを呼んで
-//! スタイル済み DateInput を組み立てる想定である。
+//! （`"increment"`/`"decrement"`/`"page-increment"`/`"page-decrement"`/
+//! `"prev"`/`"next"`/`"home"`/`"end"`/`"backspace"`/`"focus"`/`"blur"`/
+//! `"set-segment"`/`"set"`/`"clear"`）で状態遷移する。
+//! `fandhe-frontend-pre-styled-ui` が本モジュールを呼んでスタイル済み
+//! DateInput を組み立てる想定である。
 //!
 //! # fail-closed な日付検証（受け入れ条件）
 //!
@@ -67,6 +71,38 @@
 //! - `focused`（キーボードフォーカス位置という ephemeral な DOM 状態）は
 //!   [`crate::pin_input::PinInput`] と同じ理由で hydration では運ばない。
 //!
+//! # 参考サイトとの意図的な差分（イシュー #1626）
+//!
+//! ark-ui（zag.js `date-input` machine、`packages/machines/date-input/src/
+//! date-input.connect.ts`/`date-input.machine.ts` を一次情報とした）との
+//! 突合で、以下は意図的に合わせなかった:
+//!
+//! - **`contenteditable`/`enterkeyhint`/`autocomplete`/`spellcheck`/
+//!   `autocorrect`**: zag はセグメントを `contenteditable` な要素として
+//!   実装するが、ハンドラ不在の静的 SSR でこれを付与すると状態機械の関知
+//!   しないテキスト変更をブラウザが許してしまう経路になる。DOM 編集挙動の
+//!   配線判断は `fandhe-frontend-wasm-full` 側に委ねる。
+//! - **未入力セグメントでの ArrowUp/Down 初期値**: zag は今日の日付
+//!   （`placeholderValue`）を基点にするが、本クレートは決定性優先で時計を
+//!   持たない。未入力 + Increment はその segment の最小値、未入力 +
+//!   Decrement は最大値（day は [`DateInput::day_max`]）から開始する
+//!   固定規則とする。
+//! - **数字キーの桁蓄積・自動前進**（zag `SEGMENT.INPUT`）: `"set-segment"`
+//!   を「1 セグメント分の値確定」primitive として維持し、配線側
+//!   （`fandhe-frontend-wasm-full`）が `"set-segment"` + `"next"` を合成する
+//!   契約とする。
+//! - **`aria-valuetext`**: `aria-valuenow` + プレースホルダテキストで代替する
+//!   （多くのスクリーンリーダーは `aria-valuenow` を読み上げる）。
+//! - **segment の `data-invalid`**: ark-ui の Data Attributes 表には無いが、
+//!   `aria-invalid` と対になる CSS フックとして上位互換で維持する。
+//! - **hidden-input の `required`/`readonly`/`form`**: `type="hidden"` の
+//!   ネイティブ制約検証は無意味なため付与しない
+//!   （`.claude/rules/coding-rust.md` §UI 部品の責務境界）。
+//! - **PAGE_STEP の値**: zag ソースから grep で確認できなかったため、
+//!   react-aria `useDateSegment` の値（year=5/month=2/day=7）を暫定値として
+//!   採用する（[`PAGE_STEP_YEAR`]/[`PAGE_STEP_MONTH`]/[`PAGE_STEP_DAY`] の
+//!   doc コメント参照。未検証の暫定値である旨を明記する）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`inputmode`/`tabindex`/`type`）は
@@ -76,10 +112,12 @@
 //! - 動的値（`name`/`id`/整形済みセグメント文字列/呼び出し側 `attrs`/
 //!   children）は [`fandhe_frontend_core::render`] の既定エスケープを
 //!   必ず経由する。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
-//! - dispatch `"set-segment"`/`"set"`/`"focus"` の payload はクライアント
-//!   由来の信頼できない入力として厳密パース + 範囲検証する
-//!   （[`DateInput::decode_action`]）。パース失敗・範囲外・未知セグメント名は
-//!   すべて no-op（fail-closed）。
+//! - 呼び出し側 `attrs` によるフレームワーク固定キー（`data-type`/
+//!   `data-value`/`data-focus` 等）のなりすましは [`drop_reserved`] で
+//!   除外する（状態機械の真値のみが出力される）。
+//! - dispatch payload はクライアント由来の信頼できない入力として厳密パース
+//!   および範囲検証する（[`DateInput::decode_action`]）。パース失敗・
+//!   範囲外・未知セグメント名・未知 dispatch 名はすべて no-op（fail-closed）。
 //! - hidden input の値は年月日 3 セグメントがすべて充足し、かつ
 //!   [`crate::date::PlainDate::new`] が受理する実在の日付であり、かつ
 //!   `min`/`max` の範囲内にあるときのみ ISO 8601 文字列として出力する
@@ -94,9 +132,14 @@
 //!   ISO 固定順のみを提供する）。
 //! - キーボード操作（ArrowUp/Down 等）の実 DOM 配線（他コンポーネント同様、
 //!   `fandhe-frontend-wasm-full` 側の後続責務）。
+//! - `placeholderValue`（呼び出し側が与える基準日）による未入力セグメント
+//!   初期化（イシュー #1626 では no-clock 固定規則を採用、上記参照）。
+//! - styled `pre-styled-ui::date_input::root` への `readonly`/`focused`
+//!   引数の露出（イシュー #1626、`crates/pre-styled-ui/src/date_input.rs`
+//!   モジュール doc 参照）。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::aria_invalid;
+use crate::aria::{aria_disabled, aria_invalid};
 use crate::data_attrs::{data_disabled, data_invalid, data_readonly};
 use crate::date::{days_in_month, DateError, PlainDate};
 use fandhe_frontend_core::Node;
@@ -105,13 +148,45 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR
 /// DateInput の anatomy（`data-scope="date-input"`）。
 const ANATOMY: Anatomy = anatomy("date-input");
 
-/// `data-placeholder` 存在属性。セグメントが未入力のときのみ出力する
+/// `data-placeholder-shown` 存在属性。セグメントが未入力のときのみ出力する
 /// （[`crate::data_attrs::data_disabled`] と同じ「存在で真を表す」規約）。
-/// DateInput 固有の語彙であるため、本モジュール内で個別に定義する
-/// （[`crate::pin_input`] の `data_complete` と同型の判断）。
-fn data_placeholder(placeholder: bool) -> Option<(&'static str, &'static str)> {
-    placeholder.then_some(("data-placeholder", ""))
+/// ark-ui の Data Attributes 表の語彙（`data-placeholder-shown`）に合わせる
+/// （イシュー #1626 で旧 `data-placeholder` から改名）。Themes 側 recipe の
+/// 追随は同一 PR 内で完了済み（`crates/pre-styled-ui/src/date_input.rs` の
+/// `"segment"` state・golden テスト `date_input_css.rs` を参照。イシュー
+/// #1469 への別途通知は不要）。DateInput 固有の語彙であるため、本モジュール
+/// 内で個別に定義する（[`crate::pin_input`] の `data_complete` と同型の
+/// 判断）。
+fn data_placeholder_shown(placeholder_shown: bool) -> Option<(&'static str, &'static str)> {
+    placeholder_shown.then_some(("data-placeholder-shown", ""))
 }
+
+/// `data-focus` 存在属性。zag の `SEGMENT_GROUP.BLUR`/`FOCUS` に伴う
+/// control/segment-group の状態表現（イシュー #1626）。[`crate::data_attrs`]
+/// には汎用の `data-focus`（`data-focus-visible` はあるが素の `data-focus`
+/// は無い）が無いため本モジュール内で個別に定義する。
+fn data_focus(focused: bool) -> Option<(&'static str, &'static str)> {
+    focused.then_some(("data-focus", ""))
+}
+
+/// `data-type` 属性。segment の種別（year/month/day）を CSS セレクタで
+/// 区別できるようにする ark-ui Data Attributes 表の語彙（イシュー #1626）。
+fn data_type(kind: DateSegment) -> (&'static str, &'static str) {
+    ("data-type", kind.as_str())
+}
+
+/// `data-value` 存在属性。segment に値が入っているときのみ出力する
+/// ark-ui Data Attributes 表の語彙（イシュー #1626）。値そのものは
+/// `aria-valuenow` が既に運ぶため、本属性は「値ありなし」の CSS フックに
+/// 限定し文字列を複製しない。
+fn data_value(has_value: bool) -> Option<(&'static str, &'static str)> {
+    has_value.then_some(("data-value", ""))
+}
+
+/// `data-editable` 存在属性。本クレートの segment は literal（区切り文字）
+/// パーツを持たず全 segment が編集可能なため常時付与する ark-ui
+/// Data Attributes 表の語彙（イシュー #1626）。
+const DATA_EDITABLE: (&str, &str) = ("data-editable", "");
 
 /// DateInput が扱う 3 種のセグメント（year/month/day、ISO 固定順）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -125,7 +200,8 @@ pub enum DateSegment {
 }
 
 impl DateSegment {
-    /// hydration・dispatch payload で使う固定語彙（小文字英字のみ）。
+    /// hydration・dispatch payload・`data-type` で使う固定語彙
+    /// （小文字英字のみ）。
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -166,19 +242,66 @@ impl DateSegment {
             Self::Day => "dd",
         }
     }
+
+    /// year→month→day の ISO 固定順における次のセグメント（day の次は
+    /// `None`、[`DateInputAction::Next`] が端で留まるために使う）。
+    #[must_use]
+    const fn next(self) -> Option<Self> {
+        match self {
+            Self::Year => Some(Self::Month),
+            Self::Month => Some(Self::Day),
+            Self::Day => None,
+        }
+    }
+
+    /// [`Self::next`] の逆順（[`DateInputAction::Prev`] 用）。
+    #[must_use]
+    const fn prev(self) -> Option<Self> {
+        match self {
+            Self::Year => None,
+            Self::Month => Some(Self::Year),
+            Self::Day => Some(Self::Month),
+        }
+    }
+}
+
+/// root/label/control/segment-group/segment 共通の状態束（ark-ui Data
+/// Attributes 表準拠、イシュー #1626）。旧 `DateSegmentFlags`（segment 専用・
+/// 3 フィールド）を全パーツ共通の 4 フィールド版へ置き換える
+/// （破壊的変更、互換 alias は置かない。[`crate::pin_input::PinInputProps`]
+/// への移行と同型の判断）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct DateInputProps {
+    /// 無効化状態。`true` で全パーツに `data-disabled` を、segment には
+    /// 追加で `aria-disabled="true"` を付与し `tabindex` を省略する。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で全パーツに `data-readonly` を、segment
+    /// には追加で `aria-readonly="true"` を付与する。
+    pub readonly: bool,
+    /// 入力検証エラー状態。`true` で全パーツに `data-invalid` を、segment
+    /// には追加で `aria-invalid="true"` を付与する（ark-ui の Data
+    /// Attributes 表には segment の `data-invalid` の記載は無いが、
+    /// `aria-invalid` と対になる CSS フックとして上位互換で維持する、
+    /// モジュール doc「参考サイトとの意図的な差分」参照）。
+    pub invalid: bool,
+    /// フォーカス状態。`true` で control/segment-group に `data-focus` を
+    /// 付与する（root/label/segment はこのフラグを無視する。zag の
+    /// `SEGMENT_GROUP.FOCUS`/`BLUR` に対応する control 単位の状態のため）。
+    pub focused: bool,
 }
 
 /// Root パーツ（`div`）。
 #[must_use]
 pub fn root<'a>(
-    disabled: bool,
-    invalid: bool,
+    props: DateInputProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    merged.extend(data_disabled(disabled));
-    merged.extend(data_invalid(invalid));
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
+    merged.extend(data_invalid(props.invalid));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
@@ -188,18 +311,19 @@ pub fn root<'a>(
 /// と同じ契約）。
 #[must_use]
 pub fn label<'a>(
-    disabled: bool,
-    invalid: bool,
+    props: DateInputProps,
     control_id: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
     if let Some(id) = control_id {
         merged.push(("for", id));
     }
-    merged.extend(data_disabled(disabled));
-    merged.extend(data_invalid(invalid));
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
+    merged.extend(data_invalid(props.invalid));
     merged.extend(attrs);
     ANATOMY.part("label", "label", merged, children)
 }
@@ -207,46 +331,96 @@ pub fn label<'a>(
 /// Control パーツ（`div`）。[`segment_group`] と [`hidden_input`] のラッパー。
 #[must_use]
 pub fn control<'a>(
-    disabled: bool,
-    invalid: bool,
+    props: DateInputProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, FOCUSABLE_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    merged.extend(data_disabled(disabled));
-    merged.extend(data_invalid(invalid));
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
+    merged.extend(data_invalid(props.invalid));
+    merged.extend(data_focus(props.focused));
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
 }
 
 /// SegmentGroup パーツ（`div`）。Year/Month/Day の [`segment`] を並べる
-/// コンテナ（装飾用パーツ、状態を持たない）。
+/// コンテナ。`role="group"` を固定付与する（zag の `getSegmentGroupProps`
+/// 準拠、イシュー #1626）。`aria-labelledby` は呼び出し側が `attrs` 経由で
+/// [`label`] の id を配線する契約とする（本関数に id 引数は新設しない）。
 #[must_use]
 pub fn segment_group<'a>(
-    disabled: bool,
-    invalid: bool,
+    props: DateInputProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    merged.extend(data_disabled(disabled));
-    merged.extend(data_invalid(invalid));
+    let attrs = drop_reserved(attrs, SEGMENT_GROUP_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![("role", "group")];
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_readonly(props.readonly));
+    merged.extend(data_invalid(props.invalid));
+    merged.extend(data_focus(props.focused));
     merged.extend(attrs);
     ANATOMY.part("segment-group", "div", merged, children)
 }
 
-/// [`segment`]/[`DateInput::segment`] が受け取る disabled/invalid/readonly
-/// フラグ束。3 個の独立した `bool` 引数のままだと他の引数と合わせて clippy
-/// `too_many_arguments`（既定閾値 7）を超えるため、
-/// [`crate::number_input::NumberInputFlags`] と同型の薄い構造体としてまとめる。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct DateSegmentFlags {
-    /// `data-disabled` を付与し、`tabindex` を出力しないかどうか。
-    pub disabled: bool,
-    /// `aria-invalid="true"`・`data-invalid` を付与するかどうか。
-    pub invalid: bool,
-    /// `data-readonly` を付与するかどうか。
-    pub readonly: bool,
+/// [`root`]/[`label`] が固定付与するキー一覧（[`crate::pin_input::ROOT_RESERVED`]
+/// と同型のパターン）。
+const ROOT_RESERVED: &[&str] = &["data-disabled", "data-readonly", "data-invalid"];
+
+/// [`control`] が固定付与するキー一覧（[`ROOT_RESERVED`] に `data-focus` を
+/// 加えたもの）。
+const FOCUSABLE_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-readonly",
+    "data-invalid",
+    "data-focus",
+];
+
+/// [`segment_group`] が固定付与するキー一覧（[`FOCUSABLE_RESERVED`] に
+/// `role` を加えたもの）。
+const SEGMENT_GROUP_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-readonly",
+    "data-invalid",
+    "data-focus",
+    "role",
+];
+
+/// [`segment`] が固定付与するキー一覧。
+const SEGMENT_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-readonly",
+    "data-invalid",
+    "data-type",
+    "data-value",
+    "data-editable",
+    "data-placeholder-shown",
+    "aria-invalid",
+    "aria-readonly",
+    "aria-disabled",
+    "aria-valuenow",
+    "aria-valuemin",
+    "aria-valuemax",
+    "aria-label",
+    "role",
+    "tabindex",
+    "inputmode",
+];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::pin_input::drop_reserved`]/
+/// [`crate::color_picker::drop_reserved`] と同型の重複実装。モジュール間の
+/// 相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
 }
 
 /// Segment パーツ（`div role="spinbutton"`）。年/月/日 1 個分の編集可能単位。
@@ -254,7 +428,7 @@ pub struct DateSegmentFlags {
 /// WAI-ARIA `spinbutton` パターンに従い `aria-valuemin`/`aria-valuemax` を
 /// 常に出力し、`aria-valuenow` は `value` が `Some` のときのみ出力する
 /// （[`crate::number_input::input`] と同じ方針）。未入力時は
-/// [`DateSegment::placeholder`] をテキストとして表示し `data-placeholder`
+/// [`DateSegment::placeholder`] をテキストとして表示し `data-placeholder-shown`
 /// を付与する。
 #[must_use]
 pub fn segment<'a>(
@@ -262,29 +436,39 @@ pub fn segment<'a>(
     value: Option<&'a str>,
     min: &'a str,
     max: &'a str,
-    flags: DateSegmentFlags,
+    props: DateInputProps,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, SEGMENT_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![
         ("role", "spinbutton"),
         ("inputmode", "numeric"),
         ("aria-label", kind.aria_label()),
         ("aria-valuemin", min),
         ("aria-valuemax", max),
+        data_type(kind),
+        DATA_EDITABLE,
     ];
     if let Some(v) = value {
         merged.push(("aria-valuenow", v));
     }
-    if !flags.disabled {
+    if !props.disabled {
         merged.push(("tabindex", "0"));
     }
-    if flags.invalid {
+    if props.invalid {
         merged.push(aria_invalid(true));
     }
-    merged.extend(data_disabled(flags.disabled));
-    merged.extend(data_invalid(flags.invalid));
-    merged.extend(data_readonly(flags.readonly));
-    merged.extend(data_placeholder(value.is_none()));
+    if props.readonly {
+        merged.push(("aria-readonly", "true"));
+    }
+    if props.disabled {
+        merged.push(aria_disabled(true));
+    }
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_invalid(props.invalid));
+    merged.extend(data_readonly(props.readonly));
+    merged.extend(data_value(value.is_some()));
+    merged.extend(data_placeholder_shown(value.is_none()));
     merged.extend(attrs);
     let text_content = fandhe_frontend_core::text(value.unwrap_or(kind.placeholder()));
     ANATOMY.part("segment", "div", merged, vec![text_content])
@@ -293,7 +477,9 @@ pub fn segment<'a>(
 /// HiddenInput パーツ（`input type="hidden"`）。フォーム送信時に確定済み
 /// 日付を ISO 8601 文字列として運ぶ（各 [`segment`] は `name` を持たない
 /// ため、実際の送信値はこのパーツが唯一担う。[`crate::pin_input::hidden_input`]
-/// と同型の契約）。
+/// と同型の契約）。`required`/`readonly`/`form` はネイティブ属性として
+/// 付与しない（`type="hidden"` の制約検証は無意味、モジュール doc「参考
+/// サイトとの意図的な差分」参照）。
 #[must_use]
 pub fn hidden_input<'a>(
     name: &'a str,
@@ -311,16 +497,56 @@ pub fn hidden_input<'a>(
     ANATOMY.part("hidden-input", "input", merged, Vec::new())
 }
 
+/// PageUp/PageDown（[`DateInputAction::PageIncrement`]/[`PageDecrement`]）
+/// のステップ幅。zag ソース（`packages/machines/date-input/src/`）から
+/// `PAGE_STEP` を確認できなかったため、react-aria `useDateSegment` の値を
+/// 暫定値として採用する（**未検証**、イシュー #1626 差分メモ参照）。
+const PAGE_STEP_YEAR: i32 = 5;
+/// [`PAGE_STEP_YEAR`] 参照（月、暫定値）。
+const PAGE_STEP_MONTH: i32 = 2;
+/// [`PAGE_STEP_YEAR`] 参照（日、暫定値）。
+const PAGE_STEP_DAY: i32 = 7;
+
 /// [`DateInput`] に対する型付きアクション（WASM 境界の文字列 dispatch と
-/// [`DateInput::decode_action`] で接続する）。
+/// [`DateInput::decode_action`] で接続する）。ark-ui/zag のキーボード操作
+/// 語彙との突合（イシュー #1626）で `PageIncrement`/`PageDecrement`/`Prev`/
+/// `Next`/`Home`/`End`/`Backspace`/`Blur` を追加し、`Increment`/`Decrement`
+/// は境界での挙動を clamp から wrap-around へ変更した。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DateInputAction {
     /// 現在フォーカス中のセグメントを 1 つ増やす（未フォーカスなら no-op）。
+    /// 境界では wrap-around する（例: year 9999→0）。未入力なら最小値から
+    /// 開始する（モジュール doc「参考サイトとの意図的な差分」参照）。
     Increment,
-    /// 現在フォーカス中のセグメントを 1 つ減らす（未フォーカスなら no-op）。
+    /// [`Self::Increment`] の逆方向（境界では wrap-around、未入力なら
+    /// 最大値から開始）。
     Decrement,
+    /// [`Self::Increment`] を `PAGE_STEP`（[`PAGE_STEP_YEAR`] 等）分まとめて
+    /// 行う。境界では wrap せず clamp する。
+    PageIncrement,
+    /// [`Self::PageIncrement`] の逆方向。
+    PageDecrement,
+    /// フォーカス中のセグメントを最小値へ設定する（未フォーカスなら
+    /// no-op）。
+    Home,
+    /// フォーカス中のセグメントを最大値（day は当該年月の日数）へ設定する
+    /// （未フォーカスなら no-op）。
+    End,
+    /// フォーカスを 1 つ前のセグメント（year←month←day）へ移す（year で
+    /// 留まる。未フォーカスなら no-op）。
+    Prev,
+    /// フォーカスを 1 つ後のセグメント（year→month→day）へ移す（day で
+    /// 留まる。未フォーカスなら no-op）。
+    Next,
+    /// フォーカス中のセグメントに値があれば未入力へ戻し留まる。既に
+    /// 未入力なら 1 つ前のセグメントへフォーカスを移す（zag
+    /// `SEGMENT.BACKSPACE`。Delete キーも同一 dispatch にマップする配線側
+    /// 契約とする。未フォーカスなら no-op）。
+    Backspace,
     /// 指定セグメントへフォーカスを移す。
     Focus(DateSegment),
+    /// フォーカスを解除する（`data-focus` を消灯する）。
+    Blur,
     /// 指定セグメントへ値を直接設定する（クランプ済み）。
     SetSegment(DateSegment, i32),
     /// ISO 8601 文字列（[`PlainDate::parse_iso`] で検証済み）を丸ごと設定する。
@@ -515,15 +741,104 @@ impl DateInput {
         }
     }
 
+    /// フォーカス中セグメントの構造的下限。
+    fn segment_min(&self, kind: DateSegment) -> i32 {
+        match kind {
+            DateSegment::Year => 0,
+            DateSegment::Month => 1,
+            DateSegment::Day => 1,
+        }
+    }
+
+    /// フォーカス中セグメントの構造的上限。
+    fn segment_max(&self, kind: DateSegment) -> i32 {
+        match kind {
+            DateSegment::Year => 9999,
+            DateSegment::Month => 12,
+            DateSegment::Day => i32::from(self.day_max()),
+        }
+    }
+
+    /// 指定セグメントの現在値（未入力は `None`）。
+    fn segment_value(&self, kind: DateSegment) -> Option<i32> {
+        match kind {
+            DateSegment::Year => self.year,
+            DateSegment::Month => self.month.map(i32::from),
+            DateSegment::Day => self.day.map(i32::from),
+        }
+    }
+
+    /// 指定セグメントへ構造的値域にクランプした値を設定する。
+    fn set_segment_value(&mut self, kind: DateSegment, value: i32) {
+        match kind {
+            DateSegment::Year => self.year = Some(clamp_year(value)),
+            DateSegment::Month => self.month = Some(clamp_month(value)),
+            DateSegment::Day => {
+                let max = i32::from(self.day_max());
+                self.day = Some(value.clamp(1, max) as u8);
+            }
+        }
+    }
+
+    /// [`DateInputAction::Increment`]/[`Decrement`] の wrap-around 演算。
+    /// 未入力の場合は「参考サイトとの意図的な差分」の no-clock 規則に従い、
+    /// 増加方向は最小値、減少方向は最大値から開始する。
+    ///
+    /// 本コンポーネントは構造的に無効な日付（例: 2024-02-30）を意図的に
+    /// 保持し得る（モジュール doc 参照）ため、`base` が `[lo, hi]` の
+    /// 外側にある場合が起こり得る。剰余演算はこの前提が崩れると破綻する
+    /// （例: `hi=29` に対し `base=30` で increment すると `base` 自身を
+    /// 指してしまい `30 -> 2` のような直感に反する結果になる）ため、
+    /// 範囲外の `base` は Ark UI DateInput / react-aria DateField の
+    /// 挙動に合わせて increment 時は先頭（`lo`）、decrement 時は末尾
+    /// （`hi`）へ wrap する早期分岐を設ける。範囲内は従来どおり剰余で
+    /// wrap する。
+    fn step_wrapping(&mut self, kind: DateSegment, delta: i32) {
+        let lo = self.segment_min(kind);
+        let hi = self.segment_max(kind);
+        let span = hi - lo + 1;
+        let next = match self.segment_value(kind) {
+            Some(base) if base < lo || base > hi => {
+                if delta > 0 {
+                    lo
+                } else {
+                    hi
+                }
+            }
+            Some(base) => {
+                let offset = base - lo + delta;
+                lo + offset.rem_euclid(span)
+            }
+            None if delta > 0 => lo,
+            None => hi,
+        };
+        self.set_segment_value(kind, next);
+    }
+
+    /// [`DateInputAction::PageIncrement`]/[`PageDecrement`] の clamp 演算
+    /// （境界を越えても wrap しない）。未入力時の初期化規則は
+    /// [`Self::step_wrapping`] と同じ。
+    fn step_clamping(&mut self, kind: DateSegment, delta: i32) {
+        let lo = self.segment_min(kind);
+        let hi = self.segment_max(kind);
+        let next = match self.segment_value(kind) {
+            Some(base) => (base + delta).clamp(lo, hi),
+            None if delta > 0 => lo,
+            None => hi,
+        };
+        self.set_segment_value(kind, next);
+    }
+
     /// [`root`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn root<'a>(
         &self,
         disabled: bool,
+        readonly: bool,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        root(disabled, self.is_invalid(), attrs, children)
+        root(self.props(disabled, readonly), attrs, children)
     }
 
     /// [`label`] へ現在の状態を注入する利便メソッド。
@@ -531,11 +846,12 @@ impl DateInput {
     pub fn label<'a>(
         &self,
         disabled: bool,
+        readonly: bool,
         control_id: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        label(disabled, self.is_invalid(), control_id, attrs, children)
+        label(self.props(disabled, readonly), control_id, attrs, children)
     }
 
     /// [`control`] へ現在の状態を注入する利便メソッド。
@@ -543,10 +859,11 @@ impl DateInput {
     pub fn control<'a>(
         &self,
         disabled: bool,
+        readonly: bool,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        control(disabled, self.is_invalid(), attrs, children)
+        control(self.props(disabled, readonly), attrs, children)
     }
 
     /// [`segment_group`] へ現在の状態を注入する利便メソッド。
@@ -554,10 +871,11 @@ impl DateInput {
     pub fn segment_group<'a>(
         &self,
         disabled: bool,
+        readonly: bool,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        segment_group(disabled, self.is_invalid(), attrs, children)
+        segment_group(self.props(disabled, readonly), attrs, children)
     }
 
     /// [`segment`] へ現在の状態を注入する利便メソッド。`readonly` は
@@ -571,21 +889,17 @@ impl DateInput {
         readonly: bool,
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
-        let flags = DateSegmentFlags {
-            disabled,
-            invalid: self.is_invalid(),
-            readonly,
-        };
+        let props = self.props(disabled, readonly);
         match kind {
             DateSegment::Year => {
-                segment(kind, self.year_text().as_deref(), "0", "9999", flags, attrs)
+                segment(kind, self.year_text().as_deref(), "0", "9999", props, attrs)
             }
             DateSegment::Month => {
-                segment(kind, self.month_text().as_deref(), "1", "12", flags, attrs)
+                segment(kind, self.month_text().as_deref(), "1", "12", props, attrs)
             }
             DateSegment::Day => {
                 let max = self.day_max().to_string();
-                segment(kind, self.day_text().as_deref(), "1", &max, flags, attrs)
+                segment(kind, self.day_text().as_deref(), "1", &max, props, attrs)
             }
         }
     }
@@ -602,6 +916,18 @@ impl DateInput {
         let value = self.value().map(|d| d.to_iso_string()).unwrap_or_default();
         hidden_input(name, &value, disabled, attrs)
     }
+
+    /// 呼び出し側指定の `disabled`/`readonly` と、状態機械が導出する
+    /// `invalid`/`focused` を合成して [`DateInputProps`] を組み立てる
+    /// （各パーツ利便メソッドの共通経路）。
+    fn props(&self, disabled: bool, readonly: bool) -> DateInputProps {
+        DateInputProps {
+            disabled,
+            readonly,
+            invalid: self.is_invalid(),
+            focused: self.focused.is_some(),
+        }
+    }
 }
 
 impl Component for DateInput {
@@ -610,51 +936,81 @@ impl Component for DateInput {
     fn update(&mut self, action: DateInputAction) {
         match action {
             DateInputAction::Increment => {
-                let Some(kind) = self.focused else { return };
-                match kind {
-                    DateSegment::Year => {
-                        let base = self.year.unwrap_or(0);
-                        self.year = Some(clamp_year(base.saturating_add(1)));
-                    }
-                    DateSegment::Month => {
-                        let base = i32::from(self.month.unwrap_or(1));
-                        self.month = Some(clamp_month(base.saturating_add(1)));
-                    }
-                    DateSegment::Day => {
-                        let base = i32::from(self.day.unwrap_or(1));
-                        let max = i32::from(self.day_max());
-                        self.day = Some(base.saturating_add(1).min(max).max(1) as u8);
-                    }
+                if let Some(kind) = self.focused {
+                    self.step_wrapping(kind, 1);
                 }
             }
             DateInputAction::Decrement => {
-                let Some(kind) = self.focused else { return };
-                match kind {
-                    DateSegment::Year => {
-                        let base = self.year.unwrap_or(9999);
-                        self.year = Some(clamp_year(base.saturating_sub(1)));
+                if let Some(kind) = self.focused {
+                    self.step_wrapping(kind, -1);
+                }
+            }
+            DateInputAction::PageIncrement => {
+                if let Some(kind) = self.focused {
+                    let step = match kind {
+                        DateSegment::Year => PAGE_STEP_YEAR,
+                        DateSegment::Month => PAGE_STEP_MONTH,
+                        DateSegment::Day => PAGE_STEP_DAY,
+                    };
+                    self.step_clamping(kind, step);
+                }
+            }
+            DateInputAction::PageDecrement => {
+                if let Some(kind) = self.focused {
+                    let step = match kind {
+                        DateSegment::Year => PAGE_STEP_YEAR,
+                        DateSegment::Month => PAGE_STEP_MONTH,
+                        DateSegment::Day => PAGE_STEP_DAY,
+                    };
+                    self.step_clamping(kind, -step);
+                }
+            }
+            DateInputAction::Home => {
+                if let Some(kind) = self.focused {
+                    let lo = self.segment_min(kind);
+                    self.set_segment_value(kind, lo);
+                }
+            }
+            DateInputAction::End => {
+                if let Some(kind) = self.focused {
+                    let hi = self.segment_max(kind);
+                    self.set_segment_value(kind, hi);
+                }
+            }
+            DateInputAction::Prev => {
+                if let Some(kind) = self.focused {
+                    if let Some(prev) = kind.prev() {
+                        self.focused = Some(prev);
                     }
-                    DateSegment::Month => {
-                        let base = i32::from(self.month.unwrap_or(12));
-                        self.month = Some(clamp_month(base.saturating_sub(1)));
+                }
+            }
+            DateInputAction::Next => {
+                if let Some(kind) = self.focused {
+                    if let Some(next) = kind.next() {
+                        self.focused = Some(next);
                     }
-                    DateSegment::Day => {
-                        let base = i32::from(self.day.unwrap_or(self.day_max()));
-                        self.day = Some(base.saturating_sub(1).max(1) as u8);
+                }
+            }
+            DateInputAction::Backspace => {
+                if let Some(kind) = self.focused {
+                    if self.segment_value(kind).is_some() {
+                        match kind {
+                            DateSegment::Year => self.year = None,
+                            DateSegment::Month => self.month = None,
+                            DateSegment::Day => self.day = None,
+                        }
+                    } else if let Some(prev) = kind.prev() {
+                        self.focused = Some(prev);
                     }
                 }
             }
             DateInputAction::Focus(kind) => {
                 self.focused = Some(kind);
             }
-            DateInputAction::SetSegment(kind, value) => match kind {
-                DateSegment::Year => self.year = Some(clamp_year(value)),
-                DateSegment::Month => self.month = Some(clamp_month(value)),
-                DateSegment::Day => {
-                    let max = i32::from(self.day_max());
-                    self.day = Some(value.clamp(1, max) as u8);
-                }
-            },
+            DateInputAction::Blur => {
+                self.focused = None;
+            }
+            DateInputAction::SetSegment(kind, value) => self.set_segment_value(kind, value),
             DateInputAction::Set(date) => {
                 self.year = Some(date.year());
                 self.month = Some(date.month());
@@ -674,25 +1030,36 @@ impl Component for DateInput {
     fn view(&self) -> Node {
         self.root(
             false,
+            false,
             Vec::new(),
             vec![self.control(
                 false,
+                false,
                 Vec::new(),
-                vec![self.segment_group(false, Vec::new(), Vec::new())],
+                vec![self.segment_group(false, false, Vec::new(), Vec::new())],
             )],
         )
     }
 
-    /// `"increment"`/`"decrement"`: payload 不使用。`"focus"`: payload は
-    /// [`DateSegment::parse`] で厳密パース。`"set-segment"`: payload は
-    /// `"<kind>:<value>"` 形式（例 `"year:2026"`）でパースし、未知
-    /// kind・非整数値は `None`（fail-closed、dispatch は no-op）。`"set"`:
-    /// payload を [`PlainDate::parse_iso`] で厳密検証。`"clear"`: payload
-    /// 不使用。
+    /// `"increment"`/`"decrement"`/`"page-increment"`/`"page-decrement"`/
+    /// `"home"`/`"end"`/`"prev"`/`"next"`/`"backspace"`/`"blur"`: payload
+    /// 不使用。`"focus"`: payload は [`DateSegment::parse`] で厳密パース。
+    /// `"set-segment"`: payload は `"<kind>:<value>"` 形式（例
+    /// `"year:2026"`）でパースし、未知 kind・非整数値は `None`
+    /// （fail-closed、dispatch は no-op）。`"set"`: payload を
+    /// [`PlainDate::parse_iso`] で厳密検証。`"clear"`: payload不使用。
     fn decode_action(name: &str, payload: &str) -> Option<DateInputAction> {
         match name {
             "increment" => Some(DateInputAction::Increment),
             "decrement" => Some(DateInputAction::Decrement),
+            "page-increment" => Some(DateInputAction::PageIncrement),
+            "page-decrement" => Some(DateInputAction::PageDecrement),
+            "home" => Some(DateInputAction::Home),
+            "end" => Some(DateInputAction::End),
+            "prev" => Some(DateInputAction::Prev),
+            "next" => Some(DateInputAction::Next),
+            "backspace" => Some(DateInputAction::Backspace),
+            "blur" => Some(DateInputAction::Blur),
             "focus" => DateSegment::parse(payload).map(DateInputAction::Focus),
             "set-segment" => {
                 let (kind_s, value_s) = payload.split_once(':')?;
@@ -832,25 +1199,35 @@ mod tests {
 
     #[test]
     fn root_outputs_scope_and_part() {
-        let html = render(&root(false, false, vec![], vec![]));
+        let html = render(&root(DateInputProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="date-input""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("data-disabled"));
         assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-readonly"));
     }
 
     #[test]
-    fn root_disabled_invalid_true_adds_data_attrs() {
-        let html = render(&root(true, true, vec![], vec![]));
+    fn root_disabled_invalid_readonly_true_adds_data_attrs() {
+        let html = render(&root(
+            DateInputProps {
+                disabled: true,
+                readonly: true,
+                invalid: true,
+                focused: false,
+            },
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-disabled="""#));
         assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
     }
 
     #[test]
     fn label_outputs_for_when_control_id_given() {
         let html = render(&label(
-            false,
-            false,
+            DateInputProps::default(),
             Some("dob"),
             vec![],
             vec![text("Date of birth")],
@@ -862,10 +1239,27 @@ mod tests {
 
     #[test]
     fn control_and_segment_group_output_scope_and_part() {
-        let html = render(&control(false, false, vec![], vec![]));
+        let html = render(&control(DateInputProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-part="control""#));
-        let html = render(&segment_group(false, false, vec![], vec![]));
+        let html = render(&segment_group(DateInputProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-part="segment-group""#));
+        assert!(html.contains(r#"role="group""#));
+    }
+
+    #[test]
+    fn control_and_segment_group_reflect_focused_as_data_focus() {
+        let props = DateInputProps {
+            focused: true,
+            ..DateInputProps::default()
+        };
+        let html = render(&control(props, vec![], vec![]));
+        assert!(html.contains(r#"data-focus="""#));
+        let html = render(&segment_group(props, vec![], vec![]));
+        assert!(html.contains(r#"data-focus="""#));
+
+        // root/label は focused を無視する（モジュール doc 参照）。
+        let html = render(&root(props, vec![], vec![]));
+        assert!(!html.contains("data-focus"));
     }
 
     #[test]
@@ -875,7 +1269,7 @@ mod tests {
             None,
             "0",
             "9999",
-            DateSegmentFlags::default(),
+            DateInputProps::default(),
             vec![],
         ));
         assert!(html.contains(r#"data-scope="date-input""#));
@@ -886,41 +1280,47 @@ mod tests {
         assert!(html.contains(r#"aria-valuemin="0""#));
         assert!(html.contains(r#"aria-valuemax="9999""#));
         assert!(!html.contains("aria-valuenow"));
-        assert!(html.contains(r#"data-placeholder="""#));
+        assert!(html.contains(r#"data-placeholder-shown="""#));
+        assert!(html.contains(r#"data-type="year""#));
+        assert!(html.contains(r#"data-editable="""#));
+        assert!(!html.contains("data-value"));
         assert!(html.contains("yyyy"));
     }
 
     #[test]
-    fn segment_outputs_valuenow_and_no_placeholder_when_some() {
+    fn segment_outputs_valuenow_and_data_value_when_some() {
         let html = render(&segment(
             DateSegment::Month,
             Some("07"),
             "1",
             "12",
-            DateSegmentFlags::default(),
+            DateInputProps::default(),
             vec![],
         ));
         assert!(html.contains(r#"aria-valuenow="07""#));
-        assert!(!html.contains("data-placeholder"));
+        assert!(!html.contains("data-placeholder-shown"));
+        assert!(html.contains(r#"data-value="""#));
+        assert!(html.contains(r#"data-type="month""#));
         assert!(html.contains("07"));
         assert!(html.contains(r#"aria-label="Month""#));
     }
 
     #[test]
-    fn segment_disabled_omits_tabindex_and_adds_data_disabled() {
+    fn segment_disabled_omits_tabindex_and_adds_data_and_aria_disabled() {
         let html = render(&segment(
             DateSegment::Day,
             None,
             "1",
             "31",
-            DateSegmentFlags {
+            DateInputProps {
                 disabled: true,
-                ..DateSegmentFlags::default()
+                ..DateInputProps::default()
             },
             vec![],
         ));
         assert!(!html.contains("tabindex"));
         assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
     }
 
     #[test]
@@ -930,10 +1330,11 @@ mod tests {
             None,
             "1",
             "31",
-            DateSegmentFlags::default(),
+            DateInputProps::default(),
             vec![],
         ));
         assert!(html.contains(r#"tabindex="0""#));
+        assert!(!html.contains("aria-disabled"));
     }
 
     #[test]
@@ -943,9 +1344,9 @@ mod tests {
             Some("30"),
             "1",
             "31",
-            DateSegmentFlags {
+            DateInputProps {
                 invalid: true,
-                ..DateSegmentFlags::default()
+                ..DateInputProps::default()
             },
             vec![],
         ));
@@ -954,19 +1355,20 @@ mod tests {
     }
 
     #[test]
-    fn segment_readonly_adds_data_readonly() {
+    fn segment_readonly_adds_data_readonly_and_aria_readonly() {
         let html = render(&segment(
             DateSegment::Day,
             None,
             "1",
             "31",
-            DateSegmentFlags {
+            DateInputProps {
                 readonly: true,
-                ..DateSegmentFlags::default()
+                ..DateInputProps::default()
             },
             vec![],
         ));
         assert!(html.contains(r#"data-readonly="""#));
+        assert!(html.contains(r#"aria-readonly="true""#));
     }
 
     #[test]
@@ -976,6 +1378,8 @@ mod tests {
         assert!(html.contains(r#"type="hidden""#));
         assert!(html.contains(r#"name="dob""#));
         assert!(html.contains(r#"value="2026-07-22""#));
+        assert!(!html.contains("required"));
+        assert!(!html.contains(r#"readonly"#));
     }
 
     #[test]
@@ -985,19 +1389,57 @@ mod tests {
         assert!(html.contains(r#"data-disabled="""#));
     }
 
-    // --- Anatomy::part fail-closed 回帰 ---
+    // --- Anatomy::part / drop_reserved fail-closed 回帰 ---
 
     #[test]
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&root(
-            false,
-            false,
+            DateInputProps::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
         assert!(html.contains(r#"data-scope="date-input""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn caller_supplied_reserved_keys_cannot_impersonate_real_state() {
+        // disabled/invalid/readonly/focused = false のはずが、呼び出し側
+        // attrs で偽装した data-* / aria-* は drop_reserved により除外される
+        // （イシュー #1626）。
+        let html = render(&segment(
+            DateSegment::Year,
+            None,
+            "0",
+            "9999",
+            DateInputProps::default(),
+            vec![
+                ("data-type", "month"),
+                ("data-value", ""),
+                ("aria-invalid", "true"),
+                ("aria-valuenow", "9999"),
+            ],
+        ));
+        assert!(html.contains(r#"data-type="year""#));
+        assert!(!html.contains(r#"data-type="month""#));
+        assert!(!html.contains("data-value"));
+        assert!(!html.contains("aria-invalid"));
+        assert!(!html.contains("aria-valuenow"));
+
+        let html = render(&control(
+            DateInputProps::default(),
+            vec![("data-focus", "")],
+            vec![],
+        ));
+        assert!(!html.contains("data-focus"));
+
+        let html = render(&segment_group(
+            DateInputProps::default(),
+            vec![("role", "listbox")],
+            vec![],
+        ));
+        assert!(html.contains(r#"role="group""#));
     }
 
     // --- DateSegment ---
@@ -1086,7 +1528,7 @@ mod tests {
         assert!(!d.is_invalid());
     }
 
-    // --- dispatch 統合 ---
+    // --- dispatch 統合: increment/decrement (wrap-around) ---
 
     #[test]
     fn increment_decrement_are_no_op_without_focus() {
@@ -1103,37 +1545,55 @@ mod tests {
         assert!(dispatch(&mut d, "focus", "month"));
         assert_eq!(d.focused(), Some(DateSegment::Month));
         assert!(dispatch(&mut d, "increment", ""));
-        assert_eq!(d.month(), Some(2));
+        // 未入力 + Increment はその segment の最小値から開始する
+        // （no-clock 規則、モジュール doc「参考サイトとの意図的な差分」参照）。
+        assert_eq!(d.month(), Some(1));
         assert_eq!(d.year(), None);
         assert_eq!(d.day(), None);
     }
 
     #[test]
-    fn increment_clamps_at_segment_boundaries() {
+    fn increment_wraps_around_at_segment_upper_bound() {
         let mut d = DateInput::new(Some(9999), Some(12), Some(31), None, None);
         dispatch(&mut d, "focus", "year");
         dispatch(&mut d, "increment", "");
-        assert_eq!(d.year(), Some(9999));
+        assert_eq!(d.year(), Some(0));
         dispatch(&mut d, "focus", "month");
         dispatch(&mut d, "increment", "");
-        assert_eq!(d.month(), Some(12));
+        assert_eq!(d.month(), Some(1));
         dispatch(&mut d, "focus", "day");
         dispatch(&mut d, "increment", "");
+        assert_eq!(d.day(), Some(1));
+    }
+
+    #[test]
+    fn decrement_wraps_around_at_segment_lower_bound() {
+        let mut d = DateInput::new(Some(0), Some(1), Some(1), None, None);
+        dispatch(&mut d, "focus", "year");
+        dispatch(&mut d, "decrement", "");
+        assert_eq!(d.year(), Some(9999));
+        dispatch(&mut d, "focus", "month");
+        dispatch(&mut d, "decrement", "");
+        assert_eq!(d.month(), Some(12));
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "decrement", "");
         assert_eq!(d.day(), Some(31));
     }
 
     #[test]
-    fn decrement_clamps_at_segment_lower_bound() {
-        let mut d = DateInput::new(Some(0), Some(1), Some(1), None, None);
+    fn increment_on_unset_segment_starts_from_minimum() {
+        let mut d = DateInput::default();
         dispatch(&mut d, "focus", "year");
-        dispatch(&mut d, "decrement", "");
+        dispatch(&mut d, "increment", "");
         assert_eq!(d.year(), Some(0));
+    }
+
+    #[test]
+    fn decrement_on_unset_segment_starts_from_maximum() {
+        let mut d = DateInput::default();
         dispatch(&mut d, "focus", "month");
         dispatch(&mut d, "decrement", "");
-        assert_eq!(d.month(), Some(1));
-        dispatch(&mut d, "focus", "day");
-        dispatch(&mut d, "decrement", "");
-        assert_eq!(d.day(), Some(1));
+        assert_eq!(d.month(), Some(12));
     }
 
     #[test]
@@ -1142,13 +1602,198 @@ mod tests {
         let mut d = DateInput::new(Some(2024), Some(2), Some(29), None, None);
         dispatch(&mut d, "focus", "day");
         dispatch(&mut d, "increment", "");
+        assert_eq!(d.day(), Some(1));
+    }
+
+    #[test]
+    fn day_increment_from_structurally_invalid_out_of_range_value_wraps_to_minimum() {
+        // 2024-02-30 は存在しない日付だが、本コンポーネントは構造的な
+        // 値域（1..=31）内であれば保持する（モジュール doc「fail-closed な
+        // 日付検証」参照）。2024 年 2 月の構造的上限（day_max）は 29 のため
+        // この 30 は `[lo, hi]` の外側にある。increment は Ark UI
+        // DateInput / react-aria DateField に合わせて先頭（1）へ wrap する
+        // （剰余演算に base をそのまま渡すと 30 -> 2 のような直感に反する
+        // 結果になっていた回帰、イシュー #1626 レビュー指摘）。
+        let mut d = DateInput::new(Some(2024), Some(2), Some(30), None, None);
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "increment", "");
+        assert_eq!(d.day(), Some(1));
+    }
+
+    #[test]
+    fn day_decrement_from_structurally_invalid_out_of_range_value_wraps_to_maximum() {
+        // 上記 increment と対称の decrement 版。範囲外の 30 からの
+        // decrement は末尾（29）へ wrap する。
+        let mut d = DateInput::new(Some(2024), Some(2), Some(30), None, None);
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "decrement", "");
         assert_eq!(d.day(), Some(29));
     }
+
+    #[test]
+    fn day_increment_within_range_still_wraps_normally() {
+        // 範囲内の通常 wrap の回帰: 29 日まである 2024 年 2 月で
+        // 29 -> increment -> 1（既存の
+        // day_increment_respects_days_in_month と同一だが、早期分岐追加後
+        // も剰余演算経路が維持されていることを明示的に固定する）。
+        let mut d = DateInput::new(Some(2024), Some(2), Some(29), None, None);
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "increment", "");
+        assert_eq!(d.day(), Some(1));
+    }
+
+    // --- PageUp/PageDown (clamp) ---
+
+    #[test]
+    fn page_increment_clamps_at_upper_bound() {
+        let mut d = DateInput::new(Some(9998), Some(11), Some(28), None, None);
+        dispatch(&mut d, "focus", "year");
+        dispatch(&mut d, "page-increment", "");
+        assert_eq!(d.year(), Some(9999));
+        dispatch(&mut d, "focus", "month");
+        dispatch(&mut d, "page-increment", "");
+        assert_eq!(d.month(), Some(12));
+        dispatch(&mut d, "focus", "day");
+        // 直前の focus/page-increment で年=9999・月=12（31 日まで）へ
+        // 変わっているため、day の上限は 31。28+7=35 は 31 へ clamp される。
+        dispatch(&mut d, "page-increment", "");
+        assert_eq!(d.day(), Some(31));
+    }
+
+    #[test]
+    fn page_decrement_clamps_at_lower_bound() {
+        let mut d = DateInput::new(Some(1), Some(1), Some(1), None, None);
+        dispatch(&mut d, "focus", "year");
+        dispatch(&mut d, "page-decrement", "");
+        assert_eq!(d.year(), Some(0));
+        dispatch(&mut d, "focus", "month");
+        dispatch(&mut d, "page-decrement", "");
+        assert_eq!(d.month(), Some(1));
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "page-decrement", "");
+        assert_eq!(d.day(), Some(1));
+    }
+
+    #[test]
+    fn page_increment_on_unset_segment_starts_from_minimum() {
+        let mut d = DateInput::default();
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "page-increment", "");
+        assert_eq!(d.day(), Some(1));
+    }
+
+    // --- Home/End ---
+
+    #[test]
+    fn home_and_end_set_focused_segment_to_bounds() {
+        let mut d = DateInput::new(Some(2026), Some(6), Some(15), None, None);
+        dispatch(&mut d, "focus", "year");
+        dispatch(&mut d, "home", "");
+        assert_eq!(d.year(), Some(0));
+        dispatch(&mut d, "end", "");
+        assert_eq!(d.year(), Some(9999));
+
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "home", "");
+        assert_eq!(d.day(), Some(1));
+        dispatch(&mut d, "end", "");
+        // 2026-06 は 30 日まで。
+        assert_eq!(d.day(), Some(30));
+    }
+
+    #[test]
+    fn home_end_are_no_op_without_focus() {
+        // dispatch() は「アクション名の decode に成功したか」を返す
+        // （`increment_decrement_are_no_op_without_focus` と同じ契約）。
+        // 未フォーカス時は update() 内で no-op になることを状態不変で確認する。
+        let mut d = DateInput::default();
+        assert!(dispatch(&mut d, "home", ""));
+        assert_eq!(d.year(), None);
+        assert!(dispatch(&mut d, "end", ""));
+        assert_eq!(d.year(), None);
+    }
+
+    // --- Prev/Next ---
+
+    #[test]
+    fn next_and_prev_move_focus_along_year_month_day() {
+        let mut d = DateInput::default();
+        dispatch(&mut d, "focus", "year");
+        dispatch(&mut d, "next", "");
+        assert_eq!(d.focused(), Some(DateSegment::Month));
+        dispatch(&mut d, "next", "");
+        assert_eq!(d.focused(), Some(DateSegment::Day));
+        // day で留まる。
+        dispatch(&mut d, "next", "");
+        assert_eq!(d.focused(), Some(DateSegment::Day));
+
+        dispatch(&mut d, "prev", "");
+        assert_eq!(d.focused(), Some(DateSegment::Month));
+        dispatch(&mut d, "prev", "");
+        assert_eq!(d.focused(), Some(DateSegment::Year));
+        // year で留まる。
+        dispatch(&mut d, "prev", "");
+        assert_eq!(d.focused(), Some(DateSegment::Year));
+    }
+
+    #[test]
+    fn prev_next_are_no_op_without_focus() {
+        // dispatch() の契約は上記 home_end_are_no_op_without_focus 参照。
+        let mut d = DateInput::default();
+        assert!(dispatch(&mut d, "prev", ""));
+        assert_eq!(d.focused(), None);
+        assert!(dispatch(&mut d, "next", ""));
+        assert_eq!(d.focused(), None);
+    }
+
+    // --- Backspace ---
+
+    #[test]
+    fn backspace_clears_focused_segment_when_it_has_a_value() {
+        let mut d = DateInput::new(Some(2026), Some(7), Some(22), None, None);
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "backspace", "");
+        assert_eq!(d.day(), None);
+        // フォーカスは移動しない。
+        assert_eq!(d.focused(), Some(DateSegment::Day));
+    }
+
+    #[test]
+    fn backspace_moves_focus_to_previous_segment_when_already_empty() {
+        let mut d = DateInput::default();
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "backspace", "");
+        assert_eq!(d.focused(), Some(DateSegment::Month));
+        dispatch(&mut d, "backspace", "");
+        assert_eq!(d.focused(), Some(DateSegment::Year));
+        // year で留まる。
+        dispatch(&mut d, "backspace", "");
+        assert_eq!(d.focused(), Some(DateSegment::Year));
+    }
+
+    #[test]
+    fn backspace_is_no_op_without_focus() {
+        // dispatch() の契約は上記 home_end_are_no_op_without_focus 参照。
+        let mut d = DateInput::new(Some(2026), Some(7), Some(22), None, None);
+        assert!(dispatch(&mut d, "backspace", ""));
+        assert_eq!(d.day(), Some(22));
+    }
+
+    // --- Focus / Blur ---
 
     #[test]
     fn focus_rejects_unknown_segment_as_no_op() {
         let mut d = DateInput::default();
         assert!(!dispatch(&mut d, "focus", "hour"));
+        assert_eq!(d.focused(), None);
+    }
+
+    #[test]
+    fn blur_clears_focused_state() {
+        let mut d = DateInput::default();
+        dispatch(&mut d, "focus", "day");
+        assert_eq!(d.focused(), Some(DateSegment::Day));
+        assert!(dispatch(&mut d, "blur", ""));
         assert_eq!(d.focused(), None);
     }
 
@@ -1349,8 +1994,7 @@ mod tests {
     #[test]
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
-            false,
-            false,
+            DateInputProps::default(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
             vec![],
         ));
@@ -1360,8 +2004,7 @@ mod tests {
     #[test]
     fn children_text_is_escaped_on_render() {
         let html = render(&label(
-            false,
-            false,
+            DateInputProps::default(),
             None,
             vec![],
             vec![text("<script>alert(1)</script>")],

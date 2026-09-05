@@ -46,7 +46,7 @@ use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
-use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment, DateSegmentFlags};
+use fandhe_frontend_pre_styled_ui::date_input::{self, DateInputProps, DateSegment};
 use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
@@ -3596,8 +3596,7 @@ fn date_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
 
         // 選択的再エクスポートした label の children 経路。
         let html = render(&date_input::label(
-            false,
-            false,
+            DateInputProps::default(),
             None,
             vec![],
             vec![text(payload)],
@@ -3619,7 +3618,7 @@ fn date_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             None,
             "0",
             "9999",
-            DateSegmentFlags::default(),
+            DateInputProps::default(),
             vec![("data-testid", payload)],
         ));
         assert_payload_is_escaped(payload, &html, "date_input::segment attrs コンテキスト");

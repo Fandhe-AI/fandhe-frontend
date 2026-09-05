@@ -1495,6 +1495,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # と main 側の実体変更を統合した結果として main 現在値 0.88.0 から
 # さらにマイナーバンプし 0.89.0 とする（同一版数への偶発的衝突をそのまま
 # 採用しない、`docs/ci/style-refresh-version-bump-operation.md` §5）。
+# イシュー #1626: headless-ui 0.39.0（date-input の `DateSegmentFlags` →
+# `DateInputProps` 置換・シグネチャ変更）への依存追随、および
+# 再エクスポート先の変更（`DateSegmentFlags` → `DateInputProps`）・
+# recipe セレクタ改名（`data-placeholder` → `data-placeholder-shown`）に
+# 伴い 0.90.0 へマイナーバンプする（この時点の値。main 側の独立進行との
+# 統合結果は後続コメント参照）。
 # base main 再取り込み時のマージ注記: 上記 #1616（radio-group）は
 # merge-base 0.85.0 から独立に 0.87.0 へマイナーバンプしていたが、
 # main は #1610（image-cropper）〜 #1605（combobox の再取り込み、
@@ -1547,6 +1553,21 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1627（date-picker の参照突合）: styled `root` が
 # `&DatePickerProps` を追加引数として透過するようになった破壊的シグネチャ
 # 変更（マイナーバンプ）+ headless-ui 依存を 0.41.0 へ追随。
+# base ブランチ再取り込み（イシュー #1626 レビュー是正, 2026-09-05）: 上記
+# 0.92.0（date-picker、#1627）到達後、本ブランチ（#1626 date-input）の
+# レビュー是正コミット（`headless-ui` 0.41.1 への依存追随。styled
+# ラッパー自体の公開シグネチャ・実装は無変更）を統合するため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5・§3.4 手順 3 の
+# 手順（headless-ui バンプに伴い依存元自身も patch バンプする）に従い
+# main 現在値 0.92.0 から 0.92.1 へ patch バンプする。
+# codex-review P1 是正（PR #1893, イシュー #1626, 2026-09-05）: 上記
+# 0.92.1 到達判断は誤りだった。本 PR 全体（#1626 date-input）は headless-ui
+# 側で `DateSegmentFlags` の削除・公開関数のシグネチャ変更・
+# `data-placeholder` の改名という破壊的変更を含み、headless-ui は
+# 0.42.0 へマイナーバンプする。本クレートはこの headless-ui 破壊的変更へ
+# 依存追随するため、`docs/ci/style-refresh-version-bump-operation.md` §5
+# に従い main 現在値 0.92.0 から 0.93.0 へマイナーバンプする（headless-ui
+# 依存も 0.42.0 へ追随）。
 # base ブランチ再取り込み（PR #1892, date-picker, 2026-09-05）: main（#1892
 # date-picker）が独立に本ブランチと同じ 0.92.0 へ到達していた（上記
 # date-picker の破壊的変更 + headless-ui 依存追随）。radio-group（本ブランチ,
@@ -1558,7 +1579,27 @@ name = "fandhe-frontend-pre-styled-ui"
 # （item/item_control/item_text/item_hidden_input/indicator）のシグネチャが
 # `&SegmentGroupProps` 引数へ変更（破壊的）・`root_with_props` 公開 API 追加
 # のためマイナーバンプする（headless-ui 依存も 0.43.0 へ追随）。
-version = "0.94.0"
+# base ブランチ再取り込み（PR #1886 マージ, イシュー #1626, 2026-09-05）: main
+# （#1892 date-picker を統合した main、#1886 radio-group 経由）が独立に
+# 0.93.0 へ到達しており、本ブランチ（#1626 date-input、上記 codex-review
+# P1 是正で 0.93.0 到達）とは別内容のため、同じ「同一版数への偶発的衝突を
+# そのまま採用しない」原則（`docs/ci/style-refresh-version-bump-operation.md`
+# §5）に従いマイナーバンプする。理由: 本ブランチは headless-ui の破壊的
+# 変更（`DateSegmentFlags` 削除・`DateInputProps` 新設）を再エクスポート
+# しており（`pub use fandhe_frontend_headless_ui::date_input::{..,
+# DateInputProps, ..}`）、`date_input::control`/`label`/`segment`/
+# `segment_group`/`hidden_input` の再エクスポート先シグネチャも
+# `(bool, bool, ...)` から `(&DateInputProps, ...)` へ変わる破壊的変更の
+# 波及であるため、headless-ui 0.43.0 への version 要求追随を含め
+# main 現在値 0.93.0 から 0.94.0 へマイナーバンプする。
+# base ブランチ再取り込み（PR #1893 マージ, イシュー #1618, 2026-09-05）: main
+# （#1893 date-input）が独立に本ブランチと同じ 0.94.0 へ到達していた（上記
+# date-input の破壊的変更再エクスポート波及）。segment-group（本ブランチ,
+# #1618）の `SegmentGroupProps` 新設・再エクスポート関数シグネチャ変更とは
+# 別内容のため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.95.0 へ
+# さらにマイナーバンプする（headless-ui 依存も 0.44.0 へ追随）。
+version = "0.95.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1573,7 +1614,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.43.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.44.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

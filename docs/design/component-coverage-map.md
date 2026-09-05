@@ -312,7 +312,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
-| `.agents/skills/ark-ui/references/components/date-time/date-input.md` | DateInput | — | — | — | `date_input` | `date_input` | 実装済み | headless+styled 実装済み（#834、#735 保留のうち DateInput 分のみ解除。DatePicker（#835）・Timer（#836）も別途保留解除済み（下記行参照）。calendar は独立部品として実装済み） |
+| `.agents/skills/ark-ui/references/components/date-time/date-input.md` | DateInput | — | — | — | `date_input` | `date_input` | 実装済み | headless+styled 実装済み（#834、#735 保留のうち DateInput 分のみ解除。DatePicker（#835）・Timer（#836）も別途保留解除済み（下記行参照）。calendar は独立部品として実装済み）。#1626 で ark-ui Data Attributes / キーボード操作と突合済み（Radix 軸該当なし） |
 | `.agents/skills/ark-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | — | — | `date_picker` | `date_picker` | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除。DateInput（#834）との連携は行わず ISO 8601 値のネイティブ `<input>` のみで完結）。#1627 で参照突合（`DatePickerProps` 一律付与・`for_`・`aria-invalid`。View 系パーツ・`data-view` は意図的非追随） |
 | `.agents/skills/ark-ui/references/components/date-time/timer.md` | Timer | Timer | — | — | `timer` | `timer` | 実装済み | headless+styled+wasm 配線実装済み（#836）。tick を外部から明示的に注入する決定的状態機械（時計 API 非依存）として実装し、`docs/policy/intentional-non-adoption.md` §7 の保留を解除した |
 | `.agents/skills/ark-ui/references/components/date-time/README.md` | README | — | — | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
