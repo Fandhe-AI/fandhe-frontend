@@ -1708,6 +1708,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # バンプが必要になる。drawer/dialog の tabindex="-1" 追随・
 # action_bar/collapsible の破壊的変更・floating-panel の破壊的変更の和集合
 # として、さらにマイナーバンプで 0.105.0 とする。
+# イシュー #1643（toast の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# 0.54.1 → 0.55.0 への追随（root の `data-state="open"`/`tabindex="0"`、
+# group の `tabindex="-1"` に加え、Review 指摘で追加した `drop_reserved`
+# による呼び出し側 attrs からの予約キー除去。`crate::toast::root`/
+# `crate::toast::group` は headless-ui の `toast::{root,group}` を薄く
+# 委譲するのみで独自に属性を合成しないため、popover（#1642, PR #1915）と
+# 同じ経路で破壊的変更が再公開経由で透過する。本クレート自体の CSS 実体
+# 変更なし）。0.x の破壊的変更はマイナーバンプとする規約
+# （.claude/rules/coding-rust.md）に従い、main 側で独立に到達していた
+# 0.106.1 に対しマイナーバンプで 0.107.0 とする。
 # イシュー #1642（popover の参照突合）: headless-ui 0.53.1 依存追随
 # （popover::content への tabindex="-1" 固定付与、非破壊的変更）。
 # patch バンプとして 0.105.0 から 0.105.1 とする。
@@ -1751,7 +1761,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 自体の実体変更なし。`crates/pre-styled-ui/src/menu.rs` の `SLOTS` 同期・
 # CSS 付与・再エクスポート追加は Themes 側の後続対応として #1524/#1526 へ
 # 申し送り済み）。0.106.1 から patch バンプで 0.106.2 とする。
-version = "0.106.2"
+# base 再取り込み（イシュー #1643, 2026-09-06）: main 側で独立に到達して
+# いた 0.106.2（イシュー #1651: headless-ui 0.54.2 依存追随、本クレート
+# 自体の実体変更なし）は本ブランチの 0.107.0（headless-ui 0.55.0 依存
+# 追随に伴うマイナーバンプ）に未反映のため、依存先を headless-ui
+# 0.55.1（base 再取り込みで解決した最終版、`crates/headless-ui/
+# Cargo.toml` 参照）へ追随させる patch バンプとして 0.107.1 とする
+# （本クレート自体の実体変更なし）。
+version = "0.107.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1766,7 +1783,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.54.2" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.55.1" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

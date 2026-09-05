@@ -321,6 +321,20 @@ name = "fandhe-frontend-headless-ui"
 # §5）。drawer/dialog の tabindex="-1" 追加・action_bar/collapsible の破壊的
 # 変更・floating-panel の破壊的変更の和集合として、さらにマイナーバンプで
 # 0.53.0 とする。
+# イシュー #1643（toast の参照突合）: root に `data-state="open"`（固定値）・
+# `tabindex="0"`、group に `tabindex="-1"` を追加し、`Toaster::view` の
+# group ラベル既定値の欠落（`aria-label=""`）を `DEFAULT_GROUP_LABEL`
+# （`"Notifications"`）で是正した。
+# Review 指摘（本イシュー #1643）: root/group が呼び出し側 `attrs` から
+# `tabindex`/`data-state`/`role` 等の予約キーを除去せず素通ししていたため
+# 同名属性が重複出力される不具合があり、`drop_reserved`（`crate::dialog`/
+# `crate::breadcrumb` と同型）を追加した。popover（#1642, PR #1915
+# codex-review 指摘）の先例のとおり、`drop_reserved`/`drop_tabindex_attr`
+# は呼び出し側が明示的に渡した値（例: `[("tabindex", "0")]`）を無条件に
+# 固定値へ差し替えるため、既存呼び出し側の挙動を変える破壊的変更として
+# 扱う。0.x の破壊的変更のためマイナーバンプとする。main 側で独立に
+# 到達していた 0.54.1（#1648 breadcrumb・#1650 link-overlay 等の非破壊的
+# 変更の積み上げ）に対し、マイナーバンプで 0.55.0 とする。
 # イシュー #1642（popover の参照突合）: `popover::content` へ
 # `tabindex="-1"` を固定追加した（dialog #1638・drawer #1639 と同型。既存
 # 呼び出しの引数個数・シグネチャは不変、出力属性が増えるのみの非破壊的
@@ -359,7 +373,12 @@ name = "fandhe-frontend-headless-ui"
 # を追加した。いずれも非破壊的な追加のみ（既存パーツのシグネチャ・出力は
 # 不変、`menu_menubar_aria_contract.rs` の paired パーツ属性一致契約も
 # 維持）のため、0.54.1 から patch バンプで 0.54.2 とする。
-version = "0.54.2"
+# base 再取り込み（イシュー #1643, 2026-09-06）: main 側で独立に到達して
+# いた 0.54.2（イシュー #1651: menu の item_text/item_indicator 新設、
+# 非破壊的追加）は本ブランチの 0.55.0（toast の drop_reserved 導入に伴う
+# 破壊的変更）に未反映のため、両者の和集合として patch バンプで 0.55.1
+# とする（menu 側は非破壊的変更のためマイナーバンプは不要）。
+version = "0.55.1"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

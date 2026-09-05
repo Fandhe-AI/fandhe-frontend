@@ -364,7 +364,11 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`aria-live` は
 //!   [`toast::ToastStatus`] から決定的に導出し（`Error` のみ `"assertive"`）、
 //!   タイマーによる自動 dismiss の実配線・`"push"` の文字列 dispatch は
-//!   `fandhe-frontend-wasm-full` の後続イシューのスコープ。
+//!   `fandhe-frontend-wasm-full` の後続イシューのスコープ。参照突合（#1643）
+//!   で root へ `data-state="open"`（固定値のみ）/`tabindex="0"`、group へ
+//!   `tabindex="-1"` を追加し、`Toaster::view` の group ラベル既定値
+//!   [`toast::DEFAULT_GROUP_LABEL`] を新設した（詳細は [`mod@toast`] モジュール
+//!   doc「参照突合」節参照）。
 //! - [`mod@toggle_tip`]: Root / Trigger / Positioner / Content / Arrow /
 //!   ArrowTip の 6 anatomy パーツと、[`state::Disclosure`] を埋め込んだ
 //!   [`toggle_tip::ToggleTip`] 状態機械（#761、親トラッキング #520）。
