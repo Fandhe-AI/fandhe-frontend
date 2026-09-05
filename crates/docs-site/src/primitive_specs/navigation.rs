@@ -442,19 +442,97 @@ pub(super) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
 // link（`crates/headless-ui/src/link.rs`）
 // ---------------------------------------------------------------------
 
-/// Demo（`link_section`）は `external=true`（target/rel 付与あり）。ここでは
-/// `external=false` の版（target/rel を出力しない、同一タブ内遷移）を実演
-/// する。href は他ページとの内部リンク切れ検証
-/// （`crate::linkcheck::check_links`）を避けるため、Demo と同じく
+/// Demo（`link_section`）は 4 変種（通常/外部/現在ページ/文中インライン）を
+/// 並べる（イシュー #1649）。ここでは Demo とは切り口を変え、
+/// `external=false, current=false`（target/rel も aria-current/data-current
+/// も出力しない最小構成）を単体で実演する。href は他ページとの内部リンク
+/// 切れ検証（`crate::linkcheck::check_links`）を避けるため、Demo と同じく
 /// `example.com`（RFC 2606 予約ドメイン）を使う。
 fn ex_link() -> Node {
     example_wrap(vec![link::root(
         "https://example.com/docs/guide",
         false,
-        true,
+        false,
         vec![],
         vec![text("Guide")],
     )])
+}
+
+/// `current=true` の構成（`aria-current="page"`+`data-current` の実出力）。
+/// 旧版（イシュー #1649 是正前）は本構成を「external=false の構成」という
+/// 説明の下で実演しており、実演内容と説明が食い違っていた
+/// （current 引数が true になっていたため）。本例で独立させて解消する。
+fn ex_link_current() -> Node {
+    example_wrap(vec![link::root(
+        "https://example.com/docs/guide",
+        false,
+        true,
+        vec![],
+        vec![text("Guide (current page)")],
+    )])
+}
+
+/// 文中インライン構成（chakra-ui のデモ「文中インラインリンク」相当）。
+/// `link::root` は前後のテキストノードと並置してもエスケープ・anatomy 出力
+/// が変わらないことを実演する。
+fn ex_link_inline() -> Node {
+    example_wrap(vec![el(
+        "p",
+        vec![],
+        vec![
+            text("See the "),
+            link::root(
+                "https://example.com/docs/guide",
+                false,
+                false,
+                vec![],
+                vec![text("guide")],
+            ),
+            text(" for setup steps."),
+        ],
+    )])
+}
+
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/`data-current`/`[aria-current="page"]` 属性
+/// セレクタで見た目を組み立てる例を示す（`CHECKBOX_CUSTOM_CSS_SNIPPET`
+/// 〔forms_a.rs〕と同型、イシュー #1649）。CSS はテキストノード
+/// （[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const LINK_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"link\"][data-part=\"root\"] {\n  \
+  color: #2563eb;\n  text-decoration: none;\n\
+}\n\
+[data-scope=\"link\"][data-part=\"root\"]:hover {\n  \
+  text-decoration: underline;\n\
+}\n\
+[data-scope=\"link\"][data-part=\"root\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n\
+[data-scope=\"link\"][data-part=\"root\"][aria-current=\"page\"] {\n  \
+  color: #111827;\n  font-weight: 600;\n  text-decoration: none;\n\
+}\n\
+[data-scope=\"link\"][data-part=\"root\"][target=\"_blank\"]::after {\n  \
+  content: \" ↗\";\n\
+}\n";
+
+fn ex_link_custom_css() -> Node {
+    let markup = link::root(
+        "https://example.com/docs/guide",
+        false,
+        true,
+        vec![],
+        vec![text("Guide (current page)")],
+    );
+    example_wrap(vec![
+        markup,
+        pre(
+            vec![],
+            vec![code(vec![], vec![text(LINK_CUSTOM_CSS_SNIPPET)])],
+        ),
+    ])
 }
 
 /// `/primitives/link/`。
@@ -462,12 +540,19 @@ fn ex_link() -> Node {
 /// 一次情報: `crates/headless-ui/src/link.rs:1-54`（モジュール doc）、
 /// `:72-100`（`root` シグネチャ）、`:66-67`（`target="_blank"`+
 /// `rel="noopener noreferrer"` の不可分付与）、`:69`（`aria-current="page"`
-/// の実出力）。
+/// の実出力）。参考サイト突合（イシュー #1649）: chakra-ui Link
+/// （`.agents/skills/chakra-ui/references/components/typography/link.md`）・
+/// Radix Themes Link（`docs/design/radix-themes-survey.md:83`）はいずれも
+/// スタイル prop のみの styled `a` で、Anatomy/Keyboard/`data-*` 節を持たない
+/// （ark-ui・Radix Primitives に Link 相当は存在しない、
+/// `docs/design/component-coverage-map.md:667`）。
 pub(super) const LINK: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "汎用インラインリンク。root（a）1 パーツのみの最小構成（chakra-ui Link 相当、link.rs モジュール doc）。",
-        "external=true のとき target=\"_blank\"+rel=\"noopener noreferrer\" を不可分に付与する（reverse tabnabbing 対策。片方のみを付与できる API は公開しない）。",
+        "external=true のとき target=\"_blank\"+rel=\"noopener noreferrer\" を不可分に付与する（reverse tabnabbing 対策。片方のみを付与できる API は公開しない）。参考サイト（chakra-ui）は生の target/rel を利用者が渡す設計であり、本実装は API 側で不可分付与を保証する意図的差分。",
         "current=true のとき aria-current=\"page\"+data-current を付与する（breadcrumb/nav_list と同じ語彙を共有）。",
+        "data-state/data-disabled/data-motion 等の状態 data-* は出力しない（§3.25 規則 2: 装飾・アニメーション関心を headless へ持ち込まない）。",
+        "asChild（Slot 相当）・variant/colorPalette/size/underline/highContrast 等の装飾軸は本モジュールでは提供しない。asChild は intentional-non-adoption.md §3.25 表 Slot 行の保留により非採用、装飾軸は Themes 層 pre-styled-ui::link（/themes/link/）の責務。",
     ],
     arguments: &[
         ArgRow {
@@ -489,16 +574,53 @@ pub(super) const LINK: ComponentPageSpec = ComponentPageSpec {
             description: "true のとき aria-current=\"page\"+data-current を付与する。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "external=false の構成",
-        description: "external を false にして target=\"_blank\"/rel を出力しない構成です。",
-        render: ex_link,
+    examples: &[
+        ExampleEntry {
+            title: "external=false, current=false の構成",
+            description: "external/current をともに false にして target=\"_blank\"/rel/aria-current/data-current のいずれも出力しない最小構成です。",
+            render: ex_link,
+        },
+        ExampleEntry {
+            title: "current=true の構成",
+            description: "current を true にして aria-current=\"page\" と data-current を同時に出力する構成です。",
+            render: ex_link_current,
+        },
+        ExampleEntry {
+            title: "文中インライン",
+            description: "段落テキストの中にリンクを混在させても anatomy 出力・エスケープが変わらないことを示す構成です。",
+            render: ex_link_inline,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/[aria-current=\"page\"] 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: ex_link_custom_css,
+        },
+    ],
+    keyboard: &[KeyRow {
+        key: "Tab / Shift+Tab",
+        description: "ネイティブ要素（a[href]）由来のフォーカス移動（ブラウザ既定、headless-ui 側の配線なし）。",
+    }, KeyRow {
+        key: "Enter",
+        description: "ネイティブ a[href] 由来の起動（リンク先へ遷移）。Space は起動しない（ブラウザ既定の a 要素の挙動）。",
     }],
-    keyboard: &[],
-    aria: &[AriaRow {
-        attribute: "aria-current=\"page\"",
-        description: "current 引数が true のときのみ付与する。",
-    }],
+    aria: &[
+        AriaRow {
+            attribute: "role / aria-*",
+            description: "既定では付与しない。暗黙の link ロールに委ねる（参考サイトも独自付与しない）。",
+        },
+        AriaRow {
+            attribute: "aria-current=\"page\"",
+            description: "current 引数が true のときのみ data-current と同時に付与する。",
+        },
+        AriaRow {
+            attribute: "rel=\"noopener noreferrer\"",
+            description: "ARIA ではないがセキュリティ属性として併記する。external 引数が true のとき target=\"_blank\" と同時に付与する。",
+        },
+        AriaRow {
+            attribute: "（危険スキーム時）",
+            description: "javascript: 等の危険な URL スキームは core の render() が href 属性ごと拒否する。href を失った a はフォーカス不能になり、暗黙の link ロールも失う（fail-closed の意味論的帰結）。",
+        },
+    ],
     demo: None,
 };
 
