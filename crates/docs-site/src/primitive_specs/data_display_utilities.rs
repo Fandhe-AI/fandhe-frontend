@@ -317,6 +317,11 @@ fn ex_carousel_vertical_loop() -> Node {
 /// `item-group` へ重ねており、トラックを動かすとクリップ領域ごと
 /// 一緒にずれて index=1 でも Slide 1 が表示されたままだった（クリッパーと
 /// トラックが同一要素だとクリップ座標系ごと移動してしまうため）。
+/// PR #1925 codex-review 指摘 是正: 縦方向 `item-group` の
+/// `flex-direction: column` 上書きに合わせ `height: 100%` を追加した
+/// （`root` の `height: 12rem` を継承しないと主軸サイズが不定のまま残り、
+/// `item` の `flex: 0 0 100%` が正しい高さへ解決できず `translateY` の
+/// 百分率計算が崩れて Slide 2 以降が表示されなかったため）。
 const CAROUSEL_CUSTOM_CSS_SNIPPET: &str = "\
 [data-scope=\"carousel\"][data-part=\"root\"] {\n  \
   overflow: hidden;\n  width: 100%;\n  height: 12rem;\n\
@@ -331,6 +336,7 @@ const CAROUSEL_CUSTOM_CSS_SNIPPET: &str = "\
 }\n\
 [data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"] {\n  \
   flex-direction: column;\n  \
+  height: 100%;\n  \
   transform: translateY(calc(var(--fandhe-carousel-index) * -100%));\n\
 }\n\
 [data-scope=\"carousel\"][data-part=\"indicator\"][data-current] {\n  \

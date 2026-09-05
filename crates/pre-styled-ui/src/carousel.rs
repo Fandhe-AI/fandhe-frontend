@@ -231,10 +231,22 @@ fn recipe() -> SlotRecipe {
         .state(
             "item-group",
             StateCondition::AttrEq("data-orientation", "vertical"),
-            vec![decl(
-                "transform",
-                "translateY(calc(var(--fandhe-carousel-index, 0) * -100%))",
-            )],
+            vec![
+                // codex-review 指摘 PR #1925 是正: `item-group` の
+                // `display: flex` は既定で row（横並び）のため、縦方向でも
+                // `translateY` だけを上書きすると item 群が横並びのまま
+                // 上下に移動し、index > 0 のスライドが正しく現れず track
+                // 全体が単に上へずれるだけになっていた。`flex-direction:
+                // column` を合わせて上書きし、`item` の `flex: 0 0 100%`
+                // （主軸サイズ 100%）が縦方向では高さ基準として効くようにする
+                // （`crates/docs-site/src/primitive_specs/data_display_utilities.rs`
+                // の自前 CSS 例と同型の対応）。
+                decl("flex-direction", "column"),
+                decl(
+                    "transform",
+                    "translateY(calc(var(--fandhe-carousel-index, 0) * -100%))",
+                ),
+            ],
         )
         // 端に到達し `loop` 無効なため無効化された trigger の見た目
         // （headless `data-disabled` 存在属性）。canonical
@@ -456,6 +468,7 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(
             "[data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"] {\n  \
+             flex-direction: column;\n  \
              transform: translateY(calc(var(--fandhe-carousel-index, 0) * -100%));\n\
              }\n"
         ));

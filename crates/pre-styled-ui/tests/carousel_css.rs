@@ -15,7 +15,10 @@
 //! disabled 減光・トランジションを Phase 0 共通規約（イシュー #1424/#1425）
 //! へ追随させた際に、この golden も新しい `stylesheet()` 出力へ更新した
 //! （更新手順は `docs/internal/pre-styled-ui-golden-test-update-guide.md`
-//! 参照）。
+//! 参照）。PR #1925 codex-review 指摘 是正: `data-orientation="vertical"`
+//! の `item-group` へ `flex-direction: column` を追加した（`display: flex`
+//! が既定で横並びのままだと `translateY` だけを上書きしても track 全体が
+//! 上へ動くだけでスライドが正しく切り替わらないため）。
 
 use fandhe_frontend_pre_styled_ui::carousel;
 
@@ -124,6 +127,7 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
 }
 
 [data-scope="carousel"][data-part="item-group"][data-orientation="vertical"] {
+  flex-direction: column;
   transform: translateY(calc(var(--fandhe-carousel-index, 0) * -100%));
 }
 
