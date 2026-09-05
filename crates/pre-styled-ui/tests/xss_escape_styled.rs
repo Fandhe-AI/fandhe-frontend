@@ -3808,7 +3808,7 @@ fn signature_pad_styled_root_and_reexported_parts_are_escaped_for_all_payloads()
         );
 
         // 選択的再エクスポートした label の children 経路。
-        let html = render(&signature_pad::label(vec![], vec![text(payload)]));
+        let html = render(&signature_pad::label(false, vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "signature_pad::label children コンテキスト");
 
         // 選択的再エクスポートした hidden_input の name/value 経路。

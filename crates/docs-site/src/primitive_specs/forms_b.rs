@@ -532,32 +532,56 @@ const SELECT: ComponentPageSpec = ComponentPageSpec {
 };
 
 /// 一次情報: `crates/headless-ui/src/signature_pad.rs`
-/// （モジュール doc 1-79、`root`/`label`/`control` 278-307、
-/// `segment`/`segment_path` 309-342、`guide`/`clear_trigger` 344-365、
-/// `hidden_input` 367-386、`stroke_path_d` 196-230）。
+/// （モジュール doc 1-117、`label`/`control`/`guide`/予約定数
+/// 320-460、`root`/`segment`/`segment_path` 240-320、`clear_trigger`/
+/// `hidden_input` 460-490。参照突合はイシュー #1620、ark-ui docs
+/// Anatomy/Data Attributes 表・zag.js `signature-pad.connect.ts`/
+/// `signature-pad.anatomy.ts` を一次情報とする）。
 const SIGNATURE_PAD: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Label / Control / Segment（`svg`）/ SegmentPath（ストロークごとの `path`）/ Guide / ClearTrigger / HiddenInput の 8 anatomy パーツを提供する。canvas を一切使わず、ストローク（座標列）を SVG path 文字列へ変換する決定的な純粋関数（`stroke_path_d`）が中核である。",
+        "Root / Label（`label` 要素）/ Control / Segment（`svg`）/ SegmentPath（ストロークごとの `path`）/ Guide / ClearTrigger / HiddenInput の 8 anatomy パーツを提供する。canvas を一切使わず、ストローク（座標列）を SVG path 文字列へ変換する決定的な純粋関数（`stroke_path_d`）が中核である。",
         "`stroke_path_d` は同一座標列から常に同一の `d` 属性値を生成する（固定小数点 2 桁・round half away from zero・指数表記なし）。ポインタイベントの収集自体は本モジュールの責務外（`fandhe-frontend-wasm-full` が座標列を正規化して dispatch する）。",
         "`hidden_input` は全ストロークの `d` 文字列を `;` 結合した値をフォーム送信する。points 数・ストローク数には上限（`MAX_POINTS_PER_STROKE`/`MAX_STROKES`）があり、改ざんされた dispatch payload・hydration 属性による無制限メモリ確保を防ぐ。",
+        "参照突合（イシュー #1620）: `control` に `role=\"application\"`・`aria-roledescription=\"signature pad\"`・非 disabled 時 `tabindex=\"0\"` を追加し zag.js の `getControlProps` と一致させた。呼び出し側 `attrs` からのこれら固定属性・`data-disabled` の偽装は fail-closed に除去する。",
     ],
     arguments: &[
         ArgRow { name: "root(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
-        ArgRow { name: "root(empty)", kind: "bool", default: "", description: "strokes が空かどうか。`data-empty` として反映する。" },
-        ArgRow { name: "control(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
+        ArgRow { name: "root(empty)", kind: "bool", default: "", description: "strokes が空かどうか。`data-empty` として反映する（本フレームワーク固有の拡張）。" },
+        ArgRow { name: "label(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。タグはネイティブ `<label>` 要素（イシュー #1620）。" },
+        ArgRow { name: "control(disabled)", kind: "bool", default: "", description: "`data-disabled`・非 disabled 時 `tabindex=\"0\"`・disabled 時 `aria-disabled=\"true\"` を反映する。`role=\"application\"`/`aria-roledescription=\"signature pad\"` は常時固定。" },
         ArgRow { name: "segment(width, height)", kind: "u32, u32", default: "", description: "`viewBox=\"0 0 {width} {height}\"` として描画領域寸法を出力する。" },
         ArgRow { name: "segment(aria_label_text)", kind: "Option<&str>", default: "", description: "`Some` のとき `aria-label` を付与する。未指定時は `role=\"img\"` のみ（偽の説明文を捏造しない fail-closed 方針）。" },
         ArgRow { name: "segment_path(stroke)", kind: "&Stroke", default: "", description: "`d` 属性値は `stroke_path_d(stroke)` の内部生成文字列のみ（`fill`/`stroke` は付与せず headless 中立を保つ）。" },
+        ArgRow { name: "guide(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する（イシュー #1620、ark docs Data Attributes 表の Guide 行と一致）。" },
         ArgRow { name: "clear_trigger(disabled)", kind: "bool", default: "", description: "ネイティブ `disabled` + `data-disabled` を反映する。" },
         ArgRow { name: "hidden_input(name, value)", kind: "&str, &str", default: "", description: "フォーム送信名と、全ストロークを `;` 結合した値。" },
     ],
-    examples: &[ExampleEntry {
-        title: "Empty, disabled",
-        description: "ストロークが 1 本もない無効化状態（`root(empty: true, disabled: true)`）。`guide` のみが描画される。",
-        render: ex_signature_pad_empty_disabled,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Empty, disabled",
+            description: "ストロークが 1 本もない無効化状態（`root(empty: true, disabled: true)`）。`guide` のみが描画される。",
+            render: ex_signature_pad_empty_disabled,
+        },
+        ExampleEntry {
+            title: "Read-only",
+            description: "`SignaturePad::new(strokes, false, true)` の read-only 状態。`data-readonly` は `SignaturePad::control` メソッド経由でのみ付与される（自由関数 `control` にはこの属性はない）。",
+            render: ex_signature_pad_read_only,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "headless-ui はスタイルレスです。`data-scope`/`data-part`/`data-*` をセレクタに使い、`segment-path` の `fill`/`stroke`・`control` の枠線と `:focus-visible` リング・`guide` のベースライン・`root[data-empty]` による `clear-trigger` の非表示を自前 CSS で当てられます。",
+            render: ex_signature_pad_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow { key: "Tab", description: "`control`（`tabindex=\"0\"`、非 disabled 時のみ）へフォーカスを移動する。参照（ark-ui docs / zag.js）に Keyboard Interactions 表は存在せず、描画自体はポインタ専用のまま（`undo` 等のアクションに既定キー割り当てはない）。" },
+        KeyRow { key: "Enter / Space", description: "フォーカスが `clear-trigger`（ネイティブ `<button>`）上にあるとき、ブラウザ既定の活性化操作で全ストロークを削除する。" },
+    ],
     aria: &[
+        AriaRow { attribute: "role=\"application\" (control)", description: "固定付与。zag.js `getControlProps` と一致（イシュー #1620）。" },
+        AriaRow { attribute: "aria-roledescription=\"signature pad\" (control)", description: "固定付与。" },
+        AriaRow { attribute: "aria-disabled=\"true\" (control)", description: "`disabled` が `true` のときのみ付与する（非 disabled 時は `tabindex=\"0\"` を付与する）。" },
+        AriaRow { attribute: "aria-label / aria-labelledby (control)", description: "偽の説明文を捏造しない fail-closed 方針により本モジュールは自動付与しない。呼び出し側が `attrs` 経由でアクセシブルネームを渡す契約。" },
         AriaRow { attribute: "role=\"img\" (segment)", description: "`aria_label_text` が `None` のときのみ `role=\"img\"` のみを出力し、偽の説明文を作らない（`aria_label_text` が `Some` のときは `aria-label` を併せて付与する）。" },
     ],
     demo: None,
@@ -1536,12 +1560,12 @@ fn ex_signature_pad_empty_disabled() -> Node {
         true,
         vec![],
         vec![
-            signature_pad::label(vec![], vec![text("Signature (disabled)")]),
+            signature_pad::label(true, vec![], vec![text("Signature (disabled)")]),
             signature_pad::control(
                 true,
-                vec![],
+                vec![("aria-label", "Signature pad (disabled)")],
                 vec![
-                    signature_pad::guide(vec![], vec![]),
+                    signature_pad::guide(true, vec![], vec![]),
                     signature_pad::segment(160, 60, Some("Empty signature area"), vec![], vec![]),
                 ],
             ),
@@ -1550,6 +1574,122 @@ fn ex_signature_pad_empty_disabled() -> Node {
         ],
     )];
     div(vec![("class", "primitives-demo-frame")], body)
+}
+
+fn ex_signature_pad_read_only() -> Node {
+    use hui::signature_pad::{Point, SignaturePad, Stroke};
+
+    let stroke = Stroke::new(vec![
+        Point::new(4.0, 40.0),
+        Point::new(40.0, 8.0),
+        Point::new(80.0, 40.0),
+    ])
+    .expect("固定座標列は Stroke::new の不変条件（非空・有限値）を満たす");
+    let pad = SignaturePad::new(vec![stroke], false, true);
+    let body = vec![pad.root(
+        vec![],
+        vec![
+            pad.label(vec![], vec![text("Signature (read-only)")]),
+            pad.control(
+                vec![("aria-label", "Signature pad (read-only)")],
+                vec![
+                    pad.guide(vec![], vec![]),
+                    pad.segment(
+                        160,
+                        60,
+                        Some("Signature preview"),
+                        vec![],
+                        pad.segment_paths(),
+                    ),
+                ],
+            ),
+            pad.clear_trigger(vec![], vec![text("Clear")]),
+            pad.hidden_input("signature-readonly", vec![]),
+        ],
+    )];
+    div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// 利用者が自前 CSS で `signature-pad` を装飾する最小例のスニペット
+/// （`[data-scope]`/`[data-part]`/`data-*` 状態属性セレクタ）。
+/// `assets/primitives-showcase.css` には一切追加しない（`[data-scope=`/
+/// `[data-part=` 不在契約、`tests/site_css_contract.rs` 参照）。テキストは
+/// `text()` 経由（既定エスケープ）で `pre`/`code` に出力するのみで、CSS を
+/// 実行・適用する経路は持たない（イシュー #1620、
+/// `SEGMENT_GROUP_CUSTOM_CSS_SNIPPET` と同型）。
+const SIGNATURE_PAD_CUSTOM_CSS_SNIPPET: &str = r#"[data-scope="signature-pad"][data-part="control"] {
+  display: inline-block;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+[data-scope="signature-pad"][data-part="control"]:focus-visible {
+  outline: 2px solid #06c;
+  outline-offset: 2px;
+}
+
+[data-scope="signature-pad"][data-part="control"][data-disabled] {
+  opacity: 0.5;
+}
+
+[data-scope="signature-pad"][data-part="segment-path"] {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+[data-scope="signature-pad"][data-part="guide"] {
+  border-bottom: 1px dashed #999;
+}
+
+[data-scope="signature-pad"][data-part="root"][data-empty] [data-part="clear-trigger"] {
+  display: none;
+}"#;
+
+fn ex_signature_pad_custom_css() -> Node {
+    let stroke = signature_pad::Stroke::new(vec![
+        signature_pad::Point::new(4.0, 40.0),
+        signature_pad::Point::new(40.0, 8.0),
+        signature_pad::Point::new(80.0, 40.0),
+    ])
+    .expect("固定座標列は Stroke::new の不変条件（非空・有限値）を満たす");
+    let demo = signature_pad::root(
+        false,
+        false,
+        vec![],
+        vec![
+            signature_pad::label(false, vec![], vec![text("Signature")]),
+            signature_pad::control(
+                false,
+                vec![("aria-label", "Signature pad")],
+                vec![
+                    signature_pad::guide(false, vec![], vec![]),
+                    signature_pad::segment(
+                        160,
+                        60,
+                        Some("Signature preview"),
+                        vec![],
+                        vec![signature_pad::segment_path(&stroke, vec![])],
+                    ),
+                ],
+            ),
+            signature_pad::clear_trigger(false, vec![], vec![text("Clear")]),
+            signature_pad::hidden_input(
+                "signature-custom-css",
+                &signature_pad::stroke_path_d(&stroke),
+                false,
+                vec![],
+            ),
+        ],
+    );
+    let snippet = pre(
+        vec![],
+        vec![code(vec![], vec![text(SIGNATURE_PAD_CUSTOM_CSS_SNIPPET)])],
+    );
+    wrap_password_example(
+        "headless-ui はスタイルレスです。data-scope/data-part/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
+        vec![demo, snippet],
+    )
 }
 
 fn ex_slider_vertical_disabled() -> Node {

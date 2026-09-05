@@ -66,6 +66,11 @@ const SIGNATURE_PAD_GOLDEN_CSS: &str = r#"[data-scope="signature-pad"][data-part
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
 
+[data-scope="signature-pad"][data-part="control"]:focus-visible {
+  outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
+  outline-offset: var(--fandhe-focus-ring-offset, 2px);
+}
+
 [data-scope="signature-pad"][data-part="clear-trigger"]:focus-visible {
   outline: var(--fandhe-focus-ring-width, 2px) solid var(--fandhe-color-focus-ring, var(--fandhe-color-accent));
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
