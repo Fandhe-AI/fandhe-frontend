@@ -657,12 +657,55 @@ fn download_trigger_no_filename_example() -> Node {
     )
 }
 
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/ネイティブ `:focus-visible` 擬似クラスで見た目
+/// を組み立てる例を示す（イシュー #1628）。DownloadTrigger は状態を表す
+/// `data-*` を一切出力しない 1 パーツ構成のため、使えるセレクタは
+/// `[data-scope="download-trigger"][data-part="root"]` と `[download]`・
+/// `:focus-visible` に限られる（`CHECKBOX_CUSTOM_CSS_SNIPPET` 等と同型の
+/// 方針）。CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープを
+/// 経由し、`crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは追加
+/// しない。
+const DOWNLOAD_TRIGGER_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"download-trigger\"][data-part=\"root\"] {\n  \
+  display: inline-flex;\n  align-items: center;\n  gap: 0.375rem;\n  padding: 0.5rem 0.875rem;\n  \
+  border: 1px solid #888;\n  border-radius: 6px;\n  text-decoration: none;\n\
+}\n\
+[data-scope=\"download-trigger\"][data-part=\"root\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n";
+
+fn download_trigger_custom_css_example() -> Node {
+    let markup = download_trigger::root(
+        "https://example.com/assets/report.pdf",
+        Some("report.pdf"),
+        vec![],
+        vec![text("Download report")],
+    );
+    div(
+        vec![],
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(
+                    vec![],
+                    vec![text(DOWNLOAD_TRIGGER_CUSTOM_CSS_SNIPPET)],
+                )],
+            ),
+        ],
+    )
+}
+
 const DOWNLOAD_TRIGGER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root（`a[download]`）1 パーツのみの最小構成。`href`/`file_name` から `download` 属性を組み立てる宣言的トリガーであり、JS（`Blob` 生成・非同期データ解決）を必要としない静的部品として実装される（AI 時代のセキュリティリスク低減方針に基づく意図的な設計）。",
         "`href` は `fandhe_frontend_core::render` の既定エスケープ経路（許可スキームのみを通す deny-by-default）を通り、`javascript:`/`data:`/`blob:`/`vbscript:` 等の危険なスキームは属性ごと出力されない（fail-closed）。",
         "`file_name` が `Some(name)` のとき `download=\"<name>\"`、`None` のとき `download=\"\"`（配信元のファイル名を使うブラウザ既定挙動）を出力する。",
         "実際のファイル取得（`Blob`/非同期データ解決）・`mimeType` の指定は非対応。実ファイル配信時の `Content-Type` は配信側ヘッダで表現する。",
+        "ark-ui/chakra-ui の DownloadTrigger は `<button type=\"button\">` を起点とする JS ユーティリティで anatomy・`data-*` 状態語彙・ARIA を一切持たない（Anatomy/Accessibility 節が存在しない）。本実装は `a[download]` へ `data-scope`/`data-part` を付けた静的 superset であり、`data-state`/`data-disabled`/`data-motion` 等は出さない（`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。",
+        "参考実装の `asChild`（Slot 相当の要素差し替え）は非採用（同ポリシー §3.25 表 Slot 行）。要素種別も `button` ではなく `a[href]` を採用する意図的差分。",
     ],
     arguments: &[
         ArgRow {
@@ -678,16 +721,32 @@ const DOWNLOAD_TRIGGER: ComponentPageSpec = ComponentPageSpec {
             description: "`Some(name)` で `download=\"<name>\"`、`None` で `download=\"\"`。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "file_name を省略した変種",
-        description: "`file_name` に `None` を渡すと `download=\"\"` が出力され、ブラウザは配信元のファイル名をそのまま使用します。",
-        render: download_trigger_no_filename_example,
+    examples: &[
+        ExampleEntry {
+            title: "file_name を省略した変種",
+            description: "`file_name` に `None` を渡すと `download=\"\"` が出力され、ブラウザは配信元のファイル名をそのまま使用します。",
+            render: download_trigger_no_filename_example,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope / data-part 属性セレクタと :focus-visible 擬似クラスで見た目を組み立てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: download_trigger_custom_css_example,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "`root`（`a[href]`）へフォーカスを移動する（ブラウザ既定動作）。",
+        },
+        KeyRow {
+            key: "Enter",
+            description: "ネイティブ `a[href]` の起動（ダウンロード開始）。Space はリンクを起動しない（`button` を採用する参考サイトは Enter/Space の双方が効く点が意図的差分）。",
+        },
+    ],
+    aria: &[AriaRow {
+        attribute: "role / aria-*",
+        description: "付与しない（`a[href]` の暗黙 `link` ロールに委ねる。参考サイトも `role`/`aria-*` を付与しない）。呼び出し側 attrs で `aria-disabled=\"true\"` + `tabindex=\"-1\"` を渡しても `href` は保持されクリック起動は防げないため（`a` に disabled 意味論はない）、無効状態が必要な場合は `root` の呼び出し自体を止め非操作要素へ差し替える（`site/primitives/download-trigger.md` 参照）。",
     }],
-    keyboard: &[KeyRow {
-        key: "Tab / Enter",
-        description: "`root` はネイティブ `<a href download>` であり、フォーカス・起動操作はブラウザ既定動作で成立する（JS 配線を必要としない）。",
-    }],
-    aria: &[],
     demo: None,
 };
 
