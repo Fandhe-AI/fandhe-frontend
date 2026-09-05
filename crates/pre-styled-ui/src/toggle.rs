@@ -228,9 +228,10 @@ fn recipe() -> SlotRecipe {
             focus_ring_declarations(FocusRingColor::Palette, FocusRingOffset::Outside),
         )
         .base("indicator", vec![decl("display", "inline-flex")])
-        // indicator は off 時に非表示化する（headless 層は data-state のみを
-        // 出力する最小主義パーツのため、表示切り替えは styled 層 CSS の責務。
-        // `crates/headless-ui/src/toggle.rs` モジュール doc 参照）。
+        // indicator は off 時に非表示化する（headless 層は data-state/
+        // data-pressed/data-disabled を出力するが表示/非表示の切り替え自体は
+        // 行わない最小主義パーツのため、表示切り替えは styled 層 CSS の責務。
+        // `crates/headless-ui/src/toggle.rs` モジュール doc 参照、イシュー #1629）。
         .state(
             "indicator",
             StateCondition::AttrEq("data-state", "off"),
@@ -525,6 +526,7 @@ mod tests {
     fn reexported_indicator_children_are_escaped_on_render() {
         let html = render(&indicator(
             true,
+            false,
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));

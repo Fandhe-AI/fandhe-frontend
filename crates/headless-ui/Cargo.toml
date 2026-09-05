@@ -210,6 +210,10 @@ name = "fandhe-frontend-headless-ui"
 # ため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
 # （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.42.0 へ
 # さらにマイナーバンプする。
+# イシュー #1629: toggle の `indicator` シグネチャへ `disabled: bool` 引数を
+# 追加（ark-ui `toggle.connect.ts` の Indicator と突合し `data-pressed`/
+# `data-disabled` を出力するため）。既存呼び出し側の引数個数が変わる破壊的
+# 変更のため、0.x のマイナーバンプ（0.42.0 → 0.43.0）とする。
 # base ブランチ再取り込み（PR #1886 マージ, イシュー #1626, 2026-09-05）: main
 # （#1886 radio-group）が独立に 0.42.0 へ到達しており、本ブランチ
 # （#1626 date-input、上記 codex-review P1 是正で 0.42.0 到達）とは別内容の

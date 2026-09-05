@@ -4806,7 +4806,7 @@ fn toggle_section() -> Node {
                 *disabled,
                 vec![],
                 vec![
-                    toggle::indicator(*pressed, vec![], checkmark()),
+                    toggle::indicator(*pressed, *disabled, vec![], checkmark()),
                     text(*label),
                 ],
             )
@@ -4827,7 +4827,10 @@ fn toggle_section() -> Node {
                 true,
                 false,
                 vec![],
-                vec![toggle::indicator(true, vec![], checkmark()), text(*label)],
+                vec![
+                    toggle::indicator(true, false, vec![], checkmark()),
+                    text(*label),
+                ],
             )
         })
         .collect());
@@ -4841,7 +4844,10 @@ fn toggle_section() -> Node {
                 true,
                 false,
                 vec![],
-                vec![toggle::indicator(true, vec![], checkmark()), text(*label)],
+                vec![
+                    toggle::indicator(true, false, vec![], checkmark()),
+                    text(*label),
+                ],
             )
         })
         .collect());
