@@ -49,6 +49,14 @@
 //! `keyboard: &[]` を採用し節を `aria` 表のみで成立させる
 //! （`component_page.rs` の Accessibility 節省略規則参照）。
 //!
+//! **`collapsible` は #1637 で例外を追加した**: `trigger` はネイティブ
+//! `<button type="button">` であり、Space/Enter → click 発火はブラウザ標準
+//! 操作として成立し、click から開閉 dispatch（`"toggle"`）への配線は
+//! `fandhe-frontend-wasm-full` の `MAPPING_TABLE` が担う。ark-ui/Radix 双方の
+//! Keyboard Support 表が Space/Enter を掲げていることを踏まえ、
+//! `COLLAPSIBLE.keyboard` のみ 2 行を持つ（他 9 部品の `keyboard: &[]` は
+//! 不変）。
+//!
 //! # `hover_card` の Accessibility 節が空にならない理由
 //!
 //! `hover_card` は `aria-expanded`/`aria-controls`/`aria-haspopup` を
@@ -94,7 +102,7 @@ use hui::toggle_tip;
 use hui::tooltip;
 use hui::OpenState;
 
-use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry};
+use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
 
 // ---------------------------------------------------------------------
 // Accordion（/primitives/accordion/）
@@ -260,11 +268,12 @@ fn ex_collapsible_disabled() -> Node {
                 vec![],
                 vec![
                     text("Locked section"),
-                    collapsible::indicator(state, vec![], vec![text("▾")]),
+                    collapsible::indicator(state, true, vec![], vec![text("▾")]),
                 ],
             ),
             collapsible::content(
                 state,
+                true,
                 Some("collapsible-ex-content"),
                 vec![],
                 vec![text("Unlock to view this content.")],
@@ -279,6 +288,8 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
         "Root / Trigger / Indicator / Content の 4 anatomy パーツで構成される。",
         "trigger は type=\"button\" を固定付与し、フォーム内配置時の意図しない submit を防ぐ。",
         "content は closed のとき hidden 存在属性を付与し、JS なしの SSR でも閉状態を表現する。",
+        "content / indicator は disabled 状態を data-disabled へ反映する（#1637。ネイティブ disabled 存在属性は div/span に無効なため付与しない）。",
+        "Space/Enter はネイティブ button 経由（wasm-full の MAPPING_TABLE がクリックを toggle dispatch へ配線する、#1637）。",
     ],
     arguments: &[
         ArgRow {
@@ -315,13 +326,25 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
             name: "indicator: state",
             kind: "OpenState",
             default: "Closed",
-            description: "開閉状態のみを data-state へ反映する最小主義な装飾用パーツ。",
+            description: "開閉状態を data-state へ反映する装飾用パーツ。",
+        },
+        ArgRow {
+            name: "indicator: disabled",
+            kind: "bool",
+            default: "",
+            description: "disabled 状態（data-disabled へ反映。#1637、ark-ui Indicator 準拠）。",
         },
         ArgRow {
             name: "content: state",
             kind: "OpenState",
             default: "Closed",
             description: "開閉状態（closed のとき hidden 存在属性を付与）。",
+        },
+        ArgRow {
+            name: "content: disabled",
+            kind: "bool",
+            default: "",
+            description: "disabled 状態（data-disabled へ反映。#1637、ark-ui/Radix Content 準拠）。",
         },
         ArgRow {
             name: "content: id",
@@ -335,7 +358,16 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
         description: "disabled な trigger はネイティブ disabled 属性と data-disabled が付与され、フォーカス・展開ができなくなります。",
         render: ex_collapsible_disabled,
     }],
-    keyboard: &[],
+    keyboard: &[
+        KeyRow {
+            key: "Space / Enter",
+            description: "trigger はネイティブ <button type=\"button\"> のため、フォーカス時の Space/Enter によるクリック相当の発火はブラウザ標準操作として成立する。クリックから開閉切替への dispatch 配線（\"toggle\"）は fandhe-frontend-wasm-full の MAPPING_TABLE の責務（#1637）。",
+        },
+        KeyRow {
+            key: "Tab",
+            description: "trigger のみがタブ順に含まれる。closed の content は hidden 存在属性によりタブ順・支援技術双方から除外される。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-expanded",
@@ -344,6 +376,10 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-controls",
             description: "trigger に付与。controls が Some のとき対応する content の id を指す。",
+        },
+        AriaRow {
+            attribute: "hidden",
+            description: "content に付与（closed のとき）。支援技術・タブ順の双方から除外する。",
         },
     ],
     demo: None,
@@ -1562,10 +1598,21 @@ mod tests {
                 "{path}: examples must not be empty"
             );
             assert!(!spec.aria.is_empty(), "{path}: aria must not be empty");
-            assert!(
-                spec.keyboard.is_empty(),
-                "{path}: keyboard should stay empty (no keyboard handling implemented)"
-            );
+            // collapsible のみ例外（イシュー #1637）: trigger はネイティブ
+            // <button> のため Space/Enter が標準操作として成立する。他 9 部品
+            // はキー割り当てを持つ実装が無いため keyboard: &[] を維持する
+            // （モジュール doc「keyboard を 10 件すべて空にする理由」参照）。
+            if *path == "/primitives/collapsible/" {
+                assert!(
+                    !spec.keyboard.is_empty(),
+                    "{path}: keyboard should hold the Space/Enter row (#1637)"
+                );
+            } else {
+                assert!(
+                    spec.keyboard.is_empty(),
+                    "{path}: keyboard should stay empty (no keyboard handling implemented)"
+                );
+            }
             assert!(
                 spec.demo.is_none(),
                 "{path}: demo should stay None (supplied by primitive_showcase)"

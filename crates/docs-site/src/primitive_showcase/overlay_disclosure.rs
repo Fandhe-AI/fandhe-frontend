@@ -81,30 +81,63 @@ pub(super) fn accordion_section() -> Node {
 }
 
 pub(super) fn collapsible_section() -> Node {
-    let state = OpenState::Open;
-    let body = vec![collapsible::root(
-        state,
+    // 2 インスタンス構成（open + closed/disabled）にすることで、機械導出表
+    // （Anatomy・data-* 属性表）へ `data-state: closed, open` と 4 パート
+    // 全ての `data-disabled` を反映させる（イシュー #1637）。
+    let open_state = OpenState::Open;
+    let body_open = vec![collapsible::root(
+        open_state,
         false,
         vec![],
         vec![
             collapsible::trigger(
-                state,
+                open_state,
                 false,
                 Some("collapsible-content"),
                 vec![],
                 vec![
                     text("Show details"),
-                    collapsible::indicator(state, vec![], vec![text("▾")]),
+                    collapsible::indicator(open_state, false, vec![], vec![text("▾")]),
                 ],
             ),
             collapsible::content(
-                state,
+                open_state,
+                false,
                 Some("collapsible-content"),
                 vec![],
                 vec![text("Hidden details revealed here.")],
             ),
         ],
     )];
+
+    let closed_state = OpenState::Closed;
+    let body_disabled = vec![collapsible::root(
+        closed_state,
+        true,
+        vec![],
+        vec![
+            collapsible::trigger(
+                closed_state,
+                true,
+                Some("collapsible-content-disabled"),
+                vec![],
+                vec![
+                    text("Show details (disabled)"),
+                    collapsible::indicator(closed_state, true, vec![], vec![text("▾")]),
+                ],
+            ),
+            collapsible::content(
+                closed_state,
+                true,
+                Some("collapsible-content-disabled"),
+                vec![],
+                vec![text("Hidden details revealed here.")],
+            ),
+        ],
+    )];
+
+    let mut body = body_open;
+    body.extend(body_disabled);
     demo_page("Collapsible", body)
 }
 

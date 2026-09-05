@@ -41,7 +41,7 @@
 
 | コンポーネント | モジュール | anatomy パーツ | 埋め込む状態機械 |
 |---|---|---|---|
-| Collapsible | `collapsible` | Root/Trigger/Indicator/Content | `state::Disclosure` |
+| Collapsible | `collapsible` | Root/Trigger/Indicator/Content | `state::Disclosure`。ark-ui/Radix Primitives と参照突合し、`indicator`/`content` へ `disabled: bool` 位置引数を新設して 4 パートすべてへ `data-disabled` を反映するようにした（ネイティブ `disabled` 存在属性は `trigger` のみ）。呼び出し側 `attrs` による `data-state`/`data-disabled`/`aria-expanded` 等の偽装は予約キー除去で fail-closed に防止する（イシュー #1637） |
 | [Accordion（single モード）](../../site/themes/accordion.md) | `accordion` | Root/Item/ItemTrigger/ItemIndicator/ItemContent | `state::SingleSelect` |
 | [Tabs](../../site/themes/tabs.md) | `tabs` | Root/List/Trigger/Content（自由関数 `tabs()`、SSR 静的選択状態のみ） | なし（クリック/dispatch は wasm 層のスコープ） |
 | [Tooltip](../../site/themes/tooltip.md) | `tooltip` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` |
