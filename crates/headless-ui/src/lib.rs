@@ -165,9 +165,11 @@
 //!   hidden-select を持つ）とは異なり、Listbox は常時展開で開閉状態を
 //!   持たない（責務境界の詳細は [`mod@listbox`] module doc 参照）。
 //! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
-//!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem /
-//!   ContextTrigger / CheckboxItem / RadioItemGroup / RadioItem の 16 anatomy
-//!   パーツと [`state::Disclosure`] を埋め込んだ [`menu::Menu`]
+//!   ArrowTip / Item / ItemText / ItemIndicator / ItemGroup / ItemGroupLabel /
+//!   Separator / TriggerItem / ContextTrigger / CheckboxItem /
+//!   RadioItemGroup / RadioItem の 18 anatomy パーツ（ItemText/ItemIndicator
+//!   はイシュー #1651 で参考サイトと突合し追加）と [`state::Disclosure`]
+//!   を埋め込んだ [`menu::Menu`]
 //!   （headless Menu コンポーネント、#540/#598）。構造上最も近い先行例は
 //!   [`popover::Popover`]（trigger 起点のオーバーレイ + `Disclosure` 埋め込み）
 //!   であり、本モジュールはそのパターンに完全準拠する。CheckboxItem/

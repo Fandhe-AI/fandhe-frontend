@@ -575,7 +575,7 @@ pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
 /// `role="menu"`/`role="menuitem"`/`role="group"` の実出力テスト）。
 pub const MENU: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "トリガー起点のオーバーレイ + アクション項目リスト。Root / Trigger / Indicator / Positioner / Content / Arrow / ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem / ContextTrigger / CheckboxItem / RadioItemGroup / RadioItem の 16 anatomy パーツを持つ。",
+        "トリガー起点のオーバーレイ + アクション項目リスト。Root / Trigger / Indicator / Positioner / Content / Arrow / ArrowTip / Item / ItemText / ItemIndicator / ItemGroup / ItemGroupLabel / Separator / TriggerItem / ContextTrigger / CheckboxItem / RadioItemGroup / RadioItem の 18 anatomy パーツを持つ。",
         "サブメニューは親 Menu インスタンスの content 内に子 Menu インスタンス由来の trigger_item / positioner / content を入れ子で配置して表現し、親子双方に aria-haspopup=\"menu\" を付与する。",
         "CheckboxItem / RadioItemGroup は開閉状態とは独立した checked 状態機械（MenuCheckboxItem / MenuRadioItemGroup）を持つ。",
         "size variant で root/content の padding を切り替える。",

@@ -1,10 +1,11 @@
 //! Primitives Demo — Navigation（11 件、原稿は #1028）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 //!
-//! `menu`/`menubar` は項目数が多いため、`trigger_item`/`context_trigger`/
-//! `checkbox_item`/`radio_item_group`/`radio_item`/menubar の `sub_trigger`/
-//! `sub_content` は本デモでは未網羅とし、
-//! `tests/primitive_showcase.rs::KNOWN_UNCOVERED` に登録する。
+//! `menu` はイシュー #1651（参照突合）で 18 anatomy パーツすべてを描画する
+//! よう拡充した（`checkbox_item`/`radio_item_group`/`radio_item`/
+//! `trigger_item`/`context_trigger`/`item_text`/`item_indicator` を含む）。
+//! `menubar` は項目数が多いため、`sub_trigger`/`sub_content` は本デモでは
+//! 未網羅とし、`tests/primitive_showcase.rs::KNOWN_UNCOVERED` に登録する。
 
 use fandhe_frontend_core::{div, el, p, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
@@ -186,28 +187,34 @@ pub(super) fn link_overlay_section() -> Node {
 }
 
 pub(super) fn menu_section() -> Node {
-    let state = OpenState::Open;
-    let body = vec![menu::root(
-        state,
+    let open = OpenState::Open;
+    let closed = OpenState::Closed;
+
+    // ブロック 1（open、全機能）: root/trigger/indicator/positioner/content/
+    // arrow/arrow-tip/item/item-group/item-group-label/separator/
+    // checkbox-item/radio-item-group/radio-item/item-text/item-indicator/
+    // trigger-item を 1 本のメニューへ集約する。
+    let full_menu = menu::root(
+        open,
         vec![],
         vec![
             menu::trigger(
-                state,
+                open,
                 false,
                 Some("menu-content"),
-                vec![],
+                vec![("id", "menu-trigger")],
                 vec![
                     text("Actions"),
-                    menu::indicator(state, vec![], vec![text("▾")]),
+                    menu::indicator(open, vec![], vec![text("▾")]),
                 ],
             ),
             menu::positioner(
-                state,
+                open,
                 vec![],
                 vec![menu::content(
-                    state,
+                    open,
                     Some("menu-content"),
-                    None,
+                    Some("menu-trigger"),
                     vec![],
                     vec![
                         menu::arrow(vec![], vec![menu::arrow_tip(vec![], vec![])]),
@@ -221,16 +228,169 @@ pub(super) fn menu_section() -> Node {
                                     vec![text("Edit")],
                                 ),
                                 menu::item("rename", false, true, vec![], vec![text("Rename")]),
-                                menu::item("delete", false, false, vec![], vec![text("Delete")]),
+                                menu::item("delete", true, false, vec![], vec![text("Delete")]),
                             ],
                         ),
                         menu::separator(vec![], vec![]),
+                        menu::checkbox_item(
+                            true,
+                            "bookmarks",
+                            false,
+                            false,
+                            vec![],
+                            vec![
+                                menu::item_indicator(true, vec![], vec![text("✓")]),
+                                menu::item_text(false, false, vec![], vec![text("Bookmarks")]),
+                            ],
+                        ),
+                        menu::checkbox_item(
+                            false,
+                            "urls",
+                            false,
+                            false,
+                            vec![],
+                            vec![
+                                menu::item_indicator(false, vec![], vec![text("✓")]),
+                                menu::item_text(false, false, vec![], vec![text("Full URLs")]),
+                            ],
+                        ),
+                        menu::separator(vec![], vec![]),
+                        menu::radio_item_group(
+                            Some("menu-radio-label"),
+                            vec![],
+                            vec![
+                                menu::item_group_label(
+                                    Some("menu-radio-label"),
+                                    vec![],
+                                    vec![text("Sort by")],
+                                ),
+                                menu::radio_item(
+                                    true,
+                                    "asc",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menu::item_indicator(true, vec![], vec![text("●")]),
+                                        menu::item_text(
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Ascending")],
+                                        ),
+                                    ],
+                                ),
+                                menu::radio_item(
+                                    false,
+                                    "desc",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menu::item_indicator(false, vec![], vec![text("●")]),
+                                        menu::item_text(
+                                            false,
+                                            false,
+                                            vec![],
+                                            vec![text("Descending")],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        menu::separator(vec![], vec![]),
+                        menu::trigger_item(
+                            open,
+                            false,
+                            false,
+                            Some("menu-sub-content"),
+                            vec![],
+                            vec![text("Share")],
+                        ),
+                        menu::positioner(
+                            open,
+                            vec![],
+                            vec![menu::content(
+                                open,
+                                Some("menu-sub-content"),
+                                None,
+                                vec![],
+                                vec![
+                                    menu::item("email", false, false, vec![], vec![text("Email")]),
+                                    menu::item(
+                                        "message",
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![text("Message")],
+                                    ),
+                                ],
+                            )],
+                        ),
                     ],
                 )],
             ),
         ],
-    )];
-    demo_page("Menu", body)
+    );
+
+    // ブロック 2（closed、disabled）: `hidden`/`data-state="closed"`/
+    // `data-disabled`/`disabled` を機械導出表へ載せる。
+    let closed_menu = menu::root(
+        closed,
+        vec![],
+        vec![
+            menu::trigger(
+                closed,
+                true,
+                Some("menu-closed-content"),
+                vec![],
+                vec![text("Disabled")],
+            ),
+            menu::indicator(closed, vec![], vec![text("▾")]),
+            menu::positioner(
+                closed,
+                vec![],
+                vec![menu::content(
+                    closed,
+                    Some("menu-closed-content"),
+                    None,
+                    vec![],
+                    vec![menu::item(
+                        "only",
+                        false,
+                        false,
+                        vec![],
+                        vec![text("Only item")],
+                    )],
+                )],
+            ),
+        ],
+    );
+
+    // ブロック 3（context-trigger）: 右クリックで開く Menu 自身のインスタンス。
+    let context_menu = menu::root(
+        closed,
+        vec![],
+        vec![
+            menu::context_trigger(closed, vec![], vec![text("Right-click area")]),
+            menu::positioner(
+                closed,
+                vec![],
+                vec![menu::content(
+                    closed,
+                    Some("menu-context-content"),
+                    None,
+                    vec![],
+                    vec![
+                        menu::item("copy", false, false, vec![], vec![text("Copy")]),
+                        menu::item("paste", false, false, vec![], vec![text("Paste")]),
+                    ],
+                )],
+            ),
+        ],
+    );
+
+    demo_page("Menu", vec![full_menu, closed_menu, context_menu])
 }
 
 pub(super) fn menubar_section() -> Node {
