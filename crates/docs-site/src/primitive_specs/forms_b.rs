@@ -568,30 +568,40 @@ const SIGNATURE_PAD: ComponentPageSpec = ComponentPageSpec {
 /// 179-244、`thumb` 246-284、`hidden_input`/`value_text` 286-310）。
 const SLIDER: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Label / Control / Track / Range / Thumb / HiddenInput / ValueText の 8 anatomy パーツを提供する。単一値・連続量スライダーであり `data-state` は持たない（境界区分がないため）。",
+        "Root / Label / Control / Track / Range / Thumb / HiddenInput / ValueText / MarkerGroup / Marker の 10 anatomy パーツを提供する（イシュー #1621: ark-ui/zag.js との参照突合で MarkerGroup/Marker を追加）。単一値・連続量スライダーであり `data-state` は持たない（境界区分がないため）。",
+        "`SliderProps { disabled, readonly, invalid }` を root/label/control/track/range/thumb へ渡すと `data-disabled`/`data-readonly`/`data-invalid` を一律出力する。`readonly` は `disabled` と異なり `thumb` のフォーカス可能性（`tabindex=\"0\"`）を変えない。",
         "`value` は常に `min` 起点の `step` 単位へスナップしてから `[min, max]` へ clamp する。`max`/`min` ちょうどの値は step グリッドに乗らない場合でも常に到達可能（`snap_to_step_and_clamp`）。",
         "`thumb`（`div role=\"slider\"`）が WAI-ARIA slider パターンの `aria-valuemin`/`aria-valuemax`/`aria-valuenow`/`aria-orientation` を常時出力する。ネイティブ `<input type=\"range\">` ではないため、矢印キー操作はブラウザ標準では成立しない（クライアントランタイム側の後続責務）。",
-        "range slider（複数 thumb）・pointer ドラッグ・キーボード操作の DOM 配線はスコープ外（単一値スライダーのみ）。",
+        "状態機械の dispatch 契約に `\"increment_large\"`/`\"decrement_large\"`（`step` の 10 倍、PageUp/PageDown・Shift+Arrow 相当）を追加した。DOM keydown 配線（Arrow/Home/End/PageUp/PageDown）自体は REQ-11 バンドルサイズ予算の都合で本イシューでは見送り、dispatch 契約の提供に留める。",
+        "range slider（複数 thumb）・pointer ドラッグの DOM 配線はスコープ外。",
     ],
     arguments: &[
+        ArgRow { name: "root/label/control/track/range/thumb(props)", kind: "&SliderProps", default: "", description: "`data-disabled`/`data-invalid`/`data-readonly` を一律反映する。" },
         ArgRow { name: "root/control/track/range(orientation)", kind: "Orientation", default: "", description: "`data-orientation`（+ `control`/`track`/`range` は同名引数）を反映する。" },
-        ArgRow { name: "root/control/track/range(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
         ArgRow { name: "thumb(orientation)", kind: "Orientation", default: "", description: "`aria-orientation`/`data-orientation` を反映する。" },
         ArgRow { name: "thumb(min, max, now)", kind: "&str, &str, &str", default: "", description: "`aria-valuemin`/`aria-valuemax`/`aria-valuenow` として常時出力する整形済み文字列。" },
         ArgRow { name: "thumb(aria_valuetext)", kind: "Option<&str>", default: "", description: "`Some` のときのみ `aria-valuetext` を追加する。" },
-        ArgRow { name: "thumb(disabled)", kind: "bool", default: "", description: "`true` で `tabindex=\"-1\"` + `aria-disabled`、`false` で `tabindex=\"0\"`。" },
-        ArgRow { name: "hidden_input(name, value)", kind: "&str, &str", default: "", description: "フォーム送信専用（意味論は `thumb` の `role=\"slider\"` が担う）。" },
+        ArgRow { name: "hidden_input(name, value, disabled)", kind: "&str, &str, bool", default: "", description: "フォーム送信専用（意味論は `thumb` の `role=\"slider\"` が担う）。" },
+        ArgRow { name: "marker(value, current, min, max, disabled)", kind: "f64, f64, f64, f64, bool", default: "", description: "`data-value`（`[min, max]` clamp 済み）+ `data-state`（\"under-value\"/\"at-value\"/\"over-value\"）を出力する。" },
     ],
-    examples: &[ExampleEntry {
-        title: "Vertical, disabled",
-        description: "`Orientation::Vertical` + `disabled: true` の例。`thumb` は `tabindex=\"-1\"` + `aria-disabled=\"true\"` を持つ。",
-        render: ex_slider_vertical_disabled,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Vertical, disabled",
+            description: "`Orientation::Vertical` + `disabled: true` の例。`thumb` は `tabindex=\"-1\"` + `aria-disabled=\"true\"` を持つ。",
+            render: ex_slider_vertical_disabled,
+        },
+        ExampleEntry {
+            title: "Readonly",
+            description: "`readonly: true` の例。`thumb` は `tabindex=\"0\"` のままフォーカス可能で、操作抑止はクライアントランタイム側の no-op ガードが担う。",
+            render: ex_slider_readonly,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow { attribute: "role=\"slider\" (thumb)", description: "WAI-ARIA slider パターン。ネイティブ `<input type=\"range\">` ではなくカスタム `div` であり、矢印キー操作は本モジュール単体では成立しない。" },
         AriaRow { attribute: "aria-valuemin / aria-valuemax / aria-valuenow (thumb)", description: "常時出力する。" },
         AriaRow { attribute: "aria-valuetext (thumb)", description: "`Some` のときのみ出力する。" },
+        AriaRow { attribute: "marker-group / marker", description: "role を持たない装飾用パーツ（`crate::angle_slider::marker_group`/`marker` と同型）。操作可能な意味論を持たない。" },
     ],
     demo: None,
 };
@@ -1544,22 +1554,26 @@ fn ex_signature_pad_empty_disabled() -> Node {
 
 fn ex_slider_vertical_disabled() -> Node {
     let orientation = Orientation::Vertical;
+    let props = slider::SliderProps {
+        disabled: true,
+        ..Default::default()
+    };
     let body = vec![slider::root(
         orientation,
-        true,
+        &props,
         vec![],
         vec![
-            slider::label(vec![], vec![text("Brightness")]),
+            slider::label(&props, vec![], vec![text("Brightness")]),
             slider::control(
                 orientation,
-                true,
+                &props,
                 vec![],
                 vec![
                     slider::track(
                         orientation,
-                        true,
+                        &props,
                         vec![],
-                        vec![slider::range(orientation, true, vec![], vec![])],
+                        vec![slider::range(orientation, &props, vec![], vec![])],
                     ),
                     slider::thumb(
                         orientation,
@@ -1567,7 +1581,7 @@ fn ex_slider_vertical_disabled() -> Node {
                         "100",
                         "70",
                         Some("70%"),
-                        true,
+                        &props,
                         vec![],
                         vec![],
                     ),
@@ -1575,6 +1589,48 @@ fn ex_slider_vertical_disabled() -> Node {
             ),
             slider::hidden_input("brightness", "70", true, vec![]),
             slider::value_text(vec![], vec![text("70%")]),
+        ],
+    )];
+    div(vec![("class", "primitives-demo-frame")], body)
+}
+
+fn ex_slider_readonly() -> Node {
+    let orientation = Orientation::Horizontal;
+    let props = slider::SliderProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let body = vec![slider::root(
+        orientation,
+        &props,
+        vec![],
+        vec![
+            slider::label(&props, vec![], vec![text("Volume (locked)")]),
+            slider::control(
+                orientation,
+                &props,
+                vec![],
+                vec![
+                    slider::track(
+                        orientation,
+                        &props,
+                        vec![],
+                        vec![slider::range(orientation, &props, vec![], vec![])],
+                    ),
+                    slider::thumb(
+                        orientation,
+                        "0",
+                        "100",
+                        "60",
+                        Some("60%"),
+                        &props,
+                        vec![],
+                        vec![],
+                    ),
+                ],
+            ),
+            slider::hidden_input("volume-readonly", "60", false, vec![]),
+            slider::value_text(vec![], vec![text("60%")]),
         ],
     )];
     div(vec![("class", "primitives-demo-frame")], body)

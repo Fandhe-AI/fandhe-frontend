@@ -301,7 +301,8 @@ fn slider_name_label_and_valuetext_are_escaped_for_all_payloads() {
             "slider::hidden_input の name 属性値コンテキスト",
         );
 
-        let label_node = slider::label(vec![], vec![text(payload)]);
+        let label_node =
+            slider::label(&slider::SliderProps::default(), vec![], vec![text(payload)]);
         let html = render(&label_node);
         assert_payload_is_escaped(payload, &html, "slider::label のテキストコンテキスト");
 
@@ -311,7 +312,7 @@ fn slider_name_label_and_valuetext_are_escaped_for_all_payloads() {
             "100",
             "40",
             Some(payload),
-            false,
+            &slider::SliderProps::default(),
             vec![],
             vec![],
         );
@@ -320,6 +321,32 @@ fn slider_name_label_and_valuetext_are_escaped_for_all_payloads() {
             payload,
             &html,
             "slider::thumb の aria-valuetext 属性値コンテキスト",
+        );
+
+        // marker（イシュー #1621）: attrs 属性値経路・children テキスト経路
+        let marker_node = slider::marker(
+            20.0,
+            50.0,
+            0.0,
+            100.0,
+            false,
+            vec![("data-testid", payload)],
+            vec![text(payload)],
+        );
+        let html = render(&marker_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "slider::marker の attrs/children コンテキスト",
+        );
+
+        let marker_group_node =
+            slider::marker_group(vec![("data-testid", payload)], vec![text(payload)]);
+        let html = render(&marker_group_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "slider::marker_group の attrs/children コンテキスト",
         );
     }
 }

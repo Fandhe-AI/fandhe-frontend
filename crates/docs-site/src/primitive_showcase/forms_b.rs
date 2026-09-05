@@ -768,22 +768,23 @@ pub(super) fn signature_pad_section() -> Node {
 
 pub(super) fn slider_section() -> Node {
     let orientation = Orientation::Horizontal;
+    let props = slider::SliderProps::default();
     let body = vec![slider::root(
         orientation,
-        false,
+        &props,
         vec![],
         vec![
-            slider::label(vec![], vec![text("Volume")]),
+            slider::label(&props, vec![], vec![text("Volume")]),
             slider::control(
                 orientation,
-                false,
+                &props,
                 vec![],
                 vec![
                     slider::track(
                         orientation,
-                        false,
+                        &props,
                         vec![],
-                        vec![slider::range(orientation, false, vec![], vec![])],
+                        vec![slider::range(orientation, &props, vec![], vec![])],
                     ),
                     slider::thumb(
                         orientation,
@@ -791,9 +792,19 @@ pub(super) fn slider_section() -> Node {
                         "100",
                         "40",
                         Some("40%"),
-                        false,
+                        &props,
                         vec![],
                         vec![],
+                    ),
+                    // MarkerGroup/Marker（イシュー #1621: ark-ui/zag.js との
+                    // 参照突合で追加した anatomy パーツ）。
+                    slider::marker_group(
+                        vec![],
+                        vec![
+                            slider::marker(0.0, 40.0, 0.0, 100.0, false, vec![], vec![]),
+                            slider::marker(50.0, 40.0, 0.0, 100.0, false, vec![], vec![]),
+                            slider::marker(100.0, 40.0, 0.0, 100.0, false, vec![], vec![]),
+                        ],
                     ),
                 ],
             ),
