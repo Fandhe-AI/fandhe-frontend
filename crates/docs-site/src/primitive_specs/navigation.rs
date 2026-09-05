@@ -1721,14 +1721,19 @@ pub(super) const NAV_LIST: ComponentPageSpec = ComponentPageSpec {
 /// plan 方針どおり全項目 closed 版を実演する。
 fn ex_navigation_menu() -> Node {
     let closed = OpenState::Closed;
+    let props = navigation_menu::NavigationMenuProps::default();
     example_wrap(vec![navigation_menu::root(
+        &props,
         "Resources",
         vec![],
         vec![navigation_menu::list(
+            &props,
             vec![],
             vec![navigation_menu::item(
                 closed,
                 false,
+                &props,
+                "guides",
                 vec![],
                 vec![navigation_menu::trigger(
                     closed,

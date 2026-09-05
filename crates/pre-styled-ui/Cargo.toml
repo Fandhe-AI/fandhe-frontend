@@ -1816,7 +1816,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1653（nav-list の参照突合）: 依存先 `fandhe-frontend-headless-ui`
 # の 0.57.0 → 0.57.1（patch）追随のみで自身の破壊的変更なし。patch バンプで
 # 0.109.1 とする。
-version = "0.109.1"
+# イシュー #1654: headless-ui 0.58.0（navigation_menu の破壊的変更）への
+# 追随。navigation_menu モジュールは glob 再エクスポートのため、headless
+# 側のシグネチャ変更がそのまま公開 API の破壊的変更として伝播する。
+# マイナーバンプで 0.110.0 とする。
+version = "0.110.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1831,7 +1835,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.57.1" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.58.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

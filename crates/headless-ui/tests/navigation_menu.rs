@@ -10,27 +10,35 @@
 //! 同型の位置付け）。
 
 use fandhe_frontend_core::{render, text};
-use fandhe_frontend_headless_ui::navigation_menu;
-use fandhe_frontend_headless_ui::{NavigationMenu, OpenState};
+use fandhe_frontend_headless_ui::navigation_menu::{self, NavigationMenuProps};
+use fandhe_frontend_headless_ui::{NavigationMenu, OpenState, Orientation};
 use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate};
 
 /// SSR（状態なし初期描画）→ dispatch（`"select"`）→ hydration の一巡が
 /// 公開 API のみで完結することを固定する。root/list/item/trigger/content/
 /// link を 1 つのノード木に組み合わせても anatomy が破綻しないことも
-/// 併せて確認する。
+/// 併せて確認する。あわせて `NavigationMenuProps::orientation` が SSR →
+/// hydration の一巡を通じて `data-orientation` として保持されることも
+/// 固定する（イシュー #1654、参考サイトとの anatomy/data-* 突合）。
 #[test]
 fn full_cycle_ssr_then_dispatch_then_hydration() {
     let initial = NavigationMenu::default();
+    let props = NavigationMenuProps {
+        orientation: Orientation::Vertical,
+    };
 
     let ssr_html = render(&navigation_menu::root(
+        &props,
         "Main",
         vec![],
         vec![navigation_menu::list(
+            &props,
             vec![],
             vec![
                 initial.item(
                     "products",
                     false,
+                    &props,
                     vec![],
                     vec![
                         initial.trigger(
@@ -43,6 +51,7 @@ fn full_cycle_ssr_then_dispatch_then_hydration() {
                         ),
                         initial.content(
                             "products",
+                            &props,
                             Some("content-products"),
                             Some("trigger-products"),
                             vec![],
@@ -58,6 +67,8 @@ fn full_cycle_ssr_then_dispatch_then_hydration() {
                 navigation_menu::item(
                     OpenState::Closed,
                     false,
+                    &props,
+                    "about",
                     vec![],
                     vec![navigation_menu::link(
                         "/about",
@@ -74,6 +85,7 @@ fn full_cycle_ssr_then_dispatch_then_hydration() {
     assert!(ssr_html.contains(r#"aria-expanded="false""#));
     assert!(ssr_html.contains(r#"hidden="""#));
     assert!(ssr_html.contains(r#"aria-current="page""#));
+    assert!(ssr_html.contains(r#"data-orientation="vertical""#));
     assert!(!ssr_html.contains("role="));
     assert!(!ssr_html.contains("data-motion"));
     assert!(!ssr_html.contains("data-hydrate-"));

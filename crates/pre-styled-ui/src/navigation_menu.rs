@@ -1,7 +1,8 @@
 //! styled Navigation Menu（headless ラッパー、イシュー #993、親 #932 Phase 8）。
 //!
-//! `fandhe_frontend_headless_ui::navigation_menu`（イシュー #993）の Root /
-//! List / Item / Trigger / Content / Link 6 anatomy パーツと
+//! `fandhe_frontend_headless_ui::navigation_menu`（イシュー #993、#1654 で
+//! 7 パーツへ拡張）の Root / List / Item / Trigger / ItemIndicator / Content
+//! / Link 7 anatomy パーツと
 //! [`fandhe_frontend_headless_ui::navigation_menu::NavigationMenu`]
 //! （[`fandhe_frontend_headless_ui::state::SingleSelect`] を埋め込んだ
 //! 「高々 1 個の Trigger だけが開く」状態機械）をそのまま再エクスポートし、
@@ -84,13 +85,16 @@
 //!   モジュール冒頭 rustdoc「レイアウト」節の縦ずれ回帰予防の固定値
 //!   （PR #1000 の反省）のため変更しない。表示専用の `<ul>` レイアウト
 //!   コンテナであり hover 対象でもない。
-//! - **indicator パートは実装しない（意図的な非対応）**: headless 層
+//! - **indicator パートは実装しない（意図的な非対応、当時）**: headless 層
 //!   （`crates/headless-ui/src/navigation_menu.rs`）の anatomy は
 //!   root/list/item/trigger/content/link の 6 パーツのみで Indicator は
-//!   スコープ外として明示的に非実装（イシュー #993 継承）。本モジュールは
-//!   headless anatomy の再エクスポート + stylesheet のみの薄い委譲（規約
-//!   B-1）であり、pre-styled-ui 単独では indicator パートを追加できない
-//!   （headless 層の anatomy 拡張が前提になる別スコープ）。
+//!   スコープ外として明示的に非実装（イシュー #993 継承）だった。**注記
+//!   （イシュー #1654）**: headless 層は `item-indicator` パートを新設し
+//!   7 パーツへ拡張済みだが、`SLOTS` への追加・CSS 付与は本モジュールでは
+//!   未実施（親 #1530 系列への申し送り、下記「本イシューのスコープ外」
+//!   参照）。本モジュールは headless anatomy の再エクスポート +
+//!   stylesheet のみの薄い委譲（規約 B-1）であり、pre-styled-ui 単独では
+//!   indicator パートの CSS 到達を追加できない。
 //! - **`:active`（押下）擬似クラスは追加しない（意図的な非対応）**:
 //!   [`crate::recipe::StateCondition`] に `:active` に相当する variant が
 //!   存在せず、新設は本イシューの 2h 粒度・recipe 契約変更の双方に対して
@@ -162,8 +166,15 @@
 //!
 //! headless 層（`crates/headless-ui/src/navigation_menu.rs`）のモジュール
 //! doc「スコープ外」節をそのまま継承する（`data-motion`・viewport 寸法
-//! 測定、Indicator/Viewport/Sub\* パーツ・`orientation` 引数、キーボード
-//! 操作の実 DOM 配線）。
+//! 測定、Indicator（スライドバー）/Viewport/Sub\* パーツ、キーボード操作の
+//! 実 DOM 配線）。`NavigationMenuProps::orientation`（`data-orientation`）は
+//! イシュー #1654 で headless 層に実装済みであり、本モジュールは
+//! `pub use ...navigation_menu::*` により無変更で追随する。
+//!
+//! **イシュー #1654 追記**: headless 層が新設した `item-indicator` パート
+//! （`data-orientation`/`data-value`/`aria-hidden` 付き `span`）への
+//! [`SLOTS`] 追加・CSS 付与・`orientation = Vertical` 向けレイアウト調整は
+//! 本モジュールでは未実施（親 #1530 系列〔#1700/#1701 相当〕へ申し送り）。
 
 use crate::css::decl;
 use crate::recipe::{
@@ -466,7 +477,12 @@ mod tests {
 
     #[test]
     fn reexported_root_renders_with_headless_anatomy_attrs() {
-        let html = render(&root("Main", vec![], vec![]));
+        let html = render(&root(
+            &NavigationMenuProps::default(),
+            "Main",
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="navigation-menu""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("role="));

@@ -1611,14 +1611,19 @@ fn reposition_now_is_noop_for_navigation_menu_markup_without_positioner_part() {
 
     let trigger_id = "position-browser-navigation-menu-trigger";
     let content_id = "position-browser-navigation-menu-content";
+    let nav_props = navigation_menu::NavigationMenuProps::default();
     let html = render(&navigation_menu::root(
+        &nav_props,
         "Main",
         vec![],
         vec![navigation_menu::list(
+            &nav_props,
             vec![],
             vec![navigation_menu::item(
                 OpenState::Open,
                 false,
+                &nav_props,
+                "products",
                 vec![],
                 vec![
                     navigation_menu::trigger(
@@ -1632,6 +1637,8 @@ fn reposition_now_is_noop_for_navigation_menu_markup_without_positioner_part() {
                     ),
                     navigation_menu::content(
                         OpenState::Open,
+                        &nav_props,
+                        "products",
                         Some(content_id),
                         Some(trigger_id),
                         vec![],

@@ -636,15 +636,25 @@ pub(super) fn nav_list_section() -> Node {
 pub(super) fn navigation_menu_section() -> Node {
     let open = OpenState::Open;
     let closed = OpenState::Closed;
+    // イシュー #1654: Anatomy/data-* 表の機械導出元（`primitive_showcase.rs`
+    // の網羅検査）を満たすため、disabled 項目（`data-disabled`）と
+    // current リンク（`data-current`）を追加し、open 項目の trigger 内に
+    // `item_indicator`（`data-orientation`/`data-value`/`aria-hidden`）を
+    // 併掲する。
+    let props = navigation_menu::NavigationMenuProps::default();
     let body = vec![navigation_menu::root(
+        &props,
         "Main",
         vec![],
         vec![navigation_menu::list(
+            &props,
             vec![],
             vec![
                 navigation_menu::item(
                     open,
                     false,
+                    &props,
+                    "products",
                     vec![],
                     vec![
                         navigation_menu::trigger(
@@ -654,25 +664,46 @@ pub(super) fn navigation_menu_section() -> Node {
                             Some("nm-trigger-0"),
                             Some("nm-content-0"),
                             vec![],
-                            vec![text("Products")],
+                            vec![
+                                text("Products"),
+                                navigation_menu::item_indicator(
+                                    open,
+                                    &props,
+                                    "products",
+                                    vec![],
+                                    vec![text("▾")],
+                                ),
+                            ],
                         ),
                         navigation_menu::content(
                             open,
+                            &props,
+                            "products",
                             Some("nm-content-0"),
                             Some("nm-trigger-0"),
                             vec![],
-                            vec![navigation_menu::link(
-                                "https://example.com/products/core/",
-                                false,
-                                vec![],
-                                vec![text("Core")],
-                            )],
+                            vec![
+                                navigation_menu::link(
+                                    "https://example.com/products/core/",
+                                    false,
+                                    vec![],
+                                    vec![text("Core")],
+                                ),
+                                navigation_menu::link(
+                                    "https://example.com/products/current/",
+                                    true,
+                                    vec![],
+                                    vec![text("Current")],
+                                ),
+                            ],
                         ),
                     ],
                 ),
                 navigation_menu::item(
                     closed,
                     false,
+                    &props,
+                    "docs",
                     vec![],
                     vec![navigation_menu::trigger(
                         closed,
@@ -682,6 +713,22 @@ pub(super) fn navigation_menu_section() -> Node {
                         None,
                         vec![],
                         vec![text("Docs")],
+                    )],
+                ),
+                navigation_menu::item(
+                    closed,
+                    true,
+                    &props,
+                    "enterprise",
+                    vec![],
+                    vec![navigation_menu::trigger(
+                        closed,
+                        true,
+                        "enterprise",
+                        None,
+                        None,
+                        vec![],
+                        vec![text("Enterprise")],
                     )],
                 ),
             ],
