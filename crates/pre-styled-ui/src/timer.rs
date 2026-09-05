@@ -300,6 +300,18 @@ fn recipe() -> SlotRecipe {
             StateCondition::Hover,
             hover_surface_declarations(),
         )
+        // イシュー #1632: headless `timer::action_trigger` が可視性導出の
+        // ため `hidden` 属性を出力するようになった（zag.js
+        // `getTriggerProps` の真偽式と同型）。base 規則が `display:
+        // inline-flex` を宣言しており UA 既定の `[hidden] { display: none }`
+        // を上書きしてしまうため、`action_bar.rs` の `positioner[hidden]`
+        // と同じ理由でより詳細度の高い `[hidden]` 属性セレクタで明示的に
+        // 上書きする。
+        .state(
+            "action-trigger",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        )
 }
 
 /// この styled Timer が生成する静的 CSS 全量を返す（決定的。

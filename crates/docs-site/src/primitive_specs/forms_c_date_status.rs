@@ -1022,6 +1022,12 @@ const QR_CODE: ComponentPageSpec = ComponentPageSpec {
 
 /// Timer の Examples: 完了状態（`TimerPhase::Completed`）を示す（Demo は
 /// running 状態のみを描画するため、完了時の表示状態を補完する）。
+///
+/// イシュー #1632 是正: `Completed` は zag.js の `running`/`paused` 述語が
+/// いずれも偽になるため `Idle` と同じ可視性（Start/Restart のみ表示、
+/// Pause/Resume/Reset は `hidden`）になる（意図的拡張、[`mod@timer`]
+/// モジュール doc 参照）。旧版は「Reset のみを表示する構成」と誤って
+/// 記述していたため是正した。
 fn timer_completed_example() -> Node {
     timer::root(
         true,
@@ -1045,11 +1051,26 @@ fn timer_completed_example() -> Node {
             ),
             timer::control(
                 vec![],
-                vec![timer::action_trigger(
-                    TimerControl::Reset,
-                    vec![],
-                    vec![text("Reset")],
-                )],
+                vec![
+                    timer::action_trigger(
+                        TimerControl::Start,
+                        TimerPhase::Completed,
+                        vec![],
+                        vec![text("Start")],
+                    ),
+                    timer::action_trigger(
+                        TimerControl::Restart,
+                        TimerPhase::Completed,
+                        vec![],
+                        vec![text("Restart")],
+                    ),
+                    timer::action_trigger(
+                        TimerControl::Reset,
+                        TimerPhase::Completed,
+                        vec![],
+                        vec![text("Reset")],
+                    ),
+                ],
             ),
         ],
     )
@@ -1096,7 +1117,7 @@ const TIMER: ComponentPageSpec = ComponentPageSpec {
     ],
     examples: &[ExampleEntry {
         title: "完了状態（Completed）",
-        description: "`TimerPhase::Completed` を渡すと `data-state=\"completed\"` となり、`action_trigger` は Reset のみを表示する構成にできます。",
+        description: "`TimerPhase::Completed` を渡すと `data-state=\"completed\"` となります。`action_trigger` の可視性は `TimerControl::is_hidden_in` が zag.js と同じ真偽式で導出し、Completed は running/paused のいずれでもないため Idle と同じ可視性（Start/Restart のみ表示、Pause/Resume/Reset は `hidden`）になります。",
         render: timer_completed_example,
     }],
     keyboard: &[KeyRow {

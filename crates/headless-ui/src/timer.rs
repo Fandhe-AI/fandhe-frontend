@@ -55,11 +55,22 @@
 //! `"timer:tick"`）で状態遷移する。`fandhe-frontend-pre-styled-ui` が本モジュール
 //! を呼んでスタイル済み Timer を組み立てる想定である。
 //!
-//! # ARIA について
+//! # ARIA について（イシュー #1632 是正）
 //!
-//! ark-ui / Zag.js の Timer は専用の WAI-ARIA パターンを持たない表示系
-//! コンポーネントであり、本モジュールも追加の `role`/`aria-*` を付与しない
-//! （[`mod@clipboard`] と同型の判断）。
+//! 当初「ark-ui / Zag.js の Timer は専用の WAI-ARIA パターンを持たない」と
+//! 記述していたが、一次ソース（zag.js `packages/machines/timer/src/timer.connect.ts`）
+//! を再確認した結果、[`area`] に `role="timer"`・`aria-atomic="true"`・
+//! `aria-label`（既定書式、[`Timer::area_label`]）が、[`separator`] に
+//! `aria-hidden="true"` がそれぞれ付与されることが判明したため是正した
+//! （[`mod@clipboard`] の判断は他パーツについて変わらず有効）。
+//!
+//! # is_hidden_in / action_trigger の可視性（イシュー #1632）
+//!
+//! zag.js は [`TimerControl`] 各値の可視性を状態から導出する真偽式を持つ
+//! （[`TimerControl::is_hidden_in`] が同じ式をそのまま実装する）。
+//! [`action_trigger`] はこの結果に応じ `hidden` 属性を無条件付与する。
+//! zag.js には無い [`TimerControl::Restart`]（常に可視）を本実装は追加する
+//! （ark-ui docs のデモ構成に合わせた実用拡張、意図的な superset）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -85,6 +96,7 @@
 //! - `asChild`・`ids` オプション（ark-ui 固有機能）は非採用。
 
 use crate::anatomy::{anatomy, Anatomy};
+use crate::aria::{aria_atomic, aria_hidden, role};
 use crate::data_attrs::{data_countdown, data_state};
 use fandhe_frontend_core::{text, Node};
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
@@ -121,7 +133,10 @@ impl TimerUnit {
 
 /// [`action_trigger`] の `data-action` 属性値の語彙（wasm 層の allowlist
 /// 変換元、`fandhe-frontend-wasm-full` の `headless_timer` モジュールが
-/// この 4 値の完全一致のみを `"timer:*"` アクションへ変換する契約）。
+/// この 5 値の完全一致のみを `"timer:*"` アクションへ変換する契約）。
+///
+/// zag.js は 5 値（start/pause/resume/reset/restart）を持つ（イシュー #1632
+/// 突合で判明、[`Restart`](Self::Restart) を追加した）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimerControl {
     /// 開始（Idle → Running）。
@@ -132,6 +147,8 @@ pub enum TimerControl {
     Resume,
     /// リセット（任意 → Idle）。
     Reset,
+    /// 再開始（任意 → Running、経過をゼロへ。常に可視）。
+    Restart,
 }
 
 impl TimerControl {
@@ -143,6 +160,41 @@ impl TimerControl {
             Self::Pause => "pause",
             Self::Resume => "resume",
             Self::Reset => "reset",
+            Self::Restart => "restart",
+        }
+    }
+
+    /// [`as_str`](Self::as_str) の逆変換（`fandhe-frontend-wasm-full` の
+    /// `data-action` allowlist 同期が利用する、イシュー #1632）。未知の値は
+    /// `None`（fail-closed、完全一致のみ受理）。
+    #[must_use]
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "start" => Some(Self::Start),
+            "pause" => Some(Self::Pause),
+            "resume" => Some(Self::Resume),
+            "reset" => Some(Self::Reset),
+            "restart" => Some(Self::Restart),
+            _ => None,
+        }
+    }
+
+    /// zag.js `timer.connect.ts` の可視性真偽式をそのまま実装する純粋関数
+    /// （イシュー #1632）。`phase` から `running`/`paused` の 2 述語を導出し、
+    /// このコントロールを `hidden` にすべきかを返す。`Completed` は
+    /// `running`/`paused` いずれでもないため `Idle` と同じ可視性になる
+    /// （意図的な拡張、モジュール冒頭「is_hidden_in / action_trigger の
+    /// 可視性」節参照）。[`Self::Restart`] は常に可視（`false`）。
+    #[must_use]
+    pub fn is_hidden_in(self, phase: TimerPhase) -> bool {
+        let running = phase == TimerPhase::Running;
+        let paused = phase == TimerPhase::Paused;
+        match self {
+            Self::Start => running || paused,
+            Self::Pause => !running,
+            Self::Resume => !paused,
+            Self::Reset => !running && !paused,
+            Self::Restart => false,
         }
     }
 }
@@ -246,10 +298,36 @@ pub fn root<'a>(
     ANATOMY.part("root", "div", merged, children)
 }
 
+/// [`area`] が固定付与するキー一覧（呼び出し側 `attrs` によるなりすまし除外、
+/// `crate::date_input::ROOT_RESERVED` と同型のパターン、イシュー #1632）。
+/// `aria-label` は上書き可能キーとして意図的に含めない
+/// （[`Timer::area`] が既定値との重複を避けて注入する）。
+const AREA_RESERVED: &[&str] = &["role", "aria-atomic"];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（`crate::date_input::drop_reserved` と同型の重複実装。
+/// モジュール間の相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
 /// Area パーツ（`div`）。セグメント項目群を内包するラッパー。
+///
+/// zag.js `timer.connect.ts` の `getAreaProps` に合わせ `role="timer"`・
+/// `aria-atomic="true"` を無条件付与する（イシュー #1632 是正）。
+/// `aria-label`（既定書式）を注入したい場合は [`Timer::area`] を使う。
 #[must_use]
 pub fn area<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("area", "div", attrs, children)
+    let attrs = drop_reserved(attrs, AREA_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![role("timer"), aria_atomic(true)];
+    merged.extend(attrs);
+    ANATOMY.part("area", "div", merged, children)
 }
 
 /// Item パーツ（`div`）。1 セグメント単位（例: 秒）を表す。
@@ -290,11 +368,19 @@ pub fn item_label<'a>(
     ANATOMY.part("item-label", "span", merged, children)
 }
 
+/// [`separator`] が固定付与するキー一覧（イシュー #1632）。
+const SEPARATOR_RESERVED: &[&str] = &["aria-hidden"];
+
 /// Separator パーツ（`span`）。セグメント間の区切り（例: ":"）を表示する
-/// 装飾用パーツ。
+/// 装飾用パーツ。zag.js `timer.connect.ts` の `getSeparatorProps` に合わせ
+/// `aria-hidden="true"` を無条件付与する（イシュー #1632 是正。支援技術に
+/// 装飾用の区切り文字を読み上げさせない）。
 #[must_use]
 pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("separator", "span", attrs, children)
+    let attrs = drop_reserved(attrs, SEPARATOR_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![aria_hidden(true)];
+    merged.extend(attrs);
+    ANATOMY.part("separator", "span", merged, children)
 }
 
 /// Control パーツ（`div`）。[`action_trigger`] 群を内包するラッパー。
@@ -303,20 +389,32 @@ pub fn control<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node 
     ANATOMY.part("control", "div", attrs, children)
 }
 
+/// [`action_trigger`] が固定付与するキー一覧（イシュー #1632）。
+const ACTION_TRIGGER_RESERVED: &[&str] = &["type", "data-action", "hidden"];
+
 /// ActionTrigger パーツ（`button type="button"`）。
 ///
-/// `data-action`（[`TimerControl::as_str`] の 4 値のいずれか）を付与する。
+/// `data-action`（[`TimerControl::as_str`] の 5 値のいずれか）を付与する。
 /// クライアント配線層（`fandhe-frontend-wasm-full::headless_timer`）は
 /// この属性値を allowlist（完全一致）で `"timer:*"` アクション名へ変換して
 /// dispatch する契約であり、任意文字列は受け付けない（型で固定済み）。
+///
+/// `phase`（現在の [`TimerPhase`]）から [`TimerControl::is_hidden_in`] で
+/// `hidden` 属性の要否を導出する（イシュー #1632 是正、zag.js
+/// `getTriggerProps` と同じ真偽式）。
 #[must_use]
 pub fn action_trigger<'a>(
     control_kind: TimerControl,
+    phase: TimerPhase,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ACTION_TRIGGER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![("type", "button"), ("data-action", control_kind.as_str())];
+    if control_kind.is_hidden_in(phase) {
+        merged.push(("hidden", ""));
+    }
     merged.extend(attrs);
     ANATOMY.part("action-trigger", "button", merged, children)
 }
@@ -333,6 +431,9 @@ pub enum TimerAction {
     Resume,
     /// リセット（任意 → Idle、経過をゼロへ）。
     Reset,
+    /// 再開始（任意 → Running、経過をゼロへ。[`TimerAction::Start`] と同じ
+    /// 遷移、イシュー #1632 で追加）。
+    Restart,
     /// 時間経過をミリ秒単位で注入する（Running のときのみ有効）。
     Tick(u64),
 }
@@ -493,6 +594,53 @@ impl Timer {
         })
         .collect()
     }
+
+    /// [`area`] の既定 `aria-label` 書式（zag.js `timer.connect.ts` の既定
+    /// `translations.areaLabel` に合わせた固定英語書式、イシュー #1632）。
+    /// [`display_segments`](Self::display_segments) から
+    /// `"{days} days {hh}:{mm}:{ss}"` を組み立てる。ロケール依存の整形は
+    /// 行わない（モジュール冒頭「スコープ外」節）。
+    #[must_use]
+    pub fn area_label(&self) -> String {
+        let (days, hours, minutes, seconds) = self.display_segments();
+        format!(
+            "{days} days {}:{}:{}",
+            format_segment(hours),
+            format_segment(minutes),
+            format_segment(seconds)
+        )
+    }
+
+    /// [`area`] へ現在の状態から導出した既定 `aria-label` を注入する利便
+    /// メソッド（イシュー #1632）。呼び出し側 `attrs` に既に `aria-label`
+    /// があれば上書きしない（[`crate::clipboard::trigger`] の
+    /// `has_caller_attr` と同型の dedup 判断、fail-closed で利用者の
+    /// 独自ラベルを壊さない）。
+    #[must_use]
+    pub fn area<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        let has_caller_label = attrs
+            .iter()
+            .any(|(k, _)| k.eq_ignore_ascii_case("aria-label"));
+        let label_owned = self.area_label();
+        let mut merged: Vec<(&str, &str)> = Vec::new();
+        if !has_caller_label {
+            merged.push(("aria-label", label_owned.as_str()));
+        }
+        merged.extend(attrs);
+        area(merged, children)
+    }
+
+    /// [`action_trigger`] へ現在の [`phase`](Self::phase) を注入する利便
+    /// メソッド（イシュー #1632）。
+    #[must_use]
+    pub fn action_trigger<'a>(
+        &self,
+        control_kind: TimerControl,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        action_trigger(control_kind, self.phase, attrs, children)
+    }
 }
 
 impl Component for Timer {
@@ -500,7 +648,7 @@ impl Component for Timer {
 
     fn update(&mut self, action: TimerAction) {
         match action {
-            TimerAction::Start => {
+            TimerAction::Start | TimerAction::Restart => {
                 self.phase = TimerPhase::Running;
                 self.elapsed_ms = 0;
             }
@@ -554,7 +702,12 @@ impl Component for Timer {
             Vec::new(),
             vec![control(
                 Vec::new(),
-                vec![action_trigger(TimerControl::Start, Vec::new(), Vec::new())],
+                vec![action_trigger(
+                    TimerControl::Start,
+                    self.phase,
+                    Vec::new(),
+                    Vec::new(),
+                )],
             )],
         )
     }
@@ -567,6 +720,7 @@ impl Component for Timer {
             "timer:pause" => Some(TimerAction::Pause),
             "timer:resume" => Some(TimerAction::Resume),
             "timer:reset" => Some(TimerAction::Reset),
+            "timer:restart" => Some(TimerAction::Restart),
             "timer:tick" => payload.parse::<u64>().ok().map(TimerAction::Tick),
             _ => None,
         }
@@ -748,6 +902,7 @@ mod tests {
     fn action_trigger_outputs_type_button_and_data_action() {
         let html = render(&action_trigger(
             TimerControl::Start,
+            TimerPhase::Idle,
             vec![],
             vec![text("Start")],
         ));
@@ -758,16 +913,205 @@ mod tests {
     }
 
     #[test]
-    fn action_trigger_data_action_covers_all_four_controls() {
+    fn action_trigger_data_action_covers_all_five_controls() {
         for (kind, expected) in [
             (TimerControl::Start, "start"),
             (TimerControl::Pause, "pause"),
             (TimerControl::Resume, "resume"),
             (TimerControl::Reset, "reset"),
+            (TimerControl::Restart, "restart"),
         ] {
-            let html = render(&action_trigger(kind, vec![], vec![]));
+            let html = render(&action_trigger(kind, TimerPhase::Idle, vec![], vec![]));
             assert!(html.contains(&format!(r#"data-action="{expected}""#)));
         }
+    }
+
+    // --- イシュー #1632: area の role/aria-atomic/aria-label ---
+
+    #[test]
+    fn area_outputs_role_timer_and_aria_atomic() {
+        let html = render(&area(vec![], vec![]));
+        assert!(html.contains(r#"role="timer""#));
+        assert!(html.contains(r#"aria-atomic="true""#));
+    }
+
+    #[test]
+    fn area_caller_role_and_aria_atomic_cannot_be_spoofed() {
+        let html = render(&area(
+            vec![("role", "attacker"), ("aria-atomic", "false")],
+            vec![],
+        ));
+        assert!(html.contains(r#"role="timer""#));
+        assert!(html.contains(r#"aria-atomic="true""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn timer_area_label_uses_zag_default_format() {
+        let mut t = Timer::countdown(93_784_000, 1000);
+        dispatch(&mut t, "timer:start", "");
+        assert_eq!(t.area_label(), "1 days 02:03:04");
+    }
+
+    #[test]
+    fn timer_area_injects_default_aria_label() {
+        let t = Timer::default();
+        let html = render(&t.area(vec![], vec![]));
+        assert!(html.contains(&format!(r#"aria-label="{}""#, t.area_label())));
+    }
+
+    #[test]
+    fn timer_area_caller_aria_label_overrides_default_without_duplication() {
+        let t = Timer::default();
+        let html = render(&t.area(vec![("aria-label", "Custom label")], vec![]));
+        assert!(html.contains(r#"aria-label="Custom label""#));
+        assert_eq!(html.matches("aria-label=").count(), 1);
+    }
+
+    // --- イシュー #1632: separator の aria-hidden ---
+
+    #[test]
+    fn separator_outputs_aria_hidden() {
+        let html = render(&separator(vec![], vec![text(":")]));
+        assert!(html.contains(r#"aria-hidden="true""#));
+    }
+
+    #[test]
+    fn separator_caller_aria_hidden_cannot_be_spoofed() {
+        let html = render(&separator(vec![("aria-hidden", "false")], vec![]));
+        assert!(html.contains(r#"aria-hidden="true""#));
+    }
+
+    // --- イシュー #1632: action_trigger の hidden 導出（5 action × 4 phase） ---
+
+    #[test]
+    fn action_trigger_hidden_matrix_matches_zag() {
+        use TimerControl::{Pause, Reset, Restart, Resume, Start};
+        use TimerPhase::{Completed, Idle, Paused, Running};
+
+        // (control, phase) -> hidden であるべきか。zag.js
+        // `timer.connect.ts` の真偽式（running/paused の 2 述語）を手で
+        // 展開した期待値表。Completed は Idle と同じ可視性（意図的拡張）。
+        let cases = [
+            (Start, Idle, false),
+            (Start, Running, true),
+            (Start, Paused, true),
+            (Start, Completed, false),
+            (Pause, Idle, true),
+            (Pause, Running, false),
+            (Pause, Paused, true),
+            (Pause, Completed, true),
+            (Resume, Idle, true),
+            (Resume, Running, true),
+            (Resume, Paused, false),
+            (Resume, Completed, true),
+            (Reset, Idle, true),
+            (Reset, Running, false),
+            (Reset, Paused, false),
+            (Reset, Completed, true),
+            (Restart, Idle, false),
+            (Restart, Running, false),
+            (Restart, Paused, false),
+            (Restart, Completed, false),
+        ];
+        for (control, phase, expect_hidden) in cases {
+            assert_eq!(
+                control.is_hidden_in(phase),
+                expect_hidden,
+                "{control:?} in {phase:?}"
+            );
+            let html = render(&action_trigger(control, phase, vec![], vec![]));
+            assert_eq!(
+                html.contains("hidden"),
+                expect_hidden,
+                "rendered hidden mismatch for {control:?} in {phase:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn action_trigger_caller_hidden_type_and_data_action_cannot_be_spoofed() {
+        let html = render(&action_trigger(
+            TimerControl::Pause,
+            TimerPhase::Running,
+            vec![
+                ("hidden", ""),
+                ("type", "submit"),
+                ("data-action", "attacker"),
+            ],
+            vec![],
+        ));
+        // Running 時の Pause は可視のはずだが、呼び出し側の `hidden` 偽装は
+        // 除外されるため出力に `hidden` は含まれない。
+        assert!(!html.contains("hidden"));
+        assert!(html.contains(r#"type="button""#));
+        assert!(html.contains(r#"data-action="pause""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    // --- イシュー #1632: TimerControl::Restart / TimerAction::Restart ---
+
+    #[test]
+    fn restart_transitions_any_phase_to_running_and_resets_elapsed() {
+        // running 状態から restart できることを確認する。
+        let mut running = Timer::count_up(0, 1000);
+        dispatch(&mut running, "timer:start", "");
+        dispatch(&mut running, "timer:tick", "500");
+        assert!(dispatch(&mut running, "timer:restart", ""));
+        assert_eq!(running.phase(), TimerPhase::Running);
+        assert_eq!(running.elapsed_ms(), 0);
+
+        // paused 状態からも restart できることを確認する。
+        let mut paused = Timer::count_up(0, 1000);
+        dispatch(&mut paused, "timer:start", "");
+        dispatch(&mut paused, "timer:tick", "500");
+        dispatch(&mut paused, "timer:pause", "");
+        assert!(dispatch(&mut paused, "timer:restart", ""));
+        assert_eq!(paused.phase(), TimerPhase::Running);
+        assert_eq!(paused.elapsed_ms(), 0);
+    }
+
+    #[test]
+    fn restart_from_idle_transitions_to_running() {
+        let mut t = Timer::count_up(0, 1000);
+        assert!(dispatch(&mut t, "timer:restart", ""));
+        assert_eq!(t.phase(), TimerPhase::Running);
+        assert_eq!(t.elapsed_ms(), 0);
+    }
+
+    #[test]
+    fn decode_action_accepts_timer_restart() {
+        assert_eq!(
+            <Timer as Component>::decode_action("timer:restart", ""),
+            Some(TimerAction::Restart)
+        );
+    }
+
+    #[test]
+    fn timer_control_from_str_round_trips_as_str() {
+        for kind in [
+            TimerControl::Start,
+            TimerControl::Pause,
+            TimerControl::Resume,
+            TimerControl::Reset,
+            TimerControl::Restart,
+        ] {
+            assert_eq!(TimerControl::parse(kind.as_str()), Some(kind));
+        }
+        assert_eq!(TimerControl::parse("bogus"), None);
+        assert_eq!(TimerControl::parse("Start"), None); // 大文字小文字の完全一致のみ
+    }
+
+    // --- イシュー #1632: item は style= を出力しない（§3.25 規則 2 非採用） ---
+
+    #[test]
+    fn item_and_item_value_do_not_output_style_attribute() {
+        let html = render(&item(
+            TimerUnit::Seconds,
+            vec![],
+            vec![item_value(TimerUnit::Seconds, vec![], vec![text("05")])],
+        ));
+        assert!(!html.contains("style="));
     }
 
     // --- segments_from_ms / format_segment ---

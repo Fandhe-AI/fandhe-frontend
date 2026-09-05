@@ -7981,8 +7981,8 @@ fn timer_display_node(t: &Timer, minutes_label: &str, seconds_label: &str) -> No
             timer::control(
                 vec![],
                 vec![
-                    timer::action_trigger(TimerControl::Pause, vec![], vec![text("Pause")]),
-                    timer::action_trigger(TimerControl::Reset, vec![], vec![text("Reset")]),
+                    t.action_trigger(TimerControl::Pause, vec![], vec![text("Pause")]),
+                    t.action_trigger(TimerControl::Reset, vec![], vec![text("Reset")]),
                 ],
             ),
         ],
