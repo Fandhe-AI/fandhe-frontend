@@ -91,6 +91,11 @@
 const CLIPBOARD_SCOPE: &str = "clipboard";
 /// Clipboard Root パーツの `data-part` 属性値。
 const ROOT_PART: &str = "root";
+/// Clipboard Label パーツの `data-part` 属性値（イシュー #1631 で headless
+/// 層が `label` へ `data-copied` を付与するようになったため
+/// [`DATA_COPIED_PARTS`] に追加、同上の理由で dead_code 抑制）。
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+const LABEL_PART: &str = "label";
 /// Clipboard Control パーツの `data-part` 属性値。
 ///
 /// wasm32 配線層（`wiring::apply_clipboard_copied` が組み立てる
@@ -114,7 +119,13 @@ const INDICATOR_PART: &str = "indicator";
 /// wasm32 配線層専用の定数だが、native の非テストビルドでは未使用と
 /// 誤検出される（同上の理由の dead_code 抑制）。
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-const DATA_COPIED_PARTS: &[&str] = &[ROOT_PART, CONTROL_PART, INPUT_PART, TRIGGER_PART];
+const DATA_COPIED_PARTS: &[&str] = &[
+    ROOT_PART,
+    LABEL_PART,
+    CONTROL_PART,
+    INPUT_PART,
+    TRIGGER_PART,
+];
 
 /// dispatch アクション名 "clipboard:copy"（`ClipboardAction::Copy`/
 /// `Clipboard::decode_action` の対応する分岐と一致）。`"clipboard:"`
@@ -168,6 +179,36 @@ pub fn indicator_visible_after_copied(variant: Option<&str>, copied: bool) -> Op
     }
 }
 
+/// trigger の現在の `aria-label` 値から、コピー成功/リセット後に反映すべき
+/// 新しい既定 `aria-label` を求める純粋関数（DOM 非依存、native
+/// `cargo test` で検証可能。イシュー #1631）。
+///
+/// 現在値が headless 層の既定 2 リテラル
+/// （[`fandhe_frontend_headless_ui::clipboard::TRIGGER_ARIA_LABEL_IDLE`]/
+/// [`fandhe_frontend_headless_ui::clipboard::TRIGGER_ARIA_LABEL_COPIED`]）の
+/// いずれかと一致する場合のみ `Some`（反転後の新しい既定値）を返す。
+/// それ以外（呼び出し側が独自の `aria-label` を指定していた場合、または
+/// 属性自体が存在しない場合）は `None` を返し、呼び出し側は DOM への
+/// 書き込みをスキップする（利用者の独自 `aria-label` を壊さない
+/// fail-closed 契約、`crates/headless-ui/src/clipboard.rs` モジュール冒頭
+/// 「ARIA について」節参照）。
+#[must_use]
+pub fn next_trigger_aria_label(current: Option<&str>, copied: bool) -> Option<&'static str> {
+    use fandhe_frontend_headless_ui::clipboard::{
+        TRIGGER_ARIA_LABEL_COPIED, TRIGGER_ARIA_LABEL_IDLE,
+    };
+    match current {
+        Some(value) if value == TRIGGER_ARIA_LABEL_IDLE || value == TRIGGER_ARIA_LABEL_COPIED => {
+            if copied {
+                Some(TRIGGER_ARIA_LABEL_COPIED)
+            } else {
+                Some(TRIGGER_ARIA_LABEL_IDLE)
+            }
+        }
+        _ => None,
+    }
+}
+
 // ---------------------------------------------------------------------
 // 配線層: web-sys/js-sys 依存。wasm32 ターゲットでのみコンパイル対象とし、
 // native の `cargo test --workspace` に本層の DOM 依存コードを混入させない
@@ -176,8 +217,9 @@ pub fn indicator_visible_after_copied(variant: Option<&str>, copied: bool) -> Op
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        indicator_visible_after_copied, is_clipboard_root, is_clipboard_trigger, ACTION_COPY,
-        ACTION_RESET, CLIPBOARD_SCOPE, DATA_COPIED_PARTS, DEFAULT_RESET_TIMEOUT_MS, INDICATOR_PART,
+        indicator_visible_after_copied, is_clipboard_root, is_clipboard_trigger,
+        next_trigger_aria_label, ACTION_COPY, ACTION_RESET, CLIPBOARD_SCOPE, DATA_COPIED_PARTS,
+        DEFAULT_RESET_TIMEOUT_MS, INDICATOR_PART, TRIGGER_PART,
     };
     use crate::events::ActionRef;
     use js_sys::{Function, Promise, Reflect};
@@ -231,9 +273,10 @@ mod wiring {
         result.dyn_into::<Promise>().ok()
     }
 
-    /// `root` 配下の全 Clipboard パーツ（root/control/input/trigger）へ
-    /// `data-copied` を反映し、続けて indicator の可視性を反映する
-    /// （[`super::apply_clipboard_copied`] の実体、モジュール冒頭 doc
+    /// `root` 配下の全 Clipboard パーツ（root/label/control/input/trigger）へ
+    /// `data-copied` を反映し、続けて trigger の `aria-label`（既定値のみ、
+    /// イシュー #1631）・indicator の可視性を反映する（
+    /// [`super::apply_clipboard_copied`] の実体、モジュール冒頭 doc
     /// 「1 root : 1 状態機械契約」節参照）。
     ///
     /// # Errors
@@ -243,6 +286,7 @@ mod wiring {
         for part in DATA_COPIED_PARTS {
             apply_data_copied_to_part(root, part, copied)?;
         }
+        apply_trigger_aria_label(root, copied)?;
         apply_indicator_visibility(root, copied)?;
         Ok(())
     }
@@ -287,6 +331,35 @@ mod wiring {
             } else {
                 element.remove_attribute("data-copied")?;
             }
+        }
+        Ok(())
+    }
+
+    /// `root` 配下の trigger 要素の `aria-label` を、現在値が headless 層の
+    /// 既定 2 リテラルのいずれかと一致する場合のみ反転させる
+    /// （[`next_trigger_aria_label`] 参照。イシュー #1631: 反転を行わないと
+    /// 「コピー後も Copy to clipboard と読み上げる」a11y 退行になるため
+    /// [`apply_clipboard_copied`] から必ず対で呼ぶ）。呼び出し側が独自の
+    /// `aria-label` を指定していた場合・属性自体が存在しない場合は
+    /// 書き換えない（fail-closed）。
+    fn apply_trigger_aria_label(root: &Element, copied: bool) -> Result<(), JsValue> {
+        let selector = format!("[data-scope=\"{CLIPBOARD_SCOPE}\"][data-part=\"{TRIGGER_PART}\"]");
+        let Ok(node_list) = root.query_selector_all(&selector) else {
+            return Ok(());
+        };
+        let len = node_list.length();
+        for i in 0..len {
+            let Some(node) = node_list.get(i) else {
+                continue;
+            };
+            let Ok(element) = node.dyn_into::<Element>() else {
+                continue;
+            };
+            let current = element.get_attribute("aria-label");
+            let Some(next) = next_trigger_aria_label(current.as_deref(), copied) else {
+                continue;
+            };
+            set_dom_attribute(&element, "aria-label", next)?;
         }
         Ok(())
     }
@@ -564,6 +637,35 @@ mod tests {
         assert_eq!(indicator_visible_after_copied(None, true), None);
     }
 
+    // --- next_trigger_aria_label（イシュー #1631） ---
+
+    #[test]
+    fn next_trigger_aria_label_flips_between_known_defaults() {
+        use fandhe_frontend_headless_ui::clipboard::{
+            TRIGGER_ARIA_LABEL_COPIED, TRIGGER_ARIA_LABEL_IDLE,
+        };
+
+        assert_eq!(
+            next_trigger_aria_label(Some(TRIGGER_ARIA_LABEL_IDLE), true),
+            Some(TRIGGER_ARIA_LABEL_COPIED)
+        );
+        assert_eq!(
+            next_trigger_aria_label(Some(TRIGGER_ARIA_LABEL_COPIED), false),
+            Some(TRIGGER_ARIA_LABEL_IDLE)
+        );
+        // 既に目的の状態と一致している場合も同じ値を返す（冪等）。
+        assert_eq!(
+            next_trigger_aria_label(Some(TRIGGER_ARIA_LABEL_IDLE), false),
+            Some(TRIGGER_ARIA_LABEL_IDLE)
+        );
+    }
+
+    #[test]
+    fn next_trigger_aria_label_is_none_for_caller_custom_value_and_absent() {
+        assert_eq!(next_trigger_aria_label(Some("Copy URL"), true), None);
+        assert_eq!(next_trigger_aria_label(None, true), None);
+    }
+
     // --- ドリフト検知: headless-ui の実出力（data-scope/data-part/data-variant
     // 値）が本モジュールのリテラルと一致すること。---
 
@@ -584,6 +686,21 @@ mod tests {
         let html = fandhe_frontend_core::render(&trigger(false, Vec::new(), Vec::new()));
         assert!(html.contains(&format!(r#"data-scope="{CLIPBOARD_SCOPE}""#)));
         assert!(html.contains(&format!(r#"data-part="{TRIGGER_PART}""#)));
+    }
+
+    /// [`DATA_COPIED_PARTS`] に含めた `label` が headless-ui の実出力で
+    /// `data-copied` を持つことのドリフト検知（イシュー #1631 是正）。
+    #[test]
+    fn headless_ui_label_output_matches_data_copied_parts() {
+        use fandhe_frontend_headless_ui::clipboard::label;
+
+        let html = fandhe_frontend_core::render(&label(true, None, Vec::new(), Vec::new()));
+        assert!(html.contains(&format!(r#"data-scope="{CLIPBOARD_SCOPE}""#)));
+        assert!(html.contains(&format!(r#"data-part="{LABEL_PART}""#)));
+        assert!(html.contains("data-copied"));
+
+        let idle_html = fandhe_frontend_core::render(&label(false, None, Vec::new(), Vec::new()));
+        assert!(!idle_html.contains("data-copied"));
     }
 
     #[test]

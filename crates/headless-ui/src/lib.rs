@@ -384,7 +384,11 @@
 //!   [`clipboard::root`]の `data-value` 属性としてのみ出力する（[`clipboard`] モジュール doc
 //!   「`value` は状態機械に持たせない」節参照）。`navigator.clipboard`
 //!   実配線・タイムアウトによる自動リセットは
-//!   `fandhe-frontend-wasm-full`（#773 後続）のスコープ。
+//!   `fandhe-frontend-wasm-full`（#773 後続）のスコープ。参考実装
+//!   （ark-ui/Zag.js）との突合（#1631）で [`clipboard::label`] に `for`
+//!   （`input_id` 引数）と `data-copied`、[`clipboard::input`] に
+//!   `data-readonly`、[`clipboard::trigger`] に既定 `aria-label`
+//!   （呼び出し側 `attrs` で上書き可）を追加した。
 //! - [`mod@splitter`]: Root / Panel / ResizeTrigger / ResizeTriggerIndicator の
 //!   4 anatomy パーツと、パネルサイズ状態機械 [`splitter::Splitter`]
 //!   （#826、`docs/policy/intentional-non-adoption.md` §7・

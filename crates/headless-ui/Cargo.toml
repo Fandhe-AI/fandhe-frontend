@@ -237,7 +237,13 @@ name = "fandhe-frontend-headless-ui"
 # item_group/item/item_text/hidden_select のシグネチャ変更（破壊的変更）
 # のため、0.x の破壊的変更はマイナーバンプする規約（`coding-rust.md`）に
 # 従い 0.45.0 とする。
-version = "0.45.0"
+# base ブランチ再取り込み（イシュー #1619, 2026-09-05）: main 側が独立に
+# 0.46.0 へ到達していた（別部品の破壊的変更）。本ブランチ（#1619
+# select）の `SelectProps` 新設に伴う破壊的変更とは別内容のため、同じ
+# 「同一版数への偶発的衝突をそのまま採用しない」原則（`docs/ci/
+# style-refresh-version-bump-operation.md` §5）に従い main 現在値 0.46.0 から
+# 0.47.0 へさらにマイナーバンプする。
+version = "0.47.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

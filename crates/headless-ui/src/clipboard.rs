@@ -65,19 +65,31 @@
 //! `fandhe-frontend-pre-styled-ui`が
 //! 本モジュールを呼んでスタイル済み Clipboard を組み立てる想定である。
 //!
-//! # ARIA について
+//! # ARIA について（イシュー #1631 で是正）
 //!
-//! Clipboard は WAI-ARIA の専用パターンを持たない表示系コンポーネントで
-//! あり、ark-ui / Zag.js も追加の `role`/`aria-*` を付与しない
-//! （[`mod@avatar`] と同型の判断）。[`input`] はコピー元テキストの表示専用
-//! （`readonly`）であり、フォーム送信を目的としない。
+//! Clipboard は WAI-ARIA の専用パターンを持たない表示系コンポーネントだが、
+//! 参照実装（ark-ui / Zag.js `clipboard.connect.ts`）は関連付け・
+//! アクセシブルネームを補う最小限の属性を付与しており、fandhe も同様に
+//! 追随する: [`label`] は `for`（`input_id` 引数、`input` の `id` を指す）
+//! で明示的に紐付け、[`trigger`] は既定 `aria-label`
+//! （[`TRIGGER_ARIA_LABEL_IDLE`]/[`TRIGGER_ARIA_LABEL_COPIED`]、`copied` に
+//! 応じて反転する。クライアント側の反転配線は
+//! `fandhe-frontend-wasm-full::headless_clipboard` の責務）を持つ。
+//! いずれも呼び出し側 `attrs` が同名属性を指定していれば既定値を出力しない
+//! （[`crate::number_input`] の `has_caller_attr` と同型の dedup、
+//! fail-closed）。[`input`] はコピー元テキストの表示専用（`readonly` +
+//! `data-readonly`）であり、フォーム送信を目的としない。ark-ui にある
+//! `input` フォーカス時の全選択・ネイティブコピー（Ctrl+C/Cmd+C）検知は
+//! 本イシューのスコープ外（モジュール末尾「スコープ外」節参照）。
 //!
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`type`/`readonly`）はすべて `&'static str` リテラル
 //!   または固定スロットであり、動的値が属性名スロットへ混入する経路は
 //!   ない（[`crate::anatomy`]/[`crate::data_attrs`] の既存不変条件をそのまま
-//!   継承する）。
+//!   継承する）。[`trigger`] の既定 `aria-label` 値
+//!   （[`TRIGGER_ARIA_LABEL_IDLE`]/[`TRIGGER_ARIA_LABEL_COPIED`]）も
+//!   `&'static str` リテラル固定であり、動的値は混入しない。
 //! - 動的値（`value`/呼び出し側 `attrs`/`children` テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
@@ -98,14 +110,47 @@
 //!   リセット・`onStatusChange` コールバック相当は
 //!   `fandhe-frontend-wasm-full`（イシュー #773 後続）のスコープ。
 //! - `asChild`・`ids` オプション（ark-ui 固有機能）は非採用。
+//! - [`input`] へのフォーカス時の全選択（`select()`）、および
+//!   ネイティブコピー（Ctrl+C/Cmd+C）検知による `"clipboard:copy"` 発火
+//!   （ark-ui/Zag.js の `onFocus`/`onCopy` 相当）はイシュー #1631 でも
+//!   未対応のまま据え置く（wasm-full 配線が必要でスコープが大きいため）。
+//!   ブラウザ既定のネイティブコピー自体（選択してのコピー）は input が
+//!   通常の `<input readonly>` である以上引き続き可能だが、copied
+//!   フィードバック（`data-copied`/`aria-label` 反転）は [`trigger`]
+//!   経由の操作のみで発生する。
+//! - `translations.triggerLabel` 相当の i18n 差し替え API は非採用
+//!   （呼び出し側 `attrs` に独自 `aria-label` を渡すことで代替可能）。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::data_attrs::{data_copied, data_state};
+use crate::data_attrs::{data_copied, data_readonly, data_state};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
 /// Clipboard の anatomy（`data-scope="clipboard"`）。
 const ANATOMY: Anatomy = anatomy("clipboard");
+
+/// [`trigger`] の既定 `aria-label`（未コピー時）。参照実装
+/// （ark-ui/Zag.js `clipboard.connect.ts` の既定 `translations.triggerLabel`）
+/// に合わせた固定英語リテラル（`.claude/rules/japanese-style.md`
+/// のユーザー向け文字列は英語規約）。呼び出し側 `attrs` に独自の
+/// `aria-label` があれば出力しない（本モジュール内の非公開ヘルパ
+/// `has_caller_attr` 参照）。
+pub const TRIGGER_ARIA_LABEL_IDLE: &str = "Copy to clipboard";
+
+/// [`trigger`] の既定 `aria-label`（コピー済み時）。
+/// `fandhe-frontend-wasm-full::headless_clipboard` はコピー成功/リセット時に
+/// 現在値がこの 2 リテラルのいずれかと一致する場合のみ反転させる
+/// （利用者の独自 `aria-label` を壊さない fail-closed 契約、
+/// モジュール冒頭「ARIA について」節参照）。
+pub const TRIGGER_ARIA_LABEL_COPIED: &str = "Copied to clipboard";
+
+/// 呼び出し側 `attrs` に指定の属性キーが既に含まれるかを判定する
+/// （[`crate::number_input`] の同名ヘルパと同型の dedup 判断、
+/// fail-closed。重複属性による無効な HTML 出力・後勝ちの非決定的な描画を
+/// 防ぐ）。
+fn has_caller_attr(attrs: &[(&str, &str)], key: &str) -> bool {
+    attrs.iter().any(|(k, _)| k.eq_ignore_ascii_case(key))
+}
 
 /// [`indicator`] の `data-state` 属性値 "visible"。
 const DATA_STATE_VISIBLE: &str = "visible";
@@ -145,9 +190,26 @@ pub fn root<'a>(
 }
 
 /// Label パーツ（`label`）。
+///
+/// `input_id`（[`input`] の `id`）を渡すと `for` で明示的に紐付ける
+/// （参照実装 ark-ui/Zag.js の `htmlFor` 相当、イシュー #1631 是正）。
+/// `copied` に応じ [`data_copied`] により `data-copied` を付与する。
 #[must_use]
-pub fn label<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("label", "label", attrs, children)
+pub fn label<'a>(
+    copied: bool,
+    input_id: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    if let Some(id) = input_id {
+        if !has_caller_attr(&attrs, "for") {
+            merged.push(("for", id));
+        }
+    }
+    merged.extend(data_copied(copied));
+    merged.extend(attrs);
+    ANATOMY.part("label", "label", merged, children)
 }
 
 /// Control パーツ（`div`）。[`input`]/[`trigger`] を内包するラッパー。
@@ -168,6 +230,7 @@ pub fn control<'a>(copied: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<N
 pub fn input<'a>(value: &'a str, copied: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![("type", "text"), ("readonly", ""), ("value", value)];
+    merged.extend(data_readonly(true));
     merged.extend(data_copied(copied));
     merged.extend(attrs);
     ANATOMY.part("input", "input", merged, Vec::new())
@@ -179,6 +242,14 @@ pub fn input<'a>(value: &'a str, copied: bool, attrs: Vec<(&'a str, &'a str)>) -
 #[must_use]
 pub fn trigger<'a>(copied: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
+    if !has_caller_attr(&attrs, "aria-label") {
+        let label = if copied {
+            TRIGGER_ARIA_LABEL_COPIED
+        } else {
+            TRIGGER_ARIA_LABEL_IDLE
+        };
+        merged.push(("aria-label", label));
+    }
     merged.extend(data_copied(copied));
     merged.extend(attrs);
     ANATOMY.part("trigger", "button", merged, children)
@@ -284,6 +355,17 @@ impl Clipboard {
         children: Vec<Node>,
     ) -> Node {
         root(value, self.copied, attrs, children)
+    }
+
+    /// [`label`] へ現在の状態を注入する利便メソッド。
+    #[must_use]
+    pub fn label<'a>(
+        &self,
+        input_id: Option<&'a str>,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        label(self.copied, input_id, attrs, children)
     }
 
     /// [`control`] へ現在の状態を注入する利便メソッド。
@@ -409,11 +491,41 @@ mod tests {
 
     #[test]
     fn label_outputs_scope_and_part() {
-        let html = render(&label(vec![], vec![text("Label")]));
+        let html = render(&label(false, None, vec![], vec![text("Label")]));
         assert!(html.contains(r#"data-scope="clipboard""#));
         assert!(html.contains(r#"data-part="label""#));
         assert!(html.contains("<label"));
         assert!(html.contains("Label"));
+        assert!(!html.contains(" for="));
+        assert!(!html.contains("data-copied"));
+    }
+
+    #[test]
+    fn label_with_input_id_adds_for() {
+        let html = render(&label(false, Some("clipboard-input"), vec![], vec![]));
+        assert!(html.contains(r#"for="clipboard-input""#));
+    }
+
+    #[test]
+    fn label_copied_true_adds_data_copied() {
+        let html = render(&label(true, None, vec![], vec![]));
+        assert!(html.contains(r#"data-copied="""#));
+    }
+
+    #[test]
+    fn label_caller_for_overrides_input_id_without_duplication() {
+        // 呼び出し側が独自の "for" を attrs に渡した場合、input_id 由来の
+        // 既定値と重複させない（イシュー #1631 Review 指摘、trigger の
+        // aria-label dedup と同型）。
+        let html = render(&label(
+            false,
+            Some("clipboard-input"),
+            vec![("for", "custom-input")],
+            vec![],
+        ));
+        assert_eq!(html.matches(" for=").count(), 1);
+        assert!(html.contains(r#"for="custom-input""#));
+        assert!(!html.contains(r#"for="clipboard-input""#));
     }
 
     #[test]
@@ -437,6 +549,7 @@ mod tests {
         assert!(html.contains(r#"data-part="input""#));
         assert!(html.contains(r#"type="text""#));
         assert!(html.contains(r#"readonly="""#));
+        assert!(html.contains(r#"data-readonly="""#));
         assert!(html.contains(r#"value="secret-value""#));
         assert!(!html.contains("data-copied"));
     }
@@ -461,6 +574,25 @@ mod tests {
     fn trigger_not_copied_omits_data_copied() {
         let html = render(&trigger(false, vec![], vec![]));
         assert!(!html.contains("data-copied"));
+    }
+
+    #[test]
+    fn trigger_default_aria_label_reflects_copied_state() {
+        let idle_html = render(&trigger(false, vec![], vec![]));
+        assert!(idle_html.contains(r#"aria-label="Copy to clipboard""#));
+
+        let copied_html = render(&trigger(true, vec![], vec![]));
+        assert!(copied_html.contains(r#"aria-label="Copied to clipboard""#));
+    }
+
+    #[test]
+    fn trigger_caller_aria_label_overrides_default_without_duplication() {
+        let html = render(&trigger(false, vec![("aria-label", "Copy URL")], vec![]));
+        assert!(html.contains(r#"aria-label="Copy URL""#));
+        assert!(!html.contains("Copy to clipboard"));
+        // 属性は 1 個だけであること（既定値との重複出力がないこと）を
+        // 出現回数で確認する。
+        assert_eq!(html.matches("aria-label=").count(), 1);
     }
 
     #[test]

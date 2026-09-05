@@ -1608,7 +1608,13 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1619（select の参照突合）: styled `select::root` へ
 # `&SelectProps` 引数を追加（破壊的変更）、`SelectProps` を再エクスポート。
 # headless-ui 依存を 0.45.0 へ追随するため 0.96.0 へマイナーバンプする。
-version = "0.96.0"
+# base ブランチ再取り込み（イシュー #1619, 2026-09-05）: main 側が独立に
+# 0.97.0 へ到達していた（別部品の破壊的変更 + headless-ui 0.46.0 依存追随）。
+# 本ブランチ（#1619 select）の `SelectProps` 新設に伴う破壊的変更とは別内容
+# のため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則（`docs/ci/
+# style-refresh-version-bump-operation.md` §5）に従い main 現在値 0.97.0 から
+# headless-ui 0.47.0 依存追随とあわせて 0.98.0 へさらにマイナーバンプする。
+version = "0.98.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1623,7 +1629,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.45.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.47.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

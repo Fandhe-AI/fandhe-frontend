@@ -103,6 +103,17 @@
 //!   イシュー側のスコープ。
 //! - `navigator.clipboard` 実配線・タイムアウトによる自動リセットは
 //!   `fandhe-frontend-wasm-full`（#773 後続）のスコープ。
+//!
+//! # headless 側の anatomy/ARIA 是正への追随（イシュー #1631）
+//!
+//! headless 層（`fandhe_frontend_headless_ui::clipboard`）が参考実装
+//! （ark-ui/Zag.js）と突合し、[`label`] の `copied`/`input_id` 引数、
+//! [`input`] の `data-readonly`、[`trigger`] の既定 `aria-label`
+//! （`TRIGGER_ARIA_LABEL_IDLE`/`TRIGGER_ARIA_LABEL_COPIED`）を追加した。
+//! 本モジュールは再公開のみのため CSS は変更していない
+//! （`[data-readonly]`/`label` の `[data-copied]` を CSS で消費する調整は
+//! Themes 側の後続判断としてスコープ外に据え置く、イシュー #1519 コメント
+//! 参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -332,7 +343,7 @@ mod tests {
 
     #[test]
     fn reexported_parts_render_expected_tags() {
-        let label_html = render(&label(vec![], vec![text("Link")]));
+        let label_html = render(&label(false, None, vec![], vec![text("Link")]));
         assert!(label_html.contains("<label"));
 
         let control_html = render(&control(false, vec![], vec![]));

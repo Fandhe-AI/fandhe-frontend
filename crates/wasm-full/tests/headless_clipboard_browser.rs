@@ -39,7 +39,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_core::render;
-use fandhe_frontend_headless_ui::clipboard::{control, indicator, input, root, trigger};
+use fandhe_frontend_headless_ui::clipboard::{control, indicator, input, label, root, trigger};
 use js_sys::{Object, Promise, Reflect};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
@@ -71,41 +71,62 @@ impl Drop for RemoveOnDrop {
     }
 }
 
+/// [`mount_clipboard`] が組み立てる input の `id`（[`label`] の `for` と
+/// 紐付けるためのテスト固定値、イシュー #1631）。
+const CLIPBOARD_INPUT_ID: &str = "clipboard-browser-test-input";
+
 /// `crates/headless-ui/src/clipboard.rs` の SSR 出力契約そのもの（`root`/
-/// `control`/`input`/`trigger`/`indicator` x2）で Clipboard のマークアップを
-/// 組み立てて `container` へ流し込む。
+/// `label`/`control`/`input`/`trigger`/`indicator` x2）で Clipboard の
+/// マークアップを組み立てて `container` へ流し込む（イシュー #1631 で
+/// `label` を追加し、`data-copied`/`aria-label` 反転を実 DOM で検証できる
+/// ようにした）。
 fn mount_clipboard(container: &Element, value: &str, copied: bool) {
     let node = root(
         value,
         copied,
         Vec::new(),
-        vec![control(
-            copied,
-            Vec::new(),
-            vec![
-                input(value, copied, Vec::new()),
-                trigger(
-                    copied,
-                    Vec::new(),
-                    vec![
-                        indicator(
-                            true,
-                            copied,
-                            Vec::new(),
-                            vec![fandhe_frontend_core::text("Copied")],
-                        ),
-                        indicator(
-                            false,
-                            copied,
-                            Vec::new(),
-                            vec![fandhe_frontend_core::text("Copy")],
-                        ),
-                    ],
-                ),
-            ],
-        )],
+        vec![
+            label(
+                copied,
+                Some(CLIPBOARD_INPUT_ID),
+                Vec::new(),
+                vec![fandhe_frontend_core::text("Value")],
+            ),
+            control(
+                copied,
+                Vec::new(),
+                vec![
+                    input(value, copied, vec![("id", CLIPBOARD_INPUT_ID)]),
+                    trigger(
+                        copied,
+                        Vec::new(),
+                        vec![
+                            indicator(
+                                true,
+                                copied,
+                                Vec::new(),
+                                vec![fandhe_frontend_core::text("Copied")],
+                            ),
+                            indicator(
+                                false,
+                                copied,
+                                Vec::new(),
+                                vec![fandhe_frontend_core::text("Copy")],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ],
     );
     container.set_inner_html(&render(&node));
+}
+
+fn label_element(container: &Element) -> Element {
+    container
+        .query_selector("[data-scope='clipboard'][data-part='label']")
+        .expect("query_selector must not fail")
+        .expect("label part must exist")
 }
 
 fn trigger_element(container: &Element) -> Element {
@@ -315,8 +336,18 @@ async fn resolving_stub_click_sets_data_copied_and_flips_indicator() {
 
     let root_el = root_element(&container);
     let trigger_el = trigger_element(&container);
+    let label_el = label_element(&container);
     assert!(root_el.has_attribute("data-copied"));
     assert!(trigger_el.has_attribute("data-copied"));
+    // イシュー #1631: label にも `data-copied` が反映されること（
+    // `DATA_COPIED_PARTS` への `label` 追加の実 DOM 検証）。
+    assert!(label_el.has_attribute("data-copied"));
+    // イシュー #1631: trigger の既定 `aria-label` が「コピー済み」表示へ
+    // 反転すること。
+    assert_eq!(
+        trigger_el.get_attribute("aria-label").as_deref(),
+        Some("Copied to clipboard")
+    );
 
     let copied_indicator = container
         .query_selector("[data-scope='clipboard'][data-part='indicator'][data-variant='copied']")

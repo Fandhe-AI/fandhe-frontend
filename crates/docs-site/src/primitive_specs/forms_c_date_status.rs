@@ -355,7 +355,7 @@ fn clipboard_copied_state_example() -> Node {
         true,
         vec![],
         vec![
-            clipboard::label(vec![], vec![text("Share link")]),
+            clipboard::label(true, None, vec![], vec![text("Share link")]),
             clipboard::control(
                 true,
                 vec![],
