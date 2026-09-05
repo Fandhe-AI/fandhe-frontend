@@ -1484,7 +1484,7 @@ pub(super) const MENUBAR: ComponentPageSpec = ComponentPageSpec {
         },
         KeyRow {
             key: "ArrowDown / ArrowUp（content 内）",
-            description: "項目間で data-highlighted を移動する（disabled はスキップしない、toolbar と同判断）。",
+            description: "項目間で data-highlighted を移動する（disabled はスキップする、`fandhe-frontend-wasm-full` の `keynav::highlight_next_index` が `step_non_disabled` へ委譲する）。",
         },
         KeyRow {
             key: "ArrowRight / ArrowLeft（sub-trigger）",

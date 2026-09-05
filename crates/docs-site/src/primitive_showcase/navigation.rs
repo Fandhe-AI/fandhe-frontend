@@ -415,7 +415,7 @@ pub(super) fn menubar_section() -> Node {
                 false,
                 0,
                 Some("mb-file-content"),
-                vec![],
+                vec![("id", "mb-file-trigger")],
                 vec![text("File")],
             ),
             menubar::positioner(
