@@ -443,17 +443,28 @@ pub(super) fn toast_section() -> Node {
 }
 
 pub(super) fn toggle_tip_section() -> Node {
-    let state = OpenState::Open;
-    let body = vec![toggle_tip::root(
-        state,
+    // 2 インスタンス構成（open + closed/disabled）にすることで、機械導出表
+    // （Anatomy・data-* 属性表）へ `data-state: closed, open` と
+    // `data-disabled` を反映させる（イシュー #1644。popover #1642・
+    // collapsible #1637 と同じ理由）。2 インスタンス目は id を
+    // `tt-content-2` にして重複を避ける。
+    let open_state = OpenState::Open;
+    let body_open = vec![toggle_tip::root(
+        open_state,
         vec![],
         vec![
-            toggle_tip::trigger(state, false, Some("tt-content"), vec![], vec![text("ⓘ")]),
+            toggle_tip::trigger(
+                open_state,
+                false,
+                Some("tt-content"),
+                vec![],
+                vec![text("ⓘ")],
+            ),
             toggle_tip::positioner(
-                state,
+                open_state,
                 vec![],
                 vec![toggle_tip::content(
-                    state,
+                    open_state,
                     Some("tt-content"),
                     vec![],
                     vec![
@@ -464,6 +475,37 @@ pub(super) fn toggle_tip_section() -> Node {
             ),
         ],
     )];
+
+    let closed_state = OpenState::Closed;
+    let body_disabled = vec![toggle_tip::root(
+        closed_state,
+        vec![],
+        vec![
+            toggle_tip::trigger(
+                closed_state,
+                true,
+                Some("tt-content-2"),
+                vec![],
+                vec![text("ⓘ (disabled)")],
+            ),
+            toggle_tip::positioner(
+                closed_state,
+                vec![],
+                vec![toggle_tip::content(
+                    closed_state,
+                    Some("tt-content-2"),
+                    vec![],
+                    vec![
+                        toggle_tip::arrow(vec![], vec![toggle_tip::arrow_tip(vec![], vec![])]),
+                        text("Click again to dismiss."),
+                    ],
+                )],
+            ),
+        ],
+    )];
+
+    let mut body = body_open;
+    body.extend(body_disabled);
     demo_page("Toggle Tip", body)
 }
 
