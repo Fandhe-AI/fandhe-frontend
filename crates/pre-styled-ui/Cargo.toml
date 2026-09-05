@@ -1803,6 +1803,8 @@ name = "fandhe-frontend-pre-styled-ui"
 # style-refresh-version-bump-operation.md` §5）。両者の破壊的変更の和集合
 # として、さらにマイナーバンプで 0.108.0 とする（headless-ui 0.56.0 への
 # 依存追随を含む）。
+# イシュー #1682: `collapsible` モジュール新設（公開 API の純追加、参照 3
+# サイト共通の基本部品）のため minor バンプする。
 # base 再取り込み（イシュー #1652, 2026-09-06）: main 側は本ブランチとは独立に
 # accordion（#1636）の破壊的変更を経て headless-ui 0.56.0 依存追随を含む
 # 0.108.0 へ到達しており、本ブランチも menubar 経由の headless-ui
@@ -1813,10 +1815,22 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.57.0（base 再取り込みで解決した最終版、`crates/headless-ui/Cargo.toml`
 # 参照）へ追随させつつ、両者の破壊的変更の和集合としてさらにマイナー
 # バンプで 0.109.0 とする。
-# イシュー #1653（nav-list の参照突合）: 依存先 `fandhe-frontend-headless-ui`
-# の 0.57.0 → 0.57.1（patch）追随のみで自身の破壊的変更なし。patch バンプで
-# 0.109.1 とする。
-version = "0.109.1"
+# PR #1926 レビュー是正（Cursor Bugbot 指摘、イシュー #1682）: 本ブランチは
+# `collapsible` モジュール新設（上記 #1682 コメント）で 0.108.0 → 0.109.0 へ
+# 独立にマイナーバンプ済みであり、上記 base 再取り込み（#1652）で main も
+# 独立に到達した 0.109.0 と同一版数へ偶発的に衝突していた（マージコミット
+# 2b3d210e はこの衝突をそのまま 0.109.0 として採用しており、#1636/#1652 で
+# 確立した「同一版数への偶発的衝突をそのまま採用しない原則」（`docs/ci/
+# style-refresh-version-bump-operation.md` §5）に反していた）。両者の変更
+# （main 側の headless-ui 0.57.0 依存追随 + 本ブランチの `collapsible` 新設）
+# の和集合として、さらにマイナーバンプで 0.110.0 とする。
+# base 再取り込み（イシュー #1653, 2026-09-06）: main 側は本コミット到達後、
+# 独立に依存先 headless-ui を 0.57.0 → 0.57.1（patch、自身の破壊的変更なし）
+# へ追随させ 0.109.1 へ到達していた。本ブランチはこの時点で既に headless-ui
+# 0.57.0 依存 + `collapsible` 新設を統合した 0.110.0 に到達済みのため、
+# main のこの追随分は本ブランチの 0.110.0 に対する patch 差分（依存先を
+# 0.57.1 へ追随するのみで、他に実体変更なし）として吸収し 0.110.1 とする。
+version = "0.110.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

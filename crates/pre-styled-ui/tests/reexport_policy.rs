@@ -78,6 +78,10 @@ const GLOB_REEXPORT_MODULES: &[(&str, &str)] = &[
         "navigation_menu",
         "stylesheet() のみ・variant 軸なし・属性セレクタのみ",
     ),
+    (
+        "collapsible",
+        "stylesheet() のみ・variant 軸なし・属性セレクタのみ",
+    ),
 ];
 
 /// 規約 B-1 が許可する `pub` トップレベル項目名（glob モジュールが再定義して

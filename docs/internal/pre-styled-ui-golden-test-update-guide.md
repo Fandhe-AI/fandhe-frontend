@@ -57,7 +57,7 @@ diff が読みやすい）部品を安易に (b) へ切り替えないでくだ�
 accordion / **alert（イシュー #1553 で golden 新設）** /
 **badge（イシュー #1555 で golden 新設）** /
 **bar_segment（イシュー #1592 で golden 新設。`charts::bar_segment`）** /
-callout / carousel /
+callout / carousel / **collapsible（イシュー #1682 で golden 新設）** /
 checkbox / checkbox_card / checkbox_group /
 color_picker / color_swatch / **data_list（イシュー #1559 で golden 新設）** /
 date_input / dialog / **download_trigger（方式 b）** /
