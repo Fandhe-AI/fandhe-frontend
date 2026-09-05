@@ -56,6 +56,15 @@
 //!   none` が残ったままだとモバイルでこの領域からページをパン・
 //!   スクロールできなくなるため（イシュー #1503 PR #1776 codex-review
 //!   P1 再指摘対応）
+//! - `control` に `:focus-visible` リングを追加した（イシュー #1620
+//!   codex-review/Bugbot 指摘対応）。headless `control` は非 `disabled`
+//!   時に `tabindex="0"` を持ちタブ順に入る（
+//!   `crates/headless-ui/src/signature_pad.rs::control` 参照。ark-ui
+//!   `signature-pad.connect.ts` の `getControlProps` に合わせた挙動）ため、
+//!   キーボード利用者がフォーカス位置を視認できるよう `clear-trigger` と
+//!   同じ `focus_ring_declarations()` を適用する。旧 rustdoc は headless
+//!   `control` を「`tabindex` なし」と記述していたが、イシュー #1620 で
+//!   誤りと判明し本節を訂正した
 //!
 //! 意図的に参考サイトへ合わせない点（理由付き）:
 //!
@@ -65,10 +74,6 @@
 //! - **`control` へ `:hover` は付けない**: 描画面は「押すと描ける」面で
 //!   あり、hover 背景変化の対象（ボタン・リンク類）ではない。ark も pad
 //!   面に hover 変化を持たない
-//! - **`control` へ `:focus-visible`/`:focus-within` リングは付けない**:
-//!   headless `control` は `<div>`（tabindex なし）でフォーカスを持たず、
-//!   フォーカス可能要素はリング付与済みの `clear-trigger` と
-//!   `hidden-input`（視覚外）のみ
 //! - **`data-empty` の視覚差は付けない**: guide（破線）は ark 同様に常時
 //!   表示で足り、空状態の表示切替は利用者判断（headless の `data-empty`
 //!   は既に出力されており利用者 CSS で拡張可能）
@@ -160,6 +165,17 @@ fn recipe() -> SlotRecipe {
                 decl("cursor", "crosshair"),
                 decl("touch-action", "none"),
             ],
+        )
+        // headless `control` は非 `disabled` 時 `tabindex="0"` を持ち
+        // タブ順に入る（`crates/headless-ui/src/signature_pad.rs::control`
+        // 参照）ため、キーボード利用者がフォーカス位置を視認できるよう
+        // `clear-trigger` と同じフォーカスリングを適用する（イシュー
+        // #1620 codex-review/Bugbot 指摘対応、本モジュール冒頭 rustdoc
+        // 「スタイル調整」節参照）。
+        .state(
+            "control",
+            StateCondition::FocusVisible,
+            focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
         .base(
             "segment",
