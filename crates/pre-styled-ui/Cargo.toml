@@ -1591,7 +1591,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # `(bool, bool, ...)` から `(&DateInputProps, ...)` へ変わる破壊的変更の
 # 波及であるため、headless-ui 0.43.0 への version 要求追随を含め
 # main 現在値 0.93.0 から 0.94.0 へマイナーバンプする。
-version = "0.94.0"
+# イシュー #1630（toggle-group の参照突合、headless-ui 側の破壊的変更
+# `toggle_group::root`/`item` シグネチャ変更への追随）: `root_with_props`
+# 公開 API 追加 + headless-ui 0.44.0 依存追随を含み、マイナーバンプする。
+version = "0.95.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1606,7 +1609,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.43.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.44.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
