@@ -1636,10 +1636,11 @@ fn calendar_dispatch_select_payload_is_rejected_or_escaped_on_hydration_render()
 /// されることを固定する。
 #[test]
 fn date_picker_trigger_and_input_attrs_are_escaped_for_all_payloads() {
+    let props = date_picker::DatePickerProps::default();
     for payload in payloads::all() {
         let html = render(&date_picker::trigger(
             OpenState::Closed,
-            false,
+            &props,
             Some(payload),
             vec![],
             vec![],
@@ -1650,7 +1651,7 @@ fn date_picker_trigger_and_input_attrs_are_escaped_for_all_payloads() {
             "date_picker::trigger の controls 属性コンテキスト",
         );
 
-        let html = render(&date_picker::input(Some(payload), false, None, vec![]));
+        let html = render(&date_picker::input(Some(payload), &props, None, vec![]));
         assert_payload_is_escaped(
             payload,
             &html,
