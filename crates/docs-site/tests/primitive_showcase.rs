@@ -111,26 +111,6 @@ fn extract_anatomy_parts(html: &str) -> BTreeSet<String> {
 /// 除外フラグ・ワイルドカード除外は作らない（A05、`security.md` 参照）。
 const KNOWN_UNCOVERED: &[(&str, &str, &str)] = &[
     (
-        "menu",
-        "trigger-item",
-        "サブメニューを持たないデモ構成のため trigger_item を使用しない（他パートで menu scope の網羅要件は満たす）",
-    ),
-    (
-        "menu",
-        "checkbox-item",
-        "CheckboxItem 変種は同一 scope 内の item と役割が重複するため未使用",
-    ),
-    (
-        "menu",
-        "radio-item-group",
-        "RadioItemGroup 変種は同一 scope 内の item_group と役割が重複するため未使用",
-    ),
-    (
-        "menu",
-        "radio-item",
-        "RadioItem 変種は同一 scope 内の item と役割が重複するため未使用",
-    ),
-    (
         "menubar",
         "sub-trigger",
         "サブメニューを持たないデモ構成のため sub_trigger/sub_content を使用しない",
@@ -139,11 +119,6 @@ const KNOWN_UNCOVERED: &[(&str, &str, &str)] = &[
         "menubar",
         "sub-content",
         "サブメニューを持たないデモ構成のため sub_trigger/sub_content を使用しない",
-    ),
-    (
-        "menu",
-        "context-trigger",
-        "右クリックコンテキストメニュー変種は本デモでは未使用（trigger で開閉契約を示す）",
     ),
     (
         "progress",

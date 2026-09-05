@@ -433,3 +433,94 @@ fn checkbox_item_and_radio_item_group_assembly_xss_payload_is_escaped_end_to_end
     assert!(!html.contains("onmouseover=\"alert(1)"));
     assert!(html.contains("&quot;"));
 }
+
+// --- ItemText / ItemIndicator（イシュー #1651）---
+
+#[test]
+fn full_assembly_with_item_text_and_item_indicator_wires_checked_state() {
+    let checkbox = menu::checkbox_item(
+        true,
+        "bookmarks",
+        false,
+        false,
+        vec![],
+        vec![
+            menu::item_indicator(true, vec![], vec![]),
+            menu::item_text(false, false, vec![], vec![]),
+        ],
+    );
+    let radio = menu::radio_item(
+        false,
+        "desc",
+        false,
+        false,
+        vec![],
+        vec![
+            menu::item_indicator(false, vec![], vec![]),
+            menu::item_text(false, false, vec![], vec![]),
+        ],
+    );
+    let content = menu::content(OpenState::Open, None, None, vec![], vec![checkbox, radio]);
+    let root = menu::root(OpenState::Open, vec![], vec![content]);
+
+    let html = render(&root);
+    assert!(html.contains(r#"data-part="item-text""#));
+    assert!(html.contains(r#"data-part="item-indicator""#));
+    assert!(html.contains(r#"role="menuitemcheckbox""#));
+    assert!(html.contains(r#"role="menuitemradio""#));
+    // checkbox-item は checked=true → item 自身 + indicator の双方が
+    // data-state="checked" を出力する。radio-item（checked=false）側は
+    // 双方 "unchecked"。
+    assert!(html.matches(r#"data-state="checked""#).count() >= 2);
+    assert!(html.matches(r#"data-state="unchecked""#).count() >= 2);
+    assert!(html.contains(r#"aria-hidden="true""#));
+}
+
+#[test]
+fn item_text_and_item_indicator_xss_payload_is_escaped_end_to_end() {
+    let indicator = menu::item_indicator(true, vec![("data-testid", ATTR_BREAK_PAYLOAD)], vec![]);
+    let label = menu::item_text(
+        false,
+        false,
+        vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+        vec![],
+    );
+    let checkbox = menu::checkbox_item(true, "v", false, false, vec![], vec![indicator, label]);
+    let content = menu::content(OpenState::Open, None, None, vec![], vec![checkbox]);
+    let root = menu::root(OpenState::Open, vec![], vec![content]);
+
+    let html = render(&root);
+    assert!(!html.contains("onmouseover=\"alert(1)"));
+    assert!(html.contains("&quot;"));
+}
+
+#[test]
+fn caller_attrs_cannot_spoof_state_across_parts_end_to_end() {
+    let trigger = menu::trigger(
+        OpenState::Closed,
+        false,
+        None,
+        vec![("aria-expanded", "true"), ("data-state", "open")],
+        vec![],
+    );
+    let content = menu::content(
+        OpenState::Open,
+        None,
+        None,
+        vec![("role", "presentation")],
+        vec![menu::item_indicator(
+            false,
+            vec![("aria-hidden", "false")],
+            vec![],
+        )],
+    );
+    let root = menu::root(OpenState::Closed, vec![], vec![trigger, content]);
+
+    let html = render(&root);
+    assert!(html.contains(
+        r#"data-part="trigger" type="button" aria-haspopup="menu" aria-expanded="false" data-state="closed""#
+    ));
+    assert!(html.contains(r#"role="menu""#));
+    assert!(!html.contains(r#"role="presentation""#));
+    assert!(html.contains(r#"aria-hidden="true""#));
+}

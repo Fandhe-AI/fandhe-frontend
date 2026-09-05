@@ -303,7 +303,13 @@ name = "fandhe-frontend-headless-ui"
 # 別内容のため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
 # （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い main 現在値
 # 0.54.1 から 0.55.0 へマイナーバンプする。
-version = "0.55.0"
+# base 再取り込み（本 #1636 再マージ, 2026-09-06）: main 側がさらに独立に
+# 0.54.2 へ到達していた（イシュー #1651 menu の参照突合: item_text/
+# item_indicator の 2 パーツ新設・呼び出し側 attrs の予約キー除去追加。
+# 既存パーツのシグネチャ・出力は不変の非破壊的な追加のみ）。本ブランチの
+# 0.55.0（accordion の破壊的変更）とは独立な非破壊的変更のため、patch
+# バンプで 0.55.0 から 0.55.1 とする。
+version = "0.55.1"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
