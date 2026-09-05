@@ -8,7 +8,8 @@ Root / Trigger / Indicator / Content の 4 anatomy パーツと、開閉状態�
 `indicator`/`content` は `disabled` 引数を受け取り、`data-disabled` を
 root/trigger と同じく 4 パートすべてへ反映します（ネイティブ `disabled`
 存在属性は `button` にのみ付与し、`span`/`div` には付与しません）。
-`fandhe-frontend-pre-styled-ui` にはまだ対応するスタイル済み部品がありません。
+`fandhe-frontend-pre-styled-ui` に対応するスタイル済み部品があります。
+Themes 版は [Collapsible](../themes/collapsible.md) を参照してください。
 
 **キーボード操作**
 
@@ -40,7 +41,7 @@ ark-ui・Radix Primitives の Collapsible と突合し、`content`/`indicator` �
 
 **自前 CSS の最小例**
 
-Themes 版が無いため、本部品を直接使う場合は `[data-scope="collapsible"][data-part="..."]` セレクタでスタイルを当てます。以下は indicator の回転アニメーション、content の折り畳み、disabled の見た目、フォーカスリングの最小例です（開閉アニメーション用の高さ計測は含みません。Themes 側の責務として #1670 で計画中です）。
+Themes 版（`fandhe-frontend-pre-styled-ui::collapsible`）を使わず headless 層を直接使う場合は、`[data-scope="collapsible"][data-part="..."]` セレクタでスタイルを当てます。以下は indicator の回転アニメーション、content の折り畳み、disabled の見た目、フォーカスリングの最小例です（開閉アニメーション用の高さ計測は含みません。高さ計測を伴うアニメーションは JS 前提のレイアウト計測の関心のため、Themes 版でも意図的に非採用です）。
 
 ```css
 [data-scope="collapsible"][data-part="trigger"] {

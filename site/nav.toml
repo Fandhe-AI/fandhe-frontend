@@ -713,6 +713,11 @@ source = "site/themes/clipboard.md"
 path = "/themes/clipboard/"
 
 [[section.group.page]]
+title = "Collapsible"
+source = "site/themes/collapsible.md"
+path = "/themes/collapsible/"
+
+[[section.group.page]]
 title = "Dialog"
 source = "site/themes/dialog.md"
 path = "/themes/dialog/"

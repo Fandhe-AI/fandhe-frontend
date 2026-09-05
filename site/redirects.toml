@@ -14,10 +14,13 @@
 # `from` は `site/nav.toml` の既存ページ path と衝突してはならない
 # （衝突する場合はビルド失敗、`RedirectError::CollidesWithPage`）。
 #
-# 実宣言は現在 109 件（予防的移転案内 1 + 索引ページ移設 1 +
-# #1017 の部品ページ移行 107）。#1018 で索引ページを
-# `/components/pre-styled-ui/` から `/themes/` へ移設し、旧索引 URL 自体の
-# リダイレクトを追加した（残り 1 件のスコープを完了）。
+# 実宣言は現在 110 件（予防的移転案内 1 + 索引ページ移設 1 +
+# 部品ページ移行 108（#1017 の 107 + #1683 で追加した collapsible 1））。
+# #1018 で索引ページを `/components/pre-styled-ui/` から `/themes/` へ
+# 移設し、旧索引 URL 自体のリダイレクトを追加した（残り 1 件のスコープを
+# 完了）。`/components/collapsible/` は #1017 の一括移行時点では存在しな
+# かった URL だが、`/components/`（索引ページ）と同じ「未提供 URL への
+# 予防的移転案内」として #1683 で Themes ページ新設に合わせ追加した。
 
 [[redirect]]
 # `/components/` は現時点で `site/nav.toml` に該当 `path` が無く 404 になる
@@ -33,8 +36,10 @@ to = "/themes/"
 from = "/components/pre-styled-ui/"
 to = "/themes/"
 
-# 以下 107 件はイシュー #1017（既存 107 部品ページを /components/ から
-# /themes/ へ移行）の実宣言。生成コマンド（決定的・レビュー可能）:
+# 以下 108 件はイシュー #1017（既存 107 部品ページを /components/ から
+# /themes/ へ移行）の実宣言 + #1683 で追加した collapsible 1 件。生成
+# コマンドは nav.toml 更新後そのまま実行すれば 108 件を出力する
+# （決定的・レビュー可能）:
 #
 #   git show HEAD:site/nav.toml | grep -o 'source = "site/themes/[^"]*"' \
 #     | sed 's|.*site/themes/||; s|\.md"||' | sort \
@@ -134,6 +139,14 @@ to = "/themes/clipboard/"
 [[redirect]]
 from = "/components/code/"
 to = "/themes/code/"
+
+[[redirect]]
+# `/components/collapsible/` は #1017 の一括移行以前には存在しなかった
+# URL だが、`/components/`（索引ページ）と同じ「未提供 URL への予防的
+# 移転案内」（`docs/design/docs-site-primitives-themes-split.md` §2.4）
+# として、#1683 で Themes ページ新設に合わせ追加した。
+from = "/components/collapsible/"
+to = "/themes/collapsible/"
 
 [[redirect]]
 from = "/components/color-picker/"

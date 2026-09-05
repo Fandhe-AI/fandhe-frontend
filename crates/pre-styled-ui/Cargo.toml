@@ -1836,7 +1836,22 @@ name = "fandhe-frontend-pre-styled-ui"
 # 選択的再エクスポートしているため呼び出し側にも波及する破壊的変更）に伴い
 # マイナーバンプで 0.112.0 とする（本クレート自身の SLOTS・CSS は本 PR では
 # 変更していない）。
-version = "0.112.0"
+# イシュー #1684: `field` モジュール新設（公開 API の純追加。recipe
+# scope "field" 上の `root`/`FieldOrientation`/`FieldRootProps` と、
+# `label`/`helper_text`/`error_text`/`required_indicator`/`FieldIds`/
+# `FieldProps` の選択的再エクスポート）のため minor バンプする（0.x の
+# 破壊的変更相当という運用に合わせ純追加も minor、
+# `.claude/rules/coding-rust.md` 「公開済みクレートの実体変更時は
+# semver バンプ必須」節）。`/themes/field/` ページ登録・showcase Demo
+# 追加は後続イシュー #1685 のスコープ。
+# base 再取り込み（イシュー #1655, 2026-09-06）: main 側は本ブランチとは独立に
+# field モジュール新設（イシュー #1684）を経て 0.112.0 へ到達しており、本
+# ブランチも headless-ui 0.59.0 依存追随（pagination の破壊的変更）により
+# 独立に 0.112.0 へ到達していた。両者が同一版数へ偶発的に衝突しているため
+# （同一版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
+# style-refresh-version-bump-operation.md` §5）、両者の変更の和集合として
+# さらにマイナーバンプし 0.113.0 とする。
+version = "0.113.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
