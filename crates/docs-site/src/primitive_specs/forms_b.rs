@@ -630,7 +630,7 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
         "`hidden_input` は `<input type=\"checkbox\" role=\"switch\">`（WAI-ARIA APG 準拠）。native の `checked` がブラウザによって `aria-checked` へ自動マップされるため、`aria-checked` を明示付与しない（二重読み上げ防止）。",
         "`root` が `<label>` のため、内包する `hidden_input` との暗黙のラベル関連付けが JS なしで成立する（`for`/`id` の配線が不要）。",
         "イシュー #1622（ark-ui / Radix Primitives との参照突合）で `SwitchProps`（`disabled`/`readonly`/`invalid`/`required`）を新設し、`data-disabled`/`data-invalid`/`data-required`/`data-readonly` を全 5 パーツへ一律反映するよう是正した（従来は root/control の `data-disabled` のみだった）。",
-        "呼び出し側 `attrs` に `data-state`/`data-disabled`/`data-invalid`/`data-required`/`data-readonly`/`aria-invalid`/`type`/`role`/`checked`/`name`/`value`/`disabled`/`required` と同名キー（大文字小文字無視）を渡しても fail-closed で除去し、状態の偽装を防ぐ（イシュー #1622 で追加）。",
+        "呼び出し側 `attrs` に `data-state`/`data-disabled`/`data-invalid`/`data-required`/`data-readonly`/`aria-checked`/`aria-invalid`/`type`/`role`/`checked`/`name`/`value`/`disabled`/`required` と同名キー（大文字小文字無視）を渡しても fail-closed で除去し、状態の偽装を防ぐ（イシュー #1622 で追加）。",
         "参考サイトとの意図的な差分（`data-hover`/`data-active`/`data-focus` 非出力、Enter キー非配線、`readonly` 時の native トグル抑止なし、Radix の `button role=\"switch\"` パターン不採用）は `crates/headless-ui/src/switch.rs` モジュール doc「参考サイトとの意図的な差分」節を参照。",
     ],
     arguments: &[
