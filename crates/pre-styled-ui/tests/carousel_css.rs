@@ -15,10 +15,20 @@
 //! disabled 減光・トランジションを Phase 0 共通規約（イシュー #1424/#1425）
 //! へ追随させた際に、この golden も新しい `stylesheet()` 出力へ更新した
 //! （更新手順は `docs/internal/pre-styled-ui-golden-test-update-guide.md`
-//! 参照）。PR #1925 codex-review 指摘 是正: `data-orientation="vertical"`
+//! 参照）。PR #1925 codex-review 指摘 是正（1 回目）: `data-orientation="vertical"`
 //! の `item-group` へ `flex-direction: column` を追加した（`display: flex`
 //! が既定で横並びのままだと `translateY` だけを上書きしても track 全体が
 //! 上へ動くだけでスライドが正しく切り替わらないため）。
+//!
+//! PR #1925 codex-review 指摘 是正（2 回目・P1 2 件 + Cursor Bugbot 指摘）:
+//! 上記の `flex-direction: column` だけでは `item-group` に確定した高さが
+//! なく `item` の `flex: 0 0 100%`（主軸=高さ）が解決できないため、
+//! `item-group[data-orientation="vertical"]` 自身へ
+//! `--fandhe-carousel-height` トークン（既定 20rem）による確定高さと
+//! `overflow: hidden` を追加した（`root` 側に確定高さを与えると `root` の
+//! 兄弟パーツ `control` が `root` の `overflow: hidden` で隠れてしまうため、
+//! `root` の高さは子要素合計に追随する auto のまま変更しない。
+//! `crate::carousel` の該当 `.state()` rustdoc 参照）。
 
 use fandhe_frontend_pre_styled_ui::carousel;
 
@@ -128,6 +138,8 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
 
 [data-scope="carousel"][data-part="item-group"][data-orientation="vertical"] {
   flex-direction: column;
+  height: var(--fandhe-carousel-height, 20rem);
+  overflow: hidden;
   transform: translateY(calc(var(--fandhe-carousel-index, 0) * -100%));
 }
 

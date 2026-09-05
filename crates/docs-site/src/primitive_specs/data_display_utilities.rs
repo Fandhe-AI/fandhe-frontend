@@ -317,14 +317,29 @@ fn ex_carousel_vertical_loop() -> Node {
 /// `item-group` へ重ねており、トラックを動かすとクリップ領域ごと
 /// 一緒にずれて index=1 でも Slide 1 が表示されたままだった（クリッパーと
 /// トラックが同一要素だとクリップ座標系ごと移動してしまうため）。
-/// PR #1925 codex-review 指摘 是正: 縦方向 `item-group` の
+/// PR #1925 codex-review 指摘 是正（1 回目）: 縦方向 `item-group` の
 /// `flex-direction: column` 上書きに合わせ `height: 100%` を追加した
 /// （`root` の `height: 12rem` を継承しないと主軸サイズが不定のまま残り、
 /// `item` の `flex: 0 0 100%` が正しい高さへ解決できず `translateY` の
 /// 百分率計算が崩れて Slide 2 以降が表示されなかったため）。
+///
+/// PR #1925 codex-review 指摘 是正（2 回目・P1 指摘）: 上記の是正のまま
+/// `root` に固定高さ `height: 12rem` を持たせ続けると、`root` 自身の
+/// ボックスが 12rem に固定され、その下に通常のブロックフローで並ぶ兄弟
+/// パーツ `control`（前後ボタン・indicator）が `root` の
+/// `overflow: hidden` に完全にクリップされ表示されなくなる不具合があった
+/// （`item-group` が `height: 100%` で `root` の 12rem を丸ごと占有し、
+/// `control` の描画開始位置が `root` の境界と一致してしまうため）。
+/// `root` からは固定高さを外し（`control` を隠さないよう auto のまま
+/// 子要素合計に追随させる）、代わりに **`item-group` 自身**へ固定高さ
+/// `height: 12rem` と `overflow: hidden` を持たせることで、スタックした
+/// スライドのクリップを `item-group` 自身の内部で完結させる
+/// （`crates/pre-styled-ui/src/carousel.rs` の `recipe()` における
+/// 同型の是正と同じ判断、モジュール rustdoc「transform ベースのスライド
+/// 位置表現」節参照）。
 const CAROUSEL_CUSTOM_CSS_SNIPPET: &str = "\
 [data-scope=\"carousel\"][data-part=\"root\"] {\n  \
-  overflow: hidden;\n  width: 100%;\n  height: 12rem;\n\
+  overflow: hidden;\n  width: 100%;\n\
 }\n\
 [data-scope=\"carousel\"][data-part=\"item-group\"] {\n  \
   display: flex;\n  \
@@ -336,7 +351,8 @@ const CAROUSEL_CUSTOM_CSS_SNIPPET: &str = "\
 }\n\
 [data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"] {\n  \
   flex-direction: column;\n  \
-  height: 100%;\n  \
+  height: 12rem;\n  \
+  overflow: hidden;\n  \
   transform: translateY(calc(var(--fandhe-carousel-index) * -100%));\n\
 }\n\
 [data-scope=\"carousel\"][data-part=\"indicator\"][data-current] {\n  \

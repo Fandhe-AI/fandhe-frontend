@@ -1842,7 +1842,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.57.0 依存 + `collapsible` 新設を統合した 0.110.0 に到達済みのため、
 # main のこの追随分は本ブランチの 0.110.0 に対する patch 差分（依存先を
 # 0.57.1 へ追随するのみで、他に実体変更なし）として吸収し 0.110.1 とする。
-version = "0.110.1"
+# PR #1925 codex-review 指摘 是正（2 回目・P1 2 件 + Cursor Bugbot 指摘）:
+# 縦方向 `item-group[data-orientation="vertical"]` へ確定した高さ
+# （`--fandhe-carousel-height` トークン、既定 20rem）と `overflow: hidden`
+# を追加し、`item` の `flex: 0 0 100%` が正しく解決するよう是正した
+# （`crates/pre-styled-ui/src/carousel.rs` の該当 `.state()` rustdoc
+# 参照）。公開 CSS 契約の観測可能な実体変更（golden 更新）のためマイナー
+# バンプで 0.111.0 とする（新規 API の破壊的変更ではなく追加宣言のみだが、
+# 0.x の実体変更はマイナーバンプする規約を踏襲する）。
+version = "0.111.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

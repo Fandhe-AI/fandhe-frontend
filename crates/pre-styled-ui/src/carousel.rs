@@ -228,20 +228,35 @@ fn recipe() -> SlotRecipe {
         // の indicator が `data-orientation` で translateX/Y を切り替えるのと
         // 同型の判断、モジュール rustdoc「transform ベースのスライド位置表現」
         // 節参照）。
+        //
+        // codex-review 指摘 PR #1925 是正（P1 2 件・Cursor Bugbot 指摘、共通の
+        // 欠陥系統）: 横方向は `item-group` の主軸（幅）が `root`（クリッパー、
+        // 幅はコンテナ由来で確定）に対して `flex: 0 0 100%` の item 群が並ぶ
+        // ことで内容側に確定するのではなく、`root` 自身の**幅**（ブロック
+        // レイアウトで確定）を超えて `item-group` が横へはみ出す分を `root`
+        // の `overflow: hidden` が clip する構造になっている（`root` の
+        // **高さ**は子要素（`item-group` + 兄弟の `control`）の合計に自動追随
+        // するブロックレイアウトの既定動作のため、`control` は `item-group`
+        // の下に自然に並び隠れない）。縦方向は主軸が高さのため対称の構造に
+        // ならず、`root` 側に確定高さを与えると `root` 自身の高さが固定され
+        // てしまい、その下の `control`（`item-group` の兄弟、通常のブロック
+        // フローで `item-group` の直後に配置される）が `root` の
+        // `overflow: hidden` で隠れてしまう（`crates/docs-site/src/
+        // primitive_specs/data_display_utilities.rs` の自前 CSS 例で実際に
+        // 再現した不具合と同型）。そこで **`item-group` 自身**に確定高さ
+        // （`--fandhe-carousel-height` トークン、既定 20rem）と
+        // `overflow: hidden` を持たせ、`item` の `flex: 0 0 100%`（主軸=高さ
+        // 100%）を `item-group` 自身の高さで解決させたうえで、はみ出す
+        // スタック分は `item-group` 自身がクリップする（`root` はサイズを
+        // 変えず高さ auto のままなので、`control` は従来どおり `item-group`
+        // の下に隠れず表示される）。
         .state(
             "item-group",
             StateCondition::AttrEq("data-orientation", "vertical"),
             vec![
-                // codex-review 指摘 PR #1925 是正: `item-group` の
-                // `display: flex` は既定で row（横並び）のため、縦方向でも
-                // `translateY` だけを上書きすると item 群が横並びのまま
-                // 上下に移動し、index > 0 のスライドが正しく現れず track
-                // 全体が単に上へずれるだけになっていた。`flex-direction:
-                // column` を合わせて上書きし、`item` の `flex: 0 0 100%`
-                // （主軸サイズ 100%）が縦方向では高さ基準として効くようにする
-                // （`crates/docs-site/src/primitive_specs/data_display_utilities.rs`
-                // の自前 CSS 例と同型の対応）。
                 decl("flex-direction", "column"),
+                decl("height", "var(--fandhe-carousel-height, 20rem)"),
+                decl("overflow", "hidden"),
                 decl(
                     "transform",
                     "translateY(calc(var(--fandhe-carousel-index, 0) * -100%))",
@@ -469,6 +484,8 @@ mod tests {
         assert!(css.contains(
             "[data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"] {\n  \
              flex-direction: column;\n  \
+             height: var(--fandhe-carousel-height, 20rem);\n  \
+             overflow: hidden;\n  \
              transform: translateY(calc(var(--fandhe-carousel-index, 0) * -100%));\n\
              }\n"
         ));
