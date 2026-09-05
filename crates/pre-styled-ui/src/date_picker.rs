@@ -42,14 +42,20 @@
 //!   にのみ [`crate::recipe::hover_bg_muted`]（`--fandhe-hover-bg` 定義）+
 //!   `.state(slot, StateCondition::Hover,
 //!   crate::recipe::hover_surface_declarations())`（実適用）を付ける
-//! - **disabled 視覚は `input`/`trigger` のみに付ける**: headless
-//!   （`crates/headless-ui/src/date_picker.rs`）が `data-disabled` を出すのは
-//!   `input`/`trigger` のみで、`control`/`clear-trigger` へは出さないため
-//!   本 CSS 側でも対象外とする（消費できない属性へ規則を書かない、
-//!   combobox 1/2 と同じ判断）
+//! - **disabled 視覚は `input`/`trigger` のみに付ける**: 本イシュー
+//!   （#1471）着手当時、headless（`crates/headless-ui/src/date_picker.rs`）が
+//!   `data-disabled` を出すのは `input`/`trigger` のみで、`control`/
+//!   `clear-trigger` へは出さないため本 CSS 側でも対象外としていた
+//!   （消費できない属性へ規則を書かない、combobox 1/2 と同じ判断）。
+//!   headless-ui 0.41.0（イシュー #1627）以降は root/label/control/
+//!   clear-trigger にも `data-disabled`、全 6 パーツに `data-invalid`/
+//!   `data-readonly`、label に `data-required` が出るようになったが、
+//!   これらの CSS 消費（`control`/`clear-trigger` への disabled 視覚追加を
+//!   含む）は Themes 側の後続判断に委ね、本 PR では recipe を変更しない
+//!   （イシュー #1470 へコメントで追跡）。
 //! - **`control` は変更しない**: border を持たない純レイアウトコンテナで
-//!   あり、headless も `data-state` 以外の状態属性を出さないため、7 軸
-//!   チェックリスト上で是正対象がない
+//!   あり、7 軸チェックリスト上で是正対象がない（上記のとおり `data-*`
+//!   消費の追加判断自体は #1470 側へ先送り）
 //! - `clear-trigger`（`<button>`）にブラウザ既定のボタン装飾（border・
 //!   背景）が露出していた実不具合を是正し、`trigger` と同じリセット
 //!   （`display: inline-flex`/`align-items: center`/`justify-content:
@@ -165,7 +171,7 @@ use crate::recipe::{
 };
 
 pub use fandhe_frontend_headless_ui::date_picker::{
-    clear_trigger, content, control, input, label, positioner, trigger,
+    clear_trigger, content, control, input, label, positioner, trigger, DatePickerProps,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::state::OpenState;
@@ -405,6 +411,7 @@ pub fn stylesheet() -> String {
 pub fn root<'a>(
     size: Size,
     state: OpenState,
+    props: &DatePickerProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -412,7 +419,7 @@ pub fn root<'a>(
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::date_picker::root(state, merged, children)
+    fandhe_frontend_headless_ui::date_picker::root(state, props, merged, children)
 }
 
 #[cfg(test)]
@@ -437,17 +444,20 @@ mod tests {
 
     #[test]
     fn reexported_root_renders_with_headless_anatomy_attrs() {
-        let html = render(&root(Size::Md, OpenState::Closed, vec![], vec![]));
+        let props = DatePickerProps::default();
+        let html = render(&root(Size::Md, OpenState::Closed, &props, vec![], vec![]));
         assert!(html.contains(r#"data-scope="date-picker""#));
         assert!(html.contains(r#"data-part="root""#));
     }
 
     #[test]
     fn size_variant_appends_single_class_to_root_and_drops_caller_class() {
+        let props = DatePickerProps::default();
         for size in [Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl] {
             let html = render(&root(
                 size,
                 OpenState::Closed,
+                &props,
                 vec![("class", "attacker")],
                 vec![],
             ));

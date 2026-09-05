@@ -385,6 +385,9 @@ Calendar / DatePicker を実装した。
 | dispatch 名 | `"open"`/`"close"`/`"toggle"`/`"prev-month"`/`"next-month"`/`"select"`（payload は ISO 8601 文字列）/`"clear-selection"`。`"select"` は ark-ui の `closeOnSelect` 既定 `true` に準拠し popover を閉じる |
 | `input` パーツ | ネイティブ `<input type="text">`。`value` は `PlainDate::to_iso_string()` 由来の ISO 8601 表記のみを受け取る契約（DateInput との連携は行わない） |
 | DateInput との責務境界 | 本コンポーネントはセグメント式 DateInput に依存せず、ISO 8601 値のネイティブ `<input>` だけで完結する |
+| `DatePickerProps`（イシュー #1627） | `disabled`/`readonly`/`invalid`/`required` の 4 `bool`。root/label/control/input/trigger/clear_trigger の 6 パーツへ `data-disabled`/`data-invalid`/`data-readonly` を一律付与し、`data-required` は label のみへ付与する。`input` は `props.disabled`/`props.readonly`/`props.required` をそれぞれネイティブ `disabled`/`readonly`/`required` 存在属性へも反映し、`props.invalid` のときのみ `aria-invalid="true"` を追加する |
+| `label` の `for_`（イシュー #1627） | `id`（`content`/`trigger` の `labelledby` と対）に加え、`for_`（ark `htmlFor` 準拠）で `input` の `id` とネイティブ `label[for]` 関連付けを成立させる |
+| 参照突合の非追随（イシュー #1627） | ark-ui の View/ViewControl/PrevTrigger/NextTrigger/ViewTrigger/RangeText/Table 系/TableCellTrigger/MonthSelect/YearSelect/PresetTrigger/WeekNumber\*/ValueText はグリッド系が `content` へ合成する `calendar` モジュール（11 パーツ）に既に存在し、年月ビュー切替・プリセット・週番号は非追随を継続。`data-view`/`data-placement` も非追随。`fandhe-frontend-wasm-full` への `date-picker` scope 配線（trigger click・clear・Escape・外側クリック閉鎖）は未実装（別イシュー扱い） |
 
 ## 4e. Format ユーティリティ（`format` モジュール）
 

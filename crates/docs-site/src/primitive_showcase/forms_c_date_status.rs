@@ -110,26 +110,46 @@ pub(super) fn date_input_section() -> Node {
     demo_page("Date Input", body)
 }
 
-pub(super) fn date_picker_section() -> Node {
-    let state = OpenState::Closed;
-    let body = vec![date_picker::root(
+/// [`date_picker_section`] の内部ヘルパ。`id_prefix` ごとに id を一意化し、
+/// `props`（disabled/readonly/invalid/required）の異なる組み合わせで
+/// 1 インスタンスを組み立てる（イシュー #1627、combobox 系デモの
+/// 多インスタンス化と同型のパターン）。
+fn date_picker_instance(
+    id_prefix: &str,
+    state: OpenState,
+    props: &date_picker::DatePickerProps,
+    label_text: &str,
+    value: &str,
+) -> Node {
+    let label_id = format!("dp-{id_prefix}-label");
+    let input_id = format!("dp-{id_prefix}-input");
+    let content_id = format!("dp-{id_prefix}-content");
+    date_picker::root(
         state,
+        props,
         vec![],
         vec![
-            date_picker::label(Some("dp-label"), vec![], vec![text("Date")]),
+            date_picker::label(
+                props,
+                Some(label_id.as_str()),
+                Some(input_id.as_str()),
+                vec![],
+                vec![text(label_text)],
+            ),
             date_picker::control(
                 state,
+                props,
                 vec![],
                 vec![
-                    date_picker::input(Some("2026-07-25"), false, Some("dp-input"), vec![]),
+                    date_picker::input(Some(value), props, Some(input_id.as_str()), vec![]),
                     date_picker::trigger(
                         state,
-                        false,
-                        Some("dp-content"),
+                        props,
+                        Some(content_id.as_str()),
                         vec![],
                         vec![text("📅")],
                     ),
-                    date_picker::clear_trigger(vec![], vec![text("×")]),
+                    date_picker::clear_trigger(props, vec![], vec![text("×")]),
                 ],
             ),
             date_picker::positioner(
@@ -137,14 +157,68 @@ pub(super) fn date_picker_section() -> Node {
                 vec![],
                 vec![date_picker::content(
                     state,
-                    Some("dp-content"),
-                    Some("dp-label"),
+                    Some(content_id.as_str()),
+                    Some(label_id.as_str()),
                     vec![],
                     vec![],
                 )],
             ),
         ],
-    )];
+    )
+}
+
+pub(super) fn date_picker_section() -> Node {
+    let default_props = date_picker::DatePickerProps::default();
+    let disabled_props = date_picker::DatePickerProps {
+        disabled: true,
+        ..Default::default()
+    };
+    let invalid_required_props = date_picker::DatePickerProps {
+        invalid: true,
+        required: true,
+        ..Default::default()
+    };
+    let readonly_props = date_picker::DatePickerProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let body = vec![
+        date_picker_instance(
+            "closed",
+            OpenState::Closed,
+            &default_props,
+            "Date",
+            "2026-07-25",
+        ),
+        date_picker_instance(
+            "open",
+            OpenState::Open,
+            &default_props,
+            "Date (open)",
+            "2026-07-25",
+        ),
+        date_picker_instance(
+            "disabled",
+            OpenState::Closed,
+            &disabled_props,
+            "Date (disabled)",
+            "2026-07-25",
+        ),
+        date_picker_instance(
+            "invalid",
+            OpenState::Closed,
+            &invalid_required_props,
+            "Date (invalid, required)",
+            "2026-07-25",
+        ),
+        date_picker_instance(
+            "readonly",
+            OpenState::Closed,
+            &readonly_props,
+            "Date (readonly)",
+            "2026-07-25",
+        ),
+    ];
     demo_page("Date Picker", body)
 }
 
