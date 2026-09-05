@@ -17,15 +17,53 @@
 //!
 //! # スコープ外（out-of-scope-tracking 対応）
 //!
-//! フォーカストラップ・Escape キーでの閉鎖・外側クリックでの閉鎖・
 //! アニメーション対応の `open`/`visible` 分離は JS ランタイム側の責務であり
-//! 本イシューのスコープ外（SSR/属性出力のみ）。ネイティブ `<dialog>` 要素は
+//! 本モジュールのスコープ外（SSR/属性出力のみ）。ネイティブ `<dialog>` 要素は
 //! core のタグ語彙（`crates/core/src/tags.rs`）に存在しないため採用しない
 //! （採用検討はスコープ外として記録）。
 //!
+//! Escape キーでの閉鎖・外側クリックでの閉鎖・フォーカストラップ・閉鎖時の
+//! trigger へのフォーカス復帰・click → dispatch 配線は本モジュールが属性を
+//! 出力するのみで、実 DOM 配線は `fandhe-frontend-wasm-full`（
+//! `overlay::close_on_escape_for`/`close_on_interact_outside_for`〔#585〕・
+//! `focus_trap`〔#586〕・`headless` の part → action 対応表）が担う
+//! （イシュー #1638 で確認・文書化）。オプトアウト/オプトインは [`content`]
+//! の `attrs` 経由で以下の `data-*` を渡す（`"false"` リテラルのときのみ
+//! 無効化し、それ以外は既定へフォールバックする fail-closed 規則）:
+//!
+//! - `data-close-on-escape="false"`: Escape キーでの閉鎖を無効化する。
+//! - `data-close-on-interact-outside="false"`: 外側クリックでの閉鎖を
+//!   無効化する（`role="alertdialog"` のときは既定で無効）。
+//! - `data-autofocus`: フォーカストラップの初期フォーカス先を指定する。
+//!
+//! # 参考サイトとの意図的な差分（イシュー #1638 で参照突合）
+//!
+//! ark-ui（zag `dialog.connect.ts`）・Radix Primitives・chakra-ui と突合した
+//! 結果、anatomy（8 パート）・`data-state` 語彙（`open`/`closed`）は一致して
+//! おり、以下の差分は意図的に合わせない:
+//!
+//! - **DOM 上の `root` パート**: zag の `Dialog.Root` は context のみで DOM を
+//!   持たないが、本リポジトリの全部品が `data-state` 付与先として root を
+//!   DOM 要素に持つ規約のため維持する。
+//! - **`positioner` の `data-state` + `hidden`**: zag は `pointer-events` の
+//!   インラインスタイルで代替するが、headless-ui はスタイルを出力しないため
+//!   JS なし SSR での閉状態表現として維持する（`crates/pre-styled-ui`
+//!   の recipe が `positioner[hidden]` に依存する、PR #575 参照）。
+//! - **trigger の `data-ownedby`/`data-value`/`data-current`**（zag の複数
+//!   トリガー識別）: `aria-controls` による id 関連付けが同等の役割を担うため
+//!   不採用。
+//! - **content の `data-nested`/`data-has-nested`**（ark-ui のネストダイアログ
+//!   実行時計測）: `docs/policy/intentional-non-adoption.md` §3.25 規則 2
+//!   （レイアウト計測・実行時関心は headless へ持ち込まない）により不採用。
+//!   `fandhe-frontend-wasm-full` の overlay スタックが実行時に担う。
+//! - **Radix `Portal`**: DOM 配置の関心（§3.25 規則 2）のため不採用。
+//! - **Radix AlertDialog の `Cancel`/`Action` パート**: `DialogRole::Alertdialog`
+//!   と [`close_trigger`] と素の `button` で構成でき、ark-ui にも該当パートは
+//!   無いため不採用（Themes 側 alert-dialog 設計イシュー #1675 へ申し送り）。
+//!
 //! # セキュリティ不変条件
 //!
-//! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`id`）はすべて
+//! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`id`/`tabindex`）はすべて
 //!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入する
 //!   経路はない（[`mod@crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の
 //!   既存不変条件をそのまま継承する）。
@@ -164,6 +202,14 @@ pub struct ContentIds<'a> {
 /// `ids`（[`ContentIds`]）の各フィールドが `Some` のときのみ対応する属性を
 /// 出力し、[`title`]/[`description`] の `id` と対で `aria-labelledby`/
 /// `aria-describedby` 関連付けを成立させる。
+///
+/// `tabindex="-1"` を固定で付与する（zag `dialog.connect.ts` の
+/// `getContentProps` と同じく、プログラム的フォーカスのみを許可する
+/// WAI-ARIA dialog パターンの前提）。`fandhe-frontend-wasm-full` の
+/// `focus_trap::focus_content_itself` はハイドレーション後に tabbable な
+/// 子孫が無い場合の代替フォーカス先として同属性を動的にも付与しており、
+/// 本関数が SSR 時点から固定付与することで SSR 出力とハイドレーション後の
+/// 出力が一致する（イシュー #1638）。
 #[must_use]
 pub fn content<'a>(
     state: OpenState,
@@ -177,6 +223,7 @@ pub fn content<'a>(
         role(role_kind.as_str()),
         aria_modal(modal),
         data_state(state.as_data_state()),
+        ("tabindex", "-1"),
     ];
     if let Some(id) = ids.id {
         merged.push(("id", id));
@@ -499,6 +546,31 @@ mod tests {
             vec![],
         ));
         assert!(!open.contains("hidden"));
+    }
+
+    #[test]
+    fn content_has_tabindex_minus_one() {
+        // zag `dialog.connect.ts` の `getContentProps` と同じく、content は
+        // 開閉に関わらず `tabindex="-1"` を固定で持つ（イシュー #1638）。
+        let closed = render(&content(
+            OpenState::Closed,
+            DialogRole::Dialog,
+            true,
+            ContentIds::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(closed.contains(r#"tabindex="-1""#));
+
+        let open = render(&content(
+            OpenState::Open,
+            DialogRole::Dialog,
+            true,
+            ContentIds::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(open.contains(r#"tabindex="-1""#));
     }
 
     #[test]

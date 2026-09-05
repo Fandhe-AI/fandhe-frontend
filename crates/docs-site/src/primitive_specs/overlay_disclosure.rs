@@ -36,18 +36,24 @@
 //! 場合のみ記入し、それ以外（位置引数は必須のため既定値が存在しない）は
 //! 空文字列のままにする（推測で埋めない）。
 //!
-//! # `keyboard` を 10 件すべて空にする理由
+//! # `keyboard` を空にする既定と、行を追加してよい基準
 //!
-//! 本モジュール対象の 10 モジュールを走査した結果、キーイベントを解釈する
-//! 実装は 1 件も無い（`decode_action` はいずれも文字列アクション名
-//! （`"open"`/`"close"`/`"toggle"` 等）のデコードであり、キー割り当てでは
-//! ない）。フォーカストラップ・Escape 閉鎖・外側クリック閉鎖は各モジュール
-//! doc の out-of-scope 節が明示的にスコープ外と宣言している（
-//! `crates/headless-ui/src/dialog.rs`/`drawer.rs`/`popover.rs`/
-//! `toggle_tip.rs`/`tooltip.rs`/`floating_panel.rs`/`accordion.rs` 参照）。
-//! 実装に無いキーボード操作を書くと利用者へ誤った安心を与えるため、
-//! `keyboard: &[]` を採用し節を `aria` 表のみで成立させる
-//! （`component_page.rs` の Accessibility 節省略規則参照）。
+//! 本モジュール対象の 10 モジュール自体（`fandhe-frontend-headless-ui`
+//! 側）はキーイベントを解釈しない（`decode_action` はいずれも文字列
+//! アクション名（`"open"`/`"close"`/`"toggle"` 等）のデコードであり、キー
+//! 割り当てではない）ため、`keyboard: &[]` が既定である。
+//!
+//! `KeyRow` を追加してよいのは、その挙動が `fandhe-frontend-wasm-full`
+//! 側で実 DOM 配線として実装されており、行の説明が配線の所在（モジュール・
+//! 関数名）を名指しできる場合に限る（`data_display_utilities.rs` の
+//! scroll_area/splitter と同じ基準）。実装のどこにも無い挙動を書くと
+//! 利用者へ誤った安心を与えるため、この基準を満たさない限り
+//! `keyboard: &[]` のまま `aria` 表のみで節を成立させる
+//! （`component_page.rs` の Accessibility 節省略規則参照）。dialog は
+//! イシュー #1638 で `fandhe-frontend-wasm-full`（`overlay`/`focus_trap`/
+//! `headless`）の配線を確認できたため本モジュールで最初に `KeyRow` を
+//! 持つ。他 9 部品が空のままなのは各兄弟イシューでの確認待ちであり、
+//! 配線が無いと確定した結果ではない。
 //!
 //! # `hover_card` の Accessibility 節が空にならない理由
 //!
@@ -94,7 +100,7 @@ use hui::toggle_tip;
 use hui::tooltip;
 use hui::OpenState;
 
-use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry};
+use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
 
 // ---------------------------------------------------------------------
 // Accordion（/primitives/accordion/）
@@ -353,12 +359,14 @@ pub const COLLAPSIBLE: ComponentPageSpec = ComponentPageSpec {
 // Dialog（/primitives/dialog/）
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/dialog.rs:1-23`（モジュール doc、
-/// Disclosure を埋め込んだ開閉状態機械）、`:17-22`（スコープ外、
-/// フォーカストラップ・Escape・外側クリック閉鎖は JS ランタイム側の責務）、
-/// `:80-235`（`root`/`trigger`/`backdrop`/`positioner`/`content`/
-/// `ContentIds`/`title`/`description`/`close_trigger` シグネチャ）、
-/// `role`/`aria-modal`/`aria-haspopup`/`aria-hidden` の実出力テスト。
+/// 一次情報: `crates/headless-ui/src/dialog.rs:1-63`（モジュール doc、
+/// Disclosure を埋め込んだ開閉状態機械）、`:18-63`（スコープ外・参考サイトとの
+/// 意図的な差分。Escape・外側クリック閉鎖・フォーカストラップは
+/// `fandhe-frontend-wasm-full` が担う、イシュー #1638）、`:118-284`
+/// （`root`/`trigger`/`backdrop`/`positioner`/`content`/`ContentIds`/
+/// `title`/`description`/`close_trigger` シグネチャ、`content` の
+/// `tabindex="-1"` 固定付与）、`role`/`aria-modal`/`aria-haspopup`/
+/// `aria-hidden`/`tabindex` の実出力テスト。
 fn ex_dialog_alert_non_modal() -> Node {
     let state = OpenState::Open;
     div(
@@ -415,9 +423,9 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Trigger / Backdrop / Positioner / Content / Title / Description / CloseTrigger の 8 anatomy パーツと、Disclosure を埋め込んだ開閉状態機械 Dialog を提供する（dispatch: open/close/toggle）。",
         "trigger は type=\"button\" を固定付与し、aria-haspopup=\"dialog\" を常に付与する。",
-        "content は DialogRole（Dialog/Alertdialog）で role を切り替えられ、modal 引数で aria-modal の値を制御できる。",
+        "content は DialogRole（Dialog/Alertdialog）で role を切り替えられ、modal 引数で aria-modal の値を制御できる。content は tabindex=\"-1\" を固定付与する（zag dialog.connect.ts と同じく、プログラム的フォーカスのみを許可する前提。イシュー #1638）。",
         "backdrop/positioner は closed のとき hidden 存在属性を付与し、JS なしの SSR でも閉状態を表現する。",
-        "フォーカストラップ・Escape キー閉鎖・外側クリック閉鎖は JS ランタイム側の責務としてスコープ外（SSR/属性出力のみ）。",
+        "Escape キー閉鎖・外側クリック閉鎖・フォーカストラップ・閉鎖時の trigger へのフォーカス復帰・click → dispatch 配線は本モジュールが属性を出力するのみで、実 DOM 配線は fandhe-frontend-wasm-full（overlay/focus_trap/headless の part → action 対応表）が担う。content の attrs 経由で data-close-on-escape=\"false\" / data-close-on-interact-outside=\"false\"（\"false\" リテラルのときのみ無効化） / data-autofocus（初期フォーカス先指定）を渡せる。",
     ],
     arguments: &[
         ArgRow {
@@ -492,7 +500,28 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
         description: "DialogRole::Alertdialog + modal=false の組み合わせで、role=\"alertdialog\" かつ aria-modal=\"false\" を出力する例です。",
         render: ex_dialog_alert_non_modal,
     }],
-    keyboard: &[],
+    keyboard: &[
+        KeyRow {
+            key: "Enter / Space (trigger)",
+            description: "ネイティブ button 要素の click 相当が成立し、fandhe-frontend-wasm-full の headless part → action 対応表が \"toggle\" を dispatch する。",
+        },
+        KeyRow {
+            key: "Enter / Space (close-trigger)",
+            description: "同対応表が \"close\" を dispatch する。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "overlay::close_on_escape_for が \"close\" を通知する（role=\"alertdialog\" でも Escape は閉じる。外側クリックのみ alertdialog は既定で無効）。data-close-on-escape=\"false\" で無効化できる。",
+        },
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "aria-modal=\"true\" のとき focus_trap::should_trap が content 内でフォーカスを循環させる。data-autofocus で初期フォーカス先を指定でき、tabbable な子が無い場合は content 自身（tabindex=\"-1\"）へフォーカスする。",
+        },
+        KeyRow {
+            key: "(閉鎖時)",
+            description: "focus_trap::push_trap が push 時点でフォーカスされていた要素（取得不能なら trigger 引数）をスナップショットしており、pop_trap がその要素へフォーカスを復帰する。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-haspopup=\"dialog\"",
@@ -521,6 +550,10 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-labelledby / aria-describedby",
             description: "content に付与。ids.labelledby/ids.describedby が Some のときのみ出力される。",
+        },
+        AriaRow {
+            attribute: "tabindex=\"-1\"",
+            description: "content に固定付与（zag dialog.connect.ts の getContentProps と同じく、プログラム的フォーカスのみを許可する）。",
         },
     ],
     demo: None,
@@ -1547,7 +1580,7 @@ mod tests {
     /// こと（受け入れ条件 1 の自己検査。`demo` は Phase 4（#1022）の
     /// `primitive_showcase` が供給するため常に `None` のままでよい）。
     #[test]
-    fn specs_have_non_empty_sections_except_keyboard_and_demo() {
+    fn specs_have_non_empty_sections_except_demo() {
         for (path, spec) in SPECS {
             assert!(
                 !spec.features.is_empty(),
@@ -1562,10 +1595,6 @@ mod tests {
                 "{path}: examples must not be empty"
             );
             assert!(!spec.aria.is_empty(), "{path}: aria must not be empty");
-            assert!(
-                spec.keyboard.is_empty(),
-                "{path}: keyboard should stay empty (no keyboard handling implemented)"
-            );
             assert!(
                 spec.demo.is_none(),
                 "{path}: demo should stay None (supplied by primitive_showcase)"
