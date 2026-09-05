@@ -69,8 +69,12 @@
 //! zag.js は [`TimerControl`] 各値の可視性を状態から導出する真偽式を持つ
 //! （[`TimerControl::is_hidden_in`] が同じ式をそのまま実装する）。
 //! [`action_trigger`] はこの結果に応じ `hidden` 属性を無条件付与する。
-//! zag.js には無い [`TimerControl::Restart`]（常に可視）を本実装は追加する
-//! （ark-ui docs のデモ構成に合わせた実用拡張、意図的な superset）。
+//! [`TimerControl::Restart`]（常に可視）は一次ソース
+//! （zag.js `packages/machines/timer/src/timer.connect.ts` の
+//! `validActions` 集合・`restart: () => false`）に実在する 5 番目の
+//! アクションであり、本実装の独自拡張ではない。是正前の実装は Restart を
+//! 欠いていたため、本是正（イシュー #1632）で zag.js の 5 値に合わせて
+//! 追加した。
 //!
 //! # セキュリティ不変条件
 //!
@@ -135,8 +139,11 @@ impl TimerUnit {
 /// 変換元、`fandhe-frontend-wasm-full` の `headless_timer` モジュールが
 /// この 5 値の完全一致のみを `"timer:*"` アクションへ変換する契約）。
 ///
-/// zag.js は 5 値（start/pause/resume/reset/restart）を持つ（イシュー #1632
-/// 突合で判明、[`Restart`](Self::Restart) を追加した）。
+/// zag.js（`timer.connect.ts` の `validActions`）は 5 値
+/// （start/pause/resume/reset/restart）を持つ（イシュー #1632 で一次ソースを
+/// 再確認して判明）。是正前の本実装は 4 値のみで [`Restart`](Self::Restart)
+/// を欠いていたため、本是正で zag.js に合わせて追加した（zag.js 側の独自
+/// 拡張ではない）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimerControl {
     /// 開始（Idle → Running）。

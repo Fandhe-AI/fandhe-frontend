@@ -20,10 +20,10 @@ Themes 版（`fandhe-frontend-pre-styled-ui`）はこの構造へ既定 CSS を�
 - **`area` の ARIA**: `role="timer"` と `aria-atomic="true"` を無条件付与するよう是正しました（旧版は付与していませんでした）。`aria-label`（既定書式 `"{days} days {hh}:{mm}:{ss}"`）は `Timer::area` 利便メソッド経由で注入されます（`area` 自由関数自体は `aria-label` を持ちません）。
 - **`separator` の ARIA**: `aria-hidden="true"` を無条件付与するよう是正しました（装飾用の区切り文字を支援技術に読み上げさせないため）。
 - **`action_trigger` の `hidden` 導出**: 第 2 引数に現在の `TimerPhase` を受け取り、zag.js と同じ真偽式（`running`/`paused` の 2 述語）で `hidden` 属性の要否を導出するよう破壊的変更しました。
+- **`TimerControl::Restart`（5 値目）**: zag.js（`validActions` 集合・`restart: () => false`）は `start`/`pause`/`resume`/`reset`/`restart` の 5 値を持ちますが、是正前の本実装は `restart` を欠いていました。zag.js に合わせて追加し、常に可視（`hidden` を持たない）としました。
 
 一方、以下は意図的に参考サイトへ合わせていません。
 
-- **`TimerControl::Restart`（5 値目）**: zag.js は `start`/`pause`/`resume`/`reset` の 4 値ですが、ark-ui docs のデモ構成に合わせ「常に可視」な `restart`（任意フェーズ → running、経過ゼロ）を追加しています。
 - **`Completed` 状態**: zag.js は完了到達時に `idle` へ戻りますが、本実装は `data-state="completed"` で完了を表現し続ける拡張を維持します。可視性は `running`/`paused` のいずれでもないため `idle` と同じです（Start/Restart のみ表示）。
 - **`Start` の任意フェーズ受理**: zag.js の `START` は idle 限定ですが、本実装は任意フェーズから running へ遷移できます。`hidden` により running/paused では UI 上到達不能なため実害はありません。
 - **`item` の `style="--value: N"`**: zag.js は CSS カウンタ用の `style` 属性を付与しますが、装飾・レイアウト計測の関心を headless 層へ持ち込まない方針（`docs/policy/intentional-non-adoption.md` §3.25）により非採用です。必要な場合は呼び出し側 CSS か Themes 層で対応してください。
