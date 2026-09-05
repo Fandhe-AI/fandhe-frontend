@@ -1575,6 +1575,9 @@ name = "fandhe-frontend-pre-styled-ui"
 # 「同一版数への偶発的衝突をそのまま採用しない」原則
 # （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.93.0 へ
 # さらにマイナーバンプする（headless-ui 依存も 0.42.0 へ追随）。
+# イシュー #1629: 再エクスポート先の headless-ui `toggle::indicator` が
+# `disabled: bool` 引数を追加（破壊的シグネチャ変更）したため追随。
+# 0.93.0 → 0.94.0（マイナーバンプ、headless-ui 依存も 0.43.0 へ追随）。
 # base ブランチ再取り込み（PR #1886 マージ, イシュー #1626, 2026-09-05）: main
 # （#1892 date-picker を統合した main、#1886 radio-group 経由）が独立に
 # 0.93.0 へ到達しており、本ブランチ（#1626 date-input、上記 codex-review

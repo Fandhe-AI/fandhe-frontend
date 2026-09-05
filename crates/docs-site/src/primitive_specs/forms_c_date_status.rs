@@ -89,6 +89,19 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/toggle-group/", TOGGLE_GROUP),
 ];
 
+/// Examples 用の枠組み（`forms_a.rs::wrap_example` と同型。
+/// [`crate::primitive_showcase`] のデモ本体と同じ `primitives-demo-frame`/
+/// `primitives-demo-note` class のみを使い、`h2`/`h3` は出さない）。
+fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
+    div(
+        vec![],
+        vec![
+            p(vec![("class", "primitives-demo-note")], vec![text(note)]),
+            div(vec![("class", "primitives-demo-frame")], body),
+        ],
+    )
+}
+
 // ---------------------------------------------------------------------
 // Calendar — 一次情報: crates/headless-ui/src/calendar.rs:1-431
 // ---------------------------------------------------------------------
@@ -995,7 +1008,43 @@ fn toggle_disabled_example() -> Node {
         false,
         true,
         vec![],
-        vec![toggle::indicator(false, vec![], vec![text("B")])],
+        vec![toggle::indicator(false, true, vec![], vec![text("B")])],
+    )
+}
+
+/// 自前 CSS の最小例で使うスニペット（イシュー #1629）。root の
+/// `data-state`/`data-pressed`/`data-disabled` と indicator の `data-state`
+/// を属性セレクタで拾う。headless-ui 自体はスタイルを持たない。
+const TOGGLE_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"toggle\"][data-part=\"root\"][data-state=\"on\"] {\n  \
+  background: #2563eb;\n  color: #fff;\n\
+}\n\
+[data-scope=\"toggle\"][data-part=\"root\"][data-pressed] {\n  \
+  border-color: #1d4ed8;\n\
+}\n\
+[data-scope=\"toggle\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"toggle\"][data-part=\"indicator\"][data-state=\"off\"] {\n  \
+  display: none;\n\
+}\n";
+
+/// Toggle の Examples: 利用者が `data-scope`/`data-part`/`data-state`/
+/// `data-pressed`/`data-disabled` 属性セレクタで自前 CSS を当てる最小例
+/// （イシュー #1629、`forms_a.rs::ex_checkbox_custom_css` と同型）。
+fn toggle_custom_css_example() -> Node {
+    let markup = toggle::root(
+        true,
+        false,
+        vec![],
+        vec![toggle::indicator(true, false, vec![], vec![text("B")])],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-pressed / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(vec![], vec![code(vec![], vec![text(TOGGLE_CUSTOM_CSS_SNIPPET)])]),
+        ],
     )
 }
 
@@ -1003,8 +1052,9 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root（`<button type=\"button\">`）/Indicator の 2 anatomy パーツと、押下状態機械 `Toggle` を提供する。「ボタンの押下状態」を表し、hidden input を持たずフォーム送信に参加しない（ark-ui 準拠）。",
         "`data-state`（`\"on\"`/`\"off\"`）と `aria-pressed`（`\"true\"`/`\"false\"`）・`data-pressed`（存在属性）を併記する。`crate::switch::Switch` と同じ状態機械（`Checkable`）を再利用しつつ、公開 HTML の語彙は分離している。",
-        "`indicator` は `data-state` のみを出力する最小主義パーツであり、on/off に応じた表示/非表示切り替えは styled 層 CSS の責務とする。",
-        "複数 Toggle 間の roving focus（矢印キー移動）は単体コンポーネントのため不要であり、本コンポーネントのスコープ外。",
+        "`indicator` も `data-state`/`data-pressed`/`data-disabled` を反映する（ark-ui `toggle.connect.ts` の Indicator と突合、イシュー #1629）。表示/非表示切り替え自体は行わない装飾用パーツであり、実際の表示制御は styled 層 CSS の責務とする。",
+        "pointer/focus のローカル操作状態（`data-hover`/`data-active`/`data-focus`/`data-motion`）は参照サイト（ark-ui）が付与するが本実装は意図的に出力しない（UI 部品の責務境界、`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。",
+        "複数 Toggle 間の roving focus（矢印キー移動）は単体コンポーネントのため不要であり、本コンポーネントのスコープ外。CSR のクリック → dispatch 配線（`fandhe-frontend-wasm-full`）は単体 Toggle 向けには未登録（イシュー #1629 スコープ外、後続 Issue 化を検討）。",
     ],
     arguments: &[
         ArgRow {
@@ -1017,17 +1067,24 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
             name: "disabled",
             kind: "bool",
             default: "false",
-            description: "無効化状態。ネイティブ `disabled`・`aria-disabled` 相当（`data-disabled`）を付与する。",
+            description: "無効化状態。ネイティブ `disabled`・`aria-disabled` 相当（`data-disabled`）を付与する。`indicator` にも同じ値を渡すことで両パーツの `data-disabled` を揃える。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "無効化状態",
-        description: "`disabled = true` を渡すとネイティブ `disabled` 属性と `data-disabled` が付与され、フォーカス・押下操作を受け付けなくなります。",
-        render: toggle_disabled_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "無効化状態",
+            description: "`disabled = true` を渡すとネイティブ `disabled` 属性と `data-disabled` が付与され、フォーカス・押下操作を受け付けなくなります。",
+            render: toggle_disabled_example,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui はスタイルレスであるため、root/indicator の data-* 属性セレクタで見た目を組み立てます。",
+            render: toggle_custom_css_example,
+        },
+    ],
     keyboard: &[KeyRow {
         key: "Tab / Space / Enter",
-        description: "`root` はネイティブ `<button type=\"button\">` であり、フォーカス・押下操作はブラウザ既定動作で成立する（`disabled` のときはフォーカス対象から除外される）。",
+        description: "`root` はネイティブ `<button type=\"button\">` であり、Tab でフォーカスを移動する。Space / Enter はブラウザ既定動作として `click` イベントを発火するが、`aria-pressed`/`data-state`/`data-pressed` の反転はブラウザが自動では行わない（`root` は `pressed` 引数に基づく静的属性を出力するのみで、単体 Toggle 向けの `click` → 状態更新の dispatch 配線は `fandhe-frontend-wasm-full` に未登録、上記 Features 参照）。呼び出し側で `click` イベントと `pressed` の状態更新を接続する実装が別途必要（`disabled` のときはフォーカス対象から除外される）。",
     }],
     aria: &[AriaRow {
         attribute: "aria-pressed",

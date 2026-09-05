@@ -250,6 +250,9 @@ name = "fandhe-frontend-wasm-full"
 # headless-ui の version 要求のみ本マージで 0.42.0 へ追随させる
 # （`docs/ci/style-refresh-version-bump-operation.md` §5、main 側の
 # date-picker 由来の patch 履歴を上書きしない範囲での追随）。
+# イシュー #1629: headless-ui の version 要求を 0.43.0 へ追随（`toggle::indicator`
+# へ `disabled: bool` 引数追加、破壊的変更）。本クレートの src/ 実体は変更
+# していないため patch バンプ（0.10.0 → 0.10.1）。
 # base ブランチ再取り込み（PR #1886 マージ, イシュー #1626, 2026-09-05）: 上記
 # main 側 0.10.0（readonly 抑止是正 + keynav 新規公開 API）到達後、本
 # ブランチ（#1626 date-input）は本クレートの src/ を変更しておらず、

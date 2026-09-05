@@ -316,13 +316,29 @@ pub(super) fn download_trigger_section() -> Node {
     demo_page("Download Trigger", body)
 }
 
-pub(super) fn toggle_section() -> Node {
-    let body = vec![toggle::root(
-        true,
-        false,
+/// `toggle_section` の 1 インスタンス分を組み立てる非公開ヘルパ。
+/// `pressed`/`disabled` の組み合わせで root/indicator 双方の
+/// `data-state`/`data-pressed`/`data-disabled` を描き分ける（イシュー
+/// #1629、`forms_a.rs::checkbox_instance` と同型のデモ執筆規約）。
+fn toggle_instance(pressed: bool, disabled: bool, label: &'static str) -> Node {
+    toggle::root(
+        pressed,
+        disabled,
         vec![],
-        vec![toggle::indicator(true, vec![], vec![text("B")])],
-    )];
+        vec![
+            toggle::indicator(pressed, disabled, vec![], vec![text("B")]),
+            text(label),
+        ],
+    )
+}
+
+pub(super) fn toggle_section() -> Node {
+    let body = vec![
+        toggle_instance(false, false, "Off"),
+        toggle_instance(true, false, "On"),
+        toggle_instance(true, true, "On + Disabled"),
+        toggle_instance(false, true, "Off + Disabled"),
+    ];
     demo_page("Toggle", body)
 }
 
