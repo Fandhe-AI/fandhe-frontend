@@ -222,13 +222,25 @@ pub(super) fn date_picker_section() -> Node {
     demo_page("Date Picker", body)
 }
 
+/// 参考サイト（ark-ui/chakra-ui）の DownloadTrigger デモは basic / async
+/// data / svg の複数変種を並べる。本 Demo も `file_name` あり/なしの両変種
+/// を並べ、`download` 属性の 2 通りの挙動（ファイル名ヒントの有無）を
+/// 可視化する（イシュー #1628）。
 pub(super) fn download_trigger_section() -> Node {
-    let body = vec![download_trigger::root(
-        "https://example.com/assets/report.pdf",
-        Some("report.pdf"),
-        vec![],
-        vec![text("Download report")],
-    )];
+    let body = vec![
+        download_trigger::root(
+            "https://example.com/assets/report.pdf",
+            Some("report.pdf"),
+            vec![],
+            vec![text("Download report")],
+        ),
+        download_trigger::root(
+            "https://example.com/assets/data.csv",
+            None,
+            vec![],
+            vec![text("Download data.csv")],
+        ),
+    ];
     demo_page("Download Trigger", body)
 }
 

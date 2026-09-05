@@ -410,7 +410,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/utilities/highlight.md` | Highlight | Highlight | — | — | — | `highlight` | 実装済み | #775。pre-styled 静的部品 実装済み |
 | `.agents/skills/ark-ui/references/utilities/client-only.md` | ClientOnly | ClientOnly | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
-| `.agents/skills/ark-ui/references/utilities/download-trigger.md` | DownloadTrigger | DownloadTrigger | — | — | `download_trigger` | `download_trigger` | 実装済み | #828。保留（#735 §7「JS ランタイム固有 utilities のうち静的実装可能なもの」）を利用要望 issue（#828）の起票により解除。`a[download]` 属性による静的部品として実装（`Blob`/`data`/`mimeType` は JS 前提のため対応しない） |
+| `.agents/skills/ark-ui/references/utilities/download-trigger.md` | DownloadTrigger | DownloadTrigger | — | — | `download_trigger` | `download_trigger` | 実装済み | #828。保留（#735 §7「JS ランタイム固有 utilities のうち静的実装可能なもの」）を利用要望 issue（#828）の起票により解除。`a[download]` 属性による静的部品として実装（`Blob`/`data`/`mimeType` は JS 前提のため対応しない）。#1628 で参照突合済み: anatomy/`data-*`/ARIA の是正なし。`a` 要素採用に伴う Space 非起動・`asChild` 非対応は意図的差分 |
 | `.agents/skills/ark-ui/references/utilities/environment.md` | Environment | EnvironmentProvider | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/ark-ui/references/utilities/focus-trap.md` | FocusTrap | — | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/ark-ui/references/utilities/format-byte.md` | FormatByte | FormatByte | — | — | `format` | — | 実装済み | #853。`docs/policy/intentional-non-adoption.md` §3.23 の非採用から区分変更。`fandhe-frontend-headless-ui::format::format_byte`（Intl 非依存の決定的純関数） |
@@ -516,7 +516,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/buttons/button.md` | — | Button | — | Button (`button`) | — | `button` | 実装済み | pre-styled 静的部品 実装済み |
-| `.agents/skills/chakra-ui/references/components/buttons/download-trigger.md` | DownloadTrigger | DownloadTrigger | — | — | `download_trigger` | `download_trigger` | 実装済み | #828。保留（#735 §7「JS ランタイム固有 utilities のうち静的実装可能なもの」）を利用要望 issue（#828）の起票により解除。`a[download]` 属性による静的部品として実装（`Blob`/`data`/`mimeType` は JS 前提のため対応しない） |
+| `.agents/skills/chakra-ui/references/components/buttons/download-trigger.md` | DownloadTrigger | DownloadTrigger | — | — | `download_trigger` | `download_trigger` | 実装済み | #828。保留（#735 §7「JS ランタイム固有 utilities のうち静的実装可能なもの」）を利用要望 issue（#828）の起票により解除。`a[download]` 属性による静的部品として実装（`Blob`/`data`/`mimeType` は JS 前提のため対応しない）。#1628 で参照突合済み: anatomy/`data-*`/ARIA の是正なし。`a` 要素採用に伴う Space 非起動・`asChild` 非対応は意図的差分 |
 | `.agents/skills/chakra-ui/references/components/buttons/close-button.md` | — | CloseButton | — | — | — | `button`（`close_button`） | 実装済み | #830。保留（Button バリエーション、#735 §7）を `Button` variant 拡張要望 issue（#830）の起票により解除。独立部品ではなく `button` recipe の icon-only 修飾 variant として実装（`data-scope="button"` を共有） |
 | `.agents/skills/chakra-ui/references/components/buttons/icon-button.md` | — | IconButton | — | Icon Button (`icon-button`) | — | `button`（`icon_button`） | 実装済み | #830。close-button と同一の解除・実装判断（同上） |
 
