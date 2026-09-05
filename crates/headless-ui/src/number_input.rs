@@ -116,15 +116,24 @@
 //!   primitives 層へ持ち込んでいる装飾・アニメーション・レイアウト計測の
 //!   関心は headless-ui へ持ち込まない」に該当するポインタ計測の関心
 //!   であるため）。
-//! - **キーボード操作（ArrowUp/Down・Home/End・PageUp/Down・修飾キーによる
-//!   step 倍率）の DOM 配線**: 他コンポーネント同様、クライアントランタイム
-//!   （`fandhe-frontend-wasm-full`）側の後続責務とする。本モジュールは SSR
-//!   静的マークアップと dispatch 契約（`"increment"`/`"decrement"`/`"set"`/
-//!   `"clear"`/`"home"`/`"end"`）のみを提供する。`fandhe-frontend-wasm-full`
-//!   には本コンポーネントの keydown 配線自体が存在せず（REQ-11 予算の制約）、
-//!   イシュー #1613 でも新設しない。修飾キー（Shift/Alt/Ctrl+Arrow）による
-//!   step 倍率も状態機械側の API を増やさない（`"increment"`/`"decrement"`
-//!   は常に固定 [`Self::step`] 分のみ）。
+//! - **PageUp/PageDown・修飾キー（Shift/Alt/Ctrl+Arrow）による step 倍率の
+//!   DOM 配線**: 状態機械（本モジュール）が倍率 API を持たないため
+//!   （`"increment"`/`"decrement"` は常に固定 [`Self::step`] 分のみ）、
+//!   `fandhe-frontend-wasm-full` 側も対応しない。
+//!
+//! ArrowUp/ArrowDown・Home/End・Enter の DOM 配線（keydown → dispatch）は
+//! `fandhe-frontend-wasm-full` の `number_input` モジュール
+//! （`crate::number_input::wire_number_input_events`/
+//! `wire_number_input_component`）が実装する（PR #1881、イシュー #1613
+//! codex-review P1 是正。当初は「本イシューでも新設しない」としていたが、
+//! 同じくイシュー #1613 で参考サイト突合された
+//! `fandhe-frontend-headless-ui::angle_slider`（イシュー #1601）・
+//! `fandhe-frontend-wasm-full::keynav` の Combobox（イシュー #1071）が
+//! 実際には自身のイシュー内で keydown 配線を新設していた実績と矛盾して
+//! いたため、本モジュールも追随した）。本モジュール自身は SSR 静的
+//! マークアップと dispatch 契約（`"increment"`/`"decrement"`/`"set"`/
+//! `"clear"`/`"home"`/`"end"`）の提供に留まる（実際の DOM イベント配線は
+//! 引き続き `fandhe-frontend-wasm-full` 側のクレートに閉じる）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::aria_invalid;
