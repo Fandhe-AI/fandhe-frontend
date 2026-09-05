@@ -81,6 +81,81 @@ name = "fandhe-frontend-headless-ui"
 # `PinInputAction::{Delete, Prev, Next}` の新設・`Backspace` の挙動是正を
 # 行ったため 0.x のマイナーバンプとする（`.claude/rules/coding-rust.md`
 # 破壊的変更規定）。
+# イシュー #1616（radio-group の参照突合）: `RadioGroupProps`
+# （disabled/readonly/invalid/required）の導入に伴い
+# `radio_group::{root, label, item, item_control, item_text,
+# item_hidden_input}` と `RadioGroup` 利便メソッドのシグネチャ変更
+# （破壊的変更）を行ったため 0.x のマイナーバンプとする
+# （`.claude/rules/coding-rust.md` 破壊的変更規定）。
+# base main 取り込み時のマージ注記: #1609 と #1615 が独立に 0.33.0 から
+# 0.34.0 へ patch/minor バンプしていたため衝突を避け 0.35.0 とした main
+# に対し、本ブランチ（#1616）も merge-base（0.34.0）から独立に 0.35.0 へ
+# マイナーバンプしていたため、双方の実体変更（file-upload 追随・
+# radio-group 破壊的変更）を統合した結果として 0.36.0 へさらにマイナー
+# バンプする（同一版数への偶発的衝突をそのまま採用しない、上記
+# イシュー #1481 の先例と同型の対応）。
+# base main 取り込み時のマージ注記（main 側）: #1609 と #1615 が独立に
+# 0.33.0 から 0.34.0 へ patch/minor バンプしていたため衝突を避け 0.35.0 と
+# する。イシュー #1617: RatingGroupProps 新設・root/label/control/
+# hidden_input のシグネチャ変更・control への aria-required 追加に伴い
+# 0.36.0 へマイナーバンプする（破壊的変更）。当初の修正案は roving
+# tabindex を RatingItemFlags::focusable として追加していたが、対応する
+# DOM 配線（fandhe-frontend-wasm-full）が伴わずキーボード操作不能な状態の
+# まま公開してしまう codex-review 指摘を受け、本イシュー内で撤回した
+# （`crates/headless-ui/src/rating_group.rs` モジュール doc「キーボード
+# 操作」節参照）。
+# イシュー #1610: image_cropper の anatomy/data-*/ARIA/キーボード対応表を
+# 参考実装へ突合。パーツ関数（root/viewport/selection/handle/grid）の
+# シグネチャ変更（`ImageCropperProps` 追加・`data-handle-position` →
+# `data-position` 改名・selection が focusable な role="slider" へ変更）を
+# 伴う破壊的変更のため 0.x のマイナーバンプとする。
+# base main 取り込み時のマージ注記: #1617 と #1610 が独立に 0.35.0 から
+# 0.36.0 へマイナーバンプしていたため衝突を避け 0.37.0 とする。
+# イシュー #1611: listbox の参考実装（zag.js Listbox）へ突合。`ListboxProps`
+# 新設に伴う root/label/content/item_group/item/value_text の破壊的シグネ
+# チャ変更・`item_text` の破壊的シグネチャ変更のため 0.x のマイナーバンプ。
+# イシュー #1605（combobox の参照突合）: `ComboboxProps` へ `readonly`
+# フィールドを追加し、`combobox::{root, control, input, trigger,
+# clear_trigger}` のシグネチャを変更（破壊的変更）。マイナーバンプで
+# 0.32.0 へ到達していたが、イシュー #1606（editable）が独立に同じ
+# 0.32.0 へ到達していたブランチとのマージにより、双方の実体変更を
+# 統合した結果として 0.33.0 へさらにマイナーバンプしていた。この後、
+# main 側でイシュー #1614（password-input の参照突合、PR #1880）が
+# 独立に別内容で同じ 0.33.0 へ到達していたため、本 PR（#1605 combobox）
+# ブランチへの base 取り込みマージで再び同一版数への偶発的衝突が生じた。
+# 双方の実体変更（combobox の readonly 対応・password-input の readonly/
+# indicator 対応）を統合した結果として 0.34.0 へさらにマイナーバンプした
+# （上記 #1481/#1605 の precedent と同じ扱い）。
+# イシュー #1609（file-upload）〜 #1611（listbox）: main 側で独立に
+# 0.34.0 から 0.37.0 まで複数のマイナーバンプが積み上がっていた
+# （`FileUploadProps`/`PinInputProps`/`ImageCropperProps`/`ListboxProps`
+# 各新設に伴う破壊的シグネチャ変更）。本 PR（#1605 combobox）ブランチへの
+# 2 回目の base 取り込みマージにより、双方の実体変更（combobox の
+# readonly 対応・file-upload/pin-input/image-cropper/listbox の各参照
+# 突合）を統合した結果として main 現在値 0.37.0 からさらにマイナーバンプし
+# 0.38.0 とする（同一版数への偶発的衝突をそのまま採用しない、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。
+# base main 取り込み時の再マージ注記: 上記 #1616（radio-group）は
+# merge-base 0.34.0 から独立に 0.36.0 へマイナーバンプしていたが、
+# main は #1605（combobox）〜 #1614（password-input）の統合を経て
+# 0.38.0 まで複数マイナーバンプが積み上がっていた。本マージで双方の
+# 実体変更（radio-group の破壊的シグネチャ変更・main 側の一連の参照
+# 突合）を統合した結果として main 現在値 0.38.0 からさらにマイナー
+# バンプし 0.39.0 とする（同一版数への偶発的衝突をそのまま採用しない、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。
+# base main 取り込み時のマージ注記（main 側）: #1617（rating-group）は
+# 本ブランチ側で 0.37.0 へ到達済みだったが、main 側は #1605〜#1611 の
+# 統合により独立に 0.38.0 へ到達していたため衝突を避け、rating-group の
+# 破壊的変更（RatingGroupProps 新設等）分を反映して main は 0.39.0 と
+# なっていた。
+# PR #1889（rating-group）マージ後の再取り込みマージ注記: 本ブランチ
+# （#1616 radio-group）は独立に 0.39.0 へ到達していたが、main も
+# PR #1889 のマージにより独立に同じ 0.39.0 へ到達しており、別々の実体
+# 変更が同一版数へ偶発的に衝突していた（main が同じ値であることも衝突に
+# 該当する、`docs/ci/style-refresh-version-bump-operation.md` §5）。双方の
+# 実体変更（radio-group の破壊的シグネチャ変更・rating-group の破壊的
+# シグネチャ変更）はいずれも公開 API の破壊的変更であるため、main 現在値
+# 0.39.0 からさらにマイナーバンプし 0.40.0 とする。
 # base ブランチ再取り込み（PR #1613, push フェーズ 3 回目, 2026-09-05）: 上記
 # 0.34.0 到達後、main は #1615（pin-input の参照突合）で独立に同じ 0.34.0 へ
 # 到達していた。本ブランチの number-input/password-input 統合分と main の
@@ -105,6 +180,12 @@ name = "fandhe-frontend-headless-ui"
 # 再発したため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
 # （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.40.0 へ
 # さらにマイナーバンプする。
+# base ブランチ再取り込み（PR #1886, radio-group, 2026-09-05）: main（#1881
+# number-input）が独立に 0.40.0 へ到達しており、本ブランチの radio-group
+# 変更（`RadioGroupProps` 等の公開 API 変更）とは別内容のため、同じ
+# 「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.41.0 へ
+# さらにマイナーバンプする。
 # イシュー #1627（date-picker の参照突合）: `DatePickerProps` 新設に伴う
 # root/label/control/input/trigger/clear_trigger の破壊的シグネチャ変更
 # （マイナーバンプ）。
@@ -123,7 +204,20 @@ name = "fandhe-frontend-headless-ui"
 # への改名を含んでおり、これらはいずれも破壊的変更（`.claude/rules/
 # coding-rust.md` 破壊的変更規定）である。patch バンプでは不十分なため、
 # main 現在値 0.41.0 を基点にマイナーバンプし 0.42.0 とする。
-version = "0.42.0"
+# base ブランチ再取り込み（PR #1892, date-picker, 2026-09-05）: main（#1892
+# date-picker）が独立に本ブランチと同じ 0.41.0 へ到達していた（上記
+# date-picker の破壊的変更）。radio-group（本ブランチ, #1616）とは別内容の
+# ため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.42.0 へ
+# さらにマイナーバンプする。
+# base ブランチ再取り込み（PR #1886 マージ, イシュー #1626, 2026-09-05）: main
+# （#1886 radio-group）が独立に 0.42.0 へ到達しており、本ブランチ
+# （#1626 date-input、上記 codex-review P1 是正で 0.42.0 到達）とは別内容の
+# ため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い、本ブランチの
+# 破壊的変更（`DateSegmentFlags` 削除・`date_input` シグネチャ変更・
+# `data-placeholder-shown` への改名）を理由にマイナーバンプで 0.43.0 とする。
+version = "0.43.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
