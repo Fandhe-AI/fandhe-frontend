@@ -28,7 +28,7 @@ ark-ui Rating Group と突合し、`data-*`/`aria-*` 語彙へ揃えました（
 
 **自前 CSS の最小例**
 
-Themes 版を使わず本部品を直接使う場合、`[data-scope="rating-group"][data-part="..."]` セレクタでスタイルを当てます。以下は星の寸法・塗り分け（`data-highlighted`）・確定選択（`data-checked`）・無効化・フォーカスリングの最小例です。
+Themes 版を使わず本部品を直接使う場合、`[data-scope="rating-group"][data-part="..."]` セレクタでスタイルを当てます。以下は星の寸法・塗り分け（`data-highlighted`）・確定選択（`data-checked`）・無効化の最小例です（`item` は `tabindex` を出力せずタブ順序に入らないため、`:focus-visible` の例は含みません）。
 
 ```css
 [data-scope="rating-group"][data-part="item"] {
@@ -49,10 +49,5 @@ Themes 版を使わず本部品を直接使う場合、`[data-scope="rating-grou
 [data-scope="rating-group"][data-part="item"][data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-[data-scope="rating-group"][data-part="item"]:focus-visible {
-  outline: 2px solid #06c;
-  outline-offset: 2px;
 }
 ```
