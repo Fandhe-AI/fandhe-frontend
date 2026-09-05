@@ -6,7 +6,7 @@
 //! `sub_content` は本デモでは未網羅とし、
 //! `tests/primitive_showcase.rs::KNOWN_UNCOVERED` に登録する。
 
-use fandhe_frontend_core::{text, Node};
+use fandhe_frontend_core::{div, p, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::action_bar;
 use hui::breadcrumb;
@@ -88,14 +88,57 @@ pub(super) fn breadcrumb_section() -> Node {
     demo_page("Breadcrumb", body)
 }
 
+/// 参考サイト（chakra-ui / Radix Themes）のデモ構成（単体 / variant 別 /
+/// 文中インライン）に合わせ、通常・外部・現在ページ・文中インラインの
+/// 4 変種を並べる（イシュー #1649）。href はすべて `example.com`（RFC
+/// 2606）で内部リンク切れ検証を避ける（`crate::linkcheck` 対象外）。
 pub(super) fn link_section() -> Node {
-    let body = vec![link::root(
-        "https://example.com",
-        true,
-        false,
-        vec![],
-        vec![text("External link")],
-    )];
+    let body = vec![
+        div(
+            vec![],
+            vec![link::root(
+                "https://example.com/docs",
+                false,
+                false,
+                vec![],
+                vec![text("Internal link")],
+            )],
+        ),
+        div(
+            vec![],
+            vec![link::root(
+                "https://example.com",
+                true,
+                false,
+                vec![],
+                vec![text("External link")],
+            )],
+        ),
+        div(
+            vec![],
+            vec![link::root(
+                "https://example.com/current",
+                false,
+                true,
+                vec![],
+                vec![text("Current page link")],
+            )],
+        ),
+        p(
+            vec![],
+            vec![
+                text("Read more in the "),
+                link::root(
+                    "https://example.com/guide",
+                    false,
+                    false,
+                    vec![],
+                    vec![text("inline guide")],
+                ),
+                text(" for details."),
+            ],
+        ),
+    ];
     demo_page("Link", body)
 }
 
