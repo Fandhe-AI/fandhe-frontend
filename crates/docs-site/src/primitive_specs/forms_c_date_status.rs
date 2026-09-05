@@ -891,12 +891,82 @@ fn progress_indeterminate_example() -> Node {
     )
 }
 
+/// 自前 CSS の最小例で使うスニペット（イシュー #1633）。track/range の
+/// 幅・indeterminate アニメーション・label の縦向き回転を属性セレクタで
+/// 拾う。headless-ui 自体はスタイルを持たない。
+///
+/// `fandhe-progress-indeterminate` アニメーション名を使う `range` の
+/// `animation` プロパティに対応する `@keyframes` を末尾に同梱する
+/// （codex-review 指摘、PR #1903。定義なしでは不定進捗のアニメーションが
+/// 機能しない）。
+const PROGRESS_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"progress\"][data-part=\"track\"] {\n  \
+  height: 8px;\n  background: #e5e7eb;\n  border-radius: 4px;\n\
+}\n\
+[data-scope=\"progress\"][data-part=\"range\"] {\n  \
+  height: 100%;\n  background: #2563eb;\n  border-radius: inherit;\n\
+}\n\
+[data-scope=\"progress\"][data-part=\"range\"][data-state=\"indeterminate\"] {\n  \
+  width: 40%;\n  animation: fandhe-progress-indeterminate 1.2s ease-in-out infinite;\n\
+}\n\
+[data-scope=\"progress\"][data-part=\"track\"][data-orientation=\"vertical\"] {\n  \
+  width: 8px;\n  height: 160px;\n\
+}\n\
+[data-scope=\"progress\"][data-part=\"label\"][data-orientation=\"vertical\"] {\n  \
+  writing-mode: vertical-rl;\n\
+}\n\
+@keyframes fandhe-progress-indeterminate {\n  \
+  0% {\n    transform: translateX(-100%);\n  }\n  \
+  100% {\n    transform: translateX(250%);\n  }\n\
+}\n";
+
+/// Progress の Examples: 利用者が `data-scope`/`data-part`/`data-state`/
+/// `data-orientation` 属性セレクタで自前 CSS を当てる最小例（イシュー
+/// #1633、`toggle_custom_css_example` と同型）。range の幅は headless が
+/// 付与しない契約のため、`Progress::percent()` から呼び出し側が
+/// `style="width: ..%"` を組み立てて渡す（[`mod@progress`] モジュール doc
+/// の「意図的に合わせなかった点」参照）。
+fn ex_progress_custom_css() -> Node {
+    let progress = Progress::new(0.0, 100.0, Some(65.0), Orientation::Horizontal);
+    let width_style = format!("width: {}%", progress.percent().unwrap_or(0.0));
+    // label（装飾用パーツ、意味論的な関連付けは呼び出し側の責務）へ id を
+    // 付与し、root の aria-labelledby から参照する（codex-review 指摘、
+    // PR #1903。root の attrs が空・label が装飾用 span のままだと
+    // 「Upload progress」が progressbar のアクセシブル名に関連付かない）。
+    let markup = progress.root(
+        None,
+        vec![("aria-labelledby", "progress-custom-css-label")],
+        vec![
+            progress.label(
+                vec![("id", "progress-custom-css-label")],
+                vec![text("Upload progress")],
+            ),
+            progress.value_text(vec![], vec![text("65%")]),
+            progress.track(
+                vec![],
+                vec![progress.range(vec![("style", width_style.as_str())], vec![])],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-orientation 属性セレクタで自前 CSS を当てます。range の幅は headless が付与しないため、Progress::percent() から呼び出し側が style で渡します。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(PROGRESS_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 const PROGRESS: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root/Label/ValueText/Track/Range の 5 anatomy パーツ（linear）を提供する値状態機械 `Progress`。`value = None` は indeterminate（不定進捗）を表す。",
         "`data-state`（`\"indeterminate\"`/`\"loading\"`/`\"complete\"`）は `value`/`min`/`max` から導出され、パーツ関数間で分裂しない。",
         "`min`/`max`/`value` は `Progress::new` が fail-closed に正規化する（非有限値・`min >= max` は既定 `(0.0, 100.0)` へフォールバック、`value` は `[min, max]` へ clamp）。",
         "Circle（circular 表示）変種の 3 パーツ（`circle`/`circle_track`/`circle_range`）も提供するが、本ページの Demo・Anatomy 表は linear 変種のみを描画対象とする。",
+        "`progressbar` ロールは非インタラクティブなためキーボード操作を持たない（参照サイト ark-ui / Radix Primitives / Radix Themes / chakra-ui いずれもキーボード操作表を持たない）。",
     ],
     arguments: &[
         ArgRow {
@@ -918,16 +988,23 @@ const PROGRESS: ComponentPageSpec = ComponentPageSpec {
             description: "`data-orientation` へ反映する向き。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Indeterminate（不定進捗）",
-        description: "`value` に `None` を渡すと `data-state=\"indeterminate\"` となり、`aria-valuenow`/`data-value` は出力されません。",
-        render: progress_indeterminate_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Indeterminate（不定進捗）",
+            description: "`value` に `None` を渡すと `data-state=\"indeterminate\"` となり、`aria-valuenow`/`data-value` は出力されません。",
+            render: progress_indeterminate_example,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui はスタイルレスであるため、track/range/label の data-* 属性セレクタで見た目を組み立てます。",
+            render: ex_progress_custom_css,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
             attribute: "role",
-            description: "`root` へ `\"progressbar\"` を固定付与する。",
+            description: "`root` へ `\"progressbar\"` を固定付与する（Zag.js は track へ置くが、本実装は Radix Primitives に合わせて root へ配置する）。",
         },
         AriaRow {
             attribute: "aria-valuemin / aria-valuemax",
@@ -940,6 +1017,14 @@ const PROGRESS: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-valuetext",
             description: "呼び出し側が `Some` を渡したときのみ `root` へ出力する。",
+        },
+        AriaRow {
+            attribute: "aria-live",
+            description: "`value_text` へ `\"polite\"` を固定付与する（イシュー #1633）。数値の更新を支援技術へ非割り込みで通知する。",
+        },
+        AriaRow {
+            attribute: "aria-label / aria-labelledby",
+            description: "本コンポーネントは既定値を持たない。意味論的なラベル関連付けは呼び出し側が `attrs` 経由で配線する責務。",
         },
     ],
     demo: None,
