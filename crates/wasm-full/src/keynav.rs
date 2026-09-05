@@ -5325,8 +5325,10 @@ mod wiring {
         for (i, item) in items.iter().enumerate() {
             if i == next_index {
                 set_dom_attribute(item, "data-highlighted", "");
+                sync_item_text_highlighted(item, true);
             } else {
                 let _ = item.remove_attribute("data-highlighted");
+                sync_item_text_highlighted(item, false);
             }
         }
         match items
@@ -5336,6 +5338,25 @@ mod wiring {
             Some(id) => set_dom_attribute(activedescendant_host, "aria-activedescendant", &id),
             None => {
                 let _ = activedescendant_host.remove_attribute("aria-activedescendant");
+            }
+        }
+    }
+
+    /// `item` の直下 `[data-part="item-text"]` 子（Select の item-text、
+    /// `crates/headless-ui/src/select.rs` の [`item_text`](
+    /// crate::select::item_text) 参照）が存在する場合のみ、`item` 自身と
+    /// 同じ `data-highlighted` 状態を同期する（codex-review P1 是正、
+    /// イシュー #1619）。`item` に `data-highlighted` を付け外しする
+    /// [`set_highlight_on_host`]/[`clear_highlight_on_host`] が親 item の
+    /// 属性しか更新せず、子 item-text 側の表示契約（`data-highlighted` を
+    /// 参照する CSS）が SSR 初期状態のまま追随しない不整合を防ぐ。
+    /// item-text を持たない構成（Menu item 等）では no-op。
+    fn sync_item_text_highlighted(item: &Element, highlighted: bool) {
+        if let Ok(Some(item_text)) = item.query_selector("[data-part=\"item-text\"]") {
+            if highlighted {
+                set_dom_attribute(&item_text, "data-highlighted", "");
+            } else {
+                let _ = item_text.remove_attribute("data-highlighted");
             }
         }
     }
@@ -5408,6 +5429,7 @@ mod wiring {
     fn clear_highlight_on_host(items: &[Element], activedescendant_host: &Element) {
         for item in items {
             let _ = item.remove_attribute("data-highlighted");
+            sync_item_text_highlighted(item, false);
         }
         let _ = activedescendant_host.remove_attribute("aria-activedescendant");
     }
@@ -5741,7 +5763,19 @@ mod wiring {
         // 〔readonly 中のキー操作抜け穴〕と同型。click 経路は
         // `headless.rs::action_for_part` の `PartRef::readonly` が既に
         // scope 汎用で fail-closed 化しているため、keydown 側もここで塞ぐ）。
+        // 状態遷移は no-op にする一方、ネイティブ既定動作（ページスクロール）
+        // まで漏らしてはならない（Bugbot 指摘 "Readonly select keys still
+        // scroll"、イシュー #1619）。非 readonly 時に本関数が処理する
+        // スクロール誘発キー（ArrowDown/ArrowUp/Home/End/Space）は readonly
+        // でも同様に `prevent_default` する。Enter は元々ページスクロールを
+        // 起こさないため対象外（no-op のまま）。
         if trigger_is_readonly(trigger) {
+            if matches!(
+                event.key().as_str(),
+                "ArrowDown" | "ArrowUp" | "Home" | "End" | " "
+            ) {
+                event.prevent_default();
+            }
             return KeyOutcome::Handled;
         }
         let Some(content) = resolve_menu_select_content(trigger, scope) else {

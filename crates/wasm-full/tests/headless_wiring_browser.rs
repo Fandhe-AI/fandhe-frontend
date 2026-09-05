@@ -866,6 +866,69 @@ fn select_clear_trigger_restores_placeholder_value_text() {
     );
 }
 
+/// codex-review P1 是正（イシュー #1619）: `sync_select_value_text` は
+/// value-text だけでなく trigger の `data-placeholder-shown` も select/
+/// deselect のたびに同じ判定で同期する（`crates/headless-ui/src/
+/// select.rs::trigger` の `placeholder_shown` 引数と同じ語彙、ark-ui/Radix
+/// 準拠）。従来は trigger 側が SSR 初期状態のまま取り残され、選択確定後も
+/// プレースホルダー用 CSS が誤適用され続けていた。
+#[wasm_bindgen_test]
+fn select_item_click_updates_trigger_placeholder_shown() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-select-trigger-placeholder-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let html = build_select_with_value_text_html(&[("vue", "Vue"), ("react", "React")]);
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("select root must exist");
+
+    let trigger_el = root
+        .query_selector(r#"[data-part="trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("trigger element must exist");
+    // SSR 初期状態（未選択）を模した状態から開始する（本テストのマークアップ
+    // 生成ヘルパーは trigger の `placeholder_shown` 引数を固定で `false`
+    // 渡しているため、ここで明示的に未選択状態の表現を再現する）。
+    trigger_el
+        .set_attribute("data-placeholder-shown", "")
+        .unwrap();
+
+    let component = Rc::new(RefCell::new(Select::default()));
+    wire_select_value_text(
+        root.clone(),
+        component.clone(),
+        SELECT_PLACEHOLDER.to_string(),
+    )
+    .expect("wire_select_value_text must not fail");
+
+    let item_react = root
+        .query_selector(r#"[data-value="react"]"#)
+        .expect("query_selector must not fail")
+        .expect("react item element must exist");
+    dispatch_click(&item_react);
+
+    assert_eq!(component.borrow().selected(), Some("react"));
+    assert!(
+        !trigger_el.has_attribute("data-placeholder-shown"),
+        "選択が確定したら trigger の data-placeholder-shown も除去されること"
+    );
+
+    let clear_el = root
+        .query_selector(r#"[data-part="clear-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("clear-trigger element must exist");
+    dispatch_click(&clear_el);
+
+    assert_eq!(component.borrow().selected(), None);
+    assert!(
+        trigger_el.has_attribute("data-placeholder-shown"),
+        "deselect 後は trigger にも data-placeholder-shown が再付与されること"
+    );
+}
+
 #[wasm_bindgen_test]
 fn select_stale_selected_value_without_matching_item_is_noop_for_value_text() {
     // 改ざん・欠損入力（選択値に対応する item が root 配下に存在しない）は

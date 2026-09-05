@@ -125,6 +125,12 @@ mod wiring {
     /// 一意に特定する CSS セレクタ（`&'static str` リテラル固定。動的値の
     /// セレクタ補間は行わない）。
     const VALUE_TEXT_SELECTOR: &str = r#"[data-scope="select"][data-part="value-text"]"#;
+    /// Select trigger パーツのセレクタ（同上）。trigger にも value-text と
+    /// 同じ `data-placeholder-shown` 存在属性が付与される契約
+    /// （`crates/headless-ui/src/select.rs` の [`trigger`](
+    /// crate::select::trigger)）のため、value-text と同期して同じ判定を
+    /// 適用する（codex-review P1 是正、イシュー #1619）。
+    const TRIGGER_SELECTOR: &str = r#"[data-scope="select"][data-part="trigger"]"#;
     /// Select item パーツのセレクタ（同上）。
     const ITEM_SELECTOR: &str = r#"[data-scope="select"][data-part="item"]"#;
     /// Select item 内のラベル要素パーツのセレクタ（同上）。
@@ -238,6 +244,18 @@ mod wiring {
             let _ = set_dom_attribute(&value_text_el, PLACEHOLDER_SHOWN_ATTR, "");
         } else {
             let _ = value_text_el.remove_attribute(PLACEHOLDER_SHOWN_ATTR);
+        }
+
+        // trigger 側も value-text と同じ判定で `data-placeholder-shown` を
+        // 同期する（codex-review P1 是正、イシュー #1619。trigger 要素が
+        // root 配下に無い構成もあり得るため fail-closed に no-op で
+        // スキップする）。
+        if let Ok(Some(trigger_el)) = root.query_selector(TRIGGER_SELECTOR) {
+            if view.placeholder_shown {
+                let _ = set_dom_attribute(&trigger_el, PLACEHOLDER_SHOWN_ATTR, "");
+            } else {
+                let _ = trigger_el.remove_attribute(PLACEHOLDER_SHOWN_ATTR);
+            }
         }
     }
 
