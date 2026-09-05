@@ -1774,7 +1774,7 @@ fn timer_children_and_attrs_are_escaped_for_all_payloads() {
 #[test]
 fn signature_pad_label_children_text_is_escaped_for_all_payloads() {
     for payload in payloads::all() {
-        let node = signature_pad::label(vec![], vec![text(payload)]);
+        let node = signature_pad::label(false, vec![], vec![text(payload)]);
         let html = render(&node);
         assert_payload_is_escaped(
             payload,

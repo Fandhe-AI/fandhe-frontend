@@ -519,12 +519,13 @@ mod tests {
     #[test]
     fn label_guide_hidden_input_are_reexported_from_headless() {
         let label_html = render(&label(
+            false,
             vec![],
             vec![fandhe_frontend_core::text("Sign here")],
         ));
         assert!(label_html.contains(r#"data-part="label""#));
 
-        let guide_html = render(&guide(vec![], vec![]));
+        let guide_html = render(&guide(false, vec![], vec![]));
         assert!(guide_html.contains(r#"data-part="guide""#));
 
         let hidden_html = render(&hidden_input("signature", "M0.00,0.00", false, vec![]));

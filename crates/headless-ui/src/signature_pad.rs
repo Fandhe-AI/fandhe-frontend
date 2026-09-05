@@ -34,6 +34,44 @@
 //! | ClearTrigger | [`clear_trigger`] | `button` | `clear-trigger` |
 //! | HiddenInput | [`hidden_input`] | `input` | `hidden-input` |
 //!
+//! # 参照突合（イシュー #1620）
+//!
+//! ark-ui docs（Anatomy / Data Attributes 表）と zag.js
+//! `signature-pad.connect.ts`/`signature-pad.anatomy.ts` を一次情報として
+//! 突合し、以下を是正した:
+//!
+//! - [`label`] のタグを `div` → `label`（ネイティブ `<label>` 要素）へ変更
+//!   し、`data-disabled` を追加した（ark docs Data Attributes 表の Label
+//!   行と一致させる）。
+//! - [`guide`] に `data-disabled` を追加した（同表の Guide 行と一致）。
+//! - [`control`] に `role="application"`・`aria-roledescription="signature
+//!   pad"`・非 `disabled` 時 `tabindex="0"`・`disabled` 時
+//!   `aria-disabled="true"` を追加した（zag.js `control` の `getControlProps`
+//!   と一致）。呼び出し側 `attrs` からのこれら固定属性・`data-disabled` の
+//!   偽装は [`CONTROL_RESERVED`]（[`crate::radio_group::drop_reserved`] 再
+//!   利用）で fail-closed に除去する。
+//!
+//! 以下は**意図的に参照へ合わせない**（差分は許容し、理由を記録する）:
+//!
+//! - `label` の `data-required`・`for`（hidden input への関連付け）:
+//!   本モジュールに「必須」概念が無く、`for` は呼び出し側 `attrs` に委ねる
+//!   （[`crate::tags_input::label`] と同じ最小主義）。
+//! - `control` のアクセシブルネーム自動生成: 偽の説明文を捏造しない
+//!   fail-closed 方針（[`segment`] と同型）により、呼び出し側が `attrs` で
+//!   `aria-label`/`aria-labelledby` を渡す契約のままとする。
+//! - `clear-trigger` のネイティブ `hidden`（ストローク空 or 描画中）:
+//!   author CSS（`display`）との干渉を避けるため持ち込まず、
+//!   `root[data-empty]` を使う呼び出し側 CSS で代替する。
+//! - `data-empty`（root）・`data-readonly`（control）・`segment` の
+//!   `role="img"`: 本フレームワーク固有の拡張として維持する。
+//! - hidden-input の `type="hidden"`（参照は `type="text" hidden readOnly
+//!   required`）: フォーム送信用途として `type="hidden"` のまま維持する。
+//! - キーボード操作: 参照（ark docs / zag.js）に Keyboard Interactions 表・
+//!   `onKeyDown` ハンドラは存在しない。描画はポインタ専用のまま、`control`
+//!   の `tabindex="0"` によるフォーカス移動（Tab）と `clear-trigger`
+//!   （ネイティブ `button`、Enter / Space）のみを原稿（`crates/docs-site`）
+//!   に明記する。
+//!
 //! ## core 側拡張は不要（判断根拠）
 //!
 //! `fandhe_frontend_core` の `is_valid_tag_name`/`is_valid_attr_name` は
@@ -275,6 +313,22 @@ fn data_empty(empty: bool) -> Option<(&'static str, &'static str)> {
     empty.then_some(("data-empty", ""))
 }
 
+/// [`label`]/[`guide`] 固有の固定属性キー一覧（呼び出し側 `attrs` からの
+/// `data-disabled` 偽装除去対象）。[`crate::radio_group::drop_reserved`]
+/// と同型の fail-closed 防御（イシュー #1620）。
+const LABEL_GUIDE_RESERVED: &[&str] = &["data-disabled"];
+
+/// [`control`] 固有の固定属性キー一覧（呼び出し側 `attrs` からの偽装除去
+/// 対象）。`data-readonly` は [`SignaturePad::control`] が `attrs` 経由で
+/// 注入するため意図的に含めない（イシュー #1620）。
+const CONTROL_RESERVED: &[&str] = &[
+    "role",
+    "aria-roledescription",
+    "tabindex",
+    "aria-disabled",
+    "data-disabled",
+];
+
 /// Root パーツ（`div`）。`disabled`/`empty`（strokes が空か）を反映する。
 #[must_use]
 pub fn root<'a>(
@@ -290,17 +344,42 @@ pub fn root<'a>(
     ANATOMY.part("root", "div", merged, children)
 }
 
-/// Label パーツ（`label`）。意味論的な関連付けは呼び出し側が `attrs` 経由で
-/// 配線する（装飾用パーツ、[`crate::tags_input::label`] と同じ最小主義）。
+/// Label パーツ（ネイティブ `<label>` 要素）。`data-disabled` を反映する。
+/// 意味論的な関連付け（`for`）は呼び出し側が `attrs` 経由で配線する
+/// （`data-required`・`for` を持ち込まない最小主義、モジュール doc
+/// 「参照突合（イシュー #1620）」参照）。
 #[must_use]
-pub fn label<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("label", "div", attrs, children)
+pub fn label<'a>(disabled: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = crate::radio_group::drop_reserved(attrs, LABEL_GUIDE_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    merged.extend(data_disabled(disabled));
+    merged.extend(attrs);
+    ANATOMY.part("label", "label", merged, children)
 }
 
 /// Control パーツ（`div`）。[`segment`]/[`guide`] を内包するコンテナ。
+/// zag.js `signature-pad.connect.ts` の `getControlProps` に合わせ
+/// `role="application"`・`aria-roledescription="signature pad"` を常時付与
+/// し、`disabled` に応じて `tabindex="0"`（非 disabled 時のみ、フォーカス
+/// 移動を許可）/`aria-disabled="true"`（disabled 時のみ）を切り替える。
+/// アクセシブルネーム（`aria-label`/`aria-labelledby`）は偽の説明文を
+/// 捏造しないため呼び出し側 `attrs` に委ねる（[`segment`] と同型の
+/// fail-closed 方針）。呼び出し側 `attrs` からのこれら固定属性・
+/// `data-disabled` の偽装は [`CONTROL_RESERVED`] で fail-closed に除去する
+/// （`data-readonly` は [`SignaturePad::control`] が `attrs` 経由で注入する
+/// ため予約リストに含めない）。
 #[must_use]
 pub fn control<'a>(disabled: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    let attrs = crate::radio_group::drop_reserved(attrs, CONTROL_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        role("application"),
+        ("aria-roledescription", "signature pad"),
+    ];
+    if disabled {
+        merged.push(("aria-disabled", "true"));
+    } else {
+        merged.push(("tabindex", "0"));
+    }
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
@@ -342,10 +421,16 @@ pub fn segment_path<'a>(stroke: &Stroke, attrs: Vec<(&'a str, &'a str)>) -> Node
 }
 
 /// Guide パーツ（`div`）。署名欄の基準線（ベースライン）表示用のコンテナ
-/// （可視スタイルは styled 層/呼び出し側 CSS の責務）。
+/// （可視スタイルは styled 層/呼び出し側 CSS の責務）。`data-disabled` を
+/// 反映する（ark docs Data Attributes 表の Guide 行と一致、イシュー
+/// #1620）。
 #[must_use]
-pub fn guide<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("guide", "div", attrs, children)
+pub fn guide<'a>(disabled: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = crate::radio_group::drop_reserved(attrs, LABEL_GUIDE_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    merged.extend(data_disabled(disabled));
+    merged.extend(attrs);
+    ANATOMY.part("guide", "div", merged, children)
 }
 
 /// ClearTrigger パーツ（`button`）。全ストロークを一括削除する操作。
@@ -504,10 +589,10 @@ impl SignaturePad {
         root(self.disabled, self.is_empty(), attrs, children)
     }
 
-    /// [`label`] へ委譲する利便メソッド（状態を持たないため素通し）。
+    /// [`label`] へ現在の `disabled` 状態を注入する利便メソッド。
     #[must_use]
     pub fn label<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        label(attrs, children)
+        label(self.disabled, attrs, children)
     }
 
     /// [`control`] へ現在の状態を注入する利便メソッド。
@@ -567,10 +652,10 @@ impl SignaturePad {
             .collect()
     }
 
-    /// [`guide`] へ委譲する利便メソッド。
+    /// [`guide`] へ現在の `disabled` 状態を注入する利便メソッド。
     #[must_use]
     pub fn guide<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        guide(attrs, children)
+        guide(self.disabled, attrs, children)
     }
 
     /// [`clear_trigger`] へ現在の状態を注入する利便メソッド。
@@ -1040,6 +1125,88 @@ mod tests {
         assert!(html.contains("data-empty"));
     }
 
+    // --- 参照突合（イシュー #1620）: label タグ・data-disabled・control の
+    // ARIA/tabindex・呼び出し側偽装除去 ---
+
+    #[test]
+    fn label_renders_label_tag_with_data_disabled() {
+        let html = render(&label(
+            true,
+            vec![],
+            vec![fandhe_frontend_core::text("Sign here")],
+        ));
+        assert!(html.starts_with("<label "));
+        assert!(html.contains(r#"data-scope="signature-pad" data-part="label""#));
+        assert!(html.contains("data-disabled"));
+
+        let html_enabled = render(&label(
+            false,
+            vec![],
+            vec![fandhe_frontend_core::text("Sign here")],
+        ));
+        assert!(!html_enabled.contains("data-disabled"));
+    }
+
+    #[test]
+    fn guide_reflects_disabled() {
+        let html = render(&guide(true, vec![], vec![]));
+        assert!(html.contains(r#"data-scope="signature-pad" data-part="guide""#));
+        assert!(html.contains("data-disabled"));
+
+        let html_enabled = render(&guide(false, vec![], vec![]));
+        assert!(!html_enabled.contains("data-disabled"));
+    }
+
+    #[test]
+    fn control_has_application_role_and_tabindex_when_enabled() {
+        let html = render(&control(false, vec![], vec![]));
+        assert!(html.contains(r#"role="application""#));
+        assert!(html.contains(r#"aria-roledescription="signature pad""#));
+        assert!(html.contains(r#"tabindex="0""#));
+        assert!(!html.contains("aria-disabled"));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn control_disabled_has_aria_disabled_and_no_tabindex() {
+        let html = render(&control(true, vec![], vec![]));
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert!(html.contains("data-disabled"));
+        assert!(!html.contains("tabindex"));
+    }
+
+    #[test]
+    fn control_drops_reserved_attrs_from_caller() {
+        let html = render(&control(
+            false,
+            vec![
+                ("role", "img"),
+                ("aria-roledescription", "forged"),
+                ("tabindex", "-1"),
+                ("aria-disabled", "true"),
+                ("data-disabled", ""),
+            ],
+            vec![],
+        ));
+        assert!(html.contains(r#"role="application""#));
+        assert!(!html.contains(r#"role="img""#));
+        assert!(html.contains(r#"aria-roledescription="signature pad""#));
+        assert!(!html.contains("forged"));
+        assert!(html.contains(r#"tabindex="0""#));
+        assert!(!html.contains(r#"tabindex="-1""#));
+        assert!(!html.contains("aria-disabled"));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn struct_methods_inject_disabled_into_label_and_guide() {
+        let pad = SignaturePad::new(vec![], true, false);
+        let label_html = render(&pad.label(vec![], vec![]));
+        assert!(label_html.contains("data-disabled"));
+        let guide_html = render(&pad.guide(vec![], vec![]));
+        assert!(guide_html.contains("data-disabled"));
+    }
+
     #[test]
     fn segment_has_expected_view_box_and_role() {
         let node = segment(300, 150, None, vec![], vec![]);
@@ -1086,6 +1253,8 @@ mod tests {
         let html = render(&<SignaturePad as Component>::view(&pad));
         assert!(html.contains(r#"data-part="root""#));
         assert!(html.contains(r#"data-part="control""#));
+        assert!(html.contains(r#"role="application""#));
+        assert!(html.contains(r#"tabindex="0""#));
         assert!(html.contains(r#"data-part="segment""#));
         assert!(html.contains(r#"data-part="segment-path""#));
         assert!(html.contains(r#"data-part="clear-trigger""#));
