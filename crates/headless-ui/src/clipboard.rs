@@ -203,7 +203,9 @@ pub fn label<'a>(
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
     if let Some(id) = input_id {
-        merged.push(("for", id));
+        if !has_caller_attr(&attrs, "for") {
+            merged.push(("for", id));
+        }
     }
     merged.extend(data_copied(copied));
     merged.extend(attrs);
@@ -508,6 +510,22 @@ mod tests {
     fn label_copied_true_adds_data_copied() {
         let html = render(&label(true, None, vec![], vec![]));
         assert!(html.contains(r#"data-copied="""#));
+    }
+
+    #[test]
+    fn label_caller_for_overrides_input_id_without_duplication() {
+        // 呼び出し側が独自の "for" を attrs に渡した場合、input_id 由来の
+        // 既定値と重複させない（イシュー #1631 Review 指摘、trigger の
+        // aria-label dedup と同型）。
+        let html = render(&label(
+            false,
+            Some("clipboard-input"),
+            vec![("for", "custom-input")],
+            vec![],
+        ));
+        assert_eq!(html.matches(" for=").count(), 1);
+        assert!(html.contains(r#"for="custom-input""#));
+        assert!(!html.contains(r#"for="clipboard-input""#));
     }
 
     #[test]
