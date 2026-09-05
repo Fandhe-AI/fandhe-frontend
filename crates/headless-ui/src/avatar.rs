@@ -78,6 +78,47 @@
 //!   `fandhe-frontend-wasm-full::headless_avatar` で実装済み（イシュー #731、
 //!   同クレートのモジュール doc「`src` 差し替え検知」参照）
 
+//!
+//! # 参考サイトとの突合（イシュー #1659）
+//!
+//! ark-ui/Zag.js の Avatar
+//!（`.claude/skills/ark-ui/references/components/display/avatar.md`）・
+//! Radix Primitives Avatar（`docs/design/radix-primitives-inventory.md`）・
+//! Radix Themes Avatar・chakra-ui Avatar
+//!（`.claude/skills/chakra-ui/references/components/data-display/avatar.md`）
+//! の 4 参照サイトと突合した結果、anatomy（Root/Image/Fallback の 3 パーツ）・
+//! `data-*` 語彙（`image`/`fallback` のみ `data-state="visible"|"hidden"`）・
+//! ARIA（`role`/`aria-*` 非付与）のいずれも既存実装と一致しており、**是正は
+//! ない**（参照 4 サイトともキーボード操作の記載を持たない非インタラクティブ
+//! な表示系コンポーネントであるため、本モジュールもキーボード配線を持たない
+//! ことは正しい）。以下は意図的に参照サイトへ合わせなかった差分とその根拠。
+//!
+//! - **Radix Primitives `Fallback` の `delayMs`**（表示までの遅延でフラッシュ
+//!   を回避する props）は非採用。タイミング制御は装飾的な関心であり、
+//!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2（装飾・アニメー
+//!   ションの関心を headless-ui へ持ち込まない）に従う。JS なしの SSR では
+//!   `hidden` 存在属性 + `data-state` で表示制御が既に成立しており、遅延が
+//!   必要な場合は呼び出し側（wasm-full/pre-styled-ui）の責務とする。
+//! - **Root の要素種別**（Radix Primitives は `span`、ark-ui は `div`）は
+//!   `div` を維持する。`asChild`（要素差し替え API）を本クレートは持たない
+//!   ため、既存の pre-styled-ui/wasm-full/docs-site 契約との整合を優先する。
+//! - **Zag.js の各パーツへの `dir`/`id`**: `dir` は headless-ui 全体で
+//!   不採用（他モジュールとの一貫性）。`id` 相当のオプション（ark-ui の
+//!   `ids`）は本モジュール新設当初からスコープ外。必要なら呼び出し側が
+//!   `attrs` で付与できる。
+//! - **Radix Primitives `Image` の `onLoadingStatusChange` / ark-ui の
+//!   `onStatusChange`**: 既存の dispatch 契約（`"loaded"`/`"error"`/
+//!   `"reset"`）で代替する。`fandhe-frontend-wasm-full::headless_avatar` が
+//!   実 DOM の読み込みイベントから dispatch を発火する配線を既に担う。
+//! - **chakra-ui の `Fallback name` からのイニシャル自動導出**: 文字列整形は
+//!   UI コンポーネント層の責務外という既定方針（同ポリシー文書 §3.23 と同じ
+//!   判断軸）に従い非採用。イニシャルは呼び出し側が `children` として渡す。
+//! - **chakra-ui の `AvatarGroup`（重ね表示）**: レイアウト・視覚関心のため
+//!   本イシューのスコープ外（`fandhe-frontend-pre-styled-ui` 側の rustdoc に
+//!   新設可否の検討記録あり）。
+//! - **Radix Themes の `size`/`variant`/`radius`/`color`**: スタイル軸のため
+//!   `fandhe-frontend-pre-styled-ui`（イシュー #1554 で対応済み）の責務。
+
 use crate::anatomy::{anatomy, Anatomy};
 use crate::data_attrs::data_state;
 use fandhe_frontend_core::Node;

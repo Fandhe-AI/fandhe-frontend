@@ -51,6 +51,11 @@ fn full_assembly_wires_group_root_title_description_and_close_trigger() {
     assert!(html.contains(r#"role="status""#));
     assert!(html.contains(r#"data-type="success""#));
     assert!(html.contains("Saved"));
+    // イシュー #1643 参照突合で追加した状態・フォーカス属性（group の
+    // tabindex="-1" ・ root の data-state="open"/tabindex="0"）。
+    assert!(html.contains(r#"tabindex="-1""#));
+    assert!(html.contains(r#"data-state="open""#));
+    assert!(html.contains(r#"tabindex="0""#));
 }
 
 #[test]
@@ -86,6 +91,22 @@ fn ssr_initial_render_has_no_hydrate_attr() {
     let html = render(&t.view());
     assert!(!html.contains("data-hydrate-"));
     assert!(html.contains(r#"data-scope="toast""#));
+}
+
+/// イシュー #1643: 公開 API 経由（`Toaster::default().view()`）でも group
+/// ラベルが [`toast::DEFAULT_GROUP_LABEL`] であること、hydration 属性
+/// （`hydration_attrs`）が `data-state`（root 固定値で hydration 対象外）を
+/// 含まず round-trip が不変であることを確認する。
+#[test]
+fn default_view_group_label_and_hydration_attrs_are_unaffected() {
+    let t = Toaster::default();
+    let html = render(&t.view());
+    assert!(html.contains(r#"aria-label="Notifications""#));
+
+    let attrs = t.hydration_attrs();
+    assert!(attrs.iter().all(|(name, _)| name != "data-state"));
+    let restored = Toaster::from_hydration_attrs(&attrs).unwrap();
+    assert_eq!(restored, t);
 }
 
 #[test]
@@ -198,4 +219,31 @@ fn push_entry_with_xss_payload_is_escaped_in_view() {
     let html = render(&t.view());
     assert!(!html.contains(SCRIPT_PAYLOAD));
     assert!(html.contains("&lt;script&gt;"));
+}
+
+#[test]
+fn root_and_group_drop_caller_reserved_attrs_end_to_end() {
+    // Review 指摘（イシュー #1643）: root/group が呼び出し側 attrs から
+    // tabindex/data-state 等の予約キーを除去せず素通ししていたため、SSR
+    // 出力が同名属性の重複で無効な HTML になっていた。公開 API のみを
+    // 使ってクレート外部からも固定する（`crate::dialog::content` の
+    // tabindex ガード先例と同型の回帰確認）。
+    let root_html = render(&toast::root(
+        ToastStatus::Info,
+        vec![("TabIndex", "9"), ("data-state", "closed")],
+        vec![],
+    ));
+    assert_eq!(root_html.matches("tabindex").count(), 1);
+    assert!(root_html.contains(r#"tabindex="0""#));
+    assert_eq!(root_html.matches("data-state=").count(), 1);
+    assert!(root_html.contains(r#"data-state="open""#));
+
+    let group_html = render(&toast::group(
+        ToastPlacement::Top,
+        "Notifications",
+        vec![("tabindex", "2")],
+        vec![],
+    ));
+    assert_eq!(group_html.matches("tabindex").count(), 1);
+    assert!(group_html.contains(r#"tabindex="-1""#));
 }

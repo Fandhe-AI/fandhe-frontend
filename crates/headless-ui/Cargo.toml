@@ -296,20 +296,104 @@ name = "fandhe-frontend-headless-ui"
 # 同じ「同一版数への偶発的衝突をそのまま採用しない」原則（`docs/ci/
 # style-refresh-version-bump-operation.md` §5）に従い main 現在値 0.49.0 から
 # 0.50.0 へさらにマイナーバンプする。
-# base 再取り込み（イシュー #1636 マージ, 2026-09-06）: main 側が独立に
-# 0.54.1 へ到達していた（#1642 popover の tabindex 破壊的変更是正・#1648
-# breadcrumb drop_reserved 等、一連の非破壊的/破壊的変更の積み重ね）。
-# 本ブランチ（#1636 accordion）の AccordionProps 新設に伴う破壊的変更とは
-# 別内容のため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
-# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い main 現在値
-# 0.54.1 から 0.55.0 へマイナーバンプする。
-# base 再取り込み（本 #1636 再マージ, 2026-09-06）: main 側がさらに独立に
-# 0.54.2 へ到達していた（イシュー #1651 menu の参照突合: item_text/
-# item_indicator の 2 パーツ新設・呼び出し側 attrs の予約キー除去追加。
-# 既存パーツのシグネチャ・出力は不変の非破壊的な追加のみ）。本ブランチの
-# 0.55.0（accordion の破壊的変更）とは独立な非破壊的変更のため、patch
-# バンプで 0.55.0 から 0.55.1 とする。
-version = "0.55.1"
+# イシュー #1647: action_bar::content の role を "toolbar" から "dialog" へ
+# 変更する破壊的変更（参照基準 chakra-ui/Ark Popover との突合）に伴い
+# 0.50.0 から 0.51.0 へマイナーバンプする。
+# イシュー #1637（collapsible の参照突合）: `indicator`/`content` へ
+# `disabled: bool` 位置引数を新設（呼び出し側の引数個数が変わる破壊的
+# 変更。ark-ui/Radix の Data Attributes 表準拠で `data-disabled` を追加）。
+# あわせて呼び出し側 attrs による状態偽装を防ぐ予約キー除去
+# （ROOT_RESERVED/TRIGGER_RESERVED/INDICATOR_RESERVED/CONTENT_RESERVED）を
+# 新設した。0.x の破壊的変更はマイナーバンプのため 0.50.0 から 0.51.0 とする。
+# 上記 2 ブランチ（本 #1647 action-bar・#1637 collapsible）が独立に同一版数
+# 0.51.0 へ到達したため（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）、さらにマイナー
+# バンプで 0.52.0 とする（codex-review 指摘、PR #1909）。
+# イシュー #1639（drawer の参照突合）: `drawer::content` へ `tabindex="-1"`
+# を固定追加した（既存呼び出しの引数個数・シグネチャは不変、出力属性が
+# 増えるのみの非破壊的追加）。patch バンプとして 0.51.0 から 0.51.1 とする。
+# base 再取り込み（イシュー #1638, dialog の参照突合）: dialog の content へ
+# tabindex="-1" を固定付与（zag dialog.connect.ts との参照突合、既存呼び出し
+# 側の出力に属性が加わるのみの非破壊的変更）。main 側で独立に到達していた
+# 0.51.0 に対し patch バンプで 0.51.1 とする。
+# base 再取り込み（本 #1647 マージ）: main 側で独立に到達していた変更は
+# イシュー #1640（floating-panel の参照突合。`floating_panel::{header,
+# control}` へ `stage: Stage` 位置引数を新設し `data-stage` を付与する破壊的
+# 変更、あわせて `body` への `Stage::Minimized` 時 `hidden` 存在属性付与）で
+# あり、本ブランチの 0.52.0（action_bar/collapsible の破壊的変更）と同一版数
+# 0.51.1 → 0.52.0 へ独立到達していたため衝突する（同一版数への偶発的衝突を
+# そのまま採用しない原則、`docs/ci/style-refresh-version-bump-operation.md`
+# §5）。drawer/dialog の tabindex="-1" 追加・action_bar/collapsible の破壊的
+# 変更・floating-panel の破壊的変更の和集合として、さらにマイナーバンプで
+# 0.53.0 とする。
+# イシュー #1643（toast の参照突合）: root に `data-state="open"`（固定値）・
+# `tabindex="0"`、group に `tabindex="-1"` を追加し、`Toaster::view` の
+# group ラベル既定値の欠落（`aria-label=""`）を `DEFAULT_GROUP_LABEL`
+# （`"Notifications"`）で是正した。
+# Review 指摘（本イシュー #1643）: root/group が呼び出し側 `attrs` から
+# `tabindex`/`data-state`/`role` 等の予約キーを除去せず素通ししていたため
+# 同名属性が重複出力される不具合があり、`drop_reserved`（`crate::dialog`/
+# `crate::breadcrumb` と同型）を追加した。popover（#1642, PR #1915
+# codex-review 指摘）の先例のとおり、`drop_reserved`/`drop_tabindex_attr`
+# は呼び出し側が明示的に渡した値（例: `[("tabindex", "0")]`）を無条件に
+# 固定値へ差し替えるため、既存呼び出し側の挙動を変える破壊的変更として
+# 扱う。0.x の破壊的変更のためマイナーバンプとする。main 側で独立に
+# 到達していた 0.54.1（#1648 breadcrumb・#1650 link-overlay 等の非破壊的
+# 変更の積み上げ）に対し、マイナーバンプで 0.55.0 とする。
+# イシュー #1642（popover の参照突合）: `popover::content` へ
+# `tabindex="-1"` を固定追加した（dialog #1638・drawer #1639 と同型。既存
+# 呼び出しの引数個数・シグネチャは不変、出力属性が増えるのみの非破壊的
+# 追加）。patch バンプとして 0.53.0 から 0.53.1 とする。
+# base 再取り込み（本 #1642 マージ）: main 側で独立に到達していた変更は
+# イシュー #1648（breadcrumb の参照突合。呼び出し側 attrs の予約キー
+# なりすまし除去 `drop_reserved` 追加、非破壊的変更）であり、本ブランチの
+# 0.53.1（popover の tabindex="-1" 追加）と同一版数へ独立到達していたため
+# 衝突する（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。両者の和集合として
+# さらに patch バンプで 0.53.2 とする。
+# codex-review 指摘（PR #1915, イシュー #1642）: `popover::content` の
+# `drop_tabindex_attr` は呼び出し側が明示的に渡した `tabindex`（例:
+# `[("tabindex", "0")]`）を無条件に除去し `-1` へ差し替える。これは既存
+# 呼び出し側のキーボード操作（`tabindex="0"` 明示指定によるネイティブ
+# フォーカス許可）を変える破壊的変更であり、上記コメントの「出力属性が
+# 増えるのみの非破壊的追加」という patch バンプの前提は誤りだった。
+# dialog（#1638）・drawer（#1639）も同型の `drop_tabindex_attr` を持つが、
+# 当時のレビューでは「SSR/wasm-client 間の重複属性出力の一貫性」観点の
+# 指摘に留まり semver 上の破壊性は指摘されなかった経緯があり、本 PR の
+# 指摘で初めて是正する（先行 2 件の patch バンプは遡って訂正しない）。
+# 0.x の破壊的変更のためマイナーバンプで 0.54.0 とする。
+# base 再取り込み（本 #1650 マージ）: main 側で独立に到達していた変更は
+# イシュー #1648（breadcrumb の参照突合。呼び出し側 attrs の予約キー
+# なりすまし除去 `drop_reserved` 追加、非破壊的変更）であり、本ブランチの
+# 0.54.0（popover の破壊的変更是正）と別系統で 0.53.2 へ独立到達していた
+# ため既に和集合済み（上記コメント参照）。本ブランチはさらにイシュー
+# #1650（link-overlay の参照突合）: `link_overlay::overlay` の呼び出し側
+# `attrs` からの `href` なりすまし除去（`drop_reserved`、
+# `crate::breadcrumb`/`crate::link` の同型是正と同じ形）を追加した。
+# 既存呼び出しのシグネチャは不変・出力の追加なりすまし防止のみの
+# 非破壊的変更のため、0.54.0 から patch バンプで 0.54.1 とする。
+# イシュー #1651（menu の参照突合）: `item_text`/`item_indicator` の 2
+# パーツを新設（16 → 18 anatomy パーツ）し、`menu.rs` の各パーツ関数へ
+# 呼び出し側 `attrs` の予約キー除去（`crate::radio_group::drop_reserved`）
+# を追加した。いずれも非破壊的な追加のみ（既存パーツのシグネチャ・出力は
+# 不変、`menu_menubar_aria_contract.rs` の paired パーツ属性一致契約も
+# 維持）のため、0.54.1 から patch バンプで 0.54.2 とする。
+# base 再取り込み（イシュー #1643, 2026-09-06）: main 側で独立に到達して
+# いた 0.54.2（イシュー #1651: menu の item_text/item_indicator 新設、
+# 非破壊的追加）は本ブランチの 0.55.0（toast の drop_reserved 導入に伴う
+# 破壊的変更）に未反映のため、両者の和集合として patch バンプで 0.55.1
+# とする（menu 側は非破壊的変更のためマイナーバンプは不要）。
+# base 再取り込み（イシュー #1636 マージ, 2026-09-06）: 本ブランチ（#1636
+# accordion）は `AccordionProps`（orientation/disabled）を新設し、`root`/
+# `item`/`item_trigger`/`item_indicator`/`item_content` の 5 自由関数と
+# `Accordion`/`MultiAccordion` の利便メソッド 8 件のシグネチャへ破壊的に
+# 追加した（0.x の破壊的変更のためマイナーバンプ）。main 側は上記の一連の
+# 変更（action_bar〜toast）を経て独立に 0.55.1 へ到達しており、本ブランチの
+# 到達点（accordion 破壊的変更を含むマイナーバンプ系譜）と偶発的に同一版数
+# 0.55.1 へ衝突する（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。両者の破壊的変更の
+# 和集合として、さらにマイナーバンプで 0.56.0 とする。
+version = "0.56.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
