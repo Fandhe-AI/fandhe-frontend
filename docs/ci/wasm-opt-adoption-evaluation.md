@@ -433,3 +433,80 @@ CSR `op_ms`（5 回実行 mean。総計測 10 回中 rows_ok/escape_ok は全件
 
 本イシュー（#1408）で判定した 2 件の再評価トリガーはいずれも
 **非充足**であり、現時点で実装 issue 化を提案するレバーはない。
+
+## dist-server 経路への rustc プロファイル調整の適用（イシュー #1647、2026-09-05）
+
+「dist-server 経路（適用対象外・方針記載のみ）」節が見送っていたのは
+binaryen（wasm-opt）導入（新規サプライチェーン依存・バージョン固定 +
+SHA256 検証・CI 常設導入を伴う）であり、本節が追加するのは
+**rustc 自体のビルドプロファイル調整のみ**（新規依存ゼロ）である。
+
+### 動機
+
+イシュー #1647（action-bar 追加）で `crates/wasm-full/tests/bundle_size.rs`
+（REQ-11 gzip 200KB 上限）が超過し FAIL した（CI 実測: 200,481 B/200,000
+B）。原因は特定 PR のコード肥大ではなく、`fandhe-frontend-headless-ui`
+の部品追加が累積し続けたことで dist-server 経路のバンドルサイズが既に
+上限へ極めて接近していた構造的な余裕不足である（マージ元 main 単体でも
+ローカル計測ではしきい値超過に近い水準だった）。
+
+### 採用: wasm32-unknown-unknown ターゲット限定の rustc フラグ
+
+`.cargo/config.toml`（ワークスペースルート新設）:
+
+```toml
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "opt-level=s"]
+```
+
+あわせてルート `Cargo.toml` に `codegen-units = 1` の
+`[profile.release.package.*]` 個別指定（`fandhe-frontend-core` /
+`-interactive` / `-headless-ui` / `-app` / `-wasm-client` / `-wasm-full`
+の 6 クレート）を追加した。
+
+**native ビルドへの波及を避ける設計**（「適用方針」節の「ルートワーク
+スペースの `[profile.release]` は変更しない（native の server/CLI ビルド
+へ波及し SSR 性能を損なうため）」制約を維持する）:
+
+- `opt-level` の調整（速度とのトレードオフを伴う）は `.cargo/config.toml`
+  の `[target.wasm32-unknown-unknown]` 側に限定する。Cargo のプロファイル
+  機構自体はターゲット別の切り替えを持たないため、rustc へ直接
+  `-C opt-level=s` を渡すこの形でなければ native（server/cli/dist-server
+  バイナリ自体）を巻き込まずに wasm ターゲットだけへ適用できない。
+- `codegen-units = 1` はルート `Cargo.toml` の
+  `[profile.release.package.<crate>]` 個別指定（ターゲット非依存、対象
+  6 クレートの native ビルドにも適用される）。ただし `codegen-units` は
+  最適化度を上げるのみで意味論上の速度劣化を伴わない（クレート内インライン
+  化・デッドコード除去が強化される方向のみ）ため、native SSR 性能への
+  悪影響は想定していない（コンパイル時間の増加のみ）。
+
+`opt-level="z"` は不採用: #1387/#1408 の再評価で update 経路の op_ms が
+±5% 目安を超えて悪化したまま非充足と判定済みであり、その判断を
+覆す新情報はない。`opt-level="s"` は本評価の「ビルドプロファイル比較」
+節で採用済みの値をそのまま踏襲する。
+
+### 実測（ローカル、`cargo test -p fandhe-frontend-wasm-full --test
+bundle_size` 、リポジトリ直接 checkout 経由。CI とはツールチェーン
+バージョンが完全一致しないため絶対値は目安）
+
+| 構成 | total gzip |
+|------|------:|
+| 適用前（PR #1909 マージ済み HEAD） | 207,382 B |
+| `.cargo/config.toml`（opt-level=s のみ） | 199,691 B |
+| 上記 + `codegen-units=1`（6 クレート個別指定） | 199,579 B |
+
+### Docker 経路との整合
+
+`Dockerfile` は `COPY Cargo.toml Cargo.lock ./` / `COPY crates ./crates` の
+ように対象を明示列挙する構成（`COPY . .` 不使用）のため、新設
+`.cargo/config.toml` も明示 `COPY .cargo ./.cargo` を追加しないと Docker
+ビルドだけがこの最適化を受けず、`bundle_size.rs` の PASS 判定
+（「dist-server が実際に生成するものと同一構成を計測する」契約、モジュール
+doc 参照）と実際に配布される Docker イメージが乖離する。本イシューで
+`Dockerfile` に `COPY .cargo ./.cargo` を追加し、この乖離を防いだ。
+
+### 再評価トリガー（追加）
+
+- 本節の rustc プロファイル調整のみでは吸収しきれない規模のバンドル
+  サイズ増加が再発した場合、「dist-server 経路（適用対象外・方針記載の
+  み）」節が見送った wasm-opt（binaryen）導入をあらためて検討する

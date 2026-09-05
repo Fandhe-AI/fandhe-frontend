@@ -1,0 +1,17 @@
+# REQ-11（`crates/wasm-full/tests/bundle_size.rs` の gzip 200KB 上限）対応。
+# `wasm32-unknown-unknown` ターゲットへのビルドに限定して `opt-level = "s"`
+# を適用し、dist-server 配布物（`fandhe-frontend-wasm-full`）のバンドル
+# サイズを削減する（イシュー #1647、`docs/ci/wasm-opt-adoption-evaluation.md`
+# 「ビルドプロファイル比較」節が実測に基づき採用した値と同一）。
+#
+# native（server/cli/dist-server バイナリ自体）ビルドはこのターゲット
+# フィルタの対象外のため一切影響を受けない（Cargo のプロファイル機構は
+# ターゲット別切り替えを持たないため、native への波及を避けるにはこの
+# rustc フラグ直接指定の形を取る必要がある）。
+#
+# `Dockerfile` はビルドコンテキストを明示列挙する構成のため、本ファイルも
+# `COPY .cargo ./.cargo` で明示的に同梱している（欠落すると Docker
+# ビルドだけがこの最適化を受けず、`bundle_size.rs` の PASS 判定と実際の
+# 配布物が乖離する）。
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "opt-level=s"]

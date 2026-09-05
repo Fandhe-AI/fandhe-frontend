@@ -17,6 +17,7 @@ fandhe-frontend/
 ├── README.md
 ├── .editorconfig             # エディタ間のインデント・改行統一（Rust は rustfmt 既定 4 スペースと一致させる補助）
 ├── rust-toolchain.toml       # channel = "stable" を単一真実源とする toolchain 宣言（イシュー #1273。CI 各ワークフローの Fandhe-AI/actions/rust-toolchain-setup が rustup show で同期）
+├── .cargo/config.toml        # wasm32-unknown-unknown ターゲット限定の `opt-level = "s"`（REQ-11 gzip 200KB 上限対応、イシュー #1647。native ビルドへは波及させない設計、`docs/ci/wasm-opt-adoption-evaluation.md` 追記節参照）。`Dockerfile` は明示 `COPY .cargo ./.cargo` で同梱する
 ├── Makefile                  # 開発タスク（setup / build / test / fmt / lint / gate / bench / bench-cross / docs / docker-dev-build / docker-dev）の入口
 ├── lefthook.yml              # pre-commit / commit-msg フック定義（npm 非依存）。lefthook 導入済み環境で `make setup` が有効化、ローカル検証用
 ├── skills-lock.json          # npx skills add の導入記録
