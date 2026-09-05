@@ -165,7 +165,11 @@ name = "fandhe-frontend-headless-ui"
 # ため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
 # （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.42.0 へ
 # さらにマイナーバンプする。
-version = "0.42.0"
+# イシュー #1629: toggle の `indicator` シグネチャへ `disabled: bool` 引数を
+# 追加（ark-ui `toggle.connect.ts` の Indicator と突合し `data-pressed`/
+# `data-disabled` を出力するため）。既存呼び出し側の引数個数が変わる破壊的
+# 変更のため、0.x のマイナーバンプ（0.42.0 → 0.43.0）とする。
+version = "0.43.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
