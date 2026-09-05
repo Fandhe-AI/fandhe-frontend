@@ -166,11 +166,6 @@ const KNOWN_UNCOVERED: &[(&str, &str, &str)] = &[
         "circular variant（circle/circle-track/circle-range）は linear variant と役割が重複するため未使用",
     ),
     (
-        "tags_input",
-        "item-input",
-        "タグ編集モードのデモを含まないため item_input（編集中の入力欄）を使用しない",
-    ),
-    (
         "color_picker",
         "saturation-slider",
         "4 チャンネル（Hue/Saturation/Value/Alpha）のうち Hue のみをデモし、残り 3 チャンネルは同型の繰り返しのため省略",

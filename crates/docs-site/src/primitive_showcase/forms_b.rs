@@ -928,44 +928,98 @@ pub(super) fn switch_section() -> Node {
 }
 
 pub(super) fn tags_input_section() -> Node {
-    let body = vec![tags_input::root(
-        false,
-        vec![],
-        vec![
-            tags_input::label(vec![], vec![text("Tags")]),
-            tags_input::control(
-                false,
-                false,
-                "Tags",
-                vec![],
-                vec![
-                    tags_input::item(
-                        false,
-                        false,
-                        vec![],
-                        vec![tags_input::item_preview(
-                            false,
-                            vec![],
-                            vec![
-                                tags_input::item_text(vec![], vec![text("rust")]),
-                                tags_input::item_delete_trigger(
-                                    "rust",
-                                    false,
-                                    vec![],
-                                    vec![text("×")],
-                                ),
-                            ],
-                        )],
-                    ),
-                    tags_input::input("", false, false, vec![]),
-                ],
-            ),
-            tags_input::clear_trigger(false, vec![], vec![text("Clear")]),
-            tags_input::hidden_input("tags", "rust", false, vec![]),
-            // live_region は control の兄弟として root 直下に置く（配置制約、
-            // モジュール doc参照）。
-            tags_input::live_region(vec![], vec![text("1 tag")]),
-        ],
-    )];
+    // タグ 1 個分の item を組み立てる補助関数（Anatomy/data-* 表の機械
+    // 導出元。`highlighted` で `data-highlighted` を、`editing` で
+    // `item-input`（`item_preview` は `hidden`）を実演する）。
+    fn tags_input_item(value: &str, disabled: bool, editing: bool, highlighted: bool) -> Node {
+        let state = tags_input::TagItem {
+            value,
+            disabled,
+            editing,
+            highlighted,
+        };
+        let preview = tags_input::item_preview(
+            &state,
+            vec![],
+            vec![
+                tags_input::item_text(&state, vec![], vec![text(value)]),
+                tags_input::item_delete_trigger(&state, vec![], vec![text("×")]),
+            ],
+        );
+        let item_input = tags_input::item_input(&state, value, vec![]);
+        tags_input::item(&state, vec![], vec![preview, item_input])
+    }
+
+    let default_props = tags_input::TagsInputProps::default();
+    let readonly_props = tags_input::TagsInputProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let invalid_props = tags_input::TagsInputProps {
+        invalid: true,
+        ..Default::default()
+    };
+
+    let body = vec![
+        // 通常状態: 確定タグ 1 件（highlighted）+ 編集中タグ 1 件
+        // （item-input を実演、Anatomy 全パーツ網羅の機械導出元）。
+        tags_input::root(
+            &default_props,
+            vec![],
+            vec![
+                tags_input::label(&default_props, vec![], vec![text("Tags")]),
+                tags_input::control(
+                    &default_props,
+                    vec![],
+                    vec![
+                        tags_input_item("rust", false, false, true),
+                        tags_input_item("wasm", false, true, false),
+                        tags_input::input(&default_props, "", false, vec![]),
+                    ],
+                ),
+                tags_input::clear_trigger(&default_props, vec![], vec![text("Clear")]),
+                tags_input::hidden_input(&default_props, "tags", "rust,wasm", vec![]),
+                // live_region は root 直下へ置く（配置制約、モジュール doc
+                // 「LiveRegion パーツと配置制約」節参照）。
+                tags_input::live_region(vec![], vec![text("2 tags")]),
+            ],
+        ),
+        // readonly 状態: control/input/hidden-input へ data-readonly（input
+        // はネイティブ readonly も）を出力する。
+        tags_input::root(
+            &readonly_props,
+            vec![],
+            vec![
+                tags_input::label(&readonly_props, vec![], vec![text("Environment")]),
+                tags_input::control(
+                    &readonly_props,
+                    vec![],
+                    vec![
+                        tags_input_item("staging", false, false, false),
+                        tags_input::input(&readonly_props, "", false, vec![]),
+                    ],
+                ),
+                tags_input::hidden_input(&readonly_props, "environment", "staging", vec![]),
+            ],
+        ),
+        // invalid（max 到達）状態: control/input へ data-invalid、input へ
+        // aria-invalid を出力する。
+        tags_input::root(
+            &invalid_props,
+            vec![],
+            vec![
+                tags_input::label(&invalid_props, vec![], vec![text("At max")]),
+                tags_input::control(
+                    &invalid_props,
+                    vec![],
+                    vec![
+                        tags_input_item("a", false, false, false),
+                        tags_input::input(&invalid_props, "", true, vec![]),
+                    ],
+                ),
+                tags_input::hidden_input(&invalid_props, "at-max", "a", vec![]),
+            ],
+        ),
+    ];
     demo_page("Tags Input", body)
 }

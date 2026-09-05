@@ -4056,28 +4056,35 @@ fn password_input_section() -> Node {
     )
 }
 
-/// TagsInput 節: 通常タグ数件（highlighted 1 件込み）・編集中タグ・max
-/// 到達（`data-invalid`/`aria-invalid`）・disabled の 4 態。
+/// TagsInput 節（参照突合はイシュー #1623）: 通常タグ数件（highlighted 1
+/// 件込み）・編集中タグ・readonly・max 到達（`data-invalid`/
+/// `aria-invalid`）・disabled の 5 態。
 ///
-/// `control` は `role="listbox"`、各タグの `item-preview` は `role="option"`
-/// （headless 層の listbox 相当 ARIA、`fandhe_frontend_pre_styled_ui::tags_input`
-/// のモジュール doc 参照）。編集モード（`item-input`/`data-editing`）は
-/// SSR 静的実演として `editing` 列に 1 件掲示する（イシュー #1699。
-/// wasm 層の実対話〔キー入力に応じた編集開始/終了の状態遷移〕自体は
-/// 引き続き wasm-full の配線層が担う。ここでは `item-input` slot の見た目
-/// のみを静的マークアップで示す）。
+/// `control`/`item-preview` は role を持たない（#1623 で zag/ark 準拠へ
+/// 是正、旧実装の `role="listbox"`/`role="option"` は撤去、
+/// `fandhe_frontend_pre_styled_ui::tags_input` のモジュール doc 参照）。
+/// 編集モード（`item-input`/`data-editing`）は SSR 静的実演として
+/// `editing` 列に 1 件掲示する（イシュー #1699。wasm 層の実対話〔キー入力
+/// に応じた編集開始/終了の状態遷移〕自体は引き続き wasm-full の配線層が
+/// 担う。ここでは `item-input` slot の見た目のみを静的マークアップで
+/// 示す）。
 fn tags_input_section() -> Node {
     fn tag_item(tag: &str, disabled: bool, highlighted: bool) -> Node {
-        tags_input::item(
+        let state = tags_input::TagItem {
+            value: tag,
             disabled,
-            false,
+            editing: false,
+            highlighted,
+        };
+        tags_input::item(
+            &state,
             vec![],
             vec![tags_input::item_preview(
-                highlighted,
+                &state,
                 vec![],
                 vec![
-                    tags_input::item_text(vec![], vec![text(tag)]),
-                    tags_input::item_delete_trigger(tag, disabled, vec![], vec![text("\u{00d7}")]),
+                    tags_input::item_text(&state, vec![], vec![text(tag)]),
+                    tags_input::item_delete_trigger(&state, vec![], vec![text("\u{00d7}")]),
                 ],
             )],
         )
@@ -4089,24 +4096,28 @@ fn tags_input_section() -> Node {
     /// `crates/headless-ui/src/tags_input.rs::item` rustdoc の想定
     /// マークアップに従う）。
     fn editing_tag_item(value: &str) -> Node {
+        let state = tags_input::TagItem {
+            value,
+            disabled: false,
+            editing: true,
+            highlighted: false,
+        };
         tags_input::item(
-            false,
-            true,
+            &state,
             vec![],
-            vec![tags_input::item_input(value, vec![])],
+            vec![tags_input::item_input(&state, value, vec![])],
         )
     }
 
+    let normal_props = tags_input::TagsInputProps::default();
     let normal = tags_input::root(
         Size::Md,
         false,
         vec![],
         vec![
-            tags_input::label(vec![], vec![text("Skills")]),
+            tags_input::label(&normal_props, vec![], vec![text("Skills")]),
             tags_input::control(
-                false,
-                false,
-                "Skills",
+                &normal_props,
                 vec![],
                 vec![
                     tag_item("rust", false, false),
@@ -4114,10 +4125,10 @@ fn tags_input_section() -> Node {
                     // （`data-highlighted`、モジュール rustdoc「内部パートの
                     // スタイル調整」節が追加した transition の実演を兼ねる）。
                     tag_item("wasm", false, true),
-                    tags_input::input("", false, false, vec![]),
+                    tags_input::input(&normal_props, "", false, vec![]),
                 ],
             ),
-            tags_input::hidden_input("skills", "rust,wasm", false, vec![]),
+            tags_input::hidden_input(&normal_props, "skills", "rust,wasm", vec![]),
         ],
     );
 
@@ -4126,70 +4137,96 @@ fn tags_input_section() -> Node {
         false,
         vec![],
         vec![
-            tags_input::label(vec![], vec![text("Editing")]),
+            tags_input::label(&normal_props, vec![], vec![text("Editing")]),
             tags_input::control(
-                false,
-                false,
-                "Editing",
+                &normal_props,
                 vec![],
                 vec![
                     tag_item("go", false, false),
                     editing_tag_item("wa"),
-                    tags_input::input("", false, false, vec![]),
+                    tags_input::input(&normal_props, "", false, vec![]),
                 ],
             ),
-            tags_input::hidden_input("editing-tags", "go", false, vec![]),
+            tags_input::hidden_input(&normal_props, "editing-tags", "go", vec![]),
         ],
     );
 
+    // readonly: control/input/hidden-input へ data-readonly（+ input は
+    // ネイティブ readonly）を出力する（イシュー #1623 是正分の実演）。
+    let readonly_props = tags_input::TagsInputProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let readonly = tags_input::root(
+        Size::Md,
+        false,
+        vec![],
+        vec![
+            tags_input::label(&readonly_props, vec![], vec![text("Read-only")]),
+            tags_input::control(
+                &readonly_props,
+                vec![],
+                vec![
+                    tag_item("staging", false, false),
+                    tags_input::input(&readonly_props, "", false, vec![]),
+                ],
+            ),
+            tags_input::hidden_input(&readonly_props, "readonly-tags", "staging", vec![]),
+        ],
+    );
+
+    // max 到達のため control/input へ data-invalid、input へ
+    // aria-invalid を出力する（境界到達時の唯一の視覚的合図、モジュール
+    // rustdoc「セキュリティ不変条件」節参照）。
+    let at_max_props = tags_input::TagsInputProps {
+        invalid: true,
+        ..Default::default()
+    };
     let at_max = tags_input::root(
         Size::Md,
         false,
         vec![],
         vec![
-            tags_input::label(vec![], vec![text("At max (2)")]),
+            tags_input::label(&at_max_props, vec![], vec![text("At max (2)")]),
             tags_input::control(
-                false,
-                // max 到達のため `control` へ data-invalid、`input` へ
-                // data-invalid/aria-invalid を出力する（境界到達時の唯一の
-                // 視覚的合図、モジュール rustdoc「セキュリティ不変条件」節参照）。
-                true,
-                "At max",
+                &at_max_props,
                 vec![],
                 vec![
                     tag_item("a", false, false),
                     tag_item("b", false, false),
-                    tags_input::input("", false, true, vec![]),
+                    tags_input::input(&at_max_props, "", true, vec![]),
                 ],
             ),
-            tags_input::hidden_input("at-max", "a,b", false, vec![]),
+            tags_input::hidden_input(&at_max_props, "at-max", "a,b", vec![]),
         ],
     );
 
+    let disabled_props = tags_input::TagsInputProps {
+        disabled: true,
+        ..Default::default()
+    };
     let disabled = tags_input::root(
         Size::Md,
         true,
         vec![],
         vec![
-            tags_input::label(vec![], vec![text("Disabled")]),
+            tags_input::label(&disabled_props, vec![], vec![text("Disabled")]),
             tags_input::control(
-                true,
-                false,
-                "Disabled",
+                &disabled_props,
                 vec![],
                 vec![
                     tag_item("readonly", true, false),
-                    tags_input::input("", true, false, vec![]),
+                    tags_input::input(&disabled_props, "", false, vec![]),
                 ],
             ),
-            tags_input::hidden_input("disabled-tags", "readonly", true, vec![]),
+            tags_input::hidden_input(&disabled_props, "disabled-tags", "readonly", vec![]),
         ],
     );
 
-    let demo_row = row(vec![normal, editing, at_max, disabled]);
+    let demo_row = row(vec![normal, editing, readonly, at_max, disabled]);
     section(
         "TagsInput",
-        "自由入力によるタグ配列。control は role=\"listbox\"、各タグは role=\"option\" を持ち、max 到達時は input が data-invalid/aria-invalid を伴います。編集中のタグは item-input（ネイティブ input）で表示されます。",
+        "自由入力によるタグ配列。control/item-preview は role を持たず、アクセシブルネームは label の関連付けが担います。max 到達時は input が data-invalid/aria-invalid を伴います。編集中のタグは item-input（ネイティブ input）で表示されます。",
         vec![demo_row],
     )
 }

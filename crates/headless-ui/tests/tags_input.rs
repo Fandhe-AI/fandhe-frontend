@@ -1,4 +1,4 @@
-//! TagsInput（イシュー #744）の統合テスト。
+//! TagsInput（イシュー #744、参照突合 #1623）の統合テスト。
 //!
 //! `crates/headless-ui/src/tags_input.rs` の inline unit tests がパーツ単体の
 //! 属性出力・状態機械の遷移を固定するのに対し、本ファイルは「root >
@@ -8,7 +8,7 @@
 //! 使って）固定する。
 
 use fandhe_frontend_core::render;
-use fandhe_frontend_headless_ui::tags_input::{self, TagsInput};
+use fandhe_frontend_headless_ui::tags_input::{self, TagsInput, TagsInputProps};
 use fandhe_frontend_interactive::{
     dispatch, render_for_hydration, Component, Hydrate, HydrateError,
 };
@@ -20,39 +20,37 @@ fn tags(strs: &[&str]) -> Vec<String> {
 #[test]
 fn full_assembly_wires_root_label_control_items_and_hidden_input() {
     let t = TagsInput::new(tags(&["rust", "wasm"]), None);
-    let items: Vec<_> = t
-        .tags()
-        .iter()
-        .enumerate()
-        .map(|(i, tag)| {
-            let preview = tags_input::item_preview(
+    let props = TagsInputProps::default();
+    let items: Vec<_> = (0..t.tags().len())
+        .map(|i| {
+            let preview = t.item_preview(
+                i,
                 false,
                 vec![],
-                vec![tags_input::item_text(
-                    vec![],
-                    vec![fandhe_frontend_core::text(tag)],
-                )],
+                vec![t.item_text(i, false, vec![], vec![])],
             );
             t.item(i, false, vec![], vec![preview])
         })
         .collect();
     let mut control_children = items;
-    control_children.push(t.input("", false, vec![]));
-    let control = t.control(false, "Tags", vec![], control_children);
-    let label = t.label(vec![], vec![fandhe_frontend_core::text("Tags")]);
-    let clear = t.clear_trigger(false, vec![], vec![fandhe_frontend_core::text("Clear")]);
-    let hidden_input = t.hidden_input("tags", false, vec![]);
-    let root = t.root(false, vec![], vec![label, control, clear, hidden_input]);
+    control_children.push(t.input(&props, "", vec![]));
+    let control = t.control(&props, vec![], control_children);
+    let label = t.label(&props, vec![], vec![fandhe_frontend_core::text("Tags")]);
+    let clear = t.clear_trigger(&props, vec![], vec![fandhe_frontend_core::text("Clear")]);
+    let hidden_input = t.hidden_input(&props, "tags", vec![]);
+    let root = t.root(&props, vec![], vec![label, control, clear, hidden_input]);
 
     let html = render(&root);
     assert!(html.contains(r#"data-scope="tags-input""#));
     assert!(html.contains(r#"data-part="root""#));
     assert!(html.contains(r#"data-part="label""#));
     assert!(html.contains(r#"data-part="control""#));
-    assert!(html.contains(r#"role="listbox""#));
+    // #1623: control は role を持たない（zag/ark 準拠、旧実装の
+    // role="listbox" は撤去）。
+    assert!(!html.contains("role=\"listbox\""));
     assert!(html.contains(r#"data-part="item""#));
     assert!(html.contains(r#"data-part="item-preview""#));
-    assert!(html.contains(r#"role="option""#));
+    assert!(!html.contains("role=\"option\""));
     assert!(html.contains(r#"data-part="item-text""#));
     assert!(html.contains(r#"data-part="input""#));
     assert!(html.contains(r#"data-part="clear-trigger""#));
@@ -60,6 +58,8 @@ fn full_assembly_wires_root_label_control_items_and_hidden_input() {
     assert!(html.contains("rust"));
     assert!(html.contains("wasm"));
     assert!(html.contains(r#"value="rust,wasm""#));
+    assert!(html.contains(r#"data-value="rust""#));
+    assert!(html.contains(r#"data-value="wasm""#));
 }
 
 #[test]
@@ -101,6 +101,28 @@ fn dispatch_edit_flow_via_public_api() {
     assert!(dispatch(&mut t, "edit-start", "0"));
     assert!(dispatch(&mut t, "edit-submit", "b"));
     assert_eq!(t.tags(), &tags(&["z", "b"]));
+}
+
+#[test]
+fn dispatch_highlight_flow_via_public_api() {
+    let mut t = TagsInput::new(tags(&["a", "b", "c"]), None);
+
+    assert!(dispatch(&mut t, "highlight-prev", ""));
+    assert_eq!(t.highlighted_index(), Some(2));
+    assert!(render(&t.item_preview(2, false, vec![], vec![])).contains(r#"data-highlighted="""#));
+
+    assert!(dispatch(&mut t, "highlight-prev", ""));
+    assert_eq!(t.highlighted_index(), Some(1));
+
+    assert!(dispatch(&mut t, "delete-highlighted", ""));
+    assert_eq!(t.tags(), &tags(&["a", "c"]));
+    assert_eq!(t.highlighted_index(), Some(0));
+
+    assert!(dispatch(&mut t, "highlight-clear", ""));
+    assert_eq!(t.highlighted_index(), None);
+
+    assert!(dispatch(&mut t, "backspace", ""));
+    assert_eq!(t.tags(), &tags(&["a"]));
 }
 
 #[test]
@@ -158,16 +180,18 @@ const SCRIPT_PAYLOAD: &str = "<script>alert(1)</script>";
 fn tag_text_payload_is_escaped_end_to_end() {
     let mut t = TagsInput::default();
     dispatch(&mut t, "add", SCRIPT_PAYLOAD);
-    let tag = &t.tags()[0];
-    let item_text = tags_input::item_text(vec![], vec![fandhe_frontend_core::text(tag)]);
-    let html = render(&t.root(false, vec![], vec![item_text]));
+    let tag = t.tags()[0].clone();
+    let item_text = t.item_text(0, false, vec![], vec![fandhe_frontend_core::text(&tag)]);
+    let html = render(&t.root(&TagsInputProps::default(), vec![], vec![item_text]));
     assert!(!html.contains("<script>alert(1)</script>"));
     assert!(html.contains("&lt;script&gt;"));
 }
 
 #[test]
 fn delete_trigger_aria_label_payload_is_escaped_end_to_end() {
-    let trigger = tags_input::item_delete_trigger(ATTR_BREAK_PAYLOAD, false, vec![], vec![]);
+    let mut t = TagsInput::default();
+    dispatch(&mut t, "add", ATTR_BREAK_PAYLOAD);
+    let trigger = t.item_delete_trigger(0, false, vec![], vec![]);
     let html = render(&trigger);
     assert!(!html.contains("onmouseover=\"alert(1)"));
     assert!(html.contains("&quot;"));
@@ -175,7 +199,12 @@ fn delete_trigger_aria_label_payload_is_escaped_end_to_end() {
 
 #[test]
 fn hidden_input_value_payload_is_escaped_end_to_end() {
-    let hidden_input = tags_input::hidden_input("tags", ATTR_BREAK_PAYLOAD, false, vec![]);
+    let hidden_input = tags_input::hidden_input(
+        &TagsInputProps::default(),
+        "tags",
+        ATTR_BREAK_PAYLOAD,
+        vec![],
+    );
     let html = render(&hidden_input);
     assert!(!html.contains("onmouseover=\"alert(1)"));
     assert!(html.contains("&quot;"));
@@ -184,7 +213,7 @@ fn hidden_input_value_payload_is_escaped_end_to_end() {
 #[test]
 fn caller_attrs_payload_is_escaped_end_to_end() {
     let html = render(&tags_input::root(
-        false,
+        &TagsInputProps::default(),
         vec![("data-testid", ATTR_BREAK_PAYLOAD)],
         vec![],
     ));

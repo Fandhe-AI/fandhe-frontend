@@ -4,7 +4,7 @@
 //!（`.claude/skills/ark-ui/references/components/form/tags-input.md`）を
 //! 参考に、Root / Label / Control / Input / Item / ItemPreview / ItemText /
 //! ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput / LiveRegion
-//! の 12 anatomy パーツと、[`fandhe_frontend_interactive::Component`]/
+//! の 11 anatomy パーツと、[`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] を直接実装する値状態機械
 //! [`TagsInput`] を提供する。
 //!
@@ -29,26 +29,96 @@
 //! [`TagsInput::item_delete_trigger`]/[`TagsInput::clear_trigger`]/
 //! [`TagsInput::hidden_input`]/[`TagsInput::live_region`]）を呼んで組み立てる。
 //! CSR/hydration は [`TagsInput`] を経由し、dispatch（`"add"`/`"remove"`/
-//! `"clear"`/`"edit-start"`/`"edit-submit"`/`"edit-cancel"`）で状態遷移する。
-//! `fandhe-frontend-pre-styled-ui`（#744〜）が本モジュールを呼んでスタイル済み
-//! TagsInput を組み立てる想定である。
+//! `"clear"`/`"edit-start"`/`"edit-submit"`/`"edit-cancel"`/`"highlight-prev"`/
+//! `"highlight-next"`/`"highlight-clear"`/`"delete-highlighted"`/
+//! `"backspace"`）で状態遷移する。`fandhe-frontend-pre-styled-ui`（#744〜）が
+//! 本モジュールを呼んでスタイル済み TagsInput を組み立てる想定である。
 //!
-//! # スコープ外（イシュー #744 本文が明示）
+//! # 参照突合（イシュー #1623）
 //!
-//! - `fandhe-frontend-wasm-full` での実 DOM 配線（Enter/Backspace/矢印キーの
-//!   キーボード操作、delimiter によるペースト分割、blur 時の挙動、フォーカス
-//!   管理）は別 issue。本モジュールは dispatch を受けた際の状態遷移のみを担う。
+//! Zag.js `tags-input.connect.ts`（ark-ui 基盤）・ark-ui 公式 Data
+//! Attributes / Keyboard Support 表と突合し、以下を是正した:
+//!
+//! - [`TagsInputProps`]（`disabled`/`readonly`/`invalid`/`required`）を
+//!   新設し、[`root`]/[`label`]/[`control`]/[`input`]/[`clear_trigger`]/
+//!   [`hidden_input`] へ `data-disabled`/`data-invalid`/`data-readonly`
+//!   （[`label`] にはさらに `data-required`）を反映した（旧実装は
+//!   `data-disabled` のみ）。[`input`] はネイティブ `readonly` も追加し、
+//!   `autocomplete="off"`/`autocorrect="off"`/`autocapitalize="none"`/
+//!   `enterkeyhint="done"` を固定付与した（[`crate::number_input`]（#1613）
+//!   と同種の固定属性）。
+//! - タグ 1 個分の状態束 [`TagItem`]（`value`/`disabled`/`editing`/
+//!   `highlighted`）を新設し、[`item`]/[`item_preview`]/[`item_text`]/
+//!   [`item_input`]/[`item_delete_trigger`] の引数を統一した。
+//!   [`item`] に `data-value`（タグ文字列）を追加し、[`item_preview`] に
+//!   `value`/`disabled`（旧実装は `highlighted` のみ）を追加し、
+//!   [`item_text`] に `disabled`/`highlighted` を追加し、[`item_input`] に
+//!   `hidden`（非編集時）/`tabindex="-1"`/`disabled` を追加し、
+//!   [`item_delete_trigger`] に `highlighted`/`tabindex="-1"` を追加して
+//!   `aria-label` を zag 既定訳 `"Delete tag {value}"` へ揃えた（旧実装は
+//!   `"Delete {tag}"`）。
+//! - **`role="listbox"`/`aria-orientation`（[`control`]）と
+//!   `role="option"`/`aria-selected`（[`item_preview`]）を撤去した**（元は
+//!   #744 本文の指定で付与していたが、zag/ark の control・item-preview は
+//!   いずれも `role` を持たない。`role="listbox"` の許容子は
+//!   `option`/`group` のみだが `control` は `<input type="text">` を
+//!   内包しており content model 違反であり、`item_preview` へ
+//!   `aria-selected="true"` を固定付与するのも「選択」意味論の誤用
+//!   だった）。アクセシブルネームは [`label`] の `for`（呼び出し側 `attrs`）
+//!   → [`input`] の関連付けで担う（ark の `htmlFor` と同型）。これに伴い
+//!   [`control`] は `aria_label` 引数を廃した。
+//! - 状態機械へ `highlighted: Option<usize>`（ephemeral、hydration では
+//!   運ばない）を追加し、[`TagsInputAction::HighlightPrev`]/
+//!   [`TagsInputAction::HighlightNext`]/[`TagsInputAction::ClearHighlight`]/
+//!   [`TagsInputAction::DeleteHighlighted`]/[`TagsInputAction::Backspace`]
+//!   （dispatch トークン `"highlight-prev"`/`"highlight-next"`/
+//!   `"highlight-clear"`/`"delete-highlighted"`/`"backspace"`）を新設した
+//!   （ark-ui Keyboard Support 表の ArrowLeft/ArrowRight/Escape/Delete/
+//!   Backspace 相当）。**DOM 配線（keydown ハンドラ・caret 位置判定）は
+//!   `fandhe-frontend-wasm-full` の別イシュー（下記スコープ外節）であり、
+//!   本モジュールは dispatch を受けた際の状態遷移のみを提供する契約**
+//!   （キー入力を検出して自動的に dispatch する配線は未実装）。
+//!
+//! 意図的に合わせなかった点（`docs/policy/intentional-non-adoption.md`
+//! §3.25 規則 2: 装飾・レイアウト計測を headless へ持ち込まない、または
+//! リポ内一貫性を優先した判断）:
+//!
+//! - `data-focus`（root/control、DOM フォーカスという ephemeral な状態）は
+//!   SSR では決定できないため不採用。
+//! - `data-empty`（root/input の「タグ 0 件」）は、自由関数 `root` がタグ
+//!   列を保持しないため実装せず先送りする（[`TagsInput::root`] 経由でのみ
+//!   将来追加可能。現時点では未実装、別 issue 候補）。
+//! - `readonly` の DOM 表現は zag（`control` の `tabindex="0"` 維持 +
+//!   `input` へネイティブ `disabled`）と異なり、`input` へネイティブ
+//!   `readonly` を採用する（`crate::pin_input`/`crate::password_input`/
+//!   `crate::file_upload` の直近精査（#1615/#1614/#1609）と同じ規約への
+//!   リポ内一貫性を優先した判断）。
+//! - `maxLength`（タグ文字数上限）・`validate` コールバック・`delimiter`/
+//!   `addOnPaste`/`blurBehavior`/`allowOverflow`/`autoFocus`/`dir` は
+//!   アプリロジック・クライアント配線の関心（下記スコープ外節、
+//!   `docs/policy/intentional-non-adoption.md` §3.25）。
+//! - [`clear_trigger`] の `aria-label` 固定付与・空時 `hidden` は行わない
+//!   （children を持たない場合の既定文言をフレームワーク側で決め打ちしない
+//!   最小主義、「空なら描画しない」判断は呼び出し側に委ねる）。
+//!
+//! # スコープ外（イシュー #744/#1623 が明示）
+//!
+//! - `fandhe-frontend-wasm-full` での実 DOM 配線（ArrowLeft/ArrowRight/
+//!   Backspace/Delete/Enter/Escape/Ctrl+V の keydown/paste ハンドラ、
+//!   delimiter によるペースト分割、blur 時の挙動、フォーカス管理）は
+//!   別 issue。本モジュールは dispatch を受けた際の状態遷移のみを担う。
 //! - `validate` コールバック相当の拡張検証・`maxLength`（タグ文字数上限）。
 //!
-//! # LiveRegion パーツと配置制約（イシュー #1069）
+//! # LiveRegion パーツと配置制約（イシュー #1069・#1623 で緩和）
 //!
 //! [`live_region`] はタグ追加・削除というタグ数の変化を支援技術へ通知する
 //! ための live region（`role="status"` + `aria-live="polite"` +
 //! `aria-atomic="true"` 固定、[`crate::toast::root`] と同じ 3 点セット）。
 //! 緊急度は常に `polite` 固定で引数を取らない（安全側の判断、
-//! [`crate::combobox::live_region`] と同じ設計）。配置制約は [`root`] の
-//! 直接の子で [`control`] の兄弟として置く（[`control`] の
-//! `role="listbox"` 配下へ置くと listbox が許容する子ロールに反するため）。
+//! [`crate::combobox::live_region`] と同じ設計）。配置は [`root`] 直下を
+//! 推奨する（当初は [`control`] の `role="listbox"` 配下との子ロール衝突を
+//! 避けるため「[`control`] の兄弟」に限定していたが、#1623 で
+//! `role="listbox"` を撤去したためこの制約は解消した）。
 //! [`crate::visually_hidden::root`] への委譲はせず、視覚的に隠す CSS は
 //! 呼び出し側または `fandhe-frontend-pre-styled-ui` の責務とする。通知
 //! 文言は `children` として呼び出し側が渡し、タグ数整形ヘルパは提供しない
@@ -59,18 +129,24 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - 属性名（`data-*`/`aria-*`/`role`/`type`/`name`/`value`/`disabled`）は
-//!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロットへ
-//!   混入する経路はない（[`crate::anatomy`]/[`crate::aria`]/
-//!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
+//! - 属性名（`data-*`/`aria-*`/`role`/`type`/`name`/`value`/`disabled`/
+//!   `readonly`/`tabindex`/`hidden`/`autocomplete`/`autocorrect`/
+//!   `autocapitalize`/`enterkeyhint`）はすべて `&'static str` リテラルで
+//!   固定しており、動的値が属性名スロットへ混入する経路はない
+//!   （[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の既存
+//!   不変条件をそのまま継承する）。
 //! - 動的値（各タグ文字列/`format!` で組み立てる `aria-label`/呼び出し側
-//!   `attrs`/children テキスト/hidden-input の連結値）は
+//!   `attrs`/children テキスト/hidden-input の連結値/`data-value`）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - **タグ文字列はユーザー入力そのものである（REQ-1 の重点対象）**:
-//!   `item_text` のテキストノード・`aria-label` 属性値・`hidden_input` の
-//!   value のいずれも `render()` の既定エスケープを経由する経路以外を持たない
+//!   `item_text` のテキストノード・`item`/`item_preview` の `data-value`
+//!   属性値・`aria-label` 属性値・`hidden_input` の value のいずれも
+//!   `render()` の既定エスケープを経由する経路以外を持たない
 //!   （[`crate::xss_escape`] 相当の回帰テストで固定する）。
+//! - **呼び出し側 `attrs` によるフレームワーク固定キーの偽装は
+//!   [`drop_reserved`] が fail-closed に除外する**（`data-disabled` 等を
+//!   なりすまし付与できない）。
 //! - **不変条件「重複タグなし・`len() <= max`・カンマを含まない・空文字列を
 //!   含まない」を破る入力は一切適用しない**（fail-closed。
 //!   [`TagsInputAction::Add`] の空文字列・重複（完全一致）・カンマ含有・
@@ -101,15 +177,16 @@
 //!   側で改ざんされうる入力として扱う。[`TagsInput`] の
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は panic せず
 //!   `HydrateError` を返す（パース不能な `max`・復元タグ列中の重複・
-//!   `tags.len() > max` をすべて拒否する）。`editing`（編集中インデックスと
-//!   いう ephemeral な DOM 状態）は運ばない（[`crate::pin_input::PinInput`]
-//!   の `focused` と同じ判断）。
+//!   `tags.len() > max` をすべて拒否する）。`editing`/`highlighted`
+//!   （編集中インデックス・キーボード強調インデックスという ephemeral な
+//!   DOM 状態）はいずれも運ばない（[`crate::pin_input::PinInput`] の
+//!   `focused` と同じ判断）。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{
-    aria_atomic, aria_label, aria_live, aria_orientation, aria_selected, role, AriaLive,
+use crate::aria::aria_label;
+use crate::data_attrs::{
+    data_disabled, data_highlighted, data_invalid, data_readonly, data_required,
 };
-use crate::data_attrs::{data_disabled, data_invalid, Orientation};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{codec, Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
@@ -123,76 +200,182 @@ fn data_editing(editing: bool) -> Option<(&'static str, &'static str)> {
     editing.then_some(("data-editing", ""))
 }
 
-/// Root パーツ（`div`）。`data-disabled` を反映する。
+/// TagsInput の disabled/invalid/readonly/required 状態束（ark-ui/zag
+/// Data Attributes 表との突合、イシュー #1623）。root/label/control/input/
+/// clear-trigger/hidden-input の全パーツへ [`data_disabled`]/
+/// [`data_invalid`]/[`data_readonly`] を一律付与し、[`label`] にのみ
+/// [`data_required`] を追加で付与するために使う
+/// （[`crate::pin_input::PinInputProps`] と同型のパターン）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TagsInputProps {
+    /// 無効化状態。`true` で `data-disabled` を各パーツへ付与し、
+    /// [`input`]/[`clear_trigger`]/[`hidden_input`] にはネイティブ
+    /// `disabled` も付与する。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で `data-readonly` を各パーツへ、
+    /// [`input`] にはネイティブ `readonly` を付与する（`type="hidden"` の
+    /// [`hidden_input`] には効果がないため付けない、
+    /// [`crate::pin_input::hidden_input`] と同じ判断。モジュール doc
+    /// 「意図的に合わせなかった点」節参照）。
+    pub readonly: bool,
+    /// 入力検証エラー状態。`true` で `data-invalid` を各パーツへ、
+    /// [`input`] には追加で `aria-invalid="true"` を付与する（valid の
+    /// ときは `aria-invalid` 属性自体を省略する、[`crate::field`] と同型）。
+    pub invalid: bool,
+    /// 入力必須状態。`true` で [`label`] に `data-required` を付与する
+    /// （`type="hidden"` の [`hidden_input`] は制約検証対象外のため
+    /// `required` ネイティブ属性は付けない）。
+    pub required: bool,
+}
+
+/// [`TagsInputProps`] から共通の状態属性列を組み立てる非公開ヘルパ
+/// （disabled/invalid/readonly の 3 属性）。
+fn state_attrs(props: &TagsInputProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs: Vec<(&'static str, &'static str)> = Vec::new();
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_invalid(props.invalid));
+    attrs.extend(data_readonly(props.readonly));
+    attrs
+}
+
+/// [`root`]/[`control`] が固定付与するキー一覧
+/// （[`crate::pin_input::ROOT_RESERVED`] と同型のパターン）。
+const ROOT_RESERVED: &[&str] = &["data-disabled", "data-invalid", "data-readonly"];
+
+/// [`label`] が固定付与するキー一覧（[`ROOT_RESERVED`] に `data-required`
+/// を加えたもの）。
+const LABEL_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-required",
+];
+
+/// [`input`] が固定付与するキー一覧（[`ROOT_RESERVED`] に `data-empty`/
+/// `aria-invalid` を加えたもの）。
+const INPUT_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-empty",
+    "aria-invalid",
+];
+
+/// [`item`]/[`item_preview`]/[`item_text`]/[`item_input`]/
+/// [`item_delete_trigger`] が固定付与するキー一覧。
+const ITEM_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-editing",
+    "data-value",
+    "data-highlighted",
+];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::pin_input::drop_reserved`] と同型の重複実装。
+/// モジュール間の相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// Root パーツ（`div`）。
 #[must_use]
-pub fn root<'a>(disabled: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn root<'a>(
+    props: &TagsInputProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    merged.extend(data_disabled(disabled));
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
 
 /// Label パーツ（`label`）。意味論的なラベル関連付けは呼び出し側が
 /// `attrs` 経由で `for`/`id`（または labelledby）を配線する（装飾用パーツ、
-/// [`crate::pin_input::label`] と同じ最小主義）。
+/// [`crate::pin_input::label`] と同じ最小主義。`role="listbox"` 撤去に伴い
+/// [`control`]/[`input`] のアクセシブルネームはこの関連付けが担う）。
 #[must_use]
-pub fn label<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("label", "label", attrs, children)
-}
-
-/// Control パーツ（`div`）。タグ [`item`] 群 + [`input`] を並べるコンテナ。
-/// `role="listbox"` + `aria-orientation="horizontal"` を持つ（イシュー本文が
-/// 指定する listbox 相当の ARIA、`aria_label` は呼び出し側が与える）。
-#[must_use]
-pub fn control<'a>(
-    disabled: bool,
-    invalid: bool,
-    label_text: &'a str,
+pub fn label<'a>(
+    props: &TagsInputProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![
-        ("role", "listbox"),
-        aria_orientation(Orientation::Horizontal),
-        aria_label(label_text),
-    ];
-    merged.extend(data_disabled(disabled));
-    merged.extend(data_invalid(invalid));
+    let attrs = drop_reserved(attrs, LABEL_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = state_attrs(props);
+    merged.extend(data_required(props.required));
+    merged.extend(attrs);
+    ANATOMY.part("label", "label", merged, children)
+}
+
+/// Control パーツ（`div`）。タグ [`item`] 群 + [`input`] を並べるコンテナ。
+/// `role` は持たない（zag/ark 準拠、モジュール doc「参照突合」節参照）。
+#[must_use]
+pub fn control<'a>(
+    props: &TagsInputProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = state_attrs(props);
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
+}
+
+/// タグ 1 個分の状態束（[`item`]/[`item_preview`]/[`item_text`]/
+/// [`item_input`]/[`item_delete_trigger`] が共有する）。独立した `bool`
+/// 引数のままだと clippy `too_many_arguments` を超えやすいため、
+/// [`crate::rating_group::RatingItemFlags`] と同型の薄い構造体としてまとめる
+/// （イシュー #1623）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TagItem<'a> {
+    /// タグ文字列そのもの（ユーザー入力、REQ-1 の重点対象）。
+    pub value: &'a str,
+    /// 無効化状態。
+    pub disabled: bool,
+    /// 編集モード中かどうか。
+    pub editing: bool,
+    /// キーボード操作上の強調（highlight）状態かどうか
+    /// （確定選択とは独立の軸、[`crate::rating_group::RatingItemFlags`]
+    /// rustdoc と同じ区別）。
+    pub highlighted: bool,
 }
 
 /// Item パーツ（`div`）。タグ 1 個分のコンテナ（[`item_preview`] または
 /// 編集モード時の [`item_input`] を子に持つ）。
 #[must_use]
-pub fn item<'a>(
-    disabled: bool,
-    editing: bool,
-    attrs: Vec<(&'a str, &'a str)>,
-    children: Vec<Node>,
-) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    merged.extend(data_disabled(disabled));
-    merged.extend(data_editing(editing));
+pub fn item<'a>(item: &TagItem<'a>, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![("data-value", item.value)];
+    merged.extend(data_disabled(item.disabled));
+    merged.extend(data_editing(item.editing));
     merged.extend(attrs);
     ANATOMY.part("item", "div", merged, children)
 }
 
-/// ItemPreview パーツ（`div`）。表示モードのタグチップ本体。
-/// `role="option"`（listbox 相当の ARIA、イシュー本文が指定）。[`control`] の
-/// `role="listbox"` 配下に描画される item-preview はいずれも「既に追加され
-/// 現に確定しているタグ」を表す（[`select::item`] 等の他 listbox 実装と同じ
-/// 規約で `role="option"` には必ず `aria-selected` を対で付与する。本パーツは
-/// 常に選択済みタグを表示するため `aria-selected="true"` 固定であり、
-/// `highlighted`（キーボード操作上の強調・別軸）とは独立した意味論である）。
+/// ItemPreview パーツ（`div`）。表示モードのタグチップ本体。編集中は
+/// `hidden` 存在属性を出力する（zag と同じく、編集中は [`item_input`] を
+/// 表示し本パーツを隠す）。`role` は持たない（モジュール doc「参照突合」
+/// 節参照。旧実装の `role="option"` + `aria-selected="true"` 固定は撤去）。
 #[must_use]
 pub fn item_preview<'a>(
-    highlighted: bool,
+    item: &TagItem<'a>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![("role", "option"), aria_selected(true)];
-    merged.extend(crate::data_attrs::data_highlighted(highlighted));
+    let attrs = drop_reserved(attrs, ITEM_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![("data-value", item.value)];
+    merged.extend(data_disabled(item.disabled));
+    merged.extend(data_highlighted(item.highlighted));
+    if item.editing {
+        merged.push(("hidden", ""));
+    }
     merged.extend(attrs);
     ANATOMY.part("item-preview", "div", merged, children)
 }
@@ -200,44 +383,71 @@ pub fn item_preview<'a>(
 /// ItemText パーツ（`div`）。タグ文字列を表示するテキストノードのコンテナ。
 /// タグ文字列は children として渡され `render()` の既定エスケープを経由する。
 #[must_use]
-pub fn item_text<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("item-text", "div", attrs, children)
+pub fn item_text<'a>(
+    item: &TagItem<'a>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    merged.extend(data_disabled(item.disabled));
+    merged.extend(data_highlighted(item.highlighted));
+    merged.extend(attrs);
+    ANATOMY.part("item-text", "div", merged, children)
 }
 
 /// ItemInput パーツ（`input`）。タグ編集モード時のネイティブ入力欄。
 /// `value` は編集中の暫定値（動的だが `render()` の既定エスケープ経由）。
+/// 非編集時は `hidden` 存在属性を出力し、`tabindex="-1"`（Tab 順から除外、
+/// フォーカスはクライアント側配線が編集開始時に明示的に当てる契約）を
+/// 常に付与する。`item.disabled` はネイティブ `disabled` + `data-disabled`
+/// へ反映する。
 #[must_use]
-pub fn item_input<'a>(value: &'a str, attrs: Vec<(&'a str, &'a str)>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "text"), ("value", value)];
+pub fn item_input<'a>(item: &TagItem<'a>, value: &'a str, attrs: Vec<(&'a str, &'a str)>) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![("type", "text"), ("value", value), ("tabindex", "-1")];
+    if !item.editing {
+        merged.push(("hidden", ""));
+    }
+    if item.disabled {
+        merged.push(("disabled", ""));
+    }
+    merged.extend(data_disabled(item.disabled));
     merged.extend(attrs);
     ANATOMY.part("item-input", "input", merged, Vec::new())
 }
 
 /// ItemDeleteTrigger パーツ（`button`）。当該タグを削除する操作。
-/// `aria-label` は `format!` で組み立てた「Delete {tag}」（動的値だが
-/// `render()` の既定エスケープを経由するため注入経路にはならない）。
-/// [`clear_trigger`] 等の他 trigger パーツと同様に `children` を受け取り、
-/// 呼び出し側が × アイコン・視覚ラベルを描画できる（Cursor Bugbot 指摘
-/// #744 review comment 3639762362: 従来固定 `Vec::new()` だったため呼び出し側
-/// が視覚的内容を一切描画できなかった）。`aria-label` は children の有無に
-/// 関わらず常に付与するため、視覚的に空（アイコンフォントが読み込めない等）
-/// でもスクリーンリーダーには「Delete {tag}」が伝わる。
+/// `aria-label` は `format!` で組み立てた「Delete tag {value}」（zag 既定訳、
+/// 動的値だが `render()` の既定エスケープを経由するため注入経路には
+/// ならない）。`tabindex="-1"`（ark-ui 公式 Data Attributes/Keyboard
+/// Support 表、Tab 順から除外しキーボード操作は矢印キー配線に委ねる契約）
+/// を常に付与する。[`clear_trigger`] 等の他 trigger パーツと同様に
+/// `children` を受け取り、呼び出し側が × アイコン・視覚ラベルを描画できる
+/// （Cursor Bugbot 指摘 #744 review comment 3639762362）。`aria-label` は
+/// children の有無に関わらず常に付与する。
 #[must_use]
 pub fn item_delete_trigger<'a>(
-    tag: &str,
-    disabled: bool,
+    item: &TagItem<'a>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_RESERVED);
     // aria_label は呼び出し時にのみ必要な一時 String であり、el() が
     // 即座に owned String へコピーするため関数スコープを超えて借用が
     // 残ることはない（crates/headless-ui/src/pin_input.rs の input() 参照）。
-    let label_str = format!("Delete {tag}");
-    let mut merged: Vec<(&str, &str)> = vec![("type", "button"), aria_label(label_str.as_str())];
-    if disabled {
+    let label_str = format!("Delete tag {}", item.value);
+    let mut merged: Vec<(&str, &str)> = vec![
+        ("type", "button"),
+        aria_label(label_str.as_str()),
+        ("tabindex", "-1"),
+    ];
+    if item.disabled {
         merged.push(("disabled", ""));
     }
-    merged.extend(data_disabled(disabled));
+    merged.extend(data_disabled(item.disabled));
+    merged.extend(data_highlighted(item.highlighted));
     merged.extend(attrs);
     ANATOMY.part("item-delete-trigger", "button", merged, children)
 }
@@ -245,56 +455,77 @@ pub fn item_delete_trigger<'a>(
 /// ClearTrigger パーツ（`button`）。全タグを一括削除する操作。
 #[must_use]
 pub fn clear_trigger<'a>(
-    disabled: bool,
+    props: &TagsInputProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
-    if disabled {
+    if props.disabled {
         merged.push(("disabled", ""));
     }
-    merged.extend(data_disabled(disabled));
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("clear-trigger", "button", merged, children)
 }
 
 /// Input パーツ（`input`）。新規タグ入力用のネイティブ入力欄。
-/// max 到達時は `data-invalid`/`aria-invalid` を出力する。
+/// max 到達時は `data-invalid`/`aria-invalid` を出力する。`autocomplete`/
+/// `autocorrect`/`autocapitalize`/`enterkeyhint` は zag 固定属性
+/// （[`crate::number_input`]（#1613）と同種の判断、モジュール doc
+/// 「参照突合」節参照）。
 #[must_use]
 pub fn input<'a>(
+    props: &TagsInputProps,
     value: &'a str,
-    disabled: bool,
     at_max: bool,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
-    let mut merged: Vec<(&str, &str)> = vec![("type", "text"), ("value", value)];
-    if disabled {
+    let attrs = drop_reserved(attrs, INPUT_RESERVED);
+    let mut merged: Vec<(&str, &str)> = vec![
+        ("type", "text"),
+        ("value", value),
+        ("autocomplete", "off"),
+        ("autocorrect", "off"),
+        ("autocapitalize", "none"),
+        ("enterkeyhint", "done"),
+    ];
+    if props.disabled {
         merged.push(("disabled", ""));
     }
-    merged.extend(data_disabled(disabled));
+    if props.readonly {
+        merged.push(("readonly", ""));
+    }
+    merged.extend(state_attrs(props));
     merged.extend(data_invalid(at_max));
-    if at_max {
+    if at_max || props.invalid {
         merged.push(("aria-invalid", "true"));
     }
+    merged.extend(value.is_empty().then_some(("data-empty", "")));
     merged.extend(attrs);
     ANATOMY.part("input", "input", merged, Vec::new())
 }
 
 /// HiddenInput パーツ（`input type="hidden"`）。フォーム送信時に全タグの
-/// カンマ結合値を 1 個の値として運ぶ。
+/// カンマ結合値を 1 個の値として運ぶ。`props.readonly`/`props.required` は
+/// `data-*` のみへ反映し、ネイティブ `readonly`/`required` は付けない
+/// （`type="hidden"` では意味を持たない、[`crate::pin_input::hidden_input`]
+/// と同じ判断）。
 #[must_use]
 pub fn hidden_input<'a>(
+    props: &TagsInputProps,
     name: &'a str,
     value: &'a str,
-    disabled: bool,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, LABEL_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![("type", "hidden"), ("name", name), ("value", value)];
-    if disabled {
+    if props.disabled {
         merged.push(("disabled", ""));
     }
-    merged.extend(data_disabled(disabled));
+    merged.extend(state_attrs(props));
+    merged.extend(data_required(props.required));
     merged.extend(attrs);
     ANATOMY.part("hidden-input", "input", merged, Vec::new())
 }
@@ -310,9 +541,9 @@ pub fn hidden_input<'a>(
 #[must_use]
 pub fn live_region<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![
-        role("status"),
-        aria_live(AriaLive::Polite),
-        aria_atomic(true),
+        crate::aria::role("status"),
+        crate::aria::aria_live(crate::aria::AriaLive::Polite),
+        crate::aria::aria_atomic(true),
     ];
     merged.extend(attrs);
     ANATOMY.part("live-region", "div", merged, children)
@@ -328,26 +559,45 @@ pub enum TagsInputAction {
     Remove(usize),
     /// 全タグを削除する。
     Clear,
-    /// 指定インデックスのタグを編集モードにする（範囲外は no-op）。
+    /// 指定インデックスのタグを編集モードにする（範囲外は no-op、
+    /// 強調〔highlight〕状態を解除する）。
     EditStart(usize),
     /// 編集中のタグを新文字列で確定する（編集中でない・空文字列・他タグと
     /// 重複なら編集を破棄し元値を維持する）。
     EditSubmit(String),
     /// 編集を破棄して元値を維持したまま編集モードを終了する。
     EditCancel,
+    /// キーボード強調（highlight）を 1 つ前へ移動する（ArrowLeft 相当）。
+    /// 強調なしなら末尾タグへ、先頭タグで saturating（それ以上前進しない）。
+    /// タグが 0 件なら no-op。
+    HighlightPrev,
+    /// キーボード強調（highlight）を 1 つ後ろへ移動する（ArrowRight
+    /// 相当）。末尾タグを強調中なら強調解除（入力欄へ戻る）。強調なしは
+    /// no-op。
+    HighlightNext,
+    /// キーボード強調（highlight）を解除する（Escape 相当）。
+    ClearHighlight,
+    /// 強調中のタグを削除する（Delete 相当。強調なしは no-op）。削除後の
+    /// 強調は 1 つ前へ移動する（先頭を削除した場合は解除）。
+    DeleteHighlighted,
+    /// 強調中なら [`Self::DeleteHighlighted`] と同じ、強調なしなら末尾
+    /// タグを削除する（Backspace 相当。タグが 0 件なら no-op）。
+    Backspace,
 }
 
 /// TagsInput の値状態機械。
 ///
 /// `tags` は表示順のタグ列（不変条件: 重複なし・`len() <= max`。この
 /// 不変条件は [`Self::update`]/[`Self::from_hydration_attrs`] のいずれの
-/// 経路でも破られない）。`editing` は編集中インデックスという ephemeral な
-/// DOM 状態であり、hydration では運ばない（モジュール doc 参照）。
+/// 経路でも破られない）。`editing`/`highlighted` は編集中インデックス・
+/// キーボード強調インデックスという ephemeral な DOM 状態であり、
+/// hydration では運ばない（モジュール doc参照）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TagsInput {
     tags: Vec<String>,
     max: Option<usize>,
     editing: Option<usize>,
+    highlighted: Option<usize>,
 }
 
 impl Default for TagsInput {
@@ -386,6 +636,7 @@ impl TagsInput {
             tags: deduped,
             max,
             editing: None,
+            highlighted: None,
         }
     }
 
@@ -437,120 +688,199 @@ impl TagsInput {
         self.editing
     }
 
+    /// 指定インデックスが現在キーボード強調（highlight）中か。
+    #[must_use]
+    pub fn is_highlighted(&self, index: usize) -> bool {
+        self.highlighted == Some(index)
+    }
+
+    /// 現在強調中のインデックス（未強調なら `None`）。
+    #[must_use]
+    pub fn highlighted_index(&self) -> Option<usize> {
+        self.highlighted
+    }
+
     /// 全タグをカンマ結合した値（フォーム送信・[`Self::hidden_input`] が使う）。
     #[must_use]
     pub fn value(&self) -> String {
         self.tags.join(",")
     }
 
+    /// 指定インデックスのタグから [`TagItem`] を組み立てる利便メソッド
+    /// （`editing`/`highlighted` を状態機械から導出する）。範囲外は
+    /// `None`。
+    #[must_use]
+    pub fn item_state(&self, index: usize, disabled: bool) -> Option<TagItem<'_>> {
+        self.tags.get(index).map(|value| TagItem {
+            value,
+            disabled,
+            editing: self.is_editing(index),
+            highlighted: self.is_highlighted(index),
+        })
+    }
+
     /// [`root`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn root<'a>(
         &self,
-        disabled: bool,
+        props: &TagsInputProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        root(disabled, attrs, children)
+        root(props, attrs, children)
     }
 
-    /// [`label`] へ委譲する利便メソッド（状態を持たないため素通し）。
+    /// [`label`] へ現在の状態を注入する利便メソッド。
     #[must_use]
-    pub fn label<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        label(attrs, children)
+    pub fn label<'a>(
+        &self,
+        props: &TagsInputProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        label(props, attrs, children)
     }
 
     /// [`control`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn control<'a>(
         &self,
-        disabled: bool,
-        label_text: &'a str,
+        props: &TagsInputProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        control(disabled, self.is_at_max(), label_text, attrs, children)
+        control(props, attrs, children)
     }
 
-    /// [`item`] へ現在の状態を注入する利便メソッド。
+    /// [`item`] へ現在の状態を注入する利便メソッド。範囲外インデックスは
+    /// 空の `div` を描画する（[`Self::item_state`] が `None` を返す場合、
+    /// disabled/editing/highlighted すべて偽の [`TagItem`] を使う）。
     #[must_use]
     pub fn item<'a>(
-        &self,
+        &'a self,
         index: usize,
         disabled: bool,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item(disabled, self.is_editing(index), attrs, children)
+        let fallback = TagItem {
+            value: "",
+            disabled,
+            editing: false,
+            highlighted: false,
+        };
+        let state = self.item_state(index, disabled).unwrap_or(fallback);
+        item(&state, attrs, children)
     }
 
-    /// [`item_preview`] へ委譲する利便メソッド。
+    /// [`item_preview`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn item_preview<'a>(
-        &self,
-        highlighted: bool,
+        &'a self,
+        index: usize,
+        disabled: bool,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item_preview(highlighted, attrs, children)
+        let fallback = TagItem {
+            value: "",
+            disabled,
+            editing: false,
+            highlighted: false,
+        };
+        let state = self.item_state(index, disabled).unwrap_or(fallback);
+        item_preview(&state, attrs, children)
     }
 
-    /// [`item_text`] へ委譲する利便メソッド。
+    /// [`item_text`] へ現在の状態を注入する利便メソッド。
     #[must_use]
-    pub fn item_text<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        item_text(attrs, children)
+    pub fn item_text<'a>(
+        &'a self,
+        index: usize,
+        disabled: bool,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        let fallback = TagItem {
+            value: "",
+            disabled,
+            editing: false,
+            highlighted: false,
+        };
+        let state = self.item_state(index, disabled).unwrap_or(fallback);
+        item_text(&state, attrs, children)
     }
 
-    /// [`item_input`] へ委譲する利便メソッド。
+    /// [`item_input`] へ現在の状態を注入する利便メソッド。
     #[must_use]
-    pub fn item_input<'a>(&self, value: &'a str, attrs: Vec<(&'a str, &'a str)>) -> Node {
-        item_input(value, attrs)
+    pub fn item_input<'a>(
+        &'a self,
+        index: usize,
+        disabled: bool,
+        value: &'a str,
+        attrs: Vec<(&'a str, &'a str)>,
+    ) -> Node {
+        let fallback = TagItem {
+            value: "",
+            disabled,
+            editing: false,
+            highlighted: false,
+        };
+        let state = self.item_state(index, disabled).unwrap_or(fallback);
+        item_input(&state, value, attrs)
     }
 
     /// [`item_delete_trigger`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn item_delete_trigger<'a>(
-        &self,
-        tag: &str,
+        &'a self,
+        index: usize,
         disabled: bool,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item_delete_trigger(tag, disabled, attrs, children)
+        let fallback = TagItem {
+            value: "",
+            disabled,
+            editing: false,
+            highlighted: false,
+        };
+        let state = self.item_state(index, disabled).unwrap_or(fallback);
+        item_delete_trigger(&state, attrs, children)
     }
 
     /// [`clear_trigger`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn clear_trigger<'a>(
         &self,
-        disabled: bool,
+        props: &TagsInputProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        clear_trigger(disabled, attrs, children)
+        clear_trigger(props, attrs, children)
     }
 
     /// [`input`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn input<'a>(
         &self,
+        props: &TagsInputProps,
         value: &'a str,
-        disabled: bool,
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
-        input(value, disabled, self.is_at_max(), attrs)
+        input(props, value, self.is_at_max(), attrs)
     }
 
     /// [`hidden_input`] へ現在の連結値を注入する利便メソッド。
     #[must_use]
     pub fn hidden_input<'a>(
         &self,
+        props: &TagsInputProps,
         name: &'a str,
-        disabled: bool,
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
         let value = self.value();
-        hidden_input(name, &value, disabled, attrs)
+        hidden_input(props, name, &value, attrs)
     }
 
     /// [`live_region`] へ委譲する利便メソッド（状態を持たないため素通し、
@@ -558,6 +888,27 @@ impl TagsInput {
     #[must_use]
     pub fn live_region<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         live_region(attrs, children)
+    }
+
+    /// 削除により編集中/強調中インデックスの対象がずれる場合を再調整する
+    /// 非公開ヘルパ（[`TagsInputAction::Remove`]/
+    /// [`TagsInputAction::DeleteHighlighted`]/[`TagsInputAction::Backspace`]
+    /// が共有する。存在しない/別タグを指す状態を残さない）。
+    fn reindex_after_remove(&mut self, idx: usize) {
+        if self.editing == Some(idx) {
+            self.editing = None;
+        } else if let Some(e) = self.editing {
+            if e > idx {
+                self.editing = Some(e - 1);
+            }
+        }
+        if self.highlighted == Some(idx) {
+            self.highlighted = if idx == 0 { None } else { Some(idx - 1) };
+        } else if let Some(h) = self.highlighted {
+            if h > idx {
+                self.highlighted = Some(h - 1);
+            }
+        }
     }
 }
 
@@ -579,23 +930,17 @@ impl Component for TagsInput {
                     return;
                 }
                 self.tags.remove(idx);
-                // 削除により編集中インデックスの対象がずれる場合は編集を
-                // 終了する（存在しない/別タグを指す編集状態を残さない）。
-                if self.editing == Some(idx) {
-                    self.editing = None;
-                } else if let Some(e) = self.editing {
-                    if e > idx {
-                        self.editing = Some(e - 1);
-                    }
-                }
+                self.reindex_after_remove(idx);
             }
             TagsInputAction::Clear => {
                 self.tags.clear();
                 self.editing = None;
+                self.highlighted = None;
             }
             TagsInputAction::EditStart(idx) => {
                 if idx < self.tags.len() {
                     self.editing = Some(idx);
+                    self.highlighted = None;
                 }
             }
             TagsInputAction::EditSubmit(new_value) => {
@@ -620,6 +965,47 @@ impl Component for TagsInput {
             TagsInputAction::EditCancel => {
                 self.editing = None;
             }
+            TagsInputAction::HighlightPrev => {
+                if self.tags.is_empty() {
+                    return;
+                }
+                self.highlighted = match self.highlighted {
+                    None => Some(self.tags.len() - 1),
+                    Some(i) => Some(i.saturating_sub(1)),
+                };
+            }
+            TagsInputAction::HighlightNext => {
+                let Some(i) = self.highlighted else { return };
+                self.highlighted = if i + 1 >= self.tags.len() {
+                    None
+                } else {
+                    Some(i + 1)
+                };
+            }
+            TagsInputAction::ClearHighlight => {
+                self.highlighted = None;
+            }
+            TagsInputAction::DeleteHighlighted => {
+                let Some(idx) = self.highlighted else { return };
+                if idx >= self.tags.len() {
+                    return;
+                }
+                self.tags.remove(idx);
+                self.reindex_after_remove(idx);
+            }
+            TagsInputAction::Backspace => {
+                if let Some(idx) = self.highlighted {
+                    if idx < self.tags.len() {
+                        self.tags.remove(idx);
+                        self.reindex_after_remove(idx);
+                    }
+                    return;
+                }
+                if let Some(last) = self.tags.len().checked_sub(1) {
+                    self.tags.remove(last);
+                    self.reindex_after_remove(last);
+                }
+            }
         }
     }
 
@@ -628,25 +1014,35 @@ impl Component for TagsInput {
     /// 公開 UI としての利用は想定しない（実際の UI 構築は各パーツメソッドを
     /// 呼び出し側が組み合わせる）。
     fn view(&self) -> Node {
+        let props = TagsInputProps::default();
         let items: Vec<Node> = self
             .tags
             .iter()
-            .enumerate()
-            .map(|(i, tag)| {
-                let preview = self.item_preview(
-                    false,
+            .map(|tag| {
+                let state = TagItem {
+                    value: tag,
+                    disabled: false,
+                    editing: false,
+                    highlighted: false,
+                };
+                let preview = item_preview(
+                    &state,
                     Vec::new(),
-                    vec![self.item_text(Vec::new(), vec![fandhe_frontend_core::text(tag)])],
+                    vec![item_text(
+                        &state,
+                        Vec::new(),
+                        vec![fandhe_frontend_core::text(tag)],
+                    )],
                 );
-                self.item(i, false, Vec::new(), vec![preview])
+                item(&state, Vec::new(), vec![preview])
             })
             .collect();
         let mut control_children = items;
-        control_children.push(self.input("", false, Vec::new()));
+        control_children.push(self.input(&props, "", Vec::new()));
         self.root(
-            false,
+            &props,
             Vec::new(),
-            vec![self.control(false, "Tags", Vec::new(), control_children)],
+            vec![self.control(&props, Vec::new(), control_children)],
         )
     }
 
@@ -661,6 +1057,11 @@ impl Component for TagsInput {
                 .map(TagsInputAction::EditStart),
             "edit-submit" => Some(TagsInputAction::EditSubmit(payload.to_string())),
             "edit-cancel" => Some(TagsInputAction::EditCancel),
+            "highlight-prev" => Some(TagsInputAction::HighlightPrev),
+            "highlight-next" => Some(TagsInputAction::HighlightNext),
+            "highlight-clear" => Some(TagsInputAction::ClearHighlight),
+            "delete-highlighted" => Some(TagsInputAction::DeleteHighlighted),
+            "backspace" => Some(TagsInputAction::Backspace),
             _ => None,
         }
     }
@@ -668,8 +1069,9 @@ impl Component for TagsInput {
 
 impl Hydrate for TagsInput {
     /// [`codec::encode_list`] でタグ列を運ぶ（[`crate::pin_input::PinInput`]
-    /// の `values` と同型）。`max` は `"none"` または非負整数文字列。`editing`
-    /// は ephemeral のため運ばない（モジュール doc 参照）。
+    /// の `values` と同型）。`max` は `"none"` または非負整数文字列。
+    /// `editing`/`highlighted` は ephemeral のため運ばない（モジュール doc
+    /// 参照）。
     fn hydration_attrs(&self) -> Vec<(String, String)> {
         vec![
             (
@@ -748,9 +1150,10 @@ impl Hydrate for TagsInput {
         Ok(Self {
             tags,
             max,
-            // 編集中インデックスは ephemeral な DOM 状態のため運ばない
-            // （モジュール doc 参照）。復元直後は常に未設定。
+            // 編集中/強調中インデックスはいずれも ephemeral な DOM 状態の
+            // ため運ばない（モジュール doc 参照）。復元直後は常に未設定。
             editing: None,
+            highlighted: None,
         })
     }
 }
@@ -765,144 +1168,230 @@ mod tests {
         strs.iter().map(|s| s.to_string()).collect()
     }
 
+    fn tag_item(value: &str) -> TagItem<'_> {
+        TagItem {
+            value,
+            disabled: false,
+            editing: false,
+            highlighted: false,
+        }
+    }
+
     // --- 各パーツの data-scope/data-part/data-disabled 出力 ---
 
     #[test]
     fn root_outputs_scope_part_and_no_state_when_enabled() {
-        let html = render(&root(false, vec![], vec![]));
+        let html = render(&root(&TagsInputProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="tags-input""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("data-disabled"));
     }
 
     #[test]
-    fn root_disabled_true_outputs_data_disabled() {
-        let html = render(&root(true, vec![], vec![]));
+    fn root_props_reflect_disabled_invalid_readonly() {
+        let props = TagsInputProps {
+            disabled: true,
+            readonly: true,
+            invalid: true,
+            required: false,
+        };
+        let html = render(&root(&props, vec![], vec![]));
         assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
     }
 
     #[test]
-    fn label_outputs_scope_and_part() {
-        let html = render(&label(vec![], vec![text("Tags")]));
+    fn label_required_outputs_data_required() {
+        let props = TagsInputProps {
+            required: true,
+            ..Default::default()
+        };
+        let html = render(&label(&props, vec![], vec![text("Tags")]));
         assert!(html.contains(r#"data-scope="tags-input""#));
         assert!(html.contains(r#"data-part="label""#));
+        assert!(html.contains(r#"data-required="""#));
         assert!(html.contains("Tags"));
     }
 
     #[test]
-    fn control_outputs_listbox_role_and_orientation() {
-        let html = render(&control(false, false, "Selected tags", vec![], vec![]));
+    fn control_no_longer_outputs_listbox_role() {
+        // #1623: zag/ark の control は role を持たない
+        // （モジュール doc「参照突合」節参照）。
+        let html = render(&control(&TagsInputProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="tags-input""#));
         assert!(html.contains(r#"data-part="control""#));
-        assert!(html.contains(r#"role="listbox""#));
-        assert!(html.contains(r#"aria-orientation="horizontal""#));
-        assert!(html.contains(r#"aria-label="Selected tags""#));
+        assert!(!html.contains("role="));
+        assert!(!html.contains("aria-orientation"));
         assert!(!html.contains("data-invalid"));
     }
 
     #[test]
     fn control_invalid_true_outputs_data_invalid() {
-        let html = render(&control(false, true, "Tags", vec![], vec![]));
+        let props = TagsInputProps {
+            invalid: true,
+            ..Default::default()
+        };
+        let html = render(&control(&props, vec![], vec![]));
         assert!(html.contains(r#"data-invalid="""#));
     }
 
     #[test]
-    fn item_outputs_scope_part_and_editing_state() {
-        let html = render(&item(false, true, vec![], vec![]));
+    fn item_outputs_scope_part_value_and_editing_state() {
+        let mut state = tag_item("rust");
+        state.editing = true;
+        let html = render(&item(&state, vec![], vec![]));
         assert!(html.contains(r#"data-part="item""#));
+        assert!(html.contains(r#"data-value="rust""#));
         assert!(html.contains(r#"data-editing="""#));
     }
 
     #[test]
     fn item_not_editing_omits_data_editing() {
-        let html = render(&item(false, false, vec![], vec![]));
+        let html = render(&item(&tag_item("rust"), vec![], vec![]));
         assert!(!html.contains("data-editing"));
     }
 
     #[test]
-    fn item_preview_outputs_option_role() {
-        let html = render(&item_preview(false, vec![], vec![]));
+    fn item_preview_no_longer_outputs_option_role_or_aria_selected() {
+        // #1623: 旧実装の role="option" + aria-selected="true" 固定は撤去
+        // （モジュール doc「参照突合」節参照）。
+        let html = render(&item_preview(&tag_item("rust"), vec![], vec![]));
         assert!(html.contains(r#"data-part="item-preview""#));
-        assert!(html.contains(r#"role="option""#));
+        assert!(html.contains(r#"data-value="rust""#));
+        assert!(!html.contains("role="));
+        assert!(!html.contains("aria-selected"));
     }
 
     #[test]
-    fn item_preview_always_outputs_aria_selected_true() {
-        // ItemPreview は listbox 配下の「既に追加されたタグ」を表すため
-        // `highlighted` の真偽に関わらず常に aria-selected="true" を伴う
-        // （`role="option"` と対で必須、Cursor Bugbot 指摘 #744 review comment
-        // 3639870269）。
-        let unhighlighted = render(&item_preview(false, vec![], vec![]));
-        assert!(unhighlighted.contains(r#"aria-selected="true""#));
-        let highlighted = render(&item_preview(true, vec![], vec![]));
-        assert!(highlighted.contains(r#"aria-selected="true""#));
+    fn item_preview_editing_outputs_hidden() {
+        let mut state = tag_item("rust");
+        state.editing = true;
+        let html = render(&item_preview(&state, vec![], vec![]));
+        assert!(html.contains("hidden"));
     }
 
     #[test]
     fn item_preview_highlighted_outputs_data_highlighted() {
-        let html = render(&item_preview(true, vec![], vec![]));
+        let mut state = tag_item("rust");
+        state.highlighted = true;
+        let html = render(&item_preview(&state, vec![], vec![]));
         assert!(html.contains(r#"data-highlighted="""#));
     }
 
     #[test]
     fn item_text_outputs_scope_and_part_with_tag_text() {
-        let html = render(&item_text(vec![], vec![text("rust")]));
+        let html = render(&item_text(&tag_item("rust"), vec![], vec![text("rust")]));
         assert!(html.contains(r#"data-part="item-text""#));
         assert!(html.contains("rust"));
     }
 
     #[test]
-    fn item_input_outputs_type_text_and_value() {
-        let html = render(&item_input("editing-value", vec![]));
+    fn item_input_editing_outputs_type_text_value_and_no_hidden() {
+        let mut state = tag_item("rust");
+        state.editing = true;
+        let html = render(&item_input(&state, "editing-value", vec![]));
         assert!(html.contains(r#"data-part="item-input""#));
         assert!(html.contains(r#"type="text""#));
         assert!(html.contains(r#"value="editing-value""#));
+        assert!(html.contains(r#"tabindex="-1""#));
+        assert!(!html.contains("hidden"));
     }
 
     #[test]
-    fn item_delete_trigger_outputs_type_button_and_aria_label() {
-        let html = render(&item_delete_trigger("rust", false, vec![], vec![]));
+    fn item_input_not_editing_outputs_hidden() {
+        let html = render(&item_input(&tag_item("rust"), "", vec![]));
+        assert!(html.contains("hidden"));
+    }
+
+    #[test]
+    fn item_delete_trigger_outputs_type_button_and_zag_aria_label() {
+        let html = render(&item_delete_trigger(&tag_item("rust"), vec![], vec![]));
         assert!(html.contains(r#"data-part="item-delete-trigger""#));
         assert!(html.contains(r#"type="button""#));
-        assert!(html.contains(r#"aria-label="Delete rust""#));
+        assert!(html.contains(r#"aria-label="Delete tag rust""#));
+        assert!(html.contains(r#"tabindex="-1""#));
         assert!(!html.contains("disabled"));
     }
 
     #[test]
     fn item_delete_trigger_disabled_outputs_native_disabled() {
-        let html = render(&item_delete_trigger("rust", true, vec![], vec![]));
+        let mut state = tag_item("rust");
+        state.disabled = true;
+        let html = render(&item_delete_trigger(&state, vec![], vec![]));
         assert!(html.contains(r#"disabled="""#));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn clear_trigger_outputs_type_button() {
-        let html = render(&clear_trigger(false, vec![], vec![text("Clear")]));
+        let html = render(&clear_trigger(
+            &TagsInputProps::default(),
+            vec![],
+            vec![text("Clear")],
+        ));
         assert!(html.contains(r#"data-part="clear-trigger""#));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains("Clear"));
     }
 
     #[test]
-    fn input_outputs_type_text_and_value() {
-        let html = render(&input("draft", false, false, vec![]));
+    fn clear_trigger_readonly_outputs_data_readonly() {
+        let props = TagsInputProps {
+            readonly: true,
+            ..Default::default()
+        };
+        let html = render(&clear_trigger(&props, vec![], vec![]));
+        assert!(html.contains(r#"data-readonly="""#));
+    }
+
+    #[test]
+    fn input_outputs_type_text_value_and_zag_fixed_attrs() {
+        let html = render(&input(&TagsInputProps::default(), "draft", false, vec![]));
         assert!(html.contains(r#"data-part="input""#));
         assert!(html.contains(r#"type="text""#));
         assert!(html.contains(r#"value="draft""#));
+        assert!(html.contains(r#"autocomplete="off""#));
+        assert!(html.contains(r#"autocorrect="off""#));
+        assert!(html.contains(r#"autocapitalize="none""#));
+        assert!(html.contains(r#"enterkeyhint="done""#));
         assert!(!html.contains("data-invalid"));
         assert!(!html.contains("aria-invalid"));
+        assert!(!html.contains("data-empty"));
+    }
+
+    #[test]
+    fn input_empty_value_outputs_data_empty() {
+        let html = render(&input(&TagsInputProps::default(), "", false, vec![]));
+        assert!(html.contains(r#"data-empty="""#));
     }
 
     #[test]
     fn input_at_max_outputs_data_invalid_and_aria_invalid() {
-        let html = render(&input("", false, true, vec![]));
+        let html = render(&input(&TagsInputProps::default(), "", true, vec![]));
         assert!(html.contains(r#"data-invalid="""#));
         assert!(html.contains(r#"aria-invalid="true""#));
     }
 
     #[test]
+    fn input_readonly_outputs_native_readonly() {
+        let props = TagsInputProps {
+            readonly: true,
+            ..Default::default()
+        };
+        let html = render(&input(&props, "", false, vec![]));
+        assert!(html.contains(r#"readonly="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+    }
+
+    #[test]
     fn hidden_input_outputs_type_hidden_name_and_value() {
-        let html = render(&hidden_input("tags", "rust,wasm", false, vec![]));
+        let html = render(&hidden_input(
+            &TagsInputProps::default(),
+            "tags",
+            "rust,wasm",
+            vec![],
+        ));
         assert!(html.contains(r#"data-part="hidden-input""#));
         assert!(html.contains(r#"type="hidden""#));
         assert!(html.contains(r#"name="tags""#));
@@ -912,9 +1401,26 @@ mod tests {
 
     #[test]
     fn hidden_input_disabled_outputs_native_disabled_and_data_disabled() {
-        let html = render(&hidden_input("tags", "", true, vec![]));
+        let props = TagsInputProps {
+            disabled: true,
+            ..Default::default()
+        };
+        let html = render(&hidden_input(&props, "tags", "", vec![]));
         assert!(html.contains(r#"disabled="""#));
         assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn hidden_input_required_does_not_output_native_required() {
+        // type="hidden" では制約検証対象外のためネイティブ required は
+        // 付けない（モジュール doc「参照突合」節参照）。
+        let props = TagsInputProps {
+            required: true,
+            ..Default::default()
+        };
+        let html = render(&hidden_input(&props, "tags", "", vec![]));
+        assert!(html.contains(r#"data-required="""#));
+        assert!(!html.contains(r#" required"#));
     }
 
     #[test]
@@ -932,13 +1438,25 @@ mod tests {
     #[test]
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&root(
-            false,
+            &TagsInputProps::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
         assert!(html.contains(r#"data-scope="tags-input""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn caller_supplied_data_disabled_on_root_is_dropped() {
+        // drop_reserved による fail-closed（呼び出し側がなりすまし付与
+        // できない、モジュール doc「セキュリティ不変条件」節参照）。
+        let html = render(&root(
+            &TagsInputProps::default(),
+            vec![("data-disabled", "")],
+            vec![],
+        ));
+        assert!(!html.contains("data-disabled"));
     }
 
     #[test]
@@ -962,6 +1480,7 @@ mod tests {
         assert_eq!(t.max(), None);
         assert!(!t.is_at_max());
         assert_eq!(t.value(), "");
+        assert_eq!(t.highlighted_index(), None);
     }
 
     #[test]
@@ -1070,6 +1589,14 @@ mod tests {
     }
 
     #[test]
+    fn clear_action_clears_highlight() {
+        let mut t = TagsInput::new(tags(&["a", "b"]), None);
+        dispatch(&mut t, "highlight-prev", "");
+        assert!(dispatch(&mut t, "clear", ""));
+        assert_eq!(t.highlighted_index(), None);
+    }
+
+    #[test]
     fn edit_start_then_submit_updates_tag() {
         let mut t = TagsInput::new(tags(&["a", "b"]), None);
         assert!(dispatch(&mut t, "edit-start", "0"));
@@ -1077,6 +1604,15 @@ mod tests {
         assert!(dispatch(&mut t, "edit-submit", "z"));
         assert_eq!(t.tags(), &tags(&["z", "b"]));
         assert_eq!(t.editing_index(), None);
+    }
+
+    #[test]
+    fn edit_start_clears_highlight() {
+        let mut t = TagsInput::new(tags(&["a", "b"]), None);
+        dispatch(&mut t, "highlight-prev", "");
+        assert_eq!(t.highlighted_index(), Some(1));
+        assert!(dispatch(&mut t, "edit-start", "0"));
+        assert_eq!(t.highlighted_index(), None);
     }
 
     #[test]
@@ -1149,6 +1685,106 @@ mod tests {
         dispatch(&mut t, "edit-start", "0");
         assert!(dispatch(&mut t, "remove", "0"));
         assert_eq!(t.editing_index(), None);
+    }
+
+    // --- TagsInput: highlight（キーボード強調）遷移 ---
+
+    #[test]
+    fn highlight_prev_from_none_selects_last_tag() {
+        let mut t = TagsInput::new(tags(&["a", "b", "c"]), None);
+        assert!(dispatch(&mut t, "highlight-prev", ""));
+        assert_eq!(t.highlighted_index(), Some(2));
+    }
+
+    #[test]
+    fn highlight_prev_saturates_at_first_tag() {
+        let mut t = TagsInput::new(tags(&["a", "b"]), None);
+        dispatch(&mut t, "highlight-prev", "");
+        dispatch(&mut t, "highlight-prev", "");
+        assert!(dispatch(&mut t, "highlight-prev", ""));
+        assert_eq!(t.highlighted_index(), Some(0));
+    }
+
+    #[test]
+    fn highlight_prev_on_empty_tags_is_no_op() {
+        let mut t = TagsInput::default();
+        assert!(dispatch(&mut t, "highlight-prev", ""));
+        assert_eq!(t.highlighted_index(), None);
+    }
+
+    #[test]
+    fn highlight_next_from_last_tag_returns_to_input() {
+        let mut t = TagsInput::new(tags(&["a", "b"]), None);
+        dispatch(&mut t, "highlight-prev", "");
+        assert_eq!(t.highlighted_index(), Some(1));
+        assert!(dispatch(&mut t, "highlight-next", ""));
+        assert_eq!(t.highlighted_index(), None);
+    }
+
+    #[test]
+    fn highlight_next_without_highlight_is_no_op() {
+        let mut t = TagsInput::new(tags(&["a", "b"]), None);
+        assert!(dispatch(&mut t, "highlight-next", ""));
+        assert_eq!(t.highlighted_index(), None);
+    }
+
+    #[test]
+    fn highlight_clear_resets_highlight() {
+        let mut t = TagsInput::new(tags(&["a", "b"]), None);
+        dispatch(&mut t, "highlight-prev", "");
+        assert!(dispatch(&mut t, "highlight-clear", ""));
+        assert_eq!(t.highlighted_index(), None);
+    }
+
+    #[test]
+    fn delete_highlighted_removes_tag_and_moves_highlight_back() {
+        let mut t = TagsInput::new(tags(&["a", "b", "c"]), None);
+        dispatch(&mut t, "highlight-prev", ""); // highlight index 2 ("c")
+        dispatch(&mut t, "highlight-prev", ""); // highlight index 1 ("b")
+        assert!(dispatch(&mut t, "delete-highlighted", ""));
+        assert_eq!(t.tags(), &tags(&["a", "c"]));
+        assert_eq!(t.highlighted_index(), Some(0));
+    }
+
+    #[test]
+    fn delete_highlighted_first_tag_clears_highlight() {
+        let mut t = TagsInput::new(tags(&["a", "b"]), None);
+        dispatch(&mut t, "highlight-prev", "");
+        dispatch(&mut t, "highlight-prev", "");
+        assert_eq!(t.highlighted_index(), Some(0));
+        assert!(dispatch(&mut t, "delete-highlighted", ""));
+        assert_eq!(t.tags(), &tags(&["b"]));
+        assert_eq!(t.highlighted_index(), None);
+    }
+
+    #[test]
+    fn delete_highlighted_without_highlight_is_no_op() {
+        let mut t = TagsInput::new(tags(&["a"]), None);
+        assert!(dispatch(&mut t, "delete-highlighted", ""));
+        assert_eq!(t.tags(), &tags(&["a"]));
+    }
+
+    #[test]
+    fn backspace_without_highlight_removes_last_tag() {
+        let mut t = TagsInput::new(tags(&["a", "b"]), None);
+        assert!(dispatch(&mut t, "backspace", ""));
+        assert_eq!(t.tags(), &tags(&["a"]));
+    }
+
+    #[test]
+    fn backspace_with_highlight_removes_highlighted_tag() {
+        let mut t = TagsInput::new(tags(&["a", "b", "c"]), None);
+        dispatch(&mut t, "highlight-prev", "");
+        dispatch(&mut t, "highlight-prev", ""); // highlight index 1 ("b")
+        assert!(dispatch(&mut t, "backspace", ""));
+        assert_eq!(t.tags(), &tags(&["a", "c"]));
+    }
+
+    #[test]
+    fn backspace_on_empty_tags_is_no_op() {
+        let mut t = TagsInput::default();
+        assert!(dispatch(&mut t, "backspace", ""));
+        assert!(t.is_empty());
     }
 
     // --- TagsInput: SSR 状態なし初期描画 ---
@@ -1272,6 +1908,15 @@ mod tests {
         assert_eq!(restored.editing_index(), None);
     }
 
+    #[test]
+    fn hydration_does_not_carry_highlighted_state() {
+        let mut t = TagsInput::new(tags(&["a", "b"]), None);
+        dispatch(&mut t, "highlight-prev", "");
+        assert_eq!(t.highlighted_index(), Some(1));
+        let restored = TagsInput::from_hydration_attrs(&t.hydration_attrs()).unwrap();
+        assert_eq!(restored.highlighted_index(), None);
+    }
+
     // --- XSS 回帰: タグ文字列/name/value/呼び出し側 attrs/children にペイロードを渡してもエスケープされる ---
 
     const ATTR_BREAK_PAYLOAD: &str = "\" onmouseover=\"alert(1)";
@@ -1279,16 +1924,33 @@ mod tests {
 
     #[test]
     fn item_text_tag_payload_is_escaped_on_render() {
-        let html = render(&item_text(vec![], vec![text(SCRIPT_PAYLOAD)]));
+        let html = render(&item_text(
+            &tag_item(SCRIPT_PAYLOAD),
+            vec![],
+            vec![text(SCRIPT_PAYLOAD)],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
 
     #[test]
+    fn item_data_value_payload_is_escaped_on_render() {
+        let html = render(&item(&tag_item(ATTR_BREAK_PAYLOAD), vec![], vec![]));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn item_preview_data_value_payload_is_escaped_on_render() {
+        let html = render(&item_preview(&tag_item(ATTR_BREAK_PAYLOAD), vec![], vec![]));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
     fn item_delete_trigger_aria_label_tag_payload_is_escaped_on_render() {
         let html = render(&item_delete_trigger(
-            ATTR_BREAK_PAYLOAD,
-            false,
+            &tag_item(ATTR_BREAK_PAYLOAD),
             vec![],
             vec![],
         ));
@@ -1309,7 +1971,12 @@ mod tests {
 
     #[test]
     fn hidden_input_value_payload_is_escaped_on_render() {
-        let html = render(&hidden_input("tags", ATTR_BREAK_PAYLOAD, false, vec![]));
+        let html = render(&hidden_input(
+            &TagsInputProps::default(),
+            "tags",
+            ATTR_BREAK_PAYLOAD,
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
@@ -1317,7 +1984,7 @@ mod tests {
     #[test]
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
-            false,
+            &TagsInputProps::default(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
             vec![],
         ));
@@ -1329,7 +1996,7 @@ mod tests {
         let mut t = TagsInput::default();
         dispatch(&mut t, "add", SCRIPT_PAYLOAD);
         let tag = &t.tags()[0];
-        let html = render(&item_text(vec![], vec![text(tag)]));
+        let html = render(&item_text(&tag_item(tag), vec![], vec![text(tag)]));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
@@ -1347,7 +2014,8 @@ mod tests {
             ),
         ];
         let restored = TagsInput::from_hydration_attrs(&attrs).unwrap();
-        let html = render(&item_text(vec![], vec![text(&restored.tags()[0])]));
+        let tag = &restored.tags()[0];
+        let html = render(&item_text(&tag_item(tag), vec![], vec![text(tag)]));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
