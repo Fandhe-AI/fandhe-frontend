@@ -106,20 +106,6 @@ fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
 // Calendar — 一次情報: crates/headless-ui/src/calendar.rs:1-431
 // ---------------------------------------------------------------------
 
-/// Examples 用の枠組み（`crate::primitive_specs::forms_a::wrap_example` と
-/// 同型。forms_a 側は私有関数のためモジュール間で共有せず、同じ
-/// `primitives-demo-frame`/`primitives-demo-note` class のみでここへも
-/// 複製する）。
-fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
-    div(
-        vec![],
-        vec![
-            p(vec![("class", "primitives-demo-note")], vec![text(note)]),
-            div(vec![("class", "primitives-demo-frame")], body),
-        ],
-    )
-}
-
 /// Calendar の Examples: 範囲下限に到達した前月移動トリガーと、範囲外の
 /// 日付（`day_trigger` の `disabled`）を示す（Demo は選択済みの単一日付の
 /// みを描画するため、range 制約の表示状態を補完する）。`prev_trigger`/
