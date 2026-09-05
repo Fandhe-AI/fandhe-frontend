@@ -86,7 +86,7 @@ use hui::number_input::{self, NumberInputFlags};
 use hui::password_input::{self, PasswordAutocomplete, PasswordInputProps};
 use hui::pin_input::{self, PinInputKind, PinInputProps};
 use hui::radio_group;
-use hui::rating_group::{self, RatingItemFlags};
+use hui::rating_group::{self, RatingGroupProps, RatingItemFlags};
 use hui::segment_group;
 use hui::select;
 use hui::signature_pad;
@@ -344,18 +344,20 @@ const RADIO_GROUP: ComponentPageSpec = ComponentPageSpec {
 };
 
 /// 一次情報: `crates/headless-ui/src/rating_group.rs`
-/// （モジュール doc 1-76、`root`/`label`/`control` 89-135、
-/// `item` 137-192、`hidden_input` 194-216）。
+/// （モジュール doc・`RatingGroupProps`・`root`/`label`/`control`・`item`・
+/// `hidden_input`。参照サイト（ark-ui Rating Group）との突合はイシュー
+/// #1617）。
 const RATING_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Label / Control / Item / HiddenInput の 5 anatomy パーツと、`1..=count` の数値評価値（未評価は `None`）+ hover プレビューを持つ状態機械を提供する。",
         "`role=\"radiogroup\"` + `item` の `role=\"radio\"`/`aria-checked` で WAI-ARIA radio パターンを表現するが、ネイティブ `<input type=\"radio\">` の組ではなく単一の `hidden_input`（`type=\"hidden\"`）でフォーム送信値を送る。",
         "`hover`（ポインタが指している星）は transient な CSR 挙動のため SSR 静的マークアップには現れず、hydration でも直列化しない（常に `None` から開始）。",
         "`readonly` が `true` のとき値の変更操作は no-op になる（他ユーザーの平均評価等、表示専用の評価を安全に描画する用途）。",
+        "`RatingGroupProps`（disabled/readonly/required）が root/label/control/hidden_input の状態束を一元管理する（イシュー #1617）。`label` は `data-disabled`/`data-required`、`control` は `data-disabled`/`data-readonly`/`aria-required` + 真のときのみの `aria-disabled=\"true\"`/`aria-readonly=\"true\"`/`aria-required=\"true\"` を反映する。",
+        "`item` は `tabindex` を出力しない。対応する DOM 配線（クリック・hover・キーボード。`fandhe-frontend-wasm-full`）が未実装のため、roving `tabindex` のみを先行公開すると「フォーカスは受けるが操作不能」な WAI-ARIA radio パターン違反になる（イシュー #1617 codex-review 指摘を受け、DOM 配線の実装と同時に tabindex を公開する方針とした）。",
     ],
     arguments: &[
-        ArgRow { name: "root(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
-        ArgRow { name: "root(readonly)", kind: "bool", default: "", description: "`data-readonly` を反映する。" },
+        ArgRow { name: "root/label/control/hidden_input(props)", kind: "&RatingGroupProps", default: "", description: "disabled/readonly/required の状態束（イシュー #1617）。" },
         ArgRow { name: "label(id)", kind: "Option<&str>", default: "", description: "`control(labelled_by)` の参照先 id。" },
         ArgRow { name: "control(labelled_by)", kind: "Option<&str>", default: "", description: "`Some` のときのみ `aria-labelledby` を付与する。" },
         ArgRow { name: "item(index)", kind: "u32", default: "", description: "1-origin の星番号。`data-value` として動的値のまま出力する。" },
@@ -368,12 +370,19 @@ const RATING_GROUP: ComponentPageSpec = ComponentPageSpec {
     ],
     examples: &[ExampleEntry {
         title: "Read-only average rating",
-        description: "`readonly: true` + `RatingItemFlags { readonly: true, .. }` の他ユーザー平均評価表示例。",
+        description: "`RatingGroupProps { readonly: true, .. }` + `RatingItemFlags { readonly: true, .. }` の他ユーザー平均評価表示例。",
         render: ex_rating_group_readonly,
     }],
+    // `item` は tabindex を出力せず（上記 features 参照）タブ順序に入らない。
+    // クリック・hover・キーボード操作の DOM 配線は wasm-full 側に一切存在
+    // しない（`crates/headless-ui/src/rating_group.rs` 「## キーボード操作
+    // （現状の対応範囲）」参照）。本ファイル冒頭の「`keyboard` を原則空に
+    // する理由」の例外リストに rating_group は含まれないため、「対応済み」
+    // の案内を出さず空のままとする（イシュー #1617 codex-review 指摘）。
     keyboard: &[],
     aria: &[
         AriaRow { attribute: "role=\"radiogroup\" (control)", description: "固定付与。" },
+        AriaRow { attribute: "aria-disabled / aria-readonly / aria-required (control)", description: "`RatingGroupProps` が真のときのみ `\"true\"` を出力する（イシュー #1617）。" },
         AriaRow { attribute: "role=\"radio\" / aria-checked (item)", description: "`item` 自身が `span[role=\"radio\"]`（ネイティブ input の組ではない）。`aria-checked` は `flags.checked` を反映する。" },
         AriaRow { attribute: "aria-label (item)", description: "呼び出し側が必須で与える（例: `\"1 star\"`）。" },
     ],
@@ -1051,6 +1060,11 @@ fn ex_radio_group_custom_css() -> Node {
 }
 
 fn ex_rating_group_readonly() -> Node {
+    let props = RatingGroupProps {
+        disabled: false,
+        readonly: true,
+        required: false,
+    };
     let mk = |index: u32, checked: bool, highlighted: bool| {
         rating_group::item(
             index,
@@ -1066,12 +1080,12 @@ fn ex_rating_group_readonly() -> Node {
         )
     };
     let body = vec![rating_group::root(
-        false,
-        true,
+        &props,
         vec![],
         vec![
-            rating_group::label(None, vec![], vec![text("Average rating")]),
+            rating_group::label(&props, None, vec![], vec![text("Average rating")]),
             rating_group::control(
+                &props,
                 None,
                 vec![],
                 vec![
@@ -1082,7 +1096,7 @@ fn ex_rating_group_readonly() -> Node {
                     mk(5, false, false),
                 ],
             ),
-            rating_group::hidden_input(Some("avg-rating"), "4", false, vec![]),
+            rating_group::hidden_input(&props, Some("avg-rating"), "4", vec![]),
         ],
     )];
     div(vec![("class", "primitives-demo-frame")], body)

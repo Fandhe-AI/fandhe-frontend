@@ -8,7 +8,7 @@ use hui::number_input::{self, NumberInputFlags};
 use hui::password_input::{self, PasswordAutocomplete, PasswordInputProps};
 use hui::pin_input::{self, PinInputKind, PinInputProps};
 use hui::radio_group;
-use hui::rating_group::{self, RatingItemFlags};
+use hui::rating_group::{self, RatingGroupProps, RatingItemFlags};
 use hui::segment_group;
 use hui::select;
 use hui::signature_pad::{self, Point, Stroke};
@@ -380,6 +380,7 @@ pub(super) fn radio_group_section() -> Node {
 }
 
 pub(super) fn rating_group_section() -> Node {
+    let props = RatingGroupProps::default();
     let mk = |index: u32, checked: bool, highlighted: bool| {
         rating_group::item(
             index,
@@ -395,17 +396,17 @@ pub(super) fn rating_group_section() -> Node {
         )
     };
     let body = vec![rating_group::root(
-        false,
-        false,
+        &props,
         vec![],
         vec![
-            rating_group::label(None, vec![], vec![text("Rating")]),
+            rating_group::label(&props, None, vec![], vec![text("Rating")]),
             rating_group::control(
+                &props,
                 None,
                 vec![],
                 vec![mk(1, false, true), mk(2, true, true), mk(3, false, false)],
             ),
-            rating_group::hidden_input(Some("rating"), "2", false, vec![]),
+            rating_group::hidden_input(&props, Some("rating"), "2", vec![]),
         ],
     )];
     demo_page("Rating Group", body)

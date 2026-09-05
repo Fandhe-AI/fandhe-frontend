@@ -4,6 +4,50 @@
 
 `/themes/` 側の `RatingGroup`（Chakra ライクな variant/size を持つスタイル層）と異なり、CSS を一切持ちません。
 
+`RatingGroupProps`（`disabled`/`readonly`/`required`）は次のように各パーツへ反映されます。`label` は `data-disabled`/`data-required` を、`control` は `data-disabled`/`data-readonly`/`aria-required` に加えて `disabled`/`readonly`/`required` が真のときのみ `aria-disabled="true"`/`aria-readonly="true"`/`aria-required="true"` を付与します。hidden-input の `required` は `type="hidden"` に効果がないため付与しません。
+
+**キーボード操作（未実装）**
+
+`item` は `tabindex` を出力しません（タブ順序に入りません）。ark-ui Rating Group は Arrow キーによる星間移動 + Enter による確定選択を仕様として持ちますが、本部品（`fandhe-frontend-headless-ui`）はクリック・ポインタ hover・キー入力を実際に検知する DOM イベントハンドラの配線（`fandhe-frontend-wasm-full`）を一切持たず、SSR 静的マークアップと dispatch 契約（`RatingGroupAction`）のみを提供します。DOM 配線の実装と同時に `tabindex` を公開する方針です（配線が無い状態でタブ順序に入れると「到達できるが無反応」になるため、当初案の roving `tabindex` 先行公開は撤回しました）。
+
+ポインタ・キーボード操作の実際の DOM 配線は `fandhe-frontend-wasm-full` の後続責務であり、本部品のスコープ外です。
+
+**参考サイトとの差分**
+
+ark-ui Rating Group と突合し、`data-*`/`aria-*` 語彙へ揃えました（キーボード操作の DOM 配線は上記のとおり未着手のため対象外）。一方、以下は意図的に合わせていません。
+
+- `data-half`（`allow_half`、0.5 刻み評価）は状態機械・CSS が別設計のため未提供です（#742 以来の継続）。
+- `aria-setsize`/`aria-posinset`（item）は全 item が DOM 上の兄弟要素として連続配置されるため、支援技術が自動算出できます。
+- `aria-roledescription="rating"`（item）は `role="radio"` + `aria-label` で十分と判断し、追随していません。
+- `aria-orientation="horizontal"`（control）は固定値かつ軸を持たないため、`data-orientation` も含めて不採用です。
+- `data-hover`/`data-active`/`data-focus`（pointer/focus 系）は SSR 静的出力の関心外です（Checkbox #1602 と同じ判断）。
+
 スタイル済みの表示例は [Rating Group](../themes/rating-group.md) を参照してください。
 
 関連 API: [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)
+
+**自前 CSS の最小例**
+
+Themes 版を使わず本部品を直接使う場合、`[data-scope="rating-group"][data-part="..."]` セレクタでスタイルを当てます。以下は星の寸法・塗り分け（`data-highlighted`）・確定選択（`data-checked`）・無効化の最小例です（`item` は `tabindex` を出力せずタブ順序に入らないため、`:focus-visible` の例は含みません）。
+
+```css
+[data-scope="rating-group"][data-part="item"] {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+}
+
+[data-scope="rating-group"][data-part="item"][data-highlighted] {
+  color: #f5a623;
+}
+
+[data-scope="rating-group"][data-part="item"][data-checked] {
+  font-weight: bold;
+}
+
+[data-scope="rating-group"][data-part="item"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+```
