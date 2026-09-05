@@ -1619,13 +1619,13 @@ fn demo_signature_pad() -> Node {
                     true,
                     vec![],
                     vec![
-                        signature_pad::label(vec![], vec![text("Sign here")]),
+                        signature_pad::label(false, vec![], vec![text("Sign here")]),
                         signature_pad::control(
                             false,
-                            vec![],
+                            vec![("aria-label", "Sign here")],
                             vec![
                                 signature_pad::segment(600, 200, Some("signature"), vec![], vec![]),
-                                signature_pad::guide(vec![], vec![]),
+                                signature_pad::guide(false, vec![], vec![]),
                             ],
                         ),
                         signature_pad::clear_trigger(false, vec![], vec![text("Clear")]),
@@ -1636,13 +1636,13 @@ fn demo_signature_pad() -> Node {
                     true,
                     vec![],
                     vec![
-                        signature_pad::label(vec![], vec![text("Sign here (disabled)")]),
+                        signature_pad::label(true, vec![], vec![text("Sign here (disabled)")]),
                         signature_pad::control(
                             true,
-                            vec![],
+                            vec![("aria-label", "Sign here (disabled)")],
                             vec![
                                 signature_pad::segment(600, 200, Some("signature"), vec![], vec![]),
-                                signature_pad::guide(vec![], vec![]),
+                                signature_pad::guide(true, vec![], vec![]),
                             ],
                         ),
                         signature_pad::clear_trigger(true, vec![], vec![text("Clear")]),
