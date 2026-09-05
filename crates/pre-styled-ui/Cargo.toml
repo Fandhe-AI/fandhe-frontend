@@ -1631,6 +1631,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.99.0 へ到達したため（同一版数への偶発的衝突をそのまま採用しない原則、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）、headless-ui
 # 0.49.0 依存追随とあわせてマイナーバンプで 0.100.0 とする。
+# base 再取り込み（PR #1904, 2026-09-05）: base 側で独立に到達していた
+# 0.99.1（イシュー #1633: headless-ui 0.48.1 依存追随の patch バンプ）は
+# 本ブランチのマイナーバンプ 0.100.0 に包含されるため、0.100.0 をそのまま
+# 維持する（headless-ui 側も 0.49.0 を維持しているため依存整合は保たれる）。
 version = "0.100.0"
 
 edition = "2021"

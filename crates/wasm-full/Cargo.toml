@@ -285,7 +285,10 @@ name = "fandhe-frontend-wasm-full"
 # 到達したため（同一版数への偶発的衝突をそのまま採用しない原則、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）、headless-ui
 # 0.48.0 依存追随のため patch バンプで 0.10.6 とする。
-version = "0.10.6"
+# イシュー #1633: base 取り込み後の headless-ui 0.48.1 依存追随（progress
+# の DOM 配線を wasm-full は持たず、依存バージョン要求の更新のみ）のため
+# patch バンプで 0.10.6 から 0.10.7 とする。
+version = "0.10.7"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
