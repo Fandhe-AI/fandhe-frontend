@@ -150,7 +150,13 @@ name = "fandhe-frontend-headless-ui"
 # 再発したため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
 # （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.40.0 へ
 # さらにマイナーバンプする。
-version = "0.40.0"
+# base ブランチ再取り込み（PR #1886, radio-group, 2026-09-05）: main（#1881
+# number-input）が独立に 0.40.0 へ到達しており、本ブランチの radio-group
+# 変更（`RadioGroupProps` 等の公開 API 変更）とは別内容のため、同じ
+# 「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.41.0 へ
+# さらにマイナーバンプする。
+version = "0.41.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
