@@ -297,6 +297,9 @@ name = "fandhe-frontend-headless-ui"
 # あわせて呼び出し側 attrs による状態偽装を防ぐ予約キー除去
 # （ROOT_RESERVED/TRIGGER_RESERVED/INDICATOR_RESERVED/CONTENT_RESERVED）を
 # 新設した。0.x の破壊的変更はマイナーバンプのため 0.50.0 から 0.51.0 とする。
+# イシュー #1639（drawer の参照突合）: `drawer::content` へ `tabindex="-1"`
+# を固定追加した（既存呼び出しの引数個数・シグネチャは不変、出力属性が
+# 増えるのみの非破壊的追加）。patch バンプとして 0.51.0 から 0.51.1 とする。
 # base 再取り込み（イシュー #1638, dialog の参照突合）: dialog の content へ
 # tabindex="-1" を固定付与（zag dialog.connect.ts との参照突合、既存呼び出し
 # 側の出力に属性が加わるのみの非破壊的変更）。main 側で独立に到達していた

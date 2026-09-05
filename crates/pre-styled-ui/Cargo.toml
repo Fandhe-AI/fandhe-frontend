@@ -1675,6 +1675,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §5・coding-rust.md
 # 「0.x の破壊的変更はマイナーバンプ」に従いマイナーバンプで 0.103.0 とする
 # （codex-review 指摘、PR #1908）。
+# イシュー #1639: headless-ui 0.51.1 依存追随（drawer::content への
+# tabindex="-1" 追加。`crates/pre-styled-ui/src/drawer.rs` の SLOTS
+# 構成・呼び出しシグネチャは不変で、headless-ui 全体を再エクスポートする
+# lib.rs 経由の間接的な出力属性増加のみ）。非破壊的追加のため patch
+# バンプで 0.103.1 とする。
 # base 再取り込み（イシュー #1638, dialog の参照突合）: headless-ui 0.51.1
 # 依存追随（dialog の content への tabindex="-1" 固定付与、非破壊的変更）。
 # main 側で独立に到達していた 0.103.0 に対し patch バンプで 0.103.1 とする。

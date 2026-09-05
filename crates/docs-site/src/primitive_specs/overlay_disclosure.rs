@@ -599,12 +599,15 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
 // Drawer（/primitives/drawer/）
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/drawer.rs:1-35`（モジュール doc、
-/// dialog パターンの変種として `crate::dialog` の状態機械をそのまま再利用、
-/// `wasm-full` の `OverlayKind::from_scope` が "drawer" を受理しないため
-/// CSR 側対応は別イシュー）、`:81-100`（`DrawerPlacement` 4 値・既定
-/// `End`）、`:136-270`（`root`/`trigger`/`backdrop`/`positioner`/
-/// `content`/`title`/`description`/`close_trigger` シグネチャ）。
+/// 一次情報: `crates/headless-ui/src/drawer.rs:1-97`（モジュール doc、
+/// dialog パターンの変種として `crate::dialog` の状態機械をそのまま再利用。
+/// イシュー #1639 で `fandhe-frontend-wasm-full` は drawer scope を
+/// `MAPPING_TABLE`/`OverlayKind::from_scope`/`focus_trap::should_trap` の
+/// いずれにも配線しておらず、ハイドレーション後の Drawer が inert である
+/// ことを確認・記述した）、`:127-146`（`DrawerPlacement` 4 値・既定
+/// `End`）、`:181-327`（`root`/`trigger`/`backdrop`/`positioner`/
+/// `content`/`title`/`description`/`close_trigger` シグネチャ。`content`
+/// は #1639 で `tabindex="-1"` を固定付与）。
 fn ex_drawer_start_placement() -> Node {
     let state = OpenState::Open;
     let placement = DrawerPlacement::Start;
@@ -667,7 +670,9 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
         "dialog パターンの変種として crate::dialog の Disclosure 状態機械をそのまま再利用する（新規状態機械を作らない）。",
         "DrawerPlacement（Start/End/Top/Bottom、既定 End）で画面のどの端から出現するかを切り替え、root/positioner/content の data-placement へ反映する。",
         "content は role=\"dialog\" を固定付与する（Alertdialog 相当の variant は提供しない。常設ナビ・フィルタ等の補助パネル用途に一致させるため）。",
-        "fandhe-frontend-wasm-full の OverlayKind::from_scope は \"drawer\" を受理しないため、Escape/外側クリックの実 DOM 配線は別イシュー扱い（fail-closed のため未対応でも安全側）。",
+        "content は tabindex=\"-1\" を固定付与する（zag drawer.connect.ts/WAI-ARIA dialog パターンの前提。イシュー #1639）。",
+        "fandhe-frontend-wasm-full は drawer scope を一切配線していない（MAPPING_TABLE に scope=\"drawer\" の行がなく trigger/close-trigger の click が dispatch されない、OverlayKind::from_scope は \"drawer\" を拒否、focus_trap::should_trap も data-scope=\"dialog\" のみ対象）。ハイドレーション後の Drawer は現状 inert であり、Escape/外側クリック閉鎖・フォーカストラップのいずれも未対応（別イシューで追跡、fail-closed のため未対応でも安全側。イシュー #1639 で判明・記述是正）。",
+        "grabber/swipe-area 等のドラッグ操作パーツ・data-swipe-direction 等のスワイプ状態語彙は意図的に非採用（ドラッグ操作という JS ランタイムの実行時計測関心のため。イシュー #1639）。",
     ],
     arguments: &[
         ArgRow {
@@ -783,6 +788,10 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-labelledby / aria-describedby",
             description: "content に付与。ids.labelledby/ids.describedby が Some のときのみ出力される。",
+        },
+        AriaRow {
+            attribute: "tabindex=\"-1\"",
+            description: "content に固定付与。プログラム的フォーカスのみを許可する WAI-ARIA dialog パターンの前提（イシュー #1639）。",
         },
     ],
     demo: None,

@@ -319,6 +319,10 @@ name = "fandhe-frontend-wasm-full"
 # indicator/content シグネチャ変更。MAPPING_TABLE の trigger 配線は
 # `root`/`trigger` のみを呼ぶため wasm-full 自身の src は無変更）のため
 # patch バンプで 0.10.11 とする。
+# イシュー #1639: headless-ui 0.51.1 依存追随（drawer::content への
+# tabindex="-1" 追加）。drawer scope は MAPPING_TABLE/OverlayKind/
+# focus_trap いずれも未配線のため wasm-full 自身の src は無変更（`version
+# = "..."` 追随のみ）。patch バンプで 0.10.12 とする。
 # base 再取り込み（イシュー #1638, dialog の参照突合）: headless-ui 0.51.1
 # 依存追随（dialog の content への tabindex="-1" 固定付与。tabindex="-1" を
 # 除外する wasm-full の `focus_trap::is_tabbable`/`focus_content_itself` は
