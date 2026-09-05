@@ -122,6 +122,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{PanelSpec, Splitter};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::tour::{Tour, TourStep};
+use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
@@ -561,6 +562,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: checkbox_section,
     },
     ComponentPage {
+        path: "/themes/field/",
+        render: field_section,
+    },
+    ComponentPage {
         path: "/themes/input/",
         render: input_section,
     },
@@ -933,6 +938,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox_card::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_card::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::field::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
@@ -3823,6 +3829,162 @@ fn disabled_field(id: &'static str) -> FieldProps<'static> {
         disabled: true,
         ..plain_field(id)
     }
+}
+
+/// `readonly: true` のみを立てた [`FieldProps`]（[`plain_field`] 派生、
+/// [`field_section`] 専用）。
+fn readonly_field(id: &'static str) -> FieldProps<'static> {
+    FieldProps {
+        readonly: true,
+        ..plain_field(id)
+    }
+}
+
+/// `required: true` のみを立てた [`FieldProps`]（[`plain_field`] 派生、
+/// [`field_section`] 専用）。
+fn required_field(id: &'static str) -> FieldProps<'static> {
+    FieldProps {
+        required: true,
+        ..plain_field(id)
+    }
+}
+
+/// `has_helper_text: true` のみを立てた [`FieldProps`]（[`plain_field`]
+/// 派生、[`field_section`] 専用）。`helper_text` パーツを実際に描画する
+/// インスタンスにのみ使う（`aria-describedby` の参照先欠落を残さない契約、
+/// `input_section` の `invalid_field` 併設コメントと同型）。
+fn field_with_helper(id: &'static str) -> FieldProps<'static> {
+    FieldProps {
+        has_helper_text: true,
+        ..plain_field(id)
+    }
+}
+
+/// `invalid: true` かつ `has_helper_text: true` を立てた [`FieldProps`]
+/// （[`plain_field`] 派生、[`field_section`] 専用）。helper_text/error_text
+/// を両方併設するインスタンス向け。
+fn invalid_field_with_helper(id: &'static str) -> FieldProps<'static> {
+    FieldProps {
+        invalid: true,
+        has_helper_text: true,
+        ..plain_field(id)
+    }
+}
+
+/// [`field_section`] の 1 インスタンスを組み立てる内部ヘルパー。
+///
+/// コントロール（`input`）は本節の責務外で、`fandhe_frontend_pre_styled_ui::input`
+/// が所有する既存 styled 部品をそのまま呼ぶ（`field.rs` モジュール doc
+/// 「本モジュールが宣言する slot」節参照。`field` は `input`/`textarea`/
+/// `select` slot を宣言しない）。`required_indicator`/`error_text` は
+/// headless 側の `hidden` fail-closed 描画（該当しない状態では非表示）に
+/// 従い常に描画し、`helper` に `Some` を渡したときのみ `helper_text` を
+/// 追加描画する。`helper` の有無と `f.has_helper_text`（[`field_with_helper`]
+/// 等で構築）を食い違わせないことが呼び出し側の契約である。
+fn field_instance(
+    orientation: FieldOrientation,
+    f: &FieldProps<'_>,
+    label_text: &'static str,
+    placeholder: &'static str,
+    helper: Option<&'static str>,
+) -> Node {
+    let mut children = vec![
+        field::label(
+            f,
+            vec![],
+            vec![
+                text(label_text),
+                field::required_indicator(f, vec![], vec![text("*")]),
+            ],
+        ),
+        input::input(
+            &InputProps::default(),
+            f,
+            vec![("placeholder", placeholder)],
+        ),
+    ];
+    if let Some(helper_text_value) = helper {
+        children.push(field::helper_text(f, vec![], vec![text(helper_text_value)]));
+    }
+    children.push(field::error_text(
+        f,
+        vec![],
+        vec![text("This field is required.")],
+    ));
+    field::root(&FieldRootProps { orientation }, f, vec![], children)
+}
+
+/// Field 節: root/label/コントロール/helper-text/error-text/
+/// required-indicator の型階層と余白を、既定+helper・invalid+helper+error・
+/// disabled・readonly・required・horizontal の 6 態で掲示する。
+///
+/// コントロール（`input`）は `fandhe_frontend_pre_styled_ui::input` が所有
+/// するため本節ではそれをそのまま呼ぶ。`data-invalid`/`data-disabled`/
+/// `data-required`/`data-readonly` を CSS セレクタとして参照し視覚を
+/// 切り替えるだけで、バリデーション処理（値の妥当性判定・送信処理）自体は
+/// 実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1、
+/// `field.rs` モジュール doc「責務境界」節参照）。
+fn field_section() -> Node {
+    let default_instance = field_instance(
+        FieldOrientation::Vertical,
+        &field_with_helper("showcase-field-default"),
+        "Email",
+        "you@example.com",
+        Some("We'll never share your email."),
+    );
+
+    let invalid_instance = field_instance(
+        FieldOrientation::Vertical,
+        &invalid_field_with_helper("showcase-field-invalid"),
+        "Email",
+        "you@example.com",
+        Some("We'll never share your email."),
+    );
+
+    let disabled_instance = field_instance(
+        FieldOrientation::Vertical,
+        &disabled_field("showcase-field-disabled"),
+        "Email",
+        "you@example.com",
+        None,
+    );
+
+    let readonly_instance = field_instance(
+        FieldOrientation::Vertical,
+        &readonly_field("showcase-field-readonly"),
+        "Email",
+        "you@example.com",
+        None,
+    );
+
+    let required_instance = field_instance(
+        FieldOrientation::Vertical,
+        &required_field("showcase-field-required"),
+        "Email",
+        "you@example.com",
+        None,
+    );
+
+    let horizontal_instance = field_instance(
+        FieldOrientation::Horizontal,
+        &plain_field("showcase-field-horizontal"),
+        "Email",
+        "you@example.com",
+        None,
+    );
+
+    section(
+        "Field",
+        "ラベル・補助テキスト・エラーテキスト・必須マークの型階層と余白を提供する静的コンテナ部品。コントロール（input/textarea/select）は各コントロール部品が所有し、data-invalid 等を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。",
+        vec![stack(vec![
+            default_instance,
+            invalid_instance,
+            disabled_instance,
+            readonly_instance,
+            required_instance,
+            horizontal_instance,
+        ])],
+    )
 }
 
 /// Input 節: Outline（既定）/ Invalid / Disabled の 3 態。
@@ -9197,7 +9359,8 @@ mod tests {
         // イシュー #1154 で Link / Link Overlay / Nav List を追加し
         // 98 → 101 件になった。
         // イシュー #1683 で Collapsible を追加し 101 → 102 件になった。
-        assert_eq!(paths.len(), 102, "COMPONENT_PAGES should have 102 entries");
+        // イシュー #1685 で Field を追加し 102 → 103 件になった。
+        assert_eq!(paths.len(), 103, "COMPONENT_PAGES should have 103 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
@@ -9335,9 +9498,19 @@ mod tests {
                 "missing data-scope={scope}"
             );
         }
-        // Input / Textarea / NativeSelect（イシュー #737）: field scope 内の
-        // 3 パーツすべてが掲示されていることを固定する。
-        for part in ["input", "textarea", "select"] {
+        // Input / Textarea / NativeSelect（イシュー #737）+ Field 節
+        // （イシュー #1685）: field scope 内の 6 パーツすべてが
+        // 掲示されていることを固定する。
+        for part in [
+            "input",
+            "textarea",
+            "select",
+            "root",
+            "label",
+            "helper-text",
+            "error-text",
+            "required-indicator",
+        ] {
             assert!(
                 html.contains(&format!(r#"data-scope="field" data-part="{part}""#)),
                 "missing data-scope=field data-part={part}"
@@ -9450,6 +9623,12 @@ mod tests {
         assert!(css.contains(r#"[data-scope="field"][data-part="input"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="textarea"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="select"]"#));
+        // Field 節（イシュー #1685）: label/helper-text/error-text/
+        // required-indicator の型階層 recipe CSS。
+        assert!(css.contains(r#"[data-scope="field"][data-part="label"]"#));
+        assert!(css.contains(r#"[data-scope="field"][data-part="helper-text"]"#));
+        assert!(css.contains(r#"[data-scope="field"][data-part="error-text"]"#));
+        assert!(css.contains(r#"[data-scope="field"][data-part="required-indicator"]"#));
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="password-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));

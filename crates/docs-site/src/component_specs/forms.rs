@@ -60,9 +60,9 @@ use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec};
 
-/// Forms 27 ページ（当初 31 ページから、#948 と二重登録だった 5 ページを
-/// 削除・#997 で Checkbox Group を追加済み）の `path -> ComponentPageSpec`
-/// テーブル。
+/// Forms 28 ページ（当初 31 ページから、#948 と二重登録だった 5 ページを
+/// 削除・#997 で Checkbox Group・#1685 で Field を追加済み）の
+/// `path -> ComponentPageSpec` テーブル。
 /// [`crate::component_page::SPEC_TABLES`] が集約する。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/angle-slider/", ANGLE_SLIDER),
@@ -72,6 +72,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/checkbox-group/", CHECKBOX_GROUP),
     ("/themes/combobox/", COMBOBOX),
     ("/themes/editable/", EDITABLE),
+    ("/themes/field/", FIELD),
     ("/themes/file-upload/", FILE_UPLOAD),
     ("/themes/image-cropper/", IMAGE_CROPPER),
     ("/themes/input/", INPUT),
@@ -445,6 +446,67 @@ const EDITABLE: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
+const FIELD: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "root/label/helper-text/error-text/required-indicator の 5 slot に型階層と余白（`orientation`、既定 `Vertical`）を提供する。コントロール（`input`/`textarea`/`select`）は `input`/`textarea`/`native_select` の各 recipe が同じ `\"field\"` scope を共有して所有するため、本モジュールは宣言しない（`field.rs` モジュール doc「本モジュールが宣言する slot」節）。",
+        "`orientation` のみを持つ variant 軸（`size`/`colorPalette` は非提供。ラベル・補助テキストの文字サイズは固定の型階層で表現する設計判断）。",
+        "`data-invalid`/`data-disabled`/`data-required`/`data-readonly` はいずれも headless-ui `field::root` が出力する状態を CSS セレクタとして参照するだけで、値の妥当性判定・送信処理といったバリデーション自体は実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
+        "`error-text`/`required-indicator` は非該当状態で `hidden` 存在属性を付与する headless 側の fail-closed 描画に従い、`[hidden] { display: none; }` のみを重ねる（独自の表示切替ロジックは持たない）。",
+        "hover / focus ring / transition はいずれも意図的に非採用（実フォーカスはコントロール側にあり、状態遷移に伴う視覚変化がないため）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "props",
+            kind: "&FieldRootProps",
+            default: "",
+            description: "`orientation`（既定 `Vertical`）を束ねる構造体。",
+        },
+        ArgRow {
+            name: "field",
+            kind: "&FieldProps<'_>",
+            default: "",
+            description: "`id`・`disabled`・`invalid`・`required`・`readonly`・`has_helper_text` 等、headless-ui `field` スコープ共通の状態。",
+        },
+        ArgRow {
+            name: "attrs",
+            kind: "Vec<(&str, &str)>",
+            default: "",
+            description: "`root` へ合成する追加属性（`class` は recipe クラスへ置き換えられ除去される）。",
+        },
+        ArgRow {
+            name: "children",
+            kind: "Vec<Node>",
+            default: "",
+            description: "`root` 配下の子ノード（`label`/コントロール/`helper_text`/`error_text` 等）。",
+        },
+    ],
+    examples: &[],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "aria-describedby",
+            description: "コントロール（`input`/`textarea`/`select`）側で、`invalid` のとき error id、`has_helper_text` のとき helper id を空白区切りで合成する（headless `field::input` 等の描画則）。",
+        },
+        AriaRow {
+            attribute: "aria-invalid",
+            description: "`invalid` が `true` のときコントロールへ `\"true\"` を付与する。",
+        },
+        AriaRow {
+            attribute: "aria-live=\"polite\"",
+            description: "`error_text` パーツへ固定付与する。",
+        },
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "`required_indicator` パーツへ固定付与する（装飾目的の印のため）。",
+        },
+        AriaRow {
+            attribute: "label[for] / control id",
+            description: "`label` の `for` とコントロールの `id` は同一 `FieldProps` から決定的に対応する。",
+        },
+    ],
+    demo: None,
+};
+
 const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "headless-ui の `file_upload::root` へ委譲し、`size` variant クラスのみを付与する。",
@@ -530,7 +592,7 @@ const IMAGE_CROPPER: ComponentPageSpec = ComponentPageSpec {
 const INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "`variant`（既定 `Outline`）/`size` の 2 軸を持ち、headless-ui の `field::input`（`data-scope=\"field\"`）へ委譲する。",
-        "`FieldProps` を通じて `disabled`/`invalid`/`required`/`readonly` を制御する（`Field` 自体は headless-ui のみが提供し、pre-styled-ui 側に独立ページを持たない）。",
+        "`FieldProps` を通じて `disabled`/`invalid`/`required`/`readonly` を制御する（ラベル・補助テキストの型階層は `field` 部品（`/themes/field/`）が担う）。",
     ],
     arguments: &[
         ArgRow {

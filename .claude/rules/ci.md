@@ -131,7 +131,7 @@
   `search_index.rs` / `site_nav.rs` / `site_build.rs` / `redirects.rs` /
   `no_js_contract.rs` / `primitive_showcase.rs` / `primitive_showcase_xss.rs` /
   `primitives_nav.rs` / `primitives_catalog.rs` / `wrap_state.rs`〔Primitives
-  63 部品 と Themes 108 部品の層をまたぐラップ状態の 4 バケット分割検知、
+  63 部品 と Themes 109 部品の層をまたぐラップ状態の 4 バケット分割検知、
   イシュー #1064〕/ `highlight.rs`〔フェンスコードブロックの軽量シンタックス
   ハイライト（`src/highlight.rs`）の XSS エスケープ・CSS トークン網羅性・
   全域性契約、イシュー #1078〕）が担い、yml・ci.md では

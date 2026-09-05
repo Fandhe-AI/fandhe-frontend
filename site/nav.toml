@@ -585,6 +585,11 @@ source = "site/themes/editable.md"
 path = "/themes/editable/"
 
 [[section.group.page]]
+title = "Field"
+source = "site/themes/field.md"
+path = "/themes/field/"
+
+[[section.group.page]]
 title = "File Upload"
 source = "site/themes/file-upload.md"
 path = "/themes/file-upload/"
