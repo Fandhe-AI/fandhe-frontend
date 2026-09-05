@@ -332,7 +332,18 @@ name = "fandhe-frontend-headless-ui"
 # 衝突する（同一版数への偶発的衝突をそのまま採用しない原則、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）。両者の和集合として
 # さらに patch バンプで 0.53.2 とする。
-version = "0.53.2"
+# codex-review 指摘（PR #1915, イシュー #1642）: `popover::content` の
+# `drop_tabindex_attr` は呼び出し側が明示的に渡した `tabindex`（例:
+# `[("tabindex", "0")]`）を無条件に除去し `-1` へ差し替える。これは既存
+# 呼び出し側のキーボード操作（`tabindex="0"` 明示指定によるネイティブ
+# フォーカス許可）を変える破壊的変更であり、上記コメントの「出力属性が
+# 増えるのみの非破壊的追加」という patch バンプの前提は誤りだった。
+# dialog（#1638）・drawer（#1639）も同型の `drop_tabindex_attr` を持つが、
+# 当時のレビューでは「SSR/wasm-client 間の重複属性出力の一貫性」観点の
+# 指摘に留まり semver 上の破壊性は指摘されなかった経緯があり、本 PR の
+# 指摘で初めて是正する（先行 2 件の patch バンプは遡って訂正しない）。
+# 0.x の破壊的変更のためマイナーバンプで 0.54.0 とする。
+version = "0.54.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
