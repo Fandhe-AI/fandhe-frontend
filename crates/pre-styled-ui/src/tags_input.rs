@@ -153,12 +153,13 @@
 //!   #1425 §5 手順どおり）。既存の `[data-disabled]`（cursor のみ）は
 //!   維持する。
 //! - **`data-selected` は意図的 N/A**: headless `item_preview` は
-//!   「既に確定したタグ」を表し `aria-selected="true"` を常時固定で出力し、
-//!   `data-selected` 属性は出力しない（選択が可変でない意味論、
-//!   `crates/headless-ui/src/tags_input.rs::item_preview` rustdoc 参照）。
-//!   死に CSS（存在しない属性へのセレクタ）を追加せず本節に理由のみ記録
-//!   する。将来 headless 側の意味論が変わる（`data-selected` の出力が
-//!   追加される）場合はこの判断を再評価する。
+//!   `data-selected` 属性を出力しない（`item_preview` はすでに確定した
+//!   タグを表す語彙であり選択が可変ではないため）。旧実装は
+//!   `role="option"` + `aria-selected="true"` を固定出力していたが、
+//!   イシュー #1623 で zag/ark 準拠（`role` を持たない）へ是正し撤去した
+//!   （`crates/headless-ui/src/tags_input.rs::item_preview` rustdoc
+//!   「参照突合」節参照）。死に CSS（存在しない属性へのセレクタ）を
+//!   追加せず本節に理由のみ記録する。
 //! - **`clear-trigger` はスコープ外**: #1699 の対象列挙（item 系）に
 //!   含まれないため変更しない。
 
@@ -177,7 +178,7 @@ use crate::recipe::{
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::tags_input::{
     clear_trigger, control, hidden_input, input, item, item_delete_trigger, item_input,
-    item_preview, item_text, label, TagsInputAction,
+    item_preview, item_text, label, TagItem, TagsInputAction, TagsInputProps,
 };
 
 /// headless `tags_input` anatomy の `data-part` 一覧
@@ -321,6 +322,19 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-accent)"),
                 decl("color", "var(--fandhe-color-accent-fg)"),
             ],
+        )
+        // headless `item_preview` は編集中 `hidden` 存在属性を出力し
+        // `item_input` と表示を排他する契約だが（`crates/headless-ui/
+        // src/tags_input.rs::item_preview` rustdoc 参照）、上記 base の
+        // `display: inline-flex` がブラウザ既定の `[hidden] { display:
+        // none }` UA スタイルより詳細度で勝つため、CSS を明示指定しないと
+        // 編集中も旧チップ・削除ボタンが表示されたままになる（codex-review
+        // 指摘 #1623）。`hidden` 属性へ `display: none` を明示して表示排他
+        // を回復する。
+        .state(
+            "item-preview",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
         )
         .base("item-text", vec![decl("white-space", "nowrap")])
         .base(
@@ -496,7 +510,11 @@ pub fn root<'a>(
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::tags_input::root(disabled, merged, children)
+    let props = fandhe_frontend_headless_ui::tags_input::TagsInputProps {
+        disabled,
+        ..Default::default()
+    };
+    fandhe_frontend_headless_ui::tags_input::root(&props, merged, children)
 }
 
 #[cfg(test)]
@@ -720,14 +738,28 @@ mod tests {
 
     #[test]
     fn reexported_label_children_are_escaped_on_render() {
-        let html = render(&label(vec![], vec![text("<script>alert(1)</script>")]));
+        let html = render(&label(
+            &TagsInputProps::default(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
 
     #[test]
     fn reexported_item_text_tag_payload_is_escaped_on_render() {
-        let html = render(&item_text(vec![], vec![text("<script>alert(1)</script>")]));
+        let state = TagItem {
+            value: "<script>alert(1)</script>",
+            disabled: false,
+            editing: false,
+            highlighted: false,
+        };
+        let html = render(&item_text(
+            &state,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
@@ -735,7 +767,12 @@ mod tests {
     #[test]
     fn reexported_hidden_input_name_value_payload_is_escaped_on_render() {
         const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
-        let html = render(&hidden_input(PAYLOAD, PAYLOAD, false, vec![]));
+        let html = render(&hidden_input(
+            &TagsInputProps::default(),
+            PAYLOAD,
+            PAYLOAD,
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
@@ -743,7 +780,13 @@ mod tests {
     #[test]
     fn reexported_item_delete_trigger_aria_label_payload_is_escaped_on_render() {
         const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
-        let html = render(&item_delete_trigger(PAYLOAD, false, vec![], vec![]));
+        let state = TagItem {
+            value: PAYLOAD,
+            disabled: false,
+            editing: false,
+            highlighted: false,
+        };
+        let html = render(&item_delete_trigger(&state, vec![], vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
@@ -759,7 +802,7 @@ mod tests {
         let mut t = TagsInput::new(Vec::new(), Some(5));
         assert!(t.is_empty());
 
-        let ssr_html = render(&t.root(false, vec![], vec![]));
+        let ssr_html = render(&t.root(&TagsInputProps::default(), vec![], vec![]));
         assert!(!ssr_html.contains("data-hydrate-"));
 
         assert!(dispatch(&mut t, "add", "rust"));

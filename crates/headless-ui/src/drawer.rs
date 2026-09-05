@@ -25,18 +25,63 @@
 //! - フォーカストラップ・Escape キーでの閉鎖・外側クリックでの閉鎖・
 //!   アニメーション対応の `open`/`visible` 分離は [`crate::dialog`] と同じく
 //!   JS ランタイム側の責務であり本イシューのスコープ外（SSR/属性出力のみ）。
-//! - `fandhe-frontend-wasm-full` の `OverlayKind::from_scope`（Escape / 外側
-//!   クリックの DOM 配線）は `"drawer"` を受理しないため、CSR 側の対応は
-//!   別イシューとする（fail-closed のため未対応でも安全側）。
-//! - Grabber / snapPoints / draggable（ark-ui）はドラッグ操作という JS
-//!   ランタイムの責務であり、[`crate::dialog`] のスコープ外方針を継承する。
+//! - **`fandhe-frontend-wasm-full` は drawer scope を一切配線していない
+//!   （イシュー #1639 で判明した事実）**: `headless.rs` の
+//!   `MAPPING_TABLE`（part → action 対応表）に `scope: "drawer"` の行が
+//!   なくハイドレーション後も trigger/close-trigger の click が
+//!   dispatch されない。`overlay.rs` の `OverlayKind::from_scope` は
+//!   `"drawer"` を拒否し（Escape・外側クリック閉鎖なし）、
+//!   `focus_trap.rs` の `should_trap` も `data-scope="dialog"` のみを
+//!   対象とする（フォーカストラップ・フォーカス復帰なし）。つまり
+//!   ハイドレーション後の Drawer は現状 **inert**（trigger 等が click
+//!   に応答しない）である。「Escape・外側クリックのみ未対応」という
+//!   従来の記述は過小であり、本節で正確に是正する。wasm-full 側の配線は
+//!   別イシューで追跡する（fail-closed のため未配線でも安全側）。
+//! - Grabber / snapPoints / draggable（ark-ui のドラッグ・スワイプ操作）は
+//!   JS ランタイムの実行時計測・アニメーション関心であり、
+//!   [`crate::dialog`] のスコープ外方針を継承する（
+//!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2）。
+//!
+//! # 参考サイトとの意図的な差分（イシュー #1639 で参照突合）
+//!
+//! ark-ui（zag `drawer.connect.ts`）・chakra-ui の Drawer と突合した結果、
+//! anatomy パーツ・`data-*` 属性の増減は行っていない（Themes
+//! （`fandhe-frontend-pre-styled-ui`）側への波及なし）。判定結果は以下の
+//! 通り:
+//!
+//! - **是正**: [`content`] へ `tabindex="-1"` を固定付与した（zag
+//!   `drawer.connect.ts`/WAI-ARIA dialog パターンの前提。詳細は [`content`]
+//!   の rustdoc 参照）。
+//! - **意図的に非採用**（維持）: `grabber`/`grabber-indicator`/
+//!   `swipe-area`/`indent`/`indent-background` パーツ、
+//!   `data-swipe-direction`/`data-swiping`/`data-dragging`/`data-expanded`/
+//!   `data-nested-drawer-*` 属性はいずれもドラッグ操作・スタック積層の
+//!   実行時計測に紐づく装飾関心であり headless 層へ持ち込まない。trigger
+//!   の `data-ownedby`/`data-value`/`data-current`（zag 固有）も採用せず、
+//!   既存の `aria-controls` による id 関連付けで代替する（[`crate::dialog`]
+//!   と同判断）。`data-placement`（論理方向、chakra-ui の `placement`
+//!   語彙・RTL 対応・pre-styled-ui recipe の依存元）は物理方向の
+//!   `data-swipe-direction` へ置き換えない。
+//! - **意図的な差分**（維持）: `root` パートは全部品共通の
+//!   `data-state` 付与先として維持する。`backdrop` の `aria-hidden="true"`
+//!   （zag は付けないが装飾層として読み上げ対象外にする既存方針）・
+//!   `content` の `role="dialog"` 固定（zag は `alertdialog` も選べるが
+//!   Drawer は確認/警告用途ではなく常設ナビ/フィルタ補助パネル用途に
+//!   限定する既存判断）を維持する。chakra-ui の Header/Body/Footer/
+//!   ActionTrigger は `fandhe-frontend-pre-styled-ui`（Themes 層）の関心で
+//!   あり headless anatomy には持ち込まない。
+//! - **キーボード操作**: Enter（trigger で開く）・Tab/Shift+Tab
+//!   （フォーカストラップ）・Esc（閉じてフォーカス復帰）はいずれも
+//!   ark-ui/chakra-ui では JS ランタイム（dismissable layer・focus trap）
+//!   が担う。上記のとおり wasm-full は drawer scope を未配線のため、
+//!   現時点でこれらのキー操作は一切動作しない。
 //!
 //! # セキュリティ不変条件
 //!
-//! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`id`）はすべて
-//!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入する
-//!   経路はない（[`mod@crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の
-//!   既存不変条件をそのまま継承する）。
+//! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`id`/`tabindex`）は
+//!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロットへ
+//!   混入する経路はない（[`mod@crate::anatomy`]/[`crate::aria`]/
+//!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`id`/`labelledby`/`describedby`/`controls`/呼び出し側 `attrs`/
 //!   `children` テキスト）は [`fandhe_frontend_core::render`] の既定エスケープを
 //!   必ず経由する。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
@@ -67,6 +112,19 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 /// close-trigger）を持つが、`data-scope` 値のみ異なる（呼び出し側が dialog と
 /// drawer を CSS セレクタで独立にスタイルできるようにするための分離）。
 const ANATOMY: Anatomy = anatomy("drawer");
+
+/// 呼び出し側 `attrs` から `tabindex`（大文字小文字を無視）を除去する
+/// （[`crate::dialog::drop_tabindex_attr`] と同型のパターン。クレート API
+/// 表面を増やさないため再利用せずここへ複製する）。[`content`] が
+/// `tabindex="-1"` を固定付与する前に呼ぶことで、呼び出し側が渡した
+/// `tabindex` との重複出力（SSR は両方出力して先勝ち、wasm-client の
+/// `set_attribute` は後勝ちになる描画経路間の不一致）を防ぐ。
+fn drop_tabindex_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("tabindex"))
+        .collect()
+}
 
 /// Drawer がどの画面端から出現するか（`data-placement` の固定語彙、chakra-ui
 /// の `placement` prop 相当）。任意文字列は受け付けない。
@@ -204,6 +262,18 @@ pub fn positioner<'a>(
 /// chakra-ui/ark-ui 双方の用途と一致させるため）。`aria-modal`・closed 時の
 /// `hidden`・placement を付与する。`ids`（[`ContentIds`]、[`crate::dialog`]
 /// を再利用）の各フィールドが `Some` のときのみ対応する属性を出力する。
+///
+/// `tabindex="-1"` を固定で付与する（zag `drawer.connect.ts`/WAI-ARIA
+/// dialog パターンの前提と同じく、プログラム的フォーカスのみを許可する
+/// ため。[`crate::dialog::content`] の同一是正（イシュー #1638）と揃える
+/// 判断だが、**drawer scope は `fandhe-frontend-wasm-full` の
+/// `focus_trap` 配線対象外**（モジュール冒頭「スコープ外」節参照）のため、
+/// dialog のような「wasm-full 側の動的付与と SSR 出力の一致」根拠は
+/// 成立しない。本関数の付与は SSR/静的属性としての正当性のみに基づく
+/// （イシュー #1639）。呼び出し側 `attrs` に `tabindex` が含まれる場合は
+/// [`drop_tabindex_attr`] で事前に除去してから固定値を合成するため、
+/// 出力に重複した `tabindex` 属性は生じない（[`crate::dialog::content`]
+/// と同一の対策）。
 #[must_use]
 pub fn content<'a>(
     state: OpenState,
@@ -218,6 +288,7 @@ pub fn content<'a>(
         aria_modal(modal),
         data_state(state.as_data_state()),
         data_placement(placement),
+        ("tabindex", "-1"),
     ];
     if let Some(id) = ids.id {
         merged.push(("id", id));
@@ -231,7 +302,7 @@ pub fn content<'a>(
     if !state.is_open() {
         merged.push(("hidden", ""));
     }
-    merged.extend(attrs);
+    merged.extend(drop_tabindex_attr(attrs));
     ANATOMY.part("content", "div", merged, children)
 }
 
@@ -628,6 +699,101 @@ mod tests {
         assert!(html.contains(r#"<button"#));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"data-part="close-trigger""#));
+    }
+
+    #[test]
+    fn content_has_tabindex_minus_one() {
+        // zag `drawer.connect.ts`/WAI-ARIA dialog パターンと同じく、content は
+        // 開閉に関わらず `tabindex="-1"` を固定で持つ（イシュー #1639）。
+        let closed = render(&content(
+            OpenState::Closed,
+            DrawerPlacement::End,
+            true,
+            ContentIds::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(closed.contains(r#"tabindex="-1""#));
+
+        let open = render(&content(
+            OpenState::Open,
+            DrawerPlacement::End,
+            true,
+            ContentIds::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(open.contains(r#"tabindex="-1""#));
+    }
+
+    #[test]
+    fn content_drops_caller_tabindex_to_keep_fixed_minus_one() {
+        // 呼び出し側 attrs に tabindex（大文字小文字違い含む）を渡しても
+        // 固定の `tabindex="-1"` のみが 1 つだけ出力される（PR #1911
+        // codex-review/Cursor Bugbot 指摘: 除去しないと SSR は重複属性を
+        // 出力し、wasm-client の set_attribute は後勝ちで呼び出し側の値が
+        // 有効になり描画経路間で結果が食い違う。crate::dialog::content と
+        // 同一の対策、イシュー #1639）。
+        let rendered = render(&content(
+            OpenState::Open,
+            DrawerPlacement::End,
+            true,
+            ContentIds::default(),
+            vec![("TabIndex", "0")],
+            vec![],
+        ));
+        assert_eq!(rendered.matches("tabindex").count(), 1);
+        assert!(rendered.contains(r#"tabindex="-1""#));
+        assert!(!rendered.contains(r#"tabindex="0""#));
+    }
+
+    #[test]
+    fn no_part_outputs_drag_or_swipe_vocabulary() {
+        // ark-ui（zag drawer.connect.ts）のドラッグ・スワイプ・ネスト計測
+        // 語彙（grabber/swipe-area パート・data-swipe-direction 等）は
+        // 意図的非採用（イシュー #1639、モジュール冒頭「参考サイトとの
+        // 意図的な差分」節）。全 8 パートを open/closed 双方で描画しても
+        // これらの語彙が一切出力されないことを固定する。
+        let ids = ContentIds {
+            id: Some("dw1"),
+            labelledby: Some("dw1-title"),
+            describedby: Some("dw1-desc"),
+        };
+        for state in [OpenState::Open, OpenState::Closed] {
+            let htmls = [
+                render(&root(state, DrawerPlacement::End, vec![], vec![])),
+                render(&trigger(state, Some("dw1"), vec![], vec![])),
+                render(&backdrop(state, vec![], vec![])),
+                render(&positioner(state, DrawerPlacement::End, vec![], vec![])),
+                render(&content(
+                    state,
+                    DrawerPlacement::End,
+                    true,
+                    ids,
+                    vec![],
+                    vec![],
+                )),
+                render(&title(Some("dw1-title"), vec![], vec![text("Menu")])),
+                render(&description(
+                    Some("dw1-desc"),
+                    vec![],
+                    vec![text("Navigation")],
+                )),
+                render(&close_trigger(vec![], vec![text("Close")])),
+            ];
+            for html in htmls {
+                assert!(!html.contains("data-swipe-direction"));
+                assert!(!html.contains("data-swiping"));
+                assert!(!html.contains("data-dragging"));
+                assert!(!html.contains("data-expanded"));
+                assert!(!html.contains("data-nested-drawer"));
+                assert!(!html.contains(r#"data-part="grabber""#));
+                assert!(!html.contains(r#"data-part="grabber-indicator""#));
+                assert!(!html.contains(r#"data-part="swipe-area""#));
+                assert!(!html.contains(r#"data-part="indent""#));
+                assert!(!html.contains(r#"data-part="indent-background""#));
+            }
+        }
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---

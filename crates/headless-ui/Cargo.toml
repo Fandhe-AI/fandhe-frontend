@@ -296,12 +296,14 @@ name = "fandhe-frontend-headless-ui"
 # 同じ「同一版数への偶発的衝突をそのまま採用しない」原則（`docs/ci/
 # style-refresh-version-bump-operation.md` §5）に従い main 現在値 0.49.0 から
 # 0.50.0 へさらにマイナーバンプする。
-# base 再取り込み（イシュー #1636, 2026-09-05）: main（#1619 select）が独立に
-# 0.50.0 へ到達していた（同一版数への偶発的衝突をそのまま採用しない原則、
-# `docs/ci/style-refresh-version-bump-operation.md` §5）。本ブランチ（#1636
-# accordion）の AccordionProps 新設に伴う破壊的変更とは別内容のため、
-# マイナーバンプで 0.51.0 とする。
-version = "0.51.0"
+# base 再取り込み（イシュー #1636 マージ, 2026-09-06）: main 側が独立に
+# 0.54.1 へ到達していた（#1642 popover の tabindex 破壊的変更是正・#1648
+# breadcrumb drop_reserved 等、一連の非破壊的/破壊的変更の積み重ね）。
+# 本ブランチ（#1636 accordion）の AccordionProps 新設に伴う破壊的変更とは
+# 別内容のため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い main 現在値
+# 0.54.1 から 0.55.0 へマイナーバンプする。
+version = "0.55.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

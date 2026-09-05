@@ -104,6 +104,14 @@ WORKDIR /work
 # 集約できる（`crates/` 配下はワークスペースメンバーのソースのみである前提。
 # member 追加時も本ディレクトリ配下に置く限り本 COPY 行の追随は不要）。
 COPY Cargo.toml Cargo.lock ./
+# `.cargo/config.toml`（REQ-11 是正、イシュー #1647）: wasm32-unknown-unknown
+# ターゲット限定の `codegen-units=1`/`opt-level=s` を宣言する。ここで COPY
+# しないと Docker が生成する実際の dist-server バイナリだけが最適化されず、
+# `crates/wasm-full/tests/bundle_size.rs`（リポジトリ直接 checkout 上で
+# ネスト cargo build する非 Docker 経路）の PASS 判定と実配布物が乖離する
+# （同テストの doc コメントが明記する「dist-server が実際に生成するものと
+# 同一構成を計測する」契約を壊さないための追随）。
+COPY .cargo ./.cargo
 COPY crates ./crates
 COPY static ./static
 

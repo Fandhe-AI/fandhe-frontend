@@ -602,17 +602,41 @@ fn editable_name_value_label_and_preview_are_escaped_for_all_payloads() {
     }
 }
 
-/// (1) テキスト経路 + (2) 属性値経路（イシュー #744 TagsInput）:
-/// タグ文字列そのものがユーザー入力である（REQ-1 の重点対象）ため、
-/// `tags_input::item_text` の children テキスト・`tags_input::hidden_input`
-/// の `name`/`value`・`tags_input::item_input` の `value`・
-/// `tags_input::item_delete_trigger` の `tag`（`format!` で組み立てる
-/// `aria-label` の一部）・呼び出し側 `attrs` へ全ペイロードを注入し、
-/// エスケープが貫通することを固定する。
+/// (1) テキスト経路 + (2) 属性値経路（イシュー #744 TagsInput、参照突合
+/// #1623）: タグ文字列そのものがユーザー入力である（REQ-1 の重点対象）
+/// ため、`tags_input::item`/`tags_input::item_preview` の `data-value`・
+/// `tags_input::item_text` の children テキスト・
+/// `tags_input::hidden_input` の `name`/`value`・`tags_input::item_input`
+/// の `value`・`tags_input::item_delete_trigger` の `TagItem::value`
+/// （`format!` で組み立てる `aria-label` の一部）・呼び出し側 `attrs` へ
+/// 全ペイロードを注入し、エスケープが貫通することを固定する。
 #[test]
 fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
-        let item_text_node = tags_input::item_text(vec![], vec![text(payload)]);
+        let item_state = tags_input::TagItem {
+            value: payload,
+            disabled: false,
+            editing: false,
+            highlighted: false,
+        };
+
+        let item_node = tags_input::item(&item_state, vec![], vec![]);
+        let html = render(&item_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item の data-value コンテキスト",
+        );
+
+        let item_preview_node = tags_input::item_preview(&item_state, vec![], vec![]);
+        let html = render(&item_preview_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item_preview の data-value コンテキスト",
+        );
+
+        let item_text_node = tags_input::item_text(&item_state, vec![], vec![text(payload)]);
         let html = render(&item_text_node);
         assert_payload_is_escaped(
             payload,
@@ -620,7 +644,12 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
             "tags_input::item_text の children コンテキスト",
         );
 
-        let hidden_node = tags_input::hidden_input(payload, payload, false, vec![]);
+        let hidden_node = tags_input::hidden_input(
+            &tags_input::TagsInputProps::default(),
+            payload,
+            payload,
+            vec![],
+        );
         let html = render(&hidden_node);
         assert_payload_is_escaped(
             payload,
@@ -628,7 +657,7 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
             "tags_input::hidden_input の name/value コンテキスト",
         );
 
-        let item_input_node = tags_input::item_input(payload, vec![]);
+        let item_input_node = tags_input::item_input(&item_state, payload, vec![]);
         let html = render(&item_input_node);
         assert_payload_is_escaped(
             payload,
@@ -636,7 +665,7 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
             "tags_input::item_input の value コンテキスト",
         );
 
-        let delete_trigger_node = tags_input::item_delete_trigger(payload, false, vec![], vec![]);
+        let delete_trigger_node = tags_input::item_delete_trigger(&item_state, vec![], vec![]);
         let html = render(&delete_trigger_node);
         assert_payload_is_escaped(
             payload,
@@ -644,7 +673,11 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
             "tags_input::item_delete_trigger の aria-label コンテキスト",
         );
 
-        let attrs_node = tags_input::root(false, vec![("data-testid", payload)], vec![]);
+        let attrs_node = tags_input::root(
+            &tags_input::TagsInputProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        );
         let html = render(&attrs_node);
         assert_payload_is_escaped(
             payload,

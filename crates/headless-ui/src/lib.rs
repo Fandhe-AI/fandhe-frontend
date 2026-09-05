@@ -112,7 +112,8 @@
 //!   を持つが、開閉状態機械は新設せず [`dialog::Dialog`] へ全委譲する
 //!   （[`segment_group::SegmentGroup`] が [`radio_group::RadioGroup`] へ
 //!   全委譲するのと同型のパターン）。固有に持つのは画面端の方向を表す
-//!   [`drawer::DrawerPlacement`]（`data-placement`）のみ（#758）。
+//!   [`drawer::DrawerPlacement`]（`data-placement`）のみ（#758）。`content`
+//!   は `tabindex="-1"` 固定（イシュー #1639、参考サイト突合）。
 //! - [`mod@download_trigger`]: `root`（`a[download]`）1 anatomy パーツ
 //!   （イシュー #828）。ark-ui/chakra-ui の DownloadTrigger（JS の `Blob`
 //!   生成前提）を `a[download]` 属性による宣言的トリガーとして静的部品化
@@ -141,7 +142,9 @@
 //! - [`popover`]: Root / Trigger / Anchor / Positioner / Arrow / ArrowTip /
 //!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
-//!   headless Popover コンポーネント（#532）。
+//!   headless Popover コンポーネント（#532）。イシュー #1642 で ark-ui /
+//!   Radix Primitives / chakra-ui と参照突合し、`content` に
+//!   `tabindex="-1"` を固定付与した。
 //! - [`mod@field`]: Root / Label / Input / Textarea / Select / HelperText /
 //!   ErrorText / RequiredIndicator の 8 anatomy パーツ関数群
 //!   （[`field::FieldProps`] から決定的に描画する純粋関数、#538）。
@@ -268,14 +271,16 @@
 //!   + `aria-live="polite"` + `aria-atomic="true"` 固定、イシュー #1069）。
 //! - [`mod@tags_input`]: Root / Label / Control / Input / Item / ItemPreview /
 //!   ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput /
-//!   LiveRegion の 12 anatomy パーツと、可変長タグ文字列リスト + 編集中
-//!   インデックスを持つ [`tags_input::TagsInput`] 状態機械（#744、親
-//!   #736/#726）。[`mod@pin_input`]/[`mod@number_input`] と同じく [`state`]
-//!   の既存語彙に収まらないため、[`fandhe_frontend_interactive::Component`]/
-//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
-//!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
-//!   指定する listbox 相当の ARIA）。`live_region` はタグ数の変化を通知する
-//!   live region（[`mod@combobox`] の `live_region` と同型、イシュー #1069）。
+//!   LiveRegion の 12 anatomy パーツと、可変長タグ文字列リスト + 編集中/
+//!   強調中インデックスを持つ [`tags_input::TagsInput`] 状態機械（#744、親
+//!   #736/#726。参照突合はイシュー #1623）。[`mod@pin_input`]/
+//!   [`mod@number_input`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control`/
+//!   `item_preview` は `role` を持たない（#1623 で zag/ark 準拠へ是正、
+//!   旧実装の `role="listbox"`/`role="option"` は撤去）。`live_region` は
+//!   タグ数の変化を通知する live region（[`mod@combobox`] の
+//!   `live_region` と同型、イシュー #1069）。
 //! - [`mod@file_upload`]: Root / Label / Dropzone / Trigger / ItemGroup /
 //!   Item / ItemName / ItemSizeText / ItemDeleteTrigger / ClearTrigger /
 //!   HiddenInput の 11 anatomy パーツと、ファイルメタデータ（[`file_upload::FileUploadItem`]:
@@ -332,8 +337,13 @@
 //!   表示される操作バー、#762、親トラッキング #520）。構造上最も近い先行例は
 //!   [`dialog::Dialog`]（`Disclosure` 埋め込み + positioner/close-trigger
 //!   構成）であり、本モジュールはそのパターンに完全準拠する。`content` は
-//!   `role="toolbar"` + `aria-label`、`separator` は `role="separator"` +
-//!   `aria-orientation="vertical"` を出力する。選択件数から `open` を導出する
+//!   `role="dialog"`（非モーダル、参照基準の chakra-ui/Ark Popover に合わせ
+//!   イシュー #1647 で `"toolbar"` から是正済み） + `aria-label` +
+//!   開状態のみの `data-expanded` + `tabindex="-1"`、`separator` は
+//!   `role="separator"` + `aria-orientation="vertical"` を出力する。
+//!   `close-trigger` は呼び出し側が `aria-label` を指定せず、かつ
+//!   `children` が空（可視テキストを持たないボタン）のときに限り既定値
+//!   `"close"` を出力する。選択件数から `open` を導出する
 //!   糖衣 API は持たず、開閉は呼び出し側が dispatch（`"open"`/`"close"`/
 //!   `"toggle"`）で制御する（[`action_bar`] モジュール doc §選択件数から
 //!   open を導出する糖衣 API は持たない 参照）。
@@ -813,7 +823,7 @@ pub use state::{
 pub use steps::{Steps, StepsAction};
 pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
-pub use tags_input::{TagsInput, TagsInputAction};
+pub use tags_input::{TagItem, TagsInput, TagsInputAction, TagsInputProps};
 pub use toast::{ToastAction, ToastEntry, ToastPlacement, ToastStatus, Toaster};
 pub use toggle::{Toggle, ToggleAction};
 pub use toggle_group::{MultiToggleGroup, ToggleGroup, ToggleGroupProps};

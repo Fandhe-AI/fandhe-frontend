@@ -1,7 +1,9 @@
-//! Collapsible（開閉パネル）headless コンポーネント（イシュー #529、親 #526）。
+//! Collapsible（開閉パネル）headless コンポーネント（イシュー #529、親 #526。
+//! anatomy / `data-*` / キーボード操作の参考サイト突合はイシュー #1637）。
 //!
 //! ark-ui の Collapsible
-//!（`.claude/skills/ark-ui/references/components/disclosure/collapsible.md`）を
+//!（`.claude/skills/ark-ui/references/components/disclosure/collapsible.md`）と
+//! Radix Primitives Collapsible（`docs/design/radix-primitives-inventory.md`）を
 //! 参考に、Root / Trigger / Indicator / Content の 4 anatomy パーツと、
 //! Phase 1（#524）の [`crate::state::Disclosure`] を埋め込んだ開閉状態機械
 //! [`Collapsible`] を提供する。
@@ -15,6 +17,28 @@
 //! （`"open"`/`"close"`/`"toggle"`）で状態遷移する。`fandhe-frontend-pre-styled-ui`
 //! （#546〜）が本モジュールを呼んでスタイル済み Collapsible を組み立てる想定である。
 //!
+//! # 参考サイトとの意図的な差分（イシュー #1637）
+//!
+//! - **`content` の `data-collapsible` 存在属性は採用しない**: ark-ui は
+//!   `data-collapsible` を付与するが、本クレートは [`crate::anatomy::Anatomy::part`]
+//!   が常に `data-scope="collapsible" data-part="content"` を出力するため、
+//!   同じ情報を重複して持たせるだけで状態値でもない。冗長な属性は追加しない。
+//! - **サイズ計測・アニメーション系（`data-has-collapsed-size`・
+//!   `--height`/`--width`/`--collapsed-height`/`--collapsed-width` 等の CSS 変数・
+//!   `--radix-collapsible-content-*`）は headless-ui へ持ち込まない**: レイアウト
+//!   計測・アニメーションの関心であり、`docs/policy/intentional-non-adoption.md`
+//!   §3.25 の判断軸（規則 2）に従い、必要なら上層の `fandhe-frontend-pre-styled-ui`
+//!   の責務とする（Themes 側イシュー #1670 の計画対象）。
+//! - **`root` の `data-disabled` は維持する**: ark-ui の Root には無いが、
+//!   Radix Primitives の Root には存在し、本クレートの既存契約（wasm-full の
+//!   祖先 root disabled 判定）が依存しているため据え置く。
+//! - **キーボード操作は Space / Enter のみ**: [`trigger`] はネイティブ
+//!   `<button type="button">` として描画され、ブラウザ標準の Space/Enter →
+//!   click 発火と `fandhe-frontend-wasm-full` の `MAPPING_TABLE`（`(collapsible,
+//!   trigger)` クリック →`"toggle"` dispatch）の組み合わせで開閉が成立する。
+//!   本モジュールは独自の keydown ハンドラを持たない（ark-ui/Radix いずれの
+//!   Keyboard Support 表も Space/Enter のみを掲げており、追加のキー操作は無い）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`hidden`/`disabled`/`id`）はすべて
@@ -26,6 +50,11 @@
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - `data-state` 値語彙（`"open"`/`"closed"`）は [`crate::state::OpenState`]
 //!   に一元化し、本モジュールで独自の値を作らない。
+//! - 呼び出し側 `attrs` は各パーツの固定属性（`data-state`/`data-disabled`/
+//!   `aria-expanded`/`aria-controls`/`type`/`disabled`/`hidden`/`id`）を
+//!   [`drop_reserved`] で除外してから merge する。表示状態と実際の DOM 属性の
+//!   なりすまし（A05）を防ぐ（`crate::progress`/`crate::switch`/
+//!   `crate::toggle_group` と同型の防御、イシュー #1637）。
 //! - hydration 属性（`data-hydrate-state`）はクライアント側で改ざんされうる
 //!   入力として扱う。[`Collapsible`] の
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は
@@ -42,6 +71,10 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 /// Collapsible の anatomy（`data-scope="collapsible"`）。
 const ANATOMY: Anatomy = anatomy("collapsible");
 
+/// Root パーツで固定出力する属性名（呼び出し側 `attrs` からの偽装を防ぐため
+/// [`drop_reserved`] で除外する対象）。
+const ROOT_RESERVED: &[&str] = &["data-state", "data-disabled"];
+
 /// Root パーツ（`div`）。開閉状態・disabled 状態を `data-*` へ反映する。
 #[must_use]
 pub fn root<'a>(
@@ -50,11 +83,21 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
+
+const TRIGGER_RESERVED: &[&str] = &[
+    "type",
+    "aria-expanded",
+    "aria-controls",
+    "data-state",
+    "data-disabled",
+    "disabled",
+];
 
 /// Trigger パーツ（`button`）。
 ///
@@ -70,6 +113,7 @@ pub fn trigger<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, TRIGGER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("type", "button"),
         aria_expanded(state.is_open()),
@@ -86,34 +130,49 @@ pub fn trigger<'a>(
     ANATOMY.part("trigger", "button", merged, children)
 }
 
-/// Indicator パーツ（`span`）。開閉状態のみを `data-state` へ反映する
-/// 最小主義な装飾用パーツ（アイコン等は呼び出し側の `attrs`/`children` が担う。
-/// `radio_group` の `indicator` と同じ最小主義に揃える）。
+const INDICATOR_RESERVED: &[&str] = &["data-state", "data-disabled"];
+
+/// Indicator パーツ（`span`）。開閉状態を `data-state` へ、disabled 状態を
+/// `data-disabled` へ反映する装飾用パーツ（アイコン等は呼び出し側の
+/// `attrs`/`children` が担う）。`data-disabled` は ark-ui Indicator の
+/// Data Attributes 表準拠で追加した（イシュー #1637。ネイティブ `disabled`
+/// 存在属性は `span` に無効なため付与しない）。
 #[must_use]
 pub fn indicator<'a>(
     state: OpenState,
+    disabled: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, INDICATOR_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("indicator", "span", merged, children)
 }
+
+const CONTENT_RESERVED: &[&str] = &["data-state", "data-disabled", "id", "hidden"];
 
 /// Content パーツ（`div`）。
 ///
 /// closed のとき `hidden` 存在属性を付与し、JS なしの SSR でも閉状態を表現
 /// する（アニメーション対応の `open`/`visible` 分離・CSS 変数出力はスコープ外。
-/// 本モジュールのモジュール doc §out-of-scope 参照）。`id` が `Some` のとき
-/// [`trigger`] の `controls` と対で `aria-controls` 関連付けを成立させる。
+/// 本モジュールのモジュール doc「§参考サイトとの意図的な差分（イシュー
+/// #1637）」参照）。`id` が `Some` のとき [`trigger`] の `controls` と対で
+/// `aria-controls` 関連付けを成立させる。`data-disabled` は ark-ui/Radix の
+/// Content 双方の Data Attributes 表準拠で追加した（イシュー #1637。
+/// ネイティブ `disabled` 存在属性は `div` に無効なため付与しない）。
 #[must_use]
 pub fn content<'a>(
     state: OpenState,
+    disabled: bool,
     id: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, CONTENT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(data_disabled(disabled));
     if let Some(id) = id {
         merged.push(("id", id));
     }
@@ -188,19 +247,25 @@ impl Collapsible {
 
     /// [`indicator`] へ現在の状態を注入する利便メソッド。
     #[must_use]
-    pub fn indicator<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        indicator(self.state(), attrs, children)
+    pub fn indicator<'a>(
+        &self,
+        disabled: bool,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        indicator(self.state(), disabled, attrs, children)
     }
 
     /// [`content`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn content<'a>(
         &self,
+        disabled: bool,
         id: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        content(self.state(), id, attrs, children)
+        content(self.state(), disabled, id, attrs, children)
     }
 }
 
@@ -222,7 +287,7 @@ impl Component for Collapsible {
             Vec::new(),
             vec![
                 trigger(state, false, None, Vec::new(), Vec::new()),
-                content(state, None, Vec::new(), Vec::new()),
+                content(state, false, None, Vec::new(), Vec::new()),
             ],
         )
     }
@@ -242,6 +307,19 @@ impl Hydrate for Collapsible {
             disclosure: Disclosure::from_hydration_attrs(attrs)?,
         })
     }
+}
+
+/// 呼び出し側 `attrs` から、各パーツが固定出力する属性名（大文字小文字を
+/// 区別しない）を除外する（`crate::progress::drop_reserved` と同型の重複
+/// 実装。モジュール間の相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
 }
 
 #[cfg(test)]
@@ -309,26 +387,58 @@ mod tests {
 
     #[test]
     fn indicator_outputs_scope_part_and_state_only() {
-        let html = render(&indicator(OpenState::Open, vec![], vec![text("+")]));
+        let html = render(&indicator(OpenState::Open, false, vec![], vec![text("+")]));
         assert!(html.contains(r#"data-scope="collapsible""#));
         assert!(html.contains(r#"data-part="indicator""#));
         assert!(html.contains(r#"data-state="open""#));
+        assert!(!html.contains("data-disabled"));
         assert!(html.contains('+'));
     }
 
     #[test]
+    fn indicator_disabled_true_adds_data_disabled() {
+        let html = render(&indicator(OpenState::Open, true, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn indicator_disabled_false_omits_data_disabled() {
+        let html = render(&indicator(OpenState::Open, false, vec![], vec![]));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
     fn content_closed_has_hidden_attr_open_does_not() {
-        let closed = render(&content(OpenState::Closed, None, vec![], vec![]));
+        let closed = render(&content(OpenState::Closed, false, None, vec![], vec![]));
         assert!(closed.contains(r#"hidden="""#));
 
-        let open = render(&content(OpenState::Open, None, vec![], vec![]));
+        let open = render(&content(OpenState::Open, false, None, vec![], vec![]));
         assert!(!open.contains("hidden"));
     }
 
     #[test]
     fn content_id_some_outputs_id_attribute() {
-        let html = render(&content(OpenState::Open, Some("panel-1"), vec![], vec![]));
+        let html = render(&content(
+            OpenState::Open,
+            false,
+            Some("panel-1"),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"id="panel-1""#));
+    }
+
+    #[test]
+    fn content_disabled_true_adds_data_disabled_without_native_disabled() {
+        let html = render(&content(OpenState::Open, true, None, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(!html.contains(r#" disabled"#));
+    }
+
+    #[test]
+    fn content_does_not_emit_data_collapsible() {
+        let html = render(&content(OpenState::Open, false, None, vec![], vec![]));
+        assert!(!html.contains("data-collapsible"));
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---
@@ -346,12 +456,90 @@ mod tests {
         assert!(!html.contains("attacker"));
     }
 
+    /// 呼び出し側 `attrs` が `data-state`/`data-disabled` へなりすましても
+    /// フレームワーク側の実値で上書きされる（表示状態と実際の DOM 属性の
+    /// 不整合を防ぐ、イシュー #1637）。
+    #[test]
+    fn root_caller_reserved_attrs_are_dropped() {
+        let html = render(&root(
+            OpenState::Open,
+            false,
+            vec![("data-state", "closed"), ("data-disabled", "spoofed")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-state="open""#));
+        assert!(!html.contains("closed"));
+        assert!(!html.contains("spoofed"));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn trigger_caller_reserved_attrs_are_dropped() {
+        let html = render(&trigger(
+            OpenState::Closed,
+            false,
+            Some("real"),
+            vec![
+                ("type", "submit"),
+                ("aria-expanded", "true"),
+                ("aria-controls", "spoofed"),
+                ("data-state", "open"),
+                ("data-disabled", "spoofed"),
+                ("disabled", "spoofed"),
+            ],
+            vec![],
+        ));
+        assert!(html.contains(r#"type="button""#));
+        assert!(!html.contains(r#"type="submit""#));
+        assert!(html.contains(r#"aria-expanded="false""#));
+        assert!(html.contains(r#"aria-controls="real""#));
+        assert!(!html.contains("spoofed"));
+        assert!(html.contains(r#"data-state="closed""#));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains(r#" disabled"#));
+    }
+
+    #[test]
+    fn indicator_caller_reserved_attrs_are_dropped() {
+        let html = render(&indicator(
+            OpenState::Open,
+            false,
+            vec![("data-state", "closed"), ("data-disabled", "spoofed")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-state="open""#));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("spoofed"));
+    }
+
+    #[test]
+    fn content_caller_reserved_attrs_are_dropped() {
+        let html = render(&content(
+            OpenState::Open,
+            false,
+            Some("real"),
+            vec![
+                ("data-state", "closed"),
+                ("data-disabled", "spoofed"),
+                ("id", "attacker"),
+                ("hidden", "spoofed"),
+            ],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-state="open""#));
+        assert!(!html.contains("data-disabled"));
+        assert!(html.contains(r#"id="real""#));
+        assert!(!html.contains("attacker"));
+        assert!(!html.contains("hidden"));
+        assert!(!html.contains("spoofed"));
+    }
+
     // --- trigger + content の aria-controls/id 対応 ---
 
     #[test]
     fn trigger_controls_and_content_id_correspond() {
         let trigger_html = render(&trigger(OpenState::Open, false, Some("c1"), vec![], vec![]));
-        let content_html = render(&content(OpenState::Open, Some("c1"), vec![], vec![]));
+        let content_html = render(&content(OpenState::Open, false, Some("c1"), vec![], vec![]));
         assert!(trigger_html.contains(r#"aria-controls="c1""#));
         assert!(content_html.contains(r#"id="c1""#));
     }
@@ -370,8 +558,8 @@ mod tests {
 
         assert!(dispatch(&mut c, "toggle", ""));
         assert!(render(&c.root(false, vec![], vec![])).contains(r#"data-state="open""#));
-        assert!(render(&c.content(None, vec![], vec![])).contains(r#"data-state="open""#));
-        assert!(!render(&c.content(None, vec![], vec![])).contains("hidden"));
+        assert!(render(&c.content(false, None, vec![], vec![])).contains(r#"data-state="open""#));
+        assert!(!render(&c.content(false, None, vec![], vec![])).contains("hidden"));
     }
 
     #[test]
@@ -450,6 +638,7 @@ mod tests {
     fn content_id_payload_is_escaped_on_render() {
         let html = render(&content(
             OpenState::Open,
+            false,
             Some(ATTR_BREAK_PAYLOAD),
             vec![],
             vec![],
@@ -473,6 +662,7 @@ mod tests {
     fn children_text_is_escaped_on_render() {
         let html = render(&indicator(
             OpenState::Open,
+            false,
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));

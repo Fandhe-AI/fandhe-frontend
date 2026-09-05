@@ -92,7 +92,7 @@ use hui::select;
 use hui::signature_pad;
 use hui::slider;
 use hui::switch::{self, SwitchProps};
-use hui::tags_input;
+use hui::tags_input::{self, TagItem, TagsInputProps};
 use hui::OpenState;
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -708,43 +708,59 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// 一次情報: `crates/headless-ui/src/tags_input.rs`
-/// （モジュール doc 1-89、`root`/`label` 107-122、`control` 124-144、
-/// `item`/`item_preview`/`item_text`/`item_input` 146-195、
-/// `item_delete_trigger`/`clear_trigger` 197-240、`input` 242-262、
-/// `hidden_input` 264-281）。
+/// 一次情報: `crates/headless-ui/src/tags_input.rs`（参照突合はイシュー
+/// #1623。モジュール doc「参照突合」節・`TagsInputProps`/`TagItem`・
+/// `root`/`label`/`control`/`item`/`item_preview`/`item_text`/
+/// `item_input`/`item_delete_trigger`/`clear_trigger`/`input`/
+/// `hidden_input`/`live_region`・`TagsInputAction` の highlight 系
+/// バリアント）。
 const TAGS_INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Label / Control / Input / Item / ItemPreview / ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput / LiveRegion の 12 anatomy パーツと、タグ文字列の可変長リスト + 重複拒否 + 上限 + 編集中インデックスを持つ値状態機械を提供する。",
+        "Root / Label / Control / Input / Item / ItemPreview / ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput / LiveRegion の 12 anatomy パーツと、タグ文字列の可変長リスト + 重複拒否 + 上限 + 編集中/キーボード強調インデックスを持つ値状態機械を提供する。",
         "不変条件「重複タグなし・`len() <= max`・カンマを含まない・空文字列を含まない」を破る入力は dispatch・hydration・コンストラクタのすべての入口で一貫して拒否する（カンマ・空文字列はフォーム送信値のカンマ結合時に曖昧さを生むため、Cursor Bugbot 指摘を踏まえ全入口で禁止）。",
-        "`control` は `role=\"listbox\"` + `aria-orientation=\"horizontal\"` を持ち、`item_preview` は `role=\"option\"` + `aria-selected=\"true\"` 固定（常に選択済みタグを表示するため）。",
-        "`editing`（編集中インデックス）は ephemeral な DOM 状態のため hydration では運ばない。",
-        "`live_region` はタグ数の変化を通知する live region（`role=\"status\"` + `aria-live=\"polite\"` 固定、`root` の直接の子で `control` の兄弟として配置する。テキスト更新の実配線は `fandhe-frontend-wasm-full` の後続責務、イシュー #1069）。",
+        "`TagsInputProps`（disabled/readonly/invalid/required）が root/label/control/input/clear_trigger/hidden_input の `data-*` を一元管理する。`control`/`item_preview` は `role` を持たない（イシュー #1623 で zag/ark 準拠へ是正、旧実装の `role=\"listbox\"`/`role=\"option\"` は撤去。アクセシブルネームは `label` の `for` 関連付けが担う）。",
+        "`TagItem`（value/disabled/editing/highlighted）が item 系 5 パーツ共通の状態束。`item`/`item_preview` に `data-value`（タグ文字列）を出力する。",
+        "`editing`/`highlighted`（編集中インデックス・キーボード強調インデックス）はいずれも ephemeral な DOM 状態のため hydration では運ばない。",
+        "`live_region` はタグ数の変化を通知する live region（`role=\"status\"` + `aria-live=\"polite\"` 固定、`root` 直下を推奨配置とする。テキスト更新の実配線は `fandhe-frontend-wasm-full` の後続責務、イシュー #1069）。",
     ],
     arguments: &[
-        ArgRow { name: "root/item(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
-        ArgRow { name: "control(invalid)", kind: "bool", default: "", description: "`data-invalid` を反映する。" },
-        ArgRow { name: "control(label_text)", kind: "&str", default: "", description: "`aria-label` として付与する（listbox 相当の ARIA）。" },
-        ArgRow { name: "item(editing)", kind: "bool", default: "", description: "編集モード中かどうか。`data-editing` 存在属性へ反映する。" },
-        ArgRow { name: "item_preview(highlighted)", kind: "bool", default: "", description: "`data-highlighted` へ反映する（`aria-selected=\"true\"` 固定とは独立の軸）。" },
-        ArgRow { name: "item_input(value)", kind: "&str", default: "", description: "編集中の暫定値。" },
-        ArgRow { name: "item_delete_trigger(tag)", kind: "&str", default: "", description: "`aria-label` を `\"Delete {tag}\"` として動的生成する（`children` の視覚的内容とは独立に常時付与）。" },
-        ArgRow { name: "input(value)", kind: "&str", default: "", description: "新規タグ入力用のネイティブ入力欄の値。" },
-        ArgRow { name: "input(at_max)", kind: "bool", default: "", description: "上限到達時に `data-invalid` + `aria-invalid=\"true\"` を出力する。" },
-        ArgRow { name: "hidden_input(name, value)", kind: "&str, &str", default: "", description: "フォーム送信名と、全タグのカンマ結合値。" },
+        ArgRow { name: "TagsInputProps { disabled, readonly, invalid, required }", kind: "struct", default: "", description: "root/label/control/input/clear_trigger/hidden_input へ渡す共通状態束。" },
+        ArgRow { name: "TagItem { value, disabled, editing, highlighted }", kind: "struct", default: "", description: "item/item_preview/item_text/item_input/item_delete_trigger へ渡す共通状態束。" },
+        ArgRow { name: "item/item_preview(item)", kind: "&TagItem", default: "", description: "`data-value`/`data-disabled`/`data-editing`（item のみ）/`data-highlighted`（item_preview のみ）へ反映する。`item_preview` は編集中に `hidden` を出力する。" },
+        ArgRow { name: "item_input(item, value)", kind: "&TagItem, &str", default: "", description: "編集中の暫定値。非編集時は `hidden` 存在属性のみを出力する（矢印キー操作・編集開始配線が未実装のため `tabindex` は固定付与せず既定の Tab 到達性を維持する）。" },
+        ArgRow { name: "item_delete_trigger(item)", kind: "&TagItem", default: "", description: "`aria-label` を `\"Delete tag {value}\"`（zag 既定訳）として動的生成する。`tabindex` は固定付与しない（矢印キー操作が未実装のため既定の Tab 到達性を維持する）。" },
+        ArgRow { name: "input(props, value, at_max)", kind: "&TagsInputProps, &str, bool", default: "", description: "新規タグ入力用のネイティブ入力欄。`at_max` は `data-invalid` + `aria-invalid=\"true\"` を出力する。`autocomplete=\"off\"`/`autocorrect=\"off\"`/`autocapitalize=\"none\"`/`enterkeyhint=\"done\"` を固定付与する。" },
+        ArgRow { name: "hidden_input(props, name, value)", kind: "&TagsInputProps, &str, &str", default: "", description: "フォーム送信名と、全タグのカンマ結合値。" },
         ArgRow { name: "live_region(children)", kind: "Vec<Node>", default: "", description: "role=\"status\"/aria-live=\"polite\"/aria-atomic=\"true\" を固定付与する live region。通知文言は children として呼び出し側が渡す（イシュー #1069）。" },
     ],
-    examples: &[ExampleEntry {
-        title: "At max (invalid input)",
-        description: "上限に達した状態の `input(at_max: true)`。`data-invalid` + `aria-invalid=\"true\"` が新規タグ入力欄に出力される。",
-        render: ex_tags_input_at_max,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "At max (invalid input)",
+            description: "上限に達した状態の `input(props.invalid: true, at_max: true)`。`data-invalid` + `aria-invalid=\"true\"` が新規タグ入力欄に出力される。",
+            render: ex_tags_input_at_max,
+        },
+        ExampleEntry {
+            title: "Read-only",
+            description: "`TagsInputProps::readonly` を反映した状態。`input` にネイティブ `readonly` + `data-readonly` が出力される。",
+            render: ex_tags_input_readonly,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui はスタイルレスであるため、`[data-scope=\"tags-input\"][data-part=\"...\"]` セレクタで CSS を当てるのは利用者の責務である（このページには適用しない）。",
+            render: ex_tags_input_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow { key: "ArrowLeft", description: "強調（highlight）を 1 つ前へ移動する（`\"highlight-prev\"` dispatch）。**DOM 配線は wasm-full の別イシュー**（本モジュールは dispatch を受けた際の状態遷移のみを提供する契約、まだ keydown ハンドラは実装されていない）。" },
+        KeyRow { key: "ArrowRight", description: "強調を 1 つ後ろへ移動する（`\"highlight-next\"` dispatch）。末尾タグ強調中なら入力欄へ戻る。DOM 配線は wasm-full の別イシュー（同上）。" },
+        KeyRow { key: "Backspace", description: "強調中ならそのタグを削除、なければ末尾タグを削除する（`\"backspace\"` dispatch）。DOM 配線は wasm-full の別イシュー（同上）。" },
+        KeyRow { key: "Delete", description: "強調中のタグを削除する（`\"delete-highlighted\"` dispatch）。DOM 配線は wasm-full の別イシュー（同上）。" },
+        KeyRow { key: "Enter", description: "強調中なら編集開始（`\"edit-start\"`）、そうでなければ入力欄の値を追加（`\"add\"`）。振り分けはクライアント側の責務。DOM 配線は wasm-full の別イシュー（同上）。" },
+        KeyRow { key: "Escape", description: "強調を解除する（`\"highlight-clear\"` dispatch）。DOM 配線は wasm-full の別イシュー（同上）。" },
+    ],
     aria: &[
-        AriaRow { attribute: "role=\"listbox\" / aria-orientation (control)", description: "固定付与（`aria-orientation=\"horizontal\"`）。" },
-        AriaRow { attribute: "role=\"option\" / aria-selected (item_preview)", description: "固定付与。常に選択済みタグを表示するため `aria-selected=\"true\"` 固定。" },
-        AriaRow { attribute: "aria-invalid (input)", description: "上限到達（`at_max`）時のみ `\"true\"` を出力する。" },
-        AriaRow { attribute: "aria-label (item_delete_trigger)", description: "`\"Delete {tag}\"` を動的生成する（`render()` の既定エスケープ経由）。" },
+        AriaRow { attribute: "aria-invalid (input)", description: "上限到達（`at_max`）または `props.invalid` のときのみ `\"true\"` を出力する。" },
+        AriaRow { attribute: "aria-label (item_delete_trigger)", description: "`\"Delete tag {value}\"`（zag 既定訳）を動的生成する（`render()` の既定エスケープ経由）。" },
         AriaRow { attribute: "role=\"status\" / aria-live=\"polite\" / aria-atomic=\"true\" (live_region)", description: "タグ数の変化を通知する live region に固定付与する（イシュー #1069）。" },
     ],
     demo: None,
@@ -1919,6 +1935,29 @@ fn ex_switch_disabled_checked() -> Node {
     div(vec![("class", "primitives-demo-frame")], body)
 }
 
+/// タグ 1 個分の item を組み立てる補助関数（`ex_tags_input_at_max`/
+/// `ex_tags_input_readonly` が共有する）。
+fn tags_input_example_item(value: &str) -> Node {
+    let state = TagItem {
+        value,
+        disabled: false,
+        editing: false,
+        highlighted: false,
+    };
+    tags_input::item(
+        &state,
+        vec![],
+        vec![tags_input::item_preview(
+            &state,
+            vec![],
+            vec![
+                tags_input::item_text(&state, vec![], vec![text(value)]),
+                tags_input::item_delete_trigger(&state, vec![], vec![text("×")]),
+            ],
+        )],
+    )
+}
+
 /// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
 /// `data-scope`/`data-part`/`data-state`/`data-focus-visible`/`data-disabled`/
 /// `data-invalid` 属性セレクタで見た目を組み立てる例を示す（イシュー #1622、
@@ -1977,59 +2016,83 @@ fn ex_switch_custom_css() -> Node {
 }
 
 fn ex_tags_input_at_max() -> Node {
+    let props = TagsInputProps {
+        invalid: true,
+        ..Default::default()
+    };
     let body = vec![tags_input::root(
-        false,
+        &TagsInputProps::default(),
         vec![],
         vec![
-            tags_input::label(vec![], vec![text("Skills (max 2)")]),
+            tags_input::label(
+                &TagsInputProps::default(),
+                vec![],
+                vec![text("Skills (max 2)")],
+            ),
             tags_input::control(
-                false,
-                true,
-                "Skills",
+                &props,
                 vec![],
                 vec![
-                    tags_input::item(
-                        false,
-                        false,
-                        vec![],
-                        vec![tags_input::item_preview(
-                            false,
-                            vec![],
-                            vec![
-                                tags_input::item_text(vec![], vec![text("rust")]),
-                                tags_input::item_delete_trigger(
-                                    "rust",
-                                    false,
-                                    vec![],
-                                    vec![text("×")],
-                                ),
-                            ],
-                        )],
-                    ),
-                    tags_input::item(
-                        false,
-                        false,
-                        vec![],
-                        vec![tags_input::item_preview(
-                            false,
-                            vec![],
-                            vec![
-                                tags_input::item_text(vec![], vec![text("wasm")]),
-                                tags_input::item_delete_trigger(
-                                    "wasm",
-                                    false,
-                                    vec![],
-                                    vec![text("×")],
-                                ),
-                            ],
-                        )],
-                    ),
-                    tags_input::input("", false, true, vec![("aria-label", "Add a skill")]),
+                    tags_input_example_item("rust"),
+                    tags_input_example_item("wasm"),
+                    tags_input::input(&props, "", true, vec![("aria-label", "Add a skill")]),
                 ],
             ),
-            tags_input::clear_trigger(false, vec![], vec![text("Clear")]),
-            tags_input::hidden_input("skills", "rust,wasm", false, vec![]),
+            tags_input::clear_trigger(&TagsInputProps::default(), vec![], vec![text("Clear")]),
+            tags_input::hidden_input(&TagsInputProps::default(), "skills", "rust,wasm", vec![]),
         ],
     )];
     div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// Read-only 実演（イシュー #1623）: `TagsInputProps::readonly` を
+/// `control`/`input`/`hidden_input` へ反映する（`input` はネイティブ
+/// `readonly` も出力する）。
+fn ex_tags_input_readonly() -> Node {
+    let props = TagsInputProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let body = vec![tags_input::root(
+        &props,
+        vec![],
+        vec![
+            tags_input::label(&props, vec![], vec![text("Environment")]),
+            tags_input::control(
+                &props,
+                vec![],
+                vec![
+                    tags_input_example_item("staging"),
+                    tags_input::input(&props, "", false, vec![("aria-label", "Add a value")]),
+                ],
+            ),
+            tags_input::hidden_input(&props, "environment", "staging", vec![]),
+        ],
+    )];
+    div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// 「利用者が自前 CSS を当てる最小例」（イシュー #1623 受け入れ条件）:
+/// headless-ui は `data-scope="tags-input"`/`data-part="..."` を出力する
+/// のみでスタイルレスであるため、CSS 適用は呼び出し側の責務であることを
+/// コード表示のみで示す（`ex_number_input_custom_css` と同型、CSS 自体は
+/// このページへ適用しない）。
+fn ex_tags_input_custom_css() -> Node {
+    pre(
+        vec![],
+        vec![code(
+            vec![],
+            vec![text(
+                "[data-scope=\"tags-input\"][data-part=\"control\"] {\n  \
+                 display: inline-flex;\n  flex-wrap: wrap;\n  gap: 0.25rem;\n  \
+                 border: 1px solid #ccc;\n  padding: 0.25rem;\n}\n\n\
+                 [data-scope=\"tags-input\"][data-part=\"item-preview\"][data-highlighted] {\n  \
+                 outline: 2px solid #2563eb;\n}\n\n\
+                 [data-scope=\"tags-input\"][data-part=\"input\"][data-invalid] {\n  \
+                 border-color: #dc2626;\n}\n\n\
+                 [data-scope=\"tags-input\"][data-part=\"control\"][data-readonly] {\n  \
+                 background: #f3f4f6;\n}",
+            )],
+        )],
+    )
 }

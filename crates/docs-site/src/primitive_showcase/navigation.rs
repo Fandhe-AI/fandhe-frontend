@@ -6,10 +6,10 @@
 //! `sub_content` は本デモでは未網羅とし、
 //! `tests/primitive_showcase.rs::KNOWN_UNCOVERED` に登録する。
 
-use fandhe_frontend_core::{text, Node};
+use fandhe_frontend_core::{div, el, p, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::action_bar;
-use hui::breadcrumb::{self, BreadcrumbItem};
+use hui::breadcrumb;
 use hui::data_attrs::Orientation;
 use hui::link;
 use hui::link_overlay;
@@ -47,45 +47,138 @@ pub(super) fn action_bar_section() -> Node {
     demo_page("Action Bar", body)
 }
 
+/// 7 パーツ全て（`root`/`list`/`item`/`link`/`current-link`/`separator`/
+/// `ellipsis`）を Demo 上で機械導出可能にするため、[`breadcrumb::breadcrumb`]
+/// 利便ビルダーではなく個別パーツを手組みする（chakra-ui の
+/// breadcrumb-with-ellipsis 例と同型、イシュー #1648）。
 pub(super) fn breadcrumb_section() -> Node {
-    let items = [
-        BreadcrumbItem {
-            label: "Home",
-            href: "https://example.com/",
-        },
-        BreadcrumbItem {
-            label: "Docs",
-            href: "https://example.com/docs/",
-        },
-        BreadcrumbItem {
-            label: "Primitives",
-            href: "https://example.com/primitives/",
-        },
-    ];
-    let body = vec![breadcrumb::breadcrumb(None, &items, || vec![text("/")])];
+    let body = vec![breadcrumb::root(
+        None,
+        vec![],
+        vec![breadcrumb::list(
+            vec![],
+            vec![
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::link(
+                        "https://example.com/",
+                        vec![],
+                        vec![text("Home")],
+                    )],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::ellipsis(vec![]),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::link(
+                        "https://example.com/primitives/",
+                        vec![],
+                        vec![text("Primitives")],
+                    )],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::current_link(vec![], vec![text("Breadcrumb")])],
+                ),
+            ],
+        )],
+    )];
     demo_page("Breadcrumb", body)
 }
 
+/// 参考サイト（chakra-ui / Radix Themes）のデモ構成（単体 / variant 別 /
+/// 文中インライン）に合わせ、通常・外部・現在ページ・文中インラインの
+/// 4 変種を並べる（イシュー #1649）。href はすべて `example.com`（RFC
+/// 2606）で内部リンク切れ検証を避ける（`crate::linkcheck` 対象外）。
 pub(super) fn link_section() -> Node {
-    let body = vec![link::root(
-        "https://example.com",
-        true,
-        false,
-        vec![],
-        vec![text("External link")],
-    )];
+    let body = vec![
+        div(
+            vec![],
+            vec![link::root(
+                "https://example.com/docs",
+                false,
+                false,
+                vec![],
+                vec![text("Internal link")],
+            )],
+        ),
+        div(
+            vec![],
+            vec![link::root(
+                "https://example.com",
+                true,
+                false,
+                vec![],
+                vec![text("External link")],
+            )],
+        ),
+        div(
+            vec![],
+            vec![link::root(
+                "https://example.com/current",
+                false,
+                true,
+                vec![],
+                vec![text("Current page link")],
+            )],
+        ),
+        p(
+            vec![],
+            vec![
+                text("Read more in the "),
+                link::root(
+                    "https://example.com/guide",
+                    false,
+                    false,
+                    vec![],
+                    vec![text("inline guide")],
+                ),
+                text(" for details."),
+            ],
+        ),
+    ];
     demo_page("Link", body)
 }
 
+/// 参考サイト（chakra-ui `LinkBox`/`LinkOverlay`。ark-ui の対応ページは
+/// 404 で実在せず、Radix Primitives/Radix Themes にも対応部品なし）の
+/// 典型構成（タイトル位置に置いた `overlay` + 説明文 + 内側の通常リンク）
+/// を再現する（イシュー #1650）。`overlay` はタイトル相当の `strong` に
+/// 包んで DOM 上の視覚的な見出し位置を示し、`root` 内の内側リンクは
+/// 別 scope（`link::root`）ではなく素の `a`（執筆規約 1「他 scope を
+/// 内包しない」）で表す。href はすべて `example.com`（RFC 2606）で内部
+/// リンク切れ検証を避ける（`crate::linkcheck` 対象外）。
 pub(super) fn link_overlay_section() -> Node {
     let body = vec![link_overlay::root(
         vec![],
         vec![
-            text("Card body content"),
-            link_overlay::overlay(
-                "https://example.com/article",
+            p(
                 vec![],
-                vec![text("Read article")],
+                vec![el(
+                    "strong",
+                    vec![],
+                    vec![link_overlay::overlay(
+                        "https://example.com/articles/getting-started",
+                        vec![],
+                        vec![text("Getting started")],
+                    )],
+                )],
+            ),
+            p(
+                vec![],
+                vec![text(
+                    "A short summary of the article shown as normal flow content.",
+                )],
+            ),
+            p(
+                vec![],
+                vec![el(
+                    "a",
+                    vec![("href", "https://example.com/authors/jane")],
+                    vec![text("By Jane")],
+                )],
             ),
         ],
     )];
