@@ -1000,6 +1000,15 @@ const RADIO_GROUP_CUSTOM_CSS_SNIPPET: &str = r#"[data-scope="radio-group"][data-
   gap: 1rem;
 }"#;
 
+/// Custom CSS 例のネイティブ `<input type="radio">` グループ名。
+/// 同一ページの Demo 節（`crates/docs-site/src/primitive_showcase/
+/// forms_b.rs::radio_group_section` が出力する "Plan" グループ）も
+/// `name="plan"` を使っており、同一 DOM 上に同名グループの radio が
+/// 複数存在するとブラウザがネイティブ排他選択（同じ `name` を 1 グループ
+/// として扱う）を跨いで干渉してしまう（codex-review P1 指摘、PR #1886）。
+/// 本例は Demo 節と独立した固有名を使う。
+const RADIO_GROUP_CUSTOM_CSS_EXAMPLE_NAME: &str = "plan-custom-css";
+
 fn ex_radio_group_custom_css() -> Node {
     let props = radio_group::RadioGroupProps {
         invalid: true,
@@ -1020,7 +1029,13 @@ fn ex_radio_group_custom_css() -> Node {
                 vec![
                     radio_group::item_control(false, &props, vec![]),
                     radio_group::item_text(false, &props, vec![], vec![text("Monthly")]),
-                    radio_group::item_hidden_input(false, &props, Some("plan"), "monthly", vec![]),
+                    radio_group::item_hidden_input(
+                        false,
+                        &props,
+                        Some(RADIO_GROUP_CUSTOM_CSS_EXAMPLE_NAME),
+                        "monthly",
+                        vec![],
+                    ),
                 ],
             ),
         ],
