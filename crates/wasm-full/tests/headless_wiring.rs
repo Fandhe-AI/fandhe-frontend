@@ -239,8 +239,10 @@ fn radio_group_item_text_click_resolves_via_ancestor_item() {
 
 #[test]
 fn select_trigger_opens_item_click_selects_and_closes_clear_trigger_deselects() {
+    let select_props = select::SelectProps::default();
     let trigger_html = render(&select::trigger(
         OpenState::Closed,
+        &select_props,
         false,
         None,
         None,
@@ -250,6 +252,7 @@ fn select_trigger_opens_item_click_selects_and_closes_clear_trigger_deselects() 
     assert_scope_part_present(&trigger_html, "select", "trigger");
     let item_html = render(&select::item(
         OpenState::Closed,
+        &select_props,
         false,
         false,
         "opt-1",
@@ -258,7 +261,7 @@ fn select_trigger_opens_item_click_selects_and_closes_clear_trigger_deselects() 
         vec![],
     ));
     assert_scope_part_present(&item_html, "select", "item");
-    let clear_html = render(&select::clear_trigger(vec![], vec![]));
+    let clear_html = render(&select::clear_trigger(&select_props, vec![], vec![]));
     assert_scope_part_present(&clear_html, "select", "clear-trigger");
 
     let open_action = action_for_part(&part("select", "trigger", None, false)).unwrap();

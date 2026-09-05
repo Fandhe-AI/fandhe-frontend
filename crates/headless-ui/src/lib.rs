@@ -180,6 +180,10 @@
 //!   合成する初の例。[`select::item`] の `highlighted`/`id` 引数と
 //!   [`select::content`] の `activedescendant` 引数が `data-highlighted`/
 //!   `aria-activedescendant` の SSR 静的表現を提供する（イシュー #599）。
+//!   [`select::SelectProps`]（`disabled`/`readonly`/`invalid`/`required`）が
+//!   ark-ui/Radix との参照突合（イシュー #1619）を反映し、trigger の
+//!   `data-placeholder-shown`・item の root disabled 伝播と `data-selected`・
+//!   item-text の 3 状態属性を追加する。
 //! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
 //!   パーツと、[`state::Checkable`] を埋め込んだ [`switch::Switch`] 状態機械
 //!   （#537、親 #534）。ark-ui 準拠の `"checked"`/`"unchecked"` 値語彙が

@@ -74,13 +74,60 @@
 //! （親 #588）で [`crate::positioning`] として実装済みである。詳細は
 //! [`positioner`] の doc を参照（Select は arrow を持たないため
 //! `data-side`/`data-align` のみを出力する、ADR §4.2）。
+//!
+//! # 参照突合（イシュー #1619）
+//!
+//! ark-ui Select（zag.js）/ Radix Primitives Select の Data Attributes・
+//! Keyboard Support 表と突合し、以下を是正した（同 Phase の combobox #1605・
+//! listbox #1611・radio-group #1616 と同型のパターン）。
+//!
+//! - **[`SelectProps`]（新設）**: `disabled`/`readonly`/`invalid`/`required`
+//!   の状態束を root/label/control/trigger/value-text/clear-trigger/
+//!   indicator/item-group へ一律付与する（[`crate::combobox::ComboboxProps`]
+//!   と同型）。呼び出し側 `attrs` に同名キーが混入していても
+//!   [`drop_reserved`] で fail-closed に除去する。
+//! - **[`trigger`] の `data-placeholder-shown`**: ark-ui/Radix 双方が trigger
+//!   に持つ属性で、未選択時のスタイル分岐を [`value_text`] だけでなく
+//!   trigger 自体でも可能にする。
+//! - **[`item`] の root disabled 伝播・`data-selected`**: 有効 disabled は
+//!   `props.disabled || disabled`（zag の `getItemState` 準拠、
+//!   [`crate::listbox`] と同じ契約）。選択時のみ `data-selected` 存在属性を
+//!   追加する（ark 互換セレクタ、`data-state` の `checked`/`unchecked` 化は
+//!   非採用のまま）。
+//! - **[`item_text`] の 3 状態属性**: [`item`] の先頭 3 引数
+//!   （selected_state/disabled/highlighted）を同型で受け取り
+//!   `data-state`/`data-disabled`/`data-highlighted` を出力する
+//!   （[`crate::listbox::item_text`] と同型。select と listbox は
+//!   [`SingleSelect`] 語彙を共有する兄弟のため combobox ではなく listbox の
+//!   判断に揃える）。
+//! - **[`item_group_label`] の `role="presentation"`**・**[`item_indicator`]
+//!   の `aria-hidden="true"`**: zag の anatomy に合わせて固定付与する
+//!   （[`crate::listbox`] と同型）。
+//! - **[`hidden_select`] の `required`**: `disabled: bool` 引数を
+//!   `&SelectProps` へ置換し、`props.required` でネイティブ `required` を
+//!   追加付与する（`readonly` は `<select readonly>` が無効な HTML のため
+//!   非採用、[`crate::field::select`] と同じ結論）。
+//! - **readonly 中のキーボード操作抑止**: `fandhe-frontend-wasm-full` の
+//!   `keynav` モジュールが trigger の `data-readonly` を確認して no-op に
+//!   する（combobox #1605 の codex-review P1 是正と同型）。
+//!
+//! **意図的非追随**: anatomy 15 パーツは ark-ui と完全一致のため追加・削除
+//! なし。Radix 固有の Portal/Viewport/ScrollButton（レイアウト計測の関心、
+//! `docs/policy/intentional-non-adoption.md` §3.25 規則 2）・Arrow（Select は
+//! arrow を持たない、ADR §4.2）・Icon/Value（Indicator/ValueText と同義）・
+//! Separator（別部品の責務）は追加しない。`data-focus`（DOM ローカル
+//! focus、§3.25 規則 2）・`data-placement`/`data-side`（[`crate::positioning`]
+//! 経由で既に提供）・`data-activedescendant`（`aria-activedescendant` と
+//! 重複）も追加しない。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
-    aria_activedescendant, aria_controls, aria_disabled, aria_expanded, aria_haspopup,
+    aria_activedescendant, aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_hidden,
     aria_labelledby, aria_selected, role, AriaPopup,
 };
-use crate::data_attrs::{data_disabled, data_highlighted, data_state};
+use crate::data_attrs::{
+    data_disabled, data_highlighted, data_invalid, data_readonly, data_required, data_state,
+};
 use crate::state::{Disclosure, OpenState, SingleSelect, SingleSelectAction};
 use fandhe_frontend_core::{el, text, Node, BIND_TEXT_ATTR};
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
@@ -100,19 +147,148 @@ const ANATOMY: Anatomy = anatomy("select");
 /// として解釈されない。
 pub const VALUE_TEXT_FIELD: &str = "select-value-text";
 
-/// Root パーツ（`div`）。listbox の開閉状態を `data-*` へ反映する。
+/// Select の disabled/readonly/invalid/required 状態束（イシュー #1619
+/// 参照突合）。root/label/control/trigger/value-text/clear-trigger/
+/// indicator/item-group へ [`data_disabled`]/[`data_invalid`]/
+/// [`data_readonly`] を一律付与し、[`label`] にのみ [`data_required`] を
+/// 追加で付与するために使う（[`crate::combobox::ComboboxProps`]/
+/// [`crate::listbox::ListboxProps`] と同型のパターン）。状態機械 [`Select`]
+/// にはフィールドを持たせず、呼び出しごとに `&SelectProps` を渡す
+/// （hydration 属性面を拡張しない設計）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SelectProps {
+    /// 無効化状態。`true` で `data-disabled` を各パーツへ付与し、
+    /// [`item`]/[`item_text`] へは `props.disabled || 個別の disabled` として
+    /// 伝播する（zag の `getItemState` 準拠、モジュール冒頭「参照突合」節
+    /// 参照）。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で `data-readonly` を各パーツへ付与する。
+    /// trigger の keydown/click 経路は `fandhe-frontend-wasm-full` が
+    /// `data-readonly` を確認して no-op にする（モジュール冒頭「参照突合」
+    /// 節参照）。
+    pub readonly: bool,
+    /// 入力検証エラー状態。`true` で `data-invalid` を各パーツへ付与する。
+    pub invalid: bool,
+    /// 入力必須状態。`true` で [`label`] に `data-required` を、
+    /// [`hidden_select`] にはネイティブ `required` 存在属性を付与する。
+    pub required: bool,
+}
+
+/// [`SelectProps`] から root/label/control/trigger/value-text/
+/// clear-trigger/indicator/item-group 共通の状態属性列を組み立てる非公開
+/// ヘルパ（disabled/invalid/readonly の 3 属性、[`crate::combobox::state_attrs`]
+/// と同型）。
+fn state_attrs(props: &SelectProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs: Vec<(&'static str, &'static str)> = Vec::new();
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_invalid(props.invalid));
+    attrs.extend(data_readonly(props.readonly));
+    attrs
+}
+
+/// [`root`]/[`control`] が固定付与するキー一覧（[`SelectProps`] の
+/// `data-disabled`/`data-invalid`/`data-readonly` に `data-state` を
+/// 加えたもの、[`crate::combobox::STATEFUL_CONTAINER_RESERVED`] と同型）。
+const STATEFUL_CONTAINER_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-state",
+];
+
+/// [`label`] が固定付与するキー一覧（[`SelectProps`] の状態束に
+/// `data-required` を加えたもの）。
+const LABEL_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-required",
+];
+
+/// [`trigger`] が固定付与するキー一覧（[`STATEFUL_CONTAINER_RESERVED`] に
+/// `data-placeholder-shown` を加えたもの）。
+const TRIGGER_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-state",
+    "data-placeholder-shown",
+];
+
+/// [`item_group`] が固定付与するキー一覧。
+const ITEM_GROUP_RESERVED: &[&str] = &[
+    "role",
+    "aria-labelledby",
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+];
+
+/// [`item_group_label`] が固定付与するキー一覧。
+const ITEM_GROUP_LABEL_RESERVED: &[&str] = &["role", "id"];
+
+/// [`item`] が固定付与するキー一覧。
+const ITEM_RESERVED: &[&str] = &[
+    "role",
+    "aria-selected",
+    "data-state",
+    "data-selected",
+    "data-value",
+    "aria-disabled",
+    "data-disabled",
+    "data-highlighted",
+    "id",
+];
+
+/// [`item_text`] が固定付与するキー一覧。
+const ITEM_TEXT_RESERVED: &[&str] = &["data-state", "data-disabled", "data-highlighted", "id"];
+
+/// [`item_indicator`] が固定付与するキー一覧。
+const ITEM_INDICATOR_RESERVED: &[&str] = &["aria-hidden", "data-state", "hidden"];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::combobox::drop_reserved`]/[`crate::listbox::drop_reserved`]
+/// と同型の重複実装。モジュール間の相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// Root パーツ（`div`）。listbox の開閉状態と [`SelectProps`] の状態束を
+/// `data-*` へ反映する。
 #[must_use]
-pub fn root<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn root<'a>(
+    state: OpenState,
+    props: &SelectProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATEFUL_CONTAINER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
 
 /// Label パーツ（`label`）。`id` が `Some` のとき [`content`]/[`trigger`] の
 /// `labelledby` と対で `aria-labelledby` 関連付けを成立させる。
+/// [`SelectProps`] の状態束 + `data-required` を付与する（イシュー #1619
+/// 参照突合。ark-ui の `data-required` は Label のみが持つ）。
 #[must_use]
-pub fn label<'a>(id: Option<&'a str>, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+pub fn label<'a>(
+    props: &SelectProps,
+    id: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, LABEL_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(data_required(props.required));
     if let Some(id) = id {
         merged.push(("id", id));
     }
@@ -121,10 +297,18 @@ pub fn label<'a>(id: Option<&'a str>, attrs: Vec<(&'a str, &'a str)>, children: 
 }
 
 /// Control パーツ（`div`）。トリガー・値表示・クリアボタン等をまとめる
-/// コンテナ。開閉状態を `data-*` へ反映するのみの最小主義な装飾用パーツ。
+/// コンテナ。開閉状態と [`SelectProps`] の状態束を `data-*` へ反映する
+/// 最小主義な装飾用パーツ。
 #[must_use]
-pub fn control<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn control<'a>(
+    state: OpenState,
+    props: &SelectProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATEFUL_CONTAINER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
 }
@@ -135,17 +319,23 @@ pub fn control<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: V
 /// 付与する（A05 セキュリティ設定ミス対策、既存コンポーネントと同判断）。
 /// `aria-haspopup="listbox"` を固定付与し、`controls` が `Some` のとき
 /// `aria-controls` で [`content`] と、`labelledby` が `Some` のとき
-/// `aria-labelledby` で [`label`] と関連付ける。`disabled` はネイティブ
-/// `disabled` 存在属性と `data-disabled` の両方へ反映する。
+/// `aria-labelledby` で [`label`] と関連付ける。[`SelectProps`] の状態束を
+/// 付与し、`props.disabled` のときネイティブ `disabled` 存在属性も追加する。
+/// `placeholder_shown` が `true` のとき `data-placeholder-shown` を付与する
+/// （ark-ui/Radix 双方が trigger に持つ属性、イシュー #1619 参照突合。
+/// [`value_text`] と併用する）。
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn trigger<'a>(
     state: OpenState,
-    disabled: bool,
+    props: &SelectProps,
+    placeholder_shown: bool,
     controls: Option<&'a str>,
     labelledby: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, TRIGGER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("type", "button"),
         aria_haspopup(AriaPopup::Listbox),
@@ -158,8 +348,11 @@ pub fn trigger<'a>(
     if let Some(labelledby) = labelledby {
         merged.push(aria_labelledby(labelledby));
     }
-    merged.extend(data_disabled(disabled));
-    if disabled {
+    if placeholder_shown {
+        merged.push(("data-placeholder-shown", ""));
+    }
+    merged.extend(state_attrs(props));
+    if props.disabled {
         merged.push(("disabled", ""));
     }
     merged.extend(attrs);
@@ -168,7 +361,9 @@ pub fn trigger<'a>(
 
 /// ValueText パーツ（`span`）。`data-part="value-text"`（ark-ui 準拠の
 /// kebab-case）。プレースホルダー表示中（未選択）のときのみ
-/// `data-placeholder-shown` 存在属性を付与する。
+/// `data-placeholder-shown` 存在属性を付与する。[`SelectProps`] の
+/// `disabled`/`invalid` を `data-*` へ反映する（`data-readonly` は本パーツが
+/// 操作対象ではないため付与しない、ark-ui の Data Attributes 表準拠）。
 ///
 /// [`VALUE_TEXT_FIELD`] を field とする `data-bind-text` 束縛マーカー
 /// （[`fandhe_frontend_core::BIND_TEXT_ATTR`]）を常時付与する（イシュー
@@ -183,13 +378,20 @@ pub fn trigger<'a>(
 #[must_use]
 pub fn value_text<'a>(
     placeholder_shown: bool,
+    props: &SelectProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(
+        attrs,
+        &["data-disabled", "data-invalid", "data-placeholder-shown"],
+    );
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
     if placeholder_shown {
         merged.push(("data-placeholder-shown", ""));
     }
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(data_invalid(props.invalid));
     let mut attrs = attrs;
     attrs.retain(|(name, _)| *name != BIND_TEXT_ATTR);
     merged.extend(attrs);
@@ -201,23 +403,40 @@ pub fn value_text<'a>(
 /// kebab-case）。[`trigger`] と同じくフォーム内配置時の意図しない submit を
 /// 防ぐため `type="button"` を固定で付与する。アクセシブルネーム
 /// （`aria-label` 等）は本関数の `attrs` を通じて呼び出し側が付与する責務と
-/// する（[`crate::popover::close_trigger`] と同じ判断）。
+/// する（[`crate::popover::close_trigger`] と同じ判断）。[`SelectProps`] の
+/// `invalid` を `data-invalid` へ反映し、`props.disabled` のときのみ
+/// ネイティブ `disabled` 存在属性と `data-disabled` を追加する（無効な
+/// select はクリアもできない安全側の判断、[`crate::combobox::clear_trigger`]
+/// と同型、イシュー #1619 参照突合）。
 #[must_use]
-pub fn clear_trigger<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn clear_trigger<'a>(
+    props: &SelectProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, &["data-disabled", "data-invalid", "disabled"]);
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
+    merged.extend(data_invalid(props.invalid));
+    if props.disabled {
+        merged.push(("disabled", ""));
+        merged.extend(data_disabled(true));
+    }
     merged.extend(attrs);
     ANATOMY.part("clear-trigger", "button", merged, children)
 }
 
-/// Indicator パーツ（`span`）。開閉状態のみを `data-state` へ反映する
-/// 最小主義な装飾用パーツ（アイコン等は呼び出し側の `attrs`/`children` が担う）。
+/// Indicator パーツ（`span`）。開閉状態と [`SelectProps`] の状態束を
+/// `data-*` へ反映する（アイコン等は呼び出し側の `attrs`/`children` が担う）。
 #[must_use]
 pub fn indicator<'a>(
     state: OpenState,
+    props: &SelectProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATEFUL_CONTAINER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("indicator", "span", merged, children)
 }
@@ -289,13 +508,17 @@ pub fn content<'a>(
 /// kebab-case）。`labelledby` が `Some` のときのみ `role="group"` と
 /// `aria-labelledby` をセットで付与する（名前なし group を作らないため、
 /// [`crate::accordion::item_content`] の `labelled_by` と同じ判断）。
+/// [`SelectProps`] の状態束を `data-*` へ反映する（[`crate::listbox::item_group`]
+/// と同型、イシュー #1619 参照突合）。
 #[must_use]
 pub fn item_group<'a>(
+    props: &SelectProps,
     labelledby: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    let attrs = drop_reserved(attrs, ITEM_GROUP_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = state_attrs(props);
     if let Some(labelledby) = labelledby {
         merged.push(role("group"));
         merged.push(aria_labelledby(labelledby));
@@ -306,14 +529,17 @@ pub fn item_group<'a>(
 
 /// ItemGroupLabel パーツ（`div`）。`data-part="item-group-label"`（ark-ui
 /// 準拠の kebab-case）。`id` が `Some` のとき [`item_group`] の `labelledby`
-/// と対で関連付ける。
+/// と対で関連付ける。`role="presentation"` を固定付与する（zag の
+/// ItemGroupLabel anatomy に合わせる、[`crate::listbox::item_group_label`]
+/// と同型、イシュー #1619 参照突合）。
 #[must_use]
 pub fn item_group_label<'a>(
     id: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    let attrs = drop_reserved(attrs, ITEM_GROUP_LABEL_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![role("presentation")];
     if let Some(id) = id {
         merged.push(("id", id));
     }
@@ -327,8 +553,13 @@ pub fn item_group_label<'a>(
 /// `role="option"` を固定付与する。`data-state` は選択有無を
 /// [`crate::state::OpenState`] の既存語彙（`"open"`/`"closed"`）で表現する
 /// （モジュール doc §out-of-scope 参照。ark-ui の `checked`/`unchecked` は
-/// 採用しない）。`value` は `data-value` として動的値のまま出力し、
-/// `render()` の既定エスケープを必ず経由する。`disabled` が `true` のとき
+/// 採用しない）。選択時のみ `data-selected` 存在属性を追加する（ark 互換の
+/// 属性セレクタ、イシュー #1619 参照突合）。`value` は `data-value` として
+/// 動的値のまま出力し、`render()` の既定エスケープを必ず経由する。
+///
+/// 有効な disabled は `props.disabled || disabled`（zag の `getItemState`
+/// と同じ「root disabled が子 item へ伝播する」契約、
+/// [`crate::listbox::item`] と同型）で判定し、`true` のとき
 /// `aria-disabled="true"` と `data-disabled` を対で付与する（本パーツは
 /// `div[role="option"]` でありネイティブの `disabled` 属性を持たないため、
 /// 支援技術へは ARIA 経由でのみ伝達できる。[`crate::menu::item`] と同じ
@@ -341,8 +572,10 @@ pub fn item_group_label<'a>(
 /// とき、[`content`] の `activedescendant` 引数の参照先として使う識別子
 /// になる（`aria-activedescendant` は対象要素の `id` を参照する属性のため）。
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn item<'a>(
     selected_state: OpenState,
+    props: &SelectProps,
     disabled: bool,
     highlighted: bool,
     value: &'a str,
@@ -350,19 +583,24 @@ pub fn item<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_RESERVED);
+    let effective_disabled = props.disabled || disabled;
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         role("option"),
         aria_selected(selected_state.is_open()),
         data_state(selected_state.as_data_state()),
         ("data-value", value),
     ];
+    if selected_state.is_open() {
+        merged.push(("data-selected", ""));
+    }
     if let Some(id) = id {
         merged.push(("id", id));
     }
-    if disabled {
+    if effective_disabled {
         merged.push(aria_disabled(true));
     }
-    merged.extend(data_disabled(disabled));
+    merged.extend(data_disabled(effective_disabled));
     merged.extend(data_highlighted(highlighted));
     merged.extend(attrs);
     ANATOMY.part("item", "div", merged, children)
@@ -371,13 +609,27 @@ pub fn item<'a>(
 /// ItemText パーツ（`span`）。`data-part="item-text"`（ark-ui 準拠の
 /// kebab-case）。`id` が `Some` のとき呼び出し側が `aria-labelledby` 等と
 /// 関連付けるための識別子として使える。
+///
+/// `selected_state`/`disabled`/`highlighted` の 3 状態属性（[`item`] の
+/// 先頭 3 引数と同型）を `data-state`/`data-disabled`/`data-highlighted`
+/// として出力する（[`crate::listbox::item_text`] と同型、イシュー #1619
+/// 参照突合）。有効な disabled は [`item`] と同じ `props.disabled ||
+/// disabled` を本関数の内部で計算する。
 #[must_use]
 pub fn item_text<'a>(
+    selected_state: OpenState,
+    props: &SelectProps,
+    disabled: bool,
+    highlighted: bool,
     id: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    let attrs = drop_reserved(attrs, ITEM_TEXT_RESERVED);
+    let effective_disabled = props.disabled || disabled;
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(selected_state.as_data_state())];
+    merged.extend(data_disabled(effective_disabled));
+    merged.extend(data_highlighted(highlighted));
     if let Some(id) = id {
         merged.push(("id", id));
     }
@@ -389,13 +641,20 @@ pub fn item_text<'a>(
 /// kebab-case）。選択状態を `data-state` へ反映し、非選択のとき `hidden`
 /// 存在属性を付与する（チェックマーク等のアイコンを非選択時に隠す用途、
 /// [`crate::accordion::item_content`] の `hidden` 判断と同型）。
+/// `aria-hidden="true"` を固定付与する（装飾アイコンであり `item` 自身の
+/// `aria-selected` が選択状態を既に伝達するため、支援技術の二重読み上げを
+/// 防ぐ。[`crate::listbox::item_indicator`] と同型、イシュー #1619 参照突合）。
 #[must_use]
 pub fn item_indicator<'a>(
     selected_state: OpenState,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(selected_state.as_data_state())];
+    let attrs = drop_reserved(attrs, ITEM_INDICATOR_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        aria_hidden(true),
+        data_state(selected_state.as_data_state()),
+    ];
     if !selected_state.is_open() {
         merged.push(("hidden", ""));
     }
@@ -420,20 +679,32 @@ pub fn item_indicator<'a>(
 /// フォーム送信してしまうため、これを行わないと未選択状態にもかかわらず
 /// 先頭の実 option 値が送信され、呼び出し側（`fandhe-frontend-pre-styled-ui`
 /// 等）が前提とする「未選択なら空値」というフォーム連携契約が壊れる。
+///
+/// `disabled: bool` 引数を `&SelectProps` へ置換し、`props.disabled`/
+/// `props.required` をそれぞれネイティブ `disabled`/`required` 存在属性へ
+/// 反映する（イシュー #1619 参照突合。`readonly` は `<select readonly>` が
+/// 無効な HTML のため非採用、[`crate::field::select`] と同じ結論）。
 #[must_use]
 pub fn hidden_select<'a>(
     selected: Option<&'a str>,
     name: Option<&'a str>,
-    disabled: bool,
+    props: &SelectProps,
     attrs: Vec<(&'a str, &'a str)>,
     options: Vec<(&'a str, &'a str)>,
 ) -> Node {
+    let attrs = drop_reserved(
+        attrs,
+        &["aria-hidden", "tabindex", "name", "disabled", "required"],
+    );
     let mut merged: Vec<(&'a str, &'a str)> = vec![("aria-hidden", "true"), ("tabindex", "-1")];
     if let Some(name) = name {
         merged.push(("name", name));
     }
-    if disabled {
+    if props.disabled {
         merged.push(("disabled", ""));
+    }
+    if props.required {
+        merged.push(("required", ""));
     }
     merged.extend(attrs);
 
@@ -538,21 +809,32 @@ impl Select {
 
     /// [`root`] へ現在の開閉状態を注入する利便メソッド。
     #[must_use]
-    pub fn root<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        root(self.open_state(), attrs, children)
+    pub fn root<'a>(
+        &self,
+        props: &SelectProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        root(self.open_state(), props, attrs, children)
     }
 
     /// [`control`] へ現在の開閉状態を注入する利便メソッド。
     #[must_use]
-    pub fn control<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        control(self.open_state(), attrs, children)
+    pub fn control<'a>(
+        &self,
+        props: &SelectProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        control(self.open_state(), props, attrs, children)
     }
 
-    /// [`trigger`] へ現在の開閉状態を注入する利便メソッド。
+    /// [`trigger`] へ現在の開閉状態と未選択有無（プレースホルダー表示判定）を
+    /// 注入する利便メソッド。
     #[must_use]
     pub fn trigger<'a>(
         &self,
-        disabled: bool,
+        props: &SelectProps,
         controls: Option<&'a str>,
         labelledby: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
@@ -560,7 +842,8 @@ impl Select {
     ) -> Node {
         trigger(
             self.open_state(),
-            disabled,
+            props,
+            self.selected().is_none(),
             controls,
             labelledby,
             attrs,
@@ -571,14 +854,24 @@ impl Select {
     /// [`value_text`] へ現在の選択有無（未選択ならプレースホルダー表示）を
     /// 注入する利便メソッド。
     #[must_use]
-    pub fn value_text<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        value_text(self.selected().is_none(), attrs, children)
+    pub fn value_text<'a>(
+        &self,
+        props: &SelectProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        value_text(self.selected().is_none(), props, attrs, children)
     }
 
     /// [`indicator`] へ現在の開閉状態を注入する利便メソッド。
     #[must_use]
-    pub fn indicator<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        indicator(self.open_state(), attrs, children)
+    pub fn indicator<'a>(
+        &self,
+        props: &SelectProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        indicator(self.open_state(), props, attrs, children)
     }
 
     /// [`positioner`] へ現在の開閉状態を注入する利便メソッド。
@@ -609,9 +902,11 @@ impl Select {
 
     /// [`item`] へ項目 `value` の現在の選択状態を注入する利便メソッド。
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn item<'a>(
         &self,
         value: &'a str,
+        props: &SelectProps,
         disabled: bool,
         highlighted: bool,
         id: Option<&'a str>,
@@ -620,9 +915,34 @@ impl Select {
     ) -> Node {
         item(
             self.item_state(value),
+            props,
             disabled,
             highlighted,
             value,
+            id,
+            attrs,
+            children,
+        )
+    }
+
+    /// [`item_text`] へ項目 `value` の現在の選択状態を注入する利便メソッド。
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn item_text<'a>(
+        &self,
+        value: &str,
+        props: &SelectProps,
+        disabled: bool,
+        highlighted: bool,
+        id: Option<&'a str>,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        item_text(
+            self.item_state(value),
+            props,
+            disabled,
+            highlighted,
             id,
             attrs,
             children,
@@ -645,11 +965,11 @@ impl Select {
     pub fn hidden_select<'a>(
         &'a self,
         name: Option<&'a str>,
-        disabled: bool,
+        props: &SelectProps,
         attrs: Vec<(&'a str, &'a str)>,
         options: Vec<(&'a str, &'a str)>,
     ) -> Node {
-        hidden_select(self.selected(), name, disabled, attrs, options)
+        hidden_select(self.selected(), name, props, attrs, options)
     }
 }
 
@@ -684,10 +1004,20 @@ impl Component for Select {
     /// 組み合わせる）。
     fn view(&self) -> Node {
         let state = self.open_state();
+        let props = SelectProps::default();
         self.root(
+            &props,
             Vec::new(),
             vec![
-                trigger(state, false, None, None, Vec::new(), Vec::new()),
+                trigger(
+                    state,
+                    &props,
+                    self.selected().is_none(),
+                    None,
+                    None,
+                    Vec::new(),
+                    Vec::new(),
+                ),
                 positioner(
                     state,
                     Vec::new(),
@@ -777,7 +1107,12 @@ mod tests {
 
     #[test]
     fn root_outputs_scope_part_and_state() {
-        let html = render(&root(OpenState::Closed, vec![], vec![]));
+        let html = render(&root(
+            OpenState::Closed,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="select""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(html.contains(r#"data-state="closed""#));
@@ -785,14 +1120,24 @@ mod tests {
 
     #[test]
     fn label_id_some_outputs_id() {
-        let html = render(&label(Some("select-label-1"), vec![], vec![text("Fruit")]));
+        let html = render(&label(
+            &SelectProps::default(),
+            Some("select-label-1"),
+            vec![],
+            vec![text("Fruit")],
+        ));
         assert!(html.contains(r#"<label"#));
         assert!(html.contains(r#"id="select-label-1""#));
     }
 
     #[test]
     fn control_outputs_scope_part_and_state() {
-        let html = render(&control(OpenState::Open, vec![], vec![]));
+        let html = render(&control(
+            OpenState::Open,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-part="control""#));
         assert!(html.contains(r#"data-state="open""#));
     }
@@ -801,6 +1146,7 @@ mod tests {
     fn trigger_has_type_button_haspopup_listbox_and_aria_expanded() {
         let html = render(&trigger(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             None,
             None,
@@ -815,7 +1161,15 @@ mod tests {
         assert!(!html.contains("aria-labelledby"));
         assert!(!html.contains("disabled"));
 
-        let html_open = render(&trigger(OpenState::Open, false, None, None, vec![], vec![]));
+        let html_open = render(&trigger(
+            OpenState::Open,
+            &SelectProps::default(),
+            false,
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(html_open.contains(r#"aria-expanded="true""#));
     }
 
@@ -823,6 +1177,7 @@ mod tests {
     fn trigger_controls_and_labelledby_some_outputs_both() {
         let html = render(&trigger(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             Some("select-content-1"),
             Some("select-label-1"),
@@ -835,9 +1190,14 @@ mod tests {
 
     #[test]
     fn trigger_disabled_true_adds_native_and_data_disabled() {
+        let props = SelectProps {
+            disabled: true,
+            ..SelectProps::default()
+        };
         let html = render(&trigger(
             OpenState::Closed,
-            true,
+            &props,
+            false,
             None,
             None,
             vec![],
@@ -851,6 +1211,7 @@ mod tests {
     fn trigger_disabled_false_omits_both_disabled_attrs() {
         let html = render(&trigger(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             None,
             None,
@@ -862,12 +1223,112 @@ mod tests {
     }
 
     #[test]
+    fn trigger_placeholder_shown_true_adds_marker_false_omits() {
+        // ark-ui/Radix 双方が trigger に持つ属性（イシュー #1619 参照突合）。
+        let shown = render(&trigger(
+            OpenState::Closed,
+            &SelectProps::default(),
+            true,
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(shown.contains(r#"data-placeholder-shown="""#));
+
+        let not_shown = render(&trigger(
+            OpenState::Closed,
+            &SelectProps::default(),
+            false,
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(!not_shown.contains("data-placeholder-shown"));
+    }
+
+    #[test]
+    fn trigger_invalid_and_readonly_output_data_attrs() {
+        let invalid_props = SelectProps {
+            invalid: true,
+            ..SelectProps::default()
+        };
+        let invalid_html = render(&trigger(
+            OpenState::Closed,
+            &invalid_props,
+            false,
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(invalid_html.contains(r#"data-invalid="""#));
+
+        let readonly_props = SelectProps {
+            readonly: true,
+            ..SelectProps::default()
+        };
+        let readonly_html = render(&trigger(
+            OpenState::Closed,
+            &readonly_props,
+            false,
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(readonly_html.contains(r#"data-readonly="""#));
+    }
+
+    #[test]
+    fn label_required_and_state_attrs() {
+        let props = SelectProps {
+            required: true,
+            disabled: true,
+            invalid: true,
+            readonly: true,
+        };
+        let html = render(&label(&props, Some("l1"), vec![], vec![text("Fruit")]));
+        assert!(html.contains(r#"data-required="""#));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
+
+        let default_html = render(&label(&SelectProps::default(), None, vec![], vec![]));
+        assert!(!default_html.contains("data-required"));
+    }
+
+    #[test]
     fn value_text_placeholder_shown_only_when_true() {
-        let placeholder = render(&value_text(true, vec![], vec![text("Select a fruit")]));
+        let placeholder = render(&value_text(
+            true,
+            &SelectProps::default(),
+            vec![],
+            vec![text("Select a fruit")],
+        ));
         assert!(placeholder.contains(r#"data-placeholder-shown="""#));
 
-        let with_value = render(&value_text(false, vec![], vec![text("Apple")]));
+        let with_value = render(&value_text(
+            false,
+            &SelectProps::default(),
+            vec![],
+            vec![text("Apple")],
+        ));
         assert!(!with_value.contains("data-placeholder-shown"));
+    }
+
+    #[test]
+    fn value_text_disabled_and_invalid_output_data_attrs() {
+        let props = SelectProps {
+            disabled: true,
+            invalid: true,
+            ..SelectProps::default()
+        };
+        let html = render(&value_text(false, &props, vec![], vec![text("Apple")]));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(!html.contains("data-readonly"));
     }
 
     #[test]
@@ -875,7 +1336,12 @@ mod tests {
         // イシュー #642: wasm-full の headless_select 配線層が select/deselect
         // dispatch 後にこのマーカーを頼りにラベルを再同期する。field 名が
         // VALUE_TEXT_FIELD と一致することが両クレート間の契約。
-        let html = render(&value_text(false, vec![], vec![text("Apple")]));
+        let html = render(&value_text(
+            false,
+            &SelectProps::default(),
+            vec![],
+            vec![text("Apple")],
+        ));
         assert!(html.contains(&format!(r#"data-bind-text="{VALUE_TEXT_FIELD}""#)));
     }
 
@@ -885,6 +1351,7 @@ mod tests {
         // 先頭のみ有効になる不整合（HTML パース時の属性重複）を防ぐ。
         let html = render(&value_text(
             false,
+            &SelectProps::default(),
             vec![("data-bind-text", "caller-supplied-stale-field")],
             vec![text("Apple")],
         ));
@@ -895,18 +1362,58 @@ mod tests {
 
     #[test]
     fn clear_trigger_has_type_button_and_kebab_case_part() {
-        let html = render(&clear_trigger(vec![], vec![]));
+        let html = render(&clear_trigger(&SelectProps::default(), vec![], vec![]));
         assert!(html.contains(r#"<button"#));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"data-part="clear-trigger""#));
     }
 
     #[test]
+    fn clear_trigger_disabled_true_adds_native_and_data_disabled() {
+        let props = SelectProps {
+            disabled: true,
+            ..SelectProps::default()
+        };
+        let html = render(&clear_trigger(&props, vec![], vec![]));
+        assert!(html.contains(r#"disabled="""#));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn clear_trigger_invalid_outputs_data_invalid() {
+        let props = SelectProps {
+            invalid: true,
+            ..SelectProps::default()
+        };
+        let html = render(&clear_trigger(&props, vec![], vec![]));
+        assert!(html.contains(r#"data-invalid="""#));
+    }
+
+    #[test]
     fn indicator_outputs_scope_part_and_state_only() {
-        let html = render(&indicator(OpenState::Open, vec![], vec![text("v")]));
+        let html = render(&indicator(
+            OpenState::Open,
+            &SelectProps::default(),
+            vec![],
+            vec![text("v")],
+        ));
         assert!(html.contains(r#"data-scope="select""#));
         assert!(html.contains(r#"data-part="indicator""#));
         assert!(html.contains(r#"data-state="open""#));
+    }
+
+    #[test]
+    fn indicator_state_attrs_reflect_props() {
+        let props = SelectProps {
+            disabled: true,
+            invalid: true,
+            readonly: true,
+            required: false,
+        };
+        let html = render(&indicator(OpenState::Open, &props, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"data-readonly="""#));
     }
 
     #[test]
@@ -973,28 +1480,52 @@ mod tests {
 
     #[test]
     fn item_group_labelledby_some_outputs_role_group_and_aria_labelledby_together() {
-        let html = render(&item_group(Some("group-label-1"), vec![], vec![]));
+        let html = render(&item_group(
+            &SelectProps::default(),
+            Some("group-label-1"),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"role="group""#));
         assert!(html.contains(r#"aria-labelledby="group-label-1""#));
     }
 
     #[test]
     fn item_group_labelledby_none_omits_role_and_aria_labelledby() {
-        let html = render(&item_group(None, vec![], vec![]));
+        let html = render(&item_group(&SelectProps::default(), None, vec![], vec![]));
         assert!(!html.contains("role="));
         assert!(!html.contains("aria-labelledby"));
     }
 
     #[test]
-    fn item_group_label_id_some_outputs_id() {
+    fn item_group_disabled_true_outputs_data_disabled() {
+        let props = SelectProps {
+            disabled: true,
+            ..SelectProps::default()
+        };
+        let html = render(&item_group(&props, None, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn item_group_label_id_some_outputs_id_and_fixed_role_presentation() {
         let html = render(&item_group_label(Some("group-label-1"), vec![], vec![]));
         assert!(html.contains(r#"id="group-label-1""#));
+        assert!(html.contains(r#"role="presentation""#));
+    }
+
+    #[test]
+    fn item_group_label_drops_caller_supplied_role() {
+        let html = render(&item_group_label(None, vec![("role", "attacker")], vec![]));
+        assert!(html.contains(r#"role="presentation""#));
+        assert!(!html.contains("attacker"));
     }
 
     #[test]
     fn item_has_role_option_aria_selected_and_data_value() {
         let html = render(&item(
             OpenState::Open,
+            &SelectProps::default(),
             false,
             false,
             "vue",
@@ -1006,9 +1537,11 @@ mod tests {
         assert!(html.contains(r#"aria-selected="true""#));
         assert!(html.contains(r#"data-state="open""#));
         assert!(html.contains(r#"data-value="vue""#));
+        assert!(html.contains(r#"data-selected="""#));
 
         let unselected = render(&item(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             false,
             "react",
@@ -1018,12 +1551,14 @@ mod tests {
         ));
         assert!(unselected.contains(r#"aria-selected="false""#));
         assert!(unselected.contains(r#"data-state="closed""#));
+        assert!(!unselected.contains("data-selected"));
     }
 
     #[test]
     fn item_disabled_true_adds_data_disabled() {
         let html = render(&item(
             OpenState::Closed,
+            &SelectProps::default(),
             true,
             false,
             "svelte",
@@ -1035,6 +1570,28 @@ mod tests {
     }
 
     #[test]
+    fn item_root_disabled_propagates_even_when_item_disabled_false() {
+        // zag の getItemState 準拠: root disabled が子 item へ伝播する
+        // （[`crate::listbox::item`] と同型、イシュー #1619 参照突合）。
+        let props = SelectProps {
+            disabled: true,
+            ..SelectProps::default()
+        };
+        let html = render(&item(
+            OpenState::Closed,
+            &props,
+            false,
+            false,
+            "svelte",
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
+    }
+
+    #[test]
     fn item_disabled_true_adds_aria_disabled() {
         // `div[role="option"]` はネイティブの `disabled` を持たないため、
         // 支援技術へは `aria-disabled` 経由でのみ伝達できる（Bugbot 指摘:
@@ -1042,6 +1599,7 @@ mod tests {
         // 契約）。
         let html = render(&item(
             OpenState::Closed,
+            &SelectProps::default(),
             true,
             false,
             "svelte",
@@ -1053,6 +1611,7 @@ mod tests {
 
         let enabled = render(&item(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             false,
             "svelte",
@@ -1067,6 +1626,7 @@ mod tests {
     fn item_highlighted_true_adds_data_highlighted_false_omits() {
         let highlighted = render(&item(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             true,
             "svelte",
@@ -1078,6 +1638,7 @@ mod tests {
 
         let not_highlighted = render(&item(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             false,
             "svelte",
@@ -1092,6 +1653,7 @@ mod tests {
     fn item_id_some_outputs_id_none_omits() {
         let with_id = render(&item(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             false,
             "svelte",
@@ -1103,6 +1665,7 @@ mod tests {
 
         let without_id = render(&item(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             false,
             "svelte",
@@ -1115,19 +1678,74 @@ mod tests {
 
     #[test]
     fn item_text_id_some_outputs_id() {
-        let html = render(&item_text(Some("item-text-1"), vec![], vec![text("Vue")]));
+        let html = render(&item_text(
+            OpenState::Closed,
+            &SelectProps::default(),
+            false,
+            false,
+            Some("item-text-1"),
+            vec![],
+            vec![text("Vue")],
+        ));
         assert!(html.contains(r#"id="item-text-1""#));
+    }
+
+    #[test]
+    fn item_text_outputs_three_state_attrs() {
+        let html = render(&item_text(
+            OpenState::Open,
+            &SelectProps::default(),
+            false,
+            true,
+            None,
+            vec![],
+            vec![text("Vue")],
+        ));
+        assert!(html.contains(r#"data-state="open""#));
+        assert!(html.contains(r#"data-highlighted="""#));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn item_text_root_disabled_propagates() {
+        let props = SelectProps {
+            disabled: true,
+            ..SelectProps::default()
+        };
+        let html = render(&item_text(
+            OpenState::Closed,
+            &props,
+            false,
+            false,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn item_indicator_selected_shown_unselected_hidden() {
         let selected = render(&item_indicator(OpenState::Open, vec![], vec![text("✓")]));
-        assert!(!selected.contains("hidden"));
+        assert!(!selected.contains(r#" hidden"#));
         assert!(selected.contains(r#"data-state="open""#));
+        assert!(selected.contains(r#"aria-hidden="true""#));
 
         let unselected = render(&item_indicator(OpenState::Closed, vec![], vec![]));
-        assert!(unselected.contains(r#"hidden="""#));
+        assert!(unselected.contains(r#" hidden="""#));
         assert!(unselected.contains(r#"data-state="closed""#));
+        assert!(unselected.contains(r#"aria-hidden="true""#));
+    }
+
+    #[test]
+    fn item_indicator_drops_caller_supplied_aria_hidden() {
+        let html = render(&item_indicator(
+            OpenState::Open,
+            vec![("aria-hidden", "false")],
+            vec![],
+        ));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains(r#"aria-hidden="false""#));
     }
 
     #[test]
@@ -1135,7 +1753,7 @@ mod tests {
         let html = render(&hidden_select(
             Some("vue"),
             Some("framework"),
-            false,
+            &SelectProps::default(),
             vec![],
             vec![("vue", "Vue"), ("react", "React")],
         ));
@@ -1149,14 +1767,34 @@ mod tests {
 
     #[test]
     fn hidden_select_name_none_omits_name_attr() {
-        let html = render(&hidden_select(None, None, false, vec![], vec![]));
+        let html = render(&hidden_select(
+            None,
+            None,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("name="));
     }
 
     #[test]
     fn hidden_select_disabled_true_adds_native_disabled() {
-        let html = render(&hidden_select(None, None, true, vec![], vec![]));
+        let props = SelectProps {
+            disabled: true,
+            ..SelectProps::default()
+        };
+        let html = render(&hidden_select(None, None, &props, vec![], vec![]));
         assert!(html.contains(r#"disabled="""#));
+    }
+
+    #[test]
+    fn hidden_select_required_true_adds_native_required() {
+        let props = SelectProps {
+            required: true,
+            ..SelectProps::default()
+        };
+        let html = render(&hidden_select(None, None, &props, vec![], vec![]));
+        assert!(html.contains(r#"required="""#));
     }
 
     #[test]
@@ -1168,7 +1806,7 @@ mod tests {
         let html = render(&hidden_select(
             None,
             Some("framework"),
-            false,
+            &SelectProps::default(),
             vec![],
             vec![("vue", "Vue"), ("react", "React")],
         ));
@@ -1182,7 +1820,7 @@ mod tests {
         let html = render(&hidden_select(
             Some("vue"),
             None,
-            false,
+            &SelectProps::default(),
             vec![],
             vec![("vue", "Vue"), ("react", "React")],
         ));
@@ -1195,11 +1833,45 @@ mod tests {
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&root(
             OpenState::Closed,
+            &SelectProps::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
         assert!(html.contains(r#"data-scope="select""#));
         assert!(html.contains(r#"data-part="root""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    // --- 呼び出し側 attrs による reserved キー偽装除去（イシュー #1619） ---
+
+    #[test]
+    fn caller_supplied_reserved_state_keys_are_dropped_on_root() {
+        let props = SelectProps {
+            disabled: true,
+            ..SelectProps::default()
+        };
+        let html = render(&root(
+            OpenState::Closed,
+            &props,
+            vec![("data-disabled", "attacker")],
+            vec![],
+        ));
+        assert_eq!(html.matches("data-disabled").count(), 1);
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn caller_supplied_reserved_placeholder_shown_is_dropped_on_trigger() {
+        let html = render(&trigger(
+            OpenState::Closed,
+            &SelectProps::default(),
+            true,
+            None,
+            None,
+            vec![("data-placeholder-shown", "attacker")],
+            vec![],
+        ));
+        assert_eq!(html.matches("data-placeholder-shown").count(), 1);
         assert!(!html.contains("attacker"));
     }
 
@@ -1263,20 +1935,38 @@ mod tests {
         // select の副作用で listbox は閉じるため、比較用に再度開く。
         dispatch(&mut s, "open", "");
 
-        let item_vue = render(&s.item("vue", false, false, None, vec![], vec![]));
+        let props = SelectProps::default();
+        let item_vue = render(&s.item("vue", &props, false, false, None, vec![], vec![]));
         assert!(item_vue.contains(r#"aria-selected="true""#));
 
-        let item_react = render(&s.item("react", false, false, None, vec![], vec![]));
+        let item_react = render(&s.item("react", &props, false, false, None, vec![], vec![]));
         assert!(item_react.contains(r#"aria-selected="false""#));
 
-        let value_text_html = render(&s.value_text(vec![], vec![]));
+        let value_text_html = render(&s.value_text(&props, vec![], vec![]));
         assert!(!value_text_html.contains("data-placeholder-shown"));
+
+        // select 済みなので trigger の data-placeholder-shown は出ない。
+        let trigger_html = render(&s.trigger(&props, None, None, vec![], vec![]));
+        assert!(!trigger_html.contains("data-placeholder-shown"));
     }
 
     #[test]
     fn select_value_text_shows_placeholder_when_unselected() {
         let s = Select::default();
-        let html = render(&s.value_text(vec![], vec![text("Select a fruit")]));
+        let html = render(&s.value_text(
+            &SelectProps::default(),
+            vec![],
+            vec![text("Select a fruit")],
+        ));
+        assert!(html.contains(r#"data-placeholder-shown="""#));
+    }
+
+    #[test]
+    fn select_trigger_shows_placeholder_when_unselected() {
+        // Select::trigger は self.selected().is_none() を placeholder_shown へ
+        // 注入する（イシュー #1619 参照突合）。
+        let s = Select::default();
+        let html = render(&s.trigger(&SelectProps::default(), None, None, vec![], vec![]));
         assert!(html.contains(r#"data-placeholder-shown="""#));
     }
 
@@ -1286,8 +1976,26 @@ mod tests {
         // イシュー #642 の束縛マーカー付与が便宜メソッド経由でも確実に
         // 効くことを固定する（委譲経路の回帰防止）。
         let s = Select::default();
-        let html = render(&s.value_text(vec![], vec![text("Select a fruit")]));
+        let html = render(&s.value_text(
+            &SelectProps::default(),
+            vec![],
+            vec![text("Select a fruit")],
+        ));
         assert!(html.contains(&format!(r#"data-bind-text="{VALUE_TEXT_FIELD}""#)));
+    }
+
+    #[test]
+    fn select_convenience_item_text_and_hidden_select() {
+        let mut s = Select::default();
+        dispatch(&mut s, "select", "vue");
+        let props = SelectProps::default();
+
+        let item_text_html =
+            render(&s.item_text("vue", &props, false, false, None, vec![], vec![]));
+        assert!(item_text_html.contains(r#"data-state="open""#));
+
+        let hidden_html = render(&s.hidden_select(None, &props, vec![], vec![("vue", "Vue")]));
+        assert!(hidden_html.contains(r#"<option value="vue" selected="">Vue</option>"#));
     }
 
     // --- Select: SSR 状態なし初期描画 ---
@@ -1367,6 +2075,7 @@ mod tests {
     fn trigger_controls_and_labelledby_payload_is_escaped_on_render() {
         let html = render(&trigger(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             Some(ATTR_BREAK_PAYLOAD),
             Some(ATTR_BREAK_PAYLOAD),
@@ -1381,6 +2090,7 @@ mod tests {
     fn item_value_payload_is_escaped_on_render() {
         let html = render(&item(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             false,
             ATTR_BREAK_PAYLOAD,
@@ -1396,6 +2106,7 @@ mod tests {
     fn item_id_payload_is_escaped_on_render() {
         let html = render(&item(
             OpenState::Closed,
+            &SelectProps::default(),
             false,
             false,
             "svelte",
@@ -1426,7 +2137,7 @@ mod tests {
         let html = render(&hidden_select(
             None,
             None,
-            false,
+            &SelectProps::default(),
             vec![],
             vec![(ATTR_BREAK_PAYLOAD, "<script>alert(1)</script>")],
         ));
@@ -1440,6 +2151,7 @@ mod tests {
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
             OpenState::Closed,
+            &SelectProps::default(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
             vec![],
         ));
@@ -1450,6 +2162,7 @@ mod tests {
     fn children_text_is_escaped_on_render() {
         let html = render(&indicator(
             OpenState::Open,
+            &SelectProps::default(),
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));

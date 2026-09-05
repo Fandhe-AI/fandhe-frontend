@@ -239,19 +239,26 @@ fn select_full_cycle_open_select_and_clear_in_real_dom() {
     let _cleanup = RemoveOnDrop(container.clone());
 
     let open_state = fandhe_frontend_headless_ui::state::OpenState::Closed;
+    let select_props = select::SelectProps::default();
     let html = fandhe_frontend_core::render(&select::root(
         open_state,
+        &select_props,
         vec![],
         vec![
             select::trigger(
                 open_state,
+                &select_props,
                 false,
                 None,
                 None,
                 vec![],
                 vec![fandhe_frontend_core::text("Open")],
             ),
-            select::clear_trigger(vec![], vec![fandhe_frontend_core::text("Clear")]),
+            select::clear_trigger(
+                &select_props,
+                vec![],
+                vec![fandhe_frontend_core::text("Clear")],
+            ),
             select::content(
                 open_state,
                 None,
@@ -259,8 +266,26 @@ fn select_full_cycle_open_select_and_clear_in_real_dom() {
                 None,
                 vec![],
                 vec![
-                    select::item(open_state, false, false, "opt-1", None, vec![], vec![]),
-                    select::item(open_state, false, false, "opt-2", None, vec![], vec![]),
+                    select::item(
+                        open_state,
+                        &select_props,
+                        false,
+                        false,
+                        "opt-1",
+                        None,
+                        vec![],
+                        vec![],
+                    ),
+                    select::item(
+                        open_state,
+                        &select_props,
+                        false,
+                        false,
+                        "opt-2",
+                        None,
+                        vec![],
+                        vec![],
+                    ),
                 ],
             ),
         ],
@@ -530,10 +555,12 @@ fn nested_select_inside_dialog_click_does_not_cross_dispatch_to_outer_dialog() {
             ),
             select::root(
                 select_open,
+                &select::SelectProps::default(),
                 vec![],
                 vec![
                     select::trigger(
                         select_open,
+                        &select::SelectProps::default(),
                         false,
                         None,
                         None,
@@ -548,6 +575,7 @@ fn nested_select_inside_dialog_click_does_not_cross_dispatch_to_outer_dialog() {
                         vec![],
                         vec![select::item(
                             select_open,
+                            &select::SelectProps::default(),
                             false,
                             false,
                             "opt-1",
@@ -664,17 +692,23 @@ const SELECT_PLACEHOLDER: &str = "Select a framework";
 /// item-text 付き item を 2 個）。
 fn build_select_with_value_text_html(items: &[(&str, &str)]) -> String {
     let open_state = fandhe_frontend_headless_ui::state::OpenState::Closed;
+    let select_props = select::SelectProps::default();
     let item_nodes = items
         .iter()
         .map(|(value, label)| {
             select::item(
                 open_state,
+                &select_props,
                 false,
                 false,
                 value,
                 None,
                 vec![],
                 vec![select::item_text(
+                    open_state,
+                    &select_props,
+                    false,
+                    false,
                     None,
                     vec![],
                     vec![fandhe_frontend_core::text(*label)],
@@ -685,14 +719,17 @@ fn build_select_with_value_text_html(items: &[(&str, &str)]) -> String {
 
     fandhe_frontend_core::render(&select::root(
         open_state,
+        &select_props,
         vec![],
         vec![
             select::control(
                 open_state,
+                &select_props,
                 vec![],
                 vec![
                     select::trigger(
                         open_state,
+                        &select_props,
                         false,
                         None,
                         None,
@@ -701,10 +738,15 @@ fn build_select_with_value_text_html(items: &[(&str, &str)]) -> String {
                     ),
                     select::value_text(
                         true,
+                        &select_props,
                         vec![],
                         vec![fandhe_frontend_core::text(SELECT_PLACEHOLDER)],
                     ),
-                    select::clear_trigger(vec![], vec![fandhe_frontend_core::text("Clear")]),
+                    select::clear_trigger(
+                        &select_props,
+                        vec![],
+                        vec![fandhe_frontend_core::text("Clear")],
+                    ),
                 ],
             ),
             select::positioner(

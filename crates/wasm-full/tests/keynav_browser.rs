@@ -1652,6 +1652,90 @@ fn select_open_escape_clears_highlight_without_closing() {
     assert!(!content.has_attribute("hidden"));
 }
 
+/// readonly な Select trigger は ArrowDown/Enter/Space のいずれでも開かない
+/// （イシュー #1619 参照突合。combobox #1605 の codex-review P1 是正と同型。
+/// click 経路の抑止は `headless.rs::action_for_part` が既に担うため、本
+/// テストは keydown 経路のみを固定する）。
+#[wasm_bindgen_test]
+fn select_readonly_trigger_keydown_does_not_open() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_select_dom(
+        &document,
+        "kn-select-readonly1",
+        &[("apple", "Apple", false)],
+        false,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-readonly1-trigger")
+        .unwrap();
+    trigger.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let content = document
+        .get_element_by_id("kn-select-readonly1-content")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    for key in ["ArrowDown", "ArrowUp", "Enter", " "] {
+        trigger.dispatch_event(&keydown_event(key)).unwrap();
+        assert!(
+            content.has_attribute("hidden"),
+            "readonly trigger は {key} で開かないはず"
+        );
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+    }
+}
+
+/// 選択済み項目がある Select を Enter/ArrowDown で開くと、初期 highlight が
+/// 先頭ではなく選択済み項目（`aria-selected="true"`）に合う（ark-ui/Radix
+/// 準拠、イシュー #1619 参照突合。実装は `keynav.rs::initial_highlight_index`/
+/// `ScopeSelectors::prefer_selected_item`）。
+#[wasm_bindgen_test]
+fn select_open_with_selected_item_highlights_it_first() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_select_dom(
+        &document,
+        "kn-select-sel1",
+        &[
+            ("apple", "Apple", false),
+            ("banana", "Banana", false),
+            ("cherry", "Cherry", false),
+        ],
+        false,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    // "banana" を選択済みとしてマークする（SSR 契約: `item` の
+    // `aria-selected="true"`、`crates/headless-ui/src/select.rs::item` 参照）。
+    let item_banana = document
+        .get_element_by_id("kn-select-sel1-item-banana")
+        .unwrap();
+    item_banana.set_attribute("aria-selected", "true").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let trigger = document
+        .get_element_by_id("kn-select-sel1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(
+        item_banana.has_attribute("data-highlighted"),
+        "選択済み項目（banana）が初期 highlight になるべき"
+    );
+    let item_apple = document
+        .get_element_by_id("kn-select-sel1-item-apple")
+        .unwrap();
+    assert!(!item_apple.has_attribute("data-highlighted"));
+}
+
 // ---------------------------------------------------------------------
 // RadioGroup（イシュー #583）
 // ---------------------------------------------------------------------
