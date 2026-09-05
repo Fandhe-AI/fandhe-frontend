@@ -1875,6 +1875,7 @@ fn pagination_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした item の Link モード href 経路。
         let html = render(&pagination::item(
             ItemMode::Link { href: payload },
+            1,
             false,
             false,
             vec![],
@@ -1885,6 +1886,7 @@ fn pagination_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした item の children 経路。
         let html = render(&pagination::item(
             ItemMode::Button,
+            1,
             false,
             false,
             vec![],
