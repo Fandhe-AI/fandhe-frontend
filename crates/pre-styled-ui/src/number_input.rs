@@ -1,10 +1,13 @@
-//! styled NumberInput（headless ラッパー、イシュー #738、親 #520/#545/#736）。
+//! styled NumberInput（headless ラッパー、イシュー #738、親 #520/#545/#736。
+//! 参考サイト突合はイシュー #1613）。
 //!
-//! `fandhe_frontend_headless_ui::number_input`（イシュー #738）の Label /
-//! Control / Input / IncrementTrigger / DecrementTrigger の 5 anatomy
-//! パーツをそのまま再エクスポートし、[`stylesheet`] で既定 CSS を追加提供
-//! する。薄い委譲の根拠は [`crate::switch`]/[`crate::radio_group`] の
-//! rustdoc と同じ方針に従う。
+//! `fandhe_frontend_headless_ui::number_input`（イシュー #738、ValueText は
+//! #1613）の Label / Control / Input / IncrementTrigger / DecrementTrigger /
+//! ValueText の 6 anatomy パーツをそのまま再エクスポートし、[`stylesheet`]
+//! で既定 CSS を追加提供する。薄い委譲の根拠は [`crate::switch`]/
+//! [`crate::radio_group`] の rustdoc と同じ方針に従う。**[`value_text`] は
+//! CSS を持たない**（[`SLOTS`]/[`recipe`] に含めていない。下記「イシュー
+//! #1613 のスコープ外」節参照）。
 //!
 //! # 選択的 re-export（`pub use ...::*` を使わない理由、`NumberInput` 型・
 //! headless `root` を再エクスポートしない理由）
@@ -13,8 +16,9 @@
 //! （[`crate::switch::root`]・[`crate::avatar::root`] と同型）を本モジュール
 //! で再定義する。headless 自由関数 `root` と名前衝突するため、`pub use
 //! ...::*` ではなく必要な識別子（[`label`]/[`control`]/[`input`]/
-//! [`increment_trigger`]/[`decrement_trigger`]/[`NumberInputAction`]/
-//! [`NumberInputFlags`]）のみを選択的に再エクスポートする。
+//! [`increment_trigger`]/[`decrement_trigger`]/[`value_text`]/
+//! [`NumberInputAction`]/[`NumberInputFlags`]）のみを選択的に再エクスポート
+//! する。
 //!
 //! 状態機械 [`fandhe_frontend_headless_ui::number_input::NumberInput`] は
 //! **あえて**再エクスポートしない（[`crate::switch`] の `Switch` 非再
@@ -147,6 +151,25 @@
 //! - chakra の `variant`（outline/subtle/flushed）相当の軸を number-input
 //!   へ写像する設計判断は Forms 家族横断で検討すべきであり、本イシューの
 //!   スコープ外とする（起票はユーザー承認後）。
+//!
+//! # イシュー #1613 のスコープ外（参考サイト突合）
+//!
+//! - [`value_text`]（headless 層イシュー #1613 で新設）は本モジュールの
+//!   [`SLOTS`]/[`recipe`] に含めない。styled `root` を経由しない headless
+//!   直接利用と同じ未スタイル実体のまま再エクスポートする（呼び出し側が
+//!   表示テキストの体裁を自由に選べるよう、装飾を強制しない判断。golden
+//!   テスト・CSS 変数表は変更なし）。
+//! - `root`/`control` の `data-readonly`、`label` の `data-required`
+//!   （いずれも headless 層イシュー #1613 で新設）にも視覚宣言は追加しない
+//!   （`input` の「readonly（意図的非採用）」節と同型の判断。存在属性の
+//!   出力自体は headless 層の再エクスポート経由でそのまま伝播する）。
+//! - `control` の `role="group"`/`aria-disabled`/`aria-invalid`（headless
+//!   層イシュー #1613 で新設）は意味論のみで見た目に影響しないため
+//!   [`recipe`] の変更は不要。
+//! - wasm-full の keydown 配線（headless 層イシュー #1613 が追加した
+//!   `"home"`/`"end"` dispatch を含む）は本モジュールのスコープ外
+//!   （`fandhe_frontend_headless_ui::number_input` モジュール doc
+//!   「スコープ外」節参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::{decl, serialize_rule};
@@ -160,9 +183,14 @@ use crate::recipe::{
 // しない（本モジュール冒頭の rustdoc「選択的 re-export」節参照）。状態管理・
 // hydration が必要な呼び出し側は
 // `fandhe_frontend_headless_ui::number_input::NumberInput` を直接 import する。
+//
+// `value_text`（イシュー #1613 で headless 層に新設された 7 番目のパーツ）も
+// そのまま再エクスポートする。styled 層は `size` variant クラスを付与しない
+// （`root` のみが `size` を持つ設計、モジュール doc「`size` variant」節
+// 参照）ため、`root` と異なり本モジュールでの再定義は不要。
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::number_input::{
-    control, decrement_trigger, increment_trigger, input, label, NumberInputAction,
+    control, decrement_trigger, increment_trigger, input, label, value_text, NumberInputAction,
     NumberInputFlags,
 };
 
@@ -539,7 +567,7 @@ pub fn stylesheet() -> String {
 /// use fandhe_frontend_pre_styled_ui::number_input;
 /// use fandhe_frontend_pre_styled_ui::Size;
 ///
-/// let node = number_input::root(Size::Md, false, false, vec![], vec![]);
+/// let node = number_input::root(Size::Md, false, false, false, vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="number-input" data-part="root""#));
 /// ```
 #[must_use]
@@ -547,6 +575,7 @@ pub fn root<'a>(
     size: Size,
     disabled: bool,
     invalid: bool,
+    readonly: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -554,7 +583,22 @@ pub fn root<'a>(
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::number_input::root(disabled, invalid, merged, children)
+    // `readonly` はイシュー #1613 PR #1881 レビュー指摘で追加した第 4 引数
+    // （headless 層 `NumberInputFlags` が同イシューで `readonly` を持つ
+    // ようになったのに対し、styled `root` が `disabled`/`invalid` の 2 bool
+    // しか受け取らず `readonly: false` に固定していたため、型付き API で
+    // readonly な NumberInput を組み立てても `root`/`control` の
+    // `data-readonly` へ状態を伝播できなかった契約不一致の是正）。
+    // `required` は headless 層でも [`label`] のみが持つ（root/control は
+    // 元々 `required` を出力しない契約、モジュール doc「参考サイト基準への
+    // 調整」節参照）ため、styled `root` の引数には追加しない。
+    let flags = NumberInputFlags {
+        disabled,
+        invalid,
+        readonly,
+        ..NumberInputFlags::default()
+    };
+    fandhe_frontend_headless_ui::number_input::root(flags, merged, children)
 }
 
 #[cfg(test)]
@@ -618,15 +662,32 @@ mod tests {
 
     #[test]
     fn root_outputs_scope_and_part() {
-        let html = render(&root(Size::Md, false, false, vec![], vec![]));
+        let html = render(&root(Size::Md, false, false, false, vec![], vec![]));
         assert!(html.contains(r#"data-scope="number-input""#));
         assert!(html.contains(r#"data-part="root""#));
     }
 
     #[test]
     fn default_variant_is_md() {
-        let html = render(&root(Size::Md, false, false, vec![], vec![]));
+        let html = render(&root(Size::Md, false, false, false, vec![], vec![]));
         assert!(html.contains("fd-number-input--size-md"));
+    }
+
+    #[test]
+    fn root_readonly_true_propagates_data_readonly() {
+        // PR #1881 レビュー指摘の回帰テスト: styled `root` が `readonly` 引数
+        // を受け取らず内部で `NumberInputFlags.readonly` を常に `false` に
+        // 固定していたため、型付き API で readonly な NumberInput を組み
+        // 立てても `root` の `data-readonly` に状態を伝播できなかった
+        // （headless 層 `NumberInputFlags` の契約との不一致）。
+        let html = render(&root(Size::Md, false, false, true, vec![], vec![]));
+        assert!(html.contains("data-readonly"));
+    }
+
+    #[test]
+    fn root_readonly_false_omits_data_readonly() {
+        let html = render(&root(Size::Md, false, false, false, vec![], vec![]));
+        assert!(!html.contains("data-readonly"));
     }
 
     #[test]
@@ -638,7 +699,7 @@ mod tests {
             (Size::Lg, "fd-number-input--size-lg"),
             (Size::Xl, "fd-number-input--size-xl"),
         ] {
-            let html = render(&root(size, false, false, vec![], vec![]));
+            let html = render(&root(size, false, false, false, vec![], vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");
         }
     }
@@ -647,6 +708,7 @@ mod tests {
     fn class_attr_is_single_and_caller_class_is_dropped() {
         let html = render(&root(
             Size::Md,
+            false,
             false,
             false,
             vec![("class", "attacker-controlled")],
@@ -804,6 +866,7 @@ mod tests {
             Size::Md,
             false,
             false,
+            false,
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
@@ -820,6 +883,7 @@ mod tests {
             Size::Md,
             false,
             false,
+            false,
             vec![("data-x", "\" onmouseover=\"alert(1)")],
             vec![],
         ));
@@ -830,9 +894,19 @@ mod tests {
     #[test]
     fn reexported_label_children_are_escaped_on_render() {
         let html = render(&label(
-            false,
-            false,
+            NumberInputFlags::default(),
             None,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn reexported_value_text_children_are_escaped_on_render() {
+        let html = render(&value_text(
+            NumberInputFlags::default(),
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));
@@ -867,7 +941,7 @@ mod tests {
         let mut n = NumberInput::new(Some(0.0), 0.0, 10.0, 1.0);
         assert_eq!(n.value(), Some(0.0));
 
-        let ssr_html = render(&n.control(false, false, vec![], vec![]));
+        let ssr_html = render(&n.control(NumberInputFlags::default(), vec![], vec![]));
         assert!(ssr_html.contains(r#"data-part="control""#));
 
         assert!(dispatch(&mut n, "increment", ""));

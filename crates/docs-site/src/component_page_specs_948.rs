@@ -1749,24 +1749,29 @@ fn date_picker_example() -> Node {
             calendar::table_row(vec![], cells)
         })
         .collect();
+    let date_picker_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps::default();
     row(vec![date_picker::root(
         Size::Md,
         OpenState::Open,
+        &date_picker_props,
         vec![],
         vec![
             date_picker::label(
+                &date_picker_props,
                 Some("spec-948-date-picker-label"),
+                None,
                 vec![],
                 vec![text("Delivery date")],
             ),
             date_picker::control(
                 OpenState::Open,
+                &date_picker_props,
                 vec![],
                 vec![
-                    date_picker::input(Some("2026-07-15"), false, None, vec![]),
+                    date_picker::input(Some("2026-07-15"), &date_picker_props, None, vec![]),
                     date_picker::trigger(
                         OpenState::Open,
-                        false,
+                        &date_picker_props,
                         Some("spec-948-date-picker-content"),
                         vec![],
                         vec![text("📅")],

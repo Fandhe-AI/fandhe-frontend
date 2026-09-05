@@ -743,6 +743,7 @@ fn number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
             Size::Md,
             false,
             false,
+            false,
             vec![("data-testid", payload)],
             vec![],
         ));
@@ -756,6 +757,7 @@ fn number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
         // 出力されず、recipe 生成クラスへ完全に置き換わる）。
         let html = render(&number_input::root(
             Size::Md,
+            false,
             false,
             false,
             vec![("class", payload)],
@@ -778,8 +780,7 @@ fn number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
 
         // 選択的再エクスポートした label の children 経路。
         let html = render(&number_input::label(
-            false,
-            false,
+            NumberInputFlags::default(),
             None,
             vec![],
             vec![text(payload)],
@@ -797,6 +798,19 @@ fn number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "number_input::input name コンテキスト");
+
+        // 選択的再エクスポートした value_text の children 経路
+        // （イシュー #1613 で headless 層に新設したパーツ）。
+        let html = render(&number_input::value_text(
+            NumberInputFlags::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "number_input::value_text children コンテキスト",
+        );
     }
 }
 
@@ -1472,12 +1486,13 @@ fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
 #[test]
 fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
+        let props = rating_group::RatingGroupProps::default();
+
         // styled root の呼び出し側 attrs 経路。
         let html = render(&rating_group::root(
             Size::Md,
             ColorPalette::Accent,
-            false,
-            false,
+            &props,
             vec![("data-testid", payload)],
             vec![],
         ));
@@ -1492,8 +1507,7 @@ fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
         let html = render(&rating_group::root(
             Size::Md,
             ColorPalette::Accent,
-            false,
-            false,
+            &props,
             vec![("class", payload)],
             vec![],
         ));
@@ -1513,7 +1527,12 @@ fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
         );
 
         // 選択的再エクスポートした label の children 経路。
-        let html = render(&rating_group::label(None, vec![], vec![text(payload)]));
+        let html = render(&rating_group::label(
+            &props,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
         assert_payload_is_escaped(payload, &html, "rating_group::label children コンテキスト");
 
         // 選択的再エクスポートした item の aria_label 経路。
@@ -1528,9 +1547,9 @@ fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
 
         // 選択的再エクスポートした hidden_input の name 経路。
         let html = render(&rating_group::hidden_input(
+            &props,
             Some(payload),
             "3",
-            false,
             vec![],
         ));
         assert_payload_is_escaped(

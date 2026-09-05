@@ -152,7 +152,9 @@ use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::quote::quote;
 use fandhe_frontend_pre_styled_ui::radio_card;
-use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
+use fandhe_frontend_pre_styled_ui::rating_group::{
+    self, RatingGroup, RatingGroupProps, RatingItemFlags,
+};
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
@@ -3789,18 +3791,17 @@ fn number_input_section() -> Node {
         Size::Md,
         false,
         false,
+        false,
         vec![],
         vec![
             number_input::label(
-                false,
-                false,
+                NumberInputFlags::default(),
                 Some("showcase-number-input-mid"),
                 vec![],
                 vec![text("Quantity")],
             ),
             number_input::control(
-                false,
-                false,
+                NumberInputFlags::default(),
                 vec![],
                 vec![
                     number_input::input(
@@ -3832,18 +3833,17 @@ fn number_input_section() -> Node {
         Size::Md,
         false,
         false,
+        false,
         vec![],
         vec![
             number_input::label(
-                false,
-                false,
+                NumberInputFlags::default(),
                 Some("showcase-number-input-min"),
                 vec![],
                 vec![text("At min")],
             ),
             number_input::control(
-                false,
-                false,
+                NumberInputFlags::default(),
                 vec![],
                 vec![
                     number_input::input(
@@ -3877,18 +3877,23 @@ fn number_input_section() -> Node {
         Size::Md,
         true,
         false,
+        false,
         vec![],
         vec![
             number_input::label(
-                true,
-                false,
+                NumberInputFlags {
+                    disabled: true,
+                    ..NumberInputFlags::default()
+                },
                 Some("showcase-number-input-disabled"),
                 vec![],
                 vec![text("Disabled")],
             ),
             number_input::control(
-                true,
-                false,
+                NumberInputFlags {
+                    disabled: true,
+                    ..NumberInputFlags::default()
+                },
                 vec![],
                 vec![
                     number_input::input(
@@ -3929,18 +3934,20 @@ fn number_input_section() -> Node {
         Size::Md,
         false,
         false,
+        true,
         vec![],
         vec![
             number_input::label(
-                false,
-                false,
+                NumberInputFlags::default(),
                 Some("showcase-number-input-readonly"),
                 vec![],
                 vec![text("Readonly")],
             ),
             number_input::control(
-                false,
-                false,
+                NumberInputFlags {
+                    readonly: true,
+                    ..NumberInputFlags::default()
+                },
                 vec![],
                 vec![
                     number_input::input(
@@ -4329,12 +4336,23 @@ fn rating_group_section() -> Node {
                  disabled: bool,
                  readonly: bool| {
         let g = RatingGroup::new(5, value, readonly);
+        let props = RatingGroupProps {
+            disabled,
+            readonly,
+            required: false,
+        };
         let label_id = format!("{id_prefix}-label");
         let mut children = vec![rating_group::label(
+            &props,
             Some(label_id.as_str()),
             vec![],
             vec![text("Rate this product")],
         )];
+        // `item` は tabindex を出力しない（イシュー #1617 codex-review 指摘の
+        // 是正: 対応する DOM 配線〔`fandhe-frontend-wasm-full`〕が無いまま
+        // roving tabindex のみを公開すると「フォーカスは受けるが操作不能」な
+        // WAI-ARIA radio パターン違反になるため撤回した、
+        // `crates/headless-ui/src/rating_group.rs` モジュール doc参照）。
         let items: Vec<Node> = (1..=g.count())
             .map(|i| {
                 let checked = g.is_checked(i);
@@ -4354,24 +4372,18 @@ fn rating_group_section() -> Node {
             })
             .collect();
         children.push(rating_group::control(
+            &props,
             Some(label_id.as_str()),
             vec![],
             items,
         ));
         children.push(rating_group::hidden_input(
+            &props,
             Some("rating"),
             g.value_text().as_str(),
-            disabled,
             vec![],
         ));
-        rating_group::root(
-            size,
-            ColorPalette::Accent,
-            disabled,
-            readonly,
-            vec![],
-            children,
-        )
+        rating_group::root(size, ColorPalette::Accent, &props, vec![], children)
     };
 
     let selected = build("showcase-rating-selected", Size::Md, Some(3), false, false);
@@ -7735,24 +7747,29 @@ fn date_picker_section() -> Node {
         })
         .collect();
 
+    let date_picker_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps::default();
     let node = date_picker::root(
         Size::Md,
         OpenState::Open,
+        &date_picker_props,
         vec![],
         vec![
             date_picker::label(
+                &date_picker_props,
                 Some("showcase-date-picker-label"),
+                None,
                 vec![],
                 vec![text("Delivery date")],
             ),
             date_picker::control(
                 OpenState::Open,
+                &date_picker_props,
                 vec![],
                 vec![
-                    date_picker::input(Some("2026-07-15"), false, None, vec![]),
+                    date_picker::input(Some("2026-07-15"), &date_picker_props, None, vec![]),
                     date_picker::trigger(
                         OpenState::Open,
-                        false,
+                        &date_picker_props,
                         Some("showcase-date-picker-content"),
                         vec![],
                         vec![text("📅")],

@@ -541,23 +541,26 @@ const DATE_INPUT: ComponentPageSpec = ComponentPageSpec {
 /// の反転を補完する）。
 fn date_picker_open_example() -> Node {
     let state = OpenState::Open;
+    let props = date_picker::DatePickerProps::default();
     date_picker::root(
         state,
+        &props,
         vec![],
         vec![
             date_picker::control(
                 state,
+                &props,
                 vec![],
                 vec![
-                    date_picker::input(Some("2026-07-25"), false, Some("dp-open-input"), vec![]),
+                    date_picker::input(Some("2026-07-25"), &props, Some("dp-open-input"), vec![]),
                     date_picker::trigger(
                         state,
-                        false,
+                        &props,
                         Some("dp-open-content"),
                         vec![],
                         vec![text("📅")],
                     ),
-                    date_picker::clear_trigger(vec![], vec![text("×")]),
+                    date_picker::clear_trigger(&props, vec![], vec![text("×")]),
                 ],
             ),
             date_picker::positioner(

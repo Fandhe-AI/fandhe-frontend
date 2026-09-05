@@ -86,7 +86,7 @@ use hui::number_input::{self, NumberInputFlags};
 use hui::password_input::{self, PasswordAutocomplete, PasswordInputProps};
 use hui::pin_input::{self, PinInputKind, PinInputProps};
 use hui::radio_group;
-use hui::rating_group::{self, RatingItemFlags};
+use hui::rating_group::{self, RatingGroupProps, RatingItemFlags};
 use hui::segment_group;
 use hui::select;
 use hui::signature_pad;
@@ -116,38 +116,62 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
 ];
 
 /// 一次情報: `crates/headless-ui/src/number_input.rs`
-/// （モジュール doc 1-79、`root`/`label`/`control` 150-198、
-/// `input` 216-266、`increment_trigger`/`decrement_trigger` 281-332）。
+/// （モジュール doc 1-124、`NumberInputFlags` 201-214、
+/// `root`/`label`/`control` 218-281、`input` 297-350、`value_text` 353-368、
+/// `increment_trigger`/`decrement_trigger` 387-432。7 パーツ・ValueText・
+/// `data-readonly`/`data-required`・`role="group"`・`"home"`/`"end"` dispatch
+/// はイシュー #1613 で ark-ui/zag.js の number-input machine と突合して追加）。
 const NUMBER_INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Label / Control / Input / IncrementTrigger / DecrementTrigger の 6 anatomy パーツを提供する（`data-state` は持たない。連続量のため境界到達の 2 値のみを各トリガーの `disabled`/`data-disabled` で表現する）。",
+        "Root / Label / Control / Input / IncrementTrigger / DecrementTrigger / ValueText の 7 anatomy パーツを提供する（`data-state` は持たない。連続量のため境界到達の 2 値のみを各トリガーの `disabled`/`data-disabled` で表現する。ValueText はイシュー #1613 で追加）。",
         "`min`/`max`/`step`/`value` を fail-closed に正規化し、`step` の小数桁数へ丸めてから `[min, max]` へ clamp する（浮動小数点ドリフト対策）。",
-        "`input` は `type=\"text\"` + `role=\"spinbutton\"`（WAI-ARIA spinbutton パターン）で意味論を担い、`aria-valuemin`/`aria-valuemax` を常時、`aria-valuenow` は値が確定しているときのみ出力する。",
-        "dispatch（`\"increment\"`/`\"decrement\"`/`\"set\"`/`\"clear\"`）と hydration（`data-hydrate-value`/`-min`/`-max`/`-step`）は fail-closed（パース不能・非有限値は `HydrateError` で拒否）。",
+        "`input` は `type=\"text\"` + `role=\"spinbutton\"`（WAI-ARIA spinbutton パターン）で意味論を担い、`aria-valuemin`/`aria-valuemax` を常時、`aria-valuenow` は値が確定しているときのみ出力する。`autocomplete=\"off\"`/`autocorrect=\"off\"`/`spellcheck=\"false\"`/`aria-roledescription=\"numberfield\"`（イシュー #1613）も常時出力する。",
+        "`control` は `role=\"group\"` を持ち、`disabled`/`invalid` に応じて `aria-disabled`/`aria-invalid` を出力する（イシュー #1613）。`root`/`control` の `data-readonly`、`label` の `data-required`（label のみ、zag.js に倣う）も同イシューで追加した。",
+        "dispatch（`\"increment\"`/`\"decrement\"`/`\"set\"`/`\"clear\"`/`\"home\"`/`\"end\"`）と hydration（`data-hydrate-value`/`-min`/`-max`/`-step`）は fail-closed（パース不能・非有限値は `HydrateError` で拒否）。`\"home\"`/`\"end\"`（イシュー #1613）は値を `min`/`max` へ設定する。",
     ],
     arguments: &[
-        ArgRow { name: "root/label/control(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する（`label`/`control` は同名引数を同じ意味で持つ）。" },
-        ArgRow { name: "root/label/control(invalid)", kind: "bool", default: "", description: "`data-invalid` を反映する。" },
+        ArgRow { name: "root/label/control/value_text(flags)", kind: "NumberInputFlags", default: "NumberInputFlags::default()", description: "`disabled`/`readonly`/`required`/`invalid` の 4 bool をまとめた薄い構造体（clippy `too_many_arguments` 回避、イシュー #1613 で `input` 専用から全パーツ共通化）。`required` は `label` のみが `data-required` へ反映する。" },
         ArgRow { name: "label(input_id)", kind: "Option<&str>", default: "", description: "`Some` のとき `input` の id と対で `for` 属性を出力する。" },
         ArgRow { name: "input(name)", kind: "&str", default: "", description: "ネイティブ `name` 属性。" },
         ArgRow { name: "input(id)", kind: "Option<&str>", default: "", description: "`Some` のとき `id` 属性を出力する（`label(input_id)` の関連付け先）。" },
         ArgRow { name: "input(value)", kind: "Option<&str>", default: "", description: "現在値の整形済み文字列。`None`（未入力）なら `aria-valuenow`/`value` 属性ごと出力しない。" },
         ArgRow { name: "input(min)", kind: "&str", default: "", description: "`aria-valuemin` として常時出力する整形済み文字列。" },
         ArgRow { name: "input(max)", kind: "&str", default: "", description: "`aria-valuemax` として常時出力する整形済み文字列。" },
-        ArgRow { name: "input(flags)", kind: "NumberInputFlags", default: "NumberInputFlags::default()", description: "`disabled`/`readonly`/`required`/`invalid` の 4 bool をまとめた薄い構造体（clippy `too_many_arguments` 回避）。" },
         ArgRow { name: "increment_trigger/decrement_trigger(input_id)", kind: "Option<&str>", default: "", description: "`Some` のとき `aria-controls` で `input` と関連付ける。" },
         ArgRow { name: "increment_trigger/decrement_trigger(disabled)", kind: "bool", default: "", description: "境界到達（`can_increment`/`can_decrement` が `false`）と全体無効化を合成した最終値。`true` でネイティブ `disabled` + `data-disabled` を出力する。" },
     ],
-    examples: &[ExampleEntry {
-        title: "Disabled",
-        description: "全体を無効化した NumberInput。両トリガーがネイティブ `disabled` を持ち、`input` にも `data-disabled` が付く。",
-        render: ex_number_input_disabled,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Disabled",
+            description: "全体を無効化した NumberInput。両トリガーがネイティブ `disabled` を持ち、`input` にも `data-disabled` が付く。",
+            render: ex_number_input_disabled,
+        },
+        ExampleEntry {
+            title: "Read-only",
+            description: "`readonly` を立てた NumberInput。`root`/`control`/`input` に `data-readonly` が付き、両トリガーは境界到達で `disabled` になる（イシュー #1613）。",
+            render: ex_number_input_readonly,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "利用者が data-scope / data-part / data-disabled / data-invalid / data-readonly 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: ex_number_input_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow { key: "ArrowUp", description: "`step` 分だけ増加する（`\"increment\"` dispatch、payload は input の `name` 属性値。fandhe-frontend-wasm-full の number_input::resolve_dispatches で配線済み、イシュー #1613 PR #1881）。" },
+        KeyRow { key: "ArrowDown", description: "`step` 分だけ減少する（`\"decrement\"` dispatch、同上）。" },
+        KeyRow { key: "Home", description: "値を `min` に設定する（`\"home\"` dispatch、payload は input の `name` 属性値。fandhe-frontend-wasm-full の number_input::resolve_dispatches で配線済み、イシュー #1613 PR #1881）。" },
+        KeyRow { key: "End", description: "値を `max` に設定する（`\"end\"` dispatch、同上）。" },
+        KeyRow { key: "Enter", description: "input 要素にタイプ中の値を確定する（`\"set\"` dispatch、payload は input.value。fandhe-frontend-wasm-full の number_input::resolve_dispatches で配線済み、イシュー #1613 PR #1881。不正な文字列は decode_action が fail-closed に拒否する）。" },
+        KeyRow { key: "（複数インスタンスの識別）", description: "同一 root 配下に複数の NumberInput を置く場合、input パーツへ `data-action-input=\"<アプリ定義のアクション名>\"` を付けると Enter/Arrow の確定 dispatch（`\"set\"`）がその名前へ上書きされる（`crate::events` の input イベント配線と同じ属性契約）。increment/decrement/home/end/clear は固定アクション名のまま payload に input の `name` 属性値が載るため、アプリの `decode_action` は `name`/`payload` の組み合わせで更新先を区別できる（イシュー #1613 PR #1881 codex-review P1 是正）。" },
+    ],
     aria: &[
-        AriaRow { attribute: "role=\"spinbutton\" (input)", description: "WAI-ARIA spinbutton パターン。ネイティブ `<input type=\"number\">` ではなく `type=\"text\"` を使うため、上下キーによる native な増減は成立しない（増減はクライアントランタイムの配線責務、モジュール doc「out-of-scope」参照）。" },
+        AriaRow { attribute: "role=\"spinbutton\" (input)", description: "WAI-ARIA spinbutton パターン。ネイティブ `<input type=\"number\">` ではなく `type=\"text\"` を使うため native な上下キー増減はブラウザ標準では成立しないが、fandhe-frontend-wasm-full の keydown 配線（ArrowUp/ArrowDown/Home/End/Enter）が `\"increment\"`/`\"decrement\"`/`\"home\"`/`\"end\"`/`\"set\"` を dispatch することで同等の操作を実現する（イシュー #1613 PR #1881、下記 Keyboard 節参照）。" },
+        AriaRow { attribute: "aria-roledescription=\"numberfield\" (input)", description: "常時出力する（イシュー #1613）。" },
         AriaRow { attribute: "aria-valuemin / aria-valuemax (input)", description: "正規化済みの `min`/`max` を常時出力する。" },
         AriaRow { attribute: "aria-valuenow (input)", description: "現在値が確定している（`value` が `Some`）ときのみ出力する。" },
+        AriaRow { attribute: "role=\"group\" (control)", description: "呼び出し側 `attrs` の `role` 指定にかかわらず常時固定出力する（`CONTROL_RESERVED` により呼び出し側の同名キーは常に除去される、イシュー #1613）。" },
+        AriaRow { attribute: "aria-disabled / aria-invalid (control)", description: "`disabled`/`invalid` が `true` のときのみ出力する（イシュー #1613）。" },
     ],
     demo: None,
 };
@@ -306,18 +330,20 @@ const RADIO_GROUP: ComponentPageSpec = ComponentPageSpec {
 };
 
 /// 一次情報: `crates/headless-ui/src/rating_group.rs`
-/// （モジュール doc 1-76、`root`/`label`/`control` 89-135、
-/// `item` 137-192、`hidden_input` 194-216）。
+/// （モジュール doc・`RatingGroupProps`・`root`/`label`/`control`・`item`・
+/// `hidden_input`。参照サイト（ark-ui Rating Group）との突合はイシュー
+/// #1617）。
 const RATING_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Label / Control / Item / HiddenInput の 5 anatomy パーツと、`1..=count` の数値評価値（未評価は `None`）+ hover プレビューを持つ状態機械を提供する。",
         "`role=\"radiogroup\"` + `item` の `role=\"radio\"`/`aria-checked` で WAI-ARIA radio パターンを表現するが、ネイティブ `<input type=\"radio\">` の組ではなく単一の `hidden_input`（`type=\"hidden\"`）でフォーム送信値を送る。",
         "`hover`（ポインタが指している星）は transient な CSR 挙動のため SSR 静的マークアップには現れず、hydration でも直列化しない（常に `None` から開始）。",
         "`readonly` が `true` のとき値の変更操作は no-op になる（他ユーザーの平均評価等、表示専用の評価を安全に描画する用途）。",
+        "`RatingGroupProps`（disabled/readonly/required）が root/label/control/hidden_input の状態束を一元管理する（イシュー #1617）。`label` は `data-disabled`/`data-required`、`control` は `data-disabled`/`data-readonly`/`aria-required` + 真のときのみの `aria-disabled=\"true\"`/`aria-readonly=\"true\"`/`aria-required=\"true\"` を反映する。",
+        "`item` は `tabindex` を出力しない。対応する DOM 配線（クリック・hover・キーボード。`fandhe-frontend-wasm-full`）が未実装のため、roving `tabindex` のみを先行公開すると「フォーカスは受けるが操作不能」な WAI-ARIA radio パターン違反になる（イシュー #1617 codex-review 指摘を受け、DOM 配線の実装と同時に tabindex を公開する方針とした）。",
     ],
     arguments: &[
-        ArgRow { name: "root(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
-        ArgRow { name: "root(readonly)", kind: "bool", default: "", description: "`data-readonly` を反映する。" },
+        ArgRow { name: "root/label/control/hidden_input(props)", kind: "&RatingGroupProps", default: "", description: "disabled/readonly/required の状態束（イシュー #1617）。" },
         ArgRow { name: "label(id)", kind: "Option<&str>", default: "", description: "`control(labelled_by)` の参照先 id。" },
         ArgRow { name: "control(labelled_by)", kind: "Option<&str>", default: "", description: "`Some` のときのみ `aria-labelledby` を付与する。" },
         ArgRow { name: "item(index)", kind: "u32", default: "", description: "1-origin の星番号。`data-value` として動的値のまま出力する。" },
@@ -330,12 +356,19 @@ const RATING_GROUP: ComponentPageSpec = ComponentPageSpec {
     ],
     examples: &[ExampleEntry {
         title: "Read-only average rating",
-        description: "`readonly: true` + `RatingItemFlags { readonly: true, .. }` の他ユーザー平均評価表示例。",
+        description: "`RatingGroupProps { readonly: true, .. }` + `RatingItemFlags { readonly: true, .. }` の他ユーザー平均評価表示例。",
         render: ex_rating_group_readonly,
     }],
+    // `item` は tabindex を出力せず（上記 features 参照）タブ順序に入らない。
+    // クリック・hover・キーボード操作の DOM 配線は wasm-full 側に一切存在
+    // しない（`crates/headless-ui/src/rating_group.rs` 「## キーボード操作
+    // （現状の対応範囲）」参照）。本ファイル冒頭の「`keyboard` を原則空に
+    // する理由」の例外リストに rating_group は含まれないため、「対応済み」
+    // の案内を出さず空のままとする（イシュー #1617 codex-review 指摘）。
     keyboard: &[],
     aria: &[
         AriaRow { attribute: "role=\"radiogroup\" (control)", description: "固定付与。" },
+        AriaRow { attribute: "aria-disabled / aria-readonly / aria-required (control)", description: "`RatingGroupProps` が真のときのみ `\"true\"` を出力する（イシュー #1617）。" },
         AriaRow { attribute: "role=\"radio\" / aria-checked (item)", description: "`item` 自身が `span[role=\"radio\"]`（ネイティブ input の組ではない）。`aria-checked` は `flags.checked` を反映する。" },
         AriaRow { attribute: "aria-label (item)", description: "呼び出し側が必須で与える（例: `\"1 star\"`）。" },
     ],
@@ -576,20 +609,17 @@ fn ex_number_input_disabled() -> Node {
         ..NumberInputFlags::default()
     };
     let body = vec![number_input::root(
-        true,
-        false,
+        flags,
         vec![],
         vec![
             number_input::label(
-                true,
-                false,
+                flags,
                 Some("ni-disabled-input"),
                 vec![],
                 vec![text("Seats")],
             ),
             number_input::control(
-                true,
-                false,
+                flags,
                 vec![],
                 vec![
                     number_input::decrement_trigger(
@@ -620,6 +650,72 @@ fn ex_number_input_disabled() -> Node {
     div(vec![("class", "primitives-demo-frame")], body)
 }
 
+/// `readonly` を立てた NumberInput の Example（イシュー #1613）。
+/// `root`/`control`/`input` に `data-readonly` が付き、両トリガーは境界
+/// 到達（`readonly` 時は増減しても値が変わらないため常に境界扱い）で
+/// `disabled` になる契約は `crate::primitive_showcase::forms_b` の
+/// readonly インスタンスと同じ判断。
+fn ex_number_input_readonly() -> Node {
+    let flags = NumberInputFlags {
+        readonly: true,
+        ..NumberInputFlags::default()
+    };
+    let body = vec![number_input::root(
+        flags,
+        vec![],
+        vec![
+            number_input::label(
+                flags,
+                Some("ni-readonly-input"),
+                vec![],
+                vec![text("Seats (locked)")],
+            ),
+            number_input::control(
+                flags,
+                vec![],
+                vec![
+                    number_input::decrement_trigger(
+                        Some("ni-readonly-input"),
+                        true,
+                        vec![],
+                        vec![text("−")],
+                    ),
+                    number_input::input(
+                        "seats-readonly",
+                        Some("ni-readonly-input"),
+                        Some("4"),
+                        "0",
+                        "10",
+                        flags,
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("ni-readonly-input"),
+                        true,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                ],
+            ),
+        ],
+    )];
+    div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// Examples 用の枠組み（[`crate::primitive_specs::forms_a::wrap_example`] と
+/// 同型・同じ class 契約。private のためモジュールをまたいで再利用できず、
+/// 本ファイルにも複製する）。`h2`/`h3` は出さない（`examples_section` が
+/// `h3` を供給済み）。
+fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
+    div(
+        vec![],
+        vec![
+            p(vec![("class", "primitives-demo-note")], vec![text(note)]),
+            div(vec![("class", "primitives-demo-frame")], body),
+        ],
+    )
+}
+
 /// Examples 用の枠組み。`primitive_showcase::forms_b` のデモ本体と同じ
 /// `primitives-demo-frame`/`primitives-demo-note` class のみを使い、
 /// `h2`/`h3` は出さない（`forms_a::wrap_example` は private のためこの
@@ -630,6 +726,78 @@ fn wrap_password_example(note: &'static str, body: Vec<Node>) -> Node {
         vec![
             p(vec![("class", "primitives-demo-note")], vec![text(note)]),
             div(vec![("class", "primitives-demo-frame")], body),
+        ],
+    )
+}
+
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/`data-disabled`/`data-invalid`/`data-readonly`
+/// 属性セレクタで見た目を組み立てる例を示す（イシュー #1613）。CSS は
+/// テキストノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const NUMBER_INPUT_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"number-input\"][data-part=\"control\"] {\n  \
+  display: inline-flex;\n  align-items: center;\n  border: 1px solid #888;\n  border-radius: 4px;\n\
+}\n\
+[data-scope=\"number-input\"][data-part=\"input\"] {\n  \
+  border: none;\n  padding: 0.25rem 0.5rem;\n  width: 4rem;\n\
+}\n\
+[data-scope=\"number-input\"][data-part=\"input\"][data-invalid] {\n  \
+  outline: 2px solid #dc2626;\n\
+}\n\
+[data-scope=\"number-input\"][data-part=\"control\"][data-readonly] {\n  \
+  background: #f3f4f6;\n\
+}\n\
+[data-scope=\"number-input\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n";
+
+fn ex_number_input_custom_css() -> Node {
+    let flags = NumberInputFlags::default();
+    let markup = number_input::root(
+        flags,
+        vec![],
+        vec![
+            number_input::label(flags, Some("ni-css-input"), vec![], vec![text("Quantity")]),
+            number_input::control(
+                flags,
+                vec![],
+                vec![
+                    number_input::decrement_trigger(
+                        Some("ni-css-input"),
+                        false,
+                        vec![],
+                        vec![text("−")],
+                    ),
+                    number_input::input(
+                        "quantity-css",
+                        Some("ni-css-input"),
+                        Some("5"),
+                        "0",
+                        "10",
+                        flags,
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("ni-css-input"),
+                        false,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                ],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-disabled / data-invalid / data-readonly 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(NUMBER_INPUT_CUSTOM_CSS_SNIPPET)])],
+            ),
         ],
     )
 }
@@ -922,6 +1090,11 @@ fn ex_radio_group_vertical_disabled() -> Node {
 }
 
 fn ex_rating_group_readonly() -> Node {
+    let props = RatingGroupProps {
+        disabled: false,
+        readonly: true,
+        required: false,
+    };
     let mk = |index: u32, checked: bool, highlighted: bool| {
         rating_group::item(
             index,
@@ -937,12 +1110,12 @@ fn ex_rating_group_readonly() -> Node {
         )
     };
     let body = vec![rating_group::root(
-        false,
-        true,
+        &props,
         vec![],
         vec![
-            rating_group::label(None, vec![], vec![text("Average rating")]),
+            rating_group::label(&props, None, vec![], vec![text("Average rating")]),
             rating_group::control(
+                &props,
                 None,
                 vec![],
                 vec![
@@ -953,7 +1126,7 @@ fn ex_rating_group_readonly() -> Node {
                     mk(5, false, false),
                 ],
             ),
-            rating_group::hidden_input(Some("avg-rating"), "4", false, vec![]),
+            rating_group::hidden_input(&props, Some("avg-rating"), "4", vec![]),
         ],
     )];
     div(vec![("class", "primitives-demo-frame")], body)

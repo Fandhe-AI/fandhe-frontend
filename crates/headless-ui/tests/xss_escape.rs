@@ -214,9 +214,27 @@ fn number_input_name_and_label_children_are_escaped_for_all_payloads() {
             "number_input::input の name 属性値コンテキスト",
         );
 
-        let label_node = number_input::label(false, false, None, vec![], vec![text(payload)]);
+        let label_node = number_input::label(
+            number_input::NumberInputFlags::default(),
+            None,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&label_node);
         assert_payload_is_escaped(payload, &html, "number_input::label のテキストコンテキスト");
+
+        // ValueText パーツ（イシュー #1613）: children のテキスト経路。
+        let value_text_node = number_input::value_text(
+            number_input::NumberInputFlags::default(),
+            vec![],
+            vec![text(payload)],
+        );
+        let html = render(&value_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "number_input::value_text のテキストコンテキスト",
+        );
     }
 }
 
@@ -226,7 +244,8 @@ fn number_input_name_and_label_children_are_escaped_for_all_payloads() {
 #[test]
 fn rating_group_name_and_label_children_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
-        let hidden_input_node = rating_group::hidden_input(Some(payload), "3", false, vec![]);
+        let props = rating_group::RatingGroupProps::default();
+        let hidden_input_node = rating_group::hidden_input(&props, Some(payload), "3", vec![]);
         let html = render(&hidden_input_node);
         assert_payload_is_escaped(
             payload,
@@ -234,7 +253,7 @@ fn rating_group_name_and_label_children_are_escaped_for_all_payloads() {
             "rating_group::hidden_input の name 属性値コンテキスト",
         );
 
-        let label_node = rating_group::label(None, vec![], vec![text(payload)]);
+        let label_node = rating_group::label(&props, None, vec![], vec![text(payload)]);
         let html = render(&label_node);
         assert_payload_is_escaped(payload, &html, "rating_group::label のテキストコンテキスト");
     }
@@ -1647,10 +1666,11 @@ fn calendar_dispatch_select_payload_is_rejected_or_escaped_on_hydration_render()
 /// されることを固定する。
 #[test]
 fn date_picker_trigger_and_input_attrs_are_escaped_for_all_payloads() {
+    let props = date_picker::DatePickerProps::default();
     for payload in payloads::all() {
         let html = render(&date_picker::trigger(
             OpenState::Closed,
-            false,
+            &props,
             Some(payload),
             vec![],
             vec![],
@@ -1661,7 +1681,7 @@ fn date_picker_trigger_and_input_attrs_are_escaped_for_all_payloads() {
             "date_picker::trigger の controls 属性コンテキスト",
         );
 
-        let html = render(&date_picker::input(Some(payload), false, None, vec![]));
+        let html = render(&date_picker::input(Some(payload), &props, None, vec![]));
         assert_payload_is_escaped(
             payload,
             &html,

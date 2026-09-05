@@ -53,12 +53,12 @@
 | [Menu](../../site/themes/menu.md) | `menu` | Root/Trigger/Indicator/Positioner/Content/Arrow/ArrowTip/Item/ItemGroup/ItemGroupLabel/Separator | `state::Disclosure` |
 | [Select](../../site/themes/select.md) | `select` | Root/Label/Control/Trigger/ValueText/ClearTrigger/Indicator/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator/HiddenSelect | `state::Disclosure` + `state::SingleSelect`（開閉 + 選択値の合成） |
 | [Avatar](../../site/themes/avatar.md) | `avatar` | Root/Image/Fallback | 独自実装（`"loading"`/`"loaded"`/`"error"` の 3 値ステータス、`ImageStatus`） |
-| [NumberInput](../../site/themes/number-input.md) | `number_input` | Root/Label/Control/Input/IncrementTrigger/DecrementTrigger | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。数値整形・パースはロケール非依存で決定的、`step` 演算は小数桁への丸めで浮動小数点ドリフトを防ぐ） |
+| [NumberInput](../../site/themes/number-input.md) | `number_input` | Root/Label/Control/Input/IncrementTrigger/DecrementTrigger/ValueText | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。数値整形・パースはロケール非依存で決定的、`step` 演算は小数桁への丸めで浮動小数点ドリフトを防ぐ。ValueText・`data-readonly`/`data-required`・`"home"`/`"end"` dispatch はイシュー #1613 で追加） |
 | [PasswordInput](../../site/themes/password-input.md) | `password_input` | Root/Label/Control/Input/VisibilityTrigger/Indicator | 独自実装（`"visible"`/`"hidden"` 語彙が `Checkable` と異なるため `Component`/`Hydrate` を直接実装、`PasswordInput`）。パスワード値そのものは一切扱わない（§6 参照） |
 | [Slider](../../site/themes/slider.md) | `slider` | Root/Label/Control/Track/Range/Thumb/HiddenInput/ValueText | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。`value` は常に `min` 起点で `step` 単位へスナップしてから `[min, max]` へ clamp する。`thumb` が `role="slider"` + `aria-valuemin/max/now`/`aria-orientation` を担う） |
 | [PinInput](../../site/themes/pin-input.md) | `pin_input` | Root/Label/Control/Input/HiddenInput | 独自実装（固定桁数の文字配列 + フォーカス位置、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。イシュー #1615 で ark-ui/Radix 参照突合、§6-10 参照） |
 | [TagsInput](../../site/themes/tags-input.md) | `tags_input` | Root/Label/Control/Input/Item/ItemPreview/ItemText/ItemInput/ItemDeleteTrigger/ClearTrigger/HiddenInput/LiveRegion | 独自実装（可変長タグ文字列リスト + 編集中インデックス、`SingleSelect`/`MultiSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`control` は `role="listbox"`、`item-preview` は `role="option"`。`live_region` はタグ数変化の通知用 live region、`aria-live="polite"` 固定・テキスト更新は wasm-full の後続責務、イシュー #1069） |
-| [RatingGroup](../../site/themes/rating-group.md) | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装） |
+| [RatingGroup](../../site/themes/rating-group.md) | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装。イシュー #1617 で ark-ui 参照突合、§6-11 参照） |
 | [Editable](../../site/themes/editable.md) | `editable` | Root/Label/Area/Input/Preview/Control/EditTrigger/SubmitTrigger/CancelTrigger | 独自実装（`"preview"`/`"edit"` の 2 モードが `Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`mode == Preview` のとき常に `draft == value` を保つ不変条件を持つ。イシュー #1606 で参照突合（`EditableInputFlags` 共有・`data-invalid`/`data-required`・preview `tabindex`/`aria-*`・activation/submit `none` 追加。`data-focus`/`data-autoresize`/DOM 配線は見送り）） |
 | [Toggle](../../site/themes/toggle.md) | `toggle` | Root/Indicator | `state::Checkable`（`data-state` 語彙は `"on"`/`"off"`。`checked_data_state` ではなく `state::pressed_data_state` で変換し、Switch の `"checked"`/`"unchecked"` と分離する） |
 | [ToggleGroup（single モード）](../../site/themes/toggle-group.md) | `toggle_group` | Root/Item | `state::SingleSelect`（dispatch は `"toggle"` のみ受理、常時 deselectable） |
@@ -385,6 +385,9 @@ Calendar / DatePicker を実装した。
 | dispatch 名 | `"open"`/`"close"`/`"toggle"`/`"prev-month"`/`"next-month"`/`"select"`（payload は ISO 8601 文字列）/`"clear-selection"`。`"select"` は ark-ui の `closeOnSelect` 既定 `true` に準拠し popover を閉じる |
 | `input` パーツ | ネイティブ `<input type="text">`。`value` は `PlainDate::to_iso_string()` 由来の ISO 8601 表記のみを受け取る契約（DateInput との連携は行わない） |
 | DateInput との責務境界 | 本コンポーネントはセグメント式 DateInput に依存せず、ISO 8601 値のネイティブ `<input>` だけで完結する |
+| `DatePickerProps`（イシュー #1627） | `disabled`/`readonly`/`invalid`/`required` の 4 `bool`。root/label/control/input/trigger/clear_trigger の 6 パーツへ `data-disabled`/`data-invalid`/`data-readonly` を一律付与し、`data-required` は label のみへ付与する。`input` は `props.disabled`/`props.readonly`/`props.required` をそれぞれネイティブ `disabled`/`readonly`/`required` 存在属性へも反映し、`props.invalid` のときのみ `aria-invalid="true"` を追加する |
+| `label` の `for_`（イシュー #1627） | `id`（`content`/`trigger` の `labelledby` と対）に加え、`for_`（ark `htmlFor` 準拠）で `input` の `id` とネイティブ `label[for]` 関連付けを成立させる |
+| 参照突合の非追随（イシュー #1627） | ark-ui の View/ViewControl/PrevTrigger/NextTrigger/ViewTrigger/RangeText/Table 系/TableCellTrigger/MonthSelect/YearSelect/PresetTrigger/WeekNumber\*/ValueText はグリッド系が `content` へ合成する `calendar` モジュール（11 パーツ）に既に存在し、年月ビュー切替・プリセット・週番号は非追随を継続。`data-view`/`data-placement` も非追随。`fandhe-frontend-wasm-full` への `date-picker` scope 配線（trigger click・clear・Escape・外側クリック閉鎖）は未実装（別イシュー扱い） |
 
 ## 4e. Format ユーティリティ（`format` モジュール）
 
@@ -519,6 +522,22 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
    `std::time::SystemTime::now()` 等の現在時刻 API・環境変数・グローバル
    状態を一切参照しない決定的純関数であり、`base`/`target` 等の時刻は
    必ず呼び出し側が明示的に渡す（§4e.1 参照）。
+11. イシュー #1617（ark-ui Rating Group 参照突合）で `rating_group` へ
+   `RatingGroupProps`（disabled/readonly/required）を新設し、`root`/
+   `label`/`control`/`hidden_input` のシグネチャを `&RatingGroupProps`
+   受けへ統一した。`label` の `data-disabled`/`data-required`、`control`
+   の `data-disabled`/`data-readonly`/`aria-required` + 真のときのみの
+   `aria-disabled="true"`/`aria-readonly="true"`/`aria-required="true"`
+   を追加した。当初案は `RatingItemFlags::focusable` により `item` へ
+   roving `tabindex` を追加していたが、対応する DOM 配線
+   （`fandhe-frontend-wasm-full`）が無いまま「フォーカスは受けるが
+   Arrow/Space/Enter のいずれも操作不能」な状態で公開してしまう
+   codex-review 指摘を受け、本イシュー内で撤回した（`item` は
+   `tabindex` を一切出力しない）。`data-half`（`allow_half`）・
+   `aria-setsize`/`aria-posinset`・`aria-roledescription`・
+   `aria-orientation` は意図的に非採用のまま維持する
+   （`crates/headless-ui/src/rating_group.rs` モジュール doc
+   「参考サイト突合」節参照）。
 
 ## 7. 関連ドキュメント
 

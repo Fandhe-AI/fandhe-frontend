@@ -313,7 +313,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/date-time/date-input.md` | DateInput | — | — | — | `date_input` | `date_input` | 実装済み | headless+styled 実装済み（#834、#735 保留のうち DateInput 分のみ解除。DatePicker（#835）・Timer（#836）も別途保留解除済み（下記行参照）。calendar は独立部品として実装済み）。#1626 で ark-ui Data Attributes / キーボード操作と突合済み（Radix 軸該当なし） |
-| `.agents/skills/ark-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | — | — | `date_picker` | `date_picker` | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除。DateInput（#834）との連携は行わず ISO 8601 値のネイティブ `<input>` のみで完結） |
+| `.agents/skills/ark-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | — | — | `date_picker` | `date_picker` | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除。DateInput（#834）との連携は行わず ISO 8601 値のネイティブ `<input>` のみで完結）。#1627 で参照突合（`DatePickerProps` 一律付与・`for_`・`aria-invalid`。View 系パーツ・`data-view` は意図的非追随） |
 | `.agents/skills/ark-ui/references/components/date-time/timer.md` | Timer | Timer | — | — | `timer` | `timer` | 実装済み | headless+styled+wasm 配線実装済み（#836）。tick を外部から明示的に注入する決定的状態機械（時計 API 非依存）として実装し、`docs/policy/intentional-non-adoption.md` §7 の保留を解除した |
 | `.agents/skills/ark-ui/references/components/date-time/README.md` | README | — | — | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
@@ -351,11 +351,11 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/ark-ui/references/components/form/fieldset.md` | Fieldset | Fieldset | — | — | `fieldset` | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装 |
 | `.agents/skills/ark-ui/references/components/form/radio-group.md` | RadioGroup | Radio | Radio Group (`radio-group`) | Radio Group (`radio-group`) | `radio_group` | `radio_group` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/form/switch.md` | Switch | Switch | Switch (`switch`) | Switch (`switch`) | `switch` | `switch` | 実装済み | headless+styled 実装済み |
-| `.agents/skills/ark-ui/references/components/form/number-input.md` | NumberInput | NumberInput | — | — | `number_input` | `number_input` | 実装済み | headless+styled 実装済み（#738、PR #785） |
+| `.agents/skills/ark-ui/references/components/form/number-input.md` | NumberInput | NumberInput | — | — | `number_input` | `number_input` | 実装済み | headless+styled 実装済み（#738、PR #785。#1613 参照突合済み: ValueText 追加、Scrubber 非採用） |
 | `.agents/skills/ark-ui/references/components/form/pin-input.md` | PinInput | PinInput | One-Time Password Field (`one-time-password-field`) | — | `pin_input` | `pin_input` | 実装済み | headless+styled 実装済み（#739、PR #784。#1615 で ark-ui/Radix と突合し是正） |
 | `.agents/skills/ark-ui/references/components/form/password-input.md` | PasswordInput | PasswordInput | Password Toggle Field (`password-toggle-field`) | — | `password_input` | `password_input` | 実装済み | headless+styled 実装済み（#740。#1614 で参照突合: readonly・パーツ別 data-*・autocapitalize/spellcheck 追加、aria-pressed/tab 順序は意図的差分） |
 | `.agents/skills/ark-ui/references/components/form/slider.md` | Slider | Slider | Slider (`slider`) | Slider (`slider`) | `slider` | `slider` | 実装済み | headless+styled 実装済み（#741） |
-| `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | — | — | `rating_group` | `rating_group` | 実装済み | headless+styled 実装済み（#742） |
+| `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | — | — | `rating_group` | `rating_group` | 実装済み | headless+styled 実装済み（#742）。イシュー #1617 で `RatingGroupProps` 新設・control/label `data-*` 追加。当初案の roving tabindex 先行公開は DOM 配線未実装のため撤回し、`item` は tabindex 非出力（codex-review 指摘対応） |
 | `.agents/skills/ark-ui/references/components/form/segment-group.md` | SegmentGroup | SegmentedControl | — | Segmented Control (`segmented-control`) | `segment_group` | `segment_group` | 実装済み | headless+styled 実装済み（#743） |
 | `.agents/skills/ark-ui/references/components/form/tags-input.md` | TagsInput | TagsInput | — | — | `tags_input` | `tags_input` | 実装済み | headless+styled 実装済み（#744） |
 | `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | — | — | `editable` | `editable` | 実装済み | headless+styled 実装済み（#745）。#1606 で anatomy/data-*/キーボード操作を参照突合済み |
@@ -562,7 +562,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | — | — | `date_picker` | `date_picker` | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除） |
+| `.agents/skills/chakra-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | — | — | `date_picker` | `date_picker` | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除）。#1627 で参照突合（`DatePickerProps` 一律付与・`for_`・`aria-invalid`。View 系パーツ・`data-view` は意図的非追随） |
 | `.agents/skills/chakra-ui/references/components/date-time/calendar.md` | — | Calendar | — | — | `calendar` | `calendar` | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除） |
 
 #### `.agents/skills/chakra-ui/references/components/disclosure/`
@@ -602,11 +602,11 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/chakra-ui/references/components/forms/input.md` | — | Input | — | Text Field (`text-field`) | — | `input` | 実装済み | pre-styled 静的部品として実装済み（#737） |
 | `.agents/skills/chakra-ui/references/components/forms/textarea.md` | — | Textarea | — | Text Area (`text-area`) | — | `textarea` | 実装済み | pre-styled 静的部品として実装済み（#737） |
 | `.agents/skills/chakra-ui/references/components/forms/native-select.md` | — | NativeSelect | — | — | — | `native_select` | 実装済み | pre-styled 静的部品として実装済み（#737） |
-| `.agents/skills/chakra-ui/references/components/forms/number-input.md` | NumberInput | NumberInput | — | — | `number_input` | `number_input` | 実装済み | headless+styled 実装済み（#738、PR #785） |
+| `.agents/skills/chakra-ui/references/components/forms/number-input.md` | NumberInput | NumberInput | — | — | `number_input` | `number_input` | 実装済み | headless+styled 実装済み（#738、PR #785。#1613 参照突合済み: ValueText 追加、Scrubber 非採用） |
 | `.agents/skills/chakra-ui/references/components/forms/pin-input.md` | PinInput | PinInput | — | — | `pin_input` | `pin_input` | 実装済み | headless+styled 実装済み（#739、PR #784。#1615 で ark-ui/Radix と突合し是正） |
 | `.agents/skills/chakra-ui/references/components/forms/password-input.md` | PasswordInput | PasswordInput | — | — | `password_input` | `password_input` | 実装済み | headless+styled 実装済み（#740。#1614 で参照突合: readonly・パーツ別 data-*・autocapitalize/spellcheck 追加、aria-pressed/tab 順序は意図的差分） |
 | `.agents/skills/chakra-ui/references/components/forms/slider.md` | Slider | Slider | — | — | `slider` | `slider` | 実装済み | headless+styled 実装済み（#741） |
-| `.agents/skills/chakra-ui/references/components/forms/rating.md` | RatingGroup | Rating | — | — | `rating_group` | `rating_group` | 実装済み | headless+styled 実装済み（#742） |
+| `.agents/skills/chakra-ui/references/components/forms/rating.md` | RatingGroup | Rating | — | — | `rating_group` | `rating_group` | 実装済み | headless+styled 実装済み（#742）。イシュー #1617 で `RatingGroupProps` 新設・control/label `data-*` 追加。当初案の roving tabindex 先行公開は DOM 配線未実装のため撤回し、`item` は tabindex 非出力（codex-review 指摘対応） |
 | `.agents/skills/chakra-ui/references/components/forms/segmented-control.md` | SegmentGroup | SegmentedControl | — | — | `segment_group` | `segment_group` | 実装済み | headless+styled 実装済み（#743） |
 | `.agents/skills/chakra-ui/references/components/forms/tags-input.md` | TagsInput | TagsInput | — | — | `tags_input` | `tags_input` | 実装済み | headless+styled 実装済み（#744） |
 | `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | — | — | `editable` | `editable` | 実装済み | headless+styled 実装済み（#745）。#1606 で anatomy/data-*/キーボード操作を参照突合済み |

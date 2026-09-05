@@ -59,8 +59,64 @@ name = "fandhe-frontend-headless-ui"
 # `data-placeholder-shown` へ改名・`DateInputAction` へ
 # `PageIncrement`/`PageDecrement`/`Home`/`End`/`Prev`/`Next`/`Backspace`/
 # `Blur` を追加・`Increment`/`Decrement` を境界 clamp から wrap-around へ
-# 変更した観測可能な破壊的変更のため 0.39.0 へマイナーバンプする。
-version = "0.39.0"
+# 変更した観測可能な破壊的変更のため 0.39.0 へマイナーバンプする（この
+# 時点の値。main 側の独立進行との統合結果は後続コメント参照）。
+# base ブランチ取り込み（PR #1613, push フェーズ, 2026-09-05）: 本ブランチの
+# number-input マイナーバンプ（0.31.0 -> 0.32.0）と main の editable マイナー
+# バンプ（0.31.0 -> 0.32.0）が同一版数へ偶発的に衝突したため、上記コメント
+# 冒頭の #1481 と同じ「同一版数への偶発的衝突をそのまま採用しない」原則に
+# 従い 0.33.0 へさらにマイナーバンプする。
+# base ブランチ再取り込み（PR #1613, push フェーズ 2 回目, 2026-09-05）: 上記
+# 0.33.0 到達後、main は #1614（PR #1880, password-input の readonly 対応）で
+# 独立に同じ 0.33.0 へ到達していた（`PasswordInputProps.readonly`・
+# `indicator(props: &PasswordInputProps)` シグネチャ変更を含む）。本ブランチの
+# number-input dispatch 拡張（`"home"`/`"end"`・`ValueText`）と main の
+# password-input readonly 対応は共に観測可能な公開 API 変更であり、同一版数
+# への偶発的衝突が再発したため、同じ「同一版数への偶発的衝突をそのまま採用
+# しない」原則に従い 0.34.0 へさらにマイナーバンプする。
+# イシュー #1615（pin-input の参照突合）: `PinInputProps`
+# （disabled/readonly/invalid/required）の導入に伴い `pin_input::{root,
+# label, input}` のシグネチャ変更（`root`/`label` は `PinInputProps` 引数を
+# 新設、`input` は `disabled: bool` を `&PinInputProps` へ置換）に加え、
+# `PinInputAction::{Delete, Prev, Next}` の新設・`Backspace` の挙動是正を
+# 行ったため 0.x のマイナーバンプとする（`.claude/rules/coding-rust.md`
+# 破壊的変更規定）。
+# base ブランチ再取り込み（PR #1613, push フェーズ 3 回目, 2026-09-05）: 上記
+# 0.34.0 到達後、main は #1615（pin-input の参照突合）で独立に同じ 0.34.0 へ
+# 到達していた。本ブランチの number-input/password-input 統合分と main の
+# pin-input 破壊的変更は共に観測可能な公開 API 変更であり、同一版数への
+# 偶発的衝突が再発したため、同じ「同一版数への偶発的衝突をそのまま採用しない」
+# 原則に従い 0.35.0 へさらにマイナーバンプする。
+# base ブランチ再取り込み（PR #1881, 2026-09-05）: 上記 0.35.0 到達後、main は
+# #1605（combobox readonly 対応）〜 #1611（listbox 参照突合）の各破壊的変更
+# （combobox/file-upload/pin-input/image-cropper/listbox）が積み上がり
+# 0.38.0 へ到達していた。本ブランチ（PR #1881、イシュー #1613 codex-review
+# P1 是正）は number_input モジュール doc の「スコープ外」節を実装（DOM 配線
+# は `fandhe-frontend-wasm-full::number_input` が担う）へ追随させる src/
+# 変更を加えており、公開シグネチャ自体は不変だが実体変更のため semver バンプ
+# 対象である。同一版数への偶発的衝突をそのまま採用しない原則に従い main 現在
+# 値 0.38.0 からさらにマイナーバンプし 0.39.0 とする。
+# base ブランチ再取り込み（PR #1881, 2回目, 2026-09-05）: 上記 0.39.0 到達後、
+# main はイシュー #1617（PR #1889, rating-group の参照突合）で独立に同じ
+# 0.39.0 へ到達していた（`RatingGroupProps` 新設・root/label/control/
+# hidden_input のシグネチャ変更・control への aria-required 追加を伴う
+# 破壊的変更）。本ブランチの number-input 実体変更と main の rating-group
+# 破壊的変更は共に semver バンプ対象であり、同一版数への偶発的衝突が
+# 再発したため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.40.0 へ
+# さらにマイナーバンプする。
+# イシュー #1627（date-picker の参照突合）: `DatePickerProps` 新設に伴う
+# root/label/control/input/trigger/clear_trigger の破壊的シグネチャ変更
+# （マイナーバンプ）。
+# base ブランチ再取り込み（イシュー #1626 レビュー是正, 2026-09-05）: 上記
+# 0.41.0（date-picker、#1627）到達後、本ブランチ（#1626 date-input）の
+# レビュー是正コミット（`step_wrapping` が構造的に無効な日付（例:
+# 2024-02-30）を保持したセグメントからの increment/decrement で剰余演算が
+# 破綻していた不具合の修正、公開シグネチャ変更なし）を統合するため、
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（main 現在値
+# を基点に、自分の変更が patch バンプなら patch を +1）に従い main 現在値
+# 0.41.0 から 0.41.1 へ patch バンプする。
+version = "0.41.1"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
