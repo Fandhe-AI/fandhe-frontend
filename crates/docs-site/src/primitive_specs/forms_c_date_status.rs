@@ -1031,11 +1031,12 @@ const PROGRESS: ComponentPageSpec = ComponentPageSpec {
 };
 
 // ---------------------------------------------------------------------
-// QrCode — 一次情報: crates/headless-ui/src/qr_code.rs:1-225 付近
+// QrCode — 一次情報: crates/headless-ui/src/qr_code.rs 全体（イシュー #1634 で参照突合）
 // ---------------------------------------------------------------------
 
-/// QrCode の Examples: `aria_label` を省略した変種（偽の代替テキストを
-/// 捏造せず `role=\"img\"` のみで済ませる fail-closed な既定挙動）を示す。
+/// QrCode の Examples: `aria_label` を省略した変種（イシュー #1634 是正:
+/// 偽の代替テキストを捏造せず `role`/`aria-label` とも付与しない
+/// fail-closed な既定挙動）を示す。
 fn qr_code_without_aria_label_example() -> Node {
     match qr_code::encode(
         "https://example.com/promo",
@@ -1055,12 +1056,71 @@ fn qr_code_without_aria_label_example() -> Node {
     }
 }
 
+/// [`crate::primitive_showcase::forms_c_date_status::qr_code_section`] と
+/// 同型の CSS スニペット（自前 CSS の最小例、`ex_progress_custom_css` と
+/// 同型、イシュー #1634 で追加）。`root` の位置基準・`frame` の寸法・
+/// `pattern` の前景色・`overlay` の中央固定を data-* 属性セレクタで組み立てる。
+const QR_CODE_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"qr-code\"][data-part=\"root\"] {\n  \
+  position: relative;\n  display: inline-block;\n\
+}\n\
+[data-scope=\"qr-code\"][data-part=\"frame\"] {\n  \
+  width: 160px;\n  height: 160px;\n\
+}\n\
+[data-scope=\"qr-code\"][data-part=\"pattern\"] {\n  \
+  fill: #111827;\n\
+}\n\
+[data-scope=\"qr-code\"][data-part=\"overlay\"] {\n  \
+  position: absolute;\n  top: 50%;\n  left: 50%;\n  \
+  transform: translate(-50%, -50%);\n  \
+  background: #ffffff;\n  padding: 4px;\n  border-radius: 4px;\n\
+}\n";
+
+/// QrCode の Examples: 利用者が `data-scope`/`data-part` 属性セレクタで
+/// 自前 CSS を当てる最小例（イシュー #1634、`ex_progress_custom_css` と
+/// 同型）。Overlay を使う例のため誤り訂正レベルは `Q`（約 25% 回復）を
+/// 使う（headless doc「Overlay パーツ」の指針どおり、中央を覆っても復号
+/// できる余裕を持たせる）。
+fn ex_qr_code_custom_css() -> Node {
+    let markup = match qr_code::encode("https://example.com", qr_code::ErrorCorrectionLevel::Q) {
+        Ok(matrix) => qr_code::root(
+            vec![],
+            vec![
+                qr_code::frame(
+                    &matrix,
+                    qr_code::DEFAULT_QUIET_ZONE,
+                    Some("QR code for https://example.com"),
+                    vec![],
+                    vec![qr_code::pattern(
+                        &matrix,
+                        qr_code::DEFAULT_QUIET_ZONE,
+                        vec![],
+                    )],
+                ),
+                qr_code::overlay(vec![], vec![text("FW")]),
+            ],
+        ),
+        Err(_) => qr_code::root(vec![], vec![]),
+    };
+    wrap_example(
+        "利用者が data-scope / data-part 属性セレクタで自前 CSS を当てます。Overlay を使うため誤り訂正レベルは Q 以上を選びます。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(QR_CODE_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 const QR_CODE: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root/Frame/Pattern/Overlay の 4 anatomy パーツを提供する。開閉・選択のような遷移可能な状態を持たないため状態機械は実装せず、自由関数のみで構成される（`crate::tabs`/`crate::field` と同じ区分）。",
         "QR Model 2（ISO/IEC 18004）byte モードの外部依存ゼロエンコーダで `value`/`ecc` から一意にモジュール行列を導出する純粋な変換。符号化対象の `value` 文字列そのものはマークアップへ一切出力されない。",
-        "`frame`（`svg`）は `aria_label` を指定したときのみ `aria-label` を付与し、未指定時は `role=\"img\"` のみに留める（代替テキストの提供は呼び出し側の責務のままにし、偽の説明文を捏造しない fail-closed な設計）。",
+        "`frame`（`svg`）は `xmlns` を常に固定付与し（イシュー #1634、SVG 単体シリアライズでも名前空間解決できるようにする）、`aria_label` を指定したときのみ `role=\"img\"` + `aria-label` を付与する。未指定時はどちらも付与しない（WAI-ARIA 1.2 `img` ロールの Accessible Name Required 要件に合わせた fail-closed な是正、イシュー #1634。偽の説明文は捏造しない）。",
         "`pattern`（`path`）の `d` 属性値は暗モジュールの座標から内部生成する文字列で、文字集合は `M`/`h`/`v`/`z`/半角数字/`,` に閉じる。`fill` は付与せず styled 層/呼び出し側 CSS の責務とする。",
+        "呼び出し側 `attrs` はフレームワーク固定属性（`frame` の `viewBox`/`xmlns`/`role`/`aria-label`、`pattern` の `d`）をなりすませない（重複キーは dedup で除外される、イシュー #1634）。",
     ],
     arguments: &[
         ArgRow {
@@ -1085,19 +1145,36 @@ const QR_CODE: ComponentPageSpec = ComponentPageSpec {
             name: "aria_label",
             kind: "Option<&str>",
             default: "None",
-            description: "`Some` のとき `frame` へ `aria-label` を付与する。`None` のとき `role=\"img\"` のみ（偽の代替テキストを作らない）。",
+            description: "`Some` のとき `frame` へ `role=\"img\"` + `aria-label` を付与する。`None` のときはどちらも付与しない（偽の代替テキストを作らない）。`aria-labelledby` 等の別経路で名前付けしたい場合は `attrs` に `(\"role\", \"img\")` を渡せる。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "aria_label を省略した変種",
-        description: "`aria_label` に `None` を渡すと `role=\"img\"` のみが付与され、代替テキストの提供は呼び出し側の責務のまま残ります。",
-        render: qr_code_without_aria_label_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "aria_label を省略した変種",
+            description: "`aria_label` に `None` を渡すと `role`/`aria-label` とも付与されません（Zag.js 準拠）。名前付けが必要な場合は `attrs` で `role`/`aria-labelledby` を渡してください。",
+            render: qr_code_without_aria_label_example,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui はスタイルレスであるため、root/frame/pattern/overlay の data-* 属性セレクタで見た目を組み立てます。",
+            render: ex_qr_code_custom_css,
+        },
+    ],
     keyboard: &[],
-    aria: &[AriaRow {
-        attribute: "role",
-        description: "`frame`（`svg`）へ `\"img\"` を固定付与する。",
-    }],
+    aria: &[
+        AriaRow {
+            attribute: "role",
+            description: "`frame`（`svg`）へ `aria_label` 指定時のみ `\"img\"` を付与する（未指定時は付与しない）。",
+        },
+        AriaRow {
+            attribute: "aria-label",
+            description: "`frame` へ `aria_label` 指定時のみ付与する。",
+        },
+        AriaRow {
+            attribute: "（キーボード操作）",
+            description: "QrCode は非インタラクティブな表示部品のためキーボード操作を持たない（参照サイト ark-ui / chakra-ui とも同様。Radix Primitives / Radix Themes に QR Code は存在しない）。",
+        },
+    ],
     demo: None,
 };
 
