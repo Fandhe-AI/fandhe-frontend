@@ -1723,7 +1723,19 @@ name = "fandhe-frontend-pre-styled-ui"
 # codex-review 指摘（PR #1915, イシュー #1642）の是正で headless-ui を
 # 0.53.2 → 0.54.0 へマイナーバンプしたため、依存先 version 要求追随のみで
 # patch バンプで 0.105.3 とする（本クレート自体の実体変更なし）。
-version = "0.105.3"
+# codex-review 再指摘（PR #1915, イシュー #1642。Cursor Bugbot も同一問題を
+# 指摘）: `crates/pre-styled-ui/src/popover.rs` は headless-ui の
+# `popover::*` を glob 再公開しており、headless-ui 0.54.0 の破壊的変更
+# （`drop_tabindex_attr` による `tabindex="0"` 明示指定の `-1` への強制
+# 上書き）は pre-styled-ui 経由の利用者（styled `content` へ
+# `tabindex="0"` を渡していたケース）にも同じ挙動変化（Tab で到達不能）
+# として及ぶ。上記 0.105.3 は「本クレート自体の実体変更なし」の前提で
+# patch バンプにとどめたが、再公開経由の破壊的変更伝播を見落としていた
+# ため誤りであり、0.x の破壊的変更はマイナーバンプとする規約
+# （.claude/rules/coding-rust.md）に従いマイナーバンプへ是正し 0.106.0
+# とする（本クレート自体の実体変更は引き続きなし。依存先 headless-ui の
+# 破壊的変更が再公開経由で透過する事実のみを根拠とする）。
+version = "0.106.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
