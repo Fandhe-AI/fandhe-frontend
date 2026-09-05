@@ -1779,7 +1779,9 @@ name = "fandhe-frontend-pre-styled-ui"
 # style-refresh-version-bump-operation.md` §5）。両者の破壊的変更の和集合
 # として、さらにマイナーバンプで 0.108.0 とする（headless-ui 0.56.0 への
 # 依存追随を含む）。
-version = "0.108.0"
+# イシュー #1682: `collapsible` モジュール新設（公開 API の純追加、参照 3
+# サイト共通の基本部品）のため minor バンプする。
+version = "0.109.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

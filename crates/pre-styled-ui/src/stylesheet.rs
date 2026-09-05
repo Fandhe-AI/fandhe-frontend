@@ -317,6 +317,7 @@ mod tests {
             ("kbd", crate::kbd::css()),
             ("line_chart", crate::line_chart::stylesheet()),
             ("code", crate::code::css()),
+            ("collapsible", crate::collapsible::stylesheet()),
             ("color_swatch", crate::color_swatch::css()),
             ("color_picker", crate::color_picker::css()),
             ("action_bar", crate::action_bar::stylesheet()),

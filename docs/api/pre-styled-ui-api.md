@@ -199,6 +199,7 @@ re-export（規約 A）へ移行したため本数から外れた。現況は `p
 | `combobox` | `OpenState` | `state`（`select` と同型の選択的 re-export） |
 | `tree_view` | `OpenState` / `MultiSelectAction` / `SingleSelectAction` | `state`（イシュー #1578 で `size` variant 導入に伴い本体の再エクスポートは選択的（規約 A）へ移行したが、`state` 由来の型はこれまでどおり明示再エクスポートする） |
 | `toggle_tip` | `OpenState` / `DisclosureAction` | `state`（`tooltip` と同型の glob re-export） |
+| `collapsible` | `OpenState` / `DisclosureAction` | `state`（`toggle_tip` と同型の glob re-export、イシュー #1682） |
 
 `ActivationMode`/`TabItem`/`TabsProps`（tabs）・`DialogRole`/`ContentIds`
 （dialog）・`SelectAction`（select）は各 headless モジュール内定義のため
@@ -299,7 +300,8 @@ re-export（規約 A）へ移行したため本数から外れた。現況は `p
   イシュー #1062 のレビューにより、現時点で `action_bar` / `popover` /
   `hover_card` / `tooltip` / `toolbar` / `scroll_area` /
   `toggle_tip` / `menubar` / `json_tree_view` / `floating_panel` / `timer` /
-  `navigation_menu` の 12 モジュールが条件を満たすと判定済み（`tree_view`
+  `navigation_menu` / `collapsible`（イシュー #1682）の 13 モジュールが
+  条件を満たすと判定済み（`tree_view`
   はイシュー #1578 で `size` variant を持つに至り規約 A（選択的）へ移行した
   ため本一覧から外れた。レビュー来歴は
   `docs/internal/pre-styled-ui-implementation-notes.md` §3c 参照）。
@@ -489,6 +491,7 @@ CSS を追加提供する（設計方針は他 headless ラッパーと同じ、
 | tree-view | ✓ | 提供しない | イシュー #1578 で root のみへクラス付与する size variant（xs〜xl、既定 md）を新設。行密度・文字サイズに反映。color-palette は popover/tooltip と同型の判断で非提供 |
 | json-tree-view | tree-view の size を継承 | 提供しない | 構造部は tree-view の recipe を再利用するため tree-view の size variant をそのまま継承する（`key`/`value` 固有の size 軸は持たない） |
 | toggle-tip | 提供しない | 提供しない | popover/tooltip と同型の判断 |
+| collapsible | 提供しない | 提供しない | 参照 3 サイト（chakra-ui / Radix Primitives / ark-ui）いずれも size/variant/colorPalette を持たないため非提供（イシュー #1682） |
 | breadcrumb | ✓ | – (`BreadcrumbVariant`: `link` の下線表示切り替え) | アクセント色による選択・チェック状態を示す部品ではないため color-palette は非提供 |
 | drawer | ✓ | – | dialog と同じく選択・チェック状態を示す部品ではないため color-palette は非提供。root scope の CSS custom property は `--fandhe-drawer-size`。placement（`start`/`end`/`top`/`bottom`）は variant 軸ではなく headless 層が出力する `data-placement` に連動する CSS で表現する |
 | link | 提供しない | 提供しない | `LinkVariant`（下線表示切り替え）のみの単軸 variant。インラインテキストリンクは寸法・強調色の variant 対象外 |
