@@ -304,7 +304,6 @@ name = "fandhe-frontend-headless-ui"
 # 0.51.0 へ到達したため（同一版数への偶発的衝突をそのまま採用しない原則、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）、さらにマイナー
 # バンプで 0.52.0 とする（codex-review 指摘、PR #1909）。
-version = "0.52.0"
 # イシュー #1639（drawer の参照突合）: `drawer::content` へ `tabindex="-1"`
 # を固定追加した（既存呼び出しの引数個数・シグネチャは不変、出力属性が
 # 増えるのみの非破壊的追加）。patch バンプとして 0.51.0 から 0.51.1 とする。
@@ -312,6 +311,11 @@ version = "0.52.0"
 # tabindex="-1" を固定付与（zag dialog.connect.ts との参照突合、既存呼び出し
 # 側の出力に属性が加わるのみの非破壊的変更）。main 側で独立に到達していた
 # 0.51.0 に対し patch バンプで 0.51.1 とする。
+# base 再取り込み（本 #1647 マージ）: main 側で独立に到達していた 0.51.1 は
+# 本ブランチの 0.52.0 を下回るため、破壊的変更（action_bar）を含む本ブランチの
+# 0.52.0 をそのまま維持する（内容は drawer/dialog の tabindex="-1" 追加と
+# action_bar/collapsible の破壊的変更の和集合）。
+version = "0.52.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

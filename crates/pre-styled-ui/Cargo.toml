@@ -1687,7 +1687,6 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.103.0 へ到達したため（同一版数への偶発的衝突をそのまま採用しない原則、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）、headless-ui
 # 0.52.0 への依存追随とあわせてさらにマイナーバンプで 0.104.0 とする。
-version = "0.104.0"
 # イシュー #1639: headless-ui 0.51.1 依存追随（drawer::content への
 # tabindex="-1" 追加。`crates/pre-styled-ui/src/drawer.rs` の SLOTS
 # 構成・呼び出しシグネチャは不変で、headless-ui 全体を再エクスポートする
@@ -1696,6 +1695,12 @@ version = "0.104.0"
 # base 再取り込み（イシュー #1638, dialog の参照突合）: headless-ui 0.51.1
 # 依存追随（dialog の content への tabindex="-1" 固定付与、非破壊的変更）。
 # main 側で独立に到達していた 0.103.0 に対し patch バンプで 0.103.1 とする。
+# base 再取り込み（本 #1647 マージ）: main 側で独立に到達していた 0.103.1 は
+# 本ブランチの 0.104.0 を下回るため、破壊的変更（headless-ui 0.52.0 依存
+# 追随・collapsible 起因）を含む本ブランチの 0.104.0 をそのまま維持する
+# （内容は drawer/dialog の tabindex="-1" 追随と action_bar/collapsible の
+# 破壊的変更の和集合）。
+version = "0.104.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

@@ -332,7 +332,6 @@ name = "fandhe-frontend-wasm-full"
 # 0.52.0 への依存追随とあわせてさらにマイナーバンプで 0.11.0 とする
 # （上記の破壊的変更起因のマイナーバンプと同一到達点のため単一バンプで
 # 両方を満たす）。
-version = "0.11.0"
 # イシュー #1639: headless-ui 0.51.1 依存追随（drawer::content への
 # tabindex="-1" 追加）。drawer scope は MAPPING_TABLE/OverlayKind/
 # focus_trap いずれも未配線のため wasm-full 自身の src は無変更（`version
@@ -344,6 +343,11 @@ version = "0.11.0"
 # 側で独立に到達していた 0.10.11 と偶発的に同一版数へ衝突したため、その
 # 原則（`docs/ci/style-refresh-version-bump-operation.md` §5）に従いさらに
 # patch バンプで 0.10.12 とする。
+# base 再取り込み（本 #1647 マージ）: main 側で独立に到達していた 0.10.12 は
+# 本ブランチの 0.11.0 を下回るため、破壊的変更（OverlayKind::ActionBar 追加）
+# を含む本ブランチの 0.11.0 をそのまま維持する（内容は drawer/dialog の
+# tabindex="-1" 依存追随と action_bar/collapsible の破壊的変更の和集合）。
+version = "0.11.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
