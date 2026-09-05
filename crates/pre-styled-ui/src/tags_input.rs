@@ -323,6 +323,19 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-accent-fg)"),
             ],
         )
+        // headless `item_preview` は編集中 `hidden` 存在属性を出力し
+        // `item_input` と表示を排他する契約だが（`crates/headless-ui/
+        // src/tags_input.rs::item_preview` rustdoc 参照）、上記 base の
+        // `display: inline-flex` がブラウザ既定の `[hidden] { display:
+        // none }` UA スタイルより詳細度で勝つため、CSS を明示指定しないと
+        // 編集中も旧チップ・削除ボタンが表示されたままになる（codex-review
+        // 指摘 #1623）。`hidden` 属性へ `display: none` を明示して表示排他
+        // を回復する。
+        .state(
+            "item-preview",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        )
         .base("item-text", vec![decl("white-space", "nowrap")])
         .base(
             "item-delete-trigger",

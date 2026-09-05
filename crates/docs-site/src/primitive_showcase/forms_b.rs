@@ -1168,14 +1168,23 @@ pub(super) fn tags_input_section() -> Node {
             &default_props,
             vec![],
             vec![
-                tags_input::label(&default_props, vec![], vec![text("Tags")]),
+                tags_input::label(
+                    &default_props,
+                    vec![("for", "tags-input-demo-tags")],
+                    vec![text("Tags")],
+                ),
                 tags_input::control(
                     &default_props,
                     vec![],
                     vec![
                         tags_input_item("rust", false, false, true),
                         tags_input_item("wasm", false, true, false),
-                        tags_input::input(&default_props, "", false, vec![]),
+                        tags_input::input(
+                            &default_props,
+                            "",
+                            false,
+                            vec![("id", "tags-input-demo-tags")],
+                        ),
                     ],
                 ),
                 tags_input::clear_trigger(&default_props, vec![], vec![text("Clear")]),
@@ -1191,13 +1200,22 @@ pub(super) fn tags_input_section() -> Node {
             &readonly_props,
             vec![],
             vec![
-                tags_input::label(&readonly_props, vec![], vec![text("Environment")]),
+                tags_input::label(
+                    &readonly_props,
+                    vec![("for", "tags-input-demo-environment")],
+                    vec![text("Environment")],
+                ),
                 tags_input::control(
                     &readonly_props,
                     vec![],
                     vec![
                         tags_input_item("staging", false, false, false),
-                        tags_input::input(&readonly_props, "", false, vec![]),
+                        tags_input::input(
+                            &readonly_props,
+                            "",
+                            false,
+                            vec![("id", "tags-input-demo-environment")],
+                        ),
                     ],
                 ),
                 tags_input::hidden_input(&readonly_props, "environment", "staging", vec![]),
@@ -1209,13 +1227,22 @@ pub(super) fn tags_input_section() -> Node {
             &invalid_props,
             vec![],
             vec![
-                tags_input::label(&invalid_props, vec![], vec![text("At max")]),
+                tags_input::label(
+                    &invalid_props,
+                    vec![("for", "tags-input-demo-at-max")],
+                    vec![text("At max")],
+                ),
                 tags_input::control(
                     &invalid_props,
                     vec![],
                     vec![
                         tags_input_item("a", false, false, false),
-                        tags_input::input(&invalid_props, "", true, vec![]),
+                        tags_input::input(
+                            &invalid_props,
+                            "",
+                            true,
+                            vec![("id", "tags-input-demo-at-max")],
+                        ),
                     ],
                 ),
                 tags_input::hidden_input(&invalid_props, "at-max", "a", vec![]),

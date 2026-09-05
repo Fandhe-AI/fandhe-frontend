@@ -4152,7 +4152,11 @@ fn tags_input_section() -> Node {
         false,
         vec![],
         vec![
-            tags_input::label(&normal_props, vec![], vec![text("Skills")]),
+            tags_input::label(
+                &normal_props,
+                vec![("for", "tags-input-showcase-skills")],
+                vec![text("Skills")],
+            ),
             tags_input::control(
                 &normal_props,
                 vec![],
@@ -4162,7 +4166,12 @@ fn tags_input_section() -> Node {
                     // （`data-highlighted`、モジュール rustdoc「内部パートの
                     // スタイル調整」節が追加した transition の実演を兼ねる）。
                     tag_item("wasm", false, true),
-                    tags_input::input(&normal_props, "", false, vec![]),
+                    tags_input::input(
+                        &normal_props,
+                        "",
+                        false,
+                        vec![("id", "tags-input-showcase-skills")],
+                    ),
                 ],
             ),
             tags_input::hidden_input(&normal_props, "skills", "rust,wasm", vec![]),
@@ -4174,14 +4183,23 @@ fn tags_input_section() -> Node {
         false,
         vec![],
         vec![
-            tags_input::label(&normal_props, vec![], vec![text("Editing")]),
+            tags_input::label(
+                &normal_props,
+                vec![("for", "tags-input-showcase-editing")],
+                vec![text("Editing")],
+            ),
             tags_input::control(
                 &normal_props,
                 vec![],
                 vec![
                     tag_item("go", false, false),
                     editing_tag_item("wa"),
-                    tags_input::input(&normal_props, "", false, vec![]),
+                    tags_input::input(
+                        &normal_props,
+                        "",
+                        false,
+                        vec![("id", "tags-input-showcase-editing")],
+                    ),
                 ],
             ),
             tags_input::hidden_input(&normal_props, "editing-tags", "go", vec![]),
@@ -4199,13 +4217,22 @@ fn tags_input_section() -> Node {
         false,
         vec![],
         vec![
-            tags_input::label(&readonly_props, vec![], vec![text("Read-only")]),
+            tags_input::label(
+                &readonly_props,
+                vec![("for", "tags-input-showcase-readonly")],
+                vec![text("Read-only")],
+            ),
             tags_input::control(
                 &readonly_props,
                 vec![],
                 vec![
                     tag_item("staging", false, false),
-                    tags_input::input(&readonly_props, "", false, vec![]),
+                    tags_input::input(
+                        &readonly_props,
+                        "",
+                        false,
+                        vec![("id", "tags-input-showcase-readonly")],
+                    ),
                 ],
             ),
             tags_input::hidden_input(&readonly_props, "readonly-tags", "staging", vec![]),
@@ -4224,14 +4251,23 @@ fn tags_input_section() -> Node {
         false,
         vec![],
         vec![
-            tags_input::label(&at_max_props, vec![], vec![text("At max (2)")]),
+            tags_input::label(
+                &at_max_props,
+                vec![("for", "tags-input-showcase-at-max")],
+                vec![text("At max (2)")],
+            ),
             tags_input::control(
                 &at_max_props,
                 vec![],
                 vec![
                     tag_item("a", false, false),
                     tag_item("b", false, false),
-                    tags_input::input(&at_max_props, "", true, vec![]),
+                    tags_input::input(
+                        &at_max_props,
+                        "",
+                        true,
+                        vec![("id", "tags-input-showcase-at-max")],
+                    ),
                 ],
             ),
             tags_input::hidden_input(&at_max_props, "at-max", "a,b", vec![]),
@@ -4247,13 +4283,22 @@ fn tags_input_section() -> Node {
         true,
         vec![],
         vec![
-            tags_input::label(&disabled_props, vec![], vec![text("Disabled")]),
+            tags_input::label(
+                &disabled_props,
+                vec![("for", "tags-input-showcase-disabled")],
+                vec![text("Disabled")],
+            ),
             tags_input::control(
                 &disabled_props,
                 vec![],
                 vec![
                     tag_item("readonly", true, false),
-                    tags_input::input(&disabled_props, "", false, vec![]),
+                    tags_input::input(
+                        &disabled_props,
+                        "",
+                        false,
+                        vec![("id", "tags-input-showcase-disabled")],
+                    ),
                 ],
             ),
             tags_input::hidden_input(&disabled_props, "disabled-tags", "readonly", vec![]),

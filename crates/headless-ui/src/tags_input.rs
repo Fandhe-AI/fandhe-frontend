@@ -53,10 +53,16 @@
 //!   [`item`] に `data-value`（タグ文字列）を追加し、[`item_preview`] に
 //!   `value`/`disabled`（旧実装は `highlighted` のみ）を追加し、
 //!   [`item_text`] に `disabled`/`highlighted` を追加し、[`item_input`] に
-//!   `hidden`（非編集時）/`tabindex="-1"`/`disabled` を追加し、
-//!   [`item_delete_trigger`] に `highlighted`/`tabindex="-1"` を追加して
-//!   `aria-label` を zag 既定訳 `"Delete tag {value}"` へ揃えた（旧実装は
-//!   `"Delete {tag}"`）。
+//!   `hidden`（非編集時）/`disabled` を追加し、[`item_delete_trigger`] に
+//!   `highlighted` を追加して `aria-label` を zag 既定訳
+//!   `"Delete tag {value}"` へ揃えた（旧実装は `"Delete {tag}"`）。
+//!   当初 [`item_input`]/[`item_delete_trigger`] へ ark-ui 公式表どおりの
+//!   `tabindex="-1"` も固定付与したが、対応する矢印キー操作・編集開始時の
+//!   フォーカス配線（DOM 配線、下記スコープ外節）が未実装のまま固定すると
+//!   従来 Tab で到達できていた削除ボタン・編集欄がキーボード操作不能に
+//!   なる回帰であったため撤回した（codex-review 指摘、#1623）。DOM 配線が
+//!   実装されるまでは `tabindex` を固定付与せず既定の Tab 到達性を
+//!   維持する。
 //! - **`role="listbox"`/`aria-orientation`（[`control`]）と
 //!   `role="option"`/`aria-selected`（[`item_preview`]）を撤去した**（元は
 //!   #744 本文の指定で付与していたが、zag/ark の control・item-preview は
@@ -398,15 +404,16 @@ pub fn item_text<'a>(
 
 /// ItemInput パーツ（`input`）。タグ編集モード時のネイティブ入力欄。
 /// `value` は編集中の暫定値（動的だが `render()` の既定エスケープ経由）。
-/// 非編集時は `hidden` 存在属性を出力し、`tabindex="-1"`（Tab 順から除外、
-/// フォーカスはクライアント側配線が編集開始時に明示的に当てる契約）を
-/// 常に付与する。`item.disabled` はネイティブ `disabled` + `data-disabled`
-/// へ反映する。
+/// 非編集時は `hidden` 存在属性を出力する。`tabindex` は固定付与しない
+/// （codex-review 指摘: 矢印キー操作・編集開始時のフォーカス配線が
+/// 未実装の状態で `tabindex="-1"` を固定すると、従来 Tab で到達できていた
+/// 編集欄がキーボード操作不能になる。DOM 配線を実装するまでは既定の
+/// Tab 到達性を維持する）。`item.disabled` はネイティブ `disabled` +
+/// `data-disabled` へ反映する。
 #[must_use]
 pub fn item_input<'a>(item: &TagItem<'a>, value: &'a str, attrs: Vec<(&'a str, &'a str)>) -> Node {
     let attrs = drop_reserved(attrs, ITEM_RESERVED);
-    let mut merged: Vec<(&'a str, &'a str)> =
-        vec![("type", "text"), ("value", value), ("tabindex", "-1")];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "text"), ("value", value)];
     if !item.editing {
         merged.push(("hidden", ""));
     }
@@ -421,12 +428,15 @@ pub fn item_input<'a>(item: &TagItem<'a>, value: &'a str, attrs: Vec<(&'a str, &
 /// ItemDeleteTrigger パーツ（`button`）。当該タグを削除する操作。
 /// `aria-label` は `format!` で組み立てた「Delete tag {value}」（zag 既定訳、
 /// 動的値だが `render()` の既定エスケープを経由するため注入経路には
-/// ならない）。`tabindex="-1"`（ark-ui 公式 Data Attributes/Keyboard
-/// Support 表、Tab 順から除外しキーボード操作は矢印キー配線に委ねる契約）
-/// を常に付与する。[`clear_trigger`] 等の他 trigger パーツと同様に
-/// `children` を受け取り、呼び出し側が × アイコン・視覚ラベルを描画できる
-/// （Cursor Bugbot 指摘 #744 review comment 3639762362）。`aria-label` は
-/// children の有無に関わらず常に付与する。
+/// ならない）。`tabindex` は固定付与しない（codex-review 指摘: ark-ui
+/// 公式 Data Attributes/Keyboard Support 表は `tabindex="-1"` + 矢印キー
+/// 配線の契約だが、矢印キー操作の DOM 配線が未実装の状態で固定すると
+/// 従来 Tab で到達できていた削除ボタンがキーボード操作不能になる。DOM
+/// 配線を実装するまでは既定の Tab 到達性を維持する）。[`clear_trigger`]
+/// 等の他 trigger パーツと同様に `children` を受け取り、呼び出し側が ×
+/// アイコン・視覚ラベルを描画できる（Cursor Bugbot 指摘 #744 review
+/// comment 3639762362）。`aria-label` は children の有無に関わらず常に
+/// 付与する。
 #[must_use]
 pub fn item_delete_trigger<'a>(
     item: &TagItem<'a>,
@@ -438,11 +448,7 @@ pub fn item_delete_trigger<'a>(
     // 即座に owned String へコピーするため関数スコープを超えて借用が
     // 残ることはない（crates/headless-ui/src/pin_input.rs の input() 参照）。
     let label_str = format!("Delete tag {}", item.value);
-    let mut merged: Vec<(&str, &str)> = vec![
-        ("type", "button"),
-        aria_label(label_str.as_str()),
-        ("tabindex", "-1"),
-    ];
+    let mut merged: Vec<(&str, &str)> = vec![("type", "button"), aria_label(label_str.as_str())];
     if item.disabled {
         merged.push(("disabled", ""));
     }
@@ -754,7 +760,17 @@ impl TagsInput {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        control(props, attrs, children)
+        // max 到達時は input と同じく control にも data-invalid を反映する
+        // （codex-review 指摘: 上限到達時に input だけが invalid になり
+        // control の枠線表示等に反映されなかった、Cursor Bugbot 同一指摘
+        // "Control omits at-max invalid state"）。TagsInputProps は Copy
+        // のため呼び出し元の props を書き換えず、invalid のみ合成した
+        // ローカルコピーを free function control() へ渡す。
+        let effective_props = TagsInputProps {
+            invalid: props.invalid || self.is_at_max(),
+            ..*props
+        };
+        control(&effective_props, attrs, children)
     }
 
     /// [`item`] へ現在の状態を注入する利便メソッド。範囲外インデックスは
@@ -1299,7 +1315,10 @@ mod tests {
         assert!(html.contains(r#"data-part="item-input""#));
         assert!(html.contains(r#"type="text""#));
         assert!(html.contains(r#"value="editing-value""#));
-        assert!(html.contains(r#"tabindex="-1""#));
+        // #1623 codex-review: 矢印キー配線・編集開始時フォーカス配線が
+        // 未実装のため tabindex="-1" は固定付与しない（既定 Tab 到達性を
+        // 維持する）。
+        assert!(!html.contains("tabindex"));
         assert!(!html.contains("hidden"));
     }
 
@@ -1315,7 +1334,9 @@ mod tests {
         assert!(html.contains(r#"data-part="item-delete-trigger""#));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"aria-label="Delete tag rust""#));
-        assert!(html.contains(r#"tabindex="-1""#));
+        // #1623 codex-review: 矢印キー配線が未実装のため tabindex="-1" は
+        // 固定付与しない（既定 Tab 到達性を維持する）。
+        assert!(!html.contains("tabindex"));
         assert!(!html.contains("disabled"));
     }
 
