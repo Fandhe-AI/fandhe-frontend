@@ -106,14 +106,18 @@ fn mount_timer(
     })
     .collect();
 
+    // イシュー #1632: 5 action すべてを描画する（`hidden` は phase から
+    // 導出されるため、フィクスチャは phase 引数をそのまま action_trigger へ
+    // 伝える）。
     let controls: Vec<_> = [
         TimerControl::Start,
         TimerControl::Pause,
         TimerControl::Resume,
         TimerControl::Reset,
+        TimerControl::Restart,
     ]
     .into_iter()
-    .map(|kind| action_trigger(kind, Vec::new(), Vec::new()))
+    .map(|kind| action_trigger(kind, phase, Vec::new(), Vec::new()))
     .collect();
 
     let node = root(

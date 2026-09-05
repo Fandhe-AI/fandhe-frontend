@@ -7981,8 +7981,18 @@ fn timer_display_node(t: &Timer, minutes_label: &str, seconds_label: &str) -> No
             timer::control(
                 vec![],
                 vec![
-                    timer::action_trigger(TimerControl::Pause, vec![], vec![text("Pause")]),
-                    timer::action_trigger(TimerControl::Reset, vec![], vec![text("Reset")]),
+                    // running/paused では `hidden` になり、completed では
+                    // Idle と同じ可視性（Start/Restart のみ表示）になる
+                    // （`TimerControl::is_hidden_in`）。Pause/Reset のみを
+                    // 並べていた旧版は completed 側のデモ（右）で操作
+                    // コントロールが一切表示されない欠落があったため、
+                    // `crates/docs-site/src/primitive_specs/forms_c_date_status.rs`
+                    // の completed 例と同じ 4 種を揃える（Bugbot 指摘、
+                    // イシュー #1632）。
+                    t.action_trigger(TimerControl::Start, vec![], vec![text("Start")]),
+                    t.action_trigger(TimerControl::Pause, vec![], vec![text("Pause")]),
+                    t.action_trigger(TimerControl::Reset, vec![], vec![text("Reset")]),
+                    t.action_trigger(TimerControl::Restart, vec![], vec![text("Restart")]),
                 ],
             ),
         ],
