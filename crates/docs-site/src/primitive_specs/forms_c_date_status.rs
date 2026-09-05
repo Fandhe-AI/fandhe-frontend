@@ -304,7 +304,7 @@ const CALENDAR: ComponentPageSpec = ComponentPageSpec {
         },
         KeyRow {
             key: "ArrowUp / ArrowDown",
-            description: "同キーnav 配線が担う。フォーカス中の日付を ±7 日（1 週間）移動する。",
+            description: "同 keynav 配線が担う。フォーカス中の日付を ±7 日（1 週間）移動する。",
         },
         KeyRow {
             key: "Home / End",

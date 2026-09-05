@@ -161,10 +161,21 @@ fn day_trigger_data_vocabulary_matches_reference() {
     let html = render(&cal.table_body_from_grid(Vec::new()));
 
     // today = selected = 2026-07-25 のセルは両方の data-* を同時に持つ。
-    assert!(html.contains(r#"data-value="2026-07-25""#));
-    assert!(html.contains("data-selected"));
-    assert!(html.contains("data-today"));
-    assert!(html.contains(r#"aria-current="date""#));
+    // `html.contains` の単純な存在確認ではなく、同一 `<button>` 開始タグ内
+    // （`data-value` から次の `>` まで）に収まっていることまで確認する
+    // （フィクスチャの偶然の一致に頼らず、将来フィクスチャが変わっても
+    // 「同一セルへの同時付与」を機械的に検証し続けるため、#1625 レビュー
+    // 指摘対応）。
+    let value_idx = html
+        .find(r#"data-value="2026-07-25""#)
+        .expect("2026-07-25 の day-trigger が見つからない");
+    let tag_end = html[value_idx..]
+        .find('>')
+        .expect("day-trigger の開始タグは必ず閉じる");
+    let tag_fragment = &html[value_idx..value_idx + tag_end];
+    assert!(tag_fragment.contains("data-selected"));
+    assert!(tag_fragment.contains("data-today"));
+    assert!(tag_fragment.contains(r#"aria-current="date""#));
 
     // 表示月 7 月の前後（6 月末・8 月頭）は data-outside-month を持つ。
     assert!(html.contains("data-outside-month"));
