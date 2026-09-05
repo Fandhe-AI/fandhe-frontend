@@ -518,6 +518,39 @@ pub fn classify_interactive_boundary(probe: &BoundaryProbe<'_>) -> InteractiveBo
     InteractiveBoundaryClass::Ordinary
 }
 
+/// readonly が「値を変更する操作」を抑止する対象パーツの allowlist
+/// （`(data-scope, data-part)` の組、イシュー #1616 codex-review P1 再指摘
+/// の是正、PR #1886）。
+///
+/// [`wiring::holder_instance_is_readonly`] は `data-readonly` を持つ祖先の
+/// 有無だけで dispatch 抑止を決めると、readonly を「値変更操作の抑止」
+/// ではなく「そのインスタンス配下の全 `data-action` クリックの抑止」へ
+/// 拡大解釈してしまう。これは `crates/headless-ui/src/password_input.rs`
+/// の `visibility_trigger`（`data-readonly` を出力するが、表示切替は値を
+/// 変更しないため readonly でも操作可能という既存の公開契約、同モジュール
+/// rustdoc 281〜289 行・432〜433 行参照）を壊し得る。本 allowlist は
+/// `holder`（`closest("[data-action]")` の解決結果）自身の
+/// `(data-scope, data-part)` がここに列挙された「値を変更する操作パーツ」
+/// である場合に限り、readonly 抑止の対象とすることを明示する契約である。
+///
+/// 新たに readonly 対応するコンポーネントを配線する場合は、値を変更する
+/// 操作パーツ（例: 選択・入力確定操作）だけをここへ追加登録する。表示
+/// 切替・独立した子操作（例: ヘルプボタン）などの値を変更しない操作は
+/// 含めない。
+pub const READONLY_VALUE_CHANGING_PARTS: &[(&str, &str)] = &[
+    ("radio-group", "item"),
+    ("radio-group", "item-hidden-input"),
+    ("radio-group", "item-control"),
+];
+
+/// `(scope, part)` が [`READONLY_VALUE_CHANGING_PARTS`] allowlist に
+/// 含まれるかどうかを判定する純粋関数（native の `cargo test` で検証
+/// 可能にするため `wiring` の外に置く）。
+#[must_use]
+pub fn is_readonly_value_changing_part(scope: &str, part: &str) -> bool {
+    READONLY_VALUE_CHANGING_PARTS.contains(&(scope, part))
+}
+
 // ---------------------------------------------------------------------
 // 配線層: web-sys 依存。wasm32 ターゲットでのみコンパイル対象とし、
 // native の `cargo test --workspace` に本層の DOM 依存コードを混入させない。
@@ -526,8 +559,8 @@ pub fn classify_interactive_boundary(probe: &BoundaryProbe<'_>) -> InteractiveBo
 mod wiring {
     use super::{
         action_from_click, action_from_form_control, action_from_input,
-        classify_interactive_boundary, ActionRef, AttrSource, BoundaryProbe,
-        InteractiveBoundaryClass, ACTION_CHANGE_ATTR, ACTION_INPUT_ATTR,
+        classify_interactive_boundary, is_readonly_value_changing_part, ActionRef, AttrSource,
+        BoundaryProbe, InteractiveBoundaryClass, ACTION_CHANGE_ATTR, ACTION_INPUT_ATTR,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -648,9 +681,10 @@ mod wiring {
     }
 
     /// `holder`（`closest("[data-action]")` で解決した要素）自身が
-    /// readonly な headless-ui インスタンスの「選択操作パーツ」であるか
-    /// どうかを DOM 上で判定する（イシュー #1616 codex-review P1
-    /// 再指摘の是正）。
+    /// readonly な headless-ui インスタンスの「値を変更する操作パーツ」で
+    /// あるかどうかを DOM 上で判定する（イシュー #1616 codex-review P1
+    /// 再指摘の是正。さらに PR #1886 codex-review P1 再指摘で
+    /// [`is_readonly_value_changing_part`] allowlist ゲートを追加）。
     ///
     /// `crates/wasm-full/src/headless.rs::instance_is_readonly` と同じ
     /// 判定方針を DOM 直接走査で再現するが、**探索の起点は `holder` 自身に
@@ -663,30 +697,49 @@ mod wiring {
     /// ような独立した子操作まで抑止してしまう。`button` はそのコンポーネント
     /// 自身の選択操作パーツではないため、readonly 判定の対象外とする）。
     ///
+    /// **`holder` 自身の `(data-scope, data-part)` が
+    /// [`READONLY_VALUE_CHANGING_PARTS`] allowlist に含まれない場合は、
+    /// `data-readonly` の有無にかかわらず一切抑止しない**（PR #1886
+    /// codex-review P1 再指摘: `data-readonly` の有無だけで判定すると、
+    /// readonly を「値変更操作の抑止」ではなく「そのインスタンス配下の
+    /// 全 `data-action` クリックの抑止」へ拡大解釈してしまい、
+    /// `crates/headless-ui/src/password_input.rs` の `visibility_trigger`
+    /// （`data-readonly` を出力するが表示切替は値を変更しないため readonly
+    /// でも操作可能という既存の公開契約）を壊し得る。allowlist ゲートは
+    /// このすり替えを構造的に防ぐ）。
+    ///
     /// 判定手順:
-    /// 1. `holder` 自身が `data-readonly` を持てば直ちに `true`。
-    /// 2. `holder` 自身に `data-scope` が無ければ `false`（headless-ui の
-    ///    anatomy と無関係な独立要素、または既存の非 headless-ui アプリの
-    ///    `data-action` 経路。readonly 判定の対象外）。
-    /// 3. `holder` に `data-scope` があれば、`holder` 自身を起点に祖先方向へ
-    ///    同じ `data-scope` の要素だけを見ながら `data-readonly` の有無を
-    ///    確認し、`data-part="root"` に到達したら打ち切る（異なる
-    ///    `data-scope` の要素は無関係な別コンポーネントとしてスキップして
-    ///    継続し、`root` を越えて別インスタンスの readonly が越境伝播しない
-    ///    ようにする、PR #1879 codex-review P1 再指摘と同じ設計）。これは
-    ///    `holder` がコンポーネント自身の選択操作パーツ（例:
-    ///    `[data-scope="radio-group"][data-part="item"]`）である場合に、
-    ///    同一インスタンスの readonly を正しく反映するための経路である。
+    /// 1. `holder` 自身に `data-scope`/`data-part` が無い、または
+    ///    その組が allowlist に無ければ直ちに `false`（headless-ui の
+    ///    anatomy と無関係な独立要素、既存の非 headless-ui アプリの
+    ///    `data-action` 経路、または値を変更しない操作パーツ。readonly
+    ///    判定の対象外）。
+    /// 2. `holder` 自身が `data-readonly` を持てば直ちに `true`。
+    /// 3. `holder` を起点に祖先方向へ同じ `data-scope` の要素だけを見ながら
+    ///    `data-readonly` の有無を確認し、`data-part="root"` に到達したら
+    ///    打ち切る（異なる `data-scope` の要素は無関係な別コンポーネント
+    ///    としてスキップして継続し、`root` を越えて別インスタンスの
+    ///    readonly が越境伝播しないようにする、PR #1879 codex-review P1
+    ///    再指摘と同じ設計）。これは `holder` がコンポーネント自身の
+    ///    選択操作パーツ（例: `[data-scope="radio-group"][data-part="item"]`）
+    ///    である場合に、同一インスタンスの readonly を正しく反映するための
+    ///    経路である。
     ///
     /// `click_root` は探索範囲を配線対象の root 内へ限定する（`root` より
     /// 外側の祖先まで走査しない）。
     fn holder_instance_is_readonly(holder: &Element, click_root: &Element) -> bool {
-        if holder.has_attribute("data-readonly") {
-            return true;
-        }
         let Some(scope) = holder.get_attribute("data-scope") else {
             return false;
         };
+        let Some(part) = holder.get_attribute("data-part") else {
+            return false;
+        };
+        if !is_readonly_value_changing_part(&scope, &part) {
+            return false;
+        }
+        if holder.has_attribute("data-readonly") {
+            return true;
+        }
 
         let mut current = Some(holder.clone());
         while let Some(el) = current {
@@ -1399,5 +1452,45 @@ mod tests {
             classify_interactive_boundary(&BoundaryProbe::new("span")),
             InteractiveBoundaryClass::Ordinary
         );
+    }
+
+    // --- is_readonly_value_changing_part（PR #1886 codex-review P1
+    // 再指摘の是正: readonly 抑止を値変更パーツの allowlist へ限定） ---
+
+    #[test]
+    fn radio_group_item_parts_are_readonly_value_changing() {
+        for part in ["item", "item-hidden-input", "item-control"] {
+            assert!(
+                is_readonly_value_changing_part("radio-group", part),
+                "radio-group の {part} は値を変更する操作パーツとして \
+                 allowlist に含まれるべき"
+            );
+        }
+    }
+
+    #[test]
+    fn radio_group_non_operation_parts_are_not_readonly_value_changing() {
+        // root/label/item-text は選択操作そのものではないため、たとえ
+        // `data-action` が付いていても readonly 抑止の対象にしない。
+        for part in ["root", "label", "item-text"] {
+            assert!(!is_readonly_value_changing_part("radio-group", part));
+        }
+    }
+
+    #[test]
+    fn password_input_visibility_trigger_is_not_readonly_value_changing() {
+        // `crates/headless-ui/src/password_input.rs` の `visibility_trigger`
+        // は `data-readonly` を出力するが、表示切替は値を変更しないため
+        // readonly でも操作可能という既存の公開契約（同モジュール
+        // rustdoc 281〜289 行・432〜433 行）を allowlist ゲートで保持する。
+        assert!(!is_readonly_value_changing_part(
+            "password-input",
+            "visibility-trigger"
+        ));
+    }
+
+    #[test]
+    fn unknown_scope_is_not_readonly_value_changing() {
+        assert!(!is_readonly_value_changing_part("unknown-scope", "item"));
     }
 }

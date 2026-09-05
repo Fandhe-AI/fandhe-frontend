@@ -8515,3 +8515,115 @@ fn radio_group_readonly_item_nested_aria_inside_anchor_link_is_not_prevented() {
          優先されるため preventDefault されてはならない"
     );
 }
+
+/// PR #1886 codex-review P1 是正の回帰: readonly な radio-group `item`
+/// （`data-scope="radio-group" data-part="item"` allowlist 対象）への
+/// click は、`events::wire_events` の `data-action="select"` 委譲へ到達
+/// してはならない。`radio_group_readonly_click_on_item_control_blocks_wire_events_action`
+/// の `item-control` ターゲット版に対する `item` 自身ターゲットの直接
+/// 回帰固定（`holder_instance_is_readonly` が allowlist ゲート導入後も
+/// 選択操作パーツの抑止を維持することを保証する）。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_click_does_not_dispatch_select_action() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-allowlist",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-allowlist-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+    // アプリ層が item へ付与しうる data-action/data-payload を模す
+    // （headless-ui 自体はこれらを出力しない）。
+    item_b.set_attribute("data-action", "select").unwrap();
+    item_b.set_attribute("data-payload", "b").unwrap();
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(root.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+
+    item_b
+        .dispatch_event(&cancelable_click_event())
+        .expect("click dispatch must not fail");
+
+    assert!(
+        actions.borrow().is_empty(),
+        "readonly な radio-group item への click は select アクションを \
+         dispatch してはならない（PR #1886 allowlist ゲートの回帰）"
+    );
+}
+
+/// PR #1886 codex-review P1 是正の回帰: `data-readonly` を持つ要素でも、
+/// その `(data-scope, data-part)` が `READONLY_VALUE_CHANGING_PARTS`
+/// allowlist に含まれなければ readonly 抑止の対象にならない。
+/// `crates/headless-ui/src/password_input.rs` の `visibility_trigger`
+/// （表示切替は値を変更しないため readonly でも操作可能という既存の
+/// 公開契約、同モジュール rustdoc 281〜289 行・432〜433 行）を模した
+/// `button[data-scope="password-input"][data-part="visibility-trigger"]
+/// [data-readonly][data-action="toggle_visibility"]` への click が
+/// `wire_events` の `data-action` 委譲へ到達することを検証する。
+#[wasm_bindgen_test]
+fn readonly_non_value_changing_part_click_still_dispatches_action() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("kn-password-input-readonly-visibility");
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append root must succeed");
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    root.set_attribute("data-scope", "password-input").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+    root.set_attribute("data-readonly", "").unwrap();
+
+    let trigger = document.create_element("button").unwrap();
+    trigger.set_attribute("type", "button").unwrap();
+    trigger
+        .set_attribute("data-scope", "password-input")
+        .unwrap();
+    trigger
+        .set_attribute("data-part", "visibility-trigger")
+        .unwrap();
+    trigger.set_attribute("data-readonly", "").unwrap();
+    trigger
+        .set_attribute("data-action", "toggle_visibility")
+        .unwrap();
+    root.append_child(&trigger).expect("append trigger");
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(root.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+
+    trigger
+        .dispatch_event(&cancelable_click_event())
+        .expect("click dispatch must not fail");
+
+    assert_eq!(
+        actions.borrow().as_slice(),
+        [ActionRef {
+            action: "toggle_visibility".to_string(),
+            payload: String::new(),
+        }],
+        "readonly な visibility-trigger（値を変更しない操作パーツ）への \
+         click は data-action 委譲へ到達するべき（PR #1886 allowlist \
+         ゲートが値変更パーツ以外を抑止しないことの回帰）"
+    );
+}
