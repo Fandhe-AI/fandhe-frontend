@@ -3641,6 +3641,7 @@ fn timer_styled_children_and_attrs_are_escaped_for_all_payloads() {
 
         let html = render(&timer::action_trigger(
             TimerControl::Start,
+            TimerPhase::Idle,
             vec![],
             vec![text(payload)],
         ));

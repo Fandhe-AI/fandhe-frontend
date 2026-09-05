@@ -96,6 +96,10 @@ const TIMER_GOLDEN_CSS: &str = r#"[data-scope="timer"][data-part="root"] {
   outline-offset: var(--fandhe-focus-ring-offset, 2px);
 }
 
+[data-scope="timer"][data-part="action-trigger"][hidden] {
+  display: none;
+}
+
 @media (hover: hover) {
   [data-scope="timer"][data-part="action-trigger"]:hover:not([data-disabled]) {
     background: var(--fandhe-hover-bg);
