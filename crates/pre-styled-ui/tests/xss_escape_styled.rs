@@ -46,6 +46,7 @@ use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
+use fandhe_frontend_pre_styled_ui::collapsible;
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateInputProps, DateSegment};
 use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
@@ -2225,6 +2226,82 @@ fn hover_card_styled_trigger_href_and_content_id_are_escaped_for_all_payloads() 
     ));
     assert!(!html.contains("javascript:"));
     assert!(!html.contains("href="));
+}
+
+/// styled Collapsible（イシュー #1682）の XSS 回帰。[`collapsible`] は headless
+/// 層をそのまま再エクスポートする薄い委譲層（`pub use ...::*`）であるため、
+/// `crates/headless-ui/tests/collapsible.rs` の XSS 観点を
+/// `fandhe-frontend-pre-styled-ui` の公開 API 経由でも固定する（styled 層の
+/// みに依存する利用者が同じ保証を得られることの確認）。
+#[test]
+fn collapsible_styled_trigger_controls_and_content_id_are_escaped_for_all_payloads() {
+    use collapsible::OpenState;
+
+    for payload in payloads::all() {
+        // 属性値経路: trigger の controls（aria-controls）。
+        let html = render(&collapsible::trigger(
+            OpenState::Closed,
+            false,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "collapsible::trigger controls コンテキスト");
+
+        // 属性値経路: content の id。
+        let html = render(&collapsible::content(
+            OpenState::Open,
+            false,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "collapsible::content id コンテキスト");
+
+        // 属性値経路: root の呼び出し側 attrs（data-testid）。
+        let html = render(&collapsible::root(
+            OpenState::Closed,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "collapsible::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // テキスト経路: trigger/content の children。
+        let html = render(&collapsible::trigger(
+            OpenState::Closed,
+            false,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "collapsible::trigger children コンテキスト");
+
+        let html = render(&collapsible::content(
+            OpenState::Open,
+            false,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "collapsible::content children コンテキスト");
+    }
+
+    // 予約属性（data-state/data-disabled/hidden）の呼び出し側偽装が
+    // styled 経路でも除去されることを固定する（headless 側テストの再固定）。
+    let html = render(&collapsible::root(
+        OpenState::Open,
+        false,
+        vec![("data-state", "closed"), ("data-disabled", "spoofed")],
+        vec![],
+    ));
+    assert!(html.contains(r#"data-state="open""#));
+    assert!(!html.contains("spoofed"));
+    assert!(!html.contains("data-disabled"));
 }
 
 /// (10) carousel 経路（イシュー #754）: styled `root` の呼び出し側 `attrs`・
