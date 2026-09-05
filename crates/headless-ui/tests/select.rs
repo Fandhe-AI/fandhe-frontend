@@ -1,4 +1,4 @@
-//! Select（イシュー #541）の統合テスト。
+//! Select（イシュー #541、参照突合 #1619）の統合テスト。
 //!
 //! `crates/headless-ui/src/select.rs` の inline unit tests がパーツ単体の
 //! 属性出力を固定するのに対し、本ファイルは
@@ -9,7 +9,7 @@
 //! 外部から（公開 API のみを使って）固定する。
 
 use fandhe_frontend_core::{render, text};
-use fandhe_frontend_headless_ui::select::{self, Select};
+use fandhe_frontend_headless_ui::select::{self, Select, SelectProps};
 use fandhe_frontend_headless_ui::OpenState;
 use fandhe_frontend_interactive::{
     dispatch, render_for_hydration, Component, Hydrate, HydrateError,
@@ -17,28 +17,45 @@ use fandhe_frontend_interactive::{
 
 #[test]
 fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
-    let label = select::label(Some("select-label-1"), vec![], vec![text("Framework")]);
+    let props = SelectProps::default();
+    let label = select::label(
+        &props,
+        Some("select-label-1"),
+        vec![],
+        vec![text("Framework")],
+    );
 
     let trigger = select::trigger(
         OpenState::Open,
+        &props,
         false,
         Some("select-content-1"),
         Some("select-label-1"),
         vec![],
         vec![],
     );
-    let value_text = select::value_text(false, vec![], vec![text("Vue")]);
-    let clear_trigger = select::clear_trigger(vec![("aria-label", "Clear")], vec![]);
+    let value_text = select::value_text(false, &props, vec![], vec![text("Vue")]);
+    let clear_trigger = select::clear_trigger(&props, vec![("aria-label", "Clear")], vec![]);
     let control = select::control(
         OpenState::Open,
+        &props,
         vec![],
         vec![trigger, value_text, clear_trigger],
     );
 
-    let item_text = select::item_text(Some("item-text-vue"), vec![], vec![text("Vue")]);
+    let item_text = select::item_text(
+        OpenState::Open,
+        &props,
+        false,
+        true,
+        Some("item-text-vue"),
+        vec![],
+        vec![text("Vue")],
+    );
     let item_indicator = select::item_indicator(OpenState::Open, vec![], vec![text("✓")]);
     let item = select::item(
         OpenState::Open,
+        &props,
         false,
         true,
         "vue",
@@ -48,8 +65,12 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
     );
     let item_group_label =
         select::item_group_label(Some("group-label-1"), vec![], vec![text("Frameworks")]);
-    let item_group =
-        select::item_group(Some("group-label-1"), vec![], vec![item_group_label, item]);
+    let item_group = select::item_group(
+        &props,
+        Some("group-label-1"),
+        vec![],
+        vec![item_group_label, item],
+    );
     let content = select::content(
         OpenState::Open,
         Some("select-content-1"),
@@ -63,13 +84,14 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
     let hidden_select = select::hidden_select(
         Some("vue"),
         Some("framework"),
-        false,
+        &props,
         vec![],
         vec![("vue", "Vue"), ("react", "React")],
     );
 
     let root = select::root(
         OpenState::Open,
+        &props,
         vec![],
         vec![label, control, positioner, hidden_select],
     );
@@ -111,21 +133,28 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
     assert!(html.contains(r#"role="group""#));
     assert!(html.contains(r#"aria-selected="true""#));
 
+    // イシュー #1619 参照突合: item-group-label は role="presentation"、
+    // item-indicator は aria-hidden="true"、選択中の item は data-selected を
+    // 持つ。
+    assert!(html.contains(r#"role="presentation""#));
+    assert!(html.contains(r#"aria-hidden="true""#));
+    assert!(html.contains(r#"data-selected="""#));
+
     // highlight の SSR 表現（イシュー #599）: item の data-highlighted/id と
-    // content の aria-activedescendant が同一 id で対応する。
-    assert!(html.contains(r#"data-highlighted="""#));
+    // content の aria-activedescendant が同一 id で対応する。item-text にも
+    // 同じ highlighted 状態が反映される（イシュー #1619）。
+    assert!(html.matches(r#"data-highlighted="""#).count() >= 2);
     assert!(html.contains(r#"id="item-vue""#));
     assert!(html.contains(r#"aria-activedescendant="item-vue""#));
 
     // hidden_select のフォーム統合。
     assert!(html.contains(r#"<select"#));
-    assert!(html.contains(r#"aria-hidden="true""#));
     assert!(html.contains(r#"name="framework""#));
     assert!(html.contains(r#"<option value="vue" selected="">Vue</option>"#));
 
     // open 状態なので positioner/content に hidden 存在属性は付かない
-    // （hidden_select パーツが `aria-hidden="true"` を固定で持つため、
-    // 部分一致 "hidden" ではなく存在属性そのもの `hidden=""` の不在を見る）。
+    // （item-indicator が固定で `aria-hidden="true"` を持つため、部分一致
+    // "hidden" ではなく存在属性そのもの `hidden=""` の不在を見る）。
     assert!(!html.contains(r#" hidden="""#));
 
     // value-text は data-bind-text 束縛マーカーを常時持つ（イシュー #642）。
@@ -147,14 +176,15 @@ fn positioner_and_content_closed_have_hidden_and_no_role_leak() {
 #[test]
 fn dispatch_open_close_toggle_flip_data_state_across_parts() {
     let mut s = Select::default();
+    let props = SelectProps::default();
     assert!(!s.is_open());
     assert!(render(&s.content(None, None, None, vec![], vec![])).contains(r#"hidden="""#));
 
     assert!(dispatch(&mut s, "open", ""));
     assert!(s.is_open());
-    assert!(render(&s.root(vec![], vec![])).contains(r#"data-state="open""#));
+    assert!(render(&s.root(&props, vec![], vec![])).contains(r#"data-state="open""#));
     assert!(
-        render(&s.trigger(false, None, None, vec![], vec![])).contains(r#"aria-expanded="true""#)
+        render(&s.trigger(&props, None, None, vec![], vec![])).contains(r#"aria-expanded="true""#)
     );
     assert!(render(&s.positioner(vec![], vec![])).contains(r#"data-state="open""#));
     assert!(!render(&s.content(None, None, None, vec![], vec![])).contains("hidden"));
@@ -171,6 +201,7 @@ fn dispatch_open_close_toggle_flip_data_state_across_parts() {
 #[test]
 fn dispatch_select_updates_value_and_closes_listbox_close_on_select() {
     let mut s = Select::default();
+    let props = SelectProps::default();
     dispatch(&mut s, "open", "");
     assert!(s.is_open());
 
@@ -178,10 +209,14 @@ fn dispatch_select_updates_value_and_closes_listbox_close_on_select() {
     assert_eq!(s.selected(), Some("vue"));
     assert!(!s.is_open());
 
-    assert!(render(&s.item("vue", false, false, None, vec![], vec![]))
-        .contains(r#"aria-selected="true""#));
-    assert!(render(&s.item("react", false, false, None, vec![], vec![]))
-        .contains(r#"aria-selected="false""#));
+    assert!(
+        render(&s.item("vue", &props, false, false, None, vec![], vec![]))
+            .contains(r#"aria-selected="true""#)
+    );
+    assert!(
+        render(&s.item("react", &props, false, false, None, vec![], vec![]))
+            .contains(r#"aria-selected="false""#)
+    );
 }
 
 #[test]
@@ -266,8 +301,10 @@ const ATTR_BREAK_PAYLOAD: &str = "\" onmouseover=\"alert(1)";
 
 #[test]
 fn controls_labelledby_value_and_option_payloads_are_escaped_end_to_end() {
+    let props = SelectProps::default();
     let trigger = select::trigger(
         OpenState::Closed,
+        &props,
         false,
         Some(ATTR_BREAK_PAYLOAD),
         Some(ATTR_BREAK_PAYLOAD),
@@ -276,6 +313,7 @@ fn controls_labelledby_value_and_option_payloads_are_escaped_end_to_end() {
     );
     let item = select::item(
         OpenState::Closed,
+        &props,
         false,
         false,
         ATTR_BREAK_PAYLOAD,
@@ -294,12 +332,13 @@ fn controls_labelledby_value_and_option_payloads_are_escaped_end_to_end() {
     let hidden_select = select::hidden_select(
         None,
         None,
-        false,
+        &props,
         vec![],
         vec![(ATTR_BREAK_PAYLOAD, "<script>alert(1)</script>")],
     );
     let html = render(&select::root(
         OpenState::Closed,
+        &props,
         vec![],
         vec![trigger, item, content, hidden_select],
     ));
@@ -327,6 +366,7 @@ fn dispatch_select_payload_is_escaped_end_to_end() {
 fn caller_attrs_payload_is_escaped_end_to_end() {
     let html = render(&select::root(
         OpenState::Closed,
+        &SelectProps::default(),
         vec![("data-testid", ATTR_BREAK_PAYLOAD)],
         vec![],
     ));

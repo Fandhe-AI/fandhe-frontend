@@ -1149,6 +1149,7 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `switch::root` へ委譲する。",
         "ネイティブ `checked` 状態がブラウザにより `aria-checked` へ自動マップされるため、本モジュールは `aria-checked` を明示付与しない（二重読み上げ防止）。",
+        "`readonly`/`invalid`/`required` の各フラグを `SwitchProps` で受け取り、`data-*` 属性・ネイティブ属性へ全パーツ一律反映する（イシュー #1622）。",
     ],
     arguments: &[
         ArgRow {
@@ -1170,10 +1171,10 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
             description: "オン/オフ状態。",
         },
         ArgRow {
-            name: "disabled",
-            kind: "bool",
-            default: "false",
-            description: "無効化状態。",
+            name: "props",
+            kind: "&SwitchProps",
+            default: "",
+            description: "`disabled`・`readonly`・`invalid`・`required` を束ねる構造体。全パーツへ対応する `data-*` を一律反映する（イシュー #1622）。",
         },
         ArgRow {
             name: "attrs",
@@ -1194,6 +1195,10 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-hidden",
             description: "視覚的な表現のみを担う `control`/`thumb` パーツへ固定付与し、支援技術からの重複読み上げを防ぐ。",
+        },
+        AriaRow {
+            attribute: "aria-invalid",
+            description: "`props.invalid` が `true` のとき `hidden-input` パーツへ `\"true\"` を付与する。",
         },
     ],
     demo: None,

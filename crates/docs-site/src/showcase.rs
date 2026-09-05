@@ -2537,28 +2537,33 @@ fn menu_section() -> Node {
 /// Select 節: 1 項目が選択済みの listbox が開いた静的マークアップ
 /// （イシュー #691）。
 fn select_section() -> Node {
+    let props = select::SelectProps::default();
     let node = select::root(
         Size::Md,
         OpenState::Open,
+        &props,
         vec![],
         vec![
             select::label(
+                &props,
                 Some("showcase-select-label"),
                 vec![],
                 vec![text("Framework")],
             ),
             select::control(
                 OpenState::Open,
+                &props,
                 vec![],
                 vec![select::trigger(
                     OpenState::Open,
+                    &props,
                     false,
                     Some("showcase-select-content"),
                     Some("showcase-select-label"),
                     vec![],
                     vec![
-                        select::value_text(false, vec![], vec![text("fandhe-frontend")]),
-                        select::indicator(OpenState::Open, vec![], vec![text("▾")]),
+                        select::value_text(false, &props, vec![], vec![text("fandhe-frontend")]),
+                        select::indicator(OpenState::Open, &props, vec![], vec![text("▾")]),
                     ],
                 )],
             ),
@@ -2574,13 +2579,22 @@ fn select_section() -> Node {
                     vec![
                         select::item(
                             OpenState::Open,
+                            &props,
                             false,
                             false,
                             "fandhe-frontend",
                             Some("showcase-select-item-fandhe"),
                             vec![],
                             vec![
-                                select::item_text(None, vec![], vec![text("fandhe-frontend")]),
+                                select::item_text(
+                                    OpenState::Open,
+                                    &props,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("fandhe-frontend")],
+                                ),
                                 select::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
                             ],
                         ),
@@ -2589,26 +2603,44 @@ fn select_section() -> Node {
                         // 状態表現デモ。combobox 2/2 #1468 の先例に倣う）。
                         select::item(
                             OpenState::Closed,
+                            &props,
                             false,
                             true,
                             "other",
                             None,
                             vec![],
                             vec![
-                                select::item_text(None, vec![], vec![text("Other framework")]),
+                                select::item_text(
+                                    OpenState::Closed,
+                                    &props,
+                                    false,
+                                    true,
+                                    None,
+                                    vec![],
+                                    vec![text("Other framework")],
+                                ),
                                 select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
                             ],
                         ),
                         // disabled 項目の視覚状態デモ（イシュー #1502）。
                         select::item(
                             OpenState::Closed,
+                            &props,
                             true,
                             false,
                             "legacy",
                             None,
                             vec![],
                             vec![
-                                select::item_text(None, vec![], vec![text("Legacy framework")]),
+                                select::item_text(
+                                    OpenState::Closed,
+                                    &props,
+                                    true,
+                                    false,
+                                    None,
+                                    vec![],
+                                    vec![text("Legacy framework")],
+                                ),
                                 select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
                             ],
                         ),
@@ -3231,21 +3263,25 @@ fn switch_section() -> Node {
     let demo_row = row(states
         .iter()
         .map(|(checked, disabled, name, label)| {
+            let props = switch::SwitchProps {
+                disabled: *disabled,
+                ..switch::SwitchProps::default()
+            };
             switch::root(
                 Size::Md,
                 ColorPalette::Accent,
                 *checked,
-                *disabled,
+                &props,
                 vec![],
                 vec![
-                    switch::hidden_input(name, "on", *checked, *disabled, false, vec![]),
+                    switch::hidden_input(name, "on", *checked, &props, vec![]),
                     switch::control(
                         *checked,
-                        *disabled,
+                        &props,
                         vec![],
-                        vec![switch::thumb(*checked, vec![], vec![])],
+                        vec![switch::thumb(*checked, &props, vec![], vec![])],
                     ),
-                    switch::label(*checked, vec![], vec![text(*label)]),
+                    switch::label(*checked, &props, vec![], vec![text(*label)]),
                 ],
             )
         })
@@ -3257,21 +3293,22 @@ fn switch_section() -> Node {
         .iter()
         .map(|size| {
             let name = format!("showcase-switch-size-{}", size.value());
+            let props = switch::SwitchProps::default();
             switch::root(
                 *size,
                 ColorPalette::Accent,
                 true,
-                false,
+                &props,
                 vec![],
                 vec![
-                    switch::hidden_input(&name, "on", true, false, false, vec![]),
+                    switch::hidden_input(&name, "on", true, &props, vec![]),
                     switch::control(
                         true,
-                        false,
+                        &props,
                         vec![],
-                        vec![switch::thumb(true, vec![], vec![])],
+                        vec![switch::thumb(true, &props, vec![], vec![])],
                     ),
-                    switch::label(true, vec![], vec![text(size.value())]),
+                    switch::label(true, &props, vec![], vec![text(size.value())]),
                 ],
             )
         })

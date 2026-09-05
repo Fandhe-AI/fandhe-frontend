@@ -81,7 +81,15 @@ mod wrapper_escape_and_stylesheet_safety {
 
     #[test]
     fn select_item_text_children_are_escaped() {
-        let html = render(&select::item_text(None, vec![], vec![text(XSS_PAYLOAD)]));
+        let html = render(&select::item_text(
+            select::OpenState::Closed,
+            &select::SelectProps::default(),
+            false,
+            false,
+            None,
+            vec![],
+            vec![text(XSS_PAYLOAD)],
+        ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
         assert!(html.contains(r#"data-scope="select""#));
@@ -207,7 +215,12 @@ mod wrapper_escape_and_stylesheet_safety {
     fn switch_label_children_are_escaped() {
         // イシュー #682: styled Switch 経由でも既定エスケープ（REQ-1）が
         // 効くことを固定する（headless ラッパー第 3 弾）。
-        let html = render(&switch::label(false, vec![], vec![text(XSS_PAYLOAD)]));
+        let html = render(&switch::label(
+            false,
+            &switch::SwitchProps::default(),
+            vec![],
+            vec![text(XSS_PAYLOAD)],
+        ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
         assert!(html.contains(r#"data-scope="switch""#));

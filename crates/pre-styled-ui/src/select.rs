@@ -173,7 +173,7 @@ use crate::recipe::{
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::select::{
     clear_trigger, content, control, hidden_select, indicator, item, item_group, item_group_label,
-    item_indicator, item_text, label, positioner, trigger, value_text,
+    item_indicator, item_text, label, positioner, trigger, value_text, SelectProps,
 };
 // `control`/`trigger` 等の `state` 引数はいずれも `state` モジュール由来で
 // 上記選択的再エクスポートでは到達しない。呼び出し側が
@@ -535,21 +535,26 @@ pub fn stylesheet() -> String {
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
 /// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::select::root`] へ委譲する。
+/// `props`（[`SelectProps`]）は headless 層の `disabled`/`readonly`/
+/// `invalid`/`required` 状態束をそのまま透過する（combobox styled `root`
+/// と同型、イシュー #1619 参照突合。CSS 側の視覚反映は Themes 側〔#1500
+/// 系〕の判断に委ね、本 PR では recipe を変更しない）。
 ///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::select::{self, OpenState};
+/// use fandhe_frontend_pre_styled_ui::select::{self, OpenState, SelectProps};
 /// use fandhe_frontend_pre_styled_ui::Size;
 ///
-/// let node = select::root(Size::Md, OpenState::Open, vec![], vec![]);
+/// let node = select::root(Size::Md, OpenState::Open, &SelectProps::default(), vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="select" data-part="root""#));
 /// ```
 #[must_use]
 pub fn root<'a>(
     size: Size,
     state: OpenState,
+    props: &SelectProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -557,7 +562,7 @@ pub fn root<'a>(
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::select::root(state, merged, children)
+    fandhe_frontend_headless_ui::select::root(state, props, merged, children)
 }
 
 #[cfg(test)]
@@ -605,7 +610,13 @@ mod tests {
 
     #[test]
     fn reexported_root_renders_with_headless_anatomy_attrs() {
-        let html = render(&root(Size::Md, OpenState::Closed, vec![], vec![]));
+        let html = render(&root(
+            Size::Md,
+            OpenState::Closed,
+            &SelectProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="select""#));
         assert!(html.contains(r#"data-part="root""#));
     }
@@ -618,6 +629,7 @@ mod tests {
             let html = render(&root(
                 size,
                 OpenState::Closed,
+                &SelectProps::default(),
                 vec![("class", "attacker")],
                 vec![],
             ));
@@ -664,7 +676,7 @@ mod tests {
         let mut s = Select::default();
         assert_eq!(s.open_state(), OpenState::Closed);
 
-        let ssr_html = render(&s.root(vec![], vec![]));
+        let ssr_html = render(&s.root(&SelectProps::default(), vec![], vec![]));
         assert!(ssr_html.contains(r#"data-state="closed""#));
 
         assert!(dispatch(&mut s, "open", ""));

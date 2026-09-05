@@ -13,7 +13,7 @@ use hui::segment_group;
 use hui::select;
 use hui::signature_pad::{self, Point, SignaturePad, Stroke};
 use hui::slider;
-use hui::switch;
+use hui::switch::{self, SwitchProps};
 use hui::tags_input;
 use hui::OpenState;
 
@@ -664,29 +664,39 @@ pub(super) fn segment_group_section() -> Node {
     demo_page("Segment Group", body)
 }
 
-pub(super) fn select_section() -> Node {
+/// open + 選択済み インスタンス（第 1）を組み立てる内部ヘルパ（イシュー
+/// #1619 参照突合、`SelectProps` 導入に伴う 4 インスタンス化）。anatomy 15
+/// パーツすべて（`item_group`/`item_group_label`/`item_indicator`/
+/// `clear_trigger`/`hidden_select` を含む）を本インスタンスで網羅し、
+/// `tests/primitive_showcase.rs::anatomy_coverage_matches_known_uncovered_exactly`
+/// の allowlist を増やさない。
+fn select_open_instance() -> Node {
     let state = OpenState::Open;
-    let body = vec![select::root(
+    let props = select::SelectProps::default();
+    select::root(
         state,
+        &props,
         vec![],
         vec![
-            select::label(Some("sel-label"), vec![], vec![text("Fruit")]),
+            select::label(&props, Some("sel-label"), vec![], vec![text("Fruit")]),
             select::control(
                 state,
+                &props,
                 vec![],
                 vec![
                     select::trigger(
                         state,
+                        &props,
                         false,
                         Some("sel-content"),
                         Some("sel-label"),
                         vec![],
                         vec![
-                            select::value_text(false, vec![], vec![text("Apple")]),
-                            select::indicator(state, vec![], vec![text("▾")]),
+                            select::value_text(false, &props, vec![], vec![text("Apple")]),
+                            select::indicator(state, &props, vec![], vec![text("▾")]),
                         ],
                     ),
-                    select::clear_trigger(vec![], vec![text("×")]),
+                    select::clear_trigger(&props, vec![], vec![text("×")]),
                 ],
             ),
             select::positioner(
@@ -699,19 +709,33 @@ pub(super) fn select_section() -> Node {
                     Some("sel-item-0"),
                     vec![],
                     vec![select::item_group(
-                        None,
+                        &props,
+                        Some("sel-item-group-label"),
                         vec![],
                         vec![
-                            select::item_group_label(None, vec![], vec![text("Common")]),
+                            select::item_group_label(
+                                Some("sel-item-group-label"),
+                                vec![],
+                                vec![text("Common")],
+                            ),
                             select::item(
                                 OpenState::Open,
+                                &props,
                                 false,
                                 true,
                                 "apple",
                                 Some("sel-item-0"),
                                 vec![],
                                 vec![
-                                    select::item_text(None, vec![], vec![text("Apple")]),
+                                    select::item_text(
+                                        OpenState::Open,
+                                        &props,
+                                        false,
+                                        true,
+                                        None,
+                                        vec![],
+                                        vec![text("Apple")],
+                                    ),
                                     select::item_indicator(
                                         OpenState::Open,
                                         vec![],
@@ -726,12 +750,147 @@ pub(super) fn select_section() -> Node {
             select::hidden_select(
                 Some("apple"),
                 Some("fruit"),
-                false,
+                &props,
                 vec![],
                 vec![("apple", "Apple"), ("banana", "Banana")],
             ),
         ],
-    )];
+    )
+}
+
+/// closed + `disabled` + 未選択 インスタンス（第 2）を組み立てる内部
+/// ヘルパ（イシュー #1619 参照突合。trigger/value-text 双方の
+/// `data-placeholder-shown` を表出させる）。
+fn select_disabled_instance() -> Node {
+    let state = OpenState::Closed;
+    let props = select::SelectProps {
+        disabled: true,
+        ..select::SelectProps::default()
+    };
+    select::root(
+        state,
+        &props,
+        vec![],
+        vec![
+            select::label(&props, None, vec![], vec![text("Fruit (disabled)")]),
+            select::control(
+                state,
+                &props,
+                vec![],
+                vec![
+                    select::trigger(
+                        state,
+                        &props,
+                        true,
+                        None,
+                        None,
+                        vec![],
+                        vec![
+                            select::value_text(true, &props, vec![], vec![text("Select a fruit")]),
+                            select::indicator(state, &props, vec![], vec![text("▾")]),
+                        ],
+                    ),
+                    select::clear_trigger(&props, vec![], vec![text("×")]),
+                ],
+            ),
+        ],
+    )
+}
+
+/// closed + `invalid` + `required` インスタンス（第 3）を組み立てる内部
+/// ヘルパ（イシュー #1619 参照突合。label の `data-required`・hidden-select
+/// の `required` を表出させる）。
+fn select_invalid_required_instance() -> Node {
+    let state = OpenState::Closed;
+    let props = select::SelectProps {
+        invalid: true,
+        required: true,
+        ..select::SelectProps::default()
+    };
+    select::root(
+        state,
+        &props,
+        vec![],
+        vec![
+            select::label(
+                &props,
+                None,
+                vec![],
+                vec![text("Fruit (invalid, required)")],
+            ),
+            select::control(
+                state,
+                &props,
+                vec![],
+                vec![select::trigger(
+                    state,
+                    &props,
+                    true,
+                    None,
+                    None,
+                    vec![],
+                    vec![
+                        select::value_text(true, &props, vec![], vec![text("Select a fruit")]),
+                        select::indicator(state, &props, vec![], vec![text("▾")]),
+                    ],
+                )],
+            ),
+            select::hidden_select(None, Some("fruit-invalid"), &props, vec![], vec![]),
+        ],
+    )
+}
+
+/// closed + `readonly` インスタンス（第 4）を組み立てる内部ヘルパ
+/// （イシュー #1619 参照突合。`fandhe-frontend-wasm-full` の keynav が
+/// trigger の `data-readonly` を確認して keydown を no-op にする契約の
+/// SSR 表出）。
+fn select_readonly_instance() -> Node {
+    let state = OpenState::Closed;
+    let props = select::SelectProps {
+        readonly: true,
+        ..select::SelectProps::default()
+    };
+    select::root(
+        state,
+        &props,
+        vec![],
+        vec![
+            select::label(&props, None, vec![], vec![text("Fruit (readonly)")]),
+            select::control(
+                state,
+                &props,
+                vec![],
+                vec![select::trigger(
+                    state,
+                    &props,
+                    false,
+                    None,
+                    None,
+                    vec![],
+                    vec![
+                        select::value_text(false, &props, vec![], vec![text("Apple")]),
+                        select::indicator(state, &props, vec![], vec![text("▾")]),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
+
+/// Select の Demo（イシュー #1619 参照突合、`SelectProps` 導入に伴い 4
+/// インスタンス化。combobox #1605/#1619 と同型のパターン）。open+選択済み
+/// （既定、anatomy 15 パーツ全網羅）・closed+disabled・
+/// closed+invalid+required・closed+readonly の 4 状態を 1 ページ上に並べ、
+/// `data-disabled`/`data-readonly`/`data-invalid`/`data-required`/
+/// `data-placeholder-shown`/`data-selected` の機械導出
+/// （`component_page.rs::collect_data_attrs_from_tree`）を成立させる。
+pub(super) fn select_section() -> Node {
+    let body = vec![
+        select_open_instance(),
+        select_disabled_instance(),
+        select_invalid_required_instance(),
+        select_readonly_instance(),
+    ];
     demo_page("Select", body)
 }
 
@@ -908,22 +1067,64 @@ pub(super) fn slider_section() -> Node {
     demo_page("Slider", body)
 }
 
-pub(super) fn switch_section() -> Node {
-    let body = vec![switch::root(
-        true,
-        false,
+/// `switch_section` の 1 インスタンス分を組み立てる非公開ヘルパ
+/// （`checkbox_instance`〔forms_a.rs〕と同型、イシュー #1622）。`name` は
+/// フォーム送信名（インスタンス間で一意な無害なダミー値）、`label_text` は
+/// 表示ラベル。
+fn switch_instance(
+    checked: bool,
+    props: &SwitchProps,
+    name: &'static str,
+    label_text: &'static str,
+) -> Node {
+    switch::root(
+        checked,
+        props,
         vec![],
         vec![
+            switch::hidden_input(name, "on", checked, props, vec![]),
             switch::control(
-                true,
-                false,
+                checked,
+                props,
                 vec![],
-                vec![switch::thumb(true, vec![], vec![])],
+                vec![switch::thumb(checked, props, vec![], vec![])],
             ),
-            switch::label(true, vec![], vec![text("Notifications")]),
-            switch::hidden_input("notifications", "on", true, false, false, vec![]),
+            switch::label(checked, props, vec![], vec![text(label_text)]),
         ],
-    )];
+    )
+}
+
+/// `data-state`（checked/unchecked の 2 値）と
+/// `data-disabled`/`data-invalid`/`data-required`/`data-readonly` を
+/// 描き分けた 5 インスタンスを並べる（イシュー #1622、参照突合の一環。
+/// `checkbox_section`〔forms_a.rs〕と同型のデモ構成）。
+pub(super) fn switch_section() -> Node {
+    let plain = SwitchProps::default();
+    let disabled_checked = SwitchProps {
+        disabled: true,
+        ..SwitchProps::default()
+    };
+    let invalid_required_unchecked = SwitchProps {
+        invalid: true,
+        required: true,
+        ..SwitchProps::default()
+    };
+    let readonly_checked = SwitchProps {
+        readonly: true,
+        ..SwitchProps::default()
+    };
+    let body = vec![
+        switch_instance(true, &plain, "notifications", "Notifications"),
+        switch_instance(false, &plain, "wifi", "Wi-Fi"),
+        switch_instance(
+            true,
+            &disabled_checked,
+            "airplane-mode",
+            "Airplane mode (disabled)",
+        ),
+        switch_instance(false, &invalid_required_unchecked, "terms", "Accept terms"),
+        switch_instance(true, &readonly_checked, "locked", "Locked (read-only)"),
+    ];
     demo_page("Switch", body)
 }
 

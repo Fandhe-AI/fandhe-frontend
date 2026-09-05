@@ -1652,6 +1652,263 @@ fn select_open_escape_clears_highlight_without_closing() {
     assert!(!content.has_attribute("hidden"));
 }
 
+/// readonly な Select trigger は ArrowDown/Enter/Space のいずれでも開かない
+/// （イシュー #1619 参照突合。combobox #1605 の codex-review P1 是正と同型。
+/// click 経路の抑止は `headless.rs::action_for_part` が既に担うため、本
+/// テストは keydown 経路のみを固定する）。
+#[wasm_bindgen_test]
+fn select_readonly_trigger_keydown_does_not_open() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_select_dom(
+        &document,
+        "kn-select-readonly1",
+        &[("apple", "Apple", false)],
+        false,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-readonly1-trigger")
+        .unwrap();
+    trigger.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let content = document
+        .get_element_by_id("kn-select-readonly1-content")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    for key in ["ArrowDown", "ArrowUp", "Enter", " "] {
+        let not_default_prevented = trigger.dispatch_event(&keydown_event(key)).unwrap();
+        assert!(
+            content.has_attribute("hidden"),
+            "readonly trigger は {key} で開かないはず"
+        );
+        assert_eq!(
+            trigger.get_attribute("aria-expanded").as_deref(),
+            Some("false")
+        );
+        // readonly でも状態遷移が no-op なだけで、ページスクロールを
+        // 引き起こすネイティブ既定動作までは漏らさない（Bugbot 指摘
+        // "Readonly select keys still scroll"、イシュー #1619）。Enter は
+        // 元々スクロールを起こさないキーのため prevent_default 対象外
+        // （no-op のまま）。
+        if key == "Enter" {
+            assert!(
+                not_default_prevented,
+                "readonly trigger の Enter は prevent_default されないはず"
+            );
+        } else {
+            assert!(
+                !not_default_prevented,
+                "readonly trigger の {key} はページスクロール抑止のため prevent_default されるべき"
+            );
+        }
+    }
+}
+
+/// readonly な Select trigger は Home/End を、closed のときはページ既定
+/// 動作（ページ先頭/末尾スクロール）へ委譲し、open のときのみ
+/// `prevent_default` する（Bugbot 指摘 "Readonly Home and End still
+/// captured"、イシュー #1619）。non-readonly の closed trigger では
+/// Home/End はそもそも本関数の `should_open` 対象キー集合に含まれず
+/// 未処理（ページ既定動作へ委譲）のため、readonly 化がこの契約を
+/// 変えてはならない。ArrowDown/ArrowUp/Space は closed・open いずれでも
+/// 本関数が消費するキーのため、readonly でも常に `prevent_default` される
+/// ことは [`select_readonly_trigger_keydown_does_not_open`] が別途固定する。
+#[wasm_bindgen_test]
+fn select_readonly_trigger_home_end_prevent_default_only_when_open() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_select_dom(
+        &document,
+        "kn-select-readonly-homeend",
+        &[("apple", "Apple", false), ("banana", "Banana", false)],
+        false,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-readonly-homeend-trigger")
+        .unwrap();
+    trigger.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let content = document
+        .get_element_by_id("kn-select-readonly-homeend-content")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // closed（初期状態）: readonly でも Home/End はページ既定動作
+    // （ページ先頭/末尾スクロール）へ委譲するため prevent_default しない。
+    assert!(content.has_attribute("hidden"));
+    for key in ["Home", "End"] {
+        let not_default_prevented = trigger.dispatch_event(&keydown_event(key)).unwrap();
+        assert!(
+            not_default_prevented,
+            "readonly かつ closed の trigger では {key} はページ既定動作へ委譲され \
+             prevent_default されないはず"
+        );
+    }
+
+    // open: readonly でも open 中の Home/End は本関数が消費する対象キーの
+    // ため prevent_default される（`crate::keynav` open 分岐の
+    // `"ArrowDown" | "ArrowUp" | "Home" | "End"` 腕と同じ契約）。
+    content.remove_attribute("hidden").unwrap();
+    for key in ["Home", "End"] {
+        let not_default_prevented = trigger.dispatch_event(&keydown_event(key)).unwrap();
+        assert!(
+            !not_default_prevented,
+            "readonly かつ open の trigger では {key} はページスクロール抑止のため \
+             prevent_default されるべき"
+        );
+    }
+}
+
+/// readonly な Select trigger でも、Ctrl/Alt/Meta 修飾キー付きの
+/// ArrowDown/Space・Home/End（open 時）は `prevent_default` されない
+/// （codex-review P1 是正、イシュー #1619。修正前は readonly 分岐が
+/// 修飾キー判定より前にあったため、ブラウザ既定のショートカット
+/// （例: Ctrl+ArrowDown の単語移動）まで readonly という理由だけで
+/// 一律 `prevent_default` されてしまっていた。
+/// [`select_readonly_trigger_keydown_does_not_open`]/
+/// [`select_readonly_trigger_home_end_prevent_default_only_when_open`] が
+/// 固定する「修飾キーなし」の挙動とは対照的に、本テストは同じ readonly
+/// trigger で修飾キー付きの場合が no-op（prevent_default しない）である
+/// ことを固定する）。
+#[wasm_bindgen_test]
+fn select_readonly_trigger_modifier_keys_are_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_select_dom(
+        &document,
+        "kn-select-readonly-modifiers",
+        &[("apple", "Apple", false), ("banana", "Banana", false)],
+        false,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-readonly-modifiers-trigger")
+        .unwrap();
+    trigger.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let content = document
+        .get_element_by_id("kn-select-readonly-modifiers-content")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // closed: 修飾キー付きの ArrowDown/Space は開かず、prevent_default も
+    // されない。
+    for key in ["ArrowDown", "ArrowUp", " "] {
+        let init = KeyboardEventInit::new();
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        init.set_key(key);
+        init.set_ctrl_key(true);
+        let event = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+            .unwrap()
+            .dyn_into::<Event>()
+            .unwrap();
+        let not_default_prevented = trigger.dispatch_event(&event).unwrap();
+        assert!(
+            not_default_prevented,
+            "readonly trigger でも Ctrl+{key} は prevent_default されないはず"
+        );
+        assert!(
+            content.has_attribute("hidden"),
+            "readonly trigger は Ctrl+{key} で開かないはず"
+        );
+    }
+
+    // open: 修飾キー付きの Home/End も prevent_default されない。
+    content.remove_attribute("hidden").unwrap();
+    for key in ["Home", "End"] {
+        let init = KeyboardEventInit::new();
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        init.set_key(key);
+        init.set_alt_key(true);
+        let event = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+            .unwrap()
+            .dyn_into::<Event>()
+            .unwrap();
+        let not_default_prevented = trigger.dispatch_event(&event).unwrap();
+        assert!(
+            not_default_prevented,
+            "readonly かつ open の trigger でも Alt+{key} は prevent_default されないはず"
+        );
+    }
+}
+
+/// 選択済み項目がある Select を Enter/ArrowDown で開くと、初期 highlight が
+/// 先頭ではなく選択済み項目（`aria-selected="true"`）に合う（ark-ui/Radix
+/// 準拠、イシュー #1619 参照突合。実装は `keynav.rs::initial_highlight_index`/
+/// `ScopeSelectors::prefer_selected_item`）。
+#[wasm_bindgen_test]
+fn select_open_with_selected_item_highlights_it_first() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_select_dom(
+        &document,
+        "kn-select-sel1",
+        &[
+            ("apple", "Apple", false),
+            ("banana", "Banana", false),
+            ("cherry", "Cherry", false),
+        ],
+        false,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    // "banana" を選択済みとしてマークする（SSR 契約: `item` の
+    // `aria-selected="true"`、`crates/headless-ui/src/select.rs::item` 参照）。
+    let item_banana = document
+        .get_element_by_id("kn-select-sel1-item-banana")
+        .unwrap();
+    item_banana.set_attribute("aria-selected", "true").unwrap();
+
+    // closed trigger 上の Enter は trigger へ `click()` を合成する契約
+    // （モジュール doc §Menu/Select）。実際の開閉（`hidden` の除去）は
+    // `events::wire_events` + dispatch 経路の責務であり keynav 自身は
+    // 行わないため、他の同種テスト（本ファイル冒頭のコメント参照）と
+    // 同じく「クリックされたら `hidden` を外す」薄い模擬リスナーを事前
+    // 登録する（CI 失敗の直接原因: このリスナー登録漏れにより content が
+    // 開かないまま `content_after` の hidden ガードで初期 highlight 計算が
+    // スキップされていた）。
+    let content = document
+        .get_element_by_id("kn-select-sel1-content")
+        .unwrap();
+    let open_closure = wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new({
+        let content = content.clone();
+        move |_event: Event| {
+            let _ = content.remove_attribute("hidden");
+        }
+    });
+    let trigger = document
+        .get_element_by_id("kn-select-sel1-trigger")
+        .unwrap();
+    trigger
+        .add_event_listener_with_callback("click", open_closure.as_ref().unchecked_ref())
+        .unwrap();
+    open_closure.forget();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(
+        item_banana.has_attribute("data-highlighted"),
+        "選択済み項目（banana）が初期 highlight になるべき"
+    );
+    let item_apple = document
+        .get_element_by_id("kn-select-sel1-item-apple")
+        .unwrap();
+    assert!(!item_apple.has_attribute("data-highlighted"));
+}
+
 // ---------------------------------------------------------------------
 // RadioGroup（イシュー #583）
 // ---------------------------------------------------------------------
@@ -2933,6 +3190,73 @@ fn select_open_typeahead_uses_item_text_label_not_indicator_text() {
     assert!(
         item_b.has_attribute("data-highlighted"),
         "item-text 子のラベル（Banana）でマッチし、indicator（Zephyr）は無視されるべき"
+    );
+}
+
+/// 検証: Select の highlight 移動で `item` だけでなく子 `item-text`
+/// （`[data-part="item-text"]`）の `data-highlighted` も同期する
+/// （codex-review P1 是正、イシュー #1619。SSR は item-text にも
+/// `data-highlighted` を出力する契約〔`crates/headless-ui/src/select.rs::
+/// item_text`〕のため、クライアント側の highlight 移動も追随させる必要が
+/// ある）。
+#[wasm_bindgen_test]
+fn select_open_arrow_moves_highlight_syncs_item_text_data_highlighted() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_select_dom_with_item_text(
+        &document,
+        "kn-select-itext1",
+        &[
+            ("apple", "", "Apple", false),
+            ("banana", "", "Banana", false),
+        ],
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-select-itext1-trigger")
+        .unwrap();
+    let item_apple = document
+        .get_element_by_id("kn-select-itext1-item-apple")
+        .unwrap();
+    let item_banana = document
+        .get_element_by_id("kn-select-itext1-item-banana")
+        .unwrap();
+    let text_apple = item_apple
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .unwrap();
+    let text_banana = item_banana
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_apple.has_attribute("data-highlighted"));
+    assert!(
+        text_apple.has_attribute("data-highlighted"),
+        "item の highlight 移動先では item-text にも data-highlighted が付くべき"
+    );
+    assert!(!text_banana.has_attribute("data-highlighted"));
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_banana.has_attribute("data-highlighted"));
+    assert!(
+        text_banana.has_attribute("data-highlighted"),
+        "移動後の item-text にも data-highlighted が付くべき"
+    );
+    assert!(
+        !text_apple.has_attribute("data-highlighted"),
+        "移動元の item-text からは data-highlighted が外れるべき"
+    );
+
+    trigger.dispatch_event(&keydown_event("Escape")).unwrap();
+    assert!(!item_banana.has_attribute("data-highlighted"));
+    assert!(
+        !text_banana.has_attribute("data-highlighted"),
+        "Escape による highlight クリアも item-text へ同期するべき"
     );
 }
 

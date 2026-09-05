@@ -232,6 +232,17 @@ name = "fandhe-frontend-headless-ui"
 # 同じ「同一版数への偶発的衝突をそのまま採用しない」原則（`docs/ci/
 # style-refresh-version-bump-operation.md` §5）に従い 0.44.0 へさらに
 # マイナーバンプする。
+# イシュー #1619（select の参照突合）: `SelectProps` 新設に伴う
+# root/label/control/trigger/value_text/clear_trigger/indicator/
+# item_group/item/item_text/hidden_select のシグネチャ変更（破壊的変更）
+# のため、0.x の破壊的変更はマイナーバンプする規約（`coding-rust.md`）に
+# 従い 0.45.0 とする。
+# base ブランチ再取り込み（イシュー #1619, 2026-09-05）: main 側が独立に
+# 0.46.0 へ到達していた（別部品の破壊的変更）。本ブランチ（#1619
+# select）の `SelectProps` 新設に伴う破壊的変更とは別内容のため、同じ
+# 「同一版数への偶発的衝突をそのまま採用しない」原則（`docs/ci/
+# style-refresh-version-bump-operation.md` §5）に従い main 現在値 0.46.0 から
+# 0.47.0 へさらにマイナーバンプする。
 # 上記 2 ブランチが独立に同一版数 0.44.0 へ到達したため（同一版数への
 # 偶発的衝突をそのまま採用しない原則、`docs/ci/style-refresh-version-bump-operation.md`
 # §5）、マイナーバンプで 0.45.0 とする。
@@ -255,6 +266,12 @@ name = "fandhe-frontend-headless-ui"
 # data-orientation・value_text へ aria-live="polite" を追加（参考サイト突合、
 # 既存メソッドへの非破壊的な属性追加のみ）。patch バンプとして 0.48.0 から
 # 0.48.1 とする。
+# イシュー #1622（switch の参照突合）: `SwitchProps`（disabled/readonly/
+# invalid/required）を新設し、`root`/`control`/`thumb`/`label`/
+# `hidden_input` のシグネチャを変更（呼び出し側の引数個数が変わる破壊的
+# 変更）。あわせて呼び出し側 attrs による状態偽装を防ぐ予約キー除去
+# （STATE_RESERVED/HIDDEN_INPUT_RESERVED）を新設した。0.x の破壊的変更は
+# マイナーバンプのため 0.48.1 から 0.49.0 とする。
 # イシュー #1634: qr_code::frame の role="img" 付与条件を変更した（
 # aria_label = None のとき role/aria-label とも付与しなくなった。従来は
 # 無条件付与で WAI-ARIA 1.2 img ロールの Accessible Name Required 要件に
@@ -268,6 +285,12 @@ name = "fandhe-frontend-headless-ui"
 # 0.48.1（イシュー #1633: progress の label/value_text への非破壊的な属性
 # 追加、patch バンプ）は本ブランチのマイナーバンプ 0.49.0 に包含されるため、
 # 0.49.0 をそのまま維持する（patch バンプへの後退はしない）。
+# base 再取り込み（イシュー #1619, 2026-09-05）: main 側が独立に 0.49.0 へ
+# 到達していた（別部品の非破壊的変更を含む一連のバンプ）。本ブランチ
+# （#1619 select）の SelectProps 新設に伴う破壊的変更とは別内容のため、
+# 同じ「同一版数への偶発的衝突をそのまま採用しない」原則（`docs/ci/
+# style-refresh-version-bump-operation.md` §5）に従い main 現在値 0.49.0 から
+# 0.50.0 へさらにマイナーバンプする。
 version = "0.50.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
