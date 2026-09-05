@@ -560,11 +560,26 @@ const PRE_STYLED_ONLY: &[&str] = &[
 const HEADLESS_UNWRAPPED: &[&str] = &["fieldset"];
 
 /// `field`（Themes ページを持たない headless 部品）を別名でラップしている
-/// pre-styled モジュール名（3 件）。
-const FIELD_CROSS_WRAPPERS: &[&str] = &["input", "native_select", "textarea"];
+/// pre-styled モジュール名（4 件）。イシュー #1684 で `field.rs`
+/// （headless `field::root` へコード委譲する同名モジュール）を追加した
+/// （`field` 自身も headless `field` へのコード委譲元であるため本台帳に
+/// 含める。#1685 で `/themes/field/` ページを新設した際は本台帳の扱いを
+/// 見直す）。
+const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "textarea"];
 
-/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（6 件）。
-const NON_PAGE_TOP_LEVEL: &[&str] = &["class_attr", "css", "lib", "recipe", "stylesheet", "theme"];
+/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（7 件。
+/// イシュー #1684 で `field`（pre-styled-ui クレート内で完結する recipe
+/// のみ実装、`/themes/field/` ページ未登録）を追加。ページ登録は #1685 の
+/// スコープ）。
+const NON_PAGE_TOP_LEVEL: &[&str] = &[
+    "class_attr",
+    "css",
+    "field",
+    "lib",
+    "recipe",
+    "stylesheet",
+    "theme",
+];
 
 /// §3.6: `charts/` のうち Themes ページに対応しないモジュール（8 件。
 /// `mod` は charts 索引ページとして別枠で扱うため含まない。`tooltip` は
@@ -926,9 +941,11 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        108,
-        "src/*.rs の総数が想定と異なります（イシュー #1682 で collapsible.rs \
-         を新設し 107 → 108）"
+        109,
+        "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
+         を新設し 108 → 109。field は Themes ページを持たない \
+         NON_PAGE_TOP_LEVEL 扱いの暫定台帳、#1685 でページ登録次第 \
+         WRAPPED_CROSS_NAME 等の該当バケットへ移す）"
     );
     assert_eq!(
         scan.charts.len(),
