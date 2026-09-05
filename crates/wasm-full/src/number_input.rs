@@ -37,13 +37,32 @@
 //!
 //! | キー | アクション | payload |
 //! |---|---|---|
-//! | `ArrowUp` | `"increment"` | なし |
-//! | `ArrowDown` | `"decrement"` | なし |
+//! | `ArrowUp` | （同期）`"set"` → `"increment"` | `input.value` → なし |
+//! | `ArrowDown` | （同期）`"set"` → `"decrement"` | `input.value` → なし |
 //! | `Home` | `"home"` | なし |
 //! | `End` | `"end"` | なし |
-//! | `Enter` | `"set"` | `input` 要素の現在の `value`（未確定のタイプ中文字列） |
+//! | `Enter`（`input.value` が空でない） | `"set"` | `input` 要素の現在の `value`（未確定のタイプ中文字列） |
+//! | `Enter`（`input.value` が trim 後空文字） | `"clear"` | なし |
 //!
-//! `Enter` の payload はキャレット確定前のテキストそのものであり、
+//! `ArrowUp`/`ArrowDown` は、キャレット確定前にタイプ中の `input.value` が
+//! 状態値と食い違っているケース（例: 状態値 5 のまま入力欄を 8 に書き換えて
+//! ArrowUp）で編集前の状態値を基準に増減すると実利用者の目に見える表示値と
+//! 矛盾する（PR #1881 codex-review P1 是正その 1）。これを避けるため、
+//! 増減アクションの **直前** に `input.value` を `"set"` として同期
+//! dispatch してから増減する（1 回のキー操作で 2 アクションを dispatch
+//! する）。`input.value` が数値としてパース不能・非有限な場合、`"set"` は
+//! [`fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`]
+//! が no-op（`None`）として fail-closed に無視するため、増減は編集前の
+//! 状態値のまま行われる（「不正な入力は破棄し状態値基準で増減する」契約）。
+//! `Home`/`End` は同期を行わない（`min`/`max` への絶対設定であり、タイプ中
+//! の値に依存しないため元々矛盾が生じない）。
+//!
+//! `Enter` は、`input.value` を trim した結果が空文字列であれば未入力状態
+//! （`NumberInputAction::Clear`）へ、それ以外は従来どおり `"set"` へ分岐
+//! する（PR #1881 codex-review P1 是正その 2。空欄確定時に旧値が残留する
+//! 不具合の是正）。
+//!
+//! `"set"` の payload はキャレット確定前のテキストそのものであり、
 //! [`fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`]
 //! が改めて `str::parse::<f64>()` + 有限性検証で fail-closed に扱う
 //! （不正な文字列は no-op、多層防御）。
@@ -87,6 +106,9 @@ pub const ACTION_HOME: &str = "home";
 pub const ACTION_END: &str = "end";
 /// dispatch アクション名 `"set"`。
 pub const ACTION_SET: &str = "set";
+/// dispatch アクション名 `"clear"`（Enter 確定時に `input.value` が
+/// trim 後空文字の場合に使う、PR #1881 codex-review P1 是正）。
+pub const ACTION_CLEAR: &str = "clear";
 
 /// keydown から決定される操作種別（純粋層、web-sys 非依存）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -251,22 +273,57 @@ mod wiring {
             return;
         };
 
-        let payload = if key_action == super::KeyAction::Set {
-            target_element
-                .clone()
-                .dyn_into::<HtmlInputElement>()
-                .map(|input| input.value())
-                .unwrap_or_default()
-        } else {
-            String::new()
-        };
+        // `input.value` はキャレット確定前のタイプ中文字列であり、
+        // Increment/Decrement/Set のいずれも参照し得るため一度だけ読む
+        // （モジュール冒頭 doc「dispatch とアクションの対応」節参照）。
+        let raw_value = target_element
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .map(|input| input.value())
+            .unwrap_or_default();
 
         keyboard_event.prevent_default();
-        if let Ok(mut cb) = on_action.try_borrow_mut() {
-            (cb)(ActionRef {
-                action: key_action.action_name().to_string(),
-                payload,
-            });
+
+        let dispatch_one = |action: &'static str, payload: String| {
+            if let Ok(mut cb) = on_action.try_borrow_mut() {
+                (cb)(ActionRef {
+                    action: action.to_string(),
+                    payload,
+                });
+            }
+        };
+
+        match key_action {
+            // PR #1881 codex-review P1 是正その 1: 増減の直前にタイプ中の
+            // `input.value` を `"set"` として同期 dispatch する。値が
+            // パース不能・非有限な場合は `decode_action` が no-op として
+            // 無視するため、増減は編集前の状態値のまま安全に行われる
+            // （fail-closed、モジュール冒頭 doc 参照）。
+            super::KeyAction::Increment => {
+                dispatch_one(super::ACTION_SET, raw_value);
+                dispatch_one(super::ACTION_INCREMENT, String::new());
+            }
+            super::KeyAction::Decrement => {
+                dispatch_one(super::ACTION_SET, raw_value);
+                dispatch_one(super::ACTION_DECREMENT, String::new());
+            }
+            super::KeyAction::Home => {
+                dispatch_one(super::ACTION_HOME, String::new());
+            }
+            super::KeyAction::End => {
+                dispatch_one(super::ACTION_END, String::new());
+            }
+            // PR #1881 codex-review P1 是正その 2: trim 後空文字は
+            // `"set"`（`decode_action` が空文字列パース失敗で no-op にし
+            // 旧値が残留する）ではなく `"clear"` へ分岐し、未入力状態へ
+            // 正しく同期する。
+            super::KeyAction::Set => {
+                if raw_value.trim().is_empty() {
+                    dispatch_one(super::ACTION_CLEAR, String::new());
+                } else {
+                    dispatch_one(super::ACTION_SET, raw_value);
+                }
+            }
         }
     }
 
@@ -411,5 +468,16 @@ mod tests {
         assert_eq!(KeyAction::Home.action_name(), "home");
         assert_eq!(KeyAction::End.action_name(), "end");
         assert_eq!(KeyAction::Set.action_name(), "set");
+    }
+
+    // --- ACTION_CLEAR（PR #1881 codex-review P1 是正その 2） ---
+
+    /// [`ACTION_CLEAR`] は
+    /// [`fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`]
+    /// が受理する `"clear"` と完全一致すること（配線層は文字列リテラルを
+    /// 個別に書かず本定数のみを参照する契約の固定）。
+    #[test]
+    fn action_clear_matches_decode_action_contract() {
+        assert_eq!(ACTION_CLEAR, "clear");
     }
 }
