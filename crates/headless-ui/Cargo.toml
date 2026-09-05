@@ -435,7 +435,11 @@ name = "fandhe-frontend-headless-ui"
 # `item`/`content` のシグネチャ変更（`props`/`value` 引数追加）・
 # `item_indicator` パーツ新設を伴う破壊的変更のためマイナーバンプで
 # 0.58.0 とする。
-version = "0.58.0"
+# イシュー #1661（json-tree-view の参照突合）: `colon` パーツ新設・
+# `key`/`colon`/`value` を `branch-text`/`item-text` の内側へ入れ子にする
+# 構造変更・`JsonValue::kind()` の `data-kind` 語彙を `"bool"` から
+# `"boolean"` へ変更する破壊的変更のためマイナーバンプで 0.59.0 とする。
+version = "0.59.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
