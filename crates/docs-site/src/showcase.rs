@@ -152,7 +152,9 @@ use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::quote::quote;
 use fandhe_frontend_pre_styled_ui::radio_card;
-use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
+use fandhe_frontend_pre_styled_ui::rating_group::{
+    self, RatingGroup, RatingGroupProps, RatingItemFlags,
+};
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
@@ -2826,12 +2828,15 @@ fn combobox_section() -> Node {
         })
         .collect();
 
+    let combobox_props = combobox::ComboboxProps::default();
     let node = combobox::root(
         Size::Md,
         OpenState::Open,
+        &combobox_props,
         vec![],
         vec![
             combobox::label(
+                &combobox_props,
                 Some("showcase-combobox-label"),
                 Some("showcase-combobox-input"),
                 vec![],
@@ -2839,12 +2844,13 @@ fn combobox_section() -> Node {
             ),
             combobox::control(
                 OpenState::Open,
+                &combobox_props,
                 vec![],
                 vec![
                     combobox::input(
                         OpenState::Open,
                         query,
-                        false,
+                        &combobox_props,
                         Some("showcase-combobox-content"),
                         // "svelte" item が highlight 中のため、その id を
                         // `aria-activedescendant` として参照する（R3 契約、
@@ -2855,7 +2861,7 @@ fn combobox_section() -> Node {
                     ),
                     combobox::trigger(
                         OpenState::Open,
-                        false,
+                        &combobox_props,
                         Some("showcase-combobox-content"),
                         vec![],
                         vec![text("▾")],
@@ -3289,27 +3295,36 @@ fn radio_group_section() -> Node {
         ("plan-pro", "Pro", false, false),
         ("plan-enterprise", "Enterprise", false, true),
     ];
+    // イシュー #1616: headless `radio_group` のパーツ関数は
+    // `RadioGroupProps` 引数へ拡張された。本節は disabled 以外を既定値
+    // （false）としたまま従来の見た目を維持する。
+    let item_props = |disabled: bool| radio_group::RadioGroupProps {
+        disabled,
+        ..radio_group::RadioGroupProps::default()
+    };
     let mut children = vec![radio_group::label(
+        &item_props(false),
         Some(label_id),
         vec![],
         vec![text("Plan")],
     )];
     children.extend(items.iter().map(|(value, label, checked, disabled)| {
+        let props = item_props(*disabled);
         radio_group::item(
             *checked,
-            *disabled,
+            &props,
             value,
             vec![],
             vec![
                 radio_group::item_hidden_input(
                     *checked,
-                    *disabled,
+                    &props,
                     Some("showcase-radio"),
                     value,
                     vec![],
                 ),
-                radio_group::item_control(*checked, *disabled, vec![]),
-                radio_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                radio_group::item_control(*checked, &props, vec![]),
+                radio_group::item_text(*checked, &props, vec![], vec![text(*label)]),
             ],
         )
     }));
@@ -3329,26 +3344,28 @@ fn radio_group_section() -> Node {
     // #1460 の `horizontal_demo` と同型）。項目・状態は縦積みデモと同一。
     let horizontal_label_id = "showcase-radio-horizontal-label";
     let mut horizontal_children = vec![radio_group::label(
+        &item_props(false),
         Some(horizontal_label_id),
         vec![],
         vec![text("Plan (horizontal)")],
     )];
     horizontal_children.extend(items.iter().map(|(value, label, checked, disabled)| {
+        let props = item_props(*disabled);
         radio_group::item(
             *checked,
-            *disabled,
+            &props,
             value,
             vec![],
             vec![
                 radio_group::item_hidden_input(
                     *checked,
-                    *disabled,
+                    &props,
                     Some("showcase-radio-horizontal"),
                     value,
                     vec![],
                 ),
-                radio_group::item_control(*checked, *disabled, vec![]),
-                radio_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                radio_group::item_control(*checked, &props, vec![]),
+                radio_group::item_text(*checked, &props, vec![], vec![text(*label)]),
             ],
         )
     }));
@@ -3371,27 +3388,29 @@ fn radio_group_section() -> Node {
         .map(|size| {
             let size_label_id = format!("showcase-radio-size-{}-label", size.value());
             let mut size_children = vec![radio_group::label(
+                &item_props(false),
                 Some(&size_label_id),
                 vec![],
                 vec![text(size.value())],
             )];
             size_children.extend(items.iter().map(|(value, label, checked, disabled)| {
                 let name = format!("showcase-radio-size-{}", size.value());
+                let props = item_props(*disabled);
                 radio_group::item(
                     *checked,
-                    *disabled,
+                    &props,
                     value,
                     vec![],
                     vec![
                         radio_group::item_hidden_input(
                             *checked,
-                            *disabled,
+                            &props,
                             Some(&name),
                             value,
                             vec![],
                         ),
-                        radio_group::item_control(*checked, *disabled, vec![]),
-                        radio_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+                        radio_group::item_control(*checked, &props, vec![]),
+                        radio_group::item_text(*checked, &props, vec![], vec![text(*label)]),
                     ],
                 )
             }));
@@ -3785,18 +3804,17 @@ fn number_input_section() -> Node {
         Size::Md,
         false,
         false,
+        false,
         vec![],
         vec![
             number_input::label(
-                false,
-                false,
+                NumberInputFlags::default(),
                 Some("showcase-number-input-mid"),
                 vec![],
                 vec![text("Quantity")],
             ),
             number_input::control(
-                false,
-                false,
+                NumberInputFlags::default(),
                 vec![],
                 vec![
                     number_input::input(
@@ -3828,18 +3846,17 @@ fn number_input_section() -> Node {
         Size::Md,
         false,
         false,
+        false,
         vec![],
         vec![
             number_input::label(
-                false,
-                false,
+                NumberInputFlags::default(),
                 Some("showcase-number-input-min"),
                 vec![],
                 vec![text("At min")],
             ),
             number_input::control(
-                false,
-                false,
+                NumberInputFlags::default(),
                 vec![],
                 vec![
                     number_input::input(
@@ -3873,18 +3890,23 @@ fn number_input_section() -> Node {
         Size::Md,
         true,
         false,
+        false,
         vec![],
         vec![
             number_input::label(
-                true,
-                false,
+                NumberInputFlags {
+                    disabled: true,
+                    ..NumberInputFlags::default()
+                },
                 Some("showcase-number-input-disabled"),
                 vec![],
                 vec![text("Disabled")],
             ),
             number_input::control(
-                true,
-                false,
+                NumberInputFlags {
+                    disabled: true,
+                    ..NumberInputFlags::default()
+                },
                 vec![],
                 vec![
                     number_input::input(
@@ -3925,18 +3947,20 @@ fn number_input_section() -> Node {
         Size::Md,
         false,
         false,
+        true,
         vec![],
         vec![
             number_input::label(
-                false,
-                false,
+                NumberInputFlags::default(),
                 Some("showcase-number-input-readonly"),
                 vec![],
                 vec![text("Readonly")],
             ),
             number_input::control(
-                false,
-                false,
+                NumberInputFlags {
+                    readonly: true,
+                    ..NumberInputFlags::default()
+                },
                 vec![],
                 vec![
                     number_input::input(
@@ -4325,12 +4349,23 @@ fn rating_group_section() -> Node {
                  disabled: bool,
                  readonly: bool| {
         let g = RatingGroup::new(5, value, readonly);
+        let props = RatingGroupProps {
+            disabled,
+            readonly,
+            required: false,
+        };
         let label_id = format!("{id_prefix}-label");
         let mut children = vec![rating_group::label(
+            &props,
             Some(label_id.as_str()),
             vec![],
             vec![text("Rate this product")],
         )];
+        // `item` は tabindex を出力しない（イシュー #1617 codex-review 指摘の
+        // 是正: 対応する DOM 配線〔`fandhe-frontend-wasm-full`〕が無いまま
+        // roving tabindex のみを公開すると「フォーカスは受けるが操作不能」な
+        // WAI-ARIA radio パターン違反になるため撤回した、
+        // `crates/headless-ui/src/rating_group.rs` モジュール doc参照）。
         let items: Vec<Node> = (1..=g.count())
             .map(|i| {
                 let checked = g.is_checked(i);
@@ -4350,24 +4385,18 @@ fn rating_group_section() -> Node {
             })
             .collect();
         children.push(rating_group::control(
+            &props,
             Some(label_id.as_str()),
             vec![],
             items,
         ));
         children.push(rating_group::hidden_input(
+            &props,
             Some("rating"),
             g.value_text().as_str(),
-            disabled,
             vec![],
         ));
-        rating_group::root(
-            size,
-            ColorPalette::Accent,
-            disabled,
-            readonly,
-            vec![],
-            children,
-        )
+        rating_group::root(size, ColorPalette::Accent, &props, vec![], children)
     };
 
     let selected = build("showcase-rating-selected", Size::Md, Some(3), false, false);
@@ -4778,7 +4807,7 @@ fn toggle_section() -> Node {
                 *disabled,
                 vec![],
                 vec![
-                    toggle::indicator(*pressed, vec![], checkmark()),
+                    toggle::indicator(*pressed, *disabled, vec![], checkmark()),
                     text(*label),
                 ],
             )
@@ -4799,7 +4828,10 @@ fn toggle_section() -> Node {
                 true,
                 false,
                 vec![],
-                vec![toggle::indicator(true, vec![], checkmark()), text(*label)],
+                vec![
+                    toggle::indicator(true, false, vec![], checkmark()),
+                    text(*label),
+                ],
             )
         })
         .collect());
@@ -4813,7 +4845,10 @@ fn toggle_section() -> Node {
                 true,
                 false,
                 vec![],
-                vec![toggle::indicator(true, vec![], checkmark()), text(*label)],
+                vec![
+                    toggle::indicator(true, false, vec![], checkmark()),
+                    text(*label),
+                ],
             )
         })
         .collect());
@@ -5296,6 +5331,12 @@ fn date_input_section() -> Node {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::date_input::DateInput;
 
     let build = |id_prefix: &str, state: &DateInput, size: Size, disabled: bool, readonly: bool| {
+        let props = date_input::DateInputProps {
+            disabled,
+            readonly,
+            invalid: state.is_invalid(),
+            ..date_input::DateInputProps::default()
+        };
         date_input::root(
             size,
             disabled,
@@ -5303,20 +5344,17 @@ fn date_input_section() -> Node {
             vec![],
             vec![
                 date_input::label(
-                    disabled,
-                    state.is_invalid(),
+                    props,
                     Some(&format!("{id_prefix}-year")),
                     vec![],
                     vec![text("Date")],
                 ),
                 date_input::control(
-                    disabled,
-                    state.is_invalid(),
+                    props,
                     vec![],
                     vec![
                         date_input::segment_group(
-                            disabled,
-                            state.is_invalid(),
+                            props,
                             vec![],
                             vec![
                                 state.segment(DateSegment::Year, disabled, readonly, vec![]),
@@ -7728,24 +7766,29 @@ fn date_picker_section() -> Node {
         })
         .collect();
 
+    let date_picker_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps::default();
     let node = date_picker::root(
         Size::Md,
         OpenState::Open,
+        &date_picker_props,
         vec![],
         vec![
             date_picker::label(
+                &date_picker_props,
                 Some("showcase-date-picker-label"),
+                None,
                 vec![],
                 vec![text("Delivery date")],
             ),
             date_picker::control(
                 OpenState::Open,
+                &date_picker_props,
                 vec![],
                 vec![
-                    date_picker::input(Some("2026-07-15"), false, None, vec![]),
+                    date_picker::input(Some("2026-07-15"), &date_picker_props, None, vec![]),
                     date_picker::trigger(
                         OpenState::Open,
-                        false,
+                        &date_picker_props,
                         Some("showcase-date-picker-content"),
                         vec![],
                         vec![text("📅")],

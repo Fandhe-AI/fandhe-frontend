@@ -270,6 +270,19 @@
 //!   （[`combobox_key_action`] doc 参照）。
 //! - **Enter は open のときのみ** claim する。closed の Enter を奪うと
 //!   フォーム内 Combobox の既定 submit 挙動を壊すため no-op のままにする。
+//! - **`data-readonly` は fail-closed で no-op**（イシュー #1605
+//!   codex-review P1 是正）: `ComboboxProps::readonly`
+//!   （`crates/headless-ui/src/combobox.rs`）が root/control/input/trigger/
+//!   clear-trigger の全パーツへ一律付与する `data-readonly` を
+//!   [`wiring::is_combobox_readonly`] が `input` 自身から確認し、readonly
+//!   のときは `handle_combobox_input_keydown` の Arrow/Enter/Escape/Home/
+//!   End をすべて claim せず既定動作もキャンセルしない（`crate::angle_slider`
+//!   の `data-disabled`/`data-readonly` 判定と同型。readonly でも
+//!   trigger/clear-trigger クリック・item クリックで選択値を変更できて
+//!   しまう抜け穴は `crate::headless::PartRef::readonly`
+//!   （`data-readonly` を独立フィールドとして保持し、同一 `data-scope`
+//!   内でのみ伝播する契約、`crate::headless::action_from_parts` 参照）が
+//!   別途塞いでいる）。
 //! - **`aria-activedescendant` は input 側へ書く**（`crates/headless-ui/src/combobox.rs`
 //!   の「input 側に配線する」契約、Menu/Select の content 側配線とは逆）。
 //!   [`wiring::set_highlight_on_host`]/[`wiring::clear_highlight_on_host`]
@@ -670,6 +683,13 @@
 //!   限られる。`aria-controls` の解決は `document.get_element_by_id` を使い、
 //!   DOM 由来の値（`id`・`data-value`・ラベル）から動的にセレクタ文字列を
 //!   組み立てない（CSS セレクタインジェクション面を作らない）。
+
+// RadioGroup readonly クリック抑止（イシュー #1616）の代表境界決定
+// （[`resolve_readonly_boundary`]/[`readonly_click_outcome`]）が使う
+// 3 分類。`crate::events` 側は web-sys 非依存の純粋ロジックとして定義
+// されているため、本モジュールの純粋層からも native `cargo test` の
+// 範囲内で参照できる。
+use crate::events::InteractiveBoundaryClass;
 
 /// パーツの向き（`crates/headless-ui/src/data_attrs.rs::Orientation` の値語彙
 /// と対応する、web-sys 非依存の純粋層専用の複製）。
@@ -1691,6 +1711,92 @@ pub fn splitter_key_action(
         ("ArrowDown", Orientation::Vertical) => Some(SplitterKeyAction::Increment),
         ("ArrowUp", Orientation::Vertical) => Some(SplitterKeyAction::Decrement),
         _ => None,
+    }
+}
+
+/// [`radio_group_readonly_click_outcome`]（`wiring` モジュール、DOM 依存）が
+/// 返す、readonly クリックに対して呼び出し側（capture/bubble リスナー）が
+/// 行うべき処理。
+///
+/// 3 値に分かれる理由は、抑止対象が「HTML interactive content」
+/// （Bugbot 指摘: 抑止をスキップすると label activation behavior で
+/// 意図せず選択が変わる）と「ARIA 独自ウィジェット」（codex-review
+/// 指摘: `stop_propagation` すると子要素自身のクリックハンドラへ
+/// イベントが届かなくなる）とで、必要な対処が異なるため
+/// （[`crate::events::InteractiveBoundaryClass`] doc の HTML label
+/// activation behavior 仕様の解説を参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RadioGroupReadonlyClickOutcome {
+    /// readonly item に到達しなかった、または経路上の代表境界が HTML
+    /// interactive content（`<a href>` 等）だった。呼び出し側は
+    /// `preventDefault`/`stop_propagation` のいずれも行わない。
+    NoSuppression,
+    /// readonly item であり、経路上の代表境界が ARIA 独自ウィジェット
+    /// （`role="checkbox"` 等）だった。呼び出し側は `preventDefault`
+    /// のみを行い、`stop_propagation` は行わない（ウィジェット自身の
+    /// クリックハンドラへイベントを届けるため）。
+    PreventDefaultOnly,
+    /// readonly item への、パーツ自身または装飾的な子孫要素への
+    /// クリック。呼び出し側は `preventDefault`/`stop_propagation` の
+    /// 双方を行う。
+    FullSuppression,
+}
+
+/// 経路上に現れた境界分類の列から、readonly クリック抑止判定に使う
+/// 「代表境界」を純粋関数として決定する（イシュー #1616 codex-review
+/// P1 再指摘の是正）。web-sys 非依存のため native `cargo test` で
+/// 検証できる。
+///
+/// **HTML を最優先で採用する**: `target` から `item` までの経路上に
+/// `Html`（`<a href>` 等の HTML interactive content）が 1 つでも
+/// 含まれていれば、それより内側（`target` に近い側）に `Aria` 境界が
+/// あっても `Html` を採用する（是正前は「最初に見つかった境界で
+/// 確定し以降は上書きしない」実装だったため、readonly item 内の
+/// `<a href>` の中に `role="button"` の `<span>` を入れ子にすると、
+/// 内側の `Aria` が先に確定してしまい `<a href>` のネイティブ遷移まで
+/// `preventDefault` で止めてしまっていた）。`Html` が無ければ `Aria`
+/// が 1 つでもあればそれを採用する。どちらも経路上に無ければ
+/// `None`（境界なし、パーツ自身または装飾的な子孫へのクリック）。
+pub fn resolve_readonly_boundary(
+    path: &[InteractiveBoundaryClass],
+) -> Option<InteractiveBoundaryClass> {
+    if path.contains(&InteractiveBoundaryClass::Html) {
+        return Some(InteractiveBoundaryClass::Html);
+    }
+    if path.contains(&InteractiveBoundaryClass::Aria) {
+        return Some(InteractiveBoundaryClass::Aria);
+    }
+    None
+}
+
+/// `item` の `data-readonly` 有無と [`resolve_readonly_boundary`] が返す
+/// 代表境界の組み合わせから [`RadioGroupReadonlyClickOutcome`] を決定する
+/// 純粋関数（イシュー #1616 codex-review P1 再指摘の是正）。DOM 走査
+/// （`wiring::radio_group_readonly_click_outcome`）とロジックの決定を
+/// 分離し、native `cargo test` で境界の組み合わせを網羅検証できるように
+/// する。
+///
+/// readonly でなければ常に `NoSuppression`（境界の有無に関わらず、非
+/// readonly item への操作は従来どおり選択を許す）。readonly で代表境界が
+/// 無ければ `FullSuppression`（パーツ自身へのクリック）。readonly で
+/// 代表境界が `Html` なら `NoSuppression`（HTML interactive content は
+/// label activation behavior 自体が発火しないため、ネイティブ動作を
+/// 妨げない）。readonly で代表境界が `Aria` なら `PreventDefaultOnly`。
+#[must_use]
+pub fn readonly_click_outcome(
+    readonly: bool,
+    boundary: Option<InteractiveBoundaryClass>,
+) -> RadioGroupReadonlyClickOutcome {
+    match (readonly, boundary) {
+        (false, _) | (true, Some(InteractiveBoundaryClass::Html)) => {
+            RadioGroupReadonlyClickOutcome::NoSuppression
+        }
+        (true, Some(InteractiveBoundaryClass::Aria)) => {
+            RadioGroupReadonlyClickOutcome::PreventDefaultOnly
+        }
+        (true, None) | (true, Some(InteractiveBoundaryClass::Ordinary)) => {
+            RadioGroupReadonlyClickOutcome::FullSuppression
+        }
     }
 }
 
@@ -3732,6 +3838,84 @@ mod tests {
             None
         );
     }
+
+    // --- RadioGroup readonly クリック抑止（イシュー #1616 codex-review
+    //     P1 再指摘の是正）: resolve_readonly_boundary/readonly_click_outcome
+    //     ---
+
+    #[test]
+    fn resolve_readonly_boundary_prefers_html_even_when_aria_is_closer() {
+        // 経路の内側（target に近い側）に Aria、外側に Html がある場合でも
+        // Html を代表境界として採用する（`<a href>` の中に
+        // `role="button"` が入れ子になっているケースの回帰固定）。
+        assert_eq!(
+            resolve_readonly_boundary(&[
+                InteractiveBoundaryClass::Aria,
+                InteractiveBoundaryClass::Html
+            ]),
+            Some(InteractiveBoundaryClass::Html)
+        );
+    }
+
+    #[test]
+    fn resolve_readonly_boundary_html_only() {
+        assert_eq!(
+            resolve_readonly_boundary(&[InteractiveBoundaryClass::Html]),
+            Some(InteractiveBoundaryClass::Html)
+        );
+    }
+
+    #[test]
+    fn resolve_readonly_boundary_aria_only() {
+        assert_eq!(
+            resolve_readonly_boundary(&[InteractiveBoundaryClass::Aria]),
+            Some(InteractiveBoundaryClass::Aria)
+        );
+    }
+
+    #[test]
+    fn resolve_readonly_boundary_empty_path_is_none() {
+        assert_eq!(resolve_readonly_boundary(&[]), None);
+    }
+
+    #[test]
+    fn readonly_click_outcome_not_readonly_is_always_no_suppression() {
+        for boundary in [
+            None,
+            Some(InteractiveBoundaryClass::Html),
+            Some(InteractiveBoundaryClass::Aria),
+            Some(InteractiveBoundaryClass::Ordinary),
+        ] {
+            assert_eq!(
+                readonly_click_outcome(false, boundary),
+                RadioGroupReadonlyClickOutcome::NoSuppression
+            );
+        }
+    }
+
+    #[test]
+    fn readonly_click_outcome_readonly_with_no_boundary_is_full_suppression() {
+        assert_eq!(
+            readonly_click_outcome(true, None),
+            RadioGroupReadonlyClickOutcome::FullSuppression
+        );
+    }
+
+    #[test]
+    fn readonly_click_outcome_readonly_with_html_boundary_is_no_suppression() {
+        assert_eq!(
+            readonly_click_outcome(true, Some(InteractiveBoundaryClass::Html)),
+            RadioGroupReadonlyClickOutcome::NoSuppression
+        );
+    }
+
+    #[test]
+    fn readonly_click_outcome_readonly_with_aria_boundary_is_prevent_default_only() {
+        assert_eq!(
+            readonly_click_outcome(true, Some(InteractiveBoundaryClass::Aria)),
+            RadioGroupReadonlyClickOutcome::PreventDefaultOnly
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -3741,6 +3925,8 @@ mod tests {
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
 mod wiring {
+    use crate::events::{classify_interactive_boundary, InteractiveBoundaryClass};
+
     use super::{
         accordion_next_index, calendar_next_index, combobox_key_action, first_non_disabled,
         highlight_next_index, is_typeahead_key, last_non_disabled, listbox_next_index,
@@ -3748,7 +3934,8 @@ mod wiring {
         navigation_menu_trigger_key_action, radio_next_index, submenu_nav, tabs_next_index,
         toggle_group_next_index, tree_key_action, tree_visible_flags, typeahead_next_index,
         typeahead_push, ComboboxKeyAction, Modifiers, NavigationMenuKeyAction, Orientation,
-        SubmenuNav, TreeItemMeta, TreeKeyAction, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
+        RadioGroupReadonlyClickOutcome, SubmenuNav, TreeItemMeta, TreeKeyAction, MAX_SUBMENU_DEPTH,
+        TYPEAHEAD_TIMEOUT_MS,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -4448,6 +4635,88 @@ mod wiring {
             .iter()
             .map(|el| el.has_attribute("disabled") || el.has_attribute("data-disabled"))
             .collect()
+    }
+
+    /// RadioGroup のネイティブ `<input type="radio">` 1 個が readonly かどうか
+    /// を判定する（イシュー #1616 P1 是正）。`crates/headless-ui/src/
+    /// radio_group.rs` の契約どおり `item-hidden-input` 自身は
+    /// `data-readonly` を持たず、祖先の `item`（[`RADIO_GROUP_ITEM_SELECTOR`]）
+    /// が反映するため、`closest` で `item` まで遡って判定する（`item` が
+    /// 見つからない構成は安全側 no-op で `false` とする）。
+    fn item_readonly(input: &Element) -> bool {
+        closest(input, RADIO_GROUP_ITEM_SELECTOR)
+            .is_some_and(|item| item.has_attribute("data-readonly"))
+    }
+
+    /// クリックイベントの `target` から祖先方向へ `item`
+    /// （[`RADIO_GROUP_ITEM_SELECTOR`]）まで辿り、RadioGroup readonly の
+    /// クリック抑止として何を行うべきかを判定する（イシュー #1616
+    /// codex-review P1 再指摘・Bugbot 指摘の是正、`crate::events::
+    /// classify_interactive_boundary` の 3 分類と [`super::
+    /// resolve_readonly_boundary`]/[`super::readonly_click_outcome`]
+    /// （web-sys 非依存の純粋層、モジュール外側に定義。native `cargo test`
+    /// で判定ロジックを検証できるようにする分離）を用いる。
+    ///
+    /// 手順:
+    /// 1. `target` から 1 段ずつ祖先を辿り、RadioGroup 自身の既知パーツ
+    ///    （`item-text`/`item-control`/`item-hidden-input`、いずれも
+    ///    `data-scope="radio-group"`）は読み飛ばして探索を継続する。
+    /// 2. それ以外の要素は [`crate::events::classify_interactive_boundary`]
+    ///    で分類し、`Ordinary` でないものを経路上の境界候補としてすべて
+    ///    記録する（是正前は「最も `target` に近い最初の非 `Ordinary`」
+    ///    だけを見て以降を上書きしなかったため、経路の外側に HTML
+    ///    interactive content があっても確認していなかった。`item` までの
+    ///    祖先探索自体は最後まで継続する）。
+    /// 3. `item` に到達したら、記録した境界候補を [`super::
+    ///    resolve_readonly_boundary`] へ渡して代表境界を決め、[`super::
+    ///    readonly_click_outcome`] で `item` の `data-readonly` と組み合わせて
+    ///    [`RadioGroupReadonlyClickOutcome`] を決定する。
+    /// 4. `item` に到達できなければ `NoSuppression`（RadioGroup 管轄外の
+    ///    クリック）。
+    fn radio_group_readonly_click_outcome(target: &Element) -> RadioGroupReadonlyClickOutcome {
+        let mut current = Some(target.clone());
+        let mut boundary_path: Vec<InteractiveBoundaryClass> = Vec::new();
+        while let Some(el) = current {
+            if el.matches(RADIO_GROUP_ITEM_SELECTOR).unwrap_or(false) {
+                let readonly = el.has_attribute("data-readonly");
+                let boundary = super::resolve_readonly_boundary(&boundary_path);
+                return super::readonly_click_outcome(readonly, boundary);
+            }
+            let is_own_part = el.get_attribute("data-scope").as_deref() == Some("radio-group")
+                && matches!(
+                    el.get_attribute("data-part").as_deref(),
+                    Some("item-text") | Some("item-control") | Some("item-hidden-input")
+                );
+            if !is_own_part {
+                let tag_name = el.tag_name();
+                let has_href = el.has_attribute("href");
+                let has_controls = el.has_attribute("controls");
+                let has_usemap = el.has_attribute("usemap");
+                let input_type = el.get_attribute("type");
+                let role = el.get_attribute("role");
+                let has_tabindex_attr = el.has_attribute("tabindex");
+                let contenteditable = el.get_attribute("contenteditable");
+                let element_scope = el.get_attribute("data-scope");
+                let probe = crate::events::BoundaryProbe {
+                    tag: &tag_name,
+                    has_href,
+                    has_controls,
+                    has_usemap,
+                    input_type: input_type.as_deref(),
+                    role: role.as_deref(),
+                    has_tabindex_attr,
+                    contenteditable: contenteditable.as_deref(),
+                    element_scope: element_scope.as_deref(),
+                    holder_scope: Some("radio-group"),
+                };
+                let class = classify_interactive_boundary(&probe);
+                if !matches!(class, InteractiveBoundaryClass::Ordinary) {
+                    boundary_path.push(class);
+                }
+            }
+            current = el.parent_element();
+        }
+        RadioGroupReadonlyClickOutcome::NoSuppression
     }
 
     /// `elements` 中で `target` と同一の要素のインデックスを探す
@@ -5879,6 +6148,24 @@ mod wiring {
         }
     }
 
+    /// `input` に `data-readonly` が付与されているかどうかを返す（イシュー
+    /// #1605 codex-review P1 是正: `ComboboxProps::readonly` を追加したのに
+    /// `handle_combobox_input_keydown` が `data-readonly` を確認しておらず、
+    /// readonly でも Arrow/Enter で listbox の開閉・選択・クリアが実行
+    /// できてしまっていた）。`ComboboxProps`
+    /// （`crates/headless-ui/src/combobox.rs::state_attrs`）は
+    /// root/control/input/trigger/clear-trigger の全パーツへ
+    /// `data-readonly` を一律付与する契約のため、実 DOM フォーカスを保持
+    /// する `input` 自身の属性判定のみで足りる（`crate::angle_slider` の
+    /// 祖先探索付き `has_noninteractive_ancestor` と異なり、Combobox は
+    /// キーボード操作の起点が常に `input` 自身であり、祖先方向の別要素へ
+    /// フォーカスが移ることがない設計のため。REQ-11 bundle size 予算の
+    /// 都合で不要な祖先探索コードは持たない、zag.js の
+    /// `interactive = !(disabled || readOnly)` 判定と同じ帰結）。
+    fn is_combobox_readonly(input: &Element) -> bool {
+        input.has_attribute("data-readonly")
+    }
+
     /// Combobox の `input`（`role="combobox"`）上の keydown を処理する
     /// （イシュー #1071、モジュール doc §Combobox 参照）。
     ///
@@ -5888,6 +6175,11 @@ mod wiring {
     /// 封じ込め検査・click 合成・highlight 反映のみを担う。
     fn handle_combobox_input_keydown(root: &Element, input: &Element, event: &KeyboardEvent) {
         if !root.contains(Some(input)) {
+            return;
+        }
+        // readonly は fail-closed で no-op（[`is_combobox_readonly`] doc
+        // 参照、イシュー #1605 codex-review P1 是正）。
+        if is_combobox_readonly(input) {
             return;
         }
         let Some(content) = resolve_menu_select_content(input, &COMBOBOX_SCOPE) else {
@@ -6089,7 +6381,40 @@ mod wiring {
         let Some(current) = index_of(&inputs, input) else {
             return;
         };
+        // readonly（イシュー #1616 P1 是正・codex-review 追加指摘、PR #1886
+        // レビューの Bugbot 指摘で再修正）:
+        // フォーカス移動先の選定（`radio_next_index`）は disabled と同じ
+        // 「skip 対象」の枠組みで readonly も除外し、非 readonly の次項目
+        // まで読み飛ばす（[`step_non_disabled`] 参照）。ただし
+        // `step_non_disabled` は起点（`current`）自身の skip 判定を行わず
+        // 必ず 1 歩以上進めてから判定するため、**現在フォーカス中の項目が
+        // readonly の場合**はこの skip 配列だけでは「一切移動させない」を
+        // 表現できない（readonly 項目から見て次の非 readonly 項目が存在
+        // すれば、そこへ移動できてしまう）。ネイティブ radio は「フォーカス
+        // 移動」と「選択変更」が不可分なため、選択を変えない以上フォーカス
+        // も動かさない契約（`RadioGroupProps::readonly` のモジュール doc
+        // 参照）を守るには、current が readonly の場合を別途 early return
+        // で弾く必要がある。
+        if item_readonly(input) {
+            // 既定動作（ネイティブ radio グループのフォーカス移動）の抑止
+            // だけは行い、フォーカス・選択は一切変更しない。
+            let key = event.key();
+            let modifiers = modifiers_of(event);
+            let is_handled_key = matches!(
+                key.as_str(),
+                "Home" | "End" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown"
+            );
+            if !modifiers.any() && is_handled_key {
+                event.prevent_default();
+            }
+            return;
+        }
         let disabled = disabled_flags(&inputs);
+        let skip: Vec<bool> = inputs
+            .iter()
+            .zip(disabled.iter())
+            .map(|(el, &d)| d || item_readonly(el))
+            .collect();
         let orientation = Orientation::from_attr_optional(
             group_root.get_attribute("data-orientation").as_deref(),
         );
@@ -6110,7 +6435,7 @@ mod wiring {
             event.prevent_default();
         }
 
-        let Some(next_index) = radio_next_index(current, &key, orientation, modifiers, &disabled)
+        let Some(next_index) = radio_next_index(current, &key, orientation, modifiers, &skip)
         else {
             return;
         };
@@ -6888,6 +7213,41 @@ mod wiring {
                 *capture_pending.borrow_mut() = None;
                 return;
             }
+            // RadioGroup readonly（イシュー #1616 P1 是正・Bugbot/codex-review
+            // 再指摘）: この capture リスナーは `root` へ登録された他の全
+            // click リスナー（`events::wire_events` の bubble リスナーを
+            // 含む。`Self::wire`〔`lib.rs`〕は `wire_events` → `wire_keynav`
+            // の順で同一 `root` へ登録するため、bubble フェーズだけでは
+            // `wire_events` 側が先に走り headless dispatch で選択状態を
+            // 確定させてしまう）より必ず先に発火する。
+            //
+            // 判定には [`radio_group_readonly_click_outcome`] を
+            // `target_element` へ直接適用する（3 分類、同関数 doc 参照）。
+            // `FullSuppression`（パーツ自身へのクリック）は
+            // `stop_propagation` で以降の capture 継続・target 到達・
+            // bubble 巻き戻しを丸ごと断ち切り、`prevent_default` で
+            // ネイティブ `<input type="radio">` の checked 確定
+            // （pre-click activation steps）も抑止する。
+            // `PreventDefaultOnly`（`role="checkbox"` 等の ARIA 独自
+            // ウィジェットの境界を経由した readonly item、codex-review
+            // 指摘）は `prevent_default` のみを行い `stop_propagation`
+            // しない（ウィジェット自身のクリックハンドラへイベントが
+            // 到達できなくなるのを防ぐため、後続の TreeView 復元処理へ
+            // フォールスルーする）。`NoSuppression`（`<a href>` 等の HTML
+            // interactive content を経由、または readonly でない item、
+            // Bugbot 指摘）は一切干渉しない。
+            match radio_group_readonly_click_outcome(&target_element) {
+                RadioGroupReadonlyClickOutcome::FullSuppression => {
+                    event.stop_propagation();
+                    event.prevent_default();
+                    *capture_pending.borrow_mut() = None;
+                    return;
+                }
+                RadioGroupReadonlyClickOutcome::PreventDefaultOnly => {
+                    event.prevent_default();
+                }
+                RadioGroupReadonlyClickOutcome::NoSuppression => {}
+            }
             *capture_pending.borrow_mut() =
                 tree_click_restore_target(&capture_root, &target_element);
         });
@@ -6940,6 +7300,32 @@ mod wiring {
             };
             if !click_root.contains(Some(&target_element)) {
                 return;
+            }
+            // RadioGroup readonly（イシュー #1616 P1 是正、defense-in-depth）:
+            // 本来の防御は上記 capture フェーズリスナー（`click_capture_closure`）
+            // が `stop_propagation` で担う（`events::wire_events` の bubble
+            // リスナーより必ず先に発火し、`FullSuppression` 検出時は本
+            // リスナーへ到達する前に伝播を断つ）。ここでの再チェックは、
+            // 万一 capture 側の `stop_propagation` が効かない経路（将来の
+            // 実装変更・他コードの `stopImmediatePropagation` 誤用等）が
+            // あっても、ネイティブ `<input type="radio">` の checked 確定
+            // （pre-click activation steps → click dispatch → 未キャンセル
+            // なら post-click activation steps）だけは `preventDefault` で
+            // 必ず打ち消す最終防衛線として残す。判定は capture 側と同じ
+            // [`radio_group_readonly_click_outcome`] を `target_element`
+            // へ直接適用し、`FullSuppression`/`PreventDefaultOnly` の
+            // いずれも `preventDefault` する（本リスナーは
+            // `stop_propagation` を呼ばないため `PreventDefaultOnly` との
+            // 区別は不要、`NoSuppression` のみ後続の Tabs trigger 判定へ
+            // 進む。イシュー #1616 codex-review P1/Bugbot 是正、両箇所の
+            // 判定統一）。
+            match radio_group_readonly_click_outcome(&target_element) {
+                RadioGroupReadonlyClickOutcome::FullSuppression
+                | RadioGroupReadonlyClickOutcome::PreventDefaultOnly => {
+                    event.prevent_default();
+                    return;
+                }
+                RadioGroupReadonlyClickOutcome::NoSuppression => {}
             }
             let Ok(Some(matched)) = target_element.closest(TABS_TRIGGER_SELECTOR) else {
                 return;

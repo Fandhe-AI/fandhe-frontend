@@ -18,7 +18,7 @@
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::collapsible::Collapsible;
-use fandhe_frontend_headless_ui::combobox::{self, Combobox};
+use fandhe_frontend_headless_ui::combobox::{self, Combobox, ComboboxProps};
 use fandhe_frontend_headless_ui::popover::Popover;
 use fandhe_frontend_headless_ui::select::Select;
 use fandhe_frontend_headless_ui::state::{OpenState, SingleSelect};
@@ -37,6 +37,7 @@ fn part(scope: &str, part: &str, value: Option<&str>, disabled: bool) -> PartRef
         part: part.to_string(),
         value: value.map(str::to_string),
         disabled,
+        readonly: false,
     }
 }
 
@@ -175,7 +176,13 @@ fn menu_trigger_item_click_toggles_submenu_open_closed() {
 
 #[test]
 fn radio_group_item_click_selects_value() {
-    let html = render(&radio_group::item(false, false, "red", vec![], vec![]));
+    let html = render(&radio_group::item(
+        false,
+        &radio_group::RadioGroupProps::default(),
+        "red",
+        vec![],
+        vec![],
+    ));
     assert_scope_part_present(&html, "radio-group", "item");
 
     let action_ref = action_for_part(&part("radio-group", "item", Some("red"), false)).unwrap();
@@ -292,7 +299,8 @@ fn select_trigger_opens_item_click_selects_and_closes_clear_trigger_deselects() 
 /// （`select` の `deselect` と異なる）ことも確認する。
 #[test]
 fn combobox_trigger_opens_item_selects_and_clear_trigger_clears_input_and_selection() {
-    let trigger_html = render(&Combobox::default().trigger(false, None, vec![], vec![]));
+    let props = ComboboxProps::default();
+    let trigger_html = render(&Combobox::default().trigger(&props, None, vec![], vec![]));
     assert_scope_part_present(&trigger_html, "combobox", "trigger");
     let item_html = render(&combobox::item(
         OpenState::Closed,
@@ -304,7 +312,7 @@ fn combobox_trigger_opens_item_selects_and_clear_trigger_clears_input_and_select
         vec![],
     ));
     assert_scope_part_present(&item_html, "combobox", "item");
-    let clear_html = render(&combobox::clear_trigger(vec![], vec![]));
+    let clear_html = render(&combobox::clear_trigger(&props, vec![], vec![]));
     assert_scope_part_present(&clear_html, "combobox", "clear-trigger");
 
     let open_action = action_for_part(&part("combobox", "trigger", None, false)).unwrap();
@@ -318,9 +326,9 @@ fn combobox_trigger_opens_item_selects_and_clear_trigger_clears_input_and_select
     // `aria-expanded` は keynav が直接書くのではなく、dispatch 後の再描画で
     // input・trigger の双方に再出力される（Menu/Select の trigger 開閉と
     // 同型、実装計画 §1.1）。
-    let input_html_open = render(&cb.input(false, None, None, None, vec![]));
+    let input_html_open = render(&cb.input(&props, None, None, None, vec![]));
     assert!(input_html_open.contains(r#"aria-expanded="true""#));
-    let trigger_html_open = render(&cb.trigger(false, None, vec![], vec![]));
+    let trigger_html_open = render(&cb.trigger(&props, None, vec![], vec![]));
     assert!(trigger_html_open.contains(r#"aria-expanded="true""#));
 
     assert!(dispatch(
@@ -332,7 +340,7 @@ fn combobox_trigger_opens_item_selects_and_clear_trigger_clears_input_and_select
     // ark-ui の closeOnSelect 既定に準拠し、選択と同時に listbox が閉じる
     // （`combobox.rs` の `ComboboxAction::Select` 実装参照）。
     assert!(!cb.is_open());
-    let input_html_closed = render(&cb.input(false, None, None, None, vec![]));
+    let input_html_closed = render(&cb.input(&props, None, None, None, vec![]));
     assert!(input_html_closed.contains(r#"aria-expanded="false""#));
 
     assert!(dispatch(

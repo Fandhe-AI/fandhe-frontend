@@ -39,8 +39,8 @@ use fandhe_frontend_headless_ui::{
     date_input, dialog, download_trigger, editable, floating_panel, hover_card, image_cropper,
     listbox, number_input, password_input, pin_input, popover, rating_group, segment_group,
     signature_pad, slider, splitter, tags_input, timer, toast, tree_view, Calendar, DatePicker,
-    DateSegmentFlags, ImageStatus, OpenState, Orientation, PasswordAutocomplete,
-    PasswordInputProps, Steps, ToastStatus, Tour,
+    ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps, Steps,
+    ToastStatus, Tour,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -214,9 +214,27 @@ fn number_input_name_and_label_children_are_escaped_for_all_payloads() {
             "number_input::input の name 属性値コンテキスト",
         );
 
-        let label_node = number_input::label(false, false, None, vec![], vec![text(payload)]);
+        let label_node = number_input::label(
+            number_input::NumberInputFlags::default(),
+            None,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&label_node);
         assert_payload_is_escaped(payload, &html, "number_input::label のテキストコンテキスト");
+
+        // ValueText パーツ（イシュー #1613）: children のテキスト経路。
+        let value_text_node = number_input::value_text(
+            number_input::NumberInputFlags::default(),
+            vec![],
+            vec![text(payload)],
+        );
+        let html = render(&value_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "number_input::value_text のテキストコンテキスト",
+        );
     }
 }
 
@@ -226,7 +244,8 @@ fn number_input_name_and_label_children_are_escaped_for_all_payloads() {
 #[test]
 fn rating_group_name_and_label_children_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
-        let hidden_input_node = rating_group::hidden_input(Some(payload), "3", false, vec![]);
+        let props = rating_group::RatingGroupProps::default();
+        let hidden_input_node = rating_group::hidden_input(&props, Some(payload), "3", vec![]);
         let html = render(&hidden_input_node);
         assert_payload_is_escaped(
             payload,
@@ -234,7 +253,7 @@ fn rating_group_name_and_label_children_are_escaped_for_all_payloads() {
             "rating_group::hidden_input の name 属性値コンテキスト",
         );
 
-        let label_node = rating_group::label(None, vec![], vec![text(payload)]);
+        let label_node = rating_group::label(&props, None, vec![], vec![text(payload)]);
         let html = render(&label_node);
         assert_payload_is_escaped(payload, &html, "rating_group::label のテキストコンテキスト");
     }
@@ -1493,12 +1512,36 @@ fn date_input_hidden_input_name_value_and_attrs_are_escaped_for_all_payloads() {
             "date_input::hidden_input の name/value コンテキスト",
         );
 
-        let attrs_node = date_input::root(false, false, vec![("data-testid", payload)], vec![]);
+        let attrs_node = date_input::root(
+            date_input::DateInputProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        );
         let html = render(&attrs_node);
         assert_payload_is_escaped(
             payload,
             &html,
             "date_input::root の呼び出し側 attrs コンテキスト",
+        );
+
+        // segment の非予約キー（drop_reserved の対象外）を attrs 経由で
+        // 渡した場合も、通常の caller attrs 経路として既定エスケープを
+        // 経由することを確認する（予約キーのなりすまし拒否そのものは
+        // `date_input::tests::caller_supplied_reserved_keys_cannot_impersonate_real_state`
+        // が固定する）。
+        let segment_node = date_input::segment(
+            date_input::DateSegment::Year,
+            None,
+            "0",
+            "9999",
+            date_input::DateInputProps::default(),
+            vec![("data-testid", payload)],
+        );
+        let html = render(&segment_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_input::segment の呼び出し側 attrs コンテキスト",
         );
     }
 }
@@ -1508,7 +1551,12 @@ fn date_input_hidden_input_name_value_and_attrs_are_escaped_for_all_payloads() {
 #[test]
 fn date_input_label_children_text_is_escaped_for_all_payloads() {
     for payload in payloads::all() {
-        let node = date_input::label(false, false, None, vec![], vec![text(payload)]);
+        let node = date_input::label(
+            date_input::DateInputProps::default(),
+            None,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&node);
         assert_payload_is_escaped(payload, &html, "date_input::label のテキストコンテキスト");
     }
@@ -1538,8 +1586,9 @@ fn date_input_dispatch_set_segment_and_set_payload_is_rejected_on_hydration_rend
 }
 
 /// DateInput: [`date_input::segment`] の `attrs` 経由の属性値注入が
-/// エスケープされることを固定する（`DateSegmentFlags` 経由のパーツ関数も
-/// 他コンポーネントと同じ既定エスケープ委譲を維持することの確認）。
+/// エスケープされることを固定する（`DateInputProps` 経由のパーツ関数も
+/// 他コンポーネントと同じ既定エスケープ委譲を維持することの確認。イシュー
+/// #1626 で `DateSegmentFlags` から `DateInputProps` へ置換）。
 #[test]
 fn date_input_segment_attrs_payload_is_escaped_for_all_payloads() {
     for payload in payloads::all() {
@@ -1548,7 +1597,7 @@ fn date_input_segment_attrs_payload_is_escaped_for_all_payloads() {
             None,
             "0",
             "9999",
-            DateSegmentFlags::default(),
+            date_input::DateInputProps::default(),
             vec![("data-testid", payload)],
         );
         let html = render(&node);
@@ -1617,10 +1666,11 @@ fn calendar_dispatch_select_payload_is_rejected_or_escaped_on_hydration_render()
 /// されることを固定する。
 #[test]
 fn date_picker_trigger_and_input_attrs_are_escaped_for_all_payloads() {
+    let props = date_picker::DatePickerProps::default();
     for payload in payloads::all() {
         let html = render(&date_picker::trigger(
             OpenState::Closed,
-            false,
+            &props,
             Some(payload),
             vec![],
             vec![],
@@ -1631,7 +1681,7 @@ fn date_picker_trigger_and_input_attrs_are_escaped_for_all_payloads() {
             "date_picker::trigger の controls 属性コンテキスト",
         );
 
-        let html = render(&date_picker::input(Some(payload), false, None, vec![]));
+        let html = render(&date_picker::input(Some(payload), &props, None, vec![]));
         assert_payload_is_escaped(
             payload,
             &html,

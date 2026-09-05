@@ -119,7 +119,9 @@
 //!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
 //!   dispatch は `"select"` のみを受理する（WAI-ARIA radio パターンに選択解除
 //!   ジェスチャは存在しないため、型付き API の `Deselect` のみプログラム的な
-//!   選択解除を許す）。
+//!   選択解除を許す）。[`radio_group::RadioGroupProps`]（`disabled`/
+//!   `readonly`/`invalid`/`required`）が各パーツの `data-*`/ARIA 属性を
+//!   決定する（イシュー #1616 の ark-ui / Radix Primitives 参照突合で新設）。
 //! - [`mod@segment_group`]: Root / Indicator / Item / ItemText / ItemControl /
 //!   ItemHiddenInput の 6 anatomy パーツと、状態機械・dispatch・hydration の
 //!   すべてを [`radio_group::RadioGroup`] へ全委譲する
@@ -202,12 +204,13 @@
 //!   固定 `style` で描画し、状態機械・hydration フォーマットへの追加は
 //!   ない（詳細は [`progress`] モジュール doc の circular 節を参照）。
 //! - [`mod@number_input`]: Root / Label / Control / Input / IncrementTrigger /
-//!   DecrementTrigger の 6 anatomy パーツと、数値 `value`（`min`..=`max`、
-//!   または未入力を表す `None`）を持つ [`number_input::NumberInput`] 値状態
-//!   機械（#738、親 #736）。[`mod@progress`] と同じく `data-state` を持たず、
-//!   [`fandhe_frontend_interactive::Component`]/
+//!   DecrementTrigger / ValueText の 7 anatomy パーツ（#738、親 #736。
+//!   ValueText はイシュー #1613 の参考サイト突合で追加）と、数値 `value`
+//!   （`min`..=`max`、または未入力を表す `None`）を持つ
+//!   [`number_input::NumberInput`] 値状態機械。[`mod@progress`] と同じく
+//!   `data-state` を持たず、[`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。ark-ui の
-//!   Scrubber パーツ・キーボード操作の DOM 配線は本イシューのスコープ外
+//!   Scrubber パーツ・キーボード操作の DOM 配線は引き続きスコープ外
 //!   （[`number_input`] モジュール doc 参照）。
 //! - [`mod@rating_group`]: Root / Label / Control / Item / HiddenInput の 5
 //!   anatomy パーツと、`1..=count` の数値評価値（未評価は `None`）+ hover
@@ -553,9 +556,17 @@
 //!   検証する fail-closed 契約（[`date_input::DateInput::value`]）を持つ。
 //!   `date_input::segment_group` は [`mod@segment_group`]（segmented control）
 //!   とは無関係の別 anatomy スコープ（[`mod@date_input`] モジュール doc
-//!   参照）。granularity（時分秒）・range 選択・locale 依存整形・キーボード
-//!   操作の DOM 配線は本イシューのスコープ外（[`date_input`] モジュール doc
-//!   §スコープ外参照）。
+//!   参照）。granularity（時分秒）・range 選択・locale 依存整形は本イシューの
+//!   スコープ外（[`date_input`] モジュール doc §スコープ外参照）。イシュー
+//!   #1626 で ark-ui（zag.js `date-input` machine）の Data Attributes 表・
+//!   キーボード操作・WAI-ARIA と突合し、`DateInputProps`（旧
+//!   `DateSegmentFlags` を全パーツ共通の 4 フィールド版へ置換）・
+//!   `data-type`/`data-value`/`data-editable`/`data-placeholder-shown`
+//!   （旧 `data-placeholder`）・`data-focus`（control/segment-group）・
+//!   `role="group"`（segment-group）・wrap-around な Increment/Decrement・
+//!   PageUp/PageDown・Home/End・矢印キーによるセグメント間フォーカス移動・
+//!   Backspace を是正・追加した（キーボード操作の実 DOM 配線は引き続き
+//!   `fandhe-frontend-wasm-full` 側のスコープ外）。
 //! - [`mod@timer`]: Root / Area / Item / ItemValue / ItemLabel / Separator /
 //!   Control / ActionTrigger の 8 anatomy パーツと、idle/running/paused/
 //!   completed の 4 値状態機械 [`timer::Timer`]（イシュー #836、
@@ -737,7 +748,7 @@ pub use data_attrs::{
     data_incomplete, data_invalid, data_orientation, data_pressed, data_readonly, data_required,
     data_state, Orientation,
 };
-pub use date_input::{DateInput, DateInputAction, DateSegment, DateSegmentFlags};
+pub use date_input::{DateInput, DateInputAction, DateInputProps, DateSegment};
 pub use date_picker::{DatePicker, DatePickerAction};
 pub use dialog::Dialog;
 pub use drawer::{Drawer, DrawerPlacement};
@@ -766,8 +777,8 @@ pub use positioning::{
 };
 pub use progress::{Progress, ProgressAction};
 pub use qr_code::{ErrorCorrectionLevel, QrEncodeError, QrMatrix};
-pub use radio_group::RadioGroup;
-pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
+pub use radio_group::{RadioGroup, RadioGroupProps};
+pub use rating_group::{RatingGroup, RatingGroupAction, RatingGroupProps, RatingItemFlags};
 pub use segment_group::SegmentGroup;
 pub use signature_pad::{Point, SignaturePad, SignaturePadAction, Stroke, StrokeError};
 pub use slider::{Slider, SliderAction};
