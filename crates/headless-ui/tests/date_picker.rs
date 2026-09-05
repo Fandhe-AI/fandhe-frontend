@@ -6,7 +6,7 @@
 //! を担う。
 
 use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
-use fandhe_frontend_headless_ui::date_picker::{content, input, trigger};
+use fandhe_frontend_headless_ui::date_picker::{content, input, trigger, DatePickerProps};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::fandhe_frontend_interactive::dispatch;
 use fandhe_frontend_headless_ui::state::OpenState;
@@ -31,7 +31,8 @@ fn public_api_open_select_and_render_composed_popover() {
     dispatch(&mut dp, "open", "");
     assert!(dp.is_open());
 
-    let trigger_html = render(&dp.trigger(false, None, vec![], vec![]));
+    let props = DatePickerProps::default();
+    let trigger_html = render(&dp.trigger(&props, None, vec![], vec![]));
     assert!(trigger_html.contains(r#"aria-expanded="true""#));
 
     dispatch(&mut dp, "select", "2026-07-22");
@@ -44,15 +45,17 @@ fn public_api_input_reflects_selected_iso_value() {
     let mut dp = DatePicker::new(sample_calendar());
     dispatch(&mut dp, "select", "2026-07-22");
     let value = dp.selected().map(|d| d.to_iso_string());
-    let html = render(&input(value.as_deref(), false, None, vec![]));
+    let props = DatePickerProps::default();
+    let html = render(&input(value.as_deref(), &props, None, vec![]));
     assert!(html.contains(r#"value="2026-07-22""#));
 }
 
 #[test]
 fn public_api_content_and_trigger_share_state() {
+    let props = DatePickerProps::default();
     let html_open = render(&content(OpenState::Open, None, None, vec![], vec![]));
     assert!(!html_open.contains("hidden"));
-    let html_trigger = render(&trigger(OpenState::Open, false, None, vec![], vec![]));
+    let html_trigger = render(&trigger(OpenState::Open, &props, None, vec![], vec![]));
     assert!(html_trigger.contains(r#"aria-expanded="true""#));
 }
 

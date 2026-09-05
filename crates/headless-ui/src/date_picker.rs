@@ -10,13 +10,46 @@
 //! 内部に [`crate::calendar::Calendar`] を合成して月表示・日付選択 UI を
 //! 組み立てる想定である。
 //!
-//! # 呼び出し文脈
+//! # 参照突合（イシュー #1627、ark-ui/chakra-ui `date-picker` との対比）
 //!
-//! SSR は本モジュールの自由関数を直接呼んで組み立てる。CSR/hydration は
-//! [`DatePicker`]（[`fandhe_frontend_interactive::Component`]/
-//! [`fandhe_frontend_interactive::Hydrate`] 実装）を経由し、dispatch
-//! （`"open"`/`"close"`/`"toggle"`/`"select"`/`"clear-selection"`/
-//! `"prev-month"`/`"next-month"`）で開閉・月表示・選択の状態遷移をする。
+//! 一次情報は `.claude/skills/ark-ui`/`.claude/skills/chakra-ui` 配下の
+//! date-picker 参照ファイルと、直近の同型 precedent（color-picker #1604・
+//! combobox #1605）。差分の是正・意図的な非追随は以下のとおり:
+//!
+//! - **是正**: [`DatePickerProps`]（`disabled`/`readonly`/`invalid`/
+//!   `required`）を新設し、root/label/control/input/trigger/clear-trigger
+//!   の 6 パーツへ `data-disabled`/`data-invalid`/`data-readonly` を一律
+//!   付与、label にのみ `data-required` を追加で付与する（[`crate::combobox::ComboboxProps`]
+//!   と同型のパターン）。[`label`] に `for_`（ark `htmlFor` 準拠）を追加し、
+//!   `id` が `Some` のとき [`content`] の `labelledby` と対で
+//!   `aria-labelledby` 関連付け、`for_` が `Some` のとき [`input`] の `id`
+//!   と対でネイティブ `label[for]` 関連付けを成立させる。[`input`] は
+//!   `props.disabled`/`props.readonly`/`props.required` をそれぞれネイティブ
+//!   `disabled`/`readonly`/`required` 存在属性へ反映し、`props.invalid` の
+//!   ときのみ `aria-invalid="true"` を追加する（[`crate::combobox::input`]
+//!   と同型）。呼び出し側 `attrs` からの状態系 `data-*` 上書きは
+//!   [`drop_reserved`] が fail-closed に除去する。
+//! - **意図的に追随しない**（理由付き）:
+//!   - ark-ui の View/ViewControl/PrevTrigger/NextTrigger/ViewTrigger/
+//!     RangeText/Table 系/TableCellTrigger/MonthSelect/YearSelect/
+//!     PresetTrigger/WeekNumber\*/ValueText はグリッド系（Table 系相当）が
+//!     [`content`] へ合成する [`crate::calendar::Calendar`] 側（11 パーツ）
+//!     に既に存在し、年月ビュー切替・プリセット・週番号は
+//!     [`crate::calendar`] のモジュール doc で明示的にスコープ外のため
+//!     本イシューでも非追随を継続する。
+//!   - `data-view`（ビュー切替非対応のため非追随）。
+//!   - `data-placement`/`data-side`（[`crate::combobox`]/
+//!     [`crate::color_picker`] と同様、JS ランタイムのレイアウト計測属性は
+//!     `docs/policy/intentional-non-adoption.md` §3.25 規則 2 に従い非採用）。
+//!   - `content` の `role="dialog"`/`trigger` の `aria-haspopup="dialog"` は
+//!     WAI-ARIA APG「Date Picker Dialog」パターンと [`crate::popover`]
+//!     基盤との整合を優先し現状維持する。
+//! - **スコープ外**（`.claude/rules/out-of-scope-tracking.md` 対応）:
+//!   - `fandhe-frontend-wasm-full` への `date-picker` scope 配線
+//!     （trigger click・clear・Escape・外側クリック閉鎖が CSR で未動作。
+//!     `MAPPING_TABLE`/`OverlayKind::from_scope` に `"date-picker"` が
+//!     登録されていない）。
+//!   - `readonly` 時の操作抑止（wasm-full 側の dispatch 拒否）。
 //!
 //! # DateInput（#834）との責務境界
 //!
@@ -26,14 +59,17 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - 属性名（`data-*`/`aria-*`/`role`/`type`/`disabled`/`id`/`value`）は
-//!   すべて `&'static str` リテラルで固定しており、動的値が属性名スロットへ
-//!   混入する経路はない。
-//! - 動的値（`value`/`id`/`controls`/`labelledby`/呼び出し側
+//! - 属性名（`data-*`/`aria-*`/`role`/`type`/`disabled`/`readonly`/
+//!   `required`/`id`/`value`/`for`）はすべて `&'static str` リテラルで
+//!   固定しており、動的値が属性名スロットへ混入する経路はない。
+//! - 動的値（`value`/`id`/`for_`/`controls`/`labelledby`/呼び出し側
 //!   `attrs`/`children`）は [`fandhe_frontend_core::render`] の既定エスケープ
 //!   を必ず経由する。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - 文字列からの日付取り込みは [`crate::date::PlainDate::parse_iso`] の
 //!   fail-closed（`Err` で状態不変）に限定する。
+//! - 呼び出し側 `attrs` による `data-scope`/`data-part`/状態系 `data-*`
+//!   属性の上書きは [`Anatomy::part`] と [`drop_reserved`] が fail-closed に
+//!   破棄する（[`crate::combobox`] と同型のパターン）。
 //!
 //! # out-of-scope（本イシュー #835 のスコープ外）
 //!
@@ -42,9 +78,11 @@
 //! - DateInput（#834）との配線・range mode・複数月表示。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_controls, aria_expanded, aria_haspopup, aria_labelledby, role, AriaPopup};
+use crate::aria::{
+    aria_controls, aria_expanded, aria_haspopup, aria_invalid, aria_labelledby, role, AriaPopup,
+};
 use crate::calendar::{Calendar, CalendarAction};
-use crate::data_attrs::data_disabled;
+use crate::data_attrs::{data_disabled, data_invalid, data_readonly, data_required, data_state};
 use crate::date::{DateError, PlainDate};
 use crate::state::{Disclosure, DisclosureAction, OpenState};
 use fandhe_frontend_core::Node;
@@ -53,33 +91,138 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 /// DatePicker の anatomy（`data-scope="date-picker"`）。
 const ANATOMY: Anatomy = anatomy("date-picker");
 
-/// Root パーツ（`div`）。開閉状態を `data-*` へ反映する。
+/// DatePicker の disabled/readonly/invalid/required 状態束。
+/// root/label/control/input/trigger/clear-trigger の全パーツへ
+/// [`data_disabled`]/[`data_invalid`]/[`data_readonly`] を一律付与し、
+/// label にのみ [`data_required`] を追加で付与するために使う
+/// （[`crate::combobox::ComboboxProps`] と同型のパターン）。状態機械
+/// [`DatePicker`] にはフィールドを持たせず、呼び出しごとに
+/// `&DatePickerProps` を渡す設計とする（hydration 属性面を拡張しない）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DatePickerProps {
+    /// 無効化状態。`true` で `data-disabled` を各パーツへ付与し、
+    /// [`input`]/[`trigger`]/[`clear_trigger`] にはネイティブ `disabled`
+    /// 存在属性も追加する。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で `data-readonly` を各パーツへ付与し、
+    /// [`input`] にはネイティブ `readonly` 存在属性も追加する。操作自体の
+    /// 抑止は `fandhe-frontend-wasm-full` 側の責務（モジュール冒頭
+    /// 「スコープ外」節参照）。
+    pub readonly: bool,
+    /// 入力検証エラー状態。`true` で `data-invalid` を各パーツへ、
+    /// [`input`] には追加で `aria-invalid="true"` を付与する。
+    pub invalid: bool,
+    /// 入力必須状態。`true` で [`label`] に `data-required` を、[`input`]
+    /// にはネイティブ `required` 存在属性を付与する。
+    pub required: bool,
+}
+
+/// [`DatePickerProps`] から root/label/control/input/trigger/clear-trigger
+/// 共通の状態属性列を組み立てる非公開ヘルパ（disabled/invalid/readonly の
+/// 3 属性、[`crate::combobox::state_attrs`] と同型）。
+fn state_attrs(props: &DatePickerProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs: Vec<(&'static str, &'static str)> = Vec::new();
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_invalid(props.invalid));
+    attrs.extend(data_readonly(props.readonly));
+    attrs
+}
+
+/// [`DatePickerProps`] が全パーツへ一律付与する属性キー一覧。呼び出し側
+/// `attrs` にこれらと同名キーが含まれていても fail-closed で除去する対象。
+const STATE_RESERVED: &[&str] = &["data-disabled", "data-invalid", "data-readonly"];
+
+/// [`root`]/[`control`]/[`trigger`] が固定付与するキー一覧（[`STATE_RESERVED`]
+/// に `data-state` を加えたもの）。
+const STATEFUL_CONTAINER_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-state",
+];
+
+/// [`label`] が固定付与するキー一覧（[`STATE_RESERVED`] に `data-required`
+/// を加えたもの）。
+const LABEL_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-required",
+];
+
+/// [`clear_trigger`] が固定付与するキー一覧（`data-state` を持たないため
+/// [`STATE_RESERVED`] と同じ集合、意味的に別名を与える）。
+const CLEAR_TRIGGER_RESERVED: &[&str] = STATE_RESERVED;
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::combobox::drop_reserved`]/
+/// [`crate::color_picker::drop_reserved`] と同型の重複実装。モジュール間の
+/// 相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// Root パーツ（`div`）。開閉状態と [`DatePickerProps`] の状態束を `data-*`
+/// へ反映する。
 #[must_use]
-pub fn root<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> =
-        vec![crate::data_attrs::data_state(state.as_data_state())];
+pub fn root<'a>(
+    state: OpenState,
+    props: &DatePickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATEFUL_CONTAINER_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
 
 /// Label パーツ（`label`）。`id` が `Some` のとき [`trigger`]/[`content`] の
-/// `labelledby` と対で `aria-labelledby` 関連付けを成立させる。
+/// `labelledby` と対で `aria-labelledby` 関連付けを成立させる。`for_` が
+/// `Some` のとき [`input`] の `id` と対でネイティブ `label[for]` 関連付けを
+/// 成立させる（ark-ui の `htmlFor` 準拠、[`crate::combobox::label`] と同型、
+/// イシュー #1627 参照突合）。[`DatePickerProps`] の状態束 + `data-required`
+/// を付与する。
 #[must_use]
-pub fn label<'a>(id: Option<&'a str>, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+pub fn label<'a>(
+    props: &DatePickerProps,
+    id: Option<&'a str>,
+    for_: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, LABEL_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(data_required(props.required));
     if let Some(id) = id {
         merged.push(("id", id));
+    }
+    if let Some(for_) = for_ {
+        merged.push(("for", for_));
     }
     merged.extend(attrs);
     ANATOMY.part("label", "label", merged, children)
 }
 
 /// Control パーツ（`div`）。[`input`]/[`trigger`]/[`clear_trigger`] をまとめる
-/// コンテナ。開閉状態を `data-*` へ反映するのみの最小主義な装飾用パーツ。
+/// コンテナ。開閉状態と [`DatePickerProps`] の状態束を `data-*` へ反映する。
 #[must_use]
-pub fn control<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> =
-        vec![crate::data_attrs::data_state(state.as_data_state())];
+pub fn control<'a>(
+    state: OpenState,
+    props: &DatePickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATEFUL_CONTAINER_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
 }
@@ -88,15 +231,19 @@ pub fn control<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: V
 ///
 /// `value` は [`PlainDate::to_iso_string`] 由来の ISO 8601 表記のみを渡す
 /// 契約とする（モジュール doc §DateInput との責務境界参照）。`type="text"`
-/// を固定し、`disabled` はネイティブ `disabled` + `data-disabled` の両方へ
-/// 反映する。
+/// を固定する。[`DatePickerProps`] の状態束を付与し、`props.disabled`/
+/// `props.readonly`/`props.required` はそれぞれネイティブ
+/// `disabled`/`readonly`/`required` 存在属性へも反映する。`props.invalid`
+/// のときのみ `aria-invalid="true"` を追加する（valid のときは省略、
+/// [`crate::combobox::input`] と同型の判断、イシュー #1627 参照突合）。
 #[must_use]
 pub fn input<'a>(
     value: Option<&'a str>,
-    disabled: bool,
+    props: &DatePickerProps,
     id: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "text")];
     if let Some(value) = value {
         merged.push(("value", value));
@@ -104,9 +251,18 @@ pub fn input<'a>(
     if let Some(id) = id {
         merged.push(("id", id));
     }
-    merged.extend(data_disabled(disabled));
-    if disabled {
+    merged.extend(state_attrs(props));
+    if props.disabled {
         merged.push(("disabled", ""));
+    }
+    if props.readonly {
+        merged.push(("readonly", ""));
+    }
+    if props.required {
+        merged.push(("required", ""));
+    }
+    if props.invalid {
+        merged.push(aria_invalid(true));
     }
     merged.extend(attrs);
     ANATOMY.part("input", "input", merged, Vec::new())
@@ -114,25 +270,28 @@ pub fn input<'a>(
 
 /// Trigger パーツ（`button`）。popover を開閉するトリガー
 /// （[`crate::popover::trigger`] と同型、`aria-haspopup="dialog"` 固定）。
+/// [`DatePickerProps`] の状態束を付与し、`props.disabled` のときのみ
+/// `disabled` ネイティブ属性を追加する。
 #[must_use]
 pub fn trigger<'a>(
     state: OpenState,
-    disabled: bool,
+    props: &DatePickerProps,
     controls: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATEFUL_CONTAINER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("type", "button"),
         aria_haspopup(AriaPopup::Dialog),
         aria_expanded(state.is_open()),
-        crate::data_attrs::data_state(state.as_data_state()),
+        data_state(state.as_data_state()),
     ];
     if let Some(id) = controls {
         merged.push(aria_controls(id));
     }
-    merged.extend(data_disabled(disabled));
-    if disabled {
+    merged.extend(state_attrs(props));
+    if props.disabled {
         merged.push(("disabled", ""));
     }
     merged.extend(attrs);
@@ -140,24 +299,35 @@ pub fn trigger<'a>(
 }
 
 /// ClearTrigger パーツ（`button`）。[`crate::popover::close_trigger`] と同型。
+/// [`DatePickerProps`] の状態束を付与し、`props.disabled` のときのみ
+/// `disabled` ネイティブ属性を追加する。
 #[must_use]
-pub fn clear_trigger<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn clear_trigger<'a>(
+    props: &DatePickerProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, CLEAR_TRIGGER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
+    merged.extend(state_attrs(props));
+    if props.disabled {
+        merged.push(("disabled", ""));
+    }
     merged.extend(attrs);
     ANATOMY.part("clear-trigger", "button", merged, children)
 }
 
 /// Positioner パーツ（`div`）。[`crate::popover::positioner`] と同型
 /// （位置決めロジックは [`crate::positioning`] へ委譲、本関数は開閉に応じた
-/// `hidden` のみを担う）。
+/// `hidden` のみを担う）。`data-placement` は意図的に非追随（モジュール doc
+/// 参照突合節参照）。
 #[must_use]
 pub fn positioner<'a>(
     state: OpenState,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> =
-        vec![crate::data_attrs::data_state(state.as_data_state())];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
     if !state.is_open() {
         merged.push(("hidden", ""));
     }
@@ -167,7 +337,9 @@ pub fn positioner<'a>(
 
 /// Content パーツ（`div`）。`role="dialog"` を固定付与し、内部に
 /// [`crate::calendar::Calendar`] のパーツ関数群を合成する想定
-/// （[`crate::popover::content`] と同型）。
+/// （[`crate::popover::content`] と同型）。`role`/`aria-haspopup` は
+/// WAI-ARIA APG「Date Picker Dialog」パターンとの整合を優先し現状維持する
+/// （モジュール doc 参照突合節参照）。
 #[must_use]
 pub fn content<'a>(
     state: OpenState,
@@ -176,10 +348,8 @@ pub fn content<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![
-        role("dialog"),
-        crate::data_attrs::data_state(state.as_data_state()),
-    ];
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![role("dialog"), data_state(state.as_data_state())];
     if let Some(id) = id {
         merged.push(("id", id));
     }
@@ -263,26 +433,36 @@ impl DatePicker {
 
     /// [`root`] へ現在の開閉状態を注入する利便メソッド。
     #[must_use]
-    pub fn root<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        root(self.open_state(), attrs, children)
+    pub fn root<'a>(
+        &self,
+        props: &DatePickerProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        root(self.open_state(), props, attrs, children)
     }
 
     /// [`control`] へ現在の開閉状態を注入する利便メソッド。
     #[must_use]
-    pub fn control<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        control(self.open_state(), attrs, children)
+    pub fn control<'a>(
+        &self,
+        props: &DatePickerProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        control(self.open_state(), props, attrs, children)
     }
 
     /// [`trigger`] へ現在の開閉状態を注入する利便メソッド。
     #[must_use]
     pub fn trigger<'a>(
         &self,
-        disabled: bool,
+        props: &DatePickerProps,
         controls: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        trigger(self.open_state(), disabled, controls, attrs, children)
+        trigger(self.open_state(), props, controls, attrs, children)
     }
 
     /// [`positioner`] へ現在の開閉状態を注入する利便メソッド。
@@ -330,10 +510,12 @@ impl Component for DatePicker {
     /// ビュー（[`crate::select::Select`] と同じ位置付け）。
     fn view(&self) -> Node {
         let state = self.open_state();
+        let props = DatePickerProps::default();
         self.root(
+            &props,
             Vec::new(),
             vec![
-                trigger(state, false, None, Vec::new(), Vec::new()),
+                trigger(state, &props, None, Vec::new(), Vec::new()),
                 positioner(
                     state,
                     Vec::new(),
@@ -399,6 +581,15 @@ mod tests {
         .unwrap()
     }
 
+    fn all_true_props() -> DatePickerProps {
+        DatePickerProps {
+            disabled: true,
+            readonly: true,
+            invalid: true,
+            required: true,
+        }
+    }
+
     #[test]
     fn default_is_closed_and_unselected() {
         let dp = DatePicker::new(sample_calendar());
@@ -462,7 +653,8 @@ mod tests {
 
     #[test]
     fn trigger_has_haspopup_dialog_and_aria_expanded() {
-        let html = render(&trigger(OpenState::Closed, false, None, vec![], vec![]));
+        let props = DatePickerProps::default();
+        let html = render(&trigger(OpenState::Closed, &props, None, vec![], vec![]));
         assert!(html.contains(r#"aria-haspopup="dialog""#));
         assert!(html.contains(r#"aria-expanded="false""#));
     }
@@ -479,16 +671,115 @@ mod tests {
 
     #[test]
     fn input_value_reflects_iso_string() {
-        let html = render(&input(Some("2026-07-15"), false, None, vec![]));
+        let props = DatePickerProps::default();
+        let html = render(&input(Some("2026-07-15"), &props, None, vec![]));
         assert!(html.contains(r#"value="2026-07-15""#));
         assert!(html.contains(r#"type="text""#));
     }
 
     #[test]
     fn input_disabled_true_adds_native_and_data_disabled() {
-        let html = render(&input(None, true, None, vec![]));
+        let props = DatePickerProps {
+            disabled: true,
+            ..Default::default()
+        };
+        let html = render(&input(None, &props, None, vec![]));
         assert!(html.contains(r#"disabled="""#));
         assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    // --- DatePickerProps 網羅（イシュー #1627） ---
+
+    #[test]
+    fn default_props_emit_no_state_attrs_anywhere() {
+        let props = DatePickerProps::default();
+        let root_html = render(&root(OpenState::Closed, &props, vec![], vec![]));
+        assert!(!root_html.contains("data-disabled"));
+        assert!(!root_html.contains("data-invalid"));
+        assert!(!root_html.contains("data-readonly"));
+
+        let label_html = render(&label(&props, None, None, vec![], vec![]));
+        assert!(!label_html.contains("data-required"));
+
+        let input_html = render(&input(None, &props, None, vec![]));
+        assert!(!input_html.contains("disabled"));
+        assert!(!input_html.contains("readonly"));
+        assert!(!input_html.contains("required"));
+        assert!(!input_html.contains("aria-invalid"));
+    }
+
+    #[test]
+    fn all_true_props_reach_root_label_control_input_trigger_clear_trigger() {
+        let props = all_true_props();
+        let state = OpenState::Closed;
+
+        let root_html = render(&root(state, &props, vec![], vec![]));
+        assert!(root_html.contains(r#"data-disabled="""#));
+        assert!(root_html.contains(r#"data-invalid="""#));
+        assert!(root_html.contains(r#"data-readonly="""#));
+
+        let label_html = render(&label(&props, None, None, vec![], vec![]));
+        assert!(label_html.contains(r#"data-disabled="""#));
+        assert!(label_html.contains(r#"data-invalid="""#));
+        assert!(label_html.contains(r#"data-readonly="""#));
+        assert!(label_html.contains(r#"data-required="""#));
+
+        let control_html = render(&control(state, &props, vec![], vec![]));
+        assert!(control_html.contains(r#"data-disabled="""#));
+        assert!(control_html.contains(r#"data-invalid="""#));
+        assert!(control_html.contains(r#"data-readonly="""#));
+
+        let input_html = render(&input(None, &props, None, vec![]));
+        assert!(input_html.contains(r#"data-disabled="""#));
+        assert!(input_html.contains(r#"data-invalid="""#));
+        assert!(input_html.contains(r#"data-readonly="""#));
+        assert!(input_html.contains(r#"disabled="""#));
+        assert!(input_html.contains(r#"readonly="""#));
+        assert!(input_html.contains(r#"required="""#));
+        assert!(input_html.contains(r#"aria-invalid="true""#));
+
+        let trigger_html = render(&trigger(state, &props, None, vec![], vec![]));
+        assert!(trigger_html.contains(r#"data-disabled="""#));
+        assert!(trigger_html.contains(r#"data-invalid="""#));
+        assert!(trigger_html.contains(r#"data-readonly="""#));
+        assert!(trigger_html.contains(r#"disabled="""#));
+
+        let clear_trigger_html = render(&clear_trigger(&props, vec![], vec![]));
+        assert!(clear_trigger_html.contains(r#"data-disabled="""#));
+        assert!(clear_trigger_html.contains(r#"data-invalid="""#));
+        assert!(clear_trigger_html.contains(r#"data-readonly="""#));
+        assert!(clear_trigger_html.contains(r#"disabled="""#));
+    }
+
+    #[test]
+    fn label_for_and_id_produce_both_attributes() {
+        let props = DatePickerProps::default();
+        let html = render(&label(
+            &props,
+            Some("dp-label"),
+            Some("dp-input"),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"id="dp-label""#));
+        assert!(html.contains(r#"for="dp-input""#));
+    }
+
+    #[test]
+    fn caller_supplied_state_data_attrs_are_dropped_case_insensitively() {
+        let props = all_true_props();
+        let html = render(&root(
+            OpenState::Closed,
+            &props,
+            vec![
+                ("DATA-DISABLED", "attacker"),
+                ("Data-Invalid", "attacker"),
+                ("data-readonly", "attacker"),
+                ("data-state", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
     }
 
     // --- hydration ---
@@ -517,9 +808,10 @@ mod tests {
 
     #[test]
     fn trigger_controls_payload_is_escaped_on_render() {
+        let props = DatePickerProps::default();
         let html = render(&trigger(
             OpenState::Closed,
-            false,
+            &props,
             Some(ATTR_BREAK_PAYLOAD),
             vec![],
             vec![],
@@ -530,15 +822,32 @@ mod tests {
 
     #[test]
     fn input_value_payload_is_escaped_on_render() {
-        let html = render(&input(Some(ATTR_BREAK_PAYLOAD), false, None, vec![]));
+        let props = DatePickerProps::default();
+        let html = render(&input(Some(ATTR_BREAK_PAYLOAD), &props, None, vec![]));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn label_for_payload_is_escaped_on_render() {
+        let props = DatePickerProps::default();
+        let html = render(&label(
+            &props,
+            None,
+            Some(ATTR_BREAK_PAYLOAD),
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
 
     #[test]
     fn caller_supplied_scope_and_part_are_dropped() {
+        let props = DatePickerProps::default();
         let html = render(&root(
             OpenState::Closed,
+            &props,
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));

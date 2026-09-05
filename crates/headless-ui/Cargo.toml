@@ -156,7 +156,16 @@ name = "fandhe-frontend-headless-ui"
 # 「同一版数への偶発的衝突をそのまま採用しない」原則
 # （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.41.0 へ
 # さらにマイナーバンプする。
-version = "0.41.0"
+# イシュー #1627（date-picker の参照突合）: `DatePickerProps` 新設に伴う
+# root/label/control/input/trigger/clear_trigger の破壊的シグネチャ変更
+# （マイナーバンプ）。
+# base ブランチ再取り込み（PR #1892, date-picker, 2026-09-05）: main（#1892
+# date-picker）が独立に本ブランチと同じ 0.41.0 へ到達していた（上記
+# date-picker の破壊的変更）。radio-group（本ブランチ, #1616）とは別内容の
+# ため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.42.0 へ
+# さらにマイナーバンプする。
+version = "0.42.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
