@@ -1595,6 +1595,9 @@ name = "fandhe-frontend-pre-styled-ui"
 # `(bool, bool, ...)` から `(&DateInputProps, ...)` へ変わる破壊的変更の
 # 波及であるため、headless-ui 0.43.0 への version 要求追随を含め
 # main 現在値 0.93.0 から 0.94.0 へマイナーバンプする。
+# イシュー #1630（toggle-group の参照突合、headless-ui 側の破壊的変更
+# `toggle_group::root`/`item` シグネチャ変更への追随）: `root_with_props`
+# 公開 API 追加 + headless-ui 0.44.0 依存追随を含み、マイナーバンプする。
 # base ブランチ再取り込み（PR #1893 マージ, イシュー #1618, 2026-09-05）: main
 # （#1893 date-input）が独立に本ブランチと同じ 0.94.0 へ到達していた（上記
 # date-input の破壊的変更再エクスポート波及）。segment-group（本ブランチ,

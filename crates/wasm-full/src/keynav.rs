@@ -548,15 +548,18 @@
 //!
 //! ## 既知のギャップ（本イシューでは対応しない、スコープ外）
 //!
-//! - **SSR 側の roving tabindex 初期状態**: `toggle_group::item` は
-//!   `tabindex` を出力しないため、最初の矢印キー押下までは全 item がタブ順
-//!   に入る（押下後に単一タブストップへ収束する）。恒久解は
-//!   `toggle_group::item` への `focused: bool` opt-in（`toolbar.rs` の
-//!   `roving_tabindex`/`drop_tabindex_attr` が先例）だが、公開 API の
-//!   破壊的変更のため本イシューでは扱わない。`wire_keynav` へマウント時の
-//!   DOM 正規化パスを新設する案は不採用（`wire_keynav` はリスナー登録以外の
-//!   DOM 変更を一切行わない契約であり、アプリ側が付けた `tabindex` と
-//!   競合しうるため）。
+//! - **SSR 側の roving tabindex 初期状態**: イシュー #1630 で
+//!   `toggle_group::ToggleGroupProps::roving_focus`（既定 `false`）+
+//!   `toggle_group::item` の `focused: bool` opt-in として解消済み
+//!   （`toolbar.rs` の `roving_tabindex`/`drop_tabindex_attr` と同型の
+//!   ヘルパを headless-ui 側が複製する形で追加した）。既定が `false` の
+//!   ため、`roving_focus` を明示的に有効化しない呼び出し側は従来どおり
+//!   全 item がタブ順に入る（後方互換）。`set_roving_tabindex`（本モジュール
+//!   `wiring::handle_toggle_group_item_keydown` が矢印キー後に呼ぶ、下記
+//!   参照）が実行時に `tabindex` を書き換える挙動自体は本解消の前後で不変
+//!   （`wire_keynav` はリスナー登録以外の DOM 変更を一切行わない契約を
+//!   保ったまま、DOM マウント後の初期値のみが SSR 出力側で選べるように
+//!   なった）。
 //!
 //! # TreeView のキーボード仕様（WAI-ARIA APG Tree View パターン準拠、イシュー #1072）
 //!

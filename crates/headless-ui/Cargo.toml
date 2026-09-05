@@ -221,6 +221,10 @@ name = "fandhe-frontend-headless-ui"
 # （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い、本ブランチの
 # 破壊的変更（`DateSegmentFlags` 削除・`date_input` シグネチャ変更・
 # `data-placeholder-shown` への改名）を理由にマイナーバンプで 0.43.0 とする。
+# イシュー #1630（toggle-group の参照突合）: `toggle_group::root`/`item` へ
+# `ToggleGroupProps`（disabled/orientation/roving_focus）引数を導入し、
+# 呼び出し側の引数個数・シグネチャが変わる破壊的変更のため、0.x の
+# マイナーバンプ（0.43.0 → 0.44.0）とする。
 # base ブランチ再取り込み（PR #1893 マージ, イシュー #1618, 2026-09-05）: main
 # （#1893 date-input）が独立に 0.43.0 へ到達しており、本ブランチ（#1618
 # segment-group、`SegmentGroupProps` 新設に伴う root/indicator/item 系/

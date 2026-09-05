@@ -4898,6 +4898,11 @@ fn toggle_section() -> Node {
 /// `{root, item}`（`component_specs::forms::TOGGLE_GROUP` の Demo
 /// フォールバックから本節へ移設）。
 fn toggle_group_section() -> Node {
+    // 各 item へ渡す `ToggleGroupProps` は対応する root と同一値にする
+    // （root/item 双方の `data-orientation`/`data-disabled` 出力が一貫する
+    // 契約、`crates/headless-ui/src/toggle_group.rs` モジュール doc
+    // 「参照突合」節参照。イシュー #1630）。
+    let horizontal_props = toggle_group::ToggleGroupProps::default();
     let horizontal = toggle_group::root(
         Size::Md,
         ColorPalette::Accent,
@@ -4906,11 +4911,39 @@ fn toggle_group_section() -> Node {
         None,
         vec![],
         vec![
-            toggle_group::item(false, false, "left", vec![], vec![text("Left")]),
-            toggle_group::item(true, false, "center", vec![], vec![text("Center")]),
-            toggle_group::item(false, false, "right", vec![], vec![text("Right")]),
+            toggle_group::item(
+                &horizontal_props,
+                false,
+                false,
+                false,
+                "left",
+                vec![],
+                vec![text("Left")],
+            ),
+            toggle_group::item(
+                &horizontal_props,
+                true,
+                false,
+                false,
+                "center",
+                vec![],
+                vec![text("Center")],
+            ),
+            toggle_group::item(
+                &horizontal_props,
+                false,
+                false,
+                false,
+                "right",
+                vec![],
+                vec![text("Right")],
+            ),
         ],
     );
+    let vertical_props = toggle_group::ToggleGroupProps {
+        orientation: Some(Orientation::Vertical),
+        ..toggle_group::ToggleGroupProps::default()
+    };
     let vertical = toggle_group::root(
         Size::Md,
         ColorPalette::Accent,
@@ -4919,11 +4952,39 @@ fn toggle_group_section() -> Node {
         None,
         vec![],
         vec![
-            toggle_group::item(true, false, "top", vec![], vec![text("Top")]),
-            toggle_group::item(false, false, "middle", vec![], vec![text("Middle")]),
-            toggle_group::item(false, false, "bottom", vec![], vec![text("Bottom")]),
+            toggle_group::item(
+                &vertical_props,
+                true,
+                false,
+                false,
+                "top",
+                vec![],
+                vec![text("Top")],
+            ),
+            toggle_group::item(
+                &vertical_props,
+                false,
+                false,
+                false,
+                "middle",
+                vec![],
+                vec![text("Middle")],
+            ),
+            toggle_group::item(
+                &vertical_props,
+                false,
+                false,
+                false,
+                "bottom",
+                vec![],
+                vec![text("Bottom")],
+            ),
         ],
     );
+    let disabled_props = toggle_group::ToggleGroupProps {
+        disabled: true,
+        ..toggle_group::ToggleGroupProps::default()
+    };
     let disabled = toggle_group::root(
         Size::Md,
         ColorPalette::Accent,
@@ -4932,8 +4993,24 @@ fn toggle_group_section() -> Node {
         None,
         vec![],
         vec![
-            toggle_group::item(false, true, "left", vec![], vec![text("Left")]),
-            toggle_group::item(false, true, "right", vec![], vec![text("Right")]),
+            toggle_group::item(
+                &disabled_props,
+                false,
+                false,
+                false,
+                "left",
+                vec![],
+                vec![text("Left")],
+            ),
+            toggle_group::item(
+                &disabled_props,
+                false,
+                false,
+                false,
+                "right",
+                vec![],
+                vec![text("Right")],
+            ),
         ],
     );
     section(

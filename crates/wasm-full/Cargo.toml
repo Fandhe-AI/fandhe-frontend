@@ -261,6 +261,9 @@ name = "fandhe-frontend-wasm-full"
 # ブランチ（#1626 date-input）は本クレートの src/ を変更しておらず、
 # headless-ui 依存の version 要求のみ 0.43.0 へ追随させるため、main 現在値
 # 0.10.0 から 0.10.1 へ patch バンプする。
+# イシュー #1630（toggle-group の参照突合）: `keynav.rs` の doc コメント
+# 更新（実ロジック変更なし）+ headless-ui 依存の version 要求を 0.44.0 へ
+# 追随させるため、patch バンプ（0.10.1 → 0.10.2）とする。
 # base ブランチ再取り込み（PR #1893 マージ, イシュー #1618, 2026-09-05）: main
 # （#1893 date-input）が独立に本ブランチと同じ 0.10.1 へ到達していた
 # （headless-ui 依存の version 要求追随のみ、実体変更なし）。同じ「同一版数

@@ -474,8 +474,11 @@
 //! - [`mod@toggle_group`]: Root/Item anatomy と、[`state::SingleSelect`] を
 //!   埋め込んだ single モード [`toggle_group::ToggleGroup`]、
 //!   [`state::MultiSelect`] を埋め込んだ multiple モード
-//!   [`toggle_group::MultiToggleGroup`]（イシュー #746）。roving focus は
-//!   wasm keynav 層のスコープとして未提供（モジュール doc §out-of-scope 参照）。
+//!   [`toggle_group::MultiToggleGroup`]（イシュー #746）。
+//!   [`toggle_group::ToggleGroupProps::roving_focus`]（既定 `false`）で
+//!   SSR 側の roving tabindex を opt-in 出力できる（イシュー #1630）が、
+//!   矢印キーの実 DOM 配線は引き続き wasm keynav 層のスコープ
+//!   （モジュール doc §out-of-scope 参照）。
 //! - [`mod@tree_view`]: Root / Label / Tree / Branch / BranchControl /
 //!   BranchIndicator / BranchText / BranchContent / BranchIndentGuide / Item /
 //!   ItemText / ItemIndicator の 12 anatomy パーツと、[`state::MultiSelect`]
@@ -801,7 +804,7 @@ pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
 pub use tags_input::{TagsInput, TagsInputAction};
 pub use toast::{ToastAction, ToastEntry, ToastPlacement, ToastStatus, Toaster};
 pub use toggle::{Toggle, ToggleAction};
-pub use toggle_group::{MultiToggleGroup, ToggleGroup};
+pub use toggle_group::{MultiToggleGroup, ToggleGroup, ToggleGroupProps};
 pub use toggle_tip::ToggleTip;
 pub use toolbar::{Toolbar, ToolbarAction};
 pub use tooltip::Tooltip;

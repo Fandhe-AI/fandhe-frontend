@@ -486,6 +486,8 @@ fn select_item_data_value_xss_payload_is_escaped_on_render() {
 #[test]
 fn toggle_group_item_click_toggles_pressed_value() {
     let html = render(&toggle_group::item(
+        &toggle_group::ToggleGroupProps::default(),
+        false,
         false,
         false,
         "bold",
