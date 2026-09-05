@@ -356,6 +356,7 @@ pub fn indicator<'a>(
 
 /// Carousel のアクション（WASM 境界の文字列 dispatch と
 /// [`Carousel::decode_action`] で接続する）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CarouselAction {
     /// 次のスライドへ進む（末尾かつ `loop` 無効なら no-op）。
     Next,
