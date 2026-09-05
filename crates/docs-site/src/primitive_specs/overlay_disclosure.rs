@@ -66,6 +66,16 @@
 //! `COLLAPSIBLE.keyboard` のみ 2 行を持つ（他 9 部品の `keyboard: &[]` は
 //! 不変）。
 //!
+//! **`hover_card` は #1641 で 2 例目の例外を追加した**: `trigger`
+//! （`crates/headless-ui/src/hover_card.rs:150-162`）はネイティブ `<a>` 要素
+//! であり、`href` が `Some` のときブラウザ標準で Tab フォーカス到達・
+//! Enter によるリンク遷移が成立する（`fandhe-frontend-wasm-full` 側の
+//! hover/focus タイマー配線は未実装だが、この 2 行はネイティブ `<a>` の
+//! 挙動そのものであり配線の有無に依存しない）。Radix の「Tab で hover
+//! card を開閉」に相当する focus/blur 駆動の開閉配線は未配線のため書か
+//! ない（`HOVER_CARD.keyboard` は 2 行、`COLLAPSIBLE.keyboard` と合わせて
+//! 他 8 部品の `keyboard: &[]` は不変）。
+//!
 //! # `hover_card` の Accessibility 節が空にならない理由
 //!
 //! `hover_card` は `aria-expanded`/`aria-controls`/`aria-haspopup` を
@@ -97,7 +107,7 @@
 //! 層）は一切呼ばない（受け入れ条件 3）。ダミー文字列は無害なもの
 //! （`example.com` 等の予約ドメイン、架空の名前）に限る。
 
-use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_core::{code, div, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::accordion;
 use hui::collapsible;
@@ -112,6 +122,21 @@ use hui::tooltip;
 use hui::OpenState;
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
+
+/// Examples 用の枠組み（`forms_a.rs::wrap_example`/`forms_c_date_status.rs::wrap_example`
+/// と同型。[`crate::primitive_showcase`] のデモ本体と同じ
+/// `primitives-demo-frame`/`primitives-demo-note` class のみを使い、
+/// `h2`/`h3` は出さない）。イシュー #1641 で「自前 CSS を当てる最小例」を
+/// 追加するために本モジュールへ初めて導入した。
+fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
+    div(
+        vec![],
+        vec![
+            p(vec![("class", "primitives-demo-note")], vec![text(note)]),
+            div(vec![("class", "primitives-demo-frame")], body),
+        ],
+    )
+}
 
 // ---------------------------------------------------------------------
 // Accordion（/primitives/accordion/）
@@ -1151,11 +1176,75 @@ fn ex_hover_card_custom_delays() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1641、`CHECKBOX_CUSTOM_CSS_SNIPPET`/
+/// `ex_checkbox_custom_css`〔forms_a.rs、#1602〕と同型のパターン）。CSS は
+/// テキストノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const HOVER_CARD_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"hover-card\"][data-part=\"content\"] {\n  \
+  border: 1px solid #888;\n  border-radius: 8px;\n  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);\n\
+}\n\
+[data-scope=\"hover-card\"][data-part=\"content\"][data-state=\"closed\"] {\n  \
+  display: none;\n\
+}\n\
+[data-scope=\"hover-card\"][data-part=\"trigger\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n\
+[data-scope=\"hover-card\"][data-part=\"positioner\"][data-side=\"top\"] {\n  \
+  margin-bottom: 8px;\n\
+}\n";
+
+/// 一次情報: `crates/headless-ui/src/hover_card.rs:1-40`（モジュール doc、
+/// `aria-expanded`/`aria-controls`/`aria-haspopup` を付与しない理由、
+/// `HoverCardDelays` の遅延設定値）、`:123-236`（`root`/`trigger`/
+/// `positioner`/`content`/`arrow`/`arrow_tip` シグネチャ）。イシュー #1641
+/// の参照突合結果を踏まえ、利用者が `data-scope`/`data-part`/`data-state`/
+/// `data-side` セレクタで自前 CSS を当てる最小例を示す。
+fn ex_hover_card_custom_css() -> Node {
+    let state = OpenState::Open;
+    let markup = hover_card::root(
+        state,
+        HoverCardDelays::default(),
+        vec![],
+        vec![
+            hover_card::trigger(
+                state,
+                Some("https://example.com/profile"),
+                vec![],
+                vec![text("@example")],
+            ),
+            hover_card::positioner(
+                state,
+                vec![("data-side", "top")],
+                vec![hover_card::content(
+                    state,
+                    None,
+                    vec![],
+                    vec![text("Custom-styled preview card.")],
+                )],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-side セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(HOVER_CARD_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Trigger / Positioner / Content / Arrow / ArrowTip の 6 anatomy パーツと、Disclosure を埋め込んだ開閉状態機械 HoverCard を提供する。trigger はリンク先プレビュー用途の a 要素であり、Tooltip とはこの点が異なる。",
         "HoverCardDelays（open_ms 既定 600 / close_ms 既定 300、ark-ui 既定値）を data-open-delay/data-close-delay（10 進の ms 値のみ）として決定的に出力する。実際の hover/focus タイマー駆動は wasm-full 側の責務でスコープ外。",
         "WAI-ARIA に hover card 専用パターンが存在しないため、aria-expanded/aria-controls/aria-haspopup 及び content への固定 role を一切付与しない（Tooltip/Popover との違い）。",
+        "ark-ui の Root > Trigger > Positioner > (Arrow > ArrowTip) + Content の 6 パートと完全一致（イシュー #1641 で Zag.js `hover-card.connect.ts`・Radix Primitives と突合、是正なし）。data-side/data-align は positioner へ透過させる（tooltip/popover と同型の positioning 規約、#590）。",
     ],
     arguments: &[
         ArgRow {
@@ -1201,20 +1290,36 @@ pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
             description: "呼び出し側が任意に使える id（本モジュールは固定の aria-describedby を配線しない）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Custom delays",
-        description: "open_ms/close_ms を既定値（600/300）から変更し、開くまでの遅延を短く・閉じるまでの遅延を長くした例です。",
-        render: ex_hover_card_custom_delays,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Custom delays",
+            description: "open_ms/close_ms を既定値（600/300）から変更し、開くまでの遅延を短く・閉じるまでの遅延を長くした例です。",
+            render: ex_hover_card_custom_delays,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "data-scope / data-part / data-state / data-side セレクタで自前 CSS を当てる最小例です。",
+            render: ex_hover_card_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "trigger はネイティブ a 要素（hover_card.rs:150-162）のため、href が Some のときブラウザ標準でフォーカス到達する。Radix の「Tab で hover card を開閉」に相当する focus/blur 配線は fandhe-frontend-wasm-full 側の責務で未配線。",
+        },
+        KeyRow {
+            key: "Enter",
+            description: "href が Some の trigger でリンク先へ遷移する（ブラウザ標準）。hover card 自体の開閉はこのキー操作では行わない。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-expanded / aria-controls / aria-haspopup（非付与）",
-            description: "WAI-ARIA に hover card 専用パターンが無いため、trigger には付与しない。",
+            description: "WAI-ARIA に hover card 専用パターンが無いため、trigger には付与しない（Zag.js `hover-card.connect.ts`・Radix Primitives とも一致、イシュー #1641 突合）。",
         },
         AriaRow {
             attribute: "role（非付与）",
-            description: "content にも固定 role を付与しない。",
+            description: "content にも固定 role を付与しない（Zag.js・Radix とも一致）。Radix の Accessibility 注記: hover card は視覚ユーザー向けであり、content はキーボードユーザーには（フォーカス配線が無い限り）到達不能。",
         },
         AriaRow {
             attribute: "aria-hidden=\"true\"",
@@ -1771,20 +1876,23 @@ mod tests {
             );
             assert!(!spec.aria.is_empty(), "{path}: aria must not be empty");
             // collapsible（イシュー #1637）・dialog（イシュー #1638）・
-            // popover（イシュー #1642）のみ例外: collapsible は trigger が
-            // ネイティブ <button> のため Space/Enter が標準操作として成立し、
-            // dialog・popover は fandhe-frontend-wasm-full 側
-            // （overlay/focus_trap/headless）の実 DOM 配線を確認できたため。
-            // 他 7 部品はキー割り当てを持つ実装が無いため keyboard: &[] を
-            // 維持する（モジュール doc「keyboard を 10 件すべて空にする
-            // 理由」参照）。
+            // popover（イシュー #1642）・hover-card（イシュー #1641）のみ
+            // 例外: collapsible は trigger がネイティブ <button> のため
+            // Space/Enter が標準操作として成立し、dialog・popover は
+            // fandhe-frontend-wasm-full 側（overlay/focus_trap/headless）の
+            // 実 DOM 配線を確認できたため、hover-card は trigger がネイティブ
+            // <a> のため href が Some のときの Tab フォーカス到達・Enter
+            // 遷移がブラウザ標準として成立するため。他 6 部品はキー割り当て
+            // を持つ実装が無いため keyboard: &[] を維持する（モジュール doc
+            // 「keyboard を 10 件すべて空にする理由」参照）。
             if *path == "/primitives/collapsible/"
                 || *path == "/primitives/dialog/"
                 || *path == "/primitives/popover/"
+                || *path == "/primitives/hover-card/"
             {
                 assert!(
                     !spec.keyboard.is_empty(),
-                    "{path}: keyboard should hold the documented rows (#1637/#1638/#1642)"
+                    "{path}: keyboard should hold the documented rows (#1637/#1638/#1641/#1642)"
                 );
             } else {
                 assert!(
