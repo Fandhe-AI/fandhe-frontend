@@ -37,12 +37,61 @@
 //!
 //! | キー | アクション | payload |
 //! |---|---|---|
-//! | `ArrowUp` | （同期）`"set"` → `"increment"` | `input.value` → なし |
-//! | `ArrowDown` | （同期）`"set"` → `"decrement"` | `input.value` → なし |
-//! | `Home` | `"home"` | なし |
-//! | `End` | `"end"` | なし |
-//! | `Enter`（`input.value` が空でない） | `"set"` | `input` 要素の現在の `value`（未確定のタイプ中文字列） |
-//! | `Enter`（`input.value` が trim 後空文字） | `"clear"` | なし |
+//! | `ArrowUp` | （同期）`"set"`（または後述の上書き名） → `"increment"` | `input.value` → Input の `name` 属性値 |
+//! | `ArrowDown` | （同期）`"set"`（または後述の上書き名） → `"decrement"` | `input.value` → Input の `name` 属性値 |
+//! | `Home` | `"home"` | Input の `name` 属性値 |
+//! | `End` | `"end"` | Input の `name` 属性値 |
+//! | `Enter`（`input.value` が空でない） | `"set"`（または後述の上書き名） | `input` 要素の現在の `value`（未確定のタイプ中文字列） |
+//! | `Enter`（`input.value` が trim 後空文字） | `"clear"` | Input の `name` 属性値 |
+//!
+//! # 複数インスタンスの識別（PR #1881 codex-review P1 是正）
+//!
+//! `Runtime::mount`/`Runtime::hydrate`（`crate::lib::Runtime`）はアプリ全体の
+//! root へ 1 回だけ本モジュールの keydown リスナーを登録するため、同一
+//! root 配下に複数の NumberInput（例: 数量と価格）がある場合、アプリの
+//! 単一 `Component::decode_action` は dispatch された `(action, payload)`
+//! だけで更新先を区別できなければならない。当初の実装は
+//! `"set"`/`"increment"` 等の固定アクション名のみを dispatch しており、
+//! どちらの Input で ArrowUp を押しても同一の `(action, payload)` になり
+//! 区別不能だった（codex-review P1 指摘）。本モジュールは以下の 2 つの
+//! **既存契約**を再利用してこれを解消する（新しい payload エンコーディング
+//! は発明しない）:
+//!
+//! - **Set**（Enter 確定・Arrow 前の同期 `"set"`）: Input パーツに
+//!   `data-action-input` 属性（[`crate::events::ACTION_INPUT_ATTR`]、
+//!   `crate::events` の input イベント配線と同じ属性契約）があれば、その
+//!   値をアプリ定義のアクション名としてそのまま使う（例:
+//!   `data-action-input="price_set"`）。無ければ従来どおり固定名
+//!   [`ACTION_SET`] のまま（単一インスタンスモード、後方互換）。payload は
+//!   いずれの場合も `input.value` そのもの。
+//! - **Increment/Decrement/Home/End/Clear**: アクション名は固定のまま
+//!   変えず、payload へ Input パーツの `name` 属性値を載せる
+//!   （[`crate::splitter`] が trigger index を payload に載せて複数
+//!   トリガーを識別する設計と同型）。`name` は
+//!   [`fandhe_frontend_headless_ui::number_input::input`] の必須引数で
+//!   あり常に出力されるため、追加の属性契約を新設する必要がない。
+//!
+//! アプリ側は例えば以下のように `decode_action` を書いて 2 インスタンスを
+//! 区別できる:
+//!
+//! ```text
+//! fn decode_action(name: &str, payload: &str) -> Option<Action> {
+//!     match name {
+//!         "price_set" => payload.parse().ok().map(Action::SetPrice),
+//!         "qty_set" => payload.parse().ok().map(Action::SetQty),
+//!         "increment" if payload == "qty" => Some(Action::IncrementQty),
+//!         "increment" if payload == "price" => Some(Action::IncrementPrice),
+//!         // ...
+//!         _ => None,
+//!     }
+//! }
+//! ```
+//!
+//! `data-action-input` を付けない・`name` を区別しない単一インスタンス
+//! アプリ（[`fandhe_frontend_headless_ui::number_input::NumberInput`] 自身を
+//! `Component` として使う経路。`crates/wasm-full/tests/number_input_browser.rs`
+//! 参照）では、[`fandhe_frontend_headless_ui::number_input::NumberInput::decode_action`]
+//! がこれらの payload をすべて無視するため挙動は変わらない（後方互換）。
 //!
 //! `ArrowUp`/`ArrowDown` は、キャレット確定前にタイプ中の `input.value` が
 //! 状態値と食い違っているケース（例: 状態値 5 のまま入力欄を 8 に書き換えて
@@ -100,6 +149,7 @@
 //!   是正その 3。変換中の候補選択キーで数値が意図せず上書きされることを
 //!   防ぐ）。
 
+use crate::events::{ActionRef, AttrSource, ACTION_INPUT_ATTR};
 use crate::keynav::Modifiers;
 
 /// dispatch アクション名 `"increment"`。
@@ -167,6 +217,100 @@ pub fn action_for_key(key: &str, modifiers: Modifiers) -> Option<KeyAction> {
     }
 }
 
+/// Input パーツの `name` 属性値を dispatch payload として読む
+/// （空文字許容・欠落時は空文字列、モジュール冒頭 doc「複数インスタンスの
+/// 識別」節参照）。`name` は
+/// [`fandhe_frontend_headless_ui::number_input::input`] の必須引数であり
+/// 常に出力される。
+fn instance_payload(input: &impl AttrSource) -> String {
+    input.attr("name").unwrap_or_default()
+}
+
+/// `"set"`（Enter 確定・Arrow 前の同期）の dispatch アクション名を決定する。
+///
+/// Input パーツに [`ACTION_INPUT_ATTR`]（`data-action-input`）があれば
+/// そのアプリ定義アクション名を使う（`crate::events` の input イベント
+/// 配線と同じ属性契約の再利用、モジュール冒頭 doc 参照）。無ければ
+/// 固定名 [`ACTION_SET`]（単一インスタンスモード、後方互換）。
+fn set_action_name(input: &impl AttrSource) -> String {
+    input
+        .attr(ACTION_INPUT_ATTR)
+        .unwrap_or_else(|| ACTION_SET.to_string())
+}
+
+/// [`action_for_key`] が決定した [`KeyAction`] から、実際に dispatch すべき
+/// `ActionRef` 列を組み立てる純粋関数（web-sys 非依存、native
+/// `cargo test` で検証可能。`crate::events::AttrSource` を介して Input
+/// パーツの属性を読むだけで DOM には触れない）。
+///
+/// `input` は Input パーツの属性読み取り抽象（[`AttrSource`]）、
+/// `raw_value` はキャレット確定前の `input.value`
+/// （Increment/Decrement/Set が参照する、モジュール冒頭 doc「dispatch と
+/// アクションの対応」節参照）。返り値は 1〜2 件（Increment/Decrement の
+/// みキャレット確定前の値を同期する `"set"` を先に含む 2 件、それ以外は
+/// 1 件）。
+///
+/// 複数インスタンスの識別方式はモジュール冒頭 doc「複数インスタンスの
+/// 識別」節参照。
+#[must_use]
+pub fn resolve_dispatches(
+    key_action: KeyAction,
+    input: &impl AttrSource,
+    raw_value: &str,
+) -> Vec<ActionRef> {
+    match key_action {
+        // PR #1881 codex-review P1 是正その 1: 増減の直前にタイプ中の
+        // `input.value` を `"set"`（または上書き名）として同期 dispatch
+        // する。値がパース不能・非有限な場合は `decode_action` が no-op
+        // として無視するため、増減は編集前の状態値のまま安全に行われる
+        // （fail-closed、モジュール冒頭 doc 参照）。
+        KeyAction::Increment => vec![
+            ActionRef {
+                action: set_action_name(input),
+                payload: raw_value.to_string(),
+            },
+            ActionRef {
+                action: ACTION_INCREMENT.to_string(),
+                payload: instance_payload(input),
+            },
+        ],
+        KeyAction::Decrement => vec![
+            ActionRef {
+                action: set_action_name(input),
+                payload: raw_value.to_string(),
+            },
+            ActionRef {
+                action: ACTION_DECREMENT.to_string(),
+                payload: instance_payload(input),
+            },
+        ],
+        KeyAction::Home => vec![ActionRef {
+            action: ACTION_HOME.to_string(),
+            payload: instance_payload(input),
+        }],
+        KeyAction::End => vec![ActionRef {
+            action: ACTION_END.to_string(),
+            payload: instance_payload(input),
+        }],
+        // PR #1881 codex-review P1 是正その 2: trim 後空文字は `"set"`
+        // （`decode_action` が空文字列パース失敗で no-op にし旧値が残留
+        // する）ではなく `"clear"` へ分岐し、未入力状態へ正しく同期する。
+        KeyAction::Set => {
+            if raw_value.trim().is_empty() {
+                vec![ActionRef {
+                    action: ACTION_CLEAR.to_string(),
+                    payload: instance_payload(input),
+                }]
+            } else {
+                vec![ActionRef {
+                    action: set_action_name(input),
+                    payload: raw_value.to_string(),
+                }]
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------
 // 配線層: web-sys/js-sys 依存。wasm32 ターゲットでのみコンパイル対象とし、
 // native の `cargo test --workspace` に本層の DOM 依存コードを混入させない
@@ -174,8 +318,8 @@ pub fn action_for_key(key: &str, modifiers: Modifiers) -> Option<KeyAction> {
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::action_for_key;
-    use crate::events::ActionRef;
+    use super::{action_for_key, resolve_dispatches};
+    use crate::events::{ActionRef, AttrSource};
     use crate::keynav::Modifiers;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -186,6 +330,18 @@ mod wiring {
     const NUMBER_INPUT_SCOPE: &str = "number-input";
     /// NumberInput Input パーツの `data-part` 属性値。
     const INPUT_PART: &str = "input";
+
+    /// `web_sys::Element` を [`AttrSource`] に橋渡しする薄いラッパー
+    /// （`events.rs::wiring::ElementAttrSource`/`overlay.rs` と同じ意図の
+    /// 配線層専用アダプタ）。[`super::resolve_dispatches`] を web-sys の
+    /// 具象型から独立させたまま呼び出すために使う。
+    struct ElementAttrSource<'a>(&'a Element);
+
+    impl AttrSource for ElementAttrSource<'_> {
+        fn attr(&self, name: &str) -> Option<String> {
+            self.0.get_attribute(name)
+        }
+    }
 
     /// `event` から [`Modifiers`] を抽出する（`crate::keynav::modifiers_of`
     /// と同型の判断だが `pub(crate)` ではないためここで個別定義する）。
@@ -304,45 +460,16 @@ mod wiring {
 
         keyboard_event.prevent_default();
 
-        let dispatch_one = |action: &'static str, payload: String| {
+        // dispatch すべき `ActionRef` 列の決定は純粋関数
+        // `super::resolve_dispatches` に委ねる（PR #1881 codex-review P1
+        // 是正: 複数インスタンス識別のためのアクション名上書き
+        // （`data-action-input`）・payload への `name` 属性値埋め込みは
+        // モジュール冒頭 doc「複数インスタンスの識別」節参照）。ここでは
+        // Element を `AttrSource` へ橋渡ししてから呼び出すだけに留める。
+        let source = ElementAttrSource(target_element);
+        for action_ref in resolve_dispatches(key_action, &source, &raw_value) {
             if let Ok(mut cb) = on_action.try_borrow_mut() {
-                (cb)(ActionRef {
-                    action: action.to_string(),
-                    payload,
-                });
-            }
-        };
-
-        match key_action {
-            // PR #1881 codex-review P1 是正その 1: 増減の直前にタイプ中の
-            // `input.value` を `"set"` として同期 dispatch する。値が
-            // パース不能・非有限な場合は `decode_action` が no-op として
-            // 無視するため、増減は編集前の状態値のまま安全に行われる
-            // （fail-closed、モジュール冒頭 doc 参照）。
-            super::KeyAction::Increment => {
-                dispatch_one(super::ACTION_SET, raw_value);
-                dispatch_one(super::ACTION_INCREMENT, String::new());
-            }
-            super::KeyAction::Decrement => {
-                dispatch_one(super::ACTION_SET, raw_value);
-                dispatch_one(super::ACTION_DECREMENT, String::new());
-            }
-            super::KeyAction::Home => {
-                dispatch_one(super::ACTION_HOME, String::new());
-            }
-            super::KeyAction::End => {
-                dispatch_one(super::ACTION_END, String::new());
-            }
-            // PR #1881 codex-review P1 是正その 2: trim 後空文字は
-            // `"set"`（`decode_action` が空文字列パース失敗で no-op にし
-            // 旧値が残留する）ではなく `"clear"` へ分岐し、未入力状態へ
-            // 正しく同期する。
-            super::KeyAction::Set => {
-                if raw_value.trim().is_empty() {
-                    dispatch_one(super::ACTION_CLEAR, String::new());
-                } else {
-                    dispatch_one(super::ACTION_SET, raw_value);
-                }
+                (cb)(action_ref);
             }
         }
     }
@@ -499,5 +626,213 @@ mod tests {
     #[test]
     fn action_clear_matches_decode_action_contract() {
         assert_eq!(ACTION_CLEAR, "clear");
+    }
+
+    // --- resolve_dispatches（PR #1881 codex-review P1 是正: 複数
+    // インスタンス識別）---
+
+    /// native `cargo test` 用のテストダブル（`overlay.rs`/`events.rs` の
+    /// `FakeElement` と同型）。
+    struct FakeInput {
+        attrs: std::collections::HashMap<&'static str, &'static str>,
+    }
+
+    impl AttrSource for FakeInput {
+        fn attr(&self, name: &str) -> Option<String> {
+            self.attrs.get(name).map(|v| v.to_string())
+        }
+    }
+
+    fn input_with(attrs: &[(&'static str, &'static str)]) -> FakeInput {
+        FakeInput {
+            attrs: attrs.iter().copied().collect(),
+        }
+    }
+
+    /// `data-action-input` も `name` も無い最小構成（単一インスタンス
+    /// モード）: 固定アクション名のまま、増減/Home/End の payload は空文字
+    /// （後方互換、`NumberInput::decode_action` が payload を無視する契約と
+    /// 整合）。
+    #[test]
+    fn resolve_dispatches_single_instance_mode_uses_fixed_names_and_empty_payload() {
+        let input = input_with(&[]);
+
+        assert_eq!(
+            resolve_dispatches(KeyAction::Increment, &input, "5"),
+            vec![
+                ActionRef {
+                    action: "set".to_string(),
+                    payload: "5".to_string(),
+                },
+                ActionRef {
+                    action: "increment".to_string(),
+                    payload: String::new(),
+                },
+            ]
+        );
+        assert_eq!(
+            resolve_dispatches(KeyAction::Home, &input, ""),
+            vec![ActionRef {
+                action: "home".to_string(),
+                payload: String::new(),
+            }]
+        );
+        assert_eq!(
+            resolve_dispatches(KeyAction::Set, &input, "5"),
+            vec![ActionRef {
+                action: "set".to_string(),
+                payload: "5".to_string(),
+            }]
+        );
+        assert_eq!(
+            resolve_dispatches(KeyAction::Set, &input, "   "),
+            vec![ActionRef {
+                action: "clear".to_string(),
+                payload: String::new(),
+            }]
+        );
+    }
+
+    /// `name` 属性がある（`data-action-input` は無い）構成: 固定アクション名
+    /// は変わらないが、増減/Home/End/Clear の payload に `name` が載る
+    /// （[`crate::splitter`] の trigger index と同型の識別方式）。
+    #[test]
+    fn resolve_dispatches_increment_decrement_home_end_clear_carry_name_in_payload() {
+        let qty = input_with(&[("name", "qty")]);
+        let price = input_with(&[("name", "price")]);
+
+        assert_eq!(
+            resolve_dispatches(KeyAction::Increment, &qty, "5")[1],
+            ActionRef {
+                action: "increment".to_string(),
+                payload: "qty".to_string(),
+            }
+        );
+        assert_eq!(
+            resolve_dispatches(KeyAction::Increment, &price, "5")[1],
+            ActionRef {
+                action: "increment".to_string(),
+                payload: "price".to_string(),
+            }
+        );
+        assert_eq!(
+            resolve_dispatches(KeyAction::Decrement, &price, "5")[1],
+            ActionRef {
+                action: "decrement".to_string(),
+                payload: "price".to_string(),
+            }
+        );
+        assert_eq!(
+            resolve_dispatches(KeyAction::Home, &price, "")[0],
+            ActionRef {
+                action: "home".to_string(),
+                payload: "price".to_string(),
+            }
+        );
+        assert_eq!(
+            resolve_dispatches(KeyAction::End, &price, "")[0],
+            ActionRef {
+                action: "end".to_string(),
+                payload: "price".to_string(),
+            }
+        );
+        assert_eq!(
+            resolve_dispatches(KeyAction::Set, &price, "  ")[0],
+            ActionRef {
+                action: "clear".to_string(),
+                payload: "price".to_string(),
+            }
+        );
+    }
+
+    /// `data-action-input` がある構成: `"set"`（Enter 確定・Arrow 前の
+    /// 同期）のアクション名がその値へ上書きされる。payload は
+    /// `input.value` のまま変わらない（`crate::events::ACTION_INPUT_ATTR`
+    /// 契約の再利用）。
+    #[test]
+    fn resolve_dispatches_set_action_name_overridden_by_data_action_input() {
+        let price = input_with(&[("name", "price"), ("data-action-input", "price_set")]);
+
+        assert_eq!(
+            resolve_dispatches(KeyAction::Set, &price, "9.5")[0],
+            ActionRef {
+                action: "price_set".to_string(),
+                payload: "9.5".to_string(),
+            }
+        );
+        // Increment の同期 "set" も上書き名を使う。
+        assert_eq!(
+            resolve_dispatches(KeyAction::Increment, &price, "9.5")[0],
+            ActionRef {
+                action: "price_set".to_string(),
+                payload: "9.5".to_string(),
+            }
+        );
+        // increment 自体のアクション名は変わらない（payload のみ name）。
+        assert_eq!(
+            resolve_dispatches(KeyAction::Increment, &price, "9.5")[1],
+            ActionRef {
+                action: "increment".to_string(),
+                payload: "price".to_string(),
+            }
+        );
+    }
+
+    /// `data-action-input` があっても Enter 確定時の trim 後空文字は
+    /// `"clear"`（固定名 + `name` payload）へ分岐し、`"set"` 上書き名は
+    /// 使われない（PR #1881 codex-review P1 是正その 2 との整合。空欄
+    /// 確定を上書きアクション名の `"set"` へ回すと `decode_action` 側で
+    /// クリア専用の分岐が必要になり複数インスタンス契約が破綻するため）。
+    #[test]
+    fn resolve_dispatches_clear_ignores_data_action_input_override() {
+        let price = input_with(&[("name", "price"), ("data-action-input", "price_set")]);
+
+        assert_eq!(
+            resolve_dispatches(KeyAction::Set, &price, ""),
+            vec![ActionRef {
+                action: "clear".to_string(),
+                payload: "price".to_string(),
+            }]
+        );
+    }
+
+    /// 2 インスタンス（qty/price）で dispatch 列が完全に異なることを固定する
+    /// 回帰テスト（PR #1881 codex-review P1 「片方の ArrowUp が同じ
+    /// `(action, payload)` になり区別できない」の是正確認）。
+    #[test]
+    fn resolve_dispatches_distinguishes_two_instances_end_to_end() {
+        let qty = input_with(&[("name", "qty"), ("data-action-input", "qty_set")]);
+        let price = input_with(&[("name", "price"), ("data-action-input", "price_set")]);
+
+        let qty_dispatches = resolve_dispatches(KeyAction::Increment, &qty, "5");
+        let price_dispatches = resolve_dispatches(KeyAction::Increment, &price, "5");
+
+        assert_ne!(qty_dispatches, price_dispatches);
+        assert_eq!(
+            qty_dispatches,
+            vec![
+                ActionRef {
+                    action: "qty_set".to_string(),
+                    payload: "5".to_string(),
+                },
+                ActionRef {
+                    action: "increment".to_string(),
+                    payload: "qty".to_string(),
+                },
+            ]
+        );
+        assert_eq!(
+            price_dispatches,
+            vec![
+                ActionRef {
+                    action: "price_set".to_string(),
+                    payload: "5".to_string(),
+                },
+                ActionRef {
+                    action: "increment".to_string(),
+                    payload: "price".to_string(),
+                },
+            ]
+        );
     }
 }

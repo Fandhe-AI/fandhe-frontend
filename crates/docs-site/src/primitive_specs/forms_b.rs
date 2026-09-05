@@ -158,11 +158,12 @@ const NUMBER_INPUT: ComponentPageSpec = ComponentPageSpec {
         },
     ],
     keyboard: &[
-        KeyRow { key: "ArrowUp", description: "`step` 分だけ増加する（`\"increment\"` dispatch。fandhe-frontend-wasm-full の number_input::action_for_key で配線済み、イシュー #1613 PR #1881）。" },
+        KeyRow { key: "ArrowUp", description: "`step` 分だけ増加する（`\"increment\"` dispatch、payload は input の `name` 属性値。fandhe-frontend-wasm-full の number_input::resolve_dispatches で配線済み、イシュー #1613 PR #1881）。" },
         KeyRow { key: "ArrowDown", description: "`step` 分だけ減少する（`\"decrement\"` dispatch、同上）。" },
-        KeyRow { key: "Home", description: "値を `min` に設定する（`\"home\"` dispatch。fandhe-frontend-wasm-full の number_input::action_for_key で配線済み、イシュー #1613 PR #1881）。" },
+        KeyRow { key: "Home", description: "値を `min` に設定する（`\"home\"` dispatch、payload は input の `name` 属性値。fandhe-frontend-wasm-full の number_input::resolve_dispatches で配線済み、イシュー #1613 PR #1881）。" },
         KeyRow { key: "End", description: "値を `max` に設定する（`\"end\"` dispatch、同上）。" },
-        KeyRow { key: "Enter", description: "input 要素にタイプ中の値を確定する（`\"set\"` dispatch、payload は input.value。fandhe-frontend-wasm-full の number_input::action_for_key で配線済み、イシュー #1613 PR #1881。不正な文字列は decode_action が fail-closed に拒否する）。" },
+        KeyRow { key: "Enter", description: "input 要素にタイプ中の値を確定する（`\"set\"` dispatch、payload は input.value。fandhe-frontend-wasm-full の number_input::resolve_dispatches で配線済み、イシュー #1613 PR #1881。不正な文字列は decode_action が fail-closed に拒否する）。" },
+        KeyRow { key: "（複数インスタンスの識別）", description: "同一 root 配下に複数の NumberInput を置く場合、input パーツへ `data-action-input=\"<アプリ定義のアクション名>\"` を付けると Enter/Arrow の確定 dispatch（`\"set\"`）がその名前へ上書きされる（`crate::events` の input イベント配線と同じ属性契約）。increment/decrement/home/end/clear は固定アクション名のまま payload に input の `name` 属性値が載るため、アプリの `decode_action` は `name`/`payload` の組み合わせで更新先を区別できる（イシュー #1613 PR #1881 codex-review P1 是正）。" },
     ],
     aria: &[
         AriaRow { attribute: "role=\"spinbutton\" (input)", description: "WAI-ARIA spinbutton パターン。ネイティブ `<input type=\"number\">` ではなく `type=\"text\"` を使うため native な上下キー増減はブラウザ標準では成立しないが、fandhe-frontend-wasm-full の keydown 配線（ArrowUp/ArrowDown/Home/End/Enter）が `\"increment\"`/`\"decrement\"`/`\"home\"`/`\"end\"`/`\"set\"` を dispatch することで同等の操作を実現する（イシュー #1613 PR #1881、下記 Keyboard 節参照）。" },

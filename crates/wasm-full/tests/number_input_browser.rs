@@ -20,7 +20,11 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_headless_ui::number_input::{NumberInput, NumberInputFlags};
-use fandhe_frontend_wasm_full::number_input::wire_number_input_component;
+use fandhe_frontend_interactive::Component;
+use fandhe_frontend_wasm_full::events::ActionRef;
+use fandhe_frontend_wasm_full::number_input::{
+    wire_number_input_component, wire_number_input_events,
+};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
@@ -596,4 +600,191 @@ fn composing_enter_is_ignored_and_default_not_prevented() {
         Some(5.0),
         "IME 変換中の Enter は set/clear のいずれも実行されず値が変わらないこと"
     );
+}
+
+// ---------------------------------------------------------------------
+// 複数インスタンス識別（PR #1881 codex-review P1 是正）の実ブラウザ回帰。
+// ---------------------------------------------------------------------
+
+/// テスト専用の 2 フィールド `Component`（数量 `qty`・価格 `price`）。
+/// `decode_action` は [`fandhe_frontend_wasm_full::number_input`] モジュール
+/// 冒頭 doc「複数インスタンスの識別」節が示す書き方をそのまま実装し、
+/// `data-action-input`（"qty_set"/"price_set"）・increment/decrement の
+/// payload（`name` 属性値 "qty"/"price"）で更新先を振り分ける。
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct TwoFieldAction {
+    field: Field,
+    op: Op,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Field {
+    Qty,
+    Price,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Op {
+    Set(f64),
+    Increment,
+}
+
+#[derive(Debug, Clone, Default)]
+struct TwoFieldState {
+    qty: f64,
+    price: f64,
+}
+
+impl Component for TwoFieldState {
+    type Action = TwoFieldAction;
+
+    fn update(&mut self, action: TwoFieldAction) {
+        let value = match action.op {
+            Op::Set(v) => v,
+            Op::Increment => match action.field {
+                Field::Qty => self.qty + 1.0,
+                Field::Price => self.price + 1.0,
+            },
+        };
+        match action.field {
+            Field::Qty => self.qty = value,
+            Field::Price => self.price = value,
+        }
+    }
+
+    fn view(&self) -> fandhe_frontend_core::Node {
+        fandhe_frontend_core::text("")
+    }
+
+    fn decode_action(name: &str, payload: &str) -> Option<TwoFieldAction> {
+        match name {
+            "qty_set" => payload.parse::<f64>().ok().map(|v| TwoFieldAction {
+                field: Field::Qty,
+                op: Op::Set(v),
+            }),
+            "price_set" => payload.parse::<f64>().ok().map(|v| TwoFieldAction {
+                field: Field::Price,
+                op: Op::Set(v),
+            }),
+            "increment" if payload == "qty" => Some(TwoFieldAction {
+                field: Field::Qty,
+                op: Op::Increment,
+            }),
+            "increment" if payload == "price" => Some(TwoFieldAction {
+                field: Field::Price,
+                op: Op::Increment,
+            }),
+            _ => None,
+        }
+    }
+}
+
+/// 検証: 同じ root 配下に 2 つの NumberInput（qty/price、別 `name`/
+/// 別 `data-action-input`）があるとき、price 側の ArrowUp が qty 側の
+/// 状態を一切変更せず、dispatch された `(action, payload)` で両者を
+/// 区別できること（PR #1881 codex-review P1「片方の ArrowUp がその入力
+/// にだけ反映され、dispatch されたアクション名・payload で区別できる」
+/// の受け入れ確認）。
+#[wasm_bindgen_test]
+fn two_instances_arrow_up_updates_only_the_targeted_field() {
+    let document = web_sys::window().unwrap().document().unwrap();
+
+    // 2 つの NumberInput の Input パーツを 1 つの container（1 root）に
+    // まとめて差し込む（`Runtime::mount` が root へ 1 回だけ配線する構成の
+    // 再現）。
+    let container = create_container(&document, "ni-two-instances-root");
+    let qty_input_model = NumberInput::new(Some(5.0), 0.0, 100.0, 1.0);
+    let price_input_model = NumberInput::new(Some(5.0), 0.0, 100.0, 1.0);
+    let qty_node = qty_input_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![qty_input_model.control(
+            NumberInputFlags::default(),
+            Vec::new(),
+            vec![qty_input_model.input(
+                "qty",
+                Some("qty-input"),
+                NumberInputFlags::default(),
+                vec![("data-action-input", "qty_set")],
+            )],
+        )],
+    );
+    let price_node = price_input_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![price_input_model.control(
+            NumberInputFlags::default(),
+            Vec::new(),
+            vec![price_input_model.input(
+                "price",
+                Some("price-input"),
+                NumberInputFlags::default(),
+                vec![("data-action-input", "price_set")],
+            )],
+        )],
+    );
+    let html = format!(
+        "{}{}",
+        fandhe_frontend_core::render(&qty_node),
+        fandhe_frontend_core::render(&price_node)
+    );
+    container.set_inner_html(&html);
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let qty_input = container
+        .query_selector("#qty-input")
+        .expect("query_selector must not fail")
+        .expect("qty input must exist");
+    let price_input = container
+        .query_selector("#price-input")
+        .expect("query_selector must not fail")
+        .expect("price input must exist");
+
+    let recorded: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorded_clone = recorded.clone();
+    wire_number_input_events(container.clone(), move |action_ref: ActionRef| {
+        recorded_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_number_input_events must not fail");
+
+    // price 側の ArrowUp のみを送る。
+    let default_not_prevented = price_input
+        .dispatch_event(&keydown_event("ArrowUp"))
+        .unwrap();
+    assert!(!default_not_prevented, "ArrowUp は claim されること");
+
+    let dispatched = recorded.borrow().clone();
+    assert_eq!(
+        dispatched,
+        vec![
+            ActionRef {
+                action: "price_set".to_string(),
+                payload: "5".to_string(),
+            },
+            ActionRef {
+                action: "increment".to_string(),
+                payload: "price".to_string(),
+            },
+        ],
+        "price 側の ArrowUp は price_set/increment(payload=price) を dispatch すること"
+    );
+
+    // 記録された ActionRef を実際に `TwoFieldState` へ dispatch し、
+    // qty には一切副作用がなく price のみ更新されることを確認する
+    // （decode_action がアクション名 + payload だけで振り分けられる証跡）。
+    let mut state = TwoFieldState {
+        qty: 5.0,
+        price: 5.0,
+    };
+    for action_ref in &dispatched {
+        fandhe_frontend_interactive::dispatch(&mut state, &action_ref.action, &action_ref.payload);
+    }
+    assert_eq!(state.qty, 5.0, "qty は ArrowUp の影響を受けないこと");
+    assert_eq!(state.price, 6.0, "price のみ increment されること");
+
+    // qty 側の input.value は書き換えていないため DOM 上も変化しない
+    // （本テストは dispatch 経路の識別を検証する対象であり、DOM 反映は
+    // `arrow_up_increments_value_and_updates_dom` 等が別途検証済み）。
+    let qty_html_input = qty_input.clone().dyn_into::<HtmlInputElement>().unwrap();
+    assert_eq!(qty_html_input.value(), "5");
 }
