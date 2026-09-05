@@ -519,6 +519,7 @@ fn size_variant_root_caller_class_attr_is_dropped_not_merged_raw_for_all_payload
         let html = render(&select::root(
             Size::Md,
             OpenState::Closed,
+            &select::SelectProps::default(),
             vec![("class", payload)],
             vec![],
         ));
@@ -581,6 +582,7 @@ fn size_variant_root_caller_attrs_are_escaped_for_all_payloads() {
         let html = render(&select::root(
             Size::Md,
             OpenState::Closed,
+            &select::SelectProps::default(),
             vec![("data-testid", payload)],
             vec![],
         ));

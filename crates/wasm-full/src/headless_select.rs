@@ -125,10 +125,27 @@ mod wiring {
     /// 一意に特定する CSS セレクタ（`&'static str` リテラル固定。動的値の
     /// セレクタ補間は行わない）。
     const VALUE_TEXT_SELECTOR: &str = r#"[data-scope="select"][data-part="value-text"]"#;
+    /// Select trigger パーツのセレクタ（同上）。trigger にも value-text と
+    /// 同じ `data-placeholder-shown` 存在属性が付与される契約
+    /// （`crates/headless-ui/src/select.rs` の [`trigger`](
+    /// crate::select::trigger)）のため、value-text と同期して同じ判定を
+    /// 適用する（codex-review P1 是正、イシュー #1619）。
+    const TRIGGER_SELECTOR: &str = r#"[data-scope="select"][data-part="trigger"]"#;
     /// Select item パーツのセレクタ（同上）。
     const ITEM_SELECTOR: &str = r#"[data-scope="select"][data-part="item"]"#;
     /// Select item 内のラベル要素パーツのセレクタ（同上）。
     const ITEM_TEXT_SELECTOR: &str = r#"[data-part="item-text"]"#;
+    /// Select item 内のチェックマーク等インジケータ要素パーツのセレクタ
+    /// （`crates/headless-ui/src/select.rs` の [`item_indicator`](
+    /// crate::select::item_indicator) 参照。`ITEM_TEXT_SELECTOR` と同様
+    /// item の直下・子孫を対象に `query_selector` で解決する、`data-scope`
+    /// 無しの部分一致セレクタ）。
+    const ITEM_INDICATOR_SELECTOR: &str = r#"[data-part="item-indicator"]"#;
+    /// Select 自身の anatomy root（`data-part="root"`）を特定するセレクタ。
+    /// `sync_select_value_text`/`wire_select_value_text` の呼び出し元から
+    /// 渡される `root` 引数の走査境界を求めるために使う（[`instance_boundary`]
+    /// 参照、codex-review P1 是正、イシュー #1619）。
+    const ROOT_SELECTOR: &str = r#"[data-scope="select"][data-part="root"]"#;
     /// `data-placeholder-shown` 存在属性名（`crates/headless-ui/src/select.rs`
     /// `value_text` と同一語彙、`&'static str` リテラル固定）。
     const PLACEHOLDER_SHOWN_ATTR: &str = "data-placeholder-shown";
@@ -159,25 +176,70 @@ mod wiring {
     /// せず `textContent` 読み出しのみで完結する（REQ-1 に関連する不変
     /// 条件。書き込み側も `set_inner_html` を使わないことと対称）。
     /// `data-value` が欠落している item は `None`（fail-closed、呼び出し元
-    /// が収集時にスキップする）。
+    /// が収集時にスキップする）。item-text の探索は [`own_scope_child`]
+    /// 経由で item 自身にスコープする（`item.query_selector` を直接使うと
+    /// item がネストした別 item/別インスタンスの item-text を子孫に含む
+    /// 構成で誤って取得してしまう、codex-review/Cursor Bugbot 再指摘、
+    /// イシュー #1619）。
     fn item_value_and_label(item: &Element) -> Option<(String, String)> {
         let value = item.get_attribute("data-value")?;
-        let label = item
-            .query_selector(ITEM_TEXT_SELECTOR)
-            .ok()
-            .flatten()
+        let label = own_scope_child(item, ITEM_TEXT_SELECTOR)
             .map(|el| el.text_content().unwrap_or_default())
             .unwrap_or_else(|| item.text_content().unwrap_or_default());
         Some((value, label))
     }
 
-    /// `root` 配下の Select item を出現順に収集し、`(value, label)` 列を
-    /// 構築する。
-    fn collect_items(root: &Element) -> Vec<(String, String)> {
-        let Ok(node_list) = root.query_selector_all(ITEM_SELECTOR) else {
-            return Vec::new();
-        };
-        let mut items = Vec::new();
+    /// `root` 自身が属する Select インスタンスの境界要素を求める。
+    ///
+    /// 呼び出し元（[`wire_select_value_text`] 経由の
+    /// [`crate::headless::wire_headless_component`]）が渡す `root` は
+    /// 「anatomy root そのもの」とは限らず、それを内側に包む外側コンテナ
+    /// （マウント先の任意の親要素）であり得る（codex-review/Cursor Bugbot
+    /// 再指摘、イシュー #1619）。このため以下の優先順で解決する:
+    ///
+    /// 1. `root` 自身が [`ROOT_SELECTOR`] に一致すればそれをそのまま返す。
+    /// 2. 一致しない場合、`root` 配下（descendant）に [`ROOT_SELECTOR`]
+    ///    一致要素があるかを先に調べる（`root` が anatomy root を包む
+    ///    外側コンテナ/ラッパーだった場合）。複数一致する場合は「直接の
+    ///    子孫で最も浅いもの」を選ぶ（[`shallowest_descendant_root`]
+    ///    参照）。これを祖先探索より**先に**行う理由: 「外側 Select root >
+    ///    ラッパー > 内側 Select root」のようにラッパー自身が別インスタンス
+    ///    の root 配下にネストする構成で、`closest` を先に試すと `root`
+    ///    （＝ラッパー）が外側 root の子孫であるために外側 root を誤って
+    ///    返してしまい、内側 root を包むラッパー渡しのケースで同期が
+    ///    停止する回帰があった（codex-review P1 再指摘、イシュー #1619）。
+    /// 3. 配下に一致要素が無い場合のみ、`root.closest(ROOT_SELECTOR)` で
+    ///    祖先方向（`root` が anatomy root より内側の要素だった場合）を
+    ///    探す。
+    /// 4. いずれも見つからなければ `root` 自身へ fail-closed に
+    ///    フォールバックする（境界を特定できない場合でも panic せず、後続の
+    ///    フィルタが全件を除外する安全側の縮退に留める）。
+    fn instance_boundary(root: &Element) -> Element {
+        if root.matches(ROOT_SELECTOR).unwrap_or(false) {
+            return root.clone();
+        }
+        if let Some(descendant) = shallowest_descendant_root(root) {
+            return descendant;
+        }
+        if let Ok(Some(ancestor)) = root.closest(ROOT_SELECTOR) {
+            return ancestor;
+        }
+        root.clone()
+    }
+
+    /// `root` 配下（自身を除く子孫）から [`ROOT_SELECTOR`] に一致する要素を
+    /// 探し、複数あれば「直接の子孫で最も浅いもの」を返す（[`instance_boundary`]
+    /// 参照）。
+    ///
+    /// 「最も浅い」の判定は、各候補について「`root` から見て自分より手前
+    /// （浅い側）に別の候補が祖先として存在しないか」で行う: 候補要素の
+    /// 親から `closest(ROOT_SELECTOR)` を辿った結果が `root` の配下
+    /// （`root.contains(..)`）に留まる場合、その祖先側の候補の方がより
+    /// 浅いためこの候補は除外し、`root` の外（または祖先方向に他候補が無い）
+    /// まで抜けた候補のみを「最も浅い」ものとして採用する。DOM 順で最初に
+    /// 見つかったものを返す（決定的な順序）。
+    fn shallowest_descendant_root(root: &Element) -> Option<Element> {
+        let node_list = root.query_selector_all(ROOT_SELECTOR).ok()?;
         for i in 0..node_list.length() {
             let Some(node) = node_list.get(i) else {
                 continue;
@@ -185,11 +247,151 @@ mod wiring {
             let Ok(element) = wasm_bindgen::JsCast::dyn_into::<Element>(node) else {
                 continue;
             };
-            if let Some(entry) = item_value_and_label(&element) {
-                items.push(entry);
+            let is_shallowest = match element.parent_element() {
+                None => true,
+                Some(parent) => match parent.closest(ROOT_SELECTOR) {
+                    Ok(Some(ancestor_match)) => !root.contains(Some(&ancestor_match)),
+                    _ => true,
+                },
+            };
+            if is_shallowest {
+                return Some(element);
             }
         }
-        items
+        None
+    }
+
+    /// `root` 配下から `selector` に一致する要素を収集し、各要素の最も近い
+    /// `boundary_selector` 祖先が `boundary`（[`instance_boundary`] で求めた
+    /// このインスタンス自身の境界、または item スコープ判定なら item 自身）
+    /// と一致するものだけへ絞り込む。
+    ///
+    /// ネストした別インスタンス（別 Select の item、または item 内に混入した
+    /// 別 item の子パーツ）が `root.query_selector_all` の結果へ混入し、
+    /// このインスタンス・この item の反映が別インスタンス・別 item まで
+    /// 書き換えてしまうのを防ぐ（codex-review P1 是正、イシュー #1619。
+    /// `crate::keynav::filter_own_scope_items` と同型の「最近傍祖先の同一性
+    /// 判定」パターン）。`closest` 自体が失敗する要素（detached 等）は
+    /// fail-closed に除外する。`boundary_selector` は呼び出し元が
+    /// [`ROOT_SELECTOR`]（Select インスタンス境界、item 収集用）または
+    /// [`ITEM_SELECTOR`]（item 境界、item-text/item-indicator 収集用）を
+    /// 渡す。
+    fn own_scope_elements(
+        root: &Element,
+        boundary: &Element,
+        boundary_selector: &str,
+        selector: &str,
+    ) -> Vec<Element> {
+        let Ok(node_list) = root.query_selector_all(selector) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for i in 0..node_list.length() {
+            let Some(node) = node_list.get(i) else {
+                continue;
+            };
+            let Ok(element) = wasm_bindgen::JsCast::dyn_into::<Element>(node) else {
+                continue;
+            };
+            let owns = element
+                .closest(boundary_selector)
+                .ok()
+                .flatten()
+                .is_some_and(|nearest| nearest.is_same_node(Some(boundary)));
+            if owns {
+                out.push(element);
+            }
+        }
+        out
+    }
+
+    /// `item` 直下（item スコープ内）にのみ属する `selector` 一致要素を
+    /// 出現順で 1 件求める。
+    ///
+    /// `item.query_selector(selector)` を直接呼ぶと、`selector`
+    /// （[`ITEM_TEXT_SELECTOR`]/[`ITEM_INDICATOR_SELECTOR`]）が
+    /// `data-part` のみで絞り込む（`data-scope="select"` を含まない）ため、
+    /// `item` の子孫にネストした別インスタンス・別 item（外側 item が自身の
+    /// item-text/item-indicator を省略する構成）が存在すると、内側の
+    /// item-text/item-indicator を誤って掴んでしまう（codex-review/Cursor
+    /// Bugbot 再指摘、イシュー #1619）。[`own_scope_elements`] を
+    /// `boundary_selector = ITEM_SELECTOR`・`boundary = item` で呼び、
+    /// 「最も近い [`ITEM_SELECTOR`] 祖先が `item` 自身と一致する」要素のみへ
+    /// 絞り込んでから先頭を返す。
+    fn own_scope_child(item: &Element, selector: &str) -> Option<Element> {
+        own_scope_elements(item, item, ITEM_SELECTOR, selector)
+            .into_iter()
+            .next()
+    }
+
+    /// `root` 配下の Select item を出現順に収集し、`(value, label)` 列を
+    /// 構築する。ネストした別 Select インスタンスの item は含めない
+    /// （[`own_scope_elements`] 参照）。
+    fn collect_items(root: &Element) -> Vec<(String, String)> {
+        let boundary = instance_boundary(root);
+        own_scope_elements(root, &boundary, ROOT_SELECTOR, ITEM_SELECTOR)
+            .iter()
+            .filter_map(item_value_and_label)
+            .collect()
+    }
+
+    /// `root` 配下の Select item（[`ITEM_SELECTOR`]）を全走査し、
+    /// `data-value` が `selected` と一致する item にのみ
+    /// `aria-selected="true"`/`data-selected`（存在属性）を付与し、
+    /// それ以外は `aria-selected="false"` へ戻し `data-selected` を除去する。
+    ///
+    /// `crates/headless-ui/src/select.rs::item` の SSR 出力契約
+    /// （`aria_selected(selected_state.is_open())` + 選択時のみ
+    /// `data-selected` 存在属性）と同じ表現を、クライアント側の選択変更後に
+    /// 再現する。[`crate::keynav`] の `selected_flags`（`aria-selected` を
+    /// 読み取り専用で参照する）が、この関数の呼び出し後は常に現在の選択値と
+    /// 整合した結果を返せることを保証する。
+    fn sync_item_selected_attrs(root: &Element, selected: Option<&str>) {
+        let boundary = instance_boundary(root);
+        for element in own_scope_elements(root, &boundary, ROOT_SELECTOR, ITEM_SELECTOR) {
+            let is_selected = element
+                .get_attribute("data-value")
+                .is_some_and(|value| Some(value.as_str()) == selected);
+            let _ = set_dom_attribute(
+                &element,
+                "aria-selected",
+                if is_selected { "true" } else { "false" },
+            );
+            if is_selected {
+                let _ = set_dom_attribute(&element, "data-selected", "");
+            } else {
+                let _ = element.remove_attribute("data-selected");
+            }
+
+            // item 直下の item-text/item-indicator（Cursor 指摘・codex-review
+            // P1 是正、イシュー #1619）。`crates/headless-ui/src/select.rs`
+            // の [`item_text`](crate::select::item_text)/[`item_indicator`](
+            // crate::select::item_indicator) は `selected_state` を
+            // `data-state`（`"open"`＝選択/`"closed"`＝非選択）として出力する
+            // SSR 契約を持つが、従来はクライアント側の選択変更後にこれらの
+            // 子パーツへ反映されず SSR 初期値のまま取り残されていた。
+            // 探索は [`own_scope_child`] で item 自身へスコープする
+            // （`element.query_selector` を直接使うと、ネスト構成で外側 item
+            // が自身の item-text/item-indicator を省略している場合に内側の
+            // 別 item/別インスタンスの子パーツを誤って掴んでしまう、
+            // codex-review/Cursor Bugbot 再指摘、イシュー #1619）。
+            let data_state = if is_selected {
+                fandhe_frontend_headless_ui::DATA_STATE_OPEN
+            } else {
+                fandhe_frontend_headless_ui::DATA_STATE_CLOSED
+            };
+            if let Some(item_text) = own_scope_child(&element, ITEM_TEXT_SELECTOR) {
+                let _ = set_dom_attribute(&item_text, "data-state", data_state);
+            }
+            if let Some(indicator) = own_scope_child(&element, ITEM_INDICATOR_SELECTOR) {
+                let _ = set_dom_attribute(&indicator, "data-state", data_state);
+                if is_selected {
+                    let _ = indicator.remove_attribute("hidden");
+                } else {
+                    let _ = set_dom_attribute(&indicator, "hidden", "");
+                }
+            }
+        }
     }
 
     /// `select` の現在の選択値から value-text パーツを再同期する。
@@ -203,7 +405,12 @@ mod wiring {
     /// （改ざん・欠損入力）、または `[data-part="value-text"]` 要素が
     /// root 配下に無い場合は no-op とする（panic しない）。
     pub fn sync_select_value_text(select: &Select, root: &Element, placeholder: &str) {
-        let Ok(Some(value_text_el)) = root.query_selector(VALUE_TEXT_SELECTOR) else {
+        let boundary = instance_boundary(root);
+        let Some(value_text_el) =
+            own_scope_elements(root, &boundary, ROOT_SELECTOR, VALUE_TEXT_SELECTOR)
+                .into_iter()
+                .next()
+        else {
             return;
         };
 
@@ -220,6 +427,18 @@ mod wiring {
         if selected.is_some() && selected_label.is_none() {
             return;
         }
+
+        // item 自身の `aria-selected`/`data-selected` を選択値へ同期する
+        // （Bugbot 指摘、イシュー #1619。従来は value-text/trigger のみ
+        // 更新し、item 側は SSR 初期状態のまま取り残されていたため、
+        // `crate::keynav` の `selected_flags`（`aria-selected="true"` を
+        // 読む）が再オープン時の初期 highlight 判定に古い選択項目を
+        // 使ってしまい、続く Enter で以前の値へ巻き戻る可能性があった）。
+        // 一致する item が存在しない場合（改ざん・欠損入力）でも、選択値と
+        // 一致しない item はすべて非選択へ倒すため、走査自体は上記の
+        // fail-closed 早期 return より後に置いても安全（selected_label が
+        // None の分岐は「一致 item なし」を意味しないことに注意）。
+        sync_item_selected_attrs(root, selected);
 
         let view = value_text_view(selected_label, placeholder);
 
@@ -238,6 +457,30 @@ mod wiring {
             let _ = set_dom_attribute(&value_text_el, PLACEHOLDER_SHOWN_ATTR, "");
         } else {
             let _ = value_text_el.remove_attribute(PLACEHOLDER_SHOWN_ATTR);
+        }
+
+        // trigger 側も value-text と同じ判定で `data-placeholder-shown` を
+        // 同期する（codex-review P1 是正、イシュー #1619。trigger 要素が
+        // root 配下に無い構成もあり得るため fail-closed に no-op で
+        // スキップする。外側 Select が trigger を省略し、子孫に別の
+        // Select（trigger あり）がネストする構成では、素の
+        // `root.query_selector(TRIGGER_SELECTOR)` は文書順で最初に見つかる
+        // 要素を返すため、内側 Select の trigger を誤って掴んでしまう
+        // （codex-review 再指摘、イシュー #1619、PR #1899）。item/
+        // value-text の同期と同様に [`own_scope_elements`] で
+        // `instance_boundary`（このインスタンス自身の境界）と最近傍
+        // [`ROOT_SELECTOR`] 祖先の同一性による絞り込みを行い、自身の
+        // trigger が見つからない場合は更新を省略する）。
+        if let Some(trigger_el) =
+            own_scope_elements(root, &boundary, ROOT_SELECTOR, TRIGGER_SELECTOR)
+                .into_iter()
+                .next()
+        {
+            if view.placeholder_shown {
+                let _ = set_dom_attribute(&trigger_el, PLACEHOLDER_SHOWN_ATTR, "");
+            } else {
+                let _ = trigger_el.remove_attribute(PLACEHOLDER_SHOWN_ATTR);
+            }
         }
     }
 
