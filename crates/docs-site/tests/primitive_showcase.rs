@@ -111,16 +111,6 @@ fn extract_anatomy_parts(html: &str) -> BTreeSet<String> {
 /// 除外フラグ・ワイルドカード除外は作らない（A05、`security.md` 参照）。
 const KNOWN_UNCOVERED: &[(&str, &str, &str)] = &[
     (
-        "menubar",
-        "sub-trigger",
-        "サブメニューを持たないデモ構成のため sub_trigger/sub_content を使用しない",
-    ),
-    (
-        "menubar",
-        "sub-content",
-        "サブメニューを持たないデモ構成のため sub_trigger/sub_content を使用しない",
-    ),
-    (
         "progress",
         "circle",
         "circular variant（circle/circle-track/circle-range）は linear variant と役割が重複するため未使用",

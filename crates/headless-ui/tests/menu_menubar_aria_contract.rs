@@ -106,9 +106,12 @@ fn part_of(node: &Node, scope: &str, part: &str) -> (String, BTreeMap<String, St
 
 // --- 1. menubar パーツ集合の凍結 ---
 //
-// menubar が出すパーツ集合が「対応表」記載の 11 件と完全一致することを
-// 固定する。menubar 側にパーツを足す／消す変更は必ずこのテストを落とし、
-// 対応表（本ファイルの各テスト）の見直しを強制する。
+// menubar が出すパーツ集合が「対応表」記載の 18 件と完全一致することを
+// 固定する（イシュー #1652 で Radix Primitives Menubar と参照突合し
+// arrow/arrow-tip/item-text/item-indicator/checkbox-item/
+// radio-item-group/radio-item の 7 件を追加、11 → 18 件）。menubar 側に
+// パーツを足す／消す変更は必ずこのテストを落とし、対応表（本ファイルの
+// 各テスト）の見直しを強制する。
 //
 // menu 側のパーツ全 16 件はあえて凍結しない。menu へ無関係なパーツが
 // 増えたときに「menubar 語彙一致」という名前のテストが落ちるのは読み手を
@@ -131,25 +134,44 @@ fn menubar_part_inventory_is_frozen() {
         "trigger",
         "positioner",
         "content",
+        "arrow",
+        "arrow-tip",
         "item",
+        "item-text",
+        "item-indicator",
         "item-group",
         "item-group-label",
         "separator",
         "sub-trigger",
         "sub-content",
+        "checkbox-item",
+        "radio-item-group",
+        "radio-item",
     ];
     expected.sort_unstable();
 
     assert_eq!(
         names, expected,
-        "menubar のパーツ集合が対応表（本ファイル §1）の 11 件と一致しない。\
+        "menubar のパーツ集合が対応表（本ファイル §1）の 18 件と一致しない。\
          パーツを追加・削除・改名した場合はこのテストと対応表を見直すこと"
     );
 }
 
-/// menubar の全 11 パーツを 1 本の木に組み立てたサンプル。open/closed 双方
+/// menubar の全 18 パーツを 1 本の木に組み立てたサンプル。open/closed 双方
 /// が観測できるよう、`content` は open、`sub-content` は closed で作る。
 fn sample_menubar_tree() -> Node {
+    let item_indicator = menubar::item_indicator(true, vec![], vec![]);
+    let item_text = menubar::item_text(false, false, vec![], vec![]);
+    let checkbox_item = menubar::checkbox_item(
+        true,
+        "c1",
+        false,
+        false,
+        vec![],
+        vec![item_indicator, item_text],
+    );
+    let radio_item = menubar::radio_item(false, "r1", false, false, vec![], vec![]);
+    let radio_item_group = menubar::radio_item_group(None, vec![], vec![radio_item]);
     let item_group = menubar::item_group(
         Some("group-label-1"),
         vec![],
@@ -168,12 +190,21 @@ fn sample_menubar_tree() -> Node {
         vec![],
     );
     let sub_content = menubar::sub_content(OpenState::Closed, Some("sub-1"), None, vec![], vec![]);
+    let arrow = menubar::arrow(vec![], vec![menubar::arrow_tip(vec![], vec![])]);
     let content = menubar::content(
         OpenState::Open,
         Some("content-1"),
         None,
         vec![],
-        vec![item_group, separator, sub_trigger, sub_content],
+        vec![
+            arrow,
+            item_group,
+            separator,
+            checkbox_item,
+            radio_item_group,
+            sub_trigger,
+            sub_content,
+        ],
     );
     let positioner = menubar::positioner(OpenState::Open, vec![], vec![content]);
     let trigger = menubar::trigger(
@@ -195,9 +226,11 @@ fn sample_menubar_tree() -> Node {
     )
 }
 
-// --- 2. 完全一致 8 ペアの総当たり ---
+// --- 2. 完全一致 15 ペアの総当たり ---
 
-/// 完全一致すべき menubar ↔ menu パーツ対応（対応表本体）。
+/// 完全一致すべき menubar ↔ menu パーツ対応（対応表本体。イシュー #1652 で
+/// arrow/arrow-tip/item-text/item-indicator/checkbox-item/
+/// radio-item-group/radio-item の 7 ペアを追加、8 → 15 ペア）。
 const IDENTICAL_PAIRS: &[(&str, &str)] = &[
     ("content", "content"),
     ("sub-content", "content"),
@@ -207,6 +240,13 @@ const IDENTICAL_PAIRS: &[(&str, &str)] = &[
     ("item-group-label", "item-group-label"),
     ("separator", "separator"),
     ("positioner", "positioner"),
+    ("arrow", "arrow"),
+    ("arrow-tip", "arrow-tip"),
+    ("item-text", "item-text"),
+    ("item-indicator", "item-indicator"),
+    ("checkbox-item", "checkbox-item"),
+    ("radio-item-group", "radio-item-group"),
+    ("radio-item", "radio-item"),
 ];
 
 #[test]
@@ -214,79 +254,158 @@ fn paired_parts_render_identical_tag_and_attribute_map() {
     for state in [OpenState::Open, OpenState::Closed] {
         for disabled in [true, false] {
             for highlighted in [true, false] {
-                for id in [None, Some("id-1")] {
-                    for labelledby in [None, Some("label-1")] {
-                        for controls in [None, Some("controls-1")] {
-                            assert_pair(
-                                "content",
-                                "content",
-                                menubar::content(state, id, labelledby, vec![], vec![]),
-                                menu::content(state, id, labelledby, vec![], vec![]),
-                                state,
-                            );
-                            assert_pair(
-                                "sub-content",
-                                "content",
-                                menubar::sub_content(state, id, labelledby, vec![], vec![]),
-                                menu::content(state, id, labelledby, vec![], vec![]),
-                                state,
-                            );
-                            assert_pair(
-                                "sub-trigger",
-                                "trigger-item",
-                                menubar::sub_trigger(
+                for checked in [true, false] {
+                    for id in [None, Some("id-1")] {
+                        for labelledby in [None, Some("label-1")] {
+                            for controls in [None, Some("controls-1")] {
+                                assert_pair(
+                                    "arrow",
+                                    "arrow",
+                                    menubar::arrow(vec![], vec![]),
+                                    menu::arrow(vec![], vec![]),
                                     state,
-                                    disabled,
-                                    highlighted,
-                                    controls,
-                                    vec![],
-                                    vec![],
-                                ),
-                                menu::trigger_item(
+                                );
+                                assert_pair(
+                                    "arrow-tip",
+                                    "arrow-tip",
+                                    menubar::arrow_tip(vec![], vec![]),
+                                    menu::arrow_tip(vec![], vec![]),
                                     state,
-                                    disabled,
-                                    highlighted,
-                                    controls,
-                                    vec![],
-                                    vec![],
-                                ),
-                                state,
-                            );
-                            assert_pair(
-                                "item",
-                                "item",
-                                menubar::item("v", disabled, highlighted, vec![], vec![]),
-                                menu::item("v", disabled, highlighted, vec![], vec![]),
-                                state,
-                            );
-                            assert_pair(
-                                "item-group",
-                                "item-group",
-                                menubar::item_group(labelledby, vec![], vec![]),
-                                menu::item_group(labelledby, vec![], vec![]),
-                                state,
-                            );
-                            assert_pair(
-                                "item-group-label",
-                                "item-group-label",
-                                menubar::item_group_label(id, vec![], vec![]),
-                                menu::item_group_label(id, vec![], vec![]),
-                                state,
-                            );
-                            assert_pair(
-                                "separator",
-                                "separator",
-                                menubar::separator(vec![], vec![]),
-                                menu::separator(vec![], vec![]),
-                                state,
-                            );
-                            assert_pair(
-                                "positioner",
-                                "positioner",
-                                menubar::positioner(state, vec![], vec![]),
-                                menu::positioner(state, vec![], vec![]),
-                                state,
-                            );
+                                );
+                                assert_pair(
+                                    "item-text",
+                                    "item-text",
+                                    menubar::item_text(disabled, highlighted, vec![], vec![]),
+                                    menu::item_text(disabled, highlighted, vec![], vec![]),
+                                    state,
+                                );
+                                assert_pair(
+                                    "item-indicator",
+                                    "item-indicator",
+                                    menubar::item_indicator(checked, vec![], vec![]),
+                                    menu::item_indicator(checked, vec![], vec![]),
+                                    state,
+                                );
+                                assert_pair(
+                                    "checkbox-item",
+                                    "checkbox-item",
+                                    menubar::checkbox_item(
+                                        checked,
+                                        "v",
+                                        disabled,
+                                        highlighted,
+                                        vec![],
+                                        vec![],
+                                    ),
+                                    menu::checkbox_item(
+                                        checked,
+                                        "v",
+                                        disabled,
+                                        highlighted,
+                                        vec![],
+                                        vec![],
+                                    ),
+                                    state,
+                                );
+                                assert_pair(
+                                    "radio-item-group",
+                                    "radio-item-group",
+                                    menubar::radio_item_group(labelledby, vec![], vec![]),
+                                    menu::radio_item_group(labelledby, vec![], vec![]),
+                                    state,
+                                );
+                                assert_pair(
+                                    "radio-item",
+                                    "radio-item",
+                                    menubar::radio_item(
+                                        checked,
+                                        "v",
+                                        disabled,
+                                        highlighted,
+                                        vec![],
+                                        vec![],
+                                    ),
+                                    menu::radio_item(
+                                        checked,
+                                        "v",
+                                        disabled,
+                                        highlighted,
+                                        vec![],
+                                        vec![],
+                                    ),
+                                    state,
+                                );
+                                assert_pair(
+                                    "content",
+                                    "content",
+                                    menubar::content(state, id, labelledby, vec![], vec![]),
+                                    menu::content(state, id, labelledby, vec![], vec![]),
+                                    state,
+                                );
+                                assert_pair(
+                                    "sub-content",
+                                    "content",
+                                    menubar::sub_content(state, id, labelledby, vec![], vec![]),
+                                    menu::content(state, id, labelledby, vec![], vec![]),
+                                    state,
+                                );
+                                assert_pair(
+                                    "sub-trigger",
+                                    "trigger-item",
+                                    menubar::sub_trigger(
+                                        state,
+                                        disabled,
+                                        highlighted,
+                                        controls,
+                                        vec![],
+                                        vec![],
+                                    ),
+                                    menu::trigger_item(
+                                        state,
+                                        disabled,
+                                        highlighted,
+                                        controls,
+                                        vec![],
+                                        vec![],
+                                    ),
+                                    state,
+                                );
+                                assert_pair(
+                                    "item",
+                                    "item",
+                                    menubar::item("v", disabled, highlighted, vec![], vec![]),
+                                    menu::item("v", disabled, highlighted, vec![], vec![]),
+                                    state,
+                                );
+                                assert_pair(
+                                    "item-group",
+                                    "item-group",
+                                    menubar::item_group(labelledby, vec![], vec![]),
+                                    menu::item_group(labelledby, vec![], vec![]),
+                                    state,
+                                );
+                                assert_pair(
+                                    "item-group-label",
+                                    "item-group-label",
+                                    menubar::item_group_label(id, vec![], vec![]),
+                                    menu::item_group_label(id, vec![], vec![]),
+                                    state,
+                                );
+                                assert_pair(
+                                    "separator",
+                                    "separator",
+                                    menubar::separator(vec![], vec![]),
+                                    menu::separator(vec![], vec![]),
+                                    state,
+                                );
+                                assert_pair(
+                                    "positioner",
+                                    "positioner",
+                                    menubar::positioner(state, vec![], vec![]),
+                                    menu::positioner(state, vec![], vec![]),
+                                    state,
+                                );
+                            }
                         }
                     }
                 }
@@ -298,7 +417,7 @@ fn paired_parts_render_identical_tag_and_attribute_map() {
     // よう、対応表の総数をここで確認する）。
     assert_eq!(
         IDENTICAL_PAIRS.len(),
-        8,
+        15,
         "対応表のペア数が変わった場合は本テストの呼び出しも見直すこと"
     );
 }
