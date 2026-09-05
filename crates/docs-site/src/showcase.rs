@@ -3101,7 +3101,7 @@ fn floating_panel_section() -> Node {
                     Some("showcase-floating-panel-title"),
                     vec![],
                     vec![
-                        floating_panel::header(
+                        panel.header(
                             vec![],
                             vec![
                                 floating_panel::title(
@@ -3109,20 +3109,23 @@ fn floating_panel_section() -> Node {
                                     vec![],
                                     vec![text("Panel title")],
                                 ),
-                                floating_panel::control(
+                                panel.control(
                                     vec![],
                                     vec![
                                         panel.stage_trigger(
                                             Stage::Minimized,
-                                            vec![],
+                                            vec![("aria-label", "Minimize")],
                                             vec![text("_")],
                                         ),
                                         panel.stage_trigger(
                                             Stage::Maximized,
-                                            vec![],
+                                            vec![("aria-label", "Maximize")],
                                             vec![text("[]")],
                                         ),
-                                        floating_panel::close_trigger(vec![], vec![text("x")]),
+                                        floating_panel::close_trigger(
+                                            vec![("aria-label", "Close Window")],
+                                            vec![text("x")],
+                                        ),
                                     ],
                                 ),
                             ],
