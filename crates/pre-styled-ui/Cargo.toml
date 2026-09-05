@@ -1813,7 +1813,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.57.0（base 再取り込みで解決した最終版、`crates/headless-ui/Cargo.toml`
 # 参照）へ追随させつつ、両者の破壊的変更の和集合としてさらにマイナー
 # バンプで 0.109.0 とする。
-version = "0.109.0"
+# イシュー #1653（nav-list の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# の 0.57.0 → 0.57.1（patch）追随のみで自身の破壊的変更なし。patch バンプで
+# 0.109.1 とする。
+version = "0.109.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1828,7 +1831,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.57.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.57.1" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

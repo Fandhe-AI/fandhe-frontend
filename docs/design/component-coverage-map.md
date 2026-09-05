@@ -834,7 +834,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
-| —（対応 md なし） | — | — | — | — | `nav_list` | `nav_list` | 実装済み | fandhe 独自。#756 → PR #801 で Link / LinkOverlay と同時に実装した文書ナビ用リスト（Root / Heading / List / Item / Link の 5 anatomy） |
+| —（対応 md なし） | — | — | — | — | `nav_list` | `nav_list` | 実装済み | fandhe 独自。#756 → PR #801 で Link / LinkOverlay と同時に実装した文書ナビ用リスト（Root / Heading / List / Item / Link の 5 anatomy）。#1653 で参考サイト（chakra-ui `List`。真の対応物は Themes 層 `list` #771）と突合済み、anatomy / `data-*` / ARIA の増減なし |
 | —（対応 md なし） | — | — | — | — | — | `charts::data` | 実装済み | charts 基盤。#846。`ChartData` / `Series` モデルと集計 API（ノードを生成しない純計算） |
 | —（対応 md なし） | — | — | — | — | — | `charts::scale` | 実装済み | charts 基盤。#846。線形スケール・1-2-5 nice tick 算出（ノードを生成しない純計算） |
 | —（対応 md なし） | — | — | — | — | — | `charts::svg` | 実装済み | charts 基盤。#846。SVG ノード木生成ヘルパー |
