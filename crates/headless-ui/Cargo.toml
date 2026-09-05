@@ -52,7 +52,15 @@ name = "fandhe-frontend-headless-ui"
 # 突合）を統合した結果として main 現在値 0.37.0 からさらにマイナーバンプし
 # 0.38.0 とする（同一版数への偶発的衝突をそのまま採用しない、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）。
-version = "0.38.0"
+# イシュー #1626: date-input を ark-ui（zag.js `date-input` machine）の
+# Data Attributes 表・キーボード操作・WAI-ARIA と突合し、`DateSegmentFlags`
+# を全パーツ共通の `DateInputProps` へ置換（root/label/control/
+# segment_group/segment のシグネチャ変更）・`data-placeholder` を
+# `data-placeholder-shown` へ改名・`DateInputAction` へ
+# `PageIncrement`/`PageDecrement`/`Home`/`End`/`Prev`/`Next`/`Backspace`/
+# `Blur` を追加・`Increment`/`Decrement` を境界 clamp から wrap-around へ
+# 変更した観測可能な破壊的変更のため 0.39.0 へマイナーバンプする。
+version = "0.39.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

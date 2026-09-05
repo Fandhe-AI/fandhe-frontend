@@ -16,12 +16,15 @@ fn public_api_builds_ssr_markup_via_state_machine_methods() {
     let d = DateInput::new(Some(2026), Some(7), Some(22), None, None);
     let node = d.root(
         false,
+        false,
         vec![],
         vec![d.control(
+            false,
             false,
             vec![],
             vec![
                 d.segment_group(
+                    false,
                     false,
                     vec![],
                     vec![
@@ -79,7 +82,7 @@ fn min_max_range_marks_out_of_range_date_invalid() {
     let max = PlainDate::new(2026, 12, 31).unwrap();
     let d = DateInput::new(Some(2025), Some(12), Some(31), Some(min), Some(max));
     assert!(d.is_invalid());
-    let html = render(&d.root(false, vec![], vec![]));
+    let html = render(&d.root(false, false, vec![], vec![]));
     assert!(html.contains(r#"data-invalid="""#));
 }
 
@@ -104,4 +107,33 @@ fn february_non_leap_year_boundary_is_rejected() {
     let d = DateInput::new(Some(2023), Some(2), Some(29), None, None);
     assert!(d.is_invalid());
     assert_eq!(d.value(), None);
+}
+
+#[test]
+fn keyboard_vocabulary_lifecycle_via_public_dispatch() {
+    // focus -> next -> increment(wrap-around) -> backspace -> backspace(前へ) -> blur
+    // という ark-ui/zag 準拠のキーボード操作語彙（イシュー #1626）を、
+    // クレート公開 API（`dispatch`）経由で一連の遷移として固定する。
+    let mut d = DateInput::new(Some(9999), None, None, None, None);
+    assert!(dispatch(&mut d, "focus", "year"));
+    assert_eq!(d.focused(), Some(DateSegment::Year));
+
+    assert!(dispatch(&mut d, "next", ""));
+    assert_eq!(d.focused(), Some(DateSegment::Month));
+
+    // month は未入力なので increment は最小値 (1) から開始する no-clock 規則。
+    assert!(dispatch(&mut d, "increment", ""));
+    assert_eq!(d.month(), Some(1));
+
+    assert!(dispatch(&mut d, "backspace", ""));
+    assert_eq!(d.month(), None);
+    // 既に未入力だったので、もう一度 backspace すると前のセグメントへ移動する。
+    assert!(dispatch(&mut d, "backspace", ""));
+    assert_eq!(d.focused(), Some(DateSegment::Year));
+    // year にはまだ値 (9999) があるため、backspace は年の値を消去する。
+    assert!(dispatch(&mut d, "backspace", ""));
+    assert_eq!(d.year(), None);
+
+    assert!(dispatch(&mut d, "blur", ""));
+    assert_eq!(d.focused(), None);
 }

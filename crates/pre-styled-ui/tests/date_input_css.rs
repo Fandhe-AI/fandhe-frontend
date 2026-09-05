@@ -89,7 +89,7 @@ const DATE_INPUT_GOLDEN_CSS: &str = r#"[data-scope="date-input"][data-part="root
   cursor: not-allowed;
 }
 
-[data-scope="date-input"][data-part="segment"][data-placeholder] {
+[data-scope="date-input"][data-part="segment"][data-placeholder-shown] {
   color: var(--fandhe-color-fg-muted);
 }
 
