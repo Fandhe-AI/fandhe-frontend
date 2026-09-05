@@ -815,6 +815,100 @@ fn select_item_click_updates_value_text_label() {
     assert!(value_text_el.has_attribute("data-bind-text"));
 }
 
+/// Bugbot 指摘（イシュー #1619）: `sync_select_value_text` は value-text/
+/// trigger のみを更新し、item 自身の `aria-selected`/`data-selected` は
+/// SSR 初期状態のまま取り残されていた。`crate::keynav` の初期 highlight
+/// 判定（`selected_flags`、`aria-selected="true"` を読む）はこの属性を
+/// 直接参照するため、選択変更後に再オープンすると古い選択項目が
+/// ハイライトされ、続く Enter で以前の値へ巻き戻る可能性があった。
+#[wasm_bindgen_test]
+fn select_item_click_updates_item_aria_selected_and_data_selected() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-select-item-selected-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let html = build_select_with_value_text_html(&[("vue", "Vue"), ("react", "React")]);
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("select root must exist");
+
+    let component = Rc::new(RefCell::new(Select::default()));
+    wire_select_value_text(
+        root.clone(),
+        component.clone(),
+        SELECT_PLACEHOLDER.to_string(),
+    )
+    .expect("wire_select_value_text must not fail");
+
+    let item_vue = root
+        .query_selector(r#"[data-value="vue"]"#)
+        .expect("query_selector must not fail")
+        .expect("vue item element must exist");
+    let item_react = root
+        .query_selector(r#"[data-value="react"]"#)
+        .expect("query_selector must not fail")
+        .expect("react item element must exist");
+
+    // 初期状態（未選択）: いずれの item も aria-selected="false"、
+    // data-selected 無し（build_select_with_value_text_html は
+    // `OpenState::Closed` で生成する、モジュール冒頭 doc 参照）。
+    assert_eq!(
+        item_vue.get_attribute("aria-selected").as_deref(),
+        Some("false")
+    );
+    assert!(!item_vue.has_attribute("data-selected"));
+
+    dispatch_click(&item_vue);
+    assert_eq!(component.borrow().selected(), Some("vue"));
+    assert_eq!(
+        item_vue.get_attribute("aria-selected").as_deref(),
+        Some("true"),
+        "選択された item は aria-selected=\"true\" へ更新されること"
+    );
+    assert!(
+        item_vue.has_attribute("data-selected"),
+        "選択された item は data-selected 存在属性を持つこと"
+    );
+    assert_eq!(
+        item_react.get_attribute("aria-selected").as_deref(),
+        Some("false"),
+        "非選択の item は aria-selected=\"false\" のままであること"
+    );
+    assert!(!item_react.has_attribute("data-selected"));
+
+    // 選択を "react" へ切り替えると、"vue" 側の aria-selected/data-selected
+    // が正しく非選択へ戻ること（前回選択の残留がないこと）。
+    dispatch_click(&item_react);
+    assert_eq!(component.borrow().selected(), Some("react"));
+    assert_eq!(
+        item_vue.get_attribute("aria-selected").as_deref(),
+        Some("false"),
+        "選択が別項目へ移ったら旧選択 item は aria-selected=\"false\" へ戻ること"
+    );
+    assert!(!item_vue.has_attribute("data-selected"));
+    assert_eq!(
+        item_react.get_attribute("aria-selected").as_deref(),
+        Some("true")
+    );
+    assert!(item_react.has_attribute("data-selected"));
+
+    // clear-trigger による deselect 後は全 item が非選択へ戻ること。
+    let clear_el = root
+        .query_selector(r#"[data-part="clear-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("clear-trigger element must exist");
+    dispatch_click(&clear_el);
+    assert_eq!(component.borrow().selected(), None);
+    assert_eq!(
+        item_react.get_attribute("aria-selected").as_deref(),
+        Some("false"),
+        "deselect 後は全 item が非選択へ戻ること"
+    );
+    assert!(!item_react.has_attribute("data-selected"));
+}
+
 #[wasm_bindgen_test]
 fn select_clear_trigger_restores_placeholder_value_text() {
     let window = web_sys::window().expect("window must exist");

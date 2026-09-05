@@ -198,6 +198,44 @@ mod wiring {
         items
     }
 
+    /// `root` 配下の Select item（[`ITEM_SELECTOR`]）を全走査し、
+    /// `data-value` が `selected` と一致する item にのみ
+    /// `aria-selected="true"`/`data-selected`（存在属性）を付与し、
+    /// それ以外は `aria-selected="false"` へ戻し `data-selected` を除去する。
+    ///
+    /// `crates/headless-ui/src/select.rs::item` の SSR 出力契約
+    /// （`aria_selected(selected_state.is_open())` + 選択時のみ
+    /// `data-selected` 存在属性）と同じ表現を、クライアント側の選択変更後に
+    /// 再現する。[`crate::keynav`] の `selected_flags`（`aria-selected` を
+    /// 読み取り専用で参照する）が、この関数の呼び出し後は常に現在の選択値と
+    /// 整合した結果を返せることを保証する。
+    fn sync_item_selected_attrs(root: &Element, selected: Option<&str>) {
+        let Ok(node_list) = root.query_selector_all(ITEM_SELECTOR) else {
+            return;
+        };
+        for i in 0..node_list.length() {
+            let Some(node) = node_list.get(i) else {
+                continue;
+            };
+            let Ok(element) = wasm_bindgen::JsCast::dyn_into::<Element>(node) else {
+                continue;
+            };
+            let is_selected = element
+                .get_attribute("data-value")
+                .is_some_and(|value| Some(value.as_str()) == selected);
+            let _ = set_dom_attribute(
+                &element,
+                "aria-selected",
+                if is_selected { "true" } else { "false" },
+            );
+            if is_selected {
+                let _ = set_dom_attribute(&element, "data-selected", "");
+            } else {
+                let _ = element.remove_attribute("data-selected");
+            }
+        }
+    }
+
     /// `select` の現在の選択値から value-text パーツを再同期する。
     ///
     /// [`crate::headless::wire_headless_component`] の `on_update`
@@ -226,6 +264,18 @@ mod wiring {
         if selected.is_some() && selected_label.is_none() {
             return;
         }
+
+        // item 自身の `aria-selected`/`data-selected` を選択値へ同期する
+        // （Bugbot 指摘、イシュー #1619。従来は value-text/trigger のみ
+        // 更新し、item 側は SSR 初期状態のまま取り残されていたため、
+        // `crate::keynav` の `selected_flags`（`aria-selected="true"` を
+        // 読む）が再オープン時の初期 highlight 判定に古い選択項目を
+        // 使ってしまい、続く Enter で以前の値へ巻き戻る可能性があった）。
+        // 一致する item が存在しない場合（改ざん・欠損入力）でも、選択値と
+        // 一致しない item はすべて非選択へ倒すため、走査自体は上記の
+        // fail-closed 早期 return より後に置いても安全（selected_label が
+        // None の分岐は「一致 item なし」を意味しないことに注意）。
+        sync_item_selected_attrs(root, selected);
 
         let view = value_text_view(selected_label, placeholder);
 

@@ -403,23 +403,30 @@ pub fn value_text<'a>(
 /// kebab-case）。[`trigger`] と同じくフォーム内配置時の意図しない submit を
 /// 防ぐため `type="button"` を固定で付与する。アクセシブルネーム
 /// （`aria-label` 等）は本関数の `attrs` を通じて呼び出し側が付与する責務と
-/// する（[`crate::popover::close_trigger`] と同じ判断）。[`SelectProps`] の
-/// `invalid` を `data-invalid` へ反映し、`props.disabled` のときのみ
-/// ネイティブ `disabled` 存在属性と `data-disabled` を追加する（無効な
-/// select はクリアもできない安全側の判断、[`crate::combobox::clear_trigger`]
-/// と同型、イシュー #1619 参照突合）。
+/// する（[`crate::popover::close_trigger`] と同じ判断）。[`state_attrs`]
+/// （disabled/invalid/readonly の 3 状態束、`state_attrs` rustdoc・root/
+/// trigger 等と同一の一覧）を反映し、`props.disabled` のときのみネイティブ
+/// `disabled` 存在属性も追加する（無効な select はクリアもできない安全側の
+/// 判断、[`crate::combobox::clear_trigger`] と同型、イシュー #1619 参照
+/// 突合）。従来は `data-invalid`/`data-disabled` のみを個別に組み立てており
+/// `data-readonly` が欠落していた（Bugbot 指摘、イシュー #1619。
+/// `SelectProps` rustdoc・`site/primitives/select.md` は clear-trigger も
+/// root/trigger と同じ disabled/invalid/readonly 束を持つと記述しており、
+/// 実装との不一致を是正した）。
 #[must_use]
 pub fn clear_trigger<'a>(
     props: &SelectProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let attrs = drop_reserved(attrs, &["data-disabled", "data-invalid", "disabled"]);
+    let attrs = drop_reserved(
+        attrs,
+        &["data-disabled", "data-invalid", "data-readonly", "disabled"],
+    );
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
-    merged.extend(data_invalid(props.invalid));
+    merged.extend(state_attrs(props));
     if props.disabled {
         merged.push(("disabled", ""));
-        merged.extend(data_disabled(true));
     }
     merged.extend(attrs);
     ANATOMY.part("clear-trigger", "button", merged, children)
@@ -1387,6 +1394,21 @@ mod tests {
         };
         let html = render(&clear_trigger(&props, vec![], vec![]));
         assert!(html.contains(r#"data-invalid="""#));
+    }
+
+    /// Bugbot 指摘（イシュー #1619）: `clear_trigger` は disabled/invalid の
+    /// みを個別に組み立てており `data-readonly` が欠落していた。
+    /// `SelectProps` rustdoc・`site/primitives/select.md` の記述（clear-trigger
+    /// は root/trigger と同じ disabled/invalid/readonly 束を持つ）との
+    /// 不一致を回帰検知する。
+    #[test]
+    fn clear_trigger_readonly_outputs_data_readonly() {
+        let props = SelectProps {
+            readonly: true,
+            ..SelectProps::default()
+        };
+        let html = render(&clear_trigger(&props, vec![], vec![]));
+        assert!(html.contains(r#"data-readonly="""#));
     }
 
     #[test]

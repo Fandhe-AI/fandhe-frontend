@@ -5768,15 +5768,33 @@ mod wiring {
         // scope 汎用で fail-closed 化しているため、keydown 側もここで塞ぐ）。
         // 状態遷移は no-op にする一方、ネイティブ既定動作（ページスクロール）
         // まで漏らしてはならない（Bugbot 指摘 "Readonly select keys still
-        // scroll"、イシュー #1619）。非 readonly 時に本関数が処理する
-        // スクロール誘発キー（ArrowDown/ArrowUp/Home/End/Space）は readonly
-        // でも同様に `prevent_default` する。Enter は元々ページスクロールを
-        // 起こさないため対象外（no-op のまま）。
+        // scroll"、イシュー #1619）。
+        //
+        // ただし non-readonly 時の本関数の実挙動は「常に `prevent_default`
+        // する」キーと「open のときのみ `prevent_default` する」キーが
+        // 混在する（下記 open 分岐・closed 分岐参照）。ArrowDown/ArrowUp/
+        // Space は closed・open いずれでも本関数が消費する（closed では
+        // `should_open` 分岐で click 前に、open では下記の Arrow/Home/End
+        // 腕で）ため readonly でも常に `prevent_default` してよい。一方
+        // Home/End は **closed のときは non-readonly でも未処理**（`should_open`
+        // 判定に含まれず、ページ既定動作＝ページ先頭/末尾スクロールへ委譲
+        // する契約）であり、open のときのみ本関数が消費する。readonly
+        // 化により closed 時の Home/End まで一律 `prevent_default` すると、
+        // non-readonly の closed trigger では効くページレベル Home/End が
+        // readonly では効かなくなってしまう（Bugbot 指摘 "Readonly Home
+        // and End still captured"、イシュー #1619）。そのため Home/End は
+        // `is_open`（readonly でも `resolve_menu_select_content` は静的
+        // 属性の読み取りのみで副作用が無いため、通常経路と同じ判定式を
+        // ここでも独立に評価してよい）を条件に加える。Enter は元々
+        // ページスクロールを起こさないため対象外（no-op のまま）。
         if trigger_is_readonly(trigger) {
-            if matches!(
-                event.key().as_str(),
-                "ArrowDown" | "ArrowUp" | "Home" | "End" | " "
-            ) {
+            let key = event.key();
+            let is_open = resolve_menu_select_content(trigger, scope).is_some_and(|content| {
+                root.contains(Some(&content)) && !content.has_attribute("hidden")
+            });
+            let should_prevent = matches!(key.as_str(), "ArrowDown" | "ArrowUp" | " ")
+                || (is_open && matches!(key.as_str(), "Home" | "End"));
+            if should_prevent {
                 event.prevent_default();
             }
             return KeyOutcome::Handled;

@@ -1708,6 +1708,64 @@ fn select_readonly_trigger_keydown_does_not_open() {
     }
 }
 
+/// readonly な Select trigger は Home/End を、closed のときはページ既定
+/// 動作（ページ先頭/末尾スクロール）へ委譲し、open のときのみ
+/// `prevent_default` する（Bugbot 指摘 "Readonly Home and End still
+/// captured"、イシュー #1619）。non-readonly の closed trigger では
+/// Home/End はそもそも本関数の `should_open` 対象キー集合に含まれず
+/// 未処理（ページ既定動作へ委譲）のため、readonly 化がこの契約を
+/// 変えてはならない。ArrowDown/ArrowUp/Space は closed・open いずれでも
+/// 本関数が消費するキーのため、readonly でも常に `prevent_default` される
+/// ことは [`select_readonly_trigger_keydown_does_not_open`] が別途固定する。
+#[wasm_bindgen_test]
+fn select_readonly_trigger_home_end_prevent_default_only_when_open() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_select_dom(
+        &document,
+        "kn-select-readonly-homeend",
+        &[("apple", "Apple", false), ("banana", "Banana", false)],
+        false,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-readonly-homeend-trigger")
+        .unwrap();
+    trigger.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let content = document
+        .get_element_by_id("kn-select-readonly-homeend-content")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // closed（初期状態）: readonly でも Home/End はページ既定動作
+    // （ページ先頭/末尾スクロール）へ委譲するため prevent_default しない。
+    assert!(content.has_attribute("hidden"));
+    for key in ["Home", "End"] {
+        let not_default_prevented = trigger.dispatch_event(&keydown_event(key)).unwrap();
+        assert!(
+            not_default_prevented,
+            "readonly かつ closed の trigger では {key} はページ既定動作へ委譲され \
+             prevent_default されないはず"
+        );
+    }
+
+    // open: readonly でも open 中の Home/End は本関数が消費する対象キーの
+    // ため prevent_default される（`crate::keynav` open 分岐の
+    // `"ArrowDown" | "ArrowUp" | "Home" | "End"` 腕と同じ契約）。
+    content.remove_attribute("hidden").unwrap();
+    for key in ["Home", "End"] {
+        let not_default_prevented = trigger.dispatch_event(&keydown_event(key)).unwrap();
+        assert!(
+            !not_default_prevented,
+            "readonly かつ open の trigger では {key} はページスクロール抑止のため \
+             prevent_default されるべき"
+        );
+    }
+}
+
 /// 選択済み項目がある Select を Enter/ArrowDown で開くと、初期 highlight が
 /// 先頭ではなく選択済み項目（`aria-selected="true"`）に合う（ark-ui/Radix
 /// 準拠、イシュー #1619 参照突合。実装は `keynav.rs::initial_highlight_index`/
