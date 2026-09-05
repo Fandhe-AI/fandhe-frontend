@@ -5,6 +5,40 @@
 //! 「root > trigger + positioner > (content + arrow)」の組み立て全体の
 //! data-* 対応・dispatch 統合・SSR/hydration 両経路・positioning 接続・XSS
 //! 回帰をクレート外部から（公開 API のみを使って）固定する。
+//!
+//! # 参照突合（イシュー #1641）
+//!
+//! Zag.js `hover-card.connect.ts`（GitHub `main`、取得日 2026-09-05）・
+//! ark-ui docs・Radix Primitives（Hover Card）docs・Radix Themes・chakra-ui
+//! の一次情報と本実装を突合した結果、**両参照に対する具体的な欠落は無く、
+//! `crates/headless-ui/src/hover_card.rs` の是正は不要**と判定した
+//! （差分メモの詳細はイシュー #1641 コメント参照）。
+//!
+//! 是正なしの根拠（意図的差分として `src/` を変更しなかった項目）:
+//!
+//! - anatomy: ark-ui の Root > Trigger > Positioner > (Arrow > ArrowTip) +
+//!   Content の 6 パートと完全一致。Radix の `Portal` は JS ランタイム固有
+//!   utility として全体方針で非採用（`docs/policy/intentional-non-adoption.md`
+//!   §3.23）。
+//! - `data-side`/`data-align`: Radix は `content` へ、Zag は
+//!   `trigger`/`content` の双方へ出すが、本実装は `positioning`（#590）の
+//!   規約どおり [`crate::hover_card::positioner`] へ透過させる
+//!   （[`mod@crate::tooltip`]/[`mod@crate::popover`] と同型。hover-card だけを
+//!   変えると規約が分裂するため意図的差分）。
+//! - ARIA: `trigger`/`content` に `role`/`aria-*` を付けない点は Zag・Radix
+//!   いずれとも一致。
+//! - `tabindex="-1"`（content）・`dir`・自動 `id`・複数トリガーの
+//!   `data-value`/`data-current`/`data-ownedby`（Zag のみ）: hover/focus の
+//!   タイマー・DOM 配線が `fandhe-frontend-wasm-full` に未実装の段階で
+//!   `tabindex` を固定付与しない（tags-input #1623 と同型の判断）。複数
+//!   トリガーは機能拡張でありスコープ外候補（下記参照）。
+//! - Keyboard: [`trigger`](crate::hover_card::trigger) はネイティブ `a` 要素
+//!   であり、`href` が `Some` のときブラウザ標準で Tab フォーカス到達・
+//!   Enter によるリンク遷移が成立する（Radix の「Tab で hover card を開閉」
+//!   相当の focus/blur 配線は `fandhe-frontend-wasm-full` 側の責務で未配線）。
+//!
+//! `data-*`・パートの増減は無いため、Themes 側イシュー #1523（closed）への
+//! 追加コメントは不要と判断した。
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::hover_card::{self, HoverCard, HoverCardDelays};
@@ -192,4 +226,132 @@ fn javascript_scheme_href_is_dropped_end_to_end() {
     ));
     assert!(!html.contains("javascript:"));
     assert!(!html.contains("href="));
+}
+
+// --- 参照突合（イシュー #1641）: 意図的差分を機械固定する回帰テスト ---
+
+#[test]
+fn trigger_is_anchor_and_omits_href_when_none() {
+    let html = render(&hover_card::trigger(
+        OpenState::Closed,
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(html.starts_with("<a"));
+    assert!(!html.contains("href="));
+}
+
+#[test]
+fn trigger_and_content_carry_only_reference_aligned_attrs() {
+    // Zag.js/Radix が出すが本実装が意図的に付与しない属性（§参照突合参照）
+    // が trigger/content のいずれにも現れないことを固定する。
+    let trigger = hover_card::trigger(
+        OpenState::Open,
+        Some("https://example.com/preview"),
+        vec![],
+        vec![],
+    );
+    let content = hover_card::content(OpenState::Open, Some("hc-content"), vec![], vec![]);
+    let html = render(&hover_card::root(
+        OpenState::Open,
+        HoverCardDelays::default(),
+        vec![],
+        vec![trigger, content],
+    ));
+
+    for absent in [
+        "data-placement",
+        "data-side",
+        "data-align",
+        "tabindex",
+        " dir=",
+        "data-value",
+        "data-current",
+        "data-ownedby",
+        "role=",
+        "aria-expanded",
+        "aria-controls",
+        "aria-haspopup",
+    ] {
+        assert!(
+            !html.contains(absent),
+            "unexpected attribute present: {absent}"
+        );
+    }
+}
+
+#[test]
+fn closed_state_hides_positioner_and_content() {
+    let content = hover_card::content(OpenState::Closed, None, vec![], vec![]);
+    let positioner = hover_card::positioner(OpenState::Closed, vec![], vec![content]);
+    let html = render(&positioner);
+
+    assert_eq!(html.matches(r#" hidden="""#).count(), 2);
+    assert!(html.contains(r#"data-part="positioner" data-state="closed""#));
+    assert!(html.contains(r#"data-part="content" data-state="closed""#));
+}
+
+#[test]
+fn placement_attrs_reach_positioner_not_content() {
+    let anchor = Rect {
+        x: 0.0,
+        y: 0.0,
+        width: 100.0,
+        height: 30.0,
+    };
+    let floating = Size {
+        width: 240.0,
+        height: 120.0,
+    };
+    let viewport = Size {
+        width: 1024.0,
+        height: 768.0,
+    };
+    let config = PositioningConfig {
+        placement: Placement::new(Side::Top, Align::Start),
+        offset: 8.0,
+        flip: true,
+        shift: true,
+        same_width: false,
+    };
+    let resolved = compute_position(anchor, floating, viewport, &config, true);
+    let side_align: Vec<(&str, &str)> = placement_attrs(resolved.placement).to_vec();
+    let expected_side = format!(r#"data-side="{}""#, resolved.placement.side().as_str());
+    let expected_align = format!(r#"data-align="{}""#, resolved.placement.align().as_str());
+
+    let positioner_html = render(&hover_card::positioner(OpenState::Open, side_align, vec![]));
+    assert!(positioner_html.contains(&expected_side));
+    assert!(positioner_html.contains(&expected_align));
+
+    // content 側には positioner 由来の data-side/data-align を渡さない設計
+    // （呼び出し側が誤って content へ渡しても、本テストは positioner 経由の
+    // 配線のみが規約であることを固定する）。
+    let content_html = render(&hover_card::content(OpenState::Open, None, vec![], vec![]));
+    assert!(!content_html.contains("data-side"));
+    assert!(!content_html.contains("data-align"));
+}
+
+#[test]
+fn caller_attrs_cannot_spoof_scope_and_part() {
+    let html = render(&hover_card::root(
+        OpenState::Closed,
+        HoverCardDelays::default(),
+        vec![("data-scope", "attacker"), ("data-part", "attacker")],
+        vec![],
+    ));
+    assert!(html.contains(r#"data-scope="hover-card""#));
+    assert!(html.contains(r#"data-part="root""#));
+    assert!(!html.contains("attacker"));
+}
+
+#[test]
+fn arrow_parts_are_aria_hidden_and_stateless() {
+    let arrow_html = render(&hover_card::arrow(vec![], vec![]));
+    let arrow_tip_html = render(&hover_card::arrow_tip(vec![], vec![]));
+
+    for html in [&arrow_html, &arrow_tip_html] {
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains("data-state"));
+    }
 }
