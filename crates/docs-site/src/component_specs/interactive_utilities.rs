@@ -98,7 +98,7 @@ fn demo_clipboard() -> Node {
             false,
             vec![],
             vec![
-                clipboard::label(vec![], vec![text("Share link")]),
+                clipboard::label(false, None, vec![], vec![text("Share link")]),
                 clipboard::control(
                     false,
                     vec![],
@@ -133,7 +133,7 @@ fn clipboard_copied_state_example() -> Node {
         true,
         vec![],
         vec![
-            clipboard::label(vec![], vec![text("Share link")]),
+            clipboard::label(true, None, vec![], vec![text("Share link")]),
             clipboard::control(
                 true,
                 vec![],

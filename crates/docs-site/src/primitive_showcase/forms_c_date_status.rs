@@ -460,7 +460,7 @@ pub(super) fn clipboard_section() -> Node {
         false,
         vec![],
         vec![
-            clipboard::label(vec![], vec![text("Share link")]),
+            clipboard::label(false, None, vec![], vec![text("Share link")]),
             clipboard::control(
                 false,
                 vec![],
