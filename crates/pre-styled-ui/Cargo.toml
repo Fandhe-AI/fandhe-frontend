@@ -1711,7 +1711,7 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1648（breadcrumb の参照突合）: 依存先 `fandhe-frontend-headless-ui`
 # 0.53.0 → 0.53.1（呼び出し側 attrs の予約キーなりすまし除去、非破壊的追加）
 # への追随のみ（本クレート自体の実体変更なし）。patch バンプで 0.105.1 とする。
-version = "0.105.1"
+version = "0.105.2"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1726,7 +1726,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.53.1" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.53.2" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

@@ -73,6 +73,16 @@
 //! ない（`HOVER_CARD.keyboard` は 2 行、`COLLAPSIBLE.keyboard` と合わせて
 //! 他 8 部品の `keyboard: &[]` は不変）。
 //!
+//! **`toast` は #1643 で 3 例目の例外を追加した**: root の `tabindex="0"`
+//! （参照突合で追加、`crates/headless-ui/src/toast.rs::root`）とネイティブ
+//! `<button type="button">` の action-trigger/close-trigger により、Tab
+//! による root → action-trigger → close-trigger の順のフォーカス到達と、
+//! フォーカス中の Enter/Space によるボタン click 発火はブラウザ標準操作
+//! として成立する（`TOAST.keyboard` は 2 行）。click から `"dismiss"`
+//! dispatch への配線（`fandhe-frontend-wasm-full` の `MAPPING_TABLE` に
+//! toast 行なし）・Escape での閉鎖・Radix の F8/Zag の Alt+T によるリージョン
+//! フォーカスは未配線のため書かない（他 7 部品の `keyboard: &[]` は不変）。
+//!
 //! # `hover_card` の Accessibility 節が空にならない理由
 //!
 //! `hover_card` は `aria-expanded`/`aria-controls`/`aria-haspopup` を
@@ -1513,12 +1523,71 @@ fn ex_toast_error() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1643、`HOVER_CARD_CUSTOM_CSS_SNIPPET`/
+/// `ex_hover_card_custom_css`〔#1641〕と同型のパターン）。CSS はテキスト
+/// ノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const TOAST_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"toast\"][data-part=\"root\"] {\n  \
+  border: 1px solid #888;\n  border-radius: 8px;\n  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);\n\
+}\n\
+[data-scope=\"toast\"][data-part=\"root\"][data-type=\"error\"] {\n  \
+  border-color: #dc2626;\n  background: #fef2f2;\n\
+}\n\
+[data-scope=\"toast\"][data-part=\"root\"][data-state=\"open\"] {\n  \
+  animation: fd-toast-fade-in 150ms ease-out;\n\
+}\n\
+[data-scope=\"toast\"][data-part=\"group\"][data-placement=\"bottom-end\"] {\n  \
+  position: fixed;\n  bottom: 16px;\n  right: 16px;\n\
+}\n\
+[data-scope=\"toast\"][data-part=\"close-trigger\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n";
+
+/// 一次情報: `crates/headless-ui/src/toast.rs`（モジュール doc「参照突合」節、
+/// `root`/`group` シグネチャの `data-state`/`tabindex` doc コメント）。イシュー
+/// #1643 の参照突合結果を踏まえ、利用者が `data-scope`/`data-part`/
+/// `data-type`/`data-state`/`data-placement` セレクタで自前 CSS を当てる
+/// 最小例を示す。
+fn ex_toast_custom_css() -> Node {
+    let status = toast::ToastStatus::Error;
+    let placement = toast::ToastPlacement::BottomEnd;
+    let markup = toast::group(
+        placement,
+        "Alerts",
+        vec![],
+        vec![toast::root(
+            status,
+            vec![],
+            vec![
+                toast::title(vec![], vec![text("Upload failed")]),
+                toast::description(vec![], vec![text("Network connection was lost.")]),
+                toast::close_trigger(
+                    vec![("aria-label", "Dismiss notification")],
+                    vec![text("×")],
+                ),
+            ],
+        )],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-type / data-state / data-placement セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(vec![], vec![code(vec![], vec![text(TOAST_CUSTOM_CSS_SNIPPET)])]),
+        ],
+    )
+}
+
 pub const TOAST: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "group（live region）/ root（通知 1 件）/ title/description/action-trigger/close-trigger の 6 anatomy パーツと、複数通知を有界なキューとして管理する状態機械 Toaster を提供する（dispatch: dismiss/clear）。",
-        "aria-live は ToastStatus から決定的に導出する（呼び出し側文字列を直接流し込まない）。Error のみ \"assertive\"、他は \"polite\"。aria-atomic=\"true\" を併用し、通知全体を単位として読み上げさせる。",
-        "group は role=\"region\" + aria-label（label は必須引数）を固定付与する。",
-        "タイマーによる自動 dismiss の実配線は fandhe-frontend-wasm-full 側の後続イシューのスコープ。",
+        "group（live region）/ root（通知 1 件）/ title/description/action-trigger/close-trigger の 6 anatomy パーツと、複数通知を有界なキューとして管理する状態機械 Toaster を提供する（dispatch: dismiss/clear）。イシュー #1643 で Zag.js `toast.connect.ts`（ark-ui の実体）・Radix Primitives Toast・chakra-ui v3 Toast と突合し、6 パートの増減なしで一致することを確認した。",
+        "aria-live は ToastStatus から決定的に導出する（呼び出し側文字列を直接流し込まない）。Error のみ \"assertive\"、他は \"polite\"。aria-atomic=\"true\" を併用し、通知全体を単位として読み上げさせる（Zag は group 側に polite を出すが、本クレートは Radix 準拠で root に置く既存方針を #1643 で維持確定）。",
+        "group は role=\"region\" + aria-label（label は必須引数）+ tabindex=\"-1\" を固定付与する（tabindex は #1643 で追加。Zag/Radix ともプログラム的フォーカス先として持つが、本クレートはホットキー未配線のため Tab 順には入らない）。",
+        "root は role=\"status\" + aria-atomic=\"true\" + aria-live + data-type に加え、data-state=\"open\"（固定値のみ）・tabindex=\"0\" を発行する（#1643 で追加。Zag/Radix ともに持つ属性で、キーボード利用者が Tab で通知本体へ到達できる）。exit 遷移用の data-state=\"closed\" は発行しない。",
+        "action-trigger は data-disabled を発行しない（#1643 で確定。ネイティブ disabled 属性を呼び出し側 attrs 経由で渡す運用）。",
+        "タイマーによる自動 dismiss・Escape での閉鎖・ホットキーによるリージョンフォーカス（Radix F8 / Zag Alt+T）の実配線は fandhe-frontend-wasm-full 側の後続イシューのスコープ。",
     ],
     arguments: &[
         ArgRow {
@@ -1540,20 +1609,36 @@ pub const TOAST: ComponentPageSpec = ComponentPageSpec {
             description: "data-type と aria-live の緊急度（Error のみ assertive、他は polite）を導出する状態。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Error status",
-        description: "ToastStatus::Error の Toast は aria-live=\"assertive\" になり、他の状態より即座に割り込んで読み上げられます。",
-        render: ex_toast_error,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Error status",
+            description: "ToastStatus::Error の Toast は aria-live=\"assertive\" になり、他の状態より即座に割り込んで読み上げられます。",
+            render: ex_toast_error,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "data-scope / data-part / data-type / data-state / data-placement セレクタで自前 CSS を当てる最小例です。",
+            render: ex_toast_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "root（tabindex=\"0\"）→ action-trigger → close-trigger の順にブラウザ標準でフォーカス到達する。Radix の F8 / Zag の Alt+T によるリージョンフォーカスは未配線。",
+        },
+        KeyRow {
+            key: "Enter / Space (action-trigger / close-trigger)",
+            description: "ネイティブ button の click が発火する。click から \"dismiss\" dispatch への配線（fandhe-frontend-wasm-full の MAPPING_TABLE）は未実装で、Escape での閉鎖も同様。",
+        },
+    ],
     aria: &[
         AriaRow {
-            attribute: "role=\"region\" / aria-label",
-            description: "group に固定付与。",
+            attribute: "role=\"region\" / aria-label / tabindex=\"-1\"",
+            description: "group に固定付与（tabindex は #1643 で追加）。",
         },
         AriaRow {
-            attribute: "role=\"status\"",
-            description: "root に固定付与。",
+            attribute: "role=\"status\" / tabindex=\"0\"",
+            description: "root に固定付与（tabindex は #1643 で追加）。",
         },
         AriaRow {
             attribute: "aria-atomic=\"true\"",
@@ -1561,7 +1646,15 @@ pub const TOAST: ComponentPageSpec = ComponentPageSpec {
         },
         AriaRow {
             attribute: "aria-live",
-            description: "root に付与。status から決定的に導出される（Error のみ assertive、他は polite）。",
+            description: "root に付与。status から決定的に導出される（Error のみ assertive、他は polite）。Zag は group に置くが本クレートは Radix 準拠で root 側の既存方針を維持する（#1643）。",
+        },
+        AriaRow {
+            attribute: "data-state=\"open\"",
+            description: "root に固定発行（#1643 で追加）。\"closed\"（exit 遷移用）は発行しない。",
+        },
+        AriaRow {
+            attribute: "close-trigger の aria-label",
+            description: "既定値は付与しない。アイコンのみの close-trigger には呼び出し側が attrs で aria-label を渡すこと（#1643）。",
         },
     ],
     demo: None,
@@ -1850,21 +1943,26 @@ mod tests {
             );
             assert!(!spec.aria.is_empty(), "{path}: aria must not be empty");
             // collapsible（イシュー #1637）・dialog（イシュー #1638）・
-            // hover-card（イシュー #1641）のみ例外: collapsible は trigger が
-            // ネイティブ <button> のため Space/Enter が標準操作として成立し、
-            // dialog は fandhe-frontend-wasm-full 側（overlay/focus_trap/
-            // headless）の実 DOM 配線を確認できたため、hover-card は trigger
-            // がネイティブ <a> のため href が Some のときの Tab フォーカス
-            // 到達・Enter 遷移がブラウザ標準として成立するため。他 7 部品は
-            // キー割り当てを持つ実装が無いため keyboard: &[] を維持する
-            // （モジュール doc「keyboard を 10 件すべて空にする理由」参照）。
+            // hover-card（イシュー #1641）・toast（イシュー #1643）のみ例外:
+            // collapsible は trigger がネイティブ <button> のため Space/Enter
+            // が標準操作として成立し、dialog は fandhe-frontend-wasm-full 側
+            // （overlay/focus_trap/headless）の実 DOM 配線を確認できたため、
+            // hover-card は trigger がネイティブ <a> のため href が Some の
+            // ときの Tab フォーカス到達・Enter 遷移がブラウザ標準として
+            // 成立するため、toast は root の tabindex="0"（#1643 で追加）と
+            // ネイティブ <button> の action-trigger/close-trigger により Tab
+            // フォーカス到達・Enter/Space の click 発火がブラウザ標準として
+            // 成立するため。他 6 部品はキー割り当てを持つ実装が無いため
+            // keyboard: &[] を維持する（モジュール doc「keyboard を 10 件
+            // すべて空にする理由」参照）。
             if *path == "/primitives/collapsible/"
                 || *path == "/primitives/dialog/"
                 || *path == "/primitives/hover-card/"
+                || *path == "/primitives/toast/"
             {
                 assert!(
                     !spec.keyboard.is_empty(),
-                    "{path}: keyboard should hold the documented rows (#1637/#1638/#1641)"
+                    "{path}: keyboard should hold the documented rows (#1637/#1638/#1641/#1643)"
                 );
             } else {
                 assert!(

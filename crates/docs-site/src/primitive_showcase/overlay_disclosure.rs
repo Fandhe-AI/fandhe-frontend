@@ -376,22 +376,38 @@ pub(super) fn popover_section() -> Node {
 }
 
 pub(super) fn toast_section() -> Node {
-    let status = toast::ToastStatus::Success;
     let placement = toast::ToastPlacement::BottomEnd;
+    // イシュー #1643: root を 2 件（Success/Error）にして、機械導出される
+    // data-* 表で data-type の観測値が複数になり aria-live の polite/
+    // assertive 差が Demo 上で見えるようにする（Anatomy はパート増減なし）。
     let body = vec![toast::group(
         placement,
         "Notifications",
         vec![],
-        vec![toast::root(
-            status,
-            vec![],
-            vec![
-                toast::title(vec![], vec![text("Saved")]),
-                toast::description(vec![], vec![text("Your changes have been saved.")]),
-                toast::action_trigger(vec![], vec![text("Undo")]),
-                toast::close_trigger(vec![], vec![text("×")]),
-            ],
-        )],
+        vec![
+            toast::root(
+                toast::ToastStatus::Success,
+                vec![],
+                vec![
+                    toast::title(vec![], vec![text("Saved")]),
+                    toast::description(vec![], vec![text("Your changes have been saved.")]),
+                    toast::action_trigger(vec![], vec![text("Undo")]),
+                    toast::close_trigger(vec![], vec![text("×")]),
+                ],
+            ),
+            toast::root(
+                toast::ToastStatus::Error,
+                vec![],
+                vec![
+                    toast::title(vec![], vec![text("Upload failed")]),
+                    toast::description(vec![], vec![text("Network connection was lost.")]),
+                    toast::close_trigger(
+                        vec![("aria-label", "Dismiss notification")],
+                        vec![text("×")],
+                    ),
+                ],
+            ),
+        ],
     )];
     demo_page("Toast", body)
 }

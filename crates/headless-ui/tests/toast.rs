@@ -51,6 +51,11 @@ fn full_assembly_wires_group_root_title_description_and_close_trigger() {
     assert!(html.contains(r#"role="status""#));
     assert!(html.contains(r#"data-type="success""#));
     assert!(html.contains("Saved"));
+    // イシュー #1643 参照突合で追加した状態・フォーカス属性（group の
+    // tabindex="-1" ・ root の data-state="open"/tabindex="0"）。
+    assert!(html.contains(r#"tabindex="-1""#));
+    assert!(html.contains(r#"data-state="open""#));
+    assert!(html.contains(r#"tabindex="0""#));
 }
 
 #[test]
@@ -86,6 +91,22 @@ fn ssr_initial_render_has_no_hydrate_attr() {
     let html = render(&t.view());
     assert!(!html.contains("data-hydrate-"));
     assert!(html.contains(r#"data-scope="toast""#));
+}
+
+/// イシュー #1643: 公開 API 経由（`Toaster::default().view()`）でも group
+/// ラベルが [`toast::DEFAULT_GROUP_LABEL`] であること、hydration 属性
+/// （`hydration_attrs`）が `data-state`（root 固定値で hydration 対象外）を
+/// 含まず round-trip が不変であることを確認する。
+#[test]
+fn default_view_group_label_and_hydration_attrs_are_unaffected() {
+    let t = Toaster::default();
+    let html = render(&t.view());
+    assert!(html.contains(r#"aria-label="Notifications""#));
+
+    let attrs = t.hydration_attrs();
+    assert!(attrs.iter().all(|(name, _)| name != "data-hydrate-state"));
+    let restored = Toaster::from_hydration_attrs(&attrs).unwrap();
+    assert_eq!(restored, t);
 }
 
 #[test]

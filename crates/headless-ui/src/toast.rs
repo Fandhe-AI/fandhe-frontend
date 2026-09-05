@@ -29,6 +29,57 @@
 //! 高い通知として即座に割り込ませる）、他は `"polite"`。`aria-atomic="true"` を
 //! 併用し、通知全体を単位として読み上げさせる。
 //!
+//! # 参照突合（イシュー #1643）
+//!
+//! Zag.js `toast.connect.ts`/`toast-group.connect.ts`（ark-ui の実体）・
+//! Radix Primitives Toast・chakra-ui v3 Toast と突合した。anatomy（6 パート:
+//! group/root/title/description/action-trigger/close-trigger）はいずれの参照
+//! 軸とも増減なしで一致する。是正した差分は次の 4 点:
+//!
+//! 1. **root に `data-state="open"` を追加**: Zag・Radix 双方が持つ。固定値
+//!    `"open"` のみ発行し、`"closed"`（exit 遷移用）は発行しない（[`root`] の
+//!    doc コメント参照）。
+//! 2. **root に `tabindex="0"` を追加**: Zag・Radix 双方が持つ。フォーカス
+//!    可能性のみで、キー処理配線は伴わない（[`root`] の doc コメント参照）。
+//! 3. **group に `tabindex="-1"` を追加**: Zag group・Radix viewport 双方が
+//!    持つ（[`group`] の doc コメント参照）。
+//! 4. **[`Toaster::view`] の group ラベルを [`DEFAULT_GROUP_LABEL`] に変更**:
+//!    従来 `aria-label=""` を出していた不具合を是正。
+//!
+//! `fandhe-frontend-pre-styled-ui` の `action-trigger` に `data-disabled` を
+//! 発行するかは本イシューで**発行しないことを確定**した（Zag の
+//! `getActionTriggerProps` は `type="button"` のみを発行し、ネイティブ
+//! `disabled` 属性を呼び出し側 attrs 経由で渡す運用を維持する）。
+//!
+//! 意図的に参照軸へ合わせなかった点（差分メモ、イシュー #1643 コメント参照）:
+//!
+//! - Zag のスタック・遷移・一時停止系 `data-*`（`data-mounted`/`data-paused`/
+//!   `data-first`/`data-sibling`/`data-stack`/`data-overlap`）と Radix の
+//!   スワイプ系（`data-swipe`/`data-swipe-direction`）は装飾・アニメーション・
+//!   ジェスチャ計測の関心であり `docs/policy/intentional-non-adoption.md`
+//!   §3.25 規則 2 により headless 層へ持ち込まない。
+//! - `data-placement`/`data-side`/`data-align` は group のみに付与し、Zag の
+//!   ように root へは重複付与しない。`data-side`/`data-align` の分解値も
+//!   追加しない。
+//! - `aria-live` は root に置く方針を維持する（Zag は group に `polite` +
+//!   `aria-relevant`/`aria-atomic="false"` を出し root には付けないが、本
+//!   クレートは Radix と同じ配置を既存の決定として維持する）。
+//! - root の `aria-labelledby`/`aria-describedby`、title/description の
+//!   自動 `id` は付与しない（`role="status"` + `aria-atomic="true"` で通知
+//!   全体が読み上げられるため必須ではなく、Radix も付けない。必要な利用者は
+//!   `attrs` で渡せる）。
+//! - close-trigger の既定 `aria-label`（Zag の `"Dismiss notification"`）は
+//!   付与しない（[`crate::anatomy::Anatomy::part`] は呼び出し側 attrs を
+//!   後置追記するため、固定既定値は利用者指定と二重出力になる。アイコンのみの
+//!   close-trigger には呼び出し側が `attrs` で `aria-label` を渡す）。
+//! - `ToastStatus` への `loading` variant 追加（Zag/chakra）は公開 enum の
+//!   破壊的変更であり見送り。
+//! - chakra の `Indicator`（アイコン）パートはアイコン装飾であり §3.25 規則 2
+//!   の対象、headless には置かない（Themes 候補として記録）。
+//! - 要素型は Radix の `ol`/`li` ではなく ark-ui と同じ `div` を維持する。
+//! - group `aria-label` へのホットキー・placement 埋め込み（Zag/Radix）は
+//!   ホットキー未配線のため行わない。
+//!
 //! # スコープ外
 //!
 //! - タイマーによる自動 dismiss の実配線（duration 管理・`"dismiss"` dispatch
@@ -38,6 +89,13 @@
 //!   クライアント側の型付き API 経由で行う想定（`decode_action` は `"push"` を
 //!   受理しない、本モジュール冒頭「未知アクション no-op」契約参照）。
 //! - `ActionTrigger` の実際の動作配線・promise/loading 対応（ark-ui 固有機能）。
+//! - Escape キー（Zag/Radix とも Toast 上の Escape で閉じる）・ホットキーに
+//!   よるリージョンフォーカス（Zag `Alt+T`・Radix `F8`）・タイマーによる
+//!   自動 dismiss と hover/focus による一時停止・exit 遷移用
+//!   `data-state="closed"` は、いずれも `fandhe-frontend-wasm-full` の
+//!   dispatch 配線（`MAPPING_TABLE` に toast 行なし）が無いためキーボード
+//!   操作の文書化対象に含めず、後続イシューのスコープとする（イシュー
+//!   #1643）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -66,6 +124,15 @@ const ANATOMY: Anatomy = anatomy("toast");
 
 /// [`Toaster::default`] が使う既定の最大表示件数（ark-ui の例に倣う）。
 pub const DEFAULT_MAX: usize = 24;
+
+/// [`Toaster::view`] が使う既定の group ラベル（イシュー #1643）。
+///
+/// Zag.js `toast-group.connect.ts` の既定ラベル（`"Notifications"`、
+/// hotkey・placement 埋め込み部分は本クレート未配線のため除く）に倣う。
+/// [`group`] 自由関数側は `label` を引数必須のままとし（呼び出し側 attrs との
+/// 二重出力を避ける方針、モジュール冒頭「意図的に合わせない点」参照）、この
+/// 定数は `Toaster::view` が `aria-label=""` を出していた不具合の是正専用。
+pub const DEFAULT_GROUP_LABEL: &str = "Notifications";
 
 /// Toast のステータス（既定 `Info`）。
 ///
@@ -195,6 +262,13 @@ pub struct ToastEntry {
 ///
 /// `role="region"` + `aria-label`（`label` は必須引数。[`crate::avatar::image`]
 /// の `alt` 必須化と同じアクセシビリティ担保方針）+ `data-placement` を付与する。
+///
+/// `tabindex="-1"`（イシュー #1643）: Zag.js `toast-group.connect.ts` の
+/// group・Radix Primitives Toast Viewport の双方がプログラム的フォーカス
+/// （ホットキーによるリージョンフォーカス）の受け皿として持つ属性。本クレート
+/// はホットキー（Zag の `Alt+T`・Radix の `F8`）を未配線のため実際にフォーカス
+/// させる経路はないが、属性自体は将来の配線を妨げない静的な既定値として付与する
+/// （Tab 順には入らないため、キーボード操作フローに影響しない）。
 #[must_use]
 pub fn group<'a>(
     placement: ToastPlacement,
@@ -206,6 +280,7 @@ pub fn group<'a>(
         role("region"),
         aria_label(label),
         ("data-placement", placement.as_data_placement()),
+        ("tabindex", "-1"),
     ];
     merged.extend(attrs);
     ANATOMY.part("group", "div", merged, children)
@@ -215,6 +290,18 @@ pub fn group<'a>(
 ///
 /// `role="status"` + `aria-atomic="true"` + `aria-live`（[`ToastStatus::aria_live_urgency`]）
 /// + `data-type`（ark-ui 準拠の status フック）を付与する。
+///
+/// `data-state="open"` / `tabindex="0"`（イシュー #1643、参照突合で追加）:
+/// Zag.js `toast.connect.ts` の root・Radix Primitives Toast Root の双方が
+/// 持つ属性。`data-state` は固定で `"open"` のみを発行する（`Toaster` には
+/// 閉鎖・退出中間状態が存在せず、描画された root は構造上つねに open のため、
+/// 固定値が唯一「実装に存在する挙動」を正確に表す）。`"closed"`（exit 遷移用の
+/// 中間状態）は `fandhe-frontend-wasm-full` の dismiss 配線（タイマー・退出
+/// アニメーション）実装後に語彙を拡張する事項であり、本モジュール冒頭の
+/// 「スコープ外」節を参照。`tabindex="0"` はキーボード利用者が Tab で通知本体
+/// （root → action-trigger → close-trigger の順）へ到達できるようにする静的
+/// 属性で、dialog（#1910）の content が `tabindex="-1"` を固定付与した先例と
+/// 同型（クリック/キー処理の配線を伴わない属性のみの付与）。
 #[must_use]
 pub fn root<'a>(status: ToastStatus, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![
@@ -222,6 +309,8 @@ pub fn root<'a>(status: ToastStatus, attrs: Vec<(&'a str, &'a str)>, children: V
         aria_atomic(true),
         aria_live(status.aria_live_urgency()),
         ("data-type", status.as_data_status()),
+        ("data-state", "open"),
+        ("tabindex", "0"),
     ];
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
@@ -397,7 +486,7 @@ impl Component for Toaster {
                 )
             })
             .collect();
-        self.group("", Vec::new(), children)
+        self.group(DEFAULT_GROUP_LABEL, Vec::new(), children)
     }
 
     /// クライアント由来の文字列 dispatch は `"dismiss"`（payload = `id`）・
@@ -575,6 +664,7 @@ mod tests {
         assert!(html.contains(r#"role="region""#));
         assert!(html.contains(r#"aria-label="Notifications""#));
         assert!(html.contains(r#"data-placement="top-start""#));
+        assert!(html.contains(r#"tabindex="-1""#));
     }
 
     #[test]
@@ -586,6 +676,33 @@ mod tests {
         assert!(html.contains(r#"aria-atomic="true""#));
         assert!(html.contains(r#"aria-live="polite""#));
         assert!(html.contains(r#"data-type="success""#));
+        assert!(html.contains(r#"data-state="open""#));
+        assert!(html.contains(r#"tabindex="0""#));
+    }
+
+    /// 参照突合（イシュー #1643）で意図的に不採用と確定した属性が root/
+    /// action-trigger のいずれからも出力されないことを固定する（Zag の
+    /// スタック/一時停止系 `data-*`・Radix のスワイプ系 `data-*`・
+    /// action-trigger の `data-disabled`）。§3.25 規則 2 の非採用境界を
+    /// 回帰させないための否定テスト。
+    #[test]
+    fn root_and_action_trigger_do_not_output_unadopted_reference_attrs() {
+        let root_html = render(&root(ToastStatus::Success, vec![], vec![]));
+        for absent in [
+            "data-mounted",
+            "data-paused",
+            "data-first",
+            "data-sibling",
+            "data-stack",
+            "data-overlap",
+            "data-swipe",
+            "data-swipe-direction",
+        ] {
+            assert!(!root_html.contains(absent), "unexpected attr: {absent}");
+        }
+
+        let action_trigger_html = render(&action_trigger(vec![], vec![]));
+        assert!(!action_trigger_html.contains("data-disabled"));
     }
 
     #[test]
@@ -803,6 +920,15 @@ mod tests {
         assert!(!rendered.contains("data-hydrate-"));
         assert!(rendered.contains(r#"data-scope="toast""#));
         assert!(rendered.contains(r#"data-part="group""#));
+    }
+
+    /// イシュー #1643 是正: `Toaster::view` が `aria-label=""` を出していた
+    /// 不具合が [`DEFAULT_GROUP_LABEL`] で解消されていることを固定する。
+    #[test]
+    fn toaster_view_group_uses_default_label() {
+        let rendered = render(&Toaster::default().view());
+        assert!(rendered.contains(r#"aria-label="Notifications""#));
+        assert!(!rendered.contains(r#"aria-label="""#));
     }
 
     #[test]
