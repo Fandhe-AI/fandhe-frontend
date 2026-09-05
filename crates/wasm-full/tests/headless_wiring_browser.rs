@@ -1291,14 +1291,19 @@ fn navigation_menu_trigger_click_toggles_open_state_in_real_dom() {
     let container = create_container(&document, "headless-navigation-menu-root");
     let _cleanup = RemoveOnDrop(container.clone());
 
+    let nav_props = navigation_menu::NavigationMenuProps::default();
     let html = fandhe_frontend_core::render(&navigation_menu::root(
+        &nav_props,
         "Main",
         vec![],
         vec![navigation_menu::list(
+            &nav_props,
             vec![],
             vec![navigation_menu::item(
                 OpenState::Closed,
                 false,
+                &nav_props,
+                "products",
                 vec![],
                 vec![navigation_menu::trigger(
                     OpenState::Closed,

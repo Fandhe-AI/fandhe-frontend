@@ -319,7 +319,7 @@ pub const MENUBAR: ComponentPageSpec = ComponentPageSpec {
 /// 空のまま）。
 pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "トリガー起点で開閉するナビゲーションパネル。Root / List / Item / Trigger / Content / Link の 6 anatomy パーツを持つ。",
+        "トリガー起点で開閉するナビゲーションパネル。Root / List / Item / Trigger / ItemIndicator / Content / Link の 7 anatomy パーツを持つ（イシュー #1654 で ItemIndicator を新設し 6 → 7 パーツへ拡張）。",
         "高々 1 個の Trigger だけが開く状態機械（SingleSelect を埋め込んだ NavigationMenu）。dispatch は \"select\"/\"toggle\"/\"deselect\"。",
         "role は一切付与しない。root は素の nav の暗黙 ARIA role（navigation）に依拠し、role=\"menu\"/role=\"menuitem\" は付与しない（文書ナビを操作メニューと誤伝達しないための設計、nav_list と同じ判断）。",
         "アクティブリンクは aria-current=\"page\" + data-current で表す（role は付与しない）。",

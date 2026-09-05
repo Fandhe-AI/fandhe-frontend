@@ -6772,15 +6772,20 @@ fn navigation_menu_section() -> Node {
     // 引数で受け取る設計であり、single/multiple いずれの状態機械経由でも
     // 状態機械を経由しない構成でも共用できる、`navigation_menu` モジュール
     // doc 参照）。
+    let nav_props = navigation_menu::NavigationMenuProps::default();
     let node = navigation_menu::root(
+        &nav_props,
         "Main",
         vec![],
         vec![navigation_menu::list(
+            &nav_props,
             vec![],
             vec![
                 navigation_menu::item(
                     OpenState::Open,
                     false,
+                    &nav_props,
+                    "products",
                     vec![],
                     vec![
                         navigation_menu::trigger(
@@ -6794,6 +6799,8 @@ fn navigation_menu_section() -> Node {
                         ),
                         navigation_menu::content(
                             OpenState::Open,
+                            &nav_props,
+                            "products",
                             Some("nav-menu-products-content"),
                             Some("nav-menu-products-trigger"),
                             vec![],
@@ -6807,6 +6814,8 @@ fn navigation_menu_section() -> Node {
                 navigation_menu::item(
                     OpenState::Closed,
                     false,
+                    &nav_props,
+                    "about",
                     vec![],
                     vec![navigation_menu::link("", true, vec![], vec![text("About")])],
                 ),
