@@ -106,6 +106,18 @@ pub fn aria_disabled(disabled: bool) -> (&'static str, &'static str) {
     ("aria-disabled", bool_str(disabled))
 }
 
+/// `aria-readonly` 属性（RatingGroup の `control` 用、イシュー #1617）。
+///
+/// ark-ui Rating Group の `control` は `aria-readonly` を常時出力する
+/// （`aria_invalid`/`aria_required` と同じ WAI-ARIA 仕様上の明示 2 値属性）。
+/// 呼び出し側（`crate::rating_group::control`）は `true` のときのみ出力
+/// する「真のときのみ push」規約（`aria_disabled` の呼び出し慣行、
+/// `crates/headless-ui/src/angle_slider.rs`/`tree_view.rs` 参照）を採る。
+#[must_use]
+pub fn aria_readonly(readonly: bool) -> (&'static str, &'static str) {
+    ("aria-readonly", bool_str(readonly))
+}
+
 /// `aria-selected` 属性。
 #[must_use]
 pub fn aria_selected(selected: bool) -> (&'static str, &'static str) {
@@ -350,6 +362,8 @@ mod tests {
         assert_eq!(aria_pressed(false), ("aria-pressed", "false"));
         assert_eq!(aria_hidden(true), ("aria-hidden", "true"));
         assert_eq!(aria_disabled(true), ("aria-disabled", "true"));
+        assert_eq!(aria_readonly(true), ("aria-readonly", "true"));
+        assert_eq!(aria_readonly(false), ("aria-readonly", "false"));
         assert_eq!(aria_selected(false), ("aria-selected", "false"));
         assert_eq!(aria_modal(true), ("aria-modal", "true"));
         assert_eq!(aria_invalid(true), ("aria-invalid", "true"));

@@ -244,7 +244,8 @@ fn number_input_name_and_label_children_are_escaped_for_all_payloads() {
 #[test]
 fn rating_group_name_and_label_children_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
-        let hidden_input_node = rating_group::hidden_input(Some(payload), "3", false, vec![]);
+        let props = rating_group::RatingGroupProps::default();
+        let hidden_input_node = rating_group::hidden_input(&props, Some(payload), "3", vec![]);
         let html = render(&hidden_input_node);
         assert_payload_is_escaped(
             payload,
@@ -252,7 +253,7 @@ fn rating_group_name_and_label_children_are_escaped_for_all_payloads() {
             "rating_group::hidden_input の name 属性値コンテキスト",
         );
 
-        let label_node = rating_group::label(None, vec![], vec![text(payload)]);
+        let label_node = rating_group::label(&props, None, vec![], vec![text(payload)]);
         let html = render(&label_node);
         assert_payload_is_escaped(payload, &html, "rating_group::label のテキストコンテキスト");
     }

@@ -1469,7 +1469,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # 統合した結果として main 現在値 0.89.0 からさらにマイナーバンプし
 # 0.90.0 とする（同一版数への偶発的衝突をそのまま採用しない、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）。
-version = "0.90.0"
+# base ブランチ再取り込み（PR #1881, 2回目, 2026-09-05）: 上記 0.90.0 到達後、
+# main はイシュー #1617（PR #1889, rating-group の参照突合）で独立に同じ
+# 0.90.0 へ到達していた（headless-ui 側 `RatingGroupProps` 新設に伴う
+# `rating_group::root`（styled ラッパー）シグネチャ変更への追随・headless-ui
+# 依存も 0.39.0 → 0.40.0 へ本マージで追随する）。本ブランチの
+# `number_input::root` への `readonly: bool` 引数追加（公開シグネチャ変更、
+# イシュー #1613 codex-review P1 是正）と main の rating-group 破壊的変更は
+# 共に観測可能な公開 API 変更であり、同一版数への偶発的衝突が再発したため、
+# 同じ「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.91.0 へ
+# さらにマイナーバンプする。
+version = "0.91.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1484,7 +1495,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.39.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.40.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
