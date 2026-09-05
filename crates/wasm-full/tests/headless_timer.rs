@@ -156,9 +156,14 @@ fn formatted_segments_matches_timer_items_rendering() {
 #[test]
 fn action_trigger_predicate_agrees_with_headless_ui_anatomy() {
     use fandhe_frontend_core::render;
-    use fandhe_frontend_headless_ui::timer::{action_trigger, TimerControl};
+    use fandhe_frontend_headless_ui::timer::{action_trigger, TimerControl, TimerPhase};
 
-    let html = render(&action_trigger(TimerControl::Start, Vec::new(), Vec::new()));
+    let html = render(&action_trigger(
+        TimerControl::Start,
+        TimerPhase::Idle,
+        Vec::new(),
+        Vec::new(),
+    ));
     assert!(html.contains(r#"data-scope="timer""#));
     assert!(html.contains(r#"data-part="action-trigger""#));
     assert!(is_timer_action_trigger(

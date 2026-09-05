@@ -8,7 +8,7 @@ use hui::number_input::{self, NumberInputFlags};
 use hui::password_input::{self, PasswordAutocomplete, PasswordInputProps};
 use hui::pin_input::{self, PinInputKind, PinInputProps};
 use hui::radio_group;
-use hui::rating_group::{self, RatingItemFlags};
+use hui::rating_group::{self, RatingGroupProps, RatingItemFlags};
 use hui::segment_group;
 use hui::select;
 use hui::signature_pad::{self, Point, Stroke};
@@ -19,23 +19,19 @@ use hui::OpenState;
 
 use super::demo_page;
 
+/// NumberInput Demo（イシュー #1613 参照突合: 基本 / 下限到達 / disabled /
+/// invalid+required / readonly の 5 インスタンス化。基本インスタンスは
+/// [`number_input::value_text`]（同イシューで新設した 7 番目のパーツ）も
+/// 露出する）。
 pub(super) fn number_input_section() -> Node {
     let flags = NumberInputFlags::default();
-    let body = vec![number_input::root(
-        false,
-        false,
+    let basic = vec![number_input::root(
+        flags,
         vec![],
         vec![
-            number_input::label(
-                false,
-                false,
-                Some("ni-input"),
-                vec![],
-                vec![text("Quantity")],
-            ),
+            number_input::label(flags, Some("ni-input"), vec![], vec![text("Quantity")]),
             number_input::control(
-                false,
-                false,
+                flags,
                 vec![],
                 vec![
                     number_input::decrement_trigger(
@@ -61,9 +57,188 @@ pub(super) fn number_input_section() -> Node {
                     ),
                 ],
             ),
+            number_input::value_text(flags, vec![], vec![text("3")]),
         ],
     )];
-    demo_page("Number Input", body)
+
+    // 下限到達（イシュー #1613: decrement トリガーが disabled になる境界例）。
+    let at_min = vec![number_input::root(
+        flags,
+        vec![],
+        vec![
+            number_input::label(flags, Some("ni-input-min"), vec![], vec![text("At min")]),
+            number_input::control(
+                flags,
+                vec![],
+                vec![
+                    number_input::decrement_trigger(
+                        Some("ni-input-min"),
+                        true,
+                        vec![],
+                        vec![text("−")],
+                    ),
+                    number_input::input(
+                        "quantity-min",
+                        Some("ni-input-min"),
+                        Some("0"),
+                        "0",
+                        "99",
+                        flags,
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("ni-input-min"),
+                        false,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                ],
+            ),
+        ],
+    )];
+
+    // disabled。
+    let disabled_flags = NumberInputFlags {
+        disabled: true,
+        ..NumberInputFlags::default()
+    };
+    let disabled = vec![number_input::root(
+        disabled_flags,
+        vec![],
+        vec![
+            number_input::label(
+                disabled_flags,
+                Some("ni-input-disabled"),
+                vec![],
+                vec![text("Disabled")],
+            ),
+            number_input::control(
+                disabled_flags,
+                vec![],
+                vec![
+                    number_input::decrement_trigger(
+                        Some("ni-input-disabled"),
+                        true,
+                        vec![],
+                        vec![text("−")],
+                    ),
+                    number_input::input(
+                        "quantity-disabled",
+                        Some("ni-input-disabled"),
+                        Some("3"),
+                        "0",
+                        "99",
+                        disabled_flags,
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("ni-input-disabled"),
+                        true,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                ],
+            ),
+        ],
+    )];
+
+    // invalid + required（イシュー #1613: label の `data-required` を Demo で
+    // 露出する）。
+    let invalid_required_flags = NumberInputFlags {
+        invalid: true,
+        required: true,
+        ..NumberInputFlags::default()
+    };
+    let invalid_required = vec![number_input::root(
+        invalid_required_flags,
+        vec![],
+        vec![
+            number_input::label(
+                invalid_required_flags,
+                Some("ni-input-invalid"),
+                vec![],
+                vec![text("Invalid, required")],
+            ),
+            number_input::control(
+                invalid_required_flags,
+                vec![],
+                vec![
+                    number_input::decrement_trigger(
+                        Some("ni-input-invalid"),
+                        false,
+                        vec![],
+                        vec![text("−")],
+                    ),
+                    number_input::input(
+                        "quantity-invalid",
+                        Some("ni-input-invalid"),
+                        Some("3"),
+                        "0",
+                        "99",
+                        invalid_required_flags,
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("ni-input-invalid"),
+                        false,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                ],
+            ),
+        ],
+    )];
+
+    // readonly（イシュー #1613: root/control の `data-readonly` を Demo で
+    // 露出する）。
+    let readonly_flags = NumberInputFlags {
+        readonly: true,
+        ..NumberInputFlags::default()
+    };
+    let readonly = vec![number_input::root(
+        readonly_flags,
+        vec![],
+        vec![
+            number_input::label(
+                readonly_flags,
+                Some("ni-input-readonly"),
+                vec![],
+                vec![text("Readonly")],
+            ),
+            number_input::control(
+                readonly_flags,
+                vec![],
+                vec![
+                    number_input::decrement_trigger(
+                        Some("ni-input-readonly"),
+                        true,
+                        vec![],
+                        vec![text("−")],
+                    ),
+                    number_input::input(
+                        "quantity-readonly",
+                        Some("ni-input-readonly"),
+                        Some("7"),
+                        "0",
+                        "99",
+                        readonly_flags,
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("ni-input-readonly"),
+                        true,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                ],
+            ),
+        ],
+    )];
+
+    demo_page(
+        "Number Input",
+        [basic, at_min, disabled, invalid_required, readonly].concat(),
+    )
 }
 
 /// `password_input_section` の 1 インスタンス分を組み立てる非公開ヘルパ。
@@ -236,42 +411,151 @@ pub(super) fn pin_input_section() -> Node {
     demo_page("Pin Input", body)
 }
 
-pub(super) fn radio_group_section() -> Node {
-    let body = vec![radio_group::root(
-        false,
-        None,
-        None,
+/// `label_text`/`label_id`/`name`/`props`/`orientation`/`items`（各項目は
+/// `(value, text, checked, item_disabled)`）から 1 個の RadioGroup
+/// インスタンス（root > label + item(item_control + item_text +
+/// item_hidden_input)×N）を組み立てる内部ヘルパ（[`radio_group_section`]
+/// のみが呼ぶ）。[`pin_input_instance`] と同型のパターン。項目単位で
+/// disabled を上書きしたい場合は `item_disabled` を `true` にした
+/// `RadioGroupProps` コピーを各パーツへ渡す（イシュー #1616）。
+fn radio_group_instance(
+    label_text: &str,
+    label_id: &str,
+    name: &str,
+    props: &radio_group::RadioGroupProps,
+    orientation: Option<Orientation>,
+    items: &[(&str, &str, bool, bool)],
+) -> Node {
+    let item_nodes: Vec<Node> = items
+        .iter()
+        .map(|(value, text_label, checked, item_disabled)| {
+            let item_props = radio_group::RadioGroupProps {
+                disabled: props.disabled || *item_disabled,
+                ..*props
+            };
+            radio_group::item(
+                *checked,
+                &item_props,
+                value,
+                vec![],
+                vec![
+                    radio_group::item_control(*checked, &item_props, vec![]),
+                    radio_group::item_text(*checked, &item_props, vec![], vec![text(*text_label)]),
+                    radio_group::item_hidden_input(
+                        *checked,
+                        &item_props,
+                        Some(name),
+                        value,
+                        vec![],
+                    ),
+                ],
+            )
+        })
+        .collect();
+    let mut children = vec![radio_group::label(
+        props,
+        Some(label_id),
         vec![],
-        vec![
-            radio_group::label(None, vec![], vec![text("Plan")]),
-            radio_group::item(
-                true,
-                false,
-                "monthly",
-                vec![],
-                vec![
-                    radio_group::item_control(true, false, vec![]),
-                    radio_group::item_text(true, false, vec![], vec![text("Monthly")]),
-                    radio_group::item_hidden_input(true, false, Some("plan"), "monthly", vec![]),
-                ],
-            ),
-            radio_group::item(
-                false,
-                false,
-                "yearly",
-                vec![],
-                vec![
-                    radio_group::item_control(false, false, vec![]),
-                    radio_group::item_text(false, false, vec![], vec![text("Yearly")]),
-                    radio_group::item_hidden_input(false, false, Some("plan"), "yearly", vec![]),
-                ],
-            ),
-        ],
+        vec![text(label_text)],
     )];
+    children.extend(item_nodes);
+    radio_group::root(props, orientation, Some(label_id), vec![], children)
+}
+
+pub(super) fn radio_group_section() -> Node {
+    // ark-ui / Radix Primitives の Data Attributes・Keyboard 表の全語彙
+    // （data-disabled/data-invalid/data-readonly/data-required/
+    // aria-required/aria-readonly/aria-disabled/aria-hidden/aria-invalid/
+    // data-orientation）が Anatomy/data-* 表へ機械導出されるよう、既定
+    // （縦）・horizontal・disabled item・disabled group・invalid+required・
+    // readonly の 6 状態を並べる（イシュー #1616）。
+    let default_props = radio_group::RadioGroupProps::default();
+    let disabled_props = radio_group::RadioGroupProps {
+        disabled: true,
+        ..Default::default()
+    };
+    let invalid_required_props = radio_group::RadioGroupProps {
+        invalid: true,
+        required: true,
+        ..Default::default()
+    };
+    let readonly_props = radio_group::RadioGroupProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let body = vec![
+        radio_group_instance(
+            "Plan",
+            "rg-plan-label",
+            "plan",
+            &default_props,
+            None,
+            &[
+                ("monthly", "Monthly", true, false),
+                ("yearly", "Yearly", false, false),
+            ],
+        ),
+        radio_group_instance(
+            "Plan (horizontal)",
+            "rg-plan-horizontal-label",
+            "plan-horizontal",
+            &default_props,
+            Some(Orientation::Horizontal),
+            &[
+                ("monthly", "Monthly", true, false),
+                ("yearly", "Yearly", false, false),
+            ],
+        ),
+        radio_group_instance(
+            "Plan (item disabled)",
+            "rg-plan-item-disabled-label",
+            "plan-item-disabled",
+            &default_props,
+            None,
+            &[
+                ("monthly", "Monthly", true, false),
+                ("yearly", "Yearly", false, true),
+            ],
+        ),
+        radio_group_instance(
+            "Plan (group disabled)",
+            "rg-plan-disabled-label",
+            "plan-disabled",
+            &disabled_props,
+            None,
+            &[
+                ("monthly", "Monthly", true, false),
+                ("yearly", "Yearly", false, false),
+            ],
+        ),
+        radio_group_instance(
+            "Plan (invalid + required)",
+            "rg-plan-invalid-label",
+            "plan-invalid",
+            &invalid_required_props,
+            None,
+            &[
+                ("monthly", "Monthly", false, false),
+                ("yearly", "Yearly", false, false),
+            ],
+        ),
+        radio_group_instance(
+            "Plan (read-only)",
+            "rg-plan-readonly-label",
+            "plan-readonly",
+            &readonly_props,
+            None,
+            &[
+                ("monthly", "Monthly", true, false),
+                ("yearly", "Yearly", false, false),
+            ],
+        ),
+    ];
     demo_page("Radio Group", body)
 }
 
 pub(super) fn rating_group_section() -> Node {
+    let props = RatingGroupProps::default();
     let mk = |index: u32, checked: bool, highlighted: bool| {
         rating_group::item(
             index,
@@ -287,54 +571,96 @@ pub(super) fn rating_group_section() -> Node {
         )
     };
     let body = vec![rating_group::root(
-        false,
-        false,
+        &props,
         vec![],
         vec![
-            rating_group::label(None, vec![], vec![text("Rating")]),
+            rating_group::label(&props, None, vec![], vec![text("Rating")]),
             rating_group::control(
+                &props,
                 None,
                 vec![],
                 vec![mk(1, false, true), mk(2, true, true), mk(3, false, false)],
             ),
-            rating_group::hidden_input(Some("rating"), "2", false, vec![]),
+            rating_group::hidden_input(&props, Some("rating"), "2", vec![]),
         ],
     )];
     demo_page("Rating Group", body)
 }
 
-pub(super) fn segment_group_section() -> Node {
-    let body = vec![segment_group::root(
-        false,
-        None,
-        None,
+/// `name`/`props`/`orientation`/`selected_index`/`items`（各要素は表示
+/// テキスト）から 1 個の SegmentGroup インスタンス（root > indicator +
+/// item(item_hidden_input + item_control + item_text)×N）を組み立てる内部
+/// ヘルパ（[`segment_group_section`] のみが呼ぶ）。[`radio_group_instance`]
+/// と同型のパターン。`name` は各インスタンスで一意にする必要がある
+/// （同一 DOM 上のネイティブ `<input type="radio">` は同名グループ間で
+/// 排他選択が干渉するため、イシュー #1618 は #1886 の radio-group Demo で
+/// 判明した先例に倣う）。
+fn segment_group_instance(
+    name: &str,
+    props: &segment_group::SegmentGroupProps,
+    orientation: Option<Orientation>,
+    selected_index: usize,
+    items: &[&str],
+) -> Node {
+    let mut children = vec![segment_group::indicator(
+        Some((selected_index, items.len())),
+        props,
+        orientation,
         vec![],
-        vec![
-            segment_group::indicator(Some((0, 2)), None, vec![]),
-            segment_group::item(
-                true,
-                false,
-                "list",
-                vec![],
-                vec![
-                    segment_group::item_control(true, false, vec![]),
-                    segment_group::item_text(true, false, vec![], vec![text("List")]),
-                    segment_group::item_hidden_input(true, false, Some("view"), "list", vec![]),
-                ],
-            ),
-            segment_group::item(
-                false,
-                false,
-                "grid",
-                vec![],
-                vec![
-                    segment_group::item_control(false, false, vec![]),
-                    segment_group::item_text(false, false, vec![], vec![text("Grid")]),
-                    segment_group::item_hidden_input(false, false, Some("view"), "grid", vec![]),
-                ],
-            ),
-        ],
     )];
+    children.extend(items.iter().enumerate().map(|(index, label)| {
+        let checked = index == selected_index;
+        let value = label.to_lowercase();
+        segment_group::item(
+            checked,
+            props,
+            &value,
+            vec![],
+            vec![
+                segment_group::item_hidden_input(checked, props, Some(name), &value, vec![]),
+                segment_group::item_control(checked, props, vec![]),
+                segment_group::item_text(checked, props, vec![], vec![text(*label)]),
+            ],
+        )
+    }));
+    segment_group::root(props, orientation, None, vec![], children)
+}
+
+pub(super) fn segment_group_section() -> Node {
+    // ark-ui の Data Attributes 表の全語彙（data-disabled/data-invalid/
+    // data-readonly/data-required/aria-required/aria-readonly/
+    // aria-disabled/aria-hidden/aria-invalid/data-orientation）が
+    // Anatomy/data-* 表へ機械導出されるよう、既定・disabled・
+    // invalid+required・readonly・vertical の 5 状態を並べる（イシュー
+    // #1618。`name` は各インスタンスで一意）。
+    let default_props = segment_group::SegmentGroupProps::default();
+    let disabled_props = segment_group::SegmentGroupProps {
+        disabled: true,
+        ..Default::default()
+    };
+    let invalid_required_props = segment_group::SegmentGroupProps {
+        invalid: true,
+        required: true,
+        ..Default::default()
+    };
+    let readonly_props = segment_group::SegmentGroupProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let items = ["List", "Grid"];
+    let body = vec![
+        segment_group_instance("view", &default_props, None, 0, &items),
+        segment_group_instance("view-disabled", &disabled_props, None, 0, &items),
+        segment_group_instance("view-invalid", &invalid_required_props, None, 0, &items),
+        segment_group_instance("view-readonly", &readonly_props, None, 0, &items),
+        segment_group_instance(
+            "view-vertical",
+            &default_props,
+            Some(Orientation::Vertical),
+            1,
+            &items,
+        ),
+    ];
     demo_page("Segment Group", body)
 }
 

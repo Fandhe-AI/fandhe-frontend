@@ -98,6 +98,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_headless_ui::tree_view::{TreeNode, TreeView};
+use fandhe_frontend_wasm_full::events::{wire_events, ActionRef};
 use fandhe_frontend_wasm_full::headless::wire_headless_component;
 use fandhe_frontend_wasm_full::keynav::{wire_keynav, TYPEAHEAD_TIMEOUT_MS};
 use std::cell::RefCell;
@@ -744,6 +745,20 @@ fn keydown_event(key: &str) -> Event {
 fn click_event() -> Event {
     let init = EventInit::new();
     init.set_bubbles(true);
+    Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail")
+}
+
+/// `cancelable: true` を付けた合成 `click` イベント（イシュー #1616
+/// readonly RadioGroup 回帰テスト用）。ネイティブ `<input type="radio">` の
+/// activation（checked 確定）は「click イベントが未キャンセルなら
+/// post-click activation steps を実行」という契約のため、`preventDefault`
+/// の効果（checked を確定させない）を検証するには `cancelable: true` が
+/// 必須（既定 `click_event()` は非 cancelable で Tabs/Tree の trigger 判定
+/// にのみ使うため、activation 検証用に別関数として分離する）。
+fn cancelable_click_event() -> Event {
+    let init = EventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
     Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail")
 }
 
@@ -1893,6 +1908,835 @@ fn radio_group_native_change_event_syncs_data_state_across_group() {
     assert_eq!(
         item_b.get_attribute("data-state").as_deref(),
         Some("checked")
+    );
+}
+
+/// readonly（イシュー #1616 P1 是正）: フォーカス中の項目の祖先 `item` に
+/// `data-readonly` があると、矢印キーは prevent_default こそされる
+/// （ネイティブ radio グループ化の既定移動抑止は readonly でも継続する）が、
+/// フォーカス移動・選択変更のいずれも起きない（`crates/headless-ui/src/
+/// radio_group.rs::item_hidden_input` は readonly をネイティブ input へ
+/// 反映できないため、この JS 側の抑止が実効化の唯一の経路）。
+#[wasm_bindgen_test]
+fn radio_group_readonly_arrow_key_does_not_move_focus_or_change_selection() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly1",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_a = document
+        .get_element_by_id("kn-radio-readonly1-input-a")
+        .unwrap();
+    // `item_hidden_input` 自身は data-readonly を持たない契約
+    // （モジュール doc 参照）のため、祖先 `item` へ付与する。
+    let item_a = input_a.parent_element().unwrap();
+    item_a.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&input_a).focus().unwrap();
+
+    let not_default_prevented = input_a
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(
+        !not_default_prevented,
+        "readonly でもネイティブ radio グループ化の既定移動は抑止されるべき"
+    );
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-radio-readonly1-input-a".to_string()),
+        "readonly では矢印キーでフォーカスが移動してはならない"
+    );
+    assert!(
+        input_a
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly では選択（checked）が変わってはならない"
+    );
+}
+
+/// readonly（イシュー #1616 P1 是正・codex-review 追加指摘、PR #1886
+/// レビュー）: フォーカス中の項目自体は readonly ではなくても、矢印キーの
+/// 遷移先候補が readonly な場合はその項目へフォーカス・選択を移してはなら
+/// ない（`radio_next_index` は disabled と同じ skip 対象として readonly も
+/// 扱い、次の非 readonly 項目まで読み飛ばす）。3 項目中央 b が readonly の
+/// 構成で、a から ArrowRight すると b を飛ばして c へ移動することを検証
+/// する。
+#[wasm_bindgen_test]
+fn radio_group_arrow_key_skips_readonly_destination_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly4",
+        &[
+            ("a", "A", true, false),
+            ("b", "B", false, false),
+            ("c", "C", false, false),
+        ],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_a = document
+        .get_element_by_id("kn-radio-readonly4-input-a")
+        .unwrap();
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly4-input-b")
+        .unwrap();
+    let input_c = document
+        .get_element_by_id("kn-radio-readonly4-input-c")
+        .unwrap();
+    // `item_hidden_input` 自身は data-readonly を持たない契約
+    // （モジュール doc 参照）のため、祖先 `item` へ付与する。
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&input_a).focus().unwrap();
+
+    input_a
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-radio-readonly4-input-c".to_string()),
+        "readonly な遷移先候補（b）は読み飛ばされ、非 readonly の次項目（c）\
+         へフォーカスが移動すべき"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "読み飛ばされた readonly 項目（b）が選択されてはならない"
+    );
+    assert!(
+        input_c
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "遷移先（c）が新たに選択されているべき"
+    );
+    assert!(
+        !input_a
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "元の選択（a）は解除されているべき"
+    );
+}
+
+/// readonly（イシュー #1616 P1 是正）: readonly 項目のネイティブ
+/// `<input type="radio">` へ click（マウスクリック・フォーカス中 Space
+/// 決定が合成する activation と同型）が届いても選択が変わらない。ネイティブ
+/// radio の「pre-click activation → click イベント dispatch → 未キャンセル
+/// なら post-click activation で checked 確定」という活性化手順を利用し、
+/// `wire_keynav` の click リスナーが `preventDefault` で確定を打ち消すことを
+/// 検証する。
+#[wasm_bindgen_test]
+fn radio_group_readonly_click_does_not_change_selection() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly2",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_a = document
+        .get_element_by_id("kn-radio-readonly2-input-a")
+        .unwrap();
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly2-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !input_b.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        prevented,
+        "readonly 項目への click は preventDefault で打ち消されるべき"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly 項目は click しても checked にならない"
+    );
+    assert!(
+        input_a
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly 項目への click で既存の選択が失われてはならない"
+    );
+    assert_eq!(
+        input_b.get_attribute("data-state").as_deref(),
+        Some("unchecked"),
+        "readonly 項目への click 後も data-state は unchecked のまま"
+    );
+}
+
+/// readonly（イシュー #1616 codex-review P1 是正、PR #1886 レビュー対応）:
+/// readonly な `item` の `item-text` children に置いた `<a href>`（独立した
+/// 対話要素の例）へのクリックは、RadioGroup readonly のクリック抑止
+/// （`stop_propagation`/`prevent_default`）の対象にならない。
+///
+/// 旧実装は `item_readonly` が `Element::closest` で `item` 祖先の有無
+/// だけを見て判定していたため、`item_text` の子孫がどのような要素でも
+/// readonly item 配下であれば一律に抑止してしまっていた
+/// （`crates/wasm-full/src/keynav.rs::radio_group_item_for_readonly_click`
+/// の doc 参照）。本テストは capture フェーズの
+/// `should_suppress_radio_group_readonly_click` が独立対話要素を検出した
+/// 時点で抑止を打ち切ることを、実際の click イベント伝播で検証する。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_anchor_click_is_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly5",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly5-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_text = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text part must exist");
+    let anchor = document.create_element("a").unwrap();
+    anchor
+        .set_attribute("href", "https://example.invalid/")
+        .unwrap();
+    anchor.set_id("kn-radio-readonly5-anchor");
+    item_text.append_child(&anchor).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !anchor.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        !prevented,
+        "readonly item 内の <a href> クリックは RadioGroup readonly の \
+         抑止対象外であり、preventDefault されてはならない"
+    );
+}
+
+/// readonly（イシュー #1616 codex-review P1 是正、PR #1886 レビュー対応）:
+/// readonly な `item` の label 部分（`item-text` 自身）へのクリックは、
+/// 引き続き RadioGroup readonly のクリック抑止対象であり、選択
+/// （ネイティブ input の checked）が変わらない。`item-text` 自身は
+/// RadioGroup 自身の選択操作パーツであり、独立対話要素の除外対象には
+/// 含まれないことの回帰確認（上記
+/// `radio_group_readonly_item_anchor_click_is_not_prevented` の対比）。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_text_click_does_not_change_selection() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly6",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_a = document
+        .get_element_by_id("kn-radio-readonly6-input-a")
+        .unwrap();
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly6-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+    let item_text_b = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text part must exist");
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let _ = item_text_b.dispatch_event(&cancelable_click_event());
+
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly item の label（item-text）クリックでも checked になっては \
+         ならない"
+    );
+    assert!(
+        input_a
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly item の label クリックで既存の選択が失われてはならない"
+    );
+}
+
+/// readonly（イシュー #1616 codex-review P1 再指摘、PR #1886 レビュー
+/// 追加是正）: readonly な `item` の `item-text` children に置いた
+/// `<span role="Switch checkbox" tabindex 無し>`（別コンポーネントが
+/// 持ち込む独自ウィジェットの想定、role は複数トークン・大文字混在）への
+/// クリックは、`crate::events::classify_interactive_boundary` が
+/// `BoundaryProbe::role` を WAI-ARIA のロール解決規則
+/// (https://www.w3.org/TR/wai-aria-1.2/#host_general_role) で解決し
+/// 最初のトークン `Switch` を対話ロールとして認識するため `Aria` 境界と
+/// なる。`Aria` 境界は readonly item では `PreventDefaultOnly`
+/// （`stop_propagation` は行わない）ため、click は要素自身のハンドラへ
+/// 届く一方、ネイティブ radio の選択は変わらない。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_role_widget_click_reaches_own_handler_without_changing_selection() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly7",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_a = document
+        .get_element_by_id("kn-radio-readonly7-input-a")
+        .unwrap();
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly7-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_text = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text part must exist");
+    let widget = document.create_element("span").unwrap();
+    // role のトークン列・大文字小文字混在（WAI-ARIA のロール解決規則を
+    // 経由するため `switch`/`checkbox` いずれも認識される）。`tabindex`
+    // は付与しない（role 単体で境界化されることの確認）。
+    widget.set_attribute("role", "Switch checkbox").unwrap();
+    widget.set_id("kn-radio-readonly7-widget");
+    item_text.append_child(&widget).unwrap();
+
+    let widget_for_closure = widget.clone();
+    let click_closure = wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new(move |_e| {
+        let _ = widget_for_closure.set_attribute("data-clicked", "");
+    });
+    widget
+        .add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())
+        .unwrap();
+    click_closure.forget();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !widget.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        prevented,
+        "readonly item 内の role ウィジェットへの click は preventDefault \
+         されるべき（Aria 境界 + readonly → PreventDefaultOnly）"
+    );
+    assert!(
+        widget.has_attribute("data-clicked"),
+        "readonly item 内の role ウィジェットへの click は stop_propagation \
+         されず、要素自身のクリックハンドラへ到達するべき"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly item 内の role ウィジェットへの click で checked に \
+         なってはならない"
+    );
+    assert!(
+        input_a
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly item 内の role ウィジェットへの click で既存の選択が \
+         失われてはならない"
+    );
+}
+
+/// readonly（イシュー #1616 codex-review P1 再指摘、PR #1886 レビュー
+/// 追加是正）: readonly な `item` の `item-text` children に置いた
+/// `<audio controls>`（HTML 標準の interactive content
+/// https://html.spec.whatwg.org/multipage/dom.html#interactive-content
+/// に含まれる `audio[controls]`）へのクリックは、`classify_interactive_
+/// boundary` が `Html` に分類するため、RadioGroup readonly のクリック
+/// 抑止（`preventDefault`/`stop_propagation`）の対象にならない
+/// （`radio_group_readonly_item_anchor_click_is_not_prevented` の
+/// `audio[controls]` 版）。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_audio_controls_click_is_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly8",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly8-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_text = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text part must exist");
+    let audio = document.create_element("audio").unwrap();
+    audio.set_attribute("controls", "").unwrap();
+    audio.set_id("kn-radio-readonly8-audio");
+    item_text.append_child(&audio).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !audio.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        !prevented,
+        "readonly item 内の <audio controls> クリックは RadioGroup \
+         readonly の抑止対象外であり、preventDefault されてはならない"
+    );
+}
+
+/// readonly（イシュー #1616 P1 是正・codex-review 再指摘、PR #1886 レビュー
+/// 対応）: `events::wire_events` と `wire_keynav` を製品実装（`Self::wire`、
+/// `wasm-full/src/lib.rs`）と同じ順序（`wire_events` → `wire_keynav`、同一
+/// root）で配線したとき、readonly item への click が `wire_events` の
+/// `data-action` 委譲（headless dispatch）へ一切到達しないことを検証する。
+///
+/// 旧実装（bubble フェーズの `wire_keynav` 側リスナーのみで readonly を
+/// 判定）には 2 つの不備があった: (1) 同一 root 上の bubble リスナーは
+/// 登録順に発火するため、先に登録される `wire_events` 側が readonly 判定
+/// より前に `data-action` へ委譲してしまう。(2) click イベントの target は
+/// 常にネイティブ input とは限らない（`item`〔`<label>`〕配下の
+/// `item-control`/`item-text` であることが多い）ため、
+/// `closest(target, RADIO_GROUP_INPUT_SELECTOR)`（祖先方向のみ）では
+/// input を発見できず readonly 判定自体が不発になる。本テストは
+/// `item-control` を click target にすることで (2) を、`wire_events` を
+/// 先に配線することで (1) を同時に再現する。是正後は capture フェーズの
+/// `click_capture_closure`（[`item_readonly`] を `target_element` へ直接
+/// 適用）が `stop_propagation` で `wire_events` 側 bubble リスナーへ到達
+/// する前に伝播を断つ。
+#[wasm_bindgen_test]
+fn radio_group_readonly_click_on_item_control_blocks_wire_events_action() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly3",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly3-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+    // アプリ層（`fandhe_frontend_interactive::Component::decode_action`
+    // 契約）が item へ付与しうる `data-action`/`data-payload` を模す
+    // （headless-ui 自体はこれらを出力しない、`crates/headless-ui/src/
+    // radio_group.rs` 参照。`events::wire_events` の委譲経路を実際に
+    // 起動させるための前提セットアップ）。
+    item_b.set_attribute("data-action", "select").unwrap();
+    item_b.set_attribute("data-payload", "b").unwrap();
+
+    let item_control_b = item_b
+        .query_selector("[data-part=\"item-control\"]")
+        .unwrap()
+        .expect("item-control must exist");
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(root.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+    // 実プロダクト（`Self::wire`、`wasm-full/src/lib.rs`）と同じ順序
+    // （`wire_events` → `wire_keynav`）で同一 root へ配線する。
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !item_control_b
+        .dispatch_event(&cancelable_click_event())
+        .unwrap();
+    assert!(
+        prevented,
+        "readonly item への click（item-control ターゲット）は \
+         preventDefault で打ち消されるべき"
+    );
+    assert!(
+        actions.borrow().is_empty(),
+        "readonly item への click は wire_events の data-action 委譲へ \
+         到達してはならない（codex-review 指摘の再現）"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly 項目は click しても checked にならない"
+    );
+    assert_eq!(
+        input_b.get_attribute("data-state").as_deref(),
+        Some("unchecked"),
+        "readonly 項目への click 後も data-state は unchecked のまま"
+    );
+}
+
+/// PR #1886 レビュー是正（イシュー #1616 Bugbot/codex-review 再指摘）の
+/// 回帰テスト群: readonly item 配下に置かれた「HTML interactive content」
+/// （`<a href>`）は、`radio_group_readonly_click_on_item_control_blocks_wire_events_action`
+/// が検証する「パーツ自身へのクリック抑止」とは異なる扱いを要する。
+/// `<a href>` は HTML 仕様上 label の activation behavior 自体を止める
+/// interactive content であり（`crate::events::InteractiveBoundaryClass`
+/// doc 参照）、抑止（`preventDefault`/`stop_propagation`）を一切行わずに
+/// ネイティブ動作・`wire_events` の `data-action` 解決を素通りさせては
+/// ならない。本テストは `item_text` の children に置いた `<a href>` への
+/// click が
+/// (1) `preventDefault` されない（ネイティブリンク動作を妨げない）、
+/// (2) 選択状態を変更しない、
+/// (3) `wire_events` の `data-action="select"` 委譲へ到達しない
+/// （codex-review P1 再指摘: `foreign_action_boundary_between` が
+/// `target` → `matched`（item）間の `<a href>` 境界で解決を打ち切る）
+/// ことを検証する。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_anchor_link_click_is_not_suppressed_and_skips_select_dispatch() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-link",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-link-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+    item_b.set_attribute("data-action", "select").unwrap();
+    item_b.set_attribute("data-payload", "b").unwrap();
+
+    let item_text_b = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text must exist");
+    let link = document.create_element("a").unwrap();
+    link.set_attribute("href", "#").unwrap();
+    link.set_text_content(Some("詳細"));
+    item_text_b.append_child(&link).unwrap();
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(root.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !link.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        !prevented,
+        "readonly item 内の <a href> クリックは preventDefault で妨げられて \
+         はならない（HTML interactive content、Bugbot 指摘）"
+    );
+    assert!(
+        actions.borrow().is_empty(),
+        "readonly item 内の <a href> クリックは wire_events の data-action \
+         委譲（祖先 item の select）へ到達してはならない（codex-review P1 \
+         再指摘）"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly item 内の <a href> クリックは選択状態を変えてはならない"
+    );
+}
+
+/// codex-review P1 再指摘の回帰: readonly item 配下の
+/// `<span role="checkbox" tabindex="0">`（ARIA 独自ウィジェット）への
+/// クリックは、ウィジェット自身の click ハンドラへイベントが到達する
+/// 必要がある（旧実装は装飾要素と同列に扱い `stop_propagation` で
+/// capture フェーズにて伝播を断ち切っていたため、target 自身のハンドラが
+/// 一切発火しなかった）。同時に `preventDefault` により label の
+/// activation behavior（RadioGroup の選択変更）は阻止されなければ
+/// ならない。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_aria_checkbox_click_reaches_own_handler_and_prevents_default() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-aria",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-aria-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_text_b = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text must exist");
+    let widget = document.create_element("span").unwrap();
+    widget.set_attribute("role", "checkbox").unwrap();
+    widget.set_attribute("tabindex", "0").unwrap();
+    item_text_b.append_child(&widget).unwrap();
+
+    let widget_click_count = Rc::new(RefCell::new(0_u32));
+    {
+        let widget_click_count = widget_click_count.clone();
+        let closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+            *widget_click_count.borrow_mut() += 1;
+        });
+        widget
+            .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
+    }
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !widget.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        prevented,
+        "readonly item 内の role=checkbox クリックは preventDefault で \
+         label activation behavior を阻止すべき"
+    );
+    assert_eq!(
+        *widget_click_count.borrow(),
+        1,
+        "role=checkbox 自身の click ハンドラは capture フェーズの \
+         stop_propagation で握り潰されてはならない（codex-review 指摘）"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly item 内の role=checkbox クリックは選択状態を変えては \
+         ならない"
+    );
+}
+
+/// Bugbot 指摘そのものの再現: `tabindex` を持たない `role="button"` の
+/// ネスト要素（HTML 上は非 interactive content・非 focusable のため、
+/// 分類・readonly 抑止が無ければブラウザのネイティブ label activation
+/// behavior がそのまま働きうる）への click は、readonly item では
+/// `preventDefault` により選択状態を変えてはならない。非 readonly
+/// item での対称確認は
+/// [`radio_group_non_readonly_item_nested_interactive_click_is_never_prevented`]
+/// （同 doc 参照）。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_aria_role_button_click_does_not_change_selection() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-role-button",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-role-button-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_text_b = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text must exist");
+    let widget = document.create_element("span").unwrap();
+    widget.set_attribute("role", "button").unwrap();
+    item_text_b.append_child(&widget).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !widget.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        prevented,
+        "readonly item 内の role=button クリックは preventDefault で \
+         label activation behavior を阻止すべき（Bugbot 指摘）"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly item 内の role=button クリックは選択状態を変えては \
+         ならない"
+    );
+}
+
+/// Bugbot 指摘の回帰: readonly item 配下に置かれた別 `data-scope` の
+/// ネスト要素（別コンポーネントの境界）への click は選択状態を変えては
+/// ならない。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_foreign_scope_descendant_click_does_not_change_selection() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-scope",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-scope-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_control_b = item_b
+        .query_selector("[data-part=\"item-control\"]")
+        .unwrap()
+        .expect("item-control must exist");
+    let foreign = document.create_element("div").unwrap();
+    foreign.set_attribute("data-scope", "combobox").unwrap();
+    foreign.set_attribute("data-part", "trigger").unwrap();
+    item_control_b.append_child(&foreign).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let _ = foreign.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly item 内の別 data-scope 要素へのクリックは選択状態を \
+         変えてはならない"
+    );
+}
+
+/// 上記の非 readonly 版回帰（既存の readonly 抑止が非 readonly item まで
+/// 誤って波及していないことの確認）。`role="button"`（`tabindex` 無し）・
+/// 別 `data-scope` 要素はいずれも HTML 上は非 interactive content・
+/// 非 focusable のため、`radio_group_readonly_click_on_item_control_blocks_wire_events_action`
+/// の判定と対称に、`preventDefault` の有無が readonly 状態にのみ依存する
+/// ことを確認する回帰テスト（実測確認: この統合テスト環境が使う非 trusted
+/// 合成 `Event`〔`MouseEvent`/`PointerEvent` ではなく `web_sys::Event`〕の
+/// `dispatch_event` では、`<label>` のネイティブ label activation behavior
+/// （descendant クリックの labeled control への forwarding）自体がそもそも
+/// 発火しないことを本テスト作成中に確認済みである。既存の readonly 系
+/// テスト群〔`radio_group_readonly_item_text_click_does_not_change_selection`
+/// 等〕が検証する「`checked` が変化しないこと」は、この事実の下では
+/// `preventDefault` の有無に関わらず常に真になり得るため、非 readonly
+/// item での回帰確認としては「選択状態が変わること」ではなく
+/// 「`preventDefault` されないこと」を確認する）。
+///
+/// [`radio_group_readonly_item_aria_role_button_click_does_not_change_selection`]・
+/// [`radio_group_readonly_item_foreign_scope_descendant_click_does_not_change_selection`]・
+/// [`radio_group_readonly_item_anchor_link_click_is_not_suppressed_and_skips_select_dispatch`]
+/// の各シナリオ（`role="button"` 境界・別 `data-scope` 境界・`<a href>`
+/// 境界）を、item が readonly でない場合について確認する（readonly 抑止が
+/// 非 readonly item まで誤って波及していないこと）。
+#[wasm_bindgen_test]
+fn radio_group_non_readonly_item_nested_interactive_click_is_never_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-non-readonly-nested",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let item_b = document
+        .get_element_by_id("kn-radio-non-readonly-nested-input-b")
+        .unwrap()
+        .parent_element()
+        .unwrap();
+    let item_text_b = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text must exist");
+    let item_control_b = item_b
+        .query_selector("[data-part=\"item-control\"]")
+        .unwrap()
+        .expect("item-control must exist");
+
+    // (1) role=button（tabindex 無し）。
+    let widget = document.create_element("span").unwrap();
+    widget.set_attribute("role", "button").unwrap();
+    item_text_b.append_child(&widget).unwrap();
+    let prevented = !widget.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        !prevented,
+        "非 readonly item 内の role=button クリックは preventDefault \
+         されてはならない"
+    );
+
+    // (2) 別 data-scope。
+    let foreign = document.create_element("div").unwrap();
+    foreign.set_attribute("data-scope", "combobox").unwrap();
+    foreign.set_attribute("data-part", "trigger").unwrap();
+    item_control_b.append_child(&foreign).unwrap();
+    let prevented = !foreign.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        !prevented,
+        "非 readonly item 内の別 data-scope 要素へのクリックは \
+         preventDefault されてはならない"
+    );
+
+    // (3) <a href>。
+    let link = document.create_element("a").unwrap();
+    link.set_attribute("href", "#").unwrap();
+    item_text_b.append_child(&link).unwrap();
+    let prevented = !link.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        !prevented,
+        "非 readonly item 内の <a href> クリックは preventDefault \
+         されてはならない"
     );
 }
 
@@ -7483,4 +8327,303 @@ fn splitter_keyboard_navigation_with_attacker_controlled_attrs_does_not_inject_s
     assert!(root.query_selector("script").unwrap().is_none());
     assert_eq!(document.title(), original_title);
     assert_eq!(recorded.0.borrow().len(), 3);
+}
+
+/// イシュー #1616 PR #1886 codex-review P1 再指摘の回帰（是正 1）:
+/// `data-action` 付きの `pre-styled-ui::button::close_button`（`<button
+/// data-scope="button" data-part="root">` に装飾用アイコン `<svg
+/// data-scope="icon" data-part="root">` を内包する構成、
+/// `crates/pre-styled-ui/src/button.rs::close_button` の markup 契約）内の
+/// アイコン `<svg>` をクリックしても `data-action` が dispatch される
+/// ことを検証する。
+///
+/// 是正前の `classify_interactive_boundary` は「holder と異なる
+/// `data-scope` を持つ」ことだけで境界（`Aria`）と判定していたため、
+/// 装飾用の別 scope 子孫（対話ロール・`tabindex`・`contenteditable` の
+/// いずれも持たない `<svg data-scope="icon">`）までクリック伝播境界に
+/// してしまい、`close_button` のアイコン部分をクリックしても
+/// `foreign_action_boundary_between` が dispatch を止めていた。
+#[wasm_bindgen_test]
+fn close_button_icon_svg_click_still_dispatches_data_action() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = document.create_element("div").unwrap();
+    container.set_id("kn-close-button-icon");
+    document.body().unwrap().append_child(&container).unwrap();
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let button = document.create_element("button").unwrap();
+    button.set_attribute("data-scope", "button").unwrap();
+    button.set_attribute("data-part", "root").unwrap();
+    button.set_attribute("data-action", "close").unwrap();
+    button.set_attribute("type", "button").unwrap();
+
+    let icon = document.create_element("svg").unwrap();
+    icon.set_attribute("data-scope", "icon").unwrap();
+    icon.set_attribute("data-part", "root").unwrap();
+    icon.set_attribute("aria-hidden", "true").unwrap();
+    let path = document.create_element("path").unwrap();
+    icon.append_child(&path).unwrap();
+    button.append_child(&icon).unwrap();
+    container.append_child(&button).unwrap();
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(container.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+
+    // クリック target をアイコン `<svg>` 自身にする（`<button>` ではなく
+    // その装飾用子孫、Bugbot/codex-review 再指摘の再現条件）。
+    icon.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(
+        actions.borrow().as_slice(),
+        [ActionRef {
+            action: "close".to_string(),
+            payload: String::new(),
+        }],
+        "close_button 内の装飾用アイコン（data-scope=\"icon\"）をクリック \
+         しても data-action=\"close\" が dispatch されるべき"
+    );
+}
+
+/// イシュー #1616 PR #1886 codex-review P1 再指摘の回帰（是正 2）:
+/// readonly な RadioGroup item 内に独立した `<button
+/// data-action="show_help">` を置いても、`show_help` は readonly の
+/// 影響を受けず dispatch される。
+///
+/// 是正前の `holder_instance_is_readonly` は `holder`（この場合 `button`
+/// 自身、`closest("[data-action]")` が `button` を解決する）に
+/// `data-scope` が無い場合に祖先方向へ遡って最初の `data-scope` 要素
+/// （祖先 `item`）を探しに行っていたため、`item` の readonly を無関係の
+/// `button` へ継承してしまい `show_help` まで抑止していた。
+#[wasm_bindgen_test]
+fn readonly_radio_group_item_independent_button_action_still_dispatches() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-show-help",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-show-help-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_text_b = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text must exist");
+    let help_button = document.create_element("button").unwrap();
+    help_button.set_attribute("type", "button").unwrap();
+    help_button
+        .set_attribute("data-action", "show_help")
+        .unwrap();
+    help_button.set_attribute("data-payload", "b").unwrap();
+    item_text_b.append_child(&help_button).unwrap();
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(root.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    help_button
+        .dispatch_event(&cancelable_click_event())
+        .unwrap();
+
+    assert_eq!(
+        actions.borrow().as_slice(),
+        [ActionRef {
+            action: "show_help".to_string(),
+            payload: "b".to_string(),
+        }],
+        "readonly item 内の独立した button[data-action=\"show_help\"] は \
+         readonly の影響を受けず dispatch されるべき"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "show_help ボタンのクリックは RadioGroup の選択状態を変えては \
+         ならない"
+    );
+}
+
+/// イシュー #1616 PR #1886 codex-review P1 再指摘の回帰（是正 3）:
+/// readonly item 内の `<a href>`（HTML interactive content）の中に
+/// `<span role="button">`（ARIA 独自ウィジェット）が入れ子になっている
+/// 場合でも、クリックは `preventDefault` されない（HTML を最優先で
+/// 採用する、`keynav::resolve_readonly_boundary` の代表境界決定）。
+///
+/// 是正前の実装は「`target` に最も近い最初の非 `Ordinary` 境界で確定し
+/// 以降を上書きしない」ため、内側の `role="button"`（`Aria`）が先に
+/// 確定してしまい、外側の `<a href>` のネイティブ遷移まで
+/// `preventDefault` で止めてしまっていた。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_nested_aria_inside_anchor_link_is_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-nested-aria-in-html",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-nested-aria-in-html-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_text_b = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text must exist");
+    let link = document.create_element("a").unwrap();
+    link.set_attribute("href", "https://example.invalid/")
+        .unwrap();
+    let nested_widget = document.create_element("span").unwrap();
+    nested_widget.set_attribute("role", "button").unwrap();
+    nested_widget.set_text_content(Some("詳細"));
+    link.append_child(&nested_widget).unwrap();
+    item_text_b.append_child(&link).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !nested_widget
+        .dispatch_event(&cancelable_click_event())
+        .unwrap();
+    assert!(
+        !prevented,
+        "readonly item 内で <a href> に入れ子になった role=\"button\" \
+         へのクリックは、経路上の HTML interactive content（<a href>）が \
+         優先されるため preventDefault されてはならない"
+    );
+}
+
+/// PR #1886 codex-review P1 是正の回帰: readonly な radio-group `item`
+/// （`data-scope="radio-group" data-part="item"` allowlist 対象）への
+/// click は、`events::wire_events` の `data-action="select"` 委譲へ到達
+/// してはならない。`radio_group_readonly_click_on_item_control_blocks_wire_events_action`
+/// の `item-control` ターゲット版に対する `item` 自身ターゲットの直接
+/// 回帰固定（`holder_instance_is_readonly` が allowlist ゲート導入後も
+/// 選択操作パーツの抑止を維持することを保証する）。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_click_does_not_dispatch_select_action() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly-allowlist",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly-allowlist-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+    // アプリ層が item へ付与しうる data-action/data-payload を模す
+    // （headless-ui 自体はこれらを出力しない）。
+    item_b.set_attribute("data-action", "select").unwrap();
+    item_b.set_attribute("data-payload", "b").unwrap();
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(root.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+
+    item_b
+        .dispatch_event(&cancelable_click_event())
+        .expect("click dispatch must not fail");
+
+    assert!(
+        actions.borrow().is_empty(),
+        "readonly な radio-group item への click は select アクションを \
+         dispatch してはならない（PR #1886 allowlist ゲートの回帰）"
+    );
+}
+
+/// PR #1886 codex-review P1 是正の回帰: `data-readonly` を持つ要素でも、
+/// その `(data-scope, data-part)` が `READONLY_VALUE_CHANGING_PARTS`
+/// allowlist に含まれなければ readonly 抑止の対象にならない。
+/// `crates/headless-ui/src/password_input.rs` の `visibility_trigger`
+/// （表示切替は値を変更しないため readonly でも操作可能という既存の
+/// 公開契約、同モジュール rustdoc 281〜289 行・432〜433 行）を模した
+/// `button[data-scope="password-input"][data-part="visibility-trigger"]
+/// [data-readonly][data-action="toggle_visibility"]` への click が
+/// `wire_events` の `data-action` 委譲へ到達することを検証する。
+#[wasm_bindgen_test]
+fn readonly_non_value_changing_part_click_still_dispatches_action() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = document.create_element("div").unwrap();
+    root.set_id("kn-password-input-readonly-visibility");
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append root must succeed");
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    root.set_attribute("data-scope", "password-input").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+    root.set_attribute("data-readonly", "").unwrap();
+
+    let trigger = document.create_element("button").unwrap();
+    trigger.set_attribute("type", "button").unwrap();
+    trigger
+        .set_attribute("data-scope", "password-input")
+        .unwrap();
+    trigger
+        .set_attribute("data-part", "visibility-trigger")
+        .unwrap();
+    trigger.set_attribute("data-readonly", "").unwrap();
+    trigger
+        .set_attribute("data-action", "toggle_visibility")
+        .unwrap();
+    root.append_child(&trigger).expect("append trigger");
+
+    let actions: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    {
+        let actions = actions.clone();
+        wire_events(root.clone(), move |action_ref: ActionRef| {
+            actions.borrow_mut().push(action_ref);
+        })
+        .expect("wire_events must succeed");
+    }
+
+    trigger
+        .dispatch_event(&cancelable_click_event())
+        .expect("click dispatch must not fail");
+
+    assert_eq!(
+        actions.borrow().as_slice(),
+        [ActionRef {
+            action: "toggle_visibility".to_string(),
+            payload: String::new(),
+        }],
+        "readonly な visibility-trigger（値を変更しない操作パーツ）への \
+         click は data-action 委譲へ到達するべき（PR #1886 allowlist \
+         ゲートが値変更パーツ以外を抑止しないことの回帰）"
+    );
 }

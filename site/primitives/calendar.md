@@ -1,6 +1,6 @@
 # Calendar
 
-月表示と単一日付の選択を、WAI-ARIA の grid パターンに従った 11 個の anatomy パーツ（Root/Heading/PrevTrigger/NextTrigger/Table/…/DayTrigger）として提供する unstyled 部品です。「今日」は呼び出し側が明示的に渡す引数であり、内部で時刻取得 API を使わない決定的な設計です。
+月表示と単一日付の選択を、WAI-ARIA の grid パターンに従った 11 個の anatomy パーツ（Root/Heading/PrevTrigger/NextTrigger/Table/…/DayTrigger）として提供する unstyled 部品です。「今日」は呼び出し側が明示的に渡す引数であり、内部で時刻取得 API を使わない決定的な設計です。矢印キー等でのキーボード操作は `fandhe-frontend-wasm-full` が配線します。
 
 Themes 版（`fandhe-frontend-pre-styled-ui`）はこの構造へ既定 CSS を追加するだけの薄いラッパーであり、CSS は持ちません。スタイル済みの表示例は [Calendar](../themes/calendar.md) を参照してください。
 

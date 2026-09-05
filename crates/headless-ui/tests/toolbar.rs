@@ -11,7 +11,9 @@
 
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::toolbar;
-use fandhe_frontend_headless_ui::{Orientation, ToggleGroup, Toolbar, ToolbarAction};
+use fandhe_frontend_headless_ui::{
+    Orientation, ToggleGroup, ToggleGroupProps, Toolbar, ToolbarAction,
+};
 use fandhe_frontend_interactive::{dispatch, render_for_hydration, Component, Hydrate};
 
 /// SSR（状態なし初期描画）→ dispatch（`"next"`）→ hydration の一巡が公開
@@ -31,7 +33,14 @@ fn full_cycle_ssr_then_dispatch_then_hydration() {
             initial.separator(vec![], vec![]),
             toolbar::toggle_group(
                 vec![],
-                vec![group.item("bold", false, vec![], vec![text("B")])],
+                vec![group.item(
+                    &ToggleGroupProps::default(),
+                    "bold",
+                    false,
+                    false,
+                    vec![],
+                    vec![text("B")],
+                )],
             ),
             initial.link(2, "/docs", false, vec![], vec![text("Docs")]),
         ],

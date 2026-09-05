@@ -72,14 +72,18 @@
 //! - **variant 軸（solid/outline 等）は追加しない**: `crate::listbox`
 //!   （イシュー #1483）と同じ、Forms 家族横断の設計判断を要するため本
 //!   イシュー単体では追加しない。
-//! - **roving focus / loopFocus はスコープ外**: headless 層
+//! - **roving focus の実 DOM 配線 / loopFocus はスコープ外**: headless 層
 //!   （`crates/headless-ui/src/toggle_group.rs`）と同じく wasm keynav 層の
-//!   責務（下記「本イシューのスコープ外」節と同一事項）。
+//!   責務（下記「本イシューのスコープ外」節と同一事項）。SSR 側の
+//!   roving tabindex 初期値は [`fandhe_frontend_headless_ui::toggle_group::ToggleGroupProps::roving_focus`]
+//!   （既定 `false`）で opt-in できる（イシュー #1630、[`root_with_props`]
+//!   参照）。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - roving focus / loopFocus は headless 層（`crates/headless-ui/src/toggle_group.rs`）
-//!   と同じくスコープ外（wasm keynav 層の責務）。
+//! - roving focus の実 DOM 配線 / loopFocus は headless 層
+//!   （`crates/headless-ui/src/toggle_group.rs`）と同じくスコープ外
+//!   （wasm keynav 層の責務）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::{decl, serialize_rule};
@@ -94,7 +98,9 @@ use crate::recipe::{
 // として再定義する）。
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
-pub use fandhe_frontend_headless_ui::toggle_group::{item, MultiToggleGroup, ToggleGroup};
+pub use fandhe_frontend_headless_ui::toggle_group::{
+    item, MultiToggleGroup, ToggleGroup, ToggleGroupProps,
+};
 
 /// headless `toggle-group` anatomy の `data-part` 一覧
 /// (`crates/headless-ui/src/toggle_group.rs` の `ANATOMY.part(...)` 呼び出し
@@ -290,12 +296,17 @@ fn recipe() -> SlotRecipe {
 ///    `StateCondition` は自パーツの属性条件のみを表現し、構造擬似クラスを
 ///    持たない）。
 /// 2. **hover** は祖先 `root` の `[data-disabled]` 不在を前提に含む必要が
-///    ある。headless 層の `root(disabled: true, ...)` は root にのみ
-///    `data-disabled` を付与し子 `item` へは伝播しない
-///    （`crates/headless-ui/src/toggle_group.rs` 参照）ため、`item` 自身の
-///    `data-disabled` だけを見る宣言では group 全体が disabled でも
-///    個々の item に hover 背景が付いてしまう（[`crate::listbox::stylesheet`]
-///    が同じ理由で raw CSS 追記している先例と同型の問題・同型の対処）。
+///    ある。headless 層の `item` は `ToggleGroupProps.disabled` を
+///    `root`/`item` 双方で同じ `props` を渡した場合にのみ伝播する
+///    （イシュー #1630 の是正、`crates/headless-ui/src/toggle_group.rs`
+///    参照）ため、`item` 個別の `disabled` 引数のみを渡す・root と異なる
+///    `props` を渡す等で group 全体が disabled でも `item` 自身に
+///    `data-disabled` が付かない呼び出し方が構造的にあり得る。`item` 自身の
+///    `data-disabled` だけを見る宣言では、そうした呼び出しで個々の item に
+///    hover 背景が付いてしまう（[`crate::listbox::stylesheet`] が同じ理由で
+///    raw CSS 追記している先例と同型の問題・同型の対処。祖先 `root` の
+///    `[data-disabled]` 不在を hover 条件に含めることで、呼び出し側の
+///    `props` 渡し方に依らず一貫した抑止になる）。
 ///
 /// いずれも [`marquee::css`](crate::marquee) / [`crate::listbox::stylesheet`]
 /// と同型の raw CSS 追記パターンで、[`recipe().css()`](SlotRecipe::css) の
@@ -435,6 +446,13 @@ pub fn stylesheet() -> String {
 /// してから合成する）。実体は
 /// [`fandhe_frontend_headless_ui::toggle_group::root`] へ委譲する。
 ///
+/// 公開シグネチャは互換性のため `disabled: bool`/`orientation` のみを
+/// 引数に取る形を維持し、内部で `roving_focus: false`（既定値）とした
+/// [`ToggleGroupProps`] を組み立てて [`root_with_props`] へ委譲する
+/// （[`crate::radio_group::root`]/[`RadioGroupProps`] と同型のパターン、
+/// イシュー #1630）。`roving_focus` を有効にしたい場合は
+/// [`root_with_props`] を使うこと。
+///
 /// # Examples
 ///
 /// ```
@@ -463,18 +481,60 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let props = ToggleGroupProps {
+        disabled,
+        orientation,
+        ..ToggleGroupProps::default()
+    };
+    root_with_props(size, palette, &props, labelled_by, attrs, children)
+}
+
+/// styled root パーツを、全 [`ToggleGroupProps`]（disabled/orientation/
+/// roving_focus）を反映して組み立てる（[`crate::radio_group::root_with_props`]
+/// と同型、イシュー #1630）。[`root`] と実体を共有するが、`roving_focus`
+/// を既定値へ落とさず呼び出し側の `props` をそのまま headless
+/// [`fandhe_frontend_headless_ui::toggle_group::root`] へ渡す。子パーツ
+/// （[`item`]）へ渡す `props` と同一の値をここへも渡すことで、group 全体
+/// （root/item）の `data-orientation`/`data-disabled`/`tabindex` の
+/// 出力が一貫する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::toggle_group;
+/// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+/// use fandhe_frontend_headless_ui::toggle_group::ToggleGroupProps;
+///
+/// let props = ToggleGroupProps {
+///     roving_focus: true,
+///     ..ToggleGroupProps::default()
+/// };
+/// let node = toggle_group::root_with_props(
+///     Size::Md,
+///     ColorPalette::Accent,
+///     &props,
+///     None,
+///     vec![],
+///     vec![],
+/// );
+/// assert!(render(&node).contains(r#"data-scope="toggle-group" data-part="root""#));
+/// ```
+#[must_use]
+pub fn root_with_props<'a>(
+    size: Size,
+    palette: ColorPalette,
+    props: &ToggleGroupProps,
+    labelled_by: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let recipe = recipe();
     let class =
         recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::toggle_group::root(
-        disabled,
-        orientation,
-        labelled_by,
-        merged,
-        children,
-    )
+    fandhe_frontend_headless_ui::toggle_group::root(props, labelled_by, merged, children)
 }
 
 #[cfg(test)]
@@ -737,7 +797,15 @@ mod tests {
     fn item_is_not_given_variant_classes() {
         // item は root のみへクラスが付く複合部品の variant 統一方針
         // （モジュール rustdoc 参照）。item 自体には class 属性がない。
-        let html = render(&item(false, false, "bold", vec![], vec![]));
+        let html = render(&item(
+            &ToggleGroupProps::default(),
+            false,
+            false,
+            false,
+            "bold",
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("class="));
     }
 
@@ -794,6 +862,8 @@ mod tests {
     fn reexported_item_value_and_children_are_escaped_on_render() {
         const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
         let html = render(&item(
+            &ToggleGroupProps::default(),
+            false,
             false,
             false,
             PAYLOAD,

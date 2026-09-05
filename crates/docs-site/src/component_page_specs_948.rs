@@ -1512,8 +1512,8 @@ fn timer_example() -> Node {
             timer::control(
                 vec![],
                 vec![
-                    timer::action_trigger(TimerControl::Pause, vec![], vec![text("Pause")]),
-                    timer::action_trigger(TimerControl::Reset, vec![], vec![text("Reset")]),
+                    t.action_trigger(TimerControl::Pause, vec![], vec![text("Pause")]),
+                    t.action_trigger(TimerControl::Reset, vec![], vec![text("Reset")]),
                 ],
             ),
         ],
@@ -1749,24 +1749,29 @@ fn date_picker_example() -> Node {
             calendar::table_row(vec![], cells)
         })
         .collect();
+    let date_picker_props = fandhe_frontend_pre_styled_ui::date_picker::DatePickerProps::default();
     row(vec![date_picker::root(
         Size::Md,
         OpenState::Open,
+        &date_picker_props,
         vec![],
         vec![
             date_picker::label(
+                &date_picker_props,
                 Some("spec-948-date-picker-label"),
+                None,
                 vec![],
                 vec![text("Delivery date")],
             ),
             date_picker::control(
                 OpenState::Open,
+                &date_picker_props,
                 vec![],
                 vec![
-                    date_picker::input(Some("2026-07-15"), false, None, vec![]),
+                    date_picker::input(Some("2026-07-15"), &date_picker_props, None, vec![]),
                     date_picker::trigger(
                         OpenState::Open,
-                        false,
+                        &date_picker_props,
                         Some("spec-948-date-picker-content"),
                         vec![],
                         vec![text("📅")],
@@ -1845,6 +1850,11 @@ const DATE_PICKER_SPEC: ComponentPageSpec = ComponentPageSpec {
 
 fn date_input_example() -> Node {
     let build = |id_prefix: &str, state: &DateInput, size: Size, disabled: bool| {
+        let props = date_input::DateInputProps {
+            disabled,
+            invalid: state.is_invalid(),
+            ..date_input::DateInputProps::default()
+        };
         date_input::root(
             size,
             disabled,
@@ -1852,20 +1862,17 @@ fn date_input_example() -> Node {
             vec![],
             vec![
                 date_input::label(
-                    disabled,
-                    state.is_invalid(),
+                    props,
                     Some(&format!("{id_prefix}-year")),
                     vec![],
                     vec![text("Date")],
                 ),
                 date_input::control(
-                    disabled,
-                    state.is_invalid(),
+                    props,
                     vec![],
                     vec![
                         date_input::segment_group(
-                            disabled,
-                            state.is_invalid(),
+                            props,
                             vec![],
                             vec![
                                 state.segment(DateSegment::Year, disabled, false, vec![]),

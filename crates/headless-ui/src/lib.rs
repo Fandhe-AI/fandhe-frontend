@@ -119,7 +119,9 @@
 //!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
 //!   dispatch は `"select"` のみを受理する（WAI-ARIA radio パターンに選択解除
 //!   ジェスチャは存在しないため、型付き API の `Deselect` のみプログラム的な
-//!   選択解除を許す）。
+//!   選択解除を許す）。[`radio_group::RadioGroupProps`]（`disabled`/
+//!   `readonly`/`invalid`/`required`）が各パーツの `data-*`/ARIA 属性を
+//!   決定する（イシュー #1616 の ark-ui / Radix Primitives 参照突合で新設）。
 //! - [`mod@segment_group`]: Root / Indicator / Item / ItemText / ItemControl /
 //!   ItemHiddenInput の 6 anatomy パーツと、状態機械・dispatch・hydration の
 //!   すべてを [`radio_group::RadioGroup`] へ全委譲する
@@ -128,7 +130,10 @@
 //!   新設しない。固有に持つのは segment 用 anatomy と、選択項目の
 //!   `(index, count)` から CSS カスタムプロパティ 2 種を導出する
 //!   [`segment_group::indicator`] の SSR 決定的な位置表現のみ（詳細は
-//!   [`mod@segment_group`] module doc 参照）。
+//!   [`mod@segment_group`] module doc 参照）。[`segment_group::SegmentGroupProps`]
+//!   （`disabled`/`readonly`/`invalid`/`required`）が各パーツの `data-*`/
+//!   ARIA 属性を決定する（イシュー #1618 の ark-ui 参照突合で新設、
+//!   [`radio_group::RadioGroupProps`] と同じパート別反映契約）。
 //! - [`popover`]: Root / Trigger / Anchor / Positioner / Arrow / ArrowTip /
 //!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
@@ -202,12 +207,13 @@
 //!   固定 `style` で描画し、状態機械・hydration フォーマットへの追加は
 //!   ない（詳細は [`progress`] モジュール doc の circular 節を参照）。
 //! - [`mod@number_input`]: Root / Label / Control / Input / IncrementTrigger /
-//!   DecrementTrigger の 6 anatomy パーツと、数値 `value`（`min`..=`max`、
-//!   または未入力を表す `None`）を持つ [`number_input::NumberInput`] 値状態
-//!   機械（#738、親 #736）。[`mod@progress`] と同じく `data-state` を持たず、
-//!   [`fandhe_frontend_interactive::Component`]/
+//!   DecrementTrigger / ValueText の 7 anatomy パーツ（#738、親 #736。
+//!   ValueText はイシュー #1613 の参考サイト突合で追加）と、数値 `value`
+//!   （`min`..=`max`、または未入力を表す `None`）を持つ
+//!   [`number_input::NumberInput`] 値状態機械。[`mod@progress`] と同じく
+//!   `data-state` を持たず、[`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。ark-ui の
-//!   Scrubber パーツ・キーボード操作の DOM 配線は本イシューのスコープ外
+//!   Scrubber パーツ・キーボード操作の DOM 配線は引き続きスコープ外
 //!   （[`number_input`] モジュール doc 参照）。
 //! - [`mod@rating_group`]: Root / Label / Control / Item / HiddenInput の 5
 //!   anatomy パーツと、`1..=count` の数値評価値（未評価は `None`）+ hover
@@ -374,7 +380,11 @@
 //!   [`clipboard::root`]の `data-value` 属性としてのみ出力する（[`clipboard`] モジュール doc
 //!   「`value` は状態機械に持たせない」節参照）。`navigator.clipboard`
 //!   実配線・タイムアウトによる自動リセットは
-//!   `fandhe-frontend-wasm-full`（#773 後続）のスコープ。
+//!   `fandhe-frontend-wasm-full`（#773 後続）のスコープ。参考実装
+//!   （ark-ui/Zag.js）との突合（#1631）で [`clipboard::label`] に `for`
+//!   （`input_id` 引数）と `data-copied`、[`clipboard::input`] に
+//!   `data-readonly`、[`clipboard::trigger`] に既定 `aria-label`
+//!   （呼び出し側 `attrs` で上書き可）を追加した。
 //! - [`mod@splitter`]: Root / Panel / ResizeTrigger / ResizeTriggerIndicator の
 //!   4 anatomy パーツと、パネルサイズ状態機械 [`splitter::Splitter`]
 //!   （#826、`docs/policy/intentional-non-adoption.md` §7・
@@ -464,8 +474,11 @@
 //! - [`mod@toggle_group`]: Root/Item anatomy と、[`state::SingleSelect`] を
 //!   埋め込んだ single モード [`toggle_group::ToggleGroup`]、
 //!   [`state::MultiSelect`] を埋め込んだ multiple モード
-//!   [`toggle_group::MultiToggleGroup`]（イシュー #746）。roving focus は
-//!   wasm keynav 層のスコープとして未提供（モジュール doc §out-of-scope 参照）。
+//!   [`toggle_group::MultiToggleGroup`]（イシュー #746）。
+//!   [`toggle_group::ToggleGroupProps::roving_focus`]（既定 `false`）で
+//!   SSR 側の roving tabindex を opt-in 出力できる（イシュー #1630）が、
+//!   矢印キーの実 DOM 配線は引き続き wasm keynav 層のスコープ
+//!   （モジュール doc §out-of-scope 参照）。
 //! - [`mod@tree_view`]: Root / Label / Tree / Branch / BranchControl /
 //!   BranchIndicator / BranchText / BranchContent / BranchIndentGuide / Item /
 //!   ItemText / ItemIndicator の 12 anatomy パーツと、[`state::MultiSelect`]
@@ -553,9 +566,17 @@
 //!   検証する fail-closed 契約（[`date_input::DateInput::value`]）を持つ。
 //!   `date_input::segment_group` は [`mod@segment_group`]（segmented control）
 //!   とは無関係の別 anatomy スコープ（[`mod@date_input`] モジュール doc
-//!   参照）。granularity（時分秒）・range 選択・locale 依存整形・キーボード
-//!   操作の DOM 配線は本イシューのスコープ外（[`date_input`] モジュール doc
-//!   §スコープ外参照）。
+//!   参照）。granularity（時分秒）・range 選択・locale 依存整形は本イシューの
+//!   スコープ外（[`date_input`] モジュール doc §スコープ外参照）。イシュー
+//!   #1626 で ark-ui（zag.js `date-input` machine）の Data Attributes 表・
+//!   キーボード操作・WAI-ARIA と突合し、`DateInputProps`（旧
+//!   `DateSegmentFlags` を全パーツ共通の 4 フィールド版へ置換）・
+//!   `data-type`/`data-value`/`data-editable`/`data-placeholder-shown`
+//!   （旧 `data-placeholder`）・`data-focus`（control/segment-group）・
+//!   `role="group"`（segment-group）・wrap-around な Increment/Decrement・
+//!   PageUp/PageDown・Home/End・矢印キーによるセグメント間フォーカス移動・
+//!   Backspace を是正・追加した（キーボード操作の実 DOM 配線は引き続き
+//!   `fandhe-frontend-wasm-full` 側のスコープ外）。
 //! - [`mod@timer`]: Root / Area / Item / ItemValue / ItemLabel / Separator /
 //!   Control / ActionTrigger の 8 anatomy パーツと、idle/running/paused/
 //!   completed の 4 値状態機械 [`timer::Timer`]（イシュー #836、
@@ -563,7 +584,11 @@
 //!   外部から明示的に注入する決定的状態機械であり、`std::time`/`Instant`
 //!   等の時計 API に一切依存しない（[`mod@timer`] モジュール doc 参照）。
 //!   実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full` の
-//!   `headless_timer` モジュールの責務。
+//!   `headless_timer` モジュールの責務。イシュー #1632 で zag.js
+//!   `timer.connect.ts` と突合し、`area` の `role="timer"`/`aria-atomic`/
+//!   `aria-label`・`separator` の `aria-hidden`・`action_trigger` の
+//!   `phase` 引数による `hidden` 導出（`TimerControl` は 5 値、`Restart`
+//!   を意図的に追加）を是正した。
 //! - [`mod@format`]: byte / number / time / relative-time の Format 系
 //!   ユーティリティ（イシュー #853、親 Phase 5 #852）。ark-ui `format-byte`/
 //!   `format-number`/`format-time`/`format-relative-time` 相当を、JS の
@@ -737,7 +762,7 @@ pub use data_attrs::{
     data_incomplete, data_invalid, data_orientation, data_pressed, data_readonly, data_required,
     data_state, Orientation,
 };
-pub use date_input::{DateInput, DateInputAction, DateSegment, DateSegmentFlags};
+pub use date_input::{DateInput, DateInputAction, DateInputProps, DateSegment};
 pub use date_picker::{DatePicker, DatePickerAction};
 pub use dialog::Dialog;
 pub use drawer::{Drawer, DrawerPlacement};
@@ -766,9 +791,9 @@ pub use positioning::{
 };
 pub use progress::{Progress, ProgressAction};
 pub use qr_code::{ErrorCorrectionLevel, QrEncodeError, QrMatrix};
-pub use radio_group::RadioGroup;
-pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
-pub use segment_group::SegmentGroup;
+pub use radio_group::{RadioGroup, RadioGroupProps};
+pub use rating_group::{RatingGroup, RatingGroupAction, RatingGroupProps, RatingItemFlags};
+pub use segment_group::{SegmentGroup, SegmentGroupProps};
 pub use signature_pad::{Point, SignaturePad, SignaturePadAction, Stroke, StrokeError};
 pub use slider::{Slider, SliderAction};
 pub use splitter::{PanelSpec, Splitter, SplitterAction};
@@ -783,7 +808,7 @@ pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
 pub use tags_input::{TagsInput, TagsInputAction};
 pub use toast::{ToastAction, ToastEntry, ToastPlacement, ToastStatus, Toaster};
 pub use toggle::{Toggle, ToggleAction};
-pub use toggle_group::{MultiToggleGroup, ToggleGroup};
+pub use toggle_group::{MultiToggleGroup, ToggleGroup, ToggleGroupProps};
 pub use toggle_tip::ToggleTip;
 pub use toolbar::{Toolbar, ToolbarAction};
 pub use tooltip::Tooltip;

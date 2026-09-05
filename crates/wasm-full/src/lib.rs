@@ -145,6 +145,7 @@ pub mod headless_timer;
 pub mod hydration;
 pub mod keynav;
 pub mod nav;
+pub mod number_input;
 pub mod overlay;
 pub mod position;
 pub mod splitter;
@@ -984,6 +985,12 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
+        Self::wire_number_input(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
 
         Ok(Self {
             component,
@@ -1073,6 +1080,12 @@ where
         Self::wire_angle_slider(component.clone(), root.clone())?;
         Self::wire_splitter(component.clone(), root.clone())?;
         Self::wire_signature_pad(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
+        Self::wire_number_input(
             component.clone(),
             root.clone(),
             binding_table.clone(),
@@ -1359,6 +1372,62 @@ where
                 // フォールバックの手順を踏み、対応表キャッシュ・keyed list
                 // キャッシュ（イシュー #1324）も共有する。イシュー #1120
                 // で共通化）。
+                let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
+                if dirty.is_empty() {
+                    return;
+                }
+                Self::apply_update_for_dirty(
+                    state,
+                    updated_root,
+                    &binding_table,
+                    &keyed_list_cache,
+                    &dirty,
+                );
+            },
+        )
+    }
+
+    /// NumberInput（`fandhe-frontend-headless-ui` `number_input` モジュール）の
+    /// keydown（ArrowUp/ArrowDown/Home/End/Enter）配線を
+    /// [`number_input::wire_number_input_component`] 経由で `root` へ配線する
+    /// （イシュー #1613、PR #1881 codex-review P1 是正）。`Self::mount`/
+    /// `Self::hydrate` の双方から `Self::wire_signature_pad` の直後に 1 回
+    /// だけ呼ばれる。
+    ///
+    /// `number_input::wire_number_input_component` は dispatch 成功後の DOM
+    /// 反映を `on_update` コールバックとして呼び出し側に委ねる設計
+    /// （`headless_signature_pad.rs`/`headless.rs::wire_headless_component`
+    /// と同型）。ここでは `Self::wire` の束縛点更新経路
+    /// （`BindingTable::apply_dirty`・keyed list 差し替え・構造フォールバック）
+    /// と同じロジック（[`Self::apply_update_for_dirty`]）を渡し、増減・
+    /// Home/End・Enter 確定のいずれの dirty field も既存の束縛点対応表の
+    /// 仕組みで反映する（新しい DOM 反映経路を増やさない）。
+    ///
+    /// # fail-closed（NumberInput 非搭載アプリへの副作用なし）
+    ///
+    /// `root` 配下に NumberInput の Input パーツが存在しない場合、
+    /// `number_input::wiring::handle_keydown` 内の scope/part 一致判定が
+    /// 不一致で早期 return するため、NumberInput を使わないアプリへの影響
+    /// はない。
+    ///
+    /// # Errors
+    ///
+    /// [`number_input::wire_number_input_component`]
+    /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    fn wire_number_input(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        number_input::wire_number_input_component(
+            root,
+            component,
+            move |state: &C, updated_root: &web_sys::Element| {
                 let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
                 if dirty.is_empty() {
                     return;

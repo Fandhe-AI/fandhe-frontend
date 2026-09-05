@@ -98,6 +98,11 @@ use fandhe_frontend_interactive::Hydrate;
 const TIMER_SCOPE: &str = "timer";
 /// Timer ActionTrigger パーツの `data-part` 属性値。
 const ACTION_TRIGGER_PART: &str = "action-trigger";
+/// Timer Area パーツの `data-part` 属性値（イシュー #1632、`aria-label`
+/// 同期対象。wasm32 配線層専用の定数だが、native の非テストビルドでは
+/// 未使用と誤検出される。`ITEM_VALUE_PART` と同じ理由の dead_code 抑制）。
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+const AREA_PART: &str = "area";
 /// Timer ItemValue パーツの `data-part` 属性値（wasm32 配線層専用の定数だが、
 /// native の非テストビルドでは未使用と誤検出される。
 /// `headless_avatar.rs::AVATAR_FALLBACK_PART` と同じ理由の dead_code 抑制）。
@@ -125,7 +130,8 @@ pub fn is_timer_action_trigger(scope: Option<&str>, part: Option<&str>) -> bool 
 
 /// ActionTrigger の `data-action` 属性値を `"timer:*"` アクション名へ変換する
 /// allowlist 変換（完全一致のみ、モジュール冒頭「`data-action` の allowlist
-/// 変換」節参照）。未知の値・欠落は `None`（fail-closed）。
+/// 変換」節参照）。未知の値・欠落は `None`（fail-closed）。イシュー #1632 で
+/// `restart`（5 値目）を追加した。
 #[must_use]
 pub fn action_from_trigger(data_action: Option<&str>) -> Option<&'static str> {
     match data_action {
@@ -133,6 +139,7 @@ pub fn action_from_trigger(data_action: Option<&str>) -> Option<&'static str> {
         Some("pause") => Some("timer:pause"),
         Some("resume") => Some("timer:resume"),
         Some("reset") => Some("timer:reset"),
+        Some("restart") => Some("timer:restart"),
         _ => None,
     }
 }
@@ -216,9 +223,11 @@ pub fn formatted_segments(timer: &Timer) -> [(TimerUnit, String); 4] {
 mod wiring {
     use super::{
         action_from_trigger, clamp_interval_ms, formatted_segments, is_timer_action_trigger,
-        timer_from_display_attrs, Timer, ACTION_TRIGGER_PART, ITEM_VALUE_PART, TIMER_SCOPE,
+        timer_from_display_attrs, Timer, ACTION_TRIGGER_PART, AREA_PART, ITEM_VALUE_PART,
+        TIMER_SCOPE,
     };
     use crate::events::ActionRef;
+    use fandhe_frontend_headless_ui::timer::TimerControl;
     use std::cell::RefCell;
     use std::rc::Rc;
     use wasm_bindgen::closure::Closure;
@@ -287,16 +296,84 @@ mod wiring {
         )
     }
 
-    /// `timer` の現在状態を `root` の `data-state`/`data-elapsed` 属性、および
-    /// 4 セグメント分の item-value テキストへ反映する。
+    /// `before`/`after` 両方の [`Timer::area_label`] が一致する要素の
+    /// `aria-label` のみを更新する（イシュー #1632）。呼び出し側が独自の
+    /// `aria-label` を `attrs` で渡していた場合、その値は headless
+    /// `Timer::area_label` の既定書式と一致しないため対象から外れ、
+    /// `fandhe-frontend-headless-ui::clipboard::trigger` の
+    /// `TRIGGER_ARIA_LABEL_*` 反転同期（イシュー #1631/#1900）と同じ
+    /// fail-closed 契約（利用者の独自ラベルを壊さない）を守る。
+    fn sync_area_aria_label(root: &Element, before: &Timer, after: &Timer) -> Result<(), JsValue> {
+        let before_label = before.area_label();
+        let after_label = after.area_label();
+        if before_label == after_label {
+            return Ok(());
+        }
+        let selector = format!(r#"[data-scope="{TIMER_SCOPE}"][data-part="{AREA_PART}"]"#);
+        let Ok(node_list) = root.query_selector_all(&selector) else {
+            return Ok(());
+        };
+        let len = node_list.length();
+        for i in 0..len {
+            let Some(node) = node_list.get(i) else {
+                continue;
+            };
+            let Some(element) = node.dyn_ref::<Element>() else {
+                continue;
+            };
+            let current = element.get_attribute("aria-label");
+            if current.as_deref() == Some(before_label.as_str()) {
+                set_dom_attribute(element, "aria-label", &after_label)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// `timer` の現在の可視性（[`TimerControl::is_hidden_in`]）を、`root`
+    /// 配下の各 ActionTrigger 要素の `hidden` 属性へ反映する（イシュー
+    /// #1632）。`data-action` を allowlist（[`TimerControl::parse`]
+    /// 完全一致）で解釈し、未知の値は fail-closed でスキップする（呼び出し
+    /// 側が `data-action` を改ざんしていても状態を誤って反映しない）。
+    fn sync_action_trigger_visibility(root: &Element, timer: &Timer) -> Result<(), JsValue> {
+        let selector =
+            format!(r#"[data-scope="{TIMER_SCOPE}"][data-part="{ACTION_TRIGGER_PART}"]"#);
+        let Ok(node_list) = root.query_selector_all(&selector) else {
+            return Ok(());
+        };
+        let len = node_list.length();
+        for i in 0..len {
+            let Some(node) = node_list.get(i) else {
+                continue;
+            };
+            let Some(element) = node.dyn_ref::<Element>() else {
+                continue;
+            };
+            let Some(control) =
+                TimerControl::parse(&element.get_attribute("data-action").unwrap_or_default())
+            else {
+                continue;
+            };
+            if control.is_hidden_in(timer.phase()) {
+                set_dom_attribute(element, "hidden", "")?;
+            } else {
+                element.remove_attribute("hidden")?;
+            }
+        }
+        Ok(())
+    }
+
+    /// `before`（dispatch 前）から `after`（dispatch 後）への遷移を `root` の
+    /// `data-state`/`data-elapsed` 属性、4 セグメント分の item-value
+    /// テキスト、ActionTrigger の `hidden`、area の既定 `aria-label` へ反映
+    /// する（イシュー #1632 で `before`/hidden/aria-label 同期を追加）。
     ///
     /// # Errors
     ///
     /// `query_selector_all`/`set_attribute` の失敗を伝播する。
-    fn write_timer(root: &Element, timer: &Timer) -> Result<(), JsValue> {
-        set_dom_attribute(root, "data-state", timer.phase().as_str())?;
-        set_dom_attribute(root, "data-elapsed", &timer.elapsed_ms().to_string())?;
-        for (unit, formatted) in formatted_segments(timer) {
+    fn write_timer(root: &Element, before: &Timer, after: &Timer) -> Result<(), JsValue> {
+        set_dom_attribute(root, "data-state", after.phase().as_str())?;
+        set_dom_attribute(root, "data-elapsed", &after.elapsed_ms().to_string())?;
+        for (unit, formatted) in formatted_segments(after) {
             let selector = format!(
                 r#"[data-scope="{TIMER_SCOPE}"][data-part="{ITEM_VALUE_PART}"][data-type="{}"]"#,
                 unit.as_str()
@@ -312,6 +389,8 @@ mod wiring {
                 node.set_text_content(Some(&formatted));
             }
         }
+        sync_action_trigger_visibility(root, after)?;
+        sync_area_aria_label(root, before, after)?;
         Ok(())
     }
 
@@ -429,6 +508,7 @@ mod wiring {
             }
             return;
         };
+        let before = timer;
         let now = js_sys::Date::now();
         let delta = last_tick_ms
             .borrow_mut()
@@ -438,7 +518,7 @@ mod wiring {
 
         let payload = delta.to_string();
         if fandhe_frontend_interactive::dispatch(&mut timer, "timer:tick", &payload) {
-            let _ = write_timer(root, &timer);
+            let _ = write_timer(root, &before, &timer);
         }
         notify_action("timer:tick", &payload, on_action);
         sync_interval(root, window, on_action, pending, last_tick_ms);
@@ -491,8 +571,19 @@ mod wiring {
         let Some(mut timer) = read_timer(root) else {
             return;
         };
+        let before = timer;
         if fandhe_frontend_interactive::dispatch(&mut timer, action, "") {
-            let _ = write_timer(root, &timer);
+            let _ = write_timer(root, &before, &timer);
+        }
+        // `timer:restart` は `elapsed_ms` を 0 へ巻き戻すが、`running` 継続時
+        // （restart 前から `pending` が張られている経路）は `sync_interval` の
+        // 「`pending` 既存なら早期 return」により `last_tick_ms` が更新され
+        // ないままになる（レビュー指摘）。次回 tick の delta 計算
+        // （`handle_tick` の `now - last_tick_ms`）が restart 前の経過時間を
+        // 含んでしまい、カウントダウンが早期完了する不整合が生じるため、
+        // `sync_interval` を呼ぶ前にここで明示的に現在時刻へ揃える。
+        if action == "timer:restart" {
+            *last_tick_ms.borrow_mut() = Some(js_sys::Date::now());
         }
         notify_action(action, "", on_action);
         sync_interval(root, window, on_action, pending, last_tick_ms);
@@ -574,11 +665,24 @@ mod tests {
     // --- action_from_trigger ---
 
     #[test]
-    fn action_from_trigger_covers_all_four_controls() {
+    fn action_from_trigger_covers_all_five_controls() {
         assert_eq!(action_from_trigger(Some("start")), Some("timer:start"));
         assert_eq!(action_from_trigger(Some("pause")), Some("timer:pause"));
         assert_eq!(action_from_trigger(Some("resume")), Some("timer:resume"));
         assert_eq!(action_from_trigger(Some("reset")), Some("timer:reset"));
+        assert_eq!(action_from_trigger(Some("restart")), Some("timer:restart"));
+    }
+
+    // --- restart_action_is_allowlisted_and_transitions_to_running（イシュー
+    // #1632） ---
+
+    #[test]
+    fn restart_action_is_allowlisted_and_transitions_to_running() {
+        let action = action_from_trigger(Some("restart")).unwrap();
+        let mut t = Timer::count_up(0, 1000);
+        assert!(fandhe_frontend_interactive::dispatch(&mut t, action, ""));
+        assert_eq!(t.phase().as_str(), "running");
+        assert_eq!(t.elapsed_ms(), 0);
     }
 
     #[test]

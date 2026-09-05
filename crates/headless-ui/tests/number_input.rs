@@ -17,8 +17,7 @@ fn full_assembly_wires_control_input_and_triggers() {
     let n = NumberInput::new(Some(40.0), 0.0, 100.0, 1.0);
 
     let label = n.label(
-        false,
-        false,
+        NumberInputFlags::default(),
         Some("qty-input"),
         vec![],
         vec![text("Quantity")],
@@ -31,8 +30,17 @@ fn full_assembly_wires_control_input_and_triggers() {
     );
     let increment = n.increment_trigger(Some("qty-input"), false, vec![], vec![]);
     let decrement = n.decrement_trigger(Some("qty-input"), false, vec![], vec![]);
-    let control = n.control(false, false, vec![], vec![input, increment, decrement]);
-    let root = n.root(false, false, vec![], vec![label, control]);
+    let control = n.control(
+        NumberInputFlags::default(),
+        vec![],
+        vec![input, increment, decrement],
+    );
+    let value_text = n.value_text(NumberInputFlags::default(), vec![]);
+    let root = n.root(
+        NumberInputFlags::default(),
+        vec![],
+        vec![label, control, value_text],
+    );
 
     let html = render(&root);
     assert!(html.contains(r#"data-scope="number-input" data-part="root""#));
@@ -40,6 +48,7 @@ fn full_assembly_wires_control_input_and_triggers() {
     assert!(html.contains(r#"for="qty-input""#));
     assert!(html.contains("Quantity"));
     assert!(html.contains(r#"data-part="control""#));
+    assert!(html.contains(r#"role="group""#));
     assert!(html.contains(r#"data-part="input""#));
     assert!(html.contains(r#"role="spinbutton""#));
     assert!(html.contains(r#"aria-valuemin="0""#));
@@ -49,6 +58,20 @@ fn full_assembly_wires_control_input_and_triggers() {
     assert!(html.contains(r#"data-part="increment-trigger""#));
     assert!(html.contains(r#"data-part="decrement-trigger""#));
     assert!(html.contains(r#"aria-controls="qty-input""#));
+    assert!(html.contains(r#"data-part="value-text""#));
+    assert!(html.contains(">40<"));
+}
+
+/// ValueText パーツ（イシュー #1613）が [`NumberInput::formatted_value`]
+/// と一致する文字列を出力し、full assembly から独立して単体でも使えることを
+/// 固定する。
+#[test]
+fn value_text_reflects_formatted_value() {
+    let n = NumberInput::new(Some(7.5), 0.0, 10.0, 0.5);
+    let html = render(&n.value_text(NumberInputFlags::default(), vec![]));
+    assert!(html.contains(r#"data-part="value-text""#));
+    assert!(html.contains(">7.5<"));
+    assert_eq!(n.formatted_value(), "7.5");
 }
 
 #[test]
@@ -90,7 +113,9 @@ fn dispatch_and_ssr_hydration_round_trip_via_full_state_machine() {
     let ssr_html = render(&number_input::input(
         "qty",
         None,
-        Some(n.value_text().as_str()).filter(|s| !s.is_empty()),
+        Some(n.formatted_value())
+            .filter(|s| !s.is_empty())
+            .as_deref(),
         "0",
         "10",
         NumberInputFlags::default(),

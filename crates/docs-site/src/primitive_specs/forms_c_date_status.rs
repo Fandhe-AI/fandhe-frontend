@@ -56,13 +56,13 @@
 //! （`tests/primitive_specs_1026.rs::forms_c_examples_do_not_call_pre_styled_ui_component_fns`
 //! が機械確認する）。
 
-use fandhe_frontend_core::{text, Node};
+use fandhe_frontend_core::{code, div, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::calendar;
 use hui::clipboard;
 use hui::data_attrs::Orientation;
 use hui::date::PlainDate;
-use hui::date_input::{self, DateSegment, DateSegmentFlags};
+use hui::date_input::{self, DateInputProps, DateSegment};
 use hui::date_picker;
 use hui::download_trigger;
 use hui::progress::Progress;
@@ -89,13 +89,28 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/primitives/toggle-group/", TOGGLE_GROUP),
 ];
 
+/// Examples 用の枠組み（`forms_a.rs::wrap_example` と同型。
+/// [`crate::primitive_showcase`] のデモ本体と同じ `primitives-demo-frame`/
+/// `primitives-demo-note` class のみを使い、`h2`/`h3` は出さない）。
+fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
+    div(
+        vec![],
+        vec![
+            p(vec![("class", "primitives-demo-note")], vec![text(note)]),
+            div(vec![("class", "primitives-demo-frame")], body),
+        ],
+    )
+}
+
 // ---------------------------------------------------------------------
 // Calendar — 一次情報: crates/headless-ui/src/calendar.rs:1-431
 // ---------------------------------------------------------------------
 
 /// Calendar の Examples: 範囲下限に到達した前月移動トリガーと、範囲外の
 /// 日付（`day_trigger` の `disabled`）を示す（Demo は選択済みの単一日付の
-/// みを描画するため、range 制約の表示状態を補完する）。
+/// みを描画するため、range 制約の表示状態を補完する）。`prev_trigger`/
+/// `next_trigger` はアクセシブル名を既定で持たないため、呼び出し側の
+/// `attrs` で `aria-label` を渡す責務を示す例も兼ねる（#1625 突合結果）。
 fn calendar_disabled_range_example() -> Node {
     let day = match PlainDate::new(2026, 7, 1) {
         Ok(d) => d,
@@ -104,8 +119,12 @@ fn calendar_disabled_range_example() -> Node {
     calendar::root(
         vec![],
         vec![
-            calendar::prev_trigger(true, vec![], vec![text("‹")]),
-            calendar::next_trigger(false, vec![], vec![text("›")]),
+            calendar::prev_trigger(
+                true,
+                vec![("aria-label", "Previous month")],
+                vec![text("‹")],
+            ),
+            calendar::next_trigger(false, vec![("aria-label", "Next month")], vec![text("›")]),
             calendar::table(
                 None,
                 vec![],
@@ -134,6 +153,80 @@ fn calendar_disabled_range_example() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1625、`CHECKBOX_CUSTOM_CSS_SNIPPET`
+/// 〔`primitive_specs/forms_a.rs`〕と同型のパターン）。CSS はテキストノード
+/// （[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const CALENDAR_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"calendar\"][data-part=\"table\"] {\n  \
+  border-collapse: collapse;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"day-trigger\"] {\n  \
+  width: 2rem;\n  height: 2rem;\n  border: none;\n  border-radius: 4px;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"day-trigger\"][data-selected] {\n  \
+  background: #2563eb;\n  color: #fff;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"day-trigger\"][data-today] {\n  \
+  font-weight: bold;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"day-trigger\"][data-outside-month] {\n  \
+  color: #9ca3af;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"day-trigger\"][data-disabled] {\n  \
+  opacity: 0.4;\n\
+}\n\
+[data-scope=\"calendar\"][data-part=\"prev-trigger\"]:focus-visible,\n\
+[data-scope=\"calendar\"][data-part=\"next-trigger\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n";
+
+fn ex_calendar_custom_css() -> Node {
+    let day = match PlainDate::new(2026, 7, 25) {
+        Ok(d) => d,
+        Err(_) => return calendar::root(vec![], vec![]),
+    };
+    let markup = calendar::root(
+        vec![],
+        vec![calendar::table(
+            None,
+            vec![],
+            vec![calendar::table_body(
+                vec![],
+                vec![calendar::table_row(
+                    vec![],
+                    vec![calendar::table_cell(
+                        true,
+                        vec![],
+                        vec![calendar::day_trigger(
+                            day,
+                            true,
+                            true,
+                            false,
+                            false,
+                            None,
+                            vec![],
+                            vec![text("25")],
+                        )],
+                    )],
+                )],
+            )],
+        )],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-selected / data-today / data-outside-month / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(CALENDAR_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 const CALENDAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root/Heading/PrevTrigger/NextTrigger/Table/TableHeader/TableRow/TableHeadCell/TableBody/TableCell/DayTrigger の 11 anatomy パーツを提供し、月表示・単一日付選択・min/max 範囲制約を持つ状態機械 `Calendar` を組み合わせる。",
@@ -141,6 +234,9 @@ const CALENDAR: ComponentPageSpec = ComponentPageSpec {
         "`table` に `role=\"grid\"`、`table_row` に `role=\"row\"`、`table_head_cell` に `role=\"columnheader\"`、`table_cell` に `role=\"gridcell\"` + `aria-selected` を付与し、WAI-ARIA APG の grid パターンに従う。",
         "`day_trigger` は選択日に `data-selected`、今日に `data-today` + `aria-current=\"date\"`、表示月外の日付に `data-outside-month`、min/max 範囲外の日付に `data-disabled` + ネイティブ `disabled` + `aria-disabled` を出力する。",
         "範囲選択（range mode）・複数月表示・年/月ビュー切替は本コンポーネントのスコープ外（単一日付の選択のみを扱う）。",
+        "ark-ui/zag の `data-focus`/`data-view`/`data-weekend`/`data-unavailable`/range 系属性は出力しない（DOM ローカル状態・ビュー概念なし・locale 依存・range mode スコープ外のため。#1625 参考サイト突合結果）。",
+        "パート名 `table-header`（`<thead>`）/`table-head-cell`（`<th>`）は ark-ui（`table-head`/`table-header`）とはパート名の対応が入れ替わっている（本実装は要素の役割をそのまま表す命名）。",
+        "キーボード操作（矢印キー等での日付移動）は `fandhe-frontend-wasm-full` の keynav 配線（#1074/#1161）が担う。本コンポーネント（SSR 単体）はネイティブ `<button>` の Tab / Enter / Space のみを提供する。",
     ],
     arguments: &[
         ArgRow {
@@ -180,11 +276,18 @@ const CALENDAR: ComponentPageSpec = ComponentPageSpec {
             description: "週の開始曜日。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "範囲外の日付・前月移動の無効化",
-        description: "`day_trigger` の `disabled` と `prev_trigger` の `disabled` を `true` にすると、min/max 範囲外であることを示す `data-disabled`・ネイティブ `disabled`・`aria-disabled` が出力されます。",
-        render: calendar_disabled_range_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "範囲外の日付・前月移動の無効化",
+            description: "`day_trigger` の `disabled` と `prev_trigger` の `disabled` を `true` にすると、min/max 範囲外であることを示す `data-disabled`・ネイティブ `disabled`・`aria-disabled` が出力されます。",
+            render: calendar_disabled_range_example,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui 自体はスタイルを持たないため、`data-scope`/`data-part`/`data-selected`/`data-today`/`data-outside-month`/`data-disabled` 属性セレクタで見た目を組み立てる最小例です。",
+            render: ex_calendar_custom_css,
+        },
+    ],
     keyboard: &[
         KeyRow {
             key: "Tab",
@@ -192,7 +295,23 @@ const CALENDAR: ComponentPageSpec = ComponentPageSpec {
         },
         KeyRow {
             key: "Space / Enter",
-            description: "フォーカス中の `prev_trigger`/`next_trigger`/`day_trigger` をブラウザ既定動作で押下する。",
+            description: "フォーカス中の `prev_trigger`/`next_trigger`/`day_trigger` をブラウザ既定動作で押下する（`day_trigger` は `fandhe-frontend-wasm-full` の keynav 配線で選択・`prev_trigger`/`next_trigger` は月移動をディスパッチする）。",
+        },
+        KeyRow {
+            key: "ArrowLeft / ArrowRight",
+            description: "`fandhe-frontend-wasm-full` の keynav 配線（#1074/#1161）が担う。フォーカス中の日付を ±1 日移動する（`data-disabled` のセルはスキップ、行末で次行へ、非循環）。",
+        },
+        KeyRow {
+            key: "ArrowUp / ArrowDown",
+            description: "同 keynav 配線が担う。フォーカス中の日付を ±7 日（1 週間）移動する。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "同 keynav 配線が担う。フォーカス中の行の先頭・末尾の非 disabled セルへ移動する（zag の実装に合わせた挙動。ark-ui サイトの「月初/月末」という文言とは異なる）。",
+        },
+        KeyRow {
+            key: "PageUp / PageDown",
+            description: "同 keynav 配線が担う。`prev_trigger`/`next_trigger` への click 合成で月移動する（trigger が `disabled` のときは no-op）。",
         },
     ],
     aria: &[
@@ -216,6 +335,10 @@ const CALENDAR: ComponentPageSpec = ComponentPageSpec {
             attribute: "aria-labelledby",
             description: "`table` の `labelledby` が `Some` のとき、`heading` の `id` と対で関連付ける。",
         },
+        AriaRow {
+            attribute: "aria-label",
+            description: "`day_trigger` は ISO 8601 表記（例: `\"2026-07-25\"`）を固定付与する。`prev_trigger`/`next_trigger` は既定値を持たないため、アイコンのみを子に置く場合はアクセシブル名を呼び出し側が `attrs` で渡す（例: `(\"aria-label\", \"Previous month\")`）。",
+        },
     ],
     demo: None,
 };
@@ -232,7 +355,7 @@ fn clipboard_copied_state_example() -> Node {
         true,
         vec![],
         vec![
-            clipboard::label(vec![], vec![text("Share link")]),
+            clipboard::label(true, None, vec![], vec![text("Share link")]),
             clipboard::control(
                 true,
                 vec![],
@@ -295,30 +418,25 @@ const CLIPBOARD: ComponentPageSpec = ComponentPageSpec {
 /// invalid 表示状態を示す（Demo は未入力の Day セグメントのみを描画する
 /// ため、fail-closed な検証結果の表示を補完する）。
 fn date_input_invalid_segment_example() -> Node {
-    let invalid_flags = DateSegmentFlags {
-        disabled: false,
+    let invalid_props = DateInputProps {
         invalid: true,
-        readonly: false,
+        ..DateInputProps::default()
     };
     date_input::root(
-        false,
-        true,
+        invalid_props,
         vec![],
         vec![
             date_input::label(
-                false,
-                true,
+                invalid_props,
                 Some("di-invalid-year"),
                 vec![],
                 vec![text("Date (invalid)")],
             ),
             date_input::control(
-                false,
-                true,
+                invalid_props,
                 vec![],
                 vec![date_input::segment_group(
-                    false,
-                    true,
+                    invalid_props,
                     vec![],
                     vec![
                         date_input::segment(
@@ -326,7 +444,7 @@ fn date_input_invalid_segment_example() -> Node {
                             Some("2026"),
                             "0",
                             "9999",
-                            DateSegmentFlags::default(),
+                            DateInputProps::default(),
                             vec![("id", "di-invalid-year")],
                         ),
                         date_input::segment(
@@ -334,7 +452,7 @@ fn date_input_invalid_segment_example() -> Node {
                             Some("02"),
                             "1",
                             "12",
-                            DateSegmentFlags::default(),
+                            DateInputProps::default(),
                             vec![],
                         ),
                         date_input::segment(
@@ -342,12 +460,90 @@ fn date_input_invalid_segment_example() -> Node {
                             Some("30"),
                             "1",
                             "31",
-                            invalid_flags,
+                            invalid_props,
                             vec![],
                         ),
                     ],
                 )],
             ),
+        ],
+    )
+}
+
+/// ark-ui の Data Attributes 表・zag `date-input` machine のキーボード
+/// 語彙との突合（イシュー #1626）で追加した `data-type`/`data-value`/
+/// `data-editable`/`data-placeholder-shown`/`data-focus` を、利用者が
+/// 自前 CSS でどう選択できるかを示す最小例（`ex_pin_input_custom_css` と
+/// 同型、`crates/docs-site/src/primitive_specs/forms_b.rs` 参照）。
+const DATE_INPUT_CUSTOM_CSS_SNIPPET: &str = r#"[data-scope="date-input"][data-part="segment"] {
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+[data-scope="date-input"][data-part="segment"][data-type="year"] {
+  min-width: 4ch;
+}
+
+[data-scope="date-input"][data-part="segment"][data-placeholder-shown] {
+  color: #999;
+}
+
+[data-scope="date-input"][data-part="segment-group"][data-focus] {
+  outline: 2px solid #06c;
+}
+
+[data-scope="date-input"][data-part="root"][data-invalid] [data-part="segment-group"] {
+  border-color: #c00;
+}
+
+[data-scope="date-input"][data-part="segment"]:focus-visible {
+  outline: 2px solid #06c;
+  outline-offset: 2px;
+}"#;
+
+fn date_input_custom_css_example() -> Node {
+    let props = DateInputProps::default();
+    let demo = date_input::root(
+        props,
+        vec![],
+        vec![
+            date_input::label(props, Some("di-css-year"), vec![], vec![text("Date")]),
+            date_input::control(
+                props,
+                vec![],
+                vec![date_input::segment_group(
+                    props,
+                    vec![],
+                    vec![
+                        date_input::segment(
+                            DateSegment::Year,
+                            Some("2026"),
+                            "0",
+                            "9999",
+                            props,
+                            vec![("id", "di-css-year")],
+                        ),
+                        date_input::segment(DateSegment::Month, None, "1", "12", props, vec![]),
+                        date_input::segment(DateSegment::Day, None, "1", "31", props, vec![]),
+                    ],
+                )],
+            ),
+        ],
+    );
+    let snippet = pre(
+        vec![],
+        vec![code(vec![], vec![text(DATE_INPUT_CUSTOM_CSS_SNIPPET)])],
+    );
+    div(
+        vec![],
+        vec![
+            p(
+                vec![("class", "primitives-demo-note")],
+                vec![text(
+                    "headless-ui はスタイルレスです。data-scope/data-part/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
+                )],
+            ),
+            div(vec![("class", "primitives-demo-frame")], vec![demo, snippet]),
         ],
     )
 }
@@ -358,6 +554,8 @@ const DATE_INPUT: ComponentPageSpec = ComponentPageSpec {
         "各 `segment` は `role=\"spinbutton\"` + `aria-valuemin`/`aria-valuemax` を常に出力し、値が入力済みのときのみ `aria-valuenow` を追加する（WAI-ARIA spinbutton パターン）。",
         "3 セグメントすべてが揃った場合のみ実在する日付か検証する（fail-closed）。存在しない日付（例: 2 月 30 日）は `is_invalid` が `true` を返す状態としてセグメント値を保持したまま表示する（値を破棄しない）。",
         "`hidden_input` パーツのみが `name` を持ち、確定済み日付を ISO 8601 文字列としてフォーム送信へ渡す。各 `segment` 自体は `name` を持たずフォーム送信に参加しない。",
+        "ark-ui（zag.js `date-input` machine）の Data Attributes 表と突合し、`data-type`（year/month/day）・`data-value`（入力済み）・`data-editable`（常時）・`data-placeholder-shown`（未入力）を `segment` へ、`data-focus` を `control`/`segment-group` へ、`data-readonly` を全パーツへ追加した（イシュー #1626）。",
+        "`Increment`/`Decrement` は境界で wrap-around する（例: year は 9999→0）。`PageIncrement`/`PageDecrement`（PageUp/PageDown 相当）・`Home`/`End`・`Prev`/`Next`（矢印キーでのセグメント間移動相当）・`Backspace` の状態遷移語彙を提供するが、実 DOM キーイベントへの配線は `fandhe-frontend-wasm-full` 側の責務（本コンポーネントは状態機械の dispatch 語彙のみを提供する）。",
         "セグメント値の実在性チェック以外の入力値検証・ロケール依存の日付整形は本コンポーネントの責務外であり、利用者側が担う（`docs/policy/intentional-non-adoption.md` §3.25）。",
     ],
     arguments: &[
@@ -365,13 +563,13 @@ const DATE_INPUT: ComponentPageSpec = ComponentPageSpec {
             name: "kind",
             kind: "DateSegment",
             default: "（必須）",
-            description: "Year/Month/Day のいずれか。`aria-label`・未入力時のプレースホルダを内部で決定する。",
+            description: "Year/Month/Day のいずれか。`aria-label`・未入力時のプレースホルダ・`data-type` を内部で決定する。",
         },
         ArgRow {
             name: "value",
             kind: "Option<&str>",
             default: "None",
-            description: "現在の表示値。`None` のとき `data-placeholder` を付与しプレースホルダを表示する。",
+            description: "現在の表示値。`None` のとき `data-placeholder-shown` を付与しプレースホルダを表示する。`Some` のとき `data-value` を付与する。",
         },
         ArgRow {
             name: "min / max",
@@ -380,25 +578,58 @@ const DATE_INPUT: ComponentPageSpec = ComponentPageSpec {
             description: "`aria-valuemin`/`aria-valuemax` に出力する下限・上限の文字列表現。",
         },
         ArgRow {
-            name: "flags",
-            kind: "DateSegmentFlags",
-            default: "DateSegmentFlags::default()",
-            description: "`disabled`/`invalid`/`readonly` の 3 フラグを束ねる構造体。",
+            name: "props",
+            kind: "DateInputProps",
+            default: "DateInputProps::default()",
+            description: "`disabled`/`readonly`/`invalid`/`focused` の 4 フラグを束ねる構造体（root/label/control/segment_group/segment 共通）。`focused` は control/segment-group の `data-focus` にのみ反映され、root/label/segment は無視する。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "実在しない日付（invalid）の表示",
-        description: "年・月・日すべてが揃っても実在しない日付（2 月 30 日）の場合、Day セグメントへ `aria-invalid`・`data-invalid` が付与されます。セグメント値自体は保持されたままです。",
-        render: date_input_invalid_segment_example,
-    }],
-    keyboard: &[KeyRow {
-        key: "Tab",
-        description: "各 `segment`（`div role=\"spinbutton\"`）は `disabled` でない限り `tabindex=\"0\"` を持ち、ブラウザ既定の Tab 順に含まれる。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "実在しない日付（invalid）の表示",
+            description: "年・月・日すべてが揃っても実在しない日付（2 月 30 日）の場合、Day セグメントへ `aria-invalid`・`data-invalid` が付与されます。セグメント値自体は保持されたままです。",
+            render: date_input_invalid_segment_example,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "headless-ui が出力する `data-*` 属性を CSS セレクタとして利用する最小例です。",
+            render: date_input_custom_css_example,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "各 `segment`（`div role=\"spinbutton\"`）は `disabled` でない限り `tabindex=\"0\"` を持ち、ブラウザ既定の Tab 順に含まれる。",
+        },
+        KeyRow {
+            key: "ArrowUp / ArrowDown",
+            description: "フォーカス中セグメントを ±1（`\"increment\"`/`\"decrement\"` dispatch）。境界で wrap-around する。実 DOM 配線は wasm-full 側。",
+        },
+        KeyRow {
+            key: "PageUp / PageDown",
+            description: "フォーカス中セグメントを ±PAGE_STEP（`\"page-increment\"`/`\"page-decrement\"` dispatch、境界で clamp）。実 DOM 配線は wasm-full 側。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "フォーカス中セグメントを最小値/最大値へ（`\"home\"`/`\"end\"` dispatch）。実 DOM 配線は wasm-full 側。",
+        },
+        KeyRow {
+            key: "ArrowLeft / ArrowRight",
+            description: "フォーカスを前後のセグメントへ移動（`\"prev\"`/`\"next\"` dispatch、year↔month↔day の順・端で留まる）。実 DOM 配線は wasm-full 側。",
+        },
+        KeyRow {
+            key: "Backspace / Delete",
+            description: "値があれば消去し留まる。既に未入力なら前のセグメントへフォーカス移動（`\"backspace\"` dispatch、Delete も同一 dispatch にマップする配線側契約）。実 DOM 配線は wasm-full 側。",
+        },
+    ],
     aria: &[
         AriaRow {
-            attribute: "role",
+            attribute: "role (segment)",
             description: "各 `segment` へ `\"spinbutton\"` を固定付与する。",
+        },
+        AriaRow {
+            attribute: "role (segment-group)",
+            description: "`segment_group` へ `\"group\"` を固定付与する。`aria-labelledby` は呼び出し側が `attrs` 経由で `label` の id を配線する。",
         },
         AriaRow {
             attribute: "aria-valuemin / aria-valuemax",
@@ -410,7 +641,15 @@ const DATE_INPUT: ComponentPageSpec = ComponentPageSpec {
         },
         AriaRow {
             attribute: "aria-invalid",
-            description: "`flags.invalid` が `true` のとき `segment` へ `\"true\"` を付与する。",
+            description: "`props.invalid` が `true` のとき `segment` へ `\"true\"` を付与する。",
+        },
+        AriaRow {
+            attribute: "aria-readonly",
+            description: "`props.readonly` が `true` のとき `segment` へ `\"true\"` を付与する。",
+        },
+        AriaRow {
+            attribute: "aria-disabled",
+            description: "`props.disabled` が `true` のとき `segment` へ `\"true\"` を付与する（`tabindex` は省略される）。",
         },
     ],
     demo: None,
@@ -425,23 +664,26 @@ const DATE_INPUT: ComponentPageSpec = ComponentPageSpec {
 /// の反転を補完する）。
 fn date_picker_open_example() -> Node {
     let state = OpenState::Open;
+    let props = date_picker::DatePickerProps::default();
     date_picker::root(
         state,
+        &props,
         vec![],
         vec![
             date_picker::control(
                 state,
+                &props,
                 vec![],
                 vec![
-                    date_picker::input(Some("2026-07-25"), false, Some("dp-open-input"), vec![]),
+                    date_picker::input(Some("2026-07-25"), &props, Some("dp-open-input"), vec![]),
                     date_picker::trigger(
                         state,
-                        false,
+                        &props,
                         Some("dp-open-content"),
                         vec![],
                         vec![text("📅")],
                     ),
-                    date_picker::clear_trigger(vec![], vec![text("×")]),
+                    date_picker::clear_trigger(&props, vec![], vec![text("×")]),
                 ],
             ),
             date_picker::positioner(
@@ -538,12 +780,55 @@ fn download_trigger_no_filename_example() -> Node {
     )
 }
 
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/ネイティブ `:focus-visible` 擬似クラスで見た目
+/// を組み立てる例を示す（イシュー #1628）。DownloadTrigger は状態を表す
+/// `data-*` を一切出力しない 1 パーツ構成のため、使えるセレクタは
+/// `[data-scope="download-trigger"][data-part="root"]` と `[download]`・
+/// `:focus-visible` に限られる（`CHECKBOX_CUSTOM_CSS_SNIPPET` 等と同型の
+/// 方針）。CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープを
+/// 経由し、`crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは追加
+/// しない。
+const DOWNLOAD_TRIGGER_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"download-trigger\"][data-part=\"root\"] {\n  \
+  display: inline-flex;\n  align-items: center;\n  gap: 0.375rem;\n  padding: 0.5rem 0.875rem;\n  \
+  border: 1px solid #888;\n  border-radius: 6px;\n  text-decoration: none;\n\
+}\n\
+[data-scope=\"download-trigger\"][data-part=\"root\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n";
+
+fn download_trigger_custom_css_example() -> Node {
+    let markup = download_trigger::root(
+        "https://example.com/assets/report.pdf",
+        Some("report.pdf"),
+        vec![],
+        vec![text("Download report")],
+    );
+    div(
+        vec![],
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(
+                    vec![],
+                    vec![text(DOWNLOAD_TRIGGER_CUSTOM_CSS_SNIPPET)],
+                )],
+            ),
+        ],
+    )
+}
+
 const DOWNLOAD_TRIGGER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root（`a[download]`）1 パーツのみの最小構成。`href`/`file_name` から `download` 属性を組み立てる宣言的トリガーであり、JS（`Blob` 生成・非同期データ解決）を必要としない静的部品として実装される（AI 時代のセキュリティリスク低減方針に基づく意図的な設計）。",
         "`href` は `fandhe_frontend_core::render` の既定エスケープ経路（許可スキームのみを通す deny-by-default）を通り、`javascript:`/`data:`/`blob:`/`vbscript:` 等の危険なスキームは属性ごと出力されない（fail-closed）。",
         "`file_name` が `Some(name)` のとき `download=\"<name>\"`、`None` のとき `download=\"\"`（配信元のファイル名を使うブラウザ既定挙動）を出力する。",
         "実際のファイル取得（`Blob`/非同期データ解決）・`mimeType` の指定は非対応。実ファイル配信時の `Content-Type` は配信側ヘッダで表現する。",
+        "ark-ui/chakra-ui の DownloadTrigger は `<button type=\"button\">` を起点とする JS ユーティリティで anatomy・`data-*` 状態語彙・ARIA を一切持たない（Anatomy/Accessibility 節が存在しない）。本実装は `a[download]` へ `data-scope`/`data-part` を付けた静的 superset であり、`data-state`/`data-disabled`/`data-motion` 等は出さない（`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。",
+        "参考実装の `asChild`（Slot 相当の要素差し替え）は非採用（同ポリシー §3.25 表 Slot 行）。要素種別も `button` ではなく `a[href]` を採用する意図的差分。",
     ],
     arguments: &[
         ArgRow {
@@ -559,16 +844,32 @@ const DOWNLOAD_TRIGGER: ComponentPageSpec = ComponentPageSpec {
             description: "`Some(name)` で `download=\"<name>\"`、`None` で `download=\"\"`。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "file_name を省略した変種",
-        description: "`file_name` に `None` を渡すと `download=\"\"` が出力され、ブラウザは配信元のファイル名をそのまま使用します。",
-        render: download_trigger_no_filename_example,
+    examples: &[
+        ExampleEntry {
+            title: "file_name を省略した変種",
+            description: "`file_name` に `None` を渡すと `download=\"\"` が出力され、ブラウザは配信元のファイル名をそのまま使用します。",
+            render: download_trigger_no_filename_example,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope / data-part 属性セレクタと :focus-visible 擬似クラスで見た目を組み立てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: download_trigger_custom_css_example,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "`root`（`a[href]`）へフォーカスを移動する（ブラウザ既定動作）。",
+        },
+        KeyRow {
+            key: "Enter",
+            description: "ネイティブ `a[href]` の起動（ダウンロード開始）。Space はリンクを起動しない（`button` を採用する参考サイトは Enter/Space の双方が効く点が意図的差分）。",
+        },
+    ],
+    aria: &[AriaRow {
+        attribute: "role / aria-*",
+        description: "付与しない（`a[href]` の暗黙 `link` ロールに委ねる。参考サイトも `role`/`aria-*` を付与しない）。呼び出し側 attrs で `aria-disabled=\"true\"` + `tabindex=\"-1\"` を渡しても `href` は保持されクリック起動は防げないため（`a` に disabled 意味論はない）、無効状態が必要な場合は `root` の呼び出し自体を止め非操作要素へ差し替える（`site/primitives/download-trigger.md` 参照）。",
     }],
-    keyboard: &[KeyRow {
-        key: "Tab / Enter",
-        description: "`root` はネイティブ `<a href download>` であり、フォーカス・起動操作はブラウザ既定動作で成立する（JS 配線を必要としない）。",
-    }],
-    aria: &[],
     demo: None,
 };
 
@@ -721,6 +1022,12 @@ const QR_CODE: ComponentPageSpec = ComponentPageSpec {
 
 /// Timer の Examples: 完了状態（`TimerPhase::Completed`）を示す（Demo は
 /// running 状態のみを描画するため、完了時の表示状態を補完する）。
+///
+/// イシュー #1632 是正: `Completed` は zag.js の `running`/`paused` 述語が
+/// いずれも偽になるため `Idle` と同じ可視性（Start/Restart のみ表示、
+/// Pause/Resume/Reset は `hidden`）になる（意図的拡張、[`mod@timer`]
+/// モジュール doc 参照）。旧版は「Reset のみを表示する構成」と誤って
+/// 記述していたため是正した。
 fn timer_completed_example() -> Node {
     timer::root(
         true,
@@ -744,11 +1051,26 @@ fn timer_completed_example() -> Node {
             ),
             timer::control(
                 vec![],
-                vec![timer::action_trigger(
-                    TimerControl::Reset,
-                    vec![],
-                    vec![text("Reset")],
-                )],
+                vec![
+                    timer::action_trigger(
+                        TimerControl::Start,
+                        TimerPhase::Completed,
+                        vec![],
+                        vec![text("Start")],
+                    ),
+                    timer::action_trigger(
+                        TimerControl::Restart,
+                        TimerPhase::Completed,
+                        vec![],
+                        vec![text("Restart")],
+                    ),
+                    timer::action_trigger(
+                        TimerControl::Reset,
+                        TimerPhase::Completed,
+                        vec![],
+                        vec![text("Reset")],
+                    ),
+                ],
             ),
         ],
     )
@@ -795,7 +1117,7 @@ const TIMER: ComponentPageSpec = ComponentPageSpec {
     ],
     examples: &[ExampleEntry {
         title: "完了状態（Completed）",
-        description: "`TimerPhase::Completed` を渡すと `data-state=\"completed\"` となり、`action_trigger` は Reset のみを表示する構成にできます。",
+        description: "`TimerPhase::Completed` を渡すと `data-state=\"completed\"` となります。`action_trigger` の可視性は `TimerControl::is_hidden_in` が zag.js と同じ真偽式で導出し、Completed は running/paused のいずれでもないため Idle と同じ可視性（Start/Restart のみ表示、Pause/Resume/Reset は `hidden`）になります。",
         render: timer_completed_example,
     }],
     keyboard: &[KeyRow {
@@ -817,7 +1139,43 @@ fn toggle_disabled_example() -> Node {
         false,
         true,
         vec![],
-        vec![toggle::indicator(false, vec![], vec![text("B")])],
+        vec![toggle::indicator(false, true, vec![], vec![text("B")])],
+    )
+}
+
+/// 自前 CSS の最小例で使うスニペット（イシュー #1629）。root の
+/// `data-state`/`data-pressed`/`data-disabled` と indicator の `data-state`
+/// を属性セレクタで拾う。headless-ui 自体はスタイルを持たない。
+const TOGGLE_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"toggle\"][data-part=\"root\"][data-state=\"on\"] {\n  \
+  background: #2563eb;\n  color: #fff;\n\
+}\n\
+[data-scope=\"toggle\"][data-part=\"root\"][data-pressed] {\n  \
+  border-color: #1d4ed8;\n\
+}\n\
+[data-scope=\"toggle\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"toggle\"][data-part=\"indicator\"][data-state=\"off\"] {\n  \
+  display: none;\n\
+}\n";
+
+/// Toggle の Examples: 利用者が `data-scope`/`data-part`/`data-state`/
+/// `data-pressed`/`data-disabled` 属性セレクタで自前 CSS を当てる最小例
+/// （イシュー #1629、`forms_a.rs::ex_checkbox_custom_css` と同型）。
+fn toggle_custom_css_example() -> Node {
+    let markup = toggle::root(
+        true,
+        false,
+        vec![],
+        vec![toggle::indicator(true, false, vec![], vec![text("B")])],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-pressed / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(vec![], vec![code(vec![], vec![text(TOGGLE_CUSTOM_CSS_SNIPPET)])]),
+        ],
     )
 }
 
@@ -825,8 +1183,9 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root（`<button type=\"button\">`）/Indicator の 2 anatomy パーツと、押下状態機械 `Toggle` を提供する。「ボタンの押下状態」を表し、hidden input を持たずフォーム送信に参加しない（ark-ui 準拠）。",
         "`data-state`（`\"on\"`/`\"off\"`）と `aria-pressed`（`\"true\"`/`\"false\"`）・`data-pressed`（存在属性）を併記する。`crate::switch::Switch` と同じ状態機械（`Checkable`）を再利用しつつ、公開 HTML の語彙は分離している。",
-        "`indicator` は `data-state` のみを出力する最小主義パーツであり、on/off に応じた表示/非表示切り替えは styled 層 CSS の責務とする。",
-        "複数 Toggle 間の roving focus（矢印キー移動）は単体コンポーネントのため不要であり、本コンポーネントのスコープ外。",
+        "`indicator` も `data-state`/`data-pressed`/`data-disabled` を反映する（ark-ui `toggle.connect.ts` の Indicator と突合、イシュー #1629）。表示/非表示切り替え自体は行わない装飾用パーツであり、実際の表示制御は styled 層 CSS の責務とする。",
+        "pointer/focus のローカル操作状態（`data-hover`/`data-active`/`data-focus`/`data-motion`）は参照サイト（ark-ui）が付与するが本実装は意図的に出力しない（UI 部品の責務境界、`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。",
+        "複数 Toggle 間の roving focus（矢印キー移動）は単体コンポーネントのため不要であり、本コンポーネントのスコープ外。CSR のクリック → dispatch 配線（`fandhe-frontend-wasm-full`）は単体 Toggle 向けには未登録（イシュー #1629 スコープ外、後続 Issue 化を検討）。",
     ],
     arguments: &[
         ArgRow {
@@ -839,17 +1198,24 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
             name: "disabled",
             kind: "bool",
             default: "false",
-            description: "無効化状態。ネイティブ `disabled`・`aria-disabled` 相当（`data-disabled`）を付与する。",
+            description: "無効化状態。ネイティブ `disabled`・`aria-disabled` 相当（`data-disabled`）を付与する。`indicator` にも同じ値を渡すことで両パーツの `data-disabled` を揃える。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "無効化状態",
-        description: "`disabled = true` を渡すとネイティブ `disabled` 属性と `data-disabled` が付与され、フォーカス・押下操作を受け付けなくなります。",
-        render: toggle_disabled_example,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "無効化状態",
+            description: "`disabled = true` を渡すとネイティブ `disabled` 属性と `data-disabled` が付与され、フォーカス・押下操作を受け付けなくなります。",
+            render: toggle_disabled_example,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui はスタイルレスであるため、root/indicator の data-* 属性セレクタで見た目を組み立てます。",
+            render: toggle_custom_css_example,
+        },
+    ],
     keyboard: &[KeyRow {
         key: "Tab / Space / Enter",
-        description: "`root` はネイティブ `<button type=\"button\">` であり、フォーカス・押下操作はブラウザ既定動作で成立する（`disabled` のときはフォーカス対象から除外される）。",
+        description: "`root` はネイティブ `<button type=\"button\">` であり、Tab でフォーカスを移動する。Space / Enter はブラウザ既定動作として `click` イベントを発火するが、`aria-pressed`/`data-state`/`data-pressed` の反転はブラウザが自動では行わない（`root` は `pressed` 引数に基づく静的属性を出力するのみで、単体 Toggle 向けの `click` → 状態更新の dispatch 配線は `fandhe-frontend-wasm-full` に未登録、上記 Features 参照）。呼び出し側で `click` イベントと `pressed` の状態更新を接続する実装が別途必要（`disabled` のときはフォーカス対象から除外される）。",
     }],
     aria: &[AriaRow {
         attribute: "aria-pressed",
@@ -859,23 +1225,151 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
 };
 
 // ---------------------------------------------------------------------
-// ToggleGroup — 一次情報: crates/headless-ui/src/toggle_group.rs:1-260 付近
+// ToggleGroup — 一次情報: crates/headless-ui/src/toggle_group.rs
+// （イシュー #1630 参照突合で `ToggleGroupProps` 導入・item への
+// `data-orientation` 追加・roving tabindex opt-in を追加）
 // ---------------------------------------------------------------------
 
 /// ToggleGroup の Examples: 縦方向（`Orientation::Vertical`）+
 /// `aria-labelledby` 変種を示す（Demo は orientation/labelled_by 省略の
-/// 変種のみを描画する）。
+/// 変種のみを描画する）。root/item 双方に同一 `props` を渡すことで
+/// `data-orientation` が一貫する（`crate::primitive_showcase::forms_c_date_status`
+/// の Demo と同じ執筆規約）。
 fn toggle_group_vertical_labelled_example() -> Node {
+    let props = toggle_group::ToggleGroupProps {
+        orientation: Some(Orientation::Vertical),
+        ..toggle_group::ToggleGroupProps::default()
+    };
     toggle_group::root(
-        false,
-        Some(Orientation::Vertical),
+        &props,
         Some("tg-vertical-label"),
         vec![],
         vec![
-            toggle_group::item(false, false, "left", vec![], vec![text("Left")]),
-            toggle_group::item(true, false, "center", vec![], vec![text("Center")]),
-            toggle_group::item(false, false, "right", vec![], vec![text("Right")]),
+            toggle_group::item(
+                &props,
+                false,
+                false,
+                false,
+                "left",
+                vec![],
+                vec![text("Left")],
+            ),
+            toggle_group::item(
+                &props,
+                true,
+                false,
+                false,
+                "center",
+                vec![],
+                vec![text("Center")],
+            ),
+            toggle_group::item(
+                &props,
+                false,
+                false,
+                false,
+                "right",
+                vec![],
+                vec![text("Right")],
+            ),
         ],
+    )
+}
+
+/// 自前 CSS の最小例で使うスニペット（イシュー #1630、`TOGGLE_CUSTOM_CSS_SNIPPET`
+/// と同型）。item の on 状態・disabled・root の縦方向を属性セレクタで拾う。
+const TOGGLE_GROUP_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"toggle-group\"][data-part=\"item\"][data-state=\"on\"] {\n  \
+  background: #2563eb;\n  color: #fff;\n\
+}\n\
+[data-scope=\"toggle-group\"][data-part=\"item\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"toggle-group\"][data-part=\"root\"][data-orientation=\"vertical\"] {\n  \
+  flex-direction: column;\n\
+}\n";
+
+/// ToggleGroup の Examples: 利用者が `data-scope`/`data-part`/`data-state`/
+/// `data-orientation`/`data-disabled` 属性セレクタで自前 CSS を当てる最小例
+/// （イシュー #1630、`toggle_custom_css_example` と同型）。
+fn toggle_group_custom_css_example() -> Node {
+    let props = toggle_group::ToggleGroupProps::default();
+    let markup = toggle_group::root(
+        &props,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(&props, true, false, false, "bold", vec![], vec![text("B")]),
+            toggle_group::item(
+                &props,
+                false,
+                false,
+                false,
+                "italic",
+                vec![],
+                vec![text("I")],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-orientation / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(TOGGLE_GROUP_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
+/// ToggleGroup の Examples: `roving_focus = true`（opt-in）で SSR 側から
+/// roving tabindex（`tabindex=\"0\"`/`\"-1\"`）を出力する例（イシュー #1630）。
+/// 既定は `false`（`ToggleGroupProps::default()`）であり、この例は明示的に
+/// 有効化した場合の静的マークアップのみを示す（JS なしでは矢印キーによる
+/// フォーカス移動自体は起きないため、`center` 以外は Tab 順から外れた
+/// 単一タブストップの静的状態になる点に注意）。
+fn toggle_group_roving_focus_example() -> Node {
+    let props = toggle_group::ToggleGroupProps {
+        roving_focus: true,
+        ..toggle_group::ToggleGroupProps::default()
+    };
+    wrap_example(
+        "roving_focus = true を渡すと、focused (第 3 引数) に応じて item が tabindex=\"0\"/\"-1\" を出力します（既定は false）。矢印キーでの実際のフォーカス移動は fandhe-frontend-wasm-full の keynav が担うため、JS なしのこの静的例では center 以外はタブ順から外れたままです。",
+        vec![toggle_group::root(
+            &props,
+            None,
+            vec![],
+            vec![
+                toggle_group::item(
+                    &props,
+                    false,
+                    false,
+                    false,
+                    "left",
+                    vec![],
+                    vec![text("Left")],
+                ),
+                toggle_group::item(
+                    &props,
+                    true,
+                    true,
+                    false,
+                    "center",
+                    vec![],
+                    vec![text("Center")],
+                ),
+                toggle_group::item(
+                    &props,
+                    false,
+                    false,
+                    false,
+                    "right",
+                    vec![],
+                    vec![text("Right")],
+                ),
+            ],
+        )],
     )
 }
 
@@ -883,22 +1377,18 @@ const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root（`<div role=\"group\">`）/Item（`<button type=\"button\">`）の 2 anatomy パーツと、「高々 1 項目が押下される」状態機械 `ToggleGroup`（single モード、常時 deselectable）を提供する。",
         "各 `item` は単体の `crate::toggle::root` と同じ `aria-pressed`/`data-state`（on/off）語彙を持つ（ToggleGroup の各項目は独立した Toggle の集合という ark-ui の位置付け）。",
-        "`orientation` が `Some` のときのみ `data-orientation` を付与する。`role=\"group\"` は WAI-ARIA 上 `aria-orientation` を許可されていないため `aria-orientation` は付与しない。",
+        "`root`/`item` は共通の `ToggleGroupProps`（`disabled`/`orientation`/`roving_focus`）を受け取る。`orientation` が `Some` のときのみ両パーツへ `data-orientation` を付与する（イシュー #1630 で item にも追加。`role=\"group\"` は WAI-ARIA 上 `aria-orientation` を許可されていないため `aria-orientation` は付与しない）。",
+        "`props.disabled` は `root` の `data-disabled` に加えて全 `item` へも伝播する（`item` 個別の `disabled` との論理和。ark-ui/Radix の Root disabled が全 item を無効化する契約に合わせた、イシュー #1630 の是正）。",
         "`labelled_by` が `Some` のときのみ `aria-labelledby` を付与する（名前なしの関連付けを作らない方針）。",
-        "roving focus（矢印キーによるフォーカス移動）はクライアントランタイム側の責務であり、本コンポーネントのスコープ外。",
+        "`ToggleGroupProps::roving_focus`（既定 `false`）を `true` にすると、`item` の `focused` 引数に応じて `tabindex=\"0\"`/`\"-1\"`（roving tabindex）を SSR 側から出力できる（イシュー #1630 opt-in。既定 `false` は no-JS でも全 item が Tab で到達可能なままにするため）。矢印キーによる実際のフォーカス移動 DOM 配線は `fandhe-frontend-wasm-full` の keynav が担い、本コンポーネント自体のスコープ外（下記 Keyboard 節参照）。",
+        "呼び出し側 `attrs` からの `tabindex`/`data-value`/`aria-pressed`/`data-orientation` 等の偽装は fail-closed に除去する（イシュー #1630）。",
     ],
     arguments: &[
         ArgRow {
-            name: "disabled",
-            kind: "bool",
-            default: "false",
-            description: "root 全体の無効化状態。",
-        },
-        ArgRow {
-            name: "orientation",
-            kind: "Option<Orientation>",
-            default: "None",
-            description: "`Some` のときのみ `data-orientation` を付与する。",
+            name: "props",
+            kind: "&ToggleGroupProps",
+            default: "&ToggleGroupProps::default()",
+            description: "`disabled`/`orientation`/`roving_focus` の 3 フィールドを持つグループ状態束。`root`/`item` の双方が参照する（イシュー #1630）。",
         },
         ArgRow {
             name: "labelled_by",
@@ -907,10 +1397,22 @@ const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
             description: "`Some` のときのみ `aria-labelledby` を付与する。",
         },
         ArgRow {
-            name: "pressed / disabled (item)",
+            name: "pressed (item)",
             kind: "bool",
             default: "false",
-            description: "各 `item` の押下・無効化状態。`data-state`（on/off）・`aria-pressed`・`data-pressed` へ反映する。",
+            description: "各 `item` の押下状態。`data-state`（on/off）・`aria-pressed`・`data-pressed` へ反映する。",
+        },
+        ArgRow {
+            name: "focused (item)",
+            kind: "bool",
+            default: "false",
+            description: "`props.roving_focus` が `true` のときのみ `tabindex=\"0\"`/`\"-1\"` へ反映する（`false` のときは無視され `tabindex` を出力しない）。",
+        },
+        ArgRow {
+            name: "disabled (item)",
+            kind: "bool",
+            default: "false",
+            description: "各 `item` 個別の無効化状態。`props.disabled` との論理和が実効値になる。",
         },
         ArgRow {
             name: "value (item)",
@@ -919,15 +1421,45 @@ const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
             description: "`data-value` としてそのまま出力する項目値（既定エスケープ経由）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "縦方向 + ラベル関連付け",
-        description: "`orientation` に `Some(Orientation::Vertical)`、`labelled_by` に `Some(\"...\")` を渡すと `data-orientation=\"vertical\"` と `aria-labelledby` が付与されます。",
-        render: toggle_group_vertical_labelled_example,
-    }],
-    keyboard: &[KeyRow {
-        key: "Tab / Space / Enter",
-        description: "各 `item` はネイティブ `<button type=\"button\">` であり、フォーカス・押下操作はブラウザ既定動作で成立する。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "縦方向 + ラベル関連付け",
+            description: "`props.orientation` に `Some(Orientation::Vertical)`、`labelled_by` に `Some(\"...\")` を渡すと `data-orientation=\"vertical\"`（root/item 双方）と `aria-labelledby` が付与されます。",
+            render: toggle_group_vertical_labelled_example,
+        },
+        ExampleEntry {
+            title: "roving tabindex（opt-in）",
+            description: "`ToggleGroupProps::roving_focus = true` と `item` の `focused` 引数で、SSR 側から roving tabindex の初期状態を出力する例です。",
+            render: toggle_group_roving_focus_example,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui はスタイルレスであるため、root/item の data-* 属性セレクタで見た目を組み立てます。",
+            render: toggle_group_custom_css_example,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "`roving_focus = false`（既定）のときは全 item がネイティブなタブ順で到達可能。`roving_focus = true` のときは `focused` な 1 item のみが Tab ストップになる（roving tabindex、矢印キー押下後は `fandhe-frontend-wasm-full` の keynav が押下位置へ収束させる）。",
+        },
+        KeyRow {
+            key: "Space / Enter",
+            description: "各 `item` はネイティブ `<button type=\"button\">` であり、押下操作はブラウザ既定動作で成立する（`MAPPING_TABLE` の `toggle-group`/`item` → `\"toggle\"` 行が dispatch へ接続する）。",
+        },
+        KeyRow {
+            key: "ArrowLeft / ArrowRight",
+            description: "水平方向（`data-orientation` が `None`/`\"horizontal\"`）のフォーカス移動。`fandhe-frontend-wasm-full` の `keynav::toggle_group_next_index`（`radio_next_index` 共有）が実装し、常時循環・disabled item をスキップする。",
+        },
+        KeyRow {
+            key: "ArrowUp / ArrowDown",
+            description: "垂直方向（`data-orientation` が `\"vertical\"`）のフォーカス移動。`data-orientation` が欠落（`None`）のときは水平・垂直いずれの矢印キーも受理する（両軸受理、モジュール doc「意図的に合わせなかった点」参照）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "先頭/末尾の非 disabled item へフォーカス移動する（orientation 非依存、`keynav::toggle_group_next_index` 実装）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role",

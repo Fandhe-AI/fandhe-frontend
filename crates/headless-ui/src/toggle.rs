@@ -50,10 +50,13 @@
 //! - **キーボードナビゲーション**: [`root`] はネイティブ `<button>` のため
 //!   単体では Tab/Space/Enter がブラウザ既定動作で成立するが、複数 Toggle
 //!   間の roving focus（矢印キー移動）は不要（単体コンポーネントのため）。
-//! - **`indicator` の表示切り替え**: [`indicator`] は `data-state` のみを
-//!   出力する最小主義パーツであり、on/off に応じた表示/非表示の切り替えは
-//!   `fandhe-frontend-pre-styled-ui` の CSS（`[data-state="off"]` セレクタ）
-//!   の責務とする（Collapsible の `indicator` と同じ最小主義）。
+//! - **`indicator` の表示切り替え**: [`indicator`] は on/off に応じた
+//!   表示/非表示の切り替えを行わない。`data-state`/`data-pressed`/
+//!   `data-disabled` は反映する（ark-ui `toggle.connect.ts` の Indicator が
+//!   これら 3 属性を持つことに突合、イシュー #1629）が、実際の表示/非表示
+//!   切り替えは `fandhe-frontend-pre-styled-ui` の CSS
+//!   （`[data-state="off"]` セレクタ）の責務とする（Collapsible の
+//!   `indicator` と同じ最小主義）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -111,12 +114,20 @@ pub fn root<'a>(
     ANATOMY.part("root", "button", merged, children)
 }
 
-/// Indicator パーツ（`span`）。`data-state` のみを反映する最小主義な装飾用
-/// パーツ（[`crate::collapsible::indicator`] と同じ最小主義。on/off に
-/// 応じた表示/非表示切り替えは styled 層 CSS の責務、モジュール doc 参照）。
+/// Indicator パーツ（`span`）。`data-state`/`data-pressed`/`data-disabled`
+/// を反映する（ark-ui `toggle.connect.ts` の Indicator と突合、イシュー
+/// #1629）。表示/非表示切り替え自体は行わない装飾用パーツであり、on/off に
+/// 応じた表示制御は styled 層 CSS の責務（モジュール doc 参照）。
 #[must_use]
-pub fn indicator<'a>(pressed: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn indicator<'a>(
+    pressed: bool,
+    disabled: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(pressed_data_state(pressed))];
+    merged.extend(data_pressed(pressed));
+    merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("indicator", "span", merged, children)
 }
@@ -181,8 +192,13 @@ impl Toggle {
 
     /// [`indicator`] へ現在の状態を注入する利便メソッド。
     #[must_use]
-    pub fn indicator<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        indicator(self.checkable.is_checked(), attrs, children)
+    pub fn indicator<'a>(
+        &self,
+        disabled: bool,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        indicator(self.checkable.is_checked(), disabled, attrs, children)
     }
 }
 
@@ -202,6 +218,7 @@ impl Component for Toggle {
             Vec::new(),
             vec![indicator(
                 self.checkable.is_checked(),
+                false,
                 Vec::new(),
                 Vec::new(),
             )],
@@ -263,17 +280,26 @@ mod tests {
     }
 
     #[test]
-    fn indicator_outputs_scope_part_and_state_only() {
-        let html = render(&indicator(true, vec![], vec![]));
+    fn indicator_outputs_scope_part_state_pressed_and_disabled() {
+        let html = render(&indicator(true, false, vec![], vec![]));
         assert!(html.contains(r#"data-scope="toggle""#));
         assert!(html.contains(r#"data-part="indicator""#));
         assert!(html.contains(r#"data-state="on""#));
+        assert!(html.contains(r#"data-pressed="""#));
+        assert!(!html.contains("data-disabled"));
         assert!(!html.contains("aria-pressed"));
     }
 
     #[test]
+    fn indicator_disabled_true_adds_data_disabled() {
+        let html = render(&indicator(false, true, vec![], vec![]));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(!html.contains("data-pressed"));
+    }
+
+    #[test]
     fn indicator_carries_children() {
-        let html = render(&indicator(false, vec![], vec![text("Bold")]));
+        let html = render(&indicator(false, false, vec![], vec![text("Bold")]));
         assert!(html.contains("Bold"));
     }
 
@@ -306,7 +332,7 @@ mod tests {
 
         assert!(dispatch(&mut t, "toggle", ""));
         assert!(render(&t.root(false, vec![], vec![])).contains(r#"data-state="on""#));
-        assert!(render(&t.indicator(vec![], vec![])).contains(r#"data-state="on""#));
+        assert!(render(&t.indicator(false, vec![], vec![])).contains(r#"data-state="on""#));
     }
 
     #[test]
@@ -389,6 +415,7 @@ mod tests {
     fn children_text_is_escaped_on_render() {
         let html = render(&indicator(
             true,
+            false,
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));
