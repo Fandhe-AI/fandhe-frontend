@@ -829,8 +829,9 @@ pub(super) const LINK_OVERLAY: ComponentPageSpec = ComponentPageSpec {
 // menu（`crates/headless-ui/src/menu.rs`）
 // ---------------------------------------------------------------------
 
-/// Demo（`menu_section`）は ItemGroup + Separator の構成。ここでは
-/// ItemGroup を使わず単純な Item 列のみの最小構成を実演する。
+/// Demo（`menu_section`）は ItemGroup + Separator + CheckboxItem/
+/// RadioItemGroup + サブメニューまで含む全機能構成。ここでは
+/// ItemGroup を使わず単純な Item 列のみの最小構成を実演する（切り口分離）。
 fn ex_menu() -> Node {
     let state = OpenState::Open;
     example_wrap(vec![menu::root(
@@ -862,22 +863,165 @@ fn ex_menu() -> Node {
     )])
 }
 
+/// ItemIndicator/ItemText（イシュー #1651 で追加）を CheckboxItem/RadioItem
+/// と組み合わせる例。
+fn ex_menu_checkbox_and_radio() -> Node {
+    let state = OpenState::Open;
+    example_wrap(vec![menu::root(
+        state,
+        vec![],
+        vec![
+            menu::trigger(
+                state,
+                false,
+                Some("ex-menu-check-content"),
+                vec![],
+                vec![text("View")],
+            ),
+            menu::positioner(
+                state,
+                vec![],
+                vec![menu::content(
+                    state,
+                    Some("ex-menu-check-content"),
+                    None,
+                    vec![],
+                    vec![
+                        menu::checkbox_item(
+                            true,
+                            "word-wrap",
+                            false,
+                            false,
+                            vec![],
+                            vec![
+                                menu::item_indicator(true, vec![], vec![text("✓")]),
+                                menu::item_text(false, false, vec![], vec![text("Word wrap")]),
+                            ],
+                        ),
+                        menu::radio_item_group(
+                            None,
+                            vec![],
+                            vec![
+                                menu::radio_item(
+                                    true,
+                                    "light",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menu::item_indicator(true, vec![], vec![text("●")]),
+                                        menu::item_text(false, false, vec![], vec![text("Light")]),
+                                    ],
+                                ),
+                                menu::radio_item(
+                                    false,
+                                    "dark",
+                                    false,
+                                    false,
+                                    vec![],
+                                    vec![
+                                        menu::item_indicator(false, vec![], vec![text("●")]),
+                                        menu::item_text(false, false, vec![], vec![text("Dark")]),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )])
+}
+
+/// `data-scope="menu"` セレクタで自前 CSS を当てる最小例（`LINK_CUSTOM_CSS_SNIPPET`
+/// と同型、イシュー #1651）。`[hidden]` を持つパーツ（positioner/content/
+/// item-indicator）へ `display: none` ガードを必ず含める（headless-ui は
+/// `hidden` 存在属性のみで表示制御を行い、CSS 側の `display` は利用者が
+/// 明示する契約のため）。
+const MENU_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"menu\"][data-part=\"positioner\"][hidden],\n\
+[data-scope=\"menu\"][data-part=\"content\"][hidden],\n\
+[data-scope=\"menu\"][data-part=\"item-indicator\"][hidden] {\n  \
+  display: none;\n\
+}\n\
+[data-scope=\"menu\"][data-part=\"item\"][data-highlighted] {\n  \
+  background: #eff6ff;\n\
+}\n\
+[data-scope=\"menu\"][data-part=\"item\"][data-disabled] {\n  \
+  color: #9ca3af;\n\
+}\n\
+[data-scope=\"menu\"][data-part=\"checkbox-item\"][data-state=\"checked\"] {\n  \
+  font-weight: 600;\n\
+}\n";
+
+fn ex_menu_custom_css() -> Node {
+    let state = OpenState::Open;
+    let markup = menu::root(
+        state,
+        vec![],
+        vec![
+            menu::trigger(
+                state,
+                false,
+                Some("ex-menu-css-content"),
+                vec![],
+                vec![text("Actions")],
+            ),
+            menu::positioner(
+                state,
+                vec![],
+                vec![menu::content(
+                    state,
+                    Some("ex-menu-css-content"),
+                    None,
+                    vec![],
+                    vec![
+                        menu::item("rename", false, true, vec![], vec![text("Rename")]),
+                        menu::item("delete", true, false, vec![], vec![text("Delete")]),
+                    ],
+                )],
+            ),
+        ],
+    );
+    example_wrap(vec![
+        markup,
+        pre(
+            vec![],
+            vec![code(vec![], vec![text(MENU_CUSTOM_CSS_SNIPPET)])],
+        ),
+    ])
+}
+
 /// `/primitives/menu/`。
 ///
-/// 一次情報: `crates/headless-ui/src/menu.rs:1-84`（モジュール doc）、
-/// `:104-471`（`root`/`trigger`/`content`/`item`/`item_group`/`separator`/
-/// `trigger_item`/`checkbox_item`/`radio_item` シグネチャ）、`:114`/`:185`/
-/// `:226`/`:255`/`:369`（`aria-haspopup="menu"`/`role="menu"`/
-/// `role="menuitem"`/`role="group"`/`aria-checked` の実出力）。
+/// 一次情報: `crates/headless-ui/src/menu.rs:1-84`（モジュール doc、
+/// イシュー #1651 で「参考サイトとの意図的な差分」節を追加）、
+/// `:104-471`（`root`/`trigger`/`content`/`item`/`item_text`/
+/// `item_indicator`/`item_group`/`separator`/`trigger_item`/`checkbox_item`/
+/// `radio_item` シグネチャ）、`:114`/`:185`/`:226`/`:255`/`:369`
+/// （`aria-haspopup="menu"`/`role="menu"`/`role="menuitem"`/`role="group"`/
+/// `aria-checked` の実出力）。キーボードの一次情報は
+/// `crates/wasm-full/src/keynav.rs`（`handle_menu_or_select_trigger_keydown`/
+/// `matching_keydown_target`/`wire_keynav`）、click 合成の一次情報は
+/// `crates/wasm-full/src/headless.rs`（`MAPPING_TABLE`）。
 pub(super) const MENU: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "トリガー起点のオーバーレイ + アクション項目リスト。Root / Trigger / Indicator / Positioner / Content / Arrow / ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem / ContextTrigger / CheckboxItem / RadioItemGroup / RadioItem の 16 anatomy パーツを持つ（menu.rs モジュール doc）。",
+        "トリガー起点のオーバーレイ + アクション項目リスト。Root / Trigger / Indicator / Positioner / Content / Arrow / ArrowTip / Item / ItemText / ItemIndicator / ItemGroup / ItemGroupLabel / Separator / TriggerItem / ContextTrigger / CheckboxItem / RadioItemGroup / RadioItem の 18 anatomy パーツを持つ（menu.rs モジュール doc。ItemText/ItemIndicator はイシュー #1651 で参考サイト〔ark-ui/Radix Primitives/chakra-ui〕と突合し追加）。",
+        "各パーツ関数は呼び出し側 attrs に含まれる固定属性キー（data-state/role/aria-* 等）を除去してから合成する（drop_reserved、イシュー #1651）。id/aria-labelledby/aria-controls のような Option 引数経由の正規キーは除去対象に含まない。",
         "サブメニューは親 Menu インスタンスの content 内に子 Menu インスタンス由来の TriggerItem/Positioner/Content を入れ子で配置して表現し、親子双方に aria-haspopup=\"menu\" を付与する（「haspopup 連鎖」でネストを支援技術へ伝える）。",
         "CheckboxItem/RadioItemGroup は Menu の開閉状態とは独立した checked 状態機械（MenuCheckboxItem/MenuRadioItemGroup、Checkable/SingleSelect を埋め込む）を持つ。",
         "ContextTrigger は右クリック起点のトリガーであり、ARIA 属性を一切付与しない（右クリックは SSR/no-JS では成立せず、ARIA を付けると JS なしで実現できない操作性を誤って約束するため）。",
         "開閉は Disclosure を埋め込んだ状態機械 Menu が管理する（dispatch は \"open\"/\"close\"/\"toggle\"）。",
+        "参考サイトとの意図的な差分（イシュー #1651）: Portal（DOM 配置）/ data-placement・data-side・data-align の positioner 集約 / data-orientation（content・item）/ chakra ItemCommand（ショートカット表示）/ asChild はいずれも非採用。キーボードは trigger にフォーカスを留めたまま aria-activedescendant + data-highlighted で仮想フォーカスを表現する設計（#583）のため、Escape 後の「trigger へのフォーカス復帰」は構造的に不要で、Tab は無配線（zag は Tab で閉じるが本実装は閉じない）。",
+        "checkbox-item/radio-item への Enter/Space（click 合成による checked トグル dispatch）は crates/wasm-full/src/headless.rs の MAPPING_TABLE に行が無く未実装（イシュー #1651 時点）。",
     ],
     arguments: &[
+        ArgRow {
+            name: "trigger(disabled)",
+            kind: "bool",
+            default: "",
+            description: "true のとき native disabled 存在属性 + data-disabled を付与する。",
+        },
         ArgRow {
             name: "trigger(controls)",
             kind: "Option<&str>",
@@ -903,18 +1047,81 @@ pub(super) const MENU: ComponentPageSpec = ComponentPageSpec {
             description: "キーボードナビゲーションのフォーカス位置。true のとき data-highlighted を付与する。",
         },
         ArgRow {
-            name: "checkbox_item(checked)",
+            name: "item_text(disabled) / item_text(highlighted)",
             kind: "bool",
             default: "",
-            description: "role=\"menuitemcheckbox\" の aria-checked（true/false のみ、indeterminate 非対応）。",
+            description: "親 item 系パーツの状態を data-disabled/data-highlighted として装飾用に複製する（checked 状態は持たない）。",
+        },
+        ArgRow {
+            name: "item_indicator(checked)",
+            kind: "bool",
+            default: "",
+            description: "checked_data_state を data-state へ反映し、false のとき hidden 存在属性を付与する。aria-hidden=\"true\" を固定付与（装飾アイコン、二重読み上げ防止）。",
+        },
+        ArgRow {
+            name: "trigger_item(sub_state)",
+            kind: "OpenState",
+            default: "",
+            description: "このトリガーが開閉するサブメニュー側の状態（呼び出し側は子 Menu インスタンスの state() を注入する）。",
+        },
+        ArgRow {
+            name: "checkbox_item(checked) / radio_item(checked)",
+            kind: "bool",
+            default: "",
+            description: "role=\"menuitemcheckbox\"/\"menuitemradio\" の aria-checked（true/false のみ、indeterminate 非対応）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "ItemGroup を使わない単純な Item 列",
-        description: "ItemGroup/Separator を省き、Item のみを並べた最小構成です。",
-        render: ex_menu,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "ItemGroup を使わない単純な Item 列",
+            description: "ItemGroup/Separator を省き、Item のみを並べた最小構成です。",
+            render: ex_menu,
+        },
+        ExampleEntry {
+            title: "CheckboxItem/RadioItem + ItemIndicator/ItemText",
+            description: "ItemIndicator/ItemText（イシュー #1651 で追加）を CheckboxItem・RadioItemGroup と組み合わせる例です。",
+            render: ex_menu_checkbox_and_radio,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: ex_menu_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "ArrowDown / ArrowUp / Enter / Space（closed の trigger）",
+            description: "Menu を開き、先頭（ArrowUp は末尾）の非 disabled 項目を highlight する（handle_menu_or_select_trigger_keydown、crates/wasm-full/src/keynav.rs）。",
+        },
+        KeyRow {
+            key: "ArrowDown / ArrowUp / Home / End（open）",
+            description: "highlight 中の項目を次/前/先頭/末尾の非 disabled 項目へ移動する（data-highlighted + content の aria-activedescendant を更新）。既定は循環なし、content の data-loop-focus=\"true\" で有効化できる。",
+        },
+        KeyRow {
+            key: "Enter / Space（open、highlight 中の項目）",
+            description: "highlight 中の項目へ click を合成する。item は利用者の click ハンドラへ、trigger-item は \"toggle\" を dispatch する。checkbox-item/radio-item は crates/wasm-full/src/headless.rs::MAPPING_TABLE に対応行が無く、checked トグルは dispatch されない（未実装）。",
+        },
+        KeyRow {
+            key: "印字可能文字",
+            description: "typeahead（350ms バッファ）。item-text 子があればそのテキストを優先してマッチする。",
+        },
+        KeyRow {
+            key: "ArrowRight",
+            description: "highlight 中の項目が trigger-item かつ非 disabled・サブメニューが解決できるときのみサブメニューを展開する（それ以外は menubar 層のトリガー間移動へフォールバックする合図を返す、イシュー #1073）。",
+        },
+        KeyRow {
+            key: "ArrowLeft",
+            description: "サブメニュー内で親 trigger-item へ復帰しサブメニューを閉じる（トップレベルでは menubar 層のトリガー間移動へフォールバックする合図を返す）。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "最上位オーバーレイを閉じる（overlay::close_on_escape_for、data-close-on-escape=\"false\" で無効化できる）。本実装はフォーカスを trigger から離さない設計のため、参考サイトの「Escape 後に trigger へフォーカス復帰」と結果同等になる。",
+        },
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "配線なし（ブラウザ既定）。zag は Tab で閉じるが本実装は閉じない。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-haspopup=\"menu\"",
@@ -935,6 +1142,30 @@ pub(super) const MENU: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "role=\"group\"",
             description: "item-group/radio-item-group に固定付与。labelledby が Some のときのみ aria-labelledby が付与される。",
+        },
+        AriaRow {
+            attribute: "aria-checked",
+            description: "checkbox-item/radio-item に付与（true/false のみ、indeterminate 非対応）。",
+        },
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "item-indicator に固定付与（装飾アイコン、親 checkbox-item/radio-item 自身の aria-checked と重複読み上げしないため）。",
+        },
+        AriaRow {
+            attribute: "aria-orientation=\"horizontal\"",
+            description: "separator に固定付与。",
+        },
+        AriaRow {
+            attribute: "aria-disabled=\"true\"",
+            description: "item/trigger-item/checkbox-item/radio-item の disabled 時に付与（div ベースのため native disabled は持たない）。",
+        },
+        AriaRow {
+            attribute: "aria-activedescendant",
+            description: "content に付与（実行時に crates/wasm-full/src/keynav.rs が書く。SSR 出力は行わない）。",
+        },
+        AriaRow {
+            attribute: "（ContextTrigger の ARIA 省略）",
+            description: "右クリックは SSR/no-JS では成立せず、ARIA を付けると JS なしで実現できない操作性を誤って約束するため、context-trigger は ARIA 属性を一切持たない。",
         },
     ],
     demo: None,
