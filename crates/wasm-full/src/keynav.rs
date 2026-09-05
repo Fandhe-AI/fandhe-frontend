@@ -4690,19 +4690,26 @@ mod wiring {
             if !is_own_part {
                 let tag_name = el.tag_name();
                 let has_href = el.has_attribute("href");
+                let has_controls = el.has_attribute("controls");
+                let has_usemap = el.has_attribute("usemap");
+                let input_type = el.get_attribute("type");
                 let role = el.get_attribute("role");
                 let has_tabindex_attr = el.has_attribute("tabindex");
                 let contenteditable = el.get_attribute("contenteditable");
                 let element_scope = el.get_attribute("data-scope");
-                let class = classify_interactive_boundary(
-                    &tag_name,
+                let probe = crate::events::BoundaryProbe {
+                    tag: &tag_name,
                     has_href,
-                    role.as_deref(),
+                    has_controls,
+                    has_usemap,
+                    input_type: input_type.as_deref(),
+                    role: role.as_deref(),
                     has_tabindex_attr,
-                    contenteditable.as_deref(),
-                    element_scope.as_deref(),
-                    Some("radio-group"),
-                );
+                    contenteditable: contenteditable.as_deref(),
+                    element_scope: element_scope.as_deref(),
+                    holder_scope: Some("radio-group"),
+                };
+                let class = classify_interactive_boundary(&probe);
                 if !matches!(class, InteractiveBoundaryClass::Ordinary) {
                     boundary_path.push(class);
                 }

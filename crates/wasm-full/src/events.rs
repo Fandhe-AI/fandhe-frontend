@@ -161,8 +161,12 @@ pub fn action_from_form_control<T: AttrSource>(
 /// # 背景（HTML の label activation behavior）
 ///
 /// HTML 仕様の `<label>` activation behavior は、click イベントの
-/// `target` が「interactive content（`a[href]`/`button`/`input`/`select`/
-/// `textarea`/`summary`/`details` 等）」のときは発火しない
+/// `target` が「interactive content」
+/// （<https://html.spec.whatwg.org/multipage/dom.html#interactive-content>
+/// の一覧: `a[href]`/`audio[controls]`/`button`/`details`/`embed`/
+/// `iframe`/`img[usemap]`/`input`〔`type=hidden` を除く〕/`label`/
+/// `object[usemap]`/`select`/`summary`/`textarea`/`video[controls]`）の
+/// ときは発火しない
 /// （<https://html.spec.whatwg.org/multipage/forms.html#the-label-element>
 /// の `run pre-click activation steps` は non-interactive-content 判定を
 /// 前提とする）。一方、ARIA ロールや `tabindex`・`contenteditable` の
@@ -202,19 +206,34 @@ pub enum InteractiveBoundaryClass {
 }
 
 /// HTML 仕様上 label の activation behavior を止める「interactive
-/// content」に該当するタグ名（小文字比較）。`a` は `has_href` が真の
-/// ときのみ該当する（`href` の無い `<a>` は interactive content ではない）。
-const HTML_INTERACTIVE_TAGS: &[&str] = &[
-    "button", "input", "select", "textarea", "summary", "details",
+/// content」（<https://html.spec.whatwg.org/multipage/dom.html#interactive-content>）
+/// のうち、属性条件なしで常に該当するタグ名（小文字比較）。
+///
+/// `a`（`has_href` 条件）・`input`（`type=hidden` 除外）・`audio`/`video`
+/// （`controls` 条件）・`img`/`object`（`usemap` 条件）は別途
+/// [`classify_interactive_boundary`] 内で個別に判定する（イシュー #1616
+/// codex-review P1 再指摘の是正: 旧実装は `a[href]`/`button`/`input`/
+/// `select`/`textarea`/`summary`/`details` のみを対象にしており、
+/// `audio[controls]`/`video[controls]`/`img[usemap]`/`object[usemap]`/
+/// `embed`/`iframe`/`label` が interactive content 一覧から漏れていた）。
+/// `label` は「別コンポーネントの `<label>`」を Html 境界として扱うための
+/// 追加（radio-group の `item` 自身が `<label>` として実装されるため、
+/// 呼び出し側は item 自身・item 内の自パーツを本関数へ渡す前に除外する
+/// 契約を維持する。除外しないと `item` 自身が毎回 Html 境界化し、
+/// readonly クリック抑止の [`FullSuppression`](
+/// crate::keynav::RadioGroupReadonlyClickOutcome::FullSuppression) 経路が
+/// 消えてしまう）。
+const HTML_UNCONDITIONAL_INTERACTIVE_TAGS: &[&str] = &[
+    "button", "select", "textarea", "summary", "details", "label", "embed", "iframe",
 ];
 
 /// ARIA ロールのうち、独自の対話ウィジェットとして扱うロール一覧。
 /// `button`/`link` は native HTML 要素ではなく ARIA ロールとしての付与
 /// （`role="button"`/`role="link"`）を想定しており、HTML interactive
-/// content の判定（[`HTML_INTERACTIVE_TAGS`]）とは独立に扱う（Bugbot 指摘:
-/// `role="button"`/`role="link"` は native `<button>`/`<a href>` と異なり
-/// label activation behavior を止める HTML 仕様上の根拠が無いため、
-/// `preventDefault` を要する (B) 分類に置く）。
+/// content の判定（[`HTML_UNCONDITIONAL_INTERACTIVE_TAGS`] 等）とは独立に
+/// 扱う（Bugbot 指摘: `role="button"`/`role="link"` は native
+/// `<button>`/`<a href>` と異なり label activation behavior を止める
+/// HTML 仕様上の根拠が無いため、`preventDefault` を要する (B) 分類に置く）。
 const ARIA_INTERACTIVE_ROLES: &[&str] = &[
     "button",
     "link",
@@ -235,52 +254,168 @@ const ARIA_INTERACTIVE_ROLES: &[&str] = &[
     "treeitem",
 ];
 
+/// [`classify_interactive_boundary`] への入力を束ねる構造体（イシュー
+/// #1616 codex-review P1 再指摘の是正で導入）。wasm32 側の配線層
+/// （`events::wiring`/`keynav::wiring`）が `web_sys::Element` から属性を
+/// 一度だけ抽出して組み立て、native の `cargo test` からは手組みの値で
+/// 直接構築できる（web-sys 非依存を維持するための橋渡し）。
+///
+/// フィールドの多くは `Option<&str>` だが、`has_*`/`is_*` 系は真偽値の
+/// 属性有無（例: `controls`/`usemap`/`tabindex` は値を問わない属性の
+/// 存在自体が意味を持つブーリアン属性）。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BoundaryProbe<'a> {
+    /// 対象要素のタグ名（大文字小文字は問わない）。
+    pub tag: &'a str,
+    /// `<a>` が `href` 属性を持つか（`href` の無い `<a>` は interactive
+    /// content ではない）。
+    pub has_href: bool,
+    /// `<audio>`/`<video>` が `controls` 属性を持つか（ブーリアン属性、
+    /// 存在自体が interactive content の条件）。
+    pub has_controls: bool,
+    /// `<img>`/`<object>` が `usemap` 属性を持つか。
+    pub has_usemap: bool,
+    /// `<input>` の `type` 属性値（無ければ既定の `text` 相当として
+    /// 対話性ありと扱う）。`type="hidden"`（大文字小文字を問わない）は
+    /// interactive content ではない。
+    pub input_type: Option<&'a str>,
+    /// `role` 属性値（無ければ `None`）。
+    pub role: Option<&'a str>,
+    /// `tabindex` 属性の有無（値は問わない。値の妥当性検証は呼び出し側の
+    /// 関心事ではない）。
+    pub has_tabindex_attr: bool,
+    /// `contenteditable` 属性値（無ければ `None`）。`"false"`（大文字
+    /// 小文字を問わない）は「編集不可」を意味し無指定と同義に扱う
+    /// （HTML 仕様の contenteditable 属性値契約）。
+    pub contenteditable: Option<&'a str>,
+    /// 対象要素の `data-scope` 属性値（無ければ `None`）。
+    pub element_scope: Option<&'a str>,
+    /// 保持者（`closest("[data-action]")` 等で解決した基準要素）の
+    /// `data-scope` 属性値（無ければ `None`）。
+    ///
+    /// **`element_scope`/`holder_scope` は単独では境界条件にならない**
+    /// （イシュー #1616 codex-review P1 再指摘の是正: 別 `data-scope`
+    /// であること自体を無条件に境界とすると、`pre-styled-ui::
+    /// button::close_button` 内の装飾用アイコン（`data-scope="icon"` の
+    /// `<svg>`）のような、対話性を持たない装飾パーツまで境界化して
+    /// しまい `data-action` の dispatch を止めてしまう）。現状この 2
+    /// フィールドは分類結果を左右しないが、将来「同一 scope 内のみ通過を
+    /// 許す」等の scope 依存判定を追加する余地を残すため
+    /// （`classify_interactive_boundary` 1 箇所に判定を集約する設計）
+    /// ごと維持する。
+    pub holder_scope: Option<&'a str>,
+}
+
+impl<'a> BoundaryProbe<'a> {
+    /// `tag` のみを指定し、他は「対話性の手がかりなし」で初期化する
+    /// テスト・単純呼び出し向けの入口。
+    #[must_use]
+    pub fn new(tag: &'a str) -> Self {
+        Self {
+            tag,
+            ..Default::default()
+        }
+    }
+
+    /// `has_href` を設定する（ビルダー、テスト向け）。
+    #[must_use]
+    pub fn href(mut self, has_href: bool) -> Self {
+        self.has_href = has_href;
+        self
+    }
+
+    /// `has_controls` を設定する（ビルダー、テスト向け）。
+    #[must_use]
+    pub fn controls(mut self, has_controls: bool) -> Self {
+        self.has_controls = has_controls;
+        self
+    }
+
+    /// `has_usemap` を設定する（ビルダー、テスト向け）。
+    #[must_use]
+    pub fn usemap(mut self, has_usemap: bool) -> Self {
+        self.has_usemap = has_usemap;
+        self
+    }
+
+    /// `input_type` を設定する（ビルダー、テスト向け）。
+    #[must_use]
+    pub fn input_type(mut self, input_type: &'a str) -> Self {
+        self.input_type = Some(input_type);
+        self
+    }
+
+    /// `role` を設定する（ビルダー、テスト向け）。
+    #[must_use]
+    pub fn role(mut self, role: &'a str) -> Self {
+        self.role = Some(role);
+        self
+    }
+
+    /// `has_tabindex_attr` を設定する（ビルダー、テスト向け）。
+    #[must_use]
+    pub fn tabindex(mut self, has_tabindex_attr: bool) -> Self {
+        self.has_tabindex_attr = has_tabindex_attr;
+        self
+    }
+
+    /// `contenteditable` を設定する（ビルダー、テスト向け）。
+    #[must_use]
+    pub fn contenteditable(mut self, contenteditable: &'a str) -> Self {
+        self.contenteditable = Some(contenteditable);
+        self
+    }
+
+    /// `element_scope` を設定する（ビルダー、テスト向け）。
+    #[must_use]
+    pub fn element_scope(mut self, element_scope: &'a str) -> Self {
+        self.element_scope = Some(element_scope);
+        self
+    }
+
+    /// `holder_scope` を設定する（ビルダー、テスト向け）。
+    #[must_use]
+    pub fn holder_scope(mut self, holder_scope: &'a str) -> Self {
+        self.holder_scope = Some(holder_scope);
+        self
+    }
+}
+
 /// [`InteractiveBoundaryClass`] を判定する純粋関数。
 ///
-/// - `tag_name`: 対象要素のタグ名（大文字小文字は問わない）。
-/// - `has_href`: `<a>` が `href` 属性を持つか（`href` の無い `<a>` は
-///   interactive content ではない）。
-/// - `role`: `role` 属性値（無ければ `None`）。
-/// - `has_tabindex_attr`: `tabindex` 属性の有無（値は問わない。値の妥当性
-///   検証は呼び出し側の関心事ではない）。
-/// - `contenteditable`: `contenteditable` 属性値（無ければ `None`）。
-///   `"false"`（大文字小文字を問わない）は「編集不可」を意味し無指定と
-///   同義に扱う（HTML 仕様の contenteditable 属性値契約）。
-/// - `element_scope` / `holder_scope`: 対象要素・保持者それぞれの
-///   `data-scope` 属性値（無ければ `None`）。**単独では境界条件に
-///   ならない**（イシュー #1616 codex-review P1 再指摘の是正: 別
-///   `data-scope` であること自体を無条件に境界とすると、
-///   `pre-styled-ui::button::close_button` 内の装飾用アイコン
-///   （`data-scope="icon"` の `<svg>`）のような、対話性を持たない
-///   装飾パーツまで境界化してしまい `data-action` の dispatch を
-///   止めてしまう）。現状この 2 引数は分類結果を左右しないが、将来
-///   「同一 scope 内のみ通過を許す」等の scope 依存判定を追加する
-///   余地を残すため呼び出し側の契約（`classify_interactive_boundary`
-///   1 箇所に判定を集約する設計）ごと維持する。
+/// 引数は [`BoundaryProbe`] を参照。呼び出し側（wasm32 配線層）は
+/// `web_sys::Element` から一度だけ属性を抽出して [`BoundaryProbe`] を
+/// 組み立てる契約。native の `cargo test` からは手組みの値で直接検証
+/// できる（web-sys 非依存を維持する設計、`crates/wasm-full/src/
+/// keynav.rs::radio_group_readonly_click_outcome` の doc 参照）。
 #[must_use]
-pub fn classify_interactive_boundary(
-    tag_name: &str,
-    has_href: bool,
-    role: Option<&str>,
-    has_tabindex_attr: bool,
-    contenteditable: Option<&str>,
-    _element_scope: Option<&str>,
-    _holder_scope: Option<&str>,
-) -> InteractiveBoundaryClass {
-    let tag_lower = tag_name.to_ascii_lowercase();
-    if tag_lower == "a" && has_href {
+pub fn classify_interactive_boundary(probe: &BoundaryProbe<'_>) -> InteractiveBoundaryClass {
+    let tag_lower = probe.tag.to_ascii_lowercase();
+    let is_html_interactive = match tag_lower.as_str() {
+        "a" => probe.has_href,
+        "input" => !probe
+            .input_type
+            .is_some_and(|t| t.eq_ignore_ascii_case("hidden")),
+        "audio" | "video" => probe.has_controls,
+        "img" | "object" => probe.has_usemap,
+        other => HTML_UNCONDITIONAL_INTERACTIVE_TAGS.contains(&other),
+    };
+    if is_html_interactive {
         return InteractiveBoundaryClass::Html;
     }
-    if HTML_INTERACTIVE_TAGS.contains(&tag_lower.as_str()) {
-        return InteractiveBoundaryClass::Html;
-    }
-    if role.is_some_and(|r| ARIA_INTERACTIVE_ROLES.contains(&r)) {
+    if probe
+        .role
+        .is_some_and(|r| ARIA_INTERACTIVE_ROLES.contains(&r))
+    {
         return InteractiveBoundaryClass::Aria;
     }
-    if has_tabindex_attr {
+    if probe.has_tabindex_attr {
         return InteractiveBoundaryClass::Aria;
     }
-    if contenteditable.is_some_and(|v| !v.eq_ignore_ascii_case("false")) {
+    if probe
+        .contenteditable
+        .is_some_and(|v| !v.eq_ignore_ascii_case("false"))
+    {
         return InteractiveBoundaryClass::Aria;
     }
     InteractiveBoundaryClass::Ordinary
@@ -294,8 +429,8 @@ pub fn classify_interactive_boundary(
 mod wiring {
     use super::{
         action_from_click, action_from_form_control, action_from_input,
-        classify_interactive_boundary, ActionRef, AttrSource, InteractiveBoundaryClass,
-        ACTION_CHANGE_ATTR, ACTION_INPUT_ATTR,
+        classify_interactive_boundary, ActionRef, AttrSource, BoundaryProbe,
+        InteractiveBoundaryClass, ACTION_CHANGE_ATTR, ACTION_INPUT_ATTR,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -386,19 +521,26 @@ mod wiring {
                 );
             if !is_holder_own_control {
                 let has_href = el.has_attribute("href");
+                let has_controls = el.has_attribute("controls");
+                let has_usemap = el.has_attribute("usemap");
+                let input_type = el.get_attribute("type");
                 let role = el.get_attribute("role");
                 let has_tabindex_attr = el.has_attribute("tabindex");
                 let contenteditable = el.get_attribute("contenteditable");
                 let element_scope = el.get_attribute("data-scope");
-                let class = classify_interactive_boundary(
-                    &tag_name,
+                let probe = BoundaryProbe {
+                    tag: &tag_name,
                     has_href,
-                    role.as_deref(),
+                    has_controls,
+                    has_usemap,
+                    input_type: input_type.as_deref(),
+                    role: role.as_deref(),
                     has_tabindex_attr,
-                    contenteditable.as_deref(),
-                    element_scope.as_deref(),
-                    holder_scope.as_deref(),
-                );
+                    contenteditable: contenteditable.as_deref(),
+                    element_scope: element_scope.as_deref(),
+                    holder_scope: holder_scope.as_deref(),
+                };
+                let class = classify_interactive_boundary(&probe);
                 if !matches!(class, InteractiveBoundaryClass::Ordinary) {
                     return true;
                 }
@@ -838,7 +980,7 @@ mod tests {
     #[test]
     fn classify_anchor_with_href_is_html() {
         assert_eq!(
-            classify_interactive_boundary("a", true, None, false, None, None, None),
+            classify_interactive_boundary(&BoundaryProbe::new("a").href(true)),
             InteractiveBoundaryClass::Html
         );
     }
@@ -846,7 +988,7 @@ mod tests {
     #[test]
     fn classify_anchor_without_href_is_not_html() {
         assert_ne!(
-            classify_interactive_boundary("a", false, None, false, None, None, None),
+            classify_interactive_boundary(&BoundaryProbe::new("a")),
             InteractiveBoundaryClass::Html
         );
     }
@@ -857,11 +999,105 @@ mod tests {
             "button", "input", "select", "textarea", "summary", "details",
         ] {
             assert_eq!(
-                classify_interactive_boundary(tag, false, None, false, None, None, None),
+                classify_interactive_boundary(&BoundaryProbe::new(tag)),
                 InteractiveBoundaryClass::Html,
                 "tag={tag} は HTML interactive content として扱うべき"
             );
         }
+    }
+
+    #[test]
+    fn classify_audio_video_with_controls_is_html() {
+        // HTML 標準の interactive content
+        // (https://html.spec.whatwg.org/multipage/dom.html#interactive-content)
+        // には `audio[controls]`/`video[controls]` が含まれる（イシュー
+        // #1616 codex-review P1 再指摘の是正）。
+        for tag in ["audio", "video"] {
+            assert_eq!(
+                classify_interactive_boundary(&BoundaryProbe::new(tag).controls(true)),
+                InteractiveBoundaryClass::Html,
+                "tag={tag}[controls] は HTML interactive content として扱うべき"
+            );
+        }
+    }
+
+    #[test]
+    fn classify_audio_without_controls_is_ordinary() {
+        // `controls` 属性が無い `<audio>`/`<video>` は interactive content
+        // ではない。
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("audio")),
+            InteractiveBoundaryClass::Ordinary
+        );
+    }
+
+    #[test]
+    fn classify_img_and_object_with_usemap_is_html() {
+        for tag in ["img", "object"] {
+            assert_eq!(
+                classify_interactive_boundary(&BoundaryProbe::new(tag).usemap(true)),
+                InteractiveBoundaryClass::Html,
+                "tag={tag}[usemap] は HTML interactive content として扱うべき"
+            );
+        }
+    }
+
+    #[test]
+    fn classify_img_without_usemap_is_ordinary() {
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("img")),
+            InteractiveBoundaryClass::Ordinary
+        );
+    }
+
+    #[test]
+    fn classify_embed_and_iframe_are_html() {
+        for tag in ["embed", "iframe"] {
+            assert_eq!(
+                classify_interactive_boundary(&BoundaryProbe::new(tag)),
+                InteractiveBoundaryClass::Html,
+                "tag={tag} は HTML interactive content として扱うべき"
+            );
+        }
+    }
+
+    #[test]
+    fn classify_input_hidden_is_ordinary() {
+        // `input[type=hidden]` は HTML 標準の interactive content 一覧から
+        // 明示的に除外される（イシュー #1616 codex-review P1 再指摘）。
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("input").input_type("hidden")),
+            InteractiveBoundaryClass::Ordinary
+        );
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("input").input_type("HIDDEN")),
+            InteractiveBoundaryClass::Ordinary
+        );
+    }
+
+    #[test]
+    fn classify_input_without_type_or_non_hidden_type_is_html() {
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("input")),
+            InteractiveBoundaryClass::Html
+        );
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("input").input_type("text")),
+            InteractiveBoundaryClass::Html
+        );
+    }
+
+    #[test]
+    fn classify_label_of_other_component_is_html() {
+        // `label` は HTML 標準の interactive content に含まれる
+        // （イシュー #1616 codex-review P1 再指摘）。radio-group の `item`
+        // 自身（同じく `<label>`）は呼び出し側が自パーツ判定で本関数へ
+        // 渡す前に除外する契約であり、本テストは「別コンポーネントの
+        // label」が Html 境界になることを固定する。
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("label")),
+            InteractiveBoundaryClass::Html
+        );
     }
 
     #[test]
@@ -872,7 +1108,7 @@ mod tests {
         // （旧実装は誤って抑止を完全スキップしていた）。
         for role in ["button", "link"] {
             assert_eq!(
-                classify_interactive_boundary("span", false, Some(role), false, None, None, None),
+                classify_interactive_boundary(&BoundaryProbe::new("span").role(role)),
                 InteractiveBoundaryClass::Aria
             );
         }
@@ -886,7 +1122,7 @@ mod tests {
         // いた。
         for role in ["checkbox", "switch", "tab", "menuitem", "option"] {
             assert_eq!(
-                classify_interactive_boundary("span", false, Some(role), false, None, None, None),
+                classify_interactive_boundary(&BoundaryProbe::new("span").role(role)),
                 InteractiveBoundaryClass::Aria
             );
         }
@@ -895,15 +1131,7 @@ mod tests {
     #[test]
     fn classify_unknown_role_is_ordinary() {
         assert_eq!(
-            classify_interactive_boundary(
-                "span",
-                false,
-                Some("presentation"),
-                false,
-                None,
-                None,
-                None
-            ),
+            classify_interactive_boundary(&BoundaryProbe::new("span").role("presentation")),
             InteractiveBoundaryClass::Ordinary
         );
     }
@@ -911,7 +1139,7 @@ mod tests {
     #[test]
     fn classify_tabindex_attribute_is_aria() {
         assert_eq!(
-            classify_interactive_boundary("span", false, None, true, None, None, None),
+            classify_interactive_boundary(&BoundaryProbe::new("span").tabindex(true)),
             InteractiveBoundaryClass::Aria
         );
     }
@@ -919,11 +1147,11 @@ mod tests {
     #[test]
     fn classify_contenteditable_true_and_empty_are_aria() {
         assert_eq!(
-            classify_interactive_boundary("div", false, None, false, Some(""), None, None),
+            classify_interactive_boundary(&BoundaryProbe::new("div").contenteditable("")),
             InteractiveBoundaryClass::Aria
         );
         assert_eq!(
-            classify_interactive_boundary("div", false, None, false, Some("true"), None, None),
+            classify_interactive_boundary(&BoundaryProbe::new("div").contenteditable("true")),
             InteractiveBoundaryClass::Aria
         );
     }
@@ -933,11 +1161,11 @@ mod tests {
         // advisor 指摘: contenteditable="false" は「編集不可」を意味し
         // 無指定と同義に扱う（HTML 仕様の contenteditable 属性値契約）。
         assert_eq!(
-            classify_interactive_boundary("div", false, None, false, Some("false"), None, None),
+            classify_interactive_boundary(&BoundaryProbe::new("div").contenteditable("false")),
             InteractiveBoundaryClass::Ordinary
         );
         assert_eq!(
-            classify_interactive_boundary("div", false, None, false, Some("FALSE"), None, None),
+            classify_interactive_boundary(&BoundaryProbe::new("div").contenteditable("FALSE")),
             InteractiveBoundaryClass::Ordinary
         );
     }
@@ -951,13 +1179,9 @@ mod tests {
         // `Ordinary` のままであるべき。
         assert_eq!(
             classify_interactive_boundary(
-                "div",
-                false,
-                None,
-                false,
-                None,
-                Some("combobox"),
-                Some("radio-group")
+                &BoundaryProbe::new("div")
+                    .element_scope("combobox")
+                    .holder_scope("radio-group")
             ),
             InteractiveBoundaryClass::Ordinary
         );
@@ -967,13 +1191,9 @@ mod tests {
     fn classify_same_data_scope_is_not_boundary() {
         assert_eq!(
             classify_interactive_boundary(
-                "div",
-                false,
-                None,
-                false,
-                None,
-                Some("radio-group"),
-                Some("radio-group")
+                &BoundaryProbe::new("div")
+                    .element_scope("radio-group")
+                    .holder_scope("radio-group")
             ),
             InteractiveBoundaryClass::Ordinary
         );
@@ -988,13 +1208,9 @@ mod tests {
         // （イシュー #1616 codex-review P1 再指摘の回帰固定）。
         assert_eq!(
             classify_interactive_boundary(
-                "svg",
-                false,
-                None,
-                false,
-                None,
-                Some("icon"),
-                Some("button")
+                &BoundaryProbe::new("svg")
+                    .element_scope("icon")
+                    .holder_scope("button")
             ),
             InteractiveBoundaryClass::Ordinary
         );
@@ -1008,13 +1224,10 @@ mod tests {
         // よってのみ境界を判定する）。
         assert_eq!(
             classify_interactive_boundary(
-                "div",
-                false,
-                Some("dialog"),
-                false,
-                None,
-                Some("dialog"),
-                Some("radio-group")
+                &BoundaryProbe::new("div")
+                    .role("dialog")
+                    .element_scope("dialog")
+                    .holder_scope("radio-group")
             ),
             InteractiveBoundaryClass::Ordinary
         );
@@ -1028,13 +1241,10 @@ mod tests {
         // 維持されることの確認）。
         assert_eq!(
             classify_interactive_boundary(
-                "span",
-                false,
-                Some("checkbox"),
-                false,
-                None,
-                Some("checkbox"),
-                Some("radio-group")
+                &BoundaryProbe::new("span")
+                    .role("checkbox")
+                    .element_scope("checkbox")
+                    .holder_scope("radio-group")
             ),
             InteractiveBoundaryClass::Aria
         );
@@ -1043,7 +1253,7 @@ mod tests {
     #[test]
     fn classify_plain_span_is_ordinary() {
         assert_eq!(
-            classify_interactive_boundary("span", false, None, false, None, None, None),
+            classify_interactive_boundary(&BoundaryProbe::new("span")),
             InteractiveBoundaryClass::Ordinary
         );
     }

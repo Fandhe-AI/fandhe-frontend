@@ -2197,6 +2197,51 @@ fn radio_group_readonly_item_text_click_does_not_change_selection() {
     );
 }
 
+/// readonly（イシュー #1616 codex-review P1 再指摘、PR #1886 レビュー
+/// 追加是正）: readonly な `item` の `item-text` children に置いた
+/// `<audio controls>`（HTML 標準の interactive content
+/// https://html.spec.whatwg.org/multipage/dom.html#interactive-content
+/// に含まれる `audio[controls]`）へのクリックは、`classify_interactive_
+/// boundary` が `Html` に分類するため、RadioGroup readonly のクリック
+/// 抑止（`preventDefault`/`stop_propagation`）の対象にならない
+/// （`radio_group_readonly_item_anchor_click_is_not_prevented` の
+/// `audio[controls]` 版）。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_audio_controls_click_is_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly8",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly8-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_text = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text part must exist");
+    let audio = document.create_element("audio").unwrap();
+    audio.set_attribute("controls", "").unwrap();
+    audio.set_id("kn-radio-readonly8-audio");
+    item_text.append_child(&audio).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !audio.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        !prevented,
+        "readonly item 内の <audio controls> クリックは RadioGroup \
+         readonly の抑止対象外であり、preventDefault されてはならない"
+    );
+}
+
 /// readonly（イシュー #1616 P1 是正・codex-review 再指摘、PR #1886 レビュー
 /// 対応）: `events::wire_events` と `wire_keynav` を製品実装（`Self::wire`、
 /// `wasm-full/src/lib.rs`）と同じ順序（`wire_events` → `wire_keynav`、同一
