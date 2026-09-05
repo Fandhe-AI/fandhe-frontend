@@ -143,3 +143,64 @@ fn caller_supplied_scope_and_part_are_dropped_end_to_end() {
     assert!(html.contains(r#"data-part="root""#));
     assert!(!html.contains("attacker"));
 }
+
+// ---------------------------------------------------------------------
+// 参考サイトとの突合（イシュー #1659）: 省略属性の固定
+//
+// avatar.rs モジュール doc「参考サイトとの突合」節が列挙する非採用属性
+// （role/aria-*・dir・id）が実際に出力に現れないこと、および root への
+// data-state 非付与・image/fallback の data-state 語彙が visible/hidden の
+// 2 値のみであることを、突合結果の正しさを機械的に固定するために検証する。
+// ---------------------------------------------------------------------
+
+#[test]
+fn assembly_omits_role_aria_dir_and_id_attrs() {
+    let image = avatar::image(ImageStatus::Loaded, "/avatar.png", "Naledi Khumalo", vec![]);
+    let fallback = avatar::fallback(ImageStatus::Error, vec![], vec![text("NK")]);
+    let html = render(&avatar::root(vec![], vec![image, fallback]));
+
+    // ark-ui/Zag.js・Radix Primitives・Radix Themes・chakra-ui のいずれも
+    // role/aria-*/dir/id を付与しない（参考サイトとの突合で確認済み）。
+    assert!(!html.contains("role="));
+    assert!(!html.contains("aria-"));
+    assert!(!html.contains(" dir="));
+    assert!(!html.contains(" id="));
+}
+
+#[test]
+fn root_never_carries_data_state() {
+    // ark-ui Notes 節準拠: data-state は image/fallback 固有の情報であり
+    // root の関心事ではない（avatar.rs 冒頭 rustdoc 参照）。
+    let root_only = avatar::root(vec![], vec![]);
+    let html = render(&root_only);
+    assert!(html.contains(r#"data-part="root""#));
+    assert!(!html.contains("data-state"));
+}
+
+#[test]
+fn image_and_fallback_data_state_vocabulary_is_exactly_two_values() {
+    for status in [
+        ImageStatus::Loading,
+        ImageStatus::Loaded,
+        ImageStatus::Error,
+    ] {
+        let image_html = render(&avatar::image(status, "/a.png", "avatar", vec![]));
+        let fallback_html = render(&avatar::fallback(status, vec![], vec![]));
+
+        let image_state = if status.is_image_visible() {
+            "visible"
+        } else {
+            "hidden"
+        };
+        let fallback_state = if status.is_image_visible() {
+            "hidden"
+        } else {
+            "visible"
+        };
+        assert!(image_html.contains(&format!(r#"data-state="{image_state}""#)));
+        assert!(fallback_html.contains(&format!(r#"data-state="{fallback_state}""#)));
+        // "visible"/"hidden" 以外の第三の値が混入しないことを確認する。
+        assert!(!image_html.contains(r#"data-state="loading""#));
+        assert!(!fallback_html.contains(r#"data-state="loading""#));
+    }
+}
