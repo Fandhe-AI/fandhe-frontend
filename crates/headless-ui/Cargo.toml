@@ -241,16 +241,25 @@ name = "fandhe-frontend-headless-ui"
 # イシュー #1632: timer の area/action_trigger シグネチャ変更
 # （aria-label/role/aria-atomic 付与、phase 引数追加）・TimerControl::Restart
 # 追加に伴う破壊的変更のため 0.46.0 から 0.47.0 へマイナーバンプする。
+# イシュー #1621: slider の参照突合。`SliderProps`（disabled/readonly/
+# invalid）新設に伴い root/label/control/track/range/thumb の `disabled: bool`
+# 引数を `&SliderProps` へ統合し、marker_group/marker パーツと
+# SliderAction::IncrementLarge/DecrementLarge を追加した破壊的変更のため
+# 0.47.0 から 0.48.0 へマイナーバンプする。
 # base ブランチ再取り込み（PR #1902, signature-pad, 2026-09-05）: 上記 2
 # ブランチ（#1620 signature-pad・#1632 timer）が独立に同一版数 0.47.0 へ
 # 到達したため（同一版数への偶発的衝突をそのまま採用しない原則、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）、マイナーバンプで
 # 0.48.0 とする。
-# イシュー #1633: base 取り込み後の 0.48.0 に対し、progress の label へ
-# data-orientation・value_text へ aria-live="polite" を追加（参考サイト突合、
-# 既存メソッドへの非破壊的な属性追加のみ）。patch バンプとして 0.48.0 から
-# 0.48.1 とする。
-version = "0.48.1"
+# 上記 2 ブランチ（本 #1621 slider・base 取り込み分）が独立に同一版数
+# 0.48.0 へ到達したため（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）、マイナーバンプで
+# 0.49.0 とする。
+# base 再取り込み（PR #1904, 2026-09-05）: base 側で独立に到達していた
+# 0.48.1（イシュー #1633: progress の label/value_text への非破壊的な属性
+# 追加、patch バンプ）は本ブランチのマイナーバンプ 0.49.0 に包含されるため、
+# 0.49.0 をそのまま維持する（patch バンプへの後退はしない）。
+version = "0.49.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

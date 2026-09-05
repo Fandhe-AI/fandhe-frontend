@@ -795,7 +795,7 @@ pub use radio_group::{RadioGroup, RadioGroupProps};
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingGroupProps, RatingItemFlags};
 pub use segment_group::{SegmentGroup, SegmentGroupProps};
 pub use signature_pad::{Point, SignaturePad, SignaturePadAction, Stroke, StrokeError};
-pub use slider::{Slider, SliderAction};
+pub use slider::{Slider, SliderAction, SliderProps};
 pub use splitter::{PanelSpec, Splitter, SplitterAction};
 pub use state::{
     Checkable, CheckableAction, Disclosure, DisclosureAction, MultiSelect, MultiSelectAction,

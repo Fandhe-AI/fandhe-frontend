@@ -172,7 +172,7 @@ use crate::recipe::{
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::slider::Slider;
 pub use fandhe_frontend_headless_ui::slider::{
-    control, hidden_input, label, thumb, track, value_text, SliderAction,
+    control, hidden_input, label, thumb, track, value_text, SliderAction, SliderProps,
 };
 
 /// headless `slider` anatomy の `data-part` 一覧（`crates/headless-ui/src/slider.rs`
@@ -504,10 +504,11 @@ pub fn stylesheet() -> String {
 /// use fandhe_frontend_core::render;
 /// use fandhe_frontend_headless_ui::slider::Slider;
 /// use fandhe_frontend_pre_styled_ui::slider;
+/// use fandhe_frontend_pre_styled_ui::slider::SliderProps;
 /// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 ///
 /// let s = Slider::default();
-/// let node = slider::root(Size::Md, ColorPalette::Accent, &s, false, vec![], vec![]);
+/// let node = slider::root(Size::Md, ColorPalette::Accent, &s, &SliderProps::default(), vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="slider" data-part="root""#));
 /// ```
 #[must_use]
@@ -515,7 +516,7 @@ pub fn root<'a>(
     size: Size,
     palette: ColorPalette,
     state: &Slider,
-    disabled: bool,
+    props: &SliderProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -524,7 +525,7 @@ pub fn root<'a>(
         recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    state.root(disabled, merged, children)
+    state.root(props, merged, children)
 }
 
 /// styled range パーツを組み立てる。`--fandhe-slider-percent` を含む
@@ -533,11 +534,11 @@ pub fn root<'a>(
 /// doc「動的な値は 1 点のみ」参照）。実体は
 /// [`fandhe_frontend_headless_ui::slider::Slider::range`] へ委譲する。
 #[must_use]
-pub fn range<'a>(state: &Slider, disabled: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
+pub fn range<'a>(state: &Slider, props: &SliderProps, attrs: Vec<(&'a str, &'a str)>) -> Node {
     let style = percent_style(state.percent());
     let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
     merged.extend(drop_style_attr(attrs));
-    state.range(disabled, merged, Vec::new())
+    state.range(props, merged, Vec::new())
 }
 
 /// styled thumb パーツを組み立てる。[`range`] と同じ `--fandhe-slider-percent`
@@ -546,13 +547,13 @@ pub fn range<'a>(state: &Slider, disabled: bool, attrs: Vec<(&'a str, &'a str)>)
 pub fn thumb_styled<'a>(
     state: &Slider,
     aria_valuetext: Option<&'a str>,
-    disabled: bool,
+    props: &SliderProps,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
     let style = percent_style(state.percent());
     let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
     merged.extend(drop_style_attr(attrs));
-    state.thumb(aria_valuetext, disabled, merged, Vec::new())
+    state.thumb(aria_valuetext, props, merged, Vec::new())
 }
 
 #[cfg(test)]
@@ -714,7 +715,7 @@ mod tests {
             Size::Md,
             ColorPalette::Accent,
             &s,
-            false,
+            &SliderProps::default(),
             vec![],
             vec![],
         ));
@@ -729,7 +730,7 @@ mod tests {
             Size::Md,
             ColorPalette::Accent,
             &s,
-            false,
+            &SliderProps::default(),
             vec![],
             vec![],
         ));
@@ -747,7 +748,14 @@ mod tests {
             (Size::Lg, "fd-slider--size-lg"),
             (Size::Xl, "fd-slider--size-xl"),
         ] {
-            let html = render(&root(size, ColorPalette::Accent, &s, false, vec![], vec![]));
+            let html = render(&root(
+                size,
+                ColorPalette::Accent,
+                &s,
+                &SliderProps::default(),
+                vec![],
+                vec![],
+            ));
             assert!(html.contains(class), "size={size:?} -> {html}");
         }
     }
@@ -763,7 +771,14 @@ mod tests {
             (ColorPalette::Danger, "fd-slider--color-palette-danger"),
             (ColorPalette::Neutral, "fd-slider--color-palette-neutral"),
         ] {
-            let html = render(&root(Size::Md, palette, &s, false, vec![], vec![]));
+            let html = render(&root(
+                Size::Md,
+                palette,
+                &s,
+                &SliderProps::default(),
+                vec![],
+                vec![],
+            ));
             assert!(html.contains(class), "palette={palette:?} -> {html}");
         }
     }
@@ -775,7 +790,7 @@ mod tests {
             Size::Md,
             ColorPalette::Accent,
             &s,
-            false,
+            &SliderProps::default(),
             vec![("class", "attacker-controlled")],
             vec![],
         ));
@@ -790,7 +805,7 @@ mod tests {
             Size::Md,
             ColorPalette::Accent,
             &s,
-            false,
+            &SliderProps::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
@@ -804,14 +819,14 @@ mod tests {
     #[test]
     fn range_outputs_percent_style() {
         let s = Slider::new(0.0, 100.0, 1.0, 25.0, Orientation::Horizontal);
-        let html = render(&range(&s, false, vec![]));
+        let html = render(&range(&s, &SliderProps::default(), vec![]));
         assert!(html.contains(r#"style="--fandhe-slider-percent: 25%""#));
     }
 
     #[test]
     fn thumb_styled_outputs_percent_style() {
         let s = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
-        let html = render(&thumb_styled(&s, None, false, vec![]));
+        let html = render(&thumb_styled(&s, None, &SliderProps::default(), vec![]));
         assert!(html.contains(r#"style="--fandhe-slider-percent: 40%""#));
         assert!(html.contains(r#"role="slider""#));
     }
@@ -819,7 +834,11 @@ mod tests {
     #[test]
     fn range_caller_style_attr_is_dropped_not_duplicated() {
         let s = Slider::new(0.0, 100.0, 1.0, 25.0, Orientation::Horizontal);
-        let html = render(&range(&s, false, vec![("style", "attacker: 1")]));
+        let html = render(&range(
+            &s,
+            &SliderProps::default(),
+            vec![("style", "attacker: 1")],
+        ));
         assert_eq!(html.matches("style=\"").count(), 1);
         assert!(!html.contains("attacker"));
     }
@@ -830,7 +849,7 @@ mod tests {
         let html = render(&thumb_styled(
             &s,
             None,
-            false,
+            &SliderProps::default(),
             vec![("style", "attacker: 1")],
         ));
         assert_eq!(html.matches("style=\"").count(), 1);
@@ -846,7 +865,7 @@ mod tests {
             Size::Md,
             ColorPalette::Accent,
             &s,
-            false,
+            &SliderProps::default(),
             vec![("data-x", "\" onmouseover=\"alert(1)")],
             vec![],
         ));
@@ -856,7 +875,11 @@ mod tests {
 
     #[test]
     fn reexported_label_children_are_escaped_on_render() {
-        let html = render(&label(vec![], vec![text("<script>alert(1)</script>")]));
+        let html = render(&label(
+            &SliderProps::default(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
@@ -881,7 +904,7 @@ mod tests {
             Size::Md,
             ColorPalette::Accent,
             &s,
-            false,
+            &SliderProps::default(),
             vec![],
             vec![],
         ));
