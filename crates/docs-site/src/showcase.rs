@@ -3231,21 +3231,25 @@ fn switch_section() -> Node {
     let demo_row = row(states
         .iter()
         .map(|(checked, disabled, name, label)| {
+            let props = switch::SwitchProps {
+                disabled: *disabled,
+                ..switch::SwitchProps::default()
+            };
             switch::root(
                 Size::Md,
                 ColorPalette::Accent,
                 *checked,
-                *disabled,
+                &props,
                 vec![],
                 vec![
-                    switch::hidden_input(name, "on", *checked, *disabled, false, vec![]),
+                    switch::hidden_input(name, "on", *checked, &props, vec![]),
                     switch::control(
                         *checked,
-                        *disabled,
+                        &props,
                         vec![],
-                        vec![switch::thumb(*checked, vec![], vec![])],
+                        vec![switch::thumb(*checked, &props, vec![], vec![])],
                     ),
-                    switch::label(*checked, vec![], vec![text(*label)]),
+                    switch::label(*checked, &props, vec![], vec![text(*label)]),
                 ],
             )
         })
@@ -3257,21 +3261,22 @@ fn switch_section() -> Node {
         .iter()
         .map(|size| {
             let name = format!("showcase-switch-size-{}", size.value());
+            let props = switch::SwitchProps::default();
             switch::root(
                 *size,
                 ColorPalette::Accent,
                 true,
-                false,
+                &props,
                 vec![],
                 vec![
-                    switch::hidden_input(&name, "on", true, false, false, vec![]),
+                    switch::hidden_input(&name, "on", true, &props, vec![]),
                     switch::control(
                         true,
-                        false,
+                        &props,
                         vec![],
-                        vec![switch::thumb(true, vec![], vec![])],
+                        vec![switch::thumb(true, &props, vec![], vec![])],
                     ),
-                    switch::label(true, vec![], vec![text(size.value())]),
+                    switch::label(true, &props, vec![], vec![text(size.value())]),
                 ],
             )
         })

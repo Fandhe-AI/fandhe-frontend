@@ -91,7 +91,7 @@ use hui::segment_group;
 use hui::select;
 use hui::signature_pad;
 use hui::slider;
-use hui::switch;
+use hui::switch::{self, SwitchProps};
 use hui::tags_input;
 use hui::OpenState;
 
@@ -639,27 +639,46 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
         "`data-state` 値語彙は `\"checked\"`/`\"unchecked\"`（`crate::state::Checkable` が一元管理、Checkbox/RadioGroup と共有）。",
         "`hidden_input` は `<input type=\"checkbox\" role=\"switch\">`（WAI-ARIA APG 準拠）。native の `checked` がブラウザによって `aria-checked` へ自動マップされるため、`aria-checked` を明示付与しない（二重読み上げ防止）。",
         "`root` が `<label>` のため、内包する `hidden_input` との暗黙のラベル関連付けが JS なしで成立する（`for`/`id` の配線が不要）。",
+        "イシュー #1622（ark-ui / Radix Primitives との参照突合）で `SwitchProps`（`disabled`/`readonly`/`invalid`/`required`）を新設し、`data-disabled`/`data-invalid`/`data-required`/`data-readonly` を全 5 パーツへ一律反映するよう是正した（従来は root/control の `data-disabled` のみだった）。",
+        "呼び出し側 `attrs` に `data-state`/`data-disabled`/`data-invalid`/`data-required`/`data-readonly`/`aria-checked`/`aria-invalid`/`type`/`role`/`checked`/`name`/`value`/`disabled`/`required` と同名キー（大文字小文字無視）を渡しても fail-closed で除去し、状態の偽装を防ぐ（イシュー #1622 で追加）。",
+        "参考サイトとの意図的な差分（`data-hover`/`data-active`/`data-focus` 非出力、Enter キー非配線、`readonly` 時の native トグル抑止なし、Radix の `button role=\"switch\"` パターン不採用）は `crates/headless-ui/src/switch.rs` モジュール doc「参考サイトとの意図的な差分」節を参照。",
     ],
     arguments: &[
         ArgRow { name: "root/control/thumb/label(checked)", kind: "bool", default: "", description: "`data-state` の checked/unchecked を決める。" },
-        ArgRow { name: "root/control(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
+        ArgRow { name: "root/control/thumb/label/hidden_input(props)", kind: "&SwitchProps", default: "", description: "`disabled`/`readonly`/`invalid`/`required` の 4 フラグ束。全パーツへ対応する `data-*` を一律反映する（イシュー #1622）。" },
         ArgRow { name: "hidden_input(name, value)", kind: "&str, &str", default: "", description: "ネイティブ `name`/`value` 属性。" },
         ArgRow { name: "hidden_input(checked)", kind: "bool", default: "", description: "`true` のときのみネイティブ `checked` 存在属性を出力する。" },
-        ArgRow { name: "hidden_input(disabled)", kind: "bool", default: "", description: "`true` のときのみネイティブ `disabled` 存在属性を出力する。" },
-        ArgRow { name: "hidden_input(required)", kind: "bool", default: "", description: "`true` のときネイティブ `required` + `data-required` を出力する。" },
+        ArgRow { name: "hidden_input(props.disabled)", kind: "bool", default: "", description: "`true` のときのみネイティブ `disabled` 存在属性を出力する。" },
+        ArgRow { name: "hidden_input(props.required)", kind: "bool", default: "", description: "`true` のときネイティブ `required` + `data-required` を出力する。" },
+        ArgRow { name: "hidden_input(props.invalid)", kind: "bool", default: "", description: "`true` のとき `aria-invalid=\"true\"` + `data-invalid` を出力する（イシュー #1622 で追加）。" },
+        ArgRow { name: "hidden_input(props.readonly)", kind: "bool", default: "", description: "`true` のとき `data-readonly` を出力する。ネイティブ `readonly` 属性はチェックボックス/スイッチに意味を持たないため付与しない（イシュー #1622 で追加）。" },
     ],
-    examples: &[ExampleEntry {
-        title: "Disabled, checked",
-        description: "`checked: true` + `disabled: true` の組み合わせ。`hidden_input` にネイティブ `checked`/`disabled` の両方が存在属性として出力される。",
-        render: ex_switch_disabled_checked,
-    }],
-    keyboard: &[KeyRow {
-        key: "Space",
-        description: "`hidden_input` はネイティブ `<input type=\"checkbox\">` であり、Space キーでのトグルはブラウザ標準操作として成立する（JS 配線不要）。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Disabled, checked",
+            description: "`checked: true` + `props.disabled: true` の組み合わせ。`hidden_input` にネイティブ `checked`/`disabled` の両方が存在属性として出力される。",
+            render: ex_switch_disabled_checked,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "利用者が data-scope / data-part / data-state / data-focus-visible / data-disabled / data-invalid 属性セレクタで自前 CSS を当てる最小例です。",
+            render: ex_switch_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Space",
+            description: "`hidden_input` はネイティブ `<input type=\"checkbox\">` であり、Space キーでのトグルはブラウザ標準操作として成立する（JS 配線不要）。",
+        },
+        KeyRow {
+            key: "Enter",
+            description: "ark-ui / Radix は Enter でもトグルするが、本実装は native checkbox をそのまま使うため Enter では反応しない（意図的非採用。WAI-ARIA APG の Switch パターンでは Enter は Optional 扱い。詳細は `crates/headless-ui/src/switch.rs` モジュール doc 参照）。",
+        },
+    ],
     aria: &[
         AriaRow { attribute: "aria-hidden=\"true\" (control)", description: "装飾専用パーツとして固定付与する（意味論は `hidden_input` が担う）。" },
         AriaRow { attribute: "aria-checked", description: "`hidden_input` へ明示付与しない。native の `<input type=\"checkbox\" role=\"switch\">` の `checked` 状態がブラウザにより自動マップされるため（二重読み上げ防止）。" },
+        AriaRow { attribute: "aria-invalid=\"true\" (hidden_input)", description: "`props.invalid` が `true` のときのみ出力する（イシュー #1622 で追加）。" },
     ],
     demo: None,
 };
@@ -1777,22 +1796,83 @@ fn ex_slider_readonly() -> Node {
 }
 
 fn ex_switch_disabled_checked() -> Node {
+    let props = SwitchProps {
+        disabled: true,
+        ..SwitchProps::default()
+    };
     let body = vec![switch::root(
         true,
-        true,
+        &props,
         vec![],
         vec![
+            switch::hidden_input("dark-mode", "on", true, &props, vec![]),
             switch::control(
                 true,
-                true,
+                &props,
                 vec![],
-                vec![switch::thumb(true, vec![], vec![])],
+                vec![switch::thumb(true, &props, vec![], vec![])],
             ),
-            switch::label(true, vec![], vec![text("Dark mode (locked on)")]),
-            switch::hidden_input("dark-mode", "on", true, true, false, vec![]),
+            switch::label(true, &props, vec![], vec![text("Dark mode (locked on)")]),
         ],
     )];
     div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/`data-state`/`data-focus-visible`/`data-disabled`/
+/// `data-invalid` 属性セレクタで見た目を組み立てる例を示す（イシュー #1622、
+/// `CHECKBOX_CUSTOM_CSS_SNIPPET`〔forms_a.rs〕と同型）。CSS はテキストノード
+/// （[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const SWITCH_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"switch\"][data-part=\"control\"] {\n  \
+  width: 2.5rem;\n  height: 1.4rem;\n  border-radius: 999px;\n  background: #ccc;\n\
+}\n\
+[data-scope=\"switch\"][data-part=\"control\"][data-state=\"checked\"] {\n  \
+  background: #2563eb;\n\
+}\n\
+[data-scope=\"switch\"][data-part=\"thumb\"] {\n  \
+  width: 1.1rem;\n  height: 1.1rem;\n  border-radius: 999px;\n  background: #fff;\n\
+}\n\
+[data-scope=\"switch\"][data-part=\"thumb\"][data-state=\"checked\"] {\n  \
+  transform: translateX(1.1rem);\n\
+}\n\
+[data-scope=\"switch\"][data-part=\"control\"][data-focus-visible] {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n\
+[data-scope=\"switch\"][data-part=\"root\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"switch\"][data-part=\"control\"][data-invalid] {\n  \
+  border: 2px solid #dc2626;\n\
+}\n";
+
+fn ex_switch_custom_css() -> Node {
+    let props = SwitchProps::default();
+    let markup = switch::root(
+        true,
+        &props,
+        vec![],
+        vec![
+            switch::hidden_input("newsletter", "on", true, &props, vec![]),
+            switch::control(
+                true,
+                &props,
+                vec![],
+                vec![switch::thumb(true, &props, vec![], vec![])],
+            ),
+            switch::label(true, &props, vec![], vec![text("Accept newsletter")]),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-focus-visible / data-disabled / data-invalid 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(vec![], vec![code(vec![], vec![text(SWITCH_CUSTOM_CSS_SNIPPET)])]),
+        ],
+    )
 }
 
 fn ex_tags_input_at_max() -> Node {

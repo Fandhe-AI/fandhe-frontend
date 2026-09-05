@@ -255,6 +255,12 @@ name = "fandhe-frontend-headless-ui"
 # data-orientation・value_text へ aria-live="polite" を追加（参考サイト突合、
 # 既存メソッドへの非破壊的な属性追加のみ）。patch バンプとして 0.48.0 から
 # 0.48.1 とする。
+# イシュー #1622（switch の参照突合）: `SwitchProps`（disabled/readonly/
+# invalid/required）を新設し、`root`/`control`/`thumb`/`label`/
+# `hidden_input` のシグネチャを変更（呼び出し側の引数個数が変わる破壊的
+# 変更）。あわせて呼び出し側 attrs による状態偽装を防ぐ予約キー除去
+# （STATE_RESERVED/HIDDEN_INPUT_RESERVED）を新設した。0.x の破壊的変更は
+# マイナーバンプのため 0.48.1 から 0.49.0 とする。
 # イシュー #1634: qr_code::frame の role="img" 付与条件を変更した（
 # aria_label = None のとき role/aria-label とも付与しなくなった。従来は
 # 無条件付与で WAI-ARIA 1.2 img ロールの Accessible Name Required 要件に
