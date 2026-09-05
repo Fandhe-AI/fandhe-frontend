@@ -335,13 +335,18 @@ pub(super) fn hover_card_section() -> Node {
 }
 
 pub(super) fn popover_section() -> Node {
-    let state = OpenState::Open;
-    let body = vec![popover::root(
-        state,
+    // 2 インスタンス構成（open + closed/disabled）にすることで、機械導出表
+    // （Anatomy・data-* 属性表）へ `data-state: closed, open` と
+    // `data-disabled` を反映させる（イシュー #1642。collapsible #1637 と
+    // 同じ理由）。2 インスタンス目は id を `pop-content-2`/`pop-title-2`/
+    // `pop-desc-2` にして重複を避ける。
+    let open_state = OpenState::Open;
+    let body_open = vec![popover::root(
+        open_state,
         vec![],
         vec![
             popover::trigger(
-                state,
+                open_state,
                 false,
                 Some("pop-content"),
                 vec![],
@@ -349,10 +354,10 @@ pub(super) fn popover_section() -> Node {
             ),
             popover::anchor(vec![], vec![]),
             popover::positioner(
-                state,
+                open_state,
                 vec![],
                 vec![popover::content(
-                    state,
+                    open_state,
                     Some("pop-content"),
                     Some("pop-title"),
                     Some("pop-desc"),
@@ -366,12 +371,53 @@ pub(super) fn popover_section() -> Node {
                             vec![text("More information here.")],
                         ),
                         popover::close_trigger(vec![], vec![text("Close")]),
-                        popover::indicator(state, vec![], vec![text("▾")]),
+                        popover::indicator(open_state, vec![], vec![text("▾")]),
                     ],
                 )],
             ),
         ],
     )];
+
+    let closed_state = OpenState::Closed;
+    let body_disabled = vec![popover::root(
+        closed_state,
+        vec![],
+        vec![
+            popover::trigger(
+                closed_state,
+                true,
+                Some("pop-content-2"),
+                vec![],
+                vec![text("Open popover (disabled)")],
+            ),
+            popover::anchor(vec![], vec![]),
+            popover::positioner(
+                closed_state,
+                vec![],
+                vec![popover::content(
+                    closed_state,
+                    Some("pop-content-2"),
+                    Some("pop-title-2"),
+                    Some("pop-desc-2"),
+                    vec![],
+                    vec![
+                        popover::arrow(vec![], vec![popover::arrow_tip(vec![], vec![])]),
+                        popover::title(Some("pop-title-2"), vec![], vec![text("Details")]),
+                        popover::description(
+                            Some("pop-desc-2"),
+                            vec![],
+                            vec![text("More information here.")],
+                        ),
+                        popover::close_trigger(vec![], vec![text("Close")]),
+                        popover::indicator(closed_state, vec![], vec![text("▾")]),
+                    ],
+                )],
+            ),
+        ],
+    )];
+
+    let mut body = body_open;
+    body.extend(body_disabled);
     demo_page("Popover", body)
 }
 

@@ -52,7 +52,10 @@
 //! （`component_page.rs` の Accessibility 節省略規則参照）。dialog は
 //! イシュー #1638 で `fandhe-frontend-wasm-full`（`overlay`/`focus_trap`/
 //! `headless`）の配線を確認できたため本モジュールで最初に `KeyRow` を
-//! 持つ。他 9 部品が空のままなのは各兄弟イシューでの確認待ちであり、
+//! 持つ。**popover もイシュー #1642 で同様に配線（`headless`/`overlay`）を
+//! 確認できたため `KeyRow` を持つ**（`focus_trap` 側はフォーカストラップ
+//! 対象外と確認できたため Tab/Shift+Tab の行は「トラップ無し」の事実を
+//! 記す）。他 8 部品が空のままなのは各兄弟イシューでの確認待ちであり、
 //! 配線が無いと確定した結果ではない。
 //!
 //! **`collapsible` は #1637 で例外を追加した**: `trigger` はネイティブ
@@ -1330,11 +1333,12 @@ pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
 // Popover（/primitives/popover/）
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/popover.rs:1-30`（モジュール doc、
-/// Disclosure を埋め込んだ開閉状態機械）、`:62-243`（`root`/`trigger`/
-/// `anchor`/`positioner`/`arrow`/`arrow_tip`/`content`/`title`/
-/// `description`/`close_trigger`/`indicator` シグネチャ、
-/// `aria-haspopup="dialog"`/`role="dialog"` の実出力テスト）。
+/// 一次情報: `crates/headless-ui/src/popover.rs:1-100`（モジュール doc、
+/// Disclosure を埋め込んだ開閉状態機械。イシュー #1642 で参照突合の結果を
+/// 追記）、`:133-317`（`root`/`trigger`/`anchor`/`positioner`/`arrow`/
+/// `arrow_tip`/`content`/`title`/`description`/`close_trigger`/`indicator`
+/// シグネチャ、`aria-haspopup="dialog"`/`role="dialog"`/`tabindex="-1"`
+/// の実出力テスト）。
 fn ex_popover_minimal_content() -> Node {
     let state = OpenState::Open;
     div(
@@ -1373,7 +1377,8 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Trigger / Anchor / Positioner / Arrow / ArrowTip / Content / Title / Description / CloseTrigger / Indicator の 11 anatomy パーツと、Disclosure を埋め込んだ開閉状態機械 Popover を提供する。",
         "trigger は type=\"button\" を固定付与し、aria-haspopup=\"dialog\"・aria-expanded・（controls が Some のとき）aria-controls を持つ。",
-        "content は role=\"dialog\" を固定付与し、labelledby/describedby が Some のときのみ title/description と対で関連付ける。",
+        "content は role=\"dialog\" を固定付与し、labelledby/describedby が Some のときのみ title/description と対で関連付ける。content は tabindex=\"-1\" を固定付与する（zag popover.connect.ts と同じく、プログラム的フォーカスのみを許可する前提。イシュー #1642）。",
+        "trigger/close-trigger の click → dispatch 配線（\"toggle\"/\"close\"）、Escape・外側クリックでの閉鎖は fandhe-frontend-wasm-full（headless の part → action 対応表・overlay モジュール）が実 DOM 配線を担う。content の attrs 経由で data-close-on-escape=\"false\" / data-close-on-interact-outside=\"false\"（\"false\" リテラルのときのみ無効化）を渡せる。フォーカストラップ・開時の autoFocus・閉鎖時の trigger へのフォーカス復帰は未実装である（focus_trap::should_trap は data-scope=\"dialog\" のみを対象とし popover を含まない、イシュー #1642 で判明）。",
     ],
     arguments: &[
         ArgRow {
@@ -1454,7 +1459,24 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
         description: "title/description を持たず close_trigger のみを含む、最小構成の Popover content の例です。",
         render: ex_popover_minimal_content,
     }],
-    keyboard: &[],
+    keyboard: &[
+        KeyRow {
+            key: "Enter / Space (trigger)",
+            description: "ネイティブ button 要素の click 相当が成立し、fandhe-frontend-wasm-full の headless part → action 対応表が \"toggle\" を dispatch する。",
+        },
+        KeyRow {
+            key: "Enter / Space (close-trigger)",
+            description: "同対応表が \"close\" を dispatch する。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "overlay::close_on_escape_for が最上位オーバーレイに \"close\" を通知する（push_overlay の登録と実際の dispatch は #580 統合層の責務）。data-close-on-escape=\"false\" で無効化できる。",
+        },
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "フォーカストラップは無い（focus_trap::should_trap は data-scope=\"dialog\" のみを対象とし popover は含まない）。通常の文書順でフォーカスが移動する。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-haspopup=\"dialog\"",
@@ -1475,6 +1497,10 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-labelledby / aria-describedby",
             description: "content に付与。labelledby/describedby が Some のときのみ出力される。",
+        },
+        AriaRow {
+            attribute: "tabindex=\"-1\"",
+            description: "content に固定付与。プログラム的フォーカスのみを許可する（イシュー #1642）。",
         },
     ],
     demo: None,
@@ -1850,21 +1876,23 @@ mod tests {
             );
             assert!(!spec.aria.is_empty(), "{path}: aria must not be empty");
             // collapsible（イシュー #1637）・dialog（イシュー #1638）・
-            // hover-card（イシュー #1641）のみ例外: collapsible は trigger が
-            // ネイティブ <button> のため Space/Enter が標準操作として成立し、
-            // dialog は fandhe-frontend-wasm-full 側（overlay/focus_trap/
-            // headless）の実 DOM 配線を確認できたため、hover-card は trigger
-            // がネイティブ <a> のため href が Some のときの Tab フォーカス
-            // 到達・Enter 遷移がブラウザ標準として成立するため。他 7 部品は
-            // キー割り当てを持つ実装が無いため keyboard: &[] を維持する
-            // （モジュール doc「keyboard を 10 件すべて空にする理由」参照）。
+            // popover（イシュー #1642）・hover-card（イシュー #1641）のみ
+            // 例外: collapsible は trigger がネイティブ <button> のため
+            // Space/Enter が標準操作として成立し、dialog・popover は
+            // fandhe-frontend-wasm-full 側（overlay/focus_trap/headless）の
+            // 実 DOM 配線を確認できたため、hover-card は trigger がネイティブ
+            // <a> のため href が Some のときの Tab フォーカス到達・Enter
+            // 遷移がブラウザ標準として成立するため。他 6 部品はキー割り当て
+            // を持つ実装が無いため keyboard: &[] を維持する（モジュール doc
+            // 「keyboard を 10 件すべて空にする理由」参照）。
             if *path == "/primitives/collapsible/"
                 || *path == "/primitives/dialog/"
+                || *path == "/primitives/popover/"
                 || *path == "/primitives/hover-card/"
             {
                 assert!(
                     !spec.keyboard.is_empty(),
-                    "{path}: keyboard should hold the documented rows (#1637/#1638/#1641)"
+                    "{path}: keyboard should hold the documented rows (#1637/#1638/#1641/#1642)"
                 );
             } else {
                 assert!(
