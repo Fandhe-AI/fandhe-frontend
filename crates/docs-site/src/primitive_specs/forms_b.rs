@@ -414,37 +414,70 @@ const RATING_GROUP: ComponentPageSpec = ComponentPageSpec {
 };
 
 /// 一次情報: `crates/headless-ui/src/segment_group.rs`
-/// （モジュール doc 1-84、`root` 103-125、`indicator` 127-167、
-/// `item`/`item_control`/`item_text` 169-212、`item_hidden_input` 214-243）。
+/// （モジュール doc・`SegmentGroupProps`・`root`/`indicator`/`item`/
+/// `item_control`/`item_text`/`item_hidden_input`、イシュー #1618 の
+/// ark-ui 参照突合で `SegmentGroupProps` を新設）。
 const SEGMENT_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Indicator / Item / ItemText / ItemControl / ItemHiddenInput の 6 anatomy パーツを提供する。状態機械・dispatch・hydration は `crate::radio_group::RadioGroup` へ全委譲し、独自の状態機械を新設しない（WAI-ARIA 上 segmented control は radio パターンそのものであるため）。",
+        "`SegmentGroupProps`（disabled/readonly/invalid/required）が各パーツの `data-*`/ARIA 属性を決定する（イシュー #1618、`RadioGroupProps` と同じパート別反映契約）。`root` へ `data-disabled`/`data-invalid`/`data-required` + `aria-disabled`/`aria-readonly`/`aria-required`（true 時のみ）、`indicator` へ `data-disabled`、`item`/`item_control`/`item_text` へ `data-disabled`/`data-readonly`/`data-invalid`、`item_hidden_input` へ `required`/`aria-invalid=\"true\"` を反映する。",
         "`indicator` は SSR 決定的な位置表現を持つ: `(index, item_count)` から `--fandhe-segment-group-index`/`--fandhe-segment-group-count` の 2 CSS カスタムプロパティのみを `style` 属性へ出力する（JS 計測は行わない）。",
-        "`item_hidden_input` が生成するネイティブ `<input type=\"radio\">` がチェック状態・フォーム送信・グループ内排他選択を担う（`radio_group` と同型）。",
+        "`item_hidden_input` が生成するネイティブ `<input type=\"radio\">` がチェック状態・フォーム送信・グループ内排他選択を担う（`radio_group` と同型）。`fandhe-frontend-wasm-full` には segment-group の CSR 配線が一切無いため（`radio_group` と異なる点）、`data-readonly` は SSR 語彙にとどまり、選択変更の CSR 抑止は未提供。",
     ],
     arguments: &[
-        ArgRow { name: "root(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
+        ArgRow { name: "root(props).disabled", kind: "bool", default: "false", description: "`data-disabled`/`aria-disabled=\"true\"`（true 時のみ）を反映する。" },
+        ArgRow { name: "root(props).readonly", kind: "bool", default: "false", description: "`aria-readonly=\"true\"`（true 時のみ）のみを反映する（`data-readonly` は root へ出力しない）。" },
+        ArgRow { name: "root(props).invalid", kind: "bool", default: "false", description: "`data-invalid` を反映する。" },
+        ArgRow { name: "root(props).required", kind: "bool", default: "false", description: "`data-required`/`aria-required=\"true\"`（true 時のみ）を反映する。" },
         ArgRow { name: "root(orientation)", kind: "Option<Orientation>", default: "", description: "`Some` のときのみ `data-orientation`/`aria-orientation` を付与する。" },
         ArgRow { name: "root(labelled_by)", kind: "Option<&str>", default: "", description: "`Some` のときのみ `aria-labelledby` を付与する。" },
         ArgRow { name: "indicator(position)", kind: "Option<(usize, usize)>", default: "", description: "`Some((index, count))` のとき `data-state=\"checked\"` + 位置 CSS 変数 2 種を出力する。`None`（未選択）は `data-state=\"unchecked\"` のみ。" },
+        ArgRow { name: "indicator(props).disabled", kind: "bool", default: "false", description: "`data-disabled` を反映する（ark-ui の Indicator Data Attributes 表準拠）。" },
         ArgRow { name: "indicator(orientation)", kind: "Option<Orientation>", default: "", description: "`Some` のとき `data-orientation` を出力する（styled 層が `translateX`/`translateY` を切り替える判断材料）。" },
-        ArgRow { name: "item/item_control/item_text/item_hidden_input(checked)", kind: "bool", default: "", description: "`data-state` の checked/unchecked を決める。" },
-        ArgRow { name: "item/item_control/item_text/item_hidden_input(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
+        ArgRow { name: "item/item_control/item_text(checked)", kind: "bool", default: "", description: "`data-state` の checked/unchecked を決める。" },
+        ArgRow { name: "item/item_control/item_text(props).disabled/readonly/invalid", kind: "bool", default: "false", description: "`data-disabled`/`data-readonly`/`data-invalid` を反映する（`data-required` は持たない）。" },
         ArgRow { name: "item(value)", kind: "&str", default: "", description: "選択肢の値。`data-value` として動的値のまま出力する。" },
+        ArgRow { name: "item_hidden_input(props).required", kind: "bool", default: "false", description: "`required` 属性（true 時のみ）を反映する。" },
+        ArgRow { name: "item_hidden_input(props).invalid", kind: "bool", default: "false", description: "`aria-invalid=\"true\"`（true 時のみ）を反映する。" },
+        ArgRow { name: "item_hidden_input(name)", kind: "Option<&str>", default: "", description: "`Some` のとき `name` 属性を出力する（グループ内排他選択の同一 name グループ）。" },
+        ArgRow { name: "item_hidden_input(value)", kind: "&str", default: "", description: "ネイティブ `value` 属性。" },
     ],
-    examples: &[ExampleEntry {
-        title: "Vertical orientation",
-        description: "`orientation: Some(Orientation::Vertical)` で縦並びにした例。`indicator` の `data-orientation` が styled 層の `translateY` 切替判断材料になる。",
-        render: ex_segment_group_vertical,
-    }],
-    keyboard: &[KeyRow {
-        key: "ArrowUp / ArrowDown / ArrowLeft / ArrowRight",
-        description: "`item_hidden_input` はネイティブ `<input type=\"radio\">` であり、同一 `name` グループ内の矢印キー移動・選択はブラウザ標準操作として成立する（`radio_group` と同型）。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Vertical orientation",
+            description: "`orientation: Some(Orientation::Vertical)` で縦並びにした例。`indicator` の `data-orientation` が styled 層の `translateY` 切替判断材料になる。",
+            render: ex_segment_group_vertical,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "自前 CSS を data-scope/data-part/data-* セレクタで当てる最小例（`invalid: true` の状態を装飾）。",
+            render: ex_segment_group_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "`item_hidden_input` はネイティブ `<input type=\"radio\">` であり、同一 `name` グループ内ではブラウザ標準のロービングタブインデックスに従う（`radio_group` と同型）。",
+        },
+        KeyRow {
+            key: "Space",
+            description: "フォーカス中の未選択項目を選択する。",
+        },
+        KeyRow {
+            key: "ArrowDown / ArrowRight",
+            description: "次項目へ移動して選択する。",
+        },
+        KeyRow {
+            key: "ArrowUp / ArrowLeft",
+            description: "前項目へ移動して選択する。",
+        },
+    ],
     aria: &[
         AriaRow { attribute: "role=\"radiogroup\" (root)", description: "固定付与。" },
-        AriaRow { attribute: "aria-hidden=\"true\" (indicator)", description: "装飾専用パーツとして固定付与する。" },
+        AriaRow { attribute: "aria-disabled / aria-readonly / aria-required (root)", description: "`SegmentGroupProps` が真のときのみ `\"true\"` を出力する（イシュー #1618）。" },
+        AriaRow { attribute: "aria-hidden=\"true\" (indicator / item-control)", description: "装飾専用パーツとして固定付与する（`item-control` はイシュー #1618 で追加）。" },
         AriaRow { attribute: "role=\"radio\" / aria-checked", description: "`item_control` へは明示付与しない（`radio_group` と同じ二重読み上げ防止の最小主義）。" },
+        AriaRow { attribute: "aria-invalid=\"true\" (item-hidden-input)", description: "`SegmentGroupProps.invalid` が真のときのみ出力する（イシュー #1618）。" },
     ],
     demo: None,
 };
@@ -1263,49 +1296,164 @@ fn ex_rating_group_readonly() -> Node {
 
 fn ex_segment_group_vertical() -> Node {
     let orientation = Orientation::Vertical;
+    let props = segment_group::SegmentGroupProps::default();
     let body = vec![segment_group::root(
-        false,
+        &props,
         Some(orientation),
         None,
         vec![],
         vec![
-            segment_group::indicator(Some((1, 3)), Some(orientation), vec![]),
+            segment_group::indicator(Some((1, 3)), &props, Some(orientation), vec![]),
             segment_group::item(
                 false,
-                false,
+                &props,
                 "day",
                 vec![],
                 vec![
-                    segment_group::item_control(false, false, vec![]),
-                    segment_group::item_text(false, false, vec![], vec![text("Day")]),
-                    segment_group::item_hidden_input(false, false, Some("range"), "day", vec![]),
+                    segment_group::item_hidden_input(false, &props, Some("range"), "day", vec![]),
+                    segment_group::item_control(false, &props, vec![]),
+                    segment_group::item_text(false, &props, vec![], vec![text("Day")]),
                 ],
             ),
             segment_group::item(
                 true,
-                false,
+                &props,
                 "week",
                 vec![],
                 vec![
-                    segment_group::item_control(true, false, vec![]),
-                    segment_group::item_text(true, false, vec![], vec![text("Week")]),
-                    segment_group::item_hidden_input(true, false, Some("range"), "week", vec![]),
+                    segment_group::item_hidden_input(true, &props, Some("range"), "week", vec![]),
+                    segment_group::item_control(true, &props, vec![]),
+                    segment_group::item_text(true, &props, vec![], vec![text("Week")]),
                 ],
             ),
             segment_group::item(
                 false,
-                false,
+                &props,
                 "month",
                 vec![],
                 vec![
-                    segment_group::item_control(false, false, vec![]),
-                    segment_group::item_text(false, false, vec![], vec![text("Month")]),
-                    segment_group::item_hidden_input(false, false, Some("range"), "month", vec![]),
+                    segment_group::item_hidden_input(false, &props, Some("range"), "month", vec![]),
+                    segment_group::item_control(false, &props, vec![]),
+                    segment_group::item_text(false, &props, vec![], vec![text("Month")]),
                 ],
             ),
         ],
     )];
     div(vec![("class", "primitives-demo-frame")], body)
+}
+
+/// 利用者が自前 CSS で `segment-group` を装飾する最小例のスニペット
+/// （`[data-scope]`/`[data-part]`/`data-*` 状態属性セレクタ）。
+/// `assets/primitives-showcase.css` には一切追加しない（`[data-scope=`/
+/// `[data-part=` 不在契約、`tests/site_css_contract.rs` 参照）。テキストは
+/// `text()` 経由（既定エスケープ）で `pre`/`code` に出力するのみで、CSS を
+/// 実行・適用する経路は持たない（イシュー #1618、`RADIO_GROUP_CUSTOM_CSS_SNIPPET`
+/// と同型）。
+const SEGMENT_GROUP_CUSTOM_CSS_SNIPPET: &str = r#"[data-scope="segment-group"][data-part="root"] {
+  display: inline-flex;
+  position: relative;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+[data-scope="segment-group"][data-part="root"][data-invalid] {
+  border-color: #d33;
+}
+
+[data-scope="segment-group"][data-part="item"] {
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+}
+
+[data-scope="segment-group"][data-part="item"][data-state="checked"] {
+  color: #fff;
+}
+
+[data-scope="segment-group"][data-part="item"][data-disabled] {
+  opacity: 0.5;
+}
+
+[data-scope="segment-group"][data-part="item"]:focus-within {
+  outline: 2px solid #06c;
+  outline-offset: 2px;
+}
+
+[data-scope="segment-group"][data-part="indicator"] {
+  position: absolute;
+  inset-block: 0;
+  width: calc(100% / var(--fandhe-segment-group-count));
+  transform: translateX(calc(100% * var(--fandhe-segment-group-index)));
+  background: #06c;
+  border-radius: 6px;
+  transition: transform 0.15s ease;
+}"#;
+
+/// Custom CSS 例のネイティブ `<input type="radio">` グループ名。
+/// 同一ページの Demo 節（`crates/docs-site/src/primitive_showcase/
+/// forms_b.rs::segment_group_section` が出力する "view"/"view-disabled"/
+/// "view-invalid"/"view-readonly"/"view-vertical" グループ）とも、
+/// [`ex_segment_group_vertical`] の "range" グループとも重複しない固有名を
+/// 使う（同一 DOM 上に同名グループの radio が複数存在するとブラウザの
+/// ネイティブ排他選択が干渉する、`radio_group` の同種コメント・#1886
+/// codex-review P1 指摘と同じ理由、イシュー #1618）。
+const SEGMENT_GROUP_CUSTOM_CSS_EXAMPLE_NAME: &str = "view-custom-css";
+
+fn ex_segment_group_custom_css() -> Node {
+    let props = segment_group::SegmentGroupProps {
+        invalid: true,
+        ..Default::default()
+    };
+    let demo = segment_group::root(
+        &props,
+        None,
+        None,
+        vec![],
+        vec![
+            segment_group::indicator(Some((0, 2)), &props, None, vec![]),
+            segment_group::item(
+                true,
+                &props,
+                "list",
+                vec![],
+                vec![
+                    segment_group::item_hidden_input(
+                        true,
+                        &props,
+                        Some(SEGMENT_GROUP_CUSTOM_CSS_EXAMPLE_NAME),
+                        "list",
+                        vec![],
+                    ),
+                    segment_group::item_control(true, &props, vec![]),
+                    segment_group::item_text(true, &props, vec![], vec![text("List")]),
+                ],
+            ),
+            segment_group::item(
+                false,
+                &props,
+                "grid",
+                vec![],
+                vec![
+                    segment_group::item_hidden_input(
+                        false,
+                        &props,
+                        Some(SEGMENT_GROUP_CUSTOM_CSS_EXAMPLE_NAME),
+                        "grid",
+                        vec![],
+                    ),
+                    segment_group::item_control(false, &props, vec![]),
+                    segment_group::item_text(false, &props, vec![], vec![text("Grid")]),
+                ],
+            ),
+        ],
+    );
+    let snippet = pre(
+        vec![],
+        vec![code(vec![], vec![text(SEGMENT_GROUP_CUSTOM_CSS_SNIPPET)])],
+    );
+    wrap_password_example(
+        "headless-ui はスタイルレスです。data-scope/data-part/data-* をセレクタに使い、以下のような CSS を自前で当てられます。",
+        vec![demo, snippet],
+    )
 }
 
 fn ex_select_disabled_unselected() -> Node {

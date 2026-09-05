@@ -225,7 +225,17 @@ name = "fandhe-frontend-headless-ui"
 # `ToggleGroupProps`（disabled/orientation/roving_focus）引数を導入し、
 # 呼び出し側の引数個数・シグネチャが変わる破壊的変更のため、0.x の
 # マイナーバンプ（0.43.0 → 0.44.0）とする。
-version = "0.44.0"
+# base ブランチ再取り込み（PR #1893 マージ, イシュー #1618, 2026-09-05）: main
+# （#1893 date-input）が独立に 0.43.0 へ到達しており、本ブランチ（#1618
+# segment-group、`SegmentGroupProps` 新設に伴う root/indicator/item 系/
+# item-hidden-input のシグネチャ変更を含む破壊的変更）とは別内容のため、
+# 同じ「同一版数への偶発的衝突をそのまま採用しない」原則（`docs/ci/
+# style-refresh-version-bump-operation.md` §5）に従い 0.44.0 へさらに
+# マイナーバンプする。
+# 上記 2 ブランチが独立に同一版数 0.44.0 へ到達したため（同一版数への
+# 偶発的衝突をそのまま採用しない原則、`docs/ci/style-refresh-version-bump-operation.md`
+# §5）、マイナーバンプで 0.45.0 とする。
+version = "0.45.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

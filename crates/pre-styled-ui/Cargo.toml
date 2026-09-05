@@ -1575,6 +1575,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # 「同一版数への偶発的衝突をそのまま採用しない」原則
 # （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.93.0 へ
 # さらにマイナーバンプする（headless-ui 依存も 0.42.0 へ追随）。
+# イシュー #1618（segment-group の参照突合）: 再エクスポート関数
+# （item/item_control/item_text/item_hidden_input/indicator）のシグネチャが
+# `&SegmentGroupProps` 引数へ変更（破壊的）・`root_with_props` 公開 API 追加
+# のためマイナーバンプする（headless-ui 依存も 0.43.0 へ追随）。
 # イシュー #1629: 再エクスポート先の headless-ui `toggle::indicator` が
 # `disabled: bool` 引数を追加（破壊的シグネチャ変更）したため追随。
 # 0.93.0 → 0.94.0（マイナーバンプ、headless-ui 依存も 0.43.0 へ追随）。
@@ -1594,7 +1598,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1630（toggle-group の参照突合、headless-ui 側の破壊的変更
 # `toggle_group::root`/`item` シグネチャ変更への追随）: `root_with_props`
 # 公開 API 追加 + headless-ui 0.44.0 依存追随を含み、マイナーバンプする。
-version = "0.95.0"
+# base ブランチ再取り込み（PR #1893 マージ, イシュー #1618, 2026-09-05）: main
+# （#1893 date-input）が独立に本ブランチと同じ 0.94.0 へ到達していた（上記
+# date-input の破壊的変更再エクスポート波及）。segment-group（本ブランチ,
+# #1618）の `SegmentGroupProps` 新設・再エクスポート関数シグネチャ変更とは
+# 別内容のため、同じ「同一版数への偶発的衝突をそのまま採用しない」原則
+# （`docs/ci/style-refresh-version-bump-operation.md` §5）に従い 0.95.0 へ
+# さらにマイナーバンプする（headless-ui 依存も 0.44.0 へ追随）。
+# 上記 2 ブランチが独立に同一版数 0.95.0 へ到達したため（同一版数への
+# 偶発的衝突をそのまま採用しない原則、`docs/ci/style-refresh-version-bump-operation.md`
+# §5）、headless-ui 0.45.0 依存追随とあわせてマイナーバンプで 0.96.0 とする。
+version = "0.96.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1609,7 +1623,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.44.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.45.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

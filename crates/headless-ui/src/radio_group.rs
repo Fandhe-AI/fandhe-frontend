@@ -222,8 +222,11 @@ pub struct RadioGroupProps {
 /// [`state_attrs`] 系ヘルパが全パーツへ一律付与する属性キー一覧。呼び出し側
 /// `attrs` にこれらと同名キーが含まれていても fail-closed で除去する対象
 /// （モジュール冒頭「セキュリティ不変条件」参照。`data-value` も含める
-/// ことで [`item`] の値偽装も同一防御網に含める）。
-const STATE_RESERVED: &[&str] = &[
+/// ことで [`item`] の値偽装も同一防御網に含める）。属性集合は
+/// [`crate::segment_group`] の同名パーツ（`radio_group` へ状態機械を全委譲
+/// する構成、`radio_group` module doc 参照）と完全に一致するため、
+/// `pub(crate)` として同モジュールから再利用する（イシュー #1618）。
+pub(crate) const STATE_RESERVED: &[&str] = &[
     "data-state",
     "data-disabled",
     "data-invalid",
@@ -233,7 +236,9 @@ const STATE_RESERVED: &[&str] = &[
 ];
 
 /// [`root`] 固有の固定属性キー一覧（呼び出し側 `attrs` からの偽装除去対象）。
-const ROOT_RESERVED: &[&str] = &[
+/// [`crate::segment_group::root`] も同じ固定属性集合を持つため `pub(crate)`
+/// として再利用する（イシュー #1618）。
+pub(crate) const ROOT_RESERVED: &[&str] = &[
     "role",
     "aria-orientation",
     "aria-labelledby",
@@ -245,7 +250,10 @@ const ROOT_RESERVED: &[&str] = &[
 /// フレームワークが [`item_hidden_input`] に固定する属性キー一覧
 /// （呼び出し側 `attrs` からの偽装を fail-closed で除外する対象。
 /// `crate::checkbox` の同名定数と同型）。
-const HIDDEN_INPUT_RESERVED: &[&str] = &[
+/// [`crate::segment_group::item_hidden_input`] も同一のネイティブ
+/// `<input type="radio">` 固定属性集合を持つため `pub(crate)` として
+/// 再利用する（イシュー #1618）。
+pub(crate) const HIDDEN_INPUT_RESERVED: &[&str] = &[
     "type",
     "name",
     "value",
@@ -259,7 +267,9 @@ const HIDDEN_INPUT_RESERVED: &[&str] = &[
 /// 除外する。`Anatomy::part` の `data-scope`/`data-part` フィルタと同型の
 /// fail-closed 防御であり、各パーツが追加で持つ固定属性の呼び出し側からの
 /// 偽装を防ぐ（`crate::checkbox` の同名ヘルパと同型、イシュー #1616）。
-fn drop_reserved<'a>(
+/// [`crate::segment_group`] からも同一シグネチャのまま再利用する
+/// （イシュー #1618、重複定義を避けるための `pub(crate)` 昇格）。
+pub(crate) fn drop_reserved<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     reserved: &'static [&'static str],
 ) -> Vec<(&'a str, &'a str)> {
