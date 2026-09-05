@@ -1766,6 +1766,83 @@ fn select_readonly_trigger_home_end_prevent_default_only_when_open() {
     }
 }
 
+/// readonly な Select trigger でも、Ctrl/Alt/Meta 修飾キー付きの
+/// ArrowDown/Space・Home/End（open 時）は `prevent_default` されない
+/// （codex-review P1 是正、イシュー #1619。修正前は readonly 分岐が
+/// 修飾キー判定より前にあったため、ブラウザ既定のショートカット
+/// （例: Ctrl+ArrowDown の単語移動）まで readonly という理由だけで
+/// 一律 `prevent_default` されてしまっていた。
+/// [`select_readonly_trigger_keydown_does_not_open`]/
+/// [`select_readonly_trigger_home_end_prevent_default_only_when_open`] が
+/// 固定する「修飾キーなし」の挙動とは対照的に、本テストは同じ readonly
+/// trigger で修飾キー付きの場合が no-op（prevent_default しない）である
+/// ことを固定する）。
+#[wasm_bindgen_test]
+fn select_readonly_trigger_modifier_keys_are_not_prevented() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_select_dom(
+        &document,
+        "kn-select-readonly-modifiers",
+        &[("apple", "Apple", false), ("banana", "Banana", false)],
+        false,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger = document
+        .get_element_by_id("kn-select-readonly-modifiers-trigger")
+        .unwrap();
+    trigger.set_attribute("data-readonly", "").unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let content = document
+        .get_element_by_id("kn-select-readonly-modifiers-content")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // closed: 修飾キー付きの ArrowDown/Space は開かず、prevent_default も
+    // されない。
+    for key in ["ArrowDown", "ArrowUp", " "] {
+        let init = KeyboardEventInit::new();
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        init.set_key(key);
+        init.set_ctrl_key(true);
+        let event = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+            .unwrap()
+            .dyn_into::<Event>()
+            .unwrap();
+        let not_default_prevented = trigger.dispatch_event(&event).unwrap();
+        assert!(
+            not_default_prevented,
+            "readonly trigger でも Ctrl+{key} は prevent_default されないはず"
+        );
+        assert!(
+            content.has_attribute("hidden"),
+            "readonly trigger は Ctrl+{key} で開かないはず"
+        );
+    }
+
+    // open: 修飾キー付きの Home/End も prevent_default されない。
+    content.remove_attribute("hidden").unwrap();
+    for key in ["Home", "End"] {
+        let init = KeyboardEventInit::new();
+        init.set_bubbles(true);
+        init.set_cancelable(true);
+        init.set_key(key);
+        init.set_alt_key(true);
+        let event = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+            .unwrap()
+            .dyn_into::<Event>()
+            .unwrap();
+        let not_default_prevented = trigger.dispatch_event(&event).unwrap();
+        assert!(
+            not_default_prevented,
+            "readonly かつ open の trigger でも Alt+{key} は prevent_default されないはず"
+        );
+    }
+}
+
 /// 選択済み項目がある Select を Enter/ArrowDown で開くと、初期 highlight が
 /// 先頭ではなく選択済み項目（`aria-selected="true"`）に合う（ark-ui/Radix
 /// 準拠、イシュー #1619 参照突合。実装は `keynav.rs::initial_highlight_index`/

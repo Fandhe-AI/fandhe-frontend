@@ -5787,6 +5787,20 @@ mod wiring {
         // 属性の読み取りのみで副作用が無いため、通常経路と同じ判定式を
         // ここでも独立に評価してよい）を条件に加える。Enter は元々
         // ページスクロールを起こさないため対象外（no-op のまま）。
+        // 修飾キー（Ctrl/Alt/Meta）判定は readonly 分岐より前に行う
+        // （codex-review P1 是正、イシュー #1619）。readonly 分岐が本判定
+        // より前にあると、Ctrl+ArrowDown/Alt+Space・Ctrl+Home/End のような
+        // ブラウザ既定のショートカット（単語移動・ページ内既定操作等）まで
+        // readonly という理由だけで一律 `prevent_default` してしまい、
+        // non-readonly なら通っていたはずの既定動作を阻害する。readonly・
+        // non-readonly のどちらの分岐も修飾キー付き操作には関与しない
+        // （`KeyOutcome::Handled` を返すだけで prevent_default しない）
+        // という結果は同じだが、判定の位置を揃えることで両分岐の意味論を
+        // 一致させる。
+        let modifiers = modifiers_of(event);
+        if modifiers.any() {
+            return KeyOutcome::Handled;
+        }
         if trigger_is_readonly(trigger) {
             let key = event.key();
             let is_open = resolve_menu_select_content(trigger, scope).is_some_and(|content| {
@@ -5803,10 +5817,6 @@ mod wiring {
             return KeyOutcome::Handled;
         };
         if !root.contains(Some(&content)) {
-            return KeyOutcome::Handled;
-        }
-        let modifiers = modifiers_of(event);
-        if modifiers.any() {
             return KeyOutcome::Handled;
         }
         let key = event.key();

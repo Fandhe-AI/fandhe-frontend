@@ -135,6 +135,17 @@ mod wiring {
     const ITEM_SELECTOR: &str = r#"[data-scope="select"][data-part="item"]"#;
     /// Select item 内のラベル要素パーツのセレクタ（同上）。
     const ITEM_TEXT_SELECTOR: &str = r#"[data-part="item-text"]"#;
+    /// Select item 内のチェックマーク等インジケータ要素パーツのセレクタ
+    /// （`crates/headless-ui/src/select.rs` の [`item_indicator`](
+    /// crate::select::item_indicator) 参照。`ITEM_TEXT_SELECTOR` と同様
+    /// item の直下・子孫を対象に `query_selector` で解決する、`data-scope`
+    /// 無しの部分一致セレクタ）。
+    const ITEM_INDICATOR_SELECTOR: &str = r#"[data-part="item-indicator"]"#;
+    /// Select 自身の anatomy root（`data-part="root"`）を特定するセレクタ。
+    /// `sync_select_value_text`/`wire_select_value_text` の呼び出し元から
+    /// 渡される `root` 引数の走査境界を求めるために使う（[`instance_boundary`]
+    /// 参照、codex-review P1 是正、イシュー #1619）。
+    const ROOT_SELECTOR: &str = r#"[data-scope="select"][data-part="root"]"#;
     /// `data-placeholder-shown` 存在属性名（`crates/headless-ui/src/select.rs`
     /// `value_text` と同一語彙、`&'static str` リテラル固定）。
     const PLACEHOLDER_SHOWN_ATTR: &str = "data-placeholder-shown";
@@ -177,13 +188,40 @@ mod wiring {
         Some((value, label))
     }
 
-    /// `root` 配下の Select item を出現順に収集し、`(value, label)` 列を
-    /// 構築する。
-    fn collect_items(root: &Element) -> Vec<(String, String)> {
-        let Ok(node_list) = root.query_selector_all(ITEM_SELECTOR) else {
+    /// `root` 自身が属する Select インスタンスの境界要素を求める。
+    ///
+    /// `root` 自身が [`ROOT_SELECTOR`] に一致すればそれをそのまま返し、
+    /// 一致しない場合（呼び出し元が anatomy root より広い要素を渡した場合）
+    /// は `root.closest(ROOT_SELECTOR)` で最も近い祖先を探し、それも
+    /// 見つからなければ `root` 自身へ fail-closed にフォールバックする
+    /// （境界を特定できない場合でも panic せず、後続のフィルタが
+    /// `root.query_selector_all` の結果全件を素通しする従来動作へ縮退する
+    /// だけで安全側）。
+    fn instance_boundary(root: &Element) -> Element {
+        if root.matches(ROOT_SELECTOR).unwrap_or(false) {
+            return root.clone();
+        }
+        root.closest(ROOT_SELECTOR)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| root.clone())
+    }
+
+    /// `root` 配下から `selector` に一致する要素を収集し、各要素の最も近い
+    /// [`ROOT_SELECTOR`] 祖先が `boundary`（[`instance_boundary`] で求めた
+    /// このインスタンス自身の境界）と一致するものだけへ絞り込む。
+    ///
+    /// ネストした別 Select インスタンスの item が `root.query_selector_all`
+    /// の結果へ混入し、そのインスタンスの選択反映が別インスタンスの item
+    /// まで書き換えてしまうのを防ぐ（codex-review P1 是正、イシュー #1619。
+    /// `crate::keynav::filter_own_scope_items` と同型の「最近傍祖先の同一性
+    /// 判定」パターン）。`closest` 自体が失敗する要素（detached 等）は
+    /// fail-closed に除外する。
+    fn own_scope_elements(root: &Element, boundary: &Element, selector: &str) -> Vec<Element> {
+        let Ok(node_list) = root.query_selector_all(selector) else {
             return Vec::new();
         };
-        let mut items = Vec::new();
+        let mut out = Vec::new();
         for i in 0..node_list.length() {
             let Some(node) = node_list.get(i) else {
                 continue;
@@ -191,11 +229,27 @@ mod wiring {
             let Ok(element) = wasm_bindgen::JsCast::dyn_into::<Element>(node) else {
                 continue;
             };
-            if let Some(entry) = item_value_and_label(&element) {
-                items.push(entry);
+            let owns = element
+                .closest(ROOT_SELECTOR)
+                .ok()
+                .flatten()
+                .is_some_and(|nearest| nearest.is_same_node(Some(boundary)));
+            if owns {
+                out.push(element);
             }
         }
-        items
+        out
+    }
+
+    /// `root` 配下の Select item を出現順に収集し、`(value, label)` 列を
+    /// 構築する。ネストした別 Select インスタンスの item は含めない
+    /// （[`own_scope_elements`] 参照）。
+    fn collect_items(root: &Element) -> Vec<(String, String)> {
+        let boundary = instance_boundary(root);
+        own_scope_elements(root, &boundary, ITEM_SELECTOR)
+            .iter()
+            .filter_map(item_value_and_label)
+            .collect()
     }
 
     /// `root` 配下の Select item（[`ITEM_SELECTOR`]）を全走査し、
@@ -210,16 +264,8 @@ mod wiring {
     /// 読み取り専用で参照する）が、この関数の呼び出し後は常に現在の選択値と
     /// 整合した結果を返せることを保証する。
     fn sync_item_selected_attrs(root: &Element, selected: Option<&str>) {
-        let Ok(node_list) = root.query_selector_all(ITEM_SELECTOR) else {
-            return;
-        };
-        for i in 0..node_list.length() {
-            let Some(node) = node_list.get(i) else {
-                continue;
-            };
-            let Ok(element) = wasm_bindgen::JsCast::dyn_into::<Element>(node) else {
-                continue;
-            };
+        let boundary = instance_boundary(root);
+        for element in own_scope_elements(root, &boundary, ITEM_SELECTOR) {
             let is_selected = element
                 .get_attribute("data-value")
                 .is_some_and(|value| Some(value.as_str()) == selected);
@@ -232,6 +278,30 @@ mod wiring {
                 let _ = set_dom_attribute(&element, "data-selected", "");
             } else {
                 let _ = element.remove_attribute("data-selected");
+            }
+
+            // item 直下の item-text/item-indicator（Cursor 指摘・codex-review
+            // P1 是正、イシュー #1619）。`crates/headless-ui/src/select.rs`
+            // の [`item_text`](crate::select::item_text)/[`item_indicator`](
+            // crate::select::item_indicator) は `selected_state` を
+            // `data-state`（`"open"`＝選択/`"closed"`＝非選択）として出力する
+            // SSR 契約を持つが、従来はクライアント側の選択変更後にこれらの
+            // 子パーツへ反映されず SSR 初期値のまま取り残されていた。
+            let data_state = if is_selected {
+                fandhe_frontend_headless_ui::DATA_STATE_OPEN
+            } else {
+                fandhe_frontend_headless_ui::DATA_STATE_CLOSED
+            };
+            if let Ok(Some(item_text)) = element.query_selector(ITEM_TEXT_SELECTOR) {
+                let _ = set_dom_attribute(&item_text, "data-state", data_state);
+            }
+            if let Ok(Some(indicator)) = element.query_selector(ITEM_INDICATOR_SELECTOR) {
+                let _ = set_dom_attribute(&indicator, "data-state", data_state);
+                if is_selected {
+                    let _ = indicator.remove_attribute("hidden");
+                } else {
+                    let _ = set_dom_attribute(&indicator, "hidden", "");
+                }
             }
         }
     }
