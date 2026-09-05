@@ -268,6 +268,7 @@ pub(super) fn floating_panel_section() -> Node {
                     vec![],
                     vec![
                         floating_panel::header(
+                            stage,
                             vec![],
                             vec![
                                 floating_panel::title(
@@ -276,14 +277,18 @@ pub(super) fn floating_panel_section() -> Node {
                                     vec![text("Notes")],
                                 ),
                                 floating_panel::control(
+                                    stage,
                                     vec![],
                                     vec![
                                         floating_panel::stage_trigger(
                                             Stage::Minimized,
-                                            vec![],
+                                            vec![("aria-label", "Minimize")],
                                             vec![text("_")],
                                         ),
-                                        floating_panel::close_trigger(vec![], vec![text("×")]),
+                                        floating_panel::close_trigger(
+                                            vec![("aria-label", "Close Window")],
+                                            vec![text("×")],
+                                        ),
                                     ],
                                 ),
                             ],

@@ -376,7 +376,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/ark-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | `drawer` | `drawer` | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用。#1639 で参照突合済み、tabindex="-1" 追加、パート・data-* 増減なし） |
 | `.agents/skills/ark-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | Hover Card (`hover-card`) | Hover Card (`hover-card`) | `hover_card` | `hover_card` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/overlays/toast.md` | Toast | Toast | Toast (`toast`) | — | `toast` | `toast` | 実装済み | headless+styled 実装済み（#760、キュー状態機械は `Disclosure`/`SingleSelect` に収まらないため `Component`/`Hydrate` 直接実装） |
-| `.agents/skills/ark-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | `floating_panel` | `floating_panel` | 実装済み | headless+styled 実装済み（イシュー #827、`docs/policy/intentional-non-adoption.md` §7 の保留区分から解除） |
+| `.agents/skills/ark-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | `floating_panel` | `floating_panel` | 実装済み | headless+styled 実装済み（イシュー #827、`docs/policy/intentional-non-adoption.md` §7 の保留区分から解除。#1640 で ark-ui（zag）と突合し、header/control への data-stage 付与・body への Stage::Minimized 時 hidden 付与を是正） |
 | `.agents/skills/ark-ui/references/components/overlays/tour.md` | Tour | Tour | — | — | `tour` | `tour` | 実装済み | headless+styled 実装済み（#841、#735 保留の解除）。決定的な状態機械・SSR 出力のみが対象で、対象要素の実座標追従・スクロール/リサイズ再計算・target セレクタの実解決は `fandhe-frontend-wasm-full` の後続イシューのスコープ |
 | `.agents/skills/ark-ui/references/components/overlays/README.md` | README | — | — | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
@@ -658,7 +658,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/chakra-ui/references/components/overlays/toggle-tip.md` | — | ToggleTip | — | — | `toggle_tip` | `toggle_tip` | 実装済み | headless+styled 実装済み（#761、PR #804） |
 | `.agents/skills/chakra-ui/references/components/overlays/action-bar.md` | — | ActionBar | — | — | `action_bar` | `action_bar` | 実装済み | headless+styled 実装済み（#762） |
 | `.agents/skills/chakra-ui/references/components/overlays/overlay-manager.md` | — | OverlayManager | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
-| `.agents/skills/chakra-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | `floating_panel` | `floating_panel` | 実装済み | headless+styled 実装済み（イシュー #827、`docs/policy/intentional-non-adoption.md` §7 の保留区分から解除） |
+| `.agents/skills/chakra-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | `floating_panel` | `floating_panel` | 実装済み | headless+styled 実装済み（イシュー #827、`docs/policy/intentional-non-adoption.md` §7 の保留区分から解除。#1640 で ark-ui（zag）と突合し、header/control への data-stage 付与・body への Stage::Minimized 時 hidden 付与を是正） |
 
 #### `.agents/skills/chakra-ui/references/components/typography/`
 

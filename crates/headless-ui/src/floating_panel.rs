@@ -63,14 +63,51 @@
 //!   場合は dispatch 自体を no-op にする（[`crate::slider::Slider`] の
 //!   `"set"` と同じ fail-closed 方針）。
 //!
-//! # スコープ外（イシュー #827）
+//! # 参考サイトとの意図的な差分（イシュー #1640）
+//!
+//! ark-ui（zag `floating-panel.connect.ts`/`floating-panel.anatomy.ts`。
+//! chakra-ui は ark-ui のラッパのため実質同一）と本実装を突合した結果、
+//! 以下は一次実装の語彙と異なるが意図的に合わせていない:
+//!
+//! - `dragTrigger`/`resizeTrigger`（`data-axis` 付き）anatomy パーツ:
+//!   ポインタイベント配線が `fandhe-frontend-wasm-full` に無い状態で
+//!   anatomy だけ追加すると、利用者へ「操作できる」という誤った安心を
+//!   与える（`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。
+//! - `trigger`/`content` の `data-dragging`、`content` の
+//!   `data-topmost`/`data-behind`、`positioner`/`content` の CSS 変数
+//!   `--width`/`--height`/`--z-index`: いずれもドラッグ・重なり順という
+//!   実行時計測の関心であり、§3.25 規則 2 により headless 層へ持ち込まない。
+//! - `content` の `tabIndex: 0`: zag は矢印キー移動の配線とセットで
+//!   フォーカス可能にしているが、本実装は矢印移動が未配線のため、
+//!   `tabindex="0"` だけを先に付けると機能しないタブストップになる
+//!   （[`crate::dialog::Dialog`] の `tabindex="-1"` はフォーカストラップ配線が
+//!   既にある前提であり、本ケースとは事情が異なる）。
+//! - `stage-trigger` の `hidden`（現在 stage に応じた表示切替）: 現在 stage を
+//!   引数に要し、無条件で `hidden` を出す設計とは非互換な破壊的変更が
+//!   さらに増えるため今回は見送る。代わりに [`control`] が
+//!   `data-stage`（現在 stage）を持つため、styled 層は
+//!   `control[data-stage="minimized"] [data-part="stage-trigger"][data-stage="minimized"]`
+//!   のような子孫セレクタで同等の表示切替を実装できる。
+//! - `header`/`control`/`body` の真偽 3 属性
+//!   （`data-minimized`/`data-maximized`/`data-staged`）: 本実装は最初から
+//!   `data-stage` 列挙 1 属性（[`Stage`] に一元化）で同じ情報を表しており、
+//!   二重化しない。
+//!
+//! # スコープ外（イシュー #827・#1640 時点で未配線）
 //!
 //! - ドラッグ移動・リサイズの実 DOM 配線（ark-ui の DragTrigger /
 //!   ResizeTrigger 相当のポインタイベント処理）: `fandhe-frontend-wasm-full`
 //!   の将来イシューのスコープ。本モジュールは [`FloatingPanelAction::SetPosition`]
 //!   という到達点（型付きアクション）のみを提供する。
-//! - フォーカストラップ・Escape キー閉鎖・`lazyMount`・topmost（複数パネルの
-//!   重なり順）管理: クライアントランタイム側の責務であり、[`crate::dialog`]/
+//! - `fandhe-frontend-wasm-full` の headless 部品 → dispatch 対応表
+//!   （`crates/wasm-full/src/headless.rs`）に `floating-panel` scope の行が
+//!   無く、`trigger`/`close-trigger`/`stage-trigger` の click や Escape キー
+//!   閉鎖・矢印キー移動が実際には配線されていない（#1640 時点の事実）。
+//!   headless 層は型付きアクション（`"open"`/`"close"`/`"toggle"`/
+//!   `"minimize"`/`"maximize"`/`"restore"`/`"set_position"`）を提供済みであり、
+//!   配線自体は `wasm-full` 側の将来イシューのスコープとする。
+//! - フォーカストラップ・`lazyMount`・topmost（複数パネルの重なり順）管理:
+//!   クライアントランタイム側の責務であり、[`crate::dialog`]/
 //!   [`crate::popover`] と同じくスコープ外。
 //! - リサイズ用のハンドル anatomy（ark-ui の `resizeTrigger`）: ドラッグ同様
 //!   DOM 配線が前提のため本イシューでは追加しない。
@@ -259,9 +296,22 @@ pub fn content<'a>(
 
 /// Header パーツ（`div`）。[`title`]/[`control`] のコンテナ（ドラッグハンドル
 /// 相当の見た目は styled 層の責務、本関数は anatomy 属性のみを付与する）。
+///
+/// `data-stage` を付与する（ark-ui/zag `floating-panel.connect.ts` の
+/// `getHeaderProps` が `header`/`control` の双方へ `data-stage`（現在の
+/// stage）を出力することとの突合是正、イシュー #1640）。zag はさらに
+/// `data-dragging`/`data-topmost`/`data-behind`/真偽 3 属性
+/// （`data-minimized`/`data-maximized`/`data-staged`）も出力するが、前者 3 つ
+/// はドラッグ・重なり順の実行時計測に属する関心（
+/// `docs/policy/intentional-non-adoption.md` §3.25 規則 2）で `wasm-full`
+/// への配線が本イシュー時点で無いため headless 層へは持ち込まず、後者は
+/// 本実装が最初から採用している `data-stage` 列挙 1 属性（[`Stage`] に
+/// 一元化）と同じ情報を表すため二重化しない。
 #[must_use]
-pub fn header<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("header", "div", attrs, children)
+pub fn header<'a>(stage: Stage, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_stage(stage.as_data_stage())];
+    merged.extend(attrs);
+    ANATOMY.part("header", "div", merged, children)
 }
 
 /// Title パーツ（`h2`）。`id` が `Some` のとき [`content`] の `labelledby` と
@@ -277,10 +327,16 @@ pub fn title<'a>(id: Option<&'a str>, attrs: Vec<(&'a str, &'a str)>, children: 
 }
 
 /// Control パーツ（`div`）。[`stage_trigger`]/[`close_trigger`] を横並びに
-/// まとめるボタン群コンテナ（anatomy 属性のみを付与する装飾用パーツ）。
+/// まとめるボタン群コンテナ。`data-stage` を付与する（[`header`] と同じく
+/// zag `getControlProps` との突合是正、イシュー #1640。styled 層は
+/// `control[data-stage="minimized"] [data-part="stage-trigger"][data-stage="minimized"]`
+/// のような子孫セレクタで、現在の stage に応じた stage-trigger の表示切替を
+/// 実装できる）。
 #[must_use]
-pub fn control<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("control", "div", attrs, children)
+pub fn control<'a>(stage: Stage, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_stage(stage.as_data_stage())];
+    merged.extend(attrs);
+    ANATOMY.part("control", "div", merged, children)
 }
 
 /// StageTrigger パーツ（`button`）。`data-part="stage-trigger"`（ark-ui 準拠
@@ -313,13 +369,22 @@ pub fn close_trigger<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) ->
 }
 
 /// Body パーツ（`div`）。実際のパネル本文。stage を `data-*` へ反映し、
-/// styled 層が `data-stage="minimized"` を折り畳み（`display: none`）の
-/// フックとして使う（headless 層自体は `hidden` 等を付与しない。minimized
-/// はヘッダのみを隠さない仕様であり、Popover/Dialog の closed 相当の
-/// 「まるごと非表示」とは異なるため既存の `hidden` 慣習を流用しない）。
+/// [`Stage::Minimized`] のとき `hidden` 存在属性を付与する（zag
+/// `floating-panel.connect.ts` の `getBodyProps` が `hidden: isMinimized`
+/// を出力することとの突合是正、イシュー #1640。以前の実装は「minimized は
+/// ヘッダのみを隠さず本文を隠す仕様であり、Popover/Dialog の closed 相当の
+/// 『まるごと非表示』とは異なる」という理由で `hidden` を流用しない判断
+/// だったが、一次実装の実態〔zag は本文のみを `hidden` にする〕と食い違って
+/// いたため是正した）。styled 層の `body[data-stage="minimized"] { display:
+/// none }` は UA 既定 `[hidden] { display: none }` と重複するが無害であり、
+/// author CSS が `display` を上書きしても折り畳みが保たれる多層防御として
+/// 残す。
 #[must_use]
 pub fn body<'a>(stage: Stage, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_stage(stage.as_data_stage())];
+    if stage == Stage::Minimized {
+        merged.push(("hidden", ""));
+    }
     merged.extend(attrs);
     ANATOMY.part("body", "div", merged, children)
 }
@@ -363,11 +428,12 @@ pub enum FloatingPanelAction {
 ///
 /// `data-state`/`data-stage` と実際の状態の整合を型レベルで保証する入口
 /// として、状態を取る各パーツ関数（[`root`]/[`trigger`]/[`positioner`]/
-/// [`content`]/[`stage_trigger`]/[`body`]）へ現在状態を注入する利便メソッド
-/// を提供する。状態を取らないパーツ（[`header`]/[`title`]/[`control`]/
-/// [`close_trigger`]）は自由関数のみを提供し、`FloatingPanel` のメソッドと
-/// しては公開しない。SSR での自由関数直接利用（本型を経由しない構成）も
-/// 引き続き可能。
+/// [`content`]/[`header`]/[`control`]/[`stage_trigger`]/[`body`]）へ現在状態を
+/// 注入する利便メソッドを提供する（イシュー #1640 で `header`/`control` が
+/// `data-stage` を持つようになったため、利便メソッドの対象へ追加）。状態を
+/// 取らないパーツ（[`title`]/[`close_trigger`]）は自由関数のみを提供し、
+/// `FloatingPanel` のメソッドとしては公開しない。SSR での自由関数直接利用
+/// （本型を経由しない構成）も引き続き可能。
 ///
 /// `Default` は closed・[`Stage::Default`]・決定的な既定初期座標
 /// （[`DEFAULT_X`]/[`DEFAULT_Y`]、SSR の状態なし初期描画に対応する既定値）。
@@ -491,6 +557,18 @@ impl FloatingPanel {
         children: Vec<Node>,
     ) -> Node {
         content(self.state(), self.stage(), id, labelledby, attrs, children)
+    }
+
+    /// [`header`] へ現在の stage を注入する利便メソッド（イシュー #1640）。
+    #[must_use]
+    pub fn header<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        header(self.stage(), attrs, children)
+    }
+
+    /// [`control`] へ現在の stage を注入する利便メソッド（イシュー #1640）。
+    #[must_use]
+    pub fn control<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        control(self.stage(), attrs, children)
     }
 
     /// [`stage_trigger`] へ遷移先 stage を注入する利便メソッド。
@@ -806,10 +884,46 @@ mod tests {
     }
 
     #[test]
-    fn body_outputs_stage_only() {
-        let html = render(&body(Stage::Minimized, vec![], vec![text("body")]));
-        assert!(html.contains(r#"data-part="body""#));
-        assert!(html.contains(r#"data-stage="minimized""#));
+    fn header_outputs_scope_part_and_stage() {
+        for stage in [Stage::Default, Stage::Minimized, Stage::Maximized] {
+            let html = render(&header(stage, vec![], vec![]));
+            assert!(html.contains(r#"data-scope="floating-panel""#));
+            assert!(html.contains(r#"data-part="header""#));
+            assert!(html.contains(&format!(r#"data-stage="{}""#, stage.as_data_stage())));
+        }
+    }
+
+    #[test]
+    fn control_outputs_scope_part_and_stage() {
+        for stage in [Stage::Default, Stage::Minimized, Stage::Maximized] {
+            let html = render(&control(stage, vec![], vec![]));
+            assert!(html.contains(r#"data-scope="floating-panel""#));
+            assert!(html.contains(r#"data-part="control""#));
+            assert!(html.contains(&format!(r#"data-stage="{}""#, stage.as_data_stage())));
+        }
+    }
+
+    #[test]
+    fn body_minimized_has_hidden_attr_default_and_maximized_do_not() {
+        let minimized = render(&body(Stage::Minimized, vec![], vec![text("body")]));
+        assert!(minimized.contains(r#"data-part="body""#));
+        assert!(minimized.contains(r#"data-stage="minimized""#));
+        assert!(minimized.contains(r#"hidden="""#));
+
+        let default = render(&body(Stage::Default, vec![], vec![text("body")]));
+        assert!(!default.contains("hidden"));
+
+        let maximized = render(&body(Stage::Maximized, vec![], vec![text("body")]));
+        assert!(!maximized.contains("hidden"));
+    }
+
+    #[test]
+    fn floating_panel_header_and_control_methods_inject_current_stage() {
+        let p = FloatingPanel::new(OpenState::Open, Stage::Maximized, 0.0, 0.0);
+        let header_html = render(&p.header(vec![], vec![]));
+        assert!(header_html.contains(r#"data-stage="maximized""#));
+        let control_html = render(&p.control(vec![], vec![]));
+        assert!(control_html.contains(r#"data-stage="maximized""#));
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---
@@ -825,6 +939,24 @@ mod tests {
         assert!(html.contains(r#"data-scope="floating-panel""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+
+        let header_html = render(&header(
+            Stage::Default,
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(header_html.contains(r#"data-scope="floating-panel""#));
+        assert!(header_html.contains(r#"data-part="header""#));
+        assert!(!header_html.contains("attacker"));
+
+        let control_html = render(&control(
+            Stage::Default,
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(control_html.contains(r#"data-scope="floating-panel""#));
+        assert!(control_html.contains(r#"data-part="control""#));
+        assert!(!control_html.contains("attacker"));
     }
 
     // --- FloatingPanel: dispatch 統合 ---
@@ -1020,6 +1152,20 @@ mod tests {
             vec![],
         ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
+
+        let header_html = render(&header(
+            Stage::Default,
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![],
+        ));
+        assert!(!header_html.contains("onmouseover=\"alert(1)"));
+
+        let control_html = render(&control(
+            Stage::Default,
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![],
+        ));
+        assert!(!control_html.contains("onmouseover=\"alert(1)"));
     }
 
     #[test]

@@ -304,7 +304,13 @@ name = "fandhe-frontend-headless-ui"
 # tabindex="-1" を固定付与（zag dialog.connect.ts との参照突合、既存呼び出し
 # 側の出力に属性が加わるのみの非破壊的変更）。main 側で独立に到達していた
 # 0.51.0 に対し patch バンプで 0.51.1 とする。
-version = "0.51.1"
+# イシュー #1640（floating-panel の参照突合）: `floating_panel::{header,
+# control}` へ `stage: Stage` 位置引数を新設し `data-stage` を付与（呼び出し
+# 側の引数個数が変わる破壊的変更。zag `floating-panel.connect.ts` の
+# `getHeaderProps`/`getControlProps` 準拠）。あわせて `body` へ
+# `Stage::Minimized` 時の `hidden` 存在属性付与（非破壊的追加）を含む。
+# 0.x の破壊的変更はマイナーバンプのため 0.51.1 から 0.52.0 とする。
+version = "0.52.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
