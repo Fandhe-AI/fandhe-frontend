@@ -18,6 +18,10 @@ name = "fandhe-frontend-wasm-full"
 # --fix`）を 0.30.0 へ追随。本クレートの src/ は checkbox_group の関数を
 # 参照しない（`focus_visible.rs` は文字列 "checkbox-group" のみ使用）ため
 # 内部変更なしの patch バンプ（Cargo.toml 変更に伴う semver バンプ規約）。
+# イシュー #1613: `fandhe-frontend-headless-ui` の number_input 参照突合
+# （0.32.0）に追随。本クレートは number_input の keydown 配線を持たない
+# （モジュール doc「スコープ外」節参照）ため src/ 変更を伴わない patch
+# バンプ。
 # イシュー #1614: headless-ui 依存の version 要求を 0.33.0 へ追随。本クレート
 # の src/ は password_input の関数を参照しないため内部変更なしの patch
 # バンプ。
@@ -28,10 +32,18 @@ name = "fandhe-frontend-wasm-full"
 # --fix`）を 0.32.0 へ追随。本クレートの src/ は editable の関数を参照
 # しないため内部変更なしの patch バンプ（Cargo.toml 変更に伴う semver
 # バンプ規約）。
-# イシュー #1609: headless-ui 依存の version 要求を 0.34.0 へ追随。
-# `headless_file_upload.rs` の `wire_drag_and_drop` 無効化ガードへ
-# `data-readonly` 判定を追加した（readonly 時のドロップ無視、zag の
-# `readOnly` 挙動と対応）ため、内部実体変更を伴う patch バンプ。
+# base ブランチ取り込み（PR #1613, push フェーズ, 2026-09-05）: 本ブランチの
+# #1613 patch バンプ（0.7.15 -> 0.7.16）と main の #1606 patch バンプ
+# （0.7.15 -> 0.7.16）が同一版数へ偶発的に衝突したため、上記コメント冒頭
+# と同じ「同一版数への偶発的衝突をそのまま採用しない」原則に従い 0.7.17
+# へさらに patch バンプする（headless-ui 依存も 0.33.0 へ追随）。
+# base ブランチ再取り込み（PR #1613, push フェーズ 2 回目, 2026-09-05）: 上記
+# 0.7.17 到達後、main は #1614（PR #1880 codex-review/Bugbot 指摘是正）で
+# 独立に同じ 0.7.17 へ到達していた。headless-ui 側の版数衝突（0.33.0 ->
+# 0.34.0、同クレート Cargo.toml 参照）と同様の理由により 0.7.18 へさらに
+# patch バンプする（本クレートの src/ は number_input/password_input の
+# 関数を参照しないため内部変更なしの patch バンプ、headless-ui 依存も
+# 0.34.0 へ追随）。
 # イシュー #1615: headless-ui 依存の version 要求（`check-dep-versions
 # --fix`）を 0.34.0 へ追随。本クレートの src/ は pin_input の関数を参照
 # しないため内部変更なしの patch バンプ。
@@ -126,7 +138,49 @@ name = "fandhe-frontend-wasm-full"
 # が同じ値であることも衝突に該当する、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）。上記の公開 API
 # 純追加を反映し、main 現在値 0.8.1 からマイナーバンプし 0.9.0 とする。
-version = "0.9.0"
+# base ブランチ再取り込み（PR #1613, push フェーズ 3 回目, 2026-09-05）: 上記
+# 0.7.18 到達後、main は #1615（pin-input の参照突合）で独立に同じ 0.7.18 へ
+# 到達していた。headless-ui 側の版数衝突（0.34.0 -> 0.35.0、同ファイル参照）
+# と同様の理由により 0.7.19 へさらに patch バンプする（本クレートの src/ は
+# pin_input の関数を参照しないため内部変更なしの patch バンプ、headless-ui
+# 依存も 0.35.0 へ追随）。
+# base main 再取り込み時のマージ注記（PR #1881, 2026-09-05）: 上記 0.7.19
+# 到達後、main は独立に `PartRef` へ必須フィールド `readonly` を追加する
+# 破壊的変更（イシュー #1605 PR #1879 codex-review P1 是正）を行い 0.8.0 へ
+# minor バンプしていた。本ブランチ（PR #1881、イシュー #1613 codex-review
+# P1 是正）は number-input の keydown 配線（`number_input` モジュール新設、
+# `wire_number_input_events`/`wire_number_input_component`/
+# `Runtime::wire_number_input` の新規公開 API 追加）を実装しており、
+# `.claude/rules/coding-rust.md` の semver バンプ規律（公開 API 追加も
+# 0.x では minor バンプとする運用、`docs/ci/style-refresh-version-bump-operation.md`
+# §5 の「同一版数への偶発的衝突をそのまま採用しない」原則も踏まえ）に従い
+# main 現在値 0.8.0 からさらに minor バンプし 0.9.0 とする（headless-ui
+# 依存も 0.39.0 へ追随）。
+# base ブランチ再取り込み（PR #1881, 2回目, 2026-09-05）: 上記 0.9.0 到達後、
+# main はイシュー #1617（rating-group の参照突合）で独立に headless-ui
+# 依存の version 要求のみ 0.39.0 へ追随させる patch バンプを行い 0.8.1 へ
+# 到達していた（本クレートの src/ は rating_group の関数を参照しないため
+# 実体変更なし）。本ブランチの 0.9.0（number-input keydown 配線の新規公開
+# API 追加による minor バンプ）は main の 0.8.1 を上回っているため、
+# `.claude/rules/coding-rust.md` の semver 規律上そのまま維持し、依存する
+# headless-ui の version 要求のみ本マージで 0.40.0 へ追随させる
+# （`docs/ci/style-refresh-version-bump-operation.md` §5、main 側の
+# rating-group 由来の patch 履歴を上書きしない範囲での追随）。
+# PR #1886 codex-review P1 再指摘の是正マージ（2026-09-05）: 上記 0.9.0 到達後、
+# main は独立に PR #1889（rating-group）のマージにより同じ 0.9.0 へ到達していた
+# （main 側は headless-ui 依存の version 要求を 0.40.0 へ追随させる patch 相当の
+# 変更のみで実体変更なし）。本ブランチ側は本マージで `events::events` の
+# `classify_interactive_boundary`（別 `data-scope` 単体を境界条件から除外）・
+# `events::wiring::holder_instance_is_readonly`（holder 自身が選択操作パーツで
+# ない場合は祖先の readonly を継承しない）の是正に加え、`keynav.rs` へ新規公開
+# API（`RadioGroupReadonlyClickOutcome`/`resolve_readonly_boundary`/
+# `readonly_click_outcome`、readonly クリック抑止判定を DOM 走査から分離した
+# 純粋層）を追加している（`.claude/rules/coding-rust.md` の semver バンプ規律上、
+# 公開 API 純追加は 0.x でも minor バンプとする運用）。main が同じ値であること
+# も衝突に該当する（`docs/ci/style-refresh-version-bump-operation.md` §5）ため、
+# main 現在値 0.9.0 からさらに minor バンプし 0.10.0 とする（headless-ui 依存の
+# version 要求は 0.40.0 のまま変更なし）。
+version = "0.10.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
