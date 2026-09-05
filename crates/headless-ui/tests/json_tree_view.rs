@@ -64,8 +64,15 @@ fn key_colon_value_are_nested_inside_branch_text_and_item_text() {
 
     // "name" は葉ノード: item-indicator → item-text > [key, colon, value] の順。
     let leaf_key_idx = html.find(">name<").unwrap();
-    let item_indicator_idx = html.rfind(r#"data-part="item-indicator""#).unwrap();
     let item_text_idx = html.find(r#"data-part="item-text""#).unwrap();
+    // item_indicator は同じ item の直下 1 番目の子として item-text の
+    // 直前に出現する（html 全体中の最後の出現ではなく、この item-text
+    // より手前で最も近い出現を探す必要がある。sample() は複数の葉ノードを
+    // 持つため html.rfind（文書全体で最後の出現）を使うと後続の葉の
+    // item-indicator を拾ってしまい誤検証になる）。
+    let item_indicator_idx = html[..item_text_idx]
+        .rfind(r#"data-part="item-indicator""#)
+        .unwrap();
     let leaf_colon_idx =
         html[item_text_idx..].find(r#"data-part="colon""#).unwrap() + item_text_idx;
     let leaf_value_idx = html.find(r#"data-kind="string""#).unwrap();
@@ -73,7 +80,7 @@ fn key_colon_value_are_nested_inside_branch_text_and_item_text() {
     assert!(leaf_key_idx < leaf_colon_idx);
     assert!(leaf_colon_idx < leaf_value_idx);
     // item_indicator は item-text より前段（item の直下 1 番目の子）に位置する。
-    let _ = item_indicator_idx;
+    assert!(item_indicator_idx < item_text_idx);
 }
 
 /// `data-kind` の語彙が正確に 6 値であり、旧 `"bool"` が出力されない
