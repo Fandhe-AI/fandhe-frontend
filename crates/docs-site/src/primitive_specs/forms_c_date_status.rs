@@ -894,6 +894,11 @@ fn progress_indeterminate_example() -> Node {
 /// 自前 CSS の最小例で使うスニペット（イシュー #1633）。track/range の
 /// 幅・indeterminate アニメーション・label の縦向き回転を属性セレクタで
 /// 拾う。headless-ui 自体はスタイルを持たない。
+///
+/// `fandhe-progress-indeterminate` アニメーション名を使う `range` の
+/// `animation` プロパティに対応する `@keyframes` を末尾に同梱する
+/// （codex-review 指摘、PR #1903。定義なしでは不定進捗のアニメーションが
+/// 機能しない）。
 const PROGRESS_CUSTOM_CSS_SNIPPET: &str = "\
 [data-scope=\"progress\"][data-part=\"track\"] {\n  \
   height: 8px;\n  background: #e5e7eb;\n  border-radius: 4px;\n\
@@ -909,6 +914,10 @@ const PROGRESS_CUSTOM_CSS_SNIPPET: &str = "\
 }\n\
 [data-scope=\"progress\"][data-part=\"label\"][data-orientation=\"vertical\"] {\n  \
   writing-mode: vertical-rl;\n\
+}\n\
+@keyframes fandhe-progress-indeterminate {\n  \
+  0% {\n    transform: translateX(-100%);\n  }\n  \
+  100% {\n    transform: translateX(250%);\n  }\n\
 }\n";
 
 /// Progress の Examples: 利用者が `data-scope`/`data-part`/`data-state`/
@@ -920,11 +929,18 @@ const PROGRESS_CUSTOM_CSS_SNIPPET: &str = "\
 fn ex_progress_custom_css() -> Node {
     let progress = Progress::new(0.0, 100.0, Some(65.0), Orientation::Horizontal);
     let width_style = format!("width: {}%", progress.percent().unwrap_or(0.0));
+    // label（装飾用パーツ、意味論的な関連付けは呼び出し側の責務）へ id を
+    // 付与し、root の aria-labelledby から参照する（codex-review 指摘、
+    // PR #1903。root の attrs が空・label が装飾用 span のままだと
+    // 「Upload progress」が progressbar のアクセシブル名に関連付かない）。
     let markup = progress.root(
         None,
-        vec![],
+        vec![("aria-labelledby", "progress-custom-css-label")],
         vec![
-            progress.label(vec![], vec![text("Upload progress")]),
+            progress.label(
+                vec![("id", "progress-custom-css-label")],
+                vec![text("Upload progress")],
+            ),
             progress.value_text(vec![], vec![text("65%")]),
             progress.track(
                 vec![],
