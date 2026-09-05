@@ -31,6 +31,39 @@ name = "fandhe-frontend-headless-ui"
 # （破壊的変更）。`EditableActivationMode::{Click, None}`・
 # `EditableSubmitMode::None` の variant 追加も含む。0.x のマイナーバンプ
 # とする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
+# イシュー #1609（file-upload の参照突合）: `FileUploadProps`
+# （disabled/readonly/invalid/required）・`ItemType`（accepted/rejected 固定
+# 語彙）の新設に伴い `file_upload::{root, label, dropzone, trigger,
+# item_group, item, item_name, item_size_text_node, item_delete_trigger,
+# clear_trigger, hidden_input}` のシグネチャを変更（破壊的変更）。0.x の
+# マイナーバンプとする（`.claude/rules/coding-rust.md` 破壊的変更規定）。
+# イシュー #1615（pin-input の参照突合）: `PinInputProps`
+# （disabled/readonly/invalid/required）の導入に伴い `pin_input::{root,
+# label, input}` のシグネチャ変更（`root`/`label` は `PinInputProps` 引数を
+# 新設、`input` は `disabled: bool` を `&PinInputProps` へ置換）に加え、
+# `PinInputAction::{Delete, Prev, Next}` の新設・`Backspace` の挙動是正を
+# 行ったため 0.x のマイナーバンプとする（`.claude/rules/coding-rust.md`
+# 破壊的変更規定）。
+# base main 取り込み時のマージ注記: #1609 と #1615 が独立に 0.33.0 から
+# 0.34.0 へ patch/minor バンプしていたため衝突を避け 0.35.0 とする。
+# イシュー #1617: RatingGroupProps 新設・root/label/control/hidden_input の
+# シグネチャ変更・control への aria-required 追加に伴い 0.36.0 へ
+# マイナーバンプする（破壊的変更）。当初の修正案は roving tabindex を
+# RatingItemFlags::focusable として追加していたが、対応する DOM 配線
+# （fandhe-frontend-wasm-full）が伴わずキーボード操作不能な状態のまま
+# 公開してしまう codex-review 指摘を受け、本イシュー内で撤回した
+# （`crates/headless-ui/src/rating_group.rs` モジュール doc「キーボード
+# 操作」節参照）。
+# イシュー #1610: image_cropper の anatomy/data-*/ARIA/キーボード対応表を
+# 参考実装へ突合。パーツ関数（root/viewport/selection/handle/grid）の
+# シグネチャ変更（`ImageCropperProps` 追加・`data-handle-position` →
+# `data-position` 改名・selection が focusable な role="slider" へ変更）を
+# 伴う破壊的変更のため 0.x のマイナーバンプとする。
+# base main 取り込み時のマージ注記: #1617 と #1610 が独立に 0.35.0 から
+# 0.36.0 へマイナーバンプしていたため衝突を避け 0.37.0 とする。
+# イシュー #1611: listbox の参考実装（zag.js Listbox）へ突合。`ListboxProps`
+# 新設に伴う root/label/content/item_group/item/value_text の破壊的シグネ
+# チャ変更・`item_text` の破壊的シグネチャ変更のため 0.x のマイナーバンプ。
 # イシュー #1605（combobox の参照突合）: `ComboboxProps` へ `readonly`
 # フィールドを追加し、`combobox::{root, control, input, trigger,
 # clear_trigger}` のシグネチャを変更（破壊的変更）。マイナーバンプで
@@ -52,7 +85,12 @@ name = "fandhe-frontend-headless-ui"
 # 突合）を統合した結果として main 現在値 0.37.0 からさらにマイナーバンプし
 # 0.38.0 とする（同一版数への偶発的衝突をそのまま採用しない、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）。
-version = "0.38.0"
+# base main 取り込み時のマージ注記: #1617（rating-group）は本ブランチ側で
+# 0.37.0 へ到達済みだったが、main 側は #1605〜#1611 の統合により独立に
+# 0.38.0 へ到達していたため衝突を避け、rating-group の破壊的変更
+# （RatingGroupProps 新設等）分を反映して 0.39.0 とする（同一版数への
+# 偶発的衝突をそのまま採用しない、`docs/ci/style-refresh-version-bump-operation.md` §5）。
+version = "0.39.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

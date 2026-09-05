@@ -767,7 +767,7 @@ pub use positioning::{
 pub use progress::{Progress, ProgressAction};
 pub use qr_code::{ErrorCorrectionLevel, QrEncodeError, QrMatrix};
 pub use radio_group::RadioGroup;
-pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
+pub use rating_group::{RatingGroup, RatingGroupAction, RatingGroupProps, RatingItemFlags};
 pub use segment_group::SegmentGroup;
 pub use signature_pad::{Point, SignaturePad, SignaturePadAction, Stroke, StrokeError};
 pub use slider::{Slider, SliderAction};
