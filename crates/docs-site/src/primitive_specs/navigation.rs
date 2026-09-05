@@ -279,10 +279,56 @@ pub(super) const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
 // breadcrumb（`crates/headless-ui/src/breadcrumb.rs`）
 // ---------------------------------------------------------------------
 
-/// Demo（`breadcrumb_section`）は 3 項目のみで ellipsis を使わない。ここでは
-/// `ellipsis` パーツ（`KNOWN_UNCOVERED` 登録済みの折り畳み表現）を実演する。
+/// Demo（`breadcrumb_section`）は個別パーツ手組みで 7 パーツ全てを実演する
+/// （イシュー #1648、ellipsis も含め機械導出 Anatomy 表が網羅される）。ここ
+/// では切り口を変え、[`breadcrumb::breadcrumb`] 利便ビルダーへカスタム
+/// separator（`›`）を渡す構成を実演する。
 fn ex_breadcrumb() -> Node {
-    example_wrap(vec![breadcrumb::root(
+    let items = [
+        breadcrumb::BreadcrumbItem {
+            label: "Home",
+            href: "https://example.com/",
+        },
+        breadcrumb::BreadcrumbItem {
+            label: "Docs",
+            href: "https://example.com/docs/",
+        },
+        breadcrumb::BreadcrumbItem {
+            label: "Breadcrumb",
+            href: "https://example.com/docs/breadcrumb/",
+        },
+    ];
+    example_wrap(vec![breadcrumb::breadcrumb(None, &items, || {
+        vec![text("›")]
+    })])
+}
+
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/`data-current` 属性セレクタで見た目を組み立てる
+/// 例を示す（`CHECKBOX_CUSTOM_CSS_SNIPPET`〔forms_a.rs〕と同型、イシュー
+/// #1648）。CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープを
+/// 経由し、`crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは追加しない。
+const BREADCRUMB_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"breadcrumb\"][data-part=\"list\"] {\n  \
+  display: flex;\n  gap: 0.5rem;\n  list-style: none;\n  padding: 0;\n  margin: 0;\n\
+}\n\
+[data-scope=\"breadcrumb\"][data-part=\"link\"] {\n  \
+  color: #2563eb;\n  text-decoration: none;\n\
+}\n\
+[data-scope=\"breadcrumb\"][data-part=\"link\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n\
+[data-scope=\"breadcrumb\"][data-part=\"current-link\"][data-current] {\n  \
+  color: #111827;\n  font-weight: 600;\n\
+}\n\
+[data-scope=\"breadcrumb\"][data-part=\"separator\"],\n\
+[data-scope=\"breadcrumb\"][data-part=\"ellipsis\"] {\n  \
+  color: #6b7280;\n\
+}\n";
+
+fn ex_breadcrumb_custom_css() -> Node {
+    let markup = breadcrumb::root(
         None,
         vec![],
         vec![breadcrumb::list(
@@ -297,15 +343,20 @@ fn ex_breadcrumb() -> Node {
                     )],
                 ),
                 breadcrumb::separator(vec![], vec![text("/")]),
-                breadcrumb::ellipsis(vec![]),
-                breadcrumb::separator(vec![], vec![text("/")]),
                 breadcrumb::item(
                     vec![],
-                    vec![breadcrumb::current_link(vec![], vec![text("Current page")])],
+                    vec![breadcrumb::current_link(vec![], vec![text("Docs")])],
                 ),
             ],
         )],
-    )])
+    );
+    example_wrap(vec![
+        markup,
+        pre(
+            vec![],
+            vec![code(vec![], vec![text(BREADCRUMB_CUSTOM_CSS_SNIPPET)])],
+        ),
+    ])
 }
 
 /// `/primitives/breadcrumb/`。
@@ -320,6 +371,7 @@ pub(super) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
         "末尾項目のみ current_link（非対話の span、aria-current=\"page\"+data-current 固定付与）として描画し、それ以外は link（a、href 遷移可能）として描画する利便ビルダー breadcrumb() を提供する。",
         "separator/ellipsis はいずれも role=\"presentation\"+aria-hidden=\"true\" で装飾扱いとし、スクリーンリーダーの読み上げから除外する（separator/ellipsis 関数）。",
         "root の aria-label は省略時 \"breadcrumb\"（DEFAULT_ARIA_LABEL）が既定値になる。",
+        "参照実体は chakra-ui の Breadcrumb のみ（ark-ui/Radix Primitives/Radix Themes に対応部品なし）。anatomy 7 パーツ・WAI-ARIA とも一致し差分なし。data-current は本リポジトリが link/nav_list/pagination と共有する独自語彙（イシュー #1648 参照突合）。",
     ],
     arguments: &[
         ArgRow {
@@ -340,14 +392,40 @@ pub(super) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "label/href の組から nav > ol > (li + li)* を決定的に組み立てる利便ビルダー。空配列でも panic しない。",
         },
+        ArgRow {
+            name: "separator(children)",
+            kind: "Vec<Node>",
+            default: "",
+            description: "区切り表現は呼び出し側が children で与える（固定文言を持たず、\"/\"/\"›\" 等を自由に選べる）。",
+        },
     ],
-    examples: &[ExampleEntry {
-        title: "ellipsis を含む折り畳み表現",
-        description: "中間項目を ellipsis パーツで省略し、先頭・末尾のみを表示する構成です。",
-        render: ex_breadcrumb,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "利便ビルダー + カスタム separator",
+            description: "breadcrumb() 利便ビルダーへ separator_children で \"›\" を渡す構成です。",
+            render: ex_breadcrumb,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope / data-part / data-current 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: ex_breadcrumb_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "ネイティブ a 要素（link パーツ）由来のフォーカス移動。current-link（span）は非対話でフォーカス対象外。独自キーハンドラは持たない（参照サイトにもキーボード操作表はない）。",
+        },
+        KeyRow {
+            key: "Enter",
+            description: "フォーカス中の link（a）をブラウザ既定動作で遷移する。",
+        },
+    ],
     aria: &[
+        AriaRow {
+            attribute: "aria-label=\"breadcrumb\"",
+            description: "root の既定値（省略可能、WAI-ARIA APG \"Breadcrumb\" と同義）。",
+        },
         AriaRow {
             attribute: "aria-current=\"page\"",
             description: "current_link に固定付与（末尾項目の非対話 span）。",
