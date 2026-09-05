@@ -102,6 +102,11 @@ Radix Primitives Toast・chakra-ui v3 Toast と突合しました（イシュー
   animation: fd-toast-fade-in 150ms ease-out;
 }
 
+@keyframes fd-toast-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 [data-scope="toast"][data-part="group"][data-placement="bottom-end"] {
   position: fixed;
   bottom: 16px;

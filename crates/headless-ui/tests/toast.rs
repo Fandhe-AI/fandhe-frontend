@@ -104,7 +104,7 @@ fn default_view_group_label_and_hydration_attrs_are_unaffected() {
     assert!(html.contains(r#"aria-label="Notifications""#));
 
     let attrs = t.hydration_attrs();
-    assert!(attrs.iter().all(|(name, _)| name != "data-hydrate-state"));
+    assert!(attrs.iter().all(|(name, _)| name != "data-state"));
     let restored = Toaster::from_hydration_attrs(&attrs).unwrap();
     assert_eq!(restored, t);
 }

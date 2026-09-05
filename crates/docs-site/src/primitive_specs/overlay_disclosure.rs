@@ -1539,6 +1539,10 @@ const TOAST_CUSTOM_CSS_SNIPPET: &str = "\
 [data-scope=\"toast\"][data-part=\"root\"][data-state=\"open\"] {\n  \
   animation: fd-toast-fade-in 150ms ease-out;\n\
 }\n\
+@keyframes fd-toast-fade-in {\n  \
+  from { opacity: 0; transform: translateY(4px); }\n  \
+  to { opacity: 1; transform: translateY(0); }\n\
+}\n\
 [data-scope=\"toast\"][data-part=\"group\"][data-placement=\"bottom-end\"] {\n  \
   position: fixed;\n  bottom: 16px;\n  right: 16px;\n\
 }\n\

@@ -357,6 +357,10 @@ name = "fandhe-frontend-wasm-full"
 # 0.53.0 → 0.53.1（呼び出し側 attrs の予約キーなりすまし除去、非破壊的追加。
 # breadcrumb scope は wasm-full の `headless.rs` 対応表に対応行を持たず自身
 # の src は無変更）への追随のみ。patch バンプで 0.11.2 とする。
+# イシュー #1643（toast の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# 0.53.1 → 0.53.2（root/group の `data-*`/`tabindex` 追加、group ラベル
+# 既定値の是正）への追随のみ（toast scope は wasm-full の `headless.rs`
+# 対応表に対応行を持たず自身の src は無変更）。patch バンプで 0.11.3 とする。
 version = "0.11.3"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
