@@ -267,8 +267,9 @@ fn rating_group_name_and_label_children_are_escaped_for_all_payloads() {
 #[test]
 fn segment_group_name_value_and_item_text_children_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
+        let props = segment_group::SegmentGroupProps::default();
         let input_node =
-            segment_group::item_hidden_input(false, false, Some(payload), payload, vec![]);
+            segment_group::item_hidden_input(false, &props, Some(payload), payload, vec![]);
         let html = render(&input_node);
         assert_payload_is_escaped(
             payload,
@@ -276,7 +277,7 @@ fn segment_group_name_value_and_item_text_children_are_escaped_for_all_payloads(
             "segment_group::item_hidden_input の name/value 属性値コンテキスト",
         );
 
-        let item_text_node = segment_group::item_text(false, false, vec![], vec![text(payload)]);
+        let item_text_node = segment_group::item_text(false, &props, vec![], vec![text(payload)]);
         let html = render(&item_text_node);
         assert_payload_is_escaped(
             payload,

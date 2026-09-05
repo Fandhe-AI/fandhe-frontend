@@ -4720,9 +4720,14 @@ fn segment_group_demo(
     selected_index: usize,
     orientation: Option<Orientation>,
 ) -> Node {
+    let props = segment_group::SegmentGroupProps {
+        disabled,
+        ..Default::default()
+    };
     let items = ["List", "Grid", "Table"];
     let mut children = vec![segment_group::indicator(
         Some((selected_index, items.len())),
+        &props,
         orientation,
         vec![],
     )];
@@ -4731,19 +4736,13 @@ fn segment_group_demo(
         let value = label.to_lowercase();
         segment_group::item(
             checked,
-            disabled,
+            &props,
             &value,
             vec![],
             vec![
-                segment_group::item_hidden_input(
-                    checked,
-                    disabled,
-                    Some(id_prefix),
-                    &value,
-                    vec![],
-                ),
-                segment_group::item_control(checked, disabled, vec![]),
-                segment_group::item_text(checked, disabled, vec![], vec![text(*label)]),
+                segment_group::item_hidden_input(checked, &props, Some(id_prefix), &value, vec![]),
+                segment_group::item_control(checked, &props, vec![]),
+                segment_group::item_text(checked, &props, vec![], vec![text(*label)]),
             ],
         )
     }));

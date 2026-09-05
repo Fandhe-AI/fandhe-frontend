@@ -587,38 +587,80 @@ pub(super) fn rating_group_section() -> Node {
     demo_page("Rating Group", body)
 }
 
-pub(super) fn segment_group_section() -> Node {
-    let body = vec![segment_group::root(
-        false,
-        None,
-        None,
+/// `name`/`props`/`orientation`/`selected_index`/`items`（各要素は表示
+/// テキスト）から 1 個の SegmentGroup インスタンス（root > indicator +
+/// item(item_hidden_input + item_control + item_text)×N）を組み立てる内部
+/// ヘルパ（[`segment_group_section`] のみが呼ぶ）。[`radio_group_instance`]
+/// と同型のパターン。`name` は各インスタンスで一意にする必要がある
+/// （同一 DOM 上のネイティブ `<input type="radio">` は同名グループ間で
+/// 排他選択が干渉するため、イシュー #1618 は #1886 の radio-group Demo で
+/// 判明した先例に倣う）。
+fn segment_group_instance(
+    name: &str,
+    props: &segment_group::SegmentGroupProps,
+    orientation: Option<Orientation>,
+    selected_index: usize,
+    items: &[&str],
+) -> Node {
+    let mut children = vec![segment_group::indicator(
+        Some((selected_index, items.len())),
+        props,
+        orientation,
         vec![],
-        vec![
-            segment_group::indicator(Some((0, 2)), None, vec![]),
-            segment_group::item(
-                true,
-                false,
-                "list",
-                vec![],
-                vec![
-                    segment_group::item_control(true, false, vec![]),
-                    segment_group::item_text(true, false, vec![], vec![text("List")]),
-                    segment_group::item_hidden_input(true, false, Some("view"), "list", vec![]),
-                ],
-            ),
-            segment_group::item(
-                false,
-                false,
-                "grid",
-                vec![],
-                vec![
-                    segment_group::item_control(false, false, vec![]),
-                    segment_group::item_text(false, false, vec![], vec![text("Grid")]),
-                    segment_group::item_hidden_input(false, false, Some("view"), "grid", vec![]),
-                ],
-            ),
-        ],
     )];
+    children.extend(items.iter().enumerate().map(|(index, label)| {
+        let checked = index == selected_index;
+        let value = label.to_lowercase();
+        segment_group::item(
+            checked,
+            props,
+            &value,
+            vec![],
+            vec![
+                segment_group::item_hidden_input(checked, props, Some(name), &value, vec![]),
+                segment_group::item_control(checked, props, vec![]),
+                segment_group::item_text(checked, props, vec![], vec![text(*label)]),
+            ],
+        )
+    }));
+    segment_group::root(props, orientation, None, vec![], children)
+}
+
+pub(super) fn segment_group_section() -> Node {
+    // ark-ui の Data Attributes 表の全語彙（data-disabled/data-invalid/
+    // data-readonly/data-required/aria-required/aria-readonly/
+    // aria-disabled/aria-hidden/aria-invalid/data-orientation）が
+    // Anatomy/data-* 表へ機械導出されるよう、既定・disabled・
+    // invalid+required・readonly・vertical の 5 状態を並べる（イシュー
+    // #1618。`name` は各インスタンスで一意）。
+    let default_props = segment_group::SegmentGroupProps::default();
+    let disabled_props = segment_group::SegmentGroupProps {
+        disabled: true,
+        ..Default::default()
+    };
+    let invalid_required_props = segment_group::SegmentGroupProps {
+        invalid: true,
+        required: true,
+        ..Default::default()
+    };
+    let readonly_props = segment_group::SegmentGroupProps {
+        readonly: true,
+        ..Default::default()
+    };
+    let items = ["List", "Grid"];
+    let body = vec![
+        segment_group_instance("view", &default_props, None, 0, &items),
+        segment_group_instance("view-disabled", &disabled_props, None, 0, &items),
+        segment_group_instance("view-invalid", &invalid_required_props, None, 0, &items),
+        segment_group_instance("view-readonly", &readonly_props, None, 0, &items),
+        segment_group_instance(
+            "view-vertical",
+            &default_props,
+            Some(Orientation::Vertical),
+            1,
+            &items,
+        ),
+    ];
     demo_page("Segment Group", body)
 }
 

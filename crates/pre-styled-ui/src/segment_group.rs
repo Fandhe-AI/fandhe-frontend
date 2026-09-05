@@ -145,7 +145,11 @@
 //!   focus_visible 配線・dispatch 後の indicator CSS 変数の動的更新）は
 //!   headless 層と同じく未着手（別イシューでの追跡を提案する）。
 //! - 矢印キーによる roving tabindex・chakra 拡張 sub-parts（`Label`/`Items`）
-//!   ・`readOnly`・`xs` サイズは本イシューのスコープ外。
+//!   ・`xs` サイズは本イシューのスコープ外。
+//! - headless 側は [`SegmentGroupProps`]（イシュー #1618）で readonly を
+//!   含む語彙を持つに至ったが、styled 層 `root`/`root_with_props` の
+//!   readonly/invalid/required 引数拡張・Themes showcase の invalid Demo
+//!   追加は本イシューの対象外（#1886 の radio_group と同様の見送り）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -161,8 +165,8 @@ use crate::recipe::{
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::segment_group::{
-    indicator, item, item_control, item_hidden_input, item_text, SegmentGroup, DATA_STATE_CHECKED,
-    DATA_STATE_UNCHECKED,
+    indicator, item, item_control, item_hidden_input, item_text, SegmentGroup, SegmentGroupProps,
+    DATA_STATE_CHECKED, DATA_STATE_UNCHECKED,
 };
 
 /// headless `segment_group` anatomy の `data-part` 一覧
@@ -436,6 +440,13 @@ pub fn stylesheet() -> String {
 /// 合成する）。実体は
 /// [`fandhe_frontend_headless_ui::segment_group::root`] へ委譲する。
 ///
+/// 公開シグネチャは互換性のため `disabled: bool` 単体のまま維持し、内部で
+/// 他フラグ（readonly/invalid/required）を既定値（false）とした
+/// [`SegmentGroupProps`] を組み立てて [`root_with_props`] へ委譲する
+/// （`radio_group::root`/`root_with_props` と同型、イシュー #1618）。
+/// readonly/invalid/required も反映したい場合は [`root_with_props`] を使う
+/// こと。
+///
 /// # Examples
 ///
 /// ```
@@ -455,12 +466,52 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let props = SegmentGroupProps {
+        disabled,
+        ..SegmentGroupProps::default()
+    };
+    root_with_props(size, &props, orientation, labelled_by, attrs, children)
+}
+
+/// styled root パーツを、全 [`SegmentGroupProps`]（disabled/readonly/
+/// invalid/required）を反映して組み立てる（イシュー #1618、`radio_group`
+/// の `root_with_props` と同型）。[`root`] と実体を共有するが、readonly/
+/// invalid/required を既定値へ落とさず呼び出し側の `props` をそのまま
+/// headless [`fandhe_frontend_headless_ui::segment_group::root`] へ渡す。
+/// 子パーツ（[`item`]/[`item_control`]/[`item_text`]/[`item_hidden_input`]）
+/// へ渡す `props` と同一の値をここへも渡すことで、group 全体（root/item 系）
+/// の `data-invalid`/`data-required`/`aria-*` が一貫する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::segment_group;
+/// use fandhe_frontend_pre_styled_ui::Size;
+/// use fandhe_frontend_headless_ui::segment_group::SegmentGroupProps;
+///
+/// let props = SegmentGroupProps {
+///     readonly: true,
+///     ..SegmentGroupProps::default()
+/// };
+/// let node = segment_group::root_with_props(Size::Md, &props, None, None, vec![], vec![]);
+/// assert!(render(&node).contains(r#"aria-readonly="true""#));
+/// ```
+#[must_use]
+pub fn root_with_props<'a>(
+    size: Size,
+    props: &SegmentGroupProps,
+    orientation: Option<Orientation>,
+    labelled_by: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let recipe = recipe();
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
     fandhe_frontend_headless_ui::segment_group::root(
-        disabled,
+        props,
         orientation,
         labelled_by,
         merged,
@@ -755,7 +806,13 @@ mod tests {
     #[test]
     fn xss_payload_in_item_value_is_escaped_by_render() {
         let payload = "\"><script>alert(1)</script>";
-        let html = render(&item(false, false, payload, vec![], vec![text(payload)]));
+        let html = render(&item(
+            false,
+            &SegmentGroupProps::default(),
+            payload,
+            vec![],
+            vec![text(payload)],
+        ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
@@ -763,7 +820,12 @@ mod tests {
     #[test]
     fn xss_payload_in_item_text_children_is_escaped_by_render() {
         let payload = "\"><img src=x onerror=alert(1)>";
-        let html = render(&item_text(false, false, vec![], vec![text(payload)]));
+        let html = render(&item_text(
+            false,
+            &SegmentGroupProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
         assert!(!html.contains("<img"));
         assert!(html.contains("&lt;img"));
     }
@@ -781,7 +843,7 @@ mod tests {
         assert!(dispatch(&mut g, "select", "list"));
         assert_eq!(g.value(), Some("list"));
 
-        let ssr_html = render(&g.item_control("list", false, vec![]));
+        let ssr_html = render(&g.item_control("list", &SegmentGroupProps::default(), vec![]));
         assert!(ssr_html.contains(r#"data-state="checked""#));
 
         let hydrate_html = render(&render_for_hydration(&g));
