@@ -38,6 +38,21 @@
 //! する（[`crate::popover`] と同じ構造判断、dialog PR #575 の不具合を構造的
 //! に回避する）。
 //!
+//! # headless 層の参照突合追随（イシュー #1640）
+//!
+//! headless 層の `header`/`control` が `data-stage`（現在の stage）を持つ
+//! ようになった（zag `getHeaderProps`/`getControlProps` との突合是正）。
+//! 本クレートは薄い再エクスポートのため CSS 生成コード（[`stylesheet`]）は
+//! 変更不要だが、`control[data-stage="minimized"]` 経由で
+//! stage-trigger の表示切替を実装できる余地が増えた（利用者向けの選択肢
+//! であり、既定 CSS には現時点で組み込まない）。あわせて `body` が
+//! [`fandhe_frontend_headless_ui::floating_panel::Stage::Minimized`] のとき
+//! `hidden` 存在属性を持つようになった。上記「data-state/data-stage と
+//! スタイルの連動」節にある `body[data-stage="minimized"] { display: none }`
+//! は headless 層の `hidden` と二重化するが無害（UA 既定
+//! `[hidden] { display: none }` と同じ結果）であり、author CSS が `display`
+//! を上書きしても折り畳みが保たれる多層防御として維持する。
+//!
 //! # 参考サイト基準へのスタイル調整（イシュー #1522）
 //!
 //! chakra-ui FloatingPanel（MCP `get_component_example` で一次確認）を基準

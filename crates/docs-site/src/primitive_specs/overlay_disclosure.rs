@@ -792,12 +792,14 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
 // Floating Panel（/primitives/floating-panel/）
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/floating_panel.rs:1-56`（モジュール
+/// 一次情報: `crates/headless-ui/src/floating_panel.rs:1-119`（モジュール
 /// doc、`Stage` を独自 enum とする理由・content は role="dialog" 固定だが
-/// aria-modal を出力しない非モーダル overlay という不変条件）、`:105-118`
-/// （`Stage` 3 値・既定 Default）、`:156-333`（`root`/`trigger`/
-/// `positioner`/`content`/`header`/`title`/`control`/`stage_trigger`/
-/// `close_trigger`/`body` シグネチャ）。
+/// aria-modal を出力しない非モーダル overlay という不変条件・イシュー
+/// #1640 の参考サイト突合結果）、`:143-151`（`Stage` 3 値・既定 Default）、
+/// `:193-390`（`root`/`trigger`/`positioner`/`content`/`header`/`title`/
+/// `control`/`stage_trigger`/`close_trigger`/`body` シグネチャ。`header`/
+/// `control` は #1640 で `data-stage` を追加、`body` は同じく #1640 で
+/// `Stage::Minimized` 時の `hidden` を追加）。
 fn ex_floating_panel_maximized() -> Node {
     let state = OpenState::Open;
     let stage = Stage::Maximized;
@@ -827,6 +829,7 @@ fn ex_floating_panel_maximized() -> Node {
                         vec![],
                         vec![
                             floating_panel::header(
+                                stage,
                                 vec![],
                                 vec![
                                     floating_panel::title(
@@ -835,14 +838,18 @@ fn ex_floating_panel_maximized() -> Node {
                                         vec![text("Editor")],
                                     ),
                                     floating_panel::control(
+                                        stage,
                                         vec![],
                                         vec![
                                             floating_panel::stage_trigger(
                                                 Stage::Default,
-                                                vec![],
+                                                vec![("aria-label", "Restore")],
                                                 vec![text("Restore")],
                                             ),
-                                            floating_panel::close_trigger(vec![], vec![text("×")]),
+                                            floating_panel::close_trigger(
+                                                vec![("aria-label", "Close Window")],
+                                                vec![text("×")],
+                                            ),
                                         ],
                                     ),
                                 ],
@@ -860,12 +867,86 @@ fn ex_floating_panel_maximized() -> Node {
     )
 }
 
+/// 一次情報: `crates/headless-ui/src/floating_panel.rs`（`body` 関数、
+/// [`Stage::Minimized`] のとき `hidden` 存在属性を付与する不変条件、
+/// イシュー #1640 で zag `getBodyProps` の `hidden: isMinimized` との
+/// 突合是正）。
+fn ex_floating_panel_minimized() -> Node {
+    let state = OpenState::Open;
+    let stage = Stage::Minimized;
+    div(
+        vec![],
+        vec![
+            floating_panel::trigger(
+                state,
+                false,
+                Some("fp-min-content"),
+                vec![],
+                vec![text("Open (minimized)")],
+            ),
+            floating_panel::root(
+                state,
+                stage,
+                vec![],
+                vec![floating_panel::positioner(
+                    state,
+                    stage,
+                    vec![],
+                    vec![floating_panel::content(
+                        state,
+                        stage,
+                        Some("fp-min-content"),
+                        Some("fp-min-title"),
+                        vec![],
+                        vec![
+                            floating_panel::header(
+                                stage,
+                                vec![],
+                                vec![
+                                    floating_panel::title(
+                                        Some("fp-min-title"),
+                                        vec![],
+                                        vec![text("Notes")],
+                                    ),
+                                    floating_panel::control(
+                                        stage,
+                                        vec![],
+                                        vec![
+                                            floating_panel::stage_trigger(
+                                                Stage::Default,
+                                                vec![("aria-label", "Restore")],
+                                                vec![text("Restore")],
+                                            ),
+                                            floating_panel::close_trigger(
+                                                vec![("aria-label", "Close Window")],
+                                                vec![text("×")],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                            // Stage::Minimized のため body へ hidden 存在属性が
+                            // 付与される（headless 層の不変条件。イシュー
+                            // #1640 参照）。
+                            floating_panel::body(
+                                stage,
+                                vec![],
+                                vec![text("This body is hidden while minimized.")],
+                            ),
+                        ],
+                    )],
+                )],
+            ),
+        ],
+    )
+}
+
 pub const FLOATING_PANEL: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Trigger / Positioner / Content / Header / Title / Control / StageTrigger / CloseTrigger / Body の 10 anatomy パーツと、開閉・stage（Default/Minimized/Maximized）・座標を持つ状態機械 FloatingPanel を提供する。",
         "stage（Default/Minimized/Maximized）は crate::state::Disclosure/SingleSelect に写像できないため、Steps/Progress と同じ判断で独自 enum として実装する。",
         "content は role=\"dialog\" を固定付与するが、非モーダル overlay のため aria-modal は出力しない（ユーザーは他の要素を操作し続けられる）。",
-        "座標（--fandhe-x/--fandhe-y）は crate::positioning の CSS 変数語彙を再利用するが、実際のドラッグ・リサイズ操作は JS ランタイムの責務としてスコープ外。",
+        "座標（--fandhe-x/--fandhe-y）は crate::positioning の CSS 変数語彙を再利用するが、実際のドラッグ・リサイズ操作・trigger/close-trigger/stage-trigger の click・Escape キー閉鎖・矢印キー移動はいずれも fandhe-frontend-wasm-full に未配線（イシュー #1640 時点の事実）。headless 層は型付きアクション（open/close/toggle/minimize/maximize/restore/set_position）のみを提供する。",
     ],
     arguments: &[
         ArgRow {
@@ -941,6 +1022,18 @@ pub const FLOATING_PANEL: ComponentPageSpec = ComponentPageSpec {
             description: "content の labelledby と対にする。",
         },
         ArgRow {
+            name: "header: stage",
+            kind: "Stage",
+            default: "Default",
+            description: "data-stage へ反映される表示段階（イシュー #1640。zag getHeaderProps との突合是正）。",
+        },
+        ArgRow {
+            name: "control: stage",
+            kind: "Stage",
+            default: "Default",
+            description: "data-stage へ反映される表示段階（イシュー #1640。zag getControlProps との突合是正。styled 層は data-stage 経由で stage-trigger の表示切替を実装できる）。",
+        },
+        ArgRow {
             name: "stage_trigger: target",
             kind: "Stage",
             default: "",
@@ -950,14 +1043,21 @@ pub const FLOATING_PANEL: ComponentPageSpec = ComponentPageSpec {
             name: "body: stage",
             kind: "Stage",
             default: "Default",
-            description: "data-stage へ反映される表示段階（styled 層が minimized 時の折り畳みフックとして使う）。",
+            description: "data-stage へ反映される表示段階。Stage::Minimized のとき hidden 存在属性も付与する（イシュー #1640。zag getBodyProps の hidden: isMinimized との突合是正）。styled 層の data-stage=\"minimized\" 折り畳みは headless 層の hidden と二重化するが無害（多層防御）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Maximized stage",
-        description: "Stage::Maximized（既定 Default とは異なる表示段階）で開いた FloatingPanel の例です。",
-        render: ex_floating_panel_maximized,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Maximized stage",
+            description: "Stage::Maximized（既定 Default とは異なる表示段階）で開いた FloatingPanel の例です。",
+            render: ex_floating_panel_maximized,
+        },
+        ExampleEntry {
+            title: "Minimized stage",
+            description: "Stage::Minimized で開いた FloatingPanel の例です。body へ hidden 存在属性が付与され本文が隠れます（header・control は表示されたままです）。",
+            render: ex_floating_panel_minimized,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -983,6 +1083,10 @@ pub const FLOATING_PANEL: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-modal（非付与）",
             description: "content は role=\"dialog\" を固定付与するが aria-modal は出力しない（非モーダル overlay。ユーザーは他の要素を操作し続けられ、支援技術へ誤ったモーダル通知を送らない）。",
+        },
+        AriaRow {
+            attribute: "hidden",
+            description: "positioner/content は closed のとき、body は Stage::Minimized のとき hidden 存在属性を付与する（イシュー #1640。body は zag getBodyProps との突合是正）。",
         },
     ],
     demo: None,
