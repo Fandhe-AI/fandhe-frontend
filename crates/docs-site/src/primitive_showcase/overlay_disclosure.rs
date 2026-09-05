@@ -18,30 +18,39 @@ use hui::OpenState;
 use super::demo_page;
 
 pub(super) fn accordion_section() -> Node {
+    // イシュー #1636（accordion の参照突合）: 3 件目に disabled 項目を加え、
+    // `item-indicator`/`item-content` の `data-disabled`（本イシューで
+    // 新規追加）を Demo から機械導出される data-* 属性表へ反映させる。
     let open = hui::state::OpenState::Open;
     let closed = hui::state::OpenState::Closed;
+    let props = accordion::AccordionProps::default();
     let body = vec![accordion::root(
+        &props,
         vec![],
         vec![
             accordion::item(
                 open,
                 false,
+                &props,
                 vec![],
                 vec![
                     accordion::item_trigger(
                         open,
                         false,
+                        &props,
                         "faq-0",
                         Some("acc-trigger-0"),
                         Some("acc-content-0"),
                         vec![],
                         vec![
                             text("What is fandhe-frontend?"),
-                            accordion::item_indicator(open, vec![], vec![text("▾")]),
+                            accordion::item_indicator(open, false, &props, vec![], vec![text("▾")]),
                         ],
                     ),
                     accordion::item_content(
                         open,
+                        false,
+                        &props,
                         Some("acc-content-0"),
                         Some("acc-trigger-0"),
                         vec![],
@@ -52,26 +61,72 @@ pub(super) fn accordion_section() -> Node {
             accordion::item(
                 closed,
                 false,
+                &props,
                 vec![],
                 vec![
                     accordion::item_trigger(
                         closed,
                         false,
+                        &props,
                         "faq-1",
                         Some("acc-trigger-1"),
                         Some("acc-content-1"),
                         vec![],
                         vec![
                             text("Is it production ready?"),
-                            accordion::item_indicator(closed, vec![], vec![text("▾")]),
+                            accordion::item_indicator(
+                                closed,
+                                false,
+                                &props,
+                                vec![],
+                                vec![text("▾")],
+                            ),
                         ],
                     ),
                     accordion::item_content(
                         closed,
+                        false,
+                        &props,
                         Some("acc-content-1"),
                         Some("acc-trigger-1"),
                         vec![],
                         vec![text("It is under active development.")],
+                    ),
+                ],
+            ),
+            accordion::item(
+                closed,
+                true,
+                &props,
+                vec![],
+                vec![
+                    accordion::item_trigger(
+                        closed,
+                        true,
+                        &props,
+                        "faq-2",
+                        Some("acc-trigger-2"),
+                        Some("acc-content-2"),
+                        vec![],
+                        vec![
+                            text("Is enterprise support available?"),
+                            accordion::item_indicator(
+                                closed,
+                                true,
+                                &props,
+                                vec![],
+                                vec![text("▾")],
+                            ),
+                        ],
+                    ),
+                    accordion::item_content(
+                        closed,
+                        true,
+                        &props,
+                        Some("acc-content-2"),
+                        Some("acc-trigger-2"),
+                        vec![],
+                        vec![text("Coming soon.")],
                     ),
                 ],
             ),

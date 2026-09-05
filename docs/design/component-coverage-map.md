@@ -321,7 +321,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
-| `.agents/skills/ark-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | Accordion (`accordion`) | — | `accordion` | `accordion` | 実装済み | headless+styled 実装済み |
+| `.agents/skills/ark-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | Accordion (`accordion`) | — | `accordion` | `accordion` | 実装済み | headless+styled 実装済み。#1636 で参照突合済み（`data-orientation` 全パーツ・item-trigger の `aria-disabled`・item-indicator の `aria-hidden`・item-indicator/item-content の `data-disabled` を追加。Radix `Header` パーツ・`data-focus`・`--height`/`--width` は意図的に非採用） |
 | `.agents/skills/ark-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | Collapsible (`collapsible`) | — | `collapsible` | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用） |
 | `.agents/skills/ark-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | Tabs (`tabs`) | Tabs (`tabs`) | `tabs` | `tabs` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/disclosure/toggle.md` | Toggle | — | Toggle (`toggle`) | — | `toggle` | `toggle` | 実装済み | headless+styled 実装済み（#746、PR #791） |
@@ -569,7 +569,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | — | — | `accordion` | `accordion` | 実装済み | headless+styled 実装済み |
+| `.agents/skills/chakra-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | — | — | `accordion` | `accordion` | 実装済み | headless+styled 実装済み（#1636 で ark-ui/Radix 参照突合済み、詳細は上記 ark-ui 行参照） |
 | `.agents/skills/chakra-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | — | — | `collapsible` | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用） |
 | `.agents/skills/chakra-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | — | — | `tabs` | `tabs` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | `pagination` | `pagination` | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除） |

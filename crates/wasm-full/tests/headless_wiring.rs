@@ -970,11 +970,12 @@ fn menubar_trigger_out_of_range_index_is_noop() {
 
 #[test]
 fn accordion_item_trigger_click_toggles_single_select() {
-    use fandhe_frontend_headless_ui::accordion::{self, Accordion};
+    use fandhe_frontend_headless_ui::accordion::{self, Accordion, AccordionProps};
 
     let html = render(&accordion::item_trigger(
         OpenState::Closed,
         false,
+        &AccordionProps::default(),
         "panel-1",
         None,
         None,
@@ -1077,12 +1078,13 @@ fn accordion_item_indicator_and_inner_text_click_resolve_via_ancestor_item_trigg
 
 #[test]
 fn accordion_item_trigger_data_value_xss_payload_is_escaped_on_render() {
-    use fandhe_frontend_headless_ui::accordion::{self, Accordion};
+    use fandhe_frontend_headless_ui::accordion::{self, Accordion, AccordionProps};
 
     let payload = "\"><script>alert(1)</script>";
     let html = render(&accordion::item_trigger(
         OpenState::Closed,
         false,
+        &AccordionProps::default(),
         payload,
         None,
         None,

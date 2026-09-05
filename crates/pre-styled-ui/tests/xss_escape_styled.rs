@@ -477,7 +477,12 @@ fn safe_urls_in_caller_attrs_pass_through() {
 #[test]
 fn size_variant_root_caller_class_attr_is_dropped_not_merged_raw_for_all_payloads() {
     for payload in payloads::all() {
-        let html = render(&accordion::root(Size::Md, vec![("class", payload)], vec![]));
+        let html = render(&accordion::root(
+            Size::Md,
+            &accordion::AccordionProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
         assert!(
             !html.contains(payload),
             "accordion::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
@@ -548,6 +553,7 @@ fn size_variant_root_caller_attrs_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
         let html = render(&accordion::root(
             Size::Md,
+            &accordion::AccordionProps::default(),
             vec![("data-testid", payload)],
             vec![],
         ));
