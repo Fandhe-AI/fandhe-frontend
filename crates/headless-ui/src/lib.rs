@@ -330,8 +330,12 @@
 //!   表示される操作バー、#762、親トラッキング #520）。構造上最も近い先行例は
 //!   [`dialog::Dialog`]（`Disclosure` 埋め込み + positioner/close-trigger
 //!   構成）であり、本モジュールはそのパターンに完全準拠する。`content` は
-//!   `role="toolbar"` + `aria-label`、`separator` は `role="separator"` +
-//!   `aria-orientation="vertical"` を出力する。選択件数から `open` を導出する
+//!   `role="dialog"`（非モーダル、参照基準の chakra-ui/Ark Popover に合わせ
+//!   イシュー #1647 で `"toolbar"` から是正済み） + `aria-label` +
+//!   開状態のみの `data-expanded` + `tabindex="-1"`、`separator` は
+//!   `role="separator"` + `aria-orientation="vertical"` を出力する。
+//!   `close-trigger` は呼び出し側が `aria-label` を指定しなければ既定値
+//!   `"close"` を出力する。選択件数から `open` を導出する
 //!   糖衣 API は持たず、開閉は呼び出し側が dispatch（`"open"`/`"close"`/
 //!   `"toggle"`）で制御する（[`action_bar`] モジュール doc §選択件数から
 //!   open を導出する糖衣 API は持たない 参照）。

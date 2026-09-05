@@ -199,6 +199,19 @@ pub fn data_countdown(countdown: bool) -> Option<(&'static str, &'static str)> {
     countdown.then_some(("data-countdown", ""))
 }
 
+/// `data-expanded` 存在属性（ActionBar 用、イシュー #1647）。[`data_disabled`]
+/// と同じ「存在で真を表す」規約に従う。chakra-ui の ActionBar が内部で
+/// 再利用する Ark Popover（zag.js `popover.connect`）の content パーツが
+/// 開状態のときのみ付与する `data-expanded` に合わせた語彙であり、
+/// `data-state`（値語彙、[`data_state`] 経由）と重複する情報だが、CSS
+/// セレクタで `[data-expanded]` の有無だけを見たい呼び出し側の利便性の
+/// ために独立して提供する（[`data_pressed`]/[`data_complete`] と同型の
+/// 判断）。
+#[must_use]
+pub fn data_expanded(expanded: bool) -> Option<(&'static str, &'static str)> {
+    expanded.then_some(("data-expanded", ""))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,6 +249,8 @@ mod tests {
         assert_eq!(data_copied(false), None);
         assert_eq!(data_countdown(true), Some(("data-countdown", "")));
         assert_eq!(data_countdown(false), None);
+        assert_eq!(data_expanded(true), Some(("data-expanded", "")));
+        assert_eq!(data_expanded(false), None);
     }
 
     #[test]

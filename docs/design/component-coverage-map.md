@@ -656,7 +656,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/chakra-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | `drawer` | `drawer` | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用） |
 | `.agents/skills/chakra-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | — | — | `hover_card` | `hover_card` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/overlays/toggle-tip.md` | — | ToggleTip | — | — | `toggle_tip` | `toggle_tip` | 実装済み | headless+styled 実装済み（#761、PR #804） |
-| `.agents/skills/chakra-ui/references/components/overlays/action-bar.md` | — | ActionBar | — | — | `action_bar` | `action_bar` | 実装済み | headless+styled 実装済み（#762） |
+| `.agents/skills/chakra-ui/references/components/overlays/action-bar.md` | — | ActionBar | — | — | `action_bar` | `action_bar` | 実装済み | headless+styled 実装済み（#762）。イシュー #1647 で参考基準（chakra-ui のみ、実体は Ark Popover の再利用）との突合を実施し、`content` の `role` を `"toolbar"` から `"dialog"`（非モーダル）へ是正・`data-expanded`/`tabindex="-1"`/close-trigger 既定 `aria-label` を追加した（破壊的変更）。`data-placement` 等の配置バリエーションはスタイル層の責務としてスコープ外のまま |
 | `.agents/skills/chakra-ui/references/components/overlays/overlay-manager.md` | — | OverlayManager | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/chakra-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | `floating_panel` | `floating_panel` | 実装済み | headless+styled 実装済み（イシュー #827、`docs/policy/intentional-non-adoption.md` §7 の保留区分から解除） |
 

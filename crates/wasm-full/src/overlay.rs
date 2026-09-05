@@ -71,6 +71,19 @@
 //! Menubar 側の keynav Escape は元々「highlight の後始末のみ、閉鎖は overlay
 //! の責務」と明記済みであり（`crate::keynav` モジュール doc §Menubar「既知の
 //! ギャップ」節、本イシューで解消済みへ更新）、本モジュールの閉鎖と競合しない。
+//!
+//! ## `ActionBar` の配線（イシュー #1647）
+//!
+//! `crates/headless-ui/src/action_bar.rs` の content（`data-scope="action-bar"`）
+//! を [`OverlayKind::ActionBar`] として登録する。`ActionBar::decode_action`
+//! は既存の `Disclosure::decode_action` 経由で `"close"` を受理済みのため、
+//! headless-ui 側の追加変更は不要（呼び出し側 #580 統合層が `"close"` を
+//! dispatch する）。`close_on_interact_outside` の既定は [`OverlayKind::Tooltip`]
+//! と並ぶ例外として `false` とする — chakra-ui の ActionBar 実演例は
+//! `onOpenChange` を配線せず、close-trigger 付き例では明示的に
+//! `closeOnInteractOutside={false}` にしている（選択操作を行うチェックボックス
+//! 等が ActionBar の外側〔一覧側〕に存在するため、外側クリックでの誤閉鎖を
+//! 防ぐ安全側の判断）。
 
 use crate::events::AttrSource;
 
@@ -95,6 +108,9 @@ pub enum OverlayKind {
     /// `data-scope="menubar"`（イシュー #1173。
     /// `crates/headless-ui/src/menubar.rs`）。
     Menubar,
+    /// `data-scope="action-bar"`（イシュー #1647。
+    /// `crates/headless-ui/src/action_bar.rs`）。
+    ActionBar,
 }
 
 impl OverlayKind {
@@ -110,6 +126,7 @@ impl OverlayKind {
             "tooltip" => Some(Self::Tooltip),
             "navigation-menu" => Some(Self::NavigationMenu),
             "menubar" => Some(Self::Menubar),
+            "action-bar" => Some(Self::ActionBar),
             _ => None,
         }
     }
@@ -133,10 +150,15 @@ impl OverlayKind {
     /// #587 側の設計次第。現時点で Tooltip 用の opt-in 属性は未定義）。
     /// NavigationMenu/Menubar は Tooltip のような遅延タイマー競合の事情が
     /// なく、外側クリック即時閉鎖が参照軸（Radix/ark-ui）の標準挙動である
-    /// ため Menu と同じ既定とする（イシュー #1173）。
+    /// ため Menu と同じ既定とする（イシュー #1173）。ActionBar は Tooltip と
+    /// 並ぶ第 2 の `false` 例外とする — 参照基準（chakra-ui ActionBar =
+    /// Ark Popover 再利用）の実演例が `closeOnInteractOutside={false}` を
+    /// 明示する構成（選択操作のチェックボックス等が ActionBar の外側に
+    /// 存在するため、外側クリックでの誤閉鎖を防ぐ安全側の判断、モジュール
+    /// doc §ActionBar の配線 参照、イシュー #1647）。
     #[must_use]
     pub const fn close_on_interact_outside(self) -> bool {
-        !matches!(self, Self::Tooltip)
+        !matches!(self, Self::Tooltip | Self::ActionBar)
     }
 
     /// 「外側インタラクションで閉鎖しない」ことが、下層オーバーレイへの
@@ -707,6 +729,10 @@ mod tests {
             OverlayKind::from_scope("menubar"),
             Some(OverlayKind::Menubar)
         );
+        assert_eq!(
+            OverlayKind::from_scope("action-bar"),
+            Some(OverlayKind::ActionBar)
+        );
     }
 
     #[test]
@@ -727,19 +753,21 @@ mod tests {
             OverlayKind::Tooltip,
             OverlayKind::NavigationMenu,
             OverlayKind::Menubar,
+            OverlayKind::ActionBar,
         ] {
             assert!(kind.close_on_escape());
         }
     }
 
     #[test]
-    fn tooltip_defaults_interact_outside_to_false_others_true() {
+    fn tooltip_and_action_bar_default_interact_outside_to_false_others_true() {
         assert!(OverlayKind::Dialog.close_on_interact_outside());
         assert!(OverlayKind::Popover.close_on_interact_outside());
         assert!(OverlayKind::Menu.close_on_interact_outside());
         assert!(!OverlayKind::Tooltip.close_on_interact_outside());
         assert!(OverlayKind::NavigationMenu.close_on_interact_outside());
         assert!(OverlayKind::Menubar.close_on_interact_outside());
+        assert!(!OverlayKind::ActionBar.close_on_interact_outside());
     }
 
     #[test]
@@ -880,6 +908,18 @@ mod tests {
     }
 
     #[test]
+    fn outside_dismiss_blocks_propagation_for_action_bar_default_is_true() {
+        // ActionBar は close_on_interact_outside の既定こそ Tooltip と同じ
+        // false だが、「意図的な永続化」ではなく Popover と同じ既定に揃える
+        // （モジュール doc §ActionBar の配線 参照、イシュー #1647）。
+        let content = element(&[]);
+        assert!(outside_dismiss_blocks_propagation_for(
+            OverlayKind::ActionBar,
+            &content
+        ));
+    }
+
+    #[test]
     fn outside_dismiss_blocks_propagation_for_explicit_opt_out_always_true() {
         let content = element(&[("data-close-on-interact-outside", "false")]);
         for kind in [
@@ -889,6 +929,7 @@ mod tests {
             OverlayKind::Tooltip,
             OverlayKind::NavigationMenu,
             OverlayKind::Menubar,
+            OverlayKind::ActionBar,
         ] {
             assert!(
                 outside_dismiss_blocks_propagation_for(kind, &content),

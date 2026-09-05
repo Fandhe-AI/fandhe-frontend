@@ -114,13 +114,17 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
 
 /// `/themes/action-bar/`（Interactive カテゴリ）。
 ///
-/// 一次情報: `crates/headless-ui/src/action_bar.rs`（モジュール doc・
-/// `root` シグネチャ・`role="toolbar"`/`role="separator"` の実出力テスト）。
+/// 一次情報: `crates/headless-ui/src/action_bar.rs`（モジュール doc §参照
+/// 基準・`root`/`content`/`close_trigger` シグネチャ・
+/// `role="dialog"`/`data-expanded`/`role="separator"` の実出力テスト）。
+/// 参照基準は chakra-ui のみ（Ark Popover の再利用、イシュー #1647 で
+/// Primitives 側 `/primitives/action-bar/` と共通の突合を実施済み）。
 pub const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "複数選択操作バー（chakra-ui ActionBar 相当）。Root / Positioner / Content / SelectionTrigger / Separator / CloseTrigger の 6 anatomy パーツを持つ。",
+        "複数選択操作バー（chakra-ui ActionBar 相当。実体は Ark Popover の再利用）。Root / Positioner / Content / SelectionTrigger / Separator / CloseTrigger の 6 anatomy パーツを持つ。",
         "開閉は Disclosure を埋め込んだ状態機械 ActionBar が管理する。選択件数から open を自動導出する糖衣 API は持たず、「選択操作 → 開閉状態の決定」は呼び出し側の責務とする。",
-        "content に role=\"toolbar\" と aria-label（選択件数などの読み上げ用ラベル、呼び出し側が指定）を固定付与する。",
+        "content に role=\"dialog\"（非モーダル）と aria-label（選択件数などの読み上げ用ラベル、呼び出し側が指定）を固定付与する。参照基準に合わせイシュー #1647 で role=\"toolbar\" から是正済み（**破壊的変更**）。開状態のみ data-expanded を、常時 tabindex=\"-1\" を付与する。",
+        "close-trigger は呼び出し側が aria-label を指定しなければ既定値 \"close\" を出力する。",
     ],
     arguments: &[ArgRow {
         name: "state",
@@ -132,8 +136,12 @@ pub const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
     keyboard: &[],
     aria: &[
         AriaRow {
-            attribute: "role=\"toolbar\"",
-            description: "content に付与。aria-label とセットで固定付与される。",
+            attribute: "role=\"dialog\"",
+            description: "content に付与（非モーダル、aria-modal は付与しない）。aria-label とセットで固定付与される。",
+        },
+        AriaRow {
+            attribute: "data-expanded",
+            description: "content が開状態のときのみ付与される。",
         },
         AriaRow {
             attribute: "role=\"separator\"",

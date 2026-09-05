@@ -6399,7 +6399,7 @@ fn action_bar_section() -> Node {
     );
     section(
         "ActionBar",
-        "headless-ui の ActionBar（role=\"toolbar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています（実際の画面下部固定配置は recipe CSS が担います）。",
+        "headless-ui の ActionBar（role=\"dialog\"、イシュー #1647 で role=\"toolbar\" から是正済み）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています（実際の画面下部固定配置は recipe CSS が担います）。",
         vec![node],
     )
 }
