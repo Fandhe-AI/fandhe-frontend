@@ -624,7 +624,7 @@ const DOWNLOAD_TRIGGER: ComponentPageSpec = ComponentPageSpec {
         },
         KeyRow {
             key: "Enter",
-            description: "ネイティブ `a[href]` の起動（ダウンロード開始）。**Space はリンクを起動しない**（`button` を採用する参考サイトは Enter/Space の双方が効く点が意図的差分）。",
+            description: "ネイティブ `a[href]` の起動（ダウンロード開始）。Space はリンクを起動しない（`button` を採用する参考サイトは Enter/Space の双方が効く点が意図的差分）。",
         },
     ],
     aria: &[AriaRow {

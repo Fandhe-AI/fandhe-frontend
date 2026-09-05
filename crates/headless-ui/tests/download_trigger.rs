@@ -11,7 +11,10 @@
 //! 含む）を持たない `<button type="button">` 1 要素である（ローカル一次
 //! 資料 `.agents/skills/ark-ui/references/utilities/download-trigger.md` /
 //! `.agents/skills/chakra-ui/references/components/buttons/download-trigger.md`
-//! に Anatomy/Accessibility 節が存在しないことを根拠とする間接証拠）。
+//! に Anatomy/Accessibility 節が存在しないことに加え、ark-ui 公式サイト
+//! （`https://ark-ui.com/docs/utilities/download-trigger`）を実装フェーズで
+//! 一次確認し、`data-scope`/`data-part`/Anatomy/Accessibility 節がいずれも
+//! 存在しないことを確認済み、イシュー #1628）。
 //! 本実装は `a[href][download]` による静的トリガーへ置き換えているため、
 //! 要素種別・`data-scope`/`data-part`（本実装側の superset）・キーボード
 //! 操作（`a` は Enter のみ起動、Space は起動しない）は**意図的差分**であり、
