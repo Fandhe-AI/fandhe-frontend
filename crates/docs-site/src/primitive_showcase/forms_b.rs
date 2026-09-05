@@ -19,23 +19,19 @@ use hui::OpenState;
 
 use super::demo_page;
 
+/// NumberInput Demo（イシュー #1613 参照突合: 基本 / 下限到達 / disabled /
+/// invalid+required / readonly の 5 インスタンス化。基本インスタンスは
+/// [`number_input::value_text`]（同イシューで新設した 7 番目のパーツ）も
+/// 露出する）。
 pub(super) fn number_input_section() -> Node {
     let flags = NumberInputFlags::default();
-    let body = vec![number_input::root(
-        false,
-        false,
+    let basic = vec![number_input::root(
+        flags,
         vec![],
         vec![
-            number_input::label(
-                false,
-                false,
-                Some("ni-input"),
-                vec![],
-                vec![text("Quantity")],
-            ),
+            number_input::label(flags, Some("ni-input"), vec![], vec![text("Quantity")]),
             number_input::control(
-                false,
-                false,
+                flags,
                 vec![],
                 vec![
                     number_input::decrement_trigger(
@@ -61,9 +57,188 @@ pub(super) fn number_input_section() -> Node {
                     ),
                 ],
             ),
+            number_input::value_text(flags, vec![], vec![text("3")]),
         ],
     )];
-    demo_page("Number Input", body)
+
+    // 下限到達（イシュー #1613: decrement トリガーが disabled になる境界例）。
+    let at_min = vec![number_input::root(
+        flags,
+        vec![],
+        vec![
+            number_input::label(flags, Some("ni-input-min"), vec![], vec![text("At min")]),
+            number_input::control(
+                flags,
+                vec![],
+                vec![
+                    number_input::decrement_trigger(
+                        Some("ni-input-min"),
+                        true,
+                        vec![],
+                        vec![text("−")],
+                    ),
+                    number_input::input(
+                        "quantity-min",
+                        Some("ni-input-min"),
+                        Some("0"),
+                        "0",
+                        "99",
+                        flags,
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("ni-input-min"),
+                        false,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                ],
+            ),
+        ],
+    )];
+
+    // disabled。
+    let disabled_flags = NumberInputFlags {
+        disabled: true,
+        ..NumberInputFlags::default()
+    };
+    let disabled = vec![number_input::root(
+        disabled_flags,
+        vec![],
+        vec![
+            number_input::label(
+                disabled_flags,
+                Some("ni-input-disabled"),
+                vec![],
+                vec![text("Disabled")],
+            ),
+            number_input::control(
+                disabled_flags,
+                vec![],
+                vec![
+                    number_input::decrement_trigger(
+                        Some("ni-input-disabled"),
+                        true,
+                        vec![],
+                        vec![text("−")],
+                    ),
+                    number_input::input(
+                        "quantity-disabled",
+                        Some("ni-input-disabled"),
+                        Some("3"),
+                        "0",
+                        "99",
+                        disabled_flags,
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("ni-input-disabled"),
+                        true,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                ],
+            ),
+        ],
+    )];
+
+    // invalid + required（イシュー #1613: label の `data-required` を Demo で
+    // 露出する）。
+    let invalid_required_flags = NumberInputFlags {
+        invalid: true,
+        required: true,
+        ..NumberInputFlags::default()
+    };
+    let invalid_required = vec![number_input::root(
+        invalid_required_flags,
+        vec![],
+        vec![
+            number_input::label(
+                invalid_required_flags,
+                Some("ni-input-invalid"),
+                vec![],
+                vec![text("Invalid, required")],
+            ),
+            number_input::control(
+                invalid_required_flags,
+                vec![],
+                vec![
+                    number_input::decrement_trigger(
+                        Some("ni-input-invalid"),
+                        false,
+                        vec![],
+                        vec![text("−")],
+                    ),
+                    number_input::input(
+                        "quantity-invalid",
+                        Some("ni-input-invalid"),
+                        Some("3"),
+                        "0",
+                        "99",
+                        invalid_required_flags,
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("ni-input-invalid"),
+                        false,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                ],
+            ),
+        ],
+    )];
+
+    // readonly（イシュー #1613: root/control の `data-readonly` を Demo で
+    // 露出する）。
+    let readonly_flags = NumberInputFlags {
+        readonly: true,
+        ..NumberInputFlags::default()
+    };
+    let readonly = vec![number_input::root(
+        readonly_flags,
+        vec![],
+        vec![
+            number_input::label(
+                readonly_flags,
+                Some("ni-input-readonly"),
+                vec![],
+                vec![text("Readonly")],
+            ),
+            number_input::control(
+                readonly_flags,
+                vec![],
+                vec![
+                    number_input::decrement_trigger(
+                        Some("ni-input-readonly"),
+                        true,
+                        vec![],
+                        vec![text("−")],
+                    ),
+                    number_input::input(
+                        "quantity-readonly",
+                        Some("ni-input-readonly"),
+                        Some("7"),
+                        "0",
+                        "99",
+                        readonly_flags,
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("ni-input-readonly"),
+                        true,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                ],
+            ),
+        ],
+    )];
+
+    demo_page(
+        "Number Input",
+        [basic, at_min, disabled, invalid_required, readonly].concat(),
+    )
 }
 
 /// `password_input_section` の 1 インスタンス分を組み立てる非公開ヘルパ。
