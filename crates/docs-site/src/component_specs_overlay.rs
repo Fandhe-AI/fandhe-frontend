@@ -222,7 +222,7 @@ pub const TOOLBAR: ComponentPageSpec = ComponentPageSpec {
 /// テスト・`Menubar::decode_action` のアクション名網羅）。
 pub const MENUBAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "複数 Menu を水平（または垂直）に並べるコンテナ。Root / Menu / Trigger / Positioner / Content / Item / ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent の 11 anatomy パーツを持つ。",
+        "複数 Menu を水平（または垂直）に並べるコンテナ。headless-ui 側（`fandhe_frontend_headless_ui::menubar`）は Root / Menu / Trigger / Positioner / Content / Arrow / ArrowTip / Item / ItemText / ItemIndicator / ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent / CheckboxItem / RadioItemGroup / RadioItem の 18 anatomy パーツを持つ（イシュー #1652 で参照突合し 11 → 18 パーツ。新設 7 パーツの `SLOTS`/CSS 付与は Themes 側 #1528 へ申し送り、本ページは現行 11 パーツ相当のスタイルのみ提供）。",
         "roving tabindex（focused/trigger_count/open/loop_focus/orientation の複合状態機械 Menubar）。フォーカス対象のトリガーのみ tabindex=\"0\"、それ以外は tabindex=\"-1\" になる。",
         "開いている Menu を跨いだ左右移動: ある Menu が開いた状態で Next/Prev/First/Last/Focus アクションを送ると、フォーカス移動と同時に開く Menu も隣へ移る（menubar 特有の挙動、Toolbar の roving tabindex には無い）。",
         "menu パーツは role=\"none\" を固定付与し、role=\"menubar\" の子として menuitem/group 以外の要素を挟まないようにする（WAI-ARIA APG の menubar パターン）。",

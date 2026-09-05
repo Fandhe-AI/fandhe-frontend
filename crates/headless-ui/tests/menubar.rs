@@ -202,3 +202,118 @@ fn ssr_view_has_no_hydrate_attr_but_render_for_hydration_does() {
     let hydrated_html = render(&render_for_hydration(&m));
     assert!(hydrated_html.contains("data-hydrate-focused"));
 }
+
+/// イシュー #1652 で新設した checkbox-item/radio-item + item-indicator/
+/// item-text の組み立てで、`data-state="checked"`/`"unchecked"` が項目本体
+/// と indicator の双方に一致して出ることを固定する（公開 API 経由）。
+#[test]
+fn checkbox_and_radio_items_with_indicator_and_text_agree_on_data_state() {
+    let checked_html = render(&menubar::checkbox_item(
+        true,
+        "word-wrap",
+        false,
+        false,
+        vec![],
+        vec![
+            menubar::item_indicator(true, vec![], vec![text("✓")]),
+            menubar::item_text(false, false, vec![], vec![text("Word Wrap")]),
+        ],
+    ));
+    assert_eq!(checked_html.matches(r#"data-state="checked""#).count(), 2);
+    assert!(checked_html.contains(r#"role="menuitemcheckbox""#));
+    assert!(checked_html.contains(r#"aria-checked="true""#));
+
+    let unchecked_html = render(&menubar::radio_item(
+        false,
+        "grid",
+        false,
+        false,
+        vec![],
+        vec![menubar::item_indicator(false, vec![], vec![])],
+    ));
+    assert_eq!(
+        unchecked_html.matches(r#"data-state="unchecked""#).count(),
+        2
+    );
+    assert!(unchecked_html.contains(r#"role="menuitemradio""#));
+    assert!(unchecked_html.contains(r#"aria-checked="false""#));
+}
+
+/// 新設パーツへ渡す動的値（`attrs`/`value`/children）が
+/// [`fandhe_frontend_core::render`] の既定エスケープを経由することを固定
+/// する（REQ-1、公開 API 経由の end-to-end 確認）。
+#[test]
+fn new_parts_dynamic_values_are_escaped_end_to_end() {
+    const XSS: &str = r#"<script>alert(1)</script>"#;
+
+    let checkbox_html = render(&menubar::checkbox_item(
+        true,
+        XSS,
+        false,
+        false,
+        vec![("data-extra", XSS)],
+        vec![text(XSS)],
+    ));
+    assert!(!checkbox_html.contains("<script>"));
+
+    let radio_group_html = render(&menubar::radio_item_group(
+        Some(XSS),
+        vec![],
+        vec![menubar::radio_item(
+            false,
+            XSS,
+            false,
+            false,
+            vec![],
+            vec![],
+        )],
+    ));
+    assert!(!radio_group_html.contains("<script>"));
+
+    let item_text_html = render(&menubar::item_text(
+        false,
+        false,
+        vec![("data-extra", XSS)],
+        vec![text(XSS)],
+    ));
+    assert!(!item_text_html.contains("<script>"));
+}
+
+/// 呼び出し側 `attrs` による固定属性偽装（`role`/`aria-checked`/
+/// `data-state`/`aria-hidden` 等）が新設パーツすべてから end-to-end で
+/// 除去されることを固定する（A05、公開 API 経由）。
+#[test]
+fn new_parts_caller_attribute_spoofing_is_dropped_end_to_end() {
+    let arrow_html = render(&menubar::arrow(
+        vec![("data-scope", "attacker"), ("data-part", "attacker")],
+        vec![],
+    ));
+    assert!(arrow_html.contains(r#"data-scope="menubar""#));
+    assert!(arrow_html.contains(r#"data-part="arrow""#));
+    assert!(!arrow_html.contains("attacker"));
+
+    let checkbox_html = render(&menubar::checkbox_item(
+        false,
+        "v",
+        false,
+        false,
+        vec![
+            ("role", "attacker"),
+            ("aria-checked", "true"),
+            ("data-state", "checked"),
+        ],
+        vec![],
+    ));
+    assert!(checkbox_html.contains(r#"role="menuitemcheckbox""#));
+    assert!(checkbox_html.contains(r#"aria-checked="false""#));
+    assert!(checkbox_html.contains(r#"data-state="unchecked""#));
+    assert!(!checkbox_html.contains("attacker"));
+
+    let indicator_html = render(&menubar::item_indicator(
+        true,
+        vec![("aria-hidden", "false"), ("hidden", "attacker")],
+        vec![],
+    ));
+    assert!(indicator_html.contains(r#"aria-hidden="true""#));
+    assert!(!indicator_html.contains("hidden=\"attacker\""));
+}
