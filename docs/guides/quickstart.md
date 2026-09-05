@@ -157,8 +157,8 @@ $ rustup target add wasm32-unknown-unknown
 ```
 $ grep -A1 'name = "wasm-bindgen"' wasm/Cargo.lock | head -2
 name = "wasm-bindgen"
-version = "0.2.127"
-$ cargo install wasm-bindgen-cli --version 0.2.127 --locked
+version = "0.2.128"
+$ cargo install wasm-bindgen-cli --version 0.2.128 --locked
 ```
 
 バージョンが一致しない状態でビルドスクリプトを実行すると、`tools/wasm/build.sh`
