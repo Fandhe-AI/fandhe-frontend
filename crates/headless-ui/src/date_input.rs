@@ -151,10 +151,12 @@ const ANATOMY: Anatomy = anatomy("date-input");
 /// `data-placeholder-shown` 存在属性。セグメントが未入力のときのみ出力する
 /// （[`crate::data_attrs::data_disabled`] と同じ「存在で真を表す」規約）。
 /// ark-ui の Data Attributes 表の語彙（`data-placeholder-shown`）に合わせる
-/// （イシュー #1626 で旧 `data-placeholder` から改名、Themes 側 recipe の
-/// 追随はイシュー #1469 へ通知する）。DateInput 固有の語彙であるため、本
-/// モジュール内で個別に定義する（[`crate::pin_input`] の `data_complete` と
-/// 同型の判断）。
+/// （イシュー #1626 で旧 `data-placeholder` から改名）。Themes 側 recipe の
+/// 追随は同一 PR 内で完了済み（`crates/pre-styled-ui/src/date_input.rs` の
+/// `"segment"` state・golden テスト `date_input_css.rs` を参照。イシュー
+/// #1469 への別途通知は不要）。DateInput 固有の語彙であるため、本モジュール
+/// 内で個別に定義する（[`crate::pin_input`] の `data_complete` と同型の
+/// 判断）。
 fn data_placeholder_shown(placeholder_shown: bool) -> Option<(&'static str, &'static str)> {
     placeholder_shown.then_some(("data-placeholder-shown", ""))
 }
