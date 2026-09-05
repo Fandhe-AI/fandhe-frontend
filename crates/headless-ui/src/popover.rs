@@ -19,10 +19,10 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`disabled`/`id`）はすべて
-//!   `&'static str` リテラルで固定しており、動的値が属性名スロットへ混入する
-//!   経路はない（[`crate::anatomy`]/[`crate::aria`]/[`crate::data_attrs`] の
-//!   既存不変条件をそのまま継承する）。
+//! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`/`disabled`/`id`/
+//!   `tabindex`）はすべて `&'static str` リテラルで固定しており、動的値が
+//!   属性名スロットへ混入する経路はない（[`crate::anatomy`]/[`crate::aria`]/
+//!   [`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（`controls`/`id`/`labelledby`/`describedby`/呼び出し側 `attrs`/
 //!   `children` テキスト）は [`fandhe_frontend_core::render`] の既定エスケープを
 //!   必ず経由する。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
@@ -35,15 +35,73 @@
 //!
 //! # スコープ外（ark-ui Popover のクライアントサイド機能）
 //!
-//! - フォーカストラップ / `autoFocus` / `closeOnEscape` /
-//!   `closeOnInteractOutside` / portal / modal モード / `lazyMount`:
-//!   クライアントランタイム側のイベント処理・DOM 操作であり、wasm 層の
-//!   将来イシューのスコープ。
+//! - **click → dispatch 配線・Escape/外側クリック閉鎖は実装済み**（本節の
+//!   従来記述「wasm 層の将来イシュー」は陳腐化していたため是正、イシュー
+//!   #1642）: `fandhe-frontend-wasm-full` の `headless.rs`
+//!   `MAPPING_TABLE`（`scope: "popover"`）が `trigger`/`close-trigger` の
+//!   click を `"toggle"`/`"close"` dispatch へ配線し、`overlay.rs`
+//!   `OverlayKind::Popover` が `close_on_escape() == true` /
+//!   `close_on_interact_outside() == true` の既定で Escape・外側クリック
+//!   閉鎖を提供する（`content` の `attrs` 経由で
+//!   `data-close-on-escape="false"` / `data-close-on-interact-outside="false"`
+//!   （`"false"` リテラルのときのみ有効）で無効化できる、fail-closed）。
+//!   Escape は最上位オーバーレイのみを閉じる（`escape_close_index`）。
+//!   `push_overlay` の登録と `"close"` dispatch の実行自体は
+//!   `OverlayCloseController`（wasm32 配線層）の通知を受けた #580 統合層
+//!   （アプリ側の責務、参照実装は
+//!   `examples/interactive-view-transitions/wasm/src/lib.rs`）が担う。
+//! - **フォーカストラップ・`autoFocus`・閉鎖時の trigger へのフォーカス
+//!   復帰は未実装**（イシュー #1642 で判明）: `fandhe-frontend-wasm-full`
+//!   の `focus_trap::should_trap` は `data-scope="dialog"` かつ
+//!   `aria-modal="true"` のときのみ `true` を返し、`popover` scope は対象外
+//!   である。`overlay.rs` にもフォーカス処理は無い。参考サイト
+//!   （ark-ui/Radix）は Esc 後に trigger へフォーカスを復帰させるが、本
+//!   リポジトリではこの復帰は現時点で一切動作しない。
+//! - portal / modal モード / `lazyMount`: DOM 配置・実行時計測の関心であり
+//!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2 によりスコープ外。
 //!
 //! 位置決めロジック（Floating UI 相当の placement / `sameWidth` / CSS 変数
 //! 出力）は本イシュー（#532）時点ではスコープ外だったが、Tooltip（#533）との
 //! 共通化検討を経てイシュー #590（親 #588）で [`crate::positioning`] として
 //! 実装済みである。詳細は [`positioner`] の doc を参照。
+//!
+//! # 参考サイトとの意図的な差分（イシュー #1642 で参照突合）
+//!
+//! ark-ui（`.claude/skills/ark-ui/references/components/overlays/popover.md`）・
+//! Radix Primitives（`docs/design/radix-primitives-inventory.md`）・
+//! chakra-ui（`.claude/skills/chakra-ui/references/components/overlays/popover.md`）
+//! と突合した結果、anatomy パーツ・`data-*` 属性の増減は行っていない
+//! （Themes（`fandhe-frontend-pre-styled-ui`）側への波及なし）。判定結果は
+//! 以下の通り:
+//!
+//! - **是正**: [`content`] へ `tabindex="-1"` を固定付与した（zag
+//!   `popover.connect.ts` と同型の前提。詳細は [`content`] の rustdoc
+//!   参照、[`crate::dialog`]・[`crate::drawer`] と同判断）。
+//! - **意図的に非採用**（維持）: Radix の `Portal` パーツは DOM 配置の関心
+//!   のため不採用（[`crate::dialog`] と同判断）。zag の `data-placement`
+//!   は本リポジトリの既存設計（`data-side`/`data-align` を [`positioner`]
+//!   の `attrs` 経由で `fandhe-frontend-wasm-full` の `position` モジュール
+//!   が出力する、`docs/design/anchor-positioning-design.md` §4.2）で代替
+//!   済みのため置き換えない。zag の `data-expanded`
+//!   （`content`）は `data-state`（本モジュール）+ `aria-expanded`
+//!   （[`trigger`]）と重複するため不採用。zag の trigger
+//!   `data-ownedby`/`data-value`/`data-current`（複数トリガー識別）は
+//!   `aria-controls` による id 関連付けで代替する（[`crate::dialog`] と
+//!   同判断）。chakra-ui の Header/Body/Footer は
+//!   `fandhe-frontend-pre-styled-ui`（Themes 層）の関心のため headless
+//!   anatomy には持ち込まない。[`close_trigger`] の既定 `aria-label` は
+//!   従来どおり呼び出し側の責務のまま維持する（アイコンボタン等の用途で
+//!   アクセシブルネームの内容を強制しないため）。
+//! - **意図的な差分**（維持）: `root` パートは全部品共通の `data-state`
+//!   付与先として維持する。[`positioner`] の `data-state` + `hidden`
+//!   （zag はインラインスタイルで代替するが、headless-ui はスタイルを
+//!   出力しないため JS なしの SSR での閉状態表現として維持）と、
+//!   `data-side`/`data-align` の付与先が [`positioner`] であること
+//!   （上記のとおり）は維持する。
+//! - **キーボード操作の差分（未実装）**: ark-ui/Radix は Esc で閉じた後
+//!   trigger へフォーカスを復帰させるが、上記スコープ外節のとおり本
+//!   リポジトリでは未実装。開時の content への `autoFocus` も同様に
+//!   未実装。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
@@ -56,6 +114,19 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 
 /// Popover の anatomy（`data-scope="popover"`）。
 const ANATOMY: Anatomy = anatomy("popover");
+
+/// 呼び出し側 `attrs` から `tabindex`（大文字小文字を無視）を除去する
+/// （[`crate::dialog::content`] 内の同名関数と同型のパターン。クレート API
+/// 表面を増やさないため再利用せずここへ複製する）。[`content`] が
+/// `tabindex="-1"` を固定付与する前に呼ぶことで、呼び出し側が渡した
+/// `tabindex` との重複出力（SSR は両方出力して先勝ち、wasm-client の
+/// `set_attribute` は後勝ちになる描画経路間の不一致）を防ぐ。
+fn drop_tabindex_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("tabindex"))
+        .collect()
+}
 
 /// Root パーツ（`div`）。開閉状態を `data-*` へ反映する。
 #[must_use]
@@ -150,7 +221,14 @@ pub fn arrow_tip<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
 /// `role="dialog"` を固定付与する。`labelledby`/`describedby` が `Some` の
 /// とき [`title`]/[`description`] の `id` と対で関連付ける。closed のとき
 /// `hidden` 存在属性を付与し、JS なしの SSR でも閉状態を表現する
-/// （Collapsible の `content` と同じ判断）。
+/// （Collapsible の `content` と同じ判断）。`tabindex="-1"` を固定で付与
+/// する（zag `popover.connect.ts`/WAI-ARIA dialog パターンと同じく、
+/// プログラム的フォーカスのみを許可する前提。[`crate::dialog::content`]・
+/// [`crate::drawer::content`] と同型の判断、イシュー #1642 で是正し
+/// 出力が一致する）。呼び出し側 `attrs` に `tabindex`（大文字小文字を
+/// 無視）が含まれる場合は [`drop_tabindex_attr`] で除去してから固定値へ
+/// 統一する（SSR は両方出力して先勝ち、wasm-client の `set_attribute` は
+/// 後勝ちになる描画経路間の不一致を防ぐ）。
 #[must_use]
 pub fn content<'a>(
     state: OpenState,
@@ -160,8 +238,11 @@ pub fn content<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> =
-        vec![role("dialog"), data_state(state.as_data_state())];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        role("dialog"),
+        data_state(state.as_data_state()),
+        ("tabindex", "-1"),
+    ];
     if let Some(id) = id {
         merged.push(("id", id));
     }
@@ -174,7 +255,7 @@ pub fn content<'a>(
     if !state.is_open() {
         merged.push(("hidden", ""));
     }
-    merged.extend(attrs);
+    merged.extend(drop_tabindex_attr(attrs));
     ANATOMY.part("content", "div", merged, children)
 }
 
@@ -540,6 +621,44 @@ mod tests {
         assert!(html.contains(r#"id="content-1""#));
         assert!(html.contains(r#"aria-labelledby="title-1""#));
         assert!(html.contains(r#"aria-describedby="desc-1""#));
+    }
+
+    #[test]
+    fn content_has_tabindex_minus_one() {
+        // zag `popover.connect.ts` と同じく、content は開閉に関わらず
+        // `tabindex="-1"` を固定で持つ（イシュー #1642）。
+        let closed = render(&content(
+            OpenState::Closed,
+            None,
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(closed.contains(r#"tabindex="-1""#));
+
+        let open = render(&content(OpenState::Open, None, None, None, vec![], vec![]));
+        assert!(open.contains(r#"tabindex="-1""#));
+    }
+
+    #[test]
+    fn content_drops_caller_tabindex_to_keep_fixed_minus_one() {
+        // 呼び出し側 attrs に tabindex（大文字小文字違い含む）を渡しても
+        // 固定の `tabindex="-1"` のみが 1 つだけ出力される（dialog #1638の
+        // codex-review 指摘と同型の再発防止: 除去しないと SSR は重複属性を
+        // 出力し、wasm-client の set_attribute は後勝ちで呼び出し側の値が
+        // 有効になり描画経路間で結果が食い違う）。
+        let rendered = render(&content(
+            OpenState::Open,
+            None,
+            None,
+            None,
+            vec![("TabIndex", "0")],
+            vec![],
+        ));
+        assert_eq!(rendered.matches("tabindex").count(), 1);
+        assert!(rendered.contains(r#"tabindex="-1""#));
+        assert!(!rendered.contains(r#"tabindex="0""#));
     }
 
     #[test]

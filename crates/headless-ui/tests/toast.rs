@@ -220,3 +220,30 @@ fn push_entry_with_xss_payload_is_escaped_in_view() {
     assert!(!html.contains(SCRIPT_PAYLOAD));
     assert!(html.contains("&lt;script&gt;"));
 }
+
+#[test]
+fn root_and_group_drop_caller_reserved_attrs_end_to_end() {
+    // Review 指摘（イシュー #1643）: root/group が呼び出し側 attrs から
+    // tabindex/data-state 等の予約キーを除去せず素通ししていたため、SSR
+    // 出力が同名属性の重複で無効な HTML になっていた。公開 API のみを
+    // 使ってクレート外部からも固定する（`crate::dialog::content` の
+    // tabindex ガード先例と同型の回帰確認）。
+    let root_html = render(&toast::root(
+        ToastStatus::Info,
+        vec![("TabIndex", "9"), ("data-state", "closed")],
+        vec![],
+    ));
+    assert_eq!(root_html.matches("tabindex").count(), 1);
+    assert!(root_html.contains(r#"tabindex="0""#));
+    assert_eq!(root_html.matches("data-state=").count(), 1);
+    assert!(root_html.contains(r#"data-state="open""#));
+
+    let group_html = render(&toast::group(
+        ToastPlacement::Top,
+        "Notifications",
+        vec![("tabindex", "2")],
+        vec![],
+    ));
+    assert_eq!(group_html.matches("tabindex").count(), 1);
+    assert!(group_html.contains(r#"tabindex="-1""#));
+}

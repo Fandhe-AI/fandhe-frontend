@@ -88,7 +88,7 @@
 //!   の趣旨と衝突しないよう、Anatomy に現れないパーツを Examples だけで
 //!   実演することは避ける）。
 
-use fandhe_frontend_core::{code, el, pre, text, Node};
+use fandhe_frontend_core::{code, el, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::action_bar;
 use hui::breadcrumb;
@@ -442,19 +442,97 @@ pub(super) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
 // link（`crates/headless-ui/src/link.rs`）
 // ---------------------------------------------------------------------
 
-/// Demo（`link_section`）は `external=true`（target/rel 付与あり）。ここでは
-/// `external=false` の版（target/rel を出力しない、同一タブ内遷移）を実演
-/// する。href は他ページとの内部リンク切れ検証
-/// （`crate::linkcheck::check_links`）を避けるため、Demo と同じく
+/// Demo（`link_section`）は 4 変種（通常/外部/現在ページ/文中インライン）を
+/// 並べる（イシュー #1649）。ここでは Demo とは切り口を変え、
+/// `external=false, current=false`（target/rel も aria-current/data-current
+/// も出力しない最小構成）を単体で実演する。href は他ページとの内部リンク
+/// 切れ検証（`crate::linkcheck::check_links`）を避けるため、Demo と同じく
 /// `example.com`（RFC 2606 予約ドメイン）を使う。
 fn ex_link() -> Node {
     example_wrap(vec![link::root(
         "https://example.com/docs/guide",
         false,
-        true,
+        false,
         vec![],
         vec![text("Guide")],
     )])
+}
+
+/// `current=true` の構成（`aria-current="page"`+`data-current` の実出力）。
+/// 旧版（イシュー #1649 是正前）は本構成を「external=false の構成」という
+/// 説明の下で実演しており、実演内容と説明が食い違っていた
+/// （current 引数が true になっていたため）。本例で独立させて解消する。
+fn ex_link_current() -> Node {
+    example_wrap(vec![link::root(
+        "https://example.com/docs/guide",
+        false,
+        true,
+        vec![],
+        vec![text("Guide (current page)")],
+    )])
+}
+
+/// 文中インライン構成（chakra-ui のデモ「文中インラインリンク」相当）。
+/// `link::root` は前後のテキストノードと並置してもエスケープ・anatomy 出力
+/// が変わらないことを実演する。
+fn ex_link_inline() -> Node {
+    example_wrap(vec![el(
+        "p",
+        vec![],
+        vec![
+            text("See the "),
+            link::root(
+                "https://example.com/docs/guide",
+                false,
+                false,
+                vec![],
+                vec![text("guide")],
+            ),
+            text(" for setup steps."),
+        ],
+    )])
+}
+
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part`/`data-current`/`[aria-current="page"]` 属性
+/// セレクタで見た目を組み立てる例を示す（`CHECKBOX_CUSTOM_CSS_SNIPPET`
+/// 〔forms_a.rs〕と同型、イシュー #1649）。CSS はテキストノード
+/// （[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const LINK_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"link\"][data-part=\"root\"] {\n  \
+  color: #2563eb;\n  text-decoration: none;\n\
+}\n\
+[data-scope=\"link\"][data-part=\"root\"]:hover {\n  \
+  text-decoration: underline;\n\
+}\n\
+[data-scope=\"link\"][data-part=\"root\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n\
+[data-scope=\"link\"][data-part=\"root\"][aria-current=\"page\"] {\n  \
+  color: #111827;\n  font-weight: 600;\n  text-decoration: none;\n\
+}\n\
+[data-scope=\"link\"][data-part=\"root\"][target=\"_blank\"]::after {\n  \
+  content: \" ↗\";\n\
+}\n";
+
+fn ex_link_custom_css() -> Node {
+    let markup = link::root(
+        "https://example.com/docs/guide",
+        false,
+        true,
+        vec![],
+        vec![text("Guide (current page)")],
+    );
+    example_wrap(vec![
+        markup,
+        pre(
+            vec![],
+            vec![code(vec![], vec![text(LINK_CUSTOM_CSS_SNIPPET)])],
+        ),
+    ])
 }
 
 /// `/primitives/link/`。
@@ -462,12 +540,19 @@ fn ex_link() -> Node {
 /// 一次情報: `crates/headless-ui/src/link.rs:1-54`（モジュール doc）、
 /// `:72-100`（`root` シグネチャ）、`:66-67`（`target="_blank"`+
 /// `rel="noopener noreferrer"` の不可分付与）、`:69`（`aria-current="page"`
-/// の実出力）。
+/// の実出力）。参考サイト突合（イシュー #1649）: chakra-ui Link
+/// （`.agents/skills/chakra-ui/references/components/typography/link.md`）・
+/// Radix Themes Link（`docs/design/radix-themes-survey.md:83`）はいずれも
+/// スタイル prop のみの styled `a` で、Anatomy/Keyboard/`data-*` 節を持たない
+/// （ark-ui・Radix Primitives に Link 相当は存在しない、
+/// `docs/design/component-coverage-map.md:667`）。
 pub(super) const LINK: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "汎用インラインリンク。root（a）1 パーツのみの最小構成（chakra-ui Link 相当、link.rs モジュール doc）。",
-        "external=true のとき target=\"_blank\"+rel=\"noopener noreferrer\" を不可分に付与する（reverse tabnabbing 対策。片方のみを付与できる API は公開しない）。",
+        "external=true のとき target=\"_blank\"+rel=\"noopener noreferrer\" を不可分に付与する（reverse tabnabbing 対策。片方のみを付与できる API は公開しない）。参考サイト（chakra-ui）は生の target/rel を利用者が渡す設計であり、本実装は API 側で不可分付与を保証する意図的差分。",
         "current=true のとき aria-current=\"page\"+data-current を付与する（breadcrumb/nav_list と同じ語彙を共有）。",
+        "data-state/data-disabled/data-motion 等の状態 data-* は出力しない（§3.25 規則 2: 装飾・アニメーション関心を headless へ持ち込まない）。",
+        "asChild（Slot 相当）・variant/colorPalette/size/underline/highContrast 等の装飾軸は本モジュールでは提供しない。asChild は intentional-non-adoption.md §3.25 表 Slot 行の保留により非採用、装飾軸は Themes 層 pre-styled-ui::link（/themes/link/）の責務。",
     ],
     arguments: &[
         ArgRow {
@@ -489,16 +574,53 @@ pub(super) const LINK: ComponentPageSpec = ComponentPageSpec {
             description: "true のとき aria-current=\"page\"+data-current を付与する。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "external=false の構成",
-        description: "external を false にして target=\"_blank\"/rel を出力しない構成です。",
-        render: ex_link,
+    examples: &[
+        ExampleEntry {
+            title: "external=false, current=false の構成",
+            description: "external/current をともに false にして target=\"_blank\"/rel/aria-current/data-current のいずれも出力しない最小構成です。",
+            render: ex_link,
+        },
+        ExampleEntry {
+            title: "current=true の構成",
+            description: "current を true にして aria-current=\"page\" と data-current を同時に出力する構成です。",
+            render: ex_link_current,
+        },
+        ExampleEntry {
+            title: "文中インライン",
+            description: "段落テキストの中にリンクを混在させても anatomy 出力・エスケープが変わらないことを示す構成です。",
+            render: ex_link_inline,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/[aria-current=\"page\"] 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: ex_link_custom_css,
+        },
+    ],
+    keyboard: &[KeyRow {
+        key: "Tab / Shift+Tab",
+        description: "ネイティブ要素（a[href]）由来のフォーカス移動（ブラウザ既定、headless-ui 側の配線なし）。",
+    }, KeyRow {
+        key: "Enter",
+        description: "ネイティブ a[href] 由来の起動（リンク先へ遷移）。Space は起動しない（ブラウザ既定の a 要素の挙動）。",
     }],
-    keyboard: &[],
-    aria: &[AriaRow {
-        attribute: "aria-current=\"page\"",
-        description: "current 引数が true のときのみ付与する。",
-    }],
+    aria: &[
+        AriaRow {
+            attribute: "role / aria-*",
+            description: "既定では付与しない。暗黙の link ロールに委ねる（参考サイトも独自付与しない）。",
+        },
+        AriaRow {
+            attribute: "aria-current=\"page\"",
+            description: "current 引数が true のときのみ data-current と同時に付与する。",
+        },
+        AriaRow {
+            attribute: "rel=\"noopener noreferrer\"",
+            description: "ARIA ではないがセキュリティ属性として併記する。external 引数が true のとき target=\"_blank\" と同時に付与する。",
+        },
+        AriaRow {
+            attribute: "（危険スキーム時）",
+            description: "javascript: 等の危険な URL スキームは core の render() が href 属性ごと拒否する。href を失った a はフォーカス不能になり、暗黙の link ロールも失う（fail-closed の意味論的帰結）。",
+        },
+    ],
     demo: None,
 };
 
@@ -506,10 +628,11 @@ pub(super) const LINK: ComponentPageSpec = ComponentPageSpec {
 // link-overlay（`crates/headless-ui/src/link_overlay.rs`）
 // ---------------------------------------------------------------------
 
-/// Demo（`link_overlay_section`）は overlay の子ノードに直接テキストを渡す
-/// 単一リンク構成。ここでは module doc が推奨する「overlay へアクセシブル
-/// ネームのみを与え、見出しは root の他の子ノードとして別途描画する」構成を
-/// 実演する。
+/// Demo（`link_overlay_section`）は「タイトル位置の overlay + 説明文 +
+/// 内側の通常リンク」という chakra-ui のカードパターンを再現する
+/// （イシュー #1650）。ここでは Demo と切り口を変え、module doc が推奨する
+/// 「overlay へアクセシブルネームのみを与え、見出しは root の他の子ノード
+/// として別途描画する」単一リンク構成を実演する。
 fn ex_link_overlay() -> Node {
     example_wrap(vec![link_overlay::root(
         vec![],
@@ -525,17 +648,128 @@ fn ex_link_overlay() -> Node {
     )])
 }
 
+/// chakra-ui LinkBox/LinkOverlay の代表例（タイトルが overlay 自身・
+/// 説明文・内側リンクが残る構成）を実演する（イシュー #1650）。Demo
+/// （`link_overlay_section`）と文言・内側リンクの有無等の切り口を変える。
+fn ex_link_overlay_title_link() -> Node {
+    example_wrap(vec![link_overlay::root(
+        vec![],
+        vec![
+            p(
+                vec![],
+                vec![el(
+                    "strong",
+                    vec![],
+                    vec![link_overlay::overlay(
+                        "https://example.com/blog/framework-release-notes",
+                        vec![],
+                        vec![text("Framework release notes")],
+                    )],
+                )],
+            ),
+            p(
+                vec![],
+                vec![text(
+                    "Highlights from the latest release, including breaking changes.",
+                )],
+            ),
+            p(
+                vec![],
+                vec![el(
+                    "a",
+                    vec![("href", "https://example.com/authors/team")],
+                    vec![text("By the framework team")],
+                )],
+            ),
+        ],
+    )])
+}
+
+/// 自前 CSS の最小例。headless-ui 自体はスタイルを持たないため、利用者が
+/// `data-scope`/`data-part` 属性セレクタで `root` の位置決め・`overlay` の
+/// 全面展開・内側リンクの前面化（chakra-ui の `LinkBox` が CSS の子孫
+/// セレクタで行う挙動、headless 層は CSS を持たないため利用者 CSS の
+/// 責務）を組み立てる例を示す（`LINK_CUSTOM_CSS_SNIPPET` と同型、イシュー
+/// #1650）。CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープを
+/// 経由し、`crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは追加
+/// しない。
+const LINK_OVERLAY_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"link-overlay\"][data-part=\"root\"] {\n  \
+  position: relative;\n\
+}\n\
+[data-scope=\"link-overlay\"][data-part=\"overlay\"] {\n  \
+  position: absolute;\n  inset: 0;\n  z-index: 0;\n\
+}\n\
+[data-scope=\"link-overlay\"][data-part=\"overlay\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n\
+[data-scope=\"link-overlay\"][data-part=\"root\"] a[href]:not([data-part=\"overlay\"]) {\n  \
+  position: relative;\n  z-index: 1;\n\
+}\n";
+
+fn ex_link_overlay_custom_css() -> Node {
+    // overlay は自前 CSS 例の CSS で position: absolute; inset: 0; となり
+    // 通常フローから外れるため、可視タイトルを overlay の子ノードへ渡すと
+    // root の高さを確立できない（module doc「全面拡張の実装方針」契約）。
+    // ex_link_overlay と同様に、可視タイトルは通常フローの
+    // 見出しとして別描画し、overlay へは aria-label のみでアクセシブル
+    // ネームを与える（codex-review 指摘、イシュー #1650）。
+    let markup = link_overlay::root(
+        vec![],
+        vec![
+            p(
+                vec![],
+                vec![el("strong", vec![], vec![text("Custom CSS example")])],
+            ),
+            p(
+                vec![],
+                vec![el(
+                    "a",
+                    vec![("href", "https://example.com/authors/jane")],
+                    vec![text("By Jane")],
+                )],
+            ),
+            link_overlay::overlay(
+                "https://example.com/articles/custom-css-example",
+                vec![("aria-label", "Custom CSS example")],
+                vec![],
+            ),
+        ],
+    );
+    example_wrap(vec![
+        markup,
+        pre(
+            vec![],
+            vec![code(vec![], vec![text(LINK_OVERLAY_CUSTOM_CSS_SNIPPET)])],
+        ),
+    ])
+}
+
 /// `/primitives/link-overlay/`。
 ///
-/// 一次情報: `crates/headless-ui/src/link_overlay.rs:1-49`（モジュール doc
-/// 「全面拡張の実装方針」`:12-30`・「呼び出し文脈」`:31-48` 節）、`:60-75`
-/// （`root`/`overlay` シグネチャ）。
+/// 一次情報: `crates/headless-ui/src/link_overlay.rs:1-75`（モジュール doc
+/// 「全面拡張の実装方針」`:12-29`・「参照突合」`:31-53`・「呼び出し文脈」
+/// `:54-59` 節）、`:107-121`（`root`/`overlay` シグネチャ）。参考サイト突合
+/// （イシュー #1650）: chakra-ui `LinkBox`/`LinkOverlay`
+/// （`.agents/skills/chakra-ui/references/components/typography/link-overlay.md`）
+/// は Anatomy/Keyboard/`data-*` 節を一切持たない styled 部品で、本実装の
+/// `root`/`overlay` 2 パーツ・`data-scope`/`data-part` は参照側に概念が
+/// 存在しない superset（過不足なし）。ark-ui の `link-overlay` ページは
+/// 404 で実在せず、Radix Primitives/Radix Themes にも対応部品なし
+/// （`docs/design/component-coverage-map.md:668`）。
 pub(super) const LINK_OVERLAY: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "カード全面クリック化。root（div、位置決めコンテキスト）/ overlay（a、カード全面へ拡張されるリンク）の 2 パーツ構成（chakra-ui LinkBox/LinkOverlay パターン相当、link_overlay.rs モジュール doc）。",
         "::before 疑似要素を使わず、overlay 自身を position: absolute; inset: 0; で root 全面へ展開する方式を採る（styled 層の CSS 責務、headless 層は CSS を持たない）。",
         "overlay がフローから外れるため、root の高さは overlay 以外の子ノード（見出し・説明文等の通常フロー要素）が確立する契約である（module doc「全面拡張の実装方針」）。",
         "単一リンクのみの overlay へ可視テキストを渡す代わりに、見出しを root の他の子ノードとして描画し overlay へは aria-label 等でアクセシブルネームのみを与える運用が推奨される。",
+        "data-state/data-disabled/data-motion 等の状態 data-* は出力しない（参考サイト〔chakra-ui〕も同様に状態 data-* を持たない、§3.25 規則 2: 装飾・アニメーション関心を headless へ持ち込まない）。",
+        "参考サイト（chakra-ui LinkBox/LinkOverlay）は Anatomy/Keyboard/data-* 節を持たず、data-scope/data-part は本実装の superset。ark-ui・Radix Primitives・Radix Themes に対応部品なし。",
+        "external（旧 isExternal）・asChild は非提供（意図的差分）。target/rel を attrs 経由で渡す場合は両方を同時に付与する運用を利用者側で行う（link::root の不可分保証は本部品には及ばない）。",
+        "内側リンクの前面化（chakra-ui の LinkBox が子孫セレクタで行う挙動）は headless 層が CSS を持たないため利用者 CSS の責務（自前 CSS 例を参照）。",
+        "overlay の DOM 位置がタブ順を決める（chakra-ui はタイトル位置に置く運用を推奨）。",
+        "呼び出し側 attrs の href は予約キーとして除去される（同名なりすましの二重出力防止、イシュー #1650）。",
     ],
     arguments: &[ArgRow {
         name: "overlay(href)",
@@ -543,16 +777,51 @@ pub(super) const LINK_OVERLAY: ComponentPageSpec = ComponentPageSpec {
         default: "",
         description: "遷移先 URL。危険な URL スキームは core の render() が属性ごと拒否する。",
     }],
-    examples: &[ExampleEntry {
-        title: "見出しを別描画し overlay へ aria-label のみ与える構成",
-        description: "module doc が推奨する運用（可視見出しは root の子として描画し、overlay へはアクセシブルネームのみを渡す）を実演します。",
-        render: ex_link_overlay,
-    }],
-    keyboard: &[],
-    aria: &[AriaRow {
-        attribute: "aria-label",
-        description: "overlay 自身は aria-label を自動付与しない。単一リンクのみで完結する構成では呼び出し側が attrs 経由でアクセシブルネームを与える運用が推奨される（module doc 参照）。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "見出しを別描画し overlay へ aria-label のみ与える構成",
+            description: "module doc が推奨する運用（可視見出しは root の子として描画し、overlay へはアクセシブルネームのみを渡す）を実演します。",
+            render: ex_link_overlay,
+        },
+        ExampleEntry {
+            title: "タイトル + 説明文 + 内側リンクの構成（chakra-ui パターン）",
+            description: "参考サイト（chakra-ui LinkBox/LinkOverlay）の典型構成（タイトル位置の overlay・説明文・内側の通常リンク）を実演します。",
+            render: ex_link_overlay_title_link,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part 属性セレクタで root の位置決め・overlay の全面展開・内側リンクの前面化を組み立てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: ex_link_overlay_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "ネイティブ a[href]（overlay パーツ）由来のフォーカス移動。headless-ui 側の配線なし。root 内に内側リンクを併置する場合、フォーカス順は DOM 順に従う。",
+        },
+        KeyRow {
+            key: "Enter",
+            description: "フォーカス中の overlay（a）をブラウザ既定動作で遷移する。Space は起動しない（ブラウザ既定の a 要素の挙動）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "role / aria-*",
+            description: "既定では独自付与しない。暗黙の link ロールに委ねる（参考サイト〔chakra-ui〕も独自付与しない）。",
+        },
+        AriaRow {
+            attribute: "aria-label",
+            description: "overlay 自身は aria-label を自動付与しない。単一リンクのみで完結する構成では呼び出し側が attrs 経由でアクセシブルネームを与える運用が推奨される（module doc 参照）。",
+        },
+        AriaRow {
+            attribute: "（危険スキーム時）",
+            description: "javascript: 等の危険な URL スキームは core の render() が href 属性ごと拒否する。href を失った a はフォーカス不能になり、暗黙の link ロールも失う（fail-closed の意味論的帰結）。",
+        },
+        AriaRow {
+            attribute: "（ポインタ操作の注記）",
+            description: "overlay が root 全面へ absolute 展開されるため、root 内のテキストをポインタで選択しにくくなる（参考サイト〔chakra-ui〕にも同様の注記がある）。",
+        },
+    ],
     demo: None,
 };
 

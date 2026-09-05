@@ -122,6 +122,39 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR
 /// Toast の anatomy（`data-scope="toast"`）。
 const ANATOMY: Anatomy = anatomy("toast");
 
+/// [`group`] が固定付与する予約キー。呼び出し側 `attrs` からのなりすまし・
+/// 重複出力を [`drop_reserved`] で除去する（`crate::breadcrumb::drop_reserved`
+/// と同型、イシュー #1643 Review 指摘）。
+const GROUP_RESERVED: &[&str] = &["role", "aria-label", "data-placement", "tabindex"];
+
+/// [`root`] が固定付与する予約キー。
+const ROOT_RESERVED: &[&str] = &[
+    "role",
+    "aria-atomic",
+    "aria-live",
+    "data-type",
+    "data-state",
+    "tabindex",
+];
+
+/// 呼び出し側 `attrs` から予約キー（本モジュールが固定付与する属性名）を
+/// 除去する（ASCII 大文字小文字無視の完全一致）。`fandhe_frontend_core::el`
+/// は属性の重複除去をしないため、これを経由しない呼び出しは同名属性の
+/// 重複出力（SSR は両方出力して先勝ち、wasm-client の `set_attribute` は
+/// 後勝ちになる描画経路間の不一致）や状態属性のなりすましを許してしまう
+/// （`crate::dialog::drop_tabindex_attr`/`crate::breadcrumb::drop_reserved`
+/// と同型のパターン。クレート API 表面を増やさないため再利用せずここへ
+/// 複製する、イシュー #1643 Review 指摘）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
 /// [`Toaster::default`] が使う既定の最大表示件数（ark-ui の例に倣う）。
 pub const DEFAULT_MAX: usize = 24;
 
@@ -269,6 +302,12 @@ pub struct ToastEntry {
 /// はホットキー（Zag の `Alt+T`・Radix の `F8`）を未配線のため実際にフォーカス
 /// させる経路はないが、属性自体は将来の配線を妨げない静的な既定値として付与する
 /// （Tab 順には入らないため、キーボード操作フローに影響しない）。
+///
+/// 呼び出し側 `attrs` に本関数が固定付与する属性（[`GROUP_RESERVED`]:
+/// `role`/`aria-label`/`data-placement`/`tabindex`、大文字小文字を無視）が
+/// 含まれる場合は [`drop_reserved`] で除去してから合成する（Review 指摘、
+/// イシュー #1643。`crate::dialog::content` の `tabindex` ガード先例と
+/// 同じく、除去しないと SSR は同名属性を重複出力して無効な HTML になる）。
 #[must_use]
 pub fn group<'a>(
     placement: ToastPlacement,
@@ -282,7 +321,7 @@ pub fn group<'a>(
         ("data-placement", placement.as_data_placement()),
         ("tabindex", "-1"),
     ];
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, GROUP_RESERVED));
     ANATOMY.part("group", "div", merged, children)
 }
 
@@ -302,6 +341,11 @@ pub fn group<'a>(
 /// （root → action-trigger → close-trigger の順）へ到達できるようにする静的
 /// 属性で、dialog（#1910）の content が `tabindex="-1"` を固定付与した先例と
 /// 同型（クリック/キー処理の配線を伴わない属性のみの付与）。
+///
+/// 呼び出し側 `attrs` に本関数が固定付与する属性（[`ROOT_RESERVED`]:
+/// `role`/`aria-atomic`/`aria-live`/`data-type`/`data-state`/`tabindex`、
+/// 大文字小文字を無視）が含まれる場合は [`drop_reserved`] で除去してから
+/// 合成する（Review 指摘、イシュー #1643。[`group`] と同じガード）。
 #[must_use]
 pub fn root<'a>(status: ToastStatus, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![
@@ -312,7 +356,7 @@ pub fn root<'a>(status: ToastStatus, attrs: Vec<(&'a str, &'a str)>, children: V
         ("data-state", "open"),
         ("tabindex", "0"),
     ];
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, ROOT_RESERVED));
     ANATOMY.part("root", "div", merged, children)
 }
 
@@ -678,6 +722,61 @@ mod tests {
         assert!(html.contains(r#"data-type="success""#));
         assert!(html.contains(r#"data-state="open""#));
         assert!(html.contains(r#"tabindex="0""#));
+    }
+
+    #[test]
+    fn group_drops_caller_tabindex_and_reserved_attrs_to_keep_fixed_values() {
+        // 呼び出し側 attrs に tabindex（大文字小文字違い含む）や role/
+        // aria-label/data-placement を渡しても、固定値のみが 1 つずつ
+        // 出力される（`crate::dialog::content` の tabindex ガード先例と
+        // 同型、イシュー #1643 Review 指摘）。
+        let rendered = render(&group(
+            ToastPlacement::TopStart,
+            "Notifications",
+            vec![
+                ("TabIndex", "3"),
+                ("role", "list"),
+                ("aria-label", "spoofed"),
+                ("data-placement", "bottom"),
+            ],
+            vec![],
+        ));
+        assert_eq!(rendered.matches("tabindex").count(), 1);
+        assert!(rendered.contains(r#"tabindex="-1""#));
+        assert!(!rendered.contains(r#"tabindex="3""#));
+        assert_eq!(rendered.matches("role=").count(), 1);
+        assert!(rendered.contains(r#"role="region""#));
+        assert_eq!(rendered.matches("aria-label=").count(), 1);
+        assert!(rendered.contains(r#"aria-label="Notifications""#));
+        assert!(!rendered.contains("spoofed"));
+        assert_eq!(rendered.matches("data-placement=").count(), 1);
+        assert!(rendered.contains(r#"data-placement="top-start""#));
+        assert!(!rendered.contains(r#"data-placement="bottom""#));
+    }
+
+    #[test]
+    fn root_drops_caller_tabindex_and_data_state_to_keep_fixed_values() {
+        // 呼び出し側 attrs に tabindex（大文字小文字違い含む）や
+        // data-state（なりすまし "closed"）を渡しても、固定値のみが
+        // 1 つずつ出力される（イシュー #1643 Review 指摘）。
+        let rendered = render(&root(
+            ToastStatus::Success,
+            vec![
+                ("TABINDEX", "5"),
+                ("data-state", "closed"),
+                ("role", "alert"),
+            ],
+            vec![],
+        ));
+        assert_eq!(rendered.matches("tabindex").count(), 1);
+        assert!(rendered.contains(r#"tabindex="0""#));
+        assert!(!rendered.contains(r#"tabindex="5""#));
+        assert_eq!(rendered.matches("data-state=").count(), 1);
+        assert!(rendered.contains(r#"data-state="open""#));
+        assert!(!rendered.contains(r#"data-state="closed""#));
+        assert_eq!(rendered.matches("role=").count(), 1);
+        assert!(rendered.contains(r#"role="status""#));
+        assert!(!rendered.contains(r#"role="alert""#));
     }
 
     /// 参照突合（イシュー #1643）で意図的に不採用と確定した属性が root/

@@ -52,7 +52,10 @@
 //! （`component_page.rs` の Accessibility 節省略規則参照）。dialog は
 //! イシュー #1638 で `fandhe-frontend-wasm-full`（`overlay`/`focus_trap`/
 //! `headless`）の配線を確認できたため本モジュールで最初に `KeyRow` を
-//! 持つ。他 9 部品が空のままなのは各兄弟イシューでの確認待ちであり、
+//! 持つ。**popover もイシュー #1642 で同様に配線（`headless`/`overlay`）を
+//! 確認できたため `KeyRow` を持つ**（`focus_trap` 側はフォーカストラップ
+//! 対象外と確認できたため Tab/Shift+Tab の行は「トラップ無し」の事実を
+//! 記す）。他 8 部品が空のままなのは各兄弟イシューでの確認待ちであり、
 //! 配線が無いと確定した結果ではない。
 //!
 //! **`collapsible` は #1637 で例外を追加した**: `trigger` はネイティブ
@@ -73,7 +76,39 @@
 //! ない（`HOVER_CARD.keyboard` は 2 行、`COLLAPSIBLE.keyboard` と合わせて
 //! 他 8 部品の `keyboard: &[]` は不変）。
 //!
-//! **`toast` は #1643 で 3 例目の例外を追加した**: root の `tabindex="0"`
+//! **`toggle_tip` は #1644 で 3 例目の例外を追加した**: `trigger`
+//! （`crates/headless-ui/src/toggle_tip.rs` の `trigger`）はネイティブ
+//! `<button type="button">` 要素であり、ブラウザ標準で Tab フォーカス到達
+//! （`disabled` 時は除外）が成立する。`fandhe-frontend-wasm-full` に
+//! `"toggle-tip"` scope が `headless::MAPPING_TABLE`/
+//! `overlay::OverlayKind::from_scope`/`position::PositionedKind::from_scope`
+//! のいずれにも未登録であり、click → `"toggle"` dispatch・Escape・外側
+//! クリック閉鎖・placement 計算は未配線のため、Enter/Space/Escape の行は
+//! 書かない（`TOGGLE_TIP.keyboard` は Tab のみの 1 行、`COLLAPSIBLE`/
+//! `HOVER_CARD` と合わせて他 4 部品〔accordion/drawer/floating-panel/
+//! toast〕の `keyboard: &[]` は不変。dialog/popover は本節冒頭で
+//! 別途 `KeyRow` を持つ既存例外のため、この「他 N 部品」の母数
+//! （10 部品）から dialog/popover/collapsible/hover_card/toggle_tip の
+//! 5 例外を除いた残数と一致する）。
+//!
+//! **`tooltip` は #1645 で 6 例目の例外を追加した**: `trigger`
+//! （`crates/headless-ui/src/tooltip.rs` の `trigger`）はネイティブ
+//! `<button type="button">` 要素であり、ブラウザ標準で Tab フォーカス到達
+//! （`disabled` 時は除外）が成立する。`fandhe-frontend-wasm-full` の
+//! `tooltip::wiring::TooltipDelayController::register_tooltip`（trigger の
+//! `focusin`/`focusout` イベントで即時 open/close を要求、
+//! `tests/tooltip_delay_browser.rs::focus_opens_and_blur_closes_immediately_ignoring_delay`
+//! でブラウザ実測済み）・`overlay::OverlayKind::Tooltip`（`close_on_escape()`
+//! が `true`）・`headless::MAPPING_TABLE`（trigger → `"toggle"`）がいずれも
+//! 名指しできる実 DOM 配線として存在するため、`TOOLTIP.keyboard` は
+//! Tab/Escape/Enter・Space の 3 行を持つ（他部品と異なり配線が確認できた
+//! ため `KeyRow` を追加した例外。他 3 部品〔accordion/drawer/
+//! floating-panel/toast〕の `keyboard: &[]` は不変。ただし toast は
+//! 本節末尾の #1643 追記で 7 例目の例外へ移行済みであり、この記述時点の
+//! 「他 3 部品」は #1643 マージ前の状態を指す。現状は accordion/drawer/
+//! floating-panel の 3 部品のみが `keyboard: &[]` のまま残る）。
+//!
+//! **`toast` は #1643 で 7 例目の例外を追加した**: root の `tabindex="0"`
 //! （参照突合で追加、`crates/headless-ui/src/toast.rs::root`）とネイティブ
 //! `<button type="button">` の action-trigger/close-trigger により、Tab
 //! による root → action-trigger → close-trigger の順のフォーカス到達と、
@@ -81,7 +116,8 @@
 //! として成立する（`TOAST.keyboard` は 2 行）。click から `"dismiss"`
 //! dispatch への配線（`fandhe-frontend-wasm-full` の `MAPPING_TABLE` に
 //! toast 行なし）・Escape での閉鎖・Radix の F8/Zag の Alt+T によるリージョン
-//! フォーカスは未配線のため書かない（他 7 部品の `keyboard: &[]` は不変）。
+//! フォーカスは未配線のため書かない（他 3 部品〔accordion/drawer/
+//! floating-panel〕の `keyboard: &[]` は不変）。
 //!
 //! # `hover_card` の Accessibility 節が空にならない理由
 //!
@@ -1340,11 +1376,12 @@ pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
 // Popover（/primitives/popover/）
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/popover.rs:1-30`（モジュール doc、
-/// Disclosure を埋め込んだ開閉状態機械）、`:62-243`（`root`/`trigger`/
-/// `anchor`/`positioner`/`arrow`/`arrow_tip`/`content`/`title`/
-/// `description`/`close_trigger`/`indicator` シグネチャ、
-/// `aria-haspopup="dialog"`/`role="dialog"` の実出力テスト）。
+/// 一次情報: `crates/headless-ui/src/popover.rs:1-100`（モジュール doc、
+/// Disclosure を埋め込んだ開閉状態機械。イシュー #1642 で参照突合の結果を
+/// 追記）、`:133-317`（`root`/`trigger`/`anchor`/`positioner`/`arrow`/
+/// `arrow_tip`/`content`/`title`/`description`/`close_trigger`/`indicator`
+/// シグネチャ、`aria-haspopup="dialog"`/`role="dialog"`/`tabindex="-1"`
+/// の実出力テスト）。
 fn ex_popover_minimal_content() -> Node {
     let state = OpenState::Open;
     div(
@@ -1383,7 +1420,8 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Trigger / Anchor / Positioner / Arrow / ArrowTip / Content / Title / Description / CloseTrigger / Indicator の 11 anatomy パーツと、Disclosure を埋め込んだ開閉状態機械 Popover を提供する。",
         "trigger は type=\"button\" を固定付与し、aria-haspopup=\"dialog\"・aria-expanded・（controls が Some のとき）aria-controls を持つ。",
-        "content は role=\"dialog\" を固定付与し、labelledby/describedby が Some のときのみ title/description と対で関連付ける。",
+        "content は role=\"dialog\" を固定付与し、labelledby/describedby が Some のときのみ title/description と対で関連付ける。content は tabindex=\"-1\" を固定付与する（zag popover.connect.ts と同じく、プログラム的フォーカスのみを許可する前提。イシュー #1642）。",
+        "trigger/close-trigger の click → dispatch 配線（\"toggle\"/\"close\"）、Escape・外側クリックでの閉鎖は fandhe-frontend-wasm-full（headless の part → action 対応表・overlay モジュール）が実 DOM 配線を担う。content の attrs 経由で data-close-on-escape=\"false\" / data-close-on-interact-outside=\"false\"（\"false\" リテラルのときのみ無効化）を渡せる。フォーカストラップ・開時の autoFocus・閉鎖時の trigger へのフォーカス復帰は未実装である（focus_trap::should_trap は data-scope=\"dialog\" のみを対象とし popover を含まない、イシュー #1642 で判明）。",
     ],
     arguments: &[
         ArgRow {
@@ -1464,7 +1502,24 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
         description: "title/description を持たず close_trigger のみを含む、最小構成の Popover content の例です。",
         render: ex_popover_minimal_content,
     }],
-    keyboard: &[],
+    keyboard: &[
+        KeyRow {
+            key: "Enter / Space (trigger)",
+            description: "ネイティブ button 要素の click 相当が成立し、fandhe-frontend-wasm-full の headless part → action 対応表が \"toggle\" を dispatch する。",
+        },
+        KeyRow {
+            key: "Enter / Space (close-trigger)",
+            description: "同対応表が \"close\" を dispatch する。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "overlay::close_on_escape_for が最上位オーバーレイに \"close\" を通知する（push_overlay の登録と実際の dispatch は #580 統合層の責務）。data-close-on-escape=\"false\" で無効化できる。",
+        },
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "フォーカストラップは無い（focus_trap::should_trap は data-scope=\"dialog\" のみを対象とし popover は含まない）。通常の文書順でフォーカスが移動する。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-haspopup=\"dialog\"",
@@ -1485,6 +1540,10 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-labelledby / aria-describedby",
             description: "content に付与。labelledby/describedby が Some のときのみ出力される。",
+        },
+        AriaRow {
+            attribute: "tabindex=\"-1\"",
+            description: "content に固定付与。プログラム的フォーカスのみを許可する（イシュー #1642）。",
         },
     ],
     demo: None,
@@ -1700,11 +1759,80 @@ fn ex_toggle_tip_disabled() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1644、`HOVER_CARD_CUSTOM_CSS_SNIPPET`/
+/// `ex_hover_card_custom_css`〔#1641〕と同型のパターン）。CSS はテキスト
+/// ノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。closed 時の非表示は popover 同様 `[hidden]` ガードで表現する
+/// （author の `display` が UA の `[hidden]` を上書きしないため）。
+const TOGGLE_TIP_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"toggle-tip\"][data-part=\"root\"] {\n  \
+  position: relative;\n  display: inline-block;\n\
+}\n\
+[data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  \
+  position: absolute;\n  top: 100%;\n  left: 0;\n\
+}\n\
+[data-scope=\"toggle-tip\"][data-part=\"positioner\"][hidden],\n\
+[data-scope=\"toggle-tip\"][data-part=\"content\"][hidden] {\n  \
+  display: none;\n\
+}\n\
+[data-scope=\"toggle-tip\"][data-part=\"content\"] {\n  \
+  background: #fff;\n  border: 1px solid rgb(0 0 0 / 0.1);\n  border-radius: 6px;\n  \
+  padding: 0.5rem 0.75rem;\n  box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.15);\n\
+}\n\
+[data-scope=\"toggle-tip\"][data-part=\"trigger\"][data-state=\"open\"] {\n  \
+  background: #eef2ff;\n\
+}\n\
+[data-scope=\"toggle-tip\"][data-part=\"trigger\"][data-disabled] {\n  \
+  opacity: 0.5;\n  cursor: not-allowed;\n\
+}\n\
+[data-scope=\"toggle-tip\"][data-part=\"arrow\"] {\n  \
+  position: absolute;\n  width: 0.5rem;\n  height: 0.5rem;\n\
+}\n";
+
+/// 一次情報: `crates/headless-ui/src/toggle_tip.rs:1-53`（モジュール doc、
+/// Tooltip/Popover との 3 者境界）、`:94-206`（各パーツシグネチャ）。
+/// イシュー #1644 の参照突合結果を踏まえ、利用者が `data-scope`/
+/// `data-part`/`data-state`/`data-disabled` セレクタで自前 CSS を当てる
+/// 最小例を示す。
+fn ex_toggle_tip_custom_css() -> Node {
+    let state = OpenState::Open;
+    let markup = toggle_tip::root(
+        state,
+        vec![],
+        vec![
+            toggle_tip::trigger(state, false, Some("tt-ex-css"), vec![], vec![text("ⓘ")]),
+            toggle_tip::positioner(
+                state,
+                vec![],
+                vec![toggle_tip::content(
+                    state,
+                    Some("tt-ex-css"),
+                    vec![],
+                    vec![text("Custom-styled toggle tip.")],
+                )],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-disabled セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(TOGGLE_TIP_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 pub const TOGGLE_TIP: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Tooltip（hover/focus 由来）・Popover（クリック起点のダイアログ相当）のいずれとも異なる立ち位置を持つ: trigger は aria-expanded と（controls が Some のとき）aria-controls を持つが aria-haspopup は付与せず、content は role=\"tooltip\" を持たない非対話テキストとして扱う（モジュール doc §3 者境界）。",
         "Root / Trigger / Positioner / Content / Arrow / ArrowTip の 6 anatomy パーツと、Disclosure を埋め込んだ開閉状態機械 ToggleTip を提供する。",
-        "click-outside dismiss（トリガー外クリックでの自動閉鎖）・Escape 閉鎖はクライアントサイド実行時のイベント処理としてスコープ外。",
+        "click-outside dismiss（トリガー外クリックでの自動閉鎖）・Escape 閉鎖・click → dispatch 配線・placement 計算は fandhe-frontend-wasm-full の責務だが、headless::MAPPING_TABLE / overlay::OverlayKind / position::PositionedKind に \"toggle-tip\" scope が未登録のため現時点では未配線（イシュー #1644 で確認、別イシュー提案）。",
+        "chakra-ui ToggleTip（Ark Popover 基盤）と突合し、anatomy 6 パーツ・data-state/data-disabled 語彙は一致することを確認した。ARIA 3 者境界（aria-haspopup/role=\"dialog\" 非付与）は意図的差分として維持している（イシュー #1644、是正なし）。",
     ],
     arguments: &[
         ArgRow {
@@ -1750,12 +1878,22 @@ pub const TOGGLE_TIP: ComponentPageSpec = ComponentPageSpec {
             description: "trigger の controls と対で aria-controls 関連付けを成立させる。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Disabled trigger",
-        description: "disabled な trigger はネイティブ disabled 属性と data-disabled が付与され、フォーカス・展開ができなくなります。",
-        render: ex_toggle_tip_disabled,
+    examples: &[
+        ExampleEntry {
+            title: "Disabled trigger",
+            description: "disabled な trigger はネイティブ disabled 属性と data-disabled が付与され、フォーカス・展開ができなくなります。",
+            render: ex_toggle_tip_disabled,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "data-scope / data-part / data-state / data-disabled セレクタで自前 CSS を当てる最小例です。",
+            render: ex_toggle_tip_custom_css,
+        },
+    ],
+    keyboard: &[KeyRow {
+        key: "Tab",
+        description: "trigger はネイティブ button 要素（toggle_tip.rs の trigger）のためブラウザ標準でフォーカス到達する（disabled 時は除外）。Enter/Space は click を発火するが、fandhe-frontend-wasm-full の MAPPING_TABLE に toggle-tip scope の行が無いため開閉 dispatch は未配線（イシュー #1644）。",
     }],
-    keyboard: &[],
     aria: &[
         AriaRow {
             attribute: "aria-expanded",
@@ -1767,7 +1905,7 @@ pub const TOGGLE_TIP: ComponentPageSpec = ComponentPageSpec {
         },
         AriaRow {
             attribute: "aria-haspopup / role=\"tooltip\"（非付与）",
-            description: "trigger には aria-haspopup を、content には role=\"tooltip\" を付与しない（Tooltip/Popover との違い、モジュール doc §3 者境界参照）。",
+            description: "trigger には aria-haspopup を、content には role=\"tooltip\" を付与しない（Tooltip/Popover との違い、モジュール doc §3 者境界参照）。chakra-ui ToggleTip（Ark Popover 基盤）は aria-haspopup=\"dialog\"/role=\"dialog\"/tabindex=\"-1\" を持つが、非対話の短文テキストという性質上 dialog ロールは不適合と判断し、意図的差分として非付与を維持する（イシュー #1644 突合）。",
         },
         AriaRow {
             attribute: "aria-hidden=\"true\"",
@@ -1819,11 +1957,82 @@ fn ex_tooltip_disabled() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1645、`TOGGLE_TIP_CUSTOM_CSS_SNIPPET`/
+/// `ex_toggle_tip_custom_css`〔#1644〕と同型のパターン）。CSS はテキスト
+/// ノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。closed 時の非表示は他部品同様 `[hidden]` ガードで表現する
+/// （author の `display` が UA の `[hidden]` を上書きしないため）。
+const TOOLTIP_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"tooltip\"][data-part=\"root\"] {\n  \
+  position: relative;\n  display: inline-block;\n\
+}\n\
+[data-scope=\"tooltip\"][data-part=\"positioner\"] {\n  \
+  position: absolute;\n  top: 100%;\n  left: 0;\n\
+}\n\
+[data-scope=\"tooltip\"][data-part=\"positioner\"][hidden],\n\
+[data-scope=\"tooltip\"][data-part=\"content\"][hidden] {\n  \
+  display: none;\n\
+}\n\
+[data-scope=\"tooltip\"][data-part=\"content\"] {\n  \
+  background: #1a1a1a;\n  color: #fff;\n  border-radius: 4px;\n  \
+  padding: 0.25rem 0.5rem;\n  font-size: 0.75rem;\n\
+}\n\
+[data-scope=\"tooltip\"][data-part=\"trigger\"][data-disabled] {\n  \
+  opacity: 0.5;\n  cursor: not-allowed;\n\
+}\n\
+[data-scope=\"tooltip\"][data-part=\"arrow\"] {\n  \
+  position: absolute;\n  width: 0.5rem;\n  height: 0.5rem;\n\
+}\n";
+
+/// 一次情報: `crates/headless-ui/src/tooltip.rs:75-186`（`root`/`trigger`/
+/// `positioner`/`content`/`arrow`/`arrow_tip` シグネチャ）。イシュー #1645
+/// の参照突合結果を踏まえ、利用者が `data-scope`/`data-part`/`data-state`/
+/// `data-disabled` セレクタで自前 CSS を当てる最小例を示す。
+fn ex_tooltip_custom_css() -> Node {
+    let state = OpenState::Open;
+    let markup = tooltip::root(
+        state,
+        vec![],
+        vec![
+            tooltip::trigger(
+                state,
+                false,
+                Some("tip-ex-css"),
+                vec![],
+                vec![text("Hover me")],
+            ),
+            tooltip::positioner(
+                state,
+                vec![],
+                vec![tooltip::content(
+                    state,
+                    Some("tip-ex-css"),
+                    vec![],
+                    vec![text("Custom-styled tooltip.")],
+                )],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-state / data-disabled セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(TOOLTIP_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "WAI-ARIA tooltip パターンに従い、trigger は aria-describedby で content（role=\"tooltip\"）と関連付ける。aria-expanded/aria-controls は使用しない（trigger 自体が展開可能なウィジェットではないため）。",
         "Root / Trigger / Positioner / Content / Arrow / ArrowTip の 6 anatomy パーツと、Disclosure を埋め込んだ開閉状態機械 Tooltip を提供する。",
-        "openDelay/closeDelay/interactive/closeOnEscape はタイマー・ポインタ座標などクライアントサイド実行時挙動としてスコープ外。",
+        "headless-ui 自体はタイマー・キー・ポインタを解釈しない。openDelay/closeDelay/interactive は fandhe-frontend-wasm-full の tooltip::wiring::TooltipDelayController（data-open-delay/data-close-delay/data-interactive 属性で設定）、Escape 閉鎖は同 overlay が実装済み。",
+        "ark-ui / chakra-ui / Radix Primitives と突合し、anatomy 6 パーツ・data-state/data-disabled 語彙・role=\"tooltip\"/aria-describedby は一致。data-expanded/data-placement/Radix の delayed-open・instant-open は意図的差分として非採用（イシュー #1645、是正なし）。",
     ],
     arguments: &[
         ArgRow {
@@ -1869,16 +2078,36 @@ pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
             description: "trigger の describedby と対で aria-describedby 関連付けを成立させる。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Disabled trigger",
-        description: "disabled な trigger はネイティブ disabled 属性と data-disabled が付与され、フォーカス・展開ができなくなります。",
-        render: ex_tooltip_disabled,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Disabled trigger",
+            description: "disabled な trigger はネイティブ disabled 属性と data-disabled が付与され、フォーカス・展開ができなくなります。",
+            render: ex_tooltip_disabled,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "data-scope / data-part / data-state / data-disabled セレクタで自前 CSS を当てる最小例です。",
+            render: ex_tooltip_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "trigger はネイティブ button のためフォーカス到達する（disabled 時は除外）。fandhe-frontend-wasm-full の tooltip::wiring::TooltipDelayController::register_tooltip が focusin で遅延なしに \"open\"、focusout で \"close\" を要求する（ark-ui / Radix の「Tab で開閉」と同義）。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "overlay::OverlayKind::Tooltip は close_on_escape が true（OverlayCloseController が \"close\" を通知）。data-close-on-escape=\"false\" で無効化可能。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "ネイティブ button の click が発火し headless::MAPPING_TABLE が \"toggle\" を dispatch する。参照（ark closeOnClick: true / Radix の Space・Enter）は「閉じるのみ」であり、toggle との差は wasm-full 側の挙動差（本イシュー対象外、スコープ外候補）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-describedby",
-            description: "trigger に付与。describedby が Some のとき content と関連付ける。",
+            description: "trigger に付与。describedby が Some のとき content と関連付ける。zag/Radix は open 時のみ出力するが、SSR 静的出力では Some なら常時出力する（意図的差分）。",
         },
         AriaRow {
             attribute: "role=\"tooltip\"",
@@ -1887,6 +2116,10 @@ pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-expanded / aria-controls（非付与）",
             description: "trigger 自体が展開可能なウィジェットではないため付与しない（Collapsible との違い）。",
+        },
+        AriaRow {
+            attribute: "data-expanded / data-placement（非付与）",
+            description: "zag/Radix 由来だが data-state・positioner の data-side/data-align と重複するため意図的に非採用（イシュー #1645）。",
         },
         AriaRow {
             attribute: "aria-hidden=\"true\"",
@@ -1947,26 +2180,41 @@ mod tests {
             );
             assert!(!spec.aria.is_empty(), "{path}: aria must not be empty");
             // collapsible（イシュー #1637）・dialog（イシュー #1638）・
-            // hover-card（イシュー #1641）・toast（イシュー #1643）のみ例外:
-            // collapsible は trigger がネイティブ <button> のため Space/Enter
-            // が標準操作として成立し、dialog は fandhe-frontend-wasm-full 側
+            // popover（イシュー #1642）・hover-card（イシュー #1641）・
+            // toggle-tip（イシュー #1644）・tooltip（イシュー #1645）・
+            // toast（イシュー #1643）のみ例外: collapsible は trigger が
+            // ネイティブ <button> のため Space/Enter が標準操作として成立し、
+            // dialog・popover は fandhe-frontend-wasm-full 側
             // （overlay/focus_trap/headless）の実 DOM 配線を確認できたため、
             // hover-card は trigger がネイティブ <a> のため href が Some の
             // ときの Tab フォーカス到達・Enter 遷移がブラウザ標準として
-            // 成立するため、toast は root の tabindex="0"（#1643 で追加）と
+            // 成立するため、toggle-tip は trigger がネイティブ <button> の
+            // ため Tab フォーカス到達がブラウザ標準として成立するため
+            // （click → 開閉 dispatch 自体は未配線、モジュール doc
+            // 「toggle_tip は #1644 で 3 例目の例外を追加した」参照）、
+            // tooltip は trigger がネイティブ <button> かつ
+            // fandhe-frontend-wasm-full の tooltip::wiring/overlay/headless
+            // が Tab（focus）/Escape/Enter・Space の実 DOM 配線を持つため
+            // （モジュール doc 「tooltip は #1645 で 6 例目の例外を追加
+            // した」参照）、toast は root の tabindex="0"（#1643 で追加）と
             // ネイティブ <button> の action-trigger/close-trigger により Tab
             // フォーカス到達・Enter/Space の click 発火がブラウザ標準として
-            // 成立するため。他 6 部品はキー割り当てを持つ実装が無いため
+            // 成立するため（モジュール doc 「toast は #1643 で 7 例目の
+            // 例外を追加した」参照）。他 3 部品〔accordion/drawer/
+            // floating-panel〕はキー割り当てを持つ実装が無いため
             // keyboard: &[] を維持する（モジュール doc「keyboard を 10 件
             // すべて空にする理由」参照）。
             if *path == "/primitives/collapsible/"
                 || *path == "/primitives/dialog/"
+                || *path == "/primitives/popover/"
                 || *path == "/primitives/hover-card/"
+                || *path == "/primitives/toggle-tip/"
+                || *path == "/primitives/tooltip/"
                 || *path == "/primitives/toast/"
             {
                 assert!(
                     !spec.keyboard.is_empty(),
-                    "{path}: keyboard should hold the documented rows (#1637/#1638/#1641/#1643)"
+                    "{path}: keyboard should hold the documented rows (#1637/#1638/#1641/#1642/#1643/#1644/#1645)"
                 );
             } else {
                 assert!(

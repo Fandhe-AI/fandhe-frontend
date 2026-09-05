@@ -45,6 +45,8 @@ fn full_assembly_wires_aria_controls_labelledby_describedby() {
     assert!(html.contains(r#"aria-describedby="desc-1""#));
     assert!(html.contains(r#"id="desc-1""#));
     assert!(!html.contains("hidden"));
+    // content は tabindex="-1" を固定で持つ（イシュー #1642）。
+    assert!(html.contains(r#"tabindex="-1""#));
 }
 
 #[test]

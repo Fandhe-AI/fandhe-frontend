@@ -371,8 +371,8 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/overlays/dialog.md` | Dialog | Dialog | Dialog (`dialog`) | Dialog (`dialog`) | `dialog` | `dialog` | 実装済み | headless+styled 実装済み。#1638 で ark-ui（zag `dialog.connect.ts`）/Radix Primitives と突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化） |
-| `.agents/skills/ark-ui/references/components/overlays/popover.md` | Popover | Popover | Popover (`popover`) | Popover (`popover`) | `popover` | `popover` | 実装済み | headless+styled 実装済み |
-| `.agents/skills/ark-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | Tooltip (`tooltip`) | Tooltip (`tooltip`) | `tooltip` | `tooltip` | 実装済み | headless+styled 実装済み |
+| `.agents/skills/ark-ui/references/components/overlays/popover.md` | Popover | Popover | Popover (`popover`) | Popover (`popover`) | `popover` | `popover` | 実装済み | headless+styled 実装済み。#1642 で突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化。パート・data-* 増減なし） |
+| `.agents/skills/ark-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | Tooltip (`tooltip`) | Tooltip (`tooltip`) | `tooltip` | `tooltip` | 実装済み | headless+styled 実装済み。#1645 で突合済み、是正なし。data-expanded/data-placement は意図的差分、パート・data-* 増減なし |
 | `.agents/skills/ark-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | `drawer` | `drawer` | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用。#1639 で参照突合済み、tabindex="-1" 追加、パート・data-* 増減なし） |
 | `.agents/skills/ark-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | Hover Card (`hover-card`) | Hover Card (`hover-card`) | `hover_card` | `hover_card` | 実装済み | headless+styled 実装済み（#1641 で Zag.js/ark-ui/Radix Primitives と突合済み、是正なし。data-side/data-align は positioner へ透過〔意図的差分〕、パート・data-* 増減なし） |
 | `.agents/skills/ark-ui/references/components/overlays/toast.md` | Toast | Toast | Toast (`toast`) | — | `toast` | `toast` | 実装済み | headless+styled 実装済み（#760、キュー状態機械は `Disclosure`/`SingleSelect` に収まらないため `Component`/`Hydrate` 直接実装。#1643 で Zag.js/ark-ui/Radix Primitives と突合済み、是正 4 点（root `data-state`/`tabindex`、group `tabindex`、group ラベル既定値）、パート増減なし・`data-*` 1 件増（`data-state`）） |
@@ -651,11 +651,11 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/overlays/dialog.md` | Dialog | Dialog | Alert Dialog (`alert-dialog`) | Alert Dialog (`alert-dialog`) | `dialog` | `dialog` | 実装済み | headless+styled 実装済み。#1638 で突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化） |
 | `.agents/skills/chakra-ui/references/components/overlays/menu.md` | Menu | Menu | Context Menu (`context-menu`) | Context Menu (`context-menu`) | `menu` | `menu` | 実装済み | headless+styled 実装済み |
-| `.agents/skills/chakra-ui/references/components/overlays/popover.md` | Popover | Popover | — | — | `popover` | `popover` | 実装済み | headless+styled 実装済み |
-| `.agents/skills/chakra-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | — | — | `tooltip` | `tooltip` | 実装済み | headless+styled 実装済み |
+| `.agents/skills/chakra-ui/references/components/overlays/popover.md` | Popover | Popover | — | — | `popover` | `popover` | 実装済み | headless+styled 実装済み。#1642 で突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化。パート・data-* 増減なし） |
+| `.agents/skills/chakra-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | — | — | `tooltip` | `tooltip` | 実装済み | headless+styled 実装済み。#1645 で突合済み、是正なし。data-expanded/data-placement は意図的差分、パート・data-* 増減なし |
 | `.agents/skills/chakra-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | `drawer` | `drawer` | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用。#1639 で参照突合済み、tabindex="-1" 追加、パート・data-* 増減なし） |
 | `.agents/skills/chakra-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | — | — | `hover_card` | `hover_card` | 実装済み | headless+styled 実装済み（#1641 で chakra-ui 基盤の Zag.js/Radix Primitives と突合済み、是正なし。data-side/data-align は positioner へ透過〔意図的差分〕、パート・data-* 増減なし） |
-| `.agents/skills/chakra-ui/references/components/overlays/toggle-tip.md` | — | ToggleTip | — | — | `toggle_tip` | `toggle_tip` | 実装済み | headless+styled 実装済み（#761、PR #804） |
+| `.agents/skills/chakra-ui/references/components/overlays/toggle-tip.md` | — | ToggleTip | — | — | `toggle_tip` | `toggle_tip` | 実装済み | headless+styled 実装済み（#761、PR #804）。#1644 で chakra-ui ToggleTip（Ark Popover 基盤）と突合済み、是正なし。パート・data-* 増減なし。ark-ui に該当部品なし（`ark-ui.com/docs/components/toggle-tip` は 404） |
 | `.agents/skills/chakra-ui/references/components/overlays/action-bar.md` | — | ActionBar | — | — | `action_bar` | `action_bar` | 実装済み | headless+styled 実装済み（#762）。イシュー #1647 で参考基準（chakra-ui のみ、実体は Ark Popover の再利用）との突合を実施し、`content` の `role` を `"toolbar"` から `"dialog"`（非モーダル）へ是正・`data-expanded`/`tabindex="-1"`/close-trigger 既定 `aria-label` を追加した（破壊的変更）。`data-placement` 等の配置バリエーションはスタイル層の責務としてスコープ外のまま |
 | `.agents/skills/chakra-ui/references/components/overlays/overlay-manager.md` | — | OverlayManager | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/chakra-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | `floating_panel` | `floating_panel` | 実装済み | headless+styled 実装済み（イシュー #827、`docs/policy/intentional-non-adoption.md` §7 の保留区分から解除。#1640 で ark-ui（zag）と突合し、header/control への data-stage 付与・body への Stage::Minimized 時 hidden 付与を是正） |
@@ -664,8 +664,8 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/typography/link.md` | — | Link | — | Link (`link`) | `link` | `link` | 実装済み | headless+styled 実装済み（#756、PR #801、#716 最優先候補の消化） |
-| `.agents/skills/chakra-ui/references/components/typography/link-overlay.md` | — | LinkOverlay | — | — | `link_overlay` | `link_overlay` | 実装済み | headless+styled 実装済み（#756、PR #801、#716 最優先候補の消化） |
+| `.agents/skills/chakra-ui/references/components/typography/link.md` | — | Link | — | Link (`link`) | `link` | `link` | 実装済み | headless+styled 実装済み（#756、PR #801、#716 最優先候補の消化）。#1649 で参考サイトと突合済み・差分なし（意図的差分: `external` の不可分付与、`asChild`/装飾 prop は Themes 責務） |
+| `.agents/skills/chakra-ui/references/components/typography/link-overlay.md` | — | LinkOverlay | — | — | `link_overlay` | `link_overlay` | 実装済み | headless+styled 実装済み（#756、PR #801、#716 最優先候補の消化）。#1650 で参考サイト（chakra-ui LinkBox/LinkOverlay のみ。ark-ui は該当ページ 404、Radix Primitives/Themes に対応部品なし）と突合済み。anatomy/`data-*`/ARIA 差分なし、`overlay` の `href` 予約キー除去を是正 |
 | `.agents/skills/chakra-ui/references/components/typography/kbd.md` | — | Kbd | — | Kbd (`kbd`) | — | `kbd` | 実装済み | pre-styled 静的部品 実装済み（#768） |
 | `.agents/skills/chakra-ui/references/components/typography/code.md` | — | Code | — | Code (`code`) | — | `code` | 実装済み | pre-styled 静的部品 実装済み（#768） |
 | `.agents/skills/chakra-ui/references/components/typography/heading.md` | — | Heading | — | Heading (`heading`) | — | `heading` | 実装済み | #771 |

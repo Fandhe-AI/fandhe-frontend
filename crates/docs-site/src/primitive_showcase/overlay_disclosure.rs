@@ -335,13 +335,18 @@ pub(super) fn hover_card_section() -> Node {
 }
 
 pub(super) fn popover_section() -> Node {
-    let state = OpenState::Open;
-    let body = vec![popover::root(
-        state,
+    // 2 インスタンス構成（open + closed/disabled）にすることで、機械導出表
+    // （Anatomy・data-* 属性表）へ `data-state: closed, open` と
+    // `data-disabled` を反映させる（イシュー #1642。collapsible #1637 と
+    // 同じ理由）。2 インスタンス目は id を `pop-content-2`/`pop-title-2`/
+    // `pop-desc-2` にして重複を避ける。
+    let open_state = OpenState::Open;
+    let body_open = vec![popover::root(
+        open_state,
         vec![],
         vec![
             popover::trigger(
-                state,
+                open_state,
                 false,
                 Some("pop-content"),
                 vec![],
@@ -349,10 +354,10 @@ pub(super) fn popover_section() -> Node {
             ),
             popover::anchor(vec![], vec![]),
             popover::positioner(
-                state,
+                open_state,
                 vec![],
                 vec![popover::content(
-                    state,
+                    open_state,
                     Some("pop-content"),
                     Some("pop-title"),
                     Some("pop-desc"),
@@ -366,12 +371,53 @@ pub(super) fn popover_section() -> Node {
                             vec![text("More information here.")],
                         ),
                         popover::close_trigger(vec![], vec![text("Close")]),
-                        popover::indicator(state, vec![], vec![text("▾")]),
+                        popover::indicator(open_state, vec![], vec![text("▾")]),
                     ],
                 )],
             ),
         ],
     )];
+
+    let closed_state = OpenState::Closed;
+    let body_disabled = vec![popover::root(
+        closed_state,
+        vec![],
+        vec![
+            popover::trigger(
+                closed_state,
+                true,
+                Some("pop-content-2"),
+                vec![],
+                vec![text("Open popover (disabled)")],
+            ),
+            popover::anchor(vec![], vec![]),
+            popover::positioner(
+                closed_state,
+                vec![],
+                vec![popover::content(
+                    closed_state,
+                    Some("pop-content-2"),
+                    Some("pop-title-2"),
+                    Some("pop-desc-2"),
+                    vec![],
+                    vec![
+                        popover::arrow(vec![], vec![popover::arrow_tip(vec![], vec![])]),
+                        popover::title(Some("pop-title-2"), vec![], vec![text("Details")]),
+                        popover::description(
+                            Some("pop-desc-2"),
+                            vec![],
+                            vec![text("More information here.")],
+                        ),
+                        popover::close_trigger(vec![], vec![text("Close")]),
+                        popover::indicator(closed_state, vec![], vec![text("▾")]),
+                    ],
+                )],
+            ),
+        ],
+    )];
+
+    let mut body = body_open;
+    body.extend(body_disabled);
     demo_page("Popover", body)
 }
 
@@ -413,17 +459,28 @@ pub(super) fn toast_section() -> Node {
 }
 
 pub(super) fn toggle_tip_section() -> Node {
-    let state = OpenState::Open;
-    let body = vec![toggle_tip::root(
-        state,
+    // 2 インスタンス構成（open + closed/disabled）にすることで、機械導出表
+    // （Anatomy・data-* 属性表）へ `data-state: closed, open` と
+    // `data-disabled` を反映させる（イシュー #1644。popover #1642・
+    // collapsible #1637 と同じ理由）。2 インスタンス目は id を
+    // `tt-content-2` にして重複を避ける。
+    let open_state = OpenState::Open;
+    let body_open = vec![toggle_tip::root(
+        open_state,
         vec![],
         vec![
-            toggle_tip::trigger(state, false, Some("tt-content"), vec![], vec![text("ⓘ")]),
+            toggle_tip::trigger(
+                open_state,
+                false,
+                Some("tt-content"),
+                vec![],
+                vec![text("ⓘ")],
+            ),
             toggle_tip::positioner(
-                state,
+                open_state,
                 vec![],
                 vec![toggle_tip::content(
-                    state,
+                    open_state,
                     Some("tt-content"),
                     vec![],
                     vec![
@@ -434,27 +491,63 @@ pub(super) fn toggle_tip_section() -> Node {
             ),
         ],
     )];
+
+    let closed_state = OpenState::Closed;
+    let body_disabled = vec![toggle_tip::root(
+        closed_state,
+        vec![],
+        vec![
+            toggle_tip::trigger(
+                closed_state,
+                true,
+                Some("tt-content-2"),
+                vec![],
+                vec![text("ⓘ (disabled)")],
+            ),
+            toggle_tip::positioner(
+                closed_state,
+                vec![],
+                vec![toggle_tip::content(
+                    closed_state,
+                    Some("tt-content-2"),
+                    vec![],
+                    vec![
+                        toggle_tip::arrow(vec![], vec![toggle_tip::arrow_tip(vec![], vec![])]),
+                        text("Click again to dismiss."),
+                    ],
+                )],
+            ),
+        ],
+    )];
+
+    let mut body = body_open;
+    body.extend(body_disabled);
     demo_page("Toggle Tip", body)
 }
 
 pub(super) fn tooltip_section() -> Node {
-    let state = OpenState::Open;
-    let body = vec![tooltip::root(
-        state,
+    // 2 インスタンス構成（open + closed/disabled）にすることで、機械導出表
+    // （Anatomy・data-* 属性表）へ `data-state: closed, open` と
+    // `data-disabled` を反映させる（イシュー #1645。toggle-tip #1644・
+    // popover #1642 と同じ理由）。2 インスタンス目は id を
+    // `tip-content-2` にして重複を避ける。
+    let open_state = OpenState::Open;
+    let body_open = vec![tooltip::root(
+        open_state,
         vec![],
         vec![
             tooltip::trigger(
-                state,
+                open_state,
                 false,
                 Some("tip-content"),
                 vec![],
                 vec![text("Hover me")],
             ),
             tooltip::positioner(
-                state,
+                open_state,
                 vec![],
                 vec![tooltip::content(
-                    state,
+                    open_state,
                     Some("tip-content"),
                     vec![],
                     vec![
@@ -465,5 +558,36 @@ pub(super) fn tooltip_section() -> Node {
             ),
         ],
     )];
+
+    let closed_state = OpenState::Closed;
+    let body_disabled = vec![tooltip::root(
+        closed_state,
+        vec![],
+        vec![
+            tooltip::trigger(
+                closed_state,
+                true,
+                Some("tip-content-2"),
+                vec![],
+                vec![text("Hover me (disabled)")],
+            ),
+            tooltip::positioner(
+                closed_state,
+                vec![],
+                vec![tooltip::content(
+                    closed_state,
+                    Some("tip-content-2"),
+                    vec![],
+                    vec![
+                        tooltip::arrow(vec![], vec![tooltip::arrow_tip(vec![], vec![])]),
+                        text("Additional context."),
+                    ],
+                )],
+            ),
+        ],
+    )];
+
+    let mut body = body_open;
+    body.extend(body_disabled);
     demo_page("Tooltip", body)
 }
