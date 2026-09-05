@@ -151,6 +151,136 @@ pub fn action_from_form_control<T: AttrSource>(
     })
 }
 
+/// クリック伝播境界における要素の分類（イシュー #1616 Bugbot/codex-review
+/// 再指摘の是正で汎用化。`crates/wasm-full/src/keynav.rs` の RadioGroup
+/// readonly クリック抑止・本モジュールの [`wiring::wire_events`] `data-action`
+/// 解決の双方から共有する純粋ロジック。web-sys 非依存のため native
+/// `cargo test` で検証できる（配線層のみが `web_sys::Element` からこの型を
+/// 組み立てる））。
+///
+/// # 背景（HTML の label activation behavior）
+///
+/// HTML 仕様の `<label>` activation behavior は、click イベントの
+/// `target` が「interactive content（`a[href]`/`button`/`input`/`select`/
+/// `textarea`/`summary`/`details` 等）」のときは発火しない
+/// （<https://html.spec.whatwg.org/multipage/forms.html#the-label-element>
+/// の `run pre-click activation steps` は non-interactive-content 判定を
+/// 前提とする）。一方、ARIA ロールや `tabindex`・`contenteditable` の
+/// 付与は HTML 仕様上のこの判定に一切影響しない（ブラウザは role 属性を
+/// 見て activation behavior の可否を変えない）ため、これらの「独自
+/// ウィジェット」を click target にしても label の activation behavior
+/// 自体は止まらず、呼び出し側が明示的に `preventDefault` する必要がある。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InteractiveBoundaryClass {
+    /// (A) HTML interactive content。label の activation behavior
+    /// 自体が発火しないため、呼び出し側は `preventDefault`/
+    /// `stop_propagation` のいずれも行わず、ネイティブ動作・子要素の
+    /// イベントハンドラを一切妨げてはならない（Bugbot 指摘: この分類を
+    /// スキップして一律に抑止すると、`<a href>` のようなネイティブ要素の
+    /// クリックまで祖先パーツの選択操作として抑止してしまう）。
+    Html,
+    /// (B) ARIA ロール・`tabindex`・`[contenteditable]`（`"false"` を除く）・
+    /// holder と異なる `data-scope` を持つ要素とその子孫（別コンポーネント
+    /// の境界）。HTML 上は非 interactive content のため label の
+    /// activation behavior 自体は止まらず、呼び出し側が `preventDefault`
+    /// で明示的に阻止する必要がある。ただし要素自身のイベントハンドラへ
+    /// イベントを届ける必要があるため `stop_propagation` は行っては
+    /// ならない（codex-review 指摘: capture フェーズで `stop_propagation`
+    /// すると、`role="checkbox"` 等の子要素自身の click ハンドラへイベント
+    /// が到達できなくなる）。
+    Aria,
+    /// (C) 上記以外（パーツ自身・装飾用の子孫等）。選択操作・
+    /// `data-action` 解決の一部として扱ってよく、呼び出し側は
+    /// `preventDefault`/`stop_propagation` の双方で抑止してよい。
+    Ordinary,
+}
+
+/// HTML 仕様上 label の activation behavior を止める「interactive
+/// content」に該当するタグ名（小文字比較）。`a` は `has_href` が真の
+/// ときのみ該当する（`href` の無い `<a>` は interactive content ではない）。
+const HTML_INTERACTIVE_TAGS: &[&str] = &[
+    "button", "input", "select", "textarea", "summary", "details",
+];
+
+/// ARIA ロールのうち、独自の対話ウィジェットとして扱うロール一覧。
+/// `button`/`link` は native HTML 要素ではなく ARIA ロールとしての付与
+/// （`role="button"`/`role="link"`）を想定しており、HTML interactive
+/// content の判定（[`HTML_INTERACTIVE_TAGS`]）とは独立に扱う（Bugbot 指摘:
+/// `role="button"`/`role="link"` は native `<button>`/`<a href>` と異なり
+/// label activation behavior を止める HTML 仕様上の根拠が無いため、
+/// `preventDefault` を要する (B) 分類に置く）。
+const ARIA_INTERACTIVE_ROLES: &[&str] = &[
+    "button",
+    "link",
+    "checkbox",
+    "switch",
+    "radio",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "option",
+    "tab",
+    "slider",
+    "spinbutton",
+    "textbox",
+    "searchbox",
+    "combobox",
+    "listbox",
+    "treeitem",
+];
+
+/// [`InteractiveBoundaryClass`] を判定する純粋関数。
+///
+/// - `tag_name`: 対象要素のタグ名（大文字小文字は問わない）。
+/// - `has_href`: `<a>` が `href` 属性を持つか（`href` の無い `<a>` は
+///   interactive content ではない）。
+/// - `role`: `role` 属性値（無ければ `None`）。
+/// - `has_tabindex_attr`: `tabindex` 属性の有無（値は問わない。値の妥当性
+///   検証は呼び出し側の関心事ではない）。
+/// - `contenteditable`: `contenteditable` 属性値（無ければ `None`）。
+///   `"false"`（大文字小文字を問わない）は「編集不可」を意味し無指定と
+///   同義に扱う（HTML 仕様の contenteditable 属性値契約）。
+/// - `element_scope`: 対象要素自身の `data-scope` 属性値（無ければ
+///   `None`）。
+/// - `holder_scope`: 比較対象となる「保持者」（RadioGroup の `item`、
+///   または `wire_events` が解決した `data-action` 要素）自身の
+///   `data-scope` 属性値（無ければ `None`）。`element_scope` が
+///   `holder_scope` と異なる場合のみ「別コンポーネントの境界」として
+///   (B) に分類する（同じ scope 内のパーツ間移動は境界とみなさない）。
+#[must_use]
+pub fn classify_interactive_boundary(
+    tag_name: &str,
+    has_href: bool,
+    role: Option<&str>,
+    has_tabindex_attr: bool,
+    contenteditable: Option<&str>,
+    element_scope: Option<&str>,
+    holder_scope: Option<&str>,
+) -> InteractiveBoundaryClass {
+    let tag_lower = tag_name.to_ascii_lowercase();
+    if tag_lower == "a" && has_href {
+        return InteractiveBoundaryClass::Html;
+    }
+    if HTML_INTERACTIVE_TAGS.contains(&tag_lower.as_str()) {
+        return InteractiveBoundaryClass::Html;
+    }
+    if role.is_some_and(|r| ARIA_INTERACTIVE_ROLES.contains(&r)) {
+        return InteractiveBoundaryClass::Aria;
+    }
+    if has_tabindex_attr {
+        return InteractiveBoundaryClass::Aria;
+    }
+    if contenteditable.is_some_and(|v| !v.eq_ignore_ascii_case("false")) {
+        return InteractiveBoundaryClass::Aria;
+    }
+    if let Some(scope) = element_scope {
+        if Some(scope) != holder_scope {
+            return InteractiveBoundaryClass::Aria;
+        }
+    }
+    InteractiveBoundaryClass::Ordinary
+}
+
 // ---------------------------------------------------------------------
 // 配線層: web-sys 依存。wasm32 ターゲットでのみコンパイル対象とし、
 // native の `cargo test --workspace` に本層の DOM 依存コードを混入させない。
@@ -158,7 +288,8 @@ pub fn action_from_form_control<T: AttrSource>(
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        action_from_click, action_from_form_control, action_from_input, ActionRef, AttrSource,
+        action_from_click, action_from_form_control, action_from_input,
+        classify_interactive_boundary, ActionRef, AttrSource, InteractiveBoundaryClass,
         ACTION_CHANGE_ATTR, ACTION_INPUT_ATTR,
     };
     use wasm_bindgen::closure::Closure;
@@ -201,6 +332,122 @@ mod wiring {
             return Some(textarea.value());
         }
         None
+    }
+
+    /// `target`（クリックイベントの解決起点）から `holder`（`closest(
+    /// "[data-action]")` で解決した要素、`target` 自身を含む）まで祖先方向へ
+    /// 辿り、途中に「`holder` の `data-action` とは無関係な独立対話要素」
+    /// （[`classify_interactive_boundary`] が `Html`/`Aria` と判定する要素）
+    /// が挟まっているかどうかを判定する（イシュー #1616 codex-review P1
+    /// 再指摘: `item[data-readonly][data-action="select"]` 内のリンクを
+    /// クリックすると、リンク自体は独立要素として readonly 抑止をすり抜ける
+    /// 一方で、`closest("[data-action]")` が親 `item` を拾ってしまい
+    /// readonly を確認せず `select` を dispatch していた）。
+    ///
+    /// `holder` 自身に到達する前に境界要素へ遭遇した場合は `true`
+    /// （呼び出し側は dispatch を行わない）。境界に遭遇せず `holder` へ
+    /// 到達できた場合は `false`。
+    ///
+    /// # 例外: holder 自身が持つ labelable control
+    ///
+    /// `holder` が `<label>` であり、`el` がその子孫の `input`/`select`/
+    /// `textarea`（[`InteractiveBoundaryClass::Html`] に分類される native
+    /// フォームコントロール）の場合は境界とみなさない。これらは
+    /// `holder`（`<label data-action="select">` 相当）自身が意味的に
+    /// 保持する制御であり、キーボード Space 決定等でこの input 自身へ
+    /// 合成 click が飛んだ場合に `data-action` の解決を止めてしまうと
+    /// 正常な選択操作まで壊れる（`crates/headless-ui/src/radio_group.rs`
+    /// の `item` は native `<label>` として実装され、内包する
+    /// `item_hidden_input` への操作を label 経由で受ける契約）。
+    fn foreign_action_boundary_between(target: &Element, holder: &Element) -> bool {
+        let holder_is_label = holder.tag_name().eq_ignore_ascii_case("label");
+        let holder_scope = holder.get_attribute("data-scope");
+        let mut current = Some(target.clone());
+        while let Some(el) = current {
+            if el.is_same_node(Some(holder)) {
+                return false;
+            }
+            let tag_name = el.tag_name();
+            let is_holder_own_control = holder_is_label
+                && matches!(
+                    tag_name.to_ascii_lowercase().as_str(),
+                    "input" | "select" | "textarea"
+                );
+            if !is_holder_own_control {
+                let has_href = el.has_attribute("href");
+                let role = el.get_attribute("role");
+                let has_tabindex_attr = el.has_attribute("tabindex");
+                let contenteditable = el.get_attribute("contenteditable");
+                let element_scope = el.get_attribute("data-scope");
+                let class = classify_interactive_boundary(
+                    &tag_name,
+                    has_href,
+                    role.as_deref(),
+                    has_tabindex_attr,
+                    contenteditable.as_deref(),
+                    element_scope.as_deref(),
+                    holder_scope.as_deref(),
+                );
+                if !matches!(class, InteractiveBoundaryClass::Ordinary) {
+                    return true;
+                }
+            }
+            current = el.parent_element();
+        }
+        false
+    }
+
+    /// `holder`（`closest("[data-action]")` で解決した要素）が属する
+    /// 「同一インスタンス」に readonly な headless-ui パーツが無いかを
+    /// DOM 上で判定する（イシュー #1616 codex-review P1 再指摘の是正）。
+    ///
+    /// `crates/wasm-full/src/headless.rs::instance_is_readonly` と同じ
+    /// 判定方針を DOM 直接走査で再現する: `holder` から祖先方向へ（`holder`
+    /// 自身を含む）最初に `data-scope` を持つ要素を探し、そこから同じ
+    /// `data-scope` の要素だけを見ながら `data-readonly` の有無を確認し、
+    /// `data-part="root"` に到達したら（それも確認したうえで）打ち切る。
+    /// 異なる `data-scope` の要素は無関係な別コンポーネントとしてスキップ
+    /// して継続する（`root` を越えて別インスタンスの readonly が越境
+    /// 伝播しないようにする、PR #1879 codex-review P1 再指摘と同じ設計）。
+    ///
+    /// `holder` 自身・祖先のどこにも `data-scope` が無い場合（headless-ui
+    /// の anatomy と無関係な素の `data-action` 要素）は `false`
+    /// （readonly 判定の対象外、既存の非 headless-ui アプリの `data-action`
+    /// 経路を変えない）。`click_root` は探索範囲を配線対象の root 内へ
+    /// 限定する（`root` より外側の祖先まで走査しない）。
+    fn holder_instance_is_readonly(holder: &Element, click_root: &Element) -> bool {
+        let mut probe = Some(holder.clone());
+        let mut start: Option<(Element, String)> = None;
+        while let Some(el) = probe {
+            if let Some(scope) = el.get_attribute("data-scope") {
+                start = Some((el, scope));
+                break;
+            }
+            if el.is_same_node(Some(click_root)) {
+                break;
+            }
+            probe = el.parent_element();
+        }
+        let Some((start_el, scope)) = start else {
+            return false;
+        };
+
+        let mut current = Some(start_el);
+        while let Some(el) = current {
+            if el.get_attribute("data-scope").as_deref() == Some(scope.as_str()) {
+                if el.has_attribute("data-readonly") {
+                    return true;
+                }
+                if el.get_attribute("data-part").as_deref() == Some("root") {
+                    break;
+                }
+            }
+            if el.is_same_node(Some(click_root)) {
+                break;
+            }
+            current = el.parent_element();
+        }
+        false
     }
 
     /// input イベントの `target` が属性契約 [`ACTION_INPUT_ATTR`] を持つ
@@ -312,6 +559,19 @@ mod wiring {
             // 採用しない。`contains` は自分自身も含むため matched == root の
             // ケースも許容する。
             if !click_root.contains(Some(&matched)) {
+                return;
+            }
+            // イシュー #1616 codex-review P1 再指摘: `target_element` から
+            // `matched`（`data-action` 解決結果）までの間に独立対話要素の
+            // 境界があれば、その境界より外側の `data-action` は解決しない
+            // （[`foreign_action_boundary_between`] doc 参照）。
+            if foreign_action_boundary_between(&target_element, &matched) {
+                return;
+            }
+            // 解決した `matched` が readonly な headless-ui パーツの
+            // インスタンス内にある場合は dispatch しない
+            // （[`holder_instance_is_readonly`] doc 参照）。
+            if holder_instance_is_readonly(&matched, &click_root) {
                 return;
             }
             let source = ElementAttrSource(&matched);
@@ -552,5 +812,156 @@ mod tests {
         let html = fandhe_frontend_core::render(&state.view());
         assert!(!html.contains("<script>alert"));
         assert!(html.contains("&lt;script&gt;alert"));
+    }
+
+    // --- classify_interactive_boundary（イシュー #1616 Bugbot/codex-review
+    // 再指摘。RadioGroup readonly クリック抑止と wire_events の
+    // data-action 解決の双方から共有する分類ロジックの表テスト） ---
+
+    #[test]
+    fn classify_anchor_with_href_is_html() {
+        assert_eq!(
+            classify_interactive_boundary("a", true, None, false, None, None, None),
+            InteractiveBoundaryClass::Html
+        );
+    }
+
+    #[test]
+    fn classify_anchor_without_href_is_not_html() {
+        assert_ne!(
+            classify_interactive_boundary("a", false, None, false, None, None, None),
+            InteractiveBoundaryClass::Html
+        );
+    }
+
+    #[test]
+    fn classify_native_form_and_disclosure_controls_are_html() {
+        for tag in [
+            "button", "input", "select", "textarea", "summary", "details",
+        ] {
+            assert_eq!(
+                classify_interactive_boundary(tag, false, None, false, None, None, None),
+                InteractiveBoundaryClass::Html,
+                "tag={tag} は HTML interactive content として扱うべき"
+            );
+        }
+    }
+
+    #[test]
+    fn classify_aria_button_and_link_roles_are_aria_not_html() {
+        // Bugbot 指摘: role="button"/"link" は native <button>/<a href> と
+        // 異なり label activation behavior を止める HTML 仕様上の根拠が
+        // 無いため、独立要素として preventDefault を要する Aria 分類に置く
+        // （旧実装は誤って抑止を完全スキップしていた）。
+        for role in ["button", "link"] {
+            assert_eq!(
+                classify_interactive_boundary("span", false, Some(role), false, None, None, None),
+                InteractiveBoundaryClass::Aria
+            );
+        }
+    }
+
+    #[test]
+    fn classify_aria_widget_roles_are_aria() {
+        // codex-review 指摘: role="checkbox"/"switch" 等の独自ウィジェットは
+        // 旧実装では分類対象外（Ordinary 扱い）だったため、祖先の
+        // stop_propagation が子要素自身のクリックハンドラへの到達を阻んで
+        // いた。
+        for role in ["checkbox", "switch", "tab", "menuitem", "option"] {
+            assert_eq!(
+                classify_interactive_boundary("span", false, Some(role), false, None, None, None),
+                InteractiveBoundaryClass::Aria
+            );
+        }
+    }
+
+    #[test]
+    fn classify_unknown_role_is_ordinary() {
+        assert_eq!(
+            classify_interactive_boundary(
+                "span",
+                false,
+                Some("presentation"),
+                false,
+                None,
+                None,
+                None
+            ),
+            InteractiveBoundaryClass::Ordinary
+        );
+    }
+
+    #[test]
+    fn classify_tabindex_attribute_is_aria() {
+        assert_eq!(
+            classify_interactive_boundary("span", false, None, true, None, None, None),
+            InteractiveBoundaryClass::Aria
+        );
+    }
+
+    #[test]
+    fn classify_contenteditable_true_and_empty_are_aria() {
+        assert_eq!(
+            classify_interactive_boundary("div", false, None, false, Some(""), None, None),
+            InteractiveBoundaryClass::Aria
+        );
+        assert_eq!(
+            classify_interactive_boundary("div", false, None, false, Some("true"), None, None),
+            InteractiveBoundaryClass::Aria
+        );
+    }
+
+    #[test]
+    fn classify_contenteditable_false_is_not_aria() {
+        // advisor 指摘: contenteditable="false" は「編集不可」を意味し
+        // 無指定と同義に扱う（HTML 仕様の contenteditable 属性値契約）。
+        assert_eq!(
+            classify_interactive_boundary("div", false, None, false, Some("false"), None, None),
+            InteractiveBoundaryClass::Ordinary
+        );
+        assert_eq!(
+            classify_interactive_boundary("div", false, None, false, Some("FALSE"), None, None),
+            InteractiveBoundaryClass::Ordinary
+        );
+    }
+
+    #[test]
+    fn classify_foreign_data_scope_is_aria() {
+        assert_eq!(
+            classify_interactive_boundary(
+                "div",
+                false,
+                None,
+                false,
+                None,
+                Some("combobox"),
+                Some("radio-group")
+            ),
+            InteractiveBoundaryClass::Aria
+        );
+    }
+
+    #[test]
+    fn classify_same_data_scope_is_not_boundary() {
+        assert_eq!(
+            classify_interactive_boundary(
+                "div",
+                false,
+                None,
+                false,
+                None,
+                Some("radio-group"),
+                Some("radio-group")
+            ),
+            InteractiveBoundaryClass::Ordinary
+        );
+    }
+
+    #[test]
+    fn classify_plain_span_is_ordinary() {
+        assert_eq!(
+            classify_interactive_boundary("span", false, None, false, None, None, None),
+            InteractiveBoundaryClass::Ordinary
+        );
     }
 }
