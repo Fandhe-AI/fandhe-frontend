@@ -1839,7 +1839,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # `.claude/rules/coding-rust.md` 「公開済みクレートの実体変更時は
 # semver バンプ必須」節）。`/themes/field/` ページ登録・showcase Demo
 # 追加は後続イシュー #1685 のスコープ。
-version = "0.112.0"
+# イシュー #1662（scroll-area の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# 0.58.0 → 0.58.1 への追随のみ（`drop_reserved` 追加は非破壊的変更、本クレート
+# 自体の実体変更なし）のため patch バンプで 0.112.1 とする。
+version = "0.112.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1854,7 +1857,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.58.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.58.1" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

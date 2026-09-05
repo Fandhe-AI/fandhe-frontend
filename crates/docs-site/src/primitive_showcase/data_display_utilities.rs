@@ -1,7 +1,7 @@
 //! Primitives Demo — Data Display / Utilities（10 件、原稿は #1029）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 
-use fandhe_frontend_core::{text, Node};
+use fandhe_frontend_core::{li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::avatar::{self, ImageStatus};
 use hui::carousel;
@@ -111,21 +111,31 @@ pub(super) fn json_tree_view_section() -> Node {
     demo_page("JSON Tree View", body)
 }
 
+// イシュー #1662（参考サイトとの突合）: Radix Primitives の Anatomy は
+// 水平・垂直 2 本の scrollbar + corner を組み合わせて示す（corner は両軸が
+// 揃って初めて意味を持つ交差部分のため）。旧 Demo は垂直 1 本のみで corner
+// の役割が伝わらなかったため、複数項目のリスト状コンテンツ（Radix デモの
+// 「Tags」相当）とあわせて両軸構成へ更新した。
 pub(super) fn scroll_area_section() -> Node {
+    let items: Vec<Node> = (1..=12)
+        .map(|n| li(vec![], vec![text(format!("Tag {n}"))]))
+        .collect();
     let body = vec![scroll_area::root(
         vec![],
         vec![
             scroll_area::viewport(
                 vec![],
-                vec![scroll_area::content(
-                    vec![],
-                    vec![text("Long scrollable content…")],
-                )],
+                vec![scroll_area::content(vec![], vec![ul(vec![], items)])],
             ),
             scroll_area::scrollbar(
                 Orientation::Vertical,
                 vec![],
                 vec![scroll_area::thumb(Orientation::Vertical, vec![], vec![])],
+            ),
+            scroll_area::scrollbar(
+                Orientation::Horizontal,
+                vec![],
+                vec![scroll_area::thumb(Orientation::Horizontal, vec![], vec![])],
             ),
             scroll_area::corner(vec![], vec![]),
         ],
