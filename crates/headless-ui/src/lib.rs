@@ -95,7 +95,11 @@
 //!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
 //!   Accordion（[`accordion::Accordion`]、#527）、および
 //!   [`state::MultiSelect`] を埋め込んだ multiple モード Accordion
-//!   （[`accordion::MultiAccordion`]、#594）。
+//!   （[`accordion::MultiAccordion`]、#594）。ark-ui/Radix との参考サイト突合
+//!   （イシュー #1636）で `AccordionProps`（`orientation`/`disabled`）を
+//!   新設し、全パーツへ `data-orientation` を、item-trigger へ
+//!   `aria-disabled`、item-indicator へ常時 `aria-hidden="true"`、
+//!   item-indicator/item-content へ `data-disabled` を追加した。
 //! - [`mod@tooltip`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の anatomy
 //!   パーツ関数群と、[`state::Disclosure`] を埋め込んだ [`tooltip::Tooltip`]
 //!   状態機械（#533、親 #530）。WAI-ARIA tooltip パターンに従い `aria-describedby`

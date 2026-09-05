@@ -67,9 +67,16 @@
 //!
 //! # Accordion のキーボード仕様（WAI-ARIA APG Accordion パターン準拠）
 //!
-//! - ArrowDown/ArrowUp で次/前の非 disabled item-trigger へフォーカス移動、
-//!   Home/End で先頭/末尾へ。**循環はしない**（APG では循環はオプションであり、
-//!   決定的挙動として本実装は非循環を選ぶ）。
+//! - **orientation 対応（イシュー #1636）**: accordion root の
+//!   `data-orientation`（`crates/headless-ui/src/accordion.rs::AccordionProps`）
+//!   を [`accordion_orientation_from_attr`] で読み取り、vertical（既定）は
+//!   ArrowDown/ArrowUp、horizontal は ArrowRight/ArrowLeft で次/前の非
+//!   disabled item-trigger へフォーカス移動する（ark-ui/Radix 準拠）。
+//!   Home/End は orientation 非依存で先頭/末尾へ。**循環はしない**（APG では
+//!   循環はオプションであり、決定的挙動として本実装は非循環を選ぶ、#582 の
+//!   決定を維持）。[`accordion_next_index`]（vertical 固定）は既存呼び出し側
+//!   の破壊的変更を避けるため維持し、[`accordion_next_index_oriented`] が
+//!   orientation 対応版として新設された。
 //! - 開閉（Enter/Space）はネイティブ `<button>` の click 挙動を経由し、
 //!   `crate::headless::MAPPING_TABLE` の `("accordion", "item-trigger")` 行
 //!   （イシュー #1127 で追加）が `("toggle", data-value)` へ写像したうえで
@@ -880,6 +887,55 @@ pub fn accordion_next_index(
         "End" => last_non_disabled(disabled),
         "ArrowDown" => step_non_disabled(current, 1, disabled, false),
         "ArrowUp" => step_non_disabled(current, -1, disabled, false),
+        _ => None,
+    }
+}
+
+/// Accordion root の `data-orientation` 属性値文字列から解釈する（イシュー
+/// #1636）。[`Orientation::from_attr`]（Tabs、欠落時 horizontal 既定）とは
+/// **逆の既定**を持つ: `crates/headless-ui/src/accordion.rs::AccordionProps`
+/// の `orientation` 既定が [`Orientation::Vertical`] であるため、欠落・未知値
+/// は vertical へ決定的にフォールバックする（fail-closed、panic しない）。
+#[must_use]
+pub fn accordion_orientation_from_attr(value: Option<&str>) -> Orientation {
+    match value {
+        Some("horizontal") => Orientation::Horizontal,
+        _ => Orientation::Vertical,
+    }
+}
+
+/// Accordion の keydown に対する「次にフォーカスすべきインデックス」を計算
+/// する純粋関数の orientation 対応版（イシュー #1636）。[`accordion_next_index`]
+/// （vertical 固定、既存呼び出し側の破壊的変更を避けるため維持）と異なり、
+/// horizontal のとき ArrowRight/ArrowLeft で移動する（ark-ui/Radix 準拠）。
+/// Home/End は orientation 非依存。**循環しない**契約は
+/// [`accordion_next_index`] と同じ（#582 の決定を維持）。
+#[must_use]
+pub fn accordion_next_index_oriented(
+    current: usize,
+    key: &str,
+    orientation: Orientation,
+    modifiers: Modifiers,
+    disabled: &[bool],
+) -> Option<usize> {
+    if modifiers.any() || current >= disabled.len() {
+        return None;
+    }
+    match key {
+        "Home" => first_non_disabled(disabled),
+        "End" => last_non_disabled(disabled),
+        "ArrowDown" if orientation == Orientation::Vertical => {
+            step_non_disabled(current, 1, disabled, false)
+        }
+        "ArrowUp" if orientation == Orientation::Vertical => {
+            step_non_disabled(current, -1, disabled, false)
+        }
+        "ArrowRight" if orientation == Orientation::Horizontal => {
+            step_non_disabled(current, 1, disabled, false)
+        }
+        "ArrowLeft" if orientation == Orientation::Horizontal => {
+            step_non_disabled(current, -1, disabled, false)
+        }
         _ => None,
     }
 }
@@ -2186,6 +2242,139 @@ mod tests {
             accordion_next_index(
                 0,
                 "ArrowDown",
+                Modifiers {
+                    ctrl: true,
+                    ..Modifiers::default()
+                },
+                &disabled
+            ),
+            None
+        );
+    }
+
+    // --- accordion_orientation_from_attr（イシュー #1636） ---
+
+    #[test]
+    fn accordion_orientation_from_attr_defaults_to_vertical_for_missing_or_unknown() {
+        // Tabs の Orientation::from_attr（欠落時 horizontal 既定）とは逆の
+        // 既定（AccordionProps::default() が Vertical のため）。
+        assert_eq!(accordion_orientation_from_attr(None), Orientation::Vertical);
+        assert_eq!(
+            accordion_orientation_from_attr(Some("bogus")),
+            Orientation::Vertical
+        );
+        assert_eq!(
+            accordion_orientation_from_attr(Some("vertical")),
+            Orientation::Vertical
+        );
+        assert_eq!(
+            accordion_orientation_from_attr(Some("horizontal")),
+            Orientation::Horizontal
+        );
+    }
+
+    // --- accordion_next_index_oriented（イシュー #1636） ---
+
+    #[test]
+    fn accordion_next_index_oriented_vertical_uses_arrow_down_up() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            accordion_next_index_oriented(0, "ArrowDown", Orientation::Vertical, mods(), &disabled),
+            Some(1)
+        );
+        assert_eq!(
+            accordion_next_index_oriented(1, "ArrowUp", Orientation::Vertical, mods(), &disabled),
+            Some(0)
+        );
+        // horizontal 専用キーは vertical では no-op。
+        assert_eq!(
+            accordion_next_index_oriented(
+                0,
+                "ArrowRight",
+                Orientation::Vertical,
+                mods(),
+                &disabled
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn accordion_next_index_oriented_horizontal_uses_arrow_left_right() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            accordion_next_index_oriented(
+                0,
+                "ArrowRight",
+                Orientation::Horizontal,
+                mods(),
+                &disabled
+            ),
+            Some(1)
+        );
+        assert_eq!(
+            accordion_next_index_oriented(
+                1,
+                "ArrowLeft",
+                Orientation::Horizontal,
+                mods(),
+                &disabled
+            ),
+            Some(0)
+        );
+        // vertical 専用キーは horizontal では no-op。
+        assert_eq!(
+            accordion_next_index_oriented(
+                0,
+                "ArrowDown",
+                Orientation::Horizontal,
+                mods(),
+                &disabled
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn accordion_next_index_oriented_does_not_loop_at_ends() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            accordion_next_index_oriented(2, "ArrowDown", Orientation::Vertical, mods(), &disabled),
+            None
+        );
+        assert_eq!(
+            accordion_next_index_oriented(
+                2,
+                "ArrowRight",
+                Orientation::Horizontal,
+                mods(),
+                &disabled
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn accordion_next_index_oriented_home_end_skip_disabled_regardless_of_orientation() {
+        let disabled = [true, false, false, true];
+        assert_eq!(
+            accordion_next_index_oriented(2, "Home", Orientation::Horizontal, mods(), &disabled),
+            Some(1)
+        );
+        assert_eq!(
+            accordion_next_index_oriented(1, "End", Orientation::Horizontal, mods(), &disabled),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn accordion_next_index_oriented_modifiers_are_noop() {
+        let disabled = [false, false];
+        assert_eq!(
+            accordion_next_index_oriented(
+                0,
+                "ArrowDown",
+                Orientation::Vertical,
                 Modifiers {
                     ctrl: true,
                     ..Modifiers::default()
@@ -3931,14 +4120,14 @@ mod wiring {
     use crate::events::{classify_interactive_boundary, InteractiveBoundaryClass};
 
     use super::{
-        accordion_next_index, calendar_next_index, combobox_key_action, first_non_disabled,
-        highlight_next_index, is_typeahead_key, last_non_disabled, listbox_next_index,
-        loop_focus_from_attr, menu_loop_focus_from_attr, navigation_menu_link_next_index,
-        navigation_menu_trigger_key_action, radio_next_index, submenu_nav, tabs_next_index,
-        toggle_group_next_index, tree_key_action, tree_visible_flags, typeahead_next_index,
-        typeahead_push, ComboboxKeyAction, Modifiers, NavigationMenuKeyAction, Orientation,
-        RadioGroupReadonlyClickOutcome, SubmenuNav, TreeItemMeta, TreeKeyAction, MAX_SUBMENU_DEPTH,
-        TYPEAHEAD_TIMEOUT_MS,
+        accordion_next_index_oriented, accordion_orientation_from_attr, calendar_next_index,
+        combobox_key_action, first_non_disabled, highlight_next_index, is_typeahead_key,
+        last_non_disabled, listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr,
+        navigation_menu_link_next_index, navigation_menu_trigger_key_action, radio_next_index,
+        submenu_nav, tabs_next_index, toggle_group_next_index, tree_key_action, tree_visible_flags,
+        typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers,
+        NavigationMenuKeyAction, Orientation, RadioGroupReadonlyClickOutcome, SubmenuNav,
+        TreeItemMeta, TreeKeyAction, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -4858,9 +5047,12 @@ mod wiring {
     }
 
     /// Accordion item-trigger 上の keydown を処理する。root 封じ込め検査・
-    /// disabled 除外・純粋層（[`accordion_next_index`]）への委譲・フォーカス
-    /// 移動のみを行う（roving tabindex 更新・活性化は行わない、モジュール
-    /// doc §Accordion 参照）。
+    /// disabled 除外・純粋層（[`accordion_next_index_oriented`]）への委譲・
+    /// フォーカス移動のみを行う（roving tabindex 更新・活性化は行わない、
+    /// モジュール doc §Accordion 参照）。root の `data-orientation`
+    /// （イシュー #1636、`crates/headless-ui/src/accordion.rs::AccordionProps`）
+    /// を [`accordion_orientation_from_attr`] で読み、vertical/horizontal を
+    /// 切り替える。
     fn handle_accordion_keydown(root: &Element, target: &Element, event: &KeyboardEvent) {
         let Some(accordion_root) = closest(target, "[data-part=\"root\"]") else {
             return;
@@ -4873,9 +5065,13 @@ mod wiring {
             return;
         };
         let disabled = disabled_flags(&triggers);
+        let orientation = accordion_orientation_from_attr(
+            accordion_root.get_attribute("data-orientation").as_deref(),
+        );
         let modifiers = modifiers_of(event);
 
-        let Some(next_index) = accordion_next_index(current, &event.key(), modifiers, &disabled)
+        let Some(next_index) =
+            accordion_next_index_oriented(current, &event.key(), orientation, modifiers, &disabled)
         else {
             return;
         };

@@ -36,18 +36,27 @@
 //! 場合のみ記入し、それ以外（位置引数は必須のため既定値が存在しない）は
 //! 空文字列のままにする（推測で埋めない）。
 //!
-//! # `keyboard` を 10 件すべて空にする理由
+//! # `keyboard` を 9 件（accordion を除く）空にする理由
 //!
-//! 本モジュール対象の 10 モジュールを走査した結果、キーイベントを解釈する
-//! 実装は 1 件も無い（`decode_action` はいずれも文字列アクション名
-//! （`"open"`/`"close"`/`"toggle"` 等）のデコードであり、キー割り当てでは
-//! ない）。フォーカストラップ・Escape 閉鎖・外側クリック閉鎖は各モジュール
-//! doc の out-of-scope 節が明示的にスコープ外と宣言している（
-//! `crates/headless-ui/src/dialog.rs`/`drawer.rs`/`popover.rs`/
-//! `toggle_tip.rs`/`tooltip.rs`/`floating_panel.rs`/`accordion.rs` 参照）。
+//! 本モジュール対象の 10 モジュールのうち accordion を除く 9 件を走査した
+//! 結果、キーイベントを解釈する実装は 1 件も無い（`decode_action` は
+//! いずれも文字列アクション名（`"open"`/`"close"`/`"toggle"` 等）のデコード
+//! であり、キー割り当てではない）。フォーカストラップ・Escape 閉鎖・外側
+//! クリック閉鎖は各モジュール doc の out-of-scope 節が明示的にスコープ外と
+//! 宣言している（`crates/headless-ui/src/dialog.rs`/`drawer.rs`/
+//! `popover.rs`/`toggle_tip.rs`/`tooltip.rs`/`floating_panel.rs` 参照）。
 //! 実装に無いキーボード操作を書くと利用者へ誤った安心を与えるため、
 //! `keyboard: &[]` を採用し節を `aria` 表のみで成立させる
 //! （`component_page.rs` の Accessibility 節省略規則参照）。
+//!
+//! **例外: accordion**（イシュー #1636）。`crates/headless-ui/src/accordion.rs`
+//! 自体は SSR 静的マークアップ（`data-orientation`）までしか担わないが、
+//! `fandhe-frontend-wasm-full` の `keynav.rs::accordion_next_index_oriented`/
+//! `handle_accordion_keydown` が実際に ArrowDown/ArrowUp（vertical）・
+//! ArrowRight/ArrowLeft（horizontal）・Home/End のフォーカス移動を DOM 配線
+//! しているため、`ACCORDION.keyboard` のみ非空とする（他 9 件との非対称は
+//! `specs_have_non_empty_sections_except_keyboard_and_demo` が accordion を
+//! 個別分岐して固定する）。
 //!
 //! # `hover_card` の Accessibility 節が空にならない理由
 //!
@@ -94,41 +103,61 @@ use hui::toggle_tip;
 use hui::tooltip;
 use hui::OpenState;
 
-use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry};
+use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
 
 // ---------------------------------------------------------------------
 // Accordion（/primitives/accordion/）
 // ---------------------------------------------------------------------
 
+/// Examples 用の枠組み。[`crate::primitive_showcase`] のデモ本体と同じ
+/// `primitives-demo-frame`/`primitives-demo-note` class のみを使い、
+/// `h2`/`h3` は出さない（`forms_a`/`forms_b`/`forms_c_date_status` と同型の
+/// 重複実装。モジュール間の相互依存を避けるため個別に定義する）。
+fn wrap_example(note: &'static str, body: Vec<Node>) -> Node {
+    div(
+        vec![],
+        vec![
+            fandhe_frontend_core::p(vec![("class", "primitives-demo-note")], vec![text(note)]),
+            div(vec![("class", "primitives-demo-frame")], body),
+        ],
+    )
+}
+
 /// 一次情報: `crates/headless-ui/src/accordion.rs:1-24`（モジュール doc、
-/// single/multiple 2 状態機械・dispatch 契約）、`:45-58`（out-of-scope、
-/// orientation/キーボードナビゲーションは未提供）、`:78-160`（`root`/
-/// `item`/`item_trigger`/`item_indicator`/`item_content` シグネチャ）、
-/// `:481-579`（`aria-expanded`/`aria-controls`/`role="region"` の実出力
-/// テスト）。
+/// single/multiple 2 状態機械・dispatch 契約）、`:130-150`
+/// （`AccordionProps`、イシュー #1636 で新設）、`:170-330`（`root`/`item`/
+/// `item_trigger`/`item_indicator`/`item_content` シグネチャ）、
+/// `crates/wasm-full/src/keynav.rs`（`accordion_next_index_oriented`/
+/// `accordion_orientation_from_attr`、キーボードの DOM 配線）。
 fn ex_accordion_disabled_item() -> Node {
     let closed = OpenState::Closed;
+    let props = accordion::AccordionProps::default();
     accordion::root(
+        &props,
         vec![],
         vec![accordion::item(
             closed,
             true,
+            &props,
             vec![],
             vec![
                 accordion::item_trigger(
                     closed,
                     true,
+                    &props,
                     "unavailable",
                     Some("acc-ex-trigger"),
                     Some("acc-ex-content"),
                     vec![],
                     vec![
                         text("Unavailable section"),
-                        accordion::item_indicator(closed, vec![], vec![text("▾")]),
+                        accordion::item_indicator(closed, true, &props, vec![], vec![text("▾")]),
                     ],
                 ),
                 accordion::item_content(
                     closed,
+                    true,
+                    &props,
                     Some("acc-ex-content"),
                     Some("acc-ex-trigger"),
                     vec![],
@@ -139,15 +168,82 @@ fn ex_accordion_disabled_item() -> Node {
     )
 }
 
+/// Custom CSS 例（イシュー #1636 受け入れ条件「自前 CSS を当てる最小例」）。
+/// headless-ui はスタイルレスであり見た目を与えない契約
+/// （`docs/policy/intentional-non-adoption.md` §3.25）のため、
+/// `[data-scope="accordion"][data-part="item-trigger"][data-state="open"]`/
+/// `[data-disabled]`/`[data-orientation="horizontal"]` を使う最小 CSS を
+/// コードスニペットとして表示し、実際にそのスタイルを適用した Demo を併記
+/// する。CSS 文字列はリテラルのみで組み立て、`text()` 経由で出力する
+/// （REQ-1、`raw_html()` は使わない）。
+fn ex_accordion_custom_css() -> Node {
+    let css = r#"[data-scope="accordion"][data-part="item-trigger"][data-state="open"] {
+  font-weight: bold;
+}
+[data-scope="accordion"][data-part="item-trigger"][data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+[data-scope="accordion"][data-part="root"][data-orientation="horizontal"] {
+  display: flex;
+}
+"#;
+    let horizontal_props = accordion::AccordionProps {
+        orientation: hui::data_attrs::Orientation::Horizontal,
+        disabled: false,
+    };
+    let open = OpenState::Open;
+    let node = accordion::root(
+        &horizontal_props,
+        vec![],
+        vec![accordion::item(
+            open,
+            false,
+            &horizontal_props,
+            vec![],
+            vec![accordion::item_trigger(
+                open,
+                false,
+                &horizontal_props,
+                "styled",
+                None,
+                None,
+                vec![],
+                vec![text("Styled trigger")],
+            )],
+        )],
+    );
+    div(
+        vec![],
+        vec![
+            fandhe_frontend_core::pre(
+                vec![],
+                vec![fandhe_frontend_core::code(vec![], vec![text(css)])],
+            ),
+            wrap_example(
+                "セレクタは data-scope/data-part/data-state/data-disabled/data-orientation のみに依存します。",
+                vec![node],
+            ),
+        ],
+    )
+}
+
 pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "高々 1 項目が開く single モード（Accordion）と、複数項目が同時に開く multiple モード（MultiAccordion）の 2 状態機械を提供する（dispatch: select/deselect/toggle）。",
         "Root / Item / ItemTrigger / ItemIndicator / ItemContent の 5 anatomy パーツで構成される。",
         "item_trigger は type=\"button\" を固定付与し、フォーム内配置時の意図しない submit を防ぐ。",
         "item_content は labelled_by が Some のときのみ role=\"region\" + aria-labelledby をセットで付与し、名前なし region を作らない。",
-        "orientation・キーボードナビゲーションは SSR 静的マークアップに寄与しない CSR 挙動層の責務としてスコープ外（`data-orientation` は attrs 経由で呼び出し側が付与可能）。",
+        "AccordionProps（orientation/disabled、イシュー #1636）を全パーツへ通し、data-orientation を全パーツへ、実効 disabled（props.disabled || 項目単位 disabled）を item_trigger/item_indicator/item_content の data-disabled へ反映する。",
+        "orientation の SSR 出力（data-orientation）に応じて fandhe-frontend-wasm-full がキーボード操作（vertical: ArrowDown/ArrowUp、horizontal: ArrowRight/ArrowLeft）を切り替える。フォーカス移動のみの循環しない実装（#582 の決定を維持）。",
     ],
     arguments: &[
+        ArgRow {
+            name: "root/item/item_trigger/item_indicator/item_content: props",
+            kind: "&AccordionProps",
+            default: "AccordionProps::default()（orientation: Vertical, disabled: false）",
+            description: "orientation（data-orientation として全パーツへ反映）と全項目一括 disabled（項目単位 disabled との OR 合成）。",
+        },
         ArgRow {
             name: "item: state",
             kind: "OpenState",
@@ -170,7 +266,7 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
             name: "item_trigger: disabled",
             kind: "bool",
             default: "",
-            description: "disabled 状態（ネイティブ disabled 属性 + data-disabled の両方へ反映）。",
+            description: "disabled 状態（実効 disabled はネイティブ disabled 属性・data-disabled・aria-disabled=\"true\" の 3 つへ反映、イシュー #1636 で aria-disabled を追加）。",
         },
         ArgRow {
             name: "item_trigger: value",
@@ -194,13 +290,25 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
             name: "item_indicator: state",
             kind: "OpenState",
             default: "Closed",
-            description: "開閉状態のみを data-state へ反映する最小主義な装飾用パーツ。",
+            description: "開閉状態のみを data-state へ反映する最小主義な装飾用パーツ。常時 aria-hidden=\"true\" を付与する（イシュー #1636）。",
+        },
+        ArgRow {
+            name: "item_indicator: disabled",
+            kind: "bool",
+            default: "",
+            description: "実効 disabled を data-disabled へ反映する（イシュー #1636）。",
         },
         ArgRow {
             name: "item_content: state",
             kind: "OpenState",
             default: "Closed",
             description: "開閉状態（closed のとき hidden 存在属性を付与）。",
+        },
+        ArgRow {
+            name: "item_content: disabled",
+            kind: "bool",
+            default: "",
+            description: "実効 disabled を data-disabled へ反映する（イシュー #1636）。",
         },
         ArgRow {
             name: "item_content: id",
@@ -215,20 +323,56 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
             description: "Some のときのみ role=\"region\" + aria-labelledby をセットで付与する（名前なし region を作らないため）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Disabled item",
-        description: "disabled な項目は item_trigger にネイティブ disabled 属性と data-disabled が付与され、フォーカス・展開ができなくなります。",
-        render: ex_accordion_disabled_item,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Disabled item",
+            description: "disabled な項目は item_trigger にネイティブ disabled 属性・data-disabled・aria-disabled=\"true\" が付与され、item_indicator/item_content にも data-disabled が伝播します（イシュー #1636）。",
+            render: ex_accordion_disabled_item,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "headless-ui は見た目を与えないため、data-scope/data-part/data-state/data-disabled/data-orientation セレクタのみで自前 CSS を当てます。",
+            render: ex_accordion_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Space / Enter",
+            description: "ネイティブ <button> の click 挙動経由で開閉する（fandhe-frontend-wasm-full の headless.rs::MAPPING_TABLE が \"toggle\" dispatch へ写像、イシュー #1127）。",
+        },
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "全 item-trigger が tabbable（roving tabindex は適用しない、APG 仕様どおり）。",
+        },
+        KeyRow {
+            key: "ArrowDown / ArrowUp",
+            description: "orientation=vertical（既定）のとき、次/前の非 disabled item-trigger へフォーカス移動する。循環しない（実 DOM 配線は fandhe-frontend-wasm-full の keynav.rs::accordion_next_index_oriented）。",
+        },
+        KeyRow {
+            key: "ArrowRight / ArrowLeft",
+            description: "orientation=horizontal のとき、次/前の非 disabled item-trigger へフォーカス移動する。循環しない（イシュー #1636 で追加、実 DOM 配線は同上）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "orientation に関わらず先頭/末尾の非 disabled item-trigger へフォーカス移動する。循環しない（実 DOM 配線は同上）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-expanded",
             description: "item_trigger に付与。項目の開閉状態（open で true）を表す。",
         },
         AriaRow {
+            attribute: "aria-disabled",
+            description: "item_trigger に付与。実効 disabled が true のときのみ \"true\" を付与する（イシュー #1636、ネイティブ disabled 属性の補完）。",
+        },
+        AriaRow {
             attribute: "aria-controls",
             description: "item_trigger に付与。controls が Some のとき対応する item_content の id を指す。",
+        },
+        AriaRow {
+            attribute: "aria-hidden",
+            description: "item_indicator に常時 \"true\" を付与する（イシュー #1636。開閉状態は item_trigger の aria-expanded から伝わるため、装飾用の indicator 自体は支援技術から隠す）。",
         },
         AriaRow {
             attribute: "role=\"region\"",
@@ -1562,10 +1706,21 @@ mod tests {
                 "{path}: examples must not be empty"
             );
             assert!(!spec.aria.is_empty(), "{path}: aria must not be empty");
-            assert!(
-                spec.keyboard.is_empty(),
-                "{path}: keyboard should stay empty (no keyboard handling implemented)"
-            );
+            // accordion のみ例外（イシュー #1636）: fandhe-frontend-wasm-full
+            // の keynav.rs が実際にキーボードイベントを処理する（他 9 部品は
+            // モジュール doc §keyboard を 10 件すべて空にする理由 のとおり
+            // 未実装のため空のまま）。
+            if *path == "/primitives/accordion/" {
+                assert!(
+                    !spec.keyboard.is_empty(),
+                    "{path}: keyboard should be non-empty (wasm-full keynav handles it)"
+                );
+            } else {
+                assert!(
+                    spec.keyboard.is_empty(),
+                    "{path}: keyboard should stay empty (no keyboard handling implemented)"
+                );
+            }
             assert!(
                 spec.demo.is_none(),
                 "{path}: demo should stay None (supplied by primitive_showcase)"

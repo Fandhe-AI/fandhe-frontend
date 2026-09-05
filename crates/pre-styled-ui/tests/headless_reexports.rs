@@ -55,13 +55,14 @@ fn tabs_orientation_reexport_is_usable_via_pre_styled_ui_path_alone() {
 #[test]
 fn accordion_state_and_action_reexports_are_usable_via_pre_styled_ui_path_alone() {
     use fandhe_frontend_pre_styled_ui::accordion::{
-        Accordion, MultiAccordion, MultiSelectAction, OpenState as AccordionOpenState,
-        SingleSelectAction,
+        Accordion, AccordionProps, MultiAccordion, MultiSelectAction,
+        OpenState as AccordionOpenState, SingleSelectAction,
     };
 
     let html = render(&accordion::item(
         AccordionOpenState::Open,
         false,
+        &AccordionProps::default(),
         vec![],
         vec![el("span", vec![], vec![text("body")])],
     ));

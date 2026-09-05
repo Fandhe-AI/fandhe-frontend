@@ -5,8 +5,14 @@
 の `accordion` mod は Root / Item / ItemTrigger / ItemIndicator /
 ItemContent の 5 anatomy パーツと、開閉状態を表す `data-state`・
 `aria-expanded`・`aria-controls`・（ラベル付き時のみ）`role="region"` を
-提供します。orientation・キーボードナビゲーションは SSR 静的マークアップに
-寄与しない CSR 挙動層の責務としてスコープ外です。
+提供します。`AccordionProps`（`orientation`/`disabled`、イシュー #1636）を
+全パーツへ通すことで `data-orientation` を全パーツへ、全項目一括
+`disabled` を項目単位の `disabled` と OR 合成した実効値として反映します。
+item-trigger は実効 disabled が true のときのみ `aria-disabled="true"` を、
+item-indicator は常時 `aria-hidden="true"` を付与します。キーボード操作
+（`orientation` に応じた ArrowDown/ArrowUp または ArrowRight/ArrowLeft・
+Home/End・非循環）の実 DOM 配線は `fandhe-frontend-wasm-full` の
+`keynav.rs` が担い、詳細は下記 Keyboard/Accessibility 節を参照してください。
 
 スタイル済みの表示例は [Accordion](../themes/accordion.md) を参照してください。
 

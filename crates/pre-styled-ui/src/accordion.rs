@@ -93,8 +93,13 @@ use crate::recipe::{
 // rustdoc「選択的 re-export」節参照）。未スタイル・variant クラス非付与の
 // 実体が必要な呼び出し側は `fandhe_frontend_headless_ui::accordion` を
 // 直接 import する。
+// `AccordionProps`（イシュー #1636、orientation/disabled）は `item`/
+// `item_trigger`/`item_indicator`/`item_content` の全パーツ関数と本モジュール
+// の styled `root` が引数に取るため、`item`/`Accordion` 等と同じく明示
+// 再エクスポートする（呼び出し側が `fandhe-frontend-pre-styled-ui` のみへの
+// 依存で完結できることを保証する、イシュー #685 と同じ判断）。
 pub use fandhe_frontend_headless_ui::accordion::{
-    item, item_content, item_indicator, item_trigger, Accordion, MultiAccordion,
+    item, item_content, item_indicator, item_trigger, Accordion, AccordionProps, MultiAccordion,
 };
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 // `item`/`item_trigger`/`item_indicator`/`item_content` の `state` 引数・
@@ -325,25 +330,32 @@ pub fn stylesheet() -> String {
 /// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
 /// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
 /// 合成する）。実体は [`fandhe_frontend_headless_ui::accordion::root`] へ
-/// 委譲する。
+/// 委譲する。`props`（[`AccordionProps`]、イシュー #1636）は
+/// `data-orientation`/実効 disabled として全パーツへ伝わる（本 styled
+/// `root` は CSS レシピを変更せず、headless 側へそのまま透過する）。
 ///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_pre_styled_ui::accordion;
+/// use fandhe_frontend_pre_styled_ui::accordion::{self, AccordionProps};
 /// use fandhe_frontend_pre_styled_ui::Size;
 ///
-/// let node = accordion::root(Size::Md, vec![], vec![]);
+/// let node = accordion::root(Size::Md, &AccordionProps::default(), vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="accordion" data-part="root""#));
 /// ```
 #[must_use]
-pub fn root<'a>(size: Size, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn root<'a>(
+    size: Size,
+    props: &AccordionProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let recipe = recipe();
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    fandhe_frontend_headless_ui::accordion::root(merged, children)
+    fandhe_frontend_headless_ui::accordion::root(props, merged, children)
 }
 
 #[cfg(test)]
@@ -379,7 +391,7 @@ mod tests {
 
     #[test]
     fn reexported_root_renders_with_headless_anatomy_attrs() {
-        let html = render(&root(Size::Md, vec![], vec![]));
+        let html = render(&root(Size::Md, &AccordionProps::default(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="accordion""#));
         assert!(html.contains(r#"data-part="root""#));
     }
@@ -389,7 +401,12 @@ mod tests {
     #[test]
     fn size_variant_appends_single_class_to_root_and_drops_caller_class() {
         for size in [Size::Sm, Size::Md, Size::Lg] {
-            let html = render(&root(size, vec![("class", "attacker")], vec![]));
+            let html = render(&root(
+                size,
+                &AccordionProps::default(),
+                vec![("class", "attacker")],
+                vec![],
+            ));
             let expected_class = format!("fd-accordion--size-{}", size.value());
             assert!(html.contains(&expected_class), "html={html}");
             assert!(!html.contains("attacker"));
@@ -405,6 +422,19 @@ mod tests {
             .contains("padding: var(--fandhe-accordion-trigger-padding, var(--fandhe-space-4));"));
         assert!(css
             .contains("padding: var(--fandhe-accordion-content-padding, var(--fandhe-space-4));"));
+    }
+
+    #[test]
+    fn styled_root_propagates_props_to_headless_data_orientation() {
+        // イシュー #1636: styled root は `AccordionProps` をそのまま headless
+        // `root` へ透過する（CSS レシピは変更しない）。
+        use fandhe_frontend_headless_ui::data_attrs::Orientation;
+        let props = AccordionProps {
+            orientation: Orientation::Horizontal,
+            disabled: false,
+        };
+        let html = render(&root(Size::Md, &props, vec![], vec![]));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
     }
 
     #[test]
@@ -429,7 +459,8 @@ mod tests {
         let mut a = Accordion::default();
         assert_eq!(a.expanded(), None);
 
-        let ssr_html = render(&a.item("panel-1", false, vec![], vec![]));
+        let ssr_html =
+            render(&a.item("panel-1", false, &AccordionProps::default(), vec![], vec![]));
         assert!(ssr_html.contains(r#"data-state="closed""#));
 
         assert!(dispatch(&mut a, "select", "panel-1"));

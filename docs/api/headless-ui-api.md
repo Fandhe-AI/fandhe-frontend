@@ -42,7 +42,7 @@
 | コンポーネント | モジュール | anatomy パーツ | 埋め込む状態機械 |
 |---|---|---|---|
 | Collapsible | `collapsible` | Root/Trigger/Indicator/Content | `state::Disclosure` |
-| [Accordion（single モード）](../../site/themes/accordion.md) | `accordion` | Root/Item/ItemTrigger/ItemIndicator/ItemContent | `state::SingleSelect` |
+| [Accordion（single モード）](../../site/themes/accordion.md) | `accordion` | Root/Item/ItemTrigger/ItemIndicator/ItemContent | `state::SingleSelect`。全パーツが `AccordionProps`（`orientation`/`disabled`、イシュー #1636）を受け取り `data-orientation` を全パーツへ、実効 disabled を item-trigger/item-indicator/item-content へ反映する。item-trigger の `aria-disabled`（disabled 時のみ）・item-indicator の常時 `aria-hidden="true"` も同イシューで追加。キーボード（vertical: ArrowDown/ArrowUp、horizontal: ArrowRight/ArrowLeft、Home/End、非循環）の DOM 配線は `fandhe-frontend-wasm-full` の `keynav.rs::accordion_next_index_oriented` |
 | [Tabs](../../site/themes/tabs.md) | `tabs` | Root/List/Trigger/Content（自由関数 `tabs()`、SSR 静的選択状態のみ） | なし（クリック/dispatch は wasm 層のスコープ） |
 | [Tooltip](../../site/themes/tooltip.md) | `tooltip` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` |
 | [Dialog](../../site/themes/dialog.md) | `dialog` | Root/Trigger/Backdrop/Positioner/Content/Title/Description/CloseTrigger | `state::Disclosure` |
