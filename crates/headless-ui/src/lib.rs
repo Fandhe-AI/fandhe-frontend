@@ -273,7 +273,10 @@
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。実 `File` API
 //!   接触は `fandhe-frontend-wasm-full` 側に隔離する（[`mod@file_upload`]
-//!   モジュール doc 参照）。
+//!   モジュール doc 参照）。disabled/readonly/invalid/required の状態束は
+//!   [`file_upload::FileUploadProps`] が担い、item 系パーツの受理/拒否種別は
+//!   [`file_upload::ItemType`] 固定語彙が `data-type` として表す
+//!   （参照突合、イシュー #1609）。
 //! - [`mod@steps`]: Root / List / Item / Trigger / Indicator / Separator /
 //!   Content / CompletedContent / PrevTrigger / NextTrigger の 10 anatomy
 //!   パーツと、`count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ
@@ -642,6 +645,11 @@ pub mod file_upload;
 pub mod floating_panel;
 pub mod format;
 pub mod hover_card;
+// イシュー #1610: 参照実装（ark-ui/zag.js）との突合で `ImageCropperProps`
+// （`data-disabled`/`data-dragging`）・キーボード操作の受け口が selection
+// （`role="slider"` の 2D slider 意味論）へ移った変更・`action_for_key`
+// （キー → アクションの純粋関数）を追加した。詳細は `image_cropper`
+// モジュール doc「参照突合」節参照。
 pub mod image_cropper;
 pub mod json_tree_view;
 pub mod link;

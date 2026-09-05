@@ -78,7 +78,7 @@
 //! `size`（5 段）は「配色バリアント」ではなく handle 寸法の操作性スケール
 //! （タッチ/マウス操作のしやすさ）として既に存在するため、そのまま維持する
 //! （上記「`size` variant のみ」節参照）。disabled・その他の視覚状態は
-//! headless が `data-handle-position` 以外の `data-*` を発行しないため
+//! headless が `data-position` 以外の `data-*` を発行しないため
 //! 追加対象がない（headless への属性追加は本イシューのスコープ外）。
 //!
 //! # イシュー #1481（2/2）: ズーム・回転コントロールは対象外、
@@ -131,7 +131,7 @@
 //!   `selection`/`handle` に限定するスタイル側の固定を避けるため）。
 //! - **サイズ/`data-*` 状態/フォーカス/hover/トランジション**: `viewport`/
 //!   `image` はいずれも非フォーカサブルで headless が `data-*` を発行
-//!   しない（`data-handle-position` は `handle` のみ）ため追加是正なし。
+//!   しない（`data-position` は `handle` のみ）ため追加是正なし。
 //!   位置系のトランジション非付与は 1/2 の判断を踏襲する。
 //!
 //! `root` は 1/2 が触っていないが、`display`/`position` のみで
@@ -162,7 +162,8 @@ use crate::recipe::{
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::image_cropper::ImageCropper;
 pub use fandhe_frontend_headless_ui::image_cropper::{
-    grid, handle, image, viewport, HandlePosition, ImageCropperAction,
+    action_for_key, grid, handle, image, viewport, GridAxis, HandlePosition, ImageCropperAction,
+    ImageCropperProps, KeyModifiers, NUDGE_STEP, NUDGE_STEP_CTRL, NUDGE_STEP_SHIFT,
 };
 
 /// headless `image-cropper` anatomy の `data-part` 一覧（
@@ -319,7 +320,7 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "handle",
-            StateCondition::AttrEq("data-handle-position", "n"),
+            StateCondition::AttrEq("data-position", "n"),
             vec![
                 decl("top", "0"),
                 decl("left", "50%"),
@@ -328,7 +329,7 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "handle",
-            StateCondition::AttrEq("data-handle-position", "s"),
+            StateCondition::AttrEq("data-position", "s"),
             vec![
                 decl("top", "100%"),
                 decl("left", "50%"),
@@ -337,7 +338,7 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "handle",
-            StateCondition::AttrEq("data-handle-position", "e"),
+            StateCondition::AttrEq("data-position", "e"),
             vec![
                 decl("top", "50%"),
                 decl("left", "100%"),
@@ -346,7 +347,7 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "handle",
-            StateCondition::AttrEq("data-handle-position", "w"),
+            StateCondition::AttrEq("data-position", "w"),
             vec![
                 decl("top", "50%"),
                 decl("left", "0"),
@@ -355,7 +356,7 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "handle",
-            StateCondition::AttrEq("data-handle-position", "ne"),
+            StateCondition::AttrEq("data-position", "ne"),
             vec![
                 decl("top", "0"),
                 decl("left", "100%"),
@@ -364,7 +365,7 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "handle",
-            StateCondition::AttrEq("data-handle-position", "nw"),
+            StateCondition::AttrEq("data-position", "nw"),
             vec![
                 decl("top", "0"),
                 decl("left", "0"),
@@ -373,7 +374,7 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "handle",
-            StateCondition::AttrEq("data-handle-position", "se"),
+            StateCondition::AttrEq("data-position", "se"),
             vec![
                 decl("top", "100%"),
                 decl("left", "100%"),
@@ -382,7 +383,7 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "handle",
-            StateCondition::AttrEq("data-handle-position", "sw"),
+            StateCondition::AttrEq("data-position", "sw"),
             vec![
                 decl("top", "100%"),
                 decl("left", "0"),
@@ -390,11 +391,14 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .state(
-            "handle",
+            "selection",
             // 直書き outline から共通トークン経由へ移行（イシュー #1424、
             // `--fandhe-focus-ring-*`）。`palette` 軸を持たない部品のため
             // `FocusRingColor::Token` を使う（モジュール冒頭 rustdoc「`size`
-            // variant のみ」節参照）。
+            // variant のみ」節参照）。イシュー #1610: フォーカス可能な要素が
+            // headless 側で handle → selection へ移った（参照実装の
+            // `role="slider"` 2D slider モデルへの突合）ため、フォーカス
+            // リングも同じパートへ移設した。
             StateCondition::FocusVisible,
             focus_ring_declarations(FocusRingColor::Token, FocusRingOffset::Outside),
         )
@@ -482,18 +486,20 @@ pub fn stylesheet() -> String {
 ///
 /// ```
 /// use fandhe_frontend_core::render;
-/// use fandhe_frontend_headless_ui::image_cropper::ImageCropper;
+/// use fandhe_frontend_headless_ui::image_cropper::{ImageCropper, ImageCropperProps};
 /// use fandhe_frontend_pre_styled_ui::image_cropper;
 /// use fandhe_frontend_pre_styled_ui::Size;
 ///
 /// let c = ImageCropper::default();
-/// let node = image_cropper::root(Size::Md, &c, vec![], vec![]);
+/// let props = ImageCropperProps::default();
+/// let node = image_cropper::root(Size::Md, &c, &props, vec![], vec![]);
 /// assert!(render(&node).contains(r#"data-scope="image-cropper" data-part="root""#));
 /// ```
 #[must_use]
 pub fn root<'a>(
     size: Size,
     state: &ImageCropper,
+    props: &ImageCropperProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -501,7 +507,7 @@ pub fn root<'a>(
     let class = recipe.variant_classes(&[("size", size.value())]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
-    state.root(merged, children)
+    state.root(props, merged, children)
 }
 
 /// styled selection パーツを組み立てる。4 個の `--fandhe-image-cropper-*` custom
@@ -514,6 +520,7 @@ pub fn root<'a>(
 #[must_use]
 pub fn selection<'a>(
     state: &ImageCropper,
+    props: &ImageCropperProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -525,7 +532,7 @@ pub fn selection<'a>(
     );
     let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
     merged.extend(drop_style_attr(attrs));
-    state.selection(merged, children)
+    state.selection(props, merged, children)
 }
 
 #[cfg(test)]
@@ -567,15 +574,23 @@ mod tests {
         let css = stylesheet();
         for pos in ["n", "s", "e", "w", "ne", "nw", "se", "sw"] {
             assert!(css.contains(&format!(
-                r#"[data-scope="image-cropper"][data-part="handle"][data-handle-position="{pos}"] {{"#
+                r#"[data-scope="image-cropper"][data-part="handle"][data-position="{pos}"] {{"#
             )));
         }
     }
 
     #[test]
-    fn stylesheet_links_handle_to_focus_visible() {
+    fn stylesheet_links_selection_to_focus_visible() {
+        // イシュー #1610: フォーカス可能な要素が headless 側で handle →
+        // selection へ移った（参照実装の role="slider" 2D slider モデルへの
+        // 突合）ため、フォーカスリングのセレクタも selection へ移設した。
         let css = stylesheet();
-        assert!(css.contains(r#"[data-scope="image-cropper"][data-part="handle"]:focus-visible {"#));
+        assert!(
+            css.contains(r#"[data-scope="image-cropper"][data-part="selection"]:focus-visible {"#)
+        );
+        assert!(
+            !css.contains(r#"[data-scope="image-cropper"][data-part="handle"]:focus-visible {"#)
+        );
     }
 
     #[test]
@@ -677,7 +692,8 @@ mod tests {
     #[test]
     fn root_outputs_scope_and_part() {
         let c = ImageCropper::default();
-        let html = render(&root(Size::Md, &c, vec![], vec![]));
+        let props = ImageCropperProps::default();
+        let html = render(&root(Size::Md, &c, &props, vec![], vec![]));
         assert!(html.contains(r#"data-scope="image-cropper""#));
         assert!(html.contains(r#"data-part="root""#));
     }
@@ -685,13 +701,15 @@ mod tests {
     #[test]
     fn default_variant_is_md() {
         let c = ImageCropper::default();
-        let html = render(&root(Size::Md, &c, vec![], vec![]));
+        let props = ImageCropperProps::default();
+        let html = render(&root(Size::Md, &c, &props, vec![], vec![]));
         assert!(html.contains("fd-image-cropper--size-md"));
     }
 
     #[test]
     fn size_enumeration_maps_to_expected_classes() {
         let c = ImageCropper::default();
+        let props = ImageCropperProps::default();
         for (size, class) in [
             (Size::Xs, "fd-image-cropper--size-xs"),
             (Size::Sm, "fd-image-cropper--size-sm"),
@@ -699,7 +717,7 @@ mod tests {
             (Size::Lg, "fd-image-cropper--size-lg"),
             (Size::Xl, "fd-image-cropper--size-xl"),
         ] {
-            let html = render(&root(size, &c, vec![], vec![]));
+            let html = render(&root(size, &c, &props, vec![], vec![]));
             assert!(html.contains(class), "size={size:?} -> {html}");
         }
     }
@@ -707,9 +725,11 @@ mod tests {
     #[test]
     fn class_attr_is_single_and_caller_class_is_dropped() {
         let c = ImageCropper::default();
+        let props = ImageCropperProps::default();
         let html = render(&root(
             Size::Md,
             &c,
+            &props,
             vec![("class", "attacker-controlled")],
             vec![],
         ));
@@ -720,9 +740,11 @@ mod tests {
     #[test]
     fn caller_data_scope_and_part_spoofing_is_dropped() {
         let c = ImageCropper::default();
+        let props = ImageCropperProps::default();
         let html = render(&root(
             Size::Md,
             &c,
+            &props,
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
@@ -736,7 +758,8 @@ mod tests {
     #[test]
     fn selection_outputs_percent_style() {
         let c = ImageCropper::new(200, 100, 50, 25, 100, 50, None, 1);
-        let html = render(&selection(&c, vec![], vec![]));
+        let props = ImageCropperProps::default();
+        let html = render(&selection(&c, &props, vec![], vec![]));
         assert!(html.contains("--fandhe-image-cropper-x: 25%"));
         assert!(html.contains("--fandhe-image-cropper-y: 25%"));
         assert!(html.contains("--fandhe-image-cropper-w: 50%"));
@@ -746,7 +769,13 @@ mod tests {
     #[test]
     fn selection_caller_style_attr_is_dropped_not_duplicated() {
         let c = ImageCropper::default();
-        let html = render(&selection(&c, vec![("style", "attacker: 1")], vec![]));
+        let props = ImageCropperProps::default();
+        let html = render(&selection(
+            &c,
+            &props,
+            vec![("style", "attacker: 1")],
+            vec![],
+        ));
         assert_eq!(html.matches("style=\"").count(), 1);
         assert!(!html.contains("attacker"));
     }
@@ -756,9 +785,11 @@ mod tests {
     #[test]
     fn root_attrs_attribute_breakout_payload_is_escaped() {
         let c = ImageCropper::default();
+        let props = ImageCropperProps::default();
         let html = render(&root(
             Size::Md,
             &c,
+            &props,
             vec![("data-x", "\" onmouseover=\"alert(1)")],
             vec![],
         ));
@@ -776,8 +807,10 @@ mod tests {
 
     #[test]
     fn reexported_grid_children_text_are_escaped_on_render() {
+        let props = ImageCropperProps::default();
         let html = render(&selection(
             &ImageCropper::default(),
+            &props,
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));
@@ -794,7 +827,8 @@ mod tests {
         use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate};
 
         let mut c = ImageCropper::new(200, 100, 0, 0, 50, 50, None, 1);
-        let ssr_html = render(&root(Size::Md, &c, vec![], vec![]));
+        let props = ImageCropperProps::default();
+        let ssr_html = render(&root(Size::Md, &c, &props, vec![], vec![]));
         assert!(!ssr_html.contains("data-hydrate-"));
 
         assert!(dispatch(&mut c, "move", "10,10"));

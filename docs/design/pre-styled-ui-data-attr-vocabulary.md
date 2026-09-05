@@ -46,7 +46,7 @@
 | `data-today` / `data-outside-month` | `calendar.rs` | headless `calendar.rs` |
 | `data-selected` | `pagination.rs` / `tree_view.rs` / `calendar.rs` | headless `pagination.rs` / `tree_view.rs` ほか |
 | `data-placement` | `drawer.rs` | headless `drawer.rs` / `toast.rs` |
-| `data-handle-position` | `image_cropper.rs` | headless `image_cropper.rs` |
+| `data-position` | `image_cropper.rs` | headless `image_cropper.rs`（イシュー #1610 で `data-handle-position` から改名。参照実装〔ark-ui/zag.js〕の語彙と一致させるため） |
 | `data-side` / `data-align` | `tour.rs` | headless `positioning.rs` |
 | `data-placeholder` | `date_input.rs` | headless `date_input.rs` |
 | `data-placeholder-shown` | `editable.rs` | headless `editable.rs` / `select.rs` |

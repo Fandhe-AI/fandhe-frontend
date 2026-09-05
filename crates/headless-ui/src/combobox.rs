@@ -125,14 +125,68 @@
 //! 出力）は [`crate::positioning`] を利用する想定（[`crate::select`] と同じ
 //! 契約、Combobox は arrow を持たない）。呼び出し側が [`positioner`] の
 //! `attrs` 経由で算出済み `style`/`data-side`/`data-align` を渡す。
+//!
+//! # 参照突合（イシュー #1605）
+//!
+//! ark-ui Combobox
+//!（`.claude/skills/ark-ui/references/components/collections/combobox.md`）
+//! および chakra-ui Combobox
+//!（`.claude/skills/chakra-ui/references/components/collections/combobox.md`）
+//! と突合した結果、以下を是正した:
+//!
+//! - **[`ComboboxProps`]（`disabled`/`readonly`/`invalid`/`required`）**を
+//!   新設し、`data-disabled`/`data-readonly`/`data-invalid` を
+//!   root/label/control/[`input`]/[`trigger`]/[`clear_trigger`] へ一律付与、
+//!   `data-required` は [`label`] にのみ付与する（ark の superset を採る
+//!   [`crate::color_picker::ColorPickerProps`]/
+//!   [`crate::angle_slider::AngleSliderProps`] と同型のパターン）。
+//!   [`input`] には対応するネイティブ `disabled`/`readonly`/`required`
+//!   存在属性、[`input`] の invalid 時のみ `aria-invalid="true"` を追加する
+//!   （valid のときは省略、[`crate::color_picker::channel_input`] と同型）。
+//!
+//! 一方、以下は ark-ui/chakra-ui に存在するが意図的に追随しない:
+//!
+//! - **item/item-indicator の `data-state` を `checked`/`unchecked` へ
+//!   変更すること**: [`crate::select`]/[`crate::listbox`] が既に
+//!   `data-state`（[`crate::state::OpenState`] の `"open"`/`"closed"`
+//!   語彙）を選択有無の表現として採用しクレート横断で確定済みである
+//!   （`crate::listbox::item` rustdoc・`crate::state::SingleSelect::item_data_state`
+//!   参照）。combobox 単独で語彙を変えると select/listbox・
+//!   `fandhe-frontend-pre-styled-ui` の recipe（`[data-state="open"]`
+//!   セレクタ）との横断整合が崩れるため見送る。
+//! - **item-text の `data-state`/`data-disabled`/`data-highlighted`**:
+//!   `[data-part="item"][data-state] [data-part="item-text"]` の子孫
+//!   セレクタで表現可能であり、シグネチャ変更の波及を避ける。
+//! - **`data-focus`/`data-autofocus`/`data-focusable`**: DOM ローカルな
+//!   focus 状態は SSR 静的出力の関心外
+//!   （`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。
+//!   `data-focus-visible` は `fandhe-frontend-wasm-full` 側の写像責務。
+//! - **`data-placement`/`data-side`（content）**: 位置決めは
+//!   [`crate::positioning`] の契約に従い呼び出し側が `positioner`/
+//!   `content` の `attrs` 経由で渡す（本節冒頭の既存契約のまま）。
+//! - **`data-empty`/`data-nested`/`data-has-nested`**: 空状態・候補の
+//!   ネストは ark の `List`/`Empty` パーツ分割に固有の関心であり、本
+//!   モジュールは 14 パーツの anatomy を変更しない（過不足なしと判断）。
+//! - **ark `List`/`Empty`、chakra `IndicatorGroup` パーツの追加**:
+//!   `List`（仮想化前提）・`Empty`（空状態表示）は不採用、`IndicatorGroup`
+//!   （chakra の装飾コンテナ）は `docs/policy/intentional-non-adoption.md`
+//!   §3.25 規則 2 により追加するなら `fandhe-frontend-pre-styled-ui` 側の
+//!   関心とする。
+//!
+//! キーボード操作（ArrowDown/Up・Home/End・Enter・Escape 等）は本モジュール
+//! の管轄外（`fandhe-frontend-wasm-full` の `keynav::combobox_key_action`、
+//! イシュー #1071）であり、判定表の参照先を docs-site 原稿へ明記する形で
+//! 突合した（本モジュールへの変更なし）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
     aria_activedescendant, aria_atomic, aria_autocomplete, aria_controls, aria_disabled,
-    aria_expanded, aria_haspopup, aria_labelledby, aria_live, aria_selected, role,
+    aria_expanded, aria_haspopup, aria_invalid, aria_labelledby, aria_live, aria_selected, role,
     AriaAutocomplete, AriaLive, AriaPopup,
 };
-use crate::data_attrs::{data_disabled, data_highlighted, data_state};
+use crate::data_attrs::{
+    data_disabled, data_highlighted, data_invalid, data_readonly, data_required, data_state,
+};
 use crate::state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, TextInput,
     TextInputAction,
@@ -143,10 +197,99 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 /// Combobox の anatomy（`data-scope="combobox"`）。
 const ANATOMY: Anatomy = anatomy("combobox");
 
-/// Root パーツ（`div`）。listbox の開閉状態を `data-*` へ反映する。
+/// Combobox の disabled/readonly/invalid/required 状態束。
+/// root/label/control/[`input`]/[`trigger`]/[`clear_trigger`] の全パーツへ
+/// [`data_disabled`]/[`data_invalid`]/[`data_readonly`] を一律付与し、
+/// [`label`] にのみ [`data_required`] を追加で付与するために使う
+/// （[`crate::color_picker::ColorPickerProps`]/
+/// [`crate::angle_slider::AngleSliderProps`] と同型のパターン、イシュー
+/// #1605 参照突合）。状態機械 [`Combobox`] にはフィールドを持たせず、呼び
+/// 出しごとに `&ComboboxProps` を渡す（hydration 属性面を拡張しない設計）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ComboboxProps {
+    /// 無効化状態。`true` で `data-disabled` を各パーツへ付与し、
+    /// [`input`]/[`trigger`]/[`clear_trigger`] にはネイティブ `disabled`
+    /// 存在属性も付与する。
+    pub disabled: bool,
+    /// 読み取り専用状態。`true` で `data-readonly` を各パーツへ付与し、
+    /// [`input`] にはネイティブ `readonly` 存在属性も付与する。操作自体の
+    /// 抑止（wasm-full 側での readonly 中の入力拒否）は本イシューのスコープ
+    /// 外（モジュール冒頭「参照突合」節参照）。
+    pub readonly: bool,
+    /// 入力検証エラー状態。`true` で `data-invalid` を各パーツへ、
+    /// [`input`] には追加で `aria-invalid="true"` を付与する（valid の
+    /// ときは `aria-invalid` 自体を省略、[`crate::color_picker::channel_input`]
+    /// と同型の判断）。
+    pub invalid: bool,
+    /// 入力必須状態。`true` で [`label`] に `data-required` を、[`input`]
+    /// にはネイティブ `required` 存在属性を付与する。
+    pub required: bool,
+}
+
+/// [`ComboboxProps`] から root/label/control/input/trigger/clear-trigger
+/// 共通の状態属性列を組み立てる非公開ヘルパ（disabled/invalid/readonly の
+/// 3 属性、[`color_picker::state_attrs`] と同型）。
+fn state_attrs(props: &ComboboxProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs: Vec<(&'static str, &'static str)> = Vec::new();
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_invalid(props.invalid));
+    attrs.extend(data_readonly(props.readonly));
+    attrs
+}
+
+/// [`ComboboxProps`] が全パーツへ一律付与する属性キー一覧。呼び出し側
+/// `attrs` にこれらと同名キーが含まれていても fail-closed で除去する対象
+/// （[`crate::color_picker::STATE_RESERVED`] と同型のパターン）。
+const STATE_RESERVED: &[&str] = &["data-disabled", "data-invalid", "data-readonly"];
+
+/// [`root`]/[`control`]/[`trigger`] が固定付与するキー一覧（[`STATE_RESERVED`]
+/// に `data-state` を加えたもの）。
+const STATEFUL_CONTAINER_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-state",
+];
+
+/// [`label`] が固定付与するキー一覧（[`STATE_RESERVED`] に `data-required`
+/// を加えたもの）。
+const LABEL_RESERVED: &[&str] = &[
+    "data-disabled",
+    "data-invalid",
+    "data-readonly",
+    "data-required",
+];
+
+/// [`input`] が固定付与するキー一覧（[`STATEFUL_CONTAINER_RESERVED`] は
+/// `data-state` を含むためそのまま再利用する）。
+const INPUT_RESERVED: &[&str] = STATEFUL_CONTAINER_RESERVED;
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::color_picker::drop_reserved`]/
+/// [`crate::angle_slider::drop_reserved`] と同型の重複実装。モジュール間の
+/// 相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// Root パーツ（`div`）。listbox の開閉状態と [`ComboboxProps`] の状態束を
+/// `data-*` へ反映する。
 #[must_use]
-pub fn root<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn root<'a>(
+    state: OpenState,
+    props: &ComboboxProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATEFUL_CONTAINER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
@@ -154,15 +297,20 @@ pub fn root<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: Vec<
 /// Label パーツ（`label`）。`id` が `Some` のとき [`content`] の
 /// `labelledby` と対で `aria-labelledby` 関連付けを成立させる。`for_` が
 /// `Some` のとき [`input`] の `id` と対でネイティブ `label[for]` 関連付けを
-/// 成立させる（ark-ui の `htmlFor` 準拠）。
+/// 成立させる（ark-ui の `htmlFor` 準拠）。[`ComboboxProps`] の状態束 +
+/// `data-required` を付与する（イシュー #1605 参照突合。ark-ui の
+/// `data-required` は Label のみが持つ）。
 #[must_use]
 pub fn label<'a>(
+    props: &ComboboxProps,
     id: Option<&'a str>,
     for_: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    let attrs = drop_reserved(attrs, LABEL_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(data_required(props.required));
     if let Some(id) = id {
         merged.push(("id", id));
     }
@@ -174,11 +322,18 @@ pub fn label<'a>(
 }
 
 /// Control パーツ（`div`）。入力欄・トリガー・クリアボタン等をまとめる
-/// コンテナ。開閉状態を `data-*` へ反映するのみの最小主義な装飾用パーツ
-/// （[`crate::select::control`] と同型）。
+/// コンテナ。開閉状態と [`ComboboxProps`] の状態束を `data-*` へ反映する
+/// （[`crate::select::control`] を拡張、イシュー #1605 参照突合）。
 #[must_use]
-pub fn control<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn control<'a>(
+    state: OpenState,
+    props: &ComboboxProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATEFUL_CONTAINER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(state_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("control", "div", merged, children)
 }
@@ -199,16 +354,23 @@ pub fn control<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: V
 /// `<input>` は void element（子要素を持てない HTML 仕様）であるため、
 /// [`crate::pin_input::input`]/[`crate::field::input`] と同じく `children`
 /// 引数は持たない（`el`/`ANATOMY.part` へは常に空 `Vec` を渡す）。
+///
+/// [`ComboboxProps`] の状態束を付与する（イシュー #1605 参照突合）。
+/// `props.disabled`/`props.readonly`/`props.required` はそれぞれネイティブ
+/// `disabled`/`readonly`/`required` 存在属性へも反映する。`props.invalid`
+/// のときのみ `aria-invalid="true"` を追加する（valid のときは省略、
+/// [`crate::color_picker::channel_input`] と同型の判断）。
 #[must_use]
 pub fn input<'a>(
     state: OpenState,
     value: &'a str,
-    disabled: bool,
+    props: &ComboboxProps,
     controls: Option<&'a str>,
     activedescendant: Option<&'a str>,
     name: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, INPUT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         role("combobox"),
         aria_expanded(state.is_open()),
@@ -226,9 +388,18 @@ pub fn input<'a>(
     if let Some(name) = name {
         merged.push(("name", name));
     }
-    merged.extend(data_disabled(disabled));
-    if disabled {
+    merged.extend(state_attrs(props));
+    if props.disabled {
         merged.push(("disabled", ""));
+    }
+    if props.readonly {
+        merged.push(("readonly", ""));
+    }
+    if props.required {
+        merged.push(("required", ""));
+    }
+    if props.invalid {
+        merged.push(aria_invalid(true));
     }
     merged.extend(attrs);
     ANATOMY.part("input", "input", merged, Vec::new())
@@ -240,18 +411,19 @@ pub fn input<'a>(
 /// 付与する（A05 セキュリティ設定ミス対策、[`crate::select::trigger`] と
 /// 同じ判断）。`aria-haspopup="listbox"` を固定付与する。フォーカスは
 /// [`input`] が保持し、本パーツはタブ順から外す（`tabindex="-1"` 固定、
-/// ark-ui 準拠）。`disabled` はネイティブ `disabled` 存在属性と
-/// `data-disabled` の両方へ反映する。アクセシブルネーム（`aria-label` 等）は
-/// 呼び出し側の `attrs` を通じて付与する責務とする
-/// （[`crate::select::clear_trigger`] と同じ判断）。
+/// ark-ui 準拠）。[`ComboboxProps`] の状態束を付与し、`props.disabled` の
+/// ときのみネイティブ `disabled` 存在属性を追加する（イシュー #1605 参照
+/// 突合）。アクセシブルネーム（`aria-label` 等）は呼び出し側の `attrs` を
+/// 通じて付与する責務とする（[`crate::select::clear_trigger`] と同じ判断）。
 #[must_use]
 pub fn trigger<'a>(
     state: OpenState,
-    disabled: bool,
+    props: &ComboboxProps,
     controls: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATEFUL_CONTAINER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("type", "button"),
         ("tabindex", "-1"),
@@ -262,8 +434,8 @@ pub fn trigger<'a>(
     if let Some(controls) = controls {
         merged.push(aria_controls(controls));
     }
-    merged.extend(data_disabled(disabled));
-    if disabled {
+    merged.extend(state_attrs(props));
+    if props.disabled {
         merged.push(("disabled", ""));
     }
     merged.extend(attrs);
@@ -271,9 +443,22 @@ pub fn trigger<'a>(
 }
 
 /// ClearTrigger パーツ（`button`）。[`crate::select::clear_trigger`] と同型。
+///
+/// [`ComboboxProps`] の状態束を付与し、`props.disabled` のときのみ
+/// ネイティブ `disabled` 存在属性を追加する（無効な combobox はクリアも
+/// できない安全側の判断、イシュー #1605 参照突合）。
 #[must_use]
-pub fn clear_trigger<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+pub fn clear_trigger<'a>(
+    props: &ComboboxProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
+    merged.extend(state_attrs(props));
+    if props.disabled {
+        merged.push(("disabled", ""));
+    }
     merged.extend(attrs);
     ANATOMY.part("clear-trigger", "button", merged, children)
 }
@@ -564,21 +749,31 @@ impl Combobox {
 
     /// [`root`] へ現在の開閉状態を注入する利便メソッド。
     #[must_use]
-    pub fn root<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        root(self.open_state(), attrs, children)
+    pub fn root<'a>(
+        &self,
+        props: &ComboboxProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        root(self.open_state(), props, attrs, children)
     }
 
     /// [`control`] へ現在の開閉状態を注入する利便メソッド。
     #[must_use]
-    pub fn control<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        control(self.open_state(), attrs, children)
+    pub fn control<'a>(
+        &self,
+        props: &ComboboxProps,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        control(self.open_state(), props, attrs, children)
     }
 
     /// [`input`] へ現在の開閉状態・入力値を注入する利便メソッド。
     #[must_use]
     pub fn input<'a>(
         &'a self,
-        disabled: bool,
+        props: &ComboboxProps,
         controls: Option<&'a str>,
         activedescendant: Option<&'a str>,
         name: Option<&'a str>,
@@ -587,7 +782,7 @@ impl Combobox {
         input(
             self.open_state(),
             self.input_value(),
-            disabled,
+            props,
             controls,
             activedescendant,
             name,
@@ -599,12 +794,12 @@ impl Combobox {
     #[must_use]
     pub fn trigger<'a>(
         &self,
-        disabled: bool,
+        props: &ComboboxProps,
         controls: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        trigger(self.open_state(), disabled, controls, attrs, children)
+        trigger(self.open_state(), props, controls, attrs, children)
     }
 
     /// [`positioner`] へ現在の開閉状態を注入する利便メソッド。
@@ -695,19 +890,21 @@ impl Component for Combobox {
     /// 呼び出し側が組み合わせる）。
     fn view(&self) -> Node {
         let state = self.open_state();
+        let props = ComboboxProps::default();
         self.root(
+            &props,
             Vec::new(),
             vec![
                 input(
                     state,
                     self.input_value(),
-                    false,
+                    &props,
                     None,
                     None,
                     None,
                     Vec::new(),
                 ),
-                trigger(state, false, None, Vec::new(), Vec::new()),
+                trigger(state, &props, None, Vec::new(), Vec::new()),
                 positioner(
                     state,
                     Vec::new(),
@@ -758,7 +955,12 @@ mod tests {
 
     #[test]
     fn root_outputs_scope_part_and_state() {
-        let html = render(&root(OpenState::Closed, vec![], vec![]));
+        let html = render(&root(
+            OpenState::Closed,
+            &ComboboxProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-scope="combobox""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(html.contains(r#"data-state="closed""#));
@@ -767,6 +969,7 @@ mod tests {
     #[test]
     fn label_id_and_for_some_outputs_both() {
         let html = render(&label(
+            &ComboboxProps::default(),
             Some("combobox-label-1"),
             Some("combobox-input-1"),
             vec![],
@@ -779,16 +982,127 @@ mod tests {
 
     #[test]
     fn label_id_and_for_none_omits_both() {
-        let html = render(&label(None, None, vec![], vec![]));
+        let html = render(&label(
+            &ComboboxProps::default(),
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains(" id="));
         assert!(!html.contains(" for="));
     }
 
     #[test]
     fn control_outputs_scope_part_and_state() {
-        let html = render(&control(OpenState::Open, vec![], vec![]));
+        let html = render(&control(
+            OpenState::Open,
+            &ComboboxProps::default(),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-part="control""#));
         assert!(html.contains(r#"data-state="open""#));
+    }
+
+    // --- ComboboxProps 一律出力（イシュー #1605 参照突合） ---
+
+    #[test]
+    fn props_state_attrs_outputs_on_root_label_control_trigger_clear_trigger() {
+        let props = ComboboxProps {
+            disabled: true,
+            readonly: true,
+            invalid: true,
+            required: false,
+        };
+        let root_html = render(&root(OpenState::Closed, &props, vec![], vec![]));
+        let label_html = render(&label(&props, None, None, vec![], vec![]));
+        let control_html = render(&control(OpenState::Closed, &props, vec![], vec![]));
+        let trigger_html = render(&trigger(OpenState::Closed, &props, None, vec![], vec![]));
+        let clear_trigger_html = render(&clear_trigger(&props, vec![], vec![]));
+
+        for html in [
+            &root_html,
+            &label_html,
+            &control_html,
+            &trigger_html,
+            &clear_trigger_html,
+        ] {
+            assert!(html.contains(r#"data-disabled="""#), "{html}");
+            assert!(html.contains(r#"data-invalid="""#), "{html}");
+            assert!(html.contains(r#"data-readonly="""#), "{html}");
+        }
+        // disabled のとき trigger/clear-trigger はネイティブ disabled も持つ。
+        assert!(trigger_html.contains(r#"disabled="""#));
+        assert!(clear_trigger_html.contains(r#"disabled="""#));
+    }
+
+    #[test]
+    fn props_required_true_adds_data_required_only_on_label() {
+        let props = ComboboxProps {
+            required: true,
+            ..Default::default()
+        };
+        let label_html = render(&label(&props, None, None, vec![], vec![]));
+        let root_html = render(&root(OpenState::Closed, &props, vec![], vec![]));
+        assert!(label_html.contains(r#"data-required="""#));
+        assert!(!root_html.contains("data-required"));
+    }
+
+    #[test]
+    fn props_default_valid_omits_all_state_attrs() {
+        let html = render(&root(
+            OpenState::Closed,
+            &ComboboxProps::default(),
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-readonly"));
+        assert!(!html.contains("data-required"));
+    }
+
+    #[test]
+    fn caller_supplied_data_required_is_dropped_on_label() {
+        let html = render(&label(
+            &ComboboxProps::default(),
+            None,
+            None,
+            vec![("data-required", "attacker")],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn no_part_outputs_data_motion_hover_active_focus() {
+        // headless-ui は anatomy・アクセシビリティ・data-* の表示状態のみを
+        // 担い、装飾・アニメーション関心は持ち込まない
+        // （`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。
+        let props = ComboboxProps {
+            disabled: true,
+            readonly: true,
+            invalid: true,
+            required: true,
+        };
+        let root_html = render(&root(OpenState::Open, &props, vec![], vec![]));
+        let label_html = render(&label(&props, None, None, vec![], vec![]));
+        let input_html = render(&input(
+            OpenState::Open,
+            "",
+            &props,
+            None,
+            None,
+            None,
+            vec![],
+        ));
+        for html in [&root_html, &label_html, &input_html] {
+            assert!(!html.contains("data-motion"));
+            assert!(!html.contains("data-hover"));
+            assert!(!html.contains("data-active"));
+            assert!(!html.contains("data-focus"));
+        }
     }
 
     #[test]
@@ -796,7 +1110,7 @@ mod tests {
         let html = render(&input(
             OpenState::Closed,
             "vu",
-            false,
+            &ComboboxProps::default(),
             None,
             None,
             None,
@@ -815,7 +1129,7 @@ mod tests {
         let open = render(&input(
             OpenState::Open,
             "vue",
-            false,
+            &ComboboxProps::default(),
             None,
             None,
             None,
@@ -829,7 +1143,7 @@ mod tests {
         let html = render(&input(
             OpenState::Open,
             "vue",
-            false,
+            &ComboboxProps::default(),
             Some("combobox-content-1"),
             Some("item-vue"),
             Some("framework"),
@@ -842,10 +1156,14 @@ mod tests {
 
     #[test]
     fn input_disabled_true_adds_native_and_data_disabled() {
+        let disabled_props = ComboboxProps {
+            disabled: true,
+            ..Default::default()
+        };
         let html = render(&input(
             OpenState::Closed,
             "",
-            true,
+            &disabled_props,
             None,
             None,
             None,
@@ -856,15 +1174,94 @@ mod tests {
     }
 
     #[test]
+    fn input_readonly_true_adds_native_readonly_and_data_readonly() {
+        let readonly_props = ComboboxProps {
+            readonly: true,
+            ..Default::default()
+        };
+        let html = render(&input(
+            OpenState::Closed,
+            "",
+            &readonly_props,
+            None,
+            None,
+            None,
+            vec![],
+        ));
+        assert!(html.contains(r#"data-readonly="""#));
+        assert!(html.contains(r#"readonly="""#));
+    }
+
+    #[test]
+    fn input_required_true_adds_native_required() {
+        let required_props = ComboboxProps {
+            required: true,
+            ..Default::default()
+        };
+        let html = render(&input(
+            OpenState::Closed,
+            "",
+            &required_props,
+            None,
+            None,
+            None,
+            vec![],
+        ));
+        assert!(html.contains(r#"required="""#));
+    }
+
+    #[test]
+    fn input_invalid_true_adds_aria_invalid_true_and_valid_omits_it() {
+        let invalid_props = ComboboxProps {
+            invalid: true,
+            ..Default::default()
+        };
+        let html = render(&input(
+            OpenState::Closed,
+            "",
+            &invalid_props,
+            None,
+            None,
+            None,
+            vec![],
+        ));
+        assert!(html.contains(r#"data-invalid="""#));
+        assert!(html.contains(r#"aria-invalid="true""#));
+
+        let valid = render(&input(
+            OpenState::Closed,
+            "",
+            &ComboboxProps::default(),
+            None,
+            None,
+            None,
+            vec![],
+        ));
+        assert!(!valid.contains("aria-invalid"));
+    }
+
+    #[test]
     fn trigger_has_type_button_tabindex_negative_one_and_haspopup_listbox() {
-        let html = render(&trigger(OpenState::Closed, false, None, vec![], vec![]));
+        let html = render(&trigger(
+            OpenState::Closed,
+            &ComboboxProps::default(),
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"<button"#));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"tabindex="-1""#));
         assert!(html.contains(r#"aria-haspopup="listbox""#));
         assert!(html.contains(r#"aria-expanded="false""#));
 
-        let open = render(&trigger(OpenState::Open, false, None, vec![], vec![]));
+        let open = render(&trigger(
+            OpenState::Open,
+            &ComboboxProps::default(),
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(open.contains(r#"aria-expanded="true""#));
     }
 
@@ -872,7 +1269,7 @@ mod tests {
     fn trigger_controls_some_outputs_aria_controls() {
         let html = render(&trigger(
             OpenState::Closed,
-            false,
+            &ComboboxProps::default(),
             Some("combobox-content-1"),
             vec![],
             vec![],
@@ -882,14 +1279,24 @@ mod tests {
 
     #[test]
     fn trigger_disabled_true_adds_native_and_data_disabled() {
-        let html = render(&trigger(OpenState::Closed, true, None, vec![], vec![]));
+        let disabled_props = ComboboxProps {
+            disabled: true,
+            ..Default::default()
+        };
+        let html = render(&trigger(
+            OpenState::Closed,
+            &disabled_props,
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-disabled="""#));
         assert!(html.contains(r#"disabled="""#));
     }
 
     #[test]
     fn clear_trigger_has_type_button_and_kebab_case_part() {
-        let html = render(&clear_trigger(vec![], vec![]));
+        let html = render(&clear_trigger(&ComboboxProps::default(), vec![], vec![]));
         assert!(html.contains(r#"<button"#));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"data-part="clear-trigger""#));
@@ -1092,12 +1499,34 @@ mod tests {
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&root(
             OpenState::Closed,
+            &ComboboxProps::default(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
         assert!(html.contains(r#"data-scope="combobox""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn caller_supplied_state_reserved_keys_are_dropped_on_root() {
+        // ComboboxProps は valid（disabled/readonly/invalid すべて false）
+        // だが、呼び出し側 attrs で偽装しても実際の props 値が優先される
+        // ことを固定する（イシュー #1605 A05 偽装防止）。
+        let html = render(&root(
+            OpenState::Closed,
+            &ComboboxProps::default(),
+            vec![
+                ("data-disabled", "attacker"),
+                ("data-invalid", "attacker"),
+                ("data-readonly", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("data-invalid"));
+        assert!(!html.contains("data-readonly"));
     }
 
     #[test]
@@ -1234,7 +1663,7 @@ mod tests {
         let item_react = render(&c.item("react", false, false, None, vec![], vec![]));
         assert!(item_react.contains(r#"aria-selected="false""#));
 
-        let input_html = render(&c.input(false, None, None, None, vec![]));
+        let input_html = render(&c.input(&ComboboxProps::default(), None, None, None, vec![]));
         assert!(input_html.contains(r#"value="vu""#));
         assert!(input_html.contains(r#"aria-expanded="true""#));
     }
@@ -1324,7 +1753,7 @@ mod tests {
         let html = render(&input(
             OpenState::Closed,
             ATTR_BREAK_PAYLOAD,
-            false,
+            &ComboboxProps::default(),
             None,
             Some(ATTR_BREAK_PAYLOAD),
             None,
@@ -1338,7 +1767,7 @@ mod tests {
     fn trigger_controls_payload_is_escaped_on_render() {
         let html = render(&trigger(
             OpenState::Closed,
-            false,
+            &ComboboxProps::default(),
             Some(ATTR_BREAK_PAYLOAD),
             vec![],
             vec![],
@@ -1388,6 +1817,7 @@ mod tests {
     fn caller_attrs_payload_is_escaped_on_render() {
         let html = render(&root(
             OpenState::Closed,
+            &ComboboxProps::default(),
             vec![("data-testid", ATTR_BREAK_PAYLOAD)],
             vec![],
         ));
