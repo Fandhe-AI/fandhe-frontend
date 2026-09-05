@@ -19,6 +19,13 @@
 //! 2. `root` 配下に別 Select インスタンス（同じ `data-scope="select"`）が
 //!    ネストして存在する場合、外側インスタンスの同期がネストした内側
 //!    インスタンスの item へ一切波及しないこと。
+//! 3. `root` 引数に anatomy root 自身ではなく、それを包む素の `<div>`
+//!    ラッパー要素を渡しても同期できること（ラッパー配下の単純ケース）。
+//! 4. 「外側 Select root > ラッパー > 内側 Select root」のネスト構成で、
+//!    内側 root を包むラッパー要素を `root` 引数に渡した場合、内側
+//!    インスタンスのみが同期され、外側インスタンスの value-text/item へ
+//!    一切波及しないこと（`closest(ROOT_SELECTOR)` が外側 root を誤って
+//!    返してしまう回帰の防止、codex-review P1 再指摘、イシュー #1619）。
 
 #![cfg(target_arch = "wasm32")]
 
@@ -474,4 +481,155 @@ fn sync_select_value_text_does_not_leak_trigger_into_nested_select_instance() {
         inner_trigger.has_attribute("data-placeholder-shown"),
         "ネストした別 Select インスタンスの trigger は書き換えられないはず"
     );
+}
+
+/// 検証 4: `root` 引数に anatomy root ではなく、それを包む素の `<div>`
+/// ラッパーを渡しても同期できる（`instance_boundary` の子孫探索経路、
+/// codex-review 由来の既存要件）。ネストが無い単純なラッパー配下ケースの
+/// 回帰確認（イシュー #1619、PR #1899 P1 是正の前提条件）。
+#[wasm_bindgen_test]
+fn sync_select_value_text_wires_through_plain_wrapper_without_nesting() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "hs-sync-wrapper-basic");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let node = build_select_node(&[("a", "Apple"), ("b", "Banana")]);
+    let wrapper_node = fandhe_frontend_core::el("div", Vec::new(), vec![node]);
+    container.set_inner_html(&render(&wrapper_node));
+
+    // `root` 引数には anatomy root 自身ではなく、それを包むラッパー
+    // （テストでは container そのもの）を渡す。
+    let item_a = container
+        .query_selector("[data-part=\"item\"][data-value=\"a\"]")
+        .unwrap()
+        .unwrap();
+
+    let mut select = Select::default();
+    select.update(SelectAction::Select("a".to_string()));
+    sync_select_value_text(&select, &container, "Select a fruit");
+
+    assert_eq!(
+        item_text_el(&item_a).get_attribute("data-state").as_deref(),
+        Some("open"),
+        "ラッパー渡しでも配下の item-text は同期されるべき"
+    );
+    assert!(!item_indicator_el(&item_a).has_attribute("hidden"));
+}
+
+/// 検証 5: 「外側 Select root > ラッパー > 内側 Select root」の構成で、
+/// 内側 root を包むラッパー要素を `root` 引数として渡すと、内側インスタンス
+/// のみが同期され、外側インスタンスの value-text/item へは一切波及しない
+/// （codex-review P1 是正、イシュー #1619）。従来は `closest(ROOT_SELECTOR)`
+/// が外側 root を返してしまい、`own_scope_elements` が内側の value-text と
+/// item を全件除外して同期が停止する回帰があった。
+#[wasm_bindgen_test]
+fn sync_select_value_text_resolves_boundary_to_inner_root_when_wrapper_nested_inside_outer_root() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "hs-sync-wrapper-nested");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let props = SelectProps::default();
+    let inner = build_select_node(&[("a", "Inner A"), ("b", "Inner B")]);
+    // 内側 Select の anatomy root を素の `<div>` ラッパーで包む。
+    let wrapped_inner = fandhe_frontend_core::el("div", vec![("class", "wrapper")], vec![inner]);
+
+    let outer = root(
+        OpenState::Closed,
+        &props,
+        Vec::new(),
+        vec![
+            value_text(true, &props, Vec::new(), Vec::new()),
+            content(
+                OpenState::Closed,
+                None,
+                None,
+                None,
+                Vec::new(),
+                vec![item(
+                    OpenState::Closed,
+                    &props,
+                    false,
+                    false,
+                    "a",
+                    None,
+                    Vec::new(),
+                    vec![
+                        item_text(
+                            OpenState::Closed,
+                            &props,
+                            false,
+                            false,
+                            None,
+                            Vec::new(),
+                            vec![fandhe_frontend_core::text("Outer A")],
+                        ),
+                        item_indicator(OpenState::Closed, Vec::new(), Vec::new()),
+                        wrapped_inner,
+                    ],
+                )],
+            ),
+        ],
+    );
+    container.set_inner_html(&render(&outer));
+
+    let outer_root = container
+        .query_selector("[data-scope=\"select\"][data-part=\"root\"]")
+        .unwrap()
+        .unwrap();
+    let outer_item_a = container
+        .query_selector("[data-scope=\"select\"][data-part=\"item\"][data-value=\"a\"]")
+        .unwrap()
+        .unwrap();
+    let wrapper = outer_item_a.query_selector("div.wrapper").unwrap().unwrap();
+    let inner_root = wrapper
+        .query_selector("[data-scope=\"select\"][data-part=\"root\"]")
+        .unwrap()
+        .unwrap();
+    let inner_item_a = inner_root
+        .query_selector("[data-part=\"item\"][data-value=\"a\"]")
+        .unwrap()
+        .unwrap();
+
+    let mut select = Select::default();
+    select.update(SelectAction::Select("a".to_string()));
+    // `root` 引数には内側 root そのものではなく、内側 root を包む
+    // ラッパー要素を渡す（外側 root の子孫でもある点が検証の要）。
+    sync_select_value_text(&select, &wrapper, "placeholder");
+
+    // 内側インスタンスの item "a" が同期されること。
+    assert_eq!(
+        inner_item_a.get_attribute("aria-selected").as_deref(),
+        Some("true"),
+        "ラッパー配下の内側インスタンスは同期されるべき"
+    );
+    assert_eq!(
+        item_text_el(&inner_item_a)
+            .get_attribute("data-state")
+            .as_deref(),
+        Some("open")
+    );
+    assert!(!item_indicator_el(&inner_item_a).has_attribute("hidden"));
+
+    // 外側インスタンスの item "a" は SSR 初期状態のまま
+    // （内側への同期呼び出しが外側の境界を誤って掴んでいないことの確認）。
+    assert_eq!(
+        outer_item_a.get_attribute("aria-selected").as_deref(),
+        Some("false"),
+        "内側への同期が外側インスタンスへ波及してはならない"
+    );
+    assert_eq!(
+        item_text_el(&outer_item_a)
+            .get_attribute("data-state")
+            .as_deref(),
+        Some("closed")
+    );
+    assert!(item_indicator_el(&outer_item_a).has_attribute("hidden"));
+
+    // 外側 root 自身の value-text も無変化（プレースホルダー表示のまま）
+    // であること（外側インスタンスへ一切波及していないことの追加確認）。
+    let outer_value_text = outer_root
+        .query_selector("[data-scope=\"select\"][data-part=\"value-text\"]")
+        .unwrap()
+        .unwrap();
+    assert!(outer_value_text.has_attribute("data-placeholder-shown"));
 }
