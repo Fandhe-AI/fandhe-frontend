@@ -630,6 +630,37 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   仕様上無効なためネイティブ `readonly` を出力しない判断は headless 層に
   委譲済みで、本モジュールは再実装しない。
 
+### 4f-1. `field`（ラベル・補助テキスト・エラーテキストの型階層、イシュー #1684）
+
+`field` モジュールは `fandhe_frontend_headless_ui::field` の anatomy へ、
+ラベル・補助テキスト・エラーテキスト・必須マークの型階層と `root` の
+余白レイアウトを重ねる薄い委譲層である。`input`/`textarea`/`native_select`
+（§4f）と同じく `"field"` recipe scope を共有するが、宣言する slot は
+`root`/`label`/`helper-text`/`error-text`/`required-indicator` の 5 つのみで、
+`input`/`textarea`/`select` slot は宣言しない（§4f の 3 モジュールが引き
+続き所有する）。
+
+- **公開 API**: `root(&FieldRootProps, &FieldProps<'_>, attrs, children)`
+  （見た目 variant クラスを重ねて headless `field::root` へ委譲）、
+  `FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`）、
+  `FieldRootProps`。`label`/`helper_text`/`error_text`/`required_indicator`/
+  `FieldIds`/`FieldProps` は headless からの選択的再エクスポート（見た目は
+  属性セレクタのみで到達するため styled 側の再定義は不要）。
+- **`orientation` 軸のみ**: `size`/`color-palette` 軸は持たない（子の寸法に
+  従属するレイアウト部品の root は size 軸を持たないという規約、フォーム
+  入力系は palette 非提供という §4f と同じ判断）。
+- **意図的非採用**: hover（`root`/`label` は非インタラクティブ）・focus
+  ring（実フォーカスはコントロール側）・transition（状態遷移する視覚が
+  ない）・`data-readonly`/`data-invalid` によるラベル色変更（chakra-ui v3
+  も持たない）。
+- **バリデーション責務外**: `docs/policy/intentional-non-adoption.md`
+  §3.25 規則 1 のとおり、本モジュールは headless が出す
+  `data-invalid`/`data-disabled`/`data-required` を CSS セレクタとして
+  参照するだけで、値の妥当性判定・送信処理は実装しない。
+- **docs サイト非掲載（現時点）**: `/themes/field/` ページ登録・showcase
+  Demo・`SPEC_TABLES` 原稿は後続イシュー #1685 のスコープであり、本節
+  時点ではリンク先ページを持たない。
+
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 
 chakra-ui の `forms/checkbox-card.md`/`forms/radio-card.md` 相当。ark-ui には
