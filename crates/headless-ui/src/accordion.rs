@@ -202,9 +202,10 @@ pub fn root<'a>(
 }
 
 /// Item パーツ（`div`）。項目 1 個の開閉状態・disabled 状態を `data-*` へ反映する。
-/// `disabled` は項目単位の値そのもの（`props.disabled` との OR 合成は
-/// [`item_trigger`]/[`item_indicator`]/[`item_content`] 側で行う。`item` 自体は
-/// 呼び出し側が渡した `disabled` をそのまま表示する既存契約を維持する）。
+/// 実効 disabled（`props.disabled || disabled`）を `data-disabled` へ反映する
+/// （[`item_trigger`]/[`item_indicator`]/[`item_content`] と同じ OR 合成。
+/// Radix Accordion の `Item` が root 一括 disabled との OR で `[data-disabled]`
+/// を保持する挙動に合わせる。イシュー #1636 レビュー是正）。
 #[must_use]
 pub fn item<'a>(
     state: OpenState,
@@ -214,11 +215,12 @@ pub fn item<'a>(
     children: Vec<Node>,
 ) -> Node {
     let attrs = drop_reserved(attrs, ITEM_RESERVED);
+    let effective_disabled = props.disabled || disabled;
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         data_state(state.as_data_state()),
         data_orientation(props.orientation),
     ];
-    merged.extend(data_disabled(disabled));
+    merged.extend(data_disabled(effective_disabled));
     merged.extend(attrs);
     ANATOMY.part("item", "div", merged, children)
 }
@@ -699,6 +701,16 @@ mod tests {
     fn item_disabled_true_adds_data_disabled() {
         let html = render(&item(OpenState::Open, true, &vertical(), vec![], vec![]));
         assert!(html.contains(r#"data-state="open""#));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn item_root_disabled_propagates_to_effective_disabled() {
+        let props = AccordionProps {
+            orientation: Orientation::Vertical,
+            disabled: true,
+        };
+        let html = render(&item(OpenState::Closed, false, &props, vec![], vec![]));
         assert!(html.contains(r#"data-disabled="""#));
     }
 

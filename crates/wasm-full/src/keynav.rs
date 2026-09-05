@@ -929,6 +929,11 @@ pub fn tabs_next_index(
 /// する純粋関数。[`tabs_next_index`] と異なり orientation を持たず
 /// （ArrowDown/ArrowUp 固定）、**循環しない**（モジュール doc 参照、APG が
 /// 循環をオプションとする中で本実装は非循環を選ぶ）。
+///
+/// 内部実装は [`accordion_next_index_oriented`]（`Orientation::Vertical`
+/// 固定呼び出し）へ委譲する（イシュー #1636 レビュー是正: Home/End・
+/// modifier 判定ロジックの重複を解消。`pub fn` として外部 crate からも
+/// 参照可能なため既存呼び出し側のシグネチャ・挙動は変更しない）。
 #[must_use]
 pub fn accordion_next_index(
     current: usize,
@@ -936,16 +941,7 @@ pub fn accordion_next_index(
     modifiers: Modifiers,
     disabled: &[bool],
 ) -> Option<usize> {
-    if modifiers.any() || current >= disabled.len() {
-        return None;
-    }
-    match key {
-        "Home" => first_non_disabled(disabled),
-        "End" => last_non_disabled(disabled),
-        "ArrowDown" => step_non_disabled(current, 1, disabled, false),
-        "ArrowUp" => step_non_disabled(current, -1, disabled, false),
-        _ => None,
-    }
+    accordion_next_index_oriented(current, key, Orientation::Vertical, modifiers, disabled)
 }
 
 /// Accordion root の `data-orientation` 属性値文字列から解釈する（イシュー
