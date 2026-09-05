@@ -378,7 +378,14 @@ name = "fandhe-frontend-headless-ui"
 # 非破壊的追加）は本ブランチの 0.55.0（toast の drop_reserved 導入に伴う
 # 破壊的変更）に未反映のため、両者の和集合として patch バンプで 0.55.1
 # とする（menu 側は非破壊的変更のためマイナーバンプは不要）。
-version = "0.55.1"
+# イシュー #1660（carousel の参照突合）: zag.js 突合に基づき自由関数 7 件
+# （`control`/`prev_trigger`/`next_trigger`/`item_group`/`item`/
+# `indicator_group`/`indicator`）の第 1 引数へ `orientation: Orientation`
+# を追加した（既存呼び出し元はすべてコンパイルエラーになる破壊的変更）。
+# `CarouselAction` へ `First`/`Last` variant も追加（exhaustive match
+# 利用者に対し同じく破壊的）。0.x の破壊的変更はマイナーバンプする規約に
+# 従い 0.55.1 から 0.56.0 へマイナーバンプする。
+version = "0.56.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

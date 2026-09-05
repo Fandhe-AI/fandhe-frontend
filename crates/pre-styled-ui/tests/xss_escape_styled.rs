@@ -2282,7 +2282,13 @@ fn carousel_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした prev_trigger の aria-label 経路。
-        let html = render(&carousel::prev_trigger(false, payload, vec![], vec![]));
+        let html = render(&carousel::prev_trigger(
+            Orientation::Horizontal,
+            false,
+            payload,
+            vec![],
+            vec![],
+        ));
         assert_payload_is_escaped(
             payload,
             &html,
@@ -2290,7 +2296,14 @@ fn carousel_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした item の children 経路。
-        let html = render(&carousel::item(0, 1, false, vec![], vec![text(payload)]));
+        let html = render(&carousel::item(
+            Orientation::Horizontal,
+            0,
+            1,
+            false,
+            vec![],
+            vec![text(payload)],
+        ));
         assert_payload_is_escaped(payload, &html, "carousel::item children コンテキスト");
     }
 }

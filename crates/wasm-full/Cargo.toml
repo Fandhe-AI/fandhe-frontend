@@ -412,7 +412,10 @@ name = "fandhe-frontend-wasm-full"
 # style-refresh-version-bump-operation.md` §5）、依存先を headless-ui
 # 0.55.1（base 再取り込みで解決した最終版）へ追随させる patch バンプと
 # して 0.12.3 とする（wasm-full 自身の src は無変更）。
-version = "0.12.3"
+# イシュー #1660（carousel の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# 0.56.0 への追随のみ（本クレートは carousel を一切参照しないため実体
+# 変更なし）。0.12.3 から patch バンプで 0.12.4 とする。
+version = "0.12.4"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -589,7 +592,7 @@ categories = ["wasm", "web-programming"]
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.2.6" }
 fandhe-frontend-core = { path = "../core", version = "0.4.3" }
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.55.1" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.56.0" }
 fandhe-frontend-interactive = { path = "../interactive", version = "0.2.7" }
 # `default-features = false`: 本クレート独自の `wasm_bindgen` エクスポート
 # （`entry.rs` の `hydrate`/`mount`）と `fandhe-frontend-wasm-client` の REQ-6 デモ用

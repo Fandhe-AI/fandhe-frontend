@@ -99,8 +99,38 @@ fn free_functions_are_reachable_via_public_module_path() {
         Orientation::Vertical,
         "Gallery",
         vec![],
-        vec![carousel::indicator(0, true, vec![])],
+        vec![carousel::indicator(Orientation::Vertical, 0, true, vec![])],
     ));
     assert!(html.contains(r#"data-orientation="vertical""#));
     assert!(html.contains(r#"aria-current="true""#));
+}
+
+/// Home/End キー相当の `"first"`/`"last"` dispatch が公開 API 経由でも
+/// 成立する（イシュー #1660、zag.js の `indicator-group` keydown 突合）。
+#[test]
+fn first_last_dispatch_via_public_api() {
+    let mut c = Carousel::new(2, 5, false, Orientation::Horizontal);
+    assert!(dispatch(&mut c, "last", ""));
+    assert_eq!(c.index(), 4);
+    assert!(dispatch(&mut c, "first", ""));
+    assert_eq!(c.index(), 0);
+}
+
+/// 呼び出し側 `attrs` に紛れ込んだフレームワーク固定キー
+/// （`data-orientation`/`data-index`）は公開 API 経由でも fail-closed に
+/// 破棄される（イシュー #1660、[`crate::carousel::drop_reserved`] 相当の
+/// 契約を公開 API から確認する回帰）。
+#[test]
+fn spoofed_reserved_attrs_are_dropped_via_public_api() {
+    let html = render(&carousel::item(
+        Orientation::Horizontal,
+        1,
+        3,
+        false,
+        vec![("data-orientation", "vertical"), ("data-index", "999")],
+        vec![],
+    ));
+    assert!(html.contains(r#"data-orientation="horizontal""#));
+    assert!(html.contains(r#"data-index="1""#));
+    assert!(!html.contains("999"));
 }

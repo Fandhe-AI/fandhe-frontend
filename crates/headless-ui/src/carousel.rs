@@ -9,14 +9,58 @@
 //! [`fandhe_frontend_interactive::Hydrate`] を直接実装する index 状態機械
 //! [`Carousel`] を提供する。
 //!
-//! # `state` 未使用の理由
+//! # 参考サイトとの突合（イシュー #1660）
 //!
-//! [`crate::state::Disclosure`]/[`crate::state::SingleSelect`] 等の既存共通
-//! 状態機械はいずれも「開閉」「単一/複数選択」を表現するものであり、
-//! Carousel の「`0..slide_count` 上を循環し得る現在位置」という値状態を
-//! 表現できない。[`crate::slider::Slider`]/[`crate::number_input::NumberInput`]
-//! と同じ判断で、[`fandhe_frontend_interactive::Component`]/
-//! [`fandhe_frontend_interactive::Hydrate`] を本モジュール内で直接実装する。
+//! zag.js（ark-ui の内部実装、`carousel.connect.ts`/`carousel.anatomy.ts`）
+//! を一次情報として突合した結果、以下を是正した:
+//!
+//! - **`data-orientation` を全パーツへ拡張**: 是正前は [`root`] のみが
+//!   出力していたが、zag.js は root/item-group/item/control/prev-trigger/
+//!   next-trigger/indicator-group/indicator の全パーツへ付与する。特に
+//!   `item-group` への欠落は実害があった:
+//!   `fandhe-frontend-pre-styled-ui` の recipe（`item-group[data-orientation=
+//!   "vertical"]`）が縦方向スライドの `translateY` 切替に依存しており、
+//!   呼び出し側が手動で `attrs` へ `data-orientation` を渡さない限り
+//!   縦方向 carousel が機能しなかった。
+//! - **`item`/`indicator` に `data-index`（0-origin、`usize` の Display
+//!   整形のみから合成）を追加**: zag.js の `item`/`indicator` が持つ位置
+//!   識別属性に追随する。
+//! - **`item` に `data-inview`（現在表示中スライドの存在属性）を追加**:
+//!   zag.js の `data-inview`（`slidesPerPage` 複数対応の可視判定）に相当し、
+//!   本実装は 1 スライド表示固定のため既存の `data-current` と同値で
+//!   出力する（`data-current` は既存呼び出し元・styled recipe が依存する
+//!   ため互換のため維持し、`data-inview` は zag 語彙追随の別名として並存
+//!   させる）。
+//! - **`CarouselAction::First`/`Last`（dispatch `"first"`/`"last"`）を追加**:
+//!   zag.js の `indicator-group` keydown は Home/End で先頭/末尾ページへ
+//!   直接移動する。`End` は `slide_count` を要し既存の `"goto"` payload
+//!   （固定 index）では表現できないため、決定的な専用 action として追加
+//!   する（[`crate::slider::Slider`] の `IncrementLarge`/`DecrementLarge`
+//!   と同型の先例）。
+//!
+//! 以下は意図的に参考サイトへ合わせていない（理由付き）:
+//!
+//! - **`progress-text`/`autoplay-trigger` パーツを追加しない**:
+//!   `progress-text`（"X / Y" 表示のみの装飾テキスト）は呼び出し側が通常の
+//!   テキストノードで代替でき、`autoplay-trigger` は下記 autoplay 自体が
+//!   スコープ外のため対応する trigger も不要。パーツ追加は Themes 側
+//!   `SLOTS`/golden CSS/`KNOWN_UNCOVERED` への連鎖を招くため、本イシューでは
+//!   見送り Issue 化候補とする。
+//! - **`aria-hidden`（非表示スライド）を付与しない**: zag.js は視覚的に隠れた
+//!   スライドへ `aria-hidden="true"` を付与するが、本モジュールは CSS を
+//!   前提としない SSR 静的マークアップを返すため、非 current スライドを
+//!   実際に隠さない構成で `aria-hidden` だけ付けると全スライドが可視のまま
+//!   支援技術からのみ隠れる不整合（WCAG 1.3.1 相当）になる。非 current を
+//!   CSS で隠す呼び出し側は `attrs` へ `("aria-hidden", "true")` を明示的に
+//!   渡す運用とする（原稿の自前 CSS 例参照）。
+//! - **`aria-controls`（trigger → item-group）/各パーツの `id`/`dir` を
+//!   付与しない**: 本モジュールに `id` 生成機構がなく（他 headless-ui
+//!   コンポーネント全体の既存方針）、必要な呼び出し側は `item_group` の
+//!   `attrs` に `id`、trigger の `attrs` に `aria-controls` を明示的に渡す。
+//! - **`data-dragging`（pointer drag 中）/`data-readonly`（indicator）を
+//!   追加しない**: pointer ドラッグ配線・indicator クリック配線がいずれも
+//!   本モジュールに存在しない現状では意味を持たない状態語彙のため、DOM
+//!   配線実装時に再検討する。
 //!
 //! # 呼び出し文脈
 //!
@@ -25,8 +69,21 @@
 //! [`Carousel::next_trigger`]/[`Carousel::item_group`]/[`Carousel::item`]/
 //! [`Carousel::indicator_group`]/[`Carousel::indicator`]）を呼んで組み立てる。
 //! CSR/hydration は [`Carousel`] を経由し、dispatch（`"next"`/`"prev"`/
-//! `"goto"`）で状態遷移する。`fandhe-frontend-pre-styled-ui` が本モジュールを
-//! 呼んでスタイル済み Carousel を組み立てる想定である。
+//! `"goto"`/`"first"`/`"last"`）で状態遷移する。`fandhe-frontend-pre-styled-ui`
+//! が本モジュールを呼んでスタイル済み Carousel を組み立てる想定である。
+//!
+//! # キーボード操作（現状の対応範囲）
+//!
+//! zag.js の `indicator-group` keydown 契約に対応する決定的な dispatch
+//! action は状態機械側に揃っている（横向き ArrowRight/ArrowLeft・縦向き
+//! ArrowDown/ArrowUp → [`CarouselAction::Next`]/[`CarouselAction::Prev`]、
+//! Home/End → [`CarouselAction::First`]/[`CarouselAction::Last`]）。ただし
+//! 実際のキーボードイベント配線（`keydown` リスナー登録・`orientation` に
+//! 応じたキー選別）は他コンポーネント同様
+//! `fandhe-frontend-wasm-full`（クライアントランタイム）側の後続責務であり、
+//! 本イシュー（#1660）のスコープ外とする（REQ-11 バンドル予算の再評価が
+//! 前提）。trigger/indicator は native `button` のためクリック（Enter/
+//! Space）は標準の DOM 挙動でカバーされる。
 //!
 //! # 決定的な遷移規則（受け入れ条件）
 //!
@@ -40,6 +97,10 @@
 //! - `Goto(i)`: `i >= slide_count` は改ざん入力として fail-closed に無視する
 //!   （clamp して最寄りの有効値へ丸めるのではなく no-op。呼び出し側が
 //!   意図しない位置へ暗黙に着地させない）。
+//! - `First`: `slide_count > 0` のとき常に `0` へ移動する（既に先頭でも
+//!   no-op 同然の冪等な代入）。
+//! - `Last`: `slide_count > 0` のとき常に `slide_count - 1` へ移動する
+//!   （[`First`](CarouselAction::First) と対称）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -51,11 +112,18 @@
 //!   `aria_label`/`attrs`/children）は [`fandhe_frontend_core::render`] の
 //!   既定エスケープを必ず経由する。`raw_html()` は使用せず、HTML 文字列を
 //!   直接組み立てない。[`item`]/[`indicator`] が組み立てる `"{n} of {m}"`/
-//!   `"Go to slide {n}"` 文字列は `usize` の Display 整形のみから合成し、
-//!   任意の呼び出し側文字列がこの `aria-label` へ混入する経路はない。
+//!   `"Go to slide {n}"` 文字列、および `data-index` の整形値は `usize` の
+//!   Display 整形のみから合成し、任意の呼び出し側文字列がこれらへ混入する
+//!   経路はない。
+//! - 呼び出し側 `attrs` の [`RESERVED`] に列挙したフレームワーク固定キー
+//!   （`data-orientation`/`data-index`/`data-inview`/`data-current`/
+//!   `data-disabled`/`aria-current`、ASCII 大文字小文字無視）は
+//!   [`drop_reserved`] が fail-closed に除外する（[`crate::pin_input`] の
+//!   `drop_reserved` と同型のなりすまし防止。偽の位置・状態を注入できない）。
 //! - dispatch `"goto"` の payload はクライアント由来の信頼できない入力として
 //!   扱い、厳密な `usize` パースで fail-closed（パース不能は `None`、範囲外は
-//!   [`Carousel::update`] 側で no-op）。
+//!   [`Carousel::update`] 側で no-op）。`"first"`/`"last"` は payload を
+//!   使用しない。
 //! - hydration 属性（`data-hydrate-index`/`-slide-count`/`-loop`/
 //!   `-orientation`）はクライアント側で改ざんされうる入力として扱う。
 //!   [`Carousel`] の [`fandhe_frontend_interactive::Hydrate`] 実装は panic
@@ -71,7 +139,8 @@
 //! - **pointer ドラッグ・キーボード操作（Arrow キー/スワイプ）の DOM 配線**:
 //!   他コンポーネント同様、クライアントランタイム
 //!   （`fandhe-frontend-wasm-full`）側の後続責務とする。本モジュールは SSR
-//!   静的マークアップと dispatch 契約のみを提供する。
+//!   静的マークアップと dispatch 契約のみを提供する（上記「キーボード操作」
+//!   節参照）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_label, aria_roledescription, role};
@@ -81,6 +150,32 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR
 
 /// Carousel の anatomy（`data-scope="carousel"`）。
 const ANATOMY: Anatomy = anatomy("carousel");
+
+/// フレームワークが固定付与する `data-*`/`aria-*` キー一覧
+/// （[`drop_reserved`] が呼び出し側 `attrs` から除外する対象。ASCII 大文字
+/// 小文字無視、[`crate::pin_input::ROOT_RESERVED`] と同型のパターン）。
+/// パーツ間で付与するキーの組が異なる（例: `control`/`indicator-group` は
+/// `data-orientation` のみ）が、[`crate::pin_input`] と異なり本モジュールは
+/// 単一の合併集合で統一する（キー種別が少なく、パーツ別リストに分けるほどの
+/// 誤除外リスクがないため）。
+const RESERVED: &[&str] = &[
+    "data-orientation",
+    "data-index",
+    "data-inview",
+    "data-current",
+    "data-disabled",
+    "aria-current",
+];
+
+/// 呼び出し側 `attrs` から [`RESERVED`] キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::pin_input::drop_reserved`] と同型の重複実装。
+/// モジュール間の相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !RESERVED.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
 
 /// Root パーツ（`div role="region"`）。WAI-ARIA carousel パターンに従い
 /// `aria-roledescription="carousel"` を固定出力する。`aria_label` は
@@ -101,15 +196,22 @@ pub fn root<'a>(
         aria_label(label),
         data_orientation(orientation),
     ];
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs));
     ANATOMY.part("root", "div", merged, children)
 }
 
 /// Control パーツ（`div`）。[`prev_trigger`]/[`next_trigger`]/[`item_group`]
-/// を束ねるコンテナ（装飾的、ARIA 属性を持たない）。
+/// を束ねるコンテナ（装飾的、ARIA 属性を持たない）。zag.js に合わせ
+/// `data-orientation` を出力する（イシュー #1660 で全パーツへ拡張）。
 #[must_use]
-pub fn control<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("control", "div", attrs, children)
+pub fn control<'a>(
+    orientation: Orientation,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_orientation(orientation)];
+    merged.extend(drop_reserved(attrs));
+    ANATOMY.part("control", "div", merged, children)
 }
 
 /// PrevTrigger パーツ（`button type="button"`）。`disabled` が `true` の
@@ -117,37 +219,48 @@ pub fn control<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node 
 /// `data-disabled` の対を出力する（[`crate::slider::thumb`] 等と同型の
 /// 「端で操作不能」表現）。`aria_label` は既定ラベル
 /// （例: `"Previous slide"`）を呼び出し側が渡す（本モジュールは固定英語
-/// 文言をハードコードせず、国際化は呼び出し側に委ねる）。
+/// 文言をハードコードせず、国際化は呼び出し側に委ねる）。`data-orientation`
+/// はイシュー #1660 で追加（zag.js 突合）。
 #[must_use]
 pub fn prev_trigger<'a>(
+    orientation: Orientation,
     disabled: bool,
     aria_label_text: &'a str,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button"), aria_label(aria_label_text)];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        ("type", "button"),
+        aria_label(aria_label_text),
+        data_orientation(orientation),
+    ];
     if disabled {
         merged.push(("disabled", ""));
     }
     merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs));
     ANATOMY.part("prev-trigger", "button", merged, children)
 }
 
 /// NextTrigger パーツ（`button type="button"`）。[`prev_trigger`] と対称。
 #[must_use]
 pub fn next_trigger<'a>(
+    orientation: Orientation,
     disabled: bool,
     aria_label_text: &'a str,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button"), aria_label(aria_label_text)];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        ("type", "button"),
+        aria_label(aria_label_text),
+        data_orientation(orientation),
+    ];
     if disabled {
         merged.push(("disabled", ""));
     }
     merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs));
     ANATOMY.part("next-trigger", "button", merged, children)
 }
 
@@ -156,11 +269,18 @@ pub fn next_trigger<'a>(
 /// あるため、常に控えめな通知で安全側に倒す。モジュール doc「スコープ外」
 /// 節参照）。styled 層（`fandhe-frontend-pre-styled-ui`）が
 /// `--fandhe-carousel-index` CSS カスタムプロパティ（[`Carousel::item_group`]
-/// が出力する `style`）を参照して transform ベースのスライド表示を行う。
+/// が出力する `style`）と `data-orientation`（イシュー #1660 で追加、
+/// `item-group[data-orientation="vertical"]` recipe が依存する）を参照して
+/// transform ベースのスライド表示を行う。
 #[must_use]
-pub fn item_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![("aria-live", "polite")];
-    merged.extend(attrs);
+pub fn item_group<'a>(
+    orientation: Orientation,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![("aria-live", "polite"), data_orientation(orientation)];
+    merged.extend(drop_reserved(attrs));
     ANATOMY.part("item-group", "div", merged, children)
 }
 
@@ -168,9 +288,12 @@ pub fn item_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> No
 /// `aria-roledescription="slide"` と `aria-label="{index+1} of {count}"`
 /// （1-origin、`usize` の Display 整形のみから合成。モジュール doc
 /// 「セキュリティ不変条件」参照）を固定出力する。`current` が `true` のとき
-/// [`data_current`] を出力する。
+/// [`data_current`] を出力する（イシュー #1660: `data-index`〔0-origin〕・
+/// `data-inview`〔本実装は 1 スライド表示固定のため `current` と同値〕・
+/// `data-orientation` を追加、zag.js 突合）。
 #[must_use]
 pub fn item<'a>(
+    orientation: Orientation,
     index: usize,
     count: usize,
     current: bool,
@@ -178,38 +301,61 @@ pub fn item<'a>(
     children: Vec<Node>,
 ) -> Node {
     let label = format!("{} of {}", index + 1, count);
+    let index_str = index.to_string();
     let mut merged: Vec<(&str, &str)> = vec![role("group"), aria_roledescription("slide")];
     merged.push(aria_label(label.as_str()));
+    merged.push(("data-index", index_str.as_str()));
+    merged.push(data_orientation(orientation));
+    if current {
+        merged.push(("data-inview", ""));
+    }
     merged.extend(data_current(current));
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs));
     ANATOMY.part("item", "div", merged, children)
 }
 
 /// IndicatorGroup パーツ（`div`）。[`indicator`] 群のコンテナ（装飾的）。
+/// `data-orientation` はイシュー #1660 で追加（zag.js 突合）。
 #[must_use]
-pub fn indicator_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("indicator-group", "div", attrs, children)
+pub fn indicator_group<'a>(
+    orientation: Orientation,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_orientation(orientation)];
+    merged.extend(drop_reserved(attrs));
+    ANATOMY.part("indicator-group", "div", merged, children)
 }
 
 /// Indicator パーツ（`button type="button"`）。`aria-label="Go to slide
 /// {index+1}"`（1-origin、[`item`] と同じ整形方針）を固定出力し、`current`
-/// が `true` のとき `aria-current="true"` + [`data_current`] を出力する。
+/// が `true` のとき `aria-current="true"` + [`data_current`] を出力する
+/// （`aria-current="true"` は zag.js には存在しない超集合、モジュール doc
+/// 参照）。イシュー #1660: `data-index`（0-origin）・`data-orientation` を
+/// 追加（zag.js 突合）。
 #[must_use]
-pub fn indicator<'a>(index: usize, current: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
+pub fn indicator<'a>(
+    orientation: Orientation,
+    index: usize,
+    current: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+) -> Node {
     let label = format!("Go to slide {}", index + 1);
+    let index_str = index.to_string();
     let mut merged: Vec<(&str, &str)> = vec![("type", "button")];
     merged.push(aria_label(label.as_str()));
+    merged.push(("data-index", index_str.as_str()));
+    merged.push(data_orientation(orientation));
     if current {
         merged.push(("aria-current", "true"));
     }
     merged.extend(data_current(current));
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs));
     ANATOMY.part("indicator", "button", merged, vec![])
 }
 
 /// Carousel のアクション（WASM 境界の文字列 dispatch と
 /// [`Carousel::decode_action`] で接続する）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CarouselAction {
     /// 次のスライドへ進む（末尾かつ `loop` 無効なら no-op）。
     Next,
@@ -218,6 +364,12 @@ pub enum CarouselAction {
     /// 指定した index のスライドへ直接移動する（`index >= slide_count` は
     /// no-op、モジュール doc「決定的な遷移規則」参照）。
     Goto(usize),
+    /// 先頭スライドへ移動する（zag.js の Home キー相当、イシュー #1660）。
+    /// `slide_count == 0` は他アクション同様 no-op。
+    First,
+    /// 末尾スライドへ移動する（zag.js の End キー相当、イシュー #1660）。
+    /// [`First`](CarouselAction::First) と対称。
+    Last,
 }
 
 /// `index >= slide_count`（または `slide_count == 0` で `index != 0`）を
@@ -321,14 +473,15 @@ impl Carousel {
         root(self.orientation, label, attrs, children)
     }
 
-    /// [`control`] へ委譲する利便メソッド（状態を持たない装飾用パーツ）。
+    /// [`control`] へ現在の向きを注入する利便メソッド（状態を持たない
+    /// 装飾用パーツ、`data-orientation` はイシュー #1660 で追加）。
     #[must_use]
     pub fn control<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        control(attrs, children)
+        control(self.orientation, attrs, children)
     }
 
-    /// [`prev_trigger`] へ [`Self::prev_disabled`] の判定を注入する利便
-    /// メソッド。
+    /// [`prev_trigger`] へ現在の向きと [`Self::prev_disabled`] の判定を
+    /// 注入する利便メソッド。
     #[must_use]
     pub fn prev_trigger<'a>(
         &self,
@@ -336,11 +489,17 @@ impl Carousel {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        prev_trigger(self.prev_disabled(), aria_label_text, attrs, children)
+        prev_trigger(
+            self.orientation,
+            self.prev_disabled(),
+            aria_label_text,
+            attrs,
+            children,
+        )
     }
 
-    /// [`next_trigger`] へ [`Self::next_disabled`] の判定を注入する利便
-    /// メソッド。
+    /// [`next_trigger`] へ現在の向きと [`Self::next_disabled`] の判定を
+    /// 注入する利便メソッド。
     #[must_use]
     pub fn next_trigger<'a>(
         &self,
@@ -348,7 +507,13 @@ impl Carousel {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        next_trigger(self.next_disabled(), aria_label_text, attrs, children)
+        next_trigger(
+            self.orientation,
+            self.next_disabled(),
+            aria_label_text,
+            attrs,
+            children,
+        )
     }
 
     /// [`item_group`] へ現在の index を CSS カスタムプロパティ
@@ -365,11 +530,11 @@ impl Carousel {
         let style = format!("--fandhe-carousel-index: {};", self.index);
         let mut merged: Vec<(&str, &str)> = vec![("style", style.as_str())];
         merged.extend(drop_style_attr(attrs));
-        item_group(merged, children)
+        item_group(self.orientation, merged, children)
     }
 
-    /// [`item`] へ現在の状態（`slide_count`・当該 index が現在位置かどうか）
-    /// を注入する利便メソッド。
+    /// [`item`] へ現在の向きと状態（`slide_count`・当該 index が現在位置
+    /// かどうか）を注入する利便メソッド。
     #[must_use]
     pub fn item<'a>(
         &self,
@@ -378,6 +543,7 @@ impl Carousel {
         children: Vec<Node>,
     ) -> Node {
         item(
+            self.orientation,
             index,
             self.slide_count,
             index == self.index,
@@ -386,17 +552,18 @@ impl Carousel {
         )
     }
 
-    /// [`indicator_group`] へ委譲する利便メソッド（状態を持たない装飾用
-    /// パーツ）。
+    /// [`indicator_group`] へ現在の向きを注入する利便メソッド（状態を
+    /// 持たない装飾用パーツ、`data-orientation` はイシュー #1660 で追加）。
     #[must_use]
     pub fn indicator_group<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        indicator_group(attrs, children)
+        indicator_group(self.orientation, attrs, children)
     }
 
-    /// [`indicator`] へ当該 index が現在位置かどうかを注入する利便メソッド。
+    /// [`indicator`] へ現在の向きと当該 index が現在位置かどうかを注入する
+    /// 利便メソッド。
     #[must_use]
     pub fn indicator<'a>(&self, index: usize, attrs: Vec<(&'a str, &'a str)>) -> Node {
-        indicator(index, index == self.index, attrs)
+        indicator(self.orientation, index, index == self.index, attrs)
     }
 }
 
@@ -440,6 +607,12 @@ impl Component for Carousel {
                     self.index = i;
                 }
             }
+            CarouselAction::First => {
+                self.index = 0;
+            }
+            CarouselAction::Last => {
+                self.index = self.slide_count - 1;
+            }
         }
     }
 
@@ -453,17 +626,20 @@ impl Component for Carousel {
         )
     }
 
-    /// `"next"`/`"prev"`: payload 不使用。`"goto"`: payload を
-    /// `str::parse::<usize>()` でパースし、パース不能な場合は `None`
-    /// （fail-closed、dispatch は no-op）。範囲外 index（`i >=
+    /// `"next"`/`"prev"`/`"first"`/`"last"`: payload 不使用。`"goto"`:
+    /// payload を `str::parse::<usize>()` でパースし、パース不能な場合は
+    /// `None`（fail-closed、dispatch は no-op）。範囲外 index（`i >=
     /// slide_count`）はここでは弾かず [`Carousel::update`] 側の no-op に
     /// 委ねる（`decode_action` は静的関数で `slide_count` へアクセスできない
-    /// ため）。
+    /// ため）。`"first"`/`"last"` は zag.js の Home/End キー相当
+    /// （イシュー #1660、モジュール doc「キーボード操作」節参照）。
     fn decode_action(name: &str, payload: &str) -> Option<CarouselAction> {
         match name {
             "next" => Some(CarouselAction::Next),
             "prev" => Some(CarouselAction::Prev),
             "goto" => payload.parse::<usize>().ok().map(CarouselAction::Goto),
+            "first" => Some(CarouselAction::First),
+            "last" => Some(CarouselAction::Last),
             _ => None,
         }
     }
@@ -599,14 +775,20 @@ mod tests {
 
     #[test]
     fn control_outputs_scope_and_part_only() {
-        let html = render(&control(vec![], vec![]));
+        let html = render(&control(Orientation::Horizontal, vec![], vec![]));
         assert!(html.contains(r#"data-part="control""#));
         assert!(!html.contains("role="));
     }
 
     #[test]
     fn prev_trigger_not_disabled_outputs_type_and_label() {
-        let html = render(&prev_trigger(false, "Previous slide", vec![], vec![]));
+        let html = render(&prev_trigger(
+            Orientation::Horizontal,
+            false,
+            "Previous slide",
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-part="prev-trigger""#));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"aria-label="Previous slide""#));
@@ -615,32 +797,57 @@ mod tests {
 
     #[test]
     fn prev_trigger_disabled_true_adds_disabled_and_data_disabled() {
-        let html = render(&prev_trigger(true, "Previous slide", vec![], vec![]));
+        let html = render(&prev_trigger(
+            Orientation::Horizontal,
+            true,
+            "Previous slide",
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"disabled="""#));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn next_trigger_mirrors_prev_trigger() {
-        let html = render(&next_trigger(false, "Next slide", vec![], vec![]));
+        let html = render(&next_trigger(
+            Orientation::Horizontal,
+            false,
+            "Next slide",
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-part="next-trigger""#));
         assert!(html.contains(r#"aria-label="Next slide""#));
 
-        let disabled = render(&next_trigger(true, "Next slide", vec![], vec![]));
+        let disabled = render(&next_trigger(
+            Orientation::Horizontal,
+            true,
+            "Next slide",
+            vec![],
+            vec![],
+        ));
         assert!(disabled.contains(r#"disabled="""#));
         assert!(disabled.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn item_group_outputs_aria_live_polite() {
-        let html = render(&item_group(vec![], vec![]));
+        let html = render(&item_group(Orientation::Horizontal, vec![], vec![]));
         assert!(html.contains(r#"data-part="item-group""#));
         assert!(html.contains(r#"aria-live="polite""#));
     }
 
     #[test]
     fn item_outputs_role_roledescription_and_positional_label() {
-        let html = render(&item(0, 3, false, vec![], vec![text("Slide A")]));
+        let html = render(&item(
+            Orientation::Horizontal,
+            0,
+            3,
+            false,
+            vec![],
+            vec![text("Slide A")],
+        ));
         assert!(html.contains(r#"data-part="item""#));
         assert!(html.contains(r#"role="group""#));
         assert!(html.contains(r#"aria-roledescription="slide""#));
@@ -651,20 +858,20 @@ mod tests {
 
     #[test]
     fn item_current_true_adds_data_current() {
-        let html = render(&item(1, 3, true, vec![], vec![]));
+        let html = render(&item(Orientation::Horizontal, 1, 3, true, vec![], vec![]));
         assert!(html.contains(r#"aria-label="2 of 3""#));
         assert!(html.contains(r#"data-current="""#));
     }
 
     #[test]
     fn indicator_group_outputs_scope_and_part_only() {
-        let html = render(&indicator_group(vec![], vec![]));
+        let html = render(&indicator_group(Orientation::Horizontal, vec![], vec![]));
         assert!(html.contains(r#"data-part="indicator-group""#));
     }
 
     #[test]
     fn indicator_not_current_outputs_type_and_label_without_aria_current() {
-        let html = render(&indicator(0, false, vec![]));
+        let html = render(&indicator(Orientation::Horizontal, 0, false, vec![]));
         assert!(html.contains(r#"data-part="indicator""#));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"aria-label="Go to slide 1""#));
@@ -674,7 +881,7 @@ mod tests {
 
     #[test]
     fn indicator_current_true_adds_aria_current_and_data_current() {
-        let html = render(&indicator(2, true, vec![]));
+        let html = render(&indicator(Orientation::Horizontal, 2, true, vec![]));
         assert!(html.contains(r#"aria-label="Go to slide 3""#));
         assert!(html.contains(r#"aria-current="true""#));
         assert!(html.contains(r#"data-current="""#));
@@ -1011,20 +1218,31 @@ mod tests {
 
     #[test]
     fn prev_trigger_aria_label_payload_is_escaped_on_render() {
-        let html = render(&prev_trigger(false, ATTR_BREAK_PAYLOAD, vec![], vec![]));
+        let html = render(&prev_trigger(
+            Orientation::Horizontal,
+            false,
+            ATTR_BREAK_PAYLOAD,
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }
 
     #[test]
     fn caller_attrs_payload_is_escaped_on_render() {
-        let html = render(&control(vec![("data-testid", ATTR_BREAK_PAYLOAD)], vec![]));
+        let html = render(&control(
+            Orientation::Horizontal,
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
     }
 
     #[test]
     fn children_text_is_escaped_on_render() {
         let html = render(&item(
+            Orientation::Horizontal,
             0,
             1,
             false,
@@ -1051,5 +1269,135 @@ mod tests {
         ];
         let err = Carousel::from_hydration_attrs(&attrs).unwrap_err();
         assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    // --- 参照突合（イシュー #1660）: data-orientation 全パーツ ---
+
+    #[test]
+    fn all_parts_output_data_orientation() {
+        let vertical = Orientation::Vertical;
+        assert!(render(&root(vertical, "Products", vec![], vec![]))
+            .contains(r#"data-orientation="vertical""#));
+        assert!(
+            render(&control(vertical, vec![], vec![])).contains(r#"data-orientation="vertical""#)
+        );
+        assert!(
+            render(&prev_trigger(vertical, false, "Previous", vec![], vec![]))
+                .contains(r#"data-orientation="vertical""#)
+        );
+        assert!(
+            render(&next_trigger(vertical, false, "Next", vec![], vec![]))
+                .contains(r#"data-orientation="vertical""#)
+        );
+        assert!(render(&item_group(vertical, vec![], vec![]))
+            .contains(r#"data-orientation="vertical""#));
+        assert!(render(&item(vertical, 0, 3, false, vec![], vec![]))
+            .contains(r#"data-orientation="vertical""#));
+        assert!(render(&indicator_group(vertical, vec![], vec![]))
+            .contains(r#"data-orientation="vertical""#));
+        assert!(render(&indicator(vertical, 0, false, vec![]))
+            .contains(r#"data-orientation="vertical""#));
+    }
+
+    // --- 参照突合（イシュー #1660）: data-index / data-inview ---
+
+    #[test]
+    fn item_outputs_data_index_and_data_inview_when_current() {
+        let current = render(&item(Orientation::Horizontal, 2, 5, true, vec![], vec![]));
+        assert!(current.contains(r#"data-index="2""#));
+        assert!(current.contains(r#"data-inview="""#));
+
+        let not_current = render(&item(Orientation::Horizontal, 2, 5, false, vec![], vec![]));
+        assert!(not_current.contains(r#"data-index="2""#));
+        assert!(!not_current.contains("data-inview"));
+    }
+
+    #[test]
+    fn indicator_outputs_data_index() {
+        let html = render(&indicator(Orientation::Horizontal, 4, false, vec![]));
+        assert!(html.contains(r#"data-index="4""#));
+    }
+
+    // --- 参照突合（イシュー #1660）: RESERVED キーのなりすまし拒否 ---
+
+    #[test]
+    fn drop_reserved_rejects_spoofed_framework_keys() {
+        let html = render(&item(
+            Orientation::Horizontal,
+            1,
+            3,
+            false,
+            vec![
+                ("data-orientation", "vertical"),
+                ("data-index", "999"),
+                ("data-inview", ""),
+                ("data-current", ""),
+                ("aria-current", "true"),
+            ],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
+        assert!(html.contains(r#"data-index="1""#));
+        assert!(!html.contains("999"));
+        assert!(!html.contains("data-inview"));
+        assert!(!html.contains("data-current"));
+        assert!(!html.contains("aria-current"));
+    }
+
+    #[test]
+    fn drop_reserved_is_case_insensitive() {
+        let html = render(&control(
+            Orientation::Horizontal,
+            vec![("DATA-ORIENTATION", "vertical")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
+        assert!(!html.contains("vertical"));
+    }
+
+    // --- 参照突合（イシュー #1660）: First/Last dispatch ---
+
+    #[test]
+    fn dispatch_first_moves_to_zero() {
+        let mut c = Carousel::new(3, 5, false, Orientation::Horizontal);
+        assert!(dispatch(&mut c, "first", ""));
+        assert_eq!(c.index(), 0);
+    }
+
+    #[test]
+    fn dispatch_last_moves_to_slide_count_minus_one() {
+        let mut c = Carousel::new(0, 5, false, Orientation::Horizontal);
+        assert!(dispatch(&mut c, "last", ""));
+        assert_eq!(c.index(), 4);
+    }
+
+    #[test]
+    fn dispatch_first_last_noop_when_slide_count_zero() {
+        let mut c = Carousel::default();
+        assert!(dispatch(&mut c, "first", ""));
+        assert!(dispatch(&mut c, "last", ""));
+        assert_eq!(c.index(), 0);
+    }
+
+    // --- 参照突合（イシュー #1660）: 意図的非追随（aria-hidden/aria-controls/id/dir） ---
+
+    #[test]
+    fn item_does_not_output_aria_hidden_id_or_dir() {
+        let html = render(&item(Orientation::Horizontal, 0, 3, false, vec![], vec![]));
+        assert!(!html.contains("aria-hidden"));
+        assert!(!html.contains(" id="));
+        assert!(!html.contains(" dir="));
+    }
+
+    #[test]
+    fn prev_trigger_does_not_output_aria_controls() {
+        let html = render(&prev_trigger(
+            Orientation::Horizontal,
+            false,
+            "Previous",
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("aria-controls"));
     }
 }

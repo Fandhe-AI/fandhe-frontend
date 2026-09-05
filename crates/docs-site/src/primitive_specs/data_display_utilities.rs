@@ -40,7 +40,8 @@
 //! （avatar/carousel/json_tree_view/steps/tour/tree_view/visually_hidden）は
 //! `tabindex` を一切出力せず、クリック・矢印キー等の実 DOM 配線は各モジュール
 //! doc の out-of-scope 節が `fandhe-frontend-wasm-full` 後続イシューの責務と
-//! 明示している（`carousel.rs:71`/`splitter.rs:71-73`/`steps.rs:75`/
+//! 明示している（`carousel.rs` モジュール doc「キーボード操作」節/
+//! `splitter.rs:71-73`/`steps.rs:75`/
 //! `tour.rs:89-91`/`tree_view.rs:74-77` 参照。avatar/visually_hidden は
 //! そもそもキー操作の対象になる要素を持たない）。実装が焦点制御に関与しない
 //! 部品へ「ArrowRight で次へ進む」のような未実装の対話を書くと利用者へ誤った
@@ -76,7 +77,6 @@
 use fandhe_frontend_core::{code, div, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::avatar::{self, ImageStatus};
-use hui::carousel;
 use hui::data_attrs::Orientation;
 use hui::fandhe_frontend_interactive::Component;
 use hui::json_tree_view::{self, JsonValue};
@@ -255,39 +255,118 @@ pub const AVATAR: ComponentPageSpec = ComponentPageSpec {
 // Carousel（/primitives/carousel/）
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/carousel.rs:1-74`（モジュール doc、
-/// 決定的な遷移規則・スコープ外）、`:85-208`（`root`/`prev_trigger`/
-/// `next_trigger`/`item_group`/`item`/`indicator` シグネチャと
-/// role/aria-* 出力）、`:266`（`Carousel::new`）。
+/// 一次情報: `crates/headless-ui/src/carousel.rs`（モジュール doc「参考
+/// サイトとの突合（イシュー #1660）」節・決定的な遷移規則・スコープ外）、
+/// `root`/`prev_trigger`/`next_trigger`/`item_group`/`item`/`indicator` の
+/// シグネチャと role/aria-*/`data-*` 出力、`Carousel::new`。
 fn ex_carousel_vertical_loop() -> Node {
-    let orientation = Orientation::Vertical;
-    carousel::root(
-        orientation,
+    // 状態機械 `Carousel` の利便メソッドで組み立てる（イシュー #1660、
+    // `crate::primitive_showcase::data_display_utilities::carousel_section`
+    // と同型の理由: `prev_disabled`/`next_disabled` の自動注入で `data-*`
+    // 出力の不整合を構造的に防ぐ）。index=2（末尾）・slide_count=3・
+    // loop=true・縦方向で、循環により prev/next とも disabled にならない
+    // 構成を示す。
+    let carousel = hui::carousel::Carousel::new(2, 3, true, Orientation::Vertical);
+    carousel.root(
         "Featured photos (vertical, looping)",
         vec![],
         vec![
-            carousel::item_group(
+            carousel.item_group(
                 vec![],
                 vec![
-                    carousel::item(0, 3, false, vec![], vec![text("Slide 1")]),
-                    carousel::item(1, 3, false, vec![], vec![text("Slide 2")]),
-                    carousel::item(2, 3, true, vec![], vec![text("Slide 3")]),
+                    carousel.item(0, vec![], vec![text("Slide 1")]),
+                    carousel.item(1, vec![], vec![text("Slide 2")]),
+                    carousel.item(2, vec![], vec![text("Slide 3")]),
                 ],
             ),
-            carousel::control(
+            carousel.control(
                 vec![],
                 vec![
-                    carousel::prev_trigger(false, "Previous slide", vec![], vec![text("‹")]),
-                    carousel::indicator_group(
+                    carousel.prev_trigger("Previous slide", vec![], vec![text("‹")]),
+                    carousel.indicator_group(
                         vec![],
                         vec![
-                            carousel::indicator(0, false, vec![]),
-                            carousel::indicator(1, false, vec![]),
-                            carousel::indicator(2, true, vec![]),
+                            carousel.indicator(0, vec![]),
+                            carousel.indicator(1, vec![]),
+                            carousel.indicator(2, vec![]),
                         ],
                     ),
-                    carousel::next_trigger(false, "Next slide", vec![], vec![text("›")]),
+                    carousel.next_trigger("Next slide", vec![], vec![text("›")]),
                 ],
+            ),
+        ],
+    )
+}
+
+/// 自前 CSS の最小例（イシュー #1660、`AVATAR_CUSTOM_CSS_SNIPPET` と同型の
+/// パターン）。CSS はテキストノード（[`code`]/[`pre`]）として既定
+/// エスケープを経由し、`crate::primitive_showcase` の専用スタイルシート
+/// （`[data-scope=`/`[data-part=` を持たない契約、
+/// `tests/site_css_contract.rs`）へは追加しない。イシュー #1660 で追加した
+/// `data-index`（トラック水平移動）・`data-orientation="vertical"`（縦方向
+/// 切替）・`data-current`（indicator の強調表示）・`data-disabled`
+/// （trigger の減光）の 4 セレクタを実演する。
+const CAROUSEL_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"carousel\"][data-part=\"item-group\"] {\n  \
+  display: flex;\n  overflow: hidden;\n\
+}\n\
+[data-scope=\"carousel\"][data-part=\"item\"] {\n  \
+  flex: 0 0 100%;\n  transition: transform 0.2s;\n\
+}\n\
+[data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"] {\n  \
+  flex-direction: column;\n\
+}\n\
+[data-scope=\"carousel\"][data-part=\"indicator\"][data-current] {\n  \
+  background: #2563eb;\n\
+}\n\
+[data-scope=\"carousel\"][data-part=\"prev-trigger\"][data-disabled],\n\
+[data-scope=\"carousel\"][data-part=\"next-trigger\"][data-disabled] {\n  \
+  opacity: 0.4;\n  cursor: not-allowed;\n\
+}\n";
+
+/// index を用いて `translateX(calc(var(--fandhe-carousel-index) * -100%))`
+/// を組み立てる呼び出し側の実演（headless 自体はこの `style` を出力しない、
+/// `fandhe-frontend-pre-styled-ui` の `item_group` recipe と同じ計算式）。
+/// `data-current`/`data-disabled` は状態機械が自動出力する（headless の
+/// 既定契約）ため、本例では CSS セレクタ側の当て方のみを示す。
+fn ex_carousel_custom_css() -> Node {
+    let carousel = hui::carousel::Carousel::new(1, 3, false, Orientation::Horizontal);
+    let node = carousel.root(
+        "Featured photos",
+        vec![],
+        vec![
+            carousel.item_group(
+                vec![],
+                vec![
+                    carousel.item(0, vec![], vec![text("Slide 1")]),
+                    carousel.item(1, vec![], vec![text("Slide 2")]),
+                    carousel.item(2, vec![], vec![text("Slide 3")]),
+                ],
+            ),
+            carousel.control(
+                vec![],
+                vec![
+                    carousel.prev_trigger("Previous slide", vec![], vec![text("‹")]),
+                    carousel.indicator_group(
+                        vec![],
+                        vec![
+                            carousel.indicator(0, vec![]),
+                            carousel.indicator(1, vec![]),
+                            carousel.indicator(2, vec![]),
+                        ],
+                    ),
+                    carousel.next_trigger("Next slide", vec![], vec![text("›")]),
+                ],
+            ),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope / data-part / data-orientation / data-current / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません（トラック移動量は item_group の style=\"--fandhe-carousel-index: N\" を calc() で参照します）。",
+        vec![
+            node,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(CAROUSEL_CUSTOM_CSS_SNIPPET)])],
             ),
         ],
     )
@@ -295,70 +374,85 @@ fn ex_carousel_vertical_loop() -> Node {
 
 pub const CAROUSEL: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Control / PrevTrigger / NextTrigger / ItemGroup / Item / IndicatorGroup / Indicator の 8 anatomy パーツを提供する（carousel.rs:1-10）。",
-        "root は role=\"region\" + aria-roledescription=\"carousel\" + 呼び出し側指定の aria-label を固定出力する（carousel.rs:85-106）。",
-        "item は role=\"group\" + aria-roledescription=\"slide\" + \"{n} of {m}\" 形式の aria-label を自動生成する（carousel.rs:167-186）。",
-        "autoplay 非対応の初期実装のため item_group の aria-live は常に \"polite\" 固定（carousel.rs:66-70,154-165）。",
-        "index==slide_count-1 かつ loop=true のとき Next は先頭へ循環し、prev/next とも disabled にならない決定的な遷移規則を持つ（carousel.rs:31-42）。",
+        "Root / Control / PrevTrigger / NextTrigger / ItemGroup / Item / IndicatorGroup / Indicator の 8 anatomy パーツを提供する（carousel.rs 冒頭）。",
+        "root は role=\"region\" + aria-roledescription=\"carousel\" + 呼び出し側指定の aria-label を固定出力する（carousel.rs::root）。",
+        "item は role=\"group\" + aria-roledescription=\"slide\" + \"{n} of {m}\" 形式の aria-label を自動生成する（carousel.rs::item）。",
+        "autoplay 非対応の初期実装のため item_group の aria-live は常に \"polite\" 固定（carousel.rs::item_group）。",
+        "index==slide_count-1 かつ loop=true のとき Next は先頭へ循環し、prev/next とも disabled にならない決定的な遷移規則を持つ（carousel.rs モジュール doc「決定的な遷移規則」節）。",
+        "zag.js との参照突合（イシュー #1660）により data-orientation を全 8 パーツへ拡張し、item/indicator に data-index（0-origin）、item に data-inview を追加した（carousel.rs モジュール doc「参考サイトとの突合」節）。",
+        "dispatch に Home/End キー相当の \"first\"/\"last\"（CarouselAction::First/Last）を追加した（carousel.rs::CarouselAction）。DOM keydown 配線自体は wasm-full 側の後続責務のためスコープ外（下記キーボード操作参照）。",
     ],
     arguments: &[
         ArgRow {
-            name: "root: orientation",
+            name: "root/control/prev_trigger/next_trigger/item_group/item/indicator_group/indicator: orientation",
             kind: "Orientation",
             default: "",
-            description: "carousel のレイアウト方向（carousel.rs:92-106）。",
+            description: "carousel のレイアウト方向。全 8 パーツが data-orientation を出力する（carousel.rs、イシュー #1660）。",
         },
         ArgRow {
             name: "root: label",
             kind: "&str",
             default: "",
-            description: "aria-label に出力する説明文（carousel.rs:92-106、必須）。",
+            description: "aria-label に出力する説明文（carousel.rs::root、必須）。",
         },
         ArgRow {
             name: "prev_trigger/next_trigger: disabled",
             kind: "bool",
             default: "false",
-            description: "端かつ loop=false のとき true（native disabled + data-disabled、carousel.rs:115-152）。",
+            description: "端かつ loop=false のとき true（native disabled + data-disabled、carousel.rs::prev_trigger/next_trigger）。",
         },
         ArgRow {
             name: "item: index, count, current",
             kind: "usize, usize, bool",
             default: "",
-            description: "スライド位置・総数・現在表示中かどうか（aria-label/data-current 生成元、carousel.rs:173-186）。",
+            description: "スライド位置・総数・現在表示中かどうか（aria-label/data-index/data-inview/data-current 生成元、carousel.rs::item）。",
+        },
+        ArgRow {
+            name: "indicator: index, current",
+            kind: "usize, bool",
+            default: "",
+            description: "インジケータの位置・現在位置かどうか（aria-label/data-index/aria-current/data-current 生成元、carousel.rs::indicator）。",
         },
         ArgRow {
             name: "Carousel::new: index, slide_count, loop_, orientation",
             kind: "usize, usize, bool, Orientation",
             default: "",
-            description: "状態機械の初期値（carousel.rs:266）。",
+            description: "状態機械の初期値（carousel.rs::Carousel::new）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Vertical looping carousel",
-        description: "縦方向レイアウト・loop 有効で最終スライドを表示した例です（Demo は水平・非 loop）。",
-        render: ex_carousel_vertical_loop,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Vertical looping carousel",
+            description: "縦方向レイアウト・loop 有効で末尾スライドを表示した例です（Demo は水平・非 loop）。",
+            render: ex_carousel_vertical_loop,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/data-orientation/data-current/data-disabled 属性セレクタでトラック移動・インジケータ強調・trigger 減光のスタイルを当てる例です。",
+            render: ex_carousel_custom_css,
+        },
+    ],
     keyboard: &[],
     aria: &[
         AriaRow {
             attribute: "role=\"region\" / aria-roledescription=\"carousel\" / aria-label",
-            description: "root に固定出力する（carousel.rs:85-106）。",
+            description: "root に固定出力する（carousel.rs::root）。",
         },
         AriaRow {
             attribute: "role=\"group\" / aria-roledescription=\"slide\" / aria-label",
-            description: "item に固定出力し、aria-label は \"{n} of {m}\" 形式（carousel.rs:167-186）。",
+            description: "item に固定出力し、aria-label は \"{n} of {m}\" 形式（carousel.rs::item）。",
         },
         AriaRow {
             attribute: "aria-live=\"polite\"",
-            description: "item_group に固定出力する（carousel.rs:154-165）。",
+            description: "item_group に固定出力する（carousel.rs::item_group）。",
         },
         AriaRow {
             attribute: "aria-label",
-            description: "prev_trigger/next_trigger/indicator に呼び出し側指定または自動生成の説明文を出力する（carousel.rs:115-208）。",
+            description: "prev_trigger/next_trigger/indicator に呼び出し側指定または自動生成の説明文を出力する（carousel.rs::prev_trigger/next_trigger/indicator）。",
         },
         AriaRow {
             attribute: "aria-current=\"true\"",
-            description: "indicator が current のときのみ出力する（carousel.rs:194-208）。",
+            description: "indicator が current のときのみ出力する（carousel.rs::indicator。zag.js には存在しない超集合）。",
         },
     ],
     demo: None,
