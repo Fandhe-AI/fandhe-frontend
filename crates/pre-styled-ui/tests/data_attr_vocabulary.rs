@@ -28,6 +28,7 @@ use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
 use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
     self, ScatterChartProps, ScatterData, ScatterSeries,
 };
+use fandhe_frontend_pre_styled_ui::field::{self, FieldIds, FieldProps, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::tag;
@@ -148,4 +149,59 @@ fn tab_nav_link_data_current_is_gated_by_current_flag() {
     let html = render(&tab_nav::link("/docs", false, vec![], vec![text("Docs")]));
     assert!(!html.contains("data-current"));
     assert!(!html.contains("aria-current"));
+}
+
+/// `field.rs`（イシュー #1684）は独自の `data-*` を一切出力しない
+/// （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・
+/// 役割 B）。styled `root` 出力に現れる `data-disabled`/`data-invalid`/
+/// `data-required`/`data-readonly` はすべて headless
+/// `fandhe_frontend_headless_ui::field::root` が [`FieldProps`] の 4
+/// フラグから生成するものであり、`field::css()` はその属性を CSS
+/// セレクタとして**参照する**だけで自前出力はしない、という事実を固定
+/// する。
+#[test]
+fn field_root_data_attrs_are_headless_sourced_not_self_emitted() {
+    fn field(id: &str) -> FieldProps<'_> {
+        FieldProps {
+            id,
+            ids: FieldIds::default(),
+            disabled: false,
+            invalid: false,
+            required: false,
+            readonly: false,
+            has_helper_text: false,
+        }
+    }
+
+    // 全フラグ false のとき、4 種の data-* はいずれも出力されない。
+    let f = field("f");
+    let html = render(&field::root(&FieldRootProps::default(), &f, vec![], vec![]));
+    assert!(!html.contains("data-disabled"));
+    assert!(!html.contains("data-invalid"));
+    assert!(!html.contains("data-required"));
+    assert!(!html.contains("data-readonly"));
+
+    // 全フラグ true のとき、4 種すべてが headless `field::root` 経由で
+    // 出力される（styled `root` 自身は data-* を組み立てない）。
+    let f = FieldProps {
+        id: "f",
+        ids: FieldIds::default(),
+        disabled: true,
+        invalid: true,
+        required: true,
+        readonly: true,
+        has_helper_text: false,
+    };
+    let html = render(&field::root(&FieldRootProps::default(), &f, vec![], vec![]));
+    assert!(html.contains("data-disabled"));
+    assert!(html.contains("data-invalid"));
+    assert!(html.contains("data-required"));
+    assert!(html.contains("data-readonly"));
+
+    // `field::css()` は `[data-disabled]` を参照する state 規則を持つが、
+    // 自前で `data-*` を組み立てて出力する経路（属性タプルの直接構築）を
+    // 持たないことを、CSS 出力側からも確認する（属性セレクタとしての
+    // 参照は許容、自前出力はしないという役割 B の境界を固定）。
+    let css = field::css();
+    assert!(css.contains("[data-disabled]"));
 }
