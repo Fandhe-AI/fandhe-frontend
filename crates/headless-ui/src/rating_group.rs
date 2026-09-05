@@ -126,9 +126,11 @@
 //!   `data-required` は [`label`] のみに付与する。
 //! - **`data-hover`/`data-active`/`data-focus`（pointer/focus 系）**:
 //!   SSR 静的出力の関心外（[`crate::checkbox`] #1602 と同じ判断）。
-//! - **`data-focus-visible`**: item 自身が実フォーカスを受けるため CSS
-//!   `:focus-visible` で足り、`hidden_input` 経由の checkbox/radio_group
-//!   とは構成が異なる。
+//! - **`data-focus-visible`**: `item`（`span`、`tabindex` 非出力）は
+//!   現状キーボードフォーカスを一切受けない（上記「キーボード操作」節
+//!   参照）。フォーカスが実際に当たらない要素へ `data-focus-visible` を
+//!   出力する意味がないため、`hidden_input` 経由で実フォーカスを受ける
+//!   checkbox/radio_group とは異なりそもそも不要と判断した。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
