@@ -1735,7 +1735,17 @@ name = "fandhe-frontend-pre-styled-ui"
 # （.claude/rules/coding-rust.md）に従いマイナーバンプへ是正し 0.106.0
 # とする（本クレート自体の実体変更は引き続きなし。依存先 headless-ui の
 # 破壊的変更が再公開経由で透過する事実のみを根拠とする）。
-version = "0.106.0"
+# base 再取り込み（本 #1650 マージ）: main 側で独立に到達していた変更は
+# イシュー #1648（breadcrumb の参照突合。依存先 headless-ui 0.53.0 → 0.53.1
+# への追随のみ、本クレート自体の実体変更なし）であり、既に上記 0.105.3/
+# 0.106.0 の系譜に和集合済み。本ブランチはさらにイシュー #1650
+# （link-overlay の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# 0.54.0 → 0.54.1（`link_overlay::overlay` の呼び出し側 attrs からの `href`
+# なりすまし除去、非破壊的追加。`crate::link_overlay` は headless-ui の
+# `link_overlay::overlay` を再公開するが本追加自体は既存呼び出しの
+# シグネチャ不変・出力属性追加のみ）への追随のみ（本クレート自体の実体
+# 変更なし）。0.106.0 から patch バンプで 0.106.1 とする。
+version = "0.106.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1750,7 +1760,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.54.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.54.1" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

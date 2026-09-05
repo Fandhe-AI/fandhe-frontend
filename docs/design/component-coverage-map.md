@@ -665,7 +665,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/typography/link.md` | — | Link | — | Link (`link`) | `link` | `link` | 実装済み | headless+styled 実装済み（#756、PR #801、#716 最優先候補の消化）。#1649 で参考サイトと突合済み・差分なし（意図的差分: `external` の不可分付与、`asChild`/装飾 prop は Themes 責務） |
-| `.agents/skills/chakra-ui/references/components/typography/link-overlay.md` | — | LinkOverlay | — | — | `link_overlay` | `link_overlay` | 実装済み | headless+styled 実装済み（#756、PR #801、#716 最優先候補の消化） |
+| `.agents/skills/chakra-ui/references/components/typography/link-overlay.md` | — | LinkOverlay | — | — | `link_overlay` | `link_overlay` | 実装済み | headless+styled 実装済み（#756、PR #801、#716 最優先候補の消化）。#1650 で参考サイト（chakra-ui LinkBox/LinkOverlay のみ。ark-ui は該当ページ 404、Radix Primitives/Themes に対応部品なし）と突合済み。anatomy/`data-*`/ARIA 差分なし、`overlay` の `href` 予約キー除去を是正 |
 | `.agents/skills/chakra-ui/references/components/typography/kbd.md` | — | Kbd | — | Kbd (`kbd`) | — | `kbd` | 実装済み | pre-styled 静的部品 実装済み（#768） |
 | `.agents/skills/chakra-ui/references/components/typography/code.md` | — | Code | — | Code (`code`) | — | `code` | 実装済み | pre-styled 静的部品 実装済み（#768） |
 | `.agents/skills/chakra-ui/references/components/typography/heading.md` | — | Heading | — | Heading (`heading`) | — | `heading` | 実装済み | #771 |

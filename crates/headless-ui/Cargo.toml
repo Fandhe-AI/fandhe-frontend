@@ -343,7 +343,17 @@ name = "fandhe-frontend-headless-ui"
 # 指摘に留まり semver 上の破壊性は指摘されなかった経緯があり、本 PR の
 # 指摘で初めて是正する（先行 2 件の patch バンプは遡って訂正しない）。
 # 0.x の破壊的変更のためマイナーバンプで 0.54.0 とする。
-version = "0.54.0"
+# base 再取り込み（本 #1650 マージ）: main 側で独立に到達していた変更は
+# イシュー #1648（breadcrumb の参照突合。呼び出し側 attrs の予約キー
+# なりすまし除去 `drop_reserved` 追加、非破壊的変更）であり、本ブランチの
+# 0.54.0（popover の破壊的変更是正）と別系統で 0.53.2 へ独立到達していた
+# ため既に和集合済み（上記コメント参照）。本ブランチはさらにイシュー
+# #1650（link-overlay の参照突合）: `link_overlay::overlay` の呼び出し側
+# `attrs` からの `href` なりすまし除去（`drop_reserved`、
+# `crate::breadcrumb`/`crate::link` の同型是正と同じ形）を追加した。
+# 既存呼び出しのシグネチャは不変・出力の追加なりすまし防止のみの
+# 非破壊的変更のため、0.54.0 から patch バンプで 0.54.1 とする。
+version = "0.54.1"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
