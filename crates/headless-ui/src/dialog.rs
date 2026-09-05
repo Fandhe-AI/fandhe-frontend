@@ -28,13 +28,20 @@
 //! `overlay::close_on_escape_for`/`close_on_interact_outside_for`〔#585〕・
 //! `focus_trap`〔#586〕・`headless` の part → action 対応表）が担う
 //! （イシュー #1638 で確認・文書化）。オプトアウト/オプトインは [`content`]
-//! の `attrs` 経由で以下の `data-*` を渡す（`"false"` リテラルのときのみ
-//! 無効化し、それ以外は既定へフォールバックする fail-closed 規則）:
+//! の `attrs` 経由で以下の `data-close-on-*` を渡す（`"false"` リテラルの
+//! ときのみ無効化し、それ以外は既定へフォールバックする fail-closed
+//! 規則）:
 //!
 //! - `data-close-on-escape="false"`: Escape キーでの閉鎖を無効化する。
 //! - `data-close-on-interact-outside="false"`: 外側クリックでの閉鎖を
 //!   無効化する（`role="alertdialog"` のときは既定で無効）。
-//! - `data-autofocus`: フォーカストラップの初期フォーカス先を指定する。
+//!
+//! `data-autofocus` はフォーカストラップの初期フォーカス先を指定する
+//! オプトイン属性だが、[`content`] の `attrs` ではなく [`content`] の
+//! **子孫**のうち tabbable な要素へ付ける（`fandhe-frontend-wasm-full` の
+//! `focus_trap::collect_tabbable` は content の子孫のみを候補として収集し、
+//! `initial_focus_index` はその候補の属性のみを参照するため、`content`
+//! 自身に付けても初期フォーカス先には反映されない）。
 //!
 //! # 参考サイトとの意図的な差分（イシュー #1638 で参照突合）
 //!
@@ -90,6 +97,19 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 
 /// Dialog の anatomy（`data-scope="dialog"`）。
 const ANATOMY: Anatomy = anatomy("dialog");
+
+/// 呼び出し側 `attrs` から `tabindex`（大文字小文字を無視）を除去する
+/// （[`crate::menubar::drop_tabindex_attr`] と同型のパターン。クレート API
+/// 表面を増やさないため再利用せずここへ複製する）。[`content`] が
+/// `tabindex="-1"` を固定付与する前に呼ぶことで、呼び出し側が渡した
+/// `tabindex` との重複出力（SSR は両方出力して先勝ち、wasm-client の
+/// `set_attribute` は後勝ちになる描画経路間の不一致）を防ぐ。
+fn drop_tabindex_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("tabindex"))
+        .collect()
+}
 
 /// [`content`] の `role` 属性値。通常のダイアログか、確認・警告用の
 /// alertdialog かを選ぶ（WAI-ARIA の固定語彙のみを受け付け、任意文字列は
@@ -209,7 +229,12 @@ pub struct ContentIds<'a> {
 /// `focus_trap::focus_content_itself` はハイドレーション後に tabbable な
 /// 子孫が無い場合の代替フォーカス先として同属性を動的にも付与しており、
 /// 本関数が SSR 時点から固定付与することで SSR 出力とハイドレーション後の
-/// 出力が一致する（イシュー #1638）。
+/// 出力が一致する（イシュー #1638）。呼び出し側 `attrs` に `tabindex`
+/// （大文字小文字を無視）が含まれる場合は [`drop_tabindex_attr`] で除去
+/// してから合成する。除去しないと SSR は同名属性を重複出力して先頭の
+/// `-1` が有効になる一方、wasm-client の `keyed_dom` は `set_attribute`
+/// の後勝ちで呼び出し側の値が有効になり、描画経路間で結果が食い違う
+/// （PR #1910 codex-review 指摘）。
 #[must_use]
 pub fn content<'a>(
     state: OpenState,
@@ -237,7 +262,7 @@ pub fn content<'a>(
     if !state.is_open() {
         merged.push(("hidden", ""));
     }
-    merged.extend(attrs);
+    merged.extend(drop_tabindex_attr(attrs));
     ANATOMY.part("content", "div", merged, children)
 }
 
@@ -571,6 +596,26 @@ mod tests {
             vec![],
         ));
         assert!(open.contains(r#"tabindex="-1""#));
+    }
+
+    #[test]
+    fn content_drops_caller_tabindex_to_keep_fixed_minus_one() {
+        // 呼び出し側 attrs に tabindex（大文字小文字違い含む）を渡しても
+        // 固定の `tabindex="-1"` のみが 1 つだけ出力される（PR #1910
+        // codex-review 指摘: 除去しないと SSR は重複属性を出力し、
+        // wasm-client の set_attribute は後勝ちで呼び出し側の値が有効に
+        // なり描画経路間で結果が食い違う）。
+        let rendered = render(&content(
+            OpenState::Open,
+            DialogRole::Dialog,
+            true,
+            ContentIds::default(),
+            vec![("TabIndex", "0")],
+            vec![],
+        ));
+        assert_eq!(rendered.matches("tabindex").count(), 1);
+        assert!(rendered.contains(r#"tabindex="-1""#));
+        assert!(!rendered.contains(r#"tabindex="0""#));
     }
 
     #[test]

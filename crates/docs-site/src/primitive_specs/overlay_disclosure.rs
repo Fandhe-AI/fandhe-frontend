@@ -461,7 +461,7 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
         "trigger は type=\"button\" を固定付与し、aria-haspopup=\"dialog\" を常に付与する。",
         "content は DialogRole（Dialog/Alertdialog）で role を切り替えられ、modal 引数で aria-modal の値を制御できる。content は tabindex=\"-1\" を固定付与する（zag dialog.connect.ts と同じく、プログラム的フォーカスのみを許可する前提。イシュー #1638）。",
         "backdrop/positioner は closed のとき hidden 存在属性を付与し、JS なしの SSR でも閉状態を表現する。",
-        "Escape キー閉鎖・外側クリック閉鎖・フォーカストラップ・閉鎖時の trigger へのフォーカス復帰・click → dispatch 配線は本モジュールが属性を出力するのみで、実 DOM 配線は fandhe-frontend-wasm-full（overlay/focus_trap/headless の part → action 対応表）が担う。content の attrs 経由で data-close-on-escape=\"false\" / data-close-on-interact-outside=\"false\"（\"false\" リテラルのときのみ無効化） / data-autofocus（初期フォーカス先指定）を渡せる。",
+        "Escape キー閉鎖・外側クリック閉鎖・フォーカストラップ・閉鎖時の trigger へのフォーカス復帰・click → dispatch 配線は本モジュールが属性を出力するのみで、実 DOM 配線は fandhe-frontend-wasm-full（overlay/focus_trap/headless の part → action 対応表）が担う。content の attrs 経由で data-close-on-escape=\"false\" / data-close-on-interact-outside=\"false\"（\"false\" リテラルのときのみ無効化）を渡せる。初期フォーカス先を指定する data-autofocus は content ではなく、content 配下の tabbable な対象の子要素へ付与する（fandhe-frontend-wasm-full の focus_trap::collect_tabbable が content の子孫のみを候補として収集するため）。",
     ],
     arguments: &[
         ArgRow {
