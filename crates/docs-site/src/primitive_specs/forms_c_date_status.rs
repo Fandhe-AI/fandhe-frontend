@@ -745,7 +745,7 @@ const DOWNLOAD_TRIGGER: ComponentPageSpec = ComponentPageSpec {
     ],
     aria: &[AriaRow {
         attribute: "role / aria-*",
-        description: "付与しない（`a[href]` の暗黙 `link` ロールに委ねる。参考サイトも `role`/`aria-*` を付与しない）。無効化が必要な場合は呼び出し側 attrs で `aria-disabled=\"true\"` + `tabindex=\"-1\"` を付与する（`a` に disabled 意味論はない）。",
+        description: "付与しない（`a[href]` の暗黙 `link` ロールに委ねる。参考サイトも `role`/`aria-*` を付与しない）。呼び出し側 attrs で `aria-disabled=\"true\"` + `tabindex=\"-1\"` を渡しても `href` は保持されクリック起動は防げないため（`a` に disabled 意味論はない）、無効状態が必要な場合は `root` の呼び出し自体を止め非操作要素へ差し替える（`site/primitives/download-trigger.md` 参照）。",
     }],
     demo: None,
 };

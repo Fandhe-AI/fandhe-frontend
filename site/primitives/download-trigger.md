@@ -18,7 +18,7 @@ ark-ui / chakra-ui の DownloadTrigger は `Blob` 生成・非同期データ解
 - **要素種別**: 参考サイトの `button` に対し、本実装は `a[href][download]` を採用します（プレーンな HTML を尊重する静的部品化方針）。この差により、参考サイトでは効く Space キーでの起動が本実装では効きません（上記キーボード操作表参照）。
 - **`data-scope`/`data-part`**: 参考サイトには anatomy の概念自体が無く、本実装の `data-scope="download-trigger"` / `data-part="root"` はこちら側の superset です。
 - **非対応の prop**: `data`（`Blob`/`ArrayBuffer`/非同期関数）・`mimeType`・`asChild` は非対応です。`Blob` 生成はクライアント JS 前提であり静的部品化方針の対象外、実ファイル配信時の `Content-Type` は配信側ヘッダで表現します。
-- **`disabled` の非提供**: `a` 要素にはネイティブの disabled 意味論がないため、無効化したい場合は呼び出し側の `attrs` で `aria-disabled="true"` + `tabindex="-1"` を明示的に付与してください。
+- **`disabled` の非提供**: `a` 要素にはネイティブの disabled 意味論がなく、`root` は常に `href` 属性を出力するため、呼び出し側 `attrs` で `aria-disabled="true"` + `tabindex="-1"` を付与しても**クリック（および Enter キー）でのダウンロード起動は実際には防げません**（`aria-disabled` は状態を伝えるだけ、`tabindex="-1"` は Tab 移動対象から外すだけで、`href` を保持したままの `a` はブラウザ標準動作としてクリック起動可能です）。無効状態が必要な場合は、呼び出し側で `download_trigger::root` の呼び出し自体を止め、非操作要素（`span`/`disabled` な `button` 等）へ描画を差し替えてください。
 - **cross-origin での `download` 無視**: ブラウザ仕様上、`download` 属性は same-origin（および `blob:`/`data:`）以外のリンクでは無視され、通常のナビゲーションとして扱われます。
 
 一方で「状態を表す `data-*` を出力しない」「`role`/`aria-*` を独自付与しない」点は参考サイトと一致しています。

@@ -1,7 +1,7 @@
 //! Primitives Demo — Forms C・日付・状態表示（10 件、原稿は #1026）。
 //! 執筆規約は `crate::primitive_showcase` モジュール doc 参照。
 
-use fandhe_frontend_core::{text, Node};
+use fandhe_frontend_core::{div, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::calendar;
 use hui::clipboard;
@@ -289,18 +289,28 @@ pub(super) fn date_picker_section() -> Node {
 /// を並べ、`download` 属性の 2 通りの挙動（ファイル名ヒントの有無）を
 /// 可視化する（イシュー #1628）。
 pub(super) fn download_trigger_section() -> Node {
+    // root（`a[download]`）はインライン要素であり、複数バリアントを
+    // そのまま隣接配置するとラベルが視覚的に連結してしまう
+    // （run-on text）。各バリアントを個別の `div`（ブロック要素）で
+    // ラップし、視覚的に分離する（イシュー #1628 Bugbot 指摘対応）。
     let body = vec![
-        download_trigger::root(
-            "https://example.com/assets/report.pdf",
-            Some("report.pdf"),
+        div(
             vec![],
-            vec![text("Download report")],
+            vec![download_trigger::root(
+                "https://example.com/assets/report.pdf",
+                Some("report.pdf"),
+                vec![],
+                vec![text("Download report")],
+            )],
         ),
-        download_trigger::root(
-            "https://example.com/assets/data.csv",
-            None,
+        div(
             vec![],
-            vec![text("Download data.csv")],
+            vec![download_trigger::root(
+                "https://example.com/assets/data.csv",
+                None,
+                vec![],
+                vec![text("Download data.csv")],
+            )],
         ),
     ];
     demo_page("Download Trigger", body)

@@ -113,11 +113,15 @@ fn no_role_or_aria_or_type_is_emitted() {
     assert!(!html.contains("type="), "{html}");
 }
 
-/// 無効化が必要な場合は呼び出し側 `attrs` で `aria-disabled`/`tabindex` を
-/// 明示的に渡す経路（pre-styled 側 rustdoc が案内する無効化手段）が
-/// そのまま透過することを固定する。
+/// 呼び出し側 `attrs` で任意の属性（`aria-disabled`/`tabindex` を含む）が
+/// そのまま透過することを固定する。ただし `root` は常に `href` を出力する
+/// ため、この 2 属性を付与するだけではクリック（Enter キー含む）での
+/// ダウンロード起動そのものは防げない（`aria-disabled` は状態伝達のみ、
+/// `tabindex="-1"` は Tab 移動対象からの除外のみ）。真に無効化したい
+/// 場合は呼び出し側で `root` の呼び出し自体を止め、非操作要素へ描画を
+/// 差し替える必要がある（`site/primitives/download-trigger.md` 参照）。
 #[test]
-fn caller_attrs_for_disabled_semantics_pass_through() {
+fn caller_attrs_pass_through_including_aria_disabled_and_tabindex() {
     let html = render(&root(
         "https://example.com/report.pdf",
         Some("report.pdf"),
