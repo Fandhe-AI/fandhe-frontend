@@ -116,7 +116,14 @@ name = "fandhe-frontend-headless-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（main 現在値
 # を基点に、自分の変更が patch バンプなら patch を +1）に従い main 現在値
 # 0.41.0 から 0.41.1 へ patch バンプする。
-version = "0.41.1"
+# codex-review P1 是正（PR #1893, イシュー #1626, 2026-09-05）: 上記
+# 0.41.1 到達判断は誤りだった。本ブランチ（#1626 date-input）は PR 全体で
+# `DateSegmentFlags` の削除・`date_input` 公開関数のシグネチャ変更・
+# `data-placeholder`（recipe セレクタ／属性名）の `data-placeholder-shown`
+# への改名を含んでおり、これらはいずれも破壊的変更（`.claude/rules/
+# coding-rust.md` 破壊的変更規定）である。patch バンプでは不十分なため、
+# main 現在値 0.41.0 を基点にマイナーバンプし 0.42.0 とする。
+version = "0.42.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
