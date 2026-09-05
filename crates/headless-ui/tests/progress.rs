@@ -40,8 +40,33 @@ fn full_assembly_wires_root_label_value_text_track_and_range() {
     assert!(html.contains(r#"aria-valuenow="40""#));
     assert!(html.contains(r#"aria-valuetext="40 percent""#));
     assert!(html.contains(r#"data-orientation="horizontal""#));
+    // イシュー #1633 是正: label の data-orientation・value-text の aria-live。
+    assert!(html.contains(r#"aria-live="polite""#));
     assert!(html.contains("Upload progress"));
     assert!(html.contains("40%"));
+}
+
+/// 意図的に非採用とした属性群が組み立て全体から見ても現れないことを
+/// 固定する（イシュー #1633 突合の記録。unit tests 側の同名テストと対で
+/// 「クレート外部から見た契約」を固定する）。
+#[test]
+fn intentionally_omitted_attributes_are_absent() {
+    let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+
+    let root_html = render(&p.root(None, vec![], vec![]));
+    assert!(!root_html.contains("--percent"));
+    assert!(!root_html.contains(r#"data-part="view""#));
+
+    let track_html = render(&p.track(vec![], vec![]));
+    assert!(!track_html.contains("role"));
+
+    let range_html = render(&p.range(vec![], vec![]));
+    assert!(!range_html.contains("role"));
+    assert!(!range_html.contains("data-value"));
+    assert!(!range_html.contains("data-max"));
+
+    let circle_html = render(&p.circle(vec![], vec![]));
+    assert!(!circle_html.contains("data-orientation"));
 }
 
 #[test]
