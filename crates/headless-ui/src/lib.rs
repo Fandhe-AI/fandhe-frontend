@@ -138,7 +138,9 @@
 //! - [`popover`]: Root / Trigger / Anchor / Positioner / Arrow / ArrowTip /
 //!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
-//!   headless Popover コンポーネント（#532）。
+//!   headless Popover コンポーネント（#532）。イシュー #1642 で ark-ui /
+//!   Radix Primitives / chakra-ui と参照突合し、`content` に
+//!   `tabindex="-1"` を固定付与した。
 //! - [`mod@field`]: Root / Label / Input / Textarea / Select / HelperText /
 //!   ErrorText / RequiredIndicator の 8 anatomy パーツ関数群
 //!   （[`field::FieldProps`] から決定的に描画する純粋関数、#538）。
