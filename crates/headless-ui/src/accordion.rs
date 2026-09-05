@@ -49,18 +49,70 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は
 //!   [`crate::state::SingleSelect`] へ全委譲することで、panic せず
 //!   `HydrateError` を返す既存保証をそのまま継承する。
+//! - `AccordionProps` は呼び出し側から渡される構造体だが、そこから読む
+//!   `orientation`/`disabled` の 2 フィールドは属性値としてのみ使い
+//!   （`orientation.as_data_state()` 相当の固定文字列 or bool）、属性名
+//!   スロットへは一切混入しない。呼び出し側 `attrs` に固定付与キー
+//!   （`data-orientation`/`aria-disabled`/`aria-hidden`）を混入させる
+//!   なりすましは [`drop_reserved`] で除去する（#1903 と同型の対策）。
 //!
-//! # out-of-scope（本イシュー #527/#594 のスコープ外）
+//! # 参考サイト突合（イシュー #1636）
+//!
+//! ark-ui（一次参照）/Radix Primitives の Accordion と突合し、以下を是正した:
+//!
+//! - **`data-orientation`**（root・item・item-trigger・item-indicator・
+//!   item-content の全パーツ）: ark-ui/Radix とも Root props の
+//!   `orientation`（既定 vertical）を全パーツへ反映する。本モジュールは
+//!   新設した [`AccordionProps`] を各パーツ関数へ通す形で対応する。
+//! - **`item-indicator`/`item-content` の `data-disabled`**: ark-ui は
+//!   indicator/content にも disabled 状態を反映する（Radix は content の
+//!   み）。項目単位の `disabled` を両パーツへ伝播する。
+//! - **`item-trigger` の `aria-disabled="true"`**（disabled 時のみ）:
+//!   zag.js（ark-ui の実装基盤）の accordion trigger が付与する。ネイティブ
+//!   `disabled` 属性のみでは支援技術によっては disabled 状態が伝わらない
+//!   場合があるための補完。
+//! - **`item-indicator` の `aria-hidden="true"`**: zag.js が indicator へ
+//!   常時付与する（装飾用の視覚要素であり、支援技術には trigger の
+//!   `aria-expanded` から状態が伝わるため indicator 自体は隠す）。
+//! - **Root レベルの一括 `disabled`**: ark-ui/Radix とも Root に `disabled`
+//!   props を持つ（全項目へ一括反映）。[`AccordionProps::disabled`] として
+//!   採用し、実効 disabled は `props.disabled || 項目単位 disabled` とする。
+//! - **キーボードナビゲーション**: SSR 静的マークアップ自体は変えず
+//!   （orientation は `data-orientation` で表現済み）、`fandhe-frontend-wasm-full`
+//!   の `keynav.rs` 側で horizontal（ArrowLeft/ArrowRight）対応を追加した
+//!   （同 crate の変更履歴参照）。
+//!
+//! 以下は意図的に合わせなかった（`docs/policy/intentional-non-adoption.md`
+//! §3.25 規則 2 に照らし、装飾・アニメーション・レイアウト計測の関心を
+//! `headless-ui` へ持ち込まない判断を踏襲する）:
+//!
+//! - **`data-focus`**（ark-ui が item/trigger/indicator/content へ付与する
+//!   フォーカスの一時的表現）: `data-focus-visible` 等と同じくクライアント
+//!   ローカル状態であり、SSR には不要。他コンポーネント（toggle-group /
+//!   radio-group / toggle）も同じ判断で不採用としている。
+//! - **`data-controls`/`data-ownedby`**（ark-ui/zag.js が trigger へ付与する
+//!   関連付け表現）: 本モジュールは `aria-controls` が既に同じ関連付けを
+//!   担うため独自属性を追加しない。
+//! - **Radix の `Header`（`<h3>` ラップ）パーツ**: 見出しレベルは呼び出し側
+//!   の用途に依存するため `children` で自由に表現できる。専用パーツを追加
+//!   すると `fandhe-frontend-pre-styled-ui` の `SLOTS`/CSS レシピ・
+//!   Themes/Primitives Demo へ波及するため見送る。
+//! - **`--height`/`--width` CSS 変数・`lazyMount`/`unmountOnExit`**:
+//!   アニメーション対応・レイアウト計測の関心であり、必要なら上層
+//!   （`pre-styled-ui`）の責務とする（§out-of-scope 参照）。
+//! - **キーボードの循環（loop）**: APG は循環をオプションとするが、本実装は
+//!   #582 の決定（`accordion_next_index`）を維持し非循環のままとする
+//!   （意図的な差分として記録）。
+//!
+//! # out-of-scope（本イシュー #527/#594/#1636 のスコープ外）
 //!
 //! - **全項目一括 close（`MultiSelect` の payload なし deselect 相当）**:
 //!   [`crate::state::MultiSelectAction::Deselect`] は項目単位（payload
 //!   必須）のみを提供する。「どれを閉じるか」の指定なしに全解除する
 //!   アクションはイシュー #594 の dispatch 契約に含まれないため未実装。
-//! - **orientation / キーボードナビゲーション**: SSR 静的マークアップに
-//!   寄与しない CSR 挙動層の責務のため未提供（Tabs の `data-orientation`
-//!   と異なり、Accordion の orientation は本イシューのスコープ外のまま）。
-//!   `data-orientation` が必要な呼び出し側は各パーツの `attrs` 引数で
-//!   付与できる（既定エスケープ経由のまま、迂回経路ではない）。
+//! - **DOM キーボードイベント処理そのもの**: 実際のキー入力ハンドリング
+//!   （focus 移動）は `fandhe-frontend-wasm-full` の `keynav.rs` の責務であり
+//!   本モジュールは `data-orientation` の SSR 出力までを担う。
 //! - **lazyMount / unmountOnExit / CSS 変数（`--height` 等）**: アニメーション
 //!   対応はスコープ外（[`item_content`] は `hidden` 存在属性のみで closed を
 //!   表現する）。
@@ -69,8 +121,10 @@
 //!   パーツを持たない。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_controls, aria_expanded, aria_labelledby, role};
-use crate::data_attrs::{data_disabled, data_state};
+use crate::aria::{
+    aria_controls, aria_disabled, aria_expanded, aria_hidden, aria_labelledby, role,
+};
+use crate::data_attrs::{data_disabled, data_orientation, data_state, Orientation};
 use crate::state::{MultiSelect, MultiSelectAction, OpenState, SingleSelect, SingleSelectAction};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
@@ -78,22 +132,95 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 /// Accordion の anatomy（`data-scope="accordion"`）。
 const ANATOMY: Anatomy = anatomy("accordion");
 
+/// Root レベルの共通プロパティ（ark-ui/Radix の Root `orientation`/`disabled`
+/// 相当、イシュー #1636）。各パーツ関数へ通し `data-orientation`（全パーツ）
+/// と実効 disabled（`disabled || 項目単位 disabled`、[`item_trigger`]/
+/// [`item_indicator`]/[`item_content`] へ反映）を決定する。
+///
+/// `orientation` は SSR 静的マークアップ（`data-orientation` 属性）にのみ
+/// 寄与し、実際のキーボード操作は `fandhe-frontend-wasm-full` の `keynav.rs`
+/// が本属性を読んで解釈する（本モジュールはキー入力を処理しない）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccordionProps {
+    /// パーツの向き（既定 [`Orientation::Vertical`]。ark-ui/Radix の Root
+    /// `orientation` 既定と同じ）。
+    pub orientation: Orientation,
+    /// 全項目を一括 disabled にするか（既定 `false`）。項目単位の
+    /// `disabled` 引数と OR 合成され、いずれか true なら実効 disabled。
+    pub disabled: bool,
+}
+
+impl Default for AccordionProps {
+    fn default() -> Self {
+        Self {
+            orientation: Orientation::Vertical,
+            disabled: false,
+        }
+    }
+}
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（`crates/headless-ui/src/date_input.rs::drop_reserved` 等と同型の
+/// 重複実装。モジュール間の相互依存を避けるため個別に定義する）。呼び出し側
+/// が `data-orientation`/`aria-disabled`/`aria-hidden` を偽装してもフレーム
+/// ワークが付与する値が常に優先されることを保証する（A05 対策）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// [`root`] が固定付与するキー一覧。
+const ROOT_RESERVED: &[&str] = &["data-orientation"];
+/// [`item`] が固定付与するキー一覧。
+const ITEM_RESERVED: &[&str] = &["data-orientation"];
+/// [`item_trigger`] が固定付与するキー一覧（[`ROOT_RESERVED`] に
+/// `aria-disabled` を加えたもの）。
+const ITEM_TRIGGER_RESERVED: &[&str] = &["data-orientation", "aria-disabled"];
+/// [`item_indicator`] が固定付与するキー一覧（[`ROOT_RESERVED`] に
+/// `aria-hidden` を加えたもの）。
+const ITEM_INDICATOR_RESERVED: &[&str] = &["data-orientation", "aria-hidden"];
+/// [`item_content`] が固定付与するキー一覧。
+const ITEM_CONTENT_RESERVED: &[&str] = &["data-orientation"];
+
 /// Root パーツ（`div`）。状態非依存（項目の開閉状態は各 [`item`] 側が持つ）。
+/// `props.orientation` を `data-orientation` として出力する（イシュー #1636）。
 #[must_use]
-pub fn root<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("root", "div", attrs, children)
+pub fn root<'a>(
+    props: &AccordionProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_orientation(props.orientation)];
+    merged.extend(attrs);
+    ANATOMY.part("root", "div", merged, children)
 }
 
 /// Item パーツ（`div`）。項目 1 個の開閉状態・disabled 状態を `data-*` へ反映する。
+/// 実効 disabled（`props.disabled || disabled`）を `data-disabled` へ反映する
+/// （[`item_trigger`]/[`item_indicator`]/[`item_content`] と同じ OR 合成。
+/// Radix Accordion の `Item` が root 一括 disabled との OR で `[data-disabled]`
+/// を保持する挙動に合わせる。イシュー #1636 レビュー是正）。
 #[must_use]
 pub fn item<'a>(
     state: OpenState,
     disabled: bool,
+    props: &AccordionProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
-    merged.extend(data_disabled(disabled));
+    let attrs = drop_reserved(attrs, ITEM_RESERVED);
+    let effective_disabled = props.disabled || disabled;
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        data_state(state.as_data_state()),
+        data_orientation(props.orientation),
+    ];
+    merged.extend(data_disabled(effective_disabled));
     merged.extend(attrs);
     ANATOMY.part("item", "div", merged, children)
 }
@@ -103,8 +230,10 @@ pub fn item<'a>(
 /// フォーム内配置時の意図しない submit を防ぐため `type="button"` を固定で
 /// 付与する（A05 セキュリティ設定ミス対策。Collapsible 実装（イシュー #529）
 /// と同じ判断を踏襲する）。`controls` が `Some` のとき
-/// `aria-controls` で [`item_content`] と関連付ける。`disabled` はネイティブ
-/// `disabled` 存在属性と `data-disabled` の両方へ反映する。
+/// `aria-controls` で [`item_content`] と関連付ける。実効 disabled
+/// （`props.disabled || disabled`）はネイティブ `disabled` 存在属性・
+/// `data-disabled`・`aria-disabled="true"`（disabled 時のみ、イシュー #1636。
+/// zag.js の accordion trigger 実装に合わせる補完属性）の 3 つへ反映する。
 ///
 /// イシュー #1127: `fandhe-frontend-wasm-full` の headless 配線基盤
 /// （`wasm-full/src/headless.rs::MAPPING_TABLE`）が
@@ -117,19 +246,24 @@ pub fn item<'a>(
 /// でもキーボード（Enter/Space、ネイティブ `<button>` click 発火経由）
 /// でも開閉が no-op のままになる。
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn item_trigger<'a>(
     state: OpenState,
     disabled: bool,
+    props: &AccordionProps,
     value: &'a str,
     id: Option<&'a str>,
     controls: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_TRIGGER_RESERVED);
+    let effective_disabled = props.disabled || disabled;
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("type", "button"),
         aria_expanded(state.is_open()),
         data_state(state.as_data_state()),
+        data_orientation(props.orientation),
         ("data-value", value),
     ];
     if let Some(id) = id {
@@ -138,9 +272,10 @@ pub fn item_trigger<'a>(
     if let Some(controls) = controls {
         merged.push(aria_controls(controls));
     }
-    merged.extend(data_disabled(disabled));
-    if disabled {
+    merged.extend(data_disabled(effective_disabled));
+    if effective_disabled {
         merged.push(("disabled", ""));
+        merged.push(aria_disabled(true));
     }
     merged.extend(attrs);
     ANATOMY.part("item-trigger", "button", merged, children)
@@ -148,14 +283,27 @@ pub fn item_trigger<'a>(
 
 /// ItemIndicator パーツ（`span`）。開閉状態のみを `data-state` へ反映する
 /// 最小主義な装飾用パーツ（アイコン等は呼び出し側の `attrs`/`children` が
-/// 担う。Collapsible の `indicator` と同じ最小主義に揃える）。
+/// 担う。Collapsible の `indicator` と同じ最小主義に揃える）。実効 disabled
+/// （`props.disabled || disabled`）を `data-disabled` へ反映し、常時
+/// `aria-hidden="true"` を付与する（イシュー #1636。装飾用の視覚要素で
+/// あり、支援技術へは [`item_trigger`] の `aria-expanded` から開閉状態が
+/// 伝わるため indicator 自体は隠す。zag.js の accordion 実装に合わせる）。
 #[must_use]
 pub fn item_indicator<'a>(
     state: OpenState,
+    disabled: bool,
+    props: &AccordionProps,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    let attrs = drop_reserved(attrs, ITEM_INDICATOR_RESERVED);
+    let effective_disabled = props.disabled || disabled;
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        data_state(state.as_data_state()),
+        data_orientation(props.orientation),
+        aria_hidden(true),
+    ];
+    merged.extend(data_disabled(effective_disabled));
     merged.extend(attrs);
     ANATOMY.part("item-indicator", "span", merged, children)
 }
@@ -168,16 +316,26 @@ pub fn item_indicator<'a>(
 /// と対で `aria-controls` 関連付けを成立させる。`labelled_by` が `Some` の
 /// ときのみ `role="region"` と `aria-labelledby` をセットで付与する
 /// （名前なし region を作らないため、`labelled_by` が `None` の場合は
-/// どちらも出力しない）。
+/// どちらも出力しない）。実効 disabled（`props.disabled || disabled`）を
+/// `data-disabled` へ反映する（イシュー #1636。ark-ui の accordion content
+/// が disabled 状態を反映する仕様に合わせる）。
 #[must_use]
 pub fn item_content<'a>(
     state: OpenState,
+    disabled: bool,
+    props: &AccordionProps,
     id: Option<&'a str>,
     labelled_by: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    let attrs = drop_reserved(attrs, ITEM_CONTENT_RESERVED);
+    let effective_disabled = props.disabled || disabled;
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        data_state(state.as_data_state()),
+        data_orientation(props.orientation),
+    ];
+    merged.extend(data_disabled(effective_disabled));
     if let Some(id) = id {
         merged.push(("id", id));
     }
@@ -240,18 +398,21 @@ impl Accordion {
         &self,
         value: &str,
         disabled: bool,
+        props: &AccordionProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item(self.item_state(value), disabled, attrs, children)
+        item(self.item_state(value), disabled, props, attrs, children)
     }
 
     /// [`item_trigger`] へ項目 `value` の現在状態を注入する利便メソッド。
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn item_trigger<'a>(
         &self,
         value: &str,
         disabled: bool,
+        props: &AccordionProps,
         id: Option<&'a str>,
         controls: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
@@ -260,6 +421,7 @@ impl Accordion {
         item_trigger(
             self.item_state(value),
             disabled,
+            props,
             value,
             id,
             controls,
@@ -273,23 +435,36 @@ impl Accordion {
     pub fn item_indicator<'a>(
         &self,
         value: &str,
+        disabled: bool,
+        props: &AccordionProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item_indicator(self.item_state(value), attrs, children)
+        item_indicator(self.item_state(value), disabled, props, attrs, children)
     }
 
     /// [`item_content`] へ項目 `value` の現在状態を注入する利便メソッド。
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn item_content<'a>(
         &self,
         value: &str,
+        disabled: bool,
+        props: &AccordionProps,
         id: Option<&'a str>,
         labelled_by: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item_content(self.item_state(value), id, labelled_by, attrs, children)
+        item_content(
+            self.item_state(value),
+            disabled,
+            props,
+            id,
+            labelled_by,
+            attrs,
+            children,
+        )
     }
 }
 
@@ -305,7 +480,7 @@ impl Component for Accordion {
     /// 利用は想定しない（実際の UI 構築は §パーツ関数群を呼び出し側が
     /// 組み合わせる）。
     fn view(&self) -> Node {
-        root(Vec::new(), Vec::new())
+        root(&AccordionProps::default(), Vec::new(), Vec::new())
     }
 
     fn decode_action(name: &str, payload: &str) -> Option<SingleSelectAction> {
@@ -370,18 +545,21 @@ impl MultiAccordion {
         &self,
         value: &str,
         disabled: bool,
+        props: &AccordionProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item(self.item_state(value), disabled, attrs, children)
+        item(self.item_state(value), disabled, props, attrs, children)
     }
 
     /// [`item_trigger`] へ項目 `value` の現在状態を注入する利便メソッド。
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn item_trigger<'a>(
         &self,
         value: &str,
         disabled: bool,
+        props: &AccordionProps,
         id: Option<&'a str>,
         controls: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
@@ -390,6 +568,7 @@ impl MultiAccordion {
         item_trigger(
             self.item_state(value),
             disabled,
+            props,
             value,
             id,
             controls,
@@ -403,23 +582,36 @@ impl MultiAccordion {
     pub fn item_indicator<'a>(
         &self,
         value: &str,
+        disabled: bool,
+        props: &AccordionProps,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item_indicator(self.item_state(value), attrs, children)
+        item_indicator(self.item_state(value), disabled, props, attrs, children)
     }
 
     /// [`item_content`] へ項目 `value` の現在状態を注入する利便メソッド。
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn item_content<'a>(
         &self,
         value: &str,
+        disabled: bool,
+        props: &AccordionProps,
         id: Option<&'a str>,
         labelled_by: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item_content(self.item_state(value), id, labelled_by, attrs, children)
+        item_content(
+            self.item_state(value),
+            disabled,
+            props,
+            id,
+            labelled_by,
+            attrs,
+            children,
+        )
     }
 }
 
@@ -433,7 +625,7 @@ impl Component for MultiAccordion {
     /// 共通契約（hydration ルート）のみを表す最小正準ビュー（root、children
     /// 空）。[`MultiSelect::view`] と同じ位置付け。
     fn view(&self) -> Node {
-        root(Vec::new(), Vec::new())
+        root(&AccordionProps::default(), Vec::new(), Vec::new())
     }
 
     fn decode_action(name: &str, payload: &str) -> Option<MultiSelectAction> {
@@ -459,30 +651,66 @@ mod tests {
     use fandhe_frontend_core::{render, text};
     use fandhe_frontend_interactive::{dispatch, render_for_hydration};
 
+    fn vertical() -> AccordionProps {
+        AccordionProps::default()
+    }
+
+    fn horizontal() -> AccordionProps {
+        AccordionProps {
+            orientation: Orientation::Horizontal,
+            disabled: false,
+        }
+    }
+
     // --- 各パーツの data-scope/data-part/data-state 出力 ---
 
     #[test]
-    fn root_outputs_scope_and_part_only() {
-        let html = render(&root(vec![], vec![]));
+    fn root_outputs_scope_part_and_orientation() {
+        let html = render(&root(&vertical(), vec![], vec![]));
         assert_eq!(
             html,
-            r#"<div data-scope="accordion" data-part="root"></div>"#
+            r#"<div data-scope="accordion" data-part="root" data-orientation="vertical"></div>"#
         );
+
+        let html_h = render(&root(&horizontal(), vec![], vec![]));
+        assert!(html_h.contains(r#"data-orientation="horizontal""#));
     }
 
     #[test]
-    fn item_outputs_scope_part_and_state() {
-        let html = render(&item(OpenState::Closed, false, vec![], vec![]));
+    fn root_caller_supplied_data_orientation_is_dropped() {
+        let html = render(&root(
+            &vertical(),
+            vec![("data-orientation", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-orientation="vertical""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn item_outputs_scope_part_state_and_orientation() {
+        let html = render(&item(OpenState::Closed, false, &vertical(), vec![], vec![]));
         assert!(html.contains(r#"data-scope="accordion""#));
         assert!(html.contains(r#"data-part="item""#));
         assert!(html.contains(r#"data-state="closed""#));
+        assert!(html.contains(r#"data-orientation="vertical""#));
         assert!(!html.contains("data-disabled"));
     }
 
     #[test]
     fn item_disabled_true_adds_data_disabled() {
-        let html = render(&item(OpenState::Open, true, vec![], vec![]));
+        let html = render(&item(OpenState::Open, true, &vertical(), vec![], vec![]));
         assert!(html.contains(r#"data-state="open""#));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn item_root_disabled_propagates_to_effective_disabled() {
+        let props = AccordionProps {
+            orientation: Orientation::Vertical,
+            disabled: true,
+        };
+        let html = render(&item(OpenState::Closed, false, &props, vec![], vec![]));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
@@ -491,6 +719,7 @@ mod tests {
         let html = render(&item_trigger(
             OpenState::Closed,
             false,
+            &vertical(),
             "a",
             None,
             None,
@@ -500,6 +729,7 @@ mod tests {
         assert!(html.contains("<button"));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"aria-expanded="false""#));
+        assert!(html.contains(r#"data-orientation="vertical""#));
         assert!(!html.contains("aria-controls"));
         assert!(!html.contains(" id="));
         assert!(!html.contains("disabled"));
@@ -507,6 +737,7 @@ mod tests {
         let html_open = render(&item_trigger(
             OpenState::Open,
             false,
+            &vertical(),
             "a",
             None,
             None,
@@ -521,6 +752,7 @@ mod tests {
         let html = render(&item_trigger(
             OpenState::Closed,
             false,
+            &vertical(),
             "t-trigger-a",
             Some("t-trigger-a"),
             Some("t-content-a"),
@@ -532,10 +764,11 @@ mod tests {
     }
 
     #[test]
-    fn item_trigger_disabled_true_adds_native_and_data_disabled() {
+    fn item_trigger_disabled_true_adds_native_data_and_aria_disabled() {
         let html = render(&item_trigger(
             OpenState::Closed,
             true,
+            &vertical(),
             "a",
             None,
             None,
@@ -544,13 +777,15 @@ mod tests {
         ));
         assert!(html.contains(r#"data-disabled="""#));
         assert!(html.contains(r#"disabled="""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
     }
 
     #[test]
-    fn item_trigger_disabled_false_omits_both_disabled_attrs() {
+    fn item_trigger_disabled_false_omits_all_disabled_attrs() {
         let html = render(&item_trigger(
             OpenState::Closed,
             false,
+            &vertical(),
             "a",
             None,
             None,
@@ -559,6 +794,45 @@ mod tests {
         ));
         assert!(!html.contains("data-disabled"));
         assert!(!html.contains(" disabled"));
+        assert!(!html.contains("aria-disabled"));
+    }
+
+    #[test]
+    fn item_trigger_root_disabled_propagates_to_effective_disabled() {
+        let props = AccordionProps {
+            orientation: Orientation::Vertical,
+            disabled: true,
+        };
+        let html = render(&item_trigger(
+            OpenState::Closed,
+            false,
+            &props,
+            "a",
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"disabled="""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
+    }
+
+    #[test]
+    fn item_trigger_caller_supplied_reserved_keys_are_dropped() {
+        let html = render(&item_trigger(
+            OpenState::Closed,
+            true,
+            &horizontal(),
+            "a",
+            None,
+            None,
+            vec![("data-orientation", "attacker"), ("aria-disabled", "false")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert!(!html.contains("attacker"));
     }
 
     // イシュー #1127: `data-value` は wasm-full `MAPPING_TABLE` の
@@ -570,6 +844,7 @@ mod tests {
         let html_a = render(&item_trigger(
             OpenState::Closed,
             false,
+            &vertical(),
             "a",
             None,
             None,
@@ -581,6 +856,7 @@ mod tests {
         let html_b = render(&item_trigger(
             OpenState::Open,
             false,
+            &vertical(),
             "b",
             None,
             None,
@@ -600,6 +876,7 @@ mod tests {
         let html = render(&item_trigger(
             OpenState::Closed,
             false,
+            &vertical(),
             payload,
             None,
             None,
@@ -613,27 +890,106 @@ mod tests {
     }
 
     #[test]
-    fn item_indicator_outputs_scope_part_and_state_only() {
-        let html = render(&item_indicator(OpenState::Open, vec![], vec![text("+")]));
+    fn item_indicator_outputs_scope_part_state_orientation_and_aria_hidden() {
+        let html = render(&item_indicator(
+            OpenState::Open,
+            false,
+            &vertical(),
+            vec![],
+            vec![text("+")],
+        ));
         assert!(html.contains(r#"data-scope="accordion""#));
         assert!(html.contains(r#"data-part="item-indicator""#));
         assert!(html.contains(r#"data-state="open""#));
+        assert!(html.contains(r#"data-orientation="vertical""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
         assert!(html.contains('+'));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn item_indicator_disabled_true_adds_data_disabled() {
+        let html = render(&item_indicator(
+            OpenState::Open,
+            true,
+            &vertical(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn item_indicator_caller_supplied_aria_hidden_is_dropped() {
+        let html = render(&item_indicator(
+            OpenState::Open,
+            false,
+            &vertical(),
+            vec![("aria-hidden", "false")],
+            vec![],
+        ));
+        assert!(html.contains(r#"aria-hidden="true""#));
     }
 
     #[test]
     fn item_content_closed_has_hidden_attr_open_does_not() {
-        let closed = render(&item_content(OpenState::Closed, None, None, vec![], vec![]));
+        let closed = render(&item_content(
+            OpenState::Closed,
+            false,
+            &vertical(),
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(closed.contains(r#"hidden="""#));
 
-        let open = render(&item_content(OpenState::Open, None, None, vec![], vec![]));
+        let open = render(&item_content(
+            OpenState::Open,
+            false,
+            &vertical(),
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(!open.contains("hidden"));
+    }
+
+    #[test]
+    fn item_content_disabled_true_adds_data_disabled() {
+        let html = render(&item_content(
+            OpenState::Open,
+            true,
+            &vertical(),
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
+    }
+
+    #[test]
+    fn item_content_outputs_orientation() {
+        let html = render(&item_content(
+            OpenState::Open,
+            false,
+            &horizontal(),
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
     }
 
     #[test]
     fn item_content_id_some_outputs_id_attribute() {
         let html = render(&item_content(
             OpenState::Open,
+            false,
+            &vertical(),
             Some("t-content-a"),
             None,
             vec![],
@@ -646,6 +1002,8 @@ mod tests {
     fn item_content_labelled_by_some_outputs_role_region_and_aria_labelledby_together() {
         let html = render(&item_content(
             OpenState::Open,
+            false,
+            &vertical(),
             None,
             Some("t-trigger-a"),
             vec![],
@@ -657,9 +1015,64 @@ mod tests {
 
     #[test]
     fn item_content_labelled_by_none_omits_role_and_aria_labelledby() {
-        let html = render(&item_content(OpenState::Open, None, None, vec![], vec![]));
+        let html = render(&item_content(
+            OpenState::Open,
+            false,
+            &vertical(),
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("role="));
         assert!(!html.contains("aria-labelledby"));
+    }
+
+    // 意図的に非採用とした属性・パートが一切出力されないことを固定する
+    // 回帰テスト（イシュー #1636、モジュール doc §参考サイト突合参照）。
+    #[test]
+    fn intentionally_omitted_attributes_are_absent() {
+        let props = AccordionProps {
+            orientation: Orientation::Horizontal,
+            disabled: true,
+        };
+        let node = root(
+            &props,
+            vec![],
+            vec![item(
+                OpenState::Open,
+                true,
+                &props,
+                vec![],
+                vec![
+                    item_trigger(
+                        OpenState::Open,
+                        true,
+                        &props,
+                        "a",
+                        None,
+                        None,
+                        vec![],
+                        vec![item_indicator(
+                            OpenState::Open,
+                            true,
+                            &props,
+                            vec![],
+                            vec![],
+                        )],
+                    ),
+                    item_content(OpenState::Open, true, &props, None, None, vec![], vec![]),
+                ],
+            )],
+        );
+        let html = render(&node);
+        assert!(!html.contains("data-focus"));
+        assert!(!html.contains("data-motion"));
+        assert!(!html.contains("data-ownedby"));
+        assert!(!html.contains("data-controls"));
+        assert!(!html.contains("--height"));
+        assert!(!html.contains("--width"));
+        assert!(!html.contains(r#"data-part="header""#));
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---
@@ -669,6 +1082,7 @@ mod tests {
         let html = render(&item(
             OpenState::Closed,
             false,
+            &vertical(),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
@@ -681,24 +1095,36 @@ mod tests {
 
     #[test]
     fn full_assembly_trigger_and_content_id_cross_reference() {
+        let props = vertical();
         let node = root(
+            &props,
             vec![],
             vec![item(
                 OpenState::Open,
                 false,
+                &props,
                 vec![],
                 vec![
                     item_trigger(
                         OpenState::Open,
                         false,
+                        &props,
                         "a",
                         Some("t-trigger-a"),
                         Some("t-content-a"),
                         vec![],
-                        vec![item_indicator(OpenState::Open, vec![], vec![text("+")])],
+                        vec![item_indicator(
+                            OpenState::Open,
+                            false,
+                            &props,
+                            vec![],
+                            vec![text("+")],
+                        )],
                     ),
                     item_content(
                         OpenState::Open,
+                        false,
+                        &props,
                         Some("t-content-a"),
                         Some("t-trigger-a"),
                         vec![],
@@ -710,12 +1136,12 @@ mod tests {
         assert_eq!(
             render(&node),
             concat!(
-                r#"<div data-scope="accordion" data-part="root">"#,
-                r#"<div data-scope="accordion" data-part="item" data-state="open">"#,
-                r#"<button data-scope="accordion" data-part="item-trigger" type="button" aria-expanded="true" data-state="open" data-value="a" id="t-trigger-a" aria-controls="t-content-a">"#,
-                r#"<span data-scope="accordion" data-part="item-indicator" data-state="open">+</span>"#,
+                r#"<div data-scope="accordion" data-part="root" data-orientation="vertical">"#,
+                r#"<div data-scope="accordion" data-part="item" data-state="open" data-orientation="vertical">"#,
+                r#"<button data-scope="accordion" data-part="item-trigger" type="button" aria-expanded="true" data-state="open" data-orientation="vertical" data-value="a" id="t-trigger-a" aria-controls="t-content-a">"#,
+                r#"<span data-scope="accordion" data-part="item-indicator" data-state="open" data-orientation="vertical" aria-hidden="true">+</span>"#,
                 r#"</button>"#,
-                r#"<div data-scope="accordion" data-part="item-content" data-state="open" id="t-content-a" role="region" aria-labelledby="t-trigger-a">panel A</div>"#,
+                r#"<div data-scope="accordion" data-part="item-content" data-state="open" data-orientation="vertical" id="t-content-a" role="region" aria-labelledby="t-trigger-a">panel A</div>"#,
                 r#"</div>"#,
                 r#"</div>"#,
             )
@@ -777,19 +1203,20 @@ mod tests {
     fn accordion_convenience_methods_reflect_state() {
         let mut a = Accordion::default();
         dispatch(&mut a, "select", "a");
+        let props = vertical();
 
-        let trigger_a = render(&a.item_trigger("a", false, None, None, vec![], vec![]));
+        let trigger_a = render(&a.item_trigger("a", false, &props, None, None, vec![], vec![]));
         assert!(trigger_a.contains(r#"aria-expanded="true""#));
         assert!(trigger_a.contains(r#"data-state="open""#));
 
-        let trigger_b = render(&a.item_trigger("b", false, None, None, vec![], vec![]));
+        let trigger_b = render(&a.item_trigger("b", false, &props, None, None, vec![], vec![]));
         assert!(trigger_b.contains(r#"aria-expanded="false""#));
         assert!(trigger_b.contains(r#"data-state="closed""#));
 
-        let content_a = render(&a.item_content("a", None, None, vec![], vec![]));
+        let content_a = render(&a.item_content("a", false, &props, None, None, vec![], vec![]));
         assert!(!content_a.contains("hidden"));
 
-        let content_b = render(&a.item_content("b", None, None, vec![], vec![]));
+        let content_b = render(&a.item_content("b", false, &props, None, None, vec![], vec![]));
         assert!(content_b.contains(r#"hidden="""#));
     }
 
@@ -853,6 +1280,7 @@ mod tests {
         let html = render(&item_trigger(
             OpenState::Closed,
             false,
+            &vertical(),
             ATTR_BREAK_PAYLOAD,
             Some(ATTR_BREAK_PAYLOAD),
             Some(ATTR_BREAK_PAYLOAD),
@@ -867,6 +1295,8 @@ mod tests {
     fn item_content_id_and_labelled_by_payload_is_escaped_on_render() {
         let html = render(&item_content(
             OpenState::Open,
+            false,
+            &vertical(),
             Some(ATTR_BREAK_PAYLOAD),
             Some(ATTR_BREAK_PAYLOAD),
             vec![],
@@ -878,7 +1308,11 @@ mod tests {
 
     #[test]
     fn caller_attrs_payload_is_escaped_on_render() {
-        let html = render(&root(vec![("data-testid", ATTR_BREAK_PAYLOAD)], vec![]));
+        let html = render(&root(
+            &vertical(),
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
     }
 
@@ -886,6 +1320,8 @@ mod tests {
     fn children_text_is_escaped_on_render() {
         let html = render(&item_indicator(
             OpenState::Open,
+            false,
+            &vertical(),
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));
@@ -982,19 +1418,20 @@ mod tests {
         let mut a = MultiAccordion::default();
         dispatch(&mut a, "select", "a");
         dispatch(&mut a, "select", "b");
+        let props = vertical();
 
-        let trigger_a = render(&a.item_trigger("a", false, None, None, vec![], vec![]));
+        let trigger_a = render(&a.item_trigger("a", false, &props, None, None, vec![], vec![]));
         assert!(trigger_a.contains(r#"aria-expanded="true""#));
-        let trigger_b = render(&a.item_trigger("b", false, None, None, vec![], vec![]));
+        let trigger_b = render(&a.item_trigger("b", false, &props, None, None, vec![], vec![]));
         assert!(trigger_b.contains(r#"aria-expanded="true""#));
-        let trigger_c = render(&a.item_trigger("c", false, None, None, vec![], vec![]));
+        let trigger_c = render(&a.item_trigger("c", false, &props, None, None, vec![], vec![]));
         assert!(trigger_c.contains(r#"aria-expanded="false""#));
 
-        let content_a = render(&a.item_content("a", None, None, vec![], vec![]));
+        let content_a = render(&a.item_content("a", false, &props, None, None, vec![], vec![]));
         assert!(!content_a.contains("hidden"));
-        let content_b = render(&a.item_content("b", None, None, vec![], vec![]));
+        let content_b = render(&a.item_content("b", false, &props, None, None, vec![], vec![]));
         assert!(!content_b.contains("hidden"));
-        let content_c = render(&a.item_content("c", None, None, vec![], vec![]));
+        let content_c = render(&a.item_content("c", false, &props, None, None, vec![], vec![]));
         assert!(content_c.contains(r#"hidden="""#));
     }
 

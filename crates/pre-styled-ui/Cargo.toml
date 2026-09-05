@@ -1785,7 +1785,35 @@ name = "fandhe-frontend-pre-styled-ui"
 # 自体の CSS 実体変更はなし）。0.x の破壊的変更はマイナーバンプとする規約
 # （.claude/rules/coding-rust.md）に従い、0.107.2 からマイナーバンプで
 # 0.108.0 とする。
-version = "0.108.0"
+# base 再取り込み（イシュー #1643, 2026-09-06）: main 側で独立に到達して
+# いた 0.106.2（イシュー #1651: headless-ui 0.54.2 依存追随、本クレート
+# 自体の実体変更なし）は本ブランチの 0.107.0（headless-ui 0.55.0 依存
+# 追随に伴うマイナーバンプ）に未反映のため、依存先を headless-ui
+# 0.55.1（base 再取り込みで解決した最終版、`crates/headless-ui/
+# Cargo.toml` 参照）へ追随させる patch バンプとして 0.107.1 とする
+# （本クレート自体の実体変更なし）。
+# base 再取り込み（イシュー #1636 マージ, 2026-09-06）: 本ブランチ（#1636
+# accordion）は依存先 headless-ui の `AccordionProps` 新設（0.56.0 へ確定、
+# `crates/headless-ui/Cargo.toml` 冒頭コメント参照）に追随し、styled
+# `accordion::root` へ `AccordionProps` 引数を追加する破壊的変更を含む
+# （`crates/pre-styled-ui/src/accordion.rs` 参照）。main 側は上記の一連の
+# 変更（action_bar〜menu 依存追随）を経て独立に 0.107.1 へ到達しており、
+# 本ブランチの到達点と偶発的に同一版数 0.107.1 へ衝突する（同一版数への
+# 偶発的衝突をそのまま採用しない原則、`docs/ci/
+# style-refresh-version-bump-operation.md` §5）。両者の破壊的変更の和集合
+# として、さらにマイナーバンプで 0.108.0 とする（headless-ui 0.56.0 への
+# 依存追随を含む）。
+# base 再取り込み（イシュー #1652, 2026-09-06）: main 側は本ブランチとは独立に
+# accordion（#1636）の破壊的変更を経て headless-ui 0.56.0 依存追随を含む
+# 0.108.0 へ到達しており、本ブランチも menubar 経由の headless-ui
+# 破壊的変更是正（依存先 headless-ui 0.56.0 への追随、上記参照）により
+# 独立に 0.108.0 へ到達していた。両者が同一版数へ偶発的に衝突している
+# ため（同一版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
+# style-refresh-version-bump-operation.md` §5）、依存先を headless-ui
+# 0.57.0（base 再取り込みで解決した最終版、`crates/headless-ui/Cargo.toml`
+# 参照）へ追随させつつ、両者の破壊的変更の和集合としてさらにマイナー
+# バンプで 0.109.0 とする。
+version = "0.109.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1800,7 +1828,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.56.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.57.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
