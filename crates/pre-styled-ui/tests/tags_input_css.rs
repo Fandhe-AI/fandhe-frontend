@@ -24,6 +24,12 @@
 //! は headless 側が可変属性を出力しないため対象外（`crates/pre-styled-ui/
 //! src/tags_input.rs` モジュール rustdoc「内部パートのスタイル調整」節
 //! 参照）。`clear-trigger`/`label` は変更なし。
+//!
+//! イシュー #1623 codex-review 指摘の是正で `item-preview[hidden] {
+//! display: none }` を追加した（`item-preview` base の `display:
+//! inline-flex` が UA 既定の `[hidden]` 非表示より詳細度で勝ち、編集中も
+//! 旧チップが表示されたままになる不具合の是正、`crates/pre-styled-ui/
+//! src/tags_input.rs` モジュール rustdoc 参照）。
 
 use fandhe_frontend_pre_styled_ui::tags_input;
 
@@ -182,6 +188,10 @@ const TAGS_INPUT_GOLDEN_CSS: &str = r#"[data-scope="tags-input"][data-part="root
 [data-scope="tags-input"][data-part="item-preview"][data-highlighted] {
   background: var(--fandhe-color-accent);
   color: var(--fandhe-color-accent-fg);
+}
+
+[data-scope="tags-input"][data-part="item-preview"][hidden] {
+  display: none;
 }
 
 [data-scope="tags-input"][data-part="item-delete-trigger"][data-disabled] {

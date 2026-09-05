@@ -1252,12 +1252,27 @@ fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした label の children 経路。
-        let html = render(&tags_input::label(vec![], vec![text(payload)]));
+        let html = render(&tags_input::label(
+            &tags_input::TagsInputProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
         assert_payload_is_escaped(payload, &html, "tags_input::label children コンテキスト");
+
+        let item_state = tags_input::TagItem {
+            value: payload,
+            disabled: false,
+            editing: false,
+            highlighted: false,
+        };
 
         // 選択的再エクスポートした item_text の children 経路（タグ文字列
         // そのもの、REQ-1 の重点対象）。
-        let html = render(&tags_input::item_text(vec![], vec![text(payload)]));
+        let html = render(&tags_input::item_text(
+            &item_state,
+            vec![],
+            vec![text(payload)],
+        ));
         assert_payload_is_escaped(
             payload,
             &html,
@@ -1265,13 +1280,12 @@ fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした item_input の value 経路。
-        let html = render(&tags_input::item_input(payload, vec![]));
+        let html = render(&tags_input::item_input(&item_state, payload, vec![]));
         assert_payload_is_escaped(payload, &html, "tags_input::item_input value コンテキスト");
 
         // 選択的再エクスポートした item_delete_trigger の aria-label コンテキスト。
         let html = render(&tags_input::item_delete_trigger(
-            payload,
-            false,
+            &item_state,
             vec![],
             vec![],
         ));
@@ -1282,7 +1296,12 @@ fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
 
         // 選択的再エクスポートした hidden_input の name/value 経路。
-        let html = render(&tags_input::hidden_input(payload, payload, false, vec![]));
+        let html = render(&tags_input::hidden_input(
+            &tags_input::TagsInputProps::default(),
+            payload,
+            payload,
+            vec![],
+        ));
         assert_payload_is_escaped(
             payload,
             &html,

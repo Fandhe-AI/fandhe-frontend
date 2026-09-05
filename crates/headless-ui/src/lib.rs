@@ -264,14 +264,16 @@
 //!   + `aria-live="polite"` + `aria-atomic="true"` 固定、イシュー #1069）。
 //! - [`mod@tags_input`]: Root / Label / Control / Input / Item / ItemPreview /
 //!   ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput /
-//!   LiveRegion の 12 anatomy パーツと、可変長タグ文字列リスト + 編集中
-//!   インデックスを持つ [`tags_input::TagsInput`] 状態機械（#744、親
-//!   #736/#726）。[`mod@pin_input`]/[`mod@number_input`] と同じく [`state`]
-//!   の既存語彙に収まらないため、[`fandhe_frontend_interactive::Component`]/
-//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
-//!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
-//!   指定する listbox 相当の ARIA）。`live_region` はタグ数の変化を通知する
-//!   live region（[`mod@combobox`] の `live_region` と同型、イシュー #1069）。
+//!   LiveRegion の 12 anatomy パーツと、可変長タグ文字列リスト + 編集中/
+//!   強調中インデックスを持つ [`tags_input::TagsInput`] 状態機械（#744、親
+//!   #736/#726。参照突合はイシュー #1623）。[`mod@pin_input`]/
+//!   [`mod@number_input`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control`/
+//!   `item_preview` は `role` を持たない（#1623 で zag/ark 準拠へ是正、
+//!   旧実装の `role="listbox"`/`role="option"` は撤去）。`live_region` は
+//!   タグ数の変化を通知する live region（[`mod@combobox`] の
+//!   `live_region` と同型、イシュー #1069）。
 //! - [`mod@file_upload`]: Root / Label / Dropzone / Trigger / ItemGroup /
 //!   Item / ItemName / ItemSizeText / ItemDeleteTrigger / ClearTrigger /
 //!   HiddenInput の 11 anatomy パーツと、ファイルメタデータ（[`file_upload::FileUploadItem`]:
@@ -809,7 +811,7 @@ pub use state::{
 pub use steps::{Steps, StepsAction};
 pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
-pub use tags_input::{TagsInput, TagsInputAction};
+pub use tags_input::{TagItem, TagsInput, TagsInputAction, TagsInputProps};
 pub use toast::{ToastAction, ToastEntry, ToastPlacement, ToastStatus, Toaster};
 pub use toggle::{Toggle, ToggleAction};
 pub use toggle_group::{MultiToggleGroup, ToggleGroup, ToggleGroupProps};
