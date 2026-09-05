@@ -1668,9 +1668,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # style-refresh-version-bump-operation.md` §5）に従いさらにマイナーバンプで
 # 0.102.0 とする。
 # イシュー #1637: headless-ui 0.51.0 依存追随（collapsible の
-# indicator/content シグネチャ変更。`crates/pre-styled-ui/src/` は
-# collapsible を持たず再エクスポートのみのため patch バンプで 0.102.1 とする。
-version = "0.102.1"
+# indicator/content シグネチャ変更。`crates/pre-styled-ui/src/` 自体は
+# collapsible を持たないが、src/lib.rs で headless-ui 全体を公開
+# 再エクスポートしているため、この破壊的変更は pre-styled-ui 利用者にも
+# 破壊的変更として波及する。当初 patch バンプ（0.102.1）としたのは誤りで、
+# `docs/ci/style-refresh-version-bump-operation.md` §5・coding-rust.md
+# 「0.x の破壊的変更はマイナーバンプ」に従いマイナーバンプで 0.103.0 とする
+# （codex-review 指摘、PR #1908）。
+version = "0.103.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
