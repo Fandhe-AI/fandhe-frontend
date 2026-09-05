@@ -305,16 +305,33 @@ fn ex_carousel_vertical_loop() -> Node {
 /// `tests/site_css_contract.rs`）へは追加しない。イシュー #1660 で追加した
 /// `data-index`（トラック水平移動）・`data-orientation="vertical"`（縦方向
 /// 切替）・`data-current`（indicator の強調表示）・`data-disabled`
-/// （trigger の減光）の 4 セレクタを実演する。
+/// （trigger の減光）の 4 セレクタを実演する。`root` を `overflow: hidden`
+/// の表示領域（クリッパー）、`item-group` を実際に動く軌道（トラック）に
+/// 分離し、`item-group` の `transform` が `Carousel::item_group` の
+/// `style` 出力する `--fandhe-carousel-index` を `calc()` で参照して現在
+/// 位置に応じた `translateX`（水平）/`translateY`（垂直、
+/// `data-orientation="vertical"` 側で上書き）を反映する
+/// （`crates/pre-styled-ui/src/carousel.rs` の `recipe()` と同じ
+/// root=クリッパー/item-group=トラックの分離構造）。codex-review 指摘
+/// #1925 是正: 是正前は `overflow: hidden` と `transform` を同じ
+/// `item-group` へ重ねており、トラックを動かすとクリップ領域ごと
+/// 一緒にずれて index=1 でも Slide 1 が表示されたままだった（クリッパーと
+/// トラックが同一要素だとクリップ座標系ごと移動してしまうため）。
 const CAROUSEL_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"carousel\"][data-part=\"root\"] {\n  \
+  overflow: hidden;\n  width: 100%;\n  height: 12rem;\n\
+}\n\
 [data-scope=\"carousel\"][data-part=\"item-group\"] {\n  \
-  display: flex;\n  overflow: hidden;\n\
+  display: flex;\n  \
+  transform: translateX(calc(var(--fandhe-carousel-index) * -100%));\n  \
+  transition: transform 0.2s;\n\
 }\n\
 [data-scope=\"carousel\"][data-part=\"item\"] {\n  \
-  flex: 0 0 100%;\n  transition: transform 0.2s;\n\
+  flex: 0 0 100%;\n\
 }\n\
 [data-scope=\"carousel\"][data-part=\"item-group\"][data-orientation=\"vertical\"] {\n  \
-  flex-direction: column;\n\
+  flex-direction: column;\n  \
+  transform: translateY(calc(var(--fandhe-carousel-index) * -100%));\n\
 }\n\
 [data-scope=\"carousel\"][data-part=\"indicator\"][data-current] {\n  \
   background: #2563eb;\n\
@@ -361,7 +378,7 @@ fn ex_carousel_custom_css() -> Node {
         ],
     );
     wrap_example(
-        "利用者が data-scope / data-part / data-orientation / data-current / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません（トラック移動量は item_group の style=\"--fandhe-carousel-index: N\" を calc() で参照します）。",
+        "利用者が data-scope / data-part / data-orientation / data-current / data-disabled 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません（root を表示領域〔overflow: hidden〕、item-group をトラックとして分離し、item_group の style=\"--fandhe-carousel-index: N\" を calc() で参照する transform〔水平は translateX、縦方向は translateY〕で現在位置までスライドを移動します）。",
         vec![
             node,
             pre(
