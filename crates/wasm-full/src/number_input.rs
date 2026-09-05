@@ -250,6 +250,13 @@ fn set_action_name(input: &impl AttrSource) -> String {
 /// みキャレット確定前の値を同期する `"set"` を先に含む 2 件、それ以外は
 /// 1 件）。
 ///
+/// `raw_value` の前後空白は本関数内で trim してから空欄判定・`"set"`
+/// payload の双方に使う（PR #1881 codex P1 / Bugbot Medium 是正）。
+/// `NumberInput::decode_action` の `parse::<f64>()` は前後空白を含む
+/// 文字列を受理しないため、配線側で trim してから同期しないと
+/// 「空白付きの値を貼り付けて増減キーを押しても反映されない」不具合が
+/// 生じる。
+///
 /// 複数インスタンスの識別方式はモジュール冒頭 doc「複数インスタンスの
 /// 識別」節参照。
 #[must_use]
@@ -258,6 +265,15 @@ pub fn resolve_dispatches(
     input: &impl AttrSource,
     raw_value: &str,
 ) -> Vec<ActionRef> {
+    // PR #1881 codex P1 / Bugbot Medium 是正: `decode_action` の
+    // `parse::<f64>()` は前後空白を含む文字列を拒否する（Rust の
+    // `f64::from_str` 仕様）ため、`"set"` へ渡す payload は必ずここで
+    // trim 済みの値を使う。空欄判定（下記 `KeyAction::Set` 分岐）と
+    // 同じ trim 済み値を共有することで、判定に使った値と実際に
+    // dispatch する値が食い違わないようにする（前後空白を含む値を
+    // 貼り付けて ArrowUp/ArrowDown/Enter を押しても "set" の同期が
+    // no-op にならず正しく反映される）。
+    let trimmed_value = raw_value.trim();
     match key_action {
         // PR #1881 codex-review P1 是正その 1: 増減の直前にタイプ中の
         // `input.value` を `"set"`（または上書き名）として同期 dispatch
@@ -267,7 +283,7 @@ pub fn resolve_dispatches(
         KeyAction::Increment => vec![
             ActionRef {
                 action: set_action_name(input),
-                payload: raw_value.to_string(),
+                payload: trimmed_value.to_string(),
             },
             ActionRef {
                 action: ACTION_INCREMENT.to_string(),
@@ -277,7 +293,7 @@ pub fn resolve_dispatches(
         KeyAction::Decrement => vec![
             ActionRef {
                 action: set_action_name(input),
-                payload: raw_value.to_string(),
+                payload: trimmed_value.to_string(),
             },
             ActionRef {
                 action: ACTION_DECREMENT.to_string(),
@@ -296,7 +312,7 @@ pub fn resolve_dispatches(
         // （`decode_action` が空文字列パース失敗で no-op にし旧値が残留
         // する）ではなく `"clear"` へ分岐し、未入力状態へ正しく同期する。
         KeyAction::Set => {
-            if raw_value.trim().is_empty() {
+            if trimmed_value.is_empty() {
                 vec![ActionRef {
                     action: ACTION_CLEAR.to_string(),
                     payload: instance_payload(input),
@@ -304,7 +320,7 @@ pub fn resolve_dispatches(
             } else {
                 vec![ActionRef {
                     action: set_action_name(input),
-                    payload: raw_value.to_string(),
+                    payload: trimmed_value.to_string(),
                 }]
             }
         }
@@ -833,6 +849,65 @@ mod tests {
                     payload: "price".to_string(),
                 },
             ]
+        );
+    }
+
+    // --- resolve_dispatches（PR #1881 codex P1 / Bugbot Medium 是正:
+    // "set" payload の前後空白除去）---
+
+    /// 前後空白付きの値（`" 8"`）を Increment/Decrement/Set いずれで同期
+    /// しても、`"set"` payload は trim 済み文字列（`"8"`）になること。
+    /// trim せず `input.value` をそのまま渡すと
+    /// `NumberInput::decode_action` の `parse::<f64>()` が前後空白を
+    /// 拒否し no-op になる不具合の回帰テスト。
+    #[test]
+    fn resolve_dispatches_trims_leading_and_trailing_whitespace_for_set_payload() {
+        let input = input_with(&[]);
+
+        assert_eq!(
+            resolve_dispatches(KeyAction::Increment, &input, " 8")[0],
+            ActionRef {
+                action: "set".to_string(),
+                payload: "8".to_string(),
+            }
+        );
+        assert_eq!(
+            resolve_dispatches(KeyAction::Decrement, &input, " 8")[0],
+            ActionRef {
+                action: "set".to_string(),
+                payload: "8".to_string(),
+            }
+        );
+        assert_eq!(
+            resolve_dispatches(KeyAction::Set, &input, " 8 ")[0],
+            ActionRef {
+                action: "set".to_string(),
+                payload: "8".to_string(),
+            }
+        );
+    }
+
+    /// 空白のみの値（`"  "`）は trim 後空文字として扱われ、Increment/
+    /// Decrement の同期 `"set"` payload も空文字になる（既存の
+    /// `KeyAction::Set` 分岐の空欄判定〔`"clear"` へ分岐〕と同じ trim
+    /// 済み値を共有していることの確認）。
+    #[test]
+    fn resolve_dispatches_whitespace_only_value_trims_to_empty_set_payload() {
+        let input = input_with(&[]);
+
+        assert_eq!(
+            resolve_dispatches(KeyAction::Increment, &input, "  ")[0],
+            ActionRef {
+                action: "set".to_string(),
+                payload: String::new(),
+            }
+        );
+        assert_eq!(
+            resolve_dispatches(KeyAction::Set, &input, "  "),
+            vec![ActionRef {
+                action: "clear".to_string(),
+                payload: String::new(),
+            }]
         );
     }
 }

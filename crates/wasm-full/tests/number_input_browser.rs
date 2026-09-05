@@ -475,6 +475,78 @@ fn arrow_up_with_non_numeric_typed_value_falls_back_to_state_value() {
     assert_eq!(input.get_attribute("value").as_deref(), Some("6"));
 }
 
+/// PR #1881 codex P1 / Bugbot Medium 是正の回帰テスト: 入力欄に前後
+/// 空白付きの値（`" 8"`）を書き込んで ArrowUp を押した場合、trim せず
+/// `input.value` をそのまま `"set"` payload にすると
+/// `NumberInput::decode_action` の `parse::<f64>()` が前後空白を拒否し
+/// no-op になり、編集前の状態値 5 を基準に +1 された 6 になってしまう
+/// （不具合時の挙動）。是正後は trim 済みの 8 を基準に +1 された 9 に
+/// なること。
+#[wasm_bindgen_test]
+fn arrow_up_syncs_typed_value_with_surrounding_whitespace_before_incrementing() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let (root, input) = build_number_input_dom(
+        &document,
+        "ni-arrow-up-sync-whitespace",
+        &number_input,
+        NumberInputFlags::default(),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    // 状態値は 5 のまま、実利用者が前後空白付きの値をペーストした状態を
+    // 模す（キャレット確定前）。
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+    html_input.set_value(" 8");
+
+    input.dispatch_event(&keydown_event("ArrowUp")).unwrap();
+
+    assert_eq!(
+        component.borrow().value(),
+        Some(9.0),
+        "前後空白を trim してから同期し、8 を基準に +1 された 9 になること（6 は不具合時の挙動）"
+    );
+    assert_eq!(input.get_attribute("value").as_deref(), Some("9"));
+    assert_eq!(input.get_attribute("aria-valuenow").as_deref(), Some("9"));
+}
+
+/// PR #1881 codex P1 / Bugbot Medium 是正の回帰テスト: 前後空白付きの
+/// 値（`" 8 "`）を Enter で確定した場合、trim せず `"set"` payload に
+/// 渡すと `decode_action` が no-op になり編集前の状態値 5 のまま残留
+/// してしまう（不具合時の挙動）。是正後は trim 済みの 8 が反映される
+/// こと。
+#[wasm_bindgen_test]
+fn enter_commits_typed_value_with_surrounding_whitespace() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let (root, input) = build_number_input_dom(
+        &document,
+        "ni-enter-whitespace",
+        &number_input,
+        NumberInputFlags::default(),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_full_dom_reflection(root, component);
+
+    let html_input = input.clone().dyn_into::<HtmlInputElement>().unwrap();
+    html_input.set_value(" 8 ");
+
+    input.dispatch_event(&keydown_event("Enter")).unwrap();
+
+    assert_eq!(
+        component.borrow().value(),
+        Some(8.0),
+        "前後空白を trim してから確定し、8 が反映されること（5 のまま残留は不具合時の挙動）"
+    );
+    assert_eq!(input.get_attribute("value").as_deref(), Some("8"));
+    assert_eq!(input.get_attribute("aria-valuenow").as_deref(), Some("8"));
+}
+
 #[wasm_bindgen_test]
 fn enter_with_blank_input_clears_the_value() {
     let document = web_sys::window().unwrap().document().unwrap();
