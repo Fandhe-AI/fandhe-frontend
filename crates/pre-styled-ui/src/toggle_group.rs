@@ -296,12 +296,17 @@ fn recipe() -> SlotRecipe {
 ///    `StateCondition` は自パーツの属性条件のみを表現し、構造擬似クラスを
 ///    持たない）。
 /// 2. **hover** は祖先 `root` の `[data-disabled]` 不在を前提に含む必要が
-///    ある。headless 層の `root(disabled: true, ...)` は root にのみ
-///    `data-disabled` を付与し子 `item` へは伝播しない
-///    （`crates/headless-ui/src/toggle_group.rs` 参照）ため、`item` 自身の
-///    `data-disabled` だけを見る宣言では group 全体が disabled でも
-///    個々の item に hover 背景が付いてしまう（[`crate::listbox::stylesheet`]
-///    が同じ理由で raw CSS 追記している先例と同型の問題・同型の対処）。
+///    ある。headless 層の `item` は `ToggleGroupProps.disabled` を
+///    `root`/`item` 双方で同じ `props` を渡した場合にのみ伝播する
+///    （イシュー #1630 の是正、`crates/headless-ui/src/toggle_group.rs`
+///    参照）ため、`item` 個別の `disabled` 引数のみを渡す・root と異なる
+///    `props` を渡す等で group 全体が disabled でも `item` 自身に
+///    `data-disabled` が付かない呼び出し方が構造的にあり得る。`item` 自身の
+///    `data-disabled` だけを見る宣言では、そうした呼び出しで個々の item に
+///    hover 背景が付いてしまう（[`crate::listbox::stylesheet`] が同じ理由で
+///    raw CSS 追記している先例と同型の問題・同型の対処。祖先 `root` の
+///    `[data-disabled]` 不在を hover 条件に含めることで、呼び出し側の
+///    `props` 渡し方に依らず一貫した抑止になる）。
 ///
 /// いずれも [`marquee::css`](crate::marquee) / [`crate::listbox::stylesheet`]
 /// と同型の raw CSS 追記パターンで、[`recipe().css()`](SlotRecipe::css) の
