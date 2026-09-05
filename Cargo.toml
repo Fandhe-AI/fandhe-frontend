@@ -2,3 +2,26 @@
 resolver = "2"
 # 全メンバークレートは crates/ 配下に配置する（イシュー #436）。
 members = ["crates/*"]
+
+# REQ-11（gzip 200KB 上限）対応: wasm ターゲットへリンクされる各クレートの
+# codegen-units を 1 に固定し、クレート内インライン化・デッドコード除去を
+# 強化してバンドルサイズを削減する（イシュー #1647 の action-bar 追加分で
+# 200KB 上限を超過した是正、`docs/ci/wasm-opt-adoption-evaluation.md` 追記
+# 参照）。`codegen-units = 1` は最適化度を上げるのみで意味論を変えず、
+# native（server/cli/dist-server）ビルドの実行時性能を損なわない（コンパイル
+# 時間が伸びるのみ）。opt-level のような速度とのトレードオフを伴う調整は
+# `.cargo/config.toml` の `[target.wasm32-unknown-unknown]` 側（wasm ターゲット
+# のみへ限定）に置き、native ビルドへ波及させない（同評価文書が明記する
+# 「native SSR 性能を損なわない」制約を維持する設計）。
+[profile.release.package.fandhe-frontend-core]
+codegen-units = 1
+[profile.release.package.fandhe-frontend-interactive]
+codegen-units = 1
+[profile.release.package.fandhe-frontend-headless-ui]
+codegen-units = 1
+[profile.release.package.fandhe-frontend-app]
+codegen-units = 1
+[profile.release.package.fandhe-frontend-wasm-client]
+codegen-units = 1
+[profile.release.package.fandhe-frontend-wasm-full]
+codegen-units = 1

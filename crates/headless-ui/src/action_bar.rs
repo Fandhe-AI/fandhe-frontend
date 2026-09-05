@@ -34,6 +34,38 @@
 //!   中央固定のみ実装する。variant 追加は styled 層の `SlotRecipe::variant`
 //!   で後続可能。
 //!
+//! # 参照基準（イシュー #1647: chakra-ui / Ark Popover との突合）
+//!
+//! ark-ui・Radix Primitives のいずれにも ActionBar 相当のコンポーネントは
+//! 存在しない（`docs/design/component-coverage-map.md` も chakra-ui 単独
+//! 参照）。chakra-ui の ActionBar 実装は独自の状態機械を持たず、Ark
+//! Popover（zag.js `popover.connect`）をそのまま再利用している。このため
+//! 本モジュールの属性仕様は zag.js popover の出力を基準に据える。
+//!
+//! - **是正**: [`content`] の `role` は `"toolbar"`（roving tabindex 等の
+//!   APG toolbar パターン必須要件を満たさない不完全な適用）から
+//!   `"dialog"`（非モーダル、`aria-modal` は付与しない）へ変更する
+//!   （**破壊的変更**）。あわせて開状態のみ [`crate::data_attrs::data_expanded`]
+//!   を付与し、`tabindex="-1"`（chakra `autoFocus: false` に対応。開時に
+//!   フォーカスを自動移動しない）を固定で付与する（呼び出し側 `attrs` に
+//!   `tabindex` があれば出力しない）。[`close_trigger`] は呼び出し側
+//!   `attrs` に `aria-label` が無く、かつ `children` が空（可視テキストを
+//!   持たない）のときに限り既定値 `"close"`
+//!   （[`CLOSE_TRIGGER_ARIA_LABEL`]、zag.js popover の `translations.closeTrigger`
+//!   既定値に合わせた固定英語リテラル）を付与する。`children` に可視
+//!   テキストがある場合は既定 `aria-label` を付与しない（WCAG 2.5.3
+//!   Label in Name 違反防止、Cursor Bugbot 指摘、PR #1909）。
+//! - **意図的に合わせない差分**: [`root`]（hydration ルートとして DOM を持つ
+//!   必要があるため、Ark Popover の DOM を描画しない `Root` と異なる）・
+//!   [`positioner`]（`hidden` 存在属性を pre-styled-ui が利用するため付与、
+//!   参照は素の `div`）・[`separator`]（`role="separator"` +
+//!   `aria-orientation="vertical"` を a11y 上の superset として維持、参照は
+//!   素の `div`）・`data-placement`/`data-side`（placement variant は
+//!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2 によりスタイル
+//!   層の責務としてスコープ外のまま）・`popover.rs::close_trigger` が既定
+//!   `aria-label` を持たない点（本イシューでは popover 自体を触らない、
+//!   別 issue の論点として据え置く）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`aria-*`/`role`/`type`/`hidden`）はすべて `&'static str`
@@ -52,7 +84,7 @@
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_label, aria_orientation, role};
-use crate::data_attrs::{data_state, Orientation};
+use crate::data_attrs::{data_expanded, data_state, Orientation};
 use crate::state::{Disclosure, DisclosureAction, OpenState};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
@@ -87,9 +119,13 @@ pub fn positioner<'a>(
 
 /// Content パーツ（`div`）。ActionBar 本体。
 ///
-/// `role="toolbar"` + `aria-label`（`label` は選択操作バーの読み上げ名、
-/// 呼び出し側が渡す必須引数）を付与する。closed のとき `hidden` 存在属性を
-/// 付与する。
+/// `role="dialog"`（非モーダル、`aria-modal` は付与しない） + `aria-label`
+/// （`label` は選択操作バーの読み上げ名、呼び出し側が渡す必須引数）を
+/// 付与する。開状態のときのみ `data-expanded` 存在属性を付与し（参照基準
+/// である zag.js popover の content と同じ語彙、モジュール doc「参照基準」
+/// 節参照）、`tabindex="-1"` を固定で付与する（呼び出し側 `attrs` に
+/// `tabindex` が既にあれば出力しない、[`has_caller_attr`] 参照）。closed の
+/// とき `hidden` 存在属性を付与する。
 #[must_use]
 pub fn content<'a>(
     state: OpenState,
@@ -98,12 +134,16 @@ pub fn content<'a>(
     children: Vec<Node>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![
-        role("toolbar"),
+        role("dialog"),
         aria_label(label),
         data_state(state.as_data_state()),
     ];
+    merged.extend(data_expanded(state.is_open()));
     if !state.is_open() {
         merged.push(("hidden", ""));
+    }
+    if !has_caller_attr(&attrs, "tabindex") {
+        merged.push(("tabindex", "-1"));
     }
     merged.extend(attrs);
     ANATOMY.part("content", "div", merged, children)
@@ -135,13 +175,38 @@ pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
     ANATOMY.part("separator", "div", merged, children)
 }
 
-/// CloseTrigger パーツ（`button`）。ラベル（`aria-label`/children）は
-/// 呼び出し側が `attrs`/`children` で付与する。
+/// [`close_trigger`] の既定 `aria-label`（zag.js popover の
+/// `translations.closeTrigger` 既定値 `"close"` に合わせた固定英語リテラル、
+/// `.claude/rules/japanese-style.md` のユーザー向け文字列は英語規約）。
+/// 呼び出し側 `attrs` に独自の `aria-label` があれば出力しない
+/// （[`has_caller_attr`] 参照）。
+pub const CLOSE_TRIGGER_ARIA_LABEL: &str = "close";
+
+/// 呼び出し側 `attrs` に指定の属性キーが既に含まれるかを判定する
+/// （[`crate::clipboard`]/[`crate::number_input`] の同名ヘルパと同型の
+/// dedup 判断、fail-closed。重複属性による無効な HTML 出力・後勝ちの
+/// 非決定的な描画を防ぐ）。
+fn has_caller_attr(attrs: &[(&str, &str)], key: &str) -> bool {
+    attrs.iter().any(|(k, _)| k.eq_ignore_ascii_case(key))
+}
+
+/// CloseTrigger パーツ（`button`）。ラベルテキスト（children）は呼び出し側
+/// が `children` で付与する。`aria-label` は呼び出し側 `attrs` に指定が
+/// なく、かつ `children` が空（アイコンのみ等の可視テキストを持たない
+/// ボタン）のときに限り既定値 [`CLOSE_TRIGGER_ARIA_LABEL`] を付与する。
+/// `children` に可視テキスト（例: "Done"）がある場合は既定 `aria-label`
+/// を付与しない: `aria-label` はアクセシブルネームを完全に上書きするため、
+/// 可視テキストがあるにもかかわらず固定の `"close"` を付与すると
+/// 支援技術は可視テキストを読み上げず、WCAG 2.5.3 Label in Name 違反と
+/// なる（Cursor Bugbot 指摘、PR #1909）。
 ///
 /// [`selection_trigger`] と同じく `type="button"` を固定で付与する。
 #[must_use]
 pub fn close_trigger<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
+    if children.is_empty() && !has_caller_attr(&attrs, "aria-label") {
+        merged.push(("aria-label", CLOSE_TRIGGER_ARIA_LABEL));
+    }
     merged.extend(attrs);
     ANATOMY.part("close-trigger", "button", merged, children)
 }
@@ -287,9 +352,11 @@ mod tests {
     }
 
     #[test]
-    fn content_has_role_toolbar_and_aria_label() {
+    fn content_has_role_dialog_and_aria_label() {
         let html = render(&content(OpenState::Open, "3 selected", vec![], vec![]));
-        assert!(html.contains(r#"role="toolbar""#));
+        assert!(html.contains(r#"role="dialog""#));
+        assert!(!html.contains(r#"role="toolbar""#));
+        assert!(!html.contains("aria-modal"));
         assert!(html.contains(r#"aria-label="3 selected""#));
         assert!(html.contains(r#"data-part="content""#));
     }
@@ -301,6 +368,30 @@ mod tests {
 
         let open = render(&content(OpenState::Open, "label", vec![], vec![]));
         assert!(!open.contains("hidden"));
+    }
+
+    #[test]
+    fn content_open_has_data_expanded_closed_does_not() {
+        let open = render(&content(OpenState::Open, "label", vec![], vec![]));
+        assert!(open.contains(r#"data-expanded="""#));
+
+        let closed = render(&content(OpenState::Closed, "label", vec![], vec![]));
+        assert!(!closed.contains("data-expanded"));
+    }
+
+    #[test]
+    fn content_has_tabindex_minus_one_unless_caller_overrides() {
+        let html = render(&content(OpenState::Open, "label", vec![], vec![]));
+        assert!(html.contains(r#"tabindex="-1""#));
+
+        let overridden = render(&content(
+            OpenState::Open,
+            "label",
+            vec![("tabindex", "0")],
+            vec![],
+        ));
+        assert!(overridden.contains(r#"tabindex="0""#));
+        assert!(!overridden.contains(r#"tabindex="-1""#));
     }
 
     #[test]
@@ -327,6 +418,48 @@ mod tests {
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"data-part="close-trigger""#));
         assert!(html.contains("Close"));
+    }
+
+    #[test]
+    fn close_trigger_visible_children_do_not_get_default_aria_label() {
+        // WCAG 2.5.3 Label in Name 回帰: children に可視テキストがある場合、
+        // 固定の既定 aria-label="close" を付与すると支援技術がその可視
+        // テキストを読み上げず矛盾する（Cursor Bugbot 指摘、PR #1909）。
+        let html = render(&close_trigger(vec![], vec![text("Done")]));
+        assert!(!html.contains(r#"aria-label="close""#));
+        assert!(html.contains("Done"));
+    }
+
+    #[test]
+    fn close_trigger_visible_children_with_caller_aria_label_is_kept() {
+        // 可視テキストがあっても呼び出し側が明示的に aria-label を渡した
+        // 場合はそれを尊重する（呼び出し側の意図的な上書きまで禁止しない）。
+        let html = render(&close_trigger(
+            vec![("aria-label", "Dismiss banner")],
+            vec![text("Done")],
+        ));
+        assert!(html.contains(r#"aria-label="Dismiss banner""#));
+        assert!(html.contains("Done"));
+    }
+
+    #[test]
+    fn close_trigger_default_aria_label_and_caller_override() {
+        let default_html = render(&close_trigger(vec![], vec![]));
+        assert!(default_html.contains(r#"aria-label="close""#));
+
+        let overridden = render(&close_trigger(vec![("aria-label", "Dismiss")], vec![]));
+        assert!(overridden.contains(r#"aria-label="Dismiss""#));
+        assert!(!overridden.contains(r#"aria-label="close""#));
+    }
+
+    #[test]
+    fn close_trigger_caller_aria_label_payload_is_escaped() {
+        // A03 XSS 回帰: 呼び出し側 attrs の aria-label 上書き経路もエスケープを経由する。
+        let html = render(&close_trigger(
+            vec![("aria-label", "\"><script>alert(1)</script>")],
+            vec![],
+        ));
+        assert!(!html.contains("<script>"));
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---

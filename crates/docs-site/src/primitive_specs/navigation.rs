@@ -88,7 +88,7 @@
 //!   の趣旨と衝突しないよう、Anatomy に現れないパーツを Examples だけで
 //!   実演することは避ける）。
 
-use fandhe_frontend_core::{el, text, Node};
+use fandhe_frontend_core::{code, el, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::action_bar;
 use hui::breadcrumb;
@@ -135,18 +135,76 @@ fn ex_action_bar() -> Node {
     )])
 }
 
+const ACTION_BAR_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  \
+  position: fixed;\n  bottom: 1.5rem;\n  left: 50%;\n  transform: translateX(-50%);\n\
+}\n\
+[data-scope=\"action-bar\"][data-part=\"content\"][data-state=\"open\"] {\n  \
+  display: flex;\n  align-items: center;\n  gap: 0.75rem;\n  padding: 0.75rem 1rem;\n  \
+  border-radius: 8px;\n  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);\n\
+}\n\
+[data-scope=\"action-bar\"][data-part=\"close-trigger\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n";
+
+/// 自前 CSS の最小例（イシュー #1647）。`positioner` の画面下部固定配置・
+/// `content[data-state="open"]` のレイアウト・`close-trigger` の
+/// `:focus-visible` を data-scope/data-part 属性セレクタのみで組み立てる。
+/// headless-ui 自体はスタイルを持たない（本クレートは `docs-site` の
+/// showcase CSS〔`assets/primitives-showcase.css`〕へは一切追加しない。
+/// `pre > code` のテキストとして提示するのみで、実際にページへ適用は
+/// しない）。
+fn action_bar_custom_css_example() -> Node {
+    let state = OpenState::Open;
+    let markup = action_bar::root(
+        state,
+        vec![],
+        vec![action_bar::positioner(
+            state,
+            vec![],
+            vec![action_bar::content(
+                state,
+                "Bulk edit",
+                vec![],
+                vec![action_bar::close_trigger(vec![], vec![text("Done")])],
+            )],
+        )],
+    );
+    el(
+        "div",
+        vec![],
+        vec![
+            markup,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(ACTION_BAR_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 /// `/primitives/action-bar/`。
 ///
-/// 一次情報: `crates/headless-ui/src/action_bar.rs:1-51`（モジュール doc）、
-/// `:65-150`（`root`/`content`/`separator` シグネチャ）、`:90`/`:128`
-/// （`role="toolbar"`/`role="separator"` の実出力）、`:157-249`
-/// （`ActionBar` 状態機械の doc）。
+/// 一次情報: `crates/headless-ui/src/action_bar.rs`（モジュール doc §参照
+/// 基準）、`root`/`content`/`close_trigger`/`separator` の各シグネチャと
+/// doc コメント（`role="dialog"`/`data-expanded`/`tabindex="-1"`/
+/// `aria-label` 既定値/`role="separator"` の実出力）、`ActionBar` 状態機械の
+/// doc。参照基準は chakra-ui `overlays/action-bar` のみ（ark-ui・Radix
+/// Primitives に ActionBar 相当は存在せず、`docs/design/component-coverage-map.md`
+/// も chakra-ui 単独参照）。chakra-ui の ActionBar は独自の状態機械を持たず
+/// Ark Popover（zag.js `popover.connect`）を再利用しており、本部品の属性
+/// 仕様はその content/close-trigger の出力を基準に据える（イシュー #1647、
+/// 参照基準・是正点・意図的差分の全量は action_bar.rs モジュール doc
+/// §参照基準 を正とする）。
 pub(super) const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "複数選択操作バー（chakra-ui ActionBar 相当）。Root / Positioner / Content / SelectionTrigger / Separator / CloseTrigger の 6 anatomy パーツを持つ（action_bar.rs モジュール doc）。",
+        "複数選択操作バー（chakra-ui ActionBar 相当。実体は Ark Popover の再利用）。Root / Positioner / Content / SelectionTrigger / Separator / CloseTrigger の 6 anatomy パーツを持つ（action_bar.rs モジュール doc）。",
         "開閉は Disclosure を埋め込んだ状態機械 ActionBar が管理する。選択件数から open を自動導出する糖衣 API は持たず、「選択操作 → 開閉状態の決定」は呼び出し側の責務とする（action_bar.rs「選択件数から open を導出する糖衣 API は持たない」節）。",
-        "content に role=\"toolbar\" と aria-label（読み上げ用ラベル、呼び出し側が指定する必須引数）を固定付与する（content 関数）。",
+        "content に role=\"dialog\"（非モーダル、aria-modal は付与しない）と aria-label（読み上げ用ラベル、呼び出し側が指定する必須引数）を固定付与する。参照基準（zag.js popover の content）に合わせイシュー #1647 で role=\"toolbar\"（roving tabindex を伴わない不完全な適用だった）から是正した（**破壊的変更**、content 関数）。",
+        "content は開状態のときのみ data-expanded 存在属性を出力し、tabindex=\"-1\" を固定付与する（chakra autoFocus: false に対応。開時にフォーカスを自動移動しない。呼び出し側 attrs に tabindex があれば出力しない、content 関数）。",
+        "close-trigger は呼び出し側 attrs に aria-label が無く、かつ children が空（可視テキストを持たないボタン）のときに限り既定値 \"close\"（zag.js popover の translations.closeTrigger 既定値、CLOSE_TRIGGER_ARIA_LABEL）を出力する（close_trigger 関数。children に可視テキストがあれば既定 aria-label は付与しない）。",
         "closed のとき positioner/content の双方に hidden 存在属性を付与し、SSR/no-JS でも閉状態を表現する（positioner/content 関数）。",
+        "参照基準に存在する data-placement/data-side（placement variant）は本実装のスコープ外（`docs/policy/intentional-non-adoption.md` §3.25 規則 2、装飾・レイアウト計測は headless-ui へ持ち込まない）。外側クリックでの閉鎖（closeOnInteractOutside）は既定 false のまま opt-in 属性を持たない（選択操作のチェックボックス等が ActionBar の外側に存在するため、誤閉鎖を防ぐ安全側の判断）。",
     ],
     arguments: &[
         ArgRow {
@@ -159,7 +217,7 @@ pub(super) const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
             name: "content(label)",
             kind: "&str",
             default: "",
-            description: "role=\"toolbar\" の aria-label（選択操作バーの読み上げ名、必須引数）。",
+            description: "role=\"dialog\" の aria-label（選択操作バーの読み上げ名、必須引数）。",
         },
         ArgRow {
             name: "selection_trigger",
@@ -167,21 +225,51 @@ pub(super) const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "type=\"button\" を固定付与するボタンパーツ。選択件数テキストは呼び出し側が children で渡す。",
         },
+        ArgRow {
+            name: "close_trigger(attrs)",
+            kind: "Vec<(&str, &str)>",
+            default: "",
+            description: "aria-label 未指定かつ children が空のときのみ既定値 \"close\" を出力する（CLOSE_TRIGGER_ARIA_LABEL）。呼び出し側が aria-label を指定するか children に可視テキストを渡せば上書き・不出力になる。",
+        },
     ],
-    examples: &[ExampleEntry {
-        title: "CloseTrigger のみの最小構成",
-        description: "SelectionTrigger/Separator を省き、Content 直下に CloseTrigger だけを配置した例です。",
-        render: ex_action_bar,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "CloseTrigger のみの最小構成",
+            description: "SelectionTrigger/Separator を省き、Content 直下に CloseTrigger だけを配置した例です。",
+            render: ex_action_bar,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope / data-part 属性セレクタと :focus-visible 擬似クラスで見た目を組み立てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: action_bar_custom_css_example,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Escape",
+            description: "content が開いている間、バーを閉じる（`fandhe-frontend-wasm-full` の `OverlayKind::ActionBar` が配線。`data-close-on-escape=\"false\"` で opt-out 可能）。",
+        },
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "ネイティブ要素（button）由来のフォーカス移動。開時に自動でフォーカスは移動しない（tabindex=\"-1\"、chakra autoFocus: false に対応）。",
+        },
+    ],
     aria: &[
         AriaRow {
-            attribute: "role=\"toolbar\"",
-            description: "content に固定付与。aria-label とセットで出力される。",
+            attribute: "role=\"dialog\"",
+            description: "content に固定付与（非モーダル、aria-modal は付与しない）。aria-label とセットで出力される。参照基準（zag.js popover）に合わせイシュー #1647 で role=\"toolbar\" から是正済み。",
+        },
+        AriaRow {
+            attribute: "data-expanded",
+            description: "content が開状態のときのみ出力される存在属性（zag.js popover の content と同じ語彙）。",
+        },
+        AriaRow {
+            attribute: "aria-label=\"close\"",
+            description: "close-trigger の既定値。呼び出し側 attrs に aria-label が無く、かつ children が空（可視テキストを持たない）のときに限り出力される。呼び出し側が aria-label を指定するか children に可視テキストを渡せば出力されない。",
         },
         AriaRow {
             attribute: "role=\"separator\" / aria-orientation=\"vertical\"",
-            description: "separator に固定付与（ActionBar のボタン列は横並びのため区切り線は縦向きになる）。",
+            description: "separator に固定付与（ActionBar のボタン列は横並びのため区切り線は縦向きになる。参照基準は素の div であり、a11y 上の superset として維持する意図的差分）。",
         },
     ],
     demo: None,

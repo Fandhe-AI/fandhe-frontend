@@ -1667,6 +1667,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 破壊的変更が同一版数へ偶発的に衝突したため、その原則（`docs/ci/
 # style-refresh-version-bump-operation.md` §5）に従いさらにマイナーバンプで
 # 0.102.0 とする。
+# イシュー #1647（action-bar の参照突合）: `pre-styled-ui::action_bar` が
+# `headless-ui::action_bar::*` を再エクスポートしており、依存先の
+# `content` の role が "toolbar" から "dialog" へ変わる破壊的変更（参照
+# 基準 chakra-ui/Ark Popover との突合）が pre-styled-ui 利用者にも波及する。
+# 当初 headless-ui 0.51.0 への依存 version 要求追随のみの patch バンプ
+# （0.102.1）としたのは誤りで、`docs/ci/style-refresh-version-bump-operation.md`
+# §5・coding-rust.md「0.x の破壊的変更はマイナーバンプ」に従いマイナー
+# バンプで 0.103.0 とする（codex-review 指摘、PR #1909）。
 # イシュー #1637: headless-ui 0.51.0 依存追随（collapsible の
 # indicator/content シグネチャ変更。`crates/pre-styled-ui/src/` 自体は
 # collapsible を持たないが、src/lib.rs で headless-ui 全体を公開
@@ -1675,6 +1683,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # `docs/ci/style-refresh-version-bump-operation.md` §5・coding-rust.md
 # 「0.x の破壊的変更はマイナーバンプ」に従いマイナーバンプで 0.103.0 とする
 # （codex-review 指摘、PR #1908）。
+# 上記 2 ブランチ（本 #1647 action-bar・#1637 collapsible）が独立に同一版数
+# 0.103.0 へ到達したため（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）、headless-ui
+# 0.52.0 への依存追随とあわせてさらにマイナーバンプで 0.104.0 とする。
 # イシュー #1639: headless-ui 0.51.1 依存追随（drawer::content への
 # tabindex="-1" 追加。`crates/pre-styled-ui/src/drawer.rs` の SLOTS
 # 構成・呼び出しシグネチャは不変で、headless-ui 全体を再エクスポートする
@@ -1683,11 +1695,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # base 再取り込み（イシュー #1638, dialog の参照突合）: headless-ui 0.51.1
 # 依存追随（dialog の content への tabindex="-1" 固定付与、非破壊的変更）。
 # main 側で独立に到達していた 0.103.0 に対し patch バンプで 0.103.1 とする。
-# イシュー #1640（floating-panel の参照突合）: headless-ui 0.52.0 依存追随
-# （floating_panel::header/control のシグネチャ変更、`src/lib.rs` の全体
-# 再エクスポート経由で pre-styled-ui 利用者にも破壊的変更として波及する
-# ため #1637 と同じ判断でマイナーバンプ）で 0.103.1 から 0.104.0 とする。
-version = "0.104.0"
+# base 再取り込み（本 #1647 マージ）: main 側で独立に到達していた変更は
+# イシュー #1640（floating-panel の参照突合。headless-ui 0.52.0 依存追随。
+# floating_panel::header/control のシグネチャ変更が `src/lib.rs` の全体
+# 再エクスポート経由で pre-styled-ui 利用者にも破壊的変更として波及）で
+# あり、本ブランチの 0.104.0（headless-ui 0.52.0 依存追随・collapsible 起因
+# の破壊的変更）と同一版数 0.103.1 → 0.104.0 へ独立到達していたため衝突する
+# （同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。加えて headless-ui
+# 自体を 0.52.0 → 0.53.0 へさらにマイナーバンプした（同一クレート内の同様の
+# 衝突、上記コメント参照）ため、依存追随としても patch では足りずマイナー
+# バンプが必要になる。drawer/dialog の tabindex="-1" 追随・
+# action_bar/collapsible の破壊的変更・floating-panel の破壊的変更の和集合
+# として、さらにマイナーバンプで 0.105.0 とする。
+version = "0.105.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1702,7 +1723,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.52.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.53.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
