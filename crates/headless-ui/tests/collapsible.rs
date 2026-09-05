@@ -15,7 +15,7 @@ use fandhe_frontend_interactive::{
 #[test]
 fn full_assembly_wires_aria_controls_to_content_id() {
     let trigger = collapsible::trigger(OpenState::Open, false, Some("panel-1"), vec![], vec![]);
-    let content = collapsible::content(OpenState::Open, Some("panel-1"), vec![], vec![]);
+    let content = collapsible::content(OpenState::Open, false, Some("panel-1"), vec![], vec![]);
     let root = collapsible::root(OpenState::Open, false, vec![], vec![trigger, content]);
 
     let html = render(&root);
@@ -28,16 +28,35 @@ fn full_assembly_wires_aria_controls_to_content_id() {
     assert!(!html.contains("hidden"));
 }
 
+/// root/trigger/indicator/content すべてに `disabled=true` を渡すと、4
+/// パートすべてに `data-disabled` が出力される（イシュー #1637。ark-ui/Radix
+/// の Data Attributes 表準拠）。
+#[test]
+fn full_assembly_disabled_true_adds_data_disabled_to_all_four_parts() {
+    let trigger = collapsible::trigger(OpenState::Closed, true, Some("panel-1"), vec![], vec![]);
+    let indicator = collapsible::indicator(OpenState::Closed, true, vec![], vec![]);
+    let content = collapsible::content(OpenState::Closed, true, Some("panel-1"), vec![], vec![]);
+    let root = collapsible::root(
+        OpenState::Closed,
+        true,
+        vec![],
+        vec![trigger, indicator, content],
+    );
+
+    let html = render(&root);
+    assert_eq!(html.matches(r#"data-disabled="""#).count(), 4);
+}
+
 #[test]
 fn dispatch_toggle_flips_data_state_across_parts() {
     let mut c = Collapsible::default();
     assert_eq!(c.state(), OpenState::Closed);
-    assert!(render(&c.content(None, vec![], vec![])).contains(r#"hidden="""#));
+    assert!(render(&c.content(false, None, vec![], vec![])).contains(r#"hidden="""#));
 
     assert!(dispatch(&mut c, "toggle", ""));
     assert!(render(&c.root(false, vec![], vec![])).contains(r#"data-state="open""#));
     assert!(render(&c.trigger(false, None, vec![], vec![])).contains(r#"aria-expanded="true""#));
-    assert!(!render(&c.content(None, vec![], vec![])).contains("hidden"));
+    assert!(!render(&c.content(false, None, vec![], vec![])).contains("hidden"));
 
     assert!(dispatch(&mut c, "open", ""));
     assert_eq!(c.state(), OpenState::Open);
@@ -89,7 +108,13 @@ fn controls_and_id_payloads_are_escaped_end_to_end() {
         vec![],
         vec![],
     );
-    let content = collapsible::content(OpenState::Closed, Some(ATTR_BREAK_PAYLOAD), vec![], vec![]);
+    let content = collapsible::content(
+        OpenState::Closed,
+        false,
+        Some(ATTR_BREAK_PAYLOAD),
+        vec![],
+        vec![],
+    );
     let html = render(&collapsible::root(
         OpenState::Closed,
         false,
@@ -110,4 +135,35 @@ fn caller_attrs_payload_is_escaped_end_to_end() {
         vec![],
     ));
     assert!(!html.contains("onmouseover=\"alert(1)"));
+}
+
+/// 呼び出し側 `attrs` による `data-state`/`data-disabled` なりすましは
+/// root > trigger + content の end-to-end 組み立てでも除外される
+/// （イシュー #1637、`collapsible.rs` inline tests の end-to-end 版）。
+#[test]
+fn caller_attrs_spoofing_is_dropped_end_to_end() {
+    let trigger = collapsible::trigger(
+        OpenState::Open,
+        false,
+        Some("panel-1"),
+        vec![("data-state", "closed"), ("data-disabled", "spoofed")],
+        vec![],
+    );
+    let content = collapsible::content(
+        OpenState::Open,
+        false,
+        Some("panel-1"),
+        vec![("data-state", "closed"), ("data-disabled", "spoofed")],
+        vec![],
+    );
+    let html = render(&collapsible::root(
+        OpenState::Open,
+        false,
+        vec![("data-state", "closed"), ("data-disabled", "spoofed")],
+        vec![trigger, content],
+    ));
+
+    assert_eq!(html.matches(r#"data-state="open""#).count(), 3);
+    assert!(!html.contains("spoofed"));
+    assert!(!html.contains("data-disabled"));
 }
