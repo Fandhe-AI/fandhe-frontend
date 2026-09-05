@@ -416,11 +416,16 @@ pub fn marker_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> 
 /// 偽装を fail-closed で除外する対象）。
 const MARKER_RESERVED: &[&str] = &["data-value", "data-state", "data-disabled"];
 
-/// Marker パーツ（`div`）。目盛り 1 点を表す。`value` は `[min, max]` へ
-/// clamp してから `data-value` に出力し、`current`（[`Slider`] の現在値）
-/// との大小関係で `data-state` を `"under-value"`/`"over-value"`/
-/// `"at-value"` の 3 値リテラルへ固定する（ark-ui Marker の `data-state` と
-/// 同じ語彙、[`crate::angle_slider::marker`] と同型）。
+/// Marker パーツ（`div`）。目盛り 1 点を表す。`min`/`max`/`value`/`current`
+/// は [`normalize`] と同じ方針で fail-closed に正規化してから使う
+/// （`min`/`max` が非有限または `min >= max` なら既定 `(0.0, 100.0)` へ、
+/// `value`/`current` が非有限なら `min` へフォールバックする。呼び出し側の
+/// 不正な入力で `f64::clamp` が panic するのを防ぐ、イシュー #1621 PR #1904
+/// レビュー指摘）。`value` は正規化後の `[min, max]` へ clamp してから
+/// `data-value` に出力し、正規化後の `current`（[`Slider`] の現在値）との
+/// 大小関係で `data-state` を `"under-value"`/`"over-value"`/`"at-value"`
+/// の 3 値リテラルへ固定する（ark-ui Marker の `data-state` と同じ語彙、
+/// [`crate::angle_slider::marker`] と同型）。
 #[must_use]
 pub fn marker<'a>(
     value: f64,
@@ -432,11 +437,25 @@ pub fn marker<'a>(
     children: Vec<Node>,
 ) -> Node {
     let attrs = drop_reserved(attrs, MARKER_RESERVED);
-    let normalized_value = value.clamp(min, max);
+    let (min, max) = if min.is_finite() && max.is_finite() && min < max {
+        (min, max)
+    } else {
+        (0.0, 100.0)
+    };
+    let normalized_value = if value.is_finite() {
+        value.clamp(min, max)
+    } else {
+        min
+    };
+    let normalized_current = if current.is_finite() {
+        current.clamp(min, max)
+    } else {
+        min
+    };
     let value_s = fmt_num(normalized_value);
-    let state: &'static str = if normalized_value < current {
+    let state: &'static str = if normalized_value < normalized_current {
         "under-value"
-    } else if normalized_value > current {
+    } else if normalized_value > normalized_current {
         "over-value"
     } else {
         "at-value"
@@ -1165,6 +1184,52 @@ mod tests {
         assert!(html.contains(r#"data-state="under-value""#));
         assert!(!html.contains("999"));
         assert!(!html.contains("attacker"));
+    }
+
+    // --- marker の fail-closed 正規化（イシュー #1621 PR #1904 レビュー指摘） ---
+
+    #[test]
+    fn marker_min_greater_than_max_does_not_panic_and_falls_back_to_default_range() {
+        // min > max は `f64::clamp` に直接渡すと panic するため、
+        // `normalize` と同じ既定 (0.0, 100.0) へフォールバックすることを
+        // 確認する（panic しないこと自体がこのテストの主眼）。
+        let html = render(&marker(20.0, 50.0, 100.0, 0.0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-value="20""#));
+    }
+
+    #[test]
+    fn marker_nan_min_max_does_not_panic_and_falls_back_to_default_range() {
+        let html = render(&marker(
+            20.0,
+            50.0,
+            f64::NAN,
+            f64::NAN,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-value="20""#));
+    }
+
+    #[test]
+    fn marker_nan_value_does_not_panic_and_falls_back_to_min() {
+        let html = render(&marker(f64::NAN, 50.0, 0.0, 100.0, false, vec![], vec![]));
+        // value が非有限のときは min (0.0) へフォールバックし、"NaN" を
+        // 出力しない。current (50.0) より小さいため under-value。
+        assert!(html.contains(r#"data-value="0""#));
+        assert!(!html.contains("NaN"));
+        assert!(html.contains(r#"data-state="under-value""#));
+    }
+
+    #[test]
+    fn marker_nan_current_does_not_panic_and_state_stays_consistent_with_clamped_value() {
+        // current が非有限のときは min へフォールバックする。value (20.0) は
+        // clamp 後の current (0.0) より大きいため over-value になり、
+        // clamp 前の生の current (NaN) に対する比較結果と矛盾しない。
+        let html = render(&marker(20.0, f64::NAN, 0.0, 100.0, false, vec![], vec![]));
+        assert!(html.contains(r#"data-value="20""#));
+        assert!(!html.contains("NaN"));
+        assert!(html.contains(r#"data-state="over-value""#));
     }
 
     // --- IncrementLarge / DecrementLarge ---
