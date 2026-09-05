@@ -22,8 +22,8 @@ concurrency:
 # Cargo.lock と本ブロック（VERSION / SHA256 の両方）を合わせて更新すること。
 # ドリフトは同テストが fail-closed に検知する。
 env:
-  WASM_BINDGEN_VERSION: "0.2.127"
-  WASM_BINDGEN_SHA256: "61d4a7dc85acfa0d2354ccc0b8361928c7e52a746d17f28ebaa795ed3dc1614a"
+  WASM_BINDGEN_VERSION: "0.2.128"
+  WASM_BINDGEN_SHA256: "b51f0208fdff83515a787bd8ab9ac5865ed84dabb66d0c709957bb59793c645f"
   WASM_PACK_VERSION: "0.13.1"
   WASM_PACK_SHA256: "c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
   # binaryen（wasm-opt）の pin（単一宣言点、イシュー #1327・docs/ci/
@@ -1096,7 +1096,7 @@ jobs:
       # `wasm-node-smoke` ジョブと同一パターン（バージョン固定 + SHA256
       # チェックサム検証 + atomic install。実装は Fandhe-AI/actions/wasm-tool-install
       # へ共通化した、イシュー #1274）。バージョン・SHA256 の pin 値は
-      # 同ジョブと同一（リポジトリ本体 Cargo.lock 解決値、wasm-bindgen 0.2.127）。
+      # 同ジョブと同一（リポジトリ本体 Cargo.lock 解決値、wasm-bindgen 0.2.128）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified, atomic install)
         uses: Fandhe-AI/actions/wasm-tool-install@latest
         with:
