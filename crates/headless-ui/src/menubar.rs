@@ -18,8 +18,10 @@
 //! # 呼び出し文脈
 //!
 //! SSR は本モジュールの自由関数（[`root`]/[`menu`]/[`trigger`]/
-//! [`positioner`]/[`content`]/[`item`]/[`item_group`]/[`item_group_label`]/
-//! [`separator`]/[`sub_trigger`]/[`sub_content`]、いずれも純粋関数で完結）を
+//! [`positioner`]/[`content`]/[`arrow`]/[`arrow_tip`]/[`item`]/
+//! [`item_text`]/[`item_indicator`]/[`item_group`]/[`item_group_label`]/
+//! [`separator`]/[`sub_trigger`]/[`sub_content`]/[`checkbox_item`]/
+//! [`radio_item_group`]/[`radio_item`]、いずれも純粋関数で完結）を
 //! 直接呼んで組み立てる。CSR/hydration は [`Menubar`]（
 //! [`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] 実装）を経由し、dispatch
@@ -86,13 +88,15 @@
 //!   `attrs`/`children`）は [`fandhe_frontend_core::render`] の既定
 //!   エスケープを必ず経由する（REQ-1）。`raw_html()` は使用せず、HTML
 //!   文字列を直接組み立てない。
-//! - **呼び出し側 `tabindex` 偽装の除去**: [`drop_tabindex_attr`] が
-//!   [`crate::toolbar::drop_tabindex_attr`]/[`crate::skip_nav::content`] と
-//!   同型のパターンで呼び出し側 `attrs` から `tabindex`（大文字小文字を
-//!   無視）を除去してから `tabindex="0"`/`tabindex="-1"` を合成する
-//!   （[`trigger`] のみが focusable なパーツのため適用対象はこのパーツ
-//!   のみ。`toolbar` からの `pub` 化・再利用はクレート API 表面を増やす
-//!   ため行わず、同型実装をここへ複製する）。
+//! - **呼び出し側 `attrs` による固定属性偽装の除去**:
+//!   [`crate::radio_group::drop_reserved`]（[`crate::menu`] が #1651 で
+//!   採用したものと同じヘルパ）を全パーツへ適用し、各パーツが固定出力する
+//!   `role`/`aria-*`/`data-*`/`tabindex` 等のキーを呼び出し側 `attrs` から
+//!   除去してから固定値を合成する。[`trigger`] の `tabindex` 除去（旧
+//!   `drop_tabindex_attr`、[`crate::toolbar::drop_tabindex_attr`]/
+//!   [`crate::skip_nav::content`] と同型のパターンだった）は
+//!   `TRIGGER_RESERVED` に `"tabindex"` を含めることで `drop_reserved` へ
+//!   統合し、専用関数は削除した（イシュー #1652）。
 //! - **`type="button"` の固定**: [`trigger`] はフォーム内配置時の意図しない
 //!   submit を防ぐため `type="button"` を固定付与する（
 //!   [`crate::toolbar::button`] と同じ判断）。
@@ -110,12 +114,52 @@
 //!   [`Menubar::HYDRATE_OPEN_NONE`]（[`crate::progress::Progress::HYDRATE_VALUE_INDETERMINATE`]
 //!   と同型のパターン）で「どの Menu も開いていない」ことを表す。
 //!
+//! # 参考サイトとの意図的な差分（イシュー #1652 で Radix Primitives
+//! Menubar と参照突合）
+//!
+//! ark-ui / chakra-ui / Radix Themes には Menubar 相当が存在しないため、
+//! 参照基準は Radix Primitives Menubar のみである。
+//!
+//! - **是正**: [`checkbox_item`]/[`radio_item_group`]/[`radio_item`]/
+//!   [`item_indicator`]/[`item_text`]/[`arrow`]/[`arrow_tip`] の 7 パーツを
+//!   新設した（11 → 18 パーツ）。いずれも [`crate::menu`] の同名パーツと
+//!   同一シグネチャ・同一属性出力で揃える（`data-scope="menubar"` のみ
+//!   異なる）。呼び出し側 `attrs` からの固定属性偽装を防ぐため、全パーツへ
+//!   [`crate::radio_group::drop_reserved`] を適用するようにした（旧
+//!   `drop_tabindex_attr` は [`trigger`] の `TRIGGER_RESERVED` へ
+//!   `"tabindex"` を含めることで統合し削除した）。
+//! - **意図的に非採用**: Radix `Portal`（DOM 配置、クライアント関心。
+//!   [`positioner`] が配置コンテナとして表現）; content/sub-content の
+//!   `data-side`/`data-align`（[`positioner`] へ `attrs` 経由で渡す既存
+//!   設計）; sub-content の `data-orientation`; RTL `dir`; Root の
+//!   `value`/`defaultValue`（制御値は [`Menubar`] 状態機械の
+//!   `open: Option<usize>` が担う）; Trigger の Space/Enter による実 DOM
+//!   フォーカス移動（本実装は trigger にフォーカスを留め
+//!   `data-highlighted`（+ 実行時の `aria-activedescendant`）で仮想
+//!   フォーカスを表現する、[`crate::menu`] の #583 設計と同型）。
+//! - **キーボード差分**: 実配線は `fandhe-frontend-wasm-full`
+//!   （`keynav::wiring::handle_menubar_trigger_keydown`/
+//!   `move_menubar_focus`〔#1073〕、`overlay::OverlayKind::Menubar`
+//!   〔#1173〕、`headless::MAPPING_TABLE` の `("menubar","trigger")` →
+//!   `"toggle"`〔#1161〕）に実装済みである（旧「矢印キー配線はスコープ外」
+//!   の記述は本イシューで是正した）。Radix にない Home/End・印字可能文字
+//!   typeahead は WAI-ARIA APG 準拠で追加実装済み。`Tab` は無配線
+//!   （ブラウザ既定に委ねる）。
+//! - **既知ギャップ（本イシューでは是正しない、`fandhe-frontend-wasm-full`
+//!   側の後続対応）**: `keynav::MENUBAR_ITEM_SELECTOR`/
+//!   `MENU_ITEM_SELECTOR` が `item`/`sub-trigger` のみを対象とし、本
+//!   イシューで新設した `checkbox-item`/`radio-item` は highlight 移動・
+//!   typeahead・Enter/Space の対象外である。`headless::MAPPING_TABLE` にも
+//!   checked トグルの dispatch 行がない（[`crate::menu`] が #1651 で
+//!   記録した既知ギャップと同一）。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - `CheckboxItem` / `RadioGroup` / `RadioItem` / `ItemIndicator` /
-//!   `Arrow` / `ArrowTip`（イシュー本文の anatomy 列挙に無い）。
-//! - 矢印キー・Home/End・typeahead・`closeOnSelect` の実 DOM 配線と
-//!   フォーカス移動（`fandhe-frontend-wasm-full` の責務）。
+//! - 上記「既知ギャップ」節記載の `fandhe-frontend-wasm-full` 側の
+//!   checkbox-item/radio-item 配線（highlight 移動・typeahead・checked
+//!   トグル dispatch）。
+//! - `fandhe-frontend-pre-styled-ui` 側の `SLOTS`/CSS 同期（新設 7 パーツ
+//!   分、後続イシュー #1528 へ申し送り）。
 //! - Portal の実 DOM 移送（本実装の [`positioner`] は Radix Portal
 //!   「相当」の配置コンテナであり DOM 移送は行わない）。
 //! - placement 計算（[`crate::positioning`]/wasm 側 `position.rs` が担い、
@@ -125,29 +169,89 @@
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
-    aria_controls, aria_expanded, aria_haspopup, aria_label, aria_labelledby, aria_orientation,
-    role, AriaPopup,
+    aria_checked, aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_hidden,
+    aria_label, aria_labelledby, aria_orientation, role, AriaChecked, AriaPopup,
 };
 use crate::data_attrs::{
     data_disabled, data_highlighted, data_orientation, data_state, Orientation,
 };
-use crate::state::OpenState;
+use crate::radio_group::drop_reserved;
+use crate::state::{checked_data_state, OpenState};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
 /// Menubar の anatomy（`data-scope="menubar"`）。
 const ANATOMY: Anatomy = anatomy("menubar");
 
-/// 呼び出し側 `attrs` から `tabindex`（大文字小文字を無視）を除去する
-/// （[`crate::toolbar::drop_tabindex_attr`] と同型のパターン。クレート API
-/// 表面を増やさないため再利用せずここへ複製する、モジュール doc
-/// 「セキュリティ不変条件」参照）。
-fn drop_tabindex_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
-    attrs
-        .into_iter()
-        .filter(|(k, _)| !k.eq_ignore_ascii_case("tabindex"))
-        .collect()
-}
+/// [`root`] が固定付与するキー一覧（呼び出し側 `attrs` からの偽装防止、
+/// イシュー #1652）。`aria-label` は `label` が空文字列のとき出力しない
+/// 条件付き出力のため除去対象に含めない。`data-loop-focus` は
+/// `fandhe-frontend-wasm-full` が root から読む契約（keynav.rs）のため
+/// 除去対象に含めない。
+const ROOT_RESERVED: &[&str] = &["role", "aria-orientation", "data-orientation"];
+/// [`menu`] が固定付与するキー一覧。
+const MENU_RESERVED: &[&str] = &["role", "data-state"];
+/// [`trigger`] が固定付与するキー一覧。`aria-controls` は `controls` が
+/// `Some` のときのみ出力する `Option` 引数経由の正規キーのため除去対象に
+/// 含めない（[`crate::menu`] の `TRIGGER_RESERVED` と同判断）。
+const TRIGGER_RESERVED: &[&str] = &[
+    "type",
+    "tabindex",
+    "role",
+    "aria-haspopup",
+    "aria-expanded",
+    "data-state",
+    "data-value",
+    "aria-disabled",
+    "data-disabled",
+    "data-highlighted",
+];
+/// [`positioner`] が固定付与するキー一覧。`data-side`/`data-align`/`style`
+/// は `fandhe-frontend-wasm-full` の `position` モジュールが `attrs` 経由で
+/// 渡す正規経路のため除去対象に含めない（[`crate::menu`] と同判断）。
+const POSITIONER_RESERVED: &[&str] = &["data-state", "hidden"];
+/// [`content`]/[`sub_content`] が固定付与するキー一覧。
+/// `aria-activedescendant`/`data-loop-focus`/`data-close-on-escape` は
+/// keynav/overlay が `attrs` 経由で受ける契約のため除去対象に含めない。
+const CONTENT_RESERVED: &[&str] = &["role", "data-state", "hidden"];
+/// [`item`] が固定付与するキー一覧。
+const ITEM_RESERVED: &[&str] = &[
+    "role",
+    "data-value",
+    "aria-disabled",
+    "data-disabled",
+    "data-highlighted",
+];
+/// [`sub_trigger`] が固定付与するキー一覧（[`item`] と異なり `data-value`
+/// を持たず `aria-haspopup`/`aria-expanded`/`data-state` を持つ）。
+const SUB_TRIGGER_RESERVED: &[&str] = &[
+    "role",
+    "aria-haspopup",
+    "aria-expanded",
+    "data-state",
+    "aria-disabled",
+    "data-disabled",
+    "data-highlighted",
+];
+/// [`checkbox_item`]/[`radio_item`] が固定付与するキー一覧（[`item`] +
+/// `aria-checked`/`data-state`）。
+const CHECKABLE_ITEM_RESERVED: &[&str] = &[
+    "role",
+    "data-value",
+    "aria-checked",
+    "data-state",
+    "aria-disabled",
+    "data-disabled",
+    "data-highlighted",
+];
+/// [`item_group`]/[`radio_item_group`] が固定付与するキー一覧。
+const ITEM_GROUP_RESERVED: &[&str] = &["role"];
+/// [`separator`] が固定付与するキー一覧。
+const SEPARATOR_RESERVED: &[&str] = &["role", "aria-orientation"];
+/// [`item_text`] が固定付与するキー一覧。
+const ITEM_TEXT_RESERVED: &[&str] = &["data-disabled", "data-highlighted"];
+/// [`item_indicator`] が固定付与するキー一覧。
+const ITEM_INDICATOR_RESERVED: &[&str] = &["aria-hidden", "data-state", "hidden"];
 
 /// focus 対象なら `tabindex="0"`、そうでなければ `tabindex="-1"` を返す
 /// roving tabindex の共通ヘルパ（[`crate::toolbar::roving_tabindex`] と
@@ -171,6 +275,7 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         role("menubar"),
         aria_orientation(orientation),
@@ -189,6 +294,7 @@ pub fn root<'a>(
 /// する。
 #[must_use]
 pub fn menu<'a>(state: OpenState, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, MENU_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![role("none"), data_state(state.as_data_state())];
     merged.extend(attrs);
     ANATOMY.part("menu", "div", merged, children)
@@ -223,6 +329,7 @@ pub fn trigger<'a>(
     // 借用参照へ揃える（`crate::calendar::day_trigger` の `iso` と同じ
     // パターン。動的値は依然として `render()` の既定エスケープを経由する）。
     let index_str = index.to_string();
+    let attrs = drop_reserved(attrs, TRIGGER_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![
         ("type", "button"),
         roving_tabindex(focused),
@@ -236,11 +343,11 @@ pub fn trigger<'a>(
         merged.push(aria_controls(id));
     }
     if disabled {
-        merged.push(("aria-disabled", "true"));
+        merged.push(aria_disabled(true));
     }
     merged.extend(data_disabled(disabled));
     merged.extend(data_highlighted(highlighted));
-    merged.extend(drop_tabindex_attr(attrs));
+    merged.extend(attrs);
     ANATOMY.part("trigger", "button", merged, children)
 }
 
@@ -254,6 +361,7 @@ pub fn positioner<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, POSITIONER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
     if !state.is_open() {
         merged.push(("hidden", ""));
@@ -274,6 +382,7 @@ pub fn content<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, CONTENT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![role("menu"), data_state(state.as_data_state())];
     if let Some(id) = id {
         merged.push(("id", id));
@@ -286,6 +395,21 @@ pub fn content<'a>(
     }
     merged.extend(attrs);
     ANATOMY.part("content", "div", merged, children)
+}
+
+/// Arrow パーツ（`div`）。視覚的なポインター要素。anatomy 属性のみを付与
+/// する装飾用パーツ（固定属性を持たないため予約キーはなく `drop_reserved`
+/// は適用しない、[`crate::menu::arrow`] と同判断）。
+#[must_use]
+pub fn arrow<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("arrow", "div", attrs, children)
+}
+
+/// ArrowTip パーツ（`div`）。`data-part="arrow-tip"`（ark-ui 準拠の
+/// kebab-case、[`crate::menu::arrow_tip`] と同判断）。
+#[must_use]
+pub fn arrow_tip<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("arrow-tip", "div", attrs, children)
 }
 
 /// Item パーツ（`div`）。個々のアクション項目。`role="menuitem"` を固定
@@ -301,14 +425,69 @@ pub fn item<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![role("menuitem"), ("data-value", value)];
     if disabled {
-        merged.push(("aria-disabled", "true"));
+        merged.push(aria_disabled(true));
     }
     merged.extend(data_disabled(disabled));
     merged.extend(data_highlighted(highlighted));
     merged.extend(attrs);
     ANATOMY.part("item", "div", merged, children)
+}
+
+/// ItemText パーツ（`span`）。`data-part="item-text"`（ark-ui 準拠の
+/// kebab-case、イシュー #1652 で参考サイト〔Radix Primitives Menubar〕と
+/// 突合し追加。[`crate::menu::item_text`] と同一シグネチャ・同一属性
+/// 出力）。
+///
+/// [`item`]/[`checkbox_item`]/[`radio_item`] のラベルテキストを明示的に
+/// 包む装飾用パーツ。checked 状態は持たない（[`item_indicator`] 側の
+/// 責務）。`disabled`/`highlighted` は親 item 系パーツの状態を装飾用に
+/// 複製する。`fandhe-frontend-wasm-full` の `keynav::wiring::item_label`
+/// が typeahead ラベルとして本パーツの子テキストを優先して読む契約
+/// （呼び出し側は [`item_indicator`] の記号を本パーツの内側に入れず兄弟
+/// として並べること）。
+#[must_use]
+pub fn item_text<'a>(
+    disabled: bool,
+    highlighted: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_TEXT_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
+    merged.extend(data_disabled(disabled));
+    merged.extend(data_highlighted(highlighted));
+    merged.extend(attrs);
+    ANATOMY.part("item-text", "span", merged, children)
+}
+
+/// ItemIndicator パーツ（`span`）。`data-part="item-indicator"`（ark-ui
+/// 準拠の kebab-case、イシュー #1652 で参考サイト〔Radix Primitives
+/// Menubar〕と突合し追加。[`crate::menu::item_indicator`] と同一
+/// シグネチャ・同一属性出力）。
+///
+/// [`checkbox_item`]/[`radio_item`] の checked 状態を `data-state`
+/// （[`checked_data_state`] 経由、Switch/RadioGroup と共有する値語彙）へ
+/// 反映し、unchecked のとき `hidden` 存在属性を付与する。`aria-hidden`
+/// を固定付与する（装飾アイコンであり親 [`checkbox_item`]/[`radio_item`]
+/// 自身の `aria-checked` が checked 状態を既に伝達するため、支援技術の
+/// 二重読み上げを防ぐ）。
+#[must_use]
+pub fn item_indicator<'a>(
+    checked: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_INDICATOR_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![aria_hidden(true), data_state(checked_data_state(checked))];
+    if !checked {
+        merged.push(("hidden", ""));
+    }
+    merged.extend(attrs);
+    ANATOMY.part("item-indicator", "span", merged, children)
 }
 
 /// ItemGroup パーツ（`div`）。関連する [`item`] 群をまとめるコンテナ。
@@ -321,6 +500,7 @@ pub fn item_group<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_GROUP_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![role("group")];
     if let Some(labelledby) = labelledby {
         merged.push(aria_labelledby(labelledby));
@@ -350,6 +530,7 @@ pub fn item_group_label<'a>(
 /// と同判断）。
 #[must_use]
 pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, SEPARATOR_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![role("separator"), aria_orientation(Orientation::Horizontal)];
     merged.extend(attrs);
@@ -373,6 +554,7 @@ pub fn sub_trigger<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, SUB_TRIGGER_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         role("menuitem"),
         aria_haspopup(AriaPopup::Menu),
@@ -383,7 +565,7 @@ pub fn sub_trigger<'a>(
         merged.push(aria_controls(id));
     }
     if disabled {
-        merged.push(("aria-disabled", "true"));
+        merged.push(aria_disabled(true));
     }
     merged.extend(data_disabled(disabled));
     merged.extend(data_highlighted(highlighted));
@@ -402,6 +584,7 @@ pub fn sub_content<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, CONTENT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![role("menu"), data_state(sub_state.as_data_state())];
     if let Some(id) = id {
@@ -415,6 +598,103 @@ pub fn sub_content<'a>(
     }
     merged.extend(attrs);
     ANATOMY.part("sub-content", "div", merged, children)
+}
+
+/// CheckboxItem パーツ（`div`）。checked/unchecked を切り替えるメニュー
+/// 項目（イシュー #1652 で参考サイト〔Radix Primitives Menubar〕と突合し
+/// 追加。[`crate::menu::checkbox_item`] と同一シグネチャ・同一属性出力）。
+///
+/// [`item`] と同型（`div` ベース、native `disabled` を持たない）だが、
+/// `role="menuitemcheckbox"`・`aria-checked`（[`AriaChecked::True`]/
+/// [`AriaChecked::False`] の 2 値のみ、indeterminate は扱わない）・
+/// `data-state`（[`checked_data_state`] 経由）を固定付与する。
+#[must_use]
+pub fn checkbox_item<'a>(
+    checked: bool,
+    value: &'a str,
+    disabled: bool,
+    highlighted: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, CHECKABLE_ITEM_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        role("menuitemcheckbox"),
+        aria_checked(if checked {
+            AriaChecked::True
+        } else {
+            AriaChecked::False
+        }),
+        data_state(checked_data_state(checked)),
+        ("data-value", value),
+    ];
+    if disabled {
+        merged.push(aria_disabled(true));
+    }
+    merged.extend(data_disabled(disabled));
+    merged.extend(data_highlighted(highlighted));
+    merged.extend(attrs);
+    ANATOMY.part("checkbox-item", "div", merged, children)
+}
+
+/// RadioItemGroup パーツ（`div`）。関連する [`radio_item`] 群をまとめる
+/// コンテナ（イシュー #1652 で参考サイト〔Radix Primitives Menubar〕と
+/// 突合し追加。[`crate::menu::radio_item_group`] と同一シグネチャ・同一
+/// 属性出力）。
+///
+/// [`item_group`] と同型。`role="group"` を固定付与し、`labelledby` が
+/// `Some` のとき [`item_group_label`] の `id` と対で `aria-labelledby`
+/// 関連付けを成立させる。
+#[must_use]
+pub fn radio_item_group<'a>(
+    labelledby: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, ITEM_GROUP_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![role("group")];
+    if let Some(labelledby) = labelledby {
+        merged.push(aria_labelledby(labelledby));
+    }
+    merged.extend(attrs);
+    ANATOMY.part("radio-item-group", "div", merged, children)
+}
+
+/// RadioItem パーツ（`div`）。[`radio_item_group`] 内で排他選択される
+/// メニュー項目（イシュー #1652 で参考サイト〔Radix Primitives Menubar〕
+/// と突合し追加。[`crate::menu::radio_item`] と同一シグネチャ・同一
+/// 属性出力）。
+///
+/// [`checkbox_item`] と同型だが `role="menuitemradio"` を付与する。checked
+/// 状態は呼び出し側が注入する（[`Menubar`] は開閉状態のみを持ち、checked
+/// 状態の状態機械は持たない）。
+#[must_use]
+pub fn radio_item<'a>(
+    checked: bool,
+    value: &'a str,
+    disabled: bool,
+    highlighted: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, CHECKABLE_ITEM_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        role("menuitemradio"),
+        aria_checked(if checked {
+            AriaChecked::True
+        } else {
+            AriaChecked::False
+        }),
+        data_state(checked_data_state(checked)),
+        ("data-value", value),
+    ];
+    if disabled {
+        merged.push(aria_disabled(true));
+    }
+    merged.extend(data_disabled(disabled));
+    merged.extend(data_highlighted(highlighted));
+    merged.extend(attrs);
+    ANATOMY.part("radio-item", "div", merged, children)
 }
 
 /// Menubar のアクション（WASM 境界の文字列 dispatch と
@@ -1128,6 +1408,154 @@ mod tests {
 
         let open = render(&sub_content(OpenState::Open, None, None, vec![], vec![]));
         assert!(!open.contains("hidden"));
+    }
+
+    // --- 新設パーツ（イシュー #1652）: arrow / arrow-tip / item-text /
+    // item-indicator / checkbox-item / radio-item-group / radio-item ---
+
+    #[test]
+    fn arrow_and_arrow_tip_output_expected_parts() {
+        let arrow_html = render(&arrow(vec![], vec![]));
+        assert!(arrow_html.contains(r#"data-scope="menubar""#));
+        assert!(arrow_html.contains(r#"data-part="arrow""#));
+
+        let tip_html = render(&arrow_tip(vec![], vec![]));
+        assert!(tip_html.contains(r#"data-part="arrow-tip""#));
+    }
+
+    #[test]
+    fn item_text_reflects_disabled_and_highlighted() {
+        let html = render(&item_text(true, true, vec![], vec![text("Save")]));
+        assert!(html.contains(r#"data-part="item-text""#));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-highlighted="""#));
+        assert!(html.contains("Save"));
+
+        let plain = render(&item_text(false, false, vec![], vec![]));
+        assert!(!plain.contains("data-disabled"));
+        assert!(!plain.contains("data-highlighted"));
+    }
+
+    #[test]
+    fn item_indicator_reflects_checked_state() {
+        let checked = render(&item_indicator(true, vec![], vec![]));
+        assert!(checked.contains(r#"data-part="item-indicator""#));
+        assert!(checked.contains(r#"aria-hidden="true""#));
+        assert!(checked.contains(r#"data-state="checked""#));
+        assert!(!checked.contains("hidden=\"\""));
+
+        let unchecked = render(&item_indicator(false, vec![], vec![]));
+        assert!(unchecked.contains(r#"data-state="unchecked""#));
+        assert!(unchecked.contains(r#"hidden="""#));
+    }
+
+    #[test]
+    fn checkbox_item_outputs_menuitemcheckbox_role_and_aria_checked() {
+        let checked = render(&checkbox_item(true, "wrap", false, false, vec![], vec![]));
+        assert!(checked.contains(r#"data-part="checkbox-item""#));
+        assert!(checked.contains(r#"role="menuitemcheckbox""#));
+        assert!(checked.contains(r#"aria-checked="true""#));
+        assert!(checked.contains(r#"data-state="checked""#));
+        assert!(checked.contains(r#"data-value="wrap""#));
+
+        let unchecked = render(&checkbox_item(false, "wrap", false, false, vec![], vec![]));
+        assert!(unchecked.contains(r#"aria-checked="false""#));
+        assert!(unchecked.contains(r#"data-state="unchecked""#));
+    }
+
+    #[test]
+    fn checkbox_item_disabled_and_highlighted_reflected() {
+        let html = render(&checkbox_item(false, "wrap", true, true, vec![], vec![]));
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"data-highlighted="""#));
+    }
+
+    #[test]
+    fn radio_item_group_outputs_role_group_and_labelledby() {
+        let html = render(&radio_item_group(Some("view-label"), vec![], vec![]));
+        assert!(html.contains(r#"data-part="radio-item-group""#));
+        assert!(html.contains(r#"role="group""#));
+        assert!(html.contains(r#"aria-labelledby="view-label""#));
+    }
+
+    #[test]
+    fn radio_item_outputs_menuitemradio_role_and_aria_checked() {
+        let checked = render(&radio_item(true, "grid", false, false, vec![], vec![]));
+        assert!(checked.contains(r#"data-part="radio-item""#));
+        assert!(checked.contains(r#"role="menuitemradio""#));
+        assert!(checked.contains(r#"aria-checked="true""#));
+        assert!(checked.contains(r#"data-state="checked""#));
+
+        let unchecked = render(&radio_item(false, "grid", false, false, vec![], vec![]));
+        assert!(unchecked.contains(r#"aria-checked="false""#));
+        assert!(unchecked.contains(r#"data-state="unchecked""#));
+    }
+
+    #[test]
+    fn checkbox_item_and_radio_item_value_payload_is_escaped_on_render() {
+        let checkbox_html = render(&checkbox_item(
+            true,
+            "<script>alert(1)</script>",
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!checkbox_html.contains("<script>"));
+
+        let radio_html = render(&radio_item(
+            true,
+            "<script>alert(1)</script>",
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!radio_html.contains("<script>"));
+    }
+
+    // --- 新設パーツの `drop_reserved` による偽装除去回帰（イシュー #1652）---
+
+    #[test]
+    fn new_parts_caller_supplied_reserved_attrs_are_dropped() {
+        let item_text_html = render(&item_text(
+            false,
+            false,
+            vec![
+                ("data-disabled", "attacker"),
+                ("data-highlighted", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(!item_text_html.contains("attacker"));
+
+        let item_indicator_html = render(&item_indicator(
+            false,
+            vec![
+                ("aria-hidden", "false"),
+                ("data-state", "attacker"),
+                ("hidden", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(!item_indicator_html.contains("attacker"));
+        assert!(item_indicator_html.contains(r#"aria-hidden="true""#));
+
+        let checkbox_html = render(&checkbox_item(
+            false,
+            "wrap",
+            false,
+            false,
+            vec![("role", "attacker"), ("aria-checked", "true")],
+            vec![],
+        ));
+        assert!(!checkbox_html.contains("attacker"));
+        assert!(checkbox_html.contains(r#"aria-checked="false""#));
+
+        let radio_group_html = render(&radio_item_group(None, vec![("role", "attacker")], vec![]));
+        assert!(!radio_group_html.contains("attacker"));
+        assert!(radio_group_html.contains(r#"role="group""#));
     }
 
     // --- ARIA 関係の統合確認 ---

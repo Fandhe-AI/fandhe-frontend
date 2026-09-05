@@ -378,6 +378,34 @@ name = "fandhe-frontend-headless-ui"
 # を追加した。いずれも非破壊的な追加のみ（既存パーツのシグネチャ・出力は
 # 不変、`menu_menubar_aria_contract.rs` の paired パーツ属性一致契約も
 # 維持）のため、0.54.1 から patch バンプで 0.54.2 とする。
+# イシュー #1652（menubar の参照突合）: `arrow`/`arrow_tip`/`item_text`/
+# `item_indicator`/`checkbox_item`/`radio_item_group`/`radio_item` の 7
+# パーツを新設（11 → 18 anatomy パーツ）し、`menubar.rs` の各パーツ関数へ
+# 呼び出し側 `attrs` の予約キー除去（`crate::radio_group::drop_reserved`）
+# を追加した（旧 `drop_tabindex_attr` は `TRIGGER_RESERVED` へ統合し削除）。
+# いずれも非破壊的な追加のみ（既存パーツのシグネチャ・出力は不変、
+# `menu_menubar_aria_contract.rs` の paired パーツ属性一致契約も維持）の
+# ため、0.54.2 から patch バンプで 0.54.3 とした（本ブランチ内での到達点）。
+# base 再取り込み（イシュー #1652, 2026-09-06）: main 側で独立に到達して
+# いた 0.55.1（イシュー #1643: toast の drop_reserved 導入に伴う破壊的
+# 変更 0.55.0 と、イシュー #1651: menu の item_text/item_indicator 新設
+# 0.54.2 との和集合）は本ブランチの 0.54.3（menubar の 7 パーツ新設、
+# 非破壊的追加）に未反映のため、両者の和集合として patch バンプで
+# 0.55.2 とする（menubar 側は非破壊的変更のためマイナーバンプは不要）。
+# codex-review 指摘（PR #1924, イシュー #1652 P1 是正）: 上記「menubar 側は
+# 非破壊的変更のためマイナーバンプは不要」という判断は誤りだった。
+# `drop_reserved` の適用対象は新設 7 パーツだけでなく、0.54.2 以前から既に
+# 公開済みだった `root`/`menu`/`trigger`/`positioner`/`content` にも及んで
+# おり、これらの既存パーツの出力を変える。例えば
+# `positioner(OpenState::Open, vec![("hidden", "")], ...)` は従来、呼び出し
+# 側が渡した `hidden` 属性がそのまま出力へ残っていたが、`drop_reserved`
+# 導入後はこの呼び出し側属性が除去されるため、`hidden` の有無は
+# `state`（実際の開閉状態）のみで決まるように挙動が変わる（`content`/
+# `item_indicator` も同型）。popover（#1642 P1 是正）・toast（#1643）の
+# 既存パーツ `drop_tabindex_attr`/`drop_reserved` 導入時と同じ破壊的変更
+# パターンであり、0.x の破壊的変更はマイナーバンプとする規約
+# （.claude/rules/coding-rust.md）に従い、0.55.2 からマイナーバンプで
+# 0.56.0 とする。
 # base 再取り込み（イシュー #1643, 2026-09-06）: main 側で独立に到達して
 # いた 0.54.2（イシュー #1651: menu の item_text/item_indicator 新設、
 # 非破壊的追加）は本ブランチの 0.55.0（toast の drop_reserved 導入に伴う
@@ -404,6 +432,13 @@ name = "fandhe-frontend-headless-ui"
 # 独立に 0.55.1 から 0.56.0 へマイナーバンプしており、再度の偶発的同一
 # 版数衝突となる。両者はいずれも破壊的変更のため、和集合としてさらに
 # マイナーバンプし 0.57.0 とする。
+# base 再取り込み（イシュー #1652, 2026-09-06）: main 側は本ブランチとは独立に
+# accordion（#1636）の破壊的変更を経て 0.56.0 へ到達しており、本ブランチも
+# menubar の drop_reserved 是正（codex-review 指摘、上記参照）により独立に
+# 0.56.0 へ到達していた。両者が同一版数へ偶発的に衝突しているため（同一
+# 版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
+# style-refresh-version-bump-operation.md` §5）、両者の破壊的変更の和集合
+# として、さらにマイナーバンプで 0.57.0 とする。
 version = "0.57.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"

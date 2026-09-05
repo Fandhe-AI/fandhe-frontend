@@ -79,14 +79,11 @@
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - `menu`/`menubar` の `trigger-item`/`checkbox-item`/`radio-item-group`/
-//!   `radio-item`/`context-trigger`（menu）・`sub-trigger`/`sub-content`
-//!   （menubar）は `tests/primitive_showcase.rs::KNOWN_UNCOVERED` に
-//!   Demo 側の未網羅パートとして登録済みであり、本モジュールの Anatomy
-//!   節（機械導出）には現れない。Features 節の散文では言及する（ソース上
-//!   実在するため）が、Examples では新規に描画しない（Demo との切り口分離
-//!   の趣旨と衝突しないよう、Anatomy に現れないパーツを Examples だけで
-//!   実演することは避ける）。
+//! - `menu`（イシュー #1651）・`menubar`（イシュー #1652）はいずれも
+//!   全 anatomy パーツを `primitive_showcase::navigation` の Demo で描画済み
+//!   であり、`tests/primitive_showcase.rs::KNOWN_UNCOVERED` に未網羅
+//!   エントリを持たない（旧記述「`trigger-item`/`checkbox-item`/…は
+//!   Demo 側未網羅」は両イシューの Demo 拡充で解消済み）。
 
 use fandhe_frontend_core::{code, el, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
@@ -1219,21 +1216,191 @@ fn ex_menubar() -> Node {
     )])
 }
 
+/// checkbox-item/radio-item-group/radio-item + item-indicator/item-text の
+/// 組み立てを実演する（menu の `ex_menu`（checkbox/radio 節）と同型、
+/// イシュー #1652）。
+fn ex_menubar_checkbox_and_radio() -> Node {
+    let open = OpenState::Open;
+    example_wrap(vec![menubar::root(
+        Orientation::Horizontal,
+        "Example menu",
+        vec![],
+        vec![menubar::menu(
+            open,
+            vec![],
+            vec![
+                menubar::trigger(
+                    true,
+                    open,
+                    false,
+                    false,
+                    0,
+                    Some("ex-menubar-checkbox-radio-content"),
+                    vec![],
+                    vec![text("View")],
+                ),
+                menubar::positioner(
+                    open,
+                    vec![],
+                    vec![menubar::content(
+                        open,
+                        Some("ex-menubar-checkbox-radio-content"),
+                        None,
+                        vec![],
+                        vec![
+                            menubar::checkbox_item(
+                                true,
+                                "word-wrap",
+                                false,
+                                false,
+                                vec![],
+                                vec![
+                                    menubar::item_indicator(true, vec![], vec![text("✓")]),
+                                    menubar::item_text(
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![text("Word Wrap")],
+                                    ),
+                                ],
+                            ),
+                            menubar::separator(vec![], vec![]),
+                            menubar::radio_item_group(
+                                None,
+                                vec![],
+                                vec![
+                                    menubar::radio_item(
+                                        true,
+                                        "grid",
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![
+                                            menubar::item_indicator(true, vec![], vec![text("●")]),
+                                            menubar::item_text(
+                                                false,
+                                                false,
+                                                vec![],
+                                                vec![text("Grid")],
+                                            ),
+                                        ],
+                                    ),
+                                    menubar::radio_item(
+                                        false,
+                                        "list",
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![
+                                            menubar::item_indicator(false, vec![], vec![text("●")]),
+                                            menubar::item_text(
+                                                false,
+                                                false,
+                                                vec![],
+                                                vec![text("List")],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    )],
+                ),
+            ],
+        )],
+    )])
+}
+
+/// `data-scope="menubar"` セレクタで自前 CSS を当てる最小例
+/// （`MENU_CUSTOM_CSS_SNIPPET` と同型、イシュー #1652）。`[hidden]` を持つ
+/// パーツ（positioner/content/sub-content/item-indicator）へ
+/// `display: none` ガードを必ず含める。
+const MENUBAR_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"menubar\"][data-part=\"positioner\"][hidden],\n\
+[data-scope=\"menubar\"][data-part=\"content\"][hidden],\n\
+[data-scope=\"menubar\"][data-part=\"sub-content\"][hidden],\n\
+[data-scope=\"menubar\"][data-part=\"item-indicator\"][hidden] {\n  \
+  display: none;\n\
+}\n\
+[data-scope=\"menubar\"][data-part=\"trigger\"][data-state=\"open\"] {\n  \
+  background: #eff6ff;\n\
+}\n\
+[data-scope=\"menubar\"][data-part=\"item\"][data-highlighted] {\n  \
+  background: #eff6ff;\n\
+}\n\
+[data-scope=\"menubar\"][data-part=\"item\"][data-disabled] {\n  \
+  color: #9ca3af;\n\
+}\n\
+[data-scope=\"menubar\"][data-part=\"checkbox-item\"][data-state=\"checked\"] {\n  \
+  font-weight: 600;\n\
+}\n";
+
+fn ex_menubar_custom_css() -> Node {
+    let open = OpenState::Open;
+    let markup = menubar::root(
+        Orientation::Horizontal,
+        "Example menu",
+        vec![],
+        vec![menubar::menu(
+            open,
+            vec![],
+            vec![
+                menubar::trigger(
+                    true,
+                    open,
+                    false,
+                    false,
+                    0,
+                    Some("ex-menubar-css-content"),
+                    vec![],
+                    vec![text("File")],
+                ),
+                menubar::positioner(
+                    open,
+                    vec![],
+                    vec![menubar::content(
+                        open,
+                        Some("ex-menubar-css-content"),
+                        None,
+                        vec![],
+                        vec![
+                            menubar::item("new", false, true, vec![], vec![text("New")]),
+                            menubar::item("close", true, false, vec![], vec![text("Close")]),
+                        ],
+                    )],
+                ),
+            ],
+        )],
+    );
+    example_wrap(vec![
+        markup,
+        pre(
+            vec![],
+            vec![code(vec![], vec![text(MENUBAR_CUSTOM_CSS_SNIPPET)])],
+        ),
+    ])
+}
+
 /// `/primitives/menubar/`。
 ///
-/// 一次情報: `crates/headless-ui/src/menubar.rs:1-124`（モジュール doc）、
-/// `:168-411`（`root`/`menu`/`trigger`/`content`/`sub_trigger`/
-/// `sub_content` シグネチャ）、`:163`/`:187`/`:280`/`:254`
-/// （`role="menubar"`/`role="none"`/`role="menuitem"`/`role="menu"` の
-/// 実出力）、`:412-462`/`:463-762`（`MenubarAction`/`Menubar`、`:717` の
-/// `decode_action` の doc）。
+/// 一次情報: `crates/headless-ui/src/menubar.rs:1-210`（モジュール doc、
+/// イシュー #1652 で「参考サイトとの意図的な差分」節を追加）、
+/// `:225-786`（`root`/`menu`/`trigger`/`positioner`/`content`/`arrow`/
+/// `arrow_tip`/`item`/`item_text`/`item_indicator`/`item_group`/
+/// `item_group_label`/`separator`/`sub_trigger`/`sub_content`/
+/// `checkbox_item`/`radio_item_group`/`radio_item` シグネチャ）、`role`
+/// 実出力は各パーツ関数内（`role("menubar")`/`role("none")`/
+/// `role("menuitem")`/`role("menu")`/`role("menuitemcheckbox")`/
+/// `role("menuitemradio")`/`role("group")`/`role("separator")`）、
+/// `:703`（`MenubarAction`）、`:754`（`Menubar`）、`:1009`（`decode_action`）。
 pub(super) const MENUBAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "複数 Menu を水平（または垂直）に並べるコンテナ。Root / Menu / Trigger / Positioner / Content / Item / ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent の 11 anatomy パーツを持つ（menubar.rs モジュール doc）。",
+        "複数 Menu を水平（または垂直）に並べるコンテナ。Root / Menu / Trigger / Positioner / Content / Arrow / ArrowTip / Item / ItemText / ItemIndicator / ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent / CheckboxItem / RadioItemGroup / RadioItem の 18 anatomy パーツを持つ（menubar.rs モジュール doc。Arrow/ArrowTip/ItemText/ItemIndicator/CheckboxItem/RadioItemGroup/RadioItem はイシュー #1652 で Radix Primitives Menubar と突合し追加、11 → 18 パーツ）。",
         "roving tabindex（focused/trigger_count/open/loop_focus/orientation の複合状態機械 Menubar）。フォーカス対象のトリガーのみ tabindex=\"0\"、それ以外は tabindex=\"-1\" になる。",
         "開いている Menu を跨いだ左右移動: ある Menu が開いた状態で Next/Prev/First/Last/Focus を dispatch すると、フォーカス移動と同時に開く Menu も隣へ移る（menubar 特有の挙動、toolbar の roving tabindex にはない）。",
         "menu パーツは role=\"none\" を固定付与し、role=\"menubar\" の子として menuitem/group 以外の要素を挟まないようにする（WAI-ARIA APG の menubar パターン）。",
-        "既存の menu モジュールの anatomy はそのまま再利用せず data-scope=\"menubar\" を独自に持つ。状態機械の値語彙（OpenState/aria/data-* ヘルパ）のみを再利用する。",
+        "既存の menu モジュールの anatomy はそのまま再利用せず data-scope=\"menubar\" を独自に持つ。状態機械の値語彙（OpenState/aria/data-* ヘルパ）と checkbox_item/radio_item の checked 値語彙（checked_data_state）のみを再利用する。",
+        "全パーツで呼び出し側 attrs による固定属性（role/aria-*/data-*/tabindex）の偽装を drop_reserved で除去する（イシュー #1652、A05）。",
     ],
     arguments: &[
         ArgRow {
@@ -1260,20 +1427,84 @@ pub(super) const MENUBAR: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "この Menu 自身の開閉状態。aria-expanded/data-state へ反映される。",
         },
+        ArgRow {
+            name: "checkbox_item(checked) / radio_item(checked)",
+            kind: "bool",
+            default: "",
+            description: "checked/unchecked を role=\"menuitemcheckbox\"/\"menuitemradio\" の aria-checked と data-state（checked_data_state 経由）へ反映する。",
+        },
+        ArgRow {
+            name: "item_indicator(checked)",
+            kind: "bool",
+            default: "",
+            description: "data-state（checked_data_state）へ反映し、unchecked のとき hidden 存在属性を付与する。aria-hidden=\"true\" を固定付与。",
+        },
+        ArgRow {
+            name: "item_text(disabled, highlighted)",
+            kind: "bool, bool",
+            default: "",
+            description: "親 item 系パーツの状態を data-disabled/data-highlighted として装飾用に複製する。",
+        },
+        ArgRow {
+            name: "sub_trigger(sub_state)",
+            kind: "OpenState",
+            default: "",
+            description: "このトリガーが開閉するサブメニュー側の開閉状態（親 Menubar の state ではない）。aria-expanded/data-state へ反映する。",
+        },
     ],
-    examples: &[ExampleEntry {
-        title: "2 個の Menu を並べた構成",
-        description: "File（open）/ Edit（closed）の 2 つの Menu を並べ、複数 Menu をまたぐ roving tabindex の構造を示します。",
-        render: ex_menubar,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "2 個の Menu を並べた構成",
+            description: "File（open）/ Edit（closed）の 2 つの Menu を並べ、複数 Menu をまたぐ roving tabindex の構造を示します。",
+            render: ex_menubar,
+        },
+        ExampleEntry {
+            title: "checkbox-item / radio-item-group を含む構成",
+            description: "checkbox-item（Word Wrap）と radio-item-group（Grid/List）を含む View メニューの構成例です。",
+            render: ex_menubar_checkbox_and_radio,
+        },
+        ExampleEntry {
+            title: "自前 CSS を当てる最小例",
+            description: "data-scope=\"menubar\" セレクタで hover/highlighted/disabled/checked のスタイルを当てる最小 CSS 例です。",
+            render: ex_menubar_custom_css,
+        },
+    ],
     keyboard: &[
         KeyRow {
-            key: "Tab / Shift+Tab",
-            description: "ネイティブ button 要素の暗黙フォーカス移動（roving tabindex により tabindex=\"0\" のトリガーのみが Tab 順序に含まれる）。",
+            key: "ArrowRight / ArrowLeft（trigger）",
+            description: "隣の trigger へフォーカスを移動する（open-follows-focus: ある Menu が開いていれば開く Menu も追随する）。垂直 menubar では ArrowDown/ArrowUp が同じ役割を担う（menubar.rs「開いている Menu を跨いだ左右移動」節）。",
         },
         KeyRow {
-            key: "(矢印キー等)",
-            description: "ArrowRight/Left・Home/End・Enter/Space・Escape 等のキーイベント配線は headless-ui の対象外。MenubarAction（Next/Prev/First/Last/Focus/Open/Close/Toggle）として状態遷移 API を提供し、実 DOM のキー配線は wasm ランタイム層の責務とする（menubar.rs「スコープ外」節）。",
+            key: "ArrowDown / Space / Enter（trigger、closed）",
+            description: "Menu を開き、先頭の非 disabled 項目を data-highlighted で仮想フォーカスする（実 DOM フォーカスは trigger に留まる）。",
+        },
+        KeyRow {
+            key: "ArrowUp（trigger、closed）",
+            description: "Menu を開き、末尾の非 disabled 項目を仮想フォーカスする。",
+        },
+        KeyRow {
+            key: "ArrowDown / ArrowUp（content 内）",
+            description: "項目間で data-highlighted を移動する（disabled はスキップする、`fandhe-frontend-wasm-full` の `keynav::highlight_next_index` が `step_non_disabled` へ委譲する）。",
+        },
+        KeyRow {
+            key: "ArrowRight / ArrowLeft（sub-trigger）",
+            description: "ArrowRight でサブメニューを展開、ArrowLeft で親トリガーへ復帰する（水平配置時。垂直配置は軸が入れ替わる）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "content 内の先頭 / 末尾の非 disabled 項目へ仮想フォーカスを移動する（WAI-ARIA APG 準拠、Radix Menubar にはない拡張）。",
+        },
+        KeyRow {
+            key: "印字可能文字（typeahead）",
+            description: "item-text の子テキストをラベルとして前方一致検索し、一致する項目へ仮想フォーカスを移動する（WAI-ARIA APG 準拠）。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "開いている Menu を閉じる。trigger からフォーカスを離さない設計のため、フォーカス復帰は構造的に成立する。",
+        },
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "無配線（ブラウザ既定に委ねる）。roving tabindex により tabindex=\"0\" のトリガーのみが Tab 順序に含まれる。",
         },
     ],
     aria: &[
@@ -1292,6 +1523,14 @@ pub(super) const MENUBAR: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "role=\"menu\"",
             description: "content/sub-content に固定付与。aria-labelledby は labelledby が Some のときのみ出力される。",
+        },
+        AriaRow {
+            attribute: "role=\"menuitemcheckbox\" / role=\"menuitemradio\" / aria-checked",
+            description: "checkbox-item/radio-item に付与。checked/unchecked の 2 値のみ（indeterminate は扱わない）。",
+        },
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "item-indicator に固定付与（装飾アイコンであり、親 checkbox-item/radio-item 自身の aria-checked が checked 状態を既に伝達するため）。",
         },
     ],
     demo: None,

@@ -406,6 +406,22 @@ name = "fandhe-frontend-wasm-full"
 # の src は無変更。checkbox-item/radio-item への Enter/Space・click 合成に
 # よる checked トグル dispatch の配線追加は本 PR のスコープ外）。0.12.1 から
 # patch バンプで 0.12.2 とする。
+# イシュー #1652（menubar の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# 0.54.2 → 0.54.3（`arrow`/`arrow_tip`/`item_text`/`item_indicator`/
+# `checkbox_item`/`radio_item_group`/`radio_item` の 7 パーツ追加・呼び出し側
+# attrs の予約キー除去、いずれも非破壊的追加）への追随のみ（wasm-full 自身
+# の src は無変更。checkbox-item/radio-item の highlight 移動・checked
+# トグル dispatch 配線の追加は本 PR のスコープ外、イシュー本文の後続提案へ
+# 記録済み）。0.12.2 から patch バンプで 0.12.3 とした（本ブランチ内での
+# 到達点）。
+# base 再取り込み（イシュー #1652, 2026-09-06）: main 側で独立に到達して
+# いた 0.12.3（本 #1643 toast・#1650/#1651 link-overlay/menu 依存追随の
+# 積み上げが本ブランチの 0.12.3 と同一版数へ偶発的に衝突していたため、
+# 同一版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
+# style-refresh-version-bump-operation.md` §5 に従い、依存先を headless-ui
+# 0.55.2（base 再取り込みで解決した最終版、`crates/headless-ui/
+# Cargo.toml` 参照）へ追随させる patch バンプとして 0.12.4 とする
+# （wasm-full 自身の src は無変更）。
 # 上記 2 ブランチ（本 #1643 toast・#1650/#1651 link-overlay/menu 依存
 # 追随の積み上げ）が独立に同一版数 0.12.2 へ到達したため（同一版数への
 # 偶発的衝突をそのまま採用しない原則、`docs/ci/
@@ -461,7 +477,23 @@ name = "fandhe-frontend-wasm-full"
 # 破壊的変更の和集合、`crates/headless-ui/Cargo.toml` 参照）へさらに
 # 追随させる patch バンプとして 0.14.1 とする（wasm-full 自身の src は
 # 無変更）。
-version = "0.14.1"
+# base 再取り込み（イシュー #1652, 2026-09-06）: main 側は本ブランチとは独立に
+# accordion の破壊的変更に伴う headless-ui 0.56.0 依存・`Placement`/
+# `Measurement`/`Rect`/`Size` 再エクスポートの公開型不整合是正により
+# minor バンプで 0.14.0 へ到達していた。本ブランチ（menubar）の base
+# 再取り込みでは headless-ui を 0.55.2 依存の patch バンプ（0.12.4）に
+# 留めていたが、上記 codex-review 是正の判断軸（依存先 headless-ui の
+# 0.x マイナーバンプは `^0.a.b` の互換範囲が重ならないため、公開型
+# 再エクスポートを持つ wasm-full 側もマイナーバンプが必要）に従えば
+# 本ブランチ側も同様の是正が必要だった。加えて、codex-review 指摘
+# （PR #1924, イシュー #1652 P1 是正）により依存先 headless-ui は
+# menubar の drop_reserved 破壊的変更と accordion の破壊的変更の和集合
+# として 0.56.0 からさらにマイナーバンプで 0.57.0 へ到達している
+# （`crates/headless-ui/Cargo.toml` 参照）。`^0.56.0` と `^0.57.0` も
+# 0.x では互換範囲が重ならないため、wasm-full 自身の src は無変更だが
+# 依存先 headless-ui 0.57.0 への追随として main 到達点 0.14.0 から
+# さらにマイナーバンプで 0.15.0 とする。
+version = "0.15.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
