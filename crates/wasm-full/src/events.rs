@@ -254,6 +254,102 @@ const ARIA_INTERACTIVE_ROLES: &[&str] = &[
     "treeitem",
 ];
 
+/// WAI-ARIA のロール解決規則
+/// (<https://www.w3.org/TR/wai-aria-1.2/#host_general_role>) における
+/// 「認識できる非 abstract ロール」のうち、[`ARIA_INTERACTIVE_ROLES`] に
+/// 含まれない代表的な非対話ロール一覧（イシュー #1616 codex-review P1
+/// 再指摘・Bugbot Medium 指摘の是正）。`role` 属性はスペース区切りの
+/// フォールバック候補列であり、UA は左から順に「認識できる」トークンを
+/// 探し、そのトークンだけで対話性を確定する（未知トークンは読み飛ばして
+/// 次の候補を見る）。本一覧に載っているトークンで確定した場合は
+/// 「認識できたが非対話」を意味し、それ以降の候補は見ない
+/// （例: `role="presentation button"` は `presentation` で確定し
+/// `button` は見ない。網羅は必須ではないが、少なくとも UI コンポーネント
+/// 層が実際に使う `presentation`/`none` 等の主要な非対話ロールは含める）。
+const ARIA_KNOWN_NON_INTERACTIVE_ROLES: &[&str] = &[
+    "alert",
+    "alertdialog",
+    "application",
+    "article",
+    "banner",
+    "blockquote",
+    "caption",
+    "cell",
+    "columnheader",
+    "complementary",
+    "contentinfo",
+    "definition",
+    "dialog",
+    "directory",
+    "document",
+    "feed",
+    "figure",
+    "form",
+    "generic",
+    "grid",
+    "group",
+    "heading",
+    "img",
+    "list",
+    "listitem",
+    "log",
+    "main",
+    "marquee",
+    "math",
+    "meter",
+    "navigation",
+    "none",
+    "note",
+    "paragraph",
+    "presentation",
+    "progressbar",
+    "radiogroup",
+    "region",
+    "row",
+    "rowgroup",
+    "rowheader",
+    "scrollbar",
+    "search",
+    "separator",
+    "status",
+    "table",
+    "tabpanel",
+    "term",
+    "timer",
+    "toolbar",
+    "tooltip",
+    "tree",
+    "treegrid",
+];
+
+/// `role` 属性値を WAI-ARIA のロール解決規則
+/// (<https://www.w3.org/TR/wai-aria-1.2/#host_general_role>) に従って
+/// 解決する（イシュー #1616 codex-review P1 再指摘・Bugbot Medium 指摘の
+/// 是正: 旧実装は `role` 属性値全体を単一トークンとして
+/// `ARIA_INTERACTIVE_ROLES.contains` していたため、複数ロールのフォール
+/// バック列（`role="switch checkbox"`）や大文字小文字混在
+/// （`role="Button"`）、前後の空白（`role=" button "`）を正しく解釈
+/// できなかった）。
+///
+/// ASCII 空白区切りでトークン化し、各トークンを ASCII 小文字化した上で
+/// 左から順に走査する。最初に [`ARIA_INTERACTIVE_ROLES`] に一致した
+/// トークンがあれば `Some(true)`、[`ARIA_KNOWN_NON_INTERACTIVE_ROLES`] に
+/// 一致したトークンがあれば `Some(false)` を返す。いずれのトークンも
+/// 認識できなければ `None`（呼び出し側は `role` 自体が無いのと同様に
+/// 扱う）。
+fn resolve_role_interactive(role: &str) -> Option<bool> {
+    for token in role.split_ascii_whitespace() {
+        let lower = token.to_ascii_lowercase();
+        if ARIA_INTERACTIVE_ROLES.contains(&lower.as_str()) {
+            return Some(true);
+        }
+        if ARIA_KNOWN_NON_INTERACTIVE_ROLES.contains(&lower.as_str()) {
+            return Some(false);
+        }
+    }
+    None
+}
+
 /// [`classify_interactive_boundary`] への入力を束ねる構造体（イシュー
 /// #1616 codex-review P1 再指摘の是正で導入）。wasm32 側の配線層
 /// （`events::wiring`/`keynav::wiring`）が `web_sys::Element` から属性を
@@ -279,7 +375,8 @@ pub struct BoundaryProbe<'a> {
     /// 対話性ありと扱う）。`type="hidden"`（大文字小文字を問わない）は
     /// interactive content ではない。
     pub input_type: Option<&'a str>,
-    /// `role` 属性値（無ければ `None`）。
+    /// `role` 属性値（無ければ `None`）。空白区切りの複数トークンを
+    /// 許容し、[`resolve_role_interactive`] で解決する。
     pub role: Option<&'a str>,
     /// `tabindex` 属性の有無（値は問わない。値の妥当性検証は呼び出し側の
     /// 関心事ではない）。
@@ -405,7 +502,7 @@ pub fn classify_interactive_boundary(probe: &BoundaryProbe<'_>) -> InteractiveBo
     }
     if probe
         .role
-        .is_some_and(|r| ARIA_INTERACTIVE_ROLES.contains(&r))
+        .is_some_and(|r| resolve_role_interactive(r) == Some(true))
     {
         return InteractiveBoundaryClass::Aria;
     }
@@ -1130,6 +1227,52 @@ mod tests {
 
     #[test]
     fn classify_unknown_role_is_ordinary() {
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("span").role("presentation")),
+            InteractiveBoundaryClass::Ordinary
+        );
+    }
+
+    #[test]
+    fn classify_role_token_list_uses_first_recognized_token() {
+        // WAI-ARIA のロール解決規則
+        // (https://www.w3.org/TR/wai-aria-1.2/#host_general_role)。
+        // 空白区切りの複数トークンは左から順に走査し、最初に認識できる
+        // 非 abstract ロールで確定する（イシュー #1616 codex-review P1
+        // 再指摘・Bugbot Medium 指摘の是正）。
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("span").role("switch checkbox")),
+            InteractiveBoundaryClass::Aria,
+            "role=\"switch checkbox\" は最初のトークン switch で対話ロールに確定するべき"
+        );
+    }
+
+    #[test]
+    fn classify_role_is_ascii_case_insensitive() {
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("span").role("CHECKBOX")),
+            InteractiveBoundaryClass::Aria
+        );
+    }
+
+    #[test]
+    fn classify_role_trims_surrounding_whitespace() {
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("span").role(" button ")),
+            InteractiveBoundaryClass::Aria
+        );
+    }
+
+    #[test]
+    fn classify_role_skips_unknown_tokens_before_recognized_one() {
+        assert_eq!(
+            classify_interactive_boundary(&BoundaryProbe::new("span").role("unknown button")),
+            InteractiveBoundaryClass::Aria
+        );
+    }
+
+    #[test]
+    fn classify_role_presentation_is_ordinary() {
         assert_eq!(
             classify_interactive_boundary(&BoundaryProbe::new("span").role("presentation")),
             InteractiveBoundaryClass::Ordinary

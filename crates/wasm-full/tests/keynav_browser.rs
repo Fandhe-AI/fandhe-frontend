@@ -2199,6 +2199,91 @@ fn radio_group_readonly_item_text_click_does_not_change_selection() {
 
 /// readonly（イシュー #1616 codex-review P1 再指摘、PR #1886 レビュー
 /// 追加是正）: readonly な `item` の `item-text` children に置いた
+/// `<span role="Switch checkbox" tabindex 無し>`（別コンポーネントが
+/// 持ち込む独自ウィジェットの想定、role は複数トークン・大文字混在）への
+/// クリックは、`crate::events::classify_interactive_boundary` が
+/// `BoundaryProbe::role` を WAI-ARIA のロール解決規則
+/// (https://www.w3.org/TR/wai-aria-1.2/#host_general_role) で解決し
+/// 最初のトークン `Switch` を対話ロールとして認識するため `Aria` 境界と
+/// なる。`Aria` 境界は readonly item では `PreventDefaultOnly`
+/// （`stop_propagation` は行わない）ため、click は要素自身のハンドラへ
+/// 届く一方、ネイティブ radio の選択は変わらない。
+#[wasm_bindgen_test]
+fn radio_group_readonly_item_role_widget_click_reaches_own_handler_without_changing_selection() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_radio_group_dom(
+        &document,
+        "kn-radio-readonly7",
+        &[("a", "A", true, false), ("b", "B", false, false)],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let input_a = document
+        .get_element_by_id("kn-radio-readonly7-input-a")
+        .unwrap();
+    let input_b = document
+        .get_element_by_id("kn-radio-readonly7-input-b")
+        .unwrap();
+    let item_b = input_b.parent_element().unwrap();
+    item_b.set_attribute("data-readonly", "").unwrap();
+
+    let item_text = item_b
+        .query_selector("[data-part=\"item-text\"]")
+        .unwrap()
+        .expect("item-text part must exist");
+    let widget = document.create_element("span").unwrap();
+    // role のトークン列・大文字小文字混在（WAI-ARIA のロール解決規則を
+    // 経由するため `switch`/`checkbox` いずれも認識される）。`tabindex`
+    // は付与しない（role 単体で境界化されることの確認）。
+    widget.set_attribute("role", "Switch checkbox").unwrap();
+    widget.set_id("kn-radio-readonly7-widget");
+    item_text.append_child(&widget).unwrap();
+
+    let widget_for_closure = widget.clone();
+    let click_closure = wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new(move |_e| {
+        let _ = widget_for_closure.set_attribute("data-clicked", "");
+    });
+    widget
+        .add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())
+        .unwrap();
+    click_closure.forget();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prevented = !widget.dispatch_event(&cancelable_click_event()).unwrap();
+    assert!(
+        prevented,
+        "readonly item 内の role ウィジェットへの click は preventDefault \
+         されるべき（Aria 境界 + readonly → PreventDefaultOnly）"
+    );
+    assert!(
+        widget.has_attribute("data-clicked"),
+        "readonly item 内の role ウィジェットへの click は stop_propagation \
+         されず、要素自身のクリックハンドラへ到達するべき"
+    );
+    assert!(
+        !input_b
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly item 内の role ウィジェットへの click で checked に \
+         なってはならない"
+    );
+    assert!(
+        input_a
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .unwrap()
+            .checked(),
+        "readonly item 内の role ウィジェットへの click で既存の選択が \
+         失われてはならない"
+    );
+}
+
+/// readonly（イシュー #1616 codex-review P1 再指摘、PR #1886 レビュー
+/// 追加是正）: readonly な `item` の `item-text` children に置いた
 /// `<audio controls>`（HTML 標準の interactive content
 /// https://html.spec.whatwg.org/multipage/dom.html#interactive-content
 /// に含まれる `audio[controls]`）へのクリックは、`classify_interactive_
