@@ -24,7 +24,8 @@
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::select::{
-    content, item, item_indicator, item_text, root, value_text, Select, SelectAction, SelectProps,
+    content, item, item_indicator, item_text, root, trigger, value_text, Select, SelectAction,
+    SelectProps,
 };
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_interactive::Component;
@@ -328,4 +329,149 @@ fn sync_select_value_text_does_not_leak_into_nested_select_instance() {
         Some("closed")
     );
     assert!(item_indicator_el(&inner_item_a).has_attribute("hidden"));
+}
+
+/// 検証 3: `root` 配下にネストした別 Select インスタンス（trigger あり）が
+/// 存在し、外側インスタンス自身は trigger を省略する構成でも、外側の
+/// `data-placeholder-shown` 同期が内側インスタンスの trigger へ波及しない
+/// （codex-review P1 再指摘、イシュー #1619、PR #1899）。従来の
+/// `root.query_selector(TRIGGER_SELECTOR)` は素の文書順探索のため、外側が
+/// trigger を持たない場合に内側 Select の trigger を誤って掴んで書き換えて
+/// しまっていた。
+#[wasm_bindgen_test]
+fn sync_select_value_text_does_not_leak_trigger_into_nested_select_instance() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "hs-sync-nested-trigger");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let props = SelectProps::default();
+
+    // 内側 Select は trigger を持つ（未選択 = プレースホルダー表示中の SSR
+    // 初期状態）。外側 Select は trigger を持たず value-text のみで
+    // 構成する（trigger 省略構成は headless-ui 契約上許容される）。
+    let inner = root(
+        OpenState::Closed,
+        &props,
+        Vec::new(),
+        vec![
+            trigger(
+                OpenState::Closed,
+                &props,
+                true,
+                None,
+                None,
+                Vec::new(),
+                Vec::new(),
+            ),
+            value_text(true, &props, Vec::new(), Vec::new()),
+            content(
+                OpenState::Closed,
+                None,
+                None,
+                None,
+                Vec::new(),
+                vec![item(
+                    OpenState::Closed,
+                    &props,
+                    false,
+                    false,
+                    "a",
+                    None,
+                    Vec::new(),
+                    vec![
+                        item_text(
+                            OpenState::Closed,
+                            &props,
+                            false,
+                            false,
+                            None,
+                            Vec::new(),
+                            vec![fandhe_frontend_core::text("Inner A")],
+                        ),
+                        item_indicator(OpenState::Closed, Vec::new(), Vec::new()),
+                    ],
+                )],
+            ),
+        ],
+    );
+
+    let outer = root(
+        OpenState::Closed,
+        &props,
+        Vec::new(),
+        vec![
+            value_text(true, &props, Vec::new(), Vec::new()),
+            content(
+                OpenState::Closed,
+                None,
+                None,
+                None,
+                Vec::new(),
+                vec![item(
+                    OpenState::Closed,
+                    &props,
+                    false,
+                    false,
+                    "a",
+                    None,
+                    Vec::new(),
+                    vec![
+                        item_text(
+                            OpenState::Closed,
+                            &props,
+                            false,
+                            false,
+                            None,
+                            Vec::new(),
+                            vec![fandhe_frontend_core::text("Outer A")],
+                        ),
+                        item_indicator(OpenState::Closed, Vec::new(), Vec::new()),
+                        inner,
+                    ],
+                )],
+            ),
+        ],
+    );
+    container.set_inner_html(&render(&outer));
+
+    let outer_root = container
+        .query_selector("[data-scope=\"select\"][data-part=\"root\"]")
+        .unwrap()
+        .unwrap();
+    let outer_item_a = container
+        .query_selector("[data-scope=\"select\"][data-part=\"item\"][data-value=\"a\"]")
+        .unwrap()
+        .unwrap();
+    let inner_root = outer_item_a
+        .query_selector("[data-scope=\"select\"][data-part=\"root\"]")
+        .unwrap()
+        .unwrap();
+    let inner_trigger = inner_root
+        .query_selector("[data-scope=\"select\"][data-part=\"trigger\"]")
+        .unwrap()
+        .unwrap();
+
+    // 内側 trigger は SSR 初期状態で data-placeholder-shown が付与されて
+    // いること（未選択 = プレースホルダー表示中）。
+    assert!(inner_trigger.has_attribute("data-placeholder-shown"));
+
+    let mut select = Select::default();
+    select.update(SelectAction::Select("a".to_string()));
+    sync_select_value_text(&select, &outer_root, "placeholder");
+
+    // 外側は trigger を持たないため同期は no-op（trigger 更新自体は
+    // スキップ）だが、value-text の選択反映自体は行われる。
+    assert_eq!(
+        outer_item_a.get_attribute("aria-selected").as_deref(),
+        Some("true")
+    );
+
+    // 内側 Select の trigger はネストした別インスタンスであり、外側の
+    // 選択操作からは一切書き換えられないため、SSR 初期状態のまま
+    // data-placeholder-shown が残るはず（バグ再現時はここで属性が誤って
+    // 除去されていた）。
+    assert!(
+        inner_trigger.has_attribute("data-placeholder-shown"),
+        "ネストした別 Select インスタンスの trigger は書き換えられないはず"
+    );
 }

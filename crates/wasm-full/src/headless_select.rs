@@ -366,7 +366,12 @@ mod wiring {
     /// （改ざん・欠損入力）、または `[data-part="value-text"]` 要素が
     /// root 配下に無い場合は no-op とする（panic しない）。
     pub fn sync_select_value_text(select: &Select, root: &Element, placeholder: &str) {
-        let Ok(Some(value_text_el)) = root.query_selector(VALUE_TEXT_SELECTOR) else {
+        let boundary = instance_boundary(root);
+        let Some(value_text_el) =
+            own_scope_elements(root, &boundary, ROOT_SELECTOR, VALUE_TEXT_SELECTOR)
+                .into_iter()
+                .next()
+        else {
             return;
         };
 
@@ -418,8 +423,20 @@ mod wiring {
         // trigger 側も value-text と同じ判定で `data-placeholder-shown` を
         // 同期する（codex-review P1 是正、イシュー #1619。trigger 要素が
         // root 配下に無い構成もあり得るため fail-closed に no-op で
-        // スキップする）。
-        if let Ok(Some(trigger_el)) = root.query_selector(TRIGGER_SELECTOR) {
+        // スキップする。外側 Select が trigger を省略し、子孫に別の
+        // Select（trigger あり）がネストする構成では、素の
+        // `root.query_selector(TRIGGER_SELECTOR)` は文書順で最初に見つかる
+        // 要素を返すため、内側 Select の trigger を誤って掴んでしまう
+        // （codex-review 再指摘、イシュー #1619、PR #1899）。item/
+        // value-text の同期と同様に [`own_scope_elements`] で
+        // `instance_boundary`（このインスタンス自身の境界）と最近傍
+        // [`ROOT_SELECTOR`] 祖先の同一性による絞り込みを行い、自身の
+        // trigger が見つからない場合は更新を省略する）。
+        if let Some(trigger_el) =
+            own_scope_elements(root, &boundary, ROOT_SELECTOR, TRIGGER_SELECTOR)
+                .into_iter()
+                .next()
+        {
             if view.placeholder_shown {
                 let _ = set_dom_attribute(&trigger_el, PLACEHOLDER_SHOWN_ATTR, "");
             } else {
