@@ -783,11 +783,28 @@ impl DateInput {
     /// [`DateInputAction::Increment`]/[`Decrement`] の wrap-around 演算。
     /// 未入力の場合は「参考サイトとの意図的な差分」の no-clock 規則に従い、
     /// 増加方向は最小値、減少方向は最大値から開始する。
+    ///
+    /// 本コンポーネントは構造的に無効な日付（例: 2024-02-30）を意図的に
+    /// 保持し得る（モジュール doc 参照）ため、`base` が `[lo, hi]` の
+    /// 外側にある場合が起こり得る。剰余演算はこの前提が崩れると破綻する
+    /// （例: `hi=29` に対し `base=30` で increment すると `base` 自身を
+    /// 指してしまい `30 -> 2` のような直感に反する結果になる）ため、
+    /// 範囲外の `base` は Ark UI DateInput / react-aria DateField の
+    /// 挙動に合わせて increment 時は先頭（`lo`）、decrement 時は末尾
+    /// （`hi`）へ wrap する早期分岐を設ける。範囲内は従来どおり剰余で
+    /// wrap する。
     fn step_wrapping(&mut self, kind: DateSegment, delta: i32) {
         let lo = self.segment_min(kind);
         let hi = self.segment_max(kind);
         let span = hi - lo + 1;
         let next = match self.segment_value(kind) {
+            Some(base) if base < lo || base > hi => {
+                if delta > 0 {
+                    lo
+                } else {
+                    hi
+                }
+            }
             Some(base) => {
                 let offset = base - lo + delta;
                 lo + offset.rem_euclid(span)
@@ -1582,6 +1599,43 @@ mod tests {
     #[test]
     fn day_increment_respects_days_in_month() {
         // 2024 年 2 月はうるう年で 29 日まで。
+        let mut d = DateInput::new(Some(2024), Some(2), Some(29), None, None);
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "increment", "");
+        assert_eq!(d.day(), Some(1));
+    }
+
+    #[test]
+    fn day_increment_from_structurally_invalid_out_of_range_value_wraps_to_minimum() {
+        // 2024-02-30 は存在しない日付だが、本コンポーネントは構造的な
+        // 値域（1..=31）内であれば保持する（モジュール doc「fail-closed な
+        // 日付検証」参照）。2024 年 2 月の構造的上限（day_max）は 29 のため
+        // この 30 は `[lo, hi]` の外側にある。increment は Ark UI
+        // DateInput / react-aria DateField に合わせて先頭（1）へ wrap する
+        // （剰余演算に base をそのまま渡すと 30 -> 2 のような直感に反する
+        // 結果になっていた回帰、イシュー #1626 レビュー指摘）。
+        let mut d = DateInput::new(Some(2024), Some(2), Some(30), None, None);
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "increment", "");
+        assert_eq!(d.day(), Some(1));
+    }
+
+    #[test]
+    fn day_decrement_from_structurally_invalid_out_of_range_value_wraps_to_maximum() {
+        // 上記 increment と対称の decrement 版。範囲外の 30 からの
+        // decrement は末尾（29）へ wrap する。
+        let mut d = DateInput::new(Some(2024), Some(2), Some(30), None, None);
+        dispatch(&mut d, "focus", "day");
+        dispatch(&mut d, "decrement", "");
+        assert_eq!(d.day(), Some(29));
+    }
+
+    #[test]
+    fn day_increment_within_range_still_wraps_normally() {
+        // 範囲内の通常 wrap の回帰: 29 日まである 2024 年 2 月で
+        // 29 -> increment -> 1（既存の
+        // day_increment_respects_days_in_month と同一だが、早期分岐追加後
+        // も剰余演算経路が維持されていることを明示的に固定する）。
         let mut d = DateInput::new(Some(2024), Some(2), Some(29), None, None);
         dispatch(&mut d, "focus", "day");
         dispatch(&mut d, "increment", "");
