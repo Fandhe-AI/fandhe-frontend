@@ -146,11 +146,6 @@ const KNOWN_UNCOVERED: &[(&str, &str, &str)] = &[
         "右クリックコンテキストメニュー変種は本デモでは未使用（trigger で開閉契約を示す）",
     ),
     (
-        "breadcrumb",
-        "ellipsis",
-        "3 項目のみのデモ構成のため折り畳み表現（ellipsis）を使用しない",
-    ),
-    (
         "progress",
         "circle",
         "circular variant（circle/circle-track/circle-range）は linear variant と役割が重複するため未使用",

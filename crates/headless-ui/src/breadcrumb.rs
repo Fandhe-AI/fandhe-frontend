@@ -50,6 +50,39 @@
 //!   イシュー側のスコープ。
 //! - Link リスト・LinkOverlay（`docs/design/docs-site-styled-ui-adoption.md`
 //!   §3.1/§3.2）の再評価は Link 系実装イシューのスコープ。
+//!
+//! # 参考サイト突合（イシュー #1648）
+//!
+//! 参照実体は chakra-ui の Breadcrumb のみ（ark-ui には対応部品がなく、
+//! Radix Primitives / Radix Themes にも Breadcrumb は存在しない。
+//! `docs/design/component-coverage-map.md` 参照）。
+//!
+//! - **anatomy**: chakra-ui のスロット `root(nav) / list(ol) / item(li) /
+//!   link(a) / currentLink(span) / separator(li) / ellipsis(li)` の 7 つに
+//!   対し、本モジュールの 7 パーツは名称・タグとも完全一致（過不足なし）。
+//! - **`data-*` 状態語彙**: chakra-ui は `data-state`/`data-orientation` 等
+//!   の状態属性を出さない。[`current_link`] が付与する `data-current` は
+//!   [`crate::link`]/[`crate::nav_list`]/[`crate::pagination`] と共有する
+//!   本リポジトリ独自の追加語彙であり、削除すると `fandhe-frontend-pre-styled-ui`
+//!   の CSS セレクタへ波及する破壊的変更になるため**意図的に維持**する。
+//!   増減なし。
+//! - **WAI-ARIA**: `root` の `aria-label="breadcrumb"` 既定値・`current-link`
+//!   の `aria-current="page"`・`separator`/`ellipsis` の
+//!   `role="presentation"`+`aria-hidden="true"` はいずれも chakra-ui と一致
+//!   する。WAI-ARIA APG は末尾項目も `<a aria-current="page">` として残すが、
+//!   本実装は chakra-ui に倣い非対話 `span` とする（**意図的な差分**。
+//!   `docs/policy/intentional-non-adoption.md` §3.25 が禁じる装飾・レイア
+//!   ウト計測の持ち込みには該当しない）。
+//! - **キーボード操作**: chakra-ui にキーボード操作表はなく、本モジュール
+//!   も対話要素はネイティブ `<a href>`（[`link`]）のみで、`Tab`/`Shift+Tab`
+//!   （フォーカス移動）・`Enter`（遷移）はブラウザ既定動作に委ね、独自
+//!   キーハンドラは持たない。[`current_link`] は非対話 `span` のためフォー
+//!   カス対象外。
+//! - **是正**: 呼び出し側 `attrs` による予約キー（`aria-label`/`href`/
+//!   `aria-current`/`data-current`/`role`/`aria-hidden`）のなりすましを
+//!   [`drop_reserved`] で除去するようにした（従来は
+//!   [`fandhe_frontend_core::el`] が属性の重複除去をしないため、同名属性
+//!   が重複出力される経路があった）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_current, aria_hidden, aria_label, role, AriaCurrent};
@@ -65,6 +98,34 @@ const DEFAULT_ARIA_LABEL: &str = "breadcrumb";
 /// [`ellipsis`] パーツの固定テキスト。
 const ELLIPSIS_TEXT: &str = "…";
 
+/// [`root`] が固定付与する予約キー。呼び出し側 `attrs` からのなりすましを
+/// [`drop_reserved`] で除去する（イシュー #1648、`crate::checkbox` と同型）。
+const ROOT_RESERVED: &[&str] = &["aria-label"];
+
+/// [`link`] が固定付与する予約キー。
+const LINK_RESERVED: &[&str] = &["href"];
+
+/// [`current_link`] が固定付与する予約キー。
+const CURRENT_LINK_RESERVED: &[&str] = &["aria-current", "data-current"];
+
+/// [`separator`]/[`ellipsis`] が共通して固定付与する予約キー。
+const PRESENTATION_RESERVED: &[&str] = &["role", "aria-hidden"];
+
+/// 呼び出し側 `attrs` から予約キー（本モジュールが固定付与する属性名）を
+/// 除去する（ASCII 大文字小文字無視の完全一致）。`fandhe_frontend_core::el`
+/// は属性の重複除去をしないため、これを経由しない呼び出しは同名属性の
+/// 重複出力・状態属性のなりすましを許してしまう（`crate::checkbox::drop_reserved`
+/// と同型、イシュー #1648）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
 /// Root パーツ（`nav`）。`aria_label_value` が `None` のとき既定値
 /// [`DEFAULT_ARIA_LABEL`] を使う。
 #[must_use]
@@ -73,6 +134,7 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let label = aria_label_value.unwrap_or(DEFAULT_ARIA_LABEL);
     let mut merged: Vec<(&str, &str)> = vec![aria_label(label)];
     merged.extend(attrs);
@@ -95,6 +157,7 @@ pub fn item(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// 検証は本モジュール冒頭の rustdoc「セキュリティ不変条件」を参照。
 #[must_use]
 pub fn link<'a>(href: &'a str, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, LINK_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![("href", href)];
     merged.extend(attrs);
     ANATOMY.part("link", "a", merged, children)
@@ -105,6 +168,7 @@ pub fn link<'a>(href: &'a str, attrs: Vec<(&'a str, &'a str)>, children: Vec<Nod
 /// `aria-current="page"` + `data-current` を常に付与する。
 #[must_use]
 pub fn current_link(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, CURRENT_LINK_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![aria_current(AriaCurrent::Page)];
     merged.extend(data_current(true));
     merged.extend(attrs);
@@ -117,6 +181,7 @@ pub fn current_link(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// 持たず、カスタム separator を許す設計）。
 #[must_use]
 pub fn separator(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, PRESENTATION_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![role("presentation"), aria_hidden(true)];
     merged.extend(attrs);
     ANATOMY.part("separator", "li", merged, children)
@@ -127,6 +192,7 @@ pub fn separator(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// 固定テキスト `"…"` を子ノードとして持つ。
 #[must_use]
 pub fn ellipsis(attrs: Vec<(&str, &str)>) -> Node {
+    let attrs = drop_reserved(attrs, PRESENTATION_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![role("presentation"), aria_hidden(true)];
     merged.extend(attrs);
     ANATOMY.part("ellipsis", "li", merged, vec![text(ELLIPSIS_TEXT)])
@@ -251,6 +317,59 @@ mod tests {
         assert!(html.contains(r#"data-scope="breadcrumb""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    // --- 予約キーなりすまし除去（イシュー #1648） ---
+
+    #[test]
+    fn root_aria_label_spoofing_is_dropped() {
+        let html = render(&root(None, vec![("aria-label", "attacker")], vec![]));
+        assert_eq!(html.matches("aria-label").count(), 1);
+        assert!(html.contains(r#"aria-label="breadcrumb""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn link_href_spoofing_is_dropped() {
+        let html = render(&link(
+            "/docs",
+            vec![("href", "javascript:alert(1)")],
+            vec![],
+        ));
+        assert_eq!(html.matches("href=").count(), 1);
+        assert!(html.contains(r#"href="/docs""#));
+    }
+
+    #[test]
+    fn current_link_aria_current_and_data_current_spoofing_is_dropped() {
+        let html = render(&current_link(
+            vec![("aria-current", "false"), ("data-current", "false")],
+            vec![],
+        ));
+        assert_eq!(html.matches("aria-current").count(), 1);
+        assert_eq!(html.matches("data-current").count(), 1);
+        assert!(html.contains(r#"aria-current="page""#));
+    }
+
+    #[test]
+    fn separator_and_ellipsis_role_and_aria_hidden_spoofing_is_dropped() {
+        let sep_html = render(&separator(
+            vec![("role", "attacker"), ("aria-hidden", "false")],
+            vec![],
+        ));
+        assert_eq!(sep_html.matches("role=").count(), 1);
+        assert_eq!(sep_html.matches("aria-hidden").count(), 1);
+        assert!(sep_html.contains(r#"role="presentation""#));
+        assert!(sep_html.contains(r#"aria-hidden="true""#));
+
+        let ellipsis_html = render(&ellipsis(vec![
+            ("role", "attacker"),
+            ("aria-hidden", "false"),
+        ]));
+        assert_eq!(ellipsis_html.matches("role=").count(), 1);
+        assert_eq!(ellipsis_html.matches("aria-hidden").count(), 1);
+        assert!(ellipsis_html.contains(r#"role="presentation""#));
+        assert!(ellipsis_html.contains(r#"aria-hidden="true""#));
     }
 
     // --- breadcrumb 利便ビルダー ---

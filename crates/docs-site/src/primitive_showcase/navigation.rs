@@ -9,7 +9,7 @@
 use fandhe_frontend_core::{text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::action_bar;
-use hui::breadcrumb::{self, BreadcrumbItem};
+use hui::breadcrumb;
 use hui::data_attrs::Orientation;
 use hui::link;
 use hui::link_overlay;
@@ -47,22 +47,44 @@ pub(super) fn action_bar_section() -> Node {
     demo_page("Action Bar", body)
 }
 
+/// 7 パーツ全て（`root`/`list`/`item`/`link`/`current-link`/`separator`/
+/// `ellipsis`）を Demo 上で機械導出可能にするため、[`breadcrumb::breadcrumb`]
+/// 利便ビルダーではなく個別パーツを手組みする（chakra-ui の
+/// breadcrumb-with-ellipsis 例と同型、イシュー #1648）。
 pub(super) fn breadcrumb_section() -> Node {
-    let items = [
-        BreadcrumbItem {
-            label: "Home",
-            href: "https://example.com/",
-        },
-        BreadcrumbItem {
-            label: "Docs",
-            href: "https://example.com/docs/",
-        },
-        BreadcrumbItem {
-            label: "Primitives",
-            href: "https://example.com/primitives/",
-        },
-    ];
-    let body = vec![breadcrumb::breadcrumb(None, &items, || vec![text("/")])];
+    let body = vec![breadcrumb::root(
+        None,
+        vec![],
+        vec![breadcrumb::list(
+            vec![],
+            vec![
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::link(
+                        "https://example.com/",
+                        vec![],
+                        vec![text("Home")],
+                    )],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::ellipsis(vec![]),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::link(
+                        "https://example.com/primitives/",
+                        vec![],
+                        vec![text("Primitives")],
+                    )],
+                ),
+                breadcrumb::separator(vec![], vec![text("/")]),
+                breadcrumb::item(
+                    vec![],
+                    vec![breadcrumb::current_link(vec![], vec![text("Breadcrumb")])],
+                ),
+            ],
+        )],
+    )];
     demo_page("Breadcrumb", body)
 }
 
