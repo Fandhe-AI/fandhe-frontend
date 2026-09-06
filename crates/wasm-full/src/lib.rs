@@ -1367,9 +1367,30 @@ where
     ///
     /// [`Self::apply_update_for_dirty`] の構造フォールバックは `root`
     /// 配下を丸ごと差し替えるため、pointer capture 中の Control 要素が
-    /// detach され得る（`Self::wire_signature_pad` と共通の既知露出。
-    /// AngleSlider の `aria-valuenow` 等は束縛点で解決される想定のため
-    /// 通常経路では発生しない）。
+    /// detach され得る（`Self::wire_signature_pad` と共通の既知露出）。
+    ///
+    /// # AngleSlider 自身の `aria-valuenow`/`aria-valuetext` を更新するには
+    /// アプリ側の束縛点配線が必要（イシュー #1956 レビュー指摘）
+    ///
+    /// [`fandhe_frontend_headless_ui::angle_slider::thumb`] が出力する
+    /// `aria-valuenow`/`aria-valuetext` は SSR 時点の値を焼き込んだ**静的
+    /// 属性**であり、束縛点マーカー（`data-bind-attr`）を自動では持たない。
+    /// このため、アプリ（`C`）が `thumb()` 呼び出し時に呼び出し側 `attrs` へ
+    /// `fandhe_frontend_core::bind_attr_tokens(&[("aria-valuenow",
+    /// "<field>"), ("aria-valuetext", "<field>")])` を明示的に付与し、
+    /// [`fandhe_frontend_wasm_client::BindingSource`] で当該フィールドを
+    /// 解決し、`update()` で角度が変化した際に `dirty_fields()` へ積んで
+    /// **初めて** `aria-valuenow`/`aria-valuetext` が dispatch 後に更新
+    /// される（`Self::wire` の既存束縛点更新経路のみを使い、
+    /// `fandhe-frontend-wasm-full`/`fandhe-frontend-headless-ui` 側の変更は
+    /// 不要）。この束縛点配線を行わないアプリでは、`aria-valuenow`/
+    /// `aria-valuetext` は「束縛点にも keyed list にも該当しない dirty
+    /// field」としても検知されない（`dirty_fields()` に当該フィールドを
+    /// 積まない限り [`Self::apply_update_for_dirty`] の
+    /// `unresolved_field` 判定にすら乗らない）ため、構造フォールバックも
+    /// 発動せず、Thumb の位置・値の見た目が dispatch 後も更新されないまま
+    /// 残る（`crates/wasm-full/tests/angle_slider_browser.rs` の
+    /// `AngleSliderHost` が実装例）。
     ///
     /// # Errors
     ///
