@@ -78,8 +78,37 @@
 //! 成功し成果物の存在を確認した**後**にのみ行う（[`run_wasm_bindgen`] の
 //! 末尾）。失敗・中断時に不完全な成果物と一致する fingerprint が残る事故を
 //! 避けるため。
+//!
+//! # 後処理ステージ（size optimization、イシュー #1971）
+//!
+//! `wasm-bindgen` 実行後、配布物サイズを縮める 2 段の後処理を行う
+//! （採否判断・実測は `docs/ci/wasm-opt-adoption-evaluation.md` 参照）。
+//!
+//! 1. **`wasm-bindgen --remove-name-section --remove-producers-section`**
+//!    （[`WASM_BINDGEN_ARGS`]）: 新規依存を追加せず、既存の `wasm-bindgen-cli`
+//!    呼び出しへフラグを 2 つ足すだけで gzip 後サイズを大きく縮められる
+//!    （イシュー #1969 実測）。トレードオフとして、本番配布物のブラウザ
+//!    スタックトレースから関数名が読めなくなる（dist-server は本番配布物で
+//!    あり、デバッグは `wasm-pack test` 等の別経路が担うため実害は小さいと
+//!    判断している）。
+//! 2. **`wasm-opt -Os`**（[`detect_wasm_opt`]・[`run_wasm_opt`]）:
+//!    PATH 上に `wasm-opt`（binaryen）が見つかった場合のみ追加適用する
+//!    **soft-skip** 設計。本ファイルは Cargo 依存追加・CI/Dockerfile への
+//!    binaryen 導入は行わない（新規サプライチェーン依存の実導入は
+//!    イシュー #1972 の担当）ため、本イシュー時点では CI にも Docker にも
+//!    `wasm-opt` が存在せず、常に soft-skip 経路を通る。CI での fail-closed
+//!    化（skip マーカーの不在を grep で assert する等）はイシュー #1972 が
+//!    `test`/`bundle-size` ジョブ側で行う。`templates/app/tools/wasm/build.sh`
+//!    の既存 soft-skip 実装（存在チェック → 一時ファイル経由の atomic 置換 →
+//!    失敗時 hard fail）と同型の設計を踏襲する。
+//!
+//! 後処理の構成（`wasm-bindgen` の追加フラグ・`wasm-opt` の有無/バージョン）は
+//! [`wasm_stage_cache::compute_wasm_stage_fingerprint`] の入力に織り込み、
+//! 構成が変わればキャッシュを無効化する（後から `wasm-opt` を導入しても
+//! 古いキャッシュ済み成果物が誤って再利用されないようにするため）。
 use std::env;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -103,6 +132,13 @@ mod wasm_build_gate;
 // （`src/workspace_detect.rs` 冒頭コメント参照）。
 #[path = "src/workspace_detect.rs"]
 mod workspace_detect;
+
+// `OUT_DIR` からこのビルドの `CARGO_TARGET_DIR` を逆算する純粋関数
+// （ホストビルド・`--target <triple>` ビルド双方の階層に対応）。
+// `wasm_stage_cache`・`wasm_build_gate`・`workspace_detect` と同型のパターンで
+// ソースレベル共有する（`src/target_dir.rs` 冒頭コメント参照）。
+#[path = "src/target_dir.rs"]
+mod target_dir;
 
 fn main() {
     // `CARGO_MANIFEST_DIR` は `crates/dist-server/` を指す。埋め込み対象の
@@ -280,8 +316,88 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
         ));
     }
 
+    // `wasm-opt` の検出は fingerprint の入力になるため、キャッシュ HIT 判定
+    // より前に 1 回だけ行う（冒頭ドキュメンテーションコメント「後処理
+    // ステージ」参照）。
+    let wasm_opt_version = detect_wasm_opt()?;
+
+    // `wasm-opt` の導入・更新・削除を検知する再実行条件（PR #1980 レビュー
+    // 指摘）。fingerprint（`wasm_stage_cache`）は `wasm-opt` のバージョンを
+    // 入力に含めるが、その比較自体が「本 build.rs が再実行されること」を
+    // 前提にしている。cargo は明示的な `rerun-if-changed`/
+    // `rerun-if-env-changed` 以外の理由では build.rs を再実行しないため、
+    // `static/`・ワークスペースソース等のトリガー（`main` 末尾）が一切
+    // 変化しないまま「未導入 → 導入」「バージョン更新」「削除」が起きても
+    // 検知できず、fingerprint 比較そのものに到達しない（PATH やツール実体は
+    // cargo の標準トリガーの監視対象外なため）。以下の 3 種のトリガーで
+    // これを補う:
+    // 1. `PATH` 環境変数自体の変更（新しいディレクトリの追加・既存の
+    //    再配置等）。
+    println!("cargo:rerun-if-env-changed=PATH");
+    // 2. 現在 `PATH` から解決できる `wasm-opt` の実体そのもの（同じ場所への
+    //    バイナリ入れ替え・削除で mtime が変わるケースを拾う）。
+    if let Some(wasm_opt_path) = locate_on_path("wasm-opt") {
+        println!("cargo:rerun-if-changed={}", wasm_opt_path.display());
+    }
+    // 3. `PATH` 上の各ディレクトリ（`wasm-opt` が新規に追加された場合、
+    //    ディレクトリ自体の mtime が変わるため検知できる。「未導入 → 導入」
+    //    への変化は 2. では拾えず、この経路でしか検知できない）。
+    //    `PATH` の要素は初回ビルド時点で未作成のディレクトリ（例:
+    //    `~/.local/bin`）を含みうる。`dir.is_dir()` が false のまま
+    //    監視登録をスキップすると、後日そのディレクトリ自体と `wasm-opt`
+    //    が新規作成されても `PATH` 文字列も既存の監視対象ファイルも
+    //    変化しないため build.rs が再実行されず、導入を検知できない
+    //    （PR #1980 レビュー指摘）。Cargo は `rerun-if-changed` に存在しない
+    //    パスを指定した場合、そのパスが出現するまで毎回ビルドスクリプトを
+    //    再実行する仕様を持つ（`cargo::rerun-if-changed` のドキュメント
+    //    「If a path pointing to a file... doesn't exist and its ancestor
+    //    directory doesn't exist... the build script is always rerun.」）ため、
+    //    存在しないディレクトリもそのまま監視対象に含めることで作成を
+    //    確実に検知できる。ネストビルド自体は cargo 標準の増分キャッシュが
+    //    効くため（直後のコメント参照）、この間 build.rs が毎回再実行されて
+    //    も後段の `wasm_stage_cache_hit` 判定でコストの大部分は回避される。
+    //
+    //    ただし Windows では Cargo が動的ライブラリ探索のため現在のビルドの
+    //    `target/<profile>`・`target/<profile>/deps`（例: `target\debug`・
+    //    `target\debug\deps`）を `PATH` へ自動追加する（Cargo の環境変数仕様）。
+    //    これらは cargo 自身の生成物ディレクトリであり、上記「未導入 → 導入」
+    //    検知のために存在確認なしで丸ごと `rerun-if-changed` 登録すると、
+    //    ディレクトリ監視は配下全体を走査する仕様のため自身の `OUT_DIR` や
+    //    コンパイル成果物の更新が次回の build.rs 再実行を誘発し、ソース変更が
+    //    なくてもビルドが繰り返される無限ループになる（PR #1980 レビュー
+    //    指摘）。`OUT_DIR` からこのビルドの `target` ディレクトリ
+    //    （[`target_dir::cargo_target_dir_from_out_dir`]）を逆算し、その配下に
+    //    ある `PATH` エントリは監視対象から除外する。`--target <triple>`
+    //    指定ビルド（本リポジトリの Docker イメージが該当）では cargo が
+    //    `OUT_DIR` に `<triple>` セグメントを追加で挟むため、host ビルドの
+    //    4 段上りだけでは `<CARGO_TARGET_DIR>/<triple>` までしか遡れず
+    //    `target/<profile>`・`target/<profile>/deps` が除外漏れになる
+    //    （Cursor Bugbot 指摘）。build script に常に設定される `TARGET`
+    //    環境変数を渡し、triple 名の一致でさらに 1 段遡るかを判定させる。
+    //    `current_dir` は `OUT_DIR` からの逆算が失敗した場合のみ使われる
+    //    フォールバック専用の絶対化基準（`CARGO_TARGET_DIR` 環境変数が
+    //    相対値のときに `Path::starts_with` 比較不能な相対パスを返さない
+    //    ための保険、`target_dir::cargo_target_dir_from_out_dir` 参照）。
+    let current_dir = env::current_dir().ok();
+    let cargo_target_dir = target_dir::cargo_target_dir_from_out_dir(
+        out_dir,
+        env::var("TARGET").ok().as_deref(),
+        env::var("CARGO_TARGET_DIR").ok().as_deref(),
+        current_dir.as_deref(),
+    );
+    if let Some(path_var) = env::var_os("PATH") {
+        for dir in env::split_paths(&path_var) {
+            if let Some(target_dir) = &cargo_target_dir {
+                if dir.starts_with(target_dir) {
+                    continue;
+                }
+            }
+            println!("cargo:rerun-if-changed={}", dir.display());
+        }
+    }
+
     // ネストビルド自体は cargo 標準の増分キャッシュが効くため常に実行する。
-    // キャッシュ制御の対象はこの後段の `wasm-bindgen` 実行のみ。
+    // キャッシュ制御の対象はこの後段の `wasm-bindgen`/`wasm-opt` 実行のみ。
     let wasm_binary_path = run_wasm_build(workspace_root)?;
     let wasm_assets_dir = out_dir.join("wasm-assets");
     let fingerprint_path = out_dir.join("wasm-stage.fingerprint");
@@ -289,27 +405,69 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
     if wasm_stage_cache::wasm_stage_cache_hit(
         &wasm_binary_path,
         &installed_version,
+        wasm_opt_version.as_deref(),
         &fingerprint_path,
         &wasm_assets_dir,
     ) {
-        // SKIP 経路: `wasm-bindgen` の再実行のみを省略する。既存の
+        // SKIP 経路: `wasm-bindgen`/`wasm-opt` の再実行のみを省略する。既存の
         // `OUT_DIR/wasm-assets/` をそのまま埋め込みテーブルの入力として使う
         // ため、呼び出し元（`main`）が期待する「合流エントリ・
         // `wasm_assets_embedded` cfg」の契約は SKIP でも HIT でも同一に保たれる
         // （契約を崩すとテスト側 `wasm_assets.rs` が静かにコンパイル対象外に
         // なる回帰を招くため）。
         eprintln!(
-            "wasm-stage cache HIT: reusing {} (wasm-bindgen not re-run)",
+            "wasm-stage cache HIT: reusing {} (wasm-bindgen/wasm-opt not re-run)",
             wasm_assets_dir.display()
         );
     } else {
+        // 成果物を上書きする前に旧 fingerprint を無効化する（PR #1980 レビュー
+        // 指摘）。無効化せずに `wasm-bindgen` が両成果物を復元すると、直後の
+        // `wasm-opt` が失敗・中断して `write_wasm_stage_fingerprint` に
+        // 到達しなかった場合でも、旧 fingerprint が偶然「現在の入力」と
+        // 一致するケース（wasm バイナリ内容・CLI バージョン・wasm-opt
+        // バージョンのいずれも前回成功時から変わっていない）で次回ビルドが
+        // HIT と誤判定し、未最適化のまま残った成果物を最適化済みとして
+        // 再利用してしまう。削除自体が存在しない（`NotFound`）場合は無視して
+        // よい（そもそも旧 fingerprint が無ければ次回比較は自然に MISS
+        // になる）。しかし権限エラー等の `NotFound` 以外の削除失敗は無視
+        // してはならない（PR #1980 レビュー指摘）: 削除できないファイルが
+        // 読み取りもできないとは限らないため、旧 fingerprint が現在の入力と
+        // 一致したまま残り、かつこの後 `wasm-bindgen` が両成果物を復元した
+        // 状態で `wasm-opt` が失敗・中断して `write_wasm_stage_fingerprint`
+        // に到達しなかった場合、次回ビルドで旧 fingerprint が偶然「現在の
+        // 入力」と一致し HIT と誤判定して未最適化の成果物を最適化済みとして
+        // 再利用してしまう。フェイルクローズを維持するため、成果物を変更
+        // する前に削除エラー（`NotFound` 以外）で即座に停止する。
+        match fs::remove_file(&fingerprint_path) {
+            Ok(()) => {}
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err) => {
+                return Err(format!(
+                    "failed to invalidate stale wasm-stage fingerprint {}: {err}",
+                    fingerprint_path.display()
+                ));
+            }
+        }
+
         eprintln!("wasm-stage cache MISS: running wasm-bindgen");
         run_wasm_bindgen(&wasm_binary_path, &wasm_assets_dir)?;
+
+        if let Some(version) = &wasm_opt_version {
+            eprintln!("wasm-stage: running wasm-opt -Os ({version})");
+            run_wasm_opt(&wasm_binary_path, &wasm_assets_dir, out_dir)?;
+        } else {
+            println!(
+                "cargo:warning=wasm-opt not found on PATH; skipping size optimization \
+                 (output correctness unaffected; see docs/ci/wasm-opt-adoption-evaluation.md)"
+            );
+        }
+
         // fingerprint の書き込みは成果物確認後の最後の一手にする
         // （冒頭ドキュメンテーションコメントのフェイルクローズ方針参照）。
         wasm_stage_cache::write_wasm_stage_fingerprint(
             &wasm_binary_path,
             &installed_version,
+            wasm_opt_version.as_deref(),
             &fingerprint_path,
         )?;
     }
@@ -468,9 +626,27 @@ fn run_wasm_build(workspace_root: &Path) -> Result<PathBuf, String> {
         .join("fandhe_frontend_wasm_full.wasm"))
 }
 
-/// `wasm-bindgen --target web --no-typescript` を実行し、生成された JS グルー
-/// コード・`_bg.wasm` を `wasm_assets_dir`（`OUT_DIR/wasm-assets/`、呼び出し元
-/// [`run_wasm_stage`] が用意する）へ出力する。
+/// `wasm-bindgen` に渡す固定引数。`--target web --no-typescript` は従来からの
+/// 構成、`--remove-name-section --remove-producers-section` はイシュー #1971
+/// で追加した size optimization（冒頭ドキュメンテーションコメント「後処理
+/// ステージ」参照。イシュー #1969 実測で新規依存ゼロのまま gzip 後サイズを
+/// 大きく縮められることを確認済み）。
+///
+/// `crates/wasm-full/tests/bundle_size.rs::WASM_BINDGEN_ARGS` が同一配列を
+/// 独立実装として複製しており（`bundle_size.rs` は `dist-server` に依存
+/// させない設計のため）、この配列を変更する場合は両ファイルを揃えて
+/// 更新すること。
+const WASM_BINDGEN_ARGS: &[&str] = &[
+    "--target",
+    "web",
+    "--no-typescript",
+    "--remove-name-section",
+    "--remove-producers-section",
+];
+
+/// `wasm-bindgen` を実行し、生成された JS グルーコード・`_bg.wasm` を
+/// `wasm_assets_dir`（`OUT_DIR/wasm-assets/`、呼び出し元 [`run_wasm_stage`] が
+/// 用意する）へ出力する。フラグ構成は [`WASM_BINDGEN_ARGS`] 参照。
 ///
 /// `--no-typescript` は `.d.ts` が実行時配信に不要という PoC-4 の発見事項に
 /// 対応する（型定義ファイルはこのサーバーが配信する対象に含めない）。
@@ -485,7 +661,8 @@ fn run_wasm_bindgen(wasm_binary_path: &Path, wasm_assets_dir: &Path) -> Result<(
         .map_err(|e| format!("failed to create {}: {e}", wasm_assets_dir.display()))?;
 
     let status = Command::new("wasm-bindgen")
-        .args(["--target", "web", "--no-typescript", "--out-dir"])
+        .args(WASM_BINDGEN_ARGS)
+        .arg("--out-dir")
         .arg(wasm_assets_dir)
         .arg(wasm_binary_path)
         .status()
@@ -505,6 +682,137 @@ fn run_wasm_bindgen(wasm_binary_path: &Path, wasm_assets_dir: &Path) -> Result<(
             wasm_assets_dir.display()
         ));
     }
+
+    Ok(())
+}
+
+/// `PATH` 上から `exe_name`（拡張子なし）という名前の実行可能ファイルを
+/// 探索し、見つかった最初の絶対パスを返す。サブプロセスは起動しない
+/// 純粋な探索であり、`detect_wasm_opt` とは別目的（cargo の再実行トリガー
+/// 登録用に実体の場所を特定するだけ。存在確認のみで実行可能性までは
+/// 検証しない）。見つからなければ `None`。
+fn locate_on_path(exe_name: &str) -> Option<PathBuf> {
+    let path_var = env::var_os("PATH")?;
+    for dir in env::split_paths(&path_var) {
+        let candidate = dir.join(exe_name);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        if cfg!(windows) {
+            let candidate_exe = dir.join(format!("{exe_name}.exe"));
+            if candidate_exe.is_file() {
+                return Some(candidate_exe);
+            }
+        }
+    }
+    None
+}
+
+/// PATH 上の `wasm-opt`（binaryen）を検出する。
+///
+/// 3 分岐（冒頭ドキュメンテーションコメント「後処理ステージ」参照）:
+/// - 見つからない（`Command::spawn` が `NotFound`）→ `Ok(None)`（soft-skip）
+/// - 見つかったが起動・実行に失敗（`NotFound` 以外の spawn エラー、非 0
+///   終了、空出力）→ `Err`（hard fail。壊れた環境を黙って素通りしない）
+/// - 見つかって正常終了 → `Ok(Some(バージョン文字列))`（`wasm-opt --version`
+///   の出力そのもの。fingerprint の入力として使う）
+fn detect_wasm_opt() -> Result<Option<String>, String> {
+    let output = match Command::new("wasm-opt").arg("--version").output() {
+        Ok(output) => output,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => {
+            return Err(format!(
+                "failed to spawn `wasm-opt --version` (found on PATH but could not execute it): {err}"
+            ));
+        }
+    };
+
+    if !output.status.success() {
+        return Err("`wasm-opt --version` exited with a non-zero status".to_string());
+    }
+
+    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if version.is_empty() {
+        return Err("`wasm-opt --version` produced no output".to_string());
+    }
+
+    Ok(Some(version))
+}
+
+/// `wasm-opt -Os --strip-producers` を `wasm_binary_path` の file stem から
+/// 求めた `<stem>_bg.wasm`（`wasm_assets_dir` 配下、`wasm-bindgen` が既に
+/// 生成済み）に適用し、意味論を変えずにサイズのみ縮める。
+///
+/// `--strip-producers` は `wasm-opt` 自身が producers custom section を
+/// 書き戻すのを防ぐ（`run_wasm_bindgen` の `--remove-producers-section` で
+/// 除去済みの section が `wasm-opt` 実行によって復活すると、
+/// `crates/dist-server/tests/wasm_assets.rs` の
+/// `served_wasm_binary_has_no_name_or_producers_custom_sections` が
+/// binaryen 導入環境で偽陽性 PASS のまま実体が崩れる/導入直後に FAIL する
+/// 事態になる。イシュー #1971 PR #1980 レビュー指摘）。
+///
+/// 一時ファイルは `out_dir` の**兄弟ディレクトリ**（`OUT_DIR/wasm-opt-tmp/`）
+/// に置く。`OUT_DIR/wasm-assets/` の中に置くと `collect_files` が
+/// ディレクトリ全体を埋め込みテーブルへ合流させるため、残置した一時ファイル
+/// まで配信対象になってしまう（`OUT_DIR` 配下の兄弟ディレクトリなので
+/// `fs::rename` は同一ファイルシステム内の atomic 置換のまま成立する）。
+///
+/// 出力が非空かつ `\0asm` マジックナンバーで始まることを確認してから
+/// `fs::rename` で置換する。`wasm-opt` が失敗した場合は一時ファイルを削除し
+/// `Err` を返す（`_bg.wasm` は無傷のまま残る、フェイルクローズ）。
+fn run_wasm_opt(
+    wasm_binary_path: &Path,
+    wasm_assets_dir: &Path,
+    out_dir: &Path,
+) -> Result<(), String> {
+    let stem = wasm_binary_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| {
+            format!(
+                "could not determine file stem of {}",
+                wasm_binary_path.display()
+            )
+        })?;
+    let bg_wasm = wasm_assets_dir.join(format!("{stem}_bg.wasm"));
+
+    let tmp_dir = out_dir.join("wasm-opt-tmp");
+    fs::create_dir_all(&tmp_dir)
+        .map_err(|e| format!("failed to create {}: {e}", tmp_dir.display()))?;
+    let tmp_path = tmp_dir.join(format!("{stem}_bg.wasm"));
+
+    let status = Command::new("wasm-opt")
+        .arg("-Os")
+        .arg("--strip-producers")
+        .arg(&bg_wasm)
+        .arg("-o")
+        .arg(&tmp_path)
+        .status()
+        .map_err(|e| format!("failed to spawn wasm-opt: {e}"))?;
+    if !status.success() {
+        let _ = fs::remove_file(&tmp_path);
+        return Err(format!(
+            "wasm-opt failed while optimizing {}",
+            bg_wasm.display()
+        ));
+    }
+
+    let optimized = fs::read(&tmp_path)
+        .map_err(|e| format!("failed to read wasm-opt output {}: {e}", tmp_path.display()))?;
+    if !wasm_stage_cache::looks_like_wasm(&optimized) {
+        let _ = fs::remove_file(&tmp_path);
+        return Err(format!(
+            "wasm-opt produced an unexpected (empty or non-wasm) output at {}",
+            tmp_path.display()
+        ));
+    }
+
+    fs::rename(&tmp_path, &bg_wasm).map_err(|e| {
+        format!(
+            "failed to replace {} with wasm-opt output: {e}",
+            bg_wasm.display()
+        )
+    })?;
 
     Ok(())
 }

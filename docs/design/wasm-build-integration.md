@@ -156,24 +156,49 @@ rebuild_latency.rs` による自動計測）。
 `crates/dist-server/build.rs` の実装は次のとおりです（既存 `build.rs` の
 `cargo:rerun-if-changed` パターンの延長）。
 
-- **ネストビルドは常に実行、`wasm-bindgen` のみキャッシュ制御**:
+- **ネストビルドは常に実行、`wasm-bindgen`/`wasm-opt` のみキャッシュ制御**:
   `cargo build --target wasm32-unknown-unknown`（`run_wasm_build`）自体は
   cargo 標準の増分ビルドキャッシュ（`target/wasm-dist/`）が効くため常に
   実行します。本ステージが独自にキャッシュ判定を行うのは、その後段の
-  `wasm-bindgen` 実行（`run_wasm_bindgen`）のみです。
+  `wasm-bindgen` 実行（`run_wasm_bindgen`）と、有効時の `wasm-opt` 後処理
+  （`run_wasm_opt`、イシュー #1971）のみです。
+- **後処理パイプライン（イシュー #1971）**: `wasm-bindgen` 実行時に
+  `--remove-name-section --remove-producers-section` を付与し（新規依存
+  ゼロで gzip 後サイズを縮める。トレードオフはブラウザスタックトレースの
+  可読性低下）、続けて PATH 上に `wasm-opt`（binaryen）が見つかった場合の
+  み `wasm-opt -Os` を追加適用します（**soft-skip**: 未検出でもビルドは
+  止めず `cargo:warning=wasm-opt not found on PATH; skipping size
+  optimization` を出して継続。`wasm-opt` の導入自体はイシュー #1972 の
+  担当で、本イシュー時点では CI・Docker のいずれにも未導入のため常に
+  soft-skip 経路を通ります）。`wasm-opt` の一時出力は `OUT_DIR/
+  wasm-opt-tmp/`（`OUT_DIR/wasm-assets/` の**兄弟**ディレクトリ）に置き、
+  非空かつ `\0asm` マジックナンバー確認後に `fs::rename` で atomic 置換
+  します。`wasm-assets/` の中に置くと `collect_files` がディレクトリ全体を
+  埋め込みテーブルへ合流させてしまうため、残置した一時ファイルまで
+  配信対象になる事故を避ける設計です。
 - **fingerprint 方式**: ネストビルドが生成した `.wasm` の内容ハッシュ
-  （std のみで完結する自前 FNV-1a 実装、`fnv1a_hash`）と、インストール済み
-  `wasm-bindgen-cli` の実バージョンを束ねた文字列を `OUT_DIR/
-  wasm-stage.fingerprint` に保存します（`compute_wasm_stage_fingerprint`）。
-  次回以降のビルドで、この fingerprint が前回値と完全一致し、かつ
-  `OUT_DIR/wasm-assets/` に前回の成果物（`<stem>.js`/`<stem>_bg.wasm`）が
-  実際に残っている場合に限り `wasm-bindgen` の再実行をスキップします
-  （`wasm_stage_cache_hit`）。
+  （std のみで完結する自前 FNV-1a 実装、`fnv1a_hash`）、インストール済み
+  `wasm-bindgen-cli` の実バージョン、`wasm-bindgen` 追加フラグ構成（固定
+  タグ）、`wasm-opt` のバージョン文字列（未導入なら `none`）を束ねた
+  文字列を `OUT_DIR/wasm-stage.fingerprint` に保存します
+  （`compute_wasm_stage_fingerprint`）。次回以降のビルドで、この
+  fingerprint が前回値と完全一致し、かつ `OUT_DIR/wasm-assets/` に前回の
+  成果物（`<stem>.js`/`<stem>_bg.wasm`）が実際に残っている場合に限り
+  `wasm-bindgen`/`wasm-opt` の再実行をスキップします（`wasm_stage_cache_hit`）。
+  `wasm-opt` の検出（`detect_wasm_opt`）は fingerprint の入力になるため、
+  キャッシュ HIT 判定より前に 1 回だけ行います。これにより、後から
+  `wasm-opt` を PATH へ導入した場合や版が変わった場合にキャッシュが
+  自動的に無効化されます（`docs/ci/wasm-opt-adoption-evaluation.md` の
+  #1970 への引き継ぎ事項参照）。
 - **フェイルクローズ**: fingerprint の読み取り失敗・欠落・不一致・成果物
   欠落のいずれでも「再実行」側へ倒します。fingerprint ファイルの書き込みは
-  `wasm-bindgen` が成功し成果物の存在を確認した**後**にのみ行います
-  （`write_wasm_stage_fingerprint`）。失敗・中断時に不完全な成果物と
-  一致する fingerprint が残る事故を避けるためです。
+  `wasm-bindgen`（および有効時は `wasm-opt`）が成功し成果物の存在を確認
+  した**後**にのみ行います（`write_wasm_stage_fingerprint`）。失敗・中断時
+  に不完全な成果物と一致する fingerprint が残る事故を避けるためです。
+  `wasm-opt` 自体は成果物の**正しさ**には影響しないサイズ最適化のため
+  soft-skip ですが、検出したのに実行が失敗する場合（`wasm-opt --version`
+  の異常終了・出力破損等）は hard fail とし、壊れた環境を黙って素通り
+  しません。
 - **`cargo:rerun-if-changed` による再実行トリガー**: `crates/wasm-full/src`・
   `crates/wasm-full/Cargo.toml`・`crates/interactive/src`・`crates/core/src`・`Cargo.lock` の
   変更で `build.rs` 自体（cargo による再実行）が発火します。ここから先の

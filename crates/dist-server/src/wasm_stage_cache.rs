@@ -51,6 +51,14 @@ fn is_non_empty_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// バイト列が WASM バイナリのマジックナンバー（`\0asm`、4 バイト）で始まるか
+/// を判定する（`wasm-opt` 出力の完全性確認用、`build.rs::run_wasm_opt` と
+/// `crates/wasm-full/tests/bundle_size.rs` の双方から使う。4 バイト未満・
+/// 不正なマジックナンバーはいずれも `false`）。
+pub fn looks_like_wasm(bytes: &[u8]) -> bool {
+    bytes.len() >= 4 && &bytes[..4] == b"\0asm"
+}
+
 /// `wasm_assets_dir` に、`wasm_binary_path` のファイル幹名（`file_stem`）から
 /// 想定される `wasm-bindgen --target web` の 2 大成果物
 /// （`<stem>.js`・`<stem>_bg.wasm`）が両方とも存在し、かつ空ファイルでないかを
@@ -65,18 +73,42 @@ pub fn wasm_assets_look_complete(wasm_assets_dir: &Path, wasm_binary_path: &Path
     is_non_empty_file(&js_path) && is_non_empty_file(&wasm_path)
 }
 
+/// `wasm-bindgen` へ渡す追加フラグ構成を表す fingerprint タグ（固定文字列）。
+/// `build.rs::WASM_BINDGEN_ARGS` の `--remove-name-section
+/// --remove-producers-section` を指す。フラグ構成自体を変更する場合は、
+/// この定数も合わせて更新すること（変更すればキャッシュが自動的に無効化
+/// される）。
+const WASM_BINDGEN_FLAGS_TAG: &str = "remove-name-section,remove-producers-section";
+
+/// `wasm-opt` へ渡す追加フラグ構成を表す fingerprint タグ（固定文字列）。
+/// `build.rs::run_wasm_opt` が組み立てる `-Os --strip-producers` を指す。
+/// [`WASM_BINDGEN_FLAGS_TAG`] と対をなす: `wasm-opt` の**バージョン**が
+/// 変わらないままフラグ構成だけを変更すると（`--strip-producers` の追加が
+/// 実例、PR #1980 レビュー指摘）、バージョン文字列のみを fingerprint の
+/// 入力にしていた旧実装ではキャッシュ HIT により旧フラグでの実行結果
+/// （`producers` section を保持したままの `_bg.wasm`）が再利用されてしまう。
+/// フラグ構成自体を変更する場合は、この定数も合わせて更新すること
+/// （変更すればキャッシュが自動的に無効化される）。
+const WASM_OPT_FLAGS_TAG: &str = "Os,strip-producers";
+
 /// 現在の WASM ステージ入力から fingerprint 文字列を計算する。
 ///
-/// 構成要素は「ネストビルドが生成した `.wasm` の内容ハッシュ（FNV-1a）」と
-/// 「インストール済み `wasm-bindgen-cli` の実バージョン」。前者は wasm-full の
-/// ソース変更を、後者は CLI 入れ替え（stale なグルーコード再利用の防止、
-/// PR #217 review 4719879204 と同種の懸念）をそれぞれ捉える。`Cargo.lock` が
-/// 解決する `wasm-bindgen` バージョンは `build.rs::run_wasm_stage` の
-/// バージョン整合検証で既に CLI 実バージョンと一致していることが保証されて
-/// いるため、fingerprint へ別途含める必要はない。
+/// 構成要素は「ネストビルドが生成した `.wasm` の内容ハッシュ（FNV-1a）」
+/// 「インストール済み `wasm-bindgen-cli` の実バージョン」「`wasm-bindgen`
+/// 追加フラグ構成（[`WASM_BINDGEN_FLAGS_TAG`]、固定）」「`wasm-opt` の
+/// バージョン文字列 + 追加フラグ構成（[`WASM_OPT_FLAGS_TAG`]、未導入なら
+/// `none`）」の 4 つ。1 番目は wasm-full のソース変更を、2 番目は CLI
+/// 入れ替え（stale なグルーコード再利用の防止、PR #217 review 4719879204 と
+/// 同種の懸念）を、4 番目は `wasm-opt` の導入・バージョン変更・削除・
+/// **フラグ構成の変更**（イシュー #1971、PR #1980 レビュー指摘）をそれぞれ
+/// 捉える。`Cargo.lock` が解決する `wasm-bindgen` バージョンは
+/// `build.rs::run_wasm_stage` のバージョン整合検証で既に CLI 実バージョンと
+/// 一致していることが保証されているため、fingerprint へ別途含める必要は
+/// ない。
 pub fn compute_wasm_stage_fingerprint(
     wasm_binary_path: &Path,
     installed_wasm_bindgen_version: &str,
+    wasm_opt_version: Option<&str>,
 ) -> Result<String, String> {
     let bytes = fs::read(wasm_binary_path).map_err(|e| {
         format!(
@@ -85,20 +117,29 @@ pub fn compute_wasm_stage_fingerprint(
         )
     })?;
     let hash = fnv1a_hash(&bytes);
-    Ok(format!("{hash:016x}:{installed_wasm_bindgen_version}"))
+    let wasm_opt_component = wasm_opt_version
+        .map(|version| format!("{version}+flags={WASM_OPT_FLAGS_TAG}"))
+        .unwrap_or_else(|| "none".to_string());
+    Ok(format!(
+        "{hash:016x}:{installed_wasm_bindgen_version}:bindgen-flags={WASM_BINDGEN_FLAGS_TAG}:wasm-opt={wasm_opt_component}"
+    ))
 }
 
 /// fingerprint をファイルへ書き込む。呼び出しは `build.rs::run_wasm_stage` の
-/// `wasm-bindgen` 成功パスからのみ行う（呼び出し元が成果物の存在を確認済み
-/// であることが前提）。ここで初めて「次回はこの成果物を再利用してよい」と
-/// いう記録が残るため、呼び出し順序を崩さないこと。
+/// `wasm-bindgen`（および有効時は `wasm-opt`）成功パスからのみ行う（呼び出し
+/// 元が成果物の存在を確認済みであることが前提）。ここで初めて「次回はこの
+/// 成果物を再利用してよい」という記録が残るため、呼び出し順序を崩さないこと。
 pub fn write_wasm_stage_fingerprint(
     wasm_binary_path: &Path,
     installed_wasm_bindgen_version: &str,
+    wasm_opt_version: Option<&str>,
     fingerprint_path: &Path,
 ) -> Result<(), String> {
-    let fingerprint =
-        compute_wasm_stage_fingerprint(wasm_binary_path, installed_wasm_bindgen_version)?;
+    let fingerprint = compute_wasm_stage_fingerprint(
+        wasm_binary_path,
+        installed_wasm_bindgen_version,
+        wasm_opt_version,
+    )?;
     fs::write(fingerprint_path, fingerprint)
         .map_err(|e| format!("failed to write {}: {e}", fingerprint_path.display()))
 }
@@ -119,15 +160,18 @@ pub fn write_wasm_stage_fingerprint(
 pub fn wasm_stage_cache_hit(
     wasm_binary_path: &Path,
     installed_wasm_bindgen_version: &str,
+    wasm_opt_version: Option<&str>,
     fingerprint_path: &Path,
     wasm_assets_dir: &Path,
 ) -> bool {
     let Some(stored) = fs::read_to_string(fingerprint_path).ok() else {
         return false;
     };
-    let Ok(current) =
-        compute_wasm_stage_fingerprint(wasm_binary_path, installed_wasm_bindgen_version)
-    else {
+    let Ok(current) = compute_wasm_stage_fingerprint(
+        wasm_binary_path,
+        installed_wasm_bindgen_version,
+        wasm_opt_version,
+    ) else {
         return false;
     };
     stored.trim() == current && wasm_assets_look_complete(wasm_assets_dir, wasm_binary_path)
@@ -222,12 +266,14 @@ mod tests {
                 b"\0asm v1",
             )
             .unwrap();
-            write_wasm_stage_fingerprint(&wasm_binary_path, version, &fingerprint_path).unwrap();
+            write_wasm_stage_fingerprint(&wasm_binary_path, version, None, &fingerprint_path)
+                .unwrap();
 
             // 変更前は HIT のはず。
             assert!(wasm_stage_cache_hit(
                 &wasm_binary_path,
                 version,
+                None,
                 &fingerprint_path,
                 &wasm_assets_dir,
             ));
@@ -239,6 +285,7 @@ mod tests {
                 !wasm_stage_cache_hit(
                     &wasm_binary_path,
                     version,
+                    None,
                     &fingerprint_path,
                     &wasm_assets_dir,
                 ),
@@ -269,11 +316,13 @@ mod tests {
                 b"\0asm",
             )
             .unwrap();
-            write_wasm_stage_fingerprint(&wasm_binary_path, "0.2.126", &fingerprint_path).unwrap();
+            write_wasm_stage_fingerprint(&wasm_binary_path, "0.2.126", None, &fingerprint_path)
+                .unwrap();
 
             assert!(!wasm_stage_cache_hit(
                 &wasm_binary_path,
                 "0.2.127",
+                None,
                 &fingerprint_path,
                 &wasm_assets_dir,
             ));
@@ -292,12 +341,14 @@ mod tests {
             let version = "0.2.126";
 
             fs::write(&wasm_binary_path, b"wasm bytes").unwrap();
-            write_wasm_stage_fingerprint(&wasm_binary_path, version, &fingerprint_path).unwrap();
+            write_wasm_stage_fingerprint(&wasm_binary_path, version, None, &fingerprint_path)
+                .unwrap();
             // `wasm_assets_dir` を作らない（成果物欠落を模す）。
 
             assert!(!wasm_stage_cache_hit(
                 &wasm_binary_path,
                 version,
+                None,
                 &fingerprint_path,
                 &wasm_assets_dir,
             ));
@@ -328,9 +379,170 @@ mod tests {
             assert!(!wasm_stage_cache_hit(
                 &wasm_binary_path,
                 "0.2.126",
+                None,
                 &fingerprint_path,
                 &wasm_assets_dir,
             ));
+        });
+    }
+
+    /// `looks_like_wasm` のマジックナンバー判定（イシュー #1971:
+    /// `wasm-opt` 出力の完全性確認に使う）。空・4 バイト未満・不正な
+    /// マジックナンバーはいずれも `false` に倒れることを固定する。
+    #[test]
+    fn looks_like_wasm_true_for_valid_magic_number() {
+        assert!(looks_like_wasm(b"\0asm\x01\x00\x00\x00"));
+    }
+
+    #[test]
+    fn looks_like_wasm_false_for_empty_or_short_input() {
+        assert!(!looks_like_wasm(b""));
+        assert!(!looks_like_wasm(b"\0as"));
+    }
+
+    #[test]
+    fn looks_like_wasm_false_for_wrong_magic_number() {
+        assert!(!looks_like_wasm(b"not-wasm"));
+    }
+
+    /// `wasm_opt_version` が `None`/`Some` で fingerprint が異なり、キャッシュが
+    /// HIT しないことを固定する（イシュー #1971: `wasm-opt` の後日導入で
+    /// 古いキャッシュ済み成果物が誤って再利用されないようにするため）。
+    #[test]
+    fn cache_hit_is_false_when_wasm_opt_presence_changed() {
+        with_temp_dir("cache-miss-on-wasm-opt-presence-change", |dir| {
+            let wasm_binary_path = dir.join("fandhe_frontend_wasm_full.wasm");
+            let wasm_assets_dir = dir.join("wasm-assets");
+            let fingerprint_path = dir.join("wasm-stage.fingerprint");
+            let version = "0.2.126";
+
+            fs::write(&wasm_binary_path, b"wasm bytes").unwrap();
+            fs::create_dir_all(&wasm_assets_dir).unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full.js"),
+                b"glue",
+            )
+            .unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full_bg.wasm"),
+                b"\0asm",
+            )
+            .unwrap();
+            write_wasm_stage_fingerprint(&wasm_binary_path, version, None, &fingerprint_path)
+                .unwrap();
+
+            assert!(wasm_stage_cache_hit(
+                &wasm_binary_path,
+                version,
+                None,
+                &fingerprint_path,
+                &wasm_assets_dir,
+            ));
+
+            assert!(
+                !wasm_stage_cache_hit(
+                    &wasm_binary_path,
+                    version,
+                    Some("wasm-opt version 129"),
+                    &fingerprint_path,
+                    &wasm_assets_dir,
+                ),
+                "introducing wasm-opt must invalidate a fingerprint written without it"
+            );
+        });
+    }
+
+    /// `wasm-opt` のバージョンが変わった場合も MISS に倒れることを固定する
+    /// （`Some(a)` ↔ `Some(b)`、イシュー #1971）。
+    #[test]
+    fn cache_hit_is_false_when_wasm_opt_version_changed() {
+        with_temp_dir("cache-miss-on-wasm-opt-version-change", |dir| {
+            let wasm_binary_path = dir.join("fandhe_frontend_wasm_full.wasm");
+            let wasm_assets_dir = dir.join("wasm-assets");
+            let fingerprint_path = dir.join("wasm-stage.fingerprint");
+            let version = "0.2.126";
+
+            fs::write(&wasm_binary_path, b"wasm bytes").unwrap();
+            fs::create_dir_all(&wasm_assets_dir).unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full.js"),
+                b"glue",
+            )
+            .unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full_bg.wasm"),
+                b"\0asm",
+            )
+            .unwrap();
+            write_wasm_stage_fingerprint(
+                &wasm_binary_path,
+                version,
+                Some("wasm-opt version 129"),
+                &fingerprint_path,
+            )
+            .unwrap();
+
+            assert!(!wasm_stage_cache_hit(
+                &wasm_binary_path,
+                version,
+                Some("wasm-opt version 130"),
+                &fingerprint_path,
+                &wasm_assets_dir,
+            ));
+        });
+    }
+
+    /// `wasm-opt` の**バージョンは同じまま追加フラグ構成だけが変わった**
+    /// 場合も MISS に倒れることを固定する（PR #1980 レビュー指摘の再発防止:
+    /// `--strip-producers` のような後日のフラグ追加が fingerprint に反映
+    /// されず、旧フラグでの実行結果がキャッシュ HIT により誤って再利用され
+    /// てしまう回帰）。旧フォーマット（[`WASM_OPT_FLAGS_TAG`] 導入前、
+    /// バージョン文字列のみを `wasm-opt=` コンポーネントとする fingerprint）
+    /// をファイルへ直接書き込み、現在の実装（フラグ構成を織り込んだ
+    /// fingerprint）と食い違うことを確認する。
+    #[test]
+    fn cache_hit_is_false_when_wasm_opt_flags_changed_but_version_unchanged() {
+        with_temp_dir("cache-miss-on-wasm-opt-flags-change", |dir| {
+            let wasm_binary_path = dir.join("fandhe_frontend_wasm_full.wasm");
+            let wasm_assets_dir = dir.join("wasm-assets");
+            let fingerprint_path = dir.join("wasm-stage.fingerprint");
+            let bindgen_version = "0.2.126";
+            let wasm_opt_version = "wasm-opt version 129";
+
+            fs::write(&wasm_binary_path, b"wasm bytes").unwrap();
+            fs::create_dir_all(&wasm_assets_dir).unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full.js"),
+                b"glue",
+            )
+            .unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full_bg.wasm"),
+                b"\0asm",
+            )
+            .unwrap();
+
+            // 旧フォーマット（フラグタグなし）の fingerprint を模して直接
+            // 書き込む。`WASM_OPT_FLAGS_TAG` 導入前に書かれたキャッシュ、
+            // または将来フラグ構成のみが変わった場合の旧キャッシュを表す。
+            let bytes = fs::read(&wasm_binary_path).unwrap();
+            let hash = fnv1a_hash(&bytes);
+            let stale_fingerprint = format!(
+                "{hash:016x}:{bindgen_version}:bindgen-flags={WASM_BINDGEN_FLAGS_TAG}:wasm-opt={wasm_opt_version}"
+            );
+            fs::write(&fingerprint_path, stale_fingerprint).unwrap();
+
+            assert!(
+                !wasm_stage_cache_hit(
+                    &wasm_binary_path,
+                    bindgen_version,
+                    Some(wasm_opt_version),
+                    &fingerprint_path,
+                    &wasm_assets_dir,
+                ),
+                "a fingerprint written without the wasm-opt flags component must MISS \
+                 against the current flags-aware fingerprint computation"
+            );
         });
     }
 }

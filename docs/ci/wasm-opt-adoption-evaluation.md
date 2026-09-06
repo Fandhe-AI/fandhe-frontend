@@ -942,3 +942,97 @@ create/update/clear の 16ms 予算検証）はローカル環境に chromedrive
 - `perf_browser.rs`（chromedriver 前提）が CI で実行可能な形になった
   場合、dist-server 経路（wasm-full 本体）に対する wasm-opt 適用の
   create/update/clear 16ms 予算検証を追加で行うこと
+
+## dist-server 経路への統合（イシュー #1971、2026-09-06）
+
+### 背景・トレーサビリティ
+
+イシュー #1969（前節）の結論「#1970（dist-server 経路への wasm-opt 導入
+検討）へ進むことを推奨」を受け、本イシューは実際に `crates/dist-server/
+build.rs`（ネスト WASM ビルド）と `crates/wasm-full/tests/bundle_size.rs`
+（REQ-11 計測）へ後処理を統合した。着手ゲート判定・実装方針の詳細は
+イシュー #1971 の実装計画を参照し、本節では採用構成と実測値のみを記録
+する。
+
+### 採用構成（Step A + Step B）
+
+1. **Step A（`wasm-bindgen --remove-name-section
+   --remove-producers-section`）**: `dist-server/build.rs::WASM_BINDGEN_ARGS`
+   と `bundle_size.rs::WASM_BINDGEN_ARGS`（独立実装として複製、契約変更時は
+   両ファイルを揃えて更新）へ追加。新規依存ゼロ。
+2. **Step B（`wasm-opt -Os`、soft-skip）**: `dist-server/build.rs::
+   detect_wasm_opt`/`run_wasm_opt` と `bundle_size.rs::detect_wasm_opt`/
+   `apply_wasm_opt`（同型の独立実装）が PATH 上に `wasm-opt` を検出した
+   場合のみ追加適用する。未検出時は `build.rs` が `cargo:warning=` を、
+   `bundle_size.rs` が `bundle-size-wasm-opt: result=skipped
+   reason=not-found` を出して継続する（fail-closed にしない。理由は
+   下記「fail-closed / soft-skip の一貫性」参照）。
+
+### fail-closed / soft-skip の一貫性
+
+#1969 の引き継ぎ事項が示した検討課題（`build.rs`・`bundle_size.rs`・
+`Dockerfile` の 3 者が矛盾しない方針）に対し、#1971 では次の設計で整合を
+取った:
+
+- `build.rs`・`bundle_size.rs` はいずれも `wasm-opt` 未検出を soft-skip
+  として扱う（`templates/app/tools/wasm/build.sh` の既存パターンを踏襲）。
+  `bundle_size.rs` の「dist-server と同一構成を計測する」契約
+  （モジュール doc 参照）は、「同一の検出ロジック・同一のフラグ」を
+  複製することで満たされ、「同一の結果（wasm-opt 適用/未適用）」を
+  強制する必要はない ── 本イシュー時点ではどちらも常に未検出（CI・
+  Docker のいずれにも `wasm-opt` が存在しない）であり、両者は事実上
+  常に一致する。
+- CI での fail-closed 化（`test`/`bundle-size` ジョブで skip マーカーの
+  不在を grep で assert し、常設導入した `wasm-opt` が実際に使われている
+  ことを保証する）は `wasm-opt` のサプライチェーン導入自体を担当する
+  イシュー #1972 に委ねる。本イシュー単体では CI・Docker に `wasm-opt`
+  が存在しないため、この fail-closed 化を先取りしても常に「skip 経路の
+  まま PASS」にしかならず検証にならない。
+
+### キャッシュ fingerprint への織り込み
+
+`compute_wasm_stage_fingerprint`（`wasm_stage_cache.rs`）へ、`wasm-bindgen`
+追加フラグ構成（固定タグ `remove-name-section,remove-producers-section`）と
+`wasm-opt` のバージョン文字列（未導入時は `none`）を追加した。`wasm-opt`
+の検出はキャッシュ HIT 判定より前に 1 回だけ行うため、後から `wasm-opt`
+を PATH へ導入したビルド（またはバージョンを変えたビルド）では
+fingerprint が変化しキャッシュが自動的に無効化される（#1972 で `wasm-opt`
+を CI・Docker へ導入した際、古いキャッシュ済み成果物が誤って再利用
+されない）。
+
+### ローカル実測値（binaryen 129、wasm-bindgen 0.2.128）
+
+`cargo test -p fandhe-frontend-wasm-full --test bundle_size --locked --
+--nocapture` の実測（開発機、CI pin 版 binaryen ではない点に注意。CI 側
+再検証は #1972 が引き継ぐ）:
+
+| 構成 | `total_gzip_bytes` | 対 190,000 B 警告線の余裕 |
+|------|---------------------|---------------------------|
+| 適用前（#1647 rustc プロファイル調整後・本イシュー未適用） | 199,840 B | 実質なし（0.08%） |
+| Step A のみ（`wasm-opt` を PATH から外した状態） | 159,579 B | 16.01% |
+| Step A + Step B（`wasm-opt -Os` 適用） | 162,328 B | 14.56% |
+
+#1969 の「主要な発見」（`wasm-bindgen` の name 除去単独が `wasm-opt`
+併用より gzip 後サイズで優れる: 159,817 B < 162,518 B）を、本イシューの
+実装（別プロセス・別実行）でも再現した（159,579 B < 162,328 B、絶対値の
+微差はビルド環境・タイムスタンプ由来の非決定性の範囲内）。CI pin 版
+binaryen でこの大小関係が保たれるかは #1972 が確認する。
+
+### #1972 への引き継ぎ事項（#1969 からの引き継ぎの更新）
+
+- **CI pin 版での gzip 再検証**: 上表はローカル binaryen 129 の単一計測。
+  `ci.yml` の既存 `WASM_OPT_VERSION`/`WASM_OPT_SHA256` pin（`version_123`）
+  で同じ大小関係（フラグ単独 < wasm-opt 併用）が再現するか確認し、
+  再現するなら Dockerfile への `wasm-opt` 導入価値を個別判断すること。
+- **update op_ms の再評価**: #1969 が「暫定・未確認」と記録した基準 (ii)
+  （CSR update op_ms ±5%）は本イシューでは検証していない（Step A/B いずれも
+  ランタイムコードの意味論を変えないサイズ最適化のみのため、理論上は
+  影響しないはずだが、CI 相当環境・固定した集計条件での実測確認は
+  #1972 に引き継ぐ）。
+- **CI fail-closed 化**: `test`/`bundle-size` ジョブで skip マーカー
+  （`wasm-opt not found on PATH`・`bundle-size-wasm-opt:
+  result=skipped`）の不在を grep で assert すること（`template-app-wasm-smoke`
+  の `wasm-opt not found` grep と同型）。
+- **ユーザー承認**: `wasm-opt`（binaryen）のバージョン pin・SHA256 検証済み
+  バイナリを CI・Dockerfile へ実導入する変更は新規ビルドツール依存の追加に
+  当たるため、実測値（本節）を添えてユーザー承認を取ること。
