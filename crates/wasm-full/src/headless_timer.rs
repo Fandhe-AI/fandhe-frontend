@@ -32,9 +32,14 @@
 //! アプリのルート状態機械 `C`（`crate::lib::Runtime<C>`）が `Timer` 自身か
 //! どうかに関わらず本モジュールが DOM 上の表示更新を完結できる設計であり、
 //! [`crate::headless_avatar`]/[`crate::headless_clipboard`] より一段疎結合
-//! である（`C` への dispatch 転送は「`C` が Timer アクションを認識する場合の
-//! 追随」という副次的なベストエフォートに留める、下記「`Runtime` への統合」
-//! 節参照）。
+//! である。`C` への dispatch 成功後は `crate::lib::Runtime::wire_timer` が
+//! `dirty_fields()` 非空時に束縛点更新（`apply_update_for_dirty`）を行う
+//! （イシュー #1959）。本モジュール内部の `write_timer`（`wiring` サブ
+//! モジュール）が先に Timer の `data-*` を書き、その後に `C` 側の束縛点が
+//! 更新される順序であり、両者の書き込み先が重なる場合も同一アクション
+//! 由来の同値再書き込みで冪等となるため二重描画にはならない（詳細な根拠
+//! は `crate::lib::Runtime::wire_timer` rustdoc「Timer 自身の `data-*`
+//! 直書きとの二重描画にならない根拠」節参照）。
 //!
 //! # `Runtime` への統合
 //!
@@ -42,7 +47,14 @@
 //! の双方から `headless_clipboard::wire_clipboard_events` の直後に組み込まれる
 //! （`crate::lib::Runtime::wire_timer` 参照）。`events`/`keynav`/
 //! `headless_avatar`/`headless_clipboard` と同じ「マウント時 1 回」契約を
-//! 維持する。
+//! 維持する。内部の `read_timer` が `wire_timer_events` に渡された要素
+//! （＝ `Runtime` root）自身の `data-*` を読むため、`root` は Timer の Root
+//! パーツ（`data-scope="timer" data-part="root"`）要素そのものである必要が
+//! ある。`Runtime::hydrate` で `root_id` 要素自身が Timer root である構成
+//! でのみ click/tick 経路（本再描画接続を含む）が成立し、`Runtime::mount`
+//! （`set_inner_html` で `C.view()` を子として流し込む）では Timer root が
+//! 子要素になるため `read_timer` が `None` を返し no-op になる
+//! （`crates/wasm-full/tests/headless_timer_browser.rs` 既存注記の本文化）。
 //!
 //! # `data-action` の allowlist 変換
 //!
@@ -597,6 +609,13 @@ mod wiring {
     /// （`crate::headless_clipboard::wiring::wire_clipboard_events` と同型）。
     /// `window` が取得できない環境（テストランナー等）では配線をスキップし
     /// `Ok(())` を返す（fail-closed）。
+    ///
+    /// `root` は Timer の Root パーツ（`data-scope="timer" data-part="root"`）
+    /// 要素そのものである必要がある（[`read_timer`] が `root` 自身の
+    /// `data-*` を読むため）。Timer root を子孫に持つだけの祖先要素を渡すと
+    /// `read_timer` が常に `None` を返し click/tick 処理が no-op になる
+    /// （`crates/wasm-full/tests/headless_timer_browser.rs` の既存注記、
+    /// モジュール冒頭 doc「`Runtime` への統合」節参照）。
     ///
     /// # Errors
     ///

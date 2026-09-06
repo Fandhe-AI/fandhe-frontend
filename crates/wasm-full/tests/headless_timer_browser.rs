@@ -39,6 +39,17 @@
 //! (150)` の解決は pending の 30ms interval コールバックより**必ず後**に
 //! 実行される。したがって 150ms の猶予は誤検出なく違反 tick を観測でき、
 //! 5 秒の恒偽ポーリングは検証能力を一切追加していなかった。
+//!
+//! # `Runtime::wire_timer` の dispatch 後再描画接続（イシュー #1959）
+//!
+//! 上記の検証はいずれも `headless_timer::wire_timer_events` を直接
+//! `container`（プレーンな div）へ配線しており、`fandhe_frontend_wasm_full::Runtime`
+//! を経由しない。`runtime_dirty_rerender` モジュールはその先、
+//! `Runtime::hydrate` 経由で配線した場合に、`C` 側の束縛点
+//! （`data-bind-text`）が dispatch 後に実際に再描画されること、かつ
+//! Timer 自身が書く `data-state` 属性が 1 クリックにつき 1 回のみ書かれる
+//! （`Runtime::wire_timer` の束縛点更新経路と二重に書かれない）ことを検証
+//! する。tick 経由の束縛点更新は #1960（本イシューの sub-issue 2）に委ねる。
 
 #![cfg(target_arch = "wasm32")]
 
@@ -477,4 +488,288 @@ fn mounting_markup_with_attacker_controlled_label_creates_no_script_element() {
             .map(|v| v.is_undefined())
             .unwrap_or(true)
     );
+}
+
+// --- 検証: Runtime::hydrate 経由の再描画接続（イシュー #1959） -----------
+
+mod runtime_dirty_rerender {
+    use super::{create_container, synthetic_click, wait_for, RemoveOnDrop};
+    use fandhe_frontend_core::{bind_text, render, Node};
+    use fandhe_frontend_headless_ui::timer::{action_trigger, control, Timer, TimerControl};
+    use fandhe_frontend_interactive::{Component, DirtyTracked, Hydrate, HydrateError};
+    use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
+    use fandhe_frontend_wasm_full::Runtime;
+    use wasm_bindgen::closure::Closure;
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen_test::*;
+    use web_sys::{MutationObserver, MutationObserverInit, MutationRecord};
+
+    /// `Runtime::hydrate` が Timer root 要素そのものを `root_id` として扱う
+    /// 前提（`crate::lib::Runtime::wire_timer` rustdoc「前提: Runtime root が
+    /// Timer root であること」参照）に合わせ、`view()` のルートへ固定 id を
+    /// 付与する。本ファイル内で 1 テストのみが本ホストを使うため、
+    /// `runtime_browser.rs::AppState` と同様に単一の固定文字列で足りる。
+    const ROOT_ID: &str = "timer-host-runtime-dirty-rerender-root";
+
+    /// `Runtime::wire_timer`（イシュー #1959）の dispatch 後再描画接続を
+    /// 実 DOM で固定するための最小ホスト。`Timer` をラップし、アプリ側の
+    /// 派生フィールド（フェーズラベル）のみを dirty へ積む
+    /// （`crates/wasm-full/tests/headless_timer.rs::wire_timer_dirty_contract::TimerHost`
+    /// と同じ設計。あちらは native で `dirty_fields()` の内容自体を固定し、
+    /// 本ホストは実 DOM でのハイドレーション・束縛点反映・二重描画回避を
+    /// 検証する点が異なる）。tick 経由の束縛点更新検証は #1960 に委ねる
+    /// ため、start/pause の 2 アクションのみを対象にする。
+    struct TimerHost {
+        timer: Timer,
+        phase_label: String,
+        dirty: Vec<&'static str>,
+    }
+
+    impl TimerHost {
+        fn new(timer: Timer) -> Self {
+            let phase_label = timer.phase().as_str().to_string();
+            Self {
+                timer,
+                phase_label,
+                dirty: Vec::new(),
+            }
+        }
+    }
+
+    impl Component for TimerHost {
+        type Action = <Timer as Component>::Action;
+
+        fn update(&mut self, action: Self::Action) {
+            self.dirty.clear();
+            self.timer.update(action);
+            let new_label = self.timer.phase().as_str().to_string();
+            if new_label != self.phase_label {
+                self.phase_label = new_label;
+                self.dirty.push("phase_label");
+            }
+        }
+
+        fn view(&self) -> Node {
+            self.timer.root(
+                vec![("id", ROOT_ID)],
+                vec![
+                    control(
+                        Vec::new(),
+                        vec![
+                            action_trigger(
+                                TimerControl::Start,
+                                self.timer.phase(),
+                                Vec::new(),
+                                Vec::new(),
+                            ),
+                            action_trigger(
+                                TimerControl::Pause,
+                                self.timer.phase(),
+                                Vec::new(),
+                                Vec::new(),
+                            ),
+                        ],
+                    ),
+                    bind_text(
+                        "span",
+                        vec![("data-testid", "phase-label")],
+                        "phase_label",
+                        self.phase_label.clone(),
+                    ),
+                ],
+            )
+        }
+
+        fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
+            Timer::decode_action(name, payload)
+        }
+    }
+
+    impl DirtyTracked for TimerHost {
+        fn dirty_fields(&self) -> &[&'static str] {
+            &self.dirty
+        }
+    }
+
+    impl BindingSource for TimerHost {
+        fn bound_value(&self, field: &str) -> Option<BoundValue> {
+            match field {
+                "phase_label" => Some(BoundValue::Text(self.phase_label.clone())),
+                _ => None,
+            }
+        }
+    }
+
+    impl Hydrate for TimerHost {
+        fn hydration_attrs(&self) -> Vec<(String, String)> {
+            self.timer.hydration_attrs()
+        }
+
+        fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+            Timer::from_hydration_attrs(attrs).map(Self::new)
+        }
+    }
+
+    /// `root` へ `MutationObserver`（`attributes: true`,
+    /// `attribute_filter: ["data-state"]`）を張り、`data-state` の変更を
+    /// 記録する（`crates/wasm-full/tests/keyed_update_browser.rs` と同じ
+    /// パターン）。呼び出し側が `observer.disconnect()` を制御できるよう
+    /// `MutationObserver` 自身も返す。
+    fn observe_data_state(
+        root: &web_sys::Element,
+    ) -> (
+        MutationObserver,
+        std::rc::Rc<std::cell::RefCell<Vec<MutationRecord>>>,
+    ) {
+        let records = std::rc::Rc::new(std::cell::RefCell::new(Vec::<MutationRecord>::new()));
+        let records_clone = records.clone();
+        let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
+            move |entries: js_sys::Array, _observer: MutationObserver| {
+                for entry in entries.iter() {
+                    if let Ok(record) = entry.dyn_into::<MutationRecord>() {
+                        records_clone.borrow_mut().push(record);
+                    }
+                }
+            },
+        );
+        let observer = MutationObserver::new(callback.as_ref().unchecked_ref())
+            .expect("MutationObserver::new must not fail");
+        // `callback` は observer が生存する限り呼ばれ続けるため forget する
+        // （`keyed_update_browser.rs` と同じ理由：テスト末尾で
+        // `observer.disconnect()` を呼ぶため無期限リークにはならない）。
+        callback.forget();
+        let init = MutationObserverInit::new();
+        init.set_attributes(true);
+        let filter = js_sys::Array::new();
+        filter.push(&wasm_bindgen::JsValue::from_str("data-state"));
+        init.set_attribute_filter(&filter);
+        observer
+            .observe_with_options(root, &init)
+            .expect("observe_with_options must not fail");
+        (observer, records)
+    }
+
+    /// `Runtime::hydrate` 経由で配線した Start/Pause クリックが、Timer 自身
+    /// の `data-state` 直書きと `C`（`TimerHost`）側の束縛点
+    /// （`data-bind-text="phase_label"`）の双方へ反映され、かつ
+    /// `data-state` 属性への書き込みが 1 クリックにつき 1 回のみ
+    /// （`Runtime::wire_timer` の `apply_update_for_dirty` が Timer の
+    /// `data-state` 自体を再書きしない）ことを検証する（受け入れ条件、
+    /// イシュー #1959）。
+    #[wasm_bindgen_test]
+    async fn runtime_hydrate_click_rerenders_host_binding_and_writes_data_state_once() {
+        let window = web_sys::window().expect("window must exist");
+        let document = window.document().expect("document must exist");
+        // `create_container` は body 直下に空の div を追加するだけの薄い
+        // ヘルパーであり、他テストと同じ「後始末対象を必ず 1 個持つ」規約
+        // を守るためだけに使う（実際の Timer root は `insert_adjacent_html`
+        // で別途 body 直下へ挿入する。二重に後始末しないよう、こちらは
+        // 未使用のまま `RemoveOnDrop` で除去する）。
+        let marker = create_container(&document, "timer-host-runtime-dirty-rerender-marker");
+        let _marker_cleanup = RemoveOnDrop(marker);
+
+        let host = TimerHost::new(Timer::count_up(0, 60_000));
+
+        let html = render(&host.view());
+        document
+            .body()
+            .expect("document body must exist in browser test environment")
+            .insert_adjacent_html("beforeend", &html)
+            .expect("insert_adjacent_html must not fail");
+        let root_el = document
+            .get_element_by_id(ROOT_ID)
+            .expect("rendered Timer root must have the expected id");
+        let _cleanup = RemoveOnDrop(root_el.clone());
+
+        // `render_for_hydration` が行う「view() の root へ hydration_attrs
+        // を後付けする」処理を、実 DOM 属性として直接再現する
+        // （`runtime_browser.rs::hydrate_restores_state_from_existing_dom_and_wires_events`
+        // と同じ手順）。
+        for (name, value) in host.hydration_attrs() {
+            root_el
+                .set_attribute(&name, &value)
+                .expect("set_attribute must not fail");
+        }
+
+        let runtime = Runtime::hydrate(ROOT_ID, TimerHost::new(Timer::count_up(0, 60_000)))
+            .expect("hydrate must succeed for well-formed attrs");
+        assert_eq!(
+            runtime.root().id(),
+            ROOT_ID,
+            "hydrate は root_id 要素自身を Timer root として復元すること"
+        );
+
+        let (observer, records) = observe_data_state(&root_el);
+
+        let phase_label = || {
+            root_el
+                .query_selector("[data-bind-text='phase_label']")
+                .expect("query_selector must not fail")
+                .expect("phase_label binding point must exist")
+                .text_content()
+                .unwrap_or_default()
+        };
+        assert_eq!(phase_label(), "idle");
+
+        let start_button = root_el
+            .query_selector("[data-scope='timer'][data-part='action-trigger'][data-action='start']")
+            .expect("query_selector must not fail")
+            .expect("start action-trigger must exist");
+        start_button
+            .dispatch_event(&synthetic_click())
+            .expect("dispatch_event must not fail");
+
+        wait_for("data-state becomes running after start click", || {
+            root_el.get_attribute("data-state").as_deref() == Some("running")
+        })
+        .await;
+        assert_eq!(
+            phase_label(),
+            "running",
+            "Runtime::wire_timer が dispatch 後の dirty_fields() を \
+             apply_update_for_dirty へ渡し、C 側の束縛点（phase_label）が \
+             再描画されること（イシュー #1959 の受け入れ条件）"
+        );
+        assert_eq!(
+            records.borrow().len(),
+            1,
+            "start クリック 1 回につき data-state 属性への書き込みは \
+             write_timer による 1 回のみであり、apply_update_for_dirty \
+             側から Timer の data-state 自体への二重書き込みは \
+             発生しないこと（イシュー #1959「二重描画にならない根拠」）: {:?}",
+            records
+                .borrow()
+                .iter()
+                .map(MutationRecord::attribute_name)
+                .collect::<Vec<_>>()
+        );
+
+        let pause_button = root_el
+            .query_selector("[data-scope='timer'][data-part='action-trigger'][data-action='pause']")
+            .expect("query_selector must not fail")
+            .expect("pause action-trigger must exist");
+        pause_button
+            .dispatch_event(&synthetic_click())
+            .expect("dispatch_event must not fail");
+
+        wait_for("data-state becomes paused after pause click", || {
+            root_el.get_attribute("data-state").as_deref() == Some("paused")
+        })
+        .await;
+        assert_eq!(phase_label(), "paused");
+        assert_eq!(
+            records.borrow().len(),
+            2,
+            "pause クリック後は data-state 書き込みが累計 2 回（start 1 回 + \
+             pause 1 回）のみであること: {:?}",
+            records
+                .borrow()
+                .iter()
+                .map(MutationRecord::attribute_name)
+                .collect::<Vec<_>>()
+        );
+
+        observer.disconnect();
+        assert_eq!(runtime.component().phase_label, "paused");
+    }
 }
