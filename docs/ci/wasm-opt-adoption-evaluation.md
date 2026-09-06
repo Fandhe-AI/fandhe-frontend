@@ -829,9 +829,16 @@ create/update/clear の 16ms 予算検証）はローカル環境に chromedrive
   （`wasm-bindgen` の name/producers セクション除去のみで −20.03%、
   `wasm-opt -Os` で −18.68%、`-Oz` で −18.50%。いずれも 5% 目安を
   大きく上回る）
-- 基準 (ii)（update_op_ms の悪化が ±5% 目安内）: **充足**（追加計測に
-  より B の 1 回目高値はノイズと判断。10 run 平均・C の 5 run いずれも
-  A と有意差のない水準に収まった）
+- 基準 (ii)（update_op_ms の悪化が ±5% 目安内）: **暫定・未確認**。
+  10 run 平均（B=1.900 ms）と A（外れ値除き 1.771 ms）・C（1.709 ms）を
+  比較する集計では ±5% 目安に収まるが、**集計方法（どの run をノイズ
+  として除外するか）によっては判定が変わる**: 例えば B の 1 回目 5 run
+  （2.060 ms）と A の外れ値を含む全 5 run 平均（1.919 ms）を比較する
+  集計では (2.060−1.919)/1.919 ≒ **+7.3% の悪化**となり、±5% 目安を
+  超える。開発機（専用ベンチ機ではない）での 5〜10 run に留まる本節の
+  計測はノイズ切り分けの根拠が弱く、「充足」を断定できる状態にはない。
+  #1970/#1971 では CI 相当環境でサンプル数を増やし、**あらかじめ固定した
+  単一の集計条件（外れ値除外基準を含む）**で再評価すること
 - 200,000 B 上限・190,000 B 警告線双方に対する余裕: 適用前は上限に
   対し 0.08%（事実上ゼロ）・警告線を超過していたが、いずれの構成も
   上限に対し 18〜20%台・警告線に対し 14〜16%台の余裕を新たに確保する
@@ -851,10 +858,16 @@ create/update/clear の 16ms 予算検証）はローカル環境に chromedrive
   先行導入を検討すること**: 新規サプライチェーン依存ゼロ（既に依存
   済みの `wasm-bindgen-cli` の既存フラグ）で #1968 警告線に対し 15.89%
   の余裕を確保できる。`crates/dist-server/build.rs::run_wasm_bindgen`
-  の `wasm-bindgen` 呼び出しに 2 フラグを追加するだけで成立し、
-  `bundle_size.rs` の期待値のみ更新すればよく、`wasm-opt` 導入で
-  必要になる新規サプライチェーン対策（バージョン pin・SHA256 検証・
-  CI 常設導入・soft-skip 設計）が一切不要。ただし name section の
+  の `wasm-bindgen` 呼び出しに 2 フラグを追加すれば成立する。ただし
+  `crates/wasm-full/tests/bundle_size.rs::run_wasm_bindgen_for_bundle_size`
+  は `build.rs::run_wasm_bindgen` とは独立に自前で `wasm-bindgen` を
+  呼び出しているため、**期待値の更新だけでは不十分**であり、
+  `run_wasm_bindgen_for_bundle_size` 側の `wasm-bindgen` 呼び出しにも
+  同じ 2 フラグを追加しなければならない（追加しないと計測側が
+  未適用構成を測り続け、期待値だけを実配布物と乖離した値へ更新して
+  しまう）。`wasm-opt` 導入で必要になる新規サプライチェーン対策
+  （バージョン pin・SHA256 検証・CI 常設導入・soft-skip 設計）が
+  一切不要な点は変わらない。ただし name section の
   除去はスタックトレース・デバッグ情報の可読性を下げるトレードオフが
   ある（dist-server は本番配布物であり通常デバッグビルドではないため
   実害は小さいと考えられるが、#1970 で明記すること）。
@@ -873,10 +886,17 @@ create/update/clear の 16ms 予算検証）はローカル環境に chromedrive
   `Dockerfile` の 3 者が矛盾しない方針（dist-server 経路は CI 常設
   導入前提のため soft-skip でも実運用上は問題ないが、テスト側の期待値
   とローカル開発者体験の両立を要検討）に揃えること。
-- **キャッシュ fingerprint**: wasm-opt を導入する場合、その版・適用
-  有無・`--remove-name-section` 等のフラグを `wasm_stage_cache` の
-  fingerprint に織り込むこと（バージョン drift やフラグ変更で古い
-  キャッシュが誤って再利用されるのを防ぐ）。
+- **キャッシュ fingerprint**: `wasm-opt` を導入する場合はその版・適用
+  有無を、`wasm-bindgen --remove-name-section`/`--remove-producers-section`
+  を単独導入する場合（`wasm-opt` を追加せずフラグのみを先行導入する
+  ケースを含む）はそのフラグの有無を、いずれも `compute_wasm_stage_fingerprint`
+  （`wasm_stage_cache` の fingerprint 計算）に織り込むこと。前段の
+  引き継ぎ事項が推奨する「`wasm-bindgen` フラグ先行導入・`wasm-opt` は
+  後日個別判断」という段階導入を採る場合、`wasm-opt` を導入する
+  タイミングに限定してキャッシュ無効化を行うと、フラグ単独導入時点の
+  変更がキャッシュに反映されず古い生成物が誤って再利用され得る
+  （バージョン drift やフラグ変更で古いキャッシュが誤って再利用される
+  のを防ぐ、という本来の目的に反する）。
 - **CI pin 版での再検証**: 本節はローカル binaryen 129（CI pin
   `version_123` とは異なる）での単一計測である。「`wasm-opt` が
   `wasm-bindgen` の name 除去単独より gzip 後サイズで劣る」という
