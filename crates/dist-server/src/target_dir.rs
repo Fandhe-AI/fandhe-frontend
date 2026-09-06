@@ -37,17 +37,24 @@ use std::path::{Path, PathBuf};
 /// `false` を返す）。`OUT_DIR` は cargo が常に絶対パスとして設定する
 /// ため、この逆算結果は常に絶対パスになる。一方 `cargo_target_dir_env`
 /// （`CARGO_TARGET_DIR` 環境変数）は `CARGO_TARGET_DIR=target` のような
-/// 相対指定もそのまま渡ってくる契約であり、これを絶対パスかどうか
-/// 検証せず優先して返すと、相対指定時に呼び出し元の除外判定が常に失敗し
-/// Cargo の生成物ディレクトリが監視対象に残ってしまう（再ビルドループが
-/// 再発する、codex P1 / Cursor Bugbot 指摘）。このため `OUT_DIR` からの
-/// 逆算を常に優先し、逆算が `None`（想定より浅い `OUT_DIR` 階層。テスト
-/// 環境等）の場合に限り `cargo_target_dir_env` へフォールバックする
-/// （`--target-dir`/`CARGO_TARGET_DIR` で明示指定された値を cargo が
-/// build script へそのまま伝える将来の挙動変化や、呼び出し元がテスト目的で
-/// 明示指定するケースへの保険）。フォールバック時も渡された値をそのまま
-/// 返すのみで絶対化はしない（呼び出し元が比較不能な相対パスを受け取る
-/// リスクは残るが、逆算優先により通常経路では発生しない）。
+/// 相対指定もそのまま渡ってくる契約である。このため `OUT_DIR` からの逆算を
+/// 常に優先し（実運用の cargo ビルドでは `OUT_DIR` は必ず固定階層
+/// `<CARGO_TARGET_DIR>/[<triple>/]<profile>/build/<pkg>-<hash>/out` を
+/// 満たすため、この分岐が失敗することはない）、逆算が `None`（想定より
+/// 浅い `OUT_DIR` 階層。テスト環境等、実運用では到達しない）の場合に限り
+/// `cargo_target_dir_env` へフォールバックする（`--target-dir`/
+/// `CARGO_TARGET_DIR` で明示指定された値を cargo が build script へ
+/// そのまま伝える将来の挙動変化や、呼び出し元がテスト目的で明示指定する
+/// ケースへの保険）。このフォールバック値が相対パスのまま返ると、呼び出し
+/// 元の絶対パス前提の `Path::starts_with` 比較が常に失敗し、Cargo の
+/// 生成物ディレクトリが監視対象に残ってしまう（相対 `CARGO_TARGET_DIR`
+/// 自体は逆算優先により通常経路では作用しないが、フォールバック経路にも
+/// 同じ穴を残さないための防御、codex P1 / Cursor Bugbot 指摘）。このため
+/// フォールバック時も `current_dir`（呼び出し元は `std::env::current_dir()`
+/// を渡す）を基準に絶対化してから返す。`current_dir` 自体が渡されない、
+/// または絶対化に必要な情報が欠けている場合は比較不能な相対パスを返す
+/// リスクが残るが、実運用でこのフォールバック分岐に到達すること自体が
+/// ない（上記の通り `OUT_DIR` 逆算が必ず成功する）ため実害はない。
 ///
 /// 逆算・フォールバックのいずれでも解決できない場合は `None` を返し、
 /// 呼び出し元は除外なし（フェイルオープン、監視漏れなし側）に
@@ -56,6 +63,7 @@ pub fn cargo_target_dir_from_out_dir(
     out_dir: &Path,
     target_triple: Option<&str>,
     cargo_target_dir_env: Option<&str>,
+    current_dir: Option<&Path>,
 ) -> Option<PathBuf> {
     if let Some(resolved) = out_dir.ancestors().nth(4) {
         let level4 = resolved.to_path_buf();
@@ -70,7 +78,14 @@ pub fn cargo_target_dir_from_out_dir(
     }
 
     match cargo_target_dir_env {
-        Some(dir) if !dir.is_empty() => Some(PathBuf::from(dir)),
+        Some(dir) if !dir.is_empty() => {
+            let candidate = PathBuf::from(dir);
+            if candidate.is_absolute() {
+                Some(candidate)
+            } else {
+                current_dir.map(|base| base.join(candidate))
+            }
+        }
         _ => None,
     }
 }
@@ -87,7 +102,7 @@ mod tests {
     fn host_build_out_dir_resolves_to_target_dir() {
         let out_dir = PathBuf::from("/repo/target/release/build/pkg-abcdef/out");
         let resolved =
-            cargo_target_dir_from_out_dir(&out_dir, Some("x86_64-unknown-linux-gnu"), None);
+            cargo_target_dir_from_out_dir(&out_dir, Some("x86_64-unknown-linux-gnu"), None, None);
         assert_eq!(resolved, Some(PathBuf::from("/repo/target")));
     }
 
@@ -101,7 +116,7 @@ mod tests {
         let out_dir =
             PathBuf::from("/repo/target/wasm32-unknown-unknown/release/build/pkg-abcdef/out");
         let resolved =
-            cargo_target_dir_from_out_dir(&out_dir, Some("wasm32-unknown-unknown"), None);
+            cargo_target_dir_from_out_dir(&out_dir, Some("wasm32-unknown-unknown"), None, None);
         assert_eq!(resolved, Some(PathBuf::from("/repo/target")));
     }
 
@@ -112,7 +127,7 @@ mod tests {
     fn non_matching_triple_does_not_overshoot() {
         let out_dir = PathBuf::from("/repo/target/debug/build/pkg-abcdef/out");
         let resolved =
-            cargo_target_dir_from_out_dir(&out_dir, Some("wasm32-unknown-unknown"), None);
+            cargo_target_dir_from_out_dir(&out_dir, Some("wasm32-unknown-unknown"), None, None);
         assert_eq!(resolved, Some(PathBuf::from("/repo/target")));
     }
 
@@ -122,7 +137,7 @@ mod tests {
     fn no_triple_provided_skips_triple_check() {
         let out_dir =
             PathBuf::from("/repo/target/wasm32-unknown-unknown/release/build/pkg-abcdef/out");
-        let resolved = cargo_target_dir_from_out_dir(&out_dir, None, None);
+        let resolved = cargo_target_dir_from_out_dir(&out_dir, None, None, None);
         assert_eq!(
             resolved,
             Some(PathBuf::from("/repo/target/wasm32-unknown-unknown"))
@@ -143,6 +158,7 @@ mod tests {
             &out_dir,
             Some("wasm32-unknown-unknown"),
             Some("/custom/target"),
+            None,
         );
         assert_eq!(resolved, Some(PathBuf::from("/repo/target")));
     }
@@ -157,6 +173,7 @@ mod tests {
             &out_dir,
             Some("x86_64-unknown-linux-gnu"),
             Some("target"),
+            None,
         );
         assert_eq!(resolved, Some(PathBuf::from("/repo/target")));
     }
@@ -172,6 +189,7 @@ mod tests {
             &out_dir,
             Some("wasm32-unknown-unknown"),
             Some("/stale/target"),
+            None,
         );
         assert_eq!(resolved, Some(PathBuf::from("/actual/target")));
     }
@@ -185,6 +203,7 @@ mod tests {
             &out_dir,
             Some("wasm32-unknown-unknown"),
             Some("/custom/target"),
+            None,
         );
         assert_eq!(resolved, Some(PathBuf::from("/custom/target")));
     }
@@ -195,7 +214,71 @@ mod tests {
     fn shallow_out_dir_without_env_returns_none() {
         let out_dir = PathBuf::from("/out");
         let resolved =
-            cargo_target_dir_from_out_dir(&out_dir, Some("wasm32-unknown-unknown"), None);
+            cargo_target_dir_from_out_dir(&out_dir, Some("wasm32-unknown-unknown"), None, None);
+        assert_eq!(resolved, None);
+    }
+
+    /// `CARGO_TARGET_DIR` 環境変数が相対値（`CARGO_TARGET_DIR=target`）でも、
+    /// 通常経路（`OUT_DIR` が固定階層を満たす）では逆算が優先されるため、
+    /// 返る値は常に `OUT_DIR` 由来の絶対パスであり、相対値の `current_dir`
+    /// 解決は行われない（codex P1 / Cursor Bugbot 指摘の再現・回帰確認）。
+    #[test]
+    fn relative_env_never_leaks_when_out_dir_resolution_succeeds() {
+        let out_dir = PathBuf::from("/repo/target/release/build/pkg-abcdef/out");
+        let resolved = cargo_target_dir_from_out_dir(
+            &out_dir,
+            Some("x86_64-unknown-linux-gnu"),
+            Some("target"),
+            Some(&PathBuf::from("/somewhere/else")),
+        );
+        assert_eq!(resolved, Some(PathBuf::from("/repo/target")));
+    }
+
+    /// `--target-dir`（`CARGO_TARGET_DIR` 環境変数として渡ってくる値）が
+    /// 実際のビルドで使われた場所（`OUT_DIR` から逆算できる場所）と異なって
+    /// いても、`OUT_DIR` 側の絶対パスが優先して返る。
+    #[test]
+    fn out_dir_resolution_wins_over_differing_target_dir_option() {
+        let out_dir =
+            PathBuf::from("/actual/target/wasm32-unknown-unknown/debug/build/pkg-abcdef/out");
+        let resolved = cargo_target_dir_from_out_dir(
+            &out_dir,
+            Some("wasm32-unknown-unknown"),
+            Some("../different-target-dir"),
+            Some(&PathBuf::from("/cwd")),
+        );
+        assert_eq!(resolved, Some(PathBuf::from("/actual/target")));
+    }
+
+    /// 想定より浅い `OUT_DIR` 階層でフォールバックへ入り、かつ
+    /// `CARGO_TARGET_DIR` 環境変数が相対値の場合は、`current_dir` を基準に
+    /// 絶対化してから返す。フォールバック経路にも相対パスの穴を残さない
+    /// （codex P1 / Cursor Bugbot 指摘、フォールバック側の防御的対応）。
+    #[test]
+    fn shallow_out_dir_fallback_absolutizes_relative_env_with_current_dir() {
+        let out_dir = PathBuf::from("/out");
+        let resolved = cargo_target_dir_from_out_dir(
+            &out_dir,
+            Some("wasm32-unknown-unknown"),
+            Some("target"),
+            Some(&PathBuf::from("/repo")),
+        );
+        assert_eq!(resolved, Some(PathBuf::from("/repo/target")));
+    }
+
+    /// フォールバック経路で `CARGO_TARGET_DIR` 環境変数が相対値かつ
+    /// `current_dir` が渡されない場合は、比較不能な相対パスを返すより
+    /// `None`（除外なし、フェイルオープン）を返す方が安全なため、
+    /// 絶対化を諦めて `None` を返す。
+    #[test]
+    fn shallow_out_dir_fallback_relative_env_without_current_dir_returns_none() {
+        let out_dir = PathBuf::from("/out");
+        let resolved = cargo_target_dir_from_out_dir(
+            &out_dir,
+            Some("wasm32-unknown-unknown"),
+            Some("target"),
+            None,
+        );
         assert_eq!(resolved, None);
     }
 }

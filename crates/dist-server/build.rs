@@ -374,10 +374,16 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
     //    `target/<profile>`・`target/<profile>/deps` が除外漏れになる
     //    （Cursor Bugbot 指摘）。build script に常に設定される `TARGET`
     //    環境変数を渡し、triple 名の一致でさらに 1 段遡るかを判定させる。
+    //    `current_dir` は `OUT_DIR` からの逆算が失敗した場合のみ使われる
+    //    フォールバック専用の絶対化基準（`CARGO_TARGET_DIR` 環境変数が
+    //    相対値のときに `Path::starts_with` 比較不能な相対パスを返さない
+    //    ための保険、`target_dir::cargo_target_dir_from_out_dir` 参照）。
+    let current_dir = env::current_dir().ok();
     let cargo_target_dir = target_dir::cargo_target_dir_from_out_dir(
         out_dir,
         env::var("TARGET").ok().as_deref(),
         env::var("CARGO_TARGET_DIR").ok().as_deref(),
+        current_dir.as_deref(),
     );
     if let Some(path_var) = env::var_os("PATH") {
         for dir in env::split_paths(&path_var) {
