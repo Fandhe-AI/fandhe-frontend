@@ -779,6 +779,9 @@ pub(super) fn tabs_section() -> Node {
         loop_focus: true,
         indicator: true,
     };
+    // 3 タブ構成（うち Billing を disabled）: 参考サイト（ark-ui/Radix）の
+    // Demo と同じ枚数へ揃え、機械導出される data-* 属性表に data-disabled が
+    // 現れるようにする（イシュー #1656、参照突合）。
     let items = vec![
         TabItem {
             value: "overview",
@@ -791,6 +794,12 @@ pub(super) fn tabs_section() -> Node {
             trigger: vec![text("Settings")],
             content: vec![text("Settings panel content.")],
             disabled: false,
+        },
+        TabItem {
+            value: "billing",
+            trigger: vec![text("Billing")],
+            content: vec![text("Billing panel content.")],
+            disabled: true,
         },
     ];
     let body = vec![tabs(&props, items)];
