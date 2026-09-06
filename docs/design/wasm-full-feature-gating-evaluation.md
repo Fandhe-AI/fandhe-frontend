@@ -255,7 +255,26 @@ gating を採用しても、`crates/dist-server/build.rs` のネストビルド�
   操作（例: `keynav` feature を無効化した状態でキーボード操作を行う）は
   `MAPPING_TABLE`/keynav の既存 fail-closed 契約（未知の (scope, part) は
   `None`、`data-disabled`/`data-readonly` は no-op）と同じ経路で黙って
-  no-op になる。「feature を切ったら何が起きなくなるか」は Cargo.toml の
+  no-op になる**と当初想定していたが、`keynav::wire_keynav`
+  （`keynav.rs:7552` 付近）はキーボード操作の配線だけでなく、readonly
+  な RadioGroup に対する click capture リスナー（`keynav.rs:7678` 付近、
+  イシュー #1616 是正）も同一関数内で `root` へ登録している。この
+  capture リスナーは `events::wire_events` の bubble リスナーより必ず
+  先に発火する設計で、readonly item へのクリックの `stop_propagation`/
+  `prevent_default`（`radio_group_readonly_click_outcome` の
+  `FullSuppression`/`PreventDefaultOnly` 分岐）によってネイティブ
+  `<input type="radio">` の checked 確定（pre-click activation steps）と
+  headless dispatch による選択状態確定の両方を抑止している。`keynav`
+  feature を無効化して `wire_keynav` の呼び出し自体を除去すると、
+  この click capture 登録も丸ごと消え、readonly RadioGroup は
+  「キーボード操作ができなくなる」だけでなく **クリックでネイティブ
+  checked が変わってしまう**（`data-readonly` の視覚的表示と実際の
+  操作可否が矛盾する）退行が生じる。これは `MAPPING_TABLE` の
+  fail-closed no-op 契約（未知入力を安全側の「何もしない」に倒す）とは
+  異なり、「既存の防御（何かをしないよう妨げる配線）が消えて操作可能に
+  なる」逆方向の retrogression であり、「配線されない＝no-op」という
+  単純な説明は成立しない（§11 の採用条件に反映、§14 のセキュリティ
+  考慮も参照）。「feature を切ったら何が起きなくなるか」は Cargo.toml の
   コメントに頼ることになり、実行時エラーでは検出できない DX コストが
   ある。
 - **決定性**: feature unification（`cargo build -p` 単体と `cargo test
@@ -279,8 +298,49 @@ gating を採用しても、`crates/dist-server/build.rs` のネストビルド�
 ## 10. CI・テスト・semver・利用者への影響
 
 - 既定 on の feature 追加（`default = [...]` へ新 feature を追加しつつ
-  既定で全部有効のままにする）は追加的変更であり、`fandhe-frontend-wasm-full`
-  の patch/minor バンプで足りる（既存利用者のビルド結果は変わらない）。
+  既定で全部有効のままにする）自体は追加的変更であり、`--features` を
+  指定しない標準利用者（`default-features` を明示していないプロジェクト）
+  に限れば `fandhe-frontend-wasm-full` の patch/minor バンプで足りる。
+- **`default-features = false` 利用者との非互換（codex-review 指摘、
+  イシュー #1120 で導入済みの既存構成）**: `Cargo.toml:813-821`（
+  `wasm-bindgen-exports` feature、既定 on）・`src/lib.rs:154-162`
+  （`#[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]
+  pub mod entry;`）が示すとおり、現行の唯一の既定 on feature は
+  `entry`（アプリ側 `#[wasm_bindgen] mount`/`hydrate`/`start_router` の
+  デモ実装）だけを切り離す。「rlib 専用・自前 `Runtime<C>` を組み立てる
+  利用者」は `default-features = false` を選んでも `wire_*` 呼び出し列
+  （`Runtime::mount`/`hydrate` 内、entry 外）は Cargo feature の対象外
+  としてそのまま有効なままビルドされる（`default-features = false` は
+  「`default` 配列に列挙された feature をすべて無効化する」の意味であり、
+  現状はそこに `wasm-bindgen-exports` 以外の feature が存在しないため
+  実質的に entry のみを落とす効果しかない）。本評価が提案する構成（§13
+  案 1: `wire_*` 呼び出しを新設の既定 on feature 群でゲートする）を
+  そのまま適用すると、この既存利用者は **コード変更なしの再ビルドだけで
+  `wire_*` の配線を丸ごと失う**（`default-features = false` が新設
+  feature 群も道連れに無効化するため）。「既存利用者のビルド結果は
+  変わらない」「追加的変更なので patch/minor で足りる」という前段の
+  記述は、この利用者区分については成立しない。
+  採用時は次のいずれかを採用条件に含める：
+  (i) **互換維持策**: 新設する `wire_*` 系 feature 群を `entry`（既定 on
+  feature `wasm-bindgen-exports`）が要求する feature としてのみ扱い、
+  `wire_*` 呼び出し自体は feature ゲートしない（gating の対象を「entry
+  のエクスポート面」のみに保つ）か、あるいは新設 feature 群を `default`
+  配列に加えるだけでなく `wasm-bindgen-exports` 側からも
+  独立した既定 on feature（`default-features = false` でも個別に
+  `features = [...]` を明示すれば有効化し続けられる設計）として設計し、
+  移行ガイド（`--no-default-features` 済み利用者は明示的な
+  `features = [...]` 追加が必要である旨）を release note・rustdoc に
+  明記する。
+  (ii) **0.x minor の破壊的変更としての移行手順**: `coding-rust.md` の
+  「0.x の破壊的変更はマイナーバンプとする」規約に従い、本変更を
+  breaking change として扱う minor バンプ（例: 0.7.0 → 0.8.0）を行い、
+  CHANGELOG・release note に「`default-features = false` 利用者は
+  `wire_*` 系 feature を明示的に追加しないと配線を失う」旨と移行手順
+  （追加すべき feature 名の一覧）を明記する。dep-version-check
+  （`.claude/rules/ci.md`）が検知する依存元 `version = "..."` 追随も
+  合わせて必要になる。
+  いずれを選ぶかは §13 の実装 issue 側でユーザー判断とし、本評価では
+  両選択肢の存在と採用条件化のみを記す。
 - `examples/interactive-view-transitions/wasm`（`fandhe-frontend-wasm-full
   = "0.7.0"` に pin、`examples/interactive-view-transitions/wasm/Cargo.toml:37`）
   は既定 feature をそのまま使う限り非影響。§2 で確認したとおり、この
@@ -319,6 +379,17 @@ wasm-opt を優先）。
 単体除去 (b) のみだと 200,000 − 171,275 = 28,725 B で 30 KB をわずかに
 下回るが、判定ルールが指すのは (d) であり (b) 単独ではない）。
 
+**実測値の留保（§9 明示性の項参照）**: (b)/(d)/(e) の実測はいずれも
+`keynav::wire_keynav` 呼び出しを丸ごと除去したパッチによる減算であり、
+readonly RadioGroup の click capture 保護（`keynav.rs:7678` 付近）を
+含めて削除した数値である。§11 条件 4 のとおり採用時はこの保護を
+常時有効な配線へ分離する必要があり、分離後の keynav 除去は
+`keynav.rs`（7,813 行）のうち保護コード分を差し引いた削減量になるため、
+上記 28.4%/32.1%/14.2% は**分離実装後に再計測するまでの暫定値**である
+（保護コードは同関数内の一部分であり大幅な縮小ではないと見込まれるが、
+判定ルールの 20%/30 KB 基準を満たすかどうかは実装 issue（§13）側で
+再確認すること）。
+
 **結論: 条件付き採用（レバー (ii) を推奨）**。以下を条件とする:
 
 1. 分割粒度は §6 の (ii)（wasm-full の配線群別、10〜20 個）を採る。
@@ -334,6 +405,21 @@ wasm-opt を優先）。
 3. §7 の cfg 機構は stable コンパイル確認済みだが、§9 のテスト追随
    コスト（`headless_wiring.rs`/`keynav_native.rs`）は実装 issue（§13）
    側で必ず解消すること。
+4. **keynav gating 時の readonly RadioGroup 保護維持（§9 明示性の項・
+   §14 参照）**: `keynav::wire_keynav` が担う click capture リスナー
+   （readonly RadioGroup のネイティブ checked 確定・headless dispatch
+   両方を抑止する防御、イシュー #1616 是正）は、`keynav` feature の
+   有効/無効に関わらず常時登録されるよう `wire_keynav` から分離した
+   専用配線（例: `wire_readonly_click_guard` 相当）へ切り出すか、
+   readonly RadioGroup を含むアプリでは `keynav` feature を必須依存に
+   する Cargo feature 依存（`radio-group` 等の上位 feature が `keynav`
+   を要求する設計）のいずれかを実装 issue（§13）側で採用し、上記
+   「実測値の留保」の再計測を行うこと。この条件を満たさない構成
+   （保護なしで keynav 全体を無効化可能にする構成）は採用しない。
+5. **`default-features = false` 利用者との互換性（§10 参照）**:
+   §10 で挙げた 2 選択肢（(i) 互換維持策 / (ii) 0.x minor の破壊的変更
+   としての移行手順）のいずれかを実装 issue（§13）側で明確に選択し、
+   選択しない・両方省略する構成は採用しない。
 
 ## 12. 再評価トリガー
 
@@ -348,14 +434,24 @@ wasm-opt を優先）。
 条件付き採用（§11）に基づき、採用する場合の分割案:
 
 1. `wasm-full` に配線群別 feature を追加（既定 on、`Runtime::mount`/
-   `hydrate` の `wire_*` 呼び出しを cfg ゲート）。
+   `hydrate` の `wire_*` 呼び出しを cfg ゲート）。§11 条件 5 に従い、
+   `default-features = false` 利用者との互換維持策・移行手順のいずれかを
+   本 issue で確定する。
 2. `MAPPING_TABLE`/keynav の scope 分岐の cfg 化と、
    `headless_wiring.rs`/`keynav_native.rs` の `required-features` 追随。
+   §11 条件 4 に従い、readonly RadioGroup の click capture 保護
+   （`keynav.rs:7678` 付近）を `keynav` feature から独立した常時有効な
+   配線へ切り出し、切り出し後の構成で §5/§11 の削減量を再計測する
+   （再計測結果が判定ルールの 20%/30 KB を下回る場合は採用可否を
+   再検討する）。
 3. CI feature matrix（`--no-default-features` / 各 feature / `--all-features`）
-   の追加。`clippy-wasm32` ジョブへの反映要否を含めて検討する。
+   の追加。`clippy-wasm32` ジョブへの反映要否を含めて検討する。readonly
+   RadioGroup 保護（項目 2）が `keynav` feature 無効時にも機能することを
+   検証するテストケースを追加する。
 4. dist-server 経路の feature 集合決定（§8 (A)/(B) のユーザー判断）と
    `bundle_size.rs` 契約の更新。
-5. docs（feature 一覧の利用者向けドキュメント化）・examples への反映。
+5. docs（feature 一覧の利用者向けドキュメント化、§11 条件 5 の移行手順を
+   含む）・examples への反映。
 
 見送りとなった場合はこれらの issue は起票しない。
 
@@ -368,9 +464,17 @@ wasm-opt を優先）。
   `Cargo.lock` の意図しない更新を防いだ。
 - **A05 セキュリティ設定ミス**: 採用時の設計として、feature gating は
   `MAPPING_TABLE`/keynav の既存 fail-closed 契約（未知の (scope, part) は
-  `None`、`data-disabled`/`data-readonly` は no-op）を弱めない。gating
-  済み scope は「配線されない＝no-op」であり、エスケープ迂回や新たな
-  dispatch 経路を作らない不変条件を維持すること（§9 明示性の項参照）。
+  `None`、`data-disabled`/`data-readonly` は no-op）を弱めない。ただし
+  §9 明示性の項で確認したとおり、`keynav::wire_keynav` は readonly
+  RadioGroup の click capture 保護（ネイティブ checked 確定・headless
+  dispatch の抑止、イシュー #1616 是正）も同一関数内で担っており、
+  gating によりこの防御が消えるとクリック操作で readonly 制約を回避
+  できてしまう（A01 アクセス制御相当の後退）。「gating 済み scope は
+  配線されない＝no-op」という単純な説明はこの保護には当てはまらない
+  ため、§11 条件 4 のとおり保護処理を常時有効な配線へ分離することを
+  採用条件とし、エスケープ迂回や新たな dispatch 経路を作らない不変
+  条件は維持しつつ、既存の readonly 防御水準も後退させない設計とする
+  こと。
 - **A03 インジェクション/REQ-1**: 既定エスケープ経路
   （`fandhe_frontend_core::render`・`set_text_content`）に本評価で提案する
   設計は一切触れない。
