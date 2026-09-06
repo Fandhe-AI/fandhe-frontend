@@ -444,15 +444,20 @@ name = "fandhe-frontend-headless-ui"
 # `PaginationAction::First`/`Last` variant 追加を伴う破壊的変更のため
 # マイナーバンプで 0.59.0 とする（`first_trigger`/`last_trigger` の新設は
 # 非破壊的な追加）。
-# base 再取り込み（イシュー #1661, 2026-09-06, 2 回目）: main 側は本ブランチ
-# とは独立に pagination（#1655）の破壊的変更を経て 0.59.0 へ到達しており、
-# 本ブランチも json-tree-view（#1661）の破壊的変更により独立に同じ 0.59.0
-# へ到達していた。両者は異なる実体変更（colon 入れ子構造・data-kind 語彙
-# 変更 と pagination::item シグネチャ変更）を伴い偶発的に同一版数へ衝突
-# している（同一版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
-# style-refresh-version-bump-operation.md` §5）。両者の破壊的変更の和集合
-# として、さらにマイナーバンプで 0.60.0 とする。
-version = "0.60.0"
+# base 再取り込み（イシュー #1662, 2026-09-06, 2 回目）: main 側は本ブランチ
+# とは独立に pagination（#1655）・json-tree-view（#1661）双方の破壊的変更が
+# 偶発的に同一版数へ衝突した結果としてマイナーバンプ 0.60.0 へ到達して
+# いた。本ブランチは scroll-area の `viewport`/`scrollbar`/`thumb`/`corner`
+# へ予約キーなりすまし除去（`drop_reserved`）を追加していた（非破壊的
+# 変更）。main の到達点 0.60.0 を起点に patch バンプで 0.60.1 とする。
+# イシュー #1657（toolbar の参照突合）: `toolbar::button`/`link`/
+# `toggle_group`/`toggle_item` の自由関数へ先頭引数 `orientation:
+# Orientation` を追加し `data-orientation` を出力するようにした破壊的変更
+# （`separator` への直交 `data-orientation` 追加・呼び出し側予約キー
+# なりすまし除去〔`drop_reserved`〕の導入は非破壊的だが、上記シグネチャ
+# 変更が破壊的のため合わせてマイナーバンプする）。0.x の破壊的変更は
+# マイナーバンプとする規約に従いマイナーバンプで 0.61.0 とする。
+version = "0.61.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

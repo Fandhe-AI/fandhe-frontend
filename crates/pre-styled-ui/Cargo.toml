@@ -1876,7 +1876,34 @@ name = "fandhe-frontend-pre-styled-ui"
 # イシュー #1686: fieldset モジュール新設（公開 API の純追加）。純追加も
 # minor バンプとする運用（#1429、先例 #1684 field・#1682 collapsible）に
 # 従い 0.115.0 とする。`/themes/fieldset/` ページ登録は後続イシュー #1687。
-version = "0.115.0"
+# base 再取り込み（イシュー #1662, 2026-09-06, 2 回目）: 上記のとおり main
+# 側は json-tree-view・pagination 双方の破壊的変更と field モジュール新設の
+# 3 件を積算して 0.114.0 へ到達している。本ブランチは headless-ui
+# 0.58.1（scroll-area の非破壊的変更）への追随を持っていたが、本マージで
+# headless-ui 側がさらに patch バンプ 0.60.1 へ到達したため、依存元である
+# 本クレートも「headless-ui バンプに伴い依存元自身も patch バンプする」
+# 既定運用（`docs/ci/style-refresh-version-bump-operation.md`）に従い
+# 0.114.0 から patch バンプし 0.114.1 とする（依存先 headless-ui 0.60.1
+# への追随を含む）。
+# イシュー #1657（toolbar の参照突合）: `pub use
+# fandhe_frontend_headless_ui::toolbar::*` により headless-ui 側の
+# `toolbar::button`/`link`/`toggle_group`/`toggle_item` 自由関数シグネチャ
+# 変更（先頭引数へ `orientation: Orientation` 追加）が本クレートの公開 API
+# 変更にもなるため、依存先 headless-ui 0.61.0 への追随を含めマイナーバンプ
+# で 0.115.0 とする（`src/toolbar.rs` 自体の実装は `Toolbar::new` のみ使用
+# で変更なし、CSS 出力〔`Theme::to_css`/`stylesheet()`〕も不変）。
+# base 再取り込み（イシュー #1686/#1657, 2026-09-06, 2 回目）: HEAD 側は
+# fieldset モジュール新設（イシュー #1686、公開 API の純追加）により
+# 0.114.0 から 0.115.0 へ到達しており、main 側は toolbar の参照突合
+# （イシュー #1657、headless-ui 側 `toolbar::button`/`link`/`toggle_group`/
+# `toggle_item` 自由関数シグネチャ変更〔先頭引数へ `orientation:
+# Orientation` 追加〕の本クレート公開 API への波及）により独立に同じ
+# 0.115.0 へ到達していた。両者が異なる実体変更を伴い偶発的に同一版数
+# へ衝突しているため（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）、両者の変更の
+# 和集合としてさらにマイナーバンプし 0.116.0 とする（依存先 headless-ui
+# 0.61.0 への追随を含む）。
+version = "0.116.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1891,7 +1918,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.60.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.61.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
