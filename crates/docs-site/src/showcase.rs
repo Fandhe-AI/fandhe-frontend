@@ -6885,8 +6885,14 @@ fn action_bar_section() -> Node {
 /// そのまま使い、独自の押下管理を持ち込まない（toolbar モジュール doc
 /// 「ToggleGroup / ToggleItem を再エクスポートしない理由」参照）。
 fn toolbar_section() -> Node {
+    // "B"（bold）を押下済みで固定掲示する（イシュー #1967）。pressed
+    // toggle-item の非テキストコントラスト是正（1px accent リング、
+    // `crates/pre-styled-ui/src/toolbar.rs` 参照）を Demo で確認できる
+    // ようにするための意図的な非初期状態（`tree_view_section` 等と同型）。
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
     let bar = Toolbar::new(0, 4, false, Orientation::Horizontal);
-    let group = toggle_group::ToggleGroup::default();
+    let mut group = toggle_group::ToggleGroup::default();
+    dispatch(&mut group, "toggle", "bold");
 
     let node = bar.root(
         "Text formatting",
@@ -6926,7 +6932,7 @@ fn toolbar_section() -> Node {
     );
     section(
         "Toolbar",
-        "headless-ui の Toolbar（role=\"toolbar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。Button / Separator / ToggleGroup（既存の ToggleGroup 状態機械を再利用）/ Link の 6 パーツすべてを 1 つの Toolbar 内に組み合わせています。roving tabindex（focused=0）により先頭の Undo ボタンのみ tabindex=\"0\" です。",
+        "headless-ui の Toolbar（role=\"toolbar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。Button / Separator / ToggleGroup（既存の ToggleGroup 状態機械を再利用）/ Link の 6 パーツすべてを 1 つの Toolbar 内に組み合わせています。roving tabindex（focused=0）により先頭の Undo ボタンのみ tabindex=\"0\" です。\"B\"（bold）を押下済みで固定表示しており、pressed 状態の 1px accent リング（非テキストコントラスト、WCAG 1.4.11）を確認できます。",
         vec![node],
     )
 }
