@@ -8,13 +8,20 @@
 //! `dist-server/build.rs`（TASK-10.2b・イシュー #110）が本番配布物として実行する
 //! のと同一のコマンド列
 //! （`cargo build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown --release`
-//! → `wasm-bindgen --target web --no-typescript --out-dir <dir>`）を、本テストは
-//! `wasm-full` クレート自身の native 統合テストとして再現する。`dist-server` に
-//! 依存させない（`wasm-full` 単体で TASK-11.6 の受け入れ基準を検証できる）ため、
-//! ビルド出力先は `dist-server/build.rs` とは独立した
-//! `target/bundle-size-check/` を使う（同一 `target/wasm-dist` を共有すると
-//! `dist-server` のビルドと並行実行した際にディレクトリロックが競合しうる、
-//! `dist-server/build.rs` の `run_wasm_build` コメント参照）。
+//! → `wasm-bindgen --target web --no-typescript --remove-name-section
+//! --remove-producers-section --out-dir <dir>` → 有効時は `wasm-opt -Os`、
+//! イシュー #1971）を、本テストは `wasm-full` クレート自身の native 統合
+//! テストとして再現する。`dist-server` に依存させない（`wasm-full` 単体で
+//! TASK-11.6 の受け入れ基準を検証できる）ため、ビルド出力先は
+//! `dist-server/build.rs` とは独立した `target/bundle-size-check/` を使う
+//! （同一 `target/wasm-dist` を共有すると `dist-server` のビルドと並行実行
+//! した際にディレクトリロックが競合しうる、`dist-server/build.rs` の
+//! `run_wasm_build` コメント参照）。`wasm-opt` の適用可否は
+//! `dist-server/build.rs::detect_wasm_opt` と同一の soft-skip 判定
+//! （PATH 上に見つかった場合のみ適用）を独立実装として複製しており、
+//! `dist-server` 側の後処理契約を変更する場合は本ファイルも合わせて
+//! 更新すること（そうしないと本テストが未適用構成を測り続け、実配布物と
+//! 乖離した数値を「REQ-11 準拠」として報告してしまう）。
 //!
 //! # 計測定義（PoC-5 と同一、`docs/spec/03-poc/wasm-runtime-split/README.md`
 //! 「2. バンドルサイズの実測」節参照）
@@ -397,12 +404,26 @@ fn verify_wasm_bindgen_version_matches_lockfile(workspace_root: &Path) {
     );
 }
 
-/// `wasm-bindgen --target web --no-typescript` を実行し、生成された JS グルー
-/// コード・`_bg.wasm` を出力したディレクトリの絶対パスを返す。
+/// `wasm-bindgen` に渡す固定引数。`dist-server/build.rs::WASM_BINDGEN_ARGS` と
+/// 同一配列を独立実装として複製している（本テストは `dist-server` に
+/// 依存させない設計、ファイル冒頭「計測経路と製品ビルドとの契約」参照）。
+/// フラグ構成を変更する場合は両ファイルを揃えて更新すること（イシュー
+/// #1971。片方だけ更新すると計測側が未適用構成を測り続け、期待値だけを
+/// 実配布物と乖離した値へ更新してしまう）。
+const WASM_BINDGEN_ARGS: &[&str] = &[
+    "--target",
+    "web",
+    "--no-typescript",
+    "--remove-name-section",
+    "--remove-producers-section",
+];
+
+/// `wasm-bindgen` を実行し、生成された JS グルーコード・`_bg.wasm` を出力した
+/// ディレクトリの絶対パスを返す。
 ///
-/// `dist-server/build.rs::run_wasm_bindgen` と同一のフラグ構成（製品配布物と
-/// 同一構成のバンドルを計測対象にするため）。出力先は本テスト専用の
-/// `target/bundle-size-check/wasm-assets/`。
+/// `dist-server/build.rs::run_wasm_bindgen` と同一のフラグ構成
+/// （[`WASM_BINDGEN_ARGS`]、製品配布物と同一構成のバンドルを計測対象にする
+/// ため）。出力先は本テスト専用の `target/bundle-size-check/wasm-assets/`。
 fn run_wasm_bindgen_for_bundle_size(wasm_binary_path: &Path, workspace_root: &Path) -> PathBuf {
     let out_dir = workspace_root
         .join("target")
@@ -412,7 +433,8 @@ fn run_wasm_bindgen_for_bundle_size(wasm_binary_path: &Path, workspace_root: &Pa
         .unwrap_or_else(|e| panic!("failed to create {}: {e}", out_dir.display()));
 
     let status = Command::new("wasm-bindgen")
-        .args(["--target", "web", "--no-typescript", "--out-dir"])
+        .args(WASM_BINDGEN_ARGS)
+        .arg("--out-dir")
         .arg(&out_dir)
         .arg(wasm_binary_path)
         .status()
@@ -426,6 +448,110 @@ fn run_wasm_bindgen_for_bundle_size(wasm_binary_path: &Path, workspace_root: &Pa
     );
 
     out_dir
+}
+
+/// バイト列が WASM バイナリのマジックナンバー（`\0asm`、4 バイト）で始まるか
+/// を判定する。`dist-server/src/wasm_stage_cache.rs::looks_like_wasm` と同一
+/// 実装（本テストを `dist-server` に依存させない設計のための複製）。
+fn looks_like_wasm(bytes: &[u8]) -> bool {
+    bytes.len() >= 4 && &bytes[..4] == b"\0asm"
+}
+
+/// PATH 上の `wasm-opt`（binaryen）を検出する。
+/// `dist-server/build.rs::detect_wasm_opt` と同一の 3 分岐契約
+/// （未検出は `Ok(None)`＝soft-skip、検出したが実行失敗は `Err`＝hard fail、
+/// 検出・正常終了は `Ok(Some(バージョン文字列))`）。契約を変更する場合は
+/// 両ファイルを揃えて更新すること（イシュー #1971）。
+fn detect_wasm_opt() -> Result<Option<String>, String> {
+    let output = match Command::new("wasm-opt").arg("--version").output() {
+        Ok(output) => output,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => {
+            return Err(format!(
+                "failed to spawn `wasm-opt --version` (found on PATH but could not execute it): {err}"
+            ));
+        }
+    };
+
+    if !output.status.success() {
+        return Err("`wasm-opt --version` exited with a non-zero status".to_string());
+    }
+
+    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if version.is_empty() {
+        return Err("`wasm-opt --version` produced no output".to_string());
+    }
+
+    Ok(Some(version))
+}
+
+/// `wasm-opt -Os` を `wasm_binary_path` の file stem から求めた
+/// `<stem>_bg.wasm`（`assets_dir` 配下）に適用し、意味論を変えずにサイズのみ
+/// 縮める。`dist-server/build.rs::run_wasm_opt` と同一の soft-skip 設計
+/// （一時ファイル経由の atomic 置換・失敗時 hard fail）を、本テスト専用の
+/// `target/bundle-size-check/wasm-opt-tmp/` を使って再現する。
+///
+/// 呼び出し元（[`wasm_full_bundle_gzip_size_within_req11_limit`]）は
+/// [`detect_wasm_opt`] が `Some` を返した場合のみ本関数を呼ぶ。
+fn apply_wasm_opt(wasm_binary_path: &Path, assets_dir: &Path, workspace_root: &Path) {
+    let stem = wasm_binary_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_else(|| {
+            panic!(
+                "could not determine file stem of {}",
+                wasm_binary_path.display()
+            )
+        });
+    let bg_wasm = assets_dir.join(format!("{stem}_bg.wasm"));
+
+    let tmp_dir = workspace_root
+        .join("target")
+        .join("bundle-size-check")
+        .join("wasm-opt-tmp");
+    fs::create_dir_all(&tmp_dir)
+        .unwrap_or_else(|e| panic!("failed to create {}: {e}", tmp_dir.display()));
+    let tmp_path = tmp_dir.join(format!("{stem}_bg.wasm"));
+
+    let status = Command::new("wasm-opt")
+        .arg("-Os")
+        .arg(&bg_wasm)
+        .arg("-o")
+        .arg(&tmp_path)
+        .status()
+        .expect("failed to spawn wasm-opt");
+    if !status.success() {
+        let _ = fs::remove_file(&tmp_path);
+        panic!("wasm-opt failed while optimizing {}", bg_wasm.display());
+    }
+
+    let optimized = fs::read(&tmp_path)
+        .unwrap_or_else(|e| panic!("failed to read wasm-opt output {}: {e}", tmp_path.display()));
+    if !looks_like_wasm(&optimized) {
+        let _ = fs::remove_file(&tmp_path);
+        panic!(
+            "wasm-opt produced an unexpected (empty or non-wasm) output at {}",
+            tmp_path.display()
+        );
+    }
+
+    fs::rename(&tmp_path, &bg_wasm).unwrap_or_else(|e| {
+        panic!(
+            "failed to replace {} with wasm-opt output: {e}",
+            bg_wasm.display()
+        )
+    });
+}
+
+/// `wasm-opt` 適用結果の 1 行サマリを整形する純粋関数。
+/// `format_report` とは別行（イシュー #1971。`ci.yml` 側の grep 契約は
+/// `bundle-size:` 行を変えないため、`bundle-size-wasm-opt:` という別の
+/// プレフィックスを使う）。
+pub fn format_wasm_opt_report(wasm_opt_version: Option<&str>) -> String {
+    match wasm_opt_version {
+        Some(version) => format!("bundle-size-wasm-opt: result=applied version={version}"),
+        None => "bundle-size-wasm-opt: result=skipped reason=not-found".to_string(),
+    }
 }
 
 /// `dir` 直下のファイル一覧（絶対パス）を返す。サブディレクトリは走査しない
@@ -594,6 +720,24 @@ mod judge_and_format_report_tests {
             "bundle-size: total_gzip_bytes=300000/200000 files=2 result=FAIL"
         );
     }
+
+    /// `format_wasm_opt_report` の書式固定（イシュー #1971）。`applied` は
+    /// `wasm-opt --version` の出力をそのまま含む。
+    #[test]
+    fn format_wasm_opt_report_matches_fixed_format_for_applied() {
+        assert_eq!(
+            format_wasm_opt_report(Some("wasm-opt version 129")),
+            "bundle-size-wasm-opt: result=applied version=wasm-opt version 129"
+        );
+    }
+
+    #[test]
+    fn format_wasm_opt_report_matches_fixed_format_for_skipped() {
+        assert_eq!(
+            format_wasm_opt_report(None),
+            "bundle-size-wasm-opt: result=skipped reason=not-found"
+        );
+    }
 }
 
 /// TASK-11.6・REQ-11 の受け入れ基準本体。`FANDHE_FRONTEND_WASM_BUILD` が明示的に無効化
@@ -615,6 +759,19 @@ fn wasm_full_bundle_gzip_size_within_req11_limit() {
     verify_wasm_bindgen_version_matches_lockfile(&workspace_root);
     let wasm_binary_path = build_wasm_full_release(&workspace_root);
     let assets_dir = run_wasm_bindgen_for_bundle_size(&wasm_binary_path, &workspace_root);
+
+    // `dist-server/build.rs::run_wasm_stage` と同一の後処理契約（イシュー
+    // #1971）: PATH 上に `wasm-opt` が見つかった場合のみ追加適用する
+    // soft-skip。「dist-server と同一構成を計測する」契約（ファイル冒頭
+    // 「計測経路と製品ビルドとの契約」参照）を保つため、製品ビルド側が
+    // 適用する後処理はここでも同じ条件で適用する。
+    let wasm_opt_version =
+        detect_wasm_opt().unwrap_or_else(|message| panic!("wasm-opt detection failed: {message}"));
+    if let Some(version) = &wasm_opt_version {
+        apply_wasm_opt(&wasm_binary_path, &assets_dir, &workspace_root);
+        eprintln!("bundle-size: applied wasm-opt -Os ({version})");
+    }
+    println!("{}", format_wasm_opt_report(wasm_opt_version.as_deref()));
 
     let files = collect_output_files(&assets_dir);
     // 空計測ガード: 出力ディレクトリが空（≒ビルドが実質何も生成していない）
