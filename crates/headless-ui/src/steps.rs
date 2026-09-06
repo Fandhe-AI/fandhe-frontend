@@ -572,7 +572,12 @@ impl Steps {
     #[must_use]
     pub fn progress<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let attrs = drop_reserved(attrs, PROGRESS_RESERVED);
-        let percent = self.step * 100 / self.count;
+        // `step`/`count` は usize のためオーバーフローの恐れがある乗算を
+        // u128 へ拡張してから行う（`step > usize::MAX / 100` で usize の
+        // まま乗算すると debug では panic、release では折り返して誤った
+        // 割合になる。イシュー #1665 PR #1941 codex-review P1 指摘）。
+        // `count >= 1` は `normalize` が保証するためゼロ除算は起きない。
+        let percent = (self.step as u128 * 100 / self.count as u128) as usize;
         let now = percent.to_string();
         let text = format!("{percent}% complete");
         let mut merged: Vec<(&str, &str)> = vec![
@@ -971,6 +976,26 @@ mod tests {
         assert_eq!(s.hydration_attrs().len(), 3);
         let _ = render(&s.progress(vec![], vec![]));
         assert_eq!(s.hydration_attrs().len(), 3);
+    }
+
+    #[test]
+    fn progress_percent_does_not_overflow_for_large_count_and_step() {
+        // イシュー #1665 PR #1941 codex-review P1 回帰: `step > usize::MAX / 100`
+        // では `step * 100` が usize のまま計算するとオーバーフローする
+        // （debug では panic、release では折り返して誤った割合になる）。
+        // u128 へ拡張した計算が全入力域で正しい割合を返すことを確認する。
+        let max_step = usize::MAX;
+        let s = Steps::new(max_step, max_step, Orientation::Horizontal);
+        let html = render(&s.progress(vec![], vec![]));
+        assert!(html.contains(r#"aria-valuenow="100""#));
+        assert!(html.contains(r#"aria-valuetext="100% complete""#));
+        assert!(html.contains("data-complete"));
+
+        // step が count 未満でも usize::MAX 近傍で正しい割合（50%）になる。
+        let half = Steps::new(usize::MAX, usize::MAX / 2, Orientation::Horizontal);
+        let half_html = render(&half.progress(vec![], vec![]));
+        assert!(half_html.contains(r#"aria-valuenow="49""#));
+        assert!(!half_html.contains("data-complete"));
     }
 
     // --- Anatomy::part fail-closed 回帰 ---
