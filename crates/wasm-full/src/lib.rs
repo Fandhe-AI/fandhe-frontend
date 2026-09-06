@@ -1384,6 +1384,13 @@ where
     /// `crates/wasm-full/tests/angle_slider_browser.rs::
     /// pointer_drag_continues_across_structural_fallback`）。
     ///
+    /// この追跡は `has_pointer_capture` に依存しないため、capture 喪失中に
+    /// `root` の外でボタンが離され pointerup を取り逃すと追跡が stale に
+    /// なり得る。`angle_slider.rs` の `wiring::handle_pointermove` が
+    /// 追跡経路で `MouseEvent::buttons() == 0` を確認して自己解除する
+    /// （同関数 doc「stale な追跡の自己解除」節、回帰テストは同ファイルの
+    /// `stale_drag_tracking_is_released_when_no_button_is_held`）。
+    ///
     /// なお `Self::wire_signature_pad` は同型の露出（ストローク中の
     /// `canvas` 要素 detach）を依然として抱えるが、SignaturePad 側は
     /// キャンバス要素の同一性そのものに描画状態が乗るため本対策とは別の

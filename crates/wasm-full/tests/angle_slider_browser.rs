@@ -17,8 +17,10 @@
 //! 5. ハイドレーションの通常復元経路と DOM 同一性の維持
 //!    （[`hydrate_restores_host_from_attrs_and_preserves_dom_identity`]、
 //!    イシュー #1956 codex-review P2 是正）
+//! 6. pointerup を取り逃した stale なドラッグ追跡の自己解除
+//!    （[`stale_drag_tracking_is_released_when_no_button_is_held`]）
 //!
-//! の 5 ケースで、AngleSlider 自身の `aria-valuenow`/`aria-valuetext`
+//! の 6 ケースで、AngleSlider 自身の `aria-valuenow`/`aria-valuetext`
 //! （[`AngleSliderHost::view`] が `data-bind-attr` で束縛する束縛点）と
 //! アプリ側（`C`）の派生フィールド（`data-bind-text` 束縛点）の双方へ
 //! 正しく反映される（またはケース 3 では一切変化しない）ことを検証する。
@@ -142,12 +144,37 @@ fn keydown_event(key: &str) -> Event {
 /// 経路を通る（[`pointer_drag_continues_across_structural_fallback`] が
 /// それを利用する）。
 fn pointer_event(kind: &str, pointer_id: i32, client_x: f64, client_y: f64) -> Event {
+    // pointerdown/pointermove は「主ボタンを押下している」状態
+    // （`buttons` ビットマスクの 1）で組み立てる。`angle_slider.rs` の
+    // `handle_pointermove` は追跡経路で `MouseEvent::buttons() == 0` を
+    // stale な追跡として解除するため（同関数 doc「stale な追跡の自己解除」
+    // 節）、ドラッグ中の合成イベントでは押下状態の指定が必須。pointerup/
+    // pointercancel は解放後を表すため `0` とする。
+    let buttons = if matches!(kind, "pointerdown" | "pointermove") {
+        1
+    } else {
+        0
+    };
+    pointer_event_with_buttons(kind, pointer_id, client_x, client_y, buttons)
+}
+
+/// [`pointer_event`] の `buttons` を明示指定する版（押下していない状態の
+/// pointermove を組み立てる
+/// [`stale_drag_tracking_is_released_when_no_button_is_held`] 用）。
+fn pointer_event_with_buttons(
+    kind: &str,
+    pointer_id: i32,
+    client_x: f64,
+    client_y: f64,
+    buttons: u16,
+) -> Event {
     let init = PointerEventInit::new();
     init.set_bubbles(true);
     init.set_cancelable(true);
     init.set_pointer_id(pointer_id);
     init.set_client_x(client_x.round() as i32);
     init.set_client_y(client_y.round() as i32);
+    init.set_buttons(buttons);
     PointerEvent::new_with_event_init_dict(kind, &init)
         .expect("PointerEvent::new must not fail")
         .dyn_into::<Event>()
@@ -834,5 +861,82 @@ fn hydrate_restores_host_from_attrs_and_preserves_dom_identity() {
         thumb_after.get_attribute("aria-valuenow").as_deref(),
         Some("205"),
         "維持された DOM の束縛点が dispatch 後に更新されること"
+    );
+}
+
+/// capture 喪失中に `root` の外でボタンが離され pointerup を取り逃した
+/// 場合でも、押下していない pointermove（`buttons == 0`）が追跡を解除して
+/// no-op になることを検証する（`angle_slider.rs` の `handle_pointermove`
+/// doc「stale な追跡の自己解除」節）。
+///
+/// `DragState` による継続判定は `has_pointer_capture` に依存しないため、
+/// pointerup を取り逃した追跡を放置すると、マウスの `pointerId` が安定して
+/// いることにより以後の**素の hover 移動**が追跡経路へ入り、ボタンを押して
+/// いないのに値が動く「幽霊ドラッグ」になる。これは「capture 無し＝ドラッグ
+/// 不成立」という修正前の fail-closed な性質を失う退行であるため、
+/// `buttons == 0` ガードで自己修復することを固定する。
+///
+/// pointerup を dispatch せずに `buttons == 0` の pointermove を送ることで、
+/// 「解除イベントを取り逃した状態」を再現する。
+#[wasm_bindgen_test]
+fn stale_drag_tracking_is_released_when_no_button_is_held() {
+    let (root_el, runtime) = mount(AngleSliderHost::with_structural_fallback(
+        "angle-slider-host-stale-drag-root",
+        AngleSlider::new(10, 5),
+    ));
+    let _cleanup = RemoveOnDrop(root_el.clone());
+
+    let control = || {
+        root_el
+            .query_selector(CONTROL_SELECTOR)
+            .expect("query_selector must not fail")
+            .expect("control part must exist")
+    };
+    let offset_from_center = |control: &Element, dx: f64| -> (f64, f64) {
+        let rect = control.get_bounding_client_rect();
+        (
+            rect.left() + rect.width() / 2.0 + dx,
+            rect.top() + rect.height() / 2.0,
+        )
+    };
+
+    let initial_control = control();
+    let (down_x, down_y) = offset_from_center(&initial_control, 50.0);
+    initial_control
+        .dispatch_event(&pointer_event("pointerdown", 1, down_x, down_y))
+        .unwrap();
+    assert_eq!(runtime.component().slider.angle_deg(), 90);
+
+    // pointerup を dispatch せず、押下していない pointermove（真左）を送る。
+    let control_after_down = control();
+    let (hover_x, hover_y) = offset_from_center(&control_after_down, -50.0);
+    root_el
+        .dispatch_event(&pointer_event_with_buttons(
+            "pointermove",
+            1,
+            hover_x,
+            hover_y,
+            0,
+        ))
+        .unwrap();
+    assert_eq!(
+        runtime.component().slider.angle_deg(),
+        90,
+        "buttons == 0 の pointermove はドラッグとして扱われず no-op に \
+         なること（幽霊ドラッグの防止）"
+    );
+
+    // さらに押下状態の pointermove を送っても、追跡が解除済みかつ capture も
+    // 無いため no-op のまま（新しいドラッグは pointerdown から始まる）。
+    let control_after_hover = control();
+    let (again_x, again_y) = offset_from_center(&control_after_hover, -50.0);
+    root_el
+        .dispatch_event(&pointer_event("pointermove", 1, again_x, again_y))
+        .unwrap();
+    assert_eq!(
+        runtime.component().slider.angle_deg(),
+        90,
+        "追跡が解除された後は、押下状態の pointermove でも capture が無い \
+         限り no-op であること（修正前と同じ fail-closed な性質の維持）"
     );
 }

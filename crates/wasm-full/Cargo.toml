@@ -580,7 +580,9 @@ name = "fandhe-frontend-wasm-full"
 # （`wire_angle_slider_events` のシグネチャ・`angle_from_offset` 等の純粋
 # 関数群）は不変で、追加分はすべて `wiring` モジュール内の私有要素の
 # ため、origin/main の 0.15.13 に対して既に進んでいる 0.15.14 を維持する
-# （同値衝突なし、これ以上のバンプ不要）。
+# （同値衝突なし、これ以上のバンプ不要）。あわせて `handle_pointermove` の
+# 追跡経路へ `MouseEvent::buttons() == 0` の stale 追跡自己解除ガードを
+# 追加したが、これも同モジュール内の私有関数の内部変更である。
 version = "0.15.14"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"

@@ -507,6 +507,25 @@ mod wiring {
     /// 出ていても、同じドラッグとして継続できる）。追跡が無い pointer
     /// （キャプチャ前の hover 移動等）は従来どおり `has_pointer_capture`
     /// 判定で弾く。
+    ///
+    /// # stale な追跡の自己解除（`buttons == 0` ガード）
+    ///
+    /// [`DragState`] の解除は `root` へ配線した pointerup/pointercancel が
+    /// 担うが、capture が失われている間に `root` の外でボタンが離されると
+    /// その解除イベントを取り逃す（`reattach_pointer_capture` は
+    /// `control_at_index` が `None` を返す場合や `setPointerCapture` 自体が
+    /// 失敗する場合に capture を復帰できない）。マウスの `pointerId` は
+    /// 安定しているため、追跡を放置すると以後の**素の hover 移動**が
+    /// 追跡経路へ入り、ボタンを押していないのに値が動く「幽霊ドラッグ」に
+    /// なる（capture 無し＝ドラッグ不成立という修正前の fail-closed な性質を
+    /// 失う退行）。
+    ///
+    /// そこで追跡経路では毎回 `MouseEvent::buttons()` を確認し、`0`
+    /// （どのボタンも押されていない・ペン/指が接触していない）なら追跡を
+    /// 解除して no-op とする。`document` へ追加のリスナーを張らず、
+    /// 次の pointermove 1 件で自己修復する fail-closed 設計である
+    /// （回帰テストは `crates/wasm-full/tests/angle_slider_browser.rs::
+    /// stale_drag_tracking_is_released_when_no_button_is_held`）。
     fn handle_pointermove(
         root: &Element,
         event: &Event,
@@ -527,6 +546,15 @@ mod wiring {
 
         let control = match tracked_index {
             Some(control_index) => {
+                if pointer_event.buttons() == 0 {
+                    // capture 喪失中に `root` 外で pointerup を取り逃した
+                    // stale な追跡（上記「stale な追跡の自己解除」節）。
+                    // 追跡を解除して no-op とする（fail-closed）。
+                    if let Ok(mut state) = drag.try_borrow_mut() {
+                        *state = None;
+                    }
+                    return;
+                }
                 let Some(control) = control_at_index(root, control_index) else {
                     return;
                 };
