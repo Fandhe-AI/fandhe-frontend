@@ -629,22 +629,34 @@ mod wiring {
             current = element.parent_element();
         }
         let container = container?;
-        let candidate = container
-            .query_selector(r#"[data-scope="number-input"][data-part="input"]"#)
-            .ok()
-            .flatten()?;
         // `container` が Control を省略した外側 Root そのものの場合、その
         // 部分木には別インスタンス（内側 NumberInput）がネストされ得る。
-        // `query_selector` は部分木内の最初の一致を返すだけで内側/外側の
-        // 区別をしないため、候補 Input 自身の最寄り Root が `trigger` の
-        // `nearest_root` と一致することを検証し、不一致なら fail-closed で
-        // `None` を返す（PR #1982 codex-review P1 / Bugbot 指摘: 内側
-        // Root/Input・外側 Input・外側 Trigger の順に配置されると、外側
-        // トリガーが内側 Input を誤って選択し得る）。
-        if find_nearest_root(root, &candidate).as_ref() != Some(&nearest_root) {
-            return None;
+        // `query_selector`（単一マッチ）は部分木内の最初の一致だけを返し
+        // 内側/外側の区別をしないため、`query_selector_all` で候補を
+        // すべて列挙し、各候補の最寄り Root が `trigger` の
+        // `nearest_root` と一致する最初の 1 件を選ぶ（PR #1982
+        // codex-review P1 是正その 2: 先頭候補を検証して不一致なら
+        // 即 `None` で打ち切る実装は、内側 Root/Input・外側 Input・外側
+        // Trigger の順に配置されると `query_selector_all` の先頭が内側
+        // Input になり、正しい外側 Input が存在しても探索が終了して
+        // 外側トリガーが常に無反応になっていた。候補を最後まで走査し、
+        // 一致するものが 1 件も無い場合だけ fail-closed で `None` を
+        // 返す）。
+        let candidates = container
+            .query_selector_all(r#"[data-scope="number-input"][data-part="input"]"#)
+            .ok()?;
+        for index in 0..candidates.length() {
+            let Some(node) = candidates.item(index) else {
+                continue;
+            };
+            let Some(candidate) = node.dyn_ref::<Element>().cloned() else {
+                continue;
+            };
+            if find_nearest_root(root, &candidate).as_ref() == Some(&nearest_root) {
+                return Some(candidate);
+            }
         }
-        Some(candidate)
+        None
     }
 
     /// `start` から `root` まで祖先方向を辿り、最寄りの NumberInput Root

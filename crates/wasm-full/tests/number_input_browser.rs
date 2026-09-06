@@ -1408,16 +1408,18 @@ fn nested_number_input_without_control_click_updates_only_inner_instance() {
 }
 
 #[wasm_bindgen_test]
-fn nested_number_input_without_control_outer_trigger_after_inner_input_is_noop() {
-    // PR #1982 codex-review P1 / Bugbot 指摘の回帰: Control を省略した
-    // 外側 NumberInput に「内側 Root/Input → 外側 Input → 外側
+fn nested_number_input_without_control_outer_trigger_after_inner_input_updates_outer() {
+    // PR #1982 codex-review P1 指摘の回帰: Control を省略した外側
+    // NumberInput に「内側 Root/Input → 外側 Input → 外側
     // IncrementTrigger」の順で DOM 配置すると、外側トリガーの祖先探索が
-    // 最寄り Root（外側 Root）で正しく止まっても、`query_selector` が
-    // 外側 Root 部分木内の最初の一致（内側 Input）を返してしまい、外側
-    // トリガーの click が内側インスタンスを誤って更新し得た。
-    // `find_input_within_control` は候補 Input 自身の最寄り Root が
-    // トリガーの `nearest_root` と一致することを検証し、不一致なら
-    // fail-closed で dispatch しない（no-op）契約を検証する。
+    // 最寄り Root（外側 Root）で正しく止まっても、`query_selector`
+    // （単一マッチ）が外側 Root 部分木内の最初の一致（内側 Input）を
+    // 返してしまい、その候補の最寄り Root が外側トリガーの
+    // `nearest_root` と不一致のため fail-closed で no-op になっていた
+    // （旧実装）。正しい外側 Input（同じ最寄り Root 配下）が実在するため、
+    // `find_input_within_control` は候補を最後まで列挙して外側 Input を
+    // 選び、外側トリガーの click が外側インスタンスを正しく更新する
+    // ことを検証する。
     let document = web_sys::window().unwrap().document().unwrap();
     let container = create_container(&document, "ni-nested-outer-trigger-after-inner");
 
@@ -1480,14 +1482,28 @@ fn nested_number_input_without_control_outer_trigger_after_inner_input_is_noop()
         .unwrap();
 
     let dispatched = recorded.borrow().clone();
-    assert!(
-        dispatched.is_empty(),
+    assert_eq!(
+        dispatched,
+        vec![
+            ActionRef {
+                action: "outer_set".to_string(),
+                payload: "50".to_string(),
+            },
+            ActionRef {
+                action: "increment".to_string(),
+                payload: "outer".to_string(),
+            },
+        ],
         "内側 Input の方が DOM 順で先にある構成でも、外側トリガーの click は \
-         内側インスタンスを誤って更新せず no-op であること（実際: {dispatched:?}）"
+         正しい最寄り Root（外側）配下の外側 Input（outer_set/increment(payload=outer)） \
+         を選び dispatch すること（実際: {dispatched:?}）"
     );
     assert_eq!(
         outer_input.value(),
         "50",
-        "外側 Input の value は誤配線の影響を受けないこと（DOM 上の再確認）"
+        "outer_input.value() は on_action コールバック内で明示的に反映しない限り \
+         変化しない（wire_number_input_events は dispatch のみで DOM への \
+         value 書き戻しを行わない契約）。ここでは正しい ActionRef 列が \
+         dispatch されたことのみを検証する"
     );
 }
