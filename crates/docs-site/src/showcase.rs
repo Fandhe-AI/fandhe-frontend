@@ -184,7 +184,7 @@ use fandhe_frontend_pre_styled_ui::timer::{self, Timer, TimerControl, TimerPhase
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::toggle_group;
 use fandhe_frontend_pre_styled_ui::toolbar::Toolbar;
-use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds};
+use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds, TourTriggerKind};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
@@ -5933,8 +5933,18 @@ fn tour_section() -> Node {
                             // イシュー #1551: action-trigger の並置間隔
                             // （`margin-inline-end`）を実際に確認できる
                             // よう、2 個並べる（Prev/Next）。
-                            tour::action_trigger(&t, vec![], vec![text("Prev")]),
-                            tour::action_trigger(&t, vec![], vec![text("Next")]),
+                            tour::action_trigger(
+                                &t,
+                                TourTriggerKind::Prev,
+                                vec![],
+                                vec![text("Prev")],
+                            ),
+                            tour::action_trigger(
+                                &t,
+                                TourTriggerKind::Next,
+                                vec![],
+                                vec![text("Next")],
+                            ),
                         ],
                     ),
                 ],
