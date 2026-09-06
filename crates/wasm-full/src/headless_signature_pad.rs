@@ -76,6 +76,22 @@ pub const ACTION_ADD_STROKE: &str = "add-stroke";
 /// 座標点を追加する。`pointerup`/`pointercancel` で追跡を終了する
 /// （`pointercancel` は座標列を破棄し dispatch しない。ブラウザがジェス
 /// チャー競合等でポインタ操作を取り消した場合の標準的な扱い）。
+///
+/// # pointer capture 喪失時の自己回復（イシュー #1992、親 #1991）
+///
+/// `wiring::wire_stroke_collector` は `pointerdown` 時に描画要素へ
+/// `set_pointer_capture` を掛けるが、構造フォールバックによる要素差し替え等
+/// で capture が暗黙に失われることがある。capture 喪失中に `root` 外で
+/// ポインタボタンが離されると `pointerup`/`pointercancel` を取り逃し、
+/// `active_pointer_id` が `Some` のまま stale 化する。`on_pointer_down` は
+/// 追跡中なら新規 `pointerdown` を無視する設計のため、放置すると以後
+/// すべての新規ストローク開始が恒久的にブロックされてしまう。
+///
+/// [`StrokeCollector::release_if_stale`] は `angle_slider.rs` の
+/// `DragState`（`handle_pointermove` の「stale な追跡の自己解除」節）と
+/// 同型のパターンを適用し、pointermove 経路で毎回 `buttons` を確認する
+/// ことでこの恒久ブロックを次の pointermove 1 件で自己修復する
+/// （fail-closed。座標列は破棄し dispatch しない）。
 #[derive(Debug, Default)]
 pub struct StrokeCollector {
     /// 現在追跡中のポインタ ID（`None` = 追跡していない）。
@@ -146,6 +162,47 @@ impl StrokeCollector {
             self.active_pointer_id = None;
             self.points.clear();
         }
+    }
+
+    /// pointer capture 喪失時の自己回復ガード（struct doc「pointer capture
+    /// 喪失時の自己回復」節参照、イシュー #1992）。
+    ///
+    /// 追跡中の `pointer_id` と一致し（`active_pointer_id ==
+    /// Some(pointer_id)`）、かつ `buttons == 0`（どのボタンも押されていない・
+    /// ペン/指が接触していない）の場合のみ、座標列を破棄して追跡を終了する
+    /// （[`Self::on_pointer_cancel`] と同じ「破棄して静かに終了する」契約。
+    /// dispatch しない）。それ以外（非追跡中、`pointer_id` が追跡中のものと
+    /// 不一致、またはいずれかのボタンが押されたまま追跡継続中）は何もせず
+    /// `false` を返す。
+    ///
+    /// `pointer_id` の一致確認が必須な理由（PR #1999 レビュー指摘）:
+    /// 単一ポインタ追跡モデル（struct doc「単一ストローク・単一ポインタの
+    /// 追跡モデル」節参照）では、指/ペンで描画中に別デバイス（マウス等）が
+    /// `root` 上で hover しても `buttons == 0` の pointermove イベントが
+    /// 発火し得る。`pointer_id` を確認せず `buttons` のみで stale 判定する
+    /// と、この無関係な別ポインタの hover により描画中の正当なストローク
+    /// まで誤って破棄してしまう（[`Self::on_pointer_move`] が本来担う
+    /// `pointer_id` 不一致イベントの無視より本ガードが先に実行されるため、
+    /// その保護を迂回してしまう）。
+    ///
+    /// 呼び出し元は `wiring::wire_stroke_collector` の pointermove
+    /// クロージャで、`PointerEvent::pointer_id()`/`PointerEvent::buttons()`
+    /// を毎回渡すことで capture 喪失中に `root` 外で取り逃した
+    /// `pointerup`/`pointercancel` を次の pointermove 1 件で自己修復する
+    /// （`document` への追加リスナーは張らない fail-closed 設計。
+    /// `angle_slider.rs::handle_pointermove` と同型のパターン。同関数も
+    /// `pointer_id` 一致確認後に `buttons` を判定する）。
+    ///
+    /// 戻り値 `true` は stale な追跡を実際に解除したことを示す。呼び出し側
+    /// はこの場合、当該 pointermove イベント自体の座標を追加せず早期
+    /// リターンする（解除直後の座標は信頼できないため）。
+    pub fn release_if_stale(&mut self, pointer_id: i32, buttons: u16) -> bool {
+        if self.active_pointer_id != Some(pointer_id) || buttons != 0 {
+            return false;
+        }
+        self.active_pointer_id = None;
+        self.points.clear();
+        true
     }
 }
 
@@ -317,6 +374,10 @@ mod wiring {
     /// `headless_avatar.rs` と同じ「マウント時 1 回・定数個リーク」契約、
     /// A04 対策）。
     ///
+    /// pointermove 配線は [`StrokeCollector::release_if_stale`] による
+    /// stale 自己解錠ガードを含む（pointer capture 喪失時の自己回復、
+    /// イシュー #1992）。
+    ///
     /// # Errors
     ///
     /// `add_event_listener_with_callback` の失敗を伝播する。
@@ -378,6 +439,13 @@ mod wiring {
                 let Ok(mut c) = move_collector.try_borrow_mut() else {
                     return;
                 };
+                if c.release_if_stale(event.pointer_id(), event.buttons()) {
+                    // capture 喪失中に `root` 外で pointerup/pointercancel を
+                    // 取り逃した stale な追跡（`StrokeCollector::
+                    // release_if_stale` doc 参照）。追跡を解除したので
+                    // この move イベント自体の座標は破棄する（fail-closed）。
+                    return;
+                }
                 if !c.is_tracking() {
                     return;
                 }
@@ -598,6 +666,51 @@ mod tests {
         }
         let payload = collector.on_pointer_up(1).unwrap();
         assert_eq!(payload.split(' ').count(), MAX_POINTS_PER_STROKE);
+    }
+
+    #[test]
+    fn release_if_stale_releases_stale_tracking_when_no_button_is_held() {
+        let mut collector = StrokeCollector::new();
+        collector.on_pointer_down(1, 0.0, 0.0);
+        collector.on_pointer_move(1, 10.0, 10.0);
+        assert!(collector.release_if_stale(1, 0));
+        assert!(!collector.is_tracking());
+        // 座標列は破棄されているため、同じ pointer_id の pointerup は
+        // 無関係な ID として無視される（`on_pointer_cancel` と同じ契約）。
+        assert_eq!(collector.on_pointer_up(1), None);
+    }
+
+    #[test]
+    fn release_if_stale_keeps_tracking_when_button_is_held() {
+        let mut collector = StrokeCollector::new();
+        collector.on_pointer_down(1, 0.0, 0.0);
+        assert!(!collector.release_if_stale(1, 1));
+        assert!(collector.is_tracking());
+        collector.on_pointer_move(1, 10.0, 10.0);
+        let payload = collector.on_pointer_up(1).unwrap();
+        assert_eq!(payload, "0.00,0.00 10.00,10.00");
+    }
+
+    #[test]
+    fn release_if_stale_is_noop_when_not_tracking() {
+        let mut collector = StrokeCollector::new();
+        assert!(!collector.release_if_stale(1, 0));
+        assert!(!collector.is_tracking());
+    }
+
+    #[test]
+    fn release_if_stale_ignores_mismatched_pointer_id() {
+        // PR #1999 レビュー指摘の回帰: 別デバイス（例: マウス）が root 上で
+        // hover するだけで buttons == 0 の pointermove が発火し得るため、
+        // 追跡中の pointer_id と異なる ID では stale 判定してはならない
+        // （描画中の正当なストロークを誤って破棄しない）。
+        let mut collector = StrokeCollector::new();
+        collector.on_pointer_down(1, 0.0, 0.0);
+        collector.on_pointer_move(1, 10.0, 10.0);
+        assert!(!collector.release_if_stale(2, 0));
+        assert!(collector.is_tracking());
+        let payload = collector.on_pointer_up(1).unwrap();
+        assert_eq!(payload, "0.00,0.00 10.00,10.00");
     }
 
     // --- is_drawable_part ---
