@@ -1507,3 +1507,105 @@ fn nested_number_input_without_control_outer_trigger_after_inner_input_updates_o
          dispatch されたことのみを検証する"
     );
 }
+
+/// PR #1982 codex-review P1 指摘の回帰: readonly な外側 NumberInput に
+/// 編集可能な内側 NumberInput をネストすると、`has_noninteractive_ancestor`
+/// （旧実装）が配線登録時の `root`（本テストでは container、Runtime root
+/// 相当）まで祖先を無条件に走査し、外側 Root の `data-readonly` を検出して
+/// 内側 IncrementTrigger の click まで no-op にしてしまっていた。
+/// `has_readonly_ancestor` が readonly の判定スコープを最寄りの
+/// NumberInput Root までに限定した（`has_disabled_ancestor` とは異なる
+/// 判定関数へ分離した）ことで、内側インスタンスの readonly でない状態が
+/// 外側の readonly から独立して尊重されることを検証する。
+#[wasm_bindgen_test]
+fn nested_number_input_inner_click_ignores_outer_readonly() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "ni-nested-outer-readonly-inner-editable");
+
+    let outer_model = NumberInput::new(Some(50.0), 0.0, 100.0, 1.0);
+    let inner_model = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+
+    let readonly_flags = NumberInputFlags {
+        readonly: true,
+        ..NumberInputFlags::default()
+    };
+
+    let inner_node = inner_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![
+            inner_model.increment_trigger(
+                Some("inner-input"),
+                false,
+                Vec::new(),
+                vec![fandhe_frontend_core::text("+")],
+            ),
+            inner_model.input(
+                "inner",
+                Some("inner-input"),
+                NumberInputFlags::default(),
+                vec![("data-action-input", "inner_set")],
+            ),
+        ],
+    );
+    // 外側 Root は readonly（`data-readonly` を持つ）。内側は独立した
+    // インスタンスであり readonly を継承しない想定。
+    let outer_node = outer_model.root(
+        readonly_flags,
+        Vec::new(),
+        vec![
+            outer_model.input(
+                "outer",
+                Some("outer-input"),
+                readonly_flags,
+                vec![("data-action-input", "outer_set")],
+            ),
+            inner_node,
+        ],
+    );
+    let html = fandhe_frontend_core::render(&outer_node);
+    container.set_inner_html(&html);
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let outer_root = container
+        .query_selector(r#"[data-scope="number-input"][data-part="root"]"#)
+        .expect("query_selector must not fail")
+        .expect("outer root element must exist");
+    assert!(
+        outer_root.has_attribute("data-readonly"),
+        "外側 Root は data-readonly を持つこと（前提確認）"
+    );
+    let inner_increment_button = container
+        .query_selector(r#"[data-scope="number-input"][data-part="increment-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("inner increment-trigger element must exist");
+
+    let recorded: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorded_clone = recorded.clone();
+    wire_number_input_events(container.clone(), move |action_ref: ActionRef| {
+        recorded_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_number_input_events must not fail");
+
+    inner_increment_button
+        .dispatch_event(&click_event())
+        .unwrap();
+
+    let dispatched = recorded.borrow().clone();
+    assert_eq!(
+        dispatched,
+        vec![
+            ActionRef {
+                action: "inner_set".to_string(),
+                payload: "5".to_string(),
+            },
+            ActionRef {
+                action: "increment".to_string(),
+                payload: "inner".to_string(),
+            },
+        ],
+        "外側 NumberInput が readonly でも、独立した内側インスタンスの \
+         IncrementTrigger の click は無視されず dispatch されること \
+         （readonly の判定スコープは同一インスタンス限定、実際: {dispatched:?}）"
+    );
+}

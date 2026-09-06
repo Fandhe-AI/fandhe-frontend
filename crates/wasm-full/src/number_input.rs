@@ -150,7 +150,14 @@
 //!   の `has_noninteractive_ancestor` と同型の fail-closed 判定）。IncrementTrigger/
 //!   DecrementTrigger の click も同じ判定を再利用する（[`wiring::handle_click`]）。
 //!   ネイティブ `disabled` を持つ `<button>` はブラウザ自体が click を発火
-//!   させないため、この判定は多層防御の位置づけである。
+//!   させないため、この判定は多層防御の位置づけである。`disabled` は
+//!   配線登録時の `root` まで祖先を全域走査する（[`has_disabled_ancestor`]、
+//!   フィールドセット等外側からの伝播を意図的に許容）のに対し、`readonly`
+//!   は最寄りの NumberInput Root までに判定スコープを限定する
+//!   （[`has_readonly_ancestor`]、headless-ui の「readonly は同一インス
+//!   タンス限定」契約。readonly な外側 NumberInput に編集可能な内側
+//!   NumberInput をネストしても内側の操作を誤って無効化しない、PR #1982
+//!   codex-review P1 是正）。
 //! - click 経路は Trigger 要素・Input パーツがいずれも解決できた場合のみ
 //!   dispatch する（[`wiring::handle_click`]）。トリガー要素が見つからない・
 //!   Input パーツが見つからない・`data-part` が未知の値であるケースは
@@ -426,16 +433,17 @@ mod wiring {
         }
     }
 
-    /// `start` から `root` まで祖先方向を辿り、`data-disabled` **または**
-    /// `data-readonly` を持つ要素が 1 つでもあれば `true` を返す
-    /// （`crate::angle_slider::wiring::has_noninteractive_ancestor` と同型の
-    /// fail-closed 判定。`root`/`control`/`input` はいずれも disabled/
-    /// readonly 時に該当 data-* 属性を持つ、`crates/headless-ui/src/
-    /// number_input.rs` の `root`/`control`/`input` 参照）。
-    fn has_noninteractive_ancestor(root: &Element, start: &Element) -> bool {
+    /// `start` から `root` まで祖先方向を辿り、`data-disabled` を持つ要素が
+    /// 1 つでもあれば `true` を返す（`crate::angle_slider::wiring::
+    /// has_noninteractive_ancestor` と同型の fail-closed 判定）。`disabled`
+    /// はフィールドセット等 NumberInput の外側からの伝播を意図的に許容する
+    /// ため `readonly`（[`has_readonly_ancestor`]）とは異なり `root` まで
+    /// 全域を走査する（PR #1982 codex-review P1 是正: readonly のみ判定
+    /// スコープを分離、下記 doc 参照）。
+    fn has_disabled_ancestor(root: &Element, start: &Element) -> bool {
         let mut current = Some(start.clone());
         while let Some(element) = current {
-            if element.has_attribute("data-disabled") || element.has_attribute("data-readonly") {
+            if element.has_attribute("data-disabled") {
                 return true;
             }
             if !root.contains(Some(&element)) || element == *root {
@@ -444,6 +452,46 @@ mod wiring {
             current = element.parent_element();
         }
         false
+    }
+
+    /// `start` から祖先方向を辿り、`data-readonly` を持つ要素が 1 つでも
+    /// あれば `true` を返す。探索は最寄りの NumberInput Root
+    /// （`data-scope="number-input"` `data-part="root"`）で打ち切り、
+    /// `root`（配線登録時のルート、Runtime root まで及び得る）までは
+    /// 辿らない。
+    ///
+    /// `headless-ui` の `readonly` は同一 NumberInput インスタンス限定の
+    /// 状態（`crates/headless-ui/src/number_input.rs` の
+    /// `root`/`control`/`value-text` のみが `data-readonly` を持つ契約）
+    /// であり、`disabled`（[`has_disabled_ancestor`]）と異なり外側からの
+    /// 伝播を意図しない。`root` まで無条件に走査すると、readonly な外側
+    /// NumberInput に編集可能な内側 NumberInput をネストした構成で、内側の
+    /// 増減操作が外側の `data-readonly` を誤って継承してしまう（PR #1982
+    /// codex-review P1 是正、同型箇所は [`wiring::handle_click`] の
+    /// トリガー判定・Input 判定の 2 箇所）。
+    fn has_readonly_ancestor(start: &Element) -> bool {
+        let mut current = Some(start.clone());
+        while let Some(element) = current {
+            if element.has_attribute("data-readonly") {
+                return true;
+            }
+            let is_own_root = element.get_attribute("data-scope").as_deref()
+                == Some(NUMBER_INPUT_SCOPE)
+                && element.get_attribute("data-part").as_deref() == Some(ROOT_PART);
+            if is_own_root {
+                break;
+            }
+            current = element.parent_element();
+        }
+        false
+    }
+
+    /// `start` から `root` まで祖先方向を辿り、`data-disabled`
+    /// （[`has_disabled_ancestor`]、`root` まで全域）または `data-readonly`
+    /// （[`has_readonly_ancestor`]、最寄りの NumberInput Root までに限定）
+    /// のいずれかを持つ要素があれば `true` を返す。
+    fn has_noninteractive_ancestor(root: &Element, start: &Element) -> bool {
+        has_disabled_ancestor(root, start) || has_readonly_ancestor(start)
     }
 
     /// `root` 配下の NumberInput Input パーツへ keydown 配線を、
