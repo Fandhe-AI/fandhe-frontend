@@ -7,7 +7,7 @@
 **アクセシビリティ・参考サイトとの対応**
 
 - anatomy は chakra-ui の `SkipNavLink`/`SkipNavContent` と一致します（Ark UI・Radix Primitives・Radix Themes には該当部品がありません）。
-- `data-*`/`role`/`aria-*` はいずれも、参照サイト（chakra-ui）・本実装ともに出力しません。
+- `role`/`aria-*` はいずれも、参照サイト（chakra-ui）・本実装ともに出力しません。一方 `data-*` は本実装が `data-scope="skip-nav"`/`data-part="link"`（content は `data-part="content"`）を常に出力します（参照サイトの `data-*` 相当は無し）。この `data-scope`/`data-part` は role/aria-* の代替ではない独自フックであり、下記 Custom CSS の属性セレクタが依拠します。
 - chakra-ui の `SkipNavContent` が出力する inline `outline: 0` は装飾のため採用していません（Themes 版が CSS で提供します）。
 - `href`/`id`/`tabindex` は呼び出し側 attrs に同名キーが含まれていても fail-closed に除去します。chakra-ui は `id`/`tabIndex` を呼び出し側から上書きできますが、本実装は意図的により厳格な挙動を採っています。
 - キーボード操作は独自のキーリスナを持たず、ネイティブ `<a>` の挙動（Tab でフォーカス → Enter でフラグメント遷移 → content へのフォーカス移動）に委ねます。link はページのできるだけ先頭に置いてください。
