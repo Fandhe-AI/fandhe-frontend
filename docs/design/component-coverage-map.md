@@ -17,6 +17,9 @@ commit `bb42408` pin・取得日 2026-07-25）と `docs/design/radix-themes-surv
 （Radix Themes、取得日 2026-07-25）であり、区分判定（実装済み/実装対象/保留/
 意図的非採用/参照対象外/対象外）は両書がいずれも #937 へ委ねた事実に基づき
 本書 §5 で確定した。
+イシュー #1676（親 #1669、Phase 13）で参考サイト再突合の判定を §11 に記録し、
+§5 の code-block / prose / checkbox-card / radio-card 行と Part E（toc）を
+更新した。
 
 ## 1. 背景
 
@@ -36,7 +39,7 @@ commit `bb42408` pin・取得日 2026-07-25）と `docs/design/radix-themes-surv
 |------|------|
 | 実装済み | `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui` に mod として実装済み |
 | 実装対象 | Phase 3〜6（#736/#748/#757/#766 配下）または Phase 8（#932/#959 配下、イシュー #937 で新規判定した Radix 差分）のいずれかの issue で実装予定。根拠・対応 issue 列に issue 番号を記載 |
-| 保留 | 実装するか否かを本書時点では確定しない。既存（ark-ui/chakra-ui 由来）の保留は `docs/policy/intentional-non-adoption.md` §7（イシュー #735）に評価軸・再評価トリガーが記録済み。イシュー #937 で新規に判定した Radix 由来の保留は本書 §9 に再評価トリガーを記す（`intentional-non-adoption.md` §7 への転記は #959 の判断に委ねる） |
+| 保留 | 実装するか否かを本書時点では確定しない。既存（ark-ui/chakra-ui 由来）の保留は `docs/policy/intentional-non-adoption.md` §7（イシュー #735）に評価軸・再評価トリガーが記録済み。イシュー #937 で新規に判定した Radix 由来の保留は本書 §9 に再評価トリガーを記す（`intentional-non-adoption.md` §7 への転記は #959 の判断に委ねる）。Phase 13（#1669/#1676）で新規判定した保留は本書 §11 と `intentional-non-adoption.md` §7 の該当行を参照 |
 | 意図的非採用 | 既に非採用と確定済み（layout プリミティブ = #716/#724、高度入力系・JS ランタイム固有 utilities・装飾系の一部・chakra `Theme` = #735（同書 §3.22〜§3.24）で確定済み、**アプリケーションロジックを内包する UI 部品（Radix `Form`）= 2026-07-25 のユーザー判断（同書 §3.25 規則 1）で確定済み**等）。再導入提案には `docs/policy/intentional-non-adoption.md` の評価軸充足確認が必須 |
 | 参照対象外 | イシュー #937 で新設。Radix 側に存在するが本リポジトリの参照軸に含めない部品。対象は Radix Themes の layout プリミティブ（Box/Flex/Grid/Container/Section）と Theme provider コンポーネントの計 6 件のみ。根拠: #716/#724/#735、`docs/policy/intentional-non-adoption.md` §3.24、`docs/design/radix-themes-survey.md` §6。既存の意図的非採用決定（同 issue）を Radix 軸の文脈で再掲するものであり、新規の非採用判定ではない |
 | 対象外 | README・guides・overview・get-started・concepts 等、UI コンポーネントを指さない非コンポーネント文書。加えてイシュー #735 で商用テンプレート集（chakra-ui Pro blocks）・styling / theming 概念文書を本区分へ追加確定した |
@@ -182,8 +185,8 @@ rm -rf "$tmp"
 - `NF>=11` は先頭・末尾の空フィールドを含む 9 列テーブル行（イシュー #937
   で Radix Primitives 名 / Radix Themes 名の 2 列を追加した後の構成）を選ぶ
   条件。`$7`/`$8` が fandhe headless-ui / pre-styled-ui 列（旧 `$5`/`$6`）に
-  対応する。Part D（§5 末尾）も同じ 9 列構成にすることで、この 1 本の
-  コマンドで Part A/B/C/D を一括検査できる
+  対応する。Part D・Part E（§5 末尾、イシュー #1676 で追加）も同じ 9 列構成
+  にすることで、この 1 本のコマンドで Part A/B/C/D/E を一括検査できる
 - `tr -c 'a-z0-9_'` により `` `charts::axis` `` のような表記は `charts` と
   `axis` に分解され、両方が計上済みとして拾われる
 - 未検証・未信頼の値を一切補間しない: `$tmp` は `mktemp -d` の結果のみを
@@ -266,7 +269,9 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 
 参照ファイルパス単位で 1 md = 1 行。Part A（ark-ui）/ Part B（chakra-ui）
 をディレクトリ節ごとに分割して掲載する。イシュー #937 で Part D
-（Radix にのみ存在する部品）を新設し、全 Part を 9 列で統一した。
+（Radix にのみ存在する部品）を新設し、全 Part を 9 列で統一した。イシュー
+#1676 で Part E（参照一覧 pin 以降に参考サイト側で追加された部品、対応 md
+なし）を新設した。
 
 - **参照ファイル**: `.agents/skills/.../xxx.md` のフルパス（機械突合のキー）。
   Part D は対応 md を持たないため `—（対応 md なし）` を記載する
@@ -616,8 +621,8 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/chakra-ui/references/components/forms/segmented-control.md` | SegmentGroup | SegmentedControl | — | — | `segment_group` | `segment_group` | 実装済み | headless+styled 実装済み（#743、参照突合 #1618） |
 | `.agents/skills/chakra-ui/references/components/forms/tags-input.md` | TagsInput | TagsInput | — | — | `tags_input` | `tags_input` | 実装済み | headless+styled 実装済み（#744）。#1623 で ark-ui/chakra と突合し是正（`role="listbox"`/`role="option"` 撤去・`TagsInputProps`/`TagItem` 新設・highlight 系 dispatch 追加） |
 | `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | — | — | `editable` | `editable` | 実装済み | headless+styled 実装済み（#745）。#1606 で anatomy/data-*/キーボード操作を参照突合済み |
-| `.agents/skills/chakra-ui/references/components/forms/checkbox-card.md` | — | CheckboxCard | — | Checkbox Cards (`checkbox-cards`) | — | `checkbox_card` | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless Checkbox を再利用） |
-| `.agents/skills/chakra-ui/references/components/forms/radio-card.md` | — | RadioCard | — | Radio Cards (`radio-cards`) | — | `radio_card` | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless RadioGroup を再利用） |
+| `.agents/skills/chakra-ui/references/components/forms/checkbox-card.md` | — | CheckboxCard | — | Checkbox Cards (`checkbox-cards`) | — | `checkbox_card` | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless Checkbox を再利用）。Radix Themes `Checkbox Cards` は複数選択の**カード群**（group 版）であり、本行の `checkbox_card` は単体版。group 版は #1676 で保留（既存 `checkbox_group`（両層、#997）+ `checkbox_card` の合成で表現できない要件が特定されるか利用要望が出た時点で再評価。§11 参照） |
+| `.agents/skills/chakra-ui/references/components/forms/radio-card.md` | — | RadioCard | — | Radio Cards (`radio-cards`) | — | `radio_card` | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless RadioGroup を再利用）。Radix Themes `Radio Cards` は複数選択の**カード群**（group 版）であり、本行の `radio_card` は単体版。group 版は #1676 で保留（既存 `radio_group`（両層）+ `radio_card` の合成で表現できない要件が特定されるか利用要望が出た時点で再評価。§11 参照） |
 | `.agents/skills/chakra-ui/references/components/forms/color-picker.md` | ColorPicker | ColorPicker | — | — | `color_picker` | `color_picker` | 実装済み | headless+styled 実装済み（#839、親 #837）。canvas 非依存（CSS グラデーション + 導出整数割合）で `docs/policy/intentional-non-adoption.md` §7 再評価トリガー充足、保留解除。#1604 で参照突合（`ColorPickerProps` 共有・`data-channel`/`data-orientation`・`increment`/`decrement` dispatch 契約を是正。パート名改名・ValueSwatch・DOM 配線は見送り） |
 | `.agents/skills/chakra-ui/references/components/forms/color-swatch.md` | — | ColorSwatch | — | — | — | `color_swatch` | 実装済み | pre-styled 静的部品として実装済み（#838。headless-ui には対応する anatomy を新設しない。色変換コアは `fandhe-frontend-headless-ui::color`、親 #837） |
 | `.agents/skills/chakra-ui/references/components/forms/file-upload.md` | FileUpload | FileUpload | — | — | `file_upload` | `file_upload` | 実装済み | headless+styled+wasm 実装済み（#840、`docs/policy/intentional-non-adoption.md` §7 保留解除。ItemPreview/ItemPreviewImage はスコープ外。#1609 で参照突合済み） |
@@ -682,8 +687,8 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/chakra-ui/references/components/typography/list.md` | — | List | — | — | — | `list` | 実装済み | #771 |
 | `.agents/skills/chakra-ui/references/components/typography/highlight.md` | Highlight | Highlight | — | — | — | `highlight` | 実装済み | #775。pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/typography/rich-text-editor.md` | — | RichTextEditor | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存）。等価概念は本書 §8 参照 |
-| `.agents/skills/chakra-ui/references/components/typography/code-block.md` | — | CodeBlock | — | — | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担） |
-| `.agents/skills/chakra-ui/references/components/typography/prose.md` | — | Prose | — | — | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担。役割分担の詳細は #771 の `crates/pre-styled-ui/src/text.rs` rustdoc・`docs/api/pre-styled-ui-api.md` 参照） |
+| `.agents/skills/chakra-ui/references/components/typography/code-block.md` | — | CodeBlock | — | — | — | — | 保留 | #1676 で保留へ変更。chakra CodeBlock は Shiki/Highlight.js アダプタ前提のシンタックスハイライト部品で、ハイライト処理はアプリロジック寄り（`intentional-non-adoption.md` §3.25 規則 1 に触れる可能性）。docs サイト側には外部依存ゼロの `crates/docs-site/src/highlight.rs` が既にある。再評価トリガー: (a) `highlight.rs` を `pre-styled-ui` へ一般化する要否が設計検討で明示的に評価された場合、または (b) ハイライト処理を含まない構造のみ（Root/Header/Content/Code/CopyTrigger の anatomy + 既存 `code`/`clipboard` の合成）で成立する要件が特定された場合。`intentional-non-adoption.md` §7 参照 |
+| `.agents/skills/chakra-ui/references/components/typography/prose.md` | — | Prose | — | — | — | — | 保留 | #1676 で保留へ変更。Prose は生 HTML 断片（`dangerouslySetInnerHTML`）へ型階層をカスケード適用する部品であり、REQ-1（既定エスケープ。エスケープ迂回は `raw_html()` 明示オプトインのみ）との関係整理が先行課題。役割分担（要素単位オプトインの `heading`/`text`/… vs `site.css` の `.docs-content` カスケード）は #771 の `crates/pre-styled-ui/src/text.rs` rustdoc のとおり不変。再評価トリガー: 信頼済みノード木（`raw_html()` を経由しない Markdown → ノード木変換等）に対する型階層カスケードとして REQ-1 を弱めずに設計できることが示された場合、かつ `site.css` との重複適用・詳細度衝突の扱いが設計文書化された場合 |
 
 #### `.agents/skills/chakra-ui/references/components/utilities/`
 
@@ -888,6 +893,18 @@ diff が非空になって §4 が壊れる）。「実装対象」区分の根�
 | —（対応 md なし） | — | — | — | Tab Nav (`tab-nav`) | — | `tab_nav` | 実装済み | `tabs` の見た目を持つナビゲーションリンク集合として新規 anatomy（Root/Link）を pre-styled-ui 単独で定義（headless-ui は変更なし、`checkbox_card`/`radio_card` と同型の判断）。`role="tablist"`/`role="tab"` を一切出力せず `aria-current="page"` で現在地を示す。#959 で確定、仮 ID 8-6、実装は #996 |
 | —（対応 md なし） | — | — | — | Section (`section`) | — | — | 参照対象外 | layout プリミティブ（根拠: #716/#724/#735、`docs/policy/intentional-non-adoption.md` §3.24、`docs/design/radix-themes-survey.md` §6）。Box/Flex/Grid/Container と同方針。既存の非採用決定を Radix 軸の文脈で再掲するものであり新規判定ではない |
 
+### Part E: 参照一覧 pin 以降に参考サイト側で追加された部品（イシュー #1676、対応 md なし）
+
+イシュー #1676（親 #1669、Phase 13）で新設。§4 の完全性 diff（references 側
+359 件の突合、pin `ab53c6b` 時点の一覧が正）の対象外である。本 Part の
+セルには `.agents/skills/…` のパスを一切書かない（Part C・Part D と同じ
+理由。書くと §4 の抽出正規表現が実在しないパス文字列を拾ってしまい、diff が
+非空になって §4 が壊れる）。
+
+| 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
+|---|---|---|---|---|---|---|---|---|
+| —（対応 md なし） | Toc | — | — | — | — | — | 保留 | Ark UI が pin（`ab53c6b`）以降に追加した部品（Root/Content/Nav/Title/List/Item/Link/Indicator。スクロール位置に応じて可視見出しを追跡・強調）。docs サイト側には `crates/docs-site/src/layout.rs::toc_inline()`（素の `<details>` 目次）と `src/script.rs` の IntersectionObserver スクロールスパイが既に存在する。スクロール追跡は実行時関心（`intentional-non-adoption.md` §3.25 規則 2 の系）であり headless 層には置かない。再評価トリガー: (a) docs サイト外の利用要望が出た場合、または (b) 静的 anatomy（Root/Nav/List/Item/Link/Indicator + `aria-current`/`data-active`）のみで成立する設計が示され、追跡配線を `wasm-full` 側へ隔離できると確認された場合。参照一覧の再 pin は §7 の改訂 issue で行う |
+
 ## 6. `site/nav.toml` 掲載要否の判断
 
 **掲載しない**（安全側の判断）。
@@ -928,6 +945,12 @@ diff が非空になって §4 が壊れる）。「実装対象」区分の根�
   のスコープ
 - **Phase 8（#932/#959）の子 issue 分割**: 本書 §9 は引き渡し表を提供する
   のみであり、実際の子 issue 起票・実装は #959 のスコープ
+- **参照一覧（`.agents/skills/ark-ui`）の再取得・再 pin による `toc` md の
+  取り込み**: イシュー #1676 で判明した Ark UI の pin 以降の追加部品
+  （本書 §5 Part E）は改訂 issue で行う（§4 の完全性 diff の正は引き続き
+  `ab53c6b`）
+- **Accessible Icon / Slot / Reset の保留 → 意図的非採用への区分移行**:
+  引き続きユーザー判断事項（イシュー #1676 では変更しない）
 
 ## 8. JS ランタイム固有 utilities の Rust 等価概念対応表（イシュー #855）
 
@@ -1115,3 +1138,55 @@ grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l  
 `/primitives/` にのみ掲載され `/themes/` には現れない。逆に pre-styled-ui
 独自部品（`marquee` 等）は `/themes/` にのみ現れる。掲載先は層ごとに
 独立であり、本書の「実装済み」区分と 1:1 ではない。
+
+## 11. 参考サイトにあり Themes に無い部品の判定表（イシュー #1669 → #1676）
+
+親イシュー #1669（Phase 13「追加部品（参考サイトにあり Themes に無いもの）」）
+で参考サイト（ark-ui / chakra-ui / Radix Themes）を再突合し、
+`fandhe-frontend-pre-styled-ui`（Themes 層）に未実装の部品を洗い出した
+判定結果を、イシュー #1676 で本節へ恒久記録する。区分の意味は §2 のとおり。
+「§5 該当行」は本書 §5（Part A〜E）の対応行を示す。`intentional-non-adoption.md`
+との重複記録を避けるため**再評価トリガーの正は本節とし、同文書 §7 は本節の
+文言を転記する**（片方だけ更新される二重管理を防ぐ）。
+
+### 11.1 追加推奨（他 issue で対応・実装確定済み）
+
+| 参考サイト名 (slug) | §5 該当行 | 実装 issue | 現状 |
+|---|---|---|---|
+| Collapsible (`collapsible`) | Part A `disclosure/collapsible.md` / Part B `disclosure/collapsible.md` | #1682（headless-ui）/ #1683（pre-styled-ui） | 実装済み（`/themes/` 登録済み） |
+| Field (`field`)（Radix Themes 名は Label (`label`)） | Part A `form/field.md` / Part B `forms/field.md` | #1684（headless-ui）/ #1685（pre-styled-ui） | 実装済み（`/themes/` 登録済み） |
+| Fieldset (`fieldset`) | Part A `form/fieldset.md` / Part B `forms/fieldset.md` | #1686（headless-ui）/ #1687（pre-styled-ui） | 実装済み（`/themes/` 登録済み） |
+| Progress（circular） (`progress`) | Part A `display/progress-circular.md` / Part B `feedback/progress-circle.md`（`progress` mod、linear のみ既存だった） | #1688（headless-ui 拡張）/ #1689（Themes ページ・Demo・nav 登録） | headless-ui 側は実装済み。#1689 は **open**（Themes ページ・Demo・nav 登録・契約テスト追随が未完了） |
+| Icon Button・Close Button (`icon-button`) | `intentional-non-adoption.md` §7「Button バリエーション」群（§5 に対応 md 行なし） | #830 | 実装済み（`crates/pre-styled-ui/src/button.rs` の `icon_button`/`close_button`） |
+| Alert Dialog (`alert-dialog`) | Part B `overlays/dialog.md`（既存 `dialog` の variant として整理） | #1690（headless-ui）/ #1691（pre-styled-ui） | 実装済み |
+
+### 11.2 保留（再評価トリガーを本節に記録）
+
+| 参考サイト名 (slug) | §5 該当行 | 保留理由 | 再評価トリガー |
+|---|---|---|---|
+| Code Block (`code-block`, chakra) | Part B `typography/code-block.md` | Shiki/Highlight.js アダプタ前提のシンタックスハイライト部品で、ハイライト処理はアプリロジック寄り（`intentional-non-adoption.md` §3.25 規則 1 に触れる可能性）。docs サイト側には外部依存ゼロの `crates/docs-site/src/highlight.rs` が既にある | (a) `highlight.rs` を `pre-styled-ui` へ一般化する要否が設計検討で明示的に評価された場合、または (b) ハイライト処理を含まない構造のみ（Root/Header/Content/Code/CopyTrigger の anatomy + 既存 `code`/`clipboard` の合成）で成立する要件が特定された場合 |
+| Prose (`prose`, chakra) | Part B `typography/prose.md` | 生 HTML 断片へ型階層をカスケード適用する部品であり、REQ-1（既定エスケープ、迂回は `raw_html()` 明示オプトインのみ）との関係整理が先行課題。役割分担（要素単位オプトインの `heading`/`text`/… vs `site.css` の `.docs-content` カスケード）は #771 の `crates/pre-styled-ui/src/text.rs` rustdoc のとおり不変 | 信頼済みノード木（`raw_html()` を経由しない Markdown → ノード木変換等）に対する型階層カスケードとして REQ-1 を弱めずに設計できることが示された場合、かつ `site.css` との重複適用・詳細度衝突の扱いが設計文書化された場合 |
+| Toc (`toc`, ark-ui) | Part E（対応 md なし） | Ark UI が参照一覧 pin（`ab53c6b`）以降に追加した部品（スクロール位置に応じて可視見出しを追跡・強調）。docs サイト側には `layout.rs::toc_inline()` の静的目次と `script.rs` の IntersectionObserver スクロールスパイが既に存在し、スクロール追跡は実行時関心（`intentional-non-adoption.md` §3.25 規則 2 の系）のため headless 層には置かない | (a) docs サイト外の利用要望が出た場合、または (b) 静的 anatomy（Root/Nav/List/Item/Link/Indicator + `aria-current`/`data-active`）のみで成立する設計が示され、追跡配線を `wasm-full` 側へ隔離できると確認された場合 |
+| Checkbox Cards・Radio Cards の group 版 (`checkbox-cards`・`radio-cards`, Radix Themes) | Part B `forms/checkbox-card.md`・`forms/radio-card.md` | 本行の `checkbox_card`/`radio_card` は単体版。Radix Themes 版は複数選択の**カード群** | 既存 `checkbox_group`/`radio_group`（両層）+ `checkbox_card`/`radio_card` の合成で表現できない要件が特定されるか、利用要望が出た時点で再評価 |
+
+### 11.3 追加不要（既存記録で充足済み・意図的非採用・参照対象外）
+
+| 参考サイト名（区分） | §5・関連節の該当箇所 |
+|---|---|
+| layout 群（Box/Flex/Grid/Container/Section 等） | Part B `layout/box.md`・`layout/flex.md`・`layout/grid.md`・`layout/container.md`、Part D `Section` 行（いずれも参照対象外、`intentional-non-adoption.md` §3.24） |
+| Form (`form`) | Part D（意図的非採用、§3.25 規則 1） |
+| Context Menu・Dropdown Menu | Part B `overlays/menu.md`（Context Menu 対応）・Part A `collections/menu.md`（Dropdown Menu 対応）（いずれも `menu` として実装済み） |
+| Text Field・Text Area・Radio（chakra 単体）・Segmented Control・Rating | Part B `forms/input.md`（Text Field）・`forms/textarea.md`（Text Area）・`forms/radio.md`（chakra 単体 Radio、`radio_group` として実装済み）・`forms/rating.md`、Part A `form/segment-group.md`（Segmented Control）・`form/rating-group.md`（いずれも実装済み） |
+| Label (`label`) | Part A `form/field.md` 行（Radix Themes 名が Label。`field` の anatomy で充足） |
+| One Time Password Field・Password Toggle Field | Part A `form/pin-input.md`（One-Time Password Field、`pin_input`）・`form/password-input.md`（Password Toggle Field、`password_input`）、いずれも実装済み |
+| Checkmark・Radiomark | Part B `utilities/checkmark.md`・`utilities/radiomark.md`（意図的非採用）、§8・`intentional-non-adoption.md` §3.23 |
+| Accessible Icon (`accessible-icon`) | Part D（**保留維持・区分不変**。イシュー #1066 で代替可能・実装不要と検証済み、意図的非採用への区分移行はユーザー判断待ち） |
+| Portal (`portal`) | Part B `utilities/portal.md`（意図的非採用） |
+| Reset (`reset`) | Part D（**保留維持・区分不変**。Slot 行の保留に従属） |
+| Slot (`slot`) | Part D（**保留維持・区分不変**） |
+| Theme (Radix provider) | Part B `utilities/theme.md`（参照対象外） |
+| Radio（Radix Themes 単体版、`radio`） | Part D（**保留維持**。既存 `radio_group` はグループ前提であり、これとは別枠。本表上段の chakra `Radio`（`forms/radio.md`、充足済み）と混同しないこと） |
+
+再評価トリガー充足時の手続きは `intentional-non-adoption.md` §4・§7 と同様、
+通常の feature issue を起票して本節・§5 の該当行・`intentional-non-adoption.md`
+§7 を実装確定後に更新する。
