@@ -1040,7 +1040,7 @@ fn ex_steps_vertical() -> Node {
                     ),
                 ],
             ),
-            steps.progress(vec![], vec![]),
+            steps.progress(vec![("aria-label", "Steps progress")], vec![]),
             steps.content(1, vec![], vec![text("Step 2 content")]),
         ],
     )
