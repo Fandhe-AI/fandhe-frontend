@@ -998,13 +998,64 @@ fn ex_steps_completed() -> Node {
     )
 }
 
+/// 一次情報: `crates/headless-ui/src/steps.rs`（`Steps::trigger`/
+/// `Steps::content`/`Steps::completed_content` の `data-orientation` 加算、
+/// イシュー #1665 参照突合）。
+fn ex_steps_vertical() -> Node {
+    let steps = Steps::new(3, 1, Orientation::Vertical);
+    steps.root(
+        vec![],
+        vec![
+            steps.list(
+                vec![],
+                vec![
+                    steps.item(
+                        0,
+                        vec![],
+                        vec![steps.trigger(
+                            0,
+                            vec![],
+                            vec![steps.indicator(0, vec![], vec![text("1")])],
+                        )],
+                    ),
+                    steps.separator(0, vec![], vec![]),
+                    steps.item(
+                        1,
+                        vec![],
+                        vec![steps.trigger(
+                            1,
+                            vec![],
+                            vec![steps.indicator(1, vec![], vec![text("2")])],
+                        )],
+                    ),
+                    steps.separator(1, vec![], vec![]),
+                    steps.item(
+                        2,
+                        vec![],
+                        vec![steps.trigger(
+                            2,
+                            vec![],
+                            vec![steps.indicator(2, vec![], vec![text("3")])],
+                        )],
+                    ),
+                ],
+            ),
+            steps.progress(vec![("aria-label", "Steps progress")], vec![]),
+            steps.content(1, vec![], vec![text("Step 2 content")]),
+        ],
+    )
+}
+
 pub const STEPS: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / List / Item / Trigger / Indicator / Separator / Content / CompletedContent / PrevTrigger / NextTrigger の 10 anatomy パーツを提供する（steps.rs:1-10）。",
+        "Root / List / Item / Trigger / Indicator / Separator / Content / CompletedContent / PrevTrigger / NextTrigger / Progress の 11 anatomy パーツを提供する（steps.rs:1-11。Progress はイシュー #1665 の参照突合で新設）。",
         "count/step から complete/current/incomplete の 3 状態を導出し、data-state・data-complete/-current/-incomplete へ一元反映する（steps.rs:24-34,89-121）。",
         "current な item の trigger のみ aria-current=\"step\" を付与する（steps.rs:58-61,249-269）。",
+        "trigger/content/completed-content は data-orientation を出力する（イシュー #1665 参照突合で加算。呼び出し側 CSS が単独パートのみでレイアウト条件化できるようにする）。",
         "separator は role=\"separator\" + aria-hidden=\"true\" で装飾要素として a11y ツリーから除外する（steps.rs:288-310）。",
-        "prev_trigger/next_trigger は境界（step==0/step==count）で自動的に disabled 属性を付与する（steps.rs:357-388）。",
+        "prev_trigger/next_trigger は境界（step==0/step==count）で disabled + data-disabled 属性を付与する（イシュー #1665 で data-disabled を加算。本リポジトリの disabled 語彙統一）。",
+        "progress は role=\"progressbar\" + aria-valuemin/aria-valuemax/aria-valuenow/aria-valuetext を出力し、percent==100（全 step 完了）のときのみ data-complete を付与する（イシュー #1665 新設）。",
+        "呼び出し側 attrs からの role/aria-*/data-*/type/hidden のなりすまし・重複出力を drop_reserved で除去する（イシュー #1665、toolbar/splitter と同型）。",
     ],
     arguments: &[
         ArgRow {
@@ -1019,13 +1070,35 @@ pub const STEPS: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "0..count の step インデックス（3 状態・aria-current 判定の元、steps.rs:224-334）。",
         },
+        ArgRow {
+            name: "progress: attrs, children",
+            kind: "Vec<(&str, &str)>, Vec<Node>",
+            default: "",
+            description: "percent（step * 100 / count）を aria-valuenow/aria-valuetext へ出力する progressbar パーツ（イシュー #1665 新設）。",
+        },
     ],
-    examples: &[ExampleEntry {
-        title: "All steps completed",
-        description: "count==step（全 step 完了）で completed_content が表示される例です（Demo は 2 番目の step が current）。",
-        render: ex_steps_completed,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "All steps completed",
+            description: "count==step（全 step 完了）で completed_content が表示される例です（Demo は 2 番目の step が current）。",
+            render: ex_steps_completed,
+        },
+        ExampleEntry {
+            title: "Vertical orientation",
+            description: "Orientation::Vertical で trigger/content/progress の data-orientation=\"vertical\" が反映される例です。",
+            render: ex_steps_vertical,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "trigger/prev-trigger/next-trigger はネイティブ button のためフォーカス順序に入る（disabled 境界では native disabled によりフォーカス順序から除外される）。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "ネイティブ button の既定挙動（click イベント発火）のみ機能する。`fandhe-frontend-wasm-full` の headless::MAPPING_TABLE に \"steps\" scope は登録されておらず、trigger/prev-trigger/next-trigger の click から dispatch（\"goto\"/\"prev\"/\"next\"）への実配線は未実装（イシュー #1665 時点、別 Issue 起票対象）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-current=\"step\"",
@@ -1034,6 +1107,14 @@ pub const STEPS: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "role=\"separator\" / aria-hidden=\"true\"",
             description: "separator に固定出力する（装飾要素、steps.rs:288-310）。",
+        },
+        AriaRow {
+            attribute: "data-disabled",
+            description: "prev-trigger/next-trigger の境界（step==0/step==count）で native disabled と併せて出力する（イシュー #1665 加算）。",
+        },
+        AriaRow {
+            attribute: "role=\"progressbar\" / aria-valuemin / aria-valuemax / aria-valuenow / aria-valuetext",
+            description: "progress パーツに固定出力する（イシュー #1665 新設）。",
         },
     ],
     demo: None,

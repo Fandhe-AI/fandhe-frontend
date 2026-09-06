@@ -1907,7 +1907,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # 生成する CSS 宣言の追加のみで、Rust 公開 API・生成クラス名・`data-*`
 # セレクタ語彙は不変（`.claude/rules/ci.md` の公開 CSS 契約変更に該当する
 # ため免除〔version-bump-exempt〕は使わず patch バンプする）。
-version = "0.117.1"
+# イシュー #1665（steps の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# の 0.62.0 → 0.62.1（`Steps::prev_trigger`/`Steps::next_trigger` への
+# `data-disabled` 加算・`Steps::progress` パーツ新設等、非破壊的加算）への
+# 追随。`crates/pre-styled-ui/src/steps.rs` は `[data-disabled]` セレクタを
+# 既に登録済み（headless 側未発行のため無害な死んだ規則だった）で、本
+# バンプにより実効化する。CSS 出力・golden テストは不変のため patch
+# バンプで 0.117.1 とする。
+# base 再取り込み（イシュー #1688/#1665, 2026-09-06, 4 回目）: 本ブランチ
+# （#1688、circular Progress の indeterminate 弧追加）と main（#1665、steps
+# の headless-ui 追随）はいずれも独立に patch バンプし偶発的に同一版数
+# 0.117.1 へ衝突していた（同一版数への偶発的衝突をそのまま採用しない
+# 原則、`docs/ci/style-refresh-version-bump-operation.md` §5）。両者を
+# 統合した結果としてさらに patch バンプし 0.117.2 とする。
+version = "0.117.2"
 
 
 edition = "2021"
@@ -1923,7 +1936,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.62.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.62.1" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
