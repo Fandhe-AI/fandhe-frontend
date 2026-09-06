@@ -47,8 +47,10 @@
 //! - **disabled の canonical 化**: `button`/`toggle-item` の直書き 2 宣言を
 //!   [`crate::recipe::disabled_declarations`] へ置換した（値は同一）。
 //! - **トランジション**: `button`/`link`/`toggle-item` の共通宣言へ
-//!   [`crate::recipe::transition_declarations`]`("background, color",
-//!   MotionDuration::Fast)` を追加した。
+//!   [`crate::recipe::transition_declarations`]`("background, color,
+//!   box-shadow", MotionDuration::Fast)` を追加した（`box-shadow` は
+//!   イシュー #1967 で pressed リング用に追加、下記「pressed 状態の非
+//!   テキストコントラスト」節参照）。
 //! - **角丸のトークン化**: `root` の `border-radius: 0.5rem` →
 //!   `var(--fandhe-radius-lg)`、項目（`button`/`link`/`toggle-item`）の
 //!   `0.25rem` → `var(--fandhe-radius-sm)`（いずれも同値のスケールトークン
@@ -62,7 +64,29 @@
 //!   高さずれの解消、[`crate::button`] #1787 と同型の問題）。on 状態は
 //!   `border-color: accent` の代わりに `background: accent-subtle` +
 //!   `color: accent-fg-subtle` で表現する（Radix の violet-5 / violet-11
-//!   相当）。
+//!   相当。イシュー #1967 で 1px 内側リングを追加、下記「pressed 状態の
+//!   非テキストコントラスト」節参照）。
+//!
+//! ## pressed 状態の非テキストコントラスト（イシュー #1967）
+//!
+//! 上記「枠線・高さの統一」の帰結として on 状態は背景 tint（`accent-subtle`）
+//! のみで表現していたが、隣接背景（`root` の `bg`）との輝度差が light で
+//! 1.08:1・dark で 1.31:1 しかなく WCAG 1.4.11（非テキストコントラスト
+//! 3:1）を満たしていなかった（pressed / unpressed がほぼ判別できない不具合）。
+//! `border` 復元ではなく `box-shadow: inset 0 0 0 1px
+//! var(--fandhe-color-accent)` の内側リングで是正する:
+//!
+//! - `border` 復元は `item_base_declarations()` の `border: none`
+//!   （3 slot 高さ統一、上記節参照）を toggle-item だけ特殊化する必要が
+//!   あるが、`box-shadow` はレイアウト寸法・共有ヘルパを変えずに追加できる。
+//! - 実測コントラスト（`crates/pre-styled-ui/src/theme.rs` `DEFAULT_COLORS`、
+//!   `LARGE_TEXT_UI_PAIRS` に登録済みのトークン対）: `accent` vs `bg`
+//!   （リング vs 隣接背景）light 4.03 / dark 6.18、`accent` vs
+//!   `accent-subtle`（リング vs 内側の pressed 面）light 3.72 / dark 4.72、
+//!   `accent` vs `bg-muted`（リング vs hover 中の隣接項目）light 3.47 /
+//!   dark 5.08 — いずれも 3:1 を充足する。
+//! - 新規 `--fandhe-*` カスタムプロパティは導入せず、既存トークン
+//!   `--fandhe-color-accent` を直接参照する。
 //!
 //! ## 意図的に合わせなかった点
 //!
@@ -70,6 +94,12 @@
 //!   した「アプリケーションバー位置付け」の判断と整合させる意図的差分。
 //! - **solid の Share ボタン相当は提供しない**: 利用者が [`crate::button`]
 //!   を持ち込む構成（[`crate::action_bar`] と同じ責務分担）。
+//! - **pressed の 1px accent リング**（イシュー #1967）: 参照サイト
+//!   （Radix Primitives Toolbar デモ、`docs/design/reference-screenshots/
+//!   radixp-toolbar-1.png`）の pressed は淡色背景のみでリングを持たない。
+//!   Radix 自体が WCAG 1.4.11 を満たしていないため、アクセシビリティ起因の
+//!   意図的差分としてリングを追加した（パリティは背景 tint + 文字色の構成を
+//!   維持したまま、1px の内側リングを加えるのみ）。
 //!
 //! ## size / variant 軸を追加しない根拠
 //!
@@ -151,7 +181,7 @@ fn item_base_declarations() -> Vec<Declaration> {
     ];
     declarations.push(hover_bg_muted());
     declarations.extend(transition_declarations(
-        "background, color",
+        "background, color, box-shadow",
         MotionDuration::Fast,
     ));
     declarations
@@ -223,6 +253,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("background", "var(--fandhe-color-accent-subtle)"),
                 decl("color", "var(--fandhe-color-accent-fg-subtle)"),
+                decl("box-shadow", "inset 0 0 0 1px var(--fandhe-color-accent)"),
             ],
         )
         // disabled でもフォーカス順序には残るため（headless 層の意図的な
@@ -385,6 +416,15 @@ mod tests {
     }
 
     #[test]
+    fn toggle_item_on_state_declares_non_text_contrast_ring() {
+        // WCAG 1.4.11（非テキストコントラスト）を回復するための 1px 内側
+        // リング（イシュー #1967、本モジュール冒頭 rustdoc「pressed 状態の
+        // 非テキストコントラスト」節参照）。
+        let css = stylesheet();
+        assert!(css.contains("box-shadow: inset 0 0 0 1px var(--fandhe-color-accent);"));
+    }
+
+    #[test]
     fn disabled_uses_canonical_declarations() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="toolbar"][data-part="button"][data-disabled] {"#));
@@ -396,7 +436,7 @@ mod tests {
     #[test]
     fn items_declare_fast_transition() {
         let css = stylesheet();
-        assert!(css.contains("transition-property: background, color;"));
+        assert!(css.contains("transition-property: background, color, box-shadow;"));
     }
 
     #[test]

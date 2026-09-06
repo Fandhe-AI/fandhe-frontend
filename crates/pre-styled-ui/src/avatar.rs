@@ -117,9 +117,9 @@
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - `examples/headless-pre-styled-ui` の手書き avatar CSS 撤去・本モジュール
-//!   への切り替えは #680 配下の後続イシューのスコープ（既存トラッキング
-//!   あり）。crates.io バージョン依存（0.40.0）のため本イシュー #1554 の
-//!   `root` シグネチャ破壊は同 example へ反映しない（公開後の別 PR）。
+//!   への切り替えは #689（PR #704）で実施済み（#680 は close 済み）。ただし
+//!   同 example は crates.io バージョン依存（0.40.0）のままのため、本イシュー
+//!   #1554 の `root` シグネチャ破壊は未追随（公開後の別 PR で追随予定）。
 //! - crates.io への公開・利用側依存追随は #686 のスコープ。
 //! - headless 共通型の再エクスポート整備は #685 のスコープ。
 //! - 画像 `load`/`error` イベントの wasm グルーは headless 層 doc 記載済みの

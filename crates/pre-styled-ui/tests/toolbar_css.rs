@@ -36,7 +36,7 @@ const TOOLBAR_GOLDEN_CSS: &str = r#"[data-scope="toolbar"][data-part="root"] {
   background: transparent;
   cursor: pointer;
   --fandhe-hover-bg: var(--fandhe-color-bg-muted);
-  transition-property: background, color;
+  transition-property: background, color, box-shadow;
   transition-duration: var(--fandhe-motion-duration-fast);
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
@@ -56,7 +56,7 @@ const TOOLBAR_GOLDEN_CSS: &str = r#"[data-scope="toolbar"][data-part="root"] {
   background: transparent;
   cursor: pointer;
   --fandhe-hover-bg: var(--fandhe-color-bg-muted);
-  transition-property: background, color;
+  transition-property: background, color, box-shadow;
   transition-duration: var(--fandhe-motion-duration-fast);
   transition-timing-function: var(--fandhe-motion-easing-standard);
   text-decoration: none;
@@ -89,7 +89,7 @@ const TOOLBAR_GOLDEN_CSS: &str = r#"[data-scope="toolbar"][data-part="root"] {
   background: transparent;
   cursor: pointer;
   --fandhe-hover-bg: var(--fandhe-color-bg-muted);
-  transition-property: background, color;
+  transition-property: background, color, box-shadow;
   transition-duration: var(--fandhe-motion-duration-fast);
   transition-timing-function: var(--fandhe-motion-easing-standard);
 }
@@ -107,6 +107,7 @@ const TOOLBAR_GOLDEN_CSS: &str = r#"[data-scope="toolbar"][data-part="root"] {
 [data-scope="toolbar"][data-part="toggle-item"][data-state="on"] {
   background: var(--fandhe-color-accent-subtle);
   color: var(--fandhe-color-accent-fg-subtle);
+  box-shadow: inset 0 0 0 1px var(--fandhe-color-accent);
 }
 
 [data-scope="toolbar"][data-part="button"][data-disabled] {

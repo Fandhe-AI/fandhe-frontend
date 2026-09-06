@@ -66,6 +66,7 @@
 2. **hover**: 各 variant で `--fandhe-hover-bg` を定義し、対象 slot へ `.state(_, StateCondition::Hover, hover_surface_declarations())` を 1 本登録する。定義方法は原則 `hover_bg_solid()`（solid 系）/ `hover_bg_muted()`（`Outline`/`Ghost` 等の面なし系）のいずれかだが、tint 着色面（`palette_scale_declarations` を使う variant。`Subtle`/`Surface` 参照）のように中立色 bg-muted を当てると tint → gray の不自然な遷移になる場合は `decl("--fandhe-hover-bg", "var(--fandhe-palette-muted)")` を直接指定してよい（イシュー #1448）。hover 背景変化を持たない variant（`Plain` 参照）は `transparent` を明示定義する（未定義のまま共有 Hover state に任せると computed-value time に無効化される非決定的挙動になるため）
 3. **disabled**: `Attr("data-disabled")` + `disabled_declarations()` を登録する。`:disabled` ネイティブ擬似クラスや独自の `opacity`/`cursor` 値は使わない。`steps.rs` は `Attr("disabled")` → `Attr("data-disabled")` への語彙統一も行う
 4. **transition**: 既存リテラル duration をトークン参照へ置換する。写像表: `0.15s` → `MotionDuration::Fast`、`0.2s`（`ease` 有無問わず）→ `MotionDuration::Normal`、`0.3s` → `MotionDuration::Slow`。未導入モジュールは `transition_declarations` を base へ追加する
+5. **pressed/selected の非テキストコントラスト**（§9、イシュー #1967）: 背景 tint のみで pressed/selected を表現している slot は、隣接背景に対する 3:1 境界（1px リング/枠線）の有無を確認する
 
 対象一覧（実装時点の再計測、§2 参照）は本イシューのコメントに投稿する。
 
@@ -87,3 +88,33 @@
 
 - transition の複合プロパティ（例: `transform`）を扱う部品が増え、longhand 分解では表現しきれないケースが出てきた場合、`Declaration` の型（`&'static str` 制約）自体の見直しを再検討する
 - easing の種類（`emphasized` 等）を実際に使う消費者が現れた場合、`transition_declarations` の easing 引数化を検討する（現状は `easing-standard` に固定する単純化）
+
+## 9. pressed / selected 状態の非テキストコントラスト規約（イシュー #1967）
+
+`toolbar` の `toggle-item[data-state="on"]` が背景 tint（`accent-subtle`）のみで
+pressed 状態を表現しており、隣接背景（`root` の `bg`）との輝度差が light で
+1.08:1・dark で 1.31:1 しかなく WCAG 1.4.11（非テキストコントラスト 3:1）を
+満たしていなかった（pressed / unpressed がほぼ判別できない不具合）。この事例を
+一般化し、以下を規約として定める。
+
+- **背景 tint のみでの選択状態表現は隣接背景との差が 3:1 未満になりやすい**。
+  tint 面 vs 隣接背景のペアがトークン契約（`crates/pre-styled-ui/src/theme.rs`
+  `LARGE_TEXT_UI_PAIRS`）で 3:1 を満たさない slot は、境界（1px リング/枠線）
+  を追加する
+- **境界の実装手段**: 既に `border` を持つ slot は `border-color` を対象トークン
+  へ切り替える（`toggle`/`toggle_group` が前例）。`border: none` で高さを
+  他 slot と揃えている slot（`item_base_declarations()` 系の共有ヘルパを持つ
+  slot）は `border` 復元だとレイアウト寸法・共有ヘルパの分岐が必要になるため
+  `box-shadow: inset 0 0 0 1px <token>` の内側リングを使う（`toolbar` の
+  `toggle-item` で採用。レイアウト寸法・共有ヘルパを変えずに追加できる）
+- **境界は隣接背景・内側の面の双方に対して 3:1 以上**であることを、
+  `LARGE_TEXT_UI_PAIRS` に登録済みのトークン対の実測値で確認する（新規ペアが
+  必要な場合は `theme.rs` へ追加登録する）。色は既存トークンを直接参照し、
+  境界専用の新規 `--fandhe-*` カスタムプロパティは導入しない（`docs-site` の
+  `css_var_scope_prefix` 契約への登録増を避ける）
+- **装飾専用要素は対象外**: フォーカス不能でクリック操作の意味を持たない
+  純粋装飾要素（アイコンの色替え等）はこの規約の対象外とする
+- **参照サイトとの意図的差分**: 参照サイト自体が 1.4.11 を満たしていない場合
+  （`toolbar` の Radix Primitives デモが該当）、パリティより
+  アクセシビリティを優先し、境界追加をモジュール rustdoc の「意図的に
+  合わせなかった点」へ記録する

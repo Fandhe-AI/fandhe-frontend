@@ -17,9 +17,8 @@
 //! base ブロックが二重出現しカスケードを汚すため、意図的に宣言しない。
 //!
 //! docs サイトへの `/themes/field/` ページ登録（showcase Demo・
-//! `SPEC_TABLES` 原稿・`site/nav.toml`）は後続イシュー #1685 のスコープで
-//! あり、本モジュールは pre-styled-ui クレート内で完結する recipe のみを
-//! 提供する。
+//! `SPEC_TABLES` 原稿・`site/nav.toml`）は #1685 で実施済み。本モジュールは
+//! recipe のみを提供し、ページ側は `crates/docs-site` が担う。
 //!
 //! # 責務境界（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）
 //!

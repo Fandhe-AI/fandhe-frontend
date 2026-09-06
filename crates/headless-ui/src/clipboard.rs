@@ -36,8 +36,10 @@
 //! copied 表示を解除する。時間経過という副作用は SSR/hydration の純粋な
 //! 状態機械が持つべき責務ではないため、本モジュールは
 //! `"clipboard:copy"`/`"clipboard:reset"` の 2 アクションのみを提供し、
-//! タイマー予約・解除は `fandhe-frontend-wasm-full`（イシュー #773 後続、
-//! クライアント配線層）の責務とする（[`crate::tooltip::Tooltip`] の
+//! タイマー予約・解除は `fandhe-frontend-wasm-full` の
+//! `headless_clipboard`（イシュー #773、PR #816 で実装済み。既定 3000ms の
+//! `schedule_reset` がタイマーを予約・解除する）が担う
+//! クライアント配線層の責務とする（[`crate::tooltip::Tooltip`] の
 //! 開閉遅延と同型の責務分離）。
 //!
 //! # アクション名を `"clipboard:"` 名前空間で修飾する理由（イシュー #773
@@ -100,15 +102,16 @@
 //! - コピー対象値そのもの（`value`）を本モジュールがログ・エラーメッセージへ
 //!   出力する経路は存在しない（本モジュールは純粋な描画/状態機械であり
 //!   I/O を一切行わない）。クライアント側の実 `navigator.clipboard`
-//!   配線（`fandhe-frontend-wasm-full`）でも同じ不変条件を維持する契約
-//!   （後続イシューのスコープ、モジュール冒頭「コピー完了後の自動リセット」
-//!   節参照）。
+//!   配線（`fandhe-frontend-wasm-full` の `headless_clipboard`、
+//!   イシュー #773 / PR #816 で実装済み）でも同じ不変条件を維持する契約
+//!   （モジュール冒頭「コピー完了後の自動リセット」節参照）。
 //!
 //! # スコープ外
 //!
 //! - `navigator.clipboard.writeText` の実配線・タイムアウトによる自動
-//!   リセット・`onStatusChange` コールバック相当は
-//!   `fandhe-frontend-wasm-full`（イシュー #773 後続）のスコープ。
+//!   リセットは `fandhe-frontend-wasm-full` の `headless_clipboard`
+//!   （イシュー #773 / PR #816）で実装済み。`onStatusChange` コールバック
+//!   相当（呼び出し側フックの提供）は未実装のまま据え置く。
 //! - `asChild`・`ids` オプション（ark-ui 固有機能）は非採用。
 //! - [`input`] へのフォーカス時の全選択（`select()`）、および
 //!   ネイティブコピー（Ctrl+C/Cmd+C）検知による `"clipboard:copy"` 発火
@@ -237,8 +240,9 @@ pub fn input<'a>(value: &'a str, copied: bool, attrs: Vec<(&'a str, &'a str)>) -
 }
 
 /// Trigger パーツ（`button type="button"`）。クリックでコピーを実行する
-/// 唯一の操作パーツ（クライアント配線層はこのパーツへのクリックのみを
-/// 監視する契約、後続イシューのスコープ）。
+/// 唯一の操作パーツ（クライアント配線層 `fandhe-frontend-wasm-full` の
+/// `headless_clipboard`〔イシュー #773 / PR #816〕はこのパーツへの
+/// クリックのみを監視する契約）。
 #[must_use]
 pub fn trigger<'a>(copied: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];

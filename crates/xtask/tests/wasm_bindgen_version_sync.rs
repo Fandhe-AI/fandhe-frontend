@@ -43,6 +43,21 @@
 //!    取り違え（両方とも「env 参照である」ことだけを見る判定では検知でき
 //!    ない）も検知する。呼び出し自体が 1 件も存在しない場合（全ステップの
 //!    誤削除）も fail-closed に検知する。
+//! 5. `wasm_subworkspace_locks_resolve_wasm_bindgen_in_sync_with_cargo_lock`
+//!    （イシュー #1965）: ルートワークスペースから意図的に切り離された
+//!    wasm サブワークスペース（`templates/app/wasm/`・
+//!    `examples/interactive-view-transitions/wasm/`）と、それらの
+//!    `crates/cli/` 同梱コピー（`include_str!` 用）が持つ独自
+//!    `Cargo.lock` の `wasm-bindgen` 解決バージョンを、ルート
+//!    `Cargo.lock`（テスト 1 が Dockerfile/ci.yml と突合済みの真値）と
+//!    突合する。PR #1891（0.2.128 更新）で examples 側 2 lock が
+//!    0.2.126 のまま取り残され、正本と同梱コピーが「揃って古い」ため
+//!    `crates/cli/tests/example_publish_copy_drift.rs`（バイト一致検知）
+//!    もすり抜けた実績（イシュー #1964・PR #1981 で是正済み）を踏まえ、
+//!    このギャップを埋める。加えて、抽出関数
+//!    `extract_wasm_bindgen_version_from_lock` 単体に対する否定ケース
+//!    （前方一致パッケージの除外・フォーマット崩れの fail-closed 検知）
+//!    を単体テストとして持つ。
 
 use std::path::PathBuf;
 
@@ -61,23 +76,27 @@ fn read_workspace_file(relative_path: &str) -> String {
         .unwrap_or_else(|_| panic!("{} の読み込みに失敗した: {}", relative_path, path.display()))
 }
 
-/// `Cargo.lock` から `[[package]] name = "wasm-bindgen"` ブロックの
-/// `version` を厳密抽出する。
+/// 与えられた `Cargo.lock` 内容から `[[package]] name = "wasm-bindgen"`
+/// ブロックの `version` を厳密抽出する純粋関数。
 ///
 /// `wasm-bindgen-backend` / `wasm-bindgen-macro` 等、名前が前方一致する
 /// 別パッケージのブロックを誤って拾わないよう、`name = "wasm-bindgen"` を
 /// 完全一致（引用符込み）で探し、直後の `version = "..."` 行を読む。
-fn cargo_lock_wasm_bindgen_version() -> String {
-    let contents = read_workspace_file("Cargo.lock");
+/// `label` はパニックメッセージにどの lock を走査したかを示す表示名
+/// （イシュー #1965 でルート `Cargo.lock` 専用の `cargo_lock_wasm_bindgen_version`
+/// から抽出し、wasm サブワークスペース lock にも再利用できるようにした）。
+fn extract_wasm_bindgen_version_from_lock(contents: &str, label: &str) -> String {
     let lines: Vec<&str> = contents.lines().collect();
     let name_line_index = lines
         .iter()
         .position(|line| line.trim() == "name = \"wasm-bindgen\"")
-        .expect("Cargo.lock に [[package]] name = \"wasm-bindgen\" ブロックが見つからない");
+        .unwrap_or_else(|| {
+            panic!("{label} に [[package]] name = \"wasm-bindgen\" ブロックが見つからない")
+        });
 
     let version_line = lines
         .get(name_line_index + 1)
-        .expect("name = \"wasm-bindgen\" の直後に行が存在する")
+        .unwrap_or_else(|| panic!("{label} の name = \"wasm-bindgen\" の直後に行が存在する"))
         .trim();
 
     version_line
@@ -85,13 +104,44 @@ fn cargo_lock_wasm_bindgen_version() -> String {
         .and_then(|rest| rest.strip_suffix('"'))
         .unwrap_or_else(|| {
             panic!(
-                "Cargo.lock の wasm-bindgen ブロックで name の直後が \
+                "{label} の wasm-bindgen ブロックで name の直後が \
                  version 行になっていない（Cargo.lock のフォーマット変更 \
                  の可能性）: {version_line}"
             )
         })
         .to_owned()
 }
+
+/// 指定した workspace 相対パスの `Cargo.lock` を読み込み、`wasm-bindgen` の
+/// 解決バージョンを返す。存在しないパスは `read_workspace_file` が
+/// panic するため、パスのリネーム・削除は自動的に fail-closed になる。
+fn wasm_bindgen_version_in_lock(relative_path: &str) -> String {
+    let contents = read_workspace_file(relative_path);
+    extract_wasm_bindgen_version_from_lock(&contents, relative_path)
+}
+
+/// ルートワークスペースの `Cargo.lock` が解決した `wasm-bindgen` の
+/// バージョンを返す（既存呼び出し元向けの薄いラッパ）。
+fn cargo_lock_wasm_bindgen_version() -> String {
+    wasm_bindgen_version_in_lock("Cargo.lock")
+}
+
+/// wasm サブワークスペース（ルートワークスペースから意図的に切り離された
+/// 独立ワークスペース）の `Cargo.lock`。正本（`templates/app/wasm/`・
+/// `examples/interactive-view-transitions/wasm/`）と `crates/cli/` 同梱
+/// コピー（`fw new`/`fw new --example` の `include_str!` 用）の両方を
+/// 列挙する。同梱コピー同士の一致は `crates/cli/tests/template_publish_copy_drift.rs`・
+/// `crates/cli/tests/example_publish_copy_drift.rs` が担うが、「正本と
+/// 同梱コピーが揃って古い」状態（PR #1891 の取り残し、イシュー #1964 で
+/// 是正）はそれらのバイト一致検知ではすり抜けるため、ここで検知する。
+///
+/// 新しい wasm サブワークスペースを追加したときは本定数へ追記すること。
+const WASM_SUBWORKSPACE_LOCKS: &[&str] = &[
+    "templates/app/wasm/Cargo.lock",
+    "examples/interactive-view-transitions/wasm/Cargo.lock",
+    "crates/cli/templates/app/wasm/Cargo.lock",
+    "crates/cli/embedded-examples/interactive-view-transitions/wasm/Cargo.lock",
+];
 
 /// `key="value"`（shell 代入形式）の代入から、キーの直後の `"..."` で
 /// 囲まれた値のみを取り出す。
@@ -456,4 +506,91 @@ fn ci_yml_wasm_tool_install_steps_reference_env_pins_only() {
             idx + 1
         );
     }
+}
+/// wasm サブワークスペース 4 lock（正本 2 件・`crates/cli/` 同梱コピー 2 件）
+/// が解決する `wasm-bindgen` バージョンが、ルート `Cargo.lock` の解決
+/// バージョン（テスト 1 が Dockerfile/ci.yml と突合済みの真値）と一致する
+/// ことを検証する（イシュー #1965）。
+///
+/// PR #1891（0.2.128 更新）で examples 側 2 lock が 0.2.126 のまま取り残され
+/// た際、正本と `crates/cli/` 同梱コピーが「揃って古い」状態だったため
+/// `crates/cli/tests/example_publish_copy_drift.rs`（バイト一致検知）も
+/// すり抜けた（イシュー #1964・PR #1981 で是正済み）。本テストはこの
+/// ギャップ（正本と同梱コピーが揃って上流ドリフトから取り残される状態）
+/// を `cargo test` 時点で fail-closed に検知する。
+#[test]
+fn wasm_subworkspace_locks_resolve_wasm_bindgen_in_sync_with_cargo_lock() {
+    // 検証そのものが形骸化（対象リストが空になった）していないことを保証
+    // する。0 件はテストの誤 pass ではなく実際の欠落を意味するため
+    // fail-closed とする。
+    assert!(
+        !WASM_SUBWORKSPACE_LOCKS.is_empty(),
+        "WASM_SUBWORKSPACE_LOCKS が空になっている（wasm サブワークスペース \
+         lock の検証対象が消失した可能性）"
+    );
+
+    let expected_version = cargo_lock_wasm_bindgen_version();
+
+    for relative_path in WASM_SUBWORKSPACE_LOCKS {
+        let actual_version = wasm_bindgen_version_in_lock(relative_path);
+        assert_eq!(
+            actual_version, expected_version,
+            "{relative_path} が解決する wasm-bindgen のバージョン \
+             （{actual_version}）が、ルート Cargo.lock の解決バージョン \
+             （{expected_version}）とずれている。是正するには \
+             `cargo update --manifest-path <サブワークスペース>/Cargo.toml \
+             -p wasm-bindgen --precise {expected_version}` で正本の lock を \
+             再生成し（`templates/app/tools/wasm/build.sh` の自動再ピン \
+             機構でも代替可）、`crates/cli/` 配下の同梱コピーへバイト一致で \
+             同期すること。同期漏れは \
+             crates/cli/tests/template_publish_copy_drift.rs・ \
+             crates/cli/tests/example_publish_copy_drift.rs が別途検知する"
+        );
+    }
+}
+
+/// `extract_wasm_bindgen_version_from_lock` が、前方一致する別パッケージ
+/// （`wasm-bindgen-backend` 等）のブロックを誤って拾わず、`name = "wasm-bindgen"`
+/// に完全一致するブロック直後の `version` のみを正しく読み取ることを検証
+/// する（受け入れ基準 2 のテスト内恒久化、イシュー #1965）。
+#[test]
+fn extract_wasm_bindgen_version_from_lock_reads_exact_package_block() {
+    let synthetic_lock = "\
+[[package]]
+name = \"wasm-bindgen-backend\"
+version = \"9.9.9\"
+
+[[package]]
+name = \"wasm-bindgen\"
+version = \"0.0.0\"
+
+[[package]]
+name = \"wasm-bindgen-macro\"
+version = \"8.8.8\"
+";
+
+    let version = extract_wasm_bindgen_version_from_lock(synthetic_lock, "synthetic-lock");
+
+    assert_eq!(
+        version, "0.0.0",
+        "前方一致パッケージ（wasm-bindgen-backend / wasm-bindgen-macro）の \
+         version を誤って拾っている。name の完全一致判定が壊れている \
+         可能性がある"
+    );
+}
+
+/// `extract_wasm_bindgen_version_from_lock` は、`name = "wasm-bindgen"` の
+/// 直後が `version` 行でない（Cargo.lock のフォーマットが崩れた）場合に
+/// fail-closed に panic することを検証する（受け入れ基準 2 のテスト内
+/// 恒久化、イシュー #1965）。
+#[test]
+#[should_panic(expected = "version 行になっていない")]
+fn extract_wasm_bindgen_version_from_lock_rejects_block_without_version() {
+    let malformed_lock = "\
+[[package]]
+name = \"wasm-bindgen\"
+source = \"registry+https://github.com/rust-lang/crates.io-index\"
+";
+
+    extract_wasm_bindgen_version_from_lock(malformed_lock, "malformed-lock");
 }
