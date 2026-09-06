@@ -11,8 +11,9 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 108 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
-の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684 で追加）+
+本クレートは 109 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
+`fieldset` はイシュー #1686 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
@@ -69,7 +70,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `checkbox`（§4e 参照） | [checkbox](../../site/themes/checkbox.md) |
 | 静的フォーム部品 | `input` / `textarea` / `native_select`（§4f 参照） | [input](../../site/themes/input.md) / [textarea](../../site/themes/textarea.md) / [native-select](../../site/themes/native-select.md) |
 | 静的フォーム部品 | `field`（§4f-1 参照。ラベル・補助テキスト・エラーテキストの型階層、`orientation` 軸のみ） | [field](../../site/themes/field.md) |
-| 静的フォーム部品 | `fieldset`（§4f-2 参照。`<fieldset>`/`<legend>` グループコンテナ、`size` 軸のみ） | 未掲載（#1687） |
+| 静的フォーム部品 | `fieldset`（§4f-2 参照。`<fieldset>`/`<legend>` グループコンテナ、`size` 軸のみ） | [fieldset](../../site/themes/fieldset.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
 | headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
@@ -687,8 +688,8 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   §3.25 規則 1 のとおり、本モジュールは headless が出す
   `data-invalid`/`data-disabled` を CSS セレクタとして参照するだけで、
   値の妥当性判定・送信処理は実装しない。
-- **docs サイト**: 未掲載（`/themes/fieldset/` ページ登録・showcase
-  Demo・`SPEC_TABLES` 原稿は後続イシュー #1687）。
+- **docs サイト**: [fieldset](../../site/themes/fieldset.md)（イシュー
+  #1687 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

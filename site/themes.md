@@ -76,6 +76,7 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 - [Download Trigger](./themes/download-trigger.md)
 - [Editable](./themes/editable.md)
 - [Field](./themes/field.md)
+- [Fieldset](./themes/fieldset.md)
 - [File Upload](./themes/file-upload.md)
 - [Image Cropper](./themes/image-cropper.md)
 - [Input](./themes/input.md)

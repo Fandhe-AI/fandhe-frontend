@@ -590,6 +590,11 @@ source = "site/themes/field.md"
 path = "/themes/field/"
 
 [[section.group.page]]
+title = "Fieldset"
+source = "site/themes/fieldset.md"
+path = "/themes/fieldset/"
+
+[[section.group.page]]
 title = "File Upload"
 source = "site/themes/file-upload.md"
 path = "/themes/file-upload/"
