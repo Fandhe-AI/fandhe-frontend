@@ -376,7 +376,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
-| `.agents/skills/ark-ui/references/components/overlays/dialog.md` | Dialog | Dialog | Dialog (`dialog`) | Dialog (`dialog`) | `dialog` | `dialog` | 実装済み | headless+styled 実装済み。#1638 で ark-ui（zag `dialog.connect.ts`）/Radix Primitives と突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化） |
+| `.agents/skills/ark-ui/references/components/overlays/dialog.md` | Dialog | Dialog | Dialog (`dialog`) | Dialog (`dialog`) | `dialog` | `dialog` | 実装済み | headless+styled 実装済み。#1638 で ark-ui（zag `dialog.connect.ts`）/Radix Primitives と突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化）。Alert Dialog は #1690 で pre-styled-only `footer` パートを追加し `DialogRole::Alertdialog` との組み合わせで表現（独立部品化しない）。#1691 で `/themes/dialog/` の Demo（footer）と Examples（alert dialog）に掲示 |
 | `.agents/skills/ark-ui/references/components/overlays/popover.md` | Popover | Popover | Popover (`popover`) | Popover (`popover`) | `popover` | `popover` | 実装済み | headless+styled 実装済み。#1642 で突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化。パート・data-* 増減なし） |
 | `.agents/skills/ark-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | Tooltip (`tooltip`) | Tooltip (`tooltip`) | `tooltip` | `tooltip` | 実装済み | headless+styled 実装済み。#1645 で突合済み、是正なし。data-expanded/data-placement は意図的差分、パート・data-* 増減なし |
 | `.agents/skills/ark-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | `drawer` | `drawer` | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用。#1639 で参照突合済み、tabindex="-1" 追加、パート・data-* 増減なし） |
@@ -655,7 +655,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/overlays/dialog.md` | Dialog | Dialog | Alert Dialog (`alert-dialog`) | Alert Dialog (`alert-dialog`) | `dialog` | `dialog` | 実装済み | headless+styled 実装済み。#1638 で突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化） |
+| `.agents/skills/chakra-ui/references/components/overlays/dialog.md` | Dialog | Dialog | Alert Dialog (`alert-dialog`) | Alert Dialog (`alert-dialog`) | `dialog` | `dialog` | 実装済み | headless+styled 実装済み。#1638 で突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化）。Alert Dialog は #1690 で pre-styled-only `footer` パートを追加し `DialogRole::Alertdialog` との組み合わせで表現（独立部品化しない）。#1691 で `/themes/dialog/` の Demo（footer）と Examples（alert dialog）に掲示 |
 | `.agents/skills/chakra-ui/references/components/overlays/menu.md` | Menu | Menu | Context Menu (`context-menu`) | Context Menu (`context-menu`) | `menu` | `menu` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/overlays/popover.md` | Popover | Popover | — | — | `popover` | `popover` | 実装済み | headless+styled 実装済み。#1642 で突合し是正（content `tabindex="-1"` 固定付与、キーボード操作の文書化。パート・data-* 増減なし） |
 | `.agents/skills/chakra-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | — | — | `tooltip` | `tooltip` | 実装済み | headless+styled 実装済み。#1645 で突合済み、是正なし。data-expanded/data-placement は意図的差分、パート・data-* 増減なし |

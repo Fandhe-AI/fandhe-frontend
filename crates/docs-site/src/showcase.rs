@@ -2441,7 +2441,11 @@ fn collapsible_section() -> Node {
 ///
 /// backdrop は掲示用に非表示化し（[`SHOWCASE_LAYOUT_CSS`]）、positioner は
 /// フロー内配置へ中和している。実際の modal オーバーレイ配置は recipe CSS
-/// （`crates/pre-styled-ui/src/dialog.rs`）がそのまま担う。
+/// （`crates/pre-styled-ui/src/dialog.rs`）がそのまま担う。イシュー #1690
+/// で追加された pre-styled-only `footer` パートをアクション列の配置に
+/// 使用する（イシュー #1691）。alert-dialog（確認ダイアログ）構成の例は
+/// [`crate::component_specs_overlay::DIALOG`] の Examples 節（`ex_alert_dialog`）
+/// を参照。
 fn dialog_section() -> Node {
     let node = div(
         vec![],
@@ -2482,14 +2486,16 @@ fn dialog_section() -> Node {
                                     vec![],
                                     vec![text("この操作は取り消せません。")],
                                 ),
-                                // イシュー #1693: footer 相当のアクション配置例
-                                // （headless anatomy に専用 footer パートが
-                                // 存在しないため、description 直後に通常の
-                                // 行として掲示する。`.showcase-row` は掲示用
-                                // レイアウトのみを担い、製品 CSS には footer
-                                // 規則を持ち込まない）。
-                                div(
-                                    vec![("class", "showcase-row")],
+                                // イシュー #1690（親 #1675）で追加された
+                                // pre-styled-only `footer` パート
+                                // （`data-scope="dialog"` 配下 9 番目の
+                                // part）。アクション列（確認/キャンセルの
+                                // ボタン群）のレイアウトのみを担い、送信・
+                                // 閉鎖等のアプリケーションロジックは持たない
+                                // （`docs/policy/intentional-non-adoption.md`
+                                // §3.25 規則 1）。
+                                dialog::footer(
+                                    vec![],
                                     vec![
                                         button(
                                             &ButtonProps {
@@ -2518,7 +2524,7 @@ fn dialog_section() -> Node {
     );
     section(
         "Dialog",
-        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下にアクション行（footer 相当、掲示用レイアウトのみ）を配置しています。",
+        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下に `footer` パート（イシュー #1690、pre-styled-only のレイアウト専用パート）でアクション列を配置しています。alert-dialog（確認ダイアログ）構成の例は Examples 節を参照してください。",
         vec![node],
     )
 }
