@@ -265,14 +265,110 @@ mod wiring {
         angle_from_offset(client_x - center_x, client_y - center_y)
     }
 
+    /// `root` 配下の AngleSlider Control 要素を列挙する CSS セレクタ
+    /// （[`DragState::control_index`] による再解決に使う。`root` 自身は
+    /// `query_selector_all` の対象外だが、Control は必ず Root の子孫
+    /// （`crates/headless-ui/src/angle_slider.rs` の anatomy）のため
+    /// 取りこぼしはない）。
+    const CONTROL_SELECTOR: &str = "[data-scope='angle-slider'][data-part='control']";
+
+    /// 進行中のポインタドラッグを追跡する配線内部状態（イシュー #1956
+    /// codex-review P1 是正）。
+    ///
+    /// pointerdown で `setPointerCapture` を設定した Control 要素は、同じ
+    /// dispatch が誘発する `Runtime::apply_update_for_dirty` の構造フォール
+    /// バック（[`crate::Runtime::rerender_subtree`] が `root` 配下を丸ごと
+    /// 差し替える）によって detach され得る。detach された要素の pointer
+    /// capture はブラウザ側で失われるため、`has_pointer_capture` のみを
+    /// 判定に使うと以後の pointermove がすべて拒否され、ドラッグが最初の
+    /// 座標更新で止まる。
+    ///
+    /// そこで「どの pointer が、`root` 配下の何番目の Control を掴んで
+    /// いるか」を配線側で保持し、
+    ///
+    /// 1. pointermove では capture の有無ではなく本状態の一致でドラッグ
+    ///    継続を判定する（DOM 要素の同一性に依存しない）
+    /// 2. dispatch 後（＝再描画後）に同じ添字の Control へ
+    ///    `setPointerCapture` を再適用し、通常のキャプチャ経路へ復帰させる
+    ///
+    /// の 2 段構えでドラッグを継続させる。要素参照ではなく**添字**を保持
+    /// するのは、構造フォールバックが `state.view()` から DOM を作り直す
+    /// ため要素の同一性は保証されない一方、Control の**出現順**は同じ
+    /// `view()` から構築される限り保たれる（複数 AngleSlider が同一 `root`
+    /// 配下に併存しても、掴んでいる Control を一意に取り違えずに再解決
+    /// できる）ためである。
+    struct DragState {
+        /// `setPointerCapture` の対象 `pointerId`。
+        pointer_id: i32,
+        /// pointerdown 時点で `root` 配下の Control 群（[`CONTROL_SELECTOR`]
+        /// の文書順）における 0 起点の添字。
+        control_index: u32,
+    }
+
+    /// 進行中ドラッグの共有ハンドル（各イベント閉包が同じ状態を読み書き
+    /// する）。
+    type DragHandle = std::rc::Rc<std::cell::RefCell<Option<DragState>>>;
+
+    /// `root` 配下の Control 群のうち `control` が何番目かを返す
+    /// （[`DragState::control_index`] の算出）。見つからない場合は `None`
+    /// （ドラッグ追跡を行わず従来の capture 判定のみへフォールバックする、
+    /// fail-closed）。
+    fn control_index_of(root: &Element, control: &Element) -> Option<u32> {
+        let controls = root.query_selector_all(CONTROL_SELECTOR).ok()?;
+        (0..controls.length()).find(|index| {
+            controls
+                .get(*index)
+                .and_then(|node| node.dyn_into::<Element>().ok())
+                .is_some_and(|candidate| candidate == *control)
+        })
+    }
+
+    /// `root` 配下の Control 群の `index` 番目（文書順）を返す
+    /// （再描画後の Control 再解決）。
+    fn control_at_index(root: &Element, index: u32) -> Option<Element> {
+        root.query_selector_all(CONTROL_SELECTOR)
+            .ok()?
+            .get(index)?
+            .dyn_into::<Element>()
+            .ok()
+    }
+
+    /// dispatch（＝再描画の可能性がある）後に、追跡中の Control へ
+    /// `setPointerCapture` を再適用する。
+    ///
+    /// 構造フォールバックで Control が差し替わった場合、新しい要素は
+    /// capture を持たないため、ここで掛け直して以後の pointermove を
+    /// 通常のキャプチャ経路へ戻す。合成イベント環境（`wasm_bindgen_test`）の
+    /// ように「アクティブな pointer が存在しない」場合 `setPointerCapture`
+    /// は `NotFoundError` を投げるが、その場合も [`DragState`] による
+    /// 継続判定が効くため無視して構わない（`let _ =`）。
+    fn reattach_pointer_capture(root: &Element, drag: &DragHandle) {
+        let Ok(state) = drag.try_borrow() else {
+            return;
+        };
+        let Some(state) = state.as_ref() else {
+            return;
+        };
+        if let Some(control) = control_at_index(root, state.control_index) {
+            if !control.has_pointer_capture(state.pointer_id) {
+                let _ = control.set_pointer_capture(state.pointer_id);
+            }
+        }
+    }
+
     /// `root` 配下の AngleSlider Control/Thumb へ pointerdown/pointermove/
-    /// pointerup と Thumb keydown の配線を 1 回だけ登録する（マウント時
-    /// 1 回契約）。
+    /// pointerup/pointercancel と Thumb keydown の配線を 1 回だけ登録する
+    /// （マウント時 1 回契約）。
     ///
     /// pointer 系は `setPointerCapture` により、pointerdown が発生した
     /// Control 要素へ以後の pointermove/pointerup を固定する（`root` 全体
     /// への delegate ではなく、pointer 個別のキャプチャで完結させる。
     /// 複数 AngleSlider が同一ページに存在しても互いに干渉しない）。
+    /// 加えて [`DragState`] を配線側に保持し、dispatch 後の再描画で Control
+    /// が差し替わっても同じドラッグを継続させる（イシュー #1956
+    /// codex-review P1 是正、[`DragState`] doc 参照）。pointerup/
+    /// pointercancel は [`DragState`] を解除するためだけに配線しており、
+    /// 座標の再反映（dispatch）は行わない。
     ///
     /// `on_action` は `"set"`/`"increment"`/`"decrement"` の dispatch 依頼を
     /// 呼び出し側（`crate::lib::Runtime::wire_angle_slider`）へ渡す。本関数
@@ -290,11 +386,18 @@ mod wiring {
         on_action: impl FnMut(ActionRef) + 'static,
     ) -> Result<(), JsValue> {
         let on_action = std::rc::Rc::new(std::cell::RefCell::new(on_action));
+        let drag: DragHandle = std::rc::Rc::new(std::cell::RefCell::new(None));
 
         let pointerdown_root = root.clone();
         let pointerdown_on_action = on_action.clone();
+        let pointerdown_drag = drag.clone();
         let pointerdown_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_pointerdown(&pointerdown_root, &event, &pointerdown_on_action);
+            handle_pointerdown(
+                &pointerdown_root,
+                &event,
+                &pointerdown_on_action,
+                &pointerdown_drag,
+            );
         });
         root.add_event_listener_with_callback(
             "pointerdown",
@@ -304,14 +407,34 @@ mod wiring {
 
         let pointermove_root = root.clone();
         let pointermove_on_action = on_action.clone();
+        let pointermove_drag = drag.clone();
         let pointermove_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_pointermove(&pointermove_root, &event, &pointermove_on_action);
+            handle_pointermove(
+                &pointermove_root,
+                &event,
+                &pointermove_on_action,
+                &pointermove_drag,
+            );
         });
         root.add_event_listener_with_callback(
             "pointermove",
             pointermove_closure.as_ref().unchecked_ref(),
         )?;
         pointermove_closure.forget();
+
+        // pointerup/pointercancel は同一の解除ハンドラを共有する（座標の
+        // 再反映は行わず、`DragState` の解除だけを担う）。
+        for event_name in ["pointerup", "pointercancel"] {
+            let release_drag = drag.clone();
+            let release_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+                handle_pointer_release(&event, &release_drag);
+            });
+            root.add_event_listener_with_callback(
+                event_name,
+                release_closure.as_ref().unchecked_ref(),
+            )?;
+            release_closure.forget();
+        }
 
         let keydown_root = root.clone();
         let keydown_on_action = on_action.clone();
@@ -325,11 +448,17 @@ mod wiring {
     }
 
     /// pointerdown: Control/Thumb 上でのみ反応し、以後の pointermove を同一
-    /// pointer に固定する（`setPointerCapture`）うえで最初の座標を反映する。
+    /// pointer に固定する（`setPointerCapture` + [`DragState`] の記録）
+    /// うえで最初の座標を反映する。
+    ///
+    /// dispatch は `root` 配下を丸ごと差し替える構造フォールバックを誘発
+    /// し得るため、dispatch 後に [`reattach_pointer_capture`] で新しい
+    /// Control へ capture を掛け直す（[`DragState`] doc 参照）。
     fn handle_pointerdown(
         root: &Element,
         event: &Event,
         on_action: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
+        drag: &DragHandle,
     ) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
@@ -348,40 +477,83 @@ mod wiring {
             return;
         }
 
-        let _ = control.set_pointer_capture(pointer_event.pointer_id());
+        let pointer_id = pointer_event.pointer_id();
+        let _ = control.set_pointer_capture(pointer_id);
+        // 添字が求まらない場合は追跡せず（`None` を書き込み）、従来の
+        // `has_pointer_capture` 判定のみへフォールバックする（fail-closed:
+        // 取り違えた Control を掴み続けるより、ドラッグが止まる方を選ぶ）。
+        if let Ok(mut state) = drag.try_borrow_mut() {
+            *state = control_index_of(root, &control).map(|control_index| DragState {
+                pointer_id,
+                control_index,
+            });
+        }
+
         dispatch_angle_at_point(
             &control,
             pointer_event.client_x() as f64,
             pointer_event.client_y() as f64,
             on_action,
         );
+        reattach_pointer_capture(root, drag);
     }
 
-    /// pointermove: `setPointerCapture` 済みの pointer からのみ、Control 中心
-    /// からの角度を再計算して `"set"` を dispatch する。
+    /// pointermove: 進行中のドラッグ（[`DragState`]）に属する pointer から
+    /// のみ、Control 中心からの角度を再計算して `"set"` を dispatch する。
+    ///
+    /// [`DragState`] が一致する場合は Control をイベントターゲットからでは
+    /// なく**添字から再解決**する（直前の dispatch による再描画で Control
+    /// が差し替わっていても、また capture が失われてポインタが Control 外へ
+    /// 出ていても、同じドラッグとして継続できる）。追跡が無い pointer
+    /// （キャプチャ前の hover 移動等）は従来どおり `has_pointer_capture`
+    /// 判定で弾く。
     fn handle_pointermove(
         root: &Element,
         event: &Event,
         on_action: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
+        drag: &DragHandle,
     ) {
         let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
             return;
         };
-        let Some(target) = event.target() else {
-            return;
-        };
-        let Some(target_element) = target.dyn_ref::<Element>() else {
-            return;
+        let pointer_id = pointer_event.pointer_id();
+
+        let tracked_index = drag.try_borrow().ok().and_then(|state| {
+            state
+                .as_ref()
+                .filter(|tracked| tracked.pointer_id == pointer_id)
+                .map(|tracked| tracked.control_index)
+        });
+
+        let control = match tracked_index {
+            Some(control_index) => {
+                let Some(control) = control_at_index(root, control_index) else {
+                    return;
+                };
+                control
+            }
+            None => {
+                let Some(target) = event.target() else {
+                    return;
+                };
+                let Some(target_element) = target.dyn_ref::<Element>() else {
+                    return;
+                };
+                let Some(control) = resolve_control(root, target_element) else {
+                    return;
+                };
+                if !control.has_pointer_capture(pointer_id) {
+                    // このイベントは本 Control が capture 中の pointer に
+                    // 由来しない（キャプチャ前の hover 移動等）。誤反応を
+                    // 避け no-op とする。
+                    return;
+                }
+                control
+            }
         };
 
-        let Some(control) = resolve_control(root, target_element) else {
-            return;
-        };
-        if !control.has_pointer_capture(pointer_event.pointer_id()) {
-            // このイベントは本 Control が capture 中の pointer に由来しない
-            // （キャプチャ前の hover 移動等）。誤反応を避け no-op とする。
-            return;
-        }
+        // ドラッグ中に disabled/readonly へ遷移したケースも含め、毎回
+        // 再判定する（fail-closed）。
         if has_noninteractive_ancestor(root, &control) {
             return;
         }
@@ -392,6 +564,25 @@ mod wiring {
             pointer_event.client_y() as f64,
             on_action,
         );
+        reattach_pointer_capture(root, drag);
+    }
+
+    /// pointerup/pointercancel: 対応する pointer の [`DragState`] を解除する
+    /// （座標の再反映は行わない）。`pointerId` が一致しないイベントでは
+    /// 追跡を維持する（複数 pointer が同時に存在する場合の誤解除防止）。
+    fn handle_pointer_release(event: &Event, drag: &DragHandle) {
+        let Some(pointer_event) = event.dyn_ref::<PointerEvent>() else {
+            return;
+        };
+        let Ok(mut state) = drag.try_borrow_mut() else {
+            return;
+        };
+        let matches = state
+            .as_ref()
+            .is_some_and(|tracked| tracked.pointer_id == pointer_event.pointer_id());
+        if matches {
+            *state = None;
+        }
     }
 
     /// keydown: Thumb 上の ArrowUp/ArrowRight/ArrowDown/ArrowLeft のみ反応

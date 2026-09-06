@@ -1363,11 +1363,31 @@ where
     /// 一致判定で早期 return するため、AngleSlider を使わないアプリへの
     /// 影響はない。
     ///
-    /// # 既知の露出
+    /// # 構造フォールバック中のドラッグ継続（イシュー #1956 codex-review
+    /// P1 是正）
     ///
-    /// [`Self::apply_update_for_dirty`] の構造フォールバックは `root`
-    /// 配下を丸ごと差し替えるため、pointer capture 中の Control 要素が
-    /// detach され得る（`Self::wire_signature_pad` と共通の既知露出）。
+    /// [`Self::apply_update_for_dirty`] の構造フォールバック
+    /// （[`Self::rerender_subtree`]）は `root` 配下を丸ごと差し替えるため、
+    /// pointerdown で `setPointerCapture` を設定した Control 要素が同じ
+    /// dispatch の最中に detach され、ブラウザ側の pointer capture も失われる
+    /// （束縛点にも keyed list にも対応しない dirty field を積むアプリで
+    /// 実際に発生する）。この状態を `has_pointer_capture` だけで判定すると
+    /// 以後の pointermove がすべて拒否され、ドラッグが最初の座標更新で
+    /// 止まってしまう。
+    ///
+    /// [`angle_slider::wire_angle_slider_events`] 側でドラッグ状態
+    /// （`pointerId` と `root` 配下 Control 群における添字）を保持し、
+    /// pointermove では要素の同一性ではなくその追跡情報で継続を判定し、
+    /// dispatch 後に同じ添字の Control へ capture を掛け直すことで、
+    /// 構造フォールバックを挟んでもドラッグが継続する（`angle_slider.rs`
+    /// の `wiring::DragState` doc、回帰テストは
+    /// `crates/wasm-full/tests/angle_slider_browser.rs::
+    /// pointer_drag_continues_across_structural_fallback`）。
+    ///
+    /// なお `Self::wire_signature_pad` は同型の露出（ストローク中の
+    /// `canvas` 要素 detach）を依然として抱えるが、SignaturePad 側は
+    /// キャンバス要素の同一性そのものに描画状態が乗るため本対策とは別の
+    /// 設計判断を要する（本イシューのスコープ外）。
     ///
     /// # AngleSlider 自身の `aria-valuenow`/`aria-valuetext` を更新するには
     /// アプリ側の束縛点配線が必要（イシュー #1956 レビュー指摘）
