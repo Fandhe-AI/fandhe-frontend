@@ -57,6 +57,41 @@
 //!   `fandhe_frontend_headless_ui::signature_pad::Stroke::new`/
 //!   `stroke_to_payload` を経由するため、非有限値・空ストロークは
 //!   headless 層の既存 fail-closed 検証がそのまま適用される。
+//!
+//! # pointer capture の再付与（イシュー #1993、親 #1991）
+//!
+//! `wiring::wire_stroke_collector` は `pointerdown` 時に描画要素
+//! （`event.target()`）へ `set_pointer_capture` を掛けるが、signature-pad は
+//! `pointermove` では dispatch しない（`pointerup` でのみ `add-stroke` を
+//! dispatch する）ため、ストローク中の再描画は本モジュール自身の配線では
+//! なく外部要因（同じ `root` 配下の別配線の `on_update`・`Runtime::rerender`
+//! の明示呼び出し等）で起きる。[`crate::lib::Runtime::rerender_subtree`]
+//! による構造フォールバックは `root` 配下の全子ノードを作り直すため、
+//! capture を持っていた要素が detach され、ブラウザ側の capture は暗黙に
+//! 失われる。capture 喪失後は `pointermove` の `event.target()` が新しい
+//! DOM の要素（非描画パーツを含む）になり、`segment_rect_transform` が
+//! 解決できず座標が黙って落ちる、あるいはポインタが `root` 外へ出た場合
+//! `pointermove`/`pointerup` 自体が届かなくなる。
+//!
+//! [`StrokeCollector`]（純粋層）は `pointer_id`・座標列を閉包内（DOM 外）に
+//! 保持するため再描画をまたいでも失われない。失われるのは「どの DOM 要素へ
+//! capture を掛け直すか」の再解決手段のみであり、`wiring` は追跡開始時に
+//! 採取した SignaturePad Root（`[data-part="root"]`）の `id` を安定識別子
+//! （`angle_slider.rs` の `PartKey::RootId` 分岐と同型のパターン。ただし
+//! 共通化はせず本モジュール内に閉じた private 実装とする）として保持し、
+//! 以後の `pointermove` で `event.target()` が capture を保持していない
+//! （＝喪失した）と判定した場合にこの Root `id` から Control 要素を再解決
+//! して `set_pointer_capture` を掛け直す。
+//!
+//! **Root `id` が無い構成では再解決を開始しない**（fail-closed。位置ベースの
+//! 識別（文書順の添字・要素数）は `angle_slider.rs::PartKey` doc と同じ理由
+//! で使わない）。`fandhe_frontend_headless_ui::signature_pad::SignaturePad::view`
+//! が生成する正準ビューは Root に `id` を付与しないため、アプリが
+//! `root(..)` の `attrs` で明示的に `id` を与えた構成でのみ本対策が有効に
+//! なる。また、ポインタが `root` 外にある間は capture が無い以上イベント
+//! 自体が `root` へ届かないため、この窓（再描画直後・かつポインタが
+//! `root` 外へ出た場合）は設計上回復不能である。以後 `root` 内へポインタが
+//! 戻った時点の `pointermove` から再解決が効く。
 
 use fandhe_frontend_headless_ui::signature_pad::{stroke_to_payload, Point, Stroke};
 
@@ -111,6 +146,19 @@ impl StrokeCollector {
     #[must_use]
     pub fn is_tracking(&self) -> bool {
         self.active_pointer_id.is_some()
+    }
+
+    /// 現在追跡中の `pointer_id`（追跡していなければ `None`）。
+    ///
+    /// `wiring::wire_stroke_collector` の pointermove 配線が capture 再付与
+    /// （イシュー #1993、struct doc「pointer capture の再付与」節参照）の
+    /// 対象を限定するために使う: `set_pointer_capture` は「このイベントの
+    /// pointer が追跡中の pointer と一致する場合」にのみ掛けなければならず、
+    /// [`Self::on_pointer_move`] が既に行っている `pointer_id` 不一致判定を
+    /// capture 再付与の判定側でも独立に確認する必要があるため公開する。
+    #[must_use]
+    pub fn active_pointer_id(&self) -> Option<i32> {
+        self.active_pointer_id
     }
 
     /// `pointerdown`: 既に他のポインタを追跡中でなければ、`pointer_id` の
@@ -295,7 +343,7 @@ fn scale_factors(view_box_dim: (f64, f64), rect_dim: (f64, f64)) -> (f64, f64) {
 mod wiring {
     use super::{
         is_drawable_part, parse_view_box_dimensions, scale_factors, StrokeCollector,
-        ACTION_ADD_STROKE,
+        ACTION_ADD_STROKE, SIGNATURE_PAD_SCOPE,
     };
     use crate::events::ActionRef;
     use fandhe_frontend_interactive::Component;
@@ -355,6 +403,68 @@ mod wiring {
         (event.client_x() as f64, event.client_y() as f64)
     }
 
+    /// SignaturePad Root（`[data-scope="signature-pad"][data-part="root"]`）
+    /// を探すセレクタ（モジュール doc「pointer capture の再付与」節参照、
+    /// イシュー #1993）。
+    const ROOT_SELECTOR: &str = r#"[data-scope="signature-pad"][data-part="root"]"#;
+
+    /// SignaturePad Control（`[data-scope="signature-pad"][data-part="control"]`）
+    /// を探すセレクタ。anatomy 上 Root 1 個につき Control は 1 個であるため
+    /// [`resolve_control_by_root_id`] は Root `id` から一意に定まる。
+    const CONTROL_SELECTOR: &str = r#"[data-scope="signature-pad"][data-part="control"]"#;
+
+    /// `pointerdown` で実際に追跡を開始した場合、以後の capture 再付与に
+    /// 使う再解決キー（SignaturePad Root の `id`）を採取する。
+    ///
+    /// `target` から祖先方向へ `closest` で Root を探し、`runtime_root`
+    /// （`Runtime` のマウントコンテナ。SignaturePad Root パーツ自身とは別
+    /// 要素）の子孫であることを確認してから `id` を読む。Root が見つから
+    /// ない・`id` が空（`SignaturePad::view()` の正準ビューは Root に `id`
+    /// を付与しない）場合はいずれも `None`（fail-closed。呼び出し側は
+    /// 再解決を試みず従来の `event.target()` ベース経路のみで動作する）。
+    fn capture_anchor_root_id(runtime_root: &Element, target: &Element) -> Option<String> {
+        let part_root = target.closest(ROOT_SELECTOR).ok().flatten()?;
+        if !runtime_root.contains(Some(&part_root)) {
+            return None;
+        }
+        let root_id = part_root.id();
+        if root_id.is_empty() {
+            return None;
+        }
+        Some(root_id)
+    }
+
+    /// [`capture_anchor_root_id`] が採取した Root `id` から、`runtime_root`
+    /// 配下の SignaturePad Control 要素を再解決する（`angle_slider.rs` の
+    /// `resolve_part`（`PartKey::RootId` 分岐）と同型のパターンだが、本
+    /// モジュール専用の private 実装として閉じる）。
+    ///
+    /// - 同一 `id` の要素が `runtime_root` 配下に無い、または
+    ///   `runtime_root` の子孫でない（`root` 外の同名 `id` を誤って掴まない
+    ///   ための検証）場合は `None`
+    /// - `data-scope`/`data-part` が SignaturePad Root と一致しない場合は
+    ///   `None`
+    /// - Root 配下の Control 一致要素が 1 個以外（0 個・複数個）の場合は
+    ///   `None`（anatomy 上通常は 1 個のみだが、崩れた構成で誤った要素へ
+    ///   capture を移さないための fail-closed 確認）
+    fn resolve_control_by_root_id(runtime_root: &Element, root_id: &str) -> Option<Element> {
+        let document = runtime_root.owner_document()?;
+        let part_root = document.get_element_by_id(root_id)?;
+        if !runtime_root.contains(Some(&part_root)) {
+            return None;
+        }
+        if part_root.get_attribute("data-scope").as_deref() != Some(SIGNATURE_PAD_SCOPE)
+            || part_root.get_attribute("data-part").as_deref() != Some("root")
+        {
+            return None;
+        }
+        let list = part_root.query_selector_all(CONTROL_SELECTOR).ok()?;
+        if list.length() != 1 {
+            return None;
+        }
+        list.get(0)?.dyn_into::<Element>().ok()
+    }
+
     /// `root` 配下の SignaturePad 描画領域へ `pointerdown`/`pointermove`/
     /// `pointerup`/`pointercancel` を配線し、確定したストロークを
     /// `on_action`（`ActionRef { action: "add-stroke", payload }`）へ
@@ -375,8 +485,8 @@ mod wiring {
     /// A04 対策）。
     ///
     /// pointermove 配線は [`StrokeCollector::release_if_stale`] による
-    /// stale 自己解錠ガードを含む（pointer capture 喪失時の自己回復、
-    /// イシュー #1992）。
+    /// stale 自己解錠ガードに加え、capture 再付与（イシュー #1993、
+    /// モジュール doc「pointer capture の再付与」節参照）を含む。
     ///
     /// # Errors
     ///
@@ -389,6 +499,12 @@ mod wiring {
         // `on_action` を配線ごとに共有できるよう Rc<RefCell<>> でラップする
         // （`headless_avatar.rs::wire_avatar_events` と同じ方針）。
         let on_action = std::rc::Rc::new(std::cell::RefCell::new(on_action));
+        // capture 再付与の再解決キー（追跡開始時に採取した SignaturePad
+        // Root の `id`）。`is_tracking()` が真の間のみ `Some` を維持する
+        // 不変条件（モジュール doc・[`capture_anchor_root_id`] 参照、
+        // イシュー #1993）。
+        let anchor: std::rc::Rc<std::cell::RefCell<Option<String>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(None));
 
         // pointerdown: 描画領域（[`is_drawable_part`]）内のみ追跡開始する
         // （ClearTrigger 等の無関係パーツ上での押下を描画開始と誤認しない
@@ -396,6 +512,7 @@ mod wiring {
         {
             let down_root = root.clone();
             let down_collector = collector.clone();
+            let down_anchor = anchor.clone();
             let closure = Closure::<dyn FnMut(PointerEvent)>::new(move |event: PointerEvent| {
                 let Some(target) = event.target().and_then(|t| t.dyn_into::<Element>().ok()) else {
                     return;
@@ -414,11 +531,22 @@ mod wiring {
                 };
                 let (client_x, client_y) = client_xy(&event);
                 if let Ok(mut c) = down_collector.try_borrow_mut() {
+                    // 追跡を実際に開始した場合（既に他ポインタを追跡中で
+                    // 無視された 2 本目の pointerdown ではない場合）のみ
+                    // 再解決キーを採取・更新する（anchor 不変条件、
+                    // struct doc「単一ストローク・単一ポインタの追跡
+                    // モデル」参照）。
+                    let was_tracking = c.is_tracking();
                     c.on_pointer_down(
                         event.pointer_id(),
                         (client_x - origin_x) * scale_x,
                         (client_y - origin_y) * scale_y,
                     );
+                    if !was_tracking && c.is_tracking() {
+                        if let Ok(mut a) = down_anchor.try_borrow_mut() {
+                            *a = capture_anchor_root_id(&down_root, &target);
+                        }
+                    }
                 }
                 // ポインタキャプチャを取得し、以後 pointermove/pointerup の
                 // `event.target()` が描画領域外へドラッグしても本要素に
@@ -435,6 +563,7 @@ mod wiring {
         {
             let move_root = root.clone();
             let move_collector = collector.clone();
+            let move_anchor = anchor.clone();
             let closure = Closure::<dyn FnMut(PointerEvent)>::new(move |event: PointerEvent| {
                 let Ok(mut c) = move_collector.try_borrow_mut() else {
                     return;
@@ -444,13 +573,61 @@ mod wiring {
                     // 取り逃した stale な追跡（`StrokeCollector::
                     // release_if_stale` doc 参照）。追跡を解除したので
                     // この move イベント自体の座標は破棄する（fail-closed）。
+                    if let Ok(mut a) = move_anchor.try_borrow_mut() {
+                        a.take();
+                    }
                     return;
                 }
                 if !c.is_tracking() {
                     return;
                 }
-                let Some(target) = event.target().and_then(|t| t.dyn_into::<Element>().ok()) else {
+                let Some(event_target) = event.target().and_then(|t| t.dyn_into::<Element>().ok())
+                else {
                     return;
+                };
+                // capture 再付与（イシュー #1993、モジュール doc「pointer
+                // capture の再付与」節参照）: このイベントの pointer が
+                // 追跡中の pointer と一致し、かつ `event_target` が capture
+                // を保持していない（＝喪失した。通常経路では
+                // `set_pointer_capture` によりブラウザが `event.target()`
+                // を capture 要素へ retarget するため、保持中は
+                // `has_pointer_capture` が真になり本分岐へ入らない）場合に
+                // 限り、anchor の Root `id` から Control を再解決して
+                // capture を掛け直す。座標変換の基準（`target`）も
+                // 再解決した Control に切り替える（`event_target` が
+                // ClearTrigger 等の非描画パーツでも座標が落ちないように
+                // するため）。
+                let target = if c.active_pointer_id() == Some(event.pointer_id())
+                    && !event_target.has_pointer_capture(event.pointer_id())
+                {
+                    let root_id = move_anchor.try_borrow().ok().and_then(|a| a.clone());
+                    match root_id.and_then(|id| resolve_control_by_root_id(&move_root, &id)) {
+                        Some(control) => {
+                            if !control.has_pointer_capture(event.pointer_id()) {
+                                // 合成イベント（`wasm_bindgen_test`）では
+                                // `NotFoundError` を投げるが、以後の追跡継続
+                                // 判定は `StrokeCollector` 側の pointer_id
+                                // 一致で行うため無視して構わない
+                                // （`angle_slider.rs::reattach_pointer_capture`
+                                // と同じ扱い）。
+                                let _ = control.set_pointer_capture(event.pointer_id());
+                            }
+                            control
+                        }
+                        None => {
+                            // Root が消えた・Control が一意に定まらない。
+                            // 座標列は破棄せず、anchor のみ解除して従来の
+                            // `event.target()` ベース経路へ戻す
+                            // （fail-closed。以後 `root` 外へ離脱した場合の
+                            // 回収は #1992 の stale ガードに委ねる）。
+                            if let Ok(mut a) = move_anchor.try_borrow_mut() {
+                                a.take();
+                            }
+                            event_target
+                        }
+                    }
+                } else {
+                    event_target
                 };
                 if !move_root.contains(Some(&target)) {
                     return;
@@ -473,12 +650,19 @@ mod wiring {
         {
             let up_collector = collector.clone();
             let up_on_action = on_action.clone();
+            let up_anchor = anchor.clone();
             let closure = Closure::<dyn FnMut(PointerEvent)>::new(move |event: PointerEvent| {
                 let payload = {
                     let Ok(mut c) = up_collector.try_borrow_mut() else {
                         return;
                     };
-                    c.on_pointer_up(event.pointer_id())
+                    let payload = c.on_pointer_up(event.pointer_id());
+                    if !c.is_tracking() {
+                        if let Ok(mut a) = up_anchor.try_borrow_mut() {
+                            a.take();
+                        }
+                    }
+                    payload
                 };
                 if let Some(payload) = payload {
                     if let Ok(mut cb) = up_on_action.try_borrow_mut() {
@@ -495,9 +679,15 @@ mod wiring {
 
         {
             let cancel_collector = collector.clone();
+            let cancel_anchor = anchor.clone();
             let closure = Closure::<dyn FnMut(PointerEvent)>::new(move |event: PointerEvent| {
                 if let Ok(mut c) = cancel_collector.try_borrow_mut() {
                     c.on_pointer_cancel(event.pointer_id());
+                    if !c.is_tracking() {
+                        if let Ok(mut a) = cancel_anchor.try_borrow_mut() {
+                            a.take();
+                        }
+                    }
                 }
             });
             root.add_event_listener_with_callback(
@@ -617,7 +807,11 @@ mod tests {
         let mut collector = StrokeCollector::new();
         collector.on_pointer_down(1, 0.0, 0.0);
         collector.on_pointer_down(2, 50.0, 50.0);
-        // 2 番目の pointerdown は無視されるため、追跡中の pointer は 1 のまま。
+        // 2 番目の pointerdown は無視されるため、追跡中の pointer は 1 のまま
+        // （`wiring::wire_stroke_collector` の capture 再付与用 anchor が、
+        // この無視された pointerdown で上書きされてはならない不変条件の
+        // 根拠、イシュー #1993）。
+        assert_eq!(collector.active_pointer_id(), Some(1));
         collector.on_pointer_move(2, 99.0, 99.0);
         let payload = collector.on_pointer_up(1).unwrap();
         assert_eq!(payload, "0.00,0.00");
@@ -666,6 +860,33 @@ mod tests {
         }
         let payload = collector.on_pointer_up(1).unwrap();
         assert_eq!(payload.split(' ').count(), MAX_POINTS_PER_STROKE);
+    }
+
+    #[test]
+    fn active_pointer_id_reflects_tracking_lifecycle() {
+        // `wiring::wire_stroke_collector` の capture 再付与（イシュー
+        // #1993）は本 getter で「このイベントの pointer が追跡中の
+        // pointer と一致するか」を判定するため、追跡開始/終了に正しく
+        // 追随することを固定する。
+        let mut collector = StrokeCollector::new();
+        assert_eq!(collector.active_pointer_id(), None);
+        collector.on_pointer_down(1, 0.0, 0.0);
+        assert_eq!(collector.active_pointer_id(), Some(1));
+        let _ = collector.on_pointer_up(1);
+        assert_eq!(collector.active_pointer_id(), None);
+    }
+
+    #[test]
+    fn active_pointer_id_is_none_after_cancel_and_stale_release() {
+        let mut collector = StrokeCollector::new();
+        collector.on_pointer_down(1, 0.0, 0.0);
+        collector.on_pointer_cancel(1);
+        assert_eq!(collector.active_pointer_id(), None);
+
+        collector.on_pointer_down(2, 0.0, 0.0);
+        assert_eq!(collector.active_pointer_id(), Some(2));
+        assert!(collector.release_if_stale(2, 0));
+        assert_eq!(collector.active_pointer_id(), None);
     }
 
     #[test]

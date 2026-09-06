@@ -609,7 +609,12 @@ name = "fandhe-frontend-wasm-full"
 # 0.15.15 を先に crates.io へ公開する見込みのため、同一版数衝突を避けて
 # 0.15.16 へ再バンプする（`semver-same-version-is-conflict` の運用に
 # 従い、据え置きではなく +1 する）。
-version = "0.15.16"
+# イシュー #1993: `wiring::wire_stroke_collector` の pointermove 配線へ
+# capture 再付与（追跡中の pointer が capture を喪失した場合、SignaturePad
+# Root の `id` から Control を再解決して `set_pointer_capture` を掛け直す）
+# を追加。`StrokeCollector::active_pointer_id()` getter を新規公開（追加の
+# みの非破壊的変更）。公開 API 追加のみ・既存契約は不変のため patch バンプ。
+version = "0.15.17"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

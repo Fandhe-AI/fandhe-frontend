@@ -1430,10 +1430,10 @@ where
     /// （それ以外では利用者のフォーカスを奪わない、fail-closed。回帰テストは
     /// `thumb_focus_is_restored_after_structural_fallback_on_keydown`）。
     ///
-    /// なお `Self::wire_signature_pad` は同型の露出（ストローク中の
-    /// `canvas` 要素 detach）を依然として抱えるが、SignaturePad 側は
-    /// キャンバス要素の同一性そのものに描画状態が乗るため本対策とは別の
-    /// 設計判断を要する（本イシューのスコープ外）。
+    /// なお `Self::wire_signature_pad` 側の同型露出（ストローク中の描画
+    /// 要素 detach）はイシュー #1991（#1992 の stale 自己解錠 + #1993 の
+    /// capture 再付与）で是正済み。`headless_signature_pad.rs` モジュール
+    /// doc「pointer capture の再付与」節参照。
     ///
     /// # AngleSlider 自身の `aria-valuenow`/`aria-valuetext` を更新するには
     /// アプリ側の束縛点配線が必要（イシュー #1956 レビュー指摘）
@@ -1534,10 +1534,11 @@ where
     /// の `angle_slider::wiring::restore_thumb_focus` と同型の
     /// 条件（元の resize-trigger が実際に detach された・再描画後の
     /// 同じ resize-trigger を一意に再解決できた場合に限る、fail-closed）で
-    /// フォーカスを復元する。`Self::wire_signature_pad` は同型の露出
-    /// （ストローク中の `canvas` 要素 detach）を依然として抱えるが、
-    /// SignaturePad 側はキャンバス要素の同一性そのものに描画状態が乗る
-    /// ため本対策とは別の設計判断を要する（本イシューのスコープ外）。
+    /// フォーカスを復元する。`Self::wire_signature_pad` 側の同型露出
+    /// （ストローク中の描画要素 detach）はイシュー #1991（#1992 の stale
+    /// 自己解錠 + #1993 の capture 再付与）で是正済み。
+    /// `headless_signature_pad.rs` モジュール doc「pointer capture の
+    /// 再付与」節参照。
     ///
     /// # Errors
     ///
