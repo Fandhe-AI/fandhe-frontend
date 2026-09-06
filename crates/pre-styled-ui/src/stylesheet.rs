@@ -286,6 +286,7 @@ mod tests {
             ("checkbox_group", crate::checkbox_group::stylesheet()),
             ("radio_card", crate::radio_card::stylesheet()),
             ("field", crate::field::css()),
+            ("fieldset", crate::fieldset::css()),
             ("input", crate::input::css()),
             ("textarea", crate::textarea::css()),
             ("native_select", crate::native_select::css()),

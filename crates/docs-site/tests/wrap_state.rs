@@ -558,8 +558,11 @@ const PRE_STYLED_ONLY: &[&str] = &[
 ];
 
 /// §3.4（受け入れ条件 3）: pre-styled-ui のどこからもコード委譲されていない
-/// headless 部品（module 名、1 件）。
-const HEADLESS_UNWRAPPED: &[&str] = &["fieldset"];
+/// headless 部品（module 名、0 件）。イシュー #1686 で `fieldset.rs`
+/// （headless `fieldset::root` へコード委譲する同名モジュール）を追加した
+/// ため、唯一の未ラップ部品だった `fieldset` がコード委譲済みとなり空に
+/// なった（`/themes/fieldset/` ページ登録自体は後続イシュー #1687）。
+const HEADLESS_UNWRAPPED: &[&str] = &[];
 
 /// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
 /// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ
@@ -569,10 +572,20 @@ const HEADLESS_UNWRAPPED: &[&str] = &["fieldset"];
 /// 集合として引き続き 4 件のまま維持する）。
 const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "textarea"];
 
-/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（6 件。
+/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（7 件。
 /// イシュー #1685 で `field` が `/themes/field/` ページ登録済みとなり
-/// 本台帳から除外された）。
-const NON_PAGE_TOP_LEVEL: &[&str] = &["class_attr", "css", "lib", "recipe", "stylesheet", "theme"];
+/// 本台帳から除外された。イシュー #1686 で `fieldset.rs` を新設したが
+/// `/themes/fieldset/` ページ登録は後続イシュー #1687 のため、暫定的に
+/// 本台帳へ追加する（登録後は `field` と同様に除外する）。）。
+const NON_PAGE_TOP_LEVEL: &[&str] = &[
+    "class_attr",
+    "css",
+    "fieldset",
+    "lib",
+    "recipe",
+    "stylesheet",
+    "theme",
+];
 
 /// §3.6: `charts/` のうち Themes ページに対応しないモジュール（8 件。
 /// `mod` は charts 索引ページとして別枠で扱うため含まない。`tooltip` は
@@ -851,8 +864,8 @@ fn headless_primitives_unwrapped_by_pre_styled_match_the_ledger() {
 }
 
 /// §3.4: `HEADLESS_UNWRAPPED` ⊆ `PRIMITIVES_WITHOUT_THEMES_PAGE`、かつ \
-/// `PRIMITIVES_WITHOUT_THEMES_PAGE ∖ HEADLESS_UNWRAPPED == {"field"}`、かつ \
-/// `field` の参照元が `FIELD_CROSS_WRAPPERS` と一致することを検証する。\
+/// `PRIMITIVES_WITHOUT_THEMES_PAGE ∖ HEADLESS_UNWRAPPED == {"fieldset"}`、\
+/// かつ `field` の参照元が `FIELD_CROSS_WRAPPERS` と一致することを検証する。\
 /// 2 つの台帳（ページレベルの `PRIMITIVES_WITHOUT_THEMES_PAGE` と、本ファイルの \
 /// コードレベル `HEADLESS_UNWRAPPED`）が独立にドリフトして片方が黙って嘘を \
 /// つく事故を防ぐ。
@@ -869,12 +882,17 @@ fn unwrapped_ledger_is_consistent_with_primitives_without_themes_page() {
     );
 
     let diff: BTreeSet<&str> = without_page.difference(&unwrapped).copied().collect();
-    let expected_diff: BTreeSet<&str> = BTreeSet::new();
+    let expected_diff: BTreeSet<&str> = ["fieldset"].into_iter().collect();
     assert_eq!(
         diff, expected_diff,
-        "PRIMITIVES_WITHOUT_THEMES_PAGE ∖ HEADLESS_UNWRAPPED は空集合である \
-         はずです（`field` はイシュー #1685 で `/themes/field/` ページを \
-         登録し WRAPPED_SAME_NAME へ分類されたため、PRIMITIVES_WITHOUT_THEMES_PAGE \
+        "PRIMITIVES_WITHOUT_THEMES_PAGE ∖ HEADLESS_UNWRAPPED は \
+         {{\"fieldset\"}} であるはずです（`fieldset` はイシュー #1686 で \
+         コード委譲済み〔`HEADLESS_UNWRAPPED` から除外済み〕だが、\
+         `/themes/fieldset/` ページ登録は後続イシュー #1687 のため \
+         `PRIMITIVES_WITHOUT_THEMES_PAGE` には残る。ページ登録後に \
+         `WRAPPED_SAME_NAME` へ分類され、この差集合は空へ戻る。`field` は \
+         イシュー #1685 で `/themes/field/` ページを登録し \
+         `WRAPPED_SAME_NAME` へ分類されたため、`PRIMITIVES_WITHOUT_THEMES_PAGE` \
          から除外済み）"
     );
 
@@ -935,11 +953,12 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
 
     assert_eq!(
         scan.top_level.len(),
-        109,
+        110,
         "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
          を新設し 108 → 109。イシュー #1685 で `/themes/field/` ページを \
-         登録し `field` は WRAPPED_SAME_NAME バケットへ移った。総数自体は \
-         109 のまま不変）"
+         登録し `field` は WRAPPED_SAME_NAME バケットへ移った。イシュー \
+         #1686 で fieldset.rs を新設し 109 → 110。`/themes/fieldset/` \
+         ページ登録は後続イシュー #1687）"
     );
     assert_eq!(
         scan.charts.len(),

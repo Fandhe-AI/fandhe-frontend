@@ -62,6 +62,7 @@ checkbox / checkbox_card / checkbox_group /
 color_picker / color_swatch / **data_list（イシュー #1559 で golden 新設）** /
 date_input / dialog / **download_trigger（方式 b）** /
 drawer / editable / **field（イシュー #1684 で golden 新設）** /
+**fieldset（イシュー #1686 で golden 新設）** /
 file_upload / floating_panel / highlight / hover_card /
 image_cropper / **link_overlay（イシュー #1580 で golden 新設）** /
 listbox / marquee / menu / **menubar（方式 b）** /

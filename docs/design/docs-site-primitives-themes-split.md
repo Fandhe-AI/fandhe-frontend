@@ -268,19 +268,23 @@ rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc �
 ### Primitives 側の未ラップ判定
 
 `crates/pre-styled-ui/src/**/*.rs` 全体のコード行から、どこからも参照され
-ていない headless 部品モジュールを求めると `fieldset` の 1 件
-(`HEADLESS_UNWRAPPED`。`collapsible` はイシュー #1682 でコード委譲済みに
-なったため本台帳から外れた)。`field` はイシュー #1685 で `/themes/field/`
-ページを新設し `PRIMITIVES_WITHOUT_THEMES_PAGE` から除外済みで、
-`WRAPPED_SAME_NAME` バケットへ分類される。`input` / `textarea` /
+ていない headless 部品モジュールを求めると 0 件
+(`HEADLESS_UNWRAPPED`。`collapsible` はイシュー #1682、`fieldset` はイシュー
+#1686 でそれぞれコード委譲済みになったため本台帳から外れた)。`field` は
+イシュー #1685 で `/themes/field/` ページを新設し
+`PRIMITIVES_WITHOUT_THEMES_PAGE` から除外済みで、`WRAPPED_SAME_NAME`
+バケットへ分類される。`fieldset` はイシュー #1686 でコード委譲済みと
+なったが `/themes/fieldset/` ページ登録は後続イシュー #1687 のため、
+`PRIMITIVES_WITHOUT_THEMES_PAGE` には暫定的に残っている(ページ登録後に
+`WRAPPED_SAME_NAME` へ移り除外される)。`input` / `textarea` /
 `native_select` の 3 モジュールは引き続き `field` を別名でコード委譲して
 いる(`WRAPPED_CROSS_NAME`)。2 つの台帳(ページレベルの `PRIMITIVES_WITHOUT_THEMES_PAGE` と、
 コードレベルの `HEADLESS_UNWRAPPED`)が独立にドリフトして片方が黙って
 嘘をつく事故を防ぐため、
 `unwrapped_ledger_is_consistent_with_primitives_without_themes_page` が
 `HEADLESS_UNWRAPPED ⊆ PRIMITIVES_WITHOUT_THEMES_PAGE` と
-`PRIMITIVES_WITHOUT_THEMES_PAGE ∖ HEADLESS_UNWRAPPED == ∅`(空集合)を機械
-検査する。
+`PRIMITIVES_WITHOUT_THEMES_PAGE ∖ HEADLESS_UNWRAPPED == {"fieldset"}`(暫定、
+#1687 で空集合へ戻る)を機械検査する。
 
 ### モジュール解決(`crates/pre-styled-ui/src/`)
 

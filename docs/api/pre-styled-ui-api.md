@@ -69,6 +69,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `checkbox`（§4e 参照） | [checkbox](../../site/themes/checkbox.md) |
 | 静的フォーム部品 | `input` / `textarea` / `native_select`（§4f 参照） | [input](../../site/themes/input.md) / [textarea](../../site/themes/textarea.md) / [native-select](../../site/themes/native-select.md) |
 | 静的フォーム部品 | `field`（§4f-1 参照。ラベル・補助テキスト・エラーテキストの型階層、`orientation` 軸のみ） | [field](../../site/themes/field.md) |
+| 静的フォーム部品 | `fieldset`（§4f-2 参照。`<fieldset>`/`<legend>` グループコンテナ、`size` 軸のみ） | 未掲載（#1687） |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
 | headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
@@ -661,6 +662,33 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   参照するだけで、値の妥当性判定・送信処理は実装しない。
 - **docs サイト**: [field](../../site/themes/field.md)（イシュー #1685 で
   `/themes/field/` ページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-2. `fieldset`（`<fieldset>`/`<legend>` グループコンテナ、イシュー #1686）
+
+`fieldset` モジュールは `fandhe_frontend_headless_ui::fieldset` の anatomy
+（`root`/`legend`/`helper-text`/`error-text` の 4 パーツ）へ、UA 既定の
+`<fieldset>`/`<legend>` 枠線・padding のリセットと `size` 軸による余白・
+文字サイズの段階化を重ねる薄い委譲層である。
+
+- **公開 API**: `root(&FieldsetRootProps, &FieldsetProps<'_>, attrs,
+  children)`（見た目 variant クラスを重ねて headless `fieldset::root` へ
+  委譲）、`FieldsetRootProps`。`legend`/`helper_text`/`error_text`/
+  `FieldsetProps` は headless からの選択的再エクスポート。
+- **`size` 軸のみ**: `Sm`/`Md`/`Lg` の 3 段のみ登録（chakra-ui v3
+  `Fieldset.Root` の `size` prop に対応、既定 `Md`）。`Xs`/`Xl` は未登録。
+  `orientation`/`color-palette` 軸は持たない。
+- **意図的非採用**: chakra-ui v3 の `Content` サブパートは headless
+  anatomy に存在しないため実装しない（headless anatomy 変更はスコープ外）。
+  `root` へのネイティブ `disabled` 二重表現防止のため
+  `disabled_declarations()` を付与しない。`legend` への `data-invalid`
+  色反映なし（chakra-ui v3 も非対応）。Radix Primitives / Radix Themes の
+  いずれにも `Fieldset` が存在しないため対応なし。
+- **バリデーション責務外**: `docs/policy/intentional-non-adoption.md`
+  §3.25 規則 1 のとおり、本モジュールは headless が出す
+  `data-invalid`/`data-disabled` を CSS セレクタとして参照するだけで、
+  値の妥当性判定・送信処理は実装しない。
+- **docs サイト**: 未掲載（`/themes/fieldset/` ページ登録・showcase
+  Demo・`SPEC_TABLES` 原稿は後続イシュー #1687）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

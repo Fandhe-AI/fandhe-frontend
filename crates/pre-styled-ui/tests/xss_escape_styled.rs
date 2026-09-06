@@ -57,6 +57,7 @@ use fandhe_frontend_pre_styled_ui::editable::{
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetRootProps};
 use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
@@ -825,6 +826,103 @@ fn field_root_and_reexported_parts_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "field id 由来 helper_text id コンテキスト");
         let html = render(&field::error_text(&f, vec![], vec![]));
         assert_payload_is_escaped(payload, &html, "field id 由来 error_text id コンテキスト");
+    }
+}
+
+/// (7c) styled Fieldset `root` 経路（イシュー #1686）: 呼び出し側 `attrs`・
+/// `class`、選択的再エクスポートした `legend`/`helper_text`/`error_text` の
+/// children、`FieldsetProps::id` から派生する `id`/`aria-describedby`
+/// 属性値のいずれの経路でも既定エスケープ（REQ-1）が貫通することを固定
+/// する（(7b) `field` と同粒度）。
+#[test]
+fn fieldset_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    fn fieldset_props(id: &str) -> fandhe_frontend_pre_styled_ui::fieldset::FieldsetProps<'_> {
+        fandhe_frontend_pre_styled_ui::fieldset::FieldsetProps {
+            id,
+            disabled: false,
+            invalid: false,
+            has_helper_text: false,
+        }
+    }
+
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let f = fieldset_props("f");
+        let html = render(&fieldset::root(
+            &FieldsetRootProps::default(),
+            &f,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "fieldset::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（drop_class_attr により
+        // 生ペイロードは出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let f = fieldset_props("f");
+        let html = render(&fieldset::root(
+            &FieldsetRootProps::default(),
+            &f,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "fieldset::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-fieldset--size-"));
+
+        // 選択的再エクスポート（legend/helper_text/error_text）の children
+        // 経路。
+        let f = fieldset_props("f");
+        let html = render(&fieldset::legend(&f, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "fieldset::legend children コンテキスト");
+
+        let f = fieldset_props("f");
+        let html = render(&fieldset::helper_text(&f, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset::helper_text children コンテキスト",
+        );
+
+        let mut f = fieldset_props("f");
+        f.invalid = true;
+        let html = render(&fieldset::error_text(&f, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "fieldset::error_text children コンテキスト");
+
+        // `FieldsetProps::id` から派生する `id`/`aria-describedby` 属性値
+        // 経路（`legend`/`helper_text`/`error_text` の id、invalid +
+        // has_helper_text の aria-describedby 合成）。
+        let mut f = fieldset_props(payload);
+        f.has_helper_text = true;
+        f.invalid = true;
+        let html = render(&fieldset::legend(&f, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "fieldset id 由来 legend id コンテキスト");
+        let html = render(&fieldset::helper_text(&f, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset id 由来 helper_text id コンテキスト",
+        );
+        let html = render(&fieldset::error_text(&f, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset id 由来 error_text id コンテキスト",
+        );
+        let html = render(&fieldset::root(
+            &FieldsetRootProps::default(),
+            &f,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset id 由来 root aria-describedby コンテキスト",
+        );
     }
 }
 
