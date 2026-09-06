@@ -535,31 +535,33 @@ fn toggle_group_item_disabled_is_noop() {
 /// （`crate::keynav` モジュール doc §TreeView §帰結参照）。
 #[test]
 fn tree_view_branch_control_click_resolves_to_ancestor_branch_toggle() {
-    let branch_html = render(&tree_view::branch(
-        OpenState::Closed,
-        "src",
-        false,
-        false,
-        "1",
-        "1",
-        "1",
-        "0",
-        vec![],
-        vec![],
-    ));
+    let props = tree_view::TreeItemProps {
+        value: "src",
+        selected: false,
+        disabled: false,
+        level: "1",
+        posinset: "1",
+        setsize: "1",
+        depth: "0",
+    };
+    let branch_html = render(&tree_view::branch(OpenState::Closed, props, vec![], vec![]));
     assert_scope_part_present(&branch_html, "tree-view", "branch");
     let control_html = render(&tree_view::branch_control(
         OpenState::Closed,
-        false,
-        false,
+        props,
         vec![],
         vec![],
     ));
     assert_scope_part_present(&control_html, "tree-view", "branch-control");
 
-    // branch-control 自身はマッピング表に無く、値も持たない。
+    // branch-control 自身はマッピング表に無い。イシュー #1667 で
+    // `data-value` を実際に持つようになったが（`branch_control` の
+    // `data-value`/`data-depth` 追加）、`action_for_part` は
+    // `(scope, part)` の MAPPING_TABLE 完全一致でのみ解決するため、
+    // 値の有無に関わらず None のままであることを固定する（実際の DOM 出力
+    // に忠実な `Some("src")` を渡して検証する）。
     assert_eq!(
-        action_for_part(&part("tree-view", "branch-control", None, false)),
+        action_for_part(&part("tree-view", "branch-control", Some("src"), false)),
         None
     );
 
@@ -584,13 +586,15 @@ fn tree_view_branch_control_click_resolves_to_ancestor_branch_toggle() {
 #[test]
 fn tree_view_item_click_resolves_to_select() {
     let item_html = render(&tree_view::item(
-        "a.rs",
-        false,
-        false,
-        "1",
-        "1",
-        "1",
-        "0",
+        tree_view::TreeItemProps {
+            value: "a.rs",
+            selected: false,
+            disabled: false,
+            level: "1",
+            posinset: "1",
+            setsize: "1",
+            depth: "0",
+        },
         vec![],
         vec![],
     ));

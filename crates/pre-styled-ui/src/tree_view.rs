@@ -156,7 +156,8 @@ use crate::recipe::{
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::tree_view::{
     branch, branch_content, branch_control, branch_indent_guide, branch_indicator, branch_text,
-    item, item_indicator, item_text, label, tree, TreeNode, TreeView, TreeViewAction,
+    item, item_indicator, item_text, label, tree, TreeItemProps, TreeNode, TreeView,
+    TreeViewAction,
 };
 // `branch`/`item` 等の `state`/`selected`/`disabled` 引数・`TreeView` の
 // `Component::Action`（dispatch 対象）・`OpenState` はいずれも `state`
@@ -369,6 +370,26 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-selected"),
             vec![decl("color", "var(--fandhe-color-accent-fg-subtle)")],
         )
+        // イシュー #1667: `item-indicator` の base 規則が `display:
+        // inline-flex` を宣言しており、UA 既定の `[hidden] { display: none }`
+        // を詳細度で上書きしてしまう。ここは `branch-content` の `[hidden]`
+        // 上書き（`display: none`、要素を完全に取り除く）とは意図的に
+        // 異なる対応を採る: `item-indicator`/`branch-indicator` は
+        // 「indicator の列幅固定」（本モジュール doc §`size` variant 節）で
+        // 選択マーク幅の列を揃える整列用スペーサでもあるため、`display:
+        // none` にすると非選択葉の `item-text` が選択済み葉・`branch-text`
+        // に対して `1em + gap` 分だけ左へ寄ってしまう視覚崩れが生じる
+        // （headless 層が #1667 で非選択時に `hidden` を出力するように
+        // なったため新たに顕在化）。`visibility: hidden` は要素のレイアウト
+        // ボックスを残したまま非表示にするため、列幅は崩れない。支援技術
+        // からの除外は headless 層が固定出力する `aria-hidden="true"` が
+        // 既に担っており、`visibility: hidden` の追加でも二重に隠すだけで
+        // 害はない。
+        .state(
+            "item-indicator",
+            StateCondition::Attr("hidden"),
+            vec![decl("visibility", "hidden")],
+        )
         // イシュー #1578: hover 面（選択行の背景は洗い流さない、combobox と
         // 同型の `HoverExceptAttr` 除外）。
         .state(
@@ -544,6 +565,31 @@ mod tests {
     }
 
     #[test]
+    fn unselected_item_indicator_hidden_attr_uses_visibility_not_display() {
+        // イシュー #1667: item-indicator の base 規則 `display: inline-flex`
+        // が UA 既定の `[hidden] { display: none }` を上書きするため、
+        // 非表示化そのものは明示的な上書きが要る（`branch-content` と同型の
+        // 動機）。ただし item-indicator/branch-indicator は「indicator の
+        // 列幅固定」（本モジュール doc §`size` variant 節）の整列用スペーサ
+        // でもあるため、`display: none` にすると非選択葉の item-text が
+        // 選択済み葉・branch-text に対して列幅分だけ左へ寄る視覚崩れが生じる
+        // （headless 層は #1667 の参照突合で非選択時に `hidden` 存在属性を
+        // 出力するようになったため新たに顕在化した）。`visibility: hidden`
+        // でレイアウトボックスを残したまま非表示にすることを固定する
+        // （`branch-content` とは意図的に異なる対応、`display: none` を
+        // 使わないことを明示的に検証する）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="tree-view"][data-part="item-indicator"][hidden] {"#));
+        let rule_start = css
+            .find(r#"[data-scope="tree-view"][data-part="item-indicator"][hidden] {"#)
+            .expect("item-indicator[hidden] rule must be present");
+        let rule_body = &css[rule_start..];
+        let rule_end = rule_body.find('}').expect("rule must be closed");
+        assert!(rule_body[..rule_end].contains("visibility: hidden;"));
+        assert!(!rule_body[..rule_end].contains("display: none;"));
+    }
+
+    #[test]
     fn stylesheet_never_contains_style_breakout_sequences() {
         let css = stylesheet();
         assert!(!css.contains("</style"));
@@ -713,8 +759,18 @@ mod tests {
         assert_eq!(t.selected(), None);
         assert!(!t.is_expanded("src"));
 
+        let props = TreeItemProps {
+            value: "src",
+            selected: false,
+            disabled: false,
+            level: "1",
+            posinset: "1",
+            setsize: "1",
+            depth: "0",
+        };
         let ssr_html = render(&branch_indicator(
             OpenState::Closed,
+            props,
             vec![],
             vec![text("+")],
         ));
