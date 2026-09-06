@@ -532,6 +532,10 @@ tabs/accordion/dialog/menu/select の実装詳細:
   未スタイル root の静かな適用漏れ防止のため選択的 re-export へ切り替え
   ている。`Accordion`/`MultiAccordion`（inherent root なし）は再
   エクスポート維持。
+- `dialog::footer`（pre-styled-only レイアウトパート、`data-scope="dialog"`
+  配下の headless-ui 非由来 9 番目の part。alert-dialog 構成のアクション列
+  の横並び配置のみを担い、確認/キャンセルの強調色は既存の `button` の
+  variant/palette 組み合わせで表現する。イシュー #1690）。
 
 ## 4d. `data-focus-visible` によるキーボード専用フォーカスリング
 

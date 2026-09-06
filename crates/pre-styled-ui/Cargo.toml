@@ -1919,16 +1919,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # シグネチャへ破壊的変更）への追随。本クレートの `tour::action_trigger`
 # ラッパも同じ引数を追加する公開 API 変更のため、マイナーバンプで
 # 0.118.0 とする。
-# base 再取り込み（イシュー #1666/#1674, 2026-09-06）: main 側は
-# button の icon-only 変種突合（イシュー #1674、`icon_size_for` 追加・
-# CSS 宣言不変）により 0.117.1 から独立に 0.117.2 へ patch バンプして
-# いた。HEAD 側は同じ merge base（0.117.1）から tour の参照突合
-# （イシュー #1666、破壊的変更）で 0.118.0 へマイナーバンプしている。
-# 両者は異なる実体変更を独立に積んでいるため（同一版数への偶発的衝突
-# ではなく、片方のみが先行バンプ先を包含していない構図）、双方の変更を
-# 統合した結果として 0.118.0 からさらに patch バンプし 0.118.1 とする
-# （`docs/ci/style-refresh-version-bump-operation.md` §5 の和集合方針）。
-
+# イシュー #1674（button の icon-only 変種を chakra-ui/Radix Themes と
+# 突合）: `icon_size_for` を追加し `close_button` の内蔵アイコン寸法・
+# `icon_button` 推奨手順を是正した。`recipe()`/`recipe_with_scope()` の
+# CSS 宣言は不変（golden テスト差分ゼロ）のため main 側は独立に patch
+# バンプで 0.117.2 としていた。
+# イシュー #1690（親 #1675）: dialog へ alert-dialog 構成向けの
+# pre-styled-only `footer` パート（新規 `pub fn footer`・`SLOTS` へ純追加の
+# 1 slot）を追加した。既存パート・既存 CSS 宣言・公開 API シグネチャは
+# いずれも不変（純追加のみ、golden テストは footer ブロック 1 個の
+# 純挿入差分）のため main 側はさらに patch バンプで 0.117.3 としていた。
 # base 再取り込み（イシュー #1688/#1665, 2026-09-06, 4 回目）: 本ブランチ
 # （#1688、circular Progress の indeterminate 弧追加）と main（#1665、steps
 # の headless-ui 追随）はいずれも独立に patch バンプし偶発的に同一版数
@@ -1943,14 +1943,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # 衝突していた（同一版数への偶発的衝突をそのまま採用しない原則、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）。両者を統合した
 # 結果としてさらに patch バンプし 0.117.3 とする。
-# base 再取り込み（イシュー #1666/#1674, 2026-09-06, 6 回目）: 本ブランチ
-# （tour の参照突合、破壊的変更で 0.118.1 に到達済み）と main（icon-only
-# 変種突合・#1665 の steps 追随を経て 0.117.3 に到達）を統合する。
+# base 再取り込み（イシュー #1666/#1690, 2026-09-06, 7 回目）: 本ブランチ
+# （tour の参照突合、破壊的変更で 0.118.0 に到達済み）と main（#1690 の
+# dialog footer 追加を経て 0.117.4 に到達）を統合する。
 # `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（自分の
 # 変更が minor バンプの場合は main の現在値の minor を +1 し patch を
-# 0 に戻す）に従い、main の現在値 0.117.3 の minor（117）を +1 して
-# 0.118.0 とする。
+# 0 に戻す）に従うと main の現在値 0.117.4 の minor（117）を +1 して
+# 0.118.0 となり、これは既に HEAD 側が到達している値と一致するため、
+# 追加のバンプは不要としてそのまま 0.118.0 を維持する。
 version = "0.118.0"
+
 
 
 edition = "2021"
