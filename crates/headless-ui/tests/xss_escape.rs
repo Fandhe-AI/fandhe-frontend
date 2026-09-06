@@ -1982,5 +1982,23 @@ fn tour_title_description_target_and_attrs_are_escaped_for_all_payloads() {
             &html,
             "tour::Tour::root の呼び出し側 attrs コンテキスト",
         );
+
+        // イシュー #1666: content が Active 時に出力する `data-step`
+        // （TourStep::id）の属性値コンテキストも既定エスケープを経由する。
+        let step_id = TourStep {
+            id: payload.to_string(),
+            target: None,
+            title: "t".to_string(),
+            description: "d".to_string(),
+            placement: Placement::new(Side::Bottom, Align::Center),
+        };
+        let mut t_step = Tour::new(vec![step_id]);
+        fandhe_frontend_interactive::dispatch(&mut t_step, "start", "");
+        let html = render(&t_step.content(tour::ContentIds::default(), vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tour::Tour::content の data-step コンテキスト",
+        );
     }
 }

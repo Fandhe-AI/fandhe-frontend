@@ -479,7 +479,15 @@ name = "fandhe-frontend-headless-ui"
 # とする（`data-branch`/各 `data-*` 加算・`drop_reserved` 導入自体は
 # 非破壊的だが、上記シグネチャ変更が破壊的のため合わせてマイナーバンプ
 # する）。
-version = "0.63.0"
+# イシュー #1666（tour の参照突合）: `Tour::control` パーツ新設・
+# `Tour::content` への `tabindex="-1"`/`data-step` 加算・全パーツへの
+# `drop_reserved` 導入は非破壊的だが、`Tour::action_trigger` のシグネチャを
+# `TourTriggerKind` 引数付きへ変更した（破壊的変更）ため、規約に従い
+# マイナーバンプで 0.63.0 とする。
+# 上記 2 件（tree-view #1667・tour #1666）が独立に同一 0.63.0 へ到達していた
+# ブランチのマージにより、双方の実体変更を統合した結果として 0.64.0 へ
+# さらにマイナーバンプする（同一版数への偶発的衝突をそのまま採用しない）。
+version = "0.64.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

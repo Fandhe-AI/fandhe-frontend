@@ -1914,16 +1914,21 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既に登録済み（headless 側未発行のため無害な死んだ規則だった）で、本
 # バンプにより実効化する。CSS 出力・golden テストは不変のため patch
 # バンプで 0.117.1 とする。
+# イシュー #1666（tour の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# の 0.62.1 → 0.63.0（`Tour::action_trigger` が `TourTriggerKind` 引数付き
+# シグネチャへ破壊的変更）への追随。本クレートの `tour::action_trigger`
+# ラッパも同じ引数を追加する公開 API 変更のため、マイナーバンプで
+# 0.118.0 とする。
 # イシュー #1674（button の icon-only 変種を chakra-ui/Radix Themes と
 # 突合）: `icon_size_for` を追加し `close_button` の内蔵アイコン寸法・
 # `icon_button` 推奨手順を是正した。`recipe()`/`recipe_with_scope()` の
-# CSS 宣言は不変（golden テスト差分ゼロ）のため patch バンプで
-# 0.117.2 とする。
+# CSS 宣言は不変（golden テスト差分ゼロ）のため main 側は独立に patch
+# バンプで 0.117.2 としていた。
 # イシュー #1690（親 #1675）: dialog へ alert-dialog 構成向けの
 # pre-styled-only `footer` パート（新規 `pub fn footer`・`SLOTS` へ純追加の
 # 1 slot）を追加した。既存パート・既存 CSS 宣言・公開 API シグネチャは
 # いずれも不変（純追加のみ、golden テストは footer ブロック 1 個の
-# 純挿入差分）のため patch バンプで 0.117.3 とする。
+# 純挿入差分）のため main 側はさらに patch バンプで 0.117.3 としていた。
 # base 再取り込み（イシュー #1688/#1665, 2026-09-06, 4 回目）: 本ブランチ
 # （#1688、circular Progress の indeterminate 弧追加）と main（#1665、steps
 # の headless-ui 追随）はいずれも独立に patch バンプし偶発的に同一版数
@@ -1952,6 +1957,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 上書き CSS 追加自体は非破壊的だが、上記シグネチャ変更が破壊的のため
 # 合わせてマイナーバンプする）。
 version = "0.118.0"
+# base 再取り込み（イシュー #1666/#1690, 2026-09-06, 7 回目）: 本ブランチ
+# （tour の参照突合、破壊的変更で 0.118.0 に到達済み）と main（#1690 の
+# dialog footer 追加を経て 0.117.4 に到達）を統合する。
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（自分の
+# 変更が minor バンプの場合は main の現在値の minor を +1 し patch を
+# 0 に戻す）に従うと main の現在値 0.117.4 の minor（117）を +1 して
+# 0.118.0 となり、これは既に HEAD 側が到達している値と一致するため、
+# 追加のバンプは不要としてそのまま 0.118.0 を維持する。
 
 
 edition = "2021"
@@ -1967,7 +1980,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.63.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.64.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

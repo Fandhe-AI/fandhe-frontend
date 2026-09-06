@@ -95,7 +95,7 @@ use hui::scroll_area;
 use hui::skip_nav;
 use hui::splitter;
 use hui::steps::Steps;
-use hui::tour::{Tour, TourAction, TourStep};
+use hui::tour::{Tour, TourAction, TourStep, TourTriggerKind};
 use hui::tree_view;
 use hui::visually_hidden;
 use hui::OpenState;
@@ -1180,7 +1180,21 @@ fn ex_tour_second_step() -> Node {
                                 vec![text("Use this box to search the whole site.")],
                             ),
                             tour.progress_text(vec![], vec![text("Step 2 of 2")]),
-                            tour.action_trigger(vec![], vec![text("Finish")]),
+                            tour.control(
+                                vec![],
+                                vec![
+                                    tour.action_trigger(
+                                        TourTriggerKind::Prev,
+                                        vec![],
+                                        vec![text("Prev")],
+                                    ),
+                                    tour.action_trigger(
+                                        TourTriggerKind::Complete,
+                                        vec![],
+                                        vec![text("Finish")],
+                                    ),
+                                ],
+                            ),
                             tour.close_trigger(vec![], vec![text("×")]),
                         ],
                     ),
@@ -1192,11 +1206,12 @@ fn ex_tour_second_step() -> Node {
 
 pub const TOUR: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Backdrop / Spotlight / Positioner / Arrow / ArrowTip / Content / Title / Description / ProgressText / CloseTrigger / ActionTrigger の 12 anatomy パーツを提供する（tour.rs:1-11）。",
+        "Root / Backdrop / Spotlight / Positioner / Arrow / ArrowTip / Content / Title / Description / ProgressText / Control / CloseTrigger / ActionTrigger の 13 anatomy パーツを提供する（イシュー #1666 で Control を追加、tour.rs:1-13）。",
         "Idle/Active{step}/Skipped/Completed の決定的な状態機械を持ち、終端状態からのいずれのアクションも no-op（一度終了したツアーは暗黙に再開しない、tour.rs:34-52）。",
-        "content は role=\"dialog\" を固定出力し、ContentIds が Some のときのみ aria-labelledby/aria-describedby を出力する（tour.rs:371-395）。",
-        "progress_text は aria-live=\"polite\" を固定出力し、ステップ遷移を支援技術へ読み上げさせる（tour.rs:431-439）。",
-        "対象要素の実座標追従・スポットライト実測値注入・target セレクタの実解決は fandhe-frontend-wasm-full の後続イシューのスコープ（本モジュールは data-target 出力と静的な data-side/data-align のみ、tour.rs:13-21,87-94）。",
+        "content は role=\"dialog\" と tabindex=\"-1\" を固定出力し、ContentIds が Some のときのみ aria-labelledby/aria-describedby を、Active 時のみ現在ステップの id を data-step として出力する（イシュー #1666、tour.rs 参照）。",
+        "action_trigger は TourTriggerKind（Next/Prev/Skip/Complete/Custom）に応じて data-type を出力し、Prev は dispatch が no-op になる境界（先頭ステップ）でのみ disabled/data-disabled を付与する（イシュー #1666）。",
+        "progress_text は aria-live=\"polite\" を固定出力し、ステップ遷移を支援技術へ読み上げさせる。",
+        "対象要素の実座標追従・スポットライト実測値注入・target セレクタの実解決は fandhe-frontend-wasm-full の後続イシューのスコープ（本モジュールは data-target 出力と静的な data-side/data-align のみ）。",
     ],
     arguments: &[
         ArgRow {
@@ -1209,13 +1224,19 @@ pub const TOUR: ComponentPageSpec = ComponentPageSpec {
             name: "content: ids",
             kind: "ContentIds",
             default: "ContentIds::default()",
-            description: "id/aria-labelledby/aria-describedby の関連付け先（tour.rs:195-205,375-395）。",
+            description: "id/aria-labelledby/aria-describedby の関連付け先。",
         },
         ArgRow {
             name: "title/description: id",
             kind: "Option<&str>",
             default: "None",
-            description: "Some のとき content の labelledby/describedby と対にする（tour.rs:397-429）。",
+            description: "Some のとき content の labelledby/describedby と対にする。",
+        },
+        ArgRow {
+            name: "action_trigger: kind",
+            kind: "TourTriggerKind",
+            default: "",
+            description: "Next/Prev/Skip/Complete/Custom のいずれか。data-type 出力と Prev の disabled 判定に使う（イシュー #1666）。",
         },
     ],
     examples: &[ExampleEntry {
@@ -1223,19 +1244,40 @@ pub const TOUR: ComponentPageSpec = ComponentPageSpec {
         description: "2 ステップ構成で 2 番目の step まで進めた例です（Demo は 1 ステップのみ）。",
         render: ex_tour_second_step,
     }],
-    keyboard: &[],
+    keyboard: &[
+        KeyRow {
+            key: "Escape",
+            description: "zag.js は closeOnEscape 既定で dismiss へ写像する（本状態機械では \"skip\" dispatch 相当）。DOM keydown 配線は fandhe-frontend-wasm-full の後続イシューのスコープで未実装（イシュー #1666）。",
+        },
+        KeyRow {
+            key: "ArrowRight / ArrowLeft",
+            description: "zag.js は keyboardNavigation 既定で \"next\"/\"prev\" dispatch へ写像する。DOM keydown 配線は同様に未実装（イシュー #1666）。",
+        },
+        KeyRow {
+            key: "Space / Enter",
+            description: "close_trigger/action_trigger はネイティブ <button type=\"button\"> のため、ブラウザ既定動作としてすでに機能する。",
+        },
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "zag.js は trapFocus([content, target]) で content と対象要素の間で巡回させる。本実装はフォーカストラップを配線しておらず未対応（イシュー #1666）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role=\"dialog\"",
-            description: "content に固定出力する（tour.rs:371-395）。",
+            description: "content に固定出力する。alertdialog（即時応答を要する警告向け）へは非追随（オンボーディング案内は該当しないため、イシュー #1666）。",
+        },
+        AriaRow {
+            attribute: "tabindex=\"-1\"",
+            description: "content に固定出力する（フォーカス移動の受け皿、イシュー #1666）。",
         },
         AriaRow {
             attribute: "aria-labelledby / aria-describedby",
-            description: "ContentIds が Some のときのみ content に出力する（tour.rs:383-391）。",
+            description: "ContentIds が Some のときのみ content に出力する。",
         },
         AriaRow {
             attribute: "aria-live=\"polite\"",
-            description: "progress_text に固定出力する（tour.rs:431-439）。",
+            description: "progress_text に固定出力する。",
         },
     ],
     demo: None,

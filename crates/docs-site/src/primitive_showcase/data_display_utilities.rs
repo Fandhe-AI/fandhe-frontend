@@ -13,7 +13,7 @@ use hui::scroll_area;
 use hui::skip_nav;
 use hui::splitter;
 use hui::steps::Steps;
-use hui::tour::{Tour, TourAction, TourStep};
+use hui::tour::{Tour, TourAction, TourStep, TourTriggerKind};
 use hui::tree_view;
 use hui::visually_hidden;
 use hui::OpenState;
@@ -279,7 +279,21 @@ pub(super) fn tour_section() -> Node {
                                 vec![text("Use this menu to jump between sections.")],
                             ),
                             tour.progress_text(vec![], vec![text("Step 1 of 1")]),
-                            tour.action_trigger(vec![], vec![text("Next")]),
+                            tour.control(
+                                vec![],
+                                vec![
+                                    tour.action_trigger(
+                                        TourTriggerKind::Prev,
+                                        vec![],
+                                        vec![text("Prev")],
+                                    ),
+                                    tour.action_trigger(
+                                        TourTriggerKind::Next,
+                                        vec![],
+                                        vec![text("Next")],
+                                    ),
+                                ],
+                            ),
                             tour.close_trigger(vec![], vec![text("×")]),
                         ],
                     ),

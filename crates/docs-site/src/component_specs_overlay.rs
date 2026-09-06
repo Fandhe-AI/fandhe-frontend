@@ -882,7 +882,7 @@ pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
 /// `aria-live="polite"` の実出力テスト）。
 pub const TOUR: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "オンボーディング向けステップガイド。Root / Backdrop / Spotlight / Positioner / Arrow / ArrowTip / Content / Title / Description / ProgressText / CloseTrigger / ActionTrigger の 12 anatomy パーツを持つ。",
+        "オンボーディング向けステップガイド。Root / Backdrop / Spotlight / Positioner / Arrow / ArrowTip / Content / Title / Description / ProgressText / Control / CloseTrigger / ActionTrigger の 13 anatomy パーツを持つ（イシュー #1666 で Control を追加。styled ラッパ・専用 CSS は Themes 側の後続）。",
         "open/closed の 2 値に加え skipped/completed という終端状態を持つ独自状態機械 Tour（Disclosure/SingleSelect のいずれにも写像できないため Component/Hydrate を直接実装する）。",
         "TourStep::target は DOM 解決を行わず data-target 属性としてエスケープ済みで出力するのみ（実座標追従は wasm-full 側の後続スコープ）。",
         "color-palette variant で root にクラスを付与する。",
