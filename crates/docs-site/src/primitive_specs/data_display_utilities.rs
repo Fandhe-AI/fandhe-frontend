@@ -532,9 +532,10 @@ pub const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
 // Scroll Area（/primitives/scroll-area/）
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/scroll_area.rs:1-46`（モジュール doc、
-/// スコープ外）、`:55-107`（`root`/`viewport`/`content`/`scrollbar`/
-/// `thumb`/`corner` シグネチャと `tabindex`/`aria-hidden` 出力）。
+/// 一次情報: `crates/headless-ui/src/scroll_area.rs:1-90`（モジュール doc、
+/// スコープ外・参考サイトとの突合〔イシュー #1662〕）、`:95-183`
+/// （予約キー定数・`drop_reserved`・`root`/`viewport`/`content`/
+/// `scrollbar`/`thumb`/`corner` シグネチャと `tabindex`/`aria-hidden` 出力）。
 fn ex_scroll_area_horizontal() -> Node {
     scroll_area::root(
         vec![],
@@ -556,40 +557,141 @@ fn ex_scroll_area_horizontal() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1662、`AVATAR_CUSTOM_CSS_SNIPPET` と同型の
+/// パターン）。CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープ
+/// を経由し、`crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは追加
+/// しない。
+///
+/// `scrollbar`/`thumb`/`corner` パーツは JS によるスクロール位置追従・
+/// drag 操作を実装していない静的マークアップ（`crates/headless-ui/
+/// src/scroll_area.rs` モジュール doc「スコープ外」節）であり、これらを
+/// 表示したままネイティブスクロールバーを隠すと、スクロール位置表示・
+/// マウス操作の両方を失う（codex-review P1 指摘、イシュー #1662）。
+/// `crates/pre-styled-ui/src/scroll_area.rs` の実装契約と同じく、
+/// `scrollbar`/`thumb`/`corner` は非表示のまま維持し、ネイティブ
+/// スクロールバー自体を標準プロパティ（`scrollbar-width`/
+/// `scrollbar-color`）+ `::-webkit-scrollbar` 系疑似要素で装飾する
+/// 最小構成を示す。
+const SCROLL_AREA_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"scroll-area\"][data-part=\"root\"] {\n  \
+  position: relative;\n\
+}\n\
+[data-scope=\"scroll-area\"][data-part=\"viewport\"] {\n  \
+  overflow: auto;\n  height: 8rem;\n  \
+  scrollbar-width: thin;\n  scrollbar-color: #9ca3af transparent;\n\
+}\n\
+[data-scope=\"scroll-area\"][data-part=\"viewport\"]::-webkit-scrollbar {\n  \
+  width: 0.5rem;\n  height: 0.5rem;\n\
+}\n\
+[data-scope=\"scroll-area\"][data-part=\"viewport\"]::-webkit-scrollbar-track {\n  \
+  background: transparent;\n\
+}\n\
+[data-scope=\"scroll-area\"][data-part=\"viewport\"]::-webkit-scrollbar-thumb {\n  \
+  background: #9ca3af;\n  border-radius: 9999px;\n\
+}\n\
+[data-scope=\"scroll-area\"][data-part=\"scrollbar\"],\n\
+[data-scope=\"scroll-area\"][data-part=\"thumb\"],\n\
+[data-scope=\"scroll-area\"][data-part=\"corner\"] {\n  \
+  display: none;\n\
+}\n";
+
+fn ex_scroll_area_custom_css() -> Node {
+    let items: Vec<Node> = (1..=6)
+        .map(|n| fandhe_frontend_core::li(vec![], vec![text(format!("Item {n}"))]))
+        .collect();
+    let demo = scroll_area::root(
+        vec![],
+        vec![
+            scroll_area::viewport(
+                vec![],
+                vec![scroll_area::content(
+                    vec![],
+                    vec![fandhe_frontend_core::ul(vec![], items)],
+                )],
+            ),
+            scroll_area::scrollbar(
+                Orientation::Vertical,
+                vec![],
+                vec![scroll_area::thumb(Orientation::Vertical, vec![], vec![])],
+            ),
+            scroll_area::corner(vec![], vec![]),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope/data-part 属性セレクタでネイティブスクロールバーを装飾する最小例です（scrollbar/thumb/corner パーツは静的マークアップのため非表示のまま維持します）。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            demo,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(SCROLL_AREA_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 pub const SCROLL_AREA: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Viewport / Content / Scrollbar / Thumb / Corner の 6 anatomy パーツを提供し、CSS overflow を主体とするスクロール領域を表現する（scroll_area.rs:1-10）。",
-        "viewport は WAI 慣行（矢印キー/Page キーでフォーカス済み要素をスクロールできる）に従い tabindex=\"0\" を固定出力する（scroll_area.rs:61-71）。",
-        "scrollbar/corner はネイティブスクロールバーと意味が重複する装飾要素のため aria-hidden=\"true\" を固定出力する（scroll_area.rs:80-107）。",
-        "JS によるスクロール位置追従・thumb の drag 操作は本モジュールのスコープ外（静的マークアップの受け皿のみを提供、scroll_area.rs:21-32）。",
+        "Root / Viewport / Content / Scrollbar / Thumb / Corner の 6 anatomy パーツを提供し、CSS overflow を主体とするスクロール領域を表現する（scroll_area.rs:1-10）。ark-ui/Zag.js の anatomy（6 パーツ）と完全一致（イシュー #1662 突合）。",
+        "viewport は WAI 慣行（矢印キー/Page キーでフォーカス済み要素をスクロールできる）に従い tabindex=\"0\" を固定出力する（scroll_area.rs:139-146）。SSR では overflow の有無を判定できないため常時付与する安全側の設計（WCAG 2.1.1）。",
+        "scrollbar/corner はネイティブスクロールバーと意味が重複する装飾要素のため aria-hidden=\"true\" を固定出力する（scroll_area.rs:157-183）。",
+        "呼び出し側 attrs による固定属性（tabindex/aria-hidden/data-orientation）のなりすまし・重複出力を drop_reserved で除去する（scroll_area.rs:116-127、イシュー #1662）。",
+        "ark-ui/Zag.js・Radix Primitives・chakra-ui・Radix Themes の 4 参照サイトと突合済み（イシュー #1662）。anatomy は増減なし。参照側の data-overflow-*/data-at-*/data-hover/data-scrolling/data-dragging・Radix の data-state（いずれも DOM 計測・ポインタ操作由来）は SSR で真の値を決定できないため意図的に非採用（`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。Zag.js の role=\"presentation\" も、viewport が tabindex=\"0\" でフォーカス可能なため WAI-ARIA 1.2 §5.4 により無視される値として非採用。",
     ],
     arguments: &[
         ArgRow {
             name: "scrollbar/thumb: orientation",
             kind: "Orientation",
             default: "",
-            description: "data-orientation 属性値（scroll_area.rs:85-97）。",
+            description: "data-orientation 属性値（scroll_area.rs:157-176）。値語彙は vertical/horizontal の 2 値のみ。",
         },
         ArgRow {
             name: "viewport: attrs, children",
             kind: "Vec<(&str, &str)>, Vec<Node>",
             default: "vec![], vec![]",
-            description: "tabindex=\"0\" は固定出力のため呼び出し側から指定する引数ではない（scroll_area.rs:67-72）。",
+            description: "tabindex=\"0\" は固定出力のため呼び出し側から指定する引数ではない（drop_reserved が除去、scroll_area.rs:139-146）。読み上げ名が必要な場合は aria-label/aria-labelledby を attrs へ付与することを推奨する。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Horizontal scroll area",
-        description: "水平方向のスクロールバー配置例です（Demo は垂直方向）。",
-        render: ex_scroll_area_horizontal,
-    }],
-    keyboard: &[KeyRow {
-        key: "Tab",
-        description: "viewport は tabindex=\"0\" を固定出力するため通常の Tab 順序に含まれる（scroll_area.rs:61-71）。矢印キー/Page キーによる実際のスクロール操作はブラウザネイティブの挙動に依拠し、本モジュールは属性出力のみを担う。",
-    }],
-    aria: &[AriaRow {
-        attribute: "aria-hidden=\"true\"",
-        description: "scrollbar/corner に固定出力する（scroll_area.rs:80-107）。thumb/viewport/content/root は role/aria-* を出力しない。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Horizontal scroll area",
+            description: "水平方向のスクロールバー配置例です（Demo は垂直・水平の両軸 + corner）。",
+            render: ex_scroll_area_horizontal,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/data-orientation 属性セレクタでスクロールバー表現を当てる例です。",
+            render: ex_scroll_area_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "viewport は tabindex=\"0\" を固定出力するため通常の Tab 順序に含まれる（scroll_area.rs:139-146）。",
+        },
+        KeyRow {
+            key: "↑ / ↓ / ← / →",
+            description: "フォーカス済み viewport 上でのネイティブスクロール（本モジュールは独自のキーイベントリスナを持たず、ブラウザ既定動作に委ねる。Radix Primitives docs も同じ方針を明記、イシュー #1662 突合）。",
+        },
+        KeyRow {
+            key: "PageUp / PageDown / Home / End",
+            description: "ネイティブスクロールのページ単位・端への移動（ブラウザ既定動作、独自リスナなし）。",
+        },
+        KeyRow {
+            key: "Space / Shift+Space",
+            description: "ネイティブスクロールの前方/後方ページ送り（ブラウザ既定動作、独自リスナなし）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "scrollbar/corner に固定出力する（scroll_area.rs:157-183）。ネイティブスクロールバーとの意味重複を明示する目的（両参照サイトにはない本実装独自の付与、イシュー #1662）。",
+        },
+        AriaRow {
+            attribute: "(該当なし)",
+            description: "root/viewport/content は role/aria-* を出力しない。Zag.js の role=\"presentation\" は、viewport が tabindex=\"0\" でフォーカス可能なため WAI-ARIA 1.2 §5.4 により UA に無視される値であり、Radix Primitives（role 非付与）に整合する形で追加していない（イシュー #1662 突合）。",
+        },
+    ],
     demo: None,
 };
 
