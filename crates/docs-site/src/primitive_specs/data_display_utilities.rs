@@ -561,33 +561,39 @@ fn ex_scroll_area_horizontal() -> Node {
 /// パターン）。CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープ
 /// を経由し、`crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
 /// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは追加
-/// しない。viewport のネイティブスクロールバーを隠し（`scrollbar-width:
-/// none` + WebKit 系の疑似要素非表示）、`[data-orientation]` で縦横それぞれの
-/// scrollbar/thumb を端に絶対配置する最小構成を示す。
+/// しない。
+///
+/// `scrollbar`/`thumb`/`corner` パーツは JS によるスクロール位置追従・
+/// drag 操作を実装していない静的マークアップ（`crates/headless-ui/
+/// src/scroll_area.rs` モジュール doc「スコープ外」節）であり、これらを
+/// 表示したままネイティブスクロールバーを隠すと、スクロール位置表示・
+/// マウス操作の両方を失う（codex-review P1 指摘、イシュー #1662）。
+/// `crates/pre-styled-ui/src/scroll_area.rs` の実装契約と同じく、
+/// `scrollbar`/`thumb`/`corner` は非表示のまま維持し、ネイティブ
+/// スクロールバー自体を標準プロパティ（`scrollbar-width`/
+/// `scrollbar-color`）+ `::-webkit-scrollbar` 系疑似要素で装飾する
+/// 最小構成を示す。
 const SCROLL_AREA_CUSTOM_CSS_SNIPPET: &str = "\
 [data-scope=\"scroll-area\"][data-part=\"root\"] {\n  \
   position: relative;\n\
 }\n\
 [data-scope=\"scroll-area\"][data-part=\"viewport\"] {\n  \
-  overflow: auto;\n  height: 8rem;\n  scrollbar-width: none;\n\
+  overflow: auto;\n  height: 8rem;\n  \
+  scrollbar-width: thin;\n  scrollbar-color: #9ca3af transparent;\n\
 }\n\
 [data-scope=\"scroll-area\"][data-part=\"viewport\"]::-webkit-scrollbar {\n  \
-  display: none;\n\
+  width: 0.5rem;\n  height: 0.5rem;\n\
 }\n\
-[data-scope=\"scroll-area\"][data-part=\"scrollbar\"] {\n  \
-  position: absolute;\n  background: #e5e7eb;\n\
+[data-scope=\"scroll-area\"][data-part=\"viewport\"]::-webkit-scrollbar-track {\n  \
+  background: transparent;\n\
 }\n\
-[data-scope=\"scroll-area\"][data-part=\"scrollbar\"][data-orientation=\"vertical\"] {\n  \
-  top: 0;\n  right: 0;\n  bottom: 0;\n  width: 0.5rem;\n\
+[data-scope=\"scroll-area\"][data-part=\"viewport\"]::-webkit-scrollbar-thumb {\n  \
+  background: #9ca3af;\n  border-radius: 9999px;\n\
 }\n\
-[data-scope=\"scroll-area\"][data-part=\"scrollbar\"][data-orientation=\"horizontal\"] {\n  \
-  left: 0;\n  right: 0;\n  bottom: 0;\n  height: 0.5rem;\n\
-}\n\
-[data-scope=\"scroll-area\"][data-part=\"thumb\"] {\n  \
-  position: absolute;\n  background: #9ca3af;\n  border-radius: 9999px;\n\
-}\n\
+[data-scope=\"scroll-area\"][data-part=\"scrollbar\"],\n\
+[data-scope=\"scroll-area\"][data-part=\"thumb\"],\n\
 [data-scope=\"scroll-area\"][data-part=\"corner\"] {\n  \
-  position: absolute;\n  right: 0;\n  bottom: 0;\n  width: 0.5rem;\n  height: 0.5rem;\n\
+  display: none;\n\
 }\n";
 
 fn ex_scroll_area_custom_css() -> Node {
@@ -613,7 +619,7 @@ fn ex_scroll_area_custom_css() -> Node {
         ],
     );
     wrap_example(
-        "利用者が data-scope/data-part/data-orientation 属性セレクタで自前のスクロールバー表現を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        "利用者が data-scope/data-part 属性セレクタでネイティブスクロールバーを装飾する最小例です（scrollbar/thumb/corner パーツは静的マークアップのため非表示のまま維持します）。headless-ui 自体はスタイルを持ちません。",
         vec![
             demo,
             pre(

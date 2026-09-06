@@ -12,6 +12,6 @@
 - `viewport` の `tabindex="0"` 固定は維持しています。SSR では `overflow` の有無を判定できないため、WCAG 2.1.1（スクロール領域のキーボード到達性）に対して安全側に倒す設計です。
 - `scrollbar`/`corner` の `aria-hidden="true"` は両参照サイトにはない本実装独自の付与ですが、ネイティブスクロールバーとの意味重複を明示する目的で付与しています。
 - キーボード操作は独自のキーハンドラを持たず、矢印キー/PageUp・PageDown/Home・End/Space などはブラウザのネイティブスクロール挙動に委ねます（Radix Primitives docs も同方針を明記）。
-- 自前 CSS で組み立てる最小例は [API Reference](../../docs/api/headless-ui-api.md) の Scroll Area 節を参照してください。
+- 自前 CSS で組み立てる最小例はこのページ下部の Examples 節（「自前 CSS の最小例」）を参照してください。
 
 関連 API: [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)
