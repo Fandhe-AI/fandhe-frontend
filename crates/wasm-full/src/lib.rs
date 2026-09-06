@@ -1430,16 +1430,10 @@ where
     /// （それ以外では利用者のフォーカスを奪わない、fail-closed。回帰テストは
     /// `thumb_focus_is_restored_after_structural_fallback_on_keydown`）。
     ///
-    /// なお `Self::wire_signature_pad` は同型の露出（ストローク中の
-    /// 描画領域要素〔`control` / `segment` / `segment-path`、SVG ベース〕
-    /// detach）を依然として抱える。SignaturePad 側はストローク中の座標列を
-    /// 配線ローカルの [`headless_signature_pad::StrokeCollector`] が保持し、
-    /// 描画領域要素には `set_pointer_capture` による pointer capture のみが
-    /// 掛かる。capture 喪失で stale 化した追跡は
-    /// `StrokeCollector::release_if_stale`（イシュー #1992）が次の
-    /// pointermove で自己解除する（fail-closed）。detach をまたいで
-    /// ストロークを継続させる対策は本節の `DragState` 方式をそのまま
-    /// 流用できず別の設計判断を要する（イシュー #1991 で追跡）。
+    /// なお `Self::wire_signature_pad` 側の同型露出（ストローク中の描画
+    /// 要素 detach）はイシュー #1991（#1992 の stale 自己解錠 + #1993 の
+    /// capture 再付与）で是正済み。`headless_signature_pad.rs` モジュール
+    /// doc「pointer capture の再付与」節参照。
     ///
     /// # AngleSlider 自身の `aria-valuenow`/`aria-valuetext` を更新するには
     /// アプリ側の束縛点配線が必要（イシュー #1956 レビュー指摘）
@@ -1540,11 +1534,11 @@ where
     /// の `angle_slider::wiring::restore_thumb_focus` と同型の
     /// 条件（元の resize-trigger が実際に detach された・再描画後の
     /// 同じ resize-trigger を一意に再解決できた場合に限る、fail-closed）で
-    /// フォーカスを復元する。`Self::wire_signature_pad` は同型の露出
-    /// （ストローク中の描画領域要素〔`control` / `segment` /
-    /// `segment-path`、SVG ベース〕detach）を依然として抱える。詳細は
-    /// [`Self::wire_angle_slider`] の doc 中「keydown 経路のフォーカス
-    /// 継続」節を参照（イシュー #1991 で追跡中）。
+    /// フォーカスを復元する。`Self::wire_signature_pad` 側の同型露出
+    /// （ストローク中の描画要素 detach）はイシュー #1991（#1992 の stale
+    /// 自己解錠 + #1993 の capture 再付与）で是正済み。
+    /// `headless_signature_pad.rs` モジュール doc「pointer capture の
+    /// 再付与」節参照。
     ///
     /// # Errors
     ///
