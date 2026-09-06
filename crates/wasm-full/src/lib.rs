@@ -1587,8 +1587,10 @@ where
     ///
     /// # fail-closed（SignaturePad 非搭載アプリへの副作用なし）
     ///
-    /// `root` 配下に SignaturePad の Canvas/ClearTrigger パーツが存在しない
-    /// 場合、`wire_signature_pad_component` 内のポインタ/クリック判定が
+    /// `root` 配下に SignaturePad の描画領域（Control / Segment /
+    /// SegmentPath、`headless_signature_pad::is_drawable_part` が受理する
+    /// 3 パーツ）/ ClearTrigger パーツが存在しない場合、
+    /// `wire_signature_pad_component` 内のポインタ/クリック判定が
     /// scope/part 不一致で早期 return するため、SignaturePad を使わない
     /// アプリへの影響はない。
     ///
