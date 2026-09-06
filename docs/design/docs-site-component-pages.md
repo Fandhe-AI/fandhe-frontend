@@ -154,6 +154,7 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Em | `em` | Typography | `/themes/em/` | `site/themes/em.md` | （typography_section 内包） |
 | Empty State | `empty_state` | Data Display | `/themes/empty-state/` | `site/themes/empty-state.md` | `empty_state_section()` |
 | Field | `field` | Forms | `/themes/field/` | `site/themes/field.md` | `field_section()`（#1685 で新設） |
+| Fieldset | `fieldset` | Forms | `/themes/fieldset/` | `site/themes/fieldset.md` | `fieldset_section()`（#1687 で新設） |
 | File Upload | `file_upload` | Forms | `/themes/file-upload/` | `site/themes/file-upload.md` | `file_upload_section()` |
 | Floating Panel | `floating_panel` | Interactive | `/themes/floating-panel/` | `site/themes/floating-panel.md` | `floating_panel_section()` |
 | Heading | `heading` | Typography | `/themes/heading/` | `site/themes/heading.md` | （typography_section 内包） |
@@ -267,9 +268,10 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 - **Typography (12、イシュー #995 で `quote`/`strong` を追加)**:
   `blockquote` `code` `em` `heading` `highlight` `kbd` `link` `list` `mark`
   `quote` `strong` `text`
-- **Forms (32、イシュー #1685 で `field` を追加)**: `angle_slider` `button`
+- **Forms (33、イシュー #1685 で `field`・#1687 で `fieldset` を追加)**: `angle_slider` `button`
   `calendar` `checkbox` `checkbox_card` `color_picker` `combobox`
   `date_input` `date_picker` `download_trigger` `editable` `field`
+  `fieldset`
   `file_upload` `image_cropper` `input` `listbox` `native_select`
   `number_input` `password_input` `pin_input` `radio_card` `radio_group`
   `rating_group` `segment_group` `select` `signature_pad` `slider` `switch`

@@ -57,6 +57,7 @@ use fandhe_frontend_pre_styled_ui::editable::{
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetRootProps};
 use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
@@ -825,6 +826,103 @@ fn field_root_and_reexported_parts_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "field id 由来 helper_text id コンテキスト");
         let html = render(&field::error_text(&f, vec![], vec![]));
         assert_payload_is_escaped(payload, &html, "field id 由来 error_text id コンテキスト");
+    }
+}
+
+/// (7c) styled Fieldset `root` 経路（イシュー #1686）: 呼び出し側 `attrs`・
+/// `class`、選択的再エクスポートした `legend`/`helper_text`/`error_text` の
+/// children、`FieldsetProps::id` から派生する `id`/`aria-describedby`
+/// 属性値のいずれの経路でも既定エスケープ（REQ-1）が貫通することを固定
+/// する（(7b) `field` と同粒度）。
+#[test]
+fn fieldset_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    fn fieldset_props(id: &str) -> fandhe_frontend_pre_styled_ui::fieldset::FieldsetProps<'_> {
+        fandhe_frontend_pre_styled_ui::fieldset::FieldsetProps {
+            id,
+            disabled: false,
+            invalid: false,
+            has_helper_text: false,
+        }
+    }
+
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let f = fieldset_props("f");
+        let html = render(&fieldset::root(
+            &FieldsetRootProps::default(),
+            &f,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "fieldset::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（drop_class_attr により
+        // 生ペイロードは出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let f = fieldset_props("f");
+        let html = render(&fieldset::root(
+            &FieldsetRootProps::default(),
+            &f,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "fieldset::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-fieldset--size-"));
+
+        // 選択的再エクスポート（legend/helper_text/error_text）の children
+        // 経路。
+        let f = fieldset_props("f");
+        let html = render(&fieldset::legend(&f, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "fieldset::legend children コンテキスト");
+
+        let f = fieldset_props("f");
+        let html = render(&fieldset::helper_text(&f, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset::helper_text children コンテキスト",
+        );
+
+        let mut f = fieldset_props("f");
+        f.invalid = true;
+        let html = render(&fieldset::error_text(&f, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "fieldset::error_text children コンテキスト");
+
+        // `FieldsetProps::id` から派生する `id`/`aria-describedby` 属性値
+        // 経路（`legend`/`helper_text`/`error_text` の id、invalid +
+        // has_helper_text の aria-describedby 合成）。
+        let mut f = fieldset_props(payload);
+        f.has_helper_text = true;
+        f.invalid = true;
+        let html = render(&fieldset::legend(&f, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "fieldset id 由来 legend id コンテキスト");
+        let html = render(&fieldset::helper_text(&f, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset id 由来 helper_text id コンテキスト",
+        );
+        let html = render(&fieldset::error_text(&f, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset id 由来 error_text id コンテキスト",
+        );
+        let html = render(&fieldset::root(
+            &FieldsetRootProps::default(),
+            &f,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "fieldset id 由来 root aria-describedby コンテキスト",
+        );
     }
 }
 
@@ -2595,12 +2693,17 @@ fn separator_attrs_and_class_are_escaped_for_all_payloads() {
     }
 }
 
-/// (11) progress 経路（circle 対応、イシュー #763）: styled `root` の
+/// (11) progress 経路（circle 対応、イシュー #763/#1688）: styled `root` の
 /// `aria_valuetext` 引数・呼び出し側 `attrs`・`class`、および headless
 /// `Progress` の inherent メソッド（`circle`/`circle_track`/`circle_range`。
 /// styled 層の独自ラッパーを持たず headless をそのまま呼ぶ契約、
 /// `crates/pre-styled-ui/src/progress.rs` rustdoc 参照）の呼び出し側
 /// `attrs` すべてで既定エスケープ（REQ-1）が貫通することを固定する。
+/// イシュー #1688 で circle-range へ indeterminate 専用の固定弧 CSS
+/// （`decl()` の固定リテラルのみで構成、外部入力は混入しない）を追加した
+/// ことに伴い、indeterminate な `Progress`（`value = None`）でも同様に
+/// `circle`/`circle_track`/`circle_range`/styled `range` の呼び出し側
+/// `attrs` 経路が既定エスケープを貫通することを追加で固定する。
 #[test]
 fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads() {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
@@ -2608,6 +2711,7 @@ fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads()
     use fandhe_frontend_pre_styled_ui::progress::{self, ProgressProps};
 
     let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+    let indeterminate_p = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
 
     for payload in payloads::all() {
         // styled root の aria_valuetext 引数経路。
@@ -2706,6 +2810,55 @@ fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads()
         assert!(
             html.contains("--fandhe-progress-percent: 40%"),
             "progress::range で percent style が失われている: html={html}"
+        );
+
+        // イシュー #1688: indeterminate（`value = None`）経路。circle 系
+        // 3 parts の呼び出し側 attrs、および styled range の呼び出し側
+        // attrs/style（indeterminate では style を一切出力しない headless
+        // 契約、モジュール冒頭 rustdoc「indeterminate アニメーション」節
+        // 参照）を通しても既定エスケープが貫通することを確認する。
+        let html = render(&indeterminate_p.circle(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "indeterminate Progress::circle 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&indeterminate_p.circle_track(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "indeterminate Progress::circle_track 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&indeterminate_p.circle_range(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "indeterminate Progress::circle_range 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&progress::range(
+            &indeterminate_p,
+            vec![("data-testid", payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "indeterminate progress::range 呼び出し側 attrs コンテキスト",
+        );
+
+        // indeterminate progress::range は drop_style_attr で呼び出し側
+        // style を除去した上で、headless 契約どおり style 属性を一切
+        // 出力しない（percent が存在しないため）。
+        let html = render(&progress::range(&indeterminate_p, vec![("style", payload)]));
+        assert!(
+            !html.contains(payload),
+            "indeterminate progress::range の style 属性に渡した生ペイロードが              出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains("style="),
+            "indeterminate progress::range が style 属性を出力している: html={html}"
         );
     }
 }
@@ -4498,5 +4651,41 @@ fn bar_charts_category_series_and_aria_label_are_escaped_for_all_payloads() {
             &html,
             "bar_segment::root legend ラベル children コンテキスト",
         );
+    }
+}
+
+/// (27) `dialog::footer` 経路（イシュー #1690、親 #1675）: pre-styled-only
+/// `footer` パート（`Anatomy::part` 直接呼び出し、`crate::card::footer` と
+/// 同型）の children・呼び出し側 `attrs` の両方で既定エスケープ（REQ-1）が
+/// 貫通することを固定する。あわせて `data-scope`/`data-part` の偽装が
+/// headless 層（`Anatomy::part`）により除去され、生値が出力に残らないこと
+/// も固定する。
+#[test]
+fn dialog_footer_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // children 経路。
+        let html = render(&dialog::footer(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "dialog::footer children コンテキスト");
+
+        // 呼び出し側 attrs（data-testid）経路。
+        let html = render(&dialog::footer(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "dialog::footer 呼び出し側 attrs コンテキスト",
+        );
+
+        // data-scope/data-part 偽装は headless `Anatomy::part` が除去する。
+        let html = render(&dialog::footer(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "dialog::footer の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="dialog""#));
+        assert!(html.contains(r#"data-part="footer""#));
     }
 }

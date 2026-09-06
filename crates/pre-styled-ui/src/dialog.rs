@@ -4,6 +4,9 @@
 //! `fandhe_frontend_headless_ui::dialog`（イシュー #531）の Root / Trigger /
 //! Backdrop / Positioner / Content / Title / Description / CloseTrigger
 //! 8 anatomy パーツを再エクスポートし、[`stylesheet`] で既定 CSS を追加提供する。
+//! イシュー #1690（親 #1675）で `footer`（pre-styled-only レイアウトパート、
+//! alert-dialog 構成のアクション列）を追加し、`SLOTS` は headless 8 パート +
+//! pre-styled-only 1 パートの計 9 件になった（詳細は下記「alert-dialog 構成」節）。
 //!
 //! # 選択的 re-export（`pub use ...::*` を使わない理由、`Dialog` 型・headless
 //! `root` を再エクスポートしない理由、イシュー #729）
@@ -156,15 +159,13 @@
 //!   へ新規サポートとして追加する設計（`recipe.rs` は全 styled 部品が
 //!   共有する基盤であり、fail-closed 検証・出力順序・
 //!   `tests/recipe_css.rs` 契約への影響を伴う横断判断が必要）
-//! - **footer 相当のアクション配置**: headless anatomy に `footer` パートが
-//!   存在せず、[`crate::recipe::SlotRecipe`] は子孫セレクタ機構を持たない
-//!   （イシュー #708 で不採用確定）ため、専用 footer パートの CSS を
-//!   pre-styled 側だけで新設することはできない。本イシューでは
-//!   `description` の下余白確保までに留め、showcase デモ
-//!   （`crates/docs-site/src/showcase.rs::dialog_section`）でアクション行の
-//!   掲示例を示す。`dialog` への `footer` anatomy パート追加は headless-ui
-//!   の anatomy 変更を伴うため、別イシュー・ユーザー承認が必要な対象外事項
-//!   として記録する（`.claude/rules/out-of-scope-tracking.md` 対応）。
+//! - **footer 相当のアクション配置**: 当時は headless anatomy に `footer`
+//!   パートが存在せず、[`crate::recipe::SlotRecipe`] は子孫セレクタ機構を
+//!   持たない（イシュー #708 で不採用確定）ため、専用 footer パートの CSS を
+//!   pre-styled 側だけで新設することはできなかった。イシュー #1690（親
+//!   #1675）で、headless-ui へは手を加えず**本モジュールが独自に**
+//!   `data-scope="dialog"` 配下へ `footer` パートを新設することで解消した
+//!   （詳細は下記「alert-dialog 構成」節）。
 //!
 //! # closed 時の `positioner` は必ず非表示化する（PR #575 Bugbot 指摘対応、High）
 //!
@@ -231,6 +232,69 @@
 //!   変える variant 軸の追加はしない。title / description / close-trigger /
 //!   `data-state` 開閉トランジション・`prefers-reduced-motion` 対応は
 //!   兄弟イシュー #1693 の担当であり本イシューでは触れない。
+//!
+//! # alert-dialog 構成（イシュー #1690、親 #1675）
+//!
+//! Radix Primitives / Radix Themes は `AlertDialog` を `Dialog` と別部品として
+//! 持つが、参照サイトの content（面パネル）自体の見た目は Dialog と同一で
+//! あり、差分は「アクション列（確認 / キャンセルのボタン群）」と
+//! 「close ボタンの有無」だけである（Radix は close ボタンを持たず外側
+//! クリックでも閉じない、chakra は `Dialog.Footer` + `role="alertdialog"`
+//! で表現し close ボタンは残す）。本モジュールは alert-dialog を独立部品や
+//! 新しい `VariantValue` 軸としては追加せず、次の要素の**組み合わせ**として
+//! 表現する:
+//!
+//! 1. `role`（`role="alertdialog"`）: [`content`] に渡す
+//!    [`DialogRole::Alertdialog`]（headless 層の既存責務、本モジュールは
+//!    変更しない）。
+//! 2. 外側クリックで閉じない: `role="alertdialog"` の dialog に対し
+//!    `crates/wasm-full/src/overlay.rs` が `close_on_interact_outside` を
+//!    既定で false にする（wasm-full 層の既存責務）。
+//! 3. アクション列のレイアウト: 本イシューで新設する [`footer`]（下記
+//!    「pre-styled-only `footer` パート」節参照）。
+//! 4. アクション強調の型: 既存の [`crate::button::button`] を
+//!    `ButtonVariant::Solid` + `ColorPalette::Danger`（破壊的確認アクション）
+//!    と `ButtonVariant::Outline`（キャンセル）の組み合わせで呼び出す
+//!    （新規 API は追加しない。Radix の `Cancel`/`Action` パート、chakra の
+//!    `ActionTrigger` 相当は headless 側で既に不採用と決定済み）。
+//! 5. close ボタンの要否: [`close_trigger`] は呼び出し側の任意判断で
+//!    footer と併用（chakra 流）または省略（Radix 流）する。
+//!
+//! ## pre-styled-only `footer` パート
+//!
+//! [`footer`] は本モジュールが独自に追加する**レイアウト専用**パートで
+//! あり、`data-scope="dialog"` 配下の 9 番目の part になる（headless 由来の
+//! 8 パート + 本パート）。層の割り当て根拠は
+//! `docs/policy/intentional-non-adoption.md` §3.25 規則 2（参照元が
+//! primitives 層へ持ち込んでいる装飾・レイアウトの関心は headless へ持ち
+//! 込まず、必要なら pre-styled-ui の責務とする）である。headless-ui 側の
+//! anatomy は変更しない（headless-ui rustdoc は引き続き「footer 相当の
+//! アクション配置は Themes 側で設計する」という既存の申し送りのままで
+//! 矛盾しない）。
+//!
+//! [`crate::recipe::SlotRecipe`] は子孫セレクタ機構を持たない（イシュー
+//! #708 で不採用確定）ため、[`footer`] は headless の
+//! `fandhe_frontend_headless_ui::anatomy::Anatomy::part`
+//! を直接呼び出す（[`crate::card::footer`] と同型のパターン。呼び出し側の
+//! `data-scope`/`data-part` 偽装は `Anatomy::part` が fail-closed に除去する
+//! 既存保証をそのまま継承する）。
+//!
+//! [`footer`] の CSS は次の 5 宣言のみを持つ（アクション・送信・閉鎖などの
+//! アプリケーションロジックやイベント配線は一切持たない、`docs/policy/
+//! intentional-non-adoption.md` §3.25 規則 1 の遵守）:
+//!
+//! - `display: flex` / `align-items: center` / `justify-content: flex-end`
+//!   / `gap: var(--fandhe-space-3)`: Radix Themes（`Flex gap="3" ...
+//!   justify="end"`）・chakra `Dialog.Footer`（`gap: 3`・`justify:
+//!   "flex-end"`）を `--fandhe-space-*` スケール（イシュー #1423）へ
+//!   写像した値。
+//! - `margin-block-start: var(--fandhe-space-4)`: アクション列と本文
+//!   （`description`）との縦の間隔。Radix Themes の `mt="4"` に対応する。
+//!   `description` の `margin: 0 0 var(--fandhe-space-4) 0` と隣接するが、
+//!   `content` は通常ブロックの兄弟要素間マージンであり相殺（collapse）
+//!   するため、実効間隔は `--fandhe-space-4` 1 段分になる（`content` は
+//!   `display: flex` を宣言しないため、margin collapse の対象になる点に
+//!   注意）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -254,11 +318,27 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 // `fandhe-frontend-pre-styled-ui` のみに依存して呼び出せることを保証するための
 // 明示再エクスポート（イシュー #685）。
 pub use fandhe_frontend_headless_ui::state::{DisclosureAction, OpenState};
+// イシュー #1690: pre-styled-only `footer` パート（[`footer`] 関数）が
+// headless の `Anatomy::part` を直接呼び出すために必要
+// （[`crate::card::footer`] と同型のパターン）。
+use fandhe_frontend_headless_ui::{anatomy, Anatomy};
+
+/// `data-scope="dialog"` を固定した本モジュール独自パート（`footer`）用の
+/// anatomy（イシュー #1690）。headless-ui 側の `dialog::ANATOMY`
+/// （`crates/headless-ui/src/dialog.rs`）とは別のインスタンスだが `scope`
+/// 文字列は同一値であり、出力される `data-scope` 属性値は一致する。
+const ANATOMY: Anatomy = anatomy("dialog");
 
 /// headless `dialog` anatomy の `data-part` 一覧（`crates/headless-ui/src/dialog.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約。ずれると [`stylesheet`] が
 /// 一部パーツの CSS を出力しない fail-closed 側の不具合として現れるため、
 /// 変更時は両ファイルを合わせて確認する）。
+///
+/// イシュー #1690 で `footer`（pre-styled-only レイアウトパート、alert-dialog
+/// 構成のアクション列。headless-ui の anatomy には存在しない、本モジュール
+/// だけが出力する部分）を `description` と `close-trigger` の間（DOM 上の
+/// 想定位置）へ追加した。以後 `SLOTS` は「headless 8 パート + pre-styled-only
+/// 1 パート」の計 9 件になる。
 const SLOTS: &[&str] = &[
     "root",
     "trigger",
@@ -267,6 +347,7 @@ const SLOTS: &[&str] = &[
     "content",
     "title",
     "description",
+    "footer",
     "close-trigger",
 ];
 
@@ -366,6 +447,20 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg-muted)"),
                 decl("line-height", "var(--fandhe-font-line-height-normal)"),
                 decl("margin", "0 0 var(--fandhe-space-4) 0"),
+            ],
+        )
+        // イシュー #1690: pre-styled-only `footer` パート（alert-dialog
+        // 構成のアクション列）。レイアウトのみを担い、アプリケーション
+        // ロジック・イベント配線を持たない（モジュール冒頭 rustdoc
+        // 「alert-dialog 構成」節参照）。
+        .base(
+            "footer",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "flex-end"),
+                decl("gap", "var(--fandhe-space-3)"),
+                decl("margin-block-start", "var(--fandhe-space-4)"),
             ],
         )
         .base(
@@ -612,10 +707,34 @@ pub fn root<'a>(
     fandhe_frontend_headless_ui::dialog::root(state, merged, children)
 }
 
+/// pre-styled-only `footer` パート（`<div>`、イシュー #1690）を組み立てる。
+/// alert-dialog 構成のアクション列（確認 / キャンセルのボタン群）を
+/// 横並びに配置するレイアウト専用パートであり、headless-ui の anatomy には
+/// 存在しない（本モジュール冒頭 rustdoc「alert-dialog 構成」節参照）。
+/// アプリケーションロジック（送信・閉鎖などのイベント配線）は持たない。
+///
+/// [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] を直接呼び出す
+/// （[`crate::card::footer`] と同型）ため、呼び出し側 `attrs` に含まれる
+/// `data-scope`/`data-part` の偽装は headless 層が fail-closed に除去する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::dialog;
+///
+/// let node = dialog::footer(vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="dialog" data-part="footer""#));
+/// ```
+#[must_use]
+pub fn footer<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("footer", "div", attrs, children)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fandhe_frontend_core::render;
+    use fandhe_frontend_core::{render, text};
     use fandhe_frontend_headless_ui::state::OpenState;
 
     #[test]
@@ -718,6 +837,62 @@ mod tests {
         let html = render(&root(Size::Md, OpenState::Closed, vec![], vec![]));
         assert!(html.contains(r#"data-scope="dialog""#));
         assert!(html.contains(r#"data-part="root""#));
+    }
+
+    // --- イシュー #1690: pre-styled-only `footer` パート ---
+
+    #[test]
+    fn footer_renders_as_div_with_dialog_scope_and_footer_part() {
+        let html = render(&footer(vec![], vec![text("Cancel / Confirm")]));
+        assert!(html.starts_with(r#"<div data-scope="dialog" data-part="footer""#));
+        assert!(html.contains("Cancel / Confirm"));
+    }
+
+    #[test]
+    fn footer_drops_caller_supplied_scope_and_part_spoofing() {
+        // `Anatomy::part` の既存保証（headless 層）の継承を固定する: 呼び出し
+        // 側が `data-scope`/`data-part` を偽装しても本物の値のみが残る。
+        let html = render(&footer(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="dialog""#));
+        assert!(html.contains(r#"data-part="footer""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn footer_selector_declares_flex_end_action_row_layout() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="dialog"][data-part="footer"] {"#));
+        let footer_start = css
+            .find(r#"[data-scope="dialog"][data-part="footer"] {"#)
+            .expect("footer base rule must be present");
+        let footer_end = css[footer_start..].find('}').unwrap() + footer_start;
+        let footer_rule = &css[footer_start..footer_end];
+        assert!(footer_rule.contains("display: flex;"));
+        assert!(footer_rule.contains("align-items: center;"));
+        assert!(footer_rule.contains("justify-content: flex-end;"));
+        assert!(footer_rule.contains("gap: var(--fandhe-space-3);"));
+        assert!(footer_rule.contains("margin-block-start: var(--fandhe-space-4);"));
+    }
+
+    #[test]
+    fn footer_selector_is_positioned_between_description_and_close_trigger() {
+        // SLOTS 宣言順が golden の出力順を決める契約（`SlotRecipe::css`）の
+        // 回帰: `footer` が `description` と `close-trigger` の間に出力される。
+        let css = stylesheet();
+        let description_pos = css
+            .find(r#"[data-scope="dialog"][data-part="description"] {"#)
+            .expect("description base rule must be present");
+        let footer_pos = css
+            .find(r#"[data-scope="dialog"][data-part="footer"] {"#)
+            .expect("footer base rule must be present");
+        let close_trigger_pos = css
+            .find(r#"[data-scope="dialog"][data-part="close-trigger"] {"#)
+            .expect("close-trigger base rule must be present");
+        assert!(description_pos < footer_pos);
+        assert!(footer_pos < close_trigger_pos);
     }
 
     // --- イシュー #729: size variant ---

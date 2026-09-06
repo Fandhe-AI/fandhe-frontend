@@ -480,7 +480,49 @@ name = "fandhe-frontend-headless-ui"
 # `CarouselAction` への `First`/`Last` variant 追加は exhaustive match
 # 利用者に対し破壊的なため、0.x の破壊的変更はマイナーバンプする規約に
 # 従いマイナーバンプで 0.62.0 とする。
-version = "0.62.0"
+# イシュー #1664（splitter の参照突合）: `splitter::panel` へ
+# `index: usize` 引数を追加（`data-index`/`data-id` 出力のため）・
+# `splitter::resize_trigger`/`Splitter::resize_trigger` の `controls: &str`
+# 単一引数を `leading_id: &str, trailing_id: &str` へ置換（`aria-controls`/
+# `data-id` を隣接 2 パネルへ拡張するため）した破壊的変更に伴い、0.x の
+# 破壊的変更規約に従いマイナーバンプで 0.62.0 とする（`SplitterAction`
+# variant 追加・`drop_reserved` 導入自体は非破壊的だが、上記シグネチャ
+# 変更が破壊的のため合わせてマイナーバンプする）。
+# イシュー #1665（steps の参照突合）: `Steps::prev_trigger`/
+# `Steps::next_trigger` への `data-disabled` 加算・`Steps::trigger`/
+# `Steps::content`/`Steps::completed_content` への `data-orientation` 加算・
+# `Steps::progress` パーツ新設・全パーツへの `drop_reserved` 導入はいずれも
+# 既存シグネチャを変えない加算的変更のため、パッチバンプで 0.62.1 とする。
+# イシュー #1667（tree-view の参照突合）: `TreeItemProps` 新設に伴う
+# `tree_view::{branch, branch_control, branch_indicator, branch_text,
+# branch_content, branch_indent_guide, item, item_text, item_indicator}`
+# 9 パーツ関数のシグネチャ変更（個別の `value`/`selected`/`disabled`/
+# `level`/`posinset`/`setsize`/`depth` 引数を単一の `TreeItemProps` へ集約）
+# は破壊的変更に伴い、0.x の破壊的変更規約に従いマイナーバンプで 0.63.0
+# とする（`data-branch`/各 `data-*` 加算・`drop_reserved` 導入自体は
+# 非破壊的だが、上記シグネチャ変更が破壊的のため合わせてマイナーバンプ
+# する）。
+# イシュー #1666（tour の参照突合）: `Tour::control` パーツ新設・
+# `Tour::content` への `tabindex="-1"`/`data-step` 加算・全パーツへの
+# `drop_reserved` 導入は非破壊的だが、`Tour::action_trigger` のシグネチャを
+# `TourTriggerKind` 引数付きへ変更した（破壊的変更）ため、規約に従い
+# マイナーバンプで 0.63.0 とする。
+# 上記 2 件（tree-view #1667・tour #1666）が独立に同一 0.63.0 へ到達していた
+# ブランチのマージにより、双方の実体変更を統合した結果として 0.64.0 へ
+# さらにマイナーバンプする（同一版数への偶発的衝突をそのまま採用しない）。
+# base 再取り込み（イシュー #1660, 2026-09-06, 2 回目）: main 側は本ブランチ
+# とは独立に splitter（#1664）・steps（#1665）・tree-view（#1667）・
+# tour（#1666）の一連の破壊的変更を経て 0.64.0 へ到達しており、本ブランチの
+# carousel 実体変更（`CarouselAction::First`/`Last` 追加、上記 0.62.0
+# コメント参照）は main へ未反映のままである。PR #1925 codex-review
+# 指摘 是正（5 回目・P1 2 件）: `crates/pre-styled-ui/src/carousel.rs` の
+# 横方向 `item` へ `overflow: hidden` を追加する対応に伴い、依存先である
+# 本クレートの carousel 実体変更（0.62.0 分）が main の到達点（0.64.0）へ
+# 未反映のまま Cargo.toml のマージが実体差分を伴わず衝突する状態を解消
+# するため、両者の破壊的変更の和集合としてさらにマイナーバンプで 0.65.0
+# とする（本クレート自身の `src/carousel.rs` に追加の実体変更はなく、
+# 純粋な版数統合）。
+version = "0.65.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

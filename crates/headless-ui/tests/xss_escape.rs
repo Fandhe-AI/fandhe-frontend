@@ -798,11 +798,23 @@ fn steps_item_content_children_and_attrs_are_escaped_for_all_payloads() {
 /// 検証する（`tags_input` 分と同型の網羅方針）。
 #[test]
 fn tree_view_node_label_and_value_paths_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::tree_view::TreeItemProps;
     use fandhe_frontend_headless_ui::{TreeNode, TreeView};
 
     for payload in payloads::all() {
+        let props = TreeItemProps {
+            value: payload,
+            selected: false,
+            disabled: false,
+            level: "1",
+            posinset: "1",
+            setsize: "1",
+            depth: "0",
+        };
+
         // ラベル: branch_text/item_text の children テキスト経路。
-        let branch_text_node = tree_view::branch_text(vec![], vec![text(payload)]);
+        let branch_text_node =
+            tree_view::branch_text(OpenState::Closed, props, vec![], vec![text(payload)]);
         let html = render(&branch_text_node);
         assert_payload_is_escaped(
             payload,
@@ -810,7 +822,7 @@ fn tree_view_node_label_and_value_paths_are_escaped_for_all_payloads() {
             "tree_view::branch_text の children コンテキスト",
         );
 
-        let item_text_node = tree_view::item_text(vec![], vec![text(payload)]);
+        let item_text_node = tree_view::item_text(props, vec![], vec![text(payload)]);
         let html = render(&item_text_node);
         assert_payload_is_escaped(
             payload,
@@ -819,28 +831,42 @@ fn tree_view_node_label_and_value_paths_are_escaped_for_all_payloads() {
         );
 
         // ノード値: branch/item の data-value 属性経路。
-        let branch_node = tree_view::branch(
-            OpenState::Closed,
-            payload,
-            false,
-            false,
-            "1",
-            "1",
-            "1",
-            "0",
-            vec![],
-            vec![],
-        );
+        let branch_node = tree_view::branch(OpenState::Closed, props, vec![], vec![]);
         let html = render(&branch_node);
         assert_payload_is_escaped(
             payload,
             &html,
             "tree_view::branch の data-value コンテキスト",
         );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::branch の data-branch コンテキスト",
+        );
 
-        let item_node = tree_view::item(payload, false, false, "1", "1", "1", "0", vec![], vec![]);
+        let item_node = tree_view::item(props, vec![], vec![]);
         let html = render(&item_node);
         assert_payload_is_escaped(payload, &html, "tree_view::item の data-value コンテキスト");
+
+        // ノード値: branch_control/branch_content の data-value 属性経路
+        // （イシュー #1667 の参照突合で追加した属性）。
+        let branch_control_node =
+            tree_view::branch_control(OpenState::Closed, props, vec![], vec![]);
+        let html = render(&branch_control_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::branch_control の data-value コンテキスト",
+        );
+
+        let branch_content_node =
+            tree_view::branch_content(OpenState::Closed, props, vec![], vec![]);
+        let html = render(&branch_content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::branch_content の data-value コンテキスト",
+        );
 
         // 呼び出し側 attrs 経路。
         let attrs_node = tree_view::root(vec![("data-testid", payload)], vec![]);
@@ -1304,16 +1330,22 @@ fn listbox_dispatch_select_payload_is_escaped_on_hydration_render() {
     }
 }
 
-/// (1)/(2) Splitter（イシュー #826）: `panel` の `id`（属性値経路）・
-/// `resize_trigger` の `aria-controls`（属性値経路）・
+/// (1)/(2) Splitter（イシュー #826、#1664 でシグネチャ追随）: `panel` の
+/// `id`/`data-index`/`data-id`（属性値経路）・`resize_trigger` の
+/// `aria-controls`/`data-id`（先行・後続双方の id、属性値経路）・
 /// `resize_trigger_indicator` の children（テキスト経路）へ全ペイロードを
 /// 注入し、エスケープが貫通することを固定する。
 #[test]
 fn splitter_panel_id_and_resize_trigger_controls_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
-        let panel_node = splitter::panel(payload, Orientation::Horizontal, vec![], vec![]);
+        let panel_node = splitter::panel(payload, 0, Orientation::Horizontal, vec![], vec![]);
         let html = render(&panel_node);
         assert_payload_is_escaped(payload, &html, "splitter::panel の id 属性値コンテキスト");
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::panel の data-id 属性値コンテキスト",
+        );
 
         let resize_trigger_node = splitter::resize_trigger(
             Orientation::Horizontal,
@@ -1321,6 +1353,7 @@ fn splitter_panel_id_and_resize_trigger_controls_are_escaped_for_all_payloads() 
             "100",
             "50",
             payload,
+            "panel-trailing",
             false,
             vec![],
             vec![],
@@ -1329,7 +1362,35 @@ fn splitter_panel_id_and_resize_trigger_controls_are_escaped_for_all_payloads() 
         assert_payload_is_escaped(
             payload,
             &html,
-            "splitter::resize_trigger の aria-controls 属性値コンテキスト",
+            "splitter::resize_trigger の aria-controls（leading）属性値コンテキスト",
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger の data-id（leading）属性値コンテキスト",
+        );
+
+        let resize_trigger_trailing_node = splitter::resize_trigger(
+            Orientation::Horizontal,
+            "0",
+            "100",
+            "50",
+            "panel-leading",
+            payload,
+            false,
+            vec![],
+            vec![],
+        );
+        let html = render(&resize_trigger_trailing_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger の aria-controls（trailing）属性値コンテキスト",
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger の data-id（trailing）属性値コンテキスト",
         );
 
         let indicator_node = splitter::resize_trigger_indicator(vec![], vec![text(payload)]);
@@ -1928,6 +1989,24 @@ fn tour_title_description_target_and_attrs_are_escaped_for_all_payloads() {
             payload,
             &html,
             "tour::Tour::root の呼び出し側 attrs コンテキスト",
+        );
+
+        // イシュー #1666: content が Active 時に出力する `data-step`
+        // （TourStep::id）の属性値コンテキストも既定エスケープを経由する。
+        let step_id = TourStep {
+            id: payload.to_string(),
+            target: None,
+            title: "t".to_string(),
+            description: "d".to_string(),
+            placement: Placement::new(Side::Bottom, Align::Center),
+        };
+        let mut t_step = Tour::new(vec![step_id]);
+        fandhe_frontend_interactive::dispatch(&mut t_step, "start", "");
+        let html = render(&t_step.content(tour::ContentIds::default(), vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tour::Tour::content の data-step コンテキスト",
         );
     }
 }

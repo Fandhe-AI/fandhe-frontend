@@ -11,8 +11,9 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 108 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
-の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684 で追加）+
+本クレートは 109 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684、
+`fieldset` はイシュー #1686 で追加）+
 `charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
@@ -53,7 +54,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | 基盤 | `css` | — |
 | 基盤 | `recipe`（詳細は [`pre-styled-recipe-api.md`](./pre-styled-recipe-api.md)） | — |
 | 基盤 | `stylesheet`（CSS 集約・配布ヘルパ、§4a 参照） | — |
-| 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `callout` / `card`（`button` は `icon_button`/`close_button` を icon-only 修飾 variant として提供。独立部品ではなく `button` recipe の非公開 variant であり `data-scope="button"` を共有する。`callout` は本文中の補足情報向け静的部品で、`alert` と異なり live region ではないため `role` を付与しない、イシュー #994） | [button](../../site/themes/button.md) / [badge](../../site/themes/badge.md) / [spinner](../../site/themes/spinner.md) / [alert](../../site/themes/alert.md) / [callout](../../site/themes/callout.md) / [card](../../site/themes/card.md) |
+| 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `callout` / `card`（`button` は `icon_button`/`close_button` を icon-only 修飾 variant として提供。独立部品ではなく `button` recipe の非公開 variant であり `data-scope="button"` を共有する。`icon_size_for` がボタン size からアイコン size を決定的に写像し（イシュー #1674）、`close_button` はこれを内蔵する。`callout` は本文中の補足情報向け静的部品で、`alert` と異なり live region ではないため `role` を付与しない、イシュー #994） | [button](../../site/themes/button.md) / [badge](../../site/themes/badge.md) / [spinner](../../site/themes/spinner.md) / [alert](../../site/themes/alert.md) / [callout](../../site/themes/callout.md) / [card](../../site/themes/card.md) |
 | 単純 styled 部品 | `skeleton`（ローディングプレースホルダー。形状軸 `variant`（`text`/`circle`/`rect`）+ アニメーション軸 `animation`（`pulse`(既定)/`shine`/`none`、イシュー #1566）、常時 `aria-hidden="true"`、`color-palette`/`size` 軸は非提供、`prefers-reduced-motion: reduce` でアニメーション停止） | [skeleton](../../site/themes/skeleton.md) |
 | 単純 styled 部品 | `image`（写真等の静的コンテンツを表示する `<img>`。`ImageFit`（`object-fit`）/`AspectRatio`（`Auto`/`Square`/`Landscape`/`Portrait`/`Video`）/`ImageShape`（角丸、`Square`/`Rounded`/`Circle`）の 3 軸 variant、`alt` 必須引数。base は `height: auto` を持つ（イシュー #1562）。headless-ui `avatar` の `ImageStatus` 状態機械とは独立。中立的な表示部品のため `color-palette` 軸は非提供） | [image](../../site/themes/image.md) |
 | 単純 styled 部品 | `icon`（インライン SVG の寸法を統一する `<svg>` ラッパー。`size` variant のみ（`Xs`〜`Xl` の 5 段、既定 `Md`。イシュー #1561 で chakra-ui 同名段の実寸へ是正）、`color: currentColor` 継承のため `color-palette` 軸は非提供。SVG 本体（`path` 等）は呼び出し側がノード木 API で構築し、外部リソース（`href`/`xlink:href`）は本モジュール自身が参照しない） | [icon](../../site/themes/icon.md) |
@@ -69,6 +70,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `checkbox`（§4e 参照） | [checkbox](../../site/themes/checkbox.md) |
 | 静的フォーム部品 | `input` / `textarea` / `native_select`（§4f 参照） | [input](../../site/themes/input.md) / [textarea](../../site/themes/textarea.md) / [native-select](../../site/themes/native-select.md) |
 | 静的フォーム部品 | `field`（§4f-1 参照。ラベル・補助テキスト・エラーテキストの型階層、`orientation` 軸のみ） | [field](../../site/themes/field.md) |
+| 静的フォーム部品 | `fieldset`（§4f-2 参照。`<fieldset>`/`<legend>` グループコンテナ、`size` 軸のみ） | [fieldset](../../site/themes/fieldset.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
 | headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
@@ -99,7 +101,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `hover_card`（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） | [hover-card](../../site/themes/hover-card.md) |
 | headless ラッパー | `toggle_tip`（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） | [toggle-tip](../../site/themes/toggle-tip.md) |
 | headless ラッパー | `collapsible`（glob 再エクスポート。参照 3 サイト（chakra-ui/Ark UI/Radix Primitives）のいずれも `size`/`variant`/`color-palette` を持たないため variant 軸は非提供。開閉時の高さアニメーションは JS 計測の関心のため非採用。イシュー #1682/#1683） | [collapsible](../../site/themes/collapsible.md) |
-| headless ラッパー | `progress`（イシュー #1564。headless の値状態機械 `Progress` が持つ Track/Range（linear）と Circle/CircleTrack/CircleRange（SVG、circular）の両方へ CSS を追加提供。`Progress` 型はあえて再エクスポートせず、`ProgressProps`（`size`/`variant`/`color-palette` の 3 軸）を付与する styled `root` と、determinate 時のみ `--fandhe-progress-percent` を付与する styled `range` の 2 つを新設する。track/circle 系は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時のアニメーション（linear は横スライド・circular は回転）は `[data-part="..."][data-state="indeterminate"]` セレクタ + `@keyframes` で提供し、`prefers-reduced-motion: reduce` で停止する） | [progress](../../site/themes/progress.md) |
+| headless ラッパー | `progress`（イシュー #1564。headless の値状態機械 `Progress` が持つ Track/Range（linear）と Circle/CircleTrack/CircleRange（SVG、circular）の両方へ CSS を追加提供。`Progress` 型はあえて再エクスポートせず、`ProgressProps`（`size`/`variant`/`color-palette` の 3 軸）を付与する styled `root` と、determinate 時のみ `--fandhe-progress-percent` を付与する styled `range` の 2 つを新設する。track/circle 系は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時のアニメーション（linear は横スライド・circular は回転）は `[data-part="..."][data-state="indeterminate"]` セレクタ + `@keyframes` で提供し、`prefers-reduced-motion: reduce` で停止する。イシュー #1688: circular indeterminate は circle 全体の回転に加え、circle-range へ固定長の弧〔`stroke-dasharray`〕を与えて塗り色の完全リングと `complete` 状態を視覚的に区別できるようにする） | [progress](../../site/themes/progress.md) |
 | 単純 styled 部品（静的） | `tag` / `kbd` / `code`（`tag` は `variant`（Solid/Subtle（既定）/Outline/Surface の 4 値、イシュー #1573 で Surface を追加）/`size`/`color-palette` の 3 軸 variant を持つ root/label/close-trigger の 3 パーツ。`badge` と同型の判断。close-trigger は状態機械を持たず `data-action` 属性の出力のみを担う。`kbd`/`code` は variant 軸を持たない単一 slot） | [tag](../../site/themes/tag.md) / [kbd](../../site/themes/kbd.md) / [code](../../site/themes/code.md) |
 | 状態機械を要しない静的部品 | `status` / `empty_state`（§4h 参照。`status` は `size`/`color-palette` の 2 軸、`empty_state` は `card` と同型の中立コンテナで `color-palette` 軸は非提供） | [status](../../site/themes/status.md) / [empty-state](../../site/themes/empty-state.md) |
 | headless ラッパー | `clipboard`（`hover_card`/`toggle_tip` と同型の判断で variant は非提供。Indicator の可視性切り替えは `avatar` の image/fallback と同型の `data-state` 多層防御パターン。`navigator.clipboard.writeText` 実配線は `fandhe-frontend-wasm-full::headless_clipboard` が提供） | [clipboard](../../site/themes/clipboard.md) |
@@ -530,6 +532,10 @@ tabs/accordion/dialog/menu/select の実装詳細:
   未スタイル root の静かな適用漏れ防止のため選択的 re-export へ切り替え
   ている。`Accordion`/`MultiAccordion`（inherent root なし）は再
   エクスポート維持。
+- `dialog::footer`（pre-styled-only レイアウトパート、`data-scope="dialog"`
+  配下の headless-ui 非由来 9 番目の part。alert-dialog 構成のアクション列
+  の横並び配置のみを担い、確認/キャンセルの強調色は既存の `button` の
+  variant/palette 組み合わせで表現する。イシュー #1690）。
 
 ## 4d. `data-focus-visible` によるキーボード専用フォーカスリング
 
@@ -661,6 +667,33 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   参照するだけで、値の妥当性判定・送信処理は実装しない。
 - **docs サイト**: [field](../../site/themes/field.md)（イシュー #1685 で
   `/themes/field/` ページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
+
+### 4f-2. `fieldset`（`<fieldset>`/`<legend>` グループコンテナ、イシュー #1686）
+
+`fieldset` モジュールは `fandhe_frontend_headless_ui::fieldset` の anatomy
+（`root`/`legend`/`helper-text`/`error-text` の 4 パーツ）へ、UA 既定の
+`<fieldset>`/`<legend>` 枠線・padding のリセットと `size` 軸による余白・
+文字サイズの段階化を重ねる薄い委譲層である。
+
+- **公開 API**: `root(&FieldsetRootProps, &FieldsetProps<'_>, attrs,
+  children)`（見た目 variant クラスを重ねて headless `fieldset::root` へ
+  委譲）、`FieldsetRootProps`。`legend`/`helper_text`/`error_text`/
+  `FieldsetProps` は headless からの選択的再エクスポート。
+- **`size` 軸のみ**: `Sm`/`Md`/`Lg` の 3 段のみ登録（chakra-ui v3
+  `Fieldset.Root` の `size` prop に対応、既定 `Md`）。`Xs`/`Xl` は未登録。
+  `orientation`/`color-palette` 軸は持たない。
+- **意図的非採用**: chakra-ui v3 の `Content` サブパートは headless
+  anatomy に存在しないため実装しない（headless anatomy 変更はスコープ外）。
+  `root` へのネイティブ `disabled` 二重表現防止のため
+  `disabled_declarations()` を付与しない。`legend` への `data-invalid`
+  色反映なし（chakra-ui v3 も非対応）。Radix Primitives / Radix Themes の
+  いずれにも `Fieldset` が存在しないため対応なし。
+- **バリデーション責務外**: `docs/policy/intentional-non-adoption.md`
+  §3.25 規則 1 のとおり、本モジュールは headless が出す
+  `data-invalid`/`data-disabled` を CSS セレクタとして参照するだけで、
+  値の妥当性判定・送信処理は実装しない。
+- **docs サイト**: [fieldset](../../site/themes/fieldset.md)（イシュー
+  #1687 でページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

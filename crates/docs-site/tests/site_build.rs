@@ -193,10 +193,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // `docs/api/server-api.md`（`generate_assets` 等 SSG API リファレンス）
     // が加わり、196 → 197 になった。イシュー #1683 で Collapsible が
     // 加わり、197 → 198 になった。イシュー #1685 で Field が加わり、
-    // 198 → 199 になった。
+    // 198 → 199 になった。イシュー #1687 で Fieldset が加わり、
+    // 199 → 200 になった。
     assert_eq!(
         report.written.len(),
-        199,
+        200,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -219,9 +220,9 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // `/components/pre-styled-ui/` から `/themes/` へ移設した。
     // `/components/` 配下の本体ページ（`report.written`。リダイレクトページは
     // `report.redirects` に別計上されるため対象外）は 0 件になり、移行先
-    // `/themes/` 配下に部品 109 件（イシュー #1683 で Collapsible が加わり
-    // 107 → 108、イシュー #1685 で Field が加わり 108 → 109）+ 索引 1 件
-    // = 110 件が生成される。
+    // `/themes/` 配下に部品 110 件（イシュー #1683 で Collapsible が加わり
+    // 107 → 108、イシュー #1685 で Field が加わり 108 → 109、イシュー #1687
+    // で Fieldset が加わり 109 → 110）+ 索引 1 件 = 111 件が生成される。
     // Phase 4 以降で部品が増減したら両方の値の更新が必要になる
     // （fail-closed。黙って減っても気付けるようにする意図）。
     let components_dir = out.0.join("components");
@@ -242,8 +243,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&themes_dir))
         .count();
     assert_eq!(
-        theme_pages, 110,
-        "/themes/ 配下の生成ページ数（部品 109 件 + 索引 1 件）"
+        theme_pages, 111,
+        "/themes/ 配下の生成ページ数（部品 110 件 + 索引 1 件）"
     );
 
     // イシュー #1021: `/primitives/` 配下は部品 63 件 + 索引 1 件 = 64 件。

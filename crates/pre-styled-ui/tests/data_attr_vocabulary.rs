@@ -16,19 +16,28 @@
 //! radio_card::item 経路）。本ファイルはそれを重複させず、単一ペイロードの
 //! 最小回帰のみを追加して既定エスケープ（REQ-1）の迂回がないことを補強する。
 //!
+//! イシュー #1690（親 #1675）で `dialog::footer`（pre-styled-only レイアウト
+//! パート）と alert-dialog 構成（`role="alertdialog"`）が独自 `data-*` を
+//! 出力しないことの固定を追加した（規約 A・役割 B、`field`/`fieldset` と
+//! 同型）。
+//!
 //! # 削除・弱体化の禁止
 //!
 //! `.claude/rules/coding-rust.md` の規約により、本ファイルのテストは
 //! 以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{render, text};
+use fandhe_frontend_headless_ui::progress::Progress;
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
 use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
 use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
     self, ScatterChartProps, ScatterData, ScatterSeries,
 };
+use fandhe_frontend_pre_styled_ui::dialog::{self, DialogRole, OpenState};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldIds, FieldProps, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
+use fandhe_frontend_pre_styled_ui::progress::{self, Orientation, ProgressProps};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::tag;
@@ -204,4 +213,183 @@ fn field_root_data_attrs_are_headless_sourced_not_self_emitted() {
     // 参照は許容、自前出力はしないという役割 B の境界を固定）。
     let css = field::css();
     assert!(css.contains("[data-disabled]"));
+}
+
+/// `fieldset.rs`（イシュー #1686）は独自の `data-*` を一切出力しない
+/// （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・
+/// 役割 B）。styled `root` 出力に現れる `data-disabled`/`data-invalid` は
+/// すべて headless `fandhe_frontend_headless_ui::fieldset::root` が
+/// [`FieldsetProps`] の 2 フラグから生成するものであり、`fieldset::css()`
+/// はその属性を CSS セレクタとして**参照する**だけで自前出力はしない、
+/// という事実を固定する（`field_root_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型）。
+#[test]
+fn fieldset_root_data_attrs_are_headless_sourced_not_self_emitted() {
+    fn fieldset_props(id: &str) -> FieldsetProps<'_> {
+        FieldsetProps {
+            id,
+            disabled: false,
+            invalid: false,
+            has_helper_text: false,
+        }
+    }
+
+    // 全フラグ false のとき、2 種の data-* はいずれも出力されない。
+    let f = fieldset_props("f");
+    let html = render(&fieldset::root(
+        &FieldsetRootProps::default(),
+        &f,
+        vec![],
+        vec![],
+    ));
+    assert!(!html.contains("data-disabled"));
+    assert!(!html.contains("data-invalid"));
+
+    // 全フラグ true のとき、2 種すべてが headless `fieldset::root` 経由で
+    // 出力される（styled `root` 自身は data-* を組み立てない）。
+    let f = FieldsetProps {
+        id: "f",
+        disabled: true,
+        invalid: true,
+        has_helper_text: false,
+    };
+    let html = render(&fieldset::root(
+        &FieldsetRootProps::default(),
+        &f,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains("data-disabled"));
+    assert!(html.contains("data-invalid"));
+
+    // `fieldset::css()` は `[data-disabled]` を参照する state 規則を持つが、
+    // 自前で `data-*` を組み立てて出力する経路（属性タプルの直接構築）を
+    // 持たないことを、CSS 出力側からも確認する。`[data-invalid]` は参照
+    // しない（`legend` は invalid による色変更を持たない、モジュール doc
+    // 「意図的非採用」節参照）。
+    let css = fieldset::css();
+    assert!(css.contains("[data-disabled]"));
+    assert!(!css.contains("[data-invalid]"));
+}
+
+/// `dialog.rs`（イシュー #1690、親 #1675）の pre-styled-only `footer` パート
+/// と alert-dialog 構成は独自の `data-*` を一切出力しない（`docs/design/
+/// pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・役割 B、
+/// `field_root_data_attrs_are_headless_sourced_not_self_emitted` と同型）。
+/// `footer` の出力に現れる `data-*` は headless
+/// `fandhe_frontend_headless_ui::anatomy::Anatomy::part` が付与する
+/// `data-scope`/`data-part`（anatomy 属性）のみであり、`role="alertdialog"`・
+/// `data-state` はいずれも headless `content`/`root` 由来（本モジュールは
+/// 組み立てない）であることを固定する。
+#[test]
+fn dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs() {
+    // footer: anatomy 属性（data-scope/data-part）以外の data-* を出力しない。
+    let html = render(&dialog::footer(vec![], vec![text("Cancel / Confirm")]));
+    assert!(html.contains(r#"data-scope="dialog""#));
+    assert!(html.contains(r#"data-part="footer""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "footer は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+
+    // alert-dialog 構成: role="alertdialog" と data-state は headless
+    // `content`/`root` 由来であり、styled 層（本ファイル・dialog.rs）は
+    // これらを組み立てない（headless-ui 側の既存責務、変更なしを確認）。
+    use fandhe_frontend_headless_ui::dialog::{content, ContentIds};
+    let html = render(&content(
+        OpenState::Open,
+        DialogRole::Alertdialog,
+        true,
+        ContentIds::default(),
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains(r#"role="alertdialog""#));
+    assert!(html.contains(r#"data-state="open""#));
+
+    let html = render(&dialog::root(
+        fandhe_frontend_pre_styled_ui::Size::Md,
+        OpenState::Closed,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains(r#"data-state="closed""#));
+}
+
+/// `progress.rs`（イシュー #763/#1564/#1688）は pre-styled-only の `data-*`
+/// を一切出力しない（`docs/design/pre-styled-ui-data-attr-vocabulary.md`
+/// §3.1 規約 A・役割 B、`field_root_data_attrs_are_headless_sourced_not_self_emitted`/
+/// `fieldset_root_data_attrs_are_headless_sourced_not_self_emitted` と同型）。
+/// styled `root`/`range` の出力に現れる `data-state`/`data-orientation` は
+/// すべて headless `fandhe_frontend_headless_ui::progress::Progress` の
+/// inherent メソッド由来であり、`progress::stylesheet()` はその属性を CSS
+/// セレクタとして**参照する**だけで自前出力はしない、という事実を固定する。
+/// linear（root/label/value-text/track/range）は `data-orientation` を持つが
+/// circular 3 parts（circle/circle-track/circle-range）は持たない（headless
+/// 側 rustdoc「data-orientation を持たない」節、`crates/headless-ui/src/progress.rs`
+/// 参照）非対称も合わせて固定する。
+#[test]
+fn progress_parts_data_attrs_are_headless_sourced_not_self_emitted() {
+    let determinate = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+    let complete = Progress::new(0.0, 100.0, Some(100.0), Orientation::Horizontal);
+    let indeterminate = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
+
+    // styled root: headless 経由で data-state が determinate/complete/
+    // indeterminate の 3 状態を切り替える。
+    let root_loading = render(&progress::root(
+        &determinate,
+        &ProgressProps::default(),
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(root_loading.contains(r#"data-state="loading""#));
+    assert!(root_loading.contains(r#"data-orientation="horizontal""#));
+
+    let root_complete = render(&progress::root(
+        &complete,
+        &ProgressProps::default(),
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(root_complete.contains(r#"data-state="complete""#));
+
+    let root_indeterminate = render(&progress::root(
+        &indeterminate,
+        &ProgressProps::default(),
+        None,
+        vec![],
+        vec![],
+    ));
+    assert!(root_indeterminate.contains(r#"data-state="indeterminate""#));
+
+    // styled range も同じく headless 由来（determinate/indeterminate）。
+    let range_loading = render(&progress::range(&determinate, vec![]));
+    assert!(range_loading.contains(r#"data-state="loading""#));
+    assert!(range_loading.contains(r#"data-orientation="horizontal""#));
+    let range_indeterminate = render(&progress::range(&indeterminate, vec![]));
+    assert!(range_indeterminate.contains(r#"data-state="indeterminate""#));
+
+    // circular 3 parts は headless の inherent メソッドを直接呼ぶ
+    // （styled ラッパーを経由しない、モジュール冒頭 rustdoc 参照）。
+    // data-state は持つが data-orientation は持たない非対称を固定する。
+    let circle_html = render(&indeterminate.circle(vec![], vec![]));
+    assert!(circle_html.contains(r#"data-state="indeterminate""#));
+    assert!(!circle_html.contains("data-orientation"));
+    let circle_track_html = render(&indeterminate.circle_track(vec![], vec![]));
+    assert!(circle_track_html.contains(r#"data-state="indeterminate""#));
+    assert!(!circle_track_html.contains("data-orientation"));
+    let circle_range_html = render(&indeterminate.circle_range(vec![], vec![]));
+    assert!(circle_range_html.contains(r#"data-state="indeterminate""#));
+    assert!(!circle_range_html.contains("data-orientation"));
+
+    // `progress::stylesheet()` は `[data-state="indeterminate"]`/
+    // `[data-orientation="vertical"]` を state セレクタとして参照するが、
+    // 自前で data-* タプルを組み立てて出力する経路（属性タプルの直接
+    // 構築）は持たない（CSS 出力側からの確認、他 2 テストと同型）。
+    let css = progress::stylesheet();
+    assert!(css.contains(r#"[data-state="indeterminate"]"#));
+    assert!(css.contains(r#"[data-orientation="vertical"]"#));
 }

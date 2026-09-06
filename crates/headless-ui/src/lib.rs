@@ -298,8 +298,9 @@
 //!   [`file_upload::ItemType`] 固定語彙が `data-type` として表す
 //!   （参照突合、イシュー #1609）。
 //! - [`mod@steps`]: Root / List / Item / Trigger / Indicator / Separator /
-//!   Content / CompletedContent / PrevTrigger / NextTrigger の 10 anatomy
-//!   パーツと、`count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ
+//!   Content / CompletedContent / PrevTrigger / NextTrigger / Progress の
+//!   11 anatomy パーツ（Progress はイシュー #1665 の参照突合で新設）と、
+//!   `count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ
 //!   [`steps::Steps`] 状態機械（#752、`docs/api/headless-ui-api.md` §4b.3
 //!   の保留解除）。[`mod@progress`]/[`mod@pin_input`] と同じく [`state`] の
 //!   既存語彙に収まらないため、[`fandhe_frontend_interactive::Component`]/
@@ -427,11 +428,21 @@
 //!   `resize-trigger` は `role="separator"` + `aria-valuemin`/`aria-valuemax`/
 //!   `aria-valuenow`（先行パネルのサイズ%）+ `aria-orientation`（セパレータ
 //!   自体の向き、パネルレイアウトの向きとは逆。[`splitter`] モジュール doc
-//!   参照）+ `aria-controls`（先行パネル id）を出力する WAI-ARIA Window
-//!   Splitter パターン準拠。パネル構成の正規化は fail-closed
-//!   （[`splitter::Splitter::new`] 参照）。pointer ドラッグ・キーボード操作の
-//!   DOM 配線・collapse/expand・`onResize`/`onCollapse` コールバックは本
-//!   イシューのスコープ外（[`splitter`] モジュール doc §スコープ外参照）。
+//!   参照）+ `aria-controls`（隣接 2 パネルの id）+ `data-id`
+//!   （`"<leading>:<trailing>"`）を出力する WAI-ARIA Window Splitter
+//!   パターン準拠。`panel` は `data-index`/`data-id` を出力する。パネル構成の
+//!   正規化は fail-closed（[`splitter::Splitter::new`] 参照）。**イシュー
+//!   #1664 で ark-ui docs/zag.js/APG と参照突合済み**: `panel` の
+//!   `data-index`/`data-id`・`resize_trigger` の隣接 2 パネル
+//!   `aria-controls`/`data-id`（いずれも自由関数の引数変更を伴う破壊的
+//!   変更）を追加し、`SplitterAction::IncrementLarge`/`DecrementLarge`
+//!   （zag.js `keyboardResizeBy` 既定値 ×10 相当の状態機械のみ、DOM 配線は
+//!   未実装）と `drop_reserved`（呼び出し側 `attrs` からの予約キーなりすまし
+//!   除去）を追加した。`data-focus`/`data-dragging`・Enter（collapse/expand）・
+//!   F6（フォーカス循環）は意図的に非採用のまま（`splitter` モジュール doc
+//!   「参照突合」節参照）。Arrow/Home/End キーの DOM 配線はイシュー #1074 で
+//!   `fandhe-frontend-wasm-full` が実装済み、Shift+Arrow・F6 は未配線
+//!   （[`mod@splitter`] モジュール doc §スコープ外参照）。
 //! - [`mod@floating_panel`]: Root / Trigger / Positioner / Content / Header /
 //!   Title / Control / StageTrigger / CloseTrigger / Body の 10 anatomy
 //!   パーツと、[`state::Disclosure`]（開閉）+ 独自 [`floating_panel::Stage`]
@@ -522,8 +533,15 @@
 //!   状態機械がともに `"selected"` フィールド名を使うため、hydration 属性名の
 //!   衝突回避（展開集合側のみ `"expanded"` へ書き換え）を行う点が
 //!   [`mod@combobox`] 以前の合成例と異なる（[`tree_view`] モジュール doc
-//!   §hydration フィールド名 参照）。キーボードナビゲーション・checkbox
-//!   モード・複数選択・lazy loading は本イシューのスコープ外。
+//!   §hydration フィールド名 参照）。checkbox モード・複数選択・
+//!   lazy loading は本イシューのスコープ外だが、キーボードナビゲーション
+//!   （矢印キー・Home/End・Enter/Space・typeahead）の DOM 配線は
+//!   `fandhe-frontend-wasm-full` `keynav.rs` §TreeView で実装済み（イシュー
+//!   #1072）。ark-ui docs / zag.js との参照突合（イシュー #1667）で
+//!   [`tree_view::TreeItemProps`] を新設し、`data-branch`/`branch-control`
+//!   の `data-value`/`data-depth`/インジケータ・テキスト系の
+//!   `data-selected`/`data-disabled`/`data-state` を追加した（詳細は
+//!   [`mod@tree_view`] モジュール doc「参照突合（イシュー #1667）」節）。
 //! - [`mod@breadcrumb`]: `root`（`nav`）/ `list`（`ol`）/ `item`（`li`）/
 //!   `link`（`a`）/ `current-link`（`span`）/ `separator`（`li`）/
 //!   `ellipsis`（`li`）の 7 anatomy パーツと利便ビルダー
@@ -853,5 +871,7 @@ pub use toggle_group::{MultiToggleGroup, ToggleGroup, ToggleGroupProps};
 pub use toggle_tip::ToggleTip;
 pub use toolbar::{Toolbar, ToolbarAction};
 pub use tooltip::Tooltip;
-pub use tour::{ContentIds as TourContentIds, Tour, TourAction, TourStatus, TourStep};
-pub use tree_view::{TreeNode, TreeView, TreeViewAction};
+pub use tour::{
+    ContentIds as TourContentIds, Tour, TourAction, TourStatus, TourStep, TourTriggerKind,
+};
+pub use tree_view::{TreeItemProps, TreeNode, TreeView, TreeViewAction};

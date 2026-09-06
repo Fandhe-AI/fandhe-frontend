@@ -53,7 +53,7 @@
 | `data-autoresize` | `textarea.rs` | headless `field.rs` |
 | `data-empty` | （テストのみ、`signature_pad.rs`） | headless `signature_pad.rs` |
 | `data-positioned` | `select.rs` / `menu.rs` / `combobox.rs` | `crates/wasm-full/src/position.rs`（実行時に wasm 層のみが付与、UI 2 層はいずれも出力しない。イシュー #663 の設計） |
-| `data-disabled` | `field.rs`（イシュー #1684、`label`/`helper-text` slot への state 規則） | headless `field.rs`（`FieldProps::disabled` から `state_data_attrs` が生成） |
+| `data-disabled` | `field.rs`（イシュー #1684、`label`/`helper-text` slot への state 規則）、`fieldset.rs`（イシュー #1686、`legend`/`helper-text` slot への state 規則） | headless `field.rs`（`FieldProps::disabled` から `state_data_attrs` が生成）、headless `fieldset.rs`（`FieldsetProps::disabled` から `state_data_attrs` が生成） |
 
 ### 2.3 役割 C: 「予約名として防御的に列挙」される `data-*`
 
@@ -115,6 +115,9 @@ pre-styled 側に `data_attrs` モジュールを新設して `data_loading()` /
 - `crates/pre-styled-ui/src/button.rs` / `tag.rs` / `radio_card.rs` / `charts/radar_chart.rs` / `charts/scatter_chart.rs`: モジュール rustdoc に「`data-*` 語彙」節を追加（規約 B-3）。
 - `crates/pre-styled-ui/src/floating_panel.rs` / `json_tree_view.rs` / `calendar.rs`: recipe の `StateCondition` 近傍に出力元（headless-ui）を明示する 1 行コメントを追加（規約 A、イシュー本文の誤認の再発防止）。
 - `crates/pre-styled-ui/tests/data_attr_vocabulary.rs`: §2.1 の 5 語彙 6 箇所の出力を固定する契約テストを新設。
+- イシュー #1688: `progress.rs`（circular indeterminate 弧の追加）は pre-styled-only の `data-*` を
+  一切出力しないことを `progress_parts_data_attrs_are_headless_sourced_not_self_emitted`
+  （`field`/`fieldset` の同型テストに倣う）で追加固定した。
 
 ## 5. スコープ外（`.claude/rules/out-of-scope-tracking.md`）
 

@@ -12,7 +12,7 @@ use hui::scroll_area;
 use hui::skip_nav;
 use hui::splitter;
 use hui::steps::Steps;
-use hui::tour::{Tour, TourAction, TourStep};
+use hui::tour::{Tour, TourAction, TourStep, TourTriggerKind};
 use hui::tree_view;
 use hui::visually_hidden;
 use hui::OpenState;
@@ -173,6 +173,7 @@ pub(super) fn splitter_section() -> Node {
         vec![
             splitter::panel(
                 "splitter-panel-a",
+                0,
                 orientation,
                 vec![],
                 vec![text("Panel A")],
@@ -183,12 +184,14 @@ pub(super) fn splitter_section() -> Node {
                 "100",
                 "50",
                 "splitter-panel-a",
+                "splitter-panel-b",
                 false,
                 vec![],
                 vec![splitter::resize_trigger_indicator(vec![], vec![])],
             ),
             splitter::panel(
                 "splitter-panel-b",
+                1,
                 orientation,
                 vec![],
                 vec![text("Panel B")],
@@ -237,6 +240,7 @@ pub(super) fn steps_section() -> Node {
                     ),
                 ],
             ),
+            steps.progress(vec![("aria-label", "Steps progress")], vec![]),
             steps.content(1, vec![], vec![text("Step 2 content")]),
             steps.completed_content(vec![], vec![text("All steps completed.")]),
             steps.prev_trigger(vec![], vec![text("Back")]),
@@ -279,7 +283,21 @@ pub(super) fn tour_section() -> Node {
                                 vec![text("Use this menu to jump between sections.")],
                             ),
                             tour.progress_text(vec![], vec![text("Step 1 of 1")]),
-                            tour.action_trigger(vec![], vec![text("Next")]),
+                            tour.control(
+                                vec![],
+                                vec![
+                                    tour.action_trigger(
+                                        TourTriggerKind::Prev,
+                                        vec![],
+                                        vec![text("Prev")],
+                                    ),
+                                    tour.action_trigger(
+                                        TourTriggerKind::Next,
+                                        vec![],
+                                        vec![text("Next")],
+                                    ),
+                                ],
+                            ),
                             tour.close_trigger(vec![], vec![text("×")]),
                         ],
                     ),
@@ -291,7 +309,60 @@ pub(super) fn tour_section() -> Node {
 }
 
 pub(super) fn tree_view_section() -> Node {
+    // イシュー #1667 の参照突合で追加した data-* 属性（`branch` の
+    // `data-branch`、`branch-control`/`branch-content` の `data-value`/
+    // `data-depth`、テキスト・インジケータ系の `data-selected`/
+    // `data-disabled`/`data-state`、item-indicator の `hidden`/
+    // `aria-hidden`）が docs-site の data-* 属性表へ機械導出されるよう、
+    // open ブランチ（選択済み葉を含む）・closed ブランチ（`hidden` な
+    // branch-content）・disabled 葉・非選択葉をすべて含める。
     let open = OpenState::Open;
+    let closed = OpenState::Closed;
+    let src_props = tree_view::TreeItemProps {
+        value: "src",
+        selected: false,
+        disabled: false,
+        level: "1",
+        posinset: "1",
+        setsize: "3",
+        depth: "0",
+    };
+    let lib_rs_props = tree_view::TreeItemProps {
+        value: "lib.rs",
+        selected: true,
+        disabled: false,
+        level: "2",
+        posinset: "1",
+        setsize: "1",
+        depth: "1",
+    };
+    let docs_props = tree_view::TreeItemProps {
+        value: "docs",
+        selected: false,
+        disabled: false,
+        level: "1",
+        posinset: "2",
+        setsize: "3",
+        depth: "0",
+    };
+    let guide_md_props = tree_view::TreeItemProps {
+        value: "guide.md",
+        selected: false,
+        disabled: true,
+        level: "2",
+        posinset: "1",
+        setsize: "1",
+        depth: "1",
+    };
+    let readme_props = tree_view::TreeItemProps {
+        value: "README.md",
+        selected: false,
+        disabled: false,
+        level: "1",
+        posinset: "3",
+        setsize: "3",
+        depth: "0",
+    };
     let body = vec![tree_view::root(
         vec![],
         vec![
@@ -303,46 +374,98 @@ pub(super) fn tree_view_section() -> Node {
                 vec![
                     tree_view::branch(
                         open,
-                        "src",
-                        false,
-                        false,
-                        "1",
-                        "1",
-                        "2",
-                        "0",
+                        src_props,
                         vec![],
                         vec![
                             tree_view::branch_control(
                                 open,
-                                false,
-                                false,
+                                src_props,
                                 vec![],
                                 vec![
-                                    tree_view::branch_indicator(open, vec![], vec![text("▾")]),
-                                    tree_view::branch_text(vec![], vec![text("src")]),
+                                    tree_view::branch_indicator(
+                                        open,
+                                        src_props,
+                                        vec![],
+                                        vec![text("▾")],
+                                    ),
+                                    tree_view::branch_text(
+                                        open,
+                                        src_props,
+                                        vec![],
+                                        vec![text("src")],
+                                    ),
                                 ],
                             ),
                             tree_view::branch_content(
                                 open,
+                                src_props,
                                 vec![],
                                 vec![
-                                    tree_view::branch_indent_guide(vec![], vec![]),
+                                    tree_view::branch_indent_guide(src_props, vec![], vec![]),
                                     tree_view::item(
-                                        "lib.rs",
-                                        true,
-                                        false,
-                                        "2",
-                                        "1",
-                                        "1",
-                                        "1",
+                                        lib_rs_props,
                                         vec![],
                                         vec![
                                             tree_view::item_indicator(
-                                                true,
+                                                lib_rs_props,
                                                 vec![],
                                                 vec![text("✓")],
                                             ),
-                                            tree_view::item_text(vec![], vec![text("lib.rs")]),
+                                            tree_view::item_text(
+                                                lib_rs_props,
+                                                vec![],
+                                                vec![text("lib.rs")],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                    tree_view::branch(
+                        closed,
+                        docs_props,
+                        vec![],
+                        vec![
+                            tree_view::branch_control(
+                                closed,
+                                docs_props,
+                                vec![],
+                                vec![
+                                    tree_view::branch_indicator(
+                                        closed,
+                                        docs_props,
+                                        vec![],
+                                        vec![text("▸")],
+                                    ),
+                                    tree_view::branch_text(
+                                        closed,
+                                        docs_props,
+                                        vec![],
+                                        vec![text("docs")],
+                                    ),
+                                ],
+                            ),
+                            tree_view::branch_content(
+                                closed,
+                                docs_props,
+                                vec![],
+                                vec![
+                                    tree_view::branch_indent_guide(docs_props, vec![], vec![]),
+                                    tree_view::item(
+                                        guide_md_props,
+                                        vec![],
+                                        vec![
+                                            tree_view::item_indicator(
+                                                guide_md_props,
+                                                vec![],
+                                                vec![],
+                                            ),
+                                            tree_view::item_text(
+                                                guide_md_props,
+                                                vec![],
+                                                vec![text("guide.md")],
+                                            ),
                                         ],
                                     ),
                                 ],
@@ -350,17 +473,11 @@ pub(super) fn tree_view_section() -> Node {
                         ],
                     ),
                     tree_view::item(
-                        "README.md",
-                        false,
-                        false,
-                        "1",
-                        "2",
-                        "2",
-                        "0",
+                        readme_props,
                         vec![],
                         vec![
-                            tree_view::item_indicator(false, vec![], vec![]),
-                            tree_view::item_text(vec![], vec![text("README.md")]),
+                            tree_view::item_indicator(readme_props, vec![], vec![]),
+                            tree_view::item_text(readme_props, vec![], vec![text("README.md")]),
                         ],
                     ),
                 ],

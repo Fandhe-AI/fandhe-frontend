@@ -56,13 +56,15 @@
 //!   空のまま省略する。フォーカスリング等スタイル層のみの挙動は
 //!   Accessibility 節の対象外）
 //!
-//! # `Examples` 節を持たない理由
+//! # `Examples` 節を持たない理由（[`DIALOG`] を除く）
 //!
 //! `docs/design/docs-site-component-pages.md` §7 は `Examples` を任意の節と
-//! 定めており、本 PR では 13 定数すべて `examples: &[]` とする（節は自動的に
-//! 省略される）。バリエーション軸を持つ部品（`Size`/`ColorPalette`/
-//! `ToastStatus` 等）への Examples 追加はレビュー負荷を抑えるための
-//! フォローアップ課題として PR 本文に残す。
+//! 定めており、当初 PR（#946）では 13 定数すべて `examples: &[]` としていた
+//! （節は自動的に省略される）。[`DIALOG`] のみイシュー #1691 で alert-dialog
+//! 構成（イシュー #1690）の掲示のため `Examples` 節（`ex_alert_dialog`）を
+//! 追加した。他部品のバリエーション軸（`Size`/`ColorPalette`/`ToastStatus`
+//! 等）への Examples 追加はレビュー負荷を抑えるためのフォローアップ課題
+//! として引き続き PR 本文に残す。
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
@@ -73,7 +75,14 @@
 //! 木経由で `render()` が行う（`features_and_table_cells_escape_xss_payloads`
 //! が既存フィクスチャで固定済み）。
 
-use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, KeyRow};
+use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_pre_styled_ui::{
+    button::{button, ButtonProps, ButtonVariant},
+    dialog::{self, ContentIds, DialogRole},
+    ColorPalette, OpenState, Size,
+};
+
+use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
 
 /// `/themes/accordion/`（Interactive カテゴリ）。
 ///
@@ -420,17 +429,18 @@ pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
 /// `role="dialog"`・`role="alertdialog"`/`aria-modal` の実出力テスト）。
 pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Trigger / Backdrop / Positioner / Content / Title / Description / CloseTrigger の 8 anatomy パーツを持つモーダルダイアログ。",
-        "DialogRole（Dialog/AlertDialog）で role=\"dialog\"/role=\"alertdialog\" を出し分ける。",
-        "size variant（Sm/Md/Lg）で root の寸法を切り替える。",
+        "headless-ui 由来の Root / Trigger / Backdrop / Positioner / Content / Title / Description / CloseTrigger の 8 anatomy パーツに加え、pre-styled-only の footer パート（イシュー #1690、data-scope=\"dialog\" 配下 9 番目の part）を持つモーダルダイアログ。",
+        "DialogRole（Dialog/Alertdialog）で role=\"dialog\"/role=\"alertdialog\" を出し分ける。",
+        "size variant（Xs/Sm/Md/Lg/Xl、既定 Md、イシュー #1714）で root の寸法を切り替える。",
         "フォーカストラップ・Escape キーでの閉鎖・外側クリックでの閉鎖は JS ランタイム側の責務であり、本レイヤーは SSR/属性出力のみを担う。",
+        "alert-dialog（確認ダイアログ）構成: 独立部品や新しい variant 軸ではなく、role=\"alertdialog\"（DialogRole::Alertdialog）+ footer（アクション列レイアウト）+ button（Solid/Danger と Outline の組み合わせ）で表現する（イシュー #1690。role=\"alertdialog\" の dialog は wasm-full 層が外側クリックでの閉鎖を既定で無効化する）。footer 自体は送信・閉鎖等のアプリケーションロジックを持たないレイアウト専用パートである。",
     ],
     arguments: &[
         ArgRow {
             name: "size",
             kind: "Size",
             default: "Size::Md",
-            description: "root へ付与するサイズ variant（Sm/Md/Lg）。",
+            description: "root へ付与するサイズ variant（Xs/Sm/Md/Lg/Xl、イシュー #1714）。",
         },
         ArgRow {
             name: "state",
@@ -439,7 +449,11 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
             description: "開閉状態（Open/Closed）。root/content の data-state へ反映される。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "Alert dialog",
+        description: "DialogRole::Alertdialog（role=\"alertdialog\"）と footer（イシュー #1690、pre-styled-only のアクション列パート）に、既存の button を Solid/ColorPalette::Danger（破壊的確認）と Outline（キャンセル）の組み合わせで構成した確認ダイアログの例です。role=\"alertdialog\" の dialog は wasm-full 層が外側クリックでの閉鎖を既定で無効化します。footer はレイアウト専用パートであり送信・閉鎖の配線は持ちません（close_trigger は併用せず省略しています）。",
+        render: ex_alert_dialog,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -469,6 +483,88 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+/// [`DIALOG`] の Examples 節「Alert dialog」レンダラ（イシュー #1691）。
+///
+/// `dialog.rs` rustdoc「alert-dialog 構成」節（イシュー #1690）が確定した
+/// 5 要素のうち、本 crate から到達可能な 4 要素（role・footer・button の
+/// variant/palette 組み合わせ・close_trigger の要否判断）を組み合わせる
+/// （外側クリック非閉鎖は wasm-full 層の既定挙動でありノード木には現れない）。
+/// Demo（[`crate::showcase::dialog_section`]）と同じページに描画されるため、
+/// id は `showcase-dialog-*` と衝突しない `showcase-alert-dialog-*` を使う。
+/// `close_trigger` は併用せず省略する（rustdoc 項目 5 の Radix 流の選択）。
+fn ex_alert_dialog() -> Node {
+    div(
+        vec![],
+        vec![
+            dialog::trigger(
+                OpenState::Open,
+                Some("showcase-alert-dialog-content"),
+                vec![],
+                vec![text("Delete file")],
+            ),
+            dialog::root(
+                Size::Md,
+                OpenState::Open,
+                vec![],
+                vec![
+                    dialog::backdrop(OpenState::Open, vec![], vec![]),
+                    dialog::positioner(
+                        OpenState::Open,
+                        vec![],
+                        vec![dialog::content(
+                            OpenState::Open,
+                            DialogRole::Alertdialog,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-alert-dialog-content"),
+                                labelledby: Some("showcase-alert-dialog-title"),
+                                describedby: Some("showcase-alert-dialog-desc"),
+                            },
+                            vec![],
+                            vec![
+                                dialog::title(
+                                    Some("showcase-alert-dialog-title"),
+                                    vec![],
+                                    vec![text("Delete this file?")],
+                                ),
+                                dialog::description(
+                                    Some("showcase-alert-dialog-desc"),
+                                    vec![],
+                                    vec![text(
+                                        "この操作は取り消せません。ファイルは完全に削除されます。",
+                                    )],
+                                ),
+                                dialog::footer(
+                                    vec![],
+                                    vec![
+                                        button(
+                                            &ButtonProps {
+                                                variant: ButtonVariant::Outline,
+                                                ..ButtonProps::default()
+                                            },
+                                            vec![],
+                                            vec![text("Cancel")],
+                                        ),
+                                        button(
+                                            &ButtonProps {
+                                                variant: ButtonVariant::Solid,
+                                                palette: ColorPalette::Danger,
+                                                ..ButtonProps::default()
+                                            },
+                                            vec![],
+                                            vec![text("Delete")],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
 
 /// `/themes/drawer/`（Interactive カテゴリ）。
 ///
@@ -882,7 +978,7 @@ pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
 /// `aria-live="polite"` の実出力テスト）。
 pub const TOUR: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "オンボーディング向けステップガイド。Root / Backdrop / Spotlight / Positioner / Arrow / ArrowTip / Content / Title / Description / ProgressText / CloseTrigger / ActionTrigger の 12 anatomy パーツを持つ。",
+        "オンボーディング向けステップガイド。Root / Backdrop / Spotlight / Positioner / Arrow / ArrowTip / Content / Title / Description / ProgressText / Control / CloseTrigger / ActionTrigger の 13 anatomy パーツを持つ（イシュー #1666 で Control を追加。styled ラッパ・専用 CSS は Themes 側の後続）。",
         "open/closed の 2 値に加え skipped/completed という終端状態を持つ独自状態機械 Tour（Disclosure/SingleSelect のいずれにも写像できないため Component/Hydrate を直接実装する）。",
         "TourStep::target は DOM 解決を行わず data-target 属性としてエスケープ済みで出力するのみ（実座標追従は wasm-full 側の後続スコープ）。",
         "color-palette variant で root にクラスを付与する。",

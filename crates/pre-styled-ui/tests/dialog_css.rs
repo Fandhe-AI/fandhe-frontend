@@ -31,6 +31,12 @@
 //! `close-trigger` へ `box-sizing: border-box` を追加し、`title` の
 //! `padding-inline-end` を `calc(var(--fandhe-space-8) + var(--fandhe-space-2))`
 //! （close-trigger の実占有幅 + 絶対配置の inset 分）へ拡大した。
+//!
+//! イシュー #1690（親 #1675）: alert-dialog 構成のアクション列を担う
+//! pre-styled-only `footer` パート（`description` と `close-trigger` の間に
+//! 出力される、headless-ui の anatomy には存在しない本モジュール独自の
+//! 9 番目の part）を追加した（詳細は `crates/pre-styled-ui/src/dialog.rs`
+//! モジュール冒頭 rustdoc「alert-dialog 構成」節参照）。
 
 use fandhe_frontend_pre_styled_ui::dialog;
 
@@ -87,6 +93,14 @@ const DIALOG_GOLDEN_CSS: &str = r#"[data-scope="dialog"][data-part="trigger"] {
   color: var(--fandhe-color-fg-muted);
   line-height: var(--fandhe-font-line-height-normal);
   margin: 0 0 var(--fandhe-space-4) 0;
+}
+
+[data-scope="dialog"][data-part="footer"] {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--fandhe-space-3);
+  margin-block-start: var(--fandhe-space-4);
 }
 
 [data-scope="dialog"][data-part="close-trigger"] {

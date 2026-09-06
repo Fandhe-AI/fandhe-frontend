@@ -70,7 +70,7 @@ use fandhe_frontend_pre_styled_ui::avatar::{
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::button::{
-    button, close_button, icon_button, ButtonProps, ButtonVariant,
+    button, close_button, icon_button, icon_size_for, ButtonProps, ButtonVariant,
 };
 use fandhe_frontend_pre_styled_ui::calendar::{self, PlainDate};
 use fandhe_frontend_pre_styled_ui::carousel;
@@ -123,6 +123,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{Panel
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::tour::{Tour, TourStep};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldOrientation, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
 use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
@@ -183,7 +184,7 @@ use fandhe_frontend_pre_styled_ui::timer::{self, Timer, TimerControl, TimerPhase
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::toggle_group;
 use fandhe_frontend_pre_styled_ui::toolbar::Toolbar;
-use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds};
+use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds, TourTriggerKind};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
@@ -566,6 +567,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: field_section,
     },
     ComponentPage {
+        path: "/themes/fieldset/",
+        render: fieldset_section,
+    },
+    ComponentPage {
         path: "/themes/input/",
         render: input_section,
     },
@@ -939,6 +944,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_card::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::field::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::fieldset::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
@@ -1185,15 +1191,49 @@ fn button_section() -> Node {
         ),
     ]);
 
+    // イシュー #1674: IconButton のアイコン寸法がボタン size から
+    // `icon_size_for` で決定的に写像される（chakra-ui `_icon` 準拠:
+    // xs/sm → Sm、md/lg/xl → Md）ことを Xs〜Xl 全段で可視化する。
+    let icon_button_size_row = row(sizes
+        .iter()
+        .map(|(size, label)| {
+            icon_button(
+                &ButtonProps {
+                    size: *size,
+                    ..ButtonProps::default()
+                },
+                label,
+                vec![],
+                vec![icon(
+                    &IconProps {
+                        size: icon_size_for(*size),
+                        label: None,
+                        ..IconProps::default()
+                    },
+                    vec![],
+                    vec![el(
+                        "path",
+                        vec![(
+                            "d",
+                            "M10 2a8 8 0 105.29 14.29l4.7 4.7 1.42-1.42-4.7-4.7A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z",
+                        )],
+                        vec![],
+                    )],
+                )],
+            )
+        })
+        .collect());
+
     section(
         "Button",
-        "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。IconButton / CloseButton（イシュー #830）は独立部品ではなく本 recipe の icon-only 修飾 variant です。",
+        "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。IconButton / CloseButton（イシュー #830）は独立部品ではなく本 recipe の icon-only 修飾 variant です。IconButton のアイコン寸法はボタン size から `icon_size_for` で決定的に写像されます（イシュー #1674）。",
         vec![
             variant_row,
             size_row,
             palette_row,
             state_row,
             icon_close_row,
+            icon_button_size_row,
         ],
     )
 }
@@ -2401,7 +2441,11 @@ fn collapsible_section() -> Node {
 ///
 /// backdrop は掲示用に非表示化し（[`SHOWCASE_LAYOUT_CSS`]）、positioner は
 /// フロー内配置へ中和している。実際の modal オーバーレイ配置は recipe CSS
-/// （`crates/pre-styled-ui/src/dialog.rs`）がそのまま担う。
+/// （`crates/pre-styled-ui/src/dialog.rs`）がそのまま担う。イシュー #1690
+/// で追加された pre-styled-only `footer` パートをアクション列の配置に
+/// 使用する（イシュー #1691）。alert-dialog（確認ダイアログ）構成の例は
+/// [`crate::component_specs_overlay::DIALOG`] の Examples 節（`ex_alert_dialog`）
+/// を参照。
 fn dialog_section() -> Node {
     let node = div(
         vec![],
@@ -2442,14 +2486,16 @@ fn dialog_section() -> Node {
                                     vec![],
                                     vec![text("この操作は取り消せません。")],
                                 ),
-                                // イシュー #1693: footer 相当のアクション配置例
-                                // （headless anatomy に専用 footer パートが
-                                // 存在しないため、description 直後に通常の
-                                // 行として掲示する。`.showcase-row` は掲示用
-                                // レイアウトのみを担い、製品 CSS には footer
-                                // 規則を持ち込まない）。
-                                div(
-                                    vec![("class", "showcase-row")],
+                                // イシュー #1690（親 #1675）で追加された
+                                // pre-styled-only `footer` パート
+                                // （`data-scope="dialog"` 配下 9 番目の
+                                // part）。アクション列（確認/キャンセルの
+                                // ボタン群）のレイアウトのみを担い、送信・
+                                // 閉鎖等のアプリケーションロジックは持たない
+                                // （`docs/policy/intentional-non-adoption.md`
+                                // §3.25 規則 1）。
+                                dialog::footer(
+                                    vec![],
                                     vec![
                                         button(
                                             &ButtonProps {
@@ -2478,7 +2524,7 @@ fn dialog_section() -> Node {
     );
     section(
         "Dialog",
-        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下にアクション行（footer 相当、掲示用レイアウトのみ）を配置しています。",
+        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。close-trigger は content 右上のゴーストボタン（× アイコン + aria-label）として掲示し、description の下に `footer` パート（イシュー #1690、pre-styled-only のレイアウト専用パート）でアクション列を配置しています。alert-dialog（確認ダイアログ）構成の例は Examples 節を参照してください。",
         vec![node],
     )
 }
@@ -3983,6 +4029,176 @@ fn field_section() -> Node {
             readonly_instance,
             required_instance,
             horizontal_instance,
+        ])],
+    )
+}
+
+// Fieldset 節（イシュー #1687）。複数の Field をネイティブ `<fieldset>`/
+// `<legend>` でグループ化する静的コンテナ部品。`size` 軸のみを持ち
+// （`orientation`/`colorPalette` は非提供）、内側の各 Field は
+// [`field_instance`] をそのまま再利用する（`fieldset` 自身は
+// `input`/`textarea`/`select` slot を宣言しない、`fieldset.rs` モジュール
+// doc「スコープ」節参照）。
+
+/// invalid/disabled いずれも立てない既定の [`FieldsetProps`]。
+fn plain_fieldset(id: &'static str) -> FieldsetProps<'static> {
+    FieldsetProps {
+        id,
+        disabled: false,
+        invalid: false,
+        has_helper_text: false,
+    }
+}
+
+/// `has_helper_text: true` のみを立てた [`FieldsetProps`]（[`plain_fieldset`]
+/// 派生、[`fieldset_section`] 専用）。
+fn fieldset_with_helper(id: &'static str) -> FieldsetProps<'static> {
+    FieldsetProps {
+        has_helper_text: true,
+        ..plain_fieldset(id)
+    }
+}
+
+/// `invalid: true` かつ `has_helper_text: true` を立てた [`FieldsetProps`]
+/// （[`plain_fieldset`] 派生、[`fieldset_section`] 専用）。
+fn invalid_fieldset_with_helper(id: &'static str) -> FieldsetProps<'static> {
+    FieldsetProps {
+        invalid: true,
+        has_helper_text: true,
+        ..plain_fieldset(id)
+    }
+}
+
+/// `disabled: true` のみを立てた [`FieldsetProps`]（[`plain_fieldset`]
+/// 派生、[`fieldset_section`] 専用）。
+fn disabled_fieldset(id: &'static str) -> FieldsetProps<'static> {
+    FieldsetProps {
+        disabled: true,
+        ..plain_fieldset(id)
+    }
+}
+
+/// [`fieldset_section`] の 1 インスタンスを組み立てる内部ヘルパー。
+///
+/// 内側の 2 件の Field は [`field_instance`]（Field 節と共有）をそのまま
+/// 呼び、`fs.merge_field_props`（headless
+/// `fandhe_frontend_headless_ui::fieldset::FieldsetProps::merge_field_props`
+/// への薄い委譲、`fieldset.rs` は再エクスポートしないため
+/// `fandhe_frontend_pre_styled_ui::fieldset::FieldsetProps` が同名メソッドを
+/// 持つ）で `disabled` を OR 伝播させる。`required_indicator` は fieldset
+/// 自身の slot ではない（`field` 側にのみ存在）ため描画しない。
+/// `error_text` は headless 側の `hidden` fail-closed 描画に従い常に描画し、
+/// `helper` に `Some` を渡したときのみ `helper_text` を追加描画する
+/// （`helper` の有無と `fs.has_helper_text` を食い違わせないことが呼び出し
+/// 側の契約、[`field_with_helper`] と同型の設計）。
+fn fieldset_instance(
+    size: Size,
+    fs: &FieldsetProps<'_>,
+    legend_text: &'static str,
+    field_ids: [&'static str; 2],
+    helper: Option<&'static str>,
+) -> Node {
+    let name_field = fs.merge_field_props(plain_field(field_ids[0]));
+    let email_field = fs.merge_field_props(plain_field(field_ids[1]));
+
+    let mut children = vec![fieldset::legend(fs, vec![], vec![text(legend_text)])];
+    children.push(field_instance(
+        FieldOrientation::Vertical,
+        &name_field,
+        "Name",
+        "Ada Lovelace",
+        None,
+    ));
+    children.push(field_instance(
+        FieldOrientation::Vertical,
+        &email_field,
+        "Email",
+        "you@example.com",
+        None,
+    ));
+    if let Some(helper_text_value) = helper {
+        children.push(fieldset::helper_text(
+            fs,
+            vec![],
+            vec![text(helper_text_value)],
+        ));
+    }
+    children.push(fieldset::error_text(
+        fs,
+        vec![],
+        vec![text("Please complete every field in this group.")],
+    ));
+    fieldset::root(&FieldsetRootProps { size }, fs, vec![], children)
+}
+
+/// Fieldset 節: root/legend/helper-text/error-text の型階層と余白を、
+/// 既定+helper・invalid+helper+error・disabled・`Sm`・`Lg` の 5 態で掲示する。
+///
+/// 内側の Field（Name/Email）は `fandhe_frontend_pre_styled_ui::field` +
+/// `input` が所有するため、本節ではそれをそのまま呼ぶ。`data-invalid`/
+/// `data-disabled` を CSS セレクタとして参照し視覚を切り替えるだけで、
+/// バリデーション処理（値の妥当性判定・送信処理）自体は実装しない
+/// （`docs/policy/intentional-non-adoption.md` §3.25 規則 1、
+/// `fieldset.rs` モジュール doc「責務境界」節参照）。
+fn fieldset_section() -> Node {
+    let default_instance = fieldset_instance(
+        Size::Md,
+        &fieldset_with_helper("showcase-fieldset-default"),
+        "Contact details",
+        [
+            "showcase-fieldset-default-name",
+            "showcase-fieldset-default-email",
+        ],
+        Some("We use this to confirm your order."),
+    );
+
+    let invalid_instance = fieldset_instance(
+        Size::Md,
+        &invalid_fieldset_with_helper("showcase-fieldset-invalid"),
+        "Contact details",
+        [
+            "showcase-fieldset-invalid-name",
+            "showcase-fieldset-invalid-email",
+        ],
+        Some("We use this to confirm your order."),
+    );
+
+    let disabled_instance = fieldset_instance(
+        Size::Md,
+        &disabled_fieldset("showcase-fieldset-disabled"),
+        "Contact details",
+        [
+            "showcase-fieldset-disabled-name",
+            "showcase-fieldset-disabled-email",
+        ],
+        None,
+    );
+
+    let sm_instance = fieldset_instance(
+        Size::Sm,
+        &plain_fieldset("showcase-fieldset-sm"),
+        "Contact details",
+        ["showcase-fieldset-sm-name", "showcase-fieldset-sm-email"],
+        None,
+    );
+
+    let lg_instance = fieldset_instance(
+        Size::Lg,
+        &plain_fieldset("showcase-fieldset-lg"),
+        "Contact details",
+        ["showcase-fieldset-lg-name", "showcase-fieldset-lg-email"],
+        None,
+    );
+
+    section(
+        "Fieldset",
+        "複数の Field をネイティブ <fieldset>/<legend> でグループ化する静的コンテナ部品。size 軸のみを持ち、data-disabled/data-invalid を CSS セレクタとして参照して見た目を切り替えるだけでバリデーション自体は実装しません。",
+        vec![stack(vec![
+            default_instance,
+            invalid_instance,
+            disabled_instance,
+            sm_instance,
+            lg_instance,
         ])],
     )
 }
@@ -5723,8 +5939,18 @@ fn tour_section() -> Node {
                             // イシュー #1551: action-trigger の並置間隔
                             // （`margin-inline-end`）を実際に確認できる
                             // よう、2 個並べる（Prev/Next）。
-                            tour::action_trigger(&t, vec![], vec![text("Prev")]),
-                            tour::action_trigger(&t, vec![], vec![text("Next")]),
+                            tour::action_trigger(
+                                &t,
+                                TourTriggerKind::Prev,
+                                vec![],
+                                vec![text("Prev")],
+                            ),
+                            tour::action_trigger(
+                                &t,
+                                TourTriggerKind::Next,
+                                vec![],
+                                vec![text("Next")],
+                            ),
                         ],
                     ),
                 ],
@@ -5778,6 +6004,7 @@ fn splitter_section() -> Node {
                 &horizontal_state,
                 0,
                 "showcase-splitter-h-panel-a",
+                "showcase-splitter-h-panel-b",
                 false,
                 vec![],
                 vec![],
@@ -5800,21 +6027,26 @@ fn splitter_section() -> Node {
         ],
         Orientation::Vertical,
     );
+    let vertical_panel_ids: Vec<String> = (0..3)
+        .map(|index| format!("showcase-splitter-v-panel-{index}"))
+        .collect();
     let mut vertical_children = Vec::new();
     for (index, label) in ["Top", "Middle", "Bottom"].iter().enumerate() {
-        let id = format!("showcase-splitter-v-panel-{index}");
+        let id = &vertical_panel_ids[index];
         vertical_children.push(splitter::panel(
             &vertical_state,
             index,
-            &id,
+            id,
             vec![],
             vec![text(*label)],
         ));
         if index + 1 < 3 {
+            let trailing_id = &vertical_panel_ids[index + 1];
             vertical_children.push(splitter::resize_trigger(
                 &vertical_state,
                 index,
-                &id,
+                id,
+                trailing_id,
                 false,
                 vec![],
                 vec![],
@@ -9360,7 +9592,8 @@ mod tests {
         // 98 → 101 件になった。
         // イシュー #1683 で Collapsible を追加し 101 → 102 件になった。
         // イシュー #1685 で Field を追加し 102 → 103 件になった。
-        assert_eq!(paths.len(), 103, "COMPONENT_PAGES should have 103 entries");
+        // イシュー #1687 で Fieldset を追加し 103 → 104 件になった。
+        assert_eq!(paths.len(), 104, "COMPONENT_PAGES should have 104 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
@@ -9453,6 +9686,7 @@ mod tests {
             "avatar",
             "checkbox",
             "field",
+            "fieldset",
             "number-input",
             "password-input",
             "tags-input",
@@ -9514,6 +9748,14 @@ mod tests {
             assert!(
                 html.contains(&format!(r#"data-scope="field" data-part="{part}""#)),
                 "missing data-scope=field data-part={part}"
+            );
+        }
+        // Fieldset 節（イシュー #1687）: fieldset scope 内の 4 パーツすべてが
+        // 掲示されていることを固定する。
+        for part in ["root", "legend", "helper-text", "error-text"] {
+            assert!(
+                html.contains(&format!(r#"data-scope="fieldset" data-part="{part}""#)),
+                "missing data-scope=fieldset data-part={part}"
             );
         }
         // 静的掲示の状態固定: 選択中タブ・開いた Accordion 項目・checked
@@ -9629,6 +9871,12 @@ mod tests {
         assert!(css.contains(r#"[data-scope="field"][data-part="helper-text"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="error-text"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="required-indicator"]"#));
+        // Fieldset 節（イシュー #1687）: root/legend/helper-text/error-text
+        // の recipe CSS。
+        assert!(css.contains(r#"[data-scope="fieldset"][data-part="root"]"#));
+        assert!(css.contains(r#"[data-scope="fieldset"][data-part="legend"]"#));
+        assert!(css.contains(r#"[data-scope="fieldset"][data-part="helper-text"]"#));
+        assert!(css.contains(r#"[data-scope="fieldset"][data-part="error-text"]"#));
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="password-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));

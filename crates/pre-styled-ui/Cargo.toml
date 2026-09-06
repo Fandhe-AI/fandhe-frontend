@@ -1899,6 +1899,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # （同一版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
 # style-refresh-version-bump-operation.md` §5）、両者の変更の和集合として
 # さらにマイナーバンプし 0.113.0 とする。
+# base 再取り込み（イシュー #1661, 2026-09-06, 2 回目）: 上記のとおり
+# HEAD（#1661）・main（#1655）の双方の base 再取り込みは、それぞれ自身の
+# 破壊的変更（json-tree-view の data-kind セレクタ変更 / pagination の
+# シグネチャ変更）と field モジュール新設（#1684）のみを積算して 0.113.0
+# へ到達しており、互いのもう一方の破壊的変更を積算できていなかった
+# （両者を統合する本マージで初めて両方が揃うため）。json-tree-view・
+# pagination 双方の破壊的変更と field モジュール新設の 3 件を 0.111.0 から
+# 積算した結果としてさらにマイナーバンプし 0.114.0 とする（依存先
+# headless-ui 0.60.0 への追随を含む）。
+# イシュー #1686: fieldset モジュール新設（公開 API の純追加）。純追加も
+# minor バンプとする運用（#1429、先例 #1684 field・#1682 collapsible）に
+# 従い 0.115.0 とする。`/themes/fieldset/` ページ登録は後続イシュー #1687。
 # base 再取り込み（イシュー #1662, 2026-09-06, 2 回目）: 上記のとおり main
 # 側は json-tree-view・pagination 双方の破壊的変更と field モジュール新設の
 # 3 件を積算して 0.114.0 へ到達している。本ブランチは headless-ui
@@ -1936,7 +1948,91 @@ name = "fandhe-frontend-pre-styled-ui"
 # `version = "..."` 要求のみを更新する patch バンプで 0.116.1 とする
 # （本クレート自身の `src/carousel.rs` は `pub use` による選択的
 # 再エクスポートを変更しておらず実体変更なし）。
-version = "0.116.1"
+# base 再取り込み（イシュー #1664/#1657, 2026-09-06, 3 回目）: HEAD 側は
+# splitter の参照突合（イシュー #1664、headless-ui 側 `splitter::panel`/
+# `resize_trigger` のシグネチャ変更に追随した本クレートの公開 API 破壊的
+# 変更）により 0.115.0 から 0.116.0 へ到達しており、main 側は toolbar の
+# 参照突合（イシュー #1657）により独立に同じ 0.116.0 へ到達していた。
+# 両者が異なる実体変更を伴い偶発的に同一版数へ衝突しているため（同一
+# 版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
+# style-refresh-version-bump-operation.md` §5）、両者の変更の和集合と
+# してさらにマイナーバンプし 0.117.0 とする（依存先 headless-ui 0.62.0
+# への追随を含む）。
+# イシュー #1688: circular Progress の indeterminate 表現に固定弧
+# （circle-range の `stroke-dasharray` state 規則）を追加した。recipe が
+# 生成する CSS 宣言の追加のみで、Rust 公開 API・生成クラス名・`data-*`
+# セレクタ語彙は不変（`.claude/rules/ci.md` の公開 CSS 契約変更に該当する
+# ため免除〔version-bump-exempt〕は使わず patch バンプする）。
+# イシュー #1665（steps の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# の 0.62.0 → 0.62.1（`Steps::prev_trigger`/`Steps::next_trigger` への
+# `data-disabled` 加算・`Steps::progress` パーツ新設等、非破壊的加算）への
+# 追随。`crates/pre-styled-ui/src/steps.rs` は `[data-disabled]` セレクタを
+# 既に登録済み（headless 側未発行のため無害な死んだ規則だった）で、本
+# バンプにより実効化する。CSS 出力・golden テストは不変のため patch
+# バンプで 0.117.1 とする。
+# イシュー #1666（tour の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# の 0.62.1 → 0.63.0（`Tour::action_trigger` が `TourTriggerKind` 引数付き
+# シグネチャへ破壊的変更）への追随。本クレートの `tour::action_trigger`
+# ラッパも同じ引数を追加する公開 API 変更のため、マイナーバンプで
+# 0.118.0 とする。
+# イシュー #1674（button の icon-only 変種を chakra-ui/Radix Themes と
+# 突合）: `icon_size_for` を追加し `close_button` の内蔵アイコン寸法・
+# `icon_button` 推奨手順を是正した。`recipe()`/`recipe_with_scope()` の
+# CSS 宣言は不変（golden テスト差分ゼロ）のため main 側は独立に patch
+# バンプで 0.117.2 としていた。
+# イシュー #1690（親 #1675）: dialog へ alert-dialog 構成向けの
+# pre-styled-only `footer` パート（新規 `pub fn footer`・`SLOTS` へ純追加の
+# 1 slot）を追加した。既存パート・既存 CSS 宣言・公開 API シグネチャは
+# いずれも不変（純追加のみ、golden テストは footer ブロック 1 個の
+# 純挿入差分）のため main 側はさらに patch バンプで 0.117.3 としていた。
+# base 再取り込み（イシュー #1688/#1665, 2026-09-06, 4 回目）: 本ブランチ
+# （#1688、circular Progress の indeterminate 弧追加）と main（#1665、steps
+# の headless-ui 追随）はいずれも独立に patch バンプし偶発的に同一版数
+# 0.117.1 へ衝突していた（同一版数への偶発的衝突をそのまま採用しない
+# 原則、`docs/ci/style-refresh-version-bump-operation.md` §5）。両者を
+# 統合した結果としてさらに patch バンプし 0.117.2 とする。
+# base 再取り込み（イシュー #1688/#1674, 2026-09-06, 5 回目）: 本ブランチ
+# （直前の 0.117.2、#1688 + #1665 の統合結果）と main（#1674、button の
+# icon-only 変種を chakra-ui/Radix Themes と突合し `icon_size_for` を追加。
+# `recipe()`/`recipe_with_scope()` の CSS 宣言は不変で golden テスト差分
+# ゼロ）はいずれも独立に patch バンプし偶発的に同一版数 0.117.2 へ再度
+# 衝突していた（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。両者を統合した
+# 結果としてさらに patch バンプし 0.117.3 とする。
+# base 再取り込み（イシュー #1690/#1674, 2026-09-06, 6 回目）: 本ブランチ
+# （直前の 0.117.3、#1690 dialog footer 追加）と main（直前の 0.117.3、
+# #1665 + #1674 の統合結果）はいずれも独立に patch バンプし偶発的に
+# 同一版数 0.117.3 へ再度衝突していた（同一版数への偶発的衝突をそのまま
+# 採用しない原則、`docs/ci/style-refresh-version-bump-operation.md` §5）。
+# 両者を統合した結果としてさらに patch バンプし 0.117.4 とする。
+# イシュー #1667（tree-view の参照突合）: `fandhe-frontend-headless-ui`
+# 0.63.0（`TreeItemProps` 新設に伴う 9 パーツ関数のシグネチャ変更、
+# 破壊的変更）への追随・再エクスポート先シグネチャの破壊的変更（`branch`
+# 等が `TreeItemProps` を取るようになった）に伴い、0.x の破壊的変更規約に
+# 従いマイナーバンプで 0.118.0 とする（`item-indicator` の `[hidden]`
+# 上書き CSS 追加自体は非破壊的だが、上記シグネチャ変更が破壊的のため
+# 合わせてマイナーバンプする）。
+# base 再取り込み（イシュー #1666/#1690, 2026-09-06, 7 回目）: 本ブランチ
+# （tour の参照突合、破壊的変更で 0.118.0 に到達済み）と main（#1690 の
+# dialog footer 追加を経て 0.117.4 に到達）を統合する。
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（自分の
+# 変更が minor バンプの場合は main の現在値の minor を +1 し patch を
+# 0 に戻す）に従うと main の現在値 0.117.4 の minor（117）を +1 して
+# 0.118.0 となり、これは既に HEAD 側が到達している値と一致するため、
+# 追加のバンプは不要としてそのまま 0.118.0 を維持する。
+# PR #1925 codex-review 指摘 是正（5 回目・P1 2 件）: 横方向 `item` が
+# 内容を境界でクリップしておらず、`min-width: 0` のみで overflow が
+# visible のままだったため幅を超える内容（大きい画像等）が隣のスライドへ
+# はみ出す不具合があった。orientation によらず `item` base の宣言へ
+# `min-width: 0`/`min-height: 0`/`overflow: hidden` を寄せ（縦方向 state
+# 側の重複宣言は削除）、横縦で対称な寸法固定・内容クリップにした
+# （`crates/pre-styled-ui/src/carousel.rs` の `.base("item", ...)` rustdoc
+# 参照）。公開 CSS 契約の観測可能な実体変更（golden 更新）に加え、依存先
+# `fandhe-frontend-headless-ui` 0.64.0 → 0.65.0（本ブランチの carousel
+# 実体変更が main へ未反映のまま Cargo.toml マージが衝突した解消分、
+# `crates/headless-ui/Cargo.toml` 参照）への追随も伴うため、マイナー
+# バンプで 0.119.0 とする。
+version = "0.119.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1951,7 +2047,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.62.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.65.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

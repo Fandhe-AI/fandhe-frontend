@@ -924,8 +924,14 @@ fn splitter_dispatch_increment_updates_aria_valuenow_on_rerender() {
     use fandhe_frontend_headless_ui::splitter::Splitter;
 
     let mut s = Splitter::default();
-    let before =
-        fandhe_frontend_core::render(&s.resize_trigger(0, "panel-0", false, vec![], vec![]));
+    let before = fandhe_frontend_core::render(&s.resize_trigger(
+        0,
+        "panel-0",
+        "panel-1",
+        false,
+        vec![],
+        vec![],
+    ));
     assert!(before.contains(r#"aria-valuenow="50""#));
 
     assert!(fandhe_frontend_interactive::dispatch(
@@ -933,8 +939,14 @@ fn splitter_dispatch_increment_updates_aria_valuenow_on_rerender() {
         "increment",
         "0"
     ));
-    let after =
-        fandhe_frontend_core::render(&s.resize_trigger(0, "panel-0", false, vec![], vec![]));
+    let after = fandhe_frontend_core::render(&s.resize_trigger(
+        0,
+        "panel-0",
+        "panel-1",
+        false,
+        vec![],
+        vec![],
+    ));
     assert!(after.contains(r#"aria-valuenow="51""#));
 }
 
@@ -951,13 +963,25 @@ fn splitter_dispatch_home_and_end_update_aria_valuenow_to_min_and_max() {
     );
 
     assert!(fandhe_frontend_interactive::dispatch(&mut s, "home", "0"));
-    let home_html =
-        fandhe_frontend_core::render(&s.resize_trigger(0, "panel-0", false, vec![], vec![]));
+    let home_html = fandhe_frontend_core::render(&s.resize_trigger(
+        0,
+        "panel-0",
+        "panel-1",
+        false,
+        vec![],
+        vec![],
+    ));
     assert!(home_html.contains(r#"aria-valuenow="20""#));
 
     assert!(fandhe_frontend_interactive::dispatch(&mut s, "end", "0"));
-    let end_html =
-        fandhe_frontend_core::render(&s.resize_trigger(0, "panel-0", false, vec![], vec![]));
+    let end_html = fandhe_frontend_core::render(&s.resize_trigger(
+        0,
+        "panel-0",
+        "panel-1",
+        false,
+        vec![],
+        vec![],
+    ));
     assert!(end_html.contains(r#"aria-valuenow="80""#));
 }
 
