@@ -14,16 +14,32 @@
 //!
 //! 本ファイルは `angle_slider_browser.rs`（イシュー #1956/#1957）と同型の
 //! パターンで、`Runtime::mount`/`Runtime::hydrate` 経由で配線した実
-//! Splitter への ArrowRight keydown が
+//! Splitter への keydown が
 //!
-//! 1. hydrate 経路（[`hydrate_arrow_right_keydown_dispatches_and_rerenders_dom`]）
-//! 2. mount（CSR）経路（[`mount_arrow_right_keydown_dispatches_and_rerenders_dom`]）
+//! 1. ArrowRight（Increment）、hydrate 経路
+//!    （[`hydrate_arrow_right_keydown_dispatches_and_rerenders_dom`]）
+//! 2. ArrowRight（Increment）、mount（CSR）経路
+//!    （[`mount_arrow_right_keydown_dispatches_and_rerenders_dom`]）
+//! 3. disabled resize-trigger への keydown が no-op のままであること
+//!    （[`disabled_resize_trigger_keydown_is_noop`]）
+//! 4. 構造フォールバックを挟んだフォーカス復元（3 変種、イシュー #1996
+//!    codex-review P1 是正の回帰。
+//!    [`resize_trigger_focus_is_restored_after_structural_fallback_on_keydown`]/
+//!    [`resize_trigger_focus_is_restored_after_structural_fallback_without_ids`]/
+//!    [`resize_trigger_focus_is_restored_after_structural_fallback_with_colon_panel_ids`]）
+//! 5. Home/End（SetToMin/SetToMax）が先行パネルを min/max へ設定すること
+//!    （イシュー #1997、
+//!    [`home_and_end_keydown_set_min_and_max_and_rerender_dom`]）
+//! 6. `Runtime::hydrate` の通常復元経路（`from_hydration_attrs` が `Ok` を
+//!    返すケース）で min/max が属性由来に復元され、DOM 同一性が保たれる
+//!    こと（イシュー #1997、
+//!    [`hydrate_restores_host_from_attrs_and_preserves_dom_identity`]）
 //!
-//! の双方で、resize-trigger 自身の `aria-valuenow`（`data-bind-attr`
-//! 束縛点、モジュール冒頭 doc「束縛点設計」節参照）と `C`（[`SplitterHost`]）
-//! 側の派生フィールド（`data-bind-text` 束縛点）へ正しく反映されることを
-//! 検証する。加えて disabled resize-trigger への keydown が no-op のままで
-//! あること（[`disabled_resize_trigger_keydown_is_noop`]）も固定する。
+//! の各ケースで、resize-trigger 自身の `aria-valuenow`（`data-bind-attr`
+//! 束縛点、モジュール冒頭 doc「束縛点設計」節参照）・`C`
+//! （[`SplitterHost`]）側の派生フィールド（`data-bind-text` 束縛点）・
+//! panel-0 の `style`（パネルサイズ、イシュー #1997）が正しく反映される
+//! ことを検証する。
 //!
 //! # 束縛点設計
 //!
@@ -42,6 +58,22 @@
 //! （`Self::wire` の既存束縛点更新経路のみを使い、
 //! `fandhe-frontend-wasm-full`/`fandhe-frontend-headless-ui` 側の変更は
 //! 不要）である。
+//!
+//! 同様に [`fandhe_frontend_headless_ui::splitter::panel`] は `id`/
+//! `data-orientation`/`data-index`/`data-id` のみを出力し、パネルサイズの
+//! DOM 表現（`style`）を一切持たない（`crates/wasm-full/src/splitter.rs`
+//! モジュール doc「`aria-valuenow` を直接書き換えない設計判断」節が
+//! 明記するとおり、`Runtime::wire_splitter` はこの反映を保証しない
+//! **アプリ側配線**である）。本ファイルは
+//! `fandhe-frontend-pre-styled-ui` クレートへ依存せず、同クレートの
+//! `splitter::panel`（`percent_style`）と同じ書式
+//! `--fandhe-splitter-size: {percent}%` の文字列を
+//! [`SplitterHost::panel0_style`] として保持し、
+//! `bind_attr_tokens(&[("style", "panel0_style")])` を panel-0 呼び出し
+//! 側 `attrs` へ付与することで、アプリが束縛した場合にこの契約が実際に
+//! 成立することを示す（`fandhe_frontend_wasm_client::binding_dom::apply_one`
+//! は `style` を通常の `set_attribute` で反映し、URL 検証・イベント
+//! ハンドラ属性拒否の対象外であることは調査済み）。
 
 #![cfg(target_arch = "wasm32")]
 
@@ -125,8 +157,21 @@ struct SplitterHost {
     /// ことを検証する。
     panel_ids: (String, String),
     trigger_bind_attr: String,
+    /// panel-0（`panel_ids.0`）の `style` 属性を束縛する
+    /// `data-bind-attr` トークン（イシュー #1997。モジュール冒頭 doc
+    /// 「束縛点設計」節参照）。`aria-valuenow` とは独立に、パネルサイズの
+    /// DOM 反映（`fandhe-frontend-pre-styled-ui` の CSS カスタム
+    /// プロパティと同じ書式 `--fandhe-splitter-size: {percent}%`）を
+    /// アプリ側配線として検証するために [`SplitterHost::view`] が
+    /// panel-0 の `attrs` へ渡す。
+    panel_bind_attr: String,
     size_now: String,
     size_label: String,
+    /// panel-0 の `style` 属性値（[`Self::panel_bind_attr`] が束縛する
+    /// `panel0_style` フィールドの実体）。`size_now`/`size_label` と同じく
+    /// [`SplitterHost::update`] がトリガー 0 の先行パネルサイズ変化を
+    /// 検知するたびに再計算し `dirty` へ積む。
+    panel0_style: String,
     dirty: Vec<&'static str>,
 }
 
@@ -151,6 +196,13 @@ const HOST_ATTR_PANEL_ID_LEADING: &str = "data-hydrate-host-panel-id-leading";
 /// ホストの `panel_ids.1`（trailing パネル `id`）を往復させる属性名。
 const HOST_ATTR_PANEL_ID_TRAILING: &str = "data-hydrate-host-panel-id-trailing";
 
+/// panel-0 の `style` 属性値の書式（`fandhe-frontend-pre-styled-ui` の
+/// `splitter::panel`（`percent_style`）と同一書式、モジュール冒頭 doc
+/// 「束縛点設計」節参照）。
+fn panel0_style_value(size_now: &str) -> String {
+    format!("--fandhe-splitter-size: {size_now}%")
+}
+
 impl SplitterHost {
     fn new(root_id: &str) -> Self {
         Self::with_options(root_id, false, false, false)
@@ -158,6 +210,16 @@ impl SplitterHost {
 
     fn disabled(root_id: &str) -> Self {
         Self::with_options(root_id, true, false, false)
+    }
+
+    /// 指定した `Splitter`（min/max を既定 `(0.0, 100.0)` から変えたい
+    /// ケース向け）で標準構成（disabled なし・構造フォールバックなし・
+    /// id あり）のホストを作る（イシュー #1997。Home/End が min/max へ
+    /// 実際に到達することを検証するテスト（[`home_and_end_keydown_set_min_and_max_and_rerender_dom`]）や、
+    /// ハイドレーション属性由来の min/max 復元を検証するテスト
+    /// （[`hydrate_restores_host_from_attrs_and_preserves_dom_identity`]）で使う）。
+    fn with_splitter(root_id: &str, splitter: Splitter) -> Self {
+        Self::new_with(root_id, splitter, false, false, false)
     }
 
     /// 毎 dispatch で [`STRUCTURAL_ONLY_FIELD`] を積み、
@@ -199,9 +261,32 @@ impl SplitterHost {
             ],
             Orientation::Horizontal,
         );
+        Self::new_with(
+            root_id,
+            splitter,
+            disabled,
+            structural_fallback,
+            omit_splitter_ids,
+        )
+    }
+
+    /// 全コンストラクタが収束する共通実装（[`Self::with_options`]/
+    /// [`Self::with_splitter`] から呼ばれる）。`panel_ids` は既定
+    /// `("panel-0", "panel-1")` のまま返し、コロン付き id への差し替えは
+    /// 呼び出し側（[`Self::with_structural_fallback_and_colon_panel_ids`]）
+    /// が行う。
+    fn new_with(
+        root_id: &str,
+        splitter: Splitter,
+        disabled: bool,
+        structural_fallback: bool,
+        omit_splitter_ids: bool,
+    ) -> Self {
         let size_now = format!("{}", splitter.size(0).unwrap_or(50.0));
         let size_label = size_now.clone();
         let trigger_bind_attr = bind_attr_tokens(&[("aria-valuenow", "size_now")]);
+        let panel_bind_attr = bind_attr_tokens(&[("style", "panel0_style")]);
+        let panel0_style = panel0_style_value(&size_now);
         Self {
             splitter,
             root_id: root_id.to_string(),
@@ -210,8 +295,10 @@ impl SplitterHost {
             omit_splitter_ids,
             panel_ids: ("panel-0".to_string(), "panel-1".to_string()),
             trigger_bind_attr,
+            panel_bind_attr,
             size_now,
             size_label,
+            panel0_style,
             dirty: Vec::new(),
         }
     }
@@ -229,8 +316,13 @@ impl Component for SplitterHost {
             self.dirty.push("size_now");
         }
         if now != self.size_label {
-            self.size_label = now;
+            self.size_label = now.clone();
             self.dirty.push("size_label");
+        }
+        let new_panel0_style = panel0_style_value(&now);
+        if new_panel0_style != self.panel0_style {
+            self.panel0_style = new_panel0_style;
+            self.dirty.push("panel0_style");
         }
         // 値が実際に変化した dispatch に限って構造フォールバック用の
         // 未解決 field を積む（no-op dispatch で再描画を誘発しない）。
@@ -255,8 +347,22 @@ impl Component for SplitterHost {
             self.disabled,
             splitter_root_attrs,
             vec![
-                self.splitter
-                    .panel(0, self.panel_ids.0.as_str(), Vec::new(), Vec::new()),
+                self.splitter.panel(
+                    0,
+                    self.panel_ids.0.as_str(),
+                    vec![
+                        // headless-ui `splitter::panel` はパネルサイズの DOM
+                        // 表現（`style`）を一切持たない（モジュール冒頭 doc
+                        // 「束縛点設計」節参照）。`aria-valuenow`（headless-ui
+                        // 側が SSR 値を静的に出力する）とは異なり、`style`
+                        // 自体の初期値もアプリ側（本テストホスト）が明示的に
+                        // 出力する必要がある。`data-bind-attr` は以後の
+                        // dispatch 後更新のための束縛点マーカーに過ぎない。
+                        ("style", self.panel0_style.as_str()),
+                        ("data-bind-attr", self.panel_bind_attr.as_str()),
+                    ],
+                    Vec::new(),
+                ),
                 self.splitter.resize_trigger(
                     0,
                     self.panel_ids.0.as_str(),
@@ -302,6 +408,7 @@ impl BindingSource for SplitterHost {
         match field {
             "size_now" => Some(BoundValue::Text(self.size_now.clone())),
             "size_label" => Some(BoundValue::Text(self.size_label.clone())),
+            "panel0_style" => Some(BoundValue::Text(self.panel0_style.clone())),
             _ => None,
         }
     }
@@ -361,6 +468,8 @@ impl Hydrate for SplitterHost {
         let size_now = format!("{}", splitter.size(0).unwrap_or(50.0));
         let size_label = size_now.clone();
         let trigger_bind_attr = bind_attr_tokens(&[("aria-valuenow", "size_now")]);
+        let panel_bind_attr = bind_attr_tokens(&[("style", "panel0_style")]);
+        let panel0_style = panel0_style_value(&size_now);
         Ok(Self {
             splitter,
             root_id,
@@ -369,8 +478,10 @@ impl Hydrate for SplitterHost {
             omit_splitter_ids,
             panel_ids: (panel_id_leading, panel_id_trailing),
             trigger_bind_attr,
+            panel_bind_attr,
             size_now,
             size_label,
+            panel0_style,
             dirty: Vec::new(),
         })
     }
@@ -450,6 +561,17 @@ fn size_label(root_el: &Element) -> String {
         .unwrap_or_default()
 }
 
+/// panel-0（`data-index='0'` の `[data-scope='splitter'][data-part='panel']`）
+/// の `style` 属性値（イシュー #1997。モジュール冒頭 doc「束縛点設計」節
+/// 参照）。束縛点が未反映（`style` 属性自体が無い）場合は `None` を返す。
+fn panel0_style_attr(root_el: &Element) -> Option<String> {
+    root_el
+        .query_selector("[data-scope='splitter'][data-part='panel'][data-index='0']")
+        .expect("query_selector must not fail")
+        .expect("panel-0 part must exist")
+        .get_attribute("style")
+}
+
 /// `Runtime::hydrate` 経由で配線した resize-trigger keydown（`ArrowRight`）
 /// が、Splitter 自身の `aria-valuenow`（`data-bind-attr` 束縛点）と `C`
 /// （`SplitterHost`）側の `data-bind-text="size_label"` の双方へ反映される
@@ -468,6 +590,11 @@ fn hydrate_arrow_right_keydown_dispatches_and_rerenders_dom() {
         Some("50")
     );
     assert_eq!(size_label(&root_el), "50");
+    assert_eq!(
+        panel0_style_attr(&root_el).as_deref(),
+        Some("--fandhe-splitter-size: 50%"),
+        "panel-0 の style 束縛点が初期サイズを反映していること"
+    );
 
     let default_not_prevented = trigger
         .dispatch_event(&keydown_event("ArrowRight"))
@@ -497,6 +624,13 @@ fn hydrate_arrow_right_keydown_dispatches_and_rerenders_dom() {
          apply_update_for_dirty へ渡し、C 側の束縛点（size_label）が \
          再描画されること（イシュー #1996 の受け入れ条件）"
     );
+    assert_eq!(
+        panel0_style_attr(&root_el).as_deref(),
+        Some("--fandhe-splitter-size: 51%"),
+        "panel-0 の style 束縛点（アプリ側配線）が dispatch 後の \
+         パネルサイズ反映として再描画されること（イシュー #1997 の \
+         受け入れ条件）"
+    );
 
     // ArrowLeft（Decrement）も同じ経路で対称に反映されることを確認する。
     trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
@@ -506,6 +640,10 @@ fn hydrate_arrow_right_keydown_dispatches_and_rerenders_dom() {
         Some("50")
     );
     assert_eq!(size_label(&root_el), "50");
+    assert_eq!(
+        panel0_style_attr(&root_el).as_deref(),
+        Some("--fandhe-splitter-size: 50%")
+    );
 }
 
 /// `Runtime::mount`（CSR 経路）で配線した場合も
@@ -539,6 +677,12 @@ fn mount_arrow_right_keydown_dispatches_and_rerenders_dom() {
          カバレッジ）"
     );
     assert_eq!(size_label(&root_el), "51");
+    assert_eq!(
+        panel0_style_attr(&root_el).as_deref(),
+        Some("--fandhe-splitter-size: 51%"),
+        "Runtime::mount 経由でも panel-0 の style 束縛点（パネルサイズ \
+         反映）が dispatch 後に再描画されること（イシュー #1997）"
+    );
 }
 
 /// disabled な resize-trigger への keydown が引き続き no-op であること
@@ -570,6 +714,12 @@ fn disabled_resize_trigger_keydown_is_noop() {
         Some("50")
     );
     assert_eq!(size_label(&root_el), "50");
+    assert_eq!(
+        panel0_style_attr(&root_el).as_deref(),
+        Some("--fandhe-splitter-size: 50%"),
+        "disabled な resize-trigger への keydown はパネルサイズ（style \
+         束縛点）も変えないこと（イシュー #1997）"
+    );
 }
 
 /// 構造フォールバック（`Runtime::rerender_subtree`）を挟んだ矢印キー
@@ -783,5 +933,239 @@ fn resize_trigger_focus_is_restored_after_structural_fallback_with_colon_panel_i
         Some(52.0),
         "パネル id にコロンを含む構成でもフォーカス復元により 2 回目の \
          ArrowRight が resize-trigger へ届き、サイズ調整が継続すること"
+    );
+}
+
+/// Home/End keydown が `SplitterKeyAction::SetToMin`/`SetToMax`
+/// （`fandhe_frontend_wasm_full::keynav::splitter_key_action`、dispatch
+/// アクション名 `"home"`/`"end"`）へ写像され、resize-trigger 0 の先行
+/// パネルがその `min`/`max` へ設定されたうえで `aria-valuenow`・
+/// `size_label`・panel-0 の `style`（パネルサイズ、イシュー #1997）の
+/// 全てへ反映されることを検証する（イシュー #1997 の受け入れ条件（2））。
+/// ArrowRight/ArrowLeft のみを検証する
+/// [`hydrate_arrow_right_keydown_dispatches_and_rerenders_dom`] は
+/// `SplitterKeyAction::Increment`/`Decrement` のみを通り、`SetToMin`/
+/// `SetToMax` 経路の dispatch 配線（`ACTION_HOME`/`ACTION_END`）は
+/// カバーしない。
+///
+/// `min`/`max` を既定 `(0.0, 100.0)` から絞った `PanelSpec::new(50.0,
+/// 20.0, 80.0)` を両パネルへ使い、「min へ clamp された」ことと「0 へ
+/// 落ちた」ことを区別できるようにする。
+#[wasm_bindgen_test]
+fn home_and_end_keydown_set_min_and_max_and_rerender_dom() {
+    let splitter = Splitter::new(
+        &[
+            PanelSpec::new(50.0, 20.0, 80.0),
+            PanelSpec::new(50.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let (root_el, runtime) = mount_via_hydrate(SplitterHost::with_splitter(
+        "splitter-host-home-end-root",
+        splitter,
+    ));
+    let _cleanup = RemoveOnDrop(root_el.clone());
+
+    let trigger = resize_trigger(&root_el);
+    assert_eq!(
+        trigger.get_attribute("aria-valuenow").as_deref(),
+        Some("50")
+    );
+
+    let default_not_prevented = trigger.dispatch_event(&keydown_event("Home")).unwrap();
+    assert!(
+        !default_not_prevented,
+        "Home は claim され prevent_default() が呼ばれること"
+    );
+    assert_eq!(
+        runtime.component().splitter.size(0),
+        Some(20.0),
+        "Home keydown が SplitterAction::SetToMin（trigger=0）で \
+         先行パネルをその min（20.0）へ設定すること"
+    );
+    assert_eq!(
+        trigger.get_attribute("aria-valuenow").as_deref(),
+        Some("20"),
+        "Home 後に aria-valuenow が min へ反映されること"
+    );
+    assert_eq!(size_label(&root_el), "20");
+    assert_eq!(
+        panel0_style_attr(&root_el).as_deref(),
+        Some("--fandhe-splitter-size: 20%"),
+        "Home 後にパネルサイズ（style 束縛点）が min へ反映されること \
+         （イシュー #1997 の受け入れ条件）"
+    );
+
+    let default_not_prevented = trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(
+        !default_not_prevented,
+        "End は claim され prevent_default() が呼ばれること"
+    );
+    assert_eq!(
+        runtime.component().splitter.size(0),
+        Some(80.0),
+        "End keydown が SplitterAction::SetToMax（trigger=0）で \
+         先行パネルをその max（80.0）へ設定すること"
+    );
+    assert_eq!(
+        trigger.get_attribute("aria-valuenow").as_deref(),
+        Some("80"),
+        "End 後に aria-valuenow が max へ反映されること"
+    );
+    assert_eq!(size_label(&root_el), "80");
+    assert_eq!(
+        panel0_style_attr(&root_el).as_deref(),
+        Some("--fandhe-splitter-size: 80%"),
+        "End 後にパネルサイズ（style 束縛点）が max へ反映されること \
+         （イシュー #1997 の受け入れ条件）"
+    );
+}
+
+/// `Runtime::hydrate` の**通常の復元経路**（`Hydrate::from_hydration_attrs`
+/// が `Ok` を返すケース）を検証する（イシュー #1997 の受け入れ条件（4）、
+/// `angle_slider_browser.rs::hydrate_restores_host_from_attrs_and_preserves_dom_identity`
+/// と同型）。
+///
+/// SSR 相当の出力（sizes 60/40、mins 10、maxs 90）を DOM へ入れ、
+/// `hydration_attrs()`（`Splitter::hydration_attrs` が含む
+/// `data-hydrate-sizes`/`-mins`/`-maxs` を含む）を付与したうえで、
+/// あえて異なる初期状態（既定 50/50、min/max 0..100）を持つホストで
+/// `Runtime::hydrate` を呼ぶ。
+///
+/// 1. `splitter.size(0)`/`min(0)`/`max(0)` が属性由来（60/10/90）で
+///    復元され、引数のホストの値（50/0/100）で上書きされないこと
+/// 2. 復元成功時は SSR 出力の DOM が維持され、hydrate 前後で
+///    resize-trigger・panel-0 の DOM 同一性（`Node::is_same_node`）が
+///    保たれること
+/// 3. 復元後のホストへの Home/End keydown が属性由来の min/max（10/90）
+///    へ反映されること（引数のホストの 0/100 ではないこと＝min/max が
+///    属性由来であることの直接証明）
+///
+/// の 3 点を確認する。
+#[wasm_bindgen_test]
+fn hydrate_restores_host_from_attrs_and_preserves_dom_identity() {
+    const ROOT_ID: &str = "splitter-host-restore-identity-root";
+
+    let document = document();
+    let ssr_splitter = Splitter::new(
+        &[
+            PanelSpec::new(60.0, 10.0, 90.0),
+            PanelSpec::new(40.0, 10.0, 90.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let ssr_host = SplitterHost::with_splitter(ROOT_ID, ssr_splitter);
+    let html = render(&ssr_host.view());
+    document
+        .body()
+        .expect("document body must exist in browser test environment")
+        .insert_adjacent_html("beforeend", &html)
+        .expect("insert_adjacent_html must not fail");
+    let root_el = document
+        .get_element_by_id(ROOT_ID)
+        .expect("rendered Splitter root must have the expected id");
+    let _cleanup = RemoveOnDrop(root_el.clone());
+    for (name, value) in ssr_host.hydration_attrs() {
+        root_el
+            .set_attribute(&name, &value)
+            .expect("set_attribute must not fail");
+    }
+
+    let trigger_before = resize_trigger(&root_el);
+    assert_eq!(
+        trigger_before.get_attribute("aria-valuenow").as_deref(),
+        Some("60")
+    );
+    let panel0_before = root_el
+        .query_selector("[data-scope='splitter'][data-part='panel'][data-index='0']")
+        .expect("query_selector must not fail")
+        .expect("panel-0 part must exist");
+    assert_eq!(
+        panel0_before.get_attribute("style").as_deref(),
+        Some("--fandhe-splitter-size: 60%")
+    );
+
+    // 復元が属性由来であることを確かめるため、hydrate へ渡すホストには
+    // あえて別の初期状態（既定 50/50、min/max 0..100）を持たせる。
+    let default_splitter = Splitter::new(
+        &[
+            PanelSpec::new(50.0, 0.0, 100.0),
+            PanelSpec::new(50.0, 0.0, 100.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let runtime = Runtime::hydrate(
+        ROOT_ID,
+        SplitterHost::with_splitter(ROOT_ID, default_splitter),
+    )
+    .expect("hydrate must succeed for well-formed attrs");
+
+    assert_eq!(
+        runtime.component().splitter.size(0),
+        Some(60.0),
+        "from_hydration_attrs が data-hydrate-sizes 由来の 60.0 を \
+         復元すること（引数のホストの初期値 50.0 で上書きされないこと）"
+    );
+    assert_eq!(
+        runtime.component().splitter.min(0),
+        Some(10.0),
+        "from_hydration_attrs が data-hydrate-mins 由来の min=10.0 を \
+         復元すること"
+    );
+    assert_eq!(
+        runtime.component().splitter.max(0),
+        Some(90.0),
+        "from_hydration_attrs が data-hydrate-maxs 由来の max=90.0 を \
+         復元すること"
+    );
+
+    let trigger_after = resize_trigger(&root_el);
+    // `fandhe_frontend_core::Node` と名前が衝突するため完全修飾で書く。
+    let trigger_before_node: &web_sys::Node = trigger_before.as_ref();
+    assert!(
+        trigger_after.is_same_node(Some(trigger_before_node)),
+        "復元成功時は CSR 再描画へフォールバックせず、hydrate 前後で \
+         resize-trigger 要素の DOM 同一性が維持されること"
+    );
+    let panel0_after = root_el
+        .query_selector("[data-scope='splitter'][data-part='panel'][data-index='0']")
+        .expect("query_selector must not fail")
+        .expect("panel-0 part must exist");
+    let panel0_before_node: &web_sys::Node = panel0_before.as_ref();
+    assert!(
+        panel0_after.is_same_node(Some(panel0_before_node)),
+        "復元成功時は panel-0 要素の DOM 同一性も維持されること"
+    );
+
+    // 復元後の配線確認: Home/End が属性由来の min/max（10/90）へ反映される
+    // こと（引数のホストの 0/100 ではないこと）。
+    trigger_after
+        .dispatch_event(&keydown_event("Home"))
+        .unwrap();
+    assert_eq!(runtime.component().splitter.size(0), Some(10.0));
+    assert_eq!(
+        trigger_after.get_attribute("aria-valuenow").as_deref(),
+        Some("10"),
+        "属性から復元した min=10 へ Home が設定すること（引数のホストの \
+         min=0 ではないこと）"
+    );
+    assert_eq!(size_label(&root_el), "10");
+    assert_eq!(
+        panel0_style_attr(&root_el).as_deref(),
+        Some("--fandhe-splitter-size: 10%")
+    );
+
+    trigger_after.dispatch_event(&keydown_event("End")).unwrap();
+    assert_eq!(runtime.component().splitter.size(0), Some(90.0));
+    assert_eq!(
+        trigger_after.get_attribute("aria-valuenow").as_deref(),
+        Some("90"),
+        "属性から復元した max=90 へ End が設定すること（引数のホストの \
+         max=100 ではないこと）"
+    );
+    assert_eq!(size_label(&root_el), "90");
+    assert_eq!(
+        panel0_style_attr(&root_el).as_deref(),
+        Some("--fandhe-splitter-size: 90%")
     );
 }
