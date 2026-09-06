@@ -1365,7 +1365,7 @@ pub const TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Label / Tree / Branch / BranchControl / BranchIndicator / BranchText / BranchContent / BranchIndentGuide / Item / ItemText / ItemIndicator の 12 anatomy パーツを提供する（tree_view.rs:1-10）。",
         "展開集合（MultiSelect）+ 選択値（SingleSelect）を合成した状態機械 TreeView を提供し、TreeView::render_nodes が深さ・aria-posinset/aria-setsize を再帰的に計算する（tree_view.rs:636-758）。",
-        "tree は role=\"tree\"、branch/item は role=\"treeitem\"、branch_content は role=\"group\" を固定出力する WAI-ARIA APG Tree パターン準拠（tree_view.rs:314-487）。",
+        "tree は role=\"tree\"、branch/item は role=\"treeitem\"、branch_content は role=\"group\" を固定出力する WAI-ARIA APG Tree パターン準拠（tree_view.rs:291-487）。",
         "branch/item は disabled=true のとき aria-disabled=\"true\" を対で付与する（ネイティブ disabled を持たない role=\"treeitem\" のための代替、tree_view.rs:340-344,476-480）。",
         "ark-ui docs / zag.js との参照突合（イシュー #1667）で data-branch（branch）・data-value/data-depth（branch-control）・data-selected/data-disabled/data-state（インジケータ・テキスト系）・非選択時 hidden（item-indicator）を追加した（tree_view.rs 冒頭「参照突合（イシュー #1667）」節）。",
         "矢印キー・Home/End・Enter/Space・typeahead の DOM 配線は fandhe-frontend-wasm-full keynav.rs §TreeView（イシュー #1072）が担う。* による兄弟一括展開・Shift+Arrow/Ctrl+A（複数選択前提）・F2（rename）は非追随（tree_view.rs 冒頭「out-of-scope」節）。",
@@ -1435,7 +1435,7 @@ pub const TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
     aria: &[
         AriaRow {
             attribute: "role=\"tree\" / role=\"treeitem\" / role=\"group\"",
-            description: "tree/branch・item/branch_content に固定出力する（tree_view.rs:314-487）。",
+            description: "tree/branch・item/branch_content に固定出力する（tree_view.rs:291-487）。",
         },
         AriaRow {
             attribute: "aria-expanded",

@@ -150,7 +150,7 @@ const TREE_VIEW_GOLDEN_CSS: &str = r#"[data-scope="tree-view"][data-part="label"
 }
 
 [data-scope="tree-view"][data-part="item-indicator"][hidden] {
-  display: none;
+  visibility: hidden;
 }
 
 [data-scope="tree-view"][data-part="branch-control"][data-disabled] {

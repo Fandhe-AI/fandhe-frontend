@@ -82,8 +82,15 @@ ark-ui docs の Data Attributes / Keyboard 表と zag.js
 Themes 版を使わず本部品を直接使う場合、`[data-scope="tree-view"][data-part="..."]`
 セレクタでスタイルを当てます。`branch-content`/`item-indicator` は base
 規則で `display` を宣言する構成にすると UA 既定の `[hidden] { display:
-none }` を上書きしてしまうため、`[hidden]` 属性セレクタで明示的に
-`display: none` を上書きする必要があります（Themes 版 recipe と同じ対応）。
+none }` を上書きしてしまうため、`[hidden]` 属性セレクタで明示的に上書きが
+必要です。ただし上書き先は両者で異なります。`branch-content` は子ノード列
+そのものを畳むコンテナのため `display: none` で問題ありませんが、
+`item-indicator` は選択マーク幅の列を揃える整列用スペーサでもあるため
+`display: none` にすると非選択葉の `item-text` が選択済み葉・
+`branch-text` に対して列幅分だけ左へ寄る視覚崩れが生じます。
+`visibility: hidden` でレイアウトボックスを残したまま非表示にします
+（支援技術からの除外は headless 層が固定出力する `aria-hidden="true"` が
+既に担います）。
 
 ```css
 [data-scope="tree-view"][data-part="branch-content"][hidden] {
@@ -91,7 +98,7 @@ none }` を上書きしてしまうため、`[hidden]` 属性セレクタで明�
 }
 
 [data-scope="tree-view"][data-part="item-indicator"][hidden] {
-  display: none;
+  visibility: hidden;
 }
 
 [data-scope="tree-view"][data-part="branch-indent-guide"] {
