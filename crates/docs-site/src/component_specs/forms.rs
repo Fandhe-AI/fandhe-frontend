@@ -154,6 +154,7 @@ const BUTTON: ComponentPageSpec = ComponentPageSpec {
         "`loading: true` のとき装飾用途の Spinner（`role`/`aria-label` を持たない）を子ノード先頭へ自動挿入する。Spinner のサイズはボタンの `size` へ追随する（`Xs`/`Sm`/`Md` → 小、`Lg`/`Xl` → 中、イシュー #1449）。",
         "`:focus-visible` で palette 連動のフォーカスリングを表示する（イシュー #1449、#1424 準拠）。",
         "`button`/`icon_button`/`close_button` の 3 公開関数が共通の組み立てロジックを共有する（イシュー #830）。",
+        "`icon_size_for` がボタン size からアイコン size を決定的に写像する（`Xs`/`Sm` → `Sm`、`Md`/`Lg`/`Xl` → `Md`、chakra-ui `_icon` 準拠）。`close_button` はこれを内蔵し、`icon_button` は呼び出し側が同関数で選ぶことを推奨する（イシュー #1674）。",
     ],
     arguments: &[
         ArgRow {

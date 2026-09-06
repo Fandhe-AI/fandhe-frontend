@@ -523,8 +523,8 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/buttons/button.md` | — | Button | — | Button (`button`) | — | `button` | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/buttons/download-trigger.md` | DownloadTrigger | DownloadTrigger | — | — | `download_trigger` | `download_trigger` | 実装済み | #828。保留（#735 §7「JS ランタイム固有 utilities のうち静的実装可能なもの」）を利用要望 issue（#828）の起票により解除。`a[download]` 属性による静的部品として実装（`Blob`/`data`/`mimeType` は JS 前提のため対応しない）。#1628 で参照突合済み: anatomy/`data-*`/ARIA の是正なし。`a` 要素採用に伴う Space 非起動・`asChild` 非対応は意図的差分 |
-| `.agents/skills/chakra-ui/references/components/buttons/close-button.md` | — | CloseButton | — | — | — | `button`（`close_button`） | 実装済み | #830。保留（Button バリエーション、#735 §7）を `Button` variant 拡張要望 issue（#830）の起票により解除。独立部品ではなく `button` recipe の icon-only 修飾 variant として実装（`data-scope="button"` を共有） |
-| `.agents/skills/chakra-ui/references/components/buttons/icon-button.md` | — | IconButton | — | Icon Button (`icon-button`) | — | `button`（`icon_button`） | 実装済み | #830。close-button と同一の解除・実装判断（同上） |
+| `.agents/skills/chakra-ui/references/components/buttons/close-button.md` | — | CloseButton | — | — | — | `button`（`close_button`） | 実装済み | #830。保留（Button バリエーション、#735 §7）を `Button` variant 拡張要望 issue（#830）の起票により解除。独立部品ではなく `button` recipe の icon-only 修飾 variant として実装（`data-scope="button"` を共有）。#1674 で参照サイト（chakra `_icon` / Radix IconButton）と突合し、アイコン寸法写像 `icon_size_for` を追加。close_button 既定 Solid は意図的差分 |
+| `.agents/skills/chakra-ui/references/components/buttons/icon-button.md` | — | IconButton | — | Icon Button (`icon-button`) | — | `button`（`icon_button`） | 実装済み | #830。close-button と同一の解除・実装判断（同上）。#1674 で参照サイト（chakra `_icon` / Radix IconButton）と突合し、アイコン寸法写像 `icon_size_for` を追加。close_button 既定 Solid は意図的差分 |
 
 #### `.agents/skills/chakra-ui/references/components/collections/`
 

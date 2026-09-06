@@ -1920,7 +1920,15 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.117.1 へ衝突していた（同一版数への偶発的衝突をそのまま採用しない
 # 原則、`docs/ci/style-refresh-version-bump-operation.md` §5）。両者を
 # 統合した結果としてさらに patch バンプし 0.117.2 とする。
-version = "0.117.2"
+# base 再取り込み（イシュー #1688/#1674, 2026-09-06, 5 回目）: 本ブランチ
+# （直前の 0.117.2、#1688 + #1665 の統合結果）と main（#1674、button の
+# icon-only 変種を chakra-ui/Radix Themes と突合し `icon_size_for` を追加。
+# `recipe()`/`recipe_with_scope()` の CSS 宣言は不変で golden テスト差分
+# ゼロ）はいずれも独立に patch バンプし偶発的に同一版数 0.117.2 へ再度
+# 衝突していた（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。両者を統合した
+# 結果としてさらに patch バンプし 0.117.3 とする。
+version = "0.117.3"
 
 
 edition = "2021"
