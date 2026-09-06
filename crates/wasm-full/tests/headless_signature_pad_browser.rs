@@ -652,7 +652,8 @@ fn stale_stroke_tracking_is_released_when_no_button_is_held() {
 
     assert!(
         runtime.component().0.strokes().is_empty(),
-        "stale 判定（release_if_stale）で座標列を破棄しているため、この時点         ではストロークが確定していないこと"
+        "stale 判定（release_if_stale）で座標列を破棄しているため、この時点\
+         ではストロークが確定していないこと"
     );
 
     // 3. 別 pointer id（2）で新規ストロークを開始・終了する。
@@ -670,12 +671,14 @@ fn stale_stroke_tracking_is_released_when_no_button_is_held() {
     assert_eq!(
         runtime.component().0.strokes().len(),
         1,
-        "stale な追跡が release_if_stale で解除され、別 pointer id での新規         ストロークが開始・確定できること（イシュー #1992 の受け入れ条件）"
+        "stale な追跡が release_if_stale で解除され、別 pointer id での新規\
+         ストロークが開始・確定できること（イシュー #1992 の受け入れ条件）"
     );
     assert_eq!(
         runtime.component().0.strokes()[0].points().len(),
         1,
-        "stale 側（pointer_id=1）の座標が混入せず、新規ストローク（pointer_id=2）         の座標のみが記録されていること"
+        "stale 側（pointer_id=1）の座標が混入せず、新規ストローク（pointer_id=2）\
+         の座標のみが記録されていること"
     );
 
     // 4. 任意: stale 解除後に pointerdown なしで pointermove（buttons=1）を
@@ -865,7 +868,9 @@ mod structural_fallback {
         let control_after = control();
         assert!(
             control_after != control_before,
-            "ClearTrigger クリックで構造フォールバックが起き、pointerdown で             pointer capture を持っていた Control 要素が detach されている             こと（本テストが前提とする状況の成立確認）"
+            "ClearTrigger クリックで構造フォールバックが起き、pointerdown で\
+             pointer capture を持っていた Control 要素が detach されている\
+             こと（本テストが前提とする状況の成立確認）"
         );
 
         // 3. 差し替え後の非描画パーツ（clear-trigger）を target にして
@@ -893,14 +898,19 @@ mod structural_fallback {
         assert_eq!(
             runtime.component().pad.strokes()[0].points().len(),
             3,
-            "pointerdown 1 点 + pointermove 2 点の計 3 点が収集されている             こと（capture 喪失後も座標収集が継続することの直接的な証拠。             `len() == 1` のような件数のみの確認では down/up のみでも成立             してしまうため点数で検証する）"
+            "pointerdown 1 点 + pointermove 2 点の計 3 点が収集されている\
+             こと（capture 喪失後も座標収集が継続することの直接的な証拠。\
+             `len() == 1` のような件数のみの確認では down/up のみでも成立\
+             してしまうため点数で検証する）"
         );
         assert!(
             segment()
                 .query_selector(r#"path[data-scope="signature-pad"][data-part="segment-path"]"#)
                 .expect("query_selector must not fail")
                 .is_some(),
-            "pointerup 後の add-stroke dispatch でも STRUCTURAL_ONLY_FIELD に             より全再描画が走り、差し替え後の segment に確定したストローク             の <path> が反映されていること"
+            "pointerup 後の add-stroke dispatch でも STRUCTURAL_ONLY_FIELD に\
+             より全再描画が走り、差し替え後の segment に確定したストローク\
+             の <path> が反映されていること"
         );
 
         // 5. 追跡解除の確認: pointerdown を経ない pointermove/pointerup を
