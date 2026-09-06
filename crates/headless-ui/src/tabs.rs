@@ -16,7 +16,9 @@
 //!   [`crate::data_attrs`]（#523）へ薄く委譲するのみで、独自の出力経路・
 //!   独自のエスケープ処理は持たない。
 //! - クリック/キーボード操作の実挙動・[`crate::state::SingleSelect`] との
-//!   状態機械連携は本イシューのスコープ外（後続イシュー・wasm 層の責務）。
+//!   状態機械連携は本イシューのスコープ外で、`fandhe-frontend-wasm-full`
+//!   の `headless::MAPPING_TABLE`（クリック→`select` dispatch、イシュー
+//!   #580）・`keynav`（キーボード操作、イシュー #581）が実装済みである。
 //!   [`tabs`] は SSR 時点の静的な選択状態（[`TabsProps::selected`]）から
 //!   決定的にマークアップを組み立てるのみである。
 //! - styled 層（`fandhe-frontend-pre-styled-ui`、#546）は本モジュールが

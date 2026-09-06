@@ -79,7 +79,9 @@
 //!   埋め込む。
 //! - [`mod@tabs`]: WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
 //!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック操作・
-//!   状態機械連携は後続イシューのスコープ。[`tabs::TabsProps`] の
+//!   状態機械連携は `fandhe-frontend-wasm-full` の `headless::MAPPING_TABLE`
+//!   （クリック→`select` dispatch、イシュー #580）・`keynav`（キーボード操作、
+//!   イシュー #581）が実装済み。[`tabs::TabsProps`] の
 //!   `activation_mode`/`loop_focus`（イシュー #582）は `list` パーツへ
 //!   `data-activation-mode`/`data-loop-focus` として出力され、
 //!   `fandhe-frontend-wasm-full` の `keynav` モジュールがキーボード操作時の
