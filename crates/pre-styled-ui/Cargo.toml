@@ -1929,7 +1929,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # pre-styled-ui/src/carousel.rs` の該当 `.base()`/`.state()` rustdoc
 # 参照）。公開 CSS 契約の観測可能な実体変更（golden 更新）のため
 # マイナーバンプで 0.116.0 とする。
-version = "0.116.0"
+# イシュー #1660（同上、依存先追随）: 依存先 `fandhe-frontend-headless-ui`
+# が 0.61.0 → 0.62.0（`CarouselAction::First`/`Last` 追加、`item_group`
+# の `orientation` 引数追加は本ブランチ内で既に反映済みのため実体差分は
+# `First`/`Last` variant のみ）へさらにマイナーバンプしたことに追随し、
+# `version = "..."` 要求のみを更新する patch バンプで 0.116.1 とする
+# （本クレート自身の `src/carousel.rs` は `pub use` による選択的
+# 再エクスポートを変更しておらず実体変更なし）。
+version = "0.116.1"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1944,7 +1951,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.61.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.62.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

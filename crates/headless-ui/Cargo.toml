@@ -468,7 +468,19 @@ name = "fandhe-frontend-headless-ui"
 # なりすまし除去〔`drop_reserved`〕の導入は非破壊的だが、上記シグネチャ
 # 変更が破壊的のため合わせてマイナーバンプする）。0.x の破壊的変更は
 # マイナーバンプとする規約に従いマイナーバンプで 0.61.0 とする。
-version = "0.61.0"
+# base 再取り込み（イシュー #1660, 2026-09-06）: 本ブランチの
+# `crates/headless-ui/src/carousel.rs`/`lib.rs`（PR #1925、zag.js との
+# 参照突合。全 8 パーツへの `data-orientation` 拡張・`item`/`indicator` へ
+# `data-index`/`data-inview` 追加・`CarouselAction::First`/`Last` の実体）
+# は main（toolbar 突合を経て独立に到達した 0.61.0）へは未反映であり、
+# Cargo.toml のマージは実体差分を伴わず両者とも 0.61.0 のまま偶発的に
+# 同一版数へ衝突した（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。`item`/
+# `indicator` への `data-index`/`data-inview` 追加は非破壊的だが、
+# `CarouselAction` への `First`/`Last` variant 追加は exhaustive match
+# 利用者に対し破壊的なため、0.x の破壊的変更はマイナーバンプする規約に
+# 従いマイナーバンプで 0.62.0 とする。
+version = "0.62.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"
