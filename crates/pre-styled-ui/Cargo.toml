@@ -1902,6 +1902,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # style-refresh-version-bump-operation.md` §5）、両者の変更の和集合と
 # してさらにマイナーバンプし 0.117.0 とする（依存先 headless-ui 0.62.0
 # への追随を含む）。
+# イシュー #1688: circular Progress の indeterminate 表現に固定弧
+# （circle-range の `stroke-dasharray` state 規則）を追加した。recipe が
+# 生成する CSS 宣言の追加のみで、Rust 公開 API・生成クラス名・`data-*`
+# セレクタ語彙は不変（`.claude/rules/ci.md` の公開 CSS 契約変更に該当する
+# ため免除〔version-bump-exempt〕は使わず patch バンプする）。
 # イシュー #1665（steps の参照突合）: 依存先 `fandhe-frontend-headless-ui`
 # の 0.62.0 → 0.62.1（`Steps::prev_trigger`/`Steps::next_trigger` への
 # `data-disabled` 加算・`Steps::progress` パーツ新設等、非破壊的加算）への
@@ -1923,8 +1928,29 @@ name = "fandhe-frontend-pre-styled-ui"
 # ではなく、片方のみが先行バンプ先を包含していない構図）、双方の変更を
 # 統合した結果として 0.118.0 からさらに patch バンプし 0.118.1 とする
 # （`docs/ci/style-refresh-version-bump-operation.md` §5 の和集合方針）。
-version = "0.118.1"
 
+# base 再取り込み（イシュー #1688/#1665, 2026-09-06, 4 回目）: 本ブランチ
+# （#1688、circular Progress の indeterminate 弧追加）と main（#1665、steps
+# の headless-ui 追随）はいずれも独立に patch バンプし偶発的に同一版数
+# 0.117.1 へ衝突していた（同一版数への偶発的衝突をそのまま採用しない
+# 原則、`docs/ci/style-refresh-version-bump-operation.md` §5）。両者を
+# 統合した結果としてさらに patch バンプし 0.117.2 とする。
+# base 再取り込み（イシュー #1688/#1674, 2026-09-06, 5 回目）: 本ブランチ
+# （直前の 0.117.2、#1688 + #1665 の統合結果）と main（#1674、button の
+# icon-only 変種を chakra-ui/Radix Themes と突合し `icon_size_for` を追加。
+# `recipe()`/`recipe_with_scope()` の CSS 宣言は不変で golden テスト差分
+# ゼロ）はいずれも独立に patch バンプし偶発的に同一版数 0.117.2 へ再度
+# 衝突していた（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。両者を統合した
+# 結果としてさらに patch バンプし 0.117.3 とする。
+# base 再取り込み（イシュー #1666/#1674, 2026-09-06, 6 回目）: 本ブランチ
+# （tour の参照突合、破壊的変更で 0.118.1 に到達済み）と main（icon-only
+# 変種突合・#1665 の steps 追随を経て 0.117.3 に到達）を統合する。
+# `docs/ci/style-refresh-version-bump-operation.md` §5 の手順（自分の
+# 変更が minor バンプの場合は main の現在値の minor を +1 し patch を
+# 0 に戻す）に従い、main の現在値 0.117.3 の minor（117）を +1 して
+# 0.118.0 とする。
+version = "0.118.0"
 
 
 edition = "2021"
