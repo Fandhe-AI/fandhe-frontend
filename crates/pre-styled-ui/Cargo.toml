@@ -1909,7 +1909,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既に登録済み（headless 側未発行のため無害な死んだ規則だった）で、本
 # バンプにより実効化する。CSS 出力・golden テストは不変のため patch
 # バンプで 0.117.1 とする。
-version = "0.117.1"
+# イシュー #1674（button の icon-only 変種を chakra-ui/Radix Themes と
+# 突合）: `icon_size_for` を追加し `close_button` の内蔵アイコン寸法・
+# `icon_button` 推奨手順を是正した。`recipe()`/`recipe_with_scope()` の
+# CSS 宣言は不変（golden テスト差分ゼロ）のため patch バンプで
+# 0.117.2 とする。
+version = "0.117.2"
 
 
 edition = "2021"

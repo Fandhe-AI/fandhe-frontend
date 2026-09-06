@@ -70,7 +70,7 @@ use fandhe_frontend_pre_styled_ui::avatar::{
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::button::{
-    button, close_button, icon_button, ButtonProps, ButtonVariant,
+    button, close_button, icon_button, icon_size_for, ButtonProps, ButtonVariant,
 };
 use fandhe_frontend_pre_styled_ui::calendar::{self, PlainDate};
 use fandhe_frontend_pre_styled_ui::carousel;
@@ -1191,15 +1191,49 @@ fn button_section() -> Node {
         ),
     ]);
 
+    // イシュー #1674: IconButton のアイコン寸法がボタン size から
+    // `icon_size_for` で決定的に写像される（chakra-ui `_icon` 準拠:
+    // xs/sm → Sm、md/lg/xl → Md）ことを Xs〜Xl 全段で可視化する。
+    let icon_button_size_row = row(sizes
+        .iter()
+        .map(|(size, label)| {
+            icon_button(
+                &ButtonProps {
+                    size: *size,
+                    ..ButtonProps::default()
+                },
+                label,
+                vec![],
+                vec![icon(
+                    &IconProps {
+                        size: icon_size_for(*size),
+                        label: None,
+                        ..IconProps::default()
+                    },
+                    vec![],
+                    vec![el(
+                        "path",
+                        vec![(
+                            "d",
+                            "M10 2a8 8 0 105.29 14.29l4.7 4.7 1.42-1.42-4.7-4.7A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z",
+                        )],
+                        vec![],
+                    )],
+                )],
+            )
+        })
+        .collect());
+
     section(
         "Button",
-        "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。IconButton / CloseButton（イシュー #830）は独立部品ではなく本 recipe の icon-only 修飾 variant です。",
+        "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。IconButton / CloseButton（イシュー #830）は独立部品ではなく本 recipe の icon-only 修飾 variant です。IconButton のアイコン寸法はボタン size から `icon_size_for` で決定的に写像されます（イシュー #1674）。",
         vec![
             variant_row,
             size_row,
             palette_row,
             state_row,
             icon_close_row,
+            icon_button_size_row,
         ],
     )
 }

@@ -113,6 +113,50 @@
 //! 持つ icon-only ケースのみである。この不変条件は
 //! `crates/pre-styled-ui/tests/button_css.rs` の意味的回帰テストで固定する
 //! （xs/sm/md/lg/xl の 5 size 全段を検証、下記参照）。
+//!
+//! # 参照サイト比較（イシュー #1674、icon-only 変種）
+//!
+//! chakra-ui `IconButton`/`CloseButton`（`packages/react/src/theme/recipes/
+//! button.ts`）・Radix Themes `IconButton` と icon-only 変種
+//! （[`icon_button`]/[`close_button`]）を突合した結果を、`icon.rs` の
+//! イシュー #1561 節と同型の 7 観点で記す。
+//!
+//! - **サイズ**: 是正した。ボタン size に対するアイコン寸法の写像
+//!   （[`icon_size_for`]）が無く、`close_button` はボタン `size` を
+//!   そのままアイコンへ渡していたため、Xs（2rem 角）で 0.75rem、Xl
+//!   （3rem 角）で 1.75rem という chakra/Radix いずれとも乖離した極端な
+//!   アイコンサイズになっていた。[`icon_size_for`] を追加し、
+//!   `close_button` へ内蔵、`icon_button` は呼び出し側が使うことを rustdoc
+//!   で推奨した。
+//! - **バリアント**: 変更なし。5 variant（Solid/Outline/Subtle/Surface/
+//!   Ghost、#1448）は icon-only でも共有し、chakra/Radix いずれの
+//!   variant 集合とも実質的に対応する（#1448 で判断済み）。
+//! - **色**: 変更なし。`color-palette` 軸を icon-only でも共有（#1448）。
+//! - **状態（disabled/loading）**: 変更なし。`loading` 時の Spinner 置換
+//!   （#1449）が chakra `IconButton`/Radix `IconButton` の `loading` 挙動
+//!   （アイコンを Spinner で置換）と同型であることを #1449 で確認済み。
+//! - **ダーク対応**: 変更なし。トークン再定義経由（`color-palette`
+//!   軸・[`crate::theme`]）でライト/ダーク双方に配色が追随する既存挙動を
+//!   icon-only も共有する。
+//! - **フォーカスリング**: 変更なし。`recipe_with_scope` 共通の
+//!   canonical フォーカスリング（上記参照）を icon-only も共有する。
+//! - **余白・角丸・影／hover／disabled／transition**: 変更なし。
+//!   icon-only は `padding: 0` + `aspect-ratio: 1 / 1`
+//!   （size×icon の確定 height、#1449）のみを追加登録し、角丸・影・
+//!   hover・transition は非 icon-only と同じ recipe 宣言を共有する。
+//!
+//! 意図的に合わせなかった点:
+//!
+//! - chakra-ui `CloseButton` の既定 variant は `ghost` だが、
+//!   [`close_button`] の既定は [`ButtonProps::default`]（`Solid`）を維持
+//!   する（[`close_button`] rustdoc の「暗黙の既定差し替えをしない」判断、
+//!   0.x とはいえ破壊的な見た目変更を理由なく行わないため）。
+//! - chakra `_icon` の `2xs`/`2xl` 段、Radix `radius`/`highContrast`/
+//!   `classic`/`soft` 軸は、本リポジトリの共通 `Size` 5 段語彙・#1448 の
+//!   既存判断を踏襲し、不採用のまま。
+//! - `SlotRecipe` の子孫セレクタによる `svg` 寸法強制（chakra `_icon`
+//!   相当の CSS 機構）は #708 の方針により追加しない。[`icon_size_for`]
+//!   という Rust 側の決定的写像関数で代替する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -700,6 +744,39 @@ fn spinner_size_for(size: Size) -> Size {
     }
 }
 
+/// [`icon_button`]/[`close_button`] が内包・推奨するアイコンの [`Size`] を、
+/// ボタンの [`Size`]（5 段）から決定的に写像する（イシュー #1674）。
+///
+/// 参照サイト一次情報（実装時点で確認済み）:
+/// - chakra-ui の button recipe（`packages/react/src/theme/recipes/button.ts`）
+///   の `_icon` 段は `xs`/`sm` → `4`（1rem）、`md`/`lg`/`xl` → `5`
+///   （1.25rem）。本リポジトリの [`crate::icon`] は `Size::Sm` = 1rem、
+///   `Size::Md` = 1.25rem のトークンを持ち、この 2 値に完全一致する
+///   （`2xs`/`2xl` は本リポジトリの 5 段語彙に無いため対応しない）。
+/// - Radix Themes `IconButton` はサイズ 1/2/3 に対しアイコンを
+///   15/18/22px とサブリニアに拡大する。本写像も `Xs`/`Sm` の 2 段を
+///   `Size::Sm` に丸め、`Md`/`Lg`/`Xl` を `Size::Md` へまとめる非線形な
+///   段階になっており、同じ「ボタンより控えめに拡大する」傾向を持つ。
+///
+/// [`spinner_size_for`] と写像先が異なる（本関数は `Xs`/`Sm` のみを
+/// `Size::Sm` にまとめるが、`spinner_size_for` は `Xs`/`Sm`/`Md` を
+/// `Size::Sm` にまとめる）のは意図的: [`crate::spinner`] は `icon` と
+/// トークン尺度が異なる別部品であり（#1449 の等差外挿）、実寸が一致しない
+/// ため統合しない（イシュー #1674 スコープ外、将来 #1567 で再検討）。
+///
+/// `SlotRecipe`（[`crate::recipe`]）は子孫セレクタ機構を持たない（#708 で
+/// 追加しない方針を確定済み）ため、chakra の `_icon`（`& svg` 子孫
+/// セレクタ）に相当する CSS 側の強制はできない。本関数は Rust 側の
+/// 決定的な写像関数としてこの制約を担う（`recipe()` の CSS 宣言は変更
+/// しない）。
+#[must_use]
+pub fn icon_size_for(size: Size) -> Size {
+    match size {
+        Size::Xs | Size::Sm => Size::Sm,
+        Size::Md | Size::Lg | Size::Xl => Size::Md,
+    }
+}
+
 /// `button()`/[`icon_button`]/[`close_button`] 共有の組み立てロジック
 /// （内部専用）。`type="button"` 固定・`disabled`/`loading` の三点セット・
 /// `loading` 時の spinner 埋め込み・`drop_class_attr` による `class` 一意化を
@@ -781,19 +858,27 @@ fn assemble<'a>(
 /// 防ぐ、`fandhe_frontend_headless_ui::number_input` の
 /// `increment_trigger`/`decrement_trigger` と同型の dedup 契約）。
 ///
+/// `children` へ渡すアイコンの [`crate::icon::IconProps::size`] は
+/// [`icon_size_for`]`(props.size)` で選ぶことを推奨する（イシュー
+/// #1674）。呼び出し側がアイコンノードを自前で構築する都合上
+/// [`close_button`] のように内蔵はできないが、両者を揃えないとボタン
+/// size とアイコン寸法の追随が chakra-ui/Radix Themes の IconButton から
+/// 乖離する（[`icon_size_for`] rustdoc 参照）。
+///
 /// # Examples
 ///
 /// ```
 /// use fandhe_frontend_core::{el, render};
-/// use fandhe_frontend_pre_styled_ui::button::{icon_button, ButtonProps};
+/// use fandhe_frontend_pre_styled_ui::button::{icon_button, icon_size_for, ButtonProps};
 /// use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 ///
+/// let props = ButtonProps::default();
 /// let node = icon_button(
-///     &ButtonProps::default(),
+///     &props,
 ///     "Search",
 ///     vec![],
 ///     vec![icon(
-///         &IconProps { label: None, ..IconProps::default() },
+///         &IconProps { size: icon_size_for(props.size), label: None, ..IconProps::default() },
 ///         vec![],
 ///         vec![el("path", vec![("d", "M12 2L2 22h20z")], vec![])],
 ///     )],
@@ -861,7 +946,12 @@ pub fn close_button<'a>(
     let label = normalize_label(label, CLOSE_BUTTON_DEFAULT_LABEL);
     let icon_node = icon(
         &IconProps {
-            size: props.size,
+            // ボタンの size をそのままアイコンへ渡すと、両端（Xs/Xl）で
+            // アイコンが正方形に対して極端に小さく/大きくなる（イシュー
+            // #1674、chakra-ui `_icon`/Radix IconButton との突合で判明）。
+            // `icon_size_for` でボタン size からアイコン size へ決定的に
+            // 写像する。
+            size: icon_size_for(props.size),
             label: None,
             ..IconProps::default()
         },
@@ -1379,6 +1469,52 @@ mod tests {
                 "size={size:?} -> {html} (expected {expected_class})"
             );
         }
+    }
+
+    /// イシュー #1674: `icon_size_for` がボタン size からアイコン size への
+    /// 写像（chakra-ui `_icon` 準拠: xs/sm → Sm、md/lg/xl → Md）を
+    /// 決定的に行うことを固定する（`icon_size_for` rustdoc 参照）。
+    #[test]
+    fn icon_size_for_maps_button_size_to_chakra_icon_scale() {
+        for (size, expected) in [
+            (Size::Xs, Size::Sm),
+            (Size::Sm, Size::Sm),
+            (Size::Md, Size::Md),
+            (Size::Lg, Size::Md),
+            (Size::Xl, Size::Md),
+        ] {
+            assert_eq!(icon_size_for(size), expected, "size={size:?}");
+        }
+    }
+
+    /// イシュー #1674: `close_button` が内蔵するアイコンの size が
+    /// `icon_size_for` 経由でボタン size から写像されることを固定する
+    /// （是正前は `props.size` をそのまま渡していたため、Xs で
+    /// `fd-icon--size-xs`、Xl で `fd-icon--size-xl` という chakra/Radix と
+    /// 乖離した極端な寸法になっていた）。
+    #[test]
+    fn close_button_icon_size_follows_button_size_via_icon_size_for() {
+        let html_xs = render(&close_button(
+            &ButtonProps {
+                size: Size::Xs,
+                ..ButtonProps::default()
+            },
+            "",
+            vec![],
+        ));
+        assert!(html_xs.contains("fd-icon--size-sm"));
+        assert!(!html_xs.contains("fd-icon--size-xs"));
+
+        let html_xl = render(&close_button(
+            &ButtonProps {
+                size: Size::Xl,
+                ..ButtonProps::default()
+            },
+            "",
+            vec![],
+        ));
+        assert!(html_xl.contains("fd-icon--size-md"));
+        assert!(!html_xl.contains("fd-icon--size-xl"));
     }
 
     /// イシュー #1449（#1424 §3/§6 準拠）: `:focus-visible` で
