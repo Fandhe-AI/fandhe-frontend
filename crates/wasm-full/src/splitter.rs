@@ -332,6 +332,7 @@ mod tests {
             "100",
             "50",
             "panel-0",
+            "panel-1",
             false,
             Vec::new(),
             Vec::new(),
