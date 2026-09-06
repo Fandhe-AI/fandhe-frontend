@@ -133,6 +133,13 @@ mod wasm_build_gate;
 #[path = "src/workspace_detect.rs"]
 mod workspace_detect;
 
+// `OUT_DIR` からこのビルドの `CARGO_TARGET_DIR` を逆算する純粋関数
+// （ホストビルド・`--target <triple>` ビルド双方の階層に対応）。
+// `wasm_stage_cache`・`wasm_build_gate`・`workspace_detect` と同型のパターンで
+// ソースレベル共有する（`src/target_dir.rs` 冒頭コメント参照）。
+#[path = "src/target_dir.rs"]
+mod target_dir;
+
 fn main() {
     // `CARGO_MANIFEST_DIR` は `crates/dist-server/` を指す。埋め込み対象の
     // `static/`（ワークスペースルート直下、クレートではないため移設対象外）や
@@ -359,9 +366,19 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
     //    コンパイル成果物の更新が次回の build.rs 再実行を誘発し、ソース変更が
     //    なくてもビルドが繰り返される無限ループになる（PR #1980 レビュー
     //    指摘）。`OUT_DIR` からこのビルドの `target` ディレクトリ
-    //    （[`cargo_target_dir_from_out_dir`]）を逆算し、その配下にある
-    //    `PATH` エントリは監視対象から除外する。
-    let cargo_target_dir = cargo_target_dir_from_out_dir(out_dir);
+    //    （[`target_dir::cargo_target_dir_from_out_dir`]）を逆算し、その配下に
+    //    ある `PATH` エントリは監視対象から除外する。`--target <triple>`
+    //    指定ビルド（本リポジトリの Docker イメージが該当）では cargo が
+    //    `OUT_DIR` に `<triple>` セグメントを追加で挟むため、host ビルドの
+    //    4 段上りだけでは `<CARGO_TARGET_DIR>/<triple>` までしか遡れず
+    //    `target/<profile>`・`target/<profile>/deps` が除外漏れになる
+    //    （Cursor Bugbot 指摘）。build script に常に設定される `TARGET`
+    //    環境変数を渡し、triple 名の一致でさらに 1 段遡るかを判定させる。
+    let cargo_target_dir = target_dir::cargo_target_dir_from_out_dir(
+        out_dir,
+        env::var("TARGET").ok().as_deref(),
+        env::var("CARGO_TARGET_DIR").ok().as_deref(),
+    );
     if let Some(path_var) = env::var_os("PATH") {
         for dir in env::split_paths(&path_var) {
             if let Some(target_dir) = &cargo_target_dir {
@@ -464,24 +481,6 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
         })
         .collect();
     Ok(entries)
-}
-
-/// `OUT_DIR`（`<CARGO_TARGET_DIR>/<profile>/build/<pkg>-<hash>/out`、cargo が
-/// 保証する固定階層）から、このビルドが使っている `<CARGO_TARGET_DIR>` を
-/// 逆算する。呼び出し元（[`run_wasm_stage`]）が `PATH` 監視ループで
-/// Cargo 自身の生成物ディレクトリ（`target/<profile>`・
-/// `target/<profile>/deps`）を除外するために使う（PR #1980 レビュー指摘）。
-///
-/// `OUT_DIR` の祖先を 4 段上がった位置が `CARGO_TARGET_DIR` になる
-/// （`out` → `<pkg>-<hash>` → `build` → `<profile>` → `CARGO_TARGET_DIR`）。
-/// 想定より浅い階層（テスト環境等で `OUT_DIR` がこの形を満たさない場合）は
-/// `None` を返し、呼び出し元は除外なし（フェイルオープン、監視漏れなし側）
-/// にフォールバックする。
-fn cargo_target_dir_from_out_dir(out_dir: &Path) -> Option<PathBuf> {
-    out_dir
-        .ancestors()
-        .nth(4)
-        .map(|target_dir| target_dir.to_path_buf())
 }
 
 /// ワークスペースの `Cargo.lock` を std の文字列処理でパースし、解決済みの
