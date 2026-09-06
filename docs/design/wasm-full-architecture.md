@@ -477,7 +477,7 @@ headless-ui は 0.27.0 → 0.28.0（0.x の破壊的変更、マイナーバン�
 
 ### 16.1 `fandhe_frontend_headless_ui::timer::Timer` を直接利用する設計（文字列複製しない）
 
-`crates/wasm-full/Cargo.toml` は `fandhe-frontend-headless-ui` を通常の `[dependencies]`（製品依存）として持つ（イシュー #590 で `position` モジュールが追加）。そのため `headless_clipboard`（§15.4）が「クレートの製品依存にないため文字列で複製する」と判断した制約は本モジュールには当てはまらず、`Timer::from_hydration_attrs`/`Timer::update`（`fandhe_frontend_interactive::dispatch` 経由）を直接呼んで完了判定・セグメント分解のロジックを一切複製しない。`root` の `data-state`/`data-elapsed`/`data-countdown`/`data-start-ms`/`data-target-ms`/`data-interval` 属性を `Timer::from_hydration_attrs` が読む `data-hydrate-*` 形式へその場で変換して `Timer` を都度再構築し（`timer_from_display_attrs`）、tick/click 処理後は `Timer::phase`/`Timer::elapsed_ms` を同じ属性へ書き戻す（`write_timer`）。アプリのルート状態機械 `C` が `Timer` 自身かどうかに関わらず本モジュールが DOM 上の表示更新を完結できる設計であり、`C` への dispatch 転送は「`C` が Timer アクションを認識する場合の追随」というベストエフォートに留める。
+`crates/wasm-full/Cargo.toml` は `fandhe-frontend-headless-ui` を通常の `[dependencies]`（製品依存）として持つ（イシュー #590 で `position` モジュールが追加）。そのため `headless_clipboard`（§15.4）が「クレートの製品依存にないため文字列で複製する」と判断した制約は本モジュールには当てはまらず、`Timer::from_hydration_attrs`/`Timer::update`（`fandhe_frontend_interactive::dispatch` 経由）を直接呼んで完了判定・セグメント分解のロジックを一切複製しない。`root` の `data-state`/`data-elapsed`/`data-countdown`/`data-start-ms`/`data-target-ms`/`data-interval` 属性を `Timer::from_hydration_attrs` が読む `data-hydrate-*` 形式へその場で変換して `Timer` を都度再構築し（`timer_from_display_attrs`）、tick/click 処理後は `Timer::phase`/`Timer::elapsed_ms` を同じ属性へ書き戻す（`write_timer`）。アプリのルート状態機械 `C` が `Timer` 自身かどうかに関わらず本モジュールが DOM 上の表示更新を完結できる設計である。`C` への dispatch 成功後、`dirty_fields()` 非空なら `Runtime::wire_timer` が `apply_update_for_dirty` で束縛点を更新する（イシュー #1959、§16.3 参照）。
 
 `headless::MAPPING_TABLE` には乗せない。ActionTrigger はパーツ 1 種に対しアクションが可変であり (scope, part) → 単一アクションの静的表に適合しないうえ、tick 予約という非同期副作用も伴うため、`headless_avatar`/`headless_clipboard` と同型の独立配線モジュールとして切り出す。
 
@@ -495,6 +495,8 @@ headless-ui は 0.27.0 → 0.28.0（0.x の破壊的変更、マイナーバン�
 - tick 発火時（`handle_tick`）: `js_sys::Date::now()` による実測 delta を `"timer:tick"` として `Timer` へ適用し、DOM を反映後、再度 `sync_interval` で継続/停止を判定する（`setInterval` 自身のドリフトを実測 delta で吸収し、状態機械へドリフトを持ち込まない。実時間の計測は本モジュール（wasm 境界）に隔離された唯一の箇所）。
 
 `crate::lib::Runtime::mount`/`Runtime::hydrate` の双方が `Self::wire_clipboard` の直後に `Self::wire_timer` を呼び、標準経路へ組み込む（`events`/`keynav`/`headless_avatar`/`headless_clipboard` と同じ「マウント時 1 回」契約）。
+
+`Runtime::wire_timer`（イシュー #1959）は `binding_table`/`keyed_list_cache` を `Self::wire`/`Self::wire_signature_pad`/`Self::wire_number_input` と共有し、`C` への dispatch が成功しかつ `dirty_fields()` が非空のときのみ `Self::apply_update_for_dirty`（内部で共通化した `Self::apply_dirty_if_any` 経由）へ委譲して束縛点・keyed list を更新する。二重描画にならない根拠は 3 点: (1) `Timer` 自体は `DirtyTracked` を実装せず `C` は常にアプリ側ラッパー型であること、(2) `write_timer`（Timer の `data-*` 直書き）が `notify_action`（→ `C` への dispatch）より必ず先に完了する書き込み順序であること、(3) 束縛済み属性への再書き込みが起きても同値の冪等な上書きに留まること。前提として `read_timer` は `wire_timer_events` に渡された要素（＝ `Runtime` root）自身の属性を読むため、`Runtime::hydrate` で `root_id` 要素自身が Timer root（`data-scope="timer" data-part="root"`）である構成でのみ click/tick 経路・本再描画接続が成立する。`Runtime::mount`（`set_inner_html` で `C.view()` を子として流し込む）では Timer root が子要素になるため no-op のまま（Timer root をクリック元から解決する改善は別イシュー）。tick は下限 16ms 周期で発火するため、Timer 由来の値を参照するアプリ側フィールドは必ず束縛点・keyed list で解決できる形にし、未解決のまま `dirty_fields()` に載せないこと（載せると毎 tick `apply_update_for_dirty` の構造フォールバックでサブツリー全再構築が走る）。
 
 ### 16.4 セキュリティ不変条件
 

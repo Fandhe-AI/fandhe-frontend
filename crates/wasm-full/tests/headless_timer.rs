@@ -180,3 +180,123 @@ fn clamp_interval_ms_never_returns_below_minimum() {
         assert!(clamp_interval_ms(raw) >= MIN_INTERVAL_MS);
     }
 }
+
+// --- Runtime::wire_timer の二重描画回避契約を native 側から固定
+//     （イシュー #1959） ------------------------------------------------
+//
+// `fandhe_frontend_headless_ui::timer::Timer` 自体は `DirtyTracked` を
+// 実装していない。`Runtime<C>` は `C: DirtyTracked` を要求するため、
+// `Runtime::wire_timer`（`crates/wasm-full/src/lib.rs`）が
+// `apply_update_for_dirty` へ委譲する際に読む `dirty_fields()` は、
+// 常に「Timer をラップするアプリ側の状態機械 `C`」が明示的に定義した
+// フィールド集合であり、Timer 自身の表示属性名（`headless_timer::wiring`
+// が `write_timer` で直書きする `"data-state"`/`"data-elapsed"` 等）が
+// 紛れ込むことは型レベルで構造的に起こらない。本テストはこの契約を
+// `TimerHost`（`Timer` をラップし、アプリ側フィールドのみ dirty へ積む
+// ラッパー）で固定する。実 DOM 経由の再描画反映自体
+// （`Runtime::hydrate` → click → 束縛点更新・`data-state` 二重書き込み
+// なし）は `headless_timer_browser.rs` が実ブラウザで検証する。
+mod wire_timer_dirty_contract {
+    use fandhe_frontend_headless_ui::timer::{Timer, TimerAction};
+    use fandhe_frontend_interactive::{dispatch, Component, DirtyTracked};
+
+    /// テスト専用ラッパー。`Timer` の状態機械をそのまま委譲しつつ、
+    /// アプリ側の派生フィールド（tick 回数・フェーズラベル）のみを
+    /// `dirty_fields()` に積む（`headless_timer.rs::write_timer` が直書き
+    /// する Timer 表示属性名を一切含まない）。
+    struct TimerHost {
+        timer: Timer,
+        tick_count: u32,
+        dirty: Vec<&'static str>,
+    }
+
+    impl TimerHost {
+        fn new(timer: Timer) -> Self {
+            Self {
+                timer,
+                tick_count: 0,
+                dirty: Vec::new(),
+            }
+        }
+    }
+
+    enum HostAction {
+        Timer(<Timer as Component>::Action),
+    }
+
+    impl Component for TimerHost {
+        type Action = HostAction;
+
+        fn update(&mut self, action: Self::Action) {
+            self.dirty.clear();
+            let HostAction::Timer(timer_action) = action;
+            let is_tick = matches!(timer_action, TimerAction::Tick(_));
+            self.timer.update(timer_action);
+            // 遷移が起きた種別に応じてアプリ側フィールドのみを dirty へ積む
+            // （Timer 表示属性名 "data-state"/"data-elapsed" 等は含めない、
+            // 上記モジュール doc の契約）。
+            if is_tick {
+                self.tick_count += 1;
+                self.dirty.push("tick_count");
+            } else {
+                self.dirty.push("phase_label");
+            }
+        }
+
+        fn view(&self) -> fandhe_frontend_core::Node {
+            // `Timer::view()`（最小正準ビュー、`crates/headless-ui/src/timer.rs`
+            // doc 参照）をそのまま委譲する。本テストは `dirty_fields()` の
+            // 内容のみを検証し、DOM 反映は対象外のため view 内容自体は
+            // 重要ではない。
+            self.timer.view()
+        }
+
+        fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
+            Timer::decode_action(name, payload).map(HostAction::Timer)
+        }
+    }
+
+    impl DirtyTracked for TimerHost {
+        fn dirty_fields(&self) -> &[&'static str] {
+            &self.dirty
+        }
+    }
+
+    #[test]
+    fn dispatch_marks_only_app_fields_dirty_never_timer_display_attrs() {
+        let mut host = TimerHost::new(Timer::count_up(0, 1000));
+
+        assert!(dispatch(&mut host, "timer:start", ""));
+        assert_eq!(host.dirty_fields(), &["phase_label"]);
+
+        assert!(dispatch(&mut host, "timer:tick", "30"));
+        assert_eq!(host.dirty_fields(), &["tick_count"]);
+        assert_eq!(host.tick_count, 1);
+
+        assert!(dispatch(&mut host, "timer:pause", ""));
+        assert_eq!(host.dirty_fields(), &["phase_label"]);
+
+        assert!(dispatch(&mut host, "timer:reset", ""));
+        assert_eq!(host.dirty_fields(), &["phase_label"]);
+
+        // いずれの dirty field も Timer の DOM 表示属性名を含まない
+        // （`Runtime::wire_timer` が `apply_update_for_dirty` へ渡す前提の
+        // 型レベル不変条件）。
+        for field in host.dirty_fields() {
+            assert_ne!(*field, "data-state");
+            assert_ne!(*field, "data-elapsed");
+            assert_ne!(*field, "state");
+            assert_ne!(*field, "elapsed");
+        }
+    }
+
+    #[test]
+    fn dispatch_of_unrecognized_action_returns_false_and_leaves_dirty_empty() {
+        let mut host = TimerHost::new(Timer::count_up(0, 1000));
+        // `update()` は 1 度も呼ばれていないため dirty は初期値の空集合。
+        assert!(host.dirty_fields().is_empty());
+
+        assert!(!dispatch(&mut host, "timer:unknown", ""));
+        assert!(host.dirty_fields().is_empty());
+    }
+}

@@ -556,7 +556,9 @@ name = "fandhe-frontend-wasm-full"
 # ブランチの carousel 実体変更が main へ未反映のまま Cargo.toml マージが
 # 衝突した解消分）への追随。`crates/wasm-full/src` は carousel を一切
 # 参照しておらず公開 API は不変のため patch バンプで 0.15.11 とする。
-version = "0.15.11"
+# イシュー #1959: `Runtime::wire_timer` の dispatch 後 dirty 再描画接続。
+# `wire_timer` は private で公開 API 不変のため patch バンプ。
+version = "0.15.12"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
