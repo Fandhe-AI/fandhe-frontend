@@ -35,6 +35,12 @@ index 引数への呼び出し追随は不要でしたが、イシュー #1204�
 UI 部品実演追加の要否精査）で本サンプルへ Navigation Menu / Menubar 節を
 追加し、両引数を使用する呼び出しへ更新しました。
 
+イシュー #1974 で `fandhe-frontend-pre-styled-ui` を v0.119.1
+（`fandhe-frontend-headless-ui` v0.65.0・`fandhe-frontend-core` v0.4.3）へ
+追随しました。headless 層パート関数への `&XxxProps` 引数追加（Props
+パターン化）と `alert::root` / `avatar::root` の Props 構造体化という
+2 系統の破壊的変更へ `src/main.rs` の該当呼び出しを追随させました。
+
 ## pre-styled-ui 統合について
 
 サンプル作成時点（イシュー #552、2026-07-22）では pre-styled-ui がクレート
