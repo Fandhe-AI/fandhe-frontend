@@ -2006,20 +2006,110 @@ fn ex_tabs() -> Node {
     example_wrap(vec![tabs(&props, items)])
 }
 
+/// 自前 CSS の最小例（イシュー #1656、`CHECKBOX_CUSTOM_CSS_SNIPPET`
+/// （`forms_a.rs`）と同型）。headless-ui 自体はスタイルを持たないため、
+/// 利用者が `data-scope`/`data-part`/`data-state`/`data-disabled`/
+/// `data-orientation`/`aria-*` 属性セレクタで見た目を組み立てる例を示す。
+/// CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープを経由し、
+/// `crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは
+/// 追加しない。
+const TABS_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"tabs\"][data-part=\"list\"] {\n  \
+  display: flex;\n  gap: 0.5rem;\n\
+}\n\
+[data-scope=\"tabs\"][data-part=\"root\"][data-orientation=\"vertical\"] [data-part=\"list\"] {\n  \
+  flex-direction: column;\n\
+}\n\
+[data-scope=\"tabs\"][data-part=\"trigger\"][data-state=\"active\"] {\n  \
+  border-bottom: 2px solid #2563eb;\n  font-weight: 600;\n\
+}\n\
+[data-scope=\"tabs\"][data-part=\"trigger\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"tabs\"][data-part=\"trigger\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n  outline-offset: 2px;\n\
+}\n\
+[data-scope=\"tabs\"][data-part=\"content\"][hidden] {\n  \
+  display: none;\n\
+}\n\
+[data-scope=\"tabs\"][data-part=\"indicator\"] {\n  \
+  position: absolute;\n  left: var(--left);\n  width: var(--width);\n\
+}\n";
+
+/// Demo（3 タブ・indicator あり）・`ex_tabs`（Vertical/Manual）とは異なる
+/// 3 つ目の切り口として、自前 CSS を当てる最小例を示す（イシュー #1656）。
+/// `id` は同一ページ上の Demo（`primitives-tabs`）・`ex_tabs`
+/// （`primitives-tabs-example`）と衝突しない値を使う（重複 `id` は
+/// `aria-controls`/`aria-labelledby` の参照先を曖昧にするため）。
+fn ex_tabs_custom_css() -> Node {
+    let props = TabsProps {
+        id: "primitives-tabs-css-example",
+        selected: "overview",
+        orientation: Orientation::Horizontal,
+        activation_mode: ActivationMode::Automatic,
+        loop_focus: true,
+        indicator: false,
+    };
+    let items = vec![
+        TabItem {
+            value: "overview",
+            trigger: vec![text("Overview")],
+            content: vec![text("Overview panel content.")],
+            disabled: false,
+        },
+        TabItem {
+            value: "billing",
+            trigger: vec![text("Billing")],
+            content: vec![text("Billing panel content.")],
+            disabled: true,
+        },
+    ];
+    example_wrap(vec![
+        tabs(&props, items),
+        pre(
+            vec![],
+            vec![code(vec![], vec![text(TABS_CUSTOM_CSS_SNIPPET)])],
+        ),
+    ])
+}
+
 /// `/primitives/tabs/`。
 ///
 /// 一次情報: `crates/headless-ui/src/tabs.rs:1-60`（モジュール doc）、
 /// `:137-297`（`TabsProps`/`tabs`/`tabs_with_root_attrs` シグネチャ）、
 /// `:178-180`（`role="tablist"`/`"tab"`/`"tabpanel"` の実出力）、`:154-165`
 /// （roving tabindex）、`:95-121`（`ActivationMode` の doc）。
+///
+/// 参照突合（イシュー #1656）: `.agents/skills/ark-ui/references/components/disclosure/tabs.md`
+/// （anatomy 5 パーツ・`data-selected`/`data-focus`/`data-ssr`・キーボード
+/// 表）、`docs/design/component-coverage-map.md:327`（ark 表）・`:575`
+/// （chakra 表）、`.agents/skills/chakra-ui/references/components/disclosure/tabs.md`
+/// （`variant`/`size`/`fitted`/`justify`/`colorPalette`・`ContentGroup`）、
+/// `crates/wasm-full/src/keynav.rs::tabs_next_index`/`handle_tabs_keydown`/
+/// `activate_tab`（キーボード実装の一次情報）。是正なし、パート・`data-*`
+/// 増減なし（Radix Primitives の `data-*` 表と属性単位で一致）。
 pub(super) const TABS: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "WAI-ARIA APG の Tabs パターン（role=\"tablist\"/\"tab\"/\"tabpanel\"、aria-selected、相互参照する aria-controls/aria-labelledby、roving tabindex）に準拠したマークアップを組み立てる（tabs.rs モジュール doc）。",
         "root / list / trigger / content の 4 パーツに加え、選択タブの位置を示す装飾パーツ indicator（opt-in、TabsProps::indicator）を持つ 5 パーツ構成。",
         "ActivationMode（Automatic/Manual）を data-activation-mode として出力し、wasm-full 側のキーボード操作時の活性化挙動分岐に使われる（Automatic が既定）。",
         "props.selected がどの value とも一致しない場合、または一致した項目が disabled の場合は全 trigger/content が inactive として決定的に描画される（panic しない）。",
+        "参照突合（イシュー #1656）: ark-ui（Zag.js）/ Radix Primitives / Radix Themes / chakra-ui と突合し是正なし。data-state=\"active\"|\"inactive\" は Radix 語彙で、ark の data-selected は同義のため非採用。data-focus/data-ssr（実行時フォーカス・ハイドレーション判定）・lazyMount/unmountOnExit/deselectable/dir/Tabs.ContentGroup はいずれも SSR 静的出力の責務外・装飾関心として非採用（intentional-non-adoption.md §3.25 規則 2 等）。",
     ],
     arguments: &[
+        ArgRow {
+            name: "props(id)",
+            kind: "&str",
+            default: "",
+            description: "trigger/content の決定的 id 生成（\"{id}-trigger-{value}\"/\"{id}-content-{value}\"）に使うベース id。",
+        },
+        ArgRow {
+            name: "props(selected)",
+            kind: "&str",
+            default: "",
+            description: "選択中タブの value（SSR 時点の静的選択状態）。どの TabItem::value とも一致しない場合は全タブ非選択として描画する。",
+        },
         ArgRow {
             name: "props(orientation)",
             kind: "Orientation",
@@ -2036,7 +2126,19 @@ pub(super) const TABS: ComponentPageSpec = ComponentPageSpec {
             name: "props(loop_focus)",
             kind: "bool",
             default: "",
-            description: "list へ data-loop-focus として出力する（Arrow キーで端から反対端へ循環するか）。",
+            description: "list へ data-loop-focus として出力する（Arrow キーで端から反対端へ循環するか。ark-ui 既定 true 相当、呼び出し側が明示指定する）。",
+        },
+        ArgRow {
+            name: "props(indicator)",
+            kind: "bool",
+            default: "false",
+            description: "true のとき list の最終子として indicator（選択タブの位置を示す装飾パーツ）を追加する。",
+        },
+        ArgRow {
+            name: "TabItem(value)",
+            kind: "&str",
+            default: "",
+            description: "タブの識別 value。trigger の data-value・id/aria-controls/aria-labelledby の決定的生成に使う。",
         },
         ArgRow {
             name: "TabItem(disabled)",
@@ -2045,12 +2147,36 @@ pub(super) const TABS: ComponentPageSpec = ComponentPageSpec {
             description: "true のとき disabled 属性・data-disabled・aria-disabled=\"true\" を trigger に付与し、roving tabindex のフォールバック候補からも除外する。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Vertical orientation・Manual activation・indicator なし",
-        description: "Demo とは異なる軸（縦向き・手動活性化・indicator 省略）の組み合わせを実演します。",
-        render: ex_tabs,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Vertical orientation・Manual activation・indicator なし",
+            description: "Demo とは異なる軸（縦向き・手動活性化・indicator 省略）の組み合わせを実演します。",
+            render: ex_tabs,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope / data-part / data-state / data-disabled 属性セレクタで見た目を組み立てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: ex_tabs_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "roving tabindex により active（無ければ最初の非 disabled）trigger にフォーカスする。trigger から Tab で active content（tabindex=\"0\"、inactive は hidden）へ移動する（配線なし、ブラウザ既定）。",
+        },
+        KeyRow {
+            key: "ArrowRight / ArrowLeft（horizontal）・ArrowDown / ArrowUp（vertical）",
+            description: "次/前の非 disabled trigger へフォーカスを移動する（fandhe-frontend-wasm-full の keynav.rs::tabs_next_index）。data-loop-focus=\"false\" のときのみ端で停止し、既定（true）では反対端へ循環する。ActivationMode::Automatic では同時に活性化（handle_tabs_keydown が activate_tab を呼ぶ）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "最初/最後の非 disabled trigger へフォーカスを移動する。Automatic では同時に活性化する（keynav.rs::tabs_next_index）。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "ネイティブ button の click（wasm-full の click 委譲、handle_trigger_click）で活性化する。ActivationMode::Manual での主な活性化手段であり、Automatic でもクリックと同じ経路で動作する。disabled trigger は no-op。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role=\"tablist\" / aria-orientation",
