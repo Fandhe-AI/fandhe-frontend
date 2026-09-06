@@ -77,12 +77,30 @@
 //! と `@keyframes`（[`stylesheet`] が固定文字列として追記、`crate::spinner`
 //! と同型のパターン）で提供することで完成させる。
 //!
+//! # イシュー #1688: circle-range indeterminate の固定弧
+//!
+//! headless [`Progress::circle_range`] は indeterminate 時に `stroke-dasharray`
+//! を出力しない（不定値を捏造しない契約、上節参照）。circle の回転
+//! アニメーションのみでは塗り色の完全リングが回転するだけで動きが見えず
+//! `data-state="complete"` と視覚的に区別できないため、本モジュールが
+//! `[data-part="circle-range"][data-state="indeterminate"]` へ固定長の弧
+//! （円周の 1/4）を `stroke-dasharray` として与える。`--radius` は headless
+//! [`Progress::circle`] の inline `style`（`--size`/`--thickness` から算出）
+//! が定義し、SVG の子孫要素である circle-range へ通常の CSS 継承で伝わる。
+//! chakra `progress-circle` の `circular-progress` keyframes（弧の長さ自体を
+//! 伸縮させるアニメーション）は追加しない（弧の長さは固定のまま circle の
+//! 回転にのみ乗せる。新規 `@keyframes` 不要のため
+//! `prefers-reduced-motion: reduce` 環境でも「静止した弧」が残り、complete
+//! との区別が失われない）。
+//!
 //! `prefers-reduced-motion: reduce` 環境では [`stylesheet`] が
 //! `[data-part="circle"][data-state="indeterminate"]`/
 //! `[data-part="range"][data-state="indeterminate"]` の無限 `animation` を
 //! `animation: none` で個別停止する（`crate::skeleton` と同型。`transition`
 //! 側は [`MotionDuration`] トークン経由のため [`crate::theme::Theme::to_css`]
-//! の duration 一括無効化に乗る）。
+//! の duration 一括無効化に乗る）。circle-range の固定弧宣言は `animation`
+//! を含まないため本 `@media` の対象外（新規 `animation`/`@keyframes` を
+//! 追加していないため停止対象が増えない）。
 //!
 //! # 意図的に参考サイトへ合わせない点
 //!
@@ -105,6 +123,36 @@
 //! - Subtle variant のトラック色は `<palette>-subtle`（`<palette>-muted` は
 //!   accent/info で light 時 3:1 未達のため不採用。判断根拠は本クレート
 //!   `theme.rs` テストモジュールのコントラスト表を参照）。
+//! - size スケールの px 換算値（chakra xs/sm/md/lg/xl = 24/32/40/48/64px、
+//!   thickness 2〜6px）を chakra へ揃えることはしない（イシュー #1688）。
+//!   本クレートは #1681/#1835 で 1〜5rem・0.15〜0.35rem の等差進行を意図的に
+//!   確定したばかりで、5 段の存在・既定 md が一致していれば十分とし
+//!   再調整による churn を避ける。
+//! - value-text を円の中央へ配置する `shape` 軸（chakra は呼び出し側の
+//!   `AbsoluteCenter` 合成で実現）は実装しない（イシュー #1688）。
+//!   [`SlotRecipe`] は子孫セレクタ機構を持たない設計（#708 で確定）ため
+//!   root variant から value-text を再配置する手段がなく、custom property
+//!   継承方式で無理に実現すると公開 API 変更を伴う。最小サブセット方針
+//!   （`crate::badge` と同じ）で見送り、利用者要望が出た時点で再評価する。
+//! - chakra `progress-circle` の `circular-progress` keyframes（弧の長さ自体
+//!   を伸縮させるアニメーション）は追加しない（イシュー #1688、「イシュー
+//!   #1688: circle-range indeterminate の固定弧」節参照）。circle の回転で
+//!   動きは十分に伝わり、弧の長さを固定することで `prefers-reduced-motion:
+//!   reduce` 時も静止した弧が残り complete と区別できる利点がある。
+//!
+//! # 親イシュー #1673 の前提との差分（イシュー #1688）
+//!
+//! 親イシュー #1673 は「Themes の Progress は linear のみ実装済み」という
+//! 前提で書かれていたが、circular recipe（circle/circle-track/circle-range）・
+//! golden テスト・XSS 回帰・size/variant/color-palette 軸・indeterminate 回転
+//! アニメーションは #763/PR #807（circular 追加）・#1564/PR #1835（linear と
+//! 3 軸 variant 追加）で既に実装済みだった。本イシュー #1688 は「新規実装」
+//! ではなく、参照 4 サイトのうち circular を持つ唯一の参照元（chakra-ui
+//! `progress-circle`）との突合による差分埋め（上記「イシュー #1688:
+//! circle-range indeterminate の固定弧」節）として再定義して実施した。ark-ui
+//! `progress-circular` は size/variant 軸を持たず `--size`/`--thickness` の
+//! CSS 変数と anatomy のみを定義しており既に headless 側で満たされている。
+//! Radix（Primitives/Themes）は circular progress を持たないため突合対象外。
 //!
 //! # セキュリティ不変条件
 //!
@@ -466,6 +514,27 @@ fn recipe() -> SlotRecipe {
                 concat!(spin_keyframes_name_lit!(), " 1s linear infinite"),
             )],
         )
+        // イシュー #1688: headless circle_range は indeterminate 時に
+        // stroke-dasharray を出力しない（不定値を捏造しない契約、headless 側
+        // rustdoc 参照）ため、そのままでは塗り色の完全リングが回転するだけで
+        // 動きが見えず data-state="complete" と区別できない。styled 層が
+        // 固定長の弧（円周の 1/4）を与え、直上の circle 回転と組み合わせて
+        // 「弧が回る」表現にする。`--radius` は headless が svg の inline
+        // style（circle 要素の親）で定義し継承される。
+        .state(
+            "circle-range",
+            StateCondition::AttrEq("data-state", "indeterminate"),
+            vec![
+                decl(
+                    "--fandhe-progress-circumference",
+                    "calc(2 * 3.14159265 * var(--radius))",
+                ),
+                decl(
+                    "stroke-dasharray",
+                    "calc(var(--fandhe-progress-circumference) * 0.25) var(--fandhe-progress-circumference)",
+                ),
+            ],
+        )
         // イシュー #1564: indeterminate 時の linear range（horizontal 既定）。
         .state(
             "range",
@@ -771,6 +840,25 @@ mod tests {
         assert!(css.contains(&format!("@keyframes {SPIN_KEYFRAMES_NAME} {{")));
         assert!(css.contains("transform: rotate(0deg);"));
         assert!(css.contains("transform: rotate(360deg);"));
+    }
+
+    // イシュー #1688: circle-range の indeterminate 固定弧（モジュール冒頭
+    // rustdoc「イシュー #1688: circle-range indeterminate の固定弧」節）。
+    #[test]
+    fn circle_range_indeterminate_state_declares_fixed_arc_dasharray() {
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="progress"][data-part="circle-range"][data-state="indeterminate"] {"#
+        ));
+        assert!(
+            css.contains("--fandhe-progress-circumference: calc(2 * 3.14159265 * var(--radius));")
+        );
+        assert!(css.contains(
+            "stroke-dasharray: calc(var(--fandhe-progress-circumference) * 0.25) var(--fandhe-progress-circumference);"
+        ));
+        // 新規 animation/@keyframes を追加していないため reduced-motion の
+        // 停止対象（`animation: none;` の件数）は 2 件のまま増えない
+        // （`reduced_motion_media_query_stops_indeterminate_animations` 参照）。
     }
 
     #[test]

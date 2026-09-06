@@ -2680,12 +2680,17 @@ fn separator_attrs_and_class_are_escaped_for_all_payloads() {
     }
 }
 
-/// (11) progress 経路（circle 対応、イシュー #763）: styled `root` の
+/// (11) progress 経路（circle 対応、イシュー #763/#1688）: styled `root` の
 /// `aria_valuetext` 引数・呼び出し側 `attrs`・`class`、および headless
 /// `Progress` の inherent メソッド（`circle`/`circle_track`/`circle_range`。
 /// styled 層の独自ラッパーを持たず headless をそのまま呼ぶ契約、
 /// `crates/pre-styled-ui/src/progress.rs` rustdoc 参照）の呼び出し側
 /// `attrs` すべてで既定エスケープ（REQ-1）が貫通することを固定する。
+/// イシュー #1688 で circle-range へ indeterminate 専用の固定弧 CSS
+/// （`decl()` の固定リテラルのみで構成、外部入力は混入しない）を追加した
+/// ことに伴い、indeterminate な `Progress`（`value = None`）でも同様に
+/// `circle`/`circle_track`/`circle_range`/styled `range` の呼び出し側
+/// `attrs` 経路が既定エスケープを貫通することを追加で固定する。
 #[test]
 fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads() {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
@@ -2693,6 +2698,7 @@ fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads()
     use fandhe_frontend_pre_styled_ui::progress::{self, ProgressProps};
 
     let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+    let indeterminate_p = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
 
     for payload in payloads::all() {
         // styled root の aria_valuetext 引数経路。
@@ -2791,6 +2797,55 @@ fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads()
         assert!(
             html.contains("--fandhe-progress-percent: 40%"),
             "progress::range で percent style が失われている: html={html}"
+        );
+
+        // イシュー #1688: indeterminate（`value = None`）経路。circle 系
+        // 3 parts の呼び出し側 attrs、および styled range の呼び出し側
+        // attrs/style（indeterminate では style を一切出力しない headless
+        // 契約、モジュール冒頭 rustdoc「indeterminate アニメーション」節
+        // 参照）を通しても既定エスケープが貫通することを確認する。
+        let html = render(&indeterminate_p.circle(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "indeterminate Progress::circle 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&indeterminate_p.circle_track(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "indeterminate Progress::circle_track 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&indeterminate_p.circle_range(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "indeterminate Progress::circle_range 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&progress::range(
+            &indeterminate_p,
+            vec![("data-testid", payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "indeterminate progress::range 呼び出し側 attrs コンテキスト",
+        );
+
+        // indeterminate progress::range は drop_style_attr で呼び出し側
+        // style を除去した上で、headless 契約どおり style 属性を一切
+        // 出力しない（percent が存在しないため）。
+        let html = render(&progress::range(&indeterminate_p, vec![("style", payload)]));
+        assert!(
+            !html.contains(payload),
+            "indeterminate progress::range の style 属性に渡した生ペイロードが              出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains("style="),
+            "indeterminate progress::range が style 属性を出力している: html={html}"
         );
     }
 }
