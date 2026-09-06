@@ -9,11 +9,11 @@
 //! # スコープ（本イシューで実装するもの／しないもの）
 //!
 //! 本モジュールは pre-styled-ui クレート内で完結する recipe・golden・XSS・
-//! `data-*` 契約テストのみを提供する。`/themes/fieldset/` ページ登録
-//! （showcase Demo・`SPEC_TABLES` 原稿・`site/nav.toml`）は後続イシュー
-//! #1687 のスコープであり、本モジュールはページ未登録の状態でも
-//! `crates/docs-site/tests/wrap_state.rs` の台帳と整合するよう
-//! `NON_PAGE_TOP_LEVEL` へ暫定登録される（同ファイル参照）。
+//! `data-*` 契約テストを提供する。`/themes/fieldset/` ページ登録
+//! （showcase Demo・`SPEC_TABLES` 原稿・`site/nav.toml`）は
+//! #1687（PR #1940）で実施済み。`crates/docs-site/tests/wrap_state.rs`
+//! の台帳では `WRAPPED_SAME_NAME` へ分類されており（`NON_PAGE_TOP_LEVEL`
+//! からは除外済み、同ファイル参照）、ページ登録済みの現状と整合している。
 //!
 //! chakra-ui v3 `Fieldset` が持つ `Content` サブパートは headless
 //! [`fandhe_frontend_headless_ui::fieldset`] の anatomy に存在しないため
