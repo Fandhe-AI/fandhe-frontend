@@ -100,14 +100,16 @@
 //! # out-of-scope（本イシュー #749 のスコープ外）
 //!
 //! - **wasm-full 配線**: `PositionedKind::Combobox`（`crates/wasm-full/src/position.rs`）、
-//!   input イベント→`"input"` dispatch→フィルタ結果の DOM 反映、
-//!   キーボードナビゲーション（ArrowDown/Up・Home/End・Enter・Escape）は
-//!   後続イシューのスコープ。本イシューは SSR 出力と状態機械のみを提供する。
+//!   input イベント→`"input"` dispatch→フィルタ結果の DOM 反映は
+//!   後続イシューのスコープのまま。キーボードナビゲーション
+//!   （ArrowDown/Up・Home/End・Enter・Escape）は `fandhe-frontend-wasm-full`
+//!   の `keynav::combobox_key_action`（イシュー #1071）で実装済み。本イシュー
+//!   は SSR 出力と状態機械のみを提供する。
 //! - **[`live_region`] のテキスト更新（イシュー #1069 の out-of-scope）**:
 //!   候補件数の再計算・DOM への書き込みは `fandhe-frontend-wasm-full` の
-//!   後続責務であり、本モジュールは SSR 静的マークアップ（`role`/
-//!   `aria-live`/`aria-atomic` の固定出力）と初期文言の描画のみを提供する
-//!   （関連する後続イシューは #1071 系）。
+//!   後続責務のまま（#1071 はキーボード配線のみを実装し、live region の
+//!   テキスト更新は未対応）。本モジュールは SSR 静的マークアップ（`role`/
+//!   `aria-live`/`aria-atomic` の固定出力）と初期文言の描画のみを提供する。
 //! - **選択時の入力値自動書き換え（label 反映）**: ark-ui の
 //!   `selectionBehavior: "replace"` に相当する「選択した候補のラベルを
 //!   input へ反映する」処理は行わない。[`ComboboxAction::Select`] は
