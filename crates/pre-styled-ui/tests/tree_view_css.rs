@@ -149,6 +149,10 @@ const TREE_VIEW_GOLDEN_CSS: &str = r#"[data-scope="tree-view"][data-part="label"
   color: var(--fandhe-color-accent-fg-subtle);
 }
 
+[data-scope="tree-view"][data-part="item-indicator"][hidden] {
+  visibility: hidden;
+}
+
 [data-scope="tree-view"][data-part="branch-control"][data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;

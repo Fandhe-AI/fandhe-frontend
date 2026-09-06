@@ -204,7 +204,7 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
 | Listbox / MultiListbox | `listbox` | #750 |
 | Combobox | `combobox` | #749 |
 | Steps | `steps` | #752（§4b.3 の保留解除） |
-| TreeView | `tree_view` | #753 |
+| TreeView | `tree_view` | #753。参照突合は #1667（`TreeItemProps` 新設・`data-branch`/`data-value`/`data-depth`/`data-selected`/`data-disabled`/`data-state` 追加。キーボード配線は wasm-full #1072） |
 | Pagination | `pagination` | #751 |
 | Breadcrumb | `breadcrumb` | #755 |
 | HoverCard | `hover_card` | #759 |

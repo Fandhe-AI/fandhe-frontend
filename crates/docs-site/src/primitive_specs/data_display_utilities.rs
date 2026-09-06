@@ -30,29 +30,35 @@
 //! [`ArgRow`] には part 列が無いため、`<関数/メソッド名>: <引数名>` 形式で
 //! `name` 列へ埋め込む（10 部品で表記を統一する、#1027 と同型）。
 //!
-//! # `keyboard` を 7/10 件で空にする理由（3 件のみ非空）
+//! # `keyboard` を 4/10 件で空にする理由（6 件は非空、イシュー #1667 で改訂）
 //!
 //! 本カテゴリ 10 モジュールのうち `tabindex` を出力するのは
 //! `scroll_area`（`viewport`、`crates/headless-ui/src/scroll_area.rs:68-71`）・
 //! `skip_nav`（`content`、`crates/headless-ui/src/skip_nav.rs:100-107`）・
 //! `splitter`（`resize_trigger`）の 3 件のみ（非テストソースの grep
-//! 結果）。残り 7 件（avatar/carousel/json_tree_view/steps/tour/tree_view/
+//! 結果、`tree_view`/`json_tree_view` の roving tabindex は
+//! `fandhe-frontend-wasm-full` `keynav.rs` が実行時に付与するため headless
+//! 側 SSR 出力には現れない）。残り 4 件（avatar/carousel/tour/
 //! visually_hidden）は `tabindex` を一切出力せず、クリック・矢印キー等の実
 //! DOM 配線は各モジュール doc の out-of-scope 節が
 //! `fandhe-frontend-wasm-full` 後続イシューの責務と明示している
-//! （`carousel.rs:71`/`steps.rs:75`/`tour.rs:89-91`/`tree_view.rs:74-77`
-//! 参照。avatar/visually_hidden はそもそもキー操作の対象になる要素を
-//! 持たない）。実装が焦点制御に関与しない部品へ「ArrowRight で次へ進む」の
-//! ような未実装の対話を書くと利用者へ誤った安心を与えるため、該当 7 件は
-//! `keyboard: &[]` を採用し、非空である `aria` 表のみで Accessibility 節を
-//! 成立させる（`component_page.rs` の Accessibility 節省略規則参照。
-//! scroll_area/skip_nav の 2 件は `tabindex` の**属性事実のみ**を `KeyRow`
-//! に記載し、対話そのものは記載しない）。`splitter` は上記 2 件と異なり
-//! Arrow/Home/End キーの DOM 配線がイシュー #1074 で
-//! `fandhe-frontend-wasm-full` に実装済みのため、`keyboard` へ実装済みの
-//! 対話（Arrow/Home/End）と未実装の対話（Shift+Arrow、`SplitterAction::
-//! IncrementLarge`/`DecrementLarge` の状態機械のみ）を明確に区別して記載
-//! する（イシュー #1664 参照突合）。
+//! （`carousel.rs:71`/`tour.rs:89-91` 参照。avatar/visually_hidden はそもそも
+//! キー操作の対象になる要素を持たない）。実装が焦点制御に関与しない部品へ
+//! 「ArrowRight で次へ進む」のような未実装の対話を書くと利用者へ誤った
+//! 安心を与えるため、該当 4 件は `keyboard: &[]` を採用し、非空である
+//! `aria` 表のみで Accessibility 節を成立させる（`component_page.rs` の
+//! Accessibility 節省略規則参照。scroll_area/skip_nav の 2 件は `tabindex`
+//! の**属性事実のみ**を `KeyRow` に記載し、対話そのものは記載しない）。
+//! `splitter`/`json_tree_view`/`tree_view` は上記 2 件と異なり
+//! Arrow/Home/End 等のキーボード配線が `fandhe-frontend-wasm-full`
+//! に実装済み（`splitter` はイシュー #1074、`tree_view`（`json_tree_view`
+//! が再利用する構造部も含む）はイシュー #1072）のため、`keyboard` へ
+//! 実装済みの対話を記載する。`splitter` はさらに未実装の対話
+//! （Shift+Arrow、`SplitterAction::IncrementLarge`/`DecrementLarge`
+//! の状態機械のみ）を区別して記載する（イシュー #1664 参照突合）。
+//! `tree_view` の既知ギャップ・非追随（`*` 一括展開・Shift+Arrow/Ctrl+A・
+//! F2）はキーボード表ではなく `TREE_VIEW.features`/`site/primitives/
+//! tree-view.md` 側の「参考サイトとの差分」節に記載する（イシュー #1667）。
 //!
 //! # `avatar`/`visually_hidden` の Accessibility 節が空にならない理由
 //!
@@ -1281,13 +1287,32 @@ pub const TOUR: ComponentPageSpec = ComponentPageSpec {
 // Tree View（/primitives/tree-view/）
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/tree_view.rs:1-89`（モジュール doc、
-/// out-of-scope）、`:112-324`（`root`/`label`/`tree`/`branch`/
-/// `branch_control`/`branch_indicator`/`branch_text`/`branch_content`/
-/// `branch_indent_guide`/`item`/`item_text`/`item_indicator` シグネチャと
-/// role/aria-* 出力）、`:486`（`TreeView::render_nodes`）。
+/// 一次情報: `crates/headless-ui/src/tree_view.rs:1-137`（モジュール doc、
+/// out-of-scope・参照突合（イシュー #1667）節）、`:274-519`（`root`/`label`/
+/// `tree`/`branch`/`branch_control`/`branch_indicator`/`branch_text`/
+/// `branch_content`/`branch_indent_guide`/`item`/`item_text`/
+/// `item_indicator` シグネチャと role/aria-*/data-* 出力）、`:681-683`
+/// （`TreeView::render_nodes`）。
 fn ex_tree_view_closed_branch() -> Node {
     let closed = OpenState::Closed;
+    let props = tree_view::TreeItemProps {
+        value: "src",
+        selected: false,
+        disabled: false,
+        level: "1",
+        posinset: "1",
+        setsize: "1",
+        depth: "0",
+    };
+    let lib_rs_props = tree_view::TreeItemProps {
+        value: "lib.rs",
+        selected: false,
+        disabled: false,
+        level: "2",
+        posinset: "1",
+        setsize: "1",
+        depth: "1",
+    };
     tree_view::root(
         vec![],
         vec![
@@ -1298,42 +1323,34 @@ fn ex_tree_view_closed_branch() -> Node {
                 vec![],
                 vec![tree_view::branch(
                     closed,
-                    "src",
-                    false,
-                    false,
-                    "1",
-                    "1",
-                    "1",
-                    "0",
+                    props,
                     vec![],
                     vec![
                         tree_view::branch_control(
                             closed,
-                            false,
-                            false,
+                            props,
                             vec![],
                             vec![
-                                tree_view::branch_indicator(closed, vec![], vec![text("▸")]),
-                                tree_view::branch_text(vec![], vec![text("src")]),
+                                tree_view::branch_indicator(closed, props, vec![], vec![text("▸")]),
+                                tree_view::branch_text(closed, props, vec![], vec![text("src")]),
                             ],
                         ),
                         tree_view::branch_content(
                             closed,
+                            props,
                             vec![],
                             vec![
-                                tree_view::branch_indent_guide(vec![], vec![]),
+                                tree_view::branch_indent_guide(props, vec![], vec![]),
                                 tree_view::item(
-                                    "lib.rs",
-                                    false,
-                                    false,
-                                    "2",
-                                    "1",
-                                    "1",
-                                    "1",
+                                    lib_rs_props,
                                     vec![],
                                     vec![
-                                        tree_view::item_indicator(false, vec![], vec![]),
-                                        tree_view::item_text(vec![], vec![text("lib.rs")]),
+                                        tree_view::item_indicator(lib_rs_props, vec![], vec![]),
+                                        tree_view::item_text(
+                                            lib_rs_props,
+                                            vec![],
+                                            vec![text("lib.rs")],
+                                        ),
                                     ],
                                 ),
                             ],
@@ -1345,56 +1362,138 @@ fn ex_tree_view_closed_branch() -> Node {
     )
 }
 
+/// headless-ui は data-scope="tree-view"/data-part="*"/data-* のみを出力し
+/// 外観を持たない（`JSON_TREE_VIEW_CUSTOM_CSS_SNIPPET` と同型の最小例）。
+/// branch-content の hidden 上書き（`pre_styled_ui::tree_view::stylesheet`
+/// と同型の対応、UA 既定の `[hidden] { display: none }` を base 規則の
+/// `display` 宣言が上書きしてしまう不具合の回避）・branch-indent-guide の
+/// 幅・選択/無効状態の強調を自前 CSS で当てる。
+const TREE_VIEW_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"tree-view\"][data-part=\"branch-content\"][hidden] {\n  \
+  display: none;\n\
+}\n\
+[data-scope=\"tree-view\"][data-part=\"branch-indent-guide\"] {\n  \
+  width: 1rem;\n\
+}\n\
+[data-scope=\"tree-view\"][data-part=\"branch-control\"][data-selected],\n\
+[data-scope=\"tree-view\"][data-part=\"item\"][data-selected] {\n  \
+  background: #eff6ff;\n\
+}\n\
+[data-scope=\"tree-view\"][data-part=\"branch-control\"][data-disabled],\n\
+[data-scope=\"tree-view\"][data-part=\"item\"][data-disabled] {\n  \
+  opacity: 0.5;\n\
+}\n\
+[data-scope=\"tree-view\"][data-part=\"branch-control\"]:focus-visible,\n\
+[data-scope=\"tree-view\"][data-part=\"item\"]:focus-visible {\n  \
+  outline: 2px solid #2563eb;\n\
+}\n";
+
+/// [`TREE_VIEW_CUSTOM_CSS_SNIPPET`] を実演する例（[`ex_tree_view_closed_branch`]
+/// と同じ木を使い回す）。
+fn ex_tree_view_custom_css() -> Node {
+    wrap_example(
+        "headless-ui はスタイルを持たないため、data-scope=\"tree-view\"/data-part 属性セレクタで自前 CSS を当てる最小例です。",
+        vec![
+            ex_tree_view_closed_branch(),
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(TREE_VIEW_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 pub const TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Label / Tree / Branch / BranchControl / BranchIndicator / BranchText / BranchContent / BranchIndentGuide / Item / ItemText / ItemIndicator の 12 anatomy パーツを提供する（tree_view.rs:1-10）。",
-        "展開集合（MultiSelect）+ 選択値（SingleSelect）を合成した状態機械 TreeView を提供し、TreeView::render_nodes が深さ・aria-posinset/aria-setsize を再帰的に計算する（tree_view.rs:425-488）。",
-        "tree は role=\"tree\"、branch/item は role=\"treeitem\"、branch_content は role=\"group\" を固定出力する WAI-ARIA APG Tree パターン準拠（tree_view.rs:125-259,269-303）。",
-        "branch/item は disabled=true のとき aria-disabled=\"true\" を対で付与する（ネイティブ disabled を持たない role=\"treeitem\" のための代替、tree_view.rs:186-193,295-300）。",
-        "キーボードナビゲーション・typeahead は SSR 静的マークアップに寄与しない CSR 挙動層のスコープ外（tree_view.rs:72-77）。",
+        "展開集合（MultiSelect）+ 選択値（SingleSelect）を合成した状態機械 TreeView を提供し、TreeView::render_nodes が深さ・aria-posinset/aria-setsize を再帰的に計算する（tree_view.rs:636-758）。",
+        "tree は role=\"tree\"、branch/item は role=\"treeitem\"、branch_content は role=\"group\" を固定出力する WAI-ARIA APG Tree パターン準拠（tree_view.rs:291-487）。",
+        "branch/item は disabled=true のとき aria-disabled=\"true\" を対で付与する（ネイティブ disabled を持たない role=\"treeitem\" のための代替、tree_view.rs:340-344,476-480）。",
+        "ark-ui docs / zag.js との参照突合（イシュー #1667）で data-branch（branch）・data-value/data-depth（branch-control）・data-selected/data-disabled/data-state（インジケータ・テキスト系）・非選択時 hidden（item-indicator）を追加した（tree_view.rs 冒頭「参照突合（イシュー #1667）」節）。",
+        "矢印キー・Home/End・Enter/Space・typeahead の DOM 配線は fandhe-frontend-wasm-full keynav.rs §TreeView（イシュー #1072）が担う。* による兄弟一括展開・Shift+Arrow/Ctrl+A（複数選択前提）・F2（rename）は非追随（tree_view.rs 冒頭「out-of-scope」節）。",
     ],
     arguments: &[
         ArgRow {
             name: "tree: aria_label_text, aria_labelledby_id",
             kind: "Option<&str>, Option<&str>",
             default: "None, None",
-            description: "tree のアクセシブルな名前（いずれか片方が Some を推奨、tree_view.rs:125-146）。",
+            description: "tree のアクセシブルな名前（いずれか片方が Some を推奨、tree_view.rs:291-306）。",
         },
         ArgRow {
-            name: "branch/item: level, posinset, setsize, depth",
-            kind: "&str, &str, &str, &str",
+            name: "TreeItemProps: value, selected, disabled, level, posinset, setsize, depth",
+            kind: "&str, bool, bool, &str, &str, &str, &str",
             default: "",
-            description: "呼び出し側が usize から文字列化した aria-level/aria-posinset/aria-setsize/data-depth（tree_view.rs:150-156）。",
+            description: "branch/branch_control/branch_indicator/branch_text/branch_content/branch_indent_guide/item/item_text/item_indicator へ一括で通すノード共通プロパティ（level/posinset/setsize/depth は呼び出し側が usize から文字列化した aria-level/aria-posinset/aria-setsize/data-depth、イシュー #1667 で新設、tree_view.rs 内 TreeItemProps 定義）。",
         },
         ArgRow {
             name: "TreeView::render_nodes: nodes",
             kind: "&[TreeNode]",
             default: "",
-            description: "決定的な静的木を現在の展開・選択状態で再帰描画する（tree_view.rs:486-488）。",
+            description: "決定的な静的木を現在の展開・選択状態で再帰描画する（tree_view.rs:681-683）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Closed branch",
-        description: "branch が折りたたまれ、branch_content が hidden の例です（Demo は展開済み）。",
-        render: ex_tree_view_closed_branch,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Closed branch",
+            description: "branch が折りたたまれ、branch_content が hidden の例です（Demo は展開済み）。",
+            render: ex_tree_view_closed_branch,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "headless 層は data-scope/data-part/data-* のみを出力し外観を持たないため、branch-content の hidden 上書き・branch-indent-guide の幅・選択状態の強調を自前 CSS で当てる最小例です。",
+            render: ex_tree_view_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "ArrowDown / ArrowUp",
+            description: "可視かつ disabled でない treeitem 間で 1 件ずつフォーカス移動する（折りたたみ中の子孫はスキップ、非循環）。",
+        },
+        KeyRow {
+            key: "ArrowRight",
+            description: "閉じたブランチは展開する。開いたブランチは最初の子へフォーカス移動する。葉ノードでは no-op。",
+        },
+        KeyRow {
+            key: "ArrowLeft",
+            description: "開いたブランチは折りたたむ。それ以外（葉ノード・閉じたブランチ）は親ブランチへフォーカス移動する（ルート直下では no-op）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "可視かつ disabled でない最初/最後の treeitem へフォーカス移動する。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "葉ノードは選択（select）、ブランチは開閉（toggle）を発火する（ブランチ自体は選択できない）。",
+        },
+        KeyRow {
+            key: "印字可能文字",
+            description: "typeahead: 直近の入力から一致する treeitem へフォーカス移動する。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "typeahead バッファをリセットする。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role=\"tree\" / role=\"treeitem\" / role=\"group\"",
-            description: "tree/branch・item/branch_content に固定出力する（tree_view.rs:125-259,269-303）。",
+            description: "tree/branch・item/branch_content に固定出力する（tree_view.rs:291-487）。",
         },
         AriaRow {
             attribute: "aria-expanded",
-            description: "branch のみ（open/closed を反映、tree_view.rs:173-176）。",
+            description: "branch のみ（open/closed を反映、tree_view.rs:322-325）。",
         },
         AriaRow {
             attribute: "aria-selected / aria-level / aria-posinset / aria-setsize",
-            description: "branch/item 双方に出力する（tree_view.rs:177-180,286-290）。",
+            description: "branch/item 双方に出力する（disabled 時も aria-selected=\"false\" を省略しない APG superset、tree_view.rs:322-329,459-466）。",
         },
         AriaRow {
             attribute: "aria-disabled=\"true\"",
-            description: "disabled=true のときのみ branch/item に出力する（tree_view.rs:186-193,295-300）。",
+            description: "disabled=true のときのみ branch/item に出力する（tree_view.rs:340-344,476-480）。",
+        },
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "branch-indicator/item-indicator（装飾アイコン）に固定出力する（イシュー #1667 で追加、tree_view.rs 内 branch_indicator/item_indicator 定義）。",
         },
     ],
     demo: None,

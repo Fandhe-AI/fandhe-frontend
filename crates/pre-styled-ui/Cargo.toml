@@ -1943,6 +1943,20 @@ name = "fandhe-frontend-pre-styled-ui"
 # 衝突していた（同一版数への偶発的衝突をそのまま採用しない原則、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）。両者を統合した
 # 結果としてさらに patch バンプし 0.117.3 とする。
+# base 再取り込み（イシュー #1690/#1674, 2026-09-06, 6 回目）: 本ブランチ
+# （直前の 0.117.3、#1690 dialog footer 追加）と main（直前の 0.117.3、
+# #1665 + #1674 の統合結果）はいずれも独立に patch バンプし偶発的に
+# 同一版数 0.117.3 へ再度衝突していた（同一版数への偶発的衝突をそのまま
+# 採用しない原則、`docs/ci/style-refresh-version-bump-operation.md` §5）。
+# 両者を統合した結果としてさらに patch バンプし 0.117.4 とする。
+# イシュー #1667（tree-view の参照突合）: `fandhe-frontend-headless-ui`
+# 0.63.0（`TreeItemProps` 新設に伴う 9 パーツ関数のシグネチャ変更、
+# 破壊的変更）への追随・再エクスポート先シグネチャの破壊的変更（`branch`
+# 等が `TreeItemProps` を取るようになった）に伴い、0.x の破壊的変更規約に
+# 従いマイナーバンプで 0.118.0 とする（`item-indicator` の `[hidden]`
+# 上書き CSS 追加自体は非破壊的だが、上記シグネチャ変更が破壊的のため
+# 合わせてマイナーバンプする）。
+version = "0.118.0"
 # base 再取り込み（イシュー #1666/#1690, 2026-09-06, 7 回目）: 本ブランチ
 # （tour の参照突合、破壊的変更で 0.118.0 に到達済み）と main（#1690 の
 # dialog footer 追加を経て 0.117.4 に到達）を統合する。
@@ -1951,8 +1965,6 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0 に戻す）に従うと main の現在値 0.117.4 の minor（117）を +1 して
 # 0.118.0 となり、これは既に HEAD 側が到達している値と一致するため、
 # 追加のバンプは不要としてそのまま 0.118.0 を維持する。
-version = "0.118.0"
-
 
 
 edition = "2021"
@@ -1968,7 +1980,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.63.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.64.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

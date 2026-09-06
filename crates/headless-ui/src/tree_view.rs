@@ -26,12 +26,56 @@
 //! （`"expand"`/`"collapse"`/`"toggle"`/`"select"`/`"deselect"`）で展開集合・
 //! 選択値の状態遷移をする。`fandhe-frontend-pre-styled-ui`（イシュー #753）が
 //! 本モジュールを呼んでスタイル済み TreeView を組み立てる想定である。
+//! DOM 配線（クリック→dispatch・キーボードナビゲーション）は
+//! `fandhe-frontend-wasm-full` `keynav.rs` §TreeView（イシュー #1072）が担う
+//! （下記 §out-of-scope 参照）。
 //!
 //! # anatomy 12 パーツ（ark-ui との対応）
 //!
 //! ark-ui の `NodeProvider` は React context 相当でありマークアップを持たない
 //! ため、本モジュールの anatomy 対象外とする（`docs/design`
 //! （該当があれば）参照は不要な純粋な設計判断）。
+//!
+//! # 参照突合（イシュー #1667）
+//!
+//! ark-ui docs の Data Attributes / Keyboard 表と zag.js
+//! `packages/machines/tree-view/src/tree-view.connect.ts` を突合した結果。
+//! Radix Primitives に Tree View 相当は存在しないため突合対象に含めない
+//! （`docs/design/component-coverage-map.md` 参照）。
+//!
+//! - **是正**: [`branch`] へ `data-branch`（= ノード値）を追加、
+//!   [`branch_control`] へ `data-value`/`data-depth` を追加、
+//!   [`branch_indicator`] へ `data-disabled`/`data-selected`/
+//!   `aria-hidden="true"` を追加、[`branch_text`] へ `data-state`/
+//!   `data-disabled` を追加、[`branch_content`] へ `data-depth`/`data-value`
+//!   を追加、[`branch_indent_guide`] へ `data-depth` を追加、[`item_text`]
+//!   へ `data-selected`/`data-disabled` を追加、[`item_indicator`] へ
+//!   `data-disabled`/`aria-hidden="true"`/非選択時 `hidden` を追加。加えて
+//!   [`drop_reserved`] による呼び出し側 `attrs` の予約キーなりすまし除去を
+//!   全パーツへ導入した（[`crate::splitter`] と同型のパターン）。
+//! - **非追随**: `data-focus`/`data-renaming`/`data-checked`/
+//!   `data-indeterminate`/`data-loading`/`aria-busy`（focus・rename・
+//!   checkbox・lazy loading という実行時ローカル状態。SSR に実データがなく
+//!   `docs/policy/intentional-non-adoption.md` §3.25 に従い非採用）、
+//!   `data-path`/`data-ownedby`/`id`/`dir`/`tabindex`/`--depth` style
+//!   （wasm-full は `data-value` の文字列比較と document 順走査で親子解決し
+//!   不要。`tabindex` は wasm-full の roving tabindex が実行時に付与）、
+//!   `aria-multiselectable`（[`crate::state::SingleSelect`] のみのため
+//!   対象外）、`aria-current="true"`（zag の item。WAI-ARIA APG Tree では
+//!   `aria-selected` が選択の正であり重複させない）、`role="button"` on
+//!   branch-control（APG ではフォーカス可能要素は treeitem（[`branch`]）が
+//!   担う。入れ子の widget ロールを避ける）、branch-trigger /
+//!   node-checkbox / node-rename-input（ark Anatomy 図に載らない。checkbox
+//!   モード・inline rename はモジュール doc §out-of-scope 既定）。
+//! - **APG superset として維持**: `aria-posinset`/`aria-setsize`（zag は
+//!   出力しない）、disabled 時も明示する `aria-selected="false"`（zag は
+//!   disabled 時に省略）。
+//! - **`data-depth` の起点**: zag.js は `depth = indexPath.length`
+//!   （トップレベル = 1 起点）だが、本実装は 0 起点を意図的に維持する
+//!   （`aria-level` が 1 起点の深さを既に担う／`fandhe-frontend-wasm-full`
+//!   `keynav.rs` が `depth == 0` をルート判定に使い `read_tree_item_meta`
+//!   のフォールバックも `aria-level - 1` で整合しているため、変更すると
+//!   wasm-full の keynav・テスト・docs-site の全リテラルへ連鎖する）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -45,6 +89,10 @@
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - `data-state` 値語彙（`"open"`/`"closed"`）は [`crate::state::OpenState`]
 //!   に一元化し、本モジュールで独自の値を作らない。
+//! - [`drop_reserved`] により呼び出し側 `attrs` はフレームワークが付与する
+//!   `role`/`aria-*`/`data-state`/`data-value`/`data-branch`/`data-depth`/
+//!   `data-selected`/`data-disabled`/`hidden` を偽装・重複出力できない
+//!   （イシュー #1667 で全パーツへ導入）。
 //! - hydration 属性はクライアント側で改ざんされうる入力として扱う。
 //!   [`TreeView`] の [`fandhe_frontend_interactive::Hydrate`] 実装は展開集合
 //!   フィールド名の衝突回避（下記 §hydration フィールド名）を除き
@@ -69,12 +117,18 @@
 //! 属性名を書き換えた一時 `Vec` を経由して呼び出すことで再実装しない
 //! （[`Hydrate`] 実装内のコメント参照）。
 //!
-//! # out-of-scope（本イシュー #753 のスコープ外）
+//! # out-of-scope（本イシュー #753 のスコープ外・イシュー #1667 で見直し）
 //!
 //! - **キーボードナビゲーション・typeahead**: ARIA APG の Tree パターンが
-//!   要求する矢印キー操作・文字入力によるジャンプは、SSR 静的マークアップに
-//!   寄与しない CSR 挙動層（`fandhe-frontend-wasm-full` 後続イシュー）の
-//!   責務のため未提供。
+//!   要求する矢印キー操作・文字入力によるジャンプの DOM 配線は
+//!   `fandhe-frontend-wasm-full` `keynav.rs` §TreeView（イシュー #1072）で
+//!   実装済み（ArrowDown/Up・ArrowRight/Left・Home/End・Enter/Space・
+//!   typeahead・Escape）。以下は実装済みキーボード操作に対する既知ギャップ・
+//!   非追随として残る: `*`（兄弟一括展開、zag.js のみが持つ拡張操作）・
+//!   Shift+Arrow / Ctrl+A（複数選択前提、本モジュールは単一選択のみ）・
+//!   F2（rename、下記 checkbox/rename と同じ理由で非採用）。ブランチノード
+//!   自体が「選択」できない（Enter/Space はトグルのみ）挙動は wasm-full の
+//!   意図的仕様であり本モジュールのスコープ外のまま不変。
 //! - **checkbox モード（`checkedValue`）**: ark-ui の checkbox 選択（複数
 //!   チェック可能なツリー）は採用しない。本モジュールは高々 1 個の選択
 //!   （[`crate::state::SingleSelect`]）のみを提供する。
@@ -83,13 +137,10 @@
 //!   のみを表現し、非同期の子ノード読み込みは持たない。
 //! - **inline renaming・virtualization**: いずれも CSR 挙動層の責務であり
 //!   本イシューのスコープ外。
-//! - **wasm-full の実 DOM 配線（クリック→dispatch）**: `PositionedKind`
-//!   相当の位置決めは TreeView には不要だが、クリックイベント→dispatch
-//!   ペイロード組み立ての実配線は後続イシューのスコープ。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
-    aria_disabled, aria_label as aria_label_attr, aria_labelledby, aria_selected, role,
+    aria_disabled, aria_hidden, aria_label as aria_label_attr, aria_labelledby, aria_selected, role,
 };
 use crate::data_attrs::{data_disabled, data_state};
 use crate::state::{MultiSelect, MultiSelectAction, OpenState, SingleSelect, SingleSelectAction};
@@ -107,6 +158,115 @@ const ANATOMY: Anatomy = anatomy("tree-view");
 /// `data-checked`/`data-pressed` とは別軸のため）。
 fn data_selected(selected: bool) -> Option<(&'static str, &'static str)> {
     selected.then_some(("data-selected", ""))
+}
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::splitter::drop_reserved`] と同型の重複実装。モジュール
+/// 間の相互依存を避けるため個別に定義する。イシュー #1667 で導入）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// [`branch`] の予約キー一覧。
+const BRANCH_RESERVED: &[&str] = &[
+    "role",
+    "aria-expanded",
+    "aria-selected",
+    "aria-level",
+    "aria-posinset",
+    "aria-setsize",
+    "aria-disabled",
+    "data-state",
+    "data-value",
+    "data-branch",
+    "data-depth",
+    "data-selected",
+    "data-disabled",
+];
+
+/// [`branch_control`] の予約キー一覧。
+const BRANCH_CONTROL_RESERVED: &[&str] = &[
+    "data-state",
+    "data-value",
+    "data-depth",
+    "data-selected",
+    "data-disabled",
+];
+
+/// [`branch_indicator`] の予約キー一覧。
+const BRANCH_INDICATOR_RESERVED: &[&str] = &[
+    "data-state",
+    "data-selected",
+    "data-disabled",
+    "aria-hidden",
+];
+
+/// [`branch_text`] の予約キー一覧。
+const BRANCH_TEXT_RESERVED: &[&str] = &["data-state", "data-disabled"];
+
+/// [`branch_content`] の予約キー一覧。
+const BRANCH_CONTENT_RESERVED: &[&str] =
+    &["role", "data-state", "data-depth", "data-value", "hidden"];
+
+/// [`branch_indent_guide`] の予約キー一覧。
+const BRANCH_INDENT_GUIDE_RESERVED: &[&str] = &["data-depth"];
+
+/// [`item`] の予約キー一覧。
+const ITEM_RESERVED: &[&str] = &[
+    "role",
+    "aria-selected",
+    "aria-level",
+    "aria-posinset",
+    "aria-setsize",
+    "aria-disabled",
+    "data-value",
+    "data-depth",
+    "data-selected",
+    "data-disabled",
+];
+
+/// [`item_text`] の予約キー一覧。
+const ITEM_TEXT_RESERVED: &[&str] = &["data-selected", "data-disabled"];
+
+/// [`item_indicator`] の予約キー一覧。
+const ITEM_INDICATOR_RESERVED: &[&str] =
+    &["data-selected", "data-disabled", "aria-hidden", "hidden"];
+
+/// ツリーノード 1 個分の共通プロパティ（[`branch`]/[`branch_control`]/
+/// [`branch_indicator`]/[`branch_text`]/[`branch_content`]/
+/// [`branch_indent_guide`]/[`item`]/[`item_text`]/[`item_indicator`] へ
+/// 一括で通す入力、イシュー #1667 で新設）。
+///
+/// `level`/`posinset`/`setsize`/`depth` は呼び出し側（[`TreeView::render_nodes`]
+/// 等）が事前に `usize` から文字列化した値を渡す（[`crate::slider::thumb`]
+/// が `min`/`max`/`now` を `&str` で受ける方針と同型。数値 ARIA 属性値は
+/// 所有 `String` を要求し `(&str, &str)` 型のヘルパ体系と噛み合わないため、
+/// `crate::aria` へは追加せず呼び出し側が `format!` した文字列をそのまま渡す）。
+/// `level` は 1 起点（WAI-ARIA `aria-level` の仕様どおり）、`depth` は
+/// `data-depth` 用に 0 起点を意図的に維持する（zag.js は 1 起点、根拠は
+/// モジュール doc「参照突合（イシュー #1667）」節参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TreeItemProps<'a> {
+    /// ノード値（dispatch payload・`data-value`/`data-branch` に使う識別子）。
+    pub value: &'a str,
+    /// このノードが選択中かどうか。
+    pub selected: bool,
+    /// このノードが無効化されているかどうか。
+    pub disabled: bool,
+    /// `aria-level`（1 起点）。
+    pub level: &'a str,
+    /// `aria-posinset`（1 起点の兄弟内位置）。
+    pub posinset: &'a str,
+    /// `aria-setsize`（兄弟数）。
+    pub setsize: &'a str,
+    /// `data-depth`（0 起点の深さ）。
+    pub depth: &'a str,
 }
 
 /// Root パーツ（`div`）。状態非依存。
@@ -146,25 +306,14 @@ pub fn tree<'a>(
 }
 
 /// Branch パーツ（`div[role="treeitem"]`）。子を持つノード 1 個を表す。
-///
-/// `level`/`posinset`/`setsize`/`depth` は呼び出し側（[`TreeView::render_nodes`]
-/// 等）が事前に `usize` から文字列化した値を渡す（[`crate::slider::thumb`]
-/// が `min`/`max`/`now` を `&str` で受ける方針と同型。数値 ARIA 属性値は
-/// 所有 `String` を要求し `(&str, &str)` 型のヘルパ体系と噛み合わないため、
-/// `crate::aria` へは追加せず呼び出し側が `format!` した文字列をそのまま渡す）。
-/// `level` は 1 起点（WAI-ARIA `aria-level` の仕様どおり）、`depth` は
-/// `data-depth` 用に 0 起点（ark-ui 準拠、CSS のインデント計算に使う想定）。
+/// `data-branch`（= `props.value`）はイシュー #1667 の参照突合で追加した
+/// （ark docs の Data Attributes 表準拠。既存の `data-value` と同値だが、
+/// `[data-part="branch"][data-branch]` セレクタでブランチ限定スタイルを
+/// 書きたい styled 層の利便性のために別名でも出力する）。
 #[must_use]
-#[allow(clippy::too_many_arguments)]
 pub fn branch<'a>(
     state: OpenState,
-    value: &'a str,
-    selected: bool,
-    disabled: bool,
-    level: &'a str,
-    posinset: &'a str,
-    setsize: &'a str,
-    depth: &'a str,
+    props: TreeItemProps<'a>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -174,152 +323,198 @@ pub fn branch<'a>(
             "aria-expanded",
             if state.is_open() { "true" } else { "false" },
         ),
-        aria_selected(selected),
-        ("aria-level", level),
-        ("aria-posinset", posinset),
-        ("aria-setsize", setsize),
+        aria_selected(props.selected),
+        ("aria-level", props.level),
+        ("aria-posinset", props.posinset),
+        ("aria-setsize", props.setsize),
         data_state(state.as_data_state()),
-        ("data-value", value),
-        ("data-depth", depth),
+        ("data-value", props.value),
+        ("data-branch", props.value),
+        ("data-depth", props.depth),
     ];
-    merged.extend(data_selected(selected));
+    merged.extend(data_selected(props.selected));
     // Cursor Bugbot 指摘（PR #798、Medium）: `div[role="treeitem"]` はネイティブ
     // `disabled` 属性を持たないため、支援技術へは `aria-disabled` 経由でのみ
     // 無効状態を伝達できる（`crate::select::item`/`crate::menu::item` と
     // 同じ判断）。`data-disabled` は CSS フックのみで ARIA を代替しない。
-    if disabled {
+    if props.disabled {
         merged.push(aria_disabled(true));
     }
-    merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(drop_reserved(attrs, BRANCH_RESERVED));
     ANATOMY.part("branch", "div", merged, children)
 }
 
 /// BranchControl パーツ（`div`）。クリック対象の要約行（ark-ui 準拠で
 /// `role`/`<button>` は持たない。実際の treeitem ロールは [`branch`] 側が
-/// 担う。クリック→dispatch の実 DOM 配線は wasm 層の後続責務、モジュール
-/// doc §out-of-scope 参照）。`selected` は [`branch`] と同じ選択値を渡す
-/// （`data-selected` を要約行自身にも反映し、styled 層が
+/// 担う。クリック→dispatch の実 DOM 配線は `fandhe-frontend-wasm-full`
+/// `keynav.rs` §TreeView が担う）。`props.selected` は [`branch`] と同じ
+/// 選択値を渡す（`data-selected` を要約行自身にも反映し、styled 層が
 /// `[data-part="branch-control"][data-selected]` セレクタで選択強調を
 /// 適用できるようにする。`branch` のみに付与すると要約行が視覚的に
-/// 選択されないため、Cursor Bugbot 指摘 #798 で追加）。
+/// 選択されないため、Cursor Bugbot 指摘 #798 で追加）。`data-value`/
+/// `data-depth` はイシュー #1667 の参照突合で追加した（ark docs 準拠）。
 #[must_use]
 pub fn branch_control<'a>(
     state: OpenState,
-    selected: bool,
-    disabled: bool,
+    props: TreeItemProps<'a>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
-    merged.extend(data_selected(selected));
-    merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        data_state(state.as_data_state()),
+        ("data-value", props.value),
+        ("data-depth", props.depth),
+    ];
+    merged.extend(data_selected(props.selected));
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(drop_reserved(attrs, BRANCH_CONTROL_RESERVED));
     ANATOMY.part("branch-control", "div", merged, children)
 }
 
-/// BranchIndicator パーツ（`span`）。開閉状態のみを `data-state` へ反映する
+/// BranchIndicator パーツ（`span`）。開閉状態を `data-state` へ反映する
 /// 最小主義な装飾用パーツ（アイコン等は呼び出し側の `attrs`/`children` が
-/// 担う。[`crate::accordion::item_indicator`] と同型）。
+/// 担う。[`crate::accordion::item_indicator`] と同型）。`data-disabled`/
+/// `data-selected`/`aria-hidden="true"` はイシュー #1667 の参照突合で
+/// 追加した（ark docs 準拠。`aria-hidden` は装飾アイコンを支援技術から
+/// 隠す ARIA APG の一般的な慣例に従う）。
 #[must_use]
 pub fn branch_indicator<'a>(
     state: OpenState,
+    props: TreeItemProps<'a>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
-    merged.extend(attrs);
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![data_state(state.as_data_state()), aria_hidden(true)];
+    merged.extend(data_selected(props.selected));
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(drop_reserved(attrs, BRANCH_INDICATOR_RESERVED));
     ANATOMY.part("branch-indicator", "span", merged, children)
 }
 
 /// BranchText パーツ（`span`）。ブランチのラベルテキストを表示する。
+/// `data-state`/`data-disabled` はイシュー #1667 の参照突合で追加した
+/// （ark docs 準拠。closed/disabled 時のラベル装飾を CSS だけで書けるように
+/// する）。
 #[must_use]
-pub fn branch_text<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("branch-text", "span", attrs, children)
+pub fn branch_text<'a>(
+    state: OpenState,
+    props: TreeItemProps<'a>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(drop_reserved(attrs, BRANCH_TEXT_RESERVED));
+    ANATOMY.part("branch-text", "span", merged, children)
 }
 
 /// BranchContent パーツ（`div[role="group"]`）。ブランチの子ノード列を
 /// 包むコンテナ。WAI-ARIA APG の Tree パターンに従いネストされた
 /// `role="group"` を固定付与する。closed のとき `hidden` 存在属性を付与し、
 /// JS なしの SSR でも閉状態を表現する（[`crate::accordion::item_content`]
-/// と同型、アニメーション対応はスコープ外）。
+/// と同型、アニメーション対応はスコープ外）。`data-depth`/`data-value` は
+/// イシュー #1667 の参照突合で追加した（ark docs 準拠）。
 #[must_use]
 pub fn branch_content<'a>(
     state: OpenState,
+    props: TreeItemProps<'a>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> =
-        vec![role("group"), data_state(state.as_data_state())];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        role("group"),
+        data_state(state.as_data_state()),
+        ("data-depth", props.depth),
+        ("data-value", props.value),
+    ];
     if !state.is_open() {
         merged.push(("hidden", ""));
     }
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, BRANCH_CONTENT_RESERVED));
     ANATOMY.part("branch-content", "div", merged, children)
 }
 
 /// BranchIndentGuide パーツ（`div`）。深さに応じた縦インデントガイド線を
 /// 描く装飾用パーツ（styled 層が CSS custom property でインデント幅を
-/// 制御する想定、headless 側は状態を持たない）。
+/// 制御する想定、headless 側は状態を持たない）。`data-depth` はイシュー
+/// #1667 の参照突合で追加した（ark docs 準拠。深さごとにインデント幅を
+/// CSS だけで書けるようにする）。
 #[must_use]
-pub fn branch_indent_guide<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("branch-indent-guide", "div", attrs, children)
+pub fn branch_indent_guide<'a>(
+    props: TreeItemProps<'a>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![("data-depth", props.depth)];
+    merged.extend(drop_reserved(attrs, BRANCH_INDENT_GUIDE_RESERVED));
+    ANATOMY.part("branch-indent-guide", "div", merged, children)
 }
 
 /// Item パーツ（`div[role="treeitem"]`）。子を持たない葉ノード 1 個を表す。
 /// 引数の意味は [`branch`] と同じ（`aria-expanded`/`data-state` は持たない
 /// 点のみ異なる。葉ノードは開閉状態を持たないため）。
 #[must_use]
-#[allow(clippy::too_many_arguments)]
 pub fn item<'a>(
-    value: &'a str,
-    selected: bool,
-    disabled: bool,
-    level: &'a str,
-    posinset: &'a str,
-    setsize: &'a str,
-    depth: &'a str,
+    props: TreeItemProps<'a>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         role("treeitem"),
-        aria_selected(selected),
-        ("aria-level", level),
-        ("aria-posinset", posinset),
-        ("aria-setsize", setsize),
-        ("data-value", value),
-        ("data-depth", depth),
+        aria_selected(props.selected),
+        ("aria-level", props.level),
+        ("aria-posinset", props.posinset),
+        ("aria-setsize", props.setsize),
+        ("data-value", props.value),
+        ("data-depth", props.depth),
     ];
-    merged.extend(data_selected(selected));
+    merged.extend(data_selected(props.selected));
     // [`branch`] と同じ理由（Cursor Bugbot 指摘、PR #798、Medium）で
     // `aria-disabled` を対で付与する。
-    if disabled {
+    if props.disabled {
         merged.push(aria_disabled(true));
     }
-    merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(drop_reserved(attrs, ITEM_RESERVED));
     ANATOMY.part("item", "div", merged, children)
 }
 
 /// ItemText パーツ（`span`）。葉ノードのラベルテキストを表示する。
+/// `data-selected`/`data-disabled` はイシュー #1667 の参照突合で追加した
+/// （ark docs 準拠）。
 #[must_use]
-pub fn item_text<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("item-text", "span", attrs, children)
-}
-
-/// ItemIndicator パーツ（`span`）。選択状態のみを `data-selected` へ反映する
-/// 最小主義な装飾用パーツ（チェックマーク等のアイコンは呼び出し側の
-/// `attrs`/`children` が担う）。
-#[must_use]
-pub fn item_indicator<'a>(
-    selected: bool,
+pub fn item_text<'a>(
+    props: TreeItemProps<'a>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = Vec::new();
-    merged.extend(data_selected(selected));
-    merged.extend(attrs);
+    merged.extend(data_selected(props.selected));
+    merged.extend(data_disabled(props.disabled));
+    merged.extend(drop_reserved(attrs, ITEM_TEXT_RESERVED));
+    ANATOMY.part("item-text", "span", merged, children)
+}
+
+/// ItemIndicator パーツ（`span`）。選択状態を `data-selected` へ反映する
+/// 最小主義な装飾用パーツ（チェックマーク等のアイコンは呼び出し側の
+/// `attrs`/`children` が担う）。`data-disabled`/`aria-hidden="true"`/
+/// 非選択時 `hidden` はイシュー #1667 の参照突合で追加した（ark docs 準拠。
+/// 選択マークは選択されていない葉では DOM 上非表示にする）。
+#[must_use]
+pub fn item_indicator<'a>(
+    props: TreeItemProps<'a>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![aria_hidden(true)];
+    merged.extend(data_selected(props.selected));
+    merged.extend(data_disabled(props.disabled));
+    if !props.selected {
+        merged.push(("hidden", ""));
+    }
+    merged.extend(drop_reserved(attrs, ITEM_INDICATOR_RESERVED));
     ANATOMY.part("item-indicator", "span", merged, children)
 }
 
@@ -504,6 +699,15 @@ impl TreeView {
             .map(|(index, node)| {
                 let posinset_s = (index + 1).to_string();
                 let is_selected = selected.is_selected(node.value());
+                let props = TreeItemProps {
+                    value: node.value(),
+                    selected: is_selected,
+                    disabled: node.is_disabled(),
+                    level: &level_s,
+                    posinset: &posinset_s,
+                    setsize: &setsize_s,
+                    depth: &depth_s,
+                };
 
                 if node.is_branch() {
                     let state = if expanded.is_selected(node.value()) {
@@ -515,30 +719,24 @@ impl TreeView {
                         Self::render_level(expanded, selected, node.children(), depth + 1);
                     branch(
                         state,
-                        node.value(),
-                        is_selected,
-                        node.is_disabled(),
-                        &level_s,
-                        &posinset_s,
-                        &setsize_s,
-                        &depth_s,
+                        props,
                         Vec::new(),
                         vec![
                             branch_control(
                                 state,
-                                is_selected,
-                                node.is_disabled(),
+                                props,
                                 Vec::new(),
                                 vec![
-                                    branch_indicator(state, Vec::new(), Vec::new()),
-                                    branch_text(Vec::new(), vec![text(node.label())]),
+                                    branch_indicator(state, props, Vec::new(), Vec::new()),
+                                    branch_text(state, props, Vec::new(), vec![text(node.label())]),
                                 ],
                             ),
                             branch_content(
                                 state,
+                                props,
                                 Vec::new(),
                                 vec![
-                                    branch_indent_guide(Vec::new(), Vec::new()),
+                                    branch_indent_guide(props, Vec::new(), Vec::new()),
                                     root(Vec::new(), child_nodes),
                                 ],
                             ),
@@ -546,17 +744,11 @@ impl TreeView {
                     )
                 } else {
                     item(
-                        node.value(),
-                        is_selected,
-                        node.is_disabled(),
-                        &level_s,
-                        &posinset_s,
-                        &setsize_s,
-                        &depth_s,
+                        props,
                         Vec::new(),
                         vec![
-                            item_indicator(is_selected, Vec::new(), Vec::new()),
-                            item_text(Vec::new(), vec![text(node.label())]),
+                            item_indicator(props, Vec::new(), Vec::new()),
+                            item_text(props, Vec::new(), vec![text(node.label())]),
                         ],
                     )
                 }
@@ -676,6 +868,30 @@ mod tests {
     use fandhe_frontend_core::render;
     use fandhe_frontend_interactive::{codec, dispatch};
 
+    /// テストヘルパ: 値・選択・disabled と level/posinset/setsize/depth を
+    /// 引数で受けて [`TreeItemProps`] を組み立てる（各テストで所有 `String`
+    /// を作らずに済むよう、呼び出し側が渡す `&str` をそのまま束ねる薄い
+    /// 委譲）。
+    fn props<'a>(
+        value: &'a str,
+        selected: bool,
+        disabled: bool,
+        level: &'a str,
+        posinset: &'a str,
+        setsize: &'a str,
+        depth: &'a str,
+    ) -> TreeItemProps<'a> {
+        TreeItemProps {
+            value,
+            selected,
+            disabled,
+            level,
+            posinset,
+            setsize,
+            depth,
+        }
+    }
+
     // --- 各パーツの data-scope/data-part/ARIA 出力 ---
 
     #[test]
@@ -708,13 +924,7 @@ mod tests {
     fn branch_outputs_role_treeitem_and_aria_attrs() {
         let html = render(&branch(
             OpenState::Closed,
-            "src",
-            false,
-            false,
-            "1",
-            "1",
-            "2",
-            "0",
+            props("src", false, false, "1", "1", "2", "0"),
             vec![],
             vec![],
         ));
@@ -726,6 +936,7 @@ mod tests {
         assert!(html.contains(r#"aria-setsize="2""#));
         assert!(html.contains(r#"data-state="closed""#));
         assert!(html.contains(r#"data-value="src""#));
+        assert!(html.contains(r#"data-branch="src""#));
         assert!(html.contains(r#"data-depth="0""#));
         assert!(!html.contains("data-selected"));
         assert!(!html.contains("data-disabled"));
@@ -735,13 +946,7 @@ mod tests {
     fn branch_open_and_selected_adds_expected_attrs() {
         let html = render(&branch(
             OpenState::Open,
-            "src",
-            true,
-            true,
-            "2",
-            "1",
-            "1",
-            "1",
+            props("src", true, true, "2", "1", "1", "1"),
             vec![],
             vec![],
         ));
@@ -759,13 +964,7 @@ mod tests {
     fn branch_enabled_omits_aria_disabled() {
         let html = render(&branch(
             OpenState::Closed,
-            "src",
-            false,
-            false,
-            "1",
-            "1",
-            "2",
-            "0",
+            props("src", false, false, "1", "1", "2", "0"),
             vec![],
             vec![],
         ));
@@ -776,13 +975,14 @@ mod tests {
     fn branch_control_outputs_scope_part_and_state() {
         let html = render(&branch_control(
             OpenState::Open,
-            false,
-            false,
+            props("src", false, false, "1", "1", "1", "0"),
             vec![],
             vec![],
         ));
         assert!(html.contains(r#"data-part="branch-control""#));
         assert!(html.contains(r#"data-state="open""#));
+        assert!(html.contains(r#"data-value="src""#));
+        assert!(html.contains(r#"data-depth="0""#));
         assert!(!html.contains("data-selected"));
         assert!(!html.contains("role="));
         assert!(!html.contains("<button"));
@@ -795,8 +995,7 @@ mod tests {
         // branch-control 自身にも data-selected を反映する必要がある。
         let html = render(&branch_control(
             OpenState::Open,
-            true,
-            false,
+            props("src", true, false, "1", "1", "1", "0"),
             vec![],
             vec![],
         ));
@@ -806,47 +1005,95 @@ mod tests {
 
     #[test]
     fn branch_indicator_outputs_scope_part_and_state() {
-        let html = render(&branch_indicator(OpenState::Closed, vec![], vec![]));
+        let html = render(&branch_indicator(
+            OpenState::Closed,
+            props("src", false, false, "1", "1", "1", "0"),
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-part="branch-indicator""#));
         assert!(html.contains(r#"data-state="closed""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains("data-selected"));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn branch_indicator_reflects_selected_and_disabled() {
+        let html = render(&branch_indicator(
+            OpenState::Open,
+            props("src", true, true, "1", "1", "1", "0"),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-selected="""#));
+        assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn branch_text_outputs_scope_and_part_only() {
-        let html = render(&branch_text(vec![], vec![text("src")]));
+        let html = render(&branch_text(
+            OpenState::Closed,
+            props("src", false, false, "1", "1", "1", "0"),
+            vec![],
+            vec![text("src")],
+        ));
         assert!(html.contains(r#"data-part="branch-text""#));
+        assert!(html.contains(r#"data-state="closed""#));
         assert!(html.contains("src"));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn branch_text_reflects_disabled() {
+        let html = render(&branch_text(
+            OpenState::Open,
+            props("src", false, true, "1", "1", "1", "0"),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-state="open""#));
+        assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn branch_content_closed_has_hidden_attr_open_does_not() {
-        let closed = render(&branch_content(OpenState::Closed, vec![], vec![]));
+        let closed = render(&branch_content(
+            OpenState::Closed,
+            props("src", false, false, "1", "1", "1", "0"),
+            vec![],
+            vec![],
+        ));
         assert!(closed.contains(r#"role="group""#));
         assert!(closed.contains(r#"hidden="""#));
+        assert!(closed.contains(r#"data-depth="0""#));
+        assert!(closed.contains(r#"data-value="src""#));
 
-        let open = render(&branch_content(OpenState::Open, vec![], vec![]));
+        let open = render(&branch_content(
+            OpenState::Open,
+            props("src", false, false, "1", "1", "1", "0"),
+            vec![],
+            vec![],
+        ));
         assert!(!open.contains("hidden"));
     }
 
     #[test]
-    fn branch_indent_guide_outputs_scope_and_part_only() {
-        let html = render(&branch_indent_guide(vec![], vec![]));
-        assert_eq!(
-            html,
-            r#"<div data-scope="tree-view" data-part="branch-indent-guide"></div>"#
-        );
+    fn branch_indent_guide_outputs_scope_part_and_depth() {
+        let html = render(&branch_indent_guide(
+            props("src", false, false, "1", "1", "1", "2"),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="tree-view""#));
+        assert!(html.contains(r#"data-part="branch-indent-guide""#));
+        assert!(html.contains(r#"data-depth="2""#));
     }
 
     #[test]
     fn item_outputs_role_treeitem_without_aria_expanded() {
         let html = render(&item(
-            "file.txt",
-            false,
-            false,
-            "2",
-            "1",
-            "1",
-            "1",
+            props("file.txt", false, false, "2", "1", "1", "1"),
             vec![],
             vec![],
         ));
@@ -865,13 +1112,7 @@ mod tests {
     #[test]
     fn item_selected_and_disabled_adds_expected_attrs() {
         let html = render(&item(
-            "file.txt",
-            true,
-            true,
-            "1",
-            "1",
-            "1",
-            "0",
+            props("file.txt", true, true, "1", "1", "1", "0"),
             vec![],
             vec![],
         ));
@@ -885,13 +1126,7 @@ mod tests {
     #[test]
     fn item_enabled_omits_aria_disabled() {
         let html = render(&item(
-            "file.txt",
-            false,
-            false,
-            "1",
-            "1",
-            "1",
-            "0",
+            props("file.txt", false, false, "1", "1", "1", "0"),
             vec![],
             vec![],
         ));
@@ -900,18 +1135,56 @@ mod tests {
 
     #[test]
     fn item_text_outputs_scope_and_part_only() {
-        let html = render(&item_text(vec![], vec![text("file.txt")]));
+        let html = render(&item_text(
+            props("file.txt", false, false, "1", "1", "1", "0"),
+            vec![],
+            vec![text("file.txt")],
+        ));
         assert!(html.contains(r#"data-part="item-text""#));
         assert!(html.contains("file.txt"));
+        assert!(!html.contains("data-selected"));
+        assert!(!html.contains("data-disabled"));
+    }
+
+    #[test]
+    fn item_text_reflects_selected_and_disabled() {
+        let html = render(&item_text(
+            props("file.txt", true, true, "1", "1", "1", "0"),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-selected="""#));
+        assert!(html.contains(r#"data-disabled="""#));
     }
 
     #[test]
     fn item_indicator_reflects_selection() {
-        let unselected = render(&item_indicator(false, vec![], vec![]));
+        let unselected = render(&item_indicator(
+            props("file.txt", false, false, "1", "1", "1", "0"),
+            vec![],
+            vec![],
+        ));
         assert!(!unselected.contains("data-selected"));
+        assert!(unselected.contains(r#"hidden="""#));
+        assert!(unselected.contains(r#"aria-hidden="true""#));
 
-        let selected = render(&item_indicator(true, vec![], vec![]));
+        let selected = render(&item_indicator(
+            props("file.txt", true, false, "1", "1", "1", "0"),
+            vec![],
+            vec![],
+        ));
         assert!(selected.contains(r#"data-selected="""#));
+        assert!(!selected.contains("hidden=\"\""));
+    }
+
+    #[test]
+    fn item_indicator_reflects_disabled() {
+        let html = render(&item_indicator(
+            props("file.txt", true, true, "1", "1", "1", "0"),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-disabled="""#));
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---
@@ -919,19 +1192,47 @@ mod tests {
     #[test]
     fn caller_supplied_scope_and_part_are_dropped() {
         let html = render(&item(
-            "a",
-            false,
-            false,
-            "1",
-            "1",
-            "1",
-            "0",
+            props("a", false, false, "1", "1", "1", "0"),
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
         assert!(html.contains(r#"data-scope="tree-view""#));
         assert!(html.contains(r#"data-part="item""#));
         assert!(!html.contains("attacker"));
+    }
+
+    // --- drop_reserved fail-closed 回帰（呼び出し側の予約属性なりすまし除去、イシュー #1667） ---
+
+    #[test]
+    fn caller_supplied_reserved_keys_are_dropped_from_branch() {
+        let html = render(&branch(
+            OpenState::Closed,
+            props("src", false, false, "1", "1", "1", "0"),
+            vec![
+                ("role", "attacker"),
+                ("aria-selected", "attacker"),
+                ("data-value", "attacker"),
+                ("data-branch", "attacker"),
+                ("data-depth", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
+        assert!(html.contains(r#"role="treeitem""#));
+        assert!(html.contains(r#"data-value="src""#));
+        assert!(html.contains(r#"data-branch="src""#));
+        assert!(html.contains(r#"data-depth="0""#));
+    }
+
+    #[test]
+    fn caller_supplied_reserved_keys_are_dropped_from_item_indicator() {
+        let html = render(&item_indicator(
+            props("a", true, false, "1", "1", "1", "0"),
+            vec![("aria-hidden", "false"), ("data-selected", "attacker")],
+            vec![],
+        ));
+        assert!(!html.contains("attacker"));
+        assert!(html.contains(r#"aria-hidden="true""#));
     }
 
     // --- TreeNode: ビルダ API ---
@@ -1182,8 +1483,14 @@ mod tests {
         let html0 = render(&nodes[0]);
         assert!(html0.contains(r#"aria-expanded="true""#));
         assert!(html0.contains(r#"data-state="open""#));
-        // 展開中は branch-content に hidden 属性が付かない。
-        assert!(!html0.contains(r#"hidden="""#));
+        // 展開中は branch-content に hidden 属性が付かない
+        // （item-indicator は "a.rs" が未選択のため別途 hidden を持つが、
+        // それとは別軸の混同防止であることを開始タグ切り出しで確認する）。
+        let branch_content_start = html0.find(r#"data-part="branch-content""#).unwrap();
+        let branch_content_tag_end = html0[branch_content_start..].find('>').unwrap();
+        let branch_content_tag =
+            &html0[branch_content_start..branch_content_start + branch_content_tag_end];
+        assert!(!branch_content_tag.contains("hidden"));
     }
 
     #[test]
