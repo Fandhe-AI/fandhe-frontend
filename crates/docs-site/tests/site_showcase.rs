@@ -293,3 +293,46 @@ fn link_and_nav_list_hover_rules_neutralize_docs_content_a_hover() {
         "showcase CSS should neutralize .docs-content a:hover on Nav List recipe link: {css}"
     );
 }
+
+/// イシュー #1689 の回帰テスト: #1688（PR #1942）で `progress` mod へ
+/// 追加した circle-range indeterminate の固定弧 CSS が、`/themes/progress/`
+/// の実サイトビルド出力（Demo の circle 状態比較行）と専用 CSS 束
+/// （`assets/pre-styled-ui.css`）の双方へ実際に到達していることを
+/// fail-closed に固定する。CSS の golden 文字列は
+/// `crates/pre-styled-ui/tests/progress_css.rs` の該当規則と同一。
+#[test]
+fn progress_page_ships_circular_indeterminate_arc_from_issue_1688() {
+    let out = TempDir::new("progress-circular-arc");
+    build_site(&repo_root(), &out.0).expect("real site should build");
+
+    let html = read_component_page(&out.0, "themes/progress");
+    // Demo の circle 状態比較行が indeterminate（固定弧）と complete
+    // （完全リング）の両方の circle-range を掲示していることを固定する
+    // （弧と完全リングの対比が Demo だけで読み取れる契約）。
+    assert!(
+        html.contains(r#"data-part="circle-range" data-state="indeterminate""#)
+            || html.contains(r#"data-state="indeterminate" data-part="circle-range""#),
+        "progress page demo should render an indeterminate circle-range: {html}"
+    );
+    assert!(
+        html.contains(r#"data-part="circle-range" data-state="complete""#)
+            || html.contains(r#"data-state="complete" data-part="circle-range""#),
+        "progress page demo should render a complete circle-range for contrast: {html}"
+    );
+
+    let css_path = out.0.join(showcase::STYLESHEET_REL_PATH);
+    let css = std::fs::read_to_string(&css_path)
+        .unwrap_or_else(|e| panic!("dedicated stylesheet should exist at {css_path:?}: {e}"));
+    assert!(
+        css.contains(
+            r#"[data-scope="progress"][data-part="circle-range"][data-state="indeterminate"] {"#
+        ),
+        "dedicated stylesheet should ship the #1688 circle-range indeterminate rule: {css}"
+    );
+    assert!(
+        css.contains(
+            "stroke-dasharray: calc(var(--fandhe-progress-circumference) * 0.25) var(--fandhe-progress-circumference);"
+        ),
+        "dedicated stylesheet should ship the #1688 fixed-arc dasharray declaration: {css}"
+    );
+}

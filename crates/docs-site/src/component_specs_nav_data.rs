@@ -539,11 +539,36 @@ fn ex_progress_circle() -> Node {
     )
 }
 
+// イシュー #1689: #1688 で circle-range の indeterminate（[data-state="indeterminate"]）
+// へ固定弧（円周の 1/4、stroke-dasharray）を追加した契約を Themes ページの
+// Examples へ反映する。value=None（indeterminate）の circular Progress を
+// 単独で掲示し、上の determinate 例（完全なリングにも回転にもならない
+// 部分弧）との対比が原稿だけで読み取れるようにする。
+fn ex_progress_circle_indeterminate() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::progress::ProgressProps;
+    let p = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
+    progress::root(
+        &p,
+        &ProgressProps::default(),
+        None,
+        vec![],
+        vec![p.circle(
+            vec![],
+            vec![
+                p.circle_track(vec![], vec![]),
+                p.circle_range(vec![], vec![]),
+            ],
+        )],
+    )
+}
+
 pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "track/range（linear）と circle/circle-track/circle-range（circular）はいずれも headless の inherent メソッドをそのまま呼ばせる契約（crates/pre-styled-ui/src/progress.rs テスト caller_headless_track_and_circle_parts_render_without_wrapper）",
         "value が None（indeterminate）のとき [data-state=\"indeterminate\"] でアニメーション（linear は横スライド・circular は回転）を付与し、prefers-reduced-motion: reduce で停止する",
         "ProgressProps（size/variant/color-palette の 3 軸）を root へ付与する。styled range() が --fandhe-progress-percent を determinate 時のみ付与する",
+        "circle-range の [data-state=\"indeterminate\"] へ固定長の弧（--fandhe-progress-circumference = 2πr、stroke-dasharray で円周の 1/4）を与え、circle の回転と組み合わせて complete（完全リング）と視覚的に区別する。新規 @keyframes は追加せず reduced-motion 下でも弧が残る（crates/pre-styled-ui/src/progress.rs rustdoc「イシュー #1688: circle-range indeterminate の固定弧」節・テスト circle_range_indeterminate_state_declares_fixed_arc_dasharray）",
     ],
     arguments: &[
         ArgRow {
@@ -569,6 +594,11 @@ pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
             title: "Determinate (circular)",
             description: "value=65 の determinate circular progress（SVG）の例です。",
             render: ex_progress_circle,
+        },
+        ExampleEntry {
+            title: "Indeterminate (circular)",
+            description: "value=None の indeterminate circular progress の例です。circle 全体の回転に加え、circle-range へ円周の 1/4 分の固定弧（stroke-dasharray）を与え、complete（完全なリング）と区別します（イシュー #1688）。",
+            render: ex_progress_circle_indeterminate,
         },
     ],
     keyboard: &[],
