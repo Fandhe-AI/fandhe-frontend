@@ -109,6 +109,14 @@ const ANGLE_SLIDER_SCOPE: &str = "angle-slider";
 const CONTROL_PART: &str = "control";
 /// AngleSlider Thumb パーツの `data-part` 属性値。
 const THUMB_PART: &str = "thumb";
+/// AngleSlider Root パーツの `data-part` 属性値
+/// （`wiring::PartKey::RootId` による再解決の基点）。
+///
+/// 参照元は wasm32 配線層（`wiring`）のみのため、native の非 wasm ビルド
+/// では未使用と検出される（`crate::hydration::filter_hydration_attrs` と
+/// 同じ理由・同じ抑制方針。ロジックが不要という意味ではない）。
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+const ROOT_PART: &str = "root";
 
 /// dispatch アクション名 `"set"`（`AngleSliderAction::Set`/
 /// `AngleSlider::decode_action` の対応する分岐と一致）。
@@ -187,7 +195,7 @@ pub fn action_for_key(key: &str) -> Option<&'static str> {
 mod wiring {
     use super::{
         action_for_key, angle_from_offset, is_angle_slider_control_or_thumb, ACTION_SET,
-        ANGLE_SLIDER_SCOPE, CONTROL_PART, THUMB_PART,
+        ANGLE_SLIDER_SCOPE, CONTROL_PART, ROOT_PART, THUMB_PART,
     };
     use crate::events::ActionRef;
     use wasm_bindgen::closure::Closure;
@@ -265,12 +273,122 @@ mod wiring {
         angle_from_offset(client_x - center_x, client_y - center_y)
     }
 
-    /// `root` 配下の AngleSlider Control 要素を列挙する CSS セレクタ
-    /// （[`DragState::control_index`] による再解決に使う。`root` 自身は
-    /// `query_selector_all` の対象外だが、Control は必ず Root の子孫
-    /// （`crates/headless-ui/src/angle_slider.rs` の anatomy）のため
-    /// 取りこぼしはない）。
+    /// `root` 配下の AngleSlider Control 要素を列挙する CSS セレクタ。
     const CONTROL_SELECTOR: &str = "[data-scope='angle-slider'][data-part='control']";
+    /// `root` 配下の AngleSlider Thumb 要素を列挙する CSS セレクタ。
+    const THUMB_SELECTOR: &str = "[data-scope='angle-slider'][data-part='thumb']";
+
+    /// 再描画（[`crate::Runtime::rerender_subtree`] による `root` 配下の
+    /// 丸ごと差し替え）を挟んで「同じパーツ」を再解決するための識別子
+    /// （イシュー #1956 codex-review P1 是正）。
+    ///
+    /// 構造フォールバックは `state.view()` から DOM を作り直すため、要素
+    /// 参照も要素の同一性も再描画をまたいで保持できない。再解決に使える
+    /// のは「アプリの `view()` が再現する属性」だけであり、本 enum はその
+    /// 候補を安定性の高い順に並べたものである。
+    ///
+    /// 文書順の添字を単独の識別子にはしない: 同じ `view()` でも状態に
+    /// よって出現順・個数は変わるため、ドラッグ中に Control の挿入・削除・
+    /// 並べ替えが起きると別の Control を指してしまう（レビュー指摘）。
+    /// [`PartKey::Sole`] は「`root` 配下に同種パーツが 1 個しか無い」場合に
+    /// 限って添字 `0` を使う変種であり、再解決時にも個数 1 を再確認する
+    /// ため、挿入・削除では fail-closed に解決失敗（＝ドラッグ終了）へ
+    /// 倒れ、並べ替えは定義上起こり得ない。
+    #[derive(Clone)]
+    enum PartKey {
+        /// 対象要素自身の `id` 属性（最も安定。アプリが `id` を付けている
+        /// 場合に使う）。
+        OwnId(String),
+        /// 対象を含む AngleSlider Root 要素の `id` 属性（anatomy 上
+        /// Root 1 個につき Control/Thumb は 1 個であるため一意に定まる。
+        /// 再解決時にも Root 内の該当パーツがちょうど 1 個であることを
+        /// 確認する）。
+        RootId(String),
+        /// `root` 配下に同種パーツが 1 個だけ存在する場合の暗黙識別。
+        Sole,
+    }
+
+    /// `element`（`selector` に一致するパーツ）を再描画後に再解決するための
+    /// [`PartKey`] を決める。
+    ///
+    /// いずれの識別子も得られない場合（`id` を持たず、同種パーツが複数
+    /// ある構成）は `None` を返す。呼び出し側は追跡・フォーカス復元を
+    /// 行わず、修正前と同じ「再描画を挟むと操作が途切れる」挙動へ
+    /// フォールバックする（誤った要素を掴み続けるより安全側、fail-closed）。
+    /// この構成のアプリは Root または Control/Thumb へ `id` を付けることで
+    /// 追跡対象になる。
+    fn part_key(root: &Element, element: &Element, selector: &str) -> Option<PartKey> {
+        let own_id = element.id();
+        if !own_id.is_empty() {
+            return Some(PartKey::OwnId(own_id));
+        }
+        if let Some(part_root) = closest_matching(root, element, ANGLE_SLIDER_SCOPE, ROOT_PART) {
+            let root_id = part_root.id();
+            if !root_id.is_empty() {
+                return Some(PartKey::RootId(root_id));
+            }
+        }
+        let count = root
+            .query_selector_all(selector)
+            .map(|list| list.length())
+            .unwrap_or(0);
+        if count == 1 {
+            return Some(PartKey::Sole);
+        }
+        None
+    }
+
+    /// `root` 配下から [`PartKey`] に対応するパーツ（`selector` 一致）を
+    /// 再解決する。
+    ///
+    /// 対象が消えている・一意に定まらない場合はいずれも `None`
+    /// （fail-closed）。呼び出し側は `None` をドラッグ終了・フォーカス復元
+    /// 断念のシグナルとして扱う。
+    fn resolve_part(root: &Element, key: &PartKey, selector: &str) -> Option<Element> {
+        /// `candidate` が `root` の子孫であり `selector` に一致することを
+        /// 確認する（`get_element_by_id` は文書全体を探すため、`root` の
+        /// 外の同名 `id` を誤って掴まないようにする）。
+        fn verified(root: &Element, candidate: Element, selector: &str) -> Option<Element> {
+            if !root.contains(Some(&candidate)) {
+                return None;
+            }
+            if !candidate.matches(selector).unwrap_or(false) {
+                return None;
+            }
+            Some(candidate)
+        }
+
+        /// `container` 配下の `selector` 一致要素がちょうど 1 個のとき
+        /// それを返す（0 個・複数個はいずれも `None`）。
+        fn sole_match(container: &Element, selector: &str) -> Option<Element> {
+            let list = container.query_selector_all(selector).ok()?;
+            if list.length() != 1 {
+                return None;
+            }
+            list.get(0)?.dyn_into::<Element>().ok()
+        }
+
+        let document = root.owner_document()?;
+        match key {
+            PartKey::OwnId(id) => {
+                let candidate = document.get_element_by_id(id)?;
+                verified(root, candidate, selector)
+            }
+            PartKey::RootId(id) => {
+                let part_root = document.get_element_by_id(id)?;
+                if !root.contains(Some(&part_root)) {
+                    return None;
+                }
+                if part_root.get_attribute("data-scope").as_deref() != Some(ANGLE_SLIDER_SCOPE)
+                    || part_root.get_attribute("data-part").as_deref() != Some(ROOT_PART)
+                {
+                    return None;
+                }
+                sole_match(&part_root, selector)
+            }
+            PartKey::Sole => sole_match(root, selector),
+        }
+    }
 
     /// 進行中のポインタドラッグを追跡する配線内部状態（イシュー #1956
     /// codex-review P1 是正）。
@@ -283,55 +401,27 @@ mod wiring {
     /// 判定に使うと以後の pointermove がすべて拒否され、ドラッグが最初の
     /// 座標更新で止まる。
     ///
-    /// そこで「どの pointer が、`root` 配下の何番目の Control を掴んで
-    /// いるか」を配線側で保持し、
+    /// そこで「どの pointer が、どの Control を掴んでいるか」を
+    /// [`PartKey`]（再描画をまたいで安定する識別子）で保持し、
     ///
     /// 1. pointermove では capture の有無ではなく本状態の一致でドラッグ
     ///    継続を判定する（DOM 要素の同一性に依存しない）
-    /// 2. dispatch 後（＝再描画後）に同じ添字の Control へ
+    /// 2. dispatch 後（＝再描画後）に再解決した Control へ
     ///    `setPointerCapture` を再適用し、通常のキャプチャ経路へ復帰させる
     ///
-    /// の 2 段構えでドラッグを継続させる。要素参照ではなく**添字**を保持
-    /// するのは、構造フォールバックが `state.view()` から DOM を作り直す
-    /// ため要素の同一性は保証されない一方、Control の**出現順**は同じ
-    /// `view()` から構築される限り保たれる（複数 AngleSlider が同一 `root`
-    /// 配下に併存しても、掴んでいる Control を一意に取り違えずに再解決
-    /// できる）ためである。
+    /// の 2 段構えでドラッグを継続させる。再解決が失敗した（掴んでいた
+    /// Control が消えた・一意に定まらない）場合はドラッグを終了する
+    /// （[`resolve_part`] doc 参照、fail-closed）。
     struct DragState {
         /// `setPointerCapture` の対象 `pointerId`。
         pointer_id: i32,
-        /// pointerdown 時点で `root` 配下の Control 群（[`CONTROL_SELECTOR`]
-        /// の文書順）における 0 起点の添字。
-        control_index: u32,
+        /// 掴んでいる Control の再解決キー。
+        control_key: PartKey,
     }
 
     /// 進行中ドラッグの共有ハンドル（各イベント閉包が同じ状態を読み書き
     /// する）。
     type DragHandle = std::rc::Rc<std::cell::RefCell<Option<DragState>>>;
-
-    /// `root` 配下の Control 群のうち `control` が何番目かを返す
-    /// （[`DragState::control_index`] の算出）。見つからない場合は `None`
-    /// （ドラッグ追跡を行わず従来の capture 判定のみへフォールバックする、
-    /// fail-closed）。
-    fn control_index_of(root: &Element, control: &Element) -> Option<u32> {
-        let controls = root.query_selector_all(CONTROL_SELECTOR).ok()?;
-        (0..controls.length()).find(|index| {
-            controls
-                .get(*index)
-                .and_then(|node| node.dyn_into::<Element>().ok())
-                .is_some_and(|candidate| candidate == *control)
-        })
-    }
-
-    /// `root` 配下の Control 群の `index` 番目（文書順）を返す
-    /// （再描画後の Control 再解決）。
-    fn control_at_index(root: &Element, index: u32) -> Option<Element> {
-        root.query_selector_all(CONTROL_SELECTOR)
-            .ok()?
-            .get(index)?
-            .dyn_into::<Element>()
-            .ok()
-    }
 
     /// dispatch（＝再描画の可能性がある）後に、追跡中の Control へ
     /// `setPointerCapture` を再適用する。
@@ -342,16 +432,25 @@ mod wiring {
     /// ように「アクティブな pointer が存在しない」場合 `setPointerCapture`
     /// は `NotFoundError` を投げるが、その場合も [`DragState`] による
     /// 継続判定が効くため無視して構わない（`let _ =`）。
+    ///
+    /// 再解決に失敗した場合はドラッグを終了する（追跡を解除する）。
     fn reattach_pointer_capture(root: &Element, drag: &DragHandle) {
-        let Ok(state) = drag.try_borrow() else {
+        let Ok(mut state) = drag.try_borrow_mut() else {
             return;
         };
-        let Some(state) = state.as_ref() else {
+        let Some(tracked) = state.as_ref() else {
             return;
         };
-        if let Some(control) = control_at_index(root, state.control_index) {
-            if !control.has_pointer_capture(state.pointer_id) {
-                let _ = control.set_pointer_capture(state.pointer_id);
+        match resolve_part(root, &tracked.control_key, CONTROL_SELECTOR) {
+            Some(control) => {
+                if !control.has_pointer_capture(tracked.pointer_id) {
+                    let _ = control.set_pointer_capture(tracked.pointer_id);
+                }
+            }
+            None => {
+                // 掴んでいた Control が消えた／一意に定まらない。誤った
+                // 要素を掴み続けないようドラッグを終了する（fail-closed）。
+                *state = None;
             }
         }
     }
@@ -365,8 +464,9 @@ mod wiring {
     /// への delegate ではなく、pointer 個別のキャプチャで完結させる。
     /// 複数 AngleSlider が同一ページに存在しても互いに干渉しない）。
     /// 加えて [`DragState`] を配線側に保持し、dispatch 後の再描画で Control
-    /// が差し替わっても同じドラッグを継続させる（イシュー #1956
-    /// codex-review P1 是正、[`DragState`] doc 参照）。pointerup/
+    /// が差し替わっても、[`PartKey`] による再解決で同じドラッグを継続
+    /// させる（イシュー #1956 codex-review P1 是正、[`DragState`]・
+    /// [`PartKey`] doc 参照）。pointerup/
     /// pointercancel は [`DragState`] を解除するためだけに配線しており、
     /// 座標の再反映（dispatch）は行わない。
     ///
@@ -479,13 +579,14 @@ mod wiring {
 
         let pointer_id = pointer_event.pointer_id();
         let _ = control.set_pointer_capture(pointer_id);
-        // 添字が求まらない場合は追跡せず（`None` を書き込み）、従来の
+        // 再解決キーが得られない場合は追跡せず（`None` を書き込み）、従来の
         // `has_pointer_capture` 判定のみへフォールバックする（fail-closed:
-        // 取り違えた Control を掴み続けるより、ドラッグが止まる方を選ぶ）。
+        // 取り違えた Control を掴み続けるより、ドラッグが止まる方を選ぶ。
+        // `part_key` doc 参照）。
         if let Ok(mut state) = drag.try_borrow_mut() {
-            *state = control_index_of(root, &control).map(|control_index| DragState {
+            *state = part_key(root, &control, CONTROL_SELECTOR).map(|control_key| DragState {
                 pointer_id,
-                control_index,
+                control_key,
             });
         }
 
@@ -502,19 +603,19 @@ mod wiring {
     /// のみ、Control 中心からの角度を再計算して `"set"` を dispatch する。
     ///
     /// [`DragState`] が一致する場合は Control をイベントターゲットからでは
-    /// なく**添字から再解決**する（直前の dispatch による再描画で Control
-    /// が差し替わっていても、また capture が失われてポインタが Control 外へ
-    /// 出ていても、同じドラッグとして継続できる）。追跡が無い pointer
-    /// （キャプチャ前の hover 移動等）は従来どおり `has_pointer_capture`
-    /// 判定で弾く。
+    /// なく [`PartKey`] から**再解決**する（直前の dispatch による再描画で
+    /// Control が差し替わっていても、また capture が失われてポインタが
+    /// Control 外へ出ていても、同じドラッグとして継続できる）。再解決に
+    /// 失敗した場合はドラッグを終了する（[`resolve_part`] doc、
+    /// fail-closed）。追跡が無い pointer（キャプチャ前の hover 移動等）は
+    /// 従来どおり `has_pointer_capture` 判定で弾く。
     ///
     /// # stale な追跡の自己解除（`buttons == 0` ガード）
     ///
     /// [`DragState`] の解除は `root` へ配線した pointerup/pointercancel が
     /// 担うが、capture が失われている間に `root` の外でボタンが離されると
     /// その解除イベントを取り逃す（`reattach_pointer_capture` は
-    /// `control_at_index` が `None` を返す場合や `setPointerCapture` 自体が
-    /// 失敗する場合に capture を復帰できない）。マウスの `pointerId` は
+    /// `setPointerCapture` 自体が失敗する場合に capture を復帰できない）。マウスの `pointerId` は
     /// 安定しているため、追跡を放置すると以後の**素の hover 移動**が
     /// 追跡経路へ入り、ボタンを押していないのに値が動く「幽霊ドラッグ」に
     /// なる（capture 無し＝ドラッグ不成立という修正前の fail-closed な性質を
@@ -537,15 +638,15 @@ mod wiring {
         };
         let pointer_id = pointer_event.pointer_id();
 
-        let tracked_index = drag.try_borrow().ok().and_then(|state| {
+        let tracked_key = drag.try_borrow().ok().and_then(|state| {
             state
                 .as_ref()
                 .filter(|tracked| tracked.pointer_id == pointer_id)
-                .map(|tracked| tracked.control_index)
+                .map(|tracked| tracked.control_key.clone())
         });
 
-        let control = match tracked_index {
-            Some(control_index) => {
+        let control = match tracked_key {
+            Some(control_key) => {
                 if pointer_event.buttons() == 0 {
                     // capture 喪失中に `root` 外で pointerup を取り逃した
                     // stale な追跡（上記「stale な追跡の自己解除」節）。
@@ -555,7 +656,12 @@ mod wiring {
                     }
                     return;
                 }
-                let Some(control) = control_at_index(root, control_index) else {
+                let Some(control) = resolve_part(root, &control_key, CONTROL_SELECTOR) else {
+                    // 掴んでいた Control が消えた／一意に定まらない。
+                    // ドラッグを終了する（fail-closed、`resolve_part` doc）。
+                    if let Ok(mut state) = drag.try_borrow_mut() {
+                        *state = None;
+                    }
                     return;
                 };
                 control
@@ -618,6 +724,10 @@ mod wiring {
     /// 参照）。Home/End は REQ-11 の gzip 予算逼迫により意図的に未配線
     /// （`home_and_end_keys_are_intentionally_not_wired_pending_req11_budget`
     /// テスト参照）。
+    ///
+    /// dispatch が構造フォールバックを誘発して Thumb ごと差し替えた場合は
+    /// [`restore_thumb_focus`] で再描画後の Thumb へフォーカスを戻し、
+    /// 連続したキー操作が途切れないようにする。
     fn handle_keydown(
         root: &Element,
         event: &Event,
@@ -646,12 +756,55 @@ mod wiring {
             return;
         };
 
+        // dispatch 前にフォーカス復元用のキーを採取する（dispatch 後は
+        // 対象要素が detach され `closest_matching` による Root 探索が
+        // できなくなるため）。
+        let thumb_key = part_key(root, target_element, THUMB_SELECTOR);
+
         keyboard_event.prevent_default();
         if let Ok(mut cb) = on_action.try_borrow_mut() {
             (cb)(ActionRef {
                 action: action.to_string(),
                 payload: String::new(),
             });
+        }
+
+        restore_thumb_focus(root, target_element, thumb_key.as_ref());
+    }
+
+    /// keydown の dispatch 後、Thumb が構造フォールバックで detach されて
+    /// いた場合に再描画後の同じ Thumb へフォーカスを戻す（イシュー #1956
+    /// codex-review P1 是正）。
+    ///
+    /// 本モジュールの keydown 配線が `Runtime::wire` の閉包を呼ぶように
+    /// なったことで、束縛点にも keyed list にも対応しない dirty field を
+    /// 積むアプリでは矢印キー 1 回で
+    /// [`crate::Runtime::rerender_subtree`] が走り、`remove_child` で
+    /// フォーカス中の Thumb ごと削除される。フォーカスは `body` へ移り、
+    /// 以降の連続したキー入力が Thumb に届かなくなる（キーボード操作の
+    /// 継続性が失われる）。
+    ///
+    /// 復元は以下の条件をすべて満たす場合に限る（fail-closed）:
+    ///
+    /// - dispatch 前の Thumb が実際に detach された（`is_connected()` が
+    ///   `false`）。再描画が起きなかった通常経路では何もしない
+    /// - [`PartKey`] から再描画後の Thumb を一意に再解決できた
+    ///   （[`resolve_part`] doc 参照）
+    ///
+    /// いずれかを満たさない場合は何もしない（利用者のフォーカスを勝手に
+    /// 奪わない。特に「解決できないから近い要素へ当てる」ことはしない）。
+    fn restore_thumb_focus(root: &Element, previous_thumb: &Element, thumb_key: Option<&PartKey>) {
+        if previous_thumb.is_connected() {
+            return;
+        }
+        let Some(thumb_key) = thumb_key else {
+            return;
+        };
+        let Some(thumb) = resolve_part(root, thumb_key, THUMB_SELECTOR) else {
+            return;
+        };
+        if let Some(focusable) = thumb.dyn_ref::<web_sys::HtmlElement>() {
+            let _ = focusable.focus();
         }
     }
 

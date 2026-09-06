@@ -1384,12 +1384,31 @@ where
     /// `crates/wasm-full/tests/angle_slider_browser.rs::
     /// pointer_drag_continues_across_structural_fallback`）。
     ///
+    /// ドラッグ対象の再解決は文書順の添字ではなく、再描画をまたいで安定
+    /// する識別子（`angle_slider.rs` の `wiring::PartKey`: 対象自身の `id`
+    /// → AngleSlider Root の `id` → `root` 配下に同種パーツが 1 個だけの
+    /// 場合の暗黙識別）で行う。掴んでいた Control が消えた・一意に定まら
+    /// ない場合はドラッグを終了する（別の Control へ対象が移らない、
+    /// 回帰テストは `drag_does_not_retarget_to_another_control`）。
+    ///
     /// この追跡は `has_pointer_capture` に依存しないため、capture 喪失中に
     /// `root` の外でボタンが離され pointerup を取り逃すと追跡が stale に
     /// なり得る。`angle_slider.rs` の `wiring::handle_pointermove` が
     /// 追跡経路で `MouseEvent::buttons() == 0` を確認して自己解除する
     /// （同関数 doc「stale な追跡の自己解除」節、回帰テストは同ファイルの
     /// `stale_drag_tracking_is_released_when_no_button_is_held`）。
+    ///
+    /// # keydown 経路のフォーカス継続
+    ///
+    /// 本メソッドが `Self::wire` の閉包を配線したことで keydown からも
+    /// 構造フォールバックが発動するようになり、[`Self::rerender_subtree`]
+    /// が `remove_child` でフォーカス中の Thumb ごと削除する。フォーカスが
+    /// `body` へ移ると以降のキー入力が Thumb に届かず、最初の矢印キー 1 回で
+    /// 操作が途切れる。`angle_slider.rs` の `wiring::restore_thumb_focus` が
+    /// dispatch 後に「元の Thumb が detach された」かつ「上記 `PartKey` から
+    /// 再描画後の Thumb を一意に再解決できた」場合に限りフォーカスを戻す
+    /// （それ以外では利用者のフォーカスを奪わない、fail-closed。回帰テストは
+    /// `thumb_focus_is_restored_after_structural_fallback_on_keydown`）。
     ///
     /// なお `Self::wire_signature_pad` は同型の露出（ストローク中の
     /// `canvas` 要素 detach）を依然として抱えるが、SignaturePad 側は

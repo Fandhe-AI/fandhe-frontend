@@ -19,8 +19,12 @@
 //!    イシュー #1956 codex-review P2 是正）
 //! 6. pointerup を取り逃した stale なドラッグ追跡の自己解除
 //!    （[`stale_drag_tracking_is_released_when_no_button_is_held`]）
+//! 7. 掴んでいた Control が消えた場合の retarget 防止
+//!    （[`drag_does_not_retarget_to_another_control`]）
+//! 8. keydown の構造フォールバック後の Thumb フォーカス復元
+//!    （[`thumb_focus_is_restored_after_structural_fallback_on_keydown`]）
 //!
-//! の 6 ケースで、AngleSlider 自身の `aria-valuenow`/`aria-valuetext`
+//! の 8 ケースで、AngleSlider 自身の `aria-valuenow`/`aria-valuetext`
 //! （[`AngleSliderHost::view`] が `data-bind-attr` で束縛する束縛点）と
 //! アプリ側（`C`）の派生フィールド（`data-bind-text` 束縛点）の双方へ
 //! 正しく反映される（またはケース 3 では一切変化しない）ことを検証する。
@@ -92,7 +96,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use fandhe_frontend_core::{bind_attr_tokens, bind_text, render, Node};
+use fandhe_frontend_core::{bind_attr_tokens, bind_text, el, render, Node};
 use fandhe_frontend_headless_ui::angle_slider::{AngleSlider, AngleSliderProps};
 use fandhe_frontend_interactive::{Component, DirtyTracked, Hydrate, HydrateError};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
@@ -100,7 +104,8 @@ use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{
-    Document, Element, Event, KeyboardEvent, KeyboardEventInit, PointerEvent, PointerEventInit,
+    Document, Element, Event, HtmlElement, KeyboardEvent, KeyboardEventInit, PointerEvent,
+    PointerEventInit,
 };
 
 wasm_bindgen_test_configure!(run_in_browser);
@@ -938,5 +943,271 @@ fn stale_drag_tracking_is_released_when_no_button_is_held() {
         90,
         "追跡が解除された後は、押下状態の pointermove でも capture が無い \
          限り no-op であること（修正前と同じ fail-closed な性質の維持）"
+    );
+}
+
+/// AngleSlider を 2 つ持つラッパーホスト（[`drag_does_not_retarget_to_another_control`]
+/// 専用）。
+///
+/// 束縛点を一切持たず、`update()` は必ず [`STRUCTURAL_ONLY_FIELD`] を積む
+/// ため、dispatch ごとに `Runtime::rerender_subtree` が走る。加えて
+/// `drop_first` が立つと 1 つ目のスライダー（`FIRST_SLIDER_ID`）を
+/// `view()` から消すため、「ドラッグ中の Control が消え、別の Control
+/// （2 つ目）だけが残る」状況を作れる。
+///
+/// `Runtime::mount` は `Hydrate` を要求しないため、本ホストは
+/// `Component`/`DirtyTracked`/`BindingSource` のみ実装する。
+struct TwoSliderHost {
+    first: AngleSlider,
+    second: AngleSlider,
+    props: AngleSliderProps,
+    drop_first: bool,
+    dirty: Vec<&'static str>,
+}
+
+/// [`TwoSliderHost`] の 1 つ目のスライダー Root の `id`
+/// （`PartKey::RootId` による再解決の対象）。
+const FIRST_SLIDER_ID: &str = "two-slider-first";
+/// [`TwoSliderHost`] の 2 つ目のスライダー Root の `id`。
+const SECOND_SLIDER_ID: &str = "two-slider-second";
+
+impl Component for TwoSliderHost {
+    type Action = <AngleSlider as Component>::Action;
+
+    /// dispatch は常に 1 つ目のスライダーへ届く（本テストではドラッグ対象が
+    /// 1 つ目のみ）。値が変化したら `drop_first` を立てて 1 つ目を
+    /// `view()` から消す。
+    fn update(&mut self, action: Self::Action) {
+        self.dirty.clear();
+        let before = self.first.angle_deg();
+        self.first.update(action);
+        if self.first.angle_deg() != before {
+            self.drop_first = true;
+            self.dirty.push(STRUCTURAL_ONLY_FIELD);
+        }
+    }
+
+    fn view(&self) -> Node {
+        let mut children = Vec::new();
+        if !self.drop_first {
+            children.push(self.first.root(
+                &self.props,
+                vec![("id", FIRST_SLIDER_ID)],
+                vec![self.first.control(
+                    &self.props,
+                    Vec::new(),
+                    vec![self.first.thumb(&self.props, Vec::new(), Vec::new())],
+                )],
+            ));
+        }
+        children.push(self.second.root(
+            &self.props,
+            vec![("id", SECOND_SLIDER_ID)],
+            vec![self.second.control(
+                &self.props,
+                Vec::new(),
+                vec![self.second.thumb(&self.props, Vec::new(), Vec::new())],
+            )],
+        ));
+        el("div", vec![("id", TWO_SLIDER_ROOT_ID)], children)
+    }
+
+    fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
+        AngleSlider::decode_action(name, payload)
+    }
+}
+
+impl DirtyTracked for TwoSliderHost {
+    fn dirty_fields(&self) -> &[&'static str] {
+        &self.dirty
+    }
+}
+
+impl BindingSource for TwoSliderHost {
+    /// 束縛点を持たない（すべての dirty field が未解決となり、構造
+    /// フォールバックのみで反映される）。
+    fn bound_value(&self, _field: &str) -> Option<BoundValue> {
+        None
+    }
+}
+
+/// [`TwoSliderHost`] のマウント先ラッパー要素の `id`。
+const TWO_SLIDER_ROOT_ID: &str = "two-slider-wrapper-root";
+
+/// ドラッグ中の Control が消えたとき、**残っている別の Control へ対象が
+/// 移らず**ドラッグが終了することを検証する（`angle_slider.rs` の
+/// `PartKey`/`resolve_part` doc、イシュー #1956 codex-review P1 是正）。
+///
+/// 初版の是正は「`root` 配下 Control 群の文書順の添字」だけでドラッグ対象を
+/// 再解決していたため、`[A, B]` の A をドラッグ中に A が消えると添字 `0` が
+/// B を指し、B の中心座標で角度を計算して capture まで B へ移してしまう
+/// （レビュー指摘）。是正後は再描画をまたいで安定する識別子（`PartKey`:
+/// 対象自身の `id` → Root の `id` → 同種パーツが 1 個だけの場合の暗黙識別）
+/// で再解決し、解決できなければドラッグを終了する。
+///
+/// 本ケースは 2 つのスライダーを持つ [`TwoSliderHost`] で、1 つ目の Control を
+/// pointerdown で掴んだ dispatch が構造フォールバックと同時に 1 つ目を
+/// `view()` から消すよう構成する。1 つ目の Control は `id` を持たないが、
+/// その Root が [`FIRST_SLIDER_ID`] を持つため `PartKey::RootId` で追跡され、
+/// Root ごと消えた時点で解決失敗（＝ドラッグ終了）へ倒れる。
+///
+/// 2 つ目のスライダーの値が初期値から動かないことを、retarget が起きて
+/// いないことの直接の証拠として確認する。
+#[wasm_bindgen_test]
+fn drag_does_not_retarget_to_another_control() {
+    let document = document();
+    document
+        .body()
+        .expect("document body must exist in browser test environment")
+        .insert_adjacent_html(
+            "beforeend",
+            &render(&el("div", vec![("id", TWO_SLIDER_ROOT_ID)], Vec::new())),
+        )
+        .expect("insert_adjacent_html must not fail");
+    let root_el = document
+        .get_element_by_id(TWO_SLIDER_ROOT_ID)
+        .expect("wrapper root must exist");
+    let _cleanup = RemoveOnDrop(root_el.clone());
+
+    let runtime = Runtime::mount(
+        TWO_SLIDER_ROOT_ID,
+        TwoSliderHost {
+            first: AngleSlider::new(10, 5),
+            second: AngleSlider::new(200, 5),
+            props: AngleSliderProps::default(),
+            drop_first: false,
+            dirty: Vec::new(),
+        },
+    )
+    .expect("mount must succeed");
+
+    let control_in = |slider_id: &str| -> Option<Element> {
+        document
+            .get_element_by_id(slider_id)
+            .and_then(|slider_root| {
+                slider_root
+                    .query_selector(CONTROL_SELECTOR)
+                    .expect("query_selector must not fail")
+            })
+    };
+    let offset_from_center = |control: &Element, dx: f64| -> (f64, f64) {
+        let rect = control.get_bounding_client_rect();
+        (
+            rect.left() + rect.width() / 2.0 + dx,
+            rect.top() + rect.height() / 2.0,
+        )
+    };
+
+    let first_control = control_in(FIRST_SLIDER_ID).expect("first control must exist");
+    assert!(
+        control_in(SECOND_SLIDER_ID).is_some(),
+        "2 つ目の Control も存在すること（本テストの前提成立確認）"
+    );
+
+    let (down_x, down_y) = offset_from_center(&first_control, 50.0);
+    first_control
+        .dispatch_event(&pointer_event("pointerdown", 1, down_x, down_y))
+        .unwrap();
+    assert_eq!(
+        runtime.component().first.angle_deg(),
+        90,
+        "1 つ目のスライダーへ pointerdown が届くこと"
+    );
+    assert!(
+        control_in(FIRST_SLIDER_ID).is_none(),
+        "dispatch に伴う構造フォールバックで 1 つ目のスライダーが消えて          いること（本テストが前提とする状況の成立確認）"
+    );
+    let second_control = control_in(SECOND_SLIDER_ID).expect("2 つ目の Control は残っていること");
+
+    // 2 つ目の Control 中心の真左（270 度）へ pointermove を送る。retarget が
+    // 起きていれば 2 つ目の座標系で角度が計算され値が動いてしまう。
+    let (move_x, move_y) = offset_from_center(&second_control, -50.0);
+    root_el
+        .dispatch_event(&pointer_event("pointermove", 1, move_x, move_y))
+        .unwrap();
+
+    assert_eq!(
+        runtime.component().second.angle_deg(),
+        200,
+        "掴んでいた 1 つ目の Control が消えても、残っている 2 つ目の          Control へドラッグ対象が移らないこと（イシュー #1956          codex-review P1 の受け入れ条件）"
+    );
+    assert_eq!(
+        runtime.component().first.angle_deg(),
+        90,
+        "1 つ目の値も pointerdown 時点のまま（ドラッグは終了しており          消えた対象へも反映されない）"
+    );
+}
+
+/// keydown の dispatch が構造フォールバックを誘発して Thumb ごと差し替えた
+/// 場合でも、再描画後の Thumb へフォーカスが戻り**連続したキー操作が
+/// 継続する**ことを検証する（`angle_slider.rs` の `restore_thumb_focus`、
+/// イシュー #1956 codex-review P1 是正）。
+///
+/// 本 PR で keydown 配線も `Runtime::wire` の閉包を呼ぶようになったため、
+/// 束縛点で解決できない dirty field を積むホストでは矢印キー 1 回で
+/// `Runtime::rerender_subtree` が走り、`remove_child` でフォーカス中の
+/// Thumb ごと削除される。フォーカスが `body` へ移ると以降のキー入力が
+/// Thumb に届かず、最初の 1 回で操作が途切れる（レビュー指摘）。
+#[wasm_bindgen_test]
+fn thumb_focus_is_restored_after_structural_fallback_on_keydown() {
+    let (root_el, runtime) = mount(AngleSliderHost::with_structural_fallback(
+        "angle-slider-host-focus-root",
+        AngleSlider::new(10, 5),
+    ));
+    let _cleanup = RemoveOnDrop(root_el.clone());
+
+    let thumb = || {
+        root_el
+            .query_selector(THUMB_SELECTOR)
+            .expect("query_selector must not fail")
+            .expect("thumb part must exist")
+    };
+    let active_element = || document().active_element();
+
+    let initial_thumb = thumb();
+    initial_thumb
+        .dyn_ref::<HtmlElement>()
+        .expect("thumb must be an HtmlElement")
+        .focus()
+        .expect("focus must not fail");
+    assert_eq!(
+        active_element().as_ref(),
+        Some(&initial_thumb),
+        "keydown 前は最初の Thumb がフォーカスされていること（前提成立確認）"
+    );
+
+    initial_thumb
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(runtime.component().slider.angle_deg(), 15);
+
+    let thumb_after = thumb();
+    assert!(
+        thumb_after != initial_thumb,
+        "STRUCTURAL_ONLY_FIELD により Runtime::rerender_subtree が走り、\
+         フォーカスしていた Thumb が差し替わっていること（本テストが \
+         前提とする状況の成立確認）"
+    );
+    assert_eq!(
+        active_element().as_ref(),
+        Some(&thumb_after),
+        "再描画後の Thumb へフォーカスが復元されること（イシュー #1956 \
+         codex-review P1 の受け入れ条件）"
+    );
+
+    // 復元されたフォーカスのまま 2 回目の矢印キーが届くこと（連続操作の
+    // 継続性。フォーカスを失っていればこの dispatch は Thumb に届かない）。
+    thumb_after
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(
+        runtime.component().slider.angle_deg(),
+        20,
+        "フォーカス復元により連続したキー操作が継続すること"
+    );
+    assert_eq!(
+        active_element().as_ref(),
+        Some(&thumb()),
+        "2 回目の再描画後もフォーカスが追随すること"
     );
 }

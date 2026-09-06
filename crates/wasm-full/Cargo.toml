@@ -583,6 +583,14 @@ name = "fandhe-frontend-wasm-full"
 # （同値衝突なし、これ以上のバンプ不要）。あわせて `handle_pointermove` の
 # 追跡経路へ `MouseEvent::buttons() == 0` の stale 追跡自己解除ガードを
 # 追加したが、これも同モジュール内の私有関数の内部変更である。
+# イシュー #1956 codex-review 追加 2 件の是正（PR #1987, 2026-09-07）:
+# ドラッグ対象の再解決を文書順の添字から安定識別子（私有 `PartKey`:
+# 対象自身の `id` → Root の `id` → 同種パーツ 1 個の暗黙識別）へ差し替え、
+# keydown の構造フォールバック後に Thumb フォーカスを復元する
+# （私有 `restore_thumb_focus`）よう拡張した。あわせて `ROOT_PART` 定数を
+# 追加したが private であり、公開 API（`wire_angle_slider_events`・
+# `angle_from_offset`・`action_for_key`・`is_angle_slider_control_or_thumb`・
+# `ACTION_*`）は不変のため 0.15.14 を維持する。
 version = "0.15.14"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
