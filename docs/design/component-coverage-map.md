@@ -342,7 +342,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/display/avatar.md` | Avatar | Avatar | Avatar (`avatar`) | Avatar (`avatar`) | `avatar` | `avatar` | 実装済み | headless+styled 実装済み（#731 MutationObserver 対応込み）。#1659 で参照突合済み（anatomy/data-state/ARIA とも一致し是正なし。Demo の壊れた画像参照を実アセットへ是正） |
 | `.agents/skills/ark-ui/references/components/display/progress-linear.md` | Progress (linear) | Progress | Progress (`progress`) | Progress (`progress`) | `progress` | `progress` | 実装済み | headless+styled（root/range）実装済み。#1564 で linear（Track/Range）styled CSS・`ProgressVariant`/`ColorPalette` 軸を新設し pre-styled ラッパー未実装状態を解消。#1633 で参照突合済み（label の data-orientation・value_text の aria-live を是正） |
-| `.agents/skills/ark-ui/references/components/display/progress-circular.md` | Progress (circular) | ProgressCircle | — | — | `progress` | `progress` | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加）。#1688 で親 #1673 の前提食い違い（linear のみという誤認）を訂正し、参照元（chakra-ui のみが circular を持つ）との突合で indeterminate の弧表現を是正 |
+| `.agents/skills/ark-ui/references/components/display/progress-circular.md` | Progress (circular) | ProgressCircle | — | — | `progress` | `progress` | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加）。#1688 で親 #1673 の前提食い違い（linear のみという誤認）を訂正し、参照元（chakra-ui のみが circular を持つ）との突合で indeterminate の弧表現を是正。#1689 で Themes ページ（`/themes/progress/`、単一ページのまま）の Demo・原稿を circular indeterminate 弧表現へ追随 |
 | `.agents/skills/ark-ui/references/components/display/clipboard.md` | Clipboard | Clipboard | — | — | `clipboard` | `clipboard` | 実装済み | headless+styled+wasm 配線 実装済み（#773、PR #816） |
 | `.agents/skills/ark-ui/references/components/display/qr-code.md` | QrCode | QrCode | — | — | `qr_code` | `qr_code` | 実装済み | headless+styled 実装済み（#774）。#1634 で参照突合済み（frame の xmlns・role 条件付与を是正） |
 | `.agents/skills/ark-ui/references/components/display/marquee.md` | Marquee | Marquee | — | — | — | `marquee` | 実装済み（再導入） | #831 で `docs/policy/intentional-non-adoption.md` §3.24 の再評価トリガー 1（CSS のみ・`prefers-reduced-motion` 対応の決定的設計案）を充足し再導入（CSS のみ・JS ゼロ）。headless-ui は変更なし、pre-styled-ui 層のみで新規 anatomy を定義 |
@@ -591,7 +591,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/chakra-ui/references/components/feedback/alert.md` | — | Alert | — | — | — | `alert` | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/feedback/spinner.md` | — | Spinner | — | Spinner (`spinner`) | — | `spinner` | 実装済み | pre-styled 静的部品 実装済み。#1567 でスタイルを参考サイト基準へ調整（半円弧・トラック透明既定・size 5 段を chakra 一致・reduced-motion 停止） |
 | `.agents/skills/chakra-ui/references/components/feedback/toast.md` | Toast | Toast | — | — | `toast` | `toast` | 実装済み | headless+styled 実装済み（#760。#1643 で chakra-ui v3 Toast とも突合済み、`Indicator` パート・`loading` type は見送り） |
-| `.agents/skills/chakra-ui/references/components/feedback/progress-circle.md` | Progress (circular) | ProgressCircle | — | — | `progress` | `progress` | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加）。#1688 で唯一の circular 参照元として突合し、indeterminate の弧表現を追加是正（size の px 換算値・value-text 中央配置・`circular-progress` keyframes は意図的に不採用） |
+| `.agents/skills/chakra-ui/references/components/feedback/progress-circle.md` | Progress (circular) | ProgressCircle | — | — | `progress` | `progress` | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加）。#1688 で唯一の circular 参照元として突合し、indeterminate の弧表現を追加是正（size の px 換算値・value-text 中央配置・`circular-progress` keyframes は意図的に不採用）。#1689 で Themes ページ（`/themes/progress/`、単一ページのまま）の Demo・原稿を circular indeterminate 弧表現へ追随 |
 | `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | Skeleton (`skeleton`) | — | `skeleton` | 実装済み | #764。pre-styled 静的部品 実装済み。#1566 でスタイルを参考サイト基準へ調整（`bg-emphasized` 背景・`animation` 軸追加） |
 | `.agents/skills/chakra-ui/references/components/feedback/status.md` | — | Status | — | — | — | `status` | 実装済み | pre-styled 静的部品 実装済み（#765） |
 | `.agents/skills/chakra-ui/references/components/feedback/empty-state.md` | — | EmptyState | — | — | — | `empty_state` | 実装済み | pre-styled 静的部品 実装済み（#765） |
@@ -1108,10 +1108,12 @@ grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l  
 （台帳と基盤リストの排他網羅）と `crates/docs-site/tests/site_nav.rs`
 （ページ数期待値）が担い、**本書は件数を二重管理しない**。
 
-**注意**: headless-ui のみ実装済みで pre-styled-ui ラッパー未実装の部品
-（`progress`(linear) 等。`collapsible` はイシュー #1682/#1683、
-`field` はイシュー #1684/#1685、`fieldset` はイシュー #1686/#1687 で
-それぞれラッパー実装・Themes ページ登録済み）は
-`/primitives/` にのみ掲載され `/themes/` には現れない。逆に pre-styled-ui
+**注意**: headless-ui のみ実装済みで pre-styled-ui ラッパー未実装の部品は
+（存在すれば）`/primitives/` にのみ掲載され `/themes/` には現れない
+（機械検証は `crates/docs-site/tests/wrap_state.rs` の
+`HEADLESS_UNWRAPPED` 台帳。`progress`(linear) は #1564、`collapsible` は
+イシュー #1682/#1683、`field` はイシュー #1684/#1685、`fieldset` は
+イシュー #1686/#1687 でそれぞれラッパー実装・Themes ページ登録済みで
+あり、本書執筆時点で `HEADLESS_UNWRAPPED` は空である）。逆に pre-styled-ui
 独自部品（`marquee` 等）は `/themes/` にのみ現れる。掲載先は層ごとに
 独立であり、本書の「実装済み」区分と 1:1 ではない。

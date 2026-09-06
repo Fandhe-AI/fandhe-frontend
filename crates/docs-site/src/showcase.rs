@@ -7440,15 +7440,20 @@ fn visually_hidden_section() -> Node {
     )
 }
 
-/// Progress（circle 対応、イシュー #763）節: determinate（40%）の size
-/// バリエーション・complete・indeterminate の 3 状態を掲示する。
+/// Progress（circle 対応、イシュー #763。indeterminate の固定弧表現は
+/// イシュー #1688、本節の Demo 拡充はイシュー #1689）節: determinate
+/// （40%）の size バリエーション・complete・indeterminate の 3 状態、
+/// circular（SVG）の determinate/complete/indeterminate 対比・size・
+/// color-palette を掲示する。
 ///
 /// `Progress` は headless の値状態機械（`fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress`）
 /// を直接 import して構築する（`progress::root` は `size` variant クラス
 /// 付与のみを担う薄いラッパーであり、状態は呼び出し側が headless 型で持つ
 /// 契約、`crates/pre-styled-ui/src/progress.rs` rustdoc 参照）。circle 系
 /// パーツ（Circle/CircleTrack/CircleRange）は styled 層の独自ラッパーを持たず
-/// headless の inherent メソッドをそのまま呼ぶ。
+/// headless の inherent メソッドをそのまま呼ぶ。`ProgressVariant`（outline/
+/// subtle）は circle-track に影響しない設計（progress.rs rustdoc「意図的に
+/// 参考サイトへ合わせない点」節）のため、circle の variant 行は作らない。
 fn progress_section() -> Node {
     use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
     use fandhe_frontend_pre_styled_ui::progress::{self, ProgressProps, ProgressVariant};
@@ -7485,6 +7490,38 @@ fn progress_section() -> Node {
                     p.circle_range(vec![], vec![]),
                 ],
             )],
+        )
+    }
+
+    // イシュー #1689: circular の状態比較行（determinate/complete/indeterminate）で
+    // 各 circle の下にラベル・値テキストを添え、弧の見た目差（部分弧 / 完全リング /
+    // #1688 の固定弧）と数値表示の対応が Demo 単体で読み取れるようにする。
+    fn circle_demo_labeled(
+        p: &Progress,
+        props: &ProgressProps,
+        aria_valuetext: Option<&str>,
+        label_text: &str,
+        value_text: &str,
+    ) -> Node {
+        progress::root(
+            p,
+            props,
+            aria_valuetext,
+            vec![(
+                "style",
+                "display: flex; flex-direction: column; align-items: center; gap: 0.5rem;",
+            )],
+            vec![
+                p.circle(
+                    vec![],
+                    vec![
+                        p.circle_track(vec![], vec![]),
+                        p.circle_range(vec![], vec![]),
+                    ],
+                ),
+                p.label(vec![], vec![text(label_text)]),
+                p.value_text(vec![], vec![text(value_text)]),
+            ],
         )
     }
 
@@ -7575,22 +7612,68 @@ fn progress_section() -> Node {
         vec![vertical.track(vec![], vec![progress::range(&vertical, vec![])])],
     )]);
 
-    let circle_row = row(vec![
-        circle_demo(&determinate, &ProgressProps::default(), Some("40%")),
-        circle_demo(
-            &complete,
-            &ProgressProps {
-                size: Size::Sm,
-                ..ProgressProps::default()
-            },
-            Some("100%"),
+    // イシュー #1689: determinate（部分弧）・complete（完全リング）・
+    // indeterminate（#1688 の固定弧 + 回転）を横並びで対比できる状態比較行。
+    let circle_state_row = row(vec![
+        circle_demo_labeled(
+            &determinate,
+            &ProgressProps::default(),
+            Some("40%"),
+            "Download",
+            "40%",
         ),
-        circle_demo(&indeterminate, &ProgressProps::default(), None),
+        circle_demo_labeled(
+            &complete,
+            &ProgressProps::default(),
+            Some("100%"),
+            "Complete",
+            "100%",
+        ),
+        circle_demo_labeled(
+            &indeterminate,
+            &ProgressProps::default(),
+            None,
+            "Loading",
+            "",
+        ),
     ]);
+
+    // circle size（xs〜xl）: --fandhe-progress-size/--fandhe-progress-thickness
+    // の切り替えを可視化する。
+    let circle_size_row = row([Size::Xs, Size::Sm, Size::Md, Size::Lg, Size::Xl]
+        .into_iter()
+        .map(|size| {
+            let props = ProgressProps {
+                size,
+                ..ProgressProps::default()
+            };
+            circle_demo(&determinate, &props, Some("40%"))
+        })
+        .collect());
+
+    // circle color-palette（accent/info/success/warning/danger/neutral）:
+    // circle-range の塗り色切り替えを可視化する。
+    let circle_palette_row = row([
+        ColorPalette::Accent,
+        ColorPalette::Info,
+        ColorPalette::Success,
+        ColorPalette::Warning,
+        ColorPalette::Danger,
+        ColorPalette::Neutral,
+    ]
+    .into_iter()
+    .map(|palette| {
+        let props = ProgressProps {
+            palette,
+            ..ProgressProps::default()
+        };
+        circle_demo(&determinate, &props, Some("40%"))
+    })
+    .collect());
 
     section(
         "Progress",
-        "Linear（Track/Range）と Circular（SVG）両対応の進捗インジケータ。size（xs〜xl）で --fandhe-progress-track-height/--fandhe-progress-size/--fandhe-progress-thickness を、variant（outline/subtle）で track の見た目を、color-palette（accent/info/success/warning/danger/neutral）で range の塗り色を切り替えます。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動したアニメーション（linear は横スライド、circular は回転）で表示し、prefers-reduced-motion: reduce では停止します。",
+        "Linear（Track/Range）と Circular（SVG）両対応の進捗インジケータ。size（xs〜xl）で --fandhe-progress-track-height/--fandhe-progress-size/--fandhe-progress-thickness を、variant（outline/subtle）で track の見た目を、color-palette（accent/info/success/warning/danger/neutral）で range の塗り色を切り替えます。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動したアニメーション（linear は横スライド、circular は回転）で表示し、prefers-reduced-motion: reduce では停止します。circular の indeterminate は回転に加え circle-range へ円周の 1/4 分の固定弧（stroke-dasharray）を持ち、complete（完全リング）と視覚的に区別されます（イシュー #1688）。この弧は animation を持たないため、prefers-reduced-motion: reduce でも静止した弧として残ります。",
         vec![
             basic_row,
             size_row,
@@ -7599,7 +7682,9 @@ fn progress_section() -> Node {
             indeterminate_row,
             complete_row,
             vertical_row,
-            circle_row,
+            circle_state_row,
+            circle_size_row,
+            circle_palette_row,
         ],
     )
 }

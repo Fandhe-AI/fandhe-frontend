@@ -462,6 +462,22 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
         ),
         ("/themes/toggle/", &["root", "indicator"]),
         ("/themes/toggle-group/", &["root", "item"]),
+        (
+            // イシュー #1689: showcase.rs の Demo 拡充（circle 状態比較行へ
+            // label/value_text を追加）で progress の 8 anatomy パーツ全てが
+            // Demo から機械導出されるようになったことを固定する。
+            "/themes/progress/",
+            &[
+                "root",
+                "label",
+                "value-text",
+                "track",
+                "range",
+                "circle",
+                "circle-track",
+                "circle-range",
+            ],
+        ),
     ];
     for (path, expected_parts) in cases {
         let content = fandhe_frontend_docs_site::component_page::generated_content(path).unwrap();
