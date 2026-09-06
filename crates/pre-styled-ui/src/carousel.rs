@@ -211,12 +211,28 @@ fn recipe() -> SlotRecipe {
             "item",
             vec![
                 decl("flex", "0 0 100%"),
-                // 横方向スライドが `flex-basis` を超えて内容分だけ広がら
-                // ないようにする（既定 `min-width: auto` の打ち消し）。
-                // 縦方向の同型問題（`min-height: auto` による伸長、PR
-                // #1925 codex-review P1 / Cursor Bugbot 指摘）と対称に
-                // 揃える。
+                // PR #1925 codex-review 指摘 是正（5 回目・P1 2 件）:
+                // orientation によらず `item` の寸法固定・内容クリップを
+                // ここへ一本化する（縦横で対称、state 側の重複宣言を排除）。
+                // `flex: 0 0 100%` のみでは既定の自動最小サイズ
+                // （横方向 `min-width: auto`・縦方向 `min-height: auto`、
+                // CSS Flexbox 仕様 https://www.w3.org/TR/css-flexbox-1/
+                // #min-size-auto）が残り、内容（大きい画像等）が表示領域を
+                // 超える `item` は flex-basis を無視してその分だけ伸びて
+                // しまう。`translateX`/`translateY` は各 `item` 自身の
+                // border box を基準にした百分率のため、寸法が揃わないと
+                // index >= 1 で移動量が食い違い、次のスライドが表示領域外
+                // にずれる（縦方向は `crates/docs-site/src/primitive_specs/
+                // data_display_utilities.rs` の自前 CSS 例で実際に再現した
+                // 不具合と同型）。加えて `min-width`/`min-height` だけでは
+                // 幅・高さを表示領域に揃えるのみで、それを超える内容
+                // （大きい画像等）自体はクリップされず隣接スライドへ
+                // はみ出すため（横方向で実際に指摘された不具合）、
+                // `overflow: hidden` も同じくここで宣言し内容を境界内へ
+                // 閉じ込める。
                 decl("min-width", "0"),
+                decl("min-height", "0"),
+                decl("overflow", "hidden"),
             ],
         )
         .base(
@@ -302,22 +318,11 @@ fn recipe() -> SlotRecipe {
             "item",
             StateCondition::AttrEq("data-orientation", "vertical"),
             vec![
-                // codex-review 指摘 PR #1925 是正（P1 追加・Cursor Bugbot
-                // 指摘、共通の欠陥系統）: `flex: 0 0 100%` のみでは既定
-                // `min-height: auto`（CSS Flexbox 仕様の automatic minimum
-                // size、https://www.w3.org/TR/css-flexbox-1/#min-size-auto）
-                // が残り、内容（画像等）が `item-group` の確定高さより背が
-                // 高い `item` はその高さまで伸びてしまう。`translateY` は
-                // 各 `item` 自身の border box 高さを基準にした百分率のため、
-                // 背の高い `item` を含む構成では index >= 1 で移動量が
-                // `item-group` の高さと食い違い、次のスライドが表示領域外
-                // にずれる（`crates/docs-site/src/primitive_specs/
-                // data_display_utilities.rs` の自前 CSS 例で再現した不具合
-                // と同型）。`min-height: 0` で自動最小サイズを打ち消し、
-                // 内容の高さに関わらず `flex: 0 0 100%` の解決値（＝
-                // `item-group` の高さ）へ強制的に揃える。
-                decl("min-height", "0"),
-                decl("overflow", "hidden"),
+                // 寸法固定・内容クリップ（`min-height: 0`/`overflow: hidden`）
+                // は orientation によらず `.base("item", ...)` へ一本化した
+                // （PR #1925 codex-review 指摘 是正 5 回目、上記 rustdoc
+                // 参照）。ここでは縦方向固有のトランジション・transform の
+                // みを宣言する。
                 decl("transition-property", "transform"),
                 decl(
                     "transition-duration",
@@ -565,17 +570,36 @@ mod tests {
     fn item_carries_translate_y_when_vertical() {
         // 移動対象は `item-group` ではなく `item` 側（本モジュール rustdoc
         // 「transform ベースのスライド位置表現」節参照）。PR #1925
-        // codex-review 指摘 是正（4 回目）で `min-height: 0` と
-        // `overflow: hidden` を追加したため golden 断片も更新する。
+        // codex-review 指摘 是正（5 回目）で `min-height: 0`/
+        // `overflow: hidden` を orientation 非依存の `.base("item", ...)`
+        // へ一本化したため、縦方向 state 側からは削除され golden 断片も
+        // トランジション・transform のみへ更新した。
         let css = stylesheet();
         assert!(css.contains(
             "[data-scope=\"carousel\"][data-part=\"item\"][data-orientation=\"vertical\"] {\n  \
-             min-height: 0;\n  \
-             overflow: hidden;\n  \
              transition-property: transform;\n  \
              transition-duration: var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms));\n  \
              transition-timing-function: var(--fandhe-motion-easing-standard);\n  \
              transform: translateY(calc(var(--fandhe-carousel-index, 0) * -100%));\n\
+             }\n"
+        ));
+    }
+
+    #[test]
+    fn item_base_clips_content_and_fixes_dimensions_regardless_of_orientation() {
+        // PR #1925 codex-review 指摘 是正（5 回目・P1 2 件）: 横方向 `item`
+        // は `min-width: 0` のみで overflow が既定 `visible` のままだった
+        // ため、幅を超える内容（大きい画像等）が隣のスライドへはみ出して
+        // いた。`min-width: 0`/`min-height: 0`/`overflow: hidden` を
+        // orientation によらず base へ一本化し、縦横で対称な寸法固定・
+        // 内容クリップにしたことを固定する。
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"carousel\"][data-part=\"item\"] {\n  \
+             flex: 0 0 100%;\n  \
+             min-width: 0;\n  \
+             min-height: 0;\n  \
+             overflow: hidden;\n\
              }\n"
         ));
     }

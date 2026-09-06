@@ -54,6 +54,16 @@
 //! `min-height: 0` と `overflow: hidden` を追加し、内容の大きさに関わらず
 //! `flex: 0 0 100%` の解決値へ寸法を固定した（`crate::carousel` の該当
 //! `.base("item", ...)`/`.state("item", ...)` rustdoc 参照）。
+//!
+//! PR #1925 codex-review 指摘 是正（5 回目・P1 2 件）: 横方向 `item` は
+//! 4 回目の是正で `min-width: 0` のみを追加していたため寸法は表示領域へ
+//! 揃ったが `overflow` が既定の `visible` のままで、幅を超える内容
+//! （大きい画像等）は境界でクリップされず隣のスライドへはみ出していた。
+//! orientation によらず `item` base の宣言へ `min-width: 0`/
+//! `min-height: 0`/`overflow: hidden` を寄せ（縦方向 state 側の重複宣言
+//! `min-height: 0`/`overflow: hidden` は削除）、横縦で対称な寸法固定・
+//! 内容クリップにした（`crate::carousel` の `.base("item", ...)` rustdoc
+//! 参照）。
 
 use fandhe_frontend_pre_styled_ui::carousel;
 
@@ -114,6 +124,8 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
 [data-scope="carousel"][data-part="item"] {
   flex: 0 0 100%;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 [data-scope="carousel"][data-part="indicator-group"] {
@@ -170,8 +182,6 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
 }
 
 [data-scope="carousel"][data-part="item"][data-orientation="vertical"] {
-  min-height: 0;
-  overflow: hidden;
   transition-property: transform;
   transition-duration: var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms));
   transition-timing-function: var(--fandhe-motion-easing-standard);
