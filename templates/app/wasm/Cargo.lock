@@ -23,33 +23,33 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "fandhe-frontend-app"
-version = "0.2.0"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31eb06f8a8365b205904153e883210af60c51e52cf30a433f6a9c5c6c637e1eb"
+checksum = "64dc78600b2cb88c6d75f03c52554bacbd38ac5362dfc9d70a43c2fc9387c6e6"
 dependencies = [
  "fandhe-frontend-core",
 ]
 
 [[package]]
 name = "fandhe-frontend-core"
-version = "0.2.0"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b59c572fd734c7f4dba115ccd979ae295b9dc96b3d49a710847d6b874979d580"
+checksum = "6d3bd01b7d85a02498dc7765758d4429e7cb1bac61d386d22ccdd3d84a432e64"
 
 [[package]]
 name = "fandhe-frontend-interactive"
-version = "0.2.0"
+version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60f11b5702a943165834f6ad8a2e9df4cb7ce6c5ab6c172921d3bb577feac1ec"
+checksum = "4ae9058e3ebba965618627ad4ccc57244b588dbcfcbba80268fa1c038fe5a679"
 dependencies = [
  "fandhe-frontend-core",
 ]
 
 [[package]]
 name = "fandhe-frontend-wasm-client"
-version = "0.3.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f493e45483f10fece8fcffc59e4a8de4995a884b08e38595060c7d2562f4c67"
+checksum = "f91a9248b173e06943dd58e2c80ae0b1e33882402b6056ea6416f824e9d829b8"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
