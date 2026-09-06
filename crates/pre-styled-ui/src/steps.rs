@@ -233,9 +233,11 @@
 //!
 //! - `indicator`/`separator` の是正（兄弟イシュー #1539）。
 //! - headless 層が `prev_trigger`/`next_trigger` へ `data-disabled` を発行
-//!   する変更（イシュー #1665 の後続。本イシューでは `Attr("disabled")`
-//!   と `Attr("data-disabled")` の両方を登録済みだが、後者は headless 側
-//!   未発行のため現状は無害な死んだ規則）。
+//!   する変更は、イシュー #1665（steps の参照突合）で実施済み
+//!   （`crates/headless-ui/src/steps.rs::Steps::prev_trigger`/
+//!   `Steps::next_trigger`）。本モジュールが `Attr("disabled")` と
+//!   `Attr("data-disabled")` の両方を登録済みだった規則が、#1665 の
+//!   headless 側発行により実効化した（CSS 出力・golden テストは不変）。
 //! - chakra の `Steps.Title`/`Steps.Description`/`Steps.Status`/
 //!   `Steps.Number` 相当の anatomy 追加（headless anatomy の変更であり
 //!   本イシューの責務外）。

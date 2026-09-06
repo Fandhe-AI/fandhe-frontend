@@ -298,8 +298,9 @@
 //!   [`file_upload::ItemType`] 固定語彙が `data-type` として表す
 //!   （参照突合、イシュー #1609）。
 //! - [`mod@steps`]: Root / List / Item / Trigger / Indicator / Separator /
-//!   Content / CompletedContent / PrevTrigger / NextTrigger の 10 anatomy
-//!   パーツと、`count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ
+//!   Content / CompletedContent / PrevTrigger / NextTrigger / Progress の
+//!   11 anatomy パーツ（Progress はイシュー #1665 の参照突合で新設）と、
+//!   `count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ
 //!   [`steps::Steps`] 状態機械（#752、`docs/api/headless-ui-api.md` §4b.3
 //!   の保留解除）。[`mod@progress`]/[`mod@pin_input`] と同じく [`state`] の
 //!   既存語彙に収まらないため、[`fandhe_frontend_interactive::Component`]/
