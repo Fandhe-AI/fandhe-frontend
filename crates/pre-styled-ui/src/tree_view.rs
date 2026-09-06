@@ -156,7 +156,8 @@ use crate::recipe::{
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 pub use fandhe_frontend_headless_ui::tree_view::{
     branch, branch_content, branch_control, branch_indent_guide, branch_indicator, branch_text,
-    item, item_indicator, item_text, label, tree, TreeNode, TreeView, TreeViewAction,
+    item, item_indicator, item_text, label, tree, TreeItemProps, TreeNode, TreeView,
+    TreeViewAction,
 };
 // `branch`/`item` 等の `state`/`selected`/`disabled` 引数・`TreeView` の
 // `Component::Action`（dispatch 対象）・`OpenState` はいずれも `state`
@@ -369,6 +370,18 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-selected"),
             vec![decl("color", "var(--fandhe-color-accent-fg-subtle)")],
         )
+        // イシュー #1667: `item-indicator` の base 規則が `display:
+        // inline-flex` を宣言しており、UA 既定の `[hidden] { display: none }`
+        // を詳細度で上書きしてしまう。非選択時に headless 層
+        // （[`fandhe_frontend_headless_ui::tree_view::item_indicator`]）が
+        // 付与する `hidden` 属性を確実に非表示化として機能させるため、
+        // `branch-content` と同型の `[hidden]` 属性セレクタ上書きを追加する
+        // （PR #575/#798 の先例と同じ対応）。
+        .state(
+            "item-indicator",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        )
         // イシュー #1578: hover 面（選択行の背景は洗い流さない、combobox と
         // 同型の `HoverExceptAttr` 除外）。
         .state(
@@ -544,6 +557,23 @@ mod tests {
     }
 
     #[test]
+    fn unselected_item_indicator_hidden_attr_overrides_display_inline_flex() {
+        // イシュー #1667: item-indicator の base 規則 `display: inline-flex`
+        // が UA 既定の `[hidden] { display: none }` を上書きし、非選択の
+        // 葉ノードでもインジケータが表示され続ける不具合と同型の対応
+        // （headless 層は #1667 の参照突合で非選択時に `hidden` 存在属性を
+        // 出力するようになった）。`branch-content` と対称のテストを持つ。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="tree-view"][data-part="item-indicator"][hidden] {"#));
+        let rule_start = css
+            .find(r#"[data-scope="tree-view"][data-part="item-indicator"][hidden] {"#)
+            .expect("item-indicator[hidden] rule must be present");
+        let rule_body = &css[rule_start..];
+        let rule_end = rule_body.find('}').expect("rule must be closed");
+        assert!(rule_body[..rule_end].contains("display: none;"));
+    }
+
+    #[test]
     fn stylesheet_never_contains_style_breakout_sequences() {
         let css = stylesheet();
         assert!(!css.contains("</style"));
@@ -713,8 +743,18 @@ mod tests {
         assert_eq!(t.selected(), None);
         assert!(!t.is_expanded("src"));
 
+        let props = TreeItemProps {
+            value: "src",
+            selected: false,
+            disabled: false,
+            level: "1",
+            posinset: "1",
+            setsize: "1",
+            depth: "0",
+        };
         let ssr_html = render(&branch_indicator(
             OpenState::Closed,
+            props,
             vec![],
             vec![text("+")],
         ));

@@ -470,7 +470,16 @@ name = "fandhe-frontend-headless-ui"
 # `Steps::content`/`Steps::completed_content` への `data-orientation` 加算・
 # `Steps::progress` パーツ新設・全パーツへの `drop_reserved` 導入はいずれも
 # 既存シグネチャを変えない加算的変更のため、パッチバンプで 0.62.1 とする。
-version = "0.62.1"
+# イシュー #1667（tree-view の参照突合）: `TreeItemProps` 新設に伴う
+# `tree_view::{branch, branch_control, branch_indicator, branch_text,
+# branch_content, branch_indent_guide, item, item_text, item_indicator}`
+# 9 パーツ関数のシグネチャ変更（個別の `value`/`selected`/`disabled`/
+# `level`/`posinset`/`setsize`/`depth` 引数を単一の `TreeItemProps` へ集約）
+# は破壊的変更に伴い、0.x の破壊的変更規約に従いマイナーバンプで 0.63.0
+# とする（`data-branch`/各 `data-*` 加算・`drop_reserved` 導入自体は
+# 非破壊的だが、上記シグネチャ変更が破壊的のため合わせてマイナーバンプ
+# する）。
+version = "0.63.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

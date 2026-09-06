@@ -790,11 +790,23 @@ fn steps_item_content_children_and_attrs_are_escaped_for_all_payloads() {
 /// 検証する（`tags_input` 分と同型の網羅方針）。
 #[test]
 fn tree_view_node_label_and_value_paths_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::tree_view::TreeItemProps;
     use fandhe_frontend_headless_ui::{TreeNode, TreeView};
 
     for payload in payloads::all() {
+        let props = TreeItemProps {
+            value: payload,
+            selected: false,
+            disabled: false,
+            level: "1",
+            posinset: "1",
+            setsize: "1",
+            depth: "0",
+        };
+
         // ラベル: branch_text/item_text の children テキスト経路。
-        let branch_text_node = tree_view::branch_text(vec![], vec![text(payload)]);
+        let branch_text_node =
+            tree_view::branch_text(OpenState::Closed, props, vec![], vec![text(payload)]);
         let html = render(&branch_text_node);
         assert_payload_is_escaped(
             payload,
@@ -802,7 +814,7 @@ fn tree_view_node_label_and_value_paths_are_escaped_for_all_payloads() {
             "tree_view::branch_text の children コンテキスト",
         );
 
-        let item_text_node = tree_view::item_text(vec![], vec![text(payload)]);
+        let item_text_node = tree_view::item_text(props, vec![], vec![text(payload)]);
         let html = render(&item_text_node);
         assert_payload_is_escaped(
             payload,
@@ -811,28 +823,42 @@ fn tree_view_node_label_and_value_paths_are_escaped_for_all_payloads() {
         );
 
         // ノード値: branch/item の data-value 属性経路。
-        let branch_node = tree_view::branch(
-            OpenState::Closed,
-            payload,
-            false,
-            false,
-            "1",
-            "1",
-            "1",
-            "0",
-            vec![],
-            vec![],
-        );
+        let branch_node = tree_view::branch(OpenState::Closed, props, vec![], vec![]);
         let html = render(&branch_node);
         assert_payload_is_escaped(
             payload,
             &html,
             "tree_view::branch の data-value コンテキスト",
         );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::branch の data-branch コンテキスト",
+        );
 
-        let item_node = tree_view::item(payload, false, false, "1", "1", "1", "0", vec![], vec![]);
+        let item_node = tree_view::item(props, vec![], vec![]);
         let html = render(&item_node);
         assert_payload_is_escaped(payload, &html, "tree_view::item の data-value コンテキスト");
+
+        // ノード値: branch_control/branch_content の data-value 属性経路
+        // （イシュー #1667 の参照突合で追加した属性）。
+        let branch_control_node =
+            tree_view::branch_control(OpenState::Closed, props, vec![], vec![]);
+        let html = render(&branch_control_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::branch_control の data-value コンテキスト",
+        );
+
+        let branch_content_node =
+            tree_view::branch_content(OpenState::Closed, props, vec![], vec![]);
+        let html = render(&branch_content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::branch_content の data-value コンテキスト",
+        );
 
         // 呼び出し側 attrs 経路。
         let attrs_node = tree_view::root(vec![("data-testid", payload)], vec![]);

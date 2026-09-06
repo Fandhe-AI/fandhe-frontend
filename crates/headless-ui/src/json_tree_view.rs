@@ -162,7 +162,7 @@
 use crate::anatomy::{anatomy, Anatomy};
 use crate::tree_view::{
     branch, branch_content, branch_control, branch_indent_guide, branch_indicator, branch_text,
-    item, item_indicator, item_text, root as tree_root, TreeViewAction,
+    item, item_indicator, item_text, root as tree_root, TreeItemProps, TreeViewAction,
 };
 use fandhe_frontend_core::{text, Node};
 use fandhe_frontend_interactive::Component;
@@ -318,6 +318,17 @@ fn render_node(
     let setsize_s = setsize.to_string();
     let depth_s = depth.to_string();
     let is_selected = tree.is_selected(pointer);
+    // JsonTreeView のノードは disabled 概念を持たない（常に false。
+    // JsonValue に disabled フィールドがないため）。
+    let props = TreeItemProps {
+        value: pointer,
+        selected: is_selected,
+        disabled: false,
+        level: &level_s,
+        posinset: &posinset_s,
+        setsize: &setsize_s,
+        depth: &depth_s,
+    };
     // `key`/`colon`/`value` は ark-ui の `KeyNode`/`ValueNode` 入れ子構造
     // （BranchText/ItemText の内側）に合わせて 1 個の `Vec<Node>` として
     // 組み立てる（イシュー #1661）。colon はキーを持つノードにのみ出す
@@ -336,8 +347,8 @@ fn render_node(
     if val.is_branch() {
         let state = tree.branch_state(pointer);
         let control_children = vec![
-            branch_indicator(state, Vec::new(), Vec::new()),
-            branch_text(Vec::new(), text_children),
+            branch_indicator(state, props, Vec::new(), Vec::new()),
+            branch_text(state, props, Vec::new(), text_children),
         ];
 
         let child_depth = depth + 1;
@@ -387,21 +398,16 @@ fn render_node(
 
         branch(
             state,
-            pointer,
-            is_selected,
-            false,
-            &level_s,
-            &posinset_s,
-            &setsize_s,
-            &depth_s,
+            props,
             Vec::new(),
             vec![
-                branch_control(state, is_selected, false, Vec::new(), control_children),
+                branch_control(state, props, Vec::new(), control_children),
                 branch_content(
                     state,
+                    props,
                     Vec::new(),
                     vec![
-                        branch_indent_guide(Vec::new(), Vec::new()),
+                        branch_indent_guide(props, Vec::new(), Vec::new()),
                         tree_root(Vec::new(), child_nodes),
                     ],
                 ),
@@ -409,21 +415,11 @@ fn render_node(
         )
     } else {
         let item_children = vec![
-            item_indicator(is_selected, Vec::new(), Vec::new()),
-            item_text(Vec::new(), text_children),
+            item_indicator(props, Vec::new(), Vec::new()),
+            item_text(props, Vec::new(), text_children),
         ];
 
-        item(
-            pointer,
-            is_selected,
-            false,
-            &level_s,
-            &posinset_s,
-            &setsize_s,
-            &depth_s,
-            Vec::new(),
-            item_children,
-        )
+        item(props, Vec::new(), item_children)
     }
 }
 

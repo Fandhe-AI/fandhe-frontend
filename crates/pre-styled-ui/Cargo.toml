@@ -1944,7 +1944,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 同一版数 0.117.3 へ再度衝突していた（同一版数への偶発的衝突をそのまま
 # 採用しない原則、`docs/ci/style-refresh-version-bump-operation.md` §5）。
 # 両者を統合した結果としてさらに patch バンプし 0.117.4 とする。
-version = "0.117.4"
+# イシュー #1667（tree-view の参照突合）: `fandhe-frontend-headless-ui`
+# 0.63.0（`TreeItemProps` 新設に伴う 9 パーツ関数のシグネチャ変更、
+# 破壊的変更）への追随・再エクスポート先シグネチャの破壊的変更（`branch`
+# 等が `TreeItemProps` を取るようになった）に伴い、0.x の破壊的変更規約に
+# 従いマイナーバンプで 0.118.0 とする（`item-indicator` の `[hidden]`
+# 上書き CSS 追加自体は非破壊的だが、上記シグネチャ変更が破壊的のため
+# 合わせてマイナーバンプする）。
+version = "0.118.0"
 
 
 edition = "2021"
@@ -1960,7 +1967,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.62.1" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.63.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

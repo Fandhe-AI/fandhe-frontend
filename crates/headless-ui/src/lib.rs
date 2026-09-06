@@ -530,8 +530,15 @@
 //!   状態機械がともに `"selected"` フィールド名を使うため、hydration 属性名の
 //!   衝突回避（展開集合側のみ `"expanded"` へ書き換え）を行う点が
 //!   [`mod@combobox`] 以前の合成例と異なる（[`tree_view`] モジュール doc
-//!   §hydration フィールド名 参照）。キーボードナビゲーション・checkbox
-//!   モード・複数選択・lazy loading は本イシューのスコープ外。
+//!   §hydration フィールド名 参照）。checkbox モード・複数選択・
+//!   lazy loading は本イシューのスコープ外だが、キーボードナビゲーション
+//!   （矢印キー・Home/End・Enter/Space・typeahead）の DOM 配線は
+//!   `fandhe-frontend-wasm-full` `keynav.rs` §TreeView で実装済み（イシュー
+//!   #1072）。ark-ui docs / zag.js との参照突合（イシュー #1667）で
+//!   [`tree_view::TreeItemProps`] を新設し、`data-branch`/`branch-control`
+//!   の `data-value`/`data-depth`/インジケータ・テキスト系の
+//!   `data-selected`/`data-disabled`/`data-state` を追加した（詳細は
+//!   [`mod@tree_view`] モジュール doc「参照突合（イシュー #1667）」節）。
 //! - [`mod@breadcrumb`]: `root`（`nav`）/ `list`（`ol`）/ `item`（`li`）/
 //!   `link`（`a`）/ `current-link`（`span`）/ `separator`（`li`）/
 //!   `ellipsis`（`li`）の 7 anatomy パーツと利便ビルダー
@@ -862,4 +869,4 @@ pub use toggle_tip::ToggleTip;
 pub use toolbar::{Toolbar, ToolbarAction};
 pub use tooltip::Tooltip;
 pub use tour::{ContentIds as TourContentIds, Tour, TourAction, TourStatus, TourStep};
-pub use tree_view::{TreeNode, TreeView, TreeViewAction};
+pub use tree_view::{TreeItemProps, TreeNode, TreeView, TreeViewAction};
