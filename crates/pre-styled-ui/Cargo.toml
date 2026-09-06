@@ -1864,6 +1864,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # （同一版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
 # style-refresh-version-bump-operation.md` §5）、両者の変更の和集合として
 # さらにマイナーバンプし 0.113.0 とする。
+# base 再取り込み（イシュー #1661, 2026-09-06, 2 回目）: 上記のとおり
+# HEAD（#1661）・main（#1655）の双方の base 再取り込みは、それぞれ自身の
+# 破壊的変更（json-tree-view の data-kind セレクタ変更 / pagination の
+# シグネチャ変更）と field モジュール新設（#1684）のみを積算して 0.113.0
+# へ到達しており、互いのもう一方の破壊的変更を積算できていなかった
+# （両者を統合する本マージで初めて両方が揃うため）。json-tree-view・
+# pagination 双方の破壊的変更と field モジュール新設の 3 件を 0.111.0 から
+# 積算した結果としてさらにマイナーバンプし 0.114.0 とする（依存先
+# headless-ui 0.60.0 への追随を含む）。
+# イシュー #1686: fieldset モジュール新設（公開 API の純追加）。純追加も
+# minor バンプとする運用（#1429、先例 #1684 field・#1682 collapsible）に
+# 従い 0.115.0 とする。`/themes/fieldset/` ページ登録は後続イシュー #1687。
 # base 再取り込み（イシュー #1662, 2026-09-06, 2 回目）: 上記のとおり main
 # 側は json-tree-view・pagination 双方の破壊的変更と field モジュール新設の
 # 3 件を積算して 0.114.0 へ到達している。本ブランチは headless-ui
@@ -1880,8 +1892,18 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更にもなるため、依存先 headless-ui 0.61.0 への追随を含めマイナーバンプ
 # で 0.115.0 とする（`src/toolbar.rs` 自体の実装は `Toolbar::new` のみ使用
 # で変更なし、CSS 出力〔`Theme::to_css`/`stylesheet()`〕も不変）。
-version = "0.115.0"
-
+# base 再取り込み（イシュー #1686/#1657, 2026-09-06, 2 回目）: HEAD 側は
+# fieldset モジュール新設（イシュー #1686、公開 API の純追加）により
+# 0.114.0 から 0.115.0 へ到達しており、main 側は toolbar の参照突合
+# （イシュー #1657、headless-ui 側 `toolbar::button`/`link`/`toggle_group`/
+# `toggle_item` 自由関数シグネチャ変更〔先頭引数へ `orientation:
+# Orientation` 追加〕の本クレート公開 API への波及）により独立に同じ
+# 0.115.0 へ到達していた。両者が異なる実体変更を伴い偶発的に同一版数
+# へ衝突しているため（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）、両者の変更の
+# 和集合としてさらにマイナーバンプし 0.116.0 とする（依存先 headless-ui
+# 0.61.0 への追随を含む）。
+version = "0.116.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"

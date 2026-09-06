@@ -29,6 +29,7 @@ use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
     self, ScatterChartProps, ScatterData, ScatterSeries,
 };
 use fandhe_frontend_pre_styled_ui::field::{self, FieldIds, FieldProps, FieldRootProps};
+use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::tag;
@@ -204,4 +205,61 @@ fn field_root_data_attrs_are_headless_sourced_not_self_emitted() {
     // 参照は許容、自前出力はしないという役割 B の境界を固定）。
     let css = field::css();
     assert!(css.contains("[data-disabled]"));
+}
+
+/// `fieldset.rs`（イシュー #1686）は独自の `data-*` を一切出力しない
+/// （`docs/design/pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・
+/// 役割 B）。styled `root` 出力に現れる `data-disabled`/`data-invalid` は
+/// すべて headless `fandhe_frontend_headless_ui::fieldset::root` が
+/// [`FieldsetProps`] の 2 フラグから生成するものであり、`fieldset::css()`
+/// はその属性を CSS セレクタとして**参照する**だけで自前出力はしない、
+/// という事実を固定する（`field_root_data_attrs_are_headless_sourced_not_self_emitted`
+/// と同型）。
+#[test]
+fn fieldset_root_data_attrs_are_headless_sourced_not_self_emitted() {
+    fn fieldset_props(id: &str) -> FieldsetProps<'_> {
+        FieldsetProps {
+            id,
+            disabled: false,
+            invalid: false,
+            has_helper_text: false,
+        }
+    }
+
+    // 全フラグ false のとき、2 種の data-* はいずれも出力されない。
+    let f = fieldset_props("f");
+    let html = render(&fieldset::root(
+        &FieldsetRootProps::default(),
+        &f,
+        vec![],
+        vec![],
+    ));
+    assert!(!html.contains("data-disabled"));
+    assert!(!html.contains("data-invalid"));
+
+    // 全フラグ true のとき、2 種すべてが headless `fieldset::root` 経由で
+    // 出力される（styled `root` 自身は data-* を組み立てない）。
+    let f = FieldsetProps {
+        id: "f",
+        disabled: true,
+        invalid: true,
+        has_helper_text: false,
+    };
+    let html = render(&fieldset::root(
+        &FieldsetRootProps::default(),
+        &f,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains("data-disabled"));
+    assert!(html.contains("data-invalid"));
+
+    // `fieldset::css()` は `[data-disabled]` を参照する state 規則を持つが、
+    // 自前で `data-*` を組み立てて出力する経路（属性タプルの直接構築）を
+    // 持たないことを、CSS 出力側からも確認する。`[data-invalid]` は参照
+    // しない（`legend` は invalid による色変更を持たない、モジュール doc
+    // 「意図的非採用」節参照）。
+    let css = fieldset::css();
+    assert!(css.contains("[data-disabled]"));
+    assert!(!css.contains("[data-invalid]"));
 }
