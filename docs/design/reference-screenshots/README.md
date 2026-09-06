@@ -1,17 +1,18 @@
 # reference-screenshots
 
-UI 部品スタイル調整（参考サイト基準への調整、ルート issue #1420）の Issue ツリーで参照するスクリーンショット。
+UI 部品スタイル調整（参考サイト基準への調整、ルート issue #1420）および shadcn/ui 突合（後続ツリー）の Issue ツリーで参照するスクリーンショット。
 
 ## 内容
 
 - `chakra-<slug>-<n>.png` / `ark-<slug>-<n>.png` / `radixp-<slug>-<n>.png` / `radixt-<slug>-<n>.png`: 参考サイト（chakra-ui / Ark UI / Radix Primitives / Radix Themes）の各部品ページの先頭デモ領域（取得日 2026-08-30、viewport 1280x900）。画像ごとの取得元 URL は `SOURCES.md` を参照
+- `shadcn-<slug>-<n>.png`: shadcn/ui（https://ui.shadcn.com）の各部品ページ（`/docs/components/base/<slug>`）の先頭デモ領域（`[data-slot="preview"]`、最大 3 枚）。`shadcn-charts-<category>-<n>.png` は `/charts/<category>` 一覧ページをサイトヘッダー除外でクリップした viewport 単位のスクロール連番、`shadcn-block-<block>-<n>.png` は `/view/new-york-v4/<block>` のブロック単体ビュー（取得日 2026-09-07、viewport 1280x900）。画像ごとの取得元 URL は `SOURCES.md` を参照
 - `themes-<kebab>.png` / `primitives-<kebab>.png`: 本リポジトリ docs サイト（`make docs` 出力）の各部品ページ Demo 領域（ライトテーマ、同日取得）
 
 ## 命名・配置規約（確定版、イシュー #1428）
 
 本ディレクトリはフラット配置（サブディレクトリを持たない）とし、ファイル名は以下の 2 パターンのいずれかに正規化する。
 
-- 参照サイト側: `<site>-<slug>-<n>.png`（正規表現: `^(chakra|ark|radixp|radixt)-[a-z0-9-]+-[0-9]+\.png$`）。`site` は `chakra`（chakra-ui、241 枚）/ `ark`（Ark UI、150 枚）/ `radixt`（Radix Themes、116 枚）/ `radixp`（Radix Primitives、26 枚）の 4 種。`slug` は部品名の kebab-case、`n` は同一部品内での連番（デモのバリエーション違いに対応）
+- 参照サイト側: `<site>-<slug>-<n>.png`（正規表現: `^(chakra|ark|radixp|radixt|shadcn)-[a-z0-9-]+-[0-9]+\.png$`）。`site` は `chakra`（chakra-ui、241 枚）/ `ark`（Ark UI、150 枚）/ `radixt`（Radix Themes、116 枚）/ `radixp`（Radix Primitives、26 枚）/ `shadcn`（shadcn/ui、217 枚。部品 188 + charts 21 + blocks 8）の 5 種。`slug` は部品名の kebab-case、`n` は同一部品内での連番（デモのバリエーション違いに対応）
 - ローカル側: `<layer>-<kebab>.png`（正規表現: `^(themes|primitives)-[a-z0-9-]+\.png$`）。`themes-<kebab>.png` は Themes 層（`fandhe-frontend-pre-styled-ui` 相当、107 部品と一致）、`primitives-<kebab>.png` は Primitives 層（`fandhe-frontend-headless-ui` 相当、63 部品と一致）
 
 **イシュー当初案（`local/<layer>-<kebab>.png` のようなサブディレクトリ分離）は不採用と確定する。** 根拠は次の 3 点である。
@@ -30,10 +31,10 @@ find docs/design/reference-screenshots -mindepth 1 -type d -not -path 'docs/desi
 
 # (2) トップレベルファイルが命名規約 2 パターンまたは付随文書 3 点のいずれかに一致すること
 find docs/design/reference-screenshots -maxdepth 1 -type f | xargs -n1 basename \
-  | grep -vE '^(chakra|ark|radixp|radixt)-[a-z0-9-]+-[0-9]+\.png$' \
+  | grep -vE '^(chakra|ark|radixp|radixt|shadcn)-[a-z0-9-]+-[0-9]+\.png$' \
   | grep -vE '^(themes|primitives)-[a-z0-9-]+\.png$' \
   | grep -vE '^(README|SOURCES|THIRD_PARTY_NOTICES)\.md$'
-# 空出力なら PASS（2026-08-30 時点の 703 枚全件で確認済み）
+# 空出力なら PASS（2026-08-30 時点の 703 枚全件、2026-09-07 の shadcn 217 枚追加後の全件で確認済み）
 ```
 
 `find` でディレクトリツリー全体を列挙するため、`ls '*.png'` 限定と異なり
@@ -55,7 +56,7 @@ find docs/design/reference-screenshots -maxdepth 1 -type f | xargs -n1 basename 
 
 ## 参照サイト側の取得規約
 
-参照サイト（chakra-ui / Ark UI / Radix Primitives / Radix Themes）の画像を追加・更新する場合の規約。
+参照サイト（chakra-ui / Ark UI / Radix Primitives / Radix Themes / shadcn/ui）の画像を追加・更新する場合の規約。
 
 - viewport は `1280x900` に統一する
 - 撮影範囲は各部品ページのデモ領域のみとし、サイトのロゴ・ヘッダー・商標を含めない
@@ -115,6 +116,7 @@ Issue コメント・PR 本文へ画像を貼る際は、**コミット SHA 固�
 | chakra-ui (https://chakra-ui.com) | https://github.com/chakra-ui/chakra-ui | MIT | Copyright (c) Segun Adebayo |
 | Ark UI (https://ark-ui.com) | https://github.com/chakra-ui/ark | MIT | Copyright (c) Chakra UI |
 | Radix Primitives / Radix Themes (https://www.radix-ui.com) | https://github.com/radix-ui/website（原稿・デモ）, https://github.com/radix-ui/primitives, https://github.com/radix-ui/themes | MIT | Copyright (c) WorkOS |
+| shadcn/ui (https://ui.shadcn.com) | https://github.com/shadcn-ui/ui（原稿・デモ・部品実装・charts・blocks を同一リポジトリで管理） | MIT | Copyright (c) 2023 shadcn |
 
 各リポジトリの LICENSE 全文（MIT 許諾表示）は `THIRD_PARTY_NOTICES.md` に同梱する（画像との対応は `SOURCES.md`）。各サイトのロゴ・商標は本ディレクトリに
 含めない（取得対象はデモ領域のみ）。
