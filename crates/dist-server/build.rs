@@ -108,6 +108,7 @@
 //! 古いキャッシュ済み成果物が誤って再利用されないようにするため）。
 use std::env;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -334,11 +335,23 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
     // 3. `PATH` 上の各ディレクトリ（`wasm-opt` が新規に追加された場合、
     //    ディレクトリ自体の mtime が変わるため検知できる。「未導入 → 導入」
     //    への変化は 2. では拾えず、この経路でしか検知できない）。
+    //    `PATH` の要素は初回ビルド時点で未作成のディレクトリ（例:
+    //    `~/.local/bin`）を含みうる。`dir.is_dir()` が false のまま
+    //    監視登録をスキップすると、後日そのディレクトリ自体と `wasm-opt`
+    //    が新規作成されても `PATH` 文字列も既存の監視対象ファイルも
+    //    変化しないため build.rs が再実行されず、導入を検知できない
+    //    （PR #1980 レビュー指摘）。Cargo は `rerun-if-changed` に存在しない
+    //    パスを指定した場合、そのパスが出現するまで毎回ビルドスクリプトを
+    //    再実行する仕様を持つ（`cargo::rerun-if-changed` のドキュメント
+    //    「If a path pointing to a file... doesn't exist and its ancestor
+    //    directory doesn't exist... the build script is always rerun.」）ため、
+    //    存在しないディレクトリもそのまま監視対象に含めることで作成を
+    //    確実に検知できる。ネストビルド自体は cargo 標準の増分キャッシュが
+    //    効くため（直後のコメント参照）、この間 build.rs が毎回再実行されて
+    //    も後段の `wasm_stage_cache_hit` 判定でコストの大部分は回避される。
     if let Some(path_var) = env::var_os("PATH") {
         for dir in env::split_paths(&path_var) {
-            if dir.is_dir() {
-                println!("cargo:rerun-if-changed={}", dir.display());
-            }
+            println!("cargo:rerun-if-changed={}", dir.display());
         }
     }
 
@@ -373,12 +386,27 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
         // 一致するケース（wasm バイナリ内容・CLI バージョン・wasm-opt
         // バージョンのいずれも前回成功時から変わっていない）で次回ビルドが
         // HIT と誤判定し、未最適化のまま残った成果物を最適化済みとして
-        // 再利用してしまう。削除自体の失敗（そもそも存在しない・権限エラー
-        // 等）は無視してよい — 後続の `wasm_stage_cache_hit` は
-        // fingerprint ファイルが読めない場合も MISS 側に倒れるため、
-        // 削除できなくても「成果物を再生成しないまま再利用される」事故には
-        // つながらない（フェイルクローズ）。
-        let _ = fs::remove_file(&fingerprint_path);
+        // 再利用してしまう。削除自体が存在しない（`NotFound`）場合は無視して
+        // よい（そもそも旧 fingerprint が無ければ次回比較は自然に MISS
+        // になる）。しかし権限エラー等の `NotFound` 以外の削除失敗は無視
+        // してはならない（PR #1980 レビュー指摘）: 削除できないファイルが
+        // 読み取りもできないとは限らないため、旧 fingerprint が現在の入力と
+        // 一致したまま残り、かつこの後 `wasm-bindgen` が両成果物を復元した
+        // 状態で `wasm-opt` が失敗・中断して `write_wasm_stage_fingerprint`
+        // に到達しなかった場合、次回ビルドで旧 fingerprint が偶然「現在の
+        // 入力」と一致し HIT と誤判定して未最適化の成果物を最適化済みとして
+        // 再利用してしまう。フェイルクローズを維持するため、成果物を変更
+        // する前に削除エラー（`NotFound` 以外）で即座に停止する。
+        match fs::remove_file(&fingerprint_path) {
+            Ok(()) => {}
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err) => {
+                return Err(format!(
+                    "failed to invalidate stale wasm-stage fingerprint {}: {err}",
+                    fingerprint_path.display()
+                ));
+            }
+        }
 
         eprintln!("wasm-stage cache MISS: running wasm-bindgen");
         run_wasm_bindgen(&wasm_binary_path, &wasm_assets_dir)?;
