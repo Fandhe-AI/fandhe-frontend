@@ -1523,19 +1523,21 @@ where
     /// パネルの見た目サイズ反映は pre-styled-ui 側の CSS 変数配線に依存し、
     /// 本メソッドはそれを保証しない。
     ///
-    /// # 既知の未対応事項（keydown 経路のフォーカス継続、本イシューの
-    /// スコープ外）
+    /// # keydown 経路のフォーカス継続（codex-review P1 是正）
     ///
     /// 本メソッドが `Self::wire` の閉包を配線したことで keydown からも
     /// 構造フォールバックが発動し得るようになり、
     /// [`Self::rerender_subtree`] が `root` 配下を丸ごと差し替える際に
     /// フォーカス中の resize-trigger が detach されフォーカスが失われる
-    /// 可能性がある。`Self::wire_angle_slider` は
-    /// `angle_slider::wiring::restore_thumb_focus` でこの露出へ対応済み
-    /// だが、Splitter にはまだ同種の機構が無い。`Self::wire_signature_pad`
-    /// は同型の露出（ストローク中の `canvas` 要素 detach）を依然として
-    /// 抱えるが、本イシューのスコープ外として対応しない（未対応事項として
-    /// 明記するに留める）。
+    /// 可能性がある。`splitter::wiring::handle_keydown` が dispatch 後に
+    /// `splitter::wiring::restore_trigger_focus` を呼び、`Self::wire_angle_slider`
+    /// の `angle_slider::wiring::restore_thumb_focus` と同型の
+    /// 条件（元の resize-trigger が実際に detach された・再描画後の
+    /// 同じ resize-trigger を一意に再解決できた場合に限る、fail-closed）で
+    /// フォーカスを復元する。`Self::wire_signature_pad` は同型の露出
+    /// （ストローク中の `canvas` 要素 detach）を依然として抱えるが、
+    /// SignaturePad 側はキャンバス要素の同一性そのものに描画状態が乗る
+    /// ため本対策とは別の設計判断を要する（本イシューのスコープ外）。
     ///
     /// # Errors
     ///

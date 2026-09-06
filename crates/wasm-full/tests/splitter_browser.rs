@@ -53,7 +53,7 @@ use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, Event, KeyboardEvent, KeyboardEventInit};
+use web_sys::{Document, Element, Event, HtmlElement, KeyboardEvent, KeyboardEventInit};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -83,13 +83,30 @@ fn keydown_event(key: &str) -> Event {
         .expect("KeyboardEvent must cast to Event")
 }
 
+/// [`SplitterHost::with_structural_fallback`] が `dirty_fields()` へ積む
+/// 「束縛点にも keyed list にも対応しない」フィールド名
+/// （`angle_slider_browser.rs::STRUCTURAL_ONLY_FIELD` と同型）。
+///
+/// `Runtime::apply_update_for_dirty` はこの field を `BindingTable::has_field`
+/// でも `find_list_element` でも解決できないため `unresolved_field` を立て、
+/// `Runtime::rerender_subtree`（`root` 配下の丸ごと差し替え）へフォール
+/// バックする。[`resize_trigger_focus_is_restored_after_structural_fallback_on_keydown`]
+/// が resize-trigger detach を誘発するのに使う（イシュー #1996
+/// codex-review P1 是正の回帰テスト）。
+const STRUCTURAL_ONLY_FIELD: &str = "structural_only";
+
 /// 2 パネル・1 リサイズトリガーの最小 Splitter を包むテストホスト。
 /// トリガー 0 の先行パネル（`panel-0`）サイズを `size_now` として
 /// `aria-valuenow` へ束縛する（モジュール冒頭 doc「束縛点設計」節参照）。
+/// `structural_fallback` を立てたホストは加えて [`STRUCTURAL_ONLY_FIELD`]
+/// を積み、`Runtime::rerender_subtree` による構造フォールバックを毎
+/// dispatch で誘発する（`angle_slider_browser.rs::AngleSliderHost` と
+/// 同型の設計）。
 struct SplitterHost {
     splitter: Splitter,
     root_id: String,
     disabled: bool,
+    structural_fallback: bool,
     trigger_bind_attr: String,
     size_now: String,
     size_label: String,
@@ -101,17 +118,26 @@ struct SplitterHost {
 const HOST_ATTR_ROOT_ID: &str = "data-hydrate-host-root-id";
 /// ホストの `disabled` を往復させる属性名。
 const HOST_ATTR_DISABLED: &str = "data-hydrate-host-disabled";
+/// ホストの `structural_fallback` を往復させる属性名。
+const HOST_ATTR_STRUCTURAL: &str = "data-hydrate-host-structural";
 
 impl SplitterHost {
     fn new(root_id: &str) -> Self {
-        Self::with_disabled(root_id, false)
+        Self::with_options(root_id, false, false)
     }
 
     fn disabled(root_id: &str) -> Self {
-        Self::with_disabled(root_id, true)
+        Self::with_options(root_id, true, false)
     }
 
-    fn with_disabled(root_id: &str, disabled: bool) -> Self {
+    /// 毎 dispatch で [`STRUCTURAL_ONLY_FIELD`] を積み、
+    /// `Runtime::apply_update_for_dirty` の構造フォールバック
+    /// （`Runtime::rerender_subtree`）を必ず通すホスト。
+    fn with_structural_fallback(root_id: &str) -> Self {
+        Self::with_options(root_id, false, true)
+    }
+
+    fn with_options(root_id: &str, disabled: bool, structural_fallback: bool) -> Self {
         let splitter = Splitter::new(
             &[
                 PanelSpec::new(50.0, 0.0, 100.0),
@@ -126,6 +152,7 @@ impl SplitterHost {
             splitter,
             root_id: root_id.to_string(),
             disabled,
+            structural_fallback,
             trigger_bind_attr,
             size_now,
             size_label,
@@ -148,6 +175,11 @@ impl Component for SplitterHost {
         if now != self.size_label {
             self.size_label = now;
             self.dirty.push("size_label");
+        }
+        // 値が実際に変化した dispatch に限って構造フォールバック用の
+        // 未解決 field を積む（no-op dispatch で再描画を誘発しない）。
+        if self.structural_fallback && !self.dirty.is_empty() {
+            self.dirty.push(STRUCTURAL_ONLY_FIELD);
         }
     }
 
@@ -202,6 +234,10 @@ impl Hydrate for SplitterHost {
         let mut attrs = self.splitter.hydration_attrs();
         attrs.push((HOST_ATTR_ROOT_ID.to_string(), self.root_id.clone()));
         attrs.push((HOST_ATTR_DISABLED.to_string(), self.disabled.to_string()));
+        attrs.push((
+            HOST_ATTR_STRUCTURAL.to_string(),
+            self.structural_fallback.to_string(),
+        ));
         attrs
     }
 
@@ -216,16 +252,18 @@ impl Hydrate for SplitterHost {
                 .ok_or_else(|| HydrateError::MissingAttr(name.to_string()))
         };
         let root_id = find(HOST_ATTR_ROOT_ID)?.to_string();
-        let disabled = match find(HOST_ATTR_DISABLED)? {
-            "true" => true,
-            "false" => false,
-            _ => {
-                return Err(HydrateError::InvalidValue {
-                    attr: HOST_ATTR_DISABLED.to_string(),
+        let parse_bool = |name: &str| -> Result<bool, HydrateError> {
+            match find(name)? {
+                "true" => Ok(true),
+                "false" => Ok(false),
+                _ => Err(HydrateError::InvalidValue {
+                    attr: name.to_string(),
                     reason: "expected \"true\" or \"false\"".to_string(),
-                })
+                }),
             }
         };
+        let disabled = parse_bool(HOST_ATTR_DISABLED)?;
+        let structural_fallback = parse_bool(HOST_ATTR_STRUCTURAL)?;
 
         let size_now = format!("{}", splitter.size(0).unwrap_or(50.0));
         let size_label = size_now.clone();
@@ -234,6 +272,7 @@ impl Hydrate for SplitterHost {
             splitter,
             root_id,
             disabled,
+            structural_fallback,
             trigger_bind_attr,
             size_now,
             size_label,
@@ -436,4 +475,66 @@ fn disabled_resize_trigger_keydown_is_noop() {
         Some("50")
     );
     assert_eq!(size_label(&root_el), "50");
+}
+
+/// 構造フォールバック（`Runtime::rerender_subtree`）を挟んだ矢印キー
+/// keydown が resize-trigger のフォーカスを再描画後の同じ resize-trigger
+/// へ復元することを検証する（イシュー #1996 codex-review P1 是正の受け入れ
+/// 条件。`angle_slider_browser.rs::thumb_focus_is_restored_after_structural_fallback_on_keydown`
+/// と同型）。復元前は本テストが再現する構成（束縛点にも keyed list にも
+/// 対応しない dirty field を積むアプリ）で `remove_child` により
+/// フォーカス中の resize-trigger が削除され、以後の矢印キーが届かず
+/// サイズ調整が 1 回で途切れる回帰があった。
+#[wasm_bindgen_test]
+fn resize_trigger_focus_is_restored_after_structural_fallback_on_keydown() {
+    let (root_el, runtime) = mount_via_hydrate(SplitterHost::with_structural_fallback(
+        "splitter-host-focus-root",
+    ));
+    let _cleanup = RemoveOnDrop(root_el.clone());
+
+    let active_element = || document().active_element();
+
+    let initial_trigger = resize_trigger(&root_el);
+    initial_trigger
+        .dyn_ref::<HtmlElement>()
+        .expect("resize-trigger must be an HtmlElement")
+        .focus()
+        .expect("focus must not fail");
+    assert_eq!(
+        active_element().as_ref(),
+        Some(&initial_trigger),
+        "keydown 前は resize-trigger がフォーカスされていること（前提成立確認）"
+    );
+
+    initial_trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(runtime.component().splitter.size(0), Some(51.0));
+
+    let trigger_after = resize_trigger(&root_el);
+    assert!(
+        trigger_after != initial_trigger,
+        "STRUCTURAL_ONLY_FIELD により Runtime::rerender_subtree が走り、\
+         フォーカスしていた resize-trigger が差し替わっていること（本 \
+         テストが前提とする状況の成立確認）"
+    );
+    assert_eq!(
+        active_element().as_ref(),
+        Some(&trigger_after),
+        "splitter::wiring::restore_trigger_focus が再描画後の同じ \
+         resize-trigger へフォーカスを復元すること（イシュー #1996 \
+         codex-review P1 是正の受け入れ条件）"
+    );
+
+    // フォーカスが復元されていれば、2 回目の矢印キーも同じ resize-trigger
+    // へ届き続けサイズ調整が途切れないこと。
+    trigger_after
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(
+        runtime.component().splitter.size(0),
+        Some(52.0),
+        "フォーカス復元により 2 回目の ArrowRight も resize-trigger へ届き、\
+         サイズ調整が継続すること"
+    );
 }
