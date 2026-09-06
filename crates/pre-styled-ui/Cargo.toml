@@ -1873,7 +1873,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 既定運用（`docs/ci/style-refresh-version-bump-operation.md`）に従い
 # 0.114.0 から patch バンプし 0.114.1 とする（依存先 headless-ui 0.60.1
 # への追随を含む）。
-version = "0.114.1"
+# イシュー #1657（toolbar の参照突合）: `pub use
+# fandhe_frontend_headless_ui::toolbar::*` により headless-ui 側の
+# `toolbar::button`/`link`/`toggle_group`/`toggle_item` 自由関数シグネチャ
+# 変更（先頭引数へ `orientation: Orientation` 追加）が本クレートの公開 API
+# 変更にもなるため、依存先 headless-ui 0.61.0 への追随を含めマイナーバンプ
+# で 0.115.0 とする（`src/toolbar.rs` 自体の実装は `Toolbar::new` のみ使用
+# で変更なし、CSS 出力〔`Theme::to_css`/`stylesheet()`〕も不変）。
+version = "0.115.0"
 
 
 edition = "2021"
@@ -1889,7 +1896,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.60.1" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.61.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
