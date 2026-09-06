@@ -5,10 +5,82 @@
 //! ark-ui の Tour
 //!（`.claude/skills/ark-ui/references/components/overlays/tour.md`）を参考に、
 //! Root / Backdrop / Spotlight / Positioner / Arrow / ArrowTip / Content /
-//! Title / Description / ProgressText / CloseTrigger / ActionTrigger の
-//! 12 anatomy パーツと、[`fandhe_frontend_interactive::Component`]/
+//! Title / Description / ProgressText / Control / CloseTrigger /
+//! ActionTrigger の 13 anatomy パーツと、
+//! [`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] へ直接乗るツアー状態機械
 //! [`Tour`] を提供する。
+//!
+//! # 参照突合（イシュー #1666、ark-ui `tour.anatomy.ts`/`tour.connect.ts`・
+//! zag.js `tour.machine.ts` との突合）
+//!
+//! **是正した点**:
+//!
+//! - [`Tour::control`] パーツを追加した。ark-ui 実装（`tour.anatomy.ts` の
+//!   `extendWith('control')`）の実 DOM 値は `data-part="control"` であり、
+//!   docs の Anatomy 図が示す「Actions」ラベルはこの DOM パーツに対応する
+//!   （`Tour.Actions`（`tour-actions.tsx`）自体は DOM を描画しない
+//!   render-prop コンポーネント）。
+//! - [`Tour::content`] に `tabindex="-1"` を固定付与した（`crate::dialog`/
+//!   `crate::popover` の content と同型、フォーカス移動の受け皿）。
+//! - [`Tour::content`] が `Active` 時のみ現在ステップの [`TourStep::id`] を
+//!   `data-step` として出力するようにした（zag `content.connect.ts` の
+//!   `data-step` に対応）。
+//! - [`Tour::action_trigger`] を [`TourTriggerKind`] 引数付きへ変更し、
+//!   `data-type` を出力するようにした（zag の action-trigger `data-type`
+//!   語彙に対応。`Complete` は本状態機械固有の値として追加）。`Prev` は
+//!   `current_index() == Some(0)`（または非 `Active`）のとき dispatch が
+//!   no-op になる境界と一致させ `disabled`/`data-disabled` を付与する。
+//!   `Next`/`Skip`/`Complete`/`Custom` は disabled にしない（本状態機械では
+//!   最終 step の `"next"` が `Completed` へ遷移する有効な操作であり、zag の
+//!   `!hasNextStep` 判定とは意図的に非同値）。
+//! - 各パーツが呼び出し側 `attrs` から予約キー（自身が固定出力する属性名）
+//!   のなりすまし・重複出力を [`drop_reserved`] で除去するようにした
+//!   （`crate::toast`/`crate::splitter` と同型のパターン、イシュー #1643/
+//!   #1664 の Review 指摘を踏襲した先取り是正）。
+//!
+//! **意図的に非追随とした点**（`.claude/rules/out-of-scope-tracking.md`
+//! 対応、後続 Issue 起票は PR 本文で提案）:
+//!
+//! - `role="alertdialog"`: WAI-ARIA `alertdialog` は即時応答を要する警告
+//!   向けであり、オンボーディング案内は該当しない（AT の割り込み読み上げ
+//!   を避ける、`crate::dialog` が `Dialog`/`AlertDialog` を用途で使い分ける
+//!   既存規約と整合）。[`Tour::content`] は `role="dialog"` のまま維持する。
+//! - `aria-modal="true"`: `fandhe-frontend-wasm-full` にツアー用フォーカス
+//!   トラップの配線がまだ無く、SSR でトラップされていない状態を
+//!   `aria-modal="true"` と偽って主張しない（トラップ配線が入った時点で
+//!   再評価する）。
+//! - `content` 自体への `aria-live="polite"`: 本モジュールは
+//!   [`Tour::progress_text`] のみに `aria-live="polite"` を付与する既存方針
+//!   を維持する（content と progress-text の二重ライブリージョンによる
+//!   重複読み上げを避ける）。
+//! - `data-type`（ステップ種別 tooltip/dialog/floating/wait）・
+//!   `data-placement`/`data-side` on content/title/description・
+//!   `data-nested`/`data-has-nested`・inline style・`dir`:
+//!   本モジュール冒頭「out-of-scope」節のスコープ外事項、および
+//!   `positioning::placement_attrs` を positioner のみへ出力する既存設計
+//!   （popover #1642 と同判断）を維持する。`action-trigger` の `data-type`
+//!   は「アクション種別」の意味で採用し、ステップ種別の意味では出さない。
+//! - `status` 語彙（zag の `dismissed` と `skipped` の区別）: `data-status`
+//!   語彙・hydration 語彙の変更は Themes 側 CSS へ波及するため変更しない。
+//!   Escape・close-trigger はいずれも `"skip"` dispatch へ写像する。
+//! - `arrow` の `hidden`（tooltip 配置計測結果に依存する DOM ローカル状態）・
+//!   `close-trigger` の既定 `aria-label` 固定付与: 既存規約（popover #1642
+//!   と同判断）を維持する。
+//!
+//! # キーボード操作（イシュー #1666）
+//!
+//! zag `tour.machine.ts`/`content.connect.ts` は既定で `closeOnEscape:
+//! true`・`keyboardNavigation: true` を持ち、`Escape` → dismiss
+//! （本状態機械では `"skip"` dispatch に相当）・`ArrowRight`/`ArrowLeft` →
+//! `"next"`/`"prev"` dispatch・`trapFocus([content, target])` による
+//! `Tab`/`Shift+Tab` の巡回を実装する。**本モジュールはこれらの DOM
+//! keydown 配線・フォーカストラップを提供しない**（状態機械
+//! （[`TourAction`]/[`Component::update`]）は決定的に提供済みだが、
+//! `fandhe-frontend-wasm-full` 側のキーボードイベント配線は未実装、
+//! 本モジュール冒頭「out-of-scope」節参照）。[`Tour::close_trigger`]/
+//! [`Tour::action_trigger`] はネイティブ `<button type="button">` のため
+//! Space/Enter でのアクティベートはブラウザ既定動作としてすでに機能する。
 //!
 //! # スコープ（本イシューが担うもの・担わないもの）
 //!
@@ -56,7 +128,8 @@
 //! SSR は [`Tour::new`] で組み立ててから各パーツメソッド（[`Tour::root`]/
 //! [`Tour::backdrop`]/[`Tour::spotlight`]/[`Tour::positioner`]/[`Tour::arrow`]/
 //! [`Tour::arrow_tip`]/[`Tour::content`]/[`Tour::title`]/[`Tour::description`]/
-//! [`Tour::progress_text`]/[`Tour::close_trigger`]/[`Tour::action_trigger`]）を
+//! [`Tour::progress_text`]/[`Tour::control`]/[`Tour::close_trigger`]/
+//! [`Tour::action_trigger`]）を
 //! 呼んで組み立てる。CSR/hydration は [`Tour`] を経由し、dispatch
 //! （`"start"`/`"next"`/`"prev"`/`"skip"`/`"complete"`）で状態遷移する。
 //! `fandhe-frontend-pre-styled-ui` が本モジュールを呼んでスタイル済み Tour
@@ -119,6 +192,55 @@ const DATA_STATUS_SKIPPED: &str = "skipped";
 /// `data-status` 属性値 "completed"。
 const DATA_STATUS_COMPLETED: &str = "completed";
 
+/// [`Tour::root`] が固定付与する予約キー。
+const ROOT_RESERVED: &[&str] = &["data-state", "data-status"];
+/// [`Tour::backdrop`]/[`Tour::arrow`]/[`Tour::arrow_tip`]/[`Tour::control`]
+/// が固定付与する予約キー。
+const OVERLAY_PART_RESERVED: &[&str] = &["data-state", "hidden"];
+/// [`Tour::spotlight`] が固定付与する予約キー。
+const SPOTLIGHT_RESERVED: &[&str] = &["data-state", "hidden", "data-target"];
+/// [`Tour::positioner`] が固定付与する予約キー。
+const POSITIONER_RESERVED: &[&str] = &["data-state", "hidden", "data-side", "data-align"];
+/// [`Tour::content`] が固定付与する予約キー。
+const CONTENT_RESERVED: &[&str] = &[
+    "role",
+    "id",
+    "aria-labelledby",
+    "aria-describedby",
+    "tabindex",
+    "hidden",
+    "data-state",
+    "data-step",
+];
+/// [`Tour::title`]/[`Tour::description`] が固定付与する予約キー。
+const ID_ONLY_RESERVED: &[&str] = &["id"];
+/// [`Tour::progress_text`] が固定付与する予約キー。
+const PROGRESS_TEXT_RESERVED: &[&str] = &["aria-live"];
+/// [`Tour::close_trigger`] が固定付与する予約キー。
+const CLOSE_TRIGGER_RESERVED: &[&str] = &["type"];
+/// [`Tour::action_trigger`] が固定付与する予約キー。
+const ACTION_TRIGGER_RESERVED: &[&str] = &["type", "data-type", "disabled", "data-disabled"];
+
+/// 呼び出し側 `attrs` から予約キー（本モジュールが固定付与する属性名）を
+/// 除去する（ASCII 大文字小文字無視の完全一致）。`fandhe_frontend_core::el`
+/// は属性の重複除去をしないため、これを経由しない呼び出しは同名属性の
+/// 重複出力（SSR は両方出力して先勝ち、wasm-client の `set_attribute` は
+/// 後勝ちになる描画経路間の不一致）や状態属性のなりすましを許してしまう
+/// （`crate::toast::drop_reserved`/`crate::splitter::drop_reserved` と同型の
+/// パターン。クレート API 表面を増やさないため再利用せずここへ複製する、
+/// イシュー #1666）。`aria-label` は意図的に予約せず素通しする
+/// （`fandhe-frontend-pre-styled-ui` の close-trigger アイコン専用契約が
+/// 依存する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
 /// Tour の 1 ステップ。
 ///
 /// `target` は対象要素の CSS セレクタ（[`Tour::spotlight`] が `data-target`
@@ -127,7 +249,9 @@ const DATA_STATUS_COMPLETED: &str = "completed";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TourStep {
     /// ステップ識別子（[`Tour::content`]/[`Tour::title`] の `id` 連結に
-    /// 呼び出し側が使う想定。本モジュール自体はこの値を属性へ出力しない）。
+    /// 呼び出し側が使う想定に加え、`Active` 時は [`Tour::content`] 自身が
+    /// `data-step` としても出力する。イシュー #1666 で zag
+    /// `content.connect.ts` の `data-step` に合わせて出力対象へ加えた）。
     pub id: String,
     /// 対象要素の CSS セレクタ（実解決は `fandhe-frontend-wasm-full` の
     /// 後続イシュー、本モジュールは `data-target` 出力のみ）。
@@ -294,7 +418,7 @@ impl Tour {
             data_state(self.data_state_value()),
             ("data-status", self.status.as_data_status()),
         ];
-        merged.extend(attrs);
+        merged.extend(drop_reserved(attrs, ROOT_RESERVED));
         ANATOMY.part("root", "div", merged, children)
     }
 
@@ -303,7 +427,7 @@ impl Tour {
     pub fn backdrop<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(self.data_state_value())];
         merged.extend(self.hidden_attr());
-        merged.extend(attrs);
+        merged.extend(drop_reserved(attrs, OVERLAY_PART_RESERVED));
         ANATOMY.part("backdrop", "div", merged, children)
     }
 
@@ -330,7 +454,7 @@ impl Tour {
         if let Some(target) = target {
             merged.push(("data-target", target));
         }
-        merged.extend(attrs);
+        merged.extend(drop_reserved(attrs, SPOTLIGHT_RESERVED));
         ANATOMY.part("spotlight", "div", merged, children)
     }
 
@@ -347,7 +471,7 @@ impl Tour {
         let mut merged: Vec<(&'a str, &'a str)> = placement_attrs(placement).to_vec();
         merged.push(data_state(self.data_state_value()));
         merged.extend(self.hidden_attr());
-        merged.extend(attrs);
+        merged.extend(drop_reserved(attrs, POSITIONER_RESERVED));
         ANATOMY.part("positioner", "div", merged, children)
     }
 
@@ -355,7 +479,7 @@ impl Tour {
     #[must_use]
     pub fn arrow<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(self.data_state_value())];
-        merged.extend(attrs);
+        merged.extend(drop_reserved(attrs, OVERLAY_PART_RESERVED));
         ANATOMY.part("arrow", "div", merged, children)
     }
 
@@ -364,22 +488,40 @@ impl Tour {
     #[must_use]
     pub fn arrow_tip<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(self.data_state_value())];
-        merged.extend(attrs);
+        merged.extend(drop_reserved(attrs, OVERLAY_PART_RESERVED));
         ANATOMY.part("arrow-tip", "div", merged, children)
     }
 
-    /// Content パーツ（`div`）。`role="dialog"` + `ids`（[`ContentIds`]）が
+    /// Control パーツ（`div`。ark-ui `data-part="control"` 相当。docs の
+    /// Anatomy 図の「Actions」ラベルに対応する実 DOM パーツで、
+    /// [`Tour::action_trigger`]/[`Tour::close_trigger`] を並べるコンテナと
+    /// して呼び出し側が使う想定。イシュー #1666 で追加）。
+    #[must_use]
+    pub fn control<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(self.data_state_value())];
+        merged.extend(drop_reserved(attrs, OVERLAY_PART_RESERVED));
+        ANATOMY.part("control", "div", merged, children)
+    }
+
+    /// Content パーツ（`div`）。`role="dialog"`（`alertdialog` へは非追随、
+    /// モジュール冒頭「参照突合」節参照）+ `ids`（[`ContentIds`]）が
     /// `Some` のときのみ `aria-labelledby`/`aria-describedby` を出力する
-    /// （[`crate::dialog::content`] と同型の契約）。
+    /// （[`crate::dialog::content`] と同型の契約）。`tabindex="-1"` を固定
+    /// 付与し、`Active` 時のみ現在ステップの [`TourStep::id`] を
+    /// `data-step` として出力する（イシュー #1666、zag
+    /// `content.connect.ts` 準拠）。
     #[must_use]
     pub fn content<'a>(
-        &self,
+        &'a self,
         ids: ContentIds<'a>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        let mut merged: Vec<(&'a str, &'a str)> =
-            vec![role("dialog"), data_state(self.data_state_value())];
+        let mut merged: Vec<(&'a str, &'a str)> = vec![
+            role("dialog"),
+            data_state(self.data_state_value()),
+            ("tabindex", "-1"),
+        ];
         if let Some(id) = ids.id {
             merged.push(("id", id));
         }
@@ -390,7 +532,10 @@ impl Tour {
             merged.push(aria_describedby(describedby));
         }
         merged.extend(self.hidden_attr());
-        merged.extend(attrs);
+        if let Some(step) = self.current_step() {
+            merged.push(("data-step", step.id.as_str()));
+        }
+        merged.extend(drop_reserved(attrs, CONTENT_RESERVED));
         ANATOMY.part("content", "div", merged, children)
     }
 
@@ -407,7 +552,7 @@ impl Tour {
         if let Some(id) = id {
             merged.push(("id", id));
         }
-        merged.extend(attrs);
+        merged.extend(drop_reserved(attrs, ID_ONLY_RESERVED));
         ANATOMY.part("title", "h2", merged, children)
     }
 
@@ -424,7 +569,7 @@ impl Tour {
         if let Some(id) = id {
             merged.push(("id", id));
         }
-        merged.extend(attrs);
+        merged.extend(drop_reserved(attrs, ID_ONLY_RESERVED));
         ANATOMY.part("description", "p", merged, children)
     }
 
@@ -434,7 +579,7 @@ impl Tour {
     #[must_use]
     pub fn progress_text<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let mut merged: Vec<(&'a str, &'a str)> = vec![aria_live(AriaLive::Polite)];
-        merged.extend(attrs);
+        merged.extend(drop_reserved(attrs, PROGRESS_TEXT_RESERVED));
         ANATOMY.part("progress-text", "div", merged, children)
     }
 
@@ -443,18 +588,69 @@ impl Tour {
     #[must_use]
     pub fn close_trigger<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
-        merged.extend(attrs);
+        merged.extend(drop_reserved(attrs, CLOSE_TRIGGER_RESERVED));
         ANATOMY.part("close-trigger", "button", merged, children)
     }
 
-    /// ActionTrigger パーツ（`button type="button"`。呼び出し側が定義する
-    /// アクションボタン。`"prev"`/`"next"`/`"skip"`/`"complete"` いずれの
-    /// dispatch にも使える汎用パーツ）。
+    /// ActionTrigger パーツ（`button type="button"`）。`kind`
+    /// （[`TourTriggerKind`]）に応じて `data-type` を出力する（ark-ui/zag の
+    /// action-trigger `data-type` 語彙に対応、イシュー #1666。`Complete` は
+    /// 本状態機械固有の値）。`kind` が [`TourTriggerKind::Prev`] かつ
+    /// dispatch が no-op になる境界（`current_index() == Some(0)` または
+    /// 非 `Active`）のときのみ `disabled`/`data-disabled` を付与する。
+    /// `Next`/`Skip`/`Complete`/`Custom` はいずれも有効な操作であり続ける
+    /// ため disabled にしない（本状態機械では最終 step の `"next"` が
+    /// `Completed` へ遷移する有効な操作であり、zag の `!hasNextStep`
+    /// 判定とは意図的に非同値、モジュール冒頭「参照突合」節参照）。
     #[must_use]
-    pub fn action_trigger<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
-        merged.extend(attrs);
+    pub fn action_trigger<'a>(
+        &self,
+        kind: TourTriggerKind,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button"), kind.data_type_attr()];
+        let is_prev_at_start = matches!(kind, TourTriggerKind::Prev)
+            && !matches!(self.current_index(), Some(step) if step > 0);
+        if is_prev_at_start {
+            merged.push(("disabled", ""));
+            merged.push(("data-disabled", ""));
+        }
+        merged.extend(drop_reserved(attrs, ACTION_TRIGGER_RESERVED));
         ANATOMY.part("action-trigger", "button", merged, children)
+    }
+}
+
+/// [`Tour::action_trigger`] の `data-type` を決める語彙。ark-ui/zag の
+/// action-trigger `data-type`（`"next"`/`"prev"`/`"skip"`/`"custom"`）に
+/// `Complete` を加える（イシュー #1666。zag の `"close"` は本状態機械では
+/// [`Tour::close_trigger`] が担うため語彙に含めない）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TourTriggerKind {
+    /// 次のステップへ進む（`"next"` dispatch 想定）。
+    Next,
+    /// 前のステップへ戻る（`"prev"` dispatch 想定。`current_index() ==
+    /// Some(0)` または非 `Active` では `disabled`/`data-disabled` が付く）。
+    Prev,
+    /// ツアーをスキップする（`"skip"` dispatch 想定）。
+    Skip,
+    /// ツアーを完了として終える（`"complete"` dispatch 想定）。
+    Complete,
+    /// 呼び出し側独自のアクション（dispatch 名は呼び出し側の配線に委ねる）。
+    Custom,
+}
+
+impl TourTriggerKind {
+    /// `data-type` 属性値（キー・値ともに `&'static str` 固定、
+    /// 動的値が属性名スロットへ混入する経路を持たない）。
+    fn data_type_attr(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Next => ("data-type", "next"),
+            Self::Prev => ("data-type", "prev"),
+            Self::Skip => ("data-type", "skip"),
+            Self::Complete => ("data-type", "complete"),
+            Self::Custom => ("data-type", "custom"),
+        }
     }
 }
 
@@ -959,7 +1155,145 @@ mod tests {
     fn close_and_action_trigger_are_type_button() {
         let t = Tour::new(three_steps());
         assert!(render(&t.close_trigger(vec![], vec![])).contains(r#"type="button""#));
-        assert!(render(&t.action_trigger(vec![], vec![])).contains(r#"type="button""#));
+        assert!(
+            render(&t.action_trigger(TourTriggerKind::Next, vec![], vec![]))
+                .contains(r#"type="button""#)
+        );
+    }
+
+    #[test]
+    fn control_outputs_scope_part_and_state() {
+        let mut t = Tour::new(three_steps());
+        let html = render(&t.control(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="tour""#));
+        assert!(html.contains(r#"data-part="control""#));
+        assert!(html.contains(r#"data-state="closed""#));
+
+        dispatch(&mut t, "start", "");
+        let html = render(&t.control(vec![], vec![]));
+        assert!(html.contains(r#"data-state="open""#));
+    }
+
+    #[test]
+    fn content_has_tabindex_minus_one_and_data_step_when_active() {
+        let mut t = Tour::new(three_steps());
+        dispatch(&mut t, "start", "");
+        let html = render(&t.content(ContentIds::default(), vec![], vec![]));
+        assert!(html.contains(r#"tabindex="-1""#));
+        assert!(html.contains(r#"data-step="s1""#));
+    }
+
+    #[test]
+    fn content_has_no_data_step_when_idle_or_terminal() {
+        let t = Tour::new(three_steps());
+        let html = render(&t.content(ContentIds::default(), vec![], vec![]));
+        assert!(html.contains(r#"tabindex="-1""#));
+        assert!(!html.contains("data-step"));
+    }
+
+    #[test]
+    fn action_trigger_outputs_data_type_per_kind() {
+        let t = Tour::new(three_steps());
+        let cases = [
+            (TourTriggerKind::Next, "next"),
+            (TourTriggerKind::Prev, "prev"),
+            (TourTriggerKind::Skip, "skip"),
+            (TourTriggerKind::Complete, "complete"),
+            (TourTriggerKind::Custom, "custom"),
+        ];
+        for (kind, expected) in cases {
+            let html = render(&t.action_trigger(kind, vec![], vec![]));
+            assert!(
+                html.contains(&format!(r#"data-type="{expected}""#)),
+                "{html}"
+            );
+        }
+    }
+
+    #[test]
+    fn prev_action_trigger_is_disabled_at_first_step() {
+        let mut t = Tour::new(three_steps());
+        dispatch(&mut t, "start", "");
+        let html = render(&t.action_trigger(TourTriggerKind::Prev, vec![], vec![]));
+        assert!(html.contains("disabled"));
+        assert!(html.contains("data-disabled"));
+
+        dispatch(&mut t, "next", "");
+        let html = render(&t.action_trigger(TourTriggerKind::Prev, vec![], vec![]));
+        assert!(!html.contains("disabled"));
+    }
+
+    #[test]
+    fn prev_action_trigger_is_disabled_when_idle() {
+        let t = Tour::new(three_steps());
+        let html = render(&t.action_trigger(TourTriggerKind::Prev, vec![], vec![]));
+        assert!(html.contains("disabled"));
+    }
+
+    #[test]
+    fn next_action_trigger_is_never_disabled() {
+        let mut t = Tour::new(three_steps());
+        dispatch(&mut t, "start", "");
+        dispatch(&mut t, "next", "");
+        dispatch(&mut t, "next", "");
+        // 最終 step でも "next" は Completed への有効な遷移のため disabled にしない。
+        let html = render(&t.action_trigger(TourTriggerKind::Next, vec![], vec![]));
+        assert!(!html.contains("disabled"));
+    }
+
+    #[test]
+    fn reserved_attrs_from_caller_are_dropped_on_every_part() {
+        let mut t = Tour::new(three_steps());
+        dispatch(&mut t, "start", "");
+
+        assert!(!render(&t.backdrop(vec![("hidden", "attacker")], vec![])).contains("attacker"));
+        assert!(
+            !render(&t.spotlight(vec![("data-target", "attacker")], vec![])).contains("attacker")
+        );
+        assert!(
+            !render(&t.positioner(vec![("data-side", "attacker")], vec![])).contains("attacker")
+        );
+        assert!(!render(&t.arrow(vec![("data-state", "attacker")], vec![])).contains("attacker"));
+        assert!(
+            !render(&t.arrow_tip(vec![("data-state", "attacker")], vec![])).contains("attacker")
+        );
+        assert!(!render(&t.control(vec![("data-state", "attacker")], vec![])).contains("attacker"));
+        assert!(!render(&t.content(
+            ContentIds::default(),
+            vec![("role", "attacker"), ("tabindex", "5")],
+            vec![]
+        ))
+        .contains("attacker"));
+        assert!(!render(&t.title(None, vec![("id", "attacker")], vec![])).contains("attacker"));
+        assert!(
+            !render(&t.description(None, vec![("id", "attacker")], vec![])).contains("attacker")
+        );
+        assert!(
+            !render(&t.progress_text(vec![("aria-live", "off")], vec![]))
+                .contains(r#"aria-live="off""#)
+        );
+        assert!(!render(&t.close_trigger(vec![("type", "reset")], vec![])).contains("reset"));
+        assert!(!render(&t.action_trigger(
+            TourTriggerKind::Next,
+            vec![("data-type", "attacker"), ("disabled", "")],
+            vec![]
+        ))
+        .contains("attacker"));
+    }
+
+    #[test]
+    fn aria_label_passes_through_on_triggers() {
+        let t = Tour::new(three_steps());
+        assert!(
+            render(&t.close_trigger(vec![("aria-label", "Close")], vec![]))
+                .contains(r#"aria-label="Close""#)
+        );
+        assert!(render(&t.action_trigger(
+            TourTriggerKind::Next,
+            vec![("aria-label", "Next")],
+            vec![]
+        ))
+        .contains(r#"aria-label="Next""#));
     }
 
     #[test]

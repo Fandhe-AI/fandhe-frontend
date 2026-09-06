@@ -9,7 +9,7 @@
 
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::positioning::{Align, Placement, Side};
-use fandhe_frontend_headless_ui::tour::{ContentIds, Tour, TourStatus, TourStep};
+use fandhe_frontend_headless_ui::tour::{ContentIds, Tour, TourStatus, TourStep, TourTriggerKind};
 use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate};
 
 fn steps() -> Vec<TourStep> {
@@ -32,7 +32,7 @@ fn steps() -> Vec<TourStep> {
 }
 
 #[test]
-fn full_assembly_wires_all_twelve_anatomy_parts() {
+fn full_assembly_wires_all_thirteen_anatomy_parts() {
     let mut tour = Tour::new(steps());
     assert!(dispatch(&mut tour, "start", ""));
 
@@ -60,8 +60,22 @@ fn full_assembly_wires_all_twelve_anatomy_parts() {
                                 vec![text("This is the dashboard.")],
                             ),
                             tour.progress_text(vec![], vec![text("Step 1 of 2")]),
-                            tour.close_trigger(vec![], vec![text("Close")]),
-                            tour.action_trigger(vec![], vec![text("Next")]),
+                            tour.control(
+                                vec![],
+                                vec![
+                                    tour.action_trigger(
+                                        TourTriggerKind::Prev,
+                                        vec![],
+                                        vec![text("Prev")],
+                                    ),
+                                    tour.action_trigger(
+                                        TourTriggerKind::Next,
+                                        vec![],
+                                        vec![text("Next")],
+                                    ),
+                                    tour.close_trigger(vec![], vec![text("Close")]),
+                                ],
+                            ),
                         ],
                     ),
                 ],
@@ -81,6 +95,7 @@ fn full_assembly_wires_all_twelve_anatomy_parts() {
         "title",
         "description",
         "progress-text",
+        "control",
         "close-trigger",
         "action-trigger",
     ] {
@@ -90,10 +105,15 @@ fn full_assembly_wires_all_twelve_anatomy_parts() {
         );
     }
     assert!(html.contains(r#"role="dialog""#));
+    assert!(html.contains(r#"tabindex="-1""#));
+    assert!(html.contains(r#"data-step="welcome""#));
     assert!(html.contains(r#"aria-live="polite""#));
     assert!(html.contains("data-target=\"#welcome-panel\""));
     assert!(html.contains(r#"data-side="bottom""#));
     assert!(html.contains(r#"data-align="center""#));
+    // 最初の step のため Prev は disabled、Next は disabled ではない。
+    assert!(html.contains(r#"data-type="prev" disabled="" data-disabled="""#));
+    assert!(html.contains(r#"data-type="next""#));
 }
 
 #[test]
