@@ -629,10 +629,22 @@ mod wiring {
             current = element.parent_element();
         }
         let container = container?;
-        container
+        let candidate = container
             .query_selector(r#"[data-scope="number-input"][data-part="input"]"#)
             .ok()
-            .flatten()
+            .flatten()?;
+        // `container` が Control を省略した外側 Root そのものの場合、その
+        // 部分木には別インスタンス（内側 NumberInput）がネストされ得る。
+        // `query_selector` は部分木内の最初の一致を返すだけで内側/外側の
+        // 区別をしないため、候補 Input 自身の最寄り Root が `trigger` の
+        // `nearest_root` と一致することを検証し、不一致なら fail-closed で
+        // `None` を返す（PR #1982 codex-review P1 / Bugbot 指摘: 内側
+        // Root/Input・外側 Input・外側 Trigger の順に配置されると、外側
+        // トリガーが内側 Input を誤って選択し得る）。
+        if find_nearest_root(root, &candidate).as_ref() != Some(&nearest_root) {
+            return None;
+        }
+        Some(candidate)
     }
 
     /// `start` から `root` まで祖先方向を辿り、最寄りの NumberInput Root

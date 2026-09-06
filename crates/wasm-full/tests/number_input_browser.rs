@@ -1406,3 +1406,88 @@ fn nested_number_input_without_control_click_updates_only_inner_instance() {
         "外側 Input の value は内側トリガーの click の影響を受けないこと（DOM 上の再確認）"
     );
 }
+
+#[wasm_bindgen_test]
+fn nested_number_input_without_control_outer_trigger_after_inner_input_is_noop() {
+    // PR #1982 codex-review P1 / Bugbot 指摘の回帰: Control を省略した
+    // 外側 NumberInput に「内側 Root/Input → 外側 Input → 外側
+    // IncrementTrigger」の順で DOM 配置すると、外側トリガーの祖先探索が
+    // 最寄り Root（外側 Root）で正しく止まっても、`query_selector` が
+    // 外側 Root 部分木内の最初の一致（内側 Input）を返してしまい、外側
+    // トリガーの click が内側インスタンスを誤って更新し得た。
+    // `find_input_within_control` は候補 Input 自身の最寄り Root が
+    // トリガーの `nearest_root` と一致することを検証し、不一致なら
+    // fail-closed で dispatch しない（no-op）契約を検証する。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "ni-nested-outer-trigger-after-inner");
+
+    let outer_model = NumberInput::new(Some(50.0), 0.0, 100.0, 1.0);
+    let inner_model = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+
+    let inner_node = inner_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![inner_model.input(
+            "inner",
+            None,
+            NumberInputFlags::default(),
+            vec![("data-action-input", "inner_set")],
+        )],
+    );
+    let outer_node = outer_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![
+            inner_node,
+            outer_model.input(
+                "outer",
+                Some("outer-input"),
+                NumberInputFlags::default(),
+                vec![("data-action-input", "outer_set")],
+            ),
+            outer_model.increment_trigger(
+                Some("outer-input"),
+                false,
+                Vec::new(),
+                vec![fandhe_frontend_core::text("+")],
+            ),
+        ],
+    );
+    let html = fandhe_frontend_core::render(&outer_node);
+    container.set_inner_html(&html);
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let outer_input = container
+        .query_selector("#outer-input")
+        .expect("query_selector must not fail")
+        .expect("outer input must exist")
+        .dyn_into::<HtmlInputElement>()
+        .expect("outer input must cast to HtmlInputElement");
+    let outer_increment_button = container
+        .query_selector(r#"[data-scope="number-input"][data-part="increment-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("outer increment-trigger element must exist");
+
+    let recorded: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorded_clone = recorded.clone();
+    wire_number_input_events(container.clone(), move |action_ref: ActionRef| {
+        recorded_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_number_input_events must not fail");
+
+    outer_increment_button
+        .dispatch_event(&click_event())
+        .unwrap();
+
+    let dispatched = recorded.borrow().clone();
+    assert!(
+        dispatched.is_empty(),
+        "内側 Input の方が DOM 順で先にある構成でも、外側トリガーの click は \
+         内側インスタンスを誤って更新せず no-op であること（実際: {dispatched:?}）"
+    );
+    assert_eq!(
+        outer_input.value(),
+        "50",
+        "外側 Input の value は誤配線の影響を受けないこと（DOM 上の再確認）"
+    );
+}
