@@ -335,39 +335,44 @@ mod wiring {
     /// resize-trigger は [`fandhe_frontend_headless_ui::splitter::resize_trigger`]
     /// が必須引数 `leading_id`/`trailing_id`（隣接パネルの `id`。
     /// [`fandhe_frontend_headless_ui::splitter::panel`] も `id` を必須で受け取るため
-    /// 常に存在する）から `data-id="<leading_id>:<trailing_id>"` を常に
-    /// 出力する。パネル `id` は WAI-ARIA `aria-controls` の参照先であり
-    /// 文書内で一意であることが前提のため、この `data-id` は
-    /// Root/resize-trigger 自身の `id` の有無に関わらず常に得られる
-    /// 安定識別子として使える（ネストした Splitter 同士でも `leading_id`/
+    /// 常に存在する）から `aria-controls="<leading_id> <trailing_id>"`
+    /// （空白区切り）を常に出力する。当初は同じペアから生成される
+    /// `data-id="<leading_id>:<trailing_id>"`（コロン区切り）を識別子に
+    /// 採用していたが、パネル `id` 自体にコロンを含められるため一意性が
+    /// 保証されなかった（例: ペア `(a:b, c)` と `(a, b:c)` はどちらも
+    /// `data-id="a:b:c"` に一致する。codex-review P1 是正）。HTML の `id`
+    /// 属性値は空白文字を含められない仕様（HTML Standard `id` 属性の
+    /// 制約）ため、`aria-controls` の空白区切りペアはこの種の衝突が
+    /// 構造的に起こり得ない（ネストした Splitter 同士でも `leading_id`/
     /// `trailing_id` の組が重複しない限り一意）。
     #[derive(Clone)]
     enum TriggerKey {
         /// resize-trigger 自身の `id` 属性（最も安定。アプリが `id` を
         /// 付けている場合に使う）。
         OwnId(String),
-        /// resize-trigger の `data-id` 属性（`"<leading_id>:<trailing_id>"`。
-        /// `id` を付けない標準構成でも常に得られるフォールバック）。
-        DataId(String),
+        /// resize-trigger の `aria-controls` 属性（`"<leading_id>
+        /// <trailing_id>"`、空白区切り）。`id` を付けない標準構成でも常に
+        /// 得られるフォールバック（[`TriggerKey`] doc 参照）。
+        Controls(String),
     }
 
     /// `target_element`（resize-trigger）を再描画後に再解決するための
-    /// [`TriggerKey`] を決める。resize-trigger は常に `data-id` を持つため
-    /// （headless-ui `resize_trigger` の契約、[`TriggerKey`] doc 参照）、
-    /// `is_resize_trigger` 判定を通過した呼び出し元では実質的に必ず
-    /// `Some` を返す。属性が欠落した想定外の DOM のみ `None`（fail-closed、
-    /// 呼び出し側はフォーカス復元を行わず本 PR 以前と同じ挙動へ
-    /// フォールバックする）。
+    /// [`TriggerKey`] を決める。resize-trigger は常に `aria-controls` を
+    /// 持つため（headless-ui `resize_trigger` の契約、[`TriggerKey`] doc
+    /// 参照）、`is_resize_trigger` 判定を通過した呼び出し元では実質的に
+    /// 必ず `Some` を返す。属性が欠落した想定外の DOM のみ `None`
+    /// （fail-closed、呼び出し側はフォーカス復元を行わず本 PR 以前と同じ
+    /// 挙動へフォールバックする）。
     fn trigger_key(target_element: &Element) -> Option<TriggerKey> {
         let own_id = target_element.id();
         if !own_id.is_empty() {
             return Some(TriggerKey::OwnId(own_id));
         }
-        let data_id = target_element.get_attribute("data-id")?;
-        if data_id.is_empty() {
+        let controls = target_element.get_attribute("aria-controls")?;
+        if controls.is_empty() {
             return None;
         }
-        Some(TriggerKey::DataId(data_id))
+        Some(TriggerKey::Controls(controls))
     }
 
     /// `root` 配下から [`TriggerKey`] に対応する resize-trigger を
@@ -387,21 +392,23 @@ mod wiring {
                 }
                 Some(candidate)
             }
-            TriggerKey::DataId(data_id) => {
+            TriggerKey::Controls(controls) => {
                 // CSS セレクタへ動的な属性値をそのまま埋め込まず、
                 // `root` 配下の resize-trigger 全件を固定セレクタで収集
-                // してから Rust 側で `data-id` を比較する（属性値に
+                // してから Rust 側で `aria-controls` を比較する（属性値に
                 // クォート等の CSS 特殊文字が含まれても injection の
-                // 余地がない）。`data-id` は隣接 2 パネルの `id` から
-                // 一意に定まる契約（[`TriggerKey`] doc 参照）のため、
-                // ここでの所有権検証はネストした Splitter を含めても
-                // 一致件数の一意性確認のみで足りる（複数一致は
-                // fail-closed に諦める）。
+                // 余地がない）。`aria-controls` は隣接 2 パネルの `id`
+                // から一意に定まる契約（[`TriggerKey`] doc 参照。`id`
+                // 属性値は空白を含められないため空白区切りペアは衝突
+                // しない）のため、ここでの所有権検証はネストした
+                // Splitter を含めても一致件数の一意性確認のみで足りる
+                // （複数一致は fail-closed に諦める）。
                 let list = root.query_selector_all(RESIZE_TRIGGER_SELECTOR).ok()?;
                 let mut found: Option<Element> = None;
                 for i in 0..list.length() {
                     let element = list.get(i)?.dyn_into::<Element>().ok()?;
-                    if element.get_attribute("data-id").as_deref() == Some(data_id.as_str()) {
+                    if element.get_attribute("aria-controls").as_deref() == Some(controls.as_str())
+                    {
                         if found.is_some() {
                             return None;
                         }

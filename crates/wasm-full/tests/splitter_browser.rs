@@ -113,8 +113,8 @@ struct SplitterHost {
     /// doc 参照）。`view()` はこの場合 [`SplitterHost::root_id`] を
     /// Runtime のマウント先（本テストの `id` を持つ最外殻ラッパー div）
     /// にのみ使い、Splitter Root 自身には `id` を渡さない
-    /// （`splitter::wiring::TriggerKey` の `data-id` フォールバック経路
-    /// の回帰テスト、イシュー #1996 codex-review P1 是正）。
+    /// （`splitter::wiring::TriggerKey` の `aria-controls` フォールバック
+    /// 経路の回帰テスト、イシュー #1996 codex-review P1 是正）。
     omit_splitter_ids: bool,
     trigger_bind_attr: String,
     size_now: String,
@@ -652,8 +652,9 @@ fn resize_trigger_focus_is_restored_after_structural_fallback_without_ids() {
     assert_eq!(
         active_element().as_ref(),
         Some(&trigger_after),
-        "id を一切持たない標準構成でも、resize-trigger の data-id \
-         （隣接パネル id の組）により splitter::wiring::restore_trigger_focus \
+        "id を一切持たない標準構成でも、resize-trigger の aria-controls \
+         （隣接パネル id の空白区切りペア）により \
+         splitter::wiring::restore_trigger_focus \
          が再描画後の同じ resize-trigger へフォーカスを復元すること \
          （イシュー #1996 codex-review P1 是正の受け入れ条件）"
     );
