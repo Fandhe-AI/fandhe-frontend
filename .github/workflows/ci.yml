@@ -1436,8 +1436,10 @@ jobs:
   #
   # しきい値運用の原則は deps-check/loc-check ジョブと同一: しきい値の正は
   # `crates/wasm-full/tests/bundle_size.rs` の REQ11_BUNDLE_SIZE_LIMIT_BYTES
-  # （200_000）定数のみ。緩和用の input・環境変数・continue-on-error は
-  # 設けない（迂回経路を作らない設計）。
+  # （200_000）定数、および警告しきい値 REQ11_BUNDLE_SIZE_WARN_BYTES
+  # （190_000、上限の 95%、イシュー #1968）のみ。緩和用の input・環境変数・
+  # continue-on-error は設けない（迂回経路を作らない設計）。警告は FAIL に
+  # しない（`is_pass()` は `PassWithWarning` でも `true`）。
   #
   # `test` ジョブの `cargo test --workspace` でも本テストは実行されるため、
   # 本ジョブは主に「REQ-11 の 1 行サマリを Step Summary へ可視化する」役割を
@@ -1492,8 +1494,15 @@ jobs:
         if: always()
         # format_report（crates/wasm-full/tests/bundle_size.rs）の 1 行サマリ契約
         # 「bundle-size: total_gzip_bytes=<n>/<limit> files=<k>
-        # result=<PASS|FAIL>」を Step Summary に転記する（loc-check ジョブと
-        # 同一パターン）。
+        # result=<PASS|FAIL>」（PASS かつ警告しきい値〔上限の 95%〕超過のとき
+        # のみ末尾に ` warn=above-95pct` が付く、イシュー #1968）を Step
+        # Summary に転記する（loc-check ジョブと同一パターン）。
+        #
+        # `::warning::` アノテーション（下の if ブロック）は Step Summary への
+        # リダイレクト（`{ ... } >> "$GITHUB_STEP_SUMMARY"`）の**外側**に置く。
+        # 内側に置くと文字列が Step Summary の markdown に書き込まれるだけで
+        # runner がワークフローコマンドとして認識せず、アノテーションが
+        # 出ない（`template-app-wasm-smoke` ジョブと同型の注意点）。
         run: |
           {
             echo '## bundle-size (REQ-11, issue #89)'
@@ -1501,6 +1510,9 @@ jobs:
             grep '^bundle-size:' bundle-size.log || echo 'bundle-size: no summary line found'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ -f bundle-size.log ] && grep -q '^bundle-size:.*warn=above-95pct' bundle-size.log; then
+            echo "::warning::bundle-size: gzip total exceeds 95% of the REQ-11 limit (190,000 of 200,000 B). See the bundle-size line in the Step Summary; consider the wasm-opt re-evaluation trigger in docs/ci/wasm-opt-adoption-evaluation.md."
+          fi
 
   loc-check:
     # name はクォート必須: 未クォートだと ` #62` 以降が YAML コメント扱いに

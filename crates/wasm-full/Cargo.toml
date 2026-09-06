@@ -560,7 +560,11 @@ name = "fandhe-frontend-wasm-full"
 # `apply_update_for_dirty` を呼ぶよう修正（pointer/keydown 操作で状態は
 # 更新されるが再描画が一切走らないバグの是正）。私有関数 `wire_angle_slider`
 # のシグネチャ変更のみで公開 API は不変のため patch バンプ。
-version = "0.15.12"
+# base 再取り込み（イシュー #1956/#1959, 2026-09-06）: 上記と同時期に
+# `Runtime::wire_timer` の同種修正（イシュー #1959, PR #1976）が独立に
+# 同一 0.15.12 へ到達していたため、統合結果としてさらに patch バンプし
+# 0.15.13 とする。
+version = "0.15.13"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

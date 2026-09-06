@@ -596,17 +596,35 @@ where
                 return;
             }
 
-            // `dirty_fields()` は `state` への借用であり、以降 `state.view()`
-            // （同じく `&self` メソッド）も呼ぶため、先に所有値へコピーして
-            // 借用の競合を避ける（`state` は `RefMut` の排他借用 1 つで両者を
-            // 呼べるが、`Vec` へ写して後段のロジックを単純にする）。
-            let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
-            if dirty.is_empty() {
-                return;
-            }
-
-            Self::apply_update_for_dirty(&state, &root, &binding_table, &keyed_list_cache, &dirty);
+            Self::apply_dirty_if_any(&state, &root, &binding_table, &keyed_list_cache);
         }
+    }
+
+    /// dispatch 成功後、`state.dirty_fields()` が非空のときのみ
+    /// [`Self::apply_update_for_dirty`] へ委譲する共通手順（イシュー #1959 で
+    /// `Self::wire`/`Self::wire_signature_pad`/`Self::wire_number_input`/
+    /// `Self::wire_timer` の 4 クロージャが重複させていた同一手順を統合し、
+    /// REQ-11 の wasm バンドルサイズ予算（`crates/wasm-full/tests/
+    /// bundle_size.rs`）へ重複コード生成が与える圧迫を抑える）。
+    ///
+    /// `dirty_fields()` は `state` への借用であり、以降 `state.view()`
+    /// （同じく `&self` メソッド、`apply_update_for_dirty` 内部で呼ばれる）
+    /// も呼ぶため、先に所有値へコピーして借用の競合を避ける。
+    fn apply_dirty_if_any(
+        state: &C,
+        root: &web_sys::Element,
+        binding_table: &std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: &std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
+    ) {
+        let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
+        if dirty.is_empty() {
+            return;
+        }
+        Self::apply_update_for_dirty(state, root, binding_table, keyed_list_cache, &dirty);
     }
 
     /// [`fandhe_frontend_wasm_client::KeyedListApplyResult`] を
@@ -921,7 +939,10 @@ where
     /// `headless_avatar::wire_avatar_events` はいずれも DOM 属性のみを読み書き
     /// するステートレス配線であり、`Self::wire`（束縛点更新・keyed list
     /// 更新）とは独立した経路のため、失敗しても状態管理側の配線
-    /// （`events::wire_events`）の成立を妨げない。
+    /// （`events::wire_events`）の成立を妨げない。`Self::wire_timer`
+    /// （イシュー #1959）は `Self::wire_signature_pad`/`Self::wire_number_input`
+    /// と同じく `binding_table`/`keyed_list_cache` を `Self::wire` と共有し、
+    /// dispatch 後の束縛点更新経路（`Self::apply_update_for_dirty`）へ合流する。
     ///
     /// # Errors
     ///
@@ -979,7 +1000,12 @@ where
         focus_visible::wire_focus_visible(root.clone())?;
         Self::wire_avatar(component.clone(), root.clone())?;
         Self::wire_clipboard(component.clone(), root.clone())?;
-        Self::wire_timer(component.clone(), root.clone())?;
+        Self::wire_timer(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         Self::wire_angle_slider(
             component.clone(),
             root.clone(),
@@ -1084,7 +1110,12 @@ where
         focus_visible::wire_focus_visible(root.clone())?;
         Self::wire_avatar(component.clone(), root.clone())?;
         Self::wire_clipboard(component.clone(), root.clone())?;
-        Self::wire_timer(component.clone(), root.clone())?;
+        Self::wire_timer(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         Self::wire_angle_slider(
             component.clone(),
             root.clone(),
@@ -1218,18 +1249,55 @@ where
     /// `Self::hydrate` の双方から `Self::wire_clipboard` の直後に 1 回だけ
     /// 呼ばれる。
     ///
-    /// # `C` への dispatch はベストエフォート（Timer 非搭載アプリへの副作用なし）
+    /// # `C` への dispatch 後の再描画接続（イシュー #1959）
     ///
     /// [`headless_timer`] は DOM 上の `data-*` 表示属性から都度
     /// `fandhe_frontend_headless_ui::timer::Timer` を再構築して表示更新を
     /// 完結させるため（`headless_timer.rs` 冒頭 doc 参照）、`C::decode_action`
     /// が `"timer:*"` を認識しない（`dispatched == false`）場合でも表示更新
-    /// 自体は成立する。`C` への dispatch はアプリが `Timer` を自身の状態機械
-    /// として組み込んでいる場合の追随目的のベストエフォートであり、
-    /// 失敗しても early return して副作用を持たない。`root` 配下に Timer
-    /// パーツが存在しない場合も内部の `query_selector_all`/`data-scope`
-    /// 一致判定が空集合/不一致となり no-op となるため、Timer を使わない
-    /// アプリへの影響はない。
+    /// 自体は成立する。一方で `C` が Timer アクションを自身の状態機械として
+    /// 組み込み、その値を `view()` の別の束縛点（`data-bind-text` 等）で
+    /// 参照している場合、dispatch が成功し `dirty_fields()` が非空になった
+    /// ときのみ [`Self::apply_update_for_dirty`] へ委譲して束縛点・keyed
+    /// list を更新する。`Self::wire`/`Self::wire_signature_pad`/
+    /// `Self::wire_number_input` と同じ「`dispatched` かつ `dirty` 非空」
+    /// 早期 return 手順を踏むため、`C` が Timer アクションを認識しない
+    /// アプリ・Timer 非搭載アプリでは従来どおり no-op のままである。
+    ///
+    /// ## Timer 自身の `data-*` 直書きとの二重描画にならない根拠
+    ///
+    /// 1. `fandhe_frontend_headless_ui::timer::Timer` 自体は
+    ///    `fandhe_frontend_interactive::DirtyTracked` を実装していない
+    ///    （実装を持つのは `SignaturePad`/`Disclosure`/`SingleSelect`/
+    ///    `TextInput` のみ）。`Runtime<C>` は `C: DirtyTracked` を要求する
+    ///    ため `C` は常にアプリ側のラッパー型であり、Timer の表示属性名
+    ///    （`"data-state"`/`"data-elapsed"` 等）が `dirty_fields()` に載る
+    ///    のはラッパーが意図的にそう定義した場合のみである。
+    /// 2. 書き込み順序は既に安全: `headless_timer::wiring::handle_click`/
+    ///    `handle_tick` はいずれも `write_timer`（Timer の `data-*` 直書き）
+    ///    を実行し終えてから `notify_action`（→ このクロージャ → `C` への
+    ///    dispatch → `apply_update_for_dirty`）を呼ぶ。`C` 側の更新は同じ
+    ///    アクションに対する最後の書き手であり、束縛済み属性への再書き込み
+    ///    があっても同値の冪等な上書きに留まる。
+    /// 3. `apply_update_for_dirty` は dirty field が束縛点・keyed list の
+    ///    どちらにも解決できない場合に `root` 配下を `C.view()` から丸ごと
+    ///    再構築する構造フォールバックへ落ちる。tick は下限 16ms 周期で
+    ///    繰り返し発火するため、Timer 由来の値を参照するアプリ側フィールド
+    ///    は必ず束縛点（`data-bind-*`）または keyed list で解決できる形に
+    ///    し、未解決のまま `dirty_fields()` に載せないことを利用者契約と
+    ///    する（載せた場合は毎 tick サブツリー全再構築が走る）。
+    ///
+    /// ## 前提: Runtime root が Timer root であること
+    ///
+    /// [`headless_timer::wiring::read_timer`] は `wire_timer_events` に
+    /// 渡された要素（＝ここでの `root`）自身の `data-*` を読む。
+    /// `Self::hydrate` で `root_id` 要素自身が Timer の Root パーツ
+    /// （`data-scope="timer" data-part="root"`）である構成でのみ click/tick
+    /// 経路・本再描画接続が成立する。`Self::mount`（`set_inner_html` で
+    /// `C.view()` を子として流し込む）では Timer root が Runtime root の
+    /// 子要素になるため `read_timer` が `None` を返し、Timer 自体の click/
+    /// tick 処理が no-op になる（Timer root をクリック元から解決する改善
+    /// は本イシューのスコープ外）。
     ///
     /// # Errors
     ///
@@ -1238,19 +1306,34 @@ where
     fn wire_timer(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
     ) -> Result<(), wasm_bindgen::JsValue> {
+        // `wire_timer_events` のコールバックは `ActionRef` のみを渡すため、
+        // `apply_update_for_dirty` へ渡す DOM ルートはここで複製して保持する
+        // （`root` 自体は `wire_timer_events` へ move する）。
+        let timer_root = root.clone();
         headless_timer::wire_timer_events(root, move |action_ref: events::ActionRef| {
             let Ok(mut state) = component.try_borrow_mut() else {
                 return;
             };
-            // `headless_timer::wiring` が DOM 反映を独自に完結させるため、
+            // `headless_timer::wiring` が Timer 自身の `data-*` 反映を
+            // 独自に完結させるため（上記「二重描画にならない根拠」参照）、
             // ここでの dispatch は `C` 自身が Timer アクションを認識する
-            // 場合の追随のみを目的とする（失敗しても no-op、上記 doc 参照）。
-            let _ = fandhe_frontend_interactive::dispatch(
+            // 場合の追随を目的とする。
+            let dispatched = fandhe_frontend_interactive::dispatch(
                 &mut *state,
                 &action_ref.action,
                 &action_ref.payload,
             );
+            if !dispatched {
+                return;
+            }
+            Self::apply_dirty_if_any(&state, &timer_root, &binding_table, &keyed_list_cache);
         })
     }
 
@@ -1398,23 +1481,14 @@ where
             component,
             move |state: &C, updated_root: &web_sys::Element| {
                 // `Self::wire` の束縛点更新経路と同じロジック（差分反映の
-                // 二重実装を避けるため `Self::apply_update_for_dirty` へ
-                // 委譲する。両者は同じ `dirty_fields()` →
-                // `BindingTable::apply_dirty`/keyed list 差し替え/構造
-                // フォールバックの手順を踏み、対応表キャッシュ・keyed list
-                // キャッシュ（イシュー #1324）も共有する。イシュー #1120
-                // で共通化）。
-                let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
-                if dirty.is_empty() {
-                    return;
-                }
-                Self::apply_update_for_dirty(
-                    state,
-                    updated_root,
-                    &binding_table,
-                    &keyed_list_cache,
-                    &dirty,
-                );
+                // 二重実装を避けるため `Self::apply_dirty_if_any` →
+                // `Self::apply_update_for_dirty` へ委譲する。両者は同じ
+                // `dirty_fields()` → `BindingTable::apply_dirty`/keyed list
+                // 差し替え/構造フォールバックの手順を踏み、対応表キャッシュ・
+                // keyed list キャッシュ（イシュー #1324）も共有する
+                // （イシュー #1120 で共通化、イシュー #1959 で
+                // `apply_dirty_if_any` へ 4 クロージャ分を再統合）。
+                Self::apply_dirty_if_any(state, updated_root, &binding_table, &keyed_list_cache);
             },
         )
     }
@@ -1460,17 +1534,7 @@ where
             root,
             component,
             move |state: &C, updated_root: &web_sys::Element| {
-                let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
-                if dirty.is_empty() {
-                    return;
-                }
-                Self::apply_update_for_dirty(
-                    state,
-                    updated_root,
-                    &binding_table,
-                    &keyed_list_cache,
-                    &dirty,
-                );
+                Self::apply_dirty_if_any(state, updated_root, &binding_table, &keyed_list_cache);
             },
         )
     }
