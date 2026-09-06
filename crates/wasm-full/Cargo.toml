@@ -591,6 +591,11 @@ name = "fandhe-frontend-wasm-full"
 # 追加したが private であり、公開 API（`wire_angle_slider_events`・
 # `angle_from_offset`・`action_for_key`・`is_angle_slider_control_or_thumb`・
 # `ACTION_*`）は不変のため 0.15.14 を維持する。
+# 同追加レビューの 3 件目（要素数による同一視の禁止）: `PartKey` から
+# `Sole`（同種パーツ 1 個の暗黙識別）変種を撤去し、再描画をまたぐ復元には
+# `id` による安定識別子を必須とした（`id` 無しのスライダーが入れ替わった
+# 場合も「1 個」が成立し別インスタンスをエイリアスするため）。私有 enum の
+# 変種削除のみで公開 API は不変。
 version = "0.15.14"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"

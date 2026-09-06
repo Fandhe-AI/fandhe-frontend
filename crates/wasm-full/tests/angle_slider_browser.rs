@@ -23,8 +23,10 @@
 //!    （[`drag_does_not_retarget_to_another_control`]）
 //! 8. keydown の構造フォールバック後の Thumb フォーカス復元
 //!    （[`thumb_focus_is_restored_after_structural_fallback_on_keydown`]）
+//! 9. `id` 不在時に入れ替わった別スライダーをエイリアスしないこと
+//!    （[`drag_does_not_alias_a_swapped_in_slider_without_ids`]）
 //!
-//! の 8 ケースで、AngleSlider 自身の `aria-valuenow`/`aria-valuetext`
+//! の 9 ケースで、AngleSlider 自身の `aria-valuenow`/`aria-valuetext`
 //! （[`AngleSliderHost::view`] が `data-bind-attr` で束縛する束縛点）と
 //! アプリ側（`C`）の派生フィールド（`data-bind-text` 束縛点）の双方へ
 //! 正しく反映される（またはケース 3 では一切変化しない）ことを検証する。
@@ -1209,5 +1211,181 @@ fn thumb_focus_is_restored_after_structural_fallback_on_keydown() {
         active_element().as_ref(),
         Some(&thumb()),
         "2 回目の再描画後もフォーカスが追随すること"
+    );
+}
+
+/// `id` を持たないスライダーを 1 つだけ表示し、dispatch に伴う条件分岐で
+/// **別のスライダーへ入れ替える**ホスト
+/// （[`drag_does_not_alias_a_swapped_in_slider_without_ids`] 専用）。
+///
+/// 「同種パーツが `root` 配下に 1 個」という条件は入れ替えの前後どちらでも
+/// 成立するため、要素数だけを根拠に再描画前後を同一視すると入れ替わった別の
+/// スライダーを元の対象として返してしまう（レビュー指摘）。本ホストはその
+/// 状況を最小構成で再現する。
+///
+/// AngleSlider Root へ `id` を付けないのが要点（ラッパー `div` の `id` は
+/// `Runtime::mount` のマウント先であり、AngleSlider Root ではないため
+/// `PartKey::RootId` の対象にならない）。
+struct SwapSliderHost {
+    first: AngleSlider,
+    second: AngleSlider,
+    props: AngleSliderProps,
+    swapped: bool,
+    dirty: Vec<&'static str>,
+}
+
+/// [`SwapSliderHost`] のマウント先ラッパー要素の `id`。
+const SWAP_SLIDER_ROOT_ID: &str = "swap-slider-wrapper-root";
+
+impl Component for SwapSliderHost {
+    type Action = <AngleSlider as Component>::Action;
+
+    fn update(&mut self, action: Self::Action) {
+        self.dirty.clear();
+        let before = self.first.angle_deg();
+        self.first.update(action);
+        if self.first.angle_deg() != before {
+            self.swapped = true;
+            self.dirty.push(STRUCTURAL_ONLY_FIELD);
+        }
+    }
+
+    /// 常にスライダー 1 個だけを描画する（`swapped` の前後で別インスタンス
+    /// へ入れ替わる）。Root へ `id` を付けない。
+    fn view(&self) -> Node {
+        let slider = if self.swapped {
+            &self.second
+        } else {
+            &self.first
+        };
+        el(
+            "div",
+            vec![("id", SWAP_SLIDER_ROOT_ID)],
+            vec![slider.root(
+                &self.props,
+                Vec::new(),
+                vec![slider.control(
+                    &self.props,
+                    Vec::new(),
+                    vec![slider.thumb(&self.props, Vec::new(), Vec::new())],
+                )],
+            )],
+        )
+    }
+
+    fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
+        AngleSlider::decode_action(name, payload)
+    }
+}
+
+impl DirtyTracked for SwapSliderHost {
+    fn dirty_fields(&self) -> &[&'static str] {
+        &self.dirty
+    }
+}
+
+impl BindingSource for SwapSliderHost {
+    fn bound_value(&self, _field: &str) -> Option<BoundValue> {
+        None
+    }
+}
+
+/// `id` による安定識別子を持たない構成では、再描画で**入れ替わった別の
+/// スライダー**を元のドラッグ対象として扱わないことを検証する
+/// （`angle_slider.rs` の `PartKey`/`part_key` doc、イシュー #1956
+/// codex-review P1 是正）。
+///
+/// 直前の是正は `PartKey::Sole`（`root` 配下に同種パーツが 1 個だけの場合の
+/// 暗黙識別）を持っていたが、これは要素数しか確認しないため、`id` の無い
+/// スライダー A が消えて B だけが表示された場合も個数 1 が成立し B を元の
+/// 対象として返してしまった（capture・座標計算・フォーカスが B へ移る、
+/// レビュー指摘）。是正後は `id` による安定識別子を必須とし、識別できない
+/// 対象は最初から追跡しない（本 PR 以前と同じ「再描画を挟むと操作が
+/// 途切れる」挙動へフォールバックする）。
+///
+/// 入れ替え後のスライダー（初期値 200 度）の値が動かないことを、別対象への
+/// エイリアスが起きていないことの直接の証拠として確認する。
+#[wasm_bindgen_test]
+fn drag_does_not_alias_a_swapped_in_slider_without_ids() {
+    let document = document();
+    document
+        .body()
+        .expect("document body must exist in browser test environment")
+        .insert_adjacent_html(
+            "beforeend",
+            &render(&el("div", vec![("id", SWAP_SLIDER_ROOT_ID)], Vec::new())),
+        )
+        .expect("insert_adjacent_html must not fail");
+    let root_el = document
+        .get_element_by_id(SWAP_SLIDER_ROOT_ID)
+        .expect("wrapper root must exist");
+    let _cleanup = RemoveOnDrop(root_el.clone());
+
+    let runtime = Runtime::mount(
+        SWAP_SLIDER_ROOT_ID,
+        SwapSliderHost {
+            first: AngleSlider::new(10, 5),
+            second: AngleSlider::new(200, 5),
+            props: AngleSliderProps::default(),
+            swapped: false,
+            dirty: Vec::new(),
+        },
+    )
+    .expect("mount must succeed");
+
+    let control = || {
+        root_el
+            .query_selector(CONTROL_SELECTOR)
+            .expect("query_selector must not fail")
+            .expect("control part must exist")
+    };
+    let offset_from_center = |control: &Element, dx: f64| -> (f64, f64) {
+        let rect = control.get_bounding_client_rect();
+        (
+            rect.left() + rect.width() / 2.0 + dx,
+            rect.top() + rect.height() / 2.0,
+        )
+    };
+
+    let first_control = control();
+    let (down_x, down_y) = offset_from_center(&first_control, 50.0);
+    first_control
+        .dispatch_event(&pointer_event("pointerdown", 1, down_x, down_y))
+        .unwrap();
+    assert_eq!(
+        runtime.component().first.angle_deg(),
+        90,
+        "1 つ目のスライダーへ pointerdown が届くこと"
+    );
+    assert!(
+        runtime.component().swapped,
+        "dispatch でスライダーが入れ替わっていること（本テストの前提成立確認）"
+    );
+
+    let swapped_control = control();
+    assert!(
+        swapped_control != first_control,
+        "入れ替え後の Control は別要素であること（同種パーツは引き続き \
+         1 個であり、要素数だけでは区別できない状況の成立確認）"
+    );
+
+    // 入れ替わった Control 中心の真左（270 度）へ pointermove を送る。
+    // エイリアスが起きていれば 2 つ目の座標系で角度が計算され値が動く。
+    let (move_x, move_y) = offset_from_center(&swapped_control, -50.0);
+    root_el
+        .dispatch_event(&pointer_event("pointermove", 1, move_x, move_y))
+        .unwrap();
+
+    assert_eq!(
+        runtime.component().second.angle_deg(),
+        200,
+        "id を持たない構成では、入れ替わった別のスライダーを元のドラッグ \
+         対象として扱わないこと（イシュー #1956 codex-review P1 の \
+         受け入れ条件）"
+    );
+    assert_eq!(
+        runtime.component().first.angle_deg(),
+        90,
+        "1 つ目の値も pointerdown 時点のまま（追跡は行われていない）"
     );
 }

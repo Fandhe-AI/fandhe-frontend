@@ -287,13 +287,19 @@ mod wiring {
     /// のは「アプリの `view()` が再現する属性」だけであり、本 enum はその
     /// 候補を安定性の高い順に並べたものである。
     ///
-    /// 文書順の添字を単独の識別子にはしない: 同じ `view()` でも状態に
-    /// よって出現順・個数は変わるため、ドラッグ中に Control の挿入・削除・
-    /// 並べ替えが起きると別の Control を指してしまう（レビュー指摘）。
-    /// [`PartKey::Sole`] は「`root` 配下に同種パーツが 1 個しか無い」場合に
-    /// 限って添字 `0` を使う変種であり、再解決時にも個数 1 を再確認する
-    /// ため、挿入・削除では fail-closed に解決失敗（＝ドラッグ終了）へ
-    /// 倒れ、並べ替えは定義上起こり得ない。
+    /// 位置ベースの識別（文書順の添字・要素数）は一切使わない。同じ
+    /// `view()` でも状態によって出現順・個数は変わるため、
+    ///
+    /// - 添字: ドラッグ中に Control の挿入・削除・並べ替えが起きると別の
+    ///   Control を指してしまう
+    /// - 要素数: `id` の無いスライダー A が条件分岐で削除され別のスライダー
+    ///   B だけが表示された場合も「同種パーツ 1 個」は成立するため、B を
+    ///   元の対象として返してしまう（capture・フォーカスが B へ移る）
+    ///
+    /// のいずれも「対象が消えたら操作を終了する」契約を満たせない
+    /// （レビュー指摘）。**再描画をまたぐ復元には `id` による安定識別子を
+    /// 必須**とし、識別できない対象は最初から追跡しない（[`part_key`] が
+    /// `None` を返す）。
     #[derive(Clone)]
     enum PartKey {
         /// 対象要素自身の `id` 属性（最も安定。アプリが `id` を付けている
@@ -304,38 +310,29 @@ mod wiring {
         /// 再解決時にも Root 内の該当パーツがちょうど 1 個であることを
         /// 確認する）。
         RootId(String),
-        /// `root` 配下に同種パーツが 1 個だけ存在する場合の暗黙識別。
-        Sole,
     }
 
     /// `element`（`selector` に一致するパーツ）を再描画後に再解決するための
     /// [`PartKey`] を決める。
     ///
-    /// いずれの識別子も得られない場合（`id` を持たず、同種パーツが複数
-    /// ある構成）は `None` を返す。呼び出し側は追跡・フォーカス復元を
-    /// 行わず、修正前と同じ「再描画を挟むと操作が途切れる」挙動へ
-    /// フォールバックする（誤った要素を掴み続けるより安全側、fail-closed）。
-    /// この構成のアプリは Root または Control/Thumb へ `id` を付けることで
-    /// 追跡対象になる。
-    fn part_key(root: &Element, element: &Element, selector: &str) -> Option<PartKey> {
+    /// `id` による安定識別子が得られない場合（対象自身にも、それを含む
+    /// AngleSlider Root にも `id` が無い構成）は `None` を返す。呼び出し側は
+    /// 追跡・フォーカス復元を一切行わず、本 PR 以前と同じ「再描画を挟むと
+    /// 操作が途切れる」挙動へフォールバックする（誤った要素を掴み続ける／
+    /// 別要素へフォーカスを移すより安全側、fail-closed。[`PartKey`] doc
+    /// 「位置ベースの識別は使わない」参照）。この構成のアプリは Root
+    /// または Control/Thumb へ `id` を付けることで追跡対象になる。
+    fn part_key(root: &Element, element: &Element) -> Option<PartKey> {
         let own_id = element.id();
         if !own_id.is_empty() {
             return Some(PartKey::OwnId(own_id));
         }
-        if let Some(part_root) = closest_matching(root, element, ANGLE_SLIDER_SCOPE, ROOT_PART) {
-            let root_id = part_root.id();
-            if !root_id.is_empty() {
-                return Some(PartKey::RootId(root_id));
-            }
+        let part_root = closest_matching(root, element, ANGLE_SLIDER_SCOPE, ROOT_PART)?;
+        let root_id = part_root.id();
+        if root_id.is_empty() {
+            return None;
         }
-        let count = root
-            .query_selector_all(selector)
-            .map(|list| list.length())
-            .unwrap_or(0);
-        if count == 1 {
-            return Some(PartKey::Sole);
-        }
-        None
+        Some(PartKey::RootId(root_id))
     }
 
     /// `root` 配下から [`PartKey`] に対応するパーツ（`selector` 一致）を
@@ -386,7 +383,6 @@ mod wiring {
                 }
                 sole_match(&part_root, selector)
             }
-            PartKey::Sole => sole_match(root, selector),
         }
     }
 
@@ -402,7 +398,7 @@ mod wiring {
     /// 座標更新で止まる。
     ///
     /// そこで「どの pointer が、どの Control を掴んでいるか」を
-    /// [`PartKey`]（再描画をまたいで安定する識別子）で保持し、
+    /// [`PartKey`]（`id` による安定識別子）で保持し、
     ///
     /// 1. pointermove では capture の有無ではなく本状態の一致でドラッグ
     ///    継続を判定する（DOM 要素の同一性に依存しない）
@@ -584,7 +580,7 @@ mod wiring {
         // 取り違えた Control を掴み続けるより、ドラッグが止まる方を選ぶ。
         // `part_key` doc 参照）。
         if let Ok(mut state) = drag.try_borrow_mut() {
-            *state = part_key(root, &control, CONTROL_SELECTOR).map(|control_key| DragState {
+            *state = part_key(root, &control).map(|control_key| DragState {
                 pointer_id,
                 control_key,
             });
@@ -759,7 +755,7 @@ mod wiring {
         // dispatch 前にフォーカス復元用のキーを採取する（dispatch 後は
         // 対象要素が detach され `closest_matching` による Root 探索が
         // できなくなるため）。
-        let thumb_key = part_key(root, target_element, THUMB_SELECTOR);
+        let thumb_key = part_key(root, target_element);
 
         keyboard_event.prevent_default();
         if let Ok(mut cb) = on_action.try_borrow_mut() {

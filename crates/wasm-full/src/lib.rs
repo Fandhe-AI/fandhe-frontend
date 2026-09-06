@@ -1384,12 +1384,18 @@ where
     /// `crates/wasm-full/tests/angle_slider_browser.rs::
     /// pointer_drag_continues_across_structural_fallback`）。
     ///
-    /// ドラッグ対象の再解決は文書順の添字ではなく、再描画をまたいで安定
-    /// する識別子（`angle_slider.rs` の `wiring::PartKey`: 対象自身の `id`
-    /// → AngleSlider Root の `id` → `root` 配下に同種パーツが 1 個だけの
-    /// 場合の暗黙識別）で行う。掴んでいた Control が消えた・一意に定まら
-    /// ない場合はドラッグを終了する（別の Control へ対象が移らない、
-    /// 回帰テストは `drag_does_not_retarget_to_another_control`）。
+    /// ドラッグ対象の再解決には `id` による安定識別子を必須とする
+    /// （`angle_slider.rs` の `wiring::PartKey`: 対象自身の `id`、または
+    /// それを含む AngleSlider Root の `id`）。文書順の添字・要素数といった
+    /// 位置ベースの識別は使わない（添字は挿入・削除・並べ替えで別の
+    /// Control を指し、要素数は `id` 無しのスライダーが入れ替わった場合も
+    /// 「1 個」が成立して別インスタンスをエイリアスするため、いずれも
+    /// 「対象が消えたら操作を終了する」契約を満たせない）。掴んでいた
+    /// Control が消えた・一意に定まらない場合はドラッグを終了し、`id` を
+    /// 持たない構成ではそもそも追跡しない（本節の対策以前と同じ挙動へ
+    /// フォールバックする、fail-closed）。回帰テストは
+    /// `drag_does_not_retarget_to_another_control` と
+    /// `drag_does_not_alias_a_swapped_in_slider_without_ids`。
     ///
     /// この追跡は `has_pointer_capture` に依存しないため、capture 喪失中に
     /// `root` の外でボタンが離され pointerup を取り逃すと追跡が stale に
@@ -1405,8 +1411,9 @@ where
     /// が `remove_child` でフォーカス中の Thumb ごと削除する。フォーカスが
     /// `body` へ移ると以降のキー入力が Thumb に届かず、最初の矢印キー 1 回で
     /// 操作が途切れる。`angle_slider.rs` の `wiring::restore_thumb_focus` が
-    /// dispatch 後に「元の Thumb が detach された」かつ「上記 `PartKey` から
-    /// 再描画後の Thumb を一意に再解決できた」場合に限りフォーカスを戻す
+    /// dispatch 後に「元の Thumb が detach された」かつ「上記 `PartKey`
+    /// （`id` 必須）から再描画後の Thumb を一意に再解決できた」場合に限り
+    /// フォーカスを戻す
     /// （それ以外では利用者のフォーカスを奪わない、fail-closed。回帰テストは
     /// `thumb_focus_is_restored_after_structural_fallback_on_keydown`）。
     ///
