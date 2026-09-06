@@ -1880,7 +1880,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更にもなるため、依存先 headless-ui 0.61.0 への追随を含めマイナーバンプ
 # で 0.115.0 とする（`src/toolbar.rs` 自体の実装は `Toolbar::new` のみ使用
 # で変更なし、CSS 出力〔`Theme::to_css`/`stylesheet()`〕も不変）。
-version = "0.115.0"
+# イシュー #1664（splitter の参照突合）: headless-ui 側 `splitter::panel`/
+# `Splitter::panel`（`index: usize` 引数追加）・`splitter::resize_trigger`/
+# `Splitter::resize_trigger`（`controls: &str` を `leading_id, trailing_id`
+# へ置換）のシグネチャ変更に追随し、本クレートの `splitter::panel`/
+# `resize_trigger` ラッパも同型の破壊的シグネチャ変更を行ったため、
+# 依存先 headless-ui 0.62.0 への追随を含めマイナーバンプで 0.116.0 とする
+# （CSS 出力〔`recipe()`/`stylesheet()`〕・`SLOTS` は不変）。
+version = "0.116.0"
 
 
 edition = "2021"
@@ -1896,7 +1903,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.61.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.62.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

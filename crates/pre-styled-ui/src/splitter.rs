@@ -657,23 +657,26 @@ pub fn panel<'a>(
         merged.push(("style", style));
     }
     merged.extend(drop_style_attr(attrs));
-    state.panel(id, merged, children)
+    state.panel(panel_index, id, merged, children)
 }
 
 /// styled resize-trigger パーツを組み立てる。実体は
 /// [`fandhe_frontend_headless_ui::splitter::Splitter::resize_trigger`] へ
 /// 委譲する（動的値の伝搬は [`panel`] の `--fandhe-splitter-size` 経由のみ
-/// のため、本関数自体は追加の `style` を持たない）。
+/// のため、本関数自体は追加の `style` を持たない）。`leading_id`/
+/// `trailing_id` は headless-ui 側イシュー #1664 の参照突合（`aria-controls`
+/// を隣接 2 パネルへ拡張）に追随した破壊的変更（旧 `panel_id` 単一引数）。
 #[must_use]
 pub fn resize_trigger<'a>(
     state: &Splitter,
     trigger: usize,
-    panel_id: &'a str,
+    leading_id: &'a str,
+    trailing_id: &'a str,
     disabled: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    state.resize_trigger(trigger, panel_id, disabled, attrs, children)
+    state.resize_trigger(trigger, leading_id, trailing_id, disabled, attrs, children)
 }
 
 #[cfg(test)]
@@ -1019,9 +1022,17 @@ mod tests {
     #[test]
     fn resize_trigger_outputs_role_and_controls() {
         let s = default_state();
-        let html = render(&resize_trigger(&s, 0, "panel-a", false, vec![], vec![]));
+        let html = render(&resize_trigger(
+            &s,
+            0,
+            "panel-a",
+            "panel-b",
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"role="separator""#));
-        assert!(html.contains(r#"aria-controls="panel-a""#));
+        assert!(html.contains(r#"aria-controls="panel-a panel-b""#));
     }
 
     // --- エスケープ回帰 ---

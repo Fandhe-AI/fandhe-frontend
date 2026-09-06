@@ -1296,16 +1296,22 @@ fn listbox_dispatch_select_payload_is_escaped_on_hydration_render() {
     }
 }
 
-/// (1)/(2) Splitter（イシュー #826）: `panel` の `id`（属性値経路）・
-/// `resize_trigger` の `aria-controls`（属性値経路）・
+/// (1)/(2) Splitter（イシュー #826、#1664 でシグネチャ追随）: `panel` の
+/// `id`/`data-index`/`data-id`（属性値経路）・`resize_trigger` の
+/// `aria-controls`/`data-id`（先行・後続双方の id、属性値経路）・
 /// `resize_trigger_indicator` の children（テキスト経路）へ全ペイロードを
 /// 注入し、エスケープが貫通することを固定する。
 #[test]
 fn splitter_panel_id_and_resize_trigger_controls_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
-        let panel_node = splitter::panel(payload, Orientation::Horizontal, vec![], vec![]);
+        let panel_node = splitter::panel(payload, 0, Orientation::Horizontal, vec![], vec![]);
         let html = render(&panel_node);
         assert_payload_is_escaped(payload, &html, "splitter::panel の id 属性値コンテキスト");
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::panel の data-id 属性値コンテキスト",
+        );
 
         let resize_trigger_node = splitter::resize_trigger(
             Orientation::Horizontal,
@@ -1313,6 +1319,7 @@ fn splitter_panel_id_and_resize_trigger_controls_are_escaped_for_all_payloads() 
             "100",
             "50",
             payload,
+            "panel-trailing",
             false,
             vec![],
             vec![],
@@ -1321,7 +1328,35 @@ fn splitter_panel_id_and_resize_trigger_controls_are_escaped_for_all_payloads() 
         assert_payload_is_escaped(
             payload,
             &html,
-            "splitter::resize_trigger の aria-controls 属性値コンテキスト",
+            "splitter::resize_trigger の aria-controls（leading）属性値コンテキスト",
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger の data-id（leading）属性値コンテキスト",
+        );
+
+        let resize_trigger_trailing_node = splitter::resize_trigger(
+            Orientation::Horizontal,
+            "0",
+            "100",
+            "50",
+            "panel-leading",
+            payload,
+            false,
+            vec![],
+            vec![],
+        );
+        let html = render(&resize_trigger_trailing_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger の aria-controls（trailing）属性値コンテキスト",
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger の data-id（trailing）属性値コンテキスト",
         );
 
         let indicator_node = splitter::resize_trigger_indicator(vec![], vec![text(payload)]);

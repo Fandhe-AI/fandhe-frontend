@@ -5778,6 +5778,7 @@ fn splitter_section() -> Node {
                 &horizontal_state,
                 0,
                 "showcase-splitter-h-panel-a",
+                "showcase-splitter-h-panel-b",
                 false,
                 vec![],
                 vec![],
@@ -5800,21 +5801,26 @@ fn splitter_section() -> Node {
         ],
         Orientation::Vertical,
     );
+    let vertical_panel_ids: Vec<String> = (0..3)
+        .map(|index| format!("showcase-splitter-v-panel-{index}"))
+        .collect();
     let mut vertical_children = Vec::new();
     for (index, label) in ["Top", "Middle", "Bottom"].iter().enumerate() {
-        let id = format!("showcase-splitter-v-panel-{index}");
+        let id = &vertical_panel_ids[index];
         vertical_children.push(splitter::panel(
             &vertical_state,
             index,
-            &id,
+            id,
             vec![],
             vec![text(*label)],
         ));
         if index + 1 < 3 {
+            let trailing_id = &vertical_panel_ids[index + 1];
             vertical_children.push(splitter::resize_trigger(
                 &vertical_state,
                 index,
-                &id,
+                id,
+                trailing_id,
                 false,
                 vec![],
                 vec![],

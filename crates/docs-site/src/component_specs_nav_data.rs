@@ -1466,7 +1466,7 @@ fn ex_splitter() -> Node {
         vec![],
         vec![
             splitter::panel(&state, 0, "panel-a", vec![], vec![text("A")]),
-            splitter::resize_trigger(&state, 0, "panel-a", false, vec![], vec![]),
+            splitter::resize_trigger(&state, 0, "panel-a", "panel-b", false, vec![], vec![]),
             splitter::panel(&state, 1, "panel-b", vec![], vec![text("B")]),
         ],
     )

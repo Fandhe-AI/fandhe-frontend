@@ -18,8 +18,13 @@
 //! されるため `aria-orientation="vertical"` を出力する（逆に
 //! `Orientation::Vertical`＝パネル縦並びのときはセパレータが横に伸びるバーで
 //! `aria-orientation="horizontal"`）。`data-orientation` はパネルレイアウトの
-//! 向きをそのまま出力するため、両者は意図的に逆になる（ark-ui/zag.js の実出力
-//! と同じ判断）。
+//! 向きをそのまま出力するため、両者は意図的に逆になる。**訂正（イシュー
+//! #1664）**: 当初本節は「ark-ui/zag.js の実出力と同じ判断」としていたが、
+//! zag.js `splitter.connect.ts` の実出力は `aria-orientation` を反転させず
+//! `data-orientation` と同値である。本実装は WAI-ARIA APG Window Splitter
+//! パターン（"Left/Right Arrow move a *vertical* splitter" ＝左右分割の
+//! セパレータは vertical）の記述に従って意図的に反転を維持する（zag.js とは
+//! 非追随、下記「参照突合」節参照）。
 //!
 //! # 呼び出し文脈
 //!
@@ -66,14 +71,75 @@
 //!   すべて拒否する。[`crate::slider::Slider`] と同型の fail-closed 契約）。
 //!   受理した値はさらに [`normalize_sizes`] へ通してから復元する（多層防御）。
 //!
+//! # 参照突合（イシュー #1664）
+//!
+//! ark-ui docs（`.claude/skills/ark-ui/references/components/disclosure/splitter.md`）・
+//! zag.js `packages/machines/splitter/src/splitter.connect.ts`/
+//! `splitter.machine.ts`・WAI-ARIA APG Window Splitter パターンと突合した
+//! （Radix Primitives に Splitter 相当は存在しないため対象外、
+//! `docs/design/component-coverage-map.md` 参照）。
+//!
+//! **是正した差分（4 点）**:
+//!
+//! - **panel の `data-index`/`data-id` 欠落**: ark-ui docs の `data-*` 表に
+//!   従い、[`panel`] へパネル序数 `index: usize`（`data-index`）と `id` の
+//!   写し（`data-id`）を追加した（破壊的変更、[`panel`] の引数順変更）。
+//! - **resize-trigger の `data-id` 欠落・`aria-controls` が先行パネルのみ**:
+//!   ark-ui docs は `resize-trigger` の `data-id` を `"<leading>:<trailing>"`
+//!   形式で要求する。`aria-controls` も zag.js の実出力（隣接 2 パネルの id
+//!   を空白区切りで列挙）に合わせ、[`resize_trigger`] の `controls: &str`
+//!   引数を `leading_id: &str, trailing_id: &str` へ置換した（破壊的変更。
+//!   本実装の `apply_set_size` は先行・後続の両パネルを同時に変更するため
+//!   両 id が実態に即す）。
+//! - **Shift+Arrow（`keyboardResizeBy` 既定 ×10）の欠落**: zag.js は
+//!   Shift 修飾時にステップの 10 倍でリサイズする。状態機械のみ
+//!   [`SplitterAction::IncrementLarge`]/[`SplitterAction::DecrementLarge`]
+//!   （dispatch 名 `"increment_large"`/`"decrement_large"`）として追加した
+//!   （`fandhe-frontend-wasm-full` の Shift 修飾キー配線は REQ-11 バンドル
+//!   予算の観点から本イシューでは対象外、別 Issue 起票を提案する）。
+//! - **予約キーなりすまし除去の欠落**: 呼び出し側 `attrs` が `role`/
+//!   `aria-*`/`tabindex`/`data-*`/`id` を偽装・重複出力できてしまう構造的
+//!   欠陥を [`drop_reserved`] で塞いだ（`crate::slider`/`crate::angle_slider`
+//!   と同型のパターン）。`aria-label`/`aria-labelledby` は zag.js が
+//!   `getRootProps` 等で固定付与しない拡張点のため予約対象に含めない。
+//!
+//! **意図的に非追随のまま残した差分**（`docs/policy/intentional-non-adoption.md`
+//! §3.25 規則 2: 装飾・ポインタ計測は headless 層へ持ち込まない）:
+//!
+//! - **`data-focus`/`data-dragging`（root/panel/resize-trigger）**:
+//!   focus・pointer ドラッグの DOM ローカル状態。headless 層は pointer 配線を
+//!   持たないため実データが無い（`crate::slider`/`crate::accordion` と同じ
+//!   判断）。
+//! - **`data-orientation` を resize-trigger-indicator へ追加しない**: ark-ui
+//!   docs の `data-*` 表に indicator の行が無いため追加しない
+//!   （`fandhe-frontend-pre-styled-ui` の recipe が「indicator は
+//!   `data-orientation` を受け取らない」前提で組まれている既存設計を維持）。
+//! - **`aria-orientation` の向き**: 上記モジュール doc 冒頭節参照（APG 準拠を
+//!   維持、zag.js とは非同値のまま）。
+//! - **disabled 時の `tabindex="-1"` + `aria-disabled`**: zag.js は disabled
+//!   時に `tabIndex`/`aria-disabled` を出力しないが、本実装はリポジトリ横断
+//!   規約（disabled でも属性で明示する）の superset として維持する。
+//! - **Enter（collapse/expand トグル）・F6（トリガー間フォーカス循環）**:
+//!   下記スコープ外節参照。
+//! - **`dir`・`data-ownedby`・inline style（`flex-basis`/`cursor`/
+//!   `touch-action`）・pointer ハンドラ**: レイアウト・装飾は
+//!   `fandhe-frontend-pre-styled-ui` の責務（§3.25 規則 2）。`dir` は本
+//!   リポジトリ横断で未採用。
+//!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - **pointer ドラッグ・キーボード操作の DOM 配線**: 他コンポーネント同様、
-//!   クライアントランタイム（`fandhe-frontend-wasm-full`）側の後続責務とする。
-//!   本モジュールは SSR 静的マークアップと dispatch 契約のみを提供する。
-//! - **collapse/expand・`onResize`/`onCollapse` コールバック・ネスト
-//!   registry・`keyboardResizeBy` の可変化**: ark-ui の対応 API だが、初期
-//!   実装スコープからは除外する。
+//! - **pointer ドラッグの DOM 配線**: 他コンポーネント同様、クライアント
+//!   ランタイム（`fandhe-frontend-wasm-full`）側の後続責務とする。本
+//!   モジュールは SSR 静的マークアップと dispatch 契約のみを提供する。
+//! - **Arrow/Home/End キーの DOM 配線**: イシュー #1074 で
+//!   `fandhe-frontend-wasm-full` の `splitter` モジュールが配線済み
+//!   （`SplitterKeyAction` → `"increment"`/`"decrement"`/`"home"`/`"end"`
+//!   dispatch）。**Shift+Arrow（`IncrementLarge`/`DecrementLarge`）・F6
+//!   （トリガー間フォーカス循環）は未配線**（イシュー #1664 時点、別 Issue
+//!   起票対象）。
+//! - **collapse/expand（Enter キー相当）・`onResize`/`onCollapse` コールバック・
+//!   ネスト registry・`keyboardResizeBy` の可変化**: ark-ui/zag.js の対応 API
+//!   だが、初期実装スコープからは除外する。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::aria_orientation;
@@ -207,6 +273,45 @@ fn normalize(sizes: &[f64], mins: &[f64], maxs: &[f64]) -> (Vec<f64>, Vec<f64>, 
     (sizes, mins.to_vec(), maxs.to_vec())
 }
 
+/// [`root`] が一律付与する属性キー一覧。呼び出し側 `attrs` に同名キーが
+/// 含まれていても fail-closed で除去する（[`crate::slider::STATE_RESERVED`]
+/// と同型のパターン）。
+const ROOT_RESERVED: &[&str] = &["data-orientation", "data-disabled"];
+
+/// [`panel`] の予約キー一覧（`id`/`data-orientation`/`data-index`/
+/// `data-id` のなりすまし・重複出力を防ぐ）。
+const PANEL_RESERVED: &[&str] = &["id", "data-orientation", "data-index", "data-id"];
+
+/// [`resize_trigger`] の予約キー一覧。`aria-label`/`aria-labelledby` は
+/// zag.js が固定付与しない拡張点のため意図的に含めない
+/// （モジュール doc「参照突合（イシュー #1664）」節参照）。
+const RESIZE_TRIGGER_RESERVED: &[&str] = &[
+    "role",
+    "aria-valuemin",
+    "aria-valuemax",
+    "aria-valuenow",
+    "aria-orientation",
+    "aria-controls",
+    "aria-disabled",
+    "tabindex",
+    "data-orientation",
+    "data-disabled",
+    "data-id",
+];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::slider::drop_reserved`] と同型の重複実装。モジュール
+/// 間の相互依存を避けるため個別に定義する）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
 /// Root パーツ（`div`）。
 #[must_use]
 pub fn root<'a>(
@@ -217,30 +322,45 @@ pub fn root<'a>(
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_orientation(orientation)];
     merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, ROOT_RESERVED));
     ANATOMY.part("root", "div", merged, children)
 }
 
 /// Panel パーツ（`div`）。呼び出し側指定の `id`（[`resize_trigger`] の
-/// `aria-controls` 先）を必須で受け取る。
+/// `aria-controls` 先）を必須で受け取る。`index` はパネル序数
+/// （[`Splitter::size`] 等の添字と同じ、`data-index` として出力する。
+/// ark-ui docs の `data-*` 表との参照突合〔イシュー #1664〕で追加した
+/// 破壊的変更）。
 #[must_use]
 pub fn panel<'a>(
     id: &'a str,
+    index: usize,
     orientation: Orientation,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![("id", id), data_orientation(orientation)];
-    merged.extend(attrs);
+    let index_s = index.to_string();
+    let mut merged: Vec<(&str, &str)> = vec![
+        ("id", id),
+        data_orientation(orientation),
+        // `id` は `&'a str` のためそのまま `data-id` へ再利用できる（clone
+        // 不要）。`data-index` のみ整形済み `index_s` を局所で借用する。
+        ("data-id", id),
+        ("data-index", index_s.as_str()),
+    ];
+    merged.extend(drop_reserved(attrs, PANEL_RESERVED));
     ANATOMY.part("panel", "div", merged, children)
 }
 
 /// ResizeTrigger パーツ（`div role="separator"`）。WAI-ARIA Window Splitter
 /// パターンに従い `aria-valuemin`/`aria-valuemax`/`aria-valuenow`（先行パネル
 /// のサイズ%）/`aria-orientation`（セパレータ自体の向き、モジュール doc
-/// 参照）/`aria-controls`（先行パネル id）を常に出力する。`disabled` が
-/// `true` のとき `tabindex="-1"` + `aria-disabled` の対を出力し、`false` の
-/// とき `tabindex="0"`（実際の操作配線はスコープ外・モジュール doc 参照）。
+/// 参照）/`aria-controls`（隣接 2 パネルの id、`"<leading> <trailing>"`）を
+/// 常に出力する。`data-id` は ark-ui docs の `data-*` 表に合わせ
+/// `"<leading_id>:<trailing_id>"` 形式で出力する（イシュー #1664 参照突合、
+/// `controls: &str` 単一引数からの破壊的変更）。`disabled` が `true` のとき
+/// `tabindex="-1"` + `aria-disabled` の対を出力し、`false` のとき
+/// `tabindex="0"`（実際の操作配線はスコープ外・モジュール doc 参照）。
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn resize_trigger<'a>(
@@ -248,7 +368,8 @@ pub fn resize_trigger<'a>(
     min: &'a str,
     max: &'a str,
     now: &'a str,
-    controls: &'a str,
+    leading_id: &'a str,
+    trailing_id: &'a str,
     disabled: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
@@ -259,13 +380,15 @@ pub fn resize_trigger<'a>(
         Orientation::Horizontal => Orientation::Vertical,
         Orientation::Vertical => Orientation::Horizontal,
     };
-    let mut merged: Vec<(&'a str, &'a str)> = vec![
+    let controls = format!("{leading_id} {trailing_id}");
+    let data_id = format!("{leading_id}:{trailing_id}");
+    let mut merged: Vec<(&str, &str)> = vec![
         ("role", "separator"),
         ("aria-valuemin", min),
         ("aria-valuemax", max),
         ("aria-valuenow", now),
         aria_orientation(separator_orientation),
-        ("aria-controls", controls),
+        ("aria-controls", controls.as_str()),
     ];
     if disabled {
         merged.push(("tabindex", "-1"));
@@ -275,7 +398,8 @@ pub fn resize_trigger<'a>(
     }
     merged.push(data_orientation(orientation));
     merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    merged.push(("data-id", data_id.as_str()));
+    merged.extend(drop_reserved(attrs, RESIZE_TRIGGER_RESERVED));
     ANATOMY.part("resize-trigger", "div", merged, children)
 }
 
@@ -307,10 +431,22 @@ pub enum SplitterAction {
     SetToMin(usize),
     /// `trigger` パネルのサイズをその `max` に設定する（End キー相当）。
     SetToMax(usize),
+    /// `trigger` パネルのサイズを [`STEP`] の [`LARGE_STEP_MULTIPLIER`] 倍
+    /// （既定 10.0%）分だけ増加する（zag.js `keyboardResizeBy` 既定値相当、
+    /// Shift+Arrow キー相当。イシュー #1664 参照突合で追加。DOM keydown
+    /// 配線は `fandhe-frontend-wasm-full` 側で未実装、モジュール doc
+    /// 「スコープ外」節参照）。
+    IncrementLarge(usize),
+    /// [`IncrementLarge`](Self::IncrementLarge) と対称の大幅減少。
+    DecrementLarge(usize),
 }
 
 /// 固定の増減ステップ（%）。
 const STEP: f64 = 1.0;
+
+/// [`SplitterAction::IncrementLarge`]/[`SplitterAction::DecrementLarge`] の
+/// [`STEP`] に対する倍率（zag.js `keyboardResizeBy` 既定値 10 に合わせる）。
+const LARGE_STEP_MULTIPLIER: f64 = 10.0;
 
 /// Splitter のパネルサイズ状態機械（ark-ui 準拠）。
 ///
@@ -409,27 +545,36 @@ impl Splitter {
         root(self.orientation, disabled, attrs, children)
     }
 
-    /// [`panel`] へ現在の状態を注入する利便メソッド。
+    /// [`panel`] へ現在の状態を注入する利便メソッド。`index` は
+    /// `data-index`（[`Splitter::size`] 等の添字と同じ）として出力する
+    /// （破壊的変更、イシュー #1664 参照突合）。
     #[must_use]
     pub fn panel<'a>(
         &self,
+        index: usize,
         id: &'a str,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        panel(id, self.orientation, attrs, children)
+        panel(id, index, self.orientation, attrs, children)
     }
 
-    /// [`resize_trigger`] へ `trigger` 番目の先行パネルの状態を注入する
-    /// 利便メソッド。`trigger` が範囲外（`panel_count() - 1` 未満でない）の
-    /// 場合は末尾パネルのインデックス（`sizes.len() - 1`）へ clamp して扱う
-    /// （fail-closed。境界を越えた呼び出しでも panic せず、常に `mins`/`maxs`/
-    /// `sizes` の有効な添字を参照する）。
+    /// [`resize_trigger`] へ `trigger` 番目の隣接 2 パネル（先行/後続）の
+    /// 状態を注入する利便メソッド。`trigger` が範囲外（`panel_count() - 1`
+    /// 未満でない）の場合は末尾パネルのインデックス（`sizes.len() - 1`）へ
+    /// clamp して扱う（fail-closed。境界を越えた呼び出しでも panic せず、
+    /// 常に `mins`/`maxs`/`sizes` の有効な添字を参照する）。`trailing_id` は
+    /// `aria-controls`/`data-id` の一部としてのみ出力し、数値属性
+    /// （`aria-valuemin`/`max`/`now`）は先行パネルのサイズ % を保つ
+    /// （破壊的変更、イシュー #1664 参照突合: `panel_id` 単一引数を
+    /// `leading_id, trailing_id` へ置換）。
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn resize_trigger<'a>(
         &self,
         trigger: usize,
-        panel_id: &'a str,
+        leading_id: &'a str,
+        trailing_id: &'a str,
         disabled: bool,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
@@ -443,7 +588,8 @@ impl Splitter {
             min_s.as_str(),
             max_s.as_str(),
             now_s.as_str(),
-            panel_id,
+            leading_id,
+            trailing_id,
             disabled,
             attrs,
             children,
@@ -493,6 +639,16 @@ impl Component for Splitter {
                     self.apply_set_size(trigger, max);
                 }
             }
+            SplitterAction::IncrementLarge(trigger) => {
+                if let Some(&current) = self.sizes.get(trigger) {
+                    self.apply_set_size(trigger, current + STEP * LARGE_STEP_MULTIPLIER);
+                }
+            }
+            SplitterAction::DecrementLarge(trigger) => {
+                if let Some(&current) = self.sizes.get(trigger) {
+                    self.apply_set_size(trigger, current - STEP * LARGE_STEP_MULTIPLIER);
+                }
+            }
         }
     }
 
@@ -503,9 +659,9 @@ impl Component for Splitter {
             false,
             Vec::new(),
             vec![
-                self.panel("panel-0", Vec::new(), Vec::new()),
-                self.resize_trigger(0, "panel-0", false, Vec::new(), Vec::new()),
-                self.panel("panel-1", Vec::new(), Vec::new()),
+                self.panel(0, "panel-0", Vec::new(), Vec::new()),
+                self.resize_trigger(0, "panel-0", "panel-1", false, Vec::new(), Vec::new()),
+                self.panel(1, "panel-1", Vec::new(), Vec::new()),
             ],
         )
     }
@@ -526,6 +682,14 @@ impl Component for Splitter {
             "decrement" => payload.parse::<usize>().ok().map(SplitterAction::Decrement),
             "home" => payload.parse::<usize>().ok().map(SplitterAction::SetToMin),
             "end" => payload.parse::<usize>().ok().map(SplitterAction::SetToMax),
+            "increment_large" => payload
+                .parse::<usize>()
+                .ok()
+                .map(SplitterAction::IncrementLarge),
+            "decrement_large" => payload
+                .parse::<usize>()
+                .ok()
+                .map(SplitterAction::DecrementLarge),
             _ => None,
         }
     }
@@ -714,11 +878,24 @@ mod tests {
 
     #[test]
     fn panel_outputs_scope_part_id_orientation() {
-        let html = render(&panel("panel-a", Orientation::Vertical, vec![], vec![]));
+        let html = render(&panel("panel-a", 0, Orientation::Vertical, vec![], vec![]));
         assert!(html.contains(r#"data-scope="splitter""#));
         assert!(html.contains(r#"data-part="panel""#));
         assert!(html.contains(r#"id="panel-a""#));
         assert!(html.contains(r#"data-orientation="vertical""#));
+    }
+
+    #[test]
+    fn panel_outputs_data_index_and_data_id() {
+        let html = render(&panel(
+            "panel-b",
+            1,
+            Orientation::Horizontal,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-index="1""#));
+        assert!(html.contains(r#"data-id="panel-b""#));
     }
 
     #[test]
@@ -729,6 +906,7 @@ mod tests {
             "100",
             "50",
             "panel-a",
+            "panel-b",
             false,
             vec![],
             vec![],
@@ -739,7 +917,8 @@ mod tests {
         assert!(html.contains(r#"aria-valuemin="0""#));
         assert!(html.contains(r#"aria-valuemax="100""#));
         assert!(html.contains(r#"aria-valuenow="50""#));
-        assert!(html.contains(r#"aria-controls="panel-a""#));
+        assert!(html.contains(r#"aria-controls="panel-a panel-b""#));
+        assert!(html.contains(r#"data-id="panel-a:panel-b""#));
         assert!(html.contains(r#"tabindex="0""#));
         assert!(!html.contains("aria-disabled"));
     }
@@ -752,6 +931,7 @@ mod tests {
             "100",
             "50",
             "panel-a",
+            "panel-b",
             false,
             vec![],
             vec![],
@@ -765,6 +945,7 @@ mod tests {
             "100",
             "50",
             "panel-a",
+            "panel-b",
             false,
             vec![],
             vec![],
@@ -781,6 +962,7 @@ mod tests {
             "100",
             "50",
             "panel-a",
+            "panel-b",
             true,
             vec![],
             vec![],
@@ -1011,6 +1193,21 @@ mod tests {
         assert_eq!(s.size(1), Some(50.0));
     }
 
+    /// イシュー #1664 参照突合: zag.js `keyboardResizeBy` 既定値（Shift+Arrow
+    /// で ×10）相当の状態機械アクション。DOM keydown 配線は wasm-full 側
+    /// 未実装のため、ここでは headless 状態機械の契約のみ固定する。
+    #[test]
+    fn dispatch_increment_large_and_decrement_large_are_ten_times_step() {
+        let mut s = Splitter::default();
+        assert!(dispatch(&mut s, "increment_large", "0"));
+        assert_eq!(s.size(0), Some(60.0));
+        assert_eq!(s.size(1), Some(40.0));
+
+        assert!(dispatch(&mut s, "decrement_large", "0"));
+        assert_eq!(s.size(0), Some(50.0));
+        assert_eq!(s.size(1), Some(50.0));
+    }
+
     #[test]
     fn dispatch_home_and_end_set_min_and_max() {
         let mut s = Splitter::new(
@@ -1207,6 +1404,7 @@ mod tests {
     fn panel_id_payload_is_escaped_on_render() {
         let html = render(&panel(
             ATTR_BREAK_PAYLOAD,
+            0,
             Orientation::Horizontal,
             vec![],
             vec![],
@@ -1222,6 +1420,24 @@ mod tests {
             "0",
             "100",
             "50",
+            ATTR_BREAK_PAYLOAD,
+            "panel-b",
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn resize_trigger_trailing_id_payload_is_escaped_on_render() {
+        let html = render(&resize_trigger(
+            Orientation::Horizontal,
+            "0",
+            "100",
+            "50",
+            "panel-a",
             ATTR_BREAK_PAYLOAD,
             false,
             vec![],
@@ -1268,5 +1484,87 @@ mod tests {
         ];
         let err = Splitter::from_hydration_attrs(&attrs).unwrap_err();
         assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    // --- 予約キーなりすまし除去（イシュー #1664 参照突合で追加） ---
+
+    #[test]
+    fn caller_supplied_reserved_attrs_are_dropped() {
+        let root_html = render(&root(
+            Orientation::Horizontal,
+            false,
+            vec![("data-orientation", "vertical"), ("data-disabled", "")],
+            vec![],
+        ));
+        assert!(root_html.contains(r#"data-orientation="horizontal""#));
+        assert!(!root_html.contains("data-disabled"));
+
+        let panel_html = render(&panel(
+            "panel-a",
+            0,
+            Orientation::Horizontal,
+            vec![
+                ("id", "attacker"),
+                ("data-orientation", "vertical"),
+                ("data-index", "999"),
+                ("data-id", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(panel_html.contains(r#"id="panel-a""#));
+        assert!(!panel_html.contains("attacker"));
+        assert!(panel_html.contains(r#"data-index="0""#));
+        assert!(panel_html.contains(r#"data-id="panel-a""#));
+
+        let trigger_html = render(&resize_trigger(
+            Orientation::Horizontal,
+            "0",
+            "100",
+            "50",
+            "panel-a",
+            "panel-b",
+            false,
+            vec![
+                ("role", "button"),
+                ("aria-valuemin", "999"),
+                ("aria-valuemax", "999"),
+                ("aria-valuenow", "999"),
+                ("aria-orientation", "horizontal"),
+                ("aria-controls", "attacker"),
+                ("aria-disabled", "false"),
+                ("tabindex", "5"),
+                ("data-orientation", "vertical"),
+                ("data-disabled", "attacker"),
+                ("data-id", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(trigger_html.contains(r#"role="separator""#));
+        assert!(trigger_html.contains(r#"aria-valuemin="0""#));
+        assert!(trigger_html.contains(r#"aria-valuemax="100""#));
+        assert!(trigger_html.contains(r#"aria-valuenow="50""#));
+        assert!(trigger_html.contains(r#"aria-controls="panel-a panel-b""#));
+        assert!(trigger_html.contains(r#"data-id="panel-a:panel-b""#));
+        assert!(trigger_html.contains(r#"tabindex="0""#));
+        assert!(!trigger_html.contains("attacker"));
+        assert!(!trigger_html.contains(r#"aria-disabled"#));
+    }
+
+    /// `aria-label`/`aria-labelledby` は zag.js が固定付与しない拡張点の
+    /// ため予約対象に含めない（モジュール doc「参照突合」節参照）。
+    #[test]
+    fn aria_label_passes_through_attrs() {
+        let html = render(&resize_trigger(
+            Orientation::Horizontal,
+            "0",
+            "100",
+            "50",
+            "panel-a",
+            "panel-b",
+            false,
+            vec![("aria-label", "Resize panels")],
+            vec![],
+        ));
+        assert!(html.contains(r#"aria-label="Resize panels""#));
     }
 }
