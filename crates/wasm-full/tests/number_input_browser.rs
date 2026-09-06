@@ -1609,3 +1609,251 @@ fn nested_number_input_inner_click_ignores_outer_readonly() {
          （readonly の判定スコープは同一インスタンス限定、実際: {dispatched:?}）"
     );
 }
+
+// ---------------------------------------------------------------------
+// イシュー #1963: click_disabled_trigger_is_noop（max clamp）と対称の
+// min clamp ケース・DOM 反映（aria-valuenow/input.value）ケース・
+// 境界由来ではない明示的な全体 disabled ケースを追加する。
+// ---------------------------------------------------------------------
+
+/// `click_disabled_trigger_is_noop`（max 到達）と対称。min（0）に到達済み
+/// の状態で `NumberInput::decrement_trigger` が `can_decrement() == false`
+/// をネイティブ `disabled` へ自動合成し、click が no-op であること。
+#[wasm_bindgen_test]
+fn click_decrement_trigger_is_noop_when_at_min() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(0.0), 0.0, 10.0, 1.0);
+    let (root, _input, _increment_button, decrement_button) = build_number_input_dom_with_triggers(
+        &document,
+        "ni-click-min-clamp",
+        &number_input,
+        NumberInputFlags::default(),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    assert!(
+        decrement_button.has_attribute("disabled"),
+        "min 到達時は decrement-trigger にネイティブ disabled が付くこと（前提確認）"
+    );
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    decrement_button.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(
+        component.borrow().value(),
+        Some(0.0),
+        "disabled な DecrementTrigger への click は no-op であること（min clamp）"
+    );
+}
+
+/// 境界（min/max）到達によるネイティブ disabled 合成とは独立に、
+/// `NumberInputFlags::disabled == true`（利用者が明示的に全体を disabled
+/// にした構成）でも click が no-op であること。
+///
+/// `build_number_input_dom_with_triggers` の IncrementTrigger/
+/// DecrementTrigger は `NumberInput::increment_trigger`/`decrement_trigger`
+/// 経由で組み立てられ、その `disabled` 引数は固定 `false`（境界到達判定と
+/// のみ OR される）ため、`flags.disabled` はトリガー要素自体には伝播せず
+/// Root パーツの `data-disabled` としてのみ反映される
+/// （`crates/headless-ui/src/number_input.rs` の `root`/`increment_trigger`/
+/// `decrement_trigger` 参照）。よってこのケースは
+/// `wiring::has_noninteractive_ancestor`（祖先方向の `data-disabled` 走査）
+/// が唯一の防御層であり、境界由来の disabled ケース
+/// （`click_disabled_trigger_is_noop`）とは異なるコード経路を通る。
+#[wasm_bindgen_test]
+fn click_increment_trigger_is_noop_when_component_disabled_via_flags() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let flags = NumberInputFlags {
+        disabled: true,
+        ..NumberInputFlags::default()
+    };
+    let (root, _input, increment_button, _decrement_button) = build_number_input_dom_with_triggers(
+        &document,
+        "ni-click-flags-disabled",
+        &number_input,
+        flags,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    assert!(
+        !increment_button.has_attribute("disabled"),
+        "flags.disabled は increment-trigger へネイティブ disabled を \
+         直接伝播しないこと（前提確認、可変引数はトリガー呼び出し側で \
+         固定 false）"
+    );
+    assert!(
+        root.has_attribute("data-disabled"),
+        "flags.disabled は Root の data-disabled として反映されること（前提確認）"
+    );
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    increment_button.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(
+        component.borrow().value(),
+        Some(5.0),
+        "全体 disabled（flags.disabled）時は has_noninteractive_ancestor が \
+         Root の data-disabled を検出して click をブロックすること"
+    );
+}
+
+/// IncrementTrigger への連続 click が step ずつ値を反映し、
+/// `aria-valuenow`/`input.value`（実利用者が実際に目にする DOM 属性）へ
+/// 都度反映されること。max（10）到達後はそれ以上増加せず clamp された
+/// まま DOM も変化しないことまで確認する（`arrow_up_increments_value_and_updates_dom`
+/// の click 版 + `value_clamps_at_max_and_min_boundaries` の click 版を兼ねる）。
+#[wasm_bindgen_test]
+fn click_increment_trigger_reflects_dom_across_multiple_clicks_and_clamps_at_max() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(8.0), 0.0, 10.0, 1.0);
+    let (root, input, increment_button, _decrement_button) = build_number_input_dom_with_triggers(
+        &document,
+        "ni-click-multi-clamp",
+        &number_input,
+        NumberInputFlags::default(),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    increment_button.dispatch_event(&click_event()).unwrap();
+    assert_eq!(component.borrow().value(), Some(9.0));
+    assert_eq!(input.get_attribute("value").as_deref(), Some("9"));
+    assert_eq!(input.get_attribute("aria-valuenow").as_deref(), Some("9"));
+
+    increment_button.dispatch_event(&click_event()).unwrap();
+    assert_eq!(component.borrow().value(), Some(10.0));
+    assert_eq!(input.get_attribute("value").as_deref(), Some("10"));
+    assert_eq!(input.get_attribute("aria-valuenow").as_deref(), Some("10"));
+
+    // max（10）到達後の追加 click は clamp されたまま変化しないこと。
+    // トリガーの DOM 上のネイティブ disabled は初回描画時点の状態から
+    // 静的なまま（本ヘルパーは束縛点の再描画を行わない、`wire_with_dom_reflection`
+    // doc 参照）だが、`NumberInputAction::Increment` 自体が
+    // `next.clamp(self.min, self.max)` で状態機械側からも安全に clamp する
+    // （`crates/headless-ui/src/number_input.rs::Component::update` 参照）。
+    increment_button.dispatch_event(&click_event()).unwrap();
+    assert_eq!(
+        component.borrow().value(),
+        Some(10.0),
+        "max 到達後の click は状態機械の clamp により 10 のまま変化しないこと"
+    );
+    assert_eq!(input.get_attribute("value").as_deref(), Some("10"));
+    assert_eq!(input.get_attribute("aria-valuenow").as_deref(), Some("10"));
+}
+
+/// 同一ページ内の複数インスタンス（qty/price）で、DecrementTrigger への
+/// click が `name` 属性で正しく識別され、他インスタンスへ一切影響しない
+/// こと（`two_instances_click_increment_trigger_updates_only_the_targeted_field`
+/// の decrement 版）。
+#[wasm_bindgen_test]
+fn two_instances_click_decrement_trigger_updates_only_the_targeted_field() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "ni-two-instances-decrement");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let qty = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let price = NumberInput::new(Some(20.0), 0.0, 100.0, 5.0);
+
+    let qty_node = qty.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![qty.control(
+            NumberInputFlags::default(),
+            Vec::new(),
+            vec![
+                qty.increment_trigger(
+                    Some("qty-input"),
+                    false,
+                    Vec::new(),
+                    vec![fandhe_frontend_core::text("+")],
+                ),
+                qty.input(
+                    "qty",
+                    Some("qty-input"),
+                    NumberInputFlags::default(),
+                    Vec::new(),
+                ),
+                qty.decrement_trigger(
+                    Some("qty-input"),
+                    false,
+                    Vec::new(),
+                    vec![fandhe_frontend_core::text("-")],
+                ),
+            ],
+        )],
+    );
+    let price_node = price.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![price.control(
+            NumberInputFlags::default(),
+            Vec::new(),
+            vec![
+                price.increment_trigger(
+                    Some("price-input"),
+                    false,
+                    Vec::new(),
+                    vec![fandhe_frontend_core::text("+")],
+                ),
+                price.input(
+                    "price",
+                    Some("price-input"),
+                    NumberInputFlags::default(),
+                    Vec::new(),
+                ),
+                price.decrement_trigger(
+                    Some("price-input"),
+                    false,
+                    Vec::new(),
+                    vec![fandhe_frontend_core::text("-")],
+                ),
+            ],
+        )],
+    );
+    let html = format!(
+        "{}{}",
+        fandhe_frontend_core::render(&qty_node),
+        fandhe_frontend_core::render(&price_node)
+    );
+    container.set_inner_html(&html);
+
+    let price_decrement_button = container
+        .query_selector(
+            r#"[data-scope="number-input"][data-part="decrement-trigger"][aria-controls="price-input"]"#,
+        )
+        .unwrap()
+        .unwrap();
+
+    let recorded: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorded_clone = recorded.clone();
+    wire_number_input_events(container.clone(), move |action_ref: ActionRef| {
+        recorded_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_number_input_events must not fail");
+
+    price_decrement_button
+        .dispatch_event(&click_event())
+        .unwrap();
+
+    let dispatched = recorded.borrow().clone();
+    assert_eq!(
+        dispatched,
+        vec![
+            ActionRef {
+                action: "set".to_string(),
+                payload: "20".to_string(),
+            },
+            ActionRef {
+                action: "decrement".to_string(),
+                payload: "price".to_string(),
+            },
+        ],
+        "price 側の DecrementTrigger の click は payload に \"price\" を \
+         載せて dispatch され、qty 側の状態は一切変更されないこと（実際: {dispatched:?}）"
+    );
+}
