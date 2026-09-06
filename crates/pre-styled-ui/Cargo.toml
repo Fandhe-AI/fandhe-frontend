@@ -1902,7 +1902,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # style-refresh-version-bump-operation.md` §5）、両者の変更の和集合と
 # してさらにマイナーバンプし 0.117.0 とする（依存先 headless-ui 0.62.0
 # への追随を含む）。
-version = "0.117.0"
+# イシュー #1688: circular Progress の indeterminate 表現に固定弧
+# （circle-range の `stroke-dasharray` state 規則）を追加した。recipe が
+# 生成する CSS 宣言の追加のみで、Rust 公開 API・生成クラス名・`data-*`
+# セレクタ語彙は不変（`.claude/rules/ci.md` の公開 CSS 契約変更に該当する
+# ため免除〔version-bump-exempt〕は使わず patch バンプする）。
+version = "0.117.1"
 
 
 edition = "2021"

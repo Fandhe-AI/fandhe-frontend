@@ -1,5 +1,5 @@
-//! styled Progress（linear + circle 対応、イシュー #763/#1564）の決定的 CSS
-//! 出力ゴールデンテスト。
+//! styled Progress（linear + circle 対応、イシュー #763/#1564/#1688）の決定的
+//! CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/drawer_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。出力順
@@ -7,7 +7,10 @@
 //! `@media (prefers-reduced-motion)`）が崩れた場合や意図しない宣言の追加・
 //! 欠落があった場合に、この golden テストが即座に検知する。イシュー #1564 で
 //! linear（Track/Range）の styled CSS・`ProgressVariant`/`ColorPalette` 軸・
-//! indeterminate/vertical の状態別 CSS・reduced-motion 対応を追加した。
+//! indeterminate/vertical の状態別 CSS・reduced-motion 対応を追加した。イシュー
+//! #1688 で circle-range の indeterminate 状態に固定弧（`stroke-dasharray`）
+//! を追加し、塗り色の完全リングが回転するだけで `complete` と区別できない
+//! 問題を是正した（circle-track は引き続き indeterminate 専用規則を持たない）。
 
 use fandhe_frontend_pre_styled_ui::progress;
 
@@ -168,6 +171,11 @@ const PROGRESS_GOLDEN_CSS: &str = r#"[data-scope="progress"][data-part="root"] {
 
 [data-scope="progress"][data-part="circle"][data-state="indeterminate"] {
   animation: fd-progress-circle-spin 1s linear infinite;
+}
+
+[data-scope="progress"][data-part="circle-range"][data-state="indeterminate"] {
+  --fandhe-progress-circumference: calc(2 * 3.14159265 * var(--radius));
+  stroke-dasharray: calc(var(--fandhe-progress-circumference) * 0.25) var(--fandhe-progress-circumference);
 }
 
 [data-scope="progress"][data-part="range"][data-state="indeterminate"] {
@@ -344,19 +352,27 @@ fn color_palette_axis_declares_all_six_palettes_on_root() {
     }
 }
 
+// イシュー #1688: 従来は circle-range が indeterminate 専用規則を一切
+// 持たない（circle-track と同じ「対象外」扱い）ことを固定していたが、
+// headless circle_range は indeterminate 時に stroke-dasharray を出力
+// しない契約のため、styled 層が何も与えないと塗り色の完全リングが
+// 回転するだけで complete と視覚的に区別できない不具合があった
+// （モジュール冒頭 rustdoc「indeterminate アニメーション」節参照）。
+// 是正後は circle-range にも固定弧の indeterminate 規則を追加したため、
+// 「circle-range は対象外」の固定を「circle-track のみ対象外」へ反転する。
 #[test]
-fn indeterminate_state_targets_circle_and_range_only() {
+fn indeterminate_state_targets_circle_range_and_range_not_circle_track() {
     let css = progress::stylesheet();
     assert!(css
         .contains(r#"[data-scope="progress"][data-part="circle"][data-state="indeterminate"] {"#));
+    assert!(css.contains(
+        r#"[data-scope="progress"][data-part="circle-range"][data-state="indeterminate"] {"#
+    ));
     assert!(
         css.contains(r#"[data-scope="progress"][data-part="range"][data-state="indeterminate"] {"#)
     );
     assert!(!css.contains(
         r#"[data-scope="progress"][data-part="circle-track"][data-state="indeterminate"]"#
-    ));
-    assert!(!css.contains(
-        r#"[data-scope="progress"][data-part="circle-range"][data-state="indeterminate"]"#
     ));
 }
 
