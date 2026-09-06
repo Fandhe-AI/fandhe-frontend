@@ -16,6 +16,11 @@
 //! radio_card::item 経路）。本ファイルはそれを重複させず、単一ペイロードの
 //! 最小回帰のみを追加して既定エスケープ（REQ-1）の迂回がないことを補強する。
 //!
+//! イシュー #1690（親 #1675）で `dialog::footer`（pre-styled-only レイアウト
+//! パート）と alert-dialog 構成（`role="alertdialog"`）が独自 `data-*` を
+//! 出力しないことの固定を追加した（規約 A・役割 B、`field`/`fieldset` と
+//! 同型）。
+//!
 //! # 削除・弱体化の禁止
 //!
 //! `.claude/rules/coding-rust.md` の規約により、本ファイルのテストは
@@ -28,6 +33,7 @@ use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
 use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
     self, ScatterChartProps, ScatterData, ScatterSeries,
 };
+use fandhe_frontend_pre_styled_ui::dialog::{self, DialogRole, OpenState};
 use fandhe_frontend_pre_styled_ui::field::{self, FieldIds, FieldProps, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::fieldset::{self, FieldsetProps, FieldsetRootProps};
 use fandhe_frontend_pre_styled_ui::radio_card;
@@ -262,4 +268,49 @@ fn fieldset_root_data_attrs_are_headless_sourced_not_self_emitted() {
     let css = fieldset::css();
     assert!(css.contains("[data-disabled]"));
     assert!(!css.contains("[data-invalid]"));
+}
+
+/// `dialog.rs`（イシュー #1690、親 #1675）の pre-styled-only `footer` パート
+/// と alert-dialog 構成は独自の `data-*` を一切出力しない（`docs/design/
+/// pre-styled-ui-data-attr-vocabulary.md` §3.1 規約 A・役割 B、
+/// `field_root_data_attrs_are_headless_sourced_not_self_emitted` と同型）。
+/// `footer` の出力に現れる `data-*` は headless
+/// `fandhe_frontend_headless_ui::anatomy::Anatomy::part` が付与する
+/// `data-scope`/`data-part`（anatomy 属性）のみであり、`role="alertdialog"`・
+/// `data-state` はいずれも headless `content`/`root` 由来（本モジュールは
+/// 組み立てない）であることを固定する。
+#[test]
+fn dialog_footer_and_alert_composition_emit_no_self_produced_data_attrs() {
+    // footer: anatomy 属性（data-scope/data-part）以外の data-* を出力しない。
+    let html = render(&dialog::footer(vec![], vec![text("Cancel / Confirm")]));
+    assert!(html.contains(r#"data-scope="dialog""#));
+    assert!(html.contains(r#"data-part="footer""#));
+    let data_attr_count = html.matches("data-").count();
+    assert_eq!(
+        data_attr_count, 2,
+        "footer は data-scope/data-part の 2 個以外の data-* を出力しないはず: html={html}"
+    );
+
+    // alert-dialog 構成: role="alertdialog" と data-state は headless
+    // `content`/`root` 由来であり、styled 層（本ファイル・dialog.rs）は
+    // これらを組み立てない（headless-ui 側の既存責務、変更なしを確認）。
+    use fandhe_frontend_headless_ui::dialog::{content, ContentIds};
+    let html = render(&content(
+        OpenState::Open,
+        DialogRole::Alertdialog,
+        true,
+        ContentIds::default(),
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains(r#"role="alertdialog""#));
+    assert!(html.contains(r#"data-state="open""#));
+
+    let html = render(&dialog::root(
+        fandhe_frontend_pre_styled_ui::Size::Md,
+        OpenState::Closed,
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains(r#"data-state="closed""#));
 }

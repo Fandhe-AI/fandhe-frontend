@@ -4585,3 +4585,39 @@ fn bar_charts_category_series_and_aria_label_are_escaped_for_all_payloads() {
         );
     }
 }
+
+/// (27) `dialog::footer` 経路（イシュー #1690、親 #1675）: pre-styled-only
+/// `footer` パート（`Anatomy::part` 直接呼び出し、`crate::card::footer` と
+/// 同型）の children・呼び出し側 `attrs` の両方で既定エスケープ（REQ-1）が
+/// 貫通することを固定する。あわせて `data-scope`/`data-part` の偽装が
+/// headless 層（`Anatomy::part`）により除去され、生値が出力に残らないこと
+/// も固定する。
+#[test]
+fn dialog_footer_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // children 経路。
+        let html = render(&dialog::footer(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "dialog::footer children コンテキスト");
+
+        // 呼び出し側 attrs（data-testid）経路。
+        let html = render(&dialog::footer(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "dialog::footer 呼び出し側 attrs コンテキスト",
+        );
+
+        // data-scope/data-part 偽装は headless `Anatomy::part` が除去する。
+        let html = render(&dialog::footer(
+            vec![("data-scope", payload), ("data-part", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "dialog::footer の data-scope/data-part 偽装ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"data-scope="dialog""#));
+        assert!(html.contains(r#"data-part="footer""#));
+    }
+}

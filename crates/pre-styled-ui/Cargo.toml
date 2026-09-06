@@ -1914,7 +1914,12 @@ name = "fandhe-frontend-pre-styled-ui"
 # `icon_button` 推奨手順を是正した。`recipe()`/`recipe_with_scope()` の
 # CSS 宣言は不変（golden テスト差分ゼロ）のため patch バンプで
 # 0.117.2 とする。
-version = "0.117.2"
+# イシュー #1690（親 #1675）: dialog へ alert-dialog 構成向けの
+# pre-styled-only `footer` パート（新規 `pub fn footer`・`SLOTS` へ純追加の
+# 1 slot）を追加した。既存パート・既存 CSS 宣言・公開 API シグネチャは
+# いずれも不変（純追加のみ、golden テストは footer ブロック 1 個の
+# 純挿入差分）のため patch バンプで 0.117.3 とする。
+version = "0.117.3"
 
 
 edition = "2021"
