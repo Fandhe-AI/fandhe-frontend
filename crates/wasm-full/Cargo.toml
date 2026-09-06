@@ -605,8 +605,11 @@ name = "fandhe-frontend-wasm-full"
 # (1) ネストした Splitter が存在する場合の所有権フィルタ漏れ、
 # (2) Root/resize-trigger に `id` を付けない標準構成でのフォーカス復元
 # 断念、の 2 件を是正した。私有型の内部変更のみで公開 API は不変のため
-# 追加の patch バンプは不要（同一 PR 内の未公開バージョンのまま）。
-version = "0.15.15"
+# 追加の patch バンプは不要だったが、並行 PR #1999（イシュー #1992）が
+# 0.15.15 を先に crates.io へ公開する見込みのため、同一版数衝突を避けて
+# 0.15.16 へ再バンプする（`semver-same-version-is-conflict` の運用に
+# 従い、据え置きではなく +1 する）。
+version = "0.15.16"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

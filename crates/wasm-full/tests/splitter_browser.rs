@@ -116,6 +116,14 @@ struct SplitterHost {
     /// （`splitter::wiring::TriggerKey` の `aria-controls` フォールバック
     /// 経路の回帰テスト、イシュー #1996 codex-review P1 是正）。
     omit_splitter_ids: bool,
+    /// トリガー 0 が隣接する 2 パネルの `id`（既定 `("panel-0",
+    /// "panel-1")`）。codex-review P1 是正（イシュー #1996）の回帰テスト
+    /// （[`Self::with_structural_fallback_and_colon_panel_ids`]）でのみ
+    /// コロンを含む値へ差し替える。`splitter::wiring::TriggerKey::Controls`
+    /// は `aria-controls`（空白区切り）で照合するため、パネル `id` 自体に
+    /// コロンを含めても構造フォールバック後の再解決が曖昧にならない
+    /// ことを検証する。
+    panel_ids: (String, String),
     trigger_bind_attr: String,
     size_now: String,
     size_label: String,
@@ -136,6 +144,12 @@ const HOST_ATTR_STRUCTURAL: &str = "data-hydrate-host-structural";
 /// 構造フォールバック後の再描画で `id` が復活してしまい「標準構成」の
 /// 検証にならない。
 const HOST_ATTR_OMIT_IDS: &str = "data-hydrate-host-omit-splitter-ids";
+/// ホストの `panel_ids.0`（leading パネル `id`）を往復させる属性名
+/// （イシュー #1996 codex-review P1 是正の回帰テスト用。
+/// [`SplitterHost::panel_ids`] doc 参照）。
+const HOST_ATTR_PANEL_ID_LEADING: &str = "data-hydrate-host-panel-id-leading";
+/// ホストの `panel_ids.1`（trailing パネル `id`）を往復させる属性名。
+const HOST_ATTR_PANEL_ID_TRAILING: &str = "data-hydrate-host-panel-id-trailing";
 
 impl SplitterHost {
     fn new(root_id: &str) -> Self {
@@ -160,6 +174,18 @@ impl SplitterHost {
         Self::with_options(root_id, false, true, true)
     }
 
+    /// [`Self::with_structural_fallback`] に加え、隣接 2 パネルの `id` に
+    /// コロンを含む値（`"panel:a"`/`"panel:b"`）を使う（イシュー #1996
+    /// codex-review P1 是正の回帰テスト。[`SplitterHost::panel_ids`] doc
+    /// 参照）。是正前の `data-id="<leading_id>:<trailing_id>"`
+    /// （コロン結合）方式では、パネル `id` 自体にコロンを含められるため
+    /// 一意性が保証されなかった問題を検証する。
+    fn with_structural_fallback_and_colon_panel_ids(root_id: &str) -> Self {
+        let mut host = Self::with_options(root_id, false, true, false);
+        host.panel_ids = ("panel:a".to_string(), "panel:b".to_string());
+        host
+    }
+
     fn with_options(
         root_id: &str,
         disabled: bool,
@@ -182,6 +208,7 @@ impl SplitterHost {
             disabled,
             structural_fallback,
             omit_splitter_ids,
+            panel_ids: ("panel-0".to_string(), "panel-1".to_string()),
             trigger_bind_attr,
             size_now,
             size_label,
@@ -228,16 +255,18 @@ impl Component for SplitterHost {
             self.disabled,
             splitter_root_attrs,
             vec![
-                self.splitter.panel(0, "panel-0", Vec::new(), Vec::new()),
+                self.splitter
+                    .panel(0, self.panel_ids.0.as_str(), Vec::new(), Vec::new()),
                 self.splitter.resize_trigger(
                     0,
-                    "panel-0",
-                    "panel-1",
+                    self.panel_ids.0.as_str(),
+                    self.panel_ids.1.as_str(),
                     self.disabled,
                     vec![("data-bind-attr", self.trigger_bind_attr.as_str())],
                     Vec::new(),
                 ),
-                self.splitter.panel(1, "panel-1", Vec::new(), Vec::new()),
+                self.splitter
+                    .panel(1, self.panel_ids.1.as_str(), Vec::new(), Vec::new()),
                 bind_text(
                     "span",
                     vec![("data-testid", "size-label")],
@@ -291,6 +320,14 @@ impl Hydrate for SplitterHost {
             HOST_ATTR_OMIT_IDS.to_string(),
             self.omit_splitter_ids.to_string(),
         ));
+        attrs.push((
+            HOST_ATTR_PANEL_ID_LEADING.to_string(),
+            self.panel_ids.0.clone(),
+        ));
+        attrs.push((
+            HOST_ATTR_PANEL_ID_TRAILING.to_string(),
+            self.panel_ids.1.clone(),
+        ));
         attrs
     }
 
@@ -318,6 +355,8 @@ impl Hydrate for SplitterHost {
         let disabled = parse_bool(HOST_ATTR_DISABLED)?;
         let structural_fallback = parse_bool(HOST_ATTR_STRUCTURAL)?;
         let omit_splitter_ids = parse_bool(HOST_ATTR_OMIT_IDS)?;
+        let panel_id_leading = find(HOST_ATTR_PANEL_ID_LEADING)?.to_string();
+        let panel_id_trailing = find(HOST_ATTR_PANEL_ID_TRAILING)?.to_string();
 
         let size_now = format!("{}", splitter.size(0).unwrap_or(50.0));
         let size_label = size_now.clone();
@@ -328,6 +367,7 @@ impl Hydrate for SplitterHost {
             disabled,
             structural_fallback,
             omit_splitter_ids,
+            panel_ids: (panel_id_leading, panel_id_trailing),
             trigger_bind_attr,
             size_now,
             size_label,
@@ -670,5 +710,78 @@ fn resize_trigger_focus_is_restored_after_structural_fallback_without_ids() {
         Some(52.0),
         "id なし標準構成でもフォーカス復元により 2 回目の ArrowRight が \
          resize-trigger へ届き、サイズ調整が継続すること"
+    );
+}
+
+/// [`resize_trigger_focus_is_restored_after_structural_fallback_on_keydown`]
+/// の「パネル `id` にコロンを含む」版（イシュー #1996 codex-review P1
+/// 是正の回帰テスト）。是正前は resize-trigger の再解決キーを
+/// `data-id="<leading_id>:<trailing_id>"`（コロン結合）で組み立てていた
+/// ため、パネル `id` 自体にコロンを含められる構成では「異なるパネル
+/// ペアが同じ結合文字列に一致する」曖昧性を構造的に排除できなかった
+/// （`splitter::wiring::TriggerKey` doc 参照）。是正後は `aria-controls`
+/// （空白区切り、HTML `id` 属性値は空白を含められない仕様のため区切りが
+/// 曖昧にならない）で照合するため、パネル `id` にコロンを含めても
+/// フォーカス復元・矢印キー操作の継続が成立する必要がある。
+#[wasm_bindgen_test]
+fn resize_trigger_focus_is_restored_after_structural_fallback_with_colon_panel_ids() {
+    let (root_el, runtime) =
+        mount_via_hydrate(SplitterHost::with_structural_fallback_and_colon_panel_ids(
+            "splitter-host-colon-panel-id-focus-root",
+        ));
+    let _cleanup = RemoveOnDrop(root_el.clone());
+
+    let active_element = || document().active_element();
+
+    let initial_trigger = resize_trigger(&root_el);
+    assert_eq!(
+        initial_trigger.get_attribute("aria-controls").as_deref(),
+        Some("panel:a panel:b"),
+        "resize-trigger の aria-controls がコロンを含むパネル id を \
+         空白区切りでそのまま保持していること（本テストの前提成立確認）"
+    );
+
+    initial_trigger
+        .dyn_ref::<HtmlElement>()
+        .expect("resize-trigger must be an HtmlElement")
+        .focus()
+        .expect("focus must not fail");
+    assert_eq!(
+        active_element().as_ref(),
+        Some(&initial_trigger),
+        "keydown 前は resize-trigger がフォーカスされていること（前提成立確認）"
+    );
+
+    initial_trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(runtime.component().splitter.size(0), Some(51.0));
+
+    let trigger_after = resize_trigger(&root_el);
+    assert!(
+        trigger_after != initial_trigger,
+        "STRUCTURAL_ONLY_FIELD により Runtime::rerender_subtree が走り、\
+         フォーカスしていた resize-trigger が差し替わっていること（本 \
+         テストが前提とする状況の成立確認）"
+    );
+    assert_eq!(
+        active_element().as_ref(),
+        Some(&trigger_after),
+        "パネル id にコロンを含む構成でも、aria-controls による照合で \
+         splitter::wiring::restore_trigger_focus が再描画後の同じ \
+         resize-trigger へフォーカスを復元すること（イシュー #1996 \
+         codex-review P1 是正の受け入れ条件）"
+    );
+
+    // フォーカスが復元されていれば、2 回目の矢印キーも同じ resize-trigger
+    // へ届き続けサイズ調整が途切れないこと。
+    trigger_after
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(
+        runtime.component().splitter.size(0),
+        Some(52.0),
+        "パネル id にコロンを含む構成でもフォーカス復元により 2 回目の \
+         ArrowRight が resize-trigger へ届き、サイズ調整が継続すること"
     );
 }
