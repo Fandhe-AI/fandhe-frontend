@@ -23,6 +23,7 @@
 - runner に常設が保証されないツール（wasm-bindgen-cli / wasm-pack / cargo-deny / clippy component / Chrome 等）に依存するステップは以下のいずれかを実行する
   - 存在チェック付きインストール（`command -v` / `where` 等で確認してから `cargo install` 等を実行）
   - ワークフロー YAML に明示的な前提コメント（例: `# 要: wasm-pack がインストール済み`）
+- **REQ-11 の計測経路（dist-server / `bundle-size` ジョブ）への wasm-opt（binaryen）非導入は意図的（イシュー #1972）**: `crates/dist-server/build.rs` のネスト WASM ビルドと `crates/wasm-full/tests/bundle_size.rs` は `wasm-opt` が PATH にあれば適用する soft-skip 処理を持つ（PR #1980、#1971）が、実測（`docs/ci/wasm-opt-adoption-evaluation.md`「#1972 の結論」節）で `wasm-bindgen --remove-name-section --remove-producers-section` 単独が `wasm-opt` 併用より gzip 後サイズで優れる（併用は +2.7〜3.1 KB 悪化）と確認されたため、`test`/`bundle-size` ジョブと `Dockerfile` の builder ステージへ binaryen をバージョン固定 + SHA256 検証で新規導入することは見送っている。両者は現状 `wasm-opt` を持たない構成のまま据え置く。**`ci.yml` 冒頭 `env:` の `WASM_OPT_VERSION`/`WASM_OPT_SHA256`（`version_123` pin）と `template-app-wasm-smoke` ジョブが行う binaryen 導入は対象が別**（`templates/app/wasm/build.sh` 側の wasm-opt 呼び出し検証用であり、REQ-11 の計測経路〔dist-server 経路〕とは無関係）であり、本項の見送り判断はこの既存導入を撤回するものではない。再評価トリガーは同文書の該当節を参照する
 - **共有 `CARGO_TARGET_DIR` と `cargo package`/`cargo publish` 検証ビルドの分離（イシュー #1192）**:
   `cargo package` / `cargo publish`（`--dry-run` 含む）の検証ビルドは packaged
   コピー（path 依存が剥がされ crates.io registry 版の依存に解決される）を
