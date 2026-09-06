@@ -4,7 +4,6 @@
 use fandhe_frontend_core::{li, text, ul, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::avatar::{self, ImageStatus};
-use hui::carousel;
 use hui::data_attrs::Orientation;
 use hui::fandhe_frontend_interactive::Component;
 use hui::json_tree_view::{self, JsonValue};
@@ -57,33 +56,38 @@ pub(super) fn avatar_section() -> Node {
 }
 
 pub(super) fn carousel_section() -> Node {
-    let orientation = Orientation::Horizontal;
-    let body = vec![carousel::root(
-        orientation,
+    // 状態機械 `Carousel` の利便メソッド経由で組み立てる（イシュー #1660）。
+    // 従来は自由関数を直接呼び `prev_trigger(false, ...)` を固定していたが、
+    // index=0・非 loop の構成では実際には `prev_disabled() == true` であり
+    // Demo の `data-*` 表に `data-disabled` が現れない不整合があった。
+    // 利便メソッドは `Carousel::prev_disabled()`/`next_disabled()` を自動で
+    // 注入するため、この不整合が構造的に起きない。
+    let carousel = hui::carousel::Carousel::new(0, 3, false, Orientation::Horizontal);
+    let body = vec![carousel.root(
         "Featured photos",
         vec![],
         vec![
-            carousel::item_group(
+            carousel.item_group(
                 vec![],
                 vec![
-                    carousel::item(0, 3, true, vec![], vec![text("Slide 1")]),
-                    carousel::item(1, 3, false, vec![], vec![text("Slide 2")]),
-                    carousel::item(2, 3, false, vec![], vec![text("Slide 3")]),
+                    carousel.item(0, vec![], vec![text("Slide 1")]),
+                    carousel.item(1, vec![], vec![text("Slide 2")]),
+                    carousel.item(2, vec![], vec![text("Slide 3")]),
                 ],
             ),
-            carousel::control(
+            carousel.control(
                 vec![],
                 vec![
-                    carousel::prev_trigger(false, "Previous slide", vec![], vec![text("‹")]),
-                    carousel::indicator_group(
+                    carousel.prev_trigger("Previous slide", vec![], vec![text("‹")]),
+                    carousel.indicator_group(
                         vec![],
                         vec![
-                            carousel::indicator(0, true, vec![]),
-                            carousel::indicator(1, false, vec![]),
-                            carousel::indicator(2, false, vec![]),
+                            carousel.indicator(0, vec![]),
+                            carousel.indicator(1, vec![]),
+                            carousel.indicator(2, vec![]),
                         ],
                     ),
-                    carousel::next_trigger(false, "Next slide", vec![], vec![text("›")]),
+                    carousel.next_trigger("Next slide", vec![], vec![text("›")]),
                 ],
             ),
         ],

@@ -411,6 +411,13 @@ name = "fandhe-frontend-headless-ui"
 # 非破壊的追加）は本ブランチの 0.55.0（toast の drop_reserved 導入に伴う
 # 破壊的変更）に未反映のため、両者の和集合として patch バンプで 0.55.1
 # とする（menu 側は非破壊的変更のためマイナーバンプは不要）。
+# イシュー #1660（carousel の参照突合）: zag.js 突合に基づき自由関数 7 件
+# （`control`/`prev_trigger`/`next_trigger`/`item_group`/`item`/
+# `indicator_group`/`indicator`）の第 1 引数へ `orientation: Orientation`
+# を追加した（既存呼び出し元はすべてコンパイルエラーになる破壊的変更）。
+# `CarouselAction` へ `First`/`Last` variant も追加（exhaustive match
+# 利用者に対し同じく破壊的）。0.x の破壊的変更はマイナーバンプする規約に
+# 従い 0.55.1 から 0.56.0 へマイナーバンプする。
 # base 再取り込み（イシュー #1636 マージ, 2026-09-06）: 本ブランチ（#1636
 # accordion）は `AccordionProps`（orientation/disabled）を新設し、`root`/
 # `item`/`item_trigger`/`item_indicator`/`item_content` の 5 自由関数と
@@ -421,6 +428,10 @@ name = "fandhe-frontend-headless-ui"
 # 0.55.1 へ衝突する（同一版数への偶発的衝突をそのまま採用しない原則、
 # `docs/ci/style-refresh-version-bump-operation.md` §5）。両者の破壊的変更の
 # 和集合として、さらにマイナーバンプで 0.56.0 とする。
+# 本 worktree（#1660 carousel）と origin/main（#1636 accordion）の双方が
+# 独立に 0.55.1 から 0.56.0 へマイナーバンプしており、再度の偶発的同一
+# 版数衝突となる。両者はいずれも破壊的変更のため、和集合としてさらに
+# マイナーバンプし 0.57.0 とする。
 # base 再取り込み（イシュー #1652, 2026-09-06）: main 側は本ブランチとは独立に
 # accordion（#1636）の破壊的変更を経て 0.56.0 へ到達しており、本ブランチも
 # menubar の drop_reserved 是正（codex-review 指摘、上記参照）により独立に
@@ -457,6 +468,18 @@ name = "fandhe-frontend-headless-ui"
 # なりすまし除去〔`drop_reserved`〕の導入は非破壊的だが、上記シグネチャ
 # 変更が破壊的のため合わせてマイナーバンプする）。0.x の破壊的変更は
 # マイナーバンプとする規約に従いマイナーバンプで 0.61.0 とする。
+# base 再取り込み（イシュー #1660, 2026-09-06）: 本ブランチの
+# `crates/headless-ui/src/carousel.rs`/`lib.rs`（PR #1925、zag.js との
+# 参照突合。全 8 パーツへの `data-orientation` 拡張・`item`/`indicator` へ
+# `data-index`/`data-inview` 追加・`CarouselAction::First`/`Last` の実体）
+# は main（toolbar 突合を経て独立に到達した 0.61.0）へは未反映であり、
+# Cargo.toml のマージは実体差分を伴わず両者とも 0.61.0 のまま偶発的に
+# 同一版数へ衝突した（同一版数への偶発的衝突をそのまま採用しない原則、
+# `docs/ci/style-refresh-version-bump-operation.md` §5）。`item`/
+# `indicator` への `data-index`/`data-inview` 追加は非破壊的だが、
+# `CarouselAction` への `First`/`Last` variant 追加は exhaustive match
+# 利用者に対し破壊的なため、0.x の破壊的変更はマイナーバンプする規約に
+# 従いマイナーバンプで 0.62.0 とする。
 # イシュー #1664（splitter の参照突合）: `splitter::panel` へ
 # `index: usize` 引数を追加（`data-index`/`data-id` 出力のため）・
 # `splitter::resize_trigger`/`Splitter::resize_trigger` の `controls: &str`
@@ -487,7 +510,19 @@ name = "fandhe-frontend-headless-ui"
 # 上記 2 件（tree-view #1667・tour #1666）が独立に同一 0.63.0 へ到達していた
 # ブランチのマージにより、双方の実体変更を統合した結果として 0.64.0 へ
 # さらにマイナーバンプする（同一版数への偶発的衝突をそのまま採用しない）。
-version = "0.64.0"
+# base 再取り込み（イシュー #1660, 2026-09-06, 2 回目）: main 側は本ブランチ
+# とは独立に splitter（#1664）・steps（#1665）・tree-view（#1667）・
+# tour（#1666）の一連の破壊的変更を経て 0.64.0 へ到達しており、本ブランチの
+# carousel 実体変更（`CarouselAction::First`/`Last` 追加、上記 0.62.0
+# コメント参照）は main へ未反映のままである。PR #1925 codex-review
+# 指摘 是正（5 回目・P1 2 件）: `crates/pre-styled-ui/src/carousel.rs` の
+# 横方向 `item` へ `overflow: hidden` を追加する対応に伴い、依存先である
+# 本クレートの carousel 実体変更（0.62.0 分）が main の到達点（0.64.0）へ
+# 未反映のまま Cargo.toml のマージが実体差分を伴わず衝突する状態を解消
+# するため、両者の破壊的変更の和集合としてさらにマイナーバンプで 0.65.0
+# とする（本クレート自身の `src/carousel.rs` に追加の実体変更はなく、
+# 純粋な版数統合）。
+version = "0.65.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

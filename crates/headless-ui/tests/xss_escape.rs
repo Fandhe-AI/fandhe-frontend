@@ -424,7 +424,8 @@ fn carousel_aria_label_and_item_children_are_escaped_for_all_payloads() {
             "carousel::root の aria-label 属性値コンテキスト",
         );
 
-        let prev_trigger_node = carousel::prev_trigger(false, payload, vec![], vec![]);
+        let prev_trigger_node =
+            carousel::prev_trigger(Orientation::Horizontal, false, payload, vec![], vec![]);
         let html = render(&prev_trigger_node);
         assert_payload_is_escaped(
             payload,
@@ -432,7 +433,14 @@ fn carousel_aria_label_and_item_children_are_escaped_for_all_payloads() {
             "carousel::prev_trigger の aria-label 属性値コンテキスト",
         );
 
-        let item_node = carousel::item(0, 1, false, vec![], vec![text(payload)]);
+        let item_node = carousel::item(
+            Orientation::Horizontal,
+            0,
+            1,
+            false,
+            vec![],
+            vec![text(payload)],
+        );
         let html = render(&item_node);
         assert_payload_is_escaped(payload, &html, "carousel::item のテキストコンテキスト");
     }

@@ -1792,6 +1792,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.55.1（base 再取り込みで解決した最終版、`crates/headless-ui/
 # Cargo.toml` 参照）へ追随させる patch バンプとして 0.107.1 とする
 # （本クレート自体の実体変更なし）。
+# イシュー #1660（carousel の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# 0.56.0 への追随（`crates/headless-ui/Cargo.toml` 参照）。本クレートの
+# `src/carousel.rs` は headless の `control`/`prev_trigger`/`next_trigger`/
+# `item_group`/`item`/`indicator_group`/`indicator` を選択的
+# `pub use` で再エクスポートしているため、headless 側の `orientation`
+# 引数追加はそのまま本クレートの公開 API シグネチャ変更として観測可能
+# （呼び出し元はすべてコンパイルエラーになる）。0.x の破壊的変更は
+# マイナーバンプする規約に従い 0.107.1 から 0.108.0 へマイナーバンプする。
 # base 再取り込み（イシュー #1636 マージ, 2026-09-06）: 本ブランチ（#1636
 # accordion）は依存先 headless-ui の `AccordionProps` 新設（0.56.0 へ確定、
 # `crates/headless-ui/Cargo.toml` 冒頭コメント参照）に追随し、styled
@@ -1803,6 +1811,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # style-refresh-version-bump-operation.md` §5）。両者の破壊的変更の和集合
 # として、さらにマイナーバンプで 0.108.0 とする（headless-ui 0.56.0 への
 # 依存追随を含む）。
+# 依存先 headless-ui が本 worktree（#1660 carousel）と origin/main（#1636
+# accordion）の破壊的変更の和集合としてさらに 0.57.0 へマイナーバンプ
+# （`crates/headless-ui/Cargo.toml` 参照）したことに追随し、本クレートも
+# 同じくマイナーバンプで 0.109.0 とする。
 # イシュー #1682: `collapsible` モジュール新設（公開 API の純追加、参照 3
 # サイト共通の基本部品）のため minor バンプする。
 # base 再取り込み（イシュー #1652, 2026-09-06）: main 側は本ブランチとは独立に
@@ -1815,6 +1827,29 @@ name = "fandhe-frontend-pre-styled-ui"
 # 0.57.0（base 再取り込みで解決した最終版、`crates/headless-ui/Cargo.toml`
 # 参照）へ追随させつつ、両者の破壊的変更の和集合としてさらにマイナー
 # バンプで 0.109.0 とする。
+# PR #1926 レビュー是正（Cursor Bugbot 指摘、イシュー #1682）: 本ブランチは
+# `collapsible` モジュール新設（上記 #1682 コメント）で 0.108.0 → 0.109.0 へ
+# 独立にマイナーバンプ済みであり、上記 base 再取り込み（#1652）で main も
+# 独立に到達した 0.109.0 と同一版数へ偶発的に衝突していた（マージコミット
+# 2b3d210e はこの衝突をそのまま 0.109.0 として採用しており、#1636/#1652 で
+# 確立した「同一版数への偶発的衝突をそのまま採用しない原則」（`docs/ci/
+# style-refresh-version-bump-operation.md` §5）に反していた）。両者の変更
+# （main 側の headless-ui 0.57.0 依存追随 + 本ブランチの `collapsible` 新設）
+# の和集合として、さらにマイナーバンプで 0.110.0 とする。
+# base 再取り込み（イシュー #1653, 2026-09-06）: main 側は本コミット到達後、
+# 独立に依存先 headless-ui を 0.57.0 → 0.57.1（patch、自身の破壊的変更なし）
+# へ追随させ 0.109.1 へ到達していた。本ブランチはこの時点で既に headless-ui
+# 0.57.0 依存 + `collapsible` 新設を統合した 0.110.0 に到達済みのため、
+# main のこの追随分は本ブランチの 0.110.0 に対する patch 差分（依存先を
+# 0.57.1 へ追随するのみで、他に実体変更なし）として吸収し 0.110.1 とする。
+# PR #1925 codex-review 指摘 是正（2 回目・P1 2 件 + Cursor Bugbot 指摘）:
+# 縦方向 `item-group[data-orientation="vertical"]` へ確定した高さ
+# （`--fandhe-carousel-height` トークン、既定 20rem）と `overflow: hidden`
+# を追加し、`item` の `flex: 0 0 100%` が正しく解決するよう是正した
+# （`crates/pre-styled-ui/src/carousel.rs` の該当 `.state()` rustdoc
+# 参照）。公開 CSS 契約の観測可能な実体変更（golden 更新）のためマイナー
+# バンプで 0.111.0 とする（新規 API の破壊的変更ではなく追加宣言のみだが、
+# 0.x の実体変更はマイナーバンプする規約を踏襲する）。
 # イシュー #1653（nav-list の参照突合）: 依存先 `fandhe-frontend-headless-ui`
 # の 0.57.0 → 0.57.1（patch）追随のみで自身の破壊的変更なし。patch バンプで
 # 0.109.1 とする。
@@ -1892,6 +1927,27 @@ name = "fandhe-frontend-pre-styled-ui"
 # 変更にもなるため、依存先 headless-ui 0.61.0 への追随を含めマイナーバンプ
 # で 0.115.0 とする（`src/toolbar.rs` 自体の実装は `Toolbar::new` のみ使用
 # で変更なし、CSS 出力〔`Theme::to_css`/`stylesheet()`〕も不変）。
+# base 再取り込み（イシュー #1660, 2026-09-06）: main 側は本ブランチとは独立に
+# toolbar の参照突合（headless-ui 0.61.0 依存追随、#1657）を経て 0.115.0 へ
+# 到達していた。本ブランチは carousel の参照突合（#1660）における
+# PR #1925 codex-review 指摘 是正（2 回目、0.111.0 到達）を経ていたが、
+# 本マージで両者の実体変更を統合するため、main の到達点（0.115.0）を
+# 土台に据える。
+# PR #1925 codex-review 指摘 是正（4 回目・P1 1 件 + Cursor Bugbot 指摘）:
+# `item` base へ `min-width: 0` を、縦方向
+# `item[data-orientation="vertical"]` へ `min-height: 0` と
+# `overflow: hidden` を追加し、内容が表示領域より大きい場合でも
+# `flex: 0 0 100%` の解決値へ寸法を固定するよう是正した（`crates/
+# pre-styled-ui/src/carousel.rs` の該当 `.base()`/`.state()` rustdoc
+# 参照）。公開 CSS 契約の観測可能な実体変更（golden 更新）のため
+# マイナーバンプで 0.116.0 とする。
+# イシュー #1660（同上、依存先追随）: 依存先 `fandhe-frontend-headless-ui`
+# が 0.61.0 → 0.62.0（`CarouselAction::First`/`Last` 追加、`item_group`
+# の `orientation` 引数追加は本ブランチ内で既に反映済みのため実体差分は
+# `First`/`Last` variant のみ）へさらにマイナーバンプしたことに追随し、
+# `version = "..."` 要求のみを更新する patch バンプで 0.116.1 とする
+# （本クレート自身の `src/carousel.rs` は `pub use` による選択的
+# 再エクスポートを変更しておらず実体変更なし）。
 # base 再取り込み（イシュー #1664/#1657, 2026-09-06, 3 回目）: HEAD 側は
 # splitter の参照突合（イシュー #1664、headless-ui 側 `splitter::panel`/
 # `resize_trigger` のシグネチャ変更に追随した本クレートの公開 API 破壊的
@@ -1956,7 +2012,6 @@ name = "fandhe-frontend-pre-styled-ui"
 # 従いマイナーバンプで 0.118.0 とする（`item-indicator` の `[hidden]`
 # 上書き CSS 追加自体は非破壊的だが、上記シグネチャ変更が破壊的のため
 # 合わせてマイナーバンプする）。
-version = "0.118.0"
 # base 再取り込み（イシュー #1666/#1690, 2026-09-06, 7 回目）: 本ブランチ
 # （tour の参照突合、破壊的変更で 0.118.0 に到達済み）と main（#1690 の
 # dialog footer 追加を経て 0.117.4 に到達）を統合する。
@@ -1965,7 +2020,19 @@ version = "0.118.0"
 # 0 に戻す）に従うと main の現在値 0.117.4 の minor（117）を +1 して
 # 0.118.0 となり、これは既に HEAD 側が到達している値と一致するため、
 # 追加のバンプは不要としてそのまま 0.118.0 を維持する。
-
+# PR #1925 codex-review 指摘 是正（5 回目・P1 2 件）: 横方向 `item` が
+# 内容を境界でクリップしておらず、`min-width: 0` のみで overflow が
+# visible のままだったため幅を超える内容（大きい画像等）が隣のスライドへ
+# はみ出す不具合があった。orientation によらず `item` base の宣言へ
+# `min-width: 0`/`min-height: 0`/`overflow: hidden` を寄せ（縦方向 state
+# 側の重複宣言は削除）、横縦で対称な寸法固定・内容クリップにした
+# （`crates/pre-styled-ui/src/carousel.rs` の `.base("item", ...)` rustdoc
+# 参照）。公開 CSS 契約の観測可能な実体変更（golden 更新）に加え、依存先
+# `fandhe-frontend-headless-ui` 0.64.0 → 0.65.0（本ブランチの carousel
+# 実体変更が main へ未反映のまま Cargo.toml マージが衝突した解消分、
+# `crates/headless-ui/Cargo.toml` 参照）への追随も伴うため、マイナー
+# バンプで 0.119.0 とする。
+version = "0.119.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1980,7 +2047,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.64.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.65.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

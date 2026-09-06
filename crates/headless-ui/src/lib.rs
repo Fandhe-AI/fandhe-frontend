@@ -318,8 +318,11 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`item` は
 //!   `role="group"` + `aria-roledescription="slide"` + 位置ラベル
 //!   （`"{n} of {m}"`）、`indicator` は `aria-current`（現在位置のみ）を
-//!   出力する ARIA carousel パターン準拠。autoplay（play/pause/`aria-live`
-//!   切替）・pointer ドラッグ/キーボード操作の DOM 配線は本イシューの
+//!   出力する ARIA carousel パターン準拠。zag.js との参照突合（#1660）を
+//!   経て `data-orientation` を全 8 パーツへ拡張し、`item`/`indicator` に
+//!   `data-index`（0-origin）、`item` に `data-inview` を追加、dispatch に
+//!   Home/End 相当の `"first"`/`"last"` を追加した。autoplay（play/pause/
+//!   `aria-live` 切替）・pointer ドラッグ/キーボード操作の DOM 配線は
 //!   スコープ外（[`carousel`] モジュール doc 参照）。
 //! - [`mod@pagination`]: Root / Item / Ellipsis / PrevTrigger / NextTrigger /
 //!   FirstTrigger / LastTrigger の 7 anatomy パーツと、
