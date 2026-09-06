@@ -198,6 +198,10 @@ pin する値（`.github/workflows/ci.yml` の env が単一宣言点）:
 （同じ soft-skip/pin 方針）を追加する形が自然であり、`bundle_size.rs` の
 期待値・キャッシュ fingerprint（`wasm_stage_cache`）への影響を別途検証する
 必要がある。
+→ イシュー #1969 で適用効果（gzip 削減幅・twiggy 内訳・op_ms 影響）を
+実測済み（下記「dist-server 経路への wasm-opt 適用効果と twiggy 内訳の
+実測（イシュー #1969）」節参照）。導入自体（#1970）は本節時点でなお
+未着手。
 
 ## 再評価トリガー
 
@@ -510,6 +514,9 @@ doc 参照）と実際に配布される Docker イメージが乖離する。�
 - 本節の rustc プロファイル調整のみでは吸収しきれない規模のバンドル
   サイズ増加が再発した場合、「dist-server 経路（適用対象外・方針記載の
   み）」節が見送った wasm-opt（binaryen）導入をあらためて検討する
+  → イシュー #1969 で実測済み（下記「dist-server 経路への wasm-opt
+  適用効果と twiggy 内訳の実測（イシュー #1969）」節参照）
+
 
 ## バンドルサイズ警告閾値（イシュー #1968、2026-09-06）
 
@@ -548,3 +555,390 @@ REQ-11 が定める値であり本リポジトリ側で変更しない。
 警告（`warn=above-95pct` / `::warning::`）は「上記『再評価トリガー
 （追加）』の充足に近づいている予兆」として扱う。継続的に警告が発火する
 場合は同トリガーに従い wasm-opt（binaryen）導入の再評価に着手する。
+## dist-server 経路への wasm-opt 適用効果と twiggy 内訳の実測（イシュー #1969、2026-09-06）
+
+### 背景・トレーサビリティ
+
+- 親: #1953（REQ-11 wasm gzip サイズ余裕の確保）
+- 兄弟: #1968（`bundle_size.rs` 95% 警告閾値 190,000 B の追加）・#1970
+  （dist-server 経路への wasm-opt 導入。本イシューに依存し着手前に
+  ユーザー承認が必要）・#1973（feature gating 評価）
+- 「dist-server 経路（適用対象外・方針記載のみ）」節が見送っていた
+  binaryen（wasm-opt）導入の効果を実測し、内訳分析（twiggy）を行って
+  いなかった空白を埋める。#1647 節（rustc プロファイル調整のみ適用）の
+  「再評価トリガー（追加）」が本節を指す。本イシューは **docs のみ**の
+  変更であり、`crates/dist-server/build.rs` / `Dockerfile` /
+  `.github/workflows/ci.yml` / `crates/wasm-full/tests/bundle_size.rs` /
+  `.cargo/config.toml` / `Cargo.toml` は無変更（#1970/#1971/#1972 の
+  範囲）。計測のために一時変更した `bench/csr/fandhe/`（`build.sh` の
+  pin 値・`wasm-opt -Os`→`-Oz`・`Cargo.lock` の wasm-bindgen 追随）は
+  計測後に `git checkout -- bench/csr/fandhe` で復元済み。
+
+### 計測環境
+
+| 項目 | 値 |
+|------|----|
+| OS | macOS 26.6.2（arm64、Apple Silicon） |
+| rustc / cargo | 1.96.0 |
+| wasm-bindgen（CLI・Cargo.lock 双方） | 0.2.128 |
+| wasm-opt（binaryen、ローカル homebrew） | 129（CI の pin は `.github/workflows/ci.yml` の `WASM_OPT_VERSION: "version_123"`〔binaryen 123〕であり別物。絶対値は目安、#1970 で CI pin 版により再計測が必要） |
+| twiggy | 0.8.0（`cargo install twiggy --locked --root <scratch>`、リポジトリ依存グラフへは加えていない） |
+| Node.js | v24.13.0 |
+| Chromium（CSR bench） | Google Chrome for Testing 151.0.7922.34（Playwright キャッシュ経由） |
+| 計測日 / HEAD | 2026-09-06 / `9d0956b3`（イシュー #1969 着手時点の main） |
+
+### 手順
+
+1. **dist-server 経路 before**: `cargo test -p fandhe-frontend-wasm-full
+   --test bundle_size --locked --target-dir target/bundle-size-check --
+   --nocapture`（`RUSTFLAGS` 未設定のシェルで実行、`.cargo/config.toml`
+   の wasm32 限定 `opt-level=s` を上書きしないことを確認）。生成物
+   `target/bundle-size-check/wasm-assets/fandhe_frontend_wasm_full_bg.wasm`
+   / `.js` をベースラインとして記録。
+2. **gzip 計測の前提（重要）**: `gzip -9 -c <path>` の出力バイト数は
+   gzip ヘッダーの FNAME フィールド（元ファイル名を保持する可変長
+   フィールド）の分だけファイル名の長さに依存する（`gzip -9 -c` を
+   標準入力経由〔`gzip -9 -c < file`〕で実行すると FNAME が付与されず
+   より短くなる一方、`bundle_size.rs` は `Command::new("gzip").args(["-9",
+   "-c"]).arg(path)` の形でファイルパスを渡すため FNAME が付与される）。
+   本節の比較対象ファイルはすべて `fandhe_frontend_wasm_full_bg.wasm` /
+   `fandhe_frontend_wasm_full.js` という**同一 basename** のディレクトリへ
+   配置してから `bundle_size.rs` と同一の `gzip -9 -c <path>` で計測し
+   直し、`bundle_size.rs` の実測値（`total_gzip_bytes=199840`）と完全に
+   一致することを確認した上で以降の比較を行った（basename が異なる
+   スクラッチファイルで最初に計測した値は本節の確定値ではない）。
+3. **after**: ベースライン `_bg.wasm`（basename 固定）に `wasm-opt -Os` /
+   `-Oz` を適用し、ファイルごとに `gzip -9 -c <file> | wc -c` を取って
+   js（不変）と合算（`bundle_size.rs` と同じ「ファイル個別 gzip 合算」）。
+   加えて、binaryen を経由しない比較対象として `wasm-bindgen --target web
+   --no-typescript --remove-name-section --remove-producers-section`
+   （wasm-bindgen 自体の既存フラグ、新規依存ゼロ）で name/producers
+   セクションのみを除去した構成も同一 basename で計測した。
+4. **機能整合性**: `node` の `WebAssembly.compile()` + `WebAssembly.
+   Module.exports()` で、適用前後の公開エクスポート（`hydrate` /
+   `mount` / `start_router` / `memory` 等 20 件）が完全一致することを
+   検証（全構成で 20/20 件一致）。
+5. **twiggy 内訳**: `wasm-opt -Os -g <baseline> -o named.wasm`（`-g` で
+   name section を保持）し、`twiggy top -n 5000` の全行をカテゴリ別に
+   集計（正規表現マッチ、shallow bytes 基準）。`twiggy dominators -r 30
+   -d 3` で支配木の上位も確認。twiggy 自体は raw wasm バイト列を解析する
+   ため、上記 gzip basename 問題の影響は受けない。
+6. **CSR op_ms A/B/C**: `perf_browser.rs`（chromedriver 前提）はローカル
+   環境に用意できなかったため未実施（先例 #1388 と同様「未実施 + 理由」
+   として記録）。代替として `bench/csr/run_csr.mjs` の `update_op_ms`
+   （#1387/#1408 と同じ判定指標）を、`bench/csr/fandhe/`（bench 専用の
+   独立ワークスペース、wasm-full 本体ではなく `fandhe-frontend-
+   wasm-client` を計測対象とする glue クレート）で 3 構成 ×5 回（B のみ
+   ノイズ懸念により追加 5 回、計 10 回）計測した。ローカル実行のための
+   一時変更（計測後 `git checkout -- bench/csr/fandhe` で復元済み）:
+   - `Cargo.lock` の wasm-bindgen を 0.2.127→0.2.128（`wasm-bindgen`
+     CLI バージョンに追随、`cargo update -p wasm-bindgen -p web-sys
+     -p js-sys --precise 0.2.128` + `-p web-sys --precise 0.3.105`）
+   - `build.sh` の `WASM_OPT_EXPECTED_VERSION` を `116`→ローカル版
+     （`129`）
+   - `build.sh` が GNU `mktemp --suffix` を使うため、`mktemp`→`gmktemp`
+     の 1 行シムをスクラッチ領域に置き `PATH` 前置（macOS 標準
+     `mktemp` は `--suffix` 未対応）
+   - 構成 C（`-Oz`）のみ `build.sh` の `wasm-opt -Os` 呼び出しを一時的に
+     `-Oz` へ変更
+   - `BENCH_CHROMIUM` に Playwright キャッシュの Chromium 実行ファイルを
+     指定
+   - `bench/csr` の `npm ci --ignore-scripts`（既存 lockfile 固定、
+     REQ-12 準拠）で esbuild 等を導入
+   - 3 構成: A=`BENCH_SKIP_WASM_OPT=1`（wasm-opt なし）/ B=既定
+     `wasm-opt -Os` / C=`-Oz`
+   - `bench/payload/measure.mjs --framework fandhe` で各構成 1 回 payload
+     も記録（`meta.json` の `wasm_opt` 値付き。bench/csr の payload
+     計測は上記 basename 問題とは無関係の別スクリプトであり影響なし）
+   - 注記: bench/csr は `wasm-client` glue を計測しており dist-server が
+     生成する `wasm-full` 配布物そのものではないが、A/B/C 間で変えている
+     変数は wasm-opt の適用有無/レベルのみのため、wasm-opt の実行時影響を
+     分離して観測できる
+
+### 結果 (a): dist-server 経路の gzip 合計
+
+| 構成 | wasm raw | wasm gzip | js gzip | 合計 gzip | 200,000 B 余裕 | 190,000 B 余裕 | rustc プロファイルのみ比 |
+|------|---------:|----------:|--------:|----------:|---------------:|---------------:|------------------------:|
+| 適用前（#1647 rustc プロファイルのみ、正。`bundle_size.rs` 実測 `total_gzip_bytes=199840` と完全一致） | 541,292 B | 190,743 B | 9,097 B | **199,840 B** | 160 B（0.08%） | −9,840 B（超過） | 基準 |
+| `wasm-bindgen --remove-name-section --remove-producers-section`（binaryen 不使用、新規依存ゼロ） | 391,519 B | 150,720 B | 9,097 B | **159,817 B** | 40,183 B（20.09%） | 30,183 B（15.89%） | −40,023 B（−20.03%） |
+| + `wasm-opt -Os` | 356,872 B | 153,421 B | 9,097 B | **162,518 B** | 37,482 B（18.74%） | 27,482 B（14.46%） | −37,322 B（−18.68%） |
+| + `wasm-opt -Oz` | 354,088 B | 153,777 B | 9,097 B | **162,874 B** | 37,126 B（18.56%） | 27,126 B（14.28%） | −36,966 B（−18.50%） |
+
+適用前は #1968 の警告線（190,000 B）を既に超過しているが、いずれの
+構成も 190,000 B 警告線に対して 14〜16%台の余裕を新たに確保する。
+`-Os` と `-Oz` の gzip 差は 356 B（0.22%）と僅少で、#1387/#1408 で確認
+された「`-Oz` はさらに raw を削るが gzip では `-Os` と拮抗、あるいは
+`-Oz` がわずかに劣る」傾向を dist-server 経路でも再確認した。
+
+**主要な発見**: name/producers セクションを除去するだけの
+`wasm-bindgen --remove-name-section --remove-producers-section`（binaryen
+に一切依存しない、既存ツールの既存フラグ）が、raw サイズでは
+`wasm-opt -Os`（356,872 B）より大きい（391,519 B）にもかかわらず、
+**gzip 後サイズは `wasm-opt -Os`/`-Oz` のいずれよりも小さい**
+（159,817 B < 162,518 B < 162,874 B）。`wasm-opt` の最適化パス
+（デッドコード除去・インライン化・命令選択等）は raw サイズをさらに
+34,647 B 縮小する一方、DEFLATE 圧縮の効率を悪化させる方向に働き、
+結果として gzip 後サイズは name/producers セクション除去のみの構成
+より 2,701〜3,057 B（1.7〜1.9%）大きくなっている（機能整合性は
+全構成で 20/20 件のエクスポートが一致しモジュールとして妥当である
+ことを確認済みだが、これは公開エクスポートの表面的な一致に留まり、
+関数内部の実行時挙動や JS glue との実行時整合性までは検証していない。
+実行時の機能同等性の確認は #1970 以降の後続確認事項とする）。
+これは `wasm-opt` の binaryen 依存導入（#1970）を検討する上で重要な
+情報である: 基準 (i) の 5% 目安に対しては `wasm-bindgen` の既存フラグ
+だけで十分に上回っており（−20.03%）、`wasm-opt` を追加導入することで
+むしろ削減幅が縮む（−18.68%/−18.50%）という、直感に反する結果が
+本計測では観測された。単一計測（binaryen ローカル版 129、CI pin
+version_123 とは異なる）であり、gzip 圧縮効率と最適化パスの相互作用が
+バージョン・実装依存である可能性を踏まえ、#1970 では CI pin 版
+binaryen での再検証と、`wasm-bindgen --remove-name-section` 単独導入
+（新規サプライチェーン依存ゼロで #1968 警告線に対し 15.89% の余裕を
+確保できる）を対立案として比較検討することを推奨する（詳細は下記
+「#1970 への引き継ぎ事項」）。
+
+機能整合性: 全構成で 20/20 件のエクスポートが完全一致し、
+`WebAssembly.compile()` も成功（公開エクスポート・モジュールとしての
+妥当性を確認した範囲。関数内部の実行時挙動・JS glue との実行時整合性
+までは未検証であり、実行時の機能同等性の確認は #1970 以降の後続
+確認事項とする）。
+
+### 結果 (b): twiggy 内訳
+
+`twiggy top -n 20`（`wasm-opt -Os -g` 適用後、name section 保持版。
+1,027 行・合計 438,670 B、適用前 raw 541,292 B から縮小）:
+
+| Shallow Bytes | Shallow % | Item |
+|---:|---:|---|
+| 81,228 | 18.52% | "function names" subsection |
+| 21,958 | 5.01% | `wasm_full::keynav::wiring::wire_keynav::{{closure}}` |
+| 18,629 | 4.25% | `wasm_client::keyed_dom::apply_keyed_list_core` |
+| 14,040 | 3.20% | `<f64 as core::fmt::Display>::fmt` |
+| 13,008 | 2.97% | data segment ".rodata.9" |
+| 12,988 | 2.96% | data segment ".rodata.2" |
+| 8,012 | 1.83% | hydrate multivalue shim |
+| 6,238 | 1.42% | `<AppState as Component>::view` |
+| 5,962 | 1.36% | `Runtime<C>::apply_update_for_dirty` |
+| 5,550 | 1.27% | `keynav::wiring::handle_menu_or_select_trigger_keydown` |
+| 5,284 | 1.20% | data segment ".rodata.33" |
+| 4,818 | 1.10% | `dlmalloc::Dlmalloc::malloc` |
+| 4,135 | 0.94% | `<f64 as core::str::FromStr>::from_str` |
+| 4,107 | 0.94% | `core::keyed::insert_or_move_pass` |
+| 3,986 | 0.91% | data segment ".rodata.3" |
+| 3,868 | 0.88% | `<str>::to_lowercase` |
+| 3,717 | 0.85% | `wasm_full::headless_timer::wiring::read_timer` |
+| 3,398 | 0.77% | `wasm_client::keyed_apply::diff_children_core` |
+| 3,363 | 0.77% | `core::slice::sort::unstable::quicksort` |
+| 3,056 | 0.70% | `wasm_full::number_input::wiring::handle_keydown` |
+| 211,325 | 48.17% | ...and 1,007 more |
+
+カテゴリ別集計（1,027 行全件、shallow bytes 基準、合計 438,670 B と完全
+一致検算済み。`core[<hash>]::fmt` のようにクレートインスタンスハッシュが
+型パスへ埋め込まれる wasm-bindgen の出力形に対応した正規表現で分類）:
+
+| カテゴリ | bytes | 割合 |
+|---|---:|---:|
+| `wasm-full` 部品別 wiring（overlay/nav/keynav/splitter/tooltip/number_input/angle_slider/position/focus_trap/focus_visible/headless_*/hydration/csr/dom/events/entry） | 108,925 | 24.83% |
+| `"function names" subsection`（デバッグ用シンボル名。配布時は既定で strip 済み想定だが、現行 `crates/dist-server/build.rs` は `--remove-name-section` を渡していないため実配布物にもそのまま含まれる。下記引き継ぎ事項参照） | 81,228 | 18.52% |
+| `wasm-client`（keyed diff・DOM 適用コア） | 39,958 | 9.11% |
+| data segment（`.rodata.*`） | 38,848 | 8.86% |
+| `core`/`alloc` 標準ライブラリ（数値パース・文字列・スライスソート等。`FromStr`/`to_lowercase`/`flt2dec`/`quicksort` 等） | 34,038 | 7.76% |
+| panic/fmt（`core::fmt`・`Display`/`Debug` 実装含む） | 26,838 | 6.12% |
+| `dlmalloc`/`hashbrown`（アロケータ・ハッシュ） | 19,357 | 4.41% |
+| web-sys / js-sys / wasm-bindgen 呼び出し面（`__wbg`/`__wbindgen` 含む） | 19,009 | 4.33% |
+| `fandhe-frontend-interactive` | 9,959 | 2.27% |
+| `fandhe-frontend-core`（`keyed` 以外） | 7,212 | 1.64% |
+| `fandhe-frontend-core::keyed` | 6,990 | 1.59% |
+| `fandhe-frontend-headless-ui` | 1,304 | 0.30% |
+| その他（未分類、多数の小粒シンボル。上位は後述） | 45,004 | 10.26% |
+
+最大の単一カテゴリは `wasm-full` の部品別 wiring（24.83%）で、次いで
+"function names" subsection（18.52%）。**先行版との訂正**: 当初の
+分類正規表現は `core[<hash>]::fmt::Display` のようにクレートインスタンス
+ハッシュが型パス中に埋め込まれる wasm-bindgen 出力形を `core::fmt` 固定
+文字列で拾えず panic/fmt を過小評価していた（訂正前 1.66% → 訂正後
+6.12%。`<f64 as core::fmt::Display>::fmt` 単体で 14,040 B、3.20%）。
+`core`/`alloc` 標準ライブラリ（数値パース・文字列処理等、7.76%）も
+同様に見落としていた新規カテゴリであり、panic/fmt と合わせると
+13.9% を占める。#1388 の panic フック縮減策は panic 発火経路自体の
+縮減には効いているが、`Display`/`Debug` 実装や数値↔文字列変換
+（`f64::fmt`・`FromStr`・`flt2dec`）はアプリケーションの通常経路
+（属性値の文字列化等）でも到達するため縮減対象外であり、想定通り
+一定サイズを占めている。「その他」（10.26%、268 行）の上位は
+`hydrate`/`start_router`/`mount` の multivalue shim（wasm-bindgen が
+複数戻り値のために生成する橋渡しコード、計 11,886 B）・
+`Runtime<C>::apply_update_for_dirty`（5,962 B、wiring サブモジュールの
+命名規則に該当しない update 経路のコアディスパッチ）・クロージャの
+`FnMut`/`FnOnce` 実装（数百 B 単位で多数）など、単一の大きな塊ではなく
+広く分散したシンボル群であり、「多数の小粒シンボル」の記述は妥当と
+確認した。
+
+`twiggy dominators -r 30 -d 3`:
+
+| Retained Bytes | Retained % | Dominator |
+|---:|---:|---|
+| 220,581 | 50.28% | `table[0]` |
+| 220,575 | 50.28% | `elem[0]` |
+| 62,191 | 14.18% | `Runtime<C>::apply_update_for_dirty` |
+| 46,594 | 10.62% | `keynav::wiring::wire_keynav::{{closure}}` |
+| 22,094 | 5.04% | [65 Unreachable Items] |
+
+関数テーブル（間接呼び出し用）が支配木の半分を占め、その中では
+update 経路のディスパッチ（`apply_update_for_dirty`）と keynav の
+イベントハンドラ closure が突出して大きい。両者は wasm-full の
+コア機能（キー入力ナビゲーション横断配線）であり、部品追加時に
+最も肥大しやすい箇所であることを裏付ける（今後の部品追加が
+`bundle_size.rs` の余裕を消費する主因になりうる）。
+
+適用前（wasm-opt 未適用）の `twiggy top -n 5` では data segment
+".rodata"（1 本、39,138 B）が単一 rodata として存在したが、`-Os`
+適用後は複数の `.rodata.N` に分割・整理され、最大でも 13,008 B
+（".rodata.9"）まで縮小していた（wasm-opt のデータレイアウト最適化）。
+
+### 結果 (c): CSR update op_ms A/B/C（bench/csr、`wasm-client` glue）
+
+| 構成 | update_op_ms mean-of-means | mean レンジ | min レンジ |
+|------|---:|---|---|
+| A: `BENCH_SKIP_WASM_OPT=1`（wasm-opt なし、5 run） | 1.919 ms（外れ値 1 回除くと 1.771 ms、n=4） | 1.700〜2.512 ms | 1.400〜2.200 ms |
+| B: 既定 `wasm-opt -Os`（1 回目 5 run） | 2.060 ms | 1.800〜2.316 ms | 1.600〜2.100 ms |
+| B: 既定 `wasm-opt -Os`（再計測 2 回目 5 run、追加検証） | 1.739 ms | 1.684〜1.820 ms | 1.500〜1.600 ms |
+| B: 上記 10 run 全体 | 1.900 ms | 1.684〜2.316 ms | — |
+| C: `wasm-opt -Oz`（5 run） | 1.709 ms | 1.660〜1.772 ms | 1.500〜1.500 ms |
+
+payload（1 回、gzip 合計）: A=53,073 B（`wasm_opt: "skipped"`、非
+production 相当） / B=44,148 B / C=44,040 B（wasm-client 単体のため
+dist-server 経路〔結果 (a)〕とは絶対値が異なる。削減率は同程度）。
+
+**判定に関する注記**: A の 5 回中 1 回（5 回目）が create/update/clear
+いずれも他の 4 回より明確に高い値（update_op_ms mean 2.512 ms、他 4 回
+は 1.700〜1.928 ms）を示し、開発機（他プロセスと共有・専用ベンチ機
+ではない）上のノイズと判断した。同様に B の 1 回目 5 run（mean-of-means
+2.060 ms）は A（外れ値除き 1.771 ms）・C（1.709 ms）より明確に高かった
+ため、「B のみ悪化しているのか、ノイズなのか」を切り分けるべく B のみ
+追加で 5 run 再計測した。**再計測の結果、B の 2 回目 5 run は 1.739 ms
+となり A・C とほぼ同水準に収まった**（1 回目との差 0.32 ms、−15.6%）。
+この結果は「B の 1 回目が開発機のノイズによる一時的な高値だった」との
+解釈を強く支持する。B の 10 run 全体平均（1.900 ms）は A（1.919 ms、
+外れ値含む）とほぼ一致し、C（1.709 ms）ともに 16ms 予算に対して
+0.1〜0.2 ms 程度の差に収まる。#1387/#1408（`_/bench/` の production
+相当環境での計測）と異なりノイズ低減策（他プロセス停止・CPU クロック
+固定等）を講じていない開発機での計測であるため、A/B/C 間に統計的に
+有意な差があるとは言えず、**wasm-opt（`-Os`/`-Oz` いずれも）が
+update_op_ms を悪化させる明確な証拠は本節では得られなかった**。
+
+`perf_browser.rs`（chromedriver 前提、wasm-full 本体を対象とする
+create/update/clear の 16ms 予算検証）はローカル環境に chromedriver
+を用意できず未実施（#1388 と同様の制約）。
+
+### 判定
+
+- 基準 (i)（rustc プロファイルのみ比で gzip 追加削減 5% 以上）: **充足**
+  （`wasm-bindgen` の name/producers セクション除去のみで −20.03%、
+  `wasm-opt -Os` で −18.68%、`-Oz` で −18.50%。いずれも 5% 目安を
+  大きく上回る）
+- 基準 (ii)（update_op_ms の悪化が ±5% 目安内）: **暫定・未確認**。
+  10 run 平均（B=1.900 ms）を A（外れ値除き 1.771 ms）・C（1.709 ms）と
+  比較すると、それぞれ (1.900−1.771)/1.771 ≒ **+7.28%**、
+  (1.900−1.709)/1.709 ≒ **+11.18%** の悪化となり、いずれも ±5% 目安を
+  超える。**集計方法（どの run をノイズとして除外するか）によって
+  数値はさらに変動する**: 例えば B の 1 回目 5 run（2.060 ms）と A の
+  外れ値を含む全 5 run 平均（1.919 ms）を比較する集計では
+  (2.060−1.919)/1.919 ≒ **+7.3% の悪化**となり、こちらも ±5% 目安を
+  超える。開発機（専用ベンチ機ではない）での 5〜10 run に留まる本節の
+  計測はノイズ切り分けの根拠が弱く、いずれの集計でも ±5% 目安を
+  超過していることから「充足」を断定できる状態にはない。
+  #1970/#1971 では CI 相当環境でサンプル数を増やし、**あらかじめ固定した
+  単一の集計条件（外れ値除外基準を含む）**で再評価すること
+- 200,000 B 上限・190,000 B 警告線双方に対する余裕: 適用前は上限に
+  対し 0.08%（事実上ゼロ）・警告線を超過していたが、いずれの構成も
+  上限に対し 18〜20%台・警告線に対し 14〜16%台の余裕を新たに確保する
+
+**結論: #1970（dist-server 経路への wasm-opt 導入検討）へ進むことを
+推奨する。** ただし本節の結果 (a) の「主要な発見」により、#1970 で
+検討すべき対象は「`wasm-opt` を導入するか否か」だけでなく「まず
+`wasm-bindgen --remove-name-section`（新規依存ゼロ）を導入し、
+その上で `wasm-opt` を追加導入する価値があるかを個別に判断する」形へ
+広げることを推奨する。本節の単一計測では `wasm-bindgen` のフラグ
+単独が `wasm-opt` 併用より gzip 後サイズで優れていたため、#1970 では
+両者を独立変数として比較評価すること。
+
+### #1970 への引き継ぎ事項
+
+- **`wasm-bindgen --remove-name-section --remove-producers-section` の
+  先行導入を検討すること**: 新規サプライチェーン依存ゼロ（既に依存
+  済みの `wasm-bindgen-cli` の既存フラグ）で #1968 警告線に対し 15.89%
+  の余裕を確保できる。`crates/dist-server/build.rs::run_wasm_bindgen`
+  の `wasm-bindgen` 呼び出しに 2 フラグを追加すれば成立する。ただし
+  `crates/wasm-full/tests/bundle_size.rs::run_wasm_bindgen_for_bundle_size`
+  は `build.rs::run_wasm_bindgen` とは独立に自前で `wasm-bindgen` を
+  呼び出しているため、**期待値の更新だけでは不十分**であり、
+  `run_wasm_bindgen_for_bundle_size` 側の `wasm-bindgen` 呼び出しにも
+  同じ 2 フラグを追加しなければならない（追加しないと計測側が
+  未適用構成を測り続け、期待値だけを実配布物と乖離した値へ更新して
+  しまう）。`wasm-opt` 導入で必要になる新規サプライチェーン対策
+  （バージョン pin・SHA256 検証・CI 常設導入・soft-skip 設計）が
+  一切不要な点は変わらない。ただし name section の
+  除去はスタックトレース・デバッグ情報の可読性を下げるトレードオフが
+  ある（dist-server は本番配布物であり通常デバッグビルドではないため
+  実害は小さいと考えられるが、#1970 で明記すること）。
+- **`wasm-opt` を追加導入する場合のサプライチェーン方針**: `ci.yml` の
+  既存 `WASM_OPT_VERSION`/`WASM_OPT_SHA256`（pin `version_123`）を
+  再利用し、`Dockerfile` は x86_64 と aarch64 の linux tarball を
+  個別に SHA256 検証する（既存 wasm-bindgen ブロックと同型）。
+  ソースからの `cargo install` は行わない。`bench/csr/fandhe/build.sh`
+  の既存 pin パターン（バージョン固定 + fail-closed 検証、
+  `BENCH_SKIP_WASM_OPT` 相当のオプトアウト設計）を参考にできる。
+- **fail-closed / soft-skip の一貫性**: `bundle_size.rs` は
+  「dist-server と同一構成を計測する」契約（モジュール doc 参照）の
+  ため fail-closed である一方、`build.sh` の既存 wasm-opt 導入
+  （`templates/app` 等）は soft-skip（`command -v wasm-opt` 未検出時は
+  警告のみで継続）としている。#1971 で `build.rs`・`bundle_size.rs`・
+  `Dockerfile` の 3 者が矛盾しない方針（dist-server 経路は CI 常設
+  導入前提のため soft-skip でも実運用上は問題ないが、テスト側の期待値
+  とローカル開発者体験の両立を要検討）に揃えること。
+- **キャッシュ fingerprint**: `wasm-opt` を導入する場合はその版・適用
+  有無を、`wasm-bindgen --remove-name-section`/`--remove-producers-section`
+  を単独導入する場合（`wasm-opt` を追加せずフラグのみを先行導入する
+  ケースを含む）はそのフラグの有無を、いずれも `compute_wasm_stage_fingerprint`
+  （`wasm_stage_cache` の fingerprint 計算）に織り込むこと。前段の
+  引き継ぎ事項が推奨する「`wasm-bindgen` フラグ先行導入・`wasm-opt` は
+  後日個別判断」という段階導入を採る場合、`wasm-opt` を導入する
+  タイミングに限定してキャッシュ無効化を行うと、フラグ単独導入時点の
+  変更がキャッシュに反映されず古い生成物が誤って再利用され得る
+  （バージョン drift やフラグ変更で古いキャッシュが誤って再利用される
+  のを防ぐ、という本来の目的に反する）。
+- **CI pin 版での再検証**: 本節はローカル binaryen 129（CI pin
+  `version_123` とは異なる）での単一計測である。「`wasm-opt` が
+  `wasm-bindgen` の name 除去単独より gzip 後サイズで劣る」という
+  結果値・大小関係は binaryen のバージョン・最適化パスの実装に
+  依存し得るため、#1970/#1971 では CI pin 版 binaryen での再計測を
+  必須とする。
+- **#1968 警告線との関係**: 本節の実測により、いずれの構成でも
+  190,000 B 警告線に対して 14〜16%台の余裕が生まれる。#1968 の警告
+  閾値自体の見直しは本節の範囲外（#1968 側で判断）。
+- **twiggy 内訳が示す今後の削減余地**: 部品別 wiring（24.83%、特に
+  `apply_update_for_dirty`・`keynav` 配線）が最大カテゴリであり、
+  今後さらなる削減が必要になった場合はここが対象になる。panic/fmt +
+  core/alloc 標準ライブラリ（数値↔文字列変換等）は合わせて 13.9% を
+  占めるが、アプリケーションの通常経路でも到達するため縮減余地は
+  限定的と考えられる。#1969 時点では基準 (i) を大幅に満たしているため、
+  コード側削減の追求は現時点で不要と判断する（wasm-opt 導入評価文書の
+  「再評価トリガー」冒頭項目〔コード増加による payload 再増加〕が
+  発火した際の参考情報として記録する）。
+- **CSR op_ms 計測のノイズ**: 本節の bench/csr 計測は開発機（専用
+  ベンチ機ではない）での 5〜10 run に留まる。#1970/#1971 では CI 相当
+  環境（またはより静穏な環境）でのサンプル数増加による再検証を推奨
+  する。
+
+### 再評価トリガー（追加、イシュー #1969）
+
+- #1970/#1971 実装時に CI pin 版 binaryen で結果 (a) の「主要な発見」
+  （`wasm-bindgen` の name 除去単独が `wasm-opt` 併用より gzip 後
+  サイズで優れる）を再検証すること。ローカル計測固有の現象であれば
+  `wasm-opt` の追加導入価値が高まり、CI pin 版でも再現すれば
+  `wasm-bindgen` フラグ単独導入を優先する判断材料になる
+- #1970/#1971 実装時に CI 相当環境（またはより静穏な環境）で
+  update_op_ms のサンプル数を増やし、本節の「悪化の明確な証拠なし」
+  判定を再確認すること
+- `perf_browser.rs`（chromedriver 前提）が CI で実行可能な形になった
+  場合、dist-server 経路（wasm-full 本体）に対する wasm-opt 適用の
+  create/update/clear 16ms 予算検証を追加で行うこと
