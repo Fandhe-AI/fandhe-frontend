@@ -7530,7 +7530,16 @@ fn progress_section() -> Node {
                     ],
                 ),
                 p.label(vec![], vec![text(label_text)]),
-                p.value_text(vec![], vec![text(value_text)]),
+                // Bugbot 指摘（PR #1946）: value-text レシピの
+                // `margin-left: auto` は root がデフォルトの行方向 flex
+                // （label ... value-text を両端揃え）である前提の左マージン
+                // であり、この Demo のように root を `flex-direction:
+                // column` へ上書きすると交差軸（左右）の auto マージンとして
+                // 再解釈され、value-text が中央でなく右寄せになる
+                // （align-items: center より margin: auto が優先される
+                // flexbox の仕様）。列レイアウトに限定してこの Demo だけ
+                // `margin-left: 0` で打ち消し、中央揃えへ戻す。
+                p.value_text(vec![("style", "margin-left: 0;")], vec![text(value_text)]),
             ],
         )
     }
