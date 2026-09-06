@@ -104,9 +104,10 @@ fn href_is_fragment_only_for_any_id() {
         DEFAULT_ID,
     ] {
         let html = render(&link(id, vec![], vec![]));
-        let href_start = html.find("href=\"#").unwrap_or_else(|| {
-            panic!("href does not start with a '#' fragment for id={id:?}: {html}")
-        });
-        assert!(html[href_start..].starts_with("href=\"#"));
+        assert_eq!(html.matches("href=").count(), 1, "id={id:?} html={html}");
+        assert!(
+            html.contains(&format!("href=\"#{id}\"")),
+            "href does not equal the expected '#' fragment for id={id:?}: {html}"
+        );
     }
 }
