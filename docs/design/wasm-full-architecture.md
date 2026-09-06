@@ -524,15 +524,15 @@ AngleSlider は `docs/policy/intentional-non-adoption.md` §3.22（イシュー 
 - `angle_at_client_point(control, client_x, client_y)`: `control.get_bounding_client_rect()` の中心座標からのオフセットで `angle_from_offset` を呼ぶ。
 - dispatch payload（`"set"` の角度整数文字列）は `AngleSlider::decode_action`（headless 層）が改めて `u16`・`0..=360` 範囲で厳密検証する（多層防御）。
 
-`crate::lib::Runtime::mount`/`Runtime::hydrate` の双方が `Self::wire_timer` の直後に `Self::wire_angle_slider` を呼び、標準経路へ組み込む（`events`/`keynav`/`headless_clipboard`/`headless_timer` と同じ「マウント時 1 回」契約）。
+`crate::lib::Runtime::mount`/`Runtime::hydrate` の双方が `Self::wire_timer` の直後に `Self::wire_angle_slider` を呼び、標準経路へ組み込む（`events`/`keynav`/`headless_clipboard`/`headless_timer` と同じ「マウント時 1 回」契約）。`Runtime::wire_angle_slider` は `angle_slider::wire_angle_slider_events` へ `Self::wire`（`events::wire_events` が配線する `on_action` 閉包と同一のもの: dispatch → `dirty_fields()` → `Self::apply_update_for_dirty`）をそのまま渡す（イシュー #1956）。`events::wire_events` が listen するのは click/input/change のみで AngleSlider の pointerdown/pointermove/keydown とは重ならないため、`Self::wire_angle_slider` 自身が `Self::wire` の閉包を pointer/keydown 経路へ配線し、dispatch 後の DOM 反映まで一貫して担う。
 
 ### 17.4 表示: CSS `transform: rotate()` のみ（canvas 不使用）
 
-`fandhe-frontend-pre-styled-ui` の styled Thumb（`crates/pre-styled-ui/src/angle_slider.rs`）は `AngleSlider::angle_deg()` から `--fandhe-angle` CSS custom property を 1 点のみ組み立て、CSS 側は `transform: rotate(var(--fandhe-angle))` で回転させる。canvas の描画命令列・変換行列に相当する内部状態は持たない。本モジュール（wasm 層）は Thumb 要素の DOM 属性（`aria-valuenow` 等）の再描画を `Self::wire`（束縛点更新経路）へ委ね、独自の DOM 直接書き込みは行わない（`position.rs` 等が担う「再計算のたびに DOM へ直接書き込む」パターンとは異なる。AngleSlider は dispatch → 状態更新 → 通常の再描画サイクルで完結する）。
+`fandhe-frontend-pre-styled-ui` の styled Thumb（`crates/pre-styled-ui/src/angle_slider.rs`）は `AngleSlider::angle_deg()` から `--fandhe-angle` CSS custom property を 1 点のみ組み立て、CSS 側は `transform: rotate(var(--fandhe-angle))` で回転させる。canvas の描画命令列・変換行列に相当する内部状態は持たない。本モジュール（wasm 層）は Thumb 要素の DOM 属性（`aria-valuenow` 等）の再描画を、`Runtime::wire_angle_slider` が pointer/keydown 経路へ配線する `Self::wire` の閉包（`Self::apply_update_for_dirty`）に委ね、独自の DOM 直接書き込みは行わない（`position.rs` 等が担う「再計算のたびに DOM へ直接書き込む」パターンとは異なる。AngleSlider は dispatch → 状態更新 → 通常の再描画サイクルで完結する）。
 
 ### 17.5 セキュリティ不変条件
 
-DOM から読み取るのは `getBoundingClientRect`/`get_attribute`/`has_attribute`/`has_pointer_capture` のみで、DOM への書き込みは行わない（Thumb の回転・`aria-valuenow` 更新は `Self::wire` の再描画に委ねる）。ポインタ座標・計算済み角度値はいずれも `console`・例外メッセージへ出力しない。新規 `unsafe` コードは追加しない（`web-sys`/`js-sys` の safe API のみ使用）。
+DOM から読み取るのは `getBoundingClientRect`/`get_attribute`/`has_attribute`/`has_pointer_capture` のみで、DOM への書き込みは行わない（Thumb の回転・`aria-valuenow` 更新は `Runtime::wire_angle_slider` が配線する `Self::wire` の閉包による再描画に委ねる）。ポインタ座標・計算済み角度値はいずれも `console`・例外メッセージへ出力しない。新規 `unsafe` コードは追加しない（`web-sys`/`js-sys` の safe API のみ使用）。
 
 ## 18. `keynav` への Menubar キーボード配線追加（イシュー #1073、親 #1058/#1056）
 

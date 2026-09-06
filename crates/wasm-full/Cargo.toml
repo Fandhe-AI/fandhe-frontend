@@ -556,13 +556,47 @@ name = "fandhe-frontend-wasm-full"
 # ブランチの carousel 実体変更が main へ未反映のまま Cargo.toml マージが
 # 衝突した解消分）への追随。`crates/wasm-full/src` は carousel を一切
 # 参照しておらず公開 API は不変のため patch バンプで 0.15.11 とする。
+# イシュー #1956: `wire_angle_slider` が dispatch 後に
+# `apply_update_for_dirty` を呼ぶよう修正（pointer/keydown 操作で状態は
+# 更新されるが再描画が一切走らないバグの是正）。私有関数 `wire_angle_slider`
+# のシグネチャ変更のみで公開 API は不変のため patch バンプ。
+# base 再取り込み（イシュー #1956/#1959, 2026-09-06）: 上記と同時期に
+# `Runtime::wire_timer` の同種修正（イシュー #1959, PR #1976）が独立に
+# 同一 0.15.12 へ到達していたため、統合結果としてさらに patch バンプし
+# 0.15.13 とする。
 # イシュー #1959: `Runtime::wire_timer` の dispatch 後 dirty 再描画接続。
 # `wire_timer` は private で公開 API 不変のため patch バンプ。
 # イシュー #1962: `number_input.rs` の wiring に IncrementTrigger/
 # DecrementTrigger の click リスナーを追加（`action_for_trigger_part`
 # 新規公開関数・`INCREMENT_TRIGGER_PART`/`DECREMENT_TRIGGER_PART` 新規
 # 公開定数の追加のみで既存シグネチャは不変）のため patch バンプ。
-version = "0.15.13"
+# base 再取り込み（イシュー #1956/#1959/#1962, 2026-09-07）: 上記 2 系統が
+# 独立に同一 0.15.13 へ到達していたブランチのマージにより、統合結果として
+# さらに patch バンプし 0.15.14 とする。
+# イシュー #1956 codex-review 是正（PR #1987, 2026-09-07）: `angle_slider.rs`
+# の wiring へドラッグ追跡（私有 `DragState`・pointerup/pointercancel の
+# 解除配線）を追加し、構造フォールバックで Control が detach されても
+# ポインタドラッグが継続するよう是正した。公開 API
+# （`wire_angle_slider_events` のシグネチャ・`angle_from_offset` 等の純粋
+# 関数群）は不変で、追加分はすべて `wiring` モジュール内の私有要素の
+# ため、origin/main の 0.15.13 に対して既に進んでいる 0.15.14 を維持する
+# （同値衝突なし、これ以上のバンプ不要）。あわせて `handle_pointermove` の
+# 追跡経路へ `MouseEvent::buttons() == 0` の stale 追跡自己解除ガードを
+# 追加したが、これも同モジュール内の私有関数の内部変更である。
+# イシュー #1956 codex-review 追加 2 件の是正（PR #1987, 2026-09-07）:
+# ドラッグ対象の再解決を文書順の添字から安定識別子（私有 `PartKey`:
+# 対象自身の `id` → Root の `id` → 同種パーツ 1 個の暗黙識別）へ差し替え、
+# keydown の構造フォールバック後に Thumb フォーカスを復元する
+# （私有 `restore_thumb_focus`）よう拡張した。あわせて `ROOT_PART` 定数を
+# 追加したが private であり、公開 API（`wire_angle_slider_events`・
+# `angle_from_offset`・`action_for_key`・`is_angle_slider_control_or_thumb`・
+# `ACTION_*`）は不変のため 0.15.14 を維持する。
+# 同追加レビューの 3 件目（要素数による同一視の禁止）: `PartKey` から
+# `Sole`（同種パーツ 1 個の暗黙識別）変種を撤去し、再描画をまたぐ復元には
+# `id` による安定識別子を必須とした（`id` 無しのスライダーが入れ替わった
+# 場合も「1 個」が成立し別インスタンスをエイリアスするため）。私有 enum の
+# 変種削除のみで公開 API は不変。
+version = "0.15.14"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"

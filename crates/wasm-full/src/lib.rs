@@ -561,8 +561,11 @@ where
     /// click/input イベントで再入が起きることは想定していない。
     ///
     /// `binding_table` は `Self::mount`/`Self::hydrate` が生成し
-    /// `Self::wire_signature_pad` と共有するキャッシュ（イシュー #843
-    /// Bugbot 指摘「Binding table cache desync」の是正）。ストローク駆動の
+    /// `Self::wire_angle_slider`/`Self::wire_signature_pad`/
+    /// `Self::wire_number_input` と共有するキャッシュ（イシュー #843
+    /// Bugbot 指摘「Binding table cache desync」の是正。`wire_angle_slider`
+    /// はイシュー #1956 で `Self::wire` の閉包そのものを配線する形へ
+    /// 変更したため、他の共有元と同じくこの一覧へ加わる）。ストローク駆動の
     /// keyed list 構造変化は signature pad 側の `on_update` からも発生し
     /// うるため、対応表の再スキャンをこのクロージャ専用の内部状態に
     /// 閉じ込めず外部から共有することで、どちらの経路で構造変化が
@@ -1003,7 +1006,12 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
-        Self::wire_angle_slider(component.clone(), root.clone())?;
+        Self::wire_angle_slider(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         Self::wire_splitter(component.clone(), root.clone())?;
         Self::wire_signature_pad(
             component.clone(),
@@ -1108,7 +1116,12 @@ where
             binding_table.clone(),
             keyed_list_cache.clone(),
         )?;
-        Self::wire_angle_slider(component.clone(), root.clone())?;
+        Self::wire_angle_slider(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         Self::wire_splitter(component.clone(), root.clone())?;
         Self::wire_signature_pad(
             component.clone(),
@@ -1330,6 +1343,18 @@ where
     /// （イシュー #842）。`Self::mount`/`Self::hydrate` の双方から
     /// `Self::wire_timer` の直後に 1 回だけ呼ばれる。
     ///
+    /// [`angle_slider::wire_angle_slider_events`] へ渡す `on_action` には
+    /// [`Self::wire`] が返す閉包そのもの（dispatch → `dirty_fields()` →
+    /// [`Self::apply_update_for_dirty`]）を使う（イシュー #1956）。
+    /// `events::wire_events` が listen するのは click/input/change のみで
+    /// AngleSlider の pointerdown/pointermove/keydown とは重ならないため、
+    /// 「DOM 反映は `Self::wire` の束縛点更新経路へ委ねる」という従来の
+    /// 想定は実際には成立せず、pointer/keydown 操作で状態は更新されても
+    /// 再描画が一切走らないバグだった。`Self::wire` の閉包を配線する
+    /// ことで、`Self::wire_angle_slider` 自身が dispatch 後の DOM 反映まで
+    /// 一貫して担う（`Self::wire_signature_pad`/`Self::wire_number_input`
+    /// と同じ「dispatch → 再描画」経路）。
+    ///
     /// # fail-closed（AngleSlider 非搭載アプリへの副作用なし）
     ///
     /// `root` 配下に AngleSlider の Control/Thumb パーツが存在しない場合、
@@ -1338,6 +1363,88 @@ where
     /// 一致判定で早期 return するため、AngleSlider を使わないアプリへの
     /// 影響はない。
     ///
+    /// # 構造フォールバック中のドラッグ継続（イシュー #1956 codex-review
+    /// P1 是正）
+    ///
+    /// [`Self::apply_update_for_dirty`] の構造フォールバック
+    /// （[`Self::rerender_subtree`]）は `root` 配下を丸ごと差し替えるため、
+    /// pointerdown で `setPointerCapture` を設定した Control 要素が同じ
+    /// dispatch の最中に detach され、ブラウザ側の pointer capture も失われる
+    /// （束縛点にも keyed list にも対応しない dirty field を積むアプリで
+    /// 実際に発生する）。この状態を `has_pointer_capture` だけで判定すると
+    /// 以後の pointermove がすべて拒否され、ドラッグが最初の座標更新で
+    /// 止まってしまう。
+    ///
+    /// [`angle_slider::wire_angle_slider_events`] 側でドラッグ状態
+    /// （`pointerId` と `root` 配下 Control 群における添字）を保持し、
+    /// pointermove では要素の同一性ではなくその追跡情報で継続を判定し、
+    /// dispatch 後に同じ添字の Control へ capture を掛け直すことで、
+    /// 構造フォールバックを挟んでもドラッグが継続する（`angle_slider.rs`
+    /// の `wiring::DragState` doc、回帰テストは
+    /// `crates/wasm-full/tests/angle_slider_browser.rs::
+    /// pointer_drag_continues_across_structural_fallback`）。
+    ///
+    /// ドラッグ対象の再解決には `id` による安定識別子を必須とする
+    /// （`angle_slider.rs` の `wiring::PartKey`: 対象自身の `id`、または
+    /// それを含む AngleSlider Root の `id`）。文書順の添字・要素数といった
+    /// 位置ベースの識別は使わない（添字は挿入・削除・並べ替えで別の
+    /// Control を指し、要素数は `id` 無しのスライダーが入れ替わった場合も
+    /// 「1 個」が成立して別インスタンスをエイリアスするため、いずれも
+    /// 「対象が消えたら操作を終了する」契約を満たせない）。掴んでいた
+    /// Control が消えた・一意に定まらない場合はドラッグを終了し、`id` を
+    /// 持たない構成ではそもそも追跡しない（本節の対策以前と同じ挙動へ
+    /// フォールバックする、fail-closed）。回帰テストは
+    /// `drag_does_not_retarget_to_another_control` と
+    /// `drag_does_not_alias_a_swapped_in_slider_without_ids`。
+    ///
+    /// この追跡は `has_pointer_capture` に依存しないため、capture 喪失中に
+    /// `root` の外でボタンが離され pointerup を取り逃すと追跡が stale に
+    /// なり得る。`angle_slider.rs` の `wiring::handle_pointermove` が
+    /// 追跡経路で `MouseEvent::buttons() == 0` を確認して自己解除する
+    /// （同関数 doc「stale な追跡の自己解除」節、回帰テストは同ファイルの
+    /// `stale_drag_tracking_is_released_when_no_button_is_held`）。
+    ///
+    /// # keydown 経路のフォーカス継続
+    ///
+    /// 本メソッドが `Self::wire` の閉包を配線したことで keydown からも
+    /// 構造フォールバックが発動するようになり、[`Self::rerender_subtree`]
+    /// が `remove_child` でフォーカス中の Thumb ごと削除する。フォーカスが
+    /// `body` へ移ると以降のキー入力が Thumb に届かず、最初の矢印キー 1 回で
+    /// 操作が途切れる。`angle_slider.rs` の `wiring::restore_thumb_focus` が
+    /// dispatch 後に「元の Thumb が detach された」かつ「上記 `PartKey`
+    /// （`id` 必須）から再描画後の Thumb を一意に再解決できた」場合に限り
+    /// フォーカスを戻す
+    /// （それ以外では利用者のフォーカスを奪わない、fail-closed。回帰テストは
+    /// `thumb_focus_is_restored_after_structural_fallback_on_keydown`）。
+    ///
+    /// なお `Self::wire_signature_pad` は同型の露出（ストローク中の
+    /// `canvas` 要素 detach）を依然として抱えるが、SignaturePad 側は
+    /// キャンバス要素の同一性そのものに描画状態が乗るため本対策とは別の
+    /// 設計判断を要する（本イシューのスコープ外）。
+    ///
+    /// # AngleSlider 自身の `aria-valuenow`/`aria-valuetext` を更新するには
+    /// アプリ側の束縛点配線が必要（イシュー #1956 レビュー指摘）
+    ///
+    /// [`fandhe_frontend_headless_ui::angle_slider::thumb`] が出力する
+    /// `aria-valuenow`/`aria-valuetext` は SSR 時点の値を焼き込んだ**静的
+    /// 属性**であり、束縛点マーカー（`data-bind-attr`）を自動では持たない。
+    /// このため、アプリ（`C`）が `thumb()` 呼び出し時に呼び出し側 `attrs` へ
+    /// `fandhe_frontend_core::bind_attr_tokens(&[("aria-valuenow",
+    /// "<field>"), ("aria-valuetext", "<field>")])` を明示的に付与し、
+    /// [`fandhe_frontend_wasm_client::BindingSource`] で当該フィールドを
+    /// 解決し、`update()` で角度が変化した際に `dirty_fields()` へ積んで
+    /// **初めて** `aria-valuenow`/`aria-valuetext` が dispatch 後に更新
+    /// される（`Self::wire` の既存束縛点更新経路のみを使い、
+    /// `fandhe-frontend-wasm-full`/`fandhe-frontend-headless-ui` 側の変更は
+    /// 不要）。この束縛点配線を行わないアプリでは、`aria-valuenow`/
+    /// `aria-valuetext` は「束縛点にも keyed list にも該当しない dirty
+    /// field」としても検知されない（`dirty_fields()` に当該フィールドを
+    /// 積まない限り [`Self::apply_update_for_dirty`] の
+    /// `unresolved_field` 判定にすら乗らない）ため、構造フォールバックも
+    /// 発動せず、Thumb の位置・値の見た目が dispatch 後も更新されないまま
+    /// 残る（`crates/wasm-full/tests/angle_slider_browser.rs` の
+    /// `AngleSliderHost` が実装例）。
+    ///
     /// # Errors
     ///
     /// [`angle_slider::wire_angle_slider_events`]
@@ -1345,20 +1452,17 @@ where
     fn wire_angle_slider(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
     ) -> Result<(), wasm_bindgen::JsValue> {
-        angle_slider::wire_angle_slider_events(root, move |action_ref: events::ActionRef| {
-            let Ok(mut state) = component.try_borrow_mut() else {
-                return;
-            };
-            // DOM 反映（Thumb の回転・aria-valuenow 更新）は `Self::wire` の
-            // 束縛点更新経路（再描画）へ委ねる。本配線は dispatch 依頼のみを
-            // 担う（`Self::wire_timer` と同じ責務分離）。
-            let _ = fandhe_frontend_interactive::dispatch(
-                &mut *state,
-                &action_ref.action,
-                &action_ref.payload,
-            );
-        })
+        angle_slider::wire_angle_slider_events(
+            root.clone(),
+            Self::wire(component, root, binding_table, keyed_list_cache),
+        )
     }
 
     /// Splitter（`fandhe-frontend-headless-ui` `splitter` モジュール）の
@@ -1389,7 +1493,9 @@ where
             // DOM 反映（aria-valuenow・パネルサイズ更新）は `Self::wire` の
             // 束縛点更新経路（再描画）へ委ねる（`splitter` モジュール doc
             // §`aria-valuenow` を直接書き換えない設計判断 参照。
-            // `Self::wire_angle_slider` と同じ責務分離）。
+            // `Self::wire_timer` と同じ責務分離。`Self::wire_angle_slider`
+            // はイシュー #1956 で `Self::wire` の閉包を直接配線する形へ
+            // 変更済みのため、参照先はこちらへ改める）。
             let _ = fandhe_frontend_interactive::dispatch(
                 &mut *state,
                 &action_ref.action,
