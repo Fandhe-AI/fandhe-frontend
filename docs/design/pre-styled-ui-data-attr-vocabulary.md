@@ -53,7 +53,7 @@
 | `data-autoresize` | `textarea.rs` | headless `field.rs` |
 | `data-empty` | （テストのみ、`signature_pad.rs`） | headless `signature_pad.rs` |
 | `data-positioned` | `select.rs` / `menu.rs` / `combobox.rs` | `crates/wasm-full/src/position.rs`（実行時に wasm 層のみが付与、UI 2 層はいずれも出力しない。イシュー #663 の設計） |
-| `data-disabled` | `field.rs`（イシュー #1684、`label`/`helper-text` slot への state 規則） | headless `field.rs`（`FieldProps::disabled` から `state_data_attrs` が生成） |
+| `data-disabled` | `field.rs`（イシュー #1684、`label`/`helper-text` slot への state 規則）、`fieldset.rs`（イシュー #1686、`legend`/`helper-text` slot への state 規則） | headless `field.rs`（`FieldProps::disabled` から `state_data_attrs` が生成）、headless `fieldset.rs`（`FieldsetProps::disabled` から `state_data_attrs` が生成） |
 
 ### 2.3 役割 C: 「予約名として防御的に列挙」される `data-*`
 

@@ -1873,7 +1873,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # pagination 双方の破壊的変更と field モジュール新設の 3 件を 0.111.0 から
 # 積算した結果としてさらにマイナーバンプし 0.114.0 とする（依存先
 # headless-ui 0.60.0 への追随を含む）。
-version = "0.114.0"
+# イシュー #1686: fieldset モジュール新設（公開 API の純追加）。純追加も
+# minor バンプとする運用（#1429、先例 #1684 field・#1682 collapsible）に
+# 従い 0.115.0 とする。`/themes/fieldset/` ページ登録は後続イシュー #1687。
+version = "0.115.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
