@@ -194,9 +194,16 @@ const DATA_STATUS_COMPLETED: &str = "completed";
 
 /// [`Tour::root`] が固定付与する予約キー。
 const ROOT_RESERVED: &[&str] = &["data-state", "data-status"];
-/// [`Tour::backdrop`]/[`Tour::arrow`]/[`Tour::arrow_tip`]/[`Tour::control`]
-/// が固定付与する予約キー。
+/// [`Tour::backdrop`] が固定付与する予約キー（`hidden` は
+/// [`Tour::hidden_attr`] 経由で自身が出力するため予約する）。
 const OVERLAY_PART_RESERVED: &[&str] = &["data-state", "hidden"];
+/// [`Tour::arrow`]/[`Tour::arrow_tip`]/[`Tour::control`] が固定付与する
+/// 予約キー。これら 3 パーツは `hidden` を自身で出力しない（配置条件に
+/// 応じた矢印非表示・control 非表示制御は呼び出し側の責務）ため、
+/// [`OVERLAY_PART_RESERVED`] とは別に `data-state` のみを予約する
+/// （呼び出し側が `attrs` 経由で渡した `hidden` を誤って除去しない
+/// ため、レビュー指摘 イシュー #1666）。
+const ARROW_CONTROL_RESERVED: &[&str] = &["data-state"];
 /// [`Tour::spotlight`] が固定付与する予約キー。
 const SPOTLIGHT_RESERVED: &[&str] = &["data-state", "hidden", "data-target"];
 /// [`Tour::positioner`] が固定付与する予約キー。
@@ -479,7 +486,7 @@ impl Tour {
     #[must_use]
     pub fn arrow<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(self.data_state_value())];
-        merged.extend(drop_reserved(attrs, OVERLAY_PART_RESERVED));
+        merged.extend(drop_reserved(attrs, ARROW_CONTROL_RESERVED));
         ANATOMY.part("arrow", "div", merged, children)
     }
 
@@ -488,7 +495,7 @@ impl Tour {
     #[must_use]
     pub fn arrow_tip<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(self.data_state_value())];
-        merged.extend(drop_reserved(attrs, OVERLAY_PART_RESERVED));
+        merged.extend(drop_reserved(attrs, ARROW_CONTROL_RESERVED));
         ANATOMY.part("arrow-tip", "div", merged, children)
     }
 
@@ -499,7 +506,7 @@ impl Tour {
     #[must_use]
     pub fn control<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(self.data_state_value())];
-        merged.extend(drop_reserved(attrs, OVERLAY_PART_RESERVED));
+        merged.extend(drop_reserved(attrs, ARROW_CONTROL_RESERVED));
         ANATOMY.part("control", "div", merged, children)
     }
 
@@ -597,11 +604,14 @@ impl Tour {
     /// action-trigger `data-type` 語彙に対応、イシュー #1666。`Complete` は
     /// 本状態機械固有の値）。`kind` が [`TourTriggerKind::Prev`] かつ
     /// dispatch が no-op になる境界（`current_index() == Some(0)` または
-    /// 非 `Active`）のときのみ `disabled`/`data-disabled` を付与する。
-    /// `Next`/`Skip`/`Complete`/`Custom` はいずれも有効な操作であり続ける
-    /// ため disabled にしない（本状態機械では最終 step の `"next"` が
-    /// `Completed` へ遷移する有効な操作であり、zag の `!hasNextStep`
-    /// 判定とは意図的に非同値、モジュール冒頭「参照突合」節参照）。
+    /// 非 `Active`）のときは `disabled`/`data-disabled` を自動付与する。
+    /// `Next`/`Skip`/`Complete`/`Custom` はこの境界判定の対象外だが、
+    /// 呼び出し側が `attrs` 経由で `disabled` を渡した場合はそれを
+    /// 保持する（境界判定との OR。`crate::pre_styled_ui` 側の tour
+    /// ラッパ・docs `site/themes/tour.md` が明記する「呼び出し側の
+    /// `disabled` 指定がそのまま実効する」契約に対し、
+    /// [`drop_reserved`] が `disabled`/`data-disabled` を無条件除去して
+    /// 反故にしていたレビュー指摘の是正、イシュー #1666）。
     #[must_use]
     pub fn action_trigger<'a>(
         &self,
@@ -612,7 +622,10 @@ impl Tour {
         let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button"), kind.data_type_attr()];
         let is_prev_at_start = matches!(kind, TourTriggerKind::Prev)
             && !matches!(self.current_index(), Some(step) if step > 0);
-        if is_prev_at_start {
+        let caller_disabled = attrs
+            .iter()
+            .any(|(k, _)| k.eq_ignore_ascii_case("disabled"));
+        if is_prev_at_start || caller_disabled {
             merged.push(("disabled", ""));
             merged.push(("data-disabled", ""));
         }
@@ -1239,6 +1252,40 @@ mod tests {
         // 最終 step でも "next" は Completed への有効な遷移のため disabled にしない。
         let html = render(&t.action_trigger(TourTriggerKind::Next, vec![], vec![]));
         assert!(!html.contains("disabled"));
+    }
+
+    /// レビュー指摘（イシュー #1666、codex-review P1 / Bugbot Medium）の
+    /// 回帰テスト: `Next`/`Skip`/`Complete`/`Custom` は境界判定の対象外
+    /// だが、呼び出し側が `attrs` 経由で `disabled` を渡した場合は
+    /// `disabled`/`data-disabled` が実効しなければならない
+    /// （`fandhe-frontend-pre-styled-ui` の action-trigger 契約、
+    /// `site/themes/tour.md` 参照）。
+    #[test]
+    fn caller_supplied_disabled_is_preserved_on_non_prev_action_triggers() {
+        let t = Tour::new(three_steps());
+        for kind in [
+            TourTriggerKind::Next,
+            TourTriggerKind::Skip,
+            TourTriggerKind::Complete,
+            TourTriggerKind::Custom,
+        ] {
+            let html = render(&t.action_trigger(kind, vec![("disabled", "")], vec![]));
+            assert!(html.contains("disabled"), "{html}");
+            assert!(html.contains("data-disabled"), "{html}");
+        }
+    }
+
+    /// レビュー指摘（イシュー #1666、codex-review P1 / Bugbot Low）の
+    /// 回帰テスト: `arrow`/`arrow_tip`/`control` は自身で `hidden` を
+    /// 出力しないため、呼び出し側が `attrs` 経由で渡した `hidden` を
+    /// [`drop_reserved`] が誤って除去してはならない。
+    #[test]
+    fn arrow_and_control_parts_pass_through_caller_hidden() {
+        let mut t = Tour::new(three_steps());
+        dispatch(&mut t, "start", "");
+        assert!(render(&t.arrow(vec![("hidden", "")], vec![])).contains("hidden"));
+        assert!(render(&t.arrow_tip(vec![("hidden", "")], vec![])).contains("hidden"));
+        assert!(render(&t.control(vec![("hidden", "")], vec![])).contains("hidden"));
     }
 
     #[test]
