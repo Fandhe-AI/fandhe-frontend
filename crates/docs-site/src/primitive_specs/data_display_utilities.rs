@@ -355,6 +355,18 @@ fn ex_carousel_vertical_loop() -> Node {
 /// の `recipe()` における同型の是正と同じ判断）。control を表示領域の外
 /// （`item-group` の後続の通常フロー）に置く構造自体は既に満たしている
 /// ため変更しない。
+///
+/// PR #1925 codex-review 指摘 是正（4 回目・P1 1 件 + Cursor Bugbot 指摘）:
+/// `item[data-orientation="vertical"]` は `flex: 0 0 100%` のみで既定
+/// `min-height: auto`（CSS Flexbox 仕様の automatic minimum size、
+/// https://www.w3.org/TR/css-flexbox-1/#min-size-auto）が残っており、
+/// 背の高い画像などを含む `item` は `item-group` の固定高さ `12rem` を
+/// 超えて伸びてしまう。`translateY` は各 `item` 自身の border box 高さを
+/// 基準にした百分率のため、`item` ごとに高さが揃わないと index=1 以降で
+/// 移動量が食い違い、次のスライドが表示領域外にずれる。`min-height: 0`
+/// で自動最小サイズを打ち消し、`overflow: hidden` で内容の高さに関わらず
+/// `item` 自身の境界を確定させる（`crates/pre-styled-ui/src/carousel.rs`
+/// の `recipe()` における同型の是正と同じ判断）。
 const CAROUSEL_CUSTOM_CSS_SNIPPET: &str = "\
 [data-scope=\"carousel\"][data-part=\"root\"] {\n  \
   overflow: hidden;\n  width: 100%;\n\
@@ -374,6 +386,8 @@ const CAROUSEL_CUSTOM_CSS_SNIPPET: &str = "\
   transform: none;\n\
 }\n\
 [data-scope=\"carousel\"][data-part=\"item\"][data-orientation=\"vertical\"] {\n  \
+  min-height: 0;\n  \
+  overflow: hidden;\n  \
   transition: transform 0.2s;\n  \
   transform: translateY(calc(var(--fandhe-carousel-index) * -100%));\n\
 }\n\

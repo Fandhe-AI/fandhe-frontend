@@ -207,7 +207,18 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
-        .base("item", vec![decl("flex", "0 0 100%")])
+        .base(
+            "item",
+            vec![
+                decl("flex", "0 0 100%"),
+                // 横方向スライドが `flex-basis` を超えて内容分だけ広がら
+                // ないようにする（既定 `min-width: auto` の打ち消し）。
+                // 縦方向の同型問題（`min-height: auto` による伸長、PR
+                // #1925 codex-review P1 / Cursor Bugbot 指摘）と対称に
+                // 揃える。
+                decl("min-width", "0"),
+            ],
+        )
         .base(
             "indicator-group",
             vec![
@@ -291,6 +302,22 @@ fn recipe() -> SlotRecipe {
             "item",
             StateCondition::AttrEq("data-orientation", "vertical"),
             vec![
+                // codex-review 指摘 PR #1925 是正（P1 追加・Cursor Bugbot
+                // 指摘、共通の欠陥系統）: `flex: 0 0 100%` のみでは既定
+                // `min-height: auto`（CSS Flexbox 仕様の automatic minimum
+                // size、https://www.w3.org/TR/css-flexbox-1/#min-size-auto）
+                // が残り、内容（画像等）が `item-group` の確定高さより背が
+                // 高い `item` はその高さまで伸びてしまう。`translateY` は
+                // 各 `item` 自身の border box 高さを基準にした百分率のため、
+                // 背の高い `item` を含む構成では index >= 1 で移動量が
+                // `item-group` の高さと食い違い、次のスライドが表示領域外
+                // にずれる（`crates/docs-site/src/primitive_specs/
+                // data_display_utilities.rs` の自前 CSS 例で再現した不具合
+                // と同型）。`min-height: 0` で自動最小サイズを打ち消し、
+                // 内容の高さに関わらず `flex: 0 0 100%` の解決値（＝
+                // `item-group` の高さ）へ強制的に揃える。
+                decl("min-height", "0"),
+                decl("overflow", "hidden"),
                 decl("transition-property", "transform"),
                 decl(
                     "transition-duration",

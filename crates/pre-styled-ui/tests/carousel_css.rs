@@ -44,6 +44,16 @@
 //! 動かすのと幾何学的に等価になる。`crate::carousel` module doc
 //! 「transform ベースのスライド位置表現」節・`recipe()` の該当 `.state()`
 //! rustdoc 参照）。
+//!
+//! PR #1925 codex-review 指摘 是正（4 回目・P1 1 件 + Cursor Bugbot 指摘）:
+//! `item` は `flex: 0 0 100%` のみで既定 `min-height: auto`（縦方向）・
+//! `min-width: auto`（横方向）が残り、内容が表示領域より大きいと
+//! `item` 自身が伸びて `translateY`/`translateX` の百分率基準（自身の
+//! border box）が `item-group` の高さ・幅と食い違う。`item` base へ
+//! `min-width: 0` を、`item[data-orientation="vertical"]` へ
+//! `min-height: 0` と `overflow: hidden` を追加し、内容の大きさに関わらず
+//! `flex: 0 0 100%` の解決値へ寸法を固定した（`crate::carousel` の該当
+//! `.base("item", ...)`/`.state("item", ...)` rustdoc 参照）。
 
 use fandhe_frontend_pre_styled_ui::carousel;
 
@@ -103,6 +113,7 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
 
 [data-scope="carousel"][data-part="item"] {
   flex: 0 0 100%;
+  min-width: 0;
 }
 
 [data-scope="carousel"][data-part="indicator-group"] {
@@ -159,6 +170,8 @@ const CAROUSEL_GOLDEN_CSS: &str = r#"[data-scope="carousel"][data-part="root"] {
 }
 
 [data-scope="carousel"][data-part="item"][data-orientation="vertical"] {
+  min-height: 0;
+  overflow: hidden;
   transition-property: transform;
   transition-duration: var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms));
   transition-timing-function: var(--fandhe-motion-easing-standard);
