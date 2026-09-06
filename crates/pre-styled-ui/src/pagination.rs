@@ -741,7 +741,7 @@ mod tests {
     fn reexported_item_is_not_given_variant_classes() {
         // item は root のみへクラスが付く複合部品の variant 統一方針
         // （モジュール rustdoc 参照）。item 自体には class 属性がない。
-        let html = render(&item(ItemMode::Button, false, false, vec![], vec![]));
+        let html = render(&item(ItemMode::Button, 1, false, false, vec![], vec![]));
         assert!(!html.contains("class="));
     }
 
@@ -793,6 +793,7 @@ mod tests {
         const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
         let html = render(&item(
             ItemMode::Link { href: PAYLOAD },
+            1,
             false,
             false,
             vec![],

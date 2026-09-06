@@ -56,6 +56,7 @@ use fandhe_frontend_pre_styled_ui::editable::{
 };
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
+use fandhe_frontend_pre_styled_ui::field::{self, FieldRootProps};
 use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
@@ -737,6 +738,93 @@ fn form_controls_extra_attrs_and_children_are_escaped_for_all_payloads() {
         );
         assert_eq!(html.matches("class=\"").count(), 1);
         assert!(html.contains("fd-field--"));
+    }
+}
+
+/// (7b) styled Field `root` 経路（イシュー #1684）: 呼び出し側 `attrs`・
+/// `class`、選択的再エクスポートした `label`/`helper_text`/`error_text`/
+/// `required_indicator` の children、`FieldProps::id` から派生する
+/// `id`/`for`/`aria-describedby` 属性値のいずれの経路でも既定エスケープ
+/// （REQ-1）が貫通することを固定する（(7) の `input`/`textarea`/
+/// `native_select` と同粒度）。
+#[test]
+fn field_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    fn field(id: &str) -> fandhe_frontend_pre_styled_ui::field::FieldProps<'_> {
+        fandhe_frontend_pre_styled_ui::field::FieldProps {
+            id,
+            ids: fandhe_frontend_pre_styled_ui::field::FieldIds::default(),
+            disabled: false,
+            invalid: false,
+            required: false,
+            readonly: false,
+            has_helper_text: false,
+        }
+    }
+
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let f = field("f");
+        let html = render(&field::root(
+            &FieldRootProps::default(),
+            &f,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "field::root attrs コンテキスト");
+
+        // styled root の呼び出し側 class 属性経路（drop_class_attr により
+        // 生ペイロードは出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let f = field("f");
+        let html = render(&field::root(
+            &FieldRootProps::default(),
+            &f,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "field::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-field--orientation-"));
+
+        // 選択的再エクスポート（label/helper_text/error_text/
+        // required_indicator）の children 経路。
+        let f = field("f");
+        let html = render(&field::label(&f, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "field::label children コンテキスト");
+
+        let f = field("f");
+        let html = render(&field::helper_text(&f, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "field::helper_text children コンテキスト");
+
+        let mut f = field("f");
+        f.invalid = true;
+        let html = render(&field::error_text(&f, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "field::error_text children コンテキスト");
+
+        let mut f = field("f");
+        f.required = true;
+        let html = render(&field::required_indicator(&f, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "field::required_indicator children コンテキスト",
+        );
+
+        // `FieldProps::id` から派生する `id`/`for`/`aria-describedby`
+        // 属性値経路（`label` の `for`/`id`、`helper_text` を併用した
+        // `error_text`/コントロール側の `aria-describedby`）。
+        let mut f = field(payload);
+        f.has_helper_text = true;
+        f.invalid = true;
+        let html = render(&field::label(&f, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "field id 由来 label for/id コンテキスト");
+        let html = render(&field::helper_text(&f, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "field id 由来 helper_text id コンテキスト");
+        let html = render(&field::error_text(&f, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "field id 由来 error_text id コンテキスト");
     }
 }
 
@@ -1875,6 +1963,7 @@ fn pagination_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした item の Link モード href 経路。
         let html = render(&pagination::item(
             ItemMode::Link { href: payload },
+            1,
             false,
             false,
             vec![],
@@ -1885,6 +1974,7 @@ fn pagination_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした item の children 経路。
         let html = render(&pagination::item(
             ItemMode::Button,
+            1,
             false,
             false,
             vec![],

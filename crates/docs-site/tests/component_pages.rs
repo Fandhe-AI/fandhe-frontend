@@ -517,8 +517,11 @@ fn scope_resolution_buckets_match_expected_counts() {
     // checkbox-group が data-scope="checkbox-group" と一致）が加わり
     // 93 -> 94、イシュー #1154 で Link / Link Overlay / Nav List の 3 部品
     // （いずれも path 由来の kebab link/link-overlay/nav-list が
-    // data-scope とそのまま一致する）が加わり 94 -> 97 へ増える。
-    assert_eq!(bucket1_path_match, 97);
+    // data-scope とそのまま一致する）が加わり 94 -> 97、イシュー #1683 で
+    // Collapsible（path 由来の kebab collapsible が data-scope="collapsible"
+    // と一致）が加わり 97 -> 98、イシュー #1685 で Field（path 由来の
+    // kebab field が data-scope="field" と一致）が加わり 98 -> 99 へ増える。
+    assert_eq!(bucket1_path_match, 99);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }
@@ -631,6 +634,7 @@ fn overlay_disclosure_pages_include_all_required_sections() {
     const PATHS: &[&str] = &[
         "/themes/accordion/",
         "/themes/action-bar/",
+        "/themes/collapsible/",
         "/themes/dialog/",
         "/themes/drawer/",
         "/themes/floating-panel/",
@@ -734,7 +738,7 @@ fn filled_pages_no_longer_reference_phase_4_stub_note() {
     }
 }
 
-/// Forms 31 ページ（イシュー #945）の充填を機械的に固定する。各ページが
+/// Forms 32 ページ（イシュー #945、#1685 で Field を追加）の充填を機械的に固定する。各ページが
 /// `Demo`/`Features`/`Anatomy`/`API Reference` の 4 節を（この順の部分列と
 /// して）持つこと、および `Examples`/`Accessibility` を含む場合は
 /// [`CANONICAL_SECTIONS`] 順であることを検証する（設計 §7 は Examples/
@@ -759,7 +763,7 @@ fn forms_pages_have_the_canonical_sections_filled() {
     }
 }
 
-/// `site/themes/<kebab>.md` の Forms 31 件が Phase 4 未充填を示す
+/// `site/themes/<kebab>.md` の Forms 32 件が Phase 4 未充填を示す
 /// `[!NOTE]` admonition（「Phase 4」文言を含む）を残していないことを検証
 /// する（充填したページから admonition を削除する前提、イシュー #945）。
 #[test]
@@ -806,6 +810,7 @@ const FORMS_PATHS: &[&str] = &[
     "/themes/date-picker/",
     "/themes/download-trigger/",
     "/themes/editable/",
+    "/themes/field/",
     "/themes/file-upload/",
     "/themes/image-cropper/",
     "/themes/input/",

@@ -1850,7 +1850,86 @@ name = "fandhe-frontend-pre-styled-ui"
 # 参照）。公開 CSS 契約の観測可能な実体変更（golden 更新）のためマイナー
 # バンプで 0.111.0 とする（新規 API の破壊的変更ではなく追加宣言のみだが、
 # 0.x の実体変更はマイナーバンプする規約を踏襲する）。
-version = "0.111.0"
+# イシュー #1653（nav-list の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# の 0.57.0 → 0.57.1（patch）追随のみで自身の破壊的変更なし。patch バンプで
+# 0.109.1 とする。
+# イシュー #1654: headless-ui 0.58.0（navigation_menu の破壊的変更）への
+# 追随。navigation_menu モジュールは glob 再エクスポートのため、headless
+# 側のシグネチャ変更がそのまま公開 API の破壊的変更として伝播する。
+# マイナーバンプで 0.110.0 とする。
+# base 再取り込み（イシュー #1654, 2026-09-06）: main 側は本ブランチとは独立に
+# `collapsible` モジュール新設と依存先 headless-ui 0.57.1 への patch 追随を
+# 経て 0.110.1 へ到達していた。本ブランチは上記のとおり独立に依存先を
+# 0.58.0（navigation_menu の破壊的変更）へ追随させ 0.110.0 に到達しており、
+# 両者が異なる実体変更を伴い偶発的に近接した版数へ到達している（同一版数
+# 衝突をそのまま採用しない原則、`docs/ci/style-refresh-version-bump-operation.md`
+# §5 と同型の判断）。main の到達点（0.110.1）を土台に、本ブランチの
+# headless-ui 0.58.0 依存追随（破壊的変更）を反映してさらにマイナーバンプ
+# し 0.111.0 とする。
+# イシュー #1661（json-tree-view の参照突合、headless-ui 0.59.0 追随）:
+# 依存先 headless-ui の `data-kind` 語彙変更（`"bool"` → `"boolean"`）に
+# 追随して `StateCondition::AttrEq("data-kind", "boolean")` へセレクタを
+# 変更する（golden CSS 出力が変わる観測可能な破壊的変更）ためマイナー
+# バンプで 0.112.0 とする。
+# イシュー #1655（pagination の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# 0.59.0 への追随（`pagination::item` のシグネチャ変更を `pub use` で
+# 選択的再エクスポートしているため呼び出し側にも波及する破壊的変更）に伴い
+# マイナーバンプで 0.112.0 とする（本クレート自身の SLOTS・CSS は本 PR では
+# 変更していない）。
+# イシュー #1684: `field` モジュール新設（公開 API の純追加。recipe
+# scope "field" 上の `root`/`FieldOrientation`/`FieldRootProps` と、
+# `label`/`helper_text`/`error_text`/`required_indicator`/`FieldIds`/
+# `FieldProps` の選択的再エクスポート）のため minor バンプする（0.x の
+# 破壊的変更相当という運用に合わせ純追加も minor、
+# `.claude/rules/coding-rust.md` 「公開済みクレートの実体変更時は
+# semver バンプ必須」節）。`/themes/field/` ページ登録・showcase Demo
+# 追加は後続イシュー #1685 のスコープ。
+# base 再取り込み（イシュー #1661, 2026-09-06）: main 側は本ブランチとは
+# 独立に `field` モジュール新設（#1684）を経て 0.111.0 から 0.112.0 へ
+# 到達しており、本ブランチも json-tree-view の headless-ui 0.59.0 追随
+# （#1661）により独立に同じ 0.112.0 へ到達していた。両者が異なる実体
+# 変更を伴い偶発的に同一版数へ衝突している（同一版数への偶発的衝突を
+# そのまま採用しない原則、`docs/ci/style-refresh-version-bump-operation.md`
+# §5）。両者の実体変更の和集合としてさらにマイナーバンプし 0.113.0 と
+# する。
+# base 再取り込み（イシュー #1655, 2026-09-06）: main 側は本ブランチとは独立に
+# field モジュール新設（イシュー #1684）を経て 0.112.0 へ到達しており、本
+# ブランチも headless-ui 0.59.0 依存追随（pagination の破壊的変更）により
+# 独立に 0.112.0 へ到達していた。両者が同一版数へ偶発的に衝突しているため
+# （同一版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
+# style-refresh-version-bump-operation.md` §5）、両者の変更の和集合として
+# さらにマイナーバンプし 0.113.0 とする。
+# base 再取り込み（イシュー #1662, 2026-09-06, 2 回目）: 上記のとおり main
+# 側は json-tree-view・pagination 双方の破壊的変更と field モジュール新設の
+# 3 件を積算して 0.114.0 へ到達している。本ブランチは headless-ui
+# 0.58.1（scroll-area の非破壊的変更）への追随を持っていたが、本マージで
+# headless-ui 側がさらに patch バンプ 0.60.1 へ到達したため、依存元である
+# 本クレートも「headless-ui バンプに伴い依存元自身も patch バンプする」
+# 既定運用（`docs/ci/style-refresh-version-bump-operation.md`）に従い
+# 0.114.0 から patch バンプし 0.114.1 とする（依存先 headless-ui 0.60.1
+# への追随を含む）。
+# イシュー #1657（toolbar の参照突合）: `pub use
+# fandhe_frontend_headless_ui::toolbar::*` により headless-ui 側の
+# `toolbar::button`/`link`/`toggle_group`/`toggle_item` 自由関数シグネチャ
+# 変更（先頭引数へ `orientation: Orientation` 追加）が本クレートの公開 API
+# 変更にもなるため、依存先 headless-ui 0.61.0 への追随を含めマイナーバンプ
+# で 0.115.0 とする（`src/toolbar.rs` 自体の実装は `Toolbar::new` のみ使用
+# で変更なし、CSS 出力〔`Theme::to_css`/`stylesheet()`〕も不変）。
+# base 再取り込み（イシュー #1660, 2026-09-06）: main 側は本ブランチとは独立に
+# toolbar の参照突合（headless-ui 0.61.0 依存追随、#1657）を経て 0.115.0 へ
+# 到達していた。本ブランチは carousel の参照突合（#1660）における
+# PR #1925 codex-review 指摘 是正（2 回目、0.111.0 到達）を経ていたが、
+# 本マージで両者の実体変更を統合するため、main の到達点（0.115.0）を
+# 土台に据える。
+# PR #1925 codex-review 指摘 是正（4 回目・P1 1 件 + Cursor Bugbot 指摘）:
+# `item` base へ `min-width: 0` を、縦方向
+# `item[data-orientation="vertical"]` へ `min-height: 0` と
+# `overflow: hidden` を追加し、内容が表示領域より大きい場合でも
+# `flex: 0 0 100%` の解決値へ寸法を固定するよう是正した（`crates/
+# pre-styled-ui/src/carousel.rs` の該当 `.base()`/`.state()` rustdoc
+# 参照）。公開 CSS 契約の観測可能な実体変更（golden 更新）のため
+# マイナーバンプで 0.116.0 とする。
+version = "0.116.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1865,7 +1944,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.57.1" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.61.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト

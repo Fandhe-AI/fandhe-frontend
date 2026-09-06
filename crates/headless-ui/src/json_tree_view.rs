@@ -8,8 +8,10 @@
 //! として実装できる見込み」として保留されていた。本モジュールはその保留を
 //! 解除し、[`mod@crate::tree_view`] の 12 anatomy パーツ・[`TreeView`] 状態
 //! 機械（展開集合 + 選択値）を**そのまま再利用**しつつ、決定的な JSON 風
-//! データ構造 [`JsonValue`] をツリー表示するための最小限の追加（`key`/`value`
-//! の 2 anatomy パーツと変換ロジック [`render_json`]）のみを提供する。
+//! データ構造 [`JsonValue`] をツリー表示するための最小限の追加（`key`/
+//! `colon`/`value` の 3 anatomy パーツと変換ロジック [`render_json`]）
+//! のみを提供する（3 パーツ化はイシュー #1661 の参考サイト突合による是正、
+//! 下記「参考サイトとの突合」節参照）。
 //!
 //! # tree_view（#753）の派生であることの位置づけ
 //!
@@ -23,10 +25,14 @@
 //!   （`fandhe-frontend-pre-styled-ui` の既存 styled TreeView recipe が
 //!   インデント・開閉・選択・focus-visible の CSS をそのまま適用できる）。
 //! - JSON 固有の追加パーツは `key`（`span`、オブジェクトキー/配列 index の
-//!   表示）と `value`（`span[data-kind]`、値テキストの型別表示）の 2 個のみで、
-//!   これらは新設の `data-scope="json-tree-view"`（[`ANATOMY`]）に属する
-//!   （`tree-view` スコープの構造部とは別スコープ。既存 styled TreeView
-//!   recipe を壊さないため）。
+//!   表示）・`colon`（`span`、`key` と `value` の区切り。キーを持つノードに
+//!   のみ出力する）・`value`（`span[data-kind]`、値テキストの型別表示）の
+//!   3 個のみで、これらは新設の `data-scope="json-tree-view"`
+//!   （[`ANATOMY`]）に属する（`tree-view` スコープの構造部とは別スコープ。
+//!   既存 styled TreeView recipe を壊さないため）。`key`/`colon`/`value` は
+//!   [`crate::tree_view::branch_text`]/[`crate::tree_view::item_text`] の
+//!   内側へ入れ子にして描画する（ark-ui の `BranchText`/`ItemText` が
+//!   `KeyNode`/`ValueNode` を包む構造に合わせる、イシュー #1661）。
 //!
 //! # データモデル（外部依存ゼロ）
 //!
@@ -59,12 +65,13 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - `key`/`value` の属性名（`data-kind` 含む）はすべて `&'static str`
-//!   リテラルで固定しており、[`JsonValue::kind`] が返す語彙
-//!   （`"null"`/`"bool"`/`"number"`/`"string"`/`"array"`/`"object"`）も
+//! - `key`/`colon`/`value` の属性名（`data-kind` 含む）はすべて
+//!   `&'static str` リテラルで固定しており、[`JsonValue::kind`] が返す語彙
+//!   （`"null"`/`"boolean"`/`"number"`/`"string"`/`"array"`/`"object"`）も
 //!   `&'static str` のみを返すため、動的値が属性名・`data-kind` 属性値の
 //!   スロットへ混入する経路はない（[`mod@crate::anatomy`]/[`crate::data_attrs`]
-//!   の既存不変条件をそのまま継承する）。
+//!   の既存不変条件をそのまま継承する）。`colon` の子要素はリテラル `": "`
+//!   固定でユーザーデータを含まない。
 //! - 動的値（キー文字列・値の表示テキスト・JSON Pointer・呼び出し側
 //!   `attrs`/`children`）は [`fandhe_frontend_core::render`] の既定エスケープを
 //!   必ず経由する。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
@@ -81,6 +88,66 @@
 //! 極端に深いネストを持つ入力を与えるとスタック消費が増大する点に注意する
 //! （新規の脅威面ではなく、既存 `tree_view` の再帰特性の延長）。
 //!
+//! # 参考サイトとの突合（イシュー #1661）
+//!
+//! ark-ui 実装（`packages/react/src/components/json-tree-view/*.tsx`）と
+//! zag `@zag-js/json-tree-utils`（`types.ts`/`data-type.ts`/
+//! `accessibility.ts`/`node-conversion.ts`）を一次情報として突合した結果。
+//!
+//! ## 是正した差分
+//!
+//! - **`colon` パーツの新設**: ark は `key`/`value` の間に
+//!   `data-kind="colon"` の区切り（`": "`）を持つが、本実装は当初これを
+//!   欠いていた。[`colon`] を新設し、キーを持つノードにのみ `key` →
+//!   `colon` → `value` の順で出力する。
+//! - **入れ子構造の是正**: `key`/`colon`/`value` を
+//!   `branch-control`/`item` の直下ではなく、[`crate::tree_view::branch_text`]/
+//!   [`crate::tree_view::item_text`] の内側へ包むよう変更した（ark の
+//!   `BranchText`/`ItemText` が `KeyNode`/`ValueNode` を包む構造に合わせる）。
+//! - **`data-kind` 語彙の統一**: `"bool"` → `"boolean"`
+//!   （ark/zag の `JsonNodeType` 語彙に合わせる。**破壊的変更**、CSS
+//!   セレクタ・原稿・golden fixture への波及は `crates/pre-styled-ui/`
+//!   側で追随済み）。
+//!
+//! ## 意図的に合わせなかった差分（根拠）
+//!
+//! - **構造パーツの `data-scope` を `json-tree-view` へ上書きしない**:
+//!   ark は `JsonTreeView.Root`/`Tree` 等で構造部の `data-scope` も
+//!   `json-tree-view` へ上書きするが、本実装は構造部を `tree-view`
+//!   スコープのまま維持する。`fandhe-frontend-pre-styled-ui` の既存 styled
+//!   TreeView recipe（インデント・開閉・選択・focus-visible）を再利用する
+//!   設計判断（#829）を継続するため。
+//! - **`data-kind` 属性名を `data-type` へ改名しない**: ark は hast
+//!   レンダラ内で `data-type`（データ型）と `data-kind`（構文種別）を
+//!   分けるが、本実装はフラットな 1 span で型のみを表すため単一属性名
+//!   `data-kind` のままとする。`fandhe-frontend-pre-styled-ui` が
+//!   `data-kind` セレクタへ既に依存しており、値語彙の統一（上記）で
+//!   参照実装との意味対応は取れている。
+//! - **`aria-label`（アクセシブル説明文）を付与しない**: `role="treeitem"`
+//!   の名前は内容（`key: value`）から算出され、`colon` 追加で ark の
+//!   説明文と同等の読み上げが得られる。展開可否・子要素数は
+//!   `aria-expanded`/`aria-setsize` で既に表現済み。
+//! - **`data-line`/`--line-length`（行番号・インデント計測）を追加しない**:
+//!   装飾・レイアウトの関心であり `docs/policy/intentional-non-adoption.md`
+//!   §3.25 規則 2（UI コンポーネント層へ装飾・レイアウト計測の関心を
+//!   持ち込まない）に基づき headless-ui へ持ち込まない。既存 `data-depth`
+//!   が深さを提供する。
+//! - **`data-root`/`data-non-enumerable`/`quotesOnKeys` を追加しない**:
+//!   ルートは `data-depth="0"`/`aria-level="1"` で識別可能。JSON データに
+//!   非列挙プロパティは存在せず、表示オプション（`quotesOnKeys` 等）は
+//!   #829 の out-of-scope 判断を維持する。
+//! - **折りたたみ要約を ark の preview（`{ … }`、`maxPreviewItems` 依存）
+//!   へ変えない**: `Object(N)`/`Array(N)` という決定的で最小の要約を
+//!   優先する（#829 の判断を維持）。
+//! - **`item_indicator` を維持する**（ark の JsonTreeView は
+//!   `ItemIndicator` を描かない）: 単一選択の表示フックとして styled
+//!   TreeView recipe と共有しているため。
+//! - **キーボード操作**: [`TreeView`] の dispatch・wasm-full 側の
+//!   keynav（イシュー #1072）を tree_view と共有しており、ark/zag の
+//!   Tree パターン（矢印・Home/End・Enter/Space・typeahead）と一致する。
+//!   `*`（兄弟一括展開）は wasm-full keynav の既知ギャップ、
+//!   Shift+Arrow/Ctrl+A は本実装が単一選択のみのため非該当。
+//!
 //! # out-of-scope（本イシュー #829 のスコープ外）
 //!
 //! - **CSR 挙動層**: クリック→dispatch の実 DOM 配線・キーボードナビゲーション
@@ -94,8 +161,8 @@
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::tree_view::{
-    branch, branch_content, branch_control, branch_indent_guide, branch_indicator, item,
-    item_indicator, root as tree_root, TreeViewAction,
+    branch, branch_content, branch_control, branch_indent_guide, branch_indicator, branch_text,
+    item, item_indicator, item_text, root as tree_root, TreeViewAction,
 };
 use fandhe_frontend_core::{text, Node};
 use fandhe_frontend_interactive::Component;
@@ -105,11 +172,13 @@ use fandhe_frontend_interactive::Component;
 // 再エクスポートする（[`crate::pre_styled_ui`] 側のパターンと同型の判断）。
 pub use crate::tree_view::TreeView;
 
-/// JsonTreeView 固有パーツ（`key`/`value`）の anatomy（`data-scope="json-tree-view"`）。
+/// JsonTreeView 固有パーツ（`key`/`colon`/`value`）の anatomy
+/// （`data-scope="json-tree-view"`）。
 ///
 /// 構造部（root/tree/branch/...）は [`crate::tree_view::ANATOMY`]
 /// （`data-scope="tree-view"`）のまま変更しない。本 anatomy は JSON 固有の
-/// 2 パーツのみを持つ、既存 tree_view recipe に影響を与えない別スコープ。
+/// 3 パーツのみを持つ、既存 tree_view recipe に影響を与えない別スコープ
+/// （`colon` はイシュー #1661 で追加、モジュール doc §参考サイトとの突合参照）。
 const ANATOMY: Anatomy = anatomy("json-tree-view");
 
 /// 決定的な JSON 風データ構造 1 値（ark-ui `createJsonTreeCollection`
@@ -144,7 +213,9 @@ impl JsonValue {
     pub const fn kind(&self) -> &'static str {
         match self {
             Self::Null => "null",
-            Self::Bool(_) => "bool",
+            // ark-ui/zag `JsonNodeType` の語彙に合わせて `"boolean"` を返す
+            // （イシュー #1661 の突合による是正。旧`"bool"`からの破壊的変更）。
+            Self::Bool(_) => "boolean",
             Self::Number(_) => "number",
             Self::String(_) => "string",
             Self::Array(_) => "array",
@@ -198,6 +269,15 @@ pub fn key<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("key", "span", attrs, children)
 }
 
+/// Colon パーツ（`span`）。`key` と `value` の区切り記号（ark-ui
+/// `data-kind="colon"` 相当、イシュー #1661）。[`render_node`] が
+/// キーを持つノードにのみ生成し、子要素は常にリテラル `": "`
+/// （固定テキストでユーザーデータを含まないため既定エスケープ上の懸念なし）。
+#[must_use]
+pub fn colon<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("colon", "span", attrs, children)
+}
+
 /// Value パーツ（`span[data-kind]`）。値の表示テキストを型別に描画する。
 /// `kind` は [`JsonValue::kind`] が返す固定語彙のみを受け取り、属性値スロット
 /// への動的値混入経路を作らない（モジュール doc §セキュリティ不変条件参照）。
@@ -238,17 +318,27 @@ fn render_node(
     let setsize_s = setsize.to_string();
     let depth_s = depth.to_string();
     let is_selected = tree.is_selected(pointer);
-    let key_node = key_label.map(|k| key(Vec::new(), vec![text(k)]));
+    // `key`/`colon`/`value` は ark-ui の `KeyNode`/`ValueNode` 入れ子構造
+    // （BranchText/ItemText の内側）に合わせて 1 個の `Vec<Node>` として
+    // 組み立てる（イシュー #1661）。colon はキーを持つノードにのみ出す
+    // （ルートはキーを持たないため colon も出ない）。
+    let mut text_children: Vec<Node> = Vec::new();
+    if let Some(k) = key_label {
+        text_children.push(key(Vec::new(), vec![text(k)]));
+        text_children.push(colon(Vec::new(), vec![text(": ")]));
+    }
+    text_children.push(value(
+        val.kind(),
+        Vec::new(),
+        vec![text(val.display_text())],
+    ));
 
     if val.is_branch() {
         let state = tree.branch_state(pointer);
-        let mut control_children = vec![branch_indicator(state, Vec::new(), Vec::new())];
-        control_children.extend(key_node);
-        control_children.push(value(
-            val.kind(),
-            Vec::new(),
-            vec![text(val.display_text())],
-        ));
+        let control_children = vec![
+            branch_indicator(state, Vec::new(), Vec::new()),
+            branch_text(Vec::new(), text_children),
+        ];
 
         let child_depth = depth + 1;
         let child_nodes = match val {
@@ -318,13 +408,10 @@ fn render_node(
             ],
         )
     } else {
-        let mut item_children = vec![item_indicator(is_selected, Vec::new(), Vec::new())];
-        item_children.extend(key_node);
-        item_children.push(value(
-            val.kind(),
-            Vec::new(),
-            vec![text(val.display_text())],
-        ));
+        let item_children = vec![
+            item_indicator(is_selected, Vec::new(), Vec::new()),
+            item_text(Vec::new(), text_children),
+        ];
 
         item(
             pointer,
@@ -406,7 +493,7 @@ mod tests {
     #[test]
     fn kind_returns_expected_literal_per_variant() {
         assert_eq!(JsonValue::Null.kind(), "null");
-        assert_eq!(JsonValue::Bool(true).kind(), "bool");
+        assert_eq!(JsonValue::Bool(true).kind(), "boolean");
         assert_eq!(JsonValue::Number(1.0).kind(), "number");
         assert_eq!(JsonValue::String("x".to_string()).kind(), "string");
         assert_eq!(JsonValue::Array(vec![]).kind(), "array");
@@ -487,7 +574,7 @@ mod tests {
         let html = render(&render_json(&tree, &sample()));
         assert!(html.contains(r#"data-kind="string""#));
         assert!(html.contains(r#"data-kind="number""#));
-        assert!(html.contains(r#"data-kind="bool""#));
+        assert!(html.contains(r#"data-kind="boolean""#));
         assert!(html.contains(r#"data-kind="null""#));
         assert!(html.contains(r#"data-kind="array""#));
         assert!(html.contains(r#"data-kind="object""#));
@@ -623,5 +710,13 @@ mod tests {
         assert!(html_value.contains(r#"data-part="value""#));
         assert!(html_value.contains(r#"data-kind="string""#));
         assert!(!html_value.contains("attacker"));
+
+        let html_colon = render(&colon(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![text(": ")],
+        ));
+        assert!(html_colon.contains(r#"data-scope="json-tree-view""#));
+        assert!(html_colon.contains(r#"data-part="colon""#));
+        assert!(!html_colon.contains("attacker"));
     }
 }

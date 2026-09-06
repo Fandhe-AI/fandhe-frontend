@@ -496,7 +496,30 @@ name = "fandhe-frontend-wasm-full"
 # イシュー #1653（nav-list の参照突合）: 依存先 `fandhe-frontend-headless-ui`
 # の 0.57.0 → 0.57.1（patch）追随のみで wasm-full 自身の src は無変更。
 # patch バンプで 0.15.1 とする。
-version = "0.15.1"
+# イシュー #1654（navigation-menu の参照突合）: 依存先
+# `fandhe-frontend-headless-ui` の 0.57.1 → 0.58.0（破壊的変更）への追随。
+# `crates/wasm-full/src` は navigation_menu の型を再エクスポートしておらず
+# 公開 API は不変（`crates/wasm-full/tests/*_browser.rs` のシグネチャ追随は
+# `#[cfg(target_arch = "wasm32")]` テストのみ）のため patch バンプで
+# 0.15.2 とする。
+# イシュー #1661（json-tree-view の参照突合）: 依存先
+# `fandhe-frontend-headless-ui` の 0.58.0 → 0.59.0（破壊的変更）への追随。
+# `crates/wasm-full/src` は json_tree_view の型を再エクスポートしておらず
+# 公開 API は不変のため patch バンプで 0.15.3 とする。
+# イシュー #1655（pagination の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# の 0.58.0 → 0.59.0（破壊的変更）への追随。`crates/wasm-full/src` は
+# pagination を一切参照しておらず公開 API は不変のため patch バンプで
+# 0.15.3 とする。
+# base 再取り込み（イシュー #1662, 2026-09-06, 2 回目）: 上記のとおり main
+# 側は依存先 headless-ui 0.59.0 → 0.60.0 への追随として 0.15.4 へ到達して
+# いる。本ブランチの scroll-area 追随（drop_reserved、非破壊的変更）との
+# 統合で依存先 headless-ui がさらに patch バンプ 0.60.1 へ到達したため、
+# `crates/wasm-full/src` は引き続き無変更のまま patch バンプで 0.15.5 とする。
+# イシュー #1657（toolbar の参照突合）: 依存先 `fandhe-frontend-headless-ui`
+# の 0.60.1 → 0.61.0（破壊的変更）への追随。`crates/wasm-full/src` は
+# toolbar を一切参照しておらず公開 API は不変のため patch バンプで 0.15.6
+# とする。
+version = "0.15.6"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -673,7 +696,7 @@ categories = ["wasm", "web-programming"]
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.2.6" }
 fandhe-frontend-core = { path = "../core", version = "0.4.3" }
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.57.1" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.61.0" }
 fandhe-frontend-interactive = { path = "../interactive", version = "0.2.7" }
 # `default-features = false`: 本クレート独自の `wasm_bindgen` エクスポート
 # （`entry.rs` の `hydrate`/`mount`）と `fandhe-frontend-wasm-client` の REQ-6 デモ用

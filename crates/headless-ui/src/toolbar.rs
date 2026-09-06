@@ -9,6 +9,37 @@
 //! [`crate::carousel::Carousel`] と同様に `fandhe-frontend-wasm-full` の
 //! 責務でありスコープ外（本モジュール doc 「スコープ外」節参照）。
 //!
+//! # 参照突合（イシュー #1657）
+//!
+//! Radix Primitives `Toolbar`（一次情報: `docs/components/toolbar.mdx`、
+//! `packages/react/toolbar/src/toolbar.tsx`）と突合し、以下を是正した。
+//!
+//! - **`data-orientation` の欠落**: [`button`]/[`link`]/
+//!   [`toggle_group`]/[`toggle_item`] に `data-orientation` を追加し
+//!   （[`separator`] は既存の直交 `aria-orientation` と同値の
+//!   `data-orientation` を追加）、Radix の `data-*` 表と一致させた
+//!   （自由関数の先頭引数へ `orientation: Orientation` を追加する破壊的
+//!   変更）。`link` への追加は Radix の `data-*` 表には載らないが、実 DOM
+//!   （RovingFocusGroup.Item 経由）では出力される値であり、`button`/
+//!   `toggle_item` との対称性を優先した superset とする。
+//! - **予約キーなりすまし除去の追加**: [`drop_reserved`] を新設し、旧
+//!   `drop_tabindex_attr`（`tabindex` のみ除去）が担っていた役割を
+//!   吸収した上で `role`/`aria-*`/`data-*`/`type` も対象に拡張した
+//!   （「セキュリティ不変条件」節参照）。
+//!
+//! 一方で以下は Radix と意図的に合わせない（`.claude/rules/coding-rust.md`
+//! 「UI 部品の責務境界」の既定判断を踏襲）。
+//!
+//! - Radix Button は native `disabled` を透過し RovingFocus が
+//!   `focusable={!disabled}` でフォーカス順序から除外するが、本実装は
+//!   WAI-ARIA APG 推奨（disabled もフォーカス可能）に従い
+//!   `aria-disabled="true"` + `data-disabled` + `tabindex` 維持を継続する
+//!   （本モジュール既定の設計、下記「スコープ外」節参照）。
+//! - `dir`（本リポジトリ横断で RTL 未採用）・`asChild`・`loop` 既定値
+//!   `true`（本実装は `loop_focus` を呼び出し側が明示）は非採用。
+//! - 矢印キー・Home/End の実 DOM 配線（`fandhe-frontend-wasm-full`）は
+//!   本イシューの対象外のまま（下記「スコープ外」節に追記）。
+//!
 //! # 呼び出し文脈
 //!
 //! SSR は本モジュールの自由関数（[`root`]/[`button`]/[`link`]/[`separator`]/
@@ -53,12 +84,15 @@
 //! - 動的値（`label`/`value`/`href`/呼び出し側 `attrs`/`children`）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する
 //!   （REQ-1）。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
-//! - **呼び出し側 `tabindex` 偽装の除去**: [`drop_tabindex_attr`] が
-//!   [`crate::skip_nav::content`] と同型のパターンで呼び出し側 `attrs` から
-//!   `tabindex`（大文字小文字を無視）を除去してから
-//!   `tabindex="0"`/`tabindex="-1"` を合成する。[`button`]/[`link`]/
-//!   [`toggle_item`] のすべての focusable パーツへ適用し、roving tabindex が
-//!   呼び出し側の偽装によって非決定にならないことを保証する。
+//! - **呼び出し側による予約キーのなりすまし除去（イシュー #1657）**:
+//!   [`drop_reserved`] がパート別の `*_RESERVED` 定数（ASCII 大文字小文字
+//!   無視の完全一致）を使い、呼び出し側 `attrs` から `role`/`aria-*`/
+//!   `data-*`/`type`/`tabindex` 等、本モジュールが固定付与する属性名を
+//!   除去してから固定値を合成する（[`crate::nav_list::drop_reserved`] と
+//!   同型のパターン）。[`button`]/[`link`]/[`toggle_item`] の roving
+//!   tabindex が呼び出し側の偽装によって非決定にならないこと、
+//!   `data-orientation`/`data-state`/`aria-pressed` 等の状態語彙が
+//!   なりすませないことの双方を保証する。
 //! - **`type="button"` の固定**: [`button`]/[`toggle_item`] はフォーム内
 //!   配置時の意図しない submit を防ぐため `type="button"` を固定付与する
 //!   （[`crate::action_bar::selection_trigger`] と同じ判断）。
@@ -80,7 +114,14 @@
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - 矢印キー・Home/End の実 DOM 配線とフォーカス移動
-//!   （`fandhe-frontend-wasm-full` の責務）。
+//!   （`fandhe-frontend-wasm-full` の責務）。**現状 `fandhe-frontend-wasm-full`
+//!   に本モジュールの keydown 配線は存在しない**（イシュー #1657 時点で
+//!   確認済み。既存の追跡 Issue はなく、別 Issue（roving tabindex のキー
+//!   配線・orientation 別・loop 対応）の起票を要する）。Tab / Shift+Tab・
+//!   Space / Enter はネイティブ `button`/`a` 要素の挙動で成立するが、
+//!   矢印キー・Home / End は本モジュールが提供する状態遷移 API
+//!   （[`ToolbarAction`]/`dispatch`）を呼び出し側 or wasm-full が別途
+//!   配線するまで実 DOM 上では機能しない。
 //! - roving focus の skip-disabled モード（disabled 項目をフォーカス順序
 //!   から除外する挙動）。本モジュールは APG 推奨の「disabled もフォーカス
 //!   可能」のみを提供する。
@@ -107,13 +148,54 @@ pub use crate::toggle_group::{MultiToggleGroup, ToggleGroup};
 /// Toolbar の anatomy（`data-scope="toolbar"`）。
 const ANATOMY: Anatomy = anatomy("toolbar");
 
-/// 呼び出し側 `attrs` から `tabindex`（大文字小文字を無視）を除去する
-/// （[`crate::skip_nav::content`] と同型のパターン）。focusable な
-/// [`button`]/[`link`]/[`toggle_item`] が共通で使うヘルパ。
-fn drop_tabindex_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
+/// [`root`] が固定付与する予約キー（イシュー #1657、`crate::nav_list` と
+/// 同型）。
+const ROOT_RESERVED: &[&str] = &["role", "aria-orientation", "data-orientation", "aria-label"];
+
+/// [`button`] が固定付与する予約キー。
+const BUTTON_RESERVED: &[&str] = &[
+    "type",
+    "tabindex",
+    "aria-disabled",
+    "data-disabled",
+    "data-orientation",
+];
+
+/// [`link`] が固定付与する予約キー（`href`/`target`/`rel` 等は
+/// [`crate::link::root`] 側の既存契約に委ねるためここには含めない）。
+const LINK_RESERVED: &[&str] = &["tabindex", "data-orientation"];
+
+/// [`separator`] が固定付与する予約キー。
+const SEPARATOR_RESERVED: &[&str] = &["role", "aria-orientation", "data-orientation"];
+
+/// [`toggle_group`] が固定付与する予約キー。
+const TOGGLE_GROUP_RESERVED: &[&str] = &["role", "data-orientation"];
+
+/// [`toggle_item`] が固定付与する予約キー。
+const TOGGLE_ITEM_RESERVED: &[&str] = &[
+    "type",
+    "tabindex",
+    "aria-pressed",
+    "data-state",
+    "data-value",
+    "aria-disabled",
+    "data-pressed",
+    "data-disabled",
+    "data-orientation",
+];
+
+/// 呼び出し側 `attrs` から予約キー（本モジュールが固定付与する属性名）を
+/// 除去する（ASCII 大文字小文字無視の完全一致）。`fandhe_frontend_core::el`
+/// は属性の重複除去をしないため、これを経由しない呼び出しは同名属性の
+/// 重複出力・状態属性のなりすましを許してしまう（[`crate::nav_list::drop_reserved`]
+/// と同型、イシュー #1657）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
     attrs
         .into_iter()
-        .filter(|(k, _)| !k.eq_ignore_ascii_case("tabindex"))
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
         .collect()
 }
 
@@ -138,6 +220,7 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, ROOT_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         role("toolbar"),
         aria_orientation(orientation),
@@ -158,17 +241,23 @@ pub fn root<'a>(
 /// モジュール doc「スコープ外」節参照）。
 #[must_use]
 pub fn button<'a>(
+    orientation: Orientation,
     focused: bool,
     disabled: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button"), roving_tabindex(focused)];
+    let attrs = drop_reserved(attrs, BUTTON_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        ("type", "button"),
+        roving_tabindex(focused),
+        data_orientation(orientation),
+    ];
     if disabled {
         merged.push(("aria-disabled", "true"));
     }
     merged.extend(data_disabled(disabled));
-    merged.extend(drop_tabindex_attr(attrs));
+    merged.extend(attrs);
     ANATOMY.part("button", "button", merged, children)
 }
 
@@ -183,14 +272,17 @@ pub fn button<'a>(
 /// スキーム検証・エスケープはすべて委譲先の既存経路がそのまま担う）。
 #[must_use]
 pub fn link<'a>(
+    orientation: Orientation,
     focused: bool,
     href: &'a str,
     external: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![roving_tabindex(focused)];
-    merged.extend(drop_tabindex_attr(attrs));
+    let attrs = drop_reserved(attrs, LINK_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![roving_tabindex(focused), data_orientation(orientation)];
+    merged.extend(attrs);
     let inner = link::root(href, external, false, merged, children);
     match inner {
         Node::Element {
@@ -231,7 +323,12 @@ pub fn separator<'a>(
         Orientation::Horizontal => Orientation::Vertical,
         Orientation::Vertical => Orientation::Horizontal,
     };
-    let mut merged: Vec<(&'a str, &'a str)> = vec![role("separator"), aria_orientation(orthogonal)];
+    let attrs = drop_reserved(attrs, SEPARATOR_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        role("separator"),
+        aria_orientation(orthogonal),
+        data_orientation(orthogonal),
+    ];
     merged.extend(attrs);
     ANATOMY.part("separator", "div", merged, children)
 }
@@ -241,8 +338,13 @@ pub fn separator<'a>(
 /// しない。[`crate::toggle_group::root`] の PR #791 Bugbot 指摘と同じ
 /// 判断）。
 #[must_use]
-pub fn toggle_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![role("group")];
+pub fn toggle_group<'a>(
+    orientation: Orientation,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, TOGGLE_GROUP_RESERVED);
+    let mut merged: Vec<(&'a str, &'a str)> = vec![role("group"), data_orientation(orientation)];
     merged.extend(attrs);
     ANATOMY.part("toggle-group", "div", merged, children)
 }
@@ -256,6 +358,7 @@ pub fn toggle_group<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> 
 /// `tabindex="-1"`。
 #[must_use]
 pub fn toggle_item<'a>(
+    orientation: Orientation,
     pressed: bool,
     focused: bool,
     disabled: bool,
@@ -263,19 +366,21 @@ pub fn toggle_item<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, TOGGLE_ITEM_RESERVED);
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("type", "button"),
         roving_tabindex(focused),
         aria_pressed(pressed),
         data_state(pressed_data_state(pressed)),
         ("data-value", value),
+        data_orientation(orientation),
     ];
     if disabled {
         merged.push(("aria-disabled", "true"));
     }
     merged.extend(data_pressed(pressed));
     merged.extend(data_disabled(disabled));
-    merged.extend(drop_tabindex_attr(attrs));
+    merged.extend(attrs);
     ANATOMY.part("toggle-item", "button", merged, children)
 }
 
@@ -399,7 +504,8 @@ impl Toolbar {
         root(self.orientation, label, attrs, children)
     }
 
-    /// [`button`] へ [`Self::is_focused`] の判定を注入する利便メソッド。
+    /// [`button`] へ [`Self::is_focused`] の判定と現在の向きを注入する
+    /// 利便メソッド。
     #[must_use]
     pub fn button<'a>(
         &self,
@@ -408,10 +514,17 @@ impl Toolbar {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        button(self.is_focused(index), disabled, attrs, children)
+        button(
+            self.orientation,
+            self.is_focused(index),
+            disabled,
+            attrs,
+            children,
+        )
     }
 
-    /// [`link`] へ [`Self::is_focused`] の判定を注入する利便メソッド。
+    /// [`link`] へ [`Self::is_focused`] の判定と現在の向きを注入する
+    /// 利便メソッド。
     #[must_use]
     pub fn link<'a>(
         &self,
@@ -421,13 +534,26 @@ impl Toolbar {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        link(self.is_focused(index), href, external, attrs, children)
+        link(
+            self.orientation,
+            self.is_focused(index),
+            href,
+            external,
+            attrs,
+            children,
+        )
     }
 
     /// [`separator`] へ現在の向きを注入する利便メソッド。
     #[must_use]
     pub fn separator<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         separator(self.orientation, attrs, children)
+    }
+
+    /// [`toggle_group`] へ現在の向きを注入する利便メソッド。
+    #[must_use]
+    pub fn toggle_group<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        toggle_group(self.orientation, attrs, children)
     }
 
     /// [`toggle_item`] へ [`Self::is_focused`] の判定を注入する利便
@@ -446,6 +572,7 @@ impl Toolbar {
         children: Vec<Node>,
     ) -> Node {
         toggle_item(
+            self.orientation,
             pressed,
             self.is_focused(index),
             disabled,
@@ -665,23 +792,48 @@ mod tests {
 
     #[test]
     fn button_focused_true_outputs_tabindex_zero() {
-        let html = render(&button(true, false, vec![], vec![text("Bold")]));
+        let html = render(&button(
+            Orientation::Horizontal,
+            true,
+            false,
+            vec![],
+            vec![text("Bold")],
+        ));
         assert!(html.contains(r#"data-part="button""#));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"tabindex="0""#));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
         assert!(!html.contains("aria-disabled"));
         assert!(!html.contains("data-disabled"));
     }
 
     #[test]
+    fn button_vertical_outputs_vertical_data_orientation() {
+        let html = render(&button(Orientation::Vertical, true, false, vec![], vec![]));
+        assert!(html.contains(r#"data-orientation="vertical""#));
+    }
+
+    #[test]
     fn button_focused_false_outputs_tabindex_minus_one() {
-        let html = render(&button(false, false, vec![], vec![]));
+        let html = render(&button(
+            Orientation::Horizontal,
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"tabindex="-1""#));
     }
 
     #[test]
     fn button_disabled_stays_focusable_with_aria_disabled() {
-        let html = render(&button(false, true, vec![], vec![]));
+        let html = render(&button(
+            Orientation::Horizontal,
+            false,
+            true,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"tabindex="-1""#));
         assert!(html.contains(r#"aria-disabled="true""#));
         assert!(html.contains(r#"data-disabled="""#));
@@ -694,15 +846,46 @@ mod tests {
 
     #[test]
     fn button_caller_tabindex_is_dropped() {
-        let html = render(&button(true, false, vec![("tabindex", "5")], vec![]));
+        let html = render(&button(
+            Orientation::Horizontal,
+            true,
+            false,
+            vec![("tabindex", "5")],
+            vec![],
+        ));
         assert_eq!(html.matches("tabindex=").count(), 1);
         assert!(html.contains(r#"tabindex="0""#));
         assert!(!html.contains(r#"tabindex="5""#));
     }
 
     #[test]
+    fn button_caller_reserved_keys_are_dropped() {
+        let html = render(&button(
+            Orientation::Horizontal,
+            true,
+            true,
+            vec![
+                ("type", "submit"),
+                ("aria-disabled", "false"),
+                ("data-disabled", "attacker"),
+                ("data-orientation", "vertical"),
+            ],
+            vec![],
+        ));
+        assert_eq!(html.matches("type=").count(), 1);
+        assert!(html.contains(r#"type="button""#));
+        assert_eq!(html.matches("aria-disabled=").count(), 1);
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert_eq!(html.matches("data-disabled=").count(), 1);
+        assert!(html.contains(r#"data-disabled="""#));
+        assert_eq!(html.matches("data-orientation=").count(), 1);
+        assert!(html.contains(r#"data-orientation="horizontal""#));
+    }
+
+    #[test]
     fn link_delegates_to_link_root_for_external_attrs() {
         let html = render(&link(
+            Orientation::Horizontal,
             true,
             "https://example.com",
             true,
@@ -716,12 +899,33 @@ mod tests {
         assert!(html.contains(r#"target="_blank""#));
         assert!(html.contains(r#"rel="noopener noreferrer""#));
         assert!(html.contains(r#"tabindex="0""#));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
         assert!(html.contains(">Docs<"));
     }
 
     #[test]
+    fn link_vertical_outputs_vertical_data_orientation() {
+        let html = render(&link(
+            Orientation::Vertical,
+            true,
+            "/docs",
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-orientation="vertical""#));
+    }
+
+    #[test]
     fn link_not_external_omits_target_and_rel() {
-        let html = render(&link(false, "/docs", false, vec![], vec![]));
+        let html = render(&link(
+            Orientation::Horizontal,
+            false,
+            "/docs",
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("target="));
         assert!(!html.contains("rel="));
         assert!(html.contains(r#"tabindex="-1""#));
@@ -729,14 +933,42 @@ mod tests {
 
     #[test]
     fn link_caller_tabindex_is_dropped() {
-        let html = render(&link(true, "/docs", false, vec![("tabindex", "7")], vec![]));
+        let html = render(&link(
+            Orientation::Horizontal,
+            true,
+            "/docs",
+            false,
+            vec![("tabindex", "7")],
+            vec![],
+        ));
         assert_eq!(html.matches("tabindex=").count(), 1);
         assert!(html.contains(r#"tabindex="0""#));
     }
 
     #[test]
+    fn link_caller_reserved_keys_are_dropped() {
+        let html = render(&link(
+            Orientation::Horizontal,
+            true,
+            "/docs",
+            false,
+            vec![("data-orientation", "vertical")],
+            vec![],
+        ));
+        assert_eq!(html.matches("data-orientation=").count(), 1);
+        assert!(html.contains(r#"data-orientation="horizontal""#));
+    }
+
+    #[test]
     fn link_dangerous_url_scheme_is_rejected() {
-        let html = render(&link(true, "javascript:alert(1)", false, vec![], vec![]));
+        let html = render(&link(
+            Orientation::Horizontal,
+            true,
+            "javascript:alert(1)",
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("href="));
     }
 
@@ -746,34 +978,79 @@ mod tests {
         assert!(html.contains(r#"data-part="separator""#));
         assert!(html.contains(r#"role="separator""#));
         assert!(html.contains(r#"aria-orientation="vertical""#));
+        assert!(html.contains(r#"data-orientation="vertical""#));
+    }
+
+    #[test]
+    fn separator_caller_reserved_keys_are_dropped() {
+        let html = render(&separator(
+            Orientation::Horizontal,
+            vec![("role", "attacker"), ("aria-orientation", "horizontal")],
+            vec![],
+        ));
+        assert_eq!(html.matches("role=").count(), 1);
+        assert!(html.contains(r#"role="separator""#));
+        assert_eq!(html.matches("aria-orientation=").count(), 1);
+        assert!(html.contains(r#"aria-orientation="vertical""#));
     }
 
     #[test]
     fn separator_vertical_toolbar_outputs_horizontal_orientation() {
         let html = render(&separator(Orientation::Vertical, vec![], vec![]));
         assert!(html.contains(r#"aria-orientation="horizontal""#));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
     }
 
     #[test]
     fn toggle_group_outputs_group_role_without_aria_orientation() {
-        let html = render(&toggle_group(vec![], vec![]));
+        let html = render(&toggle_group(Orientation::Horizontal, vec![], vec![]));
         assert!(html.contains(r#"data-part="toggle-group""#));
         assert!(html.contains(r#"role="group""#));
+        assert!(html.contains(r#"data-orientation="horizontal""#));
         assert!(!html.contains("aria-orientation"));
     }
 
     #[test]
+    fn toggle_group_caller_reserved_keys_are_dropped() {
+        let html = render(&toggle_group(
+            Orientation::Horizontal,
+            vec![("role", "attacker"), ("data-orientation", "vertical")],
+            vec![],
+        ));
+        assert_eq!(html.matches("role=").count(), 1);
+        assert!(html.contains(r#"role="group""#));
+        assert_eq!(html.matches("data-orientation=").count(), 1);
+        assert!(html.contains(r#"data-orientation="horizontal""#));
+    }
+
+    #[test]
     fn toggle_item_reflects_pressed_focused_disabled() {
-        let pressed = render(&toggle_item(true, true, false, "bold", vec![], vec![]));
+        let pressed = render(&toggle_item(
+            Orientation::Horizontal,
+            true,
+            true,
+            false,
+            "bold",
+            vec![],
+            vec![],
+        ));
         assert!(pressed.contains(r#"data-part="toggle-item""#));
         assert!(pressed.contains(r#"aria-pressed="true""#));
         assert!(pressed.contains(r#"data-state="on""#));
         assert!(pressed.contains(r#"data-pressed="""#));
         assert!(pressed.contains(r#"data-value="bold""#));
         assert!(pressed.contains(r#"tabindex="0""#));
+        assert!(pressed.contains(r#"data-orientation="horizontal""#));
 
-        let unpressed_unfocused =
-            render(&toggle_item(false, false, true, "italic", vec![], vec![]));
+        let unpressed_unfocused = render(&toggle_item(
+            Orientation::Horizontal,
+            false,
+            false,
+            true,
+            "italic",
+            vec![],
+            vec![],
+        ));
         assert!(unpressed_unfocused.contains(r#"aria-pressed="false""#));
         assert!(unpressed_unfocused.contains(r#"data-state="off""#));
         assert!(!unpressed_unfocused.contains("data-pressed"));
@@ -788,6 +1065,7 @@ mod tests {
     #[test]
     fn toggle_item_caller_tabindex_is_dropped() {
         let html = render(&toggle_item(
+            Orientation::Horizontal,
             false,
             true,
             false,
@@ -797,6 +1075,32 @@ mod tests {
         ));
         assert_eq!(html.matches("tabindex=").count(), 1);
         assert!(html.contains(r#"tabindex="0""#));
+    }
+
+    #[test]
+    fn toggle_item_caller_reserved_keys_are_dropped() {
+        let html = render(&toggle_item(
+            Orientation::Horizontal,
+            true,
+            true,
+            true,
+            "bold",
+            vec![
+                ("aria-pressed", "false"),
+                ("data-state", "off"),
+                ("data-value", "attacker"),
+                ("data-orientation", "vertical"),
+            ],
+            vec![],
+        ));
+        assert_eq!(html.matches("aria-pressed=").count(), 1);
+        assert!(html.contains(r#"aria-pressed="true""#));
+        assert_eq!(html.matches("data-state=").count(), 1);
+        assert!(html.contains(r#"data-state="on""#));
+        assert_eq!(html.matches("data-value=").count(), 1);
+        assert!(html.contains(r#"data-value="bold""#));
+        assert_eq!(html.matches("data-orientation=").count(), 1);
+        assert!(html.contains(r#"data-orientation="horizontal""#));
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---
@@ -817,6 +1121,7 @@ mod tests {
     #[test]
     fn link_caller_supplied_scope_and_part_are_dropped() {
         let html = render(&link(
+            Orientation::Horizontal,
             true,
             "/docs",
             false,
@@ -1109,6 +1414,7 @@ mod tests {
     #[test]
     fn toggle_item_value_payload_is_escaped_on_render() {
         let html = render(&toggle_item(
+            Orientation::Horizontal,
             false,
             false,
             false,
@@ -1123,6 +1429,7 @@ mod tests {
     #[test]
     fn link_href_payload_is_escaped_on_render() {
         let html = render(&link(
+            Orientation::Horizontal,
             false,
             "/docs\" onmouseover=\"alert(1)",
             false,
@@ -1146,6 +1453,7 @@ mod tests {
     #[test]
     fn children_text_is_escaped_on_render() {
         let html = render(&button(
+            Orientation::Horizontal,
             false,
             false,
             vec![],

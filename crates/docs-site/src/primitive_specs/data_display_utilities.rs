@@ -553,9 +553,59 @@ fn ex_json_tree_view_collapsed_array() -> Node {
     json_tree_view::render_json(&tree, &value)
 }
 
+/// 自前 CSS の最小例（イシュー #1661、`AVATAR_CUSTOM_CSS_SNIPPET` と同型の
+/// パターン）。CSS はテキストノード（[`code`]/[`pre`]）として既定
+/// エスケープを経由し、`crate::primitive_showcase` の専用スタイルシート
+/// （`[data-scope=`/`[data-part=` を持たない契約、`tests/site_css_contract.rs`）
+/// へは追加しない。json-tree-view スコープ（`key`/`colon`/`value`）と
+/// tree-view スコープ（構造部）の 2 スコープが併存する事実を正直に示す
+/// （両方に触れなければ見た目が完成しないことを明示する）。
+const JSON_TREE_VIEW_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"tree-view\"][data-part=\"branch-content\"][hidden] {\n  \
+  display: none;\n\
+}\n\
+[data-scope=\"tree-view\"][data-part=\"branch-indent-guide\"] {\n  \
+  width: 1rem;\n\
+}\n\
+[data-scope=\"json-tree-view\"][data-part=\"key\"] {\n  \
+  color: #7c3aed;\n  font-family: monospace;\n\
+}\n\
+[data-scope=\"json-tree-view\"][data-part=\"colon\"] {\n  \
+  color: #6b7280;\n\
+}\n\
+[data-scope=\"json-tree-view\"][data-part=\"value\"][data-kind=\"string\"] {\n  \
+  color: #059669;\n  font-family: monospace;\n\
+}\n\
+[data-scope=\"json-tree-view\"][data-part=\"value\"][data-kind=\"number\"] {\n  \
+  color: #2563eb;\n  font-family: monospace;\n\
+}\n";
+
+/// [`JSON_TREE_VIEW_CUSTOM_CSS_SNIPPET`] を実演する例（Collapsed array と
+/// 同じ `depth=0` の配列を使い回す）。
+fn ex_json_tree_view_custom_css() -> Node {
+    let value = JsonValue::Array(vec![
+        JsonValue::Number(1.0),
+        JsonValue::String("two".to_string()),
+    ]);
+    let tree = json_tree_view::expanded_to_depth(&value, 1);
+    wrap_example(
+        "json-tree-view スコープ（key/colon/value）と tree-view スコープ（構造部）の両方に data-scope / data-part / data-kind 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            json_tree_view::render_json(&tree, &value),
+            pre(
+                vec![],
+                vec![code(
+                    vec![],
+                    vec![text(JSON_TREE_VIEW_CUSTOM_CSS_SNIPPET)],
+                )],
+            ),
+        ],
+    )
+}
+
 pub const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "実装済み crate::tree_view（イシュー #753）の 12 anatomy パーツ・状態機械 TreeView を再利用し、JSON 固有の key/value 2 パーツのみを追加する（json_tree_view.rs:1-29）。",
+        "実装済み crate::tree_view（イシュー #753）の 12 anatomy パーツ・状態機械 TreeView を再利用し、JSON 固有の key/colon/value 3 パーツを branch-text/item-text の内側へ入れ子にして追加する（json_tree_view.rs:1-35、colon はイシュー #1661 で ark-ui/zag 突合により追加）。",
         "Object は HashMap ではなく挿入順を保持する Vec<(String, JsonValue)> で表現し、render_json の出力が決定的（バイト単位で一致）である（json_tree_view.rs:31-37,118-136）。",
         "ノード識別子に RFC 6901 JSON Pointer を用い、key に `/`/`~` を含むデータでも一意性が壊れない（json_tree_view.rs:39-46,180-192）。",
         "role/aria-*（role=\"tree\"/\"treeitem\"/\"group\"、aria-expanded/aria-selected/aria-level/aria-posinset/aria-setsize）はすべて crate::tree_view のパーツ関数から継承する（json_tree_view.rs:16-24）。",
@@ -583,15 +633,57 @@ pub const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
             name: "value: kind",
             kind: "&'static str",
             default: "",
-            description: "JsonValue::kind() が返す固定語彙（\"null\"/\"bool\"/\"number\"/\"string\"/\"array\"/\"object\"）のみを受け取る data-kind 属性値（json_tree_view.rs:138-153,201-209）。",
+            description: "JsonValue::kind() が返す固定語彙（\"null\"/\"boolean\"/\"number\"/\"string\"/\"array\"/\"object\"）のみを受け取る data-kind 属性値（イシュー #1661 で \"bool\" から \"boolean\" へ変更、json_tree_view.rs:138-153,201-209）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Collapsed array",
-        description: "depth=0（全ブランチ折りたたみ）で描画した配列の例です（Demo は depth=2 まで展開済みのオブジェクト）。",
-        render: ex_json_tree_view_collapsed_array,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Collapsed array",
+            description: "depth=0（全ブランチ折りたたみ）で描画した配列の例です（Demo は depth=2 まで展開済みのオブジェクト）。",
+            render: ex_json_tree_view_collapsed_array,
+        },
+        ExampleEntry {
+            title: "Custom CSS for key/colon/value",
+            description: "本モジュールが型別配色を提供しない headless 部品のため、キー・区切り・値の 3 パーツへ自前 CSS を当てる最小例です（json-tree-view スコープのみを対象とし、構造部の tree-view スコープには触れません）。",
+            render: ex_json_tree_view_custom_css,
+        },
+    ],
+    // イシュー #1661: tree-view 構造部（branch/branch-control/item 等）は
+    // json_tree_view でも data-scope="tree-view" のまま出力されるため、
+    // `fandhe-frontend-wasm-full` の `keynav.rs::handle_tree_view_keydown`
+    // （`TREE_VIEW_TREE_SELECTOR`/`TREE_VIEW_ITEM_SELECTOR` で
+    // `[data-scope="tree-view"]` を探索）がそのまま適用される（継承元:
+    // `crates/wasm-full/src/keynav.rs`、イシュー #1072）。
+    keyboard: &[
+        KeyRow {
+            key: "ArrowDown / ArrowUp",
+            description: "可視かつ disabled でない treeitem 間で 1 件ずつフォーカス移動する（折りたたみ中の子孫はスキップ、非循環）。",
+        },
+        KeyRow {
+            key: "ArrowRight",
+            description: "閉じたブランチは展開する。開いたブランチは最初の子へフォーカス移動する。葉ノードでは no-op。",
+        },
+        KeyRow {
+            key: "ArrowLeft",
+            description: "開いたブランチは折りたたむ。それ以外（葉ノード・閉じたブランチ）は親ブランチへフォーカス移動する（ルート直下では no-op）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "可視かつ disabled でない最初/最後の treeitem へフォーカス移動する。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "葉ノードは選択（select）、ブランチは開閉（toggle）を発火する。",
+        },
+        KeyRow {
+            key: "印字可能文字",
+            description: "typeahead: 直近の入力から一致する treeitem へフォーカス移動する。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "typeahead バッファをリセットするのみ（TreeView は常時展開のツリーであり閉じる操作を持たない）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role=\"tree\" / role=\"treeitem\" / role=\"group\"",
@@ -609,9 +701,10 @@ pub const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
 // Scroll Area（/primitives/scroll-area/）
 // ---------------------------------------------------------------------
 
-/// 一次情報: `crates/headless-ui/src/scroll_area.rs:1-46`（モジュール doc、
-/// スコープ外）、`:55-107`（`root`/`viewport`/`content`/`scrollbar`/
-/// `thumb`/`corner` シグネチャと `tabindex`/`aria-hidden` 出力）。
+/// 一次情報: `crates/headless-ui/src/scroll_area.rs:1-90`（モジュール doc、
+/// スコープ外・参考サイトとの突合〔イシュー #1662〕）、`:95-183`
+/// （予約キー定数・`drop_reserved`・`root`/`viewport`/`content`/
+/// `scrollbar`/`thumb`/`corner` シグネチャと `tabindex`/`aria-hidden` 出力）。
 fn ex_scroll_area_horizontal() -> Node {
     scroll_area::root(
         vec![],
@@ -633,40 +726,141 @@ fn ex_scroll_area_horizontal() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1662、`AVATAR_CUSTOM_CSS_SNIPPET` と同型の
+/// パターン）。CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープ
+/// を経由し、`crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは追加
+/// しない。
+///
+/// `scrollbar`/`thumb`/`corner` パーツは JS によるスクロール位置追従・
+/// drag 操作を実装していない静的マークアップ（`crates/headless-ui/
+/// src/scroll_area.rs` モジュール doc「スコープ外」節）であり、これらを
+/// 表示したままネイティブスクロールバーを隠すと、スクロール位置表示・
+/// マウス操作の両方を失う（codex-review P1 指摘、イシュー #1662）。
+/// `crates/pre-styled-ui/src/scroll_area.rs` の実装契約と同じく、
+/// `scrollbar`/`thumb`/`corner` は非表示のまま維持し、ネイティブ
+/// スクロールバー自体を標準プロパティ（`scrollbar-width`/
+/// `scrollbar-color`）+ `::-webkit-scrollbar` 系疑似要素で装飾する
+/// 最小構成を示す。
+const SCROLL_AREA_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"scroll-area\"][data-part=\"root\"] {\n  \
+  position: relative;\n\
+}\n\
+[data-scope=\"scroll-area\"][data-part=\"viewport\"] {\n  \
+  overflow: auto;\n  height: 8rem;\n  \
+  scrollbar-width: thin;\n  scrollbar-color: #9ca3af transparent;\n\
+}\n\
+[data-scope=\"scroll-area\"][data-part=\"viewport\"]::-webkit-scrollbar {\n  \
+  width: 0.5rem;\n  height: 0.5rem;\n\
+}\n\
+[data-scope=\"scroll-area\"][data-part=\"viewport\"]::-webkit-scrollbar-track {\n  \
+  background: transparent;\n\
+}\n\
+[data-scope=\"scroll-area\"][data-part=\"viewport\"]::-webkit-scrollbar-thumb {\n  \
+  background: #9ca3af;\n  border-radius: 9999px;\n\
+}\n\
+[data-scope=\"scroll-area\"][data-part=\"scrollbar\"],\n\
+[data-scope=\"scroll-area\"][data-part=\"thumb\"],\n\
+[data-scope=\"scroll-area\"][data-part=\"corner\"] {\n  \
+  display: none;\n\
+}\n";
+
+fn ex_scroll_area_custom_css() -> Node {
+    let items: Vec<Node> = (1..=6)
+        .map(|n| fandhe_frontend_core::li(vec![], vec![text(format!("Item {n}"))]))
+        .collect();
+    let demo = scroll_area::root(
+        vec![],
+        vec![
+            scroll_area::viewport(
+                vec![],
+                vec![scroll_area::content(
+                    vec![],
+                    vec![fandhe_frontend_core::ul(vec![], items)],
+                )],
+            ),
+            scroll_area::scrollbar(
+                Orientation::Vertical,
+                vec![],
+                vec![scroll_area::thumb(Orientation::Vertical, vec![], vec![])],
+            ),
+            scroll_area::corner(vec![], vec![]),
+        ],
+    );
+    wrap_example(
+        "利用者が data-scope/data-part 属性セレクタでネイティブスクロールバーを装飾する最小例です（scrollbar/thumb/corner パーツは静的マークアップのため非表示のまま維持します）。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            demo,
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(SCROLL_AREA_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 pub const SCROLL_AREA: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Viewport / Content / Scrollbar / Thumb / Corner の 6 anatomy パーツを提供し、CSS overflow を主体とするスクロール領域を表現する（scroll_area.rs:1-10）。",
-        "viewport は WAI 慣行（矢印キー/Page キーでフォーカス済み要素をスクロールできる）に従い tabindex=\"0\" を固定出力する（scroll_area.rs:61-71）。",
-        "scrollbar/corner はネイティブスクロールバーと意味が重複する装飾要素のため aria-hidden=\"true\" を固定出力する（scroll_area.rs:80-107）。",
-        "JS によるスクロール位置追従・thumb の drag 操作は本モジュールのスコープ外（静的マークアップの受け皿のみを提供、scroll_area.rs:21-32）。",
+        "Root / Viewport / Content / Scrollbar / Thumb / Corner の 6 anatomy パーツを提供し、CSS overflow を主体とするスクロール領域を表現する（scroll_area.rs:1-10）。ark-ui/Zag.js の anatomy（6 パーツ）と完全一致（イシュー #1662 突合）。",
+        "viewport は WAI 慣行（矢印キー/Page キーでフォーカス済み要素をスクロールできる）に従い tabindex=\"0\" を固定出力する（scroll_area.rs:139-146）。SSR では overflow の有無を判定できないため常時付与する安全側の設計（WCAG 2.1.1）。",
+        "scrollbar/corner はネイティブスクロールバーと意味が重複する装飾要素のため aria-hidden=\"true\" を固定出力する（scroll_area.rs:157-183）。",
+        "呼び出し側 attrs による固定属性（tabindex/aria-hidden/data-orientation）のなりすまし・重複出力を drop_reserved で除去する（scroll_area.rs:116-127、イシュー #1662）。",
+        "ark-ui/Zag.js・Radix Primitives・chakra-ui・Radix Themes の 4 参照サイトと突合済み（イシュー #1662）。anatomy は増減なし。参照側の data-overflow-*/data-at-*/data-hover/data-scrolling/data-dragging・Radix の data-state（いずれも DOM 計測・ポインタ操作由来）は SSR で真の値を決定できないため意図的に非採用（`docs/policy/intentional-non-adoption.md` §3.25 規則 2）。Zag.js の role=\"presentation\" も、viewport が tabindex=\"0\" でフォーカス可能なため WAI-ARIA 1.2 §5.4 により無視される値として非採用。",
     ],
     arguments: &[
         ArgRow {
             name: "scrollbar/thumb: orientation",
             kind: "Orientation",
             default: "",
-            description: "data-orientation 属性値（scroll_area.rs:85-97）。",
+            description: "data-orientation 属性値（scroll_area.rs:157-176）。値語彙は vertical/horizontal の 2 値のみ。",
         },
         ArgRow {
             name: "viewport: attrs, children",
             kind: "Vec<(&str, &str)>, Vec<Node>",
             default: "vec![], vec![]",
-            description: "tabindex=\"0\" は固定出力のため呼び出し側から指定する引数ではない（scroll_area.rs:67-72）。",
+            description: "tabindex=\"0\" は固定出力のため呼び出し側から指定する引数ではない（drop_reserved が除去、scroll_area.rs:139-146）。読み上げ名が必要な場合は aria-label/aria-labelledby を attrs へ付与することを推奨する。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Horizontal scroll area",
-        description: "水平方向のスクロールバー配置例です（Demo は垂直方向）。",
-        render: ex_scroll_area_horizontal,
-    }],
-    keyboard: &[KeyRow {
-        key: "Tab",
-        description: "viewport は tabindex=\"0\" を固定出力するため通常の Tab 順序に含まれる（scroll_area.rs:61-71）。矢印キー/Page キーによる実際のスクロール操作はブラウザネイティブの挙動に依拠し、本モジュールは属性出力のみを担う。",
-    }],
-    aria: &[AriaRow {
-        attribute: "aria-hidden=\"true\"",
-        description: "scrollbar/corner に固定出力する（scroll_area.rs:80-107）。thumb/viewport/content/root は role/aria-* を出力しない。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Horizontal scroll area",
+            description: "水平方向のスクロールバー配置例です（Demo は垂直・水平の両軸 + corner）。",
+            render: ex_scroll_area_horizontal,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "data-scope/data-part/data-orientation 属性セレクタでスクロールバー表現を当てる例です。",
+            render: ex_scroll_area_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "viewport は tabindex=\"0\" を固定出力するため通常の Tab 順序に含まれる（scroll_area.rs:139-146）。",
+        },
+        KeyRow {
+            key: "↑ / ↓ / ← / →",
+            description: "フォーカス済み viewport 上でのネイティブスクロール（本モジュールは独自のキーイベントリスナを持たず、ブラウザ既定動作に委ねる。Radix Primitives docs も同じ方針を明記、イシュー #1662 突合）。",
+        },
+        KeyRow {
+            key: "PageUp / PageDown / Home / End",
+            description: "ネイティブスクロールのページ単位・端への移動（ブラウザ既定動作、独自リスナなし）。",
+        },
+        KeyRow {
+            key: "Space / Shift+Space",
+            description: "ネイティブスクロールの前方/後方ページ送り（ブラウザ既定動作、独自リスナなし）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "aria-hidden=\"true\"",
+            description: "scrollbar/corner に固定出力する（scroll_area.rs:157-183）。ネイティブスクロールバーとの意味重複を明示する目的（両参照サイトにはない本実装独自の付与、イシュー #1662）。",
+        },
+        AriaRow {
+            attribute: "(該当なし)",
+            description: "root/viewport/content は role/aria-* を出力しない。Zag.js の role=\"presentation\" は、viewport が tabindex=\"0\" でフォーカス可能なため WAI-ARIA 1.2 §5.4 により UA に無視される値であり、Radix Primitives（role 非付与）に整合する形で追加していない（イシュー #1662 突合）。",
+        },
+    ],
     demo: None,
 };
 

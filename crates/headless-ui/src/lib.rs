@@ -323,19 +323,24 @@
 //!   Home/End 相当の `"first"`/`"last"` を追加した。autoplay（play/pause/
 //!   `aria-live` 切替）・pointer ドラッグ/キーボード操作の DOM 配線は
 //!   スコープ外（[`carousel`] モジュール doc 参照）。
-//! - [`mod@pagination`]: Root / Item / Ellipsis / PrevTrigger / NextTrigger の
-//!   5 anatomy パーツと、[`pagination::page_range`]（総件数・ページサイズ・
-//!   現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する
-//!   決定的な純粋関数）、および [`fandhe_frontend_interactive::Component`]/
+//! - [`mod@pagination`]: Root / Item / Ellipsis / PrevTrigger / NextTrigger /
+//!   FirstTrigger / LastTrigger の 7 anatomy パーツと、
+//!   [`pagination::page_range`]（総件数・ページサイズ・現在ページ・
+//!   sibling/boundary 件数から省略記号を含むページ列を導出する決定的な
+//!   純粋関数）、および [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する
 //!   [`pagination::Pagination`] 値状態機械を提供する（#751、
-//!   `docs/api/headless-ui-api.md` §4b.3 の保留を解除、先行判断は #716）。
+//!   `docs/api/headless-ui-api.md` §4b.3 の保留を解除、先行判断は #716。
+//!   FirstTrigger/LastTrigger と [`pagination::item`] の `data-index` は
+//!   ark-ui との参照突合〔#1655〕で追加）。
 //!   [`mod@number_input`]/[`mod@progress`] と同じく `data-state` を持たず、
 //!   現在ページは `aria-current="page"`/`data-selected` で、端到達は
 //!   `disabled`/`data-disabled` で表現する。ページ列生成は
 //!   `O(boundary_count + sibling_count)` で `total_pages` を全列挙しない
-//!   （巨大 `count` でも有界、モジュール doc 参照）。wasm 層のクリック配線・
-//!   キーボードナビゲーションは本イシューのスコープ外。
+//!   （巨大 `count` でも有界、モジュール doc 参照）。wasm 層のクリック配線は
+//!   本イシューのスコープ外（キーボードナビゲーションは ark-ui もネイティブ
+//!   `<button>`/`<a>` の既定操作に委ねる契約のため未実装、#1655 で参照突合
+//!   済み）。
 //! - [`mod@action_bar`]: Root / Positioner / Content / SelectionTrigger /
 //!   Separator / CloseTrigger の 6 anatomy パーツと [`state::Disclosure`] を
 //!   埋め込んだ [`action_bar::ActionBar`] 状態機械（複数選択時に画面下部へ
@@ -546,8 +551,11 @@
 //!   （外部依存ゼロの自前 enum）をツリー表示する（イシュー #829、[`mod@tree_view`]
 //!   （#753）の派生）。構造部は [`mod@tree_view`] の既存パーツ関数・
 //!   [`tree_view::TreeView`] 状態機械をそのまま再利用し、JSON 固有の `key`/
-//!   `value`（`data-scope="json-tree-view"`）の 2 パーツのみを追加する。
-//!   ノード識別子は RFC 6901 JSON Pointer で決定的に導出する
+//!   `colon`/`value`（`data-scope="json-tree-view"`）の 3 パーツを
+//!   `branch-text`/`item-text` の内側へ入れ子にして追加する（`colon` は
+//!   イシュー #1661 の ark-ui/zag 突合で追加。`data-kind` 語彙は
+//!   `"null"`/`"boolean"`/`"number"`/`"string"`/`"array"`/`"object"` の
+//!   6 値）。ノード識別子は RFC 6901 JSON Pointer で決定的に導出する
 //!   （[`json_tree_view::render_json`] モジュール doc 参照）。
 //! - [`mod@scroll_area`]: Root / Viewport / Content / Scrollbar / Thumb /
 //!   Corner の 6 anatomy パーツ（イシュー #825、`docs/design/component-coverage-map.md`

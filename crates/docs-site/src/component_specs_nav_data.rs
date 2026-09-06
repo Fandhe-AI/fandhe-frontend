@@ -485,9 +485,9 @@ fn ex_json_tree_view() -> Node {
 
 pub(crate) const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "key/value の 2 anatomy パーツを headless-ui からそのまま再エクスポートする（crates/pre-styled-ui/src/json_tree_view.rs:7）",
+        "key/colon/value の 3 anatomy パーツ（data-scope=\"json-tree-view\"）を headless-ui からそのまま再エクスポートする。colon はイシュー #1661 で ark-ui/zag 突合により追加した区切りパーツで、pre-styled-ui は意図的に未スタイルのまま提供する（crates/pre-styled-ui/src/json_tree_view.rs:7-10）",
         "expanded_to_depth で ark-ui の defaultExpandedDepth 相当の初期展開状態を決定的に作る（json_tree_view.rs 冒頭 doc、showcase.rs:2057-2058 の利用例）",
-        "値の型（string/number/bool/null/array/object）ごとに [data-scope=\"json-tree-view\"][data-part=\"value\"][data-kind=\"...\"] で配色を切り替える（json_tree_view.rs:111-113）",
+        "値の型（string/number/boolean/null/array/object）ごとに [data-scope=\"json-tree-view\"][data-part=\"value\"][data-kind=\"...\"] で配色を切り替える（イシュー #1661 で data-kind の bool 表記を boolean へ変更、json_tree_view.rs:111-113）",
     ],
     arguments: &[],
     examples: &[ExampleEntry {
@@ -1405,6 +1405,7 @@ fn ex_pagination() -> Node {
         vec![],
         vec![pagination::item(
             pagination::ItemMode::Button,
+            1,
             true,
             false,
             vec![],

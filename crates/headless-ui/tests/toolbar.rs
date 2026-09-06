@@ -32,6 +32,7 @@ fn full_cycle_ssr_then_dispatch_then_hydration() {
             initial.button(0, false, vec![], vec![text("Undo")]),
             initial.separator(vec![], vec![]),
             toolbar::toggle_group(
+                Orientation::Horizontal,
                 vec![],
                 vec![group.item(
                     &ToggleGroupProps::default(),
@@ -109,7 +110,13 @@ fn free_functions_are_reachable_via_public_module_path() {
         Orientation::Vertical,
         "Gallery controls",
         vec![],
-        vec![toolbar::button(true, false, vec![], vec![])],
+        vec![toolbar::button(
+            Orientation::Vertical,
+            true,
+            false,
+            vec![],
+            vec![],
+        )],
     ));
     assert!(html.contains(r#"data-orientation="vertical""#));
     assert!(html.contains(r#"aria-orientation="vertical""#));

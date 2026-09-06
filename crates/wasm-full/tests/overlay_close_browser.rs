@@ -148,14 +148,19 @@ fn mount_navigation_menu(
 ) -> (Element, Element) {
     let trigger_id = format!("{id_prefix}-trigger");
     let content_id = format!("{id_prefix}-content");
+    let props = navigation_menu::NavigationMenuProps::default();
     let html = render(&navigation_menu::root(
+        &props,
         "test navigation",
         vec![],
         vec![navigation_menu::list(
+            &props,
             vec![],
             vec![navigation_menu::item(
                 OpenState::Open,
                 false,
+                &props,
+                value,
                 vec![],
                 vec![
                     navigation_menu::trigger(
@@ -169,6 +174,8 @@ fn mount_navigation_menu(
                     ),
                     navigation_menu::content(
                         OpenState::Open,
+                        &props,
+                        value,
                         Some(&content_id),
                         None,
                         vec![],
@@ -705,6 +712,8 @@ fn navigation_menu_close_on_escape_false_opts_out() {
     let content_id = "overlay-navmenu-escape-optout-content";
     let html = render(&navigation_menu::content(
         OpenState::Open,
+        &navigation_menu::NavigationMenuProps::default(),
+        "products",
         Some(content_id),
         None,
         vec![("data-close-on-escape", "false")],

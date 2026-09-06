@@ -99,7 +99,7 @@ grep -E '^pub mod ' crates/headless-ui/src/lib.rs \
 # => 59
 grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
   | grep -vE '^pub mod (css|recipe|stylesheet|theme);$' | wc -l
-# => 94
+# => 104
 grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
 # => 13
 ```
@@ -115,13 +115,19 @@ grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
   segment_group / select / signature_pad / skip_nav / slider / splitter /
   steps / switch / tabs / tags_input / timer / toast / toggle /
   toggle_group / toggle_tip / tooltip / tour / tree_view / visually_hidden
-- pre-styled-ui **94**:
+- pre-styled-ui **104**（`grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs
+  | grep -vE '^pub mod (css|recipe|stylesheet|theme);$' | wc -l` の実測。
+  下記列挙リストは #1685 で `field` を追加したのみで、それ以外の未列挙
+  モジュール（callout / checkbox_group / menubar / navigation_menu / quote
+  / strong / tab_nav / toolbar 等）の棚卸しは本イシューのスコープ外として
+  PR 本文・親 #1671 コメントに記録する）:
   accordion / action_bar / alert / angle_slider / area_chart / avatar /
   badge / blockquote / breadcrumb / button / calendar / card / carousel /
-  charts / checkbox / checkbox_card / clipboard / code / color_picker /
+  charts / checkbox / checkbox_card / clipboard / code / collapsible /
+  color_picker /
   color_swatch / combobox / data_list / date_input / date_picker / dialog /
   donut_chart / download_trigger / drawer / editable / em / empty_state /
-  file_upload / floating_panel / heading / highlight / hover_card / icon /
+  field / file_upload / floating_panel / heading / highlight / hover_card / icon /
   image / image_cropper / input / json_tree_view / kbd / line_chart / link /
   link_overlay / list / listbox / mark / marquee / menu / native_select /
   nav_list / number_input / pagination / password_input / pie_chart /
@@ -302,7 +308,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/ark-ui/references/components/collections/select.md` | Select | Select | Select (`select`) | Select (`select`) | `select` | `select` | 実装済み | headless+styled 実装済み。#1619 で参照突合（`SelectProps` 共有 disabled/readonly/invalid/required の一律付与、trigger の data-placeholder-shown、item の root disabled 伝播と data-selected、item-text 3 状態属性、item-group-label の role="presentation"、item-indicator の aria-hidden。data-state="checked"/"unchecked" 語彙は combobox/listbox とのクレート横断整合を優先し非追随） |
 | `.agents/skills/ark-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | `combobox` | `combobox` | 実装済み | headless+styled 実装済み（#749、PR #793）。#1605 で参照突合（`ComboboxProps` 共有 disabled/readonly/invalid/required の一律付与、item の data-state="checked"/"unchecked" 語彙は select/listbox とのクレート横断整合を優先し非追随） |
 | `.agents/skills/ark-ui/references/components/collections/listbox.md` | Listbox | Listbox | — | — | `listbox` | `listbox` | 実装済み | headless+styled 実装済み（#750。#1611 で参照突合: ListboxProps 共有・data-selected/data-orientation・item-text 状態属性を是正。Input/Empty パーツ・extended mode・select-all・data-empty/data-layout は見送り） |
-| `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | — | — | `pagination` | `pagination` | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除） |
+| `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | — | — | `pagination` | `pagination` | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除。#1655 で first/last trigger・data-index を追加し ark-ui と突合済み） |
 | `.agents/skills/ark-ui/references/components/collections/steps.md` | Steps | Steps | — | — | `steps` | `steps` | 実装済み | headless+styled 実装済み（#752、#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/tree-view.md` | TreeView | TreeView | — | — | `tree_view` | `tree_view` | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/collections/carousel.md` | Carousel | Carousel | — | — | `carousel` | `carousel` | 実装済み | headless+styled 実装済み（#754）。zag.js との参照突合済み（#1660、data-orientation 全パーツ拡張・data-index/data-inview 追加・First/Last dispatch 追加）。autoplay（play/pause/aria-live 切替/delay）・progress-text/autoplay-trigger パーツ・aria-hidden/aria-controls は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
@@ -322,11 +328,11 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | Accordion (`accordion`) | — | `accordion` | `accordion` | 実装済み | headless+styled 実装済み。#1636 で参照突合済み（`data-orientation` 全パーツ・item-trigger の `aria-disabled`・item-indicator の `aria-hidden`・item-indicator/item-content の `data-disabled` を追加。Radix `Header` パーツ・`data-focus`・`--height`/`--width` は意図的に非採用） |
-| `.agents/skills/ark-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | Collapsible (`collapsible`) | — | `collapsible` | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用） |
-| `.agents/skills/ark-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | Tabs (`tabs`) | Tabs (`tabs`) | `tabs` | `tabs` | 実装済み | headless+styled 実装済み |
+| `.agents/skills/ark-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | Collapsible (`collapsible`) | — | `collapsible` | `collapsible` | 実装済み | headless+styled 実装済み（#1682 recipe / #1683 Themes ページ）。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用） |
+| `.agents/skills/ark-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | Tabs (`tabs`) | Tabs (`tabs`) | `tabs` | `tabs` | 実装済み | headless+styled 実装済み。#1656 で参照突合済み（是正なし。Demo を 3 タブ + disabled へ拡張） |
 | `.agents/skills/ark-ui/references/components/disclosure/toggle.md` | Toggle | — | Toggle (`toggle`) | — | `toggle` | `toggle` | 実装済み | headless+styled 実装済み（#746、PR #791） |
 | `.agents/skills/ark-ui/references/components/disclosure/toggle-group.md` | ToggleGroup | — | Toggle Group (`toggle-group`) | — | `toggle_group` | `toggle_group` | 実装済み | headless+styled 実装済み（#746、PR #791）。#1630 で参照突合: item に data-orientation・root disabled 伝播・roving tabindex opt-in・attrs 偽装除去を追加、data-focus / orientation 既定値常時出力 / deselectable=false は意図的差分 |
-| `.agents/skills/ark-ui/references/components/disclosure/scroll-area.md` | ScrollArea | ScrollArea | Scroll Area (`scroll-area`) | Scroll Area (`scroll-area`) | `scroll_area` | `scroll_area` | 実装済み | headless+styled 実装済み（#825、保留解除。JS によるスクロール位置追従・thumb drag は本イシューのスコープ外。#1584 でスタイルを参考サイト基準へ調整（thumb 色トークン化・hover 強調・フォーカスリング canonical 化・custom property 公開）） |
+| `.agents/skills/ark-ui/references/components/disclosure/scroll-area.md` | ScrollArea | ScrollArea | Scroll Area (`scroll-area`) | Scroll Area (`scroll-area`) | `scroll_area` | `scroll_area` | 実装済み | headless+styled 実装済み（#825、保留解除。JS によるスクロール位置追従・thumb drag は本イシューのスコープ外。#1584 でスタイルを参考サイト基準へ調整（thumb 色トークン化・hover 強調・フォーカスリング canonical 化・custom property 公開）。#1662 で headless 側を参考サイトと突合（anatomy/data-* 増減なし、予約キー除去追加）） |
 | `.agents/skills/ark-ui/references/components/disclosure/splitter.md` | Splitter | Splitter | — | — | `splitter` | `splitter` | 実装済み | headless+styled 実装済み（#826、#735 保留の解除） |
 | `.agents/skills/ark-ui/references/components/disclosure/README.md` | README | — | — | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
@@ -347,7 +353,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/form/checkbox.md` | Checkbox | Checkbox | Checkbox (`checkbox`) | Checkbox (`checkbox`) | `checkbox` | `checkbox` | 実装済み | headless+styled 実装済み（#730） |
-| `.agents/skills/ark-ui/references/components/form/field.md` | Field | Field | Label (`label`) | — | `field` | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装 |
+| `.agents/skills/ark-ui/references/components/form/field.md` | Field | Field | Label (`label`) | — | `field` | `field` | 実装済み | headless+styled 実装済み（#1684 recipe / #1685 Themes ページ）。root/label/helper-text/error-text/required-indicator の 5 slot + `orientation` 軸 |
 | `.agents/skills/ark-ui/references/components/form/fieldset.md` | Fieldset | Fieldset | — | — | `fieldset` | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装 |
 | `.agents/skills/ark-ui/references/components/form/radio-group.md` | RadioGroup | Radio | Radio Group (`radio-group`) | Radio Group (`radio-group`) | `radio_group` | `radio_group` | 実装済み | headless+styled 実装済み。イシュー #1616 で ark-ui / Radix Primitives と突合し、`RadioGroupProps`（disabled/readonly/invalid/required）・`aria-hidden`（item-control）・`aria-invalid`/`required`（item-hidden-input）を是正 |
 | `.agents/skills/ark-ui/references/components/form/switch.md` | Switch | Switch | Switch (`switch`) | Switch (`switch`) | `switch` | `switch` | 実装済み | headless+styled 実装済み。イシュー #1622 で ark-ui / Radix Primitives と突合し、`SwitchProps`（disabled/readonly/invalid/required）・全パーツ `data-disabled`/`data-invalid`/`data-required`/`data-readonly`・`aria-invalid`（hidden-input）を是正 |
@@ -418,7 +424,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | `.agents/skills/ark-ui/references/utilities/format-relative-time.md` | FormatRelativeTime | — | — | — | `format` | — | 実装済み | #853。`docs/policy/intentional-non-adoption.md` §3.23 の非採用から区分変更。`fandhe-frontend-headless-ui::format::format_relative_time`（基準時刻は呼び出し側注入、現在時刻 API 非依存） |
 | `.agents/skills/ark-ui/references/utilities/format-time.md` | FormatTime | — | — | — | `format` | — | 実装済み | #853。`docs/policy/intentional-non-adoption.md` §3.23 の非採用から区分変更。`fandhe-frontend-headless-ui::format::format_time`（決定的純関数） |
 | `.agents/skills/ark-ui/references/utilities/frame.md` | Frame | — | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
-| `.agents/skills/ark-ui/references/utilities/json-tree-view.md` | JsonTreeView | — | — | — | `json_tree_view` | `json_tree_view` | 実装済み | **保留解除**（イシュー #829、`tree_view`（#753）の派生として実装。headless `crates/headless-ui/src/json_tree_view.rs` + styled `crates/pre-styled-ui/src/json_tree_view.rs`。`docs/policy/intentional-non-adoption.md` §7 の解除記録参照） |
+| `.agents/skills/ark-ui/references/utilities/json-tree-view.md` | JsonTreeView | — | — | — | `json_tree_view` | `json_tree_view` | 実装済み | **保留解除**（イシュー #829、`tree_view`（#753）の派生として実装。headless `crates/headless-ui/src/json_tree_view.rs` + styled `crates/pre-styled-ui/src/json_tree_view.rs`。`docs/policy/intentional-non-adoption.md` §7 の解除記録参照）。**#1661 で参照突合済み**（`colon` パーツ新設・`key`/`colon`/`value` を `branch-text`/`item-text` の内側へ入れ子化・`data-kind` 語彙を `"bool"` から `"boolean"` へ変更〔破壊的変更〕） |
 | `.agents/skills/ark-ui/references/utilities/locale.md` | Locale | LocaleProvider | — | — | — | — | 実装済み（Rust 最適化形） | イシュー #854。`Locale` 値型（`crates/headless-ui/src/format.rs` の `format` mod、en/ja）として実装。`LocaleProvider` の Context/Provider 機構は非採用のまま（`docs/policy/intentional-non-adoption.md` §3.23 参照） |
 | `.agents/skills/ark-ui/references/utilities/presence.md` | Presence | Presence | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/ark-ui/references/utilities/swap.md` | Swap | — | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
@@ -570,9 +576,9 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | — | — | `accordion` | `accordion` | 実装済み | headless+styled 実装済み（#1636 で ark-ui/Radix 参照突合済み、詳細は上記 ark-ui 行参照） |
-| `.agents/skills/chakra-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | — | — | `collapsible` | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用） |
-| `.agents/skills/chakra-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | — | — | `tabs` | `tabs` | 実装済み | headless+styled 実装済み |
-| `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | `pagination` | `pagination` | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除） |
+| `.agents/skills/chakra-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | — | — | `collapsible` | `collapsible` | 実装済み | headless+styled 実装済み（#1682 recipe / #1683 Themes ページ）。#1637 で参照突合済み（content/indicator へ data-disabled 追加、data-collapsible・サイズ計測系は非採用） |
+| `.agents/skills/chakra-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | — | — | `tabs` | `tabs` | 実装済み | headless+styled 実装済み。#1656 で参照突合済み（是正なし。Demo を 3 タブ + disabled へ拡張） |
+| `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | `pagination` | `pagination` | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除。#1655 で first/last trigger・data-index を追加し ark-ui と突合済み） |
 | `.agents/skills/chakra-ui/references/components/disclosure/steps.md` | Steps | Steps | — | — | `steps` | `steps` | 実装済み | headless+styled 実装済み（#752、#716 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/disclosure/carousel.md` | Carousel | Carousel | — | — | `carousel` | `carousel` | 実装済み | headless+styled 実装済み（#754）。zag.js との参照突合済み（#1660、data-orientation 全パーツ拡張・data-index/data-inview 追加・First/Last dispatch 追加）。autoplay（play/pause/aria-live 切替/delay）・progress-text/autoplay-trigger パーツ・aria-hidden/aria-controls は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
 | `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | — | — | `breadcrumb` | `breadcrumb` | 実装済み | #755（#716 追加候補の消化）。headless+styled 実装済み。#1648 参照突合（差分なし、予約キー除去追加） |
@@ -595,7 +601,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/forms/checkbox.md` | Checkbox | Checkbox | — | — | `checkbox` | `checkbox` | 実装済み | headless+styled 実装済み（#730） |
-| `.agents/skills/chakra-ui/references/components/forms/field.md` | Field | Field | — | — | `field` | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装 |
+| `.agents/skills/chakra-ui/references/components/forms/field.md` | Field | Field | — | — | `field` | `field` | 実装済み | headless+styled 実装済み（#1684 recipe / #1685 Themes ページ）。root/label/helper-text/error-text/required-indicator の 5 slot + `orientation` 軸 |
 | `.agents/skills/chakra-ui/references/components/forms/fieldset.md` | Fieldset | Fieldset | — | — | `fieldset` | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装 |
 | `.agents/skills/chakra-ui/references/components/forms/radio.md` | RadioGroup | Radio | — | — | `radio_group` | `radio_group` | 実装済み | headless+styled 実装済み。イシュー #1616 で ark-ui / Radix Primitives と突合し是正済み（詳細は上記 radio-group 行参照） |
 | `.agents/skills/chakra-ui/references/components/forms/switch.md` | Switch | Switch | — | — | `switch` | `switch` | 実装済み | headless+styled 実装済み。イシュー #1622 で ark-ui / Radix Primitives と突合し是正済み（詳細は上記 switch 行参照） |
@@ -629,7 +635,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/layout/separator.md` | — | Separator | Separator (`separator`) | Separator (`separator`) | — | `separator` | 実装済み | #772。pre-styled 静的部品 実装済み。#1585 でスタイルを参考サイト基準へ調整（`dotted` variant 追加・`--fandhe-separator-thickness` custom property 化） |
-| `.agents/skills/chakra-ui/references/components/layout/scroll-area.md` | ScrollArea | ScrollArea | — | — | `scroll_area` | `scroll_area` | 実装済み | headless+styled 実装済み（#825、保留解除。JS によるスクロール位置追従・thumb drag は本イシューのスコープ外。#1584 でスタイルを参考サイト基準へ調整（thumb 色トークン化・hover 強調・フォーカスリング canonical 化・custom property 公開）） |
+| `.agents/skills/chakra-ui/references/components/layout/scroll-area.md` | ScrollArea | ScrollArea | — | — | `scroll_area` | `scroll_area` | 実装済み | headless+styled 実装済み（#825、保留解除。JS によるスクロール位置追従・thumb drag は本イシューのスコープ外。#1584 でスタイルを参考サイト基準へ調整（thumb 色トークン化・hover 強調・フォーカスリング canonical 化・custom property 公開）。#1662 で headless 側を参考サイトと突合（anatomy/data-* 増減なし、予約キー除去追加）） |
 | `.agents/skills/chakra-ui/references/components/layout/splitter.md` | Splitter | Splitter | — | — | `splitter` | `splitter` | 実装済み | headless+styled 実装済み（#826、#735 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/layout/absolute-center.md` | — | AbsoluteCenter | — | — | — | — | 意図的非採用 | #716/#724 で非採用確定済み（layout プリミティブ） |
 | `.agents/skills/chakra-ui/references/components/layout/aspect-ratio.md` | — | AspectRatio | Aspect Ratio (`aspect-ratio`) | Aspect Ratio (`aspect-ratio`) | — | — | 意図的非採用 | #716/#724 で非採用確定済み（layout プリミティブ） |
@@ -859,8 +865,8 @@ diff が非空になって §4 が壊れる）。「実装対象」区分の根�
 |---|---|---|---|---|---|---|---|---|
 | —（対応 md なし） | — | — | Form (`form`) | — | `field`/`fieldset`（構造部分は充足） | — | 意図的非採用 | **2026-07-25 のユーザー判断により保留を解除し意図的非採用へ確定**。根拠: `docs/policy/intentional-non-adoption.md` §3.25 規則 1（アプリケーションロジックを内包する UI 部品は採用しない）。Radix Form の本体はブラウザ Constraint Validation API を用いたバリデーション実行・カスタム検証・エラーメッセージ対応付け・送信ハンドリングであり、UI 層の責務（anatomy・アクセシビリティ・表示状態）を超える。UI 構造に相当する部分（フィールドとラベル・説明・エラー表示の結び付け、`data-invalid` による無効状態の表現）は `crates/headless-ui/src/field.rs` / `fieldset.rs` が既に担っており、利用者はバリデーションを通常の Rust コードで書いてその結果を `field` の状態として渡す。再評価トリガーは §3.25 規則 1 を参照。`intentional-non-adoption.md` §7 へ転記済み（#959） |
 | —（対応 md なし） | — | — | Menubar (`menubar`) | — | `menubar` | `menubar` | 実装済み | 複数 Menu を水平（または垂直）に並べる専用 anatomy（Root/Menu/Trigger/Positioner/Content/Arrow/ArrowTip/Item/ItemText/ItemIndicator/ItemGroup/ItemGroupLabel/Separator/SubTrigger/SubContent/CheckboxItem/RadioItemGroup/RadioItem、18 パーツ）と、roving tabindex + 開いている Menu を跨いだ左右移動の状態機械 `Menubar` を実装。`menu` の anatomy はそのまま再利用せず、状態機械・値語彙（`OpenState`/`aria`/`data_attrs`/`checked_data_state`）のみを再利用する。#959 で確定、仮 ID 8-2、実装は #992。イシュー #1652 で Radix Primitives Menubar と参照突合し 11 → 18 パーツへ拡充 |
-| —（対応 md なし） | — | — | Navigation Menu (`navigation-menu`) | — | `navigation_menu` | `navigation_menu` | 実装済み | **2026-07-25 のユーザー判断により `docs/policy/intentional-non-adoption.md` §3.25 規則 2 を適用**: viewport 測定・`data-motion` は装飾・アニメーション関心のため headless-ui へ持ち込まず、必要なら pre-styled-ui 側の責務として設計する（本イシュー #993 では pre-styled-ui 側にも未実装。必要になった時点で別途 Issue 化を検討する）。headless-ui は Root/List/Item/Trigger/Content/Link の anatomy とアクティブリンクの `aria-current` までを実装した（[`crate::state::SingleSelect`] を埋め込んだ「高々 1 個の Trigger だけが開く」状態機械 `NavigationMenu`）。`role` は一切付与しない（`root` は素の `nav` の暗黙 role に依拠）。`nav_list`（イシュー #756）は role を持たない文書ナビ専用部品であり、Navigation Menu のディスクロージャ（Trigger/Content の開閉）・アクティブリンク追跡・`data-motion` とは意味論・機能ともに別物（`crates/headless-ui/src/nav_list.rs` module doc 参照）。#959 で確定、仮 ID 8-3、実装は #993 |
-| —（対応 md なし） | — | — | Toolbar (`toolbar`) | — | `toolbar` | `toolbar` | 実装済み | ボタン・セパレータ・ToggleGroup を横方向グループ化する専用 anatomy（Root/Button/Link/Separator/ToggleGroup/ToggleItem）と roving tabindex 状態機械 `Toolbar` を実装。#959 で確定、仮 ID 8-1、実装は #991 |
+| —（対応 md なし） | — | — | Navigation Menu (`navigation-menu`) | — | `navigation_menu` | `navigation_menu` | 実装済み | **2026-07-25 のユーザー判断により `docs/policy/intentional-non-adoption.md` §3.25 規則 2 を適用**: viewport 測定・`data-motion` は装飾・アニメーション関心のため headless-ui へ持ち込まず、必要なら pre-styled-ui 側の責務として設計する（本イシュー #993 では pre-styled-ui 側にも未実装。必要になった時点で別途 Issue 化を検討する）。headless-ui は Root/List/Item/Trigger/ItemIndicator/Content/Link の anatomy とアクティブリンクの `aria-current` までを実装した（[`crate::state::SingleSelect`] を埋め込んだ「高々 1 個の Trigger だけが開く」状態機械 `NavigationMenu`）。イシュー #1654 で `NavigationMenuProps::orientation`（`data-orientation`）・`data-value`（item/content）・`item_indicator` パートを追加した（viewport 測定・`data-motion` は引き続き非採用）。`role` は一切付与しない（`root` は素の `nav` の暗黙 role に依拠）。`nav_list`（イシュー #756）は role を持たない文書ナビ専用部品であり、Navigation Menu のディスクロージャ（Trigger/Content の開閉）・アクティブリンク追跡・`data-motion` とは意味論・機能ともに別物（`crates/headless-ui/src/nav_list.rs` module doc 参照）。#959 で確定、仮 ID 8-3、実装は #993 |
+| —（対応 md なし） | — | — | Toolbar (`toolbar`) | — | `toolbar` | `toolbar` | 実装済み | ボタン・セパレータ・ToggleGroup を横方向グループ化する専用 anatomy（Root/Button/Link/Separator/ToggleGroup/ToggleItem）と roving tabindex 状態機械 `Toolbar` を実装。#959 で確定、仮 ID 8-1、実装は #991。#1657 で参照突合済み（`button`/`link`/`separator`/`toggle-group`/`toggle-item` へ `data-orientation` を追加、呼び出し側予約キーなりすまし除去を `drop_reserved` へ統一。矢印キー実 DOM 配線は wasm-full 未実装のまま） |
 | —（対応 md なし） | — | — | Direction Provider (`direction-provider`) | — | — | — | 保留 | RTL/LTR を動的注入する provider 機構は `docs/policy/intentional-non-adoption.md` §3.23 の JS ランタイム固有 utilities に類するが、同節に個別記録がない。再評価トリガー: provider 機構全般の非採用可否が §3.23/§3.24 へ確定記録された場合、または `dir` 属性の明示的引数渡しで代替可能と判断された場合。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
 | —（対応 md なし） | — | — | Accessible Icon (`accessible-icon`) | Accessible Icon (`accessible-icon`) | `role`/`aria_label`（`crates/headless-ui/src/aria.rs`、いずれも `pub`）+ `visually_hidden`（代替経路、検証済み） | `icon`（`IconProps::label`、代替済み、検証済み）/ `visually_hidden`（代替経路、検証済み） | 保留 | **イシュー #1066 で検証完了（2026-07-26）**。層別の結論: (1) Themes/pre-styled 層は `icon` 単体で完全代替する。`crates/pre-styled-ui/src/icon.rs` の `icon()` は `IconProps.label` の `Some`/`None` で `role="img"`+`aria-label` と `aria-hidden="true"` を分岐済みで、`label_some_switches_to_role_img_and_aria_label`/`default_props_render_md_size_decorative`（`crates/pre-styled-ui/src/icon.rs` 内テスト）で固定されている。利用者向け原稿 `site/themes/icon.md` にも既に明記済み。(2) Primitives/headless 層は `icon` パート自体を持たないが、`crates/headless-ui/src/aria.rs` の `pub fn role`/`pub fn aria_label`（`icon.rs` 自身が同じヘルパを利用）を SVG へ組み合わせる、または `crates/headless-ui/src/visually_hidden.rs`（`root` は `aria-hidden` を一切出力しない不変条件、`root_does_not_emit_aria_hidden_by_default` で固定）でテキストノードを併記すれば代替でき、専用部品の新設は不要。(3) 機構差: Radix はビジュアリーヒドゥンな**テキストコンテンツ**でアクセシブルネームを与えるが、fandhe の `icon` は `aria-label` で与える。アクセシブルネーム計算上は等価だが同一手段ではなく、実テキストノードが必要な場合は `visually_hidden::root` が該当する。結論: 代替可能・実装不要。再評価トリガー: 充足済み（検証完了 2026-07-26、イシュー #1066）。意図的非採用への区分移行はユーザー判断待ち（区分列は本 PR では変更しない） |
 | —（対応 md なし） | — | — | Slot (`slot`) | Slot (`slot`) | — | — | 保留 | asChild/Slot 相当の要素種別差し替え・子要素への props マージという仕組み自体が現時点の `fandhe-frontend-headless-ui` には存在しない（`docs/design/radix-primitives-inventory.md` §7.2）。再導入の提案はここでは書かない（`.claude/rules/coding-rust.md`）。再評価トリガー: 要素差し替え機構の要否が別途の設計検討で明示的に再評価された場合。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
@@ -966,8 +972,8 @@ L493, L521〜L528）+ RichTextEditor（L511, §3.22）+ chakra `Theme`（L529,
 | Radix 名 (slug) | 層 | §5 の該当行 | 区分 | 判定根拠 / 保留の再評価トリガー | Phase 8 issue |
 |---|---|---|---|---|---|
 | Menubar (`menubar`) | Primitives → headless-ui | Part D | 実装済み | 複数 Menu の水平配置・roving tabindex・開いている Menu を跨いだ左右移動の専用 anatomy を実装（18 パーツ、#1652 で参照突合済み）。`menu` の状態機械・値語彙のみ再利用 | #992 |
-| Navigation Menu (`navigation-menu`) | Primitives → headless-ui | Part D | 実装済み | `nav_list` は role なし・ディスクロージャ非対応（対称項目参照）。**2026-07-25 のユーザー判断により `intentional-non-adoption.md` §3.25 規則 2 を適用**: viewport 測定・`data-motion` は装飾関心のため headless-ui へ置かず、実装しない（pre-styled-ui 側も本イシュー #993 では未実装）。headless-ui は Root/List/Item/Trigger/Content/Link の anatomy とアクティブリンクの `aria-current` までを実装した | #993 |
-| Toolbar (`toolbar`) | Primitives → headless-ui | Part D | 実装済み | ボタン・セパレータ・ToggleGroup の横方向グループ化 anatomy を実装 | #991 |
+| Navigation Menu (`navigation-menu`) | Primitives → headless-ui | Part D | 実装済み | `nav_list` は role なし・ディスクロージャ非対応（対称項目参照）。**2026-07-25 のユーザー判断により `intentional-non-adoption.md` §3.25 規則 2 を適用**: viewport 測定・`data-motion` は装飾関心のため headless-ui へ置かず、実装しない（pre-styled-ui 側も本イシュー #993 では未実装）。headless-ui は Root/List/Item/Trigger/ItemIndicator/Content/Link の anatomy とアクティブリンクの `aria-current` までを実装した（`orientation`/`data-value`/`item_indicator` はイシュー #1654 で追加） | #993 |
+| Toolbar (`toolbar`) | Primitives → headless-ui | Part D | 実装済み | ボタン・セパレータ・ToggleGroup の横方向グループ化 anatomy を実装 | #991（#1657 で参照突合済み） |
 | Callout (`callout`) | Themes → pre-styled-ui | Part D | 実装済み | root/icon/text の 3 パーツで新設。`alert` と異なり `role="alert"` を付与しない静的部品 | #994 |
 | Checkbox Group (`checkbox-group`) | Themes → pre-styled-ui | Part D | 実装済み | headless-ui（複数選択状態機械 `state::MultiSelect` を埋め込んだ `checkbox_group::CheckboxGroup`）+ pre-styled-ui（`size`/`color-palette` variant）の両層で実装。ネイティブ input は既存 `checkbox::hidden_input` を再利用（重複実装なし）。#1603 で `CheckboxGroupProps` 導入・`aria-orientation` 除去を追加 | #997, #1603 |
 | Quote (`quote`) | Themes → pre-styled-ui | Part D | 実装済み | 既存 `blockquote` と役割が近い静的部品として実装（インライン `<q>`、`blockquote` はブロック引用） | #995 |
@@ -999,7 +1005,7 @@ pre-styled-ui のみで完結させる（両層セット実装にはしない）
 |---|---|---|---|---|---|---|---|
 | 1 | 8-1 | `feat(headless-ui): Toolbar — ボタン/セパレータ/ToggleGroup の横方向グループ化 anatomy を新設する` | headless-ui | Primitives → headless-ui | — | headless-ui + pre-styled-ui + wasm-full（`check-dep-versions --fix` で req 追随） | roving tabindex 等 `crates/wasm-full/` 側の DOM 配線 |
 | 2 | 8-2 | `feat(headless-ui): Menubar — menu anatomy 再利用による水平メニューバーを新設する` | headless-ui | Primitives → headless-ui | 8-1 | headless-ui + pre-styled-ui + wasm-full | 同上 |
-| 3 | 8-3 | `feat(headless-ui): Navigation Menu — viewport/アクティブリンク追跡付きナビゲーションメニューを新設する`（実装イシュー #993 のタイトルは「構造とアクティブリンク（装飾関心は pre-styled 層へ）」。「viewport」は本注記のとおり§3.25 規則 2 により非目標へ確定したため実装イシューのタイトルからは落とした） | headless-ui | Primitives → headless-ui | 8-2 | headless-ui + pre-styled-ui + wasm-full（実績: headless-ui のみ。pre-styled-ui は寸法/強調色 variant なしの薄いラッパー、wasm-full はバージョン追随のみで実 DOM 配線は未着手） | viewport 実配置・アクティブリンク動的同期・`data-motion` 遷移駆動（`intentional-non-adoption.md` §3.25 規則 2 により headless-ui 層から恒久的に除外。pre-styled-ui 側で必要になった場合も本表の非目標指定はそのまま有効） |
+| 3 | 8-3 | `feat(headless-ui): Navigation Menu — viewport/アクティブリンク追跡付きナビゲーションメニューを新設する`（実装イシュー #993 のタイトルは「構造とアクティブリンク（装飾関心は pre-styled 層へ）」。「viewport」は本注記のとおり§3.25 規則 2 により非目標へ確定したため実装イシューのタイトルからは落とした。後続イシュー #1654 で `orientation`/`data-value`/`item_indicator` を追加実装済み） | headless-ui | Primitives → headless-ui | 8-2 | headless-ui + pre-styled-ui + wasm-full（実績: headless-ui のみ。pre-styled-ui は寸法/強調色 variant なしの薄いラッパー、wasm-full はバージョン追随のみで実 DOM 配線は未着手） | viewport 実配置・アクティブリンク動的同期・`data-motion` 遷移駆動・Indicator（スライドバー）/Sub パーツ（`intentional-non-adoption.md` §3.25 規則 2 により headless-ui 層から恒久的に除外。pre-styled-ui 側で必要になった場合も本表の非目標指定はそのまま有効） |
 | 4 | 8-4 | `feat(pre-styled-ui): Callout — alert anatomy を参考にした注意喚起部品を新設する`（実装イシュー #994 のタイトルは「Callout — 補足情報の強調表示部品」） | pre-styled-ui | Themes → pre-styled-ui | #943, 8-3 | pre-styled-ui のみ | — |
 | 5 | 8-5 | `feat(pre-styled-ui): Quote / Strong — em 対称の静的テキスト部品 2 件を新設する`（実装イシュー #995 で実装済み） | pre-styled-ui | Themes → pre-styled-ui | #943, 8-4 | pre-styled-ui のみ | — |
 | 6 | 8-6 | `feat(pre-styled-ui): Tab Nav — tabs の見た目を持つナビゲーションリンク集合を新設する` | pre-styled-ui | Themes → pre-styled-ui | #943, 8-5 | pre-styled-ui のみ | — |
@@ -1103,7 +1109,8 @@ grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l  
 （ページ数期待値）が担い、**本書は件数を二重管理しない**。
 
 **注意**: headless-ui のみ実装済みで pre-styled-ui ラッパー未実装の部品
-（`collapsible` / `field` / `fieldset` / `progress`(linear) 等）は
+（`fieldset` / `progress`(linear) 等。`collapsible` はイシュー #1682/#1683、
+`field` はイシュー #1684/#1685 でラッパー実装・Themes ページ登録済み）は
 `/primitives/` にのみ掲載され `/themes/` には現れない。逆に pre-styled-ui
 独自部品（`marquee` 等）は `/themes/` にのみ現れる。掲載先は層ごとに
 独立であり、本書の「実装済み」区分と 1:1 ではない。

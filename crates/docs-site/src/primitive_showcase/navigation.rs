@@ -636,15 +636,25 @@ pub(super) fn nav_list_section() -> Node {
 pub(super) fn navigation_menu_section() -> Node {
     let open = OpenState::Open;
     let closed = OpenState::Closed;
+    // イシュー #1654: Anatomy/data-* 表の機械導出元（`primitive_showcase.rs`
+    // の網羅検査）を満たすため、disabled 項目（`data-disabled`）と
+    // current リンク（`data-current`）を追加し、open 項目の trigger 内に
+    // `item_indicator`（`data-orientation`/`data-value`/`aria-hidden`）を
+    // 併掲する。
+    let props = navigation_menu::NavigationMenuProps::default();
     let body = vec![navigation_menu::root(
+        &props,
         "Main",
         vec![],
         vec![navigation_menu::list(
+            &props,
             vec![],
             vec![
                 navigation_menu::item(
                     open,
                     false,
+                    &props,
+                    "products",
                     vec![],
                     vec![
                         navigation_menu::trigger(
@@ -654,25 +664,46 @@ pub(super) fn navigation_menu_section() -> Node {
                             Some("nm-trigger-0"),
                             Some("nm-content-0"),
                             vec![],
-                            vec![text("Products")],
+                            vec![
+                                text("Products"),
+                                navigation_menu::item_indicator(
+                                    open,
+                                    &props,
+                                    "products",
+                                    vec![],
+                                    vec![text("▾")],
+                                ),
+                            ],
                         ),
                         navigation_menu::content(
                             open,
+                            &props,
+                            "products",
                             Some("nm-content-0"),
                             Some("nm-trigger-0"),
                             vec![],
-                            vec![navigation_menu::link(
-                                "https://example.com/products/core/",
-                                false,
-                                vec![],
-                                vec![text("Core")],
-                            )],
+                            vec![
+                                navigation_menu::link(
+                                    "https://example.com/products/core/",
+                                    false,
+                                    vec![],
+                                    vec![text("Core")],
+                                ),
+                                navigation_menu::link(
+                                    "https://example.com/products/current/",
+                                    true,
+                                    vec![],
+                                    vec![text("Current")],
+                                ),
+                            ],
                         ),
                     ],
                 ),
                 navigation_menu::item(
                     closed,
                     false,
+                    &props,
+                    "docs",
                     vec![],
                     vec![navigation_menu::trigger(
                         closed,
@@ -684,31 +715,56 @@ pub(super) fn navigation_menu_section() -> Node {
                         vec![text("Docs")],
                     )],
                 ),
+                navigation_menu::item(
+                    closed,
+                    true,
+                    &props,
+                    "enterprise",
+                    vec![],
+                    vec![navigation_menu::trigger(
+                        closed,
+                        true,
+                        "enterprise",
+                        None,
+                        None,
+                        vec![],
+                        vec![text("Enterprise")],
+                    )],
+                ),
             ],
         )],
     )];
     demo_page("Navigation Menu", body)
 }
 
+/// 7 anatomy パーツ（Root/Item/Ellipsis/PrevTrigger/NextTrigger/
+/// FirstTrigger/LastTrigger）全てを Demo へ描画する（イシュー #1655、
+/// ark-ui との参照突合で first/last trigger を追加）。先頭ページ（page=1）を
+/// current とし first/prev を disabled、`1 2 3 … 500` 相当のページ列、末尾
+/// item 1 件を `ItemMode::Link` にして `href` を実演する（next/last は有効）。
 pub(super) fn pagination_section() -> Node {
     let body = vec![pagination::root(
         "Pagination",
         vec![],
         vec![
-            pagination::prev_trigger(ItemMode::Button, false, vec![], vec![text("Prev")]),
-            pagination::item(ItemMode::Button, false, false, vec![], vec![text("1")]),
-            pagination::item(ItemMode::Button, true, false, vec![], vec![text("2")]),
+            pagination::first_trigger(ItemMode::Button, true, vec![], vec![text("First")]),
+            pagination::prev_trigger(ItemMode::Button, true, vec![], vec![text("Prev")]),
+            pagination::item(ItemMode::Button, 1, true, false, vec![], vec![text("1")]),
+            pagination::item(ItemMode::Button, 2, false, false, vec![], vec![text("2")]),
+            pagination::item(ItemMode::Button, 3, false, false, vec![], vec![text("3")]),
             pagination::ellipsis(vec![], vec![text("…")]),
             pagination::item(
                 ItemMode::Link {
-                    href: "https://example.com/?page=9",
+                    href: "https://example.com/?page=500",
                 },
+                500,
                 false,
                 false,
                 vec![],
-                vec![text("9")],
+                vec![text("500")],
             ),
             pagination::next_trigger(ItemMode::Button, false, vec![], vec![text("Next")]),
+            pagination::last_trigger(ItemMode::Button, false, vec![], vec![text("Last")]),
         ],
     )];
     demo_page("Pagination", body)
@@ -723,6 +779,9 @@ pub(super) fn tabs_section() -> Node {
         loop_focus: true,
         indicator: true,
     };
+    // 3 タブ構成（うち Billing を disabled）: 参考サイト（ark-ui/Radix）の
+    // Demo と同じ枚数へ揃え、機械導出される data-* 属性表に data-disabled が
+    // 現れるようにする（イシュー #1656、参照突合）。
     let items = vec![
         TabItem {
             value: "overview",
@@ -736,38 +795,107 @@ pub(super) fn tabs_section() -> Node {
             content: vec![text("Settings panel content.")],
             disabled: false,
         },
+        TabItem {
+            value: "billing",
+            trigger: vec![text("Billing")],
+            content: vec![text("Billing panel content.")],
+            disabled: true,
+        },
     ];
     let body = vec![tabs(&props, items)];
     demo_page("Tabs", body)
 }
 
+/// イシュー #1657: Radix Primitives の Toolbar デモ（B/I/U のトグル群・
+/// 整列トグル群・リンク・ボタン）相当へ刷新し、機械導出される Anatomy /
+/// data-* 属性表に `data-state="on"|"off"`・`data-disabled`・
+/// `data-orientation` が一通り現れるようにする（6 anatomy パーツ全網羅は
+/// 従来から維持、`crates/docs-site/tests/primitive_showcase.rs`
+/// `anatomy_coverage_matches_known_uncovered_exactly` 参照）。
 pub(super) fn toolbar_section() -> Node {
     let orientation = Orientation::Horizontal;
     let body = vec![toolbar::root(
         orientation,
-        "Formatting",
+        "Text formatting",
         vec![],
         vec![
-            toolbar::button(true, false, vec![], vec![text("Bold")]),
-            toolbar::link(
-                false,
-                "https://example.com/help",
-                false,
+            toolbar::toggle_group(
+                orientation,
                 vec![],
-                vec![text("Help")],
+                vec![
+                    toolbar::toggle_item(
+                        orientation,
+                        true,
+                        true,
+                        false,
+                        "bold",
+                        vec![],
+                        vec![text("Bold")],
+                    ),
+                    toolbar::toggle_item(
+                        orientation,
+                        false,
+                        false,
+                        false,
+                        "italic",
+                        vec![],
+                        vec![text("Italic")],
+                    ),
+                    toolbar::toggle_item(
+                        orientation,
+                        false,
+                        false,
+                        true,
+                        "strikethrough",
+                        vec![],
+                        vec![text("Strikethrough")],
+                    ),
+                ],
             ),
             toolbar::separator(orientation, vec![], vec![]),
             toolbar::toggle_group(
+                orientation,
                 vec![],
-                vec![toolbar::toggle_item(
-                    true,
-                    false,
-                    false,
-                    "align-left",
-                    vec![],
-                    vec![text("Left")],
-                )],
+                vec![
+                    toolbar::toggle_item(
+                        orientation,
+                        true,
+                        false,
+                        false,
+                        "align-left",
+                        vec![],
+                        vec![text("Left")],
+                    ),
+                    toolbar::toggle_item(
+                        orientation,
+                        false,
+                        false,
+                        false,
+                        "align-center",
+                        vec![],
+                        vec![text("Center")],
+                    ),
+                    toolbar::toggle_item(
+                        orientation,
+                        false,
+                        false,
+                        false,
+                        "align-right",
+                        vec![],
+                        vec![text("Right")],
+                    ),
+                ],
             ),
+            toolbar::separator(orientation, vec![], vec![]),
+            toolbar::link(
+                orientation,
+                false,
+                "https://example.com/history",
+                false,
+                vec![],
+                vec![text("Edited 2 hours ago")],
+            ),
+            toolbar::button(orientation, false, false, vec![], vec![text("Share")]),
         ],
     )];
     demo_page("Toolbar", body)

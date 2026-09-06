@@ -20,9 +20,10 @@
 //! カテゴリ 1 個につき 1 モジュールを追加する（`site/nav.toml` の
 //! `[[section.group]] title = "<カテゴリ名>"` と対応）。
 //!
-//! - [`forms`]: Forms カテゴリ 26 件（イシュー #945。当初登録した 31 件の
+//! - [`forms`]: Forms カテゴリ 28 件（イシュー #945。当初登録した 31 件の
 //!   うち 5 件は #948 と path が重複するスタブだったため PR #982 レビュー
-//!   指摘を受けて削除済み、`forms.rs` モジュール doc 参照）
+//!   指摘を受けて削除済み、#997 で Checkbox Group・#1685 で Field を
+//!   追加済み、`forms.rs` モジュール doc 参照）
 //! - [`typography`]: Typography カテゴリ追補 2 件（イシュー #995、Quote /
 //!   Strong。既存 6 件は [`crate::component_page_specs_948`] が供給済み）
 //! - [`navigation`]: Link / Link Overlay / Nav List のスタブ一括充填 3 件

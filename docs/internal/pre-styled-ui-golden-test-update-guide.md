@@ -61,7 +61,8 @@ callout / carousel / **collapsible（イシュー #1682 で golden 新設）** /
 checkbox / checkbox_card / checkbox_group /
 color_picker / color_swatch / **data_list（イシュー #1559 で golden 新設）** /
 date_input / dialog / **download_trigger（方式 b）** /
-drawer / editable / file_upload / floating_panel / highlight / hover_card /
+drawer / editable / **field（イシュー #1684 で golden 新設）** /
+file_upload / floating_panel / highlight / hover_card /
 image_cropper / **link_overlay（イシュー #1580 で golden 新設）** /
 listbox / marquee / menu / **menubar（方式 b）** /
 **navigation_menu（方式 b）** / number_input / pagination / password_input /
@@ -85,7 +86,7 @@ menubar / navigation_menu / download_trigger はファイル名こそ
 |----------------|----------|
 | `button_css.rs` | button（`download_trigger_css.rs` も button を参照する） |
 | `typography_css.rs` | heading / text / em / mark / blockquote / list / quote / strong |
-| `form_controls_css.rs` | input / textarea / native_select（`field` scope を共有） |
+| `form_controls_css.rs` | input / textarea / native_select（`field` scope を共有。recipe scope `field` 自体の 5 slot（root/label/helper-text/error-text/required-indicator）は `field_css.rs` が別ファイルで golden 化する、イシュー #1684） |
 | `image_icon_css.rs` | image / icon |
 | `tag_kbd_code_css.rs` | tag / kbd / code |
 | `table_data_list_css.rs`（方式 b） | table / data_list |
@@ -179,8 +180,11 @@ grep -l '\b<snake>::' crates/pre-styled-ui/tests/*.rs | xargs -n1 basename
 
 - セレクタ行 `[data-scope="<scope>"][data-part="<part>"]` の `scope` /
   `part` は `SlotRecipe::new(scope, SLOTS)`（`src/recipe.rs`）の宣言に由来
-  します。`field` scope を input / textarea / native_select が共有するなど、
-  複数部品が同じ scope を持つ場合があります（`form_controls_css.rs`）。
+  します。`field` scope を input / textarea / native_select / **field 本体**
+  （イシュー #1684）が共有するなど、複数部品が同じ scope を持つ場合が
+  あります（`form_controls_css.rs` が input/textarea/native_select 分、
+  `field_css.rs` が field 本体の root/label/helper-text/error-text/
+  required-indicator 分を golden 化する）。
 - `.fd-<scope>--<axis>-<value>` は variant 軸のクラス名です。
 - 属性セレクタ（`[data-*]`）や `:hover` 等の後置セレクタは
   `SlotRecipe::state`（states）由来です。

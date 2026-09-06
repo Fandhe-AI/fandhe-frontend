@@ -11,7 +11,9 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 
 ## 2. モジュール一覧（repo main 時点。crates.io 公開状況は §2a 参照）
 
-本クレートは 106 の公開モジュール + `charts` サブモジュール群を持つ
+本クレートは 108 の公開モジュール（`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs`
+の実測。`collapsible` はイシュー #1682/#1683、`field` はイシュー #1684 で追加）+
+`charts` サブモジュール群を持つ
 （`charts::bar_chart`/`charts::bar_list`/`charts::bar_segment`/
 `charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/`charts::grid`/
 `charts::legend`/`charts::tooltip`/`charts::pie`/`charts::data`/
@@ -66,6 +68,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `avatar`（§4b 参照） | [avatar](../../site/themes/avatar.md) |
 | headless ラッパー | `checkbox`（§4e 参照） | [checkbox](../../site/themes/checkbox.md) |
 | 静的フォーム部品 | `input` / `textarea` / `native_select`（§4f 参照） | [input](../../site/themes/input.md) / [textarea](../../site/themes/textarea.md) / [native-select](../../site/themes/native-select.md) |
+| 静的フォーム部品 | `field`（§4f-1 参照。ラベル・補助テキスト・エラーテキストの型階層、`orientation` 軸のみ） | [field](../../site/themes/field.md) |
 | headless ラッパー | `number_input`（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） | [number-input](../../site/themes/number-input.md) |
 | headless ラッパー | `pin_input`（`size` variant のみ） | [pin-input](../../site/themes/pin-input.md) |
 | headless ラッパー | `password_input`（`src/password_input.rs` 冒頭 rustdoc 参照） | [password-input](../../site/themes/password-input.md) |
@@ -79,7 +82,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | カード型選択 UI（styled バリエーション） | `checkbox_card` / `radio_card`（§4g 参照。headless-ui は変更なし、pre-styled 層で新規 anatomy `checkbox-card`/`radio-card` を定義。状態機械は headless `Checkbox`/`RadioGroup` を再利用） | [checkbox-card](../../site/themes/checkbox-card.md) / [radio-card](../../site/themes/radio-card.md) |
 | headless ラッパー | `combobox`（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） | [combobox](../../site/themes/combobox.md) |
 | headless ラッパー | `tree_view`（イシュー #1578 で `root` へのみクラスを付与する `size` variant（xs〜xl、既定 md。行密度・文字サイズを切り替える）を新設。`color-palette` 軸は非提供（`popover`/`tooltip` と同型の判断）。branch のインデントは CSS custom property（`--fandhe-tree-view-indent`）で表現し、DOM ネストにより深さ分が自然に累積する（`size` では上書きしない）） | [tree-view](../../site/themes/tree-view.md) |
-| headless ラッパー（`tree_view` の派生） | `json_tree_view`（構造部は `tree_view` の既存 recipe をそのまま再利用するため `tree_view` の `size` variant を継承する。JSON 固有の `key`/`value`（`data-scope="json-tree-view"`）2 パーツのみを追加する。`value` の `data-kind` へ型別配色（`string`/`number`/`bool`/`null` の 4 種、`object`/`array` は既定色のまま）を適用。本モジュール固有の `size`/`color-palette` 軸は非提供） | [json-tree-view](../../site/themes/json-tree-view.md) |
+| headless ラッパー（`tree_view` の派生） | `json_tree_view`（構造部は `tree_view` の既存 recipe をそのまま再利用するため `tree_view` の `size` variant を継承する。JSON 固有の `key`/`colon`/`value`（`data-scope="json-tree-view"`）3 パーツのうち `key`/`value` の型別配色のみを追加する。`colon` はイシュー #1661 で headless 側に新設されたが本モジュールでは意図的に未スタイル。`value` の `data-kind` へ型別配色（`string`/`number`/`boolean`/`null` の 4 種、`object`/`array` は既定色のまま）を適用。本モジュール固有の `size`/`color-palette` 軸は非提供） | [json-tree-view](../../site/themes/json-tree-view.md) |
 | headless ラッパー | `pagination`（`size`/`color-palette` 両軸提供） | [pagination](../../site/themes/pagination.md) |
 | headless ラッパー | `steps`（`size`/`color-palette` 両軸。`fandhe_frontend_headless_ui::steps` が自由関数を持たず全パーツが `Steps` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Steps` を受け取る点が他コンポーネントと異なる。PR #1814 codex-review 対応で追加した `body`（`data-scope="steps" data-part="body"`）のみ headless に対応物を持たない pre-styled-ui 専用のグルーピングパーツで、`state: &Steps` を取らずプレーンな `<div>` を直接構築する。縦向き（`Orientation::Vertical`）で `root` が `flex-direction: row` へ切り替わる際、`list` 以外を `body` でまとめて `root` 直下を `list`/`body` の 2 要素に保つ契約〔`steps::root` rustdoc 参照〕） | [steps](../../site/themes/steps.md) |
 | headless ラッパー | `breadcrumb`（状態機械なし。`size`/`BreadcrumbVariant`（`link` の下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への伝搬は root スコープ CSS custom property の継承で行う） | [breadcrumb](../../site/themes/breadcrumb.md) |
@@ -95,6 +98,7 @@ release ワークフロー節を参照。本ドキュメントの自動更新は
 | headless ラッパー | `toast`（`placement`（`group` slot）/`status`（`root` slot、`ColorPalette` 6 役割束ね〔`palette_scale_declarations`〕による淡色面配色。イシュー #1544）の 2 軸 variant を持つが、各軸が別 slot へ付与されるため `variant_class`（単一軸専用 API）をスロットごとに個別に呼ぶ。`Toaster` 状態機械は再エクスポートしない。#1545: action-trigger/close-trigger の hover/focus/disabled・`root` の mount 時 enter 遷移（`@keyframes fd-toast-enter`）・`group`/`root` のスタック配置固定幅化を追加。`close-trigger` はアイコン専用契約への破壊的変更（0.64.0）。タイマー自動 dismiss・`ActionTrigger` の動作配線は wasm-full 後続のスコープ外） | [toast](../../site/themes/toast.md) |
 | headless ラッパー | `hover_card`（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） | [hover-card](../../site/themes/hover-card.md) |
 | headless ラッパー | `toggle_tip`（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） | [toggle-tip](../../site/themes/toggle-tip.md) |
+| headless ラッパー | `collapsible`（glob 再エクスポート。参照 3 サイト（chakra-ui/Ark UI/Radix Primitives）のいずれも `size`/`variant`/`color-palette` を持たないため variant 軸は非提供。開閉時の高さアニメーションは JS 計測の関心のため非採用。イシュー #1682/#1683） | [collapsible](../../site/themes/collapsible.md) |
 | headless ラッパー | `progress`（イシュー #1564。headless の値状態機械 `Progress` が持つ Track/Range（linear）と Circle/CircleTrack/CircleRange（SVG、circular）の両方へ CSS を追加提供。`Progress` 型はあえて再エクスポートせず、`ProgressProps`（`size`/`variant`/`color-palette` の 3 軸）を付与する styled `root` と、determinate 時のみ `--fandhe-progress-percent` を付与する styled `range` の 2 つを新設する。track/circle 系は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時のアニメーション（linear は横スライド・circular は回転）は `[data-part="..."][data-state="indeterminate"]` セレクタ + `@keyframes` で提供し、`prefers-reduced-motion: reduce` で停止する） | [progress](../../site/themes/progress.md) |
 | 単純 styled 部品（静的） | `tag` / `kbd` / `code`（`tag` は `variant`（Solid/Subtle（既定）/Outline/Surface の 4 値、イシュー #1573 で Surface を追加）/`size`/`color-palette` の 3 軸 variant を持つ root/label/close-trigger の 3 パーツ。`badge` と同型の判断。close-trigger は状態機械を持たず `data-action` 属性の出力のみを担う。`kbd`/`code` は variant 軸を持たない単一 slot） | [tag](../../site/themes/tag.md) / [kbd](../../site/themes/kbd.md) / [code](../../site/themes/code.md) |
 | 状態機械を要しない静的部品 | `status` / `empty_state`（§4h 参照。`status` は `size`/`color-palette` の 2 軸、`empty_state` は `card` と同型の中立コンテナで `color-palette` 軸は非提供） | [status](../../site/themes/status.md) / [empty-state](../../site/themes/empty-state.md) |
@@ -627,6 +631,36 @@ root/control/indicator/label/hidden-input 5 anatomy パーツを選択的に
   挙動をそのまま残す最小サブセットとする。`<select readonly>` が HTML
   仕様上無効なためネイティブ `readonly` を出力しない判断は headless 層に
   委譲済みで、本モジュールは再実装しない。
+
+### 4f-1. `field`（ラベル・補助テキスト・エラーテキストの型階層、イシュー #1684）
+
+`field` モジュールは `fandhe_frontend_headless_ui::field` の anatomy へ、
+ラベル・補助テキスト・エラーテキスト・必須マークの型階層と `root` の
+余白レイアウトを重ねる薄い委譲層である。`input`/`textarea`/`native_select`
+（§4f）と同じく `"field"` recipe scope を共有するが、宣言する slot は
+`root`/`label`/`helper-text`/`error-text`/`required-indicator` の 5 つのみで、
+`input`/`textarea`/`select` slot は宣言しない（§4f の 3 モジュールが引き
+続き所有する）。
+
+- **公開 API**: `root(&FieldRootProps, &FieldProps<'_>, attrs, children)`
+  （見た目 variant クラスを重ねて headless `field::root` へ委譲）、
+  `FieldOrientation`（`orientation` 軸、`Vertical` 既定 /`Horizontal`）、
+  `FieldRootProps`。`label`/`helper_text`/`error_text`/`required_indicator`/
+  `FieldIds`/`FieldProps` は headless からの選択的再エクスポート（見た目は
+  属性セレクタのみで到達するため styled 側の再定義は不要）。
+- **`orientation` 軸のみ**: `size`/`color-palette` 軸は持たない（子の寸法に
+  従属するレイアウト部品の root は size 軸を持たないという規約、フォーム
+  入力系は palette 非提供という §4f と同じ判断）。
+- **意図的非採用**: hover（`root`/`label` は非インタラクティブ）・focus
+  ring（実フォーカスはコントロール側）・transition（状態遷移する視覚が
+  ない）・`data-readonly`/`data-invalid` によるラベル色変更（chakra-ui v3
+  も持たない）。
+- **バリデーション責務外**: `docs/policy/intentional-non-adoption.md`
+  §3.25 規則 1 のとおり、本モジュールは headless が出す
+  `data-invalid`/`data-disabled`/`data-required` を CSS セレクタとして
+  参照するだけで、値の妥当性判定・送信処理は実装しない。
+- **docs サイト**: [field](../../site/themes/field.md)（イシュー #1685 で
+  `/themes/field/` ページ登録・showcase Demo・`SPEC_TABLES` 原稿を追加）。
 
 ## 4g. `checkbox_card`/`radio_card`（カード型選択 UI）
 

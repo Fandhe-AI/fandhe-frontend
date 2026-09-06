@@ -43,6 +43,50 @@
 //!   立てない。
 //! - `data-orientation` 値語彙は [`crate::data_attrs::Orientation`] に
 //!   一元化されており、本モジュールで独自の値を作らない。
+//!
+//! # 参考サイトとの突合（イシュー #1662）
+//!
+//! ark-ui/Zag.js（`scroll-area.anatomy.ts`）・Radix Primitives
+//! （`packages/react/scroll-area`）・chakra-ui・Radix Themes（Primitives
+//! 上のスタイル層）と本モジュールの anatomy / `data-*` / ARIA /
+//! キーボード操作を突合した。
+//!
+//! - **anatomy**: ark-ui/Zag.js（root/viewport/content/scrollbar/thumb/corner
+//!   の 6 パーツ）と完全一致。Radix Primitives は `content` を持たない
+//!   （viewport 内部に自前生成する実装差）が、ark-ui/chakra-ui との一致を
+//!   優先し `content` を維持する。パートの増減なし（Themes 側イシュー
+//!   #1584 は closed 済みで通知不要）。
+//! - **`data-*`（意図的に採用しない値）**: Zag.js の `data-overflow-x/y`・
+//!   `data-at-top/bottom/left/right`・`data-hover`・`data-scrolling`・
+//!   `data-dragging`、Radix の `data-state="visible"|"hidden"` は、いずれも
+//!   DOM 計測（overflow 有無・端到達）またはポインタ操作の実行時状態から
+//!   導出される値であり、SSR の静的マークアップでは真の値を決定できない。
+//!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2（装飾・
+//!   レイアウト計測の関心を headless-ui へ持ち込まない）と、本ファイル
+//!   冒頭「スコープ外」節（#825 由来）に基づき非採用とする。固定値
+//!   （例: 常に `data-state="hidden"`）を出力すると実態と乖離するため
+//!   出力しない。
+//! - **ARIA**: Zag.js が付与する `role="presentation"` は追加しない。
+//!   viewport は `tabindex="0"` を固定付与しておりフォーカス可能なため、
+//!   WAI-ARIA 1.2 §5.4「Presentational Roles Conflict Resolution」により
+//!   `presentation` は UA に無視され、Radix 側（`role` 非付与）とも整合
+//!   する。viewport の `tabindex="0"` 固定は維持する（SSR では overflow の
+//!   有無を判定できず、WCAG 2.1.1・axe `scrollable-region-focusable` に
+//!   対して安全側に倒す）。`scrollbar`/`corner` の `aria-hidden="true"` は
+//!   両参照にはない本実装独自の付与だが、いずれも可読コンテンツを持たない
+//!   非フォーカス装飾要素であり、ネイティブスクロールバーとの意味重複を
+//!   明示する目的で維持する。
+//! - **キーボード操作**: Radix docs は「ネイティブスクロールに依拠し
+//!   キーボードスクロールは既定で対応、プラットフォーム差があるため個別
+//!   キーは規定せず独自のキーイベントリスナも追加しない」と明記する。
+//!   ark-ui/chakra-ui にもキーボード表はない。本モジュールも独自の
+//!   キーハンドラを持たず、この点は参照と整合する（是正は docs-site 原稿
+//!   側でネイティブキー一覧を明示する形で対応、コード変更なし）。
+//! - **是正した実装上の欠陥**: 呼び出し側 `attrs` による固定属性
+//!   （viewport の `tabindex`、scrollbar の `aria-hidden`/`data-orientation`、
+//!   thumb の `data-orientation`、corner の `aria-hidden`）のなりすまし・
+//!   重複出力を防ぐため [`drop_reserved`] を導入した（`crate::breadcrumb`
+//!   と同型）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::aria_hidden;
@@ -51,6 +95,33 @@ use fandhe_frontend_core::Node;
 
 /// ScrollArea の anatomy（`data-scope="scroll-area"`）。
 const ANATOMY: Anatomy = anatomy("scroll-area");
+
+/// [`viewport`] が固定付与する予約キー（イシュー #1662）。
+const VIEWPORT_RESERVED: &[&str] = &["tabindex"];
+
+/// [`scrollbar`] が固定付与する予約キー（イシュー #1662）。
+const SCROLLBAR_RESERVED: &[&str] = &["aria-hidden", "data-orientation"];
+
+/// [`thumb`] が固定付与する予約キー（イシュー #1662）。
+const THUMB_RESERVED: &[&str] = &["data-orientation"];
+
+/// [`corner`] が固定付与する予約キー（イシュー #1662）。
+const CORNER_RESERVED: &[&str] = &["aria-hidden"];
+
+/// 呼び出し側 `attrs` から予約キー（本モジュールが固定付与する属性名）を
+/// 除去する（ASCII 大文字小文字無視の完全一致）。`fandhe_frontend_core::el`
+/// は属性の重複除去をしないため、これを経由しない呼び出しは同名属性の
+/// 重複出力・状態属性のなりすましを許してしまう（`crate::breadcrumb::drop_reserved`
+/// と同型、イシュー #1662）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
 
 /// Root パーツ（`div`）。ScrollArea 全体の外枠。
 #[must_use]
@@ -66,6 +137,7 @@ pub fn root(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// `aria-labelledby` を `attrs` へ付与することを推奨する。
 #[must_use]
 pub fn viewport(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, VIEWPORT_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![("tabindex", "0")];
     merged.extend(attrs);
     ANATOMY.part("viewport", "div", merged, children)
@@ -83,6 +155,7 @@ pub fn content(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// 意味が重複する装飾要素であるため `aria-hidden="true"` を固定で付与する。
 #[must_use]
 pub fn scrollbar(orientation: Orientation, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, SCROLLBAR_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![aria_hidden(true), data_orientation(orientation)];
     merged.extend(attrs);
     ANATOMY.part("scrollbar", "div", merged, children)
@@ -91,6 +164,7 @@ pub fn scrollbar(orientation: Orientation, attrs: Vec<(&str, &str)>, children: V
 /// Thumb パーツ（`div`）。[`scrollbar`] の中でスクロール位置を示すつまみ。
 #[must_use]
 pub fn thumb(orientation: Orientation, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, THUMB_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![data_orientation(orientation)];
     merged.extend(attrs);
     ANATOMY.part("thumb", "div", merged, children)
@@ -101,6 +175,7 @@ pub fn thumb(orientation: Orientation, attrs: Vec<(&str, &str)>, children: Vec<N
 /// [`scrollbar`] と同じく装飾要素のため `aria-hidden="true"` を固定で付与する。
 #[must_use]
 pub fn corner(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, CORNER_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![aria_hidden(true)];
     merged.extend(attrs);
     ANATOMY.part("corner", "div", merged, children)
@@ -169,6 +244,79 @@ mod tests {
         assert!(html.contains(r#"data-scope="scroll-area""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    // --- 予約キー除去回帰（イシュー #1662、`crate::breadcrumb` と同型） ---
+
+    #[test]
+    fn caller_reserved_keys_are_dropped_case_insensitively() {
+        let viewport_html = render(&viewport(vec![("TABINDEX", "-1")], vec![]));
+        assert!(viewport_html.contains(r#"tabindex="0""#));
+        assert!(!viewport_html.contains(r#"tabindex="-1""#));
+
+        let scrollbar_html = render(&scrollbar(
+            Orientation::Vertical,
+            vec![("Aria-Hidden", "false"), ("DATA-ORIENTATION", "horizontal")],
+            vec![],
+        ));
+        assert!(scrollbar_html.contains(r#"aria-hidden="true""#));
+        assert!(!scrollbar_html.contains(r#"aria-hidden="false""#));
+        assert!(scrollbar_html.contains(r#"data-orientation="vertical""#));
+        assert!(!scrollbar_html.contains(r#"data-orientation="horizontal""#));
+
+        let thumb_html = render(&thumb(
+            Orientation::Horizontal,
+            vec![("Data-Orientation", "vertical")],
+            vec![],
+        ));
+        assert!(thumb_html.contains(r#"data-orientation="horizontal""#));
+        assert!(!thumb_html.contains(r#"data-orientation="vertical""#));
+
+        let corner_html = render(&corner(vec![("ARIA-HIDDEN", "false")], vec![]));
+        assert!(corner_html.contains(r#"aria-hidden="true""#));
+        assert!(!corner_html.contains(r#"aria-hidden="false""#));
+    }
+
+    // --- 規則 2 ガード: 参照サイトの計測・ポインタ由来 data-* を出力しない
+    //     （`docs/policy/intentional-non-adoption.md` §3.25 規則 2、イシュー #1662） ---
+
+    #[test]
+    fn no_part_outputs_measurement_or_pointer_derived_state() {
+        let html = render(&root(
+            vec![],
+            vec![viewport(
+                vec![],
+                vec![
+                    content(vec![], vec![text("body")]),
+                    scrollbar(
+                        Orientation::Vertical,
+                        vec![],
+                        vec![thumb(Orientation::Vertical, vec![], vec![])],
+                    ),
+                    corner(vec![], vec![]),
+                ],
+            )],
+        ));
+        for forbidden in [
+            "data-state",
+            "data-overflow-x",
+            "data-overflow-y",
+            "data-at-top",
+            "data-at-bottom",
+            "data-at-left",
+            "data-at-right",
+            "data-hover",
+            "data-scrolling",
+            "data-dragging",
+            "data-ownedby",
+            " dir=",
+            " id=",
+        ] {
+            assert!(
+                !html.contains(forbidden),
+                "unexpected attribute `{forbidden}` in: {html}"
+            );
+        }
     }
 
     // --- XSS 回帰: attrs/children にペイロードを渡してもエスケープされる ---
