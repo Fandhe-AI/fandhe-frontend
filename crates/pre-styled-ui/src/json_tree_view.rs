@@ -2,11 +2,13 @@
 //! `docs/policy/intentional-non-adoption.md` §7・
 //! `docs/design/component-coverage-map.md` の保留解除）。
 //!
-//! `fandhe_frontend_headless_ui::json_tree_view`（イシュー #829）の
-//! [`JsonValue`]・[`TreeView`]・[`render_json`]・[`expanded_to_depth`]・
-//! `key`/`value` の 2 anatomy パーツをそのまま再エクスポートし（`pub use
-//! ...::*`、[`crate::tree_view`] と同型の薄い委譲）、[`stylesheet`] で
-//! 型別配色の既定 CSS を追加提供する。
+//! `fandhe_frontend_headless_ui::json_tree_view`（イシュー #829、
+//! anatomy 突合はイシュー #1661）の [`JsonValue`]・[`TreeView`]・
+//! [`render_json`]・[`expanded_to_depth`]・`key`/`colon`/`value` の
+//! 3 anatomy パーツをそのまま再エクスポートし（`pub use ...::*`、
+//! [`crate::tree_view`] と同型の薄い委譲）、[`stylesheet`] で型別配色の
+//! 既定 CSS を追加提供する。`colon` は本モジュールが `SLOTS`/`stylesheet`
+//! へ含めない意図的未スタイルパーツ（下記「意図的非採用」節参照）。
 //!
 //! # tree_view（#753）styled recipe との関係
 //!
@@ -15,8 +17,9 @@
 //! `data-scope="tree-view"`）は headless 層が [`fandhe_frontend_headless_ui::tree_view`]
 //! の既存パーツ関数をそのまま呼ぶため、[`crate::tree_view::stylesheet`]
 //! （インデント・開閉・選択・focus-visible の CSS）がそのまま適用される。
-//! 本モジュールの [`stylesheet`] は JSON 固有の 2 パーツ（`key`/`value`、
-//! `data-scope="json-tree-view"`）の型別配色のみを追加する。呼び出し側は
+//! 本モジュールの [`stylesheet`] は JSON 固有パーツのうち `key`/`value`
+//! （`data-scope="json-tree-view"`）の型別配色のみを追加する（`colon` は
+//! 意図的未スタイル、下記「意図的非採用」節参照）。呼び出し側は
 //! 両方の `stylesheet()` を併用する必要がある（`docs-site` showcase の
 //! 呼び出し例を参照）。
 //!
@@ -36,7 +39,7 @@
 //! [`fandhe_frontend_headless_ui::json_tree_view::JsonValue::kind`] が返す
 //! 6 種の `data-kind` 値へ [`StateCondition::AttrEq`] で反応し、既定 Theme の
 //! セマンティックトークンへマップする: `string` → success-fg-subtle /
-//! `number` → info-fg-subtle / `bool` → warning-fg-subtle（+ semibold） /
+//! `number` → info-fg-subtle / `boolean` → warning-fg-subtle（+ semibold） /
 //! `null` → fg-muted（+ semibold + italic） / `object`・`array`
 //! （ブランチ要約、`data-kind` はコンテナ側の型を表す）→ italic のみ追加 /
 //! `key` → fg（既定文字色のまま、配色分岐なし。medium）。
@@ -54,7 +57,7 @@
 //!    （`theme.rs` の契約テストにも「大字・UI 部品 3:1」ペアとしてのみ登録
 //!    されており、`font-size-sm` の地の文字色としては不適切）。`<palette>-fg-subtle`
 //!    （ark の `fg.<palette>` 相当のテキスト用トークン）はライト 9.4〜10.1:1・
-//!    ダーク 11.0〜13.3:1 を満たすため、`string`/`number`/`bool` の 3 色を
+//!    ダーク 11.0〜13.3:1 を満たすため、`string`/`number`/`boolean` の 3 色を
 //!    `success-fg-subtle`/`info-fg-subtle`/`warning-fg-subtle` へ置換した。
 //! 2. **monospace フォント**: 参照は `tree`/`key`/`value` 全体が `fontFamily: mono`。
 //!    `tree` 側のフォントは [`crate::tree_view`]（#1578）の所掌のため、本
@@ -62,7 +65,7 @@
 //!    var(--fandhe-font-font-mono)` を追加した（JSON 表示固有の関心）。
 //! 3. **`key` の太さ**: 参照は `[data-kind="key"]` に `fontWeight: medium`。
 //!    `key` パーツに `font-weight: medium` を追加した。
-//! 4. **`bool`/`null` の強調**: 参照は `boolean` → `fontWeight: semibold`、
+//! 4. **`boolean`/`null` の強調**: 参照は `boolean` → `fontWeight: semibold`、
 //!    `null`/`undefined` → `fontWeight: semibold` + `fontStyle: italic`。
 //!    それぞれ追加した。
 //! 5. **`object`/`array`（折りたたみ時の要約表示）の斜体**: 参照の
@@ -77,10 +80,13 @@
 //!   `success-fg-subtle` を採用しているため、`key` まで緑にすると同一画面内
 //!   で意味の異なる 2 箇所が同色になり判読性を損なう。当リポジトリでは
 //!   `key` の既定文字色（fg）を維持する。
-//! - **colon（`:`）区切りの装飾**: anatomy（構造）に colon パーツが存在せず
-//!   （headless #1661 が anatomy 突合の対象）、CSS 生成コンテンツ（`::after`
-//!   等）での擬似的な追加は #1661 が将来 colon パーツを追加した際の二重表示
-//!   を招くため、本 PR では追加しない。
+//! - **colon（`:`）パーツの装飾を追加しない**: headless #1661 で `colon`
+//!   anatomy パーツ（`data-part="colon"`、固定テキスト `": "`）が追加済み
+//!   （`SLOTS`/`recipe()` へは含めていない）。追加時点で装飾（色・
+//!   フォント等）を与える受け入れ条件が定まっていないため、意図的に
+//!   未スタイルのまま据え置く（`key`/`value` の既定色をそのまま継承する
+//!   ブラウザ既定表示となる）。装飾が必要になった時点で本モジュールの
+//!   後続判断として `SLOTS`/`recipe()` へ追加する。
 //! - **`tree`/`branch-control`/`item` の hover・フォーカスリング・
 //!   トランジション・`font-size`**: [`crate::tree_view`] スコープの所掌であり
 //!   （イシュー #1578 で是正済み）、`json-tree-view` スコープには持ち込まない
@@ -106,10 +112,14 @@ pub use fandhe_frontend_headless_ui::json_tree_view::*;
 pub use fandhe_frontend_headless_ui::state::{MultiSelectAction, OpenState, SingleSelectAction};
 pub use fandhe_frontend_headless_ui::tree_view::TreeViewAction;
 
-/// headless `json-tree-view` anatomy の `data-part` 一覧（`crates/headless-ui/src/json_tree_view.rs`
-/// の `ANATOMY.part(...)` 呼び出しと同期させる契約。[`crate::tree_view::SLOTS`]
-/// と同じ理由でずれると [`stylesheet`] が一部パーツの CSS を出力しない
-/// fail-closed 側の不具合として現れる）。
+/// styled 対象の headless `json-tree-view` anatomy `data-part` 一覧。
+/// headless 側の `ANATOMY.part(...)` 呼び出し（`crates/headless-ui/src/
+/// json_tree_view.rs`）は `key`/`colon`/`value` の 3 パーツを持つが、
+/// `colon` は意図的に未スタイル（モジュール doc「意図的非採用」節参照）の
+/// ため本 `SLOTS` には含めない。`key`/`value` の 2 件が過不足なく含まれる
+/// ことは同期させる契約（[`crate::tree_view::SLOTS`] と同じ理由でずれると
+/// [`stylesheet`] が一部パーツの CSS を出力しない fail-closed 側の不具合
+/// として現れる）。
 const SLOTS: &[&str] = &["key", "value"];
 
 /// この styled JsonTreeView の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
@@ -154,7 +164,7 @@ fn recipe() -> SlotRecipe {
         )
         .state(
             "value",
-            StateCondition::AttrEq("data-kind", "bool"),
+            StateCondition::AttrEq("data-kind", "boolean"),
             // イシュー #1563: 旧 `--fandhe-color-warning` はライト 3.64:1 で
             // 本文相当 4.5:1 未達だったため `-fg-subtle` へ置換。参照の
             // `boolean` → `fontWeight: semibold` も追加。
@@ -215,7 +225,7 @@ mod tests {
     #[test]
     fn stylesheet_declares_selector_per_kind() {
         let css = stylesheet();
-        for kind in ["string", "number", "bool", "null", "object", "array"] {
+        for kind in ["string", "number", "boolean", "null", "object", "array"] {
             assert!(
                 css.contains(&format!(
                     r#"[data-scope="json-tree-view"][data-part="value"][data-kind="{kind}"]"#
@@ -271,13 +281,13 @@ mod tests {
         ));
     }
 
-    /// イシュー #1563: `bool` は semibold、`null` は semibold + italic を
+    /// イシュー #1563: `boolean` は semibold、`null` は semibold + italic を
     /// 参照（ark-ui）基準で追加した宣言が出力に含まれることを固定する。
     #[test]
     fn bool_and_null_declare_weight_and_style() {
         let css = stylesheet();
         assert!(css.contains(
-            r#"[data-scope="json-tree-view"][data-part="value"][data-kind="bool"] {
+            r#"[data-scope="json-tree-view"][data-part="value"][data-kind="boolean"] {
   color: var(--fandhe-color-warning-fg-subtle);
   font-weight: var(--fandhe-font-font-weight-semibold);
 }"#

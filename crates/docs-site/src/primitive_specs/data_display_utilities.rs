@@ -384,9 +384,59 @@ fn ex_json_tree_view_collapsed_array() -> Node {
     json_tree_view::render_json(&tree, &value)
 }
 
+/// 自前 CSS の最小例（イシュー #1661、`AVATAR_CUSTOM_CSS_SNIPPET` と同型の
+/// パターン）。CSS はテキストノード（[`code`]/[`pre`]）として既定
+/// エスケープを経由し、`crate::primitive_showcase` の専用スタイルシート
+/// （`[data-scope=`/`[data-part=` を持たない契約、`tests/site_css_contract.rs`）
+/// へは追加しない。json-tree-view スコープ（`key`/`colon`/`value`）と
+/// tree-view スコープ（構造部）の 2 スコープが併存する事実を正直に示す
+/// （両方に触れなければ見た目が完成しないことを明示する）。
+const JSON_TREE_VIEW_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"tree-view\"][data-part=\"branch-content\"][hidden] {\n  \
+  display: none;\n\
+}\n\
+[data-scope=\"tree-view\"][data-part=\"branch-indent-guide\"] {\n  \
+  width: 1rem;\n\
+}\n\
+[data-scope=\"json-tree-view\"][data-part=\"key\"] {\n  \
+  color: #7c3aed;\n  font-family: monospace;\n\
+}\n\
+[data-scope=\"json-tree-view\"][data-part=\"colon\"] {\n  \
+  color: #6b7280;\n\
+}\n\
+[data-scope=\"json-tree-view\"][data-part=\"value\"][data-kind=\"string\"] {\n  \
+  color: #059669;\n  font-family: monospace;\n\
+}\n\
+[data-scope=\"json-tree-view\"][data-part=\"value\"][data-kind=\"number\"] {\n  \
+  color: #2563eb;\n  font-family: monospace;\n\
+}\n";
+
+/// [`JSON_TREE_VIEW_CUSTOM_CSS_SNIPPET`] を実演する例（Collapsed array と
+/// 同じ `depth=0` の配列を使い回す）。
+fn ex_json_tree_view_custom_css() -> Node {
+    let value = JsonValue::Array(vec![
+        JsonValue::Number(1.0),
+        JsonValue::String("two".to_string()),
+    ]);
+    let tree = json_tree_view::expanded_to_depth(&value, 1);
+    wrap_example(
+        "json-tree-view スコープ（key/colon/value）と tree-view スコープ（構造部）の両方に data-scope / data-part / data-kind 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            json_tree_view::render_json(&tree, &value),
+            pre(
+                vec![],
+                vec![code(
+                    vec![],
+                    vec![text(JSON_TREE_VIEW_CUSTOM_CSS_SNIPPET)],
+                )],
+            ),
+        ],
+    )
+}
+
 pub const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "実装済み crate::tree_view（イシュー #753）の 12 anatomy パーツ・状態機械 TreeView を再利用し、JSON 固有の key/value 2 パーツのみを追加する（json_tree_view.rs:1-29）。",
+        "実装済み crate::tree_view（イシュー #753）の 12 anatomy パーツ・状態機械 TreeView を再利用し、JSON 固有の key/colon/value 3 パーツを branch-text/item-text の内側へ入れ子にして追加する（json_tree_view.rs:1-35、colon はイシュー #1661 で ark-ui/zag 突合により追加）。",
         "Object は HashMap ではなく挿入順を保持する Vec<(String, JsonValue)> で表現し、render_json の出力が決定的（バイト単位で一致）である（json_tree_view.rs:31-37,118-136）。",
         "ノード識別子に RFC 6901 JSON Pointer を用い、key に `/`/`~` を含むデータでも一意性が壊れない（json_tree_view.rs:39-46,180-192）。",
         "role/aria-*（role=\"tree\"/\"treeitem\"/\"group\"、aria-expanded/aria-selected/aria-level/aria-posinset/aria-setsize）はすべて crate::tree_view のパーツ関数から継承する（json_tree_view.rs:16-24）。",
@@ -414,15 +464,57 @@ pub const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
             name: "value: kind",
             kind: "&'static str",
             default: "",
-            description: "JsonValue::kind() が返す固定語彙（\"null\"/\"bool\"/\"number\"/\"string\"/\"array\"/\"object\"）のみを受け取る data-kind 属性値（json_tree_view.rs:138-153,201-209）。",
+            description: "JsonValue::kind() が返す固定語彙（\"null\"/\"boolean\"/\"number\"/\"string\"/\"array\"/\"object\"）のみを受け取る data-kind 属性値（イシュー #1661 で \"bool\" から \"boolean\" へ変更、json_tree_view.rs:138-153,201-209）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Collapsed array",
-        description: "depth=0（全ブランチ折りたたみ）で描画した配列の例です（Demo は depth=2 まで展開済みのオブジェクト）。",
-        render: ex_json_tree_view_collapsed_array,
-    }],
-    keyboard: &[],
+    examples: &[
+        ExampleEntry {
+            title: "Collapsed array",
+            description: "depth=0（全ブランチ折りたたみ）で描画した配列の例です（Demo は depth=2 まで展開済みのオブジェクト）。",
+            render: ex_json_tree_view_collapsed_array,
+        },
+        ExampleEntry {
+            title: "Custom CSS for key/colon/value",
+            description: "本モジュールが型別配色を提供しない headless 部品のため、キー・区切り・値の 3 パーツへ自前 CSS を当てる最小例です（json-tree-view スコープのみを対象とし、構造部の tree-view スコープには触れません）。",
+            render: ex_json_tree_view_custom_css,
+        },
+    ],
+    // イシュー #1661: tree-view 構造部（branch/branch-control/item 等）は
+    // json_tree_view でも data-scope="tree-view" のまま出力されるため、
+    // `fandhe-frontend-wasm-full` の `keynav.rs::handle_tree_view_keydown`
+    // （`TREE_VIEW_TREE_SELECTOR`/`TREE_VIEW_ITEM_SELECTOR` で
+    // `[data-scope="tree-view"]` を探索）がそのまま適用される（継承元:
+    // `crates/wasm-full/src/keynav.rs`、イシュー #1072）。
+    keyboard: &[
+        KeyRow {
+            key: "ArrowDown / ArrowUp",
+            description: "可視かつ disabled でない treeitem 間で 1 件ずつフォーカス移動する（折りたたみ中の子孫はスキップ、非循環）。",
+        },
+        KeyRow {
+            key: "ArrowRight",
+            description: "閉じたブランチは展開する。開いたブランチは最初の子へフォーカス移動する。葉ノードでは no-op。",
+        },
+        KeyRow {
+            key: "ArrowLeft",
+            description: "開いたブランチは折りたたむ。それ以外（葉ノード・閉じたブランチ）は親ブランチへフォーカス移動する（ルート直下では no-op）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "可視かつ disabled でない最初/最後の treeitem へフォーカス移動する。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "葉ノードは選択（select）、ブランチは開閉（toggle）を発火する。",
+        },
+        KeyRow {
+            key: "印字可能文字",
+            description: "typeahead: 直近の入力から一致する treeitem へフォーカス移動する。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "typeahead バッファをリセットするのみ（TreeView は常時展開のツリーであり閉じる操作を持たない）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role=\"tree\" / role=\"treeitem\" / role=\"group\"",

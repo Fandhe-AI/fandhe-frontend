@@ -1813,12 +1813,20 @@ pub(super) const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
 
 /// Demo（`pagination_section`）は Button モード中心（一部 Link）。ここでは
 /// plan 方針どおり `ItemMode::Link` のみで統一した SSR/SEO 向け構成を実演
-/// する。
+/// する。イシュー #1655 で first/last trigger を追加した。
 fn ex_pagination() -> Node {
     example_wrap(vec![pagination::root(
         "Search results pagination",
         vec![],
         vec![
+            pagination::first_trigger(
+                ItemMode::Link {
+                    href: "https://example.com/search?page=1",
+                },
+                true,
+                vec![],
+                vec![text("First")],
+            ),
             pagination::prev_trigger(
                 ItemMode::Link {
                     href: "https://example.com/search?page=1",
@@ -1831,6 +1839,7 @@ fn ex_pagination() -> Node {
                 ItemMode::Link {
                     href: "https://example.com/search?page=1",
                 },
+                1,
                 true,
                 false,
                 vec![],
@@ -1840,6 +1849,7 @@ fn ex_pagination() -> Node {
                 ItemMode::Link {
                     href: "https://example.com/search?page=2",
                 },
+                2,
                 false,
                 false,
                 vec![],
@@ -1853,24 +1863,34 @@ fn ex_pagination() -> Node {
                 vec![],
                 vec![text("Next")],
             ),
+            pagination::last_trigger(
+                ItemMode::Link {
+                    href: "https://example.com/search?page=2",
+                },
+                false,
+                vec![],
+                vec![text("Last")],
+            ),
         ],
     )])
 }
 
 /// `/primitives/pagination/`。
 ///
-/// 一次情報: `crates/headless-ui/src/pagination.rs:1-69`（モジュール doc）、
-/// `:124-193`（`page_range`）、`:209-326`（`root`/`item`/`ellipsis`/
-/// `prev_trigger`/`next_trigger` シグネチャ）、`:216`/`:261`/`:272`
-/// （`aria-current="page"`/`data-selected`/`aria-hidden`/`aria-disabled`
-/// の実出力）、`:327-340`/`:341-546`（`PaginationAction`/`Pagination` の
-/// doc）。
+/// 一次情報: `crates/headless-ui/src/pagination.rs`（モジュール doc「参考
+/// サイトとの突合」節、`page_range`、`root`/`item`/`ellipsis`/
+/// `prev_trigger`/`next_trigger`/`first_trigger`/`last_trigger`
+/// シグネチャ、`aria-current="page"`/`data-selected`/`data-index`/
+/// `aria-hidden`/`aria-disabled` の実出力、`PaginationAction`/`Pagination`
+/// の doc）。ark-ui との参照突合はイシュー #1655。
 pub(super) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "ページ送り。Root / Item / Ellipsis / PrevTrigger / NextTrigger の 5 anatomy パーツを持つ（pagination.rs モジュール doc）。",
+        "ページ送り。Root / Item / Ellipsis / PrevTrigger / NextTrigger / FirstTrigger / LastTrigger の 7 anatomy パーツを持つ（pagination.rs モジュール doc、FirstTrigger/LastTrigger はイシュー #1655 で ark-ui との突合により追加）。",
         "page_range は総件数・ページサイズ・現在ページ・sibling/boundary 件数から省略記号を含むページ列を O(boundary_count + sibling_count) で決定的に導出する純粋関数（total_pages を全列挙しないため巨大 count 入力でも有界、DoS 対策）。",
         "Button（クリックで dispatch する SPA 向け）/ Link（href 起点の SSR・SEO 向け）の 2 つの ItemMode に両対応する。",
-        "data-state を持たない（連続的なページ位置を扱うため）。現在ページは item の aria-current=\"page\"/data-selected、端到達は prev_trigger/next_trigger の disabled/data-disabled で表現する。",
+        "data-state を持たない（連続的なページ位置を扱うため）。現在ページは item の aria-current=\"page\"/data-selected、端到達は prev_trigger/next_trigger/first_trigger/last_trigger の disabled/data-disabled で表現する。",
+        "item は data-index（ページ番号の 10 進数文字列）を常時出力する（ark-ui の Item Data Attributes 表準拠、イシュー #1655 で追加）。",
+        "呼び出し側 attrs によるフレームワーク固定キー（data-selected/data-index/aria-current/href/type/disabled/aria-disabled/data-disabled/aria-hidden）の偽装は各パーツが fail-closed に除去する（イシュー #1655）。",
     ],
     arguments: &[
         ArgRow {
@@ -1886,6 +1906,12 @@ pub(super) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
             description: "Button（button type=\"button\"）/ Link（a href）のいずれで描画するかを選ぶ。",
         },
         ArgRow {
+            name: "item(page)",
+            kind: "u64",
+            default: "",
+            description: "ページ番号。data-index として 10 進数文字列で出力される（イシュー #1655）。",
+        },
+        ArgRow {
             name: "item(current)",
             kind: "bool",
             default: "",
@@ -1897,17 +1923,40 @@ pub(super) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
             default: "",
             description: "Button モードのみネイティブ disabled を出力。両モード共通で aria-disabled/data-disabled を出力する。",
         },
+        ArgRow {
+            name: "first_trigger(disabled) / last_trigger(disabled)",
+            kind: "bool",
+            default: "",
+            description: "先頭・末尾ページへ移動するトリガー（イシュー #1655 で新設）。prev_trigger/next_trigger と同じ disabled 契約。",
+        },
     ],
     examples: &[ExampleEntry {
         title: "ItemMode::Link のみで構成した SSR/SEO 向けページ送り",
-        description: "全パーツを ItemMode::Link に統一し、href 遷移によるページ送りを実演します。",
+        description: "Root / FirstTrigger / PrevTrigger / Item / NextTrigger / LastTrigger を全て ItemMode::Link に統一し、href 遷移によるページ送りを実演します。",
         render: ex_pagination,
     }],
-    keyboard: &[],
+    keyboard: &[
+        KeyRow {
+            key: "Tab / Shift+Tab",
+            description: "ネイティブのフォーカス移動（各パーツはネイティブ <button>/<a> のため roving tabindex 等の独自実装は持たない、ark-ui と同じ契約）。",
+        },
+        KeyRow {
+            key: "Enter / Space",
+            description: "Button モードの item/トリガーをクリックと同じ効果で発火する（ネイティブ <button> の既定動作）。",
+        },
+        KeyRow {
+            key: "Enter",
+            description: "Link モードの item/トリガーで href へ遷移する（ネイティブ <a> の既定動作）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "aria-current=\"page\" / data-selected",
             description: "item に付与（current が true のときのみ）。",
+        },
+        AriaRow {
+            attribute: "data-index",
+            description: "item に常時付与（ページ番号の 10 進数文字列、イシュー #1655）。",
         },
         AriaRow {
             attribute: "aria-hidden=\"true\"",
@@ -1915,7 +1964,11 @@ pub(super) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
         },
         AriaRow {
             attribute: "aria-disabled",
-            description: "item/prev-trigger/next-trigger に付与（disabled が true のときのみ）。Button モードのみ併せてネイティブ disabled を出力する。",
+            description: "item/prev-trigger/next-trigger/first-trigger/last-trigger に付与（disabled が true のときのみ）。Button モードのみ併せてネイティブ disabled を出力する。",
+        },
+        AriaRow {
+            attribute: "aria-label",
+            description: "root は必須引数として供給。item/トリガーでは予約キーに含めず、呼び出し側が \"page N\" 相当のローカライズ文字列を attrs 経由で任意に供給できる（zag の translations 相当、イシュー #1655）。",
         },
     ],
     demo: None,

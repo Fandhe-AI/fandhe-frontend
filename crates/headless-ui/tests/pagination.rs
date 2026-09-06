@@ -29,9 +29,13 @@ fn assemble(p: &Pagination) -> String {
             PageEntry::Ellipsis => items.push(pagination::ellipsis(vec![], vec![])),
         }
     }
-    let mut children = vec![p.prev_trigger(ItemMode::Button, vec![], vec![text("Prev")])];
+    let mut children = vec![
+        p.first_trigger(ItemMode::Button, vec![], vec![text("First")]),
+        p.prev_trigger(ItemMode::Button, vec![], vec![text("Prev")]),
+    ];
     children.extend(items);
     children.push(p.next_trigger(ItemMode::Button, vec![], vec![text("Next")]));
+    children.push(p.last_trigger(ItemMode::Button, vec![], vec![text("Last")]));
 
     render(&p.root("pagination", vec![], children))
 }
@@ -48,10 +52,62 @@ fn full_assembly_wires_root_items_ellipsis_and_triggers() {
     assert!(html.contains(r#"data-part="ellipsis""#));
     assert!(html.contains(r#"data-part="prev-trigger""#));
     assert!(html.contains(r#"data-part="next-trigger""#));
+    assert!(html.contains(r#"data-part="first-trigger""#));
+    assert!(html.contains(r#"data-part="last-trigger""#));
 
     // 現在ページ(10)の aria-current="page" はちょうど 1 回のみ出現する。
     assert_eq!(html.matches(r#"aria-current="page""#).count(), 1);
     assert_eq!(html.matches("data-selected").count(), 1);
+}
+
+#[test]
+fn each_item_has_a_unique_data_index_matching_its_page_number() {
+    let p = Pagination::new(200, 10, 1, 1, 10);
+    for entry in p.page_entries() {
+        if let PageEntry::Page(n) = entry {
+            let html = render(&p.item(ItemMode::Button, n, false, vec![], vec![]));
+            assert!(html.contains(&format!(r#"data-index="{n}""#)));
+        }
+    }
+}
+
+#[test]
+fn first_and_last_trigger_disabled_only_at_respective_bounds() {
+    let first = Pagination::new(50, 10, 1, 1, 1);
+    let html = assemble(&first);
+    let first_start = html.find(r#"data-part="first-trigger""#).unwrap();
+    let first_end = html[first_start..].find('>').unwrap() + first_start;
+    assert!(html[first_start..first_end].contains("disabled"));
+
+    let last = Pagination::new(50, 10, 1, 1, 5);
+    let html = assemble(&last);
+    let last_start = html.find(r#"data-part="last-trigger""#).unwrap();
+    let last_end = html[last_start..].find('>').unwrap() + last_start;
+    assert!(html[last_start..last_end].contains("disabled"));
+
+    let middle = Pagination::new(50, 10, 1, 1, 3);
+    let html = assemble(&middle);
+    let first_start = html.find(r#"data-part="first-trigger""#).unwrap();
+    let first_end = html[first_start..].find('>').unwrap() + first_start;
+    assert!(!html[first_start..first_end].contains("disabled"));
+    let last_start = html.find(r#"data-part="last-trigger""#).unwrap();
+    let last_end = html[last_start..].find('>').unwrap() + last_start;
+    assert!(!html[last_start..last_end].contains("disabled"));
+}
+
+#[test]
+fn dispatch_last_then_first_then_ssr_hydration_round_trip() {
+    let mut p = Pagination::new(200, 10, 2, 1, 1);
+    assert!(dispatch(&mut p, "last", ""));
+    assert_eq!(p.page(), p.total_pages());
+    assert!(dispatch(&mut p, "first", ""));
+    assert_eq!(p.page(), 1);
+
+    let hydrate_html = render(&render_for_hydration(&p));
+    assert!(hydrate_html.contains(r#"data-hydrate-page="1""#));
+
+    let restored = Pagination::from_hydration_attrs(&p.hydration_attrs()).unwrap();
+    assert_eq!(restored, p);
 }
 
 #[test]
