@@ -558,7 +558,11 @@ name = "fandhe-frontend-wasm-full"
 # 参照しておらず公開 API は不変のため patch バンプで 0.15.11 とする。
 # イシュー #1959: `Runtime::wire_timer` の dispatch 後 dirty 再描画接続。
 # `wire_timer` は private で公開 API 不変のため patch バンプ。
-version = "0.15.12"
+# イシュー #1962: `number_input.rs` の wiring に IncrementTrigger/
+# DecrementTrigger の click リスナーを追加（`action_for_trigger_part`
+# 新規公開関数・`INCREMENT_TRIGGER_PART`/`DECREMENT_TRIGGER_PART` 新規
+# 公開定数の追加のみで既存シグネチャは不変）のため patch バンプ。
+version = "0.15.13"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
