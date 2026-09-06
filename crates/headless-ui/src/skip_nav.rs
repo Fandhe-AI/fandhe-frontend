@@ -62,6 +62,42 @@
 //!   イシュー側のスコープ。
 //! - 複数スキップリンク運用ガイド等のドキュメントサイト向け利用ガイド拡充。
 
+//!
+//! # 参考サイトとの突合（イシュー #1663）
+//!
+//! chakra-ui v3（`packages/react/src/components/skip-nav/`）と本モジュールの
+//! anatomy / `data-*` / ARIA / キーボード操作を突合した。Ark UI
+//! （`ark-ui.com/docs/components/skip-nav`）は 404 で該当ページなし、Radix
+//! Primitives / Radix Themes にも該当部品が存在しないため、参照軸は
+//! chakra-ui のみである（`docs/design/component-coverage-map.md` の
+//! 「ark/radix = —」と整合）。
+//!
+//! - **anatomy**: chakra-ui の `SkipNavLink`（`<a href="#<id>">`、既定 id
+//!   `chakra-skip-nav`）/ `SkipNavContent`（`<div id tabIndex={-1}>`）と
+//!   [`link`]/[`content`] の 2 パーツ構成が完全一致。増減なし。
+//! - **`data-*` / ARIA**: chakra-ui は `data-scope`/`data-part` 相当・
+//!   `role`/`aria-*` のいずれも付与しない。本モジュールが付与する
+//!   `data-scope="skip-nav"`/`data-part` は独自のフック用途であり、
+//!   参照との不一致ではない（追加の `data-*` は不要）。
+//! - **契約属性の扱い**: chakra-ui の `SkipNavContent` は `{...rest}` を
+//!   `id`/`tabIndex` の**後**に展開するため呼び出し側が上書きできるが、
+//!   本モジュールはモジュール冒頭「契約属性の除去（fail-closed）」節の
+//!   とおり `href`/`id`/`tabindex` を常に fail-closed に除去する。本実装の
+//!   方が厳格であり、意図的に chakra-ui へ合わせない（なりすまし防止）。
+//! - **装飾（意図的に採用しない値）**: chakra-ui の `SkipNavContent` は
+//!   inline `style={{ outline: 0 }}` を出力するが、装飾は
+//!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2 により
+//!   headless-ui へ持ち込まず、上層の `fandhe-frontend-pre-styled-ui::skip_nav`
+//!   が CSS（`outline: none`）で担う（モジュール冒頭「呼び出し文脈」節の
+//!   とおり既に該当）。
+//! - **キーボード操作**: chakra-ui・本モジュールともに独自のキーイベント
+//!   リスナを持たず、ネイティブ `<a>` の挙動（Tab でフォーカス → Enter で
+//!   フラグメント遷移 → `tabindex="-1"` により [`content`] へ実フォーカス
+//!   移動）に委ねる点で一致する（是正は docs-site 原稿側で Tab/Enter を
+//!   明示する形で対応、コード変更なし）。
+//! - **是正の要否**: anatomy / `data-*` / ARIA / 実装ロジックいずれも
+//!   増減・是正なし（Themes 側イシュー #1586 は closed 済みで通知不要）。
+//!
 use crate::anatomy::{anatomy, Anatomy};
 use fandhe_frontend_core::Node;
 

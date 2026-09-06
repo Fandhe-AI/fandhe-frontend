@@ -690,7 +690,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/utilities/visually-hidden.md` | — | VisuallyHidden | Visually Hidden (`visually-hidden`) | Visually Hidden (`visually-hidden`) | `visually_hidden` | `visually_hidden` | 実装済み | #776 |
-| `.agents/skills/chakra-ui/references/components/utilities/skip-nav.md` | — | SkipNav | — | — | `skip_nav` | `skip_nav` | 実装済み | #776（#1586 でスタイルを参考サイト基準へ調整: 実トークン化・canonical フォーカスリング・z-index トークン・hover 追加） |
+| `.agents/skills/chakra-ui/references/components/utilities/skip-nav.md` | — | SkipNav | — | — | `skip_nav` | `skip_nav` | 実装済み | #776（#1586 でスタイルを参考サイト基準へ調整: 実トークン化・canonical フォーカスリング・z-index トークン・hover 追加。#1663 で headless-ui 側を参照突合済み、増減なし。Ark UI は 404 で該当部品なし） |
 | `.agents/skills/chakra-ui/references/components/utilities/client-only.md` | ClientOnly | ClientOnly | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/chakra-ui/references/components/utilities/environment-provider.md` | Environment | EnvironmentProvider | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/chakra-ui/references/components/utilities/presence.md` | Presence | Presence | — | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |

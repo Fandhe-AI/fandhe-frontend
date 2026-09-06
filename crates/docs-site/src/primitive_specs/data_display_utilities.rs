@@ -720,12 +720,62 @@ fn ex_skip_nav_custom_id() -> Node {
     )
 }
 
+/// 自前 CSS の最小例（イシュー #1663、`AVATAR_CUSTOM_CSS_SNIPPET` と同型の
+/// パターン）。CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープ
+/// を経由し、`crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは追加
+/// しない。headless-ui 自体はスタイルを持たないため、chakra-ui の
+/// `SkipNavContent` inline `style={{ outline: 0 }}`（headless 層では
+/// `docs/policy/intentional-non-adoption.md` §3.25 規則 2 により非採用、
+/// イシュー #1663 突合結果）に相当する調整も含め、利用者側 CSS で示す。
+const SKIP_NAV_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"skip-nav\"][data-part=\"link\"] {\n  \
+  position: absolute;\n  width: 1px;\n  height: 1px;\n  margin: -1px;\n  \
+  overflow: hidden;\n  clip: rect(0 0 0 0);\n  border: 0;\n\
+}\n\
+[data-scope=\"skip-nav\"][data-part=\"link\"]:focus-visible {\n  \
+  clip: auto;\n  width: auto;\n  height: auto;\n  position: fixed;\n  \
+  top: 1rem;\n  left: 1rem;\n  padding: 0.5rem 0.75rem;\n  \
+  background: #fff;\n  outline: 2px solid #2563eb;\n\
+}\n\
+[data-scope=\"skip-nav\"][data-part=\"content\"] {\n  \
+  outline: none;\n\
+}\n";
+
+/// [`SKIP_NAV_CUSTOM_CSS_SNIPPET`] を実演する例（`AVATAR_CUSTOM_CSS_SNIPPET`
+/// の実演関数と同型）。id はページ骨格の `DEFAULT_ID`（`"fandhe-skip-nav"`）
+/// や他の例の `"primitives-main"` と衝突しない第 3 の値
+/// （`"primitives-custom-css-target"`）を使い、`href` の解決先が曖昧に
+/// ならないようにする。
+fn ex_skip_nav_custom_css() -> Node {
+    div(
+        vec![],
+        vec![
+            skip_nav::link(
+                "primitives-custom-css-target",
+                vec![],
+                vec![text("Skip to content (custom CSS)")],
+            ),
+            skip_nav::content(
+                "primitives-custom-css-target",
+                vec![],
+                vec![text("Content reachable via the styled skip link.")],
+            ),
+            pre(
+                vec![],
+                vec![code(vec![], vec![text(SKIP_NAV_CUSTOM_CSS_SNIPPET)])],
+            ),
+        ],
+    )
+}
+
 pub const SKIP_NAV: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "link / content の 2 anatomy パーツで WCAG 2.1 SC 2.4.1 Bypass Blocks を実現する（skip_nav.rs:1-14）。",
         "link は任意の URL を呼び出し側から受け取らず、常に `#<id>`（フラグメントのみ）を内部で組み立てるためスキーム注入経路を持たない（skip_nav.rs:16-22,77-91）。",
         "content は id/tabindex を、link は href を、それぞれ呼び出し側 attrs に同名キー（大文字小文字を無視）があっても fail-closed に除去してから合成する（skip_nav.rs:24-32,82-108）。",
         "DEFAULT_ID 定数（\"fandhe-skip-nav\"）を提供し、ページ全体に 1 個だけ配置する典型利用を想定する（skip_nav.rs:71-75）。",
+        "chakra-ui（唯一の参照軸、Ark UI は該当ページ 404・Radix Primitives / Radix Themes に該当部品なし）と突合済み（イシュー #1663）。anatomy / data-* / ARIA は増減なし。chakra-ui の SkipNavContent が出力する inline outline: 0 は装飾のため headless 層では非採用（`docs/policy/intentional-non-adoption.md` §3.25 規則 2、Themes 版が CSS で担当）。",
     ],
     arguments: &[
         ArgRow {
@@ -741,18 +791,35 @@ pub const SKIP_NAV: ComponentPageSpec = ComponentPageSpec {
             description: "id 属性値。link の href と対にする（skip_nav.rs:100-108）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Custom id",
-        description: "DEFAULT_ID ではなく呼び出し側指定の id（\"primitives-main\"）を使う例です。",
-        render: ex_skip_nav_custom_id,
-    }],
-    keyboard: &[KeyRow {
-        key: "Tab (content, after link activation)",
-        description: "content は tabindex=\"-1\" を固定出力するため通常の Tab 順序には含まれず、link クリック後のプログラム的フォーカス移動のみを許可する（skip_nav.rs:93-108）。",
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Custom id",
+            description: "DEFAULT_ID ではなく呼び出し側指定の id（\"primitives-main\"）を使う例です。",
+            render: ex_skip_nav_custom_id,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "利用者が data-scope/data-part 属性セレクタで見た目を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+            render: ex_skip_nav_custom_css,
+        },
+    ],
+    keyboard: &[
+        KeyRow {
+            key: "Tab (link)",
+            description: "独自のキーリスナを持たず、link はページ先頭に置かれた通常の <a> としてブラウザの既定 Tab 順序に従いフォーカス可能になる（chakra-ui docs の「できるだけ DOM 先頭に置く」前提と一致、イシュー #1663 突合結果）。",
+        },
+        KeyRow {
+            key: "Enter (link, focused)",
+            description: "ネイティブのフラグメント遷移で href=\"#<id>\" へジャンプする。独自のキーイベントリスナは持たずブラウザ既定動作に委ねる（skip_nav.rs:16-22、イシュー #1663 突合結果）。",
+        },
+        KeyRow {
+            key: "Tab (content, after link activation)",
+            description: "content は tabindex=\"-1\" を固定出力するため通常の Tab 順序には含まれず、link クリック後のプログラム的フォーカス移動のみを許可する（skip_nav.rs:93-108）。",
+        },
+    ],
     aria: &[AriaRow {
         attribute: "(該当なし)",
-        description: "link/content は固有の role/aria-* を出力しない（skip_nav.rs 全文の非テスト行で role/aria- grep 0 件）。",
+        description: "link/content は固有の role/aria-* を出力しない（skip_nav.rs 全文の非テスト行で role/aria- grep 0 件）。chakra-ui も role/aria-* を付与せず整合する（イシュー #1663 突合結果）。",
     }],
     demo: None,
 };
