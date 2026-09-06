@@ -28,8 +28,9 @@
 //! 記事全体へのカスケードスタイルは `fandhe-frontend-docs-site` の
 //! `site/assets/site.css`（`.docs-content` 配下の `h1`-`h3`/`p`/`ul`/`ol`/
 //! `blockquote` 規則）が既に担っており、本イシューはこの既存機構を置き換え
-//! ない（`docs/design/component-coverage-map.md` prose.md 行の「対象外」
-//! 区分の根拠）。両者の役割は次のように分かれる:
+//! ない（`docs/design/component-coverage-map.md` prose.md 行の役割分担の
+//! 根拠。同行の区分はイシュー #1676 で「保留」へ変更したが役割分担は
+//! 不変）。両者の役割は次のように分かれる:
 //!
 //! - `site.css` の `.docs-content` 規則: Markdown から生成した記事本文全体へ
 //!   無条件にカスケード適用する、docs サイト固有の骨格スタイル
