@@ -56,6 +56,13 @@ pub mod assets;
 pub mod bench_support;
 pub mod mime;
 pub mod routes;
+/// `build.rs` の `OUT_DIR` から `CARGO_TARGET_DIR` を逆算する純粋関数
+/// （`PATH` 監視ループで Cargo 生成物ディレクトリを除外するために使う、
+/// PR #1980 レビュー指摘）。`wasm_stage_cache`・`workspace_detect` と同様に
+/// `build.rs` から `#[path]` でソースレベル共有する
+/// （`src/target_dir.rs` 冒頭コメント参照）。
+#[doc(hidden)]
+pub mod target_dir;
 #[cfg(test)]
 mod test_scratch;
 /// WASM ビルドステージの有効・無効判定（`FANDHE_FRONTEND_WASM_BUILD`）。
