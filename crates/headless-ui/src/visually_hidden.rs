@@ -43,7 +43,48 @@
 //!   イシュー側のスコープ。
 //! - chakra の `asChild`/`as` 合成 API（本フレームワークはノード木 API のため
 //!   対象外）。
-
+//!
+//! # 参考サイトとの突合（イシュー #1668）
+//!
+//! Radix Primitives（`packages/react/visually-hidden/src/visually-hidden.tsx`）・
+//! Radix Themes（Primitives の再エクスポート）・chakra-ui v3
+//! （`.agents/skills/chakra-ui/references/components/utilities/visually-hidden.md`）
+//! と本モジュールの anatomy / `data-*` / ARIA / キーボード操作を突合した。
+//! Ark UI は `ark-ui.com` の関連 3 URL（`/docs/components/visually-hidden`・
+//! `/react/docs/components/visually-hidden`・`/docs/utilities/visually-hidden`）
+//! がいずれも 404 で該当ページなし（`docs/design/component-coverage-map.md`
+//! の「ark = —」と整合）。
+//!
+//! - **anatomy**: Radix の `VisuallyHidden.Root`（`Primitive.span` を描画、
+//!   props は `asChild` のみ）・chakra-ui の `VisuallyHidden`（`span`、props
+//!   は `as`/`asChild`）はいずれも 1 パーツ構成であり、本モジュールの
+//!   [`root`]（`span`）1 パーツと完全一致。増減なし。
+//! - **`data-*` / ARIA**: 参照 3 軸（Radix Primitives / Radix Themes /
+//!   chakra-ui）とも `data-*`・`role`・`aria-*` を一切付与しない。本モジュール
+//!   が付与する `data-scope="visually-hidden"`/`data-part="root"` は独自の
+//!   フック用途であり、参照との不一致ではない（追加の `data-*` は不要）。
+//!   モジュール冒頭の「`aria-hidden` を付けない不変条件」節のとおり
+//!   `aria-hidden` を自ら出力しない点も、Radix/chakra が自ら `aria-hidden`
+//!   を付与しない（props をそのまま透過するのみ）挙動と整合する。
+//! - **キーボード操作**: 参照 3 軸とも `tabindex`・キーイベント配線を持たない
+//!   （非対話要素）。本モジュールも同様であり一致する。
+//! - **意図的に合わせない点**:
+//!   - Radix の `asChild`・chakra の `as`/`asChild`（要素差し替え API）は
+//!     本フレームワークのノード木 API とは前提が異なるため非採用。
+//!   - chakra の `asChild` で `<input>` を包む「視覚的に隠した入力」用法は
+//!     別パートとして新設しない。本フレームワークでは
+//!     `crate::checkbox`/`crate::switch`/`crate::radio_group`/`crate::select`
+//!     の hidden input 系パーツが同用途を既に担う
+//!     （`fandhe-frontend-pre-styled-ui::visually_hidden` の
+//!     `clip_declarations()` を `skip_nav` と共有する構造も既存）。
+//!   - Radix のインライン `style`（`position:absolute; clip:rect(0,0,0,0)` 等の
+//!     clip 手法）は装飾であり、`docs/policy/intentional-non-adoption.md`
+//!     §3.25 規則 2 により headless-ui へ持ち込まない（styled 層
+//!     `fandhe-frontend-pre-styled-ui::visually_hidden` がイシュー #1587 で
+//!     追随済み）。
+//! - **是正の要否**: anatomy / `data-*` / ARIA / キーボードのいずれも
+//!   増減・是正なし（コード出力は不変。Themes 側イシュー #1587 は closed
+//!   済みで通知不要）。
 use crate::anatomy::{anatomy, Anatomy};
 use fandhe_frontend_core::Node;
 

@@ -83,7 +83,7 @@
 //! 層）は一切呼ばない（受け入れ条件 3）。ダミー文字列は無害なもの
 //! （`example.com` 等の予約ドメイン、架空の名前）に限る。
 
-use fandhe_frontend_core::{code, div, p, pre, text, Node};
+use fandhe_frontend_core::{button, code, div, p, pre, text, Node};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
 use hui::avatar::{self, ImageStatus};
 use hui::carousel;
@@ -1504,8 +1504,9 @@ pub const TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
 // ---------------------------------------------------------------------
 
 /// 一次情報: `crates/headless-ui/src/visually_hidden.rs:1-46`（モジュール
-/// doc、`aria-hidden` を付けない不変条件）、`:50-61`（`root` シグネチャ）。
-/// 非テスト行で `role`/`aria-` の出力は 0 件。
+/// doc、`aria-hidden` を付けない不変条件）、`:94-102`（`root` シグネチャ）、
+/// `:47-87`（イシュー #1668 参考サイトとの突合節）。非テスト行で
+/// `role`/`aria-` の出力は 0 件。
 fn ex_visually_hidden_status_label() -> Node {
     div(
         vec![],
@@ -1516,35 +1517,95 @@ fn ex_visually_hidden_status_label() -> Node {
     )
 }
 
+/// Radix Primitives / chakra-ui のデモ（アイコンのみボタン + 隠しラベル）
+/// と同型の利用パターン（イシュー #1668 突合結果）。アイコン記号は
+/// 視覚的な表示のみを担い、実際の操作名は [`visually_hidden::root`] が
+/// 支援技術へ読ませる。
+fn ex_visually_hidden_icon_button() -> Node {
+    button(
+        vec![("type", "button")],
+        vec![
+            text("🔔"),
+            visually_hidden::root(vec![], vec![text("Notifications")]),
+        ],
+    )
+}
+
+/// 自前 CSS の最小例（イシュー #1668、`AVATAR_CUSTOM_CSS_SNIPPET` と同型の
+/// パターン）。CSS はテキストノード（[`code`]/[`pre`]）として既定エスケープ
+/// を経由し、`crate::primitive_showcase` の専用スタイルシート（`[data-scope=`/
+/// `[data-part=` を持たない契約、`tests/site_css_contract.rs`）へは追加
+/// しない。clip 手法は `fandhe-frontend-pre-styled-ui::visually_hidden` の
+/// `clip_declarations()`（`skip_nav` と共有）に整合させる。
+const VISUALLY_HIDDEN_CUSTOM_CSS_SNIPPET: &str = "\
+[data-scope=\"visually-hidden\"][data-part=\"root\"] {\n  \
+  position: absolute;\n  width: 1px;\n  height: 1px;\n  padding: 0;\n  margin: -1px;\n  \
+  overflow: hidden;\n  clip: rect(0 0 0 0);\n  white-space: nowrap;\n  overflow-wrap: normal;\n  \
+  border-width: 0;\n\
+}\n";
+
+/// [`VISUALLY_HIDDEN_CUSTOM_CSS_SNIPPET`] を実演する例（`AVATAR_CUSTOM_CSS_SNIPPET`
+/// の `ex_avatar_custom_css` と同型のパターン）。Radix のインライン
+/// `style` による clip 手法（headless-ui へは持ち込まない装飾、イシュー
+/// #1668 突合結果）を利用者が自前 CSS でどう再現するかを示す。
+fn ex_visually_hidden_custom_css() -> Node {
+    wrap_example(
+        "利用者が data-scope / data-part 属性セレクタで自前 CSS を当てる最小例です。headless-ui 自体はスタイルを持ちません。",
+        vec![
+            ex_visually_hidden_icon_button(),
+            pre(
+                vec![],
+                vec![code(
+                    vec![],
+                    vec![text(VISUALLY_HIDDEN_CUSTOM_CSS_SNIPPET)],
+                )],
+            ),
+        ],
+    )
+}
+
 pub const VISUALLY_HIDDEN: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root（span）の 1 anatomy パーツのみで構成する最小の状態非依存パーツ（visually_hidden.rs:50-61）。",
+        "Root（span）の 1 anatomy パーツのみで構成する最小の状態非依存パーツ（visually_hidden.rs:94-102）。",
         "視覚的には隠すが支援技術（スクリーンリーダー）には読ませ続けるテキストコンテナであり、装飾要素とは逆に aria-hidden を意図的に付与しない（visually_hidden.rs:11-21）。",
         "styled 層（fandhe-frontend-pre-styled-ui::visually_hidden）は本モジュールが出力する data-scope=\"visually-hidden\"/data-part=\"root\" セレクタを前提に clip 手法の CSS を当てる（visually_hidden.rs:23-29）。",
+        "Radix Primitives / Radix Themes / chakra-ui と突合済み（イシュー #1668）。anatomy（1 パーツ）・data-*・role/aria-*・キーボード操作のいずれも一致し是正なし。asChild/as（要素差し替え API）・視覚的に隠した input パートは意図的に非採用（checkbox/switch/radio_group/select の hidden input 系パーツが同用途を担う、visually_hidden.rs:47-87）。",
     ],
     arguments: &[
         ArgRow {
             name: "root: attrs",
             kind: "Vec<(&str, &str)>",
             default: "vec![]",
-            description: "呼び出し側が追加する属性。data-scope/data-part は本パーツが固定出力するため上書きされない（visually_hidden.rs:58-61）。root が唯一の公開関数であり attrs/children 以外の型付き引数を持たない。",
+            description: "呼び出し側が追加する属性。data-scope/data-part は本パーツが固定出力するため上書きされない（visually_hidden.rs:94-102）。root が唯一の公開関数であり attrs/children 以外の型付き引数を持たない。",
         },
         ArgRow {
             name: "root: children",
             kind: "Vec<Node>",
             default: "vec![]",
-            description: "視覚的には隠すがスクリーンリーダーには読み上げさせるテキスト・ノード（visually_hidden.rs:58-61）。",
+            description: "視覚的には隠すがスクリーンリーダーには読み上げさせるテキスト・ノード（visually_hidden.rs:94-102）。",
         },
     ],
-    examples: &[ExampleEntry {
-        title: "Status label prefix",
-        description: "視覚的には記号のみを見せつつ、スクリーンリーダーには前置ラベルを読ませる例です。",
-        render: ex_visually_hidden_status_label,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Status label prefix",
+            description: "視覚的には記号のみを見せつつ、スクリーンリーダーには前置ラベルを読ませる例です。",
+            render: ex_visually_hidden_status_label,
+        },
+        ExampleEntry {
+            title: "Icon-only button label",
+            description: "アイコンのみのボタンに、支援技術のためのラベルを追加する例です（Radix Primitives / chakra-ui のデモと同型のパターン、イシュー #1668）。",
+            render: ex_visually_hidden_icon_button,
+        },
+        ExampleEntry {
+            title: "Custom CSS",
+            description: "headless 層は data-scope/data-part のみを出力し外観を持たないため、clip 手法を自前 CSS で当てる最小例です。",
+            render: ex_visually_hidden_custom_css,
+        },
+    ],
     keyboard: &[],
     aria: &[AriaRow {
         attribute: "(該当なし)",
-        description: "root は固有の role/aria-* を出力しない（visually_hidden.rs 全文の非テスト行で role/aria- grep 0 件）。装飾要素の aria-hidden=\"true\" 固定付与パターンとは逆に、本コンポーネントは aria-hidden を意図的に付与しない（visually_hidden.rs:11-21）。",
+        description: "root は固有の role/aria-* を出力しない（visually_hidden.rs 全文の非テスト行で role/aria- grep 0 件）。装飾要素の aria-hidden=\"true\" 固定付与パターンとは逆に、本コンポーネントは aria-hidden を意図的に付与しない（visually_hidden.rs:11-21）。Radix Primitives / Radix Themes / chakra-ui のいずれも role/aria-* を自ら付与しない点と一致する（イシュー #1668 突合結果）。",
     }],
     demo: None,
 };
