@@ -18,9 +18,16 @@
 //! 上げ値と実際のパネルサイズが乖離する ARIA 上の虚偽表示になる（out-of-scope
 //! を残す現状より a11y として悪化する）。そのため本モジュールは `on_action`
 //! で dispatch 依頼のみを行い、`aria-valuenow`・パネルサイズの双方が同時に
-//! 再生成される再描画（`crate::lib::Runtime::wire` の束縛点更新経路）へ DOM
-//! 反映を委ねる（`crate::angle_slider` の Thumb 回転・`aria-valuenow` 更新と
-//! 同じ責務分離、`angle_slider.rs` モジュール doc 参照）。
+//! 再生成される再描画へ DOM 反映を委ねる（`crate::angle_slider` の Thumb
+//! 回転・`aria-valuenow` 更新と同じ責務分離、`angle_slider.rs` モジュール doc
+//! 参照）。この委譲先は `crate::lib::Runtime::wire_splitter` が
+//! `crate::lib::Runtime::wire` の返す閉包をそのまま `on_action` として
+//! `wire_splitter_events` へ渡すことで実装済み（イシュー #1996。
+//! `wire_angle_slider` と同型）。ただし `aria-valuenow` 等の属性自体が
+//! dispatch 後に更新されるにはアプリ側が `bind_attr_tokens` で
+//! `data-bind-attr` を明示付与している必要がある（`wire_splitter` の
+//! rustdoc 参照。`RESIZE_TRIGGER_RESERVED` に `data-bind-attr` は含まれない
+//! ため付与は可能）。
 //!
 //! # `crate::keynav` へ統合しない理由
 //!
@@ -113,7 +120,7 @@ mod wiring {
     use crate::keynav::{splitter_key_action, Modifiers, Orientation, SplitterKeyAction};
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, KeyboardEvent};
+    use web_sys::{Element, Event, HtmlElement, KeyboardEvent};
 
     /// `target` から `root`（含む）まで祖先方向へ辿り、`data-scope`/
     /// `data-part` が指定値と一致する最初の要素を返す
@@ -169,14 +176,16 @@ mod wiring {
         )
     }
 
+    /// resize-trigger パーツの CSS セレクタ（[`collect_own_resize_triggers`]/
+    /// [`resolve_trigger`] の双方が使う共通定数）。
+    const RESIZE_TRIGGER_SELECTOR: &str = "[data-scope=\"splitter\"][data-part=\"resize-trigger\"]";
+
     /// `splitter_root` 配下の resize-trigger を document 順に収集する。
     /// ネストした Splitter インスタンスの resize-trigger を誤って拾わない
     /// よう、各要素について [`closest_matching`]（scope=splitter,
     /// part=root）が `splitter_root` 自身に一致するもののみを採用する
     /// （モジュール doc §trigger index の導出参照。A01 対策）。
     fn collect_own_resize_triggers(splitter_root: &Element) -> Vec<Element> {
-        const RESIZE_TRIGGER_SELECTOR: &str =
-            "[data-scope=\"splitter\"][data-part=\"resize-trigger\"]";
         let Ok(node_list) = splitter_root.query_selector_all(RESIZE_TRIGGER_SELECTOR) else {
             return Vec::new();
         };
@@ -229,6 +238,13 @@ mod wiring {
     /// root 封じ込め検査・disabled 除外・Splitter root の解決・
     /// [`splitter_key_action`] への委譲・trigger index 導出をこの 1 関数に
     /// まとめる。
+    ///
+    /// dispatch が構造フォールバックを誘発して resize-trigger ごと
+    /// 差し替えた場合は [`restore_trigger_focus`] で再描画後の同じ
+    /// resize-trigger へフォーカスを戻し、連続した矢印キー操作が
+    /// 途切れないようにする（イシュー #1996 codex-review P1 是正、
+    /// `angle_slider::wiring::handle_keydown`/`restore_thumb_focus` と
+    /// 同型）。
     fn handle_keydown(
         root: &Element,
         event: &Event,
@@ -277,6 +293,12 @@ mod wiring {
             return;
         };
 
+        // dispatch 前にフォーカス復元用のキーを採取する（dispatch 後は
+        // 対象要素が detach され `closest_matching` による Root 探索が
+        // できなくなるため、`angle_slider::wiring::handle_keydown` と同じ
+        // 手順）。
+        let key = trigger_key(target_element);
+
         keyboard_event.prevent_default();
         let action_name = match action {
             SplitterKeyAction::Increment => ACTION_INCREMENT,
@@ -289,6 +311,146 @@ mod wiring {
                 action: action_name.to_string(),
                 payload: index.to_string(),
             });
+        }
+
+        restore_trigger_focus(root, target_element, key.as_ref());
+    }
+
+    /// 再描画をまたいで同じ resize-trigger を再解決するための識別子
+    /// （イシュー #1996 codex-review P1 是正）。
+    ///
+    /// 構造フォールバック（[`crate::Runtime::rerender_subtree`]）は
+    /// `state.view()` から DOM を作り直すため、要素参照も要素の同一性も
+    /// 再描画をまたいで保持できない。当初は Splitter Root の `id` と
+    /// document 順序（trigger index）の組をフォールバック識別子にして
+    /// いたが、(1) 再解決時に `collect_own_resize_triggers` と同じ
+    /// 所有権フィルタを適用しておらず、ネストした Splitter が存在すると
+    /// 別の Splitter の resize-trigger を index 経由で誤って再解決し得た、
+    /// (2) headless-ui の [`fandhe_frontend_headless_ui::splitter::root`]/
+    /// [`fandhe_frontend_headless_ui::splitter::resize_trigger`] はいずれも `id`
+    /// 自動付与も必須付与もしないため、Root/resize-trigger に `id` を
+    /// 付けない標準構成ではフォールバック自体が成立せずキーボード操作が
+    /// 構造フォールバック 1 回で途切れていた（codex-review P1 x2 是正）。
+    ///
+    /// resize-trigger は [`fandhe_frontend_headless_ui::splitter::resize_trigger`]
+    /// が必須引数 `leading_id`/`trailing_id`（隣接パネルの `id`。
+    /// [`fandhe_frontend_headless_ui::splitter::panel`] も `id` を必須で受け取るため
+    /// 常に存在する）から `aria-controls="<leading_id> <trailing_id>"`
+    /// （空白区切り）を常に出力する。当初は同じペアから生成される
+    /// `data-id="<leading_id>:<trailing_id>"`（コロン区切り）を識別子に
+    /// 採用していたが、パネル `id` 自体にコロンを含められるため一意性が
+    /// 保証されなかった（例: ペア `(a:b, c)` と `(a, b:c)` はどちらも
+    /// `data-id="a:b:c"` に一致する。codex-review P1 是正）。HTML の `id`
+    /// 属性値は空白文字を含められない仕様（HTML Standard `id` 属性の
+    /// 制約）ため、`aria-controls` の空白区切りペアはこの種の衝突が
+    /// 構造的に起こり得ない（ネストした Splitter 同士でも `leading_id`/
+    /// `trailing_id` の組が重複しない限り一意）。
+    #[derive(Clone)]
+    enum TriggerKey {
+        /// resize-trigger 自身の `id` 属性（最も安定。アプリが `id` を
+        /// 付けている場合に使う）。
+        OwnId(String),
+        /// resize-trigger の `aria-controls` 属性（`"<leading_id>
+        /// <trailing_id>"`、空白区切り）。`id` を付けない標準構成でも常に
+        /// 得られるフォールバック（[`TriggerKey`] doc 参照）。
+        Controls(String),
+    }
+
+    /// `target_element`（resize-trigger）を再描画後に再解決するための
+    /// [`TriggerKey`] を決める。resize-trigger は常に `aria-controls` を
+    /// 持つため（headless-ui `resize_trigger` の契約、[`TriggerKey`] doc
+    /// 参照）、`is_resize_trigger` 判定を通過した呼び出し元では実質的に
+    /// 必ず `Some` を返す。属性が欠落した想定外の DOM のみ `None`
+    /// （fail-closed、呼び出し側はフォーカス復元を行わず本 PR 以前と同じ
+    /// 挙動へフォールバックする）。
+    fn trigger_key(target_element: &Element) -> Option<TriggerKey> {
+        let own_id = target_element.id();
+        if !own_id.is_empty() {
+            return Some(TriggerKey::OwnId(own_id));
+        }
+        let controls = target_element.get_attribute("aria-controls")?;
+        if controls.is_empty() {
+            return None;
+        }
+        Some(TriggerKey::Controls(controls))
+    }
+
+    /// `root` 配下から [`TriggerKey`] に対応する resize-trigger を
+    /// 再解決する。対象が消えている・一意に定まらない場合はいずれも
+    /// `None`（fail-closed）。呼び出し側はフォーカス復元断念のシグナル
+    /// として扱う。
+    fn resolve_trigger(root: &Element, key: &TriggerKey) -> Option<Element> {
+        match key {
+            TriggerKey::OwnId(id) => {
+                let document = root.owner_document()?;
+                let candidate = document.get_element_by_id(id)?;
+                if !root.contains(Some(&candidate)) {
+                    return None;
+                }
+                if !is_resize_trigger(&candidate) {
+                    return None;
+                }
+                Some(candidate)
+            }
+            TriggerKey::Controls(controls) => {
+                // CSS セレクタへ動的な属性値をそのまま埋め込まず、
+                // `root` 配下の resize-trigger 全件を固定セレクタで収集
+                // してから Rust 側で `aria-controls` を比較する（属性値に
+                // クォート等の CSS 特殊文字が含まれても injection の
+                // 余地がない）。`aria-controls` は隣接 2 パネルの `id`
+                // から一意に定まる契約（[`TriggerKey`] doc 参照。`id`
+                // 属性値は空白を含められないため空白区切りペアは衝突
+                // しない）のため、ここでの所有権検証はネストした
+                // Splitter を含めても一致件数の一意性確認のみで足りる
+                // （複数一致は fail-closed に諦める）。
+                let list = root.query_selector_all(RESIZE_TRIGGER_SELECTOR).ok()?;
+                let mut found: Option<Element> = None;
+                for i in 0..list.length() {
+                    let element = list.get(i)?.dyn_into::<Element>().ok()?;
+                    if element.get_attribute("aria-controls").as_deref() == Some(controls.as_str())
+                    {
+                        if found.is_some() {
+                            return None;
+                        }
+                        found = Some(element);
+                    }
+                }
+                found
+            }
+        }
+    }
+
+    /// keydown の dispatch 後、resize-trigger が構造フォールバックで
+    /// detach されていた場合に再描画後の同じ resize-trigger へフォーカスを
+    /// 戻す（イシュー #1996 codex-review P1 是正、
+    /// `angle_slider::wiring::restore_thumb_focus` と同型）。
+    ///
+    /// 復元は以下の条件をすべて満たす場合に限る（fail-closed）:
+    ///
+    /// - dispatch 前の resize-trigger が実際に detach された
+    ///   （`is_connected()` が `false`）。再描画が起きなかった通常経路では
+    ///   何もしない
+    /// - [`TriggerKey`] から再描画後の resize-trigger を一意に再解決できた
+    ///   （[`resolve_trigger`] doc 参照）
+    ///
+    /// いずれかを満たさない場合は何もしない（利用者のフォーカスを勝手に
+    /// 奪わない）。
+    fn restore_trigger_focus(
+        root: &Element,
+        previous_trigger: &Element,
+        trigger_key: Option<&TriggerKey>,
+    ) {
+        if previous_trigger.is_connected() {
+            return;
+        }
+        let Some(trigger_key) = trigger_key else {
+            return;
+        };
+        let Some(trigger) = resolve_trigger(root, trigger_key) else {
+            return;
+        };
+        if let Some(focusable) = trigger.dyn_ref::<HtmlElement>() {
+            let _ = focusable.focus();
         }
     }
 }

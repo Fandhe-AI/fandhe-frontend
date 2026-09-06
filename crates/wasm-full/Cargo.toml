@@ -596,15 +596,20 @@ name = "fandhe-frontend-wasm-full"
 # `id` による安定識別子を必須とした（`id` 無しのスライダーが入れ替わった
 # 場合も「1 個」が成立し別インスタンスをエイリアスするため）。私有 enum の
 # 変種削除のみで公開 API は不変。
-# イシュー #1992（親 #1991 sub-issue 1）: `headless_signature_pad.rs` の
-# `StrokeCollector` に `release_if_stale`（`buttons == 0` の stale 自己解錠
-# ガード）を新規公開メソッドとして追加した。`angle_slider.rs::DragState` の
-# 同型パターン（capture 喪失中に `root` 外でボタンが離されて
-# pointerup/pointercancel を取り逃した場合、次の pointermove 1 件で追跡を
-# 自己解除する）を踏襲する。新規 public メソッド追加は非破壊的追加であり、
-# `wiring::wire_stroke_collector` の pointermove 配線変更は private
-# 実装のみのため patch バンプで足りる。
-version = "0.15.15"
+# イシュー #1996: `wire_splitter` を `wire_angle_slider` と同型の閉包配線へ
+# 差し替え。公開 API 追加なし・内部配線のみの変更のため patch バンプ。
+# イシュー #1996 追補（codex-review/Bugbot P1 是正、PR #2099）: 私有
+# `splitter::wiring::TriggerKey` の再描画後再解決を Splitter Root `id` +
+# document 順序（index）方式から resize-trigger の `data-id`（隣接パネル
+# `id` の組、headless-ui `resize_trigger` が常に出力）方式へ差し替え、
+# (1) ネストした Splitter が存在する場合の所有権フィルタ漏れ、
+# (2) Root/resize-trigger に `id` を付けない標準構成でのフォーカス復元
+# 断念、の 2 件を是正した。私有型の内部変更のみで公開 API は不変のため
+# 追加の patch バンプは不要だったが、並行 PR #1999（イシュー #1992）が
+# 0.15.15 を先に crates.io へ公開する見込みのため、同一版数衝突を避けて
+# 0.15.16 へ再バンプする（`semver-same-version-is-conflict` の運用に
+# 従い、据え置きではなく +1 する）。
+version = "0.15.16"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
