@@ -215,6 +215,7 @@ fn tabs_section() -> Node {
 /// 責務（モジュール doc 参照）のため、本サンプルは自由関数のみを直接呼び、
 /// 1 項目目が開いた静的な SSR マークアップを実演する。
 fn accordion_section() -> Node {
+    let props = accordion::AccordionProps::default();
     let items: Vec<(&str, &str, &str, OpenState)> = vec![
         (
             "item-1",
@@ -236,6 +237,7 @@ fn accordion_section() -> Node {
         let item_node = accordion::item(
             state,
             false,
+            &props,
             vec![],
             vec![
                 el(
@@ -244,6 +246,7 @@ fn accordion_section() -> Node {
                     vec![accordion::item_trigger(
                         state,
                         false,
+                        &props,
                         value,
                         Some(trigger_id.as_str()),
                         Some(content_id.as_str()),
@@ -253,6 +256,8 @@ fn accordion_section() -> Node {
                 ),
                 accordion::item_content(
                     state,
+                    false,
+                    &props,
                     Some(content_id.as_str()),
                     Some(trigger_id.as_str()),
                     vec![],
@@ -265,7 +270,7 @@ fn accordion_section() -> Node {
     section(
         "Accordion",
         "高々 1 項目が開く single モードの Accordion。既定 CSS は fandhe_frontend_pre_styled_ui::accordion::stylesheet() が提供します。",
-        vec![accordion::root(Size::Md, vec![], root_children)],
+        vec![accordion::root(Size::Md, &props, vec![], root_children)],
     )
 }
 
@@ -413,6 +418,7 @@ fn menu_section() -> Node {
 /// [`radio_group_section`] の `name="render-mode"` と衝突しない値を選ぶ。
 fn select_section() -> Node {
     let state = OpenState::Closed;
+    let props = select::SelectProps::default();
     let options = [
         ("ssr", "SSR", false),
         ("ssg", "SSG", true),
@@ -428,13 +434,22 @@ fn select_section() -> Node {
         let item_id = format!("showcase-select-item-{value}");
         items.push(select::item(
             selected_state,
+            &props,
             false,
             false,
             value,
             Some(item_id.as_str()),
             vec![],
             vec![
-                select::item_text(None, vec![], vec![text(label_text)]),
+                select::item_text(
+                    selected_state,
+                    &props,
+                    false,
+                    false,
+                    None,
+                    vec![],
+                    vec![text(label_text)],
+                ),
                 select::item_indicator(selected_state, vec![], vec![text("✓")]),
             ],
         ));
@@ -442,25 +457,29 @@ fn select_section() -> Node {
     let node = select::root(
         Size::Md,
         state,
+        &props,
         vec![],
         vec![
             select::label(
+                &props,
                 Some("showcase-select-label"),
                 vec![],
                 vec![text("Deploy target")],
             ),
             select::control(
                 state,
+                &props,
                 vec![],
                 vec![select::trigger(
                     state,
+                    &props,
                     false,
                     Some("showcase-select-content"),
                     Some("showcase-select-label"),
                     vec![],
                     vec![
-                        select::value_text(false, vec![], vec![text("SSG")]),
-                        select::indicator(state, vec![], vec![]),
+                        select::value_text(false, &props, vec![], vec![text("SSG")]),
+                        select::indicator(state, &props, vec![], vec![]),
                     ],
                 )],
             ),
@@ -479,7 +498,7 @@ fn select_section() -> Node {
             select::hidden_select(
                 Some("ssg"),
                 Some("deploy-target"),
-                false,
+                &props,
                 vec![],
                 vec![("ssr", "SSR"), ("ssg", "SSG"), ("csr", "CSR")],
             ),
@@ -608,15 +627,20 @@ fn tooltip_section() -> Node {
 /// 1 件と現在ページを示すリンク単独項目 1 件を実演する。
 fn navigation_menu_section() -> Node {
     let state = OpenState::Closed;
+    let props = navigation_menu::NavigationMenuProps::default();
     let node = navigation_menu::root(
+        &props,
         "Product navigation",
         vec![],
         vec![navigation_menu::list(
+            &props,
             vec![],
             vec![
                 navigation_menu::item(
                     state,
                     false,
+                    &props,
+                    "docs",
                     vec![],
                     vec![
                         navigation_menu::trigger(
@@ -630,6 +654,8 @@ fn navigation_menu_section() -> Node {
                         ),
                         navigation_menu::content(
                             state,
+                            &props,
+                            "docs",
                             Some("showcase-nav-menu-docs-content"),
                             Some("showcase-nav-menu-docs-trigger"),
                             vec![],
@@ -645,6 +671,8 @@ fn navigation_menu_section() -> Node {
                 navigation_menu::item(
                     state,
                     false,
+                    &props,
+                    "pricing",
                     vec![],
                     vec![navigation_menu::link(
                         "/pricing",
@@ -903,7 +931,10 @@ fn card_section() -> Node {
 fn alert_section() -> Node {
     let make = |status: AlertStatus, title_text: &str, description_text: &str| {
         alert::root(
-            status,
+            &alert::AlertProps {
+                status,
+                ..alert::AlertProps::default()
+            },
             vec![],
             vec![
                 alert::indicator(vec![], vec![text("!")]),
@@ -967,21 +998,22 @@ fn spinner_section() -> Node {
 /// `switch::stylesheet()` が提供する（モジュール doc の層別内訳参照）。
 fn switch_section() -> Node {
     let checked = true;
+    let props = switch::SwitchProps::default();
     let node = switch::root(
         Size::Md,
         ColorPalette::Accent,
         checked,
-        false,
+        &props,
         vec![],
         vec![
             switch::control(
                 checked,
-                false,
+                &props,
                 vec![],
-                vec![switch::thumb(checked, vec![], vec![])],
+                vec![switch::thumb(checked, &props, vec![], vec![])],
             ),
-            switch::label(checked, vec![], vec![text("Enable notifications")]),
-            switch::hidden_input("notifications", "on", checked, false, false, vec![]),
+            switch::label(checked, &props, vec![], vec![text("Enable notifications")]),
+            switch::hidden_input("notifications", "on", checked, &props, vec![]),
         ],
     );
     section(
@@ -998,6 +1030,7 @@ fn switch_section() -> Node {
 /// を使う。`size`/`palette` variant 引数により recipe 生成クラス
 /// （`fd-radio-group--size-*`/`fd-radio-group--color-palette-*`）を付与する。
 fn radio_group_section() -> Node {
+    let props = radio_group::RadioGroupProps::default();
     let options = [
         ("ssr", "SSR", true),
         ("ssg", "SSG", false),
@@ -1007,13 +1040,13 @@ fn radio_group_section() -> Node {
     for (value, label_text, checked) in options {
         items.push(radio_group::item(
             checked,
-            false,
+            &props,
             value,
             vec![],
             vec![
-                radio_group::item_hidden_input(checked, false, Some("render-mode"), value, vec![]),
-                radio_group::item_control(checked, false, vec![]),
-                radio_group::item_text(checked, false, vec![], vec![text(label_text)]),
+                radio_group::item_hidden_input(checked, &props, Some("render-mode"), value, vec![]),
+                radio_group::item_control(checked, &props, vec![]),
+                radio_group::item_text(checked, &props, vec![], vec![text(label_text)]),
             ],
         ));
     }
@@ -1025,6 +1058,7 @@ fn radio_group_section() -> Node {
         Some("render-mode-label"),
         vec![],
         std::iter::once(radio_group::label(
+            &props,
             Some("render-mode-label"),
             vec![],
             vec![text("Render mode")],
@@ -1050,8 +1084,11 @@ fn radio_group_section() -> Node {
 fn avatar_section() -> Node {
     let status = ImageStatus::Error;
     let node = avatar::root(
-        Size::Md,
-        AvatarShape::Circle,
+        &avatar::AvatarProps {
+            size: Size::Md,
+            shape: AvatarShape::Circle,
+            ..avatar::AvatarProps::default()
+        },
         vec![],
         vec![
             avatar::image(status, "/nonexistent.png", "User avatar", vec![]),
@@ -1074,12 +1111,15 @@ fn xss_probe() -> &'static str {
 
 fn xss_probe_section() -> Node {
     let state = OpenState::Closed;
+    let props = accordion::AccordionProps::default();
     let node = accordion::root(
         Size::Md,
+        &props,
         vec![],
         vec![accordion::item(
             state,
             false,
+            &props,
             vec![],
             vec![
                 el(
@@ -1088,6 +1128,7 @@ fn xss_probe_section() -> Node {
                     vec![accordion::item_trigger(
                         state,
                         false,
+                        &props,
                         "xss-probe",
                         None,
                         None,
@@ -1095,7 +1136,7 @@ fn xss_probe_section() -> Node {
                         vec![text(xss_probe())],
                     )],
                 ),
-                accordion::item_content(state, None, None, vec![], vec![]),
+                accordion::item_content(state, false, &props, None, None, vec![], vec![]),
             ],
         )],
     );

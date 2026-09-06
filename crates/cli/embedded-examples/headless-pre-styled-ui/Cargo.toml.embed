@@ -31,9 +31,12 @@ publish = false
 # 公開、#1173）へ追随。0.40.0 の破壊的変更（navigation_menu::trigger の value
 # 引数追加・menubar::trigger の index 引数追加）は本サンプル未使用のため
 # `src/main.rs` の変更は不要。
+# イシュー #1974 で pre-styled-ui 0.119.1 / headless-ui 0.65.0 / core 0.4.3 へ
+# 追随。Props パターン化（headless パート関数への `&XxxProps` 引数追加・
+# `alert::root` / `avatar::root` の Props 構造体化）へ `src/main.rs` を追随させた。
 [dependencies]
-fandhe-frontend-core = "0.2.0"
-fandhe-frontend-pre-styled-ui = "0.40.0"
+fandhe-frontend-core = "0.4.3"
+fandhe-frontend-pre-styled-ui = "0.119.1"
 
 [dev-dependencies]
 
