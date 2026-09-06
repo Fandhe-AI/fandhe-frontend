@@ -18,9 +18,16 @@
 //! 上げ値と実際のパネルサイズが乖離する ARIA 上の虚偽表示になる（out-of-scope
 //! を残す現状より a11y として悪化する）。そのため本モジュールは `on_action`
 //! で dispatch 依頼のみを行い、`aria-valuenow`・パネルサイズの双方が同時に
-//! 再生成される再描画（`crate::lib::Runtime::wire` の束縛点更新経路）へ DOM
-//! 反映を委ねる（`crate::angle_slider` の Thumb 回転・`aria-valuenow` 更新と
-//! 同じ責務分離、`angle_slider.rs` モジュール doc 参照）。
+//! 再生成される再描画へ DOM 反映を委ねる（`crate::angle_slider` の Thumb
+//! 回転・`aria-valuenow` 更新と同じ責務分離、`angle_slider.rs` モジュール doc
+//! 参照）。この委譲先は `crate::lib::Runtime::wire_splitter` が
+//! `crate::lib::Runtime::wire` の返す閉包をそのまま `on_action` として
+//! `wire_splitter_events` へ渡すことで実装済み（イシュー #1996。
+//! `wire_angle_slider` と同型）。ただし `aria-valuenow` 等の属性自体が
+//! dispatch 後に更新されるにはアプリ側が `bind_attr_tokens` で
+//! `data-bind-attr` を明示付与している必要がある（`wire_splitter` の
+//! rustdoc 参照。`RESIZE_TRIGGER_RESERVED` に `data-bind-attr` は含まれない
+//! ため付与は可能）。
 //!
 //! # `crate::keynav` へ統合しない理由
 //!

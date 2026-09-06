@@ -596,7 +596,9 @@ name = "fandhe-frontend-wasm-full"
 # `id` による安定識別子を必須とした（`id` 無しのスライダーが入れ替わった
 # 場合も「1 個」が成立し別インスタンスをエイリアスするため）。私有 enum の
 # 変種削除のみで公開 API は不変。
-version = "0.15.14"
+# イシュー #1996: `wire_splitter` を `wire_angle_slider` と同型の閉包配線へ
+# 差し替え。公開 API 追加なし・内部配線のみの変更のため patch バンプ。
+version = "0.15.15"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
