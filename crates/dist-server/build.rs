@@ -313,6 +313,35 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
     // ステージ」参照）。
     let wasm_opt_version = detect_wasm_opt()?;
 
+    // `wasm-opt` の導入・更新・削除を検知する再実行条件（PR #1980 レビュー
+    // 指摘）。fingerprint（`wasm_stage_cache`）は `wasm-opt` のバージョンを
+    // 入力に含めるが、その比較自体が「本 build.rs が再実行されること」を
+    // 前提にしている。cargo は明示的な `rerun-if-changed`/
+    // `rerun-if-env-changed` 以外の理由では build.rs を再実行しないため、
+    // `static/`・ワークスペースソース等のトリガー（`main` 末尾）が一切
+    // 変化しないまま「未導入 → 導入」「バージョン更新」「削除」が起きても
+    // 検知できず、fingerprint 比較そのものに到達しない（PATH やツール実体は
+    // cargo の標準トリガーの監視対象外なため）。以下の 3 種のトリガーで
+    // これを補う:
+    // 1. `PATH` 環境変数自体の変更（新しいディレクトリの追加・既存の
+    //    再配置等）。
+    println!("cargo:rerun-if-env-changed=PATH");
+    // 2. 現在 `PATH` から解決できる `wasm-opt` の実体そのもの（同じ場所への
+    //    バイナリ入れ替え・削除で mtime が変わるケースを拾う）。
+    if let Some(wasm_opt_path) = locate_on_path("wasm-opt") {
+        println!("cargo:rerun-if-changed={}", wasm_opt_path.display());
+    }
+    // 3. `PATH` 上の各ディレクトリ（`wasm-opt` が新規に追加された場合、
+    //    ディレクトリ自体の mtime が変わるため検知できる。「未導入 → 導入」
+    //    への変化は 2. では拾えず、この経路でしか検知できない）。
+    if let Some(path_var) = env::var_os("PATH") {
+        for dir in env::split_paths(&path_var) {
+            if dir.is_dir() {
+                println!("cargo:rerun-if-changed={}", dir.display());
+            }
+        }
+    }
+
     // ネストビルド自体は cargo 標準の増分キャッシュが効くため常に実行する。
     // キャッシュ制御の対象はこの後段の `wasm-bindgen`/`wasm-opt` 実行のみ。
     let wasm_binary_path = run_wasm_build(workspace_root)?;
@@ -337,6 +366,20 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
             wasm_assets_dir.display()
         );
     } else {
+        // 成果物を上書きする前に旧 fingerprint を無効化する（PR #1980 レビュー
+        // 指摘）。無効化せずに `wasm-bindgen` が両成果物を復元すると、直後の
+        // `wasm-opt` が失敗・中断して `write_wasm_stage_fingerprint` に
+        // 到達しなかった場合でも、旧 fingerprint が偶然「現在の入力」と
+        // 一致するケース（wasm バイナリ内容・CLI バージョン・wasm-opt
+        // バージョンのいずれも前回成功時から変わっていない）で次回ビルドが
+        // HIT と誤判定し、未最適化のまま残った成果物を最適化済みとして
+        // 再利用してしまう。削除自体の失敗（そもそも存在しない・権限エラー
+        // 等）は無視してよい — 後続の `wasm_stage_cache_hit` は
+        // fingerprint ファイルが読めない場合も MISS 側に倒れるため、
+        // 削除できなくても「成果物を再生成しないまま再利用される」事故には
+        // つながらない（フェイルクローズ）。
+        let _ = fs::remove_file(&fingerprint_path);
+
         eprintln!("wasm-stage cache MISS: running wasm-bindgen");
         run_wasm_bindgen(&wasm_binary_path, &wasm_assets_dir)?;
 
@@ -572,6 +615,28 @@ fn run_wasm_bindgen(wasm_binary_path: &Path, wasm_assets_dir: &Path) -> Result<(
     }
 
     Ok(())
+}
+
+/// `PATH` 上から `exe_name`（拡張子なし）という名前の実行可能ファイルを
+/// 探索し、見つかった最初の絶対パスを返す。サブプロセスは起動しない
+/// 純粋な探索であり、`detect_wasm_opt` とは別目的（cargo の再実行トリガー
+/// 登録用に実体の場所を特定するだけ。存在確認のみで実行可能性までは
+/// 検証しない）。見つからなければ `None`。
+fn locate_on_path(exe_name: &str) -> Option<PathBuf> {
+    let path_var = env::var_os("PATH")?;
+    for dir in env::split_paths(&path_var) {
+        let candidate = dir.join(exe_name);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        if cfg!(windows) {
+            let candidate_exe = dir.join(format!("{exe_name}.exe"));
+            if candidate_exe.is_file() {
+                return Some(candidate_exe);
+            }
+        }
+    }
+    None
 }
 
 /// PATH 上の `wasm-opt`（binaryen）を検出する。
