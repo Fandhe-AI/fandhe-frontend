@@ -150,16 +150,18 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         category: PrimitiveCategory::FormsA,
     },
     PrimitiveEntry {
-        // Themes 側（site/themes/）に対応ページを持たない 2 件の 1 つ
-        // （PRIMITIVES_WITHOUT_THEMES_PAGE 参照）。表示名は機械転記元が
-        // ないため "Field" を直接定める。
+        // Themes ページと title 一致（#1685、`site/themes/field.md` /
+        // `site/nav.toml` を参照。
+        // `primitives_titles_match_themes_page_titles_where_both_exist`
+        // が突合する）。表示名は機械転記元がないため "Field" を直接定める。
         module: "field",
         path: "/primitives/field/",
         title: "Field",
         category: PrimitiveCategory::FormsA,
     },
     PrimitiveEntry {
-        // 同上（Themes 対応ページなし）。
+        // Themes 対応ページを持たない唯一の 1 件
+        // （PRIMITIVES_WITHOUT_THEMES_PAGE 参照）。
         module: "fieldset",
         path: "/primitives/fieldset/",
         title: "Fieldset",
@@ -535,13 +537,13 @@ pub const FOUNDATION_MODULES: &[&str] = &[
 pub const CRATE_ROOT_MODULE: &str = "lib";
 
 /// Themes 側（`site/themes/<kebab>.md`）に対応ページを持たない
-/// Primitives の 2 件（`collapsible` はイシュー #1683 で Themes ページ
-/// 登録済みのため除外済み）。
+/// Primitives の唯一の 1 件（`collapsible` はイシュー #1683、`field` は
+/// イシュー #1685 でそれぞれ Themes ページ登録済みのため除外済み）。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
 /// 除外しない。設計 §9 A05「特定モジュールを検査から外す汎用の除外リストを
 /// 作らない」の限定用途の 1 つ）。
-pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["field", "fieldset"];
+pub const PRIMITIVES_WITHOUT_THEMES_PAGE: &[&str] = &["fieldset"];
 
 /// 台帳の全件を宣言順に返す。
 pub fn entries() -> impl Iterator<Item = &'static PrimitiveEntry> {

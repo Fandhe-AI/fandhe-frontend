@@ -1,11 +1,11 @@
 //! イシュー #1064: Primitives（`fandhe-frontend-headless-ui`、63 部品）と
-//! Themes（`fandhe-frontend-pre-styled-ui`、108 部品）の**層をまたぐラップ状態**
+//! Themes（`fandhe-frontend-pre-styled-ui`、109 部品）の**層をまたぐラップ状態**
 //! を機械可視化する契約テスト。
 //!
 //! # 背景・既存テストとの分担
 //!
 //! `tests/primitives_catalog.rs` は headless-ui ソース ↔ 台帳のドリフトを
-//! レイヤー内で検知するのみで、「Themes 108 部品のどれが headless をラップし、
+//! レイヤー内で検知するのみで、「Themes 109 部品のどれが headless をラップし、
 //! どれが独自実装か」という層をまたぐ対応関係は検証しない
 //! （`primitives_titles_match_themes_page_titles_where_both_exist` は同名
 //! ページが両方に存在する場合の title 一致のみを見る）。本ファイルはその
@@ -14,9 +14,9 @@
 //! をすり抜けるのを防ぐ。判別規約は
 //! `docs/design/docs-site-primitives-themes-split.md` §6a を参照。
 //!
-//! # 4 バケット分割（Themes 108 部品）
+//! # 4 バケット分割（Themes 109 部品）
 //!
-//! - [`WRAPPED_SAME_NAME`]（61）: 同名の Primitives 部品が存在し、かつ同名
+//! - [`WRAPPED_SAME_NAME`]（62）: 同名の Primitives 部品が存在し、かつ同名
 //!   headless モジュールへコード委譲している
 //! - [`WRAPPED_CROSS_NAME`]（5）: 同名 Primitives 部品は無いが、別名の
 //!   headless 部品へコード委譲している
@@ -419,7 +419,8 @@ fn resolve_page<'a>(scan: &'a PreStyledScan, page_kebab: &str) -> &'a FileScan {
 // ---------------------------------------------------------------------
 
 /// バケット A: 同名 Primitives 部品が存在し、同名 headless モジュールへ
-/// コード委譲している Themes ページ（kebab、ソート済み、61 件）。
+/// コード委譲している Themes ページ（kebab、ソート済み、62 件。
+/// イシュー #1685 で `field` を追加）。
 const WRAPPED_SAME_NAME: &[&str] = &[
     "accordion",
     "action-bar",
@@ -440,6 +441,7 @@ const WRAPPED_SAME_NAME: &[&str] = &[
     "download-trigger",
     "drawer",
     "editable",
+    "field",
     "file-upload",
     "floating-panel",
     "hover-card",
@@ -559,27 +561,18 @@ const PRE_STYLED_ONLY: &[&str] = &[
 /// headless 部品（module 名、1 件）。
 const HEADLESS_UNWRAPPED: &[&str] = &["fieldset"];
 
-/// `field`（Themes ページを持たない headless 部品）を別名でラップしている
-/// pre-styled モジュール名（4 件）。イシュー #1684 で `field.rs`
-/// （headless `field::root` へコード委譲する同名モジュール）を追加した
-/// （`field` 自身も headless `field` へのコード委譲元であるため本台帳に
-/// 含める。#1685 で `/themes/field/` ページを新設した際は本台帳の扱いを
-/// 見直す）。
+/// headless `field` へコード委譲する全モジュール（同名ラッパー `field` を
+/// 含む、4 件）。イシュー #1684 で `field.rs`（headless `field::root` へ
+/// コード委譲する同名モジュール）を追加し、イシュー #1685 で
+/// `/themes/field/` ページを新設した（`field` 自身は [`WRAPPED_SAME_NAME`]
+/// に分類される。本定数は「headless `field` scope を共有する参照元」の
+/// 集合として引き続き 4 件のまま維持する）。
 const FIELD_CROSS_WRAPPERS: &[&str] = &["field", "input", "native_select", "textarea"];
 
-/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（7 件。
-/// イシュー #1684 で `field`（pre-styled-ui クレート内で完結する recipe
-/// のみ実装、`/themes/field/` ページ未登録）を追加。ページ登録は #1685 の
-/// スコープ）。
-const NON_PAGE_TOP_LEVEL: &[&str] = &[
-    "class_attr",
-    "css",
-    "field",
-    "lib",
-    "recipe",
-    "stylesheet",
-    "theme",
-];
+/// §3.6: トップレベルのうち Themes ページに対応しないモジュール（6 件。
+/// イシュー #1685 で `field` が `/themes/field/` ページ登録済みとなり
+/// 本台帳から除外された）。
+const NON_PAGE_TOP_LEVEL: &[&str] = &["class_attr", "css", "lib", "recipe", "stylesheet", "theme"];
 
 /// §3.6: `charts/` のうち Themes ページに対応しないモジュール（8 件。
 /// `mod` は charts 索引ページとして別枠で扱うため含まない。`tooltip` は
@@ -604,7 +597,7 @@ fn every_themes_page_resolves_to_exactly_one_pre_styled_module() {
     let pages = themes_page_kebabs();
     assert_eq!(
         pages.len(),
-        108,
+        109,
         "site/nav.toml の Themes ページ数が想定と異なります"
     );
 
@@ -876,12 +869,13 @@ fn unwrapped_ledger_is_consistent_with_primitives_without_themes_page() {
     );
 
     let diff: BTreeSet<&str> = without_page.difference(&unwrapped).copied().collect();
-    let expected_diff: BTreeSet<&str> = ["field"].into_iter().collect();
+    let expected_diff: BTreeSet<&str> = BTreeSet::new();
     assert_eq!(
         diff, expected_diff,
-        "PRIMITIVES_WITHOUT_THEMES_PAGE ∖ HEADLESS_UNWRAPPED は \
-         {{\"field\"}} のみであるはずです（`field` は別名ラップ済みのため \
-         HEADLESS_UNWRAPPED には含めない）"
+        "PRIMITIVES_WITHOUT_THEMES_PAGE ∖ HEADLESS_UNWRAPPED は空集合である \
+         はずです（`field` はイシュー #1685 で `/themes/field/` ページを \
+         登録し WRAPPED_SAME_NAME へ分類されたため、PRIMITIVES_WITHOUT_THEMES_PAGE \
+         から除外済み）"
     );
 
     let scan = scan_pre_styled_src(&pre_styled_ui_src_dir());
@@ -943,9 +937,9 @@ fn every_pre_styled_module_is_either_a_page_or_declared_non_page() {
         scan.top_level.len(),
         109,
         "src/*.rs の総数が想定と異なります（イシュー #1684 で field.rs \
-         を新設し 108 → 109。field は Themes ページを持たない \
-         NON_PAGE_TOP_LEVEL 扱いの暫定台帳、#1685 でページ登録次第 \
-         WRAPPED_CROSS_NAME 等の該当バケットへ移す）"
+         を新設し 108 → 109。イシュー #1685 で `/themes/field/` ページを \
+         登録し `field` は WRAPPED_SAME_NAME バケットへ移った。総数自体は \
+         109 のまま不変）"
     );
     assert_eq!(
         scan.charts.len(),

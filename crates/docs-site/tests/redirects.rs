@@ -237,9 +237,11 @@ fn build_succeeds_with_zero_redirects_when_manifest_is_absent() {
 /// 108 件（予防的移転案内 1 + 部品ページ移行 107）。イシュー #1018 で
 /// `/components/pre-styled-ui/`（索引ページの旧 URL）→ `/themes/` の
 /// リダイレクトを追加し、109 件になった。イシュー #1683 で Collapsible の
-/// Themes ページ新設に伴い `/components/collapsible/` を追加し、現在は
-/// 110 件。本値の更新が要る変更は fail-closed に検知する（黙って増減しても
-/// 気付けるようにする意図。`tests/site_build.rs` のページ数固定と同型）。
+/// Themes ページ新設に伴い `/components/collapsible/` を追加し、110 件に
+/// なった。イシュー #1685 で Field の Themes ページ新設に伴い
+/// `/components/field/` を追加し、現在は 111 件。本値の更新が要る変更は
+/// fail-closed に検知する（黙って増減しても気付けるようにする意図。
+/// `tests/site_build.rs` のページ数固定と同型）。
 #[test]
 fn real_redirects_manifest_parses_and_validates_against_the_real_nav() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -254,7 +256,7 @@ fn real_redirects_manifest_parses_and_validates_against_the_real_nav() {
         redirect::parse_redirects(&input).expect("site/redirects.toml should parse cleanly");
     assert_eq!(
         redirects.entries.len(),
-        110,
+        111,
         "site/redirects.toml の宣言件数が期待値と異なる: {:?}",
         redirects.entries
     );
@@ -295,7 +297,8 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
         fandhe_frontend_docs_site::nav::parse_nav(&nav_input).expect("site/nav.toml should parse");
 
     // nav 側: `site/themes/<kebab>.md` を source に持つ全ページの
-    // (kebab, path) 集合（108 件、イシュー #1683 で 107 → 108）。
+    // (kebab, path) 集合（109 件、イシュー #1683 で 107 → 108、
+    // イシュー #1685 で 108 → 109）。
     let themes_pages: Vec<(String, String)> = nav
         .all_pages()
         .filter_map(|p| {
@@ -307,8 +310,8 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
         .collect();
     assert_eq!(
         themes_pages.len(),
-        108,
-        "expected 108 site/themes/ pages, got {}: {themes_pages:?}",
+        109,
+        "expected 109 site/themes/ pages, got {}: {themes_pages:?}",
         themes_pages.len()
     );
 
