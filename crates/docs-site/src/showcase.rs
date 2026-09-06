@@ -182,7 +182,7 @@ use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
 use fandhe_frontend_pre_styled_ui::timer::{self, Timer, TimerControl, TimerPhase, TimerUnit};
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::toggle_group;
-use fandhe_frontend_pre_styled_ui::toolbar::{self, Toolbar};
+use fandhe_frontend_pre_styled_ui::toolbar::Toolbar;
 use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
@@ -6662,7 +6662,7 @@ fn toolbar_section() -> Node {
         vec![
             bar.button(0, false, vec![], vec![text("Undo")]),
             bar.separator(vec![], vec![]),
-            toolbar::toggle_group(
+            bar.toggle_group(
                 vec![],
                 vec![
                     bar.toggle_item(

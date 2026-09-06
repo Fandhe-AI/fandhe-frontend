@@ -450,7 +450,14 @@ name = "fandhe-frontend-headless-ui"
 # いた。本ブランチは scroll-area の `viewport`/`scrollbar`/`thumb`/`corner`
 # へ予約キーなりすまし除去（`drop_reserved`）を追加していた（非破壊的
 # 変更）。main の到達点 0.60.0 を起点に patch バンプで 0.60.1 とする。
-version = "0.60.1"
+# イシュー #1657（toolbar の参照突合）: `toolbar::button`/`link`/
+# `toggle_group`/`toggle_item` の自由関数へ先頭引数 `orientation:
+# Orientation` を追加し `data-orientation` を出力するようにした破壊的変更
+# （`separator` への直交 `data-orientation` 追加・呼び出し側予約キー
+# なりすまし除去〔`drop_reserved`〕の導入は非破壊的だが、上記シグネチャ
+# 変更が破壊的のため合わせてマイナーバンプする）。0.x の破壊的変更は
+# マイナーバンプとする規約に従いマイナーバンプで 0.61.0 とする。
+version = "0.61.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

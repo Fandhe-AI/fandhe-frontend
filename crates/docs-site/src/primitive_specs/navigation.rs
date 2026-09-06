@@ -2207,10 +2207,11 @@ fn ex_toolbar() -> Node {
         "View options",
         vec![],
         vec![
-            toolbar::button(true, false, vec![], vec![text("List view")]),
-            toolbar::button(false, false, vec![], vec![text("Grid view")]),
+            toolbar::button(orientation, true, false, vec![], vec![text("List view")]),
+            toolbar::button(orientation, false, false, vec![], vec![text("Grid view")]),
             toolbar::separator(orientation, vec![], vec![]),
             toolbar::toggle_item(
+                orientation,
                 false,
                 false,
                 true,
@@ -2219,6 +2220,45 @@ fn ex_toolbar() -> Node {
                 vec![text("Compact (disabled)")],
             ),
         ],
+    )])
+}
+
+/// イシュー #1657: `[data-scope="toolbar"]` セレクタを使った自前 CSS の
+/// 最小例（headless-ui はスタイルレスであり、呼び出し側が anatomy の
+/// `data-scope`/`data-part`/`data-orientation` を使って自由にスタイルを
+/// 当てられることを示す）。CSS は `pre`/`code` のテキストノードとして
+/// 出力するのみで、`assets/primitives-showcase.css` へセレクタを追加
+/// しない（`crates/docs-site/tests/site_css_contract.rs` 不変）。
+const TOOLBAR_CUSTOM_CSS_SNIPPET: &str = r#"[data-scope="toolbar"][data-part="root"] {
+  display: flex;
+  gap: 0.25rem;
+}
+[data-scope="toolbar"][data-orientation="vertical"] {
+  flex-direction: column;
+}
+[data-scope="toolbar"][data-part="separator"][data-orientation="vertical"] {
+  width: 1px;
+  align-self: stretch;
+}
+[data-scope="toolbar"][data-part="toggle-item"][data-state="on"] {
+  background: var(--accent-subtle, #dbeafe);
+}
+[data-scope="toolbar"] [data-disabled] {
+  opacity: 0.5;
+}
+[data-scope="toolbar"] :focus-visible {
+  outline: 2px solid var(--focus-ring, #2563eb);
+}
+"#;
+
+/// 自前 CSS の最小例（`TOOLBAR_CUSTOM_CSS_SNIPPET` をそのままテキストノード
+/// として描画するのみで、`raw_html()` は使わない。REQ-1 既定エスケープを
+/// 経由する）。
+fn ex_toolbar_custom_css() -> Node {
+    example_wrap(vec![el(
+        "pre",
+        vec![],
+        vec![el("code", vec![], vec![text(TOOLBAR_CUSTOM_CSS_SNIPPET)])],
     )])
 }
 
@@ -2243,7 +2283,7 @@ pub(super) const TOOLBAR: ComponentPageSpec = ComponentPageSpec {
             name: "root(orientation)",
             kind: "Orientation",
             default: "Orientation::Horizontal",
-            description: "role=\"toolbar\" に付与する向き。aria-orientation/data-orientation の両方へ反映される。",
+            description: "role=\"toolbar\" に付与する向き。aria-orientation/data-orientation の両方へ反映される。button/link/separator/toggle_group/toggle_item も先頭引数として同じ Orientation を受け取り data-orientation を出力する（イシュー #1657、Radix Primitives Toolbar との突合で追加）。",
         },
         ArgRow {
             name: "root(label)",
@@ -2258,43 +2298,66 @@ pub(super) const TOOLBAR: ComponentPageSpec = ComponentPageSpec {
             description: "true のとき tabindex=\"0\"、false のとき tabindex=\"-1\"（roving tabindex）。button/link/toggle_item 共通の引数。",
         },
         ArgRow {
+            name: "link(external)",
+            kind: "bool",
+            default: "false",
+            description: "true のとき target=\"_blank\"/rel=\"noopener noreferrer\" を crate::link::root への完全委譲で不可分に付与する（reverse tabnabbing 対策）。",
+        },
+        ArgRow {
             name: "toggle_item(pressed)",
             kind: "bool",
             default: "",
             description: "aria-pressed/data-state（pressed_data_state 経由）へ反映される押下状態。",
         },
+        ArgRow {
+            name: "toggle_item(value)",
+            kind: "&str",
+            default: "",
+            description: "data-value として出力する識別子（ark-ui 対応の superset、REQ-1 既定エスケープを経由）。",
+        },
     ],
-    examples: &[ExampleEntry {
-        title: "Vertical orientation の構成",
-        description: "縦方向の Toolbar で Separator の aria-orientation が水平（直交）に切り替わる例です。",
-        render: ex_toolbar,
-    }],
+    examples: &[
+        ExampleEntry {
+            title: "Vertical orientation の構成",
+            description: "縦方向の Toolbar で Separator の aria-orientation が水平（直交）に切り替わる例です。",
+            render: ex_toolbar,
+        },
+        ExampleEntry {
+            title: "自前 CSS の最小例",
+            description: "headless-ui はスタイルレスのため、data-scope/data-part/data-orientation セレクタを使って呼び出し側が自由にスタイルを当てられます（そのまま貼り付けて動く最小限の CSS）。",
+            render: ex_toolbar_custom_css,
+        },
+    ],
     keyboard: &[
         KeyRow {
             key: "Tab / Shift+Tab",
-            description: "ネイティブ button/a 要素の暗黙フォーカス移動（roving tabindex により tabindex=\"0\" の項目のみが Tab 順序に含まれる）。",
+            description: "ネイティブ button/a 要素の暗黙フォーカス移動（roving tabindex により tabindex=\"0\" の項目のみが Tab 順序に含まれる）。実装済み。",
         },
         KeyRow {
-            key: "(矢印キー等)",
-            description: "項目間移動のキーイベント配線は headless-ui の対象外。ToolbarAction（Next/Prev/First/Last/Focus）として状態遷移 API を提供し、実 DOM のキー配線は wasm ランタイム層の責務とする（toolbar.rs モジュール doc「呼び出し文脈」節）。",
+            key: "Space / Enter",
+            description: "ネイティブ button/a 要素の暗黙アクティベーション。実装済み。",
+        },
+        KeyRow {
+            key: "矢印キー / Home / End",
+            description: "headless-ui は ToolbarAction（Next/Prev/First/Last/Focus）として状態遷移 API のみを提供する。fandhe-frontend-wasm-full に本モジュールの keydown 配線は現状存在しない（イシュー #1657 時点で確認済み、未実装。別 Issue の起票対象）。",
         },
     ],
     aria: &[
         AriaRow {
-            attribute: "role=\"toolbar\" / aria-orientation",
+            attribute: "role=\"toolbar\" / aria-orientation / data-orientation",
             description: "root に固定付与。orientation 引数の値を反映する。",
         },
         AriaRow {
-            attribute: "role=\"separator\" / aria-orientation",
-            description: "separator に固定付与。toolbar 自身の向きと直交する値になる。",
+            attribute: "role=\"separator\" / aria-orientation / data-orientation",
+            description: "separator に固定付与。toolbar 自身の向きと直交する値になる（aria-orientation と data-orientation は同値）。",
         },
         AriaRow {
-            attribute: "role=\"group\"",
+            attribute: "role=\"group\" / data-orientation",
             description: "toggle-group に固定付与（aria-orientation は role=\"group\" に許可されないため付与しない）。",
         },
         AriaRow {
-            attribute: "aria-pressed",
-            description: "toggle-item に付与。押下状態（true/false）を表す。",
+            attribute: "aria-pressed / data-orientation",
+            description: "toggle-item に付与。押下状態（true/false）と toolbar の向きを表す。",
         },
     ],
     demo: None,

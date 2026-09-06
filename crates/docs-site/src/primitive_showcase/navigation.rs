@@ -806,33 +806,96 @@ pub(super) fn tabs_section() -> Node {
     demo_page("Tabs", body)
 }
 
+/// イシュー #1657: Radix Primitives の Toolbar デモ（B/I/U のトグル群・
+/// 整列トグル群・リンク・ボタン）相当へ刷新し、機械導出される Anatomy /
+/// data-* 属性表に `data-state="on"|"off"`・`data-disabled`・
+/// `data-orientation` が一通り現れるようにする（6 anatomy パーツ全網羅は
+/// 従来から維持、`crates/docs-site/tests/primitive_showcase.rs`
+/// `anatomy_coverage_matches_known_uncovered_exactly` 参照）。
 pub(super) fn toolbar_section() -> Node {
     let orientation = Orientation::Horizontal;
     let body = vec![toolbar::root(
         orientation,
-        "Formatting",
+        "Text formatting",
         vec![],
         vec![
-            toolbar::button(true, false, vec![], vec![text("Bold")]),
-            toolbar::link(
-                false,
-                "https://example.com/help",
-                false,
+            toolbar::toggle_group(
+                orientation,
                 vec![],
-                vec![text("Help")],
+                vec![
+                    toolbar::toggle_item(
+                        orientation,
+                        true,
+                        true,
+                        false,
+                        "bold",
+                        vec![],
+                        vec![text("Bold")],
+                    ),
+                    toolbar::toggle_item(
+                        orientation,
+                        false,
+                        false,
+                        false,
+                        "italic",
+                        vec![],
+                        vec![text("Italic")],
+                    ),
+                    toolbar::toggle_item(
+                        orientation,
+                        false,
+                        false,
+                        true,
+                        "strikethrough",
+                        vec![],
+                        vec![text("Strikethrough")],
+                    ),
+                ],
             ),
             toolbar::separator(orientation, vec![], vec![]),
             toolbar::toggle_group(
+                orientation,
                 vec![],
-                vec![toolbar::toggle_item(
-                    true,
-                    false,
-                    false,
-                    "align-left",
-                    vec![],
-                    vec![text("Left")],
-                )],
+                vec![
+                    toolbar::toggle_item(
+                        orientation,
+                        true,
+                        false,
+                        false,
+                        "align-left",
+                        vec![],
+                        vec![text("Left")],
+                    ),
+                    toolbar::toggle_item(
+                        orientation,
+                        false,
+                        false,
+                        false,
+                        "align-center",
+                        vec![],
+                        vec![text("Center")],
+                    ),
+                    toolbar::toggle_item(
+                        orientation,
+                        false,
+                        false,
+                        false,
+                        "align-right",
+                        vec![],
+                        vec![text("Right")],
+                    ),
+                ],
             ),
+            toolbar::separator(orientation, vec![], vec![]),
+            toolbar::link(
+                orientation,
+                false,
+                "https://example.com/history",
+                false,
+                vec![],
+                vec![text("Edited 2 hours ago")],
+            ),
+            toolbar::button(orientation, false, false, vec![], vec![text("Share")]),
         ],
     )];
     demo_page("Toolbar", body)
