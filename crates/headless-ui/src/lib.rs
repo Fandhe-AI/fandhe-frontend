@@ -548,8 +548,11 @@
 //!   （外部依存ゼロの自前 enum）をツリー表示する（イシュー #829、[`mod@tree_view`]
 //!   （#753）の派生）。構造部は [`mod@tree_view`] の既存パーツ関数・
 //!   [`tree_view::TreeView`] 状態機械をそのまま再利用し、JSON 固有の `key`/
-//!   `value`（`data-scope="json-tree-view"`）の 2 パーツのみを追加する。
-//!   ノード識別子は RFC 6901 JSON Pointer で決定的に導出する
+//!   `colon`/`value`（`data-scope="json-tree-view"`）の 3 パーツを
+//!   `branch-text`/`item-text` の内側へ入れ子にして追加する（`colon` は
+//!   イシュー #1661 の ark-ui/zag 突合で追加。`data-kind` 語彙は
+//!   `"null"`/`"boolean"`/`"number"`/`"string"`/`"array"`/`"object"` の
+//!   6 値）。ノード識別子は RFC 6901 JSON Pointer で決定的に導出する
 //!   （[`json_tree_view::render_json`] モジュール doc 参照）。
 //! - [`mod@scroll_area`]: Root / Viewport / Content / Scrollbar / Thumb /
 //!   Corner の 6 anatomy パーツ（イシュー #825、`docs/design/component-coverage-map.md`

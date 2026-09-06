@@ -1831,6 +1831,11 @@ name = "fandhe-frontend-pre-styled-ui"
 # §5 と同型の判断）。main の到達点（0.110.1）を土台に、本ブランチの
 # headless-ui 0.58.0 依存追随（破壊的変更）を反映してさらにマイナーバンプ
 # し 0.111.0 とする。
+# イシュー #1661（json-tree-view の参照突合、headless-ui 0.59.0 追随）:
+# 依存先 headless-ui の `data-kind` 語彙変更（`"bool"` → `"boolean"`）に
+# 追随して `StateCondition::AttrEq("data-kind", "boolean")` へセレクタを
+# 変更する（golden CSS 出力が変わる観測可能な破壊的変更）ためマイナー
+# バンプで 0.112.0 とする。
 # イシュー #1655（pagination の参照突合）: 依存先 `fandhe-frontend-headless-ui`
 # 0.59.0 への追随（`pagination::item` のシグネチャ変更を `pub use` で
 # 選択的再エクスポートしているため呼び出し側にも波及する破壊的変更）に伴い
@@ -1844,6 +1849,14 @@ name = "fandhe-frontend-pre-styled-ui"
 # `.claude/rules/coding-rust.md` 「公開済みクレートの実体変更時は
 # semver バンプ必須」節）。`/themes/field/` ページ登録・showcase Demo
 # 追加は後続イシュー #1685 のスコープ。
+# base 再取り込み（イシュー #1661, 2026-09-06）: main 側は本ブランチとは
+# 独立に `field` モジュール新設（#1684）を経て 0.111.0 から 0.112.0 へ
+# 到達しており、本ブランチも json-tree-view の headless-ui 0.59.0 追随
+# （#1661）により独立に同じ 0.112.0 へ到達していた。両者が異なる実体
+# 変更を伴い偶発的に同一版数へ衝突している（同一版数への偶発的衝突を
+# そのまま採用しない原則、`docs/ci/style-refresh-version-bump-operation.md`
+# §5）。両者の実体変更の和集合としてさらにマイナーバンプし 0.113.0 と
+# する。
 # base 再取り込み（イシュー #1655, 2026-09-06）: main 側は本ブランチとは独立に
 # field モジュール新設（イシュー #1684）を経て 0.112.0 へ到達しており、本
 # ブランチも headless-ui 0.59.0 依存追随（pagination の破壊的変更）により
@@ -1851,7 +1864,16 @@ name = "fandhe-frontend-pre-styled-ui"
 # （同一版数への偶発的衝突をそのまま採用しない原則、`docs/ci/
 # style-refresh-version-bump-operation.md` §5）、両者の変更の和集合として
 # さらにマイナーバンプし 0.113.0 とする。
-version = "0.113.0"
+# base 再取り込み（イシュー #1661, 2026-09-06, 2 回目）: 上記のとおり
+# HEAD（#1661）・main（#1655）の双方の base 再取り込みは、それぞれ自身の
+# 破壊的変更（json-tree-view の data-kind セレクタ変更 / pagination の
+# シグネチャ変更）と field モジュール新設（#1684）のみを積算して 0.113.0
+# へ到達しており、互いのもう一方の破壊的変更を積算できていなかった
+# （両者を統合する本マージで初めて両方が揃うため）。json-tree-view・
+# pagination 双方の破壊的変更と field モジュール新設の 3 件を 0.111.0 から
+# 積算した結果としてさらにマイナーバンプし 0.114.0 とする（依存先
+# headless-ui 0.60.0 への追随を含む）。
+version = "0.114.0"
 
 edition = "2021"
 description = "fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。外部依存は fandhe-frontend-headless-ui のみ。"
@@ -1866,7 +1888,7 @@ categories = ["web-programming", "gui"]
 # （headless-ui 経由で間接的に利用する。fw structure の depends_on 完全一致検証が
 # あるため、未使用の先行宣言はしない）。
 [dependencies]
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.59.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.60.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
 # interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
