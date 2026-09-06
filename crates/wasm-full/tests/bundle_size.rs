@@ -32,12 +32,27 @@
 //!
 //! # fail-closed 方針（`xtask/src/check_deps.rs` 等と同一の運用原則）
 //!
-//! しきい値（[`REQ11_BUNDLE_SIZE_LIMIT_BYTES`]）はコード定数のみが正であり、
+//! しきい値（[`REQ11_BUNDLE_SIZE_LIMIT_BYTES`] と警告しきい値
+//! [`REQ11_BUNDLE_SIZE_WARN_BYTES`]）はいずれもコード定数のみが正であり、
 //! 緩和用の環境変数・CLI 引数は設けない。wasm32 ターゲット・
 //! `wasm-bindgen-cli`・`gzip` の不在やビルド失敗は、しきい値超過と同様に
 //! テスト失敗として扱う（`unwrap`/`expect`/`assert!` によるフェイルクローズ。
 //! `.claude/rules/coding-rust.md` が定めるとおりテストコードでの `unwrap`/
 //! `expect` は許容される）。
+//!
+//! # 判定契約（PASS / PASS+警告 / FAIL の三値、イシュー #1968）
+//!
+//! [`judge`] は実測が上限（[`REQ11_BUNDLE_SIZE_LIMIT_BYTES`]）を**超えた**
+//! ときのみ [`CheckResult::Fail`] を返す（[`CheckResult::is_pass`] が
+//! `false`＝CI 終了コード非 0）。実測が警告しきい値
+//! （[`REQ11_BUNDLE_SIZE_WARN_BYTES`] = 上限の 95%）を**超え**、かつ上限以内
+//! のときは [`CheckResult::PassWithWarning`] を返し、[`is_pass`] は `true`
+//! のまま（CI は失敗させない）[`CheckResult::is_warning`] のみ `true` に
+//! なる。[`format_report`] はこの区別を 1 行サマリ末尾の ` warn=above-95pct`
+//! （[`REQ11_BUNDLE_SIZE_WARN_TAG`]）の有無で表現し、`.github/workflows/
+//! ci.yml` の `bundle-size` ジョブがこのタグを `grep` して
+//! `::warning::` ワークフローコマンドへ変換する（アノテーション発火自体は
+//! ci.yml 側の責務であり、本ファイルはタグ付き 1 行サマリの出力までを担う）。
 //!
 //! 唯一の明示的スキップ経路は `FANDHE_FRONTEND_WASM_BUILD=0`（`skip`/`false` も同義、
 //! 大文字小文字を区別しない）で、`dist-server/build.rs::wasm_build_enabled` と
@@ -57,6 +72,24 @@ use std::process::Command;
 /// この定数を変更する PR（レビュー必須）以外の経路を設けない。
 pub const REQ11_BUNDLE_SIZE_LIMIT_BYTES: u64 = 200_000;
 
+/// REQ-11 上限の 95% にあたる警告しきい値（gzip 後バイト数、イシュー
+/// #1968）。超過時は [`CheckResult::Fail`] にはせず
+/// [`CheckResult::PassWithWarning`] として可視化するのみで、上限自体
+/// （[`REQ11_BUNDLE_SIZE_LIMIT_BYTES`]）と同様に緩和用の環境変数・CLI 引数は
+/// 設けない。
+pub const REQ11_BUNDLE_SIZE_WARN_BYTES: u64 = 190_000;
+
+/// 警告しきい値超過を示す 1 行サマリ末尾のタグ。`.github/workflows/ci.yml`
+/// の `bundle-size` ジョブがこの文字列を `grep` して `::warning::` を出す
+/// 唯一の正（[`format_report`] 側の出力とここでの定義がずれると ci.yml の
+/// grep が発火しなくなるため、変更時は両方を合わせて更新すること）。
+pub const REQ11_BUNDLE_SIZE_WARN_TAG: &str = "above-95pct";
+
+// 警告しきい値が上限以上になる誤設定（警告が上限超過後にしか出ない、また
+// は FAIL より先に警告が発火しない状態）をコンパイル時に fail-closed で
+// 弾く不変条件。
+const _: () = assert!(REQ11_BUNDLE_SIZE_WARN_BYTES < REQ11_BUNDLE_SIZE_LIMIT_BYTES);
+
 /// 1 回の計測結果。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BundleSizeMeasurement {
@@ -68,51 +101,78 @@ pub struct BundleSizeMeasurement {
     pub file_count: usize,
 }
 
-/// 上限判定結果。
+/// 上限判定結果（PASS / PASS+警告 / FAIL の三値、イシュー #1968）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckResult {
-    /// gzip 後合計サイズが上限以内。
+    /// gzip 後合計サイズが警告しきい値以内。
     Pass(BundleSizeMeasurement, u64),
+    /// gzip 後合計サイズが上限以内だが警告しきい値（上限の 95%）を超過。
+    /// CI の終了コードには影響させない（[`CheckResult::is_pass`] は
+    /// `true`）が、[`CheckResult::is_warning`] で検知できる。
+    PassWithWarning(BundleSizeMeasurement, u64, u64),
     /// gzip 後合計サイズが上限を超過。
     Fail(BundleSizeMeasurement, u64),
 }
 
 impl CheckResult {
     /// CI（`.github/workflows/ci.yml` の `bundle-size` ジョブ）が終了コードを
-    /// 決定する際に参照する契約: `Pass` のみ成功、それ以外は失敗として扱う。
+    /// 決定する際に参照する契約: `Pass` と `PassWithWarning` は成功、
+    /// `Fail` のみ失敗として扱う（警告は FAIL にしない）。
     pub fn is_pass(&self) -> bool {
-        matches!(self, CheckResult::Pass(_, _))
+        matches!(
+            self,
+            CheckResult::Pass(_, _) | CheckResult::PassWithWarning(_, _, _)
+        )
+    }
+
+    /// 警告しきい値（上限の 95%）を超過しているかどうか。`PassWithWarning`
+    /// のみ `true`（`ci.yml` 側が `::warning::` を出すかどうかの判断材料）。
+    pub fn is_warning(&self) -> bool {
+        matches!(self, CheckResult::PassWithWarning(_, _, _))
     }
 }
 
-/// 実測値 `measurement` を上限 `limit_bytes` に照らして判定する純粋関数。
+/// 実測値 `measurement` を上限 `limit_bytes`・警告しきい値 `warn_bytes` に
+/// 照らして判定する純粋関数。
 ///
-/// I/O を一切行わないため単体テストで境界値（ちょうど上限 / +1 / 0）を
-/// 直接検証できる（`xtask/src/check_image_size.rs::judge` と同一パターン）。
-pub fn judge(measurement: BundleSizeMeasurement, limit_bytes: u64) -> CheckResult {
-    if measurement.total_gzip_bytes <= limit_bytes {
-        CheckResult::Pass(measurement, limit_bytes)
-    } else {
+/// I/O を一切行わないため単体テストで境界値（ちょうど上限 / +1 / 警告
+/// しきい値ちょうど / +1 / 0）を直接検証できる
+/// （`xtask/src/check_image_size.rs::judge` と同一パターン）。
+pub fn judge(measurement: BundleSizeMeasurement, limit_bytes: u64, warn_bytes: u64) -> CheckResult {
+    if measurement.total_gzip_bytes > limit_bytes {
         CheckResult::Fail(measurement, limit_bytes)
+    } else if measurement.total_gzip_bytes > warn_bytes {
+        CheckResult::PassWithWarning(measurement, limit_bytes, warn_bytes)
+    } else {
+        CheckResult::Pass(measurement, limit_bytes)
     }
 }
 
 /// CI ログから機械抽出可能な 1 行サマリを整形する。
 ///
 /// 書式
-/// `bundle-size: total_gzip_bytes=<n>/<limit> files=<k> result=<PASS|FAIL>` は
+/// `bundle-size: total_gzip_bytes=<n>/<limit> files=<k> result=<PASS|FAIL>`
+/// （PASS かつ警告しきい値超過のときのみ末尾に
+/// ` warn=above-95pct`〔[`REQ11_BUNDLE_SIZE_WARN_TAG`]〕が付く）は
 /// `.github/workflows/ci.yml` の `bundle-size` ジョブが
-/// `grep '^bundle-size:'` で抽出する契約であり、本ファイルの
-/// `format_report_*` 単体テストで固定する。安易に変更しない。
+/// `grep '^bundle-size:'`／`grep '^bundle-size:.*warn=above-95pct'` で
+/// 抽出する契約であり、本ファイルの `format_report_*` 単体テストで固定する。
+/// 安易に変更しない。
 pub fn format_report(result: &CheckResult) -> String {
-    let (measurement, limit_bytes, verdict) = match result {
-        CheckResult::Pass(m, limit) => (m, limit, "PASS"),
-        CheckResult::Fail(m, limit) => (m, limit, "FAIL"),
+    let (measurement, limit_bytes, verdict, is_warning) = match result {
+        CheckResult::Pass(m, limit) => (m, limit, "PASS", false),
+        CheckResult::PassWithWarning(m, limit, _warn) => (m, limit, "PASS", true),
+        CheckResult::Fail(m, limit) => (m, limit, "FAIL", false),
     };
-    format!(
+    let mut line = format!(
         "bundle-size: total_gzip_bytes={}/{} files={} result={verdict}",
         measurement.total_gzip_bytes, limit_bytes, measurement.file_count
-    )
+    );
+    if is_warning {
+        line.push_str(" warn=");
+        line.push_str(REQ11_BUNDLE_SIZE_WARN_TAG);
+    }
+    line
 }
 
 /// `wasm-full/` の親ディレクトリ（ワークスペースルート）を返す。
@@ -419,17 +479,26 @@ mod judge_and_format_report_tests {
 
     #[test]
     fn judge_passes_when_zero_bytes() {
-        let result = judge(measurement(0, 0), REQ11_BUNDLE_SIZE_LIMIT_BYTES);
+        let result = judge(
+            measurement(0, 0),
+            REQ11_BUNDLE_SIZE_LIMIT_BYTES,
+            REQ11_BUNDLE_SIZE_WARN_BYTES,
+        );
         assert!(result.is_pass());
+        assert!(!result.is_warning());
     }
 
     #[test]
     fn judge_passes_when_exactly_at_limit() {
+        // ちょうど上限は警告しきい値（190,000 B）も超えているため、PASS で
+        // あると同時に警告扱いになる（イシュー #1968）。
         let result = judge(
             measurement(REQ11_BUNDLE_SIZE_LIMIT_BYTES, 2),
             REQ11_BUNDLE_SIZE_LIMIT_BYTES,
+            REQ11_BUNDLE_SIZE_WARN_BYTES,
         );
         assert!(result.is_pass());
+        assert!(result.is_warning());
     }
 
     #[test]
@@ -437,20 +506,63 @@ mod judge_and_format_report_tests {
         let result = judge(
             measurement(REQ11_BUNDLE_SIZE_LIMIT_BYTES + 1, 2),
             REQ11_BUNDLE_SIZE_LIMIT_BYTES,
+            REQ11_BUNDLE_SIZE_WARN_BYTES,
         );
         assert!(!result.is_pass());
+        assert!(!result.is_warning());
     }
 
     #[test]
     fn judge_passes_at_poc5_measured_value() {
         // PoC-5 実績（gzip 合計 27,703 B）を回帰の基準値として固定する。
-        let result = judge(measurement(27_703, 2), REQ11_BUNDLE_SIZE_LIMIT_BYTES);
+        let result = judge(
+            measurement(27_703, 2),
+            REQ11_BUNDLE_SIZE_LIMIT_BYTES,
+            REQ11_BUNDLE_SIZE_WARN_BYTES,
+        );
         assert!(result.is_pass());
+        assert!(!result.is_warning());
+    }
+
+    /// 警告しきい値が上限の 95% ちょうどであることを固定する回帰テスト
+    /// （イシュー #1968）。
+    #[test]
+    fn warn_threshold_is_95_percent_of_limit() {
+        assert_eq!(
+            REQ11_BUNDLE_SIZE_WARN_BYTES,
+            REQ11_BUNDLE_SIZE_LIMIT_BYTES * 95 / 100
+        );
+    }
+
+    #[test]
+    fn judge_passes_without_warning_when_exactly_at_warn_threshold() {
+        let result = judge(
+            measurement(REQ11_BUNDLE_SIZE_WARN_BYTES, 2),
+            REQ11_BUNDLE_SIZE_LIMIT_BYTES,
+            REQ11_BUNDLE_SIZE_WARN_BYTES,
+        );
+        assert!(result.is_pass());
+        assert!(!result.is_warning());
+    }
+
+    #[test]
+    fn judge_warns_when_one_byte_over_warn_threshold() {
+        let result = judge(
+            measurement(REQ11_BUNDLE_SIZE_WARN_BYTES + 1, 2),
+            REQ11_BUNDLE_SIZE_LIMIT_BYTES,
+            REQ11_BUNDLE_SIZE_WARN_BYTES,
+        );
+        assert!(result.is_pass());
+        assert!(result.is_warning());
     }
 
     #[test]
     fn format_report_matches_fixed_format_for_pass() {
-        let result = judge(measurement(27_703, 2), REQ11_BUNDLE_SIZE_LIMIT_BYTES);
+        let result = judge(
+            measurement(27_703, 2),
+            REQ11_BUNDLE_SIZE_LIMIT_BYTES,
+            REQ11_BUNDLE_SIZE_WARN_BYTES,
+        );
         assert_eq!(
             format_report(&result),
             "bundle-size: total_gzip_bytes=27703/200000 files=2 result=PASS"
@@ -458,8 +570,25 @@ mod judge_and_format_report_tests {
     }
 
     #[test]
+    fn format_report_matches_fixed_format_for_pass_with_warning() {
+        let result = judge(
+            measurement(195_000, 2),
+            REQ11_BUNDLE_SIZE_LIMIT_BYTES,
+            REQ11_BUNDLE_SIZE_WARN_BYTES,
+        );
+        assert_eq!(
+            format_report(&result),
+            "bundle-size: total_gzip_bytes=195000/200000 files=2 result=PASS warn=above-95pct"
+        );
+    }
+
+    #[test]
     fn format_report_matches_fixed_format_for_fail() {
-        let result = judge(measurement(300_000, 2), REQ11_BUNDLE_SIZE_LIMIT_BYTES);
+        let result = judge(
+            measurement(300_000, 2),
+            REQ11_BUNDLE_SIZE_LIMIT_BYTES,
+            REQ11_BUNDLE_SIZE_WARN_BYTES,
+        );
         assert_eq!(
             format_report(&result),
             "bundle-size: total_gzip_bytes=300000/200000 files=2 result=FAIL"
@@ -507,7 +636,11 @@ fn wasm_full_bundle_gzip_size_within_req11_limit() {
         file_count: files.len(),
     };
 
-    let result = judge(measurement, REQ11_BUNDLE_SIZE_LIMIT_BYTES);
+    let result = judge(
+        measurement,
+        REQ11_BUNDLE_SIZE_LIMIT_BYTES,
+        REQ11_BUNDLE_SIZE_WARN_BYTES,
+    );
     let report = format_report(&result);
     // `cargo test -- --nocapture` で標準出力へ、`.github/workflows/ci.yml` の
     // `bundle-size` ジョブが `grep '^bundle-size:'` で抽出する 1 行サマリ。
