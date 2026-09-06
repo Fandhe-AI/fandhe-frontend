@@ -596,7 +596,15 @@ name = "fandhe-frontend-wasm-full"
 # `id` による安定識別子を必須とした（`id` 無しのスライダーが入れ替わった
 # 場合も「1 個」が成立し別インスタンスをエイリアスするため）。私有 enum の
 # 変種削除のみで公開 API は不変。
-version = "0.15.14"
+# イシュー #1992（親 #1991 sub-issue 1）: `headless_signature_pad.rs` の
+# `StrokeCollector` に `release_if_stale`（`buttons == 0` の stale 自己解錠
+# ガード）を新規公開メソッドとして追加した。`angle_slider.rs::DragState` の
+# 同型パターン（capture 喪失中に `root` 外でボタンが離されて
+# pointerup/pointercancel を取り逃した場合、次の pointermove 1 件で追跡を
+# 自己解除する）を踏襲する。新規 public メソッド追加は非破壊的追加であり、
+# `wiring::wire_stroke_collector` の pointermove 配線変更は private
+# 実装のみのため patch バンプで足りる。
+version = "0.15.15"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
