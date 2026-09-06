@@ -1,5 +1,6 @@
 //! NumberInput（`fandhe-frontend-headless-ui` `number_input` モジュール）の
-//! keydown → dispatch 配線（イシュー #1613、PR #1881 codex-review P1 是正）。
+//! keydown / click → dispatch 配線（イシュー #1613、PR #1881 codex-review
+//! P1 是正／イシュー #1962: IncrementTrigger/DecrementTrigger の click 配線を追加）。
 //!
 //! # 背景
 //!
@@ -28,10 +29,17 @@
 //! - 配線層（[`wire_number_input_events`]/[`wire_number_input_component`]）
 //!   のみ `#[cfg(target_arch = "wasm32")]` でゲートする。
 //!
+//! IncrementTrigger/DecrementTrigger の click（イシュー #1962）も、
 //! `crate::headless::MAPPING_TABLE`（クリック委譲の静的マッピング表）へは
-//! 乗せない。keydown はクリック（`click` イベント）とは別種別であり、
+//! 乗せない。`MAPPING_TABLE` 方式は解決したアクションの payload に
+//! `data-value` 属性値を使う契約だが、NumberInput は複数インスタンスの
+//! 識別を Input パーツの `name` 属性値・`data-action-input` 上書き名
+//! （下記「複数インスタンスの識別」節）で行っており、`MAPPING_TABLE` へ
+//! 乗せるには headless-ui 側に `data-value` 相当の新規属性出力が要る
+//! （親イシュー #1961 の方針）。keydown・click いずれも
 //! [`crate::angle_slider`]/[`crate::splitter`] と同じく独立配線モジュールと
-//! して切り出す。
+//! して切り出し、両イベントとも本モジュールの純粋関数
+//! [`resolve_dispatches`] を共有する。
 //!
 //! # dispatch とアクションの対応
 //!
@@ -43,6 +51,8 @@
 //! | `End` | `"end"` | Input の `name` 属性値 |
 //! | `Enter`（`input.value` が空でない） | `"set"`（または後述の上書き名） | `input` 要素の現在の `value`（未確定のタイプ中文字列） |
 //! | `Enter`（`input.value` が trim 後空文字） | `"clear"` | Input の `name` 属性値 |
+//! | IncrementTrigger click | （同期）`"set"`（または後述の上書き名） → `"increment"` | `input.value` → Input の `name` 属性値 |
+//! | DecrementTrigger click | （同期）`"set"`（または後述の上書き名） → `"decrement"` | `input.value` → Input の `name` 属性値 |
 //!
 //! # 複数インスタンスの識別（PR #1881 codex-review P1 是正）
 //!
@@ -123,10 +133,11 @@
 //!   自体が倍率 API を持たない（`crates/headless-ui/src/number_input.rs`
 //!   モジュール doc「非追随」節）ため、本モジュールも対応しない。
 //! - **IncrementTrigger/DecrementTrigger ボタンのクリック配線**:
-//!   `crate::headless::MAPPING_TABLE` に `("number-input", "increment-trigger")`
-//!   相当の行が存在せず、マウスクリックは本 PR の対象外（イシュー #1613 の
-//!   スコープは「キーボード操作」であり、ボタンクリックの配線欠落は別事象
-//!   として追跡する）。
+//!   イシュー #1962（親 #1961）で回収済み（[`wiring::wire_number_input_events`]
+//!   が keydown と同一 root へ click リスナーも登録する）。
+//! - **クリック後の Input へのフォーカス復帰**: 参考実装（ark-ui）はトリガー
+//!   の `pointerdown` を `preventDefault` して Input のフォーカスを維持する
+//!   挙動を持つが、本モジュールは対応しない（別事象として追跡）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -136,7 +147,16 @@
 //!   組み立てるのみ、多層防御）。
 //! - `data-disabled` **または** `data-readonly` を持つ input/祖先パーツ上の
 //!   keydown は no-op（[`has_noninteractive_ancestor`]、`crate::angle_slider`
-//!   の `has_noninteractive_ancestor` と同型の fail-closed 判定）。
+//!   の `has_noninteractive_ancestor` と同型の fail-closed 判定）。IncrementTrigger/
+//!   DecrementTrigger の click も同じ判定を再利用する（[`wiring::handle_click`]）。
+//!   ネイティブ `disabled` を持つ `<button>` はブラウザ自体が click を発火
+//!   させないため、この判定は多層防御の位置づけである。
+//! - click 経路は Trigger 要素・Input パーツがいずれも解決できた場合のみ
+//!   dispatch する（[`wiring::handle_click`]）。トリガー要素が見つからない・
+//!   Input パーツが見つからない・`data-part` が未知の値であるケースは
+//!   すべて早期 return（fail-closed、no-op）とし、独自の境界（min/max）
+//!   計算は一切行わない（clamp はヘッドレス側の状態機械・トリガー
+//!   `disabled` 出力に委ねる）。
 //! - DOM 反映は `set_attribute`/`get_attribute`/`value` プロパティ読み取りの
 //!   みで行い、HTML 文字列を一切組み立てない（REQ-1）。属性名・イベント名は
 //!   すべて `&'static str` リテラル。
@@ -213,6 +233,34 @@ pub fn action_for_key(key: &str, modifiers: Modifiers) -> Option<KeyAction> {
         "Home" => Some(KeyAction::Home),
         "End" => Some(KeyAction::End),
         "Enter" => Some(KeyAction::Set),
+        _ => None,
+    }
+}
+
+/// IncrementTrigger パーツの `data-part` 属性値
+/// （`fandhe_frontend_headless_ui::number_input::increment_trigger`
+/// が出力する固定値と一致、イシュー #1962）。
+pub const INCREMENT_TRIGGER_PART: &str = "increment-trigger";
+/// DecrementTrigger パーツの `data-part` 属性値
+/// （`fandhe_frontend_headless_ui::number_input::decrement_trigger`
+/// が出力する固定値と一致、イシュー #1962）。
+pub const DECREMENT_TRIGGER_PART: &str = "decrement-trigger";
+
+/// クリックされたトリガーパーツの `data-part` 値から [`KeyAction`] を
+/// 決定する純粋関数（DOM 非依存、native `cargo test` で検証可能）。
+///
+/// keydown 用 [`action_for_key`] と同型の役割で、click 配線層
+/// （[`wiring::handle_click`]）から呼ばれる。[`INCREMENT_TRIGGER_PART`]/
+/// [`DECREMENT_TRIGGER_PART`] 以外（`"input"`/`"root"`/`"control"`/未知の
+/// 文字列）は `None`（no-op）。決定した [`KeyAction`] は keydown と同じ
+/// [`resolve_dispatches`] へそのまま渡され、Increment/Decrement は
+/// 「タイプ中の値を `"set"` として同期してから増減する」契約を共有する
+/// （モジュール冒頭 doc「dispatch とアクションの対応」節参照）。
+#[must_use]
+pub fn action_for_trigger_part(part: &str) -> Option<KeyAction> {
+    match part {
+        p if p == INCREMENT_TRIGGER_PART => Some(KeyAction::Increment),
+        p if p == DECREMENT_TRIGGER_PART => Some(KeyAction::Decrement),
         _ => None,
     }
 }
@@ -334,18 +382,27 @@ pub fn resolve_dispatches(
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::{action_for_key, resolve_dispatches};
+    use super::{
+        action_for_key, action_for_trigger_part, resolve_dispatches, DECREMENT_TRIGGER_PART,
+        INCREMENT_TRIGGER_PART,
+    };
     use crate::events::{ActionRef, AttrSource};
     use crate::keynav::Modifiers;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, HtmlInputElement, KeyboardEvent};
+    use web_sys::{Element, Event, HtmlInputElement, KeyboardEvent, Node};
 
     /// NumberInput の `data-scope` 属性値（`fandhe_frontend_headless_ui::number_input`
     /// の `ANATOMY` と一致、`crates/headless-ui/src/number_input.rs` 参照）。
     const NUMBER_INPUT_SCOPE: &str = "number-input";
     /// NumberInput Input パーツの `data-part` 属性値。
     const INPUT_PART: &str = "input";
+    /// NumberInput Control パーツの `data-part` 属性値（click 配線が
+    /// トリガーから Input を探す起点、[`find_input_within_control`] 参照）。
+    const CONTROL_PART: &str = "control";
+    /// NumberInput Root パーツの `data-part` 属性値（Control が見つからない
+    /// 場合の Input 探索フォールバック起点）。
+    const ROOT_PART: &str = "root";
 
     /// `web_sys::Element` を [`AttrSource`] に橋渡しする薄いラッパー
     /// （`events.rs::wiring::ElementAttrSource`/`overlay.rs` と同じ意図の
@@ -389,17 +446,22 @@ mod wiring {
         false
     }
 
-    /// `root` 配下の NumberInput Input パーツへ keydown 配線を 1 回だけ
-    /// 登録する（マウント時 1 回契約、`angle_slider.rs`/`splitter.rs` と
-    /// 同型）。
+    /// `root` 配下の NumberInput Input パーツへ keydown 配線を、
+    /// IncrementTrigger/DecrementTrigger パーツへ click 配線を、それぞれ
+    /// 1 回だけ登録する（マウント時 1 回契約、`angle_slider.rs`/
+    /// `splitter.rs` と同型。イシュー #1962 で click リスナーを追加）。
     ///
     /// `on_action` は `"increment"`/`"decrement"`/`"home"`/`"end"`/`"set"` の
     /// dispatch 依頼を呼び出し側へ渡すのみで、状態更新・DOM 反映は行わない
     /// （`headless_clipboard::wire_clipboard_events` と同じ責務分離）。
+    /// keydown・click 双方のリスナーが同じ `on_action` を共有する
+    /// （`Rc<RefCell<_>>` で clone、`Closure::forget` は本関数呼び出し
+    /// につき keydown 1 回・click 1 回の計 2 回のみに限定する）。
     ///
     /// # Errors
     ///
-    /// `add_event_listener_with_callback` の失敗を伝播する。
+    /// `add_event_listener_with_callback`（keydown・click いずれか）の
+    /// 失敗を伝播する。
     pub fn wire_number_input_events(
         root: Element,
         on_action: impl FnMut(ActionRef) + 'static,
@@ -407,11 +469,19 @@ mod wiring {
         let on_action = std::rc::Rc::new(std::cell::RefCell::new(on_action));
 
         let keydown_root = root.clone();
+        let keydown_on_action = on_action.clone();
         let keydown_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
-            handle_keydown(&keydown_root, &event, &on_action);
+            handle_keydown(&keydown_root, &event, &keydown_on_action);
         });
         root.add_event_listener_with_callback("keydown", keydown_closure.as_ref().unchecked_ref())?;
         keydown_closure.forget();
+
+        let click_root = root.clone();
+        let click_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            handle_click(&click_root, &event, &on_action);
+        });
+        root.add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())?;
+        click_closure.forget();
 
         Ok(())
     }
@@ -483,6 +553,142 @@ mod wiring {
         // モジュール冒頭 doc「複数インスタンスの識別」節参照）。ここでは
         // Element を `AttrSource` へ橋渡ししてから呼び出すだけに留める。
         let source = ElementAttrSource(target_element);
+        for action_ref in resolve_dispatches(key_action, &source, &raw_value) {
+            if let Ok(mut cb) = on_action.try_borrow_mut() {
+                (cb)(action_ref);
+            }
+        }
+    }
+
+    /// `start` から `root` まで祖先方向を辿り、`data-scope="number-input"`
+    /// かつ `data-part` が [`INCREMENT_TRIGGER_PART`]/[`DECREMENT_TRIGGER_PART`]
+    /// の最寄り要素（トリガー要素）を返す（内側優先。イシュー #1962）。
+    /// 見つからなければ `None`（fail-closed。トリガー以外の click は
+    /// 一切 dispatch しない）。
+    fn find_trigger_ancestor(root: &Element, start: &Element) -> Option<Element> {
+        let mut current = Some(start.clone());
+        while let Some(element) = current {
+            if element.get_attribute("data-scope").as_deref() == Some(NUMBER_INPUT_SCOPE) {
+                let part = element.get_attribute("data-part");
+                if part.as_deref() == Some(INCREMENT_TRIGGER_PART)
+                    || part.as_deref() == Some(DECREMENT_TRIGGER_PART)
+                {
+                    return Some(element);
+                }
+            }
+            if !root.contains(Some(&element)) || element == *root {
+                break;
+            }
+            current = element.parent_element();
+        }
+        None
+    }
+
+    /// `trigger` から祖先方向に最寄りの Control（無ければ Root）パーツを
+    /// 探し、その配下の Input パーツ（`data-scope="number-input"`
+    /// `data-part="input"`）を 1 件返す（イシュー #1962）。
+    ///
+    /// `aria-controls` 経由の `get_element_by_id` ではなく祖先 + 部分木
+    /// 探索を主経路とする（`aria-controls` の対象 id は
+    /// [`fandhe_frontend_headless_ui::number_input::input`] 呼び出し時の
+    /// 任意引数であり欠落しうるため）。Control/Root いずれも見つからない、
+    /// または配下に Input が無い場合は `None`（fail-closed）。
+    fn find_input_within_control(root: &Element, trigger: &Element) -> Option<Element> {
+        let mut current = Some(trigger.clone());
+        let mut container: Option<Element> = None;
+        while let Some(element) = current {
+            if element.get_attribute("data-scope").as_deref() == Some(NUMBER_INPUT_SCOPE) {
+                let part = element.get_attribute("data-part");
+                if part.as_deref() == Some(CONTROL_PART) {
+                    container = Some(element);
+                    break;
+                }
+                if part.as_deref() == Some(ROOT_PART) {
+                    container = Some(element.clone());
+                    // Control が Root より内側に無い構成もあるため、Root に
+                    // 到達しても即座に確定させず、より内側の Control を
+                    // 優先して探し続ける（見つからなければ Root を使う）。
+                }
+            }
+            if !root.contains(Some(&element)) || element == *root {
+                break;
+            }
+            current = element.parent_element();
+        }
+        let container = container?;
+        container
+            .query_selector(r#"[data-scope="number-input"][data-part="input"]"#)
+            .ok()
+            .flatten()
+    }
+
+    /// click: IncrementTrigger/DecrementTrigger（`data-scope="number-input"`
+    /// `data-part="increment-trigger"`/`"decrement-trigger"`）上でのみ反応
+    /// する（[`action_for_trigger_part`]、モジュール冒頭 doc「dispatch と
+    /// アクションの対応」節参照。イシュー #1962、親 #1961）。
+    ///
+    /// `event.target()` がテキストノード（ボタン内テキスト・SVG アイコン
+    /// 等）の場合は [`Node::parent_element`] で直近の親要素まで遡ってから
+    /// 祖先探索を始める（`crate::headless::wiring::wire_headless_events` と
+    /// 同じ対策）。
+    fn handle_click(
+        root: &Element,
+        event: &Event,
+        on_action: &std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
+    ) {
+        let Some(target) = event.target() else {
+            return;
+        };
+        let target_element: Element = match target.dyn_ref::<Element>() {
+            Some(element) => element.clone(),
+            None => {
+                let Some(node) = target.dyn_ref::<Node>() else {
+                    return;
+                };
+                let Some(parent) = node.parent_element() else {
+                    return;
+                };
+                parent
+            }
+        };
+        if !root.contains(Some(&target_element)) {
+            return;
+        }
+
+        let Some(trigger) = find_trigger_ancestor(root, &target_element) else {
+            return;
+        };
+        // ネイティブ `disabled` ボタン（headless-ui がクランプ到達時に
+        // 出力）はブラウザが click 自体を発火させないため、本判定は
+        // 多層防御の位置づけ（モジュール冒頭 doc「セキュリティ不変条件」
+        // 節参照）。
+        if has_noninteractive_ancestor(root, &trigger) {
+            return;
+        }
+        let Some(part) = trigger.get_attribute("data-part") else {
+            return;
+        };
+        let Some(key_action) = action_for_trigger_part(&part) else {
+            return;
+        };
+
+        let Some(input_element) = find_input_within_control(root, &trigger) else {
+            return;
+        };
+        let raw_value = input_element
+            .clone()
+            .dyn_into::<HtmlInputElement>()
+            .map(|input| input.value())
+            .unwrap_or_default();
+
+        // 解決できた場合のみ伝播を止める（`crate::headless::wiring::
+        // wire_headless_events` と同じ根拠: 入れ子・複数の配線済み root で
+        // 同一 click イベントが二重解決されるのを防ぐ）。`<button
+        // type="button">` に既定動作はないため `prevent_default()` は
+        // 呼ばない。
+        event.stop_propagation();
+
+        let source = ElementAttrSource(&input_element);
         for action_ref in resolve_dispatches(key_action, &source, &raw_value) {
             if let Ok(mut cb) = on_action.try_borrow_mut() {
                 (cb)(action_ref);
@@ -619,6 +825,85 @@ mod tests {
                 }
             ),
             None
+        );
+    }
+
+    // --- action_for_trigger_part（イシュー #1962）---
+
+    #[test]
+    fn increment_trigger_part_is_increment() {
+        assert_eq!(
+            action_for_trigger_part(INCREMENT_TRIGGER_PART),
+            Some(KeyAction::Increment)
+        );
+    }
+
+    #[test]
+    fn decrement_trigger_part_is_decrement() {
+        assert_eq!(
+            action_for_trigger_part(DECREMENT_TRIGGER_PART),
+            Some(KeyAction::Decrement)
+        );
+    }
+
+    #[test]
+    fn non_trigger_parts_are_noop() {
+        assert_eq!(action_for_trigger_part("input"), None);
+        assert_eq!(action_for_trigger_part("root"), None);
+        assert_eq!(action_for_trigger_part("control"), None);
+        assert_eq!(action_for_trigger_part("label"), None);
+        assert_eq!(action_for_trigger_part("value-text"), None);
+        assert_eq!(action_for_trigger_part(""), None);
+        assert_eq!(action_for_trigger_part("unknown-part"), None);
+    }
+
+    /// click 経路（[`action_for_trigger_part`]）が決定する [`KeyAction`] を
+    /// [`resolve_dispatches`] へ渡した結果が、keydown 経路
+    /// （`action_for_key("ArrowUp"/"ArrowDown", ...)`）と同一の dispatch 列
+    /// （`"set"` 同期 + `name` payload 付き `"increment"`/`"decrement"`）に
+    /// なることの回帰テスト（`resolve_dispatches` を両経路が共有する契約の
+    /// 固定）。
+    #[test]
+    fn trigger_click_dispatches_match_keydown_dispatches() {
+        let input = input_with(&[("name", "qty")]);
+
+        let click_dispatches = resolve_dispatches(
+            action_for_trigger_part(INCREMENT_TRIGGER_PART).unwrap(),
+            &input,
+            "5",
+        );
+        let keydown_dispatches =
+            resolve_dispatches(action_for_key("ArrowUp", mods()).unwrap(), &input, "5");
+        assert_eq!(click_dispatches, keydown_dispatches);
+
+        let click_dispatches = resolve_dispatches(
+            action_for_trigger_part(DECREMENT_TRIGGER_PART).unwrap(),
+            &input,
+            "5",
+        );
+        let keydown_dispatches =
+            resolve_dispatches(action_for_key("ArrowDown", mods()).unwrap(), &input, "5");
+        assert_eq!(click_dispatches, keydown_dispatches);
+    }
+
+    /// `data-action-input` 上書きが click 経路の同期 `"set"` にも効くこと
+    /// （keydown 経路と同じ `resolve_dispatches` を共有するため当然成立
+    /// するが、click 配線が別関数を経由しないことの回帰確認として固定
+    /// する）。
+    #[test]
+    fn trigger_click_respects_data_action_input_override() {
+        let input = input_with(&[("name", "price"), ("data-action-input", "price_set")]);
+
+        assert_eq!(
+            resolve_dispatches(
+                action_for_trigger_part(INCREMENT_TRIGGER_PART).unwrap(),
+                &input,
+                "9.5"
+            )[0],
+            ActionRef {
+                action: "price_set".to_string(),
+                payload: "9.5".to_string(),
+            }
         );
     }
 
