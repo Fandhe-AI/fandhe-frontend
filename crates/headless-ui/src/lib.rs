@@ -861,5 +861,7 @@ pub use toggle_group::{MultiToggleGroup, ToggleGroup, ToggleGroupProps};
 pub use toggle_tip::ToggleTip;
 pub use toolbar::{Toolbar, ToolbarAction};
 pub use tooltip::Tooltip;
-pub use tour::{ContentIds as TourContentIds, Tour, TourAction, TourStatus, TourStep};
+pub use tour::{
+    ContentIds as TourContentIds, Tour, TourAction, TourStatus, TourStep, TourTriggerKind,
+};
 pub use tree_view::{TreeNode, TreeView, TreeViewAction};

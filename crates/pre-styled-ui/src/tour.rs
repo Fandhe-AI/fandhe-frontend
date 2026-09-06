@@ -253,10 +253,14 @@
 //!   styled 側で variant を受けるには公開シグネチャ変更が必要。参照側でも
 //!   ボタン種別は呼び出し側が `asChild` 相当で決めるため、部品側の軸では
 //!   ないと判断した。
-//! - **`actions` コンテナパート**: ark-ui の `Tour.Actions` に相当する
-//!   anatomy が headless 層にない（headless 側イシュー #1666 の領域）。
-//!   `action-trigger` 自身の `margin-inline-end` で並置時の間隔のみ確保し、
-//!   右寄せ等のコンテナ配置は #1666 でパートが増えた後の追随とする。
+//! - **`control` コンテナパートの styled ラッパ・専用 CSS**: ark-ui の
+//!   `Tour.Actions`（実 DOM は `data-part="control"`）に相当する anatomy が
+//!   イシュー #1666 で headless 層（[`Tour::control`]）へ追加されたが、
+//!   本クレートの styled ラッパ関数・[`SLOTS`]/[`recipe`] への追加は
+//!   まだ行っていない（後続 Issue の領域、`.claude/rules/
+//!   out-of-scope-tracking.md` 対応）。`action-trigger` 自身の
+//!   `margin-inline-end` で並置時の間隔のみ確保し、右寄せ等のコンテナ配置は
+//!   `control` の styled 追随後とする。
 //! - **開閉トランジション**: headless 層は open/closed 切替と同一フレーム
 //!   で `hidden` を付与・除去する契約（#1550 と同じ根拠）のため追加しない。
 //! - **`close-trigger` の disabled 規則**: 閉じるボタンに disabled 概念を
@@ -276,7 +280,9 @@ use crate::recipe::{
 // import する。
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::tour::Tour;
-pub use fandhe_frontend_headless_ui::tour::{ContentIds, TourAction, TourStatus, TourStep};
+pub use fandhe_frontend_headless_ui::tour::{
+    ContentIds, TourAction, TourStatus, TourStep, TourTriggerKind,
+};
 
 /// headless `tour` anatomy の `data-part` 一覧（`crates/headless-ui/src/tour.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約。ずれると [`stylesheet`]
@@ -877,22 +883,28 @@ pub fn close_trigger<'a>(
 /// styled action-trigger パーツ。実体は [`Tour::action_trigger`] へそのまま
 /// 委譲する。
 ///
-/// # 並置・disabled の扱い（イシュー #1551）
+/// # 並置・disabled の扱い（イシュー #1551、#1666 で kind 引数追加）
 ///
-/// 複数の `action_trigger` を並べる場合、`actions` コンテナパートが
-/// headless anatomy に存在しない（headless 側イシュー #1666 の領域）ため、
-/// 各ボタン自身が持つ `margin-inline-end` で間隔を確保する。`disabled` は
-/// headless 層がネイティブ `disabled` 属性をそのまま素通しするため、
-/// 呼び出し側が `attrs` へ `("disabled", "")` を渡すことで
+/// `kind`（[`TourTriggerKind`]）は headless 側が `data-type` を出力する
+/// ために必須となった（イシュー #1666 の破壊的シグネチャ変更に追随）。
+/// 複数の `action_trigger` を並べる場合は headless 側に新設された
+/// `control`（ark-ui `data-part="control"`。docs 図の「Actions」相当）
+/// パートへ入れる想定だが、本クレートの styled ラッパ・専用 CSS は
+/// まだ提供していない（後続 Issue の領域、`out-of-scope-tracking.md`
+/// 対応）。各ボタン自身が持つ `margin-inline-end` で当面の間隔を確保する。
+/// `disabled` は [`TourTriggerKind::Prev`] かつ dispatch が no-op になる
+/// 境界で headless 層が自動付与するほか、呼び出し側が `attrs` へ
+/// `("disabled", "")` を渡すことでも
 /// `[data-part="action-trigger"][disabled]` 規則（不透明度低下・
 /// `cursor: not-allowed`・hover 抑止）が実効する。
 #[must_use]
 pub fn action_trigger<'a>(
     state: &Tour,
+    kind: TourTriggerKind,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    state.action_trigger(attrs, children)
+    state.action_trigger(kind, attrs, children)
 }
 
 #[cfg(test)]
@@ -1086,7 +1098,10 @@ mod tests {
             render(&progress_text(&s, vec![], vec![text("1/1")])).contains(r#"aria-live="polite""#)
         );
         assert!(render(&close_trigger(&s, vec![], vec![])).contains(r#"type="button""#));
-        assert!(render(&action_trigger(&s, vec![], vec![])).contains(r#"type="button""#));
+        assert!(
+            render(&action_trigger(&s, TourTriggerKind::Next, vec![], vec![]))
+                .contains(r#"type="button""#)
+        );
     }
 
     #[test]
