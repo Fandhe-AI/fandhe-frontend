@@ -27,6 +27,44 @@
 //! 両方を 1 回のマウントで組み込む単一関数のため、クリック経路が動作して
 //! いれば `Self::wire_signature_pad` が呼ばれていることの十分な証拠となる。
 
+//!
+//! # 構造フォールバック跨ぎと stale 解除（イシュー #1991/#1993/#1994）
+//!
+//! 上記の「クリック経路のみで配線成立を確認する」方針は、`Runtime::mount`
+//! が SignaturePad の配線を組み込んでいることの検証には十分だが、
+//! ポインタ経路自体（`wire_stroke_collector` の pointerdown/pointermove/
+//! pointerup）が構造フォールバックや capture 喪失をまたいで正しく動作
+//! することまでは固定しない。以下 2 ケースはその隙間を埋める:
+//!
+//! - [`structural_fallback::stroke_continues_across_structural_fallback_via_root_id_reattach`][]:
+//!   ストローク中に `Runtime::rerender_subtree`（構造フォールバック）で
+//!   Control 要素が detach され pointer capture が暗黙に失われても、
+//!   `wiring::wire_stroke_collector` が追跡開始時に採取した SignaturePad
+//!   Root の `id`（`wiring::capture_anchor_root_id`）から Control を
+//!   再解決（`wiring::resolve_control_by_root_id`）して座標収集を継続し、
+//!   `pointerup` で `add-stroke` が過不足なく 1 回だけ dispatch されることを
+//!   検証する（イシュー #1993 の受け入れ条件）。
+//! - [`stale_stroke_tracking_is_released_when_no_button_is_held`][]: capture
+//!   喪失中に `root` 外で `pointerup`/`pointercancel` を取り逃し
+//!   `active_pointer_id` が stale 化した追跡が、`buttons == 0` の
+//!   `pointermove`（[`StrokeCollector::release_if_stale`]）で自己解除され、
+//!   別 pointer id での新規ストローク開始が恒久ブロックされないことを
+//!   検証する（イシュー #1992 の受け入れ条件）。
+//!
+//! いずれも `angle_slider_browser.rs` の
+//! `pointer_drag_continues_across_structural_fallback`/
+//! `stale_drag_tracking_is_released_when_no_button_is_held` と同型の
+//! パターンを signature-pad 向けに最小化したものである。合成
+//! `PointerEvent`（`wasm_bindgen_test`）では `has_pointer_capture` が常に
+//! 偽・`set_pointer_capture` は `NotFoundError`（配線側で握りつぶし済み）
+//! となるため、毎 `pointermove` で capture 再解決の分岐が通る
+//! （実ブラウザのユーザー操作より再解決経路の露出頻度が高い、テストが
+//! 意図的に利用する性質）。Root `id` が無い構成での fail-closed 挙動
+//! （#1993 受け入れ条件の他方）は本ファイルの
+//! `runtime_mount_wires_clear_trigger_click_for_signature_pad` 等、正準
+//! ビュー（Root に `id` を持たない）を使う既存ケースが間接的に固定して
+//! いる（専用ケースは持たない）。
+
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_headless_ui::signature_pad::{Point, SignaturePad, SignaturePadAction, Stroke};
@@ -342,6 +380,34 @@ fn new_pointer_event(kind: &str, pointer_id: i32) -> web_sys::PointerEvent {
         .expect("PointerEvent::new must not fail")
 }
 
+/// [`new_pointer_event`] の拡張版: クライアント座標と `buttons`
+/// （ビットマスク）を明示指定する合成 `PointerEvent`
+/// （`angle_slider_browser.rs::pointer_event_with_buttons` と同型）。
+///
+/// `StrokeCollector::release_if_stale`（イシュー #1992）は `pointermove` の
+/// `buttons` を確認するため、既存 [`new_pointer_event`]（`buttons` は既定の
+/// `0`）では stale 解除の検証に不可欠な「押下中の pointermove」
+/// （`buttons=1`）を組み立てられない。構造フォールバック跨ぎ・stale 解除の
+/// 検証（イシュー #1991/#1993/#1994、`structural_fallback` モジュール・
+/// [`stale_stroke_tracking_is_released_when_no_button_is_held`]）専用に
+/// 追加する（既存 [`new_pointer_event`] の呼び出しは変更しない）。
+fn pointer_event_at(
+    kind: &str,
+    pointer_id: i32,
+    client_x: f64,
+    client_y: f64,
+    buttons: u16,
+) -> web_sys::PointerEvent {
+    let init = web_sys::PointerEventInit::new();
+    init.set_bubbles(true);
+    init.set_pointer_id(pointer_id);
+    init.set_client_x(client_x.round() as i32);
+    init.set_client_y(client_y.round() as i32);
+    init.set_buttons(buttons);
+    web_sys::PointerEvent::new_with_event_init_dict(kind, &init)
+        .expect("PointerEvent::new must not fail")
+}
+
 /// SignaturePad の ClearTrigger（`Self::wire_signature_pad` 経路）が keyed
 /// list の構造変化を起こした直後、通常の `data-action` クリック
 /// （`Self::wire`/`events::wire_events` 経路）が新規挿入ノード内の
@@ -529,6 +595,338 @@ mod binding_table_cache_desync {
             "ClearTrigger クリックで挿入された keyed list ノード内の \
              data-bind-text=\"total\" が increment クリック後に更新されている \
              こと（イシュー #843 Bugbot 指摘「Binding table cache desync」の回帰）"
+        );
+    }
+}
+
+/// capture 喪失中に `root` 外で `pointerup`/`pointercancel` を取り逃した
+/// stale な追跡が、`buttons == 0` の `pointermove`
+/// （[`fandhe_frontend_wasm_full::headless_signature_pad::StrokeCollector::release_if_stale`]、
+/// イシュー #1992）で自己解除され、以後の新規ストローク開始が恒久的に
+/// ブロックされないこと（モジュール冒頭 rustdoc「構造フォールバック跨ぎと
+/// stale 解除」節参照）。
+///
+/// `release_if_stale` は capture 再解決（イシュー #1993）より先に評価
+/// される（`wiring::wire_stroke_collector` の pointermove 配線）ため、
+/// 正準ビュー（Root に `id` を持たない `TestSignaturePadHost`）のままで
+/// 検証できる。
+///
+/// 修正前（`release_if_stale` 導入前）: `pointerdown(1)` で追跡開始した
+/// まま `pointerup(1)` を送らずに `pointermove(1, buttons=0)` を送っても
+/// 追跡は解除されず、後続の別 pointer id（2）での `pointerdown`/
+/// `pointerup` は「既に追跡中」として無視され、ストロークが確定しない
+/// （`StrokeCollector::on_pointer_down` の「既に追跡中なら無視」ガード）。
+#[wasm_bindgen_test]
+fn stale_stroke_tracking_is_released_when_no_button_is_held() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "signature-pad-stale-release-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let host = TestSignaturePadHost(SignaturePad::new(Vec::new(), false, false));
+    let runtime = Runtime::mount("signature-pad-stale-release-root", host)
+        .expect("Runtime::mount must not fail");
+
+    let control = placeholder
+        .query_selector(r#"[data-scope="signature-pad"][data-part="control"]"#)
+        .expect("query_selector must not fail")
+        .expect("mount 後に control 要素が存在すること");
+    let segment = placeholder
+        .query_selector(r#"[data-scope="signature-pad"][data-part="segment"]"#)
+        .expect("query_selector must not fail")
+        .expect("mount 後に segment 要素が存在すること");
+    let rect = segment.get_bounding_client_rect();
+    let (x, y) = (rect.left() + 10.0, rect.top() + 10.0);
+
+    // 1. pointerdown（pointer_id=1、押下中）で追跡開始する。
+    control
+        .dispatch_event(&pointer_event_at("pointerdown", 1, x, y, 1))
+        .expect("dispatch_event(pointerdown) must not fail");
+
+    // 2. pointerup を送らず、押下していない（buttons=0）pointermove を送る
+    // （capture 喪失中に root 外で pointerup/pointercancel を取り逃した
+    // stale な追跡を模す）。
+    control
+        .dispatch_event(&pointer_event_at("pointermove", 1, x, y, 0))
+        .expect("dispatch_event(pointermove) must not fail");
+
+    assert!(
+        runtime.component().0.strokes().is_empty(),
+        "stale 判定（release_if_stale）で座標列を破棄しているため、この時点\
+         ではストロークが確定していないこと"
+    );
+
+    // 3. 別 pointer id（2）で新規ストロークを開始・終了する。
+    //    修正前（stale のまま）: on_pointer_down(2) は「追跡中」として無視
+    //    され、on_pointer_up(2) は None を返しストロークが確定しない。
+    //    修正後: release_if_stale が手順 2 の時点で追跡を解除しているため、
+    //    新規追跡が開始され 1 ストロークが確定する。
+    control
+        .dispatch_event(&pointer_event_at("pointerdown", 2, x, y, 1))
+        .expect("dispatch_event(pointerdown) must not fail");
+    control
+        .dispatch_event(&pointer_event_at("pointerup", 2, x, y, 0))
+        .expect("dispatch_event(pointerup) must not fail");
+
+    assert_eq!(
+        runtime.component().0.strokes().len(),
+        1,
+        "stale な追跡が release_if_stale で解除され、別 pointer id での新規\
+         ストロークが開始・確定できること（イシュー #1992 の受け入れ条件）"
+    );
+    assert_eq!(
+        runtime.component().0.strokes()[0].points().len(),
+        1,
+        "stale 側（pointer_id=1）の座標が混入せず、新規ストローク（pointer_id=2）\
+         の座標のみが記録されていること"
+    );
+
+    // 4. 任意: stale 解除後に pointerdown なしで pointermove（buttons=1）を
+    // 送っても no-op であること（pointerdown を経ない新規追跡は開始しない、
+    // fail-closed 性質の維持。`angle_slider_browser.rs` の同型ケース末尾と
+    // 同じ確認）。
+    control
+        .dispatch_event(&pointer_event_at("pointermove", 3, x, y, 1))
+        .expect("dispatch_event(pointermove) must not fail");
+    assert_eq!(
+        runtime.component().0.strokes().len(),
+        1,
+        "pointerdown を経ない pointermove（pointer_id=3）は新規追跡を開始せず、         ストローク件数が変化しないこと"
+    );
+}
+
+/// ストローク中の構造フォールバック（`Runtime::rerender_subtree`）を挟んだ
+/// pointer capture の再付与（イシュー #1993）を検証するテストホスト・
+/// ヘルパを閉じ込めるモジュール（モジュール冒頭 rustdoc「構造フォールバック
+/// 跨ぎと stale 解除」節参照）。
+mod structural_fallback {
+    use super::*;
+
+    /// [`StructuralFallbackSignaturePadHost`] が毎 `update()` で
+    /// `dirty_fields()` へ積む「束縛点にも keyed list にも対応しない」
+    /// フィールド名（`angle_slider_browser.rs::STRUCTURAL_ONLY_FIELD` と
+    /// 同型のパターン）。`Runtime::apply_update_for_dirty` はこの field を
+    /// `BindingTable::has_field` でも `find_list_element` でも解決できない
+    /// ため `unresolved_field` を立て、`Runtime::rerender_subtree`（`root`
+    /// 配下の丸ごと差し替え）へフォールバックする。
+    const STRUCTURAL_ONLY_FIELD: &str = "structural_only";
+
+    /// `SignaturePad` をラップし、
+    ///
+    /// - `view()` で SignaturePad Root（`[data-part="root"]`）へ明示的な
+    ///   `id`（`root_id`）を付与する（`SignaturePad::view()` の正準ビューは
+    ///   Root に `id` を付与しないため、`wiring::capture_anchor_root_id`/
+    ///   `resolve_control_by_root_id` による再解決を起動するにはアプリ側の
+    ///   明示付与が必須、モジュール `headless_signature_pad.rs` doc「pointer
+    ///   capture の再付与」節参照）
+    /// - 毎 `update()` で無条件に [`STRUCTURAL_ONLY_FIELD`] を積み、
+    ///   `Clear`-on-empty のような no-op 更新でも構造フォールバックを
+    ///   誘発する（`Runtime::rerender_subtree` が `root` 配下を丸ごと作り
+    ///   直すため、pointerdown で `set_pointer_capture` を設定した Control
+    ///   要素がストローク中に detach される状況を最小構成で再現する）
+    /// - `AddStroke` の dispatch 回数（`add_stroke_count`）を数える
+    ///   （受け入れ条件「`add-stroke` 相当が過不足なく 1 回だけ dispatch
+    ///   される」ことを直接検証するため）
+    ///
+    /// の最小ホスト。`segment` の children は非 keyed の
+    /// [`SignaturePad::segment_paths`] を使う（`"strokes"` は束縛点にも
+    /// keyed list にも対応せず、[`STRUCTURAL_ONLY_FIELD`] により構造
+    /// フォールバックが常に発動する前提のため、keyed 差分経路自体は本
+    /// ケースの検証対象外）。
+    struct StructuralFallbackSignaturePadHost {
+        pad: SignaturePad,
+        root_id: &'static str,
+        dirty: Vec<&'static str>,
+        add_stroke_count: u32,
+    }
+
+    impl StructuralFallbackSignaturePadHost {
+        fn new(root_id: &'static str) -> Self {
+            Self {
+                pad: SignaturePad::new(Vec::new(), false, false),
+                root_id,
+                dirty: Vec::new(),
+                add_stroke_count: 0,
+            }
+        }
+    }
+
+    impl fandhe_frontend_interactive::Component for StructuralFallbackSignaturePadHost {
+        type Action = SignaturePadAction;
+
+        fn update(&mut self, action: Self::Action) {
+            self.dirty.clear();
+            if matches!(action, SignaturePadAction::AddStroke(_)) {
+                self.add_stroke_count += 1;
+            }
+            fandhe_frontend_interactive::Component::update(&mut self.pad, action);
+            self.dirty
+                .extend_from_slice(fandhe_frontend_interactive::DirtyTracked::dirty_fields(
+                    &self.pad,
+                ));
+            // 無条件に構造フォールバックを誘発する（struct doc 参照）。
+            self.dirty.push(STRUCTURAL_ONLY_FIELD);
+        }
+
+        fn view(&self) -> fandhe_frontend_core::Node {
+            let segment = self
+                .pad
+                .segment(300, 150, None, Vec::new(), self.pad.segment_paths());
+            self.pad.root(
+                vec![("id", self.root_id)],
+                vec![
+                    self.pad.control(Vec::new(), vec![segment]),
+                    self.pad.clear_trigger(Vec::new(), Vec::new()),
+                ],
+            )
+        }
+
+        fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
+            SignaturePad::decode_action(name, payload)
+        }
+    }
+
+    impl fandhe_frontend_interactive::DirtyTracked for StructuralFallbackSignaturePadHost {
+        fn dirty_fields(&self) -> &[&'static str] {
+            &self.dirty
+        }
+    }
+
+    impl fandhe_frontend_wasm_client::BindingSource for StructuralFallbackSignaturePadHost {
+        fn bound_value(&self, _field: &str) -> Option<fandhe_frontend_wasm_client::BoundValue> {
+            None
+        }
+    }
+
+    /// ストローク中に構造フォールバック（ClearTrigger クリック経由の
+    /// `Runtime::rerender_subtree`）を挟んでも、`wiring::wire_stroke_collector`
+    /// が SignaturePad Root の `id`（anchor）から Control を再解決して
+    /// pointer capture を掛け直し、座標収集・`add-stroke` dispatch が
+    /// 継続すること（イシュー #1993 の受け入れ条件、モジュール冒頭
+    /// rustdoc「構造フォールバック跨ぎと stale 解除」節参照）。
+    ///
+    /// 手順 3 で非描画パーツ（差し替え後の `clear-trigger`）を target に
+    /// 選ぶのは回帰判別性のため: 修正前の `segment_rect_transform` は
+    /// `closest` → `query_selector` の 2 段探索を持つため、`root` や新しい
+    /// `control` を target にすると修正なしでも座標変換の基準が解決できて
+    /// しまい回帰を検知できない。`clear-trigger` は SignaturePad の描画
+    /// パーツ（`control`/`segment`/`segment-path`）の子孫でも祖先でもない
+    /// ため、修正前は `segment_rect_transform` が解決に失敗して座標が
+    /// 落ち、修正後は anchor の Root `id` から再解決した Control 基準で
+    /// 座標変換が行われるため座標が集まる。
+    #[wasm_bindgen_test]
+    fn stroke_continues_across_structural_fallback_via_root_id_reattach() {
+        const RUNTIME_ROOT_ID: &str = "signature-pad-fallback-runtime-root";
+        const PART_ROOT_ID: &str = "signature-pad-fallback-part-root";
+
+        let window = web_sys::window().expect("window must exist");
+        let document = window.document().expect("document must exist");
+        let placeholder = create_placeholder(&document, RUNTIME_ROOT_ID);
+        let _cleanup = RemoveOnDrop(placeholder.clone());
+
+        let host = StructuralFallbackSignaturePadHost::new(PART_ROOT_ID);
+        let runtime = Runtime::mount(RUNTIME_ROOT_ID, host).expect("Runtime::mount must not fail");
+
+        let control = || {
+            placeholder
+                .query_selector(r#"[data-scope="signature-pad"][data-part="control"]"#)
+                .expect("query_selector must not fail")
+                .expect("control part must exist")
+        };
+        let segment = || {
+            placeholder
+                .query_selector(r#"[data-scope="signature-pad"][data-part="segment"]"#)
+                .expect("query_selector must not fail")
+                .expect("segment part must exist")
+        };
+        let clear_trigger = || {
+            placeholder
+                .query_selector(r#"[data-scope="signature-pad"][data-part="clear-trigger"]"#)
+                .expect("query_selector must not fail")
+                .expect("clear-trigger part must exist")
+        };
+        // 「現在の segment 左上 + オフセット」のクライアント座標を返す
+        // （構造フォールバックで要素が差し替わるため毎回再取得する、
+        // `angle_slider_browser.rs::offset_from_center` と同じ意図）。
+        let point_in_segment = |dx: f64, dy: f64| -> (f64, f64) {
+            let rect = segment().get_bounding_client_rect();
+            (rect.left() + dx, rect.top() + dy)
+        };
+
+        // 1. pointerdown（追跡開始 + anchor 採取）。
+        let (down_x, down_y) = point_in_segment(10.0, 10.0);
+        control()
+            .dispatch_event(&pointer_event_at("pointerdown", 1, down_x, down_y, 1))
+            .expect("dispatch_event(pointerdown) must not fail");
+
+        // 2. ストローク中に ClearTrigger をクリックし、STRUCTURAL_ONLY_FIELD
+        // による構造フォールバックを誘発する。
+        let control_before = control();
+        clear_trigger()
+            .dispatch_event(&bubbling_event("click"))
+            .expect("dispatch_event(click) must not fail");
+        let control_after = control();
+        assert!(
+            control_after != control_before,
+            "ClearTrigger クリックで構造フォールバックが起き、pointerdown で\
+             pointer capture を持っていた Control 要素が detach されている\
+             こと（本テストが前提とする状況の成立確認）"
+        );
+
+        // 3. 差し替え後の非描画パーツ（clear-trigger）を target にして
+        // pointermove を 2 回送る（上記 doc「回帰判別性」節参照）。
+        let (move1_x, move1_y) = point_in_segment(20.0, 20.0);
+        clear_trigger()
+            .dispatch_event(&pointer_event_at("pointermove", 1, move1_x, move1_y, 1))
+            .expect("dispatch_event(pointermove) must not fail");
+        let (move2_x, move2_y) = point_in_segment(30.0, 30.0);
+        clear_trigger()
+            .dispatch_event(&pointer_event_at("pointermove", 1, move2_x, move2_y, 1))
+            .expect("dispatch_event(pointermove) must not fail");
+
+        // 4. pointerup で add-stroke を確定する。
+        clear_trigger()
+            .dispatch_event(&pointer_event_at("pointerup", 1, move2_x, move2_y, 0))
+            .expect("dispatch_event(pointerup) must not fail");
+
+        assert_eq!(
+            runtime.component().add_stroke_count,
+            1,
+            "add-stroke 相当が過不足なく 1 回だけ dispatch されていること"
+        );
+        assert_eq!(runtime.component().pad.strokes().len(), 1);
+        assert_eq!(
+            runtime.component().pad.strokes()[0].points().len(),
+            3,
+            "pointerdown 1 点 + pointermove 2 点の計 3 点が収集されている\
+             こと（capture 喪失後も座標収集が継続することの直接的な証拠。\
+             `len() == 1` のような件数のみの確認では down/up のみでも成立\
+             してしまうため点数で検証する）"
+        );
+        assert!(
+            segment()
+                .query_selector(r#"path[data-scope="signature-pad"][data-part="segment-path"]"#)
+                .expect("query_selector must not fail")
+                .is_some(),
+            "pointerup 後の add-stroke dispatch でも STRUCTURAL_ONLY_FIELD に\
+             より全再描画が走り、差し替え後の segment に確定したストローク\
+             の <path> が反映されていること"
+        );
+
+        // 5. 追跡解除の確認: pointerdown を経ない pointermove/pointerup を
+        // 送っても新規ストロークが確定しない（add_stroke_count が増えない）
+        // こと。
+        let (stray_x, stray_y) = point_in_segment(5.0, 5.0);
+        clear_trigger()
+            .dispatch_event(&pointer_event_at("pointermove", 1, stray_x, stray_y, 1))
+            .expect("dispatch_event(pointermove) must not fail");
+        clear_trigger()
+            .dispatch_event(&pointer_event_at("pointerup", 1, stray_x, stray_y, 0))
+            .expect("dispatch_event(pointerup) must not fail");
+        assert_eq!(
+            runtime.component().add_stroke_count,
+            1,
+            "pointerup 後は追跡が解除されており、pointerdown を経ない後続の             pointermove/pointerup では新規ストロークが確定しないこと"
         );
     }
 }
