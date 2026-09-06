@@ -1036,3 +1036,109 @@ binaryen でこの大小関係が保たれるかは #1972 が確認する。
 - **ユーザー承認**: `wasm-opt`（binaryen）のバージョン pin・SHA256 検証済み
   バイナリを CI・Dockerfile へ実導入する変更は新規ビルドツール依存の追加に
   当たるため、実測値（本節）を添えてユーザー承認を取ること。
+
+## #1972 の結論（CI・Dockerfile への binaryen 実導入は見送り）
+
+イシュー #1972（親 #1970、前提 #1971 = PR #1980 で `build.rs` ネスト
+ビルドと `bundle_size.rs` への Step A（`wasm-bindgen
+--remove-name-section --remove-producers-section`、常時）/ Step B
+（`wasm-opt`、PATH にあれば soft-skip で適用）が既にマージ済み）の
+「binaryen（wasm-opt）をバージョン固定 + SHA256 検証で CI・Dockerfile へ
+導入する」対応は、**実導入を見送る**と結論した。
+
+### 根拠（実測再掲）
+
+上記「結果 (a): dist-server 経路の gzip 合計」表のとおり、
+`wasm-bindgen --remove-name-section --remove-producers-section` 単独が
+gzip 後サイズで最小であり、`wasm-opt` を併用すると raw は縮むが
+gzip 後はむしろ悪化する:
+
+| 構成 | 合計 gzip |
+|------|----------:|
+| `wasm-bindgen` フラグ単独（Step A のみ、新規依存ゼロ） | **159,817 B** |
+| + `wasm-opt -Os`（Step A + Step B） | 162,518 B（+2,701 B） |
+| + `wasm-opt -Oz` | 162,874 B（+3,057 B） |
+
+PR #1980 マージ後の main（commit `edf75d94e471f686c867826f7157e247373e5bec`、
+CI run [34044272771](https://github.com/Fandhe-AI/fandhe-frontend/actions/runs/34044272771)）
+の `bundle-size` ジョブ実測（Step A のみが有効、Step B は CI に
+`wasm-opt` が存在しないため soft-skip）:
+
+```
+bundle-size: total_gzip_bytes=160443/200000 files=2 result=PASS
+```
+
+200,000 B 上限に対し約 39,557 B（19.8%）の余裕を確保できており、
+`wasm-opt` を追加導入する動機（REQ-11 余裕確保）は既に Step A 単独で
+満たされている。この状態で新規ビルドツール依存（binaryen、サプライ
+チェーン面のリスク）を追加することは、計測上の効果がマイナス
+（gzip 後サイズが悪化する）である以上、正当化できない。
+
+### 見送りの範囲
+
+- `crates/dist-server/build.rs` / `crates/wasm-full/tests/bundle_size.rs`
+  の Step B（`wasm-opt` が PATH にあれば適用する soft-skip 処理）自体は
+  PR #1980 で導入済みのまま変更しない（ローカル開発者が任意に `wasm-opt`
+  を導入した場合に恩恵を受けられる設計は維持する。上記実測により
+  「恩恵」は現状 raw サイズ削減のみで gzip 後サイズにはむしろ逆効果だが、
+  raw サイズが意味を持つ配布経路〔例: 非 gzip 配信〕まで否定するもの
+  ではないため、処理自体の削除はしない）
+- `ci.yml` の `WASM_OPT_VERSION`/`WASM_OPT_SHA256`（`version_123` pin）と
+  `template-app-wasm-smoke` ジョブの binaryen 導入ステップは対象が異なる
+  （`templates/app/wasm/build.sh` 側の wasm-opt 呼び出し検証。REQ-11 の
+  計測経路である dist-server 経路とは別）ため変更しない。本節の見送り
+  判断はこの既存導入を撤回するものではない
+- `test`/`bundle-size` ジョブ（dist-server 経路）と `Dockerfile` の
+  builder ステージへ binaryen（wasm-opt）をバージョン固定 + SHA256
+  検証で新規導入することを見送る。両ジョブ・`Dockerfile` は現状のまま
+  （`wasm-opt` を持たない）とする
+
+### 「#1972 への引き継ぎ事項」4 点の扱い
+
+見送り判断に伴い、直前節「#1972 への引き継ぎ事項」の 4 点は以下のとおり
+整理する:
+
+1. **CI pin 版（`version_123`）での gzip 再検証**: 不要。実導入を見送る
+   ため、CI pin 版での大小関係再確認は動機を失う。ただし再評価トリガー
+   （後述）が成立した場合は改めて実施する
+2. **update op_ms の再評価**（基準 (ii)、CI 相当環境での実測確認）:
+   不要。`wasm-opt` を実導入しないため、その適用による op_ms 変化を
+   計測する対象自体が存在しない
+3. **CI fail-closed 化**（skip マーカー不在の grep assert）: 不要。
+   `wasm-opt` を CI・Dockerfile へ常設導入しないため、fail-closed 化
+   すべき対象がない。Step B の soft-skip 経路は現状どおり「PATH に
+   なければ警告付きスキップ」のまま残る
+4. **ユーザー承認**: 本節の記録と PR 本文により、「実導入を見送る」旨の
+   決定についてユーザー承認を得る（実導入する場合の承認ではなく、
+   見送るという結論そのものの承認という形で対応）
+
+### Step B（soft-skip）の設計上の留意点
+
+Step B は「`wasm-opt` が PATH 上にあれば適用し、なければ警告付きで
+スキップする」設計のため、**ローカル開発者の環境（`wasm-opt` の有無・
+バージョン）によって生成される `_bg.wasm` の内容が変わり得る**（PATH
+依存の非決定性）。CI・Dockerfile に `wasm-opt` を導入しない本決定に
+より、CI・配布物（Dockerfile ビルド）側は常に Step A のみが有効な
+決定的な構成に固定される一方、ローカル `cargo build`／`fw gate`
+実行時に開発者が `wasm-opt` を独自導入していると、CI とは異なる
+（かつ gzip 後サイズが悪化する）成果物をローカルでは目にする可能性が
+残る。実害（配布物の決定性）は CI・Dockerfile に限定されるため本イシュー
+のスコープでは追加対応しないが、「ローカル専用の最適化ツールが
+CI と異なる成果物を生む」という設計上の留意点として記録する
+（必要であれば、Step B 自体の要否〔ローカル限定の恩恵が薄い以上
+撤去する案を含む〕を別 issue で再検討する余地がある。out-of-scope
+として PR 本文にも記載する。本イシューでは起票しない）。
+
+### 再評価トリガー
+
+以下のいずれかが成立した場合、CI・Dockerfile への binaryen 実導入を
+再評価する:
+
+- `wasm-bindgen`（または `wasm-opt`）側の最適化・出力形式の変更により、
+  `wasm-opt` 併用が Step A 単独より gzip 後サイズで優れる大小関係へ
+  逆転した場合（CI pin 版 binaryen での再検証を含む）
+- REQ-11 の 200,000 B 上限に対する余裕が再び 5% を切った場合（Step A
+  単独では不足し、追加の最適化手段が必要になった場合）
+- gzip 以外の配布経路（例: Brotli 配信、非圧縮配信）が REQ-11 の計測
+  経路として採用され、raw サイズ削減（`wasm-opt` の得意領域）が
+  直接の評価指標になった場合
