@@ -1462,11 +1462,12 @@ where
     }
 
     /// NumberInput（`fandhe-frontend-headless-ui` `number_input` モジュール）の
-    /// keydown（ArrowUp/ArrowDown/Home/End/Enter）配線を
+    /// keydown（ArrowUp/ArrowDown/Home/End/Enter）配線 + click
+    /// （IncrementTrigger/DecrementTrigger）配線を
     /// [`number_input::wire_number_input_component`] 経由で `root` へ配線する
-    /// （イシュー #1613、PR #1881 codex-review P1 是正）。`Self::mount`/
-    /// `Self::hydrate` の双方から `Self::wire_signature_pad` の直後に 1 回
-    /// だけ呼ばれる。
+    /// （イシュー #1613、PR #1881 codex-review P1 是正／イシュー #1962 で
+    /// click 配線を追加）。`Self::mount`/`Self::hydrate` の双方から
+    /// `Self::wire_signature_pad` の直後に 1 回だけ呼ばれる。
     ///
     /// `number_input::wire_number_input_component` は dispatch 成功後の DOM
     /// 反映を `on_update` コールバックとして呼び出し側に委ねる設計
@@ -1482,7 +1483,9 @@ where
     /// `root` 配下に NumberInput の Input パーツが存在しない場合、
     /// `number_input::wiring::handle_keydown` 内の scope/part 一致判定が
     /// 不一致で早期 return するため、NumberInput を使わないアプリへの影響
-    /// はない。
+    /// はない。`number_input::wiring::handle_click` も同様に、トリガー
+    /// 要素・Input パーツのいずれかが解決できない場合は早期 return する
+    /// （イシュー #1962）。
     ///
     /// # Errors
     ///

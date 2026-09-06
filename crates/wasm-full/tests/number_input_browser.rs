@@ -29,7 +29,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, Event, HtmlInputElement, KeyboardEvent, KeyboardEventInit};
+use web_sys::{
+    Document, Element, Event, EventInit, HtmlInputElement, KeyboardEvent, KeyboardEventInit,
+};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -100,6 +102,17 @@ fn keydown_event_composing(key: &str) -> Event {
         .expect("KeyboardEvent must cast to Event")
 }
 
+/// 合成 `click` イベント（`bubbles: true`）を組み立てる（イシュー #1962、
+/// `keynav_browser.rs::click_event` と同型。`handle_click` は
+/// `prevent_default()` を呼ばない契約〔`crates/wasm-full/src/
+/// number_input.rs::wiring::handle_click` 参照〕のため `cancelable` は
+/// 不要）。
+fn click_event() -> Event {
+    let init = EventInit::new();
+    init.set_bubbles(true);
+    Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail")
+}
+
 /// NumberInput の Root > Control > Input を組み立て、`container` へ差し込む。
 /// `root` 要素（`data-scope="number-input" data-part="root"`）と
 /// `input` 要素（`data-part="input"`）を返す。
@@ -129,6 +142,63 @@ fn build_number_input_dom(
         .expect("query_selector must not fail")
         .expect("input element must exist");
     (root, input)
+}
+
+/// NumberInput の Root > Control > [IncrementTrigger, Input, DecrementTrigger]
+/// を組み立て、`container` へ差し込む（イシュー #1962: click 配線の
+/// ブラウザ回帰テスト用）。`increment_trigger`/`decrement_trigger` は
+/// [`NumberInput`] の利便メソッドを使い、境界到達時のネイティブ `disabled`
+/// 合成（`NumberInput::can_increment`/`can_decrement`）を製品と同じ経路で
+/// 再現する。`root`/`input`/increment ボタン/decrement ボタンの 4 要素を
+/// 返す。
+fn build_number_input_dom_with_triggers(
+    document: &Document,
+    container_id: &str,
+    number_input: &NumberInput,
+    flags: NumberInputFlags,
+) -> (Element, Element, Element, Element) {
+    let container = create_container(document, container_id);
+    let node = number_input.root(
+        flags,
+        Vec::new(),
+        vec![number_input.control(
+            flags,
+            Vec::new(),
+            vec![
+                number_input.increment_trigger(
+                    Some("qty-input"),
+                    false,
+                    Vec::new(),
+                    vec![fandhe_frontend_core::text("+")],
+                ),
+                number_input.input("qty", Some("qty-input"), flags, Vec::new()),
+                number_input.decrement_trigger(
+                    Some("qty-input"),
+                    false,
+                    Vec::new(),
+                    vec![fandhe_frontend_core::text("-")],
+                ),
+            ],
+        )],
+    );
+    let html = fandhe_frontend_core::render(&node);
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("number-input root must exist");
+    let input = root
+        .query_selector(r#"[data-scope="number-input"][data-part="input"]"#)
+        .expect("query_selector must not fail")
+        .expect("input element must exist");
+    let increment_button = root
+        .query_selector(r#"[data-scope="number-input"][data-part="increment-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("increment-trigger element must exist");
+    let decrement_button = root
+        .query_selector(r#"[data-scope="number-input"][data-part="decrement-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("decrement-trigger element must exist");
+    (root, input, increment_button, decrement_button)
 }
 
 /// 配線し、`on_update` で `formatted_value()` を `input` の `value`/
@@ -675,6 +745,304 @@ fn composing_enter_is_ignored_and_default_not_prevented() {
 }
 
 // ---------------------------------------------------------------------
+// IncrementTrigger/DecrementTrigger の click 配線（イシュー #1962）の
+// 実ブラウザ回帰。keydown 系と同じく実 DOM 上の合成 click イベント →
+// `wire_number_input_component`（配線層）→
+// `fandhe_frontend_interactive::dispatch` → `NumberInput` 状態遷移という
+// 製品経路を検証する。
+// ---------------------------------------------------------------------
+
+#[wasm_bindgen_test]
+fn click_increment_trigger_increments_value_and_updates_dom() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let (root, _input, increment_button, _decrement_button) = build_number_input_dom_with_triggers(
+        &document,
+        "ni-click-increment",
+        &number_input,
+        NumberInputFlags::default(),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    increment_button.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(component.borrow().value(), Some(6.0));
+}
+
+#[wasm_bindgen_test]
+fn click_decrement_trigger_decrements_value_and_updates_dom() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let (root, _input, _increment_button, decrement_button) = build_number_input_dom_with_triggers(
+        &document,
+        "ni-click-decrement",
+        &number_input,
+        NumberInputFlags::default(),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    decrement_button.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(component.borrow().value(), Some(4.0));
+}
+
+/// 境界到達によりネイティブ `disabled`（+ `data-disabled`）が付与された
+/// IncrementTrigger への click が no-op であること。`max` に到達済みの
+/// 状態で組み立て、`NumberInput::increment_trigger` の利便メソッドが
+/// `can_increment() == false` を disabled へ自動合成する製品経路
+/// （`crates/headless-ui/src/number_input.rs` 参照）をそのまま再現する。
+#[wasm_bindgen_test]
+fn click_disabled_trigger_is_noop() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(10.0), 0.0, 10.0, 1.0);
+    let (root, _input, increment_button, _decrement_button) = build_number_input_dom_with_triggers(
+        &document,
+        "ni-click-disabled-trigger",
+        &number_input,
+        NumberInputFlags::default(),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    assert!(
+        increment_button.has_attribute("disabled"),
+        "max 到達時は increment-trigger にネイティブ disabled が付くこと（前提確認）"
+    );
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    increment_button.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(
+        component.borrow().value(),
+        Some(10.0),
+        "disabled な IncrementTrigger への click は no-op であること"
+    );
+}
+
+/// readonly 時、IncrementTrigger/DecrementTrigger にはネイティブ
+/// `disabled` が付かない（`root`/`control`/`input` のみが `data-readonly`
+/// を持つ、`crates/headless-ui/src/number_input.rs` 参照）ため、click
+/// ブロックは配線層の `has_noninteractive_ancestor`（祖先の Control が
+/// 持つ `data-readonly` を辿る判定）が唯一の防御層になる。この分岐の
+/// 実ブラウザ回帰（PR review 指摘の中核）。
+#[wasm_bindgen_test]
+fn click_increment_trigger_is_noop_when_readonly() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let flags = NumberInputFlags {
+        readonly: true,
+        ..NumberInputFlags::default()
+    };
+    let (root, _input, increment_button, _decrement_button) = build_number_input_dom_with_triggers(
+        &document,
+        "ni-click-readonly-trigger",
+        &number_input,
+        flags,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    assert!(
+        !increment_button.has_attribute("disabled"),
+        "readonly 時は increment-trigger にネイティブ disabled が付かないこと（前提確認）"
+    );
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    increment_button.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(
+        component.borrow().value(),
+        Some(5.0),
+        "readonly 時は has_noninteractive_ancestor（祖先の data-readonly 判定）が \
+         唯一の防御層として click をブロックすること"
+    );
+}
+
+/// IncrementTrigger 内の子要素（アイコン用の `<span>` を模す）への click
+/// が、ボタン本体への click と同様に dispatch されること（`event.target()`
+/// がテキストノード/子要素の場合の `Node::parent_element()` 遡り、
+/// `wiring::handle_click` doc 参照）。
+#[wasm_bindgen_test]
+fn click_on_icon_child_inside_trigger_still_dispatches() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let (root, _input, increment_button, _decrement_button) = build_number_input_dom_with_triggers(
+        &document,
+        "ni-click-icon-child",
+        &number_input,
+        NumberInputFlags::default(),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    // ボタン内の既存テキストノード（"+"）を、アイコン用 span 子要素へ
+    // 差し替える（SVG アイコンを模す最小構成。子要素への click ターゲット
+    // 委譲を検証する目的のため span で十分）。
+    increment_button.set_inner_html("");
+    let icon = document
+        .create_element("span")
+        .expect("create_element must not fail for a plain span");
+    increment_button
+        .append_child(&icon)
+        .expect("append_child must not fail");
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    icon.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(
+        component.borrow().value(),
+        Some(6.0),
+        "アイコン子要素への click も親の IncrementTrigger として解決され dispatch されること"
+    );
+}
+
+#[wasm_bindgen_test]
+fn click_on_control_part_is_noop_only_trigger_parts_react() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let (root, _input, _increment_button, _decrement_button) = build_number_input_dom_with_triggers(
+        &document,
+        "ni-click-control-part",
+        &number_input,
+        NumberInputFlags::default(),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let control = root
+        .query_selector(r#"[data-scope="number-input"][data-part="control"]"#)
+        .unwrap()
+        .unwrap();
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    control.dispatch_event(&click_event()).unwrap();
+    assert_eq!(
+        component.borrow().value(),
+        Some(5.0),
+        "IncrementTrigger/DecrementTrigger パーツ以外の click は no-op であること"
+    );
+}
+
+/// 2 インスタンス（qty/price、別 `name`/別 `data-action-input`）で、
+/// price 側の DecrementTrigger への click が qty 側の状態を一切変更せず、
+/// dispatch された `(action, payload)` で両者を区別できること
+/// （`two_instances_arrow_up_updates_only_the_targeted_field` の click 版）。
+#[wasm_bindgen_test]
+fn two_instances_click_increment_trigger_updates_only_the_targeted_field() {
+    let document = web_sys::window().unwrap().document().unwrap();
+
+    let container = create_container(&document, "ni-two-instances-click-root");
+    let qty_input_model = NumberInput::new(Some(5.0), 0.0, 100.0, 1.0);
+    let price_input_model = NumberInput::new(Some(5.0), 0.0, 100.0, 1.0);
+    let qty_node = qty_input_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![qty_input_model.control(
+            NumberInputFlags::default(),
+            Vec::new(),
+            vec![
+                qty_input_model.input(
+                    "qty",
+                    Some("qty-input"),
+                    NumberInputFlags::default(),
+                    vec![("data-action-input", "qty_set")],
+                ),
+                qty_input_model.increment_trigger(
+                    Some("qty-input"),
+                    false,
+                    vec![],
+                    vec![fandhe_frontend_core::text("+")],
+                ),
+            ],
+        )],
+    );
+    let price_node = price_input_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![price_input_model.control(
+            NumberInputFlags::default(),
+            Vec::new(),
+            vec![
+                price_input_model.input(
+                    "price",
+                    Some("price-input"),
+                    NumberInputFlags::default(),
+                    vec![("data-action-input", "price_set")],
+                ),
+                price_input_model.increment_trigger(
+                    Some("price-input"),
+                    false,
+                    vec![],
+                    vec![fandhe_frontend_core::text("+")],
+                ),
+            ],
+        )],
+    );
+    let html = format!(
+        "{}{}",
+        fandhe_frontend_core::render(&qty_node),
+        fandhe_frontend_core::render(&price_node)
+    );
+    container.set_inner_html(&html);
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let price_increment_button = container
+        .query_selector(
+            r#"#price-input ~ [data-scope="number-input"][data-part="increment-trigger"]"#,
+        )
+        .expect("query_selector must not fail")
+        .expect("price increment-trigger must exist");
+
+    let recorded: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorded_clone = recorded.clone();
+    wire_number_input_events(container.clone(), move |action_ref: ActionRef| {
+        recorded_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_number_input_events must not fail");
+
+    price_increment_button
+        .dispatch_event(&click_event())
+        .unwrap();
+
+    let dispatched = recorded.borrow().clone();
+    assert_eq!(
+        dispatched,
+        vec![
+            ActionRef {
+                action: "price_set".to_string(),
+                payload: "5".to_string(),
+            },
+            ActionRef {
+                action: "increment".to_string(),
+                payload: "price".to_string(),
+            },
+        ],
+        "price 側の IncrementTrigger click は price_set/increment(payload=price) を dispatch すること"
+    );
+
+    let mut state = TwoFieldState {
+        qty: 5.0,
+        price: 5.0,
+    };
+    for action_ref in &dispatched {
+        fandhe_frontend_interactive::dispatch(&mut state, &action_ref.action, &action_ref.payload);
+    }
+    assert_eq!(
+        state.qty, 5.0,
+        "qty は price 側の click の影響を受けないこと"
+    );
+    assert_eq!(state.price, 6.0, "price のみ increment されること");
+}
+
+// ---------------------------------------------------------------------
 // 複数インスタンス識別（PR #1881 codex-review P1 是正）の実ブラウザ回帰。
 // ---------------------------------------------------------------------
 
@@ -859,4 +1227,385 @@ fn two_instances_arrow_up_updates_only_the_targeted_field() {
     // `arrow_up_increments_value_and_updates_dom` 等が別途検証済み）。
     let qty_html_input = qty_input.clone().dyn_into::<HtmlInputElement>().unwrap();
     assert_eq!(qty_html_input.value(), "5");
+}
+
+// ---------------------------------------------------------------------
+// PR #1982 codex-review P1 是正の実ブラウザ回帰（イシュー #1962）。
+// ---------------------------------------------------------------------
+
+/// codex-review 指摘その 1: 公開 API で **Input のみ** に readonly を指定し
+/// （Root/Control は既定フラグ）構築した場合でも、IncrementTrigger への
+/// click が no-op であること。`click_increment_trigger_is_noop_when_readonly`
+/// は Root/Control/Input すべてに `flags` を渡す構成のため、実際には
+/// Control 側の `data-readonly`（`has_noninteractive_ancestor` が Trigger の
+/// 祖先として辿る）が防御しており、Input 単体の readonly を防ぐ経路
+/// （`handle_click` が Input 解決後に改めて `has_noninteractive_ancestor` を
+/// 確認する分岐）を検証できていなかった。本テストはその欠落を埋める。
+#[wasm_bindgen_test]
+fn click_increment_trigger_is_noop_when_only_input_is_readonly() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "ni-click-input-only-readonly");
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let input_flags = NumberInputFlags {
+        readonly: true,
+        ..NumberInputFlags::default()
+    };
+    let node = number_input.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![number_input.control(
+            NumberInputFlags::default(),
+            Vec::new(),
+            vec![
+                number_input.increment_trigger(
+                    Some("qty-input"),
+                    false,
+                    Vec::new(),
+                    vec![fandhe_frontend_core::text("+")],
+                ),
+                number_input.input("qty", Some("qty-input"), input_flags, Vec::new()),
+            ],
+        )],
+    );
+    let html = fandhe_frontend_core::render(&node);
+    container.set_inner_html(&html);
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let root = container
+        .first_element_child()
+        .expect("number-input root must exist");
+    let increment_button = root
+        .query_selector(r#"[data-scope="number-input"][data-part="increment-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("increment-trigger element must exist");
+    assert!(
+        !increment_button.has_attribute("disabled"),
+        "readonly 時は increment-trigger にネイティブ disabled が付かないこと（前提確認）"
+    );
+    let control = root
+        .query_selector(r#"[data-scope="number-input"][data-part="control"]"#)
+        .expect("query_selector must not fail")
+        .expect("control element must exist");
+    assert!(
+        !control.has_attribute("data-readonly"),
+        "Control は既定フラグで構築されており data-readonly を持たないこと（前提確認）"
+    );
+    assert!(
+        !root.has_attribute("data-readonly"),
+        "Root も既定フラグで構築されており data-readonly を持たないこと（前提確認）"
+    );
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    increment_button.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(
+        component.borrow().value(),
+        Some(5.0),
+        "Input のみが readonly な場合でも、Input 解決後の has_noninteractive_ancestor \
+         確認により IncrementTrigger への click が no-op であること"
+    );
+}
+
+/// codex-review 指摘その 2: Control を省略した NumberInput が別の
+/// NumberInput にネストされている場合、内側の IncrementTrigger への click
+/// が内側インスタンスの Input のみを更新し、外側インスタンスの Input を
+/// 誤って更新しないこと。
+///
+/// 外側 NumberInput（`outer`、Control 省略）の Root 直下に、外側 Input
+/// （document 順で先に配置）と、Control を省略した内側 NumberInput
+/// （`inner`）の Root（IncrementTrigger + Input）をネストする。旧実装は
+/// `find_input_within_control` が最寄りの Root（inner）で探索を打ち切らず
+/// 外側の Root まで祖先探索を続け、`container` が外側 Root に置き換わって
+/// 外側 Input（document 順で先）を誤って解決していた。
+#[wasm_bindgen_test]
+fn nested_number_input_without_control_click_updates_only_inner_instance() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "ni-nested-without-control");
+
+    let outer_model = NumberInput::new(Some(50.0), 0.0, 100.0, 1.0);
+    let inner_model = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+
+    let inner_node = inner_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![
+            inner_model.increment_trigger(
+                Some("inner-input"),
+                false,
+                Vec::new(),
+                vec![fandhe_frontend_core::text("+")],
+            ),
+            inner_model.input(
+                "inner",
+                Some("inner-input"),
+                NumberInputFlags::default(),
+                vec![("data-action-input", "inner_set")],
+            ),
+        ],
+    );
+    let outer_node = outer_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![
+            outer_model.input(
+                "outer",
+                Some("outer-input"),
+                NumberInputFlags::default(),
+                vec![("data-action-input", "outer_set")],
+            ),
+            inner_node,
+        ],
+    );
+    let html = fandhe_frontend_core::render(&outer_node);
+    container.set_inner_html(&html);
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let outer_input = container
+        .query_selector("#outer-input")
+        .expect("query_selector must not fail")
+        .expect("outer input must exist")
+        .dyn_into::<HtmlInputElement>()
+        .expect("outer input must cast to HtmlInputElement");
+    let inner_increment_button = container
+        .query_selector(r#"[data-scope="number-input"][data-part="increment-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("inner increment-trigger element must exist");
+
+    let recorded: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorded_clone = recorded.clone();
+    wire_number_input_events(container.clone(), move |action_ref: ActionRef| {
+        recorded_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_number_input_events must not fail");
+
+    inner_increment_button
+        .dispatch_event(&click_event())
+        .unwrap();
+
+    let dispatched = recorded.borrow().clone();
+    assert_eq!(
+        dispatched,
+        vec![
+            ActionRef {
+                action: "inner_set".to_string(),
+                payload: "5".to_string(),
+            },
+            ActionRef {
+                action: "increment".to_string(),
+                payload: "inner".to_string(),
+            },
+        ],
+        "内側 IncrementTrigger の click は内側インスタンス（inner_set/increment(payload=inner)） \
+         のみを dispatch し、外側インスタンス（outer_set）を一切 dispatch しないこと"
+    );
+    assert_eq!(
+        outer_input.value(),
+        "50",
+        "外側 Input の value は内側トリガーの click の影響を受けないこと（DOM 上の再確認）"
+    );
+}
+
+#[wasm_bindgen_test]
+fn nested_number_input_without_control_outer_trigger_after_inner_input_updates_outer() {
+    // PR #1982 codex-review P1 指摘の回帰: Control を省略した外側
+    // NumberInput に「内側 Root/Input → 外側 Input → 外側
+    // IncrementTrigger」の順で DOM 配置すると、外側トリガーの祖先探索が
+    // 最寄り Root（外側 Root）で正しく止まっても、`query_selector`
+    // （単一マッチ）が外側 Root 部分木内の最初の一致（内側 Input）を
+    // 返してしまい、その候補の最寄り Root が外側トリガーの
+    // `nearest_root` と不一致のため fail-closed で no-op になっていた
+    // （旧実装）。正しい外側 Input（同じ最寄り Root 配下）が実在するため、
+    // `find_input_within_control` は候補を最後まで列挙して外側 Input を
+    // 選び、外側トリガーの click が外側インスタンスを正しく更新する
+    // ことを検証する。
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "ni-nested-outer-trigger-after-inner");
+
+    let outer_model = NumberInput::new(Some(50.0), 0.0, 100.0, 1.0);
+    let inner_model = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+
+    let inner_node = inner_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![inner_model.input(
+            "inner",
+            None,
+            NumberInputFlags::default(),
+            vec![("data-action-input", "inner_set")],
+        )],
+    );
+    let outer_node = outer_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![
+            inner_node,
+            outer_model.input(
+                "outer",
+                Some("outer-input"),
+                NumberInputFlags::default(),
+                vec![("data-action-input", "outer_set")],
+            ),
+            outer_model.increment_trigger(
+                Some("outer-input"),
+                false,
+                Vec::new(),
+                vec![fandhe_frontend_core::text("+")],
+            ),
+        ],
+    );
+    let html = fandhe_frontend_core::render(&outer_node);
+    container.set_inner_html(&html);
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let outer_input = container
+        .query_selector("#outer-input")
+        .expect("query_selector must not fail")
+        .expect("outer input must exist")
+        .dyn_into::<HtmlInputElement>()
+        .expect("outer input must cast to HtmlInputElement");
+    let outer_increment_button = container
+        .query_selector(r#"[data-scope="number-input"][data-part="increment-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("outer increment-trigger element must exist");
+
+    let recorded: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorded_clone = recorded.clone();
+    wire_number_input_events(container.clone(), move |action_ref: ActionRef| {
+        recorded_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_number_input_events must not fail");
+
+    outer_increment_button
+        .dispatch_event(&click_event())
+        .unwrap();
+
+    let dispatched = recorded.borrow().clone();
+    assert_eq!(
+        dispatched,
+        vec![
+            ActionRef {
+                action: "outer_set".to_string(),
+                payload: "50".to_string(),
+            },
+            ActionRef {
+                action: "increment".to_string(),
+                payload: "outer".to_string(),
+            },
+        ],
+        "内側 Input の方が DOM 順で先にある構成でも、外側トリガーの click は \
+         正しい最寄り Root（外側）配下の外側 Input（outer_set/increment(payload=outer)） \
+         を選び dispatch すること（実際: {dispatched:?}）"
+    );
+    assert_eq!(
+        outer_input.value(),
+        "50",
+        "outer_input.value() は on_action コールバック内で明示的に反映しない限り \
+         変化しない（wire_number_input_events は dispatch のみで DOM への \
+         value 書き戻しを行わない契約）。ここでは正しい ActionRef 列が \
+         dispatch されたことのみを検証する"
+    );
+}
+
+/// PR #1982 codex-review P1 指摘の回帰: readonly な外側 NumberInput に
+/// 編集可能な内側 NumberInput をネストすると、`has_noninteractive_ancestor`
+/// （旧実装）が配線登録時の `root`（本テストでは container、Runtime root
+/// 相当）まで祖先を無条件に走査し、外側 Root の `data-readonly` を検出して
+/// 内側 IncrementTrigger の click まで no-op にしてしまっていた。
+/// `has_readonly_ancestor` が readonly の判定スコープを最寄りの
+/// NumberInput Root までに限定した（`has_disabled_ancestor` とは異なる
+/// 判定関数へ分離した）ことで、内側インスタンスの readonly でない状態が
+/// 外側の readonly から独立して尊重されることを検証する。
+#[wasm_bindgen_test]
+fn nested_number_input_inner_click_ignores_outer_readonly() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "ni-nested-outer-readonly-inner-editable");
+
+    let outer_model = NumberInput::new(Some(50.0), 0.0, 100.0, 1.0);
+    let inner_model = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+
+    let readonly_flags = NumberInputFlags {
+        readonly: true,
+        ..NumberInputFlags::default()
+    };
+
+    let inner_node = inner_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![
+            inner_model.increment_trigger(
+                Some("inner-input"),
+                false,
+                Vec::new(),
+                vec![fandhe_frontend_core::text("+")],
+            ),
+            inner_model.input(
+                "inner",
+                Some("inner-input"),
+                NumberInputFlags::default(),
+                vec![("data-action-input", "inner_set")],
+            ),
+        ],
+    );
+    // 外側 Root は readonly（`data-readonly` を持つ）。内側は独立した
+    // インスタンスであり readonly を継承しない想定。
+    let outer_node = outer_model.root(
+        readonly_flags,
+        Vec::new(),
+        vec![
+            outer_model.input(
+                "outer",
+                Some("outer-input"),
+                readonly_flags,
+                vec![("data-action-input", "outer_set")],
+            ),
+            inner_node,
+        ],
+    );
+    let html = fandhe_frontend_core::render(&outer_node);
+    container.set_inner_html(&html);
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let outer_root = container
+        .query_selector(r#"[data-scope="number-input"][data-part="root"]"#)
+        .expect("query_selector must not fail")
+        .expect("outer root element must exist");
+    assert!(
+        outer_root.has_attribute("data-readonly"),
+        "外側 Root は data-readonly を持つこと（前提確認）"
+    );
+    let inner_increment_button = container
+        .query_selector(r#"[data-scope="number-input"][data-part="increment-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("inner increment-trigger element must exist");
+
+    let recorded: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorded_clone = recorded.clone();
+    wire_number_input_events(container.clone(), move |action_ref: ActionRef| {
+        recorded_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_number_input_events must not fail");
+
+    inner_increment_button
+        .dispatch_event(&click_event())
+        .unwrap();
+
+    let dispatched = recorded.borrow().clone();
+    assert_eq!(
+        dispatched,
+        vec![
+            ActionRef {
+                action: "inner_set".to_string(),
+                payload: "5".to_string(),
+            },
+            ActionRef {
+                action: "increment".to_string(),
+                payload: "inner".to_string(),
+            },
+        ],
+        "外側 NumberInput が readonly でも、独立した内側インスタンスの \
+         IncrementTrigger の click は無視されず dispatch されること \
+         （readonly の判定スコープは同一インスタンス限定、実際: {dispatched:?}）"
+    );
 }
