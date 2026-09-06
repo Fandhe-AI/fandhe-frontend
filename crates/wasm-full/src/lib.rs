@@ -1431,9 +1431,15 @@ where
     /// `thumb_focus_is_restored_after_structural_fallback_on_keydown`）。
     ///
     /// なお `Self::wire_signature_pad` は同型の露出（ストローク中の
-    /// `canvas` 要素 detach）を依然として抱えるが、SignaturePad 側は
-    /// キャンバス要素の同一性そのものに描画状態が乗るため本対策とは別の
-    /// 設計判断を要する（本イシューのスコープ外）。
+    /// 描画領域要素〔`control` / `segment` / `segment-path`、SVG ベース〕
+    /// detach）を依然として抱える。SignaturePad 側はストローク中の座標列を
+    /// 配線ローカルの [`headless_signature_pad::StrokeCollector`] が保持し、
+    /// 描画領域要素には `set_pointer_capture` による pointer capture のみが
+    /// 掛かる。capture 喪失で stale 化した追跡は
+    /// `StrokeCollector::release_if_stale`（イシュー #1992）が次の
+    /// pointermove で自己解除する（fail-closed）。detach をまたいで
+    /// ストロークを継続させる対策は本節の `DragState` 方式をそのまま
+    /// 流用できず別の設計判断を要する（イシュー #1991 で追跡）。
     ///
     /// # AngleSlider 自身の `aria-valuenow`/`aria-valuetext` を更新するには
     /// アプリ側の束縛点配線が必要（イシュー #1956 レビュー指摘）
@@ -1535,9 +1541,10 @@ where
     /// 条件（元の resize-trigger が実際に detach された・再描画後の
     /// 同じ resize-trigger を一意に再解決できた場合に限る、fail-closed）で
     /// フォーカスを復元する。`Self::wire_signature_pad` は同型の露出
-    /// （ストローク中の `canvas` 要素 detach）を依然として抱えるが、
-    /// SignaturePad 側はキャンバス要素の同一性そのものに描画状態が乗る
-    /// ため本対策とは別の設計判断を要する（本イシューのスコープ外）。
+    /// （ストローク中の描画領域要素〔`control` / `segment` /
+    /// `segment-path`、SVG ベース〕detach）を依然として抱える。詳細は
+    /// [`Self::wire_angle_slider`] の doc 中「keydown 経路のフォーカス
+    /// 継続」節を参照（イシュー #1991 で追跡中）。
     ///
     /// # Errors
     ///
@@ -1586,8 +1593,10 @@ where
     ///
     /// # fail-closed（SignaturePad 非搭載アプリへの副作用なし）
     ///
-    /// `root` 配下に SignaturePad の Canvas/ClearTrigger パーツが存在しない
-    /// 場合、`wire_signature_pad_component` 内のポインタ/クリック判定が
+    /// `root` 配下に SignaturePad の描画領域（Control / Segment /
+    /// SegmentPath、`headless_signature_pad::is_drawable_part` が受理する
+    /// 3 パーツ）/ ClearTrigger パーツが存在しない場合、
+    /// `wire_signature_pad_component` 内のポインタ/クリック判定が
     /// scope/part 不一致で早期 return するため、SignaturePad を使わない
     /// アプリへの影響はない。
     ///
