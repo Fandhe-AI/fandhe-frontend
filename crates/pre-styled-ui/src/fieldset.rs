@@ -135,6 +135,31 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
                 decl("line-height", "var(--fandhe-font-line-height-normal)"),
+                // `legend` は `root` が付与する `.fd-fieldset--size-*` クラスを
+                // 自身は受け取らない再エクスポート要素（[`legend`] は headless
+                // 実装への薄いパススルーであり、呼び出し側が `root` の
+                // `children` へ渡した別要素のため、`root` と同一クラスを
+                // 持たない）。このため `size` 軸の文字サイズは `variant()`
+                // ベースのクラスセレクタでは legend に届かず（codex-review
+                // #1938 P1 指摘）、`root` 側の size variant（下記）が設定する
+                // CSS カスタムプロパティを継承して受け取る（`checkbox.rs` の
+                // `--fandhe-checkbox-label-font-size` と同型のパターン）。
+                // 既定値（フォールバック）は `size` 軸の既定 `Md` に合わせる。
+                decl(
+                    "font-size",
+                    "var(--fandhe-fieldset-legend-font-size, var(--fandhe-font-font-size-md))",
+                ),
+                // HTML 標準では `<fieldset>` の flex/gap は legend を除く
+                // 匿名の内容ボックスにのみ適用され、legend とその後続
+                // コンテンツ（helper-text/error-text 等）の間隔は `gap` では
+                // 確保されない（codex-review #1938 P2 指摘）。`root` の
+                // `gap` と同じ量を `margin-block-end` として legend へ
+                // 明示的に与えることで、size に応じた縦方向の余白設計を
+                // 実要素構造へ反映する。
+                decl(
+                    "margin-block-end",
+                    "var(--fandhe-fieldset-legend-gap, var(--fandhe-space-4))",
+                ),
             ],
         )
         .base(
@@ -158,29 +183,47 @@ fn recipe() -> SlotRecipe {
             ],
         )
         // size 軸（chakra-ui v3 `Fieldset.Root` recipe 相当:
-        // root は spaceY 2/4/6、legend は textStyle sm/md/lg）。
+        // root は spaceY 2/4/6、legend は textStyle sm/md/lg）。`legend` は
+        // 別要素（上記 base 参照）のため、`root` の size variant で
+        // `--fandhe-fieldset-legend-font-size`/`--fandhe-fieldset-legend-gap`
+        // カスタムプロパティを設定し、CSS の継承（custom property は
+        // DOM ツリーを下って子孫要素へ継承される）を介して legend の
+        // base 宣言（`var(..., フォールバック)`）へ値を届ける。
         .size_variants(
             "root",
             &[
-                (Size::Sm, vec![decl("gap", "var(--fandhe-space-2)")]),
-                (Size::Md, vec![decl("gap", "var(--fandhe-space-4)")]),
-                (Size::Lg, vec![decl("gap", "var(--fandhe-space-6)")]),
-            ],
-        )
-        .size_variants(
-            "legend",
-            &[
                 (
                     Size::Sm,
-                    vec![decl("font-size", "var(--fandhe-font-font-size-sm)")],
+                    vec![
+                        decl("gap", "var(--fandhe-space-2)"),
+                        decl(
+                            "--fandhe-fieldset-legend-font-size",
+                            "var(--fandhe-font-font-size-sm)",
+                        ),
+                        decl("--fandhe-fieldset-legend-gap", "var(--fandhe-space-2)"),
+                    ],
                 ),
                 (
                     Size::Md,
-                    vec![decl("font-size", "var(--fandhe-font-font-size-md)")],
+                    vec![
+                        decl("gap", "var(--fandhe-space-4)"),
+                        decl(
+                            "--fandhe-fieldset-legend-font-size",
+                            "var(--fandhe-font-font-size-md)",
+                        ),
+                        decl("--fandhe-fieldset-legend-gap", "var(--fandhe-space-4)"),
+                    ],
                 ),
                 (
                     Size::Lg,
-                    vec![decl("font-size", "var(--fandhe-font-font-size-lg)")],
+                    vec![
+                        decl("gap", "var(--fandhe-space-6)"),
+                        decl(
+                            "--fandhe-fieldset-legend-font-size",
+                            "var(--fandhe-font-font-size-lg)",
+                        ),
+                        decl("--fandhe-fieldset-legend-gap", "var(--fandhe-space-6)"),
+                    ],
                 ),
             ],
         )

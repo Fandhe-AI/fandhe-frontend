@@ -29,6 +29,8 @@ const FIELDSET_GOLDEN_CSS: &str = r#"[data-scope="fieldset"][data-part="root"] {
   color: var(--fandhe-color-fg);
   font-weight: var(--fandhe-font-font-weight-medium);
   line-height: var(--fandhe-font-line-height-normal);
+  font-size: var(--fandhe-fieldset-legend-font-size, var(--fandhe-font-font-size-md));
+  margin-block-end: var(--fandhe-fieldset-legend-gap, var(--fandhe-space-4));
 }
 
 [data-scope="fieldset"][data-part="helper-text"] {
@@ -49,26 +51,20 @@ const FIELDSET_GOLDEN_CSS: &str = r#"[data-scope="fieldset"][data-part="root"] {
 
 [data-scope="fieldset"][data-part="root"].fd-fieldset--size-sm {
   gap: var(--fandhe-space-2);
+  --fandhe-fieldset-legend-font-size: var(--fandhe-font-font-size-sm);
+  --fandhe-fieldset-legend-gap: var(--fandhe-space-2);
 }
 
 [data-scope="fieldset"][data-part="root"].fd-fieldset--size-md {
   gap: var(--fandhe-space-4);
+  --fandhe-fieldset-legend-font-size: var(--fandhe-font-font-size-md);
+  --fandhe-fieldset-legend-gap: var(--fandhe-space-4);
 }
 
 [data-scope="fieldset"][data-part="root"].fd-fieldset--size-lg {
   gap: var(--fandhe-space-6);
-}
-
-[data-scope="fieldset"][data-part="legend"].fd-fieldset--size-sm {
-  font-size: var(--fandhe-font-font-size-sm);
-}
-
-[data-scope="fieldset"][data-part="legend"].fd-fieldset--size-md {
-  font-size: var(--fandhe-font-font-size-md);
-}
-
-[data-scope="fieldset"][data-part="legend"].fd-fieldset--size-lg {
-  font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-fieldset-legend-font-size: var(--fandhe-font-font-size-lg);
+  --fandhe-fieldset-legend-gap: var(--fandhe-space-6);
 }
 
 [data-scope="fieldset"][data-part="error-text"][hidden] {
@@ -113,6 +109,46 @@ fn css_declares_size_sm_md_lg_selectors_only() {
     assert!(css.contains(".fd-fieldset--size-lg {"));
     assert!(!css.contains(".fd-fieldset--size-xs"));
     assert!(!css.contains(".fd-fieldset--size-xl"));
+}
+
+/// `legend` は `root` と別要素で `.fd-fieldset--size-*` クラスを直接受け
+/// 取らないため、`size` 軸の文字サイズ・legend-本文間の余白は CSS カスタム
+/// プロパティ経由で `root` から継承される契約であることを固定する
+/// （codex-review #1938 P1/P2 指摘の回帰防止）。`legend` の base 宣言に
+/// フォールバック付きの `var()` が存在し、`root` の各 size variant が
+/// 対応するカスタムプロパティを設定していることの両方を確認する。
+#[test]
+fn legend_size_and_spacing_are_propagated_via_custom_properties_from_root() {
+    let css = fieldset::css();
+    assert!(css.contains(
+        "font-size: var(--fandhe-fieldset-legend-font-size, var(--fandhe-font-font-size-md));"
+    ));
+    assert!(
+        css.contains("margin-block-end: var(--fandhe-fieldset-legend-gap, var(--fandhe-space-4));")
+    );
+    for (size_class, font_size_token, gap_token) in
+        [("sm", "sm", "2"), ("md", "md", "4"), ("lg", "lg", "6")]
+    {
+        let root_rule_start = css
+            .find(&format!(
+                r#"[data-scope="fieldset"][data-part="root"].fd-fieldset--size-{size_class} {{"#
+            ))
+            .unwrap_or_else(|| panic!("root rule for size {size_class} not found"));
+        let root_rule_end = css[root_rule_start..]
+            .find('}')
+            .map(|i| root_rule_start + i)
+            .unwrap();
+        let root_rule = &css[root_rule_start..root_rule_end];
+        assert!(root_rule.contains(&format!(
+            "--fandhe-fieldset-legend-font-size: var(--fandhe-font-font-size-{font_size_token});"
+        )));
+        assert!(root_rule.contains(&format!(
+            "--fandhe-fieldset-legend-gap: var(--fandhe-space-{gap_token});"
+        )));
+    }
+    // legend 自身は `.fd-fieldset--size-*` クラスを受け取らない（root 専用）
+    // ことを確認し、パススルー再エクスポートの契約を固定する。
+    assert!(!css.contains(r#"[data-scope="fieldset"][data-part="legend"].fd-fieldset--size"#));
 }
 
 /// `[hidden]` を `display: none` に固定する規則が `error-text` に存在する
