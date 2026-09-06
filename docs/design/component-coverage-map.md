@@ -99,7 +99,7 @@ grep -E '^pub mod ' crates/headless-ui/src/lib.rs \
 # => 59
 grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
   | grep -vE '^pub mod (css|recipe|stylesheet|theme);$' | wc -l
-# => 104
+# => 105
 grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
 # => 13
 ```
@@ -115,19 +115,19 @@ grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
   segment_group / select / signature_pad / skip_nav / slider / splitter /
   steps / switch / tabs / tags_input / timer / toast / toggle /
   toggle_group / toggle_tip / tooltip / tour / tree_view / visually_hidden
-- pre-styled-ui **104**（`grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs
+- pre-styled-ui **105**（`grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs
   | grep -vE '^pub mod (css|recipe|stylesheet|theme);$' | wc -l` の実測。
-  下記列挙リストは #1685 で `field` を追加したのみで、それ以外の未列挙
-  モジュール（callout / checkbox_group / menubar / navigation_menu / quote
-  / strong / tab_nav / toolbar 等）の棚卸しは本イシューのスコープ外として
-  PR 本文・親 #1671 コメントに記録する）:
+  下記列挙リストは #1685 で `field`、#1686 で `fieldset` を追加したのみで、
+  それ以外の未列挙モジュール（callout / checkbox_group / menubar /
+  navigation_menu / quote / strong / tab_nav / toolbar 等）の棚卸しは本
+  イシューのスコープ外として PR 本文・親 #1671 コメントに記録する）:
   accordion / action_bar / alert / angle_slider / area_chart / avatar /
   badge / blockquote / breadcrumb / button / calendar / card / carousel /
   charts / checkbox / checkbox_card / clipboard / code / collapsible /
   color_picker /
   color_swatch / combobox / data_list / date_input / date_picker / dialog /
   donut_chart / download_trigger / drawer / editable / em / empty_state /
-  field / file_upload / floating_panel / heading / highlight / hover_card / icon /
+  field / fieldset / file_upload / floating_panel / heading / highlight / hover_card / icon /
   image / image_cropper / input / json_tree_view / kbd / line_chart / link /
   link_overlay / list / listbox / mark / marquee / menu / native_select /
   nav_list / number_input / pagination / password_input / pie_chart /
@@ -354,7 +354,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/form/checkbox.md` | Checkbox | Checkbox | Checkbox (`checkbox`) | Checkbox (`checkbox`) | `checkbox` | `checkbox` | 実装済み | headless+styled 実装済み（#730） |
 | `.agents/skills/ark-ui/references/components/form/field.md` | Field | Field | Label (`label`) | — | `field` | `field` | 実装済み | headless+styled 実装済み（#1684 recipe / #1685 Themes ページ）。root/label/helper-text/error-text/required-indicator の 5 slot + `orientation` 軸 |
-| `.agents/skills/ark-ui/references/components/form/fieldset.md` | Fieldset | Fieldset | — | — | `fieldset` | `fieldset` | 実装済み | headless+styled 実装済み（#1686 recipe。`/themes/fieldset/` ページ登録は #1687）。root/legend/helper-text/error-text の 4 slot + `size` 軸 |
+| `.agents/skills/ark-ui/references/components/form/fieldset.md` | Fieldset | Fieldset | — | — | `fieldset` | `fieldset` | 実装済み | headless+styled 実装済み（#1686 recipe / #1687 Themes ページ）。root/legend/helper-text/error-text の 4 slot + `size` 軸 |
 | `.agents/skills/ark-ui/references/components/form/radio-group.md` | RadioGroup | Radio | Radio Group (`radio-group`) | Radio Group (`radio-group`) | `radio_group` | `radio_group` | 実装済み | headless+styled 実装済み。イシュー #1616 で ark-ui / Radix Primitives と突合し、`RadioGroupProps`（disabled/readonly/invalid/required）・`aria-hidden`（item-control）・`aria-invalid`/`required`（item-hidden-input）を是正 |
 | `.agents/skills/ark-ui/references/components/form/switch.md` | Switch | Switch | Switch (`switch`) | Switch (`switch`) | `switch` | `switch` | 実装済み | headless+styled 実装済み。イシュー #1622 で ark-ui / Radix Primitives と突合し、`SwitchProps`（disabled/readonly/invalid/required）・全パーツ `data-disabled`/`data-invalid`/`data-required`/`data-readonly`・`aria-invalid`（hidden-input）を是正 |
 | `.agents/skills/ark-ui/references/components/form/number-input.md` | NumberInput | NumberInput | — | — | `number_input` | `number_input` | 実装済み | headless+styled 実装済み（#738、PR #785。#1613 参照突合済み: ValueText 追加、Scrubber 非採用） |
@@ -602,7 +602,7 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 |---|---|---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/forms/checkbox.md` | Checkbox | Checkbox | — | — | `checkbox` | `checkbox` | 実装済み | headless+styled 実装済み（#730） |
 | `.agents/skills/chakra-ui/references/components/forms/field.md` | Field | Field | — | — | `field` | `field` | 実装済み | headless+styled 実装済み（#1684 recipe / #1685 Themes ページ）。root/label/helper-text/error-text/required-indicator の 5 slot + `orientation` 軸 |
-| `.agents/skills/chakra-ui/references/components/forms/fieldset.md` | Fieldset | Fieldset | — | — | `fieldset` | `fieldset` | 実装済み | headless+styled 実装済み（#1686 recipe。`/themes/fieldset/` ページ登録は #1687）。root/legend/helper-text/error-text の 4 slot + `size` 軸 |
+| `.agents/skills/chakra-ui/references/components/forms/fieldset.md` | Fieldset | Fieldset | — | — | `fieldset` | `fieldset` | 実装済み | headless+styled 実装済み（#1686 recipe / #1687 Themes ページ）。root/legend/helper-text/error-text の 4 slot + `size` 軸 |
 | `.agents/skills/chakra-ui/references/components/forms/radio.md` | RadioGroup | Radio | — | — | `radio_group` | `radio_group` | 実装済み | headless+styled 実装済み。イシュー #1616 で ark-ui / Radix Primitives と突合し是正済み（詳細は上記 radio-group 行参照） |
 | `.agents/skills/chakra-ui/references/components/forms/switch.md` | Switch | Switch | — | — | `switch` | `switch` | 実装済み | headless+styled 実装済み。イシュー #1622 で ark-ui / Radix Primitives と突合し是正済み（詳細は上記 switch 行参照） |
 | `.agents/skills/chakra-ui/references/components/forms/input.md` | — | Input | — | Text Field (`text-field`) | — | `input` | 実装済み | pre-styled 静的部品として実装済み（#737） |
@@ -1109,8 +1109,9 @@ grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l  
 （ページ数期待値）が担い、**本書は件数を二重管理しない**。
 
 **注意**: headless-ui のみ実装済みで pre-styled-ui ラッパー未実装の部品
-（`fieldset` / `progress`(linear) 等。`collapsible` はイシュー #1682/#1683、
-`field` はイシュー #1684/#1685 でラッパー実装・Themes ページ登録済み）は
+（`progress`(linear) 等。`collapsible` はイシュー #1682/#1683、
+`field` はイシュー #1684/#1685、`fieldset` はイシュー #1686/#1687 で
+それぞれラッパー実装・Themes ページ登録済み）は
 `/primitives/` にのみ掲載され `/themes/` には現れない。逆に pre-styled-ui
 独自部品（`marquee` 等）は `/themes/` にのみ現れる。掲載先は層ごとに
 独立であり、本書の「実装済み」区分と 1:1 ではない。
