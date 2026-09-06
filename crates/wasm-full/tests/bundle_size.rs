@@ -485,10 +485,15 @@ fn detect_wasm_opt() -> Result<Option<String>, String> {
     Ok(Some(version))
 }
 
-/// `wasm-opt -Os` を `wasm_binary_path` の file stem から求めた
-/// `<stem>_bg.wasm`（`assets_dir` 配下）に適用し、意味論を変えずにサイズのみ
-/// 縮める。`dist-server/build.rs::run_wasm_opt` と同一の soft-skip 設計
-/// （一時ファイル経由の atomic 置換・失敗時 hard fail）を、本テスト専用の
+/// `wasm-opt -Os --strip-producers` を `wasm_binary_path` の file stem から
+/// 求めた `<stem>_bg.wasm`（`assets_dir` 配下）に適用し、意味論を変えずに
+/// サイズのみ縮める。`dist-server/build.rs::run_wasm_opt` と同一の
+/// soft-skip 設計（一時ファイル経由の atomic 置換・失敗時 hard fail）と
+/// 同一のフラグ構成（`--strip-producers` で `wasm-opt` 自身による
+/// producers custom section の書き戻しを防ぐ。片方だけ更新すると
+/// 実配布物の構成と計測対象がずれるため、フラグを変更する場合は
+/// `dist-server/build.rs::run_wasm_opt` と揃えて更新すること。イシュー
+/// #1971 PR #1980 レビュー指摘）を、本テスト専用の
 /// `target/bundle-size-check/wasm-opt-tmp/` を使って再現する。
 ///
 /// 呼び出し元（[`wasm_full_bundle_gzip_size_within_req11_limit`]）は
@@ -515,6 +520,7 @@ fn apply_wasm_opt(wasm_binary_path: &Path, assets_dir: &Path, workspace_root: &P
 
     let status = Command::new("wasm-opt")
         .arg("-Os")
+        .arg("--strip-producers")
         .arg(&bg_wasm)
         .arg("-o")
         .arg(&tmp_path)

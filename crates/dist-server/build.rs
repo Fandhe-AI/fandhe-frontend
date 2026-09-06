@@ -698,9 +698,17 @@ fn detect_wasm_opt() -> Result<Option<String>, String> {
     Ok(Some(version))
 }
 
-/// `wasm-opt -Os` を `wasm_binary_path` の file stem から求めた
-/// `<stem>_bg.wasm`（`wasm_assets_dir` 配下、`wasm-bindgen` が既に生成済み）に
-/// 適用し、意味論を変えずにサイズのみ縮める。
+/// `wasm-opt -Os --strip-producers` を `wasm_binary_path` の file stem から
+/// 求めた `<stem>_bg.wasm`（`wasm_assets_dir` 配下、`wasm-bindgen` が既に
+/// 生成済み）に適用し、意味論を変えずにサイズのみ縮める。
+///
+/// `--strip-producers` は `wasm-opt` 自身が producers custom section を
+/// 書き戻すのを防ぐ（`run_wasm_bindgen` の `--remove-producers-section` で
+/// 除去済みの section が `wasm-opt` 実行によって復活すると、
+/// `crates/dist-server/tests/wasm_assets.rs` の
+/// `served_wasm_binary_has_no_name_or_producers_custom_sections` が
+/// binaryen 導入環境で偽陽性 PASS のまま実体が崩れる/導入直後に FAIL する
+/// 事態になる。イシュー #1971 PR #1980 レビュー指摘）。
 ///
 /// 一時ファイルは `out_dir` の**兄弟ディレクトリ**（`OUT_DIR/wasm-opt-tmp/`）
 /// に置く。`OUT_DIR/wasm-assets/` の中に置くと `collect_files` が
@@ -734,6 +742,7 @@ fn run_wasm_opt(
 
     let status = Command::new("wasm-opt")
         .arg("-Os")
+        .arg("--strip-producers")
         .arg(&bg_wasm)
         .arg("-o")
         .arg(&tmp_path)
