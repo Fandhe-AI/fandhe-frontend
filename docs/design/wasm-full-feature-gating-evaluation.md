@@ -320,27 +320,40 @@ gating を採用しても、`crates/dist-server/build.rs` のネストビルド�
   feature 群も道連れに無効化するため）。「既存利用者のビルド結果は
   変わらない」「追加的変更なので patch/minor で足りる」という前段の
   記述は、この利用者区分については成立しない。
-  採用時は次のいずれかを採用条件に含める：
-  (i) **互換維持策**: 新設する `wire_*` 系 feature 群を `entry`（既定 on
-  feature `wasm-bindgen-exports`）が要求する feature としてのみ扱い、
-  `wire_*` 呼び出し自体は feature ゲートしない（gating の対象を「entry
-  のエクスポート面」のみに保つ）か、あるいは新設 feature 群を `default`
-  配列に加えるだけでなく `wasm-bindgen-exports` 側からも
-  独立した既定 on feature（`default-features = false` でも個別に
-  `features = [...]` を明示すれば有効化し続けられる設計）として設計し、
-  移行ガイド（`--no-default-features` 済み利用者は明示的な
-  `features = [...]` 追加が必要である旨）を release note・rustdoc に
-  明記する。
-  (ii) **0.x minor の破壊的変更としての移行手順**: `coding-rust.md` の
-  「0.x の破壊的変更はマイナーバンプとする」規約に従い、本変更を
-  breaking change として扱う minor バンプ（例: 0.7.0 → 0.8.0）を行い、
-  CHANGELOG・release note に「`default-features = false` 利用者は
-  `wire_*` 系 feature を明示的に追加しないと配線を失う」旨と移行手順
-  （追加すべき feature 名の一覧）を明記する。dep-version-check
-  （`.claude/rules/ci.md`）が検知する依存元 `version = "..."` 追随も
-  合わせて必要になる。
+  採用時は次のいずれかを採用条件に含める（(i) は既存の依存指定のまま
+  配線を維持できる案に限定し、`features = [...]` の追加を利用者へ要求
+  する案は (ii) へ統合して minor バンプを必須とする。codex-review 指摘
+  〔PR #1978〕: §10 (i) が「新設 feature 群を独立した既定 on feature と
+  して設計し、`--no-default-features` 済み利用者に `features = [...]`
+  の追加を要求する」選択肢を含んでいたのは、その利用者が実際に
+  `features = [...]` を追加するまでは配線を失ったままであり、
+  移行ガイドを記載しても互換維持策にならない。(i) からこの選択肢を
+  除去し、feature 追加を要求する設計は必ず (ii)（minor バンプ）と
+  セットで扱う）：
+  (i) **互換維持策（feature 追加不要）**: 新設する `wire_*` 系 feature
+  群を `entry`（既定 on feature `wasm-bindgen-exports`）が要求する
+  feature としてのみ扱い、`wire_*` 呼び出し自体は feature ゲートしない
+  （gating の対象を「entry のエクスポート面」のみに保つ）。
+  `default-features = false` 利用者も既存の依存指定（`features = [...]`
+  の追加なし）のまま `wire_*` 配線を保持できる。ただしこの案は entry
+  （デモ実装）を切り離すのみであり、§6 が意図する wasm-full 本体側の
+  配線群別サイズ削減効果を持たない、または限定的である点に留意する。
+  (ii) **0.x minor の破壊的変更としての移行手順**: 新設 feature 群を
+  `default` 配列に加えるだけでなく、`--no-default-features` 済み利用者
+  に個別 `features = [...]` の明示追加を要求する設計（`wire_*` 呼び出し
+  自体を feature ゲートし、配線群別のサイズ削減効果を実際に得る構成）
+  を採る場合は、`coding-rust.md` の「0.x の破壊的変更はマイナーバンプと
+  する」規約に従い、必ず breaking change として扱う minor バンプ（例:
+  0.7.0 → 0.8.0）を行う。CHANGELOG・release note に「`default-features
+  = false` 利用者は `wire_*` 系 feature を明示的に追加しないと配線を
+  失う」旨と移行手順（追加すべき feature 名の一覧）を明記する。
+  dep-version-check（`.claude/rules/ci.md`）が検知する依存元
+  `version = "..."` 追随も合わせて必要になる。
   いずれを選ぶかは §13 の実装 issue 側でユーザー判断とし、本評価では
-  両選択肢の存在と採用条件化のみを記す。
+  両選択肢の存在と採用条件化のみを記す。ただし feature 追加を利用者に
+  要求する設計は (ii) を選ぶ場合に限られ、minor バンプを省略できる
+  余地はない（(i) を選ぶだけでバンプ粒度規約を満たさない構成は採用
+  条件を満たさない）。
 - `examples/interactive-view-transitions/wasm`（`fandhe-frontend-wasm-full
   = "0.7.0"` に pin、`examples/interactive-view-transitions/wasm/Cargo.toml:37`）
   は既定 feature をそのまま使う限り非影響。§2 で確認したとおり、この
@@ -417,9 +430,14 @@ readonly RadioGroup の click capture 保護（`keynav.rs:7678` 付近）を
    「実測値の留保」の再計測を行うこと。この条件を満たさない構成
    （保護なしで keynav 全体を無効化可能にする構成）は採用しない。
 5. **`default-features = false` 利用者との互換性（§10 参照）**:
-   §10 で挙げた 2 選択肢（(i) 互換維持策 / (ii) 0.x minor の破壊的変更
-   としての移行手順）のいずれかを実装 issue（§13）側で明確に選択し、
-   選択しない・両方省略する構成は採用しない。
+   §10 で挙げた 2 選択肢（(i) 互換維持策〔feature 追加不要・既存の
+   依存指定のまま配線を維持〕 / (ii) 0.x minor の破壊的変更としての
+   移行手順〔`features = [...]` の追加を利用者へ要求する設計を含む〕）
+   のいずれかを実装 issue（§13）側で明確に選択し、選択しない・両方
+   省略する構成は採用しない。`--no-default-features` 済み利用者に
+   `features = [...]` の追加を要求する設計は必ず (ii) を選び minor
+   バンプを行うこと。(i) を選ぶだけで feature 追加要求を伴う構成を
+   採用可能とはしない（§10 参照）。
 
 ## 12. 再評価トリガー
 
