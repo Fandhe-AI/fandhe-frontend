@@ -169,6 +169,7 @@ pub(super) fn splitter_section() -> Node {
         vec![
             splitter::panel(
                 "splitter-panel-a",
+                0,
                 orientation,
                 vec![],
                 vec![text("Panel A")],
@@ -179,12 +180,14 @@ pub(super) fn splitter_section() -> Node {
                 "100",
                 "50",
                 "splitter-panel-a",
+                "splitter-panel-b",
                 false,
                 vec![],
                 vec![splitter::resize_trigger_indicator(vec![], vec![])],
             ),
             splitter::panel(
                 "splitter-panel-b",
+                1,
                 orientation,
                 vec![],
                 vec![text("Panel B")],

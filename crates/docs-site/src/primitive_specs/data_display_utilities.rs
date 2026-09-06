@@ -35,20 +35,24 @@
 //! 本カテゴリ 10 モジュールのうち `tabindex` を出力するのは
 //! `scroll_area`（`viewport`、`crates/headless-ui/src/scroll_area.rs:68-71`）・
 //! `skip_nav`（`content`、`crates/headless-ui/src/skip_nav.rs:100-107`）・
-//! `splitter`（`resize_trigger`、`crates/headless-ui/src/splitter.rs:270-275`）
-//! の 3 件のみ（非テストソースの grep 結果）。残り 7 件
-//! （avatar/carousel/json_tree_view/steps/tour/tree_view/visually_hidden）は
-//! `tabindex` を一切出力せず、クリック・矢印キー等の実 DOM 配線は各モジュール
-//! doc の out-of-scope 節が `fandhe-frontend-wasm-full` 後続イシューの責務と
-//! 明示している（`carousel.rs:71`/`splitter.rs:71-73`/`steps.rs:75`/
-//! `tour.rs:89-91`/`tree_view.rs:74-77` 参照。avatar/visually_hidden は
-//! そもそもキー操作の対象になる要素を持たない）。実装が焦点制御に関与しない
-//! 部品へ「ArrowRight で次へ進む」のような未実装の対話を書くと利用者へ誤った
-//! 安心を与えるため、該当 7 件は `keyboard: &[]` を採用し、非空である
-//! `aria` 表のみで Accessibility 節を成立させる（`component_page.rs` の
-//! Accessibility 節省略規則参照。3 件（scroll_area/skip_nav/splitter）は
-//! `tabindex` の**属性事実のみ**を `KeyRow` に記載し、対話そのものは記載
-//! しない）。
+//! `splitter`（`resize_trigger`）の 3 件のみ（非テストソースの grep
+//! 結果）。残り 7 件（avatar/carousel/json_tree_view/steps/tour/tree_view/
+//! visually_hidden）は `tabindex` を一切出力せず、クリック・矢印キー等の実
+//! DOM 配線は各モジュール doc の out-of-scope 節が
+//! `fandhe-frontend-wasm-full` 後続イシューの責務と明示している
+//! （`carousel.rs:71`/`steps.rs:75`/`tour.rs:89-91`/`tree_view.rs:74-77`
+//! 参照。avatar/visually_hidden はそもそもキー操作の対象になる要素を
+//! 持たない）。実装が焦点制御に関与しない部品へ「ArrowRight で次へ進む」の
+//! ような未実装の対話を書くと利用者へ誤った安心を与えるため、該当 7 件は
+//! `keyboard: &[]` を採用し、非空である `aria` 表のみで Accessibility 節を
+//! 成立させる（`component_page.rs` の Accessibility 節省略規則参照。
+//! scroll_area/skip_nav の 2 件は `tabindex` の**属性事実のみ**を `KeyRow`
+//! に記載し、対話そのものは記載しない）。`splitter` は上記 2 件と異なり
+//! Arrow/Home/End キーの DOM 配線がイシュー #1074 で
+//! `fandhe-frontend-wasm-full` に実装済みのため、`keyboard` へ実装済みの
+//! 対話（Arrow/Home/End）と未実装の対話（Shift+Arrow、`SplitterAction::
+//! IncrementLarge`/`DecrementLarge` の状態機械のみ）を明確に区別して記載
+//! する（イシュー #1664 参照突合）。
 //!
 //! # `avatar`/`visually_hidden` の Accessibility 節が空にならない理由
 //!
@@ -839,29 +843,31 @@ fn ex_splitter_vertical_three_panels() -> Node {
         false,
         vec![],
         vec![
-            splitter::panel("sp-top", orientation, vec![], vec![text("Top")]),
+            splitter::panel("sp-top", 0, orientation, vec![], vec![text("Top")]),
             splitter::resize_trigger(
                 orientation,
                 "0",
                 "100",
                 "33",
                 "sp-top",
+                "sp-middle",
                 false,
                 vec![],
                 vec![splitter::resize_trigger_indicator(vec![], vec![])],
             ),
-            splitter::panel("sp-middle", orientation, vec![], vec![text("Middle")]),
+            splitter::panel("sp-middle", 1, orientation, vec![], vec![text("Middle")]),
             splitter::resize_trigger(
                 orientation,
                 "0",
                 "100",
                 "66",
                 "sp-middle",
+                "sp-bottom",
                 false,
                 vec![],
                 vec![splitter::resize_trigger_indicator(vec![], vec![])],
             ),
-            splitter::panel("sp-bottom", orientation, vec![], vec![text("Bottom")]),
+            splitter::panel("sp-bottom", 2, orientation, vec![], vec![text("Bottom")]),
         ],
     )
 }
@@ -869,8 +875,11 @@ fn ex_splitter_vertical_three_panels() -> Node {
 pub const SPLITTER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "Root / Panel / ResizeTrigger / ResizeTriggerIndicator の 4 anatomy パーツと、パネルサイズ状態機械 Splitter を提供する（splitter.rs:1-11）。",
-        "resize_trigger は role=\"separator\" + aria-valuemin/aria-valuemax/aria-valuenow + aria-orientation（パネルレイアウトと逆向き）+ aria-controls を常に出力する（splitter.rs:13-22,238-280）。",
-        "disabled=true のとき tabindex=\"-1\" + aria-disabled、false のとき tabindex=\"0\" を出力する（splitter.rs:242-275）。",
+        "resize_trigger は role=\"separator\" + aria-valuemin/aria-valuemax/aria-valuenow + aria-orientation（パネルレイアウトと逆向き）+ aria-controls（隣接 2 パネルの id）+ data-id（\"<leading>:<trailing>\"）を常に出力する。",
+        "panel は data-index（パネル序数）・data-id（id の写し）を出力する（イシュー #1664 で ark-ui docs の data-* 表と突合し追加）。",
+        "disabled=true のとき tabindex=\"-1\" + aria-disabled、false のとき tabindex=\"0\" を出力する。",
+        "SplitterAction::IncrementLarge/DecrementLarge（zag.js keyboardResizeBy 既定値 ×10 相当）を状態機械として提供する（イシュー #1664、DOM 配線は未実装）。",
+        "呼び出し側 attrs からの role/aria-*/tabindex/data-*/id のなりすまし・重複出力を drop_reserved で除去する（イシュー #1664）。",
         "Splitter::new はパネル数 2 未満・非有限値・制約矛盾等の実現不能構成を既定（2 パネル 50/50）へ fail-closed にフォールバックする（splitter.rs:33-45,194-208）。",
     ],
     arguments: &[
@@ -878,19 +887,19 @@ pub const SPLITTER: ComponentPageSpec = ComponentPageSpec {
             name: "root: orientation, disabled",
             kind: "Orientation, bool",
             default: "",
-            description: "パネルレイアウトの向きと無効状態（splitter.rs:212-222）。",
+            description: "パネルレイアウトの向きと無効状態。",
         },
         ArgRow {
-            name: "panel: id",
-            kind: "&str",
+            name: "panel: id, index",
+            kind: "&str, usize",
             default: "",
-            description: "resize_trigger の aria-controls 先となる id（必須、splitter.rs:224-236）。",
+            description: "resize_trigger の aria-controls 先となる id（必須）と data-index として出力するパネル序数（イシュー #1664 で index を追加、破壊的変更）。",
         },
         ArgRow {
-            name: "resize_trigger: min, max, now, controls, disabled",
-            kind: "&str, &str, &str, &str, bool",
+            name: "resize_trigger: min, max, now, leading_id, trailing_id, disabled",
+            kind: "&str, &str, &str, &str, &str, bool",
             default: "",
-            description: "aria-valuemin/aria-valuemax/aria-valuenow/aria-controls と tabindex 切替の元（splitter.rs:246-280）。",
+            description: "aria-valuemin/aria-valuemax/aria-valuenow と、隣接 2 パネルの id（aria-controls/data-id へ出力）・tabindex 切替の元（イシュー #1664 で controls 単一引数を leading_id/trailing_id へ置換、破壊的変更）。",
         },
         ArgRow {
             name: "Splitter::new: panels, orientation",
@@ -904,30 +913,44 @@ pub const SPLITTER: ComponentPageSpec = ComponentPageSpec {
         description: "縦方向レイアウトで 3 パネル・2 セパレータを組んだ例です（Demo は水平 2 パネル）。",
         render: ex_splitter_vertical_three_panels,
     }],
-    keyboard: &[KeyRow {
-        key: "Tab",
-        description: "resize_trigger は disabled=false のとき tabindex=\"0\" で通常の Tab 順序に入り、disabled=true のとき tabindex=\"-1\" で除外される（splitter.rs:242-275）。Arrow キー等による実際のリサイズ操作の DOM 配線は wasm-full 層のスコープ（本モジュールは属性出力のみ）。",
-    }],
+    keyboard: &[
+        KeyRow {
+            key: "Tab",
+            description: "resize_trigger は disabled=false のとき tabindex=\"0\" で通常の Tab 順序に入り、disabled=true のとき tabindex=\"-1\" で除外される。",
+        },
+        KeyRow {
+            key: "Arrow（軸別）",
+            description: "SplitterAction::Increment/Decrement（ステップ 1%）として状態遷移する。イシュー #1074 で fandhe-frontend-wasm-full の splitter モジュールが DOM keydown 配線済み。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "SplitterAction::SetToMin/SetToMax として状態遷移する。DOM 配線済み（イシュー #1074）。",
+        },
+        KeyRow {
+            key: "Shift+Arrow",
+            description: "SplitterAction::IncrementLarge/DecrementLarge（ステップ 10%）として状態機械のみ提供する。fandhe-frontend-wasm-full の DOM 配線は未実装（イシュー #1664 時点、別 Issue 起票対象）。",
+        },
+    ],
     aria: &[
         AriaRow {
             attribute: "role=\"separator\"",
-            description: "resize_trigger に固定出力する（splitter.rs:262-263）。",
+            description: "resize_trigger に固定出力する。",
         },
         AriaRow {
             attribute: "aria-valuemin / aria-valuemax / aria-valuenow",
-            description: "先行パネルのサイズ%（有限性検証・クランプ済み）を出力する（splitter.rs:56-59,264-266）。",
+            description: "先行パネルのサイズ%（有限性検証・クランプ済み）を出力する。",
         },
         AriaRow {
             attribute: "aria-orientation",
-            description: "セパレータ自体の向き（パネルレイアウトと逆向き、splitter.rs:13-22,267）。",
+            description: "セパレータ自体の向き（パネルレイアウトと逆向き、WAI-ARIA APG 準拠。zag.js の非反転出力とは非同値、イシュー #1664 参照突合）。",
         },
         AriaRow {
             attribute: "aria-controls",
-            description: "先行パネルの id（splitter.rs:268）。",
+            description: "隣接 2 パネルの id（\"<leading> <trailing>\"、イシュー #1664 で先行パネルのみから拡張）。",
         },
         AriaRow {
             attribute: "aria-disabled=\"true\"",
-            description: "disabled=true のときのみ出力する（splitter.rs:270-273）。",
+            description: "disabled=true のときのみ出力する。",
         },
     ],
     demo: None,
