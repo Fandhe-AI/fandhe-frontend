@@ -47,6 +47,10 @@
 //! `Runtime::hydrate` の双方から `Self::wire_timer` の直後に組み込まれる
 //! （`crate::lib::Runtime::wire_angle_slider` 参照）。`events`/`keynav`/
 //! `headless_clipboard` と同じ「マウント時 1 回」契約を維持する。
+//! `Runtime::wire_angle_slider` は `Runtime::wire` と同じ閉包（dispatch →
+//! `dirty_fields()` → `Runtime::apply_update_for_dirty`）を pointer/keydown
+//! 経路へ渡し、dispatch 後の DOM 反映（Thumb の回転・`aria-valuenow` 更新）
+//! はその閉包が担う（イシュー #1956）。
 //!
 //! # キーボード操作（イシュー #1601 で参照突合。Home/End は headless 側の
 //! dispatch API までで DOM keydown 配線は未対応）
@@ -271,9 +275,12 @@ mod wiring {
     /// 複数 AngleSlider が同一ページに存在しても互いに干渉しない）。
     ///
     /// `on_action` は `"set"`/`"increment"`/`"decrement"` の dispatch 依頼を
-    /// 呼び出し側（`crate::lib::Runtime::wire_angle_slider`）へ渡すのみで、
-    /// 状態更新・DOM 反映は行わない（`headless_clipboard::wire_clipboard_events`
-    /// と同じ責務分離）。
+    /// 呼び出し側（`crate::lib::Runtime::wire_angle_slider`）へ渡す。本関数
+    /// 自体は状態更新・DOM 反映を行わないが、呼び出し側
+    /// `Runtime::wire_angle_slider` は `Runtime::wire` と同じ閉包（dispatch
+    /// 後の `dirty_fields()` → `Runtime::apply_update_for_dirty`）を渡す
+    /// ため、dispatch 後の DOM 反映は `on_action` の呼び出しを通じて
+    /// pointer/keydown 経路でも実行される（イシュー #1956）。
     ///
     /// # Errors
     ///

@@ -561,8 +561,11 @@ where
     /// click/input イベントで再入が起きることは想定していない。
     ///
     /// `binding_table` は `Self::mount`/`Self::hydrate` が生成し
-    /// `Self::wire_signature_pad` と共有するキャッシュ（イシュー #843
-    /// Bugbot 指摘「Binding table cache desync」の是正）。ストローク駆動の
+    /// `Self::wire_angle_slider`/`Self::wire_signature_pad`/
+    /// `Self::wire_number_input` と共有するキャッシュ（イシュー #843
+    /// Bugbot 指摘「Binding table cache desync」の是正。`wire_angle_slider`
+    /// はイシュー #1956 で `Self::wire` の閉包そのものを配線する形へ
+    /// 変更したため、他の共有元と同じくこの一覧へ加わる）。ストローク駆動の
     /// keyed list 構造変化は signature pad 側の `on_update` からも発生し
     /// うるため、対応表の再スキャンをこのクロージャ専用の内部状態に
     /// 閉じ込めず外部から共有することで、どちらの経路で構造変化が
@@ -977,7 +980,12 @@ where
         Self::wire_avatar(component.clone(), root.clone())?;
         Self::wire_clipboard(component.clone(), root.clone())?;
         Self::wire_timer(component.clone(), root.clone())?;
-        Self::wire_angle_slider(component.clone(), root.clone())?;
+        Self::wire_angle_slider(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         Self::wire_splitter(component.clone(), root.clone())?;
         Self::wire_signature_pad(
             component.clone(),
@@ -1077,7 +1085,12 @@ where
         Self::wire_avatar(component.clone(), root.clone())?;
         Self::wire_clipboard(component.clone(), root.clone())?;
         Self::wire_timer(component.clone(), root.clone())?;
-        Self::wire_angle_slider(component.clone(), root.clone())?;
+        Self::wire_angle_slider(
+            component.clone(),
+            root.clone(),
+            binding_table.clone(),
+            keyed_list_cache.clone(),
+        )?;
         Self::wire_splitter(component.clone(), root.clone())?;
         Self::wire_signature_pad(
             component.clone(),
@@ -1247,6 +1260,18 @@ where
     /// （イシュー #842）。`Self::mount`/`Self::hydrate` の双方から
     /// `Self::wire_timer` の直後に 1 回だけ呼ばれる。
     ///
+    /// [`angle_slider::wire_angle_slider_events`] へ渡す `on_action` には
+    /// [`Self::wire`] が返す閉包そのもの（dispatch → `dirty_fields()` →
+    /// [`Self::apply_update_for_dirty`]）を使う（イシュー #1956）。
+    /// `events::wire_events` が listen するのは click/input/change のみで
+    /// AngleSlider の pointerdown/pointermove/keydown とは重ならないため、
+    /// 「DOM 反映は `Self::wire` の束縛点更新経路へ委ねる」という従来の
+    /// 想定は実際には成立せず、pointer/keydown 操作で状態は更新されても
+    /// 再描画が一切走らないバグだった。`Self::wire` の閉包を配線する
+    /// ことで、`Self::wire_angle_slider` 自身が dispatch 後の DOM 反映まで
+    /// 一貫して担う（`Self::wire_signature_pad`/`Self::wire_number_input`
+    /// と同じ「dispatch → 再描画」経路）。
+    ///
     /// # fail-closed（AngleSlider 非搭載アプリへの副作用なし）
     ///
     /// `root` 配下に AngleSlider の Control/Thumb パーツが存在しない場合、
@@ -1255,6 +1280,14 @@ where
     /// 一致判定で早期 return するため、AngleSlider を使わないアプリへの
     /// 影響はない。
     ///
+    /// # 既知の露出
+    ///
+    /// [`Self::apply_update_for_dirty`] の構造フォールバックは `root`
+    /// 配下を丸ごと差し替えるため、pointer capture 中の Control 要素が
+    /// detach され得る（`Self::wire_signature_pad` と共通の既知露出。
+    /// AngleSlider の `aria-valuenow` 等は束縛点で解決される想定のため
+    /// 通常経路では発生しない）。
+    ///
     /// # Errors
     ///
     /// [`angle_slider::wire_angle_slider_events`]
@@ -1262,20 +1295,17 @@ where
     fn wire_angle_slider(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        keyed_list_cache: std::rc::Rc<
+            std::cell::RefCell<std::collections::HashMap<String, fandhe_frontend_core::Node>>,
+        >,
     ) -> Result<(), wasm_bindgen::JsValue> {
-        angle_slider::wire_angle_slider_events(root, move |action_ref: events::ActionRef| {
-            let Ok(mut state) = component.try_borrow_mut() else {
-                return;
-            };
-            // DOM 反映（Thumb の回転・aria-valuenow 更新）は `Self::wire` の
-            // 束縛点更新経路（再描画）へ委ねる。本配線は dispatch 依頼のみを
-            // 担う（`Self::wire_timer` と同じ責務分離）。
-            let _ = fandhe_frontend_interactive::dispatch(
-                &mut *state,
-                &action_ref.action,
-                &action_ref.payload,
-            );
-        })
+        angle_slider::wire_angle_slider_events(
+            root.clone(),
+            Self::wire(component, root, binding_table, keyed_list_cache),
+        )
     }
 
     /// Splitter（`fandhe-frontend-headless-ui` `splitter` モジュール）の
@@ -1306,7 +1336,9 @@ where
             // DOM 反映（aria-valuenow・パネルサイズ更新）は `Self::wire` の
             // 束縛点更新経路（再描画）へ委ねる（`splitter` モジュール doc
             // §`aria-valuenow` を直接書き換えない設計判断 参照。
-            // `Self::wire_angle_slider` と同じ責務分離）。
+            // `Self::wire_timer` と同じ責務分離。`Self::wire_angle_slider`
+            // はイシュー #1956 で `Self::wire` の閉包を直接配線する形へ
+            // 変更済みのため、参照先はこちらへ改める）。
             let _ = fandhe_frontend_interactive::dispatch(
                 &mut *state,
                 &action_ref.action,
