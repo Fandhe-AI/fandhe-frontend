@@ -226,7 +226,7 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
 | ScrollArea | `scroll_area` | #825 |
 | DownloadTrigger | `download_trigger` | #828 |
 | Splitter | `splitter` | #826（`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の保留を解除） |
-| JsonTreeView | `json_tree_view` | #829（`tree_view` #753 の派生、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
+| JsonTreeView | `json_tree_view` | #829（`tree_view` #753 の派生、`docs/policy/intentional-non-adoption.md` §7 の保留解除）。参照突合は #1661（`colon` パーツ新設・`data-kind` 語彙 `"bool"` → `"boolean"`） |
 | ColorPicker | `color_picker` | #839（親 #837、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
 | FileUpload | `file_upload` | #840 |
 | DateInput | `date_input` | #834（`date` #833 を先行前提として利用、`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の date-time 系「保留」を DateInput 分のみ解除） |

@@ -491,16 +491,20 @@ name = "fandhe-frontend-wasm-full"
 # 公開 API は不変（`crates/wasm-full/tests/*_browser.rs` のシグネチャ追随は
 # `#[cfg(target_arch = "wasm32")]` テストのみ）のため patch バンプで
 # 0.15.2 とする。
+# イシュー #1661（json-tree-view の参照突合）: 依存先
+# `fandhe-frontend-headless-ui` の 0.58.0 → 0.59.0（破壊的変更）への追随。
+# `crates/wasm-full/src` は json_tree_view の型を再エクスポートしておらず
+# 公開 API は不変のため patch バンプで 0.15.3 とする。
 # イシュー #1655（pagination の参照突合）: 依存先 `fandhe-frontend-headless-ui`
 # の 0.58.0 → 0.59.0（破壊的変更）への追随。`crates/wasm-full/src` は
 # pagination を一切参照しておらず公開 API は不変のため patch バンプで
 # 0.15.3 とする。
-# base 再取り込み（イシュー #1662, 2026-09-06）: 本ブランチは main の
-# pagination 追随（0.15.3）とは独立に依存先 headless-ui 0.58.1（scroll-area
-# の patch 変更）への追随のみを 0.15.3 として持っていた。main の到達点を
-# 採用し、依存先 version 要求のみ 0.59.1 へ追随する（wasm-full 自身の
-# バージョンは 0.15.3 のまま変わらない）。
-version = "0.15.3"
+# base 再取り込み（イシュー #1662, 2026-09-06, 2 回目）: 上記のとおり main
+# 側は依存先 headless-ui 0.59.0 → 0.60.0 への追随として 0.15.4 へ到達して
+# いる。本ブランチの scroll-area 追随（drop_reserved、非破壊的変更）との
+# 統合で依存先 headless-ui がさらに patch バンプ 0.60.1 へ到達したため、
+# `crates/wasm-full/src` は引き続き無変更のまま patch バンプで 0.15.5 とする。
+version = "0.15.5"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -677,7 +681,7 @@ categories = ["wasm", "web-programming"]
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.2.6" }
 fandhe-frontend-core = { path = "../core", version = "0.4.3" }
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.59.1" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.60.1" }
 fandhe-frontend-interactive = { path = "../interactive", version = "0.2.7" }
 # `default-features = false`: 本クレート独自の `wasm_bindgen` エクスポート
 # （`entry.rs` の `hydrate`/`mount`）と `fandhe-frontend-wasm-client` の REQ-6 デモ用

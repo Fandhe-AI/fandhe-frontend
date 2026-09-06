@@ -435,18 +435,22 @@ name = "fandhe-frontend-headless-ui"
 # `item`/`content` のシグネチャ変更（`props`/`value` 引数追加）・
 # `item_indicator` パーツ新設を伴う破壊的変更のためマイナーバンプで
 # 0.58.0 とする。
+# イシュー #1661（json-tree-view の参照突合）: `colon` パーツ新設・
+# `key`/`colon`/`value` を `branch-text`/`item-text` の内側へ入れ子にする
+# 構造変更・`JsonValue::kind()` の `data-kind` 語彙を `"bool"` から
+# `"boolean"` へ変更する破壊的変更のためマイナーバンプで 0.59.0 とする。
 # イシュー #1655（pagination の参照突合）: `pagination::item` へ `page: u64`
 # 引数を追加するシグネチャ変更（`data-index` 出力のため）・
 # `PaginationAction::First`/`Last` variant 追加を伴う破壊的変更のため
 # マイナーバンプで 0.59.0 とする（`first_trigger`/`last_trigger` の新設は
 # 非破壊的な追加）。
-# base 再取り込み（イシュー #1662, 2026-09-06）: 本ブランチは main 側の
-# pagination 破壊的変更（0.59.0）とは独立に scroll-area の
-# `viewport`/`scrollbar`/`thumb`/`corner` へ予約キーなりすまし除去
-# （`drop_reserved`）を追加していた（非破壊的変更）。main の到達点
-# 0.59.0 を起点に patch バンプで 0.59.1 とする。
-version = "0.59.1"
-
+# base 再取り込み（イシュー #1662, 2026-09-06, 2 回目）: main 側は本ブランチ
+# とは独立に pagination（#1655）・json-tree-view（#1661）双方の破壊的変更が
+# 偶発的に同一版数へ衝突した結果としてマイナーバンプ 0.60.0 へ到達して
+# いた。本ブランチは scroll-area の `viewport`/`scrollbar`/`thumb`/`corner`
+# へ予約キーなりすまし除去（`drop_reserved`）を追加していた（非破壊的
+# 変更）。main の到達点 0.60.0 を起点に patch バンプで 0.60.1 とする。
+version = "0.60.1"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

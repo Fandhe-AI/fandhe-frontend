@@ -92,11 +92,15 @@ pub(super) fn carousel_section() -> Node {
 }
 
 pub(super) fn json_tree_view_section() -> Node {
+    // イシュー #1661: `data-kind` 6 語彙（null/boolean/number/string/array/
+    // object）すべてが Demo 経由で data-* 表へ機械導出されるよう、当初
+    // 欠けていた number（"version"）・null（"license"）を追加した。
     let value = JsonValue::Object(vec![
         (
             "name".to_string(),
             JsonValue::String("fandhe-frontend".to_string()),
         ),
+        ("version".to_string(), JsonValue::Number(1.0)),
         (
             "tags".to_string(),
             JsonValue::Array(vec![
@@ -105,6 +109,7 @@ pub(super) fn json_tree_view_section() -> Node {
             ]),
         ),
         ("stable".to_string(), JsonValue::Bool(false)),
+        ("license".to_string(), JsonValue::Null),
     ]);
     let tree = json_tree_view::expanded_to_depth(&value, 2);
     let body = vec![json_tree_view::render_json(&tree, &value)];
