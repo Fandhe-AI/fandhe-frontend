@@ -60,9 +60,9 @@ use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec};
 
-/// Forms 28 ページ（当初 31 ページから、#948 と二重登録だった 5 ページを
-/// 削除・#997 で Checkbox Group・#1685 で Field を追加済み）の
-/// `path -> ComponentPageSpec` テーブル。
+/// Forms 29 ページ（当初 31 ページから、#948 と二重登録だった 5 ページを
+/// 削除・#997 で Checkbox Group・#1685 で Field・#1687 で Fieldset を
+/// 追加済み）の `path -> ComponentPageSpec` テーブル。
 /// [`crate::component_page::SPEC_TABLES`] が集約する。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/angle-slider/", ANGLE_SLIDER),
@@ -73,6 +73,7 @@ pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/themes/combobox/", COMBOBOX),
     ("/themes/editable/", EDITABLE),
     ("/themes/field/", FIELD),
+    ("/themes/fieldset/", FIELDSET),
     ("/themes/file-upload/", FILE_UPLOAD),
     ("/themes/image-cropper/", IMAGE_CROPPER),
     ("/themes/input/", INPUT),
@@ -502,6 +503,68 @@ const FIELD: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "label[for] / control id",
             description: "`label` の `for` とコントロールの `id` は同一 `FieldProps` から決定的に対応する。",
+        },
+    ],
+    demo: None,
+};
+
+const FIELDSET: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "root/legend/helper-text/error-text の 4 slot に UA 既定の `<fieldset>`/`<legend>` 枠線・padding のリセットと `size` 軸（`sm`/`md`/`lg`、既定 `md`）の余白・文字サイズ段階化を提供する。内側の各コントロール・型階層は [Field](../field/) / [Input](../input/) 等が担うため、本モジュールは `input`/`textarea`/`select`/`label`/`required-indicator` の各 slot を宣言しない。",
+        "`size` のみを持つ variant 軸（`orientation`/`colorPalette` は非提供。Fieldset は常に縦積みのグループコンテナであり、フォーム系のカラーパレット軸も非提供）。",
+        "`data-disabled`/`data-invalid` はいずれも headless-ui `fieldset::root` が出力する状態を CSS セレクタとして参照するだけで、値の妥当性判定・送信処理といったバリデーション自体は実装しない（`docs/policy/intentional-non-adoption.md` §3.25 規則 1）。",
+        "`error-text` は非該当状態で `hidden` 存在属性を付与する headless 側の fail-closed 描画に従い、`[hidden] { display: none; }` のみを重ねる（独自の表示切替ロジックは持たない）。",
+        "`root` へは `disabled_declarations()` を付与しない（ネイティブ `<fieldset disabled>` が子コントロールを HTML 仕様で無効化し、内側の styled コントロールが自前で減光するため、二重に薄くなることを避ける設計判断）。",
+        "hover / focus ring / transition はいずれも意図的に非採用（実フォーカスは内側のコントロール側にあり、状態遷移に伴う視覚変化がないため）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "props",
+            kind: "&FieldsetRootProps",
+            default: "",
+            description: "`size`（既定 `Md`）を束ねる構造体。",
+        },
+        ArgRow {
+            name: "fieldset",
+            kind: "&FieldsetProps<'_>",
+            default: "",
+            description: "`id`・`disabled`・`invalid`・`has_helper_text` 等、headless-ui `fieldset` スコープ共通の状態。",
+        },
+        ArgRow {
+            name: "attrs",
+            kind: "Vec<(&str, &str)>",
+            default: "",
+            description: "`root` へ合成する追加属性（`class` は recipe クラスへ置き換えられ除去される）。",
+        },
+        ArgRow {
+            name: "children",
+            kind: "Vec<Node>",
+            default: "",
+            description: "`root` 配下の子ノード（`legend`/内側 Field 群/`helper_text`/`error_text` 等）。",
+        },
+    ],
+    examples: &[],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "aria-describedby",
+            description: "`invalid` のとき error id、`has_helper_text` のとき helper id を空白区切りで合成し `root` へ付与する（headless `fieldset::root` の描画則）。",
+        },
+        AriaRow {
+            attribute: "aria-live=\"polite\"",
+            description: "`error_text` パーツへ固定付与する。",
+        },
+        AriaRow {
+            attribute: "disabled",
+            description: "`disabled` が `true` のとき `root`（`<fieldset>`）へ存在属性として付与し、HTML 標準の仕様により内側の全コントロールへ伝播する。",
+        },
+        AriaRow {
+            attribute: "<legend> 関連付け",
+            description: "`<fieldset>` 内の先頭に置かれた `<legend>` がネイティブにグループのアクセシブルネームを構成するため、`aria-labelledby` は不要。",
+        },
+        AriaRow {
+            attribute: "hidden",
+            description: "`error_text` が非 `invalid` のとき存在属性として付与する fail-closed 描画。",
         },
     ],
     demo: None,
