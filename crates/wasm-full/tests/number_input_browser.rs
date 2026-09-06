@@ -1228,3 +1228,181 @@ fn two_instances_arrow_up_updates_only_the_targeted_field() {
     let qty_html_input = qty_input.clone().dyn_into::<HtmlInputElement>().unwrap();
     assert_eq!(qty_html_input.value(), "5");
 }
+
+// ---------------------------------------------------------------------
+// PR #1982 codex-review P1 是正の実ブラウザ回帰（イシュー #1962）。
+// ---------------------------------------------------------------------
+
+/// codex-review 指摘その 1: 公開 API で **Input のみ** に readonly を指定し
+/// （Root/Control は既定フラグ）構築した場合でも、IncrementTrigger への
+/// click が no-op であること。`click_increment_trigger_is_noop_when_readonly`
+/// は Root/Control/Input すべてに `flags` を渡す構成のため、実際には
+/// Control 側の `data-readonly`（`has_noninteractive_ancestor` が Trigger の
+/// 祖先として辿る）が防御しており、Input 単体の readonly を防ぐ経路
+/// （`handle_click` が Input 解決後に改めて `has_noninteractive_ancestor` を
+/// 確認する分岐）を検証できていなかった。本テストはその欠落を埋める。
+#[wasm_bindgen_test]
+fn click_increment_trigger_is_noop_when_only_input_is_readonly() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "ni-click-input-only-readonly");
+    let number_input = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+    let input_flags = NumberInputFlags {
+        readonly: true,
+        ..NumberInputFlags::default()
+    };
+    let node = number_input.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![number_input.control(
+            NumberInputFlags::default(),
+            Vec::new(),
+            vec![
+                number_input.increment_trigger(
+                    Some("qty-input"),
+                    false,
+                    Vec::new(),
+                    vec![fandhe_frontend_core::text("+")],
+                ),
+                number_input.input("qty", Some("qty-input"), input_flags, Vec::new()),
+            ],
+        )],
+    );
+    let html = fandhe_frontend_core::render(&node);
+    container.set_inner_html(&html);
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let root = container
+        .first_element_child()
+        .expect("number-input root must exist");
+    let increment_button = root
+        .query_selector(r#"[data-scope="number-input"][data-part="increment-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("increment-trigger element must exist");
+    assert!(
+        !increment_button.has_attribute("disabled"),
+        "readonly 時は increment-trigger にネイティブ disabled が付かないこと（前提確認）"
+    );
+    let control = root
+        .query_selector(r#"[data-scope="number-input"][data-part="control"]"#)
+        .expect("query_selector must not fail")
+        .expect("control element must exist");
+    assert!(
+        !control.has_attribute("data-readonly"),
+        "Control は既定フラグで構築されており data-readonly を持たないこと（前提確認）"
+    );
+    assert!(
+        !root.has_attribute("data-readonly"),
+        "Root も既定フラグで構築されており data-readonly を持たないこと（前提確認）"
+    );
+
+    let component = Rc::new(RefCell::new(number_input));
+    let component = wire_with_dom_reflection(root, component);
+
+    increment_button.dispatch_event(&click_event()).unwrap();
+
+    assert_eq!(
+        component.borrow().value(),
+        Some(5.0),
+        "Input のみが readonly な場合でも、Input 解決後の has_noninteractive_ancestor \
+         確認により IncrementTrigger への click が no-op であること"
+    );
+}
+
+/// codex-review 指摘その 2: Control を省略した NumberInput が別の
+/// NumberInput にネストされている場合、内側の IncrementTrigger への click
+/// が内側インスタンスの Input のみを更新し、外側インスタンスの Input を
+/// 誤って更新しないこと。
+///
+/// 外側 NumberInput（`outer`、Control 省略）の Root 直下に、外側 Input
+/// （document 順で先に配置）と、Control を省略した内側 NumberInput
+/// （`inner`）の Root（IncrementTrigger + Input）をネストする。旧実装は
+/// `find_input_within_control` が最寄りの Root（inner）で探索を打ち切らず
+/// 外側の Root まで祖先探索を続け、`container` が外側 Root に置き換わって
+/// 外側 Input（document 順で先）を誤って解決していた。
+#[wasm_bindgen_test]
+fn nested_number_input_without_control_click_updates_only_inner_instance() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "ni-nested-without-control");
+
+    let outer_model = NumberInput::new(Some(50.0), 0.0, 100.0, 1.0);
+    let inner_model = NumberInput::new(Some(5.0), 0.0, 10.0, 1.0);
+
+    let inner_node = inner_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![
+            inner_model.increment_trigger(
+                Some("inner-input"),
+                false,
+                Vec::new(),
+                vec![fandhe_frontend_core::text("+")],
+            ),
+            inner_model.input(
+                "inner",
+                Some("inner-input"),
+                NumberInputFlags::default(),
+                vec![("data-action-input", "inner_set")],
+            ),
+        ],
+    );
+    let outer_node = outer_model.root(
+        NumberInputFlags::default(),
+        Vec::new(),
+        vec![
+            outer_model.input(
+                "outer",
+                Some("outer-input"),
+                NumberInputFlags::default(),
+                vec![("data-action-input", "outer_set")],
+            ),
+            inner_node,
+        ],
+    );
+    let html = fandhe_frontend_core::render(&outer_node);
+    container.set_inner_html(&html);
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let outer_input = container
+        .query_selector("#outer-input")
+        .expect("query_selector must not fail")
+        .expect("outer input must exist")
+        .dyn_into::<HtmlInputElement>()
+        .expect("outer input must cast to HtmlInputElement");
+    let inner_increment_button = container
+        .query_selector(r#"[data-scope="number-input"][data-part="increment-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("inner increment-trigger element must exist");
+
+    let recorded: Rc<RefCell<Vec<ActionRef>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorded_clone = recorded.clone();
+    wire_number_input_events(container.clone(), move |action_ref: ActionRef| {
+        recorded_clone.borrow_mut().push(action_ref);
+    })
+    .expect("wire_number_input_events must not fail");
+
+    inner_increment_button
+        .dispatch_event(&click_event())
+        .unwrap();
+
+    let dispatched = recorded.borrow().clone();
+    assert_eq!(
+        dispatched,
+        vec![
+            ActionRef {
+                action: "inner_set".to_string(),
+                payload: "5".to_string(),
+            },
+            ActionRef {
+                action: "increment".to_string(),
+                payload: "inner".to_string(),
+            },
+        ],
+        "内側 IncrementTrigger の click は内側インスタンス（inner_set/increment(payload=inner)） \
+         のみを dispatch し、外側インスタンス（outer_set）を一切 dispatch しないこと"
+    );
+    assert_eq!(
+        outer_input.value(),
+        "50",
+        "外側 Input の value は内側トリガーの click の影響を受けないこと（DOM 上の再確認）"
+    );
+}

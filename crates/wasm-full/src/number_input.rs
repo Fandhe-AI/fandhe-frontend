@@ -594,6 +594,16 @@ mod wiring {
     /// 任意引数であり欠落しうるため）。Control/Root いずれも見つからない、
     /// または配下に Input が無い場合は `None`（fail-closed）。
     fn find_input_within_control(root: &Element, trigger: &Element) -> Option<Element> {
+        // Control/Root の探索範囲を最寄りの NumberInput Root 配下へ限定する
+        // （イシュー #1962 codex-review P1 是正）。`root`（配線登録時の
+        // ルート）をそのまま境界に使うと、Control を省略した NumberInput が
+        // 別の NumberInput にネストされている場合に外側インスタンスの
+        // Root/Control まで祖先探索が及び、内側トリガーの操作が外側
+        // インスタンスの Input を誤って更新してしまう（PR #1982
+        // codex-review 指摘）。最寄り Root が見つからない場合は
+        // fail-closed（`None`）。
+        let nearest_root = find_nearest_root(root, trigger)?;
+
         let mut current = Some(trigger.clone());
         let mut container: Option<Element> = None;
         while let Some(element) = current {
@@ -605,12 +615,15 @@ mod wiring {
                 }
                 if part.as_deref() == Some(ROOT_PART) {
                     container = Some(element.clone());
-                    // Control が Root より内側に無い構成もあるため、Root に
-                    // 到達しても即座に確定させず、より内側の Control を
-                    // 優先して探し続ける（見つからなければ Root を使う）。
+                    // Control が Root より内側に無い構成もあるため、
+                    // 最寄り Root に到達しても即座に確定させず、より内側の
+                    // Control を優先して探し続ける（見つからなければ Root を
+                    // 使う）。ただし探索範囲は `nearest_root` で打ち切られる
+                    // （下記境界判定）ため、他インスタンスの Root/Control へ
+                    // は及ばない。
                 }
             }
-            if !root.contains(Some(&element)) || element == *root {
+            if !nearest_root.contains(Some(&element)) || element == nearest_root {
                 break;
             }
             current = element.parent_element();
@@ -620,6 +633,32 @@ mod wiring {
             .query_selector(r#"[data-scope="number-input"][data-part="input"]"#)
             .ok()
             .flatten()
+    }
+
+    /// `start` から `root` まで祖先方向を辿り、最寄りの NumberInput Root
+    /// （`data-scope="number-input"` `data-part="root"`）を返す（イシュー
+    /// #1962 codex-review P1 是正）。見つからなければ `None`。
+    ///
+    /// [`find_input_within_control`] の探索範囲をこの最寄り Root 配下へ
+    /// 限定するために使う。Control を省略した NumberInput が別の
+    /// NumberInput にネストされている場合、祖先探索を最寄り Root で
+    /// 打ち切らないと外側インスタンスの Root/Control まで遡ってしまい、
+    /// 内側トリガーの操作が外側インスタンスの Input を誤って更新する
+    /// （PR #1982 codex-review 指摘）。
+    fn find_nearest_root(root: &Element, start: &Element) -> Option<Element> {
+        let mut current = Some(start.clone());
+        while let Some(element) = current {
+            if element.get_attribute("data-scope").as_deref() == Some(NUMBER_INPUT_SCOPE)
+                && element.get_attribute("data-part").as_deref() == Some(ROOT_PART)
+            {
+                return Some(element);
+            }
+            if !root.contains(Some(&element)) || element == *root {
+                break;
+            }
+            current = element.parent_element();
+        }
+        None
     }
 
     /// click: IncrementTrigger/DecrementTrigger（`data-scope="number-input"`
@@ -675,6 +714,15 @@ mod wiring {
         let Some(input_element) = find_input_within_control(root, &trigger) else {
             return;
         };
+        // Trigger 自体・その祖先が非対話状態（`data-disabled`/
+        // `data-readonly`）でなくても、公開 API で Input のみに
+        // readonly/disabled を指定した構成では Input 側で非対話が成立する
+        // （イシュー #1962 codex-review P1 是正）。keydown 経路と同様に
+        // Input 解決後も改めて確認し、成立していれば dispatch しない
+        // （fail-closed。モジュール冒頭 doc「セキュリティ不変条件」節参照）。
+        if has_noninteractive_ancestor(root, &input_element) {
+            return;
+        }
         let raw_value = input_element
             .clone()
             .dyn_into::<HtmlInputElement>()
