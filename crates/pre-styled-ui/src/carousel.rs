@@ -564,10 +564,14 @@ mod tests {
     #[test]
     fn item_carries_translate_y_when_vertical() {
         // 移動対象は `item-group` ではなく `item` 側（本モジュール rustdoc
-        // 「transform ベースのスライド位置表現」節参照）。
+        // 「transform ベースのスライド位置表現」節参照）。PR #1925
+        // codex-review 指摘 是正（4 回目）で `min-height: 0` と
+        // `overflow: hidden` を追加したため golden 断片も更新する。
         let css = stylesheet();
         assert!(css.contains(
             "[data-scope=\"carousel\"][data-part=\"item\"][data-orientation=\"vertical\"] {\n  \
+             min-height: 0;\n  \
+             overflow: hidden;\n  \
              transition-property: transform;\n  \
              transition-duration: var(--fandhe-carousel-transition-duration, var(--fandhe-motion-duration-normal, 200ms));\n  \
              transition-timing-function: var(--fandhe-motion-easing-standard);\n  \
