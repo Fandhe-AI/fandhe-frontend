@@ -4,7 +4,8 @@
 //! ark-ui の Steps
 //!（`.claude/skills/ark-ui/references/components/collections/steps.md`）を
 //! 参考に、Root / List / Item / Trigger / Indicator / Separator / Content /
-//! CompletedContent / PrevTrigger / NextTrigger の 10 anatomy パーツと、
+//! CompletedContent / PrevTrigger / NextTrigger / Progress の 11 anatomy
+//! パーツ（Progress はイシュー #1665 で新設、§参照突合参照）と、
 //! Phase 1（#524）の [`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] 抽象へ直接乗る段階状態機械
 //! [`Steps`] を提供する。
@@ -38,10 +39,57 @@
 //! SSR は [`Steps::new`] で値を正規化してから各パーツメソッド（[`Steps::root`]/
 //! [`Steps::list`]/[`Steps::item`]/[`Steps::trigger`]/[`Steps::indicator`]/
 //! [`Steps::separator`]/[`Steps::content`]/[`Steps::completed_content`]/
-//! [`Steps::prev_trigger`]/[`Steps::next_trigger`]）を呼んで組み立てる。
-//! CSR/hydration は [`Steps`] を経由し、dispatch（`"next"`/`"prev"`/`"goto"`）
-//! で状態遷移する。`fandhe-frontend-pre-styled-ui`（#546〜）が本モジュールを
-//! 呼んでスタイル済み Steps を組み立てる想定である。
+//! [`Steps::prev_trigger`]/[`Steps::next_trigger`]/[`Steps::progress`]）を
+//! 呼んで組み立てる。CSR/hydration は [`Steps`] を経由し、dispatch
+//! （`"next"`/`"prev"`/`"goto"`）で状態遷移する。`fandhe-frontend-pre-styled-ui`
+//! （#546〜）が本モジュールを呼んでスタイル済み Steps を組み立てる想定である。
+//!
+//! # 参照突合（イシュー #1665）
+//!
+//! ark-ui の Steps・Zag.js の `steps` machine（`steps.connect.ts`/
+//! `steps.anatomy.ts`）・chakra-ui の Steps を参照して is/isn't を洗い出した。
+//!
+//! **是正した差分（本イシューで加算、いずれもシグネチャ非破壊）**:
+//!
+//! - [`Steps::prev_trigger`]/[`Steps::next_trigger`]: 境界時に native
+//!   `disabled` に加えて `data-disabled` を出力する（本リポジトリの
+//!   disabled 語彙統一。`fandhe-frontend-pre-styled-ui` 側は既に
+//!   `[data-disabled]` セレクタを登録済みで、本変更により活性化する）。
+//! - [`Steps::trigger`]/[`Steps::content`]/[`Steps::completed_content`]:
+//!   `data-orientation` を追加（Zag.js が trigger/content に出力する属性。
+//!   completed_content は content と対称にするための加算）。
+//! - [`Steps::progress`] パーツを新設（Zag.js anatomy 10 パーツ中、本実装
+//!   に唯一欠けていたパート。`role="progressbar"` は a11y 意味論であり
+//!   §3.25 規則 2 の装飾・レイアウト計測には該当しない）。
+//! - 全パーツへ [`drop_reserved`]（[`crate::toolbar::drop_reserved`]・
+//!   [`crate::nav_list::drop_reserved`] と同型）を導入し、呼び出し側
+//!   `attrs` が固定付与属性へなりすませないようにした（A05 対策）。
+//!
+//! **意図的に合わせなかった差分（回帰ガードは `tests/steps_reference_parity.rs`）**:
+//!
+//! - trigger の `data-state="open"|"closed"` は非採用（既存の
+//!   `complete`/`current`/`incomplete` を維持。変更は
+//!   `fandhe-frontend-pre-styled-ui` の golden CSS を壊す破壊的変更になる）。
+//! - `aria-current="step"` は item ではなく trigger のみに付与（フォーカス
+//!   可能な要素への付与が支援技術に読まれやすく、両方に付けると重複読み
+//!   上げになる）。
+//! - list の `role="tablist"`/`aria-owns`/`aria-orientation`、trigger の
+//!   `role="tab"`/`aria-selected`/`aria-controls`、content の
+//!   `role="tabpanel"`/`aria-labelledby`/`tabindex="0"` は非採用（id 相互
+//!   参照の配管が必要でシグネチャ変更＝破壊的変更になる。後続イシュー候補）。
+//! - indicator の `aria-hidden="true"` は非採用（trigger の子が indicator
+//!   のみの構成でアクセシブルネームを消してしまうため）。
+//! - root の style `--percent`（装飾用 CSS 変数）・`dir`（RTL）は非採用
+//!   （リポジトリ横断で未採用の判断軸に合わせる）。
+//! - item の `data-skippable`・`linear` 時の roving tabIndex 制御・
+//!   `isStepValid`/`isStepSkippable` は非採用（アプリケーションロジック
+//!   依存、§out-of-scope 参照）。
+//!
+//! **wasm-full 未配線の事実**: `fandhe-frontend-wasm-full` の
+//! `headless::MAPPING_TABLE` に `"steps"` scope は登録されておらず、
+//! trigger/prev-trigger/next-trigger の click・キー操作は配線されていない
+//! （ネイティブ `button` の Tab/Enter/Space のみが機能する。実配線は別
+//! イシュー候補、§out-of-scope 参照）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -74,11 +122,19 @@
 //!   許可）はアプリケーション固有のロジックであり、本モジュールのスコープ外。
 //! - キーボード操作・roving focus・クリックの実配線は `fandhe-frontend-wasm-full`
 //!   の keynav 層の責務（本モジュールは属性・状態機械のみを提供する）。
+//! - `fandhe-frontend-wasm-full` への `"steps"` scope 追加（trigger click →
+//!   `goto`、prev/next click → `prev`/`next` の dispatch 配線）はイシュー
+//!   #1665 でも見送り、後続イシュー候補とした（§参照突合参照）。
+//! - tabs 意味論（`role="tablist"/"tab"/"tabpanel"` + id 配管）と chakra-ui
+//!   `Steps.Title`/`Description`/`Status`/`Number` 相当は、破壊的シグネチャ
+//!   変更・Themes 層の関心のいずれかを理由にイシュー #1665 でも非採用と
+//!   した（§参照突合参照）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_current, aria_hidden, role, AriaCurrent};
 use crate::data_attrs::{
-    data_complete, data_current, data_incomplete, data_orientation, data_state, Orientation,
+    data_complete, data_current, data_disabled, data_incomplete, data_orientation, data_state,
+    Orientation,
 };
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
@@ -100,6 +156,91 @@ const DATA_STATE_INCOMPLETE: &str = "incomplete";
 const CONTENT_STATE_OPEN: &str = "open";
 /// Content パーツの `data-state` 値 "closed"（非現在 step の content）。
 const CONTENT_STATE_CLOSED: &str = "closed";
+
+/// `trigger` パートが固定付与する属性名（呼び出し側 `attrs` からの
+/// なりすまし・重複出力を防ぐ、[`crate::toolbar::drop_reserved`]・
+/// [`crate::nav_list::drop_reserved`] と同型、イシュー #1665）。
+const TRIGGER_RESERVED: &[&str] = &[
+    "type",
+    "data-state",
+    "data-complete",
+    "data-current",
+    "data-incomplete",
+    "data-orientation",
+    "aria-current",
+];
+
+/// `content`/`completed-content` パートが固定付与する属性名。
+const CONTENT_RESERVED: &[&str] = &["data-state", "data-orientation", "hidden"];
+
+/// `indicator` パートが固定付与する属性名。
+const INDICATOR_RESERVED: &[&str] = &[
+    "data-state",
+    "data-complete",
+    "data-current",
+    "data-incomplete",
+];
+
+/// `item` パートが固定付与する属性名。
+const ITEM_RESERVED: &[&str] = &[
+    "data-state",
+    "data-orientation",
+    "data-complete",
+    "data-current",
+    "data-incomplete",
+];
+
+/// `separator` パートが固定付与する属性名。
+const SEPARATOR_RESERVED: &[&str] = &[
+    "role",
+    "aria-hidden",
+    "data-state",
+    "data-orientation",
+    "data-complete",
+    "data-current",
+    "data-incomplete",
+];
+
+/// `root`/`list` パートが固定付与する属性名。
+const ROOT_LIST_RESERVED: &[&str] = &["data-orientation"];
+
+/// `prev-trigger`/`next-trigger` パートが固定付与する属性名。`disabled`/
+/// `data-disabled` はここには含めない（呼び出し側がバリデーション結果に
+/// 応じて Next を強制無効化する経路を残すため、状態機械が既に出力して
+/// いる場合のみ [`Vec::extend`] 後の [`fandhe_frontend_core::render`] 側で
+/// 重複したキーがそのまま両方出力される点に注意。ただし呼び出し側が
+/// `disabled`/`data-disabled` を渡すのは境界の内側〔state 側が既に
+/// 同じ属性を出す〕か外側〔state 側は出さない〕のいずれかであり、
+/// 前者は同名属性が 2 回出るだけで意味論は変わらず、後者は呼び出し側の
+/// 意図した強制無効化がそのまま反映される）。
+const PREV_NEXT_RESERVED: &[&str] = &["type"];
+
+/// `progress` パートが固定付与する属性名。
+const PROGRESS_RESERVED: &[&str] = &[
+    "role",
+    "aria-valuemin",
+    "aria-valuemax",
+    "aria-valuenow",
+    "aria-valuetext",
+    "data-complete",
+    "data-orientation",
+];
+
+/// 呼び出し側 `attrs` から予約キー（本モジュールが固定付与する属性名）を
+/// 除去する（ASCII 大文字小文字無視の完全一致）。`fandhe_frontend_core::el`
+/// は属性の重複除去をしないため、これを経由しない呼び出しは同名属性の
+/// 重複出力・状態属性のなりすましを許してしまう
+/// （[`crate::toolbar::drop_reserved`]・[`crate::nav_list::drop_reserved`]
+/// と同型、イシュー #1665）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
 
 /// item のインデックスから見た 3 状態を表す（[`Steps::item_state`]）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -208,6 +349,7 @@ impl Steps {
     /// Root パーツ（`div`）。
     #[must_use]
     pub fn root<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        let attrs = drop_reserved(attrs, ROOT_LIST_RESERVED);
         let mut merged: Vec<(&'a str, &'a str)> = vec![data_orientation(self.orientation)];
         merged.extend(attrs);
         ANATOMY.part("root", "div", merged, children)
@@ -216,6 +358,7 @@ impl Steps {
     /// List パーツ（`ol`。ark-ui は順序付きリストで item を並べる）。
     #[must_use]
     pub fn list<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        let attrs = drop_reserved(attrs, ROOT_LIST_RESERVED);
         let mut merged: Vec<(&'a str, &'a str)> = vec![data_orientation(self.orientation)];
         merged.extend(attrs);
         ANATOMY.part("list", "ol", merged, children)
@@ -234,6 +377,7 @@ impl Steps {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
+        let attrs = drop_reserved(attrs, ITEM_RESERVED);
         let state = self.item_state(index);
         let mut merged: Vec<(&'a str, &'a str)> = vec![
             data_state(state.as_data_state()),
@@ -247,7 +391,10 @@ impl Steps {
     }
 
     /// Trigger パーツ（`button`、`index` は `0..count`）。current な item の
-    /// trigger のみ `aria-current="step"` を付与する。
+    /// trigger のみ `aria-current="step"` を付与する。`data-orientation` を
+    /// 併せて付与する（イシュー #1665 参照突合。Zag.js の trigger 出力に
+    /// 合わせた加算。呼び出し側 CSS が単独パートのみでレイアウト条件化
+    /// できるようにする）。
     #[must_use]
     pub fn trigger<'a>(
         &self,
@@ -255,9 +402,13 @@ impl Steps {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
+        let attrs = drop_reserved(attrs, TRIGGER_RESERVED);
         let state = self.item_state(index);
-        let mut merged: Vec<(&'a str, &'a str)> =
-            vec![("type", "button"), data_state(state.as_data_state())];
+        let mut merged: Vec<(&'a str, &'a str)> = vec![
+            ("type", "button"),
+            data_state(state.as_data_state()),
+            data_orientation(self.orientation),
+        ];
         merged.extend(data_complete(state == ItemState::Complete));
         merged.extend(data_current(state == ItemState::Current));
         merged.extend(data_incomplete(state == ItemState::Incomplete));
@@ -268,7 +419,11 @@ impl Steps {
         ANATOMY.part("trigger", "button", merged, children)
     }
 
-    /// Indicator パーツ（`div`、`index` は `0..count`）。
+    /// Indicator パーツ（`div`、`index` は `0..count`）。参照側
+    /// （Zag.js/ark-ui）の `aria-hidden` は意図的に付与しない
+    /// （イシュー #1665 参照突合。trigger の子が indicator（数字）のみの
+    /// 構成が多く、無条件付与は trigger のアクセシブルネームを消す。
+    /// 必要な利用者は `attrs` で自前付与できる）。
     #[must_use]
     pub fn indicator<'a>(
         &self,
@@ -276,6 +431,7 @@ impl Steps {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
+        let attrs = drop_reserved(attrs, INDICATOR_RESERVED);
         let state = self.item_state(index);
         let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
         merged.extend(data_complete(state == ItemState::Complete));
@@ -295,6 +451,7 @@ impl Steps {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
+        let attrs = drop_reserved(attrs, SEPARATOR_RESERVED);
         let state = self.item_state(index);
         let mut merged: Vec<(&'a str, &'a str)> = vec![
             role("separator"),
@@ -312,6 +469,8 @@ impl Steps {
     /// Content パーツ（`div`、`index` は `0..count`）。現在 step のみ
     /// `data-state="open"` で表示し、非現在 step は `data-state="closed"` +
     /// `hidden` 属性で隠す（[`crate::tabs`] の content と同型の契約）。
+    /// `data-orientation` を併せて付与する（イシュー #1665 参照突合、
+    /// [`Steps::trigger`] と同じ理由）。
     #[must_use]
     pub fn content<'a>(
         &self,
@@ -319,12 +478,16 @@ impl Steps {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
+        let attrs = drop_reserved(attrs, CONTENT_RESERVED);
         let is_open = index == self.step;
-        let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(if is_open {
-            CONTENT_STATE_OPEN
-        } else {
-            CONTENT_STATE_CLOSED
-        })];
+        let mut merged: Vec<(&'a str, &'a str)> = vec![
+            data_state(if is_open {
+                CONTENT_STATE_OPEN
+            } else {
+                CONTENT_STATE_CLOSED
+            }),
+            data_orientation(self.orientation),
+        ];
         if !is_open {
             merged.push(("hidden", ""));
         }
@@ -334,19 +497,25 @@ impl Steps {
 
     /// CompletedContent パーツ（`div`）。[`Steps::is_completed`] が
     /// `true`（`step == count`）のときのみ表示し、それ以外は `hidden`
-    /// 属性で隠す。
+    /// 属性で隠す。`data-orientation` を併せて付与する（イシュー #1665
+    /// 参照突合、[`Steps::content`] と対称にするための加算。content と
+    /// 同型契約を保つ）。
     #[must_use]
     pub fn completed_content<'a>(
         &self,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
+        let attrs = drop_reserved(attrs, CONTENT_RESERVED);
         let is_open = self.is_completed();
-        let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(if is_open {
-            CONTENT_STATE_OPEN
-        } else {
-            CONTENT_STATE_CLOSED
-        })];
+        let mut merged: Vec<(&'a str, &'a str)> = vec![
+            data_state(if is_open {
+                CONTENT_STATE_OPEN
+            } else {
+                CONTENT_STATE_CLOSED
+            }),
+            data_orientation(self.orientation),
+        ];
         if !is_open {
             merged.push(("hidden", ""));
         }
@@ -354,37 +523,69 @@ impl Steps {
         ANATOMY.part("completed-content", "div", merged, children)
     }
 
-    /// PrevTrigger パーツ（`button`）。`step == 0` のとき `disabled`
-    /// 属性を付与する（呼び出し側が無効化描画を自前で判断しなくてよい
-    /// ように、状態機械側で境界を一元管理する）。
+    /// PrevTrigger パーツ（`button`）。`step == 0` のとき `disabled` +
+    /// `data-disabled` 属性を付与する（呼び出し側が無効化描画を自前で
+    /// 判断しなくてよいように、状態機械側で境界を一元管理する）。
+    /// `data-disabled` はイシュー #1665 参照突合での加算（本リポジトリの
+    /// disabled 語彙統一。`fandhe-frontend-pre-styled-ui` 側は既に
+    /// `[data-disabled]` セレクタを登録済みで、本変更により活性化する）。
+    /// `disabled`/`data-disabled` は予約キーに含めない（呼び出し側が
+    /// バリデーション結果に応じて Next を強制無効化する経路を残す。
+    /// [`PREV_NEXT_RESERVED`] の doc コメント参照）。
     #[must_use]
-    pub fn prev_trigger<'a>(
-        &self,
-        mut attrs: Vec<(&'a str, &'a str)>,
-        children: Vec<Node>,
-    ) -> Node {
+    pub fn prev_trigger<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        let attrs = drop_reserved(attrs, PREV_NEXT_RESERVED);
+        let disabled = self.step == 0;
         let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
-        if self.step == 0 {
-            attrs.push(("disabled", ""));
+        if disabled {
+            merged.push(("disabled", ""));
         }
+        merged.extend(data_disabled(disabled));
         merged.extend(attrs);
         ANATOMY.part("prev-trigger", "button", merged, children)
     }
 
-    /// NextTrigger パーツ（`button`）。`step == count` のとき `disabled`
-    /// 属性を付与する（[`Steps::prev_trigger`] と同型の境界一元管理）。
+    /// NextTrigger パーツ（`button`）。`step == count` のとき `disabled` +
+    /// `data-disabled` 属性を付与する（[`Steps::prev_trigger`] と同型の
+    /// 境界一元管理・イシュー #1665 参照突合）。
     #[must_use]
-    pub fn next_trigger<'a>(
-        &self,
-        mut attrs: Vec<(&'a str, &'a str)>,
-        children: Vec<Node>,
-    ) -> Node {
+    pub fn next_trigger<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        let attrs = drop_reserved(attrs, PREV_NEXT_RESERVED);
+        let disabled = self.step == self.count;
         let mut merged: Vec<(&'a str, &'a str)> = vec![("type", "button")];
-        if self.step == self.count {
-            attrs.push(("disabled", ""));
+        if disabled {
+            merged.push(("disabled", ""));
         }
+        merged.extend(data_disabled(disabled));
         merged.extend(attrs);
         ANATOMY.part("next-trigger", "button", merged, children)
+    }
+
+    /// Progress パーツ（`div`、`role="progressbar"`）。ark-ui/Zag.js の
+    /// anatomy に存在し本実装が欠いていた唯一のパート（イシュー #1665
+    /// 参照突合で新設）。`percent`（`step * 100 / count` の整数、`0..=100`）
+    /// を `aria-valuenow`/`aria-valuetext` へ出力する。`count >= 1` は
+    /// [`normalize`] が保証するためゼロ除算は起きない。`data-complete` は
+    /// `percent == 100`（`step == count`）のときのみ付与し、
+    /// `data-orientation` は本実装の superset（Zag/ark-ui の progress は
+    /// `data-complete` のみを持つ）として付与する。
+    #[must_use]
+    pub fn progress<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        let attrs = drop_reserved(attrs, PROGRESS_RESERVED);
+        let percent = self.step * 100 / self.count;
+        let now = percent.to_string();
+        let text = format!("{percent}% complete");
+        let mut merged: Vec<(&str, &str)> = vec![
+            role("progressbar"),
+            ("aria-valuemin", "0"),
+            ("aria-valuemax", "100"),
+            data_orientation(self.orientation),
+        ];
+        merged.extend(data_complete(percent == 100));
+        merged.push(("aria-valuenow", now.as_str()));
+        merged.push(("aria-valuetext", text.as_str()));
+        merged.extend(attrs);
+        ANATOMY.part("progress", "div", merged, children)
     }
 }
 
@@ -647,6 +848,15 @@ mod tests {
     }
 
     #[test]
+    fn trigger_has_data_orientation() {
+        // イシュー #1665 参照突合: Zag.js の trigger 出力に合わせて
+        // `data-orientation` を加算する。
+        let s = Steps::new(3, 1, Orientation::Vertical);
+        let html = render(&s.trigger(1, vec![], vec![]));
+        assert!(html.contains(r#"data-orientation="vertical""#));
+    }
+
+    #[test]
     fn indicator_outputs_scope_part_and_state() {
         let s = Steps::new(3, 1, Orientation::Horizontal);
         let html = render(&s.indicator(1, vec![], vec![]));
@@ -668,22 +878,25 @@ mod tests {
 
     #[test]
     fn content_open_for_current_step_only() {
-        let s = Steps::new(3, 1, Orientation::Horizontal);
+        let s = Steps::new(3, 1, Orientation::Vertical);
         let current_html = render(&s.content(1, vec![], vec![text("body")]));
         assert!(current_html.contains(r#"data-state="open""#));
         assert!(!current_html.contains("hidden"));
+        assert!(current_html.contains(r#"data-orientation="vertical""#));
 
         let other_html = render(&s.content(0, vec![], vec![text("body")]));
         assert!(other_html.contains(r#"data-state="closed""#));
         assert!(other_html.contains("hidden"));
+        assert!(other_html.contains(r#"data-orientation="vertical""#));
     }
 
     #[test]
     fn completed_content_open_only_when_all_steps_done() {
-        let not_done = Steps::new(3, 1, Orientation::Horizontal);
+        let not_done = Steps::new(3, 1, Orientation::Vertical);
         let html = render(&not_done.completed_content(vec![], vec![]));
         assert!(html.contains(r#"data-state="closed""#));
         assert!(html.contains("hidden"));
+        assert!(html.contains(r#"data-orientation="vertical""#));
 
         let done = Steps::new(3, 3, Orientation::Horizontal);
         let html = render(&done.completed_content(vec![], vec![]));
@@ -693,20 +906,71 @@ mod tests {
 
     #[test]
     fn prev_trigger_disabled_at_step_zero() {
+        // イシュー #1665 参照突合: 境界時に native `disabled` に加えて
+        // `data-disabled` も出力する（本リポジトリの disabled 語彙統一。
+        // `fandhe-frontend-pre-styled-ui` 側は既に `[data-disabled]`
+        // セレクタを登録済みで、本変更により活性化する）。
         let at_start = Steps::new(3, 0, Orientation::Horizontal);
-        assert!(render(&at_start.prev_trigger(vec![], vec![])).contains("disabled"));
+        let start_html = render(&at_start.prev_trigger(vec![], vec![]));
+        assert!(start_html.contains("disabled"));
+        assert!(start_html.contains("data-disabled"));
 
         let mid = Steps::new(3, 1, Orientation::Horizontal);
-        assert!(!render(&mid.prev_trigger(vec![], vec![])).contains("disabled"));
+        let mid_html = render(&mid.prev_trigger(vec![], vec![]));
+        assert!(!mid_html.contains("disabled"));
+        assert!(!mid_html.contains("data-disabled"));
     }
 
     #[test]
     fn next_trigger_disabled_at_step_equals_count() {
         let at_end = Steps::new(3, 3, Orientation::Horizontal);
-        assert!(render(&at_end.next_trigger(vec![], vec![])).contains("disabled"));
+        let end_html = render(&at_end.next_trigger(vec![], vec![]));
+        assert!(end_html.contains("disabled"));
+        assert!(end_html.contains("data-disabled"));
 
         let mid = Steps::new(3, 1, Orientation::Horizontal);
-        assert!(!render(&mid.next_trigger(vec![], vec![])).contains("disabled"));
+        let mid_html = render(&mid.next_trigger(vec![], vec![]));
+        assert!(!mid_html.contains("disabled"));
+        assert!(!mid_html.contains("data-disabled"));
+    }
+
+    // --- Progress パーツ（イシュー #1665 新設） ---
+
+    #[test]
+    fn progress_exposes_progressbar_semantics_and_percent() {
+        let s = Steps::new(3, 1, Orientation::Horizontal);
+        let html = render(&s.progress(vec![], vec![]));
+        assert!(html.contains(r#"data-scope="steps""#));
+        assert!(html.contains(r#"data-part="progress""#));
+        assert!(html.contains(r#"role="progressbar""#));
+        assert!(html.contains(r#"aria-valuemin="0""#));
+        assert!(html.contains(r#"aria-valuemax="100""#));
+        assert!(html.contains(r#"aria-valuenow="33""#));
+        assert!(html.contains(r#"aria-valuetext="33% complete""#));
+        assert!(!html.contains("data-complete"));
+    }
+
+    #[test]
+    fn progress_reflects_zero_and_full_percent() {
+        let at_start = Steps::new(3, 0, Orientation::Horizontal);
+        let start_html = render(&at_start.progress(vec![], vec![]));
+        assert!(start_html.contains(r#"aria-valuenow="0""#));
+        assert!(!start_html.contains("data-complete"));
+
+        let done = Steps::new(3, 3, Orientation::Horizontal);
+        let done_html = render(&done.progress(vec![], vec![]));
+        assert!(done_html.contains(r#"aria-valuenow="100""#));
+        assert!(done_html.contains("data-complete"));
+    }
+
+    #[test]
+    fn progress_does_not_add_hydration_attrs() {
+        // 状態機械の hydration 属性契約（[`Steps::hydration_attrs`]）を
+        // progress パーツの追加が拡張しないことの回帰。
+        let s = Steps::new(4, 2, Orientation::Vertical);
+        assert_eq!(s.hydration_attrs().len(), 3);
+        let _ = render(&s.progress(vec![], vec![]));
+        assert_eq!(s.hydration_attrs().len(), 3);
     }
 
     // --- Anatomy::part fail-closed 回帰 ---
@@ -721,6 +985,41 @@ mod tests {
         assert!(html.contains(r#"data-scope="steps""#));
         assert!(html.contains(r#"data-part="root""#));
         assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn caller_cannot_spoof_reserved_attrs() {
+        // イシュー #1665: `drop_reserved`（toolbar/nav_list と同型）を
+        // 導入し、呼び出し側 `attrs` が固定付与属性へなりすませないことを
+        // 各パートで固定する（ASCII 大小無視の完全一致除去）。
+        let s = Steps::new(3, 1, Orientation::Horizontal);
+
+        let trigger_html = render(&s.trigger(1, vec![("data-state", "attacker")], vec![]));
+        assert_eq!(trigger_html.matches("data-state").count(), 1);
+        assert!(trigger_html.contains(r#"data-state="current""#));
+
+        let content_html = render(&s.content(1, vec![("DATA-ORIENTATION", "attacker")], vec![]));
+        assert_eq!(content_html.matches("data-orientation").count(), 1);
+        assert!(content_html.contains(r#"data-orientation="horizontal""#));
+
+        let indicator_html = render(&s.indicator(1, vec![("data-complete", "attacker")], vec![]));
+        assert!(!indicator_html.contains("attacker"));
+
+        let separator_html = render(&s.separator(1, vec![("role", "attacker")], vec![]));
+        assert_eq!(separator_html.matches("role=").count(), 1);
+        assert!(separator_html.contains(r#"role="separator""#));
+
+        let progress_html = render(&s.progress(vec![("aria-valuenow", "attacker")], vec![]));
+        assert_eq!(progress_html.matches("aria-valuenow").count(), 1);
+        assert!(!progress_html.contains("attacker"));
+
+        // prev-trigger/next-trigger の `disabled`/`data-disabled` は予約
+        // しない（呼び出し側がバリデーション結果で Next を強制無効化する
+        // 経路を残す設計。境界外〔mid〕でも呼び出し側が明示付与すれば
+        // そのまま出力される）。
+        let mid = Steps::new(3, 1, Orientation::Horizontal);
+        let forced_html = render(&mid.next_trigger(vec![("disabled", "")], vec![]));
+        assert!(forced_html.contains("disabled"));
     }
 
     // --- Steps: dispatch 統合 ---

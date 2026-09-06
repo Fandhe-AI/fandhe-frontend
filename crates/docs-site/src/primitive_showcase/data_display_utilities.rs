@@ -236,6 +236,7 @@ pub(super) fn steps_section() -> Node {
                     ),
                 ],
             ),
+            steps.progress(vec![], vec![]),
             steps.content(1, vec![], vec![text("Step 2 content")]),
             steps.completed_content(vec![], vec![text("All steps completed.")]),
             steps.prev_trigger(vec![], vec![text("Back")]),
