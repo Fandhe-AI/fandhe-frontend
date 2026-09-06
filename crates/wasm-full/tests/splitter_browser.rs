@@ -45,7 +45,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use fandhe_frontend_core::{bind_attr_tokens, bind_text, render, Node};
+use fandhe_frontend_core::{bind_attr_tokens, bind_text, el, render, Node};
 use fandhe_frontend_headless_ui::splitter::{PanelSpec, Splitter, SplitterAction};
 use fandhe_frontend_headless_ui::Orientation;
 use fandhe_frontend_interactive::{Component, DirtyTracked, Hydrate, HydrateError};
@@ -107,6 +107,15 @@ struct SplitterHost {
     root_id: String,
     disabled: bool,
     structural_fallback: bool,
+    /// `true` の場合 Splitter Root/resize-trigger のいずれにも `id` を
+    /// 付けない「標準構成」で描画する（headless-ui `splitter::root`/
+    /// `resize_trigger` はいずれも `id` を必須付与しない、モジュール冒頭
+    /// doc 参照）。`view()` はこの場合 [`SplitterHost::root_id`] を
+    /// Runtime のマウント先（本テストの `id` を持つ最外殻ラッパー div）
+    /// にのみ使い、Splitter Root 自身には `id` を渡さない
+    /// （`splitter::wiring::TriggerKey` の `data-id` フォールバック経路
+    /// の回帰テスト、イシュー #1996 codex-review P1 是正）。
+    omit_splitter_ids: bool,
     trigger_bind_attr: String,
     size_now: String,
     size_label: String,
@@ -120,24 +129,43 @@ const HOST_ATTR_ROOT_ID: &str = "data-hydrate-host-root-id";
 const HOST_ATTR_DISABLED: &str = "data-hydrate-host-disabled";
 /// ホストの `structural_fallback` を往復させる属性名。
 const HOST_ATTR_STRUCTURAL: &str = "data-hydrate-host-structural";
+/// ホストの `omit_splitter_ids` を往復させる属性名（イシュー #1996
+/// codex-review P1 是正の回帰テスト用。[`SplitterHost::omit_splitter_ids`]
+/// doc 参照）。`Runtime::hydrate` は復元成功時に渡された `component` では
+/// なく `from_hydration_attrs` の再構築結果を使うため、この往復がないと
+/// 構造フォールバック後の再描画で `id` が復活してしまい「標準構成」の
+/// 検証にならない。
+const HOST_ATTR_OMIT_IDS: &str = "data-hydrate-host-omit-splitter-ids";
 
 impl SplitterHost {
     fn new(root_id: &str) -> Self {
-        Self::with_options(root_id, false, false)
+        Self::with_options(root_id, false, false, false)
     }
 
     fn disabled(root_id: &str) -> Self {
-        Self::with_options(root_id, true, false)
+        Self::with_options(root_id, true, false, false)
     }
 
     /// 毎 dispatch で [`STRUCTURAL_ONLY_FIELD`] を積み、
     /// `Runtime::apply_update_for_dirty` の構造フォールバック
     /// （`Runtime::rerender_subtree`）を必ず通すホスト。
     fn with_structural_fallback(root_id: &str) -> Self {
-        Self::with_options(root_id, false, true)
+        Self::with_options(root_id, false, true, false)
     }
 
-    fn with_options(root_id: &str, disabled: bool, structural_fallback: bool) -> Self {
+    /// [`Self::with_structural_fallback`] に加え、Splitter Root/
+    /// resize-trigger のいずれにも `id` を付けない「標準構成」で描画する
+    /// ホスト（[`SplitterHost::omit_splitter_ids`] doc 参照）。
+    fn with_structural_fallback_without_ids(root_id: &str) -> Self {
+        Self::with_options(root_id, false, true, true)
+    }
+
+    fn with_options(
+        root_id: &str,
+        disabled: bool,
+        structural_fallback: bool,
+        omit_splitter_ids: bool,
+    ) -> Self {
         let splitter = Splitter::new(
             &[
                 PanelSpec::new(50.0, 0.0, 100.0),
@@ -153,6 +181,7 @@ impl SplitterHost {
             root_id: root_id.to_string(),
             disabled,
             structural_fallback,
+            omit_splitter_ids,
             trigger_bind_attr,
             size_now,
             size_label,
@@ -184,9 +213,20 @@ impl Component for SplitterHost {
     }
 
     fn view(&self) -> Node {
-        self.splitter.root(
+        // `omit_splitter_ids` のとき Splitter Root へ `id` を渡さない
+        // （headless-ui `splitter::root` は `id` を要求しない、
+        // `SplitterHost::omit_splitter_ids` doc 参照）。この場合
+        // `Runtime::mount`/`Runtime::hydrate` のマウント先には別途 `id` を
+        // 持つ最外殻ラッパー div を用意する必要があるため、Splitter 全体を
+        // その子として包む。
+        let splitter_root_attrs: Vec<(&str, &str)> = if self.omit_splitter_ids {
+            Vec::new()
+        } else {
+            vec![("id", self.root_id.as_str())]
+        };
+        let splitter_node = self.splitter.root(
             self.disabled,
-            vec![("id", self.root_id.as_str())],
+            splitter_root_attrs,
             vec![
                 self.splitter.panel(0, "panel-0", Vec::new(), Vec::new()),
                 self.splitter.resize_trigger(
@@ -205,7 +245,16 @@ impl Component for SplitterHost {
                     self.size_label.clone(),
                 ),
             ],
-        )
+        );
+        if self.omit_splitter_ids {
+            el(
+                "div",
+                vec![("id", self.root_id.as_str())],
+                vec![splitter_node],
+            )
+        } else {
+            splitter_node
+        }
     }
 
     fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
@@ -238,6 +287,10 @@ impl Hydrate for SplitterHost {
             HOST_ATTR_STRUCTURAL.to_string(),
             self.structural_fallback.to_string(),
         ));
+        attrs.push((
+            HOST_ATTR_OMIT_IDS.to_string(),
+            self.omit_splitter_ids.to_string(),
+        ));
         attrs
     }
 
@@ -264,6 +317,7 @@ impl Hydrate for SplitterHost {
         };
         let disabled = parse_bool(HOST_ATTR_DISABLED)?;
         let structural_fallback = parse_bool(HOST_ATTR_STRUCTURAL)?;
+        let omit_splitter_ids = parse_bool(HOST_ATTR_OMIT_IDS)?;
 
         let size_now = format!("{}", splitter.size(0).unwrap_or(50.0));
         let size_label = size_now.clone();
@@ -273,6 +327,7 @@ impl Hydrate for SplitterHost {
             root_id,
             disabled,
             structural_fallback,
+            omit_splitter_ids,
             trigger_bind_attr,
             size_now,
             size_label,
@@ -536,5 +591,83 @@ fn resize_trigger_focus_is_restored_after_structural_fallback_on_keydown() {
         Some(52.0),
         "フォーカス復元により 2 回目の ArrowRight も resize-trigger へ届き、\
          サイズ調整が継続すること"
+    );
+}
+
+/// [`resize_trigger_focus_is_restored_after_structural_fallback_on_keydown`]
+/// の「id なし標準構成」版（イシュー #1996 codex-review P1 是正の回帰
+/// テスト）。headless-ui `splitter::root`/`resize_trigger` はいずれも
+/// `id` を自動付与も必須付与もしないため、アプリが `id` を付けない標準的
+/// な描画構成でも構造フォールバックをまたいだフォーカス復元・矢印キーの
+/// 継続操作が成立する必要がある。是正前は `TriggerKey::RootIdAndIndex`
+/// が Splitter Root の `id` を前提としており、`id` が一切無い本構成では
+/// フォールバックが `None` を返して復元を断念し、矢印キー操作が構造
+/// フォールバック 1 回で途切れていた。
+#[wasm_bindgen_test]
+fn resize_trigger_focus_is_restored_after_structural_fallback_without_ids() {
+    let (root_el, runtime) = mount_via_hydrate(SplitterHost::with_structural_fallback_without_ids(
+        "splitter-host-no-id-focus-root",
+    ));
+    let _cleanup = RemoveOnDrop(root_el.clone());
+
+    let active_element = || document().active_element();
+
+    let initial_trigger = resize_trigger(&root_el);
+    assert!(
+        initial_trigger.id().is_empty(),
+        "resize-trigger 自身に id が付与されていないこと（本テストの前提）"
+    );
+    let splitter_root = initial_trigger
+        .parent_element()
+        .expect("resize-trigger must have a parent element (Splitter root)");
+    assert!(
+        splitter_root.id().is_empty(),
+        "Splitter Root にも id が付与されていないこと（本テストの前提。\
+         `root_el`〔ラッパー div〕にのみ id を持つ「標準構成」を再現する）"
+    );
+
+    initial_trigger
+        .dyn_ref::<HtmlElement>()
+        .expect("resize-trigger must be an HtmlElement")
+        .focus()
+        .expect("focus must not fail");
+    assert_eq!(
+        active_element().as_ref(),
+        Some(&initial_trigger),
+        "keydown 前は resize-trigger がフォーカスされていること（前提成立確認）"
+    );
+
+    initial_trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(runtime.component().splitter.size(0), Some(51.0));
+
+    let trigger_after = resize_trigger(&root_el);
+    assert!(
+        trigger_after != initial_trigger,
+        "STRUCTURAL_ONLY_FIELD により Runtime::rerender_subtree が走り、\
+         フォーカスしていた resize-trigger が差し替わっていること（本 \
+         テストが前提とする状況の成立確認）"
+    );
+    assert_eq!(
+        active_element().as_ref(),
+        Some(&trigger_after),
+        "id を一切持たない標準構成でも、resize-trigger の data-id \
+         （隣接パネル id の組）により splitter::wiring::restore_trigger_focus \
+         が再描画後の同じ resize-trigger へフォーカスを復元すること \
+         （イシュー #1996 codex-review P1 是正の受け入れ条件）"
+    );
+
+    // フォーカスが復元されていれば、2 回目の矢印キーも同じ resize-trigger
+    // へ届き続けサイズ調整が途切れないこと（id 必須化が無くとも継続操作が
+    // 成立することの直接証明）。
+    trigger_after
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(
+        runtime.component().splitter.size(0),
+        Some(52.0),
+        "id なし標準構成でもフォーカス復元により 2 回目の ArrowRight が \
+         resize-trigger へ届き、サイズ調整が継続すること"
     );
 }

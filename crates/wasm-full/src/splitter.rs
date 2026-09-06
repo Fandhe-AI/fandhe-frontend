@@ -297,7 +297,7 @@ mod wiring {
         // 対象要素が detach され `closest_matching` による Root 探索が
         // できなくなるため、`angle_slider::wiring::handle_keydown` と同じ
         // 手順）。
-        let key = trigger_key(&splitter_root, target_element, index);
+        let key = trigger_key(target_element);
 
         keyboard_event.prevent_default();
         let action_name = match action {
@@ -317,47 +317,57 @@ mod wiring {
     }
 
     /// 再描画をまたいで同じ resize-trigger を再解決するための識別子
-    /// （イシュー #1996 codex-review P1 是正、
-    /// `angle_slider::wiring::PartKey` と同型の設計判断）。
+    /// （イシュー #1996 codex-review P1 是正）。
     ///
     /// 構造フォールバック（[`crate::Runtime::rerender_subtree`]）は
     /// `state.view()` から DOM を作り直すため、要素参照も要素の同一性も
-    /// 再描画をまたいで保持できない。位置（文書順の添字）だけを再解決の
-    /// 根拠にはしない代わりに、本モジュールの既存契約
-    /// （モジュール冒頭 doc §trigger index の導出:
-    /// 「アプリは resize-trigger を `0..n-1` の順に描画する」）に基づき、
-    /// Splitter Root の安定識別子（`id`）と組み合わせた trigger index を
-    /// フォールバックとして許容する（`root` に `id` が無い構成は最初から
-    /// 追跡しない、fail-closed）。
+    /// 再描画をまたいで保持できない。当初は Splitter Root の `id` と
+    /// document 順序（trigger index）の組をフォールバック識別子にして
+    /// いたが、(1) 再解決時に `collect_own_resize_triggers` と同じ
+    /// 所有権フィルタを適用しておらず、ネストした Splitter が存在すると
+    /// 別の Splitter の resize-trigger を index 経由で誤って再解決し得た、
+    /// (2) headless-ui の [`fandhe_frontend_headless_ui::splitter::root`]/
+    /// [`fandhe_frontend_headless_ui::splitter::resize_trigger`] はいずれも `id`
+    /// 自動付与も必須付与もしないため、Root/resize-trigger に `id` を
+    /// 付けない標準構成ではフォールバック自体が成立せずキーボード操作が
+    /// 構造フォールバック 1 回で途切れていた（codex-review P1 x2 是正）。
+    ///
+    /// resize-trigger は [`fandhe_frontend_headless_ui::splitter::resize_trigger`]
+    /// が必須引数 `leading_id`/`trailing_id`（隣接パネルの `id`。
+    /// [`fandhe_frontend_headless_ui::splitter::panel`] も `id` を必須で受け取るため
+    /// 常に存在する）から `data-id="<leading_id>:<trailing_id>"` を常に
+    /// 出力する。パネル `id` は WAI-ARIA `aria-controls` の参照先であり
+    /// 文書内で一意であることが前提のため、この `data-id` は
+    /// Root/resize-trigger 自身の `id` の有無に関わらず常に得られる
+    /// 安定識別子として使える（ネストした Splitter 同士でも `leading_id`/
+    /// `trailing_id` の組が重複しない限り一意）。
     #[derive(Clone)]
     enum TriggerKey {
         /// resize-trigger 自身の `id` 属性（最も安定。アプリが `id` を
         /// 付けている場合に使う）。
         OwnId(String),
-        /// Splitter Root の `id` 属性と、その Root 配下での resize-trigger
-        /// の document 順序（trigger index）の組。
-        RootIdAndIndex(String, usize),
+        /// resize-trigger の `data-id` 属性（`"<leading_id>:<trailing_id>"`。
+        /// `id` を付けない標準構成でも常に得られるフォールバック）。
+        DataId(String),
     }
 
-    /// `target_element`（`splitter_root` 配下の resize-trigger、
-    /// document 順序 `index`）を再描画後に再解決するための [`TriggerKey`]
-    /// を決める。`id` による安定識別子が得られず、かつ Splitter Root にも
-    /// `id` が無い場合は `None` を返す（呼び出し側は追跡・フォーカス復元を
-    /// 行わず、本 PR 以前と同じ挙動へフォールバックする）。
-    fn trigger_key(
-        splitter_root: &Element,
-        target_element: &Element,
-        index: usize,
-    ) -> Option<TriggerKey> {
+    /// `target_element`（resize-trigger）を再描画後に再解決するための
+    /// [`TriggerKey`] を決める。resize-trigger は常に `data-id` を持つため
+    /// （headless-ui `resize_trigger` の契約、[`TriggerKey`] doc 参照）、
+    /// `is_resize_trigger` 判定を通過した呼び出し元では実質的に必ず
+    /// `Some` を返す。属性が欠落した想定外の DOM のみ `None`（fail-closed、
+    /// 呼び出し側はフォーカス復元を行わず本 PR 以前と同じ挙動へ
+    /// フォールバックする）。
+    fn trigger_key(target_element: &Element) -> Option<TriggerKey> {
         let own_id = target_element.id();
         if !own_id.is_empty() {
             return Some(TriggerKey::OwnId(own_id));
         }
-        let root_id = splitter_root.id();
-        if root_id.is_empty() {
+        let data_id = target_element.get_attribute("data-id")?;
+        if data_id.is_empty() {
             return None;
         }
-        Some(TriggerKey::RootIdAndIndex(root_id, index))
+        Some(TriggerKey::DataId(data_id))
     }
 
     /// `root` 配下から [`TriggerKey`] に対応する resize-trigger を
@@ -365,9 +375,9 @@ mod wiring {
     /// `None`（fail-closed）。呼び出し側はフォーカス復元断念のシグナル
     /// として扱う。
     fn resolve_trigger(root: &Element, key: &TriggerKey) -> Option<Element> {
-        let document = root.owner_document()?;
         match key {
             TriggerKey::OwnId(id) => {
+                let document = root.owner_document()?;
                 let candidate = document.get_element_by_id(id)?;
                 if !root.contains(Some(&candidate)) {
                     return None;
@@ -377,37 +387,28 @@ mod wiring {
                 }
                 Some(candidate)
             }
-            TriggerKey::RootIdAndIndex(root_id, index) => {
-                let part_root = document.get_element_by_id(root_id)?;
-                if !root.contains(Some(&part_root)) {
-                    return None;
+            TriggerKey::DataId(data_id) => {
+                // CSS セレクタへ動的な属性値をそのまま埋め込まず、
+                // `root` 配下の resize-trigger 全件を固定セレクタで収集
+                // してから Rust 側で `data-id` を比較する（属性値に
+                // クォート等の CSS 特殊文字が含まれても injection の
+                // 余地がない）。`data-id` は隣接 2 パネルの `id` から
+                // 一意に定まる契約（[`TriggerKey`] doc 参照）のため、
+                // ここでの所有権検証はネストした Splitter を含めても
+                // 一致件数の一意性確認のみで足りる（複数一致は
+                // fail-closed に諦める）。
+                let list = root.query_selector_all(RESIZE_TRIGGER_SELECTOR).ok()?;
+                let mut found: Option<Element> = None;
+                for i in 0..list.length() {
+                    let element = list.get(i)?.dyn_into::<Element>().ok()?;
+                    if element.get_attribute("data-id").as_deref() == Some(data_id.as_str()) {
+                        if found.is_some() {
+                            return None;
+                        }
+                        found = Some(element);
+                    }
                 }
-                if part_root.get_attribute("data-scope").as_deref() != Some(SPLITTER_SCOPE)
-                    || part_root.get_attribute("data-part").as_deref() != Some(ROOT_PART)
-                {
-                    return None;
-                }
-                // `collect_own_resize_triggers`（closest_matching による
-                // 所有権検証込み）ではなく `query_selector_all` を直接
-                // 使う。`Runtime::rerender_subtree` は `root`（本モジュール
-                // 外側の Runtime root）自身を差し替えず、`view()` が返す
-                // 新しい Splitter Root ノードを `root` の子として append
-                // する実装のため、初回の構造フォールバック以降は「同じ
-                // `id`/`data-scope`/`data-part` を持つ Splitter Root が
-                // 二重にネストする」（外側は旧 `Runtime::mount`/`hydrate`
-                // 時点の要素そのもの、内側が今回の再描画で新規生成された
-                // 要素）。この状態で `closest_matching` による所有権検証を
-                // 行うと、resize-trigger の最も近い祖先は内側の新しい
-                // Splitter Root になり外側の `part_root` とは一致しない
-                // ため誤って「所有していない」と判定されてしまう。ここでは
-                // `part_root` の `id`/`data-scope`/`data-part` を確認済み
-                // （直前のチェック）であることを根拠に、その配下を
-                // `query_selector_all` で直接辿るだけで足りる
-                // （`angle_slider::wiring::resolve_part` の `RootId` 分岐と
-                // 同型の単純化）。
-                let list = part_root.query_selector_all(RESIZE_TRIGGER_SELECTOR).ok()?;
-                let node = list.get(u32::try_from(*index).ok()?)?;
-                node.dyn_into::<Element>().ok()
+                found
             }
         }
     }

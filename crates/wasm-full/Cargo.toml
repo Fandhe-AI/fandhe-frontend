@@ -598,6 +598,14 @@ name = "fandhe-frontend-wasm-full"
 # 変種削除のみで公開 API は不変。
 # イシュー #1996: `wire_splitter` を `wire_angle_slider` と同型の閉包配線へ
 # 差し替え。公開 API 追加なし・内部配線のみの変更のため patch バンプ。
+# イシュー #1996 追補（codex-review/Bugbot P1 是正、PR #2099）: 私有
+# `splitter::wiring::TriggerKey` の再描画後再解決を Splitter Root `id` +
+# document 順序（index）方式から resize-trigger の `data-id`（隣接パネル
+# `id` の組、headless-ui `resize_trigger` が常に出力）方式へ差し替え、
+# (1) ネストした Splitter が存在する場合の所有権フィルタ漏れ、
+# (2) Root/resize-trigger に `id` を付けない標準構成でのフォーカス復元
+# 断念、の 2 件を是正した。私有型の内部変更のみで公開 API は不変のため
+# 追加の patch バンプは不要（同一 PR 内の未公開バージョンのまま）。
 version = "0.15.15"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
