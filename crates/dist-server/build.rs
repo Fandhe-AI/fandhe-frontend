@@ -349,8 +349,26 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
     //    確実に検知できる。ネストビルド自体は cargo 標準の増分キャッシュが
     //    効くため（直後のコメント参照）、この間 build.rs が毎回再実行されて
     //    も後段の `wasm_stage_cache_hit` 判定でコストの大部分は回避される。
+    //
+    //    ただし Windows では Cargo が動的ライブラリ探索のため現在のビルドの
+    //    `target/<profile>`・`target/<profile>/deps`（例: `target\debug`・
+    //    `target\debug\deps`）を `PATH` へ自動追加する（Cargo の環境変数仕様）。
+    //    これらは cargo 自身の生成物ディレクトリであり、上記「未導入 → 導入」
+    //    検知のために存在確認なしで丸ごと `rerun-if-changed` 登録すると、
+    //    ディレクトリ監視は配下全体を走査する仕様のため自身の `OUT_DIR` や
+    //    コンパイル成果物の更新が次回の build.rs 再実行を誘発し、ソース変更が
+    //    なくてもビルドが繰り返される無限ループになる（PR #1980 レビュー
+    //    指摘）。`OUT_DIR` からこのビルドの `target` ディレクトリ
+    //    （[`cargo_target_dir_from_out_dir`]）を逆算し、その配下にある
+    //    `PATH` エントリは監視対象から除外する。
+    let cargo_target_dir = cargo_target_dir_from_out_dir(out_dir);
     if let Some(path_var) = env::var_os("PATH") {
         for dir in env::split_paths(&path_var) {
+            if let Some(target_dir) = &cargo_target_dir {
+                if dir.starts_with(target_dir) {
+                    continue;
+                }
+            }
             println!("cargo:rerun-if-changed={}", dir.display());
         }
     }
@@ -446,6 +464,24 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
         })
         .collect();
     Ok(entries)
+}
+
+/// `OUT_DIR`（`<CARGO_TARGET_DIR>/<profile>/build/<pkg>-<hash>/out`、cargo が
+/// 保証する固定階層）から、このビルドが使っている `<CARGO_TARGET_DIR>` を
+/// 逆算する。呼び出し元（[`run_wasm_stage`]）が `PATH` 監視ループで
+/// Cargo 自身の生成物ディレクトリ（`target/<profile>`・
+/// `target/<profile>/deps`）を除外するために使う（PR #1980 レビュー指摘）。
+///
+/// `OUT_DIR` の祖先を 4 段上がった位置が `CARGO_TARGET_DIR` になる
+/// （`out` → `<pkg>-<hash>` → `build` → `<profile>` → `CARGO_TARGET_DIR`）。
+/// 想定より浅い階層（テスト環境等で `OUT_DIR` がこの形を満たさない場合）は
+/// `None` を返し、呼び出し元は除外なし（フェイルオープン、監視漏れなし側）
+/// にフォールバックする。
+fn cargo_target_dir_from_out_dir(out_dir: &Path) -> Option<PathBuf> {
+    out_dir
+        .ancestors()
+        .nth(4)
+        .map(|target_dir| target_dir.to_path_buf())
 }
 
 /// ワークスペースの `Cargo.lock` を std の文字列処理でパースし、解決済みの
