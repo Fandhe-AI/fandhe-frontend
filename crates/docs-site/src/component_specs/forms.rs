@@ -50,6 +50,8 @@ use fandhe_frontend_core::{div, el, p, text, Node};
 use fandhe_frontend_pre_styled_ui::angle_slider;
 use fandhe_frontend_pre_styled_ui::badge;
 use fandhe_frontend_pre_styled_ui::button::{icon_button, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::checkbox;
+use fandhe_frontend_pre_styled_ui::checkbox::{CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::angle_slider::{
     AngleSlider, AngleSliderProps,
 };
@@ -299,7 +301,11 @@ const CHECKBOX: ComponentPageSpec = ComponentPageSpec {
             description: "root 配下の子ノード（通常 control/label/hidden-input を含む）。",
         },
     ],
-    examples: &[],
+    examples: &[ExampleEntry {
+        title: "説明文付き（label + description の合成）",
+        description: "`checkbox` は description 専用パートを持たない（headless anatomy に存在せず、chakra-ui も同様に呼び出し側合成のため。`fandhe_frontend_pre_styled_ui::checkbox` rustdoc「shadcn/ui との突合」節参照）。label の後ろへ通常の子ノードとして `fg-muted` + 1 段小さいフォントサイズの説明文を並べるだけで、2 段階の型階層を得られます。",
+        render: checkbox_with_description_example,
+    }],
     keyboard: &[],
     aria: &[
         AriaRow {
@@ -317,6 +323,49 @@ const CHECKBOX: ComponentPageSpec = ComponentPageSpec {
     ],
     demo: None,
 };
+
+// イシュー #2011: shadcn/ui との突合で「label + description の合成
+// パターン」の Examples が欠けていたことを確認したため追加。`checkbox`
+// 自体は description 専用パートを持たない（`fandhe_frontend_pre_styled_ui::checkbox`
+// rustdoc「意図的に合わせない点」節・「shadcn/ui との突合」節参照）ため、
+// 通常のノード木 API のみで label 横へ説明文を合成する呼び出し側の一例を
+// 示す（HTML 文字列直接組み立てを行わない、`.claude/rules/security.md` A03）。
+fn checkbox_with_description_example() -> Node {
+    let props = CheckboxProps {
+        checked: CheckedState::Unchecked,
+        ..CheckboxProps::default()
+    };
+    checkbox::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &props,
+        vec![("style", "align-items: flex-start;")],
+        vec![
+            checkbox::hidden_input(&props, "checkbox-with-description-example", "on", vec![]),
+            checkbox::control(
+                &props,
+                vec![],
+                vec![checkbox::indicator(&props, vec![], vec![])],
+            ),
+            el(
+                "div",
+                vec![],
+                vec![
+                    checkbox::label(&props, vec![], vec![text("Accept terms and conditions")]),
+                    p(
+                        vec![(
+                            "style",
+                            "margin: 0; color: var(--fandhe-color-fg-muted); font-size: var(--fandhe-font-font-size-xs);",
+                        )],
+                        vec![text(
+                            "By clicking this checkbox, you agree to the terms and conditions.",
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
 
 const CHECKBOX_CARD: ComponentPageSpec = ComponentPageSpec {
     features: &[

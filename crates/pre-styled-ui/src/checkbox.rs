@@ -171,6 +171,38 @@
 //!   記録済み: 現時点では見送り）。
 //! - **チェックマーク線幅（2px 固定）は size 連動させない**: xs〜xl で 2px
 //!   は視認性上妥当で、chakra も SVG アイコンで線幅を固定している。
+//!
+//! # shadcn/ui との突合（イシュー #2011）
+//!
+//! [shadcn/ui Checkbox](https://ui.shadcn.com/docs/components/base/checkbox)
+//! を補完参照（#2135 で確定した適用原則。既存の視覚言語を shadcn 風へ
+//! 置き換えることは目的としない）として突合した結果、`recipe()`/CSS 出力に
+//! 実体変更は不要と判断した。以下、確認した 4 項目を記録する。
+//!
+//! - **indeterminate の視覚表現**: shadcn の Examples に indeterminate 単独の
+//!   デモはないが、本モジュールは `control`/`indicator` の双方に
+//!   `data-state="indeterminate"` の state 規則を既に持つ（上記 rustdoc
+//!   参照）。追加の差分なし。
+//! - **card 風（枠付きボックス + checkbox + title + description）**:
+//!   shadcn の Examples に見られる合成パターンだが、本クレートでは
+//!   [`crate::checkbox_card`] が同等の 9 anatomy パーツ構成で既に充足して
+//!   いる（責務境界: 単体の checkbox は本モジュール、カード合成は
+//!   `checkbox_card` が担当する既存分業）。本モジュールへ card 相当の機能
+//!   を持ち込まない。
+//! - **`aria-invalid`（`data-invalid`）時の視覚**: shadcn はラベル文字色も
+//!   赤くするが、本モジュールは `control` の `border-color` のみを
+//!   danger 化し、ラベル文字色は変更しない。これは [`crate::field`]
+//!   rustdoc の「`data-invalid`/`data-readonly` によるラベル色変更は
+//!   chakra-ui v3 も持たない。invalid はコントロールの枠線色と
+//!   `error-text` の表示切替で伝える」判断を踏襲したものであり、本
+//!   クレート全体の視覚言語一貫性を優先して意図的に合わせない。
+//! - **label + description の縦組み合成**: 上記「意図的に合わせない点」節
+//!   （#1455）で決定済みのとおり `description` 専用パートは追加しない。
+//!   shadcn の Examples も同様に呼び出し側合成（`label` の後ろへ通常の
+//!   子ノードとして説明文を並べるだけ）であり、本クレートの既存方針と
+//!   一致する。合成パターンの実演は docs サイトの Demo/Examples 側
+//!   （`crates/docs-site/src/showcase.rs`・
+//!   `crates/docs-site/src/component_specs/forms.rs`）で示す。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
