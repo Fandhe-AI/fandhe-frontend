@@ -2076,7 +2076,10 @@ name = "fandhe-frontend-pre-styled-ui"
 # `error-text > ul` の `display: flex` と `list-style: disc` 併用による
 # disc マーカー非表示の是正（`padding`/`margin` の入れ替え）。依存先の
 # 破壊的変更への追随を含むためマイナーバンプで 0.124.0 とする。
-version = "0.124.0"
+# イシュー #2016: pin-input へ shadcn/ui 突合の pre-styled-only `separator`
+# パート（公開 API 追加、非破壊）を追加した。既存呼び出しへの影響はない
+# 加算のみのため patch バンプで 0.124.1 とする。
+version = "0.124.1"
 
 
 edition = "2021"

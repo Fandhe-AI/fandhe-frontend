@@ -1038,6 +1038,7 @@ const PIN_INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "`size` variant クラスを `root` へ付与し、headless-ui の `pin_input::root` へ委譲する。",
         "`complete`（全桁入力済み）・`disabled` の 2 状態フラグを直接引数で受け取る。",
+        "pre-styled-only `separator` パートで桁グループ（例: 3-3 の 6 桁）の間に視覚区切りを挟める（headless-ui 非依存、イシュー #2016）。",
     ],
     arguments: &[
         ArgRow {
@@ -1885,9 +1886,34 @@ fn demo_pin_input() -> Node {
             ],
         )
     };
+    // 6 桁を 3-3 でグループ化し、間に `separator` を挟んだ合成パターン
+    // （shadcn/ui Input OTP `InputOTPGroup`/`InputOTPSeparator` の突合、
+    // イシュー #2016）。`control` を 2 回並べ、その間に区切りを挟むだけで
+    // headless-ui 非依存にグルーピング表現できることを示す。
+    let grouped = {
+        let props = pin_input::PinInputProps::default();
+        pin_input::root(
+            Size::Md,
+            false,
+            false,
+            vec![],
+            vec![
+                pin_input::label(false, &props, vec![], vec![text("Verification code")]),
+                el(
+                    "div",
+                    vec![("style", "display: flex; align-items: center;")],
+                    vec![
+                        pin_input::control(vec![], pin_input_cells(3, false, false)),
+                        pin_input::separator(vec![], vec![text("-")]),
+                        pin_input::control(vec![], pin_input_cells(3, false, false)),
+                    ],
+                ),
+            ],
+        )
+    };
     demo_section(
         "Pin Input",
-        "PIN コード等、固定桁数の入力に使う部品。`complete`/`disabled` の 2 状態を持つ。",
+        "PIN コード等、固定桁数の入力に使う部品。`complete`/`disabled` の 2 状態を持つ。`separator` パートで桁グループ（3-3 等）を合成できる。",
         el(
             "div",
             vec![],
@@ -1897,6 +1923,7 @@ fn demo_pin_input() -> Node {
                 build(Size::Lg, false, false),
                 build(Size::Md, true, false),
                 build(Size::Md, false, true),
+                grouped,
             ],
         ),
     )

@@ -1317,10 +1317,11 @@ fn splitter_styled_root_panel_and_reexported_parts_are_escaped_for_all_payloads(
     }
 }
 
-/// (9) pin_input 経路（イシュー #739）: styled `root` の呼び出し側 `attrs`・
-/// `class`、および headless-ui から選択的再エクスポートした `label` の
-/// children・`input` の `value`・`hidden_input` の `name`/`value` の 5 箇所
-/// すべてで既定エスケープ（REQ-1）が貫通することを固定する
+/// (9) pin_input 経路（イシュー #739、#2016 で separator を追加）: styled
+/// `root` の呼び出し側 `attrs`・`class`、headless-ui から選択的再エクスポート
+/// した `label` の children・`input` の `value`・`hidden_input` の
+/// `name`/`value`、および pre-styled-only `separator` の `attrs`/`children`
+/// の 6 箇所すべてで既定エスケープ（REQ-1）が貫通することを固定する
 /// （`checkbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
 /// と同型）。
 #[test]
@@ -1394,6 +1395,14 @@ fn pin_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             &html,
             "pin_input::hidden_input name/value コンテキスト",
         );
+
+        // pre-styled-only separator の attrs 経路（イシュー #2016）。
+        let html = render(&pin_input::separator(vec![("data-x", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "pin_input::separator attrs コンテキスト");
+
+        // pre-styled-only separator の children 経路（イシュー #2016）。
+        let html = render(&pin_input::separator(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "pin_input::separator children コンテキスト");
     }
 }
 
