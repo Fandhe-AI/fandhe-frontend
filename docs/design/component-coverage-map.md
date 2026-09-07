@@ -996,10 +996,15 @@ message-scroller・data-table）または各対応 issue（button-group 等）�
 （Part D Direction Provider 行、保留）・`form`（v4 に独立コンポーネントとして
 存在しない。`docs/design/shadcn-inventory.md` §2/§5 参照）・`typeset`（v4 に
 存在しない。同書参照）は既存行への値追記または非該当のため、本 Part には
-新規行を作らない。`chart`（Part B `charts/use-chart.md` 行）が area/bar/
-donut/line/pie/radar の全チャート種別を包含する（v4 では個別ページ・
-個別アンカーを持たない構成、`shadcn-inventory.md` §2 参照）ため、Radial
-Chart についても本 Part への新規行を作らない（§12.1 参照）。
+新規行を作らない。`chart`（Part B `charts/use-chart.md` 行）は v4 の
+`chart.mdx` が単一ページに統合する area/bar/line/pie/radar の各チャート
+種別デモを包含する（個別ページ・個別アンカーを持たない構成、
+`shadcn-inventory.md` §2 参照）。このうち Radar 種別は Part B
+`charts/radar-chart.md` 行（`charts::radar_chart`、実装済み）として既に
+独立行を持つ。Radial Chart は Radar とは別種のチャートであり、v4 の
+`chart.mdx`（docs/components スコープ）にも掲載がないため、本 Part への
+新規行は作らない（Radar の実装状況を根拠にはしない。判定の詳細・独立判断は
+§12.1 参照）。
 
 ## 6. `site/nav.toml` 掲載要否の判断
 
@@ -1330,18 +1335,33 @@ marker/message-scroller/questionnaire/data-table）の判定根拠の詳細記�
 | Message Scroller (`message-scroller`) | Part F | #2120 | 実装対象確定（ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 | Data Table (`data-table`) | Part F | #2124 | 実装対象確定（構造・DOM 配線のみ。データ整形・並べ替えロジックは §3.25 規則 1 により非対象、ユーザー判断 2026-09-07）。判定根拠・確定記録は #2006 が転記 |
 
-**Radial Chart について**: 起票時点の計画は shadcn/ui v3 のページ構成
+**Radar Chart と Radial Chart は別種であり、個別に判定する**（codex-review
+指摘、#2136）。Radar（レーダーチャート）は Part B `charts/radar-chart.md`
+行が指す `charts::radar_chart`（`crates/pre-styled-ui/src/charts/mod.rs`
+`pub mod radar_chart;`、CSS も `stylesheet.rs` へ登録済み）として既に
+**実装済み**であり、#851（親 Phase #845、charts 基盤 #846 の上に実装）で
+保留解除済みである。「radar 種別は未実装」という記述は実装事実（同モジュール
+の公開状況、Part B 行の区分）と矛盾するため誤りであり、本節はこれを訂正
+する。
+
+Radial（Radial Chart、ドーナツ状の放射状チャート。shadcn/ui 公式 Charts
+Library `https://ui.shadcn.com/charts/radial` 参照）は Radar とは異なる
+チャート種別であり、Radar が実装済みであることを根拠に「対応済み」とは
+判定しない。独立に判定すると、起票時点の計画は shadcn/ui v3 のページ構成
 （`chart#radial` 等の個別アンカー）を前提に「Phase 5、#2078」として追加
 推奨を見込んでいたが、実装時点で一次ソース（`shadcn-ui/ui` commit
-`5c7072d`）を確認したところ、v4 の `chart.mdx` は area/bar/line/pie/radar/
-tooltip の全種別を単一ページに統合し、個別チャート種別ごとの見出し
-（アンカー）を持たない構成へ変更されていた（`docs/design/shadcn-inventory.md`
-§2・§5 参照）。このため既存 Part B `charts/use-chart.md` 行（`chart`
-mod、区分は実装済み。radar 種別は `crates/pre-styled-ui/src/charts` に
-未実装）が shadcn 側の `chart` 全体を代表しており、Radial Chart 専用の
-新規行・新規 issue 起票は不要と判断する。radar チャート実装自体の要否は
-既存 Part B `charts/use-chart.md` 行の枠内（Phase 5 の対象範囲、#2078 の
-issue 起票自体は別途 Phase 5 計画に委ねる）で扱う。
+`5c7072d`）を確認したところ、v4 の `chart.mdx`（`docs/components` スコープ、
+`shadcn-inventory.md` §2 参照）は area/bar/line/pie/radar/tooltip の各節を
+持つのみで Radial 用の節・アンカーを持たない構成へ変更されていた。ui.shadcn.com
+の `/charts/radial` は `docs/components/chart.mdx` とは別系統の Charts
+Library（registry ベースのショーケースページ群）に属し、`shadcn-inventory.md`
+§2 が定義する調査スコープ（`apps/v4/content/docs/components/*.mdx`）の外に
+ある（Blocks の対象外判断と同種の理由）。このため本節時点では Radial Chart
+専用の新規行・新規 issue 起票は行わない（Radar 実装で充足したためではなく、
+本書の調査スコープ外であるため。Charts Library 系ページを調査スコープへ
+含める判断が別途なされた場合は、その時点で Radial を独立に再判定する）。
+radar チャート自体は上記のとおり実装済みであり、既存 Part B
+`charts/radar-chart.md` 行の記録で完結する（追加対応は不要）。
 
 ### 12.2 保留
 
